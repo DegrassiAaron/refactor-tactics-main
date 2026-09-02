@@ -48,6 +48,56 @@ struct FRTTurnTrace
  * dire PASS/FAIL e diagnosticare la causa senza aprire migliaia di righe di log Unreal.
  */
 
+
+/**
+ * UN CAMPO CHE E' CAMBIATO fra l'ingresso e l'uscita di una run — `#1630`.
+ *
+ * 🔑 **Porta il valore prima e dopo, non la differenza**: per `Cell` e `Statuses` una sottrazione non
+ * esiste, e un diff che mostrasse solo «cambiato» costringerebbe a rileggere la traccia — cioè la cosa che
+ * questa slice esiste per evitare.
+ */
+struct FRTUnitFieldChange
+{
+	/** Il nome del campo, come si chiama in `FRTUnitStateDigest`: `Health`, `Cell`, `Facing`, … */
+	FName Field;
+
+	FString Before;
+
+	FString After;
+
+	FRTUnitFieldChange() = default;
+	FRTUnitFieldChange(FName InField, const FString& InBefore, const FString& InAfter)
+		: Field(InField), Before(InBefore), After(InAfter) {}
+};
+
+/** Come un'unita' compare nel diff: presente in entrambi gli stati, o solo in uno. */
+enum class ERTUnitDiffPresence : uint8
+{
+	/** C'era prima e c'e' dopo: i campi cambiati sono in `Changes`. */
+	Present,
+	/** Non c'era all'inizio ed e' comparsa. */
+	Appeared,
+	/** C'era all'inizio e non c'e' piu'. */
+	Disappeared
+};
+
+/**
+ * IL DIFF DI UN'UNITA': solo i campi cambiati, e nient'altro — `#1630`.
+ *
+ * ⚠️ **Una comparsa o una sparizione NON si rendono come campi cambiati.** Un'unita' che sparisce non e'
+ * un `Health` che va a zero: e' un'assenza, e dirla come un campo costringerebbe chi legge a distinguere
+ * due cose diverse dallo stesso segno.
+ */
+struct FRTUnitStateDiff
+{
+	int32 UnitId = 0;
+
+	ERTUnitDiffPresence Presence = ERTUnitDiffPresence::Present;
+
+	/** Vuoto se niente e' cambiato: un'unita' immobile e intatta non ha righe. */
+	TArray<FRTUnitFieldChange> Changes;
+};
+
 struct FRTTestResult
 {
 	FString ScenarioId;
@@ -158,6 +208,22 @@ struct FRTTestResult
 	FString DecisionSource = TEXT("none");
 
 	TArray<FRTAssertionResult> Assertions;
+
+	/**
+	 * COSA E' CAMBIATO fra l'ingresso e l'uscita, per unita' — `#1630`.
+	 *
+	 * 🔑 **Letto, non ricostruito.** I due stati arrivano da `URTMatchStateHashLibrary::BuildUnitDigests`,
+	 * la stessa funzione che alimenta il checksum: il diff NON somma gli eventi del TurnLog. La differenza
+	 * si vede in un caso preciso — uno stato che cambia senza che una voce di log lo nomini compare
+	 * comunque qui, ed e' l'esperimento che il criterio d'accettazione porta con se'.
+	 *
+	 * ⚠️ Ordinato per `UnitId`: gli stati nascono da una `TMap`, la cui iterazione non e' garantita.
+	 * L'hash se ne salva perche' ordina prima di mescolare; un elenco esposto no.
+	 *
+	 * ⛔ Non entra in `StateHash` ne' nel TurnLog: e' una lettura, e una lettura che cambiasse un esito
+	 * sarebbe un secondo calcolo.
+	 */
+	TArray<FRTUnitStateDiff> StateDiff;
 
 	int32 PassedCount() const
 	{

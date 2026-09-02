@@ -3,6 +3,25 @@
 #include "CoreMinimal.h"
 #include "ScenarioHarness/RTTestScenario.h"
 #include "ScenarioHarness/RTTestResult.h"
+#include "Turn/RTMatchStateHash.h" // FRTUnitStateDigest: lo stato d'ingresso del diff (#1630)
+
+/**
+ * IL DIFF FRA DUE STATI, dichiarato qui perche' sia VERIFICABILE — `#1630`.
+ *
+ * 🔑 Le funzioni vivono nel `.cpp`, ma la dichiarazione sta in un header per una ragione sola: un
+ * calcolo che nessun test puo' chiamare si verifica solo attraverso una run intera, e allora fallisce
+ * insieme a tutto il resto senza dire quale meta' e' rotta.
+ */
+namespace RTScenarioStateDiff
+{
+	/** I digest delle unita' vive, ORDINATI per `UnitId` — l'iterazione di una `TMap` non e' garantita. */
+	REFACTORTACTICS_API TArray<FRTUnitStateDigest> Snapshot(
+		const TMap<FString, TWeakObjectPtr<ARTUnit>>& UnitsById);
+
+	/** Il diff fra due elenchi: campi cambiati, comparse e sparizioni, in ordine di `UnitId`. */
+	REFACTORTACTICS_API TArray<FRTUnitStateDiff> Build(const TArray<FRTUnitStateDigest>& Before,
+		const TArray<FRTUnitStateDigest>& After);
+}
 #include "Ability/RTWorkbenchVariant.h" // per valore: la sessione la possiede, non la osserva
 
 class UWorld;
@@ -181,6 +200,14 @@ private:
 	TWeakObjectPtr<ARTTurnManager> TurnManager;
 	TObjectPtr<URTHexMapAsset> Map;
 	TMap<FString, TWeakObjectPtr<ARTUnit>> UnitsById;
+
+	/**
+	 * Lo stato delle unita' COME ERANO all'avvio, per il diff di `#1630`.
+	 *
+	 * ⚠️ Si cattura alla fine di `Start()`, quando l'allestimento e' finito e nessun turno e' ancora
+	 * girato: un istante prima le unita' non esistono, uno dopo il primo turno le ha gia' toccate.
+	 */
+	TArray<FRTUnitStateDigest> InitialUnitStates;
 
 	int32 TurnIndex = 0;
 	float PauseElapsed = 0.f;
