@@ -143,6 +143,26 @@ public:
 	TObjectPtr<class UTextRenderComponent> OptionalLabel;
 
 	/**
+	 * 🔑 **Il riferimento contro cui il facing si giudica.** Punta sempre a `ERTHexDirection::E`, che in
+	 * coordinate-mondo e' **+X** — e resta fermo mentre `Facing` gira.
+	 *
+	 * 🔴 **Perche' esiste**: nella seduta `U41` il marker seguiva la direzione scelta, ma il verdetto e'
+	 * stato *«non so se e' corretto perche' non so qual e' il nord»*. Senza un riferimento **indipendente**
+	 * nella scena, «il marker guarda dove dico io» non e' falsificabile: ogni orientamento sembra giusto
+	 * se si sceglie il nord dopo averlo visto. E' lo stesso difetto che `PIE-FACING` ha risolto sulle
+	 * unita' con `FacingArrow`, e per la stessa ragione: separare *«sbagliato»* da *«non so»*.
+	 *
+	 * ⚠️ **Rotazione ASSOLUTA**: se ereditasse quella dell'attore ruoterebbe con lui e smetterebbe di
+	 * essere un riferimento nell'istante in cui servirebbe di piu'.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Graybox")
+	TObjectPtr<class UArrowComponent> EastReference;
+
+	/** L'etichetta del riferimento: una freccia senza nome sposta il dubbio, non lo toglie. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Graybox")
+	TObjectPtr<class UTextRenderComponent> EastReferenceLabel;
+
+	/**
 	 * La posa del marker nello spazio dell'attore: **pura, e chiamabile headless**.
 	 *
 	 * 🔑 E' il punto in cui questa classe smette di essere un asset e diventa qualcosa che un test puo'

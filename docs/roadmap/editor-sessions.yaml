@@ -2488,5 +2488,20 @@ sessions:
       commandlet, riempiendo `DefaultOptions` in C++.
       ⚠️ **Il grafo compila ma non è mai stato eseguito**: nessun test headless apre un
       `EditorUtilityWidget`. La prima esecuzione è questa seduta.
+      ✅ **ESEGUITA IN PARTE il 2026-09-02 — il pannello funziona.** *«Segue il facing selezionato»*: il
+      grafo gira, e questa è la prima evidenza che esista. *«La posizione iniziale punta a Est»* — ed è
+      **corretto**, misurato: `ERTHexDirection` comincia con `E` (`RTCellId.h:13`) e il fixture nasce
+      `Facing = E` (`RTGrayboxUnitFacingFixture.h:62`), che in mondo è `+X`.
+      🔴 **Ma il verdetto è arrivato condizionato — «non so se è corretto perché non so qual è il nord» —
+      e la lacuna era del repository, non di chi guardava.** Nessun documento ancorava i nomi bussola agli
+      assi: `E = +X` era una conseguenza di `AxialToWorld`, mai dichiarata. Chiuso con tre cose: la
+      convenzione in `spec-hex-geometry-authoring.md` §2.1.1 (**`E` è `+X`, quindi `N` è `−Y`, cioè a
+      sinistra nella vista dall'alto**), l'ancora letterale in
+      `Hex.EastIsWorldPlusXAndTheSixYawsAreDeclared`, e un `EastReference` nella scena — freccia a
+      rotazione assoluta con etichetta, presidiata da `Graybox.FixtureEastReferenceDoesNotFollowFacing`.
+      ⛔ **NON ancora osservati, e la seduta resta aperta su questi**: lo stato `Error` con un'altra mappa
+      aperta (la ragione è *leggibile*? headless lo prova solo *esatto*), i tre preset di camera — che
+      **non sono cablati**, quindi il loro verdetto è prematuro — e che le chip `02`..`08` non sembrino
+      funzionanti.
       ⚠️ ID assegnato prima del merge: `U41`, con `U40` come massimo misurato su `main` **e su tutti i
       branch remoti** il 2026-09-02. Chi arriva secondo rinumera, non contende.

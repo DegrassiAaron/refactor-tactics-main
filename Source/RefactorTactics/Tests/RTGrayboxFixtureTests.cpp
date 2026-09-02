@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 
+#include "Components/ArrowComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -256,6 +257,70 @@ bool FRTGrayboxFixtureMarkerHeightTest::RunTest(const FString&)
 
 	// ⛔ E non esce dalla sommita': un marker che levita sopra il corpo non ne indica piu' il facing.
 	TestTrue(TEXT("il marker resta sul corpo, non sopra"), CDO->FaceHeight < CDO->BodyHeight);
+	return true;
+}
+
+/**
+ * 🔑 **Il riferimento sta fermo mentre il marker gira — ed e' l'unico modo di rendere falsificabile
+ * «il facing e' corretto».**
+ *
+ * 🔴 Nella seduta `U41` il marker seguiva la direzione scelta, e il verdetto e' stato comunque
+ * *«non so se e' corretto perche' non so qual e' il nord»*: scelto il nord **dopo** aver guardato, ogni
+ * orientamento torna. `EastReference` e' il termine di paragone indipendente.
+ *
+ * ⚠️ **Un test di sola invarianza sarebbe VACUO**: una freccia ferma perche' *niente* si muove passerebbe.
+ * Quindi si asserisce la coppia — il riferimento **non** cambia **e** il marker **si'** — sulle stesse
+ * due direzioni. Senza il secondo asserto questo test sarebbe verde anche su un fixture rotto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGrayboxEastReferenceTest,
+	"RefactorTactics.Graybox.FixtureEastReferenceDoesNotFollowFacing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGrayboxEastReferenceTest::RunTest(const FString&)
+{
+	UWorld* World = MakeGrayboxFixtureWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World))
+	{
+		return false;
+	}
+	// 🔴 **L'attore nasce RUOTATO, e non e' un capriccio.** Con `FRotator::ZeroRotator` la freccia
+	// punterebbe a `+X` **anche senza** rotazione assoluta — il padre e' l'identita' — e questo test
+	// resterebbe verde dopo aver tolto la proprieta' che esiste per verificare. Con uno yaw qualunque
+	// una freccia ereditata guarderebbe altrove, e il rosso arriva.
+	const FRotator ObliqueSpawn(0.0, 37.0, 0.0);
+	ARTGrayboxUnitFacingFixture* Fixture =
+		World->SpawnActor<ARTGrayboxUnitFacingFixture>(FVector::ZeroVector, ObliqueSpawn);
+	if (!TestNotNull(TEXT("fixture spawnato"), Fixture) ||
+		!TestNotNull(TEXT("il riferimento esiste"), Fixture->EastReference.Get()))
+	{
+		DestroyGrayboxFixtureWorld(World);
+		return false;
+	}
+
+	// L'ancora: il riferimento guarda world +X, cioe' `ERTHexDirection::E`, malgrado l'attore sia storto.
+	TestTrue(TEXT("l'attore e' davvero ruotato, altrimenti l'asserto seguente non prova nulla"),
+		!Fixture->GetActorRotation().Equals(FRotator::ZeroRotator, 1.e-3));
+	TestTrue(TEXT("il riferimento guarda world +X anche su un attore ruotato"),
+		Fixture->EastReference->GetForwardVector().Equals(FVector::XAxisVector, 1.e-3));
+
+	FVector MarkerAt[6];
+	for (int32 D = 0; D < 6; ++D)
+	{
+		Fixture->Facing = static_cast<ERTHexDirection>(D);
+		Fixture->RerunConstructionScripts();
+
+		TestTrue(*FString::Printf(TEXT("direzione %d: il riferimento NON si e' mosso"), D),
+			Fixture->EastReference->GetForwardVector().Equals(FVector::XAxisVector, 1.e-3));
+		MarkerAt[D] = Fixture->FacingMarker ? Fixture->FacingMarker->GetComponentLocation() : FVector::ZeroVector;
+	}
+
+	// ⛔ L'asserto che toglie la vacuita': il marker si e' mosso davvero, e in sei punti distinti.
+	for (int32 D = 1; D < 6; ++D)
+	{
+		TestFalse(*FString::Printf(TEXT("il marker in %d non coincide con quello in 0"), D),
+			MarkerAt[D].Equals(MarkerAt[0], 1.0));
+	}
+
+	DestroyGrayboxFixtureWorld(World);
 	return true;
 }
 

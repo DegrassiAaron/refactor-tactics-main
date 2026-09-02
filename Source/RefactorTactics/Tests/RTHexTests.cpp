@@ -1342,4 +1342,47 @@ bool FRTSegmentSplitAcrossCellsIsContinuousTest::RunTest(const FString&)
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.
+/**
+ * 🔑 **L'ANCORA ASSOLUTA della bussola: `E` e' `+X`, e da li' `N` e' `-Y`.**
+ *
+ * 🔴 **Perche' non basta `FacingRotationMatchesNeighbourDirection`.** Quel test costruisce l'atteso con
+ * `AxialToWorld` + `Neighbor` — un'altra strada, ma la **stessa origine**. Se qualcuno scambiasse `Wx` e
+ * `Wy` dentro `AxialToWorld`, entrambi i lati ruoterebbero insieme e il test resterebbe **verde** mentre
+ * l'intera mappa gira di 90 gradi sotto i piedi. La convenzione va dichiarata, non derivata: qui gli
+ * angoli sono **letterali**, ed e' voluto — cambiarla deve costare la modifica di questa tabella.
+ *
+ * ⚠️ **Non e' un dettaglio da documento.** Nella seduta `U41` il verdetto sul facing e' stato
+ * *«non so se e' corretto perche' non so qual e' il nord»*: senza questa ancora la domanda non ha
+ * risposta nel repository. Owner in prosa: `spec-hex-geometry-authoring.md` §2.1.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexCompassAnchorTest,
+	"RefactorTactics.Hex.EastIsWorldPlusXAndTheSixYawsAreDeclared",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexCompassAnchorTest::RunTest(const FString&)
+{
+	// L'ancora, detta una volta e in chiaro.
+	TestTrue(TEXT("E guarda world +X"),
+		URTHexLibrary::FacingRotation(ERTHexDirection::E).Vector().Equals(FVector::XAxisVector, 1.e-3));
+
+	// La tabella E' la convenzione: enum order E, NE, NW, W, SW, SE.
+	const double DeclaredYaw[6] = { 0.0, -60.0, -120.0, 180.0, 120.0, 60.0 };
+	for (int32 D = 0; D < 6; ++D)
+	{
+		const FVector Expected = FRotator(0.0, DeclaredYaw[D], 0.0).Vector();
+		const FVector Actual = URTHexLibrary::FacingRotation(static_cast<ERTHexDirection>(D)).Vector();
+		TestTrue(*FString::Printf(TEXT("direzione %d: yaw dichiarato %.0f"), D, DeclaredYaw[D]),
+			Actual.Equals(Expected, 1.e-3));
+	}
+
+	// ⛔ E il corollario che la spec dichiara a parole: in un pointy-top **nessun lato guarda a nord**.
+	// Se un giorno una direzione ci finisse sopra, la §2.1 sarebbe diventata falsa senza che nulla lo dica.
+	const FVector North = -FVector::YAxisVector;
+	for (int32 D = 0; D < 6; ++D)
+	{
+		TestFalse(*FString::Printf(TEXT("direzione %d non e' il nord (-Y)"), D),
+			URTHexLibrary::FacingRotation(static_cast<ERTHexDirection>(D)).Vector().Equals(North, 1.e-3));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
