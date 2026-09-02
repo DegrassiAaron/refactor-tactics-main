@@ -529,4 +529,86 @@ bool FRTHudVmRoundLimitTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `CP 10.2` / `#75` — il progresso sull'obiettivo arriva fino all'HUD.
+ *
+ * La DoD di CP 10.2 chiede che il progresso sia «un intero, mai un float, e compaia **nell'HUD e nel
+ * TurnLog**». La metà nel TurnLog era soddisfatta da quando il Cleanup registra `Objective.Control`; la
+ * metà nell'HUD no: `GetTeamScore` aveva per lettori lo Scenario Harness e l'hash di stato, e nessun
+ * widget. Un punteggio che nessuno mostra è un punteggio che il giocatore non può contendere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmObjectiveScoreTest,
+	"RefactorTactics.HudViewModel.ObjectiveProgressReachesTheHud",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmObjectiveScoreTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHudVmWorld(World); return false; }
+
+	// A zero punti la vista dice zero, non «nessun dato»: una partita appena cominciata ha un punteggio, ed
+	// è `0 — 0`.
+	{
+		const FRTMatchHeaderView View = URTHudViewModel::BuildMatchHeader(TM);
+		TestEqual(TEXT("all'inizio la squadra 0 e' a zero"), View.Team0Score, 0);
+		TestEqual(TEXT("e anche la squadra 1"), View.Team1Score, 0);
+	}
+
+	// Il progresso si vede, e si vede SEPARATO per squadra: un solo numero non distinguerebbe «2 a 0» da
+	// «0 a 2», che è esattamente la differenza che un obiettivo conteso produce.
+	{
+		TM->AddTeamScore(0, 1);
+		TM->AddTeamScore(0, 1);
+		TM->AddTeamScore(1, 1);
+		const FRTMatchHeaderView View = URTHudViewModel::BuildMatchHeader(TM);
+		TestEqual(TEXT("la squadra 0 ha due punti"), View.Team0Score, 2);
+		TestEqual(TEXT("la squadra 1 ne ha uno"), View.Team1Score, 1);
+	}
+
+	// ⚠️ **La vista dice la stessa cosa del simulatore, non una cosa simile.** È la proprieta' che rende il
+	// numero mostrato verificabile contro il TurnLog: se qui comparisse una conversione, un arrotondamento o
+	// un `float`, l'HUD e il log potrebbero divergere senza che nessun test se ne accorga.
+	{
+		const FRTMatchHeaderView View = URTHudViewModel::BuildMatchHeader(TM);
+		TestEqual(TEXT("la vista rispecchia il simulatore, squadra 0"), View.Team0Score, TM->GetTeamScore(0));
+		TestEqual(TEXT("la vista rispecchia il simulatore, squadra 1"), View.Team1Score, TM->GetTeamScore(1));
+	}
+
+	// `ScoreToWin` viene dal FORMATO, come `RoundLimit`: senza di lui un widget non sa se `2` sia molto o
+	// niente.
+	{
+		FRTMatchRules Rules;
+		Rules.ScoreToWin = 3;
+		TM->SetMatchRules(Rules);
+		TestEqual(TEXT("la soglia e' quella del formato (3)"),
+			URTHudViewModel::BuildMatchHeader(TM).ScoreToWin, 3);
+	}
+
+	// ⚠️ `0` è il valore della v0.1 e significa «via per obiettivo DISATTIVATA», non «si vince a zero
+	// punti». La vista lo tiene distinto per la stessa ragione per cui tiene distinto `RoundLimit = 0`: un
+	// widget deve poter mostrare «2» invece di «2/0».
+	{
+		FRTMatchRules Rules;
+		Rules.ScoreToWin = 0;
+		TM->SetMatchRules(Rules);
+		const FRTMatchHeaderView View = URTHudViewModel::BuildMatchHeader(TM);
+		TestEqual(TEXT("via disattivata: la soglia resta 0"), View.ScoreToWin, 0);
+		TestEqual(TEXT("ma il progresso continua a vedersi"), View.Team0Score, 2);
+	}
+
+	// Senza manager la vista è NEUTRA, e per il punteggio «neutro» è zero — come per il round. Il caso
+	// esiste gia' in `HeaderWithoutManagerIsNeutral`; qui si fissa che i campi nuovi non lo rompano.
+	{
+		const FRTMatchHeaderView View = URTHudViewModel::BuildMatchHeader(nullptr);
+		TestEqual(TEXT("senza manager, squadra 0 a zero"), View.Team0Score, 0);
+		TestEqual(TEXT("senza manager, squadra 1 a zero"), View.Team1Score, 0);
+		TestEqual(TEXT("senza manager, nessuna soglia"), View.ScoreToWin, 0);
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
