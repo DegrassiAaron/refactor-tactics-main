@@ -573,6 +573,30 @@ enum class ERTCombatOutcome : uint8
  * voci ambientali, per l'interposizione (che scrive la cella del protetto) e dopo un Dash. L'identita' la
  * porta `UnitId` dal formato v6 (D-063).
  */
+/**
+ * I tre soli ingressi che `FreezeVerdict` legge, per dire contro CHI un verdetto e' stato congelato.
+ *
+ * ⚠️ **Non e' un `FRTKnowledgeSubject`, ed e' deliberato**: quello porta anche `HeroId`, `HeroDisplayName`
+ * e `bAlive`, che `ClassifyTarget` non guarda. Una `FText` dentro la struct piu' copiata e ordinata del
+ * resolver costerebbe traffico di refcount a ogni copia di `TurnLog`, per un dato che nessuno legge — e
+ * trascinerebbe `Perception/RTKnowledgeView.h` dentro uno degli header piu' inclusi del progetto.
+ */
+USTRUCT(BlueprintType)
+struct FRTVerdictSubjectRef
+{
+	GENERATED_BODY()
+
+	/** `INDEX_NONE` = fatto di MONDO: nessun soggetto, e il verdetto e' `Everyone()` per REGOLA. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 StableUnitId = INDEX_NONE;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 TeamId = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	FRTCellId Cell;
+};
+
 USTRUCT(BlueprintType)
 struct FRTTurnLogEntry
 {
@@ -749,6 +773,25 @@ struct FRTTurnLogEntry
 	 */
 	UPROPERTY(Transient)
 	FRTKnowledgeVerdict Verdict;
+
+	/**
+	 * Il soggetto contro cui `Verdict` e' stato congelato ([D-313], `#2074`).
+	 *
+	 * 🔴 **Senza, il verdetto non e' VERIFICABILE**, ed e' l'unica ragione per cui esiste: nessuno dei tre
+	 * ingressi di `FreezeVerdict` si ricava dalla voce archiviata. `SrcCell` e' la cella di PARTENZA del
+	 * turno, non quella al momento della scrittura; il `TeamId` non c'e'; e `UnitId` su una voce di danno e'
+	 * spesso chi SUBISCE. Ricalcolare da li' produrrebbe falsi disallineamenti — un controllo che accusa il
+	 * gioco di un difetto che non ha.
+	 *
+	 * ⚠️ **Vive QUI e non in un array parallelo, per la stessa ragione del verdetto**: `SortTurnLog`
+	 * riordina, e un indice non sopravviverebbe al sort. Il campo si'.
+	 *
+	 * 🔴 **`Transient`, come `Verdict`**: non entra nel formato, non entra in `EntryLess`, non entra in
+	 * `MixEntryFields`, e nessun golden si rigenera. Chi lo vuole durevole lo trova nell'artefatto d'audit
+	 * accanto alla traccia, che e' il posto che [D-313] gli assegna.
+	 */
+	UPROPERTY(Transient)
+	FRTVerdictSubjectRef VerdictSubject;
 
 	/**
 	 * Turno in cui la voce e' stata emessa. `0` = non dichiarato (tracce scritte prima del formato v6).
