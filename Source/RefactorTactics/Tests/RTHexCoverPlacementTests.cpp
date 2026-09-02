@@ -4,6 +4,8 @@
 #include "Map/RTGeometryGrammar.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTCellId.h"
+#include "Map/RTHexMapAsset.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
 
@@ -609,6 +611,99 @@ bool FRTCoverPlacementDiameterOnEveryAxisTest::RunTest(const FString&)
 			MaskA & MaskB, 0);
 	}
 
+	return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// 13 · La traversata autorata — `E23.7`, `D-308`, `#1828`
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * UN MURO SCAVALCABILE RENDE VALIDO CIÒ CHE SENZA ERA `Blocked`, **e solo quello**.
+ *
+ * 🔑 È il terzo valore che l'enum aspettava, e questo test è il suo produttore misurato: fino a `D-308` la
+ * scavalcabilità non esisteva come dato, quindi `AuthoredTraversal` sarebbe stata un'etichetta che nessun
+ * ramo emette — il difetto che `RTHexCoverPlacementLibrary.h` §6 dichiarava di voler evitare.
+ *
+ * Le due maschere sono ciò che il chiamante costruisce: `Mask` con tutti i muri, `Traversable` senza quelli
+ * che un autore ha marcato superabili.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverPlacementAuthoredTraversalTest,
+	"RefactorTactics.CoverPlacement.AuthoredTraversalUnblocksOnlyWhatItSeparates",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverPlacementAuthoredTraversalTest::RunTest(const FString&)
+{
+	// Un diametro `Deg0`: occupa `{0,1,6,7}` e divide la cella in due semipiani — `{2..5}` e `{8..11}`.
+	const FRTOccupancyMask Divided = MaskOf({ 0, 1, 6, 7 }, /*bCore*/ true);
+	const FRTOccupancyMask Empty;
+
+	// Senza traversata: la vecchia risposta, invariata.
+	TestEqual(TEXT("senza traversata resta Blocked"),
+		URTHexCoverPlacementLibrary::ClassifyIntraCellTraversal(Divided, 3, 9),
+		ERTIntraCellTraversal::Blocked);
+
+	// Con il muro dichiarato scavalcabile: `Traversable` è la cella senza quel muro, cioè vuota.
+	TestEqual(TEXT("con il muro scavalcabile la transizione è autorata"),
+		URTHexCoverPlacementLibrary::ClassifyIntraCellTraversalWithAuthored(Divided, Empty, 3, 9),
+		ERTIntraCellTraversal::AuthoredTraversal);
+
+	// ⚠️ **E NON diventa `SameRegion`**: là non si attraversa niente e non si paga; qui si scavalca, e
+	// `D-308` fissa un costo. Schiacciare i due valori renderebbe gratuito ciò che ha un prezzo.
+	TestNotEqual(TEXT("e non si confonde con SameRegion"),
+		URTHexCoverPlacementLibrary::ClassifyIntraCellTraversalWithAuthored(Divided, Empty, 3, 9),
+		ERTIntraCellTraversal::SameRegion);
+
+	// Due settori già nella stessa regione restano `SameRegion` anche con muri scavalcabili in giro: non si
+	// paga un muro a cui si passa accanto.
+	TestEqual(TEXT("chi non attraversa non paga"),
+		URTHexCoverPlacementLibrary::ClassifyIntraCellTraversalWithAuthored(Divided, Empty, 3, 4),
+		ERTIntraCellTraversal::SameRegion);
+
+	// 🔴 **L'AC 5: una traversata autorata non collega due regioni ATTRAVERSO geometria bloccante.** Qui il
+	// muro scavalcabile è uno solo dei due che separano, e toglierlo non basta: `Traversable` resta divisa
+	// dall'altro, e la risposta torna `Blocked`. Il modello non sa esprimere il caso vietato.
+	const FRTOccupancyMask StillDivided = MaskOf({ 0, 1, 6, 7 }, /*bCore*/ true);
+	TestEqual(TEXT("se resta un muro non scavalcabile, è Blocked"),
+		URTHexCoverPlacementLibrary::ClassifyIntraCellTraversalWithAuthored(Divided, StillDivided, 3, 9),
+		ERTIntraCellTraversal::Blocked);
+
+	// Un settore occupato non ha posa: nessuna traversata lo rende raggiungibile.
+	TestEqual(TEXT("un settore occupato resta Blocked"),
+		URTHexCoverPlacementLibrary::ClassifyIntraCellTraversalWithAuthored(Divided, Empty, 0, 3),
+		ERTIntraCellTraversal::Blocked);
+	return true;
+}
+
+/**
+ * LA SCAVALCABILITÀ ENTRA NELL'HASH, e non si deduce dall'altezza.
+ *
+ * ⛔ La seconda metà è la clausola di `D-308`: `Low`/`High` sono vocabolario di **mitigazione** (`D-271`) e
+ * non devono diventare per inerzia un vocabolario di **traversabilità**. Un muretto non è scavalcabile
+ * perché è basso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverPlacementTraversableHashTest,
+	"RefactorTactics.HexMap.TraversableWallEntersHashAndIsNotDerivedFromHeight",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverPlacementTraversableHashTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 2);
+	if (!TestNotNull(TEXT("arena"), Map)) { return false; }
+
+	FRTHexInteriorWall Wall(FRTCellId(0, 0, 0), Diameter(ERTTacticalAxis::Deg0));
+	Map->InteriorWalls.Add(Wall);
+	const uint32 Solid = Map->ComputeHash();
+
+	Map->InteriorWalls[0].bTraversable = true;
+	TestNotEqual(TEXT("renderlo scavalcabile cambia l'hash"), Map->ComputeHash(), Solid);
+
+	// ⛔ Abbassarlo NON lo rende scavalcabile: sono due campi indipendenti, ed è la clausola di `D-308`.
+	Map->InteriorWalls[0].bTraversable = false;
+	Map->InteriorWalls[0].Segment.WallType = ERTHexCoverType::Low;
+	TestFalse(TEXT("un muretto non è scavalcabile per il fatto di essere basso"),
+		Map->InteriorWalls[0].bTraversable);
+
+	// E il formato dichiara la versione che porta il campo.
+	TestEqual(TEXT("il formato è v14"), URTHexMapAsset::CurrentFormatVersion, 14);
 	return true;
 }
 #endif // WITH_DEV_AUTOMATION_TESTS

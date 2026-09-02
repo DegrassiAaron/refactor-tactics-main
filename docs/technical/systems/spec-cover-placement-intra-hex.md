@@ -175,6 +175,7 @@ all'editor di mostrarle separate. Schiacciarle in una sola nasconde proprio il c
 |---|---|
 | `SameRegion` | i due settori appartengono alla stessa regione libera |
 | `Blocked` | regioni diverse, oppure un settore occupato — non c'è posa da cui partire o a cui arrivare |
+| `AuthoredTraversal` | regioni diverse, ma a separarle è **solo** geometria che un autore ha reso scavalcabile — dal 2026-09-02 |
 
 **Stesso `CellId` non significa passaggio libero.** Un muro continuo divide lo spazio di posa di **un solo**
 `FRTCellId` in due regioni sconnesse, e questo **non crea** un secondo slot di occupancy.
@@ -184,11 +185,32 @@ percorso reale attorno all'estremo del muro sul grafo. Senza, è invalida.
 
 ⛔ **La scelta della faccia non è mai un modo di attraversare geometria bloccante.**
 
-⚠️ **Due valori, entrambi raggiungibili, ed è deliberato.** Il terzo — la traversata autorata — esiste nel
-modello e **non** nel tipo, perché in v0.1 nessun vocabolario la esprime: `FRTHexDoor` sta sui **bordi**. Va
-aggiunto **in coda insieme al suo produttore** ([#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828)):
-un valore d'enum che nessuno può emettere è un campo che nessuno legge, ed è il difetto che questo
-repository ha già pagato quattro volte.
+✅ **Il terzo valore è arrivato il 2026-09-02** con [#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828),
+**in coda insieme al suo produttore** come questa riga chiedeva. Il produttore è
+`FRTHexInteriorWall::bTraversable` (formato **v14**): senza di lui `AuthoredTraversal` sarebbe stata
+un'etichetta che nessun ramo emette, ed è il difetto che questo repository ha già pagato quattro volte.
+
+> 🔴 **Precisazione a [`D-308`](../../decisions/RT_PDR_00_Decision_Log.md), registrata dove la decisione indica il proprio owner.**
+> `D-308` nomina il **vault** *«il produttore che il terzo valore di `ERTIntraCellTraversal` aspettava»*, ma lo
+> definisce **fra celle adiacenti** — e questo enum vive **dentro** una cella: la sua firma riceve una
+> maschera e due settori, **non** un `FRTCellId`. Una transizione fra due celle non può emettere un valore
+> intra-cella; un vault da `C` a `D` non porta nessuno dal lato A al lato B di `C`, che è *«un percorso reale
+> attorno all'estremo»* — cosa che questo stesso paragrafo elenca **separatamente**.
+>
+> ∴ Il dato vive sul **muro interno**, che è ciò che divide la cella. È la lettura fedele al principio che
+> `D-308` scrive — *«la scavalcabilità è un **dato**, non una conseguenza dell'altezza»* — e non ne estende
+> nessun'altra clausola: il vault inter-cella resta quello che `D-308` descrive, con il suo `+1 MP`.
+>
+> ⛔ **`Low` non diventa scavalcabile per effetto del formato v14**, e un test lo pinna: i due campi sono
+> indipendenti.
+
+🔑 **`AuthoredTraversal` non è `SameRegion` con un altro nome.** Là non si attraversa niente e non si paga;
+qui si scavalca, e `D-308` fissa un costo. Schiacciare i due valori renderebbe gratuito ciò che ha un prezzo.
+
+⛔ **E non introduce un secondo slot di occupancy**: la capacità resta **una** unità per `FRTCellId`
+([`D-289`](../../decisions/RT_PDR_00_Decision_Log.md)). Scavalcare porta all'altra faccia, non in due posti —
+e la funzione lo impone leggendo l'occupabilità dalla maschera **reale**, non da quella ripulita dai muri
+superabili: *si scavalca un muro, non ci si sta sopra*.
 
 ### 6.1 Se il livello vuole davvero due unità sui due lati
 
@@ -490,10 +512,23 @@ raggiunge niente. Due costi omonimi su due eventi diversi.
 ➕ **I costi si sommano e non si assorbono**: se dopo il vault si entra **anche** in copertura, il `+1 MP` di
 `COV-6` si aggiunge separatamente. Sono due eventi.
 
-🔑 **Questa regola è il produttore che §6 dichiarava mancante.** Quel paragrafo tiene `ERTIntraCellTraversal`
-a **due** valori perché *«un valore d'enum che nessuno può emettere è un campo che nessuno legge»*, e chiede che
-il terzo arrivi *«in coda insieme al suo produttore»*. ⚠️ **Il valore non si aggiunge per effetto di questa
-decisione**: arriva con l'implementazione di `E23.7` ([#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828)), che ora ha finalmente qualcosa da emettere.
+🔑 **Questa regola è il produttore che §6 dichiarava mancante.** Quel paragrafo teneva `ERTIntraCellTraversal`
+a **due** valori perché *«un valore d'enum che nessuno può emettere è un campo che nessuno legge»*, e chiedeva
+che il terzo arrivasse *«in coda insieme al suo produttore»*.
+
+✅ **Arrivato il 2026-09-02** con [#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828).
+⚠️ **Ma il produttore non è questo, ed è una precisazione che vale la pena leggere**: il vault descritto qui
+è **fra celle adiacenti**, mentre `ERTIntraCellTraversal` vive **dentro** una cella e non riceve nemmeno un
+`FRTCellId`. Una transizione fra due celle non può emettere quel valore. Il dato che lo emette è
+`FRTHexInteriorWall::bTraversable` — il muro interno è ciò che divide la cella — e la ragione completa sta in
+**§6**.
+
+Ciò che questa sezione decide resta intatto: il vault inter-cella, il suo `+1 MP`, e soprattutto la clausola
+che gli dà valore — *«la scavalcabilità è un dato, non una conseguenza dell'altezza»* — che il campo nuovo
+applica alla lettera.
+
+⏳ **Il vault come `ERTHexTransitionKind` non è ancora implementato**: `#1828` ha consegnato la traversata
+**intra**-cella, e l'arco autorato fra due celle resta da scrivere.
 
 ### 13.7 Distruggere una sorgente non ne rigenera nessun'altra (`COV-8`)
 

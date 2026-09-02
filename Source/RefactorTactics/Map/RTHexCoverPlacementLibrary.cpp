@@ -289,6 +289,42 @@ ERTIntraCellTraversal URTHexCoverPlacementLibrary::ClassifyIntraCellTraversal(co
 	return bSame ? ERTIntraCellTraversal::SameRegion : ERTIntraCellTraversal::Blocked;
 }
 
+ERTIntraCellTraversal URTHexCoverPlacementLibrary::ClassifyIntraCellTraversalWithAuthored(
+	const FRTOccupancyMask& Mask, const FRTOccupancyMask& Traversable, int32 FromWedge, int32 ToWedge)
+{
+	// Prima la risposta senza traversate: se i due settori sono gia' nella stessa regione non c'e' niente da
+	// scavalcare, e dire `AuthoredTraversal` farebbe pagare un muro a chi gli passa accanto.
+	const ERTIntraCellTraversal Plain = ClassifyIntraCellTraversal(Mask, FromWedge, ToWedge);
+	if (Plain != ERTIntraCellTraversal::Blocked)
+	{
+		return Plain;
+	}
+
+	// 🔴 **I due settori devono essere posabili nella cella REALE, non in quella ripulita.** Si scavalca un
+	// muro, non ci si sta sopra: se `FromWedge` o `ToWedge` sono occupati in `Mask`, non c'e' posa da cui
+	// partire o a cui arrivare, e togliere il muro scavalcabile li renderebbe liberi in `Traversable`
+	// rispondendo `AuthoredTraversal` a una transizione fra due punti in cui nessuno puo' stare.
+	//
+	// Trovato dal test `AuthoredTraversalUnblocksOnlyWhatItSeparates`: la prima stesura usava la maschera
+	// ripulita per DUE domande diverse — la connettivita' e l'occupabilita' — e solo la prima e' sua.
+	const bool bFromFree = (Mask.Sectors & (1 << FromWedge)) == 0;
+	const bool bToFree = (Mask.Sectors & (1 << ToWedge)) == 0;
+	if (!bFromFree || !bToFree)
+	{
+		return ERTIntraCellTraversal::Blocked;
+	}
+
+	// Poi la maschera SENZA i muri scavalcabili. Se qui i due settori si uniscono, a separarli era solo
+	// geometria che un autore ha dichiarato superabile.
+	//
+	// ⛔ **Se fra le due regioni c'e' ANCHE un muro non scavalcabile, questa maschera resta separata** e la
+	// risposta e' `Blocked`: e' l'AC 5 di `#1828` — *«nessuna traversata autorata puo' collegare due regioni
+	// attraversando geometria bloccante»* — che il modello rende inesprimibile invece di vietarla.
+	const bool bAuthored = ClassifyIntraCellTraversal(Traversable, FromWedge, ToWedge)
+		== ERTIntraCellTraversal::SameRegion;
+	return bAuthored ? ERTIntraCellTraversal::AuthoredTraversal : ERTIntraCellTraversal::Blocked;
+}
+
 bool URTHexCoverPlacementLibrary::IsOptionReachableFromWedge(const FRTOccupancyMask& Mask,
 	const FRTCoverOption& Option, int32 FromWedge)
 {

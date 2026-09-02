@@ -274,7 +274,25 @@ enum class ERTIntraCellTraversal : uint8
 	/** Le due pose stanno nella STESSA regione libera: ci si sposta senza attraversare geometria. */
 	SameRegion,
 	/** Regioni diverse, e nessuna traversata le collega: la transizione e' INVALIDA. */
-	Blocked
+	Blocked,
+
+	/**
+	 * Regioni diverse, ma un muro **scavalcabile** le separa: la transizione e' valida e **paga** — `E23.7`,
+	 * [D-308], `#1828`.
+	 *
+	 * 🔑 **E' il terzo valore che questo enum aspettava, e arriva col suo produttore nello stesso commit.**
+	 * La riga qui sopra prometteva *«va aggiunto in coda insieme al suo produttore»*, e il produttore e'
+	 * `FRTHexInteriorWall::bTraversable`: senza di lui il valore sarebbe un'etichetta che nessun ramo emette,
+	 * cioe' il difetto che questo repository ha gia' pagato quattro volte.
+	 *
+	 * ⚠️ **Non e' `SameRegion` con un altro nome**, e la distinzione e' cio' che il chiamante deve vedere: li'
+	 * non si attraversa niente e non si paga; qui si scavalca, e `D-308` fissa il costo del vault a *«costo
+	 * d'arco normale + 1 MP»*. Schiacciare i due valori renderebbe gratuito cio' che ha un prezzo.
+	 *
+	 * ⛔ **Non introduce un secondo slot di occupancy**: la capacita' della cella resta **una** unita'
+	 * ([D-289]). Scavalcare porta all'altra faccia, non in due posti.
+	 */
+	AuthoredTraversal
 };
 
 UCLASS()
@@ -388,6 +406,28 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static ERTIntraCellTraversal ClassifyIntraCellTraversal(const FRTOccupancyMask& Mask,
 		int32 FromWedge, int32 ToWedge);
+
+	/**
+	 * COME SOPRA, ma sapendo quali muri un autore ha reso **scavalcabili** — `E23.7`, [D-308], `#1828`.
+	 *
+	 * `Traversable` e' la maschera che la cella avrebbe **senza** i muri marcati `bTraversable`: se i due
+	 * settori sono separati in `Mask` e uniti in `Traversable`, a separarli e' **solo** geometria che si puo'
+	 * scavalcare, e la risposta e' `AuthoredTraversal`.
+	 *
+	 * 🔑 **Due maschere e non una lista di muri, ed e' la scelta che tiene questa libreria pura.** Qui non
+	 * entra ne' l'asset ne' `FRTCellId`: chi chiama sa quali muri sono scavalcabili e costruisce le due
+	 * maschere con `ComputeMask`, che e' gia' l'unico produttore. Passare i segmenti significherebbe
+	 * ricalcolare qui dentro cio' che il chiamante ha gia' in mano, e dare a questa funzione una seconda
+	 * ragione di esistere.
+	 *
+	 * ⛔ **L'AC 5 di `#1828` cade da se' con questa forma**: *«nessuna traversata autorata puo' collegare due
+	 * regioni attraversando geometria bloccante»*. Se fra le due regioni ci fosse **anche** un muro non
+	 * scavalcabile, toglierne uno solo non le unirebbe — `Traversable` resterebbe separata e la risposta
+	 * `Blocked`. Non serve un validator che lo vieti: il modello non sa esprimerlo.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static ERTIntraCellTraversal ClassifyIntraCellTraversalWithAuthored(const FRTOccupancyMask& Mask,
+		const FRTOccupancyMask& Traversable, int32 FromWedge, int32 ToWedge);
 
 	/**
 	 * L'opzione e' RAGGIUNGIBILE da chi e' posato su quel settore, senza uscire dalla cella?

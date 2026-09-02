@@ -514,7 +514,7 @@ bool FRTDoorMigrationTest::RunTest(const FString&)
 	// v12 (#1864) da' un nome stabile al muro interno, perche' il muro SI SPOSTA e il move cambia la sua
 	// chiave naturale `(Cell, Segment)`; nessun dato precedente cambia significato, e il default
 	// `NAME_None` e' cio' che ogni muro scritto prima gia' era.
-	TestEqual(TEXT("la versione corrente e' la 13"), URTHexMapAsset::CurrentFormatVersion, 13);
+	TestEqual(TEXT("la versione corrente e' la 14"), URTHexMapAsset::CurrentFormatVersion, 14);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 3);
 	TestEqual(TEXT("nessuna transizione persa"), Legacy->Transitions.Num(), 2); // bidirezionale
 

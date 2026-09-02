@@ -538,7 +538,7 @@ bool FRTOccupancyMigrationTest::RunTest(const FString&)
 	// Il pin e' su 12 dal 2026-08-31 (#1864, nome stabile del muro interno). Il test resta di v7: quello che
 	// verifica e' che il sovrapprezzo nasca a zero, e continua a valere — il pin serve a far rileggere questo
 	// test a chi bumpa, non a legarlo a un numero.
-	TestEqual(TEXT("la versione corrente e' la 13"), URTHexMapAsset::CurrentFormatVersion, 13);
+	TestEqual(TEXT("la versione corrente e' la 14"), URTHexMapAsset::CurrentFormatVersion, 14);
 	TestEqual(TEXT("versione portata alla corrente"), Legacy->FormatVersion,
 		URTHexMapAsset::CurrentFormatVersion);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 2);
