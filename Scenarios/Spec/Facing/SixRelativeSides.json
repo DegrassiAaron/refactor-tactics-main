@@ -1,0 +1,48 @@
+{
+  "scenarioId": "Spec.Facing.SixRelativeSides",
+  "tags": ["facing", "combat", "turnlog", "spec", "riktor", "wraith"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "#726 / [D-126]: la relazione a SEI DIREZIONI RELATIVE esiste a runtime, e ogni colpo risolto scrive nel TurnLog da quale lato e' arrivato. B1 sta in (0,0) e guarda a EST; V1 spara da (-1,-1), che per lui cade nello spicchio relativo 2 — `RearLeft`. Nessun esito di combattimento cambia: la voce e' DESCRITTIVA, ed e' il primo consumatore che [D-126] chiedeva perche' senza di esso la relazione sarebbe un ramo morto.",
+
+  "_nota_perche_questo_lato": "⚠️ `RearLeft` e non `Front` o `Rear`, ed e' il punto dello scenario. Le quattro direzioni non frontali restano DISTINTE ([D-126]): il vocabolario precedente — la banda globale `Front Arc / Flank / Rear` — le avrebbe collassate tutte in un generico «Flank», e uno scenario che asserisse solo «davanti» o «dietro» passerebbe anche sotto quel vocabolario. Qui il valore atteso e' 2, cioe' un lato che solo la relazione a sei sa nominare.",
+
+  "_nota_un_solo_colpo": "🔑 **La scena ha UN SOLO colpo, e non e' una semplificazione: e' cio' che rende l'oracolo valido.** `LogEventAmount` legge la PRIMA occorrenza della coppia (categoria, esito) e **non nomina l'unita'** — `IndexOfScenarioLogEvent` confronta solo `category` e `outcome`, e il formato non ha un campo `unit` per questa assertion. Con due colpi la riga sotto asserirebbe sul colpo sbagliato **senza diventare rossa**. ⛔ Chi aggiunga un secondo attaccante, o un turno prima di questo, sposta l'oracolo su un altro colpo in silenzio: in quel caso il turno si aggiunge DOPO, e l'assertion resta sulla prima voce.",
+
+  "_nota_cosa_NON_prova": "Questo scenario prova l'INTEGRAZIONE — che la relazione arriva fino al TurnLog di una partita vera — non la geometria. I sei lati, l'equipartizione (36 celle per lato a raggio 1..8, `r` per anello), l'equivarianza per rotazione e i casi limite sono pinnati esaustivamente dai test `RefactorTactics.Facing.Relative*`. Un solo lato basta qui proprio perche' quella copertura esiste altrove.",
+
+  "_nota_niente_guard_ne_copertura": "B1 non e' in guardia e non ha riparo, deliberatamente: `RearHitBypassedGuard` e `RearHitBypassedCover` sono voci `Facing` di altri esiti, gia' coperte da `Spec.Facing.BackAttackIgnoresGuard` e `Spec.Facing.RearHitOnCoverIsTraced`. Isolarle qui tiene la scena su una domanda sola — da che lato — invece di due.",
+
+  "units": [
+    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [0, 0, 0],   "facing": "E" },
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [-1, -1, 0], "facing": "E" }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — V1 spara da (-1,-1). B1 guarda a EST, quindi il colpo gli arriva da dietro a sinistra.",
+      "intents": [
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot", "target": "B1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "_assertion": "IL DISCRIMINANTE: il colpo e' arrivato, quindi la voce direzionale ha un colpo da descrivere. Senza questa riga uno scenario in cui nessuno colpisce produrrebbe zero voci, e il conteggio sotto sarebbe soddisfatto solo se scritto a zero — cioe' passerebbe per la ragione sbagliata.",
+      "type": "LogEventCount", "category": "Combat", "outcome": "Hit", "value": 1 },
+
+    { "_assertion": "Una voce direzionale, e una sola: la relazione si scrive UNA volta per colpo risolto.",
+      "type": "LogEventCount", "category": "Facing", "outcome": "HitCameFromSide", "value": 1 },
+
+    { "_assertion": "E il lato e' quello giusto. `Amount` porta l'INDICE RELATIVO `(spicchio - facing + 6) % 6`, non il facing assoluto di `RearHitBypassedGuard` ne' i punti di riduzione di `RearHitBypassedCover`: 2 = `RearLeft`. La cella (-1,-1) sta nello spicchio assoluto 2 (`NW`), e con B1 orientato a `E` (indice 0) l'indice relativo coincide.",
+      "type": "LogEventAmount", "category": "Facing", "outcome": "HitCameFromSide", "value": 2 },
+
+    { "_assertion": "Nessun esito cambia: B1 incassa e resta in piedi. La voce direzionale e' traccia, non regola — e in particolare NON sposta la copertura ne' la Guard su questa geometria, che sarebbe un buff difensivo netto ([D-126]).",
+      "type": "UnitAlive", "unit": "B1", "value": 1 },
+
+    { "type": "UnitFacing", "unit": "B1", "value": "E" },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

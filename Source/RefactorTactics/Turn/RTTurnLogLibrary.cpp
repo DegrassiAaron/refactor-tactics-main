@@ -631,6 +631,36 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 			// usa. E' la ragione per cui i due esiti sono separati (`#1430`, [D-199]).
 			return FString::Printf(TEXT("%s -> %s: colpo alle spalle, la copertura non vale (%d punti scavalcati)"),
 				*CellText(Entry.TgtCell), *CellText(Entry.SrcCell), Entry.Amount);
+		case ERTFacingOutcome::HitCameFromSide:
+		{
+			// ⚠️ Qui `Amount` e' l'indice RELATIVO (`ERTRelativeDirection`), non una delle sei direzioni
+			// assolute: `DirectionNames` direbbe «NE» dove il lettore deve leggere un LATO. Due tabelle
+			// perche' sono due domande — quale orientamento HA l'unita', e da che parte e' stata COLPITA.
+			//
+			// 🔑 **Si nomina lo SPICCHIO e non un angolo**, e la differenza non e' stilistica. Lo spicchio
+			// semiaperto va da `D(i)` a `D(i+1)`, quindi e' centrato **fra** due raggi: scrivere «da davanti
+			// a sinistra» affermerebbe un settore centrato a −60 gradi mentre quello vero e' centrato a −90,
+			// e per meta' delle sue celle la frase sarebbe falsa. E' l'explainability che [D-147] mette in
+			// conto allo skew, e la si paga tacendo l'angolo invece di sbagliarlo: il nome del lato e' una
+			// convenzione dichiarata (`ERTRelativeDirection`), un angolo sarebbe una misura.
+			static const TCHAR* RelativeNames[6] = {
+				TEXT("Front"), TEXT("FrontLeft"), TEXT("RearLeft"),
+				TEXT("Rear"), TEXT("RearRight"), TEXT("FrontRight") };
+
+			// ⚠️ **Non si riusa `DirIndex`**, che e' clampato: un `Amount` fuori intervallo — traccia
+			// corrotta, o formato futuro — diventerebbe `Front`, cioe' una frase sicura e sbagliata. Le
+			// altre famiglie di questo file dichiarano «non tradotto» invece di indovinare, e questa fa lo
+			// stesso.
+			if (Entry.Amount < 0 || Entry.Amount > 5)
+			{
+				return FString::Printf(TEXT("%s: colpito da un lato non tradotto (%d)"),
+					*CellText(Entry.TgtCell), Entry.Amount);
+			}
+			// Una cella sola: `SrcCell` e `TgtCell` portano entrambi il DIFENSORE — la voce non contiene la
+			// posizione dell'attaccante, ed e' un requisito di privacy prima che una convenzione (`#726`).
+			return FString::Printf(TEXT("%s: colpito sul lato %s"),
+				*CellText(Entry.TgtCell), RelativeNames[Entry.Amount]);
+		}
 		default:
 			return FString::Printf(TEXT("%s: orientamento %s"), *CellText(Entry.SrcCell), Dir);
 		}
@@ -1510,9 +1540,15 @@ bool URTTurnLogLibrary::IsSubjectTheSufferer(const FRTTurnLogEntry& Entry)
 	}
 	// La guardia (o la copertura) scavalcata da un colpo alle spalle: la voce descrive l'orientamento del
 	// DIFENSORE, quindi il soggetto e' chi ha subito il colpo. L'attaccante e' in `SrcCell` (`#1418`).
+	//
+	// ➕ `HitCameFromSide` (`#726`) e' della stessa famiglia e per la stessa ragione — racconta da che lato il
+	// difensore e' stato colpito — con una differenza: la cella dell'attaccante **non** e' nella voce, ne' in
+	// `SrcCell` ne' altrove. Quella voce si congela sulla percezione di chi subisce, e ci finisse la posizione
+	// di chi spara la pubblicherebbe a chi vede il bersaglio, su ogni colpo risolto invece che sui rari bypass.
 	if (Entry.Category == ERTLogCategory::Facing
 		&& (Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover)
-			|| Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedGuard)))
+			|| Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedGuard)
+			|| Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::HitCameFromSide)))
 	{
 		return true;
 	}
