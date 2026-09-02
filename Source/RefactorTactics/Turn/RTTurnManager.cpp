@@ -788,51 +788,6 @@ void ARTTurnManager::PlanBots()
 		// gioco diverso da quello progettato: i sette moduli di CP 7.5 sarebbero verdi nei test e assenti in
 		// partita.
 		//
-		// 🔴 **LA REGOLA: prima quella di KIT, il modulo di loadout come riserva** (`#1403`, [D-220]).
-		//
-		// ⚠️ **E' il comportamento che c'era gia': cambia che ora e' DICHIARATO.** Fino al 2026-08-27 questa
-		// riga diceva *«sceglierne una fra due sarebbe una decisione di bot (E15) — con un solo slot reazione
-		// nel kit di ogni eroe, oggi non si pone»*, e la premessa era falsa da [D-218]: Riktor porta
-		// `Interposition` (kit) **e** `Reaction.Cleanse` (modulo). Il `break` sul primo trovato sceglieva per
-		// **ordine di indice** — e dava il kit solo perche' `EquipLoadout` accoda. Stessa risposta, per
-		// accidente invece che per regola.
-		//
-		// La preferenza ha una ragione, ed e' l'identita': la reazione di kit e' cio' che l'eroe **e'** — il
-		// catalogo eroi la descrive cosi' — e il modulo e' cio' che la composizione gli **aggiunge**. Quando
-		// il kit e' in ricarica il modulo copre, che e' il mestiere di una riserva.
-		//
-		// ⚠️ **Quale delle due convenga davvero e' una domanda aperta** (`BOT-REACT-1`), e vale per E15: i
-		// moduli hanno `CooldownTurns = 0`, quindi un bot che preferisse il loadout non armerebbe **mai piu'**
-		// la reazione d'eroe. Invertire questa riga non e' una pulizia — e' un cambio di gioco.
-		int32 DalKit = INDEX_NONE;
-		int32 DalLoadout = INDEX_NONE;
-		for (int32 R = 0; R < Bot->NumAbilities(); ++R)
-		{
-			const URTActionData* Reaction = Bot->GetAbility(R);
-			if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction || !Bot->CanUseAbility(R))
-			{
-				continue;
-			}
-			// L'origine si chiede al CATALOGO: `MakeEquipmentAction` scrive `Def.ActionId = EquipmentId`.
-			// Dedurla dalla posizione — «i moduli stanno in fondo perche' `Add` accoda» — e' esattamente
-			// l'accidente che questa riga smette di usare.
-			int32& Candidato = IdEquipaggiamento.Contains(Reaction->Def.ActionId) ? DalLoadout : DalKit;
-			if (Candidato == INDEX_NONE) { Candidato = R; } // a parita' di origine, il primo: deterministico
-		}
-
-		const int32 Armata = (DalKit != INDEX_NONE) ? DalKit : DalLoadout;
-		if (const URTActionData* Reazione = Bot->GetAbility(Armata)) // `nullptr` per `INDEX_NONE`
-		{
-			Bot->PlannedReactionAbility = Armata;
-			AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione)"),
-				*Bot->GetName(), *Reazione->Def.ActionId.ToString()), FRTLogSubject::Unit(Bot));
-		}
-
-		if (bUsedSupport)
-		{
-			continue;
-		}
-
 		// Contesto di valutazione: i nemici che la SQUADRA DEL BOT conosce (celle, gittata effettiva,
 		// HP+scudo) e pesi dal tuning.
 		// L'ordine dei nemici viene da Units (ordine stabile dello snapshot): il punteggio non dipende
@@ -962,6 +917,70 @@ void ARTTurnManager::PlanBots()
 				Nearest = Other;
 				NearestKnownCell = KnownCell;
 			}
+		}
+
+		// 🔴 **LA REGOLA E' CAMBIATA: punteggio tattico, e il kit RETROCEDE a tie-break** ([D-268], `#1802`).
+		//
+		// [D-220] aveva DICHIARATO la regola che c'era gia' — prima il kit, il modulo come riserva — invece di
+		// sceglierne una. E' deterministica ma non tattica: la reazione d'identita' vince sempre, quale che sia
+		// il suo valore in quella situazione, e il valore del loadout si perde. Il caso concreto: un Riktor con
+		// `Interposition` nel kit e un modulo di contrattacco, in un turno in cui nessun alleato e' minacciato
+		// e un nemico conosciuto puo' colpirlo, armava l'interposizione — cioe' una reazione che non sarebbe
+		// scattata.
+		//
+		// ⚠️ **E per questo il blocco vive QUI e non piu' prima del contesto.** Un punteggio tattico si misura
+		// su cio' che la squadra CONOSCE, e `Ctx.Enemies`/`Ctx.Allies` nascono dalla raccolta qui sopra. Le due
+		// alternative erano peggiori: ricalcolare il filtro di conoscenza nel punto vecchio avrebbe creato il
+		// secondo modello di conoscenza che il commento della raccolta vieta per nome, e lasciare il punteggio
+		// cieco avrebbe reso **vacua** l'AC di equita' di [D-268] — un punteggio costante la soddisfa.
+		//
+		// ⚠️ **`if (bUsedSupport)` si e' spostato INSIEME al blocco, e non e' un dettaglio**: prima usciva
+		// dal ciclo PRIMA della raccolta, quindi un bot che si cura armava comunque la reazione. Lasciandolo
+		// dov'era, questo spostamento gliela avrebbe tolta — un cambio di comportamento che `#1802` non chiede.
+		//
+		// 🔑 **La proprieta' che rende il cambio atterrabile**: dove la conoscenza non separa i candidati tutti
+		// i punteggi valgono zero, decide il tie-break, e il bot arma esattamente cio' che armava prima.
+		TArray<FRTReactionCandidate> ReactionCandidates;
+		for (int32 R = 0; R < Bot->NumAbilities(); ++R)
+		{
+			const URTActionData* Reaction = Bot->GetAbility(R);
+			if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction || !Bot->CanUseAbility(R))
+			{
+				continue;
+			}
+			// L'origine si chiede al CATALOGO: `MakeEquipmentAction` scrive `Def.ActionId = EquipmentId`.
+			// Dedurla dalla posizione — «i moduli stanno in fondo perche' `Add` accoda» — e' l'accidente che
+			// [D-220] aveva gia' smesso di usare, e che qui serve come TIE-BREAK invece che come regola.
+			FRTReactionCandidate& Candidate = ReactionCandidates.AddDefaulted_GetRef();
+			Candidate.AbilityIndex = R;
+			Candidate.bFromKit = !IdEquipaggiamento.Contains(Reaction->Def.ActionId);
+			Candidate.Score = URTHexBotLibrary::ScoreReaction(Snapshot.Map, Reaction->Def, Ctx);
+		}
+
+		// La scelta porta con se' la RAGIONE, che [D-245] chiede sia un dato e non una deduzione di chi
+		// legge: «ha vinto perche' valeva di piu'», «ha vinto lo spareggio di kit» e «ha vinto l'indice» sono
+		// tre spiegazioni diverse della stessa riga, e un'etichetta sola le confonderebbe.
+		const FRTReactionChoice Choice = URTHexBotLibrary::SelectReaction(ReactionCandidates);
+		if (const URTActionData* Armed = Bot->GetAbility(Choice.AbilityIndex)) // `nullptr` per `INDEX_NONE`
+		{
+			Bot->PlannedReactionAbility = Choice.AbilityIndex;
+
+			const TCHAR* Reason = TEXT("");
+			switch (Choice.DecidedBy)
+			{
+			case ERTReactionTieBreak::Kit:   Reason = TEXT(", spareggio: kit");   break;
+			case ERTReactionTieBreak::Index: Reason = TEXT(", spareggio: indice"); break;
+			case ERTReactionTieBreak::Utility:
+			case ERTReactionTieBreak::None:  break;
+			}
+			AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione, punteggio %d%s)"),
+				*Bot->GetName(), *Armed->Def.ActionId.ToString(), Choice.Score, Reason),
+				FRTLogSubject::Unit(Bot));
+		}
+
+		if (bUsedSupport)
+		{
+			continue;
 		}
 
 		// CP 13.5 — NESSUN CONTATTO: si cerca, non ci si ferma.
