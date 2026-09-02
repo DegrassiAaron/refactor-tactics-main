@@ -1088,8 +1088,13 @@ bool FRTAutobattlePermutationTest::RunTest(const FString&)
  *
  * ⚠️ **LA PREMESSA DELLA ISSUE E' STATA CORRETTA, e va detto invece che lasciato dedurre.** #958 dichiarava
  * questo caso in attesa di **E47.2** perche' *«oggi non c'e' velocita' da variare»*. Misurato sul codice: c'e'.
- * `ARTTurnManager::PlaybackSpeed` esiste, deriva da `MaxPlaybackSeconds` (default 12 s) via
- * `URTPlaybackLibrary::SpeedMultiplierForCap`, e `bEnablePlayback` accende o spegne il playback per intero.
+ * `MaxPlaybackSeconds` (default 12 s) modula la durata del playback, e `bEnablePlayback` lo accende o lo
+ * spegne per intero.
+ *
+ * 📌 **Aggiornato il 2026-09-02** (#1878): quel budget derivava un moltiplicatore di VELOCITA'
+ * (`ARTTurnManager::PlaybackSpeed`, via `URTPlaybackLibrary::SpeedMultiplierForCap`) e non lo fa piu' —
+ * comprime le attese via `URTPlaybackLibrary::SlackScaleForBudget`. L'invariante di questo test non cambia
+ * e le sette varianti restano sette: cambia cosa la variante «budget a 2 s» sta esercitando.
  *
  * E l'invariante disponibile allora era **piu' forte** di quella rinviata. `ResolveTurn` decide fra due strade:
  * con eventi e playback acceso chiama `BeginPlayback()`, altrimenti va dritto a `ConcludeTurn()`. Questo test
@@ -1097,10 +1102,10 @@ bool FRTAutobattlePermutationTest::RunTest(const FString&)
  * presentazione» contro «senza presentazione affatto», regge a fortiori a un moltiplicatore.
  *
  * ✅ **E47.2 (#955) e' arrivata, e le varianti passano da tre a sette.** `ViewerPlaybackSpeed` — la velocita'
- * SCELTA da chi guarda — si compone con il fattore di cap via `URTPlaybackLibrary::EffectivePlaybackSpeed`.
+ * SCELTA da chi guarda — e' normalizzata da `URTPlaybackLibrary::EffectivePlaybackSpeed`.
  * Le quattro nuove coprono cio' che le tre vecchie non potevano:
- *  · x2 e x4 su un round che il tetto NON accelera: e' la manopola da sola;
- *  · x4 su `MaxPlaybackSeconds = 2 s`: e' la composizione, dove il cap morde gia' per conto suo;
+ *  · x2 e x4 su un round che il budget non tocca: e' la manopola da sola;
+ *  · x4 su `MaxPlaybackSeconds = 2 s`: manopola e budget insieme, due leve su grandezze diverse;
  *  · velocita' cambiata **a meta' risoluzione**: e' l'unica che verifica l'aggettivo «applicabile DURANTE»
  *    del DoD, e l'unica che romperebbe se `TickPlayback` congelasse la composizione in `BeginPlayback`
  *    invece di rileggerla a ogni tick. Le altre sei resterebbero verdi.
@@ -1121,10 +1126,10 @@ bool FRTAutobattlePlaybackIndependenceTest::RunTest(const FString&)
 	const FRTPlaybackVariant Variants[] = {
 		{ TEXT("playback spento"),               false, 12.f, 1.f, false },
 		{ TEXT("playback acceso 12 s"),          true,  12.f, 1.f, false },
-		{ TEXT("playback acceso 2 s"),           true,   2.f, 1.f, false },  // stessa strada, cap diverso
-		{ TEXT("x2 scelta da chi guarda"),       true,  12.f, 2.f, false },  // la manopola da sola: il cap non morde
+		{ TEXT("playback acceso 2 s"),           true,   2.f, 1.f, false },  // budget stretto: lo slack si comprime
+		{ TEXT("x2 scelta da chi guarda"),       true,  12.f, 2.f, false },  // la manopola da sola: il budget non morde
 		{ TEXT("x4 scelta da chi guarda"),       true,  12.f, 4.f, false },
-		{ TEXT("x4 con cap a 2 s"),              true,   2.f, 4.f, false },  // composizione: entrambi mordono
+		{ TEXT("x4 con budget a 2 s"),           true,   2.f, 4.f, false },  // manopola e budget insieme
 		{ TEXT("velocita' cambiata a meta'"),    true,  12.f, 1.f, true  },  // «applicabile DURANTE»
 	};
 

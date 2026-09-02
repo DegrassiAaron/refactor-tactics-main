@@ -222,4 +222,13 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playground")
 	static TArray<float> CameraPresetArmLengths();
+
+	/**
+	 * L'inclinazione con cui il pannello inquadra: quella della camera del gioco.
+	 *
+	 * 🔴 Il grafo usava `-90`, un numero scelto senza owner: a picco, e **fuori dal clamp `[-89, 0]`**
+	 * che `ARTCameraPawn::AddPitch` impone. Chi premeva un preset vedeva i tetti, non la scena.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playground")
+	static float CameraPresetPitch();
 };

@@ -1,5 +1,7 @@
 #include "RTPlaygroundPanelLibrary.h"
 
+#include "Camera/RTCameraPawn.h"
+
 #include "RTPlaygroundLayout.h"
 #include "World/RTGrayboxUnitFacingFixture.h"
 
@@ -26,7 +28,10 @@ namespace
 	 * ⚠️ Sono la DICHIARAZIONE, non una copia verificabile: `U25` li tiene in prosa. Vedi la doc della
 	 * funzione che li espone.
 	 */
-	constexpr float RTPanelCameraArms[3] = { 100.f, 450.f, 4000.f };
+	// ⛔ I tre bracci NON stanno piu' qui. Erano `{100, 450, 4000}` scritti a mano — e sono, alla lettera,
+	// i valori che `ARTCameraPawn` dichiara come `MinArmLength`, `MatchStartArmLength`, `MaxArmLength`.
+	// Una copia: il legame con la camera del gioco era una **citazione, non un controllo**, ed e' cio' che
+	// la seduta `U41` denunciava. Ora si derivano dal CDO, e non possono divergere.
 
 	FRTPlaygroundStationInfo MakeInfo(const RTPlayground::FStation& Station)
 	{
@@ -111,7 +116,14 @@ FString URTPlaygroundPanelLibrary::StationOptionLabel(const FRTPlaygroundStation
 {
 	// `%02d` e non `%d`: incolonnate, otto voci si leggono come una lista; disallineate sembrano otto
 	// frasi diverse. E i due spazi separano senza aggiungere un simbolo da interpretare.
-	return FString::Printf(TEXT("%02d  %s"), Station.Number, *Station.Name);
+	//
+	// 🔑 **`[PLANNED]` e' il primo consumatore di `bLive`.** Il campo era *dichiarato* e *trasportato*
+	// fin qui, e **letto da nessuno**: la combo elencava otto station tutte uguali, e il `done_when` di
+	// `U41` chiede l'opposto — che una station pianificata **non sembri funzionante**. Un pad con il
+	// signage e nessun sistema dietro, presentato come le altre, e' il pannello che promette.
+	return Station.bLive
+		? FString::Printf(TEXT("%02d  %s"), Station.Number, *Station.Name)
+		: FString::Printf(TEXT("%02d  %s  [PLANNED]"), Station.Number, *Station.Name);
 }
 
 bool URTPlaygroundPanelLibrary::ParseStationOption(const FString& Option, int32& OutNumber)
@@ -224,10 +236,16 @@ TArray<FString> URTPlaygroundPanelLibrary::DiagnosticsLines()
 
 TArray<float> URTPlaygroundPanelLibrary::CameraPresetArmLengths()
 {
-	TArray<float> Out;
-	for (const float Arm : RTPanelCameraArms)
-	{
-		Out.Add(Arm);
-	}
-	return Out;
+	// Dal CDO della camera del gioco: ravvicinata, di gioco, tattica. Se un giorno il gioco cambia le
+	// sue distanze, il pannello le segue invece di mentire con tre numeri fermi.
+	const ARTCameraPawn* Camera = GetDefault<ARTCameraPawn>();
+	return { Camera->GetMinArmLength(), Camera->GetMatchStartArmLength(), Camera->GetMaxArmLength() };
+}
+
+float URTPlaygroundPanelLibrary::CameraPresetPitch()
+{
+	// 🔴 **Il pannello inquadrava a picco.** Il grafo usava `-90`, un numero che avevo scelto io: fuori
+	// dal clamp `[-89, 0]` che `ARTCameraPawn::AddPitch` impone, e soprattutto **non e' la vista del
+	// gioco**. Chi guardava vedeva i tetti. Il pitch e' quello della camera tattica, e viene da li'.
+	return GetDefault<ARTCameraPawn>()->GetCameraPitch();
 }

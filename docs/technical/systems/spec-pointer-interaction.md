@@ -247,6 +247,48 @@ intero**, non al pezzo colpito. In v0.1 non si introduce un `MapElementId` gener
 
 ---
 
+## 4.9 «Settore» nomina tre cose, e due sono la stessa
+
+> Aggiunta con **#1615**, e viene **prima** dell'implementazione: senza questa sezione il difetto non è un
+> bug, è un HOLD silenzioso di comprensione a ogni lettura futura di una firma che contiene `Sector`.
+
+Nel repository la parola compare in tre punti, con due cardinalità:
+
+| Nome | Card. | La domanda a cui risponde | Dove |
+|---|---|---|---|
+| `ERTHexDirection` | **6** | *dove si va, dove si guarda* — direzioni tattiche del grafo | `Map/RTCellId.h` |
+| settore di **occupancy** | **12** | *quanta geometria solida invade il settore k* | `RT_OccupancySectorCount` |
+| settore di **puntamento** | **12** | *in quale settore k cade questo punto* | `URTHexLibrary::PointingSectorAt` |
+
+🔑 **I due a dodici non sono due tassonomie: sono lo stesso partizionamento, con due consumatori.** La
+geometria la fissa `URTHexOccupancyLibrary::SectorBoundaryPoints`, e il suo header la definisce come figura
+e non come numero — *«il settore `k` è il triangolo `(centro, P[k], P[k+1])`, e i dodici triangoli pavimentano
+l'esagono esattamente»*, con `P[k]` a `-30 + 30k` gradi.
+
+L'occupancy chiede *quanto* di quel triangolo è invaso; il puntamento chiede *in quale* triangolo cade un
+punto. Due domande, una geometria.
+
+⛔ **Ne segue il vincolo di implementazione**: chi scrive un consumatore nuovo **eredita** la convenzione e
+non la ridichiara. Un `-30 + 30k` riscritto a mano è l'errore che [`#553`](../../../..) ha già pagato per
+un'intera seduta, e il modo di impedirlo non è un commento ma un test che àncora il consumatore nuovo a
+`SectorBoundaryPoints` — non a un letterale.
+
+### Il ponte verso le sei direzioni è già deciso
+
+`D-243` lo fissa, e non va ridedotto:
+
+```text
+SectorIndex (0..11)  →  EdgeIndex = SectorIndex / 2  →  URTHexLibrary::DirectionForEdgeIndex  →  ERTHexDirection
+```
+
+∴ **i dodici settori non aggiungono direzioni.** L'adiacenza del grafo resta a sei, `ERTHexDirection` non si
+tocca, e un settore di puntamento che dichiarasse una settima direzione starebbe contraddicendo `D-243` —
+non estendendolo.
+
+⚠️ **E la derivazione è a senso unico.** Da un settore si ricava una direzione; da una direzione **non** si
+ricava un settore, perché due settori ne condividono una. Chi cerca l'inverso sta cercando un'informazione
+che il puntamento ha e la direzione ha già buttato.
+
 ## 5. La matrice
 
 Esiti ammessi — l'elenco è **chiuso**:

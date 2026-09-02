@@ -13,6 +13,7 @@
 #include "Ability/RTActionDef.h" // FRTActionDef: l'impatto della carica porta con se' la definizione
 #include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
 #include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
+#include "Turn/RTPlaybackLibrary.h" // FRTPhaseTime: la fase ha due termini, e il budget ne tocca uno solo
 #include "Map/RTHexCellData.h" // ERTHexSurface: il terreno dinamico ricorda la superficie originale (CP 8.4)
 #include "Combat/RTCombatResolver.h" // FRTAttack, FRTUnitCombatState: il pass reazioni raccoglie i primi e aggiorna i secondi
 #include "Combat/RTHexCombatLibrary.h" // FRTHexAttackHit/FRTHexAttackIntent: cio' su cui il pass reazioni valuta i trigger
@@ -694,15 +695,29 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	float AttackShowSeconds = 0.50f;
 
-	/** Tetto di durata del playback: oltre, si accelera automaticamente (0 = nessun tetto). */
+	/**
+	 * Budget SOFT di durata del playback: oltre, si comprimono le ATTESE (0 = nessun budget).
+	 *
+	 * ⚠️ **Non accelera piu' la locomozione, e la parola «soft» e' quella differenza** (`#1878`,
+	 * 2026-09-02). Prima moltiplicava `Dt` — l'unico orologio, che governa anche l'interpolazione del
+	 * movimento — quindi il tetto faceva correre i cilindri per far stare il turno nel numero. Il product
+	 * owner ha escluso quel comportamento: *«la durata target della Resolution non deve determinare la
+	 * velocita' visuale base della locomozione»*. Ora entra in
+	 * `URTPlaybackLibrary::SlackScaleForBudget`, che comprime `FRTPhaseTime::Slack` e non tocca
+	 * `Locomotion`. Quando il comprimibile finisce, **la durata sfora**: e' la definizione di soft.
+	 *
+	 * 📐 Misurato il 2026-09-02 su 125.780 risoluzioni nei log: il tetto **non era mai intervenuto** —
+	 * durata raw massima 4,4 s contro 12. Il difetto era latente, e si sarebbe risvegliato appena abbassata
+	 * la velocita' base, annullando proprio la correzione che #1878 chiede.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	float MaxPlaybackSeconds = 12.f;
 
 	/**
-	 * Velocita' SCELTA da chi guarda: 1 / 2 / 4 (CP 47.2, #955). E' una preferenza di ritmo, non un tetto:
-	 * si compone con l'accelerazione automatica via `URTPlaybackLibrary::EffectivePlaybackSpeed`, che
-	 * prende il massimo dei due. Scriverla a risoluzione in corso vale dal tick successivo — `TickPlayback`
-	 * la rilegge a ogni tick e non la congela in `BeginPlayback`.
+	 * Velocita' SCELTA da chi guarda: 1 / 2 / 4 (CP 47.2, #955). E' una preferenza di ritmo, ed e' l'UNICA
+	 * cosa che accelera la riproduzione: dal 2026-09-02 non si compone piu' con un fattore del tetto,
+	 * perche' il tetto non ne produce piu' uno (`#1878`). Scriverla a risoluzione in corso vale dal tick
+	 * successivo — `TickPlayback` la rilegge a ogni tick e non la congela in `BeginPlayback`.
 	 *
 	 * ⚠️ Presentazione, mai decisione (invariante #1): non entra nel TurnLog, non ne tocca l'hash, non
 	 * cambia l'ordine di risoluzione. Il gate che lo verifica e' in
@@ -714,19 +729,19 @@ public:
 	float ViewerPlaybackSpeed = 1.f;
 
 	/**
-	 * Il fattore di accelerazione AUTOMATICA in vigore: quanto il tetto sta gia' comprimendo il round.
+	 * Quanto il budget sta comprimendo le attese di questo round: `1` = nessuna compressione, `0` = tolto
+	 * tutto il comprimibile e la durata sfora comunque.
 	 *
-	 * Esiste per un motivo solo, ed e' il criterio 2 di CP 47.7 (#1015): l'etichetta del controllo di
-	 * velocita' deve dire la verita' anche quando `Max(Viewer, Cap)` sceglie il tetto — a `x1` sotto un
-	 * tetto che morde `3x` una manopola che mostrasse la sola scelta direbbe `x1` mentre lo schermo scorre
-	 * a `3x`.
+	 * ⚠️ **Non e' un fattore di velocita' e non va mostrato come tale.** Ha sostituito
+	 * `GetPlaybackCapSpeed()` il 2026-09-02 (`#1878`): quello esponeva un moltiplicatore `>= 1` che
+	 * accelerava la riproduzione, e l'etichetta della manopola lo componeva con la scelta del viewer per
+	 * dire la verita' su uno schermo che scorreva piu' in fretta. Ora lo schermo non scorre piu' in fretta
+	 * da se': l'etichetta mostra la sola scelta, ed e' vera perche' non c'e' un secondo fattore.
 	 *
-	 * ⚠️ **E' un accessore, non un secondo produttore.** L'HUD lo legge e lo passa a
-	 * `URTPlaybackLibrary::EffectivePlaybackSpeed` insieme alla scelta: la composizione resta una sola, qui.
-	 * L'alternativa — far ricalcolare il tetto all'HUD da `MaxPlaybackSeconds` — e' la seconda verita' che
-	 * il DoD vieta con le parole *«non ricalcola, non stima»*.
+	 * Resta esposto come **telemetria di pacing** — dice se il budget ha morso, cosa che il criterio 2 di
+	 * CP 47.7 (`#1015`) chiedeva di non nascondere. ⚠️ Presentazione: fuori da `StateHash` e dal TurnLog.
 	 */
-	float GetPlaybackCapSpeed() const { return PlaybackSpeed; }
+	float GetPlaybackSlackScale() const { return PlaybackSlackScale; }
 
 	// --- Tuning del bot (utility scoring, editabile in editor senza ricompilare) -----------------
 	// Pesi interi iniettati nel FRTBotContext di PlanBots (invariante #4: niente float). I default
@@ -1370,6 +1385,14 @@ protected:
 	void EnterPlaybackPhase();
 	void TickPlayback(float DeltaSeconds);
 	void FinishPlayback();
+	/**
+	 * I due termini della fase — movimento e attesa — prima che il budget tocchi il secondo.
+	 * Raccoglie gli ingressi che solo il TurnManager possiede e delega la formula a
+	 * `URTPlaybackLibrary::PhaseTime`.
+	 */
+	FRTPhaseTime PhaseTimeForPlaybackPhase(ERTMatchPhase InPhase) const;
+
+	/** La durata della fase come sara' riprodotta: locomozione intatta, attese scalate dal budget. */
 	float DurationForPlaybackPhase(ERTMatchPhase InPhase) const;
 
 	// --- Sonda di pacing ------------------------------------------------------------------------
@@ -1872,7 +1895,7 @@ private:
 	TArray<ERTMatchPhase> PlaybackPhases;   // fasi attive, in ordine
 	int32 PlaybackPhaseIdx = 0;
 	float PlaybackPhaseElapsed = 0.f;
-	float PlaybackSpeed = 1.f;              // fattore di accelerazione per rientrare nel tetto
+	float PlaybackSlackScale = 1.f;         // quanto il budget comprime le ATTESE (1 = nessuna, 0 = tutto)
 	float PlaybackTotalSeconds = 0.f;       // durata stimata (per la progress bar)
 	float PlaybackElapsedTotal = 0.f;
 	int32 AttacksShown = 0;                 // colpi gia' rivelati nel Blast corrente

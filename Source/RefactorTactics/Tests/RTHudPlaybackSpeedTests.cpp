@@ -1,15 +1,19 @@
 // Il controllo di velocita' in HUD (CP 47.7, #1015): la scala, l'etichetta e cosa il controllo scrive.
 //
-// #955 ha consegnato la manopola NEL MODELLO — `ARTTurnManager::ViewerPlaybackSpeed`, composta col tetto
-// via `URTPlaybackLibrary::EffectivePlaybackSpeed` — e il suo gate
+// #955 ha consegnato la manopola NEL MODELLO — `ARTTurnManager::ViewerPlaybackSpeed` — e il suo gate
 // (`Match.Autobattle.DeterminismIsIndependentOfPlayback`, sette varianti) prova che girare la manopola non
 // cambia il risultato logico. ⛔ **Quel gate non va duplicato qui**: e' esplicito nel DoD di #1015, e un
 // secondo test di determinismo sposterebbe le varianti future in due posti.
 //
+// ⚠️ **Dal 2026-09-02 la manopola e' l'UNICA cosa che accelera la riproduzione** (#1878): il tetto di
+// durata non produce piu' un fattore di velocita', comprime le attese. La domanda 1 qui sotto era
+// «l'etichetta dice il vero anche quando il tetto vince?» e non ha piu' un soggetto — il tetto non vince
+// piu' su niente che si veda come velocita'.
+//
 // Cio' che manca a quel gate, e che questi test coprono, e' l'altro lato: la manopola era raggiungibile
 // solo da dettagli dell'attore e da Blueprint. Tre domande, una per test:
 //
-//   1. l'etichetta dice il vero anche quando il tetto vince?
+//   1. l'etichetta dice il vero, e senza un secondo numero che non ha piu' causa?
 //   2. la scala resta `x1 · x2 · x4` anche partendo da un valore che non le appartiene?
 //   3. il controllo scrive `ViewerPlaybackSpeed` **e nient'altro**?
 //
@@ -52,67 +56,49 @@ namespace
 }
 
 /**
- * L'etichetta dichiara il TETTO quando il tetto vince, e questo e' il criterio che il controllo esiste per
- * soddisfare.
+ * L'etichetta dice la velocita' a cui la riproduzione scorre, e dal 2026-09-02 quel numero e' uno solo.
  *
- * ⚠️ **Il caso che falsifica l'implementazione ovvia.** Mostrare il solo `ViewerPlaybackSpeed` e' la cosa
- * che viene in mente per prima, e passerebbe ogni riga di questo test tranne le due dove il tetto morde —
- * producendo un'etichetta che dice `x1` mentre lo schermo scorre a `3x`. Sarebbe esattamente il difetto
- * che il DoD nomina: *«una manopola che non dice il proprio stato costringe a dedurlo dal ritmo»*, con
- * l'aggravante di dedurlo SBAGLIATO perche' un numero c'e' e mente.
+ * ⚠️ **Il nome di questo test era `...DeclaresTheCapWhenItWins` e mentiva** dopo `#1878`: il tetto non
+ * vince piu' su niente che si veda come velocita', perche' non produce piu' un fattore — comprime le
+ * attese via `URTPlaybackLibrary::SlackScaleForBudget`. Il criterio 2 di CP 47.7 (`#1015`) chiedeva che
+ * l'etichetta non mentisse quando lo schermo scorreva piu' in fretta di quanto la manopola dicesse; quel
+ * caso non esiste piu', e il criterio e' soddisfatto dal fatto che di numeri ce n'e' uno.
  *
- * Che il caso non sia teorico e' gia' pinnato altrove: `RefactorTactics.Playback.EffectiveSpeed` verifica
- * che `x2` sotto un cap da `3x` dia `3x`. Qui si verifica che l'HUD lo DICA.
+ * ⛔ **Le asserzioni `TestFalse(Contains("tetto"))` sono state tolte, non conservate.** Erano vacue: la
+ * stringa «tetto» e' irraggiungibile in `ComposePlaybackSpeedLabel`, quindi passavano comunque — e il
+ * commento che le accompagnava affermava l'inverso di cio' che verificavano. Un test che non puo' fallire
+ * non protegge nulla; quello che protegge davvero e' l'ultima asserzione, che lega il numero mostrato alla
+ * funzione che lo produce.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudPlaybackSpeedLabelTest,
-	"RefactorTactics.HUD.PlaybackSpeedLabelDeclaresTheCapWhenItWins",
+	"RefactorTactics.HUD.PlaybackSpeedLabelShowsTheChosenSpeed",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHudPlaybackSpeedLabelTest::RunTest(const FString&)
 {
-	// --- Il tetto non morde: un numero solo. Due numeri qui sarebbero rumore su ogni round normale.
-	{
-		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(/*Viewer=*/ 2.f, /*Cap=*/ 1.f);
-		TestTrue(TEXT("x2 senza tetto: l'etichetta porta x2"), Label.Contains(TEXT("x2")));
-		TestFalse(TEXT("x2 senza tetto: nessuna menzione del tetto"), Label.Contains(TEXT("tetto")));
-	}
-	{
-		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(1.f, 1.f);
-		TestTrue(TEXT("x1 senza tetto: l'etichetta porta x1"), Label.Contains(TEXT("x1")));
-		TestFalse(TEXT("x1 senza tetto: nessuna menzione del tetto"), Label.Contains(TEXT("tetto")));
-	}
-	{
-		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(4.f, 1.f);
-		TestTrue(TEXT("x4 senza tetto: l'etichetta porta x4"), Label.Contains(TEXT("x4")));
-		TestFalse(TEXT("x4 senza tetto: nessuna menzione del tetto"), Label.Contains(TEXT("tetto")));
-	}
+	// I tre valori della scala, e l'etichetta e' esattamente il numero: nessun ornamento da interpretare.
+	TestEqual(TEXT("x1"), ARTHUD::ComposePlaybackSpeedLabel(1.f), FString(TEXT("x1")));
+	TestEqual(TEXT("x2"), ARTHUD::ComposePlaybackSpeedLabel(2.f), FString(TEXT("x2")));
+	TestEqual(TEXT("x4"), ARTHUD::ComposePlaybackSpeedLabel(4.f), FString(TEXT("x4")));
 
-	// --- Il tetto vince: DUE numeri, e si distinguono. Una sola cifra qui non dice quale delle due.
-	{
-		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(/*Viewer=*/ 2.f, /*Cap=*/ 3.f);
-		TestTrue(TEXT("scelta x2 sotto un tetto da 3x: resta leggibile la scelta"), Label.Contains(TEXT("x2")));
-		TestTrue(TEXT("scelta x2 sotto un tetto da 3x: compare la velocita' reale"), Label.Contains(TEXT("x3")));
-		TestTrue(TEXT("scelta x2 sotto un tetto da 3x: e' detto che a imporla e' il tetto"),
-			Label.Contains(TEXT("tetto")));
-	}
+	// Fuori scala: il campo e' `EditAnywhere` e puo' portare un valore scritto a mano. Un decimale non si
+	// arrotonda a un intero che nessuno ha scelto.
+	TestEqual(TEXT("x2,6 non diventa x3"), ARTHUD::ComposePlaybackSpeedLabel(2.6f), FString(TEXT("x2.6")));
 
 	// --- Guardia: un campo azzerato vale x1, come lo tratta `EffectivePlaybackSpeed`. Un'etichetta «x0»
 	// direbbe che la riproduzione e' ferma, che e' un'altra cosa — e non e' vera.
 	{
-		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(/*Viewer=*/ 0.f, /*Cap=*/ 2.f);
+		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(/*Viewer=*/ 0.f);
 		TestFalse(TEXT("velocita' scelta nulla: mai «x0»"), Label.Contains(TEXT("x0")));
 		TestTrue(TEXT("velocita' scelta nulla: letta come x1"), Label.Contains(TEXT("x1")));
-		TestTrue(TEXT("velocita' scelta nulla: il tetto da 2x e' quello che si vede"), Label.Contains(TEXT("x2")));
-		TestTrue(TEXT("velocita' scelta nulla: il tetto e' nominato"), Label.Contains(TEXT("tetto")));
 	}
 
-	// --- L'etichetta non inventa: quello che dichiara come velocita' reale E' cio' che compone la
-	// libreria. Se qualcuno rifacesse il conto qui dentro invece di interrogarla, questa riga cade.
+	// --- L'etichetta non inventa: il numero che dichiara E' quello che la libreria normalizza. Se
+	// qualcuno rifacesse il conto qui dentro invece di interrogarla, questa riga cade.
 	{
 		const float Viewer = 2.f;
-		const float Cap = 3.f;
-		const float Effective = URTPlaybackLibrary::EffectivePlaybackSpeed(Viewer, Cap);
-		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(Viewer, Cap);
-		TestTrue(TEXT("il numero reale dell'etichetta viene da EffectivePlaybackSpeed"),
+		const float Effective = URTPlaybackLibrary::EffectivePlaybackSpeed(Viewer);
+		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(Viewer);
+		TestTrue(TEXT("il numero dell'etichetta viene da EffectivePlaybackSpeed"),
 			Label.Contains(FString::Printf(TEXT("x%d"), FMath::RoundToInt(Effective))));
 	}
 
@@ -182,11 +168,11 @@ bool FRTHudPlaybackSpeedCycleTest::RunTest(const FString&)
  * proprieta' da verificare non e' esprimibile su un valore di ritorno.** «Non tocca il tetto» parla di cio'
  * che il codice NON fa a un oggetto: serve l'oggetto.
  *
- * ⚠️ **Il tetto e' il campo che conta.** `MaxPlaybackSeconds` e' l'altro produttore della velocita'
- * effettiva: un controllo che «aiutasse» abbassandolo per andare piu' veloce otterrebbe lo stesso effetto
- * a schermo e metterebbe due produttori sullo stesso numero — che e' il secondo fuori scope dichiarato
- * nella issue. Il gate di determinismo non lo vedrebbe: resterebbe verde, perche' anche il tetto e'
- * presentazione.
+ * ⚠️ **Il tetto e' il campo che conta.** `MaxPlaybackSeconds` non produce piu' velocita' dal 2026-09-02
+ * (`#1878`) — comprime le attese — ma resta il campo da cui un controllo potrebbe essere tentato di
+ * passare: abbassarlo accorcerebbe la risoluzione, e un utente lo leggerebbe come «e' andata piu' veloce».
+ * Sarebbe il secondo fuori scope dichiarato nella issue, con due produttori su una sola sensazione. Il
+ * gate di determinismo non lo vedrebbe: resterebbe verde, perche' anche il tetto e' presentazione.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudPlaybackSpeedWritesOnlyViewerTest,
 	"RefactorTactics.HUD.PlaybackSpeedControlWritesOnlyTheViewerField",
