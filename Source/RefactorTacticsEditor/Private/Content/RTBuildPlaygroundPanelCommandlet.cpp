@@ -52,6 +52,41 @@ namespace
 	}
 
 	/**
+	 * 🔴 **`AddOption` NON persiste.** Misurato il 2026-09-02: scrive soltanto `Options`, che e' un
+	 * `TArray<TSharedPtr<FString>>` **transiente** e non una `UPROPERTY`. Il campo salvato e'
+	 * `DefaultOptions`, da cui `PostLoad` ricostruisce `Options` — e `DefaultOptions` e' **private**,
+	 * senza setter. Un commandlet che chiamasse `AddOption` scriverebbe un `.uasset` con le combo
+	 * VUOTE e stamperebbe comunque «8 voci», perche' rileggerebbe cio' che ha appena messo in memoria:
+	 * una misura che conferma se stessa. Il rosso di `PanelComboOptionsComeFromTheModel` e' stato
+	 * questo. ∴ si scrive la `UPROPERTY` per riflessione, che ignora l'access specifier.
+	 */
+	bool SetPersistedComboOptions(UComboBoxString* Combo, const TArray<FString>& Values)
+	{
+		static const FName DefaultOptionsName(TEXT("DefaultOptions"));
+		FArrayProperty* ArrayProp = FindFProperty<FArrayProperty>(UComboBoxString::StaticClass(), DefaultOptionsName);
+		FStrProperty* InnerProp = ArrayProp ? CastField<FStrProperty>(ArrayProp->Inner) : nullptr;
+		if (!Combo || !ArrayProp || !InnerProp)
+		{
+			return false;
+		}
+
+		FScriptArrayHelper Helper(ArrayProp, ArrayProp->ContainerPtrToValuePtr<void>(Combo));
+		Helper.EmptyValues();
+		for (const FString& Value : Values)
+		{
+			InnerProp->SetPropertyValue(Helper.GetElementPtr(Helper.AddValue()), Value);
+		}
+
+		// E l'array runtime, cosi' il widget e' coerente anche prima del prossimo `PostLoad`.
+		Combo->ClearOptions();
+		for (const FString& Value : Values)
+		{
+			Combo->AddOption(Value);
+		}
+		return true;
+	}
+
+	/**
 	 * Le voci delle due combo, **dal modello**.
 	 *
 	 * ⛔ **Perche' qui e non nel grafo**, che sarebbe stata la sede naturale: `ComboBox|AddOption` e
@@ -71,20 +106,19 @@ namespace
 			return false;
 		}
 
-		// ⚠️ `DefaultOptions` e' **private** in UE 5.8: si passa dall'API pubblica, non dal campo.
-		StationCombo->ClearOptions();
+		TArray<FString> StationNames;
 		for (const FRTPlaygroundStationInfo& Station : URTPlaygroundPanelLibrary::GetStations())
 		{
-			StationCombo->AddOption(Station.Name);
+			StationNames.Add(Station.Name);
 		}
-		FacingCombo->ClearOptions();
-		for (const FString& Option : URTPlaygroundPanelLibrary::GetFacingOptions())
+		if (!SetPersistedComboOptions(StationCombo, StationNames) ||
+			!SetPersistedComboOptions(FacingCombo, URTPlaygroundPanelLibrary::GetFacingOptions()))
 		{
-			FacingCombo->AddOption(Option);
+			return false;
 		}
 
-		OutStations = StationCombo->GetOptionCount();
-		OutFacings  = FacingCombo->GetOptionCount();
+		OutStations = StationNames.Num();
+		OutFacings  = URTPlaygroundPanelLibrary::GetFacingOptions().Num();
 		return true;
 	}
 

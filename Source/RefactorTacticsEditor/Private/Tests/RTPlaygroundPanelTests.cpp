@@ -327,6 +327,37 @@ bool FRTPanelMapStateTest::RunTest(const FString&)
 	return true;
 }
 
+namespace
+{
+	/**
+	 * Le voci **come sono salvate nel `.uasset`**, lette per riflessione.
+	 *
+	 * 🔑 **Perche' non `GetOptionCount()`/`GetOptionAtIndex()`**: quelle leggono `Options`, un
+	 * `TArray<TSharedPtr<FString>>` **transiente** che `PostLoad` ricostruisce da `DefaultOptions`.
+	 * Interrogare il derivato invece del persistito e' esattamente come il commandlet si era ingannato
+	 * da solo — scriveva `Options`, rileggeva `Options`, e dichiarava «8 voci» su un asset vuoto.
+	 * Qui si guarda il campo che finisce su disco.
+	 */
+	TArray<FString> PersistedComboOptions(const UComboBoxString* Combo)
+	{
+		TArray<FString> Out;
+		static const FName DefaultOptionsName(TEXT("DefaultOptions"));
+		const FArrayProperty* ArrayProp =
+			FindFProperty<FArrayProperty>(UComboBoxString::StaticClass(), DefaultOptionsName);
+		const FStrProperty* InnerProp = ArrayProp ? CastField<FStrProperty>(ArrayProp->Inner) : nullptr;
+		if (!Combo || !ArrayProp || !InnerProp)
+		{
+			return Out;
+		}
+		FScriptArrayHelper_InContainer Helper(ArrayProp, Combo);
+		for (int32 Index = 0; Index < Helper.Num(); ++Index)
+		{
+			Out.Add(InnerProp->GetPropertyValue(Helper.GetElementPtr(Index)));
+		}
+		return Out;
+	}
+}
+
 /**
  * 🔑 **Il legame ASSET -> MODELLO, che prima non era verificabile da nessun test.**
  *
@@ -362,25 +393,27 @@ bool FRTPanelComboOptionsTest::RunTest(const FString&)
 		return false;
 	}
 
+	const TArray<FString> SavedStations = PersistedComboOptions(StationCombo);
 	const TArray<FRTPlaygroundStationInfo> Stations = URTPlaygroundPanelLibrary::GetStations();
-	if (TestEqual(TEXT("tante voci quante le station del modello"),
-			StationCombo->GetOptionCount(), Stations.Num()))
+	if (TestEqual(TEXT("tante voci salvate quante le station del modello"),
+			SavedStations.Num(), Stations.Num()))
 	{
 		for (int32 Index = 0; Index < Stations.Num(); ++Index)
 		{
-			TestEqual(*FString::Printf(TEXT("station %d: la voce e' quella del modello"), Index),
-				StationCombo->GetOptionAtIndex(Index), Stations[Index].Name);
+			TestEqual(*FString::Printf(TEXT("station %d: la voce salvata e' quella del modello"), Index),
+				SavedStations[Index], Stations[Index].Name);
 		}
 	}
 
+	const TArray<FString> SavedFacings = PersistedComboOptions(FacingCombo);
 	const TArray<FString> Facings = URTPlaygroundPanelLibrary::GetFacingOptions();
-	if (TestEqual(TEXT("tante voci quante le direzioni del modello"),
-			FacingCombo->GetOptionCount(), Facings.Num()))
+	if (TestEqual(TEXT("tante voci salvate quante le direzioni del modello"),
+			SavedFacings.Num(), Facings.Num()))
 	{
 		for (int32 Index = 0; Index < Facings.Num(); ++Index)
 		{
-			TestEqual(*FString::Printf(TEXT("direzione %d: la voce e' quella del modello"), Index),
-				FacingCombo->GetOptionAtIndex(Index), Facings[Index]);
+			TestEqual(*FString::Printf(TEXT("direzione %d: la voce salvata e' quella del modello"), Index),
+				SavedFacings[Index], Facings[Index]);
 		}
 	}
 
