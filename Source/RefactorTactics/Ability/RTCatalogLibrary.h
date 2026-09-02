@@ -295,10 +295,13 @@ public:
 	/**
 	 * I gadget del catalogo equipaggiamento §2 che il motore sa gia' far funzionare (CP 7.2, `#61`).
 	 *
-	 * Sono **quattro** degli otto — `Medkit`, `BreachCharge`, `Sprinkler`, `PortableCover` — e i quattro
-	 * assenti mancano per quattro ragioni distinte, scritte accanto a ciascuno nel `.cpp`: manca l'azione
-	 * core (`SmokeEmitter`), manca il modello di immunita' (`Insulator`), manca l'epic della conoscenza
-	 * parziale (`Sensor`), manca un consumo per turno che `PushResistance` non e' (`Anchor`).
+	 * Sono **cinque** degli otto — `Medkit`, `BreachCharge`, `Sprinkler`, `SmokeEmitter`, `PortableCover` —
+	 * e i tre assenti mancano per tre ragioni distinte, scritte accanto a ciascuno nel `.cpp`: manca il
+	 * modello di immunita' (`Insulator`), manca l'epic della conoscenza parziale (`Sensor`), manca un
+	 * consumo per turno che `PushResistance` non e' (`Anchor`).
+	 *
+	 * `SmokeEmitter` era il quarto assente ed e' entrato con `#2087`: il suo blocco era l'assenza di
+	 * un'azione CORE del fumo, e `Action.CreateSmoke` ora esiste accanto a `Ignite` e `CreateWater`.
 	 *
 	 * Tutti hanno **cooldown 3**, che il catalogo dichiara una volta sopra la tabella invece che riga per riga.
 	 */
