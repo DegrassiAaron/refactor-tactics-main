@@ -4,6 +4,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Map/RTHexLibrary.h"
+#include "Materials/MaterialInterface.h"
 #include "Unit/RTUnit.h"
 #include "World/RTGrayboxUnitFacingFixture.h"
 
@@ -153,6 +154,68 @@ bool FRTGrayboxFixtureBodyTest::RunTest(const FString&)
 		FMath::IsNearlyEqual(Body.GetLocation().Z + HalfHeight, static_cast<double>(Height), 0.01));
 	TestTrue(TEXT("la pianta e' circolare: X e Y hanno la stessa scala"),
 		FMath::IsNearlyEqual(Body.GetScale3D().X, Body.GetScale3D().Y, 1.e-6));
+	return true;
+}
+
+/**
+ * 🔴 **Il fixture INDOSSA i suoi materiali, e corpo e marker non sono lo stesso.**
+ *
+ * Nasce dal difetto visto a schermo: senza materiale le primitive engine prendono il grigio di default —
+ * quello del pavimento — e il fixture spariva. ⚠️ *«I materiali esistono»* non e' *«il fixture li porta»*:
+ * la separazione dei valori e' verificata altrove (`FixtureMaterialsSeparateBodyAndMarker`), qui si
+ * verifica il legame, che e' la parte che si era rotta.
+ *
+ * ⚠️ **La risoluzione avviene in `OnConstruction`, non nel costruttore**, e questo test copre proprio
+ * quella scelta: con un `ConstructorHelpers::FObjectFinder` il CDO si costruisce prima che il commandlet
+ * crei gli asset, i tre path fallivano — *«Failed to find MI_Graybox_Fixture_Body»* — e il fixture nasceva
+ * grigio. Misurato eseguendo, non previsto leggendo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGrayboxFixtureMaterialsWornTest,
+	"RefactorTactics.Graybox.FixtureWearsItsMaterials",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGrayboxFixtureMaterialsWornTest::RunTest(const FString&)
+{
+	UWorld* World = MakeGrayboxFixtureWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World))
+	{
+		return false;
+	}
+
+	ARTGrayboxUnitFacingFixture* Fixture =
+		World->SpawnActor<ARTGrayboxUnitFacingFixture>(FVector::ZeroVector, FRotator::ZeroRotator);
+	if (!TestNotNull(TEXT("il fixture si posa"), Fixture))
+	{
+		DestroyGrayboxFixtureWorld(World);
+		return false;
+	}
+	Fixture->RerunConstructionScripts();
+
+	// 🔴 **Si confronta con QUALE materiale, non con «ce n'e' uno».**
+	//
+	// ⚠️ La prima stesura asseriva `GetMaterial(0) != nullptr` ed era **vacua**: senza override quel metodo
+	// restituisce il materiale di DEFAULT DELLA MESH, che non e' mai nullo. Misurato con una mutazione —
+	// tolta l'assegnazione al corpo, il test restava verde. Cadeva anche la seconda asserzione, «corpo e
+	// marker diversi»: il corpo prendeva il default della mesh e il marker il suo, quindi differivano
+	// comunque. Due asserzioni, zero copertura.
+	UMaterialInterface* ExpectedBody   = Fixture->BodyMaterial.LoadSynchronous();
+	UMaterialInterface* ExpectedMarker = Fixture->MarkerMaterial.LoadSynchronous();
+	if (!TestNotNull(TEXT("il materiale del corpo si risolve dal path"), ExpectedBody)
+		|| !TestNotNull(TEXT("il materiale del marker si risolve dal path"), ExpectedMarker))
+	{
+		DestroyGrayboxFixtureWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("il corpo porta il PROPRIO materiale, non il default della mesh"),
+		Fixture->UnitBody ? Fixture->UnitBody->GetMaterial(0) : nullptr, ExpectedBody);
+	TestEqual(TEXT("il marker porta il PROPRIO materiale"),
+		Fixture->FacingMarker ? Fixture->FacingMarker->GetMaterial(0) : nullptr, ExpectedMarker);
+
+	// ⛔ E i due non sono lo stesso: a schermo il marker sparirebbe dentro il corpo invece che dentro il
+	// pavimento — lo stesso difetto, spostato di un componente.
+	TestTrue(TEXT("corpo e marker non portano lo stesso materiale"), ExpectedBody != ExpectedMarker);
+
+	DestroyGrayboxFixtureWorld(World);
 	return true;
 }
 
