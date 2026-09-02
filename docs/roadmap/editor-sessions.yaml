@@ -2475,5 +2475,18 @@ sessions:
       lo **scheletro** dei widget — nomi stabili e le tre righe di `DIAGNOSTICS` prese dal modello — ma
       **non il grafo**. Finché gli eventi non chiamano `URTPlaygroundPanelLibrary`, il pannello si apre e
       non fa niente, e un verdetto di usabilità su un pannello inerte non è un verdetto.
+      ➕ **Cablato in parte il 2026-09-02**, col DSL del toolset Blueprint del motore via MCP; la fonte
+      leggibile è `Source/RefactorTacticsEditor/Private/Content/RTPlaygroundPanelGraph.dsl`, perché un
+      `.uasset` non è diffabile. **Compila** con `warnings_as_errors=true`. Cablati: `EventConstruct`
+      (stato mappa e le tre righe di `DIAGNOSTICS`), `Cmb_Facing/OnSelectionChanged` → `ApplyFixtureFacing`,
+      `Btn_SelectFixture`, `Btn_ResetFixture`.
+      ⛔ **NON cablati, e la seduta deve saperlo prima di iniziare**: le **opzioni** delle due combo
+      (`Cmb_Facing` si apre **vuota**, quindi il giro «cambia il `Facing` sei volte» non è eseguibile
+      così com'è), `Cmb_Station`, `Btn_Focus` e i tre preset di camera. La causa è una sola e non è
+      pigrizia: `ComboBox|AddOption`/`ClearOptions`/`GetSelectedOption` esistono in due varianti con lo
+      **stesso** `type_id` (`UComboBoxKey` e `UComboBoxString`) e il DSL prende la prima. Si risolve dal
+      commandlet, riempiendo `DefaultOptions` in C++.
+      ⚠️ **Il grafo compila ma non è mai stato eseguito**: nessun test headless apre un
+      `EditorUtilityWidget`. La prima esecuzione è questa seduta.
       ⚠️ ID assegnato prima del merge: `U41`, con `U40` come massimo misurato su `main` **e su tutti i
       branch remoti** il 2026-09-02. Chi arriva secondo rinumera, non contende.

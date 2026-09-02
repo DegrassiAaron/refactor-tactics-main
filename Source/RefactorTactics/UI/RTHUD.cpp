@@ -937,6 +937,36 @@ void ARTHUD::DrawHUD()
 			}
 		}
 
+		// Il progresso sull'OBIETTIVO contendibile (`CP 10.2`, `#75`). Il punto lo assegna il Cleanup e lo
+		// registra nel TurnLog da tempo; la DoD lo voleva anche «nell'HUD», e fino a qui nessuno lo mostrava.
+		//
+		// ⚠️ **Solo se la mappa DICHIARA un obiettivo.** Su una mappa che non ne ha, `0-0` non sarebbe una
+		// partita in parita': sarebbe un punteggio inventato per una gara che non si sta correndo. E' la
+		// stessa reticenza che il resolver ha gia' — `RTTurnManager` non scrive la voce di log senza
+		// `HasObjectiveCell()`, e `Objectives.SilentWithoutObjectiveCell` la misura.
+		if (const ARTHexMapActor* ObjectiveMapActor = ARTHexMapActor::FindInWorld(GetWorld()))
+		{
+			FVector IgnoredOrigin = FVector::ZeroVector;
+			float IgnoredSize = 0.f;
+			float IgnoredLayerH = 0.f;
+			const URTHexMapAsset* ObjectiveMap = ObjectiveMapActor->GetHexContext(IgnoredOrigin, IgnoredSize, IgnoredLayerH);
+			if (ObjectiveMap && ObjectiveMap->HasObjectiveCell())
+			{
+				// Interi, come nel resolver e nel log: la riga mostrata dev'essere confrontabile con la
+				// colonna `Amount` del TurnLog, non somigliarle.
+				Status += FString::Printf(TEXT("  -  Obiettivo %d-%d"),
+					TurnManager->GetTeamScore(0), TurnManager->GetTeamScore(1));
+
+				// La soglia viene dal FORMATO, come `RoundLimit` qui sopra, e si tace quando e' `0`: la via
+				// per obiettivo e' disattivata in v0.1, e «a 0» leggerebbe come «gia' vinta».
+				const int32 ScoreToWin = TurnManager->GetMatchRules().ScoreToWin;
+				if (ScoreToWin > 0)
+				{
+					Status += FString::Printf(TEXT(" (a %d)"), ScoreToWin);
+				}
+			}
+		}
+
 		// Il controllo di velocita' (CP 47.7, #1015). Sta nella riga di stato e non in un pannello suo
 		// perche' quella riga e' l'unico elemento sempre visibile durante la risoluzione — che e' quando
 		// serve — e perche' `progettazione-hud.md` §31 mette turn/phase/timer fra i persistenti.

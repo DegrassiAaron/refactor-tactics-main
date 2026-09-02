@@ -362,6 +362,14 @@ public:
 	 */
 	void AssignSeats();
 
+	/**
+	 * Assegna a ogni unita il proprio GRUPPO DI CONTROLLO dentro la squadra — `CP 19.3`, `#1124`.
+	 *
+	 * Idempotente e no-op finche non ci sono unita nel mondo: `AssignSeats` gira anche su `OnPostLogin`,
+	 * prima che il bootstrapper abbia allestito.
+	 */
+	void AssignUnitControlGroups();
+
 protected:
 	virtual void OnPostLogin(AController* NewPlayer) override;
 

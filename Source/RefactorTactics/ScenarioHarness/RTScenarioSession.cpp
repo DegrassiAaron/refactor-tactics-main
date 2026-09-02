@@ -733,6 +733,22 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		{
 			Unit->VisionRange = Spec.VisionRange;
 		}
+
+		// GLI STATUS INIZIALI, applicati con la porta VERA — `#1629`. `ApplyStatus` e' l'unico percorso:
+		// scrivere gli stati a mano qui sarebbe un secondo modo di renderli attivi, e i due diverrebbero
+		// il giorno che quella funzione cambia.
+		for (const FRTScenarioStatus& Status : Spec.Statuses)
+		{
+			const FGameplayTag Tag = FGameplayTag::RequestGameplayTag(Status.Tag, /*ErrorIfNotFound=*/ false);
+			if (!Tag.IsValid())
+			{
+				// Non dovrebbe accadere: il loader rifiuta gia' i tag sconosciuti. Se accade, la fixture e'
+				// stata costruita in memoria saltando il loader, e tacere renderebbe il test verde a vuoto.
+				return Fail(FString::Printf(TEXT("unita' '%s': status '%s' sconosciuto all'applicazione"),
+					*Spec.Id, *Status.Tag.ToString()));
+			}
+			Unit->ApplyStatus(Tag, Status.Turns);
+		}
 		// EQUIPAGGIAMENTO. Che i pezzi esistano e che l'insieme sia legale l'ha gia' verificato il loader,
 		// che rifiuta lo scenario con un motivo invece di lasciarlo girare a meta'. Qui si sceglie QUALE
 		// loadout, e ad applicarlo e' `ARTUnit::EquipLoadout` — la stessa funzione che chiama

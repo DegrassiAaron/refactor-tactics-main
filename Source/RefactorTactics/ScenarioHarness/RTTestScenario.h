@@ -214,6 +214,29 @@ struct FRTScenarioDoor
 
 /** Un'unita' schierata dallo scenario. */
 USTRUCT()
+struct FRTScenarioStatus
+{
+	GENERATED_BODY()
+
+	/**
+	 * Il nome del tag, come lo dichiara `Core/RTGameplayTags.cpp`: `"Status.Guarded"`, `"Status.Wet"`, …
+	 *
+	 * ⚠️ Si risolve a caricamento e un nome sconosciuto RIFIUTA lo scenario. `RequestGameplayTag` con
+	 * `ErrorIfNotFound=false` tornerebbe un tag vuoto senza lamentarsi, e un tag vuoto applicato non fa
+	 * niente: lo scenario girerebbe verde verificando l'assenza di un effetto mai richiesto.
+	 */
+	UPROPERTY()
+	FName Tag;
+
+	/** Turni di durata. Deve essere > 0: uno status che dura zero turni non e' uno status. */
+	UPROPERTY()
+	int32 Turns = 1;
+
+	FRTScenarioStatus() = default;
+	FRTScenarioStatus(FName InTag, int32 InTurns) : Tag(InTag), Turns(InTurns) {}
+};
+
+USTRUCT()
 struct FRTScenarioUnit
 {
 	GENERATED_BODY()
@@ -343,6 +366,27 @@ struct FRTScenarioUnit
 	 */
 	UPROPERTY()
 	bool bLoadoutDeclared = false;
+
+	/**
+	 * GLI STATUS ATTIVI ALL'AVVIO, con la loro durata — `#1629`.
+	 *
+	 * 🔑 **Uno status non e' un nome: e' un nome E una durata.** `ARTUnit::ApplyStatus` prende
+	 * `(FGameplayTag, int32 Turns)`, e un formato che scrivesse il solo tag dovrebbe inventare un default
+	 * — cioe' prendere una decisione di gioco dentro un serializzatore. La coppia sta insieme perche' e'
+	 * una cosa sola.
+	 *
+	 * ⚠️ **Il vocabolario e' quello del runtime**, `Core/RTGameplayTags.cpp`, e non ce n'e' un secondo:
+	 * il JSON porta il nome del tag (`"Status.Guarded"`) e il loader lo risolve. Un tag sconosciuto e'
+	 * un **errore di caricamento**, non uno status vuoto applicato in silenzio: quello darebbe uno
+	 * scenario verde che verifica l'assenza di un effetto che nessuno ha mai chiesto.
+	 *
+	 * ⛔ **Niente flag «dichiarato»**, a differenza di `Loadout`: per il loadout serve distinguere
+	 * «non dichiarato» da «dichiarato vuoto», perche' un'unita' senza loadout ne riceve uno di default.
+	 * Per gli status no — nessuno status E' lo stato naturale di un'unita', e un array assente e uno vuoto
+	 * significano la stessa cosa. Un flag che non distingue niente e' peso.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioStatus> Statuses;
 };
 
 /**

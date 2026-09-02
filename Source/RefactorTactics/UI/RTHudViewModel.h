@@ -50,6 +50,36 @@ struct FRTMatchHeaderView
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bResolving = false;
+
+	/**
+	 * Il progresso sull'OBIETTIVO contendibile, una voce per squadra — `CP 10.2`, `#75`.
+	 *
+	 * Il punteggio esiste e si registra nel Cleanup da quando `RTTurnManager` valuta l'obiettivo, ma fino a
+	 * `#75` non aveva NESSUN lettore di interfaccia: `GetTeamScore` era letto solo dallo Scenario Harness e
+	 * dall'hash di stato. La DoD chiedeva che il progresso comparisse «nell'HUD **e** nel TurnLog», e la
+	 * metà nel TurnLog era l'unica soddisfatta.
+	 *
+	 * ⚠️ **Interi, come nel resolver.** Il tipo qui non e' una scelta di presentazione: un `float`
+	 * renderebbe il punteggio mostrato dipendente dall'ordine delle somme, e la vista smetterebbe di poter
+	 * dire la stessa cosa che dice il TurnLog. `int32` a entrambe le estremita' è cio' che rende la vista
+	 * verificabile contro il log invece che solo simile.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Team0Score = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Team1Score = 0;
+
+	/**
+	 * Punti che servono per vincere, dal **formato in vigore** — mai una costante, come `RoundLimit`.
+	 *
+	 * `0` significa «via per obiettivo **disattivata**», che è il valore della v0.1, e NON va mostrato come
+	 * «su 0»: una partita che non si vince per obiettivo non è una partita già vinta. È la stessa
+	 * distinzione che `RoundLimit` fa qui sopra, e il motivo per cui questo campo esiste separato dai due
+	 * punteggi: senza di lui un widget non può sapere se `1` sia molto o niente.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 ScoreToWin = 0;
 };
 
 /**

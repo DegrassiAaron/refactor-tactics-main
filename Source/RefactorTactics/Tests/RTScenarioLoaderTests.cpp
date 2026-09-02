@@ -1396,4 +1396,133 @@ bool FRTScenarioLoaderRejectsLayerOutsideFlatArenaTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * UN TAG SCONOSCIUTO RIFIUTA LO SCENARIO, E IL MESSAGGIO LO NOMINA — `#1629`.
+ *
+ * 🔴 `FGameplayTag::RequestGameplayTag` con `ErrorIfNotFound=false` torna un tag **vuoto** senza
+ * lamentarsi, e un tag vuoto applicato non fa niente: senza questo rifiuto uno scenario con
+ * `"Status.Guarded1"` girerebbe **verde**, verificando l'assenza di un effetto che nessuno ha chiesto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioUnknownStatusIsRefusedTest,
+	"RefactorTactics.Scenario.UnknownStatusTagIsRefused",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioUnknownStatusIsRefusedTest::RunTest(const FString&)
+{
+	auto Load = [](const TCHAR* Json, FRTTestScenario& Out, FString& Err)
+	{
+		return URTScenarioLoader::LoadFromString(Json, Out, Err);
+	};
+
+	FRTTestScenario Scenario;
+	FString Error;
+
+	const bool bBad = Load(TEXT(R"JSON({
+	  "scenarioId": "T", "version": 1, "mapRadius": 2,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0],
+	      "statuses": [ { "tag": "Status.Guarded1", "turns": 2 } ] },
+	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+	  ],
+	  "turns": [ { "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	})JSON"), Scenario, Error);
+
+	TestFalse(TEXT("un tag sconosciuto rifiuta"), bBad);
+	TestTrue(FString::Printf(TEXT("e il messaggio lo nomina (era: '%s')"), *Error),
+		Error.Contains(TEXT("Status.Guarded1")));
+
+	// Uno status che dura zero turni non e' uno status.
+	FRTTestScenario Zero;
+	FString ZeroError;
+	const bool bZero = Load(TEXT(R"JSON({
+	  "scenarioId": "T", "version": 1, "mapRadius": 2,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0],
+	      "statuses": [ { "tag": "Status.Wet", "turns": 0 } ] },
+	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+	  ],
+	  "turns": [ { "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	})JSON"), Zero, ZeroError);
+	TestFalse(TEXT("turns a zero rifiuta"), bZero);
+
+	// ✅ LA CONTROPROVA: un tag VALIDO si accetta. Senza, i due rifiuti sopra sarebbero compatibili con un
+	// loader che rifiuta sempre.
+	FRTTestScenario Good;
+	FString GoodError;
+	const bool bGood = Load(TEXT(R"JSON({
+	  "scenarioId": "T", "version": 1, "mapRadius": 2,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0],
+	      "statuses": [ { "tag": "Status.Wet", "turns": 2 } ] },
+	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+	  ],
+	  "turns": [ { "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	})JSON"), Good, GoodError);
+	TestTrue(FString::Printf(TEXT("un tag valido si accetta (errore: '%s')"), *GoodError), bGood);
+
+	return true;
+}
+
+/**
+ * IL VOCABOLARIO DEL JSON E' QUELLO DEL RUNTIME, E NON CE N'E' UN SECONDO — `#1629`.
+ *
+ * 🔑 È il quarto criterio d'accettazione scritto come test invece che come `git grep`: ogni tag che il
+ * loader accetta **deve** essere uno di quelli che `Core/RTGameplayTags.cpp` dichiara. Se qualcuno
+ * aggiungesse una tabella di nomi per il formato scenario, questo test la troverebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioStatusVocabularyIsTheRuntimeOneTest,
+	"RefactorTactics.Scenario.StatusVocabularyHasNoSecondTable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioStatusVocabularyIsTheRuntimeOneTest::RunTest(const FString&)
+{
+	// Gli undici status che il runtime dichiara. Se il loader ne accettasse uno che non è qui, o ne
+	// rifiutasse uno che c'è, i due vocabolari sarebbero due.
+	const TCHAR* Known[] = {
+		TEXT("Status.Braced"), TEXT("Status.Burning"), TEXT("Status.Electrified"),
+		TEXT("Status.Exposed"), TEXT("Status.Guarded"), TEXT("Status.Marked"),
+		TEXT("Status.Obscured"), TEXT("Status.Reveal"), TEXT("Status.Root"),
+		TEXT("Status.Slow"), TEXT("Status.Wet")
+	};
+
+	for (const TCHAR* Name : Known)
+	{
+		const FGameplayTag Tag = FGameplayTag::RequestGameplayTag(FName(Name), /*ErrorIfNotFound=*/ false);
+		TestTrue(FString::Printf(TEXT("'%s' e' un tag del runtime"), Name), Tag.IsValid());
+
+		const FString Json = FString::Printf(TEXT(R"JSON({
+		  "scenarioId": "T", "version": 1, "mapRadius": 2,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0],
+		      "statuses": [ { "tag": "%s", "turns": 1 } ] },
+		    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+		  ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), Name);
+
+		FRTTestScenario Scenario;
+		FString Error;
+		if (!TestTrue(FString::Printf(TEXT("e il loader lo accetta: %s (%s)"), Name, *Error),
+			URTScenarioLoader::LoadFromString(*Json, Scenario, Error)))
+		{
+			continue;
+		}
+
+		// ⛔ **E lo CARICA davvero.** Senza questa riga il test sarebbe vacuo: passerebbe anche se il
+		// loader ignorasse il campo `statuses`, perche' un file che si accetta e un campo che arriva sono
+		// due cose diverse. Misurato: e' esattamente cosi' che questo test e' passato al primo giro,
+		// mentre gli altri due cadevano perche' il blocco del loader era finito dentro un ramo opzionale.
+		if (TestEqual(FString::Printf(TEXT("%s: uno status caricato"), Name),
+			Scenario.Units[0].Statuses.Num(), 1))
+		{
+			TestEqual(FString::Printf(TEXT("%s: col nome giusto"), Name),
+				Scenario.Units[0].Statuses[0].Tag, FName(Name));
+		}
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

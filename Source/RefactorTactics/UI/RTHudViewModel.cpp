@@ -24,6 +24,15 @@ FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnM
 	View.Phase = TurnManager->GetPhase();
 	View.bResolving = TurnManager->IsResolving();
 
+	// Il progresso sull'obiettivo (`CP 10.2`, `#75`). Si legge dal manager, che e' l'unico a saperlo: il
+	// punto lo assegna il Cleanup e nessun widget ha modo di ricalcolarlo — ne' deve, per il §4.1 di
+	// `progettazione-hud.md`.
+	View.Team0Score = TurnManager->GetTeamScore(0);
+	View.Team1Score = TurnManager->GetTeamScore(1);
+	// Dal formato, come `RoundLimit` poco sopra: `0` = via per obiettivo disattivata, non «zero punti per
+	// vincere».
+	View.ScoreToWin = TurnManager->GetMatchRules().ScoreToWin;
+
 	// Il timer risponde solo dentro il Planning, e **solo se un timer esiste davvero**. Fuori resta negativo
 	// — «non si applica» — invece di 0, che un widget leggerebbe come «scaduto adesso».
 	//

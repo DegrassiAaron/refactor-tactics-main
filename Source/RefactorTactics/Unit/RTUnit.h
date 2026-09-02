@@ -34,6 +34,20 @@ public:
 	int32 TeamId = 0;
 
 	/**
+	 * Il GRUPPO DI CONTROLLO dentro la squadra — `CP 19.3`, `#1124`: quale persona seduta in questa squadra
+	 * comanda questa unita'.
+	 *
+	 * Lo assegna `ARTGameMode` all'allestimento con `URTCombatLibrary::ControlGroupForUnit`, dall'indice
+	 * dell'unita' nella propria squadra. ⚠️ **Non e' un secondo `TeamId`**: due unita' di gruppi diversi
+	 * restano compagne di squadra — non si colpiscono, condividono la conoscenza — e cambia solo **chi le
+	 * muove**.
+	 *
+	 * Default `0`, che con `UnitsPerPlayer == UnitsPerTeam` — la v0.1 — e' anche l'unico gruppo esistente.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	int32 ControlGroup = 0;
+
+	/**
 	 * Identita' STABILE di questa istanza per tutta la partita (#405, [D-063]). Parte da `1`: lo `0` resta
 	 * libero e significa «nessuna unita' dichiarata», che e' cio' che dice una voce ambientale del TurnLog.
 	 *
