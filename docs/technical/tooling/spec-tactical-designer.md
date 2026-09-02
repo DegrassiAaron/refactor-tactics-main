@@ -577,7 +577,18 @@ authority **per costruzione**, non per disciplina di chi scrive il Blueprint.
 
 > ⚠️ Il costo è che ogni operazione va esposta **una per una**, a ogni slice. È il prezzo che compra
 > l'invariante del §3: chi lo trova troppo caro sta chiedendo di pagare l'altro — un editor che diverge dal
-> gioco. Il guardiano è `RefactorTactics.Scenario.AuthoringContractIsReachableFromBlueprint`, che verifica
+> gioco.
+>
+> 📌 **Cosa la porta lascia passare per gli intent, misurato il 2026-09-02** —
+> [#1626](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1626). Fino a quella slice erano
+> `SetMoveIntent` e `SetWaitIntent`: bastavano per uno scenario di movimento, e nessun widget avrebbe potuto
+> esprimere un attacco. Ora la porta è modellata sui **quattro slot** che `FRTScenarioIntent` già aveva —
+> movimento (`SetMoveIntent`, `SetDashIntent`), principale (`SetMainAction`, `SetMainActionOnUnit`,
+> `SetMainActionOnCell`), modificatori (`SetFacingIntent`, `SetCoverEdgeIntent`), reattivo
+> (`SetReactionIntent`) — e **non** su una lista di sette azioni: un selettore d'azione renderebbe
+> inesprimibile «muovi e attacca», che il doc header della struct dichiara essere «la norma, non un caso
+> limite». Ciascuna scrive solo il proprio campo, così chiamarle in sequenza compone il piano invece di
+> sovrascriverlo. Il guardiano è `RefactorTactics.Scenario.AuthoringContractIsReachableFromBlueprint`, che verifica
 > per riflessione **entrambi i versi**: che il contratto sia raggiungibile da Blueprint, e che il modello non
 > lo sia.
 
