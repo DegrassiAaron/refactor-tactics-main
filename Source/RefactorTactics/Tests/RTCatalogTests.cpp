@@ -481,6 +481,7 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		// Concesse da un pezzo che ESISTE ma che nessun eroe porta di default: il canale funziona, manca
 		// l'assegnazione. Escono da qui il giorno in cui un eroe riceve quel pezzo nel suo loadout.
 		{ TEXT("Action.Anchor"),          TEXT("Pezzo non assegnato: base di Reaction.Anchor, default di nessuno") },
+		{ TEXT("Action.CreateSmoke"),     TEXT("Pezzo non assegnato: Gadget.SmokeEmitter esiste, default di nessuno") },
 		// `Action.Purge` e' USCITA da questo elenco il 2026-08-27 ([D-218], `#1403`): `Reaction.Cleanse` e'
 		// il modulo di default di Riktor, quindi la base e' raggiungibile. La riga la toglie il gate stesso,
 		// che dice «ORA e' raggiungibile: togli la riga» invece di lasciarla marcire fra le esclusioni.
