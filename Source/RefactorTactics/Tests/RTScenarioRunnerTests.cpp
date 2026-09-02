@@ -1625,4 +1625,67 @@ bool FRTScenarioLatestRunIsTheMostRecentTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * IL TEMPO SIMULATO SI ASSERISCE PER UGUAGLIANZA, QUELLO DI PARETE NO — `#1671`.
+ *
+ * 🔑 **È la proprietà che rende utile la coppia.** `simulationSeconds` è `step × 0.05`: due run dello stesso
+ * scenario ne eseguono gli stessi step, quindi il numero è **identico** — e la differenza fra i due campi
+ * diventa leggibile. Un `simulationSeconds` fermo con un `wallClockSeconds` che raddoppia dice *«la macchina
+ * è carica»*; il contrario dice *«il gioco ha cambiato comportamento»*. Se anche il primo ballasse, nessuna
+ * delle due letture sarebbe possibile.
+ *
+ * ⚠️ **Sul tempo di parete non si asserisce l'uguaglianza, ed è deliberato**: dipende dalla macchina, dal
+ * carico e da chi altro sta compilando — su questo repository, dove più sessioni condividono la working
+ * directory (`D-222`), un'asserzione del genere sarebbe un oracolo che cambia risposta senza che il gioco
+ * cambi. Si asserisce che **esista**, non quanto valga.
+ *
+ * ⛔ E nessuna delle due entra in `StateHash`: misurato, zero occorrenze in `RTMatchStateHash.cpp` e nel
+ * TurnLog. Il test lo pinna dal verso osservabile — l'hash delle due run coincide, e coinciderebbe anche se
+ * il tempo di parete fosse diverso, com'è quasi certamente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioSimulationTimeIsDeterministicTest,
+	"RefactorTactics.Scenario.SimulationTimeIsDeterministicWallClockIsNot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioSimulationTimeIsDeterministicTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.Basic"), Scenario)) { return false; }
+
+	FRTTestResult First, Second;
+	{
+		UWorld* World = MakeRunnerWorld();
+		if (!TestNotNull(TEXT("world della prima run"), World)) { return false; }
+		First = URTScenarioRunner::Run(World, Scenario);
+		DestroyRunnerWorld(World);
+	}
+	{
+		UWorld* World = MakeRunnerWorld();
+		if (!TestNotNull(TEXT("world della seconda run"), World)) { return false; }
+		Second = URTScenarioRunner::Run(World, Scenario);
+		DestroyRunnerWorld(World);
+	}
+
+	// ⚠️ Prima che l'uguaglianza significhi qualcosa: due zeri sono uguali per costruzione, e un test che
+	// confrontasse due simulazioni mai partite sarebbe verde senza misurare niente.
+	if (!TestTrue(FString::Printf(TEXT("la prima run ha simulato qualcosa (%.2f s)"), First.SimulationSeconds),
+		First.SimulationSeconds > 0.f))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("due run dello stesso scenario simulano lo stesso tempo"),
+		Second.SimulationSeconds, First.SimulationSeconds);
+
+	// La controprova che stiano davvero eseguendo la stessa simulazione, e non due cose diverse che per caso
+	// durano uguale.
+	TestEqual(TEXT("e sono la stessa simulazione: stesso stato finale"), Second.StateHash, First.StateHash);
+	TestEqual(TEXT("e stesso numero di turni"), Second.TurnsPlayed, First.TurnsPlayed);
+
+	// Il tempo di parete ESISTE — non si asserisce quanto valga, per la ragione nel commento sopra.
+	TestTrue(TEXT("la prima run ha un tempo di parete"), First.WallClockSeconds > 0.f);
+	TestTrue(TEXT("e anche la seconda"), Second.WallClockSeconds > 0.f);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
