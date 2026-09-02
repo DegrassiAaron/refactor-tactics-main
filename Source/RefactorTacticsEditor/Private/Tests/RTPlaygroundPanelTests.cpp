@@ -7,7 +7,9 @@
 #include "RTPlaygroundLayout.h"
 #include "RTPlaygroundPanelLibrary.h"
 #include "Blueprint/WidgetTree.h"
+#include "Components/Button.h"
 #include "Components/ComboBoxString.h"
+#include "Components/TextBlock.h"
 #include "EditorUtilityWidgetBlueprint.h"
 #include "EdGraph/EdGraph.h"
 #include "K2Node_CallFunction.h"
@@ -401,7 +403,7 @@ bool FRTPanelComboOptionsTest::RunTest(const FString&)
 		for (int32 Index = 0; Index < Stations.Num(); ++Index)
 		{
 			TestEqual(*FString::Printf(TEXT("station %d: la voce salvata e' quella del modello"), Index),
-				SavedStations[Index], Stations[Index].Name);
+				SavedStations[Index], URTPlaygroundPanelLibrary::StationOptionLabel(Stations[Index]));
 		}
 	}
 
@@ -470,18 +472,231 @@ bool FRTPanelGraphCallsTheModelTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Le quattro chiamate che rendono il pannello un pannello invece di una finestra inerte.
+	// Le chiamate che rendono il pannello un pannello invece di una finestra inerte.
 	const FName Expected[] =
 	{
-		TEXT("EvaluateMapState"),   // l'HEADER dice dove sei, e perche' non ci sei
-		TEXT("DiagnosticsLines"),   // le tre righe vengono dal modello, non riscritte nel widget
-		TEXT("ParseFacingOption"),  // la voce della combo diventa una direzione
-		TEXT("ApplyFixtureFacing"), // 🔑 e la direzione MUOVE il marker: senza questa il pannello mente
+		TEXT("EvaluateMapState"),        // l'HEADER dice dove sei, e perche' non ci sei
+		TEXT("DiagnosticsLines"),        // le tre righe vengono dal modello, non riscritte nel widget
+		TEXT("ParseFacingOption"),       // la voce della combo diventa una direzione
+		TEXT("ApplyFixtureFacing"),      // 🔑 e la direzione MUOVE il marker: senza questa il pannello mente
+		TEXT("ResetFixture"),            // e si torna ai default dichiarati
+		TEXT("ParseStationOption"),      // la voce della combo station diventa un numero
+		TEXT("FindStation"),             // il numero diventa una station, con il suo centro
+		TEXT("CameraPresetArmLengths"),  // i tre bracci vengono dal modello, non scritti nel grafo
+		TEXT("SetLevelViewportCameraInfo"), // 🔑 e la camera si MUOVE davvero
 	};
 	for (const FName& Function : Expected)
 	{
 		TestTrue(*FString::Printf(TEXT("il grafo chiama %s"), *Function.ToString()), Called.Contains(Function));
 	}
+
+	// ⛔ I quattro pulsanti che inquadrano devono muovere la camera **ciascuno**: una sola chiamata
+	// vorrebbe dire che tre di loro sono ancora inerti, ed e' esattamente lo stato da cui si viene.
+	int32 CameraCalls = 0;
+	for (const TObjectPtr<UEdGraph>& Graph : Panel->UbergraphPages)
+	{
+		if (!Graph) { continue; }
+		for (const UEdGraphNode* Node : Graph->Nodes)
+		{
+			const UK2Node_CallFunction* Call = Cast<UK2Node_CallFunction>(Node);
+			if (Call && Call->FunctionReference.GetMemberName() == TEXT("SetLevelViewportCameraInfo"))
+			{
+				++CameraCalls;
+			}
+		}
+	}
+	TestEqual(TEXT("quattro pulsanti inquadrano, quindi quattro chiamate alla camera"), CameraCalls, 4);
+	return true;
+}
+
+/**
+ * 🔴 **Le tre righe di `DIAGNOSTICS` si vedevano DUE volte, e la prima stesura di questo test non se ne
+ * accorgeva.**
+ *
+ * ⚠️ **La duplicazione e' una proprieta' di RUNTIME, non dell'asset.** Nel `.uasset` salvato i tre slot
+ * `Txt_Diag*` portavano dei segnaposto (`Station: —`) e solo `Txt_Declared_*` portava le righe del
+ * modello: contando le occorrenze nel file, ogni riga compariva **una volta**, e il test era **verde sul
+ * pannello rotto**. Misurato rimettendo l'asset pre-fix, non dedotto.
+ *
+ * 🔑 La condizione statica che PRODUCE il doppione e' un'altra: esiste un widget che porta una riga di
+ * `DiagnosticsLines()` **e non e' uno dei tre slot che il grafo riscrive**. Allora a `EventConstruct` le
+ * righe finiscono in due posti. E' questo che il test asserisce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelDiagnosticsOnceTest,
+	"RefactorTactics.Playground.PanelDiagnosticsAppearOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelDiagnosticsOnceTest::RunTest(const FString&)
+{
+	UEditorUtilityWidgetBlueprint* Panel = LoadObject<UEditorUtilityWidgetBlueprint>(
+		nullptr, TEXT("/Game/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground"));
+	if (!TestNotNull(TEXT("il pannello e' caricabile"), Panel) ||
+		!TestNotNull(TEXT("il pannello ha un widget tree"), Panel->WidgetTree.Get()))
+	{
+		return false;
+	}
+
+	// I tre slot che `EventConstruct` riscrive da `DiagnosticsLines()`. Chiunque altro porti quelle righe
+	// e' una seconda copia, e a schermo si legge come un difetto.
+	const TSet<FName> Slots = {
+		FName(TEXT("Txt_DiagStation")), FName(TEXT("Txt_DiagBounds")), FName(TEXT("Txt_DiagActor")) };
+	for (const FName& Slot : Slots)
+	{
+		TestNotNull(*FString::Printf(TEXT("lo slot %s esiste"), *Slot.ToString()),
+			Panel->WidgetTree->FindWidget(Slot));
+	}
+
+	const TArray<FString> Lines = URTPlaygroundPanelLibrary::DiagnosticsLines();
+	if (!TestTrue(TEXT("il modello dichiara almeno una riga"), Lines.Num() > 0))
+	{
+		return false;
+	}
+
+	TArray<FString> Intruders;
+	Panel->WidgetTree->ForEachWidget([&Intruders, &Lines, &Slots](UWidget* Widget)
+	{
+		const UTextBlock* Block = Cast<UTextBlock>(Widget);
+		if (!Block || Slots.Contains(Widget->GetFName()))
+		{
+			return;
+		}
+		const FString Text = Block->GetText().ToString();
+		if (Lines.ContainsByPredicate([&Text](const FString& Line) { return Line.Equals(Text); }))
+		{
+			Intruders.Add(Widget->GetName());
+		}
+	});
+
+	TestEqual(*FString::Printf(TEXT("nessun widget fuori dai tre slot porta una riga di DIAGNOSTICS (trovati: %s)"),
+		Intruders.Num() > 0 ? *FString::Join(Intruders, TEXT(", ")) : TEXT("nessuno")),
+		Intruders.Num(), 0);
+	return true;
+}
+
+/**
+ * 🔴 **Sei pulsanti erano barre grigie MUTE**: `UButton` senza figlio di testo non mostra niente, e il
+ * verdetto di chi ha aperto il pannello e' stato *«non c'e' molto selezionabile»*. C'era — non si leggeva.
+ *
+ * ⚠️ Il test cerca il testo **nella discendenza**, non fra i figli diretti: un pulsante che un giorno
+ * incapsulasse l'etichetta in un box resterebbe corretto, e un test troppo stretto lo chiamerebbe rotto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelButtonLabelsTest,
+	"RefactorTactics.Playground.PanelButtonsCarryALabel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelButtonLabelsTest::RunTest(const FString&)
+{
+	UEditorUtilityWidgetBlueprint* Panel = LoadObject<UEditorUtilityWidgetBlueprint>(
+		nullptr, TEXT("/Game/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground"));
+	if (!TestNotNull(TEXT("il pannello e' caricabile"), Panel) ||
+		!TestNotNull(TEXT("il pannello ha un widget tree"), Panel->WidgetTree.Get()))
+	{
+		return false;
+	}
+
+	TArray<UButton*> Buttons;
+	Panel->WidgetTree->ForEachWidget([&Buttons](UWidget* Widget)
+	{
+		if (UButton* Button = Cast<UButton>(Widget))
+		{
+			Buttons.Add(Button);
+		}
+	});
+
+	// ⛔ Senza questo il ciclo sotto sarebbe vacuo: zero pulsanti = zero asserzioni = verde.
+	if (!TestTrue(TEXT("il pannello ha dei pulsanti da controllare"), Buttons.Num() > 0))
+	{
+		return false;
+	}
+
+	for (const UButton* Button : Buttons)
+	{
+		bool bHasLabel = false;
+		for (int32 I = 0; I < Button->GetChildrenCount(); ++I)
+		{
+			if (const UTextBlock* Block = Cast<UTextBlock>(Button->GetChildAt(I)))
+			{
+				bHasLabel |= !Block->GetText().IsEmptyOrWhitespace();
+			}
+		}
+		TestTrue(*FString::Printf(TEXT("%s porta un'etichetta leggibile"), *Button->GetName()), bHasLabel);
+	}
+	return true;
+}
+
+/**
+ * La gerarchia visiva esiste, e la fa la **differenza** fra le dimensioni.
+ *
+ * ⚠️ Il default di `UTextBlock` e' 24 per tutti: a quel punto titolo, intestazioni e corpo erano
+ * indistinguibili e quattro righe riempivano il pannello. Un test sul valore assoluto invecchierebbe al
+ * primo ritocco; questo asserisce la **relazione**, che e' cio' che rende leggibile una lista.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelFontHierarchyTest,
+	"RefactorTactics.Playground.PanelTitleIsLargerThanBody",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelFontHierarchyTest::RunTest(const FString&)
+{
+	UEditorUtilityWidgetBlueprint* Panel = LoadObject<UEditorUtilityWidgetBlueprint>(
+		nullptr, TEXT("/Game/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground"));
+	if (!TestNotNull(TEXT("il pannello e' caricabile"), Panel) ||
+		!TestNotNull(TEXT("il pannello ha un widget tree"), Panel->WidgetTree.Get()))
+	{
+		return false;
+	}
+
+	const UTextBlock* Title  = Cast<UTextBlock>(Panel->WidgetTree->FindWidget(TEXT("Txt_Title")));
+	const UTextBlock* Header = Cast<UTextBlock>(Panel->WidgetTree->FindWidget(TEXT("Txt_StationHeader")));
+	const UTextBlock* Body   = Cast<UTextBlock>(Panel->WidgetTree->FindWidget(TEXT("Txt_DiagStation")));
+	if (!TestNotNull(TEXT("il titolo esiste"), Title) ||
+		!TestNotNull(TEXT("un'intestazione di sezione esiste"), Header) ||
+		!TestNotNull(TEXT("una riga di corpo esiste"), Body))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("il titolo e' piu' grande di un'intestazione"), Title->GetFont().Size > Header->GetFont().Size);
+	TestTrue(TEXT("un'intestazione e' piu' grande del corpo"),    Header->GetFont().Size > Body->GetFont().Size);
+	return true;
+}
+
+/**
+ * 🔑 **L'etichetta e il numero fanno un giro chiuso**, su tutte le station.
+ *
+ * `StationOptionLabel` scrive cio' che la combo mostra; `ParseStationOption` e' la strada di ritorno che
+ * il grafo percorre quando `OnSelectionChanged` gli consegna `SelectedItem`. Due funzioni che si
+ * invertono sono un posto classico dove il difetto si nasconde: **testarle separatamente non basta**, e
+ * il round-trip e' l'unica asserzione che le lega.
+ *
+ * ⛔ E il caso negativo non e' cerimonia: una stringa che non e' una station deve dare `false` **e**
+ * lasciare `OutNumber` a zero. Un parser che restituisse l'ultimo valore letto porterebbe la camera su
+ * una station a caso, e nessuno saprebbe perche'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelStationRoundTripTest,
+	"RefactorTactics.Playground.PanelStationOptionRoundTrips",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelStationRoundTripTest::RunTest(const FString&)
+{
+	const TArray<FRTPlaygroundStationInfo> Stations = URTPlaygroundPanelLibrary::GetStations();
+	if (!TestTrue(TEXT("il modello dichiara delle station"), Stations.Num() > 0))
+	{
+		return false;
+	}
+
+	for (const FRTPlaygroundStationInfo& Station : Stations)
+	{
+		const FString Label = URTPlaygroundPanelLibrary::StationOptionLabel(Station);
+		int32 Parsed = -1;
+		const bool bOk = URTPlaygroundPanelLibrary::ParseStationOption(Label, Parsed);
+		TestTrue(*FString::Printf(TEXT("station %d: l'etichetta si rilegge"), Station.Number), bOk);
+		TestEqual(*FString::Printf(TEXT("station %d: e il numero e' lo stesso"), Station.Number),
+			Parsed, Station.Number);
+	}
+
+	int32 Nonsense = 7;
+	TestFalse(TEXT("una stringa che non e' una station non passa"),
+		URTPlaygroundPanelLibrary::ParseStationOption(TEXT("99  Non esiste"), Nonsense));
+	TestEqual(TEXT("e non lascia dietro un numero vecchio"), Nonsense, 0);
+
+	int32 Empty = 7;
+	TestFalse(TEXT("la stringa vuota non passa"), URTPlaygroundPanelLibrary::ParseStationOption(FString(), Empty));
 	return true;
 }
 

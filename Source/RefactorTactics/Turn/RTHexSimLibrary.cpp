@@ -180,16 +180,22 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 	const int32 Budget = FMath::Max(0, Unit->MoveBudget);
 
 	// Dijkstra su costi interi: estrazione del minimo con tie-break sull'ID (nessuna dipendenza dall'ordine di TMap).
-	TMap<FRTCellId, int32> Dist;
+	// 🔴 **Lo stato e' (cella, lato d'ingresso)**, come nell'A* — #2100. La portata DEVE usare la
+	// stessa regola del percorso: se divergessero, l'overlay illuminerebbe celle che il pathfinding non sa
+	// raggiungere, e il giocatore vedrebbe una destinazione su cui non puo' andare.
+	// Con `RT_NoEntrySide` su ogni cella priva di geometria interna la chiave resta 1:1 con la cella, e
+	// l'ordine di visita e il tie-break di parita' non cambiano di un passo.
+	TMap<FRTPathNode, int32> Dist;
 	// Predecessore di ogni cella: serve al FACING, che deriva dall'ultimo passo (CP 13.5). La partenza e'
 	// predecessore di se stessa — chi non si muove non ha un «da dove», e il suo orientamento non cambia.
-	TMap<FRTCellId, FRTCellId> From;
-	TArray<FRTCellId> Frontier;
-	TSet<FRTCellId> Closed;
+	TMap<FRTPathNode, FRTPathNode> From;
+	TArray<FRTPathNode> Frontier;
+	TSet<FRTPathNode> Closed;
 
-	Dist.Add(Unit->Cell, 0);
-	From.Add(Unit->Cell, Unit->Cell);
-	Frontier.Add(Unit->Cell);
+	const FRTPathNode StartNode{ Unit->Cell, RT_NoEntrySide };
+	Dist.Add(StartNode, 0);
+	From.Add(StartNode, StartNode);
+	Frontier.Add(StartNode);
 
 	while (Frontier.Num() > 0)
 	{
@@ -198,13 +204,13 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 		{
 			const int32 D = Dist[Frontier[I]];
 			const int32 BestD = Dist[Frontier[BestIdx]];
-			if (D < BestD || (D == BestD && URTHexLibrary::StableLess(Frontier[I], Frontier[BestIdx])))
+			if (D < BestD || (D == BestD && NodeStableLess(Frontier[I], Frontier[BestIdx])))
 			{
 				BestIdx = I;
 			}
 		}
 
-		const FRTCellId Current = Frontier[BestIdx];
+		const FRTPathNode Current = Frontier[BestIdx];
 		Frontier.RemoveAt(BestIdx);
 		if (Closed.Contains(Current))
 		{
@@ -212,23 +218,37 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 		}
 		Closed.Add(Current);
 
-		for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Snapshot.Map, Current))
+		for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Snapshot.Map, Current.Cell))
 		{
 			if (Blocked.Contains(Step.Key))
 			{
 				continue; // occupata da un'altra unita'
 			}
+
+			// La traversata intra-cella, con la stessa regola dell'A* (#2100).
+			if (Current.Entry != RT_NoEntrySide)
+			{
+				ERTHexDirection ExitDir = ERTHexDirection::E;
+				if (URTHexLibrary::DirectionBetween(Current.Cell, Step.Key, ExitDir)
+					&& !URTHexPathLibrary::CanTransitCell(Snapshot.Map, Current.Cell,
+						static_cast<ERTHexDirection>(Current.Entry), ExitDir))
+				{
+					continue; // geometria interna: le due sponde non si parlano
+				}
+			}
+
 			const int32 Tentative = Dist[Current] + Step.Value + FMath::Max(0, Unit->MoveCostModifier);
 			if (Tentative > Budget)
 			{
 				continue; // fuori dal budget di movimento
 			}
-			const int32* Existing = Dist.Find(Step.Key);
+			const FRTPathNode Next{ Step.Key, EntrySideOf(Snapshot.Map, Step.Key, Current.Cell) };
+			const int32* Existing = Dist.Find(Next);
 			if (!Existing || Tentative < *Existing)
 			{
-				Dist.Add(Step.Key, Tentative);
-				From.Add(Step.Key, Current);
-				Frontier.Add(Step.Key);
+				Dist.Add(Next, Tentative);
+				From.Add(Next, Current);
+				Frontier.Add(Next);
 			}
 			else if (Tentative == *Existing)
 			{
@@ -236,20 +256,44 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 				// che se ne deriva dipende da quale si sceglie. Il tie-break e' esplicito e sull'ID, come quello
 				// dell'estrazione: senza, il predecessore lo deciderebbe l'ordine di visita — cioe' un dettaglio
 				// che nessuno ha dichiarato, e che il resolver non e' tenuto a riprodurre.
-				const FRTCellId* Prev = From.Find(Step.Key);
-				if (Prev && URTHexLibrary::StableLess(Current, *Prev))
+				const FRTPathNode* Prev = From.Find(Next);
+				if (Prev && NodeStableLess(Current, *Prev))
 				{
-					From.Add(Step.Key, Current);
+					From.Add(Next, Current);
 				}
 			}
 		}
 	}
 
-	Out.Reserve(Dist.Num());
-	for (const TPair<FRTCellId, int32>& Entry : Dist)
+	// ⚠️ **La ricerca distingue i nodi, l'uscita no**: il contratto di questa funzione e' una voce per
+	// CELLA. Due nodi della stessa cella — entrata da lati diversi — si collassano tenendo il costo
+	// minore, e a parita' il predecessore che `NodeStableLess` mette prima: lo stesso criterio del ramo
+	// di parita' qui sopra, applicato una seconda volta perche' qui la collisione e' fra nodi e non fra
+	// cammini. Su una cella senza geometria il nodo e' uno solo e il collasso e' l'identita'.
+	TMap<FRTCellId, TPair<int32, FRTCellId>> Best; // cella -> (costo, predecessore)
+	for (const TPair<FRTPathNode, int32>& Entry : Dist)
 	{
-		const FRTCellId* Prev = From.Find(Entry.Key);
-		Out.Add(FRTHexReachableCell(Entry.Key, Entry.Value, Prev ? *Prev : Entry.Key));
+		const FRTPathNode* Prev = From.Find(Entry.Key);
+		const FRTCellId PrevCell = Prev ? Prev->Cell : Entry.Key.Cell;
+
+		if (TPair<int32, FRTCellId>* Existing = Best.Find(Entry.Key.Cell))
+		{
+			if (Entry.Value < Existing->Key
+				|| (Entry.Value == Existing->Key && URTHexLibrary::StableLess(PrevCell, Existing->Value)))
+			{
+				*Existing = TPair<int32, FRTCellId>(Entry.Value, PrevCell);
+			}
+		}
+		else
+		{
+			Best.Add(Entry.Key.Cell, TPair<int32, FRTCellId>(Entry.Value, PrevCell));
+		}
+	}
+
+	Out.Reserve(Best.Num());
+	for (const TPair<FRTCellId, TPair<int32, FRTCellId>>& Entry : Best)
+	{
+		Out.Add(FRTHexReachableCell(Entry.Key, Entry.Value.Key, Entry.Value.Value));
 	}
 	Out.Sort([](const FRTHexReachableCell& A, const FRTHexReachableCell& B)
 	{
@@ -618,6 +662,22 @@ TArray<FRTCellId> URTHexSimLibrary::TruncatePathToTopology(const FRTHexSnapshot&
 		{
 			break; // la topologia e' cambiata da quando il piano e' stato scritto: si ferma QUI
 		}
+
+		// 🔴 **La traversata intra-cella** (#2100). Qui il predecessore e il successore sono ENTRAMBI
+		// noti — si sta validando un percorso intero, non esplorando — quindi non serve nessuno stato:
+		// si chiede direttamente se `Path[k - 1]` si attraversa da dove si e' arrivati a dove si va.
+		if (k >= 2)
+		{
+			ERTHexDirection EntryDir = ERTHexDirection::E;
+			ERTHexDirection ExitDir = ERTHexDirection::E;
+			if (URTHexLibrary::DirectionBetween(Path[k - 1], Path[k - 2], EntryDir)
+				&& URTHexLibrary::DirectionBetween(Path[k - 1], Path[k], ExitDir)
+				&& !URTHexPathLibrary::CanTransitCell(Snapshot.Map, Path[k - 1], EntryDir, ExitDir))
+			{
+				break; // geometria interna: il piano attraversava un muro, e si ferma PRIMA di entrarci
+			}
+		}
+
 		Walkable.Add(Path[k]);
 	}
 	return Walkable;

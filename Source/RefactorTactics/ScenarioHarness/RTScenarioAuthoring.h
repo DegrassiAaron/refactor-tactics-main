@@ -121,6 +121,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
 	ERTScenarioAuthoringResult RemoveTurn(int32 TurnIndex, FString& OutError);
 
+	/**
+	 * Duplica un turno; la copia va **subito dopo** l'originale e `OutNewIndex` dice dove.
+	 *
+	 * ⛔ Non c'e' una gemella per il riordino: e' una decisione misurata di `#1627`, e la ragione sta per
+	 * esteso su `FRTScenarioDraft::DuplicateTurn`.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult DuplicateTurn(int32 SourceIndex, int32& OutNewIndex, FString& OutError);
+
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
 	int32 GetTurnCount() const { return Draft.NumTurns(); }
 

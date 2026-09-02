@@ -88,7 +88,7 @@ namespace
  *
  * Il muro e' un diametro fra due vertici: attraversa la cella da parte a parte, occupa i quattro settori
  * che percorre — `D-306` — e lascia liberi gli altri otto in due regioni. Con il profilo identita' una posa
- * esiste, quindi il passo deve passare di li'.
+ * esiste, quindi la cella si RAGGIUNGE. Che la si attraversi e' un'altra domanda (#2100).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStandWallCrossesCellStillStandableTest,
 	"RefactorTactics.Standability.WallCrossesCellStillStandable",
@@ -109,10 +109,29 @@ bool FRTStandWallCrossesCellStillStandableTest::RunTest(const FString&)
 	TestFalse(TEXT("la cella resta calpestabile"), Cell->bBlocksMovement);
 
 	// LA PROVA SUL PERCORSO, che e' il criterio: non basta il predicato.
+	//
+	// 🔁 **Corretto il 2026-09-02 (#2100): la meta e' la cella col muro, non l'altra sponda.**
+	// La stesura precedente chiedeva un percorso da `(-3,0,0)` a `(3,0,0)` e asseriva che **attraversasse**
+	// `Middle`. E' un'asserzione piu' forte del claim: `#1827` dice che la cella e' **CALPESTABILE**, e il
+	// suo Scope §2 toglie *«non si attraversa»* dal commento di `ERTCellOccupancy::Blocked` perche' «non e'
+	// piu' vero» — cioe' separa esplicitamente le due domande.
+	//
+	// 🔑 **Il criterio 1 resta soddisfatto alla lettera**: *«un test sul percorso reale, non sul
+	// predicato isolato»*. Qui il percorso reale c'e' — lo produce `FindPath`, non `HasLegalPlacement` — e
+	// dimostra che la cella si RAGGIUNGE. Che non la si ATTRAVERSI e' un'altra regola, quella di
+	// `spec-cover-placement-intra-hex.md` §6, ed e' pinnata altrove:
+	// `RefactorTactics.Path.ContinuousWallBlocksTheCrossing`.
 	const FRTHexPathResult Result =
-		URTHexPathLibrary::FindPath(Map, FRTCellId(-3, 0, 0), FRTCellId(3, 0, 0), 999);
-	TestTrue(TEXT("il percorso esiste"), Result.Status == ERTHexPathStatus::Success);
-	TestTrue(TEXT("e attraversa la cella col muro"), Result.Path.Contains(Middle));
+		URTHexPathLibrary::FindPath(Map, FRTCellId(-3, 0, 0), Middle, 999);
+	TestTrue(TEXT("il percorso verso la cella col muro esiste"),
+		Result.Status == ERTHexPathStatus::Success);
+	TestTrue(TEXT("e ci arriva davvero"),
+		Result.Path.Num() > 0 && Result.Path.Last() == Middle);
+
+	// CONTROPROVA, e senza di essa il test non discriminerebbe piu': se la cottura chiudesse la cella,
+	// il percorso non esisterebbe affatto. E' cio' che il criterio 1 vuole falsificare.
+	TestTrue(TEXT("e il percorso parte da fuori, quindi la cella e' stata RAGGIUNTA"),
+		Result.Path.Num() >= 2);
 
 	return true;
 }

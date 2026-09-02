@@ -2445,7 +2445,22 @@ sessions:
       **La domanda è una sola:** *chi apre il pannello capisce dove si trova, ci va, cambia ciò che
       guarda — senza toccare il Details?*
 
-      Il giro: tasto destro su `WBP_RT_GrayKitPlayground` → `Run Editor Utility Widget` → con
+      ⚠️ **Come si apre, e cosa fare quando la voce di menu non si trova.** `Run Editor Utility Widget` è
+      registrata in **due** posti — sul Blueprint
+      (`AssetDefinition_EditorUtilityWidgetBlueprint.cpp:138`, plugin `EngineAssetDefinitions`, abilitato di
+      default) **e** sulla classe generata (`AssetDefinition_WidgetBlueprintGeneratedClass.cpp:101`), che
+      però il Content Browser nasconde. Se sul Blueprint non compare, **non dedurne che l'asset sia
+      sbagliato**: misurato il 2026-09-02, l'asset dichiara `EditorUtilityWidgetBlueprint` e il plugin è
+      attivo. Tre vie, in ordine di affidabilità:
+      1. **doppio clic** sull'asset → pulsante **`Run Utility Widget`** nella toolbar dell'editor UMG
+         (`BlutilityUMGEditorExtensions.cpp:55`);
+      2. la **console Python** (Output Log → menu `Cmd` → `Python`), che non dipende da nessun menu:
+         `import unreal; unreal.get_editor_subsystem(unreal.EditorUtilitySubsystem).spawn_and_register_tab(unreal.load_asset('/Game/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground'))`
+      3. `Show Generated Classes` nei filtri → destro su `WBP_RT_GrayKitPlayground_C`.
+      🔑 **Il pulsante `Run` è NASCOSTO se il tab esiste già** (`FIsActionButtonVisible` interroga
+      `DoesTabExist`): al suo posto compare `Stop Utility Widget`. Vedere Stop — o non vedere Run — vuol
+      dire che **il pannello è già aperto**, e va cercato fra le finestre, non riaperto.
+      Il giro: aprire `WBP_RT_GrayKitPlayground` con una delle due vie sopra → con
       `L_GrayKitPlayground` aperta il pannello dice `Ready` → `Focus` sulla Station 01 → `Select
       Fixture` → il `Facing` si cambia **sei volte** e il marker segue **ogni volta**.
 
