@@ -93,10 +93,15 @@ if resto and re.fullmatch(r"[+-]\d+", resto[0]):
 os.chdir(RADICE)
 
 
-def scrivi(testo):
-    """Scrittura ATOMICA: si codifica PRIMA di aprire. Un `open(...,'wb')` che fallisce dopo la troncatura
-    lascerebbe l'header di combattimento a zero byte, e la prossima cosa che accade e' un build."""
-    dati = testo.encode("utf-8")
+def scrivi(dati):
+    """Scrittura ATOMICA, e in BYTE.
+
+    ⚠️ In byte perche' il ripristino deve rimettere il file **identico**: leggendo in testo e riscrivendo,
+    i CRLF diventano LF e `git status` mostra il file modificato dopo un audit che non ha cambiato niente
+    — misurato, e basta a rendere NON VALIDA la misura di chiunque altro.
+
+    🔴 E atomica perche' un `open(...,'wb')` TRONCA prima di valutare cosa scrivere: un errore in quella
+    finestra lascerebbe l'header del combattimento a zero byte, e la cosa dopo e' un build."""
     tmp = H + ".tmp"
     with io.open(tmp, "wb") as f:
         f.write(dati)
@@ -107,7 +112,8 @@ def scrivi(testo):
 # porta ancora la sua mutazione, e senza questa riga diventerebbe la base di tutto l'audit.
 subprocess.run(["git", "checkout", "--", "Source/RefactorTactics/Combat/RTCombatLibrary.h"],
                capture_output=True, text=True)
-ORIGINALE = io.open(H, encoding="utf-8").read()
+BYTE_ORIGINALI = io.open(H, "rb").read()          # i byte veri, per un ripristino identico
+ORIGINALE = BYTE_ORIGINALI.decode("utf-8")
 
 TUTTE = re.findall(r"static constexpr int32 (\w+)\s*=\s*(-?\d+)\s*;", ORIGINALE)
 COST = [c for c in TUTTE if not resto or c[0] in resto]
@@ -121,7 +127,7 @@ if not COST:
 
 
 def ripristina():
-    scrivi(ORIGINALE)
+    scrivi(BYTE_ORIGINALI)
 
 
 def build(tentativi=40):
@@ -207,7 +213,8 @@ with io.open(ESITI, "w", encoding="utf-8") as f:
                 f.write("## %s = %s -> %s\n**NON MISURATA**: la sostituzione non ha agganciato la "
                         "dichiarazione (spaziatura diversa?).\n\n" % (nome, val, nuovo))
                 sospese.append(nome); f.flush(); continue
-            scrivi(mutato)
+            scrivi(BYTE_ORIGINALI.replace(atteso.encode("utf-8"),
+                                          ("static constexpr int32 %s = %s;" % (nome, nuovo)).encode("utf-8"), 1))
             if io.open(H, encoding="utf-8").read() != mutato:
                 f.write("## %s = %s -> %s\n**NON MISURATA**: il file riletto non porta la mutazione.\n\n"
                         % (nome, val, nuovo))
