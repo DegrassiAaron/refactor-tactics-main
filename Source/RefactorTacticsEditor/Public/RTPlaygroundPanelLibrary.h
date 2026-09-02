@@ -131,6 +131,19 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playground")
 	static TArray<FString> GetFacingOptions();
 
+	/**
+	 * L'etichetta con cui una station compare nella combo.
+	 *
+	 * 🔴 **Il `Name` da solo NON identifica la station.** Sono descrizioni — *«Scenario / Resolution /
+	 * Playback»* — e nella tendina si leggevano come voci di un menu qualsiasi: la station 08 sembrava un
+	 * comando. Il numero e' la sua identita', e va davanti.
+	 *
+	 * ⚠️ Vive qui e non nel commandlet perche' il test lo confronta: un formato scritto due volte diverge,
+	 * e il test si allineerebbe alla copia sbagliata invece di sorvegliare quella giusta.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playground")
+	static FString StationOptionLabel(const FRTPlaygroundStationInfo& Station);
+
 	/** La direzione corrispondente a una voce del dropdown. `false` se la stringa non e' del set. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playground")
 	static bool ParseFacingOption(const FString& Option, ERTHexDirection& OutFacing);

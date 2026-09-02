@@ -7,7 +7,9 @@
 #include "RTPlaygroundLayout.h"
 #include "RTPlaygroundPanelLibrary.h"
 #include "Blueprint/WidgetTree.h"
+#include "Components/Button.h"
 #include "Components/ComboBoxString.h"
+#include "Components/TextBlock.h"
 #include "EditorUtilityWidgetBlueprint.h"
 #include "EdGraph/EdGraph.h"
 #include "K2Node_CallFunction.h"
@@ -401,7 +403,7 @@ bool FRTPanelComboOptionsTest::RunTest(const FString&)
 		for (int32 Index = 0; Index < Stations.Num(); ++Index)
 		{
 			TestEqual(*FString::Printf(TEXT("station %d: la voce salvata e' quella del modello"), Index),
-				SavedStations[Index], Stations[Index].Name);
+				SavedStations[Index], URTPlaygroundPanelLibrary::StationOptionLabel(Stations[Index]));
 		}
 	}
 
@@ -482,6 +484,136 @@ bool FRTPanelGraphCallsTheModelTest::RunTest(const FString&)
 	{
 		TestTrue(*FString::Printf(TEXT("il grafo chiama %s"), *Function.ToString()), Called.Contains(Function));
 	}
+	return true;
+}
+
+/**
+ * 🔴 **Le tre righe di `DIAGNOSTICS` comparivano DUE volte, e nessun test se ne accorgeva.**
+ *
+ * Il commandlet incideva `Txt_Declared_0..2` con le righe del modello, e da quando il grafo riempie anche
+ * `Txt_Diag*` dalla stessa fonte il pannello ne mostrava sei. Nessuna delle due copie era sbagliata — ed e'
+ * proprio questo che rende il difetto invisibile a un test che guardi *il contenuto*: bisogna contare le
+ * **occorrenze**. Visto a occhio nella seduta `U41`, non da qui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelDiagnosticsOnceTest,
+	"RefactorTactics.Playground.PanelDiagnosticsAppearOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelDiagnosticsOnceTest::RunTest(const FString&)
+{
+	UEditorUtilityWidgetBlueprint* Panel = LoadObject<UEditorUtilityWidgetBlueprint>(
+		nullptr, TEXT("/Game/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground"));
+	if (!TestNotNull(TEXT("il pannello e' caricabile"), Panel) ||
+		!TestNotNull(TEXT("il pannello ha un widget tree"), Panel->WidgetTree.Get()))
+	{
+		return false;
+	}
+
+	const TArray<FString> Lines = URTPlaygroundPanelLibrary::DiagnosticsLines();
+	if (!TestTrue(TEXT("il modello dichiara almeno una riga"), Lines.Num() > 0))
+	{
+		return false;
+	}
+
+	for (const FString& Line : Lines)
+	{
+		int32 Occurrences = 0;
+		Panel->WidgetTree->ForEachWidget([&Occurrences, &Line](UWidget* Widget)
+		{
+			if (const UTextBlock* Block = Cast<UTextBlock>(Widget))
+			{
+				if (Block->GetText().ToString().Equals(Line))
+				{
+					++Occurrences;
+				}
+			}
+		});
+		TestEqual(*FString::Printf(TEXT("'%s' compare una volta sola"), *Line), Occurrences, 1);
+	}
+	return true;
+}
+
+/**
+ * 🔴 **Sei pulsanti erano barre grigie MUTE**: `UButton` senza figlio di testo non mostra niente, e il
+ * verdetto di chi ha aperto il pannello e' stato *«non c'e' molto selezionabile»*. C'era — non si leggeva.
+ *
+ * ⚠️ Il test cerca il testo **nella discendenza**, non fra i figli diretti: un pulsante che un giorno
+ * incapsulasse l'etichetta in un box resterebbe corretto, e un test troppo stretto lo chiamerebbe rotto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelButtonLabelsTest,
+	"RefactorTactics.Playground.PanelButtonsCarryALabel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelButtonLabelsTest::RunTest(const FString&)
+{
+	UEditorUtilityWidgetBlueprint* Panel = LoadObject<UEditorUtilityWidgetBlueprint>(
+		nullptr, TEXT("/Game/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground"));
+	if (!TestNotNull(TEXT("il pannello e' caricabile"), Panel) ||
+		!TestNotNull(TEXT("il pannello ha un widget tree"), Panel->WidgetTree.Get()))
+	{
+		return false;
+	}
+
+	TArray<UButton*> Buttons;
+	Panel->WidgetTree->ForEachWidget([&Buttons](UWidget* Widget)
+	{
+		if (UButton* Button = Cast<UButton>(Widget))
+		{
+			Buttons.Add(Button);
+		}
+	});
+
+	// ⛔ Senza questo il ciclo sotto sarebbe vacuo: zero pulsanti = zero asserzioni = verde.
+	if (!TestTrue(TEXT("il pannello ha dei pulsanti da controllare"), Buttons.Num() > 0))
+	{
+		return false;
+	}
+
+	for (const UButton* Button : Buttons)
+	{
+		bool bHasLabel = false;
+		for (int32 I = 0; I < Button->GetChildrenCount(); ++I)
+		{
+			if (const UTextBlock* Block = Cast<UTextBlock>(Button->GetChildAt(I)))
+			{
+				bHasLabel |= !Block->GetText().IsEmptyOrWhitespace();
+			}
+		}
+		TestTrue(*FString::Printf(TEXT("%s porta un'etichetta leggibile"), *Button->GetName()), bHasLabel);
+	}
+	return true;
+}
+
+/**
+ * La gerarchia visiva esiste, e la fa la **differenza** fra le dimensioni.
+ *
+ * ⚠️ Il default di `UTextBlock` e' 24 per tutti: a quel punto titolo, intestazioni e corpo erano
+ * indistinguibili e quattro righe riempivano il pannello. Un test sul valore assoluto invecchierebbe al
+ * primo ritocco; questo asserisce la **relazione**, che e' cio' che rende leggibile una lista.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelFontHierarchyTest,
+	"RefactorTactics.Playground.PanelTitleIsLargerThanBody",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelFontHierarchyTest::RunTest(const FString&)
+{
+	UEditorUtilityWidgetBlueprint* Panel = LoadObject<UEditorUtilityWidgetBlueprint>(
+		nullptr, TEXT("/Game/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground"));
+	if (!TestNotNull(TEXT("il pannello e' caricabile"), Panel) ||
+		!TestNotNull(TEXT("il pannello ha un widget tree"), Panel->WidgetTree.Get()))
+	{
+		return false;
+	}
+
+	const UTextBlock* Title  = Cast<UTextBlock>(Panel->WidgetTree->FindWidget(TEXT("Txt_Title")));
+	const UTextBlock* Header = Cast<UTextBlock>(Panel->WidgetTree->FindWidget(TEXT("Txt_StationHeader")));
+	const UTextBlock* Body   = Cast<UTextBlock>(Panel->WidgetTree->FindWidget(TEXT("Txt_DiagStation")));
+	if (!TestNotNull(TEXT("il titolo esiste"), Title) ||
+		!TestNotNull(TEXT("un'intestazione di sezione esiste"), Header) ||
+		!TestNotNull(TEXT("una riga di corpo esiste"), Body))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("il titolo e' piu' grande di un'intestazione"), Title->GetFont().Size > Header->GetFont().Size);
+	TestTrue(TEXT("un'intestazione e' piu' grande del corpo"),    Header->GetFont().Size > Body->GetFont().Size);
 	return true;
 }
 

@@ -107,6 +107,13 @@ bool URTPlaygroundPanelLibrary::ParseFacingOption(const FString& Option, ERTHexD
 	return true;
 }
 
+FString URTPlaygroundPanelLibrary::StationOptionLabel(const FRTPlaygroundStationInfo& Station)
+{
+	// `%02d` e non `%d`: incolonnate, otto voci si leggono come una lista; disallineate sembrano otto
+	// frasi diverse. E i due spazi separano senza aggiungere un simbolo da interpretare.
+	return FString::Printf(TEXT("%02d  %s"), Station.Number, *Station.Name);
+}
+
 FRTPlaygroundMapState URTPlaygroundPanelLibrary::EvaluateMapState(const FString& OpenMapName)
 {
 	FRTPlaygroundMapState Out;
