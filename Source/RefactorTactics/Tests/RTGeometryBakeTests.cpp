@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Map/RTGeometryBake.h"
+#include "Map/RTHexCoverPlacementLibrary.h"
 #include "Map/RTGeometryGrammar.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
@@ -863,6 +864,163 @@ bool FRTInteriorWallHygieneTest::RunTest(const FString&)
 		TestTrue(TEXT("un muro che chiude un bordo non puo' stare fra gli interni"),
 			Map->ValidateMap().Num() > 0);
 	}
+
+	return true;
+}
+
+
+// ---------------------------------------------------------------------------------------------------------
+// #2085 — un segmento che passa per il centro e' un MURO INTERNO, non una copertura di bordo
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Il muro fra due anchor della stessa cella, o un segmento nullo se la coppia non si esprime. */
+	FRTGeometrySegment WallBetween(const FRTCellId& Cell, ERTAnchorKind KindA, int32 IndexA,
+		ERTAnchorKind KindB, int32 IndexB, float HexSize)
+	{
+		FRTGeometrySegment S;
+		URTGeometryGrammarLibrary::SegmentBetweenAnchors(
+			FRTAnchorRef(Cell, KindA, IndexA), FRTAnchorRef(Cell, KindB, IndexB), HexSize, S);
+		return S;
+	}
+
+	/** Una mappa di una cella sola, per far girare il bake vero invece di un predicato. */
+	URTHexMapAsset* SingleCellMap(const FRTCellId& Cell, float HexSize)
+	{
+		URTHexMapAsset* Map = NewObject<URTHexMapAsset>(GetTransientPackage());
+		Map->HexSize = HexSize;
+		FRTHexCellData Data(Cell);
+		Map->Cells.Add(Data);
+		return Map;
+	}
+}
+
+/**
+ * I DODICI RAGGI sono muri interni, e non solo i sei che partivano dai vertici.
+ *
+ * 🔴 **Il difetto che questo test coglie, isolato in seduta PIE il 2026-09-02** partendo da una domanda
+ * d'autore: *«come disegno un muro dal centro a meta' di un lato?»*. Non si poteva: quel gesto produceva
+ * una **copertura di bordo**, mentre lo stesso gesto verso un **vertice** produceva un muro interno.
+ * Stessa grammatica, stesso `Offset = 0`, due esiti.
+ *
+ * 🔑 La causa non era una tolleranza ne' un errore di calcolo — misurato: `d4 = 0.000e+00` esatto. Era il
+ * ramo *«il muro arriva da dentro e si ferma sul bordo»*, scritto in `362e42c1` (#712) **prima** che
+ * `InteriorWalls` esistesse, quando trasformare il raggio in copertura era l'unico modo di farlo esistere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGeometryBakeRadiusIsInteriorTest,
+	"RefactorTactics.GeometryBake.RadiusBecomesInteriorWallNotEdgeCover",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGeometryBakeRadiusIsInteriorTest::RunTest(const FString&)
+{
+	const FRTCellId Cell(0, 0, 0);
+	const float HexSize = 150.f;
+
+	for (int32 Index = 0; Index < 6; ++Index)
+	{
+		for (const ERTAnchorKind Kind : { ERTAnchorKind::EdgeMid, ERTAnchorKind::Vertex })
+		{
+			const FRTGeometrySegment Radius =
+				WallBetween(Cell, ERTAnchorKind::Center, 0, Kind, Index, HexSize);
+
+			const TCHAR* KindName = (Kind == ERTAnchorKind::EdgeMid) ? TEXT("EdgeMid") : TEXT("Vertex");
+
+			TestEqual(FString::Printf(TEXT("il raggio verso %s%d passa per il centro"), KindName, Index),
+				Radius.Offset, 0);
+
+			URTHexMapAsset* Map = SingleCellMap(Cell, HexSize);
+			const int32 Baked = URTGeometryBakeLibrary::AddSegmentsToCell(Map, Cell, { Radius }, HexSize);
+
+			// ⚠️ Il valore di ritorno conta le COPERTURE, non i muri: la doc di `AddSegmentsToCell` dice
+			// *«restituisce quante coperture ha aggiunto questo gesto»*. Per un muro interno vale ZERO, ed
+			// e' esattamente cio' che si vuole asserire — e la ragione per cui il pannello del tool, che
+			// mostra `LastBakedCovers`, diceva `1` prima di questa correzione.
+			TestEqual(FString::Printf(TEXT("il raggio verso %s%d non aggiunge coperture"), KindName, Index),
+				Baked, 0);
+			TestEqual(FString::Printf(TEXT("il raggio verso %s%d e' un MURO INTERNO"), KindName, Index),
+				Map->InteriorWalls.Num(), 1);
+
+			const FRTHexCellData* Data = Map->FindCell(Cell);
+			TestEqual(FString::Printf(TEXT("e non una copertura di bordo (verso %s%d)"), KindName, Index),
+				Data ? Data->Covers.Num() : -1, 0);
+		}
+	}
+
+	return true;
+}
+
+/**
+ * IL DIAMETRO FRA PUNTI MEDI arriva davvero al modello di posa, passando dal bake.
+ *
+ * 🔑 **E' la prova end-to-end che il panel ha chiesto, e senza cui la correzione non serve a niente.**
+ * `CoverPlacement.ContinuousWallSeparatesSidesAndRejectsTransition` verifica che quel diametro produca due
+ * regioni e due facce — ma costruisce il segmento **a mano**. Finche' il bake lo trasformava in due
+ * coperture, nessuna mappa autorata poteva produrlo: il consumatore era verde e il produttore assente.
+ * E' il difetto che `D-304` ha nominato per il GrayKit, rovesciato.
+ *
+ * La catena percorsa qui e' quella vera: bake → `InteriorWalls` → `ComputeMask` → `ComputeFreeRegions`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGeometryBakeDiameterFeedsPlacementTest,
+	"RefactorTactics.GeometryBake.EdgeMidDiameterFeedsThePlacementModel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGeometryBakeDiameterFeedsPlacementTest::RunTest(const FString&)
+{
+	const FRTCellId Cell(0, 0, 0);
+	const float HexSize = 150.f;
+
+	// Il diametro fra due punti medi opposti: e' `Diameter(Deg0)` di `RTHexCoverPlacementTests`.
+	const FRTGeometrySegment Diameter =
+		WallBetween(Cell, ERTAnchorKind::EdgeMid, 0, ERTAnchorKind::EdgeMid, 3, HexSize);
+	TestEqual(TEXT("il diametro passa per il centro"), Diameter.Offset, 0);
+
+	URTHexMapAsset* Map = SingleCellMap(Cell, HexSize);
+	URTGeometryBakeLibrary::AddSegmentsToCell(Map, Cell, { Diameter }, HexSize);
+
+	TestEqual(TEXT("il bake lo scrive come muro interno"), Map->InteriorWalls.Num(), 1);
+
+	// E ora la catena fino al modello di posa, che e' cio' che rende la correzione utile.
+	TArray<FRTOccupancyPolyline> Geometry;
+	for (const FRTHexInteriorWall& Wall : Map->InteriorWalls)
+	{
+		Geometry.Add(URTGeometryGrammarLibrary::ToPolyline(Wall.Segment, HexSize));
+	}
+	const FRTOccupancyMask Mask = URTHexOccupancyLibrary::ComputeMask(Geometry, HexSize);
+
+	TArray<FRTPlacementRegion> Regions;
+	URTHexCoverPlacementLibrary::ComputeFreeRegions(Mask, Regions);
+
+	// Il muro continuo divide lo spazio di posa in DUE: e' `spec-cover-placement-intra-hex.md` §5.3.
+	TestEqual(TEXT("il modello di posa vede due regioni, una per semipiano"), Regions.Num(), 2);
+
+	return true;
+}
+
+/**
+ * CONTROPROVA: un muro che GIACE sul lato lo chiude ancora.
+ *
+ * ⚠️ **Senza questa asserzione la correzione facile e sbagliata passerebbe**: svuotare `EdgesTouchedBy`,
+ * o classificare interno qualunque cosa, renderebbe verdi i due test qui sopra e romperebbe le coperture.
+ * Un muro da vertice a vertice adiacente ha `Offset` massimo — non zero — e non passa dal ramo nuovo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGeometryBakeEdgeWallStillClosesTest,
+	"RefactorTactics.GeometryBake.WallLyingOnTheEdgeStillClosesIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGeometryBakeEdgeWallStillClosesTest::RunTest(const FString&)
+{
+	const FRTCellId Cell(0, 0, 0);
+	const float HexSize = 150.f;
+
+	const FRTGeometrySegment OnTheEdge =
+		WallBetween(Cell, ERTAnchorKind::Vertex, 0, ERTAnchorKind::Vertex, 1, HexSize);
+
+	TestNotEqual(TEXT("un muro sul lato NON passa per il centro"), OnTheEdge.Offset, 0);
+
+	URTHexMapAsset* Map = SingleCellMap(Cell, HexSize);
+	URTGeometryBakeLibrary::AddSegmentsToCell(Map, Cell, { OnTheEdge }, HexSize);
+
+	const FRTHexCellData* Data = Map->FindCell(Cell);
+	TestTrue(TEXT("produce una copertura di bordo"), Data && Data->Covers.Num() >= 1);
+	TestEqual(TEXT("e nessun muro interno"), Map->InteriorWalls.Num(), 0);
 
 	return true;
 }
