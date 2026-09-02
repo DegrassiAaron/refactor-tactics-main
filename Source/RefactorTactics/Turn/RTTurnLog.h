@@ -764,6 +764,18 @@ struct FRTTurnLogEntry
 	 * `Outcome`, che ENTRA nell'hash: il costo e' dichiarato in [D-199]. Sull'unita' dichiarata erano gia'
 	 * d'accordo — chi subisce — e restano d'accordo: `IsSubjectTheSufferer` risponde `true` a entrambi.
 	 *
+	 * ➕ **E dal 2026-09-02 sono tre** (`#726`): `HitCameFromSide` racconta da quale dei sei lati un colpo e'
+	 * arrivato, quindi descrive anch'essa il difensore e `IsSubjectTheSufferer` risponde `true`. `Amount` vi
+	 * porta l'INDICE RELATIVO (`ERTRelativeDirection`), che e' una terza semantica ancora — non la direzione
+	 * assoluta della guardia ne' i punti della copertura — ed e' la ragione per cui e' un esito proprio e non
+	 * un terzo significato sotto una coppia gia' usata.
+	 * 🔴 **Ma con una differenza che vale per chi consuma**: quella voce **non porta la cella
+	 * dell'attaccante**, ne' in `SrcCell` ne' altrove — entrambe le celle sono quelle del difensore, come in
+	 * ogni altra voce `Facing` che descrive l'orientamento di un'unita'. Il verdetto di visibilita' si
+	 * congela su chi SUBISCE, quindi scriverci la posizione di chi spara la pubblicherebbe a chi vede il
+	 * bersaglio, e su OGNI colpo risolto invece che sui rari bypass. Il «cosa si perde» dichiarato qui sopra
+	 * vale li' in forma piu' forte: per l'attaccante non c'e' nemmeno la cella.
+	 *
 	 * **Conseguenza per chi consuma**: sommare il danno *inflitto* per `UnitId` filtrando su
 	 * `Category == Combat` accredita a chi brucia i danni fatti a se' stesso — un numero **plausibile e
 	 * sbagliato**, che nessun errore segnala. La domanda si fa con

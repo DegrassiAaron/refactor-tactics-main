@@ -113,12 +113,12 @@ ERTHexDirection URTFacingLibrary::FacingAfterDisplacement(const FRTCellId& Lande
 bool URTFacingLibrary::RelativeDirectionFrom(const FRTCellId& DefenderCell, ERTHexDirection Facing,
 	const FRTCellId& OriginCell, ERTRelativeDirection& OutDirection)
 {
-	// La GEOMETRIA sta in `SectorIndexTowards` e non e' duplicata qui: quella funzione e' l'unico produttore
+	// La GEOMETRIA sta in `DirectionWedgeTowards` e non e' duplicata qui: quella funzione e' l'unico produttore
 	// di «in quale spicchio cade questa cella», ed e' anche l'unico posto in cui il semiaperto `a > 0, b >= 0`
 	// e' scritto. Qui c'e' solo la parte che il facing aggiunge, cioe' rendere l'indice RELATIVO.
 	// Anche il caso «stessa cella» e' suo: risponde `false`, e questa lo propaga invece di ricontrollarlo.
 	int32 Sector = INDEX_NONE;
-	if (!URTHexLibrary::SectorIndexTowards(DefenderCell, OriginCell, Sector))
+	if (!URTHexLibrary::DirectionWedgeTowards(DefenderCell, OriginCell, Sector))
 	{
 		return false;
 	}

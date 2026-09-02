@@ -751,4 +751,65 @@ bool FRTFacingRelativeSideNamesFollowGeometryTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingHitCameFromSideEntryTest,
+	"RefactorTactics.Facing.HitCameFromSideEntryIsWellFormed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingHitCameFromSideEntryTest::RunTest(const FString&)
+{
+	// 🔑 Il produttore vive dentro `ResolveCombatPasses` e non e' esercitabile senza un TurnManager, ma il
+	// CONTRATTO della voce si', ed e' quello che qui si pinna: la tassonomia del soggetto e il rendering.
+	// Senza, riordinare `ERTRelativeDirection` sfaserebbe la tabella di `DescribeEntry` in silenzio, e
+	// rimettere l'attaccante in `SrcCell` — il difetto di privacy corretto in `#726` — non darebbe rosso.
+	const FRTCellId Defender(4, -2, 1);
+
+	FRTTurnLogEntry Entry;
+	Entry.Phase = ERTMatchPhase::Blast;
+	Entry.Category = ERTLogCategory::Facing;
+	Entry.Outcome = static_cast<uint8>(ERTFacingOutcome::HitCameFromSide);
+	Entry.SrcCell = Defender;
+	Entry.TgtCell = Defender;
+	Entry.UnitId = 7;
+
+	// 1. Il soggetto e' CHI SUBISCE, e la tassonomia lo sa. Un produttore che inverte il soggetto e non
+	//    compare in `IsSubjectTheSufferer` fa accreditare alla vittima di aver AGITO (`#1418`).
+	Entry.Amount = static_cast<int32>(ERTRelativeDirection::Rear);
+	TestTrue(TEXT("il soggetto della voce e' chi subisce"),
+		URTTurnLogLibrary::IsSubjectTheSufferer(Entry));
+
+	// 2. Ognuno dei sei lati si rende col proprio nome, e i nomi seguono l'ordine dell'enum.
+	const TCHAR* Expected[6] = { TEXT("Front"), TEXT("FrontLeft"), TEXT("RearLeft"),
+								 TEXT("Rear"), TEXT("RearRight"), TEXT("FrontRight") };
+	for (int32 Side = 0; Side < 6; ++Side)
+	{
+		Entry.Amount = Side;
+		const FString Text = URTTurnLogLibrary::DescribeEntry(Entry);
+		TestTrue(*FString::Printf(TEXT("il lato %d si rende come '%s' (ottenuto: %s)"),
+			Side, Expected[Side], *Text), Text.Contains(Expected[Side]));
+	}
+
+	// ⚠️ `Front` e' sottostringa di `FrontLeft` e `FrontRight`: senza questa riga il ciclo sopra passerebbe
+	//    anche con una tabella che risponde sempre `FrontLeft`.
+	Entry.Amount = static_cast<int32>(ERTRelativeDirection::Front);
+	const FString FrontText = URTTurnLogLibrary::DescribeEntry(Entry);
+	TestFalse(TEXT("il lato Front non si rende come FrontLeft"), FrontText.Contains(TEXT("FrontLeft")));
+	TestFalse(TEXT("ne' come FrontRight"), FrontText.Contains(TEXT("FrontRight")));
+
+	// 3. Un `Amount` fuori intervallo si DICHIARA non tradotto invece di diventare `Front`: una traccia
+	//    corrotta non deve produrre una frase sicura e sbagliata.
+	Entry.Amount = 9;
+	const FString Untranslated = URTTurnLogLibrary::DescribeEntry(Entry);
+	TestTrue(TEXT("un lato fuori intervallo si dichiara non tradotto"),
+		Untranslated.Contains(TEXT("non tradotto")));
+	TestFalse(TEXT("e non ripiega su Front"), Untranslated.Contains(TEXT("lato Front")));
+
+	// 4. 🔴 PRIVACY: la voce non contiene la cella dell'ATTACCANTE. Il verdetto di visibilita' si congela su
+	//    chi subisce, quindi una posizione dell'attaccante qui sarebbe pubblicata a chi vede il bersaglio —
+	//    su ogni colpo risolto, non sui rari bypass. Entrambe le celle sono quelle del difensore.
+	TestTrue(TEXT("SrcCell e TgtCell portano la stessa cella"), Entry.SrcCell == Entry.TgtCell);
+	Entry.Amount = static_cast<int32>(ERTRelativeDirection::FrontLeft);
+	const FString Rendered = URTTurnLogLibrary::DescribeEntry(Entry);
+	TestFalse(TEXT("il rendering non mostra due celle"), Rendered.Contains(TEXT("->")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

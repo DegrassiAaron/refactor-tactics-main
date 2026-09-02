@@ -765,7 +765,7 @@ TArray<FRTCellId> URTHexLibrary::HexCone(const FRTCellId& From, const FRTCellId&
 	return Out;
 }
 
-bool URTHexLibrary::SectorIndexTowards(const FRTCellId& Center, const FRTCellId& Cell, int32& OutSector)
+bool URTHexLibrary::DirectionWedgeTowards(const FRTCellId& Center, const FRTCellId& Cell, int32& OutWedge)
 {
 	// PLANARE: il Layer non entra, come in HexDistance/HexLine/HexCone. Vedi il commento della dichiarazione
 	// per perche' qui si proietta mentre `DirectionBetween` rifiuta.
@@ -800,14 +800,14 @@ bool URTHexLibrary::SectorIndexTowards(const FRTCellId& Center, const FRTCellId&
 		const int32 B = BNum / Det;
 		if (A > 0 && B >= 0)
 		{
-			OutSector = I;
+			OutWedge = I;
 			return true;
 		}
 	}
 
 	// Irraggiungibile per costruzione — i sei spicchi semiaperti coprono il piano senza sovrapporsi, e la
-	// sola cella esclusa e' il centro, gia' respinto sopra. Resta perche' un `return` mancante qui sarebbe
-	// un valore non inizializzato in `OutSector`, cioe' uno spicchio plausibile e casuale.
+	// sola cella esclusa e' il centro, gia' respinto sopra. Resta perche' cadere fuori dal `for` senza un
+	// `return` sarebbe undefined behaviour, non uno spicchio sbagliato.
 	return false;
 }
 

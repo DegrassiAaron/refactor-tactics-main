@@ -492,8 +492,19 @@ public:
 	 * ⚠️ Restituisce l'indice ASSOLUTO dello spicchio (`0..5`, l'ordine di `ERTHexDirection`), non una
 	 * direzione relativa a un orientamento: la relazione a sei lati di D-126 e' semantica di FACING e vive in
 	 * `URTFacingLibrary::RelativeDirectionFrom`. Qui c'e' solo la geometria, e ce n'e' una copia sola.
+	 *
+	 * ⚠️ **Su `false`, `OutWedge` resta INVARIATA** — stessa convenzione di `DirectionBetween` e
+	 * `DirectionTowards` qui sopra, e dichiarata per la stessa ragione: il chiamante deve guardare il `bool`.
+	 * Da Blueprint un grafo che ignora il pin di uscita legge lo zero-inizializzato, cioe' lo spicchio `E`:
+	 * plausibile e sbagliato. Non e' un difetto di questa funzione ma il prezzo della forma `bool + out`, ed
+	 * e' scritto qui invece di essere scoperto.
+	 *
+	 * 🔑 **Il nome dice `Wedge` e non `Sector` di proposito**: `PointingSectorAt` in questa stessa classe
+	 * partiziona in **12** spicchi di puntamento (`RT_OccupancySectorCount`) dentro UNA cella, questa in
+	 * **6** spicchi di direzione sul piano. Due convenzioni sotto la stessa parola sono il difetto che
+	 * `#1430`/[D-199] esiste per togliere, e qui costava solo un nome.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
-	static bool SectorIndexTowards(const FRTCellId& Center, const FRTCellId& Cell, int32& OutSector);
+	static bool DirectionWedgeTowards(const FRTCellId& Center, const FRTCellId& Cell, int32& OutWedge);
 
 };

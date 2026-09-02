@@ -135,6 +135,14 @@ public:
 	 * («nessun lato da cui il colpo arrivi», quindi non e' alle spalle) — ma le due risposte non sono in
 	 * conflitto: quella dice *se* sei coperto, questa *da dove*, e a distanza zero il «da dove» non c'e'.
 	 *
+	 * ⚠️ **E non e' un caso raro**: `AimCell` di un'area centrata su un'unita' E' la cella di quell'unita',
+	 * quindi il bersaglio al centro di un'esplosione ricade sempre qui. Chi conta «una direzione per colpo»
+	 * trova un buco, e il buco e' la risposta giusta.
+	 *
+	 * ⚠️ **Su `false`, `OutDirection` resta INVARIATA** — stessa convenzione di `URTHexLibrary::DirectionBetween`.
+	 * Il chiamante guarda il `bool`; da Blueprint un grafo che ignora il pin legge lo zero-inizializzato,
+	 * cioe' `Front`.
+	 *
 	 * PLANARE, come `IsInFrontalArc`: l'origine si proietta sul layer del difensore. Ricalcolare
 	 * diversamente farebbe divergere le due funzioni su un caso che nessun test copre.
 	 *

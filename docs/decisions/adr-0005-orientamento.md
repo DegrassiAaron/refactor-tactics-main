@@ -198,9 +198,20 @@ Il lavoro runtime che la relazione a sei lati richiede è
 
 | Livello | Sede |
 |---|---|
-| geometria pura — in quale dei sei spicchi cade una cella | `URTHexLibrary::SectorIndexTowards` |
+| geometria pura — in quale dei sei spicchi cade una cella | `URTHexLibrary::DirectionWedgeTowards` |
 | semantica — da quale lato, *relativamente a un facing* | `URTFacingLibrary::RelativeDirectionFrom` |
 | traccia — il primo consumatore che `D-126` chiedeva | `ERTFacingOutcome::HitCameFromSide` nel TurnLog |
+
+⚠️ **Perimetro della traccia**: la voce è emessa per i colpi del **piano di Blast**. I **contrattacchi** e il
+fuoco di **Overwatch** non la portano — non passano da `Plan.Hits`, e `FRTAttack` non trasporta l'attaccante,
+quindi la geometria da cui la relazione si calcola lì non esiste. Estenderla è
+[#2128](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2128).
+
+🔴 **E la voce non contiene la cella dell'attaccante**: `SrcCell` e `TgtCell` portano entrambi il difensore,
+come ogni altra voce `Facing` che descrive l'orientamento di un'unità. Il verdetto di visibilità si congela su
+chi **subisce**, quindi una posizione dell'attaccante lì sarebbe pubblicata a chiunque percepisca il bersaglio
+— e su *ogni* colpo risolto, non sui rari bypass. L'informazione della voce è il **lato**, che sta in `Amount`
+e non rivela una posizione.
 
 Lo spicchio `i` è **semiaperto**: `cella − centro = a·D(i) + b·D(i+1)` con `a > 0, b >= 0`. È la stessa
 algebra di `HexCone` con una differenza deliberata — il cono somma settori **chiusi** perché deve coprire

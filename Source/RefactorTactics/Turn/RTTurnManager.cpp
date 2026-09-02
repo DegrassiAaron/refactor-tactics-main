@@ -2426,6 +2426,56 @@ void ARTTurnManager::TickDynamicSurfaces(URTHexMapAsset* Map)
 namespace
 {
 	/**
+	 * L'ORIGINE DICHIARATA di un colpo, cioe' la cella da cui il colpo «arriva» per i test direzionali
+	 * ([D-302] punto 3): per un'AREA il centro d'impatto, altrimenti la cella dell'attaccante.
+	 *
+	 * `false` = origine NON risolvibile, e i chiamanti sono **fail-closed**: un dato mancante non concede una
+	 * protezione che nessuno ha dichiarato, e non fa scrivere una traccia su una cella inventata. Un'area
+	 * senza footprint non e' meno sospetta di un attaccante perduto.
+	 *
+	 * 🔑 **Esiste come funzione perche' i chiamanti sono DUE e devono restare d'accordo.** Uno decide se la
+	 * `Guard` e' scavalcata, l'altro racconta da che lato e' arrivato il colpo: due copie della stessa regola
+	 * a 200 righe di distanza si separano alla prima modifica — e una modifica e' gia' tracciata, `#2009`, che
+	 * riguarda proprio il primo sito. Con due copie quel fix correggerebbe la decisione lasciando la traccia a
+	 * descrivere la regola vecchia, cioe' «l'esito giusto con il payload di un altro»: la divergenza che
+	 * `#1430`/[D-199] esiste per togliere.
+	 *
+	 * ⚠️ **La forma si legge dall'INTENTO, il centro dal FOOTPRINT**, e la divisione non e' arbitraria:
+	 * l'intento c'e' sempre — ogni colpo ne discende — mentre il footprint e' una registrazione. Dedurre
+	 * anche la forma dal footprint farebbe leggere un'area come se area non fosse quando il footprint manca,
+	 * cioe' ricadere in silenzio sul comportamento vecchio invece di fallire chiuso.
+	 */
+	bool ResolveImpactOrigin(const TArray<FRTHexAttackIntent>& Intents, const FRTHexBlastPlan& Plan,
+		const TArray<FRTHexCombatUnit>& HexUnits, const FRTHexAttackHit& Hit, FRTCellId& OutOrigin)
+	{
+		const bool bArea = Intents.IsValidIndex(Hit.IntentIndex)
+			&& Intents[Hit.IntentIndex].Shape == ERTAbilityShape::Area;
+
+		if (bArea)
+		{
+			// 🔑 Il centro si legge dal footprint e non da `Intents[...].TargetCell`: quel campo e' «ignorato»
+			// quando l'area e' centrata su un'unita', mentre `AimCell` porta il centro gia' risolto — unita' o
+			// cella — e CONGELATO al momento del calcolo del piano, che e' l'istante in cui la geometria e'
+			// stata decisa.
+			const FRTAttackFootprint* Footprint = Plan.Footprints.FindByPredicate(
+				[&Hit](const FRTAttackFootprint& F) { return F.IntentIndex == Hit.IntentIndex; });
+			if (Footprint == nullptr)
+			{
+				return false;
+			}
+			OutOrigin = Footprint->AimCell;
+			return true;
+		}
+
+		if (!HexUnits.IsValidIndex(Hit.AttackerId))
+		{
+			return false;
+		}
+		OutOrigin = HexUnits[Hit.AttackerId].Cell;
+		return true;
+	}
+
+	/**
 	 * Ordine TOTALE del roster di partita, sullo stato iniziale delle unita'.
 	 *
 	 * Non si usa l'ordine di `GetAllActorsOfClass`: quello e' l'ordine in cui il livello tiene gli Actor, che
@@ -4846,25 +4896,12 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			// campo e' *«ignorato»* quando l'area e' centrata su un'unita', mentre `AimCell` porta il centro
 			// gia' risolto — unita' o cella — e **congelato al momento del calcolo del piano**, che e'
 			// l'istante in cui la geometria e' stata decisa.
-			// ⚠️ **La forma si legge dall'INTENTO, il centro dal footprint**, e la divisione non e'
-			// arbitraria: l'intento c'e' sempre — ogni colpo ne discende — mentre il footprint e' una
-			// registrazione. Dedurre anche la forma dal footprint significherebbe che un footprint
-			// mancante fa leggere un'area come se area non fosse, cioe' ricadere in silenzio sul
-			// comportamento vecchio invece di fallire chiuso.
-			const bool bArea = Intents.IsValidIndex(Hit.IntentIndex)
-				&& Intents[Hit.IntentIndex].Shape == ERTAbilityShape::Area;
-			const FRTAttackFootprint* Footprint = Plan.Footprints.FindByPredicate(
-				[&Hit](const FRTAttackFootprint& F) { return F.IntentIndex == Hit.IntentIndex; });
-
-			// Origine non risolvibile: il colpo NON e' eleggibile. Un dato mancante non deve concedere una
-			// protezione che nessuno ha dichiarato — fail-closed, come il resto del combattimento, e vale
-			// per entrambi i rami: un'area senza footprint non e' meno sospetta di un attaccante perduto.
-			const bool bOriginResolved = bArea
-				? (Footprint != nullptr)
-				: HexUnits.IsValidIndex(Hit.AttackerId);
-			const FRTCellId ImpactOrigin = bArea
-				? (Footprint ? Footprint->AimCell : FRTCellId())
-				: (HexUnits.IsValidIndex(Hit.AttackerId) ? HexUnits[Hit.AttackerId].Cell : FRTCellId());
+			// ⚠️ **La forma si legge dall'INTENTO, il centro dal footprint**, e la regola sta in
+			// `ResolveImpactOrigin` invece che qui: l'altro consumatore e' la traccia direzionale di `#726`,
+			// e due copie di questa scelta si separerebbero alla prima modifica — `#2009`, che riguarda
+			// proprio questo sito, e' gia' quella modifica.
+			FRTCellId ImpactOrigin;
+			const bool bOriginResolved = ResolveImpactOrigin(Intents, Plan, HexUnits, Hit, ImpactOrigin);
 
 			const bool bFrontal = bOriginResolved
 				&& URTHexCombatLibrary::IsInFrontalArc(
@@ -5050,55 +5087,55 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		// 🔑 **E' il primo consumatore che [D-126] chiedeva, ed e' la traccia e non un'abilita'**: costa zero
 		// sul bilanciamento — nessun esito cambia, nessuna riduzione si sposta — e rende la relazione a sei
 		// lati OSSERVABILE invece che dichiarata. Senza un consumatore sarebbe un ramo morto, cioe' il
-		// `runtime: partial` che il registry punisce: *«un dato che nessuno legge non e' una feature che
-		// esiste»*.
+		// `runtime: partial` che il registry punisce.
 		//
-		// ⚠️ **Sta in QUESTO loop e non accanto a `bFrontalHit`** anche se li' l'arco e' gia' calcolato:
-		// quel ciclo entra solo per le unita' con `TAG_Status_Guarded`, quindi coprirebbe i colpi su chi e'
-		// in guardia e nessun altro. «Ogni colpo risolto» ha un solo posto dove essere vero, ed e' il ciclo
-		// su `Plan.Hits`.
+		// ⚠️ **PERIMETRO: i colpi del piano di Blast, e non ogni colpo della partita.** `Plan.Hits` non
+		// contiene i CONTRATTACCHI — entrano in `Attacks` con `Attacks.Append(Reactions.CounterAttacks)`,
+		// dopo la fine di questo ciclo — ne' il fuoco di OVERWATCH, che applica danno per conto suo senza mai
+		// passare da un `FRTHexAttackHit`. Per quei due la voce NON viene emessa, ed e' un limite dichiarato:
+		// `FRTAttack` porta bersaglio e ammontare, non l'attaccante, quindi la geometria da cui questa
+		// relazione si calcola li' non esiste. Estenderla e' `#2128`.
 		//
-		// L'ORIGINE segue la stessa regola del pool `Guard` ([D-302] punto 3): per un'AREA e' il centro
-		// d'impatto, altrimenti la cella dell'attaccante. Scrivere il lanciatore anche sotto un'area darebbe
-		// una traccia **precisa e falsa** — una granata caduta davanti a chi la subisce arriva da davanti,
-		// anche se chi l'ha lanciata sta dietro. ⚠️ Questo NON chiude `#2009`: quella riguarda la cella che
-		// il pool `Guard` passa a `IsInFrontalArc`, cioe' una DECISIONE, mentre questa voce e' descrittiva.
-		if (Victim && HexUnits.IsValidIndex(Hit.TargetId))
+		// ⛔ **Sta comunque in questo ciclo e non accanto a `bFrontalHit`**: quel ramo entra solo per le
+		// unita' con `TAG_Status_Guarded`, quindi coprirebbe i colpi su chi e' in guardia e nessun altro —
+		// un perimetro piu' stretto di questo e per una ragione accidentale invece che dichiarata.
+		if (Victim)
 		{
-			const bool bAreaHit = Intents.IsValidIndex(Hit.IntentIndex)
-				&& Intents[Hit.IntentIndex].Shape == ERTAbilityShape::Area;
-			const FRTAttackFootprint* SideFootprint = Plan.Footprints.FindByPredicate(
-				[&Hit](const FRTAttackFootprint& F) { return F.IntentIndex == Hit.IntentIndex; });
-
-			// Fail-closed come i rami vicini: origine non risolvibile -> nessuna voce. Una direzione
-			// inventata da una cella di default `(0,0,0)` sarebbe una cella VERA, che entra nell'ordine
-			// canonico e nell'hash del replay.
-			const bool bSideOriginResolved = bAreaHit
-				? (SideFootprint != nullptr)
-				: HexUnits.IsValidIndex(Hit.AttackerId);
-
-			if (bSideOriginResolved)
-			{
-				const FRTCellId SideOrigin = bAreaHit ? SideFootprint->AimCell : HexUnits[Hit.AttackerId].Cell;
-				ERTRelativeDirection Side = ERTRelativeDirection::Front;
-				if (URTFacingLibrary::RelativeDirectionFrom(HexUnits[Hit.TargetId].Cell,
+			// L'origine serve a CALCOLARE la direzione e non entra nella voce: vedi sotto.
+			FRTCellId SideOrigin;
+			ERTRelativeDirection Side = ERTRelativeDirection::Front;
+			if (ResolveImpactOrigin(Intents, Plan, HexUnits, Hit, SideOrigin)
+				&& URTFacingLibrary::RelativeDirectionFrom(HexUnits[Hit.TargetId].Cell,
 					HexUnits[Hit.TargetId].Facing, SideOrigin, Side))
-				{
-					FRTTurnLogEntry FromSide;
-					FromSide.Phase = ERTMatchPhase::Blast;
-					FromSide.Category = ERTLogCategory::Facing;
-					FromSide.Outcome = static_cast<uint8>(ERTFacingOutcome::HitCameFromSide);
-					FromSide.SrcCell = SideOrigin;
-					FromSide.TgtCell = HexUnits[Hit.TargetId].Cell;
-					// `Amount` e' l'indice RELATIVO, non il facing assoluto di `RearHitBypassedGuard` ne' i
-					// punti di `RearHitBypassedCover`: sono tre semantiche, e per questo sono tre esiti
-					// (`#1430`, [D-199]).
-					FromSide.Amount = static_cast<int32>(Side);
-					// CHI SUBISCE, come entrambi gli altri produttori di categoria `Facing` (`#1418`): la
-					// voce descrive l'orientamento del difensore, non l'atto dell'attaccante.
-					AppendLogEntry(FromSide, Victim);
-				}
+			{
+				FRTTurnLogEntry FromSide;
+				FromSide.Phase = ERTMatchPhase::Blast;
+				FromSide.Category = ERTLogCategory::Facing;
+				FromSide.Outcome = static_cast<uint8>(ERTFacingOutcome::HitCameFromSide);
+				// 🔴 **La cella del DIFENSORE in entrambi i campi, e la cella dell'attaccante da nessuna
+				// parte.** E' la convenzione di `MakeFacingEntry` per ogni altra voce `Facing` che racconta
+				// l'orientamento di un'unita', e qui e' anche un requisito di PRIVACY: `AppendLogEntry`
+				// congela `Verdict` su chi passa come attore — il difensore — quindi la voce e' visibile a
+				// chi percepisce LUI. Scriverci `SideOrigin` pubblicherebbe la cella esatta di un attaccante
+				// che il lettore potrebbe non percepire, su OGNI colpo risolto invece che sui rari bypass.
+				// L'informazione della voce e' il LATO, che sta in `Amount` e non rivela una posizione.
+				FromSide.SrcCell = HexUnits[Hit.TargetId].Cell;
+				FromSide.TgtCell = HexUnits[Hit.TargetId].Cell;
+				// `Amount` e' l'indice RELATIVO, non il facing assoluto di `RearHitBypassedGuard` ne' i punti
+				// di `RearHitBypassedCover`: tre semantiche, e per questo tre esiti (`#1430`, [D-199]).
+				FromSide.Amount = static_cast<int32>(Side);
+				// CHI SUBISCE, come entrambi gli altri produttori di categoria `Facing` (`#1418`) — ed e'
+				// dichiarato anche in `URTTurnLogLibrary::IsSubjectTheSufferer`, che tiene la tassonomia in
+				// un posto solo: un produttore che inverte il soggetto e non compare la' e' invisibile a chi
+				// aggrega per unita'.
+				AppendLogEntry(FromSide, Victim);
 			}
+			// ⚠️ **Nessuna voce quando la direzione non esiste, e i casi sono due**: origine non risolvibile
+			// (fail-closed, come i rami vicini) e origine che COINCIDE in pianta con il bersaglio. Il secondo
+			// non e' raro: `AimCell` di un'area centrata su un'unita' E' la cella di quell'unita', quindi il
+			// bersaglio al centro dell'esplosione non ha un lato d'ingresso. Tacere e' corretto — non esiste
+			// un lato da nominare — ma va saputo: chi conta «una voce per colpo» trova un buco, e non e'
+			// un difetto. `Facing.RelativeDirectionEdgeCases` pinna la regola, `#2128` il perimetro.
 		}
 
 		// `#649` — la DIREZIONE ha annullato una copertura, e adesso la traccia lo dice.

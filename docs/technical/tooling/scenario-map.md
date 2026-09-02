@@ -245,6 +245,7 @@ Il verdetto è l'assertion. Nessuna di queste righe compare nel registro PIE, ed
 | `Spec.Facing.FrontAttackKeepsGuard` | — | — | `Guard` riduce dentro l'arco frontale |
 | `Spec.Facing.BackAttackIgnoresGuard` | — | — | e **non** riduce da dietro: l'emisfero posteriore è scoperto (CP 16.2) |
 | `Spec.Facing.BraceHoldsFromBehind` | — | — | `Brace` invece tiene da ogni lato — è ciò che lo distingue da `Guard` |
+| `Spec.Facing.SixRelativeSides` | r4 | 1 | la relazione a **sei lati** di `D-126` arriva nel `TurnLog` di un colpo risolto: il lato è `RearLeft`, cioè uno dei quattro che il vocabolario `Front Arc / Flank / Rear` collassava. ⚠️ **Un solo colpo per costruzione**: `LogEventAmount` legge la prima occorrenza e non nomina l'unità, quindi con due colpi asserirebbe sul colpo sbagliato senza diventare rosso |
 | `Spec.Cover.TemporaryCoverExpires` | r4 | 3 | una copertura temporanea **scade** — il terzo momento, quello che si dimentica. Acceso da E9.5 |
 | `Spec.Environment.ElectricPropagation` | — | — | la scarica corre sul grafo dell'acqua **perché un eroe la innesca** — acceso da `#282` |
 | `Spec.Environment.WaterQuenchesFire` | — | — | l'acqua spegne le fiamme, e la fonte è un'azione di un eroe — idem `#282` |
