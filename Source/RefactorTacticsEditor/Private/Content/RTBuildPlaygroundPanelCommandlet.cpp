@@ -231,14 +231,25 @@ namespace
 
 		// 4. I pulsanti muti. Un `UButton` senza figlio di testo e' una barra grigia, e sei barre grigie
 		//    si leggono come *«non c'e' molto selezionabile»*.
-		struct FButtonLabel { const TCHAR* Name; const TCHAR* Label; };
+		// ⚠️ I bracci NON si scrivono a mano nell'etichetta: vengono da `CameraPresetArmLengths()`, che e'
+		// la stessa fonte che il grafo consuma. Un numero copiato qui direbbe `450` mentre la camera va a
+		// `600`, e sarebbe il pannello a mentire — con l'aria di funzionare.
+		const TArray<float> Arms = URTPlaygroundPanelLibrary::CameraPresetArmLengths();
+		auto ArmLabel = [&Arms](const TCHAR* Name, int32 Index) -> FString
+		{
+			return Arms.IsValidIndex(Index)
+				? FString::Printf(TEXT("%s  %.0f"), Name, Arms[Index])
+				: FString::Printf(TEXT("%s  (preset assente)"), Name);
+		};
+
+		struct FButtonLabel { const TCHAR* Name; FString Label; };
 		const FButtonLabel Labels[] = {
-			{ TEXT("Btn_Focus"),         TEXT("Focus  (non cablato)") },
+			{ TEXT("Btn_Focus"),         TEXT("Focus Station") },
 			{ TEXT("Btn_SelectFixture"), TEXT("Select Fixture") },
 			{ TEXT("Btn_ResetFixture"),  TEXT("Reset Fixture") },
-			{ TEXT("Btn_CamClose"),      TEXT("Close  100  (non cablato)") },
-			{ TEXT("Btn_CamTactical"),   TEXT("Tactical  450  (non cablato)") },
-			{ TEXT("Btn_CamOverview"),   TEXT("Overview  4000  (non cablato)") },
+			{ TEXT("Btn_CamClose"),      ArmLabel(TEXT("Close"),    0) },
+			{ TEXT("Btn_CamTactical"),   ArmLabel(TEXT("Tactical"), 1) },
+			{ TEXT("Btn_CamOverview"),   ArmLabel(TEXT("Overview"), 2) },
 		};
 		for (const FButtonLabel& Entry : Labels)
 		{
@@ -371,8 +382,7 @@ int32 URTBuildPlaygroundPanelCommandlet::Main(const FString& Params)
 	// ⛔ Le otto voci NON sono incise qui: il grafo le prende da `GetStations()`, che delega alla
 	// planimetria. Incidere «01..08» sarebbe la seconda copia che `#1459` ha gia' fatto pagare.
 	Root->AddChildToVerticalBox(StationCombo);
-	// ⛔ `Focus` NON e' cablato: l'etichetta lo dice, invece di lasciarlo scoprire cliccando.
-	AddButton(Tree, Root, TEXT("Btn_Focus"), TEXT("Focus  (non cablato)"));
+	AddButton(Tree, Root, TEXT("Btn_Focus"), TEXT("Focus Station"));
 
 	// ---- FIXTURE ---------------------------------------------------------------
 	AddLine(Tree, Root, TEXT("Txt_FixtureHeader"), TEXT("FIXTURE"), FontHeader);
@@ -385,9 +395,9 @@ int32 URTBuildPlaygroundPanelCommandlet::Main(const FString& Params)
 
 	// ---- VIEW ------------------------------------------------------------------
 	AddLine(Tree, Root, TEXT("Txt_ViewHeader"), TEXT("VIEW"), FontHeader);
-	AddButton(Tree, Root, TEXT("Btn_CamClose"),    TEXT("Close  100  (non cablato)"));
-	AddButton(Tree, Root, TEXT("Btn_CamTactical"), TEXT("Tactical  450  (non cablato)"));
-	AddButton(Tree, Root, TEXT("Btn_CamOverview"), TEXT("Overview  4000  (non cablato)"));
+	AddButton(Tree, Root, TEXT("Btn_CamClose"),    TEXT("Close"));
+	AddButton(Tree, Root, TEXT("Btn_CamTactical"), TEXT("Tactical"));
+	AddButton(Tree, Root, TEXT("Btn_CamOverview"), TEXT("Overview"));
 
 	// ---- DIAGNOSTICS -----------------------------------------------------------
 	// 🔑 **Le tre righe vengono dal MODELLO**, sia qui (cosi' il designer mostra il vero) sia a runtime
