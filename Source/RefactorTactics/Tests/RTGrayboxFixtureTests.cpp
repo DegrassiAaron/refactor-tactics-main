@@ -70,7 +70,15 @@ bool FRTGrayboxFixtureMarkerTest::RunTest(const FString&)
 	{
 		const ERTHexDirection Dir = static_cast<ERTHexDirection>(D);
 		Fixture->Facing = Dir;
-		Fixture->RerunConstructionScripts();
+		// ⚠️ **`OnConstruction` e non `RerunConstructionScripts`** — `#2072`. La seconda esiste solo
+		// `WITH_EDITOR`, e questo file compila anche nel target **gioco** — quello che `BuildCookRun`
+		// costruisce. Con la vecchia chiamata nessun pacchetto si poteva produrre, e la suite non lo
+		// diceva perche' gira sul target Editor, dove `WITH_EDITOR` e' attivo.
+		//
+		// ⛔ Una guardia `#if WITH_EDITOR` sulle sole chiamate sarebbe stata peggio: il test resterebbe
+		// compilato nel target gioco ma senza rieseguire la costruzione, quindi verificherebbe le
+		// posizioni di un marker mai aggiornato — verde e vuoto.
+		Fixture->OnConstruction(Fixture->GetTransform());
 
 		const FVector  Origin   = URTHexLibrary::FacingMarkerOrigin(Dir, FVector::ZeroVector,
 			Fixture->BodyRadius, Fixture->FaceHeight);
@@ -87,12 +95,12 @@ bool FRTGrayboxFixtureMarkerTest::RunTest(const FString&)
 	// COMINCIA non si muove. E' la proprieta' che rende la lunghezza una misura invece di una somma.
 	Fixture->Facing = ERTHexDirection::E;
 	Fixture->MarkerLength = 40.f;
-	Fixture->RerunConstructionScripts();
+	Fixture->OnConstruction(Fixture->GetTransform());
 	const FVector ShortStart = Fixture->FacingMarker->GetRelativeLocation()
 		- Fixture->FacingMarker->GetRelativeRotation().Vector() * 20.0;
 
 	Fixture->MarkerLength = 120.f;
-	Fixture->RerunConstructionScripts();
+	Fixture->OnConstruction(Fixture->GetTransform());
 	const FVector LongStart = Fixture->FacingMarker->GetRelativeLocation()
 		- Fixture->FacingMarker->GetRelativeRotation().Vector() * 60.0;
 
@@ -188,7 +196,7 @@ bool FRTGrayboxFixtureMaterialsWornTest::RunTest(const FString&)
 		DestroyGrayboxFixtureWorld(World);
 		return false;
 	}
-	Fixture->RerunConstructionScripts();
+	Fixture->OnConstruction(Fixture->GetTransform());
 
 	// 🔴 **Si confronta con QUALE materiale, non con «ce n'e' uno».**
 	//
