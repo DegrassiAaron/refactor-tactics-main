@@ -267,6 +267,24 @@ bool FRTScenarioAnchorRunsTest::RunTest(const FString&)
 		TEXT("il produttore di `PlannedReactionAbility`"));
 }
 
+/**
+ * `#2105` — l'ancora per il NUMERO della parata.
+ *
+ * 🔴 **Senza, questo scenario puo' degradare a `BLOCKED` restando verde.**
+ * `EveryShippedScenarioRuns` conta `Blocked` come accettabile e lo riporta con un `AddInfo`: se
+ * `Reaction` o `ReactionPlanning` uscissero da `AvailableCapabilities`, `Spec.Reaction.DeflectionReducesByTwenty`
+ * smetterebbe di girare e il valore che esiste per pinnare tornerebbe scoperto — **con la suite tutta
+ * verde**, che e' esattamente il modo di fallire per cui `#2105` e' stata aperta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioDeflectionAnchorTest,
+	"RefactorTactics.Scenario.DeflectionValueScenarioPasses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioDeflectionAnchorTest::RunTest(const FString&)
+{
+	return AnchorScenarioMustPass(*this, TEXT("Spec.Reaction.DeflectionReducesByTwenty"),
+		TEXT("la sola misura in partita di `URTCombatLibrary::DeflectDamageReduction`"));
+}
+
 // =====================================================================================================
 // `#291`/`#737` — la stessa ancora per la ROTAZIONE dichiarata.
 //

@@ -52,27 +52,6 @@ bool FRTWraithMatchesCatalogTest::RunTest(const FString&)
 		WraithEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage),
 		URTCatalogLibrary::BasicAttackDamageForRange(4));
 
-	// 🔑 **La RIDUZIONE della parata, che era l'unico numero del kit di Wraith che questo file non
-	// guardava** (`#2105`). Scritta a mano di proposito: leggerla da
-	// `URTCombatLibrary::DeflectDamageReduction` renderebbe la riga tautologica come i tre test di reazione
-	// — `RTHeroReactionTests`, `RTDefensiveReactionTests`, `RTComposableReactionTests` — che calcolano
-	// l'attesa DALLA costante e restano verdi quando cambia.
-	//
-	// ➕ Il numero non era del tutto scoperto: `RTCombatResolverTests` lo confronta con un letterale
-	// sull'aritmetica del pool di assorbimento. ⚠️ Ma li' e' un livello sotto il catalogo, e
-	// `Visual.Reaction.Deflection` — il solo scenario che la nominava — da [D-224] e' verde per
-	// qualunque riduzione >= 17, perche' i 2 residui finiscono interi nello scudo base. La meta' in partita
-	// la misura ora `Spec.Reaction.DeflectionReducesByTwenty`.
-	const URTActionData* Deflection = Wraith->Actions[3];
-	TestEqual(TEXT("Deflection: toglie 20 al colpo che l'ha innescata"),
-		WraithEffectAmount(Deflection->Def.Effects, ERTActionEffect::DamageReduction), 20);
-	// ⚠️ Riduce, non assorbe: uno scudo si consuma, questa toglie punti al colpo. Se diventasse uno
-	// `Shield` il 20 resterebbe e nessun'altra riga lo direbbe.
-	TestEqual(TEXT("Deflection: e' una riduzione, non uno scudo"),
-		WraithEffectAmount(Deflection->Def.Effects, ERTActionEffect::Shield), 0);
-	TestEqual(TEXT("Deflection: occupa lo slot Reazione"),
-		static_cast<int32>(Deflection->Def.Slot), static_cast<int32>(ERTActionSlot::Reaction));
-
 	const URTActionData* PassingBlade = Wraith->Actions[2];
 	TestEqual(TEXT("PassingBlade: 20 danni"), WraithEffectAmount(PassingBlade->Def.Effects, ERTActionEffect::Damage), 20);
 	TestEqual(TEXT("PassingBlade: Dash 3"), PassingBlade->Def.RangeCells, 3);
@@ -98,6 +77,26 @@ bool FRTWraithMatchesCatalogTest::RunTest(const FString&)
 	const FRTActionDef ChargeDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
 	TestTrue(TEXT("e non si ferma addosso come la carica"),
 		PassingBlade->Def.MovementStyle != ChargeDef.MovementStyle);
+
+	// 🔑 **La RIDUZIONE della parata, che era l'unico numero del kit di Wraith che questo file non
+	// guardava** (`#2105`). Scritta a mano di proposito: leggerla da
+	// `URTCombatLibrary::DeflectDamageReduction` renderebbe la riga tautologica come i tre test di reazione
+	// — `RTHeroReactionTests`, `RTDefensiveReactionTests`, `RTComposableReactionTests` — che calcolano
+	// l'attesa DALLA costante e restano verdi quando cambia.
+	//
+	// ➕ Il numero non era del tutto scoperto: `RTCombatResolverTests` lo confronta con un letterale
+	// sull'aritmetica del pool di assorbimento. ⚠️ Ma li' e' un livello sotto il catalogo, e
+	// `Visual.Reaction.Deflection` — il solo scenario che la nominava — da [D-224] e' verde per
+	// qualunque riduzione >= 17, perche' i 2 residui finiscono interi nello scudo base. La meta' in partita
+	// la misura ora `Spec.Reaction.DeflectionReducesByTwenty`.
+	const URTActionData* Deflection = Wraith->Actions[3];
+	TestEqual(TEXT("Deflection: un budget di 20 sui colpi del turno"),
+		WraithEffectAmount(Deflection->Def.Effects, ERTActionEffect::DamageReduction), 20);
+	// ⚠️ **E NON dichiara anche uno scudo**, che sarebbe un'altra cosa: uno scudo assorbe e si
+	// consuma come oggetto proprio, questa e' un budget sul colpo. La riga sopra non copre il caso in cui
+	// i due effetti coesistano — li' leggerebbe ancora 20 e tacerebbe.
+	TestEqual(TEXT("Deflection: nessuno scudo accanto alla riduzione"),
+		Deflection->Def.Effects.Num(), 1);
 
 	// Feint risolve nel Blast per priorita' (fase Control, codice 30 del catalogo): precede il danno.
 	const URTActionData* Feint = Wraith->Actions[4];
