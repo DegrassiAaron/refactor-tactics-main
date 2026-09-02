@@ -203,7 +203,7 @@ la spinta non si legge, non è un difetto del VFX — è la §8.1.
 | `Visual.Combat.SmokeCapsTargeting` | RelayLite | il bersaglio **si vede** e non si può colpire: il fumo accorcia, non acceca | scritto |
 | `Visual.Movement.RoughRefusesCharge` | RelayLite | il rifiuto in **pianificazione**: a schermo non deve accadere niente | scritto |
 | `Visual.Reaction.Interposition` | r4 | il proiettile **cambia destinatario** a mezz'aria: Riktor incassa al posto di Wraith. Il caso più difficile del corpus — se non si vede, si legge «Gadget ha sbagliato mira» | scritto |
-| `Visual.Reaction.Deflection` | r4 | l'opposto: il colpo arriva dove doveva e **quasi non fa niente** (22 → 2). Se la parata non si vede, si legge un attacco debole invece di una difesa riuscita | scritto |
+| `Visual.Reaction.Deflection` | r4 | l'opposto: il colpo arriva dove doveva e **non fa piu' niente**: 22 diventano 2, e lo scudo base ([D-224]) assorbe anche quei 2 — Wraith resta a **90 pieni**, la barra non si muove. Se la parata non si vede, si legge un attacco debole invece di una difesa riuscita | scritto |
 | `Visual.Combat.GuardReducesFirstHit` | r4 | `Guard` toglie 15 al **primo** colpo e finisce lì: 120 → 97 (il `BaseShield` di D-224 ne assorbe altri 5) | scritto |
 | `Visual.Combat.BraceReducesEveryHit` | r4 | `Brace` toglie 10 a **ogni** colpo e non finisce mai: 120 → 102 (il `BaseShield` di D-224 ne assorbe altri 5) | scritto |
 | `Movement.Collision` *(esiste)* | r3 | chi cede la cella contesa, e che si capisca **perché** | già nel corpus |
@@ -218,7 +218,7 @@ fare, lo scenario non lo sa dire. Vedi §8.2.
 
 | ID | Fixture | Cosa guardi | Stato |
 |---|---|---|---|
-| `Visual.Environment.WetExtinguishesFire` | RelayLite | CP 8.4: l'acqua spegne le fiamme. Ciò che si guarda è un'**assenza** — gli 8 danni del Cleanup che non arrivano. 66, non 58 | scritto |
+| `Visual.Environment.WetExtinguishesFire` | RelayLite | CP 8.4: l'acqua spegne le fiamme. Ciò che si guarda è un'**assenza** — gli 8 danni del Cleanup che non arrivano. **61**, non 53 | scritto |
 | `Visual.Map.LowCoverEdge` | RelayBasin | due colpi simultanei sullo stesso bersaglio, **entità diverse**: la copertura è di un bordo. `90 − (11 + 8 − 5 di BaseShield) = 76`. Da ADR-0007 è **Wraith** a tirare dal lato riparato: con ImpactShot a 8 contro una riduzione di 10 il danno si troncava a zero e lo scenario smetteva di misurare la grandezza della copertura | scritto |
 | `Visual.Map.ClosedDoor` | RelayBasin | Phase arriva **girando**: la porta è un bordo, e il percorso deve raccontare da sé perché è lungo | scritto |
 | `Visual.Map.HighGroundNoBonus` | RelayBasin | due Wraith identici, dalla cresta e dal piano: 21+21, nessun bonus (D-024) | scritto |
@@ -405,7 +405,7 @@ Le due sorgenti di `Wet` hanno ora uno scenario ciascuna, e servono entrambe:
 | Scenario | Sorgente del bagnato | Cosa dimostra |
 |---|---|---|
 | `Visual.Combat.WaterElectricCoordinated` | `Hero.Phase.PressureJet`, priorità 50 | la **coordinazione fra due eroi** dentro lo stesso Blast: `90 − (16 + 32 − 5 di BaseShield) = 47` — Wraith ha 90 HP, non 100 |
-| `Visual.Combat.WaterElectric` | il **terreno**, attraversato in fase Dash | che il bonus non dipende da chi bagna (D-029): 100−32 = 68 |
+| `Visual.Combat.WaterElectric` | il **terreno**, attraversato in fase Dash | che il bonus non dipende da chi bagna (D-029): `90 − (32 − 5 di BaseShield) = 63` — Wraith ha 90 HP, non 100 |
 
 ### Lacune dichiarate
 
