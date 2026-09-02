@@ -472,18 +472,40 @@ bool FRTPanelGraphCallsTheModelTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Le quattro chiamate che rendono il pannello un pannello invece di una finestra inerte.
+	// Le chiamate che rendono il pannello un pannello invece di una finestra inerte.
 	const FName Expected[] =
 	{
-		TEXT("EvaluateMapState"),   // l'HEADER dice dove sei, e perche' non ci sei
-		TEXT("DiagnosticsLines"),   // le tre righe vengono dal modello, non riscritte nel widget
-		TEXT("ParseFacingOption"),  // la voce della combo diventa una direzione
-		TEXT("ApplyFixtureFacing"), // 🔑 e la direzione MUOVE il marker: senza questa il pannello mente
+		TEXT("EvaluateMapState"),        // l'HEADER dice dove sei, e perche' non ci sei
+		TEXT("DiagnosticsLines"),        // le tre righe vengono dal modello, non riscritte nel widget
+		TEXT("ParseFacingOption"),       // la voce della combo diventa una direzione
+		TEXT("ApplyFixtureFacing"),      // 🔑 e la direzione MUOVE il marker: senza questa il pannello mente
+		TEXT("ResetFixture"),            // e si torna ai default dichiarati
+		TEXT("ParseStationOption"),      // la voce della combo station diventa un numero
+		TEXT("FindStation"),             // il numero diventa una station, con il suo centro
+		TEXT("CameraPresetArmLengths"),  // i tre bracci vengono dal modello, non scritti nel grafo
+		TEXT("SetLevelViewportCameraInfo"), // 🔑 e la camera si MUOVE davvero
 	};
 	for (const FName& Function : Expected)
 	{
 		TestTrue(*FString::Printf(TEXT("il grafo chiama %s"), *Function.ToString()), Called.Contains(Function));
 	}
+
+	// ⛔ I quattro pulsanti che inquadrano devono muovere la camera **ciascuno**: una sola chiamata
+	// vorrebbe dire che tre di loro sono ancora inerti, ed e' esattamente lo stato da cui si viene.
+	int32 CameraCalls = 0;
+	for (const TObjectPtr<UEdGraph>& Graph : Panel->UbergraphPages)
+	{
+		if (!Graph) { continue; }
+		for (const UEdGraphNode* Node : Graph->Nodes)
+		{
+			const UK2Node_CallFunction* Call = Cast<UK2Node_CallFunction>(Node);
+			if (Call && Call->FunctionReference.GetMemberName() == TEXT("SetLevelViewportCameraInfo"))
+			{
+				++CameraCalls;
+			}
+		}
+	}
+	TestEqual(TEXT("quattro pulsanti inquadrano, quindi quattro chiamate alla camera"), CameraCalls, 4);
 	return true;
 }
 
@@ -632,6 +654,49 @@ bool FRTPanelFontHierarchyTest::RunTest(const FString&)
 
 	TestTrue(TEXT("il titolo e' piu' grande di un'intestazione"), Title->GetFont().Size > Header->GetFont().Size);
 	TestTrue(TEXT("un'intestazione e' piu' grande del corpo"),    Header->GetFont().Size > Body->GetFont().Size);
+	return true;
+}
+
+/**
+ * 🔑 **L'etichetta e il numero fanno un giro chiuso**, su tutte le station.
+ *
+ * `StationOptionLabel` scrive cio' che la combo mostra; `ParseStationOption` e' la strada di ritorno che
+ * il grafo percorre quando `OnSelectionChanged` gli consegna `SelectedItem`. Due funzioni che si
+ * invertono sono un posto classico dove il difetto si nasconde: **testarle separatamente non basta**, e
+ * il round-trip e' l'unica asserzione che le lega.
+ *
+ * ⛔ E il caso negativo non e' cerimonia: una stringa che non e' una station deve dare `false` **e**
+ * lasciare `OutNumber` a zero. Un parser che restituisse l'ultimo valore letto porterebbe la camera su
+ * una station a caso, e nessuno saprebbe perche'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelStationRoundTripTest,
+	"RefactorTactics.Playground.PanelStationOptionRoundTrips",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelStationRoundTripTest::RunTest(const FString&)
+{
+	const TArray<FRTPlaygroundStationInfo> Stations = URTPlaygroundPanelLibrary::GetStations();
+	if (!TestTrue(TEXT("il modello dichiara delle station"), Stations.Num() > 0))
+	{
+		return false;
+	}
+
+	for (const FRTPlaygroundStationInfo& Station : Stations)
+	{
+		const FString Label = URTPlaygroundPanelLibrary::StationOptionLabel(Station);
+		int32 Parsed = -1;
+		const bool bOk = URTPlaygroundPanelLibrary::ParseStationOption(Label, Parsed);
+		TestTrue(*FString::Printf(TEXT("station %d: l'etichetta si rilegge"), Station.Number), bOk);
+		TestEqual(*FString::Printf(TEXT("station %d: e il numero e' lo stesso"), Station.Number),
+			Parsed, Station.Number);
+	}
+
+	int32 Nonsense = 7;
+	TestFalse(TEXT("una stringa che non e' una station non passa"),
+		URTPlaygroundPanelLibrary::ParseStationOption(TEXT("99  Non esiste"), Nonsense));
+	TestEqual(TEXT("e non lascia dietro un numero vecchio"), Nonsense, 0);
+
+	int32 Empty = 7;
+	TestFalse(TEXT("la stringa vuota non passa"), URTPlaygroundPanelLibrary::ParseStationOption(FString(), Empty));
 	return true;
 }
 

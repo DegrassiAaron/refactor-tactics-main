@@ -20,17 +20,18 @@
 ; revisione del 2026-09-02 li rende tali il commandlet stesso (`MakeEveryWidgetAVariable`): non
 ; serve piu' passare da `ToggleWidgetAsVariable` a mano.
 ;
-; ⛔ COSA NON E' CABLATO, E PERCHE'
-; - `Btn_Focus` e i tre preset di camera. Sono cablabili - `FRTPlaygroundStationInfo::CentreWorld`
-;   piu' `Development|Editor|SetLevelViewportCameraInfo` - ma servono la station selezionata, che si
-;   legge con `ComboBox|GetSelectedOption`: esiste in DUE varianti con lo STESSO type_id
-;   (`UComboBoxKey` e `UComboBoxString`) e il DSL prende la prima, quindi non e' raggiungibile da qui.
-;   `create_node` saprebbe disambiguare (`declaring_class`), `write_graph_dsl` no.
-; - `Cmb_Station/OnSelectionChanged`, che pero' NON ha quel problema: l'evento porta `SelectedItem`
-;   come parametro. E' semplicemente non ancora scritto.
+; ✅ TUTTO CABLATO dal 2026-09-02. Il buco precedente - `Btn_Focus`, i tre preset di camera e
+; `Cmb_Station` - nasceva da una premessa sbagliata: che servisse `ComboBox|GetSelectedOption`, che
+; esiste in DUE varianti con lo stesso type_id e il DSL prende la prima. **Non serve**: entrambe le combo
+; consegnano `SelectedItem` come PARAMETRO di `OnSelectionChanged`. Da li' `ParseStationOption` torna al
+; numero, che vive nella variabile `SelectedStation`, e i quattro pulsanti la usano.
 ;
-; ➕ Le OPZIONI delle due combo non sono piu' un buco: le riempie il commandlet in `DefaultOptions`,
-; dal modello, e `Playground.PanelComboOptionsComeFromTheModel` lo verifica voce per voce.
+; ⚠️ La logica della camera e' RIPETUTA nei quattro eventi invece di stare in una `(fn ...)`: una
+; funzione e' un grafo separato, e `write_graph_dsl` scrive UN grafo per volta. Se un giorno si
+; accorpasse, va accorpata in tutti e quattro - il decompilatore non lo direbbe.
+;
+; ➕ Le OPZIONI delle due combo le riempie il commandlet in `DefaultOptions`, dal modello, e
+; `Playground.PanelComboOptionsComeFromTheModel` lo verifica voce per voce.
 
 (event UserInterface|EventConstruct
   ; le tre righe di DIAGNOSTICS vengono dal modello, non sono riscritte qui
@@ -84,3 +85,52 @@
       (:then
         (RefactorTactics|Playground|ResetFixture fx))
       (:CastFailed))))
+
+(event OnSelectionChanged(Cmb_Station) (SelectedItem SelectionType)
+  ; L'evento porta gia' `SelectedItem`: non serve leggere la combo, che il DSL non sa disambiguare.
+  ; ⛔ NON si scrive nelle tre righe di DIAGNOSTICS: quelle portano le dichiarazioni di D-304, e
+  ;    sovrascriverle per dare un riscontro cancellerebbe cio' che il pannello esiste per mostrare.
+  ;    Il riscontro alla selezione e' la camera che si muove.
+  (bind (number parsed) (RefactorTactics|Playground|ParseStationOption SelectedItem))
+  (if parsed
+    (Variables|Default|SetSelectedStation number)))
+
+(event OnClicked(Btn_Focus)
+  (bind (station found) (RefactorTactics|Playground|FindStation (Variables|Default|GetSelectedStation)))
+  (if found
+    (bind (num sname minW maxW centre live) (Utilities|Struct|BreakRTPlaygroundStationInfo station))
+    (bind arms (RefactorTactics|Playground|CameraPresetArmLengths))
+    (Development|Editor|SetLevelViewportCameraInfo
+      :self (EditorSubsystems|GetUnrealEditorSubsystem)
+      :CameraLocation (+ centre (Math|Vector|MakeVector :X 0.0 :Y 0.0 :Z (Utilities|Array|Get(acopy) arms 1)))
+      :CameraRotation (Math|Rotator|MakeRotator :Pitch -90.0 :Yaw 0.0 :Roll 0.0))))
+
+(event OnClicked(Btn_CamClose)
+  (bind (station found) (RefactorTactics|Playground|FindStation (Variables|Default|GetSelectedStation)))
+  (if found
+    (bind (num sname minW maxW centre live) (Utilities|Struct|BreakRTPlaygroundStationInfo station))
+    (bind arms (RefactorTactics|Playground|CameraPresetArmLengths))
+    (Development|Editor|SetLevelViewportCameraInfo
+      :self (EditorSubsystems|GetUnrealEditorSubsystem)
+      :CameraLocation (+ centre (Math|Vector|MakeVector :X 0.0 :Y 0.0 :Z (Utilities|Array|Get(acopy) arms 0)))
+      :CameraRotation (Math|Rotator|MakeRotator :Pitch -90.0 :Yaw 0.0 :Roll 0.0))))
+
+(event OnClicked(Btn_CamTactical)
+  (bind (station found) (RefactorTactics|Playground|FindStation (Variables|Default|GetSelectedStation)))
+  (if found
+    (bind (num sname minW maxW centre live) (Utilities|Struct|BreakRTPlaygroundStationInfo station))
+    (bind arms (RefactorTactics|Playground|CameraPresetArmLengths))
+    (Development|Editor|SetLevelViewportCameraInfo
+      :self (EditorSubsystems|GetUnrealEditorSubsystem)
+      :CameraLocation (+ centre (Math|Vector|MakeVector :X 0.0 :Y 0.0 :Z (Utilities|Array|Get(acopy) arms 1)))
+      :CameraRotation (Math|Rotator|MakeRotator :Pitch -90.0 :Yaw 0.0 :Roll 0.0))))
+
+(event OnClicked(Btn_CamOverview)
+  (bind (station found) (RefactorTactics|Playground|FindStation (Variables|Default|GetSelectedStation)))
+  (if found
+    (bind (num sname minW maxW centre live) (Utilities|Struct|BreakRTPlaygroundStationInfo station))
+    (bind arms (RefactorTactics|Playground|CameraPresetArmLengths))
+    (Development|Editor|SetLevelViewportCameraInfo
+      :self (EditorSubsystems|GetUnrealEditorSubsystem)
+      :CameraLocation (+ centre (Math|Vector|MakeVector :X 0.0 :Y 0.0 :Z (Utilities|Array|Get(acopy) arms 2)))
+      :CameraRotation (Math|Rotator|MakeRotator :Pitch -90.0 :Yaw 0.0 :Roll 0.0))))

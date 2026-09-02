@@ -144,6 +144,19 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playground")
 	static FString StationOptionLabel(const FRTPlaygroundStationInfo& Station);
 
+	/**
+	 * La strada di ritorno: dall'etichetta della combo al **numero** di station.
+	 *
+	 * 🔑 **Esiste perche' il grafo non puo' leggere la combo.** `ComboBox|GetSelectedOption` ha due
+	 * varianti con lo stesso `type_id` e il DSL prende la sbagliata; ma `OnSelectionChanged` porta
+	 * `SelectedItem` **come parametro dell'evento**, e da quella stringa qui si torna al numero.
+	 *
+	 * ⚠️ Sta accanto a `StationOptionLabel` perche' ne e' l'**inversa**: separarle le fa divergere, e
+	 * `PanelStationOptionRoundTrips` lo verifica su tutte le station invece di fidarsi.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playground")
+	static bool ParseStationOption(const FString& Option, int32& OutNumber);
+
 	/** La direzione corrispondente a una voce del dropdown. `false` se la stringa non e' del set. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playground")
 	static bool ParseFacingOption(const FString& Option, ERTHexDirection& OutFacing);
