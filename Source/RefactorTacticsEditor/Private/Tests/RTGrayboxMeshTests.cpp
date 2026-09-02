@@ -526,6 +526,18 @@ bool FRTGrayboxFixtureMaterialsTest::RunTest(const FString&)
 	// sembrerebbe appoggiato su una macchia della propria stessa tinta.
 	TestTrue(TEXT("corpo e ancora a terra si distinguono"),
 		FMath::Abs(Body->Value - Anchor->Value) >= 0.15f);
+
+	// 🔴 **Il marker e' l'elemento PIU' CHIARO, e non e' una preferenza.**
+	//
+	// La prima stesura lo faceva quasi nero (`0.08`): separava benissimo dal corpo e **spariva contro il
+	// pavimento**, che in `L_GrayKitPlayground` e' `WorldGridMaterial` — un grigio medio. A terra leggeva
+	// come un'ombra. Segnalato guardandolo, non trovato da un test.
+	//
+	// ⚠️ L'asserzione e' sul VERSO, non su una distanza dal pavimento: quel materiale non e' nostro e il
+	// suo valore puo' cambiare. Essere il piu' chiaro della scena regge comunque.
+	TestTrue(*FString::Printf(TEXT("il marker e' piu' chiaro del corpo (%.2f > %.2f)"), Marker->Value, Body->Value),
+		Marker->Value > Body->Value);
+	TestTrue(TEXT("il marker e' piu' chiaro del disco a terra"), Marker->Value > Anchor->Value);
 	return true;
 }
 

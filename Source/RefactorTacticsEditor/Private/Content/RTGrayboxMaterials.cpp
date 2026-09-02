@@ -59,11 +59,17 @@ namespace RTGraybox
 
 	// ⚠️ `MeshName` qui nomina il COMPONENTE che l'istanza veste, non una mesh del kit: queste tre vestono
 	// primitive engine. Vedi la doc nell'header per perche' non stanno nella tabella dei sei.
+	//
+	// 🔴 **Il marker e' l'elemento PIU' CHIARO, e il verso non e' arbitrario.** La prima stesura lo faceva
+	// quasi nero (`0.08`) contro un corpo chiaro: separava dal corpo e spariva contro il PAVIMENTO, che in
+	// `L_GrayKitPlayground` e' `WorldGridMaterial` — un grigio medio. A terra leggeva come un'ombra.
+	// Facendolo il piu' chiaro la separazione regge contro entrambi senza dipendere dal valore esatto del
+	// pavimento, che non e' nostro e puo' cambiare. Il guardiano e' `FixtureMarkerIsTheBrightest`.
 	const FRTGrayboxMaterialSpec FixtureMaterials[3] = {
 		//  componente                    istanza                              valore  ruvidita'
-		{ TEXT("UnitBody"),               TEXT("MI_Graybox_Fixture_Body"),      0.55f,  0.85f },
-		{ TEXT("FacingMarker"),           TEXT("MI_Graybox_Fixture_Marker"),    0.08f,  0.30f },
-		{ TEXT("GroundAnchor"),           TEXT("MI_Graybox_Fixture_Anchor"),    0.35f,  0.90f },
+		{ TEXT("UnitBody"),               TEXT("MI_Graybox_Fixture_Body"),      0.45f,  0.85f },
+		{ TEXT("FacingMarker"),           TEXT("MI_Graybox_Fixture_Marker"),    0.90f,  0.15f },
+		{ TEXT("GroundAnchor"),           TEXT("MI_Graybox_Fixture_Anchor"),    0.05f,  0.95f },
 	};
 
 	float Luminance(const FLinearColor& Color)

@@ -19,8 +19,13 @@ namespace
 	constexpr float RTGrayboxCylinderRadius = 50.f;  // /Engine/BasicShapes/Cylinder, raggio a scala 1
 	constexpr float RTGrayboxPrimitiveSize  = 100.f; // lato/altezza delle primitive engine a scala 1
 
-	/** Spessore del marker come frazione della primitiva: `0.16` e' il cuneo di `RTScenarioPreviewActor`. */
-	constexpr float RTGrayboxMarkerThickness = 0.16f;
+	/**
+	 * Spessore del marker come frazione della primitiva.
+	 *
+	 * ⌫ Era `0.16`, il cuneo di `RTScenarioPreviewActor`. Come per `FaceHeight`, quel numero viene da
+	 * un'anteprima con un'altra camera: a distanza tattica una barra cosi' sottile si perde.
+	 */
+	constexpr float RTGrayboxMarkerThickness = 0.24f;
 
 	/** Il disco a terra: sottile, e largo quanto il corpo — serve a dire DOVE poggia, non a decorare. */
 	constexpr float RTGrayboxAnchorThickness = 0.02f;

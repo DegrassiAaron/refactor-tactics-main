@@ -219,4 +219,36 @@ bool FRTGrayboxFixtureMaterialsWornTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **Il marker sta in ALTO sul corpo, non alla base.**
+ *
+ * Segnalato guardandolo: *«posizionandolo vicino la base lo rende poco leggibile»*. La quota era `24` su
+ * un corpo alto `180`, cioe' schiacciata fra il disco a terra e il pavimento — dove nessun contrasto
+ * salva un marker.
+ *
+ * ⚠️ **Il difetto non era il numero, era la sua provenienza**: `24` veniva da `WedgeLocalZ` di
+ * `RTScenarioPreviewActor`, dove pero' il cuneo sta a `WedgeForward = 78` — FUORI dal corpo, in
+ * un'anteprima con un'altra camera. Un default «derivato» da un contesto diverso non e' derivato: e'
+ * copiato, e questo test e' il guardiano contro il prossimo che lo ricopia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGrayboxFixtureMarkerHeightTest,
+	"RefactorTactics.Graybox.FixtureMarkerSitsHighOnTheBody",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGrayboxFixtureMarkerHeightTest::RunTest(const FString&)
+{
+	const ARTGrayboxUnitFacingFixture* CDO = GetDefault<ARTGrayboxUnitFacingFixture>();
+	if (!TestNotNull(TEXT("il CDO esiste"), CDO))
+	{
+		return false;
+	}
+
+	// La meta' alta del corpo: sotto, il marker compete col disco a terra e col pavimento.
+	TestTrue(*FString::Printf(TEXT("il marker sta sopra meta' corpo (%.0f su %.0f)"), CDO->FaceHeight, CDO->BodyHeight),
+		CDO->FaceHeight > CDO->BodyHeight * 0.5f);
+
+	// ⛔ E non esce dalla sommita': un marker che levita sopra il corpo non ne indica piu' il facing.
+	TestTrue(TEXT("il marker resta sul corpo, non sopra"), CDO->FaceHeight < CDO->BodyHeight);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
