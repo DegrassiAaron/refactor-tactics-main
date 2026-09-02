@@ -439,6 +439,7 @@ bool FRTReplayAuditProducerTest::RunTest(const FString&)
 	}
 
 	int32 ConVerdetti = 0;
+	int32 ConScelte = 0;
 	for (int32 Turno = 1; Turno <= TurnsPlayed; ++Turno)
 	{
 		const int64 AncoraAttesa = Manifest.OrderedHashPerTurn.IsValidIndex(Turno - 1)
@@ -472,6 +473,13 @@ bool FRTReplayAuditProducerTest::RunTest(const FString&)
 			Turno, *FString::Join(Divergenze, TEXT(" | "))), Divergenze.Num(), 0);
 		ConVerdetti += Audit.Verdicts.Num();
 
+		// 🔑 E l'equita', sulla partita vera: nessun bot ha SCELTO un bersaglio che la sua squadra non
+		// conosceva. E' la domanda di `D-276`, posta al predicato di produzione sulla conoscenza registrata.
+		const TArray<FString> NonAutorizzati = URTReplayAuditLibrary::FindUnauthorizedTargets(Audit);
+		TestEqual(*FString::Printf(TEXT("turno %d: nessun bot ha scelto cio' che non conosceva (%s)"),
+			Turno, *FString::Join(NonAutorizzati, TEXT(" | "))), NonAutorizzati.Num(), 0);
+		ConScelte += Audit.BotDecisions.Num();
+
 		// I verdetti registrati sono tanti quante le voci della traccia: e' l'invariante posizionale che
 		// [D-313] §7 dichiara, e qui si MISURA invece di restare scritta.
 		TArray<FRTTurnLogEntry> Voci;
@@ -488,6 +496,10 @@ bool FRTReplayAuditProducerTest::RunTest(const FString&)
 	// ⚠️ **Anti-vacuita' dell'intero test**: senza un verdetto registrato, `FindVerdictMismatches` sarebbe
 	// verde su un array vuoto e questo test non proverebbe niente. Una partita giocata ne produce.
 	TestTrue(TEXT("la partita ha prodotto verdetti da verificare"), ConVerdetti > 0);
+
+	// ⚠️ E lo stesso per l'equita': con zero scelte registrate `FindUnauthorizedTargets` sarebbe verde su un
+	// array vuoto, che e' precisamente la vacuita' con cui la prima stesura di questo test era passata.
+	TestTrue(TEXT("la partita ha prodotto scelte di bot da verificare"), ConScelte > 0);
 
 	DestroyReplayProducerWorld(World);
 	PuliscIProducer(Root);

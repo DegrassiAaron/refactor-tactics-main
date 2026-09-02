@@ -1,6 +1,7 @@
 #include "Replay/RTReplayAuditLibrary.h"
 
 #include "Dom/JsonObject.h"
+#include "Perception/RTKnowledgeView.h" // FRTKnowledgeSubject: solo per ricostruire l'ingresso di FreezeVerdict
 #include "HAL/PlatformFileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -24,6 +25,10 @@ namespace
 	const TCHAR* KAudit_Planning  = TEXT("PlanningKnowledge");
 	const TCHAR* KAudit_Blast     = TEXT("BlastKnowledge");
 	const TCHAR* KAudit_Verdicts  = TEXT("Verdicts");
+	const TCHAR* KAudit_Decisions = TEXT("BotDecisions");
+	const TCHAR* KAudit_Target    = TEXT("TargetUnitId");
+	const TCHAR* KAudit_TargetTeam = TEXT("TargetTeamId");
+	const TCHAR* KAudit_TargetCell = TEXT("TargetCell");
 
 	const TCHAR* KAudit_Team      = TEXT("TeamId");
 	const TCHAR* KAudit_Visible   = TEXT("VisibleCells");
@@ -192,6 +197,19 @@ FString URTReplayAuditLibrary::AuditToJson(const FRTTurnAudit& Audit)
 	}
 	Root->SetArrayField(KAudit_Verdicts, Verdicts);
 
+	TArray<TSharedPtr<FJsonValue>> Decisions;
+	for (const FRTAuditBotDecision& D : Audit.BotDecisions)
+	{
+		const TSharedRef<FJsonObject> DO = MakeShared<FJsonObject>();
+		DO->SetNumberField(KAudit_Unit, D.UnitId);
+		DO->SetNumberField(KAudit_Team, D.TeamId);
+		DO->SetNumberField(KAudit_Target, D.TargetUnitId);
+		DO->SetNumberField(KAudit_TargetTeam, D.TargetTeamId);
+		DO->SetField(KAudit_TargetCell, AuditCellToJson(D.TargetCell));
+		Decisions.Add(MakeShared<FJsonValueObject>(DO));
+	}
+	Root->SetArrayField(KAudit_Decisions, Decisions);
+
 	FString Out;
 	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
 	FJsonSerializer::Serialize(Root, Writer);
@@ -277,6 +295,29 @@ bool URTReplayAuditLibrary::AuditFromJson(const FString& Json, FRTTurnAudit& Out
 			R.Verdict.Mask = static_cast<uint32>(Mask);
 			if (!AuditCellFromJson((*VO)->TryGetField(KAudit_Cell), R.SubjectCell)) { return false; }
 			Read.Verdicts.Add(R);
+		}
+	}
+
+	const TArray<TSharedPtr<FJsonValue>>* Decisions = nullptr;
+	if (Root->TryGetArrayField(KAudit_Decisions, Decisions))
+	{
+		for (const TSharedPtr<FJsonValue>& V : *Decisions)
+		{
+			const TSharedPtr<FJsonObject>* DO = nullptr;
+			if (!V.IsValid() || !V->TryGetObject(DO)) { return false; }
+
+			FRTAuditBotDecision D;
+			double Unit = 0.0, Team = 0.0, Target = 0.0, TargetTeam = 0.0;
+			(*DO)->TryGetNumberField(KAudit_Unit, Unit);
+			(*DO)->TryGetNumberField(KAudit_Team, Team);
+			(*DO)->TryGetNumberField(KAudit_Target, Target);
+			(*DO)->TryGetNumberField(KAudit_TargetTeam, TargetTeam);
+			D.UnitId = static_cast<int32>(Unit);
+			D.TeamId = static_cast<int32>(Team);
+			D.TargetUnitId = static_cast<int32>(Target);
+			D.TargetTeamId = static_cast<int32>(TargetTeam);
+			if (!AuditCellFromJson((*DO)->TryGetField(KAudit_TargetCell), D.TargetCell)) { return false; }
+			Read.BotDecisions.Add(D);
 		}
 	}
 
@@ -410,4 +451,42 @@ TArray<FString> URTReplayAuditLibrary::FindVerdictMismatches(const FRTTurnAudit&
 		}
 	}
 	return Mismatches;
+}
+
+TArray<FString> URTReplayAuditLibrary::FindUnauthorizedTargets(const FRTTurnAudit& Audit)
+{
+	TArray<FString> Violations;
+
+	for (const FRTAuditBotDecision& Decision : Audit.BotDecisions)
+	{
+		if (Decision.TargetUnitId == INDEX_NONE)
+		{
+			continue; // nessun attacco pianificato: non c'e' una scelta da giudicare
+		}
+
+		const FRTTeamKnowledge* Known = Audit.PlanningKnowledge.FindByPredicate(
+			[&Decision](const FRTTeamKnowledge& K) { return K.TeamId == Decision.TeamId; });
+		if (Known == nullptr)
+		{
+			// Non e' «lecito», e' **non verificabile**, ed e' un difetto dell'archivio. Si dichiara invece di
+			// tacere: un controllo che salta cio' che non sa leggere e' un controllo che assolve.
+			Violations.Add(FString::Printf(
+				TEXT("unita' %d: ha scelto un bersaglio, e per la squadra %d non c'e' conoscenza registrata"),
+				Decision.UnitId, Decision.TeamId));
+			continue;
+		}
+
+		// La STESSA domanda che il cancello di produzione ha posto in partita, sullo stesso predicato.
+		const ERTTargetKnowledge Verdict = URTTeamKnowledgeLibrary::ClassifyTarget(
+			*Known, Decision.TargetUnitId, Decision.TargetTeamId, Decision.TargetCell);
+		if (Verdict == ERTTargetKnowledge::Rejected)
+		{
+			Violations.Add(FString::Printf(
+				TEXT("unita' %d (squadra %d) ha scelto l'unita' %d in (%d,%d,%d), che la sua squadra non conosceva"),
+				Decision.UnitId, Decision.TeamId, Decision.TargetUnitId,
+				Decision.TargetCell.X, Decision.TargetCell.Y, Decision.TargetCell.Layer));
+		}
+	}
+
+	return Violations;
 }

@@ -72,6 +72,14 @@ namespace
 		R1.SubjectCell = FRTCellId(2, 0, 0);
 		R1.Verdict = FRTKnowledgeVerdict::Everyone();
 		A.Verdicts.Add(R1);
+
+		FRTAuditBotDecision D;
+		D.UnitId = 3;
+		D.TeamId = 0;
+		D.TargetUnitId = 7;
+		D.TargetTeamId = 1;
+		D.TargetCell = FRTCellId(1, 0, 0);
+		A.BotDecisions.Add(D);
 		return A;
 	}
 
@@ -114,6 +122,14 @@ bool FRTReplayAuditRoundTripTest::RunTest(const FString&)
 		}
 	}
 	TestEqual(TEXT("due conoscenze di Blast"), Read.BlastKnowledge.Num(), 2);
+
+	if (TestEqual(TEXT("una scelta di bot"), Read.BotDecisions.Num(), 1))
+	{
+		TestEqual(TEXT("chi ha scelto"), Read.BotDecisions[0].UnitId, 3);
+		TestEqual(TEXT("il bersaglio scelto"), Read.BotDecisions[0].TargetUnitId, 7);
+		TestEqual(TEXT("la squadra del bersaglio"), Read.BotDecisions[0].TargetTeamId, 1);
+		TestTrue(TEXT("la cella del bersaglio"), Read.BotDecisions[0].TargetCell == FRTCellId(1, 0, 0));
+	}
 
 	// ⚠️ I verdetti sono l'unico record che non ha una struttura ricca: se il round-trip li perdesse, il
 	// controllo di coerenza di [D-223] resterebbe verde su un array vuoto.
@@ -290,6 +306,84 @@ bool FRTReplayAuditVerdictCoherenceTest::RunTest(const FString&)
 	ConPlanning.Verdicts[0].Phase = ERTMatchPhase::Dash;    // nata PRIMA del Blast
 	TestTrue(TEXT("una voce nata prima del Blast si ricalcola sull'istantanea di Planning"),
 		URTReplayAuditLibrary::FindVerdictMismatches(ConPlanning).Num() > 0);
+
+	return true;
+}
+
+/**
+ * 🔴 **L'equita' del bot, e stavolta e' verificabile.**
+ *
+ * La domanda che un archivio deve reggere e' *«il bot ha visto piu' di me?»*, e la si pone al `ClassifyTarget`
+ * di produzione sulla conoscenza di **Planning** registrata: la STESSA domanda che il cancello ha posto in
+ * partita, non una simile.
+ *
+ * ⚠️ **Si giudica la SCELTA, non l'effetto.** Una prima stesura guardava la cella colpita, ed era
+ * insostenibile: `TgtCell` su una voce di combattimento e' la cella della VITTIMA, e un'area verso una cella
+ * nota che investe un nemico ignoto accanto e' legittima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayAuditFairnessTest,
+	"RefactorTactics.Replay.Audit.BotNeverTargetedWhatItDidNotKnow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayAuditFairnessTest::RunTest(const FString&)
+{
+	// La squadra 0 vede (1,0) e (2,0), e ricorda un contatto in (3,0).
+	FRTTurnAudit A;
+	A.MatchId = FGuid(5, 5, 5, 5);
+	A.TurnNumber = 1;
+	A.PlanningKnowledge.Add(Knowledge(0, 1));
+
+	auto Scelta = [](int32 TargetUnitId, const FRTCellId& Cell)
+	{
+		FRTAuditBotDecision D;
+		D.UnitId = 3;
+		D.TeamId = 0;
+		D.TargetUnitId = TargetUnitId;
+		D.TargetTeamId = 1;
+		D.TargetCell = Cell;
+		return D;
+	};
+
+	// Un bersaglio in una cella VISTA: lecito.
+	FRTTurnAudit Visto = A;
+	Visto.BotDecisions.Add(Scelta(/*Target*/ 9, FRTCellId(2, 0, 0)));
+	TestEqual(TEXT("scegliere un bersaglio in una cella vista non e' una violazione"),
+		URTReplayAuditLibrary::FindUnauthorizedTargets(Visto).Num(), 0);
+
+	// Il contatto RICORDATO: `CellOnly` e' conoscenza, non onniscienza.
+	FRTTurnAudit Ricordato = A;
+	Ricordato.BotDecisions.Add(Scelta(/*Target*/ 7, FRTCellId(3, 0, 0)));
+	TestEqual(TEXT("scegliere un contatto ricordato non e' una violazione"),
+		URTReplayAuditLibrary::FindUnauthorizedTargets(Ricordato).Num(), 0);
+
+	// 🔑 ANTI-VACUITA': senza questo caso il controllo potrebbe non guardare niente e restare verde.
+	FRTTurnAudit Onnisciente = A;
+	Onnisciente.BotDecisions.Add(Scelta(/*Target*/ 11, FRTCellId(9, 9, 0)));
+	TestEqual(TEXT("scegliere un bersaglio che la squadra non conosceva e' una violazione"),
+		URTReplayAuditLibrary::FindUnauthorizedTargets(Onnisciente).Num(), 1);
+
+	// ⚠️ E la mutazione va fatta sul FILE: togliere la cella dalla conoscenza REGISTRATA deve far diventare
+	// rossa una scelta che era lecita. E' cio' che dimostra che il controllo legge il dato registrato.
+	FRTTurnAudit Manomesso = Visto;
+	Manomesso.PlanningKnowledge[0].VisibleCells.Reset();
+	Manomesso.PlanningKnowledge[0].Contacts.Reset();
+	TestTrue(TEXT("alterare la conoscenza registrata rende illecita una scelta che era lecita"),
+		URTReplayAuditLibrary::FindUnauthorizedTargets(Manomesso).Num() > 0);
+
+	// Nessun attacco pianificato: non c'e' una scelta da giudicare, e assolvere in silenzio sarebbe diverso
+	// dal non avere niente da dire.
+	FRTTurnAudit SenzaBersaglio = A;
+	SenzaBersaglio.BotDecisions.Add(Scelta(INDEX_NONE, FRTCellId()));
+	TestEqual(TEXT("una scelta senza bersaglio non si giudica"),
+		URTReplayAuditLibrary::FindUnauthorizedTargets(SenzaBersaglio).Num(), 0);
+
+	// ⛔ Una scelta di una squadra senza conoscenza registrata non e' «lecita»: e' NON VERIFICABILE, ed e' un
+	// difetto dell'archivio che va detto. Un controllo che salta cio' che non sa leggere assolve.
+	FRTTurnAudit SenzaConoscenza;
+	SenzaConoscenza.MatchId = A.MatchId;
+	SenzaConoscenza.TurnNumber = 1;
+	SenzaConoscenza.BotDecisions.Add(Scelta(9, FRTCellId(2, 0, 0)));
+	TestEqual(TEXT("una scelta senza conoscenza registrata si dichiara, non si assolve"),
+		URTReplayAuditLibrary::FindUnauthorizedTargets(SenzaConoscenza).Num(), 1);
 
 	return true;
 }

@@ -1480,6 +1480,12 @@ void ARTTurnManager::StartPlanningTimer()
 
 	PlanBots(); // il bot pianifica a inizio turno
 
+	// [D-313], emendamento: la SCELTA del bot si cattura QUI, dove e' chiusa e prima che la risoluzione la
+	// consumi. Piu' tardi non esisterebbe piu' — negli effetti c'e' chi e' stato colpito, non chi era stato
+	// scelto — e piu' presto gli `StableUnitId` non ci sono ancora, perche' `EnsureMatchRoster` gira dentro
+	// `PlanBots`.
+	CaptureBotDecisionsForAudit();
+
 	World->GetTimerManager().ClearTimer(PlanningTimerHandle);
 	if (PlanningSeconds > 0.f)
 	{
@@ -3174,6 +3180,43 @@ FString ARTTurnManager::ResolveReplaysRoot() const
 		: ReplaysRootOverride;
 }
 
+void ARTTurnManager::CaptureBotDecisionsForAudit()
+{
+	BotDecisionsForAudit.Reset();
+	if (!bRecordReplay)
+	{
+		return; // stessa guardia delle due istantanee: a registrazione spenta nessuno leggera' questo dato
+	}
+
+	// I VIVI, con l'helper che il resto del file usa gia': un'unita' caduta non ha una scelta di questo turno.
+	TArray<ARTUnit*> Vive;
+	CollectLivingUnits(Vive);
+
+	for (ARTUnit* Unit : Vive)
+	{
+		if (!Unit || !Unit->bIsBotControlled)
+		{
+			continue; // il giocatore umano mira dove vuole: il suo filtro e' altrove, e non e' questo
+		}
+
+		FRTAuditBotDecision Decision;
+		Decision.UnitId = Unit->StableUnitId;
+		Decision.TeamId = Unit->TeamId;
+
+		// ⚠️ La cella e' quella VERA del bersaglio adesso, non quella che il bot ricordava: e' l'ingresso
+		// che il cancello di produzione passa a `ClassifyTarget`, e con un'altra il ricalcolo porrebbe una
+		// domanda simile invece della stessa.
+		if (const ARTUnit* Target = Unit->PlannedAttackTarget)
+		{
+			Decision.TargetUnitId = Target->StableUnitId;
+			Decision.TargetTeamId = Target->TeamId;
+			Decision.TargetCell = Target->Cell;
+		}
+
+		BotDecisionsForAudit.Add(Decision);
+	}
+}
+
 void ARTTurnManager::RecordTurnToReplay()
 {
 	if (!bRecordReplay || !ReplayManifest.MatchId.IsValid())
@@ -3213,6 +3256,8 @@ void ARTTurnManager::RecordTurnToReplay()
 	{
 		return Snapshot.Num() > 0 && Snapshot[0].TurnNumber == TurnNumber;
 	};
+
+	Audit.BotDecisions = BotDecisionsForAudit;
 
 	if (DiQuestoTurno(PlanningKnowledgeForAudit)) { Audit.PlanningKnowledge = PlanningKnowledgeForAudit; }
 	if (DiQuestoTurno(BlastKnowledgeForAudit)) { Audit.BlastKnowledge = BlastKnowledgeForAudit; }

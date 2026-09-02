@@ -7,6 +7,7 @@
 #include "Bot/RTHexBotLibrary.h" // i pesi del bot hanno UNA sorgente: i default della struct
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTResolvedEvent.h"
+#include "Replay/RTReplayAuditLibrary.h" // FRTAuditBotDecision: il quarto record di D-313
 #include "Turn/RTTurnLog.h"
 #include "Replay/RTReplayManifest.h"
 #include "Ability/RTActionDef.h" // FRTActionDef: l'impatto della carica porta con se' la definizione
@@ -1475,6 +1476,15 @@ protected:
 	TArray<FRTTeamKnowledge> PlanningKnowledgeForAudit;
 	TArray<FRTTeamKnowledge> BlastKnowledgeForAudit;
 
+	/**
+	 * Le SCELTE dei bot del turno, catturate a pianificazione chiusa ([D-313], emendamento del 2026-09-02).
+	 *
+	 * 🔴 **E' il quarto record, e senza di lui l'equita' non e' verificabile da nessun archivio**: la scelta
+	 * del bot non sopravvive alla pianificazione, e gli EFFETTI non la contengono — `TgtCell` su una voce di
+	 * combattimento e' la cella della vittima, non quella a cui si e' mirato.
+	 */
+	TArray<FRTAuditBotDecision> BotDecisionsForAudit;
+
 	/** TurnLog dell'ultimo turno risolto (osservabilita' autoritativa; ordinato in LockInAndResolve). */
 	TArray<FRTTurnLogEntry> TurnLog;
 
@@ -1483,6 +1493,9 @@ protected:
 
 	/** Scrive la traccia del turno appena risolto. Silenziosa se la registrazione e' spenta. */
 	void RecordTurnToReplay();
+
+	/** Cattura le scelte dei bot per l'artefatto d'audit, a pianificazione chiusa ([D-313]). */
+	void CaptureBotDecisionsForAudit();
 
 	/** Chiude l'archivio a partita finita. Silenziosa se la registrazione e' spenta o non e' mai partita. */
 	void CloseReplayArchive();
