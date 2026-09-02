@@ -765,6 +765,52 @@ TArray<FRTCellId> URTHexLibrary::HexCone(const FRTCellId& From, const FRTCellId&
 	return Out;
 }
 
+bool URTHexLibrary::SectorIndexTowards(const FRTCellId& Center, const FRTCellId& Cell, int32& OutSector)
+{
+	// PLANARE: il Layer non entra, come in HexDistance/HexLine/HexCone. Vedi il commento della dichiarazione
+	// per perche' qui si proietta mentre `DirectionBetween` rifiuta.
+	const int32 Dq = Cell.X - Center.X;
+	const int32 Dr = Cell.Y - Center.Y;
+	if (Dq == 0 && Dr == 0)
+	{
+		return false; // stessa cella in pianta: nessuno spicchio, e nessun valore di ripiego onesto
+	}
+
+	// Si risolve `(Dq,Dr) = a*D(i) + b*D(i+1)` in ARITMETICA INTERA (invariante #4: niente float nella logica
+	// di gioco) e si accetta l'unico `i` con `a > 0, b >= 0`. Il loop sui sei e' lo stesso di
+	// `DirectionBetween`: sei iterazioni con un ordine fisso non hanno bisogno di essere piu' furbe di cosi',
+	// e una formula chiusa qui sarebbe un secondo posto dove sbagliare il verso.
+	for (int32 I = 0; I < 6; ++I)
+	{
+		const int32 J = (I + 1) % 6;
+		const int32 Det = RT_HEX_DX[I] * RT_HEX_DY[J] - RT_HEX_DX[J] * RT_HEX_DY[I];
+		if (Det == 0)
+		{
+			continue; // due direzioni contigue non sono mai parallele: guardia di forma, non caso atteso
+		}
+
+		const int32 ANum = Dq * RT_HEX_DY[J] - Dr * RT_HEX_DX[J];
+		const int32 BNum = RT_HEX_DX[I] * Dr - RT_HEX_DY[I] * Dq;
+		if (ANum % Det != 0 || BNum % Det != 0)
+		{
+			continue; // la cella non e' combinazione INTERA di questa coppia
+		}
+
+		const int32 A = ANum / Det;
+		const int32 B = BNum / Det;
+		if (A > 0 && B >= 0)
+		{
+			OutSector = I;
+			return true;
+		}
+	}
+
+	// Irraggiungibile per costruzione — i sei spicchi semiaperti coprono il piano senza sovrapporsi, e la
+	// sola cella esclusa e' il centro, gia' respinto sopra. Resta perche' un `return` mancante qui sarebbe
+	// un valore non inizializzato in `OutSector`, cioe' uno spicchio plausibile e casuale.
+	return false;
+}
+
 ERTHexDirection URTHexLibrary::NearestEdgeDirection(const FRTCellId& Cell, const FVector& WorldPoint,
 	const FVector& Origin, float HexSize, float LayerHeight)
 {

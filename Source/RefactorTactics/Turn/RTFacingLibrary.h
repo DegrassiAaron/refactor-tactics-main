@@ -22,6 +22,50 @@ enum class ERTDisplacementCause : uint8
 };
 
 /**
+ * Da quale dei sei lati un colpo arriva, RELATIVAMENTE all'orientamento di chi lo subisce ([D-126], `FAC-11`).
+ * Le quattro direzioni non frontali restano DISTINTE: niente `Side`/`Flank` generico, e nessuna banda globale
+ * `Front Arc / Flank / Rear`. Un'abilita' puo' raggruppare i lati che le servono, ma quell'insieme appartiene
+ * al CONSUMATORE che lo dichiara, mai al canone.
+ *
+ * 🔑 **L'ORDINE DI QUESTO ENUM E' LA MAPPATURA nome<->indice, ed e' una scelta, non una trascrizione.**
+ * [D-147] la lascia esplicitamente aperta — *«si fissa quando la relazione entra in codice, ed e' lavoro di
+ * #726»* — perche' le due fonti si contraddicono e il verso NON e' deducibile dai nomi. Misurato:
+ * `AxialToWorld` da' `Wx = sqrt(3)*(q + r/2)`, `Wy = 1.5*r`, quindi con facing `E` la direzione `NE`
+ * (l'indice `f+1`) cade in world a `(+0.87, -1.5)` — cioe' a **-Y**, che nella convenzione UE (`+X` avanti,
+ * `+Y` a destra) sta a **SINISTRA** di chi guarda. L'elenco di [D-126] letto come ordine di enumerazione
+ * manderebbe `f+1` a `FrontRight`, cioe' nominerebbe destra una cella che sta a sinistra.
+ *
+ * ∴ Si sceglie la FEDELTA' GEOMETRICA: i sei nomi di [D-126] percorsi in senso INVERSO. [D-126] fissa i
+ * nomi, non il verso di enumerazione; e l'argomento residuo che [D-147] registra sullo skew e' proprio la
+ * *fedelta' dei nomi* — un `TurnLog` che dice `FrontRight` per una cella visibilmente a sinistra e' il
+ * difetto di explainability (E16) che quell'argomento teme.
+ *
+ * ⚠️ **Il valore intero e' `(spicchio - facing + 6) % 6`**, e i test asseriscono su QUELL'INDICE, non su
+ * questi nomi: la mappatura e' l'oggetto della decisione, quindi non puo' essere anche la sua premessa.
+ *
+ * ⚠️ Lo SKEW e' reale e dichiarato, non nascosto ([D-147]): `Front` e' il raggio dritto davanti piu' uno
+ * solo dei due spicchi adiacenti, e a raggio `1..8` **168 celle su 216** non ricevono la direzione speculare
+ * della propria immagine speculare. Uno `Shield = {Front}` proteggerebbe un fianco e non l'altro. Chi
+ * dichiarera' il primo insieme di lati deve saperlo PRIMA di sceglierlo, non scoprirlo dal playtest.
+ */
+UENUM(BlueprintType)
+enum class ERTRelativeDirection : uint8
+{
+	/** `(spicchio - facing) % 6 == 0` — il raggio dritto davanti, piu' lo spicchio alla sua sinistra. */
+	Front,
+	/** `== 1` — verso `-Y` in world, cioe' a sinistra di chi guarda. */
+	FrontLeft,
+	/** `== 2` */
+	RearLeft,
+	/** `== 3` — l'opposto esatto di `Front`. */
+	Rear,
+	/** `== 4` */
+	RearRight,
+	/** `== 5` — verso `+Y` in world, cioe' a destra di chi guarda. */
+	FrontRight
+};
+
+/**
  * Regole PURE dell'orientamento (CP 16.1). Il facing e' stato di gioco autorevole, non lo yaw della mesh:
  * decide chi vede cosa (E13), da che lato si e' scoperti (CP 16.2) e dove punta un Overwatch (E14).
  *
@@ -81,6 +125,28 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Facing")
 	static ERTHexDirection FacingAfterDisplacement(const FRTCellId& LandedCell, const FRTCellId& SourceCell,
 		ERTDisplacementCause Cause, ERTHexDirection Current);
+
+	/**
+	 * Da quale dei sei lati, relativamente a `Facing`, il difensore in `DefenderCell` e' raggiunto da qualcosa
+	 * che parte da `OriginCell` ([D-126], regola a settore semiaperto confermata da [D-147]).
+	 *
+	 * `false` quando le due celle coincidono IN PIANTA: li' non esiste un lato d'ingresso. Non e' un caso
+	 * d'errore — `URTHexCombatLibrary::IsInFrontalArc` alla stessa domanda risponde `true` per contratto
+	 * («nessun lato da cui il colpo arrivi», quindi non e' alle spalle) — ma le due risposte non sono in
+	 * conflitto: quella dice *se* sei coperto, questa *da dove*, e a distanza zero il «da dove» non c'e'.
+	 *
+	 * PLANARE, come `IsInFrontalArc`: l'origine si proietta sul layer del difensore. Ricalcolare
+	 * diversamente farebbe divergere le due funzioni su un caso che nessun test copre.
+	 *
+	 * ⛔ **Non sostituisce `IsInFrontalArc` e non ne cambia nessun chiamante.** Il cono a 120 gradi e'
+	 * STRETTAMENTE CONTENUTO nell'insieme dei tre lati frontali — 45 celle di divergenza a raggio `1..10`,
+	 * tutte nel verso «tre lati dentro / cono fuori», zero nel verso opposto — quindi spostare la copertura o
+	 * la `Guard` su questa relazione sarebbe un BUFF DIFENSIVO NETTO travestito da rinomina. [D-126] tiene le
+	 * due cose separate apposta: il cono dice *quale area* un'unita' copre, questa *da quale lato* e' colpita.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Facing")
+	static bool RelativeDirectionFrom(const FRTCellId& DefenderCell, ERTHexDirection Facing,
+		const FRTCellId& OriginCell, ERTRelativeDirection& OutDirection);
 
 	/**
 	 * Scrive il nuovo facing sull'unita' e ne registra la ragione nel TurnLog. Unico punto di scrittura: e'

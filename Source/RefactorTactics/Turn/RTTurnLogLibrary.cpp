@@ -631,6 +631,18 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 			// usa. E' la ragione per cui i due esiti sono separati (`#1430`, [D-199]).
 			return FString::Printf(TEXT("%s -> %s: colpo alle spalle, la copertura non vale (%d punti scavalcati)"),
 				*CellText(Entry.TgtCell), *CellText(Entry.SrcCell), Entry.Amount);
+		case ERTFacingOutcome::HitCameFromSide:
+		{
+			// ⚠️ Qui `Amount` e' l'indice RELATIVO (`ERTRelativeDirection`), non una delle sei direzioni
+			// assolute: `DirectionNames` direbbe «NE» dove il giocatore deve leggere «da sinistra». Sono due
+			// tabelle perche' sono due domande — quale orientamento HA, e da che parte e' stato COLPITO.
+			// L'ordine segue `ERTRelativeDirection`, che e' dove la mappatura e' decisa e motivata (`#726`).
+			static const TCHAR* RelativeNames[6] = {
+				TEXT("da davanti"), TEXT("da davanti a sinistra"), TEXT("da dietro a sinistra"),
+				TEXT("dalle spalle"), TEXT("da dietro a destra"), TEXT("da davanti a destra") };
+			return FString::Printf(TEXT("%s -> %s: colpo %s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), RelativeNames[DirIndex]);
+		}
 		default:
 			return FString::Printf(TEXT("%s: orientamento %s"), *CellText(Entry.SrcCell), Dir);
 		}

@@ -191,7 +191,29 @@ enum class ERTFacingOutcome : uint8
 	 * di riduzione. Un consumatore che filtrava `Facing`/`RearHitBypassedCover` e leggeva `Amount` otteneva un
 	 * numero plausibile e sbagliato, senza nessun modo di sapere quale dei due aveva in mano.
 	 */
-	RearHitBypassedGuard
+	RearHitBypassedGuard,
+	/**
+	 * Da quale dei SEI LATI, relativamente al facing del difensore, e' arrivato un colpo risolto ([D-126],
+	 * `#726`). `Amount` porta l'INDICE RELATIVO `(spicchio - facing + 6) % 6`, cioe' un `ERTRelativeDirection`
+	 * — non i punti di riduzione di `RearHitBypassedCover` ne' il facing assoluto di `RearHitBypassedGuard`.
+	 *
+	 * ⚠️ **In coda, per la stessa ragione di `RearHitBypassedGuard`**: `Outcome` viaggia come `uint8` nel
+	 * formato serializzato, quindi inserire un valore in mezzo rinumera tutti quelli che seguono e riscrive
+	 * il significato di ogni traccia gia' archiviata. Il formato NON cambia versione: nessun campo nuovo,
+	 * solo un valore in piu' in un enum gia' serializzato come intero.
+	 *
+	 * 🔑 **Un esito PROPRIO e non un terzo significato di `Amount` su un esito esistente.** E' la lezione di
+	 * `#1430`/[D-199]: fino al 2026-08-27 guardia e copertura emettevano lo STESSO esito con due `Amount`
+	 * incompatibili, e un consumatore che filtrava non aveva modo di sapere quale dei due avesse in mano.
+	 * Aggiungere qui una terza semantica sotto una coppia `(Category, Outcome)` gia' usata avrebbe rifatto
+	 * quel difetto sapendolo.
+	 *
+	 * ⚠️ **Questa voce e' descrittiva, non decisionale**: non cambia nessun esito di combattimento. E' il
+	 * primo consumatore che [D-126] chiedeva — senza, la relazione a sei lati sarebbe un ramo morto, cioe' il
+	 * `runtime: partial` che il registry punisce. Il secondo consumatore (un'abilita' che dichiara il proprio
+	 * insieme di lati) arriva col primo contenuto che ne ha bisogno.
+	 */
+	HitCameFromSide
 };
 
 /**

@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Combat/RTHexCombatLibrary.h" // IsInFrontalArc: #726 misura la divergenza contro il cono, non la sostituisce
 #include "Map/RTCellId.h"
 #include "Map/RTHexLibrary.h"
 #include "Turn/RTFacingLibrary.h"
@@ -502,6 +503,251 @@ bool FRTFacingIntentIsTeamFilteredTest::RunTest(const FString&)
 	// La posa attuale invece si vede: negarla nasconderebbe cio' che si ha davanti agli occhi.
 	TestTrue(TEXT("la posa attuale e' pubblica"), EnemyView.Facing == ERTHexDirection::NW);
 	TestTrue(TEXT("e vale anche per l'alleato"), AllyView.Facing == ERTHexDirection::NW);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// #726 — la relazione a SEI DIREZIONI RELATIVE di [D-126], regola a settore semiaperto confermata da [D-147].
+//
+// ⚠️ Questi test asseriscono sull'INDICE relativo `(spicchio - facing + 6) % 6`, non sui nomi
+// `FrontLeft`/`FrontRight`: la mappatura nome<->indice e' l'oggetto della decisione presa in
+// `ERTRelativeDirection`, quindi non puo' essere anche la premessa dei test che la verificano. L'unico test
+// che nomina i lati e' `RelativeSideNamesFollowGeometry`, ed e' li' apposta.
+// ---------------------------------------------------------------------------------------------------------
+
+/** Tutte le celle a distanza `1..RMax` dall'origine, escluso il centro. */
+static TArray<FRTCellId> CellsWithinRadius(int32 RMax)
+{
+	TArray<FRTCellId> Out;
+	const FRTCellId Origin(0, 0, 0);
+	for (int32 Q = -RMax; Q <= RMax; ++Q)
+	{
+		for (int32 R = -RMax; R <= RMax; ++R)
+		{
+			const FRTCellId Cell(Q, R, 0);
+			const int32 D = URTHexLibrary::HexDistance(Cell, Origin);
+			if (D >= 1 && D <= RMax)
+			{
+				Out.Add(Cell);
+			}
+		}
+	}
+	return Out;
+}
+
+/** L'indice relativo, o `INDEX_NONE` se la relazione non e' definita. */
+static int32 RelativeIndex(const FRTCellId& Defender, ERTHexDirection Facing, const FRTCellId& Origin)
+{
+	ERTRelativeDirection Rel = ERTRelativeDirection::Front;
+	if (!URTFacingLibrary::RelativeDirectionFrom(Defender, Facing, Origin, Rel))
+	{
+		return INDEX_NONE;
+	}
+	return static_cast<int32>(Rel);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingRelativeSidesArePartitionedEvenlyTest,
+	"RefactorTactics.Facing.RelativeSidesArePartitionedEvenly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingRelativeSidesArePartitionedEvenlyTest::RunTest(const FString&)
+{
+	// 🔑 E' IL test che discrimina la regola adottata da quella scartata. La regola a LINEA — «primo passo
+	// della linea difensore->origine», sostituita dallo spec panel del 2026-08-13 — distribuisce
+	// `40/36/36/32/36/36`: il settore frontale varia da 32 a 40 celle secondo l'orientamento, cioe' muoversi
+	// verso Est proteggerebbe piu' che muoversi verso Ovest. Con questo test rosso, quella regola non rientra
+	// per deriva.
+	const FRTCellId Defender(0, 0, 0);
+	const TArray<FRTCellId> Cells = CellsWithinRadius(8);
+	TestEqual(TEXT("216 celle a raggio 1..8"), Cells.Num(), 216);
+
+	int32 PerSide[6] = { 0, 0, 0, 0, 0, 0 };
+	int32 Unclassified = 0;
+	for (const FRTCellId& Cell : Cells)
+	{
+		const int32 Rel = RelativeIndex(Defender, ERTHexDirection::E, Cell);
+		if (Rel == INDEX_NONE) { ++Unclassified; continue; }
+		++PerSide[Rel];
+	}
+
+	// Ogni cella cade in ESATTAMENTE uno spicchio: e' il semiaperto `a > 0, b >= 0` a garantirlo, e senza
+	// questa riga l'equipartizione sotto potrebbe reggere su un conteggio che perde celle.
+	TestEqual(TEXT("nessuna cella resta senza direzione"), Unclassified, 0);
+	for (int32 Side = 0; Side < 6; ++Side)
+	{
+		TestEqual(*FString::Printf(TEXT("36 celle per lo spicchio relativo %d"), Side), PerSide[Side], 36);
+	}
+
+	// E l'equipartizione non e' una media che si compensa fra anelli: vale a OGNI raggio, dove il ring di
+	// `6r` celle si divide in sei da `r`.
+	for (int32 Radius = 1; Radius <= 8; ++Radius)
+	{
+		int32 PerSideAtRadius[6] = { 0, 0, 0, 0, 0, 0 };
+		for (const FRTCellId& Cell : Cells)
+		{
+			if (URTHexLibrary::HexDistance(Cell, Defender) != Radius) { continue; }
+			const int32 Rel = RelativeIndex(Defender, ERTHexDirection::E, Cell);
+			if (Rel != INDEX_NONE) { ++PerSideAtRadius[Rel]; }
+		}
+		for (int32 Side = 0; Side < 6; ++Side)
+		{
+			TestEqual(*FString::Printf(TEXT("anello %d, spicchio %d"), Radius, Side),
+				PerSideAtRadius[Side], Radius);
+		}
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingRelativeDirectionRotatesWithFacingTest,
+	"RefactorTactics.Facing.RelativeDirectionRotatesWithFacing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingRelativeDirectionRotatesWithFacingTest::RunTest(const FString&)
+{
+	const FRTCellId Defender(0, 0, 0);
+	const TArray<FRTCellId> Cells = CellsWithinRadius(4);
+
+	// Ruotare di `k` il facing ruota la relazione di `-k`: e' l'equivarianza, cioe' la ragione per cui la
+	// relazione e' RELATIVA e non una seconda tabella di direzioni assolute.
+	for (const FRTCellId& Cell : Cells)
+	{
+		const int32 Base = RelativeIndex(Defender, ERTHexDirection::E, Cell);
+		TestTrue(TEXT("ogni cella ha una direzione relativa"), Base != INDEX_NONE);
+		if (Base == INDEX_NONE) { continue; }
+
+		for (int32 K = 1; K < 6; ++K)
+		{
+			const ERTHexDirection Rotated = static_cast<ERTHexDirection>(K);
+			const int32 Expected = ((Base - K) % 6 + 6) % 6;
+			TestEqual(TEXT("ruotando il facing di k la relazione ruota di -k"),
+				RelativeIndex(Defender, Rotated, Cell), Expected);
+		}
+	}
+
+	// `Rear` e' l'opposto di `Front`, e non per convenzione dei nomi: la cella dritto dietro cade a tre
+	// spicchi da quella dritto davanti.
+	const int32 Ahead = RelativeIndex(Defender, ERTHexDirection::E, FRTCellId(3, 0, 0));
+	const int32 Behind = RelativeIndex(Defender, ERTHexDirection::E, FRTCellId(-3, 0, 0));
+	TestEqual(TEXT("dritto davanti e' lo spicchio relativo 0"), Ahead, 0);
+	TestEqual(TEXT("dritto dietro e' lo spicchio relativo 3"), Behind, 3);
+	TestEqual(TEXT("e 3 e' l'opposto di 0 nel ciclo dei sei"), (Ahead + 3) % 6, Behind);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingRelativeDirectionEdgeCasesTest,
+	"RefactorTactics.Facing.RelativeDirectionEdgeCases",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingRelativeDirectionEdgeCasesTest::RunTest(const FString&)
+{
+	const FRTCellId Defender(0, 0, 0);
+
+	// Stessa cella: nessun lato d'ingresso esiste, e la funzione lo DICE invece di restituire un valore
+	// plausibile. `IsInFrontalArc` alla stessa domanda risponde `true` per contratto — «non e' alle spalle» —
+	// e le due risposte non sono in conflitto: quella dice SE sei coperto, questa DA DOVE.
+	ERTRelativeDirection Unused = ERTRelativeDirection::Rear;
+	TestFalse(TEXT("stessa cella: nessuna direzione"),
+		URTFacingLibrary::RelativeDirectionFrom(Defender, ERTHexDirection::E, Defender, Unused));
+	TestTrue(TEXT("mentre IsInFrontalArc risponde true per contratto"),
+		URTHexCombatLibrary::IsInFrontalArc(Defender, ERTHexDirection::E, Defender));
+
+	// Layer diverso: si proietta, come fa `IsInFrontalArc`. Ricalcolare diversamente farebbe divergere le due
+	// funzioni su un caso che nessun altro test copre.
+	const FRTCellId OriginSameLayer(2, -1, 0);
+	const FRTCellId OriginOtherLayer(2, -1, 3);
+	TestEqual(TEXT("layer diverso: stessa risposta della cella proiettata"),
+		RelativeIndex(Defender, ERTHexDirection::E, OriginOtherLayer),
+		RelativeIndex(Defender, ERTHexDirection::E, OriginSameLayer));
+
+	// E anche la coincidenza IN PIANTA su layer diversi non ha un lato: sopra la testa non e' una direzione.
+	TestFalse(TEXT("stessa cella in pianta su un altro layer: nessuna direzione"),
+		URTFacingLibrary::RelativeDirectionFrom(Defender, ERTHexDirection::E, FRTCellId(0, 0, 2), Unused));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingRelativeDirectionDivergesFromConeTest,
+	"RefactorTactics.Facing.RelativeDirectionDivergesFromCone",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingRelativeDirectionDivergesFromConeTest::RunTest(const FString&)
+{
+	// La cella `(1,-2)` e' l'UNICA a distanza 2 su cui il cono a 120 gradi e l'insieme dei tre lati frontali
+	// divergono, per un difensore in `(0,0)` orientato a `E` ([D-147] corregge qui il corpo di #726, che
+	// nominava anche `(-1,2)`: quella cade nello spicchio relativo 4 e non e' una divergenza).
+	const FRTCellId Defender(0, 0, 0);
+	const FRTCellId Diverging(1, -2, 0);
+
+	TestEqual(TEXT("(1,-2) cade nello spicchio relativo 1"),
+		RelativeIndex(Defender, ERTHexDirection::E, Diverging), 1);
+	TestEqual(TEXT("(-1,2) cade nello spicchio relativo 4, e non e' una divergenza"),
+		RelativeIndex(Defender, ERTHexDirection::E, FRTCellId(-1, 2, 0)), 4);
+
+	// 🔴 E il cono NON cambia risposta su di essa. E' la riga che protegge il bilanciamento: il cono e'
+	// strettamente contenuto nei tre lati frontali, quindi sostituirlo sarebbe un BUFF DIFENSIVO NETTO
+	// travestito da rinomina. [D-126] tiene le due letture separate proprio per questo.
+	TestFalse(TEXT("il cono risponde false su (1,-2): la relazione non l'ha spostato"),
+		URTHexCombatLibrary::IsInFrontalArc(Defender, ERTHexDirection::E, Diverging));
+
+	// Il contenimento e' STRETTO, e si misura: ogni cella dentro il cono sta anche nei tre lati frontali,
+	// mai il contrario. Un solo verso di divergenza e' cio' che rende «buff» una previsione e non un'opinione.
+	int32 InThreeSidesNotInCone = 0;
+	int32 InConeNotInThreeSides = 0;
+	for (const FRTCellId& Cell : CellsWithinRadius(10))
+	{
+		const int32 Rel = RelativeIndex(Defender, ERTHexDirection::E, Cell);
+		const bool bThreeFrontal = (Rel == 0 || Rel == 1 || Rel == 5);
+		const bool bCone = URTHexCombatLibrary::IsInFrontalArc(Defender, ERTHexDirection::E, Cell);
+		if (bThreeFrontal && !bCone) { ++InThreeSidesNotInCone; }
+		if (bCone && !bThreeFrontal) { ++InConeNotInThreeSides; }
+	}
+	TestEqual(TEXT("45 divergenze a raggio 1..10, tutte nello stesso verso"), InThreeSidesNotInCone, 45);
+	TestEqual(TEXT("e zero nel verso opposto: il cono e' contenuto"), InConeNotInThreeSides, 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingRelativeSideNamesFollowGeometryTest,
+	"RefactorTactics.Facing.RelativeSideNamesFollowGeometry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingRelativeSideNamesFollowGeometryTest::RunTest(const FString&)
+{
+	// 🔑 L'unico test che nomina i lati, ed e' quello che pinna la DECISIONE presa in `ERTRelativeDirection`:
+	// i nomi seguono la GEOMETRIA e non l'ordine di enumerazione di [D-126]. Senza questa riga la mappatura
+	// potrebbe essere invertita da chiunque senza che nulla diventi rosso — ed e' la domanda che [D-147]
+	// lascia aperta assegnandola a #726.
+	const FRTCellId Defender(0, 0, 0);
+	const FVector Origin = FVector::ZeroVector;
+	constexpr float HexSize = 100.0f;
+	constexpr float LayerHeight = 100.0f;
+
+	// Convenzione UE: `+X` avanti, `+Y` a destra. Il difensore guarda a `E`, che `AxialToWorld` manda su `+X`.
+	const FVector Ahead = URTHexLibrary::AxialToWorld(URTHexLibrary::Neighbor(Defender, ERTHexDirection::E),
+		Origin, HexSize, LayerHeight);
+	TestTrue(TEXT("il facing E guarda verso +X in world"), Ahead.X > 1.0);
+	TestTrue(TEXT("e non ha componente laterale"), FMath::Abs(Ahead.Y) < 1.0);
+
+	ERTRelativeDirection Side = ERTRelativeDirection::Front;
+
+	// Lo spicchio relativo 1 e' quello del vicino `NE`, che in world sta a `-Y`, cioe' a SINISTRA di chi
+	// guarda a `E`. Percio' si chiama `FrontLeft` e non `FrontRight`.
+	const FRTCellId LeftNeighbour = URTHexLibrary::Neighbor(Defender, ERTHexDirection::NE);
+	const FVector LeftWorld = URTHexLibrary::AxialToWorld(LeftNeighbour, Origin, HexSize, LayerHeight);
+	TestTrue(TEXT("il vicino NE sta a -Y, cioe' a sinistra"), LeftWorld.Y < -1.0);
+	TestTrue(TEXT("e la relazione lo chiama FrontLeft"),
+		URTFacingLibrary::RelativeDirectionFrom(Defender, ERTHexDirection::E, LeftNeighbour, Side)
+		&& Side == ERTRelativeDirection::FrontLeft);
+
+	// Simmetricamente, `SE` sta a `+Y` ed e' `FrontRight`.
+	const FRTCellId RightNeighbour = URTHexLibrary::Neighbor(Defender, ERTHexDirection::SE);
+	const FVector RightWorld = URTHexLibrary::AxialToWorld(RightNeighbour, Origin, HexSize, LayerHeight);
+	TestTrue(TEXT("il vicino SE sta a +Y, cioe' a destra"), RightWorld.Y > 1.0);
+	TestTrue(TEXT("e la relazione lo chiama FrontRight"),
+		URTFacingLibrary::RelativeDirectionFrom(Defender, ERTHexDirection::E, RightNeighbour, Side)
+		&& Side == ERTRelativeDirection::FrontRight);
+
+	// I sei nomi restano quelli di [D-126] e il ciclo e' completo: cambiare l'ordine dell'enum senza cambiare
+	// questo test e' cio' che non deve poter succedere in silenzio.
+	TestEqual(TEXT("Front e' 0"), static_cast<int32>(ERTRelativeDirection::Front), 0);
+	TestEqual(TEXT("FrontLeft e' 1"), static_cast<int32>(ERTRelativeDirection::FrontLeft), 1);
+	TestEqual(TEXT("RearLeft e' 2"), static_cast<int32>(ERTRelativeDirection::RearLeft), 2);
+	TestEqual(TEXT("Rear e' 3"), static_cast<int32>(ERTRelativeDirection::Rear), 3);
+	TestEqual(TEXT("RearRight e' 4"), static_cast<int32>(ERTRelativeDirection::RearRight), 4);
+	TestEqual(TEXT("FrontRight e' 5"), static_cast<int32>(ERTRelativeDirection::FrontRight), 5);
 	return true;
 }
 
