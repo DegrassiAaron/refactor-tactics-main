@@ -564,7 +564,8 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	//
 	// ⚠️ **E' la SESTA azione di Phase, e prima non ci sarebbe stata**: fino a quando le generiche
 	// occupavano la fila dei numeri, un kit da undici voci ne lasciava una impremibile.
-	Phase->Actions.Add(MakeHeroActionFromCore(TEXT("Hero.Phase.TideGuard"), TEXT("Action.Shield"),
+	// Stessa ragione del gemello `Hero.Wraith.PhaseGuard`: un `nullptr` non entra nel kit.
+	AddAbility(Phase, MakeHeroActionFromCore(TEXT("Hero.Phase.TideGuard"), TEXT("Action.Shield"),
 		/*Cooldown*/ 2));
 
 	// Variante di CircularTide (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
@@ -851,7 +852,11 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 
 	// `Hero.Wraith.PhaseGuard` — gemello di `Hero.Phase.TideGuard`, uno per squadra. Su Wraith costa una
 	// scelta vera: la Preparation spesa qui e' quella che non arma `InterceptShot`.
-	Wraith->Actions.Add(MakeHeroActionFromCore(TEXT("Hero.Wraith.PhaseGuard"), TEXT("Action.Shield"),
+	// 🔴 `AddAbility` e non `Actions.Add`: `MakeHeroActionFromCore` e' fail-closed e torna `nullptr` se
+	// `Action.Shield` sparisce o cambia nome. Con `Add` quel `nullptr` ENTRA nel kit — `Num()` conta 6,
+	// quindi ogni guardia che si fida del conteggio passa, e chi dereferenzia va giu'. E' l'invariante che
+	// `AddAbility` esiste per tenere, e qui era aggirata.
+	AddAbility(Wraith, MakeHeroActionFromCore(TEXT("Hero.Wraith.PhaseGuard"), TEXT("Action.Shield"),
 		/*Cooldown*/ 2));
 
 	// Variante di InterceptShot (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).

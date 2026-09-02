@@ -1,0 +1,37 @@
+{
+  "scenarioId": "Spec.Reaction.DeflectionReducesByTwenty",
+  "tags": ["reactions", "combat", "spec", "gadget", "wraith"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+  "_nota": "SPECIFICA ESEGUIBILE di QUANTO `Hero.Wraith.Deflection` riduce. Due attaccanti colpiscono lo stesso difensore nello stesso turno: il budget della parata si consuma sul primo colpo e il secondo arriva pieno, quindi il residuo supera lo scudo base e il totale torna a dipendere dalla riduzione. ⛔ **Il file misura il NUMERO, non la forma della riduzione**: perche' pool e delta-sul-primo-colpo qui non si distinguano e' scritto in `_nota_perche_il_secondo_colpo_arriva_pieno`.",
+  "_nota_perche_esiste": "#2105. `Visual.Reaction.Deflection` aveva l'unica assertion sugli HP alla salute PIENA — 22 di `ArcPulse` meno i 20 della parata fanno 2, e da [D-224] lo scudo base assorbe interi quei 2 — quindi resta verde per qualunque `DeflectDamageReduction` >= 17. ⚠️ **E i test di reazione non lo coprono**: `RTHeroReactionTests`, `RTDefensiveReactionTests` e `RTComposableReactionTests` calcolano l'attesa DALLA costante (`Shot - URTCombatLibrary::DeflectDamageReduction`), quindi cambiandola cambiano entrambi i lati e restano verdi: pinnano il MECCANISMO, non il numero. ➕ **Il numero era pinnato**, ma in un posto solo e a un livello diverso: `RTCombatResolverTests` lo confronta con un letterale sull'aritmetica del pool di assorbimento (`TestEqual(DeflectSmallFirst, 20)`). 🔑 **Misurato**: mutando la costante a 17, prima di questo file diventavano rossi **due** test, entrambi sul pool; ora quattro, e i due nuovi sono gli unici che la guardano dal catalogo e da un turno vero.",
+  "_nota_perche_due_colpi": "🔑 **Un colpo solo non basta, e non e' una scelta di comodo: e' aritmetica.** Con un unico `ArcPulse` il residuo e' 2, e qualunque riduzione >= 17 lo porta dentro i 5 dello scudo — l'esito e' identico e l'assertion non distingue. Con DUE colpi nello stesso turno il residuo supera lo scudo, e il totale dipende di nuovo dalla riduzione. ⚠️ Per la stessa ragione `LogEventAmount` non basterebbe **sul caso a un colpo**, dove il danno APPLICATO e' zero. In questo file ne arrivano 18, quindi un oracolo sul TurnLog sarebbe scrivibile — e leggerebbe il danno per colpo invece del totale. Non e' stato aggiunto perche' `LogEventAmount` non nomina l'unita' ne' il colpo: prende la PRIMA voce che corrisponde a categoria e outcome, e con due colpi nello stesso Blast quale sia la prima e' un'invariante di questo file, non una garanzia.",
+  "_nota_ordine": "⚠️ **Il totale NON dipende dall'ordine, ed e' voluto.** Il budget si consuma comunque per intero, quindi invertire i due attaccanti da lo stesso 72 — lo pinna `RefactorTactics.Combat.DeflectPoolAbsorbsBeforeGuardPool` (*«non dipende da quale colpo arriva per primo»*), ed e' la stessa cosa che `Visual.Combat.GuardReducesFirstHit` dichiara per la guardia: *«l'assertion sta sul totale e non su chi l'ha presa»*. Qui l'ordine e' nominato solo per leggere il conto, non perche' l'esito ne dipenda.",
+  "_nota_geometria": "⚠️ **F2 colpisce V1 alle SPALLE** — V1 non dichiara facing, quindi guarda a est di default e F2 sta a ovest. Oggi e' inerte, e per una ragione dichiarata: `bDeflectEligible` e' tutto vero, *«nessun filtro direzionale, ed e' una differenza DICHIARATA rispetto alla Guardia»* (`RTTurnManager.cpp`). ⛔ Se `Deflect` guadagnasse una clausola d'arco, questo file cambierebbe cio' che misura **senza diventare rosso**. E' lo stesso inciampo che `Visual.Combat.GuardReducesFirstHit` racconta di aver gia' pagato, e per cui ha spostato il proprio attaccante.", "_nota_scudo_base": "Ogni conto in prosa di questo file sottrae gia' lo SCUDO BASE: `URTCombatLibrary::BaseShield = 5` ([D-224]) assorbe 5 danni per turno prima degli HP.",
+  "units": [
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [0, 0, 0] },
+    { "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [2, 0, 0] },
+    { "id": "F2", "hero": "Hero.Wraith", "team": 0, "cell": [-2, 0, 0] }
+  ],
+  "turns": [
+    {
+      "requires": ["Reaction", "ReactionPlanning"],
+      "_nota_aritmetica": "V1 arma la parata. `ArcPulse` (22) la innesca e arriva a 22-20=2; `PulseShot` (21) arriva pieno perche' la riduzione e' gia' stata spesa. Totale 23, meno i 5 dello scudo base: 18 applicati. 90 - 18 = 72. ⚠️ Se la riduzione fosse 17 il totale sarebbe 26-5=21 e V1 finirebbe a 69: e' esattamente la differenza che questo file esiste per rendere osservabile, ed e' stata MISURATA mutando la costante.",
+      "_nota_perche_il_secondo_colpo_arriva_pieno": "🔴 **Non perche' la riduzione valga solo sull'innescante — quella lettura e' PRE-[D-309] ed e' sbagliata.** `Deflect` passa da `ApplyAbsorptionPool`, che e' un BUDGET con riporto: *«cio' che il colpo non consuma resta nel budget per i colpi successivi»*. Qui `ArcPulse` da 22 consuma `min(20, 22) = 20` e lo esaurisce, quindi il secondo colpo arriva pieno perche' **il budget e' finito**. ⛔ Questo file NON distingue pool da delta-sul-primo-colpo: a discriminare sarebbe un primo colpo PIU' PICCOLO di 20, dove l'avanzo morderebbe anche il secondo. Quel caso e' pinnato a livello di unita' da `RefactorTactics.Combat.DeflectPoolAbsorbsBeforeGuardPool` (*«senza avanzi persi nel clamp»*), e qui si dichiara invece di essere raccontato.",
+      "intents": [
+        { "unit": "V1", "reaction": "Hero.Wraith.Deflection" },
+        { "unit": "F1", "ability": "Hero.Gadget.ArcPulse", "target": "V1" },
+        { "unit": "F2", "ability": "Hero.Wraith.PulseShot", "target": "V1" }
+      ]
+    }
+  ],
+  "expect": [
+    { "_assertion": "IL NUMERO: 72 dipende dalla riduzione, e cambiarla lo sposta a 69. E' l'unica assertion del corpus che lo faccia su un turno vero.",
+      "type": "UnitHpEquals", "unit": "V1", "value": 72 },
+    { "_assertion": "E che la parata sia SCATTATA, separatamente dal numero: senza questa riga un turno in cui la reazione non parte affatto darebbe un altro numero e basta, senza dire perche'.",
+      "type": "LogEventCount", "category": "Reaction", "outcome": "Activated", "value": 1 },
+    { "type": "UnitAlive", "unit": "V1", "value": true },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
