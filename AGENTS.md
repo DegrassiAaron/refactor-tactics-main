@@ -311,6 +311,8 @@ node --test
 
 Ogni tool dichiara nel docstring **cosa non copre**.
 
+⛔ `tools/mutation/costanti-combattimento.py` **non e' fra i controlli noti**, e di proposito: modifica un sorgente, occupa il motore per ~40 minuti e rende NON VALIDA ogni altra misura in parallelo. Si lancia quando si vuole rispondere alla domanda che `#2118` ha posto — *quali costanti si possono cambiare senza che niente diventi rosso* — non a ogni PR.
+
 ⚠️ `scenario-notes.ts` confronta i numeri citati nella **prosa** di uno scenario con ciò che il file
 stesso asserisce — è la deriva che `#1904` ha misurato propagarsi nei documenti a valle, e che `#2049`
 ha ripulito. **Ordina, non decide**: ogni riga segnalata va letta, e un verde non è una prova di
