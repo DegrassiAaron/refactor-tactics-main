@@ -25,6 +25,12 @@ public class RefactorTacticsEditor : ModuleRules
 			"EditorInteractiveToolsFramework",
 			// Import delle texture e creazione del DA_IconCatalog dal commandlet RTBuildIconCatalog.
 			"AssetTools",
+			// Il Playground Panel (#1993): l'EditorUtilityWidget e il suo albero di widget si costruiscono
+			// dal commandlet `RTBuildPlaygroundPanel`, con la stessa disciplina delle mesh graybox — la
+			// sorgente e' il codice, l'asset e' il suo output (`D-229`).
+			"UMG",
+			"UMGEditor",
+			"Blutility",
 			// Generazione e salvataggio delle mesh del kit graybox (D-229, commandlet RTBuildGrayboxMeshes):
 			// la FMeshDescription si costruisce qui e diventa la SORGENTE dell'asset salvato.
 			"MeshDescription",
