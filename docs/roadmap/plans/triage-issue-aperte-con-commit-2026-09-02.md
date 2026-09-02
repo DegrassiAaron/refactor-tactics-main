@@ -11,8 +11,8 @@
 
 ## 1. Il verdetto in una riga
 
-> **Cinquantasei issue aperte hanno già un commit che le cita, e per quarantadue di esse il lavoro che
-> manca non è codice: è qualcuno che guardi lo schermo. Restano quattordici chiudibili misurando.**
+> **Cinquantasei issue aperte hanno già un commit che le cita, e per quarantatré di esse il lavoro che
+> manca non è codice: è qualcuno che guardi lo schermo. Restano tredici chiudibili misurando.**
 
 E lo stato delle caselle di DoD **non è un segnale** — fallisce in tre modi diversi, tutti incontrati qui.
 
@@ -42,7 +42,7 @@ Per ogni issue aperta si cerca il commit più recente `feat(N)` / `fix(N)` / `te
 |---|---|
 | `docs(N)` è una **nota**, non un'implementazione | 21 delle 56 |
 | Il commit è **lavoro parziale** su un perimetro grande | `refactor(1818)` su un God Object di 10 412 righe |
-| La DoD ha voci che **nessun commit può soddisfare** | 42 chiedono di guardare |
+| La DoD ha voci che **nessun commit può soddisfare** | 43 chiedono di guardare |
 
 ∴ La conclusione si prende **misurando la DoD contro il codice**.
 
@@ -88,8 +88,8 @@ Contare le occorrenze avrebbe dato due volte il contrario del vero.
 
 | Cosa serve per chiuderla | # su 56 |
 |---|---|
-| 👁️ **una seduta editor / verifica visiva** | **42** |
-| 🔧 misurabile a macchina | 14 |
+| 👁️ **una seduta editor / verifica visiva** | **43** |
+| 🔧 misurabile a macchina | 13 |
 
 ⚠️ **Il rilevatore delle caselle ne vedeva solo 27.** Le altre **15** dichiarano il gate visivo **fuori da
 una casella** — in una sezione *«Test / verifica»*, o in prosa.
@@ -98,11 +98,17 @@ una casella** — in una sezione *«Test / verifica»*, o in prosa.
 [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) chiede *«`PIE-ICON-01` verde»*.
 Nessuna delle due è una casella, ed entrambe bloccano.
 
-∴ **Un contatore di caselle sottostima il gate del 36 %.**
+➕ **E il rilevatore in prosa ne mancava ancora uno**: cercava `PIE`, `packaged`, *«a schermo»*, *«si
+vede»*. [#1683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1683) non usa nessuna di
+quelle parole — dice *«è ciò che **solo l'editor** può dire»*. Trovato a mano, leggendo le quattordici che
+il filtro dichiarava pulite.
+
+∴ **Un contatore di caselle sottostima il gate del 37 %**, e ogni elenco di parole chiave che lo sostituisce
+va verificato contro il complemento, non contro sé stesso.
 
 ---
 
-## 5. Le quarantadue che aspettano una seduta editor
+## 5. Le quarantatré che aspettano una seduta editor
 
 Raggruppate perché **una sola seduta ne chiude molte**: è il punto di questo referto.
 La colonna dice **dove** è dichiarato il gate — `casella` lo rende visibile a un contatore, `prosa` no.
@@ -159,12 +165,13 @@ seduta diversa dalle altre e più costosa — vale la pena raggrupparle fra loro
 
 [#170](https://github.com/DegrassiAaron/refactor-tactics-main/issues/170) — CP 15.4, golden replay degli 8 turni.
 
-### Senza milestone — quattordici
+### Senza milestone — quindici
 
 [#712](https://github.com/DegrassiAaron/refactor-tactics-main/issues/712) ·
 [#1013](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1013) ·
 [#1625](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1625) ·
 [#1665](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1665) ·
+[#1683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1683) *(«solo l'editor»)* ·
 [#1859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1859) ·
 [#1864](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1864) ·
 [#1894](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1894) ·
@@ -176,14 +183,14 @@ seduta diversa dalle altre e più costosa — vale la pena raggrupparle fra loro
 [#1993](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1993) ·
 [#2009](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2009)
 
-⚠️ **Quattordici su quarantadue non hanno milestone**: non compaiono in nessuna vista di release, e il
+⚠️ **Quindici su quarantatré non hanno milestone**: non compaiono in nessuna vista di release, e il
 lavoro che portano è invisibile alla pianificazione. È lo stesso difetto di tracking che il referto
 [`movement-microsteps-facing-pivot-spec-panel-2026-08-31.md`](movement-microsteps-facing-pivot-spec-panel-2026-08-31.md)
 §6.1 ha corretto su quattro issue del movimento.
 
 ---
 
-## 6. Le quattordici chiudibili misurando
+## 6. Le tredici chiudibili misurando
 
 Sono le uniche su cui una sessione senza editor può concludere qualcosa.
 
@@ -196,7 +203,6 @@ Sono le uniche su cui una sessione senza editor può concludere qualcosa.
 [#1412](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1412) ·
 [#1479](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1479) ·
 [#1515](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1515) ·
-[#1683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1683) ·
 [#1781](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1781) ·
 [#1805](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1805) ·
 [#1818](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1818) ·
@@ -204,7 +210,7 @@ Sono le uniche su cui una sessione senza editor può concludere qualcosa.
 
 ---
 
-## 7. Le nove misurate voce per voce
+## 7. Le tredici misurate voce per voce
 
 | Issue | Verdetto | Ragione |
 |---|---|---|
@@ -217,6 +223,10 @@ Sono le uniche su cui una sessione senza editor può concludere qualcosa.
 | [#1805](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1805) | 🔒 **correttamente aperta** | `14/15`: l'ultima casella è privacy **in replica live**, e `DOREPLIFETIME` dà **0 file** — non c'è filo su cui misurare |
 | [#1403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1403) | 🔒 **correttamente aperta** | le sue caselle sono **domande** — *«è per scelta o è un difetto?»* — non lavoro |
 | [#1781](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1781) | 🔒 **correttamente aperta** | `4/4` spuntate, ma sono il **gate di design**; l'implementazione è `🧊 backlog`, post-v0.1, e dipende da #1773 aperta |
+| [#726](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726) | 🟢 **pronta da lavorare, e nessuno l'ha presa** | vedi §7.3 — **zero** runtime, sbloccata dal 2026-08-16, DoD corretta e coerente |
+| [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165) | 🔴 **DoD scaduta** | vedi §7.4 — nomina quattro gate che una decisione ha **rimosso dal repository** |
+| [#1683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1683) | 👁️ **serve l'editor** | il criterio 1 dice *«è ciò che **solo l'editor** può dire»* — non è nelle tredici |
+| [#2098](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2098) | 🔵 **lavorata oggi** | `docs(2098)` è del **2026-09-02**; il criterio 1 è una `D-nnn` che non esiste ancora |
 
 ### 7.1 #1515 — quattro criteri su cinque, e il quinto costa un `build`
 
@@ -248,6 +258,70 @@ che #1932 ha creato dando il soggetto alle voci `Move` — non dai sette.
 
 ---
 
+### 7.3 🟢 #726 — sbloccata da due settimane, zero righe scritte
+
+È l'unica delle tredici su cui **si può cominciare a scrivere codice adesso**, ed è ferma.
+
+| Misura | Esito |
+|---|---|
+| `ERTRelativeDirection` in `Source/` | ⛔ **0 file** |
+| `ERTRelativeSide`, `RelativeDirectionFrom` | ⛔ **0 file** |
+| scenario `Spec.Facing.SixRelativeSides` | ⛔ **non esiste** |
+| la decisione che la bloccava, `FAC-15` | ✅ **chiusa il 2026-08-16** da `D-147` |
+| la riga contraddittoria del suo DoD | ✅ **corretta** — non nomina più `FrontLeft`/`FrontRight`, asserisce sull'indice di spicchio |
+
+🔑 **Il `fix(726)` che compare in `main` non è un'implementazione: è la scoperta che la issue era
+insensata.** `af9d5147` apre `FAC-15` dimostrando che il DoD chiedeva **due proprietà incompatibili** —
+equipartizione dei sei lati e simmetria destra/sinistra non possono coesistere su un anello esagonale di
+raggio pari. `D-147` ha risolto scegliendo: *«la seconda non era un requisito»*.
+
+∴ Una **quarta** trappola, oltre alle tre di §3: un commit `fix(N)` può essere il referto che dichiara la
+issue non costruibile. Qui però la storia è finita bene — la decisione è arrivata **lo stesso giorno**, e
+da allora #726 è costruibile e nessuno se n'è accorto.
+
+⚠️ **Una sotto-decisione resta, e `D-147` la assegna esplicitamente a questa issue**: la mappatura
+nome↔indice. Gli indici girano `E, NE, NW, W, SW, SE` e `AxialToWorld` manda `NE` a `-Y`, quindi con la
+convenzione UE l'indice `f+1` cade a **sinistra** mentre `D-126` chiama `FrontRight` proprio quella
+posizione. *«La mappatura si fissa quando la relazione entra in codice, ed è lavoro di #726.»*
+
+➕ `D-147` registra anche una **regola migliore che non adotta** — lo spicchio *centrato*, con `24` celle
+asimmetriche su 216 invece di `168` — perché comprerebbe una proprietà dichiarata non richiesta. I numeri
+sono già misurati: chi implementa non deve rifarli.
+
+### 7.4 🔴 #1165 — il suo DoD nomina quattro gate che `D-182` ha rimosso
+
+| Il DoD chiede | Stato reale |
+|---|---|
+| `python scripts/check-docs-links.py --wiki-root <clone>` esce `0` | ⛔ assente — e **Python è vietato** |
+| `python scripts/docs_inventory.py` esiste e gira | ⛔ assente, stessa ragione |
+| `node --test docs/control-center/graph.test.mjs` | ⛔ la cartella **non esiste** |
+| `docs/src/` non esiste più come categoria | ✅ **già rimossa** |
+
+La causa è una decisione, non una svista: `d671df47` — **`chore(D-182): la cartella scripts/ esce dal
+repository, e con lei ogni gate automatico»`**. Restano validi *«il divieto di Python, l'assenza di
+`scripts/`, l'assenza di CI»*.
+
+➕ **Il successore esiste ed è verde**: `D-188` ha reintrodotto il controllo in Node, e
+`node tools/radar/doc-links.ts --check` esce `0` su **5071 link in 337 documenti** — misurato in questo
+pass, sul referto che stai leggendo.
+
+∴ **#1165 non aspetta lavoro, aspetta una riscrittura del DoD** contro gli oracoli che esistono oggi. È la
+stessa famiglia del difetto di #220 (`IconCatalog.NoDirectTextureInWidgets`, mai esistito) e delle undici
+verifiche di `ADR-0008` di cui zero esistono: **un criterio che nomina un oracolo assente non è severo, è
+non verificabile — e viene saltato.**
+
+### 7.5 Le altre quattro, in breve
+
+- **#1479** — bloccata su #1403 (che la `Cleanse` sia raggiungibile), a sua volta correttamente aperta. Il
+  criterio 1 è una decisione di bilanciamento, non lavoro.
+- **#995** — i criteri sono documenti da scrivere: lavoro reale, non ancora fatto.
+- **#314** — `1/20`. `feat(314)` ha portato la decisione del `Brace` nel TurnLog con il **formato v10**:
+  lavoro sostanziale consegnato, perimetro ancora largo.
+- **#1818** — `0/0` su un God Object di **10 412 righe**. Un `refactor(N)` non lo chiude per costruzione;
+  serve un perimetro dichiarato prima, non una misura dopo.
+
+---
+
 ## 8. 🔴 Le caselle di DoD non sono un segnale, e falliscono in tre modi
 
 | Modo | Esempio | Cosa vede chi legge |
@@ -271,8 +345,11 @@ pezzo»* da *«ho chiuso»*. Ed è il difetto misurato in §2.
 |---|---|
 | Elenco issue aperte, `gh --limit 400` | ✅ **335** — il primo pass a `--limit 300` era truncato |
 | Commit che le citano, `git log origin/main -3000` | ✅ **56** con almeno un commit |
-| Gate visivo, caselle **e** prosa | ✅ **42 / 56** |
-| DoD misurata contro il codice | ✅ **9 issue**, voce per voce |
+| Gate visivo, caselle **e** prosa, più una lettura a mano del complemento | ✅ **43 / 56** |
+| DoD misurata contro il codice | ✅ **13 issue**, voce per voce |
+| `node tools/radar/doc-links.ts --check` | ✅ **exit 0** — 5071 link in 337 documenti risolvono |
+| `node tools/radar/issue-refs.ts --check` | ✅ **exit 0** — nessuna issue cita un percorso rimosso |
+| `node tools/radar/doc-tables.ts --check` | ✅ **exit 0** — 2135 tabelle allineate |
 | `RefactorTactics.Scenario` (per #1060) | ✅ **tutti verdi**, incluso `ShowcaseRelayV01RunsTurnOne` |
 | `RefactorTactics.Debug` (per #1712) | ✅ **10 / 0** |
 | **Build** · **Suite completa** · **PIE** · **Packaged** | ⛔ **NOT RUN** — nessuna riga di `Source/` toccata da questo pass |
@@ -281,7 +358,13 @@ pezzo»* da *«ho chiuso»*. Ed è il difetto misurato in §2.
 
 ## 10. La prossima azione
 
-> **Una seduta editor sulle tredici di `v0.1 · Leggibilità`.**
+> 🟢 **Se serve codice da scrivere subito: [#726](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726).**
+
+È l'unica delle cinquantasei che è **sbloccata, specificata, non PIE-gated e a zero righe**. Lo è dal
+2026-08-16, e in due settimane nessuno l'ha presa — probabilmente perché il `fix(726)` che compare in
+`main` la fa sembrare avviata, mentre è il referto che l'ha sbloccata.
+
+> 👁️ **Se serve chiudere in blocco: una seduta editor sulle tredici di `v0.1 · Leggibilità`.**
 
 Sono nello stesso viewport, e almeno due — #1763 e #1719 — hanno il codice già spedito e aspettano solo di
 essere guardate. Chiuderle in una seduta costa meno che aprirne una per ciascuna.
@@ -289,9 +372,13 @@ essere guardate. Chiuderle in una seduta costa meno che aprirne una per ciascuna
 ⏭️ **Poi, e separata**: la seduta `packaged` per le quattro di `Gate di release` (#85, #938, #940, #959).
 Non si mescola con la prima — vuole un pacchetto, non l'editor.
 
-⏭️ **In parallelo, e indipendente da entrambe**: assegnare una milestone alle **quattordici** senza. Non è
-lavoro di prodotto, ma senza quella riga il loro contenuto non esiste per nessuna pianificazione.
+⏭️ **Due riscritture di DoD, indipendenti da tutto**: #1165 nomina quattro gate che `D-182` ha rimosso, e
+#220 nomina un oracolo mai esistito. Nessuna delle due è lavoro di prodotto; entrambe rendono un criterio
+verificabile invece che saltabile.
 
-⚠️ **Ciò che questo referto NON ha fatto**: misurare la DoD delle restanti 47. Ogni DoD nomina simboli e
-comportamenti diversi, quindi non si automatizza — e per 42 di esse finirebbe comunque in *«serve una
+⏭️ **E una riga di tracking**: assegnare una milestone alle **quindici** senza. Senza quella riga il loro
+contenuto non esiste per nessuna pianificazione.
+
+⚠️ **Ciò che questo referto NON ha fatto**: misurare la DoD delle restanti 43. Ogni DoD nomina simboli e
+comportamenti diversi, quindi non si automatizza — e per 43 di esse finirebbe comunque in *«serve una
 seduta»*.
