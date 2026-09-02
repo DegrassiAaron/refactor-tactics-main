@@ -93,6 +93,26 @@ public:
 	bool bShowLabel = true;
 
 	/**
+	 * I tre materiali, **soft** e risolti in `OnConstruction`.
+	 *
+	 * 🔴 **Non un `ConstructorHelpers::FObjectFinder`, e la ragione e' misurata**: il CDO si costruisce al
+	 * caricamento del modulo, cioe' PRIMA che `RTBuildGrayboxFixtures` crei i materiali. Alla prima
+	 * esecuzione il finder falliva — *«Failed to find MI_Graybox_Fixture_Body»* — e il fixture nasceva col
+	 * grigio di default: esattamente il difetto che questi materiali esistono per chiudere.
+	 *
+	 * ➕ Effetto collaterale che vale: essendo `UPROPERTY` si vedono e si sostituiscono dal Details, quindi
+	 * chi vuole provare un contrasto diverso non tocca il codice.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Graybox|Materiali")
+	TSoftObjectPtr<class UMaterialInterface> BodyMaterial;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Graybox|Materiali")
+	TSoftObjectPtr<class UMaterialInterface> MarkerMaterial;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Graybox|Materiali")
+	TSoftObjectPtr<class UMaterialInterface> AnchorMaterial;
+
+	/**
 	 * ⛔ **Il root e' neutro e resta neutro.** Una scala non uniforme qui non fallisce: **deforma in
 	 * silenzio** tutto cio' che le sta sotto — e' #593, e il guardiano e' `FixtureRootIsNeutral`.
 	 */

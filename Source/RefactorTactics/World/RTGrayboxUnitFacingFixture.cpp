@@ -3,6 +3,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
 #include "Map/RTHexLibrary.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -37,6 +38,7 @@ ARTGrayboxUnitFacingFixture::ARTGrayboxUnitFacingFixture()
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 
+
 	UnitBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("UnitBody"));
 	UnitBody->SetupAttachment(SceneRoot);
 	UnitBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -56,6 +58,12 @@ ARTGrayboxUnitFacingFixture::ARTGrayboxUnitFacingFixture()
 	OptionalLabel->SetupAttachment(SceneRoot);
 	OptionalLabel->SetHorizontalAlignment(EHTA_Center);
 	OptionalLabel->SetWorldSize(28.f);
+
+	// Solo i PATH: nessun caricamento qui, quindi nessuna dipendenza dall'ordine con cui il commandlet
+	// crea gli asset. Si risolvono in `OnConstruction`, quando esistono.
+	BodyMaterial   = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/RT/World/Graybox/Materials/MI_Graybox_Fixture_Body.MI_Graybox_Fixture_Body")));
+	MarkerMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/RT/World/Graybox/Materials/MI_Graybox_Fixture_Marker.MI_Graybox_Fixture_Marker")));
+	AnchorMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/RT/World/Graybox/Materials/MI_Graybox_Fixture_Anchor.MI_Graybox_Fixture_Anchor")));
 }
 
 FTransform ARTGrayboxUnitFacingFixture::MarkerTransform(ERTHexDirection Facing, float BodyRadius,
@@ -92,6 +100,23 @@ void ARTGrayboxUnitFacingFixture::OnConstruction(const FTransform& Transform)
 	// ⚠️ Questa funzione non DECIDE niente: applica. Ogni riga di geometria sta nelle due statiche sopra,
 	// che un test puo' interrogare senza mondo — ed e' per questo che il legame fra l'asset e la libreria
 	// e' verificabile, cosa che con un Blueprint puro non era.
+	// ⚠️ I materiali si applicano QUI e non nel costruttore: alla costruzione del CDO gli asset possono
+	// non esistere ancora. Se un path non risolve il componente resta grigio invece di rompersi — un
+	// checkout che non ha ancora eseguito il commandlet deve poter aprire la mappa.
+	auto Dress = [](UStaticMeshComponent* Component, const TSoftObjectPtr<UMaterialInterface>& Material)
+	{
+		if (Component)
+		{
+			if (UMaterialInterface* Resolved = Material.LoadSynchronous())
+			{
+				Component->SetMaterial(0, Resolved);
+			}
+		}
+	};
+	Dress(UnitBody, BodyMaterial);
+	Dress(FacingMarker, MarkerMaterial);
+	Dress(GroundAnchor, AnchorMaterial);
+
 	if (UnitBody)
 	{
 		UnitBody->SetRelativeTransform(BodyTransform(BodyRadius, BodyHeight));
