@@ -136,6 +136,57 @@ struct FRTScenarioIntentView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
 	FName Ability;
 
+	/**
+	 * Il bersaglio dell'abilita', quando e' una unita'. Vuoto se non ce n'e' uno o se e' una cella.
+	 *
+	 * 🔴 **Senza questi campi la facade poteva SCRIVERE un bersaglio e non mostrarlo** — lo stesso difetto
+	 * che la review di `#1116` ha trovato su `RemoveIntent`, che chiedeva di nominare qualcosa che nessuna
+	 * API sapeva elencare. Una UI di combattimento che non dice CHI viene attaccato non e' una UI di
+	 * combattimento.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString Target;
+
+	/** `true` se il bersaglio e' una cella invece che una unita'. Le due forme si escludono. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	bool bTargetsCell = false;
+
+	/** La cella bersagliata, significativa solo con `bTargetsCell`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FRTCellId TargetCell;
+
+	/** L'abilita' di mobilita' dello slot movimento, vuota se non dichiarata. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FName Dash;
+
+	/** La cella d'arrivo del Dash, significativa solo con `Dash`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FRTCellId DashCell;
+
+	/** `true` se l'intent dichiara una rotazione finale. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	bool bDeclaresFacing = false;
+
+	/** La rotazione dichiarata, significativa solo con `bDeclaresFacing`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	ERTHexDirection Facing = ERTHexDirection::E;
+
+	/** `true` se l'intent dichiara il bordo di copertura. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	bool bHasCoverEdge = false;
+
+	/** Il bordo dichiarato, significativo solo con `bHasCoverEdge`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	ERTHexDirection CoverEdge = ERTHexDirection::E;
+
+	/** La reazione armata, vuota se lo slot reattivo e' libero. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FName Reaction;
+
+	/** La condizione dichiarata sulla reazione, vuota se non ce n'e' una. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FName Condition;
+
 	/** Riga leggibile per una lista. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
 	FString Summary;
@@ -436,6 +487,28 @@ struct REFACTORTACTICS_API FRTScenarioDraft
 	 */
 	ERTScenarioAuthoringResult RemoveTurn(int32 TurnIndex, FString& OutError);
 
+	/**
+	 * Duplica un turno, inserendo la copia **subito dopo** l'originale — `#1627`.
+	 *
+	 * 🔑 Un designer che costruisce una sequenza scrive tre volte lo stesso schieramento con una variazione:
+	 * duplicare e ritoccare e' il gesto vero, e senza questa funzione l'unica strada era `AddTurn` piu' la
+	 * riscrittura a mano di ogni intent — cioe' tornare nel JSON, che e' il posto da cui `TD 0.2` toglie il
+	 * designer.
+	 *
+	 * `OutNewIndex` e' `SourceIndex + 1`: e' dove «duplica» mette la copia in ogni editor, e restituirlo
+	 * evita che il chiamante lo deduca (e lo deduca male dopo il prossimo cambiamento).
+	 *
+	 * ⛔ **Non esiste una funzione gemella per il riordino, ed e' una decisione misurata, non una lacuna.**
+	 * I waypoint di un intent sono celle ASSOLUTE, e `FRTScenarioSession` ricostruisce il percorso con
+	 * `BuildCompositeHexPath` sullo snapshot **del momento**: un turno spostato porta con se' waypoint che
+	 * partivano da dove le unita' erano dopo i turni precedenti. Se il percorso non regge, l'unita' resta
+	 * ferma con una nota e lo scenario prosegue — un degrado silenzioso che manda a cercare il difetto nel
+	 * gioco. E saperlo PRIMA vorrebbe dire prevedere il resolver, cioe' il secondo simulatore che l'ADR
+	 * vieta. Il formato non ha un campo che dica «questo turno non dipende dai precedenti», e finche' non ce
+	 * l'ha il riordino non e' offribile.
+	 */
+	ERTScenarioAuthoringResult DuplicateTurn(int32 SourceIndex, int32& OutNewIndex, FString& OutError);
+
 	int32 NumTurns() const { return Scenario.Turns.Num(); }
 
 	/**
@@ -462,6 +535,80 @@ struct REFACTORTACTICS_API FRTScenarioDraft
 	 * un piano, e il formato la esprime cosi'.
 	 */
 	ERTScenarioAuthoringResult SetWaitIntent(int32 TurnIndex, const FString& UnitId, FString& OutError);
+
+	// ---------------------------------------------------------------------------------------------------
+	// GLI ALTRI SLOT DELL'INTENT — `#1626`
+	//
+	// 🔑 **Il modello non e' «scegli un'azione fra otto»: e' «riempi gli slot».** Il doc header di
+	// `FRTScenarioIntent` lo dice — un'unita' ha uno slot movimento e uno principale, «e usarli insieme e'
+	// la norma, non un caso limite». Una facade con una sola `SetActionIntent(azione)` renderebbe
+	// **inesprimibile «muovi e attacca»**, che il formato dichiara essere il caso normale.
+	//
+	// ⚠️ Percio' ciascuna di queste scrive **solo il proprio campo** e lascia intatti gli altri, come
+	// `SetMoveIntent` — che non sostituisce piu' l'intero intent proprio per questo. Chiamarle in sequenza
+	// COMPONE il piano; nessuna cancella in silenzio il lavoro della precedente.
+	//
+	// ⛔ **Nessuna di queste valuta la legalita' tattica** — ne' raggiungibilita', ne' LOS, ne' possesso
+	// dell'abilita'. Il guardrail della issue lo vieta, e non serve: `Save` passa da
+	// `URTScenarioLoader::Validate`, che applica le stesse regole della lettura e risponde con i suoi
+	// messaggi. Duplicare qui la conoscenza del catalogo sarebbe la seconda tabella da tenere allineata.
+	// ---------------------------------------------------------------------------------------------------
+
+	/**
+	 * Slot MOVIMENTO, forma mobilita': l'unita' usa `DashAbility` per arrivare a `DashCell`.
+	 *
+	 * `NAME_None` **svuota lo slot** invece di scrivere una mobilita' senza nome: senza questo, un designer
+	 * che cambia idea puo' solo togliere l'intero intent e perdere gli altri slot.
+	 */
+	ERTScenarioAuthoringResult SetDashIntent(int32 TurnIndex, const FString& UnitId, FName DashAbility,
+		const FRTCellId& DashCell, FString& OutError);
+
+	/**
+	 * Slot PRINCIPALE, senza bersaglio: per le azioni che risolvono **su chi le usa**.
+	 *
+	 * ⚠️ Quali siano non lo decide questa funzione: lo decide il catalogo. Un'azione che risolve in fase
+	 * `Prep` si bersaglia da sola — e' cosi' che `Guard` e `Brace` si esprimono senza `target`, mentre
+	 * `BasicAttack` e `Interact` lo esigono. Chiamata su una di queste ultime, l'intent viene scritto e
+	 * **`Save` lo rifiuta** nominando il campo mancante.
+	 *
+	 * Svuota **entrambe** le forme di bersaglio, e `NAME_None` svuota l'intero slot principale.
+	 */
+	ERTScenarioAuthoringResult SetMainAction(int32 TurnIndex, const FString& UnitId, FName AbilityId,
+		FString& OutError);
+
+	/** Slot PRINCIPALE, bersaglio per UNITA'. Svuota la forma per cella: le due si escludono. */
+	ERTScenarioAuthoringResult SetMainActionOnUnit(int32 TurnIndex, const FString& UnitId, FName AbilityId,
+		const FString& TargetUnitId, FString& OutError);
+
+	/**
+	 * Slot PRINCIPALE, bersaglio per CELLA. Svuota la forma per unita'.
+	 *
+	 * 🔴 **La pulizia reciproca e' il cuore del criterio 3, non un dettaglio.** Gli slot si compongono, ma
+	 * i due bersagli no: senza questa riga, un designer che sceglie una unita' e poi cambia idea per una
+	 * cella lascerebbe **entrambi** i campi pieni, e `Validate` gli direbbe che lo scenario e' insalvabile
+	 * per una sequenza di click perfettamente legittima.
+	 */
+	ERTScenarioAuthoringResult SetMainActionOnCell(int32 TurnIndex, const FString& UnitId, FName AbilityId,
+		const FRTCellId& TargetCell, FString& OutError);
+
+	/** Modificatore: la rotazione finale. `bDeclare` a `false` la toglie. */
+	ERTScenarioAuthoringResult SetFacingIntent(int32 TurnIndex, const FString& UnitId, bool bDeclare,
+		ERTHexDirection Facing, FString& OutError);
+
+	/** Modificatore: il bordo di copertura. `bDeclare` a `false` lo toglie. */
+	ERTScenarioAuthoringResult SetCoverEdgeIntent(int32 TurnIndex, const FString& UnitId, bool bDeclare,
+		ERTHexDirection Edge, FString& OutError);
+
+	/**
+	 * Slot REATTIVO: la reazione armata e la condizione che la fa scattare.
+	 *
+	 * ⚠️ `NAME_None` come reazione svuota **anche** la condizione, e non e' una comodita': una condizione
+	 * senza reazione e' precisamente cio' che `ARTUnit::SetPlannedReactionCondition` rifiuta, e che il
+	 * loader rifiuta per non lasciarla passare in silenzio. Tenerla dopo aver tolto la reazione scriverebbe
+	 * uno scenario insalvabile.
+	 */
+	ERTScenarioAuthoringResult SetReactionIntent(int32 TurnIndex, const FString& UnitId, FName ReactionAbility,
+		FName ConditionId, int32 ConditionParam, FString& OutError);
 
 	/** Toglie l'intent di quell'unita' da quel turno. `NotFound` se non ce n'era uno. */
 	ERTScenarioAuthoringResult RemoveIntent(int32 TurnIndex, const FString& UnitId, FString& OutError);
