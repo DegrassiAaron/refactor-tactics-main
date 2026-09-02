@@ -488,12 +488,17 @@ bool FRTPanelGraphCallsTheModelTest::RunTest(const FString&)
 }
 
 /**
- * 🔴 **Le tre righe di `DIAGNOSTICS` comparivano DUE volte, e nessun test se ne accorgeva.**
+ * 🔴 **Le tre righe di `DIAGNOSTICS` si vedevano DUE volte, e la prima stesura di questo test non se ne
+ * accorgeva.**
  *
- * Il commandlet incideva `Txt_Declared_0..2` con le righe del modello, e da quando il grafo riempie anche
- * `Txt_Diag*` dalla stessa fonte il pannello ne mostrava sei. Nessuna delle due copie era sbagliata — ed e'
- * proprio questo che rende il difetto invisibile a un test che guardi *il contenuto*: bisogna contare le
- * **occorrenze**. Visto a occhio nella seduta `U41`, non da qui.
+ * ⚠️ **La duplicazione e' una proprieta' di RUNTIME, non dell'asset.** Nel `.uasset` salvato i tre slot
+ * `Txt_Diag*` portavano dei segnaposto (`Station: —`) e solo `Txt_Declared_*` portava le righe del
+ * modello: contando le occorrenze nel file, ogni riga compariva **una volta**, e il test era **verde sul
+ * pannello rotto**. Misurato rimettendo l'asset pre-fix, non dedotto.
+ *
+ * 🔑 La condizione statica che PRODUCE il doppione e' un'altra: esiste un widget che porta una riga di
+ * `DiagnosticsLines()` **e non e' uno dei tre slot che il grafo riscrive**. Allora a `EventConstruct` le
+ * righe finiscono in due posti. E' questo che il test asserisce.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelDiagnosticsOnceTest,
 	"RefactorTactics.Playground.PanelDiagnosticsAppearOnce",
@@ -508,27 +513,40 @@ bool FRTPanelDiagnosticsOnceTest::RunTest(const FString&)
 		return false;
 	}
 
+	// I tre slot che `EventConstruct` riscrive da `DiagnosticsLines()`. Chiunque altro porti quelle righe
+	// e' una seconda copia, e a schermo si legge come un difetto.
+	const TSet<FName> Slots = {
+		FName(TEXT("Txt_DiagStation")), FName(TEXT("Txt_DiagBounds")), FName(TEXT("Txt_DiagActor")) };
+	for (const FName& Slot : Slots)
+	{
+		TestNotNull(*FString::Printf(TEXT("lo slot %s esiste"), *Slot.ToString()),
+			Panel->WidgetTree->FindWidget(Slot));
+	}
+
 	const TArray<FString> Lines = URTPlaygroundPanelLibrary::DiagnosticsLines();
 	if (!TestTrue(TEXT("il modello dichiara almeno una riga"), Lines.Num() > 0))
 	{
 		return false;
 	}
 
-	for (const FString& Line : Lines)
+	TArray<FString> Intruders;
+	Panel->WidgetTree->ForEachWidget([&Intruders, &Lines, &Slots](UWidget* Widget)
 	{
-		int32 Occurrences = 0;
-		Panel->WidgetTree->ForEachWidget([&Occurrences, &Line](UWidget* Widget)
+		const UTextBlock* Block = Cast<UTextBlock>(Widget);
+		if (!Block || Slots.Contains(Widget->GetFName()))
 		{
-			if (const UTextBlock* Block = Cast<UTextBlock>(Widget))
-			{
-				if (Block->GetText().ToString().Equals(Line))
-				{
-					++Occurrences;
-				}
-			}
-		});
-		TestEqual(*FString::Printf(TEXT("'%s' compare una volta sola"), *Line), Occurrences, 1);
-	}
+			return;
+		}
+		const FString Text = Block->GetText().ToString();
+		if (Lines.ContainsByPredicate([&Text](const FString& Line) { return Line.Equals(Text); }))
+		{
+			Intruders.Add(Widget->GetName());
+		}
+	});
+
+	TestEqual(*FString::Printf(TEXT("nessun widget fuori dai tre slot porta una riga di DIAGNOSTICS (trovati: %s)"),
+		Intruders.Num() > 0 ? *FString::Join(Intruders, TEXT(", ")) : TEXT("nessuno")),
+		Intruders.Num(), 0);
 	return true;
 }
 
