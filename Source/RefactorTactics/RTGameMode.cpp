@@ -6,6 +6,8 @@
 #include "UI/RTHUD.h"
 #include "Map/RTHexMapActor.h"
 #include "Unit/RTUnit.h" // FClassFinder<ARTUnit> nel costruttore, e il tipo di `HeroUnitClasses`
+#include "Combat/RTCombatLibrary.h" // ControlGroupForUnit: la partizione della squadra (`CP 19.3`, `#1124`)
+#include "Map/RTHexLibrary.h"        // StableLess: l'ordine deterministico delle unita'
 #include "Turn/RTTurnManager.h"
 #include "Frontend/RTFrontendNavigator.h"
 #include "Frontend/RTMatchFrontendBridge.h" // la POLITICA del confine col frontend: qui resta il cablaggio
@@ -698,7 +700,51 @@ void ARTGameMode::AssignSeats()
 		// prende la `1`, che e' il caso utile. Riempire prima la `0` metterebbe due persone dalla stessa
 		// parte lasciando l'altra vuota.
 		PS->AssignTeam(Arrival % 2);
+		// Il GRUPPO dentro la squadra (`CP 19.3`, `#1124`): i posti si assegnano alternati, quindi il primo
+		// arrivato di ciascuna squadra e' il gruppo `0`, il secondo il gruppo `1`. Con `SeatsPerTeam == 1` —
+		// la v0.1 — nessuno riceve un gruppo diverso da zero, ed e' il default del campo.
+		PS->AssignControlGroup(Arrival / 2);
 		++Arrival;
+	}
+
+	AssignUnitControlGroups();
+}
+
+void ARTGameMode::AssignUnitControlGroups()
+{
+	// Le unita' sono piazzate nel livello o allestite dal bootstrapper: qui si legge il mondo, non lo si
+	// costruisce. Se non ce ne sono ancora — `AssignSeats` gira anche su `OnPostLogin`, prima dell'allestimento
+	// — non c'e' niente da assegnare e la funzione e' un no-op idempotente.
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+	if (Actors.Num() == 0)
+	{
+		return;
+	}
+
+	TArray<ARTUnit*> Units;
+	Units.Reserve(Actors.Num());
+	for (AActor* Actor : Actors)
+	{
+		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
+		{
+			Units.Add(Unit);
+		}
+	}
+
+	// ⚠️ **L'ordine e' quello di `CollectLivingUnits`, non quello di `GetAllActorsOfClass`.** Quest'ultimo non
+	// promette nulla, e il gruppo di un'unita' decide CHI la comanda: farlo dipendere dall'ordine di
+	// registrazione degli Actor renderebbe la partizione diversa a ogni avvio, che e' l'invariante n. 4.
+	Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+
+	// L'indice riparte per SQUADRA: il gruppo dice quale persona *di quella squadra* comanda, e due squadre
+	// hanno entrambe un gruppo `0`.
+	TMap<int32, int32> NextIndexInTeam;
+	for (ARTUnit* Unit : Units)
+	{
+		int32& IndexInTeam = NextIndexInTeam.FindOrAdd(Unit->TeamId);
+		Unit->ControlGroup = URTCombatLibrary::ControlGroupForUnit(IndexInTeam, AssignedRules.UnitsPerPlayer);
+		++IndexInTeam;
 	}
 }
 

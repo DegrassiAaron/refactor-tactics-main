@@ -252,6 +252,38 @@ public:
 	static bool CanPlayerControlUnit(int32 UnitTeamId, int32 PlayerTeamId, bool bUnitIsBotControlled = false);
 
 	/**
+	 * IL GRUPPO DI CONTROLLO di un'unita': quale persona della squadra la comanda — `CP 19.3`, `#1124`.
+	 *
+	 * `IndexInTeam / UnitsPerPlayer`, e non c'e' altro: con `UnitsPerPlayer = 2` su una squadra da due, le
+	 * unita' `0` e `1` stanno **entrambe** nel gruppo `0` — una sola persona comanda la squadra intera, che
+	 * e' il caso della v0.1. Con `UnitsPerPlayer = 1` finiscono in gruppi diversi, ed e' il modello
+	 * `1 player = 1 character` che il formato dichiara come default.
+	 *
+	 * ⛔ **Fail-closed su `UnitsPerPlayer <= 0`**: restituisce `INDEX_NONE`, non `0`. Il default del campo e'
+	 * `0` — un formato che non dichiara quante unita' comanda una persona non deve produrre un gruppo
+	 * *valido* per inerzia, ed e' la stessa scelta che `ARTGameMode::AssignSeats` fa un livello sopra
+	 * rifiutando di dividere per zero. Un `INDEX_NONE` non coincide con nessun gruppo di giocatore, quindi
+	 * nessuno comanda nulla: si perde il controllo, non lo si regala.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static int32 ControlGroupForUnit(int32 IndexInTeam, int32 UnitsPerPlayer);
+
+	/**
+	 * LA REGOLA DI CONTROLLO con i gruppi: stessa squadra, **stesso gruppo**, e non pianificata dal bot.
+	 *
+	 * 🔑 **Con i valori della v0.1 risponde come `CanPlayerControlUnit`**, ed e' voluto: `Format.Skirmish2v2`
+	 * dichiara `UnitsPerPlayer = 2` su `UnitsPerTeam = 2`, quindi un posto per squadra e un gruppo solo. La
+	 * regola nuova non cambia nessuna partita di oggi — cambia cio' che diventa esprimibile domani, quando
+	 * due persone siedono nella stessa squadra e ciascuna comanda le proprie unita'.
+	 *
+	 * ⚠️ **Non sostituisce `CanPlayerControlUnit`, che resta** la regola di SQUADRA e ha ancora i propri
+	 * chiamanti: qui si aggiunge una condizione, non se ne riscrive una.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static bool CanPlayerControlUnitInGroup(int32 UnitTeamId, int32 UnitControlGroup, int32 PlayerTeamId,
+		int32 PlayerControlGroup, bool bUnitIsBotControlled = false);
+
+	/**
 	 * Vero se il bersaglio e' ingaggiabile su griglia esagonale: entro `RangeCells` (distanza esagonale) e con
 	 * linea di tiro libera sulla mappa.
 	 *
