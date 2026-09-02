@@ -257,3 +257,23 @@ URTHexMapAsset* URTScenarioAuthoring::BuildArena(UObject* Outer) const
 }
 
 #undef LOCTEXT_NAMESPACE
+
+TArray<FRTScenarioLogEntryView> URTScenarioAuthoring::FilterLogByCategory(
+	const TArray<FRTScenarioLogEntryView>& Entries, const TArray<ERTLogCategory>& Categories)
+{
+	if (Categories.Num() == 0)
+	{
+		return Entries;
+	}
+
+	TArray<FRTScenarioLogEntryView> Kept;
+	Kept.Reserve(Entries.Num());
+	for (const FRTScenarioLogEntryView& Entry : Entries)
+	{
+		if (Categories.Contains(Entry.Category))
+		{
+			Kept.Add(Entry);
+		}
+	}
+	return Kept;
+}

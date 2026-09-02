@@ -2,6 +2,124 @@
 
 #include "ScenarioHarness/RTScenarioArena.h" // l'arena la costruisce chi la costruisce anche per l'authoring
 #include "Turn/RTMatchStateHash.h"
+
+namespace RTScenarioStateDiff
+{
+	/**
+	 * I DIGEST DELLE UNITA' VIVE, in ordine di `UnitId` — `#1630`.
+	 *
+	 * 🔴 **L'ordine non e' cosmetico.** `UnitsById` e' una `TMap` e la sua iterazione non e' garantita:
+	 * `HashMatchState` se ne salva perche' ordina internamente prima di mescolare, ma un elenco ESPOSTO
+	 * cambierebbe ordine fra due run, e un diff che cambia ordine non e' ne' confrontabile ne' diffabile a
+	 * vista. E' lo stesso difetto corretto in `ResolveAttacks` da `#1951`.
+	 */
+	REFACTORTACTICS_API TArray<FRTUnitStateDigest> Snapshot(const TMap<FString, TWeakObjectPtr<ARTUnit>>& UnitsById)
+	{
+		TArray<ARTUnit*> Alive;
+		Alive.Reserve(UnitsById.Num());
+		for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
+		{
+			if (ARTUnit* Unit = Pair.Value.Get())
+			{
+				Alive.Add(Unit);
+			}
+		}
+
+		TArray<FRTUnitStateDigest> Digests = URTMatchStateHashLibrary::BuildUnitDigests(Alive);
+		Digests.Sort([](const FRTUnitStateDigest& A, const FRTUnitStateDigest& B)
+			{ return A.UnitId < B.UnitId; });
+		return Digests;
+	}
+
+	FString StatusesToText(const TArray<FName>& Statuses)
+	{
+		// Ordinati: arrivano da un set, e due elenchi identici in ordine diverso direbbero «cambiato».
+		TArray<FString> Names;
+		Names.Reserve(Statuses.Num());
+		for (const FName& Tag : Statuses) { Names.Add(Tag.ToString()); }
+		Names.Sort();
+		return FString::Join(Names, TEXT(","));
+	}
+
+	/** Confronta due digest e produce SOLO i campi diversi. */
+	void CompareInto(const FRTUnitStateDigest& Before, const FRTUnitStateDigest& After,
+		TArray<FRTUnitFieldChange>& Out)
+	{
+		if (!(Before.Cell == After.Cell))
+		{
+			Out.Emplace(TEXT("Cell"), Before.Cell.ToString(), After.Cell.ToString());
+		}
+		if (Before.Health != After.Health)
+		{
+			Out.Emplace(TEXT("Health"), FString::FromInt(Before.Health), FString::FromInt(After.Health));
+		}
+		if (Before.Shield != After.Shield)
+		{
+			Out.Emplace(TEXT("Shield"), FString::FromInt(Before.Shield), FString::FromInt(After.Shield));
+		}
+		if (Before.Energy != After.Energy)
+		{
+			Out.Emplace(TEXT("Energy"), FString::FromInt(Before.Energy), FString::FromInt(After.Energy));
+		}
+		if (Before.bAlive != After.bAlive)
+		{
+			Out.Emplace(TEXT("bAlive"), Before.bAlive ? TEXT("true") : TEXT("false"),
+				After.bAlive ? TEXT("true") : TEXT("false"));
+		}
+		if (Before.Facing != After.Facing)
+		{
+			Out.Emplace(TEXT("Facing"), FString::FromInt(static_cast<int32>(Before.Facing)),
+				FString::FromInt(static_cast<int32>(After.Facing)));
+		}
+		const FString BeforeTags = StatusesToText(Before.Statuses);
+		const FString AfterTags = StatusesToText(After.Statuses);
+		if (BeforeTags != AfterTags)
+		{
+			Out.Emplace(TEXT("Statuses"), BeforeTags, AfterTags);
+		}
+	}
+
+	/** Il diff fra due elenchi gia' ordinati: campi cambiati, comparse e sparizioni. */
+	REFACTORTACTICS_API TArray<FRTUnitStateDiff> Build(const TArray<FRTUnitStateDigest>& Before,
+		const TArray<FRTUnitStateDigest>& After)
+	{
+		TMap<int32, const FRTUnitStateDigest*> AfterById;
+		for (const FRTUnitStateDigest& D : After) { AfterById.Add(D.UnitId, &D); }
+
+		TArray<FRTUnitStateDiff> Result;
+		TSet<int32> Seen;
+		for (const FRTUnitStateDigest& Was : Before)
+		{
+			Seen.Add(Was.UnitId);
+			FRTUnitStateDiff Entry;
+			Entry.UnitId = Was.UnitId;
+			if (const FRTUnitStateDigest* const* Now = AfterById.Find(Was.UnitId))
+			{
+				Entry.Presence = ERTUnitDiffPresence::Present;
+				CompareInto(Was, **Now, Entry.Changes);
+			}
+			else
+			{
+				// ⚠️ Una sparizione NON e' un `Health` che va a zero: e' un'assenza, e si dice come tale.
+				Entry.Presence = ERTUnitDiffPresence::Disappeared;
+			}
+			Result.Add(MoveTemp(Entry));
+		}
+
+		for (const FRTUnitStateDigest& Now : After)
+		{
+			if (Seen.Contains(Now.UnitId)) { continue; }
+			FRTUnitStateDiff Entry;
+			Entry.UnitId = Now.UnitId;
+			Entry.Presence = ERTUnitDiffPresence::Appeared;
+			Result.Add(MoveTemp(Entry));
+		}
+
+		// Gli ingressi sono ordinati, le comparse si accodano: si riordina perche' l'elenco intero lo sia.
+		Result.Sort([](const FRTUnitStateDiff& A, const FRTUnitStateDiff& B) { return A.UnitId < B.UnitId; });
+		return Result;
+	}
+}
 #include "Turn/RTTurnLogLibrary.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
@@ -772,6 +890,11 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 	State = EState::PauseBeforeTurn;
 	PauseElapsed = 0.f;
 	TurnIndex = 0;
+
+	// LO STATO D'INGRESSO, catturato qui perche' qui l'allestimento e' finito e nessun turno e' girato —
+	// `#1630`. Un istante prima le unita' non esistono; uno dopo il primo turno le ha gia' toccate.
+	InitialUnitStates = RTScenarioStateDiff::Snapshot(UnitsById);
+
 	ApplyPreviewSelection();
 	return true;
 }
@@ -1602,6 +1725,11 @@ void FRTScenarioSession::Finish()
 		}
 		const TArray<FRTUnitStateDigest> UnitStates =
 			URTMatchStateHashLibrary::BuildUnitDigests(UnitsForDigest);
+
+		// IL DIFF — `#1630`. Legge i due stati, non li calcola: quello finale e' lo stesso che alimenta il
+		// checksum due righe piu' sotto, quello iniziale e' stato catturato in `Start()`.
+		Result.StateDiff = RTScenarioStateDiff::Build(InitialUnitStates,
+			RTScenarioStateDiff::Snapshot(UnitsById));
 
 		// Punteggi indicizzati per TeamId: la v0.1 e' 2v2, e il giudice della fine partita li tiene qui.
 		TArray<int32> TeamScores;

@@ -267,6 +267,22 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
 	static FText DescribeResult(ERTScenarioAuthoringResult Result);
 
+	/**
+	 * IL LOG FILTRATO PER CATEGORIA, e la sorgente resta intatta — `#1630`.
+	 *
+	 * 🔑 **Filtrare non cambia il dato**: la funzione e' pura e prende l'elenco per valore-const,
+	 * quindi rimuovere un filtro fa ricomparire esattamente cio' che c'era. E' il criterio d'accettazione
+	 * scritto come firma invece che come promessa — un filtro che mutasse la sorgente non potrebbe
+	 * nemmeno compilare cosi'.
+	 *
+	 * Un insieme di categorie **vuoto** non filtra niente e restituisce tutto: «nessun filtro attivo» e
+	 * «tutti i filtri spenti» sono lo stesso stato per chi guarda, e distinguerli darebbe una vista vuota
+	 * a chi ha appena aperto il pannello.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	static TArray<FRTScenarioLogEntryView> FilterLogByCategory(
+		const TArray<FRTScenarioLogEntryView>& Entries, const TArray<ERTLogCategory>& Categories);
+
 	/** Il draft C++ sottostante. Per il codice C++ e i test: **non** e' esposto a Blueprint. */
 	FRTScenarioDraft& GetDraft() { return Draft; }
 	const FRTScenarioDraft& GetDraft() const { return Draft; }

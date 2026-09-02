@@ -16,6 +16,7 @@
 #include "ScenarioHarness/RTScenarioDraft.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioSession.h" // RTScenarioStateDiff: il diff di #1630
 #include "Misc/Paths.h"
 #include "Misc/ScopeExit.h"
 #include "HAL/FileManager.h"
@@ -451,6 +452,203 @@ bool FRTScenarioAuthoringOpensShippedScenariosTest::RunTest(const FString&)
 
 	AddInfo(FString::Printf(TEXT("aperti per ID %d scenari su %d elencati"), Opened, Ids.Num()));
 	TestTrue(TEXT("almeno uno scenario del corpus si apre per ID"), Opened > 0);
+	return true;
+}
+
+/**
+ * IL DIFF MOSTRA I CAMPI CAMBIATI, E SOLO QUELLI — `#1630`.
+ *
+ * 🔑 **«E solo quelli» è metà del requisito**, e la metà che si perde per prima: un diff che elenca tutto
+ * costringe a cercare cosa è cambiato, che è esattamente ciò che il designer faceva leggendo la traccia
+ * evento per evento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioStateDiffOnlyChangedTest,
+	"RefactorTactics.Scenario.StateDiffShowsOnlyChangedFields",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioStateDiffOnlyChangedTest::RunTest(const FString&)
+{
+	FRTUnitStateDigest Before;
+	Before.UnitId = 7;
+	Before.Cell = FRTCellId(0, 0, 0);
+	Before.Health = 40;
+	Before.Shield = 5;
+	Before.Energy = 3;
+	Before.Facing = ERTHexDirection::E;
+
+	FRTUnitStateDigest After = Before;
+	After.Health = 22;                      // l'unica cosa che cambia
+
+	const TArray<FRTUnitStateDiff> Diff = RTScenarioStateDiff::Build({ Before }, { After });
+
+	if (!TestEqual(TEXT("un'unita' nel diff"), Diff.Num(), 1)) { return false; }
+	TestEqual(TEXT("ed e' presente in entrambi gli stati"),
+		static_cast<int32>(Diff[0].Presence), static_cast<int32>(ERTUnitDiffPresence::Present));
+
+	if (!TestEqual(TEXT("un solo campo cambiato"), Diff[0].Changes.Num(), 1)) { return false; }
+	TestEqual(TEXT("ed e' Health"), Diff[0].Changes[0].Field, FName(TEXT("Health")));
+	TestEqual(TEXT("da 40"), Diff[0].Changes[0].Before, FString(TEXT("40")));
+	TestEqual(TEXT("a 22"), Diff[0].Changes[0].After, FString(TEXT("22")));
+
+	// ⛔ La controprova: due stati identici non producono righe. Senza, «solo quelli» sarebbe vero anche
+	// per un diff che non guarda niente.
+	const TArray<FRTUnitStateDiff> Nothing = RTScenarioStateDiff::Build({ Before }, { Before });
+	if (TestEqual(TEXT("l'unita' compare comunque"), Nothing.Num(), 1))
+	{
+		TestEqual(TEXT("ma senza campi cambiati"), Nothing[0].Changes.Num(), 0);
+	}
+
+	// Una sparizione non e' un `Health` a zero: e' un'assenza.
+	const TArray<FRTUnitStateDiff> Gone = RTScenarioStateDiff::Build({ Before }, {});
+	if (TestEqual(TEXT("l'unita' sparita compare"), Gone.Num(), 1))
+	{
+		TestEqual(TEXT("come sparizione, non come campo"),
+			static_cast<int32>(Gone[0].Presence), static_cast<int32>(ERTUnitDiffPresence::Disappeared));
+		TestEqual(TEXT("e senza righe di campo"), Gone[0].Changes.Num(), 0);
+	}
+
+	return true;
+}
+
+/**
+ * IL DIFF LEGGE LO STATO, NON SOMMA GLI EVENTI — `#1630`.
+ *
+ * 🔑 **È l'esperimento che il criterio d'accettazione porta con sé**, ed è la sola asserzione che
+ * distingue le due implementazioni possibili: un cambiamento che **nessuna voce di TurnLog nomina** deve
+ * comparire lo stesso. Un diff ricostruito dagli eventi non potrebbe vederlo — non per un difetto di
+ * scrittura, ma perché l'informazione non c'è nella sua sorgente.
+ *
+ * ⚠️ Qui il caso è costruito alla fonte: due stati che differiscono, e **zero** eventi. Se il diff li
+ * confronta, li vede; se li somma, non vede niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioStateDiffReadsStateNotEventsTest,
+	"RefactorTactics.Scenario.StateDiffReadsStateNotEvents",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioStateDiffReadsStateNotEventsTest::RunTest(const FString&)
+{
+	FRTUnitStateDigest Before;
+	Before.UnitId = 3;
+	Before.Cell = FRTCellId(1, 0, 0);
+	Before.Health = 30;
+	Before.Facing = ERTHexDirection::E;
+	Before.Statuses = { FName(TEXT("Status.Guarded")) };
+
+	FRTUnitStateDigest After = Before;
+	After.Cell = FRTCellId(2, -1, 0);        // si e' mossa
+	After.Facing = ERTHexDirection::NW;      // e ha ruotato
+	After.Statuses = { FName(TEXT("Status.Exposed")) };
+
+	// ⛔ Nessun TurnLog, nessun evento: solo i due stati. Il diff non ha altra sorgente da cui attingere.
+	const TArray<FRTUnitStateDiff> Diff = RTScenarioStateDiff::Build({ Before }, { After });
+
+	if (!TestEqual(TEXT("un'unita'"), Diff.Num(), 1)) { return false; }
+	TestEqual(TEXT("tre campi cambiati, visti senza un solo evento"), Diff[0].Changes.Num(), 3);
+
+	TSet<FName> Fields;
+	for (const FRTUnitFieldChange& C : Diff[0].Changes) { Fields.Add(C.Field); }
+	TestTrue(TEXT("la cella"), Fields.Contains(FName(TEXT("Cell"))));
+	TestTrue(TEXT("il facing"), Fields.Contains(FName(TEXT("Facing"))));
+	TestTrue(TEXT("gli status"), Fields.Contains(FName(TEXT("Statuses"))));
+
+	return true;
+}
+
+/**
+ * L'ELENCO E' ORDINATO PER `UnitId`, E NON DALL'ORDINE DI UNA `TMap` — `#1630`.
+ *
+ * 🔴 Gli stati nascono iterando `UnitsById`, che è una `TMap`: l'iterazione non è garantita.
+ * `HashMatchState` se ne salva perché ordina internamente prima di mescolare; un elenco **esposto** no —
+ * due run darebbero lo stesso contenuto in ordine diverso, e un diff che cambia ordine non è confrontabile.
+ * È lo stesso difetto corretto in `ResolveAttacks` da `#1951`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioStateDiffIsOrderedTest,
+	"RefactorTactics.Scenario.StateDiffOrderIsDeterministic",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioStateDiffIsOrderedTest::RunTest(const FString&)
+{
+	auto Make = [](int32 Id, int32 Hp)
+	{
+		FRTUnitStateDigest D;
+		D.UnitId = Id;
+		D.Health = Hp;
+		return D;
+	};
+
+	// Gli ingressi arrivano in ordine sparso, come li darebbe una `TMap`.
+	const TArray<FRTUnitStateDigest> Before = { Make(9, 10), Make(2, 10), Make(5, 10) };
+	const TArray<FRTUnitStateDigest> After  = { Make(5, 7),  Make(9, 10), Make(2, 4) };
+
+	const TArray<FRTUnitStateDiff> Diff = RTScenarioStateDiff::Build(Before, After);
+
+	if (!TestEqual(TEXT("tre unita'"), Diff.Num(), 3)) { return false; }
+	TestEqual(TEXT("prima la 2"), Diff[0].UnitId, 2);
+	TestEqual(TEXT("poi la 5"), Diff[1].UnitId, 5);
+	TestEqual(TEXT("poi la 9"), Diff[2].UnitId, 9);
+
+	// E una comparsa, che si accoda, finisce comunque al proprio posto.
+	const TArray<FRTUnitStateDiff> WithNew = RTScenarioStateDiff::Build(
+		{ Make(9, 10) }, { Make(9, 10), Make(1, 5) });
+	if (TestEqual(TEXT("due unita'"), WithNew.Num(), 2))
+	{
+		TestEqual(TEXT("la comparsa e' in ordine, non in coda"), WithNew[0].UnitId, 1);
+		TestEqual(TEXT("ed e' dichiarata come comparsa"),
+			static_cast<int32>(WithNew[0].Presence), static_cast<int32>(ERTUnitDiffPresence::Appeared));
+	}
+
+	return true;
+}
+
+/**
+ * FILTRARE IL LOG NON CAMBIA IL DATO — `#1630`.
+ *
+ * 🔑 **La firma lo garantisce prima del test**: la funzione è pura e prende la sorgente per const-ref.
+ * Il test verifica l'altra metà, quella che una firma non può dire — che rimuovendo il filtro ricompaia
+ * **esattamente** ciò che c'era, e che un insieme vuoto non significhi «nascondi tutto».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLogFilterIsPureTest,
+	"RefactorTactics.Scenario.LogFiltersDoNotAlterTheData",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLogFilterIsPureTest::RunTest(const FString&)
+{
+	auto Entry = [](int32 Turn, ERTLogCategory Cat, const TCHAR* Event)
+	{
+		FRTScenarioLogEntryView V;
+		V.Turn = Turn;
+		V.Category = Cat;
+		V.Event = Event;
+		return V;
+	};
+
+	const TArray<FRTScenarioLogEntryView> All = {
+		Entry(1, ERTLogCategory::Move, TEXT("passo")),
+		Entry(1, ERTLogCategory::Combat, TEXT("colpo")),
+		Entry(2, ERTLogCategory::Move, TEXT("altro passo")),
+		Entry(2, ERTLogCategory::Combat, TEXT("altro colpo"))
+	};
+
+	const TArray<FRTScenarioLogEntryView> OnlyCombat =
+		URTScenarioAuthoring::FilterLogByCategory(All, { ERTLogCategory::Combat });
+	TestEqual(TEXT("filtrato su Combat restano due voci"), OnlyCombat.Num(), 2);
+
+	// ⛔ LA SORGENTE NON E' CAMBIATA: e' il criterio d'accettazione.
+	TestEqual(TEXT("e la sorgente ha ancora tutte e quattro le voci"), All.Num(), 4);
+
+	// Rimosso il filtro, ricompare ESATTAMENTE cio' che c'era — stesso numero e stesso ordine.
+	const TArray<FRTScenarioLogEntryView> Unfiltered = URTScenarioAuthoring::FilterLogByCategory(All, {});
+	if (TestEqual(TEXT("senza filtro tornano quattro voci"), Unfiltered.Num(), All.Num()))
+	{
+		for (int32 i = 0; i < All.Num(); ++i)
+		{
+			TestEqual(FString::Printf(TEXT("voce %d: stesso evento"), i), Unfiltered[i].Event, All[i].Event);
+			TestEqual(FString::Printf(TEXT("voce %d: stessa categoria"), i),
+				static_cast<int32>(Unfiltered[i].Category), static_cast<int32>(All[i].Category));
+		}
+	}
+
+	// Due categorie insieme: il filtro somma, non interseca.
+	const TArray<FRTScenarioLogEntryView> Both =
+		URTScenarioAuthoring::FilterLogByCategory(All, { ERTLogCategory::Move, ERTLogCategory::Combat });
+	TestEqual(TEXT("Move+Combat danno tutte e quattro"), Both.Num(), 4);
+
 	return true;
 }
 
