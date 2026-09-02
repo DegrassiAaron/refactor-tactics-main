@@ -19,6 +19,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexCellData.h"
 #include "Map/RTGeometryGrammar.h"
 #include "Map/RTHexCoverPlacementLibrary.h"
 #include "Map/RTHexOccupancyLibrary.h"
@@ -330,8 +331,13 @@ static void RTDebugDumpCellPlacementCommand(const TArray<FString>& Args, UWorld*
 	TArray<FRTPlacementRegion> Regions;
 	URTHexCoverPlacementLibrary::ComputeFreeRegions(Mask, Regions);
 
+	// Le coperture di BORDO non entrano nella maschera dei settori, e il bake ci manda un segmento che
+	// tocca un bordo. Ometterle faceva rispondere «niente» a una cella che invece porta geometria.
+	const FRTHexCellData* Data = Map->FindCell(Cell);
+	const TArray<FRTHexCover> Covers = Data ? Data->Covers : TArray<FRTHexCover>();
+
 	Ar.Logf(TEXT("[RT] %d muro/i interno/i in questa cella."), Geometry.Num());
-	LogAll(Ar, URTDebugReportLibrary::DescribeCellPlacement(Cell, Mask, Regions));
+	LogAll(Ar, URTDebugReportLibrary::DescribeCellPlacement(Cell, Mask, Regions, Covers));
 }
 
 // ---------------------------------------------------------------------------------------------------
