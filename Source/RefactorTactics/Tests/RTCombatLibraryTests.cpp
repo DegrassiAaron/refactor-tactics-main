@@ -371,4 +371,81 @@ bool FRTCombatTargetReasonTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `CP 19.3` / `#1124` — il GRUPPO DI CONTROLLO partiziona la squadra.
+ *
+ * La squadra dice contro chi si combatte; il gruppo dice CHI, fra i giocatori di quella squadra, comanda una
+ * data unita'. Sono due domande distinte, e fino a `#1124` il codice sapeva rispondere solo alla prima.
+ *
+ * ⚠️ **Nella v0.1 questo test non descrive un comportamento visibile.** Un giocatore per squadra significa un
+ * solo gruppo, e ogni sua asserzione sulla partizione cade nel caso degenere. Il valore e' che la regola sia
+ * ESPRIMIBILE e fissata prima che i posti diventino due: il giorno in cui `SeatsPerTeam` sale, il comando non
+ * si decide per inerzia da come `GetAllActorsOfClass` ha restituito gli Actor.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTControlGroupPartitionTest,
+	"RefactorTactics.Combat.ControlGroupPartitionsTheTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTControlGroupPartitionTest::RunTest(const FString&)
+{
+	// --- La partizione: chi finisce in quale gruppo -------------------------------------------------------
+	// Con due unita' a testa, le prime due sono del primo giocatore e le altre due del secondo. E' una
+	// divisione intera, non un modulo: i gruppi devono essere CONTIGUI, perche' un giocatore comanda una
+	// squadretta, non le unita' pari.
+	TestEqual(TEXT("la prima unita' e' del primo giocatore"), URTCombatLibrary::ControlGroupForUnit(0, 2), 0);
+	TestEqual(TEXT("anche la seconda"), URTCombatLibrary::ControlGroupForUnit(1, 2), 0);
+	TestEqual(TEXT("la terza passa al secondo giocatore"), URTCombatLibrary::ControlGroupForUnit(2, 2), 1);
+	TestEqual(TEXT("e la quarta resta con lui"), URTCombatLibrary::ControlGroupForUnit(3, 2), 1);
+
+	// La v0.1: due unita' per squadra, due per giocatore. Un solo gruppo, e nessuno perde il comando.
+	TestEqual(TEXT("v0.1: entrambe le unita' allo stesso, unico gruppo"),
+		URTCombatLibrary::ControlGroupForUnit(0, 2), URTCombatLibrary::ControlGroupForUnit(1, 2));
+
+	// Fail-closed sugli ingressi che non descrivono una partizione. `INDEX_NONE` non e' "gruppo zero": e'
+	// "gruppo ignoto", e piu' sotto si verifica che un gruppo ignoto NON dia il comando.
+	TestEqual(TEXT("zero unita' per giocatore non partiziona niente"),
+		URTCombatLibrary::ControlGroupForUnit(0, 0), static_cast<int32>(INDEX_NONE));
+	TestEqual(TEXT("ne' un numero negativo"),
+		URTCombatLibrary::ControlGroupForUnit(0, -1), static_cast<int32>(INDEX_NONE));
+	TestEqual(TEXT("un indice negativo non e' una posizione nella squadra"),
+		URTCombatLibrary::ControlGroupForUnit(-1, 2), static_cast<int32>(INDEX_NONE));
+
+	// --- Il comando: la squadra prima, il gruppo poi ------------------------------------------------------
+	TestTrue(TEXT("stessa squadra e stesso gruppo: comanda"),
+		URTCombatLibrary::CanPlayerControlUnitInGroup(0, 0, 0, 0));
+	TestFalse(TEXT("stessa squadra, gruppo diverso: la comanda un altro giocatore"),
+		URTCombatLibrary::CanPlayerControlUnitInGroup(0, 1, 0, 0));
+
+	// ⚠️ **La squadra decide per prima, e da sola.** Un gruppo uguale non riapre l'unita' avversaria: senza
+	// questo ordine, il giocatore `0` del gruppo `0` comanderebbe il gruppo `0` della squadra nemica.
+	TestFalse(TEXT("gruppo uguale non basta a comandare un'avversaria"),
+		URTCombatLibrary::CanPlayerControlUnitInGroup(1, 0, 0, 0));
+
+	// Gruppo ignoto da una parte o dall'altra: si rifiuta. Un'unita' mai assegnata non finisce per sbaglio
+	// nelle mani di chi ha il gruppo `0`, che e' il default del campo.
+	TestFalse(TEXT("unita' senza gruppo assegnato: nessuno la comanda"),
+		URTCombatLibrary::CanPlayerControlUnitInGroup(0, INDEX_NONE, 0, 0));
+	TestFalse(TEXT("giocatore senza gruppo assegnato: non comanda"),
+		URTCombatLibrary::CanPlayerControlUnitInGroup(0, 0, 0, INDEX_NONE));
+
+	// La regola del bot resta quella di `#937`: superare squadra e gruppo non basta se la pianifica il bot.
+	TestFalse(TEXT("un compagno del bot non si comanda, gruppo o no"),
+		URTCombatLibrary::CanPlayerControlUnitInGroup(0, 0, 0, 0, /*bUnitIsBotControlled=*/true));
+
+	// --- Compatibilita' all'indietro ----------------------------------------------------------------------
+	// ⚠️ La regola nuova sostituisce la vecchia nei due call site del `PlayerController`: se in v0.1 le due
+	// dessero risposte diverse, il cambio sarebbe una regressione muta sul comando. Con tutti a gruppo `0`
+	// devono coincidere su ogni combinazione di squadre.
+	for (int32 UnitTeam = 0; UnitTeam <= 1; ++UnitTeam)
+	{
+		for (int32 PlayerTeam = 0; PlayerTeam <= 1; ++PlayerTeam)
+		{
+			TestEqual(TEXT("v0.1: la regola nuova risponde come quella vecchia"),
+				URTCombatLibrary::CanPlayerControlUnitInGroup(UnitTeam, 0, PlayerTeam, 0),
+				URTCombatLibrary::CanPlayerControlUnit(UnitTeam, PlayerTeam));
+		}
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -35,6 +35,19 @@ public:
 	void AssignTeam(int32 InTeamId) { TeamId = InTeamId; }
 
 	/**
+	 * Il GRUPPO DI CONTROLLO dentro la squadra — `CP 19.3`, `#1124`. Quale delle persone sedute in questa
+	 * squadra comanda quali unita'.
+	 *
+	 * Ripiego `0` come `TeamId`: con `UnitsPerPlayer == UnitsPerTeam` — la v0.1 — c'e' un posto solo per
+	 * squadra e il gruppo `0` e' l'unico che esista, quindi il default e' anche la risposta giusta.
+	 */
+	int32 GetControlGroup() const { return ControlGroup; }
+	void AssignControlGroup(int32 InGroup) { ControlGroup = InGroup; }
+
+	/** Il gruppo di chi ha in mano quel controller, `0` se non c'e' uno stato. Gemella di `TeamIdOf`. */
+	static int32 ControlGroupOf(const APlayerController* Controller);
+
+	/**
 	 * 🔑 **L'UNICA porta.** Risale dal controller al proprio `ARTPlayerState` e ripiega su `0`.
 	 *
 	 * 🔴 **Perche' una porta e non un letterale ad ogni chiamata**: un `= 0` sparso non ha un modo di
@@ -58,4 +71,6 @@ public:
 
 private:
 	int32 TeamId = 0;
+
+	int32 ControlGroup = 0;
 };
