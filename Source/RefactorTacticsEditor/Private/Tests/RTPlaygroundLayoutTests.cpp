@@ -294,6 +294,18 @@ bool FRTPlaygroundGuideIsNotTheGridTest::RunTest(const FString&)
 	//    prima stesura di D-304 non aveva misurato, ed e' il motivo per cui questo test esiste.
 	const int32 FloorSpanMetres = 40;
 
+	// 🔴 **Guardia contro il passo NULLO, e non e' teorica: misurata il 2026-09-02.** I due cicli qui
+	// sotto terminano solo se il passo e' positivo — con `Pitch == 0` la condizione `k * Pitch <= Span`
+	// resta vera per sempre. Una mutazione di `AxialToWorld` (scambio di `Wx` con `Wy`) ha azzerato il
+	// passo X e questo test ha **APPESO la suite per 2h24m** invece di fallire, tenendo occupato il mutex
+	// globale del motore — cioe' bloccando anche gli altri checkout. Un rosso costa un secondo, un
+	// appendimento costa la macchina a tutti.
+	if (!TestTrue(TEXT("il passo orizzontale e' positivo"), PitchXMetres > PlaygroundEps) ||
+		!TestTrue(TEXT("il passo verticale e' positivo"),   PitchYMetres > PlaygroundEps))
+	{
+		return false;
+	}
+
 	double ClosestGapMetres = TNumericLimits<double>::Max();
 	int32  ClosestAtMetres  = 0;
 	for (int32 k = 1; k * PitchXMetres <= FloorSpanMetres; ++k)
