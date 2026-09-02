@@ -1095,4 +1095,91 @@ bool FRTGraphSwitchOpensDoorScenarioTest::RunTest(const FString&)
 	return true;
 }
 
+namespace
+{
+	/**
+	 * Carica ed esegue uno scenario di `Scenarios/Spec/Map/Interaction/`, e pretende `PASS`.
+	 *
+	 * Esiste perché i tre scenari del grafo si eseguono nello stesso identico modo: ripetere il corpo tre
+	 * volte darebbe tre copie da tenere allineate, ed è la ragione per cui `ShouldRequery` è finito in
+	 * `RTHexHover` il 2026-08-31.
+	 */
+	bool RunGraphScenario(FAutomationTestBase& Test, const TCHAR* FileName, int32 ExpectedDoors,
+		int32 ExpectedBindings)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const FString Path = FPaths::Combine(FPaths::ProjectDir(),
+			TEXT("Scenarios/Spec/Map/Interaction"), FileName);
+		if (!Test.TestTrue(FString::Printf(TEXT("%s si carica: %s"), FileName, *Error),
+			URTScenarioLoader::LoadFromFile(Path, Scenario, Error)))
+		{
+			return false;
+		}
+
+		Test.TestEqual(TEXT("le porte dichiarate"), Scenario.Doors.Num(), ExpectedDoors);
+		Test.TestEqual(TEXT("i binding dichiarati"), Scenario.InteractionBindings.Num(), ExpectedBindings);
+
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), World)) { return false; }
+		const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+		RTWorldFixtures::DestroyWorld(World);
+
+		if (Result.Outcome == ERTTestOutcome::Error)
+		{
+			Test.AddError(FString::Printf(TEXT("%s: ERROR invece di PASS — %s"), FileName, *Result.ErrorMessage));
+			return false;
+		}
+		// 🔑 **Le assertion cadute si NOMINANO**, con `Expected` e `Actual`. Il runner riporta solo «4/5», e un
+		// referto che dice quante ne sono cadute senza dire quali costringe a indovinare: è successo il
+		// 2026-09-02, e la prima ipotesi era quella sbagliata.
+		for (const FRTAssertionResult& A : Result.Assertions)
+		{
+			if (!A.bPassed)
+			{
+				Test.AddError(FString::Printf(TEXT("%s — assertion caduta al turno %d: %s (atteso '%s', letto '%s')"),
+					FileName, A.Turn, *A.Description, *A.Expected, *A.Actual));
+			}
+		}
+
+		Test.TestEqual(FString::Printf(TEXT("%s passa"), FileName),
+			Result.OutcomeString(), FString(TEXT("PASS")));
+		return true;
+	}
+}
+
+/**
+ * `1 → N`: una leva apre DUE porte con una pressione sola.
+ *
+ * 🔑 Ciò che aggiunge a `SwitchOpensDoor` è la **cardinalità** che lo Scope di `#833` dichiara. Il piano non
+ * la conosce — `FRTInteractionOp` porta il solo `SourceId` — e quanti bersagli esistano lo sa solo l'asset.
+ *
+ * ⚠️ Non misura l'**ordine** di applicazione, che è di `ApplicationFollowsDeclaredOrder`: quello confronta la
+ * lista diretta con l'inversa, e uno scenario con due porte non saprebbe distinguere l'ordine dichiarato da
+ * quello di una `TMap`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGraphMultipleDoorsScenarioTest,
+	"RefactorTactics.InteractionGraph.SwitchControlsMultipleDoorsScenario",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGraphMultipleDoorsScenarioTest::RunTest(const FString&)
+{
+	return RunGraphScenario(*this, TEXT("SwitchControlsMultipleDoors.json"), /*Doors*/ 3, /*Bindings*/ 1);
+}
+
+/**
+ * L'apertura FALLISCE su un bersaglio, e il movimento che ci contava resta fermo — `D-150`.
+ *
+ * 🔑 **Il punto delicato, ed è scritto anche nello scenario**: la sola posizione finale non distingue
+ * `D-150` dal suo contrario. Se l'operazione fosse **atomica**, il rollback lascerebbe chiuse entrambe le
+ * porte e l'unità resterebbe ferma **lo stesso**. È l'assertion sul log a separare le due regole: con
+ * `D-150` le aperture sono **una**, con l'atomicità sarebbero zero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGraphOpenFailsScenarioTest,
+	"RefactorTactics.InteractionGraph.OpenFailsDependentMoveBlocksScenario",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGraphOpenFailsScenarioTest::RunTest(const FString&)
+{
+	return RunGraphScenario(*this, TEXT("OpenFailsDependentMoveBlocks.json"), /*Doors*/ 3, /*Bindings*/ 1);
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
