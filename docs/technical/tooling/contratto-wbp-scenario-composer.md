@@ -218,6 +218,9 @@ una convenzione che nessun asset segue è la convenzione da correggere, non da a
 
 Percorso proposto: `/Game/RT/UI/Scenario/WBP_RT_ScenarioComposer`
 
+> 🔴 **Superato da `D-280` (2026-08-30), eseguito con [#1804](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1804).** Il percorso corrente è **`/Game/RT/Editor/Scenario/WBP_RT_ScenarioComposer`**: gli strumenti di authoring solo-Editor hanno un namespace dedicato, e da lì sono esclusi dal cook per configurazione esplicita.
+> ⚠️ La riga qui sopra resta perché è la **raccomandazione dell'istruttoria**, e §13 chiede di conservarla: questo documento registra ciò che fu proposto, non ciò che è vero oggi. Owner del percorso corrente: [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §5.
+
 > ⚠️ **Restano due dubbi aperti, non due decisioni prese.** §13 chiede di descriverli e fermarsi, ed è ciò
 > che questa sezione fa: le raccomandazioni sono raccomandazioni. Diventano decisioni quando qualcuno le
 > accetta, e il posto dove si registrano è `OPEN_DECISIONS.md`, non questo file.
