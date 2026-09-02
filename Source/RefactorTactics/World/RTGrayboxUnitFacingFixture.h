@@ -75,9 +75,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Graybox")
 	float BodyHeight = 180.f;
 
-	/** Quota della faccia da cui parte il marker. Default `24` = `WedgeLocalZ` di `RTScenarioPreviewActor`. */
+	/**
+	 * Quota della faccia da cui parte il marker. Default `120` = **due terzi** di `BodyHeight`.
+	 *
+	 * 🔴 **Era `24`, e il numero veniva dal posto sbagliato.** L'avevo preso da `WedgeLocalZ` di
+	 * `RTScenarioPreviewActor` chiamandolo «derivato» — ma li' il cuneo sta a `WedgeForward = 78`, cioe'
+	 * FUORI dal corpo, in un'anteprima con un'altra camera. Trasferito qui, su un corpo alto `180`, quella
+	 * quota cade **alla base**: il marker finiva schiacciato fra il disco a terra e il pavimento, dove
+	 * nessun contrasto lo salva.
+	 *
+	 * ⚠️ **Un default «derivato» da un contesto diverso non e' derivato: e' copiato.** La quota giusta si
+	 * misura sul corpo che il marker veste, non su un altro.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Graybox")
-	float FaceHeight = 24.f;
+	float FaceHeight = 120.f;
 
 	/**
 	 * Lunghezza del marker. Default `40` = il cuneo del preview (`WedgeScale.X * 100`).
@@ -86,7 +97,7 @@ public:
 	 * dipende da questa. E' cio' che rende la lunghezza una **misura** invece della somma di due cose.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Graybox")
-	float MarkerLength = 40.f;
+	float MarkerLength = 70.f;
 
 	/** Mostra il nome della direzione. ⚠️ **Secondo canale, non il primo**: la geometria deve bastare. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Graybox")
