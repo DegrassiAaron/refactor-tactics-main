@@ -50,36 +50,64 @@ namespace
 	}
 }
 
+void URTScenarioPreviewSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+
+	// Togliere l'anteprima PRIMA che il mondo che la ospita venga distrutto. Vedi il campo `MapLoadHandle`
+	// per quale delegate e' e perche' non e' `OnMapOpened`.
+	MapLoadHandle = FEditorDelegates::OnMapLoad.AddUObject(this, &URTScenarioPreviewSubsystem::HandleMapLoad);
+}
+
 void URTScenarioPreviewSubsystem::Deinitialize()
 {
+	if (MapLoadHandle.IsValid())
+	{
+		FEditorDelegates::OnMapLoad.Remove(MapLoadHandle);
+		MapLoadHandle.Reset();
+	}
 	ClearPreview();
 	Super::Deinitialize();
 }
 
+void URTScenarioPreviewSubsystem::HandleMapLoad(const FString& /*Filename*/, FCanLoadMap& /*OutCanLoadMap*/)
+{
+	// ⛔ Non si tocca `OutCanLoadMap`: un'anteprima a schermo non e' una ragione per **vietare** il
+	// caricamento di un livello. Questo aggancio serve a farsi da parte, non a mettersi di traverso.
+	ClearPreview();
+}
+
 bool URTScenarioPreviewSubsystem::IsShowing() const
 {
-	return PreviewUnits != nullptr || PreviewMap != nullptr;
+	// Con i deboli, «mostrato» vuol dire «l'attore esiste ANCORA»: se il mondo se l'e' portato via,
+	// l'anteprima non c'e' piu' davvero, e dirlo e' piu' onesto che ricordare un puntatore.
+	return PreviewUnits.IsValid() || PreviewMap.IsValid();
 }
 
 int32 URTScenarioPreviewSubsystem::NumUnitsShown() const
 {
-	return PreviewUnits ? PreviewUnits->NumMarkers() : 0;
+	return PreviewUnits.IsValid() ? PreviewUnits->NumMarkers() : 0;
 }
 
 void URTScenarioPreviewSubsystem::ClearPreview()
 {
-	if (PreviewUnits)
+	// ⚠️ **`IsValid()` e non un semplice test di non-nullita'.** Con i puntatori deboli di `#2115` gli attori
+	// possono essere gia' morti col mondo che li conteneva, e chiamare `Destroy()` su un puntatore stantio
+	// sarebbe il crash che questa issue toglie, spostato di due righe. Il `Reset()` finale vale in entrambi
+	// i casi: se erano gia' andati, non resta niente da azzerare se non il nostro riferimento.
+	if (ARTScenarioPreviewActor* Units = PreviewUnits.Get())
 	{
-		PreviewUnits->ClearUnits();
-		PreviewUnits->ClearBorder();
-		PreviewUnits->Destroy();
-		PreviewUnits = nullptr;
+		Units->ClearUnits();
+		Units->ClearBorder();
+		Units->Destroy();
 	}
-	if (PreviewMap)
+	PreviewUnits.Reset();
+
+	if (ARTHexMapActor* Map = PreviewMap.Get())
 	{
-		PreviewMap->Destroy();
-		PreviewMap = nullptr;
+		Map->Destroy();
 	}
+	PreviewMap.Reset();
 	PreviewArena = nullptr;
 	AllUnits.Reset();
 	// La prospettiva torna al default del designer: aprire uno scenario nuovo con il filtro di quello
@@ -95,7 +123,7 @@ TArray<int32> URTScenarioPreviewSubsystem::GetSelectableTeams() const
 
 int32 URTScenarioPreviewSubsystem::NumBorderPanelsShown() const
 {
-	return PreviewUnits ? PreviewUnits->NumBorderPanels() : 0;
+	return PreviewUnits.IsValid() ? PreviewUnits->NumBorderPanels() : 0;
 }
 
 bool URTScenarioPreviewSubsystem::SetPerspective(int32 TeamId)
@@ -112,7 +140,12 @@ bool URTScenarioPreviewSubsystem::SetPerspective(int32 TeamId)
 
 void URTScenarioPreviewSubsystem::ApplyPerspective()
 {
-	if (!PreviewMap || !PreviewUnits)
+	// I due attori si prendono UNA volta e si usano come puntatori normali: con i deboli di `#2115`, un
+	// `.Get()` per riga chiederebbe dieci volte la stessa domanda, e — peggio — lascerebbe pensare che la
+	// risposta possa cambiare a meta' funzione.
+	ARTHexMapActor* Map = PreviewMap.Get();
+	ARTScenarioPreviewActor* Units = PreviewUnits.Get();
+	if (!Map || !Units)
 	{
 		return;
 	}
@@ -131,21 +164,21 @@ void URTScenarioPreviewSubsystem::ApplyPerspective()
 	// ⚠️ La precondizione di `ApplyKnowledgeVeil`: `InstanceCells` dev'essere derivato e nessun
 	// `RebuildInstances` deve stare fra il calcolo e l'applicazione. Qui la mappa e' gia' costruita e nessuno
 	// la ricostruisce in mezzo — se un giorno un tool lo facesse, e' questa funzione che va richiamata dopo.
-	PreviewMap->ApplyKnowledgeVeil(Knowledge);
+	Map->ApplyKnowledgeVeil(Knowledge);
 
 	FVector Origin = FVector::ZeroVector;
 	float HexSize = 0.f;
 	float LayerHeight = 0.f;
-	PreviewMap->GetHexContext(Origin, HexSize, LayerHeight);
+	Map->GetHexContext(Origin, HexSize, LayerHeight);
 
 	// 🔴 Il velo copre le cinque famiglie di istanze della MAPPA; i marcatori stanno su un altro actor e non
 	// li tocca. Senza questa riga un nemico mai visto resterebbe a schermo con la board velata intorno —
 	// l'hidden-state leak piu' facile da introdurre qui.
-	PreviewUnits->ShowUnits(RTScenarioKnowledge::VisibleUnits(AllUnits, Knowledge),
+	Units->ShowUnits(RTScenarioKnowledge::VisibleUnits(AllUnits, Knowledge),
 		Origin, HexSize, LayerHeight);
 
 	// Il confine di cio' che la squadra vede: dalla conoscenza canonica, non da una query propria.
-	PreviewUnits->ShowBorder(URTVisibilityBorderLibrary::ExposedEdges(Knowledge.VisibleCells),
+	Units->ShowBorder(URTVisibilityBorderLibrary::ExposedEdges(Knowledge.VisibleCells),
 		Origin, HexSize, LayerHeight);
 }
 
@@ -176,15 +209,16 @@ bool URTScenarioPreviewSubsystem::ShowScenario(const URTScenarioAuthoring* Autho
 		return false;
 	}
 
-	PreviewMap = SpawnPreviewActor<ARTHexMapActor>(World);
-	if (!PreviewMap)
+	ARTHexMapActor* SpawnedMap = SpawnPreviewActor<ARTHexMapActor>(World);
+	PreviewMap = SpawnedMap;
+	if (!SpawnedMap)
 	{
 		return false;
 	}
-	PreviewMap->MapAsset = Arena;
+	SpawnedMap->MapAsset = Arena;
 	// Da qui in poi celle, rilievo, blocchi, bordi (copertura e porte) e glifi di superficie li disegna
 	// `ARTHexMapActor` con il kit che gia' usa: questa slice non ne aggiunge uno secondo.
-	PreviewMap->RebuildInstances();
+	SpawnedMap->RebuildInstances();
 
 	// Le due fotografie che la prospettiva (#1754) dovra' rileggere: la facade viene chiusa da chi l'ha
 	// aperta appena questa funzione ritorna, e chiederle di nuovo a lei significherebbe tenerla aperta.
@@ -192,8 +226,9 @@ bool URTScenarioPreviewSubsystem::ShowScenario(const URTScenarioAuthoring* Autho
 	AllUnits = Authoring->ListUnits();
 	LayerReadout = RTScenarioViewport::DescribeLayers(RTScenarioViewport::LayersInUse(AllUnits));
 
-	PreviewUnits = SpawnPreviewActor<ARTScenarioPreviewActor>(World);
-	if (!PreviewUnits)
+	ARTScenarioPreviewActor* SpawnedUnits = SpawnPreviewActor<ARTScenarioPreviewActor>(World);
+	PreviewUnits = SpawnedUnits;
+	if (!SpawnedUnits)
 	{
 		// La mappa c'e' ma le unita' no: si toglie tutto invece di mostrare un'arena vuota che sembrerebbe
 		// uno scenario senza schieramento.

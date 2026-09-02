@@ -10,6 +10,7 @@ class ARTScenarioPreviewActor;
 class URTHexMapAsset;
 class URTScenarioAuthoring;
 struct FRTScenarioUnitView;
+struct FCanLoadMap; // il secondo parametro di `FEditorDelegates::OnMapLoad`
 
 /**
  * Materializza nel viewport d'editor lo stato INIZIALE dello scenario aperto: la mappa che il runner
@@ -55,6 +56,7 @@ class URTScenarioPreviewSubsystem : public UEditorSubsystem
 	GENERATED_BODY()
 
 public:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
 	/**
@@ -117,13 +119,36 @@ public:
 	FString GetLayerReadout() const { return LayerReadout; }
 
 private:
+	// -------------------------------------------------------------------------------------------------
+	// 🔴 **I DUE ATTORI SI TENGONO DEBOLI, E NON E' UNA MICRO-OTTIMIZZAZIONE — `#2115`.**
+	//
+	// Questo e' un `UEditorSubsystem`: **sopravvive a ogni mondo**. Gli attori qui sotto vivono invece nel
+	// `PersistentLevel` del mondo corrente. Con un `UPROPERTY` FORTE il sottosistema dichiarava «questi
+	// attori mi appartengono e vivono quanto me», che e' falso — vivono quanto il **livello** — e la
+	// conseguenza non era una svista di stile: aprire un altro livello con un'anteprima a schermo
+	// **terminava l'editor**.
+	//
+	//     UnrealEdEngine::AddReferencedObjects( RTScenarioPreviewSubsystem )
+	//       -> URTScenarioPreviewSubsystem::PreviewUnits = RTScenarioPreviewActor
+	//        -> ARTScenarioPreviewActor:: = Level ...PersistentLevel
+	//         -> ULevel:: = World L_GrayKitPlayground
+	//             ^ This reference is preventing the old World from being GC'd ^
+	//
+	// ⚠️ **`RF_Transient` e `bTemporaryEditorActor` non c'entravano, ed e' la confusione facile.**
+	// `SpawnPreviewActor` li usa gia' e sono corretti: risolvono *«l'anteprima non sporca il livello»* —
+	// infatti `git status` resta pulito. Ma un attore transiente sta comunque **dentro il mondo**, e chi lo
+	// trattiene trattiene il mondo. Sporcizia e durata sono due problemi diversi che il nome «transient»
+	// invita a scambiare.
+	//
+	// ✅ Debole e' anche la descrizione VERA della relazione: l'anteprima non ha bisogno di sopravvivere al
+	// livello che la contiene, e quando quel livello se ne va e' giusto che sparisca con lui.
+	// -------------------------------------------------------------------------------------------------
+
 	/** La mappa dello scenario. Transiente: non entra nel livello (vedi il perche' esteso sulla classe). */
-	UPROPERTY()
-	TObjectPtr<ARTHexMapActor> PreviewMap;
+	TWeakObjectPtr<ARTHexMapActor> PreviewMap;
 
 	/** I marcatori delle unita'. */
-	UPROPERTY()
-	TObjectPtr<ARTScenarioPreviewActor> PreviewUnits;
+	TWeakObjectPtr<ARTScenarioPreviewActor> PreviewUnits;
 
 	/**
 	 * L'arena mostrata: la **stessa** che `ShowScenario` ha dato a `PreviewMap`, tenuta per poter ricalcolare
@@ -137,6 +162,29 @@ private:
 
 	/** La prospettiva corrente. `OmniscientTeamId` all'inizio e dopo ogni `ClearPreview`. */
 	int32 Perspective = INDEX_NONE;
+
+	/**
+	 * L'iscrizione a `FEditorDelegates::OnMapLoad`, che toglie l'anteprima **prima** che il mondo muoia.
+	 *
+	 * ⚠️ **Non e' cio' che impedisce il crash** — quello lo fanno i puntatori deboli, su ogni strada. Questo
+	 * serve a non lasciare a schermo l'anteprima del livello precedente mentre si carica il successivo.
+	 *
+	 * ⛔ E **non basterebbe da solo**: `OnMapLoad` e' trasmesso da `FEditorFileUtils::LoadMap`
+	 * (`FileHelpers.cpp:3238`), non da `UEditorEngine::Map_Load`. Una mappa aperta per una strada che salti
+	 * `LoadMap` — un `MAP LOAD` da console, uno script — distruggerebbe il mondo **senza annunciarlo**.
+	 *
+	 * ⚠️ E non e' `OnMapOpened`, che pure il launcher usa (`RTDevSandboxLauncherSubsystem.cpp:90`): quello
+	 * scatta a mondo nuovo pronto, cioe' **dopo** `EditorDestroyWorld` — dopo il punto in cui si moriva.
+	 */
+	FDelegateHandle MapLoadHandle;
+
+	/**
+	 * Toglie l'anteprima quando l'editor sta per caricare un'altra mappa.
+	 *
+	 * ⛔ Non tocca `OutCanLoadMap`: un'anteprima a schermo non e' una ragione per **vietare** il caricamento
+	 * di un livello. L'aggancio serve a farsi da parte, non a mettersi di traverso.
+	 */
+	void HandleMapLoad(const FString& Filename, FCanLoadMap& OutCanLoadMap);
 
 	/**
 	 * Ridisegna velo, marcatori e confine secondo `Perspective`.
