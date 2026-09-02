@@ -2493,8 +2493,12 @@ sessions:
       in prosa e nessun test può leggerli da lì. Se qui inquadrano male, il posto dove dirlo è
       `CameraPresetArmLengths` — e va detto **perché** divergono, come la DoD di #1993 prescrive.
 
-      ⛔ **Le chip `02`..`08` non devono sembrare funzionanti.** Una station `PLANNED` esiste come pad e
-      signage e non finanzia il proprio sistema: se cliccarle fa qualcosa, il pannello sta mentendo.
+      ⛔ **Le station `02`..`08` non devono sembrare funzionanti.** Una station `PLANNED` esiste come pad e
+      signage e non finanzia il proprio sistema: presentarla come le altre è il pannello che promette.
+      ⚠️ **Questa voce diceva «chip», e le chip non esistono**: il pannello ha una **tendina**. Chi eseguiva
+      la seduta ha cercato dove non c'era niente da guardare, e ha concluso «credo non funzioni» — il
+      testo descriveva un disegno mai costruito. Si guarda nella tendina STATION, dove le pianificate
+      portano `[PLANNED]` in fondo alla riga.
     notes: >-
       ➕ **Seduta aperta il 2026-09-02 con #1993** (Epic #1990, `D-304`). Non duplica `U40`, e il confine è
       netto: quella guarda **il fixture** — che il facing si legga alle tre distanze e in scala di grigi;
@@ -2533,9 +2537,21 @@ sessions:
       sinistra nella vista dall'alto**), l'ancora letterale in
       `Hex.EastIsWorldPlusXAndTheSixYawsAreDeclared`, e un `EastReference` nella scena — freccia a
       rotazione assoluta con etichetta, presidiata da `Graybox.FixtureEastReferenceDoesNotFollowFacing`.
-      ⛔ **NON ancora osservati, e la seduta resta aperta su questi**: lo stato `Error` con un'altra mappa
-      aperta (la ragione è *leggibile*? headless lo prova solo *esatto*), i tre preset di camera — che
-      **non sono cablati**, quindi il loro verdetto è prematuro — e che le chip `02`..`08` non sembrino
-      funzionanti.
+      ✅ **CHIUSA il 2026-09-02, con verdetto pieno.** Tutte e quattro le osservazioni sono state fatte a
+      schermo: il marker segue il facing e la posa iniziale punta a Est (corretto — `E` è la direzione 0);
+      lo stato `Error` con un'altra mappa aperta si **legge** e nomina entrambe le mappe; i tre preset
+      inquadrano di sbieco come la camera di gioco; e la tendina marca `[PLANNED]` le sette station
+      pianificate.
+      🔑 **Ma il valore della seduta non è il verde: sono gli undici difetti che ha trovato**, nessuno dei
+      quali sarebbe emerso dalla suite — quattro di presentazione (`DIAGNOSTICS` in doppia copia, sei
+      pulsanti muti, font 24 per tutti, etichette senza identità), uno visibile **solo a runtime**, quattro
+      di lavoro non fatto descritto come impossibile (`Cmb_Station`, `Focus` e i due preset restanti), e due
+      numeri **senza owner**: un `Pitch = -90` inventato, fuori dal clamp della camera, e i tre bracci
+      `{100, 450, 4000}` che erano una **copia** di `ARTCameraPawn`.
+      ⚠️ Piu' un test scritto *per* sorvegliare un difetto che era **verde sul pannello rotto**
+      (`PanelDiagnosticsAppearOnce`): la duplicazione era una proprietà di runtime, e contarla nell'asset
+      non poteva vederla. Scoperto solo rimettendo il `.uasset` pre-fix.
+      ∴ **1804 test verdi non dicevano che il pannello fosse usabile.** È esattamente ciò per cui esiste
+      una seduta PIE.
       ⚠️ ID assegnato prima del merge: `U41`, con `U40` come massimo misurato su `main` **e su tutti i
       branch remoti** il 2026-09-02. Chi arriva secondo rinumera, non contende.
