@@ -1,0 +1,47 @@
+{
+  "scenarioId": "Visual.Combat.AreaGuardFromImpactCenter",
+  "tags": ["animation", "combat", "guard", "facing", "area", "d-302", "cov-12", "gadget", "wraith"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "DA GUARDARE, non solo da eseguire: e' la scena di `COV-12` allestita perche' il contrasto si veda in un colpo d'occhio. Due difensori IDENTICI — stesso eroe, stessi HP, entrambi in `Action.Guard`, entrambi rivolti a OVEST — prendono la stessa granata di `Hero.Gadget.Overload`. L'unica differenza e' DOVE cade: davanti a uno, dietro all'altro. `D-302` punto (3) dice che per un'area la direzione d'impatto e' `centro d'impatto -> bersaglio`, quindi il primo e' un colpo frontale e il secondo no.",
+
+  "_nota_cosa_guardare": "La domanda di `COV-12` non e' se il numero sia giusto — quello lo pinnano i due `Spec.Combat.AreaGuardFromImpactCenter*` e i test C++. E' se a schermo si CAPISCA perche' la Guardia ha retto su una granata caduta davanti mentre chi l'ha lanciata stava alle spalle. Guarda `DAV`, in alto: il lanciatore e' DIETRO di lui, l'esplosione DAVANTI, e la Guardia regge. Sembra un difetto? Allora la regola e' giusta e la presentazione no, ed e' esattamente cio' che questa seduta esiste per scoprire.",
+
+  "_nota_geometria": "Due scene affiancate e non sovrapposte, quattro celle di distanza in `r`. In ciascuna il difensore sta al centro e guarda a OVEST, quindi chi sta a X negativo lo prende di fronte e chi sta a X positivo alle spalle. `Hero.Gadget.Overload` ha raggio 1 e portata 3: l'area investe il difensore, ogni lanciatore e' esattamente a portata del proprio bersaglio-cella, e nessuna delle due aree tocca l'altra scena ne' chi lancia.",
+
+  "_nota_perche_due_e_non_uno": "Con un solo difensore non ci sarebbe niente da confrontare, e chi guarda non saprebbe se il danno che vede e' quello ridotto o quello pieno. Affiancati, la differenza E' l'oggetto — la stessa scelta di `Spec.Brace.GuardAndBraceOnMixedHit`, che mette tre difese sullo stesso colpo invece che in tre file separati.",
+
+  "_nota_numeri": "`90` e `77` su 90 HP: il primo esce ILLESO — pool della Guardia piu' scudo base assorbono tutto — il secondo perde 13. Sono OSSERVAZIONI, non derivazioni: fra la granata e gli HP passano il pool, lo scudo e la copertura, e cio' che rende il file valido non e' che i due numeri siano calcolabili a mano ma che siano DIVERSI, e nel verso giusto. Verificato per mutazione il 2026-09-02: forzando `bArea` a `false` in `ResolveCombatPasses` — cioe' rimettendo la cella del lanciatore al posto del centro d'impatto — i due valori si SCAMBIANO e lo scenario cade su entrambe le righe.",
+
+  "units": [
+    { "id": "DAV",      "hero": "Hero.Wraith", "team": 1, "cell": [0, 2, 0], "facing": "W" },
+    { "id": "LDIETRO",  "hero": "Hero.Gadget", "team": 0, "cell": [2, 2, 0] },
+
+    { "id": "DIE",      "hero": "Hero.Wraith", "team": 1, "cell": [0, -2, 0], "facing": "W" },
+    { "id": "LDAVANTI", "hero": "Hero.Gadget", "team": 0, "cell": [-2, -2, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "Un turno solo: le due granate cadono insieme, e le due Guardie rispondono in modo opposto. `Action.Guard` non ha bersaglio e non riorienta chi la usa, quindi il facing dichiarato sopra e' anche quello con cui i colpi vengono valutati.",
+      "intents": [
+        { "unit": "DAV", "ability": "Action.Guard" },
+        { "unit": "DIE", "ability": "Action.Guard" },
+
+        { "unit": "LDIETRO",  "ability": "Hero.Gadget.Overload", "targetCell": [-1, 2, 0] },
+        { "unit": "LDAVANTI", "ability": "Hero.Gadget.Overload", "targetCell": [1, -2, 0] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals", "unit": "DAV", "value": 90 },
+    { "type": "UnitHpEquals", "unit": "DIE", "value": 77 },
+    { "type": "UnitFacing", "unit": "DAV", "value": "W" },
+    { "type": "UnitFacing", "unit": "DIE", "value": "W" },
+    { "type": "LogEventCount", "category": "Facing", "outcome": "RearHitBypassedGuard", "value": 1 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
