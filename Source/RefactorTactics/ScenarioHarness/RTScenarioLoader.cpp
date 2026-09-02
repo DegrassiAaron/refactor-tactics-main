@@ -559,6 +559,8 @@ namespace
 					Unit.Loadout.Add(FName(*PieceId));
 				}
 
+			}
+
 			// GLI STATUS INIZIALI — `#1629`. Assente = nessuno status, che e' lo stato naturale: qui NON
 			// serve distinguere «non dichiarato» da «dichiarato vuoto» come per il loadout, perche' un'unita'
 			// senza status non ne riceve di default.
@@ -608,7 +610,6 @@ namespace
 
 					Unit.Statuses.Emplace(FName(*TagText), Turns);
 				}
-			}
 			}
 
 			OutScenario.Units.Add(Unit);

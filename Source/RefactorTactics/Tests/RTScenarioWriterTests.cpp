@@ -43,7 +43,8 @@ namespace
 	      "type": "Low", "stableId": "Muretto" }
 	  ],
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0], "facing": "SW", "health": 12 },
+	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0], "facing": "SW", "health": 12,
+	      "statuses": [ { "tag": "Status.Guarded", "turns": 3 }, { "tag": "Status.Wet", "turns": 1 } ] },
 	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0], "shield": 4, "visionRange": 6, "bot": true }
 	  ],
 	  "turns": [
@@ -134,7 +135,22 @@ namespace
 			if (A.Health != B.Health) { return Fail(FString::Printf(TEXT("units[%d].health: %d vs %d"), I, A.Health, B.Health)); }
 			if (A.Shield != B.Shield) { return Fail(FString::Printf(TEXT("units[%d].shield"), I)); }
 			if (A.VisionRange != B.VisionRange) { return Fail(FString::Printf(TEXT("units[%d].visionRange"), I)); }
-			if (A.bLoadoutDeclared != B.bLoadoutDeclared) { return Fail(FString::Printf(TEXT("units[%d].loadout dichiarato"), I)); }
+			// GLI STATUS INIZIALI — `#1629`. ⚠️ Senza queste righe il round-trip sarebbe CIECO al campo:
+		// il writer potrebbe non scriverli e il test resterebbe verde.
+		if (A.Statuses.Num() != B.Statuses.Num())
+		{
+			return Fail(FString::Printf(TEXT("units[%d].statuses: %d contro %d"),
+				I, A.Statuses.Num(), B.Statuses.Num()));
+		}
+		for (int32 S = 0; S < A.Statuses.Num(); ++S)
+		{
+			if (A.Statuses[S].Tag != B.Statuses[S].Tag || A.Statuses[S].Turns != B.Statuses[S].Turns)
+			{
+				return Fail(FString::Printf(TEXT("units[%d].statuses[%d]"), I, S));
+			}
+		}
+
+		if (A.bLoadoutDeclared != B.bLoadoutDeclared) { return Fail(FString::Printf(TEXT("units[%d].loadout dichiarato"), I)); }
 			if (A.Loadout != B.Loadout) { return Fail(FString::Printf(TEXT("units[%d].loadout"), I)); }
 		}
 
