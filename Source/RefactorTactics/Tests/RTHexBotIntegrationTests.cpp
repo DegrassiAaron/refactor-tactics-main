@@ -567,11 +567,23 @@ namespace
 		int32 DashAbility = INDEX_NONE;
 		FRTCellId DashCell;
 
+		/**
+		 * Lo slot REAZIONE, aggiunto con [D-268] (`#1802`).
+		 *
+		 * 🔴 **Senza, il canary non guardava l'uscita piu' nuova di `PlanBots`.** Da quando la reazione si
+		 * sceglie col punteggio, la scelta dipende dalla conoscenza — quindi e' proprio il tipo di uscita che
+		 * questo test esiste per sorvegliare. La mutazione che lo dimostra: far leggere a `ScoreReaction` la
+		 * cella VERA di ogni nemico vivo invece di `Ctx.Enemies` — onniscienza piena — e con la vecchia
+		 * impronta il canary restava verde.
+		 */
+		int32 ReactionAbility = INDEX_NONE;
+
 		bool operator==(const FRTBotPlanFingerprint& O) const
 		{
 			return Cell == O.Cell && bHasAttackTarget == O.bHasAttackTarget
 				&& (!bHasAttackTarget || AttackTargetCell == O.AttackTargetCell)
-				&& AbilityIndex == O.AbilityIndex && DashAbility == O.DashAbility && DashCell == O.DashCell;
+				&& AbilityIndex == O.AbilityIndex && DashAbility == O.DashAbility && DashCell == O.DashCell
+				&& ReactionAbility == O.ReactionAbility;
 		}
 	};
 
@@ -585,6 +597,7 @@ namespace
 		F.AbilityIndex = Bot->PlannedAbilityIndex;
 		F.DashAbility = Bot->PlannedDashAbility;
 		F.DashCell = Bot->PlannedDashCell;
+		F.ReactionAbility = Bot->PlannedReactionAbility;
 		return F;
 	}
 }
@@ -1185,6 +1198,18 @@ bool FRTHexBotPlansAreLegalTest::RunTest(const FString&)
  * È il comportamento che c'era già: cambia che ora è una **regola dichiarata** invece del risultato
  * dell'ordine degli indici ([D-220], `#1403`). Prima di [D-218] ogni eroe portava una reazione sola e la
  * domanda non si poneva; oggi Riktor porta `Interposition` (kit) **e** `Reaction.Cleanse` (modulo).
+ *
+ * 🔴 **Da [D-268] (`#1802`) questo test misura lo SPAREGGIO, non la politica, e la differenza va detta.**
+ * La regola non è più «prima il kit»: è «punteggio più alto, e a parità esatta il kit». Qui i due candidati
+ * pareggiano **a zero**, e la premessa è la geometria di questa scena, non un'invariante del gioco: Riktor
+ * sta a `(2,-3)` e Wraith a `(-2,3)` su un raggio 5, cioè a distanza 6 — oltre la vista di chiunque — quindi
+ * `Ctx.Enemies` è vuoto; non c'è un secondo alleato, quindi `Ctx.Allies` è vuoto; e `Reaction.Cleanse` ha
+ * trigger `AboutToReceiveControl`, che vale zero per dichiarazione.
+ *
+ * ⚠️ **Spostare uno spawn di due celle, alzare il raggio o aggiungere un compagno cambia la premessa**, e
+ * questo test comincerebbe a misurare il punteggio credendo di misurare lo spareggio. La regola che rende
+ * la premessa vera — «tutti-zero riproduce il comportamento di prima» — la pinna
+ * `HexBot.ReactionAllZeroScoresKeepTodayBehaviour`, headless e senza geometria.
  *
  * 🔴 **Due righe, e servono entrambe.** Una sola pinnerebbe metà della regola:
  * - con il kit **pronto** si arma il kit — e senza questa riga, invertire la preferenza resterebbe verde;

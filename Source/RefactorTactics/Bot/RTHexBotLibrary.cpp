@@ -714,23 +714,33 @@ FString URTHexBotLibrary::DecideReactionResponse(const FRTReactionOpportunity& O
 	return URTReactionOpportunityLibrary::SafeResponse(Opportunity);
 }
 
-int32 URTHexBotLibrary::ScoreReaction(const FRTActionDef& Def, const FRTHexBotContext& Context)
+int32 URTHexBotLibrary::ScoreReaction(const URTHexMapAsset* Map, const FRTActionDef& Def,
+	const FRTHexBotContext& Context)
 {
-	// Un nemico CONOSCIUTO minaccia una cella se la sua portata la copre. La portata e' quella che la
-	// raccolta del contesto ha gia' derivato (attacco base piu' le abilita' non-mobilita'), e la cella del
-	// nemico su un contatto incerto e' quella del RICORDO: qui non si guarda niente che la squadra non abbia.
-	auto Threatens = [&Context](const FRTCellId& Cell, int32 EnemyIndex) -> bool
+	// Un nemico CONOSCIUTO minaccia una cella se la sua portata la copre **e** la vede. Le due condizioni
+	// insieme, come in `ScorePlan`: la copertura protegge, e un muro fra i due rende la minaccia inesistente
+	// per il resolver quanto per il punteggio. La portata e' quella che la raccolta del contesto ha gia'
+	// derivato, e la cella su un contatto incerto e' quella del RICORDO: qui non si guarda niente che la
+	// squadra non abbia.
+	auto Threatens = [Map, &Context](const FRTCellId& Cell, int32 EnemyIndex) -> bool
 	{
 		const int32 Reach = Context.EnemyRanges.IsValidIndex(EnemyIndex) ? Context.EnemyRanges[EnemyIndex] : 0;
-		return URTHexLibrary::HexDistance(Context.Enemies[EnemyIndex], Cell) <= Reach;
+		return URTHexLibrary::HexDistance(Context.Enemies[EnemyIndex], Cell) <= Reach
+			&& URTHexVisionLibrary::HasLineOfSight(Map, Context.Enemies[EnemyIndex], Cell);
 	};
 
+	// 🔴 **Nessun `default:`, e non e' pedanteria.** `URTReactionLibrary::PassPointFor` lo vieta per lo
+	// stesso enum e dice perche': «con un `default` il trigger nuovo compilerebbe, non scatterebbe mai, e il
+	// suo test sul catalogo resterebbe verde — il modo esatto in cui i tre moduli di #505 sono rimasti
+	// fermi». Qui il costo sarebbe lo stesso a un livello diverso: un trigger nuovo varrebbe zero per
+	// sempre, in silenzio.
 	switch (Def.ReactionTrigger)
 	{
 	case ERTReactionTrigger::HitByDirectAttack:
 	{
 		// Una parata vale quanto vale la minaccia su di ME. Conta i nemici che possono colpirmi, non quelli
-		// che conosco: un nemico noto ma fuori portata non e' un'occasione per una reazione difensiva.
+		// che conosco: un nemico noto ma fuori portata, o dietro un muro, non e' un'occasione per una
+		// reazione difensiva.
 		int32 Threats = 0;
 		for (int32 i = 0; i < Context.Enemies.Num(); ++i)
 		{
@@ -746,6 +756,11 @@ int32 URTHexBotLibrary::ScoreReaction(const FRTActionDef& Def, const FRTHexBotCo
 		//
 		// ⚠️ Si conta UNA volta per alleato e non una per coppia: il valore e' «quanti posso proteggere»,
 		// non «quante traiettorie esistono». Due nemici sullo stesso alleato restano un alleato solo.
+		//
+		// ⚠️ **Limite dichiarato**: `FindInterceptableHit` pretende anche che la traiettoria
+		// attaccante->intercettore sia libera, e quella qui non si misura — servirebbe sapere QUALE nemico
+		// sparera'. Il punteggio sovrastima, e sovrastimare e' la direzione sicura: arma una reazione che
+		// potrebbe non scattare, non ne perde una che sarebbe scattata.
 		int32 Coverable = 0;
 		for (const FRTCellId& Ally : Context.Allies)
 		{
@@ -758,20 +773,33 @@ int32 URTHexBotLibrary::ScoreReaction(const FRTActionDef& Def, const FRTHexBotCo
 				if (Threatens(Ally, i)) { ++Coverable; break; }
 			}
 		}
-		return Context.WAllyDamage * Coverable;
+		return Context.WThreat * Coverable;
 	}
 
-	default:
-		// 🔴 `AboutToBeDisplaced` e `AboutToReceiveControl` cadono QUI, e non e' una dimenticanza: sono i due
-		// trigger che risponderebbero a una spinta o a un controllo, e la conoscenza autorizzata non porta le
-		// CAPACITA' nemiche — sa dove sono e quanto arrivano lontano, non che cosa sanno fare. Un termine
-		// inventato per loro sarebbe l'onniscienza rientrata dalla finestra, cioe' il difetto che il filtro di
-		// percezione del bot esiste per togliere.
+	case ERTReactionTrigger::AboutToBeDisplaced:
+	case ERTReactionTrigger::AboutToReceiveControl:
+		// 🔴 Zero, e dichiarato invece che nascosto: questi due risponderebbero a una spinta o a un
+		// controllo, e la conoscenza autorizzata non porta le CAPACITA' nemiche — sa dove sono e quanto
+		// arrivano lontano, non che cosa sanno fare. Un termine inventato per loro sarebbe l'onniscienza
+		// rientrata dalla finestra, cioe' il difetto che il filtro di percezione esiste per togliere.
+		return 0;
+
+	case ERTReactionTrigger::CellBecameHazardous:
+		// Zero per una ragione DIVERSA, e vale la pena tenerle distinte: qui il soggetto non e' un nemico ma
+		// il TERRENO, che e' pubblico. Il termine sarebbe scrivibile — «la mia cella sta per diventare
+		// pericolosa» — ma il contesto del bot non porta gli hazard, e aggiungerceli e' un'altra issue.
+		// ⚠️ Finche' resta zero, `Reaction.HazardEscape` puo' vincere solo quando e' l'unica utilizzabile.
+		return 0;
+
+	case ERTReactionTrigger::None:
+		// Non e' una reazione, o non ha ancora un trigger: dato incompleto, nessun valore.
 		return 0;
 	}
+
+	return 0; // irraggiungibile: lo `switch` copre l'enum, e senza `default` un valore nuovo non compila
 }
 
-int32 URTHexBotLibrary::SelectReaction(const TArray<FRTReactionCandidate>& Candidates)
+FRTReactionChoice URTHexBotLibrary::SelectReaction(const TArray<FRTReactionCandidate>& Candidates)
 {
 	// L'ordine e' TOTALE, e per questo permutare le candidate non cambia l'esito: punteggio decrescente,
 	// poi il kit prima del loadout ([D-268] retrocede [D-220] a spareggio), poi l'indice piu' basso.
@@ -805,5 +833,32 @@ int32 URTHexBotLibrary::SelectReaction(const TArray<FRTReactionCandidate>& Candi
 		}
 	}
 
-	return Best ? Best->AbilityIndex : INDEX_NONE;
+	FRTReactionChoice Choice;
+	if (!Best)
+	{
+		return Choice; // AbilityIndex = INDEX_NONE, DecidedBy = None
+	}
+
+	Choice.AbilityIndex = Best->AbilityIndex;
+	Choice.Score = Best->Score;
+
+	// 🔴 La ragione si calcola QUI, dove la regola vive. Dedurla dal chiamante — «se qualcuno pareggia,
+	// allora ha deciso il kit» — e' cio' che fa dire «spareggio di kit» a una scelta decisa dall'indice:
+	// due delle tre chiavi collassate in una sola etichetta, e [D-245] chiede l'opposto.
+	int32 TiedAtTheTop = 0;
+	bool bOtherOriginTied = false;
+	for (const FRTReactionCandidate& Candidate : Candidates)
+	{
+		if (Candidate.AbilityIndex == INDEX_NONE || Candidate.Score != Best->Score)
+		{
+			continue;
+		}
+		++TiedAtTheTop;
+		bOtherOriginTied = bOtherOriginTied || Candidate.bFromKit != Best->bFromKit;
+	}
+
+	Choice.DecidedBy = TiedAtTheTop <= 1
+		? ERTReactionTieBreak::Utility
+		: (bOtherOriginTied ? ERTReactionTieBreak::Kit : ERTReactionTieBreak::Index);
+	return Choice;
 }

@@ -207,26 +207,11 @@ struct FRTHexBotContext
 };
 
 /**
- * Decisioni del bot su griglia ESAGONALE: logica pura, nessun Actor, solo interi (invariante #4).
- * Politica ereditata dal bot quadrato che ha sostituito (rimosso al CP 7.2) — focus-fire, minaccia mitigata
- * dalla copertura, kiting o avvicinamento, bonus di elevazione — con linea di vista letta dall'asset mappa.
- *
- * ⚠️ **La MINACCIA si misura in distanza esagonale, l'AVVICINAMENTO in PASSI sul grafo** (dal 2026-08-23,
- * #1296): un proiettile non cammina, un'unita' si'. Questa riga diceva «distanza esagonale» per entrambi, ed
- * era la premessa che ha prodotto il ciclo di periodo due sulla mappa d'autore.
- *
- * Le mosse candidate arrivano da URTHexSimLibrary::ReachableCells, che ha gia' applicato budget di movimento,
- * celle bloccate, unita' occupanti e archi verticali: il bot **non propone mosse illegali**. ⚠️ Diceva anche
- * «non rifa' pathfinding», e non e' piu' vero: `ScorePlan` percorre il grafo per misurare l'avvicinamento. La
- * differenza che regge e' un'altra — il bot non sceglie il PERCORSO, sceglie la destinazione.
- * Vedi docs/gameplay/spec-bot-hex.md.
- */
-/**
  * Una reazione che il bot puo' armare, con il suo punteggio e la sua ORIGINE ([D-268], `#1802`).
  *
  * ⚠️ **L'origine e' un dato, non una posizione nell'array.** Fino a [D-220] «prima il kit» funzionava
  * perche' `EquipLoadout` accoda, cioe' per accidente: chi costruisce le candidate la chiede al catalogo, e
- * il tie-break la legge di qui.
+ * lo spareggio la legge di qui.
  */
 USTRUCT()
 struct FRTReactionCandidate
@@ -243,6 +228,54 @@ struct FRTReactionCandidate
 	UPROPERTY() bool bFromKit = false;
 };
 
+/**
+ * CHE COSA ha deciso la scelta, che non e' la stessa cosa di quale sia stata ([D-245]).
+ *
+ * 🔴 Serve perche' senza, uno spareggio che decide **sempre** sarebbe indistinguibile da un punteggio che
+ * funziona: chi legge il log vedrebbe due volte la stessa riga per due meccanismi diversi.
+ */
+UENUM()
+enum class ERTReactionTieBreak : uint8
+{
+	/** Nessuna candidata: non c'e' niente da armare. */
+	None,
+
+	/** Ha vinto per punteggio: nessuna la pareggiava in cima. */
+	Utility,
+
+	/** Pareggio in cima sciolto dall'ORIGINE: il kit prima del loadout. */
+	Kit,
+
+	/** Pareggio in cima fra candidate della STESSA origine, sciolto dall'indice piu' basso. */
+	Index
+};
+
+/** La reazione scelta, con il perche'. */
+USTRUCT()
+struct FRTReactionChoice
+{
+	GENERATED_BODY()
+
+	UPROPERTY() int32 AbilityIndex = INDEX_NONE;
+	UPROPERTY() int32 Score = 0;
+	UPROPERTY() ERTReactionTieBreak DecidedBy = ERTReactionTieBreak::None;
+};
+
+/**
+ * Decisioni del bot su griglia ESAGONALE: logica pura, nessun Actor, solo interi (invariante #4).
+ * Politica ereditata dal bot quadrato che ha sostituito (rimosso al CP 7.2) — focus-fire, minaccia mitigata
+ * dalla copertura, kiting o avvicinamento, bonus di elevazione — con linea di vista letta dall'asset mappa.
+ *
+ * ⚠️ **La MINACCIA si misura in distanza esagonale, l'AVVICINAMENTO in PASSI sul grafo** (dal 2026-08-23,
+ * #1296): un proiettile non cammina, un'unita' si'. Questa riga diceva «distanza esagonale» per entrambi, ed
+ * era la premessa che ha prodotto il ciclo di periodo due sulla mappa d'autore.
+ *
+ * Le mosse candidate arrivano da URTHexSimLibrary::ReachableCells, che ha gia' applicato budget di movimento,
+ * celle bloccate, unita' occupanti e archi verticali: il bot **non propone mosse illegali**. ⚠️ Diceva anche
+ * «non rifa' pathfinding», e non e' piu' vero: `ScorePlan` percorre il grafo per misurare l'avvicinamento. La
+ * differenza che regge e' un'altra — il bot non sceglie il PERCORSO, sceglie la destinazione.
+ * Vedi docs/gameplay/spec-bot-hex.md.
+ */
 UCLASS()
 class REFACTORTACTICS_API URTHexBotLibrary : public UBlueprintFunctionLibrary
 {
@@ -291,25 +324,35 @@ public:
 	 *
 	 * Vale in proporzione alla minaccia a cui puo' rispondere, e la minaccia si misura **solo** su cio' che
 	 * `Context` contiene — che e' gia' filtrato sulla conoscenza autorizzata della squadra, con la stessa
-	 * regola del targeting umano. Nessun peso nuovo: `WThreat` e `WAllyDamage` sono quelli del tuning.
+	 * regola del targeting umano. Nessun peso nuovo: `WThreat` e' quello del tuning.
 	 *
-	 * 🔴 **Due trigger valgono zero, ed e' dichiarato invece che nascosto**: `AboutToBeDisplaced` e
-	 * `AboutToReceiveControl` risponderebbero a una spinta o a un controllo, e la conoscenza autorizzata non
-	 * porta le CAPACITA' nemiche — sa dove sono e quanto arrivano lontano, non che cosa sanno fare.
-	 * Inventare quel termine sarebbe l'onniscienza rientrata dalla finestra.
+	 * 🔴 **`Map` non e' un parametro di comodo: senza, il punteggio conterebbe nemici che non possono
+	 * sparare.** `ScorePlan` la minaccia la misura come gittata **E** linea di vista, e sulla mappa d'autore
+	 * — quella con l'ostacolo centrale che blocca vista e passo — un punteggio a sola distanza armerebbe un
+	 * contrattacco contro chi sta dietro il muro: cioe' esattamente la «reazione che non sarebbe scattata»
+	 * che [D-268] esiste per togliere, col segno rovesciato.
 	 *
-	 * ⚠️ **Zero non e' «non armarla»**: a punteggi tutti nulli decide il tie-break, cioe' il kit, cioe' il
-	 * comportamento che c'era prima di questa issue.
+	 * ⚠️ **Un solo peso per tutti i termini, e non e' pigrizia.** In `ScorePlan` `WAllyDamage` e' per PUNTO
+	 * di danno e `WThreat` e' per NEMICO: usarli qui come se fossero la stessa unita' avrebbe reso
+	 * l'interposizione (10) sempre perdente contro un contrattacco (100) — il difetto di [D-220] rovesciato.
+	 * `WThreat` misura «quanta minaccia questa reazione risponde», e vale per la mia cella come per quella di
+	 * un alleato.
+	 *
+	 * ⚠️ **Si misura dalla cella di PARTENZA.** La selezione avviene prima che il piano — e quindi lo scatto
+	 * — sia scelto, mentre i due trigger si valutano nel Blast, dopo il Dash. Un bot che scatta puo' quindi
+	 * aver segnato la minaccia da una cella che avra' lasciato. E' una sovrastima dichiarata, non un modello
+	 * completo: il codice di prima non guardava nessuna posizione.
 	 */
-	static int32 ScoreReaction(const FRTActionDef& Def, const FRTHexBotContext& Context);
+	static int32 ScoreReaction(const URTHexMapAsset* Map, const FRTActionDef& Def, const FRTHexBotContext& Context);
 
 	/**
 	 * La reazione da armare fra le candidate: punteggio massimo, e a **parita' esatta** vince il kit
 	 * ([D-268]). Ancora pari, vince l'indice piu' basso — cosi' permutare le candidate non cambia l'esito.
 	 *
-	 * `INDEX_NONE` se non ce ne sono.
+	 * Restituisce anche **da che cosa** e' stata decisa, perche' [D-245] chiede che la ragione sia un dato e
+	 * non una deduzione di chi legge il log.
 	 */
-	static int32 SelectReaction(const TArray<FRTReactionCandidate>& Candidates);
+	static FRTReactionChoice SelectReaction(const TArray<FRTReactionCandidate>& Candidates);
 
 	/**
 	 * Candidata a punteggio massimo. TIE-BREAK ASSOLUTO: a parita' di punteggio vince la MOSSA MINIMA da

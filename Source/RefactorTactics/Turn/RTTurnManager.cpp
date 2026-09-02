@@ -954,28 +954,27 @@ void ARTTurnManager::PlanBots()
 			FRTReactionCandidate& Candidate = ReactionCandidates.AddDefaulted_GetRef();
 			Candidate.AbilityIndex = R;
 			Candidate.bFromKit = !IdEquipaggiamento.Contains(Reaction->Def.ActionId);
-			Candidate.Score = URTHexBotLibrary::ScoreReaction(Reaction->Def, Ctx);
+			Candidate.Score = URTHexBotLibrary::ScoreReaction(Snapshot.Map, Reaction->Def, Ctx);
 		}
 
-		const int32 ArmedIndex = URTHexBotLibrary::SelectReaction(ReactionCandidates);
-		if (const URTActionData* Armed = Bot->GetAbility(ArmedIndex)) // `nullptr` per `INDEX_NONE`
+		// La scelta porta con se' la RAGIONE, che [D-245] chiede sia un dato e non una deduzione di chi
+		// legge: «ha vinto perche' valeva di piu'», «ha vinto lo spareggio di kit» e «ha vinto l'indice» sono
+		// tre spiegazioni diverse della stessa riga, e un'etichetta sola le confonderebbe.
+		const FRTReactionChoice Choice = URTHexBotLibrary::SelectReaction(ReactionCandidates);
+		if (const URTActionData* Armed = Bot->GetAbility(Choice.AbilityIndex)) // `nullptr` per `INDEX_NONE`
 		{
-			Bot->PlannedReactionAbility = ArmedIndex;
+			Bot->PlannedReactionAbility = Choice.AbilityIndex;
 
-			// [D-245]: la risposta e la RAGIONE sono due cose, e qui la ragione e' il punteggio. «Ha vinto
-			// perche' valeva di piu'» e «ha vinto lo spareggio» sono due spiegazioni diverse della stessa
-			// scelta, e chi legge il log deve poterle distinguere: senza, un tie-break che decide sempre
-			// sarebbe indistinguibile da un punteggio che funziona.
-			const FRTReactionCandidate* Chosen = ReactionCandidates.FindByPredicate(
-				[ArmedIndex](const FRTReactionCandidate& C) { return C.AbilityIndex == ArmedIndex; });
-			int32 TiedAtTheTop = 0;
-			for (const FRTReactionCandidate& C : ReactionCandidates)
+			const TCHAR* Reason = TEXT("");
+			switch (Choice.DecidedBy)
 			{
-				if (Chosen && C.Score == Chosen->Score) { ++TiedAtTheTop; }
+			case ERTReactionTieBreak::Kit:   Reason = TEXT(", spareggio: kit");   break;
+			case ERTReactionTieBreak::Index: Reason = TEXT(", spareggio: indice"); break;
+			case ERTReactionTieBreak::Utility:
+			case ERTReactionTieBreak::None:  break;
 			}
 			AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione, punteggio %d%s)"),
-				*Bot->GetName(), *Armed->Def.ActionId.ToString(), Chosen ? Chosen->Score : 0,
-				TiedAtTheTop > 1 ? TEXT(", scelta dallo spareggio di kit") : TEXT("")),
+				*Bot->GetName(), *Armed->Def.ActionId.ToString(), Choice.Score, Reason),
 				FRTLogSubject::Unit(Bot));
 		}
 
