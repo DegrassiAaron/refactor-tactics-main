@@ -94,7 +94,17 @@ struct FRTPublicReplayEntry
  *
  * ⚠️ **Il confine e' qui per i CAMPI, e non esiste ancora per le VOCI.** Non e' una sfumatura: il filtro
  * per osservatore — *«questa unita' la mia squadra l'aveva vista?»* — richiede la `TeamKnowledge` del
- * turno, e la traccia archiviata **non la porta** (`FRTTurnLogEntry::Verdict` e' `Transient` per `D-223`).
+ * turno, e la traccia archiviata **non la porta**: `FRTTurnLogEntry::Verdict` e' `UPROPERTY(Transient)` e
+ * `SerializeTurnLog` non lo scrive.
+ *
+ * ⚠️ **L'attribuzione va tenuta dritta, perche' la prima stesura di questo file la sbagliava.** [D-223]
+ * decide che un canale che racconta il PASSATO porta il verdetto **congelato quando il fatto e' accaduto**
+ * invece di ricalcolarlo in lettura: non parla di serializzazione, e semmai ABILITA un'evidenza durevole,
+ * perche' un verdetto congelato alla scrittura e' proprio cio' che si potrebbe persistere. A tenerlo fuori
+ * dal formato e' la nota sul campo stesso — *«un verdetto e' una risposta alla presentazione, non un fatto
+ * della simulazione»* — con le conseguenze che elenca: versione del formato, `EntryLess`, `MixEntryFields`
+ * e i golden. Chi cerchera' in [D-223] il permesso di cambiare idea non lo trovera' ne' in un senso ne'
+ * nell'altro.
  * Finche' quel dato non esiste in forma durevole, chi legge un replay pubblico vede i fatti di **entrambe**
  * le squadre: e' il difetto che `#1525` osserva sul playback, e questa libreria non lo chiude.
  */
