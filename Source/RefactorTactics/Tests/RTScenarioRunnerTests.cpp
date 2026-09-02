@@ -1736,11 +1736,39 @@ bool FRTScenarioInitialStatusIsActiveTest::RunTest(const FString&)
 	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
 	DestroyRunnerWorld(World);
 
-	// Un `Error` significa che la sessione ha rifiutato l'allestimento: e' il modo in cui questo test
-	// fallirebbe se `ApplyStatus` non fosse raggiungibile, ed e' distinto da un `Fail` di gioco.
 	TestNotEqual(TEXT("l'allestimento non e' fallito"),
 		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Error));
 	TestEqual(TEXT("e un turno e' stato giocato"), Result.TurnsPlayed, 1);
+
+	// 🔴 **E ORA LA PARTE CHE CONTA, ed e' stata aggiunta dopo una verifica di mutazione.**
+	//
+	// La prima stesura si fermava alle due righe qui sopra, e disattivando `ApplyStatus` nella sessione
+	// restava **VERDE**: verificava che lo scenario si CARICASSE e che la run non fallisse, non che lo
+	// status venisse applicato. Misurato, non temuto.
+	//
+	// 🔑 Il checksum di stato porta gli `Statuses` di ogni unita' (`FRTUnitStateDigest`), quindi due
+	// run identiche in tutto tranne che negli status iniziali devono dare hash **diversi**. Se
+	// `ApplyStatus` non viene chiamata, i due stati coincidono e questa riga cade.
+	FRTTestScenario Senza = Scenario;
+	Senza.Units[0].Statuses.Reset();
+
+	UWorld* PlainWorld = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world della run senza status"), PlainWorld)) { return false; }
+	const FRTTestResult Plain = URTScenarioRunner::Run(PlainWorld, Senza);
+	DestroyRunnerWorld(PlainWorld);
+
+	TestNotEqual(TEXT("lo status cambia lo stato della partita: il checksum differisce"),
+		Result.StateHash, Plain.StateHash);
+
+	// ⚠️ La controprova che l'hash non sia semplicemente instabile: due run dello **stesso**
+	// scenario devono coincidere, o la riga sopra sarebbe vera per rumore invece che per lo status.
+	UWorld* AgainWorld = MakeRunnerWorld();
+	if (TestNotNull(TEXT("world della ripetizione"), AgainWorld))
+	{
+		const FRTTestResult Again = URTScenarioRunner::Run(AgainWorld, Scenario);
+		DestroyRunnerWorld(AgainWorld);
+		TestEqual(TEXT("e lo stesso scenario da' lo stesso checksum"), Again.StateHash, Result.StateHash);
+	}
 
 	return true;
 }
