@@ -5,6 +5,7 @@
 #include "Engine/World.h"
 #include "Map/RTHexLibrary.h"
 #include "RTPlaygroundLayout.h"
+#include "Camera/RTCameraPawn.h"
 #include "RTPlaygroundPanelLibrary.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
@@ -232,6 +233,18 @@ bool FRTPanelCameraPresetsTest::RunTest(const FString&)
 	TestTrue(TEXT("Close e' piu' vicino di Tactical"),  Arms[0] < Arms[1]);
 	TestTrue(TEXT("Tactical e' piu' vicino di Overview"), Arms[1] < Arms[2]);
 	TestTrue(TEXT("nessun preset e' a distanza zero o negativa"), Arms[0] > 0.f);
+
+	// 🔑 **Da citazione a CONTROLLO.** La nota di `U41` diceva che il legame con `U25` era «una citazione,
+	// non un controllo»: i tre numeri vivevano in prosa e nessun test poteva leggerli da li'. Ora i preset
+	// **vengono** dal CDO della camera del gioco, e questo confronto li lega. Se domani la camera cambia
+	// le sue distanze, il pannello le segue invece di mostrarne tre ferme.
+	const ARTCameraPawn* Camera = GetDefault<ARTCameraPawn>();
+	if (TestNotNull(TEXT("il CDO della camera esiste"), Camera))
+	{
+		TestEqual(TEXT("Close e' la distanza minima della camera"),      Arms[0], Camera->GetMinArmLength());
+		TestEqual(TEXT("Tactical e' la distanza d'inizio partita"),      Arms[1], Camera->GetMatchStartArmLength());
+		TestEqual(TEXT("Overview e' la distanza massima della camera"),  Arms[2], Camera->GetMaxArmLength());
+	}
 	return true;
 }
 
@@ -483,6 +496,7 @@ bool FRTPanelGraphCallsTheModelTest::RunTest(const FString&)
 		TEXT("ParseStationOption"),      // la voce della combo station diventa un numero
 		TEXT("FindStation"),             // il numero diventa una station, con il suo centro
 		TEXT("CameraPresetArmLengths"),  // i tre bracci vengono dal modello, non scritti nel grafo
+		TEXT("CameraPresetPitch"),       // e l'inclinazione e' quella del gioco, non un -90 inventato
 		TEXT("SetLevelViewportCameraInfo"), // 🔑 e la camera si MUOVE davvero
 	};
 	for (const FName& Function : Expected)
@@ -697,6 +711,67 @@ bool FRTPanelStationRoundTripTest::RunTest(const FString&)
 
 	int32 Empty = 7;
 	TestFalse(TEXT("la stringa vuota non passa"), URTPlaygroundPanelLibrary::ParseStationOption(FString(), Empty));
+	return true;
+}
+
+/**
+ * 🔴 **Il pannello inquadrava a picco, e nessuno se ne accorgeva finche' non l'ha premuto qualcuno.**
+ *
+ * Il grafo usava `-90`: un numero che non veniva da nessuna parte, **fuori dal clamp `[-89, 0]`** che
+ * `ARTCameraPawn::AddPitch` impone, e soprattutto non la vista del gioco. Chi premeva un preset vedeva i
+ * tetti. Il pitch ora e' quello della camera tattica, e questo test lo lega.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelCameraPitchTest,
+	"RefactorTactics.Playground.PanelCameraPitchIsTheGamePitch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelCameraPitchTest::RunTest(const FString&)
+{
+	const ARTCameraPawn* Camera = GetDefault<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("il CDO della camera esiste"), Camera))
+	{
+		return false;
+	}
+	const float Pitch = URTPlaygroundPanelLibrary::CameraPresetPitch();
+	TestEqual(TEXT("il pannello inclina come la camera del gioco"), Pitch, Camera->GetCameraPitch());
+
+	// ⛔ Il clamp non e' decorativo: `-90` lo violava, ed e' il valore da cui si viene.
+	TestTrue(TEXT("il pitch sta dentro il clamp [-89, 0]"), Pitch >= -89.f && Pitch <= 0.f);
+	TestTrue(TEXT("e guarda verso il basso, non in orizzontale"), Pitch < 0.f);
+	return true;
+}
+
+/**
+ * 🔑 **`bLive` trova il suo primo consumatore.** Era dichiarato nella planimetria, trasportato nella vista
+ * e **letto da nessuno**: la combo elencava otto station indistinguibili, mentre il `done_when` di `U41`
+ * chiede che una station `PLANNED` **non sembri funzionante**.
+ *
+ * ⚠️ Il test non si limita a contare i `[PLANNED]`: verifica che il marchio segua **esattamente** `bLive`
+ * station per station. Un'etichetta che marcasse tutte, o nessuna, passerebbe un test sul totale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelPlannedMarkTest,
+	"RefactorTactics.Playground.PanelMarksPlannedStations",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelPlannedMarkTest::RunTest(const FString&)
+{
+	const TArray<FRTPlaygroundStationInfo> Stations = URTPlaygroundPanelLibrary::GetStations();
+	if (!TestTrue(TEXT("il modello dichiara delle station"), Stations.Num() > 0))
+	{
+		return false;
+	}
+
+	// ⛔ Senza entrambe le specie l'asserzione sotto sarebbe vacua: otto station tutte vive renderebbero
+	// il marchio non verificabile, e il test verde su un'etichetta che non marca mai.
+	int32 Live = 0;
+	for (const FRTPlaygroundStationInfo& Station : Stations) { Live += Station.bLive ? 1 : 0; }
+	TestTrue(TEXT("esistono station vive"),      Live > 0);
+	TestTrue(TEXT("ed esistono station PLANNED"), Live < Stations.Num());
+
+	for (const FRTPlaygroundStationInfo& Station : Stations)
+	{
+		const FString Label = URTPlaygroundPanelLibrary::StationOptionLabel(Station);
+		TestEqual(*FString::Printf(TEXT("station %d: il marchio segue bLive"), Station.Number),
+			Label.Contains(TEXT("[PLANNED]")), !Station.bLive);
+	}
 	return true;
 }
 

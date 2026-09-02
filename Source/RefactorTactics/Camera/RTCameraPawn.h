@@ -217,6 +217,18 @@ public:
 	float GetCameraPitch() const { return CameraPitch; }
 
 	/**
+	 * Le tre distanze dichiarate: ravvicinata, di gioco, tattica.
+	 *
+	 * 🔑 Esistono perche' **qualcun altro le stava copiando**. Il Playground Panel (#1993) teneva
+	 * `{100, 450, 4000}` scritti a mano, cioe' esattamente questi valori: una citazione, non un
+	 * controllo, che sarebbe rimasta ferma il giorno in cui la camera del gioco cambia. Chi vuole
+	 * *mostrare* le distanze di questa camera le chieda a lei.
+	 */
+	float GetMinArmLength() const { return MinArmLength; }
+	float GetMatchStartArmLength() const { return MatchStartArmLength; }
+	float GetMaxArmLength() const { return MaxArmLength; }
+
+	/**
 	 * Riporta la camera al centro della griglia e ripristina l'inquadratura di default: distanza
 	 * `DefaultArmLength` **clampata** in `[MinArmLength, MaxArmLength]`, e orientamento dritto.
 	 */
