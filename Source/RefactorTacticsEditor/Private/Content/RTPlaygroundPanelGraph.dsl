@@ -32,6 +32,10 @@
 ;
 ; ➕ Le OPZIONI delle due combo le riempie il commandlet in `DefaultOptions`, dal modello, e
 ; `Playground.PanelComboOptionsComeFromTheModel` lo verifica voce per voce.
+;
+; ⚠️ `(* forward braccio)` diventa un `vector*vector`, non un `vector*float`: il DSL non raggiunge il
+; nodo scalare, e Blueprint promuove il float a `(a,a,a)`. Per una SCALATURA il risultato e' identico,
+; ed e' voluto — non un caso da "correggere" leggendo la rilettura.
 
 (event UserInterface|EventConstruct
   ; le tre righe di DIAGNOSTICS vengono dal modello, non sono riscritte qui
@@ -90,7 +94,6 @@
   ; L'evento porta gia' `SelectedItem`: non serve leggere la combo, che il DSL non sa disambiguare.
   ; ⛔ NON si scrive nelle tre righe di DIAGNOSTICS: quelle portano le dichiarazioni di D-304, e
   ;    sovrascriverle per dare un riscontro cancellerebbe cio' che il pannello esiste per mostrare.
-  ;    Il riscontro alla selezione e' la camera che si muove.
   (bind (number parsed) (RefactorTactics|Playground|ParseStationOption SelectedItem))
   (if parsed
     (Variables|Default|SetSelectedStation number)))
@@ -100,37 +103,53 @@
   (if found
     (bind (num sname minW maxW centre live) (Utilities|Struct|BreakRTPlaygroundStationInfo station))
     (bind arms (RefactorTactics|Playground|CameraPresetArmLengths))
+    (bind rot (Math|Rotator|MakeRotator :Pitch (RefactorTactics|Playground|CameraPresetPitch) :Yaw 0.0 :Roll 0.0))
+    ; ⛔ NON `centro + Z*braccio`: quella e' una picchiata, e mostra i tetti. La camera sta su un BRACCIO —
+    ;    indietro lungo il proprio forward — quindi `centro - forward * braccio`, ed e' il pitch a
+    ;    decidere quanto di quell'arretramento diventa quota.
     (Development|Editor|SetLevelViewportCameraInfo
       :self (EditorSubsystems|GetUnrealEditorSubsystem)
-      :CameraLocation (+ centre (Math|Vector|MakeVector :X 0.0 :Y 0.0 :Z (Utilities|Array|Get(acopy) arms 1)))
-      :CameraRotation (Math|Rotator|MakeRotator :Pitch -90.0 :Yaw 0.0 :Roll 0.0))))
+      :CameraLocation (- centre (* (Math|Vector|GetForwardVector rot) (Utilities|Array|Get(acopy) arms 1)))
+      :CameraRotation rot)))
 
 (event OnClicked(Btn_CamClose)
   (bind (station found) (RefactorTactics|Playground|FindStation (Variables|Default|GetSelectedStation)))
   (if found
     (bind (num sname minW maxW centre live) (Utilities|Struct|BreakRTPlaygroundStationInfo station))
     (bind arms (RefactorTactics|Playground|CameraPresetArmLengths))
+    (bind rot (Math|Rotator|MakeRotator :Pitch (RefactorTactics|Playground|CameraPresetPitch) :Yaw 0.0 :Roll 0.0))
+    ; ⛔ NON `centro + Z*braccio`: quella e' una picchiata, e mostra i tetti. La camera sta su un BRACCIO —
+    ;    indietro lungo il proprio forward — quindi `centro - forward * braccio`, ed e' il pitch a
+    ;    decidere quanto di quell'arretramento diventa quota.
     (Development|Editor|SetLevelViewportCameraInfo
       :self (EditorSubsystems|GetUnrealEditorSubsystem)
-      :CameraLocation (+ centre (Math|Vector|MakeVector :X 0.0 :Y 0.0 :Z (Utilities|Array|Get(acopy) arms 0)))
-      :CameraRotation (Math|Rotator|MakeRotator :Pitch -90.0 :Yaw 0.0 :Roll 0.0))))
+      :CameraLocation (- centre (* (Math|Vector|GetForwardVector rot) (Utilities|Array|Get(acopy) arms 0)))
+      :CameraRotation rot)))
 
 (event OnClicked(Btn_CamTactical)
   (bind (station found) (RefactorTactics|Playground|FindStation (Variables|Default|GetSelectedStation)))
   (if found
     (bind (num sname minW maxW centre live) (Utilities|Struct|BreakRTPlaygroundStationInfo station))
     (bind arms (RefactorTactics|Playground|CameraPresetArmLengths))
+    (bind rot (Math|Rotator|MakeRotator :Pitch (RefactorTactics|Playground|CameraPresetPitch) :Yaw 0.0 :Roll 0.0))
+    ; ⛔ NON `centro + Z*braccio`: quella e' una picchiata, e mostra i tetti. La camera sta su un BRACCIO —
+    ;    indietro lungo il proprio forward — quindi `centro - forward * braccio`, ed e' il pitch a
+    ;    decidere quanto di quell'arretramento diventa quota.
     (Development|Editor|SetLevelViewportCameraInfo
       :self (EditorSubsystems|GetUnrealEditorSubsystem)
-      :CameraLocation (+ centre (Math|Vector|MakeVector :X 0.0 :Y 0.0 :Z (Utilities|Array|Get(acopy) arms 1)))
-      :CameraRotation (Math|Rotator|MakeRotator :Pitch -90.0 :Yaw 0.0 :Roll 0.0))))
+      :CameraLocation (- centre (* (Math|Vector|GetForwardVector rot) (Utilities|Array|Get(acopy) arms 1)))
+      :CameraRotation rot)))
 
 (event OnClicked(Btn_CamOverview)
   (bind (station found) (RefactorTactics|Playground|FindStation (Variables|Default|GetSelectedStation)))
   (if found
     (bind (num sname minW maxW centre live) (Utilities|Struct|BreakRTPlaygroundStationInfo station))
     (bind arms (RefactorTactics|Playground|CameraPresetArmLengths))
+    (bind rot (Math|Rotator|MakeRotator :Pitch (RefactorTactics|Playground|CameraPresetPitch) :Yaw 0.0 :Roll 0.0))
+    ; ⛔ NON `centro + Z*braccio`: quella e' una picchiata, e mostra i tetti. La camera sta su un BRACCIO —
+    ;    indietro lungo il proprio forward — quindi `centro - forward * braccio`, ed e' il pitch a
+    ;    decidere quanto di quell'arretramento diventa quota.
     (Development|Editor|SetLevelViewportCameraInfo
       :self (EditorSubsystems|GetUnrealEditorSubsystem)
-      :CameraLocation (+ centre (Math|Vector|MakeVector :X 0.0 :Y 0.0 :Z (Utilities|Array|Get(acopy) arms 2)))
-      :CameraRotation (Math|Rotator|MakeRotator :Pitch -90.0 :Yaw 0.0 :Roll 0.0))))
+      :CameraLocation (- centre (* (Math|Vector|GetForwardVector rot) (Utilities|Array|Get(acopy) arms 2)))
+      :CameraRotation rot)))
