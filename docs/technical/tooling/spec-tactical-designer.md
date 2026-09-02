@@ -579,7 +579,7 @@ authority **per costruzione**, non per disciplina di chi scrive il Blueprint.
 
 | Manca | Serve a | Innesco |
 |---|---|---|
-| status/condizioni iniziali | fixture con mitigazione o controllo attivo | il primo scenario che ne ha bisogno |
+| ~~status/condizioni iniziali~~ | ~~fixture con mitigazione o controllo attivo~~ | ✅ **colmato il 2026-09-02** — [#1629](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1629). `FRTScenarioUnit::Statuses` porta la coppia `{ tag, turns }`, perche' `ApplyStatus` chiede entrambi e un formato che scrivesse il solo tag dovrebbe inventare una durata. Il vocabolario resta quello del runtime: un tag fuori da `Core/RTGameplayTags.cpp` **rifiuta** lo scenario col nome sbagliato nel messaggio, invece di applicare un tag vuoto in silenzio |
 | stato d'ambiente (acqua, fuoco, ghiaccio) | fixture d'interazione ambientale | M9.2 |
 | override di abilità in una variante | *baseline vs variante* | lo Skill Workbench |
 

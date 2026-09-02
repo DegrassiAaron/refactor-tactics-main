@@ -1688,4 +1688,89 @@ bool FRTScenarioSimulationTimeIsDeterministicTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * UNO STATUS DICHIARATO E' ATTIVO DAL PRIMO TURNO — `#1629`.
+ *
+ * 🔑 **«Verificato nel TurnLog, non solo nel file»** è il criterio per intero, ed è la differenza fra un
+ * campo che si CARICA e un campo che FUNZIONA: un test che leggesse `Scenario.Units[0].Statuses` sarebbe
+ * verde con un loader corretto e un'arena che ignora il campo.
+ *
+ * ⚠️ Si asserisce anche che l'altra unità **non** lo abbia: senza quel controllo, un runtime che
+ * applicasse `Guarded` a chiunque supererebbe la prova.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioInitialStatusIsActiveTest,
+	"RefactorTactics.Scenario.InitialStatusIsActiveFromTurnOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioInitialStatusIsActiveTest::RunTest(const FString&)
+{
+	const TCHAR* Json = TEXT(R"JSON({
+	  "scenarioId": "Spec.Status.Initial", "version": 1, "mapRadius": 2,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0],
+	      "statuses": [ { "tag": "Status.Guarded", "turns": 3 } ] },
+	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+	  ],
+	  "turns": [ { "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	})JSON");
+
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(FString::Printf(TEXT("lo scenario si carica (%s)"), *Error),
+		URTScenarioLoader::LoadFromString(Json, Scenario, Error)))
+	{
+		return false;
+	}
+
+	if (!TestEqual(TEXT("A1 porta uno status dichiarato"), Scenario.Units[0].Statuses.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("ed e' quello scritto"), Scenario.Units[0].Statuses[0].Tag, FName(TEXT("Status.Guarded")));
+	TestEqual(TEXT("con la sua durata"), Scenario.Units[0].Statuses[0].Turns, 3);
+	TestEqual(TEXT("controllo: B1 non ne ha"), Scenario.Units[1].Statuses.Num(), 0);
+
+	// ⛔ E ORA IL PUNTO: che il runtime lo APPLICHI. Il file lo dice, la partita lo deve fare.
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	TestNotEqual(TEXT("l'allestimento non e' fallito"),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Error));
+	TestEqual(TEXT("e un turno e' stato giocato"), Result.TurnsPlayed, 1);
+
+	// 🔴 **E ORA LA PARTE CHE CONTA, ed e' stata aggiunta dopo una verifica di mutazione.**
+	//
+	// La prima stesura si fermava alle due righe qui sopra, e disattivando `ApplyStatus` nella sessione
+	// restava **VERDE**: verificava che lo scenario si CARICASSE e che la run non fallisse, non che lo
+	// status venisse applicato. Misurato, non temuto.
+	//
+	// 🔑 Il checksum di stato porta gli `Statuses` di ogni unita' (`FRTUnitStateDigest`), quindi due
+	// run identiche in tutto tranne che negli status iniziali devono dare hash **diversi**. Se
+	// `ApplyStatus` non viene chiamata, i due stati coincidono e questa riga cade.
+	FRTTestScenario Senza = Scenario;
+	Senza.Units[0].Statuses.Reset();
+
+	UWorld* PlainWorld = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world della run senza status"), PlainWorld)) { return false; }
+	const FRTTestResult Plain = URTScenarioRunner::Run(PlainWorld, Senza);
+	DestroyRunnerWorld(PlainWorld);
+
+	TestNotEqual(TEXT("lo status cambia lo stato della partita: il checksum differisce"),
+		Result.StateHash, Plain.StateHash);
+
+	// ⚠️ La controprova che l'hash non sia semplicemente instabile: due run dello **stesso**
+	// scenario devono coincidere, o la riga sopra sarebbe vera per rumore invece che per lo status.
+	UWorld* AgainWorld = MakeRunnerWorld();
+	if (TestNotNull(TEXT("world della ripetizione"), AgainWorld))
+	{
+		const FRTTestResult Again = URTScenarioRunner::Run(AgainWorld, Scenario);
+		DestroyRunnerWorld(AgainWorld);
+		TestEqual(TEXT("e lo stesso scenario da' lo stesso checksum"), Again.StateHash, Result.StateHash);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
