@@ -109,6 +109,21 @@ namespace
 			Cache.Revision = Map->Revision;
 			Cache.Inversa.Reset();
 			Cache.PerGoal.Reset();
+			// ⚠️ **QUESTA CACHE NON CONOSCE LA TRAVERSATA INTRA-CELLA, ed e' una scelta misurata** (#2100).
+			//
+			// Un muro interno divide lo spazio di posa di una cella in regioni sconnesse, e i tre siti che
+			// DECIDONO un movimento lo rispettano: l'A* (`FindPathAvoiding`), il set raggiungibile
+			// (`ReachableCells`) e la validazione del piano. Qui no, e il motivo e' che questa non decide.
+			//
+			// 🔑 **`ApproachSteps` e' un PUNTEGGIO, non un permesso**: misurato, non ha consumatori fuori da
+			// questa libreria e dai suoi test, e il bot muove passando da `ReachableCells` e
+			// `FindPathForUnit` — che la regola ce l'hanno. Una stima ottimistica qui fa scegliere al bot una
+			// destinazione che poi il percorso rifiuta: e' una mossa peggiore, non una mossa illegale.
+			//
+			// ⛔ **Renderla esatta costerebbe il doppio dello stato** — l'adiacenza inversa dovrebbe essere
+			// fra NODI `(cella, lato)` e non fra celle — per un caso che oggi nessuna mappa produce:
+			// `InteriorWall` compare in **zero** `.uasset` versionati. Il giorno in cui una mappa reale li usi,
+			// il sintomo e' un bot che sceglie male e non un bot che bara.
 			for (const FRTHexCellData& Cella : Map->Cells)
 			{
 				if (Cella.bBlocksMovement)
