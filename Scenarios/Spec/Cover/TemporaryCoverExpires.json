@@ -20,7 +20,7 @@
 
   "turns": [
     {
-      "_turno": "T1 — colpo di riferimento SENZA copertura: 120 meno 21 fa 99 su Riktor, ed e' la misura contro cui si leggeranno gli altri tre turni.",
+      "_turno": "T1 — colpo di riferimento SENZA copertura: 120 meno (21 - 5 di scudo base, [D-224]) fa 104 su Riktor, ed e' la misura contro cui si leggeranno gli altri tre turni.",
       "intents": [
         { "unit": "V1", "ability": "Hero.Wraith.PulseShot", "target": "B1" }
       ]

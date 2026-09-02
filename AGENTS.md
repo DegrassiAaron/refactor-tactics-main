@@ -302,6 +302,7 @@ node tools/radar/doc-links.ts --check
 node tools/radar/catalog-code.ts
 node tools/radar/doc-tables.ts --check
 node tools/radar/issue-refs.ts --check
+node tools/radar/scenario-notes.ts --check
 node tools/asset-refs/check.ts
 
 cd tools/radar
@@ -309,6 +310,11 @@ node --test
 ```
 
 Ogni tool dichiara nel docstring **cosa non copre**.
+
+⚠️ `scenario-notes.ts` confronta i numeri citati nella **prosa** di uno scenario con ciò che il file
+stesso asserisce — è la deriva che `#1904` ha misurato propagarsi nei documenti a valle, e che `#2049`
+ha ripulito. **Ordina, non decide**: ogni riga segnalata va letta, e un verde non è una prova di
+assenza. Le tre cose che non vede sono nel suo docstring.
 
 Un verde dimostra soltanto ciò che quel tool misura.
 
