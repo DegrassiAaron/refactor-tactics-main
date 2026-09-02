@@ -2445,7 +2445,15 @@ sessions:
       **La domanda è una sola:** *chi apre il pannello capisce dove si trova, ci va, cambia ciò che
       guarda — senza toccare il Details?*
 
-      Il giro: tasto destro su `WBP_RT_GrayKitPlayground` → `Run Editor Utility Widget` → con
+      ⚠️ **Come si apre in UE 5.8, perché col tasto destro sull'asset NON si apre.** La voce
+      `Run Editor Utility Widget` è registrata sulla **classe generata**
+      (`AssetDefinition_WidgetBlueprintGeneratedClass.cpp:83`), e il Content Browser le classi generate le
+      nasconde: cercarla sul Blueprint non la trova, e sembra che l'asset sia rotto. Le vie vere sono due —
+      **doppio clic** sull'asset e poi il pulsante **`Run Utility Widget`** nella toolbar dell'editor UMG
+      (`BlutilityUMGEditorExtensions.cpp:55`), oppure `Show Generated Classes` nei filtri e destro su
+      `WBP_RT_GrayKitPlayground_C`. ➕ Accanto al pulsante c'è `Stop Utility Widget` e i due si alternano:
+      **se vedi Stop, il pannello è già in esecuzione** — non è un guasto.
+      Il giro: aprire `WBP_RT_GrayKitPlayground` con una delle due vie sopra → con
       `L_GrayKitPlayground` aperta il pannello dice `Ready` → `Focus` sulla Station 01 → `Select
       Fixture` → il `Facing` si cambia **sei volte** e il marker segue **ogni volta**.
 
