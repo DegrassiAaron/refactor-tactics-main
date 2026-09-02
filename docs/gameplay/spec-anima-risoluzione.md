@@ -296,6 +296,13 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
   > quanto la riga di **AN.3** qui sotto dichiara. Due formule per la stessa domanda, con risultati diversi
   > (`PhaseDuration` per il `Blast` prende `Max(colpi, spinta)`, non la somma): quella morta è stata tolta.
   > La riga sopra resta com'era perché registra cosa era vero il 2026-08-03.
+  >
+  > ⚠️ **Aggiornamento del 2026-09-02** (`#1878`): anche **`SpeedMultiplierForCap` non esiste più**, e la
+  > riga sopra la elenca per la stessa ragione per cui elenca `EstimatePlaybackSeconds` — registra il
+  > 2026-08-03. Restituiva un fattore `>= 1` che `TickPlayback` moltiplicava dentro `Dt`, cioè dentro
+  > l'unico orologio che governa anche l'interpolazione del movimento: il tetto **accelerava i cilindri**,
+  > contro §6. L'ha sostituita `URTPlaybackLibrary::SlackScaleForBudget`, che comprime le attese. I test
+  > della library sono ora **9**, non 5.
 - **AN.2** ✅ — stato `Resolving` (Tick di sola presentazione) + interpolazione dei cilindri lungo `Entered`.
   Log PIE: `Playback fase: Move` → `Risoluzione completata (0.8s)` con 4 unità in parallelo.
 - **AN.3** ✅ — staging per fase (Prep→Blast→Move) + tuning `UPROPERTY` (`PlaybackCellsPerSecond`,

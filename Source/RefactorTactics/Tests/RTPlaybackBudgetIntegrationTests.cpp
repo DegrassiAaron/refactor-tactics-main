@@ -3,17 +3,18 @@
 // Il budget di presentazione non accelera la locomozione — `#1878`.
 //
 // 🔑 **Perche' esiste un file d'integrazione invece di due asserzioni sulla library.** La library sa gia'
-// dire che `SlackScaleForBudget` comprime lo slack e non tocca `Locomotion`: lo prova
+// dire che `SlackScaleForBudget` comprime lo slack e non tocca `Shown`: lo prova
 // `RefactorTactics.Playback.SlackScaleForBudget`, senza mondo. Cio' che NESSUN test sapeva dire e' cosa si
 // vede a schermo — quanto velocemente un cilindro attraversa le sue celle mentre il playback scorre. E'
 // la grandezza che il product owner ha osservato il 2026-08-30 («sembrano andare in fast-forward»), ed era
 // l'unica non misurata: la si ottiene solo tickando una risoluzione vera e guardando dove i modelli sono.
 //
-// ⚠️ **L'invariante e' un CONFRONTO, non un valore assoluto**, ed e' deliberato. Un test scritto come
-// «la velocita' osservata vale 6,5 celle/s» morirebbe al primo cambio di default — e il default sta per
-// cambiare, e' meta' dello scope di #1878. Il test qui confronta la STESSA risoluzione sotto due budget:
-// se il budget influenzasse la velocita' della locomozione, i due numeri divergerebbero. E' vero prima e
-// dopo la taratura, ed e' falso esattamente nel caso che la issue esiste per togliere.
+// ⚠️ **Cio' che questo file prova, e cio' che NON prova.** Prova che il rate dichiarato comanda la
+// velocita' osservata, e che una fase che mostra qualcosa non viene toccata dal budget nemmeno passando
+// per `DurationForPlaybackPhase` e per l'`Alpha` del tick. **Non** prova che la compressione dello slack
+// funzioni: qui lo slack e' zero per costruzione — la risoluzione ha la sola fase `Move` — e la
+// compressione e' esercitata a tavolino da `RefactorTactics.Playback.SlackScaleForBudget`. Detto qui
+// perche' una prima stesura affermava il contrario in un commento, e la misura lo ha smentito.
 //
 // 🔴 **Il piano e' SCRITTO, non chiesto al bot, e la prima stesura di questo file sbagliava proprio qui.**
 // Allestiva un autobattle su un'arena di raggio 4 e si aspettava del movimento: gli spawn distano 8 celle,
@@ -59,6 +60,8 @@ namespace
 		bool bFinished = false;
 		/** Il modello si e' mosso davvero: senza, ogni confronto sarebbe fra zeri. */
 		bool bMoved = false;
+		/** Ha percorso TUTTI i passi pianificati: senza, la conversione in celle/s e' sbagliata. */
+		bool bReachedEnd = false;
 	};
 
 	ARTUnit* RTSpawnBudgetProbeUnit(UWorld* World, int32 TeamId, const FRTCellId& Cell)
@@ -164,6 +167,13 @@ namespace
 		Probe.SlackScale = TM->GetPlaybackSlackScale();
 		Probe.bMoved = TotalTravelled > UE_KINDA_SMALL_NUMBER;
 
+		// 🔴 **La conversione in celle vale solo se il percorso e' stato percorso TUTTO**, e il budget di
+		// movimento dell'eroe e' un ingresso che questo file non controlla. Se un cambio di bilanciamento
+		// tagliasse il piano a tre passi su cinque, dividere per `Steps` gonfierebbe ogni celle/s del 66% e
+		// il referto porterebbe numeri inventati sotto un'asserzione che parla di orologi. Si registra
+		// dove l'unita' e' arrivata, e il test lo verifica prima di leggere le velocita'.
+		Probe.bReachedEnd = (Mover->Cell == Path.Last());
+
 		// Distanza per cella dal percorso stesso, non da una costante. Si usa lo spostamento NETTO fra
 		// inizio e fine — su una retta e' esattamente `Steps` celle — invece del cammino accumulato, che
 		// includerebbe l'eventuale assestamento finale.
@@ -191,8 +201,7 @@ bool FRTPlaybackBudgetDoesNotSpeedUpLocomotionTest::RunTest(const FString&)
 	// Budget larghissimo: non ha nulla da comprimere. E' la velocita' di riferimento.
 	const FRTPlaybackBudgetProbe Loose = RTMeasureOneResolutionUnderBudget(Base, /*Max=*/ 999.f, 1.f);
 
-	// Budget da un decimo di secondo: piu' stretto di qualunque risoluzione reale, quindi lo slack va a
-	// zero e il caso peggiore e' esercitato davvero invece di essere descritto.
+	// Budget da un decimo di secondo: piu' stretto di qualunque risoluzione reale.
 	const FRTPlaybackBudgetProbe Tight = RTMeasureOneResolutionUnderBudget(Base, /*Max=*/ 0.1f, 1.f);
 
 	if (!TestTrue(TEXT("la risoluzione col budget largo finisce entro il budget di tick"), Loose.bFinished)
@@ -209,19 +218,31 @@ bool FRTPlaybackBudgetDoesNotSpeedUpLocomotionTest::RunTest(const FString&)
 		return false;
 	}
 
-	// 🔑 **LA PROVA DEL BUDGET SOFT, e la misura l'ha resa piu' forte di come era stata scritta.** La prima
-	// stesura asseriva `SlackScale < 1` — «il budget ha morso» — e cadeva: una fase Move e' TUTTA
-	// locomozione, quindi `Slack` vale zero e `SlackScaleForBudget` risponde `1` per progetto, perche'
-	// «non c'e' niente da comprimere» non e' «comprimi tutto».
-	//
-	// Il fatto che ne esce e' migliore di quello che si cercava: con **0,1 s** di budget contro una
-	// locomozione che ne chiede **0,78**, il playback **sfora di quasi otto volte** e la velocita' non si
-	// muove di un decimale. Un budget hard avrebbe accelerato i cilindri di 7,8x. E' il comportamento che
-	// #1878 chiede, osservato invece che descritto.
+	// La conversione in celle/s divide per il numero di passi PIANIFICATI: se il piano non fosse stato
+	// eseguito per intero, ogni numero sotto sarebbe gonfiato e l'errore parlerebbe di orologi.
+	if (!TestTrue(TEXT("il piano e' stato percorso tutto (budget largo)"), Loose.bReachedEnd)
+		|| !TestTrue(TEXT("il piano e' stato percorso tutto (budget stretto)"), Tight.bReachedEnd))
+	{
+		return false;
+	}
+
+	// 🔑 **LA PROVA DEL BUDGET SOFT.** Con 0,1 s di budget contro una locomozione che ne chiede 0,78, il
+	// playback **sfora di quasi otto volte** e la velocita' non si muove di un decimale. Un budget hard
+	// avrebbe accelerato i cilindri di 7,8x.
 	TestTrue(*FString::Printf(TEXT("col budget stretto la durata SFORA invece di accelerare (%.2f s su 0,1 s)"),
 		Tight.PlaybackSeconds),
 		Tight.PlaybackSeconds > 0.2f);
-	TestTrue(TEXT("nessuna compressione dove non c'e' slack: la fase Move e' tutta locomozione"),
+
+	// ⚠️ **Detto per intero, perche' e' il limite di questo test.** Qui `SlackScale` vale `1` in ENTRAMBI i
+	// casi, e non perche' il budget sia stato clemente: la risoluzione ha la sola fase `Move`, che e' tutta
+	// `Shown`, quindi non esiste slack da comprimere e `SlackScaleForBudget` esce al primo guard.
+	//
+	// ∴ Il confronto qui sotto NON prova che la compressione funzioni — quella e' di
+	// `RefactorTactics.Playback.SlackScaleForBudget`, che la esercita a tavolino. Prova una cosa diversa e
+	// che nessun test puro puo' dire: che una fase che mostra qualcosa **non viene toccata dal budget**
+	// nemmeno passando per `DurationForPlaybackPhase` e per l'`Alpha` del tick. Cadrebbe se qualcuno
+	// rimettesse dello slack nel `Move`, o applicasse la scala a `Shown`.
+	TestTrue(TEXT("il budget non ha slack da togliere: la fase Move e' tutta mostrata"),
 		FMath::IsNearlyEqual(Tight.SlackScale, 1.f, 1e-3f)
 		&& FMath::IsNearlyEqual(Loose.SlackScale, 1.f, 1e-3f));
 
@@ -272,7 +293,8 @@ bool FRTPlaybackBudgetSpeedReportTest::RunTest(const FString&)
 			Rate, P.PeakCellsPerSecond, P.PlaybackSeconds, P.SlackScale);
 
 		if (!TestTrue(*FString::Printf(TEXT("a %.2f celle/s la risoluzione finisce"), Rate), P.bFinished)
-			|| !TestTrue(*FString::Printf(TEXT("a %.2f celle/s il modello si muove"), Rate), P.bMoved))
+			|| !TestTrue(*FString::Printf(TEXT("a %.2f celle/s il modello si muove"), Rate), P.bMoved)
+			|| !TestTrue(*FString::Printf(TEXT("a %.2f celle/s il piano e' percorso tutto"), Rate), P.bReachedEnd))
 		{
 			return false;
 		}

@@ -8,17 +8,30 @@
 /**
  * Di che cosa e' fatto il tempo di UNA fase del playback: due termini, e la ragione per cui sono due.
  *
- * 🔑 **Il budget di presentazione puo' comprimere `Slack` e non puo' toccare `Locomotion`.** E' la
- * decisione del product owner del 2026-08-30 (`#1878`) resa esprimibile: *«la durata target della
- * Resolution non deve determinare la velocita' visuale base della locomozione»*. Finche' la fase aveva un
- * numero solo, «comprimere un'attesa» e «accelerare un cilindro» erano la stessa moltiplicazione, e
- * l'ordine di recupero del tempo — idle gap, beat non informativi, camera hold, e solo alla fine la
- * velocita' — non aveva dove esistere.
+ * 🔑 **Il budget di presentazione puo' comprimere `Slack` e non puo' toccare `Shown`.** E' la decisione
+ * del product owner del 2026-08-30 (`#1878`) resa esprimibile: *«la durata target della Resolution non
+ * deve determinare la velocita' visuale base della locomozione»*. Finche' la fase aveva un numero solo,
+ * «comprimere un'attesa» e «accelerare un cilindro» erano la stessa moltiplicazione.
  *
- *  - `Locomotion` — **incomprimibile**: celle da percorrere diviso il rate base. E' il tempo che il
- *    movimento occupa perche' si vede, e comprimerlo E' accelerare la locomozione.
- *  - `Slack` — **comprimibile**: beat di fase, e nel `Blast` il tempo di lettura dei colpi che eccede la
- *    spinta. Sono attese che si accorciano senza che nulla si muova piu' in fretta.
+ *  - `Shown` — **incomprimibile**: il tempo che serve a mostrare qualcosa. La locomozione (celle diviso
+ *    il rate base) e, nel `Blast`, anche il tempo di lettura dei colpi.
+ *  - `Slack` — **comprimibile**: il beat di una fase che non mostra nulla.
+ *
+ * 🔴 **Il tempo dei colpi sta in `Shown`, e la prima stesura lo metteva in `Slack`.** L'ordine di recupero
+ * di `#1878` autorizza a comprimere *«beat non informativi (`PhaseBeatSeconds` su fasi che non mostrano
+ * nulla)»* — i colpi mostrano, quindi non sono in quella lista. Classificarli comprimibili produceva due
+ * difetti misurati in review:
+ *  1. con lo slack a zero la fase `Blast` durava **zero**, e il blocco di finalizzazione scaricava tutti i
+ *     colpi rimasti **in un frame** — distruggendo il pavimento *«una fase che si vede non puo' durare
+ *     zero»* proprio nella fase che questa issue esiste per rendere leggibile;
+ *  2. la spinta del knockback usa `Alpha = Elapsed / PhaseDur`, quindi comprimere quello slack la faceva
+ *     scorrere **fino a 6,5x piu' in fretta** — cioe' esattamente *«la durata target determina la
+ *     velocita' visuale»*, l'invariante che questa issue nega.
+ *
+ * ⚠️ **Conseguenza da sapere: oggi il budget ha poco su cui agire** — solo i beat di `Prep` e `Cleanup`.
+ * E' poco ed e' onesto: gli altri sei livelli dell'ordine di recupero (idle gap, camera hold, transizioni,
+ * code VFX, eventi paralleli) **non esistono ancora nel codice**, e questa struttura non li anticipa. Quando
+ * arriveranno, ciascuno decidera' da se' in quale dei due termini cade.
  *
  * ⚠️ **`Total()` vale esattamente quanto valeva `PhaseDuration` prima di questa separazione**, fase per
  * fase: la somma dei due termini non e' una formula nuova, e' la stessa scomposta. Chi cerca il totale
@@ -29,16 +42,16 @@ struct FRTPhaseTime
 {
 	GENERATED_BODY()
 
-	/** Tempo che il movimento occupa. Il budget non lo tocca mai. */
+	/** Tempo che serve a mostrare qualcosa: movimento, e i colpi del Blast. Il budget non lo tocca mai. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
-	float Locomotion = 0.f;
+	float Shown = 0.f;
 
-	/** Attese e tempo di lettura. E' su questo, e solo su questo, che il budget agisce. */
+	/** Il beat di una fase che non mostra nulla. E' su questo, e solo su questo, che il budget agisce. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	float Slack = 0.f;
 
 	/** La durata della fase senza compressione: e' cio' che `PhaseDuration` restituisce. */
-	float Total() const { return Locomotion + Slack; }
+	float Total() const { return Shown + Slack; }
 };
 
 /**
@@ -124,12 +137,11 @@ public:
 	 * La formula di durata, nei suoi due termini: quanto della fase e' movimento e quanto e' attesa.
 	 * Gli argomenti sono quelli di `PhaseDuration`, e la somma dei termini e' il suo risultato.
 	 *
-	 *  - `Dash` / `Move`  → tutto `Locomotion`. Non c'e' nulla da comprimere: la fase dura quanto il
-	 *                       percorso piu' lungo impiega, e comprimerla sarebbe accelerare i cilindri.
-	 *  - `Blast`          → `Locomotion` = la spinta; `Slack` = quanto il tempo dei colpi ECCEDE la spinta.
-	 *                       ⚠️ `Total()` resta `Max(colpi, spinta)` — i due si sovrappongono, non si
-	 *                       sommano, ed e' la ragione per cui `Slack` e' una differenza e non `AttackTime`.
-	 *  - ogni altra fase  → tutto `Slack`: un beat e' attesa per definizione.
+	 *  - `Dash` / `Move`  → tutto `Shown`. Non c'e' nulla da comprimere: la fase dura quanto il percorso
+	 *                       piu' lungo impiega, e comprimerla sarebbe accelerare i cilindri.
+	 *  - `Blast`          → tutto `Shown`, e vale `Max(colpi, spinta)`: i due si sovrappongono, non si
+	 *                       sommano. ⚠️ Zero slack **di proposito** — vedi `FRTPhaseTime`.
+	 *  - ogni altra fase  → tutto `Slack`: un beat non mostra nulla, ed e' l'unica attesa comprimibile.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static FRTPhaseTime PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
@@ -139,7 +151,7 @@ public:
 	 * Quanto comprimere lo `Slack` del round per stare nel budget di presentazione: `1` se ci si sta gia'
 	 * (o se il budget non e' positivo), altrimenti la frazione che serve, mai sotto `0`.
 	 *
-	 * = `Clamp((MaxSeconds - LocomotionSeconds) / SlackSeconds, 0, 1)`
+	 * = `Clamp((MaxSeconds - ShownSeconds) / SlackSeconds, 0, 1)`
 	 *
 	 * 🔑 **E' un budget SOFT, e il clamp a zero e' il punto in cui lo diventa**: quando la sola locomozione
 	 * eccede gia' il budget non resta slack da togliere, e la risposta e' `0` — cioe' *«ho compresso tutto
@@ -156,7 +168,7 @@ public:
 	 * questa funzione. Cambia su COSA agisce — lo slack invece della velocita' — non SE agisce.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
-	static float SlackScaleForBudget(float LocomotionSeconds, float SlackSeconds, float MaxSeconds);
+	static float SlackScaleForBudget(float ShownSeconds, float SlackSeconds, float MaxSeconds);
 
 	/**
 	 * La velocita' con cui il playback scorre: quella SCELTA da chi guarda (x1/x2/x4), normalizzata.

@@ -69,23 +69,28 @@ FRTPhaseTime URTPlaybackLibrary::PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSeg
 	case ERTMatchPhase::Dash:
 	case ERTMatchPhase::Move:
 		// Tutto movimento: non c'e' attesa da togliere, e toglierla sarebbe accelerare i cilindri.
-		Out.Locomotion = MoveTime;
+		Out.Shown = MoveTime;
 		break;
 
 	case ERTMatchPhase::Blast:
 	{
 		// `Max(1, ...)`: un Blast di sola spinta non ha colpi, e una fase che si vede non puo' durare zero.
 		const float AttackTime = FMath::Max(1, NumAttacks) * AttackShowSeconds;
-		// `Max` e non somma: i colpi si vedono MENTRE il bersaglio scivola, non dopo. Quella sovrapposizione
-		// e' il motivo per cui lo slack qui e' una DIFFERENZA: comprimibile e' solo il tempo di lettura che
-		// avanza oltre la spinta, perche' il resto e' gia' occupato dal movimento.
-		Out.Locomotion = MoveTime;
-		Out.Slack = FMath::Max(0.f, AttackTime - MoveTime);
+		// `Max` e non somma: i colpi si vedono MENTRE il bersaglio scivola, non dopo.
+		//
+		// 🔴 **Tutto `Shown`, zero `Slack`, e la prima stesura sbagliava qui.** Metteva in `Slack`
+		// l'eccedenza `AttackTime - MoveTime`, ragionando che fosse tempo «di lettura» e quindi
+		// comprimibile. Non lo e': l'ordine di recupero di #1878 autorizza i beat delle fasi che NON
+		// mostrano nulla, e questa mostra i colpi. Comprimerlo faceva due danni — la fase poteva durare
+		// zero e i colpi uscivano tutti in un frame, e la spinta accelerava fino al rate base perche'
+		// `Alpha` la misura su `PhaseDur`.
+		Out.Shown = FMath::Max(AttackTime, MoveTime);
 		break;
 	}
 
 	default:
-		// Prep, Cleanup, Planning: un beat, senza moto da attendere. E' attesa per intero.
+		// Prep, Cleanup, Planning: un beat, e non c'e' niente da guardare mentre passa. E' l'unica attesa
+		// che il budget puo' togliere.
 		Out.Slack = PhaseBeatSeconds;
 		break;
 	}
@@ -93,7 +98,7 @@ FRTPhaseTime URTPlaybackLibrary::PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSeg
 	return Out;
 }
 
-float URTPlaybackLibrary::SlackScaleForBudget(float LocomotionSeconds, float SlackSeconds, float MaxSeconds)
+float URTPlaybackLibrary::SlackScaleForBudget(float ShownSeconds, float SlackSeconds, float MaxSeconds)
 {
 	// Budget non dichiarato = nessun limite: niente da comprimere.
 	if (MaxSeconds <= 0.f)
@@ -110,7 +115,7 @@ float URTPlaybackLibrary::SlackScaleForBudget(float LocomotionSeconds, float Sla
 	}
 
 	// Gia' dentro: niente compressione.
-	if (LocomotionSeconds + SlackSeconds <= MaxSeconds)
+	if (ShownSeconds + SlackSeconds <= MaxSeconds)
 	{
 		return 1.f;
 	}
@@ -118,7 +123,7 @@ float URTPlaybackLibrary::SlackScaleForBudget(float LocomotionSeconds, float Sla
 	// Quanto slack ci sta nello spazio che la locomozione lascia libera. Il clamp basso a zero e' il punto
 	// in cui il budget diventa SOFT: sotto zero significherebbe togliere tempo al movimento, cioe'
 	// accelerarlo, ed e' esattamente cio' che #1878 esclude.
-	return FMath::Clamp((MaxSeconds - LocomotionSeconds) / SlackSeconds, 0.f, 1.f);
+	return FMath::Clamp((MaxSeconds - ShownSeconds) / SlackSeconds, 0.f, 1.f);
 }
 
 float URTPlaybackLibrary::EffectivePlaybackSpeed(float ViewerSpeed)

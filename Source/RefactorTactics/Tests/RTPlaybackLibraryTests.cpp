@@ -135,67 +135,77 @@ bool FRTPlaybackEffectiveSpeedTest::RunTest(const FString&)
 
 // --- PhaseTime: i due termini ---------------------------------------------------------------
 //
-// 🔑 **L'invariante che questo test protegge non e' un valore, e' un rapporto**: `Total()` deve continuare
-// a valere quanto `PhaseDuration` valeva PRIMA della separazione, fase per fase. Se un giorno lo slack
-// smettesse di essere una differenza nel Blast — se diventasse `AttackTime` — questo test cadrebbe sulla
-// riga del Blast e non altrove, ed e' il modo in cui dice PERCHE' e' una differenza.
+// 🔑 **Cio' che questo test protegge e' quali fasi il budget puo' toccare**, e la risposta e' «solo quelle
+// che non mostrano nulla». Ogni riga sul `Blast` esiste per un difetto misurato in review: la prima
+// stesura classificava comprimibile l'eccedenza dei colpi sulla spinta, e con lo slack a zero la fase
+// durava zero — i colpi uscivano tutti in un frame e la spinta scivolava al rate base invece che sulla
+// finestra dei colpi. Se qualcuno rimettesse dello slack nel `Blast`, cadono le due righe che lo negano.
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackPhaseTimeSplitTest,
-	"RefactorTactics.Playback.PhaseTimeSplitsLocomotionFromSlack",
+	"RefactorTactics.Playback.PhaseTimeSplitsShownFromSlack",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 {
-	// Move: 4 celle a 2 celle/s = 2 s, tutto movimento. Non c'e' attesa da togliere, e toglierla sarebbe
+	// Move: 4 celle a 2 celle/s = 2 s, tutto mostrato. Non c'e' attesa da togliere, e toglierla sarebbe
 	// accelerare i cilindri — che e' esattamente cio' che #1878 vieta.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
 			ERTMatchPhase::Move, /*MaxSeg*/ 4, /*Attacks*/ 0, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
-		TestTrue(TEXT("Move: 2 s di locomozione"), FMath::IsNearlyEqual(T.Locomotion, 2.0f, RTTol));
+		TestTrue(TEXT("Move: 2 s mostrati"), FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
 		TestTrue(TEXT("Move: nessuno slack"), FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
 	}
 
-	// Prep: un beat, ed e' attesa per intero.
+	// Prep: un beat, e non mostra nulla. E' l'unica attesa comprimibile del sistema.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
 			ERTMatchPhase::Prep, 0, 0, 2.f, 0.5f, /*Beat*/ 0.3f);
-		TestTrue(TEXT("Prep: nessuna locomozione"), FMath::IsNearlyEqual(T.Locomotion, 0.0f, RTTol));
+		TestTrue(TEXT("Prep: non mostra nulla"), FMath::IsNearlyEqual(T.Shown, 0.0f, RTTol));
 		TestTrue(TEXT("Prep: il beat e' tutto slack"), FMath::IsNearlyEqual(T.Slack, 0.3f, RTTol));
 	}
 
-	// Blast dominato dai COLPI: 4 colpi x 0,5 s = 2 s contro 0,5 s di spinta. Lo slack e' la DIFFERENZA
-	// (1,5 s), non i 2 s dei colpi: il primo mezzo secondo di lettura e' gia' occupato dallo scivolamento.
+	// 🔴 Blast dominato dai COLPI: 4 colpi x 0,5 s = 2 s contro 0,5 s di spinta. Tutto mostrato, zero
+	// slack. La riga che cade se qualcuno rende comprimibile il tempo di lettura: con slack a 1,5 s e la
+	// scala a zero, questa fase durerebbe 0,5 s e tre colpi su quattro uscirebbero nello stesso frame.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
 			ERTMatchPhase::Blast, /*MaxSeg*/ 1, /*Attacks*/ 4, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
-		TestTrue(TEXT("Blast: la spinta e' locomozione"), FMath::IsNearlyEqual(T.Locomotion, 0.5f, RTTol));
-		TestTrue(TEXT("Blast: lo slack e' l'ECCEDENZA dei colpi sulla spinta"),
-			FMath::IsNearlyEqual(T.Slack, 1.5f, RTTol));
+		TestTrue(TEXT("Blast: il tempo dei colpi e' mostrato, non atteso"),
+			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
+		TestTrue(TEXT("Blast: nessuno slack, nemmeno l'eccedenza dei colpi sulla spinta"),
+			FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
 		TestTrue(TEXT("Blast: il totale resta Max(colpi, spinta)"),
 			FMath::IsNearlyEqual(T.Total(), 2.0f, RTTol));
 	}
 
-	// Blast dominato dalla SPINTA: 6 celle a 2 celle/s = 3 s contro 1 colpo da 0,5 s. Nessuna eccedenza,
-	// quindi nessuno slack: il budget non ha niente da togliere e la spinta non puo' accelerare.
+	// Blast dominato dalla SPINTA: 6 celle a 2 celle/s = 3 s contro 1 colpo da 0,5 s.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
 			ERTMatchPhase::Blast, /*MaxSeg*/ 6, /*Attacks*/ 1, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
-		TestTrue(TEXT("Blast: spinta dominante -> 3 s di locomozione"),
-			FMath::IsNearlyEqual(T.Locomotion, 3.0f, RTTol));
-		TestTrue(TEXT("Blast: spinta dominante -> nessuno slack da comprimere"),
+		TestTrue(TEXT("Blast: spinta dominante -> 3 s mostrati"),
+			FMath::IsNearlyEqual(T.Shown, 3.0f, RTTol));
+		TestTrue(TEXT("Blast: spinta dominante -> nessuno slack"),
 			FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
 	}
 
-	// L'invariante di compatibilita': su ogni fase, la somma dei termini E' il vecchio numero.
+	// ⚠️ **L'invariante di compatibilita' vuole NUMERI, non un confronto.** La prima stesura confrontava
+	// `T.Total()` con `PhaseDuration(...)`: da quando `PhaseDuration` E' `PhaseTime(...).Total()`, quel
+	// confronto e' una tautologia e resta verde anche se ogni durata si dimezza. I valori qui sotto sono
+	// quelli che `PhaseDuration` restituiva PRIMA della separazione, calcolati a mano dalla formula
+	// originale su `MaxSeg=3, Attacks=2, CellsPerSec=2, AttackShow=0,5, Beat=0,3`.
 	{
-		const ERTMatchPhase Phases[] = { ERTMatchPhase::Prep, ERTMatchPhase::Dash,
-			ERTMatchPhase::Blast, ERTMatchPhase::Move, ERTMatchPhase::Cleanup };
-		for (const ERTMatchPhase Ph : Phases)
-		{
-			const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(Ph, 3, 2, 2.f, 0.5f, 0.3f);
-			const float Duration = URTPlaybackLibrary::PhaseDuration(Ph, 3, 2, 2.f, 0.5f, 0.3f);
-			TestTrue(TEXT("Total() e PhaseDuration non possono divergere"),
-				FMath::IsNearlyEqual(T.Total(), Duration, RTTol));
-		}
+		// Dash/Move: 3 celle / 2 celle-al-secondo.
+		TestTrue(TEXT("Dash valeva 1,5 s e vale 1,5 s"), FMath::IsNearlyEqual(
+			URTPlaybackLibrary::PhaseDuration(ERTMatchPhase::Dash, 3, 2, 2.f, 0.5f, 0.3f), 1.5f, RTTol));
+		TestTrue(TEXT("Move valeva 1,5 s e vale 1,5 s"), FMath::IsNearlyEqual(
+			URTPlaybackLibrary::PhaseDuration(ERTMatchPhase::Move, 3, 2, 2.f, 0.5f, 0.3f), 1.5f, RTTol));
+		// Blast: Max(2 colpi x 0,5 = 1,0 ; spinta 1,5) = 1,5.
+		TestTrue(TEXT("Blast valeva 1,5 s e vale 1,5 s"), FMath::IsNearlyEqual(
+			URTPlaybackLibrary::PhaseDuration(ERTMatchPhase::Blast, 3, 2, 2.f, 0.5f, 0.3f), 1.5f, RTTol));
+		// Prep/Cleanup: un beat.
+		TestTrue(TEXT("Prep valeva 0,3 s e vale 0,3 s"), FMath::IsNearlyEqual(
+			URTPlaybackLibrary::PhaseDuration(ERTMatchPhase::Prep, 3, 2, 2.f, 0.5f, 0.3f), 0.3f, RTTol));
+		TestTrue(TEXT("Cleanup valeva 0,3 s e vale 0,3 s"), FMath::IsNearlyEqual(
+			URTPlaybackLibrary::PhaseDuration(ERTMatchPhase::Cleanup, 3, 2, 2.f, 0.5f, 0.3f), 0.3f, RTTol));
 	}
 
 	return true;
