@@ -92,6 +92,12 @@ ERTScenarioAuthoringResult URTScenarioAuthoring::RemoveTurn(int32 TurnIndex, FSt
 	return Draft.RemoveTurn(TurnIndex, OutError);
 }
 
+ERTScenarioAuthoringResult URTScenarioAuthoring::DuplicateTurn(int32 SourceIndex, int32& OutNewIndex,
+	FString& OutError)
+{
+	return Draft.DuplicateTurn(SourceIndex, OutNewIndex, OutError);
+}
+
 TArray<FRTScenarioIntentView> URTScenarioAuthoring::ListIntents(int32 TurnIndex) const
 {
 	return Draft.ListIntents(TurnIndex);
