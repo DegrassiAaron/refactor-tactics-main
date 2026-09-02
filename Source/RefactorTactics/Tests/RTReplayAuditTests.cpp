@@ -72,12 +72,20 @@ namespace
 		R1.SubjectCell = FRTCellId(2, 0, 0);
 		R1.Verdict = FRTKnowledgeVerdict::Everyone();
 		A.Verdicts.Add(R1);
+
+		FRTAuditBotDecision D;
+		D.UnitId = 3;
+		D.TeamId = 0;
+		D.TargetUnitId = 7;
+		D.TargetTeamId = 1;
+		D.TargetCell = FRTCellId(1, 0, 0);
+		A.BotDecisions.Add(D);
 		return A;
 	}
 
 }
 
-/** Il formato conserva i tre record di [D-313]: due conoscenze per squadra piu' i verdetti. */
+/** Il formato conserva i quattro record di [D-313]: due conoscenze per squadra, i verdetti, le scelte dei bot. */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayAuditRoundTripTest,
 	"RefactorTactics.Replay.Audit.RoundTrip",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -115,6 +123,14 @@ bool FRTReplayAuditRoundTripTest::RunTest(const FString&)
 	}
 	TestEqual(TEXT("due conoscenze di Blast"), Read.BlastKnowledge.Num(), 2);
 
+	if (TestEqual(TEXT("una scelta di bot"), Read.BotDecisions.Num(), 1))
+	{
+		TestEqual(TEXT("chi ha scelto"), Read.BotDecisions[0].UnitId, 3);
+		TestEqual(TEXT("il bersaglio scelto"), Read.BotDecisions[0].TargetUnitId, 7);
+		TestEqual(TEXT("la squadra del bersaglio"), Read.BotDecisions[0].TargetTeamId, 1);
+		TestTrue(TEXT("la cella del bersaglio"), Read.BotDecisions[0].TargetCell == FRTCellId(1, 0, 0));
+	}
+
 	// ⚠️ I verdetti sono l'unico record che non ha una struttura ricca: se il round-trip li perdesse, il
 	// controllo di coerenza di [D-223] resterebbe verde su un array vuoto.
 	if (TestEqual(TEXT("due verdetti"), Read.Verdicts.Num(), 2))
@@ -149,6 +165,59 @@ bool FRTReplayAuditUnknownVersionTest::RunTest(const FString&)
 	TestFalse(TEXT("un JSON senza versione si rifiuta"),
 		URTReplayAuditLibrary::AuditFromJson(TEXT("{\"TurnNumber\":1}"), Read));
 	TestFalse(TEXT("cio' che non e' JSON si rifiuta"), URTReplayAuditLibrary::AuditFromJson(TEXT("nope"), Read));
+
+	// 🔴 **E la versione PRECEDENTE, che e' il caso che morde davvero.** Un `.rtaudit` scritto prima del
+	// quarto record e' un file ben formato che semplicemente non contiene le scelte del bot: se venisse
+	// accettato, `FindUnauthorizedTargets` girerebbe su una lista vuota e certificherebbe come equa una
+	// partita di cui non ha mai avuto l'evidenza. E' esattamente il fail-open che questo file rifiuta
+	// altrove, travestito da compatibilita'.
+	//
+	// ⚠️ **Il rifiuto deve venire dalla VERSIONE e da nient'altro**, e la prima stesura di questa riga non lo
+	// provava: il suo JSON minimale cadeva sull'`OrderedHash` mancante — obbligatorio — quindi sarebbe
+	// rimasta verde anche con la versione accettata. Le due asserzioni qui sotto condividono la stessa
+	// stringa e differiscono **solo** sul numero di versione: quella corrente si carica, quella precedente
+	// no. E' la coppia che rende la seconda una misura invece di una speranza.
+	auto ArtefattoConVersione = [](int32 Versione)
+	{
+		return FString::Printf(
+			TEXT("{\"Version\":%d,\"MatchId\":\"00000000000000000000000000000001\",")
+			TEXT("\"TurnNumber\":1,\"OrderedHash\":\"42\"}"), Versione);
+	};
+	TestTrue(TEXT("lo stesso artefatto, alla versione corrente, si carica"),
+		URTReplayAuditLibrary::AuditFromJson(
+			ArtefattoConVersione(static_cast<int32>(ERTAuditFormatVersion::Current)), Read));
+	TestFalse(TEXT("un artefatto della versione precedente si rifiuta"),
+		URTReplayAuditLibrary::AuditFromJson(ArtefattoConVersione(1), Read));
+
+	return true;
+}
+
+/**
+ * 🔴 **Un record di scelta TRONCATO si rifiuta invece di diventare «bersaglio 0».**
+ *
+ * `0` non e' un'unita': `EnsureMatchRoster` distribuisce identita' a partire da 1, e lo zero e' il valore
+ * che significa «nessuna». Un campo mancante letto come zero non produce un dato assente — produce una
+ * SCELTA che nessuno ha fatto, contro un'unita' che non esiste, che `ClassifyTarget` non trovera' in
+ * nessuna conoscenza e che il controllo riportera' come violazione. Cioe' un archivio rotto verrebbe
+ * riferito come un bot che bara.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayAuditTruncatedDecisionTest,
+	"RefactorTactics.Replay.Audit.TruncatedDecisionIsRejected",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayAuditTruncatedDecisionTest::RunTest(const FString&)
+{
+	const FGuid Id = FGuid(1, 2, 3, 4);
+	const FString Buono = URTReplayAuditLibrary::AuditToJson(SaturatedAudit(Id, 3, 0x0BADC0DE));
+
+	// Si parte dall'artefatto BUONO e gli si toglie un campo solo: cosi' il rosso non puo' venire da
+	// nient'altro che dal campo tolto.
+	FString Mutilato = Buono;
+	const int32 Tolti = Mutilato.ReplaceInline(TEXT("\"TargetUnitId\""), TEXT("\"TargetUnitIdX\""));
+	if (!TestEqual(TEXT("il campo da togliere esisteva"), Tolti, 1)) { return false; }
+
+	FRTTurnAudit Read;
+	TestFalse(TEXT("un record di scelta senza bersaglio si rifiuta"),
+		URTReplayAuditLibrary::AuditFromJson(Mutilato, Read));
 
 	return true;
 }
@@ -290,6 +359,84 @@ bool FRTReplayAuditVerdictCoherenceTest::RunTest(const FString&)
 	ConPlanning.Verdicts[0].Phase = ERTMatchPhase::Dash;    // nata PRIMA del Blast
 	TestTrue(TEXT("una voce nata prima del Blast si ricalcola sull'istantanea di Planning"),
 		URTReplayAuditLibrary::FindVerdictMismatches(ConPlanning).Num() > 0);
+
+	return true;
+}
+
+/**
+ * 🔴 **L'equita' del bot, e stavolta e' verificabile.**
+ *
+ * La domanda che un archivio deve reggere e' *«il bot ha visto piu' di me?»*, e la si pone al `ClassifyTarget`
+ * di produzione sulla conoscenza di **Planning** registrata: la STESSA domanda che il cancello ha posto in
+ * partita, non una simile.
+ *
+ * ⚠️ **Si giudica la SCELTA, non l'effetto.** Una prima stesura guardava la cella colpita, ed era
+ * insostenibile: `TgtCell` su una voce di combattimento e' la cella della VITTIMA, e un'area verso una cella
+ * nota che investe un nemico ignoto accanto e' legittima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayAuditFairnessTest,
+	"RefactorTactics.Replay.Audit.BotNeverTargetedWhatItDidNotKnow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayAuditFairnessTest::RunTest(const FString&)
+{
+	// La squadra 0 vede (1,0) e (2,0), e ricorda un contatto in (3,0).
+	FRTTurnAudit A;
+	A.MatchId = FGuid(5, 5, 5, 5);
+	A.TurnNumber = 1;
+	A.PlanningKnowledge.Add(Knowledge(0, 1));
+
+	auto Scelta = [](int32 TargetUnitId, const FRTCellId& Cell)
+	{
+		FRTAuditBotDecision D;
+		D.UnitId = 3;
+		D.TeamId = 0;
+		D.TargetUnitId = TargetUnitId;
+		D.TargetTeamId = 1;
+		D.TargetCell = Cell;
+		return D;
+	};
+
+	// Un bersaglio in una cella VISTA: lecito.
+	FRTTurnAudit Visto = A;
+	Visto.BotDecisions.Add(Scelta(/*Target*/ 9, FRTCellId(2, 0, 0)));
+	TestEqual(TEXT("scegliere un bersaglio in una cella vista non e' una violazione"),
+		URTReplayAuditLibrary::FindUnauthorizedTargets(Visto).Num(), 0);
+
+	// Il contatto RICORDATO: `CellOnly` e' conoscenza, non onniscienza.
+	FRTTurnAudit Ricordato = A;
+	Ricordato.BotDecisions.Add(Scelta(/*Target*/ 7, FRTCellId(3, 0, 0)));
+	TestEqual(TEXT("scegliere un contatto ricordato non e' una violazione"),
+		URTReplayAuditLibrary::FindUnauthorizedTargets(Ricordato).Num(), 0);
+
+	// 🔑 ANTI-VACUITA': senza questo caso il controllo potrebbe non guardare niente e restare verde.
+	FRTTurnAudit Onnisciente = A;
+	Onnisciente.BotDecisions.Add(Scelta(/*Target*/ 11, FRTCellId(9, 9, 0)));
+	TestEqual(TEXT("scegliere un bersaglio che la squadra non conosceva e' una violazione"),
+		URTReplayAuditLibrary::FindUnauthorizedTargets(Onnisciente).Num(), 1);
+
+	// ⚠️ E la mutazione va fatta sul FILE: togliere la cella dalla conoscenza REGISTRATA deve far diventare
+	// rossa una scelta che era lecita. E' cio' che dimostra che il controllo legge il dato registrato.
+	FRTTurnAudit Manomesso = Visto;
+	Manomesso.PlanningKnowledge[0].VisibleCells.Reset();
+	Manomesso.PlanningKnowledge[0].Contacts.Reset();
+	TestTrue(TEXT("alterare la conoscenza registrata rende illecita una scelta che era lecita"),
+		URTReplayAuditLibrary::FindUnauthorizedTargets(Manomesso).Num() > 0);
+
+	// Nessun attacco pianificato: non c'e' una scelta da giudicare, e assolvere in silenzio sarebbe diverso
+	// dal non avere niente da dire.
+	FRTTurnAudit SenzaBersaglio = A;
+	SenzaBersaglio.BotDecisions.Add(Scelta(INDEX_NONE, FRTCellId()));
+	TestEqual(TEXT("una scelta senza bersaglio non si giudica"),
+		URTReplayAuditLibrary::FindUnauthorizedTargets(SenzaBersaglio).Num(), 0);
+
+	// ⛔ Una scelta di una squadra senza conoscenza registrata non e' «lecita»: e' NON VERIFICABILE, ed e' un
+	// difetto dell'archivio che va detto. Un controllo che salta cio' che non sa leggere assolve.
+	FRTTurnAudit SenzaConoscenza;
+	SenzaConoscenza.MatchId = A.MatchId;
+	SenzaConoscenza.TurnNumber = 1;
+	SenzaConoscenza.BotDecisions.Add(Scelta(9, FRTCellId(2, 0, 0)));
+	TestEqual(TEXT("una scelta senza conoscenza registrata si dichiara, non si assolve"),
+		URTReplayAuditLibrary::FindUnauthorizedTargets(SenzaConoscenza).Num(), 1);
 
 	return true;
 }

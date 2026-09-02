@@ -7,6 +7,7 @@
 #include "Bot/RTHexBotLibrary.h" // i pesi del bot hanno UNA sorgente: i default della struct
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTResolvedEvent.h"
+#include "Replay/RTReplayAuditLibrary.h" // FRTAuditBotDecision: il quarto record di D-313
 #include "Turn/RTTurnLog.h"
 #include "Replay/RTReplayManifest.h"
 #include "Ability/RTActionDef.h" // FRTActionDef: l'impatto della carica porta con se' la definizione
@@ -1474,6 +1475,23 @@ protected:
 	 */
 	TArray<FRTTeamKnowledge> PlanningKnowledgeForAudit;
 	TArray<FRTTeamKnowledge> BlastKnowledgeForAudit;
+
+	/**
+	 * Le SCELTE dei bot del turno, catturate a pianificazione chiusa ([D-313], emendamento del 2026-09-02).
+	 *
+	 * 🔴 **E' il quarto record, e senza di lui l'equita' non e' verificabile da nessun archivio**: la scelta
+	 * del bot non sopravvive alla pianificazione, e gli EFFETTI non la contengono — `TgtCell` su una voce di
+	 * combattimento e' la cella della vittima, non quella a cui si e' mirato.
+	 */
+	TArray<FRTAuditBotDecision> BotDecisionsForAudit;
+
+	/**
+	 * Il turno a cui `BotDecisionsForAudit` appartiene, e serve per la stessa ragione per cui le due
+	 * conoscenze portano il proprio `TurnNumber`: **le scelte di un altro turno non sono evidenza, sono un
+	 * errore che sembra una prova**. `FRTAuditBotDecision` un numero di turno non ce l'ha — e' un record di
+	 * scelta, non un'istantanea — quindi il timbro sta qui.
+	 */
+	int32 BotDecisionsTurnForAudit = INDEX_NONE;
 
 	/** TurnLog dell'ultimo turno risolto (osservabilita' autoritativa; ordinato in LockInAndResolve). */
 	TArray<FRTTurnLogEntry> TurnLog;

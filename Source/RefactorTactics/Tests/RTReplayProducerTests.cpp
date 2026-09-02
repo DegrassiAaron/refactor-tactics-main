@@ -396,9 +396,9 @@ bool FRTReplayProducerPartialArchiveTest::RunTest(const FString&)
 /**
  * 🔑 **Una partita giocata lascia un'evidenza AUDITABILE, e i due controlli la trovano pulita.**
  *
- * E' il test che distingue un archivio che *contiene* la conoscenza da uno che *dimostra* qualcosa: i tre
- * record di [D-313] esistono su disco, si rileggono, e le due domande d'audit ottengono una risposta invece
- * di una promessa.
+ * E' il test che distingue un archivio che *contiene* la conoscenza da uno che *dimostra* qualcosa: i
+ * quattro record di [D-313] esistono su disco, si rileggono, e le due domande d'audit ottengono una
+ * risposta invece di una promessa.
  *
  * ⚠️ **Bot contro bot**, quindi entrambe le squadre si giudicano: l'harness gia' lo fa, e qui serve —
  * un controllo d'equita' che escludesse una delle due meta' del campo proverebbe meta' di cio' che dice.
@@ -439,6 +439,7 @@ bool FRTReplayAuditProducerTest::RunTest(const FString&)
 	}
 
 	int32 ConVerdetti = 0;
+	int32 ConScelte = 0;
 	for (int32 Turno = 1; Turno <= TurnsPlayed; ++Turno)
 	{
 		const int64 AncoraAttesa = Manifest.OrderedHashPerTurn.IsValidIndex(Turno - 1)
@@ -472,6 +473,25 @@ bool FRTReplayAuditProducerTest::RunTest(const FString&)
 			Turno, *FString::Join(Divergenze, TEXT(" | "))), Divergenze.Num(), 0);
 		ConVerdetti += Audit.Verdicts.Num();
 
+		// 🔑 E l'equita', sulla partita vera: nessun bot ha SCELTO un bersaglio che la sua squadra non
+		// conosceva. E' la domanda di `D-276`, posta al predicato di produzione sulla conoscenza registrata.
+		const TArray<FString> NonAutorizzati = URTReplayAuditLibrary::FindUnauthorizedTargets(Audit);
+		TestEqual(*FString::Printf(TEXT("turno %d: nessun bot ha scelto cio' che non conosceva (%s)"),
+			Turno, *FString::Join(NonAutorizzati, TEXT(" | "))), NonAutorizzati.Num(), 0);
+		// ⚠️ **Si contano le scelte GIUDICATE, non i record.** `CaptureBotDecisionsForAudit` emette una voce
+		// per ogni bot vivo, bersaglio o non bersaglio, e `FindUnauthorizedTargets` salta chi non ha scelto
+		// nulla: contare i record farebbe passare l'anti-vacuita' con un archivio in cui NESSUNA voce e'
+		// stata esaminata — la stessa vacuita', un piano piu' in basso.
+		for (const FRTAuditBotDecision& Scelta : Audit.BotDecisions)
+		{
+			if (Scelta.TargetUnitId != INDEX_NONE) { ++ConScelte; }
+		}
+
+		// E per turno: un turno senza NESSUNA voce di scelta e' un turno la cui equita' non e' stata
+		// archiviata, e il totale sopra lo nasconderebbe dietro i turni che invece ce l'hanno.
+		TestTrue(*FString::Printf(TEXT("turno %d: le scelte dei bot sono archiviate"), Turno),
+			Audit.BotDecisions.Num() > 0);
+
 		// I verdetti registrati sono tanti quante le voci della traccia: e' l'invariante posizionale che
 		// [D-313] §7 dichiara, e qui si MISURA invece di restare scritta.
 		TArray<FRTTurnLogEntry> Voci;
@@ -488,6 +508,107 @@ bool FRTReplayAuditProducerTest::RunTest(const FString&)
 	// ⚠️ **Anti-vacuita' dell'intero test**: senza un verdetto registrato, `FindVerdictMismatches` sarebbe
 	// verde su un array vuoto e questo test non proverebbe niente. Una partita giocata ne produce.
 	TestTrue(TEXT("la partita ha prodotto verdetti da verificare"), ConVerdetti > 0);
+
+	// ⚠️ E lo stesso per l'equita': con zero scelte registrate `FindUnauthorizedTargets` sarebbe verde su un
+	// array vuoto, che e' precisamente la vacuita' con cui la prima stesura di questo test era passata.
+	TestTrue(TEXT("la partita ha prodotto scelte di bot da verificare"), ConScelte > 0);
+
+	DestroyReplayProducerWorld(World);
+	PuliscIProducer(Root);
+	return true;
+}
+
+
+/**
+ * 🔴 **Una CARICA e' una scelta di bersaglio, e deve finire nell'archivio come tale.**
+ *
+ * Due difetti indipendenti la rendevano invisibile, e questo test li tiene insieme perche' in partita
+ * arrivano insieme:
+ *
+ * 1. **Il percorso.** La cattura viveva in `StartPlanningTimer`, non in `PlanBots`. Ma il commento sopra
+ *    `EnsureMatchRoster` in `LockInAndResolve` dichiara da sempre che i percorsi sono **due** — il gioco
+ *    entra dal timer, l'harness e i test chiamano `PlanBotsForTest()` e poi `LockInAndResolve()`. Sul
+ *    secondo l'archivio restava vuoto, e un archivio vuoto non e' un'assoluzione: e' un'assenza di prove
+ *    che il controllo legge come «nessuna violazione».
+ *
+ * 2. **La carica.** Il ramo `bIsCharge` di `PlanBots` non scrive `PlannedAttackTarget` — il colpo e'
+ *    dell'azione di movimento, quindi non c'e' un'azione principale a cui appendere il bersaglio. Una
+ *    cattura che leggesse solo quel campo perderebbe **l'intera classe di scelte piu' aggressiva del bot**:
+ *    proprio quella su cui la domanda d'equita' morde di piu'.
+ *
+ * ⚠️ Il test **verifica prima** che il bot abbia scelto una carica *senza* `PlannedAttackTarget`: senza
+ * quell'asserzione, un giorno in cui l'utility preferisse un tiro normale questo test resterebbe verde
+ * misurando il ramo facile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayAuditChargeIsAChoiceTest,
+	"RefactorTactics.Replay.Audit.ABotChargeIsArchivedAsAChoice",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayAuditChargeIsAChoiceTest::RunTest(const FString&)
+{
+	const FString Root = ProducerRoot(TEXT("AuditCharge"));
+	PuliscIProducer(Root);
+
+	UWorld* World = MakeReplayProducerWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnReplayProducerMap(World, /*Radius=*/ 5);
+
+	// Stessa geometria di `HexBotPlay.ChargeItPlannedActuallyLands`, dove la carica e' gia' misurata come
+	// la mossa che l'utility preferisce: Riktor ha `Ram` (20 + spinta) contro `ImpactShot` (8).
+	ARTUnit* Bot = SpawnReplayProducerUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnReplayProducerUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Foe) { DestroyReplayProducerWorld(World); PuliscIProducer(Root); return false; }
+
+	Foe->bIsBotControlled = false; // il bersaglio sta fermo: qui si misura la scelta di CHI carica
+	{
+		FRTMatchRules Rules;
+		Rules.FormatId = URTMatchFormatLibrary::Skirmish2v2FormatId;
+		TM->SetMatchRules(Rules);
+	}
+	TM->ReplaysRootOverride = Root;
+	TM->BeginReplayRecording();
+	const FGuid MatchId = TM->GetReplayMatchId();
+
+	// Il percorso dell'harness, non quello del timer: e' meta' del difetto.
+	TM->PlanBotsForTest();
+
+	const URTActionData* Dash = Bot->PlannedDashAbility != INDEX_NONE
+		? Bot->GetAbility(Bot->PlannedDashAbility) : nullptr;
+	if (!TestTrue(TEXT("il bot ha scelto una CARICA da solo"),
+			Dash != nullptr && Dash->Def.MovementStyle == ERTMovementStyle::LinearCharge))
+	{
+		DestroyReplayProducerWorld(World);
+		PuliscIProducer(Root);
+		return false;
+	}
+	// 🔑 E la carica NON passa da `PlannedAttackTarget`: e' l'altra meta' del difetto, dichiarata invece
+	// che assunta. Se un giorno cambiasse, questa riga lo direbbe subito.
+	TestNull(TEXT("e una carica non scrive PlannedAttackTarget"), Bot->PlannedAttackTarget.Get());
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	FRTTurnAudit Audit;
+	if (!TestTrue(TEXT("l'audit del turno si rilegge"),
+			URTReplayAuditLibrary::LoadTurnAudit(Root, MatchId, 1, Audit)))
+	{
+		DestroyReplayProducerWorld(World);
+		PuliscIProducer(Root);
+		return false;
+	}
+
+	const FRTAuditBotDecision* Scelta = Audit.BotDecisions.FindByPredicate(
+		[Bot](const FRTAuditBotDecision& D) { return D.UnitId == Bot->StableUnitId; });
+	if (!TestNotNull(TEXT("l'archivio contiene la scelta di chi ha caricato"), Scelta))
+	{
+		DestroyReplayProducerWorld(World);
+		PuliscIProducer(Root);
+		return false;
+	}
+
+	TestEqual(TEXT("e nomina il bersaglio della carica"), Scelta->TargetUnitId, Foe->StableUnitId);
+	TestEqual(TEXT("con la sua squadra"), Scelta->TargetTeamId, Foe->TeamId);
+	TestEqual(TEXT("e la cella da cui il cancello lo ha autorizzato"), Scelta->TargetCell, FRTCellId(2, 0));
 
 	DestroyReplayProducerWorld(World);
 	PuliscIProducer(Root);

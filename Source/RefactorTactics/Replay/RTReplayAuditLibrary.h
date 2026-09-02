@@ -2,7 +2,6 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "Perception/RTKnowledgeView.h" // FRTKnowledgeSubject: il soggetto contro cui il verdetto e' congelato
 #include "Perception/RTTeamKnowledge.h"
 #include "Turn/RTTurnLog.h"
 #include "RTReplayAuditLibrary.generated.h"
@@ -19,8 +18,19 @@ enum class ERTAuditFormatVersion : uint16
 	/** Due conoscenze per squadra (Planning e Blast) piu' i verdetti delle voci del turno. */
 	Initial = 1,
 
+	/**
+	 * Piu' le SCELTE dei bot del turno — il quarto record dell'emendamento a [D-313].
+	 *
+	 * 🔴 **L'alzata non e' una formalita': senza, un artefatto `Initial` sarebbe stato accettato come
+	 * corrente.** E' un file ben formato che semplicemente non contiene le scelte, quindi
+	 * `FindUnauthorizedTargets` avrebbe girato su una lista vuota e dichiarato equa una partita di cui non
+	 * ha mai avuto l'evidenza — fail-open travestito da compatibilita', nell'unico file che esiste per
+	 * fallire chiuso.
+	 */
+	WithBotDecisions = 2,
+
 	/** Versione che questo binario SCRIVE. Chi aggiunge un campo alza questo alias e lascia il valore sopra. */
-	Current = Initial
+	Current = WithBotDecisions
 };
 
 /**
@@ -62,6 +72,37 @@ struct FRTAuditVerdictRecord
 };
 
 /**
+ * La SCELTA di un bot, e non i suoi effetti ([D-313], emendamento del 2026-09-02).
+ *
+ * 🔴 **Esiste perche' l'equita' non si verifica dagli effetti.** `TgtCell` su una voce di combattimento e'
+ * la cella della VITTIMA, non quella a cui il bot ha mirato: un'area sparata verso una cella nota che
+ * investe un nemico ignoto in una cella adiacente e' **legittima**, e un controllo che guardasse la vittima
+ * la chiamerebbe violazione. Cio' che va verificato e' il **bersaglio scelto**, e quello negli effetti non
+ * c'e'.
+ *
+ * ⚠️ **La cella e' quella VERA al momento della pianificazione**, non quella che il bot ricordava: e'
+ * l'ingresso che il cancello di produzione passa a `ClassifyTarget`, ed e' l'unico con cui il ricalcolo
+ * riproduce la stessa domanda invece di una simile.
+ */
+USTRUCT()
+struct FRTAuditBotDecision
+{
+	GENERATED_BODY()
+
+	/** L'unita' bot che ha scelto. */
+	UPROPERTY() int32 UnitId = INDEX_NONE;
+
+	/** La sua squadra: dice quale conoscenza registrata la autorizzava. */
+	UPROPERTY() int32 TeamId = 0;
+
+	/** Il bersaglio scelto. `INDEX_NONE` = nessun attacco pianificato, e non c'e' niente da giudicare. */
+	UPROPERTY() int32 TargetUnitId = INDEX_NONE;
+
+	UPROPERTY() int32 TargetTeamId = 0;
+	UPROPERTY() FRTCellId TargetCell;
+};
+
+/**
  * L'evidenza d'audit di **un turno**, decisa da
  * [D-313](../../../docs/decisions/RT_PDR_00_Decision_Log.md).
  *
@@ -70,7 +111,7 @@ struct FRTAuditVerdictRecord
  * l'obiezione della nota su `FRTTurnLogEntry::Verdict` — *«un verdetto e' una risposta alla presentazione,
  * non un fatto della simulazione»* — non si applica, perche' il replay pubblico questo file non lo legge.
  *
- * ⚠️ **Tre record, perche' le domande d'audit sono due e vogliono istanti diversi**: la conoscenza al
+ * ⚠️ **Quattro record: tre perche' le domande d'audit sono due e vogliono istanti diversi**, la conoscenza al
  * **Planning** e' cio' su cui il bot ha deciso, quella al **Blast** e' cio' contro cui i verdetti sono stati
  * congelati, e i verdetti sono il collegamento fra le due.
  */
@@ -110,6 +151,14 @@ struct FRTTurnAudit
 	 * alla voce sbagliata **senza che niente lo segnali**.
 	 */
 	UPROPERTY() TArray<FRTAuditVerdictRecord> Verdicts;
+
+	/**
+	 * Le scelte dei bot di questo turno, catturate quando la pianificazione e' chiusa.
+	 *
+	 * ⚠️ **Il quarto record, e l'emendamento a [D-313] esiste per lui**: senza, l'AC d'equita' di `D-276` non
+	 * e' verificabile da nessun archivio, perche' la scelta del bot non sopravvive alla pianificazione.
+	 */
+	UPROPERTY() TArray<FRTAuditBotDecision> BotDecisions;
 };
 
 /**
@@ -169,19 +218,19 @@ public:
 	 */
 	static TArray<FString> FindVerdictMismatches(const FRTTurnAudit& Audit);
 
-	// ⛔ **Il controllo d'EQUITA' non c'e', e l'assenza e' un risultato misurato.** Una prima stesura
-	// confrontava la cella colpita con la conoscenza della squadra, ed e' insostenibile per due ragioni
-	// indipendenti che una code review ha trovato:
-	//
-	//   · `TgtCell` su una voce di combattimento e' la cella della VITTIMA (`E.TgtCell = Units[Idx]->Cell`),
-	//     non quella a cui il bot ha mirato. Un'area sparata verso una cella nota che investe un nemico
-	//     ignoto in una cella adiacente e' **legittima**, e verrebbe segnalata come violazione;
-	//   · il cancello di produzione che autorizza il bersaglio legge la conoscenza del **Blast**
-	//     (`RTTurnManager_Blast.cpp`), non quella di Planning: un nemico entrato in vista nel Dash e'
-	//     `Rejected` alla pianificazione e `Allowed` al Blast, e sparargli e' lecito.
-	//
-	// 🔴 **E sotto c'e' un problema piu' profondo del come**: la SCELTA del bot non e' archiviata, solo i suoi
-	// EFFETTI. Verificare che abbia mirato a cio' che conosceva richiede il bersaglio scelto, che vorrebbe un
-	// quarto record e quindi un emendamento a [D-313]. E' la stessa forma del limite gia' dichiarato
-	// sull'armamento della reazione. Vedi `#2074`.
+	/**
+	 * I bersagli che un bot ha scelto **senza che la sua conoscenza lo autorizzasse**.
+	 *
+	 * E' l'equita' come `D-276` la intende: una proprieta' dell'**informazione**, non della qualita' della
+	 * decisione. Il ricalcolo pone al `ClassifyTarget` di produzione la **stessa domanda** che il cancello ha
+	 * posto in partita, sulla conoscenza di **Planning** registrata — che e' quella su cui il bot ha scelto.
+	 *
+	 * 🔑 **Gli basta l'artefatto**, come a `FindVerdictMismatches`: un'evidenza si legge da sola o non e'
+	 * un'evidenza.
+	 *
+	 * ⛔ **NON copre l'armamento della reazione.** Verificare QUELLA scelta vorrebbe ricalcolarne il
+	 * punteggio — mappa, cataloghi, contesto — e non e' cio' che l'equita' chiede: sapere che una reazione
+	 * armata era subottima non dice che il bot abbia visto piu' di quanto poteva.
+	 */
+	static TArray<FString> FindUnauthorizedTargets(const FRTTurnAudit& Audit);
 };

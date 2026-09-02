@@ -712,12 +712,40 @@ void ARTTurnManager::PlanBots()
 		return Ids;
 	}();
 
+	// [D-313], emendamento — le SCELTE dei bot si aprono QUI, e la ragione e' che questa funzione ha **due
+	// ingressi**: il gioco ci arriva da `StartPlanningTimer`, l'harness e i test da `PlanBotsForTest()`. E'
+	// lo stesso paio di percorsi che `LockInAndResolve` dichiara sopra `EnsureMatchRoster`, e catturare
+	// altrove ne serviva uno solo — sull'altro l'archivio restava vuoto, che non e' un'assoluzione ma
+	// un'assenza di prove letta come «nessuna violazione».
+	//
+	// ⚠️ **E si riaprono a ogni passaggio**, perche' `PlanBots` gira due volte sullo stesso turno quando
+	// `PlanBotsForTest()` precede `LockInAndResolve()`: la conoscenza di Planning viene riscritta dal
+	// secondo giro, e scelte del primo accanto a una conoscenza del secondo sarebbero una coppia che non e'
+	// mai esistita.
+	if (bRecordReplay)
+	{
+		BotDecisionsForAudit.Reset();
+		BotDecisionsTurnForAudit = TurnNumber;
+	}
+
 	for (int32 BotIdx = 0; BotIdx < Units.Num(); ++BotIdx)
 	{
 		ARTUnit* Bot = Units[BotIdx];
 		if (!Bot->bIsBotControlled)
 		{
-			continue;
+			continue; // il giocatore umano mira dove vuole: il suo filtro e' altrove, e non e' questo
+		}
+
+		// Il record si APRE adesso e si chiude dopo la scelta: un bot che esce dal ciclo senza bersaglio ne
+		// lascia comunque uno, con `TargetUnitId` a `INDEX_NONE`. Cosi' «nessuna scelta» resta distinguibile
+		// da «nessuna cattura», che e' la differenza fra un dato e un buco.
+		const int32 IdxScelta = bRecordReplay ? BotDecisionsForAudit.Num() : INDEX_NONE;
+		if (bRecordReplay)
+		{
+			FRTAuditBotDecision Apertura;
+			Apertura.UnitId = Bot->StableUnitId;
+			Apertura.TeamId = Bot->TeamId;
+			BotDecisionsForAudit.Add(Apertura);
 		}
 
 		Bot->PlannedCell = Bot->Cell;   // default: fermo
@@ -1393,8 +1421,13 @@ void ARTTurnManager::PlanBots()
 			}
 		}
 
+		// Il bersaglio su cui il piano vincente AGISCE: lo valorizzano i tre rami che attaccano (carica,
+		// scatto+attacco, attacco da fermo) e nessun altro. E' cio' che [D-313] chiama «la scelta».
+		ARTUnit* Scelto = nullptr;
+
 		if (bIsCharge && Target && Ctx.Enemies.IsValidIndex(Best.TargetIndex))
 		{
+			Scelto = Target;
 			// CARICA: si punta la cella del bersaglio e la fase Dash si ferma addosso a lui registrando
 			// l'impatto. Nessun `PlannedAbilityIndex`: il colpo e' dell'azione di movimento, e pianificare
 			// anche un'azione principale significherebbe spendere due volte lo stesso slot.
@@ -1412,6 +1445,7 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedDashCell = Best.DestCell;
 			Bot->PlannedAbilityIndex = BestAbility;
 			Bot->PlannedAttackTarget = Target;
+			Scelto = Target;
 			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
 			AddLogEvent(FString::Printf(TEXT("%s: utility -> scatto (q=%d,r=%d,L%d) + attacca %s score=%d"),
 				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score), FRTLogSubject::Unit(Bot));
@@ -1422,6 +1456,7 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedCell = Best.DestCell;
 			Bot->PlannedAbilityIndex = BestAbility;
 			Bot->PlannedAttackTarget = Target;
+			Scelto = Target;
 			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
 			AddLogEvent(FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) attacca %s score=%d"),
 				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score), FRTLogSubject::Unit(Bot));
@@ -1441,6 +1476,26 @@ void ARTTurnManager::PlanBots()
 			AddLogEvent(FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) score=%d%s"),
 				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
 				Best.DestCell == Bot->Cell ? TEXT(" (resta)") : TEXT("")), FRTLogSubject::Unit(Bot));
+		}
+
+		// [D-313] — si chiude il record con il bersaglio SCELTO, quando c'e'.
+		//
+		// 🔴 **`Target`, non `Bot->PlannedAttackTarget`**: il ramo della CARICA non scrive quel campo, perche'
+		// il colpo e' dell'azione di movimento e non di una principale. Leggere il campo avrebbe perso
+		// l'intera classe di scelte piu' aggressiva del bot — proprio quella su cui la domanda d'equita'
+		// morde di piu' — archiviandola come «nessun bersaglio», cioe' come niente da giudicare.
+		//
+		// ⚠️ Si prendono solo i tre rami che AGISCONO su di lui: `Target` e' valorizzato anche quando il piano
+		// vincente non attacca, e un riposizionamento non e' una scelta di bersaglio.
+		if (IdxScelta != INDEX_NONE && Scelto && BotDecisionsForAudit.IsValidIndex(IdxScelta))
+		{
+			FRTAuditBotDecision& Record = BotDecisionsForAudit[IdxScelta];
+			Record.TargetUnitId = Scelto->StableUnitId;
+			Record.TargetTeamId = Scelto->TeamId;
+			// ⚠️ La cella e' quella VERA del bersaglio adesso, non quella che il bot ricordava: e' l'ingresso
+			// che il cancello di produzione passa a `ClassifyTarget`, e con un'altra il ricalcolo porrebbe
+			// una domanda simile invece della stessa.
+			Record.TargetCell = Scelto->Cell;
 		}
 
 		// #1088 — l'ultima cosa che il bot fa: dichiarare alle compagne dove sta andando. Copre i quattro
@@ -3213,6 +3268,14 @@ void ARTTurnManager::RecordTurnToReplay()
 	{
 		return Snapshot.Num() > 0 && Snapshot[0].TurnNumber == TurnNumber;
 	};
+
+	// Stessa disciplina delle due istantanee, sul timbro invece che sul campo: le scelte di un altro turno
+	// non si attribuiscono a questo. Un turno che arriva qui senza scelte archiviate le lascia vuote, e il
+	// test d'integrazione lo dichiara turno per turno invece di lasciarlo passare nel totale.
+	if (BotDecisionsTurnForAudit == TurnNumber)
+	{
+		Audit.BotDecisions = BotDecisionsForAudit;
+	}
 
 	if (DiQuestoTurno(PlanningKnowledgeForAudit)) { Audit.PlanningKnowledge = PlanningKnowledgeForAudit; }
 	if (DiQuestoTurno(BlastKnowledgeForAudit)) { Audit.BlastKnowledge = BlastKnowledgeForAudit; }
