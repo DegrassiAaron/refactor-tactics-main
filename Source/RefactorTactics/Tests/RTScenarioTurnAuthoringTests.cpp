@@ -1000,4 +1000,63 @@ bool FRTScenarioReactionConditionTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * UNA CHIAMATA RIFIUTATA NON LASCIA TRACCE — `#1626`.
+ *
+ * 🔴 **Trovato in review sul mio stesso diff.** I setter degli slot ottengono l'intent da un helper che lo
+ * **crea** se non c'è; la prima stesura chiamava l'helper e *poi* controllava gli argomenti. Una chiamata
+ * rifiutata lasciava dietro di sé un intent che nomina l'unità e nient'altro — cioè, nel formato,
+ * **un Wait**. Il designer avrebbe letto un errore e si sarebbe ritrovato un'attesa che non ha chiesto.
+ *
+ * ⚠️ Un editor che modifica in silenzio mentre dice «rifiutato» è peggio di uno che rifiuta e basta: chi
+ * legge l'errore non ha ragione di andare a ricontrollare il piano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRejectedIntentLeavesNoTraceTest,
+	"RefactorTactics.Scenario.ARejectedIntentLeavesNoTrace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRejectedIntentLeavesNoTraceTest::RunTest(const FString&)
+{
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenTurnDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	int32 Turn = INDEX_NONE;
+	if (!TestEqual(TEXT("turno aggiunto"), Draft.AddTurn(Turn, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	auto Intents = [&Draft, Turn]() { return Draft.GetScenario().Turns[Turn].Intents.Num(); };
+	TestEqual(TEXT("il turno nasce vuoto"), Intents(), 0);
+
+	// Bersaglio senza nome: rifiutata.
+	TestEqual(TEXT("abilita' senza bersaglio nominato"),
+		Draft.SetMainActionOnUnit(Turn, TEXT("A1"), TEXT("Action.BasicAttack"), FString(), Error),
+		ERTScenarioAuthoringResult::Invalid);
+	TestEqual(TEXT("e il turno e' ancora vuoto"), Intents(), 0);
+
+	// Bersaglio senza abilita': rifiutata.
+	TestEqual(TEXT("bersaglio senza abilita'"),
+		Draft.SetMainActionOnUnit(Turn, TEXT("A1"), NAME_None, TEXT("B1"), Error),
+		ERTScenarioAuthoringResult::Invalid);
+	TestEqual(TEXT("ancora vuoto"), Intents(), 0);
+
+	// Cella senza abilita': rifiutata.
+	TestEqual(TEXT("cella senza abilita'"),
+		Draft.SetMainActionOnCell(Turn, TEXT("A1"), NAME_None, FRTCellId(1, 0, 0), Error),
+		ERTScenarioAuthoringResult::Invalid);
+	TestEqual(TEXT("ancora vuoto"), Intents(), 0);
+
+	// ✅ E una accettata scrive, altrimenti il test sarebbe verde anche su una facade che non fa nulla.
+	TestEqual(TEXT("la chiamata buona invece scrive"),
+		Draft.SetMainActionOnUnit(Turn, TEXT("A1"), TEXT("Action.BasicAttack"), TEXT("B1"), Error),
+		ERTScenarioAuthoringResult::Success);
+	TestEqual(TEXT("un intent"), Intents(), 1);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

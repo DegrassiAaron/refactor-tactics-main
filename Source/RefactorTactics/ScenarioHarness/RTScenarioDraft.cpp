@@ -571,10 +571,14 @@ namespace
 	 * significherebbe sette occasioni di scriverne una diversa dalle altre — e i messaggi d'errore di
 	 * `SetMoveIntent` sono asseriti dai test, quindi divergere non sarebbe un dettaglio di stile.
 	 *
-	 * Restituisce l'intent su cui scrivere, creandolo se l'unita' non ne aveva uno in quel turno. `nullptr`
-	 * con `OutResult` valorizzato quando la scrittura non si puo' fare.
+	 * Restituisce l'intent su cui scrivere, **creandolo** se l'unita' non ne aveva uno in quel turno.
+	 * `nullptr` con `OutResult` valorizzato quando la scrittura non si puo' fare.
+	 *
+	 * ⚠️ **Chi ha argomenti propri da controllare li controlla PRIMA di chiamare questa.** Creare e poi
+	 * rifiutare lascia un intent vuoto, che il formato legge come un Wait: un errore restituito insieme a
+	 * una modifica non richiesta.
 	 */
-	FRTScenarioIntent* SlotToWrite(bool bOpen, FRTTestScenario& Scenario, int32 TurnIndex, const FString& UnitId,
+	FRTScenarioIntent* DraftIntentSlotToWrite(bool bOpen, FRTTestScenario& Scenario, int32 TurnIndex, const FString& UnitId,
 		int32 UnitIndex, FString& OutError, ERTScenarioAuthoringResult& OutResult)
 	{
 		OutError.Reset();
@@ -628,7 +632,7 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SetDashIntent(int32 TurnIndex, cons
 	FName DashAbility, const FRTCellId& DashCell, FString& OutError)
 {
 	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
-	FRTScenarioIntent* Intent = SlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	FRTScenarioIntent* Intent = DraftIntentSlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
 	if (Intent == nullptr) { return Result; }
 
 	Intent->Dash = DashAbility;
@@ -642,7 +646,7 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SetMainAction(int32 TurnIndex, cons
 	FName AbilityId, FString& OutError)
 {
 	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
-	FRTScenarioIntent* Intent = SlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	FRTScenarioIntent* Intent = DraftIntentSlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
 	if (Intent == nullptr) { return Result; }
 
 	Intent->Ability = AbilityId;
@@ -655,10 +659,12 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SetMainAction(int32 TurnIndex, cons
 ERTScenarioAuthoringResult FRTScenarioDraft::SetMainActionOnUnit(int32 TurnIndex, const FString& UnitId,
 	FName AbilityId, const FString& TargetUnitId, FString& OutError)
 {
-	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
-	FRTScenarioIntent* Intent = SlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
-	if (Intent == nullptr) { return Result; }
-
+	// 🔴 **Gli argomenti si controllano PRIMA di toccare lo scenario, e non e' pedanteria di stile.**
+	// `DraftIntentSlotToWrite` CREA l'intent se l'unita' non ne aveva uno: validare dopo significherebbe che
+	// una chiamata **rifiutata** lascia dietro di se' un intent vuoto — e un intent che nomina l'unita' e
+	// nient'altro e' precisamente come il formato scrive il **Wait**. Il designer leggerebbe un errore e si
+	// ritroverebbe un'attesa che non ha chiesto: la stessa scrittura muta che `SetWaitIntent` si prende la
+	// briga di dichiarare quando cancella un piano.
 	if (AbilityId.IsNone())
 	{
 		OutError = FString::Printf(
@@ -673,6 +679,10 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SetMainActionOnUnit(int32 TurnIndex
 		OutError = FString::Printf(TEXT("l'abilita' '%s' non nomina il bersaglio"), *AbilityId.ToString());
 		return ERTScenarioAuthoringResult::Invalid;
 	}
+
+	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
+	FRTScenarioIntent* Intent = DraftIntentSlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	if (Intent == nullptr) { return Result; }
 	// ⚠️ Che l'unita' bersagliata ESISTA lo controlla `Validate` al salvataggio, insieme al divieto di
 	// bersagliare se stessi. Ripeterlo qui vorrebbe dire due regole da tenere allineate; l'unica cosa che
 	// spetta a questa funzione e' non produrre una contraddizione che `Validate` non potrebbe che rifiutare.
@@ -686,15 +696,17 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SetMainActionOnUnit(int32 TurnIndex
 ERTScenarioAuthoringResult FRTScenarioDraft::SetMainActionOnCell(int32 TurnIndex, const FString& UnitId,
 	FName AbilityId, const FRTCellId& TargetCell, FString& OutError)
 {
-	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
-	FRTScenarioIntent* Intent = SlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
-	if (Intent == nullptr) { return Result; }
-
+	// Vedi `SetMainActionOnUnit`: validare dopo aver creato l'intent scriverebbe un Wait per una chiamata
+	// che sta per essere rifiutata.
 	if (AbilityId.IsNone())
 	{
 		OutError = TEXT("cella bersagliata senza abilita': per svuotare lo slot principale si usa SetMainAction(None)");
 		return ERTScenarioAuthoringResult::Invalid;
 	}
+
+	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
+	FRTScenarioIntent* Intent = DraftIntentSlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	if (Intent == nullptr) { return Result; }
 
 	Intent->Ability = AbilityId;
 	Intent->TargetCell = TargetCell;
@@ -708,7 +720,7 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SetFacingIntent(int32 TurnIndex, co
 	bool bDeclare, ERTHexDirection Facing, FString& OutError)
 {
 	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
-	FRTScenarioIntent* Intent = SlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	FRTScenarioIntent* Intent = DraftIntentSlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
 	if (Intent == nullptr) { return Result; }
 
 	Intent->bDeclaresFacing = bDeclare;
@@ -720,7 +732,7 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SetCoverEdgeIntent(int32 TurnIndex,
 	bool bDeclare, ERTHexDirection Edge, FString& OutError)
 {
 	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
-	FRTScenarioIntent* Intent = SlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	FRTScenarioIntent* Intent = DraftIntentSlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
 	if (Intent == nullptr) { return Result; }
 
 	Intent->bHasCoverEdge = bDeclare;
@@ -732,7 +744,7 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SetReactionIntent(int32 TurnIndex, 
 	FName ReactionAbility, FName ConditionId, int32 ConditionParam, FString& OutError)
 {
 	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
-	FRTScenarioIntent* Intent = SlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	FRTScenarioIntent* Intent = DraftIntentSlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
 	if (Intent == nullptr) { return Result; }
 
 	Intent->Reaction = ReactionAbility;
