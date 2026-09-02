@@ -615,4 +615,270 @@ bool FRTReplayAuditChargeIsAChoiceTest::RunTest(const FString&)
 	return true;
 }
 
+
+namespace
+{
+/**
+ * Una partita **giocata e archiviata**, riletta da disco — e i suoi difetti DICHIARATI invece che ignorati.
+ *
+ * 🔴 **I byte accanto alle voci, e i byte sono la misura.** `DescribeFirstDivergence` confronta due voci con
+ * `GoldenEntriesMatch`, cioe' con l'**hash** — e `UnitId`, `TurnNumber`, `Priority`, `ReactionInstanceId` e
+ * `OriginalTargetUnitId` nell'hash non entrano ([D-063]). Ma `SerializeTurnLog` li **scrive**. Un test che
+ * dicesse «archivi identici» guardando solo l'hash resterebbe verde con due archivi diversi su disco in ogni
+ * voce: basterebbe togliere il `Sort` di `EnsureMatchRoster`. Le voci restano, e servono a **nominare** la
+ * divergenza; a dichiararla sono i byte.
+ */
+struct FRTPartitaArchiviata
+{
+	TArray<TArray<uint8>> Byte;                  // i byte di ogni turno, come stanno su disco
+	TArray<TArray<FRTTurnLogEntry>> Voci;        // le stesse tracce lette, per dire DOVE
+	FGuid MatchId;
+	int32 TurniGiocati = 0;
+	bool bFinita = false;                        // ha raggiunto `MatchEnded`, non il tetto di sicurezza
+	bool bTutteLette = true;                     // ogni turno giocato ha il suo file, e si e' letto
+};
+
+/**
+ * Gioca una partita registrata e la rilegge da disco.
+ *
+ * `PerturbaVerso` sposta l'unita' di partenza della squadra 0 — **scelta per squadra e cella, non per
+ * ordine di container**: `GetAllActorsOfClass` non ha un ordine contrattuale, e farci dipendere QUALE
+ * unita' viene spostata renderebbe l'esperimento diverso da quello descritto senza che niente lo dica.
+ *
+ * ⚠️ **Non azzera `Out`: lo pretende vuoto.** Un helper che accoda dove il chiamante crede si riempia
+ * concatenerebbe due partite in silenzio, e il confronto leggerebbe il turno 3 di una contro il 22
+ * dell'altra chiamandoli entrambi «turno 3».
+ */
+bool GiocaEArchivia(FAutomationTestBase& Test, const TCHAR* Nome, const FRTCellId* PerturbaVerso,
+	FRTPartitaArchiviata& Out)
+{
+	check(Out.Byte.Num() == 0 && Out.Voci.Num() == 0);
+
+	const FString Root = ProducerRoot(Nome);
+	PuliscIProducer(Root);
+
+	UWorld* World = MakeReplayProducerWorld();
+	if (!Test.TestNotNull(*FString::Printf(TEXT("%s: world di prova"), Nome), World)) { return false; }
+
+	ARTTurnManager* TM = SetUpMatch(World);
+	if (!Test.TestNotNull(*FString::Printf(TEXT("%s: TurnManager"), Nome), TM))
+	{
+		DestroyReplayProducerWorld(World);
+		PuliscIProducer(Root);
+		return false;
+	}
+
+	if (PerturbaVerso != nullptr)
+	{
+		TArray<AActor*> Attori;
+		UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Attori);
+
+		ARTUnit* DaSpostare = nullptr;
+		bool bDestinazioneLibera = true;
+		for (AActor* Attore : Attori)
+		{
+			ARTUnit* U = Cast<ARTUnit>(Attore);
+			if (!U) { continue; }
+			// L'unita' che `SetUpMatch` mette in (-4,2): nominata, non pescata.
+			if (U->TeamId == 0 && U->Cell == FRTCellId(-4, 2)) { DaSpostare = U; }
+			if (U->Cell == *PerturbaVerso) { bDestinazioneLibera = false; }
+		}
+
+		// 🔴 Entrambe le condizioni si DICHIARANO: se `SetUpMatch` cambia le sue celle di partenza, questo
+		// test deve dirlo forte invece di spostare un'altra unita' — o di impilarne due sulla stessa cella,
+		// che e' uno stato illegale da cui la divergenza verrebbe comunque, ma per la ragione sbagliata.
+		if (!Test.TestNotNull(*FString::Printf(TEXT("%s: l'unita' da perturbare e' dove la fixture la mette"), Nome), DaSpostare)
+			|| !Test.TestTrue(*FString::Printf(TEXT("%s: la cella di destinazione e' libera"), Nome), bDestinazioneLibera))
+		{
+			DestroyReplayProducerWorld(World);
+			PuliscIProducer(Root);
+			return false;
+		}
+		DaSpostare->PlaceOnCell(*PerturbaVerso, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+	}
+
+	TM->ReplaysRootOverride = Root;
+	TM->BeginReplayRecording();
+	Out.MatchId = TM->GetReplayMatchId();
+
+	// 🔴 `BeginReplayRecording` esce in silenzio senza formato o a registrazione spenta. Senza questa riga
+	// il difetto arriverebbe travestito da «l'archivio non si legge», che manda chi legge dalla parte
+	// sbagliata: il difetto sarebbe che la registrazione non e' mai partita.
+	if (!Test.TestTrue(*FString::Printf(TEXT("%s: la registrazione e' partita"), Nome), Out.MatchId.IsValid()))
+	{
+		DestroyReplayProducerWorld(World);
+		PuliscIProducer(Root);
+		return false;
+	}
+
+	Out.TurniGiocati = PlayToCompletion(TM);
+	Out.bFinita = (TM->GetPhase() == ERTMatchPhase::MatchEnded);
+
+	for (int32 Turno = 1; Turno <= Out.TurniGiocati; ++Turno)
+	{
+		const FString Path = FPaths::Combine(
+			URTReplayRecorderLibrary::MatchDirectory(Root, Out.MatchId),
+			URTReplayRecorderLibrary::TurnFileName(Turno));
+
+		TArray<uint8> Byte;
+		TArray<FRTTurnLogEntry> Voci;
+		// ⚠️ **Una lettura fallita si DICHIARA, non si salta.** Saltandola gli array si compattano, e da li'
+		// in poi `Voci[i]` non e' piu' il turno `i+1`: il confronto direbbe «turno 3» guardando il 4. E
+		// `Byte.Num()` diventerebbe «file che si sono letti» invece di «turni giocati», cioe' un archivio
+		// rotto sarebbe indistinguibile da una divergenza vera.
+		if (!FFileHelper::LoadFileToArray(Byte, *Path)
+			|| !URTTurnLogLibrary::LoadTurnLogFromFile(Path, Voci))
+		{
+			Out.bTutteLette = false;
+			break;
+		}
+		Out.Byte.Add(MoveTemp(Byte));
+		Out.Voci.Add(MoveTemp(Voci));
+	}
+
+	DestroyReplayProducerWorld(World);
+	PuliscIProducer(Root);
+	return true;
+}
+
+/**
+ * Le guardie comuni ai due test del determinismo: una partita che non e' finita, o che ha perso un turno,
+ * non e' un ingresso valido per nessuno dei due confronti.
+ *
+ * 🔴 **`PlayToCompletion` esce in silenzio al tetto dei 40 turni**, e `PlayOneTurn` si arrende dopo 400 tick
+ * con la risoluzione ancora aperta. Senza queste righe, un giorno in cui le partite smettessero di decidersi
+ * si confronterebbero tre archivi tronchi e il test riporterebbe «determinismo» su tre partite mai finite.
+ */
+bool ArchivioUtilizzabile(FAutomationTestBase& Test, const TCHAR* Nome, const FRTPartitaArchiviata& P)
+{
+	bool bOk = Test.TestTrue(*FString::Printf(TEXT("%s: la partita si e' DECISA, non e' finita al tetto"), Nome), P.bFinita);
+	bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: ogni turno giocato ha il suo file"), Nome), P.bTutteLette);
+	bOk &= Test.TestEqual(*FString::Printf(TEXT("%s: e i turni letti sono quelli giocati"), Nome),
+		P.Byte.Num(), P.TurniGiocati);
+	// ⚠️ Anti-vacuita' del VOLUME: una partita di un turno solo renderebbe il confronto quasi muto.
+	bOk &= Test.TestTrue(*FString::Printf(TEXT("%s: e i turni sono piu' di uno"), Nome), P.TurniGiocati > 1);
+	return bOk;
+}
+}
+
+/**
+ * 🔑 **L'archivio permette di RIPRODURRE il determinismo, non solo di raccontarlo** — l'AC di
+ * [#1805](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1805) *«stesso stato/input/regole →
+ * stesso esito»*.
+ *
+ * ⚠️ **Sembrava coperta e non lo era.** `Replay.Verifier.ReportsFirstDivergence` esiste e nomina turno, fase
+ * e `ActionId` — ma il suo stesso commento dichiara il confine: *«Il confronto e' fra due tracce. Chi
+ * produce la seconda ri-simulando e' il chiamante»*. Nessuno era quel chiamante. E il corpus golden non
+ * copre questo: le sue referenze sono file `.rttl` **committati**, non archivi **prodotti da una partita**.
+ *
+ * Qui l'anello si chiude: due partite allestite identiche, **entrambe registrate**, e gli archivi
+ * riconfrontati **da disco** — non dagli array in memoria, che proverebbero che il `TurnManager` ha una
+ * variabile.
+ *
+ * 🔴 **Il confronto e' sui BYTE**, per la ragione scritta su `FRTPartitaArchiviata`: l'hash non guarda
+ * `UnitId` e altri quattro campi che pero' finiscono su disco.
+ *
+ * ⚠️ **Il caso in cui l'archivio DEVE distinguere vive nel suo test**, `AChangedInputMakesTheArchiveDiverge`:
+ * un braccio che fallisce dietro il `return` di un altro non e' un braccio che si misura.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayDeterminismFromArchiveTest,
+	"RefactorTactics.Replay.Producer.TwoIdenticalMatchesLeaveIdenticalArchives",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayDeterminismFromArchiveTest::RunTest(const FString&)
+{
+	FRTPartitaArchiviata A, B;
+	if (!GiocaEArchivia(*this, TEXT("DetA"), nullptr, A)) { return false; }
+	if (!GiocaEArchivia(*this, TEXT("DetB"), nullptr, B)) { return false; }
+	if (!ArchivioUtilizzabile(*this, TEXT("A"), A) || !ArchivioUtilizzabile(*this, TEXT("B"), B)) { return false; }
+
+	if (!TestEqual(TEXT("le due partite hanno prodotto lo stesso numero di turni"), B.Byte.Num(), A.Byte.Num()))
+	{
+		return false;
+	}
+
+	int32 VociConfrontate = 0;
+	for (int32 i = 0; i < A.Byte.Num(); ++i)
+	{
+		// I BYTE decidono; le voci servono solo a dire DOVE quando i byte non coincidono.
+		if (A.Byte[i] != B.Byte[i])
+		{
+			const FString Dove = URTTurnLogLibrary::DescribeFirstDivergence(i + 1, A.Voci[i], B.Voci[i]);
+			AddError(FString::Printf(
+				TEXT("turno %d: i due archivi differiscono su disco (%d vs %d byte). %s"),
+				i + 1, A.Byte[i].Num(), B.Byte[i].Num(),
+				Dove.IsEmpty() ? TEXT("Nessuna voce diverge per hash: la differenza e' in un campo che l'hash non guarda.") : *Dove));
+		}
+		VociConfrontate += A.Voci[i].Num();
+	}
+	// ⚠️ Anti-vacuita' delle VOCI: turni vuoti si confrontano uguali senza dire niente.
+	TestTrue(TEXT("il confronto ha guardato delle voci"), VociConfrontate > 0);
+
+	AddInfo(FString::Printf(TEXT("determinismo: %d turni, %d voci, archivi byte-identici"),
+		A.Byte.Num(), VociConfrontate));
+	return true;
+}
+
+/**
+ * 🔑 **L'anti-vacuita' del test qui sopra, e vive separata perche' e' una claim separata**: un confronto fra
+ * due cose uguali resta verde anche se il confronto non guarda.
+ *
+ * La partita cambia **un solo** ingresso — la cella di partenza di un'unita' — e l'archivio deve
+ * distinguerla, **dicendo dove**. Il messaggio e' quello che il DoD di `#178` pretende: turno, fase,
+ * `ActionId`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayArchiveDistinguishesInputTest,
+	"RefactorTactics.Replay.Producer.AChangedInputMakesTheArchiveDiverge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayArchiveDistinguishesInputTest::RunTest(const FString&)
+{
+	const FRTCellId Perturbata(-3, 2);
+
+	FRTPartitaArchiviata A, C;
+	if (!GiocaEArchivia(*this, TEXT("DetRif"), nullptr, A)) { return false; }
+	if (!GiocaEArchivia(*this, TEXT("DetPert"), &Perturbata, C)) { return false; }
+	if (!ArchivioUtilizzabile(*this, TEXT("riferimento"), A)
+		|| !ArchivioUtilizzabile(*this, TEXT("perturbata"), C))
+	{
+		return false;
+	}
+
+	// La divergenza si cerca **prima nei byte**, che e' la misura, e poi si NOMINA con le voci.
+	int32 TurnoDiverso = INDEX_NONE;
+	const int32 Comuni = FMath::Min(A.Byte.Num(), C.Byte.Num());
+	for (int32 i = 0; i < Comuni && TurnoDiverso == INDEX_NONE; ++i)
+	{
+		if (A.Byte[i] != C.Byte[i]) { TurnoDiverso = i; }
+	}
+
+	if (!TestTrue(TEXT("una cella di partenza diversa produce un archivio diverso"),
+			TurnoDiverso != INDEX_NONE || C.Byte.Num() != A.Byte.Num()))
+	{
+		return false;
+	}
+
+	// 🔴 **E la diagnosi si pretende, non si spera.** Con questa asserzione dentro un `if` sul risultato
+	// precedente, il giorno in cui la perturbazione cambiasse solo la LUNGHEZZA della partita il test
+	// resterebbe verde senza aver mai verificato che una divergenza dica DOVE — che e' l'unica cosa per cui
+	// `DescribeFirstDivergence` esiste.
+	if (!TestTrue(TEXT("e la divergenza cade in un turno che ENTRAMBE le partite hanno giocato"),
+			TurnoDiverso != INDEX_NONE))
+	{
+		return false;
+	}
+
+	const FString Dove = URTTurnLogLibrary::DescribeFirstDivergence(
+		TurnoDiverso + 1, A.Voci[TurnoDiverso], C.Voci[TurnoDiverso]);
+
+	// Il formato e' «turno N, voce M: fase F, azione '...' — ...». Si pinna dall'INIZIO invece di cercare tre
+	// parole dentro la riga intera: quelle parole compaiono anche nella descrizione delle due voci, quindi
+	// un `Contains` resterebbe verde su un'intestazione riscritta — cioe' proprio quando il DoD si rompe.
+	TestTrue(*FString::Printf(TEXT("e la divergenza dice DOVE: %s"), *Dove),
+		Dove.StartsWith(FString::Printf(TEXT("turno %d, voce "), TurnoDiverso + 1))
+		&& Dove.Contains(TEXT(": fase ")) && Dove.Contains(TEXT("azione ")));
+
+	AddInfo(FString::Printf(TEXT("distinzione: riferimento %d turni, perturbata %d; prima divergenza al turno %d — %s"),
+		A.Byte.Num(), C.Byte.Num(), TurnoDiverso + 1, *Dove));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
