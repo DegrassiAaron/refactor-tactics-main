@@ -2053,6 +2053,25 @@ sessions:
       raggiungibile da *Window → Tools → Tactical Designer*. ⚠️ **E il criterio che conta di più**: dopo
       tutto questo `L_DevSandbox` **non** è marcata come modificata — nessun asterisco sul nome del livello,
       e `git status` pulito su `Content/RT/Maps/Dev/L_DevSandbox/`.
+    notes: >-
+      🔄 **Tentata il 2026-09-02, interrotta al passo 2 da un crash che NON è di questa seduta.** Aprire
+      `L_HexArena` terminava l'editor con `World Memory Leaks: 2 leaks objects and packages` —
+      [#2115](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2115), corretta lo stesso
+      giorno. La causa stava altrove: `URTScenarioPreviewSubsystem` è un `UEditorSubsystem` e teneva
+      `UPROPERTY` **forti** verso gli attori d'anteprima, che vivono nel `PersistentLevel` del mondo
+      corrente; con un'anteprima a schermo, il mondo vecchio non poteva essere raccolto. ⚠️ **Il passo 2 di
+      questa seduta è quindi anche il riproduttore di quel difetto**: chi la rifà con un'anteprima attiva
+      sta esercitando la correzione, non solo il launcher.
+      ✅ **Confermato dal log prima dell'interruzione**: `L_DevSandbox` si carica da sola
+      (`Cmd: MAP LOAD FILE=...L_DevSandbox.umap` come prima riga) e
+      `LogRTDevSandboxLauncher: [TacticalDesigner] livello di bootstrap aperto: presento il launcher.`
+      compare senza che nessuno abbia invocato niente. Il tab è stato visto a schermo.
+      🔴 **E un ritrovamento che il `done_when` non copre**: il tab compare in una **finestra fluttuante**,
+      non dockato. È un `ETabRole::NomadTab` invocato con `TryInvokeTab` senza una posizione nel layout
+      dell'editor (`RTDevSandboxLauncherSubsystem.cpp:44,68`) — una lacuna di configurazione, non un
+      difetto di vita degli oggetti, e per questo **fuori** da #2115. Chi decide che il posto giusto è
+      dockato apra la sua issue; questa nota esiste perché la constatazione non si perda.
+      ⚠️ I passi 3, 4 e 5 restano **NON ESEGUITI**.
 
   - id: U32
     title: Le tendine si popolano, la lista si ridisegna, e la selezione non cade sotto i filtri
