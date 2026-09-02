@@ -68,6 +68,10 @@ namespace
 			//    DIVERSE con lo stesso esito danno lo stesso hash: non e' deducibile da `Outcome`, quindi
 			//    metterla nel prodotto pubblico aggiungerebbe davvero la decisione a cio' che si vede.
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, Verdict),              ERTReplayFieldVisibility::AuditOnly },
+			// · `VerdictSubject` — contro CHI quel verdetto e' stato congelato. Sta di qua per la stessa
+			//   ragione del verdetto, e il gate ha preteso che lo dichiarassi: aggiungerlo senza classificarlo
+			//   avrebbe reso rosso `EveryLoggedFieldIsClassified`, che e' esattamente il suo mestiere.
+			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, VerdictSubject),       ERTReplayFieldVisibility::AuditOnly },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, OpportunityId),        ERTReplayFieldVisibility::AuditOnly },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, ReactionInstanceId),   ERTReplayFieldVisibility::AuditOnly },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, ReactionResponse),     ERTReplayFieldVisibility::AuditOnly },

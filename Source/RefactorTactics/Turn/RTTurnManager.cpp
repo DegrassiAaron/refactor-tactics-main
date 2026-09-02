@@ -40,6 +40,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Replay/RTMatchHistoryLibrary.h" // indice delle partite: una riga per partita, fuori dagli archivi (#416)
+#include "Replay/RTReplayAuditLibrary.h"
 #include "Replay/RTReplayRecorderLibrary.h"
 #include "Turn/RTMatchStateHash.h"
 #include "Misc/DateTime.h"
@@ -512,6 +513,11 @@ void ARTTurnManager::RefreshTeamKnowledgeForPlanning(const TArray<ARTUnit*>& Liv
 			Observers, EnemiesNow, KnowledgeForTeam(TeamId)));
 	}
 	TeamKnowledgeState = MoveTemp(Refreshed);
+
+	// [D-313]: l'istantanea di PLANNING e' cio' su cui il bot decidera'. Si copia qui perche' fra qui e la
+	// fine del turno la conoscenza viene rinfrescata di nuovo (nel Blast), e le due non sono la stessa cosa
+	// — e' precisamente la distinzione che rende auditabile una partita invece che raccontabile.
+	PlanningKnowledgeForAudit = TeamKnowledgeState;
 	// Chi disegna il velo rilegge QUI, non a `Tick` ([D-227]).
 	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
 }
@@ -2561,6 +2567,17 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor
 	Entry.Verdict = Actor ? FreezeVerdictFor(FRTLogSubject::Unit(Actor))
 	                      : FRTKnowledgeVerdict::Everyone();
 
+	// E il SOGGETTO contro cui e' stato congelato, che senza il verdetto non e' verificabile ([D-313]).
+	// Si scrive qui e non altrove per la stessa ragione del verdetto: e' l'unico istante in cui conoscenza
+	// e cella dell'attore appartengono allo stesso momento.
+	if (Actor)
+	{
+		Entry.VerdictSubject.StableUnitId = Actor->StableUnitId;
+		Entry.VerdictSubject.TeamId = Actor->TeamId;
+		Entry.VerdictSubject.Cell = Actor->Cell;
+		Entry.VerdictSubject.bAlive = Actor->IsAlive();
+	}
+
 	// L'UNICO `TurnLog.Add` del file: ogni altro sito passa da qui.
 	TurnLog.Add(Entry);
 }
@@ -3165,6 +3182,46 @@ void ARTTurnManager::RecordTurnToReplay()
 		// Non e' un errore di gioco: la partita continua anche se il disco no. Ma va DETTO, o un archivio
 		// che non c'e' si scopre solo quando qualcuno prova a riaprirlo.
 		AddLogEvent(FString::Printf(TEXT("Replay: il turno %d non e' stato registrato"), TurnNumber), FRTLogSubject::World());
+		return;
+	}
+
+	// [D-313] — l'evidenza d'audit, ACCANTO alla traccia e non dentro.
+	//
+	// 🔴 **Solo se la traccia e' andata a buon fine**, e il `return` qui sopra e' la riga che lo
+	// garantisce: un audit senza la sua traccia sarebbe una prova che non prova niente, e peggio, un archivio
+	// che sembra completo. E' la disciplina di `RecordTurn` e `CloseMatch`, un livello piu' su.
+	FRTTurnAudit Audit;
+	Audit.MatchId = ReplayManifest.MatchId;
+	Audit.TurnNumber = TurnNumber;
+
+	// L'ancora: `RecordTurn` ha appena accodato l'hash ordinato di QUESTO turno. Lega l'evidenza alla
+	// TRACCIA, non solo alla partita e al numero — cosi' una traccia rigenerata smette di sembrarne la coppia.
+	Audit.OrderedHash = ReplayManifest.OrderedHashPerTurn.Num() > 0
+		? ReplayManifest.OrderedHashPerTurn.Last()
+		: 0;
+
+	Audit.PlanningKnowledge = PlanningKnowledgeForAudit;
+	Audit.BlastKnowledge = BlastKnowledgeForAudit;
+
+	// I verdetti nell'ordine in cui le voci sono ARCHIVIATE: `TurnLog` e' gia' ordinato quando si arriva
+	// qui, ed e' lo stesso ordine che il recorder scrive. Il soggetto viaggia sull'entry proprio perche' un
+	// indice non sarebbe sopravvissuto a `SortTurnLog`.
+	Audit.Verdicts.Reserve(TurnLog.Num());
+	for (const FRTTurnLogEntry& Entry : TurnLog)
+	{
+		FRTAuditVerdictRecord Record;
+		Record.Phase = Entry.Phase;
+		Record.SubjectUnitId = Entry.VerdictSubject.StableUnitId;
+		Record.SubjectTeamId = Entry.VerdictSubject.TeamId;
+		Record.SubjectCell = Entry.VerdictSubject.Cell;
+		Record.Verdict = Entry.Verdict;
+		Audit.Verdicts.Add(Record);
+	}
+
+	if (!URTReplayAuditLibrary::RecordTurnAudit(ResolveReplaysRoot(), Audit))
+	{
+		AddLogEvent(FString::Printf(TEXT("Replay: l'audit del turno %d non e' stato registrato"), TurnNumber),
+			FRTLogSubject::World());
 	}
 }
 

@@ -1,11 +1,13 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Replay/RTReplayAuditLibrary.h"
 #include "Replay/RTReplayRecorderLibrary.h"
 #include "Replay/RTReplayManifest.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMatchFormatData.h"
 #include "Turn/RTMatchFormatLibrary.h"
 #include "Turn/RTTurnLog.h"
+#include "EngineUtils.h" // TActorIterator: la tabella unita'->squadra si costruisce dal mondo
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnRules.h"
 #include "Unit/RTUnit.h"
@@ -386,6 +388,113 @@ bool FRTReplayProducerPartialArchiveTest::RunTest(const FString&)
 	TestFalse(TEXT("il manifest non e' chiuso"), Letto.bClosed);
 	TestTrue(TEXT("l'esito resta 'in corso'"), Letto.Outcome == ERTMatchOutcome::InProgress);
 	TestEqual(TEXT("nessun checksum di fine partita"), Letto.FinalStateHash, static_cast<int64>(0));
+
+	DestroyReplayProducerWorld(World);
+	PuliscIProducer(Root);
+	return true;
+}
+
+/**
+ * 🔑 **Una partita giocata lascia un'evidenza AUDITABILE, e i due controlli la trovano pulita.**
+ *
+ * E' il test che distingue un archivio che *contiene* la conoscenza da uno che *dimostra* qualcosa: i tre
+ * record di [D-313] esistono su disco, si rileggono, e le due domande d'audit ottengono una risposta invece
+ * di una promessa.
+ *
+ * ⚠️ **Bot contro bot**, quindi entrambe le squadre si giudicano: l'harness gia' lo fa, e qui serve —
+ * un controllo d'equita' che escludesse una delle due meta' del campo proverebbe meta' di cio' che dice.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayAuditProducerTest,
+	"RefactorTactics.Replay.Audit.AMatchLeavesAuditableEvidence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayAuditProducerTest::RunTest(const FString&)
+{
+	const FString Root = ProducerRoot(TEXT("AuditEvidence"));
+	PuliscIProducer(Root);
+
+	UWorld* World = MakeReplayProducerWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTTurnManager* TM = SetUpMatch(World);
+	if (!TM) { DestroyReplayProducerWorld(World); return false; }
+
+	TM->ReplaysRootOverride = Root;
+	TM->BeginReplayRecording();
+	const FGuid MatchId = TM->GetReplayMatchId();
+
+	// La tabella unita' -> squadra si costruisce PRIMA di giocare: a fine partita qualcuno puo' essere morto,
+	// e un'unita' distrutta non direbbe piu' di che squadra era.
+	TMap<int32, int32> TeamOfUnit;
+	for (TActorIterator<ARTUnit> It(World); It; ++It)
+	{
+		TeamOfUnit.Add(It->StableUnitId, It->TeamId);
+	}
+	const TSet<int32> BotTeams = { 0, 1 };
+
+	const int32 TurnsPlayed = PlayToCompletion(TM);
+	if (!TestTrue(TEXT("sono stati giocati piu' turni"), TurnsPlayed > 1))
+	{
+		DestroyReplayProducerWorld(World);
+		PuliscIProducer(Root);
+		return false;
+	}
+
+	FRTReplayManifest Manifest;
+	if (!TestTrue(TEXT("il manifest si rilegge"),
+			URTReplayRecorderLibrary::LoadManifest(Root, MatchId, Manifest)))
+	{
+		DestroyReplayProducerWorld(World);
+		PuliscIProducer(Root);
+		return false;
+	}
+
+	int32 ConVerdetti = 0;
+	for (int32 Turno = 1; Turno <= TurnsPlayed; ++Turno)
+	{
+		FRTTurnAudit Audit;
+		if (!TestTrue(*FString::Printf(TEXT("l'audit del turno %d e' su disco e si rilegge"), Turno),
+				URTReplayAuditLibrary::LoadTurnAudit(Root, MatchId, Turno, Audit)))
+		{
+			continue;
+		}
+
+		// L'ancora tiene: l'evidenza dichiara la TRACCIA a cui appartiene, non solo il turno.
+		if (Manifest.OrderedHashPerTurn.IsValidIndex(Turno - 1))
+		{
+			TestEqual(*FString::Printf(TEXT("turno %d: l'ancora coincide col manifest"), Turno),
+				Audit.OrderedHash, Manifest.OrderedHashPerTurn[Turno - 1]);
+		}
+
+		// Due conoscenze per squadra: se una delle due liste fosse vuota, uno dei due controlli sarebbe
+		// verde per assenza di soggetto invece che per assenza di difetti.
+		TestTrue(*FString::Printf(TEXT("turno %d: la conoscenza di Planning c'e'"), Turno),
+			Audit.PlanningKnowledge.Num() > 0);
+		TestTrue(*FString::Printf(TEXT("turno %d: la conoscenza di Blast c'e'"), Turno),
+			Audit.BlastKnowledge.Num() > 0);
+
+		// 🔑 Il controllo di coerenza dei verdetti: l'anti-vacuita' di [D-223], su una partita vera.
+		const TArray<FString> Divergenze = URTReplayAuditLibrary::FindVerdictMismatches(Audit);
+		TestEqual(*FString::Printf(TEXT("turno %d: nessun verdetto diverge dalla conoscenza registrata (%s)"),
+			Turno, *FString::Join(Divergenze, TEXT(" | "))), Divergenze.Num(), 0);
+		ConVerdetti += Audit.Verdicts.Num();
+
+		// 🔑 Il controllo d'equita', sulle voci che quella traccia porta davvero.
+		TArray<FRTTurnLogEntry> Voci;
+		const FString TracePath = FPaths::Combine(
+			URTReplayRecorderLibrary::MatchDirectory(Root, MatchId),
+			URTReplayRecorderLibrary::TurnFileName(Turno));
+		if (URTTurnLogLibrary::LoadTurnLogFromFile(TracePath, Voci))
+		{
+			const TArray<FString> Violazioni =
+				URTReplayAuditLibrary::FindUnknownTargetViolations(Audit, Voci, TeamOfUnit, BotTeams);
+			TestEqual(*FString::Printf(TEXT("turno %d: nessun bot ha colpito cio' che non conosceva (%s)"),
+				Turno, *FString::Join(Violazioni, TEXT(" | "))), Violazioni.Num(), 0);
+		}
+	}
+
+	// ⚠️ **Anti-vacuita' dell'intero test**: senza un verdetto registrato, `FindVerdictMismatches` sarebbe
+	// verde su un array vuoto e questo test non proverebbe niente. Una partita giocata ne produce.
+	TestTrue(TEXT("la partita ha prodotto verdetti da verificare"), ConVerdetti > 0);
 
 	DestroyReplayProducerWorld(World);
 	PuliscIProducer(Root);

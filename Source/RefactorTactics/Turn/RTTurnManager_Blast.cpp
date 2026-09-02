@@ -198,6 +198,11 @@ void ARTTurnManager::RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx)
 			KnowledgeForTeam(TeamId)));
 	}
 	TeamKnowledgeState = MoveTemp(Refreshed);
+
+	// [D-313]: l'istantanea di BLAST e' quella contro cui i verdetti delle voci saranno congelati. E' la
+	// seconda delle due sole assegnazioni di `TeamKnowledgeState`, e la loro differenza e' il motivo per cui
+	// l'artefatto d'audit ne registra due invece di una.
+	BlastKnowledgeForAudit = TeamKnowledgeState;
 	// Il secondo punto: una cella rivelata da un'esplosione compare a META' playback ([D-227]).
 	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
 }

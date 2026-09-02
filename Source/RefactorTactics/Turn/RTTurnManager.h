@@ -1461,6 +1461,20 @@ protected:
 	UPROPERTY()
 	TArray<FRTCombatLogLine> RecentEvents;
 
+	/**
+	 * Le due istantanee di conoscenza del turno, per l'artefatto d'audit di [D-313] (`#2074`).
+	 *
+	 * ⚠️ **Due e non una**, e non e' ridondanza: `TeamKnowledgeState` ha esattamente due assegnazioni per
+	 * turno — il refresh di Planning e quello di Blast — e le due rispondono a domande d'audit diverse. La
+	 * prima e' cio' su cui il bot ha deciso, la seconda quella contro cui i verdetti sono stati congelati.
+	 * Registrarne una sola renderebbe una delle due verifiche impossibile.
+	 *
+	 * ⛔ **Copie, non riferimenti, e non entrano in nessun hash**: registrare non deve poter cambiare cio'
+	 * che si registra.
+	 */
+	TArray<FRTTeamKnowledge> PlanningKnowledgeForAudit;
+	TArray<FRTTeamKnowledge> BlastKnowledgeForAudit;
+
 	/** TurnLog dell'ultimo turno risolto (osservabilita' autoritativa; ordinato in LockInAndResolve). */
 	TArray<FRTTurnLogEntry> TurnLog;
 

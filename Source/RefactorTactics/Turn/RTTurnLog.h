@@ -4,6 +4,7 @@
 #include "Core/RTTypes.h"
 #include "Turn/RTTurnRules.h"
 #include "Perception/RTTeamKnowledge.h" // FRTKnowledgeVerdict: il verdetto congelato di [D-223]
+#include "Perception/RTKnowledgeView.h" // FRTKnowledgeSubject: contro CHI quel verdetto e' stato congelato
 #include "RTTurnLog.generated.h"
 
 /**
@@ -749,6 +750,25 @@ struct FRTTurnLogEntry
 	 */
 	UPROPERTY(Transient)
 	FRTKnowledgeVerdict Verdict;
+
+	/**
+	 * Il soggetto contro cui `Verdict` e' stato congelato ([D-313], `#2074`).
+	 *
+	 * 🔴 **Senza, il verdetto non e' VERIFICABILE**, ed e' l'unica ragione per cui esiste: nessuno dei tre
+	 * ingressi di `FreezeVerdict` si ricava dalla voce archiviata. `SrcCell` e' la cella di PARTENZA del
+	 * turno, non quella al momento della scrittura; il `TeamId` non c'e'; e `UnitId` su una voce di danno e'
+	 * spesso chi SUBISCE. Ricalcolare da li' produrrebbe falsi disallineamenti — un controllo che accusa il
+	 * gioco di un difetto che non ha.
+	 *
+	 * ⚠️ **Vive QUI e non in un array parallelo, per la stessa ragione del verdetto**: `SortTurnLog`
+	 * riordina, e un indice non sopravviverebbe al sort. Il campo si'.
+	 *
+	 * 🔴 **`Transient`, come `Verdict`**: non entra nel formato, non entra in `EntryLess`, non entra in
+	 * `MixEntryFields`, e nessun golden si rigenera. Chi lo vuole durevole lo trova nell'artefatto d'audit
+	 * accanto alla traccia, che e' il posto che [D-313] gli assegna.
+	 */
+	UPROPERTY(Transient)
+	FRTKnowledgeSubject VerdictSubject;
 
 	/**
 	 * Turno in cui la voce e' stata emessa. `0` = non dichiarato (tracce scritte prima del formato v6).
