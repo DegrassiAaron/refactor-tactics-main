@@ -221,6 +221,28 @@ struct FRTHexBotContext
  * differenza che regge e' un'altra — il bot non sceglie il PERCORSO, sceglie la destinazione.
  * Vedi docs/gameplay/spec-bot-hex.md.
  */
+/**
+ * Una reazione che il bot puo' armare, con il suo punteggio e la sua ORIGINE ([D-268], `#1802`).
+ *
+ * ⚠️ **L'origine e' un dato, non una posizione nell'array.** Fino a [D-220] «prima il kit» funzionava
+ * perche' `EquipLoadout` accoda, cioe' per accidente: chi costruisce le candidate la chiede al catalogo, e
+ * il tie-break la legge di qui.
+ */
+USTRUCT()
+struct FRTReactionCandidate
+{
+	GENERATED_BODY()
+
+	/** Indice dell'abilita' sull'unita'. */
+	UPROPERTY() int32 AbilityIndex = INDEX_NONE;
+
+	/** Punteggio tattico, da `ScoreReaction`. */
+	UPROPERTY() int32 Score = 0;
+
+	/** `true` se viene dal KIT dell'eroe, `false` se da un modulo di loadout. */
+	UPROPERTY() bool bFromKit = false;
+};
+
 UCLASS()
 class REFACTORTACTICS_API URTHexBotLibrary : public UBlueprintFunctionLibrary
 {
@@ -263,6 +285,31 @@ public:
 	 * meno la penalita' di posizionamento (kiter sotto standoff o oltre la propria portata / mischia lontana), piu' il bonus di quota.
 	 */
 	static int32 ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context);
+
+	/**
+	 * Punteggio tattico di una REAZIONE ([D-268], `#1802`), chiavato sul suo `ReactionTrigger`.
+	 *
+	 * Vale in proporzione alla minaccia a cui puo' rispondere, e la minaccia si misura **solo** su cio' che
+	 * `Context` contiene — che e' gia' filtrato sulla conoscenza autorizzata della squadra, con la stessa
+	 * regola del targeting umano. Nessun peso nuovo: `WThreat` e `WAllyDamage` sono quelli del tuning.
+	 *
+	 * 🔴 **Due trigger valgono zero, ed e' dichiarato invece che nascosto**: `AboutToBeDisplaced` e
+	 * `AboutToReceiveControl` risponderebbero a una spinta o a un controllo, e la conoscenza autorizzata non
+	 * porta le CAPACITA' nemiche — sa dove sono e quanto arrivano lontano, non che cosa sanno fare.
+	 * Inventare quel termine sarebbe l'onniscienza rientrata dalla finestra.
+	 *
+	 * ⚠️ **Zero non e' «non armarla»**: a punteggi tutti nulli decide il tie-break, cioe' il kit, cioe' il
+	 * comportamento che c'era prima di questa issue.
+	 */
+	static int32 ScoreReaction(const FRTActionDef& Def, const FRTHexBotContext& Context);
+
+	/**
+	 * La reazione da armare fra le candidate: punteggio massimo, e a **parita' esatta** vince il kit
+	 * ([D-268]). Ancora pari, vince l'indice piu' basso — cosi' permutare le candidate non cambia l'esito.
+	 *
+	 * `INDEX_NONE` se non ce ne sono.
+	 */
+	static int32 SelectReaction(const TArray<FRTReactionCandidate>& Candidates);
 
 	/**
 	 * Candidata a punteggio massimo. TIE-BREAK ASSOLUTO: a parita' di punteggio vince la MOSSA MINIMA da

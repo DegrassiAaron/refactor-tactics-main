@@ -242,8 +242,45 @@ Questa sezione è la più importante, perché è quella dove la spec e il DoD de
 | **Nessun accesso agli intenti nemici nascosti** | ✅ **vero**. `FRTHexBotContext` non contiene intenti: solo posizioni, gittate e HP. Il bot non può leggere il piano avversario perché il tipo non lo trasporta |
 | **Pianifica sulla Team Knowledge della propria squadra** | ✅ **vero dal 2026-08-11** (CP 13.5, [#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160)). `PlanBots` costruisce `Ctx.Enemies` da `FRTTeamKnowledge` con la **stessa** regola del targeting umano (`ClassifyTarget`): visto → cella e condizione attuali; ricordato → cella dell'ultimo contatto e HP **massimi**, perché la squadra conosce l'identità e non la condizione; ignoto → non esiste. Il gate è `HexBotPlay.HiddenEnemyFairness`, e cade se l'onniscienza rientra |
 | **Tiene conto del facing e dell'arco frontale** | ❌ **non ancora**. `ScorePlan` non legge il facing: né il proprio, né quello dei nemici. La minaccia è calcolata su gittata + LOS, senza cono |
-| **Ha una politica di reazione esplicita** | ❌ **non ancora**. Il bot non arma reazioni e non dichiara un regime |
+| **Ha una politica di reazione esplicita** | ✅ **vero dal 2026-09-02** ([D-268], [#1802](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1802)). Il bot arma reazioni da [D-220] e da qui le **sceglie col punteggio**: vedi §6.1 |
 | **Validato sotto stress 4v4** | ❌ **non ancora**. La suite lo esercita a 2v2 |
+
+### 6.1 La politica di reazione — punteggio, e il kit come spareggio
+
+[D-220] aveva **dichiarato la regola che c'era già** — prima il kit, il modulo di loadout come riserva —
+invece di sceglierne una: deterministica, ma non tattica. La reazione d'identità vinceva sempre, quale che
+fosse il suo valore in quella situazione. [D-268] sceglie la politica, e questa spec la registra.
+
+```text
+per ogni reazione utilizzabile (kit E loadout):
+    Score = ScoreReaction(Def, Ctx)          // solo su cio' che la SQUADRA conosce
+si arma:  punteggio massimo
+          a parita' esatta -> quella di KIT
+          ancora pari      -> indice piu' basso
+```
+
+I termini, chiavati sul `ReactionTrigger` dell'azione, e **senza nessun peso nuovo**:
+
+| Trigger | Termine | Perché |
+|---|---|---|
+| `HitByDirectAttack` | `WThreat` × nemici **conosciuti** la cui portata copre la mia cella | una parata vale se qualcuno può colpirmi |
+| `AllyHitByDirectAttack` | `WAllyDamage` × alleati entro `RangeCells` che un nemico conosciuto può colpire | un'interposizione vale se c'è chi proteggere |
+| `AboutToBeDisplaced` | **0** | ⛔ la conoscenza autorizzata non porta le **capacità** nemiche |
+| `AboutToReceiveControl` | **0** | ⛔ stessa ragione |
+
+🔴 **I due zeri sono dichiarati, non dimenticati.** Sono i trigger che risponderebbero a una spinta o a
+un controllo, e il bot sa **dove** sono i nemici e **quanto arrivano lontano**, non **che cosa sanno fare**.
+Inventare un termine per loro sarebbe l'onniscienza rientrata dalla finestra, cioè il difetto che il filtro
+di percezione di CP 13.5 esiste per togliere. ⚠️ Finché restano a zero, un modulo `Reaction.Anchor` non può
+mai vincere per punteggio: può vincere solo quando è l'unica utilizzabile.
+
+🔑 **La proprietà che ha reso il cambio atterrabile**: dove la conoscenza non separa i candidati tutti i
+punteggi valgono zero, decide lo spareggio, e il bot arma esattamente ciò che armava prima. Il cambio si vede
+solo dove la conoscenza li separa davvero — ed è lì che [D-220] perdeva il valore del loadout.
+
+⚠️ **Il punteggio si misura DOPO la raccolta dei nemici conosciuti**, e non prima come la selezione di
+[D-220]: un punteggio cieco renderebbe vacua l'AC di equità — un punteggio costante la soddisfa senza
+guardare niente.
 
 **Perché va scritto così.** Un documento che descrivesse il bot come già conforme a E13/E16 renderebbe
 invisibile il lavoro che manca, e i test verdi di oggi sembrerebbero provare qualcosa che non provano.

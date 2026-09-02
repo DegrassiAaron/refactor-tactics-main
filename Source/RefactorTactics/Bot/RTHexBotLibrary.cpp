@@ -713,3 +713,97 @@ FString URTHexBotLibrary::DecideReactionResponse(const FRTReactionOpportunity& O
 	// stessa scelta. `grep` della forma corretta, non la memoria di dove si e' scritto.
 	return URTReactionOpportunityLibrary::SafeResponse(Opportunity);
 }
+
+int32 URTHexBotLibrary::ScoreReaction(const FRTActionDef& Def, const FRTHexBotContext& Context)
+{
+	// Un nemico CONOSCIUTO minaccia una cella se la sua portata la copre. La portata e' quella che la
+	// raccolta del contesto ha gia' derivato (attacco base piu' le abilita' non-mobilita'), e la cella del
+	// nemico su un contatto incerto e' quella del RICORDO: qui non si guarda niente che la squadra non abbia.
+	auto Threatens = [&Context](const FRTCellId& Cell, int32 EnemyIndex) -> bool
+	{
+		const int32 Reach = Context.EnemyRanges.IsValidIndex(EnemyIndex) ? Context.EnemyRanges[EnemyIndex] : 0;
+		return URTHexLibrary::HexDistance(Context.Enemies[EnemyIndex], Cell) <= Reach;
+	};
+
+	switch (Def.ReactionTrigger)
+	{
+	case ERTReactionTrigger::HitByDirectAttack:
+	{
+		// Una parata vale quanto vale la minaccia su di ME. Conta i nemici che possono colpirmi, non quelli
+		// che conosco: un nemico noto ma fuori portata non e' un'occasione per una reazione difensiva.
+		int32 Threats = 0;
+		for (int32 i = 0; i < Context.Enemies.Num(); ++i)
+		{
+			if (Threatens(Context.Origin, i)) { ++Threats; }
+		}
+		return Context.WThreat * Threats;
+	}
+
+	case ERTReactionTrigger::AllyHitByDirectAttack:
+	{
+		// Un'interposizione vale se c'e' qualcuno da coprire: un alleato dentro la PORTATA DELL'AZIONE
+		// (fuori di li' non lo si raggiunge) e che almeno un nemico conosciuto puo' colpire.
+		//
+		// ⚠️ Si conta UNA volta per alleato e non una per coppia: il valore e' «quanti posso proteggere»,
+		// non «quante traiettorie esistono». Due nemici sullo stesso alleato restano un alleato solo.
+		int32 Coverable = 0;
+		for (const FRTCellId& Ally : Context.Allies)
+		{
+			if (URTHexLibrary::HexDistance(Context.Origin, Ally) > Def.RangeCells)
+			{
+				continue;
+			}
+			for (int32 i = 0; i < Context.Enemies.Num(); ++i)
+			{
+				if (Threatens(Ally, i)) { ++Coverable; break; }
+			}
+		}
+		return Context.WAllyDamage * Coverable;
+	}
+
+	default:
+		// 🔴 `AboutToBeDisplaced` e `AboutToReceiveControl` cadono QUI, e non e' una dimenticanza: sono i due
+		// trigger che risponderebbero a una spinta o a un controllo, e la conoscenza autorizzata non porta le
+		// CAPACITA' nemiche — sa dove sono e quanto arrivano lontano, non che cosa sanno fare. Un termine
+		// inventato per loro sarebbe l'onniscienza rientrata dalla finestra, cioe' il difetto che il filtro di
+		// percezione del bot esiste per togliere.
+		return 0;
+	}
+}
+
+int32 URTHexBotLibrary::SelectReaction(const TArray<FRTReactionCandidate>& Candidates)
+{
+	// L'ordine e' TOTALE, e per questo permutare le candidate non cambia l'esito: punteggio decrescente,
+	// poi il kit prima del loadout ([D-268] retrocede [D-220] a spareggio), poi l'indice piu' basso.
+	// Senza l'ultima chiave due reazioni di kit a pari punteggio si scioglierebbero per ordine di
+	// enumerazione, che e' l'accidente che [D-220] aveva gia' smesso di usare.
+	const FRTReactionCandidate* Best = nullptr;
+	for (const FRTReactionCandidate& Candidate : Candidates)
+	{
+		if (Candidate.AbilityIndex == INDEX_NONE)
+		{
+			continue;
+		}
+		if (!Best)
+		{
+			Best = &Candidate;
+			continue;
+		}
+		if (Candidate.Score != Best->Score)
+		{
+			if (Candidate.Score > Best->Score) { Best = &Candidate; }
+			continue;
+		}
+		if (Candidate.bFromKit != Best->bFromKit)
+		{
+			if (Candidate.bFromKit) { Best = &Candidate; }
+			continue;
+		}
+		if (Candidate.AbilityIndex < Best->AbilityIndex)
+		{
+			Best = &Candidate;
+		}
+	}
+
+	return Best ? Best->AbilityIndex : INDEX_NONE;
+}
