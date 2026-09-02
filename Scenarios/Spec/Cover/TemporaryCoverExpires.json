@@ -9,7 +9,7 @@
 
   "_nota_completata": "Riempito il 2026-08-09 chiudendo CP 9.5. La capability `CreateCover` ora esiste in `IsCapabilityAvailable`, e il file gira invece di uscire BLOCKED. Il campo `edge` e' nuovo: una copertura sta su un BORDO e una cella ne ha sei, quindi la cella da sola non basta a dire quale — si scrive il nome della direzione e non il suo indice, perche' un errore di conteggio metterebbe il pannello sul lato sbagliato lasciando lo scenario verde.",
 
-  "_nota_aritmetica": "120 di partenza. T1 colpo pieno (21) -> 99. T2 Riktor erige il pannello sul proprio bordo E, quello che il colpo di Wraith attraversa, e incassa 21-10 = 11 -> 88. T3 il pannello e' al SECONDO dei suoi due turni e vale ancora: altri 11 -> 77. T4 e' scaduto nel Cleanup di T3, e il colpo torna pieno: 21 -> 56. La distanza fra 11 e 21 e' la feature; il fatto che T4 torni a 21 e' la sua temporaneita'.",
+  "_nota_aritmetica": "120 di partenza. T1 colpo pieno, 21 meno i 5 dello scudo base ([D-224]) -> 104. T2 Riktor erige il pannello sul proprio bordo E, quello che il colpo di Wraith attraversa, e incassa 21-10 = 11, meno 5 -> 98. T3 il pannello e' al SECONDO dei suoi due turni e vale ancora: altri 11 meno 5 -> 92. T4 e' scaduto nel Cleanup di T3, e il colpo torna pieno: 21 meno 5 -> 76. La distanza fra 11 e 21 e' la feature; il fatto che T4 torni a 21 e' la sua temporaneita'.",
 
   "_nota_durata": "Due turni si contano DAL turno in cui il pannello nasce, non dal successivo: `Action.CreateCover` risolve in Prep, cioe' prima del Blast che deve riparare, quindi il turno dell'erezione e' gia' un turno in cui ha protetto qualcuno. E' il contrario del ponte temporaneo di CP 9.4, che nasce nel Blast e salta il proprio turno.",
 

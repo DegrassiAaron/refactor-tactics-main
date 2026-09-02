@@ -7,7 +7,7 @@
 
   "_nota": "Un turno, tre fasi, tre unita' che si muovono in momenti diversi: Riktor carica nel **Dash**, Wraith spara nel **Blast**, Phase cammina nel **Move**. La sequenza `Prep -> Dash -> Blast -> Move` e' la spina dorsale del gioco e questo e' il solo scenario del corpus che la mette tutta in un'inquadratura. Se a schermo le tre cose accadono insieme, la regola per cui il movimento normale arriva DOPO i colpi — che e' il motivo per cui si puo' sfuggire a un attacco solo con la mobilita' rapida — resta invisibile.",
 
-  "_nota_aritmetica": "Gadget 90 - 20 (Hero.Riktor.Ram, Dash) - 21 (Hero.Wraith.PulseShot, Blast) = 49. Phase arriva a (-1,1) camminando due celle, e parte DOPO che i colpi sono gia' risolti.",
+  "_nota_aritmetica": "Gadget 90 - [20 (Hero.Riktor.Ram, Dash) + 21 (Hero.Wraith.PulseShot, Blast) - 5 di scudo base, [D-224]] = 54. Phase arriva a (-1,1) camminando due celle, e parte DOPO che i colpi sono gia' risolti.",
   "_errata_scudo": "ERRATA (2026-08-30): i conti in prosa qui sopra NON sottraggono lo SCUDO BASE, e sono quindi piu' bassi del vero: 49 -> 54. Il valore giusto e' quello di `expect`, che il corpus verifica a ogni run; la prosa e' rimasta indietro. Causa: `URTCombatLibrary::BaseShield = 5` (D-224) esiste dal COSTRUTTORE di `ARTUnit`, quindi ogni unita' assorbe 5 danni prima degli HP, e ogni nota scritta prima di D-224 sbaglia di 5 per bersaglio colpito. Il conto originale NON e' stato riscritto di proposito: dice ancora cosa faceva il gioco quando fu scritto.",
 
   "units": [

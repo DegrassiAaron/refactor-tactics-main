@@ -5,7 +5,7 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "`Action.Guard` toglie 15 al PRIMO danno diretto del turno, e basta. Riktor si mette in guardia e incassa due colpi: il primo arriva ridotto, il secondo pieno. 120 - (22-15) - 21 = 92.",
+  "_nota": "`Action.Guard` toglie 15 al PRIMO danno diretto del turno, e basta. Riktor si mette in guardia e incassa due colpi: il primo arriva ridotto, il secondo pieno. 120 - [(22-15) + 21 - 5 di scudo base, [D-224]] = 97.",
 
   "_nota_perche_esiste": "Fino al 2026-08-09 nessuna unita' poteva mettersi in guardia: il kit era `Abilities = Hero->Actions`, cinque azioni, e le generiche di D-025 non appartenevano a nessuno. I quattro rami che consumano `Status.Guarded` e `Status.Braced` nel TurnManager esistevano, erano commentati e motivati, e in partita non li raggiungeva nessuno — li toccavano solo test che si costruivano l'abilita' da soli (#275).",
 

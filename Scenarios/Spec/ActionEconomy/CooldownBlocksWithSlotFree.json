@@ -17,19 +17,19 @@
 
   "turns": [
     {
-      "_nota": "Turno 1 — l'abilita' e' disponibile e colpisce: 120 - 24 = 96.",
+      "_nota": "Turno 1 — l'abilita' e' disponibile e colpisce: 120 - (24 - 5 di scudo base, [D-224]) = 101.",
       "intents": [
         { "unit": "A1", "ability": "Hero.Gadget.LinearDischarge", "target": "B1" }
       ]
     },
     {
-      "_nota": "Turno 2 — SLOT PRINCIPALE LIBERO, abilita' in ricarica. E' il cuore dello scenario: se il cooldown fosse una variante dello slot, qui l'azione partirebbe. Riktor resta a 96.",
+      "_nota": "Turno 2 — SLOT PRINCIPALE LIBERO, abilita' in ricarica. E' il cuore dello scenario: se il cooldown fosse una variante dello slot, qui l'azione partirebbe. Riktor resta a 101.",
       "intents": [
         { "unit": "A1", "ability": "Hero.Gadget.LinearDischarge", "target": "B1" }
       ]
     },
     {
-      "_nota": "Turno 3 — il cooldown e' sceso: l'abilita' spara di nuovo. 96 - 24 = 72. Senza questo turno, un'abilita' che non funziona affatto darebbe lo stesso risultato del turno 2.",
+      "_nota": "Turno 3 — il cooldown e' sceso: l'abilita' spara di nuovo. 101 - (24 - 5) = 82. Senza questo turno, un'abilita' che non funziona affatto darebbe lo stesso risultato del turno 2.",
       "intents": [
         { "unit": "A1", "ability": "Hero.Gadget.LinearDischarge", "target": "B1" }
       ]

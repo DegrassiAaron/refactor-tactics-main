@@ -5,7 +5,7 @@
   "seed": 0,
   "mapRadius": 6,
 
-  "_nota": "Caso di controllo di `Spec.Perception.CannotShootWhatYouCannotSee`: stessa geometria, con un compagno in piu'. A1 continua a guardare a est e a non vedere nulla, ma R1 sta a ovest e B1 gli e' adiacente — dentro la consapevolezza ravvicinata, che e' a 360 gradi e non dipende da dove R1 guarda. La SQUADRA sa, quindi A1 spara: 120 - 22 = 98.",
+  "_nota": "Caso di controllo di `Spec.Perception.CannotShootWhatYouCannotSee`: stessa geometria, con un compagno in piu'. A1 continua a guardare a est e a non vedere nulla, ma R1 sta a ovest e B1 gli e' adiacente — dentro la consapevolezza ravvicinata, che e' a 360 gradi e non dipende da dove R1 guarda. La SQUADRA sa, quindi A1 spara: 120 - (22 - 5 di scudo base, [D-224]) = 103.",
 
   "_nota_perche_la_coppia": "Senza questo, un'implementazione che rifiuta SEMPRE gli attacchi passerebbe l'altro scenario. La coppia distingue «la conoscenza decide» da «il gate e' rotto».",
 
