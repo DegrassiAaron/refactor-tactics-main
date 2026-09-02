@@ -11,6 +11,7 @@
 #include "Debug/RTDebugReportLibrary.h"
 #include "HAL/IConsoleManager.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexCellData.h"
 #include "Map/RTHexCoverPlacementLibrary.h"
 #include "Map/RTHexOccupancyLibrary.h"
 #include "Misc/AutomationTest.h"
@@ -442,7 +443,15 @@ bool FRTDebugCellPlacementReportTest::RunTest(const FString&)
 	URTHexCoverPlacementLibrary::ComputeFreeRegions(Mask, Regions);
 	TestEqual(TEXT("la scena ha due regioni libere"), Regions.Num(), 2);
 
-	const TArray<FString> Lines = URTDebugReportLibrary::DescribeCellPlacement(Cell, Mask, Regions);
+		// Due coperture di bordo: la meta' di geometria che la maschera dei settori NON porta.
+	TArray<FRTHexCover> Covers;
+	{
+		FRTHexCover A; A.Edge = ERTHexDirection::E;  A.Type = ERTHexCoverType::Low;  A.bGenerated = true;
+		FRTHexCover B; B.Edge = ERTHexDirection::NW; B.Type = ERTHexCoverType::High; B.bGenerated = false;
+		Covers.Add(A); Covers.Add(B);
+	}
+
+	const TArray<FString> Lines = URTDebugReportLibrary::DescribeCellPlacement(Cell, Mask, Regions, Covers);
 	const FString Report = FString::Join(Lines, TEXT("\n"));
 
 	TestTrue(TEXT("nomina la cella"), Report.Contains(Cell.ToString()));
@@ -469,9 +478,22 @@ bool FRTDebugCellPlacementReportTest::RunTest(const FString&)
 	TestEqual(TEXT("dodici settori occupati non lasciano regioni"), NoRegions.Num(), 0);
 
 	const FString Blocked = FString::Join(
-		URTDebugReportLibrary::DescribeCellPlacement(Cell, Full, NoRegions), TEXT("\n"));
+		URTDebugReportLibrary::DescribeCellPlacement(Cell, Full, NoRegions, TArray<FRTHexCover>()), TEXT("\n"));
 	TestTrue(TEXT("dice che non esiste una posa"), Blocked.Contains(TEXT("non esiste una posa")));
 	TestTrue(TEXT("e l'anello e' tutto pieno"), Blocked.Contains(TEXT("############")));
+
+	// 🔴 LA META' CHE MANCAVA. Un raggio dal centro al punto medio di un lato viene scritto dal bake come
+	// copertura di BORDO, non come muro interno: senza queste righe il comando rispondeva «zero settori,
+	// zero muri» a una cella che porta geometria, e la seduta PIE del 2026-09-02 ci ha perso mezz'ora.
+	TestTrue(TEXT("nomina le coperture di bordo"), Report.Contains(TEXT("2 copertura/e di bordo")));
+	TestTrue(TEXT("col bordo di ciascuna"),
+		Report.Contains(TEXT("bordo E")) && Report.Contains(TEXT("bordo NW")));
+	TestTrue(TEXT("e distingue generata da a mano"),
+		Report.Contains(TEXT("generata")) && Report.Contains(TEXT("a mano")));
+
+	// CONTROPROVA: «nessuna copertura» si DICE, perche' tacere e' cio' che ha fuorviato.
+	TestTrue(TEXT("e a zero coperture lo dichiara invece di tacere"),
+		Blocked.Contains(TEXT("coperture di bordo: nessuna")));
 
 	return true;
 }
