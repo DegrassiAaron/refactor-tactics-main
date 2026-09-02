@@ -67,6 +67,30 @@ struct FRTHexInteriorWall
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexMap")
 	FName StableId;
 
+	/**
+	 * IL MURO SI PUO' SCAVALCARE — la traversata autorata di `E23.7` ([D-308], formato v14, `#1828`).
+	 *
+	 * 🔑 **La scavalcabilita' e' un DATO, non una conseguenza dell'altezza**, ed e' la clausola con cui
+	 * `D-308` impedisce a `Low`/`High` — vocabolario di MITIGAZIONE ([D-271]) — di diventare per inerzia un
+	 * vocabolario di TRAVERSABILITA'. Un muretto non e' scavalcabile perche' e' basso: lo e' se un autore
+	 * l'ha disegnato tale.
+	 *
+	 * 🔴 **Perche' il campo sta QUI e non su un tipo nuovo.** `D-308` nomina il vault *«il produttore che il
+	 * terzo valore di `ERTIntraCellTraversal` aspettava»*, ma lo definisce **fra celle adiacenti** — e quel
+	 * valore vive DENTRO una cella, dove una transizione fra due celle non arriva. Il muro interno e' cio'
+	 * che divide la cella in due regioni: e' il posto in cui autorizzarne l'attraversamento senza inventare
+	 * un secondo tipo. Precisazione registrata in `spec-cover-placement-intra-hex.md` §6.
+	 *
+	 * ⛔ **Non introduce una sottocella e non tocca l'occupancy**: la capacita' resta **una** unita' per
+	 * `FRTCellId`, che e' il divieto di [D-289] e non cambia. Scavalcare permette di *arrivare* all'altra
+	 * faccia, non di essere in due posti.
+	 *
+	 * ⚠️ **Entra in `ComputeHash`** con lo stesso criterio degli altri campi del segmento: decide se si passa,
+	 * quindi due mappe che si giocano diversamente non possono avere lo stesso hash.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexMap")
+	bool bTraversable = false;
+
 	FRTHexInteriorWall() = default;
 	FRTHexInteriorWall(const FRTCellId& InCell, const FRTGeometrySegment& InSegment)
 		: Cell(InCell), Segment(InSegment) {}
@@ -174,16 +198,21 @@ public:
 	 *     interno si sposta, e il move cambia la sua chiave naturale `(Cell, Segment)`. La copertura non
 	 *     prende un campo perche' la sua chiave `(Cell, Edge)` e' unica per una regola gia' validata.
 	 *
+	 * v14 (#1828, `E23.7`): la traversata autorata sul muro interno (`FRTHexInteriorWall::bTraversable`).
+	 *     Nessun dato esistente cambia significato: un muro scritto prima non e' scavalcabile — default
+	 *     `false` — ed e' cio' che quei muri gia' erano, perche' fino a `D-308` la scavalcabilita' non
+	 *     esisteva come dato. ⚠️ Il campo NON deriva dall'altezza: `Low` non diventa scavalcabile per
+	 *     effetto di questo passo, ed e' precisamente cio' che `D-308` vieta.
 	 * ⚠️ **Questo numero non viaggia da solo**: la sua storia e' qui, ma il valore che un asset porta nei
 	 * propri byte e' `FRTHexMapCustomVersion` (#687, D-137). Alzarlo senza aggiungere il valore
 	 * corrispondente all'enum non compila — e' voluto, vedi lo `static_assert` in `RTHexMapAsset.cpp`.
 	 *
-	 * Tutti i passi v1->v12 sono DICHIARATIVI: il campo nuovo nasce vuoto, nessun dato esistente cambia
+	 * Tutti i passi v1->v14 sono DICHIARATIVI: il campo nuovo nasce vuoto, nessun dato esistente cambia
 	 * significato. Il primo passo TRASFORMATIVO e' ora eseguibile — prima di #687 non lo era, perche' la
 	 * migrazione non partiva — ma resta il punto piu' delicato del formato: si scrive un
 	 * `if (FormatVersion < N)` per volta, in ordine, e lo si prova su un asset serializzato.
 	 */
-	static constexpr int32 CurrentFormatVersion = 13;
+	static constexpr int32 CurrentFormatVersion = 14;
 
 	/**
 	 * Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti.
