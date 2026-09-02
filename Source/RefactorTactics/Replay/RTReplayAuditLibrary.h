@@ -18,8 +18,19 @@ enum class ERTAuditFormatVersion : uint16
 	/** Due conoscenze per squadra (Planning e Blast) piu' i verdetti delle voci del turno. */
 	Initial = 1,
 
+	/**
+	 * Piu' le SCELTE dei bot del turno — il quarto record dell'emendamento a [D-313].
+	 *
+	 * 🔴 **L'alzata non e' una formalita': senza, un artefatto `Initial` sarebbe stato accettato come
+	 * corrente.** E' un file ben formato che semplicemente non contiene le scelte, quindi
+	 * `FindUnauthorizedTargets` avrebbe girato su una lista vuota e dichiarato equa una partita di cui non
+	 * ha mai avuto l'evidenza — fail-open travestito da compatibilita', nell'unico file che esiste per
+	 * fallire chiuso.
+	 */
+	WithBotDecisions = 2,
+
 	/** Versione che questo binario SCRIVE. Chi aggiunge un campo alza questo alias e lascia il valore sopra. */
-	Current = Initial
+	Current = WithBotDecisions
 };
 
 /**
@@ -100,7 +111,7 @@ struct FRTAuditBotDecision
  * l'obiezione della nota su `FRTTurnLogEntry::Verdict` — *«un verdetto e' una risposta alla presentazione,
  * non un fatto della simulazione»* — non si applica, perche' il replay pubblico questo file non lo legge.
  *
- * ⚠️ **Tre record, perche' le domande d'audit sono due e vogliono istanti diversi**: la conoscenza al
+ * ⚠️ **Quattro record: tre perche' le domande d'audit sono due e vogliono istanti diversi**, la conoscenza al
  * **Planning** e' cio' su cui il bot ha deciso, quella al **Blast** e' cio' contro cui i verdetti sono stati
  * congelati, e i verdetti sono il collegamento fra le due.
  */

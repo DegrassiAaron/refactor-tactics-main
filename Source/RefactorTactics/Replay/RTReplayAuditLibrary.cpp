@@ -306,12 +306,20 @@ bool URTReplayAuditLibrary::AuditFromJson(const FString& Json, FRTTurnAudit& Out
 			const TSharedPtr<FJsonObject>* DO = nullptr;
 			if (!V.IsValid() || !V->TryGetObject(DO)) { return false; }
 
+			// 🔴 **Ogni campo si PRETENDE, non si assume.** Con una lettura non verificata un
+			// `TargetUnitId` mancante restava a zero — e zero non e' «nessun bersaglio», e' un'unita' che
+			// non esiste: `EnsureMatchRoster` distribuisce identita' da 1 in su ([D-063]). Il controllo
+			// avrebbe chiesto a `ClassifyTarget` conto di un'unita' inventata, non l'avrebbe trovata in
+			// nessuna conoscenza, e avrebbe riportato un archivio troncato come un bot che bara.
+			//
+			// E' la stessa disciplina che questo file applica gia' alla versione e alle celle: un record
+			// incompleto si RIFIUTA, perche' interpretarlo produce una risposta plausibile e falsa.
 			FRTAuditBotDecision D;
 			double Unit = 0.0, Team = 0.0, Target = 0.0, TargetTeam = 0.0;
-			(*DO)->TryGetNumberField(KAudit_Unit, Unit);
-			(*DO)->TryGetNumberField(KAudit_Team, Team);
-			(*DO)->TryGetNumberField(KAudit_Target, Target);
-			(*DO)->TryGetNumberField(KAudit_TargetTeam, TargetTeam);
+			if (!(*DO)->TryGetNumberField(KAudit_Unit, Unit)) { return false; }
+			if (!(*DO)->TryGetNumberField(KAudit_Team, Team)) { return false; }
+			if (!(*DO)->TryGetNumberField(KAudit_Target, Target)) { return false; }
+			if (!(*DO)->TryGetNumberField(KAudit_TargetTeam, TargetTeam)) { return false; }
 			D.UnitId = static_cast<int32>(Unit);
 			D.TeamId = static_cast<int32>(Team);
 			D.TargetUnitId = static_cast<int32>(Target);

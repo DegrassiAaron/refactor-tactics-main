@@ -1485,6 +1485,14 @@ protected:
 	 */
 	TArray<FRTAuditBotDecision> BotDecisionsForAudit;
 
+	/**
+	 * Il turno a cui `BotDecisionsForAudit` appartiene, e serve per la stessa ragione per cui le due
+	 * conoscenze portano il proprio `TurnNumber`: **le scelte di un altro turno non sono evidenza, sono un
+	 * errore che sembra una prova**. `FRTAuditBotDecision` un numero di turno non ce l'ha — e' un record di
+	 * scelta, non un'istantanea — quindi il timbro sta qui.
+	 */
+	int32 BotDecisionsTurnForAudit = INDEX_NONE;
+
 	/** TurnLog dell'ultimo turno risolto (osservabilita' autoritativa; ordinato in LockInAndResolve). */
 	TArray<FRTTurnLogEntry> TurnLog;
 
@@ -1493,9 +1501,6 @@ protected:
 
 	/** Scrive la traccia del turno appena risolto. Silenziosa se la registrazione e' spenta. */
 	void RecordTurnToReplay();
-
-	/** Cattura le scelte dei bot per l'artefatto d'audit, a pianificazione chiusa ([D-313]). */
-	void CaptureBotDecisionsForAudit();
 
 	/** Chiude l'archivio a partita finita. Silenziosa se la registrazione e' spenta o non e' mai partita. */
 	void CloseReplayArchive();

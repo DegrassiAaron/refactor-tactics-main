@@ -85,7 +85,7 @@ namespace
 
 }
 
-/** Il formato conserva i tre record di [D-313]: due conoscenze per squadra piu' i verdetti. */
+/** Il formato conserva i quattro record di [D-313]: due conoscenze per squadra, i verdetti, le scelte dei bot. */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayAuditRoundTripTest,
 	"RefactorTactics.Replay.Audit.RoundTrip",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -165,6 +165,59 @@ bool FRTReplayAuditUnknownVersionTest::RunTest(const FString&)
 	TestFalse(TEXT("un JSON senza versione si rifiuta"),
 		URTReplayAuditLibrary::AuditFromJson(TEXT("{\"TurnNumber\":1}"), Read));
 	TestFalse(TEXT("cio' che non e' JSON si rifiuta"), URTReplayAuditLibrary::AuditFromJson(TEXT("nope"), Read));
+
+	// 🔴 **E la versione PRECEDENTE, che e' il caso che morde davvero.** Un `.rtaudit` scritto prima del
+	// quarto record e' un file ben formato che semplicemente non contiene le scelte del bot: se venisse
+	// accettato, `FindUnauthorizedTargets` girerebbe su una lista vuota e certificherebbe come equa una
+	// partita di cui non ha mai avuto l'evidenza. E' esattamente il fail-open che questo file rifiuta
+	// altrove, travestito da compatibilita'.
+	//
+	// ⚠️ **Il rifiuto deve venire dalla VERSIONE e da nient'altro**, e la prima stesura di questa riga non lo
+	// provava: il suo JSON minimale cadeva sull'`OrderedHash` mancante — obbligatorio — quindi sarebbe
+	// rimasta verde anche con la versione accettata. Le due asserzioni qui sotto condividono la stessa
+	// stringa e differiscono **solo** sul numero di versione: quella corrente si carica, quella precedente
+	// no. E' la coppia che rende la seconda una misura invece di una speranza.
+	auto ArtefattoConVersione = [](int32 Versione)
+	{
+		return FString::Printf(
+			TEXT("{\"Version\":%d,\"MatchId\":\"00000000000000000000000000000001\",")
+			TEXT("\"TurnNumber\":1,\"OrderedHash\":\"42\"}"), Versione);
+	};
+	TestTrue(TEXT("lo stesso artefatto, alla versione corrente, si carica"),
+		URTReplayAuditLibrary::AuditFromJson(
+			ArtefattoConVersione(static_cast<int32>(ERTAuditFormatVersion::Current)), Read));
+	TestFalse(TEXT("un artefatto della versione precedente si rifiuta"),
+		URTReplayAuditLibrary::AuditFromJson(ArtefattoConVersione(1), Read));
+
+	return true;
+}
+
+/**
+ * 🔴 **Un record di scelta TRONCATO si rifiuta invece di diventare «bersaglio 0».**
+ *
+ * `0` non e' un'unita': `EnsureMatchRoster` distribuisce identita' a partire da 1, e lo zero e' il valore
+ * che significa «nessuna». Un campo mancante letto come zero non produce un dato assente — produce una
+ * SCELTA che nessuno ha fatto, contro un'unita' che non esiste, che `ClassifyTarget` non trovera' in
+ * nessuna conoscenza e che il controllo riportera' come violazione. Cioe' un archivio rotto verrebbe
+ * riferito come un bot che bara.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayAuditTruncatedDecisionTest,
+	"RefactorTactics.Replay.Audit.TruncatedDecisionIsRejected",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayAuditTruncatedDecisionTest::RunTest(const FString&)
+{
+	const FGuid Id = FGuid(1, 2, 3, 4);
+	const FString Buono = URTReplayAuditLibrary::AuditToJson(SaturatedAudit(Id, 3, 0x0BADC0DE));
+
+	// Si parte dall'artefatto BUONO e gli si toglie un campo solo: cosi' il rosso non puo' venire da
+	// nient'altro che dal campo tolto.
+	FString Mutilato = Buono;
+	const int32 Tolti = Mutilato.ReplaceInline(TEXT("\"TargetUnitId\""), TEXT("\"TargetUnitIdX\""));
+	if (!TestEqual(TEXT("il campo da togliere esisteva"), Tolti, 1)) { return false; }
+
+	FRTTurnAudit Read;
+	TestFalse(TEXT("un record di scelta senza bersaglio si rifiuta"),
+		URTReplayAuditLibrary::AuditFromJson(Mutilato, Read));
 
 	return true;
 }
