@@ -213,7 +213,15 @@ public:
 	 * un widget non passa, e chi fa audit ha bisogno della voce intera.
 	 *
 	 * ⚠️ **Il filtro e' sui CAMPI, non sulle VOCI**: le voci sono ancora quelle di tutte e due le squadre.
-	 * Il filtro per osservatore richiede la `TeamKnowledge` del turno, che la traccia non porta — `#1525`.
+	 * Il filtro per osservatore richiede il verdetto congelato del turno, e la traccia archiviata non lo
+	 * porta — `FRTTurnLogEntry::Verdict` e' `Transient`. Su disco quel dato vive **solo** nel prodotto
+	 * PRIVATO (`turn-NNN.rtaudit`, [D-313] terzo record), quindi filtrare qui non e' un'implementazione:
+	 * e' una decisione sul confine dei due prodotti di [D-276]. E' `#2098`.
+	 *
+	 * 🔴 **Fino al 2026-09-02 questa riga citava `#1525`, e la citazione era sbagliata**: quella issue
+	 * riguarda il **playback della partita** — il modello che cammina nella nebbia — ed e' implementata.
+	 * Il filtro delle voci del replay e' un canale diverso, ed e' rimasto senza owner finche' qualcuno non
+	 * ha SEGUITO la citazione invece di crederle.
 	 *
 	 * ⚠️ `BlueprintCallable` per la stessa ragione di `GetManifest`: ogni chiamata rifa' un seek sulla
 	 * traccia e **alloca** l'array delle voci. Come nodo pure una list view lo rieseguirebbe a ogni tick,
