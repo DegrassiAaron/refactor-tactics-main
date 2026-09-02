@@ -414,6 +414,43 @@ con
 
 **file verificato**.
 
+### Chiudere una issue
+
+`fix(605)` **non chiude** la issue 605.
+
+GitHub lo legge come uno **scope Conventional Commits**, non come un riferimento. La forma che chiude e' una
+parola chiave seguita da `#N`:
+
+```
+Closes #605
+```
+
+Le parole riconosciute sono `close`/`closes`/`closed`, `fix`/`fixes`/`fixed`,
+`resolve`/`resolves`/`resolved`. `fix(605)` non e' nessuna di queste: manca il `#`, e la parentesi ne fa
+uno scope.
+
+**Dove va**: nel **corpo della PR**, in cima. Non nel messaggio di commit.
+
+Il corpo della PR e' il canale che GitHub processa al merge, ed e' l'unico che un agente controlla davvero:
+`gh pr create --body-file` scrive li'.
+
+⛔ **`.github/pull_request_template.md` non basta.** Il template si applica solo alle PR aperte
+dall'interfaccia web: `gh pr create` con `--body` o `--body-file` lo **sostituisce**, e non avvisa. Chi apre
+PR da riga di comando — cioe' ogni agente — deve scrivere la riga a mano.
+
+⚠️ **Se la base della PR non e' il branch di default, `Closes` non chiude niente al merge.** La issue si
+chiudera' solo quando quel branch arrivera' su `main`. Una PR verso un branch padre intermedio chiude la
+propria issue **a mano**, oppure lo dichiara.
+
+**Perche' questa sezione esiste.** Misurato il 2026-09-02: **57** issue aperte avevano almeno un commit
+`fix()`/`feat()` mergiato su `main`, e nessuna si era chiusa da sola. Fra queste, `#1473`, `#605`, `#75` e
+`#61` avevano il lavoro **finito**: la loro correzione era su `main` da giorni o settimane, e restavano
+aperte perche' il messaggio diceva `fix(1473)` invece di `fixes #1473`.
+
+⚠️ **Non e' un difetto di disciplina, ed e' per questo che vale una regola scritta**: `fix(605)` *sembra* un
+riferimento. Il triage completo e' nel commento di chiusura di
+[`#1473`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1473).
+
 ### ID condivisi
 
 `D-nnn`, Epic `Enn` e altri contatori non si assegnano dalla memoria.
