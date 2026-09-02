@@ -561,6 +561,199 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SetWaitIntent(int32 TurnIndex, cons
 	return ERTScenarioAuthoringResult::Success;
 }
 
+namespace
+{
+	/**
+	 * Il preambolo che ogni scrittura di slot condivide — `#1626`.
+	 *
+	 * 🔑 Le sette funzioni che seguono chiedono tutte le stesse quattro cose prima di scrivere: scenario
+	 * aperto, turno esistente, unita' schierata, unita' non affidata al bot. Ripeterle sette volte
+	 * significherebbe sette occasioni di scriverne una diversa dalle altre — e i messaggi d'errore di
+	 * `SetMoveIntent` sono asseriti dai test, quindi divergere non sarebbe un dettaglio di stile.
+	 *
+	 * Restituisce l'intent su cui scrivere, creandolo se l'unita' non ne aveva uno in quel turno. `nullptr`
+	 * con `OutResult` valorizzato quando la scrittura non si puo' fare.
+	 */
+	FRTScenarioIntent* SlotToWrite(bool bOpen, FRTTestScenario& Scenario, int32 TurnIndex, const FString& UnitId,
+		int32 UnitIndex, FString& OutError, ERTScenarioAuthoringResult& OutResult)
+	{
+		OutError.Reset();
+
+		if (!bOpen)
+		{
+			OutError = TEXT("nessuno scenario aperto");
+			OutResult = ERTScenarioAuthoringResult::NoScenarioOpen;
+			return nullptr;
+		}
+		if (!Scenario.Turns.IsValidIndex(TurnIndex))
+		{
+			OutError = FString::Printf(TEXT("turno %d inesistente (ce ne sono %d)"), TurnIndex, Scenario.Turns.Num());
+			OutResult = ERTScenarioAuthoringResult::NotFound;
+			return nullptr;
+		}
+		if (UnitIndex == INDEX_NONE)
+		{
+			OutError = FString::Printf(TEXT("unita' '%s' non schierata"), *UnitId);
+			OutResult = ERTScenarioAuthoringResult::NotFound;
+			return nullptr;
+		}
+		// Stessa ragione di `SetMoveIntent`: il piano di una unita' del bot lo scrive il bot, e dirlo al
+		// salvataggio vorrebbe dire scoprire lo scenario insalvabile molto dopo averlo reso tale.
+		if (Scenario.Units[UnitIndex].bBotControlled)
+		{
+			OutError = FString::Printf(
+				TEXT("'%s' e' guidata dal bot: il suo piano lo scrive il bot, non lo scenario"), *UnitId);
+			OutResult = ERTScenarioAuthoringResult::Invalid;
+			return nullptr;
+		}
+
+		FRTScenarioTurn& Turn = Scenario.Turns[TurnIndex];
+		for (FRTScenarioIntent& Existing : Turn.Intents)
+		{
+			if (Existing.UnitId == UnitId)
+			{
+				OutResult = ERTScenarioAuthoringResult::Success;
+				return &Existing;
+			}
+		}
+
+		FRTScenarioIntent& Fresh = Turn.Intents.AddDefaulted_GetRef();
+		Fresh.UnitId = UnitId;
+		OutResult = ERTScenarioAuthoringResult::Success;
+		return &Fresh;
+	}
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetDashIntent(int32 TurnIndex, const FString& UnitId,
+	FName DashAbility, const FRTCellId& DashCell, FString& OutError)
+{
+	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
+	FRTScenarioIntent* Intent = SlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	if (Intent == nullptr) { return Result; }
+
+	Intent->Dash = DashAbility;
+	// La cella d'arrivo segue la mobilita': tenerla dopo che lo slot e' stato svuotato lascerebbe nel file
+	// una destinazione che nessuna azione raggiunge.
+	Intent->DashCell = DashAbility.IsNone() ? FRTCellId() : DashCell;
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetMainAction(int32 TurnIndex, const FString& UnitId,
+	FName AbilityId, FString& OutError)
+{
+	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
+	FRTScenarioIntent* Intent = SlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	if (Intent == nullptr) { return Result; }
+
+	Intent->Ability = AbilityId;
+	Intent->Target.Reset();
+	Intent->bTargetsCell = false;
+	Intent->TargetCell = FRTCellId();
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetMainActionOnUnit(int32 TurnIndex, const FString& UnitId,
+	FName AbilityId, const FString& TargetUnitId, FString& OutError)
+{
+	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
+	FRTScenarioIntent* Intent = SlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	if (Intent == nullptr) { return Result; }
+
+	if (AbilityId.IsNone())
+	{
+		OutError = FString::Printf(
+			TEXT("bersaglio '%s' senza abilita': per svuotare lo slot principale si usa SetMainAction(None)"),
+			*TargetUnitId);
+		return ERTScenarioAuthoringResult::Invalid;
+	}
+	if (TargetUnitId.IsEmpty())
+	{
+		// Un bersaglio vuoto non e' «nessun bersaglio»: `Validate` lo tratterebbe come un'abilita' che non
+		// dichiara il suo, e il designer leggerebbe un errore sul campo sbagliato.
+		OutError = FString::Printf(TEXT("l'abilita' '%s' non nomina il bersaglio"), *AbilityId.ToString());
+		return ERTScenarioAuthoringResult::Invalid;
+	}
+	// ⚠️ Che l'unita' bersagliata ESISTA lo controlla `Validate` al salvataggio, insieme al divieto di
+	// bersagliare se stessi. Ripeterlo qui vorrebbe dire due regole da tenere allineate; l'unica cosa che
+	// spetta a questa funzione e' non produrre una contraddizione che `Validate` non potrebbe che rifiutare.
+	Intent->Ability = AbilityId;
+	Intent->Target = TargetUnitId;
+	Intent->bTargetsCell = false;
+	Intent->TargetCell = FRTCellId();
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetMainActionOnCell(int32 TurnIndex, const FString& UnitId,
+	FName AbilityId, const FRTCellId& TargetCell, FString& OutError)
+{
+	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
+	FRTScenarioIntent* Intent = SlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	if (Intent == nullptr) { return Result; }
+
+	if (AbilityId.IsNone())
+	{
+		OutError = TEXT("cella bersagliata senza abilita': per svuotare lo slot principale si usa SetMainAction(None)");
+		return ERTScenarioAuthoringResult::Invalid;
+	}
+
+	Intent->Ability = AbilityId;
+	Intent->TargetCell = TargetCell;
+	Intent->bTargetsCell = true;
+	// 🔴 La riga che chiude il criterio 3: la forma per unita' se ne va con la scelta della cella.
+	Intent->Target.Reset();
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetFacingIntent(int32 TurnIndex, const FString& UnitId,
+	bool bDeclare, ERTHexDirection Facing, FString& OutError)
+{
+	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
+	FRTScenarioIntent* Intent = SlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	if (Intent == nullptr) { return Result; }
+
+	Intent->bDeclaresFacing = bDeclare;
+	Intent->Facing = bDeclare ? Facing : ERTHexDirection::E;
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetCoverEdgeIntent(int32 TurnIndex, const FString& UnitId,
+	bool bDeclare, ERTHexDirection Edge, FString& OutError)
+{
+	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
+	FRTScenarioIntent* Intent = SlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	if (Intent == nullptr) { return Result; }
+
+	Intent->bHasCoverEdge = bDeclare;
+	Intent->CoverEdge = bDeclare ? Edge : ERTHexDirection::E;
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetReactionIntent(int32 TurnIndex, const FString& UnitId,
+	FName ReactionAbility, FName ConditionId, int32 ConditionParam, FString& OutError)
+{
+	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
+	FRTScenarioIntent* Intent = SlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	if (Intent == nullptr) { return Result; }
+
+	Intent->Reaction = ReactionAbility;
+	if (ReactionAbility.IsNone())
+	{
+		// Vedi l'header: una condizione senza reazione e' cio' che `SetPlannedReactionCondition` rifiuta.
+		Intent->Condition = FRTDeclaredCondition();
+		if (!ConditionId.IsNone())
+		{
+			OutError = FString::Printf(
+				TEXT("condizione '%s' tolta con la reazione: una condizione senza reazione non e' dichiarabile"),
+				*ConditionId.ToString());
+		}
+		return ERTScenarioAuthoringResult::Success;
+	}
+
+	Intent->Condition.Id = ConditionId;
+	Intent->Condition.Param = ConditionId.IsNone() ? 0 : ConditionParam;
+	return ERTScenarioAuthoringResult::Success;
+}
+
 ERTScenarioAuthoringResult FRTScenarioDraft::RemoveIntent(int32 TurnIndex, const FString& UnitId,
 	FString& OutError)
 {
@@ -711,11 +904,39 @@ TArray<FRTScenarioIntentView> FRTScenarioDraft::ListIntents(int32 TurnIndex) con
 		View.bHasMove = Intent.Move.Num() > 0;
 		View.Move = Intent.Move;
 		View.Ability = Intent.Ability;
+		View.Target = Intent.Target;
+		View.bTargetsCell = Intent.bTargetsCell;
+		View.TargetCell = Intent.TargetCell;
+		View.Dash = Intent.Dash;
+		View.DashCell = Intent.DashCell;
+		View.bDeclaresFacing = Intent.bDeclaresFacing;
+		View.Facing = Intent.Facing;
+		View.bHasCoverEdge = Intent.bHasCoverEdge;
+		View.CoverEdge = Intent.CoverEdge;
+		View.Reaction = Intent.Reaction;
+		View.Condition = Intent.Condition.Id;
 
 		// La riga di lista dice cosa fa l'unita', nell'ordine in cui conta per chi guarda.
 		TArray<FString> Parts;
 		if (View.bHasMove) { Parts.Add(FString::Printf(TEXT("Move (%d celle)"), Intent.Move.Num())); }
-		if (!Intent.Ability.IsNone()) { Parts.Add(Intent.Ability.ToString()); }
+		if (!Intent.Ability.IsNone())
+		{
+			// Il bersaglio nella riga, perche' «Riktor attacca» e «Riktor attacca CHI» sono due informazioni
+			// diverse, e in una lista di combattimento la seconda e' quella che si cerca.
+			if (Intent.bTargetsCell)
+			{
+				Parts.Add(FString::Printf(TEXT("%s -> (%d,%d,%d)"), *Intent.Ability.ToString(),
+					Intent.TargetCell.X, Intent.TargetCell.Y, Intent.TargetCell.Layer));
+			}
+			else if (!Intent.Target.IsEmpty())
+			{
+				Parts.Add(FString::Printf(TEXT("%s -> %s"), *Intent.Ability.ToString(), *Intent.Target));
+			}
+			else
+			{
+				Parts.Add(Intent.Ability.ToString());
+			}
+		}
 		if (!Intent.Dash.IsNone()) { Parts.Add(Intent.Dash.ToString()); }
 		if (!Intent.Reaction.IsNone()) { Parts.Add(Intent.Reaction.ToString()); }
 		if (Intent.bDeclaresFacing) { Parts.Add(TEXT("rotazione")); }

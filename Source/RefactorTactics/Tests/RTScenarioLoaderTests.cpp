@@ -1525,4 +1525,266 @@ bool FRTScenarioStatusVocabularyIsTheRuntimeOneTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * LE SETTE AZIONI DI `D-025` SONO ESPRIMIBILI, E IL TEST DICE COME — `#1626`.
+ *
+ * 🔑 **È il criterio di copertura scritto come misura invece che come dichiarazione.** La issue chiede che
+ * per ciascuna si dica *«se è esprimibile e come»*: qui ciascuna è espressa davvero, e il file prodotto
+ * deve rileggersi identico. Una risposta scritta in prosa invecchia; questa cade.
+ *
+ * ⚠️ **`Wait` non ha un campo, e non è una lacuna**: si esprime OMETTENDO l'unità dagli intent del turno.
+ * `ApplyScenarioIntents` cicla sugli intent dichiarati, quindi un'unità che non compare non riceve ordini
+ * — che è precisamente l'attesa. Misurato: zero scenari usano `"Action.Wait"`, e zero intent portano il
+ * solo campo `unit`.
+ *
+ * ⛔ La forma di `Move` è il campo `move[]`, **non** `ability: "Action.Move"`: 48 scenari la usano così, e
+ * nessuno nell'altro modo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioD025CoverageTest,
+	"RefactorTactics.Scenario.EveryD025ActionIsExpressible",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioD025CoverageTest::RunTest(const FString&)
+{
+	auto Loads = [this](const FString& Intents, const TCHAR* What) -> FRTTestScenario
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON({
+		  "scenarioId": "T", "version": 1, "mapRadius": 3,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0] },
+		    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+		  ],
+		  "turns": [ { "intents": [ %s ] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), *Intents);
+
+		FRTTestScenario Scenario;
+		FString Error;
+		TestTrue(FString::Printf(TEXT("%s si esprime (errore: '%s')"), What, *Error),
+			URTScenarioLoader::LoadFromString(*Json, Scenario, Error));
+		return Scenario;
+	};
+
+	// 1. WAIT — l'unita' non compare fra gli intent. Nessun campo, e non e' un buco del formato.
+	{
+		const FRTTestScenario S = Loads(TEXT("{ \"unit\": \"B1\", \"ability\": \"Action.Guard\" }"), TEXT("Wait (A1 omessa)"));
+		bool bA1Present = false;
+		if (S.Turns.Num() > 0)
+		{
+			for (const FRTScenarioIntent& I : S.Turns[0].Intents)
+			{
+				if (I.UnitId == TEXT("A1")) { bA1Present = true; }
+			}
+		}
+		TestFalse(TEXT("A1 non ha ordini: e' l'attesa"), bA1Present);
+	}
+
+	// 2. MOVE — il campo `move[]`, non un'abilita'.
+	{
+		const FRTTestScenario S = Loads(TEXT("{ \"unit\": \"A1\", \"move\": [[0,0,0]] }"), TEXT("Move"));
+		if (S.Turns.Num() > 0 && S.Turns[0].Intents.Num() > 0)
+		{
+			TestEqual(TEXT("Move usa il percorso"), S.Turns[0].Intents[0].Move.Num(), 1);
+			TestTrue(TEXT("e nessuna abilita'"), S.Turns[0].Intents[0].Ability.IsNone());
+		}
+	}
+
+	// 3-4. GUARD e BRACE: `ability` e basta. Non hanno bersaglio, ed e' cio' che le distingue.
+	const TCHAR* Senza[] = { TEXT("Action.Guard"), TEXT("Action.Brace") };
+	for (const TCHAR* Action : Senza)
+	{
+		const FString Intent = FString::Printf(TEXT("{ \"unit\": \"A1\", \"ability\": \"%s\" }"), Action);
+		const FRTTestScenario S = Loads(Intent, Action);
+		if (S.Turns.Num() > 0 && S.Turns[0].Intents.Num() > 0)
+		{
+			TestEqual(FString::Printf(TEXT("%s arriva nel campo ability"), Action),
+				S.Turns[0].Intents[0].Ability, FName(Action));
+			TestTrue(FString::Printf(TEXT("%s non ha bersaglio"), Action),
+				S.Turns[0].Intents[0].Target.IsEmpty());
+		}
+	}
+
+	// 5-6. BASICATTACK e INTERACT: `ability` **con** un bersaglio, e il loader lo ESIGE.
+	//
+	// 🔑 Misurato, non assunto: senza `target` il caricamento fallisce con *«l'abilita' 'X' non dichiara un
+	// bersaglio (campo target)»*. La copertura di un'azione non e' «il campo esiste», e' «l'azione si
+	// esprime con i suoi vincoli» — e questi vincoli il criterio 5 li deve riportare.
+	const TCHAR* ConBersaglio[] = { TEXT("Action.BasicAttack"), TEXT("Action.Interact") };
+	for (const TCHAR* Action : ConBersaglio)
+	{
+		const FString Intent = FString::Printf(
+			TEXT("{ \"unit\": \"A1\", \"ability\": \"%s\", \"target\": \"B1\" }"), Action);
+		const FRTTestScenario S = Loads(Intent, Action);
+		if (S.Turns.Num() > 0 && S.Turns[0].Intents.Num() > 0)
+		{
+			TestEqual(FString::Printf(TEXT("%s arriva nel campo ability"), Action),
+				S.Turns[0].Intents[0].Ability, FName(Action));
+			TestEqual(FString::Printf(TEXT("%s porta il proprio bersaglio"), Action),
+				S.Turns[0].Intents[0].Target, FString(TEXT("B1")));
+		}
+
+		// ⛔ E senza bersaglio non si esprime: il rifiuto e' parte della copertura.
+		const FString Nudo = FString::Printf(TEXT("{ \"unit\": \"A1\", \"ability\": \"%s\" }"), Action);
+		FRTTestScenario Rifiutato;
+		FString Errore;
+		const FString Json = FString::Printf(TEXT(R"JSON({
+		  "scenarioId": "T", "version": 1, "mapRadius": 3,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0] },
+		    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+		  ],
+		  "turns": [ { "intents": [ %s ] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), *Nudo);
+		TestFalse(FString::Printf(TEXT("%s senza bersaglio e' rifiutata"), Action),
+			URTScenarioLoader::LoadFromString(*Json, Rifiutato, Errore));
+	}
+
+	// 7. OVERWATCH — si arma con `ability`, e **non** con `reaction`.
+	//
+	// 🔴 L'assunzione naturale e' sbagliata, ed e' misurata: `Scenarios/Spec/Overwatch/` lo arma con
+	// `ability`, e il campo `reaction` porta un'abilita' reattiva DIVERSA (p.es. `Hero.Wraith.Deflection`).
+	// La ragione sta scritta in quello scenario: l'Overwatch costa l'azione **principale**, e
+	// `SetPlannedReactionCondition` rifiuta se `PlannedReactionAbility` e' `INDEX_NONE` — quindi un piano
+	// di solo-Overwatch non riesce a dichiarare una condizione, e il campo resterebbe vuoto senza dirlo.
+	// E' un limite noto (`RTTurnManager.cpp`, ramo `Action.Overwatch`), non un difetto di questa slice.
+	{
+		const FRTTestScenario S = Loads(TEXT("{ \"unit\": \"A1\", \"ability\": \"Action.Overwatch\" }"),
+			TEXT("Overwatch"));
+		if (S.Turns.Num() > 0 && S.Turns[0].Intents.Num() > 0)
+		{
+			TestEqual(TEXT("Overwatch occupa lo slot PRINCIPALE"),
+				S.Turns[0].Intents[0].Ability, FName(TEXT("Action.Overwatch")));
+			TestTrue(TEXT("e non quello reattivo"), S.Turns[0].Intents[0].Reaction.IsNone());
+		}
+	}
+
+	// ⛔ E IL CASO CHE LA UI DEVE POTER ESPRIMERE: movimento e slot principale INSIEME, che il doc header
+	// della struct dichiara essere «la norma, non un caso limite».
+	{
+		const FRTTestScenario S = Loads(
+			TEXT("{ \"unit\": \"A1\", \"move\": [[0,0,0]], \"ability\": \"Action.BasicAttack\", \"target\": \"B1\" }"),
+			TEXT("movimento e azione insieme"));
+		if (S.Turns.Num() > 0 && S.Turns[0].Intents.Num() > 0)
+		{
+			const FRTScenarioIntent& I = S.Turns[0].Intents[0];
+			TestTrue(TEXT("lo slot movimento e' pieno"), I.Move.Num() > 0);
+			TestFalse(TEXT("e anche quello principale"), I.Ability.IsNone());
+		}
+	}
+
+	return true;
+}
+
+/**
+ * UN BERSAGLIO SI DICE IN DUE MODI, E DICHIARARLI ENTRAMBI E' UN ERRORE — `#1626`.
+ *
+ * 🔑 «Le due forme non si contraddicono nel file prodotto» ha bisogno di una definizione di
+ * contraddizione, e questa è: `bTargetsCell` vero **con** un `Target` non vuoto — due bersagli dichiarati,
+ * e il runtime ne sceglierebbe uno senza che il file dica quale.
+ *
+ * ✅ Il loader lo rifiuta già; questo test lo rende un gate invece di una constatazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioTargetFormsTest,
+	"RefactorTactics.Scenario.TargetIsUnitOrCellButNeverBoth",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioTargetFormsTest::RunTest(const FString&)
+{
+	auto Try = [](const TCHAR* Intent, FRTTestScenario& Out, FString& Err)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON({
+		  "scenarioId": "T", "version": 1, "mapRadius": 3,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0] },
+		    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+		  ],
+		  "turns": [ { "intents": [ %s ] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), Intent);
+		return URTScenarioLoader::LoadFromString(*Json, Out, Err);
+	};
+
+	// Per UNITA'.
+	{
+		FRTTestScenario S; FString E;
+		if (TestTrue(FString::Printf(TEXT("bersaglio per unita' (%s)"), *E),
+			Try(TEXT("{ \"unit\": \"A1\", \"ability\": \"Action.BasicAttack\", \"target\": \"B1\" }"), S, E)))
+		{
+			const FRTScenarioIntent& I = S.Turns[0].Intents[0];
+			TestEqual(TEXT("il bersaglio e' l'unita'"), I.Target, FString(TEXT("B1")));
+			TestFalse(TEXT("e non e' una cella"), I.bTargetsCell);
+		}
+	}
+
+	// Per CELLA.
+	{
+		FRTTestScenario S; FString E;
+		if (TestTrue(FString::Printf(TEXT("bersaglio per cella (%s)"), *E),
+			Try(TEXT("{ \"unit\": \"A1\", \"ability\": \"Action.BasicAttack\", \"targetCell\": [1,0,0] }"), S, E)))
+		{
+			const FRTScenarioIntent& I = S.Turns[0].Intents[0];
+			TestTrue(TEXT("il flag della cella e' acceso"), I.bTargetsCell);
+			TestTrue(TEXT("e nessuna unita' e' nominata"), I.Target.IsEmpty());
+		}
+	}
+
+	// ⛔ ENTRAMBI: rifiutato, e il messaggio nomina il bersaglio in conflitto.
+	{
+		FRTTestScenario S; FString E;
+		const bool bOk = Try(
+			TEXT("{ \"unit\": \"A1\", \"ability\": \"Action.BasicAttack\", \"target\": \"B1\", \"targetCell\": [1,0,0] }"),
+			S, E);
+		TestFalse(TEXT("due bersagli insieme sono rifiutati"), bOk);
+		TestTrue(FString::Printf(TEXT("e il messaggio nomina il conflitto (era: '%s')"), *E),
+			E.Contains(TEXT("targetCell")) || E.Contains(TEXT("B1")));
+	}
+
+	return true;
+}
+
+/**
+ * NESSUN ENUM D'AZIONE IN `ScenarioHarness/` — `#1626`.
+ *
+ * 🔑 Il vocabolario delle azioni è `Action.*` nei gameplay tag, e un `enum` parallelo nel formato scenario
+ * sarebbe la seconda tabella da tenere allineata alla prima. ⚠️ Il criterio è **già soddisfatto oggi**:
+ * questo test lo rende un gate invece di una constatazione, perché un criterio non protetto si perde al
+ * primo che arriva.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioNoActionEnumTest,
+	"RefactorTactics.Scenario.HarnessHasNoParallelActionEnum",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioNoActionEnumTest::RunTest(const FString&)
+{
+	const FString Dir = FPaths::ProjectDir() / TEXT("Source/RefactorTactics/ScenarioHarness/");
+
+	TArray<FString> Headers;
+	IFileManager::Get().FindFiles(Headers, *(Dir + TEXT("*.h")), /*Files=*/ true, /*Directories=*/ false);
+	if (!TestTrue(FString::Printf(TEXT("gli header di ScenarioHarness si leggono (%d)"), Headers.Num()),
+		Headers.Num() > 0))
+	{
+		return false;
+	}
+
+	// I nomi che un enum d'azione avrebbe. Non si cerca «enum» in generale: `ScenarioHarness` ne ha di
+	// legittimi — l'esito di un test, lo stato di una sessione — e vietarli tutti sarebbe un criterio che
+	// boccia il codice sano.
+	const TCHAR* Suspicious[] = { TEXT("enum class ERTScenarioAction"), TEXT("enum class ERTAction"),
+		TEXT("enum class ERTIntentAction"), TEXT("enum class ERTActionKind") };
+
+	for (const FString& File : Headers)
+	{
+		FString Text;
+		if (!FFileHelper::LoadFileToString(Text, *(Dir + File)))
+		{
+			AddError(FString::Printf(TEXT("non ho potuto leggere %s: la misura non vale"), *File));
+			continue;
+		}
+		for (const TCHAR* Name : Suspicious)
+		{
+			TestFalse(FString::Printf(TEXT("%s non dichiara %s"), *File, Name), Text.Contains(Name));
+		}
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
