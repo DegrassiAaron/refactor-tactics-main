@@ -207,6 +207,61 @@ struct FRTHexBotContext
 };
 
 /**
+ * Una reazione che il bot puo' armare, con il suo punteggio e la sua ORIGINE ([D-268], `#1802`).
+ *
+ * ⚠️ **L'origine e' un dato, non una posizione nell'array.** Fino a [D-220] «prima il kit» funzionava
+ * perche' `EquipLoadout` accoda, cioe' per accidente: chi costruisce le candidate la chiede al catalogo, e
+ * lo spareggio la legge di qui.
+ */
+USTRUCT()
+struct FRTReactionCandidate
+{
+	GENERATED_BODY()
+
+	/** Indice dell'abilita' sull'unita'. */
+	UPROPERTY() int32 AbilityIndex = INDEX_NONE;
+
+	/** Punteggio tattico, da `ScoreReaction`. */
+	UPROPERTY() int32 Score = 0;
+
+	/** `true` se viene dal KIT dell'eroe, `false` se da un modulo di loadout. */
+	UPROPERTY() bool bFromKit = false;
+};
+
+/**
+ * CHE COSA ha deciso la scelta, che non e' la stessa cosa di quale sia stata ([D-245]).
+ *
+ * 🔴 Serve perche' senza, uno spareggio che decide **sempre** sarebbe indistinguibile da un punteggio che
+ * funziona: chi legge il log vedrebbe due volte la stessa riga per due meccanismi diversi.
+ */
+UENUM()
+enum class ERTReactionTieBreak : uint8
+{
+	/** Nessuna candidata: non c'e' niente da armare. */
+	None,
+
+	/** Ha vinto per punteggio: nessuna la pareggiava in cima. */
+	Utility,
+
+	/** Pareggio in cima sciolto dall'ORIGINE: il kit prima del loadout. */
+	Kit,
+
+	/** Pareggio in cima fra candidate della STESSA origine, sciolto dall'indice piu' basso. */
+	Index
+};
+
+/** La reazione scelta, con il perche'. */
+USTRUCT()
+struct FRTReactionChoice
+{
+	GENERATED_BODY()
+
+	UPROPERTY() int32 AbilityIndex = INDEX_NONE;
+	UPROPERTY() int32 Score = 0;
+	UPROPERTY() ERTReactionTieBreak DecidedBy = ERTReactionTieBreak::None;
+};
+
+/**
  * Decisioni del bot su griglia ESAGONALE: logica pura, nessun Actor, solo interi (invariante #4).
  * Politica ereditata dal bot quadrato che ha sostituito (rimosso al CP 7.2) — focus-fire, minaccia mitigata
  * dalla copertura, kiting o avvicinamento, bonus di elevazione — con linea di vista letta dall'asset mappa.
@@ -263,6 +318,41 @@ public:
 	 * meno la penalita' di posizionamento (kiter sotto standoff o oltre la propria portata / mischia lontana), piu' il bonus di quota.
 	 */
 	static int32 ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context);
+
+	/**
+	 * Punteggio tattico di una REAZIONE ([D-268], `#1802`), chiavato sul suo `ReactionTrigger`.
+	 *
+	 * Vale in proporzione alla minaccia a cui puo' rispondere, e la minaccia si misura **solo** su cio' che
+	 * `Context` contiene — che e' gia' filtrato sulla conoscenza autorizzata della squadra, con la stessa
+	 * regola del targeting umano. Nessun peso nuovo: `WThreat` e' quello del tuning.
+	 *
+	 * 🔴 **`Map` non e' un parametro di comodo: senza, il punteggio conterebbe nemici che non possono
+	 * sparare.** `ScorePlan` la minaccia la misura come gittata **E** linea di vista, e sulla mappa d'autore
+	 * — quella con l'ostacolo centrale che blocca vista e passo — un punteggio a sola distanza armerebbe un
+	 * contrattacco contro chi sta dietro il muro: cioe' esattamente la «reazione che non sarebbe scattata»
+	 * che [D-268] esiste per togliere, col segno rovesciato.
+	 *
+	 * ⚠️ **Un solo peso per tutti i termini, e non e' pigrizia.** In `ScorePlan` `WAllyDamage` e' per PUNTO
+	 * di danno e `WThreat` e' per NEMICO: usarli qui come se fossero la stessa unita' avrebbe reso
+	 * l'interposizione (10) sempre perdente contro un contrattacco (100) — il difetto di [D-220] rovesciato.
+	 * `WThreat` misura «quanta minaccia questa reazione risponde», e vale per la mia cella come per quella di
+	 * un alleato.
+	 *
+	 * ⚠️ **Si misura dalla cella di PARTENZA.** La selezione avviene prima che il piano — e quindi lo scatto
+	 * — sia scelto, mentre i due trigger si valutano nel Blast, dopo il Dash. Un bot che scatta puo' quindi
+	 * aver segnato la minaccia da una cella che avra' lasciato. E' una sovrastima dichiarata, non un modello
+	 * completo: il codice di prima non guardava nessuna posizione.
+	 */
+	static int32 ScoreReaction(const URTHexMapAsset* Map, const FRTActionDef& Def, const FRTHexBotContext& Context);
+
+	/**
+	 * La reazione da armare fra le candidate: punteggio massimo, e a **parita' esatta** vince il kit
+	 * ([D-268]). Ancora pari, vince l'indice piu' basso — cosi' permutare le candidate non cambia l'esito.
+	 *
+	 * Restituisce anche **da che cosa** e' stata decisa, perche' [D-245] chiede che la ragione sia un dato e
+	 * non una deduzione di chi legge il log.
+	 */
+	static FRTReactionChoice SelectReaction(const TArray<FRTReactionCandidate>& Candidates);
 
 	/**
 	 * Candidata a punteggio massimo. TIE-BREAK ASSOLUTO: a parita' di punteggio vince la MOSSA MINIMA da

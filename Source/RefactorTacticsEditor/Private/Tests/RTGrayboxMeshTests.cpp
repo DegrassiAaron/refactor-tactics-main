@@ -468,4 +468,77 @@ bool FRTGrayboxMaterialsSeparateAmbiguousPairsTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * 🔴 **Il fixture si separa dal pavimento, e da se stesso.** Nasce da un difetto visto a schermo: senza
+ * materiale le primitive engine prendono il grigio di default — quello del pavimento — e il fixture
+ * spariva.
+ *
+ * ⛔ **Non e' stata `D-146` a causarlo.** Quella decisione dice al punto (4) che *«i colori concreti
+ * restano placeholder sostituibili: il vincolo e' la ridondanza, non la tavolozza»*: chiede due canali,
+ * non vieta il colore. Mancava il materiale.
+ *
+ * ⚠️ Si verificano **entrambi** i canali, come per `Door_Panel`/`Cover_High`: un valore diverso da solo
+ * non basterebbe sotto una luce radente, e una ruvidita' diversa da sola non si vede a camera tattica.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGrayboxFixtureMaterialsTest,
+	"RefactorTactics.Graybox.FixtureMaterialsSeparateBodyAndMarker",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGrayboxFixtureMaterialsTest::RunTest(const FString&)
+{
+	auto Spec = [](const TCHAR* Component) -> const RTGraybox::FRTGrayboxMaterialSpec*
+	{
+		for (const RTGraybox::FRTGrayboxMaterialSpec& S : RTGraybox::FixtureMaterials)
+		{
+			if (FCString::Strcmp(S.MeshName, Component) == 0) { return &S; }
+		}
+		return nullptr;
+	};
+
+	const RTGraybox::FRTGrayboxMaterialSpec* Body   = Spec(TEXT("UnitBody"));
+	const RTGraybox::FRTGrayboxMaterialSpec* Marker = Spec(TEXT("FacingMarker"));
+	const RTGraybox::FRTGrayboxMaterialSpec* Anchor = Spec(TEXT("GroundAnchor"));
+	if (!TestTrue(TEXT("le tre spec si risolvono per componente"), Body && Marker && Anchor))
+	{
+		return false;
+	}
+
+	// ⚠️ I `BaseColor` restano NEUTRI: e' cio' che rende la verifica in grigio vera per costruzione.
+	// Un'istanza con una tinta passerebbe le soglie sotto e violerebbe comunque lo spirito di `D-146`.
+	for (const RTGraybox::FRTGrayboxMaterialSpec& S : RTGraybox::FixtureMaterials)
+	{
+		const FLinearColor Neutral(S.Value, S.Value, S.Value, 1.f);
+		TestTrue(*FString::Printf(TEXT("%s: il valore E' la luminanza (colore neutro)"), S.MeshName),
+			FMath::IsNearlyEqual(RTGraybox::Luminance(Neutral), S.Value, 1.e-4f));
+	}
+
+	// La coppia che deve leggersi per prima: il marker contro il corpo su cui poggia.
+	constexpr float MinValueGap = 0.30f;
+	TestTrue(*FString::Printf(TEXT("corpo e marker distano in valore (%.2f contro %.2f)"), Body->Value, Marker->Value),
+		FMath::Abs(Body->Value - Marker->Value) >= MinValueGap);
+
+	// Il secondo canale, per la luce radente dove il valore si appiattisce.
+	constexpr float MinRoughnessGap = 0.20f;
+	TestTrue(TEXT("corpo e marker distano anche in ruvidita'"),
+		FMath::Abs(Body->Roughness - Marker->Roughness) >= MinRoughnessGap);
+
+	// ⚠️ E il corpo si separa dal DISCO a terra, che gli sta immediatamente sotto: senza, il fixture
+	// sembrerebbe appoggiato su una macchia della propria stessa tinta.
+	TestTrue(TEXT("corpo e ancora a terra si distinguono"),
+		FMath::Abs(Body->Value - Anchor->Value) >= 0.15f);
+
+	// 🔴 **Il marker e' l'elemento PIU' CHIARO, e non e' una preferenza.**
+	//
+	// La prima stesura lo faceva quasi nero (`0.08`): separava benissimo dal corpo e **spariva contro il
+	// pavimento**, che in `L_GrayKitPlayground` e' `WorldGridMaterial` — un grigio medio. A terra leggeva
+	// come un'ombra. Segnalato guardandolo, non trovato da un test.
+	//
+	// ⚠️ L'asserzione e' sul VERSO, non su una distanza dal pavimento: quel materiale non e' nostro e il
+	// suo valore puo' cambiare. Essere il piu' chiaro della scena regge comunque.
+	TestTrue(*FString::Printf(TEXT("il marker e' piu' chiaro del corpo (%.2f > %.2f)"), Marker->Value, Body->Value),
+		Marker->Value > Body->Value);
+	TestTrue(TEXT("il marker e' piu' chiaro del disco a terra"), Marker->Value > Anchor->Value);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
