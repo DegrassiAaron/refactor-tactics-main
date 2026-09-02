@@ -4,7 +4,6 @@
 #include "Core/RTTypes.h"
 #include "Turn/RTTurnRules.h"
 #include "Perception/RTTeamKnowledge.h" // FRTKnowledgeVerdict: il verdetto congelato di [D-223]
-#include "Perception/RTKnowledgeView.h" // FRTKnowledgeSubject: contro CHI quel verdetto e' stato congelato
 #include "RTTurnLog.generated.h"
 
 /**
@@ -574,6 +573,30 @@ enum class ERTCombatOutcome : uint8
  * voci ambientali, per l'interposizione (che scrive la cella del protetto) e dopo un Dash. L'identita' la
  * porta `UnitId` dal formato v6 (D-063).
  */
+/**
+ * I tre soli ingressi che `FreezeVerdict` legge, per dire contro CHI un verdetto e' stato congelato.
+ *
+ * ⚠️ **Non e' un `FRTKnowledgeSubject`, ed e' deliberato**: quello porta anche `HeroId`, `HeroDisplayName`
+ * e `bAlive`, che `ClassifyTarget` non guarda. Una `FText` dentro la struct piu' copiata e ordinata del
+ * resolver costerebbe traffico di refcount a ogni copia di `TurnLog`, per un dato che nessuno legge — e
+ * trascinerebbe `Perception/RTKnowledgeView.h` dentro uno degli header piu' inclusi del progetto.
+ */
+USTRUCT(BlueprintType)
+struct FRTVerdictSubjectRef
+{
+	GENERATED_BODY()
+
+	/** `INDEX_NONE` = fatto di MONDO: nessun soggetto, e il verdetto e' `Everyone()` per REGOLA. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 StableUnitId = INDEX_NONE;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 TeamId = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	FRTCellId Cell;
+};
+
 USTRUCT(BlueprintType)
 struct FRTTurnLogEntry
 {
@@ -768,7 +791,7 @@ struct FRTTurnLogEntry
 	 * accanto alla traccia, che e' il posto che [D-313] gli assegna.
 	 */
 	UPROPERTY(Transient)
-	FRTKnowledgeSubject VerdictSubject;
+	FRTVerdictSubjectRef VerdictSubject;
 
 	/**
 	 * Turno in cui la voce e' stata emessa. `0` = non dichiarato (tracce scritte prima del formato v6).

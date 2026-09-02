@@ -7,7 +7,6 @@
 #include "Turn/RTMatchFormatData.h"
 #include "Turn/RTMatchFormatLibrary.h"
 #include "Turn/RTTurnLog.h"
-#include "EngineUtils.h" // TActorIterator: la tabella unita'->squadra si costruisce dal mondo
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnRules.h"
 #include "Unit/RTUnit.h"
@@ -422,15 +421,6 @@ bool FRTReplayAuditProducerTest::RunTest(const FString&)
 	TM->BeginReplayRecording();
 	const FGuid MatchId = TM->GetReplayMatchId();
 
-	// La tabella unita' -> squadra si costruisce PRIMA di giocare: a fine partita qualcuno puo' essere morto,
-	// e un'unita' distrutta non direbbe piu' di che squadra era.
-	TMap<int32, int32> TeamOfUnit;
-	for (TActorIterator<ARTUnit> It(World); It; ++It)
-	{
-		TeamOfUnit.Add(It->StableUnitId, It->TeamId);
-	}
-	const TSet<int32> BotTeams = { 0, 1 };
-
 	const int32 TurnsPlayed = PlayToCompletion(TM);
 	if (!TestTrue(TEXT("sono stati giocati piu' turni"), TurnsPlayed > 1))
 	{
@@ -451,9 +441,13 @@ bool FRTReplayAuditProducerTest::RunTest(const FString&)
 	int32 ConVerdetti = 0;
 	for (int32 Turno = 1; Turno <= TurnsPlayed; ++Turno)
 	{
+		const int64 AncoraAttesa = Manifest.OrderedHashPerTurn.IsValidIndex(Turno - 1)
+			? Manifest.OrderedHashPerTurn[Turno - 1]
+			: 0;
+
 		FRTTurnAudit Audit;
-		if (!TestTrue(*FString::Printf(TEXT("l'audit del turno %d e' su disco e si rilegge"), Turno),
-				URTReplayAuditLibrary::LoadTurnAudit(Root, MatchId, Turno, Audit)))
+		if (!TestTrue(*FString::Printf(TEXT("l'audit del turno %d si rilegge, e l'ancora tiene"), Turno),
+				URTReplayAuditLibrary::LoadTurnAudit(Root, MatchId, Turno, Audit, AncoraAttesa)))
 		{
 			continue;
 		}
@@ -478,17 +472,16 @@ bool FRTReplayAuditProducerTest::RunTest(const FString&)
 			Turno, *FString::Join(Divergenze, TEXT(" | "))), Divergenze.Num(), 0);
 		ConVerdetti += Audit.Verdicts.Num();
 
-		// 🔑 Il controllo d'equita', sulle voci che quella traccia porta davvero.
+		// I verdetti registrati sono tanti quante le voci della traccia: e' l'invariante posizionale che
+		// [D-313] §7 dichiara, e qui si MISURA invece di restare scritta.
 		TArray<FRTTurnLogEntry> Voci;
 		const FString TracePath = FPaths::Combine(
 			URTReplayRecorderLibrary::MatchDirectory(Root, MatchId),
 			URTReplayRecorderLibrary::TurnFileName(Turno));
 		if (URTTurnLogLibrary::LoadTurnLogFromFile(TracePath, Voci))
 		{
-			const TArray<FString> Violazioni =
-				URTReplayAuditLibrary::FindUnknownTargetViolations(Audit, Voci, TeamOfUnit, BotTeams);
-			TestEqual(*FString::Printf(TEXT("turno %d: nessun bot ha colpito cio' che non conosceva (%s)"),
-				Turno, *FString::Join(Violazioni, TEXT(" | "))), Violazioni.Num(), 0);
+			TestEqual(*FString::Printf(TEXT("turno %d: un verdetto per voce"), Turno),
+				Audit.Verdicts.Num(), Voci.Num());
 		}
 	}
 

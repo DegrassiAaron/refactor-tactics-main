@@ -517,7 +517,14 @@ void ARTTurnManager::RefreshTeamKnowledgeForPlanning(const TArray<ARTUnit*>& Liv
 	// [D-313]: l'istantanea di PLANNING e' cio' su cui il bot decidera'. Si copia qui perche' fra qui e la
 	// fine del turno la conoscenza viene rinfrescata di nuovo (nel Blast), e le due non sono la stessa cosa
 	// — e' precisamente la distinzione che rende auditabile una partita invece che raccontabile.
-	PlanningKnowledgeForAudit = TeamKnowledgeState;
+	//
+	// ⚠️ **Solo se si sta registrando.** Senza la guardia, ogni PIE e ogni test dell'harness pagherebbero due
+	// copie profonde per turno di un dato che nessuno leggera'.
+	if (bRecordReplay)
+	{
+		PlanningKnowledgeForAudit = TeamKnowledgeState;
+		BlastKnowledgeForAudit.Reset(); // il Blast di QUESTO turno non e' ancora arrivato
+	}
 	// Chi disegna il velo rilegge QUI, non a `Tick` ([D-227]).
 	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
 }
@@ -2575,7 +2582,6 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor
 		Entry.VerdictSubject.StableUnitId = Actor->StableUnitId;
 		Entry.VerdictSubject.TeamId = Actor->TeamId;
 		Entry.VerdictSubject.Cell = Actor->Cell;
-		Entry.VerdictSubject.bAlive = Actor->IsAlive();
 	}
 
 	// L'UNICO `TurnLog.Add` del file: ogni altro sito passa da qui.
@@ -3200,8 +3206,16 @@ void ARTTurnManager::RecordTurnToReplay()
 		? ReplayManifest.OrderedHashPerTurn.Last()
 		: 0;
 
-	Audit.PlanningKnowledge = PlanningKnowledgeForAudit;
-	Audit.BlastKnowledge = BlastKnowledgeForAudit;
+	// 🔴 **Un'istantanea di un altro turno non e' evidenza: e' un errore che sembra una prova.** Le due
+	// copie si azzerano a ogni Planning, e `FRTTeamKnowledge::TurnNumber` dice a quale turno appartengono:
+	// se non e' questo, si registra il turno senza quella meta' invece di attribuirgli quella sbagliata.
+	auto DiQuestoTurno = [this](const TArray<FRTTeamKnowledge>& Snapshot)
+	{
+		return Snapshot.Num() > 0 && Snapshot[0].TurnNumber == TurnNumber;
+	};
+
+	if (DiQuestoTurno(PlanningKnowledgeForAudit)) { Audit.PlanningKnowledge = PlanningKnowledgeForAudit; }
+	if (DiQuestoTurno(BlastKnowledgeForAudit)) { Audit.BlastKnowledge = BlastKnowledgeForAudit; }
 
 	// I verdetti nell'ordine in cui le voci sono ARCHIVIATE: `TurnLog` e' gia' ordinato quando si arriva
 	// qui, ed e' lo stesso ordine che il recorder scrive. Il soggetto viaggia sull'entry proprio perche' un

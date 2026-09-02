@@ -75,18 +75,6 @@ namespace
 		return A;
 	}
 
-	/** Una voce di danno inflitto DA `ActorUnitId` verso `Target`. */
-	FRTTurnLogEntry Blow(int32 ActorUnitId, const FRTCellId& Target)
-	{
-		FRTTurnLogEntry E;
-		E.Category = ERTLogCategory::Combat;
-		E.Phase = ERTMatchPhase::Blast;
-		E.UnitId = ActorUnitId;
-		E.Amount = 17;
-		E.SrcCell = FRTCellId(0, 0, 0);
-		E.TgtCell = Target;
-		return E;
-	}
 }
 
 /** Il formato conserva i tre record di [D-313]: due conoscenze per squadra piu' i verdetti. */
@@ -113,7 +101,11 @@ bool FRTReplayAuditRoundTripTest::RunTest(const FString&)
 	{
 		TestEqual(TEXT("la squadra"), Read.PlanningKnowledge[1].TeamId, 1);
 		TestEqual(TEXT("le celle viste"), Read.PlanningKnowledge[0].VisibleCells.Num(), 2);
-		TestEqual(TEXT("le celle esplorate"), Read.PlanningKnowledge[0].ExploredCells.Num(), 1);
+		// ⛔ `ExploredCells` NON entra nell'artefatto, ed e' una scelta: nessun controllo lo legge —
+		// `ClassifyTarget` guarda `VisibleCells` e `Contacts` — e non scade mai, quindi crescerebbe di turno
+		// in turno dentro ogni file per un dato che nessuno consuma.
+		TestEqual(TEXT("le celle esplorate restano fuori dall'artefatto"),
+			Read.PlanningKnowledge[0].ExploredCells.Num(), 0);
 		if (TestEqual(TEXT("il contatto"), Read.PlanningKnowledge[0].Contacts.Num(), 1))
 		{
 			TestEqual(TEXT("l'unita' del contatto"), Read.PlanningKnowledge[0].Contacts[0].StableUnitId, 7);
@@ -189,6 +181,13 @@ bool FRTReplayAuditForeignArtifactTest::RunTest(const FString&)
 	TestFalse(TEXT("un altro turno non si carica"),
 		URTReplayAuditLibrary::LoadTurnAudit(Root, Mine, 3, Read));
 
+	// L'ANCORA: con un hash atteso diverso, l'artefatto non e' la coppia di quella traccia. Senza questo
+	// confronto il campo che la struct chiama «l'aggancio vero» sarebbe decorativo.
+	TestTrue(TEXT("con l'ancora giusta si carica"),
+		URTReplayAuditLibrary::LoadTurnAudit(Root, Mine, 2, Read, /*ExpectedOrderedHash*/ 42));
+	TestFalse(TEXT("con l'ancora di un'altra traccia non si carica"),
+		URTReplayAuditLibrary::LoadTurnAudit(Root, Mine, 2, Read, /*ExpectedOrderedHash*/ 43));
+
 	// Il caso che l'aggancio esiste per prendere: il file del turno 2 copiato sopra quello del turno 3.
 	// Il nome del file direbbe «turno 3», il contenuto dice «turno 2», e vince il contenuto.
 	const FString Src = FPaths::Combine(Root, Mine.ToString(EGuidFormats::Digits),
@@ -258,6 +257,26 @@ bool FRTReplayAuditVerdictCoherenceTest::RunTest(const FString&)
 	TestTrue(TEXT("alterare il verdetto registrato fa comparire una divergenza"),
 		URTReplayAuditLibrary::FindVerdictMismatches(VerdettoFalso).Num() > 0);
 
+	// 🔴 **Un fatto di MONDO non ha un verdetto da ricalcolare: ne ha uno per REGOLA.** Senza questo ramo il
+	// controllo accuserebbe il gioco a ogni turno di ogni partita su qualunque mappa con un obiettivo —
+	// `AppendLogEntry(Objective, nullptr)` scrive `Everyone()` senza consultare nessuna conoscenza, e
+	// ricalcolarlo darebbe al piu' la maschera delle squadre registrate. Trovato in code review.
+	FRTTurnAudit ConMondo = A;
+	FRTAuditVerdictRecord Mondo;
+	Mondo.Phase = ERTMatchPhase::Cleanup;
+	Mondo.SubjectUnitId = INDEX_NONE;   // nessun soggetto: e' un fatto del mondo
+	Mondo.Verdict = FRTKnowledgeVerdict::Everyone();
+	ConMondo.Verdicts.Add(Mondo);
+	TestEqual(TEXT("un fatto di mondo con Everyone non e' una divergenza"),
+		URTReplayAuditLibrary::FindVerdictMismatches(ConMondo).Num(), 0);
+
+	// ✅ E la regola si VERIFICA invece di essere saltata: un fatto di mondo che non fosse leggibile da tutti
+	// sarebbe un difetto, e questo lo direbbe.
+	FRTTurnAudit MondoStorto = ConMondo;
+	MondoStorto.Verdicts.Last().Verdict = FRTKnowledgeVerdict::NoOne();
+	TestTrue(TEXT("un fatto di mondo che NON e' Everyone e' una divergenza"),
+		URTReplayAuditLibrary::FindVerdictMismatches(MondoStorto).Num() > 0);
+
 	// 🔴 **La FASE decide contro quale istantanea si ricalcola, e non e' un campo decorativo.** Lo dimostra
 	// una conoscenza di Planning DIVERSA da quella di Blast: la stessa voce, letta come nata nel Dash, deve
 	// ricalcolarsi contro l'altra istantanea e divergere. E' la regola che un rosso su una partita vera ha
@@ -271,58 +290,6 @@ bool FRTReplayAuditVerdictCoherenceTest::RunTest(const FString&)
 	ConPlanning.Verdicts[0].Phase = ERTMatchPhase::Dash;    // nata PRIMA del Blast
 	TestTrue(TEXT("una voce nata prima del Blast si ricalcola sull'istantanea di Planning"),
 		URTReplayAuditLibrary::FindVerdictMismatches(ConPlanning).Num() > 0);
-
-	return true;
-}
-
-/**
- * 🔴 **L'equita' e' una proprieta' dell'INFORMAZIONE, non della qualita' della decisione.**
- *
- * La domanda che un archivio deve saper reggere e' *«il bot ha visto piu' di me?»*, e si misura cosi': ogni
- * colpo che un'unita' bot ha inflitto doveva partire verso una cella che la sua squadra **conosceva**.
- *
- * ⚠️ **Non e' la domanda «il bot ha giocato bene?»**, che non e' una domanda d'equita' e che l'archivio non
- * puo' reggere comunque: la scelta di COSA armare non entra nel TurnLog, e il canale che la racconta non e'
- * archiviato. Il limite e' dichiarato nella issue.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayAuditFairnessTest,
-	"RefactorTactics.Replay.Audit.BotNeverHitWhatItDidNotKnow",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTReplayAuditFairnessTest::RunTest(const FString&)
-{
-	FRTTurnAudit A;
-	A.MatchId = FGuid(4, 4, 4, 4);
-	A.TurnNumber = 1;
-	A.PlanningKnowledge.Add(Knowledge(0, 1)); // la squadra 0 vede (1,0) e (2,0), ricorda (3,0)
-
-	// L'unita' 5 e' del bot (squadra 0) e colpisce una cella che la sua squadra vede: lecito.
-	const FRTTurnLogEntry Lecito = Blow(/*attore*/ 5, FRTCellId(2, 0, 0));
-	// Verso il ricordo: lecito anche quello — `CellOnly` e' conoscenza, non onniscienza.
-	const FRTTurnLogEntry SulRicordo = Blow(5, FRTCellId(3, 0, 0));
-	// Verso una cella che la squadra non ha mai visto: e' il colpo che nessuna conoscenza autorizza.
-	const FRTTurnLogEntry Onnisciente = Blow(5, FRTCellId(9, 9, 0));
-
-	const TMap<int32, int32> TeamOfUnit = { { 5, 0 } };
-
-	TestEqual(TEXT("un colpo verso cio' che si vede non e' una violazione"),
-		URTReplayAuditLibrary::FindUnknownTargetViolations(A, { Lecito }, TeamOfUnit, { 0 }).Num(), 0);
-	TestEqual(TEXT("un colpo verso un ricordo non e' una violazione"),
-		URTReplayAuditLibrary::FindUnknownTargetViolations(A, { SulRicordo }, TeamOfUnit, { 0 }).Num(), 0);
-
-	// ⚠️ ANTI-VACUITA': senza questa riga il controllo potrebbe non guardare niente e restare verde.
-	TestEqual(TEXT("un colpo verso l'ignoto e' una violazione"),
-		URTReplayAuditLibrary::FindUnknownTargetViolations(A, { Onnisciente }, TeamOfUnit, { 0 }).Num(), 1);
-
-	// Una squadra NON bot non si giudica: il giocatore umano mira dove vuole, e il suo filtro e' altrove.
-	TestEqual(TEXT("solo le squadre dichiarate bot si giudicano"),
-		URTReplayAuditLibrary::FindUnknownTargetViolations(A, { Onnisciente }, TeamOfUnit, {}).Num(), 0);
-
-	// Una voce che non e' danno inflitto da un attore non entra nel conto: `UnitId` su una voce ambientale
-	// e' chi SUBISCE, e giudicarla accuserebbe la vittima.
-	FRTTurnLogEntry Ambientale = Blow(5, FRTCellId(9, 9, 0));
-	Ambientale.Category = ERTLogCategory::Environment;
-	TestEqual(TEXT("una voce che non e' danno inflitto non si giudica"),
-		URTReplayAuditLibrary::FindUnknownTargetViolations(A, { Ambientale }, TeamOfUnit, { 0 }).Num(), 0);
 
 	return true;
 }

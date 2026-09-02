@@ -140,12 +140,19 @@ public:
 	/**
 	 * Rilegge l'artefatto di un turno, **verificando l'aggancio**: se il contenuto dichiara un'altra partita
 	 * o un altro turno, e' rifiutato. Il nome del file non e' una prova.
+	 *
+	 * Con `ExpectedOrderedHash` diverso da zero si verifica anche **l'ancora**: un artefatto che dichiara
+	 * un'altra traccia dello stesso turno viene rifiutato. A zero significa «non lo so», e non si giudica.
 	 */
 	static bool LoadTurnAudit(const FString& ReplaysRoot, const FGuid& MatchId, int32 TurnNumber,
-		FRTTurnAudit& OutAudit);
+		FRTTurnAudit& OutAudit, int64 ExpectedOrderedHash = 0);
 
 	/**
-	 * Il verdetto che la conoscenza di **Blast** registrata produrrebbe per quel soggetto.
+	 * Il verdetto che la conoscenza registrata produrrebbe per quel soggetto.
+	 *
+	 * 🔴 **Quale istantanea, lo decide `Record.Phase`**: prima del `Blast` quella di Planning, dal `Blast` in
+	 * poi quella di Blast. `TeamKnowledgeState` ha due assegnazioni per turno, e una voce del Dash porta il
+	 * verdetto della prima — lo ha insegnato un rosso su una partita vera, non un ragionamento.
 	 *
 	 * ⚠️ **Chiama `URTTeamKnowledgeLibrary::FreezeVerdict`, cioe' il predicato di PRODUZIONE.** Una copia
 	 * scritta qui confronterebbe la copia con l'originale invece di confrontare il registrato col
@@ -162,14 +169,19 @@ public:
 	 */
 	static TArray<FString> FindVerdictMismatches(const FRTTurnAudit& Audit);
 
-	/**
-	 * I colpi inflitti da un'unita' bot verso una cella che la sua squadra **non conosceva**.
-	 *
-	 * E' l'equita' come `D-276` la intende: una proprieta' dell'**informazione**, non della qualita' della
-	 * decisione. ⚠️ Si giudicano solo le voci per cui `IsDamageInflictedByActor` e' vera — su una voce
-	 * ambientale `UnitId` e' chi **subisce**, e giudicarla accuserebbe la vittima.
-	 */
-	static TArray<FString> FindUnknownTargetViolations(const FRTTurnAudit& Audit,
-		const TArray<FRTTurnLogEntry>& Entries, const TMap<int32, int32>& TeamOfUnit,
-		const TSet<int32>& BotTeamIds);
+	// ⛔ **Il controllo d'EQUITA' non c'e', e l'assenza e' un risultato misurato.** Una prima stesura
+	// confrontava la cella colpita con la conoscenza della squadra, ed e' insostenibile per due ragioni
+	// indipendenti che una code review ha trovato:
+	//
+	//   · `TgtCell` su una voce di combattimento e' la cella della VITTIMA (`E.TgtCell = Units[Idx]->Cell`),
+	//     non quella a cui il bot ha mirato. Un'area sparata verso una cella nota che investe un nemico
+	//     ignoto in una cella adiacente e' **legittima**, e verrebbe segnalata come violazione;
+	//   · il cancello di produzione che autorizza il bersaglio legge la conoscenza del **Blast**
+	//     (`RTTurnManager_Blast.cpp`), non quella di Planning: un nemico entrato in vista nel Dash e'
+	//     `Rejected` alla pianificazione e `Allowed` al Blast, e sparargli e' lecito.
+	//
+	// 🔴 **E sotto c'e' un problema piu' profondo del come**: la SCELTA del bot non e' archiviata, solo i suoi
+	// EFFETTI. Verificare che abbia mirato a cio' che conosceva richiede il bersaglio scelto, che vorrebbe un
+	// quarto record e quindi un emendamento a [D-313]. E' la stessa forma del limite gia' dichiarato
+	// sull'armamento della reazione. Vedi `#2074`.
 };

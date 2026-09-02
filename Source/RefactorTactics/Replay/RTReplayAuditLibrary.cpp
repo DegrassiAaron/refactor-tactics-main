@@ -1,12 +1,12 @@
 #include "Replay/RTReplayAuditLibrary.h"
 
 #include "Dom/JsonObject.h"
+#include "HAL/PlatformFileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
-#include "Turn/RTTurnLogLibrary.h"
 
 namespace
 {
@@ -27,7 +27,6 @@ namespace
 
 	const TCHAR* KAudit_Team      = TEXT("TeamId");
 	const TCHAR* KAudit_Visible   = TEXT("VisibleCells");
-	const TCHAR* KAudit_Explored  = TEXT("ExploredCells");
 	const TCHAR* KAudit_Contacts  = TEXT("Contacts");
 	const TCHAR* KAudit_Unit      = TEXT("StableUnitId");
 	const TCHAR* KAudit_Cell      = TEXT("Cell");
@@ -88,7 +87,6 @@ namespace
 		Obj->SetNumberField(KAudit_Team, K.TeamId);
 		Obj->SetNumberField(KAudit_Turn, K.TurnNumber);
 		Obj->SetField(KAudit_Visible, AuditCellsToJson(K.VisibleCells));
-		Obj->SetField(KAudit_Explored, AuditCellsToJson(K.ExploredCells));
 
 		TArray<TSharedPtr<FJsonValue>> Contacts;
 		Contacts.Reserve(K.Contacts.Num());
@@ -109,10 +107,16 @@ namespace
 		const TSharedPtr<FJsonObject>* Obj = nullptr;
 		if (!Value.IsValid() || !Value->TryGetObject(Obj)) { return false; }
 
-		// ⚠️ La versione della CONOSCENZA e' un dato registrato, non un controllo: dice con quale modello e'
-		// stata scritta. A rifiutare e' la versione del FORMATO, una sola volta, in testa al file.
+		// 🔴 **La versione della CONOSCENZA si RIFIUTA, non si riproduce.** `AwarenessOfUnit` e `FindContact`
+		// sono fail-closed su una versione diversa da `CurrentVersion`: riprodurre quella del file farebbe
+		// collassare a `Rejected` ogni ricalcolo il giorno in cui `FRTTeamKnowledge::CurrentVersion` sale, e
+		// un artefatto vecchio produrrebbe un muro di finte divergenze invece di un rifiuto pulito.
 		double Version = 0.0;
-		(*Obj)->TryGetNumberField(KAudit_Version, Version);
+		if (!(*Obj)->TryGetNumberField(KAudit_Version, Version)
+			|| static_cast<int32>(Version) != FRTTeamKnowledge::CurrentVersion)
+		{
+			return false;
+		}
 		OutK.Version = static_cast<int32>(Version);
 
 		double Team = 0.0, Turn = 0.0;
@@ -122,7 +126,6 @@ namespace
 		OutK.TurnNumber = static_cast<int32>(Turn);
 
 		if (!AuditCellsFromJson(*Obj, KAudit_Visible, OutK.VisibleCells)) { return false; }
-		if (!AuditCellsFromJson(*Obj, KAudit_Explored, OutK.ExploredCells)) { return false; }
 
 		const TArray<TSharedPtr<FJsonValue>>* Contacts = nullptr;
 		if ((*Obj)->TryGetArrayField(KAudit_Contacts, Contacts))
@@ -206,9 +209,12 @@ bool URTReplayAuditLibrary::AuditFromJson(const FString& Json, FRTTurnAudit& Out
 
 	// 🔴 Fail-closed, e prima di ogni altra lettura: una versione che non si conosce si RIFIUTA invece di
 	// interpretarne i campi. E' la convenzione che `DeserializeTurnLog` e `ManifestFromJson` applicano gia'.
+	// ⚠️ Si confronta il DOUBLE, senza restringere prima: `static_cast<uint16>(65537)` vale `1`, quindi una
+	// versione futura sarebbe passata per quella corrente — e un valore negativo renderebbe la conversione
+	// indefinita. Il narrowing prima del confronto e' un fail-OPEN travestito da fail-closed.
 	double Version = 0.0;
 	if (!Root->TryGetNumberField(KAudit_Version, Version)
-		|| static_cast<uint16>(Version) != static_cast<uint16>(ERTAuditFormatVersion::Current))
+		|| Version != static_cast<double>(ERTAuditFormatVersion::Current))
 	{
 		return false;
 	}
@@ -226,7 +232,7 @@ bool URTReplayAuditLibrary::AuditFromJson(const FString& Json, FRTTurnAudit& Out
 	Read.TurnNumber = static_cast<int32>(Turn);
 
 	FString HashText;
-	if (!Root->TryGetStringField(KAudit_Hash, HashText)) { return false; }
+	if (!Root->TryGetStringField(KAudit_Hash, HashText) || !HashText.IsNumeric()) { return false; }
 	LexFromString(Read.OrderedHash, *HashText);
 
 	const TArray<TSharedPtr<FJsonValue>>* Planning = nullptr;
@@ -288,11 +294,28 @@ bool URTReplayAuditLibrary::RecordTurnAudit(const FString& ReplaysRoot, const FR
 
 	const FString Path = FPaths::Combine(ReplaysRoot, Audit.MatchId.ToString(EGuidFormats::Digits),
 		TurnAuditFileName(Audit.TurnNumber));
-	return FFileHelper::SaveStringToFile(AuditToJson(Audit), *Path);
+
+	// 🔴 **Atomica come il manifest**: si scrive un temporaneo e lo si sposta sopra. Un componente che esiste
+	// per sopravvivere a un crash non puo' lasciare mezzo file: un `.rtaudit` troncato accanto a una traccia
+	// valida sarebbe un'evidenza che sembra esserci.
+	const FString Temp = Path + TEXT(".tmp");
+	if (!FFileHelper::SaveStringToFile(AuditToJson(Audit), *Temp))
+	{
+		return false;
+	}
+
+	IPlatformFile& PF = FPlatformFileManager::Get().GetPlatformFile();
+	PF.DeleteFile(*Path); // `MoveFile` non sovrascrive
+	if (!PF.MoveFile(*Path, *Temp))
+	{
+		PF.DeleteFile(*Temp);
+		return false;
+	}
+	return true;
 }
 
 bool URTReplayAuditLibrary::LoadTurnAudit(const FString& ReplaysRoot, const FGuid& MatchId, int32 TurnNumber,
-	FRTTurnAudit& OutAudit)
+	FRTTurnAudit& OutAudit, int64 ExpectedOrderedHash)
 {
 	const FString Path = FPaths::Combine(ReplaysRoot, MatchId.ToString(EGuidFormats::Digits),
 		TurnAuditFileName(TurnNumber));
@@ -313,6 +336,14 @@ bool URTReplayAuditLibrary::LoadTurnAudit(const FString& ReplaysRoot, const FGui
 	// ancora la propria partita e il proprio turno, e sono quelli a decidere. Un'evidenza attribuita alla
 	// partita sbagliata e' peggio di un'evidenza mancante, perche' sembra una risposta.
 	if (Read.MatchId != MatchId || Read.TurnNumber != TurnNumber)
+	{
+		return false;
+	}
+
+	// E l'ANCORA, che senza questo confronto sarebbe un campo decorativo: `ExpectedOrderedHash` a zero
+	// significa «non lo so», e allora non si giudica. Con un valore, una traccia rigenerata smette di
+	// sembrare la coppia di questo artefatto.
+	if (ExpectedOrderedHash != 0 && Read.OrderedHash != ExpectedOrderedHash)
 	{
 		return false;
 	}
@@ -348,6 +379,27 @@ TArray<FString> URTReplayAuditLibrary::FindVerdictMismatches(const FRTTurnAudit&
 	for (int32 i = 0; i < Audit.Verdicts.Num(); ++i)
 	{
 		const FRTAuditVerdictRecord& Record = Audit.Verdicts[i];
+
+		// 🔴 **Un fatto di MONDO non ha un verdetto da ricalcolare: ne ha uno per REGOLA.** Una superficie che
+		// scade, un ponte che crolla, una casella obiettivo: `AppendLogEntry` scrive `Everyone()` senza
+		// consultare nessuna conoscenza, e senza soggetto. Ricalcolarlo darebbe al piu' la maschera delle
+		// squadre registrate — mai `~0u` — e produrrebbe una divergenza a **ogni turno di ogni partita** su
+		// qualunque mappa con un obiettivo. Trovato in code review; il test verde lo era perche' l'arena piatta
+		// dell'harness un obiettivo non ce l'ha.
+		//
+		// ✅ E la regola si verifica invece di saltarla: se non c'e' soggetto, il verdetto DEVE essere
+		// `Everyone()`. Il controllo diventa piu' forte, non piu' debole.
+		if (Record.SubjectUnitId == INDEX_NONE)
+		{
+			if (!(Record.Verdict == FRTKnowledgeVerdict::Everyone()))
+			{
+				Mismatches.Add(FString::Printf(
+					TEXT("voce %d: fatto di mondo senza soggetto, ma il verdetto registrato e' 0x%08X invece di Everyone"),
+					i, Record.Verdict.Mask));
+			}
+			continue;
+		}
+
 		const FRTKnowledgeVerdict Recomputed = RecomputeVerdict(Audit, Record);
 		if (!(Recomputed == Record.Verdict))
 		{
@@ -358,53 +410,4 @@ TArray<FString> URTReplayAuditLibrary::FindVerdictMismatches(const FRTTurnAudit&
 		}
 	}
 	return Mismatches;
-}
-
-TArray<FString> URTReplayAuditLibrary::FindUnknownTargetViolations(const FRTTurnAudit& Audit,
-	const TArray<FRTTurnLogEntry>& Entries, const TMap<int32, int32>& TeamOfUnit,
-	const TSet<int32>& BotTeamIds)
-{
-	TArray<FString> Violations;
-
-	for (int32 i = 0; i < Entries.Num(); ++i)
-	{
-		const FRTTurnLogEntry& Entry = Entries[i];
-
-		// ⚠️ Si giudica solo il danno INFLITTO da un attore, e la domanda si CHIEDE alla tassonomia invece
-		// di dedurla dalla categoria: su una voce ambientale `UnitId` e' chi subisce, e giudicarla
-		// accuserebbe la vittima di aver colpito se stessa da una cella che non conosceva.
-		if (!URTTurnLogLibrary::IsDamageInflictedByActor(Entry))
-		{
-			continue;
-		}
-
-		const int32* TeamId = TeamOfUnit.Find(Entry.UnitId);
-		if (TeamId == nullptr || !BotTeamIds.Contains(*TeamId))
-		{
-			continue; // non e' un bot: il giocatore umano mira dove vuole, e il suo filtro e' altrove
-		}
-
-		const FRTTeamKnowledge* Known = Audit.PlanningKnowledge.FindByPredicate(
-			[TeamId](const FRTTeamKnowledge& K) { return K.TeamId == *TeamId; });
-		if (Known == nullptr)
-		{
-			// Nessuna conoscenza registrata per la squadra che ha colpito: non e' «lecito», e' **non
-			// verificabile**, ed e' un difetto dell'archivio. Si dichiara invece di tacere.
-			Violations.Add(FString::Printf(
-				TEXT("voce %d: la squadra %d ha colpito, e per lei non c'e' conoscenza registrata"), i, *TeamId));
-			continue;
-		}
-
-		const bool bKnew = Known->VisibleCells.Contains(Entry.TgtCell)
-			|| Known->Contacts.ContainsByPredicate(
-				[&Entry](const FRTLastKnownContact& C) { return C.Cell == Entry.TgtCell; });
-		if (!bKnew)
-		{
-			Violations.Add(FString::Printf(
-				TEXT("voce %d: l'unita' %d (squadra %d) ha colpito (%d,%d,%d), che la sua squadra non conosceva"),
-				i, Entry.UnitId, *TeamId, Entry.TgtCell.X, Entry.TgtCell.Y, Entry.TgtCell.Layer));
-		}
-	}
-
-	return Violations;
 }
