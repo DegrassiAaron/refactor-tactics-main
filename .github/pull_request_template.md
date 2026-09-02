@@ -31,6 +31,7 @@ Un `git diff` non e' una verifica.
 - [ ] `./scripts/rt-suite.ps1` → VALIDA / NON VALIDA, `?/?` completati, `?` fallimenti
 - [ ] Verifica di mutazione → cosa e' stato indebolito, quale test e' caduto, ripristinato **e ricostruito**
 - [ ] Gate documentali: `doc-links --check --with-archive` · `doc-tables --check` · `issue-refs --check`
+- [ ] Se la PR tocca `Scenarios/` o un valore di bilanciamento: `scenario-notes --check` (la prosa di uno scenario contro ciò che il file asserisce)
 - [ ] PIE / packaged → NOT RUN, oppure la voce eseguita
 
 ## Owner aggiornati
