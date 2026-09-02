@@ -31,6 +31,9 @@ public class RefactorTacticsEditor : ModuleRules
 			"UMG",
 			"UMGEditor",
 			"Blutility",
+			// `PanelGraphCallsTheModel` interroga i nodi dell'EventGraph del pannello per NOME DI FUNZIONE
+			// (`UK2Node_CallFunction::FunctionReference`), non per titolo: il titolo e' presentazione.
+			"BlueprintGraph",
 			// Generazione e salvataggio delle mesh del kit graybox (D-229, commandlet RTBuildGrayboxMeshes):
 			// la FMeshDescription si costruisce qui e diventa la SORGENTE dell'asset salvato.
 			"MeshDescription",

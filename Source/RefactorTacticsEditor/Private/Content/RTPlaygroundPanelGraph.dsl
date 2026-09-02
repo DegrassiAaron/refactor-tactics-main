@@ -16,19 +16,21 @@
 ; Gli eventi vanno creati PRIMA, con `UMGToolSet.BindToEventProperty`: `write_graph_dsl` non li crea.
 ;   Cmb_Facing/OnSelectionChanged (/Script/UMG.ComboBoxString)
 ;   Btn_SelectFixture/OnClicked · Btn_ResetFixture/OnClicked (/Script/UMG.Button)
-; E i widget scritti devono essere variabili (`ToggleWidgetAsVariable`): il commandlet non chiama
-; mai `SetIsVariable`, quindi i `Txt_*` non lo sono alla generazione.
+; I widget scritti devono essere VARIABILI, altrimenti il loro `Get<Nome>` non esiste. Dalla
+; revisione del 2026-09-02 li rende tali il commandlet stesso (`MakeEveryWidgetAVariable`): non
+; serve piu' passare da `ToggleWidgetAsVariable` a mano.
 ;
 ; ⛔ COSA NON E' CABLATO, E PERCHE'
-; - le opzioni delle due combo. `ComboBox|AddOption` e `ComboBox|ClearOptions` esistono in DUE
-;   varianti con lo STESSO type_id (`UComboBoxKey` e `UComboBoxString`) e il DSL prende la prima:
-;   *«Could not connect pin Cmb_Station to self»*. Il DSL non ha modo di dire quale;
-;   `create_node` ce l'ha (`declaring_class`), `write_graph_dsl` no. La via pulita e' riempire
-;   `DefaultOptions` dal commandlet, che e' C++ e non ha l'ambiguita'.
 ; - `Btn_Focus` e i tre preset di camera. Sono cablabili - `FRTPlaygroundStationInfo::CentreWorld`
 ;   piu' `Development|Editor|SetLevelViewportCameraInfo` - ma servono la station selezionata, che si
-;   legge con `ComboBox|GetSelectedOption`, ambiguo per lo stesso motivo.
-; - `Cmb_Station`, per la stessa ragione.
+;   legge con `ComboBox|GetSelectedOption`: esiste in DUE varianti con lo STESSO type_id
+;   (`UComboBoxKey` e `UComboBoxString`) e il DSL prende la prima, quindi non e' raggiungibile da qui.
+;   `create_node` saprebbe disambiguare (`declaring_class`), `write_graph_dsl` no.
+; - `Cmb_Station/OnSelectionChanged`, che pero' NON ha quel problema: l'evento porta `SelectedItem`
+;   come parametro. E' semplicemente non ancora scritto.
+;
+; ➕ Le OPZIONI delle due combo non sono piu' un buco: le riempie il commandlet in `DefaultOptions`,
+; dal modello, e `Playground.PanelComboOptionsComeFromTheModel` lo verifica voce per voce.
 
 (event UserInterface|EventConstruct
   ; le tre righe di DIAGNOSTICS vengono dal modello, non sono riscritte qui

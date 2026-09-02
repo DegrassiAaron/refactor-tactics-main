@@ -33,6 +33,71 @@ namespace
 		Box->AddChildToVerticalBox(Block);
 		return Block;
 	}
+
+	/**
+	 * 🔑 **Ogni widget diventa una VARIABILE.** Senza questo il grafo non ha maniglia: un
+	 * `Variables|WBP_RT_GrayKitPlayground|GetTxt_MapState` semplicemente non esiste, e cablare un testo
+	 * e' impossibile. Misurato il 2026-09-02: il pannello generato aveva variabili solo per bottoni e
+	 * combo, e i cinque `Txt_*` che il grafo scrive hanno dovuto essere convertiti a mano.
+	 */
+	void MakeEveryWidgetAVariable(UWidgetTree* Tree)
+	{
+		Tree->ForEachWidget([](UWidget* Widget)
+		{
+			if (Widget)
+			{
+				Widget->bIsVariable = true;
+			}
+		});
+	}
+
+	/**
+	 * Le voci delle due combo, **dal modello**.
+	 *
+	 * ⛔ **Perche' qui e non nel grafo**, che sarebbe stata la sede naturale: `ComboBox|AddOption` e
+	 * `ComboBox|ClearOptions` esistono in DUE varianti — `UComboBoxKey` e `UComboBoxString` — con lo
+	 * **stesso** `type_id`, e il DSL del toolset Blueprint prende la prima:
+	 * *«Could not connect pin Cmb_Station to self»*. Il C++ non ha quell'ambiguita'.
+	 *
+	 * ⚠️ Restano comunque **derivate**, non incise: `GetStations()` delega alla planimetria e
+	 * `GetFacingOptions()` a `StaticEnum<ERTHexDirection>()`. Cambiare una station qui non serve.
+	 */
+	bool ApplyComboOptionsFromModel(UWidgetTree* Tree, int32& OutStations, int32& OutFacings)
+	{
+		UComboBoxString* StationCombo = Cast<UComboBoxString>(Tree->FindWidget(TEXT("Cmb_Station")));
+		UComboBoxString* FacingCombo  = Cast<UComboBoxString>(Tree->FindWidget(TEXT("Cmb_Facing")));
+		if (!StationCombo || !FacingCombo)
+		{
+			return false;
+		}
+
+		// ⚠️ `DefaultOptions` e' **private** in UE 5.8: si passa dall'API pubblica, non dal campo.
+		StationCombo->ClearOptions();
+		for (const FRTPlaygroundStationInfo& Station : URTPlaygroundPanelLibrary::GetStations())
+		{
+			StationCombo->AddOption(Station.Name);
+		}
+		FacingCombo->ClearOptions();
+		for (const FString& Option : URTPlaygroundPanelLibrary::GetFacingOptions())
+		{
+			FacingCombo->AddOption(Option);
+		}
+
+		OutStations = StationCombo->GetOptionCount();
+		OutFacings  = FacingCombo->GetOptionCount();
+		return true;
+	}
+
+	/** Il salvataggio, uguale per la generazione e per il refresh. */
+	bool SavePanelPackage(UPackage* Package, UBlueprint* PanelBP)
+	{
+		const FString FileName = FPackageName::LongPackageNameToFilename(
+			Package->GetName(), FPackageName::GetAssetPackageExtension());
+		FSavePackageArgs SaveArgs;
+		SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
+		SaveArgs.SaveFlags = SAVE_NoError;
+		return UPackage::SavePackage(Package, PanelBP, *FileName, SaveArgs);
+	}
 }
 
 int32 URTBuildPlaygroundPanelCommandlet::Main(const FString& Params)
@@ -41,8 +106,39 @@ int32 URTBuildPlaygroundPanelCommandlet::Main(const FString& Params)
 	TArray<FString> Switches;
 	ParseCommandLine(*Params, Tokens, Switches);
 	const bool bForce = Switches.Contains(TEXT("Force"));
+	const bool bRefreshOptions = Switches.Contains(TEXT("RefreshOptions"));
 
 	UEditorUtilityWidgetBlueprint* Existing = LoadObject<UEditorUtilityWidgetBlueprint>(nullptr, RTPanelPackage);
+
+	// 🔑 **Aggiornamento NON distruttivo.** Rigenerare cancella il grafo autorato (`RTPlaygroundPanelGraph.dsl`);
+	// questa via tocca soltanto le voci delle combo e i flag di variabile, e il grafo resta dov'e'.
+	if (Existing && bRefreshOptions)
+	{
+		UWidgetTree* ExistingTree = Existing->WidgetTree;
+		int32 RefreshedStations = 0;
+		int32 RefreshedFacings = 0;
+		if (!ExistingTree || !ApplyComboOptionsFromModel(ExistingTree, RefreshedStations, RefreshedFacings))
+		{
+			UE_LOG(LogRTPlaygroundPanel, Error,
+				TEXT("[PlaygroundPanel] refresh impossibile: Cmb_Station o Cmb_Facing non trovate in %s."), RTPanelAsset);
+			return 1;
+		}
+		MakeEveryWidgetAVariable(ExistingTree);
+
+		FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Existing);
+		FKismetEditorUtilities::CompileBlueprint(Existing);
+		Existing->MarkPackageDirty();
+		if (!SavePanelPackage(Existing->GetOutermost(), Existing))
+		{
+			UE_LOG(LogRTPlaygroundPanel, Error, TEXT("[PlaygroundPanel] salvataggio fallito: %s"), RTPanelPackage);
+			return 1;
+		}
+		UE_LOG(LogRTPlaygroundPanel, Display,
+			TEXT("[PlaygroundPanel] refresh di %s — %d station, %d direzioni dal modello. Grafo NON toccato."),
+			RTPanelAsset, RefreshedStations, RefreshedFacings);
+		return 0;
+	}
+
 	if (Existing && !bForce)
 	{
 		// ⛔ Si rifiuta invece di sovrascrivere: il grafo e le rifiniture di layout sono authoring, e
@@ -127,27 +223,32 @@ int32 URTBuildPlaygroundPanelCommandlet::Main(const FString& Params)
 		AddLine(Tree, Root, *FString::Printf(TEXT("Txt_Declared_%d"), I), Declared[I]);
 	}
 
+	// Lo scheletro nasce gia' pronto per il grafo: voci dal modello e ogni widget raggiungibile.
+	int32 StationOptions = 0;
+	int32 FacingOptions = 0;
+	if (!ApplyComboOptionsFromModel(Tree, StationOptions, FacingOptions))
+	{
+		UE_LOG(LogRTPlaygroundPanel, Error, TEXT("[PlaygroundPanel] combo non trovate subito dopo averle costruite."));
+		return 1;
+	}
+	MakeEveryWidgetAVariable(Tree);
+
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(PanelBP);
 	FKismetEditorUtilities::CompileBlueprint(PanelBP);
 
 	FAssetRegistryModule::AssetCreated(PanelBP);
 	PanelBP->MarkPackageDirty();
 
-	const FString FileName = FPackageName::LongPackageNameToFilename(
-		Package->GetName(), FPackageName::GetAssetPackageExtension());
-	FSavePackageArgs SaveArgs;
-	SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
-	SaveArgs.SaveFlags = SAVE_NoError;
-	if (!UPackage::SavePackage(Package, PanelBP, *FileName, SaveArgs))
+	if (!SavePanelPackage(Package, PanelBP))
 	{
 		UE_LOG(LogRTPlaygroundPanel, Error, TEXT("[PlaygroundPanel] salvataggio fallito: %s"), RTPanelPackage);
 		return 1;
 	}
 
 	UE_LOG(LogRTPlaygroundPanel, Display,
-		TEXT("[PlaygroundPanel] creato %s — %d widget, %d righe DIAGNOSTICS dal modello."),
-		RTPanelAsset, Tree->RootWidget ? Root->GetChildrenCount() : 0, Declared.Num());
+		TEXT("[PlaygroundPanel] creato %s — %d widget, %d righe DIAGNOSTICS, %d station, %d direzioni dal modello."),
+		RTPanelAsset, Tree->RootWidget ? Root->GetChildrenCount() : 0, Declared.Num(), StationOptions, FacingOptions);
 	UE_LOG(LogRTPlaygroundPanel, Display,
-		TEXT("[PlaygroundPanel] ⛔ il GRAFO non e' generato: gli eventi vanno cablati in UMG sulle funzioni di URTPlaygroundPanelLibrary."));
+		TEXT("[PlaygroundPanel] ⛔ il GRAFO non e' generato: si riapplica con `write_graph_dsl` da RTPlaygroundPanelGraph.dsl."));
 	return 0;
 }
