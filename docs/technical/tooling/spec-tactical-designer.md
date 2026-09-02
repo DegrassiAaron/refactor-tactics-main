@@ -126,6 +126,12 @@ l'headless produce. Da questo discendono tre conseguenze verificabili:
 2. **La velocità è presentazione.** `0.25x`, `4x` o `Instant` devono produrre lo stesso stato finale: se non
    lo producono, il tempo reale sta entrando in una decisione, che è ciò che il §8 del
    [piano canonico](../../product/piano-canonico-mvp.md) vieta.
+   ✅ **Misurata dal 2026-09-02** — `RefactorTactics.Playback.InstantEqualsNormalInEverythingButTime`
+   ([#1625](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1625)). ⚠️ «Stesso stato finale»
+   è reso come uguaglianza fra **valori**, non fra tempi: la scala, l'ordine e la successione delle
+   velocità non dipendono da quale sia attiva. `Instant` si riconosce **per nome** e non per un
+   moltiplicatore vicino a zero — un consumatore che confrontasse il numero smetterebbe di riconoscerlo il
+   giorno che quel valore cambia, e senza un errore.
 3. **Un evento che il playback non sa rendere resta invisibile, non inventato.** Meglio una lacuna
    dichiarata di una ricostruzione plausibile: la seconda è indistinguibile da un dato, e nessuno la
    verifica.
