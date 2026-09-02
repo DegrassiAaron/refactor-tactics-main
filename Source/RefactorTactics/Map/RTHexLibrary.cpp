@@ -1,4 +1,9 @@
 #include "Map/RTHexLibrary.h"
+// 🔑 `RT_OccupancySectorCount` per il CONTEGGIO dei settori, e il nome e' ereditato dal primo
+// consumatore invece che dalla semantica: quel `12` e' del PARTIZIONAMENTO, non dell'occupancy.
+// Dichiararne un secondo qui sarebbe la seconda copia della stessa convenzione, che
+// `spec-pointer-interaction.md` §4.9 vieta e che `#712` ha gia' pagato una volta.
+#include "Map/RTHexOccupancyLibrary.h"
 #include "Map/RTMapVisuals.h"   // RTCellPrismRadius: la mesh che CellVolumeTransform scala nasce con quel raggio
 
 namespace
@@ -430,6 +435,43 @@ ERTHexDirection URTHexLibrary::DirectionForEdgeIndex(int32 EdgeIndex)
 	// enum inesistente.
 	const int32 Wrapped = ((EdgeIndex % 6) + 6) % 6;
 	return static_cast<ERTHexDirection>((6 - Wrapped) % 6);
+}
+
+int32 URTHexLibrary::PointingSectorAt(const FVector2D& LocalPoint, float HexSize)
+{
+	// Fail-closed: senza scala non c'e' geometria, e la dead-zone non e' calcolabile. Rispondere `0` sarebbe
+	// un settore plausibile e falso — il difetto che vale sempre la pena non introdurre.
+	if (HexSize <= 0.f)
+	{
+		return INDEX_NONE;
+	}
+
+	// L'INRAGGIO, cioe' la distanza dal centro al punto medio di un lato. E' la stessa riga di
+	// `SectorBoundaryPoints`, e non e' un caso: la dead-zone si misura dove la cella e' piu' stretta.
+	const double InRadius = static_cast<double>(HexSize) * FMath::Cos(FMath::DegreesToRadians(30.0));
+	const double DeadZone = InRadius * static_cast<double>(PointingDeadZoneFraction);
+
+	const double X = static_cast<double>(LocalPoint.X);
+	const double Y = static_cast<double>(LocalPoint.Y);
+	const double DistanceSq = X * X + Y * Y;
+	if (DistanceSq < DeadZone * DeadZone)
+	{
+		return INDEX_NONE; // troppo vicino al centro: non si punta niente
+	}
+
+	// 🔑 **La convenzione si EREDITA, e questa e' la riga che la eredita.** `SectorBoundaryPoints`
+	// mette `P[k]` a `-30 + 30k` gradi, quindi il settore `k` occupa `[-30 + 30k, -30 + 30(k+1))`. Sommare
+	// `30` prima di dividere per `30` e' esattamente l'inversa di quella formula — non una seconda
+	// convenzione che le somiglia. `RefactorTactics.Hex.PointingSectorFollowsTheBoundaryPoints` lo ancora
+	// alla funzione invece che a un letterale, perche' due copie della stessa formula sono il modo in cui
+	// `#712` e' nato.
+	const double Degrees = FMath::RadiansToDegrees(FMath::Atan2(Y, X));
+
+	// `Atan2` rende `(-180, 180]`. Il `+ 360` porta tutto in positivo prima del modulo, cosi' il wrap a
+	// `359,x -> 0` cade nello stesso ramo di ogni altro angolo invece che in un caso speciale.
+	const double Shifted = Degrees + 30.0 + 360.0;
+	const int32 Sector = static_cast<int32>(FMath::FloorToDouble(Shifted / 30.0)) % RT_OccupancySectorCount;
+	return Sector;
 }
 
 int32 URTHexLibrary::EdgeIndexForDirection(ERTHexDirection Dir)

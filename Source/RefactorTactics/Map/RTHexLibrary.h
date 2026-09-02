@@ -263,6 +263,38 @@ public:
 	static int32 EdgeIndexForDirection(ERTHexDirection Dir);
 
 	/**
+	 * La frazione dell'INRAGGIO sotto la quale non si punta niente — la dead-zone al centro della cella.
+	 *
+	 * Ha un numero e non l'aggettivo *«configurabile»*, ed e' una richiesta esplicita di `#1615`: una
+	 * dead-zone senza valore e' una decisione rimandata, e il primo che ne ha bisogno ne sceglie uno diverso.
+	 * Sull'inraggio e non su `HexSize` perche' e' la distanza dal centro al lato piu' vicino: e' li' che la
+	 * cella e' piu' stretta, ed e' quella la misura di *«quanto sono vicino al centro»*.
+	 */
+	static constexpr float PointingDeadZoneFraction = 0.25f;
+
+	/**
+	 * IL SETTORE DI PUNTAMENTO `0..11` sotto un punto, in coordinate LOCALI di cella. `INDEX_NONE` = dead-zone.
+	 *
+	 * 🔑 **Non e' una terza tassonomia di «settore»**: e' lo stesso partizionamento che
+	 * `URTHexOccupancyLibrary::SectorBoundaryPoints` fissa — dodici triangoli `(centro, P[k], P[k+1])` con
+	 * `P[k]` a `-30 + 30k` gradi — con una domanda diversa. L'occupancy chiede *quanto* di quel triangolo e'
+	 * invaso da geometria; questa chiede *in quale* triangolo cade un punto. Vedi
+	 * `spec-pointer-interaction.md` §4.9.
+	 *
+	 * ⚠️ **Locale e non world, ed e' la ragione per cui la firma e' questa**: il settore non deve dipendere
+	 * da dove sta la cella. Con un punto world la stessa geometria darebbe risposte diverse a `(0,0)` e a
+	 * `(5000, 3000)` per errore di arrotondamento, e il test di traslazione che `#1615` chiede non avrebbe
+	 * nulla da ancorare. Chi ha un punto world sottrae `AxialToWorld` del centro.
+	 *
+	 * ⛔ **I dodici settori NON sono direzioni.** L'adiacenza resta a sei: il ponte e' `EdgeIndex =
+	 * SectorIndex / 2` seguito da `DirectionForEdgeIndex`, fissato da [D-243]. Ed e' a **senso unico** — da
+	 * una direzione non si torna a un settore, perche' due settori ne condividono una.
+	 *
+	 * `HexSize <= 0` -> `INDEX_NONE`: senza scala non c'e' geometria, e la dead-zone non e' calcolabile.
+	 */
+	static int32 PointingSectorAt(const FVector2D& LocalPoint, float HexSize);
+
+	/**
 	 * La porzione di un gesto che cade dentro UNA cella, nelle coordinate locali di quella cella.
 	 *
 	 * La grammatica dei muri e' definita per cella: `SnapToGrammar` ragiona sui punti notevoli di un
