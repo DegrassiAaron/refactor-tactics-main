@@ -487,6 +487,28 @@ struct REFACTORTACTICS_API FRTScenarioDraft
 	 */
 	ERTScenarioAuthoringResult RemoveTurn(int32 TurnIndex, FString& OutError);
 
+	/**
+	 * Duplica un turno, inserendo la copia **subito dopo** l'originale — `#1627`.
+	 *
+	 * 🔑 Un designer che costruisce una sequenza scrive tre volte lo stesso schieramento con una variazione:
+	 * duplicare e ritoccare e' il gesto vero, e senza questa funzione l'unica strada era `AddTurn` piu' la
+	 * riscrittura a mano di ogni intent — cioe' tornare nel JSON, che e' il posto da cui `TD 0.2` toglie il
+	 * designer.
+	 *
+	 * `OutNewIndex` e' `SourceIndex + 1`: e' dove «duplica» mette la copia in ogni editor, e restituirlo
+	 * evita che il chiamante lo deduca (e lo deduca male dopo il prossimo cambiamento).
+	 *
+	 * ⛔ **Non esiste una funzione gemella per il riordino, ed e' una decisione misurata, non una lacuna.**
+	 * I waypoint di un intent sono celle ASSOLUTE, e `FRTScenarioSession` ricostruisce il percorso con
+	 * `BuildCompositeHexPath` sullo snapshot **del momento**: un turno spostato porta con se' waypoint che
+	 * partivano da dove le unita' erano dopo i turni precedenti. Se il percorso non regge, l'unita' resta
+	 * ferma con una nota e lo scenario prosegue — un degrado silenzioso che manda a cercare il difetto nel
+	 * gioco. E saperlo PRIMA vorrebbe dire prevedere il resolver, cioe' il secondo simulatore che l'ADR
+	 * vieta. Il formato non ha un campo che dica «questo turno non dipende dai precedenti», e finche' non ce
+	 * l'ha il riordino non e' offribile.
+	 */
+	ERTScenarioAuthoringResult DuplicateTurn(int32 SourceIndex, int32& OutNewIndex, FString& OutError);
+
 	int32 NumTurns() const { return Scenario.Turns.Num(); }
 
 	/**

@@ -424,6 +424,48 @@ ERTScenarioAuthoringResult FRTScenarioDraft::RemoveTurn(int32 TurnIndex, FString
 	return ERTScenarioAuthoringResult::Success;
 }
 
+ERTScenarioAuthoringResult FRTScenarioDraft::DuplicateTurn(int32 SourceIndex, int32& OutNewIndex,
+	FString& OutError)
+{
+	OutError.Reset();
+	OutNewIndex = INDEX_NONE;
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+	if (!Scenario.Turns.IsValidIndex(SourceIndex))
+	{
+		OutError = FString::Printf(TEXT("turno %d inesistente (ce ne sono %d)"), SourceIndex,
+			Scenario.Turns.Num());
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+
+	// 🔴 **La copia locale non e' uno stile: senza, questa riga fa `check`-fallire il motore.**
+	//
+	// `Scenario.Turns.Insert(Scenario.Turns[SourceIndex], SourceIndex + 1)` passa a `Insert` un riferimento
+	// a un elemento del contenitore che `Insert` sta per riallocare. `TArray::Insert` chiama `CheckAddress`,
+	// che e' un `checkf` esplicito — *«Attempting to use a container element which already comes from the
+	// container being modified!»* (`Containers/Array.h:2196`). Non e' un avviso teorico: e' un crash in ogni
+	// build con i check accesi, cioe' tutte tranne Shipping.
+	//
+	// ⚠️ E la copia deve essere una VARIABILE, non un temporaneo legato a un riferimento: `const FRTScenarioTurn&
+	// Copy = Scenario.Turns[SourceIndex]` sarebbe di nuovo un riferimento dentro l'array.
+	const FRTScenarioTurn Copy = Scenario.Turns[SourceIndex];
+
+	// Subito dopo l'originale: e' dove «duplica» mette la copia, e tenerla in fondo obbligherebbe il
+	// designer a un riordino che questa slice non offre.
+	OutNewIndex = SourceIndex + 1;
+	Scenario.Turns.Insert(Copy, OutNewIndex);
+
+	// ⚠️ Nessuna deep-copy manuale, e nessuna serve: `FRTScenarioTurn` porta `Intents[]`, `Requires[]` e
+	// `Decisions[]` per VALORE, e ogni loro campo e' un valore a sua volta. La copia e' gia' indipendente —
+	// il test la verifica in entrambe le direzioni perche' un'implementazione futura che introducesse un
+	// indice o un puntatore condiviso deve cadere qui, non in PIE.
+	return ERTScenarioAuthoringResult::Success;
+}
+
 ERTScenarioAuthoringResult FRTScenarioDraft::SetMoveIntent(int32 TurnIndex, const FString& UnitId,
 	const TArray<FRTCellId>& Path, FString& OutError)
 {

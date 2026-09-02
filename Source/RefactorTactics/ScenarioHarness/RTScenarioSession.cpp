@@ -172,10 +172,15 @@ namespace
 			// L'affermazione «nessun chiamante» era l'unica parte scaduta.
 			//
 			// La divisione e' fra i due nomi che esistono gia', non con un terzo: la DECISIONE su
-			// un'opportunity a due risposte e' `DecisionBoundary`. Misurato che i tre scenari che chiedono
+			// un'opportunity a due risposte e' `DecisionBoundary`. Misurato che gli scenari che chiedono
 			// `Reaction` — `Combat/CounterStrikesBack`, `Visual/Reaction/Deflection`,
-			// `Visual/Reaction/Interposition` — sono tutti nel regime `<= 1`: un nome nuovo li costringerebbe a
-			// cambiare senza che cambi cio' che chiedono.
+			// `Visual/Reaction/Interposition`, `Spec/Overwatch/ConditionCollapsesToHold` e
+			// `Spec/Reaction/DeflectionReducesByTwenty` — sono tutti nel regime `<= 1`: un nome nuovo li
+			// costringerebbe a cambiare senza che cambi cio' che chiedono.
+			//
+			// ⚠️ **La conta diceva TRE fino al 2026-09-02**, ed erano gia' cinque: un elenco in un commento
+			// invecchia a ogni scenario nuovo. Chi lo rilegge lo rimisuri con un grep invece di crederci.
+			// Cio' che non invecchia e' il criterio — il regime `<= 1` — non l'elenco.
 			//
 			// Pinnata da `Scenario.ReactionAndDecisionBoundaryAreDistinct`, che chiede **entrambe** le domande
 			// — noto e disponibile — perche' un nome noto e indisponibile e' precisamente l'altro caso.

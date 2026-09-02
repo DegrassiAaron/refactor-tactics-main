@@ -9,6 +9,8 @@
 #include "Misc/Paths.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
+#include "Pathfinding/RTHexPathLibrary.h"
+#include "Map/RTGeometryGrammar.h"
 #include "Turn/RTMovementActionLibrary.h"
 #include "Turn/RTTurnLogLibrary.h"
 
@@ -1744,5 +1746,115 @@ bool FRTMovementBlockedPathNoRerouteTest::RunTest(const FString&)
 	return true;
 }
 
+
+
+// ---------------------------------------------------------------------------------------------------------
+// #2100 — un muro interno divide la cella, e il grafo se ne accorge
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Una mappa piatta col corridoio assiale murato tranne il centro: per passare si DEVE attraversare. */
+	URTHexMapAsset* CorridorMap(float HexSize = 150.f)
+	{
+		URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 2);
+		Map->HexSize = HexSize;
+		for (const FRTCellId& Walled : { FRTCellId(0, -2), FRTCellId(0, -1), FRTCellId(0, 1), FRTCellId(0, 2) })
+		{
+			if (FRTHexCellData* D = const_cast<FRTHexCellData*>(Map->FindCell(Walled)))
+			{
+				D->bBlocksMovement = true;
+			}
+		}
+		return Map;
+	}
+
+	/** Il diametro fra due punti medi opposti dentro `Cell`: il muro che divide la cella in due. */
+	void AddDiameter(URTHexMapAsset* Map, const FRTCellId& Cell, ERTTacticalAxis Axis)
+	{
+		FRTGeometrySegment Wall;
+		Wall.Axis = Axis;
+		Wall.Offset = 0;
+		Wall.AlongStart = -RT_GeometryQuanta;
+		Wall.AlongEnd = RT_GeometryQuanta;
+		Map->InteriorWalls.Add(FRTHexInteriorWall(Cell, Wall));
+	}
+}
+
+/**
+ * UN MURO CONTINUO FERMA CHI VUOLE ATTRAVERSARE LA CELLA.
+ *
+ * 🔴 **La regola che esisteva e non applicava nessuno** (#2100). `spec-cover-placement-intra-hex.md` §6
+ * dice che *«stesso `CellId` non significa passaggio libero»*, e `ERTIntraCellTraversal` lo sapeva
+ * rispondere da tredici test — con **zero** chiamanti di produzione. Il difetto non si vedeva perche' il
+ * bake produceva coperture di bordo al posto dei muri interni, e *quelle* fermavano il passo: per la
+ * ragione sbagliata (#2085).
+ *
+ * ⚠️ **Il corridoio non e' decorazione.** Senza le celle murate ai lati, l'unita' aggirerebbe e il test
+ * sarebbe verde anche con la regola spenta: proverebbe l'esistenza di una strada, non il divieto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPathContinuousWallBlocksCrossingTest,
+	"RefactorTactics.Path.ContinuousWallBlocksTheCrossing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPathContinuousWallBlocksCrossingTest::RunTest(const FString&)
+{
+	// CONTROPROVA PRIMA: senza il muro, il corridoio si percorre. Se questa fallisse, il test che segue
+	// sarebbe verde per la ragione sbagliata.
+	{
+		URTHexMapAsset* Clean = CorridorMap();
+		const FRTHexPathResult Through =
+			URTHexPathLibrary::FindPath(Clean, FRTCellId(-1, 0), FRTCellId(1, 0));
+		TestTrue(TEXT("senza muro il corridoio si attraversa"),
+			Through.Status == ERTHexPathStatus::Success);
+		TestTrue(TEXT("e passa per il centro"), Through.Path.Contains(FRTCellId(0, 0)));
+	}
+
+	// Il muro: un diametro su `Deg90`, perpendicolare all'asse del corridoio.
+	URTHexMapAsset* Map = CorridorMap();
+	AddDiameter(Map, FRTCellId(0, 0), ERTTacticalAxis::Deg90);
+
+	const FRTHexPathResult Blocked =
+		URTHexPathLibrary::FindPath(Map, FRTCellId(-1, 0), FRTCellId(1, 0));
+
+	TestTrue(TEXT("il muro continuo nega la traversata"), Blocked.Status != ERTHexPathStatus::Success);
+
+	// E la primitiva lo dice direttamente, senza passare dal pathfinding.
+	TestFalse(TEXT("CanTransitCell rifiuta le due sponde"),
+		URTHexPathLibrary::CanTransitCell(Map, FRTCellId(0, 0), ERTHexDirection::W, ERTHexDirection::E));
+
+	return true;
+}
+
+/**
+ * MA CI SI PUO' ANCORA ENTRARE, e muoversi dentro la stessa regione.
+ *
+ * 🔑 **E' la meta' che impedisce la correzione grossolana.** Rendere la cella semplicemente
+ * impraticabile passerebbe il test qui sopra e sarebbe sbagliato: il muro divide, non chiude.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPathSameRegionStepStillAllowedTest,
+	"RefactorTactics.Path.SameRegionStepIsStillAllowed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPathSameRegionStepStillAllowedTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = CorridorMap();
+	AddDiameter(Map, FRTCellId(0, 0), ERTTacticalAxis::Deg90);
+
+	// Entrare nella cella divisa resta lecito: la meta e' la cella, e una posa c'e'.
+	const FRTHexPathResult Into = URTHexPathLibrary::FindPath(Map, FRTCellId(-1, 0), FRTCellId(0, 0));
+	TestTrue(TEXT("nella cella divisa ci si entra"), Into.Status == ERTHexPathStatus::Success);
+
+	// E due lati dalla STESSA parte del muro si parlano: non e' un divieto globale.
+	TestTrue(TEXT("due lati della stessa regione restano collegati"),
+		URTHexPathLibrary::CanTransitCell(Map, FRTCellId(0, 0), ERTHexDirection::W, ERTHexDirection::NW)
+		|| URTHexPathLibrary::CanTransitCell(Map, FRTCellId(0, 0), ERTHexDirection::W, ERTHexDirection::SW));
+
+	// CONTROPROVA sul sentinella: una cella SENZA geometria non distingue i lati, mai.
+	TestTrue(TEXT("una cella pulita si attraversa da qualunque lato"),
+		URTHexPathLibrary::CanTransitCell(Map, FRTCellId(1, 0), ERTHexDirection::W, ERTHexDirection::E));
+	TestFalse(TEXT("e non porta geometria interna"),
+		URTHexPathLibrary::CellHasInteriorGeometry(Map, FRTCellId(1, 0)));
+
+	return true;
+}
 
 #endif // WITH_DEV_AUTOMATION_TESTS

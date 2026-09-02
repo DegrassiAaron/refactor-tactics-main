@@ -42,6 +42,38 @@ namespace
 	}
 	)JSON");
 
+	// Una base **senza turni**: il criterio 1 di `#1627` dice che è il designer a crearli, quindi un JSON che
+	// li portasse già misurerebbe il caricamento invece dell'authoring. Le assertion nominano il risultato di
+	// tre passi, uno per turno. Nome distinto per la unity build.
+	const TCHAR* RunResetThreeTurnJson = TEXT(R"JSON(
+	{
+	  "scenarioId": "Movement.RunResetSequenceProbe",
+	  "version": 1,
+	  "mapRadius": 3,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
+	  ],
+	  "turns": [],
+	  "expect": [
+	    { "type": "TurnsCompleted", "value": 3 },
+	    { "type": "UnitAtCell", "unit": "A1", "cell": [1, 0, 0] }
+	  ]
+	}
+	)JSON");
+
+	bool OpenRunSequenceDraft(FRTScenarioDraft& OutDraft, FString& OutError)
+	{
+		FRTTestScenario Loaded;
+		if (!URTScenarioLoader::LoadFromString(RunResetThreeTurnJson, Loaded, OutError))
+		{
+			return false;
+		}
+		OutDraft.NewScenario(TEXT("segnaposto"), 3);
+		OutDraft.MutableScenario() = Loaded;
+		return true;
+	}
+
 	bool OpenRunDraft(FRTScenarioDraft& OutDraft, FString& OutError)
 	{
 		FRTTestScenario Loaded;
@@ -722,6 +754,118 @@ bool FRTScenarioRunReportsBlockedWithAReasonTest::RunTest(const FString&)
 		TestFalse(TEXT("e porta il motivo"), Report.BlockedReason.IsEmpty());
 		TestNotEqual(TEXT("e non viene mostrato come PASS"),
 			static_cast<int32>(Report.Outcome), static_cast<int32>(ERTTestOutcome::Pass));
+	}
+
+	return true;
+}
+
+/**
+ * TRE TURNI AUTHORATI GIRANO NELL'ORDINE DICHIARATO — `#1627`.
+ *
+ * 🔑 **Il criterio 1 della issue, e l'osservabile non è la posizione finale.** Asserire solo dove l'unità
+ * finisce non distingue l'ordine: `BuildCompositeHexPath` cerca la strada fino al waypoint, quindi una
+ * sequenza eseguita al contrario può finire nella stessa cella passando per un percorso diverso. E un turno
+ * il cui percorso viene rifiutato lascia l'unità ferma **senza rompere niente** — solo una nota.
+ *
+ * ⚠️ L'osservabile è il **TurnLog**, che porta il numero di turno: `FRTScenarioLogEntryView::Turn`. Ogni
+ * turno dichiara una destinazione diversa, e il test verifica che il turno *n* sia arrivato **dove il turno
+ * n aveva detto**. Una permutazione cade, invece di finire per caso nello stesso posto.
+ *
+ * ⛔ E gira per la strada vera: `FRTScenarioDraft::Run` passa da `URTScenarioRunner::Run`, l'unica —
+ * la stessa che `RunFromTheEditorMatchesTheHeadlessRun` tiene onesta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioThreeTurnsRunInOrderTest,
+	"RefactorTactics.Scenario.ThreeAuthoredTurnsRunInTheDeclaredOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioThreeTurnsRunInOrderTest::RunTest(const FString&)
+{
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("base senza turni caricata"), OpenRunSequenceDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	TestEqual(TEXT("si parte da zero turni"), Draft.NumTurns(), 0);
+
+	// Tre passi, uno per turno: ciascuno legale solo da dove il precedente ha lasciato l'unita'.
+	const FRTCellId Steps[] = { FRTCellId(-1, 0, 0), FRTCellId(0, 0, 0), FRTCellId(1, 0, 0) };
+	for (const FRTCellId& Step : Steps)
+	{
+		int32 T = INDEX_NONE;
+		if (!TestEqual(TEXT("turno aggiunto"), Draft.AddTurn(T, Error), ERTScenarioAuthoringResult::Success))
+		{
+			AddError(Error);
+			return false;
+		}
+		const TArray<FRTCellId> Route = { Step };
+		if (!TestEqual(TEXT("Move scritto"),
+			Draft.SetMoveIntent(T, TEXT("A1"), Route, Error), ERTScenarioAuthoringResult::Success))
+		{
+			AddError(Error);
+			return false;
+		}
+	}
+	if (!TestEqual(TEXT("tre turni authorati"), Draft.NumTurns(), 3))
+	{
+		return false;
+	}
+
+	UWorld* World = MakeRunResetWorld();
+	if (!TestNotNull(TEXT("mondo per la corsa"), World))
+	{
+		return false;
+	}
+	const ERTScenarioAuthoringResult RunResult = Draft.Run(World, Error);
+	DestroyRunResetWorld(World);
+
+	if (!TestEqual(TEXT("Run All ha eseguito"), RunResult, ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	const FRTScenarioRunReport& Report = Draft.GetLastRunReport();
+	TestEqual(FString::Printf(TEXT("tre turni giocati (esito: '%s' / '%s')"),
+		*Report.OutcomeText, *Report.ErrorMessage), Report.TurnsPlayed, 3);
+
+	// ✅ L'ordine, letto sul TurnLog.
+	//
+	// ⚠️ **Il log scrive una voce `Move` per OGNI unita' risolta, non solo per chi si e' mosso** — misurato:
+	// `RTHexSimLibrary.cpp:945` cicla su tutti i percorsi risolti, e per un'unita' ferma scrive `Src == Tgt`
+	// con `Amount = 0`. La prima stesura di questo test prendeva l'ultima voce del turno e leggeva quella di
+	// B1, che non si muove: tre asserzioni rosse per la ragione sbagliata.
+	//
+	// 🔑 L'unita' si riconosce dalla **cella di partenza**, ed e' una chiave dichiarata tale dal sorgente che
+	// scrive il log: *«Chiave stabile dell'unita' nel turno: la sua cella di PARTENZA (max 1 unita' per
+	// cella), mai un pointer»*. Quindi il turno *n* si cerca per la casella da cui A1 parte in quel turno —
+	// che e' dove il turno *n-1* l'ha lasciata. **È la catena a rendere l'ordine osservabile**: una
+	// permutazione romperebbe il legame fra l'arrivo di un turno e la partenza del successivo.
+	const TArray<FRTScenarioLogEntryView> Log = Draft.GetLastRunLog();
+	FRTCellId Expected(-2, 0, 0); // dove A1 e' schierata
+	for (int32 Step = 0; Step < 3; ++Step)
+	{
+		const int32 TurnNumber = Step + 1; // il log conta i turni da 1
+		const FRTScenarioLogEntryView* Moved = Log.FindByPredicate(
+			[TurnNumber, &Expected](const FRTScenarioLogEntryView& E)
+			{
+				return E.Turn == TurnNumber && E.Category == ERTLogCategory::Move && E.FromCell == Expected;
+			});
+
+		if (!TestNotNull(*FString::Printf(
+			TEXT("turno %d: una voce Move che parte da (%d,%d,%d) — voci nel log: %d"),
+			TurnNumber, Expected.X, Expected.Y, Expected.Layer, Log.Num()), Moved))
+		{
+			return false;
+		}
+		TestEqual(*FString::Printf(TEXT("turno %d: arrivata in (%d,%d,%d) invece di (%d,%d,%d)"),
+			TurnNumber, Moved->ToCell.X, Moved->ToCell.Y, Moved->ToCell.Layer,
+			Steps[Step].X, Steps[Step].Y, Steps[Step].Layer), Moved->ToCell, Steps[Step]);
+		TestTrue(*FString::Printf(TEXT("turno %d: ha percorso almeno una cella (Amount=%d)"),
+			TurnNumber, Moved->Amount), Moved->Amount >= 1);
+
+		// La partenza del turno successivo e' l'arrivo di questo: se la sequenza fosse eseguita in un altro
+		// ordine, il prossimo giro non troverebbe nessuna voce da questa casella.
+		Expected = Steps[Step];
 	}
 
 	return true;

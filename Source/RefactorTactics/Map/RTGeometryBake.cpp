@@ -155,15 +155,21 @@ namespace RTGeometryBakeInternal
 		// sbordando oltre la cella — misurato in `U22`, dove un muro lungo `1.5x` l'inraggio dava due
 		// coperture e lo stesso muro fermato sul bordo ne dava zero.
 		//
+		// ⚠️ **Le prime quattro righe non passano piu' di qui** (#2085): un segmento con `Offset == 0`
+		// e' classificato interno PRIMA che questa funzione venga interrogata, perche' passare per il
+		// centro e' una proprieta' della giacitura e non l'esito di una domanda sui bordi. Restano qui
+		// per dire quali casi questa funzione NON decide piu'.
+		//
 		// 🔴 **L'estremo deve cadere STRETTAMENTE DENTRO il lato, non su un vertice**, ed e' `MSE-4`: ogni
 		// vertice appartiene a DUE lati, quindi accettarlo murerebbe anche il lato adiacente che il muro si
 		// limita a sfiorare. Ne segue, ed e' una conseguenza voluta e non un buco:
 		//
 		// ```text
-		// centro -> punto medio di un lato   1 copertura, su quel lato
-		// centro -> un vertice               nessuna copertura -> diventa un MURO INTERNO
-		// diametro fra due lati opposti      2 coperture
-		// diametro fra due vertici opposti   nessuna copertura -> diventa un MURO INTERNO
+		// centro -> punto medio di un lato   MURO INTERNO   (era: 1 copertura — corretto da #2085)
+		// centro -> un vertice               MURO INTERNO
+		// diametro fra due lati opposti      MURO INTERNO   (era: 2 coperture — corretto da #2085)
+		// diametro fra due vertici opposti   MURO INTERNO
+		// vertice -> vertice ADIACENTE       1 copertura, su quel lato (giace SUL bordo, Offset != 0)
 		// ```
 		//
 		// ⚠️ **Le righe 2 e 4 dicevano «NIENTE, e il ghost lo mostra rosso», e il formato v10 le ha rese
@@ -306,8 +312,37 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 	TMap<ERTHexDirection, ERTHexCoverType> Wanted;
 	for (const FRTGeometrySegment& Segment : Segments)
 	{
+		// 🔴 **UN SEGMENTO CHE PASSA PER IL CENTRO E' INTERNO, e non lo si deduce dai bordi** — #2085.
+		//
+		// `Offset == 0` significa, per definizione della grammatica, *«il segmento passa per il centro
+		// della cella»*: e' una proprieta' della GIACITURA, non l'esito di una domanda sui bordi. Chiederlo
+		// a `EdgesTouchedBy` era definire «interno» per negazione — corretto finche' la copertura di bordo
+		// era l'unica rappresentazione esistente, sbagliato da quando `InteriorWalls` esiste.
+		//
+		// ⚠️ **La storia, perche' non si ripeta.** Il ramo *«il muro arriva da dentro e si ferma sul bordo»*
+		// nasce in `362e42c1` (#712, 2026-08-20) quando il bake sapeva produrre SOLO coperture: la
+		// richiesta era *«i muri devono essere disegnabili anche sui segmenti che partono dal centro»*, e
+		// trasformarli in coperture era l'unico modo di farli esistere — l'alternativa era `niente`.
+		// Poche ore dopo `97df4d9d` ha introdotto `InteriorWalls`, cioe' la rappresentazione che mancava.
+		// Il caso `centro → vertice` e' stato sanato da quella; `centro → punto medio` no, perche' la
+		// scorciatoia lo copriva gia'. E' sopravvissuta alla propria causa per tredici giorni.
+		//
+		// 🔑 **Che cosa NON cambia**: un muro appoggiato SUL lato (vertice → vertice adiacente) ha
+		// `Offset` massimo, non zero, e continua a chiudere quel bordo. `EdgesTouchedBy` non si tocca:
+		// risponde correttamente alla propria domanda, e ha altri due chiamanti di produzione
+		// (`RTHexMapAsset`, `RTMapEditLibrary`) che questa correzione non deve raggiungere.
+		//
+		// 📐 **Perche' e' semanticamente giusto**: una copertura di bordo blocca il passaggio FRA DUE
+		// CELLE. Un raggio dal centro a un lato non lo blocca — dal vicino si entra ancora, da entrambi i
+		// lati del raggio — e cio' che divide e' l'INTERNO. Classificarlo come copertura inventava un
+		// blocco inesistente e perdeva la divisione reale.
+		const bool bThroughCentre = (Segment.Offset == 0);
+
 		TArray<ERTHexDirection> Edges;
-		URTGeometryBakeLibrary::EdgesTouchedBy(Segment, HexSize, Edges);
+		if (!bThroughCentre)
+		{
+			URTGeometryBakeLibrary::EdgesTouchedBy(Segment, HexSize, Edges);
+		}
 
 		if (Edges.Num() == 0)
 		{

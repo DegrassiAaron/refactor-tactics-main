@@ -588,7 +588,29 @@ authority **per costruzione**, non per disciplina di chi scrive il Blueprint.
 > (`SetReactionIntent`) — e **non** su una lista di sette azioni: un selettore d'azione renderebbe
 > inesprimibile «muovi e attacca», che il doc header della struct dichiara essere «la norma, non un caso
 > limite». Ciascuna scrive solo il proprio campo, così chiamarle in sequenza compone il piano invece di
-> sovrascriverlo. Il guardiano è `RefactorTactics.Scenario.AuthoringContractIsReachableFromBlueprint`, che verifica
+> sovrascriverlo.
+>
+> 📌 **E per la sequenza dei turni, misurato il 2026-09-02** —
+> [#1627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1627). `AddTurn`, `RemoveTurn`,
+> `GetTurnCount` e `Run` (che esegue l'intero scenario) esistevano già: mancava `DuplicateTurn`, che inserisce
+> la copia subito dopo l'originale.
+>
+> ⛔ **Il riordino dei turni NON è offerto, ed è una decisione misurata invece che una lacuna.** I waypoint
+> di un intent sono celle **assolute**, e `FRTScenarioSession` ricostruisce il percorso con
+> `BuildCompositeHexPath` sullo snapshot **del momento** (`RTScenarioSession.cpp:1224`): un turno spostato
+> porta con sé waypoint che partivano da dove le unità erano *dopo* i turni precedenti. Se il percorso non
+> regge, il ramo `else` scrive una nota e *«l'unità resta ferma»* — lo scenario prosegue, e le `expect`
+> falliscono più tardi mandando a cercare il difetto nel gioco invece che nell'ordine appena cambiato.
+>
+> ⚠️ E **non è nemmeno annunciabile in anticipo**: sapere prima se un riordino resta valido significa
+> prevedere il resolver, cioè il secondo simulatore che il §3 vieta. `FRTScenarioTurn` porta
+> `Intents[] · Requires[] · Decisions[]` e **nessun campo dice da quale stato parte**. Finché il vincolo non
+> è esprimibile nel formato, l'operazione non si offre: è il ramo che #1627 prevedeva esplicitamente.
+>
+> 🔴 **La duplicazione, invece, ha un vincolo di implementazione che non si vede leggendo l'API.**
+> `Turns.Insert(Turns[i], i + 1)` passa a `Insert` un riferimento **dentro** l'array che `Insert` sta per
+> riallocare: `TArray::CheckAddress` è un `checkf` esplicito, e la riga ovvia fa cadere il motore in ogni
+> build con i check accesi. La copia va in una variabile locale prima dell'inserimento. Il guardiano è `RefactorTactics.Scenario.AuthoringContractIsReachableFromBlueprint`, che verifica
 > per riflessione **entrambi i versi**: che il contratto sia raggiungibile da Blueprint, e che il modello non
 > lo sia.
 

@@ -101,11 +101,19 @@ d'origine, non come stato.
 | 4. Nessuno stato neutro | ✅ **chiuso** — [D-128](../../decisions/RT_PDR_00_Decision_Log.md): `SelectedAbilityIndex` nasce a `INDEX_NONE` |
 | 5. Nessun produttore UI | ✅ **chiuso** — i tre produttori esistono e sono coperti |
 
-> ⚠️ **`ReactionWindow` e `Modal` esistono nell'enum e nessuno li produce.** Sono ordinati correttamente in
-> `URTPointerLibrary::ResolveBack` — e testati lì — ma `GetPointerContext()` non li restituisce mai: la
-> finestra di reazione è **E14** e il modale è **#613**. È deliberato, e la ragione è quella di §2.1: un flag
+> ⚠️ **`ReactionWindow` esiste nell'enum e nessuno lo produce.** È ordinato correttamente in
+> `URTPointerLibrary::ResolveBack` — e testati lì — ma `GetPointerContext()` non lo restituisce mai: la
+> finestra di reazione è **E14**. È deliberato, e la ragione è quella di §2.1: un flag
 > che nessuno scrive sarebbe un campo senza produttore, cioè il difetto che questo checkpoint ha appena
 > finito di documentare. Quando quegli owner arrivano, aggiungono il proprio ramo in `GetPointerContext()`.
+>
+> 🔁 **Corretto il 2026-09-02 (#705): `Modal` ORA HA UN PRODUTTORE.**
+> `ARTPlayerController::GetPointerContext` lo restituisce (`RTPlayerController.cpp:1959`),
+> dal menu di pausa di CP 46.6 — quindi il modale non aspetta piu' #613. La riga precedente
+> nominava **entrambi** i valori come non prodotti, ed era vera alla stesura: per `ReactionWindow`
+> lo e' ancora (solo `ResolveBack` e un test lo nominano), per `Modal` no.
+> ⚠️ **La misura che distingue le due cose** e' se `GetPointerContext` lo RESTITUISCE, non se il
+> simbolo compare: `Modal` appare anche in `ResolveBack` e in un confronto, che non sono produttori.
 
 > ⚠️ **La legalità del facing dichiarato in Planning è una PREVISIONE, non il verdetto.** `HandleFacingSector`
 > valida su `PlannedPath` con stile `Budget`/`None`; il resolver rivalida a fine Move su
