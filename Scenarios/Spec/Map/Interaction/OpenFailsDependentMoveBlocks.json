@@ -1,0 +1,67 @@
+{
+  "scenarioId": "Spec.Map.Interaction.OpenFailsDependentMoveBlocks",
+  "tags": ["spec", "map", "door", "interact", "graph", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "Il caso in cui l'apertura FALLISCE, e il movimento che ci contava resta fermo. Il nome e' dichiarato da `docs/technical/tooling/scenario-map.md` da agosto, ed e' il terzo dei tre di #833 (CP 23.4).",
+
+  "_nota_cosa_dimostra": "Una leva comanda DUE porte: `D1` e' apribile, `D2` e' `Locked`. [D-150] dice che l'operazione NON e' atomica — si applicano i bersagli applicabili e si riporta l'esito degli altri — quindi `D1` si apre e `D2` no. Il T2 chiede a R1 di passare attraverso `D2`, e il passo non avviene: l'unita' resta dov'era.",
+
+  "_nota_perche_e_la_prova_di_D-150_e_non_del_suo_contrario": "⚠️ **Il punto delicato: questo scenario sarebbe verde anche se l'operazione fosse ATOMICA**, perche' con il rollback non si aprirebbe nemmeno `D1` e R1 resterebbe fermo lo stesso. E' per questo che l'assertion sul log conta **UNA** apertura: con l'atomicita' sarebbero zero. La posizione da sola non distingue le due regole; il conteggio si'.",
+
+  "_nota_geometria": "La leva `S1` sta sul bordo NE di (0,0). `D1` chiude il bordo fra (1,0) e (2,0) ed e' `Closed`: si apre. `D2` chiude il bordo fra (0,1) e (1,1) ed e' `Locked`: `CanTransition` non la porta ad `Open` da sola, ed e' la ragione per cui [D-151] limita `Action.Interact` ad `Open` — il percorso `Locked -> Closed` toglierebbe il lock a una porta che la regola dichiara non apribile.",
+
+  "_nota_il_movimento_bloccato": "R1 chiede (0,1) e poi (1,1). Il primo passo e' libero; il secondo attraversa `D2`, che resta chiusa a chiave. ⚠️ **L'unita' non si ferma a meta': non parte affatto** — misurato il 2026-09-02, il log dice `Riktor: resta (q=0,r=0,L=0)`. Un percorso che contiene un passo non percorribile viene rifiutato IN BLOCCO, non troncato all'ultimo passo legale, e l'attesa di questo scenario diceva il contrario prima di essere misurata. ⛔ Non e' un rifiuto dell'INTERAZIONE: quella e' avvenuta, ha aperto cio' che poteva e ha riportato il resto — il log porta entrambe le voci, `Refused: il bersaglio D2 ... e' Locked e non transita a Open` e `1 bersagli comandati`.",
+
+  "cells": [
+    { "cell": [1, 0, 0], "blocksMovement": true },
+    { "cell": [-1, 1, 0], "blocksMovement": true },
+    { "cell": [-1, 2, 0], "blocksMovement": true },
+    { "cell": [0, 2, 0], "blocksMovement": true },
+    { "cell": [1, 2, 0], "blocksMovement": true },
+    { "cell": [2, 0, 0], "blocksMovement": true },
+    { "cell": [2, 1, 0], "blocksMovement": true }
+  ],
+
+  "_nota_perche_il_corridoio": "⚠️ **Senza le celle bloccate questo scenario e' verde per la ragione sbagliata, ed e' stato misurato**: il 2026-09-02 R1 arrivava a (1,1) lo stesso, non attraversando `D2` ma AGGIRANDOLA per (1,0). Un movimento che il motore puo' deviare non e' «dipendente» dall'apertura, e l'assertion di posizione misurava il pathfinding invece della porta. I sei blocchi rendono il bordo `D2` l'unico ingresso a (1,1).",
+
+  "doors": [
+    { "cell": [0, 0, 0], "edge": "NE", "doorId": 1, "stableId": "S1", "state": "Closed" },
+    { "cell": [3, -1, 0], "edge": "E", "doorId": 2, "stableId": "D1", "state": "Closed" },
+    { "cell": [0, 1, 0], "edge": "E", "doorId": 3, "stableId": "D2", "state": "Locked" }
+  ],
+
+  "interactionBindings": [
+    { "source": "S1", "targets": ["D1", "D2"] }
+  ],
+
+  "units": [
+    { "id": "R1", "hero": "Hero.Riktor", "team": 0, "cell": [0, 0, 0] },
+    { "id": "W1", "hero": "Hero.Wraith", "team": 1, "cell": [0, -4, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 - R1 aziona la leva. `D1` si apre, `D2` e' Locked e non si muove: l'operazione non e' atomica (D-150).",
+      "intents": [
+        { "unit": "R1", "ability": "Action.Interact", "targetCell": [1, -1, 0] }
+      ]
+    },
+    {
+      "_turno": "T2 - R1 prova a passare per `D2`, che non si e' aperta. Il primo passo sarebbe legale, il secondo no, e il percorso viene rifiutato per intero.",
+      "intents": [
+        { "unit": "R1", "move": [[0, 1, 0], [1, 1, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "LogEventCount", "category": "Environment", "outcome": "DoorOpened", "value": 1 },
+    { "type": "LogEventCount", "category": "Environment", "outcome": "DoorClosed", "value": 0 },
+    { "type": "UnitAtCell", "unit": "R1", "cell": [0, 0, 0] },
+    { "type": "UnitAtCell", "unit": "W1", "cell": [0, -4, 0] },
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}
