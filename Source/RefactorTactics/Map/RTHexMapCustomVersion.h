@@ -117,6 +117,13 @@ struct FRTHexMapCustomVersion
 		 */
 		MovementBlockProvenance = 13,
 
+		/**
+		 * La traversata autorata sul muro interno (`FRTHexInteriorWall::bTraversable`), `#1828`/`E23.7`.
+		 * Dichiarativo: il campo nasce `false`, e nessun muro scritto prima era scavalcabile — quella
+		 * proprieta' non esisteva.
+		 */
+		AuthoredTraversal = 14,
+
 		// -----<le versioni nuove si aggiungono SOPRA questa riga>------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

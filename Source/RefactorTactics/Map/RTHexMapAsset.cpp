@@ -495,6 +495,9 @@ uint32 URTHexMapAsset::ComputeHash() const
 		Hash = HashCombine(Hash, GetTypeHash(FMath::Max(Wall.Segment.AlongStart, Wall.Segment.AlongEnd)));
 		// Il TIPO decide se il muro occlude (`D-271`: solo `High`), quindi cambia un esito ed entra.
 		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(Wall.Segment.WallType)));
+		// La SCAVALCABILITA' decide se si passa (`E23.7`, `D-308`): stesso criterio, stesso hash. Due mappe
+		// identiche salvo un muro superabile si giocano diversamente.
+		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(Wall.bTraversable ? 1 : 0)));
 	}
 
 	return Hash;
@@ -1014,6 +1017,11 @@ void URTHexMapAsset::MigrateToCurrentFormat()
 	// v10 -> v11 (#75, CP 10.2): la cella guadagna il flag di OBIETTIVO contendibile. Il default `false` e'
 	// cio' che una mappa scritta prima gia' era: nessuna sua cella faceva punto, e la partita si decideva per
 	// eliminazione o al limite di round. Un obiettivo NON viene inventato da una ricarica.
+	// v13 -> v14 (#1828, `E23.7`): il muro interno guadagna la SCAVALCABILITA' (`bTraversable`). Il default
+	// `false` e' cio' che ogni muro scritto prima gia' era, e non per omissione: fino a `D-308` la
+	// scavalcabilita' non esisteva come dato, e nessuna geometria poteva dichiararsi superabile.
+	// ⛔ **Una ricarica non deduce il campo dall'altezza**: un `Low` non diventa scavalcabile migrando, ed e'
+	// precisamente cio' che `D-308` vieta — *«la scavalcabilita' e' un dato, non una conseguenza dell'altezza»*.
 	// In nessuno di questi c'e' qualcosa da convertire — il campo nuovo nasce vuoto e una mappa che non lo usa
 	// si comporta esattamente come prima — quindi la migrazione si limita a dichiarare la versione. Il giorno
 	// in cui una migrazione dovra' TRASFORMARE dati, il posto e' questo, un `if (FormatVersion < N)` per

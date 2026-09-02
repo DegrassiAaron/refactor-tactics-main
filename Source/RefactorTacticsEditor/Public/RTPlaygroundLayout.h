@@ -13,8 +13,14 @@
  * ha i suoi test — le otto bounding box non si sovrappongono, stanno dentro il floor, e il corridoio non
  * ne tocca nessuna.
  *
- * E' anche cio' che il **pannello** (#1993) consuma per `Focus` e per la riga `station bounds` di
- * `DIAGNOSTICS`. Senza, quegli stessi numeri sarebbero trascritti a mano in un secondo posto — che e' il
+ * E' anche la sorgente da cui il **pannello** (#1993) prende `Focus` e la riga `station bounds` di
+ * `DIAGNOSTICS` — ⚠️ **ma non direttamente**: questo e' un namespace C++ nudo, e un
+ * `EditorUtilityWidget` e' un Blueprint. Il ponte e' `URTPlaygroundPanelLibrary::GetStations()`, che
+ * DELEGA qui invece di ricopiare gli otto rettangoli.
+ *
+ * ⛔ **La stesura precedente diceva che il pannello «consuma» questa tabella, e non poteva**:
+ * `grep -cE "UCLASS|UFUNCTION|USTRUCT"` su questo header da' **0**. Era un'intenzione scritta come
+ * capacita' — lo stesso difetto per cui #1992 ha dovuto esporre `FacingRotation`. Senza, quegli stessi numeri sarebbero trascritti a mano in un secondo posto — che e' il
  * difetto di `#1459`, dove tre elenchi della stessa cosa non coincidevano con il codice.
  *
  * ⛔ **Nessuna regola di gioco.** Questa e' presentazione d'editor: nessun `FRTCellId`, nessuna cella,

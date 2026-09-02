@@ -1371,4 +1371,150 @@ bool FRTWaypointRejectionNamesOccupantTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * IL TURNO 1 ACCETTA LA SELEZIONE ESATTAMENTE COME IL TURNO 2 — e il turno 2 e' il controllo, non un extra.
+ *
+ * L'indagine di `#1957` per la strada che non richiede l'editor. Il referto di playtest dice *«dopo `Play`
+ * il primo turno non accetta input: il giocatore preme Spazio, e solo dal turno 2 riesce a selezionare
+ * un'unita'»*, e il turno che si chiudeva da solo si e' gia' rivelato un lock-in muto
+ * (`HexMatch.FirstTurnDoesNotCloseItself`). Resta questo, che e' il disagio vero e la cui causa e' IGNOTA.
+ *
+ * 🔑 **Il turno 2 nello stesso test, sullo stesso montaggio.** Senza, un turno 1 che seleziona non
+ * distinguerebbe *«il difetto non c'e'»* da *«la fixture non permetteva di selezionare comunque»* — che e'
+ * il modo piu' comune di scrivere un verde che non misura niente. Cio' che si asserisce e' la **differenza**
+ * fra i due turni, e la differenza attesa e' nessuna.
+ *
+ * ⚠️ **Cosa questo test NON puo' vedere, ed e' meta' del suo valore.** `OnSelect` comincia con un
+ * `GetHitResultUnderCursor`, cioe' un raycast dal viewport che headless non esiste: da qui si esercita la
+ * strada che comincia DOPO, con l'attore gia' risolto. Se il test passa, il difetto non e' nella selezione
+ * ne' nelle guardie che la precedono, e cio' che resta da guardare in PIE si restringe a raycast, viewport
+ * e possessione del pawn — che e' un'informazione, non un fallimento.
+ *
+ * ⛔ E non usa `SelectActorForTest`, che scrive `SelectedActor` direttamente: quella scorciatoia salterebbe
+ * proprio il codice in esame. Qui si chiama `SelectUnit`, che e' cio' che `OnSelect` invoca dopo il raycast.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFirstTurnAcceptsSelectionTest,
+	"RefactorTactics.PlayerInput.FirstTurnAcceptsSelectionLikeTheSecond",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFirstTurnAcceptsSelectionTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	if (MapActor) { MapActor->MapAsset = Arena; }
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Mia = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, -2, 0));
+	// ⚠️ **Un avversario serve, e la prima stesura non ce l'aveva.** Con una sola squadra in campo
+	// `EvaluateOutcome` dichiara vinta la partita alla fine del turno 1: `Phase` diventa `MatchEnded`,
+	// `TurnNumber` resta `1` e il turno 2 — che qui e' il CONTROLLO — non arriva mai. L'ha intercettato
+	// la guardia sull'avanzamento, con «era 1, ora 1».
+	//
+	// Lontano e senza piano: deve esistere, non partecipare.
+	ARTUnit* Avversario = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 2, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("unita'"), Mia)
+		|| !TestNotNull(TEXT("avversario"), Avversario)
+		|| !TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("mappa"), MapActor))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	// E' `BeginPlay` ad aprire il turno 1. Senza, `TurnNumber` varrebbe 1 per default e il test misurerebbe
+	// un turno che nessuno ha mai iniziato — cioe' non il turno 1 del referto.
+	TM->DispatchBeginPlay();
+
+	// Cio' che si osserva a ogni turno: le due guardie che `OnSelect` attraversa PRIMA del raycast, e l'esito
+	// della selezione. Si raccoglie in una lambda perche' i due turni devono essere misurati allo stesso
+	// modo: due blocchi copiati divergerebbero al primo ritocco, ed e' la differenza l'oggetto del test.
+	struct FEsito
+	{
+		bool bInputBloccato = false;
+		bool bInputInerte = false;
+		bool bSelezionata = false;
+		int32 Waypoint = 0;
+	};
+	auto ProvaSelezione = [PC, Mia](const FRTCellId& Destinazione)
+	{
+		FEsito E;
+		E.bInputBloccato = PC->IsGameplayInputBlocked();
+		E.bInputInerte = PC->IsPlanningInputInert();
+
+		PC->SelectUnit(Mia); // la strada vera, quella che `OnSelect` prende dopo il raycast
+		E.bSelezionata = (PC->GetSelectedUnit() == Mia);
+
+		Mia->PlannedWaypoints.Reset();
+		PC->HandleClickOnCell(Destinazione);
+		E.Waypoint = Mia->PlannedWaypoints.Num();
+		return E;
+	};
+
+	// ── Turno 1
+	if (!TestEqual(TEXT("si parte dal turno 1"), TM->GetTurnNumber(), 1))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	const FEsito Primo = ProvaSelezione(FRTCellId(3, -2, 0));
+
+	// ── Si chiude il turno e si arriva al secondo, che e' il CONTROLLO.
+	//
+	// ⚠️ **Il piano si azzera per intero, `PlannedCell` COMPRESA.** Resettare i soli waypoint non
+	// basta: il resolver muove verso `PlannedCell`, quindi l'unita' arrivava sulla cella che il turno 2
+	// avrebbe poi cliccato — e un click sulla cella in cui gia' ti trovi non produce nessun waypoint.
+	// La premessa del controllo cadeva, e il test sembrava dire qualcosa sulla selezione mentre
+	// misurava una geometria che si era spostata sotto.
+	//
+	// Ferma fra i due turni, la stessa destinazione resta valida per entrambi: e' cio' che rende i due
+	// esiti confrontabili.
+	Mia->PlannedWaypoints.Reset();
+	Mia->PlannedPath.Reset();
+	Mia->PlannedCell = Mia->Cell;
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+	{
+		TM->Tick(0.05f);
+	}
+	const int32 TurnoDopo = TM->GetTurnNumber();
+
+	const FEsito Secondo = ProvaSelezione(FRTCellId(3, -2, 0));
+	const FRTCellId CellaFinale = Mia->Cell;
+	DestroyInteractionWorld(World);
+
+	// ── Il controllo vale solo se il turno e' davvero avanzato: altrimenti si starebbero confrontando due
+	// misure dello stesso turno, e l'uguaglianza sarebbe vera per costruzione.
+	if (!TestTrue(*FString::Printf(TEXT("il turno e' avanzato (era 1, ora %d)"), TurnoDopo), TurnoDopo >= 2))
+	{
+		return false;
+	}
+
+	// ── ANTI-VACUITA': al turno 2 la selezione deve funzionare. Se non funzionasse nemmeno li', il confronto
+	// sotto sarebbe soddisfatto da due fallimenti uguali.
+	if (!TestTrue(TEXT("premessa: al turno 2 la selezione funziona"), Secondo.bSelezionata))
+	{
+		return false;
+	}
+	if (!TestTrue(*FString::Printf(TEXT("premessa: al turno 2 il click produce un waypoint (cella %d,%d)"),
+		CellaFinale.X, CellaFinale.Y), Secondo.Waypoint > 0))
+	{
+		return false;
+	}
+
+	// ── Il cuore: i due turni si comportano allo stesso modo.
+	TestEqual(TEXT("l'input non e' bloccato al turno 1 piu' che al 2"),
+		Primo.bInputBloccato, Secondo.bInputBloccato);
+	TestEqual(TEXT("l'input non e' inerte al turno 1 piu' che al 2"),
+		Primo.bInputInerte, Secondo.bInputInerte);
+	TestEqual(TEXT("il turno 1 accetta la selezione come il turno 2"),
+		Primo.bSelezionata, Secondo.bSelezionata);
+	TestEqual(TEXT("e il click su cella produce lo stesso numero di waypoint"),
+		Primo.Waypoint, Secondo.Waypoint);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

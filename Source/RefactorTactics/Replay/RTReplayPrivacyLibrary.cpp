@@ -54,7 +54,8 @@ namespace
 
 			// --- Audit: COME si e' deciso --------------------------------------------------------------
 			//
-			//  · `Verdict` — la conoscenza. E' `Transient` per [D-223] e oggi non arriva nemmeno
+			//  · `Verdict` — la conoscenza. E' `Transient` per la nota sul campo stesso (non per [D-223], che
+			//    ne decide il CONGELAMENTO alla scrittura e non la serializzazione) e oggi non arriva nemmeno
 			//    all'archivio: classificarlo comunque non e' ridondante, perche' e' il campo che dovra'
 			//    spostarsi il giorno in cui l'evidenza di audit diventera' durevole, e trovarlo gia'
 			//    dichiarato e' meta' di quella decisione.

@@ -2426,3 +2426,54 @@ sessions:
       fondo che potrebbe ancora cambiare.
       ⚠️ ID assegnato prima del merge: `U40`, con `U39` come massimo misurato su `main` **e su tutti i
       branch remoti** il 2026-09-01. Chi arriva secondo rinumera, non contende.
+
+  - id: U41
+    title: Il banco del laboratorio, e se serve davvero a chi lo apre
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto sull'usabilità del Playground Panel, e sui tre preset di camera
+    artifacts: []
+    unblocked_by: [U40]
+    shares_setup_with: [U40]
+    verifies: []
+    issues: [1993]
+    done_when: il pannello è cablato, e il verdetto sull'usabilità è scritto — compreso se i tre preset
+      di camera inquadrano ciò che promettono
+    unblocks: []
+    steps: |
+      **La domanda è una sola:** *chi apre il pannello capisce dove si trova, ci va, cambia ciò che
+      guarda — senza toccare il Details?*
+
+      Il giro: tasto destro su `WBP_RT_GrayKitPlayground` → `Run Editor Utility Widget` → con
+      `L_GrayKitPlayground` aperta il pannello dice `Ready` → `Focus` sulla Station 01 → `Select
+      Fixture` → il `Facing` si cambia **sei volte** e il marker segue **ogni volta**.
+
+      ⚠️ **Poi si apre un'ALTRA mappa.** Il pannello deve dire `Error` **con una ragione leggibile**, non
+      restare vuoto: un pannello muto e un pannello guasto hanno lo stesso aspetto, e il secondo manda a
+      cercare un difetto che non c'è. La ragione nomina entrambe le mappe — è verificato headless da
+      `PanelMapStateNamesTheReason`, ma che sia *leggibile* lo dice solo un occhio.
+
+      ➕ **I tre preset di camera**: `Close` `100` · `Tactical` `450` · `Overview` `4000`.
+      ⛔ Questi numeri vengono da `U25`, ma il legame è una **citazione, non un controllo**: `U25` li tiene
+      in prosa e nessun test può leggerli da lì. Se qui inquadrano male, il posto dove dirlo è
+      `CameraPresetArmLengths` — e va detto **perché** divergono, come la DoD di #1993 prescrive.
+
+      ⛔ **Le chip `02`..`08` non devono sembrare funzionanti.** Una station `PLANNED` esiste come pad e
+      signage e non finanzia il proprio sistema: se cliccarle fa qualcosa, il pannello sta mentendo.
+    notes: >-
+      ➕ **Seduta aperta il 2026-09-02 con #1993** (Epic #1990, `D-304`). Non duplica `U40`, e il confine è
+      netto: quella guarda **il fixture** — che il facing si legga alle tre distanze e in scala di grigi;
+      questa guarda **il banco**, cioè se il pannello serve a chi lo apre.
+      ⚠️ `shares_setup_with: [U40]` e `unblocked_by: [U40]`: stessa apertura — `L_GrayKitPlayground` con la
+      Station 01 posata — e giudicare il pannello prima che il fixture si legga significherebbe misurare
+      due cose insieme.
+      ⚠️ **`verifies: []` non è una dimenticanza**: nessuna voce `PIE-GKP-*` esiste in
+      `test-manuali-pie.md`, e scriverle non è nello scope di #1993, il cui DoD chiede una voce di seduta.
+      È la stessa lettura dichiarata da `U40`, `U10`, `U12`, `U17`, `U23`, `U24` e altre.
+      🔴 **Il `done_when` comincia con «il pannello è cablato», e non è pleonastico**: il commandlet genera
+      lo **scheletro** dei widget — nomi stabili e le tre righe di `DIAGNOSTICS` prese dal modello — ma
+      **non il grafo**. Finché gli eventi non chiamano `URTPlaygroundPanelLibrary`, il pannello si apre e
+      non fa niente, e un verdetto di usabilità su un pannello inerte non è un verdetto.
+      ⚠️ ID assegnato prima del merge: `U41`, con `U40` come massimo misurato su `main` **e su tutti i
+      branch remoti** il 2026-09-02. Chi arriva secondo rinumera, non contende.
