@@ -2827,3 +2827,60 @@ sessions:
       ⚠️ ID assegnato dopo aver misurato il massimo su `main` **e su tutti i branch remoti**: `U43`,
       che vive anche su `origin/fix/1793-2167-posa-e-offset`. Preso `U44`. Chi arriva secondo rinumera,
       non contende.
+
+  - id: U45
+    title: Le tre voci che il pacchetto con le animazioni ha reso eseguibili
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto su tre voci che nessuna seduta eseguiva
+    artifacts: []
+    # Il pacchetto Development e' costruibile e gira: misurato il 2026-09-03 (#1663) su `main` —
+    # `BUILD SUCCESSFUL`, `Board 2v2 avviata su 64 celle con 4 eroi`, `SkipPackage` 0, `Error:` 0.
+    unblocked_by: [E12]
+    shares_setup_with: []
+    # 🔴 **Perche' questa seduta esiste: le tre voci erano ORFANE.** Misurato il 2026-09-03 incrociando
+    # `test-manuali-pie.md` con questo file: 184 voci nel registro, 122 con una seduta, e **36 ancora da
+    # fare che nessuna seduta esegue**. Una voce senza seduta non e' rinviata — non ha nessuno che la
+    # esegua, ed e' lo stesso difetto che #1262 registro' per `PIE-V01-BOARD` e `PIE-V01-PACKAGED`
+    # quando erano orfane invece che rinviate.
+    # ⚠️ Il conteggio va rifatto con ENTRAMBE le forme di `verifies`: la lista a trattini e quella inline
+    # `[A, B, C]`. Contando solo la prima le orfane risultano 75 invece di 36 — meta' delle sedute usa
+    # l'inline, e un parser che non la vede manda a scrivere righe che esistono gia'.
+    verifies: [PIE-V01-ARENA, PIE-OBJ-PUNTI, PIE-V01-BOARD]
+    issues: [959]
+    done_when: le tre voci hanno un esito reale nel registro, in un verso o nell'altro
+    unblocks: []
+    steps: |
+      **Due allestimenti, e vanno tenuti distinti** — le prime due voci si guardano sulla mappa d'autore,
+      la terza su una fixture. Chi le mescola non falsifica niente: `PIE-V01-BOARD` chiede quattro
+      superfici che la mappa d'autore non ha.
+
+      **A · mappa d'autore** — `L_HexArena` con `DA_HexMap_Arena`, e **`rt.Map.Source = LevelAsset`**.
+      ⛔ Senza quella CVar il GameMode butta la mappa e a schermo torna l'arena generata: e' il difetto di
+      #1267, e il numero che lo rivela e' il conteggio celle — **64** e' la mappa d'autore, **65** l'arena
+      di prova. Si legge nel log prima di guardare.
+
+      · `PIE-V01-ARENA` — la v0.1 gira su una mappa d'autore e non sull'arena generata. La sua
+      precondizione era «seduta U1: produce `DA_HexMap_Arena` + `L_HexArena`», e **quei due asset
+      esistono**: il pacchetto del 2026-09-03 li ha caricati.
+      · `PIE-OBJ-PUNTI` — stare **dentro** l'obiettivo assegna punti, e il log dice a chi ([D-241]).
+      La porta nord e' su `DA_HexMap_Arena` dal 2026-08-29.
+      ⚠️ **In autobattle la via a punti non si vede fino in fondo**: il bot non cerca l'obiettivo
+      (`grep Objective Source/RefactorTactics/Bot/` da' zero, e' E26), quindi i punti che segna sono
+      turni in cui ci e' capitato sopra. Per esercitarla davvero **si gioca a mano**.
+
+      **B · fixture** — `FixtureId = RelayBasin`, che e' l'unica board con tutte e quattro le superfici
+      del quartetto. La precondizione ha **tre** passi, e scriverne solo il primo riproduce #1267:
+      *(1)* un asset **scratch**, mai la mappa d'autore — `GenerateFixtureIntoAsset` fa `ReplaceContent`,
+      quindi puntato a un `DA_HexMap_*` ne cancella il contenuto; *(2)* `FixtureId = RelayBasin`;
+      *(3)* `rt.Map.Source = LevelAsset`.
+
+      · `PIE-V01-BOARD` — colore **e** forma, a picco e in scala di grigi.
+      ✅ **La premessa e' arrivata il 2026-08-23** e fino al 2026-09-03 la colonna di stato non se n'era
+      accorta: dichiarava mancante il canale forma di #956, chiusa da undici giorni. Il glifo esiste —
+      `SurfaceGlyphs[4]`, `GlyphCells[4]`, `GetCellGlyphMesh` in `RTHexMapActor.h`.
+      🔁 Chi la esegue risponde anche al punto **(c)**, la condizione di revisione di [D-183] sul glifo
+      `FColor(25,25,25)`: questa voce e' **l'unico posto** in cui quella domanda viene posta.
+      ⚠️ **Ed e' l'ultimo criterio di #1665**, chiusa il 2026-09-03 consegnandole questa lettura: se la
+      board risultasse ancora nera il difetto e' **tornato**, e va riaperta.
