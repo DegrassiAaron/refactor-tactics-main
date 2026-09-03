@@ -2713,3 +2713,54 @@ sessions:
       ⚠️ **`PIE-ICON-01`, `PIE-V01-KIT-HOTKEYS`, `PIE-V01-LOG` e `PIE-V01-FALLBACK` NON stanno qui**,
       benché `Visual.Hud.FirstPlayable` dichiari di allestirle: hanno già una seduta (U9, U18, U15, U14)
       e una voce in due sedute è una voce che nessuna delle due esegue.
+
+  - id: U44
+    title: Il playback dello scenario si legge — la risoluzione che scorre nel viewport
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto di leggibilita' del playback graybox della risoluzione
+    artifacts: []
+    unblocked_by: [U21]
+    shares_setup_with: []
+    verifies: []
+    issues: [1625]
+    done_when: >-
+      guardando il campo scorrere si capisce **perche'** lo scenario finisce cosi'. Non «si vede
+      qualcosa muoversi» — quello lo dicono gia' i test — ma se la sequenza risponde alla domanda per
+      cui il playback esiste. ⚠️ E' la stessa asticella con cui `PIE-PREVIEW-AREA` e' stata chiusa il
+      2026-08-09: la risposta che valeva era «**si', si capisce**», non «si vede».
+    unblocks: []
+    notes: >-
+      ➕ **Aperta il 2026-09-03 chiudendo l'ultimo anello di `#1625`.** La catena headless e' completa —
+      trasporto (`#2095`), stato ricostruito dalla traccia (`#2173`), identita' fra i due spazi di id
+      (`#2176`), traduzione verso le viste (`#2185`) e il subsystem che le collega — e cio' che resta
+      non lo puo' chiudere nessun automation test: `ARTScenarioPreviewActor` posa istanze in un
+      viewport d'editor, e nessun test le guarda.
+      🔴 **`#1625` diceva «seduta `U26`», e quel puntatore non reggeva.** `U26` esiste ma e' *«La
+      griglia di lavoro e la sonda di movimento nell'editor»*: un'altra scena, un'altra domanda.
+      Misurato il 2026-09-03. Questa seduta e' la sede vera, e la issue e' stata corretta.
+      **Allestimento**: si apre uno scenario del corpus con almeno due squadre nel launcher del
+      Tactical Designer, si esegue (`Run`), e si apre il playback sull'ultima corsa. Poi si scorre
+      turno per turno e fase per fase. ⚠️ Serve una corsa **prima**: senza, il playback si rifiuta di
+      aprirsi — deliberatamente, perche' un campo vuoto somiglierebbe a una partita in cui non e'
+      successo niente.
+      ⛔ **Cosa NON va ricontrollato qui, perche' e' gia' misurato**: che le unita' finiscano nella
+      cella e nel facing che la traccia dichiara (`RefactorTactics.Replay.State.*`), che gli id siano
+      tradotti con la corrispondenza vera e non per indice (`Scenario.Playback.*`, con mutazione), e
+      che senza una corsa non si apra (`DevSandboxLauncher.PlaybackRefusesWithoutARun`). Chi esegue
+      questa seduta guarda **la sequenza**, non i valori.
+      🔑 **Le domande di giudizio**, che sono il contenuto vero della seduta: si distingue chi si e'
+      mosso da chi e' rimasto fermo? Un'unita' abbattuta **sparisce** in un momento leggibile, o
+      semplicemente non c'e' piu' al giro dopo? Cambiando prospettiva a meta' playback, il velo e i
+      marcatori raccontano lo **stesso** istante? L'ultima e' la giuntura piu' fragile: conoscenza e
+      marcatori si calcolano sulla stessa sorgente proprio perche' due istanti diversi insieme
+      sarebbero il difetto che si vede solo a schermo.
+      ⚠️ **`verifies: []` e' voluto, come in `U24` e `U26`**: le voci `PIE-*` non esistono ancora e
+      non vanno create adesso. Le scrive chi esegue la seduta, quando sapra' che aspetto ha cio' che
+      ha guardato — il registro PIE e' una lista di cose *verificabili*, non di cose desiderate.
+      ⚠️ **`unblocked_by: [U21]`** per la ragione pratica di `U22` e `U26`: su una scena non illuminata
+      il verdetto direbbe piu' sulle luci che sul playback.
+      ⚠️ ID assegnato dopo aver misurato il massimo su `main` **e su tutti i branch remoti**: `U43`,
+      che vive anche su `origin/fix/1793-2167-posa-e-offset`. Preso `U44`. Chi arriva secondo rinumera,
+      non contende.

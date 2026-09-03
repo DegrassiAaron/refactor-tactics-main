@@ -11,6 +11,8 @@
 >
 > ⛔ **Nessuna riga di `Source/` toccata.** L'unica scrittura è l'assegnazione di sei milestone, §6, ognuna
 > con l'evidenza citata dal corpo della issue che la riceve.
+>
+> 🔁 **Le due decisioni di §9 sono state prese lo stesso giorno: l'esito è in §10**, e corregge §7.2.
 
 ---
 
@@ -238,3 +240,65 @@ Non sono attività: sono decisioni, e nessuna delle due si prende misurando.
 E una che invece è un'attività: **raggruppare le 60 che chiedono l'occhio in due sedute** — una **editor**
 (45) e una **packaged** (15) — invece che in sessanta. È lo stesso lavoro che il gemello ha raggruppato
 guardandolo dal lato dei commit; qui è visto dal lato della release.
+
+---
+
+## 10. Esito — le due decisioni, prese il 2026-09-03
+
+Entrambe le domande di §9 hanno avuto risposta dall'autore lo stesso giorno. Quattro collocazioni in più, e
+una correzione a questo referto.
+
+### 10.1 I tre difetti dei tool editor **sono v0.1**
+
+Decisione d'autore: `#931` · `#921` · `#871` → **`v0.1 · Difetti e bilanciamento`**.
+
+È la milestone dei *«difetti trasversali, bilanciamento e debito dei test **che non appartengono a una
+singola epic**»*, e il criterio combacia: `#921` dichiara nella propria §Tracking `| Epic | N/A |`.
+
+La riga contraddittoria di `#921` — *«Milestone N/A — fuori dal percorso v0.1»* — è stata **barrata nel
+corpo** con la collocazione che la sostituisce, secondo la forma che quella stessa issue documenta:
+*«si barra nel corpo invece di aggiungere una nota in fondo: chi legge la riga deve vedere subito che è
+morta»*. `#931` e `#871` portano la decisione in un commento.
+
+⚠️ **Tensione dichiarata e non risolta**: [`#1861`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1861)
+*(Map Editor 0.1)* porta `**Release**: out_of_release_scope`, e il tool a cui questi difetti appartengono è
+quello. La decisione colloca i **difetti** in v0.1 senza pronunciarsi sull'**epic** che ospita il tool.
+
+### 10.2 🔴 §7.2 chiamava «orfane» tre epic, e due non lo sono
+
+Questa è una **correzione a questo referto**, emersa misurando prima di applicare.
+
+`#1881` e `#1937` **dichiarano nel proprio corpo di essere trasversali**, e la milestone assente è coerente
+con una convenzione che il repository applica:
+
+> *«Questa capability attraversa più release e più consumer, quindi segue la convenzione delle epic
+> trasversali già in uso — `[EPIC]` senza numero, come #1861, #1105, #422.»* — `#1881`
+
+La misura conferma la convenzione: **delle 9 epic aperte senza milestone, 8 sono trasversali** — `#422`
+(Wiki), `#1105` (Tactical Designer), `#1769` (E49), `#1816` (E50), `#1861` (Map Editor), `#1881`, `#1937`,
+`#1990` (Gray Kit Playground). Dare loro una milestone di release contraddirebbe il testo che le governa.
+
+∴ **L'unica vera orfana era `#1408`** *(`[EPIC v0.1] E48`)*, che dichiara la release nel titolo e non
+dichiara trasversalità. Collocata in **`v0.1 · Gate di release`**, con l'evidenza:
+[`#14`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/14) — l'epic master della release, che
+sta in quella milestone — **la elenca fra le proprie figlie**, annotando che è *«fuori dalla tabella §3 di
+`roadmap-v0.1.md` e senza serie `CP 48.x`: riusa owner esistenti»*.
+
+🔑 **La lezione vale oltre il caso**: «senza milestone» ha almeno tre cause diverse — dimenticanza,
+dichiarazione esplicita (§7.1), e **convenzione di categoria**. Solo la prima è un difetto, e §7.2 le aveva
+fuse.
+
+### 10.3 Il conteggio aggiornato
+
+| | al 2026-09-03, dopo le decisioni |
+|---|---|
+| delle 16 senza milestone: assegnate da §6 | 6 |
+| assegnate da §10.1 | 3 |
+| **restano** | **7** — `#2167` `#1896` `#1880` `#1879` `#1410` `#995` `#695` |
+| epic senza milestone: assegnate | 1 (`#1408`) |
+| confermate trasversali per convenzione | 2 (`#1881`, `#1937`) |
+
+Delle sette che restano, **quattro non sono decidibili qui e il referto lo ha già detto**: `#2167` chiede
+conferma di scope, `#1880` e `#1879` hanno per padre `#1881` — ora accertata trasversale, quindi il padre
+non fornirà mai una milestone — e `#695` ha per padre `#1105`, trasversale per la stessa convenzione.
+Restano tre casi senza evidenza: `#1896`, `#995`, `#1410`.
