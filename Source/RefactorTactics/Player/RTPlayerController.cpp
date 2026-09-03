@@ -2322,7 +2322,8 @@ void ARTPlayerController::CycleDeclaredFacing()
 	const bool bHasPlannedMove = Unit->PlannedPath.Num() > 1;
 	const ERTMovementStyle Style = bHasPlannedMove ? ERTMovementStyle::Budget : ERTMovementStyle::None;
 
-	const TArray<ERTHexDirection> Legal = URTFacingLibrary::LegalFacings(Style, Unit->PlannedPath, Unit->Facing);
+	const TArray<ERTHexDirection> Legal =
+		URTFacingLibrary::LegalFacings(Style, Unit->PlannedPath, Unit->Facing, Unit->PivotBudget());
 	if (Legal.Num() == 0)
 	{
 		return; // nessuna rotazione possibile: non c'e' niente da ciclare
@@ -2385,14 +2386,15 @@ bool ARTPlayerController::HandleFacingSector(ERTHexDirection Sector)
 
 	ERTHexDirection Applied = Unit->Facing;
 	const bool bLegal = URTFacingLibrary::TryApplyDeclaredFacing(
-		Style, Unit->PlannedPath, Unit->Facing, Sector, Applied);
+		Style, Unit->PlannedPath, Unit->Facing, Sector, Unit->PivotBudget(), Applied);
 
 	if (!bLegal)
 	{
 		// Rifiutata, MAI corretta in silenzio verso la legale piu' vicina: e' la regola di `URTFacingLibrary`,
 		// e qui la si rispetta invece di riscriverla.
-		UE_LOG(LogRT, Log, TEXT("[RT] Rotazione %d illegale per lo stile di movimento pianificato"),
-			(int32)Sector);
+		UE_LOG(LogRT, Log,
+			TEXT("[RT] Rotazione %d fuori dal budget di pivot (Move %d / Dash %d) per il movimento pianificato"),
+			(int32)Sector, Unit->MoveEndPivotMaxSteps, Unit->DashEndPivotMaxSteps);
 		return false;
 	}
 

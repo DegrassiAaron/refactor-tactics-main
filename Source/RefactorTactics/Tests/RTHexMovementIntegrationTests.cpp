@@ -1281,13 +1281,21 @@ bool FRTHexMoveIllegalDeclaredRotationTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 4);
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	// 🔴 **Riktor e non Wraith, dal 2026-09-03 — ADR-0008 §1 (#1605).** Questo test ha bisogno che `W` sia
+	// ILLEGALE, e con Wraith non lo e' piu': `MoveEndPivotMaxSteps = 3` gli concede tutte e sei le
+	// direzioni a fine Move, quindi la dichiarazione verrebbe accolta e il test misurerebbe il contrario di
+	// quel che il suo nome promette. Riktor ha budget `1`, cioe' esattamente la vecchia regola universale.
+	//
+	// ⚠️ Il test resta valido **perche' il soggetto e' il rifiuto**, non l'eroe: quale eroe abbia ancora
+	// una rotazione illegale e' un dato di catalogo, e per questo l'eroe e' nominato qui e non altrove.
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 3));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
 
-	// Un passo a EST: dopo un Move a budget le direzioni legali sono l'ultimo passo e le due adiacenti nel
-	// ciclo — `E`, `NE`, `SE`. `W` e' l'opposta esatta, quindi illegale per costruzione e non per caso.
+	// Un passo a EST: con `MoveEndPivotMaxSteps = 1` le direzioni legali sono l'ultimo passo e le due
+	// adiacenti nel ciclo — `E`, `NE`, `SE`. `W` e' l'opposta esatta, quindi illegale per costruzione e non
+	// per caso.
 	const FRTCellId Goal = URTHexLibrary::Neighbor(FRTCellId(0, 0), ERTHexDirection::E);
 	Mover->Facing = ERTHexDirection::NW; // di partenza: cosi' «rifiutata» non coincide con «invariata»
 	Mover->PlannedCell = Goal;

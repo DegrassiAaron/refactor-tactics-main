@@ -49,11 +49,21 @@ Si aggiorna **al termine della fase Move**, che è l'ultima fase volontaria del 
 | `Budget` (`Action.Move`, `Sprint`) | **tre**: la direzione dell'ultimo passo e le due adiacenti (`D`, `D±1`) | dichiarato in planning fra le tre |
 | `None` (nessun movimento: `Wait`, sola azione principale) | **sei**: rotazione libera | dichiarato in planning |
 
-> ⛔ **Tabella superata da [ADR-0008](adr-0008-rotazione-e-policy-di-facing.md) §1 (2026-08-10).** Le direzioni
-> legali non dipendono più dallo **stile** ma dal **budget di pivot del personaggio**
+> ⛔ **Tabella superata da [ADR-0008](adr-0008-rotazione-e-policy-di-facing.md) §1 (2026-08-10), e a runtime
+> dal 2026-09-03** ([#1605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1605)).
+> Le direzioni legali non dipendono più dallo **stile** ma dal **budget di pivot del personaggio**
 > (`MoveEndPivotMaxSteps` / `DashEndPivotMaxSteps`, 0–3 step). Le tre righe qui sopra restano vere come
 > **casi particolari**: `Linear*` ≡ budget 0, `Budget` ≡ budget 1, `None` ≡ `StationaryPivotMaxSteps` = 3, che
 > ADR-0008 conferma universale.
+>
+> 🔑 **E i tre casi particolari sono ora i DEFAULT del codice**, non una nota storica: `FRTPivotBudget`
+> nasce a `Move = 1 / Dash = 0`, così un'unità mai configurata da un eroe applica ancora questa tabella.
+> Il comportamento cambia solo per gli eroi del catalogo, che dichiarano il proprio budget.
+>
+> ⚠️ **Per diciotto giorni questa tabella è stata superata sulla carta e applicata dal codice**: ADR-0008 era
+> `CANONICAL` dal 2026-08-10, e `MoveEndPivotMaxSteps` aveva **0** occorrenze in `Source/`. Nessun gate
+> confronta un ADR accettato con i simboli del codice — è la forma di difetto, non un incidente di questo
+> documento.
 
 La rotazione **non consuma slot**: `Action.Wait` ha slot `None` e resta tale. Restare fermi e girarsi verso
 un corridoio è una scelta tattica, non un turno sprecato.
@@ -321,7 +331,7 @@ stabile, formato versionato) · **#6** rispettato (la rotazione **intesa** è fi
 >
 > Resta scoperto **l'input**, che non è una regola: nessun comando permette al giocatore di dichiarare una
 > rotazione e il bot non ne dichiara. È lavoro di **E11**, e serve insieme al feedback visivo — senza
-> l'insieme legale mostrato, il giocatore non può sapere quali tre direzioni gli restano. Per la stessa
+> l'insieme legale mostrato, il giocatore non può sapere quali direzioni gli restano — e da ADR-0008 §1 non sono più «tre» per tutti, ma quante il budget di pivot del suo eroe gliene concede. Per la stessa
 > ragione l'harness **non** ha una chiave `facing`: gliela si darebbe solo per farlo diventare il primo
 > produttore del campo, cioè più capace del gioco. La capability `DeclaredRotation` è dichiarata **non
 > disponibile** in `RTScenarioSession.cpp`, accanto a `ReactionPlanning`, che ha la stessa forma.
