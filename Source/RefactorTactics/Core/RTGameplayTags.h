@@ -7,7 +7,7 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Root);   // non puo' muoversi
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Slow);   // range di movimento dimezzato
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Reveal); // intento visibile agli avversari (invariante #6)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Exposed); // scoperta: +5 al PRIMO danno diretto, scade nel Cleanup
-UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Guarded); // guardia: -15 al PRIMO danno diretto e resiste a una spinta di 1
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Guarded); // guardia: POOL di 15 assorbibili sull'arco frontale ([D-292]), resiste a una spinta di 1
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Marked);  // marchiato: +6 al PROSSIMO attacco alleato, che lo consuma
 // Bagnato: UNA sola dichiarazione per DUE sorgenti che il catalogo vuole convergenti — l'acqua bassa
 // (E8/CP 8.1) e Phase (E6/CP 6.3). Effetti: +8 a Gadget.LinearDischarge finche' attivo, conduce elettricita'

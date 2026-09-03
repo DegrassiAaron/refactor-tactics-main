@@ -10,6 +10,7 @@
 #include "Map/RTMapVisuals.h" // #983: RTCellTopZ si include invece di ricopiarlo in un commento
 #include "RTUnit.generated.h"
 
+class UAnimSequenceBase;
 class UStaticMeshComponent;
 class UArrowComponent;
 class USkeletalMeshComponent;
@@ -918,6 +919,14 @@ public:
 	 *
 	 * Pura e testabile: `RefactorTactics.Unit.ShortHeroNameFromStableId`.
 	 */
+	/**
+	 *  La clip di ripiego come **funzione pura** delle clip e dell'eroe: e' cio' che un test puo' chiamare.
+	 *  🔴 Statica perche' la prima stesura del test leggeva il CDO e non passava da qui: era verde e
+	 *  **vacua rispetto al fix**, e l'ha trovata una verifica di mutazione.
+	 */
+	static TSoftObjectPtr<UAnimSequenceBase> GhostFallbackClipFor(
+		const class URTUnitAnimInstance* Clips, const FName& HeroId);
+
 	static FString ShortHeroName(FName InHeroId, const FString& Fallback);
 
 	/**
@@ -1158,6 +1167,12 @@ protected:
 	 * l'esclusione qui e' esplicita ed e' per QUESTO che `RefreshComponentVisibility` non spegne mai la sagoma
 	 * per sbaglio invece del personaggio vero (o viceversa).
 	 */
+	/** La clip di ripiego per la sagoma dell'ultimo contatto (#1750): l'idle dell'eroe, o `nullptr`.
+	 *  Letta dal CDO di `UnitAnimClass` e non da una seconda lista: i nomi delle clip non si deducono.
+	 *  ⚠️ Risolve senza CARICARE: i pack Paragon non sono versionati, e il path e' cio' che un test puo'
+	 *  asserire su un checkout che non li ha. */
+	TSoftObjectPtr<UAnimSequenceBase> GhostFallbackClipPath() const;
+
 	USkeletalMeshComponent* FindHeroSkeletal() const;
 
 	virtual void BeginPlay() override;

@@ -81,8 +81,24 @@ public:
 	static constexpr int32 ExposedFirstHitBonus = 5;
 
 	/**
-	 * `Action.Guard`: riduce di 15 il PRIMO danno diretto ricevuto (catalogo v0.1 §1). Non protegge dagli
-	 * hazard ambientali gia' presenti — quelli non passano dai colpi diretti e arrivano con l'epic E8.
+	 * `Action.Guard`: **POOL** di 15 danni assorbibili, che i colpi dell'arco FRONTALE consumano finche'
+	 * dura ([D-292] + [D-206]). Non protegge dagli hazard ambientali gia' presenti — quelli non passano dai
+	 * colpi diretti e arrivano con l'epic E8.
+	 *
+	 * 🔴 **Questo commento diceva «riduce di 15 il PRIMO danno diretto ricevuto» fino al 2026-09-03, e
+	 * D-292 l'aveva superato il 2026-08-31.** La differenza non e' di parole: col vecchio delta la riduzione
+	 * che avanzava si PERDEVA, e quanta se ne perdesse dipendeva da quale colpo fosse arrivato prima — un
+	 * bersaglio colpito da 10 e da 30 incassava 30 o 25 a seconda dell'indice dell'attaccante. Il pool
+	 * consuma sempre lo stesso totale, quindi l'esito e' invariante per permutazione **per costruzione**.
+	 *
+	 * ⚠️ **Il NOME resta `GuardFirstHitReduction`, e non e' una svista.** Rinominarlo tocca i chiamanti ed
+	 * e' un refactor, non una correzione di prosa: finche' il nome vive, questo commento e' l'unico posto
+	 * che dice cosa il valore fa davvero. Chi lo rinomina porti via anche questo paragrafo.
+	 *
+	 * Il valore lo consuma `URTCombatResolver::ApplyAbsorptionPool`, **non** `ApplyFirstHitDelta` — che
+	 * resta la strada di `Status.Exposed` e `Action.Deflect`. Esercitato dal corpus con
+	 * `Spec.Combat.GuardPoolSpansMultipleHits`, che usa colpi PIU' PICCOLI del pool: sopra i 15 le due
+	 * regole danno lo stesso numero, ed e' la ragione per cui il corpus non si accorse del cambio (`#1919`).
 	 */
 	static constexpr int32 GuardFirstHitReduction = 15;
 
