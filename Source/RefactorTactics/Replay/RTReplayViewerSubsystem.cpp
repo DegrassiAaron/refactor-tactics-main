@@ -76,6 +76,26 @@ ERTReplayOpenResult URTReplayViewerSubsystem::OpenMatchAsTeam(const FGuid& Match
 	return ViewModel.Open(GetReplaysRoot(), MatchId, ObserverTeamId);
 }
 
+ERTReplayOpenResult URTReplayViewerSubsystem::OpenMatchAsRecordedObserver(const FGuid& MatchId)
+{
+	// ⚠️ **Il manifest si legge una volta in piu', e si accetta.** `ViewModel.Open` lo rileggera' subito
+	// dopo: sono due letture di un file JSON di poche centinaia di byte, contro un'API che dovrebbe
+	// restituire *insieme* l'esito dell'apertura e il team scelto — cioe' un out-parameter in piu' su ogni
+	// porta, per un dato che serve solo qui.
+	//
+	// 🔴 **E su un manifest illeggibile NON si inventa un esito.** Si prosegue con `INDEX_NONE`, cioe' come
+	// spettatore neutrale, e sara' `Open` a rispondere `ManifestUnreadable` dalla sua lettura: due
+	// diagnosi della stessa condizione direbbero la stessa cosa in due modi, e la seconda finirebbe per
+	// divergere dalla prima al primo esito nuovo.
+	FRTReplayManifest Manifest;
+	const int32 Osservatore =
+		URTReplayRecorderLibrary::LoadManifest(GetReplaysRoot(), MatchId, Manifest)
+			? Manifest.LocalObserverTeamId
+			: INDEX_NONE;
+
+	return ViewModel.Open(GetReplaysRoot(), MatchId, Osservatore);
+}
+
 FText URTReplayViewerSubsystem::GetTurnLabel() const
 {
 	// ⚠️ Il trattino non e' un ripiego: e' la risposta giusta quando **non c'e' un turno corrente**. Copre

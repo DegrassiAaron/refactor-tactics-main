@@ -881,4 +881,65 @@ bool FRTReplayArchiveDistinguishesInputTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Senza un giocatore locale l'archivio dichiara «di nessuno», non «squadra 0»** ([D-317], `#2156`).
+ *
+ * 🔴 **E' il difetto che la sede ovvia avrebbe introdotto.** `ARTPlayerState::TeamIdOf` risponde `0` anche
+ * su un controller assente — un ripiego *corretto in partita*, dove un giocatore c'e' sempre, e che qui
+ * mentirebbe: un dedicated server, o una partita registrata da un harness, scriverebbe «questa e' la
+ * partita della squadra 0» e il replay si aprirebbe con una vista **parziale** spacciata per la propria.
+ *
+ * ⚠️ **Questo test gira in un mondo headless, che e' esattamente quel caso** — nessun `PlayerController`,
+ * nessun `PlayerState`. Non serve simulare la condizione: e' quella in cui i test vivono, ed e' il motivo
+ * per cui il difetto si sarebbe visto solo in produzione se non lo si guardasse qui.
+ *
+ * ⛔ Sostituire il blocco di `BeginReplayRecording` con `ARTPlayerState::TeamIdOf(...)` rende rosso questo
+ * test e nient'altro: e' l'unico posto che distingue `-1` da `0` sul percorso di produzione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayProducerNoLocalObserverTest,
+	"RefactorTactics.Replay.Producer.WithoutAPlayerTheArchiveDeclaresNoObserver",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayProducerNoLocalObserverTest::RunTest(const FString&)
+{
+	const FString Root = ProducerRoot(TEXT("NoLocalObserver"));
+	PuliscIProducer(Root);
+
+	UWorld* World = MakeReplayProducerWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTTurnManager* TM = SetUpMatch(World);
+	if (!TM) { DestroyReplayProducerWorld(World); return false; }
+
+	TM->ReplaysRootOverride = Root;
+	TM->BeginReplayRecording();
+
+	const FGuid MatchId = TM->GetReplayMatchId();
+	if (!TestTrue(TEXT("la registrazione e' partita"), MatchId.IsValid()))
+	{
+		DestroyReplayProducerWorld(World);
+		PuliscIProducer(Root);
+		return false;
+	}
+
+	// Si rilegge da DISCO: il campo deve aver attraversato la serializzazione, non solo esistere in memoria.
+	PlayToCompletion(TM);
+
+	FRTReplayManifest Letto;
+	if (TestTrue(TEXT("il manifest si rilegge dall'archivio"),
+			URTReplayRecorderLibrary::LoadManifest(Root, MatchId, Letto)))
+	{
+		TestEqual(TEXT("nessun giocatore locale -> «di nessuno», e NON la squadra 0"),
+			Letto.LocalObserverTeamId, static_cast<int32>(INDEX_NONE));
+
+		// ⚠️ Anti-vacuita': senza questa riga il test sarebbe verde anche su un archivio che non ha mai
+		// dichiarato niente, per esempio se `BeginReplayRecording` fosse uscito prima del blocco.
+		TestTrue(TEXT("e l'archivio dichiara comunque le sue viste per osservatore"),
+			Letto.ObserverTeamIds.Num() > 0);
+	}
+
+	DestroyReplayProducerWorld(World);
+	PuliscIProducer(Root);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

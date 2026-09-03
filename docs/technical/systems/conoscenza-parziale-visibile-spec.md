@@ -257,6 +257,24 @@ chi possa aprirli è [D-276] §3, ancora aperta.
 **Lo spettatore neutrale vede tutte le voci**, ed è dichiarato ([D-316] punto 5): un replay pubblicato è già
 una rinuncia alla privacy competitiva, e i **campi** di audit restano tolti anche a lui.
 
+#### ⚠️ E «chi guarda» va DICHIARATO dall'archivio, o il neutrale si ottiene per omissione
+
+*(Aggiunto il 2026-09-03, [D-317].)*
+
+Per un giorno il filtro è esistito senza un produttore. La superficie era `OpenMatchAsTeam(MatchId, TeamId)`,
+e **nessun chiamante aveva modo di conoscere quel `TeamId`**: una schermata non sa di chi fosse una partita
+registrata la settimana scorsa. In pratica si sarebbe usato `OpenMatch`, ottenendo la vista neutrale — la
+risposta giusta per chi la **sceglie**, e quella sbagliata per chi ci finisce senza scegliere.
+
+Il manifest lo dichiara ora in `LocalObserverTeamId` (**v3**), e `OpenMatchAsRecordedObserver(MatchId)` è la
+porta che lo rilegge. 🔑 La regola generale, che vale oltre il replay: **quando una vista filtrata ha un
+soggetto, il soggetto è un dato — non un parametro che qualcuno si ricorderà di passare.**
+
+⚠️ `INDEX_NONE` significa **«non c'era»**, non «non lo so»: un dedicated server registra una partita che non
+è di nessuno in locale, e la vista completa è la sua lettura corretta. Per questo il valore non si ricava da
+`ARTPlayerState::TeamIdOf`, che risponde `0` anche senza controller — un ripiego corretto *in partita*, dove
+un giocatore c'è sempre, e che qui aprirebbe il replay con una vista parziale spacciata per la propria.
+
 #### 🔴 Per la traccia «quando il fatto è accaduto» non è definito, e la rotta si tronca
 
 *(Aggiunto il 2026-08-28. La riga della tabella diceva soltanto «alla scrittura», e non bastava.)*

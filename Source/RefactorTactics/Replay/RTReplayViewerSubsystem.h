@@ -106,6 +106,29 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
 	ERTReplayOpenResult OpenMatchAsTeam(const FGuid& MatchId, int32 ObserverTeamId);
 
+	/**
+	 * Apre una partita **con gli occhi di chi l'ha giocata**: l'osservatore lo dichiara l'archivio
+	 * ([D-317], `#2156`).
+	 *
+	 * 🔑 **E' la porta che una schermata deve chiamare**, ed e' il motivo per cui esiste. `OpenMatchAsTeam`
+	 * chiede un `TeamId` che il chiamante non ha modo di conoscere — nessuna UI sa di chi fosse una partita
+	 * registrata la settimana scorsa — quindi in pratica si sarebbe finiti su `OpenMatch`, ottenendo la vista
+	 * neutrale **per omissione** invece che per scelta. Qui la cosa giusta e' anche la piu' semplice.
+	 *
+	 * ⚠️ **Ricade sul neutrale quando l'archivio non lo dichiara**, e non e' un ripiego: un manifest `v1` o
+	 * `v2`, o una partita registrata da un dedicated server, non hanno un osservatore locale — `INDEX_NONE`
+	 * significa *«non c'era»*, e la vista completa e' la lettura corretta di quelle registrazioni.
+	 *
+	 * ⛔ **Non e' un confine di privacy e non va usata come tale.** Non impedisce di chiamare
+	 * `OpenMatchAsTeam` con l'altra squadra: le tracce sono entrambe sul disco, e il confine che [D-316]
+	 * chiude e' quello della superficie pubblica — chi ha accesso alla cartella ha accesso a tutto.
+	 *
+	 * Gli esiti sono i **quattro** di `OpenMatch`, più nessuno: un manifest illeggibile risponde
+	 * `ManifestUnreadable` come sempre, invece di inventare un quinto stato per «non so chi guardava».
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
+	ERTReplayOpenResult OpenMatchAsRecordedObserver(const FGuid& MatchId);
+
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
 	bool IsOpen() const { return ViewModel.IsOpen(); }
 
