@@ -20,7 +20,7 @@
 // `REFACTORTACTICS_API`, quindi il simbolo non attraversa il confine di modulo: misurato, il link fallisce
 // con `LNK2001: LogRT non risolto`. E' anche la ragione — non detta finora — per cui `RTHexEditorMode.cpp`
 // si definisce `LogRTHexEditorMode` invece di riusare quella del progetto.
-DEFINE_LOG_CATEGORY_STATIC(LogRTDevSandboxLauncher, Log, All);
+DEFINE_LOG_CATEGORY(LogRTDevSandboxLauncher);
 
 const FName URTDevSandboxLauncherSubsystem::TabId(TEXT("RTDevSandboxLauncher"));
 

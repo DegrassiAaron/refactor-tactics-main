@@ -11,7 +11,7 @@
 // ⚠️ Stessa categoria del subsystem, e non una nuova: il `done_when` di `U31` dice all'operatore di
 // cercare `LogRTDevSandboxLauncher`. Una diagnostica del launcher stampata sotto un'altra categoria
 // finirebbe fuori dal filtro di chi sta indagando proprio su un pannello che non compare.
-DEFINE_LOG_CATEGORY_STATIC(LogRTDevSandboxLauncher, Log, All);
+// La categoria e' DICHIARATA in `RTDevSandboxLauncherSubsystem.h` e definita nel suo `.cpp`.
 
 void FRefactorTacticsEditorModule::ExtendLevelEditorLayout(FLayoutExtender& Extender)
 {
