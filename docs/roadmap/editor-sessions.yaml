@@ -171,7 +171,7 @@ sessions:
     block: 1
     critical: false
     execution_lane: pie
-    produces: verdetto su quindici voci che non attendono nulla
+    produces: verdetto su diciassette voci che non attendono nulla
     artifacts: []
     unblocked_by: []
     shares_setup_with: []
@@ -185,6 +185,7 @@ sessions:
       - PIE-HEX-LAYER-CLICK
       - PIE-HEX-LAYER-PANEL
       - PIE-V01-KIT-HOTKEYS
+      - PIE-V01-SHIELD
       - PIE-V01-REACTCOND
       - PIE-HEX-VIZ-BLOCCHI
       - PIE-HEX-VIZ-COSTO
@@ -193,7 +194,7 @@ sessions:
       - PIE-HEX-VIZ-UNDO
       - PIE-HEX-VIZ-TRANSIZIONI
     issues: [450, 567, 583, 551, 552, 553, 554]
-    done_when: le sedici voci hanno esito reale nel registro
+    done_when: le diciassette voci hanno esito reale nel registro
     unblocks: []
     steps: |
       **E' la sola seduta che non attende nulla**: nessun checkpoint da chiudere, nessuna seduta
@@ -212,6 +213,27 @@ sessions:
       `PIE-V01-REACTCOND`, di cui e' la precondizione: fino al 2026-08-26 i tasti abilita' erano `1`-`4`
       e il kit ne ha dieci voci, quindi la reazione di Gadget — indice 4 — non si poteva armare e
       `REACTCOND` risultava non eseguibile. Ora i tasti sono `1`-`9` piu' `0`.
+
+      **`PIE-V01-SHIELD`** (aggiunta il 2026-09-03, #1403) si fa nella stessa partita e va **dopo**
+      `PIE-V01-KIT-HOTKEYS`, di cui e' il caso particolare: quella stabilisce che i tasti rispondano,
+      questa che risponda l'**ultima posizione** del kit. Chiede l'unica preparazione in piu' della
+      seduta: selezionare **Phase**, non l'unita' di default.
+      La decisione che rende legale una sesta voce d'eroe e' **D-226** — le cinque generiche escono
+      dalla fila dei numeri e prendono un tasto proprio, e `ValidateHeroes` passa da cinque a
+      cinque-o-sei. **D-224** e' il primo tentativo, **ritirato** quando il kit contava undici voci per
+      dieci tasti: il vincolo e' caduto per decisione, non ignorandolo, e nessun test lo distingue.
+      ⚠️ **Non fidarsi del numero del tasto.** Oggi `Hero.Phase.TideGuard` e' la sesta voce, cioe' il
+      tasto 6, ma la posizione non e' pinnata da nessun test e due delle cinque che la precedono
+      entrano dentro una guardia (`if (FluidTrail)`, `if (MistVeil)`): si contano le voci del kit a
+      schermo e si legge dal log quale azione si e' armata.
+      🔴 **Prima di eseguirla, `rt.Match.BotAllies` e `rt.Match.Autobattle` devono essere a `0`**: gli
+      alleati-bot si contano dal FONDO di `Team0Heroes`, quindi `1` consegna proprio **Phase** al bot, e
+      le due CVar prevalgono sulla property e durano quanto il processo dell'editor — la stessa trappola
+      che il riquadro qui sopra descrive per `rt.Test.Scenario`. Con Phase al bot la voce sembra fallita
+      senza essere stata eseguita.
+      ⚠️ **`Hero.Wraith.PhaseGuard` non si verifica qui**: e' il gemello di `TideGuard`, ma nella
+      formazione di default Wraith sta in **team 1** e il giocatore non ne arma le azioni. Chiederlo in
+      questa partita sarebbe una verifica impossibile.
 
       **`PIE-V01-REACTCOND`** (aggiunta il 2026-08-12, [D-109]) si fa in Play e chiede un ordine
       preciso: prima **arma una reazione** sull'unita' selezionata — nell'allestimento di default e' il
@@ -2619,8 +2641,9 @@ sessions:
       - PIE-VIS-AREAGUARD
       - PIE-ACC-GUARDBRACE
       - PIE-ACC-ENVIRONMENT
+      - PIE-ACC-MAP
     issues: [231, 233, 1919, 2009]
-    done_when: le venti voci di `verifies` hanno esito reale nel registro
+    done_when: le ventuno voci di `verifies` hanno esito reale nel registro
     unblocks: []
     steps: |
       **Non c'è niente da allestire, ed è il punto della seduta.** Ognuna di queste diciassette voci ha
