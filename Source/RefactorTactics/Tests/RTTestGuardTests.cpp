@@ -5,6 +5,50 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+namespace
+{
+	/** Un sorgente di `Tests/` con il suo contenuto: il soggetto comune dei due oracoli di questo file. */
+	struct FRTSorgenteDiTest
+	{
+		FString Nome;
+		FString Testo;
+	};
+
+	FString RTCartellaDeiTest()
+	{
+		return FPaths::Combine(FPaths::ProjectDir(), TEXT("Source/RefactorTactics/Tests"));
+	}
+
+	/**
+	 * Elenca e legge i sorgenti **una volta sola**.
+	 *
+	 * ⚠️ I due test qui sotto ispezionano lo stesso insieme di file, e prima di #2136 ne duplicavano
+	 * enumerazione e lettura carattere per carattere: ~198 letture sincrone in piu' a ogni `rt-suite`, e
+	 * soprattutto **due copie della regola che definisce il soggetto**, da tenere allineate a mano. Chi
+	 * allargasse lo scope di un oracolo e non dell'altro non riceverebbe nessun segnale.
+	 */
+	TArray<FRTSorgenteDiTest> RTLeggiSorgentiDeiTest(FAutomationTestBase& Test)
+	{
+		const FString Cartella = RTCartellaDeiTest();
+		TArray<FString> Nomi;
+		IFileManager::Get().FindFiles(Nomi, *FPaths::Combine(Cartella, TEXT("*.cpp")), /*Files*/ true, /*Dirs*/ false);
+
+		TArray<FRTSorgenteDiTest> Sorgenti;
+		Sorgenti.Reserve(Nomi.Num());
+		for (const FString& Nome : Nomi)
+		{
+			FString Testo;
+			if (!FFileHelper::LoadFileToString(Testo, *FPaths::Combine(Cartella, Nome)))
+			{
+				Test.AddError(FString::Printf(TEXT("%s non si legge"), *Nome));
+				continue;
+			}
+			Sorgenti.Add({ Nome, MoveTemp(Testo) });
+		}
+		return Sorgenti;
+	}
+}
+
 /**
  * **In ogni file di `Tests/`, la guardia `WITH_DEV_AUTOMATION_TESTS` si chiude in FONDO al file.**
  *
@@ -33,11 +77,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTestGuardClosesAtEndOfFileTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTTestGuardClosesAtEndOfFileTest::RunTest(const FString&)
 {
-	const FString Cartella = FPaths::Combine(FPaths::ProjectDir(), TEXT("Source/RefactorTactics/Tests"));
-	TArray<FString> Nomi;
-	IFileManager::Get().FindFiles(Nomi, *FPaths::Combine(Cartella, TEXT("*.cpp")), /*Files*/ true, /*Dirs*/ false);
-
-	if (!TestTrue(TEXT("i sorgenti dei test sono leggibili"), Nomi.Num() > 0))
+	const TArray<FRTSorgenteDiTest> Sorgenti = RTLeggiSorgentiDeiTest(*this);
+	if (!TestTrue(TEXT("i sorgenti dei test sono leggibili"), Sorgenti.Num() > 0))
 	{
 		return false;
 	}
@@ -46,16 +87,9 @@ bool FRTTestGuardClosesAtEndOfFileTest::RunTest(const FString&)
 	int32 ConGuardia = 0;
 	int32 Difettosi = 0;
 
-	for (const FString& Nome : Nomi)
+	for (const FRTSorgenteDiTest& Sorgente : Sorgenti)
 	{
-		FString Testo;
-		if (!FFileHelper::LoadFileToString(Testo, *FPaths::Combine(Cartella, Nome)))
-		{
-			AddError(FString::Printf(TEXT("%s non si legge"), *Nome));
-			continue;
-		}
-
-		const int32 Pos = Testo.Find(Guardia, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+		const int32 Pos = Sorgente.Testo.Find(Guardia, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
 		if (Pos == INDEX_NONE)
 		{
 			// Un file senza la guardia non e' un difetto di questo oracolo: non tutti i file di `Tests/` sono
@@ -64,19 +98,19 @@ bool FRTTestGuardClosesAtEndOfFileTest::RunTest(const FString&)
 		}
 
 		++ConGuardia;
-		const FString Coda = Testo.Mid(Pos + Guardia.Len()).TrimStartAndEnd();
+		const FString Coda = Sorgente.Testo.Mid(Pos + Guardia.Len()).TrimStartAndEnd();
 		if (!Coda.IsEmpty())
 		{
 			++Difettosi;
 			AddError(FString::Printf(
 				TEXT("%s: dopo l'#endif della guardia restano %d caratteri di codice. In Shipping quel codice ")
 				TEXT("resta senza gli helper che la guardia racchiude, e la build non compila. L'#endif va ")
-				TEXT("in fondo al file."), *Nome, Coda.Len()));
+				TEXT("in fondo al file."), *Sorgente.Nome, Coda.Len()));
 		}
 	}
 
 	AddInfo(FString::Printf(TEXT("file di test ispezionati: %d, di cui con la guardia: %d"),
-		Nomi.Num(), ConGuardia));
+		Sorgenti.Num(), ConGuardia));
 
 	// La guardia anti-vacuita': se un giorno nessun file portasse piu' quella riga, questo test starebbe
 	// guardando il nulla e continuerebbe a passare.
@@ -105,46 +139,81 @@ bool FRTTestGuardClosesAtEndOfFileTest::RunTest(const FString&)
  * ⛔ **Cerca la forma di CHIAMATA (`->Nome(`), non il nome**: il nome compare nei commenti che spiegano la
  * trappola — compresi quelli di questo test — e un oracolo che li contasse sarebbe rosso per sempre,
  * quindi disattivato entro un giorno.
+ *
+ * ---
+ *
+ * 🔴 **I TRE LIMITI, trovati in code review (#2136) e dichiarati invece che nascosti.** Contano perche'
+ * questo test e' facile da leggere come *"nessun test runtime usa API di solo editor"*, e non e' cio' che
+ * misura:
+ *
+ * 1. **La lista ha UN nome, e la sua classe di difetti ne ha almeno DUE.** L'altro e' `GetBoolMetaData`
+ *    (`UObject/Class.h:256`, sotto `#if WITH_METADATA`): il 2026-08-29 sei asserzioni in tre file hanno
+ *    fatto fallire `RefactorTactics Win64 Development` esattamente cosi' — lo registra il gate `G1` di
+ *    `docs/roadmap/v0.1-definition-of-done.md`, che conclude *"nessun oracolo copre ancora questa forma"*.
+ *    ⛔ **E non e' aggiungibile qui**, non per pigrizia: quelle sei chiamate esistono ancora, corrette e
+ *    racchiuse in `#if WITH_METADATA`. Una ricerca testuale non distingue una chiamata guardata da una
+ *    nuda, quindi aggiungere il nome renderebbe il test rosso su codice giusto — e un oracolo rosso su
+ *    codice giusto viene spento entro un giorno. Distinguerle vuol dire leggere i `#if`, cioe' un parser
+ *    del preprocessore: piu' di quanto questo oracolo sia.
+ *    ∴ **cio' che copre davvero quella forma resta `G1`**, cioe' buildare il target gioco. Questo test
+ *    riduce la frequenza del difetto noto, non la classe.
+ * 2. **Vede solo `->Nome(`.** `Fixture.RerunConstructionScripts()`, `(*Ptr).RerunConstructionScripts()`,
+ *    una chiamata non qualificata da dentro un `AActor`, o anche solo uno spazio prima della parentesi,
+ *    passano — e rompono il target gioco allo stesso identico modo. E' il prezzo dichiarato del punto
+ *    precedente: allargare il pattern lo avvicina al nome nudo, che e' rosso per sempre.
+ * 3. **Guarda `Source/RefactorTactics/Tests`, non ricorsivo.** Il difetto pero' non e' dei test: e' del
+ *    **modulo runtime**, e la stessa chiamata in `World/`, `Map/` o `Unit/` produce lo stesso pacchetto
+ *    impossibile da costruire. L'oracolo sta all'altitudine dei due file che si sono rotti, non a quella
+ *    del guasto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRuntimeTestsAvoidEditorOnlyApiTest,
 	"RefactorTactics.Meta.RuntimeTestsAvoidEditorOnlyApi",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTRuntimeTestsAvoidEditorOnlyApiTest::RunTest(const FString&)
 {
-	const FString Cartella = FPaths::Combine(FPaths::ProjectDir(), TEXT("Source/RefactorTactics/Tests"));
-	TArray<FString> Nomi;
-	IFileManager::Get().FindFiles(Nomi, *FPaths::Combine(Cartella, TEXT("*.cpp")), /*Files*/ true, /*Dirs*/ false);
+	const TArray<FRTSorgenteDiTest> Sorgenti = RTLeggiSorgentiDeiTest(*this);
 
 	// ⚠️ Se non trova i sorgenti FALLISCE: un oracolo che perde il proprio soggetto e resta verde e' peggio
 	// di un oracolo assente. Stessa disciplina del test qui sopra.
-	if (!TestTrue(TEXT("i sorgenti dei test sono leggibili"), Nomi.Num() > 0))
+	if (!TestTrue(TEXT("i sorgenti dei test sono leggibili"), Sorgenti.Num() > 0))
 	{
 		return false;
 	}
 
 	// La lista e' corta di proposito: ci sta cio' che ha gia' morso, non tutto cio' che potrebbe.
 	// `Actor.h:3417` per il primo — se un giorno se ne aggiunge un altro, si aggiunge qui con la sua storia.
+	// ⛔ Perche' `GetBoolMetaData` NON e' qui, vedi il punto 1 del docstring: non e' una dimenticanza.
 	const TCHAR* SoloEditor[] = { TEXT("RerunConstructionScripts") };
 
-	int32 Difettosi = 0;
-	for (const FString& Nome : Nomi)
+	// 🔑 **Il controllo POSITIVO, che il test gemello ha e questo non aveva.** Li' e' `ConGuardia > 0`; qui
+	// non puo' esserlo, perche' il conteggio che questo test vuole e' **zero** — e uno zero non distingue
+	// "nessuno chiama quell'API" da "il pattern non sa piu' riconoscerla". Un rename lato motore, o una
+	// mano sulla `Printf` qui sotto, renderebbero l'oracolo cieco **e verde**. Una riga campione lo
+	// falsifica: se smette di corrispondere, il test e' rosso prima di poter mentire.
+	for (const TCHAR* Api : SoloEditor)
 	{
-		FString Testo;
-		if (!FFileHelper::LoadFileToString(Testo, *FPaths::Combine(Cartella, Nome)))
+		const FString Campione = FString::Printf(TEXT("\tAttore->%s();"), Api);
+		const FString Chiamata = FString::Printf(TEXT("->%s("), Api);
+		if (!TestTrue(FString::Printf(TEXT("il pattern riconosce la forma che cerca (%s)"), Api),
+			Campione.Contains(Chiamata, ESearchCase::CaseSensitive)))
 		{
-			AddError(FString::Printf(TEXT("%s non si legge"), *Nome));
-			continue;
+			return false;
 		}
+	}
+
+	int32 Difettosi = 0;
+	for (const FRTSorgenteDiTest& Sorgente : Sorgenti)
+	{
 		for (const TCHAR* Api : SoloEditor)
 		{
 			const FString Chiamata = FString::Printf(TEXT("->%s("), Api);
-			if (Testo.Contains(Chiamata, ESearchCase::CaseSensitive))
+			if (Sorgente.Testo.Contains(Chiamata, ESearchCase::CaseSensitive))
 			{
 				++Difettosi;
 				AddError(FString::Printf(
 					TEXT("%s chiama %s, che esiste solo WITH_EDITOR: il target gioco non compilera' e ")
 					TEXT("nessun pacchetto sara' costruibile. Usa OnConstruction(GetTransform())."),
-					*Nome, Api));
+					*Sorgente.Nome, Api));
 			}
 		}
 	}

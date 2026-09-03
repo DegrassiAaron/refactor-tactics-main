@@ -221,9 +221,18 @@ Percorso proposto: `/Game/RT/UI/Scenario/WBP_RT_ScenarioComposer`
 > 🔴 **Superato da `D-280` (2026-08-30), eseguito con [#1804](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1804).** Il percorso corrente è **`/Game/RT/Editor/Scenario/WBP_RT_ScenarioComposer`**: gli strumenti di authoring solo-Editor hanno un namespace dedicato, e da lì sono esclusi dal cook per configurazione esplicita.
 > ⚠️ La riga qui sopra resta perché è la **raccomandazione dell'istruttoria**, e §13 chiede di conservarla: questo documento registra ciò che fu proposto, non ciò che è vero oggi. Owner del percorso corrente: [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §5.
 
-> ⚠️ **Restano due dubbi aperti, non due decisioni prese.** §13 chiede di descriverli e fermarsi, ed è ciò
-> che questa sezione fa: le raccomandazioni sono raccomandazioni. Diventano decisioni quando qualcuno le
-> accetta, e il posto dove si registrano è `OPEN_DECISIONS.md`, non questo file.
+> ⚠️ **Quando questa sezione fu scritta restavano due dubbi aperti, non due decisioni prese.** §13 chiede
+> di descriverli e fermarsi, ed è ciò che fa: le raccomandazioni sono raccomandazioni. Diventano decisioni
+> quando qualcuno le accetta, e il posto dove si registrano è `OPEN_DECISIONS.md`, non questo file.
+>
+> ✅ **E per il Dubbio A e' successo: NON e' piu' aperto.** `D-280` lo ha chiuso il 2026-08-30, e
+> `OPEN_DECISIONS.md` lo registra come `TD-COMP-2` barrato; lo spostamento e' stato eseguito il 2026-09-02
+> con [#1804](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1804). Il conteggio «due» qui
+> sopra e' rimasto indietro di quattro giorni, e chi leggesse questa riga senza la precedente concluderebbe
+> che la cartella e' ancora da decidere. **Resta aperto il solo Dubbio B**, il prefisso.
+> ⚠️ E la riga di §6 che dice *«entrambi sono committabili, `.gitignore:78` `!Content/RT/UI/**/*.uasset`
+> e' un glob e copre tutta la sottocartella»* non copre piu' il percorso corrente: sotto `RT/Editor/` quel
+> glob non arriva, e cio' che salva l'asset e' la riga di `D-304` (`!Content/RT/Editor/**/*.uasset`).
 
 ---
 

@@ -242,8 +242,17 @@ Content/RT/UI/_Generated/
 # gli «attesi» del comando di misura di asset-map.md §6, e questo e' voluto: un elenco chiuso qui
 # dichiarerebbe assenti asset che nessuno ha ancora deciso di creare.
 # ⚠️ Il percorso NON garantisce l'esclusione dal cook — D-280 punto (2). `Config/DefaultGame.ini:95`
-# dichiara `+DirectoriesToAlwaysCook=(Path="/Game/RT")` e nel repository `DirectoriesToNeverCook` ha zero
-# occorrenze. La configurazione e la validazione dell'esclusione sono lavoro di #1804.
+# dichiara `+DirectoriesToAlwaysCook=(Path="/Game/RT")`, che coprirebbe anche questa cartella.
+# ✅ **Aggiornato il 2026-09-03 (#1804): la riga di esclusione ORA ESISTE** — `DefaultGame.ini:114`,
+# `+DirectoriesToNeverCook=(Path="/Game/RT/Editor")`. Queste righe dicevano *"nel repository
+# `DirectoriesToNeverCook` ha zero occorrenze"* e *"la configurazione e la validazione sono lavoro di
+# #1804"*: vero fino al 2026-09-02, falso adesso. Entrambe sono fatte, e validate su pacchetto vero.
+# 🔴 **Ma l'avvertenza in cima resta vera per una ragione DIVERSA da quella che sembra.** Misurato
+# cuocendo due pacchetti, uno con la riga e uno senza: sono identici. Gli strumenti di oggi sono
+# `EditorUtilityWidget`, esclusi **per classe** (`LogCook: SkipOnlyEditorOnly is enabled`), non per
+# percorso ne' per configurazione. La riga serve al primo asset NON editor-only che finira' qui sotto —
+# una texture, una mesh, un data asset — che `AlwaysCook` includerebbe. ⛔ Chi la togliesse vedendo che
+# "non cambia niente" starebbe misurando il caso in cui e' ridondante.
 # Oracolo: "git check-ignore -q Content/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground.uasset" -> exit 1.
 !Content/RT/Editor/**/*.uasset
 
