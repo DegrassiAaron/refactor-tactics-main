@@ -264,8 +264,33 @@ bool FRTScenarioPlaybackTransportTest::RunTest(const FString&)
 	}
 
 	// --- `Instant` ≡ `1x`: la velocita' e' presentazione ------------------------------------------------
-	// ⚠️ Si confronta il punto d'arrivo, non la durata: la velocita' cambia QUANDO si avanza, non DOVE si
-	// finisce. Con `Instant` la fase scade subito, quindi ogni tick avanza anche con delta zero.
+	//
+	// ⚠️ Si confronta il punto d'ARRIVO, non la durata: la velocita' decide QUANDO si avanza, non DOVE si
+	// finisce.
+	//
+	// 🔴 **`Instant` non vuol dire «avanza con delta zero»**, e la prima stesura di questo test lo
+	// assumeva: passava `0.f` e misurava che non ci si muoveva. `Tick` rifiuta un delta non positivo — un
+	// frame di durata zero non e' tempo trascorso, ed e' una guardia giusta — quindi il test falliva su una
+	// premessa propria, non su un difetto. `Instant` vuol dire **nessuna attesa fra i passi**: con qualunque
+	// delta positivo avanza subito, invece di accumulare fino a `SecondsPerPhase`.
+	const float DeltaMinuscolo = 0.001f;
+
+	// ⛔ La premessa, misurata prima di usarla: a `1x` quel delta NON basta, a `Instant` si'. Senza questo
+	// confronto l'uguaglianza qui sotto sarebbe vera anche se le due velocita' si comportassero identiche —
+	// cioe' anche se `SetPlaybackSpeed` non facesse niente.
+	{
+		Preview->PlaybackRewind();
+		Preview->SetPlaybackSpeed(ERTPlaybackSpeed::Normal);
+		Preview->PlaybackPlay();
+		TestFalse(TEXT("a 1x un millesimo di secondo non fa avanzare"), Preview->PlaybackTick(DeltaMinuscolo));
+
+		Preview->PlaybackRewind();
+		Preview->SetPlaybackSpeed(ERTPlaybackSpeed::Instant);
+		Preview->PlaybackPlay();
+		TestTrue(TEXT("a Instant lo stesso delta avanza subito"), Preview->PlaybackTick(DeltaMinuscolo));
+		Preview->PlaybackPause();
+	}
+
 	auto ScorriTutto = [Preview](ERTPlaybackSpeed Velocita, float Delta)
 	{
 		Preview->PlaybackRewind();
@@ -279,7 +304,7 @@ bool FRTScenarioPlaybackTransportTest::RunTest(const FString&)
 		return Preview->GetPlaybackPosition();
 	};
 
-	const FRTReplayPosition FineIstantanea = ScorriTutto(ERTPlaybackSpeed::Instant, 0.f);
+	const FRTReplayPosition FineIstantanea = ScorriTutto(ERTPlaybackSpeed::Instant, DeltaMinuscolo);
 	const FRTReplayPosition FineNormale = ScorriTutto(ERTPlaybackSpeed::Normal, 10.f);
 
 	TestEqual(TEXT("Instant e 1x finiscono nello stesso turno"),
