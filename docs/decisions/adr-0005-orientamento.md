@@ -212,11 +212,6 @@ Il lavoro runtime che la relazione a sei lati richiede è
 | semantica — da quale lato, *relativamente a un facing* | `URTFacingLibrary::RelativeDirectionFrom` |
 | traccia — il primo consumatore che `D-126` chiedeva | `ERTFacingOutcome::HitCameFromSide` nel TurnLog |
 
-⚠️ **Perimetro della traccia**: la voce è emessa per i colpi del **piano di Blast**. I **contrattacchi** e il
-fuoco di **Overwatch** non la portano — non passano da `Plan.Hits`, e `FRTAttack` non trasporta l'attaccante,
-quindi la geometria da cui la relazione si calcola lì non esiste. Estenderla è
-[#2128](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2128).
-
 🔴 **E la voce non contiene la cella dell'attaccante**: `SrcCell` e `TgtCell` portano entrambi il difensore,
 come ogni altra voce `Facing` che descrive l'orientamento di un'unità. Il verdetto di visibilità si congela su
 chi **subisce**, quindi una posizione dell'attaccante lì sarebbe pubblicata a chiunque percepisca il bersaglio
@@ -252,6 +247,50 @@ prima di sceglierlo. La regola alternativa — lo spicchio **centrato**, con `24
 ⛔ **`IsInFrontalArc` non è cambiata e nessun suo chiamante si è mosso**, per la ragione misurata sopra.
 `RefactorTactics.Facing.RelativeDirectionDivergesFromCone` pinna le **45** divergenze e le **0** nel verso
 opposto, così che il contenimento stretto smetta di essere una nota e diventi un test.
+
+### 4-quater. Il perimetro della traccia copre anche le reazioni (2026-09-03, `#2128`)
+
+> ⌫ **La riga qui sotto diceva che contrattacchi e Overwatch «non la portano»**, ed era vera dal 2026-09-02 al
+> 2026-09-03.
+>
+> ⚠️ **Perimetro della traccia**: la voce è emessa per i colpi del **piano di Blast**. I **contrattacchi** e
+> il fuoco di **Overwatch** non la portano — non passano da `Plan.Hits`, e `FRTAttack` non trasporta
+> l'attaccante, quindi la geometria da cui la relazione si calcola lì non esiste.
+
+La voce è emessa da **tre** produttori, e copre ogni colpo risolto:
+
+| Produttore | Origine del colpo | Facing del difensore | Fase |
+|---|---|---|---|
+| piano di Blast — ciclo su `Plan.Hits` | `ResolveImpactOrigin` | `HexUnits[TargetId].Facing` | `Blast` |
+| **contrattacchi** — coda di `Attacks` dopo l'`Append` | `Reactions.CounterAttackSrc` | `HexUnits[TargetIndex].Facing` | `Blast` |
+| **Overwatch** — ramo `FIRE` di `ApplyReactionDecision` | cella del watcher | `Target->Facing` | `Move` |
+
+🔑 **Non è servita una regola d'origine nuova**: [D-302](RT_PDR_00_Decision_Log.md) punto 3 classifica già il
+colpo *diretto/mischia* come **sorgente→bersaglio**, e sia il contrattacco sia il fuoco di Overwatch — che è
+letteralmente `ERTDamageSource::Direct` — vi ricadono. Ciò che mancava a `FRTAttack` era l'attaccante, non la
+geometria: la sorgente vive accanto al colpo, registrata dal pass che l'ha prodotto.
+
+🔴 **Perché emettere invece di documentare il buco.** L'alternativa lasciava **due silenzi indistinguibili**:
+l'assenza legittima — origine coincidente in pianta col difensore, che `RelativeDirectionFrom` restituisce
+`false` — e l'assenza per famiglia non coperta. Un consumatore che conta una voce per colpo subito non aveva
+modo di separarli. Ora un'assenza significa una cosa sola.
+
+🔑 **La voce si costruisce in una sede unica**: `URTFacingLibrary::MakeHitCameFromSideEntry`. Con tre
+produttori la convenzione di privacy sotto sarebbe stata scritta tre volte, e tre copie di un invariante di
+sicurezza divergono — una code review ne corregge una e le altre due restano.
+
+⚠️ **Il facing dell'Overwatch è quello d'INGRESSO nella fase Move, non quello finale.**
+`ResolveReactionBoundary` gira dentro il ciclo dei micro-step, mentre la `RecordFacingChange` che fissa
+`DerivedFromMove` scrive **dopo** l'uscita dal ciclo: al momento del colpo l'orientamento finale non esiste
+ancora. È anche la lettura giusta — si viene colpiti *mentre* ci si muove, con l'orientamento che si aveva —
+ma va dichiarata, o si scambia per una svista. `Spec.Facing.OverwatchHitCameFromSide` la rende osservabile
+asserendo che il facing di fine turno **diverge** da quello con cui il lato è stato misurato.
+
+⚠️ **In un duello frontale i due lati coincidono, e non è un difetto**:
+`FacingAfterPrepActionTargeting` gira l'attaccante verso il proprio bersaglio prima che il colpo risolva,
+quindi chi attacca incassa il contrattacco **di fronte**. Un test che attendesse `Rear` da entrambe le parti
+sarebbe sbagliato lui — è la trappola in cui è caduta la prima stesura di
+`RefactorTactics.Reactions.Counter.TracesTheSideItCameFrom`.
 
 ### 5. Determinismo e privacy
 

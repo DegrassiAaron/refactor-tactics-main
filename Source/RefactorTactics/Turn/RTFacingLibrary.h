@@ -202,6 +202,39 @@ public:
 		const FRTCellId& OriginCell, ERTRelativeDirection& OutDirection);
 
 	/**
+	 * La voce `HitCameFromSide` per un colpo risolto: da quale lato, relativamente al suo orientamento, il
+	 * difensore in `DefenderCell` e' stato raggiunto da qualcosa che parte da `OriginCell` ([D-126], `#726`).
+	 *
+	 * `false` — e `OutEntry` intatta — quando la direzione non esiste, cioe' quando `RelativeDirectionFrom`
+	 * fallisce perche' le due celle coincidono in pianta. Fail-closed: il chiamante non emette nessuna voce.
+	 *
+	 * 🔑 **Esiste perche' i produttori sono TRE e la convenzione dev'essere una** (`#2128`). Fino al
+	 * 2026-09-03 il solo produttore era il ciclo su `Plan.Hits` di `ARTTurnManager::ResolveCombatPasses`, e la
+	 * convenzione stava scritta dove veniva usata. Con i contrattacchi e il fuoco di Overwatch sarebbero
+	 * diventate **tre copie di un invariante di privacy**, e tre copie divergono: una code review ne corregge
+	 * una e le altre due restano. Qui il chiamante non ha modo di scrivere nella voce la cella di chi colpisce.
+	 *
+	 * 🔴 **`SrcCell` e `TgtCell` portano ENTRAMBI il difensore, e `OriginCell` non entra nella voce.** E' la
+	 * convenzione di ogni altra voce `Facing` che descrive l'orientamento di un'unita', e qui e' anche un
+	 * requisito di privacy: `AppendLogEntry` congela il verdetto di visibilita' su chi passa come attore — il
+	 * difensore — quindi scriverci l'origine pubblicherebbe la cella esatta di un attaccante che il lettore
+	 * potrebbe non percepire, su OGNI colpo risolto invece che sui rari bypass. L'informazione della voce e' il
+	 * LATO, che sta in `Amount` e non rivela una posizione.
+	 *
+	 * ⚠️ **`Amount` e' un `ERTRelativeDirection`, non un `ERTHexDirection`**: e' l'indice RELATIVO
+	 * `(spicchio - facing + 6) % 6`, non il facing assoluto che `RearHitBypassedGuard` mette nello stesso
+	 * campo ne' i punti di riduzione di `RearHitBypassedCover`. Tre semantiche, e per questo tre esiti
+	 * distinti (`#1430`, [D-199]).
+	 *
+	 * ⚠️ **La voce NON ha contesto**: `TurnNumber`, `GraphRevision` e `UnitId` non si riempiono qui. Il
+	 * chiamante la passa ad `ARTTurnManager::AppendLogEntry` col DIFENSORE come attore — che e' anche cio' che
+	 * la rende coerente con `URTTurnLogLibrary::IsSubjectTheSufferer`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Facing")
+	static bool MakeHitCameFromSideEntry(const FRTCellId& DefenderCell, ERTHexDirection DefenderFacing,
+		const FRTCellId& OriginCell, ERTMatchPhase Phase, FRTTurnLogEntry& OutEntry);
+
+	/**
 	 * Scrive il nuovo facing sull'unita' e ne registra la ragione nel TurnLog. Unico punto di scrittura: e'
 	 * questo che rende la timeline di D-020 ricostruibile, perche' nessuno puo' cambiare l'orientamento senza
 	 * lasciare la voce che dice quando e perche'.
