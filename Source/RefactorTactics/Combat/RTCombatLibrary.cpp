@@ -3,6 +3,11 @@
 #include "Map/RTHexVisionLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
 
+// Le due provenienze dei pool d'assorbimento (`#2213`). La ragione per cui la seconda non nomina un
+// `ActionId` sta sulla dichiarazione, in `RTCombatLibrary.h`.
+const FName URTCombatLibrary::GuardPoolSource = FName(TEXT("D-292 · Status.Guarded"));
+const FName URTCombatLibrary::ReactionReductionPoolSource = FName(TEXT("D-309 · Reactions.DamageReduction"));
+
 FRTDamageResult URTCombatLibrary::ApplyDamage(int32 Damage, ERTDamageSource Source, int32 Shield,
 	int32 TemporaryShield, int32 Health)
 {
