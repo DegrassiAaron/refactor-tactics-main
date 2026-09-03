@@ -196,6 +196,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBudgetDoesNotSpeedUpLocomotionTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlaybackBudgetDoesNotSpeedUpLocomotionTest::RunTest(const FString&)
 {
+	// ⚠️ **Deliberatamente NON `PlaybackCellsPerSecond` di default.** Il test verifica un rapporto fra due
+	// budget, non la taratura: legarlo al default lo farebbe cambiare significato a ogni ritocco del
+	// bilanciamento, e un valore alto e' anche il caso piu' severo perche' lascia meno margine al tick.
 	const float Base = 6.5f;
 
 	// Budget larghissimo: non ha nulla da comprimere. E' la velocita' di riferimento.
@@ -281,8 +284,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBudgetSpeedReportTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlaybackBudgetSpeedReportTest::RunTest(const FString&)
 {
-	// I tre valori che #1878 chiede di provare, piu' il default in vigore come riferimento.
-	const float Rates[] = { 6.5f, 2.00f, 1.65f, 1.35f };
+	// I tre valori che #1878 chiedeva di provare, piu' il vecchio default come riferimento storico.
+	// 📌 Provati a schermo il 2026-09-02: `1.35` e `1.65` lente, `2.00` preferita. Il default e' pero'
+	// **`1.44`**, scelto il giorno dopo su un calcolo invece che su una preferenza — e' la velocita' a cui
+	// la clip di corsa non scivola (`DefaultRateMatchesTheRunClip`). `6.5` resta in tabella perche' e' la
+	// velocita' che ha originato la segnalazione, e vedere i due estremi accanto e' meta' del referto.
+	const float Rates[] = { 6.5f, 2.00f, 1.65f, 1.44f, 1.35f };
 
 	for (const float Rate : Rates)
 	{
@@ -306,6 +313,68 @@ bool FRTPlaybackBudgetSpeedReportTest::RunTest(const FString&)
 			TEXT("a %.2f celle/s dichiarate se ne osservano %.2f"), Rate, P.PeakCellsPerSecond),
 			FMath::IsNearlyEqual(P.PeakCellsPerSecond, Rate, /*Tolerance=*/ 0.35f));
 	}
+
+	return true;
+}
+
+/**
+ * 🔑 **Il default della locomozione E' la velocita' a cui la clip di corsa non scivola.**
+ *
+ * ⚠️ **Questo test ricalcola la relazione, non ripete il numero**, ed e' deliberato: un test scritto come
+ * `TestEqual(PlaybackCellsPerSecond, 1.44f)` sarebbe un doppione del default, verde per costruzione e
+ * cieco proprio al caso che conta — qualcuno che cambia `HexSize` o `VisualRunSpeed` senza sapere che
+ * esiste un terzo numero legato ai primi due.
+ *
+ * I tre valori vivono in posti distanti e nessuno li teneva insieme:
+ *  - il passo di una cella e' `HexSize * sqrt(3)` (`URTHexLibrary::AxialToWorld`, `Wx = Size * RT_SQRT3`);
+ *  - la clip di corsa dichiara `ARTUnit::VisualRunSpeed` cm/s ad `ARTUnit::GetVelocity`;
+ *  - la locomozione trasla a `PlaybackCellsPerSecond * passo` cm/s.
+ *
+ * Se il terzo non e' il rapporto dei primi due, il piede pattina — ed e' cio' che faceva a `6.5`, dove la
+ * traslazione superava la clip del **350%**.
+ *
+ * ⛔ **Non e' un test di bilanciamento**: non dice che `1.44` sia il ritmo giusto per giocare, dice che e'
+ * l'unico che non produce scivolamento con la clip e la griglia di oggi. Se un giorno il ritmo dovesse
+ * prevalere sulla geometria, questa asserzione va **cambiata con la ragione scritta**, non tolta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackDefaultRateMatchesRunClipTest,
+	"RefactorTactics.Playback.DefaultRateMatchesTheRunClip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackDefaultRateMatchesRunClipTest::RunTest(const FString&)
+{
+	// I default dai CDO: si leggono da li' e non da letterali, o il test ripeterebbe cio' che deve sorvegliare.
+	const ARTTurnManager* TurnCDO = GetDefault<ARTTurnManager>();
+	const ARTUnit* UnitCDO = GetDefault<ARTUnit>();
+	const URTHexMapAsset* MapCDO = GetDefault<URTHexMapAsset>();
+	if (!TestNotNull(TEXT("CDO del TurnManager"), TurnCDO)
+		|| !TestNotNull(TEXT("CDO dell'unita'"), UnitCDO)
+		|| !TestNotNull(TEXT("CDO del map asset"), MapCDO))
+	{
+		return false;
+	}
+
+	const float CellPitch = MapCDO->HexSize * FMath::Sqrt(3.f);
+	const float TranslationSpeed = TurnCDO->PlaybackCellsPerSecond * CellPitch;
+	const float ClipSpeed = UnitCDO->VisualRunSpeed;
+
+	if (!TestTrue(TEXT("la clip dichiara una velocita' positiva"), ClipSpeed > 1.f)
+		|| !TestTrue(TEXT("il passo di cella e' positivo"), CellPitch > 1.f))
+	{
+		return false;
+	}
+
+	const float SlidePercent = (TranslationSpeed - ClipSpeed) / ClipSpeed * 100.f;
+
+	// ±5%: sotto questa soglia lo scivolamento non e' distinguibile a occhio, e la banda lascia spazio a un
+	// default leggibile (`1.44`) invece di obbligare a un numero con quattro decimali.
+	TestTrue(*FString::Printf(
+		TEXT("il default (%.2f celle/s = %.0f cm/s) combacia con la clip (%.0f cm/s): scivolamento %+.1f%%"),
+		TurnCDO->PlaybackCellsPerSecond, TranslationSpeed, ClipSpeed, SlidePercent),
+		FMath::Abs(SlidePercent) <= 5.f);
+
+	UE_LOG(LogTemp, Display,
+		TEXT("[RT][#1878] passo cella %.1f cm | clip %.0f cm/s | default %.2f celle/s -> %.0f cm/s | scivolamento %+.1f%%"),
+		CellPitch, ClipSpeed, TurnCDO->PlaybackCellsPerSecond, TranslationSpeed, SlidePercent);
 
 	return true;
 }
