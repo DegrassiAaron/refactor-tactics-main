@@ -441,6 +441,20 @@ FRTTurnLogEntry ARTTurnManager::MakeStatusDeathEntry(FGameplayTag Tag, const FRT
 	return E;
 }
 
+FRTTurnLogEntry ARTTurnManager::MakeStatusInstantEntry(ERTMatchPhase InPhase, FGameplayTag Tag,
+	const FRTCellId& Cell)
+{
+	FRTTurnLogEntry E;
+	E.Phase = InPhase;
+	E.Category = ERTLogCategory::Status;
+	E.ActionId = Tag.GetTagName();
+	E.SrcCell = Cell;
+	E.TgtCell = Cell;
+	// `Amount` resta a zero: una durata non esiste, e i passi di propagazione non vivono qui ([D-162]).
+	E.Outcome = static_cast<uint8>(ERTStatusOutcome::AppliedInstantly);
+	return E;
+}
+
 void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUnit* Unit,
 	const TArray<FRTCellId>& Entered, ERTMatchPhase InPhase)
 {
@@ -2986,6 +3000,22 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 				continue;
 			}
 			ARTUnit* Victim = Units[Hit.UnitId];
+
+			// L'ETICHETTA dell'evento, PRIMA del danno (`#1324`, [D-315]): la scarica ti raggiunge, e poi
+			// incassi. Fino a qui `Status.Electrified` era un tag che nessuno applicava — dichiarato
+			// «istantaneo» dal catalogo terreni §2, quindi non rappresentabile da `ApplyStatus`, che sa fare
+			// solo `N` turni o il legame alla cella e per `Turns <= 0` **tace**.
+			//
+			// ⛔ **Non passa da `ApplyStatus` e l'unita' non lo porta addosso**: non entra in `StatusTurns`,
+			// non ha una scadenza e nessuno dovra' revocarlo. Cambia solo cio' che il replay puo' RACCONTARE.
+			//
+			// ⚠️ La voce dice *cosa e' successo*, non *chi l'ha causato*: `ActionId` porta il tag, come in
+			// ogni altra voce `Status`. La causa vive nella voce `Combat` che segue, sulla stessa cella e
+			// nello stesso istante — separarle e' cio' che [D-162] chiede quando gli esiti sono di due enum.
+			FRTTurnLogEntry Etichetta =
+				MakeStatusInstantEntry(ERTMatchPhase::Cleanup, TAG_Status_Electrified, Hit.Cell);
+			AppendLogEntry(Etichetta, Victim); // chi l'ha subita, come ogni voce di stato
+
 			// `Environmental`: e' la propagazione elettrica, che nessuno ha mirato. Salta lo scudo base.
 			const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Hit.Damage,
 				ERTDamageSource::Environmental, Victim->Shield, Victim->GetTemporaryShield(), Victim->Health);
