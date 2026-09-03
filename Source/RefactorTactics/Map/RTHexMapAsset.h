@@ -160,6 +160,81 @@ struct FRTInteractionBinding
 		: SourceId(InSourceId), TargetIds(InTargetIds) {}
 };
 
+/**
+ * PERCHE' UNA SEGNALAZIONE DI `ValidateMap` E' STATA PRODOTTA — `E23`, [D-289], `#1832`.
+ *
+ * 🔑 **Un reason code e non una stringa libera**, ed e' la disciplina che `ERTGeometryViolation`,
+ * `ERTHexWaypointReason` e `ERTActionInvalidReason` gia' applicano: un test che distingue due regole
+ * confrontando il **testo** del messaggio si rompe alla prima riformulazione, e allora chi riformula
+ * impara a non toccare i messaggi — che e' il verso sbagliato in cui far pendere un validator che deve
+ * essere leggibile da chi disegna.
+ *
+ * ⚠️ **Copre solo le regole di `#1832`.** Le segnalazioni piu' vecchie di `ValidateMap` — cella duplicata,
+ * costo negativo, copertura a integrita' zero, transizione ridondante — restano righe testuali senza
+ * codice: darglielo adesso significherebbe classificarne una ventina in una issue che non le possiede.
+ */
+UENUM()
+enum class ERTMapValidationReason : uint8
+{
+	/** Nessuna regola di `#1832`: e' una segnalazione testuale storica. */
+	None,
+
+	/**
+	 * REGOLA 1 — la cella non ha alcuna regione libera dove un'unita' possa stare, e **non** e' marcata
+	 * `bBlocksMovement`. E' dato che si contraddice: il gioco la offrira' come raggiungibile e poi non
+	 * saprebbe dove metterci chi ci arriva.
+	 */
+	NoLegalPlacement,
+
+	/**
+	 * REGOLA 2 — una copertura autorata su un bordo che **nessuna** regione di posa tocca: non produce
+	 * alcuna `FRTCoverOption`, quindi nessuna unita' potra' mai usarla. Non e' illegale, e' inerte.
+	 */
+	UnreachableCover,
+
+	/**
+	 * REGOLA 4 — `bBlocksMovement` **derivato** (`bMovementBlockGenerated`) che la geometria attuale non
+	 * giustifica piu': la cottura lo tolse o lo mise per una forma che non c'e' piu'.
+	 *
+	 * ⛔ **Non riguarda un blocco dipinto a mano.** *«L'autore vince»* e' gia' la regola di
+	 * `DeriveStandability`, e segnalarlo qui la contraddirebbe.
+	 */
+	StaleGeneratedBlock,
+
+	/**
+	 * REGOLA 5 — due muri interni della stessa cella con lo stesso `FRTCoverSourceId`.
+	 * `ERTGeometryViolation::DuplicateSegment` lo rifiuta **a monte**, ma una collezione ricostruita —
+	 * migrazione, merge, incolla — puo' reintrodurlo.
+	 */
+	DuplicateCoverSource
+};
+
+/**
+ * UNA SEGNALAZIONE DI `ValidateMap`, con il suo codice e la cella che la produce.
+ *
+ * ⛔ **Non blocca niente**: `ValidateMap` segnala, e il rifiuto immediato del gesto e' di `ValidateSegment`.
+ * E' la divisione a due strati di `#620`, e questa struttura non la cambia.
+ */
+USTRUCT()
+struct FRTMapValidationIssue
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	ERTMapValidationReason Reason = ERTMapValidationReason::None;
+
+	/** Le coordinate assiali della cella colpevole: un errore che non dice DOVE costringe a cercarlo a mano. */
+	UPROPERTY()
+	FRTCellId Cell;
+
+	/** `false` = `Warning`: lo stato e' legale e risolto, ma quasi certamente non e' quello voluto. */
+	UPROPERTY()
+	bool bIsError = true;
+
+	UPROPERTY()
+	FString Message;
+};
+
 UCLASS(BlueprintType)
 class REFACTORTACTICS_API URTHexMapAsset : public UPrimaryDataAsset
 {
@@ -476,8 +551,39 @@ public:
 	 */
 	FRTCellId GetCenterCell() const;
 
-	/** Validazione minimale: Id duplicati, costi negativi, transizioni verso celle inesistenti. Ritorna gli errori. */
+	/**
+	 * Validazione minimale: Id duplicati, costi negativi, transizioni verso celle inesistenti. Ritorna gli
+	 * errori come testo, compresi quelli tipizzati di `ValidateMapDetailed` gia' formattati.
+	 *
+	 * ⛔ **Segnala, non blocca**, ed e' la meta' che non cambia: il rifiuto immediato di un gesto e' di
+	 * `URTGeometryGrammarLibrary::ValidateSegment`, e la correzione automatica di uno stato invalido e'
+	 * vietata dal Decision Record.
+	 */
 	TArray<FString> ValidateMap() const;
+
+	/**
+	 * LE REGOLE DI TOPOLOGIA DI `#1832`, con reason code e cella — [D-289], `E23`.
+	 *
+	 * Quattro regole, e ognuna descrive un dato che si contraddice invece di uno che e' scritto male:
+	 * `NoLegalPlacement`, `UnreachableCover`, `StaleGeneratedBlock`, `DuplicateCoverSource`.
+	 *
+	 * 🔑 **Elenco DETERMINISTICO e ordinato** per `StableLess(Cell)`, poi per reason, poi per indice della
+	 * sorgente. Non si appoggia all'ordine di `Cells`, che lo decide chi edita l'asset: un elenco che
+	 * cambia ordine fra due esecuzioni non e' verificabile, ed e' un criterio d'accettazione della issue.
+	 *
+	 * ⚠️ **La regola 3 della issue — «transizione di faccia illegale» — NON e' qui, e non e' una
+	 * dimenticanza.** Il testo la definisce come *«una traversata autorata che collega due regioni
+	 * attraversando geometria bloccante senza un'apertura»*, e la forma a due maschere scelta da `#1828`
+	 * rende quella configurazione **irrappresentabile**: se fra le due regioni ci fosse anche un muro non
+	 * scavalcabile, la maschera `Traversable` resterebbe separata e la risposta sarebbe `Blocked`. Una
+	 * regola per essa sarebbe codice morto, e il suo test non potrebbe fallire. Vedi
+	 * `URTHexCoverPlacementLibrary::ClassifyIntraCellTraversalWithAuthored`.
+	 *
+	 * ⚠️ **E la regola 6 — «aspettativa di due occupanti» — manca del proprio antecedente**: nessun campo
+	 * esprime quante unita' il livello si aspetti in una cella, e dedurlo dalla forma della cella sarebbe
+	 * l'opposto di cio' che un validator fa. Ha una issue propria.
+	 */
+	void ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssues) const;
 
 	/**
 	 * Porta l'asset alla versione corrente del formato. Idempotente (`PostLoad` puo' ripetersi) e conservativa:

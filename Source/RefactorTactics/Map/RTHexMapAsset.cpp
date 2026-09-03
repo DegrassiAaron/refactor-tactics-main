@@ -6,6 +6,11 @@
 #include "Map/RTStructureIdentityLibrary.h"
 // I muri interni si validano con le stesse funzioni che li producono: grammatica e cottura (#712, v10).
 #include "Map/RTGeometryBake.h"
+// Le regole di topologia di `#1832` chiamano le stesse funzioni della cottura invece di rifarle: se questa
+// misurasse la calpestabilita' diversamente da `DeriveStandability`, il validator segnalerebbe celle che il
+// bake considera sane — cioe' due verita' sulla stessa regola.
+#include "Map/RTHexCoverPlacementLibrary.h"
+#include "Map/RTHexOccupancyLibrary.h"
 #include "Serialization/CustomVersion.h"
 
 const FGuid FRTHexMapCustomVersion::GUID(0x7A3C1E44, 0x9B2D4F10, 0xA6E85C37, 0x1D0F62B9);
@@ -908,7 +913,209 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 		}
 	}
 
+	// LE REGOLE DI TOPOLOGIA DI `#1832`, formattate in coda. Vivono in `ValidateMapDetailed` perche' i test
+	// devono poterle distinguere per **reason code** invece che per il testo del messaggio: un test che
+	// riconosce una regola dalla sua stringa si rompe alla prima riformulazione, e insegna a non toccare i
+	// messaggi — che e' il verso sbagliato in cui far pendere un validator che chi disegna deve leggere.
+	{
+		TArray<FRTMapValidationIssue> Topology;
+		ValidateMapDetailed(Topology);
+		for (const FRTMapValidationIssue& Issue : Topology)
+		{
+			Errors.Add(FString::Printf(TEXT("%s: %s"),
+				Issue.bIsError ? TEXT("Error") : TEXT("Warning"), *Issue.Message));
+		}
+	}
+
 	return Errors;
+}
+
+/**
+ * L'identita' di sorgente che un muro interno produrra' in `EnumerateCoverOptions`.
+ *
+ * ⚠️ **Non contiene il `Layer` del segmento**, ed e' proprio il punto della regola 5: due muri che
+ * differiscono SOLO per quello sono `!=` per `FRTGeometrySegment::operator==` — quindi la regola del
+ * duplicato non li vede — ma producono opzioni di copertura con la **stessa identita'**.
+ */
+static FRTCoverSourceId RTSourceIdForSegment(const FRTGeometrySegment& Segment)
+{
+	FRTCoverSourceId SourceId;
+	SourceId.Kind = ERTCoverSourceKind::InteriorSegment;
+	SourceId.AxisOrEdge = static_cast<uint8>(Segment.Axis);
+	SourceId.Offset = Segment.Offset;
+	SourceId.AlongMin = FMath::Min(Segment.AlongStart, Segment.AlongEnd);
+	SourceId.AlongMax = FMath::Max(Segment.AlongStart, Segment.AlongEnd);
+	return SourceId;
+}
+
+void URTHexMapAsset::ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssues) const
+{
+	OutIssues.Reset();
+
+	// Indice muro-per-cella, per non riscandire `InteriorWalls` una volta per cella.
+	//
+	// ⚠️ **La `TMap` si INTERROGA e non si itera** (invariante n. 3): l'ordine dell'elenco viene
+	// dall'ordinamento finale, mai da come questa mappa enumera le proprie chiavi.
+	TMap<FRTCellId, TArray<int32>> WallsByCell;
+	for (int32 Index = 0; Index < InteriorWalls.Num(); ++Index)
+	{
+		WallsByCell.FindOrAdd(InteriorWalls[Index].Cell).Add(Index);
+	}
+
+	// 🔑 **Il footprint e' l'IDENTITA', e non e' un ripiego.** `DeriveStandability` riceve il profilo dal
+	// chiamante; qui non c'e' un chiamante che lo dichiari. `FRTFootprintProfile` dice che nessuna unita'
+	// ne dichiara ancora uno e che un default piu' alto sarebbe *«un numero di bilanciamento travestito da
+	// costante»*: scegliere `Medium` qui significherebbe decidere il bilanciamento dentro un validator.
+	// Con l'identita' la regola 1 segnala il caso netto — cella interamente occupata dalla propria
+	// geometria e non dichiarata impraticabile — e nessun caso opinabile.
+	const FRTFootprintProfile Footprint;
+
+	for (const FRTHexCellData& Cell : Cells)
+	{
+		const TArray<int32>* WallIndices = WallsByCell.Find(Cell.Id);
+
+		TArray<FRTGeometrySegment> Segments;
+		TArray<FRTOccupancyPolyline> Geometry;
+		if (WallIndices != nullptr)
+		{
+			Segments.Reserve(WallIndices->Num());
+			Geometry.Reserve(WallIndices->Num());
+			for (const int32 Index : *WallIndices)
+			{
+				Segments.Add(InteriorWalls[Index].Segment);
+				Geometry.Add(URTGeometryGrammarLibrary::ToPolyline(InteriorWalls[Index].Segment, HexSize));
+			}
+		}
+
+		// La stessa catena della cottura — `ToPolyline` -> `ComputeMask` — e non una seconda: se questa
+		// misurasse diversamente da `DeriveStandability`, il validator segnalerebbe celle che il bake
+		// considera sane, o tacerebbe su quelle che marca.
+		const FRTOccupancyMask Mask = URTHexOccupancyLibrary::ComputeMask(Geometry, HexSize);
+		const bool bHasPlacement = URTHexCoverPlacementLibrary::HasLegalPlacement(Mask, Footprint);
+
+		// ---- REGOLA 1 — posa impossibile su una cella che non si dichiara impraticabile.
+		if (!bHasPlacement && !Cell.bBlocksMovement)
+		{
+			FRTMapValidationIssue Issue;
+			Issue.Reason = ERTMapValidationReason::NoLegalPlacement;
+			Issue.Cell = Cell.Id;
+			Issue.bIsError = true;
+			Issue.Message = FString::Printf(
+				TEXT("%s: la geometria non lascia alcuna posa legale, ma la cella non e' marcata ")
+				TEXT("bBlocksMovement. Marcala impraticabile, oppure libera un settore."),
+				*Cell.Id.ToString());
+			OutIssues.Add(Issue);
+		}
+
+		// ---- REGOLA 4 — blocco DERIVATO che la geometria attuale non giustifica piu'.
+		//
+		// ⛔ Solo `bMovementBlockGenerated`. Un `bBlocksMovement` dipinto a mano e' la scelta d'autore che
+		// `DeriveStandability` dichiara vincente, e segnalarla qui la contraddirebbe: una cella che
+		// l'autore vuole impraticabile non e' un errore, qualunque cosa dica la geometria.
+		if (bHasPlacement && Cell.bBlocksMovement && Cell.bMovementBlockGenerated)
+		{
+			FRTMapValidationIssue Issue;
+			Issue.Reason = ERTMapValidationReason::StaleGeneratedBlock;
+			Issue.Cell = Cell.Id;
+			Issue.bIsError = false; // lo stato e' legale e risolto: e' stantio, non illegale
+			Issue.Message = FString::Printf(
+				TEXT("%s: blocco al movimento DERIVATO da una geometria che ora lascia una posa legale. ")
+				TEXT("Ricuoci la mappa: il prossimo rebake lo toglierebbe."),
+				*Cell.Id.ToString());
+			OutIssues.Add(Issue);
+		}
+
+		// ---- REGOLA 2 — copertura autorata che nessuna posa puo' usare.
+		TArray<FRTCoverOption> Options;
+		URTHexCoverPlacementLibrary::EnumerateCoverOptions(Cell, Segments, Mask, Options);
+		for (int32 CoverIndex = 0; CoverIndex < Cell.Covers.Num(); ++CoverIndex)
+		{
+			const FRTHexCover& Cover = Cell.Covers[CoverIndex];
+			if (Cover.Type == ERTHexCoverType::None)
+			{
+				// Gia' segnalata dalla regola esistente («voce di copertura senza tipo»): contarla due
+				// volte farebbe smettere il numero di segnalazioni di dire quanti difetti ci sono.
+				continue;
+			}
+
+			const bool bHasOption = Options.ContainsByPredicate([&Cover](const FRTCoverOption& Option)
+			{
+				return Option.Source.Kind == ERTCoverSourceKind::Edge
+					&& Option.Source.AxisOrEdge == static_cast<uint8>(Cover.Edge);
+			});
+			if (bHasOption)
+			{
+				continue;
+			}
+
+			FRTMapValidationIssue Issue;
+			Issue.Reason = ERTMapValidationReason::UnreachableCover;
+			Issue.Cell = Cell.Id;
+			Issue.bIsError = false; // il dato e' legale: e' inerte, non sbagliato
+			Issue.Message = FString::Printf(
+				TEXT("%s: la copertura sul bordo %d non e' raggiungibile da nessuna regione di posa, ")
+				TEXT("quindi nessuna unita' potra' usarla."),
+				*Cell.Id.ToString(), static_cast<int32>(Cover.Edge));
+			OutIssues.Add(Issue);
+		}
+
+		// ---- REGOLA 5 — due muri con la stessa identita' di sorgente.
+		//
+		// 🔑 **Il caso principale e' GIA' coperto** dalla regola «muro interno duplicato di», che confronta
+		// i segmenti con `operator==` — estremi come coppia non ordinata. Quello che quella regola NON vede
+		// e' la coppia che differisce **solo per il `Layer` del segmento**: `operator==` la dice diversa,
+		// ma `FRTCoverSourceId` il layer non lo porta, quindi le due opzioni di copertura risultanti sono
+		// indistinguibili per chiunque le identifichi dalla sorgente.
+		//
+		// Le coppie che la regola vecchia gia' segnala si **saltano**, per la stessa ragione di sopra.
+		if (WallIndices != nullptr)
+		{
+			for (int32 A = 1; A < WallIndices->Num(); ++A)
+			{
+				for (int32 B = 0; B < A; ++B)
+				{
+					const FRTGeometrySegment& SegA = InteriorWalls[(*WallIndices)[A]].Segment;
+					const FRTGeometrySegment& SegB = InteriorWalls[(*WallIndices)[B]].Segment;
+					if (SegA == SegB)
+					{
+						continue; // gia' segnalato come duplicato
+					}
+					if (!(RTSourceIdForSegment(SegA) == RTSourceIdForSegment(SegB)))
+					{
+						continue;
+					}
+
+					FRTMapValidationIssue Issue;
+					Issue.Reason = ERTMapValidationReason::DuplicateCoverSource;
+					Issue.Cell = Cell.Id;
+					Issue.bIsError = true;
+					Issue.Message = FString::Printf(
+						TEXT("%s: i muri interni %d e %d hanno la stessa identita' di sorgente di copertura ")
+						TEXT("pur essendo segmenti diversi: le loro opzioni sarebbero indistinguibili."),
+						*Cell.Id.ToString(), (*WallIndices)[B], (*WallIndices)[A]);
+					OutIssues.Add(Issue);
+					break; // una segnalazione per muro: chi la legge apre la cella e li vede entrambi
+				}
+			}
+		}
+	}
+
+	// ORDINE CANONICO. Non si eredita da `Cells`, il cui ordine lo decide chi edita l'asset: due asset che
+	// descrivono la stessa mappa con le celle scritte in ordine diverso devono produrre lo stesso elenco.
+	OutIssues.Sort([](const FRTMapValidationIssue& A, const FRTMapValidationIssue& B)
+	{
+		if (!(A.Cell == B.Cell))
+		{
+			return URTHexLibrary::StableLess(A.Cell, B.Cell);
+		}
+		if (A.Reason != B.Reason)
+		{
+			return static_cast<uint8>(A.Reason) < static_cast<uint8>(B.Reason);
+		}
+		// Ultimo criterio il messaggio: due segnalazioni della stessa regola sulla stessa cella —
+		// due coperture irraggiungibili su bordi diversi — devono avere un ordine, e il testo lo porta.
+		return A.Message < B.Message;
+	});
 }
 
 TArray<FRTCellId> URTHexMapAsset::FloodRegion(const FRTCellId& Start) const

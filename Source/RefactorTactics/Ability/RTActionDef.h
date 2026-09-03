@@ -304,6 +304,65 @@ enum class ERTMovementStyle : uint8
 };
 
 /**
+ * A quale BUDGET DI PIVOT risponde uno stile di movimento (ADR-0008 §1).
+ *
+ * L'ADR dichiara due budget per personaggio — uno per la famiglia `Move`, uno per la famiglia `Dash` — ma
+ * `ERTMovementStyle` ha SEI valori, non due: senza questa mappa nessun chiamante sa quale dei due leggere.
+ * E' la lacuna che lo spec panel di `#1605` ha rilevato, e vive qui perche' la famiglia e' una proprieta'
+ * dello stile, non del personaggio.
+ *
+ * `Sprint = profilo Move` e `Sprint != Dash` sono pin di progetto: `Budget` e' lo stile di `Action.Sprint`,
+ * quindi cade in `Move`, e tutti i `Linear*` in `Dash`.
+ */
+UENUM(BlueprintType)
+enum class ERTMovementFamily : uint8
+{
+	/** L'unita' non si e' mossa: il pivot e' quello universale (`StationaryPivotMaxSteps` = 3). */
+	Stationary,
+	/** Movimento a budget di MP (`ERTMovementStyle::Budget`) -> `MoveEndPivotMaxSteps`. */
+	Move,
+	/** Mobilita' lineare (`LinearDash`, `LinearCharge`, `LinearLeap`, `LinearPass`) -> `DashEndPivotMaxSteps`. */
+	Dash
+};
+
+/**
+ * Quanti step esagonali di rotazione un personaggio puo' spendere a FINE movimento (ADR-0008 §1).
+ *
+ * ```text
+ * 0 step  = nessuna rotazione finale
+ * 1 step  = max 60 gradi
+ * 2 step  = max 120 gradi
+ * 3 step  = max 180 gradi (qualsiasi facing esagonale)
+ * ```
+ *
+ * 🔑 **I default NON sono zero, e non sono arbitrari**: sono ADR-0005 riscritto in questa unita' di misura.
+ * La tabella superata dava `D, D+-1` al movimento a budget — cioe' **1 step** — e una sola direzione ai
+ * lineari — cioe' **0**. Un'unita' mai configurata da un eroe (`ConfigureFromHeroData(nullptr)`, attore
+ * piazzato a mano) si comporta quindi **esattamente come prima** di ADR-0008: il cambio arriva solo con un
+ * eroe del catalogo, che e' dove l'ADR lo vuole.
+ *
+ * ⚠️ Non contiene lo stazionario: `StationaryPivotMaxSteps` resta **universale a 3** e ADR-0008 §1 scarta
+ * esplicitamente la variante per eroe — sarebbe un terzo numero a testa che nessun caso richiede.
+ */
+USTRUCT(BlueprintType)
+struct FRTPivotBudget
+{
+	GENERATED_BODY()
+
+	/** Rotazione a fine movimento a budget (famiglia `Move`). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Facing", meta = (ClampMin = "0", ClampMax = "3"))
+	int32 MoveEndMaxSteps = 1;
+
+	/** Rotazione a fine mobilita' lineare (famiglia `Dash`). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Facing", meta = (ClampMin = "0", ClampMax = "3"))
+	int32 DashEndMaxSteps = 0;
+
+	FRTPivotBudget() = default;
+	FRTPivotBudget(int32 InMove, int32 InDash)
+		: MoveEndMaxSteps(InMove), DashEndMaxSteps(InDash) {}
+};
+
+/**
  * COME un'azione **predittiva** sceglie il proprio bersaglio (E18 CP 18.1, [D-016]). E' un dato del catalogo
  * per la stessa ragione di `MovementStyle`: la thin slice ne usa una sola forma, ma il giorno in cui una
  * seconda azione prevede un BORDO invece di una cella, la differenza dev'essere un valore e non un `if`

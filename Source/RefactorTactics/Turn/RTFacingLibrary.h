@@ -2,7 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "Ability/RTActionDef.h" // ERTMovementStyle: le direzioni legali sono una proprieta' dello STILE
+// ERTMovementStyle + FRTPivotBudget: dal 2026-09-03 le direzioni legali sono una proprieta' del PERSONAGGIO
+// (ADR-0008 §1, #1605), e lo stile decide solo QUALE dei due budget si legge. Diceva «una proprieta' dello
+// STILE», che era ADR-0005 §1 — la tabella che ADR-0008 dichiara superata.
+#include "Ability/RTActionDef.h"
 #include "Map/RTCellId.h"        // ERTHexDirection
 #include "Turn/RTHexSim.h"       // FRTHexSimUnit: il facing autorevole vive nello snapshot
 #include "Turn/RTTurnLog.h"      // ERTFacingOutcome: la timeline di D-020 e' la sequenza delle voci di log
@@ -70,13 +73,20 @@ enum class ERTRelativeDirection : uint8
  * decide chi vede cosa (E13), da che lato si e' scoperti (CP 16.2) e dove punta un Overwatch (E14).
  *
  * Qui vivono solo le regole senza stato: quale direzione deriva da un percorso, quali rotazioni sono legali
- * per stile di movimento, e come reagisce l'orientamento a uno spostamento subito. La TIMELINE del facing
- * dentro il round (D-020) e la sua registrazione in snapshot/TurnLog non stanno in questa libreria: qui una
- * funzione riceve il facing corrente e restituisce quello nuovo, senza ricordare nulla fra una chiamata e
- * l'altra. E' cosi' che «un Move volontario vince sullo spostamento forzato» resta una proprieta'
- * dell'ORDINE in cui il resolver applica le regole, invece di diventare un flag nascosto qui dentro.
+ * per il budget di pivot del personaggio, e come reagisce l'orientamento a uno spostamento subito. La
+ * TIMELINE del facing dentro il round (D-020) e la sua registrazione in snapshot/TurnLog non stanno in
+ * questa libreria: qui una funzione riceve il facing corrente e restituisce quello nuovo, senza ricordare
+ * nulla fra una chiamata e l'altra. E' cosi' che «un Move volontario vince sullo spostamento forzato» resta
+ * una proprieta' dell'ORDINE in cui il resolver applica le regole, invece di diventare un flag nascosto qui
+ * dentro.
  *
- * Riferimento: ADR-0005 (orientamento), emendato da D-020 (piu' valori di facing per round).
+ * 🔑 **Il budget entra come PARAMETRO, non come `URTHeroData*`.** Il valore canonico vive nel catalogo e
+ * l'unita' se lo porta (`ARTUnit::PivotBudget()`), come gia' fa per `HearingThreshold`: dare a questa
+ * libreria un asset la legherebbe al catalogo eroi e le toglierebbe la purezza che la rende testabile senza
+ * mondo.
+ *
+ * Riferimento: ADR-0005 (orientamento), emendato da D-020 (piu' valori di facing per round) e **superato
+ * nella §1 da ADR-0008** (il pivot finale e' una capacita' del personaggio, `#1605`).
  */
 UCLASS()
 class REFACTORTACTICS_API URTFacingLibrary : public UBlueprintFunctionLibrary
@@ -96,27 +106,62 @@ public:
 	static ERTHexDirection FacingFromPath(const TArray<FRTCellId>& Path, ERTHexDirection Current);
 
 	/**
-	 * Le direzioni che l'unita' puo' assumere dopo essersi mossa con questo stile, in ordine STABILE
-	 * (per valore dell'enum, non per ordine di scoperta):
+	 * A quale budget risponde questo stile (ADR-0008 §1). `None` -> `Stationary`, `Budget` -> `Move`,
+	 * ogni `Linear*` -> `Dash`.
 	 *
-	 * - `Linear*` -> UNA sola, quella del movimento: la mobilita' lineare non lascia scelta;
-	 * - `Budget`  -> TRE: l'ultimo passo `D` e le due adiacenti `D±1` nel ciclo delle sei direzioni;
-	 * - `None`    -> SEI: chi non si e' mosso ruota liberamente.
+	 * ⚠️ **Non ha un ramo di default silenzioso**: uno stile aggiunto in coda a `ERTMovementStyle` e non
+	 * classificato qui fa fallire la compilazione con `-Werror=switch` invece di ricadere di nascosto su
+	 * `Dash`. Una famiglia sbagliata non produce un crash: produce un insieme di rotazioni legali diverso da
+	 * quello che l'ADR prescrive, cioe' esattamente il difetto che `#1605` chiude.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Facing")
+	static ERTMovementFamily FamilyForStyle(ERTMovementStyle Style);
+
+	/**
+	 * Gli step di pivot che questo stile puo' spendere, letti dal budget del personaggio. `Stationary`
+	 * restituisce sempre **3** — `StationaryPivotMaxSteps` e' universale (ADR-0008 §1) e non e' un campo
+	 * dell'eroe. Il valore e' clampato in `[0,3]`: fuori da quell'intervallo il dato e' rotto, e un budget
+	 * negativo che azzerasse l'insieme lascerebbe l'unita' senza NESSUN facing legale.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Facing")
+	static int32 PivotStepsForStyle(const FRTPivotBudget& Budget, ERTMovementStyle Style);
+
+	/**
+	 * Le direzioni che l'unita' puo' assumere dopo essersi mossa con questo stile, in ordine STABILE
+	 * (per valore dell'enum, non per ordine di scoperta).
+	 *
+	 * 🔑 **Decide sul BUDGET del personaggio, non piu' sullo stile** — ADR-0008 §1, che supera la tabella per
+	 * stile di ADR-0005 §1. Dall'ultimo passo `D`, con `N = PivotStepsForStyle(Budget, Style)`:
+	 *
+	 * ```text
+	 * N = 0 -> { D }                       nessuna rotazione finale
+	 * N = 1 -> { D-1, D, D+1 }             max 60 gradi
+	 * N = 2 -> cinque direzioni            max 120 gradi
+	 * N = 3 -> tutte e sei                 max 180 gradi
+	 * ```
+	 *
+	 * `ERTMovementStyle::None` -> **sempre SEI**, per ogni eroe: chi non si e' mosso ruota liberamente.
+	 *
+	 * ⚠️ **`Budget` e' un parametro obbligatorio e non ha un overload di comodo, deliberatamente.** Con un
+	 * default un chiamante potrebbe dimenticarlo e restare verde applicando la regola *superata*, che e' il
+	 * difetto che questa funzione ha portato per diciotto giorni senza che nessun gate lo vedesse. Cosi'
+	 * invece il compilatore elenca ogni sito.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Facing")
 	static TArray<ERTHexDirection> LegalFacings(ERTMovementStyle Style, const TArray<FRTCellId>& Path,
-		ERTHexDirection Current);
+		ERTHexDirection Current, const FRTPivotBudget& Budget);
 
 	/**
-	 * Applica una rotazione DICHIARATA in planning. `false` = illegale per lo stile: in quel caso `OutFacing`
-	 * resta il facing corrente.
+	 * Applica una rotazione DICHIARATA in planning. `false` = illegale per il budget di questo personaggio:
+	 * in quel caso `OutFacing` resta il facing corrente.
 	 *
 	 * Rifiutata, mai corretta in silenzio verso la legale piu' vicina: un piano che il giocatore non ha
 	 * dichiarato e' un piano che non ha scelto, e in una fase simultanea non puo' nemmeno accorgersene.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Facing")
 	static bool TryApplyDeclaredFacing(ERTMovementStyle Style, const TArray<FRTCellId>& Path,
-		ERTHexDirection Current, ERTHexDirection Declared, ERTHexDirection& OutFacing);
+		ERTHexDirection Current, ERTHexDirection Declared, const FRTPivotBudget& Budget,
+		ERTHexDirection& OutFacing);
 
 	/**
 	 * Orientamento dopo uno spostamento SUBITO. `Forced` -> ci si gira verso `SourceCell` (chi ha spinto);
