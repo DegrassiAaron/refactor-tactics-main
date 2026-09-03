@@ -2040,7 +2040,7 @@ sessions:
     # ⚠️ Nessuna voce `PIE-*`: questa seduta NON entra in PIE. Tutto ciò che verifica sta nell'editor prima
     # del Play — un tab che compare e un livello che non diventa dirty — e il registro `test-manuali-pie.md`
     # è dei comportamenti in gioco. Metterla lì la renderebbe introvabile a chi cerca una verifica di PIE.
-    issues: [1680]
+    issues: [1680, 2168]
     # ⛔ **Perché una seduta e non un automation test.** Dei cinque test della slice, quattro misurano il
     # predicato `ShouldOpenFor` e uno che l'iscrizione sia in piedi. Nessuno vede ciò che questa seduta vede:
     # che Slate disegni davvero il tab, e che aprire e chiudere il pannello non marchi la `.umap` come
@@ -2053,6 +2053,12 @@ sessions:
       raggiungibile da *Window → Tools → Tactical Designer*. ⚠️ **E il criterio che conta di più**: dopo
       tutto questo `L_DevSandbox` **non** è marcata come modificata — nessun asterisco sul nome del livello,
       e `git status` pulito su `Content/RT/Maps/Dev/L_DevSandbox/`.
+      ➕ **Criterio aggiunto da [#2168](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2168)**:
+      il tab compare **dockato in scheda con i Details**, nella colonna destra, e **nessuna finestra separata**
+      si apre. ⚠️ **Vale solo su un layout che non contenga già il tab**: chi ha eseguito questa seduta
+      prima del 2026-09-03 ha `RTDevSandboxLauncher` scritto nel proprio `EditorLayout.ini` nella posizione
+      fluttuante, e l'estensione non lo sposta — `Window → Load Layout → Default Editor Layout` prima di
+      guardare, o il criterio è rosso per la ragione sbagliata.
     notes: >-
       🔄 **Tentata il 2026-09-02, interrotta al passo 2 da un crash che NON è di questa seduta.** Aprire
       `L_HexArena` terminava l'editor con `World Memory Leaks: 2 leaks objects and packages` —
@@ -2071,6 +2077,12 @@ sessions:
       dell'editor (`RTDevSandboxLauncherSubsystem.cpp:44,68`) — una lacuna di configurazione, non un
       difetto di vita degli oggetti, e per questo **fuori** da #2115. Chi decide che il posto giusto è
       dockato apra la sua issue; questa nota esiste perché la constatazione non si perda.
+      ✅ **Decisa il 2026-09-03**: la issue è
+      [#2168](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2168), e il posto è in scheda
+      con i **Details**. L'analisi sta in
+      [`plans/tactical-designer-launcher-dock-spec-panel-2026-09-03.md`](plans/tactical-designer-launcher-dock-spec-panel-2026-09-03.md).
+      ⚠️ La constatazione resta scritta qui perché è **questa seduta** ad averla prodotta: cancellarla
+      lascerebbe il criterio nuovo senza la ragione che lo ha generato.
       🔄 **Ripresa la sera del 2026-09-02, dopo il merge di #2115 — e ancora NON conclusa.** L'ordine è
       stato verificato prima di guardare, come `U32` insegna: sorgente `19:22:22` → DLL `19:23:45` →
       editor `19:45:22`, quindi il binario contiene davvero la correzione. In quella sessione il log porta
