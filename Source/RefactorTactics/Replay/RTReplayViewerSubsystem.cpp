@@ -71,6 +71,11 @@ ERTReplayOpenResult URTReplayViewerSubsystem::OpenMatch(const FGuid& MatchId)
 	return ViewModel.Open(GetReplaysRoot(), MatchId);
 }
 
+ERTReplayOpenResult URTReplayViewerSubsystem::OpenMatchAsTeam(const FGuid& MatchId, int32 ObserverTeamId)
+{
+	return ViewModel.Open(GetReplaysRoot(), MatchId, ObserverTeamId);
+}
+
 FText URTReplayViewerSubsystem::GetTurnLabel() const
 {
 	// ⚠️ Il trattino non e' un ripiego: e' la risposta giusta quando **non c'e' un turno corrente**. Copre

@@ -172,3 +172,34 @@ TArray<FRTPublicReplayEntry> URTReplayPrivacyLibrary::ToPublicTrace(const TArray
 
 	return Out;
 }
+
+/**
+ * Il confine per le VOCI ([D-316], `#2098`).
+ *
+ * ⚠️ **Preserva l'ordine e non riordina**, per la stessa ragione di `ToPublicTrace`: la traccia arriva
+ * ordinata da `SortTurnLog`, e quell'ordine *e'* il replay. Un filtro che riordinasse produrrebbe una
+ * riproduzione diversa da quella che la partita ha risolto — e la traccia filtrata deve restare
+ * deserializzabile dallo stesso `DeserializeTurnLog`, che si aspetta la forma canonica.
+ */
+TArray<FRTTurnLogEntry> URTReplayPrivacyLibrary::FilterEntriesForObserver(
+	const TArray<FRTTurnLogEntry>& Entries, int32 ObserverTeamId)
+{
+	// Spettatore NEUTRALE: passa tutto. Vedi il commento della dichiarazione e [D-316] punto (5).
+	if (ObserverTeamId < 0)
+	{
+		return Entries;
+	}
+
+	TArray<FRTTurnLogEntry> Out;
+	Out.Reserve(Entries.Num());
+	for (const FRTTurnLogEntry& Entry : Entries)
+	{
+		// `AllowsTeam` e' gia' fail-closed su un `TeamId` fuori intervallo: un osservatore che il verdetto
+		// non sa rappresentare non legge, invece di leggere il bit di qualcun altro.
+		if (Entry.Verdict.AllowsTeam(ObserverTeamId))
+		{
+			Out.Add(Entry);
+		}
+	}
+	return Out;
+}

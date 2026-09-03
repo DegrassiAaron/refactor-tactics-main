@@ -257,13 +257,29 @@ opposto, così che il contenimento stretto smetta di essere una nota e diventi u
 > il fuoco di **Overwatch** non la portano — non passano da `Plan.Hits`, e `FRTAttack` non trasporta
 > l'attaccante, quindi la geometria da cui la relazione si calcola lì non esiste.
 
-La voce è emessa da **tre** produttori, e copre ogni colpo risolto:
+La voce è emessa da **quattro** produttori, e copre ogni colpo risolto:
 
-| Produttore | Origine del colpo | Facing del difensore | Fase |
+| Produttore | Origine del colpo | Cella e facing del difensore | Fase |
 |---|---|---|---|
-| piano di Blast — ciclo su `Plan.Hits` | `ResolveImpactOrigin` | `HexUnits[TargetId].Facing` | `Blast` |
-| **contrattacchi** — coda di `Attacks` dopo l'`Append` | `Reactions.CounterAttackSrc` | `HexUnits[TargetIndex].Facing` | `Blast` |
-| **Overwatch** — ramo `FIRE` di `ApplyReactionDecision` | cella del watcher | `Target->Facing` | `Move` |
+| piano di Blast — ciclo su `Plan.Hits` | `ResolveImpactOrigin` | `HexUnits[TargetId]` | `Blast` |
+| **contrattacchi** — coda di `Attacks` dopo l'`Append` | `Reactions.CounterAttackSrc` | `HexUnits[TargetIndex]` | `Blast` |
+| **Overwatch** — ramo `FIRE` di `ApplyReactionDecision` | cella del watcher | `State.Pos[TargetIdx]` · `Target->Facing` | `Move` |
+| **Predictive boundary** — `ResolvePredictiveBoundary` | `Shooter->Cell` | `Armed.LockedCell` · `Victim->Facing` | `Move` |
+
+> ⌫ **Questa tabella ne elencava TRE, e la riga sotto diceva «un'assenza significa una cosa sola» mentre non
+> era vero**, dal 2026-09-03 fino alla stessa giornata. Il colpo al boundary della Predictive Action —
+> `Hero.Wraith.InterceptShot`, il thin slice dichiarato della v0.1 — applica danno `ERTDamageSource::Direct` e
+> **non emetteva la voce**. Il difetto non è stato trovato da un test ma da una **code review dopo il merge**:
+> nessun oracolo copriva «predictive + voce direzionale», quindi l'affermazione era falsa e verde.
+>
+> 🔑 **La lezione non è l'omissione, è la forma dell'affermazione**: «copre ogni colpo risolto» è un
+> quantificatore universale scritto in un documento normativo, e nessun gate lo verifica. Chi ne aggiunge uno
+> deve **enumerare i produttori di danno**, non i propri.
+
+⚠️ **Le due famiglie della fase `Move` misurano la cella dell'IMPATTO, non quella dell'Actor.** Entrambe
+risolvono prima di `PlaceOnCell`, quindi `Unit->Cell` è ancora la cella di partenza del turno: l'Overwatch usa
+`State.Pos[TargetIdx]` (dove il movimento è stato troncato) e la Predictive usa `Armed.LockedCell` (la cella su
+cui si è scommesso). Le rispettive `BoundaryCoverReduction` fanno già la stessa scelta.
 
 🔑 **Non è servita una regola d'origine nuova**: [D-302](RT_PDR_00_Decision_Log.md) punto 3 classifica già il
 colpo *diretto/mischia* come **sorgente→bersaglio**, e sia il contrattacco sia il fuoco di Overwatch — che è
