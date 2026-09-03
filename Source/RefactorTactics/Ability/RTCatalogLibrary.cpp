@@ -1093,8 +1093,13 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Main));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
-	// `Action.Guard` — si prepara nel Prep e vale per il turno: -15 al primo danno diretto, resiste a una
-	// spinta di 1 cella, scade nel Cleanup. Non interrompibile (catalogo §1).
+	// `Action.Guard` — si prepara nel Prep e vale per il turno: **pool di 15 danni assorbibili** che i colpi
+	// dell'arco frontale consumano finche' dura ([D-292] + [D-206]), resiste a una spinta di 1 cella, scade
+	// nel Cleanup. Non interrompibile (catalogo §1).
+	//
+	// ⏱️ *La riga diceva «-15 al primo danno diretto» fino al 2026-09-03, cioe' la regola che D-292 ha
+	// sostituito il 2026-08-31. Il numero non cambia e il catalogo nemmeno: cambia cosa il numero E', e
+	// quindi cosa succede al secondo colpo.*
 	Catalog.Add(ShippedAction(TEXT("Action.Guard"), ERTResolutionPhase::Preparation, /*Priority*/ 40,
 		/*Range (self)*/ 0, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Guarded, /*Turni*/ 1) },

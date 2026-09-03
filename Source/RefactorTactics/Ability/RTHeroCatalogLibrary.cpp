@@ -870,7 +870,9 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// Indice 3 — Deflection (CP 6.7). REAZIONE cablata sulla semantica di `Action.Deflect`: -20 sul colpo
 	// diretto che l'ha innescata. La riduzione arriva dagli effetti del core (`ERTActionEffect::DamageReduction`,
 	// CP 5.5) e resta distinta dallo scudo: uno scudo ASSORBE e si consuma, questa toglie punti al colpo.
-	// Stessa famiglia di `Action.Guard` (-15 al primo colpo) ma con un trigger invece di una stance.
+	// Stessa famiglia di `Action.Guard` ma con un trigger invece di una stance — e con una differenza che
+	// [D-292] ha aperto: `Deflect` passa ancora da `ApplyFirstHitDelta` e vale UNA volta, la Guardia e' un
+	// POOL di 15 che i colpi frontali consumano finche' dura. Erano la stessa meccanica fino al 2026-08-31.
 	// Cooldown 2, uguale al core: il catalogo eroi non ne dichiara uno diverso.
 	AddAbility(Wraith, MakeHeroReactionFromCoreAction(TEXT("Hero.Wraith.Deflection"), TEXT("Action.Deflect"),
 		/*Cooldown*/ 2));

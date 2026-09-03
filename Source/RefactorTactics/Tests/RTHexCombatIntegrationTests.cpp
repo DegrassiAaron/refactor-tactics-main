@@ -370,7 +370,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardReducesDamageInMatchTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
 {
-	// `Action.Guard` end-to-end: si prepara nel Prep, e nel Blast dello stesso turno toglie 15 al primo colpo.
+	// `Action.Guard` end-to-end: si prepara nel Prep, e nel Blast dello stesso turno assorbe fino a 15 dai
+	// colpi dell'arco frontale ([D-292]). Con UN solo colpo sopra la soglia il pool e il vecchio delta di
+	// primo colpo danno lo stesso numero, ed e' il motivo per cui questo test non cambio' con D-292.
 	UWorld* World = MakeHexBlastWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
@@ -394,7 +396,7 @@ bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
 	RunBlastTurn(TM);
 
 	// Il danno pieno lo dichiara l'attacco base di CHI SPARA, non un numero scritto qui: la proprieta' sotto
-	// esame e' «Guard toglie 15 al primo colpo diretto», e deve reggere qualunque eroe schieri il test.
+	// esame e' «Guard assorbe fino a 15 da un colpo frontale», e deve reggere qualunque eroe schieri il test.
 	// Prima era `25`, il danno del Ranger legacy, e cambiare unita' faceva cadere il test su un dettaglio
 	// che non stava verificando.
 	const int32 FullHit = Shooter->AttackPower;

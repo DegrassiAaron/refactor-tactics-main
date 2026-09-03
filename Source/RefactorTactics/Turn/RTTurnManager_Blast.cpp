@@ -1810,8 +1810,11 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// ramo regge. La distanza torna a essere un asse che separa le due difese, e non per una v0.2:
 			// oggi, con il loadout di default di Phase.
 			//
-			// Resta vero che le due differiscono anche nel danno (-15 sul primo colpo contro -10 su ogni
-			// colpo), pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit`.
+			// Resta vero che le due differiscono anche nel danno (un POOL di 15 sull'arco frontale, [D-292],
+			// contro -10 su OGNI colpo da ogni lato), pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e
+			// `Spec.Brace.BraceWinsOnSecondHit`. ⏱️ *Questa riga diceva «-15 sul primo colpo» fino al
+			// 2026-09-03: sotto la soglia del pool il confronto si CAPOVOLGE — con colpi da 8 il `Brace`
+			// azzera tutto e la Guardia no — e lo mostra `Visual.Combat.GuardVsBraceUnderSmallHits`.*
 			// Il caso della spinta di 2 e' pinnato da `Equipment.PushTwoSeparatesGuardFromBrace`.
 			//
 			// ⚠️ Ha una conseguenza su `BAL-1` ([#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403)):
