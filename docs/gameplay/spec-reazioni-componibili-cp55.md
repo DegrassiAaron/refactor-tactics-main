@@ -93,7 +93,7 @@ una reazione con trigger. Il suo -15 resta dov'era.
 
 *Perché*: uno scudo temporaneo **scade nel Cleanup dello stesso turno**. Applicato dopo la risoluzione non
 proteggerebbe da nulla, mai: sarebbe il quarto caso di «dato che nessuno legge». La simmetria con `Deflect`
-(-20 sul colpo che l'ha innescata) è la stessa regola vista da un'altra angolazione.
+(un pool da 20 danni assorbibili dentro il boundary, [D-309]) è la stessa regola vista da un'altra angolazione.
 
 ### D4 — `FRTTurnLogEntry::ActionId` e formato serializzato v3
 

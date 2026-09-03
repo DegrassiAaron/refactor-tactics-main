@@ -1,0 +1,62 @@
+{
+  "scenarioId": "Spec.Reaction.DeflectionPoolSpansMultipleHits",
+  "tags": ["spec", "reactions", "combat", "deflect", "pool", "d-309", "wraith", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "SPECIFICA ESEGUIBILE della FORMA di [D-309]: `Deflect` non e' «-20 sul colpo che l'ha innescata», e' un POOL di 20 danni assorbibili che i colpi diretti consumano finche' dura, con l'avanzo che RIPORTA sui successivi. La differenza fra le due regole si vede solo con colpi PIU' PICCOLI del pool: sopra i 20 le due coincidono per costruzione, ed e' la ragione per cui il corpus non la misurava.",
+
+  "_nota_perche_esiste": "#2190. `Spec.Reaction.DeflectionReducesByTwenty` misura il NUMERO e lo dichiara: *«Il file misura il NUMERO, non la forma della riduzione»* e *«Questo file NON distingue pool da delta-sul-primo-colpo: a discriminare sarebbe un primo colpo PIU' PICCOLO di 20, dove l'avanzo morderebbe anche il secondo»*. Quel caso era pinnato solo a livello di unita' (`RefactorTactics.Combat.GuardPoolIsPermutationInvariant`, sull'aritmetica del resolver): su un turno vero nessuno lo misurava, quindi un ritorno ad `ApplyFirstHitDelta` non faceva diventare rosso nessuno scenario del corpus. Questo file lo fa. ⚠️ **AFFIANCA `DeflectionReducesByTwenty`, non lo sostituisce**: quello pinna il 20 su una partita vera e resta l'unico a farlo.",
+
+  "_nota_e_il_gemello_della_Guardia": "E' `Spec.Combat.GuardPoolSpansMultipleHits` per l'altro pool, con la stessa costruzione e per la stessa ragione ([D-292] la' , [D-309] qui). ⚠️ **Ma non e' una copia**: la Guardia e' uno STATO di Prep eleggibile solo sull'arco frontale ([D-206]), `Deflect` e' una REAZIONE senza clausola d'arco — *«nessun filtro direzionale, ed e' una differenza DICHIARATA rispetto alla Guardia»* (`RTTurnManager.cpp`). Qui la geometria e' quindi inerte per costruzione, e gli attaccanti stanno su quattro direzioni opposte per renderlo evidente invece che tacerlo.",
+
+  "_nota_perche_ImpactShot": "L'unica ABILITA' PRINCIPALE del roster sotto il pool: **8 danni** (ADR-0007). E' lo stesso motivo per cui `Spec.Combat.GuardPoolSpansMultipleHits` la sceglie, e la nota di quel file vale verbatim anche qui: ogni altra abilita' dichiarabile come `ability` in un intent vale 16 o piu', e sopra i 20 del pool di `Deflect` le due regole coincidono. ⚠️ `Reaction.CounterShot` (14), `Hero.Gadget.ReactiveCapacitor` (10) e `Hero.Wraith.InterceptShot.Extended` (14) stanno sotto la soglia ma **non sono abilita' principali** — due reazioni e una variante di workbench —, quindi uno scenario non sceglie quando colpiscono.",
+
+  "_nota_perche_QUATTRO_colpi": "🔑 **Tre non bastano, ed e' aritmetica, non abbondanza.** Con tre colpi da 8 il pool assorbe 8+8+4 = 20 e ne passano 4: sotto i 5 dello scudo base ([D-224]), quindi il bersaglio resta a 90 e l'assertion non distinguerebbe **niente** — nemmeno una reazione che non fosse partita. Col quarto colpo passano 12, lo scudo ne ferma 5, e i 7 applicati sono la cifra che le due regole calcolano in modo diverso.",
+
+  "_nota_numeri": "Pool da 20 contro quattro colpi da 8, tutti diretti e tutti eleggibili. Il pool assorbe 8 (ne restano 12), poi 8 (ne restano 4), poi 4 del terzo (ne passa 4), poi zero del quarto (passa 8): sul bersaglio arrivano **12**, lo scudo base ne ferma 5 e V scende da 90 a **83**. 🔑 Con la regola VECCHIA — `ApplyFirstHitDelta`, la forma pre-[D-309] — il primo colpo diventerebbe 0 consumando l'intera riduzione, i dodici punti avanzati si perderebbero nel clamp e gli altri tre passerebbero interi: 24 in arrivo, 19 applicati, **71**. E' il numero che rende questo file una misura di D-309 e non una ripetizione.",
+
+  "_nota_permutazione": "L'esito NON dipende dall'ordine in cui gli attaccanti sono dichiarati, e qui e' piu' forte che nel file della Guardia: i quattro colpi sono **uguali**, quindi nemmeno la regola vecchia avrebbe un ordine privilegiato — il controfattuale a 71 vale per qualunque permutazione. E' cio' che rende falsificabile l'assertion senza doversi fidare dell'ordine di iterazione. I test gemelli a livello di unita' sono `Combat.GuardPoolIsPermutationInvariant` e `Combat.GuardPoolRemainderIsNotWasted` (`RTCombatResolverTests.cpp`).",
+
+  "_nota_geometria": "I quattro attaccanti stanno a distanza **2** su quattro direzioni opposte (`E`, `W`, `SE`, `NW` rispetto a V), dentro la portata **3** di `ImpactShot`, e nessuno e' sulla linea di un altro: le celle intermedie — `[1,0]`, `[-1,0]`, `[0,1]`, `[0,-1]` — sono tutte libere. ⛔ **Non e' una geometria di eleggibilita'**: `bDeflectEligible` e' tutto vero e nessuna di queste posizioni cambia cio' che il pool assorbe. Sta scritta perche' se `Deflect` guadagnasse un giorno una clausola d'arco, questo file cambierebbe cio' che misura **senza diventare rosso** — lo stesso inciampo che `Spec.Reaction.DeflectionReducesByTwenty` dichiara nella propria `_nota_geometria`.",
+
+  "_nota_niente_spinta": "Gli attaccanti entrano SPOGLI (`\"loadout\": []`) come in `Spec.Combat.GuardPoolSpansMultipleHits`, e per lo stesso motivo: il default di Riktor e' `Weapon.Impact`, che toglie una cella di portata e AGGIUNGE `Push 1`. Con i default montati questo file misurerebbe anche lo spostamento, e `ImpactShot` scenderebbe a portata 2 — sufficiente per queste distanze, ma la spinta no: quattro spinte sullo stesso bersaglio si annullerebbero per forze contraddittorie ([D-085]) lasciando l'assertion verde **per la ragione sbagliata**.",
+
+  "_nota_slow": "`ImpactShot` applica `Status.Slow` per un turno oltre al danno, ed e' inerte qui: nessuno si muove, e il modificatore di movimento non entra in nessuna assertion. Vale la pena dirlo perche' un lettore che trovasse quattro `Slow` sullo stesso bersaglio potrebbe crederli parte della misura.",
+
+  "units": [
+    { "id": "V", "hero": "Hero.Wraith", "team": 1, "cell": [0, 0, 0] },
+
+    { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [2, 0, 0], "loadout": [] },
+    { "id": "A2", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0], "loadout": [] },
+    { "id": "A3", "hero": "Hero.Riktor", "team": 0, "cell": [0, 2, 0], "loadout": [] },
+    { "id": "A4", "hero": "Hero.Riktor", "team": 0, "cell": [0, -2, 0], "loadout": [] }
+  ],
+
+  "turns": [
+    {
+      "requires": ["Reaction", "ReactionPlanning"],
+      "_turno": "Un turno solo: la parata si arma in pianificazione e i quattro colpi si risolvono nello stesso passaggio di Blast, cioe' dentro un unico Decision Boundary. Un secondo turno misurerebbe un pool NUOVO — la reazione si riarma — invece della proprieta' del riporto.",
+      "intents": [
+        { "unit": "V", "reaction": "Hero.Wraith.Deflection" },
+
+        { "unit": "A1", "ability": "Hero.Riktor.ImpactShot", "target": "V" },
+        { "unit": "A2", "ability": "Hero.Riktor.ImpactShot", "target": "V" },
+        { "unit": "A3", "ability": "Hero.Riktor.ImpactShot", "target": "V" },
+        { "unit": "A4", "ability": "Hero.Riktor.ImpactShot", "target": "V" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "_assertion": "LA FORMA: 83 dice che l'avanzo del pool ha morso i colpi successivi. Con `ApplyFirstHitDelta` sarebbe 71, ed e' l'unica assertion del corpus che distingue le due regole su un turno vero.",
+      "type": "UnitHpEquals", "unit": "V", "value": 83 },
+    { "_assertion": "E che la parata sia SCATTATA, separatamente dal numero: senza questa riga un turno in cui la reazione non parte affatto darebbe un altro numero e basta, senza dire perche'.",
+      "type": "LogEventCount", "category": "Reaction", "outcome": "Activated", "value": 1 },
+    { "_assertion": "Il bersaglio non si e' mosso: con i loadout spogli non c'e' spinta, e se un giorno ce ne fosse una questa riga lo direbbe invece di lasciarla confondere col danno.",
+      "type": "UnitAtCell", "unit": "V", "cell": [0, 0, 0] },
+    { "type": "UnitAlive", "unit": "V", "value": true },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
