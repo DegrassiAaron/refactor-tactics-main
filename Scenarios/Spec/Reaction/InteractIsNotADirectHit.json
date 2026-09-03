@@ -1,4 +1,8 @@
 {
+  "_numeri_letti": {
+    "_nota_v1_diceva_il_contrario":
+      "110 e' cio' che la v1 di questo file asseriva quando si chiamava InteractCountsAsADirectHit: una citazione storica della misura del difetto, non un'attesa corrente. Il ribaltamento e' di INT-8."
+  },
   "scenarioId": "Spec.Reaction.InteractIsNotADirectHit",
   "tags": ["spec", "reactions", "interact", "generiche", "gadget", "riktor"],
   "version": 2,

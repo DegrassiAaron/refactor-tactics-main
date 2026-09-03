@@ -1,4 +1,8 @@
 {
+  "_numeri_letti": {
+    "_nota_coppia":
+      "97 e' l'esito dello scenario gemello con Guard, citato perche' e' il CONFRONTO a valere: 97 con Guard contro 102 con Brace. Questo file asserisce 102."
+  },
   "scenarioId": "Visual.Combat.BraceReducesEveryHit",
   "tags": ["animation", "combat", "core", "riktor", "gadget", "wraith"],
   "version": 1,
