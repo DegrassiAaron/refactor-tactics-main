@@ -304,6 +304,7 @@ node tools/radar/doc-tables.ts --check
 node tools/radar/issue-refs.ts --check
 node tools/radar/scenario-notes.ts --check
 node tools/asset-refs/check.ts
+python tools/architettura/misure-strutturali.py --check   # solo se la PR tocca Turn/RTTurnManager.*
 
 cd tools/radar
 node --test
