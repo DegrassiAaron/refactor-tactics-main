@@ -1270,9 +1270,20 @@ Se una tappa fallisce per **semantica** dell'input e non per leggibilità, il di
 > `DA_HexMap_*` nuovo, o si punta uno `_Scratch` proprio.
 >
 > ⚠️ **`rt.Map.Fixture` NON serve a questo, e la prima stesura di questa voce lo diceva sbagliato.** Quella
-> cvar la legge `FRTMatchBootstrapper` all'avvio della **partita**: sceglie la mappa di PIE o del packaged, e
-> nell'editor non genera niente. Chi l'avesse digitata avrebbe visto la mappa non cambiare e concluso che la
-> sonda era rotta.
+> cvar agisce all'avvio della **partita**: sceglie la mappa di PIE o del packaged, e nell'editor non genera
+> niente. Chi l'avesse digitata avrebbe visto la mappa non cambiare e concluso che la sonda era rotta.
+>
+> 🔑 **A leggerla è `ARTGameMode`, non il bootstrapper** — ed è una distinzione che vale la pena tenere,
+> perché è la stessa linea che regge l'allestimento. La cvar è dichiarata in
+> [`ScenarioHarness/RTTestConsole.cpp`](../../Source/RefactorTactics/ScenarioHarness/RTTestConsole.cpp)
+> (`CVarRTMapFixture`) e letta in
+> [`RTGameMode.cpp`](../../Source/RefactorTactics/RTGameMode.cpp) — `Config.MapFixtureId =
+> CVarRTMapFixture.GetValueOnGameThread()` — che passa il valore **già risolto** dentro
+> `FRTMatchBootstrapConfig`. `FRTMatchBootstrapper` la nomina soltanto nei propri log: **non legge console
+> variable né riga di comando**, come dichiara
+> [`architettura-codice.md`](architecture/architettura-codice.md) e come presidia il test
+> `RefactorTactics.Match.BootstrapperNeedsNoConsoleVariables`. Il GameMode risolve **cosa**, il bootstrapper
+> costruisce **come**.
 >
 > 🔴 **Perché una fixture e non «allestisci a mano», misurato il 2026-08-31.** La mappa su cui `L_DevSandbox`
 > era aperto (`DA_HexMap_Scratch_Basin`) è stata interrogata cella per cella attraverso il ponte MCP, con lo
