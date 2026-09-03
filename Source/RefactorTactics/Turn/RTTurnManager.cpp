@@ -3425,6 +3425,23 @@ void ARTTurnManager::BeginReplayRecording()
 		ReplayManifest.ObserverTeamIds.Sort();
 	}
 
+	// Di CHI e' questa registrazione ([D-317], `#2156`): la squadra del giocatore locale, che e' cio' che
+	// `OpenMatchAsRecordedObserver` rileggera' per aprire il replay con gli occhi giusti.
+	//
+	// 🔴 **NON si usa `ARTPlayerState::TeamIdOf` nuda, ed e' la riga piu' importante di questo blocco.**
+	// Quella funzione risponde `0` anche senza controller — un ripiego corretto *in partita*, dove un
+	// giocatore c'e' sempre, e sbagliato qui: un dedicated server registrerebbe «questa e' la partita della
+	// squadra 0» quando non e' di nessuno in locale. `INDEX_NONE` non e' «non lo so», e' «non c'era», e si
+	// rilegge come spettatore neutrale — cioe' il comportamento che quell'archivio deve avere.
+	//
+	// ⚠️ E si distingue anche il controller SENZA `PlayerState`: e' lo stesso caso, e passare di li'
+	// riporterebbe lo zero dalla porta di servizio.
+	{
+		const APlayerController* Locale = UGameplayStatics::GetPlayerController(this, 0);
+		const ARTPlayerState* Stato = Locale ? Cast<ARTPlayerState>(Locale->PlayerState) : nullptr;
+		ReplayManifest.LocalObserverTeamId = Stato ? Stato->GetTeamId() : INDEX_NONE;
+	}
+
 	// L'UNICO tempo reale che tocca l'archivio: da qui esce la durata nel manifest e la data nell'indice.
 	// Nessuno dei due entra in un hash.
 	ReplayStartRealSeconds = FPlatformTime::Seconds();

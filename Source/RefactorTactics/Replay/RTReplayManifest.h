@@ -33,6 +33,23 @@ enum class ERTReplayManifestVersion : uint16
 	WithObserverTraces = 2,
 
 	/**
+	 * `LocalObserverTeamId`: di CHI era questa registrazione ([D-317], `#2156`).
+	 *
+	 * 🔴 **La `v2` aveva consegnato il meccanismo senza il suo produttore.** `ObserverTeamIds` dice *quali
+	 * viste esistono* — `{0, 1}` e' vero per entrambi i giocatori di quella partita — e **non** quale sia la
+	 * tua. Senza questo campo nemmeno una UI ben scritta saprebbe cosa passare a `OpenMatchAsTeam`, e ogni
+	 * replay si aprirebbe neutrale **per omissione** invece che per scelta.
+	 *
+	 * ⚠️ **`INDEX_NONE` su un manifest `v1`/`v2` e' il valore GIUSTO, non un ripiego**: quelle registrazioni
+	 * davvero non dichiarano un osservatore locale, e la lettura corretta e' «nessuno» — cioe' spettatore
+	 * neutrale, che e' il comportamento che avevano gia'. Nessun ramo di migrazione.
+	 *
+	 * ⛔ **Rivendicata il 2026-09-03 dopo aver misurato TUTTI i branch remoti**: nessuno rivendicava una
+	 * `v3`. E' la seconda versione in due giorni — il conto va rifatto, non ereditato.
+	 */
+	WithLocalObserver = 3,
+
+	/**
 	 * Versione che questo binario SCRIVE. Chi aggiunge un campo alza questo alias e lascia in piedi il valore
 	 * storico sopra, cosi' l'elenco resta la storia del formato invece di una riga riscritta ogni volta.
 	 *
@@ -40,7 +57,7 @@ enum class ERTReplayManifestVersion : uint16
 	 * branch remoti e non solo `main`. La `v6` del TurnLog fu rivendicata da due branch insieme, e il
 	 * duplicato non si rinumera da solo — corrompe tracce gia' scritte.
 	 */
-	Current = WithObserverTraces
+	Current = WithLocalObserver
 };
 
 /**
@@ -106,6 +123,32 @@ struct FRTReplayManifest
 	/** Durata in secondi reali. Vive SOLO qui e in nessun campo che entri in un hash. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
 	float WallClockSeconds = 0.f;
+
+	/**
+	 * Di **CHI** era questa registrazione: la squadra del giocatore locale al momento in cui e' cominciata
+	 * ([D-317], `#2156`). `INDEX_NONE` = nessun osservatore locale.
+	 *
+	 * 🔴 **E' la risposta a una domanda che `ObserverTeamIds` NON risponde**, ed e' il difetto che [D-316]
+	 * aveva lasciato scoperto: quell'elenco dice *quali viste esistono* — `{0, 1}` e' vero per entrambi i
+	 * giocatori — mentre questo dice *quale sia la tua*. Senza, `OpenMatchAsTeam` non ha un argomento da
+	 * ricevere e ogni replay si apre neutrale per omissione.
+	 *
+	 * ⚠️ **`INDEX_NONE` non e' «non lo so»: e' «non c'era».** Un dedicated server registra una partita che
+	 * non e' di nessuno in locale, e la lettura giusta e' lo spettatore neutrale — non la squadra `0`. Per
+	 * questo il valore **non** si ricava da `ARTPlayerState::TeamIdOf`, che risponde `0` anche senza
+	 * controller: quel ripiego e' corretto in partita, dove un giocatore c'e' sempre, e qui direbbe che la
+	 * registrazione era della squadra `0` quando non era di nessuno.
+	 *
+	 * ⛔ **Non entra in nessun hash**, come `MatchId` e il wall-clock: dice chi guardava, non cosa la partita
+	 * ha risolto. Due installazioni che giocano la stessa partita dai due lati producono lo stesso
+	 * `OrderedHashPerTurn` e questo campo diverso, ed e' corretto.
+	 *
+	 * ⚠️ **Non e' un confine di privacy.** Non decide cosa si puo' vedere — quello lo fa il filtro di
+	 * [D-316] alla registrazione — ma *quale vista si apre di default*. Un archivio con questo campo a `1`
+	 * non impedisce a nessuno di chiamare `OpenMatchAsTeam(id, 0)`: le tracce sono entrambe li'.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
+	int32 LocalObserverTeamId = INDEX_NONE;
 
 	/**
 	 * Le squadre per cui l'archivio porta una traccia **filtrata per osservatore** ([D-316], `#2098`).

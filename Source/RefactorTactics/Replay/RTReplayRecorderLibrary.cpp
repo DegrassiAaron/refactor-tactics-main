@@ -32,6 +32,7 @@ namespace
 	const TCHAR* K_CLOSED    = TEXT("Closed");
 	const TCHAR* K_TURNS     = TEXT("TurnCount");
 	const TCHAR* K_OBSERVERS = TEXT("ObserverTeamIds"); // v2, [D-316]
+	const TCHAR* K_LOCAL_OBS = TEXT("LocalObserverTeamId"); // v3, [D-317]
 
 	/**
 	 * Scrive il manifest su un temporaneo e poi lo sposta sopra il definitivo.
@@ -106,6 +107,10 @@ FString URTReplayRecorderLibrary::ManifestToJson(const FRTReplayManifest& Manife
 		Osservatori.Add(MakeShared<FJsonValueNumber>(static_cast<double>(TeamId)));
 	}
 	Root->SetArrayField(K_OBSERVERS, Osservatori);
+
+	// v3 ([D-317]): di CHI era questa registrazione. `-1` significa «di nessuno in locale», ed e' un valore
+	// vero quanto gli altri — non un'assenza.
+	Root->SetNumberField(K_LOCAL_OBS, static_cast<double>(Manifest.LocalObserverTeamId));
 
 	FString Out;
 	const TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
@@ -195,6 +200,15 @@ bool URTReplayRecorderLibrary::ManifestFromJson(const FString& Json, FRTReplayMa
 		{
 			if (V.IsValid()) { Letto.ObserverTeamIds.Add(static_cast<int32>(V->AsNumber())); }
 		}
+	}
+
+	// v3 ([D-317]). ⚠️ Assente su `v1` e `v2`, e il default `INDEX_NONE` di `Letto` e' la lettura **giusta**:
+	// quelle registrazioni non dichiarano un osservatore locale, quindi si aprono neutrali — che e'
+	// esattamente cio' che facevano prima. Nessun ramo di migrazione.
+	double LocalObs = 0.0;
+	if (Root->TryGetNumberField(K_LOCAL_OBS, LocalObs))
+	{
+		Letto.LocalObserverTeamId = static_cast<int32>(LocalObs);
 	}
 
 	OutManifest = Letto;

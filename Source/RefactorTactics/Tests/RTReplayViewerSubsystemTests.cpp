@@ -571,4 +571,132 @@ bool FRTReplayTwoScreenHandoffTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// L'osservatore che l'archivio dichiara ([D-317], `#2156`)
+// =====================================================================================================
+
+namespace
+{
+	/** Una voce riconoscibile dal suo `Amount`, visibile solo a `TeamId`. */
+	FRTTurnLogEntry VoceDiSquadra(int32 Amount, int32 TeamId)
+	{
+		FRTTurnLogEntry E;
+		E.Phase = ERTMatchPhase::Blast;
+		E.Category = ERTLogCategory::Combat;
+		E.TurnNumber = 1;
+		E.Amount = Amount;
+		E.ActionId = FName(TEXT("Action.BasicAttack"));
+		E.SrcCell = FRTCellId(1, 0);
+		E.TgtCell = FRTCellId(2, 0);
+		if (TeamId >= 0) { E.Verdict.AllowTeam(TeamId); }
+		else { E.Verdict = FRTKnowledgeVerdict::Everyone(); }
+		return E;
+	}
+
+	/**
+	 * Scrive un archivio di un turno con tre fatti — uno per squadra e uno pubblico — dichiarando
+	 * `LocalObserverTeamId`. Ritorna il `MatchId`.
+	 */
+	FGuid ArchivioConOsservatore(const FString& Root, int32 LocalObserverTeamId)
+	{
+		TArray<FRTTurnLogEntry> Voci;
+		Voci.Add(VoceDiSquadra(10, 0));
+		Voci.Add(VoceDiSquadra(20, 1));
+		Voci.Add(VoceDiSquadra(30, INDEX_NONE)); // pubblico
+		URTTurnLogLibrary::SortTurnLog(Voci);
+
+		FRTReplayManifest M;
+		M.MatchId = FGuid::NewGuid();
+		M.FormatId = FName(TEXT("Format.Skirmish2v2"));
+		M.bHexTopology = true;
+		M.ObserverTeamIds = { 0, 1 };
+		M.LocalObserverTeamId = LocalObserverTeamId;
+
+		URTReplayRecorderLibrary::RecordTurn(Root, M, 1, Voci);
+		URTReplayRecorderLibrary::CloseMatch(Root, M, ERTMatchOutcome::Team0Wins, 0, 1.f);
+		return M.MatchId;
+	}
+
+	/** Gli `Amount` che la superficie pubblica consegna nella fase corrente. */
+	TArray<int32> ImportiPubblici(const URTReplayViewerSubsystem* V)
+	{
+		TArray<int32> Out;
+		for (const FRTPublicReplayEntry& E : V->GetCurrentPhaseEntries()) { Out.Add(E.Amount); }
+		return Out;
+	}
+}
+
+/**
+ * **Aprire un replay «come me stesso» non richiede di sapere chi si era** ([D-317], `#2156`).
+ *
+ * 🔴 **Il difetto che chiude non e' un leak: e' un default.** [D-316] aveva consegnato il filtro per
+ * osservatore e `OpenMatchAsTeam`, ma nessuno poteva chiamarla utilmente — l'archivio non registrava di
+ * chi fosse la partita, quindi una UI avrebbe usato `OpenMatch` e ottenuto la vista **neutrale per
+ * omissione**. Il meccanismo era completo e inerte, come `Status.Electrified` prima di `#1324`.
+ *
+ * ⛔ **ANTI-VACUITA': il test non passa mai un `TeamId`.** Se lo facesse proverebbe `OpenMatchAsTeam`, che
+ * ha gia' i suoi test in `RTReplayPrivacyTests.cpp`; cio' che si verifica qui e' che l'informazione
+ * **arrivi dall'archivio**. Le due meta' sono in tensione: la squadra 1 deve vedere il proprio fatto e
+ * **non** quello della squadra 0, quindi ne' «passa tutto» ne' «blocca tutto» sopravvive.
+ *
+ * ⚠️ **E il caso neutrale e' provato dallo stesso test con un archivio diverso**, non dedotto: un
+ * `LocalObserverTeamId` assente resta la vista completa, che e' cio' che ogni archivio scritto prima di
+ * [D-317] deve continuare a fare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewerRecordedObserverTest,
+	"RefactorTactics.Replay.ViewerSubsystem.OpensWithTheRecordedObserver",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayViewerRecordedObserverTest::RunTest(const FString&)
+{
+	const FString R = TransientRoot(TEXT("OsservatoreRegistrato"));
+	Pulisci(R);
+
+	const FGuid DellaSquadra1 = ArchivioConOsservatore(R, /*LocalObserverTeamId=*/ 1);
+	const FGuid DiNessuno     = ArchivioConOsservatore(R, /*LocalObserverTeamId=*/ INDEX_NONE);
+
+	UGameInstance* GI = nullptr;
+	URTReplayViewerSubsystem* V = MakeSubsystemHost<URTReplayViewerSubsystem>(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), V)) { ReleaseSubsystemHost(GI); Pulisci(R); return false; }
+	V->SetReplaysRoot(R);
+
+	// --- L'archivio dichiara la squadra 1: si apre con i suoi occhi, e nessuno ha detto «1» ------------
+	if (!TestEqual(TEXT("l'archivio si apre"),
+			V->OpenMatchAsRecordedObserver(DellaSquadra1), ERTReplayOpenResult::Opened))
+	{
+		ReleaseSubsystemHost(GI); Pulisci(R); return false;
+	}
+	V->StepPhaseForward();
+	const TArray<int32> Visti = ImportiPubblici(V);
+
+	TestTrue(TEXT("vede il fatto della PROPRIA squadra"), Visti.Contains(20));
+	TestTrue(TEXT("e il fatto pubblico"), Visti.Contains(30));
+	TestFalse(TEXT("ma NON il fatto che solo l'altra squadra conosceva"), Visti.Contains(10));
+	TestEqual(TEXT("due voci e non tre"), Visti.Num(), 2);
+
+	// --- L'archivio non dichiara nessuno: vista completa, come ogni archivio pre-[D-317] ---------------
+	if (!TestEqual(TEXT("si apre anche quello senza osservatore"),
+			V->OpenMatchAsRecordedObserver(DiNessuno), ERTReplayOpenResult::Opened))
+	{
+		ReleaseSubsystemHost(GI); Pulisci(R); return false;
+	}
+	V->StepPhaseForward();
+	TestEqual(TEXT("e mostra tutte e tre le voci: «non c'era» si legge come spettatore neutrale"),
+		ImportiPubblici(V).Num(), 3);
+
+	// --- `OpenMatch` resta il neutrale PER SCELTA, e si distingue dall'omissione -----------------------
+	// ⚠️ Senza questa terza apertura il test sarebbe compatibile con un `OpenMatch` che ha cambiato
+	// semantica: proverebbe che la porta nuova funziona, non che la vecchia sia rimasta quella che era.
+	if (TestEqual(TEXT("si apre come neutrale esplicito"),
+			V->OpenMatch(DellaSquadra1), ERTReplayOpenResult::Opened))
+	{
+		V->StepPhaseForward();
+		TestEqual(TEXT("chi SCEGLIE di essere neutrale vede tutto, anche su un archivio che dichiara un osservatore"),
+			ImportiPubblici(V).Num(), 3);
+	}
+
+	ReleaseSubsystemHost(GI);
+	Pulisci(R);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
