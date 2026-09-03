@@ -57,7 +57,15 @@
 
 ## Stato in numeri — 2026-09-03
 
-**196 voci**: ✅ **73 verdi** · 🟡 **25 parziali** · ❌ **2 fallite** · ⏳ **96 aperte**.
+**196 voci**: ✅ **74 verdi** · 🟡 **24 parziali** · ❌ **2 fallite** · ⏳ **96 aperte**.
+
+⚠️ **Rimisurato il 2026-09-03 (#1804) dopo il SECONDO merge di `origin/main` nello stesso ramo:
+`196 · 74/24/2/96`, e l'intestazione diceva `196 · 73/25/2/96`.** Nelle ore fra le due misure `main` è
+avanzato di **20 commit**, e uno ha chiuso `PIE-FACING-1`: una 🟡 diventa ✅, il totale non si muove e
+le aperte nemmeno. 🔑 **Il difetto non è nel numero, è nella FINESTRA**: fra il verde della suite e il
+merge passa il tempo che serve a misurare, e in quel tempo il ramo che si mergia cambia sotto. Rimisurare
+dopo il merge non è zelo, è l'unica cosa che distingue il gate del commit che si manda da quello del
+commit che si e' misurato. `senza-marcatore=0` prima e dopo.
 
 ✅ **Eseguita il 2026-09-03 (#1804) `PIE-PKG-EDITOR-NAMESPACE`: il comando canonico contava
 `196 · 72/25/2/97` prima di toccare il file e `196 · 73/25/2/96` dopo.** Il delta è **esattamente uno e
