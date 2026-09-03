@@ -707,13 +707,22 @@ FReply SRTLauncherScenarioPanel::OnRunScenarioClicked()
 	// marcatori di QUELLA. Senza, una corsa lanciata mentre l'anteprima non c'e' non aprirebbe niente, e il
 	// pulsante sembrerebbe non funzionare.
 	Preview->ShowScenario(Authoring.Get());
-
-	ReadoutError = Preview->OpenPlayback(Authoring.Get())
-		? FString()
-		: FString(TEXT("la corsa non ha lasciato una traccia riproducibile"));
+	Preview->OpenPlayback(Authoring.Get());
 
 	Authoring->Close();
-	RefreshReadout();
+
+	// 🔴 **Qui NON si chiama `RefreshReadout()`, ed e' la riga che fa funzionare il pulsante.** Quella
+	// funzione riapre il draft e rifa' `ShowScenario`, che comincia con `ClearPreview()` — la quale chiude il
+	// playback. Il primo tentativo la chiamava in fondo «per aggiornare il referto», e il risultato era che
+	// il playback si apriva e veniva chiuso una riga dopo: i controlli restavano spenti e il pannello
+	// diceva ancora *«Nessun playback»* dopo una corsa riuscita.
+	//
+	// ⚠️ **Nessun automation test poteva vederlo**: i test chiamano `OpenPlayback` direttamente, mentre il
+	// difetto stava nella SEQUENZA del pannello. L'ha trovato una sessione d'editor pilotata via MCP, il
+	// 2026-09-04.
+	//
+	// Il referto non ne soffre: e' gia' quello dello scenario selezionato, e la riga di stato del trasporto
+	// legge il sottosistema a ogni frame, quindi dice da sola se il playback si e' aperto.
 	return FReply::Handled();
 }
 
