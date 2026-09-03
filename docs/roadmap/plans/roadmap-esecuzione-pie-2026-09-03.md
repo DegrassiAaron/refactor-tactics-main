@@ -43,6 +43,13 @@ dice da sé — *«Il corpus Visual, diciotto scenari che nessuna seduta convoca
 > chiede di leggere il testo di ogni riga, non un marcatore, e nessuno strumento qui lo fa. Il numero
 > è quello di stamattina e va trattato come tale.
 >
+> ✅ **Rimisurato una seconda volta dopo aver mergiato `origin/main` (8 commit, merge PULITO), e i
+> numeri NON si muovono**: `202 · 100 · 67 · 33` prima e dopo. 🔑 **E si sa perché, che è diverso dal
+> constatarlo**: dei tre file toccati, il registro ha ricevuto **testo e nessuna riga di voce**, e la
+> seduta nuova `U44` ha `verifies: []`, quindi non sposta né le schedulate né le orfane. ⚠️ Il merge non
+> ha chiesto attenzione — nessun conflitto, nessun marcatore — ed è il caso in cui l'unica cosa che
+> segnalerebbe uno scarto è **rieseguire il comando**: una conferma vale la misura quanto una correzione.
+>
 > 🔑 **Metodo**: stesso criterio del comando canonico del registro — le **righe di tabella**, non un
 > `grep` sugli ID. ⚠️ La prima stesura di questa misura usava `[A-Z0-9-]` per l'identificativo e
 > perdeva **dieci** voci, quelle con una minuscola (`PIE-AS4a`, `PIE-BU2c`, `PIE-HEXPLAY-3b`): dava
