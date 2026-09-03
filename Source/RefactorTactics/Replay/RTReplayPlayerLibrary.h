@@ -104,9 +104,23 @@ public:
 	 *
 	 * Un archivio **parziale** si apre: `bComplete` resta `false` e si riproduce fino a dove arriva. Un
 	 * archivio parziale non e' un archivio rotto.
+	 *
+	 * `ObserverTeamId` sceglie **quale prodotto** si apre ([D-316], `#2098`):
+	 *
+	 * - una squadra che il manifest elenca in `ObserverTeamIds` → la traccia **filtrata alla registrazione**,
+	 *   che porta solo i fatti che quella squadra era autorizzata a conoscere quando sono accaduti;
+	 * - `INDEX_NONE`, il default → lo **spettatore neutrale**, che apre la traccia canonica e vede tutte le
+	 *   voci. Non e' una falla: e' [D-316] punto (5), e i CAMPI di audit restano tolti da `ToPublicTrace`;
+	 * - una squadra che l'archivio non conosce — ogni manifest `v1` — → la canonica, come prima di [D-316].
+	 *   La differenza e' **leggibile** in `Manifest.ObserverTeamIds` invece di essere taciuta.
+	 *
+	 * ⛔ **Non filtra qui**: a questo punto il verdetto non esiste piu' — `FRTTurnLogEntry::Verdict` e'
+	 * `Transient` e la deserializzazione lo lascia azzerato. Sceglie un file gia' filtrato, e la differenza
+	 * e' l'intera decisione: filtrare in lettura richiederebbe di serializzare il verdetto, che e' il conto
+	 * che [D-313] ha rifiutato di pagare.
 	 */
 	static ERTReplayOpenResult OpenArchive(const FString& ReplaysRoot, const FGuid& MatchId,
-		FRTReplaySession& OutSession);
+		FRTReplaySession& OutSession, int32 ObserverTeamId = INDEX_NONE);
 
 	/**
 	 * Le voci della fase in cui si trova il cursore, e avanza il cursore alla fase successiva.

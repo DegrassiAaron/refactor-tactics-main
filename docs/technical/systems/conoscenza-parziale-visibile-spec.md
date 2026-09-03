@@ -234,6 +234,28 @@ mostrata**: due canali, lo stesso soggetto, due regole opposte.
 | Overlay e modello | **alla lettura** | descrivono il presente |
 | Fog of war ([D-225]) | **alla lettura** | è visibilità di **celle**, non di soggetti |
 | **Playback** (`TickPlayback`) | **alla scrittura, per cella** | come la traccia, e per la stessa ragione: un movimento non è un fatto puntuale. Il modello percorre il tratto **osservato** e si ferma dove l'osservatore ha perso il soggetto (`#1525`). 🔴 **Il verdetto è lo STESSO oggetto della traccia**, copiato in `FRTResolvedEvent::CellVerdicts` dal punto in cui `FreezeRouteVerdicts` lo congela — se i due divergessero, traccia e modello tornerebbero a raccontare frasi diverse sullo stesso movimento, che è la **contraddizione** che [D-223] nomina |
+| **Replay archiviato** (`GetCurrentPhaseEntries`) | **alla scrittura, alla registrazione** | è il combat log della prima riga, ma **differito**: chi lo guarda apre un file, e il verdetto in quel momento non esiste più — `FRTTurnLogEntry::Verdict` è `Transient`. Le voci si filtrano quindi mentre la partita gira, e l'archivio porta una traccia **per squadra** accanto alla canonica ([D-316], `#2098`) |
+
+#### 🔴 Il replay archiviato è il canale che ha dimostrato perché questa colonna esiste
+
+*(Aggiunto il 2026-09-03, [D-316].)*
+
+Le altre cinque righe «alla scrittura» hanno il verdetto a portata di mano nel momento in cui decidono. Il
+replay no: fra la scrittura e la lettura c'è un **file**, e il verdetto non lo attraversa.
+
+Per un anno questo ha prodotto una lettura sbagliata della tabella — *«filtrare il replay richiede il
+verdetto nella traccia»* — che è vera solo se si decide **alla lettura**. Decidendo alla scrittura il
+problema non si pone: il prodotto pubblico nasce già filtrato, e la traccia non ha mai bisogno di portare
+la maschera. ⚠️ Ed è meglio così anche se il costo fosse stato pari, perché una traccia che porta il
+verdetto **spedisce allo spettatore la maschera di chi poteva vedere cosa** — cioè fa esattamente ciò che
+§1.3 dichiara non essere un confine.
+
+⛔ **Il confine chiuso è quello della superficie pubblica, non del filesystem.** La traccia canonica resta
+sul disco accanto alle filtrate: chi ha accesso alla cartella ha accesso a tutto. Dove vivano gli archivi e
+chi possa aprirli è [D-276] §3, ancora aperta.
+
+**Lo spettatore neutrale vede tutte le voci**, ed è dichiarato ([D-316] punto 5): un replay pubblicato è già
+una rinuncia alla privacy competitiva, e i **campi** di audit restano tolti anche a lui.
 
 #### 🔴 Per la traccia «quando il fatto è accaduto» non è definito, e la rotta si tronca
 
