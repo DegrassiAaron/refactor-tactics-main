@@ -8,6 +8,7 @@
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTResolvedEvent.h"
 #include "Replay/RTReplayAuditLibrary.h" // FRTAuditBotDecision: il quarto record di D-313
+#include "Turn/RTCombatLog.h" // FRTLogSubject, FRTCombatLogLine: i tipi del combat log
 #include "Turn/RTTurnLog.h"
 #include "Replay/RTReplayManifest.h"
 #include "Ability/RTActionDef.h" // FRTActionDef: l'impatto della carica porta con se' la definizione
@@ -178,128 +179,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRTTeamKnowledgeRefreshedSignature, 
  */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FRTOnMatchEndedSignature, const FRTMatchResult&, Result, const FRTMatchState&, State);
 
-/**
- * Una riga di combat log, col SOGGETTO accanto al testo.
- *
- * Il soggetto e' `ARTUnit::StableUnitId` — l'identita' che attraversa fasi e turni — oppure `INDEX_NONE`
- * per le righe che parlano del MONDO e non di un'unita' («Turno 3 - pianificazione», una superficie che
- * scade). Senza questo campo il filtro dovrebbe cercare coordinate dentro una stringa gia' formattata.
- */
-/**
- * Di CHI parla una riga di log: un'unita', oppure il mondo. Mai «non ci ho pensato».
- *
- * 🔴 **E' un tipo e non un `int32` perche' il gate diventi il compilatore** (`#1499`). Il vecchio parametro
- * aveva un default `INDEX_NONE` fail-open: un sito nuovo che nominava un nemico passava il filtro di
- * conoscenza per omissione, e l'omissione non fa rumore. Ora non esiste conversione implicita da `int32`:
- * `AddLogEvent(Testo, INDEX_NONE)` non compila, e un sito senza soggetto deve **dichiararsi** `World()`.
- *
- * ⚠️ **`World()` non e' il vecchio default con un altro nome.** Dice «questa riga riguarda tutti» — una
- * superficie che scade, il marker di turno, la fine partita — ed e' una scelta che si legge. Il default
- * diceva soltanto che nessuno aveva deciso.
- */
-struct FRTLogSubject
-{
-	/** Un'unita' viva, con tutto cio' che serve a congelarne il verdetto ([D-223]). */
-	static FRTLogSubject Unit(const ARTUnit* InUnit);
-
-	/**
-	 * La stessa unita', ma nella cella in cui il FATTO e' avvenuto — non in quella dove l'Actor si trova.
-	 *
-	 * 🔴 **Esiste perche' dentro `ResolveMovement` le due divergono** (`#2142`). `ARTUnit::Cell` viene
-	 * scritta da `PlaceOnCell`, che gira **dopo** il ciclo dei micro-step e dopo il boundary predittivo:
-	 * per tutto il tratto in mezzo la posizione autorevole sta in `State.Pos[i]` (o, chiuso il ciclo, in
-	 * `Resolved[i].Final`), e `Unit()` congelerebbe il verdetto sulla cella di **partenza del turno**.
-	 *
-	 * ⚠️ **Non e' un'ottimizzazione ne' un caso limite**: la cella e' l'ingresso che `ClassifyTarget`
-	 * confronta con le celle visibili della squadra, quindi sbagliarla fa vedere una riga a chi non deve e
-	 * la nasconde a chi la vedrebbe. Chi scrive un produttore che gira prima di `PlaceOnCell` usa questa
-	 * forma; chiunque altro continua a usare `Unit()`, dove `Cell` **e'** la cella del fatto.
-	 */
-	static FRTLogSubject UnitAt(const ARTUnit* InUnit, const FRTCellId& InFactCell);
-
-	/**
-	 * Un soggetto che porta GIA' la propria risposta, congelata altrove e prima.
-	 *
-	 * 🔴 **E' la forma del canale derivato dal TurnLog**, ed esiste perche' a fine turno il verdetto non e'
-	 * piu' calcolabile correttamente: la conoscenza disponibile e' quella del Blast, le celle sono gia'
-	 * post-Move, e `AwarenessOfUnit` confronta proprio quei due. La voce lo ha calcolato quando e' nata
-	 * (`AppendLogEntry`), e qui si trasporta.
-	 *
-	 * ⚠️ **Non esiste una forma che prenda il solo `StableUnitId`**, ed e' deliberato: da un id soltanto il
-	 * verdetto non si calcola — `ClassifyTarget` vuole anche squadra e cella — e una forma del genere
-	 * inviterebbe a produrre righe fail-closed senza accorgersene.
-	 */
-	static FRTLogSubject Frozen(int32 InStableUnitId, const FRTKnowledgeVerdict& InVerdict);
-
-	/** Un fatto che riguarda tutti: nessun soggetto da conoscere, nessuna ragione per nasconderlo. */
-	static FRTLogSubject World();
-
-	bool IsWorld() const { return bWorld; }
-	int32 GetStableUnitId() const { return StableUnitId; }
-	const ARTUnit* GetUnit() const { return Unit_; }
-
-	/** Vero se il verdetto viaggia col soggetto: chi lo consuma non deve ricalcolarlo. */
-	bool HasFrozenVerdict() const { return bFrozen; }
-	const FRTKnowledgeVerdict& GetFrozenVerdict() const { return FrozenVerdict; }
-
-	/**
-	 * La cella in cui il fatto e' avvenuto: quella dichiarata da `UnitAt`, altrimenti quella dell'Actor.
-	 *
-	 * Un solo accesso, cosi' che verdetto e soggetto d'audit non possano leggere celle diverse — che e'
-	 * precisamente il modo in cui `#2142` si e' presentato: due scritture nella stessa funzione, una sola
-	 * corretta.
-	 *
-	 * ⚠️ **Senza unita' e senza cella dichiarata rende `FRTCellId()`, che e' la cella `(0,0,0)` — vera, e su
-	 * ogni arena generata anche centrale.** Non e' un valore sicuro: e' il caso che i due chiamanti non
-	 * raggiungono, ed e' la loro guardia a garantirlo, non questa funzione. `FreezeVerdictFor` esce
-	 * `NoOne()` sul soggetto senza unita' **prima** di chiedere la cella, e `AppendLogEntry` la chiede solo
-	 * dentro il proprio `if (Actor)`. Chi aggiunge un terzo chiamante porta con se' quella guardia — o la
-	 * mette qui.
-	 */
-	FRTCellId GetFactCell() const;
-
-private:
-	FRTLogSubject() = default;
-
-	bool bWorld = false;
-	bool bFrozen = false;
-	/** Vero se `FactCell` e' stata DICHIARATA dal produttore: senza, la cella e' quella dell'Actor. */
-	bool bFactCell = false;
-	int32 StableUnitId = INDEX_NONE;
-	const ARTUnit* Unit_ = nullptr;
-	FRTCellId FactCell;
-	FRTKnowledgeVerdict FrozenVerdict;
-};
-
-USTRUCT()
-struct FRTCombatLogLine
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	FString Text;
-
-	/**
-	 * Chi ha prodotto il fatto. Resta per diagnosi e per i test: il filtro NON lo usa piu'.
-	 *
-	 * ⛔ **E non deve tornare a usarlo** (`#1499`). Il gemello di questo campo in `FRTDescribedLine` porta
-	 * la storia per esteso; qui basta la conseguenza: `Verdict`, due righe sotto, e' l'unica risposta alla
-	 * domanda «chi puo' leggerla», e il suo default **nasconde**. Il default di questo `INDEX_NONE`
-	 * significava invece «la leggono tutti», ed e' il fail-open che `#1499` ha chiuso.
-	 */
-	UPROPERTY()
-	int32 SubjectStableUnitId = INDEX_NONE;
-
-	/**
-	 * Chi puo' leggere questa riga, deciso quando la riga e' nata ([D-223]).
-	 *
-	 * 🔴 **Il default nasconde**: una riga che arrivasse qui senza verdetto non si legge. E' l'opposto del
-	 * default che `#1499` ha rimosso, ed e' la direzione giusta per un filtro di privacy — si perde una
-	 * riga, non si regala una posizione.
-	 */
-	UPROPERTY()
-	FRTKnowledgeVerdict Verdict;
-};
+// `FRTLogSubject` e `FRTCombatLogLine` vivono in `Turn/RTCombatLog.h` da `#1818`: chiunque volesse una
+// riga di log doveva includere QUESTO header per una struct di tre campi.
 
 /**
  * Una rotta percorsa nell'ultima risoluzione, col SOGGETTO accanto alle celle.
