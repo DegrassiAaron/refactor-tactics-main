@@ -47,7 +47,21 @@ struct FRTDescribedLine
 	UPROPERTY()
 	FString Text;
 
-	/** `INDEX_NONE` = voce di mondo. La traduzione dallo `0` del TurnLog avviene una volta sola, qui. */
+	/**
+	 * CHI la riga nomina. `INDEX_NONE` = voce di mondo; la traduzione dallo `0` del TurnLog avviene una
+	 * volta sola, qui.
+	 *
+	 * ⛔ **NON e' una fonte di autorita', e non deve tornare a esserlo** (`#1499`). Chi puo' leggere questa
+	 * riga lo dice `Verdict`, congelato quando il fatto e' accaduto ([D-223]) — questo campo serve a
+	 * diagnosi, aggregazione e test.
+	 *
+	 * 🔴 **La distinzione ha una storia, ed e' il motivo per cui la riga esiste.** Prima di [D-223] il
+	 * soggetto ERA il filtro, e il suo sentinella `INDEX_NONE` significava «riga senza soggetto» = **la
+	 * leggono tutti**: un fail-open per omissione, cioe' il difetto che `#1499` ha aperto. Oggi il default
+	 * di `Verdict` e' l'opposto — una riga senza verdetto **non si legge** — e riattaccare una decisione di
+	 * privacy a questo `int32` la riporterebbe indietro **senza che il compilatore possa accorgersene**.
+	 * Resta un `int32` per decisione: tipizzarlo proteggerebbe un campo che non decide nulla.
+	 */
 	UPROPERTY()
 	int32 SubjectStableUnitId = INDEX_NONE;
 
