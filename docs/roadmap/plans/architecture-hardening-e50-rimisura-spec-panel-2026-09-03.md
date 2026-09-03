@@ -181,37 +181,44 @@ codice di produzione è identica: 32,1 % → 32,2 %. Il modulo non sta degeneran
 
 ## 6. La worklist ordinata per costo, non per dimensione
 
-Una funzione lunga che nessuno tocca non costa niente a nessuno. `git log -L a,b:file` segue il movimento
-delle righe, quindi conta i commit che hanno toccato **quella funzione**, non il file che la contiene — e il
-prodotto `righe × commit` riordina la classifica in modo sostanziale (`--churn`):
+Una funzione lunga che nessuno tocca non costa niente a nessuno. `git log --no-merges -L a,b:file` segue il
+movimento delle righe, quindi conta i commit che hanno toccato **quella funzione**, non il file che la
+contiene — e il prodotto `righe × commit` riordina la classifica in modo sostanziale (`--churn`):
 
 | Costo | Commit | Righe | Rami | Funzione | File:linea |
 |---:|---:|---:|---:|---|---|
-| 95 904 | **108** | 888 | 64 | `ARTTurnManager::ResolveCombatPasses` | `Turn/RTTurnManager.cpp:4765` |
-| 48 858 | 51 | 958 | 92 | `ARTTurnManager::PlanBots` | `Turn/RTTurnManager.cpp:646` |
-| 39 480 | 56 | 705 | 68 | `ARTHUD::DrawHUD` | `UI/RTHUD.cpp:408` |
-| 27 683 | 47 | 589 | **0** | `URTCatalogLibrary::GetCoreActionCatalog` | `Ability/RTCatalogLibrary.cpp:1055` |
-| 20 727 | 49 | 423 | 31 | `ARTTurnManager::ResolveDash` | `Turn/RTTurnManager.cpp:4101` |
-| 17 952 | 44 | 408 | 31 | `ARTTurnManager::LockInAndResolve` | `Turn/RTTurnManager.cpp:1662` |
-| 14 544 | 48 | 303 | 20 | `ARTTurnManager::ResolveMovement` | `Turn/RTTurnManager.cpp:6570` |
+| 91 464 | **103** | 888 | 64 | `ARTTurnManager::ResolveCombatPasses` | `Turn/RTTurnManager.cpp:4765` |
+| 47 900 | 50 | 958 | 92 | `ARTTurnManager::PlanBots` | `Turn/RTTurnManager.cpp:646` |
+| 38 775 | 55 | 705 | 68 | `ARTHUD::DrawHUD` | `UI/RTHUD.cpp:408` |
+| 24 738 | 42 | 589 | **0** | `URTCatalogLibrary::GetCoreActionCatalog` | `Ability/RTCatalogLibrary.cpp:1055` |
+| 17 766 | 42 | 423 | 31 | `ARTTurnManager::ResolveDash` | `Turn/RTTurnManager.cpp:4101` |
+| 17 136 | 42 | 408 | 31 | `ARTTurnManager::LockInAndResolve` | `Turn/RTTurnManager.cpp:1662` |
+| 12 726 | 42 | 303 | 20 | `ARTTurnManager::ResolveMovement` | `Turn/RTTurnManager.cpp:6570` |
 | 10 324 | 29 | 356 | 21 | `URTTurnLogLibrary::DescribeEntry` | `Turn/RTTurnLogLibrary.cpp:348` |
-| 10 200 | 25 | 408 | 39 | `ARTHexMapActor::RebuildInstances` | `Map/RTHexMapActor.cpp:1211` |
-| 8 860 | 20 | 443 | 51 | `ParseScenarioTurns` | `ScenarioHarness/RTScenarioLoader.cpp:666` |
-| 8 442 | 21 | 402 | 35 | `FRTScenarioSession::Finish` | `ScenarioHarness/RTScenarioSession.cpp:1759` |
+| 9 384 | 23 | 408 | 39 | `ARTHexMapActor::RebuildInstances` | `Map/RTHexMapActor.cpp:1211` |
+| 7 974 | 18 | 443 | 51 | `ParseScenarioTurns` | `ScenarioHarness/RTScenarioLoader.cpp:666` |
 | 7 600 | 20 | 380 | 38 | `ARTTurnManager::ApplyInterrupts` | `Turn/RTTurnManager_Blast.cpp:769` |
+| 7 236 | 18 | 402 | 35 | `FRTScenarioSession::Finish` | `ScenarioHarness/RTScenarioSession.cpp:1759` |
 
 **L'ordine cambia rispetto alla classifica per righe.** `PlanBots` è la più lunga; quella che si **paga** è
-`ResolveCombatPasses`: **108 commit in 34 giorni**, tre al giorno, perché ogni feature di combattimento le
+`ResolveCombatPasses`: **103 commit in 34 giorni**, tre al giorno, perché ogni feature di combattimento le
 passa dentro. All'estremo opposto `ApplyDisplacements` misura 410 righe con **9 commit**: grande e ferma,
 cioè irrilevante per chiunque lavori oggi.
 
 Il churn conferma il falso positivo da un secondo lato, indipendente dal primo:
-`GetCoreActionCatalog` ha **47 commit** e **zero rami**. Non è logica che cambia — è una tabella a cui si
+`GetCoreActionCatalog` ha **42 commit** e **zero rami**. Non è logica che cambia — è una tabella a cui si
 aggiungono voci, e ogni azione nuova del catalogo la tocca.
+
+> 🔴 **`--no-merges` è una scelta, non un dettaglio.** Senza, `ResolveCombatPasses` conta 108 commit invece
+> di 103: i cinque in più sono merge che hanno toccato quelle righe risolvendo un conflitto. Sono eventi
+> reali, ma non sono *lavoro deliberato sulla funzione* — e questo repository integra ogni PR con un merge
+> commit, quindi contarli misurerebbe la forma del workflow insieme al codice. La domanda a cui il numero
+> risponde è «quante volte qualcuno ha messo mano a questa funzione». Chi cambia questa scelta cambia tutti
+> i numeri, e deve dichiararlo dove li riporta.
 
 ### 🔴 I due terzi del costo stanno dove l'Epic ha deciso di non entrare
 
-Delle dodici voci, sei sono in `ARTTurnManager` e valgono **205 585 su 310 574 di costo totale: il 66 %**.
+Delle dodici voci, sei sono in `ARTTurnManager` e valgono **194 592 su 293 023 di costo totale: il 66 %**.
 Ma #1818 mette esplicitamente fuori scope *«toccare i resolver: sono il cuore competitivo, e il loro
 sequenziamento è testato da un corpus golden»* — ed è una decisione difendibile, presa con evidenza.
 
@@ -256,8 +263,8 @@ architettura lo descrive come ciò che *«rende l'allestimento verificabile senz
 è progettato per essere verificabile, e quasi nessuno lo verifica. Toccarlo oggi significa muoversi senza
 rete.
 
-**Un candidato che l'incrocio fa emergere**: `ARTHUD::DrawHUD` — 705 righe, **56 commit**, terzo per costo
-(39 480) — è l'unica voce alta della classifica che sta **fuori dal perimetro escluso** da #1818. Per
+**Un candidato che l'incrocio fa emergere**: `ARTHUD::DrawHUD` — 705 righe, **55 commit**, terzo per costo
+(38 775) — è l'unica voce alta della classifica che sta **fuori dal perimetro escluso** da #1818. Per
 l'invariante #5 la presentazione *«non decide l'esito»*: non entra in nessun hash, non tocca il
 determinismo, non ha golden da difendere. La rete è media, non densa (13 file di test nominano `ARTHUD`,
 8 `ScreenHud`), e va guardata prima di aprire la fetta — ma è il punto dove costo alto e rischio basso si

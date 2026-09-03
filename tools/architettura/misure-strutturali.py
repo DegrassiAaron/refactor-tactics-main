@@ -66,14 +66,14 @@ a densita' di rami quasi nulla prima di farne una worklist.
 funzione*, non il file che la contiene. Il prodotto `righe x commit` riordina la classifica, e l'ordine
 cambia:
 
-    ResolveCombatPasses    888 righe   108 commit   costo  95 904
-    PlanBots               958 righe    51 commit   costo  48 858
+    ResolveCombatPasses    888 righe   103 commit   costo  91 464
+    PlanBots               958 righe    50 commit   costo  47 900
     ApplyDisplacements     410 righe     9 commit   costo   3 690
 
-`PlanBots` e' la piu' lunga, `ResolveCombatPasses` e' quella che si paga: 108 commit in 34 giorni, tre al
+`PlanBots` e' la piu' lunga, `ResolveCombatPasses` e' quella che si paga: 103 commit in 34 giorni, tre al
 giorno, perche' ogni feature di combattimento le passa dentro. `ApplyDisplacements` e' grande e ferma.
 
-Il churn conferma anche il falso positivo da un secondo lato: `GetCoreActionCatalog` ha **47 commit** con
+Il churn conferma anche il falso positivo da un secondo lato: `GetCoreActionCatalog` ha **42 commit** con
 **zero rami**. Non e' logica che cambia, e' una tabella a cui si aggiungono voci.
 
 ⚠️ La storia del repository e' di **34 giorni** (primo commit 2026-08-01). E' tutto il churn che esiste, ma
@@ -285,13 +285,22 @@ def aggiungi_churn(m, repo):
     `git log -L a,b:file` segue il movimento delle righe, quindi conta i commit che hanno toccato
     *quella funzione*, non il file che la contiene. Il prodotto `righe x commit` e' il costo che si
     paga davvero: una funzione lunga che nessuno tocca non costa niente a nessuno.
+
+    🔴 `--no-merges`, ed e' una scelta, non un dettaglio. Senza, `ResolveCombatPasses` conta 108
+    commit invece di 103: i cinque in piu' sono merge che hanno toccato quelle righe risolvendo un
+    conflitto. Sono eventi reali — un conflitto li' e' un costo di coordinamento — ma non sono
+    *lavoro deliberato sulla funzione*, e questo repository integra ogni PR con un merge commit,
+    quindi contarli misura la forma del workflow insieme al codice. La domanda a cui il numero deve
+    rispondere e' «quante volte qualcuno ha messo mano a questa funzione», e la risposta esclude i
+    merge. Cambiare questa riga cambia tutti i numeri: dichiaralo dove li riporti.
     """
     for r in m["classifica"]:
         a = r["linea"]
         b = a + r["righe"] - 1
         try:
             esito = subprocess.run(
-                ["git", "log", "-L", "%d,%d:%s" % (a, b, r["path"]), "--format=%h", "-s"],
+                ["git", "log", "--no-merges", "-L", "%d,%d:%s" % (a, b, r["path"]),
+                 "--format=%h", "-s"],
                 cwd=str(repo), capture_output=True, text=True, timeout=120,
             )
             r["commit"] = len([x for x in esito.stdout.splitlines() if x.strip()])
