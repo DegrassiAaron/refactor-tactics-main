@@ -61,7 +61,8 @@
     avrebbe prodotto un file vuoto — cioe' avrebbe perso proprio la dichiarazione
     per cui lo script esiste.
 
-    Exit code, e sono TRE perche' gli stati sono tre:
+    Exit code di una MISURA, e sono QUATTRO perche' tanti sono gli stati in cui
+    puo' finire:
       0  VALIDA, nessun fallimento
       1  VALIDA, ma dei test falliscono   -> difetto del gioco
       3  NON VALIDA                       -> esito non registrabile, non e' rosso
@@ -69,13 +70,20 @@
          (con `-WaitMinutes N` aspetta che si liberi invece di uscire subito)
 
     ⚠️ Una VOCE RESIDUALE non e' un motore occupato (#2130): un processo puo'
-    lasciare dietro di se' una voce che WMI elenca ancora e che nessuno puo'
-    terminare. La suite parte lo stesso, e la diagnostica nomina il caso visto —
-    `vivo` · `zombie-solo` · `misto` · `query-fallita`.
+    lasciare dietro di se' una voce che sopravvive alla sua morte, e che nessuno
+    puo' terminare. La suite parte lo stesso, e la diagnostica nomina il caso visto
+    — `vivo` · `zombie-solo` · `misto` · `query-fallita`.
 
-    Con `-SelfTest` gli stati sono due, e non riguardano il gioco:
+    ⚠️ Il caso `zombie-solo` presuppone che la voce residuale sia ancora ENUMERATA
+    fra i processi: e' cio' che #2130 ha misurato sul campo (`Get-Process -Name` la
+    elencava con `HasExited = True`, mentre `Get-Process -Id` non la trovava). Se una
+    voce non fosse enumerata affatto, il caso sarebbe `libero` — e la suite
+    partirebbe ugualmente, che e' l'esito voluto: cambia l'etichetta, non il verdetto.
+
+    ⚠️ `-SelfTest` NON e' una misura, e i suoi due codici vanno letti in quel modo:
       0  il classificatore dello stato del motore e' conforme
       1  non lo e'  -> il difetto e' in QUESTO script, non nella suite
+    Non tocca ne' il progetto ne' il motore, e non richiede che siano installati.
 
 .PARAMETER Filter
     Filtro di automation. Default `RefactorTactics`, cioe' la suite intera.
@@ -196,10 +204,18 @@ $Dlls     = @(
     (Join-Path $RepoRoot 'Binaries/Win64/UnrealEditor-RefactorTacticsEditor.dll')
 )
 
-if (-not (Test-Path $UProject)) { throw "uproject non trovato: $UProject" }
-$EngineVersion = (Get-Content $UProject -Raw | ConvertFrom-Json).EngineAssociation
-$EngineCmd = "D:/EpicGames/UE_$EngineVersion/Engine/Binaries/Win64/UnrealEditor-Cmd.exe"
-if (-not (Test-Path $EngineCmd)) { throw "motore non trovato: $EngineCmd" }
+# ⚠️ **Le precondizioni non valgono per `-SelfTest`.** Quel modo prova una funzione
+# PURA e non tocca ne' il progetto ne' il motore: farlo dipendere da un motore
+# installato al percorso cablato qui sotto significa che su un clone fresco —— o
+# sulla macchina di chi rilegge la PR —— il classificatore risulterebbe ROTTO
+# (`exit 1`) mentre non ha niente che non va. Un test di una funzione pura non si
+# fa cadere da un'installazione.
+if (-not $SelfTest) {
+    if (-not (Test-Path $UProject)) { throw "uproject non trovato: $UProject" }
+    $EngineVersion = (Get-Content $UProject -Raw | ConvertFrom-Json).EngineAssociation
+    $EngineCmd = "D:/EpicGames/UE_$EngineVersion/Engine/Binaries/Win64/UnrealEditor-Cmd.exe"
+    if (-not (Test-Path $EngineCmd)) { throw "motore non trovato: $EngineCmd" }
+}
 
 function Invoke-Git {
     param([Parameter(Mandatory)] [string[]] $GitArgs)
@@ -286,53 +302,88 @@ function Get-EngineProcessEntries {
         punto di questo script che interroga il sistema sui processi.
     #>
     try {
-        # `-ErrorAction SilentlyContinue` e non un `try` piu' stretto: su un nome che
-        # non corrisponde a nessun processo il cmdlet torna un array vuoto, e
-        # l'assenza NON e' un errore. Il `try` copre il resto — WMI/WinAPI che non
-        # rispondono — che invece lo e'.
-        $procs = @(Get-Process -Name 'UnrealEditor*' -ErrorAction SilentlyContinue)
+        # 🔴 **`-ErrorAction Stop`, e NON `SilentlyContinue`.** La soppressione
+        # rendeva questo `catch` irraggiungibile: un cmdlet che sopprime i propri
+        # errori non terminanti torna un array VUOTO, e un array vuoto qui significa
+        # «motore libero» — l'invariante che fallisce APERTA, cioe' il difetto che
+        # questo guard esiste per prevenire.
+        #
+        # ⚠️ E la soppressione non serviva nemmeno: misurato, un **wildcard** che non
+        # corrisponde a niente (`'ZzNoSuchProc*'`) torna zero elementi **senza
+        # errore**. Solo un nome ESATTO senza match solleva `ProcessCommandException`,
+        # e qui il nome e' sempre un wildcard.
+        $procs = @(Get-Process -Name 'UnrealEditor*' -ErrorAction Stop)
     } catch {
-        return [pscustomobject]@{ Entries = @(); EnumError = $_.Exception.Message; DetailError = $null }
+        return [pscustomobject]@{ Entries = @(); EnumError = $_.Exception.Message }
     }
 
-    if ($procs.Count -eq 0) {
-        return [pscustomobject]@{ Entries = @(); EnumError = $null; DetailError = $null }
+    return [pscustomobject]@{ Entries = @($procs | ForEach-Object { ConvertTo-EngineEntry $_ }); EnumError = $null }
+}
+
+# Da un processo alla sua voce. Presa a parte perche' la regola «uno stato non
+# leggibile vale VIVO» vive qui, e dentro l'enumeratore non era provabile: e' una
+# funzione di UN oggetto, e un oggetto il cui `HasExited` solleva si fabbrica.
+function ConvertTo-EngineEntry {
+    param($Process)
+    $probe = 'ok'
+    $live = $true
+
+    # 🔴 **Il discriminante e' il TIPO del valore letto, non un `catch`.** Misurato:
+    # PowerShell NON propaga le eccezioni sollevate da un getter di proprieta' — ne'
+    # da una `ScriptProperty` ne' da un getter .NET vero. L'accesso restituisce
+    # `$null` e l'eccezione finisce in `$Error`. Un `try { -not $p.HasExited } catch`
+    # e' quindi codice MORTO: il `catch` non scatta mai, `-not $null` vale `$true`, e
+    # il valore giusto uscirebbe per caso — con `LiveProbe` che dichiara `ok` una
+    # lettura mai avvenuta.
+    #
+    # 🔴 **Non leggibile ⇒ VIVO.** Una sessione non elevata puo' non poter leggere lo
+    # stato di un motore avviato da un altro utente, e concludere «morto» da un
+    # accesso negato e' l'invariante che fallisce aperta.
+    $raw = $null
+    try { $raw = $Process.HasExited } catch { $raw = $null }
+    if ($raw -is [bool]) {
+        $live = -not $raw
+    }
+    else {
+        $live = $true
+        $probe = 'non-leggibile'
     }
 
-    # ⚠️ **La CIM e' diagnostica, non verdetto.** Se non risponde si sa ancora
-    # quanti processi ci sono e se sono vivi: si perde solo di CHI sono. Un errore
-    # qui degrada la riga di spiegazione, non ferma la run — trattarlo come
-    # l'errore dell'enumerazione reintrodurrebbe #2130 con un nome nuovo.
+    return [pscustomobject]@{
+        ProcessId   = $Process.Id
+        CommandLine = $null   # si riempie solo se qualcuno deve STAMPARLA: vedi Add-EngineCommandLines
+        IsLive      = $live
+        LiveProbe   = $probe
+    }
+}
+
+# La `CommandLine` dice DI CHI e' il processo, e la legge solo la diagnostica.
+#
+# 🔴 **Si paga qui, e non nell'enumerazione, perche' il ciclo d'attesa e' il
+# percorso CALDO**: mentre si aspetta c'e' per definizione almeno un processo,
+# quindi arricchire dentro `Get-EngineState` avrebbe pagato WMI a ogni giro —
+# misurato 184 ms contro i 172 ms della versione che questo cambiamento doveva
+# rendere piu' economica. Peggio di prima, per una stringa che l'heartbeat non
+# stampa. Da qui: 15 ms per giro, e WMI una volta sola quando c'e' da raccontare.
+#
+# ⚠️ Un errore qui degrada la riga di spiegazione, non il verdetto: il conteggio e'
+# gia' certo. Trattarlo come l'errore dell'enumerazione reintrodurrebbe #2130 con
+# un nome nuovo.
+function Add-EngineCommandLines {
+    param($State)
+    if ($State.Engines.Count -eq 0) { return $State }
     $cmdByPid = @{}
-    $detailError = $null
     try {
         Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" -ErrorAction Stop |
             ForEach-Object { $cmdByPid[[int]$_.ProcessId] = $_.CommandLine }
     } catch {
-        $detailError = $_.Exception.Message
+        $State.DetailError = $_.Exception.Message
+        return $State
     }
-
-    $entries = @($procs | ForEach-Object {
-        $probe = 'ok'
-        $live = $true
-        try {
-            $live = -not $_.HasExited
-        } catch {
-            # 🔴 **Eccezione ⇒ VIVO.** Una sessione non elevata puo' non poter leggere
-            # lo stato di un motore avviato da un altro utente, e concludere «morto»
-            # da un accesso negato e' la stessa invariante che fallisce aperta.
-            $live = $true
-            $probe = "threw:$($_.Exception.GetType().Name)"
-        }
-        [pscustomobject]@{
-            ProcessId   = $_.Id
-            CommandLine = $(if ($cmdByPid.ContainsKey($_.Id)) { $cmdByPid[$_.Id] } else { $null })
-            IsLive      = $live
-            LiveProbe   = $probe
-        }
-    })
-
-    return [pscustomobject]@{ Entries = $entries; EnumError = $null; DetailError = $detailError }
+    foreach ($e in $State.Engines) {
+        if ($cmdByPid.ContainsKey($e.ProcessId)) { $e.CommandLine = $cmdByPid[$e.ProcessId] }
+    }
+    return $State
 }
 
 # Il verdetto, da una collezione GIA' letta. PURA, ed e' cio' che rende il
@@ -341,12 +392,17 @@ function Get-EngineProcessEntries {
 function Resolve-EngineState {
     param(
         $Entries,
-        [string] $EnumError,
-        [string] $DetailError
+        [string] $EnumError
     )
 
     $all = @($Entries)
-    $live = @($all | Where-Object { $_.IsLive })
+    # 🔴 **`-ne $false`, non `{ $_.IsLive }`.** Il filtro per verita' conta come NON
+    # viva una voce che il campo non ce l'ha — assente o rinominato vale `$null`,
+    # `$null` e' falso, e il verdetto diventa «libero» mentre un motore gira: la
+    # stessa forma del difetto che il commento qui sotto racconta, su un campo nuovo.
+    # Cosi' invece una voce malformata conta come VIVA, e si sbaglia dalla parte che
+    # ferma la run invece di quella che ne uccide due.
+    $live = @($all | Where-Object { $_.IsLive -ne $false })
 
     # I quattro casi hanno un nome perche' la riga di diagnostica deve dire QUALE ha
     # visto: senza, chi legge rifa' a mano le cinque misure che #2130 ha gia' fatto.
@@ -366,14 +422,16 @@ function Resolve-EngineState {
         Engines     = $all
         LiveCount   = $live.Count
         EngineError = $EnumError
-        DetailError = $DetailError
+        # Vuoto finche' qualcuno non chiede le righe di comando: le riempie
+        # `Add-EngineCommandLines`, e solo lei puo' fallire senza toccare il verdetto.
+        DetailError = $null
         Case        = $case
     }
 }
 
 function Get-EngineState {
     $raw = Get-EngineProcessEntries
-    return Resolve-EngineState -Entries $raw.Entries -EnumError $raw.EnumError -DetailError $raw.DetailError
+    return Resolve-EngineState -Entries $raw.Entries -EnumError $raw.EnumError
 }
 
 # Una riga per processo, e la sede e' una sola: la stampano il preambolo
@@ -657,7 +715,7 @@ if ($SelfTest) {
     $failures = 0
     function Assert-Case {
         param([string] $Name, $Entries, [string] $EnumError, [bool] $ExpectFree, [string] $ExpectCase)
-        $state = Resolve-EngineState -Entries $Entries -EnumError $EnumError -DetailError $null
+        $state = Resolve-EngineState -Entries $Entries -EnumError $EnumError
         $free = Test-EngineFree $state
         $ok = ($free -eq $ExpectFree) -and ($state.Case -eq $ExpectCase)
         if (-not $ok) { $script:failures++ }
@@ -678,14 +736,38 @@ if ($SelfTest) {
     Assert-Case 'zombie-solo'   @((New-Entry 102 $false))                            $null   $true  'zombie-solo'
     Assert-Case 'misto'         @((New-Entry 103 $true), (New-Entry 104 $false))     $null   $false 'misto'
     Assert-Case 'query-fallita' @()                                                  'WMI ko' $false 'query-fallita'
-    # R15: uno stato non leggibile vale VIVO — un accesso negato non e' una morte.
-    Assert-Case 'probe-threw'   @((New-Entry 105 $true 'threw:Win32Exception'))      $null   $false 'vivo'
+    # 🔴 **Una voce MALFORMATA vale VIVA**: e' il filtro `-ne $false` sopra, e senza
+    # questo caso un `Where-Object { $_.IsLive }` tornerebbe senza che nulla lo dica.
+    Assert-Case 'campo assente' @([pscustomobject]@{ ProcessId = 106 })              $null   $false 'vivo'
+
+    # ⚠️ **Questi due non passano dal classificatore, e devono esserci lo stesso.**
+    # La regola «uno stato non leggibile vale VIVO» sta in `ConvertTo-EngineEntry`, e
+    # una prima stesura la «provava» costruendo a mano una voce con `IsLive = $true`:
+    # una tautologia — invertendo la regola in produzione il self-test restava verde.
+    # Un getter che non risponde si fabbrica, e allora la regola si prova davvero.
+    $nonLeggibile = New-Object PSObject
+    $nonLeggibile | Add-Member -MemberType NoteProperty -Name Id -Value 107
+    $nonLeggibile | Add-Member -MemberType ScriptProperty -Name HasExited -Value { throw [System.ComponentModel.Win32Exception]::new(5) }
+    $e1 = ConvertTo-EngineEntry $nonLeggibile
+    $ok1 = ($e1.IsLive -eq $true) -and ($e1.LiveProbe -eq 'non-leggibile')
+    if (-not $ok1) { $failures++ }
+    Say ("{0}  {1,-14} IsLive={2} LiveProbe={3} (atteso IsLive=True, probe non-leggibile)" -f `
+        $(if ($ok1) { 'ok  ' } else { 'ROTTO' }), 'non-leggibile', $e1.IsLive, $e1.LiveProbe)
+
+    $uscito = New-Object PSObject
+    $uscito | Add-Member -MemberType NoteProperty -Name Id -Value 108
+    $uscito | Add-Member -MemberType ScriptProperty -Name HasExited -Value { $true }
+    $e2 = ConvertTo-EngineEntry $uscito
+    $ok2 = ($e2.IsLive -eq $false) -and ($e2.LiveProbe -eq 'ok')
+    if (-not $ok2) { $failures++ }
+    Say ("{0}  {1,-14} IsLive={2} LiveProbe={3} (atteso IsLive=False, probe ok)" -f `
+        $(if ($ok2) { 'ok  ' } else { 'ROTTO' }), 'probe-uscito', $e2.IsLive, $e2.LiveProbe)
 
     if ($failures -gt 0) {
         Say ("self-test ROSSO: {0} caso/i non conforme/i" -f $failures)
         exit 1
     }
-    Say 'self-test verde: sei casi su sei'
+    Say 'self-test verde: otto casi su otto'
     exit 0
 }
 
@@ -702,6 +784,9 @@ $script:WaitElapsed = $null
 if ($before.LiveCount -gt 0 -and $WaitMinutes -gt 0) {
     $waited = [System.Diagnostics.Stopwatch]::StartNew()
     Say ("in attesa: il motore e' occupato, ricontrollo ogni {0}s per al massimo {1} min" -f $PollSeconds, $WaitMinutes)
+    # Le righe di comando si chiedono a WMI QUI, una volta, perche' qui si stampano:
+    # dentro il ciclo che segue costerebbero a ogni giro senza che nessuno le legga.
+    $null = Add-EngineCommandLines $before
     foreach ($e in $before.Engines) { Say ("  " + (Format-EngineEntry $e)) }
 
     # 🔴 **Il jitter non e' cosmetico**, e vive dentro `Wait-EngineWindow` perche' va
@@ -748,7 +833,10 @@ if ($before.LiveCount -gt 0 -and $WaitMinutes -gt 0) {
             # stati mossi dalle altre sessioni, e la run deve partire da cio' che c'e' adesso.
             $before = Get-Snapshot
         } catch {
-            # ⚠️ **Gli stessi otto campi di `Get-Snapshot`, coi suoi nomi esatti.** La
+            # ⚠️ **Gli stessi UNDICI campi di `Get-Snapshot`, coi suoi nomi esatti**
+            # — erano otto prima di #2130, e il numero e' la somma di controllo: chi
+            # aggiunge un campo la' e non qui lo scopre solo quando questo ramo
+            # LANCIA, cioe' nel giorno peggiore. La
             # prima stesura ne inventava quattro (`Tree`, `TreeCount`, `Bin`): sotto
             # `Set-StrictMode` leggere una proprieta' assente LANCIA, e il ramo scritto per
             # non far uscire lo script con un codice non dichiarato ce lo avrebbe fatto
@@ -807,9 +895,9 @@ if ($before.LiveCount -gt 0 -and $WaitMinutes -gt 0) {
     }
 }
 
-# ⚠️ **L'errore va PRIMA del conteggio**: `EngineCount` e' `0` anche quando la
-# query e' FALLITA, e senza questo ordine il referto diceva «motore libero: si
-# parte» e subito dopo «NON AVVIATA: la query e' fallita» — due righe che si
+# ⚠️ **L'errore va PRIMA del conteggio**: `LiveCount` e' `0` anche quando
+# l'enumerazione e' FALLITA, e senza questo ordine il referto diceva «motore libero:
+# si parte» e subito dopo «NON AVVIATA: la query e' fallita» — due righe che si
 # contraddicono, per chi le legge dopo mezz'ora di attesa.
 if ($before.EngineError) {
     Say "NON AVVIATA: la query sui processi e' fallita — $($before.EngineError)"
@@ -831,6 +919,7 @@ if ($before.LiveCount -gt 0) {
     # leggere una variabile mai impostata fa uscire lo script con un codice che
     # significa «test falliti».
     if ($null -ne $script:WaitElapsed) { Say ("  (dopo {0:N0}s di attesa)" -f $script:WaitElapsed) }
+    $null = Add-EngineCommandLines $before
     foreach ($e in $before.Engines) { Say ("  " + (Format-EngineEntry $e)) }
     # La provenienza si perde solo se WMI non risponde, e allora va detto: senza
     # questa riga la lista sembra incompleta per un difetto dello script.
@@ -848,7 +937,16 @@ if ($before.LiveCount -gt 0) {
     # `HasExited` sopra, e una voce residuale non ferma piu' nessuno. Resta da dire
     # cosa fare quando il processo e' VIVO davvero, che e' il solo caso che arriva
     # fin qui.
-    Say 'E'' un processo VIVO, non una voce residuale: quelle non fermano piu'' la suite.'
+    # ⚠️ La riga dipende dal CASO: con `misto` l'elenco qui sopra contiene anche voci
+    # marcate `residuale`, e dire «e' un processo vivo» contraddirebbe cio' che si
+    # legge due righe piu' su — in un referto il cui unico scopo e' attribuire il blocco.
+    if ($before.EngineCase -eq 'misto') {
+        Say ("Fermano la suite i {0} processo/i VIVO/I dell'elenco: le voci `residuale` no," -f $before.LiveCount)
+        Say 'e da sole non l''avrebbero fermata.'
+    }
+    else {
+        Say 'E'' un processo VIVO, non una voce residuale: quelle non fermano piu'' la suite.'
+    }
     Say 'Aspetta che finisca — oppure, se e'' di QUESTO checkout e sai di poterlo perdere,'
     Say 'chiudilo tu: da un altro checkout non toccarlo, e'' il lavoro di qualcun altro.'
     if ($WaitMinutes -le 0) {
@@ -932,13 +1030,24 @@ if ($before.Dlls -ne $after.Dlls) {
 }
 if ($after.EngineError) {
     $problems.Add("motore    query fallita a fine run ($($after.EngineError)): impossibile escludere una collisione")
-} elseif ($after.LiveCount -gt 0) {
-    # 🔴 `LiveCount` e non `EngineCount` (#2130), e qui il difetto era peggiore che
-    # altrove: il motore di QUESTA run, appena terminato, puo' lasciare la propria
-    # voce residuale: contarla significava dichiarare NON VALIDA una misura sana,
-    # accusando la run di una collisione con se stessa.
+} elseif ($after.EngineCount -gt 0) {
+    # 🔴 **`EngineCount` e non `LiveCount`, e qui la differenza e' opposta a quella
+    # del guard d'avvio.** All'avvio una voce residuale non prova nulla e non deve
+    # fermare la run; a fine run prova che un processo del motore **e' esistito**
+    # mentre misuravamo, ed e' esattamente cio' che invalida la misura: il mutex e'
+    # globale sull'eseguibile, e una collisione avvenuta non diventa innocua perche'
+    # l'altro e' gia' uscito.
+    #
+    # ⚠️ Una stesura di questo cambiamento filtrava anche qui sulle sole voci vive,
+    # per non far accusare la run del residuo del PROPRIO motore. Ma lo script non
+    # cattura il pid del figlio (`& $EngineCmd` non e' `Start-Process -PassThru`),
+    # quindi non sa distinguere il proprio residuo da quello di un ALTRO checkout: il
+    # filtro toglieva anche il secondo, e una collisione vera passava per `VALIDA`.
+    # Un falso allarme si legge; una collisione taciuta no. Distinguere davvero
+    # richiede il pid del figlio, che e' lavoro suo — e non di #2130.
     $problems.Add("motore    un processo del motore e' comparso durante la run:")
-    foreach ($e in $after.Engines) { if ($e.IsLive) { $problems.Add("          " + (Format-EngineEntry $e)) } }
+    $null = Add-EngineCommandLines $after
+    foreach ($e in $after.Engines) { $problems.Add("          " + (Format-EngineEntry $e)) }
 }
 
 # ---------------------------------------------------------------- IL REFERTO
