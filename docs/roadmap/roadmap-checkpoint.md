@@ -192,10 +192,10 @@ chiudevano una alla volta. Ecco cosa c'è davvero, con i comandi per rimisurarlo
 | Misura | Valore | Come si rilegge |
 |---|---:|---|
 | Voci nel registro PIE | **203** | `grep -c '^\| \*\*PIE-' docs/technical/test-manuali-pie.md` |
-| Non verdi (⏳ · 🟡 · ❌) | **105** | il comando canonico in testa a `test-manuali-pie.md` |
+| Non verdi (⏳ · 🟡 · ❌) | **127** | il comando canonico in testa a `test-manuali-pie.md` |
 | **Gate `G9`** — subset `RELEASE-V01` | **17 voci: 13 ✅ · 4 🟡 · 0 ⏳** | `grep -c '^\| \*\*PIE-[A-Za-z0-9.-]*\*\* \`RELEASE-V01\`'` |
 | Sedute che convocano voci | **44**, per **138** voci assegnate | `editor-sessions.yaml`, campo `verifies` |
-| ⚠️ Voci **orfane** e non verdi | **25** | nessuna seduta le nomina — vedi sotto |
+| ⚠️ Voci **orfane** e non verdi | **33** | nessuna seduta le nomina — vedi sotto |
 
 🔑 **Il gate di release è a 13 su 17, e nessuna delle quattro che restano è aperta**: sono tutte 🟡 —
 `PIE-HEXPLAY-6` e `-8`, `PIE-V01-ROSTER` (la cui precondizione chiede un asset che non esiste e va
@@ -203,12 +203,20 @@ riscritta) e `PIE-V01-LOG` (che aspetta il formato del combat log). `G9` non è 
 v0.1: nessuna delle quattro è ⏳. ⏱️ *Questa riga diceva `15 · 2` ed è stata rimisurata poche ore dopo,
 risolvendo un merge: `-6` e `-8` si erano mosse. Il comando accanto alla tabella è l'oracolo, non la cifra.*
 
-⚠️ **Le 25 voci orfane sono il collo di bottiglia vero**, e non perché siano difficili: *«una voce che non
+⚠️ **Le 33 voci orfane sono il collo di bottiglia vero**, e non perché siano difficili: *«una voce che non
 sta in una seduta non viene eseguita mai»* — lo dichiara il registro, ed è la ragione per cui il 2026-09-03
 sono state aperte **U42** (ventuno voci, il corpus `Visual.*`) e **U43** (sette, il velo e il puntatore),
-che da sole ne hanno assorbite ventiquattro. Il numero era **49** prima di quelle due sedute.
+che da sole ne hanno assorbite ventiquattro.
 
-⛔ **Tre di quelle venticinque non sono eseguibili e non lo saranno finché non cambia il motore**:
+🔴 **I due numeri di questa tabella erano sbagliati quando furono scritti — `105` e `25` — e non per il
+tempo passato: per come li avevo misurati.** Uno script cercava il marcatore OVUNQUE nella cella invece del
+PRIMO in ordine di posizione, che è ciò che fa l'oracolo canonico: le celle che si aprono con ⏳ e contengono
+un ✅ nella prosa venivano contate verdi. È la **terza** volta in un giorno che lo stesso difetto produce un
+numero falso — le prime due le trovò una code review sulle sedute U42 e U43. ∴ **la riga «come si rilegge»
+accanto a ogni misura non è decorazione: è l'unica difesa**, e chi rifà il conto con uno script proprio
+rifarà anche l'errore.
+
+⛔ **Tre di quelle trentatré non sono eseguibili e non lo saranno finché non cambia il motore**:
 `PIE-VIS-PUSH`, `-INTERPOSE` e `-DEFLECT` chiedono di guardare un effetto che non emette alcun evento di
 playback (§8.1 di [`scenari-validazione-visiva.md`](../technical/runbooks/scenari-validazione-visiva.md)).
 Assegnarle a una seduta significherebbe chiedere a una persona di guardare qualcosa che non viene disegnato.

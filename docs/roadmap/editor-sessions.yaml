@@ -113,10 +113,38 @@
 # memoria: non verifica il reload, la persistenza, ne' l'inizializzazione da zero. La seconda
 # apertura fa parte dell'oracolo, non e' overhead.
 #
-# ⚠️ `execution_lane` NON e' popolata su cinque sedute (U10..U13, U17), e il default `pie` sarebbe
+# ⚠️ `execution_lane` non era popolata su cinque sedute (U10..U13, U17), e il default `pie` era
 # sbagliato per quattro di esse: producono data asset senza dichiararli in `artifacts`. U17 non e'
-# lavoro Editor affatto — e' il gate packaged P1. Ognuna porta il proprio commento sul perche'.
-# Finche' restano cosi', il raggruppamento E1/E2 va deciso a mano per quelle cinque.
+# lavoro Editor affatto — e' il gate packaged P1.
+# ⏱️ **Il 2026-09-04 il campo e' stato dichiarato su U10 e U12** (`asset`, col perche' accanto):
+# erano le due che il default faceva contare fra le sedute `pie` senza voci, cioe' fra quelle che
+# producono un verdetto su nulla. U11 e U13 hanno gia' un `verifies` e non producevano il falso
+# positivo; **U17 resta senza campo, ed e' corretto**: non e' ne' `pie` ne' `asset` — nessuno dei due
+# valori la descrive, e sceglierne uno per far tornare un conteggio sarebbe peggio del campo assente.
+# Finche' resta cosi', il raggruppamento E1/E2 va deciso a mano per lei.
+#
+# 🔴 **OTTO sedute `pie` dichiarano un verdetto e non nominano NESSUNA voce del registro** — misurato
+# il 2026-09-04: `U31` `U32` `U33` `U34` `U38` `U40` `U41` `U44`, tutte del blocco 6, ognuna con la
+# propria issue. ⚠️ **Il comando qui sotto ne stampa NOVE**, e la nona e' `U17`: rientra per il default
+# del campo assente, non perche' sia una seduta `pie` senza voci. E' il caso dichiarato qui sopra, e va
+# letto insieme al comando — un conteggio che non spiega il proprio scarto e' un conteggio che qualcuno
+# correggera' nel modo sbagliato. Hanno `verifies: []` **e** `artifacts: []`: producono una «conferma» che non ha dove
+# essere scritta, perche' l'esito di una verifica vive in `test-manuali-pie.md` e li' non esiste una
+# riga da aggiornare. Chi le esegue non ha modo di registrare cosa ha visto.
+#
+# ⛔ **Le voci NON si creano da qui, ed e' una regola non una cautela**: la track `playtest` di [D-139]
+# dice che chi finisce una feature con una voce `PIE-*` *«non scrive il proprio esito nel registro: lo
+# PROPONE in handoff»*. Otto voci inventate da questo file sarebbero otto criteri scritti da chi non ha
+# costruito la feature — esattamente cio' che quella regola impedisce. Si propongono con la issue che
+# ha aperto la seduta.
+#
+#   python - <<'PY'   (radice del repo)
+#   import yaml
+#   d = yaml.safe_load(open('docs/roadmap/editor-sessions.yaml', encoding='utf-8'))
+#   v = [x for x in d['sessions']
+#        if not (x.get('verifies') or []) and (x.get('execution_lane') or 'pie') == 'pie']
+#   print(len(v), [x['id'] for x in v])   # 9 al 2026-09-04, di cui U17 e' il caso a parte
+#   PY
 #
 #   steps              prosa umana; solo dove NESSUNA guida copre ancora la procedura
 #   notes              avvertenze e debiti noti
@@ -621,9 +649,24 @@ sessions:
     artifacts: []
     unblocked_by: [E47.1, E47.3]
     shares_setup_with: []
-    verifies: []
+    verifies:
+      - PIE-V01-PACKAGED
     issues: [959, 1088, 1069, 79, 1296]
     done_when: esiste una registrazione di una partita 2v2 conclusa senza un solo input, eseguita due volte — PIE e pacchetto Development
+    notes: |
+      🔴 **Da sapere PRIMA di aprire l'editor: il bot NON cerca l'obiettivo.** Misurato —
+      `grep Objective Source/RefactorTactics/Bot/` dà **zero**, e il suo scoring pesa danno, uccisioni e
+      copertura; i goal veri (`SecureObjective`) sono E26. Nella partita d'autore i punti del team 1 sono
+      **turni in cui un bot ci è capitato sopra** — la porta nord è un varco naturale — non un presidio.
+      ∴ **la vittoria PER OBIETTIVO non si vedrà in autobattle**: chi vuole registrarla deve giocare a
+      mano. La registrazione che questa seduta chiede resta valida per ciò che chiede — una partita che
+      arriva alla vittoria senza input — ma non esercita la via a punti fino in fondo.
+
+      ⏱️ **La «domanda d'autore» che teneva aperta `PIE-V01-PACKAGED` non esiste più.** Fu decisa il
+      2026-08-23 — si filmano entrambe — e il presupposto che la rendeva necessaria è caduto il
+      2026-08-30: il free-run sull'asset d'autore non finisce più pari, vince il team 1 allo scadere
+      (`Match.Autobattle.ShippedFormatEndsTheAuthoredMatch`). Il criterio «arriva alla vittoria» è
+      soddisfatto dal free-run, e non c'è nulla da decidere prima di eseguire.
     unblocks: []
     steps: |
       ✅ **PRENOTABILE dal 2026-08-23**, con una domanda d'autore da sciogliere PRIMA di aprire l'editor
@@ -949,6 +992,7 @@ sessions:
     title: Data asset delle azioni
     block: 4
     critical: true
+    execution_lane: asset   # produce il catalogo azioni come DATI: il verdetto viene dopo, in partita
     # execution_lane: NON DICHIARATA — produce data asset ma non li dichiara in `artifacts`
     produces: il catalogo azioni della v0.1 come dati, non come codice
     artifacts: []
@@ -994,6 +1038,7 @@ sessions:
     title: Loadout
     block: 4
     critical: false
+    execution_lane: asset   # produce varianti arma, gadget e moduli come DATI: stesso caso di U10
     # execution_lane: NON DICHIARATA — produce data asset ma non li dichiara in `artifacts`
     produces: varianti arma, gadget e moduli reazione come dati — 1 + 1 + 1 per eroe
     artifacts: []
