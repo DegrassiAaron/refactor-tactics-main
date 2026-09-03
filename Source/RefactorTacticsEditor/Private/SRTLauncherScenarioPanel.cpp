@@ -52,8 +52,23 @@ namespace
 	 */
 	FText DescribePosition(const FRTReplayPosition& Posizione)
 	{
+		// 🔴 **`Ended` e `BeforeStart` sono DUE stati diversi**, e `HasTurn()` e' falso in entrambi: la
+		// prima stesura guardava solo quello e scriveva *«Posa iniziale»* anche a partita finita. Si vedeva
+		// subito — bastava premere `>` fino in fondo — ma nessun automation test poteva accorgersene, perche'
+		// questa e' una stringa di presentazione in un pannello Slate. Trovato via MCP il 2026-09-04.
+		if (Posizione.State == ERTReplayPositionState::Ended)
+		{
+			return LOCTEXT("PlaybackAtEnd", "Fine della risoluzione.");
+		}
+
 		if (!Posizione.HasTurn())
 		{
+			// Restano `BeforeStart` e `Unaddressable`. Il secondo porta una fase leggibile ma nessun turno:
+			// dirlo e' meglio che tacerlo, perche' altrimenti si legge come l'inizio.
+			if (Posizione.HasPhase())
+			{
+				return LOCTEXT("PlaybackUnaddressable", "Posizione non raggiungibile nella traccia.");
+			}
 			return LOCTEXT("PlaybackAtStart", "Posa iniziale.");
 		}
 
