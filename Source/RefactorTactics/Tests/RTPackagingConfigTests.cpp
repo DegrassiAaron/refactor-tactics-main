@@ -16,6 +16,20 @@
  * ⚠️ Leggono il **file**, non l'oggetto di settings del motore: `UProjectPackagingSettings` vive in
  * `DeveloperToolSettings`, e tirarsi dentro un modulo per rileggere due righe costerebbe piu' di cio' che
  * aggiunge. Il divario resta dichiarato qui invece di essere lasciato credere.
+ *
+ * 🔴 **E il divario si e' rivelato piu' largo di cosi', misurato il 2026-09-03 su pacchetti veri.**
+ * Cotto due volte con `BuildCookRun`, una con `DirectoriesToNeverCook` e una senza, i container sono
+ * risultati **identici**: `WBP_RT_ScenarioComposer` e `WBP_RT_GrayKitPlayground` sono `EditorUtilityWidget`,
+ * quindi editor-only, e il cook li scarta **per classe** (`LogCook: SkipOnlyEditorOnly is enabled`) prima
+ * che una directory conti qualcosa. ∴ **Oggi la riga che questo test presidia non e' cio' che tiene i due
+ * strumenti fuori dal pacchetto**, e un verde qui non va letto come "gli strumenti sono esclusi".
+ *
+ * ✅ **Cio' che il test presidia resta necessario**, e anche questo e' misurato: un never-cook di controllo
+ * su `/Game/RT/UI/Icons` fa sparire 62 package dal container, quindi il meccanismo funziona e batte
+ * `DirectoriesToAlwaysCook` su una sottodirectory. La riga e' la garanzia della **famiglia aperta** — il
+ * primo asset NON editor-only messo sotto `/Game/RT/Editor/` sara' escluso solo da lei.
+ * ⛔ Quindi questo test difende un invariante **futuro**: e' il caso in cui un guardiano di regressione
+ * vale di piu' del fatto che oggi verifica, non di meno.
  */
 
 namespace
