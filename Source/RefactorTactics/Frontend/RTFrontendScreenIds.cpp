@@ -14,4 +14,6 @@ namespace RTScreenIds
 	const FName Result(TEXT("Result"));
 	const FName Pause(TEXT("Pause"));
 	const FName Match(TEXT("Match"));
+	const FName MatchHistory(TEXT("MatchHistory"));
+	const FName ReplayViewer(TEXT("ReplayViewer"));
 }
