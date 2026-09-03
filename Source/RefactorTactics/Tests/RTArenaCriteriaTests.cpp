@@ -5,6 +5,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
+#include "Perception/RTPerceptionLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Pathfinding/RTHexPathLibrary.h"
 
@@ -501,6 +502,118 @@ bool FRTArenaUnreachableSharedTest::RunTest(const FString&)
 			TestEqual(TEXT("l'isolamento e' del piano staccato"), Cell.Layer, 1);
 		}
 	}
+	return true;
+}
+
+
+/**
+ * 🔴 **Sull'arena, al primo turno, resta terreno che NESSUNO ha ancora visto** — la proprieta' senza la
+ * quale il velo a tre stati non ha niente da nascondere, e il difetto che
+ * [#1738](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1738) ha misurato.
+ *
+ * 🔑 **Esiste perche' il difetto, quando torna, torna INVISIBILE.** Su un'arena di raggio **4** contro un
+ * `VisionRange` di **5-7** l'insieme *mai vista* si svuota, e allora `PIE-HEX-VIZ-VELO` non puo' ne'
+ * riuscire ne' fallire: a schermo una mappa tutta scoperta somiglia a un velo rotto, ed e' gia' costato
+ * una sessione di diagnosi su un difetto che non esisteva. Un banco che smette di esercitare cio' che
+ * deve provare non produce un rosso — produce una verifica che non giudica piu'. Questo test lo trasforma
+ * in un rosso.
+ *
+ * ⚠️ **Si misura col `VisionRange` piu' LUNGO del roster (Gadget, 7), non col piu' corto**, ed e' il verso
+ * difficile: con una vista corta resterebbe terreno mai visto anche su una mappa inadeguata, e
+ * l'asserzione passerebbe senza dire nulla. Se la proprieta' regge contro la vista piu' lunga, regge per
+ * tutto il roster.
+ *
+ * ⚠️ **La soglia e' una FRAZIONE del suolo, non un numero letterale**: un conteggio assoluto invecchia al
+ * primo ritocco della geometria e va aggiornato a mano da chi non sa perche' fosse quel numero. Un terzo
+ * e' prudente rispetto a cio' che la fixture produce davvero (il valore misurato e' nell'`AddInfo`), e
+ * lascia margine di authoring senza smettere di cadere se l'arena tornasse a coprirsi da sola.
+ *
+ * ➕ **Il controllo positivo non e' decorativo**: senza `Seen.Num() > 0` un difetto che AZZERASSE la vista
+ * di squadra renderebbe questo test verde — «tutto mai visto» soddisfa l'asserzione principale per la
+ * ragione opposta a quella che interessa. E' lo stesso motivo per cui il gemello
+ * `Perception.VisionSplitYieldsDisconnectedRegions` conta componenti invece di celle.
+ *
+ * ⛔ **Cio' che questo test NON prova**: che i tre stati si DISTINGUANO a schermo. Quello resta il
+ * giudizio percettivo di `PIE-HEX-VIZ-VELO`, criterio 5, e nessun conteggio lo sostituisce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArenaHasCellsNoOneSeesAtStartTest,
+	"RefactorTactics.Arena.HasCellsNoOneSeesAtStart",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTArenaHasCellsNoOneSeesAtStartTest::RunTest(const FString&)
+{
+	// La vista di squadra dalle celle di partenza VERE, al `VisionRange` indicato.
+	auto SuoloMaiVisto = [this](URTHexMapAsset* Map, int32 Range, const TCHAR* Nome) -> int32
+	{
+		if (Map == nullptr) { return -1; }
+
+		// ⚠️ Le partenze si CHIEDONO a `PickStartCells`, la stessa funzione che allestisce la partita:
+		// inventarle qui misurerebbe un allestimento che nessuno gioca.
+		const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Map, /*NumPerTeam=*/ 2, /*Layer=*/ 0);
+		if (Start.Num() < 2) { return -1; }
+
+		TArray<FRTPerceiver> Team;
+		for (int32 I = 0; I < 2; ++I)
+		{
+			FRTPerceiver P;
+			P.Cell = Start[I];
+			P.VisionRange = Range;
+			Team.Add(P);
+		}
+
+		const TArray<FRTCellId> Seen = URTPerceptionLibrary::TeamVisibleCells(Map, Team);
+		const TSet<FRTCellId> Viste(Seen);
+
+		// 🔑 Il conteggio e' sul SOLO SUOLO. La piattaforma del layer 1 e' una regione separata per
+		// costruzione del grafo, e includerla farebbe passare il test per la ragione sbagliata — e' lo
+		// stesso errore che la verifica di mutazione ha gia' bocciato nel test gemello.
+		const TArray<FRTCellId> Suolo = Map->CellsInLayer(0);
+		int32 MaiViste = 0;
+		for (const FRTCellId& Cella : Suolo)
+		{
+			if (!Viste.Contains(Cella)) { ++MaiViste; }
+		}
+
+		AddInfo(FString::Printf(
+			TEXT("%s (vista %d): suolo %d · viste %d · mai viste %d · partenze team 0 (%d,%d) e (%d,%d)"),
+			Nome, Range, Suolo.Num(), Viste.Num(), MaiViste,
+			Start[0].X, Start[0].Y, Start[1].X, Start[1].Y));
+
+		return MaiViste;
+	};
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeVisionSplitArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("arena VisionSplit"), Arena)) { return false; }
+
+	const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Arena, /*NumPerTeam=*/ 2, /*Layer=*/ 0);
+	if (!TestEqual(TEXT("quattro celle di partenza (2 per squadra)"), Start.Num(), 4)) { return false; }
+
+	TArray<FRTPerceiver> Team;
+	for (int32 I = 0; I < 2; ++I)
+	{
+		FRTPerceiver P;
+		P.Cell = Start[I];
+		P.VisionRange = 7; // Gadget, il piu' lungo del roster: il verso difficile.
+		Team.Add(P);
+	}
+	const TArray<FRTCellId> Seen = URTPerceptionLibrary::TeamVisibleCells(Arena, Team);
+
+	// ➕ CONTROLLO POSITIVO: la vista funziona. Senza, «tutto mai visto» passerebbe per la ragione opposta.
+	TestTrue(TEXT("la squadra vede qualcosa dalle proprie partenze"), Seen.Num() > 0);
+
+	const int32 MaiViste = SuoloMaiVisto(Arena, /*Range=*/ 7, TEXT("VisionSplit"));
+	const int32 Suolo = Arena->CellsInLayer(0).Num();
+	if (!TestTrue(TEXT("il suolo non e' vuoto"), Suolo > 0)) { return false; }
+
+	// L'asserzione che difende il banco: col roster piu' lungo resta terreno che nessuno ha mai visto.
+	TestTrue(TEXT("resta suolo mai visto al primo turno"), MaiViste > 0);
+	TestTrue(TEXT("e non e' un residuo: almeno un terzo del suolo"), MaiViste * 3 >= Suolo);
+
+	// 📊 Diagnostico e non asserzione: il banco che #1738 dichiara inadeguato, misurato accanto a quello
+	// che lo sostituisce. Serve a chi legge il log a capire di quanto la fixture cambia le cose; non e'
+	// un assert perche' quel numero dipende da una mappa che questa issue NON possiede.
+	SuoloMaiVisto(URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 4),
+		/*Range=*/ 7, TEXT("FlatArena r=4 (il banco vecchio)"));
+
 	return true;
 }
 
