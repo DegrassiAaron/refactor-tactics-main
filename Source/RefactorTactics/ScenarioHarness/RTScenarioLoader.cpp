@@ -81,6 +81,41 @@ namespace
 	 * file (l'elenco delle chiavi note contro il parser che leggeva `edge`). Cosi' aggiungere un esito al
 	 * TurnLog lo rende scrivibile negli scenari senza toccare il loader.
 	 */
+	/**
+	 * Il filtro OPZIONALE per `ActionId` di un'assertion sul TurnLog (`#170`). Assente = nessun filtro.
+	 *
+	 * 🔴 **Una stringa VUOTA e' un errore, non «nessun filtro».** Un `"actionId": ""` ha l'aria di
+	 * discriminare e non discrimina niente: l'assertion tornerebbe al comportamento senza filtro mentre chi
+	 * legge il file crede di aver ristretto l'evento. E' la stessa classe di difetto che questo loader
+	 * rifiuta altrove — *«meglio rifiutare che ignorare»* — applicata al valore invece che alla chiave.
+	 *
+	 * ⚠️ Nessuna validazione contro un elenco di `ActionId` noti, ed e' deliberato: non esiste un `UEnum` da
+	 * interrogare come per categorie ed esiti — gli `ActionId` sono `FName` che il runtime conia da tag
+	 * (`Status.Burning`, `Objective.Control`) e dal catalogo, che e' aperto. Un elenco chiuso qui sarebbe
+	 * una seconda verita' da tenere allineata. Il prezzo e' che un `ActionId` scritto male non fallisce il
+	 * CARICAMENTO: fallisce l'assertion, dicendo che l'evento non c'e'.
+	 */
+	bool ParseScenarioLogActionId(const TSharedPtr<FJsonObject>& Obj, const TCHAR* Field, FName& OutActionId,
+		FString& OutError)
+	{
+		FString Text;
+		if (!Obj->TryGetStringField(Field, Text))
+		{
+			OutActionId = NAME_None;
+			return true;
+		}
+		if (Text.IsEmpty())
+		{
+			OutError = FString::Printf(
+				TEXT("assertion sul TurnLog: '%s' e' una stringa vuota — o si toglie la chiave (nessun ")
+				TEXT("filtro), o si scrive l'ActionId. Una stringa vuota non filtra niente e sembra ")
+				TEXT("filtrare."), Field);
+			return false;
+		}
+		OutActionId = FName(*Text);
+		return true;
+	}
+
 	bool ParseScenarioLogEvent(const TSharedPtr<FJsonObject>& Obj, const TCHAR* CategoryField,
 		const TCHAR* OutcomeField, ERTLogCategory& OutCategory, uint8& OutOutcome, FString& OutError)
 	{
@@ -188,6 +223,12 @@ FString URTScenarioLoader::DescribeLogEvent(ERTLogCategory Category, uint8 Outco
 	// portarne uno che questa build non conosce piu'. Mostrarlo GREZZO e' l'unica risposta onesta.
 	return FString::Printf(TEXT("%s.%s"), *CategoryName,
 		OutcomeName.IsEmpty() ? *FString::Printf(TEXT("esito %d"), static_cast<int32>(Outcome)) : *OutcomeName);
+}
+
+FString URTScenarioLoader::DescribeLogEvent(ERTLogCategory Category, uint8 Outcome, FName ActionId)
+{
+	const FString Base = DescribeLogEvent(Category, Outcome);
+	return ActionId.IsNone() ? Base : FString::Printf(TEXT("%s[%s]"), *Base, *ActionId.ToString());
 }
 
 bool URTScenarioLoader::LoadFromFile(const FString& FilePath, FRTTestScenario& OutScenario, FString& OutError)
@@ -1168,6 +1209,10 @@ namespace
 					{
 						return false;
 					}
+					if (!ParseScenarioLogActionId(Obj, TEXT("actionId"), Exp.LogActionId, OutError))
+					{
+						return false;
+					}
 					// Conteggio ATTESO, e `0` e' un valore legittimo — anzi e' quello che serve per asserire
 					// un'assenza. Assente del tutto = 1, cioe' «l'evento c'e'»: e' il caso piu' comune e scriverlo
 					// ogni volta sarebbe rumore.
@@ -1187,7 +1232,15 @@ namespace
 					{
 						return false;
 					}
+					if (!ParseScenarioLogActionId(Obj, TEXT("actionId"), Exp.LogActionId, OutError))
+					{
+						return false;
+					}
 					if (!ParseScenarioLogEvent(Obj, TEXT("thenCategory"), TEXT("thenOutcome"), Exp.ThenCategory, Exp.ThenOutcome, OutError))
+					{
+						return false;
+					}
+					if (!ParseScenarioLogActionId(Obj, TEXT("thenActionId"), Exp.ThenActionId, OutError))
 					{
 						return false;
 					}
@@ -1196,6 +1249,10 @@ namespace
 				{
 					Exp.Kind = ERTAssertionKind::LogEventAmount;
 					if (!ParseScenarioLogEvent(Obj, TEXT("category"), TEXT("outcome"), Exp.LogCategory, Exp.LogOutcome, OutError))
+					{
+						return false;
+					}
+					if (!ParseScenarioLogActionId(Obj, TEXT("actionId"), Exp.LogActionId, OutError))
 					{
 						return false;
 					}

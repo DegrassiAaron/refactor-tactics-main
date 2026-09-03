@@ -371,6 +371,38 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 		Draft.Set(MakeShowcaseTerrainCell(Patch.Cell, Patch.Surface));
 	}
 
+	// --- L'obiettivo -------------------------------------------------------------------------------------
+	// Il Relay e' una cella OBIETTIVO contendibile (CP 10.2, formato mappa v11).
+	//
+	// 🔴 **Questa riga e' il vero prerequisito del T8, e per tre settimane non l'ha nominata nessuno**
+	// (`#170`). Il T8 dello showcase dichiara `requires: ["PredictiveAction", "Objective"]` e la issue
+	// leggeva quel nome come «aspetta che `#75` chiuda». `#75` ha chiuso — la regola gira, e
+	// `URTTurnRules::ResolveObjectiveControl` conta le PRESENZE nel Cleanup, prima di `EvaluateMatchEnd`.
+	// Ma la regola non aveva **niente su cui girare**: misurato prima di scrivere, `bIsObjective = true`
+	// compariva in tutto `Source/` solo dentro `RTObjectiveTests.cpp` e nel commandlet che timbra un asset —
+	// **nessun costruttore di arena posava un obiettivo**, questo compreso. E su una mappa senza obiettivi
+	// il Cleanup TACE di proposito (`Objectives.SilentWithoutObjectiveCell`), quindi l'assenza non produceva
+	// nessun rosso da nessuna parte: il T8 sarebbe rimasto `Blocked` per una capability, e scoprendo la
+	// capability sarebbe diventato un turno che gira, non segna e **passa**.
+	//
+	// ⚠️ Non e' una scelta di design fatta qui: `docs/product/showcase-v0.1.md` §2.2 la dichiara dal primo
+	// giorno — *«| Relay | (0,0,0) | `Objective.Relay`, contendibile |»*. Questa riga riconcilia la fixture
+	// con la propria spec owner; il disallineamento era che la spec lo diceva e il codice no.
+	//
+	// ⚠️ **Cambia l'hash della mappa, ed e' voluto**: `bIsObjective` entra in `ComputeHash` perche' due
+	// mappe identiche in tutto tranne dove sta l'obiettivo **non si giocano allo stesso modo**. Un golden
+	// registrato prima di questa riga non e' confrontabile con uno registrato dopo, e la rigenerazione va
+	// dichiarata — che e' esattamente la disciplina che `rt.Test.RegenerateGolden` esiste per imporre.
+	//
+	// ⛔ Un `bool` e non un proprietario: l'obiettivo e' CONTENDIBILE e non appartiene a nessuno finche'
+	// qualcuno non lo occupa. Piu' obiettivi distinti sono CP 31.1, post-v0.1.
+	if (const FRTHexCellData* RelayObjective = Draft.Find(FRTCellId(0, 0, 0)))
+	{
+		FRTHexCellData Updated = *RelayObjective;
+		Updated.bIsObjective = true;
+		Draft.Set(Updated);
+	}
+
 	// --- Elementi di bordo --------------------------------------------------------------------------------
 	// Copertura bassa sull'approccio NORD al Relay: da quel lato ci si avvicina riparati, dagli altri no.
 	// La direzione si CHIEDE alla libreria invece di scriverla a mano: se la convenzione dei sei lati
