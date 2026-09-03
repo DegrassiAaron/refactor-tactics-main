@@ -2780,7 +2780,7 @@ sessions:
     artifacts: []
     unblocked_by: [U21]
     shares_setup_with: []
-    verifies: []
+    verifies: [PIE-SCEN-PLAYBACK]
     issues: [1625]
     done_when: >-
       guardando il campo scorrere si capisce **perche'** lo scenario finisce cosi'. Non «si vede
@@ -2819,9 +2819,14 @@ sessions:
       marcatori raccontano lo **stesso** istante? L'ultima e' la giuntura piu' fragile: conoscenza e
       marcatori si calcolano sulla stessa sorgente proprio perche' due istanti diversi insieme
       sarebbero il difetto che si vede solo a schermo.
-      ⚠️ **`verifies: []` e' voluto, come in `U24` e `U26`**: le voci `PIE-*` non esistono ancora e
-      non vanno create adesso. Le scrive chi esegue la seduta, quando sapra' che aspetto ha cio' che
-      ha guardato — il registro PIE e' una lista di cose *verificabili*, non di cose desiderate.
+      ⚠️ **`verifies: []` era voluto quando questa seduta e' nata**, come in `U24` e `U26`: la voce
+      `PIE-*` non esisteva e non andava creata allora — il registro PIE e' una lista di cose
+      *verificabili*, non di cose desiderate.
+      ➕ **Superato il 2026-09-04, e la condizione e' cambiata per una ragione misurata**: il flusso e'
+      stato attraversato per intero pilotando il pannello via MCP — scenario selezionato, «Esegui»
+      premuto, playback aperto, `>` `>|` `<` e `Reset` che rispondono. Ora si sa che aspetto ha cio'
+      che si guarda, quindi la voce e' verificabile invece che desiderata: e' `PIE-SCEN-PLAYBACK`.
+      Cio' che resta a chi esegue la seduta non e' scrivere la voce, ma dare il **giudizio**.
       ⚠️ **`unblocked_by: [U21]`** per la ragione pratica di `U22` e `U26`: su una scena non illuminata
       il verdetto direbbe piu' sulle luci che sul playback.
       ⚠️ ID assegnato dopo aver misurato il massimo su `main` **e su tutti i branch remoti**: `U43`,
