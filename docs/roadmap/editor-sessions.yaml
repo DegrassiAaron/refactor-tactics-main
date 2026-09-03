@@ -2736,8 +2736,14 @@ sessions:
       successo niente.
       ⛔ **Cosa NON va ricontrollato qui, perche' e' gia' misurato**: che le unita' finiscano nella
       cella e nel facing che la traccia dichiara (`RefactorTactics.Replay.State.*`), che gli id siano
-      tradotti con la corrispondenza vera e non per indice (`Scenario.Playback.*`, con mutazione), e
-      che senza una corsa non si apra (`DevSandboxLauncher.PlaybackRefusesWithoutARun`). Chi esegue
+      tradotti con la corrispondenza vera e non per indice (`Scenario.Playback.*`, con mutazione),
+      che senza una corsa non si apra (`DevSandboxLauncher.PlaybackRefusesWithoutARun`), e che i
+      controlli di trasporto rispettino i bordi, che `RESET` torni davvero indietro e che `Instant` e
+      `1x` finiscano nello stesso punto
+      (`DevSandboxLauncher.PlaybackTransportDelegatesAndDoesNotRerun`, 2026-09-03, con mutazione).
+      ➕ **Dal 2026-09-03 l'allestimento e' interamente cliccabile**: il pannello ha il pulsante
+      «Esegui» piu' la riga di trasporto e le sei velocita'. Prima di allora `Run` viveva solo negli
+      automation test, e questa seduta non avrebbe avuto un modo di cominciare. Chi esegue
       questa seduta guarda **la sequenza**, non i valori.
       🔑 **Le domande di giudizio**, che sono il contenuto vero della seduta: si distingue chi si e'
       mosso da chi e' rimasto fermo? Un'unita' abbattuta **sparisce** in un momento leggibile, o
