@@ -270,9 +270,10 @@ Il costo è dichiarato in D-199 — nominarlo, come faceva il commento del 2026-
 ⚠️ **`UsedByBlast` e `UsedByOverwatch` non hanno produttori in gioco**: `ReadFacingForConsumer` è chiamata
 solo da due test. Le due letture che questa sezione motiva sopra sono dichiarate e non emesse.
 
-**`HitCameFromSide` ha TRE produttori, e una sola sede** ([`#2128`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2128), 2026-09-03).
+**`HitCameFromSide` ha QUATTRO produttori, e una sola sede** ([`#2128`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2128), 2026-09-03).
 
-I colpi del piano di Blast, i **contrattacchi** e il fuoco di **Overwatch** emettono tutti la voce; l'unico
+I colpi del piano di Blast, i **contrattacchi**, il fuoco di **Overwatch** e il colpo al boundary della
+**Predictive Action** emettono tutti la voce; l'unico
 costruttore è `URTFacingLibrary::MakeHitCameFromSideEntry`, che restituisce `false` — e nessuna voce — quando
 origine e difensore coincidono in pianta. Il perimetro e le tre regole d'origine hanno il proprio owner in
 [ADR-0005 §4-quater](../../decisions/adr-0005-orientamento.md); qui interessa il **formato**: `Amount` porta un
