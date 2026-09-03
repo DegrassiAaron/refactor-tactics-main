@@ -56,6 +56,16 @@ test('una riga che racconta la rimozione e storica, una che prescrive no', () =>
   assert.equal(isHistorical('`RT-FEAT-UI-ICON` in `docs/roadmap/feature-registry.yaml`. Lo stato vive li'), false);
 });
 
+test('anche D-178 rende storica una riga, come D-181 e D-182', () => {
+  // La forma corta — la decisione senza il verbo che la descrive — e' quella che il gate non
+  // riconosceva: 4 righe di issue aperte la usano e la loro sola copertura era il blockquote.
+  // Fuori da un blockquote la stessa frase diventerebbe un falso positivo.
+  assert.equal(isHistorical('- `scripts/rt_shared_id.py` → **D-178** — lo sviluppo torna sequenziale'), true);
+  assert.equal(isHistorical('`docs/roadmap/parallel-batch.yaml` non e nel writable di nessuna track (D-178)'), true);
+  // D-179 e D-177 non sono decisioni di rimozione: il confine dell'elenco resta stretto
+  assert.equal(isHistorical('- [ ] `docs/roadmap/parallel-batch.yaml` allineato a **D-179**'), false);
+});
+
 test('CANCELLATO si segnala, MAI ESISTITO no: e la distinzione che rende il gate usabile', () => {
   const vivi = new Set(['docs/roadmap/roadmap-v0.1.md']);
   const cancellati = new Set(['scripts/feature_registry.py']);
