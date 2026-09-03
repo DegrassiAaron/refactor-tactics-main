@@ -6,6 +6,8 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 
+#include "Unit/RTUnitAnimInstance.h"
+
 #if WITH_DEV_AUTOMATION_TESTS
 
 /**
@@ -494,6 +496,237 @@ bool FRTEditorNamespaceScanDetectsAViolationTest::RunTest(const FString&)
 	IFileManager::Get().Delete(*FileDentro, false, true);
 	IFileManager::Get().Delete(*FileFuori, false, true);
 	IFileManager::Get().DeleteDirectory(*Radice, false, true);
+	return true;
+}
+
+
+/**
+ * **Le clip di animazione richieste dal vertical slice sono raggiungibili dal cook** (#1663, `D-262`).
+ *
+ * 🔴 **Cosa questo test presidia, nella forma che `D-262` ordina.** Quella voce dichiara che una build
+ * che si avvia ma ripiega sulla posa di riferimento **non e' Done**, e che *«la validazione del packaged
+ * FALLISCE quando una dipendenza di animazione richiesta manca»*. Questo e' quel gate.
+ *
+ * 🔑 **Il set NON e' scritto qui, e non e' scritto a mano da nessuna parte: si deriva dal CDO di
+ * `URTUnitAnimInstance`.** E' la forma che lo spec panel del 2026-08-30 raccomandava — *«ogni
+ * `TSoftObjectPtr` dichiarato da `URTUnitAnimInstance` risolve nel container: l'insieme si ricava dal
+ * codice, e cresce da solo»* — ed e' l'unica che regge il vincolo che `D-262` si porta dietro: i dodici
+ * montaggi `AM_<Pack>_{Attack,Hit,Death}` di #288 portano il perimetro da **8** a **20**, e una lista
+ * scritta oggi andrebbe rifatta domani. Qui non c'e' niente da rifare: si aggiunge la clip al roster, e
+ * questo test la pretende dal giorno dopo.
+ *
+ * ⚠️ **Perche' si guarda un riferimento DURO e non il `.utoc`.** Il cook segue le dipendenze: un asset
+ * versionato sotto `/Game/RT` e' cotto per la riga `+DirectoriesToAlwaysCook=(Path="/Game/RT")`, e
+ * trascina con se' cio' che referenzia duro. E' **gia' il meccanismo** con cui le mesh Paragon entrano
+ * nel pacchetto mentre le clip no, ed e' misurato il 2026-09-03 sui quattro `.uasset`: i `BP_Unit_*`
+ * nominano **una mesh ciascuno** e **zero** animazioni.
+ *
+ * ⛔ **E le due vie che sembravano possibili non lo sono, verificato sulla documentazione del motore e
+ * non dedotto.** `DirectoriesToAlwaysCook` accetta **directory, mai singoli asset** — quindi un «set
+ * minimo esplicito» non e' esprimibile li'; e l'Asset Manager governa i **Primary Asset**, mentre una
+ * `UAnimSequence` e' un asset secondario, che non e' gestito direttamente e entra nel cook **solo se
+ * referenziato**. ∴ il riferimento duro non e' una preferenza di stile: e' l'unica via che nomina otto
+ * asset invece di una cartella.
+ *
+ * 🔴 **Cosa questo test NON prova**, ed e' la stessa riserva che i tre test qui sopra dichiarano: non
+ * legge un `.utoc`. Prova che la clip e' **raggiungibile** dal cook, non che quel cook sia stato
+ * eseguito — l'oracolo di quel fatto e' un pacchetto vero, `UnrealPak -List | findstr Animations`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRequiredAnimationClipsAreCookedTest,
+	"RefactorTactics.Packaging.RequiredAnimationClipsAreCooked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
+{
+	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
+	if (!TestNotNull(TEXT("CDO del grafo di animazione"), Cdo))
+	{
+		return false;
+	}
+
+	// Il set RICHIESTO, derivato dal roster e non trascritto. Due clip per eroe oggi; il giorno che una
+	// terza entra in `ClipsPerHero`, entra anche qui senza che nessuno tocchi questo file.
+	TArray<FString> Richieste;
+	for (const TPair<FName, FRTLocomotionClips>& Voce : Cdo->ClipsPerHero)
+	{
+		const TSoftObjectPtr<UAnimSequenceBase>* Due[] = { &Voce.Value.Idle, &Voce.Value.Run };
+		for (const TSoftObjectPtr<UAnimSequenceBase>* Clip : Due)
+		{
+			const FSoftObjectPath Path = Clip->ToSoftObjectPath();
+			if (Path.IsNull())
+			{
+				continue;
+			}
+			// Il PACKAGE path, non l'object path: `/.../Idle.Idle` non compare nella tabella di import di
+			// chi lo referenzia — la chiave e' `/.../Idle`, la stessa lezione di `RTPackagePathOf`.
+			Richieste.AddUnique(Path.GetLongPackageName());
+		}
+	}
+
+	// Primo controllo anti-vacuita': un set vuoto renderebbe verde il ciclo qui sotto senza guardare
+	// niente. Sono otto oggi, e l'asserzione e' «almeno una» per non impuntarsi su un numero che #288
+	// fara' crescere.
+	if (!TestTrue(TEXT("il roster dichiara almeno una clip richiesta"), Richieste.Num() > 0))
+	{
+		return false;
+	}
+
+	const FString ContentDir = FPaths::ProjectContentDir();
+	const TArray<FString> Versionati = RTPackageFilesUnder(FPaths::Combine(ContentDir, TEXT("RT")));
+
+	// Secondo controllo anti-vacuita': se non si leggesse nessun package, ogni clip risulterebbe scoperta
+	// e il rosso non direbbe niente sul cook.
+	if (!TestTrue(TEXT("ci sono package versionati sotto Content/RT da esaminare"), Versionati.Num() > 0))
+	{
+		return false;
+	}
+
+	// I byte, letti una volta sola: il ciclo sotto e' Clip x Package, e rileggere i file per ogni clip
+	// moltiplicherebbe l'I/O per il numero di clip senza cambiare l'esito.
+	TArray<TArray<uint8>> Byte;
+	Byte.Reserve(Versionati.Num());
+	for (const FString& File : Versionati)
+	{
+		TArray<uint8> Bytes;
+		FFileHelper::LoadFileToArray(Bytes, *File);
+		Byte.Add(MoveTemp(Bytes));
+	}
+
+	auto QualcunoReferenzia = [&Byte](const FString& PackagePath) -> bool
+	{
+		for (const TArray<uint8>& Bytes : Byte)
+		{
+			if (RTBytesMentionPath(Bytes, PackagePath))
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+
+	// 🔑 **Terzo controllo, e il piu' importante: il metodo sa trovare un riferimento VERO.**
+	// Le mesh Paragon sono la famiglia SORELLA delle clip — stesso pack, stesso eroe, cartella accanto —
+	// e sono referenziate duro dai `BP_Unit_*`: misurato il 2026-09-03, una mesh ciascuno e `Animations`
+	// a zero. ⛔ Se la scansione non trovasse **nemmeno queste**, il rosso sulle clip significherebbe
+	// «l'oracolo non sa guardare» invece di «la clip non e' raggiungibile» — la stessa confusione che il
+	// registro PIE avverte per gli zeri di packaging.
+	const FString MeshDiControllo =
+		TEXT("/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget");
+	if (!TestTrue(
+			TEXT("controllo positivo: la mesh Paragon di Gadget e' referenziata da un asset versionato — ")
+			TEXT("se questo fallisce, il metodo di ricerca non sa guardare e il resto dell'esito non vale"),
+			QualcunoReferenzia(MeshDiControllo)))
+	{
+		return false;
+	}
+
+	// L'asserzione per cui questo test esiste.
+	TArray<FString> Scoperte;
+	for (const FString& Richiesta : Richieste)
+	{
+		if (!QualcunoReferenzia(Richiesta))
+		{
+			Scoperte.Add(Richiesta);
+		}
+	}
+
+	for (const FString& Scoperta : Scoperte)
+	{
+		AddError(FString::Printf(
+			TEXT("%s e' richiesta dal roster e nessun asset versionato sotto Content/RT la referenzia: ")
+			TEXT("il cook non ha nessuna dipendenza da seguire, e nel pacchetto l'unita' resta in posa ")
+			TEXT("di riferimento (D-262)"), *Scoperta));
+	}
+
+	TestEqual(
+		FString::Printf(TEXT("clip richieste senza un riferimento che le porti nel cook (su %d)"),
+			Richieste.Num()),
+		Scoperte.Num(), 0);
+
+	return true;
+}
+
+/**
+ * 🔑 **Che l'oracolo qui sopra sappia diventare rosso, e sappia diventare verde.**
+ *
+ * Un test che elenca «le clip scoperte» ha due modi di essere inutile, ed sono opposti: una ricerca che
+ * non trova mai niente le dichiara tutte scoperte, una che trova sempre qualcosa non ne dichiara mai
+ * nessuna. Qui si fabbricano **entrambi** i casi su file veri e si verifica che li distingua.
+ *
+ * ⛔ Le fixture vivono sotto `Saved/` e non sotto `Content/`, per la ragione che il test gemello
+ * dichiara: un `.uasset` di prova dentro `Content/` rischia di finire versionato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimationClipScanDetectsAnUncoveredClipTest,
+	"RefactorTactics.Packaging.AnimationClipScanDetectsAnUncoveredClip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimationClipScanDetectsAnUncoveredClipTest::RunTest(const FString&)
+{
+	const FString Coperta =
+		TEXT("/Game/FabAsset/Paragon/ParagonFinto/Characters/Heroes/Finto/Animations/Idle");
+	const FString Scoperta =
+		TEXT("/Game/FabAsset/Paragon/ParagonFinto/Characters/Heroes/Finto/Animations/Run_Fwd");
+
+	// Un finto package versionato che referenzia la PRIMA e non la seconda: e' la situazione reale, dove
+	// un eroe ha l'idle agganciato e la corsa no.
+	TArray<uint8> Referente;
+	Referente.Add(0x00);
+	const FTCHARToUTF8 Ansi(*Coperta);
+	Referente.Append(reinterpret_cast<const uint8*>(Ansi.Get()), Ansi.Length());
+	Referente.Add(0x00);
+
+	TestTrue(TEXT("la clip referenziata viene trovata"), RTBytesMentionPath(Referente, Coperta));
+	TestFalse(TEXT("la clip NON referenziata non viene trovata"), RTBytesMentionPath(Referente, Scoperta));
+
+	// ⚠️ E in UTF-16LE, che e' la meta' che una ricerca scritta in fretta non vede: uno zero falso qui
+	// direbbe «nessuna clip scoperta» su un progetto in cui nessuna e' agganciata.
+	TArray<uint8> ReferenteWide;
+	ReferenteWide.Add(0x00);
+	for (const TCHAR C : Coperta)
+	{
+		const uint16 U = static_cast<uint16>(C);
+		ReferenteWide.Add(static_cast<uint8>(U & 0xFF));
+		ReferenteWide.Add(static_cast<uint8>((U >> 8) & 0xFF));
+	}
+	TestTrue(TEXT("la clip referenziata viene trovata anche in UTF-16LE"),
+		RTBytesMentionPath(ReferenteWide, Coperta));
+
+	// ⛔ E il package path non e' l'object path: cercare `/.../Idle.Idle` non trova niente, ed e' l'errore
+	// che renderebbe il gate principale rosso su un progetto sano.
+	TestFalse(TEXT("l'object path NON e' la chiave da cercare"),
+		RTBytesMentionPath(Referente, Coperta + TEXT(".Idle")));
+
+	// La prova su file veri: la scansione deve leggere cio' che si e' scritto.
+	const FString Radice = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RTTests"), TEXT("Anim1663"));
+	const FString Finto = FPaths::Combine(Radice, TEXT("RT"), TEXT("Fixture"), TEXT("BP_Finto.uasset"));
+	IFileManager::Get().Delete(*Finto, false, true);
+
+	if (!TestTrue(TEXT("la fixture si scrive sotto Saved/"),
+			FFileHelper::SaveArrayToFile(Referente, *Finto)))
+	{
+		return false;
+	}
+
+	const TArray<FString> Trovati = RTPackageFilesUnder(Radice);
+	TestEqual(TEXT("la scansione trova il finto package"), Trovati.Num(), 1);
+
+	int32 Coperte = 0;
+	int32 Mancanti = 0;
+	for (const FString& File : Trovati)
+	{
+		TArray<uint8> Bytes;
+		if (!FFileHelper::LoadFileToArray(Bytes, *File))
+		{
+			continue;
+		}
+		Coperte += RTBytesMentionPath(Bytes, Coperta) ? 1 : 0;
+		Mancanti += RTBytesMentionPath(Bytes, Scoperta) ? 0 : 1;
+	}
+
+	// Le due asserzioni per cui questo test esiste: **una** coperta e **una** scoperta, non zero e non due.
+	TestEqual(TEXT("la scansione riconosce la clip coperta"), Coperte, 1);
+	TestEqual(TEXT("la scansione riconosce la clip scoperta"), Mancanti, 1);
+
+	IFileManager::Get().Delete(*Finto, false, true);
+	IFileManager::Get().DeleteDirectory(*Radice, true, true);
 	return true;
 }
 

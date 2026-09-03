@@ -142,6 +142,23 @@ public:
 	static constexpr int32 GuardResistedPushDistance = 1;
 
 	/**
+	 * Le due PROVENIENZE dei pool d'assorbimento, nel vocabolario di `FRTDamageStageEntry::SourceId`
+	 * (`#2213`). Stanno qui e non come letterali ai chiamanti per la stessa ragione degli altri valori di
+	 * questa lista: un letterale ripetuto e' un refuso che compila.
+	 *
+	 * ⛔ **`ReactionReductionPoolSource` NON nomina un `ActionId`, ed e' deliberato.** Il pool si costruisce
+	 * da `FRTReactionPassResult::DeflectDelta`, che il dispatcher riempie per QUALUNQUE reazione dichiari
+	 * `ERTActionEffect::DamageReduction` — *«Qui non si guarda mai l'`ActionId`: e' cio' che permette a una
+	 * reazione d'eroe di riusare la semantica di `Action.Deflect` con numeri propri»* (`RTTurnManager.cpp`).
+	 * Etichettarlo `Action.Deflect` attribuirebbe a `Hero.Wraith.Deflection` un'azione che l'unita' non ha
+	 * usato: lo stesso difetto che `#2213` corregge, un livello piu' sotto. Trovato da una code review.
+	 *
+	 * ⚠️ La Guardia invece un tag ce l'ha, ed e' esatto: il suo pool e' gated su `TAG_Status_Guarded`.
+	 */
+	static const FName GuardPoolSource;
+	static const FName ReactionReductionPoolSource;
+
+	/**
 	 * `Status.Marked` (`Action.MarkTarget`, catalogo v0.1 §3): +6 al PROSSIMO attacco alleato contro il
 	 * bersaglio, che consuma il marchio.
 	 *
