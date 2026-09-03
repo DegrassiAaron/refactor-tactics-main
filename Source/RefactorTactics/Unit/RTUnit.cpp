@@ -14,6 +14,8 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/ArrowComponent.h"
+#include "Animation/AnimSequenceBase.h"
+#include "Animation/AnimSingleNodeInstance.h"
 #include "Unit/RTUnitAnimInstance.h"
 #include "Perception/RTTeamKnowledge.h" // ContactLifetimeTurns: la durata del ricordo ha un owner, non si ricopia
 
@@ -374,6 +376,75 @@ void ARTUnit::RefreshComponentVisibility()
 	SetActorEnableCollision(bRender);
 }
 
+
+/**
+ * La clip che la **sagoma dell'ultimo contatto** usa come posa di ripiego (#1750): l'idle dell'eroe.
+ *
+ * 🔑 **Si legge dal CDO di `UnitAnimClass`, non da una seconda lista.** Le clip vivono in
+ * `URTUnitAnimInstance::ClipsPerHero` e i loro nomi **non si deducono** — la guida §AS.3b ha misurato che
+ * sei caselle su venti non si chiamano come ci si aspetta, e su Wraith l'idle e' `Idle_NonCombat`.
+ * Duplicare qui quei nomi creerebbe una seconda fonte che invecchia da sola.
+ *
+ * ⚠️ **Un eroe senza clip non e' un errore**: `FindClipsFor` restituisce `nullptr`, e la sagoma resta in
+ * posa di riferimento come faceva prima. E' il comportamento di `#287` — *«se una clip manca, l'unita' resta
+ * in posa di riferimento e la partita si gioca uguale»* — quindi il ripiego non introduce un modo nuovo di
+ * fallire, ne toglie uno.
+ *
+ * ⚠️ `LoadSynchronous` e non un caricamento asincrono: la clip e' la stessa che la skeletal viva usa e in
+ * pratica e' gia' in memoria. La sagoma si mostra su un cambio di conoscenza, non a ogni frame.
+ */
+/**
+ * La clip di ripiego della sagoma, come **funzione pura** delle clip e dell'eroe (#1750).
+ *
+ * 🔴 **Statica e non un ramo dentro il metodo d'istanza, e la ragione e' una verifica di mutazione fallita.**
+ * La prima stesura del test leggeva `ClipsPerHero` dal CDO e confrontava `Idle` con `Run`: verde, e
+ * **vacuo rispetto al fix** — scambiando `Idle` con `Run` qui dentro il test restava verde, perche' non
+ * passava da qui. Verificava una proprieta' del CATALOGO, non il comportamento del ripiego.
+ * ∴ la scelta vive in una funzione che il test puo' **chiamare**, e mutarla la fa cadere.
+ *
+ * ⛔ `Idle` e NON `Run`: la sagoma e' un ricordo, e un ricordo che corre sul posto e' peggio di una
+ * T-pose. Tre eroi su quattro condividono il nome `Idle`, quindi uno scambio fra i due campi passerebbe
+ * qualunque controllo scritto sul solo NOME della clip — va confrontato il campo con l'altro campo.
+ *
+ * ✅ **Validato per mutazione, e la PRIMA mutazione e' quella che ha insegnato qualcosa.** Scambiato
+ * `Idle` con `Run` nella versione precedente — dove la scelta viveva dentro il metodo d'istanza — la suite
+ * restava **verde**: `29/29, 0 fallimenti`. Il test non passava da quel codice. Estratta questa statica e
+ * fatta chiamare dal test, la stessa mutazione da' `29/29, 1 fallimenti` con il messaggio giusto su ogni
+ * eroe. ⚠️ Un test verde su un fix corretto non dice che li stia guardando.
+ */
+TSoftObjectPtr<UAnimSequenceBase> ARTUnit::GhostFallbackClipFor(
+	const URTUnitAnimInstance* Clips, const FName& HeroId)
+{
+	if (Clips == nullptr)
+	{
+		return nullptr;
+	}
+	const FRTLocomotionClips* Trovate = Clips->FindClipsFor(HeroId);
+	return Trovate ? Trovate->Idle : TSoftObjectPtr<UAnimSequenceBase>(nullptr);
+}
+
+TSoftObjectPtr<UAnimSequenceBase> ARTUnit::GhostFallbackClipPath() const
+{
+	// 🔑 **Risolve SENZA caricare, ed e' la ragione per cui questa funzione esiste separata dal suo uso.**
+	// I pack Paragon vivono in `Content/FabAsset/`, che **non e' versionato**: su un checkout che non li ha —
+	// e questo e' il caso di ogni clone appena creato — `LoadSynchronous` restituisce `nullptr` e un test che
+	// lo chiamasse non potrebbe distinguere «la clip giusta non si carica» da «punto alla clip sbagliata».
+	// Sul `TSoftObjectPtr` il PATH c'e' comunque, ed e' cio' che si puo' asserire headless: e' lo stesso
+	// motivo per cui `Unit.LocomotionClipsMatchThePacks` confronta `ToSoftObjectPath()` e non l'asset.
+	if (UnitAnimClass == nullptr)
+	{
+		return nullptr;
+	}
+
+	const URTUnitAnimInstance* Defaults = Cast<URTUnitAnimInstance>(UnitAnimClass->GetDefaultObject());
+	if (Defaults == nullptr)
+	{
+		return nullptr;
+	}
+
+	return GhostFallbackClipFor(Defaults, HeroId);
+}
+
 USkeletalMeshComponent* ARTUnit::FindHeroSkeletal() const
 {
 	TArray<USkeletalMeshComponent*> Skeletals;
@@ -450,6 +521,45 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 	{
 		ContactGhost->SetSkeletalMesh(HeroSkeletal->GetSkeletalMeshAsset());
 	}
+
+	// 🔴 **La posa di RIPIEGO (#1750).** Un `USkeletalMeshComponent` con una mesh e senza `AnimInstance`
+	// disegna la **posa di riferimento** dello skeleton — la T-pose — e su Riktor quella posa stende le
+	// catene attraverso lo schermo. E' il difetto che questa riga chiude, confermato a schermo il 2026-09-03.
+	//
+	// ⚠️ **Il commento sei righe piu' su promette la POSA e il codice copiava solo la MESH.** Diceva «la
+	// mesh/posa arrivano dalla skeletal VIVA»: la mesh si', la posa no — e nessuno se ne era accorto perche'
+	// una T-pose somiglia a un personaggio, non a un errore.
+	//
+	// 🔑 **Perche' una clip congelata e non uno snapshot della posa viva.** Il referto di spec-panel §4
+	// (`sagoma-ultimo-contatto-posa-spec-panel-2026-08-30.md`) prescrive l'ordine e la ragione:
+	// *«prima il ripiego, che da solo toglie le catene dallo schermo e non introduce leak; poi lo snapshot,
+	// che lo sostituisce quando esiste»*. E il ripiego **non e' un'alternativa allo snapshot: ne e' il
+	// ripiego obbligatorio**, perche' un contatto puo' nascere da RUMORE (`CP 13.4`) — un'unita' sentita e
+	// mai vista non ha nessuna posa da ricordare, e qualcosa deve pur disegnare.
+	//
+	// ⛔ **Non si anima dal vivo, ed e' il vincolo che separa un ricordo da una vista.** `Stop()` dopo
+	// `SetPosition` valuta la clip una volta e non avanza mai: la sagoma resta ferma sul primo frame
+	// dell'idle. Una posa che avanzasse mentre l'unita' e' nascosta sarebbe il **terzo leak** in una issue
+	// che ne conta due nel titolo.
+	// ⛔ E `FindHeroSkeletal` continua a escludere `ContactGhost` per identita': la sagoma non e' la
+	// skeletal viva, e non deve diventarlo.
+	//
+	// ⚠️ **`AnimationSingleNode` invece della classe dedicata che il referto proponeva.** §3 raccomandava
+	// *«una classe dedicata — che applica una posa e non avanza»*, e per lo SNAPSHOT servira': applicare un
+	// `FPoseSnapshot` richiede un `AnimInstance` che lo consumi. Per il ripiego il motore ha gia' quel
+	// meccanismo, e una classe nostra sarebbe codice da mantenere per riscrivere `FAnimSingleNodeInstance`.
+	UAnimSequenceBase* const IdleClip = GhostFallbackClipPath().LoadSynchronous();
+	if (IdleClip != nullptr)
+	{
+		if (ContactGhost->AnimationData.AnimToPlay != IdleClip)
+		{
+			ContactGhost->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+			ContactGhost->SetAnimation(IdleClip);
+			ContactGhost->SetPosition(0.f, /*bFireNotifies=*/ false);
+			ContactGhost->Stop();
+		}
+	}
+
 
 	// Materiale OPZIONALE (Task 6): se `M_LastContactGhost` non risolve — non ancora creato, o rimosso — la
 	// sagoma resta visibile col materiale di DEFAULT della mesh: una sagoma non colorata, mai un crash.

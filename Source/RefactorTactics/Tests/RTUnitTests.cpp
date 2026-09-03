@@ -588,4 +588,92 @@ bool FRTUnitBaseShieldSurvivesTemporaryExpiryTest::RunTest(const FString&)
 	return true;
 }
 
+
+
+/**
+ * **La sagoma dell'ultimo contatto punta all'IDLE dell'eroe, non alla corsa e non al nulla** (#1750).
+ *
+ * 🔴 Il difetto che chiude: un `USkeletalMeshComponent` con una mesh e senza `AnimInstance` disegna la
+ * **posa di riferimento** dello skeleton — la T-pose — e su Riktor quella posa stende le catene attraverso
+ * lo schermo. Osservato a schermo il 2026-09-03, dopo che le altre due cause dello stesso sintomo erano
+ * state chiuse (#1719 la scala, #1784 le ossa a LOD basso): è l'unica delle tre rimasta.
+ *
+ * ⚠️ **Questo test asserisce il PATH, non l'asset, e non è pigrizia.** I pack Paragon vivono in
+ * `Content/FabAsset/`, che **non è versionato**: su un clone appena creato non ci sono, e
+ * `LoadSynchronous` restituisce `nullptr`. Un test che caricasse non potrebbe distinguere *«la clip giusta
+ * non si carica»* da *«punto alla clip sbagliata»* — sarebbe rosso per l'ambiente e non per il codice.
+ * È la stessa scelta di `Unit.LocomotionClipsMatchThePacks`, che confronta `ToSoftObjectPath()`.
+ *
+ * 🔴 **E il criterio che il referto di spec-panel proponeva NON è eseguibile qui, misurato.**
+ * `sagoma-ultimo-contatto-posa-spec-panel-2026-08-30.md` §3 lo dà per headless:
+ *
+ * > *«dato un `ARTUnit` con skeletal e posa avanzata di N frame, quando la visibilità passa a `false` e la
+ * > sagoma si mostra, allora almeno un osso della sagoma differisce dalla posa di riferimento»*
+ *
+ * Due cose lo impediscono, entrambe verificate: **la skeletal la aggiunge il Blueprint e non il C++** —
+ * `FindHeroSkeletal` cerca fra i componenti, e un `ARTUnit` spawnato da codice non ne ha nessuna — e le
+ * **clip non esistono** su un checkout senza i pack. Confrontare le ossa richiederebbe di caricare
+ * `BP_Unit_Riktor` **e** i suoi 44 GB di dipendenze: sarebbe un test verde solo sulle macchine che li hanno,
+ * cioè un test che dichiara l'ambiente e non il codice.
+ * ∴ quel criterio resta la **verifica PIE**, dove è già registrato, e questo test copre ciò che si può
+ * asserire senza schermo: che il ripiego sappia **quale** clip usare, per ciascuno dei quattro eroi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitGhostFallbackClipTest,
+	"RefactorTactics.Unit.ContactGhostFallbackPointsAtTheIdleClip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitGhostFallbackClipTest::RunTest(const FString&)
+{
+	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
+	if (!TestNotNull(TEXT("CDO dell'AnimInstance"), Cdo)) { return false; }
+
+	// ⛔ **Anti-vacuità, e qui morde davvero**: se il CDO non portasse clip, ogni asserzione sotto
+	// confronterebbe due stringhe vuote e passerebbe. Il difetto sarebbe «il ripiego non punta a niente»,
+	// cioè esattamente quello che il test deve trovare.
+	if (!TestTrue(TEXT("il CDO porta le clip dei quattro eroi"), Cdo->ClipsPerHero.Num() >= 4))
+	{
+		return false;
+	}
+
+	const FName Eroi[] = {
+		FName(TEXT("Hero.Gadget")), FName(TEXT("Hero.Phase")),
+		FName(TEXT("Hero.Riktor")), FName(TEXT("Hero.Wraith")),
+	};
+
+	for (const FName& Eroe : Eroi)
+	{
+		const FRTLocomotionClips* Clips = Cdo->FindClipsFor(Eroe);
+		if (!TestNotNull(*FString::Printf(TEXT("clip di %s"), *Eroe.ToString()), (const void*)Clips))
+		{
+			continue;
+		}
+
+		// 🔑 **Si CHIAMA la funzione del ripiego, non si rilegge il CDO.** La prima stesura di questo
+		// test confrontava `Clips->Idle` con `Clips->Run` letti qui: verde, e **vacuo rispetto al fix** —
+		// scambiare i due campi dentro `GhostFallbackClipFor` lo lasciava verde, perche' non ci passava.
+		// L'ha trovata una verifica di mutazione, non una rilettura del codice.
+		const FString Idle = ARTUnit::GhostFallbackClipFor(Cdo, Eroe).ToSoftObjectPath().ToString();
+		const FString Run = Clips->Run.ToSoftObjectPath().ToString();
+
+		// (1) Il ripiego ha un bersaglio. Un path vuoto lascerebbe la T-pose, che è il difetto di partenza.
+		TestFalse(*FString::Printf(TEXT("%s: l'idle del ripiego non e' vuoto"), *Eroe.ToString()),
+			Idle.IsEmpty());
+
+		// (2) 🔑 **È l'IDLE, non la corsa**, e questa è l'asserzione per cui il test esiste. Una sagoma che
+		// corre sul posto è peggio di una T-pose: è un ricordo che si muove. Tre eroi su quattro condividono
+		// il nome `Idle`, quindi uno scambio fra i due campi passerebbe qualunque controllo scritto sul nome
+		// — va confrontato il campo con l'altro campo.
+		TestNotEqual(*FString::Printf(TEXT("%s: il ripiego non e' la clip di corsa"), *Eroe.ToString()),
+			Idle, Run);
+	}
+
+	// (3) Un eroe fuori catalogo non è un errore: `FindClipsFor` dà `nullptr` e la sagoma resta in posa di
+	// riferimento, che è il comportamento dichiarato da #287 — *«se una clip manca, l'unità resta in posa di
+	// riferimento e la partita si gioca uguale»*. Il ripiego non aggiunge un modo nuovo di fallire.
+	TestTrue(TEXT("un eroe fuori catalogo non ha clip di ripiego, e non e' un errore"),
+		ARTUnit::GhostFallbackClipFor(Cdo, FName(TEXT("Hero.NonEsiste"))).IsNull());
+	// ⛔ E senza clip del tutto: `nullptr` non deve crashare, deve dare un ripiego vuoto.
+	TestTrue(TEXT("senza AnimInstance il ripiego e' vuoto invece di crashare"),
+		ARTUnit::GhostFallbackClipFor(nullptr, FName(TEXT("Hero.Riktor"))).IsNull());
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS
