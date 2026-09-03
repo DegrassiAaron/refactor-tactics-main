@@ -717,6 +717,76 @@ bool FRTKnowledgeVolumesPartitionTest::RunTest(const FString&)
 }
 
 /**
+ * 🔴 **I volumi non sopravvivono alla board che descrivono** (`#2222`).
+ *
+ * Era l'unica delle otto famiglie di `ARTHexMapActor` che `RebuildInstances` non azzerava: le celle si
+ * rifacevano e i prismi restavano, sopra celle che nel frattempo erano diventate altre celle. In PIE si
+ * vedeva come geometria che si accumula a ogni scenario.
+ *
+ * 🔑 **Si asserisce anche il FLAG, e non e' un di piu'.** Il difetto peggiore non era il prisma di troppo:
+ * era `bKnowledgeDebug` rimasto `true` con il componente pieno di roba vecchia — stato interno e schermo
+ * che divergono **in silenzio**, sulla stessa superficie che ha gia' prodotto una diagnosi di velo rotto su
+ * un difetto inesistente. Un test che contasse solo le istanze lascerebbe passare proprio quella meta'.
+ *
+ * ➕ **Il controllo positivo e' obbligatorio**: senza `Prima > 0`, un difetto che non posasse alcun volume
+ * renderebbe questo test verde per la ragione opposta a quella che interessa.
+ *
+ * ⛔ **Cio' che NON afferma**: che i volumi si RICOSTRUISCANO. Non devono — l'actor non conserva la
+ * conoscenza da cui rifarli, e [D-242] vieta di dargliene una copia. Si rilancia `rt.Debug.Knowledge`, che
+ * e' gia' la sua semantica: una fotografia, da rifare dopo ogni refresh.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeVolumesDoNotSurviveARebuildTest,
+	"RefactorTactics.Veil.KnowledgeVolumesDoNotSurviveARebuild",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeVolumesDoNotSurviveARebuildTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = MakeVeiledBoard(World, /*Radius=*/ 2);
+	if (!TestNotNull(TEXT("board"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	const FRTCellId Osservata = HexMap->MapAsset->Cells[0].Id;
+	HexMap->SetKnowledgeDebugEnabled(true, KnowledgeOf({ Osservata }, { Osservata }));
+
+	int32 Hidden = 0;
+	int32 Remembered = 0;
+	int32 Lit = 0;
+	HexMap->GetKnowledgeDebugCounts(Hidden, Remembered, Lit);
+	const int32 Prima = Hidden + Remembered + Lit;
+
+	// ➕ CONTROLLO POSITIVO: c'e' davvero qualcosa da rimuovere, e il debug risulta acceso.
+	if (!TestTrue(TEXT("acceso, i volumi sono posati"), Prima > 0))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	TestTrue(TEXT("e il flag lo dichiara"), HexMap->IsKnowledgeDebugEnabled());
+
+	// La board si ricostruisce: e' cio' che accade a ogni scenario, a ogni `rt.Map.Fixture` e a ogni
+	// pennellata dell'editor.
+	HexMap->RebuildInstances();
+
+	HexMap->GetKnowledgeDebugCounts(Hidden, Remembered, Lit);
+	TestEqual(TEXT("dopo la ricostruzione non resta posato nessun volume"), Hidden + Remembered + Lit, 0);
+
+	// 🔑 La meta' che conta: lo stato non sopravvive a cio' che descriveva.
+	TestFalse(TEXT("e il flag non dice piu' acceso"), HexMap->IsKnowledgeDebugEnabled());
+
+	// Riaccenderlo funziona: la pulizia non ha rotto il percorso normale, l'ha solo reso ripetibile.
+	HexMap->SetKnowledgeDebugEnabled(true, KnowledgeOf({ Osservata }, { Osservata }));
+	HexMap->GetKnowledgeDebugCounts(Hidden, Remembered, Lit);
+	TestEqual(TEXT("riacceso, i volumi tornano tutti"), Hidden + Remembered + Lit, Prima);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
  * 🔴 **Il pivot del volume sta alla BASE, e non e' una rifinitura.**
  *
  * Con il pivot centrato — la convenzione di `GetCellPrismMesh` — un volume a `1/3` affonderebbe di `1/6 H`
