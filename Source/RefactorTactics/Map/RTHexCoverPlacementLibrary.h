@@ -262,11 +262,15 @@ struct FRTCoverOption
 /**
  * PASSARE DA UNA POSA ALL'ALTRA DENTRO LA STESSA CELLA.
  *
- * ⚠️ **Due valori, entrambi raggiungibili.** Il Decision Record prevede anche la traversata AUTORATA —
- * porta, apertura, vault, reposition autorizzato — ma in v0.1 nessun vocabolario la esprime: `FRTHexDoor`
- * sta sui BORDI, e non esiste un dato per «apertura dentro la cella». Un terzo valore che nessun produttore
- * puo' emettere sarebbe un campo che nessuno legge, ed e' il difetto che questo repository ha gia' pagato
- * quattro volte. Va aggiunto **in coda** insieme al suo produttore.
+ * ✅ **TRE valori, tutti raggiungibili — aggiornato il 2026-09-03.** Questa riga diceva *«Due valori»* e
+ * *«in v0.1 nessun vocabolario la esprime»*: era vero fino a `#1828`, che ha aggiunto `AuthoredTraversal`
+ * **insieme al suo produttore** `FRTHexInteriorWall::bTraversable` (formato v14), esattamente come la riga
+ * stessa prescriveva. Il commento e' sopravvissuto al fatto che descriveva.
+ *
+ * 🔑 **E la forma scelta chiude una regola di validazione invece di aprirla**: la regola 3 di `#1832` —
+ * *«una traversata autorata che collega due regioni attraversando geometria bloccante»* — e'
+ * **irrappresentabile** con due maschere, quindi non ha un validator e non deve averlo. Vedi
+ * `ClassifyIntraCellTraversalWithAuthored` e `URTHexMapAsset::ValidateMapDetailed`.
  */
 UENUM(BlueprintType)
 enum class ERTIntraCellTraversal : uint8
