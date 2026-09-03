@@ -1,6 +1,7 @@
 # Tactical Designer — il launcher dockato invece che fluttuante · spec panel
 
-> `CURRENT` · **Stato**: revisione aperta, nessun codice toccato · **Data**: 2026-09-03
+> `CURRENT` · **Stato**: revisione **chiusa e consumata** — le sue conclusioni sono in #2168, mergiate ·
+> **Data**: 2026-09-03
 > **Base di misura**: `9e67d4fd` (`origin/main` dopo `git fetch --prune`). ⚠️ Il checkout locale è a
 > `bd45cfb6`, **2 commit indietro**: `git diff --name-only bd45cfb6..origin/main` tocca **16** file, tutti
 > di `Turn/`, `Tests/` e `docs/decisions/` sul facing — **nessuno** dei file misurati qui. Le letture su
@@ -267,14 +268,29 @@ Il terzo esempio è il più importante dei tre: è l'unico che oggi nessuno si a
 
 ---
 
-## 11. Prossimo passo
+## 11. Esito
 
-`V1` è chiusa, quindi il requisito del §9 è completo e il lavoro è definito. Aprire la sub-issue sotto #1678
-con R-1, R-2, R-3 come DoD, i due test del §8, e il criterio nuovo di `U31`. ⚠️ Il numero si legge da `gh`
-dopo la creazione: non si assegna dalla memoria.
+Il lavoro è [#2168](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2168), sotto #1678.
+R-1, R-2 e R-3 sono il suo DoD; i test del §8 esistono; il criterio è in `U31`.
 
-## 12. NOT RUN
+➕ **E una cosa che questo referto NON aveva visto, trovata dalla code review della PR.** L'estensione di
+layout, da sola, non basta: la posizione vive nel layout del `LevelEditorTabManager`, che è un
+**sub-manager**, e `FGlobalTabmanager::Get()->TryInvokeTab` non sa scendere fin lì — `AttemptToOpenTab`
+cerca nelle proprie `DockAreas`, e il motore ha un ramo che sale dal sub-manager al globale
+(`TabManager.cpp:1778`) e **nessuno** che scenda. Invocando dal globale, il tab si sarebbe aperto in una
+finestra *anche con la posizione dichiarata*.
 
-Nessuna build. Nessuna suite. Nessun editor aperto. Nessuna scrittura su GitHub. Nessun file di codice
-toccato. `V2`, `V3`, `V4` **non eseguite**. Le letture del motore sono su `D:/EpicGames/UE_5.8/Engine/Source`,
-sorgente non compilato in questa sessione.
+⚠️ **Il §2 aveva misurato la riga 12** — `FindTabSpawnerFor` risale al `NomadTabSpawner` — e l'ha letta come
+prova che il global bastasse. Prova che un tab manager sa **costruire** un nomad, non che sappia **trovarne
+il posto**: due domande diverse sullo stesso oggetto. Il pattern del motore lo diceva già
+(`SOutputLog.cpp:2509-2515` prova il manager specifico e usa il globale come fallback), e questo referto non
+l'ha cercato.
+
+## 12. NOT RUN — al momento della revisione
+
+⚠️ Questa sezione descrive lo stato **il 2026-09-03 prima di #2168**, e si legge come storia: nessuna build,
+nessuna suite, nessun editor, nessun file di codice toccato *da questa revisione*. Ciò che #2168 ha poi
+eseguito sta nella sua PR.
+
+Di `V2`, `V3` e `V4`: `V4` è chiusa dai test, `V2` è decaduta (la guardia sui commandlet e l'iscrizione in
+`StartupModule` rendono la domanda irrilevante), **`V3` resta aperta** ed è la seduta `U31`.

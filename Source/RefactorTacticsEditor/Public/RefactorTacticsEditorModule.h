@@ -33,6 +33,16 @@ public:
 	 */
 	static void ExtendLevelEditorLayout(FLayoutExtender& Extender);
 
+	/**
+	 * L'iscrizione a `OnRegisterLayoutExtensions` e' in piedi?
+	 *
+	 * ⚠️ Esiste per la stessa ragione di `URTDevSandboxLauncherSubsystem::IsSubscribed()`: senza,
+	 * cancellare l'`AddStatic` in `StartupModule` lascerebbe **verdi** tutti i test del layout, che
+	 * misurano il contenuto dell'extender e non il fatto che qualcuno lo riceva. La feature morirebbe
+	 * in silenzio esattamente nel modo che il commento su quella riga dice di temere.
+	 */
+	bool IsLayoutExtensionRegistered() const { return LayoutExtensionHandle.IsValid(); }
+
 private:
 	/** L'iscrizione a `OnRegisterLayoutExtensions`, da disfare allo scarico del modulo. */
 	FDelegateHandle LayoutExtensionHandle;

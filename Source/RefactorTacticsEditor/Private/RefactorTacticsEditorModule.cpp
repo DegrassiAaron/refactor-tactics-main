@@ -1,5 +1,6 @@
 #include "RefactorTacticsEditorModule.h"
 
+#include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/LayoutExtender.h"
 #include "LevelEditor.h"
 #include "RTDevSandboxLauncherSubsystem.h"
@@ -7,7 +8,10 @@
 
 #define LOCTEXT_NAMESPACE "FRefactorTacticsEditorModule"
 
-DEFINE_LOG_CATEGORY_STATIC(LogRTEditorModule, Log, All);
+// ⚠️ Stessa categoria del subsystem, e non una nuova: il `done_when` di `U31` dice all'operatore di
+// cercare `LogRTDevSandboxLauncher`. Una diagnostica del launcher stampata sotto un'altra categoria
+// finirebbe fuori dal filtro di chi sta indagando proprio su un pannello che non compare.
+DEFINE_LOG_CATEGORY_STATIC(LogRTDevSandboxLauncher, Log, All);
 
 void FRefactorTacticsEditorModule::ExtendLevelEditorLayout(FLayoutExtender& Extender)
 {
@@ -32,16 +36,22 @@ void FRefactorTacticsEditorModule::StartupModule()
 	// Il mode si registra da solo via CDO (Info nel costruttore di URTHexEditorMode). Qui solo i comandi dei tool.
 	FRTHexEditorModeCommands::Register();
 
-	// ⚠️ `LoadModulePtr` e non `LoadModuleChecked`, e non e' pignoleria.
+	// ⛔ **Solo in editor interattivo**, e la guardia viene prima di tutto il resto.
 	//
-	// `LoadModule*` (invece di `GetModulePtr`) perche' l'ordine di caricamento non e' garantito: questo
-	// modulo e' `LoadingPhase: Default` e puo' partire PRIMA di `LevelEditor` — un `GetModulePtr` darebbe
-	// `nullptr` e la feature morirebbe in silenzio, visibile solo a chi apre l'editor.
+	// `LoadModulePtr` **carica** il modulo, non lo cerca soltanto: senza questa guardia ogni commandlet
+	// — `RTBuildIconCatalog`, `RTBuildGrayboxMeshes`, `RTBuildPlaygroundPanel` — pagherebbe
+	// `FLevelEditorModule::StartupModule` (comandi, tool menus, style) per una posizione di tab che
+	// nessuno guardera' mai. ⚠️ **La stesura precedente diceva il contrario di cio' che faceva**: motivava
+	// `Ptr` invece di `Checked` proprio con i commandlet, e intanto il modulo lo caricava lo stesso.
 	//
-	// `Ptr` (invece di `Checked`) perche' questo progetto gira commandlet — `RTBuildIconCatalog`,
-	// `RTBuildGrayboxMeshes`, `RTBuildPlaygroundPanel` — e un `check` su un modulo di UI trasformerebbe la
-	// posizione di un tab in un fallimento dei tool di generazione asset. Se il Level Editor non c'e',
-	// non c'e' nemmeno un layout da estendere: la riga di log resta, il tool prosegue.
+	// Resta `LoadModulePtr` e non `GetModulePtr` per l'altra meta' del problema: l'ordine di caricamento
+	// non e' garantito, questo modulo e' `LoadingPhase: Default` e puo' partire PRIMA di `LevelEditor`.
+	// Un `GetModulePtr` darebbe `nullptr` e la feature morirebbe in silenzio.
+	if (IsRunningCommandlet() || !FSlateApplication::IsInitialized())
+	{
+		return;
+	}
+
 	if (FLevelEditorModule* LevelEditor = FModuleManager::LoadModulePtr<FLevelEditorModule>(TEXT("LevelEditor")))
 	{
 		// ⛔ `OnRegisterLayoutExtensions` e' un broadcast **singolo**, dentro la costruzione del Level
@@ -53,7 +63,7 @@ void FRefactorTacticsEditorModule::StartupModule()
 	}
 	else
 	{
-		UE_LOG(LogRTEditorModule, Log,
+		UE_LOG(LogRTDevSandboxLauncher, Log,
 			TEXT("[TacticalDesigner] modulo LevelEditor non disponibile: nessun layout da estendere."));
 	}
 }

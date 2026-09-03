@@ -2041,10 +2041,14 @@ sessions:
     # del Play — un tab che compare e un livello che non diventa dirty — e il registro `test-manuali-pie.md`
     # è dei comportamenti in gioco. Metterla lì la renderebbe introvabile a chi cerca una verifica di PIE.
     issues: [1680, 2168]
-    # ⛔ **Perché una seduta e non un automation test.** Dei cinque test della slice, quattro misurano il
-    # predicato `ShouldOpenFor` e uno che l'iscrizione sia in piedi. Nessuno vede ciò che questa seduta vede:
-    # che Slate disegni davvero il tab, e che aprire e chiudere il pannello non marchi la `.umap` come
-    # modificata. Un predicato puro non può osservare il dirty di un binario.
+    # ⛔ **Perché una seduta e non un automation test.** I test della slice sono **dieci** dopo #2168:
+    # sette in `RTDevSandboxLauncherTests.cpp` — quattro sul predicato `ShouldOpenFor`, uno sull'iscrizione a
+    # `OnMapOpened`, due sulla sessione — e tre in `RTLauncherLayoutTests.cpp`, che misurano **dove il tab è
+    # dichiarato** nel layout e che il modulo riceva l'estensione.
+    # ⚠️ **#2168 ha spostato il confine, non lo ha cancellato.** Prima la posizione non era misurata da
+    # nessuno; ora il *layout* lo è, e resta fuori ciò che era sempre stato fuori: che Slate **disegni** il
+    # tab e dove lo disegni a schermo, e che aprire e chiudere il pannello non marchi la `.umap` come
+    # modificata. Un layout è un oggetto puro e si interroga; un pixel e il dirty di un binario no.
     done_when: >-
       Aperto l'editor sul progetto, `L_DevSandbox` si carica da sola (`EditorStartupMap`) e il tab
       **Tactical Designer** compare senza che nessuno lo abbia invocato; l'`Output Log` porta la riga
