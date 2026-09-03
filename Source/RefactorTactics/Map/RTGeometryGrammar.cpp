@@ -76,9 +76,222 @@ ERTGeometryViolation URTGeometryGrammarLibrary::ValidateSegment(const FRTGeometr
 	return ERTGeometryViolation::None;
 }
 
+// ============================================================================
+//  INCIDENZA FRA DUE SEGMENTI — `#1894`, `GEO-6` e `GEO-9` di `D-288`
+// ============================================================================
+
+namespace
+{
+	/**
+	 * IL RETICOLO INTERO in cui l'incidenza si decide — la §11 di `spec-hex-geometry-authoring.md`
+	 * applicata a una domanda che riguarda DUE segmenti invece di uno.
+	 *
+	 * 🔑 **Il problema che risolve.** Due segmenti su assi diversi si incontrano in un punto, e la domanda
+	 * e' *«quel punto e' uno dei tredici anchor?»*. Chiesta in `FVector2D` sarebbe un confronto con
+	 * tolleranza — e una tolleranza qui non e' un dettaglio di precisione, e' una regola di gioco: decide
+	 * quali muri un livello puo' contenere, e la stessa mappa potrebbe validarsi in due modi diversi.
+	 * La grammatica e' discreta apposta, e la sua validazione deve restarlo.
+	 *
+	 * **La misura che rende possibile il calcolo**: i tredici punti notevoli cadono su coordinate INTERE
+	 * nella base `(HexSize * sqrt(3)/4, HexSize/4)`. Il vertice a `-30` gradi e' `(2, -2)`, il punto medio
+	 * del lato `E` e' `(2, 0)`, quello del lato `NE` e' `(1, 3)`: l'apotema irrazionale che
+	 * `RT_GeometryQuanta` esiste per aggirare sparisce, perche' `sqrt(3)` finisce nell'UNITA' dell'asse `X`
+	 * invece che nelle coordinate.
+	 *
+	 * ⚠️ **I dodici punti non sono incisi qui.** Vengono derivati da `SectorBoundaryPoints` — l'unica
+	 * definizione — e arrotondati, verificando che l'arrotondamento sia esatto. Una tabella scritta a mano
+	 * sarebbe la seconda copia della convenzione dei sei lati, che e' il difetto che `#588` ha gia' pagato:
+	 * se quella convenzione cambiasse, la tabella mentirebbe in silenzio, mentre questa derivazione la
+	 * segue — e se smettesse di essere intera si dichiarerebbe non valida invece di approssimare.
+	 *
+	 * Le coordinate sono SCALATE di `RT_GeometryQuanta`, cosi' che anche i punti interni al segmento —
+	 * `Perp * Offset + Along * t`, che valgono un dodicesimo di unita' ciascuno — restino interi.
+	 */
+	constexpr double RTIncidenceReferenceHexSize = 100.0;
+
+	/** Un punto del reticolo. `int64` perche' i determinanti moltiplicano due coordinate fra loro. */
+	struct FRTIncidencePoint
+	{
+		int64 X = 0;
+		int64 Y = 0;
+	};
+
+	struct FRTIncidenceLattice
+	{
+		/** I dodici confini di settore, in unita' della base. Componenti in `{0, ±1, ±2, ±3, ±4}`. */
+		FRTIncidencePoint Boundary[RT_OccupancySectorCount];
+
+		/** I tredici anchor, gia' scalati di `RT_GeometryQuanta`: centro, sei vertici, sei punti medi. */
+		FRTIncidencePoint Anchors[RT_AnchorsPerCell];
+
+		/**
+		 * ⚠️ Falso se la derivazione NON e' risultata intera. Non e' difensivismo: e' l'unico modo in cui
+		 * questa regola puo' dichiarare che la geometria le e' cambiata sotto, invece di arrotondare un
+		 * punto vicino a un anchor e chiamarlo anchor.
+		 */
+		bool bValid = false;
+	};
+
+	const FRTIncidenceLattice& RTIncidenceLatticeOf()
+	{
+		// Costruito una volta sola: dipende da `SectorBoundaryPoints` con un `HexSize` di RIFERIMENTO, e il
+		// reticolo e' adimensionale — le unita' scalano con la cella, gli interi no. Un `HexSize` diverso
+		// darebbe gli stessi tredici interi.
+		static const FRTIncidenceLattice Lattice = []()
+		{
+			FRTIncidenceLattice L;
+
+			TArray<FVector2D> Boundary;
+			URTHexOccupancyLibrary::SectorBoundaryPoints(RTIncidenceReferenceHexSize, Boundary);
+			if (Boundary.Num() != RT_OccupancySectorCount)
+			{
+				return L;
+			}
+
+			const double UnitX = RTIncidenceReferenceHexSize * FMath::Sqrt(3.0) / 4.0;
+			const double UnitY = RTIncidenceReferenceHexSize / 4.0;
+
+			// Lo scarto misurato sui dodici punti e' dell'ordine di `1e-16` relativo: la soglia e' larga
+			// dieci ordini di grandezza e resta lontanissima dal mezzo passo che confonderebbe due interi.
+			const double Tolerance = 1e-6;
+
+			L.Anchors[0] = FRTIncidencePoint{ 0, 0 }; // il centro
+			for (int32 I = 0; I < RT_OccupancySectorCount; ++I)
+			{
+				const double Fx = Boundary[I].X / UnitX;
+				const double Fy = Boundary[I].Y / UnitY;
+				const int64 Rx = static_cast<int64>(FMath::RoundToInt(Fx));
+				const int64 Ry = static_cast<int64>(FMath::RoundToInt(Fy));
+				if (FMath::Abs(Fx - static_cast<double>(Rx)) > Tolerance
+					|| FMath::Abs(Fy - static_cast<double>(Ry)) > Tolerance)
+				{
+					return L; // `bValid` resta falso: la base non e' piu' quella, e nessuna regola si applica
+				}
+				L.Boundary[I] = FRTIncidencePoint{ Rx, Ry };
+				L.Anchors[I + 1] = FRTIncidencePoint{ Rx * RT_GeometryQuanta, Ry * RT_GeometryQuanta };
+			}
+
+			L.bValid = true;
+			return L;
+		}();
+		return Lattice;
+	}
+
+	/** Dove cade il segmento al parametro `Along`, nel reticolo scalato. */
+	FRTIncidencePoint RTIncidencePointAt(const FRTIncidenceLattice& L, const FRTGeometrySegment& Segment,
+		int32 Along)
+	{
+		// Gli indici sono quelli di `AxisPoint` e `AxisPerpendicularPoint`: la corrispondenza fra i sei assi
+		// e i dodici confini resta scritta in `AxisBoundaryIndex` e in nessun altro posto.
+		const int32 Base = URTGeometryGrammarLibrary::AxisBoundaryIndex(Segment.Axis);
+		const FRTIncidencePoint& Dir = L.Boundary[Base % RT_OccupancySectorCount];
+		const FRTIncidencePoint& Perp = L.Boundary[(Base + 9) % RT_OccupancySectorCount];
+
+		return FRTIncidencePoint{
+			Perp.X * Segment.Offset + Dir.X * Along,
+			Perp.Y * Segment.Offset + Dir.Y * Along
+		};
+	}
+
+	int64 RTIncidenceCross(int64 UX, int64 UY, int64 VX, int64 VY)
+	{
+		return UX * VY - UY * VX;
+	}
+
+	/**
+	 * I DUE SEGMENTI SI INCONTRANO FUORI DA UN ANCHOR?
+	 *
+	 * Presuppone assi DIVERSI — due segmenti dello stesso asse sono paralleli o collineari, e li tratta la
+	 * regola di sovrapposizione. Estremi INCLUSI: toccarsi in un punto e' incontrarsi, ed e' esattamente il
+	 * caso della T che questa regola deve giudicare invece di ignorare.
+	 */
+	bool RTIncidenceMeetsOffAnchor(const FRTIncidenceLattice& L, const FRTGeometrySegment& A,
+		const FRTGeometrySegment& B)
+	{
+		if (!L.bValid)
+		{
+			return false; // senza reticolo non si giudica: meglio nessuna regola di una regola inventata
+		}
+
+		const FRTIncidencePoint A0 = RTIncidencePointAt(L, A, A.AlongStart);
+		const FRTIncidencePoint A1 = RTIncidencePointAt(L, A, A.AlongEnd);
+		const FRTIncidencePoint B0 = RTIncidencePointAt(L, B, B.AlongStart);
+		const FRTIncidencePoint B1 = RTIncidencePointAt(L, B, B.AlongEnd);
+
+		const int64 D1X = A1.X - A0.X, D1Y = A1.Y - A0.Y;
+		const int64 D2X = B1.X - B0.X, D2Y = B1.Y - B0.Y;
+		const int64 WX = B0.X - A0.X, WY = B0.Y - A0.Y;
+
+		int64 Den = RTIncidenceCross(D1X, D1Y, D2X, D2Y);
+		if (Den == 0)
+		{
+			return false; // paralleli: nessun punto d'incontro isolato da giudicare
+		}
+
+		int64 SNum = RTIncidenceCross(WX, WY, D2X, D2Y);
+		int64 UNum = RTIncidenceCross(WX, WY, D1X, D1Y);
+		if (Den < 0)
+		{
+			Den = -Den;
+			SNum = -SNum;
+			UNum = -UNum;
+		}
+
+		// Il punto d'incontro delle due RETTE cade dentro entrambi i TRATTI, estremi compresi.
+		if (SNum < 0 || SNum > Den || UNum < 0 || UNum > Den)
+		{
+			return false;
+		}
+
+		// Il punto e' `A0 + D1 * SNum / Den`: si confronta moltiplicato per `Den`, cosi' che la divisione —
+		// l'unico passo che uscirebbe dagli interi — non venga mai eseguita.
+		const int64 PX = A0.X * Den + D1X * SNum;
+		const int64 PY = A0.Y * Den + D1Y * SNum;
+
+		for (const FRTIncidencePoint& Anchor : L.Anchors)
+		{
+			if (PX == Anchor.X * Den && PY == Anchor.Y * Den)
+			{
+				return false; // si incontrano su un anchor: e' il caso normale, ed e' legale
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * DUE COLLINEARI SI SOVRAPPONGONO SU PIU' DI UN PUNTO?
+	 *
+	 * Presuppone stessa giacitura — asse, offset e layer — verificata dal chiamante. Il confronto e' STRETTO
+	 * apposta: con `<=` due segmenti consecutivi che condividono un estremo risulterebbero sovrapposti, e un
+	 * muro lungo disegnato in due gesti — il modo normale di disegnarlo — diventerebbe invalido.
+	 *
+	 * ⚠️ `Min`/`Max` invece degli estremi come sono scritti: sono una coppia NON ordinata, per la stessa
+	 * ragione per cui `operator==` li tratta cosi'. Senza, la regola si aggirerebbe disegnando al contrario.
+	 */
+	bool RTIncidenceOverlaps(const FRTGeometrySegment& A, const FRTGeometrySegment& B)
+	{
+		const int32 AMin = FMath::Min(A.AlongStart, A.AlongEnd);
+		const int32 AMax = FMath::Max(A.AlongStart, A.AlongEnd);
+		const int32 BMin = FMath::Min(B.AlongStart, B.AlongEnd);
+		const int32 BMax = FMath::Max(B.AlongStart, B.AlongEnd);
+		return FMath::Max(AMin, BMin) < FMath::Min(AMax, BMax);
+	}
+}
+
 void URTGeometryGrammarLibrary::Validate(const TArray<FRTGeometrySegment>& Segments, TArray<FRTGeometryIssue>& OutIssues)
 {
 	OutIssues.Reset();
+
+	const FRTIncidenceLattice& Lattice = RTIncidenceLatticeOf();
+
+	auto Report = [&OutIssues](int32 Index, ERTGeometryViolation Violation, int32 Other)
+	{
+		FRTGeometryIssue Issue;
+		Issue.SegmentIndex = Index;
+		Issue.Violation = Violation;
+		Issue.OtherIndex = Other;
+		OutIssues.Add(Issue);
+	};
 
 	for (int32 Index = 0; Index < Segments.Num(); ++Index)
 	{
@@ -87,7 +300,7 @@ void URTGeometryGrammarLibrary::Validate(const TArray<FRTGeometrySegment>& Segme
 		const ERTGeometryViolation Violation = ValidateSegment(Segment);
 		if (Violation != ERTGeometryViolation::None)
 		{
-			OutIssues.Add({ Index, Violation });
+			Report(Index, Violation, INDEX_NONE);
 			continue;
 		}
 
@@ -95,12 +308,63 @@ void URTGeometryGrammarLibrary::Validate(const TArray<FRTGeometrySegment>& Segme
 		// occorrenza, cosi' che rimuovendola la collezione diventi valida. Confronto lineare all'indietro:
 		// nessun ordinamento e nessun hash, quindi l'esito non dipende dall'ordine di iterazione di una
 		// `TMap`/`TSet` — l'invariante di determinismo del repository.
+		int32 Duplicate = INDEX_NONE;
 		for (int32 Previous = 0; Previous < Index; ++Previous)
 		{
 			if (Segments[Previous] == Segment)
 			{
-				OutIssues.Add({ Index, ERTGeometryViolation::DuplicateSegment });
+				Duplicate = Previous;
 				break;
+			}
+		}
+		if (Duplicate != INDEX_NONE)
+		{
+			// ⚠️ E si FERMA qui. Un duplicato e' anche, geometricamente, una sovrapposizione totale: senza
+			// questa uscita lo stesso segmento porterebbe due reason code, e la verifica di mutazione —
+			// «allentata una regola per volta, cade esattamente il test che la protegge» — non saprebbe piu'
+			// quale delle due ha ceduto. Un segmento identico si toglie, e le altre relazioni si rileggono
+			// sulla collezione risanata.
+			Report(Index, ERTGeometryViolation::DuplicateSegment, Duplicate);
+			continue;
+		}
+
+		// L'INCIDENZA — `#1894`. Due segmenti si incontrano solo su un anchor, e due collineari non si
+		// sovrappongono. Sono relazioni fra una COPPIA: come il duplicato si segnalano sul secondo dei due,
+		// con `OtherIndex` che nomina il primo, e con lo stesso confronto all'indietro che le rende
+		// indipendenti dall'ordine della collezione.
+		for (int32 Previous = 0; Previous < Index; ++Previous)
+		{
+			const FRTGeometrySegment& Other = Segments[Previous];
+
+			// ⚠️ Chi e' gia' fuori grammatica non entra in una relazione: la sua geometria non e' definita —
+			// un asse inesistente non ha una direzione — e segnalarlo due volte direbbe a chi disegna di
+			// aggiustare un incrocio quando il difetto e' il segmento stesso.
+			if (ValidateSegment(Other) != ERTGeometryViolation::None)
+			{
+				continue;
+			}
+
+			// La geometria di un piano non tocca quella di un altro.
+			if (Other.Layer != Segment.Layer)
+			{
+				continue;
+			}
+
+			if (Other.Axis == Segment.Axis)
+			{
+				// Stessa giacitura: o sono la STESSA retta — e allora la domanda e' se i tratti si
+				// sovrappongono — o sono due parallele distinte, che non si incontrano mai. Distinguere
+				// sull'offset invece che sul solo asse e' cio' che impedisce di segnalare due muri paralleli.
+				if (Other.Offset == Segment.Offset && RTIncidenceOverlaps(Other, Segment))
+				{
+					Report(Index, ERTGeometryViolation::OverlappingSegments, Previous);
+				}
+				continue;
+			}
+
+			if (RTIncidenceMeetsOffAnchor(Lattice, Other, Segment))
+			{
+				Report(Index, ERTGeometryViolation::CrossingOffAnchor, Previous);
 			}
 		}
 	}
@@ -426,4 +690,66 @@ bool URTGeometryGrammarLibrary::SegmentBetweenAnchors(const FRTAnchorRef& A, con
 
 	OutSegment = Snapped;
 	return true;
+}
+
+FRTAnchorRef URTGeometryGrammarLibrary::NearestAnchor(const FRTCellId& Cell, const FVector2D& Local,
+	float HexSize)
+{
+	TArray<FRTAnchorRef> Anchors;
+	AnchorsOfCell(Cell, Anchors);
+
+	// La palette e' chiusa e non vuota per costruzione; se `AnchorsOfCell` cambiasse, il centro resta la
+	// risposta totale invece di un riferimento non inizializzato.
+	FRTAnchorRef Best(Cell, ERTAnchorKind::Center);
+	double BestDistSq = TNumericLimits<double>::Max();
+
+	for (const FRTAnchorRef& Candidate : Anchors)
+	{
+		const double DistSq = FVector2D::DistSquared(AnchorLocal(Candidate, HexSize), Local);
+
+		// ⚠️ Strettamente minore: a parita' vince il PRIMO nell'ordine dichiarato da `AnchorsOfCell`. La
+		// parita' non e' teorica — un gesto esattamente a meta' fra due vertici la produce — e senza un
+		// criterio esplicito l'esito dipenderebbe dall'ordine di iterazione, che e' l'invariante n. 4.
+		if (DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			Best = Candidate;
+		}
+	}
+
+	return Best;
+}
+
+ERTAnchorPairRefusal URTGeometryGrammarLibrary::ExplainPair(const FRTAnchorRef& A, const FRTAnchorRef& B,
+	float HexSize)
+{
+	// L'ordine e' quello di `SegmentBetweenAnchors`, e conta: su due anchor di celle diverse la domanda
+	// «sta su un asse?» non ha significato, perche' le loro coordinate sono misurate in due sistemi diversi.
+	if (A.Cell.X != B.Cell.X || A.Cell.Y != B.Cell.Y)
+	{
+		return ERTAnchorPairRefusal::DifferentCell;
+	}
+	if (A.Cell.Layer != B.Cell.Layer)
+	{
+		return ERTAnchorPairRefusal::DifferentLayer;
+	}
+
+	// Lo STESSO anchor: confronto sulla forma canonica, cosi' che un centro con indice sporco — che un
+	// `FRTAnchorRef` riempito campo per campo puo' portarsi dietro — non sembri un secondo punto.
+	if (CanonicalAnchor(A) == CanonicalAnchor(B))
+	{
+		return ERTAnchorPairRefusal::SameAnchor;
+	}
+
+	// 🔑 **Qui si CHIEDE, non si ricalcola.** L'esprimibilita' e' esattamente cio' che `SegmentBetweenAnchors`
+	// decide con la verifica di fedelta' di `GEO-8`; riderivarla con un'aritmetica sugli indici — «vertice
+	// contro punto medio non adiacente» — sarebbe una seconda definizione delle ventiquattro, che il giorno
+	// in cui la grammatica guadagnasse un asse mentirebbe in silenzio.
+	FRTGeometrySegment Unused;
+	if (!SegmentBetweenAnchors(A, B, HexSize, Unused))
+	{
+		return ERTAnchorPairRefusal::NoTacticalAxis;
+	}
+
+	return ERTAnchorPairRefusal::None;
 }

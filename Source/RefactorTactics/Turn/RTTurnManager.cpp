@@ -40,6 +40,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Replay/RTMatchHistoryLibrary.h" // indice delle partite: una riga per partita, fuori dagli archivi (#416)
+#include "Replay/RTReplayAuditLibrary.h"
 #include "Replay/RTReplayRecorderLibrary.h"
 #include "Turn/RTMatchStateHash.h"
 #include "Misc/DateTime.h"
@@ -60,6 +61,63 @@ void ARTTurnManager::BeginPlay()
 	// test e per lo `ScenarioHarness` che spawnano un TurnManager a mano, e farli scrivere su disco
 	// sarebbe un effetto collaterale che nessuno ha chiesto. La avvia chi allestisce una partita vera —
 	// il GameMode — con `BeginReplayRecording()`.
+
+	// 🔴 **E dal 2026-09-03 vale lo stesso per il TURNO 1** — `#2102`, [D-314].
+	//
+	// Misurato in due sessioni PIE: `Turno 1 - pianificazione` precedeva `Board 2v2 esagonale avviata` di
+	// 348 ms. Il turno si apriva su una board non ancora allestita, il cronometro della pianificazione
+	// partiva prima che ci fosse qualcosa da guardare, e `PlanBots()` decideva su uno stato che si stava
+	// componendo.
+	//
+	// ⚠️ **Lo stesso ordine aveva gia' prodotto un difetto giocabile**: il commento di `#1762` in
+	// `ARTGameMode::SetupHexMatch` dichiara che il refresh della conoscenza dentro questo `BeginPlay`
+	// «e' uscito con zero unita'», e che senza il ricalcolo successivo al primo turno il click non
+	// colpiva niente. Quella e' una compensazione; questa e' la causa.
+	//
+	// 🔑 **Ma l'attesa non puo' essere incondizionata**: qui ci passano anche i test headless e lo
+	// `ScenarioHarness`, che un bootstrapper non ce l'hanno e resterebbero senza turno per sempre. Apre
+	// chi non e' stato rivendicato.
+	if (bFirstTurnClaimedBySetup)
+	{
+		return;
+	}
+
+	bFirstTurnOpened = true;
+	StartPlanningTimer();
+}
+
+void ARTTurnManager::ClaimFirstTurnForMatchSetup()
+{
+	if (bFirstTurnOpened)
+	{
+		// ⚠️ **Tardi, e lo si dice invece di fingere.** Succede se questo attore e' piazzato nel livello e
+		// il suo `BeginPlay` ha preceduto quello del GameMode. Chiudere il turno e riaprirlo dopo
+		// significherebbe richiudere il campione di pacing — cioe' toccare `MsToLockIn`, che e' proprio
+		// cio' che il DoD di `#2102` chiede di non muovere senza misura. Il comportamento resta quello di
+		// prima della issue, e questa riga e' l'unico modo di accorgersene.
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] Turno 1 gia' aperto quando l'allestimento l'ha rivendicato: l'ordine resta quello ")
+			TEXT("precedente a #2102. Il TurnManager e' piazzato nel livello invece di essere spawnato?"));
+		return;
+	}
+
+	bFirstTurnClaimedBySetup = true;
+}
+
+void ARTTurnManager::OpenFirstTurnAfterSetup()
+{
+	if (!bFirstTurnClaimedBySetup || bFirstTurnOpened)
+	{
+		// Nessuna rivendicazione (l'ha gia' aperto `BeginPlay`), oppure gia' aperto da qui.
+		//
+		// 🔑 **L'idempotenza non e' cortesia**: `ARTGameMode::BeginPlay` chiama questa funzione da PIU'
+		// cammini d'uscita — allestimento normale, scenario non caricabile, scenario avviato — perche' un
+		// turno mai aperto e' peggio del difetto che `#2102` chiude. Senza questa guardia, due cammini che
+		// si sovrapponessero scriverebbero due voci `Turno 1` e aprirebbero due campioni di pacing.
+		return;
+	}
+
+	bFirstTurnOpened = true;
 	StartPlanningTimer();
 }
 
@@ -512,6 +570,18 @@ void ARTTurnManager::RefreshTeamKnowledgeForPlanning(const TArray<ARTUnit*>& Liv
 			Observers, EnemiesNow, KnowledgeForTeam(TeamId)));
 	}
 	TeamKnowledgeState = MoveTemp(Refreshed);
+
+	// [D-313]: l'istantanea di PLANNING e' cio' su cui il bot decidera'. Si copia qui perche' fra qui e la
+	// fine del turno la conoscenza viene rinfrescata di nuovo (nel Blast), e le due non sono la stessa cosa
+	// — e' precisamente la distinzione che rende auditabile una partita invece che raccontabile.
+	//
+	// ⚠️ **Solo se si sta registrando.** Senza la guardia, ogni PIE e ogni test dell'harness pagherebbero due
+	// copie profonde per turno di un dato che nessuno leggera'.
+	if (bRecordReplay)
+	{
+		PlanningKnowledgeForAudit = TeamKnowledgeState;
+		BlastKnowledgeForAudit.Reset(); // il Blast di QUESTO turno non e' ancora arrivato
+	}
 	// Chi disegna il velo rilegge QUI, non a `Tick` ([D-227]).
 	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
 }
@@ -699,12 +769,40 @@ void ARTTurnManager::PlanBots()
 		return Ids;
 	}();
 
+	// [D-313], emendamento — le SCELTE dei bot si aprono QUI, e la ragione e' che questa funzione ha **due
+	// ingressi**: il gioco ci arriva da `StartPlanningTimer`, l'harness e i test da `PlanBotsForTest()`. E'
+	// lo stesso paio di percorsi che `LockInAndResolve` dichiara sopra `EnsureMatchRoster`, e catturare
+	// altrove ne serviva uno solo — sull'altro l'archivio restava vuoto, che non e' un'assoluzione ma
+	// un'assenza di prove letta come «nessuna violazione».
+	//
+	// ⚠️ **E si riaprono a ogni passaggio**, perche' `PlanBots` gira due volte sullo stesso turno quando
+	// `PlanBotsForTest()` precede `LockInAndResolve()`: la conoscenza di Planning viene riscritta dal
+	// secondo giro, e scelte del primo accanto a una conoscenza del secondo sarebbero una coppia che non e'
+	// mai esistita.
+	if (bRecordReplay)
+	{
+		BotDecisionsForAudit.Reset();
+		BotDecisionsTurnForAudit = TurnNumber;
+	}
+
 	for (int32 BotIdx = 0; BotIdx < Units.Num(); ++BotIdx)
 	{
 		ARTUnit* Bot = Units[BotIdx];
 		if (!Bot->bIsBotControlled)
 		{
-			continue;
+			continue; // il giocatore umano mira dove vuole: il suo filtro e' altrove, e non e' questo
+		}
+
+		// Il record si APRE adesso e si chiude dopo la scelta: un bot che esce dal ciclo senza bersaglio ne
+		// lascia comunque uno, con `TargetUnitId` a `INDEX_NONE`. Cosi' «nessuna scelta» resta distinguibile
+		// da «nessuna cattura», che e' la differenza fra un dato e un buco.
+		const int32 IdxScelta = bRecordReplay ? BotDecisionsForAudit.Num() : INDEX_NONE;
+		if (bRecordReplay)
+		{
+			FRTAuditBotDecision Apertura;
+			Apertura.UnitId = Bot->StableUnitId;
+			Apertura.TeamId = Bot->TeamId;
+			BotDecisionsForAudit.Add(Apertura);
 		}
 
 		Bot->PlannedCell = Bot->Cell;   // default: fermo
@@ -788,51 +886,6 @@ void ARTTurnManager::PlanBots()
 		// gioco diverso da quello progettato: i sette moduli di CP 7.5 sarebbero verdi nei test e assenti in
 		// partita.
 		//
-		// 🔴 **LA REGOLA: prima quella di KIT, il modulo di loadout come riserva** (`#1403`, [D-220]).
-		//
-		// ⚠️ **E' il comportamento che c'era gia': cambia che ora e' DICHIARATO.** Fino al 2026-08-27 questa
-		// riga diceva *«sceglierne una fra due sarebbe una decisione di bot (E15) — con un solo slot reazione
-		// nel kit di ogni eroe, oggi non si pone»*, e la premessa era falsa da [D-218]: Riktor porta
-		// `Interposition` (kit) **e** `Reaction.Cleanse` (modulo). Il `break` sul primo trovato sceglieva per
-		// **ordine di indice** — e dava il kit solo perche' `EquipLoadout` accoda. Stessa risposta, per
-		// accidente invece che per regola.
-		//
-		// La preferenza ha una ragione, ed e' l'identita': la reazione di kit e' cio' che l'eroe **e'** — il
-		// catalogo eroi la descrive cosi' — e il modulo e' cio' che la composizione gli **aggiunge**. Quando
-		// il kit e' in ricarica il modulo copre, che e' il mestiere di una riserva.
-		//
-		// ⚠️ **Quale delle due convenga davvero e' una domanda aperta** (`BOT-REACT-1`), e vale per E15: i
-		// moduli hanno `CooldownTurns = 0`, quindi un bot che preferisse il loadout non armerebbe **mai piu'**
-		// la reazione d'eroe. Invertire questa riga non e' una pulizia — e' un cambio di gioco.
-		int32 DalKit = INDEX_NONE;
-		int32 DalLoadout = INDEX_NONE;
-		for (int32 R = 0; R < Bot->NumAbilities(); ++R)
-		{
-			const URTActionData* Reaction = Bot->GetAbility(R);
-			if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction || !Bot->CanUseAbility(R))
-			{
-				continue;
-			}
-			// L'origine si chiede al CATALOGO: `MakeEquipmentAction` scrive `Def.ActionId = EquipmentId`.
-			// Dedurla dalla posizione — «i moduli stanno in fondo perche' `Add` accoda» — e' esattamente
-			// l'accidente che questa riga smette di usare.
-			int32& Candidato = IdEquipaggiamento.Contains(Reaction->Def.ActionId) ? DalLoadout : DalKit;
-			if (Candidato == INDEX_NONE) { Candidato = R; } // a parita' di origine, il primo: deterministico
-		}
-
-		const int32 Armata = (DalKit != INDEX_NONE) ? DalKit : DalLoadout;
-		if (const URTActionData* Reazione = Bot->GetAbility(Armata)) // `nullptr` per `INDEX_NONE`
-		{
-			Bot->PlannedReactionAbility = Armata;
-			AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione)"),
-				*Bot->GetName(), *Reazione->Def.ActionId.ToString()), FRTLogSubject::Unit(Bot));
-		}
-
-		if (bUsedSupport)
-		{
-			continue;
-		}
-
 		// Contesto di valutazione: i nemici che la SQUADRA DEL BOT conosce (celle, gittata effettiva,
 		// HP+scudo) e pesi dal tuning.
 		// L'ordine dei nemici viene da Units (ordine stabile dello snapshot): il punteggio non dipende
@@ -962,6 +1015,70 @@ void ARTTurnManager::PlanBots()
 				Nearest = Other;
 				NearestKnownCell = KnownCell;
 			}
+		}
+
+		// 🔴 **LA REGOLA E' CAMBIATA: punteggio tattico, e il kit RETROCEDE a tie-break** ([D-268], `#1802`).
+		//
+		// [D-220] aveva DICHIARATO la regola che c'era gia' — prima il kit, il modulo come riserva — invece di
+		// sceglierne una. E' deterministica ma non tattica: la reazione d'identita' vince sempre, quale che sia
+		// il suo valore in quella situazione, e il valore del loadout si perde. Il caso concreto: un Riktor con
+		// `Interposition` nel kit e un modulo di contrattacco, in un turno in cui nessun alleato e' minacciato
+		// e un nemico conosciuto puo' colpirlo, armava l'interposizione — cioe' una reazione che non sarebbe
+		// scattata.
+		//
+		// ⚠️ **E per questo il blocco vive QUI e non piu' prima del contesto.** Un punteggio tattico si misura
+		// su cio' che la squadra CONOSCE, e `Ctx.Enemies`/`Ctx.Allies` nascono dalla raccolta qui sopra. Le due
+		// alternative erano peggiori: ricalcolare il filtro di conoscenza nel punto vecchio avrebbe creato il
+		// secondo modello di conoscenza che il commento della raccolta vieta per nome, e lasciare il punteggio
+		// cieco avrebbe reso **vacua** l'AC di equita' di [D-268] — un punteggio costante la soddisfa.
+		//
+		// ⚠️ **`if (bUsedSupport)` si e' spostato INSIEME al blocco, e non e' un dettaglio**: prima usciva
+		// dal ciclo PRIMA della raccolta, quindi un bot che si cura armava comunque la reazione. Lasciandolo
+		// dov'era, questo spostamento gliela avrebbe tolta — un cambio di comportamento che `#1802` non chiede.
+		//
+		// 🔑 **La proprieta' che rende il cambio atterrabile**: dove la conoscenza non separa i candidati tutti
+		// i punteggi valgono zero, decide il tie-break, e il bot arma esattamente cio' che armava prima.
+		TArray<FRTReactionCandidate> ReactionCandidates;
+		for (int32 R = 0; R < Bot->NumAbilities(); ++R)
+		{
+			const URTActionData* Reaction = Bot->GetAbility(R);
+			if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction || !Bot->CanUseAbility(R))
+			{
+				continue;
+			}
+			// L'origine si chiede al CATALOGO: `MakeEquipmentAction` scrive `Def.ActionId = EquipmentId`.
+			// Dedurla dalla posizione — «i moduli stanno in fondo perche' `Add` accoda» — e' l'accidente che
+			// [D-220] aveva gia' smesso di usare, e che qui serve come TIE-BREAK invece che come regola.
+			FRTReactionCandidate& Candidate = ReactionCandidates.AddDefaulted_GetRef();
+			Candidate.AbilityIndex = R;
+			Candidate.bFromKit = !IdEquipaggiamento.Contains(Reaction->Def.ActionId);
+			Candidate.Score = URTHexBotLibrary::ScoreReaction(Snapshot.Map, Reaction->Def, Ctx);
+		}
+
+		// La scelta porta con se' la RAGIONE, che [D-245] chiede sia un dato e non una deduzione di chi
+		// legge: «ha vinto perche' valeva di piu'», «ha vinto lo spareggio di kit» e «ha vinto l'indice» sono
+		// tre spiegazioni diverse della stessa riga, e un'etichetta sola le confonderebbe.
+		const FRTReactionChoice Choice = URTHexBotLibrary::SelectReaction(ReactionCandidates);
+		if (const URTActionData* Armed = Bot->GetAbility(Choice.AbilityIndex)) // `nullptr` per `INDEX_NONE`
+		{
+			Bot->PlannedReactionAbility = Choice.AbilityIndex;
+
+			const TCHAR* Reason = TEXT("");
+			switch (Choice.DecidedBy)
+			{
+			case ERTReactionTieBreak::Kit:   Reason = TEXT(", spareggio: kit");   break;
+			case ERTReactionTieBreak::Index: Reason = TEXT(", spareggio: indice"); break;
+			case ERTReactionTieBreak::Utility:
+			case ERTReactionTieBreak::None:  break;
+			}
+			AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione, punteggio %d%s)"),
+				*Bot->GetName(), *Armed->Def.ActionId.ToString(), Choice.Score, Reason),
+				FRTLogSubject::Unit(Bot));
+		}
+
+		if (bUsedSupport)
+		{
+			continue;
 		}
 
 		// CP 13.5 — NESSUN CONTATTO: si cerca, non ci si ferma.
@@ -1361,8 +1478,13 @@ void ARTTurnManager::PlanBots()
 			}
 		}
 
+		// Il bersaglio su cui il piano vincente AGISCE: lo valorizzano i tre rami che attaccano (carica,
+		// scatto+attacco, attacco da fermo) e nessun altro. E' cio' che [D-313] chiama «la scelta».
+		ARTUnit* Scelto = nullptr;
+
 		if (bIsCharge && Target && Ctx.Enemies.IsValidIndex(Best.TargetIndex))
 		{
+			Scelto = Target;
 			// CARICA: si punta la cella del bersaglio e la fase Dash si ferma addosso a lui registrando
 			// l'impatto. Nessun `PlannedAbilityIndex`: il colpo e' dell'azione di movimento, e pianificare
 			// anche un'azione principale significherebbe spendere due volte lo stesso slot.
@@ -1380,6 +1502,7 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedDashCell = Best.DestCell;
 			Bot->PlannedAbilityIndex = BestAbility;
 			Bot->PlannedAttackTarget = Target;
+			Scelto = Target;
 			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
 			AddLogEvent(FString::Printf(TEXT("%s: utility -> scatto (q=%d,r=%d,L%d) + attacca %s score=%d"),
 				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score), FRTLogSubject::Unit(Bot));
@@ -1390,6 +1513,7 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedCell = Best.DestCell;
 			Bot->PlannedAbilityIndex = BestAbility;
 			Bot->PlannedAttackTarget = Target;
+			Scelto = Target;
 			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
 			AddLogEvent(FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) attacca %s score=%d"),
 				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score), FRTLogSubject::Unit(Bot));
@@ -1409,6 +1533,26 @@ void ARTTurnManager::PlanBots()
 			AddLogEvent(FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) score=%d%s"),
 				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
 				Best.DestCell == Bot->Cell ? TEXT(" (resta)") : TEXT("")), FRTLogSubject::Unit(Bot));
+		}
+
+		// [D-313] — si chiude il record con il bersaglio SCELTO, quando c'e'.
+		//
+		// 🔴 **`Target`, non `Bot->PlannedAttackTarget`**: il ramo della CARICA non scrive quel campo, perche'
+		// il colpo e' dell'azione di movimento e non di una principale. Leggere il campo avrebbe perso
+		// l'intera classe di scelte piu' aggressiva del bot — proprio quella su cui la domanda d'equita'
+		// morde di piu' — archiviandola come «nessun bersaglio», cioe' come niente da giudicare.
+		//
+		// ⚠️ Si prendono solo i tre rami che AGISCONO su di lui: `Target` e' valorizzato anche quando il piano
+		// vincente non attacca, e un riposizionamento non e' una scelta di bersaglio.
+		if (IdxScelta != INDEX_NONE && Scelto && BotDecisionsForAudit.IsValidIndex(IdxScelta))
+		{
+			FRTAuditBotDecision& Record = BotDecisionsForAudit[IdxScelta];
+			Record.TargetUnitId = Scelto->StableUnitId;
+			Record.TargetTeamId = Scelto->TeamId;
+			// ⚠️ La cella e' quella VERA del bersaglio adesso, non quella che il bot ricordava: e' l'ingresso
+			// che il cancello di produzione passa a `ClassifyTarget`, e con un'altra il ricalcolo porrebbe
+			// una domanda simile invece della stessa.
+			Record.TargetCell = Scelto->Cell;
 		}
 
 		// #1088 — l'ultima cosa che il bot fa: dichiarare alle compagne dove sta andando. Copre i quattro
@@ -1867,6 +2011,11 @@ void ARTTurnManager::LockInAndResolve()
 	// Il playback di QUESTO turno parte da zero anche se non verra' riprodotto: senza, il ramo senza
 	// playback lascerebbe il valore del turno precedente e la misura leggerebbe una durata mai avvenuta.
 	PlaybackElapsedTotal = 0.f;
+	// Stessa ragione, stesso rischio: `PlaybackSlackScale` e' telemetria — `GetPlaybackSlackScale()` dice
+	// «il budget ha morso in questo round». `BeginPlayback` lo scrive DOPO le sue uscite anticipate (niente
+	// da mostrare, playback spento), quindi senza questo azzeramento un round senza playback continuerebbe
+	// a riportare la compressione del round precedente (#1878).
+	PlaybackSlackScale = 1.f;
 
 	// Se c'e' qualcosa da mostrare (movimenti/attacchi) e il playback e' attivo, riproduci la risoluzione
 	// nel tempo; altrimenti concludi subito il turno (comportamento istantaneo: es. headless/senza eventi).
@@ -2334,6 +2483,56 @@ void ARTTurnManager::TickDynamicSurfaces(URTHexMapAsset* Map)
 namespace
 {
 	/**
+	 * L'ORIGINE DICHIARATA di un colpo, cioe' la cella da cui il colpo «arriva» per i test direzionali
+	 * ([D-302] punto 3): per un'AREA il centro d'impatto, altrimenti la cella dell'attaccante.
+	 *
+	 * `false` = origine NON risolvibile, e i chiamanti sono **fail-closed**: un dato mancante non concede una
+	 * protezione che nessuno ha dichiarato, e non fa scrivere una traccia su una cella inventata. Un'area
+	 * senza footprint non e' meno sospetta di un attaccante perduto.
+	 *
+	 * 🔑 **Esiste come funzione perche' i chiamanti sono DUE e devono restare d'accordo.** Uno decide se la
+	 * `Guard` e' scavalcata, l'altro racconta da che lato e' arrivato il colpo: due copie della stessa regola
+	 * a 200 righe di distanza si separano alla prima modifica — e una modifica e' gia' tracciata, `#2009`, che
+	 * riguarda proprio il primo sito. Con due copie quel fix correggerebbe la decisione lasciando la traccia a
+	 * descrivere la regola vecchia, cioe' «l'esito giusto con il payload di un altro»: la divergenza che
+	 * `#1430`/[D-199] esiste per togliere.
+	 *
+	 * ⚠️ **La forma si legge dall'INTENTO, il centro dal FOOTPRINT**, e la divisione non e' arbitraria:
+	 * l'intento c'e' sempre — ogni colpo ne discende — mentre il footprint e' una registrazione. Dedurre
+	 * anche la forma dal footprint farebbe leggere un'area come se area non fosse quando il footprint manca,
+	 * cioe' ricadere in silenzio sul comportamento vecchio invece di fallire chiuso.
+	 */
+	bool ResolveImpactOrigin(const TArray<FRTHexAttackIntent>& Intents, const FRTHexBlastPlan& Plan,
+		const TArray<FRTHexCombatUnit>& HexUnits, const FRTHexAttackHit& Hit, FRTCellId& OutOrigin)
+	{
+		const bool bArea = Intents.IsValidIndex(Hit.IntentIndex)
+			&& Intents[Hit.IntentIndex].Shape == ERTAbilityShape::Area;
+
+		if (bArea)
+		{
+			// 🔑 Il centro si legge dal footprint e non da `Intents[...].TargetCell`: quel campo e' «ignorato»
+			// quando l'area e' centrata su un'unita', mentre `AimCell` porta il centro gia' risolto — unita' o
+			// cella — e CONGELATO al momento del calcolo del piano, che e' l'istante in cui la geometria e'
+			// stata decisa.
+			const FRTAttackFootprint* Footprint = Plan.Footprints.FindByPredicate(
+				[&Hit](const FRTAttackFootprint& F) { return F.IntentIndex == Hit.IntentIndex; });
+			if (Footprint == nullptr)
+			{
+				return false;
+			}
+			OutOrigin = Footprint->AimCell;
+			return true;
+		}
+
+		if (!HexUnits.IsValidIndex(Hit.AttackerId))
+		{
+			return false;
+		}
+		OutOrigin = HexUnits[Hit.AttackerId].Cell;
+		return true;
+	}
+
+	/**
 	 * Ordine TOTALE del roster di partita, sullo stato iniziale delle unita'.
 	 *
 	 * Non si usa l'ordine di `GetAllActorsOfClass`: quello e' l'ordine in cui il livello tiene gli Actor, che
@@ -2423,6 +2622,58 @@ ARTUnit* ARTTurnManager::UnitByStableId(int32 StableUnitId) const
 	return MatchRoster[Index].Get();
 }
 
+void ARTTurnManager::ReportSnapshotOverlaps(const FRTHexSnapshot& Snapshot)
+{
+	// Il caso normale e' questo, e costa un confronto: `Overlaps` e' vuoto su ogni snapshot sano.
+	if (Snapshot.Overlaps.Num() == 0)
+	{
+		return;
+	}
+
+	for (const FRTHexOverlap& Overlap : Snapshot.Overlaps)
+	{
+		const bool bGiaDetta = ReportedOverlapsThisTurn.ContainsByPredicate(
+			[&Overlap](const FRTHexOverlap& Vista)
+			{
+				return Vista.Cell == Overlap.Cell
+					&& Vista.DiscardedUnitId == Overlap.DiscardedUnitId
+					&& Vista.KeptUnitId == Overlap.KeptUnitId;
+			});
+		if (bGiaDetta)
+		{
+			// Dash e Move ricostruiscono lo snapshot nello stesso turno: senza questo, la stessa
+			// sovrapposizione comparirebbe due volte e sembrerebbero due difetti.
+			continue;
+		}
+		ReportedOverlapsThisTurn.Add(Overlap);
+
+		// I due soggetti per NOME, non solo gli indici: e' la lezione di #1932 — una riga che non permette
+		// di attribuire manda a cercare il difetto sull'unita' sbagliata. `SubjectNamesForLog` chiave per
+		// `StableUnitId`, mentre qui gli id sono INDICI dello snapshot: si passa dalle unita' vive, che sono
+		// l'array da cui quegli indici vengono.
+		TArray<ARTUnit*> Vive;
+		CollectLivingUnits(Vive);
+		auto Nome = [&Vive](int32 Indice) -> FString
+		{
+			const ARTUnit* U = Vive.IsValidIndex(Indice) ? Vive[Indice] : nullptr;
+			// ⚠️ Il nome NON basta da solo: due unita' dello stesso eroe danno la stessa etichetta, e la riga
+			// direbbe «Riktor la occupa, Riktor e' stata scartata» — misurato la prima volta che questo log
+			// e' scattato. L'id stabile la rende discriminante, che e' il punto di #1932.
+			return U != nullptr
+				? FString::Printf(TEXT("%s (id %d)"),
+					*ARTUnit::DisplayLabel(U->HeroDisplayName, U->HeroId, U->GetName()), U->StableUnitId)
+				: FString::Printf(TEXT("indice %d"), Indice);
+		};
+
+		UE_LOG(LogRT, Error,
+			TEXT("[RT] Turno %d: la cella (%d,%d,L%d) regge DUE unita' vive — %s la occupa, %s e' stata ")
+			TEXT("scartata dall'occupancy. E' un errore STRUTTURALE: l'esito resta deterministico (vince ")
+			TEXT("l'id minore), ma lo stato non e' quello che le regole assumono."),
+			TurnNumber, Overlap.Cell.X, Overlap.Cell.Y, Overlap.Cell.Layer,
+			*Nome(Overlap.KeptUnitId), *Nome(Overlap.DiscardedUnitId));
+	}
+}
+
 TMap<int32, FString> ARTTurnManager::SubjectNamesForLog() const
 {
 	TMap<int32, FString> Names;
@@ -2489,6 +2740,16 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor
 	// crolla. Non e' l'assenza di una decisione.
 	Entry.Verdict = Actor ? FreezeVerdictFor(FRTLogSubject::Unit(Actor))
 	                      : FRTKnowledgeVerdict::Everyone();
+
+	// E il SOGGETTO contro cui e' stato congelato, che senza il verdetto non e' verificabile ([D-313]).
+	// Si scrive qui e non altrove per la stessa ragione del verdetto: e' l'unico istante in cui conoscenza
+	// e cella dell'attore appartengono allo stesso momento.
+	if (Actor)
+	{
+		Entry.VerdictSubject.StableUnitId = Actor->StableUnitId;
+		Entry.VerdictSubject.TeamId = Actor->TeamId;
+		Entry.VerdictSubject.Cell = Actor->Cell;
+	}
 
 	// L'UNICO `TurnLog.Add` del file: ogni altro sito passa da qui.
 	TurnLog.Add(Entry);
@@ -2945,6 +3206,10 @@ void ARTTurnManager::ConcludeTurn()
 		return; // niente nuovo turno
 	}
 
+	// Il turno nuovo riparte senza memoria delle sovrapposizioni gia' dette (#1970): una condizione che
+	// sopravvive a due turni e' un fatto nuovo il secondo, e va detta di nuovo.
+	ReportedOverlapsThisTurn.Reset();
+
 	++TurnNumber;
 
 	// Riavvia la pianificazione del nuovo turno.
@@ -3090,6 +3355,62 @@ void ARTTurnManager::RecordTurnToReplay()
 		// Non e' un errore di gioco: la partita continua anche se il disco no. Ma va DETTO, o un archivio
 		// che non c'e' si scopre solo quando qualcuno prova a riaprirlo.
 		AddLogEvent(FString::Printf(TEXT("Replay: il turno %d non e' stato registrato"), TurnNumber), FRTLogSubject::World());
+		return;
+	}
+
+	// [D-313] — l'evidenza d'audit, ACCANTO alla traccia e non dentro.
+	//
+	// 🔴 **Solo se la traccia e' andata a buon fine**, e il `return` qui sopra e' la riga che lo
+	// garantisce: un audit senza la sua traccia sarebbe una prova che non prova niente, e peggio, un archivio
+	// che sembra completo. E' la disciplina di `RecordTurn` e `CloseMatch`, un livello piu' su.
+	FRTTurnAudit Audit;
+	Audit.MatchId = ReplayManifest.MatchId;
+	Audit.TurnNumber = TurnNumber;
+
+	// L'ancora: `RecordTurn` ha appena accodato l'hash ordinato di QUESTO turno. Lega l'evidenza alla
+	// TRACCIA, non solo alla partita e al numero — cosi' una traccia rigenerata smette di sembrarne la coppia.
+	Audit.OrderedHash = ReplayManifest.OrderedHashPerTurn.Num() > 0
+		? ReplayManifest.OrderedHashPerTurn.Last()
+		: 0;
+
+	// 🔴 **Un'istantanea di un altro turno non e' evidenza: e' un errore che sembra una prova.** Le due
+	// copie si azzerano a ogni Planning, e `FRTTeamKnowledge::TurnNumber` dice a quale turno appartengono:
+	// se non e' questo, si registra il turno senza quella meta' invece di attribuirgli quella sbagliata.
+	auto DiQuestoTurno = [this](const TArray<FRTTeamKnowledge>& Snapshot)
+	{
+		return Snapshot.Num() > 0 && Snapshot[0].TurnNumber == TurnNumber;
+	};
+
+	// Stessa disciplina delle due istantanee, sul timbro invece che sul campo: le scelte di un altro turno
+	// non si attribuiscono a questo. Un turno che arriva qui senza scelte archiviate le lascia vuote, e il
+	// test d'integrazione lo dichiara turno per turno invece di lasciarlo passare nel totale.
+	if (BotDecisionsTurnForAudit == TurnNumber)
+	{
+		Audit.BotDecisions = BotDecisionsForAudit;
+	}
+
+	if (DiQuestoTurno(PlanningKnowledgeForAudit)) { Audit.PlanningKnowledge = PlanningKnowledgeForAudit; }
+	if (DiQuestoTurno(BlastKnowledgeForAudit)) { Audit.BlastKnowledge = BlastKnowledgeForAudit; }
+
+	// I verdetti nell'ordine in cui le voci sono ARCHIVIATE: `TurnLog` e' gia' ordinato quando si arriva
+	// qui, ed e' lo stesso ordine che il recorder scrive. Il soggetto viaggia sull'entry proprio perche' un
+	// indice non sarebbe sopravvissuto a `SortTurnLog`.
+	Audit.Verdicts.Reserve(TurnLog.Num());
+	for (const FRTTurnLogEntry& Entry : TurnLog)
+	{
+		FRTAuditVerdictRecord Record;
+		Record.Phase = Entry.Phase;
+		Record.SubjectUnitId = Entry.VerdictSubject.StableUnitId;
+		Record.SubjectTeamId = Entry.VerdictSubject.TeamId;
+		Record.SubjectCell = Entry.VerdictSubject.Cell;
+		Record.Verdict = Entry.Verdict;
+		Audit.Verdicts.Add(Record);
+	}
+
+	if (!URTReplayAuditLibrary::RecordTurnAudit(ResolveReplaysRoot(), Audit))
+	{
+		AddLogEvent(FString::Printf(TEXT("Replay: l'audit del turno %d non e' stato registrato"), TurnNumber),
+			FRTLogSubject::World());
 	}
 }
 
@@ -3674,6 +3995,10 @@ void ARTTurnManager::ResolveDash()
 	// budget, non un secondo sistema di pathfinding. Lo snapshot congela mappa e occupazione a inizio fase.
 	TArray<ARTUnit*> Units;
 	FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units);
+
+	// Se due unita' vive condividono una cella, adesso lo si SA (#1970): la costruzione dello snapshot lo
+	// registra, e qui — che e' risoluzione autoritativa, non anteprima — lo si dice.
+	ReportSnapshotOverlaps(Snapshot);
 
 	// Fresco per il turno: chi corre a perdifiato (Action.Sprint) non para (CP 5.1), e questo e' l'unico
 	// posto dove si sa CON CERTEZZA cosa ha davvero usato lo slot di scatto.
@@ -4370,6 +4695,33 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	ApplyEnvironmentChanges(Ctx);
 
 
+	// Impronte a terra dei colpi, nella timeline di playback ([D-301]).
+	//
+	// 🔑 **Qui e non dentro il ciclo dei colpi**, ed e' la ragione per cui questo tipo di evento esiste: il
+	// ciclo piu' sotto emette un `Attack` per VITTIMA, quindi un'area su tre bersagli lo emette tre volte e
+	// una su celle vuote nessuna. L'impronta e' un fatto dell'AZIONE, e ne esce una per intento.
+	//
+	// ⚠️ **Dopo `ApplyInterrupts`/`ResolveInterceptions`**, che riscrivono il piano: i footprint degli
+	// intenti cancellati sono gia' stati tolti insieme ai loro colpi, quindi qui si emette cio' che e'
+	// davvero avvenuto.
+	//
+	// ⚠️ L'attaccante si traduce in `StableUnitId` **adesso**, mentre lo snapshot e' ancora quello del
+	// Blast: `FRTResolvedEvent` porta id e non puntatori (`#1800`), e l'indice di snapshot non sopravvive
+	// al turno.
+	for (const FRTAttackFootprint& Footprint : Plan.Footprints)
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = ERTMatchPhase::Blast;
+		Ev.Type = ERTResolvedEventType::AttackFootprint;
+		Ev.SourceStableUnitId = Units.IsValidIndex(Footprint.AttackerId) && Units[Footprint.AttackerId]
+			? Units[Footprint.AttackerId]->StableUnitId : 0;
+		Ev.Origin = Footprint.Origin;
+		Ev.AimCell = Footprint.AimCell;
+		Ev.Shape = Footprint.Shape;
+		Ev.HitCells = Footprint.HitCells;
+		ResolvedTimeline.Add(MoveTemp(Ev));
+	}
+
 	// Intenti NON VALUTABILI (nessuna mappa autorevole): non finiscono nel TurnLog come «nessuna linea di
 	// tiro» — sarebbe un esito di gioco al posto di un difetto di configurazione del livello. Restano un
 	// warning, perche' e' il livello a dover essere corretto, non la posizione dell'unita'.
@@ -4587,12 +4939,33 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 
 			// Attaccante non risolvibile: il colpo NON e' eleggibile. Un dato mancante non deve concedere una
 			// protezione che nessuno ha dichiarato — fail-closed, come il resto del combattimento.
-			const bool bFrontal = HexUnits.IsValidIndex(Hit.AttackerId)
+			//
+			// L'ORIGINE dell'arco non e' sempre chi ha attaccato: per un'AREA e' il CENTRO D'IMPATTO
+			// ([D-302] punto 3, `#2009`). Una granata fatta cadere DAVANTI a chi e' in Guardia da un
+			// lanciatore che gli sta alle SPALLE arriva, per lui, da davanti — e il pool va consumato.
+			// Con la cella del lanciatore usciva un `RearHitBypassedGuard` per un colpo che il difensore
+			// vedeva arrivare, e il simmetrico proteggeva da un ordigno esploso dietro le spalle.
+			//
+			// ⚠️ `Line` e `Cone` NON cambiano, e non per dimenticanza: per entrambe la direzione
+			// d'impatto coincide gia' con `attaccante->bersaglio`, quindi `D-302` e' gia' soddisfatta.
+			//
+			// 🔑 Il centro si legge dal FOOTPRINT e non da `Intents[Hit.IntentIndex].TargetCell`: quel
+			// campo e' *«ignorato»* quando l'area e' centrata su un'unita', mentre `AimCell` porta il centro
+			// gia' risolto — unita' o cella — e **congelato al momento del calcolo del piano**, che e'
+			// l'istante in cui la geometria e' stata decisa.
+			// ⚠️ **La forma si legge dall'INTENTO, il centro dal footprint**, e la regola sta in
+			// `ResolveImpactOrigin` invece che qui: l'altro consumatore e' la traccia direzionale di `#726`,
+			// e due copie di questa scelta si separerebbero alla prima modifica — `#2009`, che riguarda
+			// proprio questo sito, e' gia' quella modifica.
+			FRTCellId ImpactOrigin;
+			const bool bOriginResolved = ResolveImpactOrigin(Intents, Plan, HexUnits, Hit, ImpactOrigin);
+
+			const bool bFrontal = bOriginResolved
 				&& URTHexCombatLibrary::IsInFrontalArc(
-					HexUnits[i].Cell, HexUnits[i].Facing, HexUnits[Hit.AttackerId].Cell);
+					HexUnits[i].Cell, HexUnits[i].Facing, ImpactOrigin);
 			bFrontalHit[h] = bFrontal;
 
-			if (!bFrontal && HexUnits.IsValidIndex(Hit.AttackerId))
+			if (!bFrontal && bOriginResolved)
 			{
 				FRTTurnLogEntry Bypassed;
 				Bypassed.Phase = ERTMatchPhase::Blast;
@@ -4601,7 +4974,11 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 				// scavalcata e mette in `Amount` la DIREZIONE del difensore, mentre il ramo della copertura ci
 				// mette i punti di riduzione. Erano lo stesso esito con due payload incompatibili.
 				Bypassed.Outcome = static_cast<uint8>(ERTFacingOutcome::RearHitBypassedGuard);
-				Bypassed.SrcCell = HexUnits[Hit.AttackerId].Cell;
+				// L'origine DICHIARATA, cioe' la stessa che ha deciso l'arco: per un'area il centro
+				// d'impatto, altrimenti la cella del lanciatore. Una traccia che spiegasse un bypass con
+				// una cella diversa da quella su cui il bypass e' stato deciso sarebbe la stessa classe di
+				// difetto di [D-199]/`#1430`: l'esito giusto con il payload di un altro.
+				Bypassed.SrcCell = ImpactOrigin;
 				Bypassed.TgtCell = HexUnits[i].Cell;
 				Bypassed.Amount = static_cast<int32>(HexUnits[i].Facing);
 				// 🔴 `UnitId` porta CHI SUBISCE, non chi ha colpito, e non e' una scelta arbitraria: e' cio'
@@ -4633,16 +5010,33 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	}
 
 	// Riduzione dichiarata dalle reazioni attivate (`Action.Deflect` e le reazioni d'eroe che ne riusano la
-	// semantica): una reazione si attiva UNA volta, quindi vale sul colpo che l'ha innescata.
+	// semantica): POOL D'ASSORBIMENTO, non piu' un delta di primo colpo ([D-309]).
 	//
-	// ⚠️ RESTA un delta di primo colpo, e quindi porta ancora il difetto che [D-292] ha tolto alla Guardia:
-	// `Deflect` e' -20, e su un colpo piu' piccolo l'avanzo si perde. Non e' stato spostato qui perche' e'
-	// una REAZIONE — si attiva una volta, sul colpo che l'ha innescata — e trasformarla in un pool e' una
-	// decisione sul suo significato, non una correzione. Dichiarato in `#1909`, da scorporare.
+	// Cio' che un colpo non consuma resta per i successivi dello STESSO boundary, quindi il totale assorbito
+	// non dipende da quale colpo arriva per primo — il difetto che [D-292] aveva tolto alla Guardia e che
+	// `Deflect` conservava: con -20 su un colpo da 5, quindici punti di riduzione si perdevano nel clamp.
+	//
+	// Il segno si INVERTE, e non e' una rinomina: `DeflectDelta` e' una riduzione (negativa), un pool e' un
+	// budget (positivo). `Max(0, ...)` perche' un delta positivo qui non significherebbe «pool negativo» ma
+	// «nessuna reazione»: e' la lettura fail-closed, coerente con il resto del combattimento.
+	TArray<int32> DeflectPool;
+	DeflectPool.Init(0, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
-		if (Units[i]) { FirstHitDelta[i] += Reactions.DeflectDelta[i]; }
+		if (Units[i]) { DeflectPool[i] = FMath::Max(0, -Reactions.DeflectDelta[i]); }
 	}
+
+	// Nessun filtro direzionale, ed e' una differenza DICHIARATA rispetto alla Guardia: `Action.Deflect`
+	// porta `ReactionTrigger = HitByDirectAttack` senza clausola d'arco, quindi devia anche un colpo che
+	// arriva alle spalle. La maschera esiste comunque perche' `ApplyAbsorptionPool` la richiede, e un array
+	// piu' CORTO varrebbe «non eleggibile» per i colpi mancanti: dimensionarla su `Plan.Hits` e' cio' che la
+	// rende inerte invece che restrittiva.
+	//
+	// Ed e' la ragione per cui l'ordine dei due pool ha dovuto essere deciso ([D-312]): `Guard` e' eleggibile
+	// SOLO sui colpi frontali, `Deflect` su tutti, quindi le due maschere sono parzialmente sovrapposte — la
+	// condizione in cui l'ordine cambia l'esito.
+	TArray<bool> bDeflectEligible;
+	bDeflectEligible.Init(true, Plan.Hits.Num());
 
 	// `Action.Brace` (CP 5.2): -10 su OGNI danno diretto, non solo sul primo. E' un secondo passaggio con una
 	// funzione diversa (`ApplyDamageDelta`, senza il gate "una volta sola"): applicarlo con `ApplyFirstHitDelta`
@@ -4660,10 +5054,22 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// L'assorbimento della Guardia viene per ULTIMO, dopo i modificatori del danno ([D-292]): il pool copre
 	// cio' che resta, non il danno nominale. E' la lettura coerente con «quanto danno la guardia regge»: se
 	// assorbisse per primo, `Status.Exposed` ne mangerebbe una parte prima che il difensore la usi.
+	//
+	// `Deflect` assorbe PRIMA di `Guard`, ed e' una decisione ([D-312]), non l'ordine in cui e' comodo
+	// scrivere le chiamate. Le due maschere sono parzialmente sovrapposte (`Guard` e' un sottoinsieme di
+	// `Deflect`), e su 2940 configurazioni raggiungibili 558 danno un esito diverso a seconda dell'ordine:
+	// nel caso minimo — colpo da 5 frontale, colpo da 20 alle spalle — il bersaglio riceve 5 in quest'ordine
+	// e 0 nell'altro. Invertire queste due righe CAMBIA IL BILANCIAMENTO, e va fatto solo superando [D-312].
+	//
+	// Le tre ragioni, per chi legge qui invece che nel registro: `Deflect` e' una REAZIONE e agisce sul colpo
+	// che l'ha innescata mentre `Guard` e' uno STATO gia' in essere; `Priority 15` contro `40` concorda; e
+	// fra i due ordini questo e' quello che concede meno protezione.
 	TArray<FRTAttack> Attacks = URTCombatResolver::ApplyAbsorptionPool(
-		URTCombatResolver::ApplyDamageDelta(
-			URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta),
-			EveryHitDelta),
+		URTCombatResolver::ApplyAbsorptionPool(
+			URTCombatResolver::ApplyDamageDelta(
+				URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta),
+				EveryHitDelta),
+			DeflectPool, bDeflectEligible),
 		GuardPool, bFrontalHit);
 
 	TArray<FRTCellId> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
@@ -4732,6 +5138,61 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		AttackPriority.Add(bHasDef ? IntentDefs[Hit.IntentIndex].Priority : 0);
 		AttackActors.Add(Attacker);
 
+		// `#726` — DA QUALE LATO e' arrivato questo colpo, relativamente all'orientamento di chi lo subisce
+		// ([D-126], regola a settore semiaperto confermata da [D-147]).
+		//
+		// 🔑 **E' il primo consumatore che [D-126] chiedeva, ed e' la traccia e non un'abilita'**: costa zero
+		// sul bilanciamento — nessun esito cambia, nessuna riduzione si sposta — e rende la relazione a sei
+		// lati OSSERVABILE invece che dichiarata. Senza un consumatore sarebbe un ramo morto, cioe' il
+		// `runtime: partial` che il registry punisce.
+		//
+		// ⚠️ **PERIMETRO: questo ciclo copre i colpi del piano di Blast, e non ogni colpo della partita.**
+		// `Plan.Hits` non contiene i CONTRATTACCHI — entrano in `Attacks` con
+		// `Attacks.Append(Reactions.CounterAttacks)`, dopo la fine di questo ciclo — ne' il fuoco di
+		// OVERWATCH, che applica danno in `ApplyReactionDecision` senza mai passare da un `FRTHexAttackHit`.
+		//
+		// ✅ **Dal 2026-09-03 quelle due famiglie portano comunque la voce** (`#2128`), emessa dai rispettivi
+		// produttori: la coda dei contrattacchi qui sotto, dopo l'`Append`, e il ramo `FIRE` di
+		// `ApplyReactionDecision`. La riga che diceva *«per quei due la voce NON viene emessa»* descriveva il
+		// periodo 2026-09-02 → 2026-09-03. Cio' che mancava non era la geometria ma il fatto che `FRTAttack`
+		// non porta l'attaccante: la sorgente vive accanto, in `Reactions.CounterAttackSrc` per il
+		// contrattacco e nella cella del watcher per l'Overwatch, e [D-302] punto 3 la classifica gia' —
+		// *diretto/mischia = sorgente→bersaglio*.
+		//
+		// 🔑 **E la voce si costruisce in UN posto solo**: `URTFacingLibrary::MakeHitCameFromSideEntry`. Con
+		// tre produttori, la convenzione di privacy scritta tre volte sarebbero tre copie da tenere allineate.
+		//
+		// ⛔ **Sta comunque in questo ciclo e non accanto a `bFrontalHit`**: quel ramo entra solo per le
+		// unita' con `TAG_Status_Guarded`, quindi coprirebbe i colpi su chi e' in guardia e nessun altro —
+		// un perimetro piu' stretto di questo e per una ragione accidentale invece che dichiarata.
+		if (Victim)
+		{
+			// L'origine serve a CALCOLARE la direzione e non entra nella voce: e' l'helper a garantirlo.
+			FRTCellId SideOrigin;
+			FRTTurnLogEntry FromSide;
+			if (ResolveImpactOrigin(Intents, Plan, HexUnits, Hit, SideOrigin)
+				&& URTFacingLibrary::MakeHitCameFromSideEntry(HexUnits[Hit.TargetId].Cell,
+					HexUnits[Hit.TargetId].Facing, SideOrigin, ERTMatchPhase::Blast, FromSide))
+			{
+				// CHI SUBISCE, come entrambi gli altri produttori di categoria `Facing` (`#1418`) — ed e'
+				// dichiarato anche in `URTTurnLogLibrary::IsSubjectTheSufferer`, che tiene la tassonomia in
+				// un posto solo: un produttore che inverte il soggetto e non compare la' e' invisibile a chi
+				// aggrega per unita'.
+				AppendLogEntry(FromSide, Victim);
+			}
+			// ⚠️ **Nessuna voce quando la direzione non esiste, e i casi sono due**: origine non risolvibile
+			// (fail-closed, come i rami vicini) e origine che COINCIDE in pianta con il bersaglio. Il secondo
+			// non e' raro: `AimCell` di un'area centrata su un'unita' E' la cella di quell'unita', quindi il
+			// bersaglio al centro dell'esplosione non ha un lato d'ingresso. Tacere e' corretto — non esiste
+			// un lato da nominare — ma va saputo: chi conta «una voce per colpo» trova un buco, e non e'
+			// un difetto. `Facing.RelativeDirectionEdgeCases` pinna la regola.
+			//
+			// ⚠️ **E il buco NON e' piu' anche «questa famiglia di colpi non e' coperta»** (`#2128`): dal
+			// 2026-09-03 contrattacchi e Overwatch emettono la voce come i colpi di Blast, quindi un'assenza
+			// significa una cosa sola — nessun lato da nominare. Erano due silenzi identici con due
+			// significati, ed e' la ragione per cui la scelta e' stata emettere invece di documentare.
+		}
+
 		// `#649` — la DIREZIONE ha annullato una copertura, e adesso la traccia lo dice.
 		//
 		// Finora `RearHitBypassedCover` — che nel nome porta proprio «Cover» — era emesso **solo** dal ramo
@@ -4780,6 +5241,15 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			Instance.TargetUnitId = Hit.TargetId;
 			Instance.TargetCell = HexUnits[Hit.TargetId].Cell;
 			Instance.EventSequence = Plan.Hits.Num();
+			// 🔴 **Il colpo e' qui perche' NON e' stato cancellato: se e' fra i degradati, l'Interrupt gli ha
+			// tolto qualcosa lo stesso** ([D-300]). E' l'unico punto in cui `bInterrupted` diventa vero in
+			// partita — prima del 2026-08-31 lo scrivevano solo i test, e il ramo di `ProduceEvents` che lo
+			// legge era codice mai eseguito in gioco.
+			//
+			// ⚠️ Un cancellato non arriva mai fin qui: `Plan.Hits.RemoveAll` l'ha gia' tolto. Quindi questo
+			// flag significa **degradato**, non «interrotto in generale», e il taglio effettivo lo decide
+			// `ERTInterruptPolicy` dentro `ProduceEvents`, non questa riga.
+			Instance.bInterrupted = Ctx.DegradedIntents.Contains(Hit.IntentIndex);
 
 			for (const FRTActionEvent& Event : URTActionEffectLibrary::ProduceEvents(Instance))
 			{
@@ -4908,12 +5378,57 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// ricevuto". `ResolveAttacks` somma comunque per bersaglio sullo stato iniziale, quindi la posizione non
 	// cambia il totale; cambia quale colpo conta come "primo" per Guard/Exposed/Deflect, ed e' giusto che sia
 	// l'attacco pianificato a consumare quei delta, non un contrattacco arrivato di rimbalzo.
+	// Dove comincia la coda dei contrattacchi, catturato PRIMA dell'`Append` (`#2128`).
+	//
+	// ⚠️ **Non `Plan.Hits.Num()`, che oggi darebbe lo stesso numero.** La coincidenza regge su un'invariante
+	// dichiarata sessanta righe piu' su — «`ToAttacks` mappa 1:1 e le due funzioni che stanno in mezzo copiano
+	// l'array» — e quel commento avverte gia' che «un giorno un delta potrebbe non conservare la cardinalita'».
+	// Il giorno in cui non la conservasse, il ciclo qui sotto leggerebbe `AttackSrc` a indici sfalsati e
+	// scriverebbe voci direzionali con l'origine di un ALTRO colpo: precise, plausibili e sbagliate, senza che
+	// niente diventi rosso. Contare qui non dipende da nessuna invariante remota.
+	const int32 FirstCounter = Attacks.Num();
 	Attacks.Append(Reactions.CounterAttacks);
 	AttackSrc.Append(Reactions.CounterAttackSrc);
 	AttackActionId.Append(Reactions.CounterActionId);
 	AttackBaseActionId.Append(Reactions.CounterBaseActionId);
 	AttackPriority.Append(Reactions.CounterPriority);
 	AttackActors.Append(Reactions.CounterAttackActors);
+
+	// `#2128` — DA QUALE LATO e' arrivato ogni CONTRATTACCO. Il ciclo su `Plan.Hits` qui sopra non li vede: al
+	// momento in cui gira, questi colpi non sono ancora in `Attacks`.
+	//
+	// 🔑 **L'origine non va inventata**: [D-302] punto 3 classifica il contrattacco come colpo
+	// *diretto/mischia*, la cui origine e' **sorgente→bersaglio**, e la sorgente e' gia' registrata —
+	// `Reactions.CounterAttackSrc`, cioe' la cella di chi reagisce, scritta accanto al colpo nel pass delle
+	// reazioni. Cio' che manca a `FRTAttack` e' l'attaccante, non la geometria.
+	//
+	// ⚠️ **Si itera la CODA, non tutto `Attacks`.** I colpi di indice minore di `FirstCounter` hanno gia'
+	// avuto la loro voce dal ciclo su `Plan.Hits`, e riemetterla qui la duplicherebbe — cambiando l'hash di
+	// ogni traccia con un colpo di Blast. Gli array sono paralleli per costruzione, quindi la coda e'
+	// esattamente l'insieme dei contrattacchi.
+	//
+	// ⚠️ **Il facing e il bersaglio si leggono da `HexUnits`**, che e' lo snapshot su cui l'intero Blast
+	// risolve: leggere `Units[...]->Facing` prenderebbe l'orientamento dell'Actor, che dentro la fase puo'
+	// essere gia' un altro valore.
+	for (int32 a = FirstCounter; a < Attacks.Num(); ++a)
+	{
+		const int32 TargetIdx = Attacks[a].TargetIndex;
+		if (!HexUnits.IsValidIndex(TargetIdx) || !AttackSrc.IsValidIndex(a)) { continue; }
+
+		ARTUnit* CounterVictim = Units.IsValidIndex(TargetIdx) ? Units[TargetIdx] : nullptr;
+		if (!CounterVictim) { continue; }
+
+		FRTTurnLogEntry FromSide;
+		if (URTFacingLibrary::MakeHitCameFromSideEntry(HexUnits[TargetIdx].Cell, HexUnits[TargetIdx].Facing,
+			AttackSrc[a], ERTMatchPhase::Blast, FromSide))
+		{
+			// CHI SUBISCE il contrattacco, cioe' l'attaccante di partenza: e' lui a essere colpito da dietro
+			// o di fronte, ed e' sul suo orientamento che il lato e' misurato.
+			AppendLogEntry(FromSide, CounterVictim);
+		}
+		// Nessuna voce quando la direzione non esiste — reattore e bersaglio sulla stessa cella in pianta.
+		// Fail-closed come il ramo di Blast, e per la stessa ragione: non c'e' un lato da nominare.
+	}
 
 	if (Attacks.Num() == 0)
 	{
@@ -5634,6 +6149,30 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 	Entry.TgtCell = State.Pos[TargetIdx];
 	AppendLogEntry(Entry, WatchOwner);
 
+	// `#2128` — DA QUALE LATO il bersaglio ha incassato il colpo di Overwatch. L'origine e' la cella del
+	// watcher: [D-302] punto 3 classifica come *diretto/mischia* — origine **sorgente→bersaglio** — e questo
+	// colpo e' letteralmente `ERTDamageSource::Direct` dieci righe sopra.
+	//
+	// 🔴 **DUE voci e due soggetti diversi, ed e' voluto.** Quella qui sopra e' la DECISIONE del watcher e si
+	// congela su di lui; questa e' cio' che il BERSAGLIO ha subito e si congela su di lui, come ogni altra
+	// voce `Facing` che descrive l'orientamento di un'unita' (`IsSubjectTheSufferer`). Congelarle sullo stesso
+	// attore renderebbe la seconda invisibile a chi la riguarda.
+	//
+	// 🔑 **Il facing e' quello con cui il bersaglio e' ENTRATO nella fase Move, e non e' un ripiego.**
+	// `ResolveReactionBoundary` gira dentro il ciclo dei micro-step; la `RecordFacingChange` che fissa
+	// `DerivedFromMove` scrive DOPO l'uscita dal ciclo. Al momento del colpo l'orientamento finale non esiste
+	// ancora — e la lettura giusta e' proprio questa: si viene colpiti *mentre* ci si muove, con
+	// l'orientamento che si aveva. Va detto, o il prossimo lettore lo scambia per una svista.
+	//
+	// ⚠️ **`Armed.Facing` non c'entra**: quello e' il cono che il watcher ha dichiarato armando, cioe' dove
+	// GUARDA. Qui serve l'orientamento di chi SUBISCE, che e' un'altra unita' e un altro campo.
+	FRTTurnLogEntry FromSide;
+	if (URTFacingLibrary::MakeHitCameFromSideEntry(State.Pos[TargetIdx], Target->Facing,
+		State.Pos[OwnerIdx], ERTMatchPhase::Move, FromSide))
+	{
+		AppendLogEntry(FromSide, Target);
+	}
+
 	AddLogEvent(FString::Printf(TEXT("%s: overwatch su %s, %d danni e movimento troncato"),
 		*WatchOwner->GetName(), *Target->GetName(), Armed.Damage), FRTLogSubject::Unit(WatchOwner));
 }
@@ -5820,6 +6359,10 @@ void ARTTurnManager::ResolveMovement()
 	TArray<ARTUnit*> Units;
 	const FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units);
 
+	// Come nel Dash: la fase autoritativa dice cio' che lo snapshot ha registrato (#1970). Una condizione
+	// gia' segnalata in questo turno non si ripete — la deduplica sta in `ReportSnapshotOverlaps`.
+	ReportSnapshotOverlaps(Snapshot);
+
 	TArray<TArray<FRTCellId>> Paths;
 	Paths.Reserve(Units.Num());
 	// Chi e' stato accorciato dalla TOPOLOGIA: il resolver non puo' saperlo (il taglio avviene prima che lui
@@ -5961,20 +6504,20 @@ void ARTTurnManager::ResolveMovement()
 	{
 		AppendLogEntry(MoveLog[i], Units.IsValidIndex(i) ? Units[i] : nullptr);
 	}
-	for (int32 i = 0; i < Units.Num(); ++i)
-	{
-		// Il combat log mostra il REASON CODE del TurnLog, con le coordinate assiali: cosi' quel che il
-		// giocatore legge e quel che il replay registra sono la stessa cosa, non due descrizioni parallele.
-		if (MoveLog.IsValidIndex(i)
-			&& (Resolved[i].Outcome == ERTMoveOutcome::BlockedContested || Resolved[i].Outcome == ERTMoveOutcome::BlockedByUnit))
-		{
-			// Il soggetto e' `Units[i]`, lo stesso che `AppendLogEntry` ha appena scritto nella voce: la
-			// riga porta `SrcCell` e `TgtCell` di quella mossa, cioe' esattamente la posizione che una
-			// squadra che non lo vede non deve leggere.
-			AddLogEvent(FString::Printf(TEXT("%s: %s"),
-				*Units[i]->GetName(), *URTTurnLogLibrary::DescribeEntry(MoveLog[i])), FRTLogSubject::Unit(Units[i]));
-		}
-	}
+	// ⛔ **Niente `AddLogEvent` per le mosse bloccate**, e la riga che c'era qui non era di troppo fin
+	// dall'inizio: e' diventata un duplicato con `#1932`.
+	//
+	// L'intento — *«il combat log mostra il REASON CODE del TurnLog, con le coordinate assiali, cosi'
+	// quel che il giocatore legge e quel che il replay registra sono la stessa cosa»* — resta, e ora lo
+	// realizza la derivazione: `ConcludeTurn` rende una riga per voce, e da `#1932` le voci `Move`
+	// portano **anche il soggetto**, perche' `Move` e' l'unica categoria in cui `UnitId` e' pure il
+	// soggetto grammaticale.
+	//
+	// 🔴 **E le due copie non erano nemmeno identiche**: questa nominava l'unita' con
+	// `Units[i]->GetName()` — l'Actor, cioe' `RTUnit_0` — mentre la derivata usa il nome risolto da
+	// `SubjectNamesForLog()`, cioe' `Wraith`. Lo stesso evento arrivava al giocatore due volte,
+	// attribuito a due entita' che sembravano diverse. Misurato da
+	// `RefactorTactics.UI.BlockedMoveLineIsNotRepeated`, che senza questa rimozione conta `2` (`#1412`).
 
 	// Traccia post-lock: rotte effettivamente percorse (viz del percorso risolto). Catturate PRIMA
 	// del placement, cosi' includono la cella di partenza reale.
@@ -6075,8 +6618,10 @@ void ARTTurnManager::ResolveMovement()
 		}
 
 		ERTHexDirection Applied = Unit->Facing;
+		// Il budget e' quello dell'EROE di questa unita' (ADR-0008 §1): qui si emette il verdetto, e il
+		// verdetto non puo' usare un budget diverso da quello che la UI ha usato per proporre.
 		const bool bLegal = URTFacingLibrary::TryApplyDeclaredFacing(Unit->MovementStyleThisTurn,
-			Unit->WalkedThisTurn, Unit->Facing, Unit->PlannedFacing, Applied);
+			Unit->WalkedThisTurn, Unit->Facing, Unit->PlannedFacing, Unit->PivotBudget(), Applied);
 
 		FRTHexSimUnit Declaring(i, Unit->Cell, /*InMoveBudget=*/ 0);
 		Declaring.Facing = Unit->Facing;
@@ -6086,7 +6631,7 @@ void ARTTurnManager::ResolveMovement()
 		Unit->Facing = Declaring.Facing;
 
 		AddLogEvent(FString::Printf(TEXT("%s: rotazione dichiarata %s"), *Unit->GetName(),
-			bLegal ? TEXT("applicata") : TEXT("RIFIUTATA (illegale per lo stile di movimento)")), FRTLogSubject::Unit(Unit));
+			bLegal ? TEXT("applicata") : TEXT("RIFIUTATA (fuori dal budget di pivot dell'eroe)")), FRTLogSubject::Unit(Unit));
 		Unit->ClearDeclaredFacing();
 	}
 
@@ -6208,27 +6753,53 @@ void ARTTurnManager::BeginPlayback()
 		return;
 	}
 
-	// Durata reale = somma delle durate delle fasi effettivamente riprodotte (progress bar coerente).
-	// Poi accelerazione per rientrare nel tetto (SpeedMultiplierForCap, logica pura testata).
-	float RawTotal = 0.f;
+	// I due termini del round, separati: quanto tempo si MOSTRA qualcosa e quanto si aspetta. La
+	// distinzione nasce in `URTPlaybackLibrary::PhaseTime` e serve qui, dove il budget decide cosa
+	// comprimere — il budget puo' togliere attese e non puo' toccare cio' che si vede (#1878).
+	float ShownTotal = 0.f;
+	float SlackTotal = 0.f;
 	for (const ERTMatchPhase Ph : PlaybackPhases)
 	{
-		RawTotal += DurationForPlaybackPhase(Ph);
+		const FRTPhaseTime T = PhaseTimeForPlaybackPhase(Ph);
+		ShownTotal += T.Shown;
+		SlackTotal += T.Slack;
 	}
-	PlaybackSpeed = URTPlaybackLibrary::SpeedMultiplierForCap(RawTotal, MaxPlaybackSeconds);
+	// ⚠️ Da qui in poi `DurationForPlaybackPhase` restituisce la durata GIA' compressa: va calcolato prima
+	// di qualunque lettura, o il primo tick userebbe la scala del round precedente.
+	PlaybackSlackScale = URTPlaybackLibrary::SlackScaleForBudget(ShownTotal, SlackTotal, MaxPlaybackSeconds);
+
+	// Il totale che si mostrera': locomozione intatta piu' le attese sopravvissute al budget. ⚠️ Puo'
+	// SFORARE `MaxPlaybackSeconds`, ed e' voluto: quando non resta comprimibile, la risoluzione dura di
+	// piu' invece di far correre i personaggi.
+	const float BudgetedTotal = ShownTotal + SlackTotal * PlaybackSlackScale;
+
 	// La stima mostrata tiene conto anche della velocita' scelta da chi guarda. ⚠️ E' una stima ALL'AVVIO:
 	// se la velocita' cambia a risoluzione in corso, la barra resta tarata su quella di partenza. La
-	// riproduzione invece segue subito (TickPlayback ricompone a ogni tick) — l'unica cosa che diverge e'
+	// riproduzione invece segue subito (TickPlayback rilegge a ogni tick) — l'unica cosa che diverge e'
 	// il numero mostrato, non il ritmo, e non c'e' nulla di logico che vi dipenda.
-	const float StartSpeed = URTPlaybackLibrary::EffectivePlaybackSpeed(ViewerPlaybackSpeed, PlaybackSpeed);
-	PlaybackTotalSeconds = (StartSpeed > 0.f) ? (RawTotal / StartSpeed) : RawTotal;
+	// 🔴 **Nelle unita' dell'orologio del playback, non in secondi di parete** — corretto il 2026-09-02.
+	// `PlaybackElapsedTotal` accumula `Dt`, che e' gia' moltiplicato per la velocita' scelta; dividere il
+	// totale per la stessa velocita' rendeva `GetPlaybackProgress01()` il rapporto fra una grandezza
+	// scalata e una no, e la barra saturava a `1` dopo `1/ViewerPlaybackSpeed` della risoluzione — a x4,
+	// col 75% ancora da mostrare. Il difetto precede #1878; questa riga era gia' da riscrivere e lasciarlo
+	// dentro sarebbe stato peggio che allargare di poco lo scope.
+	PlaybackTotalSeconds = BudgetedTotal;
 	PlaybackElapsedTotal = 0.f;
 
 	PlaybackPhaseIdx = 0;
 	bIsResolving = true;
 	SetActorTickEnabled(true);
-	AddLogEvent(FString::Printf(TEXT("Risoluzione: %d fasi, ~%.1fs (x%.2f)"),
-		PlaybackPhases.Num(), PlaybackTotalSeconds, StartSpeed), FRTLogSubject::World());
+	// I secondi di parete si compongono qui, dove servono a chi legge, invece di essere conservati in un
+	// campo che ha un'altra unita' di misura.
+	const float StartSpeed = URTPlaybackLibrary::EffectivePlaybackSpeed(ViewerPlaybackSpeed);
+	// ⚠️ **`slack x%.2f` non e' decorazione: e' il segnale che rende il budget osservabile dai log.** La
+	// diagnosi di #1878 e' stata possibile perche' questa riga portava il moltiplicatore del tetto, e su
+	// 125.780 risoluzioni si e' potuto dire che non era mai intervenuto. Quel moltiplicatore non esiste
+	// piu'; senza il suo sostituto, il giorno in cui il budget comincera' a mordere — e comincera', appena
+	// la velocita' base scendera' — nessuno potrebbe accorgersene misurando.
+	AddLogEvent(FString::Printf(TEXT("Risoluzione: %d fasi, ~%.1fs (x%.2f, slack x%.2f)"),
+		PlaybackPhases.Num(), (StartSpeed > 0.f) ? (BudgetedTotal / StartSpeed) : BudgetedTotal,
+		StartSpeed, PlaybackSlackScale), FRTLogSubject::World());
 	EnterPlaybackPhase();
 }
 
@@ -6258,10 +6829,16 @@ void ARTTurnManager::EnterPlaybackPhase()
 
 void ARTTurnManager::TickPlayback(float DeltaSeconds)
 {
-	// Composizione RILETTA a ogni tick, non congelata in BeginPlayback: e' cio' che rende la velocita'
-	// scelta applicabile DURANTE la risoluzione, e non solo dal turno successivo (CP 47.2, #955).
-	// PlaybackSpeed resta il solo termine di cap; ViewerPlaybackSpeed e' la preferenza di chi guarda.
-	const float Dt = DeltaSeconds * URTPlaybackLibrary::EffectivePlaybackSpeed(ViewerPlaybackSpeed, PlaybackSpeed);
+	// RILETTA a ogni tick, non congelata in BeginPlayback: e' cio' che rende la velocita' scelta
+	// applicabile DURANTE la risoluzione, e non solo dal turno successivo (CP 47.2, #955).
+	//
+	// 🔑 **Il budget NON entra qui, e non ci entra piu' dal 2026-09-02** (#1878). Questo e' l'unico
+	// orologio del playback: quello che divide `PlaybackPhaseElapsed` per la durata di fase e produce
+	// l'`Alpha` con cui i cilindri si interpolano. Moltiplicarlo per un fattore derivato dal tetto era
+	// **il** modo in cui la durata target finiva per decidere la velocita' visuale della locomozione. Il
+	// budget agisce ora sulla DURATA della fase (`DurationForPlaybackPhase`, attese comprimibili), non
+	// sulla velocita' con cui la si attraversa.
+	const float Dt = DeltaSeconds * URTPlaybackLibrary::EffectivePlaybackSpeed(ViewerPlaybackSpeed);
 	PlaybackPhaseElapsed += Dt;
 	PlaybackElapsedTotal += Dt;
 
@@ -6436,7 +7013,7 @@ void ARTTurnManager::SkipPlayback()
 	FinishPlayback();
 }
 
-float ARTTurnManager::DurationForPlaybackPhase(ERTMatchPhase InPhase) const
+FRTPhaseTime ARTTurnManager::PhaseTimeForPlaybackPhase(ERTMatchPhase InPhase) const
 {
 	// Le unita' si muovono in parallelo: alla durata serve il percorso PIU' LUNGO fra quelli riprodotti in
 	// questa fase, non la loro somma. E' l'unico dato che il TurnManager possiede e la library no.
@@ -6446,10 +7023,26 @@ float ARTTurnManager::DurationForPlaybackPhase(ERTMatchPhase InPhase) const
 		if (A.Phase == InPhase) { MaxSeg = FMath::Max(MaxSeg, A.World.Num() - 1); }
 	}
 
-	// La formula sta in `URTPlaybackLibrary::PhaseDuration`, dove si esercita senza mondo e senza Actor
+	// La formula sta in `URTPlaybackLibrary::PhaseTime`, dove si esercita senza mondo e senza Actor
 	// (#1817). Qui resta la sola raccolta degli ingressi.
-	return URTPlaybackLibrary::PhaseDuration(InPhase, MaxSeg, PlaybackAttacks.Num(),
+	return URTPlaybackLibrary::PhaseTime(InPhase, MaxSeg, PlaybackAttacks.Num(),
 		PlaybackCellsPerSecond, AttackShowSeconds, PhaseBeatSeconds);
+}
+
+float ARTTurnManager::DurationForPlaybackPhase(ERTMatchPhase InPhase) const
+{
+	const FRTPhaseTime T = PhaseTimeForPlaybackPhase(InPhase);
+
+	// 🔑 **Il budget si applica QUI, e solo allo slack.** E' la differenza fra «la fase dura meno perche'
+	// le attese sono state accorciate» e «i cilindri corrono di piu'»: `T.Shown` passa intatto, quindi il
+	// tempo che il movimento ha per attraversare le sue celle non scende mai sotto
+	// `MaxSeg / PlaybackCellsPerSecond`.
+	//
+	// ⚠️ **Le fasi che mostrano qualcosa hanno `Slack == 0`**, quindi per `Dash`, `Move` e `Blast` questa
+	// riga restituisce la durata piena qualunque cosa faccia il budget. Non e' un caso fortunato: e' la
+	// classificazione di `PhaseTime`, e ci si e' arrivati dopo che la prima stesura — che comprimeva il
+	// tempo dei colpi — faceva uscire tutti i colpi in un frame e accelerava la spinta del knockback.
+	return T.Shown + T.Slack * PlaybackSlackScale;
 }
 
 FString ARTTurnManager::GetPlaybackPhaseName() const

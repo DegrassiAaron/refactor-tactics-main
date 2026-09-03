@@ -87,7 +87,9 @@ marchio»). Tre conseguenze di progetto:
 > priorità**: i marchi dichiarati dagli intenti si applicano prima, e il +6 va al primo colpo qualificato con
 > priorità **strettamente maggiore** (`PrecisionAttack` 60, `BasicAttack` 50). Resta «raccogli poi applica» —
 > si aggiustano i `Power` di colpi già congelati, non si ricalcolano bersagli. Il precedente nel codice è
-> `Action.Interrupt` (priorità 20), che filtra i colpi del piano prima che diventino danno.
+> `Action.Interrupt` (priorità 20), che filtra i colpi del piano prima che diventino danno — o, da
+> [D-300](../decisions/RT_PDR_00_Decision_Log.md), ne **degrada** uno lasciandolo nel piano senza i suoi
+> effetti oltre il primo.
 >
 > L'ordine di spesa è totale (`priorità → ActionId → AttackerId → IntentIndex`): «il *prossimo* attacco
 > alleato» deve avere una sola risposta anche quando due alleati colpiscono lo stesso bersaglio nello stesso

@@ -52,6 +52,25 @@ namespace RTGraybox
 	/** Le sei istanze, una per mesh di §8.1. La tabella e' il contratto: i test la leggono da qui. */
 	extern const FRTGrayboxMaterialSpec KitMaterials[6];
 
+	/**
+	 * Le tre istanze del **fixture** della Station 01 (#1992).
+	 *
+	 * 🔴 **Perche' una tabella a parte e non tre righe in piu' nella prima.** Queste vestono primitive
+	 * **engine** — cilindro e cubo — non mesh del kit, quindi `MeshName` qui nomina il **componente** che
+	 * vestono, non un `SM_Graybox_*`. La tabella dei sei e' il contratto di §8.1 e i test la leggono come
+	 * tale: infilarci dentro qualcosa che non e' una mesh del kit renderebbe falso cio' che vi leggono.
+	 *
+	 * ⚠️ **Nascono perche' il fixture non si vedeva.** Senza materiale le primitive engine prendono il
+	 * grigio di default, che e' quello del pavimento: a schermo il corpo spariva. ⛔ Non e' stata `D-146`
+	 * a impedirlo — quella decisione dice al punto (4) che *«i colori concreti restano placeholder
+	 * sostituibili: il vincolo e' la ridondanza, non la tavolozza»*. Mancava il materiale, e basta.
+	 *
+	 * I due canali ci sono entrambi: il **valore** separa corpo e marker di `0,47` di luminanza, la
+	 * **ruvidita'** li separa sotto una luce radente dove il valore da solo non basterebbe — la stessa
+	 * ragione per cui `MaterialsSeparateAmbiguousPairs` esiste per `Door_Panel` e `Cover_High`.
+	 */
+	extern const FRTGrayboxMaterialSpec FixtureMaterials[3];
+
 	/** Luminanza Rec.709. Per un grigio neutro coincide col valore, e la formula resta quella giusta. */
 	float Luminance(const FLinearColor& Color);
 
@@ -69,6 +88,17 @@ namespace RTGraybox
 	 * @return              numero di asset falliti; `0` significa che tutto e' a posto
 	 */
 	int32 BuildKitMaterials(
+		const FString& PackageRoot,
+		bool bDryRun,
+		TMap<FString, UMaterialInterface*>& OutInstances);
+
+	/**
+	 * Come `BuildKitMaterials`, sulle istanze del **fixture**: stesso master, stessa disciplina neutra.
+	 *
+	 * La chiave di `OutInstances` e' il nome del **componente** (`UnitBody`, `FacingMarker`,
+	 * `GroundAnchor`), non quello di una mesh.
+	 */
+	int32 BuildFixtureMaterials(
 		const FString& PackageRoot,
 		bool bDryRun,
 		TMap<FString, UMaterialInterface*>& OutInstances);

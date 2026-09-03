@@ -286,6 +286,26 @@ struct FRTHexCellData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	bool bBlocksMovement = false;
 
+	/**
+	 * IL BLOCCO AL MOVIMENTO E' STATO DERIVATO DALLA COTTURA, o l'ha scritto un autore? — `E23.6`, `#1827`.
+	 *
+	 * 🔑 **Stessa disciplina di `FRTHexCover::bGenerated` (`D-131`), e per la stessa ragione.** Il rebake
+	 * deve poter TOGLIERE il blocco che ha prodotto lui — altrimenti rimuovere il muro che rendeva la cella
+	 * impraticabile non la restituirebbe al gioco — e non deve MAI toccare un `bBlocksMovement` dipinto a
+	 * mano. Senza questo campo le due cose sono indistinguibili, e il bake dovrebbe scegliere fra due difetti:
+	 * non essere idempotente, oppure cancellare la scelta dell'autore.
+	 *
+	 * Default `false` = **d'autore**, che e' anche cio' che ogni cella scritta prima di questo campo diventa
+	 * rileggendosi — ed e' esattamente cio' che quelle celle gia' erano.
+	 *
+	 * ⛔ **NON entra in `ComputeHash`, e il criterio e' quello di `bGenerated`**: ci entra cio' che puo'
+	 * cambiare un esito. `bBlocksMovement` ci entra — cambia dove si puo' andare — ma la sua PROVENIENZA no:
+	 * due mappe che si giocano in modo identico avrebbero hash diversi solo perche' in una il blocco e' stato
+	 * cotto invece che dipinto, che e' il falso positivo contro `replay divergence = 0`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	bool bMovementBlockGenerated = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	bool bBlocksLineOfSight = false;
 

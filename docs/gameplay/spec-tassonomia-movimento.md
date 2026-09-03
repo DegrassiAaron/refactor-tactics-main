@@ -85,6 +85,69 @@ cosa vorremmo: una matrice che descrive un sistema immaginario è peggio di ness
 | consuma l'azione della vittima | n/a | n/a | n/a | **mai** |
 | **stato nel codice** | implementato | implementato | **`LinearLeap`**, dentro il Dash · irraggiungibile dal roster ([#645](https://github.com/DegrassiAaron/refactor-tactics-main/issues/645)) | implementato |
 
+### 2.0 Un micro-step, un arco — la regola che il codice applica e che nessun documento diceva
+
+> ✅ **Aggiunta il 2026-08-31 da [`D-305`](../decisions/RT_PDR_00_Decision_Log.md).** Non cambia niente:
+> **registra** un invariante già implementato che nessuna sede dichiarava.
+
+La riga *micro-step* della matrice dice **se** una famiglia genera micro-step. Non diceva **quanti passi**
+ne attraversa uno, e la risposta è:
+
+```text
+MaxGraphTransitionsPerUnitPerMicroStep = 1
+```
+
+**Una unità avanza al massimo di un arco del grafo tattico per micro-step.** Vale per tutti i profili di
+`Move` — `Sneak`, `Move`, `Sprint` ([D-015](../decisions/RT_PDR_00_Decision_Log.md)) — e per il `Forced`.
+Lo `Sprint` **va più lontano** perché ha più budget (`8 MP` contro `5`, [`RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md) §2.1),
+**non** perché percorra due celle nello stesso micro-step.
+
+🔑 **«Arco del grafo», non «esagono adiacente»**, ed è la formulazione che conta. Il passo si legge da
+`Paths`, che il pathfinder produce sulle `URTHexMapAsset::Transitions` (`HexSim.ReachableUsesTransitions`) e
+non dall'adiacenza esagonale — quindi la regola vale senza riscritture per **rampe, scale, ponti, tunnel,
+porte e transizioni multilivello**, e `FRTCellId::operator==` confronta anche il `Layer`.
+
+È vero per costruzione, in una riga:
+
+```cpp
+// RTHexSimLibrary.cpp:654 — StepHexMovement
+Target[i] = Done[i] ? Pos[i] : Paths[i][Prog[i] + 1];
+```
+
+⛔ **Perché scriverlo se il codice lo fa già.** Un `Transfer` non genera micro-step intermedi **per
+decisione** ([D-118](../decisions/RT_PDR_00_Decision_Log.md)); questo invece lo faceva **per abitudine
+d'implementazione**. Un invariante non dichiarato è ciò che la prossima ottimizzazione rimuove senza che
+nulla protesti — e sotto c'è tutto quanto assume una sola transizione per volta: risoluzione delle
+collisioni, hazard attraversati, finestra di Overwatch, cambi di LOS, leggibilità del replay.
+
+⚠️ **Sotto il micro-step non esistono ulteriori istanti simulativi.** Possono esistere sotto-fasi
+deterministiche di elaborazione dello **stesso** micro-step, ma non devono creare un ordine temporale fra
+le unità: l'ordinamento stabile serve a processing, TurnLog, replay e hash, **mai** come precedenza di
+gioco — ed è pinnato da `HexSim.ResolveOrderIndependent`, `Actions.Collisions.NoPlayerIdBias` e
+`Movement.StepperIsDeterministicUnderPermutation`.
+
+⏳ **Cosa questa riga NON decide.** Se alcuni profili possano diventare eleggibili a micro-step *alternati*
+più rapidi è `MOV-3` in [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), **aperta** e da playtestare; anche
+in quel modello il tetto di **un arco per unità per micro-step** resterebbe. La precedenza fra due unità
+che contendono la stessa cella è `MOV-4`, e oggi è `FRTActionDef::Priority`.
+
+✅ **Due test la pinnano per nome**, scritti da [#2000](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2000)
+il 2026-09-01. Prima di allora la regola era vera **senza che nulla la asserisse**.
+
+| Test | Cosa asserisce |
+|---|---|
+| `Movement.OneTransitionMax_PerMicroStep` | dopo `k` micro-step la posizione è **esattamente** `Paths[k]`, su un percorso il cui terzo arco **cambia layer** — due nodi consecutivi che l'adiacenza esagonale non collega |
+| `Movement.BlockedPath_DoesNotAutoReroute` | un piano invalidato a metà **si ferma** e non raggiunge la destinazione per la deviazione — che il test dimostra esistere e stare nel budget, altrimenti asserirebbe il nulla |
+
+🔑 **Perché `Movement.StepperMatchesBatchResolver` non bastava, ed è misurato**: mutando il resolver ad
+avanzare **due** nodi per micro-step, i due test qui sopra diventano rossi e *quello* resta **verde**.
+Confronta i due percorsi di codice fra loro, quindi una regola che cambia in entrambi gli resta invisibile.
+
+⚠️ **Fino al 2026-09-01 questa nota dichiarava i due test come assenti**, ed era vero. Il difetto opposto —
+una tabella che elenca test **attesi** come se esistessero — è quello di
+[ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) §Verifica, con undici nomi di cui zero
+esistono, che ha già indotto in errore [D-295](../decisions/RT_PDR_00_Decision_Log.md).
+
 ### 2.1 Il `Transfer` esiste già, e vive dentro il Dash
 
 `ERTMovementStyle::LinearLeap` — *«ignora unità e celle intermedie, conta solo dove si atterra»* — produce
@@ -268,7 +331,7 @@ succederà al prossimo kit.
 | §7 «Sprint non è Dash» | **già deciso** ([D-015](../decisions/RT_PDR_00_Decision_Log.md)); migrazione aperta nella issue `#199` | catalogo azioni |
 | §18 facing: derivazione **e** limite di pivot | **da distinguere**, e la prima stesura di questa riga sbagliava dandolo per «superato dai fatti». La *derivazione dal movimento* è canone (E16 chiusa, 13 test `Facing.*`, 5 scenari `Spec.Facing.*`). Il *limite di rotazione* **non lo era**: ADR-0005 lo dichiarava fuori perimetro e viveva come `FAC-1`, in attesa dell'autore. È stato **recepito** il 2026-08-10: la rotazione è una capacità del personaggio, misurata in step, con due valori per eroe — [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) §1, [D-060](../decisions/RT_PDR_00_Decision_Log.md) | [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md), che **supera** ADR-0005 §1 |
 | §2 e §11 «`Dash → Attack → Move` può essere legale» | ⚠️ **contraddice** [D-028](../decisions/RT_PDR_00_Decision_Log.md): lo scatto **occupa lo slot movimento**, quindi la sequenza non è legale come regola generale — si sceglie *schivo e sparo* **oppure** *sparo e muovo*. Un eroe può dichiararla come eccezione **nel proprio kit**; il ruleset no | [`spec-dash.md`](spec-dash.md) |
-| §19 collisioni (contesa e swap bloccano entrambi) | ⚠️ **metà**: la **contesa** è implementata, lo **swap no — riesce**. Questa riga diceva «già implementato» per entrambi, e la seconda metà è stata misurata falsa il 2026-08-31 ([D-295](../decisions/RT_PDR_00_Decision_Log.md)): `HexSim.ResolveSwapAllowed` è verde e asserisce che lo scambio diretto riesce, e il ciclo chiuso `A→B→C→A` ruota senza che nessun test lo copra. `AUTHOR-MOVE-001` decide che entrambi devono bloccare — l'implementazione è [#1922](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1922) | `ERTMoveOutcome::BlockedContested` (contesa) · `HexSim.ResolveSwapAllowed` (scambio) |
+| §19 collisioni (contesa e swap bloccano entrambi) | ✅ **implementato** dal 2026-08-31 ([#1922](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1922)): la **contesa** lo era già; lo **swap** e il **ciclo chiuso** bloccano ora con `ERTMoveOutcome::BlockedByCycle`, e il **convoy a coda libera** continua ad avanzare. 🔄 Questa riga diceva «già implementato» per entrambi, e la seconda metà è stata misurata falsa il 2026-08-31 ([D-295](../decisions/RT_PDR_00_Decision_Log.md)): allora `HexSim.ResolveSwapAllowed` era verde e asseriva che lo scambio riusciva. Ora è vera per misura, non per dichiarazione. | `ERTMoveOutcome::BlockedContested` (contesa) · `ERTMoveOutcome::BlockedByCycle` (scambio e ciclo) · `HexSim.ResolveSwapBlocked` |
 | §23 mai auto-reroute | **già implementato** | `TruncatePathToTopology` |
 | §6 micro-step | **già implementato** | `ResolveHexPaths` |
 | §36 dieci reason code nuovi | **duplicati**: sette esistono con altri nomi, in un enum **serializzato nei replay** | `ERTMoveOutcome` |

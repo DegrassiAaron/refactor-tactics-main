@@ -356,6 +356,68 @@ bool FRTHexMoveContestedCellTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * T5 di #1922 — la sola via per cui lo scambio e' raggiungibile IN PARTITA: la staleness del piano.
+ *
+ * 🔑 **Perche' serve un test d'integrazione e non basta il resolver.** `HexSim.ResolveSwapBlocked` prova la
+ * regola passando percorsi costruiti a mano; questo prova che la regola si INNESCA nel gioco. Il §3 della
+ * issue misura che nessuna via ordinaria puo' produrre uno scambio — il click esclude le celle occupate
+ * (`FindPathAvoiding`), il bot pianifica destinazioni e non waypoint, l'harness valida sullo snapshot — e
+ * ne resta **una sola**: un `PlannedPath` scritto quando la cella era libera e risolto quando non lo e' piu'.
+ *
+ * `RTTurnManager` lo prende **verbatim**, e il commento del file lo dichiara: *«ResolveMovement accetta un
+ * PlannedPath gia' pronto SENZA riapplicare l'occupazione fresca»*. Scrivere qui i due percorsi non e' un
+ * trucco del test: e' la riproduzione fedele di quella via.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveStalePlanSwapTest,
+	"RefactorTactics.HexMove.StalePlanSwapBlocks",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveStalePlanSwapTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 4);
+
+	// Due unita' adiacenti, ognuna con un piano che punta alla cella dell'altra: e' cio' che resta sul tavolo
+	// quando i due piani sono stati scritti prima che l'altra ci si spostasse.
+	const FRTCellId CellA(0, 0);
+	const FRTCellId CellB(1, 0);
+	ARTUnit* A = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), CellA);
+	ARTUnit* B = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), CellB);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A || !B) { DestroyHexMoveWorld(World); return false; }
+
+	// ⚠️ Il percorso deve essere ANCORATO (`PlannedPath[0] == Cell`), o il TurnManager ripiega su
+	// `PlannedCell` e il caso non si riproduce.
+	A->PlannedPath = { CellA, CellB };
+	A->PlannedCell = CellB;
+	B->PlannedPath = { CellB, CellA };
+	B->PlannedCell = CellA;
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("A non entra nella cella di B"), A->Cell == CellA);
+	TestTrue(TEXT("B non entra nella cella di A"), B->Cell == CellB);
+
+	// L'esito deve essere SPIEGATO, non solo subito: un arresto senza causa nel replay e' il difetto che la
+	// disciplina di `ERTMoveOutcome` esiste per evitare.
+	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
+	int32 Cycles = 0;
+	for (const FRTTurnLogEntry& E : Log)
+	{
+		if (E.Category == ERTLogCategory::Move
+			&& E.Outcome == static_cast<uint8>(ERTMoveOutcome::BlockedByCycle))
+		{
+			++Cycles;
+		}
+	}
+	TestEqual(TEXT("il TurnLog spiega entrambi gli arresti col reason del ciclo"), Cycles, 2);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSprintAppliesExposedTest,
 	"RefactorTactics.Actions.Sprint.AppliesExposed",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -1219,13 +1281,21 @@ bool FRTHexMoveIllegalDeclaredRotationTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 4);
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	// 🔴 **Riktor e non Wraith, dal 2026-09-03 — ADR-0008 §1 (#1605).** Questo test ha bisogno che `W` sia
+	// ILLEGALE, e con Wraith non lo e' piu': `MoveEndPivotMaxSteps = 3` gli concede tutte e sei le
+	// direzioni a fine Move, quindi la dichiarazione verrebbe accolta e il test misurerebbe il contrario di
+	// quel che il suo nome promette. Riktor ha budget `1`, cioe' esattamente la vecchia regola universale.
+	//
+	// ⚠️ Il test resta valido **perche' il soggetto e' il rifiuto**, non l'eroe: quale eroe abbia ancora
+	// una rotazione illegale e' un dato di catalogo, e per questo l'eroe e' nominato qui e non altrove.
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 3));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
 
-	// Un passo a EST: dopo un Move a budget le direzioni legali sono l'ultimo passo e le due adiacenti nel
-	// ciclo — `E`, `NE`, `SE`. `W` e' l'opposta esatta, quindi illegale per costruzione e non per caso.
+	// Un passo a EST: con `MoveEndPivotMaxSteps = 1` le direzioni legali sono l'ultimo passo e le due
+	// adiacenti nel ciclo — `E`, `NE`, `SE`. `W` e' l'opposta esatta, quindi illegale per costruzione e non
+	// per caso.
 	const FRTCellId Goal = URTHexLibrary::Neighbor(FRTCellId(0, 0), ERTHexDirection::E);
 	Mover->Facing = ERTHexDirection::NW; // di partenza: cosi' «rifiutata» non coincide con «invariata»
 	Mover->PlannedCell = Goal;

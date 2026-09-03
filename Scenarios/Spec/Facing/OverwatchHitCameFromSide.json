@@ -1,0 +1,63 @@
+{
+  "scenarioId": "Spec.Facing.OverwatchHitCameFromSide",
+  "tags": ["facing", "overwatch", "reactions", "turnlog", "spec", "wraith", "phase"],
+  "version": 2,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "#2128 / [D-126]: anche il fuoco di OVERWATCH scrive nel TurnLog da quale lato e' arrivato. Il ciclo su `Plan.Hits` che emette `HitCameFromSide` non lo vede — l'Overwatch applica danno in `ApplyReactionDecision` senza mai costruire un `FRTHexAttackHit` — quindi fino al 2026-09-03 un consumatore che contasse una voce direzionale per colpo subito non la trovava per le reazioni, e nulla diventava rosso. L'origine e' la cella del watcher: [D-302] punto 3 classifica come *diretto/mischia* — origine sorgente->bersaglio — e questo colpo e' letteralmente `ERTDamageSource::Direct`.",
+
+  "_nota_perche_il_lato_e_Rear": "🔑 **Il punto dello scenario, e non e' un dettaglio di geometria.** P1 e' piazzato guardando a `W` e in questo turno si muove verso `E`: viene colpito da (2,-1), che rispetto a `W` cade nello spicchio opposto — lato 3, `Rear`. Il facing con cui il lato si misura e' quello con cui P1 e' ENTRATO nella fase Move, non quello che avra' alla fine: `ResolveReactionBoundary` gira dentro il ciclo dei micro-step, mentre la `RecordFacingChange` che fissa `DerivedFromMove` scrive DOPO l'uscita dal ciclo. Al momento del colpo l'orientamento finale non esiste ancora — e la lettura giusta e' proprio questa: si viene colpiti *mentre* ci si muove, con l'orientamento che si aveva.",
+
+  "_nota_l_assertion_che_lo_rende_visibile": "⚠️ L'ultima riga asserisce `UnitFacing` di P1 a `E`, cioe' un valore DIVERSO da quello con cui il lato e' stato calcolato. Non e' ridondante: e' l'unica riga che rende osservabile la regola sopra. Se un giorno qualcuno spostasse la misura sul facing finale, il lato diventerebbe `Front` e `LogEventAmount` cadrebbe — mentre senza questa riga il file non direbbe *perche'* i due valori devono divergere.",
+
+  "_nota_perche_non_Front": "⛔ `Front` vale **0**, che e' anche il valore di un `ERTRelativeDirection` zero-inizializzato: un'assertion su `Front` passerebbe anche se `Amount` non fosse mai stato scritto. Il lato atteso qui e' `3` proprio per non poggiare l'oracolo sullo zero — la stessa cautela che `Spec.Facing.SixRelativeSides` prende scegliendo `RearLeft`.",
+
+  "_nota_un_solo_colpo": "🔑 **Un solo colpo risolto in tutto lo scenario, e serve all'oracolo.** `LogEventAmount` legge la PRIMA occorrenza della coppia (categoria, esito) e `IndexOfScenarioLogEvent` non nomina l'unita': con due colpi la riga asserirebbe sul colpo sbagliato **senza diventare rossa**. Nessuno pianifica attacchi qui, quindi la sola voce `HitCameFromSide` del turno e' quella dell'Overwatch. Chi aggiunga un attacco, o un turno prima di questo, sposta l'oracolo in silenzio.",
+
+  "_nota_geometria": "Ripresa da `Spec/Overwatch/HoldThenFire.json`, che ha gia' pagato l'errore: la zona dell'Overwatch e' una LINEA e nasce dal facing letto in PREP, quindi V1 dichiara `facing` fra le UNITA' (piazzamento) e non fra gli intent — una rotazione dichiarata si applica dentro `ResolveMovement`, troppo tardi per il proprio cono. V1 e' a (2,-1) e guarda W: controlla (1,-1) (0,-1) (-1,-1) (-2,-1), la portata di `Hero.Wraith.PulseShot`. P1 entra nella linea a (-2,-1) al primo micro-step, e il FIRE lo tronca li': il secondo passo, (-1,-1), non lo fa mai — ed e' quello a rendere osservabile la troncatura invece di lasciarla implicita.",
+
+  "_nota_cosa_NON_prova": "Questo scenario prova l'INTEGRAZIONE — che la voce arriva fino al TurnLog di una partita vera passando per il Decision Boundary — non la geometria dei sei lati, pinnata esaustivamente da `RefactorTactics.Facing.Relative*`. Non copre i CONTRATTACCHI, che sono l'altra meta' di #2128: quelli producono DUE voci direzionali nello stesso turno, quindi l'oracolo dell'harness non li discriminerebbe, e vivono in `RefactorTactics.Reactions.Counter.TracesTheSideItCameFrom`.",
+
+  "units": [
+    { "id": "P1", "hero": "Hero.Phase",  "team": 0, "cell": [-3, -1, 0], "facing": "W" },
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 2, -1, 0], "facing": "W" }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — V1 arma l'Overwatch sul varco che gia' controlla; P1 entra nella linea a (-2,-1) e V1 risponde FIRE, che consuma la carica e tronca il movimento nella cella raggiunta. P1 chiede due passi e ne fa uno.",
+      "requires": ["DecisionBoundary"],
+      "intents": [
+        { "unit": "V1", "ability": "Action.Overwatch" },
+        { "unit": "P1", "move": [[-2, -1, 0], [-1, -1, 0]] }
+      ],
+      "decisions": [
+        { "unit": "V1", "respond": "FIRE", "target": "P1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "_assertion": "PREMESSA: una finestra si e' aperta e V1 ha deciso. ⚠️ `Chosen` dice che qualcuno ha deciso, NON che abbia sparato — un HOLD deliberato e' anch'esso `Chosen` (`#1118`, ed e' la ragione per cui l'esito non nomina piu' la risposta). Non e' quindi questa la riga che prova il fuoco: e' quella sotto.",
+      "type": "LogEventCount", "category": "ReactionDecision", "outcome": "Chosen", "value": 1 },
+
+    { "_assertion": "IL DISCRIMINANTE del fuoco: il movimento e' TRONCATO nella cella raggiunta. P1 chiedeva anche (-1,-1) e non ci arriva, e solo un FIRE lo ferma — con un HOLD completerebbe il percorso, come fa G1 in `Spec.Overwatch.ConditionCollapsesToHold`. Senza questa riga uno scenario in cui la finestra collassa su HOLD produrrebbe zero voci direzionali, e il conteggio sotto sarebbe soddisfatto solo se scritto a zero, cioe' passerebbe per la ragione sbagliata.",
+      "type": "UnitAtCell", "unit": "P1", "cell": [-2, -1, 0] },
+
+    { "_assertion": "Una voce direzionale, e una sola: la relazione si scrive UNA volta per colpo risolto, e il fuoco di Overwatch e' un colpo risolto come gli altri (#2128).",
+      "type": "LogEventCount", "category": "Facing", "outcome": "HitCameFromSide", "value": 1 },
+
+    { "_assertion": "E il lato e' quello giusto. `Amount` porta l'INDICE RELATIVO `(spicchio - facing + 6) % 6`: la cella (2,-1) sta nello spicchio assoluto 0 (`E`) rispetto a (-2,-1), e con P1 orientato a `W` (indice 3) l'indice relativo e' 3 = `Rear`.",
+      "type": "LogEventAmount", "category": "Facing", "outcome": "HitCameFromSide", "value": 3 },
+
+    { "_assertion": "🔑 E il facing FINALE di P1 e' `E` — derivato dal passo che ha compiuto — cioe' DIVERSO da quello con cui il lato e' stato misurato. E' la riga che rende osservabile la regola: il colpo di Overwatch guarda l'orientamento d'ingresso nella fase, perche' quello finale al suo istante non esiste ancora.",
+      "type": "UnitFacing", "unit": "P1", "value": "E" },
+
+    { "_assertion": "Il watcher non si e' mosso: la sua cella e' anche l'origine da cui il lato e' stato calcolato.",
+      "type": "UnitAtCell", "unit": "V1", "cell": [2, -1, 0] },
+
+    { "type": "UnitAlive", "unit": "P1", "value": 1 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

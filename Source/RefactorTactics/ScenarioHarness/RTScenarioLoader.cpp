@@ -8,6 +8,7 @@
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTReactionOpportunityTypes.h" // IsDeclaredConditionAllowed: il validator della condizione sta nel gioco
 #include "Map/RTHexLibrary.h"
+#include "Map/RTGeometryGrammar.h" // i muri interni si validano con la grammatica, non con una sua copia (#2031)
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Dom/JsonObject.h"
@@ -301,6 +302,176 @@ namespace
 				OutScenario.Cells.Add(Cell);
 			}
 		}
+
+		// --- muri INTERNI alla cella (opzionale, `#1830`) -----------------------------------------------------
+		//
+		// Sono geometria di gioco autorevole da `D-269`: fermano vista e proiettili. Senza questa sezione un
+		// muro interno sarebbe esprimibile solo in C++, e nessuno scenario — quindi nessun replay, nessun
+		// autobattle — potrebbe esercitarlo.
+		const TArray<TSharedPtr<FJsonValue>>* WallsJson = nullptr;
+		if (Root->TryGetArrayField(TEXT("interiorWalls"), WallsJson))
+		{
+			// I nomi si risolvono per RIFLESSIONE, come `ERTLogCategory` piu' sopra: una tabella scritta a mano
+			// qui mentirebbe in silenzio il giorno in cui l'enum cambia.
+			const UEnum* AxisEnum = StaticEnum<ERTTacticalAxis>();
+			const UEnum* TypeEnum = StaticEnum<ERTHexCoverType>();
+
+			for (const TSharedPtr<FJsonValue>& Value : *WallsJson)
+			{
+				const TSharedPtr<FJsonObject> Obj = Value->AsObject();
+				if (!Obj.IsValid()) { OutError = TEXT("interiorWalls: voce non valida"); return false; }
+
+				FRTHexInteriorWall Wall;
+				const TArray<TSharedPtr<FJsonValue>>* CellArr = nullptr;
+				Obj->TryGetArrayField(TEXT("cell"), CellArr);
+				if (!ParseCell(CellArr, Wall.Cell, OutError, TEXT("interiorWalls")))
+				{
+					return false;
+				}
+
+				FString AxisText;
+				Obj->TryGetStringField(TEXT("axis"), AxisText);
+				const int64 AxisValue = AxisEnum ? AxisEnum->GetValueByNameString(AxisText) : INDEX_NONE;
+				if (AxisValue == INDEX_NONE)
+				{
+					OutError = FString::Printf(TEXT("interiorWalls: asse '%s' sconosciuto"), *AxisText);
+					return false;
+				}
+				Wall.Segment.Axis = static_cast<ERTTacticalAxis>(AxisValue);
+
+				Obj->TryGetNumberField(TEXT("offset"), Wall.Segment.Offset);
+				Obj->TryGetNumberField(TEXT("alongStart"), Wall.Segment.AlongStart);
+				Obj->TryGetNumberField(TEXT("alongEnd"), Wall.Segment.AlongEnd);
+				Wall.Segment.Layer = Wall.Cell.Layer;
+				Obj->TryGetNumberField(TEXT("layer"), Wall.Segment.Layer);
+
+				// `type` e' opzionale e vale `High`: un muro interno che non occlude e' il caso raro, e
+				// scriverlo esplicitamente e' meno grave che dimenticarlo e non capire perche' la vista passa.
+				FString TypeText;
+				if (Obj->TryGetStringField(TEXT("type"), TypeText))
+				{
+					const int64 TypeValue = TypeEnum ? TypeEnum->GetValueByNameString(TypeText) : INDEX_NONE;
+					if (TypeValue == INDEX_NONE)
+					{
+						OutError = FString::Printf(TEXT("interiorWalls: tipo '%s' sconosciuto"), *TypeText);
+						return false;
+					}
+					Wall.Segment.WallType = static_cast<ERTHexCoverType>(TypeValue);
+				}
+
+				FString StableText;
+				if (Obj->TryGetStringField(TEXT("stableId"), StableText))
+				{
+					Wall.StableId = FName(*StableText);
+				}
+
+				// La grammatica decide, il loader la chiama: un segmento fuori grammatica e' un errore di
+				// scrittura dello scenario, e va detto QUI invece di essere ignorato a runtime.
+				const ERTGeometryViolation Violation = URTGeometryGrammarLibrary::ValidateSegment(Wall.Segment);
+				if (Violation != ERTGeometryViolation::None)
+				{
+					OutError = FString::Printf(TEXT("interiorWalls: segmento fuori grammatica su %s (violazione %d)"),
+						*Wall.Cell.ToString(), static_cast<int32>(Violation));
+					return false;
+				}
+
+				OutScenario.InteriorWalls.Add(Wall);
+			}
+		}
+
+		// --- porte e grafo di interazione (opzionali, `#833`) --------------------------------------------------
+		//
+		// Senza queste due sezioni il grafo sorgente -> bersaglio sarebbe esercitabile solo da un test C++, e
+		// `scenario-map.md` dichiara gia' i tre scenari attesi che non erano scrivibili.
+		const UEnum* DoorStateEnum = StaticEnum<ERTHexDoorState>();
+		const UEnum* DirEnum = StaticEnum<ERTHexDirection>();
+
+		const TArray<TSharedPtr<FJsonValue>>* DoorsJson = nullptr;
+		if (Root->TryGetArrayField(TEXT("doors"), DoorsJson))
+		{
+			for (const TSharedPtr<FJsonValue>& Value : *DoorsJson)
+			{
+				const TSharedPtr<FJsonObject> Obj = Value->AsObject();
+				if (!Obj.IsValid()) { OutError = TEXT("doors: voce non valida"); return false; }
+
+				FRTScenarioDoor Entry;
+				const TArray<TSharedPtr<FJsonValue>>* CellArr = nullptr;
+				Obj->TryGetArrayField(TEXT("cell"), CellArr);
+				if (!ParseCell(CellArr, Entry.Cell, OutError, TEXT("doors")))
+				{
+					return false;
+				}
+
+				FString EdgeText;
+				Obj->TryGetStringField(TEXT("edge"), EdgeText);
+				const int64 EdgeValue = DirEnum ? DirEnum->GetValueByNameString(EdgeText) : INDEX_NONE;
+				if (EdgeValue == INDEX_NONE)
+				{
+					OutError = FString::Printf(TEXT("doors: bordo '%s' sconosciuto"), *EdgeText);
+					return false;
+				}
+				Entry.Door.Edge = static_cast<ERTHexDirection>(EdgeValue);
+
+				// `Closed` e' il default: una porta che nasce aperta e' il caso raro, e scriverlo esplicitamente
+				// costa meno che dimenticarlo e non capire perche' il varco c'era gia'.
+				FString StateText;
+				if (Obj->TryGetStringField(TEXT("state"), StateText))
+				{
+					const int64 StateValue = DoorStateEnum ? DoorStateEnum->GetValueByNameString(StateText) : INDEX_NONE;
+					if (StateValue == INDEX_NONE)
+					{
+						OutError = FString::Printf(TEXT("doors: stato '%s' sconosciuto"), *StateText);
+						return false;
+					}
+					Entry.Door.State = static_cast<ERTHexDoorState>(StateValue);
+				}
+
+				int32 DoorId = 0;
+				Obj->TryGetNumberField(TEXT("doorId"), DoorId);
+				Entry.Door.DoorId = DoorId;
+
+				FString StableText;
+				if (Obj->TryGetStringField(TEXT("stableId"), StableText))
+				{
+					Entry.Door.StableId = FName(*StableText);
+				}
+				OutScenario.Doors.Add(Entry);
+			}
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* BindingsJson = nullptr;
+		if (Root->TryGetArrayField(TEXT("interactionBindings"), BindingsJson))
+		{
+			for (const TSharedPtr<FJsonValue>& Value : *BindingsJson)
+			{
+				const TSharedPtr<FJsonObject> Obj = Value->AsObject();
+				if (!Obj.IsValid()) { OutError = TEXT("interactionBindings: voce non valida"); return false; }
+
+				FRTInteractionBinding Binding;
+				FString SourceText;
+				Obj->TryGetStringField(TEXT("source"), SourceText);
+				if (SourceText.IsEmpty())
+				{
+					OutError = TEXT("interactionBindings: 'source' mancante");
+					return false;
+				}
+				Binding.SourceId = FName(*SourceText);
+
+				// ⚠️ L'ORDINE dei bersagli e' dato, non dettaglio: `ApplyInteraction` li applica come sono
+				// scritti, ed e' la proprieta' che l'invariante n. 3 difende.
+				const TArray<TSharedPtr<FJsonValue>>* TargetsJson = nullptr;
+				if (!Obj->TryGetArrayField(TEXT("targets"), TargetsJson) || TargetsJson->Num() == 0)
+				{
+					OutError = FString::Printf(TEXT("interactionBindings: '%s' senza bersagli"), *SourceText);
+					return false;
+				}
+				for (const TSharedPtr<FJsonValue>& T : *TargetsJson)
+				{
+					Binding.TargetIds.Add(FName(*T->AsString()));
+				}
+				OutScenario.InteractionBindings.Add(Binding);
+			}
+		}
 		return true;
 	}
 
@@ -386,6 +557,58 @@ namespace
 						return false;
 					}
 					Unit.Loadout.Add(FName(*PieceId));
+				}
+
+			}
+
+			// GLI STATUS INIZIALI — `#1629`. Assente = nessuno status, che e' lo stato naturale: qui NON
+			// serve distinguere «non dichiarato» da «dichiarato vuoto» come per il loadout, perche' un'unita'
+			// senza status non ne riceve di default.
+			const TArray<TSharedPtr<FJsonValue>>* StatusArr = nullptr;
+			if (Obj->TryGetArrayField(TEXT("statuses"), StatusArr) && StatusArr != nullptr)
+			{
+				for (const TSharedPtr<FJsonValue>& Entry : *StatusArr)
+				{
+					const TSharedPtr<FJsonObject> StatusObj = Entry->AsObject();
+					if (!StatusObj.IsValid())
+					{
+						OutError = FString::Printf(
+							TEXT("unita' '%s': statuses deve essere una lista di oggetti { tag, turns }"), *Unit.Id);
+						return false;
+					}
+
+					FString TagText;
+					if (!StatusObj->TryGetStringField(TEXT("tag"), TagText) || TagText.IsEmpty())
+					{
+						OutError = FString::Printf(TEXT("unita' '%s': uno status senza 'tag'"), *Unit.Id);
+						return false;
+					}
+
+					// 🔴 **Un tag sconosciuto RIFIUTA lo scenario**, e il nome sbagliato entra nel
+					// messaggio. `RequestGameplayTag` con `ErrorIfNotFound=false` tornerebbe un tag vuoto
+					// senza lamentarsi, e un tag vuoto applicato non fa niente: lo scenario girerebbe verde
+					// verificando l'assenza di un effetto che nessuno ha mai chiesto.
+					const FGameplayTag Resolved =
+						FGameplayTag::RequestGameplayTag(FName(*TagText), /*ErrorIfNotFound=*/ false);
+					if (!Resolved.IsValid())
+					{
+						OutError = FString::Printf(
+							TEXT("unita' '%s': status '%s' sconosciuto — il vocabolario e' quello di ")
+							TEXT("Core/RTGameplayTags.cpp"), *Unit.Id, *TagText);
+						return false;
+					}
+
+					int32 Turns = 1;
+					StatusObj->TryGetNumberField(TEXT("turns"), Turns);
+					if (Turns <= 0)
+					{
+						OutError = FString::Printf(
+							TEXT("unita' '%s': status '%s' con turns %d — uno status che dura zero turni non ")
+							TEXT("e' uno status"), *Unit.Id, *TagText, Turns);
+						return false;
+					}
+
+					Unit.Statuses.Emplace(FName(*TagText), Turns);
 				}
 			}
 
@@ -1255,6 +1478,7 @@ namespace
 					*Cell.Cell.ToString(), Cell.OccupancySurcharge);
 				return false;
 			}
+
 		}
 		return true;
 	}

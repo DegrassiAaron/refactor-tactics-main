@@ -424,6 +424,48 @@ ERTScenarioAuthoringResult FRTScenarioDraft::RemoveTurn(int32 TurnIndex, FString
 	return ERTScenarioAuthoringResult::Success;
 }
 
+ERTScenarioAuthoringResult FRTScenarioDraft::DuplicateTurn(int32 SourceIndex, int32& OutNewIndex,
+	FString& OutError)
+{
+	OutError.Reset();
+	OutNewIndex = INDEX_NONE;
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+	if (!Scenario.Turns.IsValidIndex(SourceIndex))
+	{
+		OutError = FString::Printf(TEXT("turno %d inesistente (ce ne sono %d)"), SourceIndex,
+			Scenario.Turns.Num());
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+
+	// 🔴 **La copia locale non e' uno stile: senza, questa riga fa `check`-fallire il motore.**
+	//
+	// `Scenario.Turns.Insert(Scenario.Turns[SourceIndex], SourceIndex + 1)` passa a `Insert` un riferimento
+	// a un elemento del contenitore che `Insert` sta per riallocare. `TArray::Insert` chiama `CheckAddress`,
+	// che e' un `checkf` esplicito — *«Attempting to use a container element which already comes from the
+	// container being modified!»* (`Containers/Array.h:2196`). Non e' un avviso teorico: e' un crash in ogni
+	// build con i check accesi, cioe' tutte tranne Shipping.
+	//
+	// ⚠️ E la copia deve essere una VARIABILE, non un temporaneo legato a un riferimento: `const FRTScenarioTurn&
+	// Copy = Scenario.Turns[SourceIndex]` sarebbe di nuovo un riferimento dentro l'array.
+	const FRTScenarioTurn Copy = Scenario.Turns[SourceIndex];
+
+	// Subito dopo l'originale: e' dove «duplica» mette la copia, e tenerla in fondo obbligherebbe il
+	// designer a un riordino che questa slice non offre.
+	OutNewIndex = SourceIndex + 1;
+	Scenario.Turns.Insert(Copy, OutNewIndex);
+
+	// ⚠️ Nessuna deep-copy manuale, e nessuna serve: `FRTScenarioTurn` porta `Intents[]`, `Requires[]` e
+	// `Decisions[]` per VALORE, e ogni loro campo e' un valore a sua volta. La copia e' gia' indipendente —
+	// il test la verifica in entrambe le direzioni perche' un'implementazione futura che introducesse un
+	// indice o un puntatore condiviso deve cadere qui, non in PIE.
+	return ERTScenarioAuthoringResult::Success;
+}
+
 ERTScenarioAuthoringResult FRTScenarioDraft::SetMoveIntent(int32 TurnIndex, const FString& UnitId,
 	const TArray<FRTCellId>& Path, FString& OutError)
 {
@@ -558,6 +600,211 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SetWaitIntent(int32 TurnIndex, cons
 	{
 		Turn.Intents.Add(MoveTemp(Intent));
 	}
+	return ERTScenarioAuthoringResult::Success;
+}
+
+namespace
+{
+	/**
+	 * Il preambolo che ogni scrittura di slot condivide — `#1626`.
+	 *
+	 * 🔑 Le sette funzioni che seguono chiedono tutte le stesse quattro cose prima di scrivere: scenario
+	 * aperto, turno esistente, unita' schierata, unita' non affidata al bot. Ripeterle sette volte
+	 * significherebbe sette occasioni di scriverne una diversa dalle altre — e i messaggi d'errore di
+	 * `SetMoveIntent` sono asseriti dai test, quindi divergere non sarebbe un dettaglio di stile.
+	 *
+	 * Restituisce l'intent su cui scrivere, **creandolo** se l'unita' non ne aveva uno in quel turno.
+	 * `nullptr` con `OutResult` valorizzato quando la scrittura non si puo' fare.
+	 *
+	 * ⚠️ **Chi ha argomenti propri da controllare li controlla PRIMA di chiamare questa.** Creare e poi
+	 * rifiutare lascia un intent vuoto, che il formato legge come un Wait: un errore restituito insieme a
+	 * una modifica non richiesta.
+	 */
+	FRTScenarioIntent* DraftIntentSlotToWrite(bool bOpen, FRTTestScenario& Scenario, int32 TurnIndex, const FString& UnitId,
+		int32 UnitIndex, FString& OutError, ERTScenarioAuthoringResult& OutResult)
+	{
+		OutError.Reset();
+
+		if (!bOpen)
+		{
+			OutError = TEXT("nessuno scenario aperto");
+			OutResult = ERTScenarioAuthoringResult::NoScenarioOpen;
+			return nullptr;
+		}
+		if (!Scenario.Turns.IsValidIndex(TurnIndex))
+		{
+			OutError = FString::Printf(TEXT("turno %d inesistente (ce ne sono %d)"), TurnIndex, Scenario.Turns.Num());
+			OutResult = ERTScenarioAuthoringResult::NotFound;
+			return nullptr;
+		}
+		if (UnitIndex == INDEX_NONE)
+		{
+			OutError = FString::Printf(TEXT("unita' '%s' non schierata"), *UnitId);
+			OutResult = ERTScenarioAuthoringResult::NotFound;
+			return nullptr;
+		}
+		// Stessa ragione di `SetMoveIntent`: il piano di una unita' del bot lo scrive il bot, e dirlo al
+		// salvataggio vorrebbe dire scoprire lo scenario insalvabile molto dopo averlo reso tale.
+		if (Scenario.Units[UnitIndex].bBotControlled)
+		{
+			OutError = FString::Printf(
+				TEXT("'%s' e' guidata dal bot: il suo piano lo scrive il bot, non lo scenario"), *UnitId);
+			OutResult = ERTScenarioAuthoringResult::Invalid;
+			return nullptr;
+		}
+
+		FRTScenarioTurn& Turn = Scenario.Turns[TurnIndex];
+		for (FRTScenarioIntent& Existing : Turn.Intents)
+		{
+			if (Existing.UnitId == UnitId)
+			{
+				OutResult = ERTScenarioAuthoringResult::Success;
+				return &Existing;
+			}
+		}
+
+		FRTScenarioIntent& Fresh = Turn.Intents.AddDefaulted_GetRef();
+		Fresh.UnitId = UnitId;
+		OutResult = ERTScenarioAuthoringResult::Success;
+		return &Fresh;
+	}
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetDashIntent(int32 TurnIndex, const FString& UnitId,
+	FName DashAbility, const FRTCellId& DashCell, FString& OutError)
+{
+	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
+	FRTScenarioIntent* Intent = DraftIntentSlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	if (Intent == nullptr) { return Result; }
+
+	Intent->Dash = DashAbility;
+	// La cella d'arrivo segue la mobilita': tenerla dopo che lo slot e' stato svuotato lascerebbe nel file
+	// una destinazione che nessuna azione raggiunge.
+	Intent->DashCell = DashAbility.IsNone() ? FRTCellId() : DashCell;
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetMainAction(int32 TurnIndex, const FString& UnitId,
+	FName AbilityId, FString& OutError)
+{
+	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
+	FRTScenarioIntent* Intent = DraftIntentSlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	if (Intent == nullptr) { return Result; }
+
+	Intent->Ability = AbilityId;
+	Intent->Target.Reset();
+	Intent->bTargetsCell = false;
+	Intent->TargetCell = FRTCellId();
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetMainActionOnUnit(int32 TurnIndex, const FString& UnitId,
+	FName AbilityId, const FString& TargetUnitId, FString& OutError)
+{
+	// 🔴 **Gli argomenti si controllano PRIMA di toccare lo scenario, e non e' pedanteria di stile.**
+	// `DraftIntentSlotToWrite` CREA l'intent se l'unita' non ne aveva uno: validare dopo significherebbe che
+	// una chiamata **rifiutata** lascia dietro di se' un intent vuoto — e un intent che nomina l'unita' e
+	// nient'altro e' precisamente come il formato scrive il **Wait**. Il designer leggerebbe un errore e si
+	// ritroverebbe un'attesa che non ha chiesto: la stessa scrittura muta che `SetWaitIntent` si prende la
+	// briga di dichiarare quando cancella un piano.
+	if (AbilityId.IsNone())
+	{
+		OutError = FString::Printf(
+			TEXT("bersaglio '%s' senza abilita': per svuotare lo slot principale si usa SetMainAction(None)"),
+			*TargetUnitId);
+		return ERTScenarioAuthoringResult::Invalid;
+	}
+	if (TargetUnitId.IsEmpty())
+	{
+		// Un bersaglio vuoto non e' «nessun bersaglio»: `Validate` lo tratterebbe come un'abilita' che non
+		// dichiara il suo, e il designer leggerebbe un errore sul campo sbagliato.
+		OutError = FString::Printf(TEXT("l'abilita' '%s' non nomina il bersaglio"), *AbilityId.ToString());
+		return ERTScenarioAuthoringResult::Invalid;
+	}
+
+	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
+	FRTScenarioIntent* Intent = DraftIntentSlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	if (Intent == nullptr) { return Result; }
+	// ⚠️ Che l'unita' bersagliata ESISTA lo controlla `Validate` al salvataggio, insieme al divieto di
+	// bersagliare se stessi. Ripeterlo qui vorrebbe dire due regole da tenere allineate; l'unica cosa che
+	// spetta a questa funzione e' non produrre una contraddizione che `Validate` non potrebbe che rifiutare.
+	Intent->Ability = AbilityId;
+	Intent->Target = TargetUnitId;
+	Intent->bTargetsCell = false;
+	Intent->TargetCell = FRTCellId();
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetMainActionOnCell(int32 TurnIndex, const FString& UnitId,
+	FName AbilityId, const FRTCellId& TargetCell, FString& OutError)
+{
+	// Vedi `SetMainActionOnUnit`: validare dopo aver creato l'intent scriverebbe un Wait per una chiamata
+	// che sta per essere rifiutata.
+	if (AbilityId.IsNone())
+	{
+		OutError = TEXT("cella bersagliata senza abilita': per svuotare lo slot principale si usa SetMainAction(None)");
+		return ERTScenarioAuthoringResult::Invalid;
+	}
+
+	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
+	FRTScenarioIntent* Intent = DraftIntentSlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	if (Intent == nullptr) { return Result; }
+
+	Intent->Ability = AbilityId;
+	Intent->TargetCell = TargetCell;
+	Intent->bTargetsCell = true;
+	// 🔴 La riga che chiude il criterio 3: la forma per unita' se ne va con la scelta della cella.
+	Intent->Target.Reset();
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetFacingIntent(int32 TurnIndex, const FString& UnitId,
+	bool bDeclare, ERTHexDirection Facing, FString& OutError)
+{
+	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
+	FRTScenarioIntent* Intent = DraftIntentSlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	if (Intent == nullptr) { return Result; }
+
+	Intent->bDeclaresFacing = bDeclare;
+	Intent->Facing = bDeclare ? Facing : ERTHexDirection::E;
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetCoverEdgeIntent(int32 TurnIndex, const FString& UnitId,
+	bool bDeclare, ERTHexDirection Edge, FString& OutError)
+{
+	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
+	FRTScenarioIntent* Intent = DraftIntentSlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	if (Intent == nullptr) { return Result; }
+
+	Intent->bHasCoverEdge = bDeclare;
+	Intent->CoverEdge = bDeclare ? Edge : ERTHexDirection::E;
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetReactionIntent(int32 TurnIndex, const FString& UnitId,
+	FName ReactionAbility, FName ConditionId, int32 ConditionParam, FString& OutError)
+{
+	ERTScenarioAuthoringResult Result = ERTScenarioAuthoringResult::Success;
+	FRTScenarioIntent* Intent = DraftIntentSlotToWrite(bOpen, Scenario, TurnIndex, UnitId, IndexOfUnit(UnitId), OutError, Result);
+	if (Intent == nullptr) { return Result; }
+
+	Intent->Reaction = ReactionAbility;
+	if (ReactionAbility.IsNone())
+	{
+		// Vedi l'header: una condizione senza reazione e' cio' che `SetPlannedReactionCondition` rifiuta.
+		Intent->Condition = FRTDeclaredCondition();
+		if (!ConditionId.IsNone())
+		{
+			OutError = FString::Printf(
+				TEXT("condizione '%s' tolta con la reazione: una condizione senza reazione non e' dichiarabile"),
+				*ConditionId.ToString());
+		}
+		return ERTScenarioAuthoringResult::Success;
+	}
+
+	Intent->Condition.Id = ConditionId;
+	Intent->Condition.Param = ConditionId.IsNone() ? 0 : ConditionParam;
 	return ERTScenarioAuthoringResult::Success;
 }
 
@@ -711,11 +958,39 @@ TArray<FRTScenarioIntentView> FRTScenarioDraft::ListIntents(int32 TurnIndex) con
 		View.bHasMove = Intent.Move.Num() > 0;
 		View.Move = Intent.Move;
 		View.Ability = Intent.Ability;
+		View.Target = Intent.Target;
+		View.bTargetsCell = Intent.bTargetsCell;
+		View.TargetCell = Intent.TargetCell;
+		View.Dash = Intent.Dash;
+		View.DashCell = Intent.DashCell;
+		View.bDeclaresFacing = Intent.bDeclaresFacing;
+		View.Facing = Intent.Facing;
+		View.bHasCoverEdge = Intent.bHasCoverEdge;
+		View.CoverEdge = Intent.CoverEdge;
+		View.Reaction = Intent.Reaction;
+		View.Condition = Intent.Condition.Id;
 
 		// La riga di lista dice cosa fa l'unita', nell'ordine in cui conta per chi guarda.
 		TArray<FString> Parts;
 		if (View.bHasMove) { Parts.Add(FString::Printf(TEXT("Move (%d celle)"), Intent.Move.Num())); }
-		if (!Intent.Ability.IsNone()) { Parts.Add(Intent.Ability.ToString()); }
+		if (!Intent.Ability.IsNone())
+		{
+			// Il bersaglio nella riga, perche' «Riktor attacca» e «Riktor attacca CHI» sono due informazioni
+			// diverse, e in una lista di combattimento la seconda e' quella che si cerca.
+			if (Intent.bTargetsCell)
+			{
+				Parts.Add(FString::Printf(TEXT("%s -> (%d,%d,%d)"), *Intent.Ability.ToString(),
+					Intent.TargetCell.X, Intent.TargetCell.Y, Intent.TargetCell.Layer));
+			}
+			else if (!Intent.Target.IsEmpty())
+			{
+				Parts.Add(FString::Printf(TEXT("%s -> %s"), *Intent.Ability.ToString(), *Intent.Target));
+			}
+			else
+			{
+				Parts.Add(Intent.Ability.ToString());
+			}
+		}
 		if (!Intent.Dash.IsNone()) { Parts.Add(Intent.Dash.ToString()); }
 		if (!Intent.Reaction.IsNone()) { Parts.Add(Intent.Reaction.ToString()); }
 		if (Intent.bDeclaresFacing) { Parts.Add(TEXT("rotazione")); }

@@ -86,10 +86,19 @@ struct FRTPlacementRegion
 /**
  * QUANTO SPAZIO CHIEDE UN'UNITA' PER STARE IN UNA CELLA.
  *
- * ⚠️ **I valori di catalogo NON sono decisi, e questo tipo non li inventa.** Categorie di footprint e
- * raggi di clearance sono decisioni aperte del Decision Record: qui c'e' il PARAMETRO, non il numero. Il
- * default e' l'IDENTITA' — «basta un settore libero» — che e' la scelta piu' debole possibile e quindi
- * l'unica che non decide niente al posto di chi dovra' decidere.
+ * ✅ **I valori di catalogo sono decisi, e questo tipo continua a non inventarli** (`D-307`, 2026-08-31):
+ * `Small` **2** · `Medium` **3** · `Large` **4** settori contigui. Vivono in
+ * `docs/balance/RT_FootprintCatalog_v0.1.md`, che ne e' l'owner; qui c'e' il PARAMETRO, non il numero, ed e'
+ * la ragione per cui il default non e' cambiato.
+ *
+ * 🔑 **Due sono determinati, il terzo e' una scelta.** `Small` e `Medium` sono l'unica coppia che
+ * soddisfa insieme *«>= 2»* (con `1` basta un settore, e un profilo a `1` non distingue nulla), *«<= 3»*
+ * (`D-289`: nel gruppo da tre del suo esempio l'unita' standard *«ci sta benissimo»*) e `Small < Medium`.
+ * `Large = 4` e' il minimo disponibile sopra `Medium`: nulla nella geometria lo obbliga a fermarsi li'.
+ *
+ * ⚠️ **Nessuna unita' dichiara ancora un profilo**, quindi oggi userebbero tutte `Medium`. Il default
+ * resta l'IDENTITA' — «basta un settore libero» —, che non e' una quarta taglia ma il valore di chi non
+ * ha dichiarato niente: la scelta piu' debole possibile, e quindi l'unica che non decide al posto d'altri.
  *
  * Un default piu' alto sarebbe un numero di bilanciamento travestito da costante, ed e' esattamente la
  * classe di difetto che `FRTOccupancyThresholds::BlockedFrom` ha portato dentro questo repository: `6` non
@@ -253,11 +262,15 @@ struct FRTCoverOption
 /**
  * PASSARE DA UNA POSA ALL'ALTRA DENTRO LA STESSA CELLA.
  *
- * ⚠️ **Due valori, entrambi raggiungibili.** Il Decision Record prevede anche la traversata AUTORATA —
- * porta, apertura, vault, reposition autorizzato — ma in v0.1 nessun vocabolario la esprime: `FRTHexDoor`
- * sta sui BORDI, e non esiste un dato per «apertura dentro la cella». Un terzo valore che nessun produttore
- * puo' emettere sarebbe un campo che nessuno legge, ed e' il difetto che questo repository ha gia' pagato
- * quattro volte. Va aggiunto **in coda** insieme al suo produttore.
+ * ✅ **TRE valori, tutti raggiungibili — aggiornato il 2026-09-03.** Questa riga diceva *«Due valori»* e
+ * *«in v0.1 nessun vocabolario la esprime»*: era vero fino a `#1828`, che ha aggiunto `AuthoredTraversal`
+ * **insieme al suo produttore** `FRTHexInteriorWall::bTraversable` (formato v14), esattamente come la riga
+ * stessa prescriveva. Il commento e' sopravvissuto al fatto che descriveva.
+ *
+ * 🔑 **E la forma scelta chiude una regola di validazione invece di aprirla**: la regola 3 di `#1832` —
+ * *«una traversata autorata che collega due regioni attraversando geometria bloccante»* — e'
+ * **irrappresentabile** con due maschere, quindi non ha un validator e non deve averlo. Vedi
+ * `ClassifyIntraCellTraversalWithAuthored` e `URTHexMapAsset::ValidateMapDetailed`.
  */
 UENUM(BlueprintType)
 enum class ERTIntraCellTraversal : uint8
@@ -265,7 +278,25 @@ enum class ERTIntraCellTraversal : uint8
 	/** Le due pose stanno nella STESSA regione libera: ci si sposta senza attraversare geometria. */
 	SameRegion,
 	/** Regioni diverse, e nessuna traversata le collega: la transizione e' INVALIDA. */
-	Blocked
+	Blocked,
+
+	/**
+	 * Regioni diverse, ma un muro **scavalcabile** le separa: la transizione e' valida e **paga** — `E23.7`,
+	 * [D-308], `#1828`.
+	 *
+	 * 🔑 **E' il terzo valore che questo enum aspettava, e arriva col suo produttore nello stesso commit.**
+	 * La riga qui sopra prometteva *«va aggiunto in coda insieme al suo produttore»*, e il produttore e'
+	 * `FRTHexInteriorWall::bTraversable`: senza di lui il valore sarebbe un'etichetta che nessun ramo emette,
+	 * cioe' il difetto che questo repository ha gia' pagato quattro volte.
+	 *
+	 * ⚠️ **Non e' `SameRegion` con un altro nome**, e la distinzione e' cio' che il chiamante deve vedere: li'
+	 * non si attraversa niente e non si paga; qui si scavalca, e `D-308` fissa il costo del vault a *«costo
+	 * d'arco normale + 1 MP»*. Schiacciare i due valori renderebbe gratuito cio' che ha un prezzo.
+	 *
+	 * ⛔ **Non introduce un secondo slot di occupancy**: la capacita' della cella resta **una** unita'
+	 * ([D-289]). Scavalcare porta all'altra faccia, non in due posti.
+	 */
+	AuthoredTraversal
 };
 
 UCLASS()
@@ -379,6 +410,28 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static ERTIntraCellTraversal ClassifyIntraCellTraversal(const FRTOccupancyMask& Mask,
 		int32 FromWedge, int32 ToWedge);
+
+	/**
+	 * COME SOPRA, ma sapendo quali muri un autore ha reso **scavalcabili** — `E23.7`, [D-308], `#1828`.
+	 *
+	 * `Traversable` e' la maschera che la cella avrebbe **senza** i muri marcati `bTraversable`: se i due
+	 * settori sono separati in `Mask` e uniti in `Traversable`, a separarli e' **solo** geometria che si puo'
+	 * scavalcare, e la risposta e' `AuthoredTraversal`.
+	 *
+	 * 🔑 **Due maschere e non una lista di muri, ed e' la scelta che tiene questa libreria pura.** Qui non
+	 * entra ne' l'asset ne' `FRTCellId`: chi chiama sa quali muri sono scavalcabili e costruisce le due
+	 * maschere con `ComputeMask`, che e' gia' l'unico produttore. Passare i segmenti significherebbe
+	 * ricalcolare qui dentro cio' che il chiamante ha gia' in mano, e dare a questa funzione una seconda
+	 * ragione di esistere.
+	 *
+	 * ⛔ **L'AC 5 di `#1828` cade da se' con questa forma**: *«nessuna traversata autorata puo' collegare due
+	 * regioni attraversando geometria bloccante»*. Se fra le due regioni ci fosse **anche** un muro non
+	 * scavalcabile, toglierne uno solo non le unirebbe — `Traversable` resterebbe separata e la risposta
+	 * `Blocked`. Non serve un validator che lo vieti: il modello non sa esprimerlo.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static ERTIntraCellTraversal ClassifyIntraCellTraversalWithAuthored(const FRTOccupancyMask& Mask,
+		const FRTOccupancyMask& Traversable, int32 FromWedge, int32 ToWedge);
 
 	/**
 	 * L'opzione e' RAGGIUNGIBILE da chi e' posato su quel settore, senza uscire dalla cella?

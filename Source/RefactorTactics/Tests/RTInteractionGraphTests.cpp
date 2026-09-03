@@ -4,6 +4,11 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexDoorLibrary.h"
 #include "Map/RTHexMapAsset.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioRunner.h"
+#include "RTWorldFixtures.h"
+#include "Misc/Paths.h"
+#include "Combat/RTHexCombatLibrary.h" // il piano: e' li' che l'ordine cambia destinatario (`#833`)
 #include "Map/RTStructureIdentityLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -850,6 +855,331 @@ bool FRTInteractionGraphApplicationFollowsDeclaredOrder::RunTest(const FString&)
 		TestTrue(TEXT("la lista inversa applica D2 per prima"), B[0].Cell == Second);
 	}
 	return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// Il ponte fra il bordo puntato e il nome che il grafo lega — `#833`
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * DA UN BORDO AL NOME DELLA STRUTTURA CHE CI STA SOPRA, e dai due lati.
+ *
+ * 🔑 **E' la risoluzione che mancava, ed e' il motivo per cui questa issue e' rimasta ferma senza che
+ * nessuno lo dicesse.** Il grafo lega NOMI e il percorso di gioco parla di BORDI: chi punta una leva punta
+ * un bordo, e fino a qui non esisteva modo di sapere come si chiamasse. `FindDoorEdges` andava solo
+ * nell'altra direzione.
+ *
+ * ⚠️ Il bordo si guarda **dai due lati**, come `CoverBetween`: il dato sta su una cella sola, ma la
+ * struttura e' fisica e non deve dipendere da chi l'ha ricevuta nell'asset.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGraphPointedEdgeResolvesTest,
+	"RefactorTactics.InteractionGraph.PointedEdgeResolvesToItsSourceName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGraphPointedEdgeResolvesTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeGraphMap(3);
+	const FRTCellId Here(0, 0, 0);
+	const FRTCellId There(1, 0, 0);
+	PutGraphDoor(Map, Here, ERTHexDirection::E, 1, TEXT("S1"));
+
+	TestEqual(TEXT("dal lato che porta il dato"),
+		URTStructureIdentityLibrary::FindDoorIdOnEdge(Map, Here, There), FName(TEXT("S1")));
+	TestEqual(TEXT("e dall'altro lato, che non ce l'ha"),
+		URTStructureIdentityLibrary::FindDoorIdOnEdge(Map, There, Here), FName(TEXT("S1")));
+
+	// Un bordo senza porta, e due celle non adiacenti: entrambi `NAME_None`, e non si distinguono — per chi
+	// chiama sono la stessa cosa, cioe' «da qui non parte un'interazione».
+	TestEqual(TEXT("bordo senza porta"),
+		URTStructureIdentityLibrary::FindDoorIdOnEdge(Map, Here, FRTCellId(0, 1, 0)), FName(NAME_None));
+	TestEqual(TEXT("celle non adiacenti"),
+		URTStructureIdentityLibrary::FindDoorIdOnEdge(Map, Here, FRTCellId(2, 0, 0)), FName(NAME_None));
+
+	// ⚠️ **`IsInteractionSource` e' un'altra domanda**: una porta con un nome non e' per questo una leva.
+	TestFalse(TEXT("una porta con nome NON e' una sorgente per il solo fatto di chiamarsi"),
+		URTStructureIdentityLibrary::IsInteractionSource(Map, TEXT("S1")));
+
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+	TestTrue(TEXT("lo diventa quando un binding la dichiara"),
+		URTStructureIdentityLibrary::IsInteractionSource(Map, TEXT("S1")));
+	TestFalse(TEXT("e un nome che nessun binding cita, no"),
+		URTStructureIdentityLibrary::IsInteractionSource(Map, TEXT("D1")));
+	return true;
+}
+
+/**
+ * L'APPLICAZIONE, non la risoluzione: la porta remota si apre davvero, e quella `Locked` viene RIPORTATA.
+ *
+ * 🔑 Il DoD di `#833` nomina da sé questa lacuna: *«la risoluzione dice CHI è comandato, l'applicazione COSA
+ * è cambiato»*. I 23 test del grafo provavano la prima; questo prova la seconda.
+ *
+ * ⚠️ **NON è atomica** ([D-150]): un bersaglio che non può transitare non annulla i suoi fratelli. Si
+ * applicano gli applicabili e si riporta l'esito degli altri — che è il comportamento che `SetDoorState` ha
+ * già un livello sotto, e contraddirlo qui avrebbe richiesto un rollback che non esiste.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGraphRemoteApplicationTest,
+	"RefactorTactics.InteractionGraph.RemoteApplicationOpensAndReports",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGraphRemoteApplicationTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeGraphMap(4);
+	const FRTCellId Lever(0, 0, 0);
+	const FRTCellId Near(2, 0, 0);
+	const FRTCellId Far(-2, 0, 0);
+
+	PutGraphDoor(Map, Lever, ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphDoor(Map, Near, ERTHexDirection::E, 2, TEXT("D1"));
+	PutGraphDoorInState(Map, Far, ERTHexDirection::E, 3, TEXT("D2"), ERTHexDoorState::Locked);
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1"), TEXT("D2") }));
+
+	TArray<FString> Refusals;
+	const TArray<FRTDoorChange> Changes =
+		URTHexDoorLibrary::ApplyInteraction(Map, TEXT("S1"), ERTHexDoorState::Open, /*ActorId*/ 7, &Refusals);
+
+	// D1 si apre, D2 no — e i due fatti convivono, che è il punto di [D-150].
+	TestEqual(TEXT("un solo bersaglio ha cambiato stato"), Changes.Num(), 1);
+	if (Changes.Num() == 1)
+	{
+		TestTrue(TEXT("ed è quello apribile"), Changes[0].Cell == Near);
+		TestFalse(TEXT("che ora non blocca più"), Changes[0].bBlocking);
+		TestEqual(TEXT("con chi l'ha comandato"), Changes[0].ActorId, 7);
+	}
+	TestTrue(TEXT("il bersaglio Locked è RIPORTATO, non ingoiato"), Refusals.Num() >= 1);
+
+	// 🔑 **La porta remota è aperta nell'asset**, non solo nel valore di ritorno: è ciò che il turno dopo
+	// permette di attraversarla.
+	const FRTHexCellData* NearCell = Map->FindCell(Near);
+	if (TestNotNull(TEXT("la cella del bersaglio esiste"), NearCell) && NearCell->Doors.Num() == 1)
+	{
+		TestTrue(TEXT("D1 è Open nell'asset"), NearCell->Doors[0].State == ERTHexDoorState::Open);
+	}
+	// E la Locked non si è mossa: il rifiuto non è una mezza applicazione.
+	const FRTHexCellData* FarCell = Map->FindCell(Far);
+	if (TestNotNull(TEXT("la cella della Locked esiste"), FarCell) && FarCell->Doors.Num() == 1)
+	{
+		TestTrue(TEXT("D2 resta Locked"), FarCell->Doors[0].State == ERTHexDoorState::Locked);
+	}
+	return true;
+}
+
+/**
+ * IL PIANO INSTRADA VERSO LA SORGENTE, e solo quando un binding la dichiara tale — `#833`.
+ *
+ * 🔑 **È il test del ramo che questa issue esisteva per scrivere.** Chi punta un bordo punta sempre la stessa
+ * cosa; ciò che cambia è cosa il runtime ne fa: se la struttura su quel bordo comanda altre porte,
+ * l'ordine diventa un `FRTInteractionOp` con il suo NOME e i bersagli li risolve l'autorità a fase conclusa.
+ * Altrimenti resta il `FRTDoorOp` di sempre, con le due celle.
+ *
+ * ⚠️ **I due canali si escludono, e il test lo pretende in entrambi i versi**: un solo ordine per intento.
+ * Se un giorno il ramo li producesse entrambi, la porta-leva si aprirebbe due volte — una come bersaglio di
+ * sé stessa e una come sorgente — e la revisione conterebbe due cambi dove il giocatore ha premuto una volta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGraphPlanRoutesToSourceTest,
+	"RefactorTactics.InteractionGraph.PlanRoutesPointedSourceToInteraction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGraphPlanRoutesToSourceTest::RunTest(const FString&)
+{
+	const FRTCellId Where(0, 0, 0);
+	const FRTCellId Beyond(1, 0, 0);
+	const FRTCellId Far(-2, 0, 0);
+
+	// L'unità sta accanto alla struttura e mira la cella oltre il suo bordo: è il gesto della catena locale,
+	// identico nei due casi. L'unica differenza fra i due mondi è il binding nell'asset.
+	TArray<FRTHexCombatUnit> Units;
+	FRTHexCombatUnit U;
+	U.UnitId = 0;
+	U.TeamId = 0;
+	U.Cell = Where;
+	Units.Add(U);
+
+	FRTHexAttackIntent Intent;
+	Intent.AttackerId = 0;
+	Intent.TargetId = INDEX_NONE;
+	Intent.TargetCell = Beyond;
+	Intent.bChangesDoor = true;
+	Intent.DoorState = ERTHexDoorState::Open;
+	// ⚠️ **La portata va dichiarata o l'intento non arriva al ramo delle porte**: `CollectHexAttacks` scarta
+	// in silenzio ciò che sta oltre `RangeCells`, e il default è `0` — cioè nemmeno la cella adiacente.
+	// `1` è la portata di `Action.Interact` ([D-149]): si punta la sorgente, che è adiacente.
+	Intent.RangeCells = 1;
+	const TArray<FRTHexAttackIntent> Intents = { Intent };
+
+	// (1) Nessun binding: la porta puntata È il bersaglio.
+	{
+		URTHexMapAsset* Plain = MakeGraphMap(4);
+		PutGraphDoor(Plain, Where, ERTHexDirection::E, 1, TEXT("S1"));
+
+		const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Plain);
+		TestEqual(TEXT("senza binding si raccoglie un ordine di PORTA"), Plan.DoorOps.Num(), 1);
+		TestEqual(TEXT("e nessuna interazione"), Plan.InteractionOps.Num(), 0);
+	}
+
+	// (2) Con un binding: la stessa struttura diventa una sorgente, e l'ordine cambia destinatario.
+	{
+		URTHexMapAsset* Wired = MakeGraphMap(4);
+		PutGraphDoor(Wired, Where, ERTHexDirection::E, 1, TEXT("S1"));
+		PutGraphDoor(Wired, Far, ERTHexDirection::E, 2, TEXT("D1"));
+		Wired->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+
+		const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Wired);
+		TestEqual(TEXT("e nessun ordine di porta"), Plan.DoorOps.Num(), 0);
+
+		// ⚠️ **`if` e non `TestEqual` seguito da `[0]`**: un accesso fuori dalla guardia trasforma un test
+		// che fallisce in un ENGINE CHE CADE, e una suite che cade a metà non è rossa — è troncata, cioè
+		// indistinguibile da una verde se si contano solo i `Success`. È successo il 2026-09-01 a questo
+		// stesso test, e `rt-suite` l'ha intercettato dichiarando la misura NON VALIDA.
+		if (!TestEqual(TEXT("con il binding si raccoglie un'INTERAZIONE"), Plan.InteractionOps.Num(), 1))
+		{
+			return false;
+		}
+		TestEqual(TEXT("che nomina la sorgente"), Plan.InteractionOps[0].SourceId, FName(TEXT("S1")));
+		TestEqual(TEXT("chiede Open (D-151)"), Plan.InteractionOps[0].State, ERTHexDoorState::Open);
+		TestEqual(TEXT("e porta chi ha premuto"), Plan.InteractionOps[0].ActorId, 0);
+
+		// **Il piano non nomina i bersagli, e non è un'omissione**: li risolve l'autorità applicando.
+		// È la lettura stretta di *«il client non sceglie bersagli interni»* — qui il piano, che è il
+		// contratto fra intento e applicazione, non li contiene proprio.
+		TArray<FString> Refusals;
+		const TArray<FRTDoorChange> Changes = URTHexDoorLibrary::ApplyInteraction(
+			Wired, Plan.InteractionOps[0].SourceId, Plan.InteractionOps[0].State,
+			Plan.InteractionOps[0].ActorId, &Refusals);
+		TestEqual(TEXT("e applicandolo si apre la porta remota"), Changes.Num(), 1);
+		if (Changes.Num() == 1)
+		{
+			TestTrue(TEXT("quella lontana, non quella puntata"), Changes[0].Cell == Far);
+		}
+	}
+	return true;
+}
+
+/**
+ * LO SCENARIO: una leva apre una porta a cinque celle di distanza, e al turno dopo ci si passa.
+ *
+ * 🔑 **È la verifica che i test qui sopra non danno.** Quelli provano il piano e l'applicazione come
+ * funzioni; questo li mette in una partita vera — intento, Planning, Blast, e poi un Move che consuma la
+ * topologia nuova. Senza, il grafo resterebbe verificato solo in C++, cioè mai in un replay.
+ *
+ * ⚠️ Il nome non è scelto qui: `docs/technical/tooling/scenario-map.md` lo dichiara atteso da agosto per
+ * `RT-FEAT-MAP-INTERACTION-GRAPH`, insieme agli altri due che restano da scrivere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGraphSwitchOpensDoorScenarioTest,
+	"RefactorTactics.InteractionGraph.SwitchOpensDoorScenario",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGraphSwitchOpensDoorScenarioTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	FString Error;
+	const FString Path = FPaths::Combine(FPaths::ProjectDir(),
+		TEXT("Scenarios/Spec/Map/Interaction/SwitchOpensDoor.json"));
+	if (!TestTrue(FString::Printf(TEXT("lo scenario si carica: %s"), *Error),
+		URTScenarioLoader::LoadFromFile(Path, Scenario, Error)))
+	{
+		return false;
+	}
+
+	// Ciò che il formato non sapeva dire fino a `#833`, e senza cui questo file non era scrivibile.
+	TestEqual(TEXT("dichiara due porte"), Scenario.Doors.Num(), 2);
+	TestEqual(TEXT("e un binding"), Scenario.InteractionBindings.Num(), 1);
+
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	RTWorldFixtures::DestroyWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("la leva apre la porta lontana, e al turno dopo ci si passa"),
+		Result.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+namespace
+{
+	/**
+	 * Carica ed esegue uno scenario di `Scenarios/Spec/Map/Interaction/`, e pretende `PASS`.
+	 *
+	 * Esiste perché i tre scenari del grafo si eseguono nello stesso identico modo: ripetere il corpo tre
+	 * volte darebbe tre copie da tenere allineate, ed è la ragione per cui `ShouldRequery` è finito in
+	 * `RTHexHover` il 2026-08-31.
+	 */
+	bool RunGraphScenario(FAutomationTestBase& Test, const TCHAR* FileName, int32 ExpectedDoors,
+		int32 ExpectedBindings)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const FString Path = FPaths::Combine(FPaths::ProjectDir(),
+			TEXT("Scenarios/Spec/Map/Interaction"), FileName);
+		if (!Test.TestTrue(FString::Printf(TEXT("%s si carica: %s"), FileName, *Error),
+			URTScenarioLoader::LoadFromFile(Path, Scenario, Error)))
+		{
+			return false;
+		}
+
+		Test.TestEqual(TEXT("le porte dichiarate"), Scenario.Doors.Num(), ExpectedDoors);
+		Test.TestEqual(TEXT("i binding dichiarati"), Scenario.InteractionBindings.Num(), ExpectedBindings);
+
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), World)) { return false; }
+		const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+		RTWorldFixtures::DestroyWorld(World);
+
+		if (Result.Outcome == ERTTestOutcome::Error)
+		{
+			Test.AddError(FString::Printf(TEXT("%s: ERROR invece di PASS — %s"), FileName, *Result.ErrorMessage));
+			return false;
+		}
+		// 🔑 **Le assertion cadute si NOMINANO**, con `Expected` e `Actual`. Il runner riporta solo «4/5», e un
+		// referto che dice quante ne sono cadute senza dire quali costringe a indovinare: è successo il
+		// 2026-09-02, e la prima ipotesi era quella sbagliata.
+		for (const FRTAssertionResult& A : Result.Assertions)
+		{
+			if (!A.bPassed)
+			{
+				Test.AddError(FString::Printf(TEXT("%s — assertion caduta al turno %d: %s (atteso '%s', letto '%s')"),
+					FileName, A.Turn, *A.Description, *A.Expected, *A.Actual));
+			}
+		}
+
+		Test.TestEqual(FString::Printf(TEXT("%s passa"), FileName),
+			Result.OutcomeString(), FString(TEXT("PASS")));
+		return true;
+	}
+}
+
+/**
+ * `1 → N`: una leva apre DUE porte con una pressione sola.
+ *
+ * 🔑 Ciò che aggiunge a `SwitchOpensDoor` è la **cardinalità** che lo Scope di `#833` dichiara. Il piano non
+ * la conosce — `FRTInteractionOp` porta il solo `SourceId` — e quanti bersagli esistano lo sa solo l'asset.
+ *
+ * ⚠️ Non misura l'**ordine** di applicazione, che è di `ApplicationFollowsDeclaredOrder`: quello confronta la
+ * lista diretta con l'inversa, e uno scenario con due porte non saprebbe distinguere l'ordine dichiarato da
+ * quello di una `TMap`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGraphMultipleDoorsScenarioTest,
+	"RefactorTactics.InteractionGraph.SwitchControlsMultipleDoorsScenario",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGraphMultipleDoorsScenarioTest::RunTest(const FString&)
+{
+	return RunGraphScenario(*this, TEXT("SwitchControlsMultipleDoors.json"), /*Doors*/ 3, /*Bindings*/ 1);
+}
+
+/**
+ * L'apertura FALLISCE su un bersaglio, e il movimento che ci contava resta fermo — `D-150`.
+ *
+ * 🔑 **Il punto delicato, ed è scritto anche nello scenario**: la sola posizione finale non distingue
+ * `D-150` dal suo contrario. Se l'operazione fosse **atomica**, il rollback lascerebbe chiuse entrambe le
+ * porte e l'unità resterebbe ferma **lo stesso**. È l'assertion sul log a separare le due regole: con
+ * `D-150` le aperture sono **una**, con l'atomicità sarebbero zero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGraphOpenFailsScenarioTest,
+	"RefactorTactics.InteractionGraph.OpenFailsDependentMoveBlocksScenario",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGraphOpenFailsScenarioTest::RunTest(const FString&)
+{
+	return RunGraphScenario(*this, TEXT("OpenFailsDependentMoveBlocks.json"), /*Doors*/ 3, /*Bindings*/ 1);
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

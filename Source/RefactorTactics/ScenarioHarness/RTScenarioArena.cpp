@@ -8,6 +8,8 @@
 #include "ScenarioHarness/RTScenarioArena.h"
 
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTGeometryBake.h"
+#include "Map/RTGeometryGrammar.h"
 #include "ScenarioHarness/RTTestScenario.h"
 #include "Turn/RTMatchSetupLibrary.h"
 
@@ -51,6 +53,74 @@ URTHexMapAsset* URTScenarioArenaLibrary::BuildArena(const FRTTestScenario& Scena
 		Cell.OccupancySurcharge = Spec.OccupancySurcharge; // 0 = cella larga, come una non elencata
 		Map->AddOrUpdateCell(Cell);
 	}
+
+	// La geometria INTERNA alle celle (`D-269`, `#1830`): ferma vista e proiettili, quindi entra nell'arena
+	// come dato di gioco e nell'hash della mappa.
+	//
+	// ⚠️ Si AGGIUNGE, non si assegna: un'arena generata non ne ha nessuno — `MakeFlatArena` non ne produce —
+	// ma uno scenario che riparte da un asset esistente ne troverebbe i suoi, e sostituirli in blocco li
+	// cancellerebbe in silenzio. Le celle qui sopra si sovrascrivono invece per id, che una lista di segmenti
+	// non ha.
+	Map->InteriorWalls.Append(Scenario.InteriorWalls);
+
+	// PORTE e GRAFO DI INTERAZIONE (`#833`). Le porte vivono dentro la cella che le contiene, quindi si
+	// aggiungono per cella; i binding stanno sull'asset e si accodano come i muri interni — un asset di
+	// partenza potrebbe averne di propri, e sostituirli in blocco li cancellerebbe in silenzio.
+	for (const FRTScenarioDoor& Spec : Scenario.Doors)
+	{
+		const FRTHexCellData* Existing = Map->FindCell(Spec.Cell);
+		FRTHexCellData Cell = Existing ? *Existing : FRTHexCellData(Spec.Cell);
+		Cell.Doors.Add(Spec.Door);
+		Map->AddOrUpdateCell(Cell);
+	}
+	Map->InteractionBindings.Append(Scenario.InteractionBindings);
+
+	// LA COTTURA di quei muri, che e' cio' che li rende visibili al MOVIMENTO e non solo alla vista — `#2031`.
+	//
+	// 🔑 `#1830` porta il muro dentro l'arena e gli fa fermare vista e proiettile. `BakeCell` gli fa
+	// produrre le coperture di bordo che chiude e DERIVA `bBlocksMovement` dall'assenza di una posa legale
+	// (`E23.6`). Senza, una cella tagliata in due resterebbe pavimento: opaca allo sguardo e attraversabile
+	// a piedi. La derivazione la fa la cottura vera, non una copia qui: uno scenario che scrivesse l'esito a
+	// mano proverebbe se stesso.
+	//
+	// ⚠️ Dopo il ciclo delle celle, perche' `BakeCell` chiede che la cella esista gia'.
+	{
+		// 🔴 L'ordine e' quello di PRIMA APPARIZIONE, non quello di una `TMap`: l'iterazione di una
+		// mappa non e' garantita, e da qui escono `AddOrUpdateCell` che toccano l'asset.
+		TArray<FRTCellId> Order;
+		TMap<FRTCellId, TArray<FRTGeometrySegment>> PerCell;
+		for (const FRTHexInteriorWall& Wall : Scenario.InteriorWalls)
+		{
+			if (!PerCell.Contains(Wall.Cell))
+			{
+				Order.Add(Wall.Cell);
+			}
+			PerCell.FindOrAdd(Wall.Cell).Add(Wall.Segment);
+		}
+
+		for (const FRTCellId& Cooked : Order)
+		{
+			URTGeometryBakeLibrary::BakeCell(Map, Cooked, PerCell[Cooked], Map->HexSize);
+
+			// ⚠️ **`blocksMovement` d'autore vince sul derivato**, e va riapplicato DOPO la cottura:
+			// il bake toglie il PROPRIO blocco quando una posa esiste, e senza questa riga cancellerebbe la
+			// scelta di chi ha scritto lo scenario. E' la disciplina di provenienza di `D-131`, dal lato di
+			// chi allestisce.
+			const FRTScenarioCell* Authored = Scenario.Cells.FindByPredicate(
+				[&Cooked](const FRTScenarioCell& C) { return C.Cell == Cooked && C.bBlocksMovement; });
+			if (Authored)
+			{
+				if (const FRTHexCellData* Baked = Map->FindCell(Cooked))
+				{
+					FRTHexCellData Restored = *Baked;
+					Restored.bBlocksMovement = true;
+					Restored.bMovementBlockGenerated = false;
+					Map->AddOrUpdateCell(Restored);
+				}
+			}
+		}
+	}
+
 	Map->SortCells();
 
 	return Map;

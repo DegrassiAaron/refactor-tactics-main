@@ -43,6 +43,22 @@ namespace
 	}
 	)JSON");
 
+	// Per lo slot REATTIVO serve una unita' che possieda davvero una reazione: `ValidateScenarioTurns`
+	// rifiuta `non possiede la reazione`, e provarlo su Gadget misurerebbe il rifiuto invece dello slot.
+	// `Hero.Wraith.Deflection` e' la reazione che `Scenarios/Spec/Overwatch/` arma per davvero.
+	const TCHAR* TurnAuthoringReactionJson = TEXT(R"JSON(
+	{
+	  "scenarioId": "Movement.TurnAuthoringReactionProbe",
+	  "version": 1,
+	  "mapRadius": 3,
+	  "units": [
+	    { "id": "W1", "hero": "Hero.Wraith", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
+	  ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	}
+	)JSON");
+
 	bool OpenTurnDraft(FRTScenarioDraft& OutDraft, FString& OutError)
 	{
 		FRTTestScenario Loaded;
@@ -440,10 +456,16 @@ bool FRTScenarioTurnAuthoringIsExposedTest::RunTest(const FString&)
 	UClass* Facade = URTScenarioAuthoring::StaticClass();
 	if (!TestNotNull(TEXT("la facade esiste"), Facade)) { return false; }
 
+	// ⚠️ Gli slot di combattimento di `#1626` stanno in questa lista e non in una nuova: una funzione
+	// esposta senza guardia e' esattamente il buco su cui qualcuno costruisce un widget, e la ragione per
+	// cui questo elenco esiste vale per le sette nuove quanto per le nove vecchie.
 	for (const FName& Name : { FName(TEXT("AddTurn")), FName(TEXT("GetTurnCount")), FName(TEXT("SetMoveIntent")),
 		FName(TEXT("SetWaitIntent")), FName(TEXT("RemoveIntent")), FName(TEXT("AddExpectationUnitAtCell")),
 		FName(TEXT("AddExpectationLogEventCount")), FName(TEXT("RemoveExpectation")),
-		FName(TEXT("GetReachableCells")) })
+		FName(TEXT("GetReachableCells")), FName(TEXT("DuplicateTurn")),
+		FName(TEXT("SetDashIntent")), FName(TEXT("SetMainAction")), FName(TEXT("SetMainActionOnUnit")),
+		FName(TEXT("SetMainActionOnCell")), FName(TEXT("SetFacingIntent")), FName(TEXT("SetCoverEdgeIntent")),
+		FName(TEXT("SetReactionIntent")) })
 	{
 		const UFunction* Function = Facade->FindFunctionByName(Name);
 		if (!TestNotNull(*FString::Printf(TEXT("'%s' e' una UFUNCTION"), *Name.ToString()), Function))
@@ -668,6 +690,524 @@ bool FRTScenarioTurnAuthoringListsAndRemovesTest::RunTest(const FString&)
 		ERTScenarioAuthoringResult::Invalid);
 	TestTrue(*FString::Printf(TEXT("e spiega perche' (era: %s)"), *Error), Error.Contains(TEXT("bot")));
 
+	return true;
+}
+
+/**
+ * IL DESIGNER AUTHORA MOVIMENTO E AZIONE INSIEME, E IL FILE LI PORTA ENTRAMBI — `#1626`.
+ *
+ * 🔑 **È il primo criterio della issue, misurato dove è misurabile.** Il criterio dice *«senza toccare
+ * JSON»*: il senso operativo è che i campi si riempiono chiamando la facade, non scrivendo testo. Questo
+ * test authora, salva su disco e **rilegge dal file** — se un campo non passasse dalla facade, o non
+ * sopravvivesse al giro, cadrebbe qui.
+ *
+ * ⚠️ Cosa NON prova: che un umano ci riesca cliccando nel Composer. Quella metà è `U26`, classe C, e
+ * nessun test headless la può sostituire. Ma prima di `#1626` la facade authorava **Move e Wait** — con
+ * quelle sole due funzioni nessun widget avrebbe potuto esprimere un attacco, per quanto ben disegnato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCombatIntentAuthoringTest,
+	"RefactorTactics.Scenario.CombatIntentAuthoringFillsBothSlots",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCombatIntentAuthoringTest::RunTest(const FString&)
+{
+	const FString Dir = TurnAuthoringTempDir();
+	const FString Path = FPaths::Combine(Dir, TEXT("Combat.json"));
+	ON_SCOPE_EXIT{ IFileManager::Get().DeleteDirectory(*Dir, false, true); };
+
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenTurnDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	int32 Turn = INDEX_NONE;
+	if (!TestEqual(TEXT("turno aggiunto"), Draft.AddTurn(Turn, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	// 🎯 I DUE SLOT INSIEME, che il doc header chiama «la norma, non un caso limite».
+	const TArray<FRTCellId> Path1 = { FRTCellId(-1, 0, 0) };
+	TestEqual(TEXT("slot movimento"),
+		Draft.SetMoveIntent(Turn, TEXT("A1"), Path1, Error), ERTScenarioAuthoringResult::Success);
+	TestEqual(TEXT("slot principale, sulla stessa unita' e nello stesso turno"),
+		Draft.SetMainActionOnUnit(Turn, TEXT("A1"), TEXT("Action.BasicAttack"), TEXT("B1"), Error),
+		ERTScenarioAuthoringResult::Success);
+	TestEqual(TEXT("modificatore: rotazione"),
+		Draft.SetFacingIntent(Turn, TEXT("A1"), true, ERTHexDirection::NE, Error),
+		ERTScenarioAuthoringResult::Success);
+	TestEqual(TEXT("l'avversario si mette in guardia"),
+		Draft.SetMainAction(Turn, TEXT("B1"), TEXT("Action.Guard"), Error),
+		ERTScenarioAuthoringResult::Success);
+
+	// La lista che la UI mostra deve dire CHI viene attaccato: una facade che scrive un bersaglio e non
+	// sa mostrarlo e' il difetto che la review di `#1116` ha trovato su `RemoveIntent`.
+	const TArray<FRTScenarioIntentView> Views = Draft.ListIntents(Turn);
+	if (TestEqual(TEXT("due intent in lista"), Views.Num(), 2))
+	{
+		TestEqual(TEXT("la vista porta il bersaglio"), Views[0].Target, FString(TEXT("B1")));
+		TestTrue(TEXT("e la riga lo nomina"), Views[0].Summary.Contains(TEXT("B1")));
+		TestTrue(TEXT("la riga nomina anche il movimento"), Views[0].Summary.Contains(TEXT("Move")));
+	}
+
+	if (!TestEqual(TEXT("lo scenario costruito e' valido"),
+		Draft.Validate(Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	if (!TestEqual(TEXT("salvato"), Draft.SaveToFile(Path, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	// ✅ Riletto DAL FILE: e' il file prodotto che il criterio giudica, non lo stato in memoria.
+	FRTScenarioDraft Reloaded;
+	if (!TestEqual(TEXT("riaperto"), Reloaded.OpenFromFile(Path, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	if (TestEqual(TEXT("due intent nel file"), Reloaded.GetScenario().Turns[0].Intents.Num(), 2))
+	{
+		const FRTScenarioIntent& A = Reloaded.GetScenario().Turns[0].Intents[0];
+		TestEqual(TEXT("lo slot movimento e' popolato"), A.Move.Num(), 1);
+		TestEqual(TEXT("e anche quello principale"), A.Ability, FName(TEXT("Action.BasicAttack")));
+		TestEqual(TEXT("con il suo bersaglio"), A.Target, FString(TEXT("B1")));
+		TestTrue(TEXT("e il modificatore sopravvive"), A.bDeclaresFacing);
+		TestEqual(TEXT("nella direzione scelta"), A.Facing, ERTHexDirection::NE);
+
+		const FRTScenarioIntent& B = Reloaded.GetScenario().Turns[0].Intents[1];
+		TestEqual(TEXT("la Guardia non ha preteso un bersaglio"), B.Ability, FName(TEXT("Action.Guard")));
+		TestTrue(TEXT("e non ne ha uno"), B.Target.IsEmpty());
+	}
+	return true;
+}
+
+/**
+ * LE DUE FORME DI BERSAGLIO NON COESISTONO MAI NEL FILE PRODOTTO — `#1626`.
+ *
+ * 🔴 **È il criterio 3, e la trappola è nella forma stessa dell'API.** Gli slot si compongono — ciascun
+ * setter scrive solo il proprio campo — ma i due bersagli *non sono due slot*: sono due forme dello stesso.
+ * Senza la pulizia reciproca, un designer che sceglie una unità e poi cambia idea per una cella lascia
+ * **entrambi** i campi pieni, e `Validate` gli dice che lo scenario è insalvabile per una sequenza di
+ * click perfettamente legittima.
+ *
+ * ⚠️ Il test cambia idea in **entrambe le direzioni**: una pulizia scritta da un lato solo passerebbe un
+ * test che prova una direzione sola, ed è l'errore che rende verde metà del lavoro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioTargetFormsExclusiveTest,
+	"RefactorTactics.Scenario.TargetFormsNeverCoexistInTheAuthoredFile",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioTargetFormsExclusiveTest::RunTest(const FString&)
+{
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenTurnDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	int32 Turn = INDEX_NONE;
+	if (!TestEqual(TEXT("turno aggiunto"), Draft.AddTurn(Turn, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	auto Intent = [&Draft, Turn]() -> const FRTScenarioIntent&
+	{
+		return Draft.GetScenario().Turns[Turn].Intents[0];
+	};
+
+	// Unita' -> cella.
+	TestEqual(TEXT("bersaglio per unita'"),
+		Draft.SetMainActionOnUnit(Turn, TEXT("A1"), TEXT("Action.BasicAttack"), TEXT("B1"), Error),
+		ERTScenarioAuthoringResult::Success);
+	TestEqual(TEXT("bersaglio per cella dopo aver cambiato idea"),
+		Draft.SetMainActionOnCell(Turn, TEXT("A1"), TEXT("Action.BasicAttack"), FRTCellId(1, 0, 0), Error),
+		ERTScenarioAuthoringResult::Success);
+	TestTrue(TEXT("la cella e' il bersaglio"), Intent().bTargetsCell);
+	TestTrue(TEXT("e l'unita' non lo e' piu'"), Intent().Target.IsEmpty());
+	if (!TestEqual(TEXT("e lo scenario resta salvabile"), Draft.Validate(Error),
+		ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+	}
+
+	// Cella -> unita', la direzione opposta.
+	TestEqual(TEXT("di nuovo per unita'"),
+		Draft.SetMainActionOnUnit(Turn, TEXT("A1"), TEXT("Action.BasicAttack"), TEXT("B1"), Error),
+		ERTScenarioAuthoringResult::Success);
+	TestFalse(TEXT("il flag della cella si e' spento"), Intent().bTargetsCell);
+	TestEqual(TEXT("e la cella e' tornata al default"), Intent().TargetCell, FRTCellId());
+	TestEqual(TEXT("l'unita' e' il bersaglio"), Intent().Target, FString(TEXT("B1")));
+	if (!TestEqual(TEXT("lo scenario e' ancora salvabile"), Draft.Validate(Error),
+		ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+	}
+
+	// E l'azione senza bersaglio li toglie entrambi.
+	TestEqual(TEXT("azione su se stessi"),
+		Draft.SetMainAction(Turn, TEXT("A1"), TEXT("Action.Guard"), Error),
+		ERTScenarioAuthoringResult::Success);
+	TestTrue(TEXT("nessun bersaglio per unita'"), Intent().Target.IsEmpty());
+	TestFalse(TEXT("nessun bersaglio per cella"), Intent().bTargetsCell);
+
+	return true;
+}
+
+/**
+ * OGNI SLOT SCRIVE SOLO IL PROPRIO, E SVUOTARNE UNO NON TOCCA GLI ALTRI — `#1626`.
+ *
+ * 🔑 È l'invariante che rende la UI a slot possibile. `SettingAMoveDoesNotEraseTheRestOfTheIntent` la prova
+ * per il movimento; qui si prova per i quattro slot insieme, che è il caso che la UI produce davvero: il
+ * designer riempie, cambia idea su uno, e gli altri tre devono essere ancora lì.
+ *
+ * ⚠️ Senza la seconda metà — svuotare uno e ricontrollare gli altri — il test resterebbe verde con setter
+ * che ricostruiscono l'intero intent, perché riempire in sequenza funziona anche così.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioSlotsComposeTest,
+	"RefactorTactics.Scenario.SlotsComposeAndClearOnlyThemselves",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioSlotsComposeTest::RunTest(const FString&)
+{
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenTurnDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	int32 Turn = INDEX_NONE;
+	if (!TestEqual(TEXT("turno aggiunto"), Draft.AddTurn(Turn, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	auto Intent = [&Draft, Turn]() -> const FRTScenarioIntent&
+	{
+		return Draft.GetScenario().Turns[Turn].Intents[0];
+	};
+
+	const TArray<FRTCellId> Route = { FRTCellId(-1, 0, 0) };
+	Draft.SetMoveIntent(Turn, TEXT("A1"), Route, Error);
+	Draft.SetMainActionOnUnit(Turn, TEXT("A1"), TEXT("Action.BasicAttack"), TEXT("B1"), Error);
+	Draft.SetFacingIntent(Turn, TEXT("A1"), true, ERTHexDirection::SE, Error);
+	Draft.SetCoverEdgeIntent(Turn, TEXT("A1"), true, ERTHexDirection::NW, Error);
+
+	TestEqual(TEXT("un solo intent per unita' per turno"),
+		Draft.GetScenario().Turns[Turn].Intents.Num(), 1);
+	TestEqual(TEXT("movimento"), Intent().Move.Num(), 1);
+	TestEqual(TEXT("azione"), Intent().Ability, FName(TEXT("Action.BasicAttack")));
+	TestTrue(TEXT("rotazione"), Intent().bDeclaresFacing);
+	TestTrue(TEXT("bordo"), Intent().bHasCoverEdge);
+
+	// ⛔ Ora se ne svuota UNO: gli altri tre devono essere intatti.
+	TestEqual(TEXT("il bordo si toglie"),
+		Draft.SetCoverEdgeIntent(Turn, TEXT("A1"), false, ERTHexDirection::E, Error),
+		ERTScenarioAuthoringResult::Success);
+	TestFalse(TEXT("il bordo e' andato"), Intent().bHasCoverEdge);
+	TestEqual(TEXT("il movimento e' rimasto"), Intent().Move.Num(), 1);
+	TestEqual(TEXT("l'azione e' rimasta"), Intent().Ability, FName(TEXT("Action.BasicAttack")));
+	TestEqual(TEXT("con il suo bersaglio"), Intent().Target, FString(TEXT("B1")));
+	TestTrue(TEXT("la rotazione e' rimasta"), Intent().bDeclaresFacing);
+
+	// E svuotare lo slot principale non tocca il movimento.
+	TestEqual(TEXT("l'azione si toglie"),
+		Draft.SetMainAction(Turn, TEXT("A1"), NAME_None, Error), ERTScenarioAuthoringResult::Success);
+	TestTrue(TEXT("l'azione e' andata"), Intent().Ability.IsNone());
+	TestEqual(TEXT("il movimento e' ancora li'"), Intent().Move.Num(), 1);
+
+	return true;
+}
+
+/**
+ * LA CONDIZIONE SE NE VA CON LA REAZIONE CHE LA REGGE — `#1626`.
+ *
+ * 🔴 Una condizione senza reazione non è un campo di troppo: è precisamente ciò che
+ * `ARTUnit::SetPlannedReactionCondition` rifiuta, e che il loader rifiuta a sua volta per non lasciarlo
+ * passare in silenzio. Se lo slot reattivo si svuotasse lasciandola, il designer si troverebbe uno
+ * scenario **insalvabile** dopo aver tolto una reazione — che è un'operazione che non dovrebbe rompere
+ * nulla.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioReactionConditionTest,
+	"RefactorTactics.Scenario.ReactionAndConditionLeaveTogether",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioReactionConditionTest::RunTest(const FString&)
+{
+	FRTTestScenario Loaded;
+	FString Error;
+	if (!TestTrue(TEXT("base con Wraith caricata"),
+		URTScenarioLoader::LoadFromString(TurnAuthoringReactionJson, Loaded, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	FRTScenarioDraft Draft;
+	Draft.NewScenario(TEXT("segnaposto"), 3);
+	Draft.MutableScenario() = Loaded;
+
+	int32 Turn = INDEX_NONE;
+	if (!TestEqual(TEXT("turno aggiunto"), Draft.AddTurn(Turn, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	auto Intent = [&Draft, Turn]() -> const FRTScenarioIntent&
+	{
+		return Draft.GetScenario().Turns[Turn].Intents[0];
+	};
+
+	TestEqual(TEXT("reazione e condizione armate"),
+		Draft.SetReactionIntent(Turn, TEXT("W1"), TEXT("Hero.Wraith.Deflection"),
+			TEXT("TargetHealthAtOrBelowPercent"), 10, Error),
+		ERTScenarioAuthoringResult::Success);
+	TestEqual(TEXT("la reazione c'e'"), Intent().Reaction, FName(TEXT("Hero.Wraith.Deflection")));
+	TestEqual(TEXT("la condizione anche"), Intent().Condition.Id, FName(TEXT("TargetHealthAtOrBelowPercent")));
+	TestEqual(TEXT("con il suo parametro"), Intent().Condition.Param, 10);
+	if (!TestEqual(TEXT("lo scenario e' salvabile"), Draft.Validate(Error),
+		ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+	}
+
+	// ⛔ Tolta la reazione, la condizione non puo' restare.
+	TestEqual(TEXT("lo slot reattivo si svuota"),
+		Draft.SetReactionIntent(Turn, TEXT("W1"), NAME_None, NAME_None, 0, Error),
+		ERTScenarioAuthoringResult::Success);
+	TestTrue(TEXT("la reazione e' andata"), Intent().Reaction.IsNone());
+	TestFalse(TEXT("e la condizione con lei"), Intent().Condition.IsDeclared());
+	if (!TestEqual(TEXT("e lo scenario resta salvabile"), Draft.Validate(Error),
+		ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+	}
+
+	// E chi prova a tenerla viene avvisato invece di scoprirlo al salvataggio.
+	Draft.SetReactionIntent(Turn, TEXT("W1"), TEXT("Hero.Wraith.Deflection"),
+		TEXT("TargetHealthAtOrBelowPercent"), 10, Error);
+	Draft.SetReactionIntent(Turn, TEXT("W1"), NAME_None, TEXT("TargetHealthAtOrBelowPercent"), 10, Error);
+	TestFalse(TEXT("la condizione non sopravvive alla reazione"), Intent().Condition.IsDeclared());
+	TestTrue(FString::Printf(TEXT("e il messaggio lo dice (era: '%s')"), *Error),
+		Error.Contains(TEXT("condizione")));
+
+	return true;
+}
+
+/**
+ * UNA CHIAMATA RIFIUTATA NON LASCIA TRACCE — `#1626`.
+ *
+ * 🔴 **Trovato in review sul mio stesso diff.** I setter degli slot ottengono l'intent da un helper che lo
+ * **crea** se non c'è; la prima stesura chiamava l'helper e *poi* controllava gli argomenti. Una chiamata
+ * rifiutata lasciava dietro di sé un intent che nomina l'unità e nient'altro — cioè, nel formato,
+ * **un Wait**. Il designer avrebbe letto un errore e si sarebbe ritrovato un'attesa che non ha chiesto.
+ *
+ * ⚠️ Un editor che modifica in silenzio mentre dice «rifiutato» è peggio di uno che rifiuta e basta: chi
+ * legge l'errore non ha ragione di andare a ricontrollare il piano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRejectedIntentLeavesNoTraceTest,
+	"RefactorTactics.Scenario.ARejectedIntentLeavesNoTrace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRejectedIntentLeavesNoTraceTest::RunTest(const FString&)
+{
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenTurnDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	int32 Turn = INDEX_NONE;
+	if (!TestEqual(TEXT("turno aggiunto"), Draft.AddTurn(Turn, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	auto Intents = [&Draft, Turn]() { return Draft.GetScenario().Turns[Turn].Intents.Num(); };
+	TestEqual(TEXT("il turno nasce vuoto"), Intents(), 0);
+
+	// Bersaglio senza nome: rifiutata.
+	TestEqual(TEXT("abilita' senza bersaglio nominato"),
+		Draft.SetMainActionOnUnit(Turn, TEXT("A1"), TEXT("Action.BasicAttack"), FString(), Error),
+		ERTScenarioAuthoringResult::Invalid);
+	TestEqual(TEXT("e il turno e' ancora vuoto"), Intents(), 0);
+
+	// Bersaglio senza abilita': rifiutata.
+	TestEqual(TEXT("bersaglio senza abilita'"),
+		Draft.SetMainActionOnUnit(Turn, TEXT("A1"), NAME_None, TEXT("B1"), Error),
+		ERTScenarioAuthoringResult::Invalid);
+	TestEqual(TEXT("ancora vuoto"), Intents(), 0);
+
+	// Cella senza abilita': rifiutata.
+	TestEqual(TEXT("cella senza abilita'"),
+		Draft.SetMainActionOnCell(Turn, TEXT("A1"), NAME_None, FRTCellId(1, 0, 0), Error),
+		ERTScenarioAuthoringResult::Invalid);
+	TestEqual(TEXT("ancora vuoto"), Intents(), 0);
+
+	// ✅ E una accettata scrive, altrimenti il test sarebbe verde anche su una facade che non fa nulla.
+	TestEqual(TEXT("la chiamata buona invece scrive"),
+		Draft.SetMainActionOnUnit(Turn, TEXT("A1"), TEXT("Action.BasicAttack"), TEXT("B1"), Error),
+		ERTScenarioAuthoringResult::Success);
+	TestEqual(TEXT("un intent"), Intents(), 1);
+
+	return true;
+}
+
+/**
+ * IL TURNO DUPLICATO È INDIPENDENTE, IN ENTRAMBE LE DIREZIONI — `#1627`.
+ *
+ * ⚠️ **Il criterio della issue è quasi vacuo in C++, e questo test punta altrove.** `TArray<FRTScenarioTurn>`
+ * contiene valori, e `FRTScenarioTurn` è fatto di `TArray` per valore: qualunque copia è già profonda, e un
+ * test che verifica «non condividono» sarebbe verde per costruzione del linguaggio.
+ *
+ * 🔑 Serve comunque, per due ragioni misurate. La prima è che l'implementazione **ovvia** non compila un
+ * comportamento, lo fa crashare: `Turns.Insert(Turns[i], i + 1)` passa a `Insert` un riferimento dentro
+ * l'array che `Insert` sta per riallocare, e `TArray::CheckAddress` è un `checkf` esplicito. La seconda è
+ * che un'implementazione futura che introducesse un indice o un handle condiviso deve cadere **qui**, non in
+ * PIE tre settimane dopo.
+ *
+ * ⛔ Su un turno **non vuoto**: duplicare due strutture vuote e confrontarle non misura niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioDuplicatedTurnIsIndependentTest,
+	"RefactorTactics.Scenario.DuplicatedTurnIsIndependentInBothDirections",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioDuplicatedTurnIsIndependentTest::RunTest(const FString&)
+{
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenTurnDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	int32 Source = INDEX_NONE;
+	if (!TestEqual(TEXT("turno aggiunto"), Draft.AddTurn(Source, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	// Un turno con qualcosa dentro: movimento, azione con bersaglio, e un secondo intent.
+	const TArray<FRTCellId> Route = { FRTCellId(-1, 0, 0) };
+	Draft.SetMoveIntent(Source, TEXT("A1"), Route, Error);
+	Draft.SetMainActionOnUnit(Source, TEXT("A1"), TEXT("Action.BasicAttack"), TEXT("B1"), Error);
+	Draft.SetMainAction(Source, TEXT("B1"), TEXT("Action.Guard"), Error);
+
+	int32 Copy = INDEX_NONE;
+	if (!TestEqual(TEXT("turno duplicato"),
+		Draft.DuplicateTurn(Source, Copy, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	TestEqual(TEXT("la copia sta subito dopo l'originale"), Copy, Source + 1);
+	TestEqual(TEXT("i turni sono due"), Draft.NumTurns(), 2);
+
+	auto IntentsOf = [&Draft](int32 T) { return Draft.GetScenario().Turns[T].Intents.Num(); };
+	TestEqual(TEXT("la copia porta gli stessi intent"), IntentsOf(Copy), IntentsOf(Source));
+	if (!TestEqual(TEXT("due intent per turno"), IntentsOf(Source), 2))
+	{
+		return false;
+	}
+
+	// --- direzione 1: tocco la COPIA, l'originale non cambia.
+	Draft.SetMainAction(Copy, TEXT("A1"), TEXT("Action.Brace"), Error);
+	TestEqual(TEXT("la copia e' cambiata"),
+		Draft.GetScenario().Turns[Copy].Intents[0].Ability, FName(TEXT("Action.Brace")));
+	TestEqual(TEXT("e l'originale no"),
+		Draft.GetScenario().Turns[Source].Intents[0].Ability, FName(TEXT("Action.BasicAttack")));
+	TestEqual(TEXT("nemmeno nel suo movimento"),
+		Draft.GetScenario().Turns[Source].Intents[0].Move.Num(), 1);
+
+	// --- direzione 2: tocco l'ORIGINALE, la copia non cambia. Senza questa meta', una condivisione a senso
+	// unico — la copia che punta all'originale — passerebbe il test.
+	Draft.RemoveIntent(Source, TEXT("B1"), Error);
+	TestEqual(TEXT("l'originale ha perso un intent"), IntentsOf(Source), 1);
+	TestEqual(TEXT("e la copia li ha ancora entrambi"), IntentsOf(Copy), 2);
+
+	return true;
+}
+
+/**
+ * L'ORDINE DEI TURNI SOPRAVVIVE A `save → load` — `#1627`.
+ *
+ * 🔑 **È l'invariante che vale comunque, e la issue non la isolava.** Il criterio scritto dice *«il file
+ * scritto dopo un riordino rilegge nello stesso ordine mostrato dalla UI»* — ma un altro criterio permette
+ * di **non offrire** il riordino, e infatti non lo si offre (la ragione sta su `DuplicateTurn`). Preso alla
+ * lettera, quel criterio resterebbe senza soggetto.
+ *
+ * Ciò che si può misurare, e che serve davvero, è che l'ordine **dichiarato** attraversi il file: tre turni
+ * distinguibili, salvati e riletti da disco, nella stessa sequenza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioTurnOrderSurvivesSaveLoadTest,
+	"RefactorTactics.Scenario.TurnOrderSurvivesSaveAndLoad",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioTurnOrderSurvivesSaveLoadTest::RunTest(const FString&)
+{
+	const FString Dir = TurnAuthoringTempDir();
+	const FString Path = FPaths::Combine(Dir, TEXT("Sequenza.json"));
+	ON_SCOPE_EXIT{ IFileManager::Get().DeleteDirectory(*Dir, false, true); };
+
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenTurnDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	// Tre turni resi distinguibili dal loro contenuto: senza, l'ordine non e' osservabile e il test
+	// sarebbe verde su qualunque permutazione.
+	const TCHAR* Abilities[] = { TEXT("Action.Guard"), TEXT("Action.Brace"), TEXT("Action.Overwatch") };
+	for (const TCHAR* Ability : Abilities)
+	{
+		int32 T = INDEX_NONE;
+		if (!TestEqual(TEXT("turno aggiunto"), Draft.AddTurn(T, Error), ERTScenarioAuthoringResult::Success))
+		{
+			AddError(Error);
+			return false;
+		}
+		TestEqual(FString::Printf(TEXT("azione %s scritta"), Ability),
+			Draft.SetMainAction(T, TEXT("A1"), FName(Ability), Error), ERTScenarioAuthoringResult::Success);
+	}
+	TestEqual(TEXT("tre turni"), Draft.NumTurns(), 3);
+
+	if (!TestEqual(TEXT("valido"), Draft.Validate(Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	if (!TestEqual(TEXT("salvato"), Draft.SaveToFile(Path, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	FRTScenarioDraft Reloaded;
+	if (!TestEqual(TEXT("riaperto"), Reloaded.OpenFromFile(Path, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	if (!TestEqual(TEXT("tre turni riletti"), Reloaded.NumTurns(), 3))
+	{
+		return false;
+	}
+	for (int32 T = 0; T < 3; ++T)
+	{
+		const TArray<FRTScenarioIntent>& Intents = Reloaded.GetScenario().Turns[T].Intents;
+		if (TestEqual(FString::Printf(TEXT("turno %d ha un intent"), T), Intents.Num(), 1))
+		{
+			TestEqual(FString::Printf(TEXT("turno %d e' rimasto il suo"), T),
+				Intents[0].Ability, FName(Abilities[T]));
+		}
+	}
 	return true;
 }
 

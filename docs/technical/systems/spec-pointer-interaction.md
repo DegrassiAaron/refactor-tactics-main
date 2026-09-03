@@ -101,11 +101,19 @@ d'origine, non come stato.
 | 4. Nessuno stato neutro | ✅ **chiuso** — [D-128](../../decisions/RT_PDR_00_Decision_Log.md): `SelectedAbilityIndex` nasce a `INDEX_NONE` |
 | 5. Nessun produttore UI | ✅ **chiuso** — i tre produttori esistono e sono coperti |
 
-> ⚠️ **`ReactionWindow` e `Modal` esistono nell'enum e nessuno li produce.** Sono ordinati correttamente in
-> `URTPointerLibrary::ResolveBack` — e testati lì — ma `GetPointerContext()` non li restituisce mai: la
-> finestra di reazione è **E14** e il modale è **#613**. È deliberato, e la ragione è quella di §2.1: un flag
+> ⚠️ **`ReactionWindow` esiste nell'enum e nessuno lo produce.** È ordinato correttamente in
+> `URTPointerLibrary::ResolveBack` — e testati lì — ma `GetPointerContext()` non lo restituisce mai: la
+> finestra di reazione è **E14**. È deliberato, e la ragione è quella di §2.1: un flag
 > che nessuno scrive sarebbe un campo senza produttore, cioè il difetto che questo checkpoint ha appena
 > finito di documentare. Quando quegli owner arrivano, aggiungono il proprio ramo in `GetPointerContext()`.
+>
+> 🔁 **Corretto il 2026-09-02 (#705): `Modal` ORA HA UN PRODUTTORE.**
+> `ARTPlayerController::GetPointerContext` lo restituisce (`RTPlayerController.cpp:1959`),
+> dal menu di pausa di CP 46.6 — quindi il modale non aspetta piu' #613. La riga precedente
+> nominava **entrambi** i valori come non prodotti, ed era vera alla stesura: per `ReactionWindow`
+> lo e' ancora (solo `ResolveBack` e un test lo nominano), per `Modal` no.
+> ⚠️ **La misura che distingue le due cose** e' se `GetPointerContext` lo RESTITUISCE, non se il
+> simbolo compare: `Modal` appare anche in `ResolveBack` e in un confronto, che non sono produttori.
 
 > ⚠️ **La legalità del facing dichiarato in Planning è una PREVISIONE, non il verdetto.** `HandleFacingSector`
 > valida su `PlannedPath` con stile `Budget`/`None`; il resolver rivalida a fine Move su
@@ -238,6 +246,48 @@ intero**, non al pezzo colpito. In v0.1 non si introduce un `MapElementId` gener
 ([#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)).
 
 ---
+
+## 4.9 «Settore» nomina tre cose, e due sono la stessa
+
+> Aggiunta con **#1615**, e viene **prima** dell'implementazione: senza questa sezione il difetto non è un
+> bug, è un HOLD silenzioso di comprensione a ogni lettura futura di una firma che contiene `Sector`.
+
+Nel repository la parola compare in tre punti, con due cardinalità:
+
+| Nome | Card. | La domanda a cui risponde | Dove |
+|---|---|---|---|
+| `ERTHexDirection` | **6** | *dove si va, dove si guarda* — direzioni tattiche del grafo | `Map/RTCellId.h` |
+| settore di **occupancy** | **12** | *quanta geometria solida invade il settore k* | `RT_OccupancySectorCount` |
+| settore di **puntamento** | **12** | *in quale settore k cade questo punto* | `URTHexLibrary::PointingSectorAt` |
+
+🔑 **I due a dodici non sono due tassonomie: sono lo stesso partizionamento, con due consumatori.** La
+geometria la fissa `URTHexOccupancyLibrary::SectorBoundaryPoints`, e il suo header la definisce come figura
+e non come numero — *«il settore `k` è il triangolo `(centro, P[k], P[k+1])`, e i dodici triangoli pavimentano
+l'esagono esattamente»*, con `P[k]` a `-30 + 30k` gradi.
+
+L'occupancy chiede *quanto* di quel triangolo è invaso; il puntamento chiede *in quale* triangolo cade un
+punto. Due domande, una geometria.
+
+⛔ **Ne segue il vincolo di implementazione**: chi scrive un consumatore nuovo **eredita** la convenzione e
+non la ridichiara. Un `-30 + 30k` riscritto a mano è l'errore che [`#553`](../../../..) ha già pagato per
+un'intera seduta, e il modo di impedirlo non è un commento ma un test che àncora il consumatore nuovo a
+`SectorBoundaryPoints` — non a un letterale.
+
+### Il ponte verso le sei direzioni è già deciso
+
+`D-243` lo fissa, e non va ridedotto:
+
+```text
+SectorIndex (0..11)  →  EdgeIndex = SectorIndex / 2  →  URTHexLibrary::DirectionForEdgeIndex  →  ERTHexDirection
+```
+
+∴ **i dodici settori non aggiungono direzioni.** L'adiacenza del grafo resta a sei, `ERTHexDirection` non si
+tocca, e un settore di puntamento che dichiarasse una settima direzione starebbe contraddicendo `D-243` —
+non estendendolo.
+
+⚠️ **E la derivazione è a senso unico.** Da un settore si ricava una direzione; da una direzione **non** si
+ricava un settore, perché due settori ne condividono una. Chi cerca l'inverso sta cercando un'informazione
+che il puntamento ha e la direzione ha già buttato.
 
 ## 5. La matrice
 
@@ -481,19 +531,33 @@ tempo.)*
 `RefactorTactics.PlayerInput.*`:
 
 - `HUDConsumesPointerBeforeWorld`
-- `HoverNeverCommits`
-- `RightClickCancelsPreviewOnly`
 - `HiddenEnemyCannotBecomeHoverTarget`
 - `AllyGhostIsReadOnly`
 - `PlaybackRejectsPlanningInput`
 - `ReactionWindowOwnsInputPriority`
 - `LogicalMapObjectResolvedFromStableId`
 
-⛔ **Nessuno degli otto qui sopra esiste**, ed e' scritto qui perche' il `✅` che segue riguarda **altri**
-test e la vicinanza inganna: misurato il 2026-08-29 su `c2f694dc`,
-`git grep -l 'RefactorTactics.PlayerInput.HoverNeverCommits' -- Source/` non trova niente, e cosi' per gli
-altri sette. Restano il perimetro DA SCRIVERE — lo dice gia' il `⏳` in fondo alla sezione, ma **dopo una
-tabella intera**, e chi legge in diagonale prende il `✅` per una spunta su questi.
+⛔ **Nessuno dei sei qui sopra esiste**, ed e' scritto qui perche' il `✅` che segue riguarda **altri**
+test e la vicinanza inganna. Restano il perimetro DA SCRIVERE — lo dice gia' il `⏳` in fondo alla sezione,
+ma **dopo una tabella intera**, e chi legge in diagonale prende il `✅` per una spunta su questi.
+
+⚠️ **Ognuno dei sei porta chi lo blocca, e non e' mancanza di tempo**: due sono **feature travestite da
+test** — `PlaybackRejectsPlanningInput` (nessuno consuma `ResolutionPlayback` per rifiutare l'input) e
+`HiddenEnemyCannotBecomeHoverTarget` (l'hover non passa da nessun filtro di percezione, ed e' la privacy di
+§6.1) — e quattro attendono un owner: `#613`, CP 11.5/11.6, `E14`, `#74`. ⛔ Scriverne uno adesso darebbe un
+test **verde su un percorso che nessuno esercita**, che e' esattamente la classe di difetto gia' registrata
+qui sopra.
+
+✅ **Due di quegli otto ora esistono** — [#1766](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1766),
+2026-09-01, scritti perche' erano i soli che si posassero su comportamento **gia' esistente**:
+
+- `HoverNeverCommits` — costruisce uno stato deciso (selezione, waypoint, bersaglio, facing dichiarato),
+  muove l'hover su celle che sarebbero candidati plausibili per ciascuno, e pretende che nulla si muova.
+  Verifica di mutazione: `SetHoveredCell` che azzera il bersaglio di ogni unita' lo fa cadere, e **solo lui**;
+- `RightClickCancelsPreviewOnly` — il passo indietro smonta **un livello per volta** e a mani vuote non fa
+  niente. Verifica di mutazione: un `Pathing` che esce dal contesto invece di togliere un waypoint lo fa
+  cadere insieme agli altri due test del tasto destro, perche' quella regola ha **tre** guardiani da
+  angolazioni diverse.
 
 ✅ **I dieci qui sotto sono un elenco DIVERSO, e questi esistono davvero** — scritti il 2026-08-13 sera,
 ognuno per una regola nuova, tutti verdi e tutti passati per la verifica di mutazione:

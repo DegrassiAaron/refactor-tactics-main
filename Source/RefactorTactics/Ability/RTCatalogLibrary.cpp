@@ -485,15 +485,29 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeGadgets()
 		TEXT("bagna anche i propri, e l'acqua resta dopo che il turno e' passato"),
 		{}));
 
+	// `Gadget.SmokeEmitter` — fumo raggio 1, che e' **esattamente** cio' che `Action.CreateSmoke` fa
+	// (`#2087`). Stessa forma di `Sprinkler`: nessun effetto proprio, perche' il suo esito e' una superficie
+	// e `FRTActionEffectSpec` si applica a bersagli, non a terreno.
+	//
+	// Lo svantaggio non e' decorativo ed e' lo stesso di `MistVeil`: l'azione risolve in `Environment`, cioe'
+	// nel Cleanup, quindi il fumo si alza a turno concluso e copre il turno SEGUENTE. Si prepara un
+	// attraversamento, non si rompe una linea nell'istante — e non distingue amici da nemici.
+	Gadgets.Add(Gadget(TEXT("Gadget.SmokeEmitter"), TEXT("Emettitore di fumo"), TEXT("Action.CreateSmoke"),
+		TEXT("alza una cortina di raggio 1: attraverso il fumo non si punta oltre 2 celle"),
+		TEXT("si alza a turno concluso e copre il turno dopo, e acceca anche i propri"),
+		{}));
+
 	// `Gadget.PortableCover` — gia' costruito in CP 9.5, non riscritto qui.
 	Gadgets.Add(MakePortableCoverGadget());
 
-	// ⛔ I QUATTRO ASSENTI, con la ragione ciascuno — sono quattro ragioni diverse, non «mancano».
+	// ⛔ I TRE ASSENTI, con la ragione ciascuno — sono tre ragioni diverse, non «mancano».
 	//
-	// - `Gadget.SmokeEmitter` (fumo raggio 1): **nessuna azione core crea `ERTHexSurface::Smoke`**. L'unica
-	//   che lo fa e' `Phase.MistVeil`, che e' d'eroe e risolve in `Preparation` — e la fase e' proprio il
-	//   difetto che `#353` ha documentato. Serve prima un'azione core del fumo, come `CreateWater` lo e'
-	//   dell'acqua.
+	// Erano QUATTRO. `Gadget.SmokeEmitter` e' uscito con `#2087`, che ha aggiunto `Action.CreateSmoke` al
+	// catalogo core: era l'unico dei quattro il cui blocco fosse un'azione mancante e non un'epic assente.
+	// ⚠️ La ragione scritta qui prima era per meta' STANTIA: diceva che `Phase.MistVeil` «risolve in
+	// `Preparation` — e la fase e' proprio il difetto che `#353` ha documentato». `#353` e' chiusa e MistVeil
+	// e' passata a `Environment` da allora. Restava vera una sola meta': l'azione era d'eroe e non core.
+	//
 	// - `Gadget.Insulator` (immunita' a una propagazione elettrica): e' un PASSIVO, e non concede un'azione.
 	//   Il motore non ha un modello di immunita' per categoria — `RT-FEAT-STATUS-FRAMEWORK` (E36) lo
 	//   costruira'. Oggi sarebbe un gadget che non fa niente.
@@ -1196,10 +1210,19 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `Charge` — 3 celle, si ferma ADDOSSO al primo nemico e lo colpisce: 20 danni piu' una spinta di 1.
 	// Gli effetti sono dichiarati qui, ma si applicano nel Blast (codice 20/30 del catalogo): il movimento e'
 	// fase 20, l'impatto e' controllo, e il controllo risolve per priorita' dentro il Blast.
+	//
+	// 🔴 **L'unica azione del catalogo che dichiara `SuppressSecondary`** ([D-300], `#1955`): interrotta,
+	// **colpisce ma non spinge**. E' la policy che ha reso attaccabile l'impatto della carica senza
+	// cancellarlo a posteriori — l'obiezione che lo teneva immune in `ApplyInterrupts`.
+	//
+	// ⚠️ **L'ORDINE degli effetti qui sotto e' significativo, non estetico**: `SuppressSecondary` taglia
+	// per POSIZIONE, e tiene il primo. Invertire `Damage` e `Push` cambierebbe cosa sopravvive agli EVENTI —
+	// e il danno arriverebbe comunque, perche' nella pipeline del Blast viaggia su `Intent.Power` e non su
+	// `ProduceEvents`. Il limite e' scritto sull'enum, dove si sceglie il valore.
 	Catalog.Add(ShippedAction(TEXT("Action.Charge"), ERTResolutionPhase::FastMovement, /*Priority*/ 35,
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20), FRTActionEffectSpec(ERTActionEffect::Push, 1) },
-		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::LinearCharge));
+		ERTInterruptPolicy::SuppressSecondary, ERTActionSlot::Movement, ERTMovementStyle::LinearCharge));
 	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
 	// Occupa il MOVIMENTO come ogni altra mobilita' rapida [D-191]: che una carica faccia danno a chi raggiunge
 	// non cambia CHE COSA ha speso. Fino al 2026-08-26 questo capoverso diceva l'opposto - «l'unica mobilita'
@@ -1545,6 +1568,27 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		CreateWater.SurfaceCreated = ERTHexSurface::ShallowWater;
 		CreateWater.SurfaceRadius = 1; // «acqua raggio 1» (catalogo azioni §6): era cablato nel resolver
 		Catalog.Add(CreateWater);
+	}
+
+	// `CreateSmoke` — la TERZA ambientale, e nasce da `#2087`. Il fumo era l'unica delle otto superfici che
+	// nessuna azione CORE sapeva creare: `Hero.Phase.MistVeil` lo crea, ma e' d'eroe, e un gadget non si
+	// costruisce su un'abilita' di Phase. `Gadget.SmokeEmitter` sta a questa azione come `Gadget.Sprinkler`
+	// sta a `CreateWater` — ed e' la ragione per cui l'azione esiste prima del gadget, non insieme.
+	//
+	// I numeri NON sono inventati qui: fase `Environment`, portata 4, priorita' 60 e cooldown 2 sono quelli
+	// di `Ignite` e `CreateWater`, le altre due ambientali. Il raggio 1 e' «fumo raggio 1», lo stesso che
+	// `MistVeil` gia' dichiara: le due azioni creano la STESSA superficie, quindi non c'e' un secondo fumo.
+	//
+	// ⚠️ Il fumo NON blocca la linea di vista, e chi legge «fumo» potrebbe aspettarselo: `GetTerrainCatalog`
+	// gli da' `bBlocksLineOfSight = false`, `MaxTargetingRangeThrough = 2` e `Status.Obscured` all'ingresso.
+	// Quella regola vive nel catalogo terreni e vale per OGNI cella di fumo, da qualunque azione venga.
+	{
+		FRTActionDef CreateSmoke = ShippedAction(TEXT("Action.CreateSmoke"), ERTResolutionPhase::Environment,
+			/*Priority*/ 60, /*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::Cancel, {});
+		CreateSmoke.bCreatesSurface = true;
+		CreateSmoke.SurfaceCreated = ERTHexSurface::Smoke;
+		CreateSmoke.SurfaceRadius = 1; // «fumo raggio 1»: catalogo equipaggiamento §2 e catalogo eroi concordano
+		Catalog.Add(CreateSmoke);
 	}
 
 	// `ModifyArc` — apre o chiude un COLLEGAMENTO fra celle. Non tocca le superfici: cambia la topologia, ed e'

@@ -242,8 +242,67 @@ Questa sezione è la più importante, perché è quella dove la spec e il DoD de
 | **Nessun accesso agli intenti nemici nascosti** | ✅ **vero**. `FRTHexBotContext` non contiene intenti: solo posizioni, gittate e HP. Il bot non può leggere il piano avversario perché il tipo non lo trasporta |
 | **Pianifica sulla Team Knowledge della propria squadra** | ✅ **vero dal 2026-08-11** (CP 13.5, [#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160)). `PlanBots` costruisce `Ctx.Enemies` da `FRTTeamKnowledge` con la **stessa** regola del targeting umano (`ClassifyTarget`): visto → cella e condizione attuali; ricordato → cella dell'ultimo contatto e HP **massimi**, perché la squadra conosce l'identità e non la condizione; ignoto → non esiste. Il gate è `HexBotPlay.HiddenEnemyFairness`, e cade se l'onniscienza rientra |
 | **Tiene conto del facing e dell'arco frontale** | ❌ **non ancora**. `ScorePlan` non legge il facing: né il proprio, né quello dei nemici. La minaccia è calcolata su gittata + LOS, senza cono |
-| **Ha una politica di reazione esplicita** | ❌ **non ancora**. Il bot non arma reazioni e non dichiara un regime |
+| **Ha una politica di reazione esplicita** | ✅ **vero dal 2026-09-02** ([D-268], [#1802](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1802)). Il bot arma reazioni da [D-220] e da qui le **sceglie col punteggio**: vedi §6.1 |
 | **Validato sotto stress 4v4** | ❌ **non ancora**. La suite lo esercita a 2v2 |
+
+### 6.1 La politica di reazione — punteggio, e il kit come spareggio
+
+[D-220] aveva **dichiarato la regola che c'era già** — prima il kit, il modulo di loadout come riserva —
+invece di sceglierne una: deterministica, ma non tattica. La reazione d'identità vinceva sempre, quale che
+fosse il suo valore in quella situazione. [D-268] sceglie la politica, e questa spec la registra.
+
+```text
+per ogni reazione utilizzabile (kit E loadout):
+    Score = ScoreReaction(Map, Def, Ctx)     // solo su cio' che la SQUADRA conosce
+si arma:  punteggio massimo
+          a parita' esatta -> quella di KIT
+          ancora pari      -> indice piu' basso
+```
+
+I termini, chiavati sul `ReactionTrigger` dell'azione, e **senza nessun peso nuovo**. La minaccia è gittata
+**e** linea di vista, come in `ScorePlan`: un nemico dietro un muro non è un'occasione per una reazione.
+
+| Trigger | Termine | Perché |
+|---|---|---|
+| `HitByDirectAttack` | `WThreat` × nemici **conosciuti** che raggiungono e **vedono** la mia cella | una parata vale se qualcuno può colpirmi |
+| `AllyHitByDirectAttack` | `WThreat` × alleati entro `RangeCells` che un nemico conosciuto raggiunge e vede | un'interposizione vale se c'è chi proteggere |
+| `AboutToBeDisplaced` | **0** | ⛔ la conoscenza autorizzata non porta le **capacità** nemiche |
+| `AboutToReceiveControl` | **0** | ⛔ stessa ragione |
+| `CellBecameHazardous` | **0** | ⛔ ragione **diversa**: il soggetto è il terreno, che è pubblico, ma il contesto del bot non porta gli hazard |
+
+⚠️ **Un solo peso per tutti i termini, e non è pigrizia.** In `ScorePlan` `WAllyDamage` è per **punto di
+danno** e `WThreat` è per **nemico**: usarli qui come se fossero la stessa unità avrebbe reso
+l'interposizione (10) sempre perdente contro un contrattacco (100) — il difetto di [D-220] rovesciato, e
+nascosto dietro la frase «nessun peso nuovo». `WThreat` misura *«quanta minaccia questa reazione risponde»*,
+e la minaccia si conta allo stesso modo sulla propria cella e su quella di un alleato.
+
+🔴 **I tre zeri sono dichiarati, non dimenticati**, e le ragioni sono due. `AboutToBeDisplaced` e
+`AboutToReceiveControl` risponderebbero a una spinta o a un controllo, e il bot sa **dove** sono i nemici e
+**quanto arrivano lontano**, non **che cosa sanno fare**: inventare un termine per loro sarebbe
+l'onniscienza rientrata dalla finestra, cioè il difetto che il filtro di percezione di CP 13.5 esiste per
+togliere. `CellBecameHazardous` è zero per un'altra ragione — il suo soggetto è il **terreno**, che è
+pubblico e scrivibile: manca il dato nel contesto, non il diritto di guardarlo.
+
+⚠️ **La conseguenza va detta**: finché restano a zero, i moduli `Reaction.Anchor`, `Reaction.Cleanse` e
+`Reaction.HazardEscape` — **tre dei sette spediti** — non possono mai vincere *per punteggio*. Vincono solo
+quando sono l'unica reazione utilizzabile. Lo `switch` che li classifica **non ha un `default`**, per la
+stessa ragione per cui non ce l'ha `PassPointFor`: un trigger nuovo deve non compilare, non valere zero in
+silenzio.
+
+🔑 **La proprietà che ha reso il cambio atterrabile**: dove la conoscenza non separa i candidati tutti i
+punteggi valgono zero, decide lo spareggio, e il bot arma esattamente ciò che armava prima. Il cambio si vede
+solo dove la conoscenza li separa davvero — ed è lì che [D-220] perdeva il valore del loadout.
+
+⚠️ **Il punteggio si misura DOPO la raccolta dei nemici conosciuti**, e non prima come la selezione di
+[D-220]: un punteggio cieco renderebbe vacua l'AC di equità — un punteggio costante la soddisfa senza
+guardare niente.
+
+⚠️ **E si misura dalla cella di PARTENZA, che è un limite dichiarato.** La selezione avviene prima che il
+piano — e quindi lo scatto — sia scelto, mentre i due trigger con un termine si valutano nel `Blast`, cioè
+**dopo** il `Dash`. Un bot che scatta può quindi aver contato una minaccia da una cella che avrà lasciato, e
+lo stesso vale per un alleato che si sposta fuori dalla portata dell'interposizione. È una sovrastima, non
+un modello completo — e la direzione è quella sicura: arma una reazione che potrebbe non scattare, non ne
+perde una che sarebbe scattata. Il codice di prima non guardava **nessuna** posizione.
 
 **Perché va scritto così.** Un documento che descrivesse il bot come già conforme a E13/E16 renderebbe
 invisibile il lavoro che manca, e i test verdi di oggi sembrerebbero provare qualcosa che non provano.

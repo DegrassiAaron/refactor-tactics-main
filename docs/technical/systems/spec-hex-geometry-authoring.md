@@ -54,6 +54,36 @@ In un pointy-top i **vertici** stanno in alto e in basso, quindi non esiste un l
 ragionamento in termini di «via nord / via sud» usa un vocabolario che la griglia non ha — ed è un errore già
 commesso in sede di authoring.
 
+#### 2.1.1 🔑 Dove cade la bussola nel mondo: **`E` è `+X`**, quindi **`N` è `−Y`**
+
+I nomi `E/NE/NW/W/SW/SE` promettono una bussola, ma finché non è ancorata agli assi non dice nulla: è una
+conseguenza di `AxialToWorld`, non una convenzione dichiarata. Lo è da ora.
+
+| direzione | assiale | world | yaw |
+|---|---|---|--:|
+| `E`  | `(+1, 0)` | `(+√3·s, 0)` | **0°** |
+| `SE` | `(0, +1)` | `(+0,87·s, +1,5·s)` | 60° |
+| `SW` | `(−1, +1)` | `(−0,87·s, +1,5·s)` | 120° |
+| `W`  | `(−1, 0)` | `(−√3·s, 0)` | 180° |
+| `NW` | `(0, −1)` | `(−0,87·s, −1,5·s)` | −120° |
+| `NE` | `(+1, −1)` | `(+0,87·s, −1,5·s)` | −60° |
+
+∴ **il nord della bussola è `−Y`**, e nella vista dall'alto dell'editor — dove `+X` è in **su** e `+Y` a
+**destra** — il nord cade a **sinistra dello schermo**. Non è un dettaglio: chi guarda una scena assume che
+lo schermo sia orientato a nord, e con quell'assunzione legge `E` come «nord».
+
+⚠️ **La tabella qui sopra è la convenzione, non una misura**: cambiarla è una decisione, e va cambiata anche
+in `RefactorTactics.Hex.EastIsWorldPlusXAndTheSixYawsAreDeclared`, che la tiene con angoli **letterali**.
+🔴 Il test `FacingRotationMatchesNeighbourDirection` **non** basta a presidiarla: costruisce l'atteso con
+`AxialToWorld`, cioè la stessa origine, e uno scambio di `Wx` con `Wy` lo lascerebbe verde mentre la mappa
+gira di 90°.
+
+➕ **E la scena lo mostra**: `ARTGrayboxUnitFacingFixture` porta un `EastReference` — una freccia a
+rotazione **assoluta** lungo `+X`, con etichetta — perché un facing senza riferimento indipendente non è
+falsificabile: scelto il nord dopo aver guardato, ogni orientamento sembra giusto. È lo stesso rimedio che
+`PIE-FACING` ha adottato sulle unità con `FacingArrow`, per lo stesso motivo: separare *«sbagliato»* da
+*«non so»*. Presidiato da `Graybox.FixtureEastReferenceDoesNotFollowFacing`.
+
 ---
 
 ## 3. La geometria architettonica non è vincolata ai lati dell'esagono
@@ -162,6 +192,56 @@ vive nel `feature-registry.yaml` e nelle issue, non qui — §1.
 
 ---
 
+### 3.4 Le regole che riguardano **due** segmenti — `D-288`
+
+Le regole di §3.3 guardano un segmento **preso da solo**: asse, lunghezza, layer, bordi editabili. Sono
+quelle che `ValidateSegment` può rifiutare prima che il gesto venga committato.
+
+Ce n'è una seconda famiglia, che un segmento solo non può violare: riguarda la **collezione**, e vive
+perciò nello strato che *segnala* — `URTGeometryGrammarLibrary::Validate`, e da lì `ValidateMap`.
+
+| Reason code | Configurazione | Perché non è la regola accanto |
+|---|---|---|
+| `DuplicateSegment` | lo **stesso** segmento due volte, anche percorso al contrario | identità geometrica: `operator==` usa `Min`/`Max` sugli estremi |
+| `OverlappingSegments` | due **collineari** — stesso asse, offset e layer — i cui tratti si intersecano in **più di un punto** | gli estremi sono diversi: non è un duplicato |
+| `CrossingOffAnchor` | due segmenti di **assi diversi** che si incontrano in un punto che **non** è uno dei tredici anchor | non è una sovrapposizione: si toccano in un punto solo |
+
+Tre configurazioni, tre codici. Non è ridondanza: è ciò che rende asseribile la verifica di mutazione di
+§3.3 — allentata una regola, deve cadere **esattamente** il test che la protegge, e due configurazioni che
+condividessero un codice non lo permetterebbero.
+
+**Che cosa NON è una violazione**, e va detto perché sono i casi che una regola scritta male sacrifica:
+
+- due muri che si **incrociano al centro** della cella, o su qualunque altro anchor — è la configurazione
+  più comune che esista, e resta legale;
+- due muri collineari **consecutivi** che condividono un estremo — è un muro lungo disegnato in due gesti,
+  cioè il modo normale di disegnarlo;
+- una **T** che termina su un anchor di un altro segmento: legale, e **non** impone di spezzare il segmento
+  attraversato. Le junction non appartengono a questa grammatica in v0.1 (`GEO-6` di `D-288`), e una regola
+  d'incidenza che segnalasse *«passa per un anchor dove un altro finisce»* le reintrodurrebbe dalla porta di
+  servizio;
+- due segmenti su **layer diversi**: la geometria di un piano non tocca quella di un altro.
+
+> 🔑 **L'incidenza si decide sugli interi, ed è §11 applicata a una domanda fra due segmenti.** *«Quel punto
+> è un anchor?»* chiesta in `FVector2D` sarebbe un confronto con tolleranza, e una tolleranza qui non è
+> precisione ma **regola di gioco**: decide quali muri un livello può contenere.
+>
+> La misura che lo rende possibile: i tredici punti notevoli cadono su coordinate **intere** nella base
+> `(HexSize · √3/4, HexSize/4)` — il vertice a `-30°` è `(2, -2)`, il punto medio del lato `E` è `(2, 0)`,
+> quello del lato `NE` è `(1, 3)`. L'apotema irrazionale che `RT_GeometryQuanta` esiste per aggirare
+> sparisce, perché `√3` finisce nell'**unità** dell'asse `X` invece che nelle coordinate. Il punto
+> d'intersezione si confronta moltiplicato per il denominatore, così la divisione non viene mai eseguita.
+
+⚠️ **Il costo è quadratico nel numero di segmenti di una cella**, e va tenuto onesto: la validazione della
+collezione gira in authoring e su `ValidateMap`, mai nel ciclo di gioco. Se la scala lo richiedesse, il
+raggruppamento naturale è per **asse e offset**.
+
+⚠️ **Il raggruppamento per cella non è un'ottimizzazione, è la correttezza.** I segmenti sono in coordinate
+**locali** di cella: due muri di celle diverse con gli stessi numeri non si incrociano affatto, e validare
+`InteriorWalls` in un colpo solo li segnalerebbe tutti.
+
+---
+
 ## 4. Il bordo condiviso è una primitiva sola
 
 Coperture e porte sono proprietà di **bordo**, e il bordo `E` di `A` è **lo stesso bordo fisico** del bordo
@@ -232,18 +312,42 @@ consecutivi rendono la cella `Blocked` con quattro lati aperti», ottenuto passa
 `ComputeMask`. Nella pipeline reale quei muri diventano coperture. Il segnale c'era: le quattro fixture
 originali stanno tutte a raggio `0.3`–`0.6`, **dentro** la cella.
 
-### 5.2 Il contatto sul confine conta
+### 5.2 Il contatto sul confine conta, il contatto in un punto no — `MSE-4` chiusa
 
 Un footprint appoggiato esattamente al confine fra due settori **li invade entrambi**. È una scelta
 conservativa e deliberata, protetta da
 `RefactorTactics.HexOccupancy.SegmentOnSectorBoundaryOccupiesBothAdjacentSectors`.
 
-Resta aperto il solo caso **puntuale** — un bordo che passa esattamente per un **vertice**, punto in comune
-fra quattro triangoli di settore: è `MSE-4` in §12.
+🔴 **Il contatto in un SOLO PUNTO invece non occupa più.** `MSE-4` è chiusa: `ComputeMask` conta soltanto
+l'intersezione di **lunghezza non nulla**.
+
+> **Perché non era il caso di bordo che sembrava.** La domanda era nata sul *vertice* dell'esagono — punto in
+> comune fra quattro triangoli, e un footprint tangente costa due settori di troppo. Ma il **centro** della
+> cella è il vertice comune di **tutti e dodici**, e `ToPolyline` calcola `Base = Perp × Offset`: ogni
+> segmento con `Offset == 0` ci passa **per definizione**. Un diametro attraversa quattro settori e ne
+> accendeva dodici, lasciando `ComputeFreeRegions` con zero regioni — cioè una cella **inagibile**.
+>
+> Non era un footprint tangente raro: era **ogni muro centrale** che la grammatica esprime e che il tool
+> Geometry disegna.
+
+∴ la regola *«geometria che tocca il centro ⇒ cella bloccata»*, che il Decision Record dichiara **superata**,
+sopravviveva qui — non più come regola scritta, ma come effetto collaterale del produttore della maschera.
+
+| Contatto | Occupa? | Perché |
+|---|---|---|
+| lungo un **segmento** | **sì** | il footprint sta davvero in tutti e due i settori |
+| in un **punto** | **no** | non c'è area invasa, e negli esagoni non apre varchi |
+
+⚠️ **La soglia è sul parametro, non sulla lunghezza.** Il taglio del segmento contro il triangolo dà un
+tratto in `[0, 1]`, e il confronto è fra due numeri **adimensionali**: non dipende da `HexSize`, quindi la
+stessa geometria dà la stessa maschera a qualunque scala — e la maschera entra in `ComputeHash` per la via
+del costo di cella. La separazione è misurata: gli attraversamenti veri danno `5.0e-01`, i contatti puntuali
+`0.0` con un residuo di `5.6e-17` di rumore, e la soglia `1e-9` sta in mezzo con otto ordini di margine per
+parte.
 
 > Negli esagoni la regola conservativa non deve difendere il *varco diagonale*: le sei direzioni di
 > `ERTHexDirection` condividono ciascuna un **lato intero** (`RTCellId.h:11-19`), e non esiste adiacenza per
-> solo vertice.
+> solo vertice. È l'argomento che rende la scelta sicura, ed era già scritto quando `MSE-4` era aperta.
 
 ---
 
@@ -459,7 +563,7 @@ Nessuna di queste si decide in un commit di implementazione. Vivono in
 | ID | Domanda | Innesco |
 |---|---|---|
 | ~~`MSE-1`~~ | ✅ **Chiusa da `D-131`**: `FRTHexCover` acquista `bGenerated`, il rebake tocca solo le proprie — vedi §8.2 | — |
-| `MSE-4` | Un settore toccato in un **solo punto** va contato come occupato, o serve un'intersezione di lunghezza non nulla? | 🔴 **INNESCATA il 2026-08-30, e non dal footprint** — [#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826). L'innesco è arrivato dal primo **consumatore di posa**: il **centro** della cella è il vertice comune di *tutti e dodici* i triangoli, quindi ogni segmento con `Offset == 0` accende dodici bit su dodici e lascia la cella senza alcuna regione di posa. È l'istanza più severa della stessa classe — 12 triangoli invece di 4, 8 settori di sovrastima invece di 2, e la conseguenza è **cella inagibile** invece di «cella più stretta». Misurata da `RefactorTactics.CoverPlacement.CentreContactRuleStillCollapsesTheWholeCell` |
+| ~~`MSE-4`~~ | ~~Un settore toccato in un **solo punto** va contato come occupato, o serve un'intersezione di lunghezza non nulla?~~ | ✅ **USCITA (a) — SERVE UN'INTERSEZIONE DI LUNGHEZZA NON NULLA; IL CONTATTO PUNTUALE NON OCCUPA — chiusa il 2026-08-31 da [`D-306`](../../decisions/RT_PDR_00_Decision_Log.md), implementata in [#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826).** *Istruttoria conservata:* la domanda ragionava sul **vertice** dell'esagono — quattro triangoli, due settori di sovrastima — e la nota la dichiarava *«non urgente come sembrava»*. 🔴 **L'innesco è arrivato dal centro, non dal vertice**: il centro è il vertice comune di *tutti e dodici* i triangoli, e `ToPolyline` calcola `Base = Perp × Offset`, quindi **ogni** segmento con `Offset == 0` ci passa per definizione — dodici bit su dodici, zero regioni di posa, **cella inagibile**. Non un footprint tangente che non esiste ancora, ma ogni muro passante che il tool Geometry disegna. ⚠️ **Il contatto lungo un SEGMENTO resta occupato**, ed è ciò che l'uscita (b) difendeva: cade il solo caso puntuale, e `SegmentOnSectorBoundaryOccupiesBothAdjacentSectors` resta verde. **Consumatore**: [#1827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1827) (`E23.6`), che `MSE-4` bloccava end-to-end |
 | ~~`MSE-2`~~ | ✅ **Sciolta da `D-125`**: misurava i **muri**, che non alimentano l'occupancy — vedi §5.1 | — |
 | ~~`MSE-3`~~ | ✅ **Chiusa da `D-125`**: i due modelli misurano la stessa cosa a due granularità | — |
 
@@ -468,7 +572,17 @@ Nessuna di queste si decide in un commit di implementazione. Vivono in
 > La domanda «quale dei due scrive `bBlocksMovement`» aveva una premessa falsa: nessuno dei due lo scrive per
 > i **muri**, che sono bordi; entrambi lo fanno per il **volume**, e concordano perché misurano la stessa cosa.
 >
-> 🔧 **`D-071` acquista una parola, e non è superseded**: *«non tocca»* si legge *«non vi entra»*. Un muro
+> 🔁 **Aggiornato il 2026-08-31: `D-071` punto (1) È ora superseded**, da
+> [`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) — il cerchio inscritto **centrato sull'anchor**
+> presuppone che l'unità stia al centro, e il modello a regioni di posa rimuove quella premessa. ∴ la
+> riga qui sotto descrive lo stato **fino al 2026-08-30**: il cerchio non è più il gate binario della
+> calpestabilità, che è *«esiste una regione compatibile col profilo»*
+> ([`spec-cover-placement-intra-hex.md`](spec-cover-placement-intra-hex.md) §13.0). ⚠️ **`MSE-3` non si
+> riapre**: la relazione *«il secondo raffina il primo»* valeva, e ciò che è cambiato è che il
+> raffinamento ha **sostituito** il misurando invece di affiancarlo. Il punto (2) di `D-071` — la *swept
+> clearance* — resta in piedi.
+>
+> 🔧 **La precisazione storica di `D-125`, che resta vera per ciò che diceva**: *«non tocca»* si legge *«non vi entra»*. Un muro
 > appoggiato al lato dell'esagono è **esattamente tangente** al cerchio inscritto (misurato: `86.602540`
 > contro un'apotema di `86.602540`, differenza **zero**), e alla lettera avrebbe reso non calpestabile ogni
 > cella addossata a una parete.
@@ -538,9 +652,14 @@ Actor. Come lo si identifica dipende da cosa può succedergli.
 esattamente durante l'operazione a cui deve sopravvivere: è per questo, e non per simmetria con le porte,
 che `FRTHexInteriorWall` prende un campo e `FRTHexCover` no.
 
-⛔ **`FRTHexInteriorWall::StableId` non entra in `ComputeHash`** — l'intero array ne resta fuori, perché
-vista e passo non consultano un muro interno. Qui il criterio **diverge** da `FRTHexDoor::StableId`, che
-nell'hash ci entra (#986): un nome di porta lo si risolve a runtime, un nome di muro solo nell'editor.
+⛔ **`FRTHexInteriorWall::StableId` non entra in `ComputeHash`** — ma **il resto della struttura sì, dal
+2026-09-01** ([#1830](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1830)). Fino a quel
+giorno ne restava fuori l'intero array, «perché vista e passo non consultano un muro interno»:
+[`D-269`](../../decisions/RT_PDR_00_Decision_Log.md) li ha resi autorevoli per **vista e proiettili**, e
+`URTHexOcclusionLibrary` è il consumatore. Entrano `Cell`, `Segment` (asse, offset, estremi, layer) e
+`WallType`, che decidono *se* e *dove* il muro occlude; il **nome** no. Qui il criterio **diverge** da
+`FRTHexDoor::StableId`, che nell'hash ci entra (#986): un nome di porta lo si risolve a runtime, un nome di
+muro solo nell'editor.
 
 **Il move valida prima di scrivere**, e un rifiuto è un valore di ritorno con la sua ragione
 (`ERTMapEditOutcome`) — mai una correzione silenziosa, mai uno stato scritto e poi segnalato dal validator:

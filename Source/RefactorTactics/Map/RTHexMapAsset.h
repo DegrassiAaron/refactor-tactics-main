@@ -19,14 +19,17 @@
  * rappresentabile come `FRTHexCover` — e per un terzo una corda che non lo e'. Prima di questo tipo quel
  * terzo veniva calcolato, disegnato come anteprima, e poi **buttato via in silenzio**.
  *
- * 🔑 **NON entra in `ComputeHash`**, ed e' la stessa scelta di `FRTHexCover::bGenerated` per la stessa
- * ragione: il movimento e' **cella-a-cella** e un muro che sta dentro una cella non ne blocca nessuno.
- * Due mappe che si giocano in modo identico non devono avere hash diversi solo perche' una ha una
- * decorazione in piu' — sarebbe un falso positivo contro il KPI `replay divergence = 0`.
+ * 🔑 **ENTRA in `ComputeHash` dal 2026-09-01** (`#1830`), e prima non ci entrava — la riga che lo teneva
+ * fuori diceva: *«il movimento e' cella-a-cella e un muro che sta dentro una cella non ne blocca nessuno […]
+ * il giorno in cui un muro interno dovra' bloccare la linea di vista, quella e' una decisione di gioco e va
+ * scritta come tale — e allora, ma solo allora, questo tipo entrera' nell'hash»*.
  *
- * ⛔ **Non tocca le regole, e non e' una svista**: vista e passo oggi non lo consultano. Il giorno in cui
- * un muro interno dovra' bloccare la linea di vista, quella e' una decisione di gioco e va scritta come
- * tale — e allora, ma solo allora, questo tipo entrera' nell'hash.
+ * Quel giorno e' arrivato: `D-269` e' la decisione, `URTHexOcclusionLibrary` il consumatore, e la vista di
+ * `URTHexVisionLibrary` insieme alla linea di `URTOffensiveActionLibrary` leggono questi segmenti. Il
+ * criterio non e' cambiato — nell'hash entra cio' che puo' cambiare un ESITO — e' cambiato il fatto.
+ *
+ * ⛔ **`StableId` resta fuori**, unico campo: nessuno risolve un muro interno per nome a runtime. Vedi il
+ * commento esteso in `ComputeHash` e quello sul campo qui sotto.
  */
 USTRUCT(BlueprintType)
 struct FRTHexInteriorWall
@@ -48,19 +51,45 @@ struct FRTHexInteriorWall
 	 * deve sopravvivere. La copertura non ha questo problema — la sua chiave e' `(Cell, Edge)`, unica per
 	 * bordo per una regola che `ValidateMap` gia' applica — e infatti non prende un campo.
 	 *
-	 * ⛔ **NON entra in `ComputeHash`, e la ragione e' gia' scritta sopra per l'intera struttura**: vista e
-	 * passo non consultano un muro interno, quindi non c'e' esito che possa cambiare. Un nome ancora meno.
+	 * ⛔ **NON entra in `ComputeHash`, ed e' l'unico campo di questa struttura a restarne fuori dopo `#1830`.**
+	 * Gli altri ci sono entrati perche' decidono se e dove il muro occlude; un nome no.
 	 *
 	 * ⚠️ Qui il criterio DIVERGE da `FRTHexDoor::StableId`, che nell'hash invece ci entra (#986): un nome di
 	 * porta ci entra perche' `FindDoorEdges` risolve **per nome**, e rinominarla cambia quale bordo si apre
-	 * per chiunque la citi. Nessuno risolve un muro interno per nome a runtime — lo fa solo l'editor. Il
-	 * giorno in cui un muro interno toccasse le regole, entrerebbero prima i suoi campi e poi il suo nome.
+	 * per chiunque la citi. Nessuno risolve un muro interno per nome a runtime — lo fa solo l'editor. La riga
+	 * precedente prometteva che *«il giorno in cui un muro interno toccasse le regole, entrerebbero prima i
+	 * suoi campi e poi il suo nome»*: i campi sono entrati, il nome no, perche' quel giorno ha confermato la
+	 * prima meta' della frase e non la seconda — la risoluzione per nome resta cosa dell'editor.
 	 *
 	 * `NAME_None` = muro senza nome, che e' cio' che ogni muro scritto prima di questo campo diventa
 	 * rileggendosi — ed e' esattamente cio' che quei muri gia' erano.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexMap")
 	FName StableId;
+
+	/**
+	 * IL MURO SI PUO' SCAVALCARE — la traversata autorata di `E23.7` ([D-308], formato v14, `#1828`).
+	 *
+	 * 🔑 **La scavalcabilita' e' un DATO, non una conseguenza dell'altezza**, ed e' la clausola con cui
+	 * `D-308` impedisce a `Low`/`High` — vocabolario di MITIGAZIONE ([D-271]) — di diventare per inerzia un
+	 * vocabolario di TRAVERSABILITA'. Un muretto non e' scavalcabile perche' e' basso: lo e' se un autore
+	 * l'ha disegnato tale.
+	 *
+	 * 🔴 **Perche' il campo sta QUI e non su un tipo nuovo.** `D-308` nomina il vault *«il produttore che il
+	 * terzo valore di `ERTIntraCellTraversal` aspettava»*, ma lo definisce **fra celle adiacenti** — e quel
+	 * valore vive DENTRO una cella, dove una transizione fra due celle non arriva. Il muro interno e' cio'
+	 * che divide la cella in due regioni: e' il posto in cui autorizzarne l'attraversamento senza inventare
+	 * un secondo tipo. Precisazione registrata in `spec-cover-placement-intra-hex.md` §6.
+	 *
+	 * ⛔ **Non introduce una sottocella e non tocca l'occupancy**: la capacita' resta **una** unita' per
+	 * `FRTCellId`, che e' il divieto di [D-289] e non cambia. Scavalcare permette di *arrivare* all'altra
+	 * faccia, non di essere in due posti.
+	 *
+	 * ⚠️ **Entra in `ComputeHash`** con lo stesso criterio degli altri campi del segmento: decide se si passa,
+	 * quindi due mappe che si giocano diversamente non possono avere lo stesso hash.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexMap")
+	bool bTraversable = false;
 
 	FRTHexInteriorWall() = default;
 	FRTHexInteriorWall(const FRTCellId& InCell, const FRTGeometrySegment& InSegment)
@@ -131,6 +160,81 @@ struct FRTInteractionBinding
 		: SourceId(InSourceId), TargetIds(InTargetIds) {}
 };
 
+/**
+ * PERCHE' UNA SEGNALAZIONE DI `ValidateMap` E' STATA PRODOTTA — `E23`, [D-289], `#1832`.
+ *
+ * 🔑 **Un reason code e non una stringa libera**, ed e' la disciplina che `ERTGeometryViolation`,
+ * `ERTHexWaypointReason` e `ERTActionInvalidReason` gia' applicano: un test che distingue due regole
+ * confrontando il **testo** del messaggio si rompe alla prima riformulazione, e allora chi riformula
+ * impara a non toccare i messaggi — che e' il verso sbagliato in cui far pendere un validator che deve
+ * essere leggibile da chi disegna.
+ *
+ * ⚠️ **Copre solo le regole di `#1832`.** Le segnalazioni piu' vecchie di `ValidateMap` — cella duplicata,
+ * costo negativo, copertura a integrita' zero, transizione ridondante — restano righe testuali senza
+ * codice: darglielo adesso significherebbe classificarne una ventina in una issue che non le possiede.
+ */
+UENUM()
+enum class ERTMapValidationReason : uint8
+{
+	/** Nessuna regola di `#1832`: e' una segnalazione testuale storica. */
+	None,
+
+	/**
+	 * REGOLA 1 — la cella non ha alcuna regione libera dove un'unita' possa stare, e **non** e' marcata
+	 * `bBlocksMovement`. E' dato che si contraddice: il gioco la offrira' come raggiungibile e poi non
+	 * saprebbe dove metterci chi ci arriva.
+	 */
+	NoLegalPlacement,
+
+	/**
+	 * REGOLA 2 — una copertura autorata su un bordo che **nessuna** regione di posa tocca: non produce
+	 * alcuna `FRTCoverOption`, quindi nessuna unita' potra' mai usarla. Non e' illegale, e' inerte.
+	 */
+	UnreachableCover,
+
+	/**
+	 * REGOLA 4 — `bBlocksMovement` **derivato** (`bMovementBlockGenerated`) che la geometria attuale non
+	 * giustifica piu': la cottura lo tolse o lo mise per una forma che non c'e' piu'.
+	 *
+	 * ⛔ **Non riguarda un blocco dipinto a mano.** *«L'autore vince»* e' gia' la regola di
+	 * `DeriveStandability`, e segnalarlo qui la contraddirebbe.
+	 */
+	StaleGeneratedBlock,
+
+	/**
+	 * REGOLA 5 — due muri interni della stessa cella con lo stesso `FRTCoverSourceId`.
+	 * `ERTGeometryViolation::DuplicateSegment` lo rifiuta **a monte**, ma una collezione ricostruita —
+	 * migrazione, merge, incolla — puo' reintrodurlo.
+	 */
+	DuplicateCoverSource
+};
+
+/**
+ * UNA SEGNALAZIONE DI `ValidateMap`, con il suo codice e la cella che la produce.
+ *
+ * ⛔ **Non blocca niente**: `ValidateMap` segnala, e il rifiuto immediato del gesto e' di `ValidateSegment`.
+ * E' la divisione a due strati di `#620`, e questa struttura non la cambia.
+ */
+USTRUCT()
+struct FRTMapValidationIssue
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	ERTMapValidationReason Reason = ERTMapValidationReason::None;
+
+	/** Le coordinate assiali della cella colpevole: un errore che non dice DOVE costringe a cercarlo a mano. */
+	UPROPERTY()
+	FRTCellId Cell;
+
+	/** `false` = `Warning`: lo stato e' legale e risolto, ma quasi certamente non e' quello voluto. */
+	UPROPERTY()
+	bool bIsError = true;
+
+	UPROPERTY()
+	FString Message;
+};
+
 UCLASS(BlueprintType)
 class REFACTORTACTICS_API URTHexMapAsset : public UPrimaryDataAsset
 {
@@ -169,16 +273,21 @@ public:
 	 *     interno si sposta, e il move cambia la sua chiave naturale `(Cell, Segment)`. La copertura non
 	 *     prende un campo perche' la sua chiave `(Cell, Edge)` e' unica per una regola gia' validata.
 	 *
+	 * v14 (#1828, `E23.7`): la traversata autorata sul muro interno (`FRTHexInteriorWall::bTraversable`).
+	 *     Nessun dato esistente cambia significato: un muro scritto prima non e' scavalcabile — default
+	 *     `false` — ed e' cio' che quei muri gia' erano, perche' fino a `D-308` la scavalcabilita' non
+	 *     esisteva come dato. ⚠️ Il campo NON deriva dall'altezza: `Low` non diventa scavalcabile per
+	 *     effetto di questo passo, ed e' precisamente cio' che `D-308` vieta.
 	 * ⚠️ **Questo numero non viaggia da solo**: la sua storia e' qui, ma il valore che un asset porta nei
 	 * propri byte e' `FRTHexMapCustomVersion` (#687, D-137). Alzarlo senza aggiungere il valore
 	 * corrispondente all'enum non compila — e' voluto, vedi lo `static_assert` in `RTHexMapAsset.cpp`.
 	 *
-	 * Tutti i passi v1->v12 sono DICHIARATIVI: il campo nuovo nasce vuoto, nessun dato esistente cambia
+	 * Tutti i passi v1->v14 sono DICHIARATIVI: il campo nuovo nasce vuoto, nessun dato esistente cambia
 	 * significato. Il primo passo TRASFORMATIVO e' ora eseguibile — prima di #687 non lo era, perche' la
 	 * migrazione non partiva — ma resta il punto piu' delicato del formato: si scrive un
 	 * `if (FormatVersion < N)` per volta, in ordine, e lo si prova su un asset serializzato.
 	 */
-	static constexpr int32 CurrentFormatVersion = 12;
+	static constexpr int32 CurrentFormatVersion = 14;
 
 	/**
 	 * Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti.
@@ -401,6 +510,20 @@ public:
 	uint32 ComputeHash() const;
 
 	/**
+	 * L'ORDINE CANONICO dei muri interni, per chi deve mescolarli in un hash.
+	 *
+	 * 🔑 **Esiste per non averne due.** `ComputeHash` e `URTMatchStateHashLibrary` mescolano entrambi la
+	 * geometria intra-cella da `#1830`, e due ordinamenti scritti separatamente sono la forma esatta del
+	 * difetto che `#986` ha gia' pagato su `bConductsElectricity`: un campo mescolato da uno e saltato
+	 * dall'altro, *«due hash che divergevano senza che nessuno l'avesse deciso»*.
+	 *
+	 * L'ordine dell'array lo decide chi edita l'asset, quindi non e' dato: si ordina per cella e poi per
+	 * giacitura. Gli estremi contano come coppia NON ordinata — e' lo stesso segmento anche percorso al
+	 * contrario, ed e' gia' la regola del suo `operator==`.
+	 */
+	static void SortInteriorWallsCanonically(TArray<FRTHexInteriorWall>& Walls);
+
+	/**
 	 * La mappa dichiara almeno una cella OBIETTIVO (formato v11, CP 10.2)?
 	 *
 	 * ⚠️ Esiste perche' il Cleanup deve poter TACERE: su una mappa senza obiettivi non si scrive nessuna voce
@@ -428,8 +551,39 @@ public:
 	 */
 	FRTCellId GetCenterCell() const;
 
-	/** Validazione minimale: Id duplicati, costi negativi, transizioni verso celle inesistenti. Ritorna gli errori. */
+	/**
+	 * Validazione minimale: Id duplicati, costi negativi, transizioni verso celle inesistenti. Ritorna gli
+	 * errori come testo, compresi quelli tipizzati di `ValidateMapDetailed` gia' formattati.
+	 *
+	 * ⛔ **Segnala, non blocca**, ed e' la meta' che non cambia: il rifiuto immediato di un gesto e' di
+	 * `URTGeometryGrammarLibrary::ValidateSegment`, e la correzione automatica di uno stato invalido e'
+	 * vietata dal Decision Record.
+	 */
 	TArray<FString> ValidateMap() const;
+
+	/**
+	 * LE REGOLE DI TOPOLOGIA DI `#1832`, con reason code e cella — [D-289], `E23`.
+	 *
+	 * Quattro regole, e ognuna descrive un dato che si contraddice invece di uno che e' scritto male:
+	 * `NoLegalPlacement`, `UnreachableCover`, `StaleGeneratedBlock`, `DuplicateCoverSource`.
+	 *
+	 * 🔑 **Elenco DETERMINISTICO e ordinato** per `StableLess(Cell)`, poi per reason, poi per indice della
+	 * sorgente. Non si appoggia all'ordine di `Cells`, che lo decide chi edita l'asset: un elenco che
+	 * cambia ordine fra due esecuzioni non e' verificabile, ed e' un criterio d'accettazione della issue.
+	 *
+	 * ⚠️ **La regola 3 della issue — «transizione di faccia illegale» — NON e' qui, e non e' una
+	 * dimenticanza.** Il testo la definisce come *«una traversata autorata che collega due regioni
+	 * attraversando geometria bloccante senza un'apertura»*, e la forma a due maschere scelta da `#1828`
+	 * rende quella configurazione **irrappresentabile**: se fra le due regioni ci fosse anche un muro non
+	 * scavalcabile, la maschera `Traversable` resterebbe separata e la risposta sarebbe `Blocked`. Una
+	 * regola per essa sarebbe codice morto, e il suo test non potrebbe fallire. Vedi
+	 * `URTHexCoverPlacementLibrary::ClassifyIntraCellTraversalWithAuthored`.
+	 *
+	 * ⚠️ **E la regola 6 — «aspettativa di due occupanti» — manca del proprio antecedente**: nessun campo
+	 * esprime quante unita' il livello si aspetti in una cella, e dedurlo dalla forma della cella sarebbe
+	 * l'opposto di cio' che un validator fa. Ha una issue propria.
+	 */
+	void ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssues) const;
 
 	/**
 	 * Porta l'asset alla versione corrente del formato. Idempotente (`PostLoad` puo' ripetersi) e conservativa:

@@ -5,14 +5,14 @@
   "seed": 0,
   "mapRadius": 5,
 
-  "_nota": "La combo firma nella forma COORDINATA: Phase bagna, Gadget incenerisce, nello stesso turno. Dentro la fase Blast la priorita' piu' bassa risolve per prima — `Hero.Phase.PressureJet` ha 50, `Hero.Gadget.LinearDischarge` ha 55 — quindi quando la scarica parte il bersaglio e' gia' bagnato e prende il bonus. Wraith 90 - 16 - 32 = 42.",
+  "_nota": "La combo firma nella forma COORDINATA: Phase bagna, Gadget incenerisce, nello stesso turno. Dentro la fase Blast la priorita' piu' bassa risolve per prima — `Hero.Phase.PressureJet` ha 50, `Hero.Gadget.LinearDischarge` ha 55 — quindi quando la scarica parte il bersaglio e' gia' bagnato e prende il bonus. Wraith 90 - (16 + 32 - 5 di scudo base, [D-224]) = 47.",
 
   "_nota_perche_esiste": "Fino al 2026-08-08 questo turno dava **60**, non 52: il bonus leggeva `HasStatus(Wet)` mentre i colpi venivano preparati, cioe' prima che il getto di Phase atterrasse. La combo era documentata nella showcase, aveva un test verde sull'aritmetica (`Heroes.Gadget.WetBonus`, che non passa dal TurnManager) ed era **ineseguibile in partita**. Corretto in #242 estendendo a `Wet` la disciplina che `Status.Marked` aveva gia': cio' che nasce dentro il Blast vale per i colpi a priorita' piu' alta.",
 
   "_nota_arena": "Arena liscia di proposito: il bagnato deve venire da RIVA. La variante che lo prende dal TERRENO e' `Visual.Combat.WaterElectric`, e le due vanno tenute entrambe — coprono le due sorgenti di `Wet`, e solo la prima dimostra la coordinazione fra due eroi.",
 
   "_nota_ownership": "La regola resta sistemica (D-029): il bonus legge `Status.Wet`, non l'identita' di Phase. Chiunque bagni con priorita' piu' bassa abilita la scarica — e il terreno lo fa senza bisogno di nessuno.",
-  "_errata_scudo": "ERRATA (2026-08-30): i conti in prosa qui sopra NON sottraggono lo SCUDO BASE, e sono quindi piu' bassi del vero: 42 -> 47. Il valore giusto e' quello di `expect`, che il corpus verifica a ogni run; la prosa e' rimasta indietro. Causa: `URTCombatLibrary::BaseShield = 5` (D-224) esiste dal COSTRUTTORE di `ARTUnit`, quindi ogni unita' assorbe 5 danni prima degli HP, e ogni nota scritta prima di D-224 sbaglia di 5 per bersaglio colpito. Il conto originale NON e' stato riscritto di proposito: dice ancora cosa faceva il gioco quando fu scritto.",
+  "_nota_scudo_base": "Ogni conto in prosa di questo file sottrae gia' lo SCUDO BASE. Causa: `URTCombatLibrary::BaseShield = 5` ([D-224]) esiste dal COSTRUTTORE di `ARTUnit`, quindi ogni unita' assorbe 5 danni prima degli HP, e ogni nota scritta prima di [D-224] sbagliava di 5 per bersaglio colpito. \u26a0\ufe0f **Fino al 2026-09-02 questo campo era un'ERRATA** (2026-08-30): dichiarava che la prosa sopra era rimasta indietro e che NON sarebbe stata riscritta, *«dice ancora cosa faceva il gioco quando fu scritto»*. `#2049` ha ribaltato quella scelta, e la ragione e' misurata: un `_nota` descrive il file di **oggi**, non e' un registro storico, e due testi che si contraddicono nello stesso file sono il difetto \u2014 non la sua documentazione. La versione precedente dei conti e' in git.",
 
   "units": [
     { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [-3, 0, 0] },

@@ -2,6 +2,124 @@
 
 #include "ScenarioHarness/RTScenarioArena.h" // l'arena la costruisce chi la costruisce anche per l'authoring
 #include "Turn/RTMatchStateHash.h"
+
+namespace RTScenarioStateDiff
+{
+	/**
+	 * I DIGEST DELLE UNITA' VIVE, in ordine di `UnitId` — `#1630`.
+	 *
+	 * 🔴 **L'ordine non e' cosmetico.** `UnitsById` e' una `TMap` e la sua iterazione non e' garantita:
+	 * `HashMatchState` se ne salva perche' ordina internamente prima di mescolare, ma un elenco ESPOSTO
+	 * cambierebbe ordine fra due run, e un diff che cambia ordine non e' ne' confrontabile ne' diffabile a
+	 * vista. E' lo stesso difetto corretto in `ResolveAttacks` da `#1951`.
+	 */
+	REFACTORTACTICS_API TArray<FRTUnitStateDigest> Snapshot(const TMap<FString, TWeakObjectPtr<ARTUnit>>& UnitsById)
+	{
+		TArray<ARTUnit*> Alive;
+		Alive.Reserve(UnitsById.Num());
+		for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
+		{
+			if (ARTUnit* Unit = Pair.Value.Get())
+			{
+				Alive.Add(Unit);
+			}
+		}
+
+		TArray<FRTUnitStateDigest> Digests = URTMatchStateHashLibrary::BuildUnitDigests(Alive);
+		Digests.Sort([](const FRTUnitStateDigest& A, const FRTUnitStateDigest& B)
+			{ return A.UnitId < B.UnitId; });
+		return Digests;
+	}
+
+	FString StatusesToText(const TArray<FName>& Statuses)
+	{
+		// Ordinati: arrivano da un set, e due elenchi identici in ordine diverso direbbero «cambiato».
+		TArray<FString> Names;
+		Names.Reserve(Statuses.Num());
+		for (const FName& Tag : Statuses) { Names.Add(Tag.ToString()); }
+		Names.Sort();
+		return FString::Join(Names, TEXT(","));
+	}
+
+	/** Confronta due digest e produce SOLO i campi diversi. */
+	void CompareInto(const FRTUnitStateDigest& Before, const FRTUnitStateDigest& After,
+		TArray<FRTUnitFieldChange>& Out)
+	{
+		if (!(Before.Cell == After.Cell))
+		{
+			Out.Emplace(TEXT("Cell"), Before.Cell.ToString(), After.Cell.ToString());
+		}
+		if (Before.Health != After.Health)
+		{
+			Out.Emplace(TEXT("Health"), FString::FromInt(Before.Health), FString::FromInt(After.Health));
+		}
+		if (Before.Shield != After.Shield)
+		{
+			Out.Emplace(TEXT("Shield"), FString::FromInt(Before.Shield), FString::FromInt(After.Shield));
+		}
+		if (Before.Energy != After.Energy)
+		{
+			Out.Emplace(TEXT("Energy"), FString::FromInt(Before.Energy), FString::FromInt(After.Energy));
+		}
+		if (Before.bAlive != After.bAlive)
+		{
+			Out.Emplace(TEXT("bAlive"), Before.bAlive ? TEXT("true") : TEXT("false"),
+				After.bAlive ? TEXT("true") : TEXT("false"));
+		}
+		if (Before.Facing != After.Facing)
+		{
+			Out.Emplace(TEXT("Facing"), FString::FromInt(static_cast<int32>(Before.Facing)),
+				FString::FromInt(static_cast<int32>(After.Facing)));
+		}
+		const FString BeforeTags = StatusesToText(Before.Statuses);
+		const FString AfterTags = StatusesToText(After.Statuses);
+		if (BeforeTags != AfterTags)
+		{
+			Out.Emplace(TEXT("Statuses"), BeforeTags, AfterTags);
+		}
+	}
+
+	/** Il diff fra due elenchi gia' ordinati: campi cambiati, comparse e sparizioni. */
+	REFACTORTACTICS_API TArray<FRTUnitStateDiff> Build(const TArray<FRTUnitStateDigest>& Before,
+		const TArray<FRTUnitStateDigest>& After)
+	{
+		TMap<int32, const FRTUnitStateDigest*> AfterById;
+		for (const FRTUnitStateDigest& D : After) { AfterById.Add(D.UnitId, &D); }
+
+		TArray<FRTUnitStateDiff> Result;
+		TSet<int32> Seen;
+		for (const FRTUnitStateDigest& Was : Before)
+		{
+			Seen.Add(Was.UnitId);
+			FRTUnitStateDiff Entry;
+			Entry.UnitId = Was.UnitId;
+			if (const FRTUnitStateDigest* const* Now = AfterById.Find(Was.UnitId))
+			{
+				Entry.Presence = ERTUnitDiffPresence::Present;
+				CompareInto(Was, **Now, Entry.Changes);
+			}
+			else
+			{
+				// ⚠️ Una sparizione NON e' un `Health` che va a zero: e' un'assenza, e si dice come tale.
+				Entry.Presence = ERTUnitDiffPresence::Disappeared;
+			}
+			Result.Add(MoveTemp(Entry));
+		}
+
+		for (const FRTUnitStateDigest& Now : After)
+		{
+			if (Seen.Contains(Now.UnitId)) { continue; }
+			FRTUnitStateDiff Entry;
+			Entry.UnitId = Now.UnitId;
+			Entry.Presence = ERTUnitDiffPresence::Appeared;
+			Result.Add(MoveTemp(Entry));
+		}
+
+		// Gli ingressi sono ordinati, le comparse si accodano: si riordina perche' l'elenco intero lo sia.
+		Result.Sort([](const FRTUnitStateDiff& A, const FRTUnitStateDiff& B) { return A.UnitId < B.UnitId; });
+		return Result;
+	}
+}
 #include "Turn/RTTurnLogLibrary.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
@@ -54,10 +172,15 @@ namespace
 			// L'affermazione «nessun chiamante» era l'unica parte scaduta.
 			//
 			// La divisione e' fra i due nomi che esistono gia', non con un terzo: la DECISIONE su
-			// un'opportunity a due risposte e' `DecisionBoundary`. Misurato che i tre scenari che chiedono
+			// un'opportunity a due risposte e' `DecisionBoundary`. Misurato che gli scenari che chiedono
 			// `Reaction` — `Combat/CounterStrikesBack`, `Visual/Reaction/Deflection`,
-			// `Visual/Reaction/Interposition` — sono tutti nel regime `<= 1`: un nome nuovo li costringerebbe a
-			// cambiare senza che cambi cio' che chiedono.
+			// `Visual/Reaction/Interposition`, `Spec/Overwatch/ConditionCollapsesToHold` e
+			// `Spec/Reaction/DeflectionReducesByTwenty` — sono tutti nel regime `<= 1`: un nome nuovo li
+			// costringerebbe a cambiare senza che cambi cio' che chiedono.
+			//
+			// ⚠️ **La conta diceva TRE fino al 2026-09-02**, ed erano gia' cinque: un elenco in un commento
+			// invecchia a ogni scenario nuovo. Chi lo rilegge lo rimisuri con un grep invece di crederci.
+			// Cio' che non invecchia e' il criterio — il regime `<= 1` — non l'elenco.
 			//
 			// Pinnata da `Scenario.ReactionAndDecisionBoundaryAreDistinct`, che chiede **entrambe** le domande
 			// — noto e disponibile — perche' un nome noto e indisponibile e' precisamente l'altro caso.
@@ -615,6 +738,22 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		{
 			Unit->VisionRange = Spec.VisionRange;
 		}
+
+		// GLI STATUS INIZIALI, applicati con la porta VERA — `#1629`. `ApplyStatus` e' l'unico percorso:
+		// scrivere gli stati a mano qui sarebbe un secondo modo di renderli attivi, e i due diverrebbero
+		// il giorno che quella funzione cambia.
+		for (const FRTScenarioStatus& Status : Spec.Statuses)
+		{
+			const FGameplayTag Tag = FGameplayTag::RequestGameplayTag(Status.Tag, /*ErrorIfNotFound=*/ false);
+			if (!Tag.IsValid())
+			{
+				// Non dovrebbe accadere: il loader rifiuta gia' i tag sconosciuti. Se accade, la fixture e'
+				// stata costruita in memoria saltando il loader, e tacere renderebbe il test verde a vuoto.
+				return Fail(FString::Printf(TEXT("unita' '%s': status '%s' sconosciuto all'applicazione"),
+					*Spec.Id, *Status.Tag.ToString()));
+			}
+			Unit->ApplyStatus(Tag, Status.Turns);
+		}
 		// EQUIPAGGIAMENTO. Che i pezzi esistano e che l'insieme sia legale l'ha gia' verificato il loader,
 		// che rifiuta lo scenario con un motivo invece di lasciarlo girare a meta'. Qui si sceglie QUALE
 		// loadout, e ad applicarlo e' `ARTUnit::EquipLoadout` — la stessa funzione che chiama
@@ -640,6 +779,43 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		Unit->EquipLoadout(Pezzi);
 
 		UnitsById.Add(Spec.Id, Unit);
+	}
+
+	// LA VARIANTE SPERIMENTALE (`#2004`). Qui e non altrove, e le due condizioni contano entrambe:
+	//
+	//   · DOPO il ciclo, perche' un override si valida contro l'unione dei kit — un `ActionId` che
+	//     NESSUNA unita' porta e' un errore di run, e dentro il ciclo non si potrebbe ancora saperlo;
+	//   · DOPO `EquipLoadout`, che e' la configurazione di produzione: l'esperimento sta SOPRA di essa.
+	//     Applicarlo prima lo farebbe sovrascrivere da una variante d'arma, e il designer vedrebbe il
+	//     proprio numero sparire senza un motivo visibile.
+	//
+	// ⚠️ L'override raggiunge OGNI istanza che porta l'azione, non la prima: ogni unita' ha le proprie da
+	// `ConfigureFromHeroData`, e fermarsi alla prima farebbe leggere una differenza che viene da QUALE
+	// unita' ha agito invece che dal numero.
+	if (!WorkbenchVariant.IsBaseline())
+	{
+		TArray<URTActionData*> KitDiTutti;
+		for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Voce : UnitsById)
+		{
+			ARTUnit* U = Voce.Value.Get();
+			if (U == nullptr) { continue; }
+			for (int32 i = 0; i < U->NumAbilities(); ++i)
+			{
+				if (URTActionData* A = U->GetAbility(i)) { KitDiTutti.Add(A); }
+			}
+		}
+
+		FRTWorkbenchVariant Ripristino;
+		const ERTVariantApplyResult Esito =
+			URTWorkbenchVariantLibrary::Apply(WorkbenchVariant, KitDiTutti, Ripristino);
+		if (Esito != ERTVariantApplyResult::Ok)
+		{
+			// Fail-closed PRIMA del primo turno: una variante applicata a meta' darebbe una run che il
+			// designer attribuirebbe all'esperimento che ha configurato, e non lo sarebbe.
+			return Fail(FString::Printf(
+				TEXT("variante '%s': non applicabile al kit di questo scenario (esito %d)"),
+				*WorkbenchVariant.VariantId.ToString(), static_cast<int32>(Esito)));
+		}
 	}
 
 	ARTTurnManager* TM = Cast<ARTTurnManager>(
@@ -735,6 +911,11 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 	State = EState::PauseBeforeTurn;
 	PauseElapsed = 0.f;
 	TurnIndex = 0;
+
+	// LO STATO D'INGRESSO, catturato qui perche' qui l'allestimento e' finito e nessun turno e' girato —
+	// `#1630`. Un istante prima le unita' non esistono; uno dopo il primo turno le ha gia' toccate.
+	InitialUnitStates = RTScenarioStateDiff::Snapshot(UnitsById);
+
 	ApplyPreviewSelection();
 	return true;
 }
@@ -1565,6 +1746,11 @@ void FRTScenarioSession::Finish()
 		}
 		const TArray<FRTUnitStateDigest> UnitStates =
 			URTMatchStateHashLibrary::BuildUnitDigests(UnitsForDigest);
+
+		// IL DIFF — `#1630`. Legge i due stati, non li calcola: quello finale e' lo stesso che alimenta il
+		// checksum due righe piu' sotto, quello iniziale e' stato catturato in `Start()`.
+		Result.StateDiff = RTScenarioStateDiff::Build(InitialUnitStates,
+			RTScenarioStateDiff::Snapshot(UnitsById));
 
 		// Punteggi indicizzati per TeamId: la v0.1 e' 2v2, e il giudice della fine partita li tiene qui.
 		TArray<int32> TeamScores;

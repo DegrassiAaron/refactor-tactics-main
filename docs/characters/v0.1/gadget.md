@@ -185,7 +185,7 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 | Che cosa | Dove |
 | --- | --- |
 | Il payload è nel dato | `RefactorTactics.Heroes.Hero.Gadget.MatchesCatalog` · `RefactorTactics.Heroes.BasicAttackByRangeBand` — è l'unico legato alla fascia condivisa |
-| L'effetto si vede in partita | `Combat.BasicAttack` — 120 − 22 = 98 su Riktor |
+| L'effetto si vede in partita | `Combat.BasicAttack` — 120 − (22 − 5 di `BaseShield`, D-224) = 103 su Riktor |
 | Il payload di carica | ⏳ **non esiste** — dipende da `RT-FEAT-ENV-ELECTRIC`, non da questa pagina |
 
 ## Abilità

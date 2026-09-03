@@ -1350,8 +1350,9 @@ sessions:
     artifacts: []
     unblocked_by: [U21]
     shares_setup_with: [U21, U25, U26]
-    verifies: [PIE-GEO-GHOST, PIE-GEO-SNAP, PIE-GEO-UNDO, PIE-GEO-RESIDUI]
-    issues: [712]
+    verifies: [PIE-GEO-GHOST, PIE-GEO-SNAP, PIE-GEO-UNDO, PIE-GEO-RESIDUI, PIE-GEO-ANCHOR,
+               PIE-GEO-INCIDENZA, PIE-GEO-CENTRO, PIE-GEO-CALPESTABILE]
+    issues: [712, 1895]
     done_when: le quattro voci hanno un esito reale, e il .umap resta pulito dopo la seduta
     unblocks: []
     notes: >-
@@ -1367,6 +1368,37 @@ sessions:
       nel livello, ed e' l'unico modo di accorgersene: nessun test headless apre un `.umap`.
       ⚠️ ID assegnato prima del merge: `U22`, con `U21` come ultimo su `main` e su tutti i branch
       remoti. Chi arriva secondo rinumera, non contende.
+      ➕ **Tre voci su otto non si allestiscono piu' a mano, dal 2026-09-01.** `Spec.Map.IncidentWallsStillPlay`
+      è la scena di `PIE-GEO-INCIDENZA` (la coppia fuori-anchor gia' misurata da
+      `Incidence.CrossingOffAnchorIsReported`); `Spec.Map.WallCrossesCellStillStandable` quella di
+      `PIE-GEO-CENTRO`; e con `Spec.Map.FootprintCollisionBlocksCell` copre i due versi di
+      `PIE-GEO-CALPESTABILE`. Si caricano dalla console con `rt.Test.Scenario=<Id>`, come gia' fa `U26` con
+      `Spec.Brace.GuardAndBraceOnMixedHit`. Chi esegue non ricostruisce col mouse una scena che il
+      repository ha gia'.
+      ⛔ **E non si riverifica cio' che e' gia' misurato headless.** Le voci ora nominano i test che
+      coprono la parte simulativa — i tredici anchor, le ventiquattro coppie rifiutate, i quattro settori
+      del diametro, la reversibilita' del blocco derivato — e chiedono all'occhio **solo** cio' che
+      l'occhio puo' dire: se i tre generi si distinguono, se il muro in conflitto si accende, se l'overlay
+      si legge. La seduta resta necessaria; e' il suo costo a scendere.
+      ➕ **`PIE-GEO-ANCHOR` aggiunta il 2026-08-31 con #1895**, e non e' una quinta voce a caso:
+      l'aggancio del gesto e' passato da `SnapToGrammar` — tollerante, *«tiene l'asse che sbaglia
+      meno»* — a `NearestAnchor` + `ExplainPair` + `SegmentBetweenAnchors`, che sulle ventiquattro
+      coppie inesprimibili **rifiutano con la ragione** invece di produrre un muro diverso in
+      silenzio. ⚠️ **Quindi `PIE-GEO-SNAP` va rieseguita**: il suo ✅ misurava il comportamento
+      precedente, ed e' annotata di conseguenza in `test-manuali-pie.md`.
+      ✅ La proprieta' che questa nota dichiarava — *«il tool NON contiene una sola regola: tre
+      chiamate al runtime e zero logica duplicata»* — **regge ancora**: le chiamate restano tre, e la
+      frase del rifiuto la compone `RTHexAnchor::Describe`, che traduce un reason code invece di
+      deciderlo.
+      ➕ **`PIE-GEO-INCIDENZA` aggiunta con la parte 4 di #1895**: il gesto ora segnala anche quando il
+      muro **si fa** ma insieme a uno esistente forma una configurazione che `#1894` dichiara invalida —
+      incrocio fuori-anchor, sovrapposizione, duplicato. ⚠️ **Segnala e non blocca**, perche' l'incidenza
+      e' una proprieta' della COLLEZIONE e `Validate` e' lo strato che segnala; bloccarla impedirebbe di
+      disegnare `A`, poi `B` che lo incrocia, poi correggere `A`.
+      🔴 **Con la parte 4 e' caduto anche un difetto introdotto dalla parte 3**: il ciclo di `Render`
+      era rimasto su `SnapToGrammar` mentre il commit era passato all'aggancio-anchor, quindi su una
+      coppia inesprimibile il ghost disegnava un muro che il rilascio non produceva. Ora il tool non
+      chiama piu' `SnapToGrammar` in nessun punto: **zero occorrenze**, misurato.
 
   - id: U24
     title: I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root
@@ -2021,6 +2053,41 @@ sessions:
       raggiungibile da *Window → Tools → Tactical Designer*. ⚠️ **E il criterio che conta di più**: dopo
       tutto questo `L_DevSandbox` **non** è marcata come modificata — nessun asterisco sul nome del livello,
       e `git status` pulito su `Content/RT/Maps/Dev/L_DevSandbox/`.
+    notes: >-
+      🔄 **Tentata il 2026-09-02, interrotta al passo 2 da un crash che NON è di questa seduta.** Aprire
+      `L_HexArena` terminava l'editor con `World Memory Leaks: 2 leaks objects and packages` —
+      [#2115](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2115), corretta lo stesso
+      giorno. La causa stava altrove: `URTScenarioPreviewSubsystem` è un `UEditorSubsystem` e teneva
+      `UPROPERTY` **forti** verso gli attori d'anteprima, che vivono nel `PersistentLevel` del mondo
+      corrente; con un'anteprima a schermo, il mondo vecchio non poteva essere raccolto. ⚠️ **Il passo 2 di
+      questa seduta è quindi anche il riproduttore di quel difetto**: chi la rifà con un'anteprima attiva
+      sta esercitando la correzione, non solo il launcher.
+      ✅ **Confermato dal log prima dell'interruzione**: `L_DevSandbox` si carica da sola
+      (`Cmd: MAP LOAD FILE=...L_DevSandbox.umap` come prima riga) e
+      `LogRTDevSandboxLauncher: [TacticalDesigner] livello di bootstrap aperto: presento il launcher.`
+      compare senza che nessuno abbia invocato niente. Il tab è stato visto a schermo.
+      🔴 **E un ritrovamento che il `done_when` non copre**: il tab compare in una **finestra fluttuante**,
+      non dockato. È un `ETabRole::NomadTab` invocato con `TryInvokeTab` senza una posizione nel layout
+      dell'editor (`RTDevSandboxLauncherSubsystem.cpp:44,68`) — una lacuna di configurazione, non un
+      difetto di vita degli oggetti, e per questo **fuori** da #2115. Chi decide che il posto giusto è
+      dockato apra la sua issue; questa nota esiste perché la constatazione non si perda.
+      🔄 **Ripresa la sera del 2026-09-02, dopo il merge di #2115 — e ancora NON conclusa.** L'ordine è
+      stato verificato prima di guardare, come `U32` insegna: sorgente `19:22:22` → DLL `19:23:45` →
+      editor `19:45:22`, quindi il binario contiene davvero la correzione. In quella sessione il log porta
+      **quattro** cambi di mappa e **zero** occorrenze di `World Memory Leaks` o `not cleaned up by GC`.
+      🔴 **Ma il risultato NON è ancora una prova, e la ragione va scritta o si riperde.** Il difetto di
+      #2115 si manifesta solo con un'**anteprima attiva**: senza, anche il codice rotto non crashava —
+      misurato nel log del crash, `L_DevSandbox → L_GrayKitPlayground` alle `16:15:37` passò indenne
+      proprio per questo. E se l'anteprima fosse stata accesa **il log non lo direbbe**:
+      `URTScenarioPreviewSubsystem` non scrive nessuna riga, quindi la premessa può confermarla solo chi
+      guarda. Un verdetto che non la dichiara è verde per una premessa diversa da quella scritta.
+      📋 **Cosa resta da fare, in ordine.** (a) Su `L_DevSandbox`, selezionare uno scenario nel pannello e
+      **confermare a schermo** che la board coi marcatori compaia — è la premessa, e va dichiarata nel
+      verdetto. (b) Con l'anteprima accesa, aprire `L_HexArena`: non deve crashare, l'anteprima deve
+      **sparire**, e il tab **non** deve ricomparire da sé (quest'ultimo è il criterio proprio di questa
+      seduta). (c) I passi 3, 4 e 5 del `done_when`. (d) Il controllo finale sul dirty, che vale solo se
+      nessuno ha premuto `Ctrl+S`.
+      ⚠️ I passi 3, 4 e 5 restano **NON ESEGUITI**.
 
   - id: U32
     title: Le tendine si popolano, la lista si ridisegna, e la selezione non cade sotto i filtri
@@ -2305,3 +2372,202 @@ sessions:
       aperta. E' invisibile a schermo — un pannello che dice «rifiutato» ha lo stesso aspetto in entrambi i
       casi — ed e' coperto dal test `DevSandboxLauncher.SessionComesFromTheFacade`, che asserisce
       `HasSession() == false` dopo un rifiuto. Detto invece di simulato.
+
+  - id: U39
+    title: Le coordinate incise sul pavimento, e il loro costo su una mappa grande
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto su leggibilità delle coordinate incise sul pavimento, e sul costo di disegno su una mappa grande
+    artifacts: []
+    unblocked_by: [U21]
+    shares_setup_with: [U21, U22, U25, U26]
+    verifies: [PIE-HEX-COORD-LEGGIBILITA, PIE-HEX-COORD-COSTO]
+    issues: [1920]
+    done_when: le due voci hanno un esito reale nel registro
+    unblocks: []
+    notes: >-
+      ➕ **Seduta aperta il 2026-08-31 dal Task 4 del piano che implementa #1920.** Le due voci PIE
+      nascono dal DoD della issue — una voce collocata in una seduta, non un test — e nessuna seduta
+      esistente copriva il tema: `grep -c "HexLabel\|PIE-HEX-COORD" docs/roadmap/editor-sessions.yaml`
+      dava **0** prima di questo commit. Stessa ragione per cui `U26` e `U35` esistono.
+      ⚠️ `unblocked_by: [U21]` per la stessa ragione pratica di `U22`, `U25` e `U26`: su una scena non
+      illuminata il verdetto direbbe più sulle luci che sulle coordinate.
+      ⚠️ `shares_setup_with: [U21, U22, U25, U26]`, l'intero clique: il criterio non e' lo
+      strumento attivo ma lo **stesso allestimento** (`L_DevSandbox` illuminato da `U21`), ed e' per
+      questo che `U22`/`U25`/`U26` si citano gia' a vicenda pur richiedendo tool diversi fra loro
+      (Geometry, Graybox, Probe) — la definizione del campo parla di *stessa apertura*, non di stesso
+      strumento, e la Regola di batching in testa al file tratta un cambio di tool come una ragione che
+      NON giustifica una nuova apertura. `U39` chiede MENO delle altre tre — nessun tool — quindi e' un
+      sottoinsieme del loro allestimento, non un caso a parte: si esegue nella stessa apertura.
+      ⚠️ ID assegnato prima del merge: `U39`, con `U38` come massimo misurato su `main` **e su tutti i
+      branch remoti** il 2026-08-31. Chi arriva secondo rinumera, non contende.
+
+  - id: U40
+    title: Il facing di una unita' ferma, guardato senza premere Play
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto di leggibilità del marker di facing alle tre distanze di camera, in scala di grigi
+    artifacts: []
+    unblocked_by: [U25]
+    shares_setup_with: []
+    verifies: []
+    issues: [1992]
+    done_when: il verdetto sulla leggibilità del facing è scritto, e l'origine del marker misurata nel
+      viewport coincide con `URTHexLibrary::FacingMarkerOrigin` sugli stessi cinque parametri
+    unblocks: []
+    steps: |
+      **La domanda è una sola, ripetuta a tre distanze.** *Guardando la Station 01 senza HUD, senza
+      selezionare niente e senza premere Play, so dire dove guarda l'unità?*
+
+      Il giro: aprire `L_GrayKitPlayground` → Station 01 → selezionare
+      `BP_Graybox_UnitFacingFixture` → cambiare `Facing` nel Details fra le sei direzioni → guardare il
+      marker seguire **nel viewport**.
+
+      Poi le tre distanze di `U25` — `ArmLength` `100` / `450` / `4000` — e a ciascuna la **rilettura in
+      scala di grigi**.
+
+      🔴 **Se la direzione sparisce in scala di grigi, il marker sta comunicando col solo colore e
+      `D-146` è violata.** Non è un dettaglio di rifinitura: è la stessa regola per cui la traversa di
+      `Locked` è una mesh diversa e non la stessa ricolorata (`D-171`).
+
+      ⚠️ **`OptionalLabel` va guardata SPENTA.** È un secondo canale, non il primo: se la direzione si
+      legge solo con la label accesa, la geometria non sta comunicando e il verdetto è ❌ anche se a
+      schermo si capisce.
+
+      ➕ **Il controllo che questa seduta possiede da sola** (`D008.2` di #1992): l'origine del marker
+      misurata nel viewport coincide con `FacingMarkerOrigin` sugli stessi cinque parametri. È il legame
+      fra il Blueprint e la funzione pura, e **nessun test automatico lo copre** — sei test verificano la
+      formula, e un fixture che la ignorasse li lascerebbe tutti verdi.
+
+      ⛔ **Il rapporto corpo/cella si GUARDA, non si decide.** `GBX-5` resta di #1094 e si chiude a
+      `U25`: qui si raccoglie l'impressione, non il verdetto.
+    notes: >-
+      ➕ **Seduta aperta il 2026-09-01 con #1992** (Epic #1990, `D-304`). Non duplica `U25`, e il confine
+      è netto: quella guarda il **kit graybox** su `L_DevSandbox` e possiede i verdetti di `GBX-1` e
+      `GBX-5`; questa guarda **una unità e il suo facing** su `L_GrayKitPlayground`, che è una scena
+      diversa, e non possiede nessuna decisione aperta.
+      ⚠️ **`shares_setup_with: []` e non `[U25]`**: il criterio del campo è la *stessa apertura*, e le
+      due sedute aprono **mappe diverse**. Un cambio di scena non è un cambio di tool.
+      ⚠️ **`verifies: []` non è una dimenticanza**: nessuna voce `PIE-GKP-*` esiste in
+      `test-manuali-pie.md` — `grep -c "PIE-GKP" docs/technical/test-manuali-pie.md` dà **0** — e
+      scriverle non è nello scope di #1992, il cui DoD chiede una voce di seduta e non voci di registro.
+      Il verdetto vive qui finché qualcuno non le apre. È la stessa lettura dichiarata da `U10`, `U12`,
+      `U17`, `U23`, `U24` e altre tredici.
+      ⚠️ **`unblocked_by: [U25]` è debole di proposito**: non è una dipendenza tecnica — la scena e il
+      fixture esistono indipendentemente — ma di **giudizio**. `U25` fissa la grammatica del kit; leggere
+      il facing prima che quella grammatica abbia un esito significherebbe giudicare un marker contro un
+      fondo che potrebbe ancora cambiare.
+      ⚠️ ID assegnato prima del merge: `U40`, con `U39` come massimo misurato su `main` **e su tutti i
+      branch remoti** il 2026-09-01. Chi arriva secondo rinumera, non contende.
+
+  - id: U41
+    title: Il banco del laboratorio, e se serve davvero a chi lo apre
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto sull'usabilità del Playground Panel, e sui tre preset di camera
+    artifacts: []
+    unblocked_by: [U40]
+    shares_setup_with: [U40]
+    verifies: []
+    issues: [1993]
+    done_when: il pannello è cablato, e il verdetto sull'usabilità è scritto — compreso se i tre preset
+      di camera inquadrano ciò che promettono
+    unblocks: []
+    steps: |
+      **La domanda è una sola:** *chi apre il pannello capisce dove si trova, ci va, cambia ciò che
+      guarda — senza toccare il Details?*
+
+      ⚠️ **Come si apre, e cosa fare quando la voce di menu non si trova.** `Run Editor Utility Widget` è
+      registrata in **due** posti — sul Blueprint
+      (`AssetDefinition_EditorUtilityWidgetBlueprint.cpp:138`, plugin `EngineAssetDefinitions`, abilitato di
+      default) **e** sulla classe generata (`AssetDefinition_WidgetBlueprintGeneratedClass.cpp:101`), che
+      però il Content Browser nasconde. Se sul Blueprint non compare, **non dedurne che l'asset sia
+      sbagliato**: misurato il 2026-09-02, l'asset dichiara `EditorUtilityWidgetBlueprint` e il plugin è
+      attivo. Tre vie, in ordine di affidabilità:
+      1. **doppio clic** sull'asset → pulsante **`Run Utility Widget`** nella toolbar dell'editor UMG
+         (`BlutilityUMGEditorExtensions.cpp:55`);
+      2. la **console Python** (Output Log → menu `Cmd` → `Python`), che non dipende da nessun menu:
+         `import unreal; unreal.get_editor_subsystem(unreal.EditorUtilitySubsystem).spawn_and_register_tab(unreal.load_asset('/Game/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground'))`
+      3. `Show Generated Classes` nei filtri → destro su `WBP_RT_GrayKitPlayground_C`.
+      🔑 **Il pulsante `Run` è NASCOSTO se il tab esiste già** (`FIsActionButtonVisible` interroga
+      `DoesTabExist`): al suo posto compare `Stop Utility Widget`. Vedere Stop — o non vedere Run — vuol
+      dire che **il pannello è già aperto**, e va cercato fra le finestre, non riaperto.
+      Il giro: aprire `WBP_RT_GrayKitPlayground` con una delle due vie sopra → con
+      `L_GrayKitPlayground` aperta il pannello dice `Ready` → `Focus` sulla Station 01 → `Select
+      Fixture` → il `Facing` si cambia **sei volte** e il marker segue **ogni volta**.
+
+      ⚠️ **Poi si apre un'ALTRA mappa.** Il pannello deve dire `Error` **con una ragione leggibile**, non
+      restare vuoto: un pannello muto e un pannello guasto hanno lo stesso aspetto, e il secondo manda a
+      cercare un difetto che non c'è. La ragione nomina entrambe le mappe — è verificato headless da
+      `PanelMapStateNamesTheReason`, ma che sia *leggibile* lo dice solo un occhio.
+
+      ➕ **I tre preset di camera**: `Close` `100` · `Tactical` `450` · `Overview` `4000`.
+      ⛔ Questi numeri vengono da `U25`, ma il legame è una **citazione, non un controllo**: `U25` li tiene
+      in prosa e nessun test può leggerli da lì. Se qui inquadrano male, il posto dove dirlo è
+      `CameraPresetArmLengths` — e va detto **perché** divergono, come la DoD di #1993 prescrive.
+
+      ⛔ **Le station `02`..`08` non devono sembrare funzionanti.** Una station `PLANNED` esiste come pad e
+      signage e non finanzia il proprio sistema: presentarla come le altre è il pannello che promette.
+      ⚠️ **Questa voce diceva «chip», e le chip non esistono**: il pannello ha una **tendina**. Chi eseguiva
+      la seduta ha cercato dove non c'era niente da guardare, e ha concluso «credo non funzioni» — il
+      testo descriveva un disegno mai costruito. Si guarda nella tendina STATION, dove le pianificate
+      portano `[PLANNED]` in fondo alla riga.
+    notes: >-
+      ➕ **Seduta aperta il 2026-09-02 con #1993** (Epic #1990, `D-304`). Non duplica `U40`, e il confine è
+      netto: quella guarda **il fixture** — che il facing si legga alle tre distanze e in scala di grigi;
+      questa guarda **il banco**, cioè se il pannello serve a chi lo apre.
+      ⚠️ `shares_setup_with: [U40]` e `unblocked_by: [U40]`: stessa apertura — `L_GrayKitPlayground` con la
+      Station 01 posata — e giudicare il pannello prima che il fixture si legga significherebbe misurare
+      due cose insieme.
+      ⚠️ **`verifies: []` non è una dimenticanza**: nessuna voce `PIE-GKP-*` esiste in
+      `test-manuali-pie.md`, e scriverle non è nello scope di #1993, il cui DoD chiede una voce di seduta.
+      È la stessa lettura dichiarata da `U40`, `U10`, `U12`, `U17`, `U23`, `U24` e altre.
+      🔴 **Il `done_when` comincia con «il pannello è cablato», e non è pleonastico**: il commandlet genera
+      lo **scheletro** dei widget — nomi stabili e le tre righe di `DIAGNOSTICS` prese dal modello — ma
+      **non il grafo**. Finché gli eventi non chiamano `URTPlaygroundPanelLibrary`, il pannello si apre e
+      non fa niente, e un verdetto di usabilità su un pannello inerte non è un verdetto.
+      ➕ **Cablato in parte il 2026-09-02**, col DSL del toolset Blueprint del motore via MCP; la fonte
+      leggibile è `Source/RefactorTacticsEditor/Private/Content/RTPlaygroundPanelGraph.dsl`, perché un
+      `.uasset` non è diffabile. **Compila** con `warnings_as_errors=true`. Cablati: `EventConstruct`
+      (stato mappa e le tre righe di `DIAGNOSTICS`), `Cmb_Facing/OnSelectionChanged` → `ApplyFixtureFacing`,
+      `Btn_SelectFixture`, `Btn_ResetFixture`.
+      ⛔ **NON cablati, e la seduta deve saperlo prima di iniziare**: le **opzioni** delle due combo
+      (`Cmb_Facing` si apre **vuota**, quindi il giro «cambia il `Facing` sei volte» non è eseguibile
+      così com'è), `Cmb_Station`, `Btn_Focus` e i tre preset di camera. La causa è una sola e non è
+      pigrizia: `ComboBox|AddOption`/`ClearOptions`/`GetSelectedOption` esistono in due varianti con lo
+      **stesso** `type_id` (`UComboBoxKey` e `UComboBoxString`) e il DSL prende la prima. Si risolve dal
+      commandlet, riempiendo `DefaultOptions` in C++.
+      ⚠️ **Il grafo compila ma non è mai stato eseguito**: nessun test headless apre un
+      `EditorUtilityWidget`. La prima esecuzione è questa seduta.
+      ✅ **ESEGUITA IN PARTE il 2026-09-02 — il pannello funziona.** *«Segue il facing selezionato»*: il
+      grafo gira, e questa è la prima evidenza che esista. *«La posizione iniziale punta a Est»* — ed è
+      **corretto**, misurato: `ERTHexDirection` comincia con `E` (`RTCellId.h:13`) e il fixture nasce
+      `Facing = E` (`RTGrayboxUnitFacingFixture.h:62`), che in mondo è `+X`.
+      🔴 **Ma il verdetto è arrivato condizionato — «non so se è corretto perché non so qual è il nord» —
+      e la lacuna era del repository, non di chi guardava.** Nessun documento ancorava i nomi bussola agli
+      assi: `E = +X` era una conseguenza di `AxialToWorld`, mai dichiarata. Chiuso con tre cose: la
+      convenzione in `spec-hex-geometry-authoring.md` §2.1.1 (**`E` è `+X`, quindi `N` è `−Y`, cioè a
+      sinistra nella vista dall'alto**), l'ancora letterale in
+      `Hex.EastIsWorldPlusXAndTheSixYawsAreDeclared`, e un `EastReference` nella scena — freccia a
+      rotazione assoluta con etichetta, presidiata da `Graybox.FixtureEastReferenceDoesNotFollowFacing`.
+      ✅ **CHIUSA il 2026-09-02, con verdetto pieno.** Tutte e quattro le osservazioni sono state fatte a
+      schermo: il marker segue il facing e la posa iniziale punta a Est (corretto — `E` è la direzione 0);
+      lo stato `Error` con un'altra mappa aperta si **legge** e nomina entrambe le mappe; i tre preset
+      inquadrano di sbieco come la camera di gioco; e la tendina marca `[PLANNED]` le sette station
+      pianificate.
+      🔑 **Ma il valore della seduta non è il verde: sono gli undici difetti che ha trovato**, nessuno dei
+      quali sarebbe emerso dalla suite — quattro di presentazione (`DIAGNOSTICS` in doppia copia, sei
+      pulsanti muti, font 24 per tutti, etichette senza identità), uno visibile **solo a runtime**, quattro
+      di lavoro non fatto descritto come impossibile (`Cmb_Station`, `Focus` e i due preset restanti), e due
+      numeri **senza owner**: un `Pitch = -90` inventato, fuori dal clamp della camera, e i tre bracci
+      `{100, 450, 4000}` che erano una **copia** di `ARTCameraPawn`.
+      ⚠️ Piu' un test scritto *per* sorvegliare un difetto che era **verde sul pannello rotto**
+      (`PanelDiagnosticsAppearOnce`): la duplicazione era una proprietà di runtime, e contarla nell'asset
+      non poteva vederla. Scoperto solo rimettendo il `.uasset` pre-fix.
+      ∴ **1804 test verdi non dicevano che il pannello fosse usabile.** È esattamente ciò per cui esiste
+      una seduta PIE.
+      ⚠️ ID assegnato prima del merge: `U41`, con `U40` come massimo misurato su `main` **e su tutti i
+      branch remoti** il 2026-09-02. Chi arriva secondo rinumera, non contende.

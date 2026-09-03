@@ -38,7 +38,13 @@
 
       freschezza  il log e' stato scritto DOPO l'avvio? Un log stantio di una run
                   precedente, letto come se fosse di questa, e' verde su nulla
-      copertura   `Test Completed` contro il `Found N` dichiarato in testa
+      copertura   `Test Started` contro il `Found N` dichiarato in testa — quanti
+                  test sono PARTITI, non quanti sono arrivati in fondo. ⚠️ La
+                  differenza e' deliberata e misurata: l'ULTIMO test di una suite
+                  intera perde regolarmente la riga di conclusione nel flush di
+                  shutdown (`clean-baseline.log`: 1232 avviati, 1231 conclusi, run
+                  sana), quindi invalidare sui conclusi renderebbe NON VALIDA ogni
+                  suite completa. La ragione per esteso sta sul controllo stesso
 
     Se una qualsiasi cade, l'esito NON e' registrabile: non e' rosso e non e'
     verde, e' NON VALIDA. Lo script non impedisce niente e non uccide nessuno —
@@ -59,8 +65,17 @@
       0  VALIDA, nessun fallimento
       1  VALIDA, ma dei test falliscono   -> difetto del gioco
       3  NON VALIDA                       -> esito non registrabile, non e' rosso
-      2  NON AVVIATA                      -> il motore era gia' occupato
+      2  NON AVVIATA                      -> un processo del motore era VIVO
          (con `-WaitMinutes N` aspetta che si liberi invece di uscire subito)
+
+    ⚠️ Una VOCE RESIDUALE non e' un motore occupato (#2130): un processo puo'
+    lasciare dietro di se' una voce che WMI elenca ancora e che nessuno puo'
+    terminare. La suite parte lo stesso, e la diagnostica nomina il caso visto —
+    `vivo` · `zombie-solo` · `misto` · `query-fallita`.
+
+    Con `-SelfTest` gli stati sono due, e non riguardano il gioco:
+      0  il classificatore dello stato del motore e' conforme
+      1  non lo e'  -> il difetto e' in QUESTO script, non nella suite
 
 .PARAMETER Filter
     Filtro di automation. Default `RefactorTactics`, cioe' la suite intera.
@@ -95,6 +110,21 @@
 
 .PARAMETER PollSeconds
     Ogni quanto ricontrollare durante l'attesa. Default 30.
+
+.PARAMETER NoIssueRefs
+    Salta il promemoria `issue-refs` stampato dopo un verdetto `VALIDA`.
+
+    Quel controllo confronta i percorsi citati dalle issue APERTE con l'albero, e
+    sta qui perche' il difetto che chiude non nasce da un commit: nasce dal tempo
+    che passa fra la rimozione di un file e la issue che nessuno riapre. Il
+    2026-08-31 ne sono state corrette 63, trovate a mano dieci giorni dopo.
+
+    🔴 **Non concorre al verdetto, ed e' una scelta.** Legge GitHub, che cambia
+    mentre la suite gira: in una run da quaranta minuti puo' passare all'avvio e
+    fallire alla fine. Farlo entrare nelle invarianti renderebbe `NON VALIDA` una
+    misura sana per una issue che ha modificato qualcun altro — cioe' il difetto
+    che questo script esiste per impedire. Stampa, e l'exit code resta quello dei
+    test. Serve rete e `gh`: senza, dichiara `NOT RUN` e non blocca niente.
 
 .EXAMPLE
     ./scripts/rt-suite.ps1
@@ -131,7 +161,29 @@ param(
     # Minimo 1: con `0` il ciclo diventa uno spin che rifa' la query di continuo
     # sulla stessa macchina dove sta girando l'automation di qualcun altro.
     [ValidateRange(1, 3600)]
-    [int] $PollSeconds = 30
+    [int] $PollSeconds = 30,
+
+    # Salta il promemoria `issue-refs` in coda al verdetto.
+    #
+    # Quel controllo legge GitHub, non l'albero: e' l'unica cosa in questo script
+    # che dipende da una fonte che nessuno qui controlla, e per questo NON entra
+    # nelle invarianti e NON cambia l'esito. Vedi §PROMEMORIA in fondo.
+    [switch] $NoIssueRefs,
+
+    # Verifica il classificatore dello stato del motore su casi fabbricati, e esce
+    # senza toccare il motore.
+    #
+    # 🔴 **Esiste perche' uno zombie WMI non si fabbrica** (#2130): la voce di DoD
+    # «con solo una voce residuale la suite parte» non e' provabile a comando
+    # finche' la decisione vive dentro la funzione che interroga il sistema.
+    # `Resolve-EngineState` e' pura proprio per questo, e qui le si danno le
+    # collezioni che il sistema non sa produrre su richiesta.
+    #
+    # ⚠️ Non e' un framework di test: non ce n'e' uno nel repository, e AGENTS.md §9
+    # vieta di introdurre build step senza una decisione. Sta in questo file perche'
+    # la regola non deve avere una seconda sede — che e' lo stesso motivo per cui
+    # `Test-EngineFree` esiste.
+    [switch] $SelfTest
 )
 
 $ErrorActionPreference = 'Stop'
@@ -149,6 +201,51 @@ $EngineVersion = (Get-Content $UProject -Raw | ConvertFrom-Json).EngineAssociati
 $EngineCmd = "D:/EpicGames/UE_$EngineVersion/Engine/Binaries/Win64/UnrealEditor-Cmd.exe"
 if (-not (Test-Path $EngineCmd)) { throw "motore non trovato: $EngineCmd" }
 
+function Invoke-Git {
+    param([Parameter(Mandatory)] [string[]] $GitArgs)
+
+    # 🔴 **`$ErrorActionPreference = 'Stop'` trasforma ogni riga di stderr di un comando nativo in un
+    # `ErrorRecord` che LANCIA, anche quando il comando riesce** — e `2>$null` non protegge, perche' il
+    # record nasce prima che la redirezione lo scarti. Un solo file tracciato scritto con terminatori LF
+    # basta: `git diff` stampa `warning: LF will be replaced by CRLF`, esce **0**, e lo script muore.
+    #
+    # Misurato il 2026-09-01 su `#1964`: basta aggiungere a un `.cpp` tracciato una riga che finisca
+    # con il solo LF, e la run muore con
+    # `NativeCommandError` a `rt-suite.ps1:247`, **nessun verdetto**, mentre `Saved/Logs/` conserva il log
+    # della run PRECEDENTE — un verdetto vecchio con l'aria di essere quello nuovo. E il blocco che chiama
+    # git si riesegue a ogni giro d'attesa, quindi una run con `-WaitMinutes` ha decine di occasioni di
+    # morire, non una.
+    #
+    # ⚠️ La preferenza si abbassa SOLO attorno all'invocazione e si rialza in `finally`: il resto dello
+    # script continua a fallire chiuso. Lo stderr non viene soppresso, viene **separato** — le righe
+    # d'avviso escono dal valore di ritorno, quindi non entrano nel digest dell'albero.
+    #
+    # ⛔ Non si silenzia il warning lato git (`core.autocrlf`, `core.safecrlf`): sposterebbe una
+    # configurazione di repository per aggirare un difetto di script, e lascerebbe scoperto ogni altro
+    # avviso che git puo' emettere — `detached HEAD`, `index.lock`, refname ambiguo.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $combined = & git @GitArgs 2>&1
+        $exit = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previous
+    }
+
+    # 🔑 `$LASTEXITCODE` si riscrive DOPO il filtro: i cmdlet qui sotto non lo toccano oggi, ma il
+    # `throw` di ogni chiamante lo legge, e un fail-closed che dipende dall'ordine delle righe non e' un
+    # fail-closed. Il codice tornato e' quello di git, non quello della pipeline.
+    $lines = $combined |
+        Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } |
+        ForEach-Object { [string]$_ }
+    $global:LASTEXITCODE = $exit
+
+    # Una riga sola torna come stringa e non come array di uno, che e' cio' che facevano le invocazioni
+    # dirette: i chiamanti la passano a `[string]::IsNullOrWhiteSpace` e a `-join`.
+    return $lines
+}
+
 function Get-ShortHash {
     param([string] $Text)
     if ([string]::IsNullOrEmpty($Text)) { return '(pulito)' }
@@ -160,43 +257,153 @@ function Get-ShortHash {
 # Solo i processi del motore: e' l'unica domanda che decide se continuare ad
 # attendere, e costa una frazione dello snapshot intero.
 #
-# ⚠️ **`-Filter` WQL e non `Where-Object`**: la versione non filtrata materializza
-# OGNI processo della macchina con la sua `CommandLine` — misurato 901 ms contro
-# 561 ms. Su un'attesa di 40 minuti sono 80 giri, e ognuno cade sulla stessa
-# macchina dove sta girando l'automation di qualcun altro: il costo del mio
-# controllo diventa rumore nella misura del vicino.
+# 🔴 **La fonte del CONTEGGIO e' `Get-Process`, non WMI** (#2130). Una voce di
+# processo puo' sopravvivere alla morte del processo: WMI la elenca ancora — con
+# `WorkingSetSize` e tutto — mentre `Get-Process -Id` non la trova e `taskkill`
+# non ha nulla da terminare. Misurato il 2026-09-02: una voce cosi', ferma da
+# dodici ore col log troncato a meta' riga, ha tenuto ferma OGNI run della
+# macchina per otto ore. L'unico discriminante e' `HasExited`, che non e' una
+# proprieta' CIM — vive su `System.Diagnostics.Process`.
 #
-# 🔴 Un fallimento della query NON e' «nessun processo»: sarebbe un'invariante che
-# fallisce APERTA, indistinguibile dal caso sano.
-function Get-EngineState {
+# ⚠️ **E il verso conta.** Partire da WMI e chiedere poi a `Get-Process` chi e'
+# vivo classificherebbe come RESIDUALE un motore appena nato, visibile a WMI e non
+# ancora nella tabella dei processi: un fail-OPEN, cioe' due run che si uccidono.
+# Con `Get-Process` per primo, cio' che non e' ancora nella tabella non viene
+# contato affatto, e quella finestra resta coperta dall'acquire atomico piu' sotto.
+#
+# ⚠️ **WMI resta, ma non decide piu' niente**: serve la `CommandLine`, che dice DI
+# CHI e' il processo, e la usa solo la diagnostica. Si paga quindi solo quando c'e'
+# almeno un processo da raccontare — misurato su questa macchina, dieci giri a
+# motore libero: `Get-Process` 8 ms, la CIM filtrata 117 ms. Il caso comune di ogni
+# giro d'attesa e' «nessun processo», e ora non costa piu' la query grossa.
+#
+# 🔴 Un fallimento dell'enumerazione NON e' «nessun processo»: sarebbe
+# un'invariante che fallisce APERTA, indistinguibile dal caso sano.
+function Get-EngineProcessEntries {
+    <#
+    .SYNOPSIS
+        Enumera i processi del motore con il loro stato di vita. IMPURA: e' il solo
+        punto di questo script che interroga il sistema sui processi.
+    #>
     try {
-        $procs = @(Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" -ErrorAction Stop |
-            ForEach-Object { $_.CommandLine })
-        # ⚠️ **Gli stessi nomi di `Get-Snapshot`**, e non e' cosmesi: `Test-EngineFree`
-        # riceve indifferentemente l'uno o l'altro, e con due vocabolari — `Error`
-        # qui, `EngineError` la' — leggeva un campo inesistente. Sotto
-        # `Set-StrictMode` LANCIA; senza, la proprieta' assente vale `$null`, la
-        # guardia sull'errore risulta sempre passata e la funzione decide sul solo
-        # conteggio: sbagliata **in silenzio**, che e' il modo peggiore.
-        return [pscustomobject]@{ Engines = $procs; EngineError = $null }
+        # `-ErrorAction SilentlyContinue` e non un `try` piu' stretto: su un nome che
+        # non corrisponde a nessun processo il cmdlet torna un array vuoto, e
+        # l'assenza NON e' un errore. Il `try` copre il resto — WMI/WinAPI che non
+        # rispondono — che invece lo e'.
+        $procs = @(Get-Process -Name 'UnrealEditor*' -ErrorAction SilentlyContinue)
     } catch {
-        return [pscustomobject]@{ Engines = @(); EngineError = $_.Exception.Message }
+        return [pscustomobject]@{ Entries = @(); EnumError = $_.Exception.Message; DetailError = $null }
     }
+
+    if ($procs.Count -eq 0) {
+        return [pscustomobject]@{ Entries = @(); EnumError = $null; DetailError = $null }
+    }
+
+    # ⚠️ **La CIM e' diagnostica, non verdetto.** Se non risponde si sa ancora
+    # quanti processi ci sono e se sono vivi: si perde solo di CHI sono. Un errore
+    # qui degrada la riga di spiegazione, non ferma la run — trattarlo come
+    # l'errore dell'enumerazione reintrodurrebbe #2130 con un nome nuovo.
+    $cmdByPid = @{}
+    $detailError = $null
+    try {
+        Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" -ErrorAction Stop |
+            ForEach-Object { $cmdByPid[[int]$_.ProcessId] = $_.CommandLine }
+    } catch {
+        $detailError = $_.Exception.Message
+    }
+
+    $entries = @($procs | ForEach-Object {
+        $probe = 'ok'
+        $live = $true
+        try {
+            $live = -not $_.HasExited
+        } catch {
+            # 🔴 **Eccezione ⇒ VIVO.** Una sessione non elevata puo' non poter leggere
+            # lo stato di un motore avviato da un altro utente, e concludere «morto»
+            # da un accesso negato e' la stessa invariante che fallisce aperta.
+            $live = $true
+            $probe = "threw:$($_.Exception.GetType().Name)"
+        }
+        [pscustomobject]@{
+            ProcessId   = $_.Id
+            CommandLine = $(if ($cmdByPid.ContainsKey($_.Id)) { $cmdByPid[$_.Id] } else { $null })
+            IsLive      = $live
+            LiveProbe   = $probe
+        }
+    })
+
+    return [pscustomobject]@{ Entries = $entries; EnumError = $null; DetailError = $detailError }
+}
+
+# Il verdetto, da una collezione GIA' letta. PURA, ed e' cio' che rende il
+# predicato verificabile: uno zombie WMI non si fabbrica, ma una collezione che ne
+# contiene uno si', e `-SelfTest` fa esattamente quello.
+function Resolve-EngineState {
+    param(
+        $Entries,
+        [string] $EnumError,
+        [string] $DetailError
+    )
+
+    $all = @($Entries)
+    $live = @($all | Where-Object { $_.IsLive })
+
+    # I quattro casi hanno un nome perche' la riga di diagnostica deve dire QUALE ha
+    # visto: senza, chi legge rifa' a mano le cinque misure che #2130 ha gia' fatto.
+    if ($EnumError)                     { $case = 'query-fallita' }
+    elseif ($all.Count -eq 0)           { $case = 'libero' }
+    elseif ($live.Count -eq 0)          { $case = 'zombie-solo' }
+    elseif ($live.Count -eq $all.Count) { $case = 'vivo' }
+    else                                { $case = 'misto' }
+
+    # ⚠️ **Gli stessi nomi di `Get-Snapshot`**, e non e' cosmesi: `Test-EngineFree`
+    # riceve indifferentemente l'uno o l'altro, e con due vocabolari — `Error`
+    # qui, `EngineError` la' — leggeva un campo inesistente. Sotto
+    # `Set-StrictMode` LANCIA; senza, la proprieta' assente vale `$null`, la
+    # guardia sull'errore risulta sempre passata e la funzione decide sul solo
+    # conteggio: sbagliata **in silenzio**, che e' il modo peggiore.
+    return [pscustomobject]@{
+        Engines     = $all
+        LiveCount   = $live.Count
+        EngineError = $EnumError
+        DetailError = $DetailError
+        Case        = $case
+    }
+}
+
+function Get-EngineState {
+    $raw = Get-EngineProcessEntries
+    return Resolve-EngineState -Entries $raw.Entries -EnumError $raw.EnumError -DetailError $raw.DetailError
+}
+
+# Una riga per processo, e la sede e' una sola: la stampano il preambolo
+# d'attesa, la diagnostica di NON AVVIATA e il controllo di fine run.
+function Format-EngineEntry {
+    param($Entry)
+    if ($Entry.LiveProbe -ne 'ok') { $stato = 'stato non leggibile' }
+    elseif ($Entry.IsLive)         { $stato = 'vivo' }
+    else                           { $stato = 'residuale' }
+    $cmd = $(if ($null -ne $Entry.CommandLine) { $Entry.CommandLine } else { '(riga di comando non disponibile)' })
+    return ("[{0,-19}] pid {1,-6} {2}" -f $stato, $Entry.ProcessId, $cmd)
 }
 
 # «Il motore e' libero» secondo uno stato gia' letto — mai `EngineCount -eq 0` da
 # solo, che e' vero anche quando la QUERY e' fallita. La regola sta in un posto
 # perche' era scritta in due, e i due punti gia' non concordavano su cosa fare
 # quando l'errore c'e'.
+#
+# 🔴 **`LiveCount` e non `Engines.Count`** (#2130): con una sola voce residuale
+# `Engines` non e' vuoto e il motore e' libero lo stesso. E' la riga che decide se
+# lo zombie ferma la macchina.
 function Test-EngineFree {
     param($State)
-    return (-not $State.EngineError) -and ($State.Engines.Count -eq 0)
+    return (-not $State.EngineError) -and ($State.LiveCount -eq 0)
 }
 
 function Get-Snapshot {
     Push-Location $RepoRoot
     try {
-        $head = (& git rev-parse HEAD 2>$null)
+        $head = Invoke-Git @('rev-parse', 'HEAD')
         # 🔴 Un `git` che fallisce non deve produrre un `$null` che esplode piu'
         # avanti con «You cannot call a method on a null-valued expression»: il
         # motivo va detto qui, dove si sa qual e'.
@@ -216,7 +423,7 @@ function Get-Snapshot {
         # trenta righe piu' sotto. E la causa non e' teorica — un'altra sessione
         # che tiene `.git/index.lock` a meta' di un `checkout` basta, e questo
         # blocco ora gira anche a ogni giro d'attesa.
-        $tracked = (& git diff HEAD 2>$null) -join "`n"
+        $tracked = (Invoke-Git @('diff', 'HEAD')) -join "`n"
         if ($LASTEXITCODE -ne 0) { throw "git diff HEAD fallito (exit $LASTEXITCODE): albero non leggibile" }
 
         # 🔴 Degli untracked serve il CONTENUTO, non l'elenco dei path, ed e' lo
@@ -226,7 +433,7 @@ function Get-Snapshot {
         # rimasto `b8e81adc` in entrambe — due misure, una verde e una rossa,
         # dichiarate VALIDE con lo stesso identificatore d'albero. L'invariante
         # era cieca proprio sul file che si sta scrivendo in quel momento.
-        $untrackedPaths = @(& git ls-files --others --exclude-standard 2>$null)
+        $untrackedPaths = @(Invoke-Git @('ls-files', '--others', '--exclude-standard'))
         if ($LASTEXITCODE -ne 0) { throw "git ls-files fallito (exit $LASTEXITCODE): untracked non leggibili" }
 
         $untracked = ''
@@ -263,7 +470,7 @@ function Get-Snapshot {
             }
         }
 
-        $paths = (& git status --porcelain 2>$null)
+        $paths = Invoke-Git @('status', '--porcelain')
         if ($LASTEXITCODE -ne 0) { throw "git status fallito (exit $LASTEXITCODE)" }
     }
     finally { Pop-Location }
@@ -293,6 +500,12 @@ function Get-Snapshot {
         Dlls        = ($dllStamps -join ' ')
         Engines     = $engines
         EngineCount = $engines.Count
+        # 🔴 `EngineCount` conta le VOCI, `LiveCount` i processi che esistono davvero
+        # (#2130). Chi decide se partire legge il secondo: il primo comprende anche
+        # le voci residuali, che non tengono nessun mutex.
+        LiveCount   = $state.LiveCount
+        EngineCase  = $state.Case
+        DetailError = $state.DetailError
         EngineError = $engineError
     }
 }
@@ -403,9 +616,9 @@ function Wait-EngineWindow {
         # ragione per cui il default di `-WaitMinutes` e' `0`. Va sullo stream
         # INFORMATION e non su quello di successo: `> referto.txt` cattura il
         # verdetto, e il battito non deve finirci dentro.
-        Write-Information ("[RT-MEASURE] ...attesa: {0:N0}s trascorsi, {1:N0}s residui, {2} processo/i" -f `
+        Write-Information ("[RT-MEASURE] ...attesa: {0:N0}s trascorsi, {1:N0}s residui, {2} processo/i vivo/i ({3})" -f `
             $Waited.Elapsed.TotalSeconds, [Math]::Max(0.0, $BudgetSeconds - $Waited.Elapsed.TotalSeconds), `
-            $engineState.Engines.Count) -InformationAction Continue
+            $engineState.LiveCount, $engineState.Case) -InformationAction Continue
     }
 
     return $engineState
@@ -428,6 +641,54 @@ function Say-Preamble {
     Say ("binario  {0}" -f $Snapshot.Dlls)
 }
 
+# ------------------------------------------------------------- SELF-TEST
+# 🔴 **Una voce residuale non si fabbrica**, e senza poterla fabbricare la voce di
+# DoD «con solo uno zombie la suite parte» si chiude su un aneddoto (#2130).
+# `Resolve-EngineState` e' pura per questo: qui le si passano le collezioni che il
+# sistema non sa produrre a comando, e si controlla il verdetto.
+#
+# ⚠️ **Prova il predicato, non l'occorrenza.** Che una voce residuale esista
+# davvero e che `HasExited` la marchi resta osservazione sul campo — questo blocco
+# dice che, DATA una voce cosi', la suite parte.
+#
+# ⚠️ Esce prima di toccare il motore, ma DOPO i controlli di testa su uproject e
+# percorso del motore: serve comunque un checkout valido.
+if ($SelfTest) {
+    $failures = 0
+    function Assert-Case {
+        param([string] $Name, $Entries, [string] $EnumError, [bool] $ExpectFree, [string] $ExpectCase)
+        $state = Resolve-EngineState -Entries $Entries -EnumError $EnumError -DetailError $null
+        $free = Test-EngineFree $state
+        $ok = ($free -eq $ExpectFree) -and ($state.Case -eq $ExpectCase)
+        if (-not $ok) { $script:failures++ }
+        Say ("{0}  {1,-14} caso={2,-14} libero={3,-5} (atteso caso={4}, libero={5})" -f `
+            $(if ($ok) { 'ok  ' } else { 'ROTTO' }), $Name, $state.Case, $free, $ExpectCase, $ExpectFree)
+    }
+
+    # ⚠️ `$ProcessId` e non `$Pid`: `$PID` e' una variabile automatica di PowerShell
+    # — il processo corrente — e un parametro con quel nome la ombreggia.
+    function New-Entry {
+        param([int] $ProcessId, [bool] $Live, [string] $Probe = 'ok')
+        return [pscustomobject]@{ ProcessId = $ProcessId; CommandLine = "UnrealEditor-Cmd.exe (finto $ProcessId)"; IsLive = $Live; LiveProbe = $Probe }
+    }
+
+    Say 'self-test del classificatore dello stato del motore (#2130)'
+    Assert-Case 'libero'        @()                                                  $null   $true  'libero'
+    Assert-Case 'vivo'          @((New-Entry 101 $true))                             $null   $false 'vivo'
+    Assert-Case 'zombie-solo'   @((New-Entry 102 $false))                            $null   $true  'zombie-solo'
+    Assert-Case 'misto'         @((New-Entry 103 $true), (New-Entry 104 $false))     $null   $false 'misto'
+    Assert-Case 'query-fallita' @()                                                  'WMI ko' $false 'query-fallita'
+    # R15: uno stato non leggibile vale VIVO — un accesso negato non e' una morte.
+    Assert-Case 'probe-threw'   @((New-Entry 105 $true 'threw:Win32Exception'))      $null   $false 'vivo'
+
+    if ($failures -gt 0) {
+        Say ("self-test ROSSO: {0} caso/i non conforme/i" -f $failures)
+        exit 1
+    }
+    Say 'self-test verde: sei casi su sei'
+    exit 0
+}
+
 $before = Get-Snapshot
 Say-Preamble $before
 
@@ -438,10 +699,10 @@ Say-Preamble $before
 # falliscono». Per una run che il motore occupato non ha nemmeno avviato.
 $script:WaitElapsed = $null
 
-if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
+if ($before.LiveCount -gt 0 -and $WaitMinutes -gt 0) {
     $waited = [System.Diagnostics.Stopwatch]::StartNew()
     Say ("in attesa: il motore e' occupato, ricontrollo ogni {0}s per al massimo {1} min" -f $PollSeconds, $WaitMinutes)
-    foreach ($e in $before.Engines) { Say "  $e" }
+    foreach ($e in $before.Engines) { Say ("  " + (Format-EngineEntry $e)) }
 
     # 🔴 **Il jitter non e' cosmetico**, e vive dentro `Wait-EngineWindow` perche' va
     # ritirato a ogni ingresso: due sessioni bloccate dalla stessa terza run partono con
@@ -500,6 +761,9 @@ if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
                 Dlls        = $null
                 Engines     = @()
                 EngineCount = 0
+                LiveCount   = 0
+                EngineCase  = 'query-fallita'
+                DetailError = $null
                 EngineError = $_.Exception.Message
             }
             break
@@ -558,8 +822,8 @@ if ($before.EngineError) {
 # Un motore gia' vivo PRIMA e' l'unico caso in cui vale la pena non partire: la
 # run morirebbe a meta' e il log andrebbe perso nella rotazione. Non contraddice
 # l'«esegui e poi dichiara» — non c'e' ancora niente da preservare.
-if ($before.EngineCount -gt 0) {
-    Say 'NON AVVIATA: un processo del motore e'' gia'' attivo.'
+if ($before.LiveCount -gt 0) {
+    Say ("NON AVVIATA: un processo del motore e' gia' attivo (caso: {0})." -f $before.EngineCase)
     # ⚠️ I secondi TRASCORSI, non il parametro: la prima stesura stampava «dopo 40
     # minuti di attesa» per un'attesa di 437s, e quel numero e' l'unico che
     # permette di attribuire il blocco a chi lo teneva. `$null` quando non si e'
@@ -567,17 +831,26 @@ if ($before.EngineCount -gt 0) {
     # leggere una variabile mai impostata fa uscire lo script con un codice che
     # significa «test falliti».
     if ($null -ne $script:WaitElapsed) { Say ("  (dopo {0:N0}s di attesa)" -f $script:WaitElapsed) }
-    foreach ($e in $before.Engines) { Say "  $e" }
+    foreach ($e in $before.Engines) { Say ("  " + (Format-EngineEntry $e)) }
+    # La provenienza si perde solo se WMI non risponde, e allora va detto: senza
+    # questa riga la lista sembra incompleta per un difetto dello script.
+    if ($before.DetailError) {
+        Say "  (riga di comando non disponibile: la query WMI e' fallita — $($before.DetailError))"
+        Say '  Il verdetto qui sopra NON dipende da quella query: il conteggio e'' gia'' certo.'
+    }
     Say 'Due run di automation si uccidono a vicenda: il mutex e'' globale sull''eseguibile del'
     Say 'motore, quindi vale anche fra checkout diversi. Se e'' di un ALTRO checkout non'
     Say 'terminarlo — e'' il lavoro di qualcun altro.'
-    # ⚠️ Un processo che ha FINITO puo' restare appeso in shutdown tenendosi il
-    # mutex, e ne' i thread ne' il working set lo distinguono da una run viva. Il
-    # criterio che funziona e' l'mtime del suo log contro l'ora corrente: fermo da
-    # minuti piu' ultima riga `RequestExit` significa che non c'e' niente da
-    # perdere. Senza questa riga si aspetta un processo morto all'infinito.
-    Say 'Se e'' di QUESTO checkout e sospetti sia uno zombie: guarda l''mtime del suo log —'
-    Say 'fermo da minuti + ultima riga `Engine exit requested` ⇒ non c''e'' nulla da perdere.'
+    # ⚠️ **Qui c'era un consiglio, ed e' diventato codice** (#2130). Diceva di
+    # guardare a mano l'mtime del log per capire se il processo fosse uno zombie:
+    # euristica, manuale, e nel caso misurato nemmeno conclusiva — l'ultima riga era
+    # troncata a meta', non `Engine exit requested`. Ora la distinzione la fa
+    # `HasExited` sopra, e una voce residuale non ferma piu' nessuno. Resta da dire
+    # cosa fare quando il processo e' VIVO davvero, che e' il solo caso che arriva
+    # fin qui.
+    Say 'E'' un processo VIVO, non una voce residuale: quelle non fermano piu'' la suite.'
+    Say 'Aspetta che finisca — oppure, se e'' di QUESTO checkout e sai di poterlo perdere,'
+    Say 'chiudilo tu: da un altro checkout non toccarlo, e'' il lavoro di qualcun altro.'
     if ($WaitMinutes -le 0) {
         Say 'Per attendere che si liberi e partire da sola: -WaitMinutes 40'
     }
@@ -659,9 +932,13 @@ if ($before.Dlls -ne $after.Dlls) {
 }
 if ($after.EngineError) {
     $problems.Add("motore    query fallita a fine run ($($after.EngineError)): impossibile escludere una collisione")
-} elseif ($after.EngineCount -gt 0) {
+} elseif ($after.LiveCount -gt 0) {
+    # 🔴 `LiveCount` e non `EngineCount` (#2130), e qui il difetto era peggiore che
+    # altrove: il motore di QUESTA run, appena terminato, puo' lasciare la propria
+    # voce residuale: contarla significava dichiarare NON VALIDA una misura sana,
+    # accusando la run di una collisione con se stessa.
     $problems.Add("motore    un processo del motore e' comparso durante la run:")
-    foreach ($e in $after.Engines) { $problems.Add("          $e") }
+    foreach ($e in $after.Engines) { if ($e.IsLive) { $problems.Add("          " + (Format-EngineEntry $e)) } }
 }
 
 # ---------------------------------------------------------------- IL REFERTO
@@ -728,6 +1005,64 @@ if ($dangling -gt 0) {
 }
 Say ("  durata    {0:mm\:ss}" -f $sw.Elapsed)
 Say "  log: $LogPath"
+
+# ------------------------------------------------------------- PROMEMORIA
+# `issue-refs` confronta i percorsi citati dalle issue APERTE con l'albero. Sta
+# qui perche' il difetto che chiude non nasce da un commit: nasce dal tempo che
+# passa fra la rimozione di un file e la issue che nessuno riapre. Il 2026-08-31
+# ne sono state corrette 63, trovate a mano dieci giorni dopo la rimozione.
+#
+# 🔴 **Non concorre al verdetto, e non e' una svista.** §9 di AGENTS.md: una
+# misura vale solo se osserva lo STESSO HEAD, albero, binario e motore
+# dall'inizio alla fine. Questo controllo legge GitHub, che cambia mentre la
+# suite gira — in una run da 40 minuti puo' passare all'avvio e fallire alla
+# fine. Farlo entrare in `$problems` renderebbe NON VALIDA una misura sana per
+# una issue che qualcun altro ha modificato nel frattempo, ed e' esattamente il
+# difetto che questo script esiste per impedire. Percio': stampa e basta.
+# L'esito resta quello dei test.
+if (-not $NoIssueRefs) {
+    $gate = Join-Path $RepoRoot 'tools/radar/issue-refs.ts'
+    $haveNode = [bool] (Get-Command node -ErrorAction SilentlyContinue)
+    $haveGh   = [bool] (Get-Command gh   -ErrorAction SilentlyContinue)
+
+    if (-not (Test-Path $gate)) {
+        Say '  issue-refs NOT RUN: tools/radar/issue-refs.ts non presente'
+    } elseif (-not $haveNode -or -not $haveGh) {
+        Say ("  issue-refs NOT RUN: {0} non disponibile" -f $(if (-not $haveNode) { 'node' } else { 'gh' }))
+    } else {
+        # `2>&1` perche' il gate scrive la copertura su stderr, come gli altri
+        # radar. `--check` per avere l'exit code, che qui si LEGGE e non si
+        # propaga.
+        #
+        # ⚠️ Il `try` non e' difensivita' generica, copre un caso preciso: con
+        # `$PSNativeCommandUseErrorActionPreference = $true` — oggi `False` su
+        # questa macchina, ma e' una preferenza che si puo' attivare, e in PS 7.4+
+        # esiste apposta — un comando nativo che esce non-zero diventa un errore
+        # TERMINANTE sotto `ErrorActionPreference = 'Stop'`. Senza `try`, un
+        # promemoria informativo farebbe abortire una suite sana **dopo** che i
+        # test sono passati, e il referto non uscirebbe affatto.
+        $gateExit = 0
+        $out = $null
+        try {
+            $out = & node $gate --check 2>&1
+            $gateExit = $LASTEXITCODE
+        } catch {
+            $gateExit = -1
+        }
+
+        $sintesi = ($out | Where-Object { $_ -match 'riferimenti a percorsi RIMOSSI|nessuna issue cita|NOT RUN' } | Select-Object -First 1)
+        if ($gateExit -eq 0) {
+            Say ("  issue-refs {0}" -f $(if ($sintesi) { $sintesi } else { 'verde' }))
+        } elseif ($gateExit -lt 0) {
+            Say '  issue-refs NOT RUN: il gate non ha potuto girare (nessun effetto su questo verdetto)'
+        } else {
+            Say ("  issue-refs 🔴 {0}" -f $(if ($sintesi) { $sintesi } else { "exit $gateExit" }))
+            Say '             non tocca l''esito di questa suite: misura GitHub, non l''albero.'
+            Say '             per il dettaglio: node tools/radar/issue-refs.ts --check'
+        }
+    }
+}
+
 exit $(if ($failed -gt 0) { 1 } else { 0 })
 
 }

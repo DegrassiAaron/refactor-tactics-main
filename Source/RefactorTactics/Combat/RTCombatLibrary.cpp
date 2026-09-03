@@ -74,6 +74,37 @@ bool URTCombatLibrary::CanPlayerControlUnit(int32 UnitTeamId, int32 PlayerTeamId
 	return UnitTeamId == PlayerTeamId && !bUnitIsBotControlled;
 }
 
+int32 URTCombatLibrary::ControlGroupForUnit(int32 IndexInTeam, int32 UnitsPerPlayer)
+{
+	// Fail-closed, e la scelta e' la stessa di `AssignSeats` un livello sopra: un formato che non dichiara
+	// quante unita' comanda una persona non produce un gruppo valido per inerzia. `INDEX_NONE` non coincide
+	// con nessun gruppo di giocatore, quindi il controllo si perde invece di essere regalato.
+	if (UnitsPerPlayer <= 0 || IndexInTeam < 0)
+	{
+		return INDEX_NONE;
+	}
+	return IndexInTeam / UnitsPerPlayer;
+}
+
+bool URTCombatLibrary::CanPlayerControlUnitInGroup(int32 UnitTeamId, int32 UnitControlGroup,
+	int32 PlayerTeamId, int32 PlayerControlGroup, bool bUnitIsBotControlled)
+{
+	// La regola di SQUADRA resta quella di sempre e non si riscrive: si aggiunge una condizione.
+	if (!CanPlayerControlUnit(UnitTeamId, PlayerTeamId, bUnitIsBotControlled))
+	{
+		return false;
+	}
+
+	// ⛔ `INDEX_NONE` da una delle due parti non comanda niente: e' il gruppo che `ControlGroupForUnit`
+	// restituisce quando il formato non dichiara `UnitsPerPlayer`, e due `INDEX_NONE` che si riconoscessero
+	// fra loro rimetterebbero in piedi proprio il caso che il fail-closed toglie.
+	if (UnitControlGroup == INDEX_NONE || PlayerControlGroup == INDEX_NONE)
+	{
+		return false;
+	}
+	return UnitControlGroup == PlayerControlGroup;
+}
+
 ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* Map, const FRTCellId& From,
 	const FRTCellId& To, int32 RangeCells)
 {

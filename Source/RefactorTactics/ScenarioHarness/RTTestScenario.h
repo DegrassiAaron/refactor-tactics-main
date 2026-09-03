@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
+#include "Map/RTHexMapAsset.h" // FRTHexInteriorWall: la geometria intra-cella e' dato di gioco (`D-269`)
 #include "Turn/RTTurnLog.h" // ERTLogCategory: un'assertion sul log parla il vocabolario del log
 #include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: la condizione dichiarata di [D-109] sull'intent
 #include "RTTestScenario.generated.h"
@@ -152,7 +153,6 @@ enum class ERTAssertionKind : uint8
 	 */
 	EffectiveTargetEquals
 };
-
 /**
  * Modifica di una cella dell'arena generata: ostacoli, muri, terreno costoso.
  *
@@ -190,9 +190,52 @@ struct FRTScenarioCell
 	 */
 	UPROPERTY()
 	int32 OccupancySurcharge = 0;
+
+};
+
+/**
+ * Una PORTA dichiarata dallo scenario, con la cella che la contiene.
+ *
+ * ⚠️ Serve un tipo perche' `FRTHexDoor` porta il bordo ma non la cella: nell'asset vive **dentro**
+ * `FRTHexCellData::Doors`, e qui le porte si dichiarano in una sezione propria — piu' leggibile di una
+ * porta annidata in ogni cella, e simmetrica a `interiorWalls`.
+ */
+USTRUCT()
+struct FRTScenarioDoor
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FRTCellId Cell;
+
+	UPROPERTY()
+	FRTHexDoor Door;
 };
 
 /** Un'unita' schierata dallo scenario. */
+USTRUCT()
+struct FRTScenarioStatus
+{
+	GENERATED_BODY()
+
+	/**
+	 * Il nome del tag, come lo dichiara `Core/RTGameplayTags.cpp`: `"Status.Guarded"`, `"Status.Wet"`, …
+	 *
+	 * ⚠️ Si risolve a caricamento e un nome sconosciuto RIFIUTA lo scenario. `RequestGameplayTag` con
+	 * `ErrorIfNotFound=false` tornerebbe un tag vuoto senza lamentarsi, e un tag vuoto applicato non fa
+	 * niente: lo scenario girerebbe verde verificando l'assenza di un effetto mai richiesto.
+	 */
+	UPROPERTY()
+	FName Tag;
+
+	/** Turni di durata. Deve essere > 0: uno status che dura zero turni non e' uno status. */
+	UPROPERTY()
+	int32 Turns = 1;
+
+	FRTScenarioStatus() = default;
+	FRTScenarioStatus(FName InTag, int32 InTurns) : Tag(InTag), Turns(InTurns) {}
+};
+
 USTRUCT()
 struct FRTScenarioUnit
 {
@@ -323,6 +366,27 @@ struct FRTScenarioUnit
 	 */
 	UPROPERTY()
 	bool bLoadoutDeclared = false;
+
+	/**
+	 * GLI STATUS ATTIVI ALL'AVVIO, con la loro durata — `#1629`.
+	 *
+	 * 🔑 **Uno status non e' un nome: e' un nome E una durata.** `ARTUnit::ApplyStatus` prende
+	 * `(FGameplayTag, int32 Turns)`, e un formato che scrivesse il solo tag dovrebbe inventare un default
+	 * — cioe' prendere una decisione di gioco dentro un serializzatore. La coppia sta insieme perche' e'
+	 * una cosa sola.
+	 *
+	 * ⚠️ **Il vocabolario e' quello del runtime**, `Core/RTGameplayTags.cpp`, e non ce n'e' un secondo:
+	 * il JSON porta il nome del tag (`"Status.Guarded"`) e il loader lo risolve. Un tag sconosciuto e'
+	 * un **errore di caricamento**, non uno status vuoto applicato in silenzio: quello darebbe uno
+	 * scenario verde che verifica l'assenza di un effetto che nessuno ha mai chiesto.
+	 *
+	 * ⛔ **Niente flag «dichiarato»**, a differenza di `Loadout`: per il loadout serve distinguere
+	 * «non dichiarato» da «dichiarato vuoto», perche' un'unita' senza loadout ne riceve uno di default.
+	 * Per gli status no — nessuno status E' lo stato naturale di un'unita', e un array assente e uno vuoto
+	 * significano la stessa cosa. Un flag che non distingue niente e' peso.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioStatus> Statuses;
 };
 
 /**
@@ -678,6 +742,38 @@ struct FRTTestScenario
 	/** Celle da modificare nell'arena generata (ostacoli, muri, terreno costoso). Vuoto = arena liscia. */
 	UPROPERTY()
 	TArray<FRTScenarioCell> Cells;
+
+	/**
+	 * MURI DENTRO una cella, non sui suoi bordi (`D-269`/`D-270`, `#1830`). Vuoto = nessuna geometria interna.
+	 *
+	 * 🔑 **Esiste perche' altrimenti la geometria intra-cella sarebbe verificabile solo da un test C++ — cioe'
+	 * mai in una partita vera.** E' la stessa ragione, scritta per lo stesso motivo, di
+	 * `FRTScenarioCell::OccupancySurcharge`.
+	 *
+	 * ⚠️ Riusa `FRTHexInteriorWall`, il tipo dell'asset, invece di una copia da scenario: una seconda
+	 * rappresentazione dello stesso muro sarebbe due verita' da tenere allineate, e la geometria e' proprio
+	 * il posto dove questo repository ha gia' deciso che non se ne fanno due (`D-270`).
+	 */
+	UPROPERTY()
+	TArray<FRTHexInteriorWall> InteriorWalls;
+
+	/**
+	 * PORTE con la loro identita' stabile, e i BINDING che legano una sorgente ai propri bersagli
+	 * (`CP 23.3`/`23.4`, `#833`). Vuoti = nessuna struttura interattiva.
+	 *
+	 * 🔑 **Esistono per la stessa ragione di `InteriorWalls`**: senza, il grafo di interazione sarebbe
+	 * verificabile solo da un test C++ — cioe' mai in una partita, mai in un replay. E
+	 * [`scenario-map.md`](../../../docs/technical/tooling/scenario-map.md) dichiara **gia'** i tre scenari
+	 * attesi con i loro nomi, che senza questi due campi non erano scrivibili.
+	 *
+	 * ⚠️ Riusano i tipi dell'asset — `FRTHexDoor`, `FRTInteractionBinding` — invece di copie da scenario: una
+	 * seconda rappresentazione della stessa porta sarebbe due verita' da tenere allineate.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioDoor> Doors;
+
+	UPROPERTY()
+	TArray<FRTInteractionBinding> InteractionBindings;
 
 	UPROPERTY()
 	TArray<FRTScenarioUnit> Units;

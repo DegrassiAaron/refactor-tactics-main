@@ -47,7 +47,7 @@ Ogni riga è un comando eseguito su `origin/main` @ `7c48ce63`, non una lettura.
 | Un'unità KO blocca ancora la cella? | `RTHexSimLibrary.cpp:66` · `RTTurnManager.cpp:4975` | ✅ **No, e il codice lo dichiara**: *«i morti (es. nel Blast) non si muovono e non bloccano»* (§4.5) |
 | L'occupancy si muta durante la resolution? | `grep -c 'Occupancy.Remove' -- Source/` | **0** — l'occupancy è **congelata** per snapshot e **ricostruita a ogni fase** (`RTUnit.h:41`) |
 | Esiste un test che pinni KO → cella libera? | `grep -E '"RefactorTactics\.[A-Za-z.]*(Occupan\|Block\|KO\|Defeat)'` | ⛔ **Nessuno.** Il più vicino è `Combat.NewlyDefeatedDetectsFreshDeaths`, che misura altro (§5) |
-| `#1733` è pertinente a `DQA-026`? | `gh issue view 1733` | ⛔ **No.** È `OPEN` e riguarda **due unità VIVE sulla stessa cella** — occupancy, non resolution ordering. È invece l'owner reale di `DQA-040`/`DQA-041` |
+| `#1733` è pertinente a `DQA-026`? | `gh issue view 1733` | ⛔ **No.** Alla misura era `OPEN` e riguarda **due unità VIVE sulla stessa cella** — occupancy, non resolution ordering. È invece l'owner reale di `DQA-040`/`DQA-041`. 🔁 **Rimisurata il 2026-08-31**: `CLOSED COMPLETED` alle `14:47Z`, e la sovrapposizione **non era mai avvenuta** — le tre righe citate come prova erano della **stessa** unità, e a produrre la diagnosi è stata l'assenza del soggetto nel TurnLog |
 | `#1897` è ancora aperta? | `gh issue view 1897` | 🔁 **`CLOSED COMPLETED`** alle `09:41Z`, cioè **prima** che `D-291` la citasse come aperta — e alla seconda misura si sa da chi: [`D-293`](../../decisions/RT_PDR_00_Decision_Log.md) (§4.3) |
 
 ---
@@ -232,3 +232,12 @@ l'intestazione del tab non è la riga 1 del foglio.
 
 ⛔ **Nessuna riga `RESOLVED — AUTHOR DECISION` va riscritta**: la colonna `M` (`Answer / Resolution`) è
 dell'autore, e questo referto non la tocca.
+
+---
+
+> 🔁 **Nota aggiunta il 2026-08-31 (secondo passaggio) — `DQA-040` e `DQA-041` hanno entrambe un owner, e nessuna delle due ne aspetta uno nuovo.**
+>
+> - **`DQA-040`** (la carica termina sulla cella adiacente, mai su quella del bersaglio) è consumata da [`D-296`](../../decisions/RT_PDR_00_Decision_Log.md), già implementata e pinnata da un test.
+> - **`DQA-041`** (attraversare celle occupate intermedie, mai terminarci sopra) è **già canonica, e misurata nel codice**: `URTHexSimLibrary::StepHexMovement` calcola `bCrossesStationary = PassesThrough(i) && !bFinalStep`, cioè chi attraversa passa **solo** se quella cella non è la sua ultima — e il commento in loco lo dice per esteso: *«si transita dentro qualcuno, non ci si ferma … due unità nella stessa cella a fine turno non sono rappresentabili»*. Il *«solo se lo stile lo permette»* è il flag `bPassThrough`, ed è la riga *«attraversa le celle intermedie: **policy**»* di [`spec-tassonomia-movimento.md`](../../gameplay/spec-tassonomia-movimento.md). Una destinazione occupata **ferma** l'unità sull'ultima cella libera raggiunta: è il punto fisso monotono, non un'eccezione scritta a parte.
+>
+> ⛔ **Nessuna nuova `D-nnn` per queste due**: sarebbe un numero speso su una regola già posseduta. ⚠️ E `#1733` **non è la prova** che `DQA-041` sia rotta — quell'issue è stata chiusa proprio perché la sovrapposizione non era mai avvenuta.

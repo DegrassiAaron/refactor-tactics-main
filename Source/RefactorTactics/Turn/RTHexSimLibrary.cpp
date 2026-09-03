@@ -59,14 +59,37 @@ FRTHexSnapshot URTHexSimLibrary::MakeSnapshot(const URTHexMapAsset* Map, const T
 		return A.UnitId != B.UnitId ? A.UnitId < B.UnitId : URTHexLibrary::StableLess(A.Cell, B.Cell);
 	});
 
-	// Occupazione delle sole unita' vive; a parita' di cella vince l'UnitId minore (le sovrapposizioni sono un
-	// errore strutturale, segnalato da ValidateSnapshot: qui serve solo un esito deterministico).
+	// Occupazione delle sole unita' vive; a parita' di cella vince l'UnitId minore.
+	//
+	// 🔴 **E la sovrapposizione si REGISTRA, invece di sparire** (#1970). Il commento qui diceva che era «un
+	// errore strutturale, segnalato da `ValidateSnapshot`» — e in partita `ValidateSnapshot` non lo chiamava
+	// nessuno: cinque test e un report di debug su richiesta esplicita. L'invariante era dichiarata e non la
+	// guardava nessuno, quindi la condizione poteva accadere senza che niente lo dicesse.
+	//
+	// ⚠️ **Costo zero: il ramo che scarta e' gia' il rilevatore.** Non c'e' una seconda passata e non si
+	// chiama `ValidateSnapshot` — che rivaliderebbe TUTTO lo snapshot su un percorso che
+	// `ARTPlayerController` attraversa a ogni interazione di pianificazione.
+	//
+	// ⛔ Qui non si LOGGA, e non e' timidezza: questa funzione e' pura e non sa se sta servendo una
+	// risoluzione autoritativa o un'anteprima del cursore. Un log qui dentro sparerebbe centinaia di righe
+	// identiche al secondo. Il fatto entra nel dato; a dirlo e' chi ha l'autorita' per sapere che conta.
 	for (const FRTHexSimUnit& Unit : Snapshot.Units)
 	{
-		if (Unit.bAlive && !Snapshot.Occupancy.Contains(Unit.Cell))
+		if (!Unit.bAlive)
 		{
-			Snapshot.Occupancy.Add(Unit.Cell, Unit.UnitId);
+			continue; // un cadavere non occupa, e non e' una sovrapposizione: `ApplyCombatState` lo dichiara
 		}
+
+		if (const int32* Occupante = Snapshot.Occupancy.Find(Unit.Cell))
+		{
+			FRTHexOverlap& Overlap = Snapshot.Overlaps.AddDefaulted_GetRef();
+			Overlap.Cell = Unit.Cell;
+			Overlap.DiscardedUnitId = Unit.UnitId;
+			Overlap.KeptUnitId = *Occupante;
+			continue;
+		}
+
+		Snapshot.Occupancy.Add(Unit.Cell, Unit.UnitId);
 	}
 	return Snapshot;
 }
@@ -157,16 +180,22 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 	const int32 Budget = FMath::Max(0, Unit->MoveBudget);
 
 	// Dijkstra su costi interi: estrazione del minimo con tie-break sull'ID (nessuna dipendenza dall'ordine di TMap).
-	TMap<FRTCellId, int32> Dist;
+	// 🔴 **Lo stato e' (cella, lato d'ingresso)**, come nell'A* — #2100. La portata DEVE usare la
+	// stessa regola del percorso: se divergessero, l'overlay illuminerebbe celle che il pathfinding non sa
+	// raggiungere, e il giocatore vedrebbe una destinazione su cui non puo' andare.
+	// Con `RT_NoEntrySide` su ogni cella priva di geometria interna la chiave resta 1:1 con la cella, e
+	// l'ordine di visita e il tie-break di parita' non cambiano di un passo.
+	TMap<FRTPathNode, int32> Dist;
 	// Predecessore di ogni cella: serve al FACING, che deriva dall'ultimo passo (CP 13.5). La partenza e'
 	// predecessore di se stessa — chi non si muove non ha un «da dove», e il suo orientamento non cambia.
-	TMap<FRTCellId, FRTCellId> From;
-	TArray<FRTCellId> Frontier;
-	TSet<FRTCellId> Closed;
+	TMap<FRTPathNode, FRTPathNode> From;
+	TArray<FRTPathNode> Frontier;
+	TSet<FRTPathNode> Closed;
 
-	Dist.Add(Unit->Cell, 0);
-	From.Add(Unit->Cell, Unit->Cell);
-	Frontier.Add(Unit->Cell);
+	const FRTPathNode StartNode{ Unit->Cell, RT_NoEntrySide };
+	Dist.Add(StartNode, 0);
+	From.Add(StartNode, StartNode);
+	Frontier.Add(StartNode);
 
 	while (Frontier.Num() > 0)
 	{
@@ -175,13 +204,13 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 		{
 			const int32 D = Dist[Frontier[I]];
 			const int32 BestD = Dist[Frontier[BestIdx]];
-			if (D < BestD || (D == BestD && URTHexLibrary::StableLess(Frontier[I], Frontier[BestIdx])))
+			if (D < BestD || (D == BestD && NodeStableLess(Frontier[I], Frontier[BestIdx])))
 			{
 				BestIdx = I;
 			}
 		}
 
-		const FRTCellId Current = Frontier[BestIdx];
+		const FRTPathNode Current = Frontier[BestIdx];
 		Frontier.RemoveAt(BestIdx);
 		if (Closed.Contains(Current))
 		{
@@ -189,23 +218,37 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 		}
 		Closed.Add(Current);
 
-		for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Snapshot.Map, Current))
+		for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Snapshot.Map, Current.Cell))
 		{
 			if (Blocked.Contains(Step.Key))
 			{
 				continue; // occupata da un'altra unita'
 			}
+
+			// La traversata intra-cella, con la stessa regola dell'A* (#2100).
+			if (Current.Entry != RT_NoEntrySide)
+			{
+				ERTHexDirection ExitDir = ERTHexDirection::E;
+				if (URTHexLibrary::DirectionBetween(Current.Cell, Step.Key, ExitDir)
+					&& !URTHexPathLibrary::CanTransitCell(Snapshot.Map, Current.Cell,
+						static_cast<ERTHexDirection>(Current.Entry), ExitDir))
+				{
+					continue; // geometria interna: le due sponde non si parlano
+				}
+			}
+
 			const int32 Tentative = Dist[Current] + Step.Value + FMath::Max(0, Unit->MoveCostModifier);
 			if (Tentative > Budget)
 			{
 				continue; // fuori dal budget di movimento
 			}
-			const int32* Existing = Dist.Find(Step.Key);
+			const FRTPathNode Next{ Step.Key, EntrySideOf(Snapshot.Map, Step.Key, Current.Cell) };
+			const int32* Existing = Dist.Find(Next);
 			if (!Existing || Tentative < *Existing)
 			{
-				Dist.Add(Step.Key, Tentative);
-				From.Add(Step.Key, Current);
-				Frontier.Add(Step.Key);
+				Dist.Add(Next, Tentative);
+				From.Add(Next, Current);
+				Frontier.Add(Next);
 			}
 			else if (Tentative == *Existing)
 			{
@@ -213,20 +256,44 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 				// che se ne deriva dipende da quale si sceglie. Il tie-break e' esplicito e sull'ID, come quello
 				// dell'estrazione: senza, il predecessore lo deciderebbe l'ordine di visita — cioe' un dettaglio
 				// che nessuno ha dichiarato, e che il resolver non e' tenuto a riprodurre.
-				const FRTCellId* Prev = From.Find(Step.Key);
-				if (Prev && URTHexLibrary::StableLess(Current, *Prev))
+				const FRTPathNode* Prev = From.Find(Next);
+				if (Prev && NodeStableLess(Current, *Prev))
 				{
-					From.Add(Step.Key, Current);
+					From.Add(Next, Current);
 				}
 			}
 		}
 	}
 
-	Out.Reserve(Dist.Num());
-	for (const TPair<FRTCellId, int32>& Entry : Dist)
+	// ⚠️ **La ricerca distingue i nodi, l'uscita no**: il contratto di questa funzione e' una voce per
+	// CELLA. Due nodi della stessa cella — entrata da lati diversi — si collassano tenendo il costo
+	// minore, e a parita' il predecessore che `NodeStableLess` mette prima: lo stesso criterio del ramo
+	// di parita' qui sopra, applicato una seconda volta perche' qui la collisione e' fra nodi e non fra
+	// cammini. Su una cella senza geometria il nodo e' uno solo e il collasso e' l'identita'.
+	TMap<FRTCellId, TPair<int32, FRTCellId>> Best; // cella -> (costo, predecessore)
+	for (const TPair<FRTPathNode, int32>& Entry : Dist)
 	{
-		const FRTCellId* Prev = From.Find(Entry.Key);
-		Out.Add(FRTHexReachableCell(Entry.Key, Entry.Value, Prev ? *Prev : Entry.Key));
+		const FRTPathNode* Prev = From.Find(Entry.Key);
+		const FRTCellId PrevCell = Prev ? Prev->Cell : Entry.Key.Cell;
+
+		if (TPair<int32, FRTCellId>* Existing = Best.Find(Entry.Key.Cell))
+		{
+			if (Entry.Value < Existing->Key
+				|| (Entry.Value == Existing->Key && URTHexLibrary::StableLess(PrevCell, Existing->Value)))
+			{
+				*Existing = TPair<int32, FRTCellId>(Entry.Value, PrevCell);
+			}
+		}
+		else
+		{
+			Best.Add(Entry.Key.Cell, TPair<int32, FRTCellId>(Entry.Value, PrevCell));
+		}
+	}
+
+	Out.Reserve(Best.Num());
+	for (const TPair<FRTCellId, TPair<int32, FRTCellId>>& Entry : Best)
+	{
+		Out.Add(FRTHexReachableCell(Entry.Key, Entry.Value.Key, Entry.Value.Value));
 	}
 	Out.Sort([](const FRTHexReachableCell& A, const FRTHexReachableCell& B)
 	{
@@ -595,6 +662,22 @@ TArray<FRTCellId> URTHexSimLibrary::TruncatePathToTopology(const FRTHexSnapshot&
 		{
 			break; // la topologia e' cambiata da quando il piano e' stato scritto: si ferma QUI
 		}
+
+		// 🔴 **La traversata intra-cella** (#2100). Qui il predecessore e il successore sono ENTRAMBI
+		// noti — si sta validando un percorso intero, non esplorando — quindi non serve nessuno stato:
+		// si chiede direttamente se `Path[k - 1]` si attraversa da dove si e' arrivati a dove si va.
+		if (k >= 2)
+		{
+			ERTHexDirection EntryDir = ERTHexDirection::E;
+			ERTHexDirection ExitDir = ERTHexDirection::E;
+			if (URTHexLibrary::DirectionBetween(Path[k - 1], Path[k - 2], EntryDir)
+				&& URTHexLibrary::DirectionBetween(Path[k - 1], Path[k], ExitDir)
+				&& !URTHexPathLibrary::CanTransitCell(Snapshot.Map, Path[k - 1], EntryDir, ExitDir))
+			{
+				break; // geometria interna: il piano attraversava un muro, e si ferma PRIMA di entrarci
+			}
+		}
+
 		Walkable.Add(Path[k]);
 	}
 	return Walkable;
@@ -693,6 +776,50 @@ namespace
 								Reason = ERTMoveOutcome::BlockedByImpact;
 								break;
 							}
+						}
+					}
+
+					// Ciclo chiuso fra unita' in MOVIMENTO: uno scambio `A↔B` o una catena `A→B→C→A` in cui
+					// ognuna punta alla cella occupata dalla successiva e l'ultima punta alla prima (#1922, D-295).
+					//
+					// 🔑 Si segue la CATENA, non si confrontano le coppie. Un convoy a coda libera
+					// (`A→B→C→libera`) ha la stessa forma — ognuno punta a un altro in movimento, nessuno e' fermo —
+					// e differisce SOLO per l'ultima cella: la regola «se il mio target e' la posizione di un altro
+					// mover, blocca» supererebbe il test del ciclo e ucciderebbe il convoy, che deve avanzare.
+					//
+					// ⚠️ DOPO lo scontro frontale, mai prima: due mobilita' LINEARI che si scambiano hanno gia' il
+					// loro reason (`BlockedByImpact`, CP 4.8), che `ResolveHeadOnBlocksLinearSwap` asserisce per nome.
+					//
+					// `bPassThrough` non entra: governa il ramo dell'unita' FERMA qui sotto, e un'unita' che sta solo
+					// transitando chiude comunque il ciclo — non si passa attraverso qualcuno che nello stesso
+					// istante sta venendo verso di noi.
+					if (!bBlocked)
+					{
+						int32 Cursor = i;
+						for (int32 Hops = 0; Hops < N; ++Hops)
+						{
+							int32 Occupant = INDEX_NONE;
+							for (int32 j = 0; j < N; ++j)
+							{
+								if (j != Cursor && Pos[j] == Target[Cursor])
+								{
+									Occupant = j;
+									break;
+								}
+							}
+							// Cella libera, o occupata da chi non si muove: la catena e' APERTA. Il primo caso e' il
+							// convoy, il secondo lo gestisce il blocco da unita' ferma qui sotto, col suo reason.
+							if (Occupant == INDEX_NONE || !Moving[Occupant])
+							{
+								break;
+							}
+							if (Occupant == i)
+							{
+								bBlocked = true;
+								Reason = ERTMoveOutcome::BlockedByCycle;
+								break;
+							}
+							Cursor = Occupant;
 						}
 					}
 

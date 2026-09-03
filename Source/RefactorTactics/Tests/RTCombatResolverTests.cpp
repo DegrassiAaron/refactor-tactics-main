@@ -168,20 +168,26 @@ bool FRTGuardPoolPermutationTest::RunTest(const FString&)
 		SmallFirst, LargeFirst);
 	TestEqual(TEXT("e vale 40 - 15, senza avanzi persi"), SmallFirst, 25);
 
-	// 🔴 CIO' CHE IL POOL NON HA SISTEMATO, pinnato qui invece che lasciato dedurre.
+	// ✅ CIO' CHE IL POOL HA SISTEMATO, ed era il canary di #1918.
 	//
-	// `ApplyFirstHitDelta` esiste ancora e conserva il difetto: con un delta negativo piu' grande del colpo
-	// che lo riceve, l'avanzo si perde e il totale dipende dall'ordine. Non e' piu' un problema della
-	// Guardia, ma `Action.Deflect` (-20) passa ancora di li'. Non e' stato spostato perche' e' una REAZIONE
-	// — si attiva una volta, sul colpo che l'ha innescata — e farne un pool e' una decisione sul suo
-	// significato, non una correzione. Tracciato in `#1909`.
-	TArray<int32> Deflect;
-	Deflect.Init(0, 2);
-	Deflect[1] = -URTCombatLibrary::DeflectDamageReduction;   // -20
-	const int32 DeflectSmallFirst = SumOn(URTCombatResolver::ApplyFirstHitDelta(Small, Deflect), 1);
-	const int32 DeflectLargeFirst = SumOn(URTCombatResolver::ApplyFirstHitDelta(Large, Deflect), 1);
-	TestNotEqual(TEXT("Deflect e' ancora sensibile all'ordine: e' debito, non una proprieta'"),
+	// Fino a [D-309] qui c'era un `TestNotEqual` DELIBERATO — «Deflect e' ancora sensibile all'ordine: e'
+	// debito, non una proprieta'» — messo perche' diventasse rosso il giorno in cui qualcuno avesse risolto
+	// il problema. E' quel giorno. Il caso resta misurato, con l'esito nuovo: `Deflect` passa da
+	// `ApplyAbsorptionPool`, l'avanzo non si perde piu' nel clamp, e il totale non dipende dall'ordine.
+	TArray<int32> DeflectPool;
+	DeflectPool.Init(0, 2);
+	DeflectPool[1] = URTCombatLibrary::DeflectDamageReduction;   // 20 — POSITIVO: e' un budget, non un delta
+
+	const int32 DeflectSmallFirst = SumOn(URTCombatResolver::ApplyAbsorptionPool(Small, DeflectPool, Eligible), 1);
+	const int32 DeflectLargeFirst = SumOn(URTCombatResolver::ApplyAbsorptionPool(Large, DeflectPool, Eligible), 1);
+
+	// ANTI-VACUITA', come sopra per la Guardia: un pool che non assorbisse niente sarebbe invariante e
+	// inutile, e l'uguaglianza sotto passerebbe senza dire nulla.
+	TestNotEqual(TEXT("il Deflect toglie qualcosa: il totale non e' quello nominale"), DeflectSmallFirst, 40);
+
+	TestEqual(TEXT("il totale sul bersaglio con Deflect non dipende da quale colpo arriva per primo"),
 		DeflectSmallFirst, DeflectLargeFirst);
+	TestEqual(TEXT("e vale 40 - 20, senza avanzi persi nel clamp"), DeflectSmallFirst, 20);
 	return true;
 }
 
@@ -209,6 +215,80 @@ bool FRTGuardPoolNotConsumedFromBehindTest::RunTest(const FString&)
 	const TArray<FRTAttack> Ignored = URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, AllEligible);
 	TestEqual(TEXT("senza maschera sarebbe il colpo alle spalle a mangiare il budget"), Ignored[0].Power, 15);
 	TestEqual(TEXT("...e il frontale passerebbe intero"), Ignored[1].Power, 10);
+	return true;
+}
+
+/**
+ * L'ORDINE dei due pool, che [D-312] ha dovuto decidere perche' NON era inerte.
+ *
+ * 🔑 `Guard` e' eleggibile SOLO sui colpi frontali ([D-206]), `Deflect` su tutti i colpi diretti — non
+ * ha clausola d'arco. Le due maschere sono quindi PARZIALMENTE sovrapposte, ed e' esattamente la condizione
+ * in cui l'ordine d'assorbimento cambia l'esito: su 2940 configurazioni raggiungibili con i numeri reali,
+ * 558 danno un totale diverso a seconda di quale pool consuma per primo.
+ *
+ * ⚠️ Il caso minimo NON e' quello che viene in mente per primo. Con un colpo grosso alle spalle e uno
+ * piccolo davanti l'ordine risulta INERTE (il pool largo si esaurisce comunque sul colpo grosso), e misurare
+ * solo quel caso avrebbe fatto dichiarare la domanda chiusa. Serve il contrario: piccolo davanti, grosso
+ * dietro.
+ *
+ * Questo test pinna la decisione. Se qualcuno invertisse le due chiamate in `RTTurnManager.cpp` diventerebbe
+ * rosso, ed e' cio' per cui esiste: quell'ordine e' bilanciamento, non stile.
+ *
+ * 🔴 **CIO' CHE QUESTO TEST NON PROVA, ed e' stato misurato invece che dedotto.** Chiama
+ * `ApplyAbsorptionPool` DIRETTAMENTE, quindi resta verde qualunque ordine usi `RTTurnManager`.
+ * Alla scrittura, invertendo le due chiamate nella catena reale **100 test su 100 restavano verdi**:
+ * nessuno proteggeva l'ordine nel chiamante.
+ *
+ * ✅ Quel buco e' chiuso da `Combat.GuardAndDeflectAbsorbInDeclaredOrder`
+ * (`RTFacingDefenseTests.cpp`), che passa da `ARTTurnManager` con Guardia e reazione attive insieme e
+ * cade se l'ordine viene invertito. Questo test resta perche' dice una cosa che quello non dice: **che i
+ * due ordini divergono affatto**, cioe' la premessa senza la quale [D-312] sarebbe una decisione su niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDeflectAbsorbsBeforeGuardTest,
+	"RefactorTactics.Combat.DeflectPoolAbsorbsBeforeGuardPool",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDeflectAbsorbsBeforeGuardTest::RunTest(const FString&)
+{
+	// Colpo 0: 5 danni, FRONTALE.  Colpo 1: 20 danni, DALLE SPALLE.
+	const TArray<FRTAttack> Attacks = { FRTAttack(1, 5, 0), FRTAttack(1, 20, 2) };
+
+	TArray<int32> GuardPool;
+	GuardPool.Init(0, 2);
+	GuardPool[1] = URTCombatLibrary::GuardFirstHitReduction;     // 15
+	const TArray<bool> bFrontal = { true, false };               // solo il colpo 0 e' frontale
+
+	TArray<int32> DeflectPool;
+	DeflectPool.Init(0, 2);
+	DeflectPool[1] = URTCombatLibrary::DeflectDamageReduction;   // 20
+	const TArray<bool> bDirect = { true, true };                 // nessun filtro d'arco
+
+	auto SumOn = [](const TArray<FRTAttack>& In, int32 Target)
+	{
+		int32 Sum = 0;
+		for (const FRTAttack& A : In) { if (A.TargetIndex == Target) { Sum += A.Power; } }
+		return Sum;
+	};
+
+	// L'ordine canonico: Deflect assorbe, poi Guard copre cio' che resta.
+	const int32 Canonico = SumOn(
+		URTCombatResolver::ApplyAbsorptionPool(
+			URTCombatResolver::ApplyAbsorptionPool(Attacks, DeflectPool, bDirect),
+			GuardPool, bFrontal), 1);
+
+	// L'ordine invertito, calcolato QUI e non altrove: e' l'anti-vacuita' di questo test.
+	const int32 Invertito = SumOn(
+		URTCombatResolver::ApplyAbsorptionPool(
+			URTCombatResolver::ApplyAbsorptionPool(Attacks, GuardPool, bFrontal),
+			DeflectPool, bDirect), 1);
+
+	// ANTI-VACUITA': se i due ordini coincidessero, l'asserzione sotto passerebbe per una ragione che non e'
+	// quella dichiarata — e [D-312] sarebbe stata una decisione su niente.
+	TestNotEqual(TEXT("i due ordini NON danno lo stesso esito: e' la premessa di D-312"),
+		Canonico, Invertito);
+
+	TestEqual(TEXT("ordine canonico (Deflect prima): il bersaglio riceve 5"), Canonico, 5);
+	TestEqual(TEXT("ordine invertito (Guard prima): riceverebbe 0"), Invertito, 0);
+
 	return true;
 }
 

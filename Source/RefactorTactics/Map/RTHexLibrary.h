@@ -156,6 +156,60 @@ public:
 	static ERTHexDirection OppositeDirection(ERTHexDirection Dir);
 
 	/**
+	 * Orientamento-mondo di una delle sei direzioni: l'asse X guarda dove sta il vicino.
+	 *
+	 * E' `EdgeRotation` **senza la cella**, ed esiste per due ragioni misurate (#1992).
+	 *
+	 * 🔑 **La prima: `EdgeRotation` non e' chiamabile da Blueprint** — e' una `static` nuda. Un asset in
+	 * `Content/` che debba orientare qualcosa secondo `ERTHexDirection` non ha altra strada che incidersi
+	 * sei angoli, cioe' aprire una **seconda** convenzione dei sei lati. E' il difetto di `#712`, dove due
+	 * numerazioni divergenti scrivevano la copertura sul lato sbagliato per quattro bordi su sei.
+	 *
+	 * ⚠️ **La seconda: scartare la cella e' lecito, e non e' ovvio.** Lo e' perche' `AxialToWorld` e'
+	 * **affine** in `(q,r)`: lo spostamento fra due centri dipende solo dal delta assiale, mai da dove si
+	 * parte. Se quella funzione smettesse di esserlo — un'origine per layer, una deformazione — questa
+	 * scorciatoia mentirebbe in silenzio. Il guardiano e'
+	 * `RefactorTactics.Hex.FacingRotationIsCellIndependent`, che lo **misura** su celle sparse invece di
+	 * affermarlo.
+	 *
+	 * ⛔ Non e' una seconda risposta: **delega** a `EdgeRotation` e non ricalcola nessuna trigonometria.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static FRotator FacingRotation(ERTHexDirection Facing);
+
+	/**
+	 * Da dove **parte** il marker che mostra il facing di un corpo cilindrico: sulla SUPERFICIE del corpo,
+	 * alla quota della faccia.
+	 *
+	 *     MarkerOrigin = UnitCenter + Forward(Facing) * BodyRadius + Up * FaceHeight
+	 *
+	 * 🔑 **Perche' non dal centro** (#1992). Un marker che parte dal centro attraversa il corpo: da vicino
+	 * lo si vede spuntare da dentro, e a camera tattica la sua lunghezza apparente include il raggio del
+	 * corpo — cioe' due corpi con la stessa lunghezza di marker ma raggio diverso sembrano guardare a
+	 * distanze diverse. Con l'origine sulla superficie la lunghezza del marker torna a essere **una
+	 * misura** invece della somma di due cose.
+	 *
+	 * ⚠️ **La lunghezza del marker NON e' un parametro, ed e' deliberato.** Tenerla fuori dalla firma rende
+	 * vera *per costruzione* la proprieta' che l'authoring pretende — cambiando `BodyRadius` l'origine si
+	 * sposta e la lunghezza non cambia. Passarla qui la degraderebbe a promessa da verificare.
+	 *
+	 * ⚠️ `Up` e' il verso del **mondo**, non del corpo: le sei origini stanno tutte alla stessa quota. Un
+	 * offset ruotato in blocco darebbe lo stesso risultato finche' la rotazione e' solo yaw, e comincerebbe
+	 * a mentire il giorno in cui non lo fosse — `RefactorTactics.Hex.FacingMarkerOriginKeepsWorldUp`.
+	 *
+	 * `BodyRadius = 0` degenera al centro, alla quota `FaceHeight`: e' il caso limite che distingue questa
+	 * formula da una che le somiglia.
+	 *
+	 * ⛔ **Geometria di presentazione, non di gioco**: nessuna cella, nessun costo, nessuna occupancy.
+	 * Vive qui — accanto a `CellVolumeTransform`, che fa lo stesso mestiere per i volumi d'authoring —
+	 * perche' e' il punto in cui la convenzione dei sei lati incontra un corpo da disegnare, e perche' un
+	 * asset in `Content/` deve poterla chiamare.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static FVector FacingMarkerOrigin(ERTHexDirection Facing, const FVector& UnitCenter,
+		float BodyRadius, float FaceHeight);
+
+	/**
 	 * Quale dei sei bordi e' piu' vicino a un punto-mondo, visto DA quella cella (#1864).
 	 *
 	 * Serve a un click: il viewport da' un punto, e la selezione ragiona per `(Cella, Bordo)`.
@@ -207,6 +261,38 @@ public:
 
 	/** L'inverso di `DirectionForEdgeIndex`. E' la stessa operazione: il rispecchiamento e' un'involuzione. */
 	static int32 EdgeIndexForDirection(ERTHexDirection Dir);
+
+	/**
+	 * La frazione dell'INRAGGIO sotto la quale non si punta niente — la dead-zone al centro della cella.
+	 *
+	 * Ha un numero e non l'aggettivo *«configurabile»*, ed e' una richiesta esplicita di `#1615`: una
+	 * dead-zone senza valore e' una decisione rimandata, e il primo che ne ha bisogno ne sceglie uno diverso.
+	 * Sull'inraggio e non su `HexSize` perche' e' la distanza dal centro al lato piu' vicino: e' li' che la
+	 * cella e' piu' stretta, ed e' quella la misura di *«quanto sono vicino al centro»*.
+	 */
+	static constexpr float PointingDeadZoneFraction = 0.25f;
+
+	/**
+	 * IL SETTORE DI PUNTAMENTO `0..11` sotto un punto, in coordinate LOCALI di cella. `INDEX_NONE` = dead-zone.
+	 *
+	 * 🔑 **Non e' una terza tassonomia di «settore»**: e' lo stesso partizionamento che
+	 * `URTHexOccupancyLibrary::SectorBoundaryPoints` fissa — dodici triangoli `(centro, P[k], P[k+1])` con
+	 * `P[k]` a `-30 + 30k` gradi — con una domanda diversa. L'occupancy chiede *quanto* di quel triangolo e'
+	 * invaso da geometria; questa chiede *in quale* triangolo cade un punto. Vedi
+	 * `spec-pointer-interaction.md` §4.9.
+	 *
+	 * ⚠️ **Locale e non world, ed e' la ragione per cui la firma e' questa**: il settore non deve dipendere
+	 * da dove sta la cella. Con un punto world la stessa geometria darebbe risposte diverse a `(0,0)` e a
+	 * `(5000, 3000)` per errore di arrotondamento, e il test di traslazione che `#1615` chiede non avrebbe
+	 * nulla da ancorare. Chi ha un punto world sottrae `AxialToWorld` del centro.
+	 *
+	 * ⛔ **I dodici settori NON sono direzioni.** L'adiacenza resta a sei: il ponte e' `EdgeIndex =
+	 * SectorIndex / 2` seguito da `DirectionForEdgeIndex`, fissato da [D-243]. Ed e' a **senso unico** — da
+	 * una direzione non si torna a un settore, perche' due settori ne condividono una.
+	 *
+	 * `HexSize <= 0` -> `INDEX_NONE`: senza scala non c'e' geometria, e la dead-zone non e' calcolabile.
+	 */
+	static int32 PointingSectorAt(const FVector2D& LocalPoint, float HexSize);
 
 	/**
 	 * La porzione di un gesto che cade dentro UNA cella, nelle coordinate locali di quella cella.
@@ -384,5 +470,41 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static TArray<FRTCellId> HexCone(const FRTCellId& From, const FRTCellId& Target, int32 Range);
+
+	/**
+	 * In quale dei sei SPICCHI, visti da `Center`, cade `Cell`. `false` se `Cell` e' la stessa cella di
+	 * `Center` in pianta: li' non esiste nessuna direzione da restituire, e inventarne una sarebbe peggio.
+	 *
+	 * Lo spicchio `i` e' SEMIAPERTO: `Cell - Center = a*D(i) + b*D(i+1)` con `a > 0` e `b >= 0`. Il raggio
+	 * `D(i)` appartiene allo spicchio `i`, il raggio `D(i+1)` gia' allo spicchio `i+1`. E' la stessa algebra
+	 * che `HexCone` usa per costruire i suoi due settori, con UNA differenza deliberata: il cono somma
+	 * settori CHIUSI (`a >= 0, b >= 0`) perche' deve coprire un'area contigua e i raggi di confine gli
+	 * servono in entrambi; qui i settori partizionano, quindi un raggio di confine puo' appartenere a uno
+	 * solo. Da quel semiaperto viene l'EQUIPARTIZIONE, che e' la proprieta' per cui questa funzione esiste:
+	 * a raggio `1..8` ogni spicchio prende esattamente 36 celle, e a ogni anello `r` ne prende `r`.
+	 *
+	 * PLANARE come `HexDistance`, `HexLine` e `HexCone`: il `Layer` non entra nel calcolo. E' una differenza
+	 * voluta rispetto a `DirectionBetween`, che i layer diversi li RIFIUTA — quella risponde «da qui a li' si
+	 * cammina in questa direzione», e fra due piani non si cammina; questa risponde «da che parte sta», che
+	 * ha senso anche fra piani diversi. `URTHexCombatLibrary::IsInFrontalArc` proietta per la stessa ragione,
+	 * e le due funzioni devono restare d'accordo su quel caso.
+	 *
+	 * ⚠️ Restituisce l'indice ASSOLUTO dello spicchio (`0..5`, l'ordine di `ERTHexDirection`), non una
+	 * direzione relativa a un orientamento: la relazione a sei lati di D-126 e' semantica di FACING e vive in
+	 * `URTFacingLibrary::RelativeDirectionFrom`. Qui c'e' solo la geometria, e ce n'e' una copia sola.
+	 *
+	 * ⚠️ **Su `false`, `OutWedge` resta INVARIATA** — stessa convenzione di `DirectionBetween` e
+	 * `DirectionTowards` qui sopra, e dichiarata per la stessa ragione: il chiamante deve guardare il `bool`.
+	 * Da Blueprint un grafo che ignora il pin di uscita legge lo zero-inizializzato, cioe' lo spicchio `E`:
+	 * plausibile e sbagliato. Non e' un difetto di questa funzione ma il prezzo della forma `bool + out`, ed
+	 * e' scritto qui invece di essere scoperto.
+	 *
+	 * 🔑 **Il nome dice `Wedge` e non `Sector` di proposito**: `PointingSectorAt` in questa stessa classe
+	 * partiziona in **12** spicchi di puntamento (`RT_OccupancySectorCount`) dentro UNA cella, questa in
+	 * **6** spicchi di direzione sul piano. Due convenzioni sotto la stessa parola sono il difetto che
+	 * `#1430`/[D-199] esiste per togliere, e qui costava solo un nome.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static bool DirectionWedgeTowards(const FRTCellId& Center, const FRTCellId& Cell, int32& OutWedge);
 
 };

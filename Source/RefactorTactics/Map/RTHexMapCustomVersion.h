@@ -108,6 +108,22 @@ struct FRTHexMapCustomVersion
 		 */
 		InteriorWallIdentity = 12,
 
+		/**
+		 * v13 — `FRTHexCellData::bMovementBlockGenerated`: la PROVENIENZA del blocco al movimento.
+		 *
+		 * Passo DICHIARATIVO: il campo nasce `false`, cioe' «d'autore», ed e' cio' che ogni cella scritta
+		 * prima di questa versione gia' era. Nessun dato esistente cambia significato — una cella con
+		 * `bBlocksMovement = true` scritta a v12 resta d'autore, e il rebake non la tocchera'.
+		 */
+		MovementBlockProvenance = 13,
+
+		/**
+		 * La traversata autorata sul muro interno (`FRTHexInteriorWall::bTraversable`), `#1828`/`E23.7`.
+		 * Dichiarativo: il campo nasce `false`, e nessun muro scritto prima era scavalcabile — quella
+		 * proprieta' non esisteva.
+		 */
+		AuthoredTraversal = 14,
+
 		// -----<le versioni nuove si aggiungono SOPRA questa riga>------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

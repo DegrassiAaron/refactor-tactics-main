@@ -126,6 +126,12 @@ l'headless produce. Da questo discendono tre conseguenze verificabili:
 2. **La velocità è presentazione.** `0.25x`, `4x` o `Instant` devono produrre lo stesso stato finale: se non
    lo producono, il tempo reale sta entrando in una decisione, che è ciò che il §8 del
    [piano canonico](../../product/piano-canonico-mvp.md) vieta.
+   ✅ **Misurata dal 2026-09-02** — `RefactorTactics.Playback.InstantEqualsNormalInEverythingButTime`
+   ([#1625](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1625)). ⚠️ «Stesso stato finale»
+   è reso come uguaglianza fra **valori**, non fra tempi: la scala, l'ordine e la successione delle
+   velocità non dipendono da quale sia attiva. `Instant` si riconosce **per nome** e non per un
+   moltiplicatore vicino a zero — un consumatore che confrontasse il numero smetterebbe di riconoscerlo il
+   giorno che quel valore cambia, e senza un errore.
 3. **Un evento che il playback non sa rendere resta invisibile, non inventato.** Meglio una lacuna
    dichiarata di una ricostruzione plausibile: la seconda è indistinguibile da un dato, e nessuno la
    verifica.
@@ -571,7 +577,40 @@ authority **per costruzione**, non per disciplina di chi scrive il Blueprint.
 
 > ⚠️ Il costo è che ogni operazione va esposta **una per una**, a ogni slice. È il prezzo che compra
 > l'invariante del §3: chi lo trova troppo caro sta chiedendo di pagare l'altro — un editor che diverge dal
-> gioco. Il guardiano è `RefactorTactics.Scenario.AuthoringContractIsReachableFromBlueprint`, che verifica
+> gioco.
+>
+> 📌 **Cosa la porta lascia passare per gli intent, misurato il 2026-09-02** —
+> [#1626](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1626). Fino a quella slice erano
+> `SetMoveIntent` e `SetWaitIntent`: bastavano per uno scenario di movimento, e nessun widget avrebbe potuto
+> esprimere un attacco. Ora la porta è modellata sui **quattro slot** che `FRTScenarioIntent` già aveva —
+> movimento (`SetMoveIntent`, `SetDashIntent`), principale (`SetMainAction`, `SetMainActionOnUnit`,
+> `SetMainActionOnCell`), modificatori (`SetFacingIntent`, `SetCoverEdgeIntent`), reattivo
+> (`SetReactionIntent`) — e **non** su una lista di sette azioni: un selettore d'azione renderebbe
+> inesprimibile «muovi e attacca», che il doc header della struct dichiara essere «la norma, non un caso
+> limite». Ciascuna scrive solo il proprio campo, così chiamarle in sequenza compone il piano invece di
+> sovrascriverlo.
+>
+> 📌 **E per la sequenza dei turni, misurato il 2026-09-02** —
+> [#1627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1627). `AddTurn`, `RemoveTurn`,
+> `GetTurnCount` e `Run` (che esegue l'intero scenario) esistevano già: mancava `DuplicateTurn`, che inserisce
+> la copia subito dopo l'originale.
+>
+> ⛔ **Il riordino dei turni NON è offerto, ed è una decisione misurata invece che una lacuna.** I waypoint
+> di un intent sono celle **assolute**, e `FRTScenarioSession` ricostruisce il percorso con
+> `BuildCompositeHexPath` sullo snapshot **del momento** (`RTScenarioSession.cpp:1224`): un turno spostato
+> porta con sé waypoint che partivano da dove le unità erano *dopo* i turni precedenti. Se il percorso non
+> regge, il ramo `else` scrive una nota e *«l'unità resta ferma»* — lo scenario prosegue, e le `expect`
+> falliscono più tardi mandando a cercare il difetto nel gioco invece che nell'ordine appena cambiato.
+>
+> ⚠️ E **non è nemmeno annunciabile in anticipo**: sapere prima se un riordino resta valido significa
+> prevedere il resolver, cioè il secondo simulatore che il §3 vieta. `FRTScenarioTurn` porta
+> `Intents[] · Requires[] · Decisions[]` e **nessun campo dice da quale stato parte**. Finché il vincolo non
+> è esprimibile nel formato, l'operazione non si offre: è il ramo che #1627 prevedeva esplicitamente.
+>
+> 🔴 **La duplicazione, invece, ha un vincolo di implementazione che non si vede leggendo l'API.**
+> `Turns.Insert(Turns[i], i + 1)` passa a `Insert` un riferimento **dentro** l'array che `Insert` sta per
+> riallocare: `TArray::CheckAddress` è un `checkf` esplicito, e la riga ovvia fa cadere il motore in ogni
+> build con i check accesi. La copia va in una variabile locale prima dell'inserimento. Il guardiano è `RefactorTactics.Scenario.AuthoringContractIsReachableFromBlueprint`, che verifica
 > per riflessione **entrambi i versi**: che il contratto sia raggiungibile da Blueprint, e che il modello non
 > lo sia.
 
@@ -579,7 +618,7 @@ authority **per costruzione**, non per disciplina di chi scrive il Blueprint.
 
 | Manca | Serve a | Innesco |
 |---|---|---|
-| status/condizioni iniziali | fixture con mitigazione o controllo attivo | il primo scenario che ne ha bisogno |
+| ~~status/condizioni iniziali~~ | ~~fixture con mitigazione o controllo attivo~~ | ✅ **colmato il 2026-09-02** — [#1629](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1629). `FRTScenarioUnit::Statuses` porta la coppia `{ tag, turns }`, perche' `ApplyStatus` chiede entrambi e un formato che scrivesse il solo tag dovrebbe inventare una durata. Il vocabolario resta quello del runtime: un tag fuori da `Core/RTGameplayTags.cpp` **rifiuta** lo scenario col nome sbagliato nel messaggio, invece di applicare un tag vuoto in silenzio |
 | stato d'ambiente (acqua, fuoco, ghiaccio) | fixture d'interazione ambientale | M9.2 |
 | override di abilità in una variante | *baseline vs variante* | lo Skill Workbench |
 

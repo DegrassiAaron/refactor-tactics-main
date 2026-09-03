@@ -245,6 +245,7 @@ Il verdetto è l'assertion. Nessuna di queste righe compare nel registro PIE, ed
 | `Spec.Facing.FrontAttackKeepsGuard` | — | — | `Guard` riduce dentro l'arco frontale |
 | `Spec.Facing.BackAttackIgnoresGuard` | — | — | e **non** riduce da dietro: l'emisfero posteriore è scoperto (CP 16.2) |
 | `Spec.Facing.BraceHoldsFromBehind` | — | — | `Brace` invece tiene da ogni lato — è ciò che lo distingue da `Guard` |
+| `Spec.Facing.SixRelativeSides` | r4 | 1 | la relazione a **sei lati** di `D-126` arriva nel `TurnLog` di un colpo risolto: il lato è `RearLeft`, cioè uno dei quattro che il vocabolario `Front Arc / Flank / Rear` collassava. ⚠️ **Un solo colpo per costruzione**: `LogEventAmount` legge la prima occorrenza e non nomina l'unità, quindi con due colpi asserirebbe sul colpo sbagliato senza diventare rosso |
 | `Spec.Cover.TemporaryCoverExpires` | r4 | 3 | una copertura temporanea **scade** — il terzo momento, quello che si dimentica. Acceso da E9.5 |
 | `Spec.Environment.ElectricPropagation` | — | — | la scarica corre sul grafo dell'acqua **perché un eroe la innesca** — acceso da `#282` |
 | `Spec.Environment.WaterQuenchesFire` | — | — | l'acqua spegne le fiamme, e la fonte è un'azione di un eroe — idem `#282` |
@@ -629,7 +630,22 @@ resta visibile invece di sparire.
 | `Spec.TimeBank.GraceDoesNotDrain` · `…DrainsAfterGrace` · `…NeverBelowZero` · `…TimeoutCostsFullWindow` · `…TimeoutSpendsNoCharge` · `…ClashCostsFullWindow` · `…BotDrainsLikePlayer` · `…ExhaustionKeepsResponsesLegal` · `…ReplayReadsRecordedBank` · `…PacketOrderInvariant` · `…ControlLoadScalesInitialBank` · `…ControlLoadNeverExtendsWindow` · `…TimeoutIgnoresPreferredResponse` | `RT-FEAT-CORE-DECISION-TIME-BANK` | v0.1 · E14 · CP 14.8 |
 | `Spec.Map.WallCrossesCellStillStandable` · `…FootprintCollisionBlocksCell` · `…NinetyDegreeCornerBakesCorrectly` | `RT-FEAT-MAP-STANDABILITY` | v0.1 · E23 · CP 23.6 |
 | `Spec.Map.ValidCellsBlockedTransition` · `…DoorOpensTransition` | `RT-FEAT-MAP-TRANSITION-CLEARANCE` | v0.1 · E23 · CP 23.7 |
-| `Spec.Map.Interaction.SwitchOpensDoor` · `…SwitchControlsMultipleDoors` · `…OpenFailsDependentMoveBlocks` | `RT-FEAT-MAP-INTERACTION-GRAPH` | v0.1 · E23 · CP 23.4 (`#833`) |
+| ✅ `Spec.Map.Interaction.SwitchOpensDoor` · ✅ `…SwitchControlsMultipleDoors` · ✅ `…OpenFailsDependentMoveBlocks` | `RT-FEAT-MAP-INTERACTION-GRAPH` | v0.1 · E23 · CP 23.4 (`#833`) |
+
+> ✅ **Tutti e tre esistono dal 2026-09-02** ([#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833)),
+> in `Scenarios/Spec/Map/Interaction/`, eseguiti dai tre test `RefactorTactics.InteractionGraph.*Scenario`.
+> Erano dichiarati qui da agosto e non erano scrivibili: fino ad allora il formato scenario non sapeva dire
+> né una **porta** né un **binding**.
+>
+> ⚠️ **Il terzo ha richiesto un corridoio, e la ragione vale per chiunque ne scriva altri**: nella prima
+> stesura l'unità arrivava a destinazione lo stesso, non attraversando la porta chiusa a chiave ma
+> **aggirandola**. Un movimento che il motore può deviare non è «dipendente» dall'apertura, e l'assertion di
+> posizione misurava il pathfinding invece della porta. Sette celle `blocksMovement` rendono quel bordo
+> l'unico ingresso.
+>
+> 🔑 E la posizione da sola non basterebbe comunque: con un'operazione **atomica** il rollback lascerebbe
+> tutto chiuso e l'unità ferma **lo stesso**. È il conteggio `DoorOpened == 1` a separare `D-150` dal suo
+> contrario — verificato mutando `D2` da `Locked` a `Closed`, che fa cadere **entrambe** le assertion.
 
 > ➕ **I `Spec.TimeBank.*` passano da dieci a TREDICI il 2026-08-17** ([D-156](../../decisions/RT_PDR_00_Decision_Log.md),
 > [D-157](../../decisions/RT_PDR_00_Decision_Log.md)): `ControlLoadScalesInitialBank`,

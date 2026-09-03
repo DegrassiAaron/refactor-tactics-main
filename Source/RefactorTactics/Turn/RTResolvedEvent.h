@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Core/RTTypes.h"
 #include "Perception/RTTeamKnowledge.h" // FRTKnowledgeVerdict: il verdetto congelato di [D-223], come in `RTTurnLog.h`
+#include "Ability/RTActionData.h" // ERTAbilityShape: la forma e' quella del catalogo, non una copia
 #include "Turn/RTTurnRules.h"
 #include "RTResolvedEvent.generated.h"
 
@@ -13,7 +14,21 @@ enum class ERTResolvedEventType : uint8
 	Move,        // un'unita' ha percorso un path (Path = start + celle attraversate)
 	Attack,      // un colpo risolto (Source -> Target, Amount = danno effettivo)
 	HazardDamage,// danno da terreno (attraversamento o fine turno)
-	Defeated     // rimozione visiva di un'unita' eliminata
+	Defeated,    // rimozione visiva di un'unita' eliminata
+
+	/**
+	 * L'impronta a terra di UN attacco: le celle che il resolver ha davvero investito, e la forma che le ha
+	 * prodotte ([D-301]). Una voce per INTENTO aggressivo, non per vittima.
+	 *
+	 * 🔑 **Perche' non e' un campo di `Attack`.** `Attack` nasce nel loop per vittima: un'area su tre
+	 * bersagli lo emette tre volte, e chi consuma dovrebbe deduplicare — logica nella presentazione, che
+	 * [D-278] vieta. E soprattutto un'area che investe solo celle VUOTE non produce alcun `Attack`, quindi
+	 * un campo li' sopra non arriverebbe mai: e' il caso che questo valore esiste per far esistere.
+	 *
+	 * ⚠️ **In CODA e non accanto ad `Attack`**: e' un `uint8` esposto a Blueprint, e inserirlo in mezzo
+	 * rinumererebbe `HazardDamage` e `Defeated`, cambiando in silenzio ogni default gia' serializzato.
+	 */
+	AttackFootprint
 };
 
 /**
@@ -97,6 +112,47 @@ struct FRTResolvedEvent
 	/** Danno/scudo/durata secondo Type. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	int32 Amount = 0;
+
+	// --- Solo per `AttackFootprint` ([D-301]). Vuoti/di default per ogni altro `Type`. ---
+
+	/**
+	 * Le celle investite, **nell'ordine che `HexHitCells` produce** (`URTHexLibrary::StableLess`).
+	 *
+	 * 🔴 **Copiate, non ricalcolate.** Sono le stesse che il resolver ha gia' usato per decidere chi
+	 * colpire (`URTHexCombatLibrary::BuildHexBlastPlan`): chi le consuma **non deve chiamare
+	 * `HexHitCells`**, o sarebbe una seconda implementazione di una primitiva canonica dentro la
+	 * presentazione.
+	 *
+	 * ⚠️ **Non e' un `Path` e non ha un verso.** `Path` e' una rotta ordinata con un compagno indicizzato
+	 * (`CellVerdicts`); questo e' un INSIEME. Riusare `Path` avrebbe legato un insieme a un array parallelo
+	 * che per lui non significa niente.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	TArray<FRTCellId> HitCells;
+
+	/**
+	 * La forma che ha prodotto `HitCells`. Dichiarata e non dedotta: un `Single` resta distinguibile da
+	 * un'`Area` di raggio 0, che a valle sono due disegni diversi con lo stesso numero di celle.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	ERTAbilityShape Shape = ERTAbilityShape::Single;
+
+	/**
+	 * Da dove il colpo e' partito, al momento in cui il resolver ha calcolato l'area.
+	 *
+	 * ⚠️ **Non si deriva dall'Actor.** Al playback l'unita' puo' essersi gia' mossa, e `ARTUnit::Cell`
+	 * risponderebbe con la posizione finale del turno invece che con quella del colpo. E' la stessa
+	 * ragione per cui `FRTBlastPreview` porta un `Origin` proprio.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FRTCellId Origin;
+
+	/**
+	 * La cella MIRATA. E' l'unico dato che nessun altro campo puo' surrogare: con un'area su celle vuote
+	 * `TargetStableUnitId` vale `0`, e senza questo non si saprebbe dove il colpo puntava.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FRTCellId AimCell;
 
 	FRTResolvedEvent() = default;
 };

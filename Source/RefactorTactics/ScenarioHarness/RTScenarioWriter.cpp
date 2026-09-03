@@ -117,6 +117,53 @@ namespace
 		W->WriteArrayEnd();
 	}
 
+	/**
+	 * I MURI INTERNI, che il writer fino a qui PERDEVA in silenzio — `#2031` sopra `#1830`.
+	 *
+	 * 🔑 **Il campo esisteva nel loader e non nel writer, e nessun test se ne accorgeva** perche'
+	 * `ScenariosEquivalent` non lo guardava: uno scenario con geometria interna, letto e riscritto, tornava
+	 * senza muri e il round-trip restava verde. Misurato su `main` il 2026-09-01: zero occorrenze di
+	 * `interiorWalls` qui dentro, zero di `InteriorWalls` nel confronto.
+	 *
+	 * ⚠️ Il vocabolario e' quello del loader e non un secondo dialetto: `axis` e `type` sono NOMI
+	 * d'enum, non indici, e `layer` si omette quando coincide con quello della cella — e' cio' che il
+	 * parser assume come default.
+	 */
+	void WriteScenarioInteriorWalls(const TSharedRef<FRTScenarioJsonWriter>& W, const FRTTestScenario& Scenario)
+	{
+		if (Scenario.InteriorWalls.Num() == 0)
+		{
+			return;
+		}
+
+		const UEnum* AxisEnum = StaticEnum<ERTTacticalAxis>();
+		const UEnum* TypeEnum = StaticEnum<ERTHexCoverType>();
+
+		W->WriteArrayStart(TEXT("interiorWalls"));
+		for (const FRTHexInteriorWall& Wall : Scenario.InteriorWalls)
+		{
+			W->WriteObjectStart();
+			WriteCellArray(W, TEXT("cell"), Wall.Cell);
+			if (AxisEnum)
+			{
+				W->WriteValue(TEXT("axis"),
+					AxisEnum->GetNameStringByValue(static_cast<int64>(Wall.Segment.Axis)));
+			}
+			if (Wall.Segment.Offset != 0) { W->WriteValue(TEXT("offset"), Wall.Segment.Offset); }
+			W->WriteValue(TEXT("alongStart"), Wall.Segment.AlongStart);
+			W->WriteValue(TEXT("alongEnd"), Wall.Segment.AlongEnd);
+			if (Wall.Segment.Layer != Wall.Cell.Layer) { W->WriteValue(TEXT("layer"), Wall.Segment.Layer); }
+			if (TypeEnum)
+			{
+				W->WriteValue(TEXT("type"),
+					TypeEnum->GetNameStringByValue(static_cast<int64>(Wall.Segment.WallType)));
+			}
+			if (!Wall.StableId.IsNone()) { W->WriteValue(TEXT("stableId"), Wall.StableId.ToString()); }
+			W->WriteObjectEnd();
+		}
+		W->WriteArrayEnd();
+	}
+
 	void WriteScenarioUnits(const TSharedRef<FRTScenarioJsonWriter>& W, const FRTTestScenario& Scenario)
 	{
 		const UEnum* DirectionEnum = StaticEnum<ERTHexDirection>();
@@ -149,6 +196,23 @@ namespace
 			{
 				W->WriteArrayStart(TEXT("loadout"));
 				for (const FName& Piece : Unit.Loadout) { W->WriteValue(Piece.ToString()); }
+				W->WriteArrayEnd();
+			}
+
+			// Gli status si scrivono NELL'ORDINE DICHIARATO e non si riordinano: `ApplyStatus` li applica
+			// uno per uno, e un riordino cambierebbe cio' che il round-trip restituisce — `#1629`.
+			if (Unit.Statuses.Num() > 0)
+			{
+				W->WriteArrayStart(TEXT("statuses"));
+				for (const FRTScenarioStatus& Status : Unit.Statuses)
+				{
+					W->WriteObjectStart();
+					W->WriteValue(TEXT("tag"), Status.Tag.ToString());
+					// `turns` si scrive sempre: e' meta' del dato, e ometterlo al valore di default
+					// costringerebbe chi legge il file a sapere qual e' quel default.
+					W->WriteValue(TEXT("turns"), Status.Turns);
+					W->WriteObjectEnd();
+				}
 				W->WriteArrayEnd();
 			}
 			W->WriteObjectEnd();
@@ -392,6 +456,7 @@ bool URTScenarioLoader::SaveToString(const FRTTestScenario& Scenario, FString& O
 	Writer->WriteValue(TEXT("mapRadius"), Scenario.MapRadius);
 
 	WriteScenarioCells(Writer, Scenario);
+	WriteScenarioInteriorWalls(Writer, Scenario);
 	WriteScenarioUnits(Writer, Scenario);
 	WriteScenarioTurns(Writer, Scenario);
 	WriteScenarioExpectations(Writer, Scenario);

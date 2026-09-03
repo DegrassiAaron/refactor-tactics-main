@@ -121,6 +121,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
 	ERTScenarioAuthoringResult RemoveTurn(int32 TurnIndex, FString& OutError);
 
+	/**
+	 * Duplica un turno; la copia va **subito dopo** l'originale e `OutNewIndex` dice dove.
+	 *
+	 * ⛔ Non c'e' una gemella per il riordino: e' una decisione misurata di `#1627`, e la ragione sta per
+	 * esteso su `FRTScenarioDraft::DuplicateTurn`.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult DuplicateTurn(int32 SourceIndex, int32& OutNewIndex, FString& OutError);
+
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
 	int32 GetTurnCount() const { return Draft.NumTurns(); }
 
@@ -135,6 +144,54 @@ public:
 	/** Assegna un `Wait`: l'unita' e' nel turno e non fa nulla. */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
 	ERTScenarioAuthoringResult SetWaitIntent(int32 TurnIndex, const FString& UnitId, FString& OutError);
+
+	// ---------------------------------------------------------------------------------------------------
+	// GLI SLOT DI COMBATTIMENTO — `#1626`
+	//
+	// 🔴 **Il Composer di `#1116` authorava Move e Wait**, e questo bastava per uno scenario di movimento.
+	// Uno scenario di combattimento — che e' cio' per cui il Tactical Designer esiste — richiedeva di
+	// editare il JSON a mano, cioe' esattamente il posto da cui `TD 0.2` doveva togliere il designer.
+	//
+	// ⚠️ **La UI si modella sui DUE SLOT, non su una lista di sette azioni.** Un selettore d'azione
+	// renderebbe inesprimibile «muovi e attacca», che il doc header di `FRTScenarioIntent` dichiara essere
+	// «la norma, non un caso limite». Ciascuna di queste scrive solo il proprio campo: chiamarle in
+	// sequenza compone il piano. Il contratto e i limiti stanno su `FRTScenarioDraft`.
+	// ---------------------------------------------------------------------------------------------------
+
+	/** Slot movimento, forma mobilita'. `None` come abilita' svuota lo slot. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult SetDashIntent(int32 TurnIndex, const FString& UnitId, FName DashAbility,
+		FRTCellId DashCell, FString& OutError);
+
+	/** Slot principale senza bersaglio: le azioni che risolvono su chi le usa. `None` svuota lo slot. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult SetMainAction(int32 TurnIndex, const FString& UnitId, FName AbilityId,
+		FString& OutError);
+
+	/** Slot principale, bersaglio per unita'. Svuota la forma per cella. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult SetMainActionOnUnit(int32 TurnIndex, const FString& UnitId, FName AbilityId,
+		const FString& TargetUnitId, FString& OutError);
+
+	/** Slot principale, bersaglio per cella. Svuota la forma per unita'. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult SetMainActionOnCell(int32 TurnIndex, const FString& UnitId, FName AbilityId,
+		FRTCellId TargetCell, FString& OutError);
+
+	/** Modificatore: la rotazione finale dichiarata. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult SetFacingIntent(int32 TurnIndex, const FString& UnitId, bool bDeclare,
+		ERTHexDirection Facing, FString& OutError);
+
+	/** Modificatore: il bordo di copertura dichiarato. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult SetCoverEdgeIntent(int32 TurnIndex, const FString& UnitId, bool bDeclare,
+		ERTHexDirection Edge, FString& OutError);
+
+	/** Slot reattivo: reazione e condizione. `None` come reazione toglie anche la condizione. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult SetReactionIntent(int32 TurnIndex, const FString& UnitId, FName ReactionAbility,
+		FName ConditionId, int32 ConditionParam, FString& OutError);
 
 	/** Toglie l'intent di quell'unita' da quel turno. */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
@@ -266,6 +323,22 @@ public:
 	/** Frase leggibile per un esito, da mostrare accanto all'icona. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
 	static FText DescribeResult(ERTScenarioAuthoringResult Result);
+
+	/**
+	 * IL LOG FILTRATO PER CATEGORIA, e la sorgente resta intatta — `#1630`.
+	 *
+	 * 🔑 **Filtrare non cambia il dato**: la funzione e' pura e prende l'elenco per valore-const,
+	 * quindi rimuovere un filtro fa ricomparire esattamente cio' che c'era. E' il criterio d'accettazione
+	 * scritto come firma invece che come promessa — un filtro che mutasse la sorgente non potrebbe
+	 * nemmeno compilare cosi'.
+	 *
+	 * Un insieme di categorie **vuoto** non filtra niente e restituisce tutto: «nessun filtro attivo» e
+	 * «tutti i filtri spenti» sono lo stesso stato per chi guarda, e distinguerli darebbe una vista vuota
+	 * a chi ha appena aperto il pannello.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	static TArray<FRTScenarioLogEntryView> FilterLogByCategory(
+		const TArray<FRTScenarioLogEntryView>& Entries, const TArray<ERTLogCategory>& Categories);
 
 	/** Il draft C++ sottostante. Per il codice C++ e i test: **non** e' esposto a Blueprint. */
 	FRTScenarioDraft& GetDraft() { return Draft; }

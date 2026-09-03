@@ -1126,8 +1126,9 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 
 	// Guardia di autorita': si pianifica solo per le proprie unita'. Se per qualche via SelectedActor fosse
 	// un'unita' avversaria, la deselezioniamo invece di prenderne il comando.
-	if (SelectedUnit && !URTCombatLibrary::CanPlayerControlUnit(SelectedUnit->TeamId,
-		ARTPlayerState::TeamIdOf(this), SelectedUnit->bIsBotControlled))
+	if (SelectedUnit && !URTCombatLibrary::CanPlayerControlUnitInGroup(SelectedUnit->TeamId,
+		SelectedUnit->ControlGroup, ARTPlayerState::TeamIdOf(this), ARTPlayerState::ControlGroupOf(this),
+		SelectedUnit->bIsBotControlled))
 	{
 		if (IRTSelectable* PreviousSel = Cast<IRTSelectable>(SelectedActor))
 		{
@@ -1147,21 +1148,32 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	// Click su un'unita' AVVERSARIA senza nulla di selezionato: non e' nostra, non la si comanda. Senza questa
 	// guardia resterebbe "selezionata" e ogni click successivo su una nostra unita' finirebbe nel ramo di
 	// pianificazione dell'attacco qui sopra, rendendo le proprie unita' inselezionabili.
-	if (ClickedUnit && !URTCombatLibrary::CanPlayerControlUnit(ClickedUnit->TeamId,
-		ARTPlayerState::TeamIdOf(this), ClickedUnit->bIsBotControlled))
+	if (ClickedUnit && !URTCombatLibrary::CanPlayerControlUnitInGroup(ClickedUnit->TeamId,
+		ClickedUnit->ControlGroup, ARTPlayerState::TeamIdOf(this), ARTPlayerState::ControlGroupOf(this),
+		ClickedUnit->bIsBotControlled))
 	{
-		// ⚠️ **Due rifiuti diversi meritano due messaggi diversi.** Un compagno pianificato dal bot supera la
+		// ⚠️ **Rifiuti diversi meritano messaggi diversi.** Un compagno pianificato dal bot supera la
 		// prova di squadra e cade su questa stessa guardia: dirgli «e' avversaria» manderebbe a cercare un
 		// difetto nell'assegnazione delle squadre, che e' corretta. E' la stessa cura che
 		// `RTAutobattleEntry::FromCommandLine` prende sul valore non riconosciuto — un rifiuto che non spiega
 		// il proprio motivo costa piu' di quello che fa risparmiare.
 		//
-		// ⚠️ Due `UE_LOG` e non un formato scelto con un ternario: la macro monta uno `static_assert` che
+		// Da `#1124` i motivi sono TRE, non due: la guardia ora chiede anche il gruppo, e un'unita' della
+		// propria squadra affidata a un altro giocatore la attraversa senza essere ne' avversaria ne' del bot.
+		// Nella v0.1 quel ramo non si raggiunge — un gruppo per squadra — ma il messaggio esiste prima del
+		// caso, perche' il giorno in cui i posti sono due il rifiuto non deve mentire sul proprio motivo.
+		//
+		// ⚠️ Tre `UE_LOG` e non un formato scelto con un ternario: la macro monta uno `static_assert` che
 		// pretende un array di TCHAR, e un `const TCHAR*` non lo e' — non compilerebbe.
 		if (ClickedUnit->TeamId == ARTPlayerState::TeamIdOf(this) && ClickedUnit->bIsBotControlled)
 		{
 			UE_LOG(LogRT, Log, TEXT("[RT] %s la pianifica il bot: non e' comandabile (vedi rt.Match.BotAllies)"),
 				*ClickedUnit->GetName());
+		}
+		else if (ClickedUnit->TeamId == ARTPlayerState::TeamIdOf(this))
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] %s e' della tua squadra ma la comanda un altro giocatore (gruppo %d, il tuo e' %d)"),
+				*ClickedUnit->GetName(), ClickedUnit->ControlGroup, ARTPlayerState::ControlGroupOf(this));
 		}
 		else
 		{
@@ -1590,6 +1602,18 @@ void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 		}
 		else
 		{
+			// 🔴 **Il lock-in del giocatore era MUTO, e una diagnosi ci si e' rotta sopra** (`#1957`). L'unica
+			// riga che abbia mai parlato di lock-in e' quella di `OnPlanningTimeout`, quindi un turno chiuso da
+			// chi gioca e un turno chiuso **da solo** lasciavano il log identico: nessun evento fra l'apertura
+			// del turno e la risoluzione. Un referto di playtest ne ha concluso che il turno 1 «si chiude da
+			// solo dopo 6 s»; l'esperimento `RefactorTactics.HexMatch.FirstTurnDoesNotCloseItself` mostra che
+			// non si chiude affatto, e quei 6 s erano il tempo che il giocatore ha impiegato a premere.
+			//
+			// ⚠️ **Diagnostica, non combat log**: `AddLogEvent` la mostrerebbe a chi gioca, che questa riga
+			// non riguarda. Serve a chi legge `RefactorTactics.log` dopo una seduta.
+			UE_LOG(LogRT, Log, TEXT("[RT] Lock-in del giocatore -> risoluzione anticipata (turno %d)"),
+				TurnManager->GetTurnNumber());
+
 			// L'anteprima muore col lock-in: da qui in poi mostrerebbe una minaccia gia' risolta, e la traccia
 			// del percorso la sostituisce `LastMoveRoutes` (cio' che e' DAVVERO successo, non cio' che si voleva).
 			RefreshPlanningPreview(GetWorld(), nullptr);
@@ -2298,7 +2322,8 @@ void ARTPlayerController::CycleDeclaredFacing()
 	const bool bHasPlannedMove = Unit->PlannedPath.Num() > 1;
 	const ERTMovementStyle Style = bHasPlannedMove ? ERTMovementStyle::Budget : ERTMovementStyle::None;
 
-	const TArray<ERTHexDirection> Legal = URTFacingLibrary::LegalFacings(Style, Unit->PlannedPath, Unit->Facing);
+	const TArray<ERTHexDirection> Legal =
+		URTFacingLibrary::LegalFacings(Style, Unit->PlannedPath, Unit->Facing, Unit->PivotBudget());
 	if (Legal.Num() == 0)
 	{
 		return; // nessuna rotazione possibile: non c'e' niente da ciclare
@@ -2361,14 +2386,15 @@ bool ARTPlayerController::HandleFacingSector(ERTHexDirection Sector)
 
 	ERTHexDirection Applied = Unit->Facing;
 	const bool bLegal = URTFacingLibrary::TryApplyDeclaredFacing(
-		Style, Unit->PlannedPath, Unit->Facing, Sector, Applied);
+		Style, Unit->PlannedPath, Unit->Facing, Sector, Unit->PivotBudget(), Applied);
 
 	if (!bLegal)
 	{
 		// Rifiutata, MAI corretta in silenzio verso la legale piu' vicina: e' la regola di `URTFacingLibrary`,
 		// e qui la si rispetta invece di riscriverla.
-		UE_LOG(LogRT, Log, TEXT("[RT] Rotazione %d illegale per lo stile di movimento pianificato"),
-			(int32)Sector);
+		UE_LOG(LogRT, Log,
+			TEXT("[RT] Rotazione %d fuori dal budget di pivot (Move %d / Dash %d) per il movimento pianificato"),
+			(int32)Sector, Unit->MoveEndPivotMaxSteps, Unit->DashEndPivotMaxSteps);
 		return false;
 	}
 

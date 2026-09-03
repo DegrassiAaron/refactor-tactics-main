@@ -171,7 +171,7 @@ Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Phase ha
 | Che cosa | Dove |
 | --- | --- |
 | Il payload è nel dato | `RefactorTactics.Heroes.Hero.Phase.MatchesCatalog` |
-| L'effetto si vede in partita | `Visual.Combat.WaterElectricCoordinated` — il `Wet` non è osservabile direttamente (il runner non ha `UnitHasStatus`), quindi lo scenario lo prova con l'aritmetica: `100 − 16 − 32 = 52`, dove i 32 valgono solo se il bersaglio è bagnato. Senza `Wet` sarebbe 60, e lo scenario diventa rosso |
+| L'effetto si vede in partita | `Visual.Combat.WaterElectricCoordinated` — il `Wet` non è osservabile direttamente (il runner non ha `UnitHasStatus`), quindi lo scenario lo prova con l'aritmetica: `90 − (16 + 32 − 5 di BaseShield) = 47`, dove i 32 valgono solo se il bersaglio è bagnato. Senza `Wet` la scarica varrebbe 24 invece di 32, e lo scenario diventa rosso |
 
 ## Abilità
 

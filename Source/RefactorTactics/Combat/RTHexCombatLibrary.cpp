@@ -4,6 +4,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexVisionLibrary.h"
+#include "Map/RTStructureIdentityLibrary.h" // il ponte fra il bordo puntato e il nome che il grafo lega (`#833`)
 #include "Terrain/RTTerrainLibrary.h"
 
 namespace
@@ -377,7 +378,28 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 
 			if (bFoundDoor)
 			{
-				Plan.DoorOps.Add(FRTDoorOp(DoorFrom, DoorTo, Intent.DoorState, Intent.AttackerId));
+				// ➕ **LA STRUTTURA PUNTATA PUO' COMANDARNE ALTRE** (`#833`, `CP 23.4`).
+				//
+				// 🔑 **Il ponte fra i due vocabolari sta qui, ed e' l'unico punto in cui esiste.** Fino a
+				// questa riga il percorso di gioco parla di BORDI — `DeclaredDoorEdge`, `FirstDoorEdge`,
+				// `FRTDoorOp{From,To}` — mentre il grafo di interazione lega NOMI. Chi punta una leva punta
+				// il bordo che vede; se quel bordo porta una struttura che il grafo dichiara sorgente,
+				// l'ordine cambia destinatario e lo risolve l'autorita'.
+				//
+				// ⚠️ **Il client non sceglie i bersagli, e non e' un divieto: e' che non li nomina mai.**
+				// L'intento resta quello di prima — un bordo — e da qui in poi viaggia un `SourceId`. E' la
+				// lettura di `#833` *«il client non sceglie bersagli interni»* applicata alla lettera piu'
+				// stretta delle due possibili: qui il client non conosce nemmeno il nome della sorgente.
+				const FName SourceId = URTStructureIdentityLibrary::FindDoorIdOnEdge(Map, DoorFrom, DoorTo);
+				if (URTStructureIdentityLibrary::IsInteractionSource(Map, SourceId))
+				{
+					Plan.InteractionOps.Add(FRTInteractionOp(SourceId, Intent.DoorState, Intent.AttackerId));
+				}
+				else
+				{
+					// Nessun binding: la porta puntata e' il bersaglio, ed e' il caso di sempre.
+					Plan.DoorOps.Add(FRTDoorOp(DoorFrom, DoorTo, Intent.DoorState, Intent.AttackerId));
+				}
 			}
 			else
 			{
@@ -418,6 +440,26 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 		const TArray<FRTCellId> HitCells =
 			HexHitCells(Intent.Shape, Attacker.Cell, AimCell, Intent.RangeCells, Intent.AreaRadius);
 
+		// L'impronta si registra QUI, prima del filtro sulle unita' ([D-301]).
+		//
+		// 🔴 **Prima, e non dopo, perche' il "dopo" perde il caso che conta.** Sotto, `HitCells` serve a
+		// scegliere chi colpire: un'area che investe solo celle vuote esce da quel ciclo con zero `Hits`, e
+		// fino a oggi non lasciava traccia di essere avvenuta. La presentazione non poteva mostrarla e il
+		// TurnLog non la nominava: l'unico modo di disegnarla sarebbe stato ricalcolare `HexHitCells` fuori
+		// dal resolver, cioe' una seconda implementazione della primitiva dentro la presentazione ([D-278]).
+		//
+		// ⚠️ Si COPIA cio' che e' gia' stato calcolato: nessuna seconda chiamata, nessun secondo criterio.
+		{
+			FRTAttackFootprint Footprint;
+			Footprint.IntentIndex = IntentIdx;
+			Footprint.AttackerId  = Intent.AttackerId;
+			Footprint.Origin      = Attacker.Cell;
+			Footprint.AimCell     = AimCell;
+			Footprint.Shape       = Intent.Shape;
+			Footprint.HitCells    = HitCells;
+			Plan.Footprints.Add(MoveTemp(Footprint));
+		}
+
 		// Colpisce ogni unita' VIVA su una cella dell'area: i nemici sempre, gli alleati solo se l'azione
 		// dichiara il fuoco amico. Chi lancia l'area non si colpisce mai da solo.
 		for (int32 u = 0; u < Units.Num(); ++u)
@@ -442,7 +484,8 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 				const int32 Nominal = HexCoverDamageReduction(Map, Attacker.Cell, Other.Cell, Intent.Shape);
 				Plan.Hits.Add(FRTHexAttackHit(Intent.AttackerId, u,
 					FMath::Max(0, Intent.Power - Reduction), IntentIdx,
-					/*CoverBypassedByFacing*/ FMath::Max(0, Nominal - Reduction)));
+					/*CoverBypassedByFacing*/ FMath::Max(0, Nominal - Reduction),
+					/*NominalPower*/ Intent.Power, /*CoverReduction*/ Reduction));
 			}
 		}
 	}
@@ -462,6 +505,12 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 	// ciclo chiamante e non per una garanzia. Un secondo produttore che raccogliesse fuori ordine renderebbe
 	// non deterministica la sequenza delle voci nella traccia archiviata.
 	Plan.DoorlessIntents.Sort();
+	// Stessa rete degli altri canali: oggi l'ordine verrebbe da `IntentIdx` che cresce, cioe' da un dettaglio
+	// del ciclo chiamante e non da una garanzia. `IntentIndex` e' gia' un ordine TOTALE (uno per intento).
+	Plan.Footprints.Sort([](const FRTAttackFootprint& A, const FRTAttackFootprint& B)
+	{
+		return A.IntentIndex < B.IntentIndex;
+	});
 	Plan.StructureHits.Sort([](const FRTStructureHit& A, const FRTStructureHit& B)
 	{
 		if (!(A.From == B.From)) { return URTHexLibrary::StableLess(A.From, B.From); }
@@ -564,7 +613,22 @@ TArray<FRTAttack> URTHexCombatLibrary::ToAttacks(const FRTHexBlastPlan& Plan)
 	{
 		// `AttackerId` non si scarta piu' ([D-212]): senza, una mitigazione direzionale per-colpo non e'
 		// esprimibile dentro il resolver, che vede solo bersaglio e potenza.
-		Attacks.Add(FRTAttack(Hit.TargetId, Hit.Power, Hit.AttackerId));
+		FRTAttack Attack(Hit.TargetId, Hit.Power, Hit.AttackerId);
+
+		// IL BREAKDOWN COMINCIA QUI, dove il colpo entra nella catena — `#1951`.
+		//
+		// 🔑 I due valori li ha calcolati lo stadio 4 e li portava gia' con se': non si ricalcola
+		// niente. `Catalog` registra il valore d'ingresso; `Cover` compare **solo se ha morso**, perche' uno
+		// stadio che non si applica non deve comparire con operando zero.
+		Attack.Breakdown.Emplace(ERTDamageStage::Catalog, FName(TEXT("intent")),
+			ERTDamageOp::Add, Hit.NominalPower, 0, Hit.NominalPower);
+		if (Hit.CoverReduction > 0)
+		{
+			Attack.Breakdown.Emplace(ERTDamageStage::Cover, FName(TEXT("D-206 · copertura")),
+				ERTDamageOp::SubtractClamped, Hit.CoverReduction, Hit.NominalPower, Hit.Power);
+		}
+
+		Attacks.Add(MoveTemp(Attack));
 	}
 	return Attacks;
 }

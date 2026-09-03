@@ -1,4 +1,9 @@
 #include "Map/RTHexLibrary.h"
+// 🔑 `RT_OccupancySectorCount` per il CONTEGGIO dei settori, e il nome e' ereditato dal primo
+// consumatore invece che dalla semantica: quel `12` e' del PARTIZIONAMENTO, non dell'occupancy.
+// Dichiararne un secondo qui sarebbe la seconda copia della stessa convenzione, che
+// `spec-pointer-interaction.md` §4.9 vieta e che `#712` ha gia' pagato una volta.
+#include "Map/RTHexOccupancyLibrary.h"
 #include "Map/RTMapVisuals.h"   // RTCellPrismRadius: la mesh che CellVolumeTransform scala nasce con quel raggio
 
 namespace
@@ -350,6 +355,26 @@ FRotator URTHexLibrary::EdgeRotation(const FRTCellId& Cell, ERTHexDirection Dir)
 	return (There - Here).Rotation();
 }
 
+FRotator URTHexLibrary::FacingRotation(ERTHexDirection Facing)
+{
+	// Delega pura: la convenzione dei sei lati resta scritta in UN posto solo. La cella non entra nella
+	// risposta perche' `AxialToWorld` e' affine in (q,r) — misurato da
+	// `RefactorTactics.Hex.FacingRotationIsCellIndependent`, non assunto qui.
+	return EdgeRotation(FRTCellId(0, 0, 0), Facing);
+}
+
+FVector URTHexLibrary::FacingMarkerOrigin(ERTHexDirection Facing, const FVector& UnitCenter,
+	float BodyRadius, float FaceHeight)
+{
+	// `Vector()` di una rotazione di solo yaw e' unitario e planare: tutta la quota viene da `FaceHeight`,
+	// e le sei origini restano complanari. Sommare `Up` a parte — invece di ruotare un unico offset
+	// (BodyRadius, 0, FaceHeight) — e' cio' che tiene la verticale ancorata al MONDO.
+	const FVector Forward = FacingRotation(Facing).Vector();
+	return UnitCenter
+		+ Forward * static_cast<double>(BodyRadius)
+		+ FVector::UpVector * static_cast<double>(FaceHeight);
+}
+
 ERTHexDirection URTHexLibrary::OppositeDirection(ERTHexDirection Dir)
 {
 	// Le sei direzioni sono in ordine stabile 0..5 e diametralmente opposte a tre di distanza: E(0)<->W(3),
@@ -410,6 +435,43 @@ ERTHexDirection URTHexLibrary::DirectionForEdgeIndex(int32 EdgeIndex)
 	// enum inesistente.
 	const int32 Wrapped = ((EdgeIndex % 6) + 6) % 6;
 	return static_cast<ERTHexDirection>((6 - Wrapped) % 6);
+}
+
+int32 URTHexLibrary::PointingSectorAt(const FVector2D& LocalPoint, float HexSize)
+{
+	// Fail-closed: senza scala non c'e' geometria, e la dead-zone non e' calcolabile. Rispondere `0` sarebbe
+	// un settore plausibile e falso — il difetto che vale sempre la pena non introdurre.
+	if (HexSize <= 0.f)
+	{
+		return INDEX_NONE;
+	}
+
+	// L'INRAGGIO, cioe' la distanza dal centro al punto medio di un lato. E' la stessa riga di
+	// `SectorBoundaryPoints`, e non e' un caso: la dead-zone si misura dove la cella e' piu' stretta.
+	const double InRadius = static_cast<double>(HexSize) * FMath::Cos(FMath::DegreesToRadians(30.0));
+	const double DeadZone = InRadius * static_cast<double>(PointingDeadZoneFraction);
+
+	const double X = static_cast<double>(LocalPoint.X);
+	const double Y = static_cast<double>(LocalPoint.Y);
+	const double DistanceSq = X * X + Y * Y;
+	if (DistanceSq < DeadZone * DeadZone)
+	{
+		return INDEX_NONE; // troppo vicino al centro: non si punta niente
+	}
+
+	// 🔑 **La convenzione si EREDITA, e questa e' la riga che la eredita.** `SectorBoundaryPoints`
+	// mette `P[k]` a `-30 + 30k` gradi, quindi il settore `k` occupa `[-30 + 30k, -30 + 30(k+1))`. Sommare
+	// `30` prima di dividere per `30` e' esattamente l'inversa di quella formula — non una seconda
+	// convenzione che le somiglia. `RefactorTactics.Hex.PointingSectorFollowsTheBoundaryPoints` lo ancora
+	// alla funzione invece che a un letterale, perche' due copie della stessa formula sono il modo in cui
+	// `#712` e' nato.
+	const double Degrees = FMath::RadiansToDegrees(FMath::Atan2(Y, X));
+
+	// `Atan2` rende `(-180, 180]`. Il `+ 360` porta tutto in positivo prima del modulo, cosi' il wrap a
+	// `359,x -> 0` cade nello stesso ramo di ogni altro angolo invece che in un caso speciale.
+	const double Shifted = Degrees + 30.0 + 360.0;
+	const int32 Sector = static_cast<int32>(FMath::FloorToDouble(Shifted / 30.0)) % RT_OccupancySectorCount;
+	return Sector;
 }
 
 int32 URTHexLibrary::EdgeIndexForDirection(ERTHexDirection Dir)
@@ -701,6 +763,52 @@ TArray<FRTCellId> URTHexLibrary::HexCone(const FRTCellId& From, const FRTCellId&
 	Out = Unique.Array();
 	Out.Sort([](const FRTCellId& L, const FRTCellId& R) { return StableLess(L, R); });
 	return Out;
+}
+
+bool URTHexLibrary::DirectionWedgeTowards(const FRTCellId& Center, const FRTCellId& Cell, int32& OutWedge)
+{
+	// PLANARE: il Layer non entra, come in HexDistance/HexLine/HexCone. Vedi il commento della dichiarazione
+	// per perche' qui si proietta mentre `DirectionBetween` rifiuta.
+	const int32 Dq = Cell.X - Center.X;
+	const int32 Dr = Cell.Y - Center.Y;
+	if (Dq == 0 && Dr == 0)
+	{
+		return false; // stessa cella in pianta: nessuno spicchio, e nessun valore di ripiego onesto
+	}
+
+	// Si risolve `(Dq,Dr) = a*D(i) + b*D(i+1)` in ARITMETICA INTERA (invariante #4: niente float nella logica
+	// di gioco) e si accetta l'unico `i` con `a > 0, b >= 0`. Il loop sui sei e' lo stesso di
+	// `DirectionBetween`: sei iterazioni con un ordine fisso non hanno bisogno di essere piu' furbe di cosi',
+	// e una formula chiusa qui sarebbe un secondo posto dove sbagliare il verso.
+	for (int32 I = 0; I < 6; ++I)
+	{
+		const int32 J = (I + 1) % 6;
+		const int32 Det = RT_HEX_DX[I] * RT_HEX_DY[J] - RT_HEX_DX[J] * RT_HEX_DY[I];
+		if (Det == 0)
+		{
+			continue; // due direzioni contigue non sono mai parallele: guardia di forma, non caso atteso
+		}
+
+		const int32 ANum = Dq * RT_HEX_DY[J] - Dr * RT_HEX_DX[J];
+		const int32 BNum = RT_HEX_DX[I] * Dr - RT_HEX_DY[I] * Dq;
+		if (ANum % Det != 0 || BNum % Det != 0)
+		{
+			continue; // la cella non e' combinazione INTERA di questa coppia
+		}
+
+		const int32 A = ANum / Det;
+		const int32 B = BNum / Det;
+		if (A > 0 && B >= 0)
+		{
+			OutWedge = I;
+			return true;
+		}
+	}
+
+	// Irraggiungibile per costruzione — i sei spicchi semiaperti coprono il piano senza sovrapporsi, e la
+	// sola cella esclusa e' il centro, gia' respinto sopra. Resta perche' cadere fuori dal `for` senza un
+	// `return` sarebbe undefined behaviour, non uno spicchio sbagliato.
+	return false;
 }
 
 ERTHexDirection URTHexLibrary::NearestEdgeDirection(const FRTCellId& Cell, const FVector& WorldPoint,

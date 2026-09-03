@@ -6,6 +6,11 @@
 #include "Map/RTStructureIdentityLibrary.h"
 // I muri interni si validano con le stesse funzioni che li producono: grammatica e cottura (#712, v10).
 #include "Map/RTGeometryBake.h"
+// Le regole di topologia di `#1832` chiamano le stesse funzioni della cottura invece di rifarle: se questa
+// misurasse la calpestabilita' diversamente da `DeriveStandability`, il validator segnalerebbe celle che il
+// bake considera sane — cioe' due verita' sulla stessa regola.
+#include "Map/RTHexCoverPlacementLibrary.h"
+#include "Map/RTHexOccupancyLibrary.h"
 #include "Serialization/CustomVersion.h"
 
 const FGuid FRTHexMapCustomVersion::GUID(0x7A3C1E44, 0x9B2D4F10, 0xA6E85C37, 0x1D0F62B9);
@@ -331,6 +336,25 @@ FRTCellId URTHexMapAsset::FirstObjectiveCell() const
 	return Best;
 }
 
+void URTHexMapAsset::SortInteriorWallsCanonically(TArray<FRTHexInteriorWall>& Walls)
+{
+	Walls.Sort([](const FRTHexInteriorWall& A, const FRTHexInteriorWall& B)
+	{
+		if (!(A.Cell == B.Cell)) { return URTHexLibrary::StableLess(A.Cell, B.Cell); }
+		if (A.Segment.Axis != B.Segment.Axis)
+		{
+			return static_cast<uint8>(A.Segment.Axis) < static_cast<uint8>(B.Segment.Axis);
+		}
+		if (A.Segment.Offset != B.Segment.Offset) { return A.Segment.Offset < B.Segment.Offset; }
+		if (A.Segment.Layer != B.Segment.Layer) { return A.Segment.Layer < B.Segment.Layer; }
+		const int32 AMin = FMath::Min(A.Segment.AlongStart, A.Segment.AlongEnd);
+		const int32 BMin = FMath::Min(B.Segment.AlongStart, B.Segment.AlongEnd);
+		if (AMin != BMin) { return AMin < BMin; }
+		return FMath::Max(A.Segment.AlongStart, A.Segment.AlongEnd)
+			< FMath::Max(B.Segment.AlongStart, B.Segment.AlongEnd);
+	});
+}
+
 uint32 URTHexMapAsset::ComputeHash() const
 {
 	// Ordine stabile -> hash indipendente dall'ordine di inserimento (copia locale per non mutare l'asset).
@@ -445,6 +469,42 @@ uint32 URTHexMapAsset::ComputeHash() const
 			Hash = HashCombine(Hash, HashStableId(T));
 		}
 	}
+
+	// I MURI INTERNI, da `#1830` — e fino a quel giorno restavano fuori con una motivazione scritta sul tipo
+	// (`RTHexMapAsset.h`) che diceva *«vista e passo oggi non lo consultano […] il giorno in cui un muro
+	// interno dovra' bloccare la linea di vista […] allora, ma solo allora, questo tipo entrera' nell'hash»*.
+	// `D-269` e' quella decisione, e `URTHexOcclusionLibrary` e' il consumatore: il criterio di questo hash —
+	// ci entra cio' che puo' cambiare un ESITO — ora li include.
+	//
+	// 🔴 **Lasciarli fuori sarebbe un FALSO NEGATIVO, non un'omissione estetica**: due mappe che si giocano
+	// diversamente avrebbero lo stesso hash, `IsSnapshotStale` lascerebbe «fresco» uno snapshot dopo che un
+	// muro si e' spostato, e una divergenza di replay diventerebbe non diagnosticabile — l'inverso del KPI
+	// `replay divergence = 0`, e la meta' peggiore.
+	//
+	// ⛔ **`StableId` NON entra**, ed e' il criterio di sempre applicato al caso opposto: `FRTHexDoor::StableId`
+	// ci entra perche' `FindDoorEdges` risolve i bersagli **per nome**, mentre nessuno risolve un muro interno
+	// per nome a runtime — lo fa solo l'editor. Rinominarlo non cambia nessun esito.
+	//
+	// L'ordine dell'array lo decide chi edita l'asset, quindi si ordina prima di mescolare, come per `Covers`
+	// e `Transitions`. Gli estremi entrano come coppia NON ordinata: e' lo stesso segmento anche percorso al
+	// contrario, ed e' gia' la regola del suo `operator==`.
+	TArray<FRTHexInteriorWall> SortedWalls = InteriorWalls;
+	SortInteriorWallsCanonically(SortedWalls);
+	for (const FRTHexInteriorWall& Wall : SortedWalls)
+	{
+		Hash = HashCombine(Hash, GetTypeHash(Wall.Cell));
+		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(Wall.Segment.Axis)));
+		Hash = HashCombine(Hash, GetTypeHash(Wall.Segment.Offset));
+		Hash = HashCombine(Hash, GetTypeHash(Wall.Segment.Layer));
+		Hash = HashCombine(Hash, GetTypeHash(FMath::Min(Wall.Segment.AlongStart, Wall.Segment.AlongEnd)));
+		Hash = HashCombine(Hash, GetTypeHash(FMath::Max(Wall.Segment.AlongStart, Wall.Segment.AlongEnd)));
+		// Il TIPO decide se il muro occlude (`D-271`: solo `High`), quindi cambia un esito ed entra.
+		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(Wall.Segment.WallType)));
+		// La SCAVALCABILITA' decide se si passa (`E23.7`, `D-308`): stesso criterio, stesso hash. Due mappe
+		// identiche salvo un muro superabile si giocano diversamente.
+		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(Wall.bTraversable ? 1 : 0)));
+	}
+
 	return Hash;
 }
 
@@ -775,7 +835,287 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 		}
 	}
 
+	// 5. L'INCIDENZA FRA DUE MURI DELLA STESSA CELLA — `#1894`, `GEO-6` di `D-288`.
+	//
+	// 🔴 **Il rilievo che ha deciso dove va questo blocco.** `URTGeometryGrammarLibrary::Validate` non aveva
+	// un solo chiamante di produzione: `git grep` lo trovava tre volte, tutte e tre in un file di test. Le
+	// regole d'incidenza scritte solo li' sarebbero nate morte insieme allo strato che le ospita — nessun
+	// asset le avrebbe mai attivate.
+	//
+	// ⚠️ **Il raggruppamento per CELLA non e' un'ottimizzazione, e' la correttezza.** I segmenti sono in
+	// coordinate LOCALI di cella: due muri di celle diverse con gli stessi numeri non si incrociano affatto,
+	// e validare l'array intero in un colpo solo li segnalerebbe tutti — il difetto piu' facile da
+	// introdurre qui, e quello che `ReachesValidateMap` pinna con la sua controprova.
+	//
+	// L'ordine delle celle e' quello di PRIMA APPARIZIONE nell'array, non quello di una `TMap`: l'iterazione
+	// di una `TMap` non e' deterministica (invariante n. 4), e due validazioni della stessa mappa darebbero
+	// gli stessi errori in ordine diverso.
+	//
+	// Si filtrano le sole violazioni di RELAZIONE: `ValidateSegment` e il duplicato hanno gia' le loro regole
+	// qui sopra, e riemetterli da qui sarebbe la stessa segnalazione due volte con due formati.
+	{
+		TArray<FRTCellId> Order;
+		TMap<FRTCellId, TArray<int32>> ByCell;
+		for (int32 Index = 0; Index < InteriorWalls.Num(); ++Index)
+		{
+			TArray<int32>& Group = ByCell.FindOrAdd(InteriorWalls[Index].Cell);
+			if (Group.Num() == 0)
+			{
+				Order.Add(InteriorWalls[Index].Cell);
+			}
+			Group.Add(Index);
+		}
+
+		for (const FRTCellId& Cell : Order)
+		{
+			const TArray<int32>& Group = ByCell[Cell];
+			if (Group.Num() < 2)
+			{
+				continue; // un muro solo non ha con chi incidere
+			}
+
+			TArray<FRTGeometrySegment> Segments;
+			Segments.Reserve(Group.Num());
+			for (const int32 Index : Group)
+			{
+				Segments.Add(InteriorWalls[Index].Segment);
+			}
+
+			TArray<FRTGeometryIssue> Issues;
+			URTGeometryGrammarLibrary::Validate(Segments, Issues);
+
+			for (const FRTGeometryIssue& Issue : Issues)
+			{
+				if (Issue.Violation != ERTGeometryViolation::CrossingOffAnchor
+					&& Issue.Violation != ERTGeometryViolation::OverlappingSegments)
+				{
+					continue;
+				}
+
+				// Gli indici tornano a essere quelli dell'ARRAY, non del gruppo: chi legge l'errore apre
+				// `InteriorWalls` a quella posizione, e un indice locale lo manderebbe sul muro sbagliato.
+				const int32 Mine = Group[Issue.SegmentIndex];
+				const int32 Other = Issue.OtherIndex != INDEX_NONE ? Group[Issue.OtherIndex] : INDEX_NONE;
+
+				if (Issue.Violation == ERTGeometryViolation::CrossingOffAnchor)
+				{
+					Errors.Add(FString::Printf(
+						TEXT("Error: muri interni %d e %d su %s: incrocio fuori da un anchor"),
+						Mine, Other, *Cell.ToString()));
+				}
+				else
+				{
+					Errors.Add(FString::Printf(
+						TEXT("Error: muri interni %d e %d su %s si sovrappongono"),
+						Mine, Other, *Cell.ToString()));
+				}
+			}
+		}
+	}
+
+	// LE REGOLE DI TOPOLOGIA DI `#1832`, formattate in coda. Vivono in `ValidateMapDetailed` perche' i test
+	// devono poterle distinguere per **reason code** invece che per il testo del messaggio: un test che
+	// riconosce una regola dalla sua stringa si rompe alla prima riformulazione, e insegna a non toccare i
+	// messaggi — che e' il verso sbagliato in cui far pendere un validator che chi disegna deve leggere.
+	{
+		TArray<FRTMapValidationIssue> Topology;
+		ValidateMapDetailed(Topology);
+		for (const FRTMapValidationIssue& Issue : Topology)
+		{
+			Errors.Add(FString::Printf(TEXT("%s: %s"),
+				Issue.bIsError ? TEXT("Error") : TEXT("Warning"), *Issue.Message));
+		}
+	}
+
 	return Errors;
+}
+
+/**
+ * L'identita' di sorgente che un muro interno produrra' in `EnumerateCoverOptions`.
+ *
+ * ⚠️ **Non contiene il `Layer` del segmento**, ed e' proprio il punto della regola 5: due muri che
+ * differiscono SOLO per quello sono `!=` per `FRTGeometrySegment::operator==` — quindi la regola del
+ * duplicato non li vede — ma producono opzioni di copertura con la **stessa identita'**.
+ */
+static FRTCoverSourceId RTSourceIdForSegment(const FRTGeometrySegment& Segment)
+{
+	FRTCoverSourceId SourceId;
+	SourceId.Kind = ERTCoverSourceKind::InteriorSegment;
+	SourceId.AxisOrEdge = static_cast<uint8>(Segment.Axis);
+	SourceId.Offset = Segment.Offset;
+	SourceId.AlongMin = FMath::Min(Segment.AlongStart, Segment.AlongEnd);
+	SourceId.AlongMax = FMath::Max(Segment.AlongStart, Segment.AlongEnd);
+	return SourceId;
+}
+
+void URTHexMapAsset::ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssues) const
+{
+	OutIssues.Reset();
+
+	// Indice muro-per-cella, per non riscandire `InteriorWalls` una volta per cella.
+	//
+	// ⚠️ **La `TMap` si INTERROGA e non si itera** (invariante n. 3): l'ordine dell'elenco viene
+	// dall'ordinamento finale, mai da come questa mappa enumera le proprie chiavi.
+	TMap<FRTCellId, TArray<int32>> WallsByCell;
+	for (int32 Index = 0; Index < InteriorWalls.Num(); ++Index)
+	{
+		WallsByCell.FindOrAdd(InteriorWalls[Index].Cell).Add(Index);
+	}
+
+	// 🔑 **Il footprint e' l'IDENTITA', e non e' un ripiego.** `DeriveStandability` riceve il profilo dal
+	// chiamante; qui non c'e' un chiamante che lo dichiari. `FRTFootprintProfile` dice che nessuna unita'
+	// ne dichiara ancora uno e che un default piu' alto sarebbe *«un numero di bilanciamento travestito da
+	// costante»*: scegliere `Medium` qui significherebbe decidere il bilanciamento dentro un validator.
+	// Con l'identita' la regola 1 segnala il caso netto — cella interamente occupata dalla propria
+	// geometria e non dichiarata impraticabile — e nessun caso opinabile.
+	const FRTFootprintProfile Footprint;
+
+	for (const FRTHexCellData& Cell : Cells)
+	{
+		const TArray<int32>* WallIndices = WallsByCell.Find(Cell.Id);
+
+		TArray<FRTGeometrySegment> Segments;
+		TArray<FRTOccupancyPolyline> Geometry;
+		if (WallIndices != nullptr)
+		{
+			Segments.Reserve(WallIndices->Num());
+			Geometry.Reserve(WallIndices->Num());
+			for (const int32 Index : *WallIndices)
+			{
+				Segments.Add(InteriorWalls[Index].Segment);
+				Geometry.Add(URTGeometryGrammarLibrary::ToPolyline(InteriorWalls[Index].Segment, HexSize));
+			}
+		}
+
+		// La stessa catena della cottura — `ToPolyline` -> `ComputeMask` — e non una seconda: se questa
+		// misurasse diversamente da `DeriveStandability`, il validator segnalerebbe celle che il bake
+		// considera sane, o tacerebbe su quelle che marca.
+		const FRTOccupancyMask Mask = URTHexOccupancyLibrary::ComputeMask(Geometry, HexSize);
+		const bool bHasPlacement = URTHexCoverPlacementLibrary::HasLegalPlacement(Mask, Footprint);
+
+		// ---- REGOLA 1 — posa impossibile su una cella che non si dichiara impraticabile.
+		if (!bHasPlacement && !Cell.bBlocksMovement)
+		{
+			FRTMapValidationIssue Issue;
+			Issue.Reason = ERTMapValidationReason::NoLegalPlacement;
+			Issue.Cell = Cell.Id;
+			Issue.bIsError = true;
+			Issue.Message = FString::Printf(
+				TEXT("%s: la geometria non lascia alcuna posa legale, ma la cella non e' marcata ")
+				TEXT("bBlocksMovement. Marcala impraticabile, oppure libera un settore."),
+				*Cell.Id.ToString());
+			OutIssues.Add(Issue);
+		}
+
+		// ---- REGOLA 4 — blocco DERIVATO che la geometria attuale non giustifica piu'.
+		//
+		// ⛔ Solo `bMovementBlockGenerated`. Un `bBlocksMovement` dipinto a mano e' la scelta d'autore che
+		// `DeriveStandability` dichiara vincente, e segnalarla qui la contraddirebbe: una cella che
+		// l'autore vuole impraticabile non e' un errore, qualunque cosa dica la geometria.
+		if (bHasPlacement && Cell.bBlocksMovement && Cell.bMovementBlockGenerated)
+		{
+			FRTMapValidationIssue Issue;
+			Issue.Reason = ERTMapValidationReason::StaleGeneratedBlock;
+			Issue.Cell = Cell.Id;
+			Issue.bIsError = false; // lo stato e' legale e risolto: e' stantio, non illegale
+			Issue.Message = FString::Printf(
+				TEXT("%s: blocco al movimento DERIVATO da una geometria che ora lascia una posa legale. ")
+				TEXT("Ricuoci la mappa: il prossimo rebake lo toglierebbe."),
+				*Cell.Id.ToString());
+			OutIssues.Add(Issue);
+		}
+
+		// ---- REGOLA 2 — copertura autorata che nessuna posa puo' usare.
+		TArray<FRTCoverOption> Options;
+		URTHexCoverPlacementLibrary::EnumerateCoverOptions(Cell, Segments, Mask, Options);
+		for (int32 CoverIndex = 0; CoverIndex < Cell.Covers.Num(); ++CoverIndex)
+		{
+			const FRTHexCover& Cover = Cell.Covers[CoverIndex];
+			if (Cover.Type == ERTHexCoverType::None)
+			{
+				// Gia' segnalata dalla regola esistente («voce di copertura senza tipo»): contarla due
+				// volte farebbe smettere il numero di segnalazioni di dire quanti difetti ci sono.
+				continue;
+			}
+
+			const bool bHasOption = Options.ContainsByPredicate([&Cover](const FRTCoverOption& Option)
+			{
+				return Option.Source.Kind == ERTCoverSourceKind::Edge
+					&& Option.Source.AxisOrEdge == static_cast<uint8>(Cover.Edge);
+			});
+			if (bHasOption)
+			{
+				continue;
+			}
+
+			FRTMapValidationIssue Issue;
+			Issue.Reason = ERTMapValidationReason::UnreachableCover;
+			Issue.Cell = Cell.Id;
+			Issue.bIsError = false; // il dato e' legale: e' inerte, non sbagliato
+			Issue.Message = FString::Printf(
+				TEXT("%s: la copertura sul bordo %d non e' raggiungibile da nessuna regione di posa, ")
+				TEXT("quindi nessuna unita' potra' usarla."),
+				*Cell.Id.ToString(), static_cast<int32>(Cover.Edge));
+			OutIssues.Add(Issue);
+		}
+
+		// ---- REGOLA 5 — due muri con la stessa identita' di sorgente.
+		//
+		// 🔑 **Il caso principale e' GIA' coperto** dalla regola «muro interno duplicato di», che confronta
+		// i segmenti con `operator==` — estremi come coppia non ordinata. Quello che quella regola NON vede
+		// e' la coppia che differisce **solo per il `Layer` del segmento**: `operator==` la dice diversa,
+		// ma `FRTCoverSourceId` il layer non lo porta, quindi le due opzioni di copertura risultanti sono
+		// indistinguibili per chiunque le identifichi dalla sorgente.
+		//
+		// Le coppie che la regola vecchia gia' segnala si **saltano**, per la stessa ragione di sopra.
+		if (WallIndices != nullptr)
+		{
+			for (int32 A = 1; A < WallIndices->Num(); ++A)
+			{
+				for (int32 B = 0; B < A; ++B)
+				{
+					const FRTGeometrySegment& SegA = InteriorWalls[(*WallIndices)[A]].Segment;
+					const FRTGeometrySegment& SegB = InteriorWalls[(*WallIndices)[B]].Segment;
+					if (SegA == SegB)
+					{
+						continue; // gia' segnalato come duplicato
+					}
+					if (!(RTSourceIdForSegment(SegA) == RTSourceIdForSegment(SegB)))
+					{
+						continue;
+					}
+
+					FRTMapValidationIssue Issue;
+					Issue.Reason = ERTMapValidationReason::DuplicateCoverSource;
+					Issue.Cell = Cell.Id;
+					Issue.bIsError = true;
+					Issue.Message = FString::Printf(
+						TEXT("%s: i muri interni %d e %d hanno la stessa identita' di sorgente di copertura ")
+						TEXT("pur essendo segmenti diversi: le loro opzioni sarebbero indistinguibili."),
+						*Cell.Id.ToString(), (*WallIndices)[B], (*WallIndices)[A]);
+					OutIssues.Add(Issue);
+					break; // una segnalazione per muro: chi la legge apre la cella e li vede entrambi
+				}
+			}
+		}
+	}
+
+	// ORDINE CANONICO. Non si eredita da `Cells`, il cui ordine lo decide chi edita l'asset: due asset che
+	// descrivono la stessa mappa con le celle scritte in ordine diverso devono produrre lo stesso elenco.
+	OutIssues.Sort([](const FRTMapValidationIssue& A, const FRTMapValidationIssue& B)
+	{
+		if (!(A.Cell == B.Cell))
+		{
+			return URTHexLibrary::StableLess(A.Cell, B.Cell);
+		}
+		if (A.Reason != B.Reason)
+		{
+			return static_cast<uint8>(A.Reason) < static_cast<uint8>(B.Reason);
+		}
+		// Ultimo criterio il messaggio: due segnalazioni della stessa regola sulla stessa cella —
+		// due coperture irraggiungibili su bordi diversi — devono avere un ordine, e il testo lo porta.
+		return A.Message < B.Message;
+	});
 }
 
 TArray<FRTCellId> URTHexMapAsset::FloodRegion(const FRTCellId& Start) const
@@ -884,6 +1224,11 @@ void URTHexMapAsset::MigrateToCurrentFormat()
 	// v10 -> v11 (#75, CP 10.2): la cella guadagna il flag di OBIETTIVO contendibile. Il default `false` e'
 	// cio' che una mappa scritta prima gia' era: nessuna sua cella faceva punto, e la partita si decideva per
 	// eliminazione o al limite di round. Un obiettivo NON viene inventato da una ricarica.
+	// v13 -> v14 (#1828, `E23.7`): il muro interno guadagna la SCAVALCABILITA' (`bTraversable`). Il default
+	// `false` e' cio' che ogni muro scritto prima gia' era, e non per omissione: fino a `D-308` la
+	// scavalcabilita' non esisteva come dato, e nessuna geometria poteva dichiararsi superabile.
+	// ⛔ **Una ricarica non deduce il campo dall'altezza**: un `Low` non diventa scavalcabile migrando, ed e'
+	// precisamente cio' che `D-308` vieta — *«la scavalcabilita' e' un dato, non una conseguenza dell'altezza»*.
 	// In nessuno di questi c'e' qualcosa da convertire — il campo nuovo nasce vuoto e una mappa che non lo usa
 	// si comporta esattamente come prima — quindi la migrazione si limita a dichiarare la versione. Il giorno
 	// in cui una migrazione dovra' TRASFORMARE dati, il posto e' questo, un `if (FormatVersion < N)` per

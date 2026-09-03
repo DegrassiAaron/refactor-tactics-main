@@ -7,11 +7,13 @@
 #include "Bot/RTHexBotLibrary.h" // i pesi del bot hanno UNA sorgente: i default della struct
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTResolvedEvent.h"
+#include "Replay/RTReplayAuditLibrary.h" // FRTAuditBotDecision: il quarto record di D-313
 #include "Turn/RTTurnLog.h"
 #include "Replay/RTReplayManifest.h"
 #include "Ability/RTActionDef.h" // FRTActionDef: l'impatto della carica porta con se' la definizione
 #include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
 #include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
+#include "Turn/RTPlaybackLibrary.h" // FRTPhaseTime: la fase ha due termini, e il budget ne tocca uno solo
 #include "Map/RTHexCellData.h" // ERTHexSurface: il terreno dinamico ricorda la superficie originale (CP 8.4)
 #include "Combat/RTCombatResolver.h" // FRTAttack, FRTUnitCombatState: il pass reazioni raccoglie i primi e aggiorna i secondi
 #include "Combat/RTHexCombatLibrary.h" // FRTHexAttackHit/FRTHexAttackIntent: cio' su cui il pass reazioni valuta i trigger
@@ -550,6 +552,42 @@ public:
 	void BeginReplayRecording();
 
 	/**
+	 * L'ALLESTIMENTO RIVENDICA L'APERTURA DEL TURNO 1 — `#2102`, [D-314].
+	 *
+	 * Dopo questa chiamata `BeginPlay` **non** apre piu' il turno da solo: lo aprira'
+	 * `OpenFirstTurnAfterSetup()`, quando la board esiste davvero.
+	 *
+	 * 🔑 **Stesso schema di `BeginReplayRecording`, e per la stessa ragione**: `BeginPlay` gira anche per i
+	 * test headless e per lo `ScenarioHarness`, che spawnano un TurnManager a mano e non hanno
+	 * bootstrapper. Un'attesa **incondizionata** li fermerebbe tutti. Chi non rivendica apre come sempre.
+	 *
+	 * ⛔ **Il criterio NON e' «siamo in PIE».** Il progetto ha gia' deciso questa domanda in
+	 * `ARTPlayerController::IsPlanningInputInert`: *«un predicato che rispondesse solo in PIE non sarebbe
+	 * verificabile headless, e questo DEVE esserlo»*. Qui il criterio e' una rivendicazione esplicita, che
+	 * un test puo' fare e non fare.
+	 *
+	 * ⚠️ **Non annulla un turno gia' aperto**, e lo dichiara nel log invece di tacere: chiuderlo e
+	 * riaprirlo significherebbe richiudere il campione di pacing, cioe' toccare `MsToLockIn`. Idempotente.
+	 */
+	void ClaimFirstTurnForMatchSetup();
+
+	/**
+	 * APRE il turno 1 rivendicato: e' il punto in cui l'allestimento dichiara di aver finito.
+	 *
+	 * Non fa nulla se nessuno ha rivendicato (il turno l'ha gia' aperto `BeginPlay`) o se e' gia' stato
+	 * aperto da questa funzione. **Idempotente**: due chiamate producono una sola voce `Turno 1`, e
+	 * l'idempotenza non e' cortesia — il GameMode la chiama da piu' cammini d'uscita, perche' un turno mai
+	 * aperto e' peggio di un turno aperto presto.
+	 */
+	void OpenFirstTurnAfterSetup();
+
+	/** Vero se qualcuno ha rivendicato l'apertura del turno 1. Per i test dell'ordine (`#2102`). */
+	bool IsFirstTurnClaimedBySetup() const { return bFirstTurnClaimedBySetup; }
+
+	/** Vero se il turno 1 e' stato aperto — da `BeginPlay` o dall'allestimento. Per i test dell'ordine. */
+	bool HasOpenedFirstTurn() const { return bFirstTurnOpened; }
+
+	/**
 	 * Ricalcola SUBITO la conoscenza di squadra, con le unita' che esistono adesso.
 	 *
 	 * 🔴 **Esiste per una finestra misurata, non per simmetria** ([#1762]). L'unico produttore di
@@ -681,9 +719,39 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	bool bEnablePlayback = true;
 
-	/** Velocita' di scorrimento dei cilindri nel Move (celle al secondo). */
+	/**
+	 * Velocita' di scorrimento dei modelli nelle fasi che muovono (celle al secondo).
+	 *
+	 * 🔑 **`1.44` NON e' un gusto: e' la velocita' a cui il piede non scivola** (`#1878`, 2026-09-03), e la
+	 * si ricava da due valori che il repository gia' dichiarava:
+	 *
+	 *     passo di una cella = HexSize * sqrt(3) = 150 * 1,732 = 259,8 cm      (`URTHexLibrary::AxialToWorld`)
+	 *     la clip di corsa dichiara                        = 375 cm/s          (`ARTUnit::VisualRunSpeed`)
+	 *     ∴ velocita' senza scivolamento = 375 / 259,8     = 1,443 celle/s
+	 *
+	 * A `1.44` il residuo e' **-0,2%**, sotto qualunque soglia percettiva.
+	 *
+	 * 📐 **Il pattinamento agli altri valori, per capire cosa si sta comprando**: `6.5` (il default fino al
+	 * 2026-09-02) traslava a 1688 cm/s contro i 375 dichiarati, cioe' **+350%** — i personaggi correvano
+	 * quattro volte e mezzo piu' della loro animazione, ed e' la causa vera della segnalazione *«sembrano
+	 * andare in fast-forward»*. `2.0` sarebbe **+39%**, `1.65` **+14%**.
+	 *
+	 * ⚠️ **Il product owner aveva scelto `2.0` a schermo, e ha cambiato idea davanti a questo calcolo**: la
+	 * scelta percettiva e quella geometrica non coincidevano, e ha prevalso la seconda perche' `1.44` sta
+	 * fra i due valori giudicati «lenti» (`1.35` e `1.65`) — cioe' dentro un intervallo gia' esplorato.
+	 *
+	 * 🔴 **Vale finche' `HexSize` vale 150.** Il numero senza scivolamento e' una funzione del passo, non
+	 * una costante: una mappa autorata con `HexSize` diverso rimette i piedi a pattinare, e nessun errore lo
+	 * segnala. Lo pinna `RefactorTactics.Playback.DefaultRateMatchesTheRunClip`, che ricalcola la relazione
+	 * invece di ripetere il numero — se qualcuno cambia questo default, `VisualRunSpeed` o `HexSize`, cade.
+	 *
+	 * ⚠️ **Il numero scritto e' il numero che si osserva, a `ViewerPlaybackSpeed` = 1.** La manopola del
+	 * viewer (`x1/x2/x4`) moltiplica l'orologio del playback: a `x4` si vedono `5,8` celle/s. Cio' che non
+	 * accade piu' e' che il tetto di durata acceleri da se' — lo pinna
+	 * `RefactorTactics.Playback.BudgetDoesNotSpeedUpLocomotion`.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
-	float PlaybackCellsPerSecond = 6.5f;
+	float PlaybackCellsPerSecond = 1.44f;
 
 	/** Pausa tra una fase e la successiva (secondi). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
@@ -693,15 +761,29 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	float AttackShowSeconds = 0.50f;
 
-	/** Tetto di durata del playback: oltre, si accelera automaticamente (0 = nessun tetto). */
+	/**
+	 * Budget SOFT di durata del playback: oltre, si comprimono le ATTESE (0 = nessun budget).
+	 *
+	 * ⚠️ **Non accelera piu' la locomozione, e la parola «soft» e' quella differenza** (`#1878`,
+	 * 2026-09-02). Prima moltiplicava `Dt` — l'unico orologio, che governa anche l'interpolazione del
+	 * movimento — quindi il tetto faceva correre i cilindri per far stare il turno nel numero. Il product
+	 * owner ha escluso quel comportamento: *«la durata target della Resolution non deve determinare la
+	 * velocita' visuale base della locomozione»*. Ora entra in
+	 * `URTPlaybackLibrary::SlackScaleForBudget`, che comprime `FRTPhaseTime::Slack` e non tocca
+	 * `Locomotion`. Quando il comprimibile finisce, **la durata sfora**: e' la definizione di soft.
+	 *
+	 * 📐 Misurato il 2026-09-02 su 125.780 risoluzioni nei log: il tetto **non era mai intervenuto** —
+	 * durata raw massima 4,4 s contro 12. Il difetto era latente, e si sarebbe risvegliato appena abbassata
+	 * la velocita' base, annullando proprio la correzione che #1878 chiede.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	float MaxPlaybackSeconds = 12.f;
 
 	/**
-	 * Velocita' SCELTA da chi guarda: 1 / 2 / 4 (CP 47.2, #955). E' una preferenza di ritmo, non un tetto:
-	 * si compone con l'accelerazione automatica via `URTPlaybackLibrary::EffectivePlaybackSpeed`, che
-	 * prende il massimo dei due. Scriverla a risoluzione in corso vale dal tick successivo — `TickPlayback`
-	 * la rilegge a ogni tick e non la congela in `BeginPlayback`.
+	 * Velocita' SCELTA da chi guarda: 1 / 2 / 4 (CP 47.2, #955). E' una preferenza di ritmo, ed e' l'UNICA
+	 * cosa che accelera la riproduzione: dal 2026-09-02 non si compone piu' con un fattore del tetto,
+	 * perche' il tetto non ne produce piu' uno (`#1878`). Scriverla a risoluzione in corso vale dal tick
+	 * successivo — `TickPlayback` la rilegge a ogni tick e non la congela in `BeginPlayback`.
 	 *
 	 * ⚠️ Presentazione, mai decisione (invariante #1): non entra nel TurnLog, non ne tocca l'hash, non
 	 * cambia l'ordine di risoluzione. Il gate che lo verifica e' in
@@ -713,19 +795,19 @@ public:
 	float ViewerPlaybackSpeed = 1.f;
 
 	/**
-	 * Il fattore di accelerazione AUTOMATICA in vigore: quanto il tetto sta gia' comprimendo il round.
+	 * Quanto il budget sta comprimendo le attese di questo round: `1` = nessuna compressione, `0` = tolto
+	 * tutto il comprimibile e la durata sfora comunque.
 	 *
-	 * Esiste per un motivo solo, ed e' il criterio 2 di CP 47.7 (#1015): l'etichetta del controllo di
-	 * velocita' deve dire la verita' anche quando `Max(Viewer, Cap)` sceglie il tetto — a `x1` sotto un
-	 * tetto che morde `3x` una manopola che mostrasse la sola scelta direbbe `x1` mentre lo schermo scorre
-	 * a `3x`.
+	 * ⚠️ **Non e' un fattore di velocita' e non va mostrato come tale.** Ha sostituito
+	 * `GetPlaybackCapSpeed()` il 2026-09-02 (`#1878`): quello esponeva un moltiplicatore `>= 1` che
+	 * accelerava la riproduzione, e l'etichetta della manopola lo componeva con la scelta del viewer per
+	 * dire la verita' su uno schermo che scorreva piu' in fretta. Ora lo schermo non scorre piu' in fretta
+	 * da se': l'etichetta mostra la sola scelta, ed e' vera perche' non c'e' un secondo fattore.
 	 *
-	 * ⚠️ **E' un accessore, non un secondo produttore.** L'HUD lo legge e lo passa a
-	 * `URTPlaybackLibrary::EffectivePlaybackSpeed` insieme alla scelta: la composizione resta una sola, qui.
-	 * L'alternativa — far ricalcolare il tetto all'HUD da `MaxPlaybackSeconds` — e' la seconda verita' che
-	 * il DoD vieta con le parole *«non ricalcola, non stima»*.
+	 * Resta esposto come **telemetria di pacing** — dice se il budget ha morso, cosa che il criterio 2 di
+	 * CP 47.7 (`#1015`) chiedeva di non nascondere. ⚠️ Presentazione: fuori da `StateHash` e dal TurnLog.
 	 */
-	float GetPlaybackCapSpeed() const { return PlaybackSpeed; }
+	float GetPlaybackSlackScale() const { return PlaybackSlackScale; }
 
 	// --- Tuning del bot (utility scoring, editabile in editor senza ricompilare) -----------------
 	// Pesi interi iniettati nel FRTBotContext di PlanBots (invariante #4: niente float). I default
@@ -1369,6 +1451,14 @@ protected:
 	void EnterPlaybackPhase();
 	void TickPlayback(float DeltaSeconds);
 	void FinishPlayback();
+	/**
+	 * I due termini della fase — movimento e attesa — prima che il budget tocchi il secondo.
+	 * Raccoglie gli ingressi che solo il TurnManager possiede e delega la formula a
+	 * `URTPlaybackLibrary::PhaseTime`.
+	 */
+	FRTPhaseTime PhaseTimeForPlaybackPhase(ERTMatchPhase InPhase) const;
+
+	/** La durata della fase come sara' riprodotta: locomozione intatta, attese scalate dal budget. */
 	float DurationForPlaybackPhase(ERTMatchPhase InPhase) const;
 
 	// --- Sonda di pacing ------------------------------------------------------------------------
@@ -1460,6 +1550,37 @@ protected:
 
 	UPROPERTY()
 	TArray<FRTCombatLogLine> RecentEvents;
+
+	/**
+	 * Le due istantanee di conoscenza del turno, per l'artefatto d'audit di [D-313] (`#2074`).
+	 *
+	 * ⚠️ **Due e non una**, e non e' ridondanza: `TeamKnowledgeState` ha esattamente due assegnazioni per
+	 * turno — il refresh di Planning e quello di Blast — e le due rispondono a domande d'audit diverse. La
+	 * prima e' cio' su cui il bot ha deciso, la seconda quella contro cui i verdetti sono stati congelati.
+	 * Registrarne una sola renderebbe una delle due verifiche impossibile.
+	 *
+	 * ⛔ **Copie, non riferimenti, e non entrano in nessun hash**: registrare non deve poter cambiare cio'
+	 * che si registra.
+	 */
+	TArray<FRTTeamKnowledge> PlanningKnowledgeForAudit;
+	TArray<FRTTeamKnowledge> BlastKnowledgeForAudit;
+
+	/**
+	 * Le SCELTE dei bot del turno, catturate a pianificazione chiusa ([D-313], emendamento del 2026-09-02).
+	 *
+	 * 🔴 **E' il quarto record, e senza di lui l'equita' non e' verificabile da nessun archivio**: la scelta
+	 * del bot non sopravvive alla pianificazione, e gli EFFETTI non la contengono — `TgtCell` su una voce di
+	 * combattimento e' la cella della vittima, non quella a cui si e' mirato.
+	 */
+	TArray<FRTAuditBotDecision> BotDecisionsForAudit;
+
+	/**
+	 * Il turno a cui `BotDecisionsForAudit` appartiene, e serve per la stessa ragione per cui le due
+	 * conoscenze portano il proprio `TurnNumber`: **le scelte di un altro turno non sono evidenza, sono un
+	 * errore che sembra una prova**. `FRTAuditBotDecision` un numero di turno non ce l'ha — e' un record di
+	 * scelta, non un'istantanea — quindi il timbro sta qui.
+	 */
+	int32 BotDecisionsTurnForAudit = INDEX_NONE;
 
 	/** TurnLog dell'ultimo turno risolto (osservabilita' autoritativa; ordinato in LockInAndResolve). */
 	TArray<FRTTurnLogEntry> TurnLog;
@@ -1700,6 +1821,26 @@ protected:
 	 */
 	ARTUnit* UnitByStableId(int32 StableUnitId) const;
 
+	/**
+	 * Dice le sovrapposizioni che lo snapshot ha registrato, **una volta per turno ciascuna** (`#1970`).
+	 *
+	 * 🔴 **La segnalazione sta QUI e non in `MakeSnapshot`**, che e' una funzione pura e non sa se sta
+	 * servendo una risoluzione autoritativa o l'anteprima sotto il cursore: `ARTPlayerController` la chiama
+	 * a ogni interazione di pianificazione, e un log la' dentro produrrebbe centinaia di righe identiche al
+	 * secondo per un difetto solo. Rilevare e segnalare sono due mestieri; questo e' il secondo.
+	 *
+	 * ⚠️ La deduplica e' una LISTA e non un set con hash: nel caso normale e' vuota, quindi il confronto
+	 * lineare non costa niente, e non c'e' una collisione che possa far sparire in silenzio proprio il log
+	 * che questa funzione esiste per emettere.
+	 */
+	void ReportSnapshotOverlaps(const FRTHexSnapshot& Snapshot);
+
+	/**
+	 * Le sovrapposizioni gia' segnalate nel turno corrente. Azzerata quando il turno avanza: la stessa
+	 * condizione che sopravvive a due turni va detta due volte — e' un fatto nuovo ogni turno.
+	 */
+	TArray<FRTHexOverlap> ReportedOverlapsThisTurn;
+
 public:
 	/**
 	 * `StableUnitId` -> nome leggibile, per le righe del combat log derivate dal TurnLog (`#1932`).
@@ -1733,6 +1874,17 @@ public:
 protected:
 
 	FTimerHandle PlanningTimerHandle;
+
+	/**
+	 * L'allestimento ha rivendicato l'apertura del turno 1 (`#2102`, [D-314]).
+	 *
+	 * ⚠️ **Stato di AVVIO, non stato di partita**: non entra in snapshot, TurnLog o hash. Dice chi apre il
+	 * primo turno, non cosa succede dentro.
+	 */
+	bool bFirstTurnClaimedBySetup = false;
+
+	/** Il turno 1 e' stato aperto — da `BeginPlay` o dall'allestimento. Rende idempotente l'apertura. */
+	bool bFirstTurnOpened = false;
 
 protected:
 	/**
@@ -1820,7 +1972,7 @@ private:
 	TArray<ERTMatchPhase> PlaybackPhases;   // fasi attive, in ordine
 	int32 PlaybackPhaseIdx = 0;
 	float PlaybackPhaseElapsed = 0.f;
-	float PlaybackSpeed = 1.f;              // fattore di accelerazione per rientrare nel tetto
+	float PlaybackSlackScale = 1.f;         // quanto il budget comprime le ATTESE (1 = nessuna, 0 = tutto)
 	float PlaybackTotalSeconds = 0.f;       // durata stimata (per la progress bar)
 	float PlaybackElapsedTotal = 0.f;
 	int32 AttacksShown = 0;                 // colpi gia' rivelati nel Blast corrente

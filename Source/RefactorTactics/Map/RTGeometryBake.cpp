@@ -2,6 +2,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexOccupancyLibrary.h"
+#include "Map/RTHexCoverPlacementLibrary.h"
 #include "Map/RTHexLibrary.h" // DirectionForEdgeIndex: le due numerazioni dei bordi non coincidono
 
 // ⚠️ Namespace NOMINATO, non anonimo: `RTHexOccupancyLibrary.cpp` ha helper con gli stessi nomi nel suo
@@ -17,6 +18,70 @@ namespace RTGeometryBakeInternal
 	 * divergere fra loro. Duplicare il corpo per cambiare una riga e' il modo in cui nascono i difetti che
 	 * questa seduta ha passato la giornata a rincorrere.
 	 */
+	// ================================================================================================
+	//  LA CALPESTABILITA' E' L'ESITO DI UNA POSA, NON DI UN CONTEGGIO — `E23.6`, `#1827`, `D-289`
+	// ================================================================================================
+	//
+	// 🔴 **Chiude un anello che era aperto: la primitiva esisteva e nessuno la chiamava.**
+	// `URTHexCoverPlacementLibrary::HasLegalPlacement` e' in `main` con tredici test verdi, ma
+	// `git grep` non le trovava un solo chiamante di produzione — e nemmeno `Classify` ne aveva. La
+	// calpestabilita' rispondeva percio' a due scorciatoie che `D-289` dichiara superate:
+	//
+	// ```text
+	// «>= 6 settori occupati => Blocked»   FRTOccupancyThresholds::BlockedFrom
+	// «centro toccato => Blocked»          FRTOccupancyMask::bCoreBlocked in Classify
+	// ```
+	//
+	// La seconda e' caduta con `D-306` (`#1826`), che ha tolto il contatto puntuale dal produttore della
+	// maschera. Questa riga sostituisce la prima: non si contano i settori, si chiede se un footprint ci sta.
+	//
+	// ⚠️ **Il profilo e' un PARAMETRO e non un campo serializzato, ed e' deliberato.** `COV-1` ha deciso la
+	// FORMA — settori contigui, non un raggio — ma i tre valori di `Small`/`Medium`/`Large` sono taratura di
+	// bilanciamento e restano aperti; il default e' l'identita' (`MinContiguousWedges = 1`). Serializzare
+	// adesso un profilo che non decide niente sarebbe un dato senza consumatore, e il giorno in cui i valori
+	// esistessero andrebbe comunque migrato. Il chiamante lo passa; il default non cambia il comportamento
+	// di nessuna mappa esistente.
+	//
+	// ⛔ **Una taglia non cambia l'occupancy**: `Large` vuol dire «piu' difficile da piazzare», non «occupa
+	// piu' posto». La cella resta uno slot.
+	void DeriveStandability(FRTHexCellData& Cell, const URTHexMapAsset* Map, const FRTCellId& CellId,
+		float HexSize, const FRTFootprintProfile& Footprint)
+	{
+		// La geometria che ostacola la posa sono i MURI INTERNI di questa cella: le coperture stanno sui
+		// bordi e non riducono lo spazio dentro. E' la stessa distinzione che `AddSegmentsToCell` applica
+		// scrivendo gli uni o le altre.
+		TArray<FRTOccupancyPolyline> Geometry;
+		for (const FRTHexInteriorWall& Wall : Map->InteriorWalls)
+		{
+			if (Wall.Cell == CellId)
+			{
+				Geometry.Add(URTGeometryGrammarLibrary::ToPolyline(Wall.Segment, HexSize));
+			}
+		}
+
+		const FRTOccupancyMask Mask = URTHexOccupancyLibrary::ComputeMask(Geometry, HexSize);
+		const bool bStandable = URTHexCoverPlacementLibrary::HasLegalPlacement(Mask, Footprint);
+
+		if (!bStandable)
+		{
+			// Nessuna posa legale: il blocco e' DERIVATO, e si marca come tale perche' il prossimo rebake
+			// possa toglierlo se la geometria cambia.
+			Cell.bBlocksMovement = true;
+			Cell.bMovementBlockGenerated = true;
+			return;
+		}
+
+		// 🔑 **L'AUTORE VINCE, ed e' la meta' che rende questo campo necessario.** Un `bBlocksMovement`
+		// dipinto a mano — `bMovementBlockGenerated == false` — non si tocca: la cottura non ha
+		// l'autorita' per contraddire una scelta di design. Si rimuove SOLO il blocco che ha prodotto lei,
+		// ed e' cio' che rende il rebake idempotente e reversibile: togliere il muro restituisce la cella.
+		if (Cell.bMovementBlockGenerated)
+		{
+			Cell.bBlocksMovement = false;
+			Cell.bMovementBlockGenerated = false;
+		}
+	}
+
 	int32 Bake(URTHexMapAsset* Map, const FRTCellId& CellId, const TArray<FRTGeometrySegment>& Segments,
 		float HexSize, bool bReplaceGenerated);
 
@@ -90,15 +155,21 @@ namespace RTGeometryBakeInternal
 		// sbordando oltre la cella — misurato in `U22`, dove un muro lungo `1.5x` l'inraggio dava due
 		// coperture e lo stesso muro fermato sul bordo ne dava zero.
 		//
+		// ⚠️ **Le prime quattro righe non passano piu' di qui** (#2085): un segmento con `Offset == 0`
+		// e' classificato interno PRIMA che questa funzione venga interrogata, perche' passare per il
+		// centro e' una proprieta' della giacitura e non l'esito di una domanda sui bordi. Restano qui
+		// per dire quali casi questa funzione NON decide piu'.
+		//
 		// 🔴 **L'estremo deve cadere STRETTAMENTE DENTRO il lato, non su un vertice**, ed e' `MSE-4`: ogni
 		// vertice appartiene a DUE lati, quindi accettarlo murerebbe anche il lato adiacente che il muro si
 		// limita a sfiorare. Ne segue, ed e' una conseguenza voluta e non un buco:
 		//
 		// ```text
-		// centro -> punto medio di un lato   1 copertura, su quel lato
-		// centro -> un vertice               nessuna copertura -> diventa un MURO INTERNO
-		// diametro fra due lati opposti      2 coperture
-		// diametro fra due vertici opposti   nessuna copertura -> diventa un MURO INTERNO
+		// centro -> punto medio di un lato   MURO INTERNO   (era: 1 copertura — corretto da #2085)
+		// centro -> un vertice               MURO INTERNO
+		// diametro fra due lati opposti      MURO INTERNO   (era: 2 coperture — corretto da #2085)
+		// diametro fra due vertici opposti   MURO INTERNO
+		// vertice -> vertice ADIACENTE       1 copertura, su quel lato (giace SUL bordo, Offset != 0)
 		// ```
 		//
 		// ⚠️ **Le righe 2 e 4 dicevano «NIENTE, e il ghost lo mostra rosso», e il formato v10 le ha rese
@@ -196,6 +267,7 @@ int32 URTGeometryBakeLibrary::AddSegmentsToCell(URTHexMapAsset* Map, const FRTCe
 	return RTGeometryBakeInternal::Bake(Map, CellId, Segments, HexSize, /*bReplaceGenerated=*/ false);
 }
 
+	
 int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 	const TArray<FRTGeometrySegment>& Segments, float HexSize, bool bReplaceGenerated)
 {
@@ -240,8 +312,37 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 	TMap<ERTHexDirection, ERTHexCoverType> Wanted;
 	for (const FRTGeometrySegment& Segment : Segments)
 	{
+		// 🔴 **UN SEGMENTO CHE PASSA PER IL CENTRO E' INTERNO, e non lo si deduce dai bordi** — #2085.
+		//
+		// `Offset == 0` significa, per definizione della grammatica, *«il segmento passa per il centro
+		// della cella»*: e' una proprieta' della GIACITURA, non l'esito di una domanda sui bordi. Chiederlo
+		// a `EdgesTouchedBy` era definire «interno» per negazione — corretto finche' la copertura di bordo
+		// era l'unica rappresentazione esistente, sbagliato da quando `InteriorWalls` esiste.
+		//
+		// ⚠️ **La storia, perche' non si ripeta.** Il ramo *«il muro arriva da dentro e si ferma sul bordo»*
+		// nasce in `362e42c1` (#712, 2026-08-20) quando il bake sapeva produrre SOLO coperture: la
+		// richiesta era *«i muri devono essere disegnabili anche sui segmenti che partono dal centro»*, e
+		// trasformarli in coperture era l'unico modo di farli esistere — l'alternativa era `niente`.
+		// Poche ore dopo `97df4d9d` ha introdotto `InteriorWalls`, cioe' la rappresentazione che mancava.
+		// Il caso `centro → vertice` e' stato sanato da quella; `centro → punto medio` no, perche' la
+		// scorciatoia lo copriva gia'. E' sopravvissuta alla propria causa per tredici giorni.
+		//
+		// 🔑 **Che cosa NON cambia**: un muro appoggiato SUL lato (vertice → vertice adiacente) ha
+		// `Offset` massimo, non zero, e continua a chiudere quel bordo. `EdgesTouchedBy` non si tocca:
+		// risponde correttamente alla propria domanda, e ha altri due chiamanti di produzione
+		// (`RTHexMapAsset`, `RTMapEditLibrary`) che questa correzione non deve raggiungere.
+		//
+		// 📐 **Perche' e' semanticamente giusto**: una copertura di bordo blocca il passaggio FRA DUE
+		// CELLE. Un raggio dal centro a un lato non lo blocca — dal vicino si entra ancora, da entrambi i
+		// lati del raggio — e cio' che divide e' l'INTERNO. Classificarlo come copertura inventava un
+		// blocco inesistente e perdeva la divisione reale.
+		const bool bThroughCentre = (Segment.Offset == 0);
+
 		TArray<ERTHexDirection> Edges;
-		URTGeometryBakeLibrary::EdgesTouchedBy(Segment, HexSize, Edges);
+		if (!bThroughCentre)
+		{
+			URTGeometryBakeLibrary::EdgesTouchedBy(Segment, HexSize, Edges);
+		}
 
 		if (Edges.Num() == 0)
 		{
@@ -266,19 +367,30 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 			// segmento anche percorso al contrario»*. Tracciando `V1→V2` e poi `V2→V1` il duplicato
 			// passava. Riscrivere a mano un confronto che esiste gia' e' esattamente il difetto che questa
 			// seduta ha inseguito otto volte.
-			// ⚠️ `WallType` si confronta a parte perche' `operator==` NON lo include: due muri sulla stessa
-			// giacitura ma di tipo diverso sono due muri, e la regola `High` su `Low` vale sui bordi, dove
-			// il bordo e' unico — qui la giacitura non lo e'.
-			const bool bAlready = Map->InteriorWalls.ContainsByPredicate(
+			// 🔴 **`WallType` NON si confronta**, e la riga che lo faceva e' caduta con `GEO-9` di `D-288`.
+			// Diceva *«due muri sulla stessa giacitura ma di tipo diverso sono due muri»*, e produceva un
+			// asset che i due validator dichiaravano invalido: `operator==` il tipo non lo include, quindi
+			// `ValidateMap` e `DuplicateSegment` segnalavano entrambi i muri che questo ramo aveva appena
+			// scritto. Il bake si contraddiceva con la validazione nello stesso commit.
+			//
+			// **Uscita: un segmento per giacitura e intervallo, e vince `High` su `Low`** — la stessa regola
+			// deterministica gia' applicata sui bordi sedici righe piu' in basso, invece di «vince l'ultimo
+			// arrivato». Cosi' l'ordine dei segmenti non decide il tipo del muro.
+			//
+			// ⚠️ La regola e' l'IDENTITA' GEOMETRICA, non la giacitura: due muri sullo stesso asse e offset
+			// ma su tratti diversi restano due muri legittimi, ed e' gia' cio' che `operator==` significa.
+			const int32 ExistingWall = Map->InteriorWalls.IndexOfByPredicate(
 				[&CellId, &Segment](const FRTHexInteriorWall& Wall)
 				{
-					return Wall.Cell == CellId
-						&& Wall.Segment == Segment
-						&& Wall.Segment.WallType == Segment.WallType;
+					return Wall.Cell == CellId && Wall.Segment == Segment;
 				});
-			if (!bAlready)
+			if (ExistingWall == INDEX_NONE)
 			{
 				Map->InteriorWalls.Add(FRTHexInteriorWall(CellId, Segment));
+			}
+			else if (Segment.WallType == ERTHexCoverType::High)
+			{
+				Map->InteriorWalls[ExistingWall].Segment.WallType = ERTHexCoverType::High;
 			}
 			continue;
 		}
@@ -335,6 +447,10 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 		Updated.Covers.Add(Cover);
 		++Generated;
 	}
+
+	// La calpestabilita' si deriva DOPO che muri e coperture sono scritti: guarda lo stato finale della
+	// cella, non quello che aveva prima del gesto.
+	DeriveStandability(Updated, Map, CellId, HexSize, FRTFootprintProfile());
 
 	Map->AddOrUpdateCell(Updated);
 	return Generated;

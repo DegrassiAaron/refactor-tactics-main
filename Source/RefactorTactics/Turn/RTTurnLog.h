@@ -191,7 +191,29 @@ enum class ERTFacingOutcome : uint8
 	 * di riduzione. Un consumatore che filtrava `Facing`/`RearHitBypassedCover` e leggeva `Amount` otteneva un
 	 * numero plausibile e sbagliato, senza nessun modo di sapere quale dei due aveva in mano.
 	 */
-	RearHitBypassedGuard
+	RearHitBypassedGuard,
+	/**
+	 * Da quale dei SEI LATI, relativamente al facing del difensore, e' arrivato un colpo risolto ([D-126],
+	 * `#726`). `Amount` porta l'INDICE RELATIVO `(spicchio - facing + 6) % 6`, cioe' un `ERTRelativeDirection`
+	 * — non i punti di riduzione di `RearHitBypassedCover` ne' il facing assoluto di `RearHitBypassedGuard`.
+	 *
+	 * ⚠️ **In coda, per la stessa ragione di `RearHitBypassedGuard`**: `Outcome` viaggia come `uint8` nel
+	 * formato serializzato, quindi inserire un valore in mezzo rinumera tutti quelli che seguono e riscrive
+	 * il significato di ogni traccia gia' archiviata. Il formato NON cambia versione: nessun campo nuovo,
+	 * solo un valore in piu' in un enum gia' serializzato come intero.
+	 *
+	 * 🔑 **Un esito PROPRIO e non un terzo significato di `Amount` su un esito esistente.** E' la lezione di
+	 * `#1430`/[D-199]: fino al 2026-08-27 guardia e copertura emettevano lo STESSO esito con due `Amount`
+	 * incompatibili, e un consumatore che filtrava non aveva modo di sapere quale dei due avesse in mano.
+	 * Aggiungere qui una terza semantica sotto una coppia `(Category, Outcome)` gia' usata avrebbe rifatto
+	 * quel difetto sapendolo.
+	 *
+	 * ⚠️ **Questa voce e' descrittiva, non decisionale**: non cambia nessun esito di combattimento. E' il
+	 * primo consumatore che [D-126] chiedeva — senza, la relazione a sei lati sarebbe un ramo morto, cioe' il
+	 * `runtime: partial` che il registry punisce. Il secondo consumatore (un'abilita' che dichiara il proprio
+	 * insieme di lati) arriva col primo contenuto che ne ha bisogno.
+	 */
+	HitCameFromSide
 };
 
 /**
@@ -467,7 +489,31 @@ enum class ERTMoveOutcome : uint8
 	 * `Amount` porta le celle del percorso RISOLTO scartato — `0` per un piano che dichiarava solo una
 	 * destinazione senza posare waypoint (il bot), dove la destinazione resta leggibile in `TgtCell`.
 	 */
-	SupersededByDash
+	SupersededByDash,
+	/**
+	 * Fermata perche' il proprio movimento chiude un **ciclo** con altre unita' in movimento: uno scambio
+	 * diretto `A↔B` o una catena `A→B→C→A` in cui ognuna punta alla cella occupata dalla successiva e
+	 * l'ultima punta alla prima (#1922, `D-295` ← `AUTHOR-MOVE-001`). Aggiunto in CODA, come i cinque valori
+	 * sopra: l'esito viaggia come `uint8` nel formato serializzato, quindi le tracce gia' scritte non
+	 * cambiano significato.
+	 *
+	 * **Perche' un valore proprio, e uno solo per scambio e ciclo.** Sono la STESSA struttura: lo scambio e'
+	 * il ciclo con `n = 2`. Cio' che li distingue da un **convoy** (`A→B→C→libera`), che deve continuare ad
+	 * avanzare, non e' una differenza di forma ma l'ultima cella della catena — per questo la regola e' un
+	 * rilevamento di ciclo sul grafo `target → occupante`, non un confronto a coppie.
+	 *
+	 * **Perche' non riusa i valori vicini.** `BlockedContested` dice «due unita' verso la STESSA cella», e in
+	 * un ciclo le celle sono distinte: nessuno contende nulla. `BlockedByUnit` dice «c'era un'unita' FERMA»,
+	 * e in un ciclo sono tutte in movimento. `BlockedByImpact` e' lo scontro frontale fra due mobilita'
+	 * LINEARI: resta una regola sua, viene PRIMA nell'ordine dei controlli, e il suo reason e' asserito per
+	 * nome da `HexSim.ResolveHeadOnBlocksLinearSwap`.
+	 *
+	 * ⚠️ **`bPassThrough` non partecipa.** Quel flag governa il ramo dell'unita' FERMA
+	 * (`RTHexSimLibrary.cpp`, filtro `!Moving[j]`); ciclo e scambio vivono fra unita' in MOVIMENTO. I due
+	 * rami sono disgiunti, e un'unita' che sta solo TRANSITANDO per la cella dell'altra chiude comunque il
+	 * ciclo: non si passa attraverso qualcuno che nello stesso istante sta venendo verso di noi.
+	 */
+	BlockedByCycle
 };
 
 /**
@@ -549,6 +595,30 @@ enum class ERTCombatOutcome : uint8
  * voci ambientali, per l'interposizione (che scrive la cella del protetto) e dopo un Dash. L'identita' la
  * porta `UnitId` dal formato v6 (D-063).
  */
+/**
+ * I tre soli ingressi che `FreezeVerdict` legge, per dire contro CHI un verdetto e' stato congelato.
+ *
+ * ⚠️ **Non e' un `FRTKnowledgeSubject`, ed e' deliberato**: quello porta anche `HeroId`, `HeroDisplayName`
+ * e `bAlive`, che `ClassifyTarget` non guarda. Una `FText` dentro la struct piu' copiata e ordinata del
+ * resolver costerebbe traffico di refcount a ogni copia di `TurnLog`, per un dato che nessuno legge — e
+ * trascinerebbe `Perception/RTKnowledgeView.h` dentro uno degli header piu' inclusi del progetto.
+ */
+USTRUCT(BlueprintType)
+struct FRTVerdictSubjectRef
+{
+	GENERATED_BODY()
+
+	/** `INDEX_NONE` = fatto di MONDO: nessun soggetto, e il verdetto e' `Everyone()` per REGOLA. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 StableUnitId = INDEX_NONE;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 TeamId = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	FRTCellId Cell;
+};
+
 USTRUCT(BlueprintType)
 struct FRTTurnLogEntry
 {
@@ -661,6 +731,25 @@ struct FRTTurnLogEntry
 	 * entrano in nessuna traccia reale, quindi non c'e' nessun `UnitId` a zero da correggere finche' un
 	 * produttore non esiste.
 	 *
+	 * 🔴 **E i due residui NON sono lo stesso residuo** — misurato il 2026-09-01 lavorando `#1933`,
+	 * perche' «manca il chiamante» faceva sembrare i due casi simmetrici e non lo sono:
+	 *
+	 * · `UsedByBlast` ha **oggetto**: il Blast il facing lo legge davvero, in `IsInFrontalArc`, e ne
+	 *   decide l'esito. Manca solo chi registri la lettura. ⚠️ Il costo non e' la riga: `ReadFacingForConsumer`
+	 *   accetta una `FRTHexSimUnit` mentre il Blast maneggia `FRTHexCombatUnit`, e ogni voce in piu' sposta
+	 *   l'hash di ogni traccia archiviata che contenga un colpo direzionale.
+	 *
+	 * · `UsedByOverwatch` **non ha oggetto**, ed e' la differenza che conta: l'Overwatch non legge nessun
+	 *   facing. Le sue quattro condizioni sono `TargetInsideArea`, `TargetDetected`, `HasLineOfSight` e
+	 *   l'appartenenza di squadra (`BuildOverwatchTriggers`), e la zona e' una **linea** `From -> Toward`
+	 *   (`MakeSuppressiveZone` -> `LineCells`), non un settore orientato. Ne' `FRTOverwatchWatcher` ne'
+	 *   `FRTSuppressionMover` portano un `Facing`.
+	 *
+	 * ∴ Il produttore che [D-020] e [ADR-0005] riga 86 presuppongono — *«l'Overwatch usa il **cono
+	 * pianificato**»* — non puo' nascere qui: quel cono nel codice **non esiste**. Chiamare
+	 * `ReadFacingForConsumer` dal trigger scriverebbe una voce che dichiara una lettura mai avvenuta,
+	 * cioe' il dato plausibile e falso che `Unmeasured` esiste altrove per non produrre.
+	 *
 	 * ⚠️ **Cosa si perde, detto invece che taciuto**: con `UnitId` sul difensore, l'attaccante resta nella
 	 * voce solo come `SrcCell` — e questo stesso commento dichiara che la cella non identifica un'unita'.
 	 * Chi volesse aggregare gli scavalcamenti per ATTACCANTE (la sovrastima del bot, `RTHexBotLibrary.h:94`)
@@ -674,6 +763,18 @@ struct FRTTurnLogEntry
 	 * plausibile e sbagliato senza nessun modo di sapere quale dei due avesse in mano. Separarli ha toccato
 	 * `Outcome`, che ENTRA nell'hash: il costo e' dichiarato in [D-199]. Sull'unita' dichiarata erano gia'
 	 * d'accordo — chi subisce — e restano d'accordo: `IsSubjectTheSufferer` risponde `true` a entrambi.
+	 *
+	 * ➕ **E dal 2026-09-02 sono tre** (`#726`): `HitCameFromSide` racconta da quale dei sei lati un colpo e'
+	 * arrivato, quindi descrive anch'essa il difensore e `IsSubjectTheSufferer` risponde `true`. `Amount` vi
+	 * porta l'INDICE RELATIVO (`ERTRelativeDirection`), che e' una terza semantica ancora — non la direzione
+	 * assoluta della guardia ne' i punti della copertura — ed e' la ragione per cui e' un esito proprio e non
+	 * un terzo significato sotto una coppia gia' usata.
+	 * 🔴 **Ma con una differenza che vale per chi consuma**: quella voce **non porta la cella
+	 * dell'attaccante**, ne' in `SrcCell` ne' altrove — entrambe le celle sono quelle del difensore, come in
+	 * ogni altra voce `Facing` che descrive l'orientamento di un'unita'. Il verdetto di visibilita' si
+	 * congela su chi SUBISCE, quindi scriverci la posizione di chi spara la pubblicherebbe a chi vede il
+	 * bersaglio, e su OGNI colpo risolto invece che sui rari bypass. Il «cosa si perde» dichiarato qui sopra
+	 * vale li' in forma piu' forte: per l'attaccante non c'e' nemmeno la cella.
 	 *
 	 * **Conseguenza per chi consuma**: sommare il danno *inflitto* per `UnitId` filtrando su
 	 * `Category == Combat` accredita a chi brucia i danni fatti a se' stesso — un numero **plausibile e
@@ -706,6 +807,25 @@ struct FRTTurnLogEntry
 	 */
 	UPROPERTY(Transient)
 	FRTKnowledgeVerdict Verdict;
+
+	/**
+	 * Il soggetto contro cui `Verdict` e' stato congelato ([D-313], `#2074`).
+	 *
+	 * 🔴 **Senza, il verdetto non e' VERIFICABILE**, ed e' l'unica ragione per cui esiste: nessuno dei tre
+	 * ingressi di `FreezeVerdict` si ricava dalla voce archiviata. `SrcCell` e' la cella di PARTENZA del
+	 * turno, non quella al momento della scrittura; il `TeamId` non c'e'; e `UnitId` su una voce di danno e'
+	 * spesso chi SUBISCE. Ricalcolare da li' produrrebbe falsi disallineamenti — un controllo che accusa il
+	 * gioco di un difetto che non ha.
+	 *
+	 * ⚠️ **Vive QUI e non in un array parallelo, per la stessa ragione del verdetto**: `SortTurnLog`
+	 * riordina, e un indice non sopravviverebbe al sort. Il campo si'.
+	 *
+	 * 🔴 **`Transient`, come `Verdict`**: non entra nel formato, non entra in `EntryLess`, non entra in
+	 * `MixEntryFields`, e nessun golden si rigenera. Chi lo vuole durevole lo trova nell'artefatto d'audit
+	 * accanto alla traccia, che e' il posto che [D-313] gli assegna.
+	 */
+	UPROPERTY(Transient)
+	FRTVerdictSubjectRef VerdictSubject;
 
 	/**
 	 * Turno in cui la voce e' stata emessa. `0` = non dichiarato (tracce scritte prima del formato v6).

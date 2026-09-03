@@ -1,0 +1,115 @@
+{
+  "scenarioId": "Spec.Map.WallCrossesCellStillStandable",
+  "tags": [
+    "spec",
+    "map",
+    "movement",
+    "pathfinding",
+    "geometry",
+    "gadget"
+  ],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 2,
+  "_nota": "SPECIFICA ESEGUIBILE di E23.6 (#1827): un muro che ATTRAVERSA la cella non la CHIUDE. La calpestabilita' e' l'esito di una posa legale per il footprint, non di un conteggio di settori — `D-289`. L'unita' ENTRA nella cella murata e ci resta: e' esattamente il claim, ne' piu' ne' meno.",
+  "_nota_cosa_aggiunge_a_1830": "#1830 porta il muro interno in partita e gli fa fermare vista e proiettile. Qui il soggetto e' il MOVIMENTO: `BakeCell` deriva `bBlocksMovement` dall'assenza di posa, e senza quella cottura la cella resterebbe pavimento — opaca allo sguardo e attraversabile a piedi.",
+  "_nota_geometria": "Un diametro sull'asse Deg90: attraversa la cella da un vertice all'altro passando per il centro. Occupa i QUATTRO settori che percorre — non dodici, da `D-306` — e ne lascia otto liberi in due regioni. Col footprint identita' una posa esiste, quindi `bBlocksMovement` resta falso.",
+  "cells": [
+    {
+      "cell": [
+        0,
+        -2,
+        0
+      ],
+      "blocksMovement": true
+    },
+    {
+      "cell": [
+        0,
+        -1,
+        0
+      ],
+      "blocksMovement": true
+    },
+    {
+      "cell": [
+        0,
+        1,
+        0
+      ],
+      "blocksMovement": true
+    },
+    {
+      "cell": [
+        0,
+        2,
+        0
+      ],
+      "blocksMovement": true
+    }
+  ],
+  "interiorWalls": [
+    {
+      "cell": [
+        0,
+        0,
+        0
+      ],
+      "axis": "Deg90",
+      "alongStart": -12,
+      "alongEnd": 12
+    }
+  ],
+  "units": [
+    {
+      "id": "A1",
+      "hero": "Hero.Gadget",
+      "team": 0,
+      "cell": [
+        -1,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 1,
+      "cell": [
+        2,
+        -2,
+        0
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "intents": [
+        {
+          "unit": "A1",
+          "move": [
+            [
+              0,
+              0,
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "UnitAtCell",
+      "unit": "A1",
+      "cell": [
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "_nota_oracolo_corretto_2026_09_02": "CORRETTO il 2026-09-02 (#2100). L'oracolo precedente faceva ATTRAVERSARE l'unita' — intento verso (1,0,0) — e asseriva che ci arrivasse. Provava piu' del claim: E23.6 riguarda se la cella e' CHIUSA, non se la si attraversa, e il suo Scope §2 lo dichiara togliendo «non si attraversa» dal commento di `ERTCellOccupancy::Blocked` perche' «non e' piu' vero». Quando #2100 ha cablato la traversata intra-cella — `spec-cover-placement-intra-hex.md` §6, «un muro continuo divide lo spazio di posa in regioni sconnesse» — questo scenario e' diventato rosso, e sembrava un conflitto fra due decisioni canoniche. NON LO ERA: una cella puo' essere agibile e non attraversabile, e le due regole valgono insieme. Era l'oracolo a dimostrare troppo.",
+  "_nota_perche_ora_discrimina": "L'asserzione falsifica ancora il difetto che E23.6 guarda: se `bBlocksMovement` fosse derivato male — cioe' se il muro chiudesse la cella — A1 non potrebbe ENTRARE e resterebbe a (-1,0,0). Il corridoio murato resta e non serve piu' a impedire l'aggiramento: la meta E' la cella sotto esame, quindi non esiste una strada alternativa che la raggiunga. Si conserva perche' documenta il contesto e perche' toglierlo cambierebbe la scena senza motivo.",
+  "_nota_cosa_NON_asserisce_piu": "Che si possa PASSARE da (-1,0,0) a (1,0,0) attraverso il muro. Quel transito e' ora vietato da #2100, ed e' verificato altrove: `RefactorTactics.Path.ContinuousWallBlocksTheCrossing` lo pinna, e `Spec.Map.IncidentWallsStillPlay` lo esercita in partita. Le due meta' — «non chiusa» e «non attraversabile» — vivono ora in due oracoli distinti, che e' cio' che erano fin dall'inizio."
+}

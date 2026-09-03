@@ -389,35 +389,19 @@ float ARTHUD::NextViewerPlaybackSpeed(float Current)
 	return Scale[0];
 }
 
-FString ARTHUD::ComposePlaybackSpeedLabel(float ViewerSpeed, float CapSpeed)
+FString ARTHUD::ComposePlaybackSpeedLabel(float ViewerSpeed)
 {
-	// Stessa convenzione del modello: non positivo = «non scelto» = x1. Un'etichetta «x0» direbbe che la
+	// ⚠️ INTERROGA la normalizzazione, non la rifa'. E' la stessa funzione che `TickPlayback` usa per
+	// scorrere: se un giorno la convenzione sul non-positivo cambiasse, l'etichetta segue senza che
+	// nessuno se ne ricordi. Non positivo = «non scelto» = x1; un'etichetta «x0» direbbe che la
 	// riproduzione e' ferma, che e' un'altra cosa e non e' vera.
-	const float Chosen = (ViewerSpeed > 0.f) ? ViewerSpeed : 1.f;
+	const float Effective = URTPlaybackLibrary::EffectivePlaybackSpeed(ViewerSpeed);
 
-	// ⚠️ INTERROGA la composizione, non la rifa'. E' la stessa funzione che `TickPlayback` usa per
-	// scorrere: se un giorno `Max` diventasse altro, l'etichetta segue senza che nessuno se ne ricordi.
-	const float Effective = URTPlaybackLibrary::EffectivePlaybackSpeed(Chosen, CapSpeed);
-
-	// Interi quando lo sono — la scala offre `x1 · x2 · x4` — ma il TETTO e' un fattore continuo,
-	// derivato da `MaxPlaybackSeconds`, e un `x3` arrotondato da `2.6` sarebbe un numero inventato.
-	auto FormatSpeed = [](float Value) -> FString
-	{
-		return FMath::IsNearlyEqual(Value, FMath::RoundToFloat(Value), 0.05f)
-			? FString::Printf(TEXT("x%d"), FMath::RoundToInt(Value))
-			: FString::Printf(TEXT("x%.1f"), Value);
-	};
-
-	// Coincidono: un numero solo. Due numeri uguali su ogni round normale sarebbero rumore, e il rumore
-	// costante e' il modo in cui un'informazione smette di essere letta.
-	if (FMath::IsNearlyEqual(Effective, Chosen, 1e-3f))
-	{
-		return FormatSpeed(Chosen);
-	}
-
-	// Divergono: si dicono ENTRAMBI, e si dice chi ha vinto. Senza la parola «tetto» due numeri
-	// costringono a indovinare quale sia la scelta e quale l'effetto.
-	return FString::Printf(TEXT("%s -> %s (tetto)"), *FormatSpeed(Chosen), *FormatSpeed(Effective));
+	// Interi quando lo sono — la scala offre `x1 · x2 · x4` — ma il campo e' `EditAnywhere` e puo' portare
+	// un valore fuori scala scritto a mano: un `x3` arrotondato da `2.6` sarebbe un numero inventato.
+	return FMath::IsNearlyEqual(Effective, FMath::RoundToFloat(Effective), 0.05f)
+		? FString::Printf(TEXT("x%d"), FMath::RoundToInt(Effective))
+		: FString::Printf(TEXT("x%.1f"), Effective);
 }
 
 void ARTHUD::DrawHUD()
@@ -937,6 +921,36 @@ void ARTHUD::DrawHUD()
 			}
 		}
 
+		// Il progresso sull'OBIETTIVO contendibile (`CP 10.2`, `#75`). Il punto lo assegna il Cleanup e lo
+		// registra nel TurnLog da tempo; la DoD lo voleva anche «nell'HUD», e fino a qui nessuno lo mostrava.
+		//
+		// ⚠️ **Solo se la mappa DICHIARA un obiettivo.** Su una mappa che non ne ha, `0-0` non sarebbe una
+		// partita in parita': sarebbe un punteggio inventato per una gara che non si sta correndo. E' la
+		// stessa reticenza che il resolver ha gia' — `RTTurnManager` non scrive la voce di log senza
+		// `HasObjectiveCell()`, e `Objectives.SilentWithoutObjectiveCell` la misura.
+		if (const ARTHexMapActor* ObjectiveMapActor = ARTHexMapActor::FindInWorld(GetWorld()))
+		{
+			FVector IgnoredOrigin = FVector::ZeroVector;
+			float IgnoredSize = 0.f;
+			float IgnoredLayerH = 0.f;
+			const URTHexMapAsset* ObjectiveMap = ObjectiveMapActor->GetHexContext(IgnoredOrigin, IgnoredSize, IgnoredLayerH);
+			if (ObjectiveMap && ObjectiveMap->HasObjectiveCell())
+			{
+				// Interi, come nel resolver e nel log: la riga mostrata dev'essere confrontabile con la
+				// colonna `Amount` del TurnLog, non somigliarle.
+				Status += FString::Printf(TEXT("  -  Obiettivo %d-%d"),
+					TurnManager->GetTeamScore(0), TurnManager->GetTeamScore(1));
+
+				// La soglia viene dal FORMATO, come `RoundLimit` qui sopra, e si tace quando e' `0`: la via
+				// per obiettivo e' disattivata in v0.1, e «a 0» leggerebbe come «gia' vinta».
+				const int32 ScoreToWin = TurnManager->GetMatchRules().ScoreToWin;
+				if (ScoreToWin > 0)
+				{
+					Status += FString::Printf(TEXT(" (a %d)"), ScoreToWin);
+				}
+			}
+		}
+
 		// Il controllo di velocita' (CP 47.7, #1015). Sta nella riga di stato e non in un pannello suo
 		// perche' quella riga e' l'unico elemento sempre visibile durante la risoluzione — che e' quando
 		// serve — e perche' `progettazione-hud.md` §31 mette turn/phase/timer fra i persistenti.
@@ -950,7 +964,7 @@ void ARTHUD::DrawHUD()
 		// Canvas non ha nulla su cui passare il mouse, quindi una scorciatoia non scritta e' una
 		// scorciatoia che non esiste.
 		Status += FString::Printf(TEXT("  -  Velocita': %s (V)"),
-			*ComposePlaybackSpeedLabel(TurnManager->ViewerPlaybackSpeed, TurnManager->GetPlaybackCapSpeed()));
+			*ComposePlaybackSpeedLabel(TurnManager->ViewerPlaybackSpeed));
 		float TW = 0.f, TH = 0.f;
 		GetTextSize(Status, TW, TH, nullptr, 1.2f);
 		DrawText(Status, FLinearColor::White, (Canvas->SizeX - TW) * 0.5f, 16.f, nullptr, 1.2f);

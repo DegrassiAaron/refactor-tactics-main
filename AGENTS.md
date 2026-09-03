@@ -301,6 +301,8 @@ node tools/radar/wiki-alt.ts --wiki-root <clone> --check
 node tools/radar/doc-links.ts --check
 node tools/radar/catalog-code.ts
 node tools/radar/doc-tables.ts --check
+node tools/radar/issue-refs.ts --check
+node tools/radar/scenario-notes.ts --check
 node tools/asset-refs/check.ts
 
 cd tools/radar
@@ -309,7 +311,51 @@ node --test
 
 Ogni tool dichiara nel docstring **cosa non copre**.
 
+⛔ `tools/mutation/costanti-combattimento.py` **non e' fra i controlli noti**, e di proposito. Modifica un sorgente e occupa il motore per **un build completo piu' una suite intera per ogni costante**, piu' una baseline: con le 11 di `RTCombatLibrary.h` sono **ore**, e le direzioni di mutazione da misurare sono **due** (`+3` e `-3` danno risposte diverse — vedi il docstring). Mentre gira, ogni altra misura in parallelo e' NON VALIDA. Si lancia per rispondere alla domanda che `#2118` ha posto — *quali costanti si possono cambiare senza che niente diventi rosso* — non a ogni PR.
+
+⚠️ E se non stampa `AUDIT COMPLETO`, **ricostruire prima di qualunque altra misura**: un'interruzione lascia mutato anche il binario, che e' la meta' che `rt-suite` non sa vedere.
+
+⚠️ `scenario-notes.ts` confronta i numeri citati nella **prosa** di uno scenario con ciò che il file
+stesso asserisce — è la deriva che `#1904` ha misurato propagarsi nei documenti a valle, e che `#2049`
+ha ripulito. **Ordina, non decide**: ogni riga segnalata va letta, e un verde non è una prova di
+assenza. Le tre cose che non vede sono nel suo docstring.
+
 Un verde dimostra soltanto ciò che quel tool misura.
+
+### `issue-refs.ts` — l'unico che guarda fuori dal repository
+
+Confronta i percorsi e i comandi citati dalle **issue aperte** con l'albero: chiude il difetto che
+`doc-links.ts` dichiara di non coprire, cioè i riferimenti scritti in prosa dove nessun link li rende
+verificabili.
+
+Tre cose da sapere prima di usarlo:
+
+- **Segnala il cancellato, non l'assente.** Un percorso mai esistito è un deliverable e non è un
+  difetto; uno rimosso è un riferimento morto. La distinzione toglie ~114 falsi positivi.
+- **Serve la storia completa.** Su un clone shallow dichiara `NOT RUN` invece di un verde: senza
+  `git log --diff-filter=D` nessun percorso risulta rimosso.
+- **Senza rete dichiara `NOT RUN` ed esce 0.** Non blocca chi lavora offline e non finge un verde.
+
+Una issue il cui *oggetto* è la rimozione si esenta dal proprio corpo, **col motivo obbligatorio**:
+
+```html
+<!-- issue-refs: ignora — perché questa issue cita di proposito percorsi rimossi -->
+```
+
+Il gate stampa le esenzioni a ogni esecuzione.
+
+⚠️ **Si lancia a mano, come gli altri radar** — vedi §9: *«non introdurre CI senza una decisione
+esplicita»*. Il difetto che chiude però non nasce da un commit, **nasce dal tempo che passa** fra la
+rimozione di un percorso e la issue che nessuno riapre.
+
+Per questo `rt-suite.ps1` lo esegue **come promemoria** dopo un verdetto `VALIDA`, e lo si disattiva con
+`-NoIssueRefs`:
+
+🔴 **Non concorre al verdetto della suite, ed è una scelta, non una svista.** Legge GitHub, che cambia
+mentre la suite gira: in una run da quaranta minuti può passare all'avvio e fallire alla fine. Farlo
+entrare nelle invarianti di §9 renderebbe `NON VALIDA` una misura sana per una issue che ha modificato
+qualcun altro — cioè il difetto che `rt-suite.ps1` esiste per impedire. Stampa, e l'esito resta quello
+dei test.
 
 Gli output generati dei radar non si editano a mano.
 
@@ -377,6 +423,43 @@ Non confondere:
 con
 
 **file verificato**.
+
+### Chiudere una issue
+
+`fix(605)` **non chiude** la issue 605.
+
+GitHub lo legge come uno **scope Conventional Commits**, non come un riferimento. La forma che chiude e' una
+parola chiave seguita da `#N`:
+
+```
+Closes #605
+```
+
+Le parole riconosciute sono `close`/`closes`/`closed`, `fix`/`fixes`/`fixed`,
+`resolve`/`resolves`/`resolved`. `fix(605)` non e' nessuna di queste: manca il `#`, e la parentesi ne fa
+uno scope.
+
+**Dove va**: nel **corpo della PR**, in cima. Non nel messaggio di commit.
+
+Il corpo della PR e' il canale che GitHub processa al merge, ed e' l'unico che un agente controlla davvero:
+`gh pr create --body-file` scrive li'.
+
+⛔ **`.github/pull_request_template.md` non basta.** Il template si applica solo alle PR aperte
+dall'interfaccia web: `gh pr create` con `--body` o `--body-file` lo **sostituisce**, e non avvisa. Chi apre
+PR da riga di comando — cioe' ogni agente — deve scrivere la riga a mano.
+
+⚠️ **Se la base della PR non e' il branch di default, `Closes` non chiude niente al merge.** La issue si
+chiudera' solo quando quel branch arrivera' su `main`. Una PR verso un branch padre intermedio chiude la
+propria issue **a mano**, oppure lo dichiara.
+
+**Perche' questa sezione esiste.** Misurato il 2026-09-02: **57** issue aperte avevano almeno un commit
+`fix()`/`feat()` mergiato su `main`, e nessuna si era chiusa da sola. Fra queste, `#1473`, `#605`, `#75` e
+`#61` avevano il lavoro **finito**: la loro correzione era su `main` da giorni o settimane, e restavano
+aperte perche' il messaggio diceva `fix(1473)` invece di `fixes #1473`.
+
+⚠️ **Non e' un difetto di disciplina, ed e' per questo che vale una regola scritta**: `fix(605)` *sembra* un
+riferimento. Il triage completo e' nel commento di chiusura di
+[`#1473`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1473).
 
 ### ID condivisi
 
