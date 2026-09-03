@@ -11,6 +11,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Turn/RTFacingLibrary.h" // ERTRelativeDirection: il lato che la voce direzionale porta in `Amount`
 #include "Turn/RTReactionLibrary.h"
 #include "Turn/RTReactionOpportunityTypes.h" // RequiresDecisionBoundary: la cardinalita' del profilo la decide LEI
 #include "Turn/RTTurnLog.h"
@@ -224,6 +225,115 @@ bool FRTCounterDealsDamageTest::RunTest(const FString&)
 	TestEqual(TEXT("la reazione si e' attivata"), CountDefensiveReactionOutcome(TM, ERTReactionOutcome::Activated), 1);
 	TestEqual(TEXT("chi ha colpito incassa i 16 del contrattacco"), AttackerHealth - Attacker->Health, 16);
 	TestEqual(TEXT("chi non ha colpito non viene contrattaccato"), Bystander->Health, BystanderHealth);
+
+	DestroyDefWorld(World);
+	return true;
+}
+
+/**
+ * **Il contrattacco porta la voce direzionale, e la porta sul SUO bersaglio** (`#2128`, [D-126]).
+ *
+ * Il ciclo su `Plan.Hits` che emette `HitCameFromSide` non vede i contrattacchi: al momento in cui gira, quei
+ * colpi non sono ancora in `Attacks`. Fino al 2026-09-03 un consumatore che contasse una voce direzionale per
+ * colpo subito non le trovava per le reazioni, **e nulla diventava rosso**.
+ *
+ * 🔑 **L'oracolo e' il LATO, e i due lati sono DIVERSI apposta.** Il reattore incassa alle spalle (`Rear`)
+ * perche' guarda dalla parte opposta; chi l'ha colpito incassa il contrattacco di fronte (`Front`), perche' il
+ * targeting l'aveva gia' girato verso il proprio bersaglio. Con due lati uguali il test passerebbe anche se
+ * una delle due voci mancasse e l'altra fosse contata due volte — e passerebbe pure con un `Amount` mai
+ * scritto, visto che `Front` vale zero. Le voci si identificano per `UnitId`: contarle e basta non direbbe
+ * **su chi** sono finite.
+ *
+ * ⚠️ **La simmetria del duello frontale e' una trappola misurata.** Con entrambe le unita' al facing di
+ * default i due lati risultano entrambi `Front`: `FacingAfterPrepActionTargeting` gira l'attaccante verso il
+ * bersaglio prima che il colpo risolva, quindi in un duello si guardano per costruzione. La prima stesura di
+ * questo test ci e' cascata e attendeva `Rear` dove il gioco dice — correttamente — `Front`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCounterTracesIncomingSideTest,
+	"RefactorTactics.Reactions.Counter.TracesTheSideItCameFrom",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCounterTracesIncomingSideTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World);
+
+	// Affiancate lungo `E`. Il REATTORE guarda a `W`, cioe' dalla parte opposta a chi lo colpira'.
+	//
+	// ⚠️ **La simmetria va rotta a mano, ed e' una scoperta misurata, non una precauzione.** Con entrambe al
+	// facing di default (`E`) i due lati risultano ENTRAMBI `Front`, e non per un difetto: chi attacca viene
+	// girato verso il proprio bersaglio da `FacingAfterPrepActionTargeting` (voce `TargetingReoriented`)
+	// **prima** che il colpo risolva, quindi in un duello frontale si guardano per costruzione. Un test
+	// scritto su quella geometria asserirebbe `0` da entrambe le parti — cioe' passerebbe anche se `Amount`
+	// non fosse mai stato scritto, visto che `Front` vale zero.
+	ARTUnit* Reactor = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Attacker = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Reactor"), Reactor) || !TestNotNull(TEXT("Attacker"), Attacker)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// Il reattore non ha un'azione con bersaglio, quindi nessun targeting lo rigira: conserva questo facing
+	// fino al colpo, e lo incassa alle spalle.
+	Reactor->Facing = ERTHexDirection::W;
+
+	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
+	Reactor->PlannedAbilityIndex = INDEX_NONE;
+	Attacker->PlannedAbilityIndex = 0; // attacco base, colpo singolo
+	Attacker->PlannedAttackTarget = Reactor;
+
+	RunDefTurn(TM);
+
+	// PREMESSA, non conclusione: senza contrattacco non c'e' la seconda voce da cercare, e un test che non lo
+	// verificasse resterebbe verde sul nulla trovando zero voci e attendendone zero.
+	if (!TestEqual(TEXT("premessa: la reazione si e' attivata"),
+		CountDefensiveReactionOutcome(TM, ERTReactionOutcome::Activated), 1))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// Le voci direzionali, indicizzate per SOGGETTO. `UnitId` porta lo `StableUnitId` di chi ha subito.
+	TMap<int32, int32> SideByUnit;
+	int32 Direzionali = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Facing
+			&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::HitCameFromSide))
+		{
+			++Direzionali;
+			SideByUnit.Add(E.UnitId, E.Amount);
+
+			// 🔴 La privacy della voce, su OGNI voce: la cella di chi colpisce non c'e', e i due campi
+			// portano entrambi il difensore. E' l'invariante che `MakeHitCameFromSideEntry` centralizza.
+			TestTrue(TEXT("SrcCell e TgtCell portano entrambi il difensore"), E.SrcCell == E.TgtCell);
+		}
+	}
+
+	TestEqual(TEXT("due colpi risolti, due voci direzionali"), Direzionali, 2);
+
+	const int32* LatoSuReactor = SideByUnit.Find(Reactor->StableUnitId);
+	const int32* LatoSuAttacker = SideByUnit.Find(Attacker->StableUnitId);
+
+	if (TestNotNull(TEXT("il colpo che innesca ha lasciato la voce sul reattore"), LatoSuReactor)
+		&& TestNotNull(TEXT("il CONTRATTACCO ha lasciato la voce su chi aveva colpito"), LatoSuAttacker))
+	{
+		// Reactor guarda a W (3) e il colpo arriva da (1,0), cioe' dallo spicchio E (0): relativo
+		// (0 - 3 + 6) % 6 = 3.
+		TestEqual(TEXT("il reattore l'ha preso alle spalle"),
+			*LatoSuReactor, static_cast<int32>(ERTRelativeDirection::Rear));
+		// Attacker e' stato girato verso il proprio bersaglio dal targeting, quindi guarda a W (3), e il
+		// contrattacco gli arriva da (0,0), cioe' dallo spicchio W (3): relativo 0. Chi colpisce alle spalle
+		// incassa il colpo di ritorno in faccia — ed e' la geometria del gioco, non un caso scelto.
+		TestEqual(TEXT("chi ha colpito incassa il contrattacco di fronte"),
+			*LatoSuAttacker, static_cast<int32>(ERTRelativeDirection::Front));
+		// ⚠️ E i due lati DIVERGONO: senza questa riga il test passerebbe anche con due voci identiche finite
+		// per sbaglio sulla stessa unita' e contate come due.
+		TestNotEqual(TEXT("i due lati sono diversi"), *LatoSuReactor, *LatoSuAttacker);
+	}
 
 	DestroyDefWorld(World);
 	return true;

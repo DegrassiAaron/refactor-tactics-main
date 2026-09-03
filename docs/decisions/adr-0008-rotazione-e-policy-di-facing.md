@@ -13,8 +13,8 @@
 >
 > ⚠️ **La §2 (facing ai micro-step) e la §3 (policy per azione) restano non implementate**, e con esse i
 > **sette** test della tabella *Verifica* che le pinnano — fra cui `Facing.FinalPivotIsNotRetroactive`, che
-> [`D-295`](RT_PDR_00_Decision_Log.md) §(2) dà per esistente e non esiste. Non hanno ancora un owner
-> dichiarato: `Overwatch.TriggerReadsMicroStepFacing` confina con
+> [`D-295`](RT_PDR_00_Decision_Log.md) §(2) **dava** per esistente fino alla correzione del **2026-09-03**.
+> Non hanno ancora un owner dichiarato: `Overwatch.TriggerReadsMicroStepFacing` confina con
 > [#1933](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1933).
 >
 > 🔴 **Perché era orfano, e resta scritto perché la forma del difetto è riusabile.** Misurato il 2026-08-28
@@ -252,7 +252,8 @@ il passo successivo · **#7** rispettato (`FacingFromPath` è già una funzione 
 
 > **Stato misurato il 2026-09-03**, dopo #1605. Questa tabella era una lista di test **attesi** e non lo
 > dichiarava: il referto del 2026-08-31 aveva misurato **0 occorrenze** per tutte le righe, e `D-295` §(2)
-> ne cita una come se esistesse. La colonna *Stato* esiste perché quell'equivoco non si ripeta.
+> ne citava una come se esistesse — riga **corretta il 2026-09-03**. La colonna *Stato* esiste perché
+> quell'equivoco non si ripeta.
 
 | Test | Cosa dimostra | Stato |
 |---|---|---|
@@ -265,7 +266,7 @@ il passo successivo · **#7** rispettato (`FacingFromPath` è già una funzione 
 | `Facing.MicroStepFacingIsLastCompletedStep` | al boundary `k` il facing è la direzione di `Path[k-1] → Path[k]` | ⛔ §2 — nessun owner |
 | `Facing.MicroStepZeroKeepsEntryFacing` | al primo boundary il facing è ancora quello d'ingresso | ⛔ §2 — nessun owner |
 | `Facing.MicroStepFacingMatchesFinalAtLastStep` | l'ultimo boundary e `FacingFinalAfterMove` coincidono | ⛔ §2 — nessun owner |
-| `Facing.FinalPivotIsNotRetroactive` | il pivot finale non cambia il facing che i boundary precedenti hanno letto | ⛔ §2 — **`D-295` §(2) lo dà per esistente** |
+| `Facing.FinalPivotIsNotRetroactive` | il pivot finale non cambia il facing che i boundary precedenti hanno letto | ⛔ §2 — nessun owner (`D-295` §(2) **corretto** il 2026-09-03) |
 | `Overwatch.TriggerReadsMicroStepFacing` | il trigger valuta l'arco sul facing del boundary, non su quello iniziale né su quello finale | ⛔ §2 — confina con [#1933](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1933) |
 | `Facing.DefaultActionPolicyMatchesD020` | un'azione che non dichiara policy orienta verso il bersaglio come oggi | ⛔ §3 — nessun owner |
 | `Facing.DefaultDisplacementPolicyMatchesAdr0005` | `Forced` ⇒ verso la sorgente, `Environmental` ⇒ invariato, senza dichiarazioni | ⛔ §3 — nessun owner |
