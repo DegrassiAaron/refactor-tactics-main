@@ -5842,7 +5842,8 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 			// non esiste un micro-step a cui riferirsi: quel ciclo e' gia' chiuso, e *«dove sta il tiratore
 			// quando il colpo parte»* e' una decisione di REGOLA che ne' ADR-0004 ne' ADR-0005 hanno preso.
 			// Correggerla d'iniziativa qui sarebbe inventare la regola insieme alla correzione. Dichiarata e
-			// tracciata invece che risolta di nascosto.
+			// tracciata in `#2148`, che porta anche le tre letture da cambiare **insieme** il giorno in cui
+			// la decisione arriva: questa copertura, l'origine di `HitCameFromSide` e `Entry.SrcCell`.
 			const int32 Reduction = BoundaryCoverReduction(Map, Shooter, Shooter->Cell, Victim, Armed.LockedCell);
 			const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
 			// `Direct`: e' un colpo al decision boundary, e passa dallo scudo base come ogni colpo.
@@ -6654,6 +6655,12 @@ void ARTTurnManager::ResolveMovement()
 	// il ciclo e' per indice e non per riferimento.
 	for (int32 i = 0; i < MoveLog.Num(); ++i)
 	{
+		// ⚠️ **Anche questa gira prima di `PlaceOnCell`, e il suo verdetto si congela sulla cella di
+		// PARTENZA** — ma qui, al contrario dei tre siti corretti da `#2142`, non e' evidente che sia
+		// sbagliato: `SrcCell` di una voce `Move` **e'** per dichiarazione la cella di partenza, quindi
+		// soggetto e voce si accordano. «Chi puo' leggere che quest'unita' si e' mossa» ammette due risposte
+		// difendibili e nessuna decisione la sceglie; la traccia della rotta ne ha una terza ancora, un
+		// verdetto **per cella** (`FreezeRouteVerdicts`). Aperta in `#2148` invece che risolta qui.
 		AppendLogEntry(MoveLog[i], Units.IsValidIndex(i) ? Units[i] : nullptr);
 	}
 	// ⛔ **Niente `AddLogEvent` per le mosse bloccate**, e la riga che c'era qui non era di troppo fin

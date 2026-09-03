@@ -33,6 +33,9 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Perception/RTKnowledgeView.h"      // FRTKnowledgeSubject: i tre ingressi che `FreezeVerdict` legge
+#include "Perception/RTPerceptionLibrary.h"  // FRTPerceiver: l'osservatore, con cella facing e portata
+#include "Perception/RTTeamKnowledge.h"      // Observe/FreezeVerdict: le funzioni di PRODUZIONE, non una copia
 #include "Tests/RTAbilityFixtures.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTReactionOpportunityTypes.h"
@@ -374,6 +377,112 @@ bool FRTOverwatchLogLineAnnouncesDealtDamageTest::RunTest(const FString&)
 		bTrovataConDealt);
 	TestFalse(FString::Printf(TEXT("e non quello DICHIARATO (%d), mai inflitto"), Dichiarato),
 		bTrovataConDichiarato);
+
+	DestroyRxCellWorld(S.World);
+	return true;
+}
+
+/**
+ * 🔴 **IL DIFETTO (2)**: la voce scritta DENTRO il ciclo dei micro-step congela il proprio verdetto di
+ * visibilita' — e il soggetto d'audit di [D-313] — sulla cella dove il bersaglio e' **arrivato**, non su
+ * quella da cui era partito.
+ *
+ * La conseguenza che l'issue nomina: *«chi esce dalla nebbia sotto il fuoco di un Overwatch si vede la voce
+ * NASCOSTA a una squadra che lo vede benissimo»*. Qui la nebbia e' la portata visiva del watcher, ristretta
+ * apposta: il mover parte fuori dal raggio e ci entra con un passo.
+ *
+ * ⚠️ **Lo scarto fra i due istanti e' REALE e non un artificio del test**: la conoscenza di squadra ha due
+ * sole assegnazioni per turno ([D-223]), mentre il trigger dell'Overwatch ricostruisce la propria a ogni
+ * micro-step. E' precisamente per questo che il mover puo' essere bersagliabile e — con la cella stantia —
+ * invisibile nella stessa voce.
+ *
+ * *Mutazione che lo rende rosso*: rimettere `S.Cell = U->Cell` in `FreezeVerdictFor` (e/o
+ * `Entry.VerdictSubject.Cell = Actor->Cell` in `AppendLogEntry`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionVerdictFreezesOnImpactCellTest,
+	"RefactorTactics.Reactions.VerdictFreezesOnTheImpactCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionVerdictFreezesOnImpactCellTest::RunTest(const FString&)
+{
+	FRxCellStage S;
+	if (!TestTrue(TEXT("la scena si monta"), BuildRxCellStage(S)))
+	{
+		DestroyRxCellWorld(S.World);
+		return false;
+	}
+
+	// La nebbia: il watcher vede fino a due celle. `Start` ne dista tre, `Dest` due — un passo, e il mover
+	// passa da invisibile a visibile per la squadra che gli sta sparando.
+	S.Watcher->VisionRange = 2;
+
+	// 🔑 **L'ANTI-VACUITA', misurata con le funzioni di PRODUZIONE.** Se le due celle dessero lo stesso
+	// verdetto, l'asserto sotto sarebbe vero con la correzione e senza — un test verde che non difende
+	// niente. Si ricostruisce la conoscenza della squadra del watcher esattamente come fa
+	// `RefreshTeamKnowledgeForPlanning`: stessi osservatori, stessa `Observe`, stessa `FreezeVerdict`.
+	FRTPerceiver Osservatore;
+	Osservatore.Cell = S.Watcher->Cell;
+	Osservatore.Facing = S.Watcher->Facing;
+	Osservatore.VisionRange = S.Watcher->VisionRange;
+
+	const FRTTeamKnowledge Conoscenza = URTTeamKnowledgeLibrary::Observe(
+		S.MapActor->MapAsset, S.Watcher->TeamId, /*TurnNumber*/ 1, { Osservatore },
+		{ FRTLastKnownContact(S.Mover->StableUnitId, S.Start, 0) }, FRTTeamKnowledge());
+
+	FRTKnowledgeSubject SoggettoAllaPartenza;
+	SoggettoAllaPartenza.StableUnitId = S.Mover->StableUnitId;
+	SoggettoAllaPartenza.TeamId = S.Mover->TeamId;
+	SoggettoAllaPartenza.Cell = S.Start;
+	SoggettoAllaPartenza.bAlive = true;
+
+	FRTKnowledgeSubject SoggettoAllImpatto = SoggettoAllaPartenza;
+	SoggettoAllImpatto.Cell = S.Dest;
+
+	const bool bVistoAllaPartenza = URTTeamKnowledgeLibrary::FreezeVerdict({ Conoscenza }, SoggettoAllaPartenza)
+		.AllowsTeam(S.Watcher->TeamId);
+	const bool bVistoAllImpatto = URTTeamKnowledgeLibrary::FreezeVerdict({ Conoscenza }, SoggettoAllImpatto)
+		.AllowsTeam(S.Watcher->TeamId);
+
+	TestFalse(FString::Printf(TEXT("setup: alla PARTENZA %s e' fuori dalla vista della squadra %d"),
+		*S.Start.ToString(), S.Watcher->TeamId), bVistoAllaPartenza);
+	TestTrue(FString::Printf(TEXT("setup: all'IMPATTO %s e' dentro"), *S.Dest.ToString()), bVistoAllImpatto);
+
+	BindRxCellFireDecider(S.TM);
+	RunRxCellTurn(S.TM);
+
+	// La voce di CHI SUBISCE: `HitCameFromSide` si congela sul bersaglio (`IsSubjectTheSufferer`), che e'
+	// l'unita' in movimento — quindi e' la voce in cui il difetto si vede.
+	const FRTTurnLogEntry* Subita = nullptr;
+	for (const FRTTurnLogEntry& E : S.TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Facing
+			&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::HitCameFromSide))
+		{
+			Subita = &E;
+			break;
+		}
+	}
+	if (!TestNotNull(TEXT("il colpo di Overwatch ha lasciato la sua voce direzionale"), Subita))
+	{
+		DestroyRxCellWorld(S.World);
+		return false;
+	}
+
+	// 🔴 IL PUNTO (a): il verdetto e' quello della cella dell'IMPATTO. La squadra che gli sta sparando puo'
+	// leggere la riga di cio' che ha appena fatto.
+	TestTrue(TEXT("la voce e' leggibile dalla squadra che al momento del colpo lo vede"),
+		Subita->Verdict.AllowsTeam(S.Watcher->TeamId));
+
+	// 🔴 IL PUNTO (b): e il SOGGETTO registrato dice contro quale cella e' stato congelato ([D-313]). Le due
+	// scritture leggono lo stesso soggetto: prima erano due letture di `Actor->Cell`, coerenti fra loro e
+	// entrambe sbagliate — cioe' un audit che le confrontava non poteva accorgersene.
+	TestTrue(FString::Printf(TEXT("il soggetto d'audit porta la cella dell'impatto (%s, non %s)"),
+			*Subita->VerdictSubject.Cell.ToString(), *S.Start.ToString()),
+		Subita->VerdictSubject.Cell == S.Dest);
+
+	// E la squadra del mover la legge sempre: e' la sua unita'. Senza questa riga un verdetto degenere che
+	// concede a tutti soddisferebbe la (a) senza aver deciso niente.
+	TestTrue(TEXT("e dalla squadra del mover, che vede sempre la propria unita'"),
+		Subita->Verdict.AllowsTeam(S.Mover->TeamId));
 
 	DestroyRxCellWorld(S.World);
 	return true;

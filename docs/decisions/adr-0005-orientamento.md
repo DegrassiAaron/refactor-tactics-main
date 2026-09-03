@@ -279,7 +279,35 @@ La voce è emessa da **quattro** produttori, e copre ogni colpo risolto:
 ⚠️ **Le due famiglie della fase `Move` misurano la cella dell'IMPATTO, non quella dell'Actor.** Entrambe
 risolvono prima di `PlaceOnCell`, quindi `Unit->Cell` è ancora la cella di partenza del turno: l'Overwatch usa
 `State.Pos[TargetIdx]` (dove il movimento è stato troncato) e la Predictive usa `Armed.LockedCell` (la cella su
-cui si è scommesso). Le rispettive `BoundaryCoverReduction` fanno già la stessa scelta.
+cui si è scommesso).
+
+> ⌫ **La riga qui sopra proseguiva con «*Le rispettive `BoundaryCoverReduction` fanno già la stessa scelta*»,
+> ed era falsa per l'Overwatch**, dal 2026-09-03 alla stessa giornata
+> ([#2142](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2142)).
+>
+> La voce direzionale usava `State.Pos[TargetIdx]`; la **copertura** dello stesso colpo, trenta righe sopra,
+> riceveva `Target->Cell`. Due letture della stessa posizione nello stesso micro-step, con esiti diversi: chi
+> usciva da un riparo incassava ridotto da una copertura che non aveva più. Il difetto era simmetrico sul
+> watcher, che sparava dalla propria cella di partenza mentre la sua **zona** era già costruita da
+> `State.Pos[OwnerIdx]`.
+>
+> 🔑 **Non è stato un cambio di regola**: [ADR-0004](adr-0004-finestre-di-reazione.md) §*«Quale cella»*
+> prescrive *«Overwatch `FIRE` | la cella corrente»* da quando la tabella esiste, e il commento della
+> funzione **citava** quella riga mentre il codice faceva l'opposto. Ciò che è cambiato è il comportamento
+> osservato, non la decisione vigente.
+>
+> ⚠️ **E la riga `Shooter->Cell` della tabella qui sopra resta una cella di PARTENZA**, non quella da cui il
+> colpo parte davvero: `ResolvePredictiveBoundary` gira a ciclo dei micro-step già chiuso, e un tiratore che
+> si sia mosso nello stesso turno non è più lì. Non è correggibile senza scegliere una regola che nessun ADR
+> ha preso — la tabella di ADR-0004 copre il **bersaglio** e non la **sorgente** — ed è aperta in
+> [#2148](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2148).
+
+**Pinnata da** `RefactorTactics.Reactions.OverwatchCoverReadsTheMicroStepCell` e
+`RefactorTactics.Reactions.OverwatchLogLineAnnouncesDealtDamage`, che misurano i **due versi** — chi esce dal
+riparo incassa pieno, chi ci entra incassa ridotto — sul percorso reale e non sulla funzione pura: la
+decisione qui è *quale cella il chiamante passa*, e [D-312](RT_PDR_00_Decision_Log.md) ha misurato che una
+prova sulla funzione lascia il chiamante scoperto. Chiudono anche la metà che [D-169](RT_PDR_00_Decision_Log.md)
+dichiarava esplicitamente non coperta.
 
 🔑 **Non è servita una regola d'origine nuova**: [D-302](RT_PDR_00_Decision_Log.md) punto 3 classifica già il
 colpo *diretto/mischia* come **sorgente→bersaglio**, e sia il contrattacco sia il fuoco di Overwatch — che è
