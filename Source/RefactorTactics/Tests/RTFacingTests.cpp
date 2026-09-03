@@ -1079,4 +1079,136 @@ bool FRTFacingHitCameFromSideEntryTest::RunTest(const FString&)
 	return true;
 }
 
+
+// =====================================================================================================
+// ADR-0008 §2 - il facing durante i micro-step (`#2131`)
+// =====================================================================================================
+//
+// ⚠️ **I tre test qui sotto sono CARATTERIZZAZIONE della formula, e vanno letti come tali.** La §2
+// dichiara che il facing intermedio e' `FacingFromPath` applicata al PREFISSO del percorso: una funzione che
+// gia' esisteva, gia' testata, applicata a un argomento diverso. `FacingAtMicroStep` non aggiunge una regola,
+// **nomina** quella dell'ADR e la rende chiamabile - quindi questi tre erano verdi al primo colpo, per
+// costruzione, e dirlo e' l'unico modo perche' il verde significhi qualcosa.
+//
+// 🔑 **Cio' che la §2 CAMBIA e' chi legge quel valore**, ed e' misurato altrove:
+// `RefactorTactics.Facing.FinalPivotIsNotRetroactive` e
+// `RefactorTactics.Overwatch.TriggerReadsMicroStepFacing` (`RTFacingMicroStepBoundaryTests.cpp`) passano dal
+// ciclo dei micro-step vero, e lo scenario `Spec.Facing.OverwatchHitCameFromSide` lo pinna fino al TurnLog
+// di una partita.
+//
+// Riferimento: [D-060] punto (3), ADR-0008 §2, tabella §Verifica.
+
+/**
+ * `FacingAt(k)` E' la direzione dell'ultimo passo compiuto, per OGNI `k`, non solo per l'ultimo.
+ *
+ * ⚠️ Il percorso GIRA a ogni passo apposta: con una rotta dritta ogni prefisso darebbe la stessa
+ * direzione, e il test resterebbe verde anche se la funzione restituisse sempre `FacingFromPath` della rotta
+ * INTERA - cioe' proprio l'errore che la §2 esiste per escludere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingMicroStepFacingIsLastCompletedStepTest,
+	"RefactorTactics.Facing.MicroStepFacingIsLastCompletedStep",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingMicroStepFacingIsLastCompletedStepTest::RunTest(const FString&)
+{
+	const FRTCellId Start(0, 0, 0);
+	const TArray<ERTHexDirection> Steps{ ERTHexDirection::E, ERTHexDirection::NE, ERTHexDirection::NW,
+		ERTHexDirection::SW };
+	const TArray<FRTCellId> Path = MakePath(Start, Steps);
+
+	// `Entered` e' il percorso SENZA la cella di partenza: e' cosi' che `FRTHexMoveResult` lo porta.
+	TArray<FRTCellId> Entered;
+	for (int32 K = 1; K < Path.Num(); ++K)
+	{
+		Entered.Add(Path[K]);
+	}
+
+	const ERTHexDirection AtMoveStart = ERTHexDirection::SE; // scelto DIVERSO da ogni passo del percorso
+
+	for (int32 K = 1; K <= Steps.Num(); ++K)
+	{
+		const TArray<FRTCellId> Prefix(Entered.GetData(), K);
+		const ERTHexDirection Actual = URTFacingLibrary::FacingAtMicroStep(Start, Prefix, AtMoveStart);
+		TestTrue(*FString::Printf(TEXT("al boundary %d il facing e' la direzione di Path[%d]->Path[%d]"),
+			K, K - 1, K), Actual == Steps[K - 1]);
+
+		// La riga che rende il ciclo discriminante: nessun prefisso conserva l'orientamento d'ingresso, e
+		// nessuno anticipa quello finale. Senza, un'implementazione che restituisse sempre `AtMoveStart`
+		// oppure sempre l'ultimo passo passerebbe il ciclo per meta'.
+		TestTrue(*FString::Printf(TEXT("e non e' il facing d'ingresso (boundary %d)"), K),
+			Actual != AtMoveStart);
+	}
+
+	// L'ultimo passo e' `SW`, il primo `E`: due prefissi diversi NON possono dare lo stesso valore.
+	TestTrue(TEXT("il primo boundary e l'ultimo divergono"),
+		URTFacingLibrary::FacingAtMicroStep(Start, TArray<FRTCellId>(Entered.GetData(), 1), AtMoveStart)
+		!= URTFacingLibrary::FacingAtMicroStep(Start, Entered, AtMoveStart));
+	return true;
+}
+
+/**
+ * `k = 0` - nessun passo compiuto: vale il facing d'INGRESSO nella fase, e non c'e' nessun caso speciale.
+ * Il prefisso e' la sola cella di partenza, e `FacingFromPath` su un percorso di una cella restituisce
+ * `Current` da sempre (ADR-0008 §2: *«nessun caso speciale al primo passo»*).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingMicroStepZeroKeepsEntryFacingTest,
+	"RefactorTactics.Facing.MicroStepZeroKeepsEntryFacing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingMicroStepZeroKeepsEntryFacingTest::RunTest(const FString&)
+{
+	const FRTCellId Start(2, -1, 0);
+	const TArray<FRTCellId> NothingWalked;
+
+	// Tutte e sei: un default nascosto - `E` vale 0, cioe' il valore di un enum mai scritto - passerebbe una
+	// prova su una sola direzione. E' la stessa cautela di `Facing.RelativeSideNamesFollowGeometry`.
+	for (int32 I = 0; I < 6; ++I)
+	{
+		const ERTHexDirection AtMoveStart = static_cast<ERTHexDirection>(I);
+		TestTrue(*FString::Printf(TEXT("k=0 conserva il facing d'ingresso (%d)"), I),
+			URTFacingLibrary::FacingAtMicroStep(Start, NothingWalked, AtMoveStart) == AtMoveStart);
+	}
+
+	// E al PRIMO passo non lo conserva piu': senza questa riga il test sarebbe soddisfatto da una funzione
+	// che ignora il percorso.
+	const FRTCellId First = URTHexLibrary::Neighbor(Start, ERTHexDirection::NW);
+	TestTrue(TEXT("al primo passo il facing e' gia' quello del passo"),
+		URTFacingLibrary::FacingAtMicroStep(Start, { First }, ERTHexDirection::SE) == ERTHexDirection::NW);
+	return true;
+}
+
+/**
+ * CONTINUITA': all'ultimo boundary il prefisso E' la rotta intera, quindi il valore coincide **per
+ * costruzione** con il `FacingFinalAfterMove` che `ResolveMovement` deriva uscendo dal ciclo - che e'
+ * `FacingFromPath(partenza + attraversate, facing d'ingresso)`, la stessa espressione.
+ *
+ * ⚠️ Il test vale finche' le due espressioni restano una sola: se un giorno il facing finale smettesse di
+ * derivare dalla rotta effettiva, questo confronto cadrebbe ed e' esattamente cio' che deve fare - l'ADR
+ * dichiara la continuita' come proprieta', non come coincidenza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingMicroStepFacingMatchesFinalAtLastStepTest,
+	"RefactorTactics.Facing.MicroStepFacingMatchesFinalAtLastStep",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingMicroStepFacingMatchesFinalAtLastStepTest::RunTest(const FString&)
+{
+	const FRTCellId Start(-1, 2, 0);
+	const TArray<FRTCellId> Path = MakePath(Start, { ERTHexDirection::W, ERTHexDirection::SW,
+		ERTHexDirection::SE });
+	TArray<FRTCellId> Entered;
+	for (int32 K = 1; K < Path.Num(); ++K) { Entered.Add(Path[K]); }
+
+	const ERTHexDirection AtMoveStart = ERTHexDirection::NE;
+
+	// `FacingFromPath(Walked, ...)` e' letteralmente cio' che `ResolveMovement` chiama per `DerivedFromMove`.
+	const ERTHexDirection Final = URTFacingLibrary::FacingFromPath(Path, AtMoveStart);
+	const ERTHexDirection LastBoundary = URTFacingLibrary::FacingAtMicroStep(Start, Entered, AtMoveStart);
+	TestTrue(TEXT("ultimo boundary e facing finale coincidono"), LastBoundary == Final);
+
+	// E il boundary PRECEDENTE no: senza questa riga «coincidono» sarebbe soddisfatto anche da una funzione
+	// che restituisce sempre il facing finale, cioe' dall'opzione che ADR-0008 §2 scarta per nome.
+	const ERTHexDirection Previous =
+		URTFacingLibrary::FacingAtMicroStep(Start, TArray<FRTCellId>(Entered.GetData(), Entered.Num() - 1),
+			AtMoveStart);
+	TestTrue(TEXT("ma il boundary precedente e' un altro valore"), Previous != Final);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
