@@ -436,13 +436,46 @@ function Get-EngineState {
 
 # Una riga per processo, e la sede e' una sola: la stampano il preambolo
 # d'attesa, la diagnostica di NON AVVIATA e il controllo di fine run.
+# Di CHI e' questo processo del motore. PURA, e descrittiva: nessun ramo di
+# decisione la legge, e #2141 spiega perche' non deve.
+#
+# 🔴 **Non serve il pid del figlio, e non va catturato.** La via ovvia —
+# `Start-Process -PassThru` per riconoscere il proprio motore ed escluderlo dal
+# controllo di fine run — e' stata istruita e RESPINTA: escludere il proprio
+# processo dal verdetto tace l'unico caso in cui la sua voce esiste, cioe' quello in
+# cui e' morto male e la run e' stata interrotta. La `CommandLine` porta il path
+# dell'uproject, e distinguere i CHECKOUT e' esattamente la domanda a cui il referto
+# deve rispondere: attribuire il blocco a chi lo teneva.
+#
+# ⚠️ Due run dello STESSO checkout hanno righe di comando identiche, quindi questa
+# risposta non identifica una run. E' voluto: identificare la run servirebbe solo a
+# cambiare il verdetto, che e' cio' che non si deve fare.
+function Get-EngineOrigin {
+    param([string] $CommandLine, [string] $OwnProjectPath)
+
+    # Nessun dato ⇒ nessuna risposta. Mai «altro» per assenza: sarebbe una
+    # provenienza inventata, e il referto la stamperebbe come se fosse misurata.
+    if ([string]::IsNullOrWhiteSpace($CommandLine))    { return 'provenienza ignota' }
+    if ([string]::IsNullOrWhiteSpace($OwnProjectPath)) { return 'provenienza ignota' }
+
+    # ⚠️ **Barre normalizzate e confronto case-insensitive.** Lo stesso path arriva
+    # nelle due forme a seconda di chi ha composto la riga di comando — `$UProject`
+    # nasce da `Join-Path` con `/`, e la `CommandLine` che WMI restituisce porta i
+    # `\` di Windows. Un confronto grezzo direbbe «altro checkout» al proprio.
+    $needle = $OwnProjectPath.Replace('/', '\')
+    $hay    = $CommandLine.Replace('/', '\')
+    if ($hay.IndexOf($needle, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { return 'questo checkout' }
+    return 'altro checkout'
+}
+
 function Format-EngineEntry {
-    param($Entry)
+    param($Entry, [string] $OwnProjectPath)
     if ($Entry.LiveProbe -ne 'ok') { $stato = 'stato non leggibile' }
     elseif ($Entry.IsLive)         { $stato = 'vivo' }
     else                           { $stato = 'residuale' }
     $cmd = $(if ($null -ne $Entry.CommandLine) { $Entry.CommandLine } else { '(riga di comando non disponibile)' })
-    return ("[{0,-19}] pid {1,-6} {2}" -f $stato, $Entry.ProcessId, $cmd)
+    $origine = Get-EngineOrigin -CommandLine $Entry.CommandLine -OwnProjectPath $OwnProjectPath
+    return ("[{0,-19}] [{1,-18}] pid {2,-6} {3}" -f $stato, $origine, $Entry.ProcessId, $cmd)
 }
 
 # «Il motore e' libero» secondo uno stato gia' letto — mai `EngineCount -eq 0` da
@@ -763,11 +796,33 @@ if ($SelfTest) {
     Say ("{0}  {1,-14} IsLive={2} LiveProbe={3} (atteso IsLive=False, probe ok)" -f `
         $(if ($ok2) { 'ok  ' } else { 'ROTTO' }), 'probe-uscito', $e2.IsLive, $e2.LiveProbe)
 
+    # --- provenienza del processo (#2141) ---
+    # ⚠️ Il caso `prefisso` e' quello per cui questi test esistono: `rt-wt-2130` e'
+    # prefisso di `rt-wt-2130-bis`, e un confronto per sottostringa sulla sola
+    # DIRECTORY li confonderebbe. Regge perche' il confronto e' sul path COMPLETO
+    # dell'uproject, che finisce col nome del file — e questo caso lo pinna.
+    function Assert-Origin {
+        param([string] $Nome, [string] $Cmd, [string] $Own, [string] $Atteso)
+        $got = Get-EngineOrigin -CommandLine $Cmd -OwnProjectPath $Own
+        $ok = ($got -eq $Atteso)
+        if (-not $ok) { $script:failures++ }
+        Say ("{0}  {1,-16} -> {2,-18} (atteso {3})" -f $(if ($ok) { 'ok  ' } else { 'ROTTO' }), $Nome, $got, $Atteso)
+    }
+    $mio  = 'D:/Repositories/rt-wt-2141/RefactorTactics.uproject'
+    $riga = '"D:\UE\UnrealEditor-Cmd.exe" D:\Repositories\rt-wt-2141\RefactorTactics.uproject "-ExecCmds=..." -log=rt-suite.log'
+    Assert-Origin 'barre invertite'  $riga $mio 'questo checkout'
+    Assert-Origin 'maiuscole'        ($riga.ToUpper()) $mio 'questo checkout'
+    Assert-Origin 'altro checkout'   ($riga -replace 'rt-wt-2141','rt-wt-2118') $mio 'altro checkout'
+    Assert-Origin 'prefisso'         ($riga -replace 'rt-wt-2141','rt-wt-2141-bis') $mio 'altro checkout'
+    Assert-Origin 'cmdline nulla'    $null $mio 'provenienza ignota'
+    Assert-Origin 'cmdline vuota'    '   ' $mio 'provenienza ignota'
+    Assert-Origin 'proprio ignoto'   $riga '' 'provenienza ignota'
+
     if ($failures -gt 0) {
         Say ("self-test ROSSO: {0} caso/i non conforme/i" -f $failures)
         exit 1
     }
-    Say 'self-test verde: otto casi su otto'
+    Say 'self-test verde: quindici casi su quindici'
     exit 0
 }
 
@@ -787,7 +842,7 @@ if ($before.LiveCount -gt 0 -and $WaitMinutes -gt 0) {
     # Le righe di comando si chiedono a WMI QUI, una volta, perche' qui si stampano:
     # dentro il ciclo che segue costerebbero a ogni giro senza che nessuno le legga.
     $null = Add-EngineCommandLines $before
-    foreach ($e in $before.Engines) { Say ("  " + (Format-EngineEntry $e)) }
+    foreach ($e in $before.Engines) { Say ("  " + (Format-EngineEntry $e $UProject)) }
 
     # 🔴 **Il jitter non e' cosmetico**, e vive dentro `Wait-EngineWindow` perche' va
     # ritirato a ogni ingresso: due sessioni bloccate dalla stessa terza run partono con
@@ -920,7 +975,7 @@ if ($before.LiveCount -gt 0) {
     # significa «test falliti».
     if ($null -ne $script:WaitElapsed) { Say ("  (dopo {0:N0}s di attesa)" -f $script:WaitElapsed) }
     $null = Add-EngineCommandLines $before
-    foreach ($e in $before.Engines) { Say ("  " + (Format-EngineEntry $e)) }
+    foreach ($e in $before.Engines) { Say ("  " + (Format-EngineEntry $e $UProject)) }
     # La provenienza si perde solo se WMI non risponde, e allora va detto: senza
     # questa riga la lista sembra incompleta per un difetto dello script.
     if ($before.DetailError) {
@@ -1043,11 +1098,19 @@ if ($after.EngineError) {
     # cattura il pid del figlio (`& $EngineCmd` non e' `Start-Process -PassThru`),
     # quindi non sa distinguere il proprio residuo da quello di un ALTRO checkout: il
     # filtro toglieva anche il secondo, e una collisione vera passava per `VALIDA`.
-    # Un falso allarme si legge; una collisione taciuta no. Distinguere davvero
-    # richiede il pid del figlio, che e' lavoro suo — e non di #2130.
+    # Un falso allarme si legge; una collisione taciuta no.
+    #
+    # 🔴 **E il pid non si cattura, per decisione — #2141.** Sembra il passo
+    # successivo ovvio, e non lo e': #2130 ha misurato che una voce residuale nasce da
+    # un **kill brutale** (log troncato a meta' riga), mentre il nostro motore esce
+    # ordinatamente con `;Quit`. Perche' il NOSTRO lasci una voce deve morire male —
+    # e allora la run e' stata interrotta, e `NON VALIDA` e' l'esito GIUSTO.
+    # Escludere il proprio pid tacerebbe l'unico caso in cui quella voce esiste.
+    # Cio' che mancava era l'ATTRIBUZIONE, e quella non chiede un pid: la
+    # `CommandLine` porta il path dell'uproject, e `Get-EngineOrigin` la legge.
     $problems.Add("motore    un processo del motore e' comparso durante la run:")
     $null = Add-EngineCommandLines $after
-    foreach ($e in $after.Engines) { $problems.Add("          " + (Format-EngineEntry $e)) }
+    foreach ($e in $after.Engines) { $problems.Add("          " + (Format-EngineEntry $e $UProject)) }
 }
 
 # ---------------------------------------------------------------- IL REFERTO
