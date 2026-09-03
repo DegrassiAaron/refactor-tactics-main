@@ -174,6 +174,29 @@ bool URTFacingLibrary::RelativeDirectionFrom(const FRTCellId& DefenderCell, ERTH
 	return true;
 }
 
+bool URTFacingLibrary::MakeHitCameFromSideEntry(const FRTCellId& DefenderCell, ERTHexDirection DefenderFacing,
+	const FRTCellId& OriginCell, ERTMatchPhase Phase, FRTTurnLogEntry& OutEntry)
+{
+	// Il lato lo calcola `RelativeDirectionFrom` e non c'e' una seconda copia della regola: quella funzione e'
+	// l'unica che sa rendere relativo l'indice, e il suo `false` — celle coincidenti in pianta — si propaga
+	// invece di essere ricontrollato. `OutEntry` resta intatta, come `OutDirection` la' dentro.
+	ERTRelativeDirection Side = ERTRelativeDirection::Front;
+	if (!RelativeDirectionFrom(DefenderCell, DefenderFacing, OriginCell, Side))
+	{
+		return false;
+	}
+
+	OutEntry.Phase = Phase;
+	OutEntry.Category = ERTLogCategory::Facing;
+	OutEntry.Outcome = static_cast<uint8>(ERTFacingOutcome::HitCameFromSide);
+	// 🔴 Il DIFENSORE in entrambi i campi. `OriginCell` e' un ingresso di questa funzione e non ne esce: e' il
+	// punto in cui la privacy della voce smette di dipendere dalla disciplina di chi la costruisce.
+	OutEntry.SrcCell = DefenderCell;
+	OutEntry.TgtCell = DefenderCell;
+	OutEntry.Amount = static_cast<int32>(Side);
+	return true;
+}
+
 namespace
 {
 	/** Voce di TurnLog per l'orientamento: la direzione viaggia in `Amount`, la cella dell'unita' e' la chiave. */
