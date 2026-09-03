@@ -150,6 +150,15 @@ già decisa per gli strumenti di authoring di questo progetto, e il Playground P
 
 ### L'esclusione dal cook — il «meccanismo canonico esistente» non esiste, e va detto
 
+> ✅ **Superato il 2026-09-03 da [#1804](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1804): il meccanismo ORA esiste.**
+> `Config/DefaultGame.ini:114` dichiara `+DirectoriesToNeverCook=(Path="/Game/RT/Editor")`, presidiata da
+> `RefactorTactics.Packaging.EditorNamespaceIsNeverCooked` e validata su pacchetto vero. La misura qui
+> sotto resta come **istruttoria datata**: era corretta quando fu presa, e non descrive piu' il repository.
+> 🔴 **E l'esecuzione ha aggiunto qualcosa che nessuna delle due versioni prevedeva**: cotti due
+> pacchetti, con e senza quella riga, i container sono **identici**. Il pannello e il Composer sono
+> `EditorUtilityWidget`, quindi esclusi **per classe** — la riga vale per il primo asset **non**
+> editor-only che finisse sotto `/Game/RT/Editor/`, non per loro. Dettagli in `PIE-PKG-EDITOR-NAMESPACE`.
+
 🔴 **Misurato**: `git grep -n "DirectoriesToNeverCook\|NeverCook" Config Source docs` su `origin/main` dà
 **zero**. `Config/DefaultGame.ini:95` fa l'**opposto**:
 

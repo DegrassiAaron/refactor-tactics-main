@@ -1,6 +1,8 @@
 #include "Misc/AutomationTest.h"
 
-#include "Misc/ConfigCacheIni.h"
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -12,10 +14,6 @@
  * un pacchetto vero — `BuildCookRun` piu' `UnrealPak -List` — ed e' registrato fra le verifiche manuali,
  * validato per mutazione. Questi test sono **guardiani di regressione**: impediscono che la riga sparisca
  * senza che nulla lo dica, il che e' il modo in cui un'esclusione di packaging si perde davvero.
- *
- * ⚠️ Leggono il **file**, non l'oggetto di settings del motore: `UProjectPackagingSettings` vive in
- * `DeveloperToolSettings`, e tirarsi dentro un modulo per rileggere due righe costerebbe piu' di cio' che
- * aggiunge. Il divario resta dichiarato qui invece di essere lasciato credere.
  *
  * 🔴 **E il divario si e' rivelato piu' largo di cosi', misurato il 2026-09-03 su pacchetti veri.**
  * Cotto due volte con `BuildCookRun`, una con `DirectoriesToNeverCook` e una senza, i container sono
@@ -30,23 +28,79 @@
  * primo asset NON editor-only messo sotto `/Game/RT/Editor/` sara' escluso solo da lei.
  * ⛔ Quindi questo test difende un invariante **futuro**: e' il caso in cui un guardiano di regressione
  * vale di piu' del fatto che oggi verifica, non di meno.
+ *
+ * 🔴 **Riscritto in code review (#2136), che ha trovato la prima versione VACUA su tre fronti.** Vale la
+ * pena elencarli, perche' sono tre modi diversi di scrivere un oracolo che non puo' fallire:
+ *
+ * 1. **Leggeva `GGameIni`, cioe' la gerarchia MERGED, mentre il docstring dichiarava di leggere il file.**
+ *    `GConfig` fonde `Base*.ini` + `Config/DefaultGame.ini` + `Saved/Config/WindowsEditor/Game.ini`. Chi
+ *    avesse quella sezione nel proprio `Saved/` — Unreal ce la scrive da se' con `SaveConfig()` — poteva
+ *    cancellare la riga dal file **versionato**, vedere verde e mergiare. Cioe' esattamente *"la riga
+ *    sparisce senza che nulla lo dica"*, l'unica regressione che questo test dichiara di impedire.
+ *    ∴ ora legge `Config/DefaultGame.ini` dal disco, e il codice dice cio' che il commento prometteva.
+ * 2. **Confrontava per SOTTOSTRINGA.** `Contains("/Game/RT/Editor")` e' vero anche per
+ *    `(Path="/Game/RT/Editor/Scenario")` — cioe' restringere l'esclusione al solo Composer di oggi
+ *    passava, perdendo la **famiglia aperta** su cui poggia tutto il disegno. Simmetricamente
+ *    `Contains("/Game/RT")` sopravviveva a un `AlwaysCook` ristretto a `/Game/RT/UI`, che e' proprio il
+ *    giorno in cui la coppia delle due righe smette di avere senso. ∴ ora il `Path` si estrae e si
+ *    confronta per **uguaglianza esatta**.
+ * 3. **Asseriva che nessuna voce contenesse `.uasset`.** `DirectoriesToNeverCook` e' un
+ *    `TArray<FDirectoryPath>` di package path: `.uasset` non compare **mai**, nemmeno nel caso rotto —
+ *    e il caso rotto che l'asserzione descriveva si scrive senza estensione
+ *    (`(Path="/Game/RT/Editor/Scenario/WBP_RT_ScenarioComposer")`), quindi passava anche lui. Verde nel
+ *    caso buono e verde in quello cattivo: la definizione di un non-oracolo.
+ *    ∴ sostituita dal confronto esatto del punto 2, che il caso rotto lo **fa cadere**.
+ *
+ * ✅ **E il punto 2 e' stato VALIDATO PER MUTAZIONE, non dichiarato.** Ristretta la riga a
+ * `+DirectoriesToNeverCook=(Path="/Game/RT/Editor/Scenario")` e rieseguita la suite: `1/1 completati,
+ * 1 fallimenti`, con il messaggio *«e la FAMIGLIA /Game/RT/Editor e' esclusa, non un suo singolo ramo»*.
+ * 🔑 **E' esattamente il caso che la versione a sottostringa lasciava passare verde**: la mutazione non
+ * serviva a mostrare che il test sa fallire in generale, ma che sa fallire **su questo**.
  */
 
 namespace
 {
-	const TCHAR* RTPackagingSection = TEXT("/Script/UnrealEd.ProjectPackagingSettings");
+	const TCHAR* RTPackagingSection = TEXT("[/Script/UnrealEd.ProjectPackagingSettings]");
 
-	/** Le voci di una direttiva `+Chiave=` come le legge `GConfig`, cioe' senza il prefisso di merge. */
-	TArray<FString> ReadPackagingArray(const TCHAR* Key)
+	/** Il file VERSIONATO, non la gerarchia merged: e' la differenza fra sorvegliare il repository e sorvegliare la macchina. */
+	FString RTDefaultGameIniPath()
 	{
-		TArray<FString> Values;
-		GConfig->GetArray(RTPackagingSection, Key, Values, GGameIni);
-		return Values;
+		return FPaths::Combine(FPaths::ProjectConfigDir(), TEXT("DefaultGame.ini"));
 	}
 
-	bool AnyContains(const TArray<FString>& Values, const TCHAR* Needle)
+	/**
+	 * I `Path` dichiarati da `+<Key>=(Path="...")` nella sezione di packaging, **esattamente come scritti**.
+	 *
+	 * ⚠️ Traccia la sezione: la stessa chiave sotto un'altra intestazione non conterebbe, e un file di
+	 * config e' fatto di sezioni prima che di righe.
+	 */
+	TArray<FString> ReadPackagingPaths(const TArray<FString>& Righe, const TCHAR* Key)
 	{
-		return Values.ContainsByPredicate([Needle](const FString& Value) { return Value.Contains(Needle); });
+		const FString Prefisso = FString::Printf(TEXT("+%s=(Path=\""), Key);
+		TArray<FString> Paths;
+		bool bDentroLaSezione = false;
+
+		for (const FString& Riga : Righe)
+		{
+			const FString Pulita = Riga.TrimStartAndEnd();
+			if (Pulita.StartsWith(TEXT("[")))
+			{
+				bDentroLaSezione = Pulita.Equals(RTPackagingSection);
+				continue;
+			}
+			if (!bDentroLaSezione || !Pulita.StartsWith(Prefisso))
+			{
+				continue;
+			}
+
+			const int32 Inizio = Prefisso.Len();
+			const int32 Fine = Pulita.Find(TEXT("\""), ESearchCase::CaseSensitive, ESearchDir::FromStart, Inizio);
+			if (Fine > Inizio)
+			{
+				Paths.Add(Pulita.Mid(Inizio, Fine - Inizio));
+			}
+		}
+		return Paths;
 	}
 }
 
@@ -56,32 +110,41 @@ namespace
  * ⛔ Un test che verificasse la sola riga di never-cook sarebbe verde anche il giorno in cui qualcuno
  * togliesse `DirectoriesToAlwaysCook`: a quel punto l'esclusione non escluderebbe piu' niente di
  * particolare, e il pannello sparirebbe dal pacchetto **per un'altra ragione**. Le due righe si leggono
- * insieme, e questo test le pretende entrambe.
+ * insieme, e questo test le pretende entrambe — **per uguaglianza esatta**, perche' entrambe possono essere
+ * ristrette invece che cancellate, e una restrizione non assomiglia a una regressione mentre lo e'.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPackagingEditorNamespaceNeverCookedTest,
 	"RefactorTactics.Packaging.EditorNamespaceIsNeverCooked",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPackagingEditorNamespaceNeverCookedTest::RunTest(const FString&)
 {
-	const TArray<FString> AlwaysCook = ReadPackagingArray(TEXT("DirectoriesToAlwaysCook"));
-	const TArray<FString> NeverCook  = ReadPackagingArray(TEXT("DirectoriesToNeverCook"));
+	TArray<FString> Righe;
+	if (!TestTrue(TEXT("Config/DefaultGame.ini si legge"), FFileHelper::LoadFileToStringArray(Righe, *RTDefaultGameIniPath())))
+	{
+		return false;
+	}
+
+	const TArray<FString> AlwaysCook = ReadPackagingPaths(Righe, TEXT("DirectoriesToAlwaysCook"));
+	const TArray<FString> NeverCook  = ReadPackagingPaths(Righe, TEXT("DirectoriesToNeverCook"));
 
 	// ⛔ Senza questa, le asserzioni sotto sarebbero vacue: due liste vuote passerebbero un test che
-	// cercasse solo l'assenza di qualcosa.
+	// cercasse solo l'assenza di qualcosa. ➕ E vale anche come controllo del PARSER: se un domani il
+	// formato di queste righe cambiasse, `ReadPackagingPaths` restituirebbe liste vuote e questo test
+	// direbbe "la riga non c'e'" per un difetto suo. Meglio rosso che verde su nulla.
 	if (!TestTrue(TEXT("DefaultGame.ini dichiara delle directory da cuocere"), AlwaysCook.Num() > 0))
 	{
 		return false;
 	}
 
-	TestTrue(TEXT("/Game/RT e' incluso nel cook"), AnyContains(AlwaysCook, TEXT("/Game/RT")));
-	TestTrue(TEXT("e /Game/RT/Editor e' escluso, altrimenti la riga sopra lo includerebbe"),
-		AnyContains(NeverCook, TEXT("/Game/RT/Editor")));
+	// 🔑 Uguaglianza, non sottostringa: `/Game/RT/UI` contiene `/Game/RT` e non e' la stessa promessa.
+	TestTrue(TEXT("/Game/RT e' incluso nel cook, per intero e non una sua sottocartella"),
+		AlwaysCook.Contains(TEXT("/Game/RT")));
 
-	// ⚠️ L'esclusione e' una FAMIGLIA: vale per la directory, non per i singoli strumenti. Un elenco di
-	// asset qui dichiarerebbe esclusi solo quelli che qualcuno ha gia' creato — e `D-280` istituisce un
-	// namespace proprio per non doverlo aggiornare a ogni strumento nuovo.
-	TestFalse(TEXT("l'esclusione non nomina i singoli asset, ma la directory"),
-		AnyContains(NeverCook, TEXT(".uasset")));
+	// 🔴 Qui l'uguaglianza e' il punto dell'intera issue: `/Game/RT/Editor/Scenario` proteggerebbe il
+	// Composer di oggi e lascerebbe scoperto il prossimo strumento — che e' cio' che `D-280` istituisce il
+	// namespace per NON dover fare a mano a ogni asset.
+	TestTrue(TEXT("e la FAMIGLIA /Game/RT/Editor e' esclusa, non un suo singolo ramo"),
+		NeverCook.Contains(TEXT("/Game/RT/Editor")));
 	return true;
 }
 

@@ -306,15 +306,36 @@ bool FRTGrayboxEastReferenceTest::RunTest(const FString&)
 	for (int32 D = 0; D < 6; ++D)
 	{
 		Fixture->Facing = static_cast<ERTHexDirection>(D);
+
+		// 🔑 **L'attore RUOTA a ogni giro, e senza questa riga l'asserto qui sotto non prova niente.**
+		// Trovato in code review (#2136): finche' il fixture stava fermo, `EastReference` non poteva
+		// muoversi **per costruzione** — `OnConstruction` non lo tocca (lo allestisce il costruttore), e
+		// l'asserto era una tautologia ripetuta sei volte. Il meccanismo da provare e'
+		// `SetUsingAbsoluteRotation(true)`: si vede solo se qualcosa prova a trascinarlo.
+		// ⚠️ **La versione precedente lo provava per effetto collaterale**, perche'
+		// `RerunConstructionScripts` ricreava i componenti riapplicando quel flag. Sostituirla con
+		// `OnConstruction` era necessario — la prima esiste solo `WITH_EDITOR`, vedi sotto — ma ha portato
+		// via anche la pressione, in silenzio: **un fix corretto puo' invacuire l'asserto che attraversa.**
+		// ✅ **Validato per MUTAZIONE**: commentata `SetUsingAbsoluteRotation(true)` nel costruttore del
+		// fixture e rieseguita la suite, cadono **tutte e sei** le asserzioni di questo loop piu' quella
+		// d'ancora — `14/14 completati, 1 fallimenti`. Senza la riga di rotazione qui sopra ne cadrebbe
+		// **una sola**, e le sei sarebbero verdi su un fixture rotto.
+		Fixture->SetActorRotation(FRotator(0.0, 37.0 * static_cast<double>(D + 1), 0.0));
+
 		// ⚠️ `OnConstruction`, non `RerunConstructionScripts`: **stessa trappola di `#2072`, gia' scritta
 		// venti righe piu' su in questo file, e reintrodotta qui poche ore dopo.** La seconda esiste solo
 		// `WITH_EDITOR` e questo file compila anche nel target **gioco** — quello che `BuildCookRun`
 		// costruisce e che nessuna `rt-suite` tocca, perche' la suite gira sull'Editor.
 		Fixture->OnConstruction(Fixture->GetTransform());
 
-		TestTrue(*FString::Printf(TEXT("direzione %d: il riferimento NON si e' mosso"), D),
+		TestTrue(*FString::Printf(TEXT("direzione %d: il riferimento NON segue l'attore che ruota"), D),
 			Fixture->EastReference->GetForwardVector().Equals(FVector::XAxisVector, 1.e-3));
-		MarkerAt[D] = Fixture->FacingMarker ? Fixture->FacingMarker->GetComponentLocation() : FVector::ZeroVector;
+
+		// ⛔ **Relativa, non mondiale**, ed e' la conseguenza della riga di rotazione qui sopra: la
+		// posizione MONDIALE ora cambia per due ragioni — il `Facing` e la rotazione dell'attore — e
+		// sarebbe distinta anche se `Facing` non spostasse nulla. `OnConstruction` scrive il marker con
+		// `SetRelativeTransform`, quindi la relativa isola esattamente cio' che questo asserto vuole.
+		MarkerAt[D] = Fixture->FacingMarker ? Fixture->FacingMarker->GetRelativeLocation() : FVector::ZeroVector;
 	}
 
 	// ⛔ L'asserto che toglie la vacuita': il marker si e' mosso davvero, e in sei punti distinti.
