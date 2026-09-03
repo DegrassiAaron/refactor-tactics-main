@@ -81,6 +81,61 @@ bool FRTReplayManifestRoundTripTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * I due campi per osservatore attraversano il JSON — e `-1` non diventa `0` ([D-316], [D-317]).
+ *
+ * ⚠️ **`LocalObserverTeamId = -1` e' il caso che una svista di tipo romperebbe per primo**, ed e' anche
+ * quello che porta piu' significato: `-1` vuol dire *«questa registrazione non e' di nessuno in locale»* e
+ * si rilegge come spettatore neutrale, mentre `0` sarebbe *«e' della squadra 0»*. Un `uint32` per errore, o
+ * un default applicato al posto della lettura, li confonderebbe — e il replay si aprirebbe con gli occhi
+ * sbagliati senza che nulla lo dica.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayManifestObserverRoundTripTest,
+	"RefactorTactics.Replay.Manifest.ObserverFieldsRoundTrip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayManifestObserverRoundTripTest::RunTest(const FString&)
+{
+	// --- Una registrazione della squadra 1, con due viste su disco --------------------------------
+	FRTReplayManifest M = ManifestDiProva();
+	M.ObserverTeamIds = { 0, 1 };
+	M.LocalObserverTeamId = 1;
+
+	FRTReplayManifest Riletto;
+	if (!TestTrue(TEXT("il manifest si rilegge"),
+			URTReplayRecorderLibrary::ManifestFromJson(URTReplayRecorderLibrary::ManifestToJson(M), Riletto)))
+	{
+		return false;
+	}
+	if (TestEqual(TEXT("due squadre osservatrici"), Riletto.ObserverTeamIds.Num(), 2))
+	{
+		TestEqual(TEXT("e sono 0 e 1"), Riletto.ObserverTeamIds[0] + Riletto.ObserverTeamIds[1], 1);
+	}
+	TestEqual(TEXT("l'osservatore locale sopravvive"), Riletto.LocalObserverTeamId, 1);
+
+	// --- Una registrazione di nessuno: `-1` resta `-1` e NON diventa `0` --------------------------
+	FRTReplayManifest DiNessuno = ManifestDiProva();
+	DiNessuno.LocalObserverTeamId = INDEX_NONE;
+
+	FRTReplayManifest RilettoNessuno;
+	RilettoNessuno.LocalObserverTeamId = 7; // sporca l'uscita: il valore deve venire dal JSON
+	if (TestTrue(TEXT("si rilegge anche quello senza osservatore"),
+			URTReplayRecorderLibrary::ManifestFromJson(
+				URTReplayRecorderLibrary::ManifestToJson(DiNessuno), RilettoNessuno)))
+	{
+		TestEqual(TEXT("«di nessuno» resta -1, e non degrada alla squadra 0"),
+			RilettoNessuno.LocalObserverTeamId, static_cast<int32>(INDEX_NONE));
+	}
+
+	// --- La versione scritta e' quella CORRENTE, non un letterale fermo ---------------------------
+	// 🔴 Fino al 2026-09-03 `ManifestToJson` scriveva `Initial` fisso: il file avrebbe dichiarato `v1`
+	// portando campi di `v3`, e un lettore che si fida della versione avrebbe letto un file che non e'
+	// quello che dice di essere. Il difetto era invisibile finche' le versioni erano una sola.
+	TestTrue(TEXT("il JSON dichiara la versione corrente del formato"),
+		URTReplayRecorderLibrary::ManifestToJson(M).Contains(
+			FString::Printf(TEXT("\"Version\":%d"), static_cast<int32>(ERTReplayManifestVersion::Current))));
+	return true;
+}
+
 // Fail-closed: una versione che non conosciamo si rifiuta, non si interpreta. E' la convenzione che
 // `DeserializeTurnLog` applica gia' al formato binario, e che ADR-0009 §4 chiede al Player in apertura.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayManifestUnknownVersionTest,
@@ -191,6 +246,12 @@ bool FRTReplayManifestNeutralFieldsTest::RunTest(const FString&)
 	// un archivio `v1` davvero non le ha su disco, quindi «elenco vuoto» descrive la realta' invece di
 	// coprirla. Un `bObserverFiltered = false` avrebbe detto la stessa cosa solo per fortuna.
 	TestEqual(TEXT("nessuna traccia per osservatore dichiarata"), M.ObserverTeamIds.Num(), 0);
+
+	// v3 ([D-317]): stessa disciplina, e qui il neutro **non e' zero**. Un archivio che non dichiara un
+	// osservatore locale si apre neutrale; se il default fosse `0` si aprirebbe con gli occhi della squadra
+	// 0 — cioe' mostrerebbe a chiunque una vista parziale spacciandola per la propria.
+	TestEqual(TEXT("nessun osservatore locale dichiarato, e il neutro e' -1 e non 0"),
+		M.LocalObserverTeamId, static_cast<int32>(INDEX_NONE));
 
 	return true;
 }

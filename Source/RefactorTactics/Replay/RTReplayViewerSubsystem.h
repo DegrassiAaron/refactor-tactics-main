@@ -85,6 +85,48 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
 	void Close();
 
+	// --- La selezione che attraversa il PushScreen (`#472`) -----------------------------------------
+
+	/**
+	 * Dichiara **quale** partita il viewer aprira' quando comparira'.
+	 *
+	 * 🔴 **Esiste perche' `PushScreen` prende un `FName` e basta.** `MatchHistory` spinge `ReplayViewer`
+	 * portandosi dietro un dato — l'unica relazione del frontend che lo fa — e senza un posto dove
+	 * posarlo il viewer si aprirebbe senza sapere cosa mostrare. E' lo stesso schema di
+	 * `PendingMatchLevel`/`ConsumePendingMatchLevel` per l'avvio partita: si scrive **prima** di navigare,
+	 * si consuma all'arrivo.
+	 *
+	 * ⚠️ **Sta qui e non sul navigatore**, ed e' deliberato: il navigatore non conosce il replay — non lo
+	 * conosce nemmeno per chiudere l'archivio, che e' la schermata a fare uscendo. Un `PendingReplayMatchId`
+	 * la' dentro sarebbe il primo campo di dominio in un tipo che ne e' rimasto libero.
+	 *
+	 * ⛔ **Non apre niente**: dichiarare non e' aprire, e tenerli separati e' cio' che permette alla lista
+	 * di rispondere al click **prima** che il viewer esista.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
+	void SelectMatch(const FGuid& MatchId) { SelectedMatchId = MatchId; }
+
+	/** `true` se una partita e' stata selezionata e non ancora consumata. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
+	bool HasSelectedMatch() const { return SelectedMatchId.IsValid(); }
+
+	/**
+	 * Prende la selezione e la **azzera**: il viewer la consuma una volta sola.
+	 *
+	 * 🔴 **Consumare e non leggere**, per la ragione che `ConsumePendingMatchLevel` dichiara: una
+	 * selezione che sopravvive alla sua apertura verrebbe riusata da una comparsa successiva, e il viewer
+	 * riaprirebbe la partita di prima senza che nulla lo dica. Un `FGuid` invalido e' un difetto rumoroso —
+	 * `OpenMatchAsRecordedObserver` risponde `ManifestUnreadable` — mentre uno valido ma **vecchio** e' un
+	 * difetto muto.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
+	FGuid ConsumeSelectedMatch()
+	{
+		const FGuid Preso = SelectedMatchId;
+		SelectedMatchId.Invalidate();
+		return Preso;
+	}
+
 	// --- Apertura -----------------------------------------------------------------------------------
 
 	/** Apre una partita come spettatore **neutrale**. I **quattro** esiti restano distinti: criterio di `#472`. */
@@ -105,6 +147,29 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
 	ERTReplayOpenResult OpenMatchAsTeam(const FGuid& MatchId, int32 ObserverTeamId);
+
+	/**
+	 * Apre una partita **con gli occhi di chi l'ha giocata**: l'osservatore lo dichiara l'archivio
+	 * ([D-317], `#2156`).
+	 *
+	 * 🔑 **E' la porta che una schermata deve chiamare**, ed e' il motivo per cui esiste. `OpenMatchAsTeam`
+	 * chiede un `TeamId` che il chiamante non ha modo di conoscere — nessuna UI sa di chi fosse una partita
+	 * registrata la settimana scorsa — quindi in pratica si sarebbe finiti su `OpenMatch`, ottenendo la vista
+	 * neutrale **per omissione** invece che per scelta. Qui la cosa giusta e' anche la piu' semplice.
+	 *
+	 * ⚠️ **Ricade sul neutrale quando l'archivio non lo dichiara**, e non e' un ripiego: un manifest `v1` o
+	 * `v2`, o una partita registrata da un dedicated server, non hanno un osservatore locale — `INDEX_NONE`
+	 * significa *«non c'era»*, e la vista completa e' la lettura corretta di quelle registrazioni.
+	 *
+	 * ⛔ **Non e' un confine di privacy e non va usata come tale.** Non impedisce di chiamare
+	 * `OpenMatchAsTeam` con l'altra squadra: le tracce sono entrambe sul disco, e il confine che [D-316]
+	 * chiude e' quello della superficie pubblica — chi ha accesso alla cartella ha accesso a tutto.
+	 *
+	 * Gli esiti sono i **quattro** di `OpenMatch`, più nessuno: un manifest illeggibile risponde
+	 * `ManifestUnreadable` come sempre, invece di inventare un quinto stato per «non so chi guardava».
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
+	ERTReplayOpenResult OpenMatchAsRecordedObserver(const FGuid& MatchId);
 
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
 	bool IsOpen() const { return ViewModel.IsOpen(); }
@@ -335,4 +400,15 @@ private:
 	/** Vuoto = il default del recorder. Vedi `GetReplaysRoot`. */
 	UPROPERTY()
 	FString ReplaysRootOverride;
+
+	/**
+	 * La partita che il viewer aprira' quando comparira' (`#472`). Invalido = nessuna selezione.
+	 *
+	 * ⚠️ **Non e' l'archivio aperto**: quello vive in `ViewModel`, e i due non si inseguono. Questo campo e'
+	 * vuoto per quasi tutta la vita del subsystem — si riempie a un click e si svuota all'arrivo — mentre
+	 * l'archivio resta aperto finche' qualcuno non chiude. Confonderli darebbe una lista che «ricorda»
+	 * l'ultima partita guardata, che nessuno ha chiesto.
+	 */
+	UPROPERTY()
+	FGuid SelectedMatchId;
 };

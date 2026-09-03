@@ -331,12 +331,22 @@ modo di separarli. Ora un'assenza significa una cosa sola.
 produttori la convenzione di privacy sotto sarebbe stata scritta tre volte, e tre copie di un invariante di
 sicurezza divergono — una code review ne corregge una e le altre due restano.
 
-⚠️ **Il facing dell'Overwatch è quello d'INGRESSO nella fase Move, non quello finale.**
-`ResolveReactionBoundary` gira dentro il ciclo dei micro-step, mentre la `RecordFacingChange` che fissa
-`DerivedFromMove` scrive **dopo** l'uscita dal ciclo: al momento del colpo l'orientamento finale non esiste
-ancora. È anche la lettura giusta — si viene colpiti *mentre* ci si muove, con l'orientamento che si aveva —
-ma va dichiarata, o si scambia per una svista. `Spec.Facing.OverwatchHitCameFromSide` la rende osservabile
-asserendo che il facing di fine turno **diverge** da quello con cui il lato è stato misurato.
+⚠️ **Il facing dell'Overwatch è quello dell'ULTIMO PASSO COMPIUTO, non quello d'ingresso nella fase né
+quello finale.** È la formula di [ADR-0008](adr-0008-rotazione-e-policy-di-facing.md) §2 —
+`FacingAt(k) = FacingFromPath(Path[0..k], FacingAtMoveStart)` — e il pivot finale si applica **dopo**, senza
+rileggere i boundary già passati. `Spec.Facing.OverwatchHitCameFromSide` la rende osservabile facendo
+dichiarare al bersaglio una rotazione finale, così che il facing di fine turno **diverga** da quello con cui
+il lato è stato misurato.
+
+> 🔁 **Corretto il 2026-09-03 da [#2131](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2131).**
+> Questo capoverso diceva *«il facing dell'Overwatch è quello d'INGRESSO nella fase Move»* e aggiungeva
+> *«è anche la lettura giusta — si viene colpiti mentre ci si muove, con l'orientamento che si aveva»*. La
+> **premessa** era esatta e lo resta: `ResolveReactionBoundary` gira dentro il ciclo dei micro-step e la
+> `RecordFacingChange` che fissa `DerivedFromMove` scrive dopo l'uscita, quindi al momento del colpo
+> l'orientamento finale non esiste ancora. La **conclusione** no: da «il finale non c'è ancora» non segue
+> «vale quello d'ingresso», e ADR-0008 §2 — `CANONICAL` dal 2026-08-10 — dice che vale il passo appena
+> compiuto. Descriveva fedelmente il codice del 2026-09-03 mattina, cioè una §2 non ancora implementata.
+> *«L'orientamento che si aveva»* resta la frase giusta: camminando, è quello del passo appena fatto.
 
 ⚠️ **In un duello frontale i due lati coincidono, e non è un difetto**:
 `FacingAfterPrepActionTargeting` gira l'attaccante verso il proprio bersaglio prima che il colpo risolva,

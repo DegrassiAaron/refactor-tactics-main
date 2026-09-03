@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { segnala, raccogli } from './scenario-notes.ts';
+import { segnala, raccogli, CAMPO_LETTI } from './scenario-notes.ts';
 
 const conAttesa = (nota: string, valore: number, campo = '_nota') => ({
   [campo]: nota,
@@ -126,4 +126,101 @@ test('la raccolta scende nell albero invece di fermarsi al primo livello', () =>
 
   assert.deepEqual(note, [['_nota_x', 'testo']]);
   assert.deepEqual(attese, [7]);
+});
+
+// ---------------------------------------------------------------- ASSOLUZIONI (#2161)
+//
+// 🔴 Il difetto che il meccanismo chiude: `--check` usciva **1** su un corpus che il docstring di questo
+// stesso file dichiarava pulito. Un gate rosso quando tutto va bene non è un gate — è rumore che si impara
+// a scavalcare, e il 2026-09-03 ha prodotto una conclusione sbagliata sullo stato del repository in chi
+// stava proprio verificando quali gate girassero.
+
+/** Il caso base: un numero dichiarato già letto porta il motivo con sé e smette di essere «da leggere». */
+test('un numero assolto con motivo resta segnalato ma marcato, non sparisce', () => {
+  const righe = segnala('X.json', {
+    ...conAttesa('Riktor scende a 115 nello scenario gemello.', 120),
+    [CAMPO_LETTI]: { _nota: '115 è del gemello, non di questo file' },
+  });
+
+  assert.equal(righe.length, 1);
+  assert.equal(righe[0]!.assolto, '115 è del gemello, non di questo file');
+  assert.equal(righe[0]!.mutaSenzaMotivo, undefined);
+});
+
+/**
+ * 🔑 **La trappola principale del meccanismo, e la ragione per cui `CAMPO_LETTI` esce dalla scansione.**
+ *
+ * Un motivo spiega un numero, quindi **contiene** quel numero. Senza l'esclusione ogni assoluzione
+ * genererebbe il rilievo che assolve, e il gate resterebbe rosso dichiarando di essersi assolto — il che
+ * è peggio del rosso di prima, perché sembrerebbe un difetto dei dati invece che dello strumento.
+ */
+test('il motivo di un assoluzione non genera segnalazioni proprie', () => {
+  const righe = segnala('X.json', {
+    ...conAttesa('Riktor scende a 115 nello scenario gemello.', 120),
+    [CAMPO_LETTI]: { _nota: 'il gemello asserisce 115, e anche 110 e 105 sono suoi' },
+  });
+
+  // Una sola riga: quella della nota. I tre numeri del motivo non ne producono nessuna.
+  assert.equal(righe.length, 1);
+  assert.equal(righe[0]!.citato, 115);
+});
+
+/** ⛔ Un'assoluzione MUTA non assolve: senza il motivo obbligatorio il meccanismo sarebbe un interruttore. */
+test('un assoluzione senza motivo non assolve e si dichiara', () => {
+  const righe = segnala('X.json', {
+    ...conAttesa('Riktor scende a 115 nello scenario gemello.', 120),
+    [CAMPO_LETTI]: { _nota: '   ' },
+  });
+
+  assert.equal(righe.length, 1);
+  assert.equal(righe[0]!.assolto, undefined);
+  assert.equal(righe[0]!.mutaSenzaMotivo, true);
+});
+
+/** Lo stesso vale per un motivo che non è nemmeno una stringa: `null`, un numero, un oggetto. */
+test('un motivo che non e una stringa vale come muto', () => {
+  const righe = segnala('X.json', {
+    ...conAttesa('Riktor scende a 115 nello scenario gemello.', 120),
+    [CAMPO_LETTI]: { _nota: 42 },
+  });
+
+  assert.equal(righe[0]!.mutaSenzaMotivo, true);
+});
+
+/**
+ * 🔑 **L'assoluzione è per CAMPO, non per file.** Un'esenzione che valesse per l'intero scenario sarebbe il
+ * modo in cui il gate smette di guardare proprio dove ha già trovato qualcosa una volta.
+ */
+test('assolvere un campo non assolve gli altri campi dello stesso file', () => {
+  const righe = segnala('X.json', {
+    _nota: 'Riktor scende a 115 nello scenario gemello.',
+    _nota_coppia: 'e nel confronto si legge 110.',
+    turns: [{ expect: [{ type: 'UnitHpEquals', unit: 'B1', value: 120 }] }],
+    [CAMPO_LETTI]: { _nota: '115 è del gemello' },
+  });
+
+  assert.equal(righe.length, 2);
+  assert.equal(righe.find((r) => r.campo === '_nota')!.assolto, '115 è del gemello');
+  assert.equal(righe.find((r) => r.campo === '_nota_coppia')!.assolto, undefined);
+});
+
+/** Anti-vacuità: senza il campo di assoluzione nulla cambia rispetto al comportamento storico. */
+test('senza il campo di assoluzione la segnalazione resta nuda', () => {
+  const righe = segnala('X.json', conAttesa('Riktor scende a 115 nello scenario gemello.', 120));
+
+  assert.equal(righe.length, 1);
+  assert.equal(righe[0]!.assolto, undefined);
+  assert.equal(righe[0]!.mutaSenzaMotivo, undefined);
+});
+
+/** La raccolta legge le assoluzioni a qualunque profondità, come fa con note e attese. */
+test('le assoluzioni si raccolgono senza entrare nella scansione delle note', () => {
+  const { note, letti } = raccogli({
+    _nota: 'testo con 115',
+    [CAMPO_LETTI]: { _nota: 'motivo con 115 e 120' },
+    turns: [{ expect: [{ type: 'UnitHpEquals', value: 120 }] }],
+  });
+
+  assert.deepEqual(note, [['_nota', 'testo con 115']]);
+  assert.deepEqual([...letti], [['_nota', 'motivo con 115 e 120']]);
 });

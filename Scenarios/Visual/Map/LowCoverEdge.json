@@ -1,4 +1,8 @@
 {
+  "_numeri_letti": {
+    "_nota_aritmetica":
+      "66 e' un CONTROFATTUALE dichiarato: e' il valore che si leggerebbe se la protezione non fosse applicata. L'attesa e' 76, e la nota lo scrive due righe sopra."
+  },
   "scenarioId": "Visual.Map.LowCoverEdge",
   "tags": ["animation", "map", "combat", "gadget", "riktor", "wraith"],
   "version": 1,

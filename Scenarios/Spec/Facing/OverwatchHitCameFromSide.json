@@ -7,30 +7,32 @@
 
   "_nota": "#2128 / [D-126]: anche il fuoco di OVERWATCH scrive nel TurnLog da quale lato e' arrivato. Il ciclo su `Plan.Hits` che emette `HitCameFromSide` non lo vede — l'Overwatch applica danno in `ApplyReactionDecision` senza mai costruire un `FRTHexAttackHit` — quindi fino al 2026-09-03 un consumatore che contasse una voce direzionale per colpo subito non la trovava per le reazioni, e nulla diventava rosso. L'origine e' la cella del watcher: [D-302] punto 3 classifica come *diretto/mischia* — origine sorgente->bersaglio — e questo colpo e' letteralmente `ERTDamageSource::Direct`.",
 
-  "_nota_perche_il_lato_e_Rear": "🔑 **Il punto dello scenario, e non e' un dettaglio di geometria.** P1 e' piazzato guardando a `W` e in questo turno si muove verso `E`: viene colpito da (2,-1), che rispetto a `W` cade nello spicchio opposto — lato 3, `Rear`. Il facing con cui il lato si misura e' quello con cui P1 e' ENTRATO nella fase Move, non quello che avra' alla fine: `ResolveReactionBoundary` gira dentro il ciclo dei micro-step, mentre la `RecordFacingChange` che fissa `DerivedFromMove` scrive DOPO l'uscita dal ciclo. Al momento del colpo l'orientamento finale non esiste ancora — e la lettura giusta e' proprio questa: si viene colpiti *mentre* ci si muove, con l'orientamento che si aveva.",
+  "_nota_riscritta_da_2131": "🔁 **Riscritto il 2026-09-03 da #2131, che implementa ADR-0008 §2.** La prima stesura dichiarava che *«il facing con cui il lato si misura e' quello con cui P1 e' ENTRATO nella fase Move»* e ne faceva il proprio punto. Era una descrizione fedele del codice di quel giorno e una **regola che il canone non aveva**: ADR-0008 §2 e' `CANONICAL` dal 2026-08-10 e dice l'opposto — al boundary dopo il micro-step `k` il facing e' `FacingFromPath(Path[0..k], FacingAtMoveStart)`, cioe' la direzione dell'ULTIMO PASSO COMPIUTO. La §2 non era implementata, quindi lo scenario pinnava il comportamento osservato invece della decisione vigente. Con la §2 a runtime il lato misurato cambia, e il file cambia con lui.",
 
-  "_nota_l_assertion_che_lo_rende_visibile": "⚠️ L'ultima riga asserisce `UnitFacing` di P1 a `E`, cioe' un valore DIVERSO da quello con cui il lato e' stato calcolato. Non e' ridondante: e' l'unica riga che rende osservabile la regola sopra. Se un giorno qualcuno spostasse la misura sul facing finale, il lato diventerebbe `Front` e `LogEventAmount` cadrebbe — mentre senza questa riga il file non direbbe *perche'* i due valori devono divergere.",
+  "_nota_perche_il_lato_e_FrontRight": "🔑 **Il punto dello scenario.** P1 entra in (-2,-1) percorrendo `NE` da (-3,0): al boundary il suo facing e' `NE` (indice 1), non il `W` di piazzamento. V1 sta in (2,-1), che rispetto a (-2,-1) cade nello spicchio assoluto 0 (`E`), quindi l'indice relativo e' `(0 - 1 + 6) % 6 = 5` = `FrontRight`. Il facing di PIAZZAMENTO non entra nel calcolo, ed e' dichiarato `W` apposta: se qualcuno riportasse la misura sull'orientamento d'ingresso il lato tornerebbe `3` e questa riga cadrebbe.",
 
-  "_nota_perche_non_Front": "⛔ `Front` vale **0**, che e' anche il valore di un `ERTRelativeDirection` zero-inizializzato: un'assertion su `Front` passerebbe anche se `Amount` non fosse mai stato scritto. Il lato atteso qui e' `3` proprio per non poggiare l'oracolo sullo zero — la stessa cautela che `Spec.Facing.SixRelativeSides` prende scegliendo `RearLeft`.",
+  "_nota_perche_non_Front": "⛔ `Front` vale **0**, che e' anche il valore di un `ERTRelativeDirection` zero-inizializzato: un'assertion su `Front` passerebbe anche se `Amount` non fosse mai stato scritto. E' una trappola vicina, non teorica — con l'arrivo in (-2,-1) percorso da `E` il lato sarebbe **esattamente** `Front`, ed e' la ragione per cui l'ingresso e' obliquo. La stessa cautela che `Spec.Facing.SixRelativeSides` prende scegliendo `RearLeft`.",
+
+  "_nota_il_pivot_non_e_retroattivo": "🔑 **La riga `UnitFacing` prova la NON retroattivita' del pivot finale, ed e' l'unica che la rende osservabile in partita.** Senza una rotazione dichiarata i due valori COINCIDEREBBERO: il `FIRE` tronca il movimento nella cella raggiunta, quindi il boundary del colpo e' l'ultimo passo e il `FacingFinalAfterMove` deriva dallo stesso passo. P1 (`Hero.Phase`, `MoveEndPivotMaxSteps = 2`) dichiara allora `W`, che da `NE` dista esattamente due step ed e' legale al limite del budget. Il pivot si applica DOPO l'uscita dal ciclo dei micro-step: la voce direzionale e' gia' scritta e nessuno la rilegge. Se il pivot diventasse retroattivo il lato scenderebbe da `5` a `3` e questo file lo direbbe.",
+
+  "_nota_geometria": "Ripresa da `Spec/Overwatch/HoldThenFire.json`, che ha gia' pagato l'errore: la zona dell'Overwatch e' una LINEA e nasce dal facing letto in PREP, quindi V1 dichiara `facing` fra le UNITA' (piazzamento) e non fra gli intent — una rotazione dichiarata si applica dentro `ResolveMovement`, troppo tardi per il proprio cono. V1 e' a (2,-1) e guarda W: controlla (1,-1) (0,-1) (-1,-1) (-2,-1), la portata di `Hero.Wraith.PulseShot`. P1 parte FUORI dalla linea, a (-3,0), ed entra in (-2,-1) al primo micro-step; il FIRE lo tronca li' e il secondo passo, (-1,-1), non lo fa mai — ed e' quello a rendere osservabile la troncatura invece di lasciarla implicita.",
 
   "_nota_un_solo_colpo": "🔑 **Un solo colpo risolto in tutto lo scenario, e serve all'oracolo.** `LogEventAmount` legge la PRIMA occorrenza della coppia (categoria, esito) e `IndexOfScenarioLogEvent` non nomina l'unita': con due colpi la riga asserirebbe sul colpo sbagliato **senza diventare rossa**. Nessuno pianifica attacchi qui, quindi la sola voce `HitCameFromSide` del turno e' quella dell'Overwatch. Chi aggiunga un attacco, o un turno prima di questo, sposta l'oracolo in silenzio.",
 
-  "_nota_geometria": "Ripresa da `Spec/Overwatch/HoldThenFire.json`, che ha gia' pagato l'errore: la zona dell'Overwatch e' una LINEA e nasce dal facing letto in PREP, quindi V1 dichiara `facing` fra le UNITA' (piazzamento) e non fra gli intent — una rotazione dichiarata si applica dentro `ResolveMovement`, troppo tardi per il proprio cono. V1 e' a (2,-1) e guarda W: controlla (1,-1) (0,-1) (-1,-1) (-2,-1), la portata di `Hero.Wraith.PulseShot`. P1 entra nella linea a (-2,-1) al primo micro-step, e il FIRE lo tronca li': il secondo passo, (-1,-1), non lo fa mai — ed e' quello a rendere osservabile la troncatura invece di lasciarla implicita.",
-
-  "_nota_cosa_NON_prova": "Questo scenario prova l'INTEGRAZIONE — che la voce arriva fino al TurnLog di una partita vera passando per il Decision Boundary — non la geometria dei sei lati, pinnata esaustivamente da `RefactorTactics.Facing.Relative*`. Non copre i CONTRATTACCHI, che sono l'altra meta' di #2128: quelli producono DUE voci direzionali nello stesso turno, quindi l'oracolo dell'harness non li discriminerebbe, e vivono in `RefactorTactics.Reactions.Counter.TracesTheSideItCameFrom`.",
+  "_nota_cosa_NON_prova": "Questo scenario prova l'INTEGRAZIONE — che la voce arriva fino al TurnLog di una partita vera passando per il Decision Boundary, e con quale facing — non la geometria dei sei lati, pinnata esaustivamente da `RefactorTactics.Facing.Relative*`, ne' la formula della §2, pinnata da `RefactorTactics.Facing.MicroStep*`. Non copre i CONTRATTACCHI, che sono l'altra meta' di #2128: quelli producono DUE voci direzionali nello stesso turno, quindi l'oracolo dell'harness non li discriminerebbe, e vivono in `RefactorTactics.Reactions.Counter.TracesTheSideItCameFrom`.",
 
   "units": [
-    { "id": "P1", "hero": "Hero.Phase",  "team": 0, "cell": [-3, -1, 0], "facing": "W" },
+    { "id": "P1", "hero": "Hero.Phase",  "team": 0, "cell": [-3,  0, 0], "facing": "W" },
     { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 2, -1, 0], "facing": "W" }
   ],
 
   "turns": [
     {
-      "_turno": "T1 — V1 arma l'Overwatch sul varco che gia' controlla; P1 entra nella linea a (-2,-1) e V1 risponde FIRE, che consuma la carica e tronca il movimento nella cella raggiunta. P1 chiede due passi e ne fa uno.",
-      "requires": ["DecisionBoundary"],
+      "_turno": "T1 — V1 arma l'Overwatch sul varco che gia' controlla; P1 entra nella linea a (-2,-1) percorrendo NE e V1 risponde FIRE, che consuma la carica e tronca il movimento nella cella raggiunta. P1 chiede due passi e ne fa uno, poi spende il proprio pivot per girarsi a W.",
+      "requires": ["DecisionBoundary", "DeclaredRotation"],
       "intents": [
         { "unit": "V1", "ability": "Action.Overwatch" },
-        { "unit": "P1", "move": [[-2, -1, 0], [-1, -1, 0]] }
+        { "unit": "P1", "move": [[-2, -1, 0], [-1, -1, 0]], "facing": "W" }
       ],
       "decisions": [
         { "unit": "V1", "respond": "FIRE", "target": "P1" }
@@ -48,11 +50,11 @@
     { "_assertion": "Una voce direzionale, e una sola: la relazione si scrive UNA volta per colpo risolto, e il fuoco di Overwatch e' un colpo risolto come gli altri (#2128).",
       "type": "LogEventCount", "category": "Facing", "outcome": "HitCameFromSide", "value": 1 },
 
-    { "_assertion": "E il lato e' quello giusto. `Amount` porta l'INDICE RELATIVO `(spicchio - facing + 6) % 6`: la cella (2,-1) sta nello spicchio assoluto 0 (`E`) rispetto a (-2,-1), e con P1 orientato a `W` (indice 3) l'indice relativo e' 3 = `Rear`.",
-      "type": "LogEventAmount", "category": "Facing", "outcome": "HitCameFromSide", "value": 3 },
+    { "_assertion": "E il lato e' quello giusto, misurato sul facing del MICRO-STEP (ADR-0008 §2). `Amount` porta l'INDICE RELATIVO `(spicchio - facing + 6) % 6`: la cella (2,-1) sta nello spicchio assoluto 0 (`E`) rispetto a (-2,-1), e con P1 che ha appena percorso `NE` (indice 1) l'indice relativo e' 5 = `FrontRight`. Con l'orientamento di PIAZZAMENTO (`W`, indice 3) sarebbe stato 3.",
+      "type": "LogEventAmount", "category": "Facing", "outcome": "HitCameFromSide", "value": 5 },
 
-    { "_assertion": "🔑 E il facing FINALE di P1 e' `E` — derivato dal passo che ha compiuto — cioe' DIVERSO da quello con cui il lato e' stato misurato. E' la riga che rende osservabile la regola: il colpo di Overwatch guarda l'orientamento d'ingresso nella fase, perche' quello finale al suo istante non esiste ancora.",
-      "type": "UnitFacing", "unit": "P1", "value": "E" },
+    { "_assertion": "🔑 E il facing FINALE di P1 e' `W` — il pivot dichiarato in pianificazione, applicato DOPO l'uscita dal ciclo dei micro-step — cioe' DIVERSO da quello con cui il lato e' stato misurato. E' la riga che rende osservabile la non retroattivita' del pivot finale: la voce direzionale e' gia' scritta, e nessuna rotazione successiva la rilegge.",
+      "type": "UnitFacing", "unit": "P1", "value": "W" },
 
     { "_assertion": "Il watcher non si e' mosso: la sua cella e' anche l'origine da cui il lato e' stato calcolato.",
       "type": "UnitAtCell", "unit": "V1", "cell": [2, -1, 0] },
