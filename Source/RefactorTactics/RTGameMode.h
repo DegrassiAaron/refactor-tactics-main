@@ -408,6 +408,19 @@ public:
 	void HookKnowledgeVeil();
 
 	/**
+	 * APRE il turno 1 sul TurnManager della sessione, se qualcuno l'ha rivendicato — `#2102`, [D-314].
+	 *
+	 * 🔴 **Esiste perche' `BeginPlay` ha piu' uscite, e ognuna deve poter aprire.** Rivendicare l'apertura
+	 * e poi tornare da un ramo che non la esegue lascerebbe una sessione con un TurnManager che non apre
+	 * mai il primo turno — cioe' una partita ferma, che e' peggio del difetto d'ordine che la
+	 * rivendicazione chiude. Nessuna rivendicazione, o turno gia' aperto: non fa nulla.
+	 *
+	 * ⚠️ **Pubblica per la stessa ragione di `HookKnowledgeVeil`**: i test allestiscono chiamando
+	 * `SetupHexMatch` direttamente, senza far correre `BeginPlay`, e devono poter osservare l'apertura.
+	 */
+	void OpenClaimedFirstTurn();
+
+	/**
 	 * Il presenter del velo di questa sessione: quello del `ARTPlayerController` se un client c'e', altrimenti
 	 * uno senza proprietario creato qui.
 	 *
