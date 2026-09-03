@@ -686,23 +686,36 @@ public:
 	/**
 	 * Velocita' di scorrimento dei modelli nelle fasi che muovono (celle al secondo).
 	 *
-	 * 🔑 **`2.0` scelto a schermo il 2026-09-02, non per simmetria** (`#1878`). Il product owner ha
-	 * osservato in PIE i tre valori che la issue chiedeva di provare, sulla partita vera: **`1.35` e `1.65`
-	 * sono risultate lente**, `2.00` la migliore. Il valore precedente — `6.5`, cioe' `0,15 s` per cella —
-	 * e' la velocita' che ha originato la segnalazione *«dopo il Planning i personaggi sembrano andare in
-	 * fast-forward»*.
+	 * 🔑 **`1.44` NON e' un gusto: e' la velocita' a cui il piede non scivola** (`#1878`, 2026-09-03), e la
+	 * si ricava da due valori che il repository gia' dichiarava:
 	 *
-	 * 📐 Cosa costa, misurato da `RefactorTactics.Playback.LocomotionSpeedReportForTuning`: sul percorso di
-	 * prova la risoluzione passa da **0,78 s a 2,52 s**. E' dentro la banda 8-15 s dichiarata per il 2v2 da
-	 * `spec-durata-partita-e-scala-mappe.md` §9.
+	 *     passo di una cella = HexSize * sqrt(3) = 150 * 1,732 = 259,8 cm      (`URTHexLibrary::AxialToWorld`)
+	 *     la clip di corsa dichiara                        = 375 cm/s          (`ARTUnit::VisualRunSpeed`)
+	 *     ∴ velocita' senza scivolamento = 375 / 259,8     = 1,443 celle/s
 	 *
-	 * ⚠️ **Cambiarlo NON accelera piu' nulla di nascosto.** Fino al 2026-09-02 il tetto di durata poteva
-	 * sovrascrivere questa velocita' da se'; ora comprime le attese e lascia intatto cio' che si vede, quindi
-	 * il numero scritto qui e' il numero che si osserva — lo pinna
+	 * A `1.44` il residuo e' **-0,2%**, sotto qualunque soglia percettiva.
+	 *
+	 * 📐 **Il pattinamento agli altri valori, per capire cosa si sta comprando**: `6.5` (il default fino al
+	 * 2026-09-02) traslava a 1688 cm/s contro i 375 dichiarati, cioe' **+350%** — i personaggi correvano
+	 * quattro volte e mezzo piu' della loro animazione, ed e' la causa vera della segnalazione *«sembrano
+	 * andare in fast-forward»*. `2.0` sarebbe **+39%**, `1.65` **+14%**.
+	 *
+	 * ⚠️ **Il product owner aveva scelto `2.0` a schermo, e ha cambiato idea davanti a questo calcolo**: la
+	 * scelta percettiva e quella geometrica non coincidevano, e ha prevalso la seconda perche' `1.44` sta
+	 * fra i due valori giudicati «lenti» (`1.35` e `1.65`) — cioe' dentro un intervallo gia' esplorato.
+	 *
+	 * 🔴 **Vale finche' `HexSize` vale 150.** Il numero senza scivolamento e' una funzione del passo, non
+	 * una costante: una mappa autorata con `HexSize` diverso rimette i piedi a pattinare, e nessun errore lo
+	 * segnala. Lo pinna `RefactorTactics.Playback.DefaultRateMatchesTheRunClip`, che ricalcola la relazione
+	 * invece di ripetere il numero — se qualcuno cambia questo default, `VisualRunSpeed` o `HexSize`, cade.
+	 *
+	 * ⚠️ **Il numero scritto e' il numero che si osserva, a `ViewerPlaybackSpeed` = 1.** La manopola del
+	 * viewer (`x1/x2/x4`) moltiplica l'orologio del playback: a `x4` si vedono `5,8` celle/s. Cio' che non
+	 * accade piu' e' che il tetto di durata acceleri da se' — lo pinna
 	 * `RefactorTactics.Playback.BudgetDoesNotSpeedUpLocomotion`.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
-	float PlaybackCellsPerSecond = 2.0f;
+	float PlaybackCellsPerSecond = 1.44f;
 
 	/** Pausa tra una fase e la successiva (secondi). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")

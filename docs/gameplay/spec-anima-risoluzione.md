@@ -186,7 +186,7 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 
 | Parametro | Default (compatto) | Effetto |
 |-----------|--------------------|---------|
-| `PlaybackCellsPerSecond` | **`2.0`** (0,5 s/cella) — ~~`6.5`~~ fino al 2026-09-02 | velocità di scorrimento dei modelli nelle fasi che muovono |
+| `PlaybackCellsPerSecond` | `1.44` (≈0.69 s/cella) | velocità di scorrimento dei modelli nelle fasi che muovono |
 | `PhaseBeatSeconds` | `~0.30` | pausa tra una fase e la successiva |
 | `AttackShowSeconds` | `~0.50` | durata di visualizzazione di un colpo + numero di danno |
 | `MaxPlaybackSeconds` | `~12` | oltre soglia → **le ATTESE si comprimono**, la locomozione no |
@@ -229,27 +229,50 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 > ⚠️ Il riferimento «(PDF p.4)» nella tabella non è un'autorità: `CLAUDE.md` §1 esclude i PDF. Resta come
 > traccia di provenienza, non come fonte.
 >
-> ### 📌 Taratura del 2026-09-02 — `PlaybackCellsPerSecond` passa da `6.5` a `2.0`
+> ### 📌 Taratura del 2026-09-03 — `PlaybackCellsPerSecond` da `6.5` a `1.44`
 >
-> 🔑 **Scelto a schermo, non per simmetria.** Il product owner ha osservato in PIE i tre valori che `#1878`
-> chiedeva di provare, sulla partita vera: **`1.35` e `1.65` sono risultate lente**, `2.00` la migliore.
-> `6.5` — cioè `0,15 s` per cella — è la velocità che aveva originato la segnalazione *«dopo il Planning i
-> personaggi sembrano andare in fast-forward»* del 2026-08-30.
+> 🔑 **Il numero non è un gusto: è la velocità a cui il piede non scivola**, e si ricava da due valori che
+> il repository già dichiarava in posti distanti:
 >
-> **Cosa costa**, dal referto di `RefactorTactics.Playback.LocomotionSpeedReportForTuning`: sul percorso di
-> prova la risoluzione passa da **0,78 s a 2,52 s**, dentro la banda 8-15 s che §9 di
-> [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) dichiara per il 2v2.
+> ```
+> passo di una cella = HexSize × √3 = 150 × 1,732 = 259,8 cm    (URTHexLibrary::AxialToWorld)
+> la clip di corsa dichiara                       = 375 cm/s     (ARTUnit::VisualRunSpeed)
+> ∴ velocità senza scivolamento = 375 / 259,8     = 1,443 celle/s
+> ```
 >
-> ⚠️ **Il numero scritto è il numero che si osserva.** Prima della separazione fra `Shown` e `Slack` il
-> tetto poteva sovrascrivere questa velocità da sé, e a rate bassi lo avrebbe fatto — rendendo questa
-> taratura inefficace. È la ragione per cui le due metà di `#1878` sono state consegnate insieme.
+> A `1.44` il residuo è **−0,2%**. `6.5` — il default fino al 2026-09-02 — traslava a **1688 cm/s** contro i
+> 375 dichiarati: **+350%**, cioè i personaggi correvano quattro volte e mezzo più della loro animazione. È
+> la causa vera della segnalazione *«dopo il Planning i personaggi sembrano andare in fast-forward»*, e non
+> era solo «troppo veloce»: era **desincronizzata**.
+>
+> ⚠️ **Il percorso della decisione, perché conta più del numero.** Il product owner ha osservato in PIE i tre
+> valori che `#1878` chiedeva di provare — `1.35` e `1.65` giudicate **lente**, `2.00` preferita — e la
+> scelta era `2.0`. Il calcolo qui sopra è emerso **dopo**, in code review, e ha spostato la decisione: a
+> `2.0` il pattinamento sarebbe stato **+39%**, e `1.44` cade *dentro* l'intervallo già esplorato fra i due
+> valori scartati. Ha prevalso la geometria sulla preferenza, con la preferenza registrata.
+>
+> 🔴 **Vale finché `HexSize` vale 150.** Il numero senza scivolamento è una funzione del passo, non una
+> costante: una mappa autorata con `HexSize` diverso rimette i piedi a pattinare, e nessun errore lo segnala.
+> Lo sorveglia `RefactorTactics.Playback.DefaultRateMatchesTheRunClip`, che **ricalcola la relazione** dai
+> CDO invece di ripetere il numero.
+>
+> ⚠️ **Conseguenza sul cap dello Scenario Harness**: a `1.44` un round 2v2 pieno costa ~**8,5 s**, cioè ~513
+> frame a 60 fps. `URTScenarioRunner::MaxResolveTicks` valeva `400` (6,7 s) e la sessione **live** — che
+> conta frame, non passi fissi — sarebbe abortita. Alzato a `900`. La suite non l'avrebbe visto: gira dal
+> percorso a passo fisso da `0,05 s`, che aveva 20 s di budget e ne usava 3.
+>
+> ⚠️ **Il numero scritto è il numero che si osserva, a `ViewerPlaybackSpeed = 1`.** La manopola del viewer
+> moltiplica l'orologio del playback: a `x4` si vedono `5,8` celle/s. Ciò che non accade più è che il tetto
+> di durata acceleri **da sé** — ed è la ragione per cui questa taratura funziona solo dopo la separazione
+> fra `Shown` e `Slack`: prima, ai rate bassi, il tetto avrebbe ripreso il controllo rendendo questo campo
+> inerte.
 >
 > 📋 **Osservazione di playtest raccolta nella stessa seduta, e non è un bug**: rallentando il movimento, il
 > **confine fra un turno e il successivo smette di essere leggibile**. Con il movimento quasi istantaneo il
 > ciclo era un lampo e non c'era nulla da confondere; ora il movimento è un evento che dura, e il ritorno
 > immediato al Planning sembra la sua continuazione. Misurato sul log: cinque movimenti letti come «lo
-> stesso turno» erano i turni **2, 3, 4, 5 e 6**, ciascuno con il proprio lock-in. Il `Round %d` a schermo
-> c'è (`RTHUD.cpp`) e non basta.
+> stesso turno» erano i turni **2, 3, 4, 5 e 6**, ciascuno con il proprio lock-in, e senza nemmeno un
+> `Risoluzione: salto`. Il `Round %d` a schermo c'è (`RTHUD.cpp`) e non basta.
 
 ## 7. Batching (DECISO: Move in parallelo)
 
@@ -345,7 +368,7 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 **Regressione**: 60/60 automation test verdi (54 preesistenti + 5 playback + 1 `NewlyDefeated`) → invariato l'esito.
 
 **Limiti noti / aperti**:
-- **Valori di tuning** (`6.5` celle/s, beat `0.30`, colpo `0.50`, cap `12`) sono default compatti da **tarare
+- ~~**Valori di tuning** (`6.5` celle/s,~~ **tarato il 2026-09-03: `1.44`** — vedi §6) ~~beat `0.30`, colpo `0.50`, cap `12`) sono default compatti da **tarare
   in gioco**; editabili in editor senza ricompilare.
 - **Verifica in sessione unattended**: in `-game -unattended` la finestra può ricevere input spurio (Spazio →
   lock-in), accelerando i turni; il timer di pianificazione reale è ~30s (confermato: senza input la

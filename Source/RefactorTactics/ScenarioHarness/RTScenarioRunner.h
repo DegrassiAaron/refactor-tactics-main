@@ -65,8 +65,24 @@ public:
 	/** ID di tutti gli scenari versionati sotto `Scenarios/`, in ordine alfabetico. */
 	static TArray<FString> ListScenarioIds();
 
-	/** Numero massimo di tick di risoluzione per turno: tetto di sicurezza, non una regola di gioco. */
-	static constexpr int32 MaxResolveTicks = 400;
+	/**
+	 * Numero massimo di tick di risoluzione per turno: tetto di sicurezza, non una regola di gioco.
+	 *
+	 * ⚠️ **I due consumatori lo spendono in valute diverse, e il cambio del 2026-09-03 riguarda solo uno.**
+	 *  - `URTScenarioRunner::RunSingle` avanza a passo fisso di `0,05 s`, quindi `900` valgono **45 s** di
+	 *    tempo simulato: abbondante, e insensibile alla velocita' di playback.
+	 *  - `FRTScenarioSession::Tick` incrementa una volta per **FRAME** renderizzato (`bPumpTurnManager =
+	 *    false`), quindi a 60 fps `900` valgono **15 s** di tempo reale — ed e' questo il vincolo stretto.
+	 *
+	 * 🔑 **Perche' non e' piu' `400`.** Con `PlaybackCellsPerSecond` a `1.44` (`#1878`) un round 2v2 pieno
+	 * costa circa **8,5 s**: a 60 fps sono ~**513 frame**, cioe' oltre il vecchio tetto di `400` (6,7 s).
+	 * La sessione live sarebbe abortita con *«il turno N non ha finito di risolvere entro 400 passi»* — la
+	 * stessa diagnosi che `Scenarios/AutoBattle/ArenaV01.json` documenta gia' per il frame rate scatenato.
+	 *
+	 * ⛔ **La suite non avrebbe visto il difetto**: gira dal percorso a passo fisso, che aveva 20 s di
+	 * budget e ne usava 3. Il tetto e' stato ricalcolato sul consumatore stretto, non su quello comodo.
+	 */
+	static constexpr int32 MaxResolveTicks = 900;
 
 	/**
 	 * Tetto di turni che un FILE non puo' superare: uno scenario non deve poter girare all'infinito.
