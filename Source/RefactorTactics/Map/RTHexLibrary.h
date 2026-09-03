@@ -471,4 +471,40 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static TArray<FRTCellId> HexCone(const FRTCellId& From, const FRTCellId& Target, int32 Range);
 
+	/**
+	 * In quale dei sei SPICCHI, visti da `Center`, cade `Cell`. `false` se `Cell` e' la stessa cella di
+	 * `Center` in pianta: li' non esiste nessuna direzione da restituire, e inventarne una sarebbe peggio.
+	 *
+	 * Lo spicchio `i` e' SEMIAPERTO: `Cell - Center = a*D(i) + b*D(i+1)` con `a > 0` e `b >= 0`. Il raggio
+	 * `D(i)` appartiene allo spicchio `i`, il raggio `D(i+1)` gia' allo spicchio `i+1`. E' la stessa algebra
+	 * che `HexCone` usa per costruire i suoi due settori, con UNA differenza deliberata: il cono somma
+	 * settori CHIUSI (`a >= 0, b >= 0`) perche' deve coprire un'area contigua e i raggi di confine gli
+	 * servono in entrambi; qui i settori partizionano, quindi un raggio di confine puo' appartenere a uno
+	 * solo. Da quel semiaperto viene l'EQUIPARTIZIONE, che e' la proprieta' per cui questa funzione esiste:
+	 * a raggio `1..8` ogni spicchio prende esattamente 36 celle, e a ogni anello `r` ne prende `r`.
+	 *
+	 * PLANARE come `HexDistance`, `HexLine` e `HexCone`: il `Layer` non entra nel calcolo. E' una differenza
+	 * voluta rispetto a `DirectionBetween`, che i layer diversi li RIFIUTA — quella risponde «da qui a li' si
+	 * cammina in questa direzione», e fra due piani non si cammina; questa risponde «da che parte sta», che
+	 * ha senso anche fra piani diversi. `URTHexCombatLibrary::IsInFrontalArc` proietta per la stessa ragione,
+	 * e le due funzioni devono restare d'accordo su quel caso.
+	 *
+	 * ⚠️ Restituisce l'indice ASSOLUTO dello spicchio (`0..5`, l'ordine di `ERTHexDirection`), non una
+	 * direzione relativa a un orientamento: la relazione a sei lati di D-126 e' semantica di FACING e vive in
+	 * `URTFacingLibrary::RelativeDirectionFrom`. Qui c'e' solo la geometria, e ce n'e' una copia sola.
+	 *
+	 * ⚠️ **Su `false`, `OutWedge` resta INVARIATA** — stessa convenzione di `DirectionBetween` e
+	 * `DirectionTowards` qui sopra, e dichiarata per la stessa ragione: il chiamante deve guardare il `bool`.
+	 * Da Blueprint un grafo che ignora il pin di uscita legge lo zero-inizializzato, cioe' lo spicchio `E`:
+	 * plausibile e sbagliato. Non e' un difetto di questa funzione ma il prezzo della forma `bool + out`, ed
+	 * e' scritto qui invece di essere scoperto.
+	 *
+	 * 🔑 **Il nome dice `Wedge` e non `Sector` di proposito**: `PointingSectorAt` in questa stessa classe
+	 * partiziona in **12** spicchi di puntamento (`RT_OccupancySectorCount`) dentro UNA cella, questa in
+	 * **6** spicchi di direzione sul piano. Due convenzioni sotto la stessa parola sono il difetto che
+	 * `#1430`/[D-199] esiste per togliere, e qui costava solo un nome.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static bool DirectionWedgeTowards(const FRTCellId& Center, const FRTCellId& Cell, int32& OutWedge);
+
 };

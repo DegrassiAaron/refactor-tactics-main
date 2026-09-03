@@ -190,7 +190,58 @@ o §4c sull'insieme dei lati sarebbe quindi un **buff difensivo netto**, non una
 avere due definizioni di «davanti» resta in vigore proprio perché nessun consumatore d'area si muove.
 
 Il lavoro runtime che la relazione a sei lati richiede è
-[#726](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726): oggi in `Source/` non esiste.
+[#726](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726).
+
+### 4-ter. La relazione esiste a runtime, e la mappatura nome↔indice è stata fissata (2026-09-02, `#726`)
+
+> ⌫ **La riga sopra diceva «oggi in `Source/` non esiste»**, ed era vera dal 2026-08-13 al 2026-09-02.
+
+| Livello | Sede |
+|---|---|
+| geometria pura — in quale dei sei spicchi cade una cella | `URTHexLibrary::DirectionWedgeTowards` |
+| semantica — da quale lato, *relativamente a un facing* | `URTFacingLibrary::RelativeDirectionFrom` |
+| traccia — il primo consumatore che `D-126` chiedeva | `ERTFacingOutcome::HitCameFromSide` nel TurnLog |
+
+⚠️ **Perimetro della traccia**: la voce è emessa per i colpi del **piano di Blast**. I **contrattacchi** e il
+fuoco di **Overwatch** non la portano — non passano da `Plan.Hits`, e `FRTAttack` non trasporta l'attaccante,
+quindi la geometria da cui la relazione si calcola lì non esiste. Estenderla è
+[#2128](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2128).
+
+🔴 **E la voce non contiene la cella dell'attaccante**: `SrcCell` e `TgtCell` portano entrambi il difensore,
+come ogni altra voce `Facing` che descrive l'orientamento di un'unità. Il verdetto di visibilità si congela su
+chi **subisce**, quindi una posizione dell'attaccante lì sarebbe pubblicata a chiunque percepisca il bersaglio
+— e su *ogni* colpo risolto, non sui rari bypass. L'informazione della voce è il **lato**, che sta in `Amount`
+e non rivela una posizione.
+
+Lo spicchio `i` è **semiaperto**: `cella − centro = a·D(i) + b·D(i+1)` con `a > 0, b >= 0`. È la stessa
+algebra di `HexCone` con una differenza deliberata — il cono somma settori **chiusi** perché deve coprire
+un'area contigua, qui i settori **partizionano** — e da quel semiaperto viene l'equipartizione: **36** celle
+per lato a raggio `1..8`, ed esattamente `r` a ogni anello `r`.
+
+🔑 **La mappatura fra i sei nomi e gli indici era indecisa, e `D-147` la assegnava esplicitamente a `#726`.**
+Le due fonti si contraddicevano: gli indici girano `E, NE, NW, W, SW, SE` e `AxialToWorld` manda `NE` a
+`−Y`, quindi con la convenzione UE (`+X` avanti, `+Y` a destra) l'indice `f+1` cade a **sinistra** di chi
+guarda, mentre l'elenco di `D-126` chiama `FrontRight` proprio quella posizione.
+
+**Si è scelta la fedeltà geometrica**, cioè l'elenco di `D-126` percorso in senso **inverso**:
+
+| `(spicchio − facing + 6) % 6` | `0` | `1` | `2` | `3` | `4` | `5` |
+|---|---|---|---|---|---|---|
+| nome | `Front` | `FrontLeft` | `RearLeft` | `Rear` | `RearRight` | `FrontRight` |
+
+`D-126` fissa i sei **nomi**, non il verso di enumerazione; e l'argomento residuo che `D-147` registra sullo
+skew è la **fedeltà dei nomi** — un `TurnLog` che dicesse `FrontRight` per una cella visibilmente a sinistra
+sarebbe il difetto di explainability (E16) che quell'argomento teme.
+
+⚠️ **Lo skew resta**, ed è dichiarato: `Front` è il raggio dritto davanti **più uno solo** dei due spicchi
+adiacenti, e **168 celle su 216** non ricevono la direzione speculare della propria immagine speculare. Uno
+`Shield = {Front}` proteggerebbe un fianco e non l'altro. Chi dichiarerà il primo insieme di lati lo sa
+prima di sceglierlo. La regola alternativa — lo spicchio **centrato**, con `24` celle asimmetriche invece di
+`168` — resta misurata e non adottata in `D-147`.
+
+⛔ **`IsInFrontalArc` non è cambiata e nessun suo chiamante si è mosso**, per la ragione misurata sopra.
+`RefactorTactics.Facing.RelativeDirectionDivergesFromCone` pinna le **45** divergenze e le **0** nel verso
+opposto, così che il contenimento stretto smetta di essere una nota e diventi un test.
 
 ### 5. Determinismo e privacy
 
