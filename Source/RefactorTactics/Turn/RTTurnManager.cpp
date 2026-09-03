@@ -5378,6 +5378,15 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// ricevuto". `ResolveAttacks` somma comunque per bersaglio sullo stato iniziale, quindi la posizione non
 	// cambia il totale; cambia quale colpo conta come "primo" per Guard/Exposed/Deflect, ed e' giusto che sia
 	// l'attacco pianificato a consumare quei delta, non un contrattacco arrivato di rimbalzo.
+	// Dove comincia la coda dei contrattacchi, catturato PRIMA dell'`Append` (`#2128`).
+	//
+	// ⚠️ **Non `Plan.Hits.Num()`, che oggi darebbe lo stesso numero.** La coincidenza regge su un'invariante
+	// dichiarata sessanta righe piu' su — «`ToAttacks` mappa 1:1 e le due funzioni che stanno in mezzo copiano
+	// l'array» — e quel commento avverte gia' che «un giorno un delta potrebbe non conservare la cardinalita'».
+	// Il giorno in cui non la conservasse, il ciclo qui sotto leggerebbe `AttackSrc` a indici sfalsati e
+	// scriverebbe voci direzionali con l'origine di un ALTRO colpo: precise, plausibili e sbagliate, senza che
+	// niente diventi rosso. Contare qui non dipende da nessuna invariante remota.
+	const int32 FirstCounter = Attacks.Num();
 	Attacks.Append(Reactions.CounterAttacks);
 	AttackSrc.Append(Reactions.CounterAttackSrc);
 	AttackActionId.Append(Reactions.CounterActionId);
@@ -5401,7 +5410,6 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// ⚠️ **Il facing e il bersaglio si leggono da `HexUnits`**, che e' lo snapshot su cui l'intero Blast
 	// risolve: leggere `Units[...]->Facing` prenderebbe l'orientamento dell'Actor, che dentro la fase puo'
 	// essere gia' un altro valore.
-	const int32 FirstCounter = Plan.Hits.Num();
 	for (int32 a = FirstCounter; a < Attacks.Num(); ++a)
 	{
 		const int32 TargetIdx = Attacks[a].TargetIndex;
