@@ -71,8 +71,8 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 > # i BLOCKED si contano dal log della suite: RefactorTactics.Scenario.EveryShippedScenarioRuns li elenca
 > ```
 
-Totale corpus versionato: **115** scenari (`A 78 + B 29 + D-bloccati 8`). Totale registro PIE: **198** voci
-(`B 22 + C 174 + 2 fuori classe`).
+Totale corpus versionato: **115** scenari (`A 78 + B 29 + D-bloccati 8`). Totale registro PIE: **199** voci
+(`B 22 + C 175 + 2 fuori classe`).
 
 > 🔴 **Rimisurati il 2026-09-03, e lo scarto era di 36 scenari e 62 voci.** La riga diceva `78` scenari
 > (`A 46 + B 21 + D 11`) e `135` voci PIE (`B 21 + C 112 + 2`): la prima misura è del 2026-08-17, la
@@ -90,7 +90,7 @@ Totale corpus versionato: **115** scenari (`A 78 + B 29 + D-bloccati 8`). Totale
 > ```bash
 > find Scenarios -name '*.json' ! -name '_*' | wc -l      # 115  corpus (i tre nuovi non sono ancora tracciati)
 > find Scenarios/Visual -name '*.json' | wc -l            #  29  classe B
-> grep -c '^| \*\*PIE-'     docs/technical/test-manuali-pie.md   # 198  totale registro
+> grep -c '^| \*\*PIE-'     docs/technical/test-manuali-pie.md   # 199  totale registro
 > grep -c '^| \*\*PIE-VIS-' docs/technical/test-manuali-pie.md   #  22  classe B
 > grep -c '^| \*\*PIE-MUT-' docs/technical/test-manuali-pie.md   #   2  fuori classe
 > ```
@@ -389,7 +389,7 @@ pagato quattro volte.
 |---|---:|---|
 | Checklist principale (materiali, editor mode, bot) | 56 | **Gesto e asset**: drag, gizmo, Undo, materiali da creare in editor. Un test può dire che `HandleClickOnCell` ha scelto la cella giusta, non che il mouse ci arrivi |
 | Partita su griglia esagonale (M6) | 22 | **Ciò che solo l'occhio vede**: unità centrate sui centri-cella, fluidità del playback, nessun residuo di griglia quadrata. ⚠️ *«La logica è coperta headless per 5 voci su 15»* era la misura del 2026-08-09 e il denominatore è cambiato due volte da allora: la copertura headless **non è stata rimisurata**, quindi resta citata alla sua data invece di essere adattata al nuovo totale |
-| Contenuto della v0.1 | 25 | **Leggibilità e asset**: che il giocatore *capisca* dal log, che l'arancione del fuoco amico si **noti**, che l'asset mappa si editi a mano |
+| Contenuto della v0.1 | 26 | **Leggibilità e asset**: che il giocatore *capisca* dal log, che l'arancione del fuoco amico si **noti**, che l'asset mappa si editi a mano |
 | Strumenti di leggibilità | 3 | **Giudizio a schermo puro**: `PIE-PREVIEW-AREA` ha già trovato due difetti che nessun test poteva vedere — un contorno disegnato sotto il cilindro, e un linguaggio che parlava di celle mentre la domanda era sulle unità |
 | Mini v0.1 Autobattle (E47) | 3 | **Ciò che si guarda mentre gira da solo**: la board che si legge da due canali, e la partita non presidiata *registrata* invece che dichiarata |
 | Frontend shell e ciclo di partita (E46) | 6 | **Il layout dentro il binario**: la navigazione è un `USTRUCT` puro e si prova headless — che una schermata si legga, che il focus si veda, che il modale copra, no |
@@ -408,8 +408,8 @@ pagato quattro volte.
 | PC Gym — la palestra del PlayerController (#1859) | 1 | **Il gesto**: la palestra esiste per provare l'input, e l'input non si prova senza mouse |
 | Gate visivo end-to-end della slice | 1 | **La catena intera vista da una persona**, che nessuna assertion attraversa da capo a fondo |
 
-**Somma: 174** — e la somma è il punto.
-`56 + 22 + 25 + 3 + 3 + 6 + 6 + 9 + 7 + 1 + 7 + 5 + 2 + 10 + 3 + 2 + 3 + 2 + 1 + 1` va confrontata con la
+**Somma: 175** — e la somma è il punto.
+`56 + 22 + 26 + 3 + 3 + 6 + 6 + 9 + 7 + 1 + 7 + 5 + 2 + 10 + 3 + 2 + 3 + 2 + 1 + 1` va confrontata con la
 riga `C` della §2 **prima** di toccare l'una o l'altra.
 
 > 🔴 **Rimisurata il 2026-09-03, e il difetto del 2026-08-13 e del 2026-08-25 si è ripetuto una terza volta,

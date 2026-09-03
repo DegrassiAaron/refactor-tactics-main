@@ -57,7 +57,9 @@
 
 ## Stato in numeri — 2026-09-03
 
-**198 voci**: ✅ **74 verdi** · 🟡 **24 parziali** · ❌ **2 fallite** · ⏳ **98 aperte**.
+**199 voci**: ✅ **74 verdi** · 🟡 **24 parziali** · ❌ **2 fallite** · ⏳ **99 aperte**.
+
+🔴 **Rimisurato il 2026-09-03 (#1919, terza passata), MERGIANDO `origin/main`: il comando canonico conta `199 · 74/24/2/99`, e l'intestazione diceva `198 · 74/24/2/98` — la cifra che questa stessa passata aveva scritto poche ore prima, ed era corretta quando fu scritta.** `origin/main` era avanzato di **18 commit** e ne portava una voce nuova, `PIE-V01-REPLAY-VIEWER`, in *Contenuto della v0.1*. ⚠️ **Il merge è stato PULITO** — nessun conflitto, nessun marcatore, le due aggiunte stanno in sezioni diverse del file — quindi niente ha chiesto attenzione, ed è il caso già registrato due volte in questa sezione: *l'unica cosa che segnala lo scarto è rieseguire il comando dopo il merge*. `senza-marcatore=0` prima e dopo. 🔑 È anche la dimostrazione più corta della regola: fra la misura e il push sono passate due ore, e il numero è invecchiato lo stesso.
 
 ➕ **Rimisurato il 2026-09-03 ([#1919](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1919), seconda passata): `197 · 74/24/2/97` **prima** di toccare il file e `198 · 74/24/2/98` **dopo**.** Il delta è **esattamente uno e tutto su ⏳**: entra `PIE-ACC-GUARDBRACE`, la voce ombrello di `Visual.Combat.GuardVsBraceUnderSmallHits`. Verdi, parziali e fallite non si muovono, `senza-marcatore=0` prima e dopo. ⚠️ **La voce nasce ⏳ benché il suo scenario sia verde**, e la distinzione è quella che la sezione dei compositi dichiara: `PASS (7/7 assertion)` dice che la scena è nello **stato giusto**, non che sia **leggibile** — e la seconda è l'unica cosa che quella voce chiede. Un composito che nessuno ha ancora guardato non è una voce verde.
 
