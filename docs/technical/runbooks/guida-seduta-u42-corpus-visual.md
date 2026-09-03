@@ -47,10 +47,36 @@ Il registro lo dichiara in `PIE-TEST-CONSOLE`:
 ∴ con diciannove scenari in fila, **dimenticare `R` una volta contamina tutti i verdetti successivi** — e
 non se ne accorge nessuno, perché il gioco continua a funzionare e ogni scena sembra plausibile.
 
-## 3. Le diciannove voci, con ciò che le falsifica
+## 3. Le ventuno voci, con ciò che le falsifica
 
 L'ordine raggruppa per affinità di scena. La colonna che conta è l'ultima: **un criterio scritto prima è ciò
 che distingue un verdetto da un «sembra ok»**.
+
+### 🔑 Prima leggi qui: tre Play coprono nove voci
+
+⏱️ **Questa guida nasceva con diciannove voci e diciannove Play. Da quando esistono i tre compositi, gli
+allestimenti da fare sono undici invece di diciannove** — e le due voci nuove, `PIE-ACC-ENVIRONMENT` e
+`PIE-ACC-MAP`, sono queste tre righe.
+
+| Play | scenario | voci che si giudicano lì dentro |
+|---|---|---|
+| **A** | `Visual.Environment.Acceptance` | `PIE-VIS-ICE` · `PIE-VIS-WETFIRE` · `PIE-VIS-COMBO` · `PIE-VIS-SMOKE` · `PIE-VIS-ROUGH` · `PIE-VIS-FIRE` — **e** `PIE-ACC-ENVIRONMENT` |
+| **B** | `Visual.Map.Acceptance` | `PIE-VIS-COVER` · `PIE-VIS-DOOR` · `PIE-VIS-HIGH` — **e** `PIE-ACC-MAP` |
+| **C** | `Visual.Combat.GuardVsBraceUnderSmallHits` | `PIE-VIS-GUARD` · `PIE-VIS-BRACE` — **e** `PIE-ACC-GUARDBRACE` |
+
+**Come cambia la seduta**: i numeri 1, 2, 4, 7, 10, 12, 13, 14 delle tabelle qui sotto **non richiedono un
+Play proprio** — il loro fenomeno è dentro il composito A o B. Le loro righe restano, e servono ancora:
+portano *ciò che falsifica* quella voce, che è il criterio da tenere davanti mentre si guarda il composito.
+Un composito toglie l'allestimento, **non** il giudizio.
+
+⚠️ **Le voci `PIE-VIS-*` non si chiudono guardando il composito distrattamente.** Un composito porta più
+fenomeni in una scena, quindi chiede più attenzione per Play, non meno: se al terzo turno non ricordi cosa
+stavi cercando, hai risparmiato un riavvio e perso un verdetto. La colonna «falsificata se» va letta
+**prima** di premere Play, non dopo.
+
+⚠️ **`PIE-VIS-FIRE` è 🟡 e resta 🟡**: il composito A la allestisce — l'ingresso nel fuoco è il suo T4 — ma
+il tick di `Burning` nel Cleanup non ha un evento proprio e si vede solo dalla barra che scende. Metà voce è
+giudicabile, l'altra metà aspetta `StatusChanged` (§8.1 di `scenari-validazione-visiva.md`).
 
 ### Ambiente
 
