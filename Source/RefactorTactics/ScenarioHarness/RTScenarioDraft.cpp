@@ -79,6 +79,10 @@ void FRTScenarioDraft::ForgetLastRun()
 {
 	LastReport = FRTScenarioRunReport();
 	LastTraces.Reset();
+	// ⚠️ **Si dimentica con le tracce, e non e' pulizia di cortesia**: gli id nascono da un roster ordinato
+	// per `TeamId`/`Cell`, quindi spostare un'unita' li rimescola. Una mappa sopravvissuta a un cambio di
+	// scenario tradurrebbe la traccia nuova con le identita' vecchie — in silenzio.
+	LastScenarioIdByUnitId.Reset();
 	LastLog.Reset();
 	bLogDecoded = false;
 }
@@ -1084,6 +1088,12 @@ ERTScenarioAuthoringResult FRTScenarioDraft::Run(UWorld* World, FString& OutErro
 	// — avrebbe fissato un risultato vuoto, e dopo `Run` avrebbe continuato a mostrarlo. Il test lo ha preso
 	// al primo giro, ed e' la ragione per cui `nessun log prima di correre` sta prima di `Run` in quel test.
 	LastTraces = Result.TurnTraces;
+
+	// L'identita' d'authoring di ogni unita', accanto alle tracce che la nominano per intero (`#1625`).
+	// Senza, il log dice «l'unita' 1» e nessuno sa quale sia: e' il ponte fra i due spazi di id, e vive
+	// insieme alle tracce perche' serve solo a chi le legge.
+	LastScenarioIdByUnitId = Result.ScenarioIdByUnitId;
+
 	LastLog.Reset();
 	bLogDecoded = false;
 
