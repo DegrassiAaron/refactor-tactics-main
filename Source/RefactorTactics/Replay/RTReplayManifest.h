@@ -19,6 +19,20 @@ enum class ERTReplayManifestVersion : uint16
 	Initial = 1,
 
 	/**
+	 * `ObserverTeamIds`: le squadre per cui esiste una traccia pubblica **filtrata per osservatore**
+	 * ([D-316], `#2098`).
+	 *
+	 * ⚠️ **Un manifest `v1` resta leggibile e significa «nessuna traccia per osservatore»**, che e' cio' che
+	 * quegli archivi hanno davvero su disco: l'array nasce vuoto e il campo assente lo lascia vuoto. Non
+	 * serve un ramo di migrazione, e non e' fortuna — e' la ragione per cui il campo e' un elenco di cio'
+	 * che ESISTE invece di un flag `bFiltered` che un archivio vecchio non saprebbe smentire.
+	 *
+	 * ⛔ **Rivendicata il 2026-09-03 dopo aver misurato TUTTI i branch remoti** e non solo `main`: nessuno
+	 * rivendicava una `v2` di questo manifest. Il conto e' del giorno, e chi legge dopo lo rifaccia.
+	 */
+	WithObserverTraces = 2,
+
+	/**
 	 * Versione che questo binario SCRIVE. Chi aggiunge un campo alza questo alias e lascia in piedi il valore
 	 * storico sopra, cosi' l'elenco resta la storia del formato invece di una riga riscritta ogni volta.
 	 *
@@ -26,7 +40,7 @@ enum class ERTReplayManifestVersion : uint16
 	 * branch remoti e non solo `main`. La `v6` del TurnLog fu rivendicata da due branch insieme, e il
 	 * duplicato non si rinumera da solo — corrompe tracce gia' scritte.
 	 */
-	Current = Initial
+	Current = WithObserverTraces
 };
 
 /**
@@ -92,6 +106,24 @@ struct FRTReplayManifest
 	/** Durata in secondi reali. Vive SOLO qui e in nessun campo che entri in un hash. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
 	float WallClockSeconds = 0.f;
+
+	/**
+	 * Le squadre per cui l'archivio porta una traccia **filtrata per osservatore** ([D-316], `#2098`).
+	 *
+	 * Per ogni `TeamId` qui elencato esiste, accanto a ogni `turn-NNN.rtlog`, un `turn-NNN.tN.rtlog` che
+	 * contiene solo le voci che quella squadra era autorizzata a conoscere **quando sono accadute**.
+	 *
+	 * 🔴 **Elenca cio' che ESISTE, e non e' un dettaglio di stile.** Un flag `bObserverFiltered` avrebbe
+	 * costretto ogni lettore a fidarsi di una promessa che un archivio `v1` non puo' smentire; un elenco
+	 * vuoto e' invece **vero** su ogni archivio scritto prima di questa versione, senza un ramo di
+	 * migrazione. Chi chiede una squadra che non e' qui riceve la traccia canonica, non un file mancante.
+	 *
+	 * ⚠️ **Fuori da ogni hash**, come `MatchId` e il wall-clock: dice cosa c'e' sul disco, non cosa la
+	 * partita ha risolto. Le tracce per osservatore sono un **derivato** della traccia canonica, e far
+	 * dipendere un hash di determinismo da quante squadre giocavano lo renderebbe una misura di setup.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
+	TArray<int32> ObserverTeamIds;
 
 	/**
 	 * `false` = la partita non e' arrivata alla fine: crash, uscita, interruzione.

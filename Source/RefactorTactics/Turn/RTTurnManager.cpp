@@ -3311,6 +3311,37 @@ void ARTTurnManager::BeginReplayRecording()
 	ReplayManifest.FormatId = MatchRules.FormatId;
 	ReplayManifest.bHexTopology = true; // un solo substrato: `FRTCellId` e' esagonale (ADR-0002)
 
+	// Le squadre per cui l'archivio portera' una traccia PER OSSERVATORE ([D-316], `#2098`).
+	//
+	// 🔴 **Si decide ADESSO e vale per tutta la partita**, ed e' la sola forma coerente: `ObserverTeamIds`
+	// vive nel manifest, che descrive l'archivio intero. Ricalcolarlo a ogni turno dalle unita' VIVE
+	// smetterebbe di produrre la traccia di una squadra nel momento in cui perde l'ultima unita' — cioe'
+	// proprio il turno che quella squadra vorrebbe rivedere.
+	//
+	// ⚠️ **Ordinate**, come in `RefreshTeamKnowledgeForPlanning` e per la stessa ragione: l'ordine di un
+	// `TSet` dipende dall'hash, e qui si itera per scrivere file.
+	//
+	// ⛔ **Zero unita' = nessuna traccia per osservatore**, e l'archivio lo dichiara con un elenco vuoto
+	// invece di prometterne una che non c'e'. E' il caso preesistente che il GameMode nomina: formato
+	// valido, allestimento fallito dopo.
+	{
+		TArray<AActor*> Attori;
+		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Attori);
+
+		TSet<int32> Squadre;
+		for (const AActor* Attore : Attori)
+		{
+			if (const ARTUnit* Unita = Cast<ARTUnit>(Attore))
+			{
+				// Non si filtra sui vivi: a `BeginReplayRecording` lo sono tutti, e un filtro qui sarebbe
+				// una guardia che non guarda niente e che il primo lettore scambierebbe per una regola.
+				Squadre.Add(Unita->TeamId);
+			}
+		}
+		ReplayManifest.ObserverTeamIds = Squadre.Array();
+		ReplayManifest.ObserverTeamIds.Sort();
+	}
+
 	// L'UNICO tempo reale che tocca l'archivio: da qui esce la durata nel manifest e la data nell'indice.
 	// Nessuno dei due entra in un hash.
 	ReplayStartRealSeconds = FPlatformTime::Seconds();
