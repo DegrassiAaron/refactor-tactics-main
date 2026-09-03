@@ -138,6 +138,25 @@ FRTLogSubject FRTLogSubject::Unit(const ARTUnit* InUnit)
 	return S;
 }
 
+FRTLogSubject FRTLogSubject::UnitAt(const ARTUnit* InUnit, const FRTCellId& InFactCell)
+{
+	FRTLogSubject S = Unit(InUnit);
+	S.bFactCell = true;
+	S.FactCell = InFactCell;
+	return S;
+}
+
+FRTCellId FRTLogSubject::GetFactCell() const
+{
+	if (bFactCell)
+	{
+		return FactCell;
+	}
+	// Fuori dalla finestra di `ResolveMovement` l'Actor E' la cella del fatto, ed e' il caso della grande
+	// maggioranza dei produttori: il default non e' un ripiego.
+	return Unit_ ? Unit_->Cell : FRTCellId();
+}
+
 FRTLogSubject FRTLogSubject::Frozen(int32 InStableUnitId, const FRTKnowledgeVerdict& InVerdict)
 {
 	FRTLogSubject S;
@@ -197,7 +216,15 @@ FRTKnowledgeVerdict ARTTurnManager::FreezeVerdictFor(const FRTLogSubject& Subjec
 	FRTKnowledgeSubject S;
 	S.StableUnitId = U->StableUnitId;
 	S.TeamId = U->TeamId;
-	S.Cell = U->Cell;   // la cella di ADESSO, che al momento della scrittura e' quella del fatto
+	// La cella del FATTO, che il soggetto porta: `ARTUnit::Cell` solo quando le due coincidono.
+	//
+	// 🔴 **Dentro `ResolveMovement` non coincidono, e la riga che c'era qui diceva il contrario** (`#2142`).
+	// Diceva «la cella di ADESSO, che al momento della scrittura e' quella del fatto»: vero per i produttori
+	// che girano fuori dal ciclo dei micro-step, falso per quelli che girano dentro — `PlaceOnCell` scrive
+	// l'Actor solo alla fine, quindi li' `U->Cell` e' la cella di **partenza del turno**. Ogni voce congelata
+	// su un'unita' in movimento aveva il proprio verdetto deciso da dove l'unita' non era piu': chi usciva
+	// dalla nebbia sotto Overwatch si vedeva la riga **nascosta** a una squadra che lo vedeva benissimo.
+	S.Cell = Subject.GetFactCell();
 	S.bAlive = U->IsAlive();
 
 	return URTTeamKnowledgeLibrary::FreezeVerdict(TeamKnowledgeState, S);
@@ -2710,6 +2737,19 @@ int32 ARTTurnManager::CurrentGraphRevision() const
 
 void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor)
 {
+	// La forma corta, per i produttori che girano dove `Actor->Cell` E' la cella del fatto — cioe' tutti
+	// tranne quelli che scrivono prima di `PlaceOnCell`, che passano dall'overload col soggetto (`#2142`).
+	//
+	// `nullptr` -> `World()`, non `Unit(nullptr)`: una voce senza attore e' un fatto di MONDO e vale
+	// `Everyone()`, mentre un soggetto-unita' senza unita' e' fail-closed. Le due cose non vanno confuse
+	// qui, dove la differenza e' fra «la leggono tutti» e «non la legge nessuno».
+	AppendLogEntry(Entry, Actor ? FRTLogSubject::Unit(Actor) : FRTLogSubject::World());
+}
+
+void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject& Subject)
+{
+	const ARTUnit* Actor = Subject.GetUnit();
+
 	Entry.TurnNumber = TurnNumber;
 	// Letta ADESSO e non a inizio turno: una porta che si apre o un ponte che crolla la fanno salire in mezzo
 	// alla risoluzione, ed e' esattamente la ragione per cui il campo sta nella voce e non nell'header.
@@ -2738,17 +2778,23 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor
 	//
 	// Una voce senza attore e' un fatto di MONDO e lo dichiara: una superficie che scade, un ponte che
 	// crolla. Non e' l'assenza di una decisione.
-	Entry.Verdict = Actor ? FreezeVerdictFor(FRTLogSubject::Unit(Actor))
+	Entry.Verdict = Actor ? FreezeVerdictFor(Subject)
 	                      : FRTKnowledgeVerdict::Everyone();
 
 	// E il SOGGETTO contro cui e' stato congelato, che senza il verdetto non e' verificabile ([D-313]).
 	// Si scrive qui e non altrove per la stessa ragione del verdetto: e' l'unico istante in cui conoscenza
 	// e cella dell'attore appartengono allo stesso momento.
+	//
+	// 🔴 **Dallo STESSO soggetto del verdetto, e non piu' dall'Actor** (`#2142`). Le due scritture leggevano
+	// `Actor->Cell` entrambe: erano coerenti fra loro e **entrambe sbagliate** dentro il ciclo dei micro-step,
+	// quindi il ricalcolo d'audit di [D-313] — verdetto registrato contro verdetto ricalcolato dal soggetto
+	// registrato — coincideva comunque. L'audit non vedeva il difetto perche' confrontava due copie dello
+	// stesso errore. Con un solo accesso (`GetFactCell`) non possono piu' divergere ne' sbagliare insieme.
 	if (Actor)
 	{
 		Entry.VerdictSubject.StableUnitId = Actor->StableUnitId;
 		Entry.VerdictSubject.TeamId = Actor->TeamId;
-		Entry.VerdictSubject.Cell = Actor->Cell;
+		Entry.VerdictSubject.Cell = Subject.GetFactCell();
 	}
 
 	// L'UNICO `TurnLog.Add` del file: ogni altro sito passa da qui.
@@ -5661,8 +5707,20 @@ namespace
 	 *  non muove in continuo, quindi non esiste l'ambiguita' «cella lasciata o raggiunta» che rendeva la
 	 *  domanda difficile finche' la si guardava a parole.
 	 *
+	 *  🔴 **ENTRAMBE le celle arrivano dal chiamante, e non e' stile** (`#2142`). `EffectiveCoverReduction`
+	 *  legge tre ingressi — `Attacker.Cell`, `Target.Cell`, `Target.Facing` — quindi la posizione di **chi
+	 *  spara** conta quanto quella di chi incassa. La firma precedente prendeva la cella del bersaglio come
+	 *  parametro e quella dell'attaccante dall'Actor, e quell'asimmetria non era neutra: **invitava** il
+	 *  difetto che l'ha resa necessaria. L'Overwatch passava `Target->Cell` — la cella di **partenza del
+	 *  turno**, perche' `PlaceOnCell` gira dopo il ciclo dei micro-step — mentre trenta righe sopra il
+	 *  proprio watcher veniva costruito da `State.Pos[OwnerIdx]`: due letture della stessa posizione nello
+	 *  stesso micro-step, con esiti diversi. Con entrambe le celle esplicite quel sito non e' piu'
+	 *  scrivibile per distrazione.
+	 *
+	 *  Gli Actor restano nella firma per cio' che la posizione non porta: squadra, orientamento, vitalita'.
+	 *
 	 *  `Shape::Single`: un colpo di boundary ha un bersaglio solo. */
-	int32 BoundaryCoverReduction(const URTHexMapAsset* Map, const ARTUnit* Attacker,
+	int32 BoundaryCoverReduction(const URTHexMapAsset* Map, const ARTUnit* Attacker, const FRTCellId& AttackerCell,
 		const ARTUnit* Target, const FRTCellId& TargetCell)
 	{
 		if (Map == nullptr || Attacker == nullptr || Target == nullptr) { return 0; }
@@ -5670,7 +5728,10 @@ namespace
 		FRTHexCombatUnit A;
 		A.UnitId = 0;
 		A.TeamId = Attacker->TeamId;
-		A.Cell = Attacker->Cell;
+		// Da DOVE il colpo parte: l'Overwatch passa `State.Pos[OwnerIdx]`, che e' la stessa cella con cui
+		// `ResolveReactionBoundary` ha costruito la zona — un watcher spinto spara da dove e' finito, come
+		// vuole [D-169]. La predittiva passa `Shooter->Cell`; vedi il suo sito per il limite che porta.
+		A.Cell = AttackerCell;
 		A.bAlive = Attacker->IsAlive();
 		A.Facing = Attacker->Facing;
 
@@ -5679,8 +5740,10 @@ namespace
 		T.TeamId = Target->TeamId;
 		// La cella su cui il colpo e' deciso, passata dal chiamante: la predittiva usa la cella
 		// BLOCCATA (`Armed.LockedCell`, quella su cui si e' scommesso) perche' al momento del danno
-		// il troncamento del movimento non e' ancora avvenuto e `Target->Cell` e' quella di partenza.
-		// L'Overwatch passa la cella corrente, che al suo micro-step e' gia' quella giusta.
+		// il troncamento del movimento non e' ancora avvenuto. L'Overwatch usa la cella del **micro-step**
+		// (`State.Pos[TargetIdx]`), come ADR-0004 §*«Quale cella»* prescrive da sempre: e' la riga
+		// *«Overwatch FIRE | la cella corrente | al suo micro-step e' gia' quella giusta»*, che questo
+		// commento citava mentre il codice faceva l'opposto.
 		T.Cell = TargetCell;
 		T.bAlive = Target->IsAlive();
 		T.Facing = Target->Facing;
@@ -5749,6 +5812,16 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 		ARTUnit* Shooter = Armed.Shooter.Get();
 		if (!IsValid(Shooter)) { continue; }
 
+		// DOVE il tiratore si trova quando la voce nasce, che non e' la stessa domanda di *da dove il colpo
+		// e' partito* (`#2142`). Il movimento e' gia' risolto — manca solo `PlaceOnCell`, che scrivera'
+		// esattamente questa cella — quindi per il verdetto di [D-223] la posizione del soggetto e'
+		// `Resolved[ShooterIdx].Final`. La geometria del colpo resta invece quella dichiarata sopra: sono
+		// due domande diverse, e solo la seconda vuole una decisione di regola.
+		const int32 ShooterIdx = Units.IndexOfByKey(Shooter);
+		const FRTCellId ShooterCellNow = Resolved.IsValidIndex(ShooterIdx)
+			? Resolved[ShooterIdx].Final
+			: Shooter->Cell;
+
 		FRTTurnLogEntry Entry;
 		Entry.Phase = ERTMatchPhase::Move;
 		Entry.Category = ERTLogCategory::Predictive;
@@ -5762,7 +5835,15 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 		if (Outcome.bMatched && Units.IsValidIndex(Outcome.VictimUnitId))
 		{
 			ARTUnit* Victim = Units[Outcome.VictimUnitId];
-			const int32 Reduction = BoundaryCoverReduction(Map, Shooter, Victim, Armed.LockedCell);
+			// ⚠️ **`Shooter->Cell` e' la cella di PARTENZA del turno anche qui, e resta un limite dichiarato**
+			// (`#2142`). Questa funzione gira dopo `FinishHexMovement` ma prima di `PlaceOnCell`, e il
+			// tiratore **puo' essersi mosso**: `MakePlanFor` accetta un'abilita' di slot `Main` — la
+			// predittiva si arma li' — e `Action.Move` nello stesso piano. A differenza dell'Overwatch pero'
+			// non esiste un micro-step a cui riferirsi: quel ciclo e' gia' chiuso, e *«dove sta il tiratore
+			// quando il colpo parte»* e' una decisione di REGOLA che ne' ADR-0004 ne' ADR-0005 hanno preso.
+			// Correggerla d'iniziativa qui sarebbe inventare la regola insieme alla correzione. Dichiarata e
+			// tracciata invece che risolta di nascosto.
+			const int32 Reduction = BoundaryCoverReduction(Map, Shooter, Shooter->Cell, Victim, Armed.LockedCell);
 			const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
 			// `Direct`: e' un colpo al decision boundary, e passa dallo scudo base come ogni colpo.
 			const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, ERTDamageSource::Direct,
@@ -5774,7 +5855,7 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 			// `Armed.Damage` qui rimetterebbe nel TurnLog autorevole un danno mai inflitto — il difetto che
 			// il commento qui sopra registra come gia' corretto una volta.
 			Entry.Amount = Dealt;
-			AppendLogEntry(Entry, Shooter);
+			AppendLogEntry(Entry, FRTLogSubject::UnitAt(Shooter, ShooterCellNow));
 
 			// `#2128` — DA QUALE LATO la vittima ha incassato il colpo predittivo. E' la QUARTA famiglia di
 			// colpi risolti, ed e' stata trovata da una code review dopo il merge: la prima stesura di
@@ -5798,21 +5879,28 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 			{
 				// CHI SUBISCE, come gli altri tre produttori (`IsSubjectTheSufferer`). La voce qui sopra e'
 				// del TIRATORE e racconta la sua scommessa; questa e' di chi l'ha incassata.
-				AppendLogEntry(FromSide, Victim);
+				//
+				// La cella del soggetto e' quella dove il colpo l'ha colta, non `Victim->Cell` (`#2142`): il
+				// troncamento ha gia' fissato li' la fine del suo movimento, quindi `Armed.LockedCell` e'
+				// anche la posizione da cui il verdetto va deciso.
+				AppendLogEntry(FromSide, FRTLogSubject::UnitAt(Victim, Armed.LockedCell));
 			}
 
+			// Il danno EFFETTIVO anche nel canale leggibile, come nella voce due righe sopra (`#2142`).
 			AddLogEvent(FString::Printf(TEXT("%s: previsione azzeccata, %d danni a %s"),
-				*Shooter->GetName(), Armed.Damage, *Victim->GetName()), FRTLogSubject::Unit(Shooter));
+				*Shooter->GetName(), Dealt, *Victim->GetName()),
+				FRTLogSubject::UnitAt(Shooter, ShooterCellNow));
 		}
 		else
 		{
 			Entry.Outcome = static_cast<uint8>(ERTPredictiveOutcome::PredictionWhiffed);
 			Entry.Amount = 0;
-			AppendLogEntry(Entry, Shooter);
+			AppendLogEntry(Entry, FRTLogSubject::UnitAt(Shooter, ShooterCellNow));
 
 			// Il whiff si SENTE: e' il `Misplay / Failure State` di D-032, e tacerlo lo renderebbe
 			// indistinguibile da un turno in cui nessuno ha dichiarato niente.
-			AddLogEvent(FString::Printf(TEXT("%s: previsione a vuoto, nessuno e' entrato"), *Shooter->GetName()), FRTLogSubject::Unit(Shooter));
+			AddLogEvent(FString::Printf(TEXT("%s: previsione a vuoto, nessuno e' entrato"), *Shooter->GetName()),
+				FRTLogSubject::UnitAt(Shooter, ShooterCellNow));
 		}
 	}
 }
@@ -6159,12 +6247,27 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 			// code review, non da un test: nessuno rieseguiva come Verifier una partita con due `FIRE`.
 			Entry.SelectedTargetUnitId = TargetIdx;
 		}
-		AppendLogEntry(Entry, WatchOwner);
+		// Il soggetto porta la cella del micro-step: dentro il ciclo `WatchOwner->Cell` e' quella di
+		// partenza del turno, e il verdetto di [D-223] finirebbe congelato su una posizione gia' lasciata
+		// (`#2142`). Vale anche per l'`HOLD`: una decisione tacere e' comunque un fatto, e chi puo'
+		// leggerlo si decide da dove il watcher **e'**.
+		AppendLogEntry(Entry, FRTLogSubject::UnitAt(WatchOwner, State.Pos[OwnerIdx]));
 		return;
 	}
 
 	ARTUnit* Target = Units[TargetIdx];
-	const int32 Reduction = BoundaryCoverReduction(Map, WatchOwner, Target, Target->Cell);
+	// 🔴 **Le celle del MICRO-STEP, non quelle degli Actor** (`#2142`). `PlaceOnCell` scrive `ARTUnit::Cell`
+	// dopo l'uscita dal ciclo: qui dentro entrambe sono ancora le celle di **partenza del turno**, e la riga
+	// che c'era prima passava `Target->Cell`. Un'unita' partita dietro un riparo e uscita allo scoperto
+	// incassava ridotto da una copertura che non aveva piu'; chi entrava in copertura non ne beneficiava.
+	// Il difetto era simmetrico sul watcher, che ora spara dalla cella da cui `ResolveReactionBoundary` ha
+	// gia' costruito la sua zona — le due letture erano divergenti nello stesso micro-step.
+	//
+	// 🔑 Non e' un cambio di regola: ADR-0004 §*«Quale cella»* prescrive *«la cella corrente»* per il ramo
+	// `FIRE` dal giorno in cui la tabella e' stata scritta. Cambia il comportamento **osservato**, non la
+	// decisione **vigente**.
+	const int32 Reduction = BoundaryCoverReduction(Map, WatchOwner, State.Pos[OwnerIdx],
+		Target, State.Pos[TargetIdx]);
 	const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
 	// `Direct`: colpo di Overwatch. Stessa natura del boundary shot qui sopra.
 	const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, ERTDamageSource::Direct,
@@ -6184,7 +6287,11 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 	Entry.Amount = Dealt;  // il danno EFFETTIVO: con la copertura diverge da quello dichiarato (#888)
 	Entry.SelectedTargetUnitId = TargetIdx;
 	Entry.TgtCell = State.Pos[TargetIdx];
-	AppendLogEntry(Entry, WatchOwner);
+	// Stessa cella che la voce porta gia' in `SrcCell`, ora anche per il verdetto e per il soggetto d'audit
+	// (`#2142`): prima le tre celle della stessa voce venivano da due istanti diversi, e un audit che
+	// rifacesse `FreezeVerdict` dal soggetto registrato lavorava su una posizione che le celle della voce
+	// contraddicevano.
+	AppendLogEntry(Entry, FRTLogSubject::UnitAt(WatchOwner, State.Pos[OwnerIdx]));
 
 	// `#2128` — DA QUALE LATO il bersaglio ha incassato il colpo di Overwatch. L'origine e' la cella del
 	// watcher: [D-302] punto 3 classifica come *diretto/mischia* — origine **sorgente→bersaglio** — e questo
@@ -6207,11 +6314,19 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 	if (URTFacingLibrary::MakeHitCameFromSideEntry(State.Pos[TargetIdx], Target->Facing,
 		State.Pos[OwnerIdx], ERTMatchPhase::Move, FromSide))
 	{
-		AppendLogEntry(FromSide, Target);
+		// La geometria della voce usava gia' `State.Pos`; ora anche il suo verdetto (`#2142`). Era il caso
+		// piu' visibile del difetto: la voce di chi SUBISCE, congelata sulla cella da cui il bersaglio si
+		// era appena mosso — cioe' proprio l'unita' di cui la voce racconta lo spostamento.
+		AppendLogEntry(FromSide, FRTLogSubject::UnitAt(Target, State.Pos[TargetIdx]));
 	}
 
+	// 🔴 **Il danno EFFETTIVO anche qui, come nella voce** (`#2142`). La riga diceva `Armed.Damage`, cioe' il
+	// danno **dichiarato**: con una copertura di mezzo `Dealt` e' minore, e il canale che il giocatore legge
+	// davvero durante la partita annunciava un danno mai inflitto. E' lo stesso difetto che `#888` ha corretto
+	// nella traccia, sopravvissuto nel canale derivato per due righe di distanza.
 	AddLogEvent(FString::Printf(TEXT("%s: overwatch su %s, %d danni e movimento troncato"),
-		*WatchOwner->GetName(), *Target->GetName(), Armed.Damage), FRTLogSubject::Unit(WatchOwner));
+		*WatchOwner->GetName(), *Target->GetName(), Dealt),
+		FRTLogSubject::UnitAt(WatchOwner, State.Pos[OwnerIdx]));
 }
 
 void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units,
