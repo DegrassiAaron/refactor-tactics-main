@@ -31,15 +31,25 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Obscured); // offuscato: targeting lim
  * entra in `StatusTurns` e non ha durata: e' l'etichetta del danno di un evento di propagazione, non uno
  * stato che dura nel tempo.
  *
- * 🔴 **CONSUMATORE ANCORA ASSENTE, e ora non e' piu' una previsione: e' un residuo.** Questa riga diceva
- * *«la propagazione elettrica arriva con CP 8.3»* — **CP 8.3 e' arrivato il 2026-08-07** (`#66`, E8.3:
- * propagazione sul grafo dell'acqua, limite tre passi, unicita' per evento) **e non consuma questo tag**.
- * Misurato: fuori da `RTGameplayTags.cpp` l'unica occorrenza in tutto `Source/` e'
- * `RTIconCatalogTests.cpp`, che ne pretende l'ICONA. Un tag inerte con un'icona obbligatoria.
- * ⚠️ Se serva o vada tolto e' una decisione, ed e' **#1324** invece di restare qui.
+ * ✅ **IL CONSUMATORE C'E', dal 2026-09-03** (`#1324`, [D-315]): `ARTTurnManager` scrive una voce
+ * `ERTLogCategory::Status` con esito `AppliedInstantly` per ogni unita' che la propagazione raggiunge, nel
+ * Cleanup e sulla cella in cui l'ha raggiunta. Il consumatore e' il **TurnLog**, non `ApplyStatus`.
  *
- * ✅ **L'argomento sull'istantaneita' resta valido**: il tag e' qui perche' `Wet` e `Conductive` esistono
- * gia' e la loro semantica lo nomina; dargli una durata inventata per farlo sembrare vivo sarebbe peggio di
- * un dato dichiaratamente inerte (stesso pattern di `PushResistance` di Riktor).
+ * 🔴 **E non poteva essere `ApplyStatus`, che e' la ragione per cui il tag e' rimasto inerte tanto a
+ * lungo.** CP 8.3 e' arrivato il 2026-08-07 (`#66`) e non l'ha consumato: `ARTUnit::ApplyStatus` sa
+ * rappresentare `N` turni oppure il legame alla cella, e per `Turns <= 0` **ritorna in silenzio**. Un
+ * evento istantaneo non e' nessuna delle due forme, quindi il consumatore atteso non l'ha *rifiutato* —
+ * **non poteva applicarlo** senza inventargli una durata.
+ *
+ * ⛔ **Non entra in `StatusTurns` e l'unita' non lo porta addosso**: non ha scadenza, nessuno lo revoca, e
+ * nessuna voce di morte lo segue. Cio' che e' cambiato e' che la scarica non e' piu' **muta** in un replay.
+ *
+ * ✅ **L'argomento sull'istantaneita' e' stato onorato, non aggirato**: il tag e' qui perche' `Wet` e
+ * `Conductive` esistono gia' e la loro semantica lo nomina; dargli una durata inventata per farlo sembrare
+ * vivo sarebbe peggio di un dato dichiaratamente inerte (stesso pattern di `PushResistance` di Riktor).
+ *
+ * ⚠️ `UI.Icon.Status.Electrified` resta una chiave richiesta in `RTIconCatalogTests`: in `Content/`
+ * versionato non esiste **nessuna** icona di stato — `Wet`, `Burning`, `Obscured` contano tutte zero — e
+ * questa non e' distintiva.
  */
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Electrified);

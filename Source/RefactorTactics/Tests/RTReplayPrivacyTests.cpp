@@ -1,7 +1,13 @@
 #include "Misc/AutomationTest.h"
 #include "Replay/RTReplayPrivacyLibrary.h"
+#include "Replay/RTReplayPlayerLibrary.h"
+#include "Replay/RTReplayRecorderLibrary.h"
 #include "Replay/RTReplayViewerSubsystem.h"
+#include "Tests/RTReplayTestFixtures.h"
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTTurnLogLibrary.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "UObject/UnrealType.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -307,6 +313,225 @@ bool FRTReplayPrivacySpectatorSurfaceTest::RunTest(const FString&)
 		"La superficie spettatore deve consegnare voci pubbliche: con FRTTurnLogEntry un widget legge i campi di audit");
 
 	TestTrue(TEXT("la superficie spettatore consegna voci pubbliche (verificato in compilazione)"), true);
+	return true;
+}
+
+// =====================================================================================================
+// Il confine per le VOCI ([D-316], `#2098`)
+// =====================================================================================================
+
+namespace
+{
+	/** Una voce riconoscibile dal suo `Amount`, con un verdetto dichiarato. */
+	FRTTurnLogEntry VoceConVerdetto(int32 Amount, const FRTKnowledgeVerdict& Verdetto)
+	{
+		FRTTurnLogEntry E;
+		E.Phase = ERTMatchPhase::Blast;
+		E.Category = ERTLogCategory::Combat;
+		E.TurnNumber = 1;
+		E.Amount = Amount;
+		E.ActionId = FName(TEXT("Action.BasicAttack"));
+		E.SrcCell = FRTCellId(1, 0);
+		E.TgtCell = FRTCellId(2, 0);
+		E.Verdict = Verdetto;
+		return E;
+	}
+
+	FRTKnowledgeVerdict SoloSquadra(int32 TeamId)
+	{
+		FRTKnowledgeVerdict V;
+		V.AllowTeam(TeamId);
+		return V;
+	}
+
+	/** Gli `Amount` presenti, che qui fanno da identita' delle voci. */
+	TArray<int32> Importi(const TArray<FRTTurnLogEntry>& Voci)
+	{
+		TArray<int32> Out;
+		for (const FRTTurnLogEntry& E : Voci) { Out.Add(E.Amount); }
+		return Out;
+	}
+}
+
+/**
+ * **Una voce che l'osservatore non conosceva non raggiunge la sua traccia** ([D-316], `#2098`).
+ *
+ * 🔴 **Il difetto che chiude: `ToPublicTrace` filtrava i CAMPI, non le VOCI.** Lo spettatore riceveva una
+ * riga per ogni fatto del turno, comprese quelle di unita' che la sua squadra non aveva mai visto — con le
+ * colonne di audit tolte, ma la riga c'era, e il solo fatto che ci fosse dice *«qualcuno ha fatto qualcosa
+ * li'»*.
+ *
+ * ⚠️ **Il test gira sul percorso VERO — registra su disco e riapre — e non sul solo predicato**, ed e' una
+ * scelta: il predicato da solo resterebbe verde anche se il recorder non scrivesse mai le tracce per
+ * osservatore, o se il player non le aprisse. E' l'intera catena di [D-316] a dover reggere, e il punto
+ * dove si romperebbe piu' facilmente e' la giuntura fra i due.
+ *
+ * ⛔ **ANTI-VACUITA': ogni squadra ha una voce che DEVE passare e una che NON deve.** Un filtro che
+ * lasciasse passare tutto fallirebbe la seconda meta'; uno che bloccasse tutto — il modo in cui questo
+ * meccanismo si rompe davvero, perche' `AllowsTeam` e' fail-closed su una maschera azzerata — fallirebbe la
+ * prima. Nessuno dei due errori sopravvive.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayPrivacyObserverEntriesTest,
+	"RefactorTactics.Replay.Privacy.ObserverTraceOmitsUnknownEntries",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayPrivacyObserverEntriesTest::RunTest(const FString&)
+{
+	const FString Root = RTReplayFixtures::TransientRoot(TEXT("ObserverEntries"));
+	RTReplayFixtures::Pulisci(Root);
+
+	// Tre fatti nello stesso turno: uno che solo la squadra 0 conosceva, uno che solo la 1 conosceva, e uno
+	// pubblico — un ponte che crolla, che `AppendLogEntry` congela a `Everyone()` quando non c'e' un attore.
+	TArray<FRTTurnLogEntry> Voci;
+	Voci.Add(VoceConVerdetto(10, SoloSquadra(0)));
+	Voci.Add(VoceConVerdetto(20, SoloSquadra(1)));
+	Voci.Add(VoceConVerdetto(30, FRTKnowledgeVerdict::Everyone()));
+	URTTurnLogLibrary::SortTurnLog(Voci);
+
+	FRTReplayManifest M;
+	M.MatchId = FGuid::NewGuid();
+	M.FormatId = FName(TEXT("Format.Skirmish2v2"));
+	M.bHexTopology = true;
+	M.ObserverTeamIds = { 0, 1 };
+
+	if (!TestTrue(TEXT("il turno si registra"), URTReplayRecorderLibrary::RecordTurn(Root, M, 1, Voci)))
+	{
+		return false;
+	}
+
+	auto ImportiVisti = [&](int32 ObserverTeamId, TArray<int32>& Out) -> bool
+	{
+		FRTReplaySession Sessione;
+		const ERTReplayOpenResult Esito =
+			URTReplayPlayerLibrary::OpenArchive(Root, M.MatchId, Sessione, ObserverTeamId);
+		if (Esito != ERTReplayOpenResult::Opened || Sessione.Traces.Num() != 1)
+		{
+			return false;
+		}
+		Out = Importi(Sessione.Traces[0]);
+		return true;
+	};
+
+	// --- Squadra 0: vede il proprio fatto e quello pubblico, NON quello della squadra 1 ----------------
+	TArray<int32> Squadra0;
+	if (!TestTrue(TEXT("l'archivio si apre con gli occhi della squadra 0"), ImportiVisti(0, Squadra0)))
+	{
+		return false;
+	}
+	TestTrue(TEXT("la squadra 0 vede il proprio fatto"), Squadra0.Contains(10));
+	TestTrue(TEXT("e vede il fatto pubblico"), Squadra0.Contains(30));
+	TestFalse(TEXT("ma NON vede il fatto che solo la squadra 1 conosceva"), Squadra0.Contains(20));
+	TestEqual(TEXT("due voci e non tre"), Squadra0.Num(), 2);
+
+	// --- Squadra 1: speculare. Senza questa meta' un filtro cablato su «nascondi 20» passerebbe ---------
+	TArray<int32> Squadra1;
+	if (!TestTrue(TEXT("l'archivio si apre con gli occhi della squadra 1"), ImportiVisti(1, Squadra1)))
+	{
+		return false;
+	}
+	TestTrue(TEXT("la squadra 1 vede il proprio fatto"), Squadra1.Contains(20));
+	TestTrue(TEXT("e vede il fatto pubblico"), Squadra1.Contains(30));
+	TestFalse(TEXT("ma NON vede il fatto che solo la squadra 0 conosceva"), Squadra1.Contains(10));
+	TestEqual(TEXT("due voci e non tre"), Squadra1.Num(), 2);
+
+	// --- Lo spettatore NEUTRALE: risposta dichiarata da [D-316] punto (5) ------------------------------
+	TArray<int32> Neutrale;
+	if (!TestTrue(TEXT("l'archivio si apre come spettatore neutrale"), ImportiVisti(INDEX_NONE, Neutrale)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("il neutrale vede tutte e tre le voci: e' la scelta, non una falla"), Neutrale.Num(), 3);
+
+	// --- Una squadra che l'archivio non conosce ricade sulla canonica, e non su un file mancante -------
+	// ⚠️ E' il comportamento di OGNI manifest `v1`, cioe' di ogni partita registrata prima di [D-316].
+	TArray<int32> Sconosciuta;
+	if (!TestTrue(TEXT("una squadra non dichiarata apre comunque l'archivio"), ImportiVisti(7, Sconosciuta)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("e riceve la traccia canonica, come prima di D-316"), Sconosciuta.Num(), 3);
+
+	RTReplayFixtures::Pulisci(Root);
+	return true;
+}
+
+/**
+ * **La traccia canonica NON cambia** quando l'archivio porta anche quelle per osservatore ([D-316]).
+ *
+ * ⚠️ E' la meta' che protegge il determinismo: `OrderedHashPerTurn` e i confronti fra tracce si appoggiano
+ * alla canonica, e un recorder che l'avesse filtrata «tanto poi c'e' quella completa nell'audit» avrebbe
+ * reso l'hash del manifest una funzione di quante squadre giocavano. Il difetto sarebbe comparso come una
+ * divergenza inspiegabile mesi dopo, non come un test rosso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayPrivacyCanonicalUnchangedTest,
+	"RefactorTactics.Replay.Privacy.ObserverTracesLeaveTheCanonicalOneIntact",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayPrivacyCanonicalUnchangedTest::RunTest(const FString&)
+{
+	const FString Root = RTReplayFixtures::TransientRoot(TEXT("CanonicalIntact"));
+	RTReplayFixtures::Pulisci(Root);
+
+	TArray<FRTTurnLogEntry> Voci;
+	Voci.Add(VoceConVerdetto(10, SoloSquadra(0)));
+	Voci.Add(VoceConVerdetto(20, SoloSquadra(1)));
+	URTTurnLogLibrary::SortTurnLog(Voci);
+
+	FRTReplayManifest Senza;
+	Senza.MatchId = FGuid::NewGuid();
+	Senza.FormatId = FName(TEXT("Format.Skirmish2v2"));
+	Senza.bHexTopology = true;
+	// `ObserverTeamIds` vuoto: e' un archivio come quelli scritti prima di [D-316].
+
+	FRTReplayManifest Con = Senza;
+	Con.MatchId = FGuid::NewGuid();
+	Con.ObserverTeamIds = { 0, 1 };
+
+	TestTrue(TEXT("si registra senza tracce per osservatore"),
+		URTReplayRecorderLibrary::RecordTurn(Root, Senza, 1, Voci));
+	TestTrue(TEXT("e si registra con"), URTReplayRecorderLibrary::RecordTurn(Root, Con, 1, Voci));
+
+	// L'hash ordinato del turno e' lo STESSO: le tracce per osservatore sono un derivato, e non entrano in
+	// nessun hash di determinismo.
+	if (Senza.OrderedHashPerTurn.Num() == 1 && Con.OrderedHashPerTurn.Num() == 1)
+	{
+		TestEqual(TEXT("l'hash ordinato non dipende da quante squadre osservano"),
+			Con.OrderedHashPerTurn[0], Senza.OrderedHashPerTurn[0]);
+	}
+	else
+	{
+		AddError(TEXT("un hash per turno per ciascun archivio"));
+	}
+
+	// E i byte della canonica sono identici nei due archivi.
+	auto ByteCanonici = [&](const FRTReplayManifest& Manifest, TArray<uint8>& Out) -> bool
+	{
+		const FString Percorso = FPaths::Combine(
+			URTReplayRecorderLibrary::MatchDirectory(Root, Manifest.MatchId),
+			URTReplayRecorderLibrary::TurnFileName(1));
+		return FFileHelper::LoadFileToArray(Out, *Percorso);
+	};
+
+	TArray<uint8> ByteSenza;
+	TArray<uint8> ByteCon;
+	if (TestTrue(TEXT("la canonica esiste in entrambi"),
+			ByteCanonici(Senza, ByteSenza) && ByteCanonici(Con, ByteCon)))
+	{
+		TestTrue(TEXT("ed e' byte-identica"), ByteSenza == ByteCon);
+	}
+
+	// ⛔ **La canonica NON e' filtrata**: contiene ancora entrambe le voci. Se un giorno diventasse il
+	// prodotto per osservatore, questo assert lo direbbe invece di lasciarlo scoprire a un audit.
+	TArray<FRTTurnLogEntry> Rilette;
+	ERTLogTopology Topologia = ERTLogTopology::Square;
+	const FString PercorsoCanonico = FPaths::Combine(
+		URTReplayRecorderLibrary::MatchDirectory(Root, Con.MatchId),
+		URTReplayRecorderLibrary::TurnFileName(1));
+	if (TestTrue(TEXT("la canonica si rilegge"),
+			URTTurnLogLibrary::LoadTurnLogFromFile(PercorsoCanonico, Rilette, &Topologia)))
+	{
+		TestEqual(TEXT("e porta ancora i fatti di entrambe le squadre"), Rilette.Num(), 2);
+	}
+
+	RTReplayFixtures::Pulisci(Root);
 	return true;
 }
 

@@ -357,7 +357,45 @@ enum class ERTStatusOutcome : uint8
 	 * CONSUMATO: lo stato era una risorsa e qualcuno l'ha spesa (`Status.Marked` che viene incassato).
 	 * Non e' una rimozione subita ne' voluta contro di esso: e' lo stato che ha fatto il suo lavoro.
 	 */
-	Spent
+	Spent,
+
+	// ---- L'etichetta di un EVENTO, che non nasce e non muore (`#1324`) ------------------------------
+	//
+	// 🔴 **La TERZA forma, e le prime due non la sapevano dire.** `ARTUnit::ApplyStatus` rappresenta uno
+	// stato che dura `N` turni oppure uno legato alla cella (`PersistentWhileOnCell`), e per `Turns <= 0`
+	// **ritorna in silenzio**: `ApplyStatus(TAG_Status_Electrified, 0)` e' un no-op. Il catalogo terreni §2
+	// dichiara `Electrified` **istantaneo** — «una sola volta per evento» — che non e' nessuna delle due, e
+	// per questo il tag e' rimasto senza consumatore anche dopo che CP 8.3 (`#66`) e' arrivato.
+	//
+	// ⚠️ **Non e' una durata inventata, ed e' il punto.** L'argomento conservato in `#1324` — *«dargli una
+	// durata inventata per farlo sembrare vivo sarebbe peggio di un dato dichiaratamente inerte»* — resta
+	// intatto: il tag NON entra in `StatusTurns`, l'unita' non lo porta addosso, e nessuno dovra' mai
+	// scadere. Cio' che cambia e' che la scarica smette di essere **muta** per chi guarda un replay.
+	//
+	// 🔴 **Perche' qui e non in `ERTCombatOutcome`** ([D-162], [D-315]): la propagazione gia' scrive una
+	// voce `Combat` per il danno, e i tre esiti di quell'enum — `Hit`, `Lethal`, `ShieldAbsorbed` — sanno
+	// dire *quanto e' andata male*, non *che cosa ti e' successo*. «Una categoria, un enum»: si sceglie la
+	// categoria il cui enum di esito contiene i valori che l'evento deve dire, e questo e' l'enum degli
+	// eventi di stato.
+	//
+	// ⚠️ **Il formato NON cambia versione**: valore aggiunto in coda a un enum che viaggia nel `uint8` gia'
+	// presente, come `Extinguished`/`Cleansed`/`Spent` prima. Cambiano gli hash dei turni in cui una scarica
+	// si propaga — quei turni prima erano muti su questo.
+
+	/**
+	 * ISTANTANEO: l'etichetta di un evento che e' gia' finito quando la voce esce, e `Amount` vale `0`
+	 * perche' qui una durata non esiste **per definizione del catalogo**, non perche' sia legata a un luogo.
+	 *
+	 * ⚠️ Si distingue da `AppliedWhileOnCell`, che e' l'altro esito con `Amount = 0`: quello e' uno stato
+	 * **vivo** la cui fine e' geografica invece che temporale, e infatti ha un `Revoked` che lo aspetta.
+	 * Questo non ha una morte perche' non ha avuto una vita — nessun `Expired` seguira' mai una di queste
+	 * voci, e un replay che ne cercasse la chiusura cercherebbe qualcosa che non e' mai stato promesso.
+	 *
+	 * ⛔ **`Amount` NON porta i passi di propagazione**, che sarebbero l'altra informazione tentante:
+	 * darebbero a `Amount` un secondo significato sotto la stessa categoria, che e' precisamente cio' che
+	 * [D-162] vieta. I passi restano nel log testuale, dove gia' sono.
+	 */
+	AppliedInstantly
 };
 
 /**

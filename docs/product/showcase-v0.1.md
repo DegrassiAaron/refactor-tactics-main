@@ -466,6 +466,15 @@ Il timeout è una risposta canonica: `Response = Hold, Reason = Timeout`.
 
 Gli input della partita golden sono un **dato**, non un click:
 
+> 🔵 **Il blocco qui sotto è ILLUSTRATIVO, non un formato di file** — dichiarato il 2026-09-03 con
+> [#170](https://github.com/DegrassiAaron/refactor-tactics-main/issues/170), che aveva questa decisione fra
+> le proprie e non poteva chiuderla senza prenderla. Porta ellissi al posto dei valori e nomi di boundary
+> segnaposto (`X`, `Y`): dice **quali informazioni** siano input, non come si scrivano. L'input reale è lo
+> scenario versionato — `Scenarios/RT_Showcase_Relay_v01.json` — che quelle informazioni le porta già,
+> intenti e `decisions` compresi. Tutto il resto di questa §6 è invece **normativo**: la formula di
+> determinismo, i cinque campi del replay canonico, ciò che non entra nell'hash, il timeout come risposta
+> canonica, e le due righe su cartella e rigenerazione qui sotto.
+
 ```text
 Turn 1
   Gadget:    MoveIntent … / MainAction … / Reaction …
@@ -477,10 +486,17 @@ ReactionDecisions:
   Boundary Y -> FIRE target Phase
 ```
 
+∴ **l'oracolo del golden è la coppia `JSON + traccia`**, e va detto perché non è ovvio: la riproducibilità
+non viene solo dal digest: viene dal fatto che le decisioni di reazione sono **scriptate nel JSON**. La
+formula sopra include «stesse decisioni di reazione», e il T4 dello showcase ne ha due. Un golden senza il
+proprio scenario non è riproducibile; uno scenario senza golden non è verificabile.
+
 I file golden della showcase vivono con quelli del **CP 12.6**, stesso meccanismo e stessa cartella
-(`Source/RefactorTactics/Tests/Golden/`). **Rigenerazione solo con flag esplicito**: ogni epic che atterra
-cambia legittimamente l'esito, e una rigenerazione automatica trasformerebbe il golden in una firma vuota.
-La PR che rigenera dichiara *perché* l'esito è cambiato.
+(`Source/RefactorTactics/Tests/Golden/`) — **una cartella per `ScenarioId`, un file `turn-NN.rttl` per
+turno prodotto**, che per lo showcase sono **otto**. **Rigenerazione solo con flag esplicito**
+(`rt.Test.RegenerateGolden`): ogni epic che atterra cambia legittimamente l'esito, e una rigenerazione
+automatica trasformerebbe il golden in una firma vuota. La PR che rigenera dichiara *perché* l'esito è
+cambiato.
 
 ---
 

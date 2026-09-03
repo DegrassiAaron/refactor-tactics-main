@@ -146,8 +146,13 @@ struct REFACTORTACTICS_API FRTReplayViewModel
 	 * Delega interamente a `URTReplayPlayerLibrary::OpenArchive`: i quattro esiti sono i suoi, e questa
 	 * funzione non ne aggiunge ne' ne nasconde. Su un esito diverso da `Opened` il view model resta
 	 * **inutilizzabile e lo dichiara** (`IsOpen() == false`), invece di restare a meta'.
+	 *
+	 * `ObserverTeamId` sceglie il prodotto da aprire ([D-316], `#2098`): una squadra dichiarata
+	 * nell'archivio apre la traccia **filtrata alla registrazione**; `INDEX_NONE` — il default — apre la
+	 * canonica come spettatore neutrale. Il contratto completo sta su `OpenArchive`, e non si duplica qui.
 	 */
-	ERTReplayOpenResult Open(const FString& ReplaysRoot, const FGuid& MatchId);
+	ERTReplayOpenResult Open(const FString& ReplaysRoot, const FGuid& MatchId,
+		int32 ObserverTeamId = INDEX_NONE);
 
 	/** `true` solo dopo un `Open` riuscito. */
 	bool IsOpen() const { return bOpen; }

@@ -1,4 +1,5 @@
 #include "Replay/RTReplayRecorderLibrary.h"
+#include "Replay/RTReplayPrivacyLibrary.h" // FilterEntriesForObserver: il confine per le VOCI ([D-316])
 #include "Turn/RTTurnLogLibrary.h"
 #include "Dom/JsonObject.h"
 #include "HAL/PlatformFileManager.h"
@@ -30,6 +31,7 @@ namespace
 	const TCHAR* K_WALLCLOCK = TEXT("WallClockSeconds");
 	const TCHAR* K_CLOSED    = TEXT("Closed");
 	const TCHAR* K_TURNS     = TEXT("TurnCount");
+	const TCHAR* K_OBSERVERS = TEXT("ObserverTeamIds"); // v2, [D-316]
 
 	/**
 	 * Scrive il manifest su un temporaneo e poi lo sposta sopra il definitivo.
@@ -65,7 +67,11 @@ FString URTReplayRecorderLibrary::ManifestToJson(const FRTReplayManifest& Manife
 
 	// La versione per PRIMA, ed e' l'unico campo che un lettore deve saper trovare sempre: e' cio' che
 	// gli permette di rifiutare il resto senza interpretarlo.
-	Root->SetNumberField(K_VERSION, static_cast<double>(ERTReplayManifestVersion::Initial));
+	// 🔴 `Current` e non `Initial`, ed e' una correzione: la riga diceva `Initial` fisso, quindi il giorno in
+	// cui `Current` fosse salito il recorder avrebbe scritto campi nuovi dichiarando la versione vecchia — e
+	// un lettore che si fida della versione avrebbe letto un file che non e' quello che dice di essere. Il
+	// difetto era latente finche' le versioni erano una sola; la `v2` di [D-316] lo rende attuale.
+	Root->SetNumberField(K_VERSION, static_cast<double>(ERTReplayManifestVersion::Current));
 	Root->SetStringField(K_MATCH_ID, Manifest.MatchId.ToString(EGuidFormats::Digits));
 	Root->SetStringField(K_FORMAT_ID, Manifest.FormatId.ToString());
 	Root->SetBoolField(K_HEX, Manifest.bHexTopology);
@@ -88,6 +94,18 @@ FString URTReplayRecorderLibrary::ManifestToJson(const FRTReplayManifest& Manife
 	Root->SetNumberField(K_WALLCLOCK, Manifest.WallClockSeconds);
 	Root->SetBoolField(K_CLOSED, Manifest.bClosed);
 	Root->SetNumberField(K_TURNS, Manifest.TurnCount);
+
+	// v2 ([D-316]): le squadre per cui esiste una traccia filtrata per osservatore. Scritto SEMPRE, anche
+	// vuoto: un array vuoto e un campo assente significano la stessa cosa — «nessuna traccia per
+	// osservatore» — e scriverlo comunque rende il file leggibile a occhio senza dover sapere che l'assenza
+	// era ammessa.
+	TArray<TSharedPtr<FJsonValue>> Osservatori;
+	Osservatori.Reserve(Manifest.ObserverTeamIds.Num());
+	for (const int32 TeamId : Manifest.ObserverTeamIds)
+	{
+		Osservatori.Add(MakeShared<FJsonValueNumber>(static_cast<double>(TeamId)));
+	}
+	Root->SetArrayField(K_OBSERVERS, Osservatori);
 
 	FString Out;
 	const TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
@@ -166,6 +184,19 @@ bool URTReplayRecorderLibrary::ManifestFromJson(const FString& Json, FRTReplayMa
 	double Turns = 0.0;
 	if (Root->TryGetNumberField(K_TURNS, Turns)) { Letto.TurnCount = static_cast<int32>(Turns); }
 
+	// v2 ([D-316]). ⚠️ Assente su ogni archivio `v1`, e l'assenza e' **corretta**: quegli archivi non hanno
+	// tracce per osservatore, e un elenco vuoto e' esattamente cio' che hanno su disco. Nessun ramo di
+	// migrazione, per la ragione scritta accanto al campo.
+	const TArray<TSharedPtr<FJsonValue>>* Osservatori = nullptr;
+	if (Root->TryGetArrayField(K_OBSERVERS, Osservatori) && Osservatori)
+	{
+		Letto.ObserverTeamIds.Reserve(Osservatori->Num());
+		for (const TSharedPtr<FJsonValue>& V : *Osservatori)
+		{
+			if (V.IsValid()) { Letto.ObserverTeamIds.Add(static_cast<int32>(V->AsNumber())); }
+		}
+	}
+
 	OutManifest = Letto;
 	return true;
 }
@@ -176,6 +207,14 @@ FString URTReplayRecorderLibrary::TurnFileName(int32 TurnNumber)
 	// turni. Con 6-12 turni per partita tre cifre bastano, e se un giorno non bastassero l'ordinamento
 	// degraderebbe — non la lettura.
 	return FString::Printf(TEXT("turn-%03d.rtlog"), TurnNumber);
+}
+
+FString URTReplayRecorderLibrary::TurnFileNameForObserver(int32 TurnNumber, int32 ObserverTeamId)
+{
+	// `turn-001.t0.rtlog`. Il suffisso sta PRIMA dell'estensione e non dopo: cosi' un filtro `*.rtlog`
+	// raccoglie anche queste — sono tracce nello stesso formato, non un tipo di file nuovo — e l'ordine
+	// alfabetico tiene insieme i file di uno stesso turno invece di sparpagliarli per squadra.
+	return FString::Printf(TEXT("turn-%03d.t%d.rtlog"), TurnNumber, ObserverTeamId);
 }
 
 FString URTReplayRecorderLibrary::MatchDirectory(const FString& ReplaysRoot, const FGuid& MatchId)
@@ -211,6 +250,40 @@ bool URTReplayRecorderLibrary::RecordTurn(const FString& ReplaysRoot, FRTReplayM
 	if (!FFileHelper::SaveArrayToFile(Bytes, *FPaths::Combine(Dir, TurnFileName(TurnNumber))))
 	{
 		return false;
+	}
+
+	// --- Le tracce PER OSSERVATORE ([D-316], `#2098`) --------------------------------------------------
+	//
+	// 🔴 **Qui, e non in lettura, perche' qui il verdetto ESISTE.** `FRTTurnLogEntry::Verdict` e' `Transient`
+	// e non entra nei byte appena scritti; ma `Entries` arriva dalla partita viva, dove
+	// `ARTTurnManager::AppendLogEntry` l'ha congelato nell'istante in cui ogni fatto e' accaduto. E' l'unico
+	// momento in cui filtrare per osservatore e' possibile senza serializzare il verdetto — cioe' senza
+	// pagare la versione del formato, `EntryLess`, `MixEntryFields` e gli 11 golden che [D-313] ha rifiutato.
+	//
+	// ⚠️ **E non e' solo la via meno costosa: e' la sola che il canone ammetteva.**
+	// `conoscenza-parziale-visibile-spec.md` §3.5 mette il combat log nella colonna «alla scrittura» da
+	// [D-223]. Filtrare in lettura avrebbe contraddetto una decisione presa, non aggiunto un'opzione.
+	//
+	// ⛔ **Un fallimento qui e' un fallimento del turno.** La tentazione e' trattarle come un extra e
+	// proseguire: sarebbe un archivio in cui il manifest dichiara `ObserverTeamIds` e il file non c'e', e il
+	// lettore ricadrebbe sulla traccia canonica — cioe' mostrerebbe a una squadra i fatti dell'altra,
+	// esattamente il difetto che questa riga esiste per chiudere. Un prodotto pubblico assente e' meglio di
+	// uno che mente.
+	for (const int32 ObserverTeamId : Manifest.ObserverTeamIds)
+	{
+		const TArray<FRTTurnLogEntry> Viste =
+			URTReplayPrivacyLibrary::FilterEntriesForObserver(Entries, ObserverTeamId);
+
+		const TArray<uint8> ByteVisti = URTTurnLogLibrary::SerializeTurnLog(
+			Viste,
+			Manifest.bHexTopology ? ERTLogTopology::Hex : ERTLogTopology::Square,
+			Manifest.FormatId);
+
+		if (!FFileHelper::SaveArrayToFile(ByteVisti,
+			*FPaths::Combine(Dir, TurnFileNameForObserver(TurnNumber, ObserverTeamId))))
+		{
+			return false;
+		}
 	}
 
 	// ⚠️ Si lavora su una COPIA e si assegna solo a scrittura riuscita. Mutare prima renderebbe il manifest
