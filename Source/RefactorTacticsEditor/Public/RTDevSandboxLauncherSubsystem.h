@@ -9,6 +9,24 @@
 class URTScenarioAuthoring;
 
 /**
+ * La categoria di log del launcher, **dichiarata una volta e definita una volta**.
+ *
+ * 🔴 **Era `DEFINE_LOG_CATEGORY_STATIC` in DUE `.cpp` dello stesso modulo**, e il secondo (`fix(2168)`,
+ * `7d8cfd63`) lo motivava proprio con *«stessa categoria del subsystem, e non una nuova»*. L'intento era
+ * giusto e la forma no: `_STATIC` crea un tipo **locale al file**, quindi due definizioni non sono la stessa
+ * categoria — sono due omonime, e sotto **unity build** finiscono nella stessa unita' di traduzione dove
+ * collidono (`C2027: utilizzo di tipo non definito 'FLogCategoryLogRTDevSandboxLauncher'`).
+ *
+ * ⚠️ **Il difetto e' latente e non deterministico**: si vede solo quando UBT raggruppa quei due file
+ * insieme, cosa che dipende da quali file del modulo sono cambiati. Una build verde non lo smentisce.
+ *
+ * ⚠️ **Resta una categoria del modulo EDITOR e non `LogRT`**, e la ragione originale regge: `LogRT` e'
+ * dichiarata in `RefactorTactics.h` senza `REFACTORTACTICS_API`, quindi il simbolo non attraversa il
+ * confine di modulo — misurato, il link fallisce con `LNK2001`.
+ */
+DECLARE_LOG_CATEGORY_EXTERN(LogRTDevSandboxLauncher, Log, All);
+
+/**
  * Punto d'ingresso d'editor del workflow Tactical Designer: quando si apre il livello di bootstrap,
  * presenta il launcher. Owner documentale: `docs/technical/tooling/spec-tactical-designer.md` §4.1.
  *
