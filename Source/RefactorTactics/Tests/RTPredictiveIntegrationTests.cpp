@@ -8,6 +8,8 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Turn/RTFacingLibrary.h" // ERTRelativeDirection: il lato che la voce direzionale porta in `Amount`
+#include "Turn/RTTurnLogLibrary.h" // IsSubjectTheSufferer: la tassonomia del soggetto sta in un posto solo
 #include "Turn/RTTurnLog.h"
 #include "EngineUtils.h"
 #include "Combat/RTHexCombatLibrary.h"
@@ -153,6 +155,96 @@ bool FRTPredictiveInterceptHitTest::RunTest(const FString&)
 			static_cast<uint8>(ERTPredictiveOutcome::TriggerMatched));
 		TestTrue(TEXT("con la cella su cui si e' scommesso"), Entry->TgtCell == Locked);
 		TestEqual(TEXT("e l'identita' dell'azione"), Entry->ActionId, FName(TEXT("Hero.Wraith.InterceptShot")));
+	}
+
+	DestroyPredWorld(World);
+	return true;
+}
+
+/**
+ * **Anche il colpo al boundary porta la voce direzionale** (`#2128`, [D-126]).
+ *
+ * 🔴 **Questa e' la QUARTA famiglia, e per un giorno e' stata l'unica scoperta.** `#2128` ha esteso
+ * `ERTFacingOutcome::HitCameFromSide` a contrattacchi e Overwatch dichiarando — in ADR-0005, nel codice e in
+ * `spec-turnlog.md` — che «un'assenza significa una cosa sola». Non era vero: `ResolvePredictiveBoundary`
+ * risolveva colpi `ERTDamageSource::Direct` senza emettere niente. L'ha trovato una **code review dopo il
+ * merge**, non un test — perche' nessun oracolo copriva «predictive + voce direzionale». Questo test e'
+ * quell'oracolo.
+ *
+ * ⚠️ **La cella del difensore e' quella BLOCCATA, non `Victim->Cell`**: `ResolvePredictiveBoundary` gira
+ * prima di `PlaceOnCell`, quindi l'Actor porta ancora la cella di partenza del turno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPredictiveTracesIncomingSideTest,
+	"RefactorTactics.Predictive.InterceptTracesTheSideItCameFrom",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPredictiveTracesIncomingSideTest::RunTest(const FString&)
+{
+	UWorld* World = MakePredWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnPredMap(World);
+
+	const FRTCellId Locked(0, 0);
+
+	ARTUnit* Runner = SpawnPredUnit(World, /*Team*/ 0, FRTCellId(-1, 0));
+	ARTUnit* Shooter = SpawnPredUnit(World, /*Team*/ 1, FRTCellId(0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Runner"), Runner) || !TestNotNull(TEXT("Shooter"), Shooter)
+		|| !TestNotNull(TEXT("TM"), TM) || !TestTrue(TEXT("intercetto armato"), ArmPredIntercept(Shooter, Locked)))
+	{
+		DestroyPredWorld(World);
+		return false;
+	}
+
+	// Il Runner guarda a `E` — il default — e non ha azioni con bersaglio che lo rigirino.
+	if (!TestTrue(TEXT("premessa: il Runner guarda a E"), Runner->Facing == ERTHexDirection::E))
+	{
+		DestroyPredWorld(World);
+		return false;
+	}
+
+	Runner->PlannedCell = FRTCellId(1, 0);
+	RunPredTurn(TM);
+
+	// PREMESSA: senza il colpo non c'e' nessuna voce da cercare, e il test resterebbe verde sul nulla.
+	const FRTTurnLogEntry* Pred = FindPredEntry(TM);
+	if (!TestNotNull(TEXT("premessa: la previsione ha colpito"), Pred)
+		|| !TestEqual(TEXT("premessa: come TriggerMatched"), Pred->Outcome,
+			static_cast<uint8>(ERTPredictiveOutcome::TriggerMatched)))
+	{
+		DestroyPredWorld(World);
+		return false;
+	}
+
+	const FRTTurnLogEntry* FromSide = nullptr;
+	int32 Direzionali = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Facing
+			&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::HitCameFromSide))
+		{
+			++Direzionali;
+			FromSide = &E;
+		}
+	}
+
+	TestEqual(TEXT("un colpo risolto, una voce direzionale"), Direzionali, 1);
+
+	if (TestNotNull(TEXT("il boundary predittivo ha lasciato la voce"), FromSide))
+	{
+		// Lo Shooter e' in (0,1); rispetto alla cella bloccata (0,0) cade nello spicchio `SE` (5). Il Runner
+		// guarda a `E` (0), quindi l'indice relativo e' (5 - 0 + 6) % 6 = 5.
+		//
+		// ⚠️ **5 e non 0, deliberatamente**: `Front` vale zero, che e' anche il valore di un `Amount` mai
+		// scritto — un'assertion su `Front` passerebbe anche senza produttore.
+		TestEqual(TEXT("il colpo e' arrivato da FrontRight"),
+			FromSide->Amount, static_cast<int32>(ERTRelativeDirection::FrontRight));
+		// 🔴 La privacy: la cella dello sparatore non compare, e i due campi portano il difensore.
+		TestTrue(TEXT("SrcCell e TgtCell portano entrambi il difensore"), FromSide->SrcCell == FromSide->TgtCell);
+		// E la cella e' quella BLOCCATA, cioe' dove il colpo e' avvenuto — non quella di partenza del Runner.
+		TestTrue(TEXT("ed e' la cella bloccata, non quella di partenza"), FromSide->SrcCell == Locked);
+		// Il soggetto e' chi ha subito, non chi ha sparato.
+		TestEqual(TEXT("il soggetto della voce e' il Runner"), FromSide->UnitId, Runner->StableUnitId);
+		TestTrue(TEXT("e la tassonomia lo sa"), URTTurnLogLibrary::IsSubjectTheSufferer(*FromSide));
 	}
 
 	DestroyPredWorld(World);
