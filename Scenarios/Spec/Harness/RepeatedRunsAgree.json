@@ -1,0 +1,42 @@
+{
+  "scenarioId": "Spec.Harness.RepeatedRunsAgree",
+  "tags": ["harness", "determinism", "spec", "gadget", "riktor"],
+  "version": 4,
+  "seed": 0,
+  "mapRadius": 4,
+  "repeatCount": 5,
+
+  "_nota": "IL PRIMO CONSUMATORE di `repeatCount`, la chiave che chiede al runner di eseguire lo stesso scenario N volte e confrontare le tracce byte per byte. Verifica una proprieta' che nessuna `expect` puo' esprimere: a parita' di allestimento l'esito non si muove. Un'assertion guarda UNA partita — e una partita sola non puo' dire se la successiva sarebbe uguale.",
+
+  "_nota_perche_esiste": "🔴 **Misurato il 2026-09-03: `repeatCount` e' implementato in tutto il percorso — loader, runner, writer, quattro test in `RTScenarioFreeRunTests.cpp` — e usato da ZERO dei 112 scenari versionati.** Il campo ha un produttore, una validazione (`< 1` e `> MaxRepeatCount` rifiutati, incompatibile con `variants`) e nessun consumatore nel corpus: il codice che confronta le tracce non gira mai su un file vero, quindi una regressione al suo interno sarebbe rossa solo nei test che lo esercitano a mano. Questo file lo mette sotto regressione dal lato del corpus.",
+
+  "_nota_non_e_il_corpus_E47_5": "⛔ **Non e' il corpus di determinismo di E47.5, e non prova a esserlo.** Quel checkpoint dichiara sei casi con i loro nomi — `PermutationTest`, `PlaybackIndependence`, `NoPath`, `AllWait`, `SimultaneousKO`, `TurnLimit` — ed estende `RefactorTactics.Simulation.*`, cioe' test C++. Anticiparne uno qui con un altro nome creerebbe la seconda lista da tenere allineata alla prima, che e' il difetto che questo repository ha gia' pagato piu' volte. Qui si dimostra la CHIAVE, su un caso minimo.",
+
+  "_nota_perche_questo_allestimento": "Geometria, unita' e attese sono quelle di `Combat.BasicAttack`, riusate senza modificarne un numero: A1 a (-1,0) colpisce B1 a (1,0) con `Hero.Gadget.ArcPulse`, e i 103 HP finali sono **ereditati da una misura**, non ricalcolati. Un allestimento nuovo avrebbe richiesto di derivare a mano un'attesa nuova, e uno scenario che verifica il determinismo del runner non deve poter fallire per un'aritmetica di catalogo: se questo file diventa rosso, la causa dev'essere una sola.",
+
+  "_nota_perche_non_tocca_l_originale": "`Combat.BasicAttack` resta com'e'. Aggiungergli `repeatCount` avrebbe moltiplicato per cinque il costo di uno scenario che sta nel corpus per un'altra ragione — verificare un danno — e avrebbe legato due domande diverse allo stesso file: chi un giorno volesse cambiare quel danno si troverebbe a decidere anche sul determinismo.",
+
+  "_nota_cinque": "Cinque esecuzioni, non due e non cento. Due distinguono «uguale» da «diverso» ma non dicono niente su una divergenza rara; il tetto del runner e' 100 (`URTScenarioRunner::MaxRepeatCount`) e sarebbe un costo per turno che nessuno rileggerebbe. Cinque e' il numero che rende visibile una divergenza intermittente senza rendere lento il corpus, ed e' dichiarato qui invece che ereditato da un default — un tetto invisibile e' un tetto che nessuno rivede.",
+
+  "_nota_versione": "`version: 4` perche' `repeatCount` e' una chiave della v4 del formato, come `freeRun`, `maxTurns` e `requires` di radice: il writer rifiuterebbe di scrivere un file che le usa dichiarandosi v1 (`MinimumVersionFor`), e il loader lo direbbe in lettura.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals", "unit": "B1", "value": 103 },
+    { "type": "UnitHpEquals", "unit": "A1", "value": 90 },
+    { "type": "UnitAlive", "unit": "B1", "value": true },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
