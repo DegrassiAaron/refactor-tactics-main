@@ -61,6 +61,63 @@ void ARTTurnManager::BeginPlay()
 	// test e per lo `ScenarioHarness` che spawnano un TurnManager a mano, e farli scrivere su disco
 	// sarebbe un effetto collaterale che nessuno ha chiesto. La avvia chi allestisce una partita vera —
 	// il GameMode — con `BeginReplayRecording()`.
+
+	// 🔴 **E dal 2026-09-03 vale lo stesso per il TURNO 1** — `#2102`, [D-314].
+	//
+	// Misurato in due sessioni PIE: `Turno 1 - pianificazione` precedeva `Board 2v2 esagonale avviata` di
+	// 348 ms. Il turno si apriva su una board non ancora allestita, il cronometro della pianificazione
+	// partiva prima che ci fosse qualcosa da guardare, e `PlanBots()` decideva su uno stato che si stava
+	// componendo.
+	//
+	// ⚠️ **Lo stesso ordine aveva gia' prodotto un difetto giocabile**: il commento di `#1762` in
+	// `ARTGameMode::SetupHexMatch` dichiara che il refresh della conoscenza dentro questo `BeginPlay`
+	// «e' uscito con zero unita'», e che senza il ricalcolo successivo al primo turno il click non
+	// colpiva niente. Quella e' una compensazione; questa e' la causa.
+	//
+	// 🔑 **Ma l'attesa non puo' essere incondizionata**: qui ci passano anche i test headless e lo
+	// `ScenarioHarness`, che un bootstrapper non ce l'hanno e resterebbero senza turno per sempre. Apre
+	// chi non e' stato rivendicato.
+	if (bFirstTurnClaimedBySetup)
+	{
+		return;
+	}
+
+	bFirstTurnOpened = true;
+	StartPlanningTimer();
+}
+
+void ARTTurnManager::ClaimFirstTurnForMatchSetup()
+{
+	if (bFirstTurnOpened)
+	{
+		// ⚠️ **Tardi, e lo si dice invece di fingere.** Succede se questo attore e' piazzato nel livello e
+		// il suo `BeginPlay` ha preceduto quello del GameMode. Chiudere il turno e riaprirlo dopo
+		// significherebbe richiudere il campione di pacing — cioe' toccare `MsToLockIn`, che e' proprio
+		// cio' che il DoD di `#2102` chiede di non muovere senza misura. Il comportamento resta quello di
+		// prima della issue, e questa riga e' l'unico modo di accorgersene.
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] Turno 1 gia' aperto quando l'allestimento l'ha rivendicato: l'ordine resta quello ")
+			TEXT("precedente a #2102. Il TurnManager e' piazzato nel livello invece di essere spawnato?"));
+		return;
+	}
+
+	bFirstTurnClaimedBySetup = true;
+}
+
+void ARTTurnManager::OpenFirstTurnAfterSetup()
+{
+	if (!bFirstTurnClaimedBySetup || bFirstTurnOpened)
+	{
+		// Nessuna rivendicazione (l'ha gia' aperto `BeginPlay`), oppure gia' aperto da qui.
+		//
+		// 🔑 **L'idempotenza non e' cortesia**: `ARTGameMode::BeginPlay` chiama questa funzione da PIU'
+		// cammini d'uscita — allestimento normale, scenario non caricabile, scenario avviato — perche' un
+		// turno mai aperto e' peggio del difetto che `#2102` chiude. Senza questa guardia, due cammini che
+		// si sovrapponessero scriverebbero due voci `Turno 1` e aprirebbero due campioni di pacing.
+		return;
+	}
+
+	bFirstTurnOpened = true;
 	StartPlanningTimer();
 }
 
@@ -5089,41 +5146,34 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		// lati OSSERVABILE invece che dichiarata. Senza un consumatore sarebbe un ramo morto, cioe' il
 		// `runtime: partial` che il registry punisce.
 		//
-		// ⚠️ **PERIMETRO: i colpi del piano di Blast, e non ogni colpo della partita.** `Plan.Hits` non
-		// contiene i CONTRATTACCHI — entrano in `Attacks` con `Attacks.Append(Reactions.CounterAttacks)`,
-		// dopo la fine di questo ciclo — ne' il fuoco di OVERWATCH, che applica danno per conto suo senza mai
-		// passare da un `FRTHexAttackHit`. Per quei due la voce NON viene emessa, ed e' un limite dichiarato:
-		// `FRTAttack` porta bersaglio e ammontare, non l'attaccante, quindi la geometria da cui questa
-		// relazione si calcola li' non esiste. Estenderla e' `#2128`.
+		// ⚠️ **PERIMETRO: questo ciclo copre i colpi del piano di Blast, e non ogni colpo della partita.**
+		// `Plan.Hits` non contiene i CONTRATTACCHI — entrano in `Attacks` con
+		// `Attacks.Append(Reactions.CounterAttacks)`, dopo la fine di questo ciclo — ne' il fuoco di
+		// OVERWATCH, che applica danno in `ApplyReactionDecision` senza mai passare da un `FRTHexAttackHit`.
+		//
+		// ✅ **Dal 2026-09-03 quelle due famiglie portano comunque la voce** (`#2128`), emessa dai rispettivi
+		// produttori: la coda dei contrattacchi qui sotto, dopo l'`Append`, e il ramo `FIRE` di
+		// `ApplyReactionDecision`. La riga che diceva *«per quei due la voce NON viene emessa»* descriveva il
+		// periodo 2026-09-02 → 2026-09-03. Cio' che mancava non era la geometria ma il fatto che `FRTAttack`
+		// non porta l'attaccante: la sorgente vive accanto, in `Reactions.CounterAttackSrc` per il
+		// contrattacco e nella cella del watcher per l'Overwatch, e [D-302] punto 3 la classifica gia' —
+		// *diretto/mischia = sorgente→bersaglio*.
+		//
+		// 🔑 **E la voce si costruisce in UN posto solo**: `URTFacingLibrary::MakeHitCameFromSideEntry`. Con
+		// tre produttori, la convenzione di privacy scritta tre volte sarebbero tre copie da tenere allineate.
 		//
 		// ⛔ **Sta comunque in questo ciclo e non accanto a `bFrontalHit`**: quel ramo entra solo per le
 		// unita' con `TAG_Status_Guarded`, quindi coprirebbe i colpi su chi e' in guardia e nessun altro —
 		// un perimetro piu' stretto di questo e per una ragione accidentale invece che dichiarata.
 		if (Victim)
 		{
-			// L'origine serve a CALCOLARE la direzione e non entra nella voce: vedi sotto.
+			// L'origine serve a CALCOLARE la direzione e non entra nella voce: e' l'helper a garantirlo.
 			FRTCellId SideOrigin;
-			ERTRelativeDirection Side = ERTRelativeDirection::Front;
+			FRTTurnLogEntry FromSide;
 			if (ResolveImpactOrigin(Intents, Plan, HexUnits, Hit, SideOrigin)
-				&& URTFacingLibrary::RelativeDirectionFrom(HexUnits[Hit.TargetId].Cell,
-					HexUnits[Hit.TargetId].Facing, SideOrigin, Side))
+				&& URTFacingLibrary::MakeHitCameFromSideEntry(HexUnits[Hit.TargetId].Cell,
+					HexUnits[Hit.TargetId].Facing, SideOrigin, ERTMatchPhase::Blast, FromSide))
 			{
-				FRTTurnLogEntry FromSide;
-				FromSide.Phase = ERTMatchPhase::Blast;
-				FromSide.Category = ERTLogCategory::Facing;
-				FromSide.Outcome = static_cast<uint8>(ERTFacingOutcome::HitCameFromSide);
-				// 🔴 **La cella del DIFENSORE in entrambi i campi, e la cella dell'attaccante da nessuna
-				// parte.** E' la convenzione di `MakeFacingEntry` per ogni altra voce `Facing` che racconta
-				// l'orientamento di un'unita', e qui e' anche un requisito di PRIVACY: `AppendLogEntry`
-				// congela `Verdict` su chi passa come attore — il difensore — quindi la voce e' visibile a
-				// chi percepisce LUI. Scriverci `SideOrigin` pubblicherebbe la cella esatta di un attaccante
-				// che il lettore potrebbe non percepire, su OGNI colpo risolto invece che sui rari bypass.
-				// L'informazione della voce e' il LATO, che sta in `Amount` e non rivela una posizione.
-				FromSide.SrcCell = HexUnits[Hit.TargetId].Cell;
-				FromSide.TgtCell = HexUnits[Hit.TargetId].Cell;
-				// `Amount` e' l'indice RELATIVO, non il facing assoluto di `RearHitBypassedGuard` ne' i punti
-				// di `RearHitBypassedCover`: tre semantiche, e per questo tre esiti (`#1430`, [D-199]).
-				FromSide.Amount = static_cast<int32>(Side);
 				// CHI SUBISCE, come entrambi gli altri produttori di categoria `Facing` (`#1418`) — ed e'
 				// dichiarato anche in `URTTurnLogLibrary::IsSubjectTheSufferer`, che tiene la tassonomia in
 				// un posto solo: un produttore che inverte il soggetto e non compare la' e' invisibile a chi
@@ -5135,7 +5185,12 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			// non e' raro: `AimCell` di un'area centrata su un'unita' E' la cella di quell'unita', quindi il
 			// bersaglio al centro dell'esplosione non ha un lato d'ingresso. Tacere e' corretto — non esiste
 			// un lato da nominare — ma va saputo: chi conta «una voce per colpo» trova un buco, e non e'
-			// un difetto. `Facing.RelativeDirectionEdgeCases` pinna la regola, `#2128` il perimetro.
+			// un difetto. `Facing.RelativeDirectionEdgeCases` pinna la regola.
+			//
+			// ⚠️ **E il buco NON e' piu' anche «questa famiglia di colpi non e' coperta»** (`#2128`): dal
+			// 2026-09-03 contrattacchi e Overwatch emettono la voce come i colpi di Blast, quindi un'assenza
+			// significa una cosa sola — nessun lato da nominare. Erano due silenzi identici con due
+			// significati, ed e' la ragione per cui la scelta e' stata emettere invece di documentare.
 		}
 
 		// `#649` — la DIREZIONE ha annullato una copertura, e adesso la traccia lo dice.
@@ -5323,12 +5378,57 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// ricevuto". `ResolveAttacks` somma comunque per bersaglio sullo stato iniziale, quindi la posizione non
 	// cambia il totale; cambia quale colpo conta come "primo" per Guard/Exposed/Deflect, ed e' giusto che sia
 	// l'attacco pianificato a consumare quei delta, non un contrattacco arrivato di rimbalzo.
+	// Dove comincia la coda dei contrattacchi, catturato PRIMA dell'`Append` (`#2128`).
+	//
+	// ⚠️ **Non `Plan.Hits.Num()`, che oggi darebbe lo stesso numero.** La coincidenza regge su un'invariante
+	// dichiarata sessanta righe piu' su — «`ToAttacks` mappa 1:1 e le due funzioni che stanno in mezzo copiano
+	// l'array» — e quel commento avverte gia' che «un giorno un delta potrebbe non conservare la cardinalita'».
+	// Il giorno in cui non la conservasse, il ciclo qui sotto leggerebbe `AttackSrc` a indici sfalsati e
+	// scriverebbe voci direzionali con l'origine di un ALTRO colpo: precise, plausibili e sbagliate, senza che
+	// niente diventi rosso. Contare qui non dipende da nessuna invariante remota.
+	const int32 FirstCounter = Attacks.Num();
 	Attacks.Append(Reactions.CounterAttacks);
 	AttackSrc.Append(Reactions.CounterAttackSrc);
 	AttackActionId.Append(Reactions.CounterActionId);
 	AttackBaseActionId.Append(Reactions.CounterBaseActionId);
 	AttackPriority.Append(Reactions.CounterPriority);
 	AttackActors.Append(Reactions.CounterAttackActors);
+
+	// `#2128` — DA QUALE LATO e' arrivato ogni CONTRATTACCO. Il ciclo su `Plan.Hits` qui sopra non li vede: al
+	// momento in cui gira, questi colpi non sono ancora in `Attacks`.
+	//
+	// 🔑 **L'origine non va inventata**: [D-302] punto 3 classifica il contrattacco come colpo
+	// *diretto/mischia*, la cui origine e' **sorgente→bersaglio**, e la sorgente e' gia' registrata —
+	// `Reactions.CounterAttackSrc`, cioe' la cella di chi reagisce, scritta accanto al colpo nel pass delle
+	// reazioni. Cio' che manca a `FRTAttack` e' l'attaccante, non la geometria.
+	//
+	// ⚠️ **Si itera la CODA, non tutto `Attacks`.** I colpi di indice minore di `FirstCounter` hanno gia'
+	// avuto la loro voce dal ciclo su `Plan.Hits`, e riemetterla qui la duplicherebbe — cambiando l'hash di
+	// ogni traccia con un colpo di Blast. Gli array sono paralleli per costruzione, quindi la coda e'
+	// esattamente l'insieme dei contrattacchi.
+	//
+	// ⚠️ **Il facing e il bersaglio si leggono da `HexUnits`**, che e' lo snapshot su cui l'intero Blast
+	// risolve: leggere `Units[...]->Facing` prenderebbe l'orientamento dell'Actor, che dentro la fase puo'
+	// essere gia' un altro valore.
+	for (int32 a = FirstCounter; a < Attacks.Num(); ++a)
+	{
+		const int32 TargetIdx = Attacks[a].TargetIndex;
+		if (!HexUnits.IsValidIndex(TargetIdx) || !AttackSrc.IsValidIndex(a)) { continue; }
+
+		ARTUnit* CounterVictim = Units.IsValidIndex(TargetIdx) ? Units[TargetIdx] : nullptr;
+		if (!CounterVictim) { continue; }
+
+		FRTTurnLogEntry FromSide;
+		if (URTFacingLibrary::MakeHitCameFromSideEntry(HexUnits[TargetIdx].Cell, HexUnits[TargetIdx].Facing,
+			AttackSrc[a], ERTMatchPhase::Blast, FromSide))
+		{
+			// CHI SUBISCE il contrattacco, cioe' l'attaccante di partenza: e' lui a essere colpito da dietro
+			// o di fronte, ed e' sul suo orientamento che il lato e' misurato.
+			AppendLogEntry(FromSide, CounterVictim);
+		}
+		// Nessuna voce quando la direzione non esiste — reattore e bersaglio sulla stessa cella in pianta.
+		// Fail-closed come il ramo di Blast, e per la stessa ragione: non c'e' un lato da nominare.
+	}
 
 	if (Attacks.Num() == 0)
 	{
@@ -6049,6 +6149,30 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 	Entry.TgtCell = State.Pos[TargetIdx];
 	AppendLogEntry(Entry, WatchOwner);
 
+	// `#2128` — DA QUALE LATO il bersaglio ha incassato il colpo di Overwatch. L'origine e' la cella del
+	// watcher: [D-302] punto 3 classifica come *diretto/mischia* — origine **sorgente→bersaglio** — e questo
+	// colpo e' letteralmente `ERTDamageSource::Direct` dieci righe sopra.
+	//
+	// 🔴 **DUE voci e due soggetti diversi, ed e' voluto.** Quella qui sopra e' la DECISIONE del watcher e si
+	// congela su di lui; questa e' cio' che il BERSAGLIO ha subito e si congela su di lui, come ogni altra
+	// voce `Facing` che descrive l'orientamento di un'unita' (`IsSubjectTheSufferer`). Congelarle sullo stesso
+	// attore renderebbe la seconda invisibile a chi la riguarda.
+	//
+	// 🔑 **Il facing e' quello con cui il bersaglio e' ENTRATO nella fase Move, e non e' un ripiego.**
+	// `ResolveReactionBoundary` gira dentro il ciclo dei micro-step; la `RecordFacingChange` che fissa
+	// `DerivedFromMove` scrive DOPO l'uscita dal ciclo. Al momento del colpo l'orientamento finale non esiste
+	// ancora — e la lettura giusta e' proprio questa: si viene colpiti *mentre* ci si muove, con
+	// l'orientamento che si aveva. Va detto, o il prossimo lettore lo scambia per una svista.
+	//
+	// ⚠️ **`Armed.Facing` non c'entra**: quello e' il cono che il watcher ha dichiarato armando, cioe' dove
+	// GUARDA. Qui serve l'orientamento di chi SUBISCE, che e' un'altra unita' e un altro campo.
+	FRTTurnLogEntry FromSide;
+	if (URTFacingLibrary::MakeHitCameFromSideEntry(State.Pos[TargetIdx], Target->Facing,
+		State.Pos[OwnerIdx], ERTMatchPhase::Move, FromSide))
+	{
+		AppendLogEntry(FromSide, Target);
+	}
+
 	AddLogEvent(FString::Printf(TEXT("%s: overwatch su %s, %d danni e movimento troncato"),
 		*WatchOwner->GetName(), *Target->GetName(), Armed.Damage), FRTLogSubject::Unit(WatchOwner));
 }
@@ -6494,8 +6618,10 @@ void ARTTurnManager::ResolveMovement()
 		}
 
 		ERTHexDirection Applied = Unit->Facing;
+		// Il budget e' quello dell'EROE di questa unita' (ADR-0008 §1): qui si emette il verdetto, e il
+		// verdetto non puo' usare un budget diverso da quello che la UI ha usato per proporre.
 		const bool bLegal = URTFacingLibrary::TryApplyDeclaredFacing(Unit->MovementStyleThisTurn,
-			Unit->WalkedThisTurn, Unit->Facing, Unit->PlannedFacing, Applied);
+			Unit->WalkedThisTurn, Unit->Facing, Unit->PlannedFacing, Unit->PivotBudget(), Applied);
 
 		FRTHexSimUnit Declaring(i, Unit->Cell, /*InMoveBudget=*/ 0);
 		Declaring.Facing = Unit->Facing;
@@ -6505,7 +6631,7 @@ void ARTTurnManager::ResolveMovement()
 		Unit->Facing = Declaring.Facing;
 
 		AddLogEvent(FString::Printf(TEXT("%s: rotazione dichiarata %s"), *Unit->GetName(),
-			bLegal ? TEXT("applicata") : TEXT("RIFIUTATA (illegale per lo stile di movimento)")), FRTLogSubject::Unit(Unit));
+			bLegal ? TEXT("applicata") : TEXT("RIFIUTATA (fuori dal budget di pivot dell'eroe)")), FRTLogSubject::Unit(Unit));
 		Unit->ClearDeclaredFacing();
 	}
 

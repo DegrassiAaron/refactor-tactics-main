@@ -306,7 +306,11 @@ bool FRTGrayboxEastReferenceTest::RunTest(const FString&)
 	for (int32 D = 0; D < 6; ++D)
 	{
 		Fixture->Facing = static_cast<ERTHexDirection>(D);
-		Fixture->RerunConstructionScripts();
+		// ⚠️ `OnConstruction`, non `RerunConstructionScripts`: **stessa trappola di `#2072`, gia' scritta
+		// venti righe piu' su in questo file, e reintrodotta qui poche ore dopo.** La seconda esiste solo
+		// `WITH_EDITOR` e questo file compila anche nel target **gioco** — quello che `BuildCookRun`
+		// costruisce e che nessuna `rt-suite` tocca, perche' la suite gira sull'Editor.
+		Fixture->OnConstruction(Fixture->GetTransform());
 
 		TestTrue(*FString::Printf(TEXT("direzione %d: il riferimento NON si e' mosso"), D),
 			Fixture->EastReference->GetForwardVector().Equals(FVector::XAxisVector, 1.e-3));

@@ -197,9 +197,20 @@ UENUM(BlueprintType) enum class ERTFacingOutcome : uint8 {
     TurnedToDisplacementSource,       // spinta subita: girata verso la sorgente
     KeptOnEnvironmentalDisplacement,  // trascinamento senza sorgente: invariato
     UsedByBlast,                      // LETTURA: il colpo ha usato questo valore
-    UsedByOverwatch                   // LETTURA: l'overwatch ha usato questo valore (E14)
+    UsedByOverwatch,                  // LETTURA: l'overwatch ha usato questo valore (E14)
+    RearHitBypassedCover,             // la copertura non ha retto: Amount = punti scavalcati (D-199)
+    RearHitBypassedGuard,             // la Guard non ha retto: Amount = facing del difensore (D-199)
+    HitCameFromSide                   // da quale dei sei lati: Amount = ERTRelativeDirection (D-126, #726)
 };
 ```
+
+⚠️ **Le ultime tre righe sono state aggiunte a questo blocco il 2026-09-03**, mentre i valori esistono in
+`Source/` rispettivamente dal 2026-08-27 (`RearHitBypassed*`, [`#1430`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1430))
+e dal 2026-09-02 (`HitCameFromSide`, [`#726`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726)).
+Il blocco è rimasto fermo a **nove** valori su dodici mentre le sezioni sotto descrivevano già i due
+annullamenti: la deriva non stava in ciò che il documento affermava, ma in un elenco che nessuno rileggeva
+accanto all'enum vero. È lo stesso difetto che §4.1 nomina più sotto per i produttori — **dichiarato e non
+misurato da nessun gate**.
 
 **Perché scritture e letture stanno nello stesso enum.** [D-020](../../decisions/RT_PDR_00_Decision_Log.md)
 stabilisce che il facing cambia più volte per round e che ogni consumatore legge il valore autorevole più
@@ -258,6 +269,19 @@ Il costo è dichiarato in D-199 — nominarlo, come faceva il commento del 2026-
 
 ⚠️ **`UsedByBlast` e `UsedByOverwatch` non hanno produttori in gioco**: `ReadFacingForConsumer` è chiamata
 solo da due test. Le due letture che questa sezione motiva sopra sono dichiarate e non emesse.
+
+**`HitCameFromSide` ha TRE produttori, e una sola sede** ([`#2128`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2128), 2026-09-03).
+
+I colpi del piano di Blast, i **contrattacchi** e il fuoco di **Overwatch** emettono tutti la voce; l'unico
+costruttore è `URTFacingLibrary::MakeHitCameFromSideEntry`, che restituisce `false` — e nessuna voce — quando
+origine e difensore coincidono in pianta. Il perimetro e le tre regole d'origine hanno il proprio owner in
+[ADR-0005 §4-quater](../../decisions/adr-0005-orientamento.md); qui interessa il **formato**: `Amount` porta un
+`ERTRelativeDirection` (`0..5`), non l'`ERTHexDirection` di `RearHitBypassedGuard` né i punti di riduzione di
+`RearHitBypassedCover` — **tre semantiche sotto la stessa categoria**, ed è la ragione per cui sono tre esiti
+e non uno.
+
+⚠️ La voce dell'Overwatch ha `Phase = Move`, non `Blast`: è l'unica voce `Facing` di quella fase prodotta da
+un colpo, e chi filtra per fase la perde se assume che i colpi vivano solo nel Blast.
 
 **`Neutralised`: un'azione che non ottiene niente lo dice** ([D-203](../../decisions/RT_PDR_00_Decision_Log.md), [`#1460`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1460), 2026-08-27).
 

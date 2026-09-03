@@ -552,6 +552,42 @@ public:
 	void BeginReplayRecording();
 
 	/**
+	 * L'ALLESTIMENTO RIVENDICA L'APERTURA DEL TURNO 1 — `#2102`, [D-314].
+	 *
+	 * Dopo questa chiamata `BeginPlay` **non** apre piu' il turno da solo: lo aprira'
+	 * `OpenFirstTurnAfterSetup()`, quando la board esiste davvero.
+	 *
+	 * 🔑 **Stesso schema di `BeginReplayRecording`, e per la stessa ragione**: `BeginPlay` gira anche per i
+	 * test headless e per lo `ScenarioHarness`, che spawnano un TurnManager a mano e non hanno
+	 * bootstrapper. Un'attesa **incondizionata** li fermerebbe tutti. Chi non rivendica apre come sempre.
+	 *
+	 * ⛔ **Il criterio NON e' «siamo in PIE».** Il progetto ha gia' deciso questa domanda in
+	 * `ARTPlayerController::IsPlanningInputInert`: *«un predicato che rispondesse solo in PIE non sarebbe
+	 * verificabile headless, e questo DEVE esserlo»*. Qui il criterio e' una rivendicazione esplicita, che
+	 * un test puo' fare e non fare.
+	 *
+	 * ⚠️ **Non annulla un turno gia' aperto**, e lo dichiara nel log invece di tacere: chiuderlo e
+	 * riaprirlo significherebbe richiudere il campione di pacing, cioe' toccare `MsToLockIn`. Idempotente.
+	 */
+	void ClaimFirstTurnForMatchSetup();
+
+	/**
+	 * APRE il turno 1 rivendicato: e' il punto in cui l'allestimento dichiara di aver finito.
+	 *
+	 * Non fa nulla se nessuno ha rivendicato (il turno l'ha gia' aperto `BeginPlay`) o se e' gia' stato
+	 * aperto da questa funzione. **Idempotente**: due chiamate producono una sola voce `Turno 1`, e
+	 * l'idempotenza non e' cortesia — il GameMode la chiama da piu' cammini d'uscita, perche' un turno mai
+	 * aperto e' peggio di un turno aperto presto.
+	 */
+	void OpenFirstTurnAfterSetup();
+
+	/** Vero se qualcuno ha rivendicato l'apertura del turno 1. Per i test dell'ordine (`#2102`). */
+	bool IsFirstTurnClaimedBySetup() const { return bFirstTurnClaimedBySetup; }
+
+	/** Vero se il turno 1 e' stato aperto — da `BeginPlay` o dall'allestimento. Per i test dell'ordine. */
+	bool HasOpenedFirstTurn() const { return bFirstTurnOpened; }
+
+	/**
 	 * Ricalcola SUBITO la conoscenza di squadra, con le unita' che esistono adesso.
 	 *
 	 * 🔴 **Esiste per una finestra misurata, non per simmetria** ([#1762]). L'unico produttore di
@@ -1838,6 +1874,17 @@ public:
 protected:
 
 	FTimerHandle PlanningTimerHandle;
+
+	/**
+	 * L'allestimento ha rivendicato l'apertura del turno 1 (`#2102`, [D-314]).
+	 *
+	 * ⚠️ **Stato di AVVIO, non stato di partita**: non entra in snapshot, TurnLog o hash. Dice chi apre il
+	 * primo turno, non cosa succede dentro.
+	 */
+	bool bFirstTurnClaimedBySetup = false;
+
+	/** Il turno 1 e' stato aperto — da `BeginPlay` o dall'allestimento. Rende idempotente l'apertura. */
+	bool bFirstTurnOpened = false;
 
 protected:
 	/**

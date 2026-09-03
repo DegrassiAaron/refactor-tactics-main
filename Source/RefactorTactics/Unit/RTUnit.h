@@ -131,6 +131,34 @@ public:
 	int32 PushResistance = 0;
 
 	/**
+	 * Step di rotazione spendibili a fine movimento, per famiglia (ADR-0008 §1, `#1605`).
+	 *
+	 * Il valore canonico vive nel catalogo (`URTHeroData::MoveEndPivotMaxSteps` / `DashEndPivotMaxSteps`) e
+	 * arriva qui da `ConfigureFromHeroData`, come `HearingThreshold`: **trasportato e non risolto
+	 * dall'`HeroId`**, perche' il resolver legge l'unita' e non il catalogo eroi.
+	 *
+	 * 🔵 I default `1` e `0` valgono per un'unita' mai configurata da un eroe — piazzata a mano in livello,
+	 * o `ConfigureFromHeroData(nullptr)` — e **sono ADR-0005**: quell'unita' si comporta come si comportava
+	 * il gioco prima di ADR-0008, non come una statua.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit", meta = (ClampMin = "0", ClampMax = "3"))
+	int32 MoveEndPivotMaxSteps = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit", meta = (ClampMin = "0", ClampMax = "3"))
+	int32 DashEndPivotMaxSteps = 0;
+
+	/**
+	 * I due budget nella forma che `URTFacingLibrary` chiede. Esiste per non far ricostruire la coppia a
+	 * ognuno dei tre chiamanti (PlayerController in planning, TurnManager a fine Move, test): tre copie della
+	 * stessa costruzione sono tre occasioni di scambiare Move con Dash.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Unit")
+	FRTPivotBudget PivotBudget() const
+	{
+		return FRTPivotBudget(MoveEndPivotMaxSteps, DashEndPivotMaxSteps);
+	}
+
+	/**
 	 * Soglia d'udito dell'eroe (D-041): COMPENSA la vista invece di seguirla — chi vede lontano sente meno.
 	 * Il valore canonico vive nel catalogo (`URTHeroData::HearingThreshold`) e arriva qui da
 	 * `ConfigureFromHeroData`; il default 5 vale solo per un'unità che non è stata configurata da un eroe.
@@ -321,10 +349,15 @@ public:
 	ERTHexDirection PlannedFacing = ERTHexDirection::E;
 
 	/**
-	 * Movimento EFFETTIVAMENTE eseguito in questo turno: stile e rotta percorsa. Da questi due dipende
-	 * l'insieme delle rotazioni legali (`URTFacingLibrary::LegalFacings`) — tre dopo un Move a budget, una
-	 * sola dopo uno scatto lineare, sei da fermo — e nessuno dei due e' deducibile a fine turno: chi ha
-	 * scattato ha `PlannedCell` uguale alla cella attuale esattamente come chi non si e' mosso.
+	 * Movimento EFFETTIVAMENTE eseguito in questo turno: stile e rotta percorsa. Da questi due, **piu' il
+	 * budget di pivot dell'eroe**, dipende l'insieme delle rotazioni legali
+	 * (`URTFacingLibrary::LegalFacings`), e nessuno dei due e' deducibile a fine turno: chi ha scattato ha
+	 * `PlannedCell` uguale alla cella attuale esattamente come chi non si e' mosso.
+	 *
+	 * ⚠️ Diceva «tre dopo un Move a budget, una sola dopo uno scatto lineare, sei da fermo»: era la tabella
+	 * per stile di ADR-0005 §1, che ADR-0008 §1 ha superato. Oggi lo stile dice solo QUALE budget si legge —
+	 * `Budget` -> Move, ogni `Linear*` -> Dash — e l'ampiezza la decide il personaggio (`#1605`). Sei da
+	 * fermo resta vero per tutti: `StationaryPivotMaxSteps` e' universale a 3.
 	 *
 	 * Scritti dalle fasi che muovono, letti solo dal consumo della rotazione dichiarata, azzerati con essa.
 	 */

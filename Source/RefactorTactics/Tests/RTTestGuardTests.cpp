@@ -85,4 +85,72 @@ bool FRTTestGuardClosesAtEndOfFileTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Nessun test del modulo RUNTIME chiama API che esistono solo `WITH_EDITOR`.**
+ *
+ * 🔴 **Anche questo oracolo esiste perche' il difetto e' successo DUE VOLTE**, e la seconda con l'avviso
+ * gia' scritto venti righe piu' su nello stesso file. `RTGrayboxFixtureTests.cpp` ha chiamato
+ * `RerunConstructionScripts` — che `Actor.h:3417` dichiara dentro `#if WITH_EDITOR` — prima con `#2072`,
+ * e poi di nuovo il 2026-09-02 con `#2094`.
+ *
+ * ⚠️ **E nessuna suite lo rivela, perche' `rt-suite` gira sul target EDITOR.** Li' `WITH_EDITOR` vale 1:
+ * il file compila, i test girano, 1819 su 1819 sono verdi. Il target **gioco** — quello che `BuildCookRun`
+ * costruisce — non viene toccato da nessuna misura quotidiana, e li' la build muore con
+ * `C2039: 'RerunConstructionScripts': non e' un membro`. La prima volta ha reso **nessun pacchetto
+ * costruibile**; la seconda l'ha scoperta il packaging di `#1804`, per caso.
+ *
+ * ∴ un commento non e' un gate: l'avviso c'era, ed e' stato riletto e riscritto da chi ha rifatto lo stesso
+ * errore. Questo lo trova alla prima `rt-suite` invece che al prossimo pacchetto.
+ *
+ * ⛔ **Cerca la forma di CHIAMATA (`->Nome(`), non il nome**: il nome compare nei commenti che spiegano la
+ * trappola — compresi quelli di questo test — e un oracolo che li contasse sarebbe rosso per sempre,
+ * quindi disattivato entro un giorno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRuntimeTestsAvoidEditorOnlyApiTest,
+	"RefactorTactics.Meta.RuntimeTestsAvoidEditorOnlyApi",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRuntimeTestsAvoidEditorOnlyApiTest::RunTest(const FString&)
+{
+	const FString Cartella = FPaths::Combine(FPaths::ProjectDir(), TEXT("Source/RefactorTactics/Tests"));
+	TArray<FString> Nomi;
+	IFileManager::Get().FindFiles(Nomi, *FPaths::Combine(Cartella, TEXT("*.cpp")), /*Files*/ true, /*Dirs*/ false);
+
+	// ⚠️ Se non trova i sorgenti FALLISCE: un oracolo che perde il proprio soggetto e resta verde e' peggio
+	// di un oracolo assente. Stessa disciplina del test qui sopra.
+	if (!TestTrue(TEXT("i sorgenti dei test sono leggibili"), Nomi.Num() > 0))
+	{
+		return false;
+	}
+
+	// La lista e' corta di proposito: ci sta cio' che ha gia' morso, non tutto cio' che potrebbe.
+	// `Actor.h:3417` per il primo — se un giorno se ne aggiunge un altro, si aggiunge qui con la sua storia.
+	const TCHAR* SoloEditor[] = { TEXT("RerunConstructionScripts") };
+
+	int32 Difettosi = 0;
+	for (const FString& Nome : Nomi)
+	{
+		FString Testo;
+		if (!FFileHelper::LoadFileToString(Testo, *FPaths::Combine(Cartella, Nome)))
+		{
+			AddError(FString::Printf(TEXT("%s non si legge"), *Nome));
+			continue;
+		}
+		for (const TCHAR* Api : SoloEditor)
+		{
+			const FString Chiamata = FString::Printf(TEXT("->%s("), Api);
+			if (Testo.Contains(Chiamata, ESearchCase::CaseSensitive))
+			{
+				++Difettosi;
+				AddError(FString::Printf(
+					TEXT("%s chiama %s, che esiste solo WITH_EDITOR: il target gioco non compilera' e ")
+					TEXT("nessun pacchetto sara' costruibile. Usa OnConstruction(GetTransform())."),
+					*Nome, Api));
+			}
+		}
+	}
+
+	TestEqual(TEXT("nessun test runtime chiama API di solo editor"), Difettosi, 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
