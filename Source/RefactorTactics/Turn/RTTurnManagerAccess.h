@@ -26,6 +26,14 @@ class UWorld;
  * stato, non si duplica niente: e' una ricerca. #1821 esclude esplicitamente la facade («non servono due
  * `UObject`»), e il progetto ha gia' questa forma in `ARTHexMapActor::FindInWorld`.
  *
+ * 🔴 **Ed e' una funzione LIBERA, non una `UBlueprintFunctionLibrary`, contro l'abitudine del modulo.**
+ * Il pattern qui e' `UCLASS` + statiche, e questa e' l'unica `REFACTORTACTICS_API` su una funzione libera
+ * del modulo — quindi la deroga va motivata invece di lasciarla notare. Una libreria Blueprint che
+ * rendesse un `ARTTurnManager*` lo **esporrebbe ai Blueprint**, e l'header di `UI/RTScreenHudWidgets`
+ * dichiara la regola opposta: *«non c'e' un accessor che dia l'`ARTTurnManager` o un `ARTUnit` a un
+ * Blueprint»*. Esporlo per alleggerire un include sarebbe pagare un confine di privacy con un tempo di
+ * compilazione.
+ *
  * ⚠️ **Rende `nullptr` quando il manager non c'e' ancora, e non e' un caso limite.**
  * `ARTGameMode::BeginPlay` presenta il HUD **prima** di spawnare il `ARTTurnManager`: un widget che nasce
  * in quel momento cerca un actor che non esiste. Chi chiama questa funzione tiene il proprio retry — non
