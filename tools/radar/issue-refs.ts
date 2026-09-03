@@ -80,7 +80,20 @@ const SUFFISSO_RIGA = /:\d+$/;
 /** I marcatori che rendono una riga **storica**: sta raccontando la rimozione, non prescrivendo. */
 const STORICA = [
   /~~/, // barrato: il pattern che il repository usa per correggere nel corpo
-  /\bD-18[12]\b/, // le due decisioni che hanno rimosso registro e scripts/
+  // Le decisioni cui il repository si riferisce quando racconta una rimozione. L'elenco cresce a
+  // ogni ritiro e nessuno lo aggiorna: `D-178` (2026-08-20, `f90f9a01`) mancava.
+  //
+  // Misura del 2026-09-03 sulle issue aperte: **26 righe in 14 issue** citano `D-178`, 24 con un
+  // percorso del repository accanto. **Zero** erano falsi positivi — il gate era verde — ma **4**
+  // avevano come UNICA copertura il blockquote, perche' usano la forma corta: «`x` → **D-178** —
+  // lo sviluppo torna sequenziale», la decisione senza il verbo che la descrive. Le altre 20
+  // passavano per `uscit|rimoss`, cioe' per una coincidenza lessicale. Fuori da un blockquote, la
+  // forma corta sarebbe un falso positivo: questa riga toglie la dipendenza da quella coincidenza.
+  //
+  // ⚠️ Non e' l'elenco di tutte le rimozioni. `D-192` NON entra: `D-193` l'ha superata lo stesso
+  // giorno (`383862ba`) e `tools/radar/doc-tables.ts` e' tornato vivo — trattarla da rimozione
+  // renderebbe storica una riga che parla di un file esistente.
+  /\bD-(178|18[12])\b/,
   /\b(26f6955a|d671df47)\b/, // i due commit di rimozione, citati per esteso dalle note
   /non vive (piu|più)/i,
   /non esiste (piu|più)?/i,

@@ -1805,6 +1805,28 @@ void FRTScenarioSession::Finish()
 		Result.StateDiff = RTScenarioStateDiff::Build(InitialUnitStates,
 			RTScenarioStateDiff::Snapshot(UnitsById));
 
+		// IL PONTE FRA I DUE SPAZI DI ID — `#1625`.
+		//
+		// 🔴 **Si trasporta qui perche' QUI la corrispondenza esiste**, e da nessun'altra parte: `UnitsById`
+		// lega la `FString` d'authoring all'`ARTUnit`, e l'actor porta lo `StableUnitId` che
+		// `EnsureMatchRoster` gli ha assegnato. Fuori da questa funzione i due mondi non si toccano piu' —
+		// il TurnLog ha solo l'intero, la vista d'authoring solo la stringa.
+		//
+		// ⚠️ **Si legge dall'actor e non si ricalcola.** L'id nasce da un roster ORDINATO per
+		// `TeamId`/`Cell`/nome-actor: riprodurre quell'ordine altrove sarebbe una seconda regola, e
+		// divergerebbe al primo pareggio o al primo cambio di `MatchRosterLess`.
+		//
+		// ⛔ Un'unita' distrutta durante la partita non ha piu' un actor da cui leggere: il suo id resta
+		// fuori dalla mappa, e chi legge trova l'assenza invece di uno zero che sembrerebbe un'unita' vera.
+		Result.ScenarioIdByUnitId.Reset();
+		for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
+		{
+			if (const ARTUnit* Unit = Pair.Value.Get())
+			{
+				Result.ScenarioIdByUnitId.Add(Unit->StableUnitId, Pair.Key);
+			}
+		}
+
 		// Punteggi indicizzati per TeamId: la v0.1 e' 2v2, e il giudice della fine partita li tiene qui.
 		TArray<int32> TeamScores;
 		if (const ARTTurnManager* TM = TurnManager.Get())

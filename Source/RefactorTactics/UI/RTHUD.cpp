@@ -7,6 +7,7 @@
 #include "Player/RTPlayerController.h"
 #include "Player/RTPlayerState.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary::VisibleTrailFor
 #include "Turn/RTPlaybackLibrary.h"
 #include "Turn/RTTurnRules.h"
 #include "Combat/RTCombatLibrary.h"
@@ -666,7 +667,7 @@ void ARTHUD::DrawHUD()
 		const FLinearColor TrailColor(0.6f, 0.6f, 0.6f, 0.5f);
 		for (const FRTMoveRoute& Route : TurnManager->GetLastMoveRoutes())
 		{
-			const TArray<FRTCellId> Trail = ARTTurnManager::VisibleTrailFor(Route, PlayerTeamId);
+			const TArray<FRTCellId> Trail = URTMoveRouteLibrary::VisibleTrailFor(Route, PlayerTeamId);
 			for (int32 i = 1; i < Trail.Num(); ++i)
 			{
 				const FVector A = Project(HexCellWorld(Trail[i - 1], Origin, HexSize, LayerH));
