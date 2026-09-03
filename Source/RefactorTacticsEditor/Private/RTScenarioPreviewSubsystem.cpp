@@ -12,6 +12,9 @@
 #include "Perception/RTVisibilityBorder.h"
 #include "ScenarioHarness/RTScenarioAuthoring.h"
 #include "ScenarioHarness/RTScenarioKnowledge.h"
+#include "ScenarioHarness/RTScenarioPlayback.h"
+#include "Replay/RTReplayStateLibrary.h"
+#include "Turn/RTTurnLogLibrary.h"
 
 namespace
 {
@@ -114,6 +117,16 @@ void URTScenarioPreviewSubsystem::ClearPreview()
 	// precedente ancora attivo mostrerebbe una vista parziale che nessuno ha chiesto per questo file.
 	Perspective = RTScenarioKnowledge::OmniscientTeamId;
 	LayerReadout.Reset();
+
+	// ⚠️ **Anche il playback**, e non e' ridondanza con `ClosePlayback`: qui gli actor sono gia' distrutti e
+	// `AllUnits` gia' svuotato, quindi uno stato di playback sopravvissuto tradurrebbe una traccia contro
+	// uno scenario che non c'e' piu'. Si azzera **dopo** aver tolto tutto, e senza ridisegnare — non c'e'
+	// piu' niente su cui.
+	bPlaybackOpen = false;
+	PlaybackUnits.Reset();
+	PlaybackTrace.Reset();
+	PlaybackInitial.Reset();
+	PlaybackScenarioIds.Reset();
 }
 
 TArray<int32> URTScenarioPreviewSubsystem::GetSelectableTeams() const
@@ -158,8 +171,14 @@ void URTScenarioPreviewSubsystem::ApplyPerspective()
 	// La conoscenza CANONICA: `Observe`, la stessa funzione che il TurnManager chiama in partita. In
 	// `Omniscient` non e' il filtro spento — e' la conoscenza che vede tutto, e il percorso qui sotto non ha
 	// rami.
+	// 🔴 **La sorgente e' il playback quando e' aperto**, e da qui in giu' non ci sono altri rami: la
+	// conoscenza, il velo, i marcatori e il confine si calcolano tutti sulle STESSE unita'. Un ramo che
+	// prendesse il playback per i marcatori e l'authoring per il velo disegnerebbe le unita' aggiornate
+	// sotto una nebbia ferma — il difetto che si vede solo a schermo, e solo se lo si cerca.
+	const TArray<FRTScenarioUnitView>& Sorgente = bPlaybackOpen ? PlaybackUnits : AllUnits;
+
 	const FRTTeamKnowledge Knowledge = RTScenarioKnowledge::ForTeam(
-		PreviewArena, AllUnits, Perspective, Roster);
+		PreviewArena, Sorgente, Perspective, Roster);
 
 	// ⚠️ La precondizione di `ApplyKnowledgeVeil`: `InstanceCells` dev'essere derivato e nessun
 	// `RebuildInstances` deve stare fra il calcolo e l'applicazione. Qui la mappa e' gia' costruita e nessuno
@@ -174,12 +193,100 @@ void URTScenarioPreviewSubsystem::ApplyPerspective()
 	// 🔴 Il velo copre le cinque famiglie di istanze della MAPPA; i marcatori stanno su un altro actor e non
 	// li tocca. Senza questa riga un nemico mai visto resterebbe a schermo con la board velata intorno —
 	// l'hidden-state leak piu' facile da introdurre qui.
-	Units->ShowUnits(RTScenarioKnowledge::VisibleUnits(AllUnits, Knowledge),
+	Units->ShowUnits(RTScenarioKnowledge::VisibleUnits(Sorgente, Knowledge),
 		Origin, HexSize, LayerHeight);
 
 	// Il confine di cio' che la squadra vede: dalla conoscenza canonica, non da una query propria.
 	Units->ShowBorder(URTVisibilityBorderLibrary::ExposedEdges(Knowledge.VisibleCells),
 		Origin, HexSize, LayerHeight);
+}
+
+// =====================================================================================================
+// Playback della risoluzione (`#1625`)
+// =====================================================================================================
+
+bool URTScenarioPreviewSubsystem::OpenPlayback(const URTScenarioAuthoring* Authoring)
+{
+	ClosePlayback();
+
+	// Serve uno scenario GIA' mostrato: il playback muove i marcatori di quello, non ne apre un altro.
+	if (!Authoring || !IsShowing() || AllUnits.Num() == 0)
+	{
+		return false;
+	}
+
+	const TArray<FRTTurnTrace>& Tracce = Authoring->GetLastRunTraces();
+	if (Tracce.Num() == 0)
+	{
+		// Non si e' ancora corso. ⚠️ Non si apre un playback vuoto: sembrerebbe una partita in cui non e'
+		// successo niente, che e' un'affermazione diversa da «non c'e' una partita».
+		return false;
+	}
+
+	// 🔴 **Si decodifica QUI e una volta sola.** Le tracce restano byte nel draft proprio per non pagarle a
+	// chi vuole solo sapere se e' PASS; chi le vuole muovere le paga adesso, non a ogni cambio di posizione.
+	TArray<FRTTurnLogEntry> Voci;
+	for (const FRTTurnTrace& T : Tracce)
+	{
+		TArray<FRTTurnLogEntry> DiQuestoTurno;
+		if (!URTTurnLogLibrary::DeserializeTurnLog(T.Bytes, DiQuestoTurno))
+		{
+			// Una traccia illeggibile ferma tutto: un playback a meta' mostrerebbe uno stato che la partita
+			// non ha mai attraversato, e nessuno saprebbe da quale turno in poi e' inventato.
+			return false;
+		}
+		Voci.Append(MoveTemp(DiQuestoTurno));
+	}
+
+	PlaybackTrace = MoveTemp(Voci);
+	PlaybackScenarioIds = Authoring->GetLastRunScenarioIds();
+	PlaybackInitial = RTScenarioPlayback::InitialStatesFromViews(AllUnits, PlaybackScenarioIds);
+	bPlaybackOpen = true;
+
+	// All'inizio: turno 0, cioe' prima che qualunque voce sia stata applicata. E' la posa d'authoring, ma
+	// ottenuta per la STESSA strada delle altre posizioni — un caso speciale qui sarebbe la seconda strada
+	// che nessun test attraversa.
+	return SetPlaybackPosition(0, ERTMatchPhase::Cleanup);
+}
+
+void URTScenarioPreviewSubsystem::ClosePlayback()
+{
+	const bool bEra = bPlaybackOpen;
+
+	bPlaybackOpen = false;
+	PlaybackUnits.Reset();
+	PlaybackTrace.Reset();
+	PlaybackInitial.Reset();
+	PlaybackScenarioIds.Reset();
+
+	// Si ridisegna solo se c'era qualcosa da togliere: `ClosePlayback` e' chiamata anche da `OpenPlayback`
+	// e da `ClearPreview`, e in quei due casi un `ApplyPerspective` qui sarebbe una posa in piu' — su una
+	// preview che sta per essere ridisegnata o distrutta.
+	if (bEra && IsShowing())
+	{
+		ApplyPerspective();
+	}
+}
+
+bool URTScenarioPreviewSubsystem::SetPlaybackPosition(int32 TurnNumber, ERTMatchPhase Phase)
+{
+	if (!bPlaybackOpen)
+	{
+		return false;
+	}
+
+	// Lo stato dalla traccia — che non riesegue niente — e poi la traduzione verso le viste d'authoring.
+	// ⚠️ I due passi sono separati e provati separatamente: il primo non conosce lo scenario, il secondo
+	// non conosce la simulazione, e i due spazi di id si incontrano solo nel secondo.
+	const TArray<FRTTracedUnitState> Stati =
+		URTReplayStateLibrary::UnitsAtPosition(PlaybackTrace, PlaybackInitial, TurnNumber, Phase);
+
+	PlaybackUnits = RTScenarioPlayback::ViewsAtTracedStates(AllUnits, Stati, PlaybackScenarioIds);
+
+	// Da `ApplyPerspective` e non da uno `ShowUnits` diretto: la conoscenza si ricalcola sulle NUOVE
+	// posizioni, quindi velo, marcatori e confine raccontano lo stesso istante.
+	ApplyPerspective();
+	return true;
 }
 
 bool URTScenarioPreviewSubsystem::ShowScenario(const URTScenarioAuthoring* Authoring)
