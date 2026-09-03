@@ -1,6 +1,8 @@
 #include "Misc/AutomationTest.h"
 
+#include "Containers/StringConv.h"
 #include "HAL/FileManager.h"
+#include "HAL/UnrealMemory.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 
@@ -145,6 +147,353 @@ bool FRTPackagingEditorNamespaceNeverCookedTest::RunTest(const FString&)
 	// namespace per NON dover fare a mano a ogni asset.
 	TestTrue(TEXT("e la FAMIGLIA /Game/RT/Editor e' esclusa, non un suo singolo ramo"),
 		NeverCook.Contains(TEXT("/Game/RT/Editor")));
+	return true;
+}
+
+
+/**
+ * **Nessun package fuori da `/Game/RT/Editor/` ne referenzia uno dentro** (#2150, `D-280`).
+ *
+ * 🔑 **La directory e' UNA delle due vie d'ingresso nel cook, e questo test presidia l'ALTRA.**
+ * `EditorNamespaceIsNeverCooked` qui sopra guarda la configurazione; `PIE-PKG-EDITOR-NAMESPACE` guarda il
+ * contenuto del container. Nessuno dei due vede un asset trascinato dentro **per riferimento**, che e' il
+ * modo in cui un package escluso rientra comunque: se qualcosa di cotto lo referenzia, il cook lo segue.
+ *
+ * ⚠️ **Cosa protegge DAVVERO, perche' altrimenti sembra ridondante.** Gli strumenti di oggi sono
+ * `EditorUtilityWidget`, quindi editor-only, e il cook li scarta **per classe** — #1804 lo ha misurato su
+ * pacchetti veri: togliere il never-cook non li fa comparire. Un riferimento entrante verso di loro sarebbe
+ * un difetto, ma non li porterebbe nel pacchetto. Il caso che questo test protegge e' il **prossimo** asset
+ * messo sotto quel namespace che **non** sia editor-only — una texture, una mesh, un data asset: li'
+ * `SkipOnlyEditorOnly` non aiuta, `DirectoriesToNeverCook` lo escluderebbe, e un riferimento da fuori lo
+ * rimetterebbe dentro.
+ *
+ * 🔴 **NON usa l'`AssetRegistry`, e la ragione e' gia' scritta in questo repository.**
+ * `RTHexMapTests.cpp` rifiuta quella strada per un gate con parole che valgono identiche qui: *«dipende
+ * dall'AssetRegistry popolato e sarebbe verde per vacuita' il giorno in cui non lo trovasse — cioe' proprio
+ * il modo in cui un gate smette di guardare senza dirlo»*. Un test `EditorContext` che lo interrogasse prima
+ * della fine della scansione otterrebbe **zero riferimenti e passerebbe**. ∴ si leggono i byte da disco, col
+ * pattern di `RTHexMapTests` e `RTGoldenCorpusTests`.
+ *
+ * ⚠️ **Si cerca in ANSI E in UTF-16LE.** Unreal salva le `FString` in entrambe a seconda del contenuto, e
+ * una ricerca solo-ASCII darebbe uno **zero falso** — che qui sarebbe indistinguibile dal verde.
+ *
+ * ---
+ *
+ * ⛔ **I TRE LIMITI, dichiarati invece che lasciati dedurre:**
+ *
+ * 1. **L'invariante era gia' vero quando questo gate e' nato**, misurato il 2026-09-03: **0** riferimenti
+ *    entranti su 115 package esterni, su cinque livelli di token e due codifiche. ∴ questo test **non ha
+ *    scoperto un difetto**: e' un guardiano di regressione, e il suo valore e' tutto nel futuro. Chi lo
+ *    trovasse verde e lo credesse inutile starebbe leggendo la sua riuscita come inutilita'.
+ * 2. **Non vede i riferimenti da C++ ne' da `.ini`**: un `FSoftObjectPath` costruito a mano nel codice, o un
+ *    path in `DefaultEngine.ini`, non stanno in nessun `.uasset`. Misurati a parte lo stesso giorno
+ *    (`git grep "/Game/RT/Editor" -- Source/ Config/ Plugins/` da' **0**), ma questo test non li sorveglia.
+ * 3. **Non ricostruisce le catene transitive**: se A (fuori) referenzia B (fuori) che referenzia C (dentro),
+ *    l'arco B->C viene visto — ed e' quello che conta — ma la catena non viene tracciata.
+ *
+ * ⚠️ Il perimetro e' `Content/RT/`, il namespace proprietario, non l'intera `Content/`: e' cio' che
+ * `+DirectoriesToAlwaysCook=(Path="/Game/RT")` copre, e gli asset di terze parti non possono referenziare
+ * `/Game/RT/Editor/` per costruzione.
+ */
+
+namespace
+{
+	const TCHAR* RTEditorNamespace = TEXT("/Game/RT/Editor/");
+
+	/** I `.uasset`/`.umap` sotto una radice, come percorsi assoluti. */
+	TArray<FString> RTPackageFilesUnder(const FString& Root)
+	{
+		TArray<FString> Files;
+		IFileManager::Get().FindFilesRecursive(Files, *Root, TEXT("*.uasset"), true, false);
+		IFileManager::Get().FindFilesRecursive(Files, *Root, TEXT("*.umap"), true, false, false);
+		return Files;
+	}
+
+	/**
+	 * Il package path lungo di un file: `.../Content/RT/UI/X.uasset` diventa `/Game/RT/UI/X`.
+	 *
+	 * ⚠️ E' la chiave con cui un package ne nomina un altro nella propria tabella di import, quindi e'
+	 * questa — e non il nome nudo — la stringa da cercare.
+	 */
+	FString RTPackagePathOf(const FString& AbsoluteFile, const FString& ContentDir)
+	{
+		FString Relative = AbsoluteFile;
+		FPaths::MakePathRelativeTo(Relative, *ContentDir);
+		Relative.ReplaceInline(TEXT("\\"), TEXT("/"));
+		// ⚠️ `GetPath` + `GetBaseFilename` e non `SetExtension(TEXT(""))`: la seconda lascia il punto
+		// finale, e un package path che finisse con `.` non corrisponderebbe a nessuna tabella di import.
+		const FString Cartella = FPaths::GetPath(Relative);
+		const FString Nome     = FPaths::GetBaseFilename(Relative);
+		return Cartella.IsEmpty()
+			? FString(TEXT("/Game/")) + Nome
+			: FString(TEXT("/Game/")) + Cartella + TEXT("/") + Nome;
+	}
+
+	/** Cerca il token nei byte in **entrambe** le codifiche con cui Unreal salva le `FString`. */
+	bool RTBytesMentionPath(const TArray<uint8>& Bytes, const FString& PackagePath)
+	{
+		auto Contains = [&Bytes](const uint8* Needle, int32 Len) -> bool
+		{
+			if (Len <= 0 || Bytes.Num() < Len)
+			{
+				return false;
+			}
+			for (int32 I = 0; I + Len <= Bytes.Num(); ++I)
+			{
+				if (FMemory::Memcmp(Bytes.GetData() + I, Needle, Len) == 0)
+				{
+					return true;
+				}
+			}
+			return false;
+		};
+
+		const FTCHARToUTF8 Ansi(*PackagePath);
+		if (Contains(reinterpret_cast<const uint8*>(Ansi.Get()), Ansi.Length()))
+		{
+			return true;
+		}
+
+		TArray<uint8> Wide;
+		Wide.Reserve(PackagePath.Len() * 2);
+		for (const TCHAR C : PackagePath)
+		{
+			const uint16 U = static_cast<uint16>(C);
+			Wide.Add(static_cast<uint8>(U & 0xFF));
+			Wide.Add(static_cast<uint8>((U >> 8) & 0xFF));
+		}
+		return Contains(Wide.GetData(), Wide.Num());
+	}
+}
+
+/**
+ * 🔑 **L'invariante, piu' i due controlli che gli impediscono di essere verde per vacuita'.**
+ *
+ * Un test il cui esito atteso e' **zero** non puo' distinguere «non c'e' nessuna violazione» da «non ho
+ * guardato niente»: sono lo stesso numero. Per questo qui ci sono **due** asserzioni positive prima di
+ * quella che conta — il soggetto esiste, e il metodo di ricerca sa trovare archi veri.
+ *
+ * ✅ **VALIDATO PER MUTAZIONE, e la prima mutazione era sbagliata — vale la pena dire perche'.**
+ *
+ * *Primo tentativo*: puntato l'oracolo su `/Game/RT/UI/Match/`, un namespace che SO essere referenziato
+ * (`WBP_RT_ActionDock` -> `WBP_RT_ActionSlot`). **Resta VERDE**, e correttamente: i due asset stanno
+ * **entrambi** in `Match/`, quindi quell'arco e' *dentro->dentro*, che questo test ignora per costruzione.
+ * ⚠️ Una mutazione che non puo' cambiare l'esito non valida niente: sceglierla male e' facile quanto
+ * scrivere l'oracolo male, e il verde che ne esce ha esattamente lo stesso aspetto di quello buono.
+ *
+ * *Secondo tentativo*: `/Game/RT/UI/Icons/`, dove `DA_IconCatalog` vive **fuori** (in `/Game/RT/UI/`) e
+ * referenzia le icone **dentro**. **ROSSO**, `3/3 completati, 1 fallimenti`, con gli archi elencati uno per
+ * uno: *«/Game/RT/UI/DA_IconCatalog referenzia /Game/RT/UI/Icons/RT_UI_Icon_Action_Anchor»*.
+ *
+ * 🔴 **E il rosso ha trovato un difetto nel messaggio d'errore**, che il verde non poteva mostrare: il
+ * namespace era **trascritto a mano** nel testo, cosi' sotto mutazione l'oracolo diceva *«/Game/RT/Editor/
+ * e' escluso dal cook»* mentre stava misurando `/Game/RT/UI/Icons/`. Nel funzionamento normale le due
+ * stringhe coincidono, ed e' precisamente il motivo per cui un difetto del genere non si vede mai: ora il
+ * messaggio nomina la **costante**.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoReferencesIntoEditorNamespaceTest,
+	"RefactorTactics.Packaging.NoReferencesIntoEditorNamespace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoReferencesIntoEditorNamespaceTest::RunTest(const FString&)
+{
+	const FString ContentDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir());
+	const FString Perimetro  = FPaths::Combine(ContentDir, TEXT("RT"));
+
+	const TArray<FString> Files = RTPackageFilesUnder(Perimetro);
+
+	// ⛔ **Anti-vacuita' (a): il soggetto esiste.** Un oracolo che perde i propri file e resta verde e'
+	// peggio di un oracolo assente. La soglia non e' il conteggio esatto — che cresce a ogni asset nuovo —
+	// ma abbastanza alta da cadere se la scansione guardasse la cartella sbagliata: 117 il 2026-09-03.
+	if (!TestTrue(TEXT("i package di Content/RT/ si trovano"), Files.Num() >= 100))
+	{
+		AddError(FString::Printf(TEXT("trovati %d package sotto %s: la scansione guarda il posto sbagliato"),
+			Files.Num(), *Perimetro));
+		return false;
+	}
+
+	TArray<FString> Dentro;
+	TArray<FString> Fuori;
+	TMap<FString, FString> PathOf;
+	for (const FString& File : Files)
+	{
+		const FString Package = RTPackagePathOf(File, ContentDir);
+		PathOf.Add(File, Package);
+		if (Package.StartsWith(RTEditorNamespace))
+		{
+			Dentro.Add(File);
+		}
+		else
+		{
+			Fuori.Add(File);
+		}
+	}
+
+	// Nessun asset d'authoring: il test non ha soggetto, e non e' un difetto — e' un repository in cui il
+	// namespace e' ancora vuoto. Lo si dichiara e si esce verdi, invece di fingere una verifica.
+	if (Dentro.Num() == 0)
+	{
+		AddInfo(TEXT("nessun package sotto /Game/RT/Editor/: invariante vacuamente vero, niente da sorvegliare"));
+		return true;
+	}
+
+	int32 ArchiVeri = 0;
+	TArray<TPair<FString, FString>> Violazioni;
+
+	for (const FString& File : Fuori)
+	{
+		TArray<uint8> Bytes;
+		if (!FFileHelper::LoadFileToArray(Bytes, *File))
+		{
+			AddError(FString::Printf(TEXT("%s non si legge"), *File));
+			continue;
+		}
+
+		for (const FString& Bersaglio : Dentro)
+		{
+			if (RTBytesMentionPath(Bytes, PathOf[Bersaglio]))
+			{
+				Violazioni.Emplace(PathOf[File], PathOf[Bersaglio]);
+			}
+		}
+
+		// ⛔ **Anti-vacuita' (b): il metodo sa trovare archi VERI.** Senza questo, un difetto nella ricerca
+		// — codifica sbagliata, package path costruito male, `Memcmp` che non trova mai — darebbe zero
+		// violazioni e un verde perfetto. Si contano gli archi verso QUALSIASI package, non solo verso il
+		// namespace: il corpus ne ha per costruzione, e se il totale fosse zero il difetto sarebbe qui.
+		if (ArchiVeri == 0)
+		{
+			for (const TPair<FString, FString>& Altro : PathOf)
+			{
+				if (Altro.Key != File && RTBytesMentionPath(Bytes, Altro.Value))
+				{
+					++ArchiVeri;
+					break;
+				}
+			}
+		}
+	}
+
+	AddInfo(FString::Printf(
+		TEXT("perimetro Content/RT/: %d package, %d sotto /Game/RT/Editor/ e %d fuori; ")
+		TEXT("almeno un riferimento reale trovato: %s"),
+		Files.Num(), Dentro.Num(), Fuori.Num(), ArchiVeri > 0 ? TEXT("si") : TEXT("NO")));
+
+	TestTrue(TEXT("la ricerca sa trovare riferimenti veri, quindi lo zero qui sotto vale qualcosa"),
+		ArchiVeri > 0);
+
+	for (const TPair<FString, FString>& V : Violazioni)
+	{
+		// ⚠️ Il namespace si NOMINA dalla costante, non si trascrive: una copia a mano qui sarebbe una
+		// seconda fonte, e la verifica di mutazione l'ha mostrata mentire — puntato l'oracolo su
+		// `/Game/RT/UI/Icons/`, il messaggio continuava a dire `/Game/RT/Editor/`.
+		AddError(FString::Printf(
+			TEXT("%s referenzia %s, che vive nel namespace d'authoring `%s`. Quel namespace e' escluso dal ")
+			TEXT("cook (D-280, DefaultGame.ini): un riferimento da fuori lo trascina nel pacchetto, oppure ")
+			TEXT("lascia il referente rotto a runtime. Sposta l'asset fuori dal namespace, o togli il ")
+			TEXT("riferimento."),
+			*V.Key, *V.Value, RTEditorNamespace));
+	}
+	TestEqual(TEXT("nessun package fuori dal namespace d'authoring ne referenzia uno dentro"),
+		Violazioni.Num(), 0);
+	return true;
+}
+
+/**
+ * 🔴 **Il controllo positivo dell'oracolo qui sopra, e non e' un extra: e' l'unica evidenza che possa
+ * fallire.**
+ *
+ * L'invariante era **gia' vero** quando il gate e' nato — 0 violazioni su 115 package, misurato — quindi il
+ * test principale nasce verde e resta verde, e un verde che non ha mai potuto essere rosso non prova niente.
+ * Una mutazione sugli asset versionati non e' praticabile: un `.uasset` non si edita a mano.
+ *
+ * ∴ la violazione si **fabbrica**, col pattern che `RTHexMapTests` usa gia' per il `.uasset` su disco:
+ * si scrivono due finti package sotto `Saved/`, uno "dentro" il namespace e uno "fuori" che ne contiene il
+ * path, si punta la stessa ricerca su quella directory e si verifica che **la trovi**. Poi si cancella.
+ *
+ * ⛔ La fixture vive in `Saved/` e **non** in `Content/`: file di prova sotto `Content/` rischiano di
+ * finire versionati, ed e' esattamente il difetto che `.gitignore` di `D-304` e' stato scritto per evitare.
+ * ⚠️ E si verifica **entrambe** le codifiche, perche' e' la meta' che un test scritto in fretta dimentica:
+ * un finto package ANSI passerebbe anche con una ricerca che non sa leggere UTF-16.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEditorNamespaceScanDetectsAViolationTest,
+	"RefactorTactics.Packaging.EditorNamespaceScanDetectsAViolation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEditorNamespaceScanDetectsAViolationTest::RunTest(const FString&)
+{
+	const FString Bersaglio = TEXT("/Game/RT/Editor/Fixture/WBP_RT_FintoStrumento");
+
+	// Un package che NON lo nomina: la ricerca deve tacere, altrimenti direbbe di si' su qualunque cosa.
+	TArray<uint8> Innocente;
+	const FTCHARToUTF8 Altro(TEXT("/Game/RT/UI/Match/WBP_RT_QualcosAltro"));
+	Innocente.Append(reinterpret_cast<const uint8*>(Altro.Get()), Altro.Length());
+	TestFalse(TEXT("un package che non nomina il bersaglio non viene segnalato"),
+		RTBytesMentionPath(Innocente, Bersaglio));
+
+	// ANSI: la forma piu' comune nella tabella di import.
+	TArray<uint8> ColpevoleAnsi;
+	ColpevoleAnsi.Add(0x00);
+	const FTCHARToUTF8 Ansi(*Bersaglio);
+	ColpevoleAnsi.Append(reinterpret_cast<const uint8*>(Ansi.Get()), Ansi.Length());
+	ColpevoleAnsi.Add(0x00);
+	TestTrue(TEXT("un riferimento ANSI al namespace d'authoring viene trovato"),
+		RTBytesMentionPath(ColpevoleAnsi, Bersaglio));
+
+	// UTF-16LE: la meta' che una ricerca scritta in fretta non vede, e che darebbe uno zero falso.
+	TArray<uint8> ColpevoleWide;
+	ColpevoleWide.Add(0x00);
+	for (const TCHAR C : Bersaglio)
+	{
+		const uint16 U = static_cast<uint16>(C);
+		ColpevoleWide.Add(static_cast<uint8>(U & 0xFF));
+		ColpevoleWide.Add(static_cast<uint8>((U >> 8) & 0xFF));
+	}
+	TestTrue(TEXT("un riferimento UTF-16LE al namespace d'authoring viene trovato"),
+		RTBytesMentionPath(ColpevoleWide, Bersaglio));
+
+	// E ora la prova su FILE VERI, che e' cio' che il test principale fa: la scansione deve trovare l'arco
+	// fabbricato quando la si punta su una directory che lo contiene.
+	const FString Radice = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RTTests"), TEXT("Ns2150"));
+	const FString FileDentro = FPaths::Combine(Radice, TEXT("RT"), TEXT("Editor"), TEXT("Fixture"), TEXT("WBP_RT_FintoStrumento.uasset"));
+	const FString FileFuori  = FPaths::Combine(Radice, TEXT("RT"), TEXT("UI"), TEXT("WBP_RT_FintoReferente.uasset"));
+
+	IFileManager::Get().Delete(*FileDentro, false, true);
+	IFileManager::Get().Delete(*FileFuori, false, true);
+
+	TArray<uint8> Vuoto;
+	Vuoto.Add(0x00);
+	const bool bScrittoDentro = FFileHelper::SaveArrayToFile(Vuoto, *FileDentro);
+	const bool bScrittoFuori  = FFileHelper::SaveArrayToFile(ColpevoleAnsi, *FileFuori);
+	if (!TestTrue(TEXT("la fixture si scrive sotto Saved/"), bScrittoDentro && bScrittoFuori))
+	{
+		return false;
+	}
+
+	const TArray<FString> Trovati = RTPackageFilesUnder(Radice);
+	TestEqual(TEXT("la scansione trova entrambi i finti package"), Trovati.Num(), 2);
+
+	int32 Violazioni = 0;
+	for (const FString& File : Trovati)
+	{
+		const FString Package = RTPackagePathOf(File, Radice);
+		if (Package.StartsWith(RTEditorNamespace))
+		{
+			continue;
+		}
+		TArray<uint8> Bytes;
+		if (FFileHelper::LoadFileToArray(Bytes, *File) && RTBytesMentionPath(Bytes, Bersaglio))
+		{
+			++Violazioni;
+		}
+	}
+
+	// ⛔ L'asserzione per cui questo test esiste: **uno**, non zero. Se la scansione non trovasse la
+	// violazione fabbricata, il verde del test principale non significherebbe niente.
+	TestEqual(TEXT("la scansione TROVA la violazione fabbricata: l'oracolo sa diventare rosso"),
+		Violazioni, 1);
+
+	IFileManager::Get().Delete(*FileDentro, false, true);
+	IFileManager::Get().Delete(*FileFuori, false, true);
+	IFileManager::Get().DeleteDirectory(*Radice, false, true);
 	return true;
 }
 
