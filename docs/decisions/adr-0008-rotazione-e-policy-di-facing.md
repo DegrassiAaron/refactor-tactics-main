@@ -1,23 +1,34 @@
 # ADR-0008 — La rotazione è una capacità del personaggio, e il facing si dichiara per azione
 
-> `CANONICAL` · **Stato**: Accettato — **non implementato**, tracciato in
-> [#1605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1605) · **Data**: 2026-08-10 ·
-> **Decisore**: utente (dev singolo)
+> `CANONICAL` · **Stato**: Accettato · **§1 implementata** il 2026-09-03 da
+> [#1605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1605) · **§2 e §3 non ancora** ·
+> **Data**: 2026-08-10 · **Decisore**: utente (dev singolo)
 >
-> 🔴 **«Da implementare (E11/E16)» era orfano, ed è stato misurato il 2026-08-28 su `f8ea244b`.** `E16`
-> ([#175](https://github.com/DegrassiAaron/refactor-tactics-main/issues/175)) era **chiusa il 2026-08-09**,
-> cioè il giorno prima che questo ADR fosse accettato; `E11`
+> ✅ **Chi possiede l'implementazione: la §1 è di [#1605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1605), `v0.1 · Percezione e reazioni`.**
+> `MoveEndPivotMaxSteps` e `DashEndPivotMaxSteps` sono in `URTHeroData`, valorizzati dal catalogo eroi C++, e
+> `URTFacingLibrary::LegalFacings` decide sul **budget della famiglia di movimento** invece che sullo stile.
+> Coperta da `Facing.PivotBudgetLimitsLegalFacings`, `Facing.PivotBudgetZeroKeepsMovementDirection`,
+> `Facing.MoveAndDashBudgetsAreIndependent`, `Facing.StationaryRotationIsUniversal` e
+> `Facing.CatalogPivotBudgetsMatchAdr0008`.
+>
+> ⚠️ **La §2 (facing ai micro-step) e la §3 (policy per azione) restano non implementate**, e con esse i
+> **sette** test della tabella *Verifica* che le pinnano — fra cui `Facing.FinalPivotIsNotRetroactive`, che
+> [`D-295`](RT_PDR_00_Decision_Log.md) §(2) dà per esistente e non esiste. Non hanno ancora un owner
+> dichiarato: `Overwatch.TriggerReadsMicroStepFacing` confina con
+> [#1933](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1933).
+>
+> 🔴 **Perché era orfano, e resta scritto perché la forma del difetto è riusabile.** Misurato il 2026-08-28
+> su `f8ea244b`: `E16` ([#175](https://github.com/DegrassiAaron/refactor-tactics-main/issues/175)) era
+> **chiusa il 2026-08-09**, cioè il giorno prima che questo ADR fosse accettato; `E11`
 > ([#25](https://github.com/DegrassiAaron/refactor-tactics-main/issues/25)) è *HUD, log e debug* e non
-> possiede una regola del resolver. Risultato: `MoveEndPivotMaxSteps` e `DashEndPivotMaxSteps` hanno **0**
-> occorrenze in `Source/`, **nessun** corpo di issue li nominava, e **nessuno** dei test della tabella
-> *Verifica* qui sotto esiste. Il runtime applica ancora la tabella per **stile** di ADR-0005 §1 — quella
-> che questo documento dichiara di superare.
+> possiede una regola del resolver. Per diciotto giorni il runtime ha applicato la tabella per **stile** di
+> ADR-0005 §1 — quella che questo documento dichiara di superare — senza che **nessun gate** lo vedesse:
+> non esiste un controllo che confronti un ADR accettato con i simboli del codice.
 >
-> ⚠️ **E il trigger di revisione è già passato**: la §Revisione fissa la prima rilettura dei numeri «alla
+> ⚠️ **Il trigger di revisione dei numeri è già passato**: la §Revisione fissa la prima rilettura «alla
 > chiusura di `CP 16.2`», e [#177](https://github.com/DegrassiAaron/refactor-tactics-main/issues/177) è
-> **CLOSED**. Nessun gate confronta un ADR accettato con i simboli del codice, quindi la divergenza non ha
-> mai fatto rosso niente. La **release** in cui l'implementazione atterra non è decisa, ed è dichiarata come
-> domanda aperta nel corpo di #1605.
+> **CLOSED** — cioè è scaduto su un'implementazione che allora non esisteva. Ora esiste, e i suoi otto numeri
+> **non sono ancora stati tarati**: restano le ipotesi della §1, e la revisione è dovuta.
 >
 > **Chiude**: `FAC-1`, `FAC-2`, `FAC-4` di [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) · issue [#341](https://github.com/DegrassiAaron/refactor-tactics-main/issues/341) e [#339](https://github.com/DegrassiAaron/refactor-tactics-main/issues/339) (parziale)
 > **Supera**: [ADR-0005](adr-0005-orientamento.md) §1 (tabella delle direzioni legali) e §3 (regola universale dello spostamento subìto)
@@ -239,20 +250,26 @@ il passo successivo · **#7** rispettato (`FacingFromPath` è già una funzione 
 
 ## Verifica
 
-| Test | Cosa dimostra |
-|---|---|
-| `Facing.PivotBudgetLimitsLegalFacings` | con `MoveEndPivotMaxSteps = 1` sono legali `D` e `D±1`; con 3 tutte e sei |
-| `Facing.PivotBudgetZeroKeepsMovementDirection` | budget 0 (Riktor in Dash) ⇒ una sola direzione, quella del movimento — il comportamento di ADR-0005 conservato |
-| `Facing.MoveAndDashBudgetsAreIndependent` | il budget del Dash non è quello del Move sullo stesso eroe |
-| `Facing.StationaryRotationIsUniversal` | da fermo tutte e sei restano legali per ogni eroe |
-| `Facing.MicroStepFacingIsLastCompletedStep` | al boundary `k` il facing è la direzione di `Path[k-1] → Path[k]` |
-| `Facing.MicroStepZeroKeepsEntryFacing` | al primo boundary il facing è ancora quello d'ingresso |
-| `Facing.MicroStepFacingMatchesFinalAtLastStep` | l'ultimo boundary e `FacingFinalAfterMove` coincidono |
-| `Facing.FinalPivotIsNotRetroactive` | il pivot finale non cambia il facing che i boundary precedenti hanno letto |
-| `Overwatch.TriggerReadsMicroStepFacing` | il trigger valuta l'arco sul facing del boundary, non su quello iniziale né su quello finale |
-| `Facing.DefaultActionPolicyMatchesD020` | un'azione che non dichiara policy orienta verso il bersaglio come oggi |
-| `Facing.DefaultDisplacementPolicyMatchesAdr0005` | `Forced` ⇒ verso la sorgente, `Environmental` ⇒ invariato, senza dichiarazioni |
-| suite `Facing.*` e `HexMove.*` esistenti | nessun esito cambia per le azioni che non dichiarano policy |
+> **Stato misurato il 2026-09-03**, dopo #1605. Questa tabella era una lista di test **attesi** e non lo
+> dichiarava: il referto del 2026-08-31 aveva misurato **0 occorrenze** per tutte le righe, e `D-295` §(2)
+> ne cita una come se esistesse. La colonna *Stato* esiste perché quell'equivoco non si ripeta.
+
+| Test | Cosa dimostra | Stato |
+|---|---|---|
+| `Facing.PivotBudgetLimitsLegalFacings` | con `MoveEndPivotMaxSteps = 1` sono legali `D` e `D±1`; con 3 tutte e sei | ✅ §1 |
+| `Facing.PivotBudgetZeroKeepsMovementDirection` | budget 0 (Riktor in Dash) ⇒ una sola direzione, quella del movimento — il comportamento di ADR-0005 conservato | ✅ §1 |
+| `Facing.MoveAndDashBudgetsAreIndependent` | il budget del Dash non è quello del Move sullo stesso eroe | ✅ §1 |
+| `Facing.StationaryRotationIsUniversal` | da fermo tutte e sei restano legali per ogni eroe | ✅ §1 |
+| `Facing.CatalogPivotBudgetsMatchAdr0008` | gli otto numeri della §1 letti dal **catalogo**, non da costanti — aggiunto da #1605, non era in questa tabella | ✅ §1 |
+| `Facing.UnconfiguredUnitKeepsAdr0005Behaviour` | il default `Move 1 / Dash 0` conserva ADR-0005 per un'unità senza eroe — idem | ✅ §1 |
+| `Facing.MicroStepFacingIsLastCompletedStep` | al boundary `k` il facing è la direzione di `Path[k-1] → Path[k]` | ⛔ §2 — nessun owner |
+| `Facing.MicroStepZeroKeepsEntryFacing` | al primo boundary il facing è ancora quello d'ingresso | ⛔ §2 — nessun owner |
+| `Facing.MicroStepFacingMatchesFinalAtLastStep` | l'ultimo boundary e `FacingFinalAfterMove` coincidono | ⛔ §2 — nessun owner |
+| `Facing.FinalPivotIsNotRetroactive` | il pivot finale non cambia il facing che i boundary precedenti hanno letto | ⛔ §2 — **`D-295` §(2) lo dà per esistente** |
+| `Overwatch.TriggerReadsMicroStepFacing` | il trigger valuta l'arco sul facing del boundary, non su quello iniziale né su quello finale | ⛔ §2 — confina con [#1933](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1933) |
+| `Facing.DefaultActionPolicyMatchesD020` | un'azione che non dichiara policy orienta verso il bersaglio come oggi | ⛔ §3 — nessun owner |
+| `Facing.DefaultDisplacementPolicyMatchesAdr0005` | `Forced` ⇒ verso la sorgente, `Environmental` ⇒ invariato, senza dichiarazioni | ⛔ §3 — nessun owner |
+| suite `Facing.*` e `HexMove.*` esistenti | nessun esito cambia per le azioni che non dichiarano policy | ✅ regressione |
 
 ## Revisione
 

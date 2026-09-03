@@ -2071,6 +2071,22 @@ sessions:
       dell'editor (`RTDevSandboxLauncherSubsystem.cpp:44,68`) — una lacuna di configurazione, non un
       difetto di vita degli oggetti, e per questo **fuori** da #2115. Chi decide che il posto giusto è
       dockato apra la sua issue; questa nota esiste perché la constatazione non si perda.
+      🔄 **Ripresa la sera del 2026-09-02, dopo il merge di #2115 — e ancora NON conclusa.** L'ordine è
+      stato verificato prima di guardare, come `U32` insegna: sorgente `19:22:22` → DLL `19:23:45` →
+      editor `19:45:22`, quindi il binario contiene davvero la correzione. In quella sessione il log porta
+      **quattro** cambi di mappa e **zero** occorrenze di `World Memory Leaks` o `not cleaned up by GC`.
+      🔴 **Ma il risultato NON è ancora una prova, e la ragione va scritta o si riperde.** Il difetto di
+      #2115 si manifesta solo con un'**anteprima attiva**: senza, anche il codice rotto non crashava —
+      misurato nel log del crash, `L_DevSandbox → L_GrayKitPlayground` alle `16:15:37` passò indenne
+      proprio per questo. E se l'anteprima fosse stata accesa **il log non lo direbbe**:
+      `URTScenarioPreviewSubsystem` non scrive nessuna riga, quindi la premessa può confermarla solo chi
+      guarda. Un verdetto che non la dichiara è verde per una premessa diversa da quella scritta.
+      📋 **Cosa resta da fare, in ordine.** (a) Su `L_DevSandbox`, selezionare uno scenario nel pannello e
+      **confermare a schermo** che la board coi marcatori compaia — è la premessa, e va dichiarata nel
+      verdetto. (b) Con l'anteprima accesa, aprire `L_HexArena`: non deve crashare, l'anteprima deve
+      **sparire**, e il tab **non** deve ricomparire da sé (quest'ultimo è il criterio proprio di questa
+      seduta). (c) I passi 3, 4 e 5 del `done_when`. (d) Il controllo finale sul dirty, che vale solo se
+      nessuno ha premuto `Ctrl+S`.
       ⚠️ I passi 3, 4 e 5 restano **NON ESEGUITI**.
 
   - id: U32

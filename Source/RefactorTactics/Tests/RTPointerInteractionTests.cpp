@@ -504,13 +504,18 @@ bool FRTPointerIllegalFacingRejectedTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, -2, 0));
+	// 🔴 **Riktor e non Wraith, e la sostituzione e' il punto del test** — ADR-0008 §1 (#1605). Questo test
+	// ha bisogno che esista almeno una direzione ILLEGALE da rifiutare, e con Wraith non esiste piu':
+	// `MoveEndPivotMaxSteps = 3` gli concede tutte e sei le direzioni a fine Move. Riktor, con budget 1, ne
+	// concede tre e ne lascia tre da rifiutare. Il soggetto del test — «una rotazione illegale e'
+	// rifiutata» — resta lo stesso; cambia l'eroe che ne ha ancora una.
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 
 	PC->SelectActorForTest(Unit);
 
-	// Con un percorso pianificato lo stile diventa `Budget`: restano solo le tre direzioni dell'ultimo passo.
+	// Con un percorso pianificato lo stile diventa `Budget`: restano le direzioni del budget dell'eroe.
 	PC->HandleClickOnCell(FRTCellId(3, -2, 0));
 	if (!TestTrue(TEXT("premessa: c'e' un percorso pianificato"), Unit->PlannedPath.Num() > 1))
 	{
@@ -523,8 +528,8 @@ bool FRTPointerIllegalFacingRejectedTest::RunTest(const FString&)
 	// c'e' dentro, qualunque essa sia. Hardcodarne una renderebbe il test dipendente dalla geometria della
 	// mappa di prova invece che dalla regola.
 	const TArray<ERTHexDirection> Legal = URTFacingLibrary::LegalFacings(
-		ERTMovementStyle::Budget, Unit->PlannedPath, Unit->Facing);
-	if (!TestTrue(TEXT("premessa: a budget le direzioni legali sono meno di sei"), Legal.Num() < 6))
+		ERTMovementStyle::Budget, Unit->PlannedPath, Unit->Facing, Unit->PivotBudget());
+	if (!TestTrue(TEXT("premessa: il budget di questo eroe lascia meno di sei direzioni"), Legal.Num() < 6))
 	{
 		DestroyPointerWorld(World); return false;
 	}
@@ -581,7 +586,8 @@ bool FRTCycleDeclaredFacingTest::RunTest(const FString&)
 	// partenza. Un'implementazione che dichiarasse sempre la stessa direzione passerebbe un controllo
 	// scritto solo su «dopo la pressione c'e' una dichiarazione».
 	const TArray<ERTHexDirection> Legali =
-		URTFacingLibrary::LegalFacings(ERTMovementStyle::None, Unit->PlannedPath, Unit->Facing);
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::None, Unit->PlannedPath, Unit->Facing,
+			Unit->PivotBudget());
 	TestEqual(TEXT("da ferma le legali sono sei"), Legali.Num(), 6);
 
 	TSet<ERTHexDirection> Viste;
@@ -683,7 +689,8 @@ bool FRTPlannedFacingPreviewTest::RunTest(const FString&)
 	// divergessero, l'anteprima mostrerebbe una direzione e il turno ne produrrebbe un'altra.
 	PC->BeginFacingDeclaration();
 	const TArray<ERTHexDirection> Legali =
-		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, Unit->PlannedPath, Unit->Facing);
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, Unit->PlannedPath, Unit->Facing,
+			Unit->PivotBudget());
 	const ERTHexDirection Scelta = Legali.Last();   // una legale diversa dal derivato, quando ce n'e' piu' d'una
 	if (TestTrue(TEXT("la dichiarazione e' accettata"), PC->HandleFacingSector(Scelta)))
 	{
