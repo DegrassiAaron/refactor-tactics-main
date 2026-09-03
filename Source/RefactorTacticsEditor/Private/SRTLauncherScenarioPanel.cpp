@@ -52,8 +52,23 @@ namespace
 	 */
 	FText DescribePosition(const FRTReplayPosition& Posizione)
 	{
+		// 🔴 **`Ended` e `BeforeStart` sono DUE stati diversi**, e `HasTurn()` e' falso in entrambi: la
+		// prima stesura guardava solo quello e scriveva *«Posa iniziale»* anche a partita finita. Si vedeva
+		// subito — bastava premere `>` fino in fondo — ma nessun automation test poteva accorgersene, perche'
+		// questa e' una stringa di presentazione in un pannello Slate. Trovato via MCP il 2026-09-04.
+		if (Posizione.State == ERTReplayPositionState::Ended)
+		{
+			return LOCTEXT("PlaybackAtEnd", "Fine della risoluzione.");
+		}
+
 		if (!Posizione.HasTurn())
 		{
+			// Restano `BeforeStart` e `Unaddressable`. Il secondo porta una fase leggibile ma nessun turno:
+			// dirlo e' meglio che tacerlo, perche' altrimenti si legge come l'inizio.
+			if (Posizione.HasPhase())
+			{
+				return LOCTEXT("PlaybackUnaddressable", "Posizione non raggiungibile nella traccia.");
+			}
 			return LOCTEXT("PlaybackAtStart", "Posa iniziale.");
 		}
 
@@ -707,13 +722,22 @@ FReply SRTLauncherScenarioPanel::OnRunScenarioClicked()
 	// marcatori di QUELLA. Senza, una corsa lanciata mentre l'anteprima non c'e' non aprirebbe niente, e il
 	// pulsante sembrerebbe non funzionare.
 	Preview->ShowScenario(Authoring.Get());
-
-	ReadoutError = Preview->OpenPlayback(Authoring.Get())
-		? FString()
-		: FString(TEXT("la corsa non ha lasciato una traccia riproducibile"));
+	Preview->OpenPlayback(Authoring.Get());
 
 	Authoring->Close();
-	RefreshReadout();
+
+	// 🔴 **Qui NON si chiama `RefreshReadout()`, ed e' la riga che fa funzionare il pulsante.** Quella
+	// funzione riapre il draft e rifa' `ShowScenario`, che comincia con `ClearPreview()` — la quale chiude il
+	// playback. Il primo tentativo la chiamava in fondo «per aggiornare il referto», e il risultato era che
+	// il playback si apriva e veniva chiuso una riga dopo: i controlli restavano spenti e il pannello
+	// diceva ancora *«Nessun playback»* dopo una corsa riuscita.
+	//
+	// ⚠️ **Nessun automation test poteva vederlo**: i test chiamano `OpenPlayback` direttamente, mentre il
+	// difetto stava nella SEQUENZA del pannello. L'ha trovato una sessione d'editor pilotata via MCP, il
+	// 2026-09-04.
+	//
+	// Il referto non ne soffre: e' gia' quello dello scenario selezionato, e la riga di stato del trasporto
+	// legge il sottosistema a ogni frame, quindi dice da sola se il playback si e' aperto.
 	return FReply::Handled();
 }
 
