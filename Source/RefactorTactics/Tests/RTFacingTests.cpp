@@ -1,4 +1,6 @@
 #include "Misc/AutomationTest.h"
+#include "Ability/RTHeroCatalogLibrary.h" // ADR-0008 §1: i budget si leggono dal CATALOGO, non da costanti
+#include "Ability/RTHeroData.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexLibrary.h"
 #include "Turn/RTFacingLibrary.h"
@@ -12,11 +14,23 @@
 
 /**
  * CP 16.1 — il facing e' STATO DI GIOCO, non yaw di presentazione. Questi test fissano la parte pura:
- * quale direzione deriva da un movimento, quali rotazioni sono legali per stile, e cosa succede quando
- * l'unita' viene spostata da qualcun altro invece che dalla propria volonta'.
+ * quale direzione deriva da un movimento, quali rotazioni sono legali per il BUDGET DI PIVOT del
+ * personaggio, e cosa succede quando l'unita' viene spostata da qualcun altro invece che dalla propria
+ * volonta'.
  *
- * Riferimento: ADR-0005 (orientamento) emendato da D-020 (timeline del facing per round).
+ * Riferimento: ADR-0005 (orientamento) emendato da D-020 (timeline del facing per round) e **superato nella
+ * §1 da ADR-0008** (`#1605`): diceva «legali per stile», e quella era la tabella che ADR-0008 ha sostituito.
  */
+
+/**
+ * ADR-0005 §1 scritto nell'unita' di misura di ADR-0008: `D, D±1` a fine Move **e'** un budget 1, una sola
+ * direzione dopo un lineare **e'** un budget 0.
+ *
+ * ⚠️ Non e' una costante di comodo dei test: coincide con il default di `FRTPivotBudget`, cioe' con cio' che
+ * vale per un'unita' mai configurata da un eroe. I test che la usano dimostrano che quel percorso non ha
+ * cambiato comportamento; quelli che passano un budget diverso dimostrano ADR-0008.
+ */
+static const FRTPivotBudget Adr0005Budget{ 1, 0 };
 
 /** Percorso di celle adiacenti a partire da Start, seguendo le direzioni indicate. Start incluso. */
 static TArray<FRTCellId> MakePath(const FRTCellId& Start, const TArray<ERTHexDirection>& Steps)
@@ -42,7 +56,7 @@ bool FRTFacingLinearMoveDerivesDirectionTest::RunTest(const FString&)
 
 	// Una mobilita' lineare non lascia scelta: la direzione E' il movimento, non un input.
 	const TArray<ERTHexDirection> Legal =
-		URTFacingLibrary::LegalFacings(ERTMovementStyle::LinearDash, Path, ERTHexDirection::SW);
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::LinearDash, Path, ERTHexDirection::SW, Adr0005Budget);
 	TestEqual(TEXT("una sola direzione legale"), Legal.Num(), 1);
 	TestTrue(TEXT("ed e' quella del movimento"), Legal.Num() == 1 && Legal[0] == ERTHexDirection::E);
 
@@ -54,7 +68,7 @@ bool FRTFacingLinearMoveDerivesDirectionTest::RunTest(const FString&)
 										  ERTMovementStyle::LinearPass })
 	{
 		TestEqual(TEXT("gli stili lineari hanno una sola direzione legale"),
-			URTFacingLibrary::LegalFacings(Style, Path, ERTHexDirection::SW).Num(), 1);
+			URTFacingLibrary::LegalFacings(Style, Path, ERTHexDirection::SW, Adr0005Budget).Num(), 1);
 	}
 
 	// La primitiva geometrica non inventa direzioni fra celle non adiacenti.
@@ -71,11 +85,17 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingBudgetMoveAllowsLastStepPlusMinusOneTe
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTFacingBudgetMoveAllowsLastStepPlusMinusOneTest::RunTest(const FString&)
 {
+	// ⚠️ **RILETTO dopo ADR-0008 (#1605), e il nome ora dice meno di quel che sembra.** Questo test
+	// descriveva la REGOLA — «il Move a budget concede D e D±1». Da ADR-0008 §1 quella non e' piu' una
+	// regola universale ma il comportamento di **un eroe con `MoveEndPivotMaxSteps = 1`**, che e' Riktor
+	// nel roster e il default per un'unita' non configurata. Resta vero e resta utile — pinna il default —
+	// ma non prova piu' nulla sugli altri tre eroi: quelli li provano i test `PivotBudget*` qui sotto.
+
 	// Ultimo passo NE (1): le legali sono NE e le due adiacenti nell'ordine ciclico, E (0) e NW (2).
 	const TArray<FRTCellId> Path = MakePath(FRTCellId(0, 0, 0), { ERTHexDirection::E, ERTHexDirection::NE });
 
 	const TArray<ERTHexDirection> Legal =
-		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, Path, ERTHexDirection::SW);
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, Path, ERTHexDirection::SW, Adr0005Budget);
 	TestEqual(TEXT("tre direzioni legali"), Legal.Num(), 3);
 	TestTrue(TEXT("contiene l'ultimo passo"), Legal.Contains(ERTHexDirection::NE));
 	TestTrue(TEXT("contiene D-1"), Legal.Contains(ERTHexDirection::E));
@@ -89,7 +109,7 @@ bool FRTFacingBudgetMoveAllowsLastStepPlusMinusOneTest::RunTest(const FString&)
 	// Il ciclo si chiude: da E (0) le adiacenti sono SE (5) e NE (1), non "-1" che non esiste.
 	const TArray<FRTCellId> EastPath = MakePath(FRTCellId(0, 0, 0), { ERTHexDirection::E });
 	const TArray<ERTHexDirection> LegalEast =
-		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, EastPath, ERTHexDirection::W);
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, EastPath, ERTHexDirection::W, Adr0005Budget);
 	TestTrue(TEXT("il vicino ciclico di E e' SE"), LegalEast.Contains(ERTHexDirection::SE));
 	TestTrue(TEXT("e NE"), LegalEast.Contains(ERTHexDirection::NE));
 
@@ -109,7 +129,7 @@ bool FRTFacingRejectsIllegalDeclaredRotationTest::RunTest(const FString&)
 	// SW e' l'opposta dell'ultimo passo: fuori dall'insieme legale di un movimento a budget.
 	ERTHexDirection Result = ERTHexDirection::E;
 	const bool bAccepted = URTFacingLibrary::TryApplyDeclaredFacing(
-		ERTMovementStyle::Budget, Path, ERTHexDirection::W, ERTHexDirection::SW, Result);
+		ERTMovementStyle::Budget, Path, ERTHexDirection::W, ERTHexDirection::SW, Adr0005Budget, Result);
 
 	TestFalse(TEXT("rotazione illegale rifiutata"), bAccepted);
 	// RIFIUTATA, non corretta in silenzio: il facing resta quello di partenza, non diventa il piu' vicino legale.
@@ -119,14 +139,14 @@ bool FRTFacingRejectsIllegalDeclaredRotationTest::RunTest(const FString&)
 	ERTHexDirection Legal = ERTHexDirection::E;
 	TestTrue(TEXT("rotazione legale accettata"),
 		URTFacingLibrary::TryApplyDeclaredFacing(
-			ERTMovementStyle::Budget, Path, ERTHexDirection::W, ERTHexDirection::NW, Legal));
+			ERTMovementStyle::Budget, Path, ERTHexDirection::W, ERTHexDirection::NW, Adr0005Budget, Legal));
 	TestTrue(TEXT("applica la dichiarata"), Legal == ERTHexDirection::NW);
 
 	// Su stile lineare NESSUNA dichiarazione diversa dal movimento e' legale.
 	ERTHexDirection LinearResult = ERTHexDirection::E;
 	TestFalse(TEXT("il lineare non accetta rotazioni dichiarate"),
 		URTFacingLibrary::TryApplyDeclaredFacing(
-			ERTMovementStyle::LinearDash, Path, ERTHexDirection::W, ERTHexDirection::NW, LinearResult));
+			ERTMovementStyle::LinearDash, Path, ERTHexDirection::W, ERTHexDirection::NW, Adr0005Budget, LinearResult));
 	return true;
 }
 
@@ -135,10 +155,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingStationaryUnitRotatesFreelyTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTFacingStationaryUnitRotatesFreelyTest::RunTest(const FString&)
 {
+	// ✅ **RILETTO dopo ADR-0008 (#1605): resta vero senza modifiche, e la ragione conta.** Lo stazionario
+	// non e' passato a un budget per eroe — `StationaryPivotMaxSteps` resta **universale a 3**, e l'ADR §1
+	// scarta esplicitamente la variante per personaggio. Questo test copre il default; che valga per OGNI
+	// eroe del catalogo lo prova `Facing.StationaryRotationIsUniversal`.
+
 	// Nessun movimento: sei direzioni legali, rotazione libera dichiarata.
 	const TArray<FRTCellId> NoPath;
 	const TArray<ERTHexDirection> Legal =
-		URTFacingLibrary::LegalFacings(ERTMovementStyle::None, NoPath, ERTHexDirection::E);
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::None, NoPath, ERTHexDirection::E, Adr0005Budget);
 	TestEqual(TEXT("sei direzioni legali"), Legal.Num(), 6);
 
 	for (uint8 Raw = 0; Raw < 6; ++Raw)
@@ -147,7 +172,7 @@ bool FRTFacingStationaryUnitRotatesFreelyTest::RunTest(const FString&)
 		ERTHexDirection Result = ERTHexDirection::E;
 		TestTrue(TEXT("ogni direzione e' accettata da fermo"),
 			URTFacingLibrary::TryApplyDeclaredFacing(
-				ERTMovementStyle::None, NoPath, ERTHexDirection::E, Declared, Result));
+				ERTMovementStyle::None, NoPath, ERTHexDirection::E, Declared, Adr0005Budget, Result));
 		TestTrue(TEXT("applica la dichiarata"), Result == Declared);
 	}
 
@@ -502,6 +527,249 @@ bool FRTFacingIntentIsTeamFilteredTest::RunTest(const FString&)
 	// La posa attuale invece si vede: negarla nasconderebbe cio' che si ha davanti agli occhi.
 	TestTrue(TEXT("la posa attuale e' pubblica"), EnemyView.Facing == ERTHexDirection::NW);
 	TestTrue(TEXT("e vale anche per l'alleato"), AllyView.Facing == ERTHexDirection::NW);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// ADR-0008 §1 — il pivot finale e' una capacita' del PERSONAGGIO (#1605).
+//
+// Quattro dei test della tabella §Verifica dell'ADR, piu' i due che il DoD della issue chiede in aggiunta.
+// Gli altri sette della tabella pinnano §2 (facing ai micro-step) e §3 (policy d'azione), che questa issue
+// non implementa: sono dichiarati nel D009 della issue, non lasciati impliciti qui.
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingPivotBudgetLimitsLegalFacingsTest,
+	"RefactorTactics.Facing.PivotBudgetLimitsLegalFacings",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingPivotBudgetLimitsLegalFacingsTest::RunTest(const FString&)
+{
+	// Ultimo passo NE (1). Il cono si apre attorno a NE di `N` step per lato.
+	const TArray<FRTCellId> Path = MakePath(FRTCellId(0, 0, 0), { ERTHexDirection::E, ERTHexDirection::NE });
+
+	// N = 1 -> NE e le due adiacenti: E (0), NE (1), NW (2).
+	const TArray<ERTHexDirection> One =
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, Path, ERTHexDirection::SW, FRTPivotBudget(1, 0));
+	TestEqual(TEXT("budget 1 -> tre direzioni"), One.Num(), 3);
+	TestTrue(TEXT("budget 1 contiene D"), One.Contains(ERTHexDirection::NE));
+	TestTrue(TEXT("budget 1 contiene D-1"), One.Contains(ERTHexDirection::E));
+	TestTrue(TEXT("budget 1 contiene D+1"), One.Contains(ERTHexDirection::NW));
+
+	// N = 2 -> cinque: si aggiungono D±2, e l'unica esclusa e' l'OPPOSTA dell'ultimo passo.
+	const TArray<ERTHexDirection> Two =
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, Path, ERTHexDirection::SW, FRTPivotBudget(2, 0));
+	TestEqual(TEXT("budget 2 -> cinque direzioni"), Two.Num(), 5);
+	TestFalse(TEXT("budget 2 esclude l'opposta dell'ultimo passo"), Two.Contains(ERTHexDirection::SW));
+
+	// N = 3 -> tutte e sei. E' la riga «max 180 gradi» dell'ADR.
+	const TArray<ERTHexDirection> Three =
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, Path, ERTHexDirection::SW, FRTPivotBudget(3, 0));
+	TestEqual(TEXT("budget 3 -> sei direzioni"), Three.Num(), 6);
+
+	// L'ampiezza CRESCE con il budget e ogni insieme contiene il precedente: senza questo, tre asserzioni
+	// separate potrebbero essere tutte vere con una funzione che ignora il budget e ritorna insiemi a caso.
+	for (const ERTHexDirection Dir : One)
+	{
+		TestTrue(TEXT("l'insieme a 2 contiene quello a 1"), Two.Contains(Dir));
+	}
+	for (const ERTHexDirection Dir : Two)
+	{
+		TestTrue(TEXT("l'insieme a 3 contiene quello a 2"), Three.Contains(Dir));
+	}
+
+	// Ordine stabile per valore di enum, a ogni ampiezza: `CycleDeclaredFacing` ci si appoggia.
+	for (int32 I = 1; I < Two.Num(); ++I)
+	{
+		TestTrue(TEXT("ordinate per valore di enum"), static_cast<uint8>(Two[I - 1]) < static_cast<uint8>(Two[I]));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingPivotBudgetZeroKeepsMovementDirectionTest,
+	"RefactorTactics.Facing.PivotBudgetZeroKeepsMovementDirection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingPivotBudgetZeroKeepsMovementDirectionTest::RunTest(const FString&)
+{
+	// Riktor in Dash: budget 0, cioe' il comportamento di ADR-0005 per i `Linear*` CONSERVATO.
+	const URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+	if (!Riktor)
+	{
+		AddError(TEXT("il catalogo non ha prodotto Riktor"));
+		return false;
+	}
+	const FRTPivotBudget Budget(Riktor->MoveEndPivotMaxSteps, Riktor->DashEndPivotMaxSteps);
+
+	const TArray<FRTCellId> Path = MakePath(FRTCellId(0, 0, 0), { ERTHexDirection::E, ERTHexDirection::E });
+	const TArray<ERTHexDirection> Legal =
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::LinearDash, Path, ERTHexDirection::SW, Budget);
+
+	TestEqual(TEXT("budget 0 -> una sola direzione"), Legal.Num(), 1);
+	TestTrue(TEXT("ed e' quella del movimento"), Legal.Num() == 1 && Legal[0] == ERTHexDirection::E);
+
+	// E il rifiuto e' l'esito osservabile: nessuna dichiarazione diversa passa.
+	ERTHexDirection Result = ERTHexDirection::SW;
+	TestFalse(TEXT("con budget 0 nessuna rotazione dichiarata e' accettata"),
+		URTFacingLibrary::TryApplyDeclaredFacing(ERTMovementStyle::LinearDash, Path, ERTHexDirection::SW,
+			ERTHexDirection::NE, Budget, Result));
+	TestTrue(TEXT("e il facing non viene corretto in silenzio"), Result == ERTHexDirection::SW);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingMoveAndDashBudgetsAreIndependentTest,
+	"RefactorTactics.Facing.MoveAndDashBudgetsAreIndependent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingMoveAndDashBudgetsAreIndependentTest::RunTest(const FString&)
+{
+	// Phase e' la coppia che dimostra da sola perche' i budget sono DUE: Move 2, Dash 3.
+	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	if (!Phase)
+	{
+		AddError(TEXT("il catalogo non ha prodotto Phase"));
+		return false;
+	}
+	const FRTPivotBudget Budget(Phase->MoveEndPivotMaxSteps, Phase->DashEndPivotMaxSteps);
+	const TArray<FRTCellId> Path = MakePath(FRTCellId(0, 0, 0), { ERTHexDirection::E, ERTHexDirection::NE });
+
+	const int32 MoveNum =
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, Path, ERTHexDirection::SW, Budget).Num();
+	const int32 DashNum =
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::LinearDash, Path, ERTHexDirection::SW, Budget).Num();
+
+	TestEqual(TEXT("Move di Phase (2) -> cinque direzioni"), MoveNum, 5);
+	TestEqual(TEXT("Dash di Phase (3) -> sei direzioni"), DashNum, 6);
+	TestTrue(TEXT("i due budget dello STESSO eroe danno insiemi diversi"), MoveNum != DashNum);
+
+	// La mappa stile -> famiglia, esplicita: e' cio' che l'ADR presupponeva senza scriverlo.
+	TestTrue(TEXT("Budget e' famiglia Move"),
+		URTFacingLibrary::FamilyForStyle(ERTMovementStyle::Budget) == ERTMovementFamily::Move);
+	TestTrue(TEXT("None e' famiglia Stationary"),
+		URTFacingLibrary::FamilyForStyle(ERTMovementStyle::None) == ERTMovementFamily::Stationary);
+	for (const ERTMovementStyle Style : { ERTMovementStyle::LinearDash, ERTMovementStyle::LinearCharge,
+										  ERTMovementStyle::LinearLeap, ERTMovementStyle::LinearPass })
+	{
+		TestTrue(TEXT("ogni Linear* e' famiglia Dash"),
+			URTFacingLibrary::FamilyForStyle(Style) == ERTMovementFamily::Dash);
+		TestEqual(TEXT("e legge il budget Dash"),
+			URTFacingLibrary::PivotStepsForStyle(Budget, Style), Phase->DashEndPivotMaxSteps);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingStationaryRotationIsUniversalTest,
+	"RefactorTactics.Facing.StationaryRotationIsUniversal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingStationaryRotationIsUniversalTest::RunTest(const FString&)
+{
+	// `StationaryPivotMaxSteps` resta universale a 3 (ADR-0008 §1, che scarta la variante per eroe): da
+	// fermo TUTTI e quattro ruotano libero, compreso Riktor che in Dash non ruota affatto.
+	const TArray<FRTCellId> NoPath;
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	TestEqual(TEXT("il roster v0.1 ha quattro eroi"), Roster.Num(), 4);
+
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!Hero)
+		{
+			AddError(TEXT("eroe nullo nel roster"));
+			continue;
+		}
+		const FRTPivotBudget Budget(Hero->MoveEndPivotMaxSteps, Hero->DashEndPivotMaxSteps);
+		const FString Who = Hero->HeroId.ToString();
+
+		TestEqual(*FString::Printf(TEXT("%s: da fermo tre step"), *Who),
+			URTFacingLibrary::PivotStepsForStyle(Budget, ERTMovementStyle::None), 3);
+		TestEqual(*FString::Printf(TEXT("%s: da fermo sei direzioni"), *Who),
+			URTFacingLibrary::LegalFacings(ERTMovementStyle::None, NoPath, ERTHexDirection::E, Budget).Num(), 6);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingCatalogPivotBudgetsMatchAdr0008Test,
+	"RefactorTactics.Facing.CatalogPivotBudgetsMatchAdr0008",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingCatalogPivotBudgetsMatchAdr0008Test::RunTest(const FString&)
+{
+	// La tabella §1 di ADR-0008, letta dal CATALOGO e non da costanti locali — e' il criterio letterale del
+	// DoD di #1605. Azzerare un budget nel catalogo fa rosso QUI e in `MoveAndDashBudgetsAreIndependent` o
+	// `PivotBudgetZeroKeepsMovementDirection`, che e' la verifica di mutazione che la issue chiede: non
+	// basta che cada il test che nomina il campo.
+	struct FExpected { const TCHAR* HeroId; int32 Move; int32 Dash; };
+	const FExpected Expected[] = {
+		{ TEXT("Hero.Gadget"), 2, 2 },
+		{ TEXT("Hero.Phase"),  2, 3 },
+		{ TEXT("Hero.Riktor"), 1, 0 },
+		{ TEXT("Hero.Wraith"), 3, 3 },
+	};
+
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	TestEqual(TEXT("il roster v0.1 ha quattro eroi"), Roster.Num(), 4);
+
+	for (const FExpected& E : Expected)
+	{
+		const URTHeroData* const* Found = Roster.FindByPredicate(
+			[&E](const URTHeroData* H) { return H && H->HeroId == FName(E.HeroId); });
+		if (!Found || !*Found)
+		{
+			AddError(FString::Printf(TEXT("%s non e' nel roster"), E.HeroId));
+			continue;
+		}
+		TestEqual(*FString::Printf(TEXT("%s MoveEndPivotMaxSteps"), E.HeroId),
+			(*Found)->MoveEndPivotMaxSteps, E.Move);
+		TestEqual(*FString::Printf(TEXT("%s DashEndPivotMaxSteps"), E.HeroId),
+			(*Found)->DashEndPivotMaxSteps, E.Dash);
+	}
+
+	// Il roster passa la propria validazione: se un budget uscisse da 0-3, `ValidateHeroes` lo direbbe
+	// nominando l'eroe invece di lasciarlo clampare in silenzio a runtime.
+	TArray<const URTHeroData*> AsConst;
+	for (const URTHeroData* H : Roster) { AsConst.Add(H); }
+	TestEqual(TEXT("il roster non produce errori di validazione"),
+		URTHeroCatalogLibrary::ValidateHeroes(AsConst).Num(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingUnconfiguredUnitKeepsAdr0005BehaviourTest,
+	"RefactorTactics.Facing.UnconfiguredUnitKeepsAdr0005Behaviour",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingUnconfiguredUnitKeepsAdr0005BehaviourTest::RunTest(const FString&)
+{
+	// 🔑 Il default NON e' zero, ed e' la scelta che tiene ADR-0008 retrocompatibile: un'unita' piazzata a
+	// mano in livello, o configurata con `nullptr`, si comporta come PRIMA dell'ADR — non come una statua
+	// senza rotazione, che e' quello che darebbe un default a 0.
+	const FRTPivotBudget Default;
+	TestEqual(TEXT("default Move = 1 (D, D±1 di ADR-0005)"), Default.MoveEndMaxSteps, 1);
+	TestEqual(TEXT("default Dash = 0 (una direzione di ADR-0005)"), Default.DashEndMaxSteps, 0);
+
+	// Lo stesso default vale sul DATO del catalogo, non solo nella struct: un eroe nuovo che si dimenticasse
+	// di dichiarare i budget erediterebbe ADR-0005, non il silenzio.
+	const URTHeroData* Bare = NewObject<URTHeroData>();
+	if (!Bare)
+	{
+		AddError(TEXT("NewObject<URTHeroData> ha restituito nullptr"));
+		return false;
+	}
+	TestEqual(TEXT("URTHeroData: default Move = 1"), Bare->MoveEndPivotMaxSteps, 1);
+	TestEqual(TEXT("URTHeroData: default Dash = 0"), Bare->DashEndPivotMaxSteps, 0);
+
+	// E il comportamento osservabile coincide con la tabella superata, stile per stile.
+	const TArray<FRTCellId> Path = MakePath(FRTCellId(0, 0, 0), { ERTHexDirection::E, ERTHexDirection::NE });
+	const TArray<FRTCellId> NoPath;
+	TestEqual(TEXT("Budget senza eroe -> tre, come ADR-0005"),
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, Path, ERTHexDirection::SW, Default).Num(), 3);
+	TestEqual(TEXT("LinearDash senza eroe -> una, come ADR-0005"),
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::LinearDash, Path, ERTHexDirection::SW, Default).Num(), 1);
+	TestEqual(TEXT("None senza eroe -> sei, come ADR-0005"),
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::None, NoPath, ERTHexDirection::E, Default).Num(), 6);
+
+	// Un budget scritto fuori scala non svuota l'insieme: `PivotStepsForStyle` clampa, e senza il clamp un
+	// negativo lascerebbe l'unita' con ZERO facing legali — cioe' un'unita' che non puo' nemmeno restare
+	// come sta.
+	TestEqual(TEXT("budget negativo clampato a 0"),
+		URTFacingLibrary::PivotStepsForStyle(FRTPivotBudget(-4, -1), ERTMovementStyle::Budget), 0);
+	TestEqual(TEXT("budget oltre 3 clampato a 3"),
+		URTFacingLibrary::PivotStepsForStyle(FRTPivotBudget(9, 9), ERTMovementStyle::Budget), 3);
+	TestEqual(TEXT("e l'insieme resta non vuoto"),
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, Path, ERTHexDirection::SW,
+			FRTPivotBudget(-4, -1)).Num(), 1);
 	return true;
 }
 

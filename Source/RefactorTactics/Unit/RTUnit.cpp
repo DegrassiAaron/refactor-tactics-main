@@ -900,6 +900,10 @@ void ARTUnit::ConfigureFromHeroData(const URTHeroData* Hero)
 	VisionRange = Hero->VisionRange;
 	HearingThreshold = Hero->HearingThreshold;
 	PushResistance = Hero->PushResistance;
+	// ADR-0008 §1: senza queste due righe l'unita' resterebbe ai default 1/0 — cioe' applicherebbe ADR-0005
+	// a un eroe che dichiara altro, e sarebbe il difetto di #1605 spostato di un file invece che chiuso.
+	MoveEndPivotMaxSteps = Hero->MoveEndPivotMaxSteps;
+	DashEndPivotMaxSteps = Hero->DashEndPivotMaxSteps;
 	Affinity = Hero->Affinity;
 	Weakness = Hero->Weakness;
 	// E14.7 [D-047]: il profilo che il `Brace` armera'. `NAME_None` per chi non ne dichiara uno (Riktor), ed

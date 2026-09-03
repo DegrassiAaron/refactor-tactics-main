@@ -58,6 +58,13 @@ namespace
 		{ TEXT("VisionRange"),      TEXT("VisionRange"),      ERTTransport::Exact,  nullptr },
 		{ TEXT("HearingThreshold"), TEXT("HearingThreshold"), ERTTransport::Exact,  nullptr },
 		{ TEXT("PushResistance"),   TEXT("PushResistance"),   ERTTransport::Exact,  nullptr },
+		// ADR-0008 §1 [#1605]. Trasportati per la stessa ragione di `HearingThreshold`: chi emette il
+		// verdetto sulla rotazione e' `ARTTurnManager`, che legge l'unita' — farlo risalire all'`HeroId`
+		// darebbe al resolver una dipendenza su `URTHeroCatalogLibrary` per un dato che l'unita' puo'
+		// portarsi. ⚠️ Il default sull'unita' NON e' zero (`1` e `0`): e' ADR-0005 nella nuova unita' di
+		// misura, cosi' un'unita' senza eroe si comporta come prima dell'ADR invece che come una statua.
+		{ TEXT("MoveEndPivotMaxSteps"), TEXT("MoveEndPivotMaxSteps"), ERTTransport::Exact, nullptr },
+		{ TEXT("DashEndPivotMaxSteps"), TEXT("DashEndPivotMaxSteps"), ERTTransport::Exact, nullptr },
 		{ TEXT("Affinity"),         TEXT("Affinity"),         ERTTransport::Exact,  nullptr },
 		{ TEXT("Weakness"),         TEXT("Weakness"),         ERTTransport::Exact,  nullptr },
 		// E14.7 [D-047]. Trasportato e non dedotto dall'`HeroId`, che pure l'unita' porta: il resolver legge
@@ -184,6 +191,11 @@ bool FRTHeroDataBoundaryTest::RunTest(const FString&)
 	Hero->VisionRange = 11;
 	Hero->HearingThreshold = 7;
 	Hero->PushResistance = 3;
+	// ⚠️ `3` e `2`, e nessuno dei due e' il default dell'unita' (`1` e `0`): con i default il trasporto
+	// mancante e il trasporto riuscito sarebbero lo stesso stato, che e' il difetto della prima fixture
+	// descritto sopra. Sono anche l'uno diverso dall'altro, cosi' uno scambio Move/Dash si vede.
+	Hero->MoveEndPivotMaxSteps = 3;
+	Hero->DashEndPivotMaxSteps = 2;
 	Hero->Affinity = TEXT("Fixture.Affinita");
 	Hero->Weakness = TEXT("Fixture.Debolezza");
 	// Almeno un'azione: serve al ramo `Prefix`, che pretende le azioni dell'eroe PIU' le generiche.

@@ -238,6 +238,20 @@ TArray<FString> URTHeroCatalogLibrary::ValidateHeroes(const TArray<const URTHero
 		{
 			Errors.Add(FString::Printf(TEXT("%s: soglia d'udito fuori scala 0-10 (%d)"), *Where, Hero->HearingThreshold));
 		}
+		// Budget di pivot sulla scala 0-3 di ADR-0008 §1: 0 = nessuna rotazione finale, 3 = qualsiasi facing
+		// esagonale. Fuori scala non e' «un valore estremo»: sotto 0 l'insieme legale si svuoterebbe e
+		// l'unita' resterebbe senza NESSUNA rotazione dichiarabile, sopra 3 si ripeterebbe il giro delle sei.
+		// `PivotStepsForStyle` clampa comunque a runtime — questa e' la segnalazione che dice CHI l'ha scritto.
+		if (Hero->MoveEndPivotMaxSteps < 0 || Hero->MoveEndPivotMaxSteps > 3)
+		{
+			Errors.Add(FString::Printf(TEXT("%s: budget di pivot Move fuori scala 0-3 (%d)"),
+				*Where, Hero->MoveEndPivotMaxSteps));
+		}
+		if (Hero->DashEndPivotMaxSteps < 0 || Hero->DashEndPivotMaxSteps > 3)
+		{
+			Errors.Add(FString::Printf(TEXT("%s: budget di pivot Dash fuori scala 0-3 (%d)"),
+				*Where, Hero->DashEndPivotMaxSteps));
+		}
 		if (Hero->Affinity.IsNone())
 		{
 			Errors.Add(FString::Printf(TEXT("%s: affinita' non dichiarata"), *Where));
@@ -305,6 +319,11 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	Gadget->VisionRange = 7;
 	Gadget->HearingThreshold = 5;  // D-041: vede piu' lontano di tutti (7), quindi sente meno. L'udito COMPENSA la vista.
 	Gadget->PushResistance = 0;
+	// ADR-0008 §1 — «standard/tecnico» in entrambe le mobilita': 120 gradi a fine Move e a fine Dash.
+	// ⚠️ Ipotesi iniziale, non bilanciamento approvato: la fonte (handoff §23.1) la da' come «da
+	// scenario/playtest», e la taratura degli otto numeri e' lavoro separato (#1605 §Out of scope).
+	Gadget->MoveEndPivotMaxSteps = 2;
+	Gadget->DashEndPivotMaxSteps = 2;
 	Gadget->Affinity = TEXT("Affinity.Electricity");
 	// Debolezza acqua: stesso identificatore che Phase (CP 6.3) usera' come sua affinita', cosi' la combo
 	// "Gadget su bersaglio Wet" e "l'affinita' di Phase e' l'acqua" restano lo stesso concetto, non due nomi.
@@ -414,6 +433,10 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	Phase->VisionRange = 5;
 	Phase->HearingThreshold = 3;  // D-041: orecchio fine (soglia bassa) a compensare una vista corta.
 	Phase->PushResistance = 0;
+	// ADR-0008 §1 — Move «fluido» (120 gradi), Dash «molto manovrabile»: 3 step, cioe' qualsiasi facing.
+	// E' la coppia che dimostra da sola perche' i budget sono DUE e non uno.
+	Phase->MoveEndPivotMaxSteps = 2;
+	Phase->DashEndPivotMaxSteps = 3;
 	Phase->Affinity = TEXT("Affinity.Water");
 	// Simmetrica a Gadget (Affinity.Water e' gia' la sua debolezza): la rivalita' fra i due eroi legati dalla
 	// combo Wet e' un solo identificatore condiviso in entrambe le direzioni, non due nomi da sincronizzare.
@@ -613,6 +636,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// implementano, nessun contenuto la esercita. E' dichiarato, non dimenticato: si risveglia da sola il
 	// giorno in cui una v0.2 introduce una spinta >= 2 (rinviata con l'uscita (B) di #400, D-074).
 	Riktor->PushResistance = 0;
+	// ADR-0008 §1 — «pesante, forte stabilita'»: 60 gradi a fine Move, e **zero** in Dash.
+	//
+	// 🔑 Lo `0` non viene dalla fonte, che dava «0-60 gradi» — un intervallo, non un valore — ed e' una
+	// delle due scelte che l'ADR dichiara di aver preso da se'. E' l'estremo che CONSERVA il comportamento
+	// di ADR-0005 per i `Linear*`: una sola direzione, quella del movimento. Alzarlo a 1 e' un cambio di
+	// dato, non di modello.
+	Riktor->MoveEndPivotMaxSteps = 1;
+	Riktor->DashEndPivotMaxSteps = 0;
 	Riktor->Affinity = TEXT("Affinity.Structures");
 	// Simmetrica a Wraith (CP 6.5), come Gadget/Phase fra loro: il roster chiude in due coppie. Il piu' lento
 	// del roster e' vulnerabile a chi il movimento lo fa di mestiere.
@@ -768,6 +799,12 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	Wraith->VisionRange = 6;
 	Wraith->HearingThreshold = 5;  // D-041: mobilita' e vista si pagano sull'udito.
 	Wraith->PushResistance = 0;
+	// ADR-0008 §1 — «agile/predittivo» e «reposition rapido»: 3 e 3, l'unico del roster libero di finire
+	// qualunque movimento guardando dove vuole. E' l'estremo opposto di Riktor, e la scala esiste per
+	// questo: se il pivot alto risultasse sempre preferibile, la via di rientro dichiarata dall'ADR e'
+	// **comprimere la scala** (tutti a 1-2), non rimuovere il modello.
+	Wraith->MoveEndPivotMaxSteps = 3;
+	Wraith->DashEndPivotMaxSteps = 3;
 	Wraith->Affinity = TEXT("Affinity.Movement");
 	// Simmetrica a Riktor: chi si muove di mestiere e' neutralizzato da chi gli chiude le traiettorie.
 	// Il roster chiude in due coppie — Gadget↔Phase sull'acqua, Riktor↔Wraith sullo spazio.

@@ -67,6 +67,32 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 PushResistance = 0;
 
+	/**
+	 * Step di rotazione spendibili a FINE movimento a budget — la famiglia `Move` di ADR-0008 §1.
+	 *
+	 * | Personaggio | `MoveEndPivotMaxSteps` | `DashEndPivotMaxSteps` |
+	 * |---|---:|---:|
+	 * | Gadget | 2 | 2 |
+	 * | Phase | 2 | 3 |
+	 * | Riktor | 1 | **0** |
+	 * | Wraith | 3 | 3 |
+	 *
+	 * ⚠️ **Ipotesi iniziali, non bilanciamento approvato.** L'ADR li dichiara «*ipotesi da scenario/playtest*»
+	 * e chiede di non canonizzarli come definitivi: entrano nel catalogo perche' il modello ha bisogno di un
+	 * valore per esistere, non perche' siano stati misurati. La taratura e' lavoro separato (`#1605` §Out of
+	 * scope), e il trigger di revisione e' in fondo ad ADR-0008.
+	 *
+	 * 🔵 I default `1` e `0` sono ADR-0005 nella nuova unita' di misura, non zeri di comodo: un eroe che si
+	 * dimenticasse di dichiararli si comporterebbe come il gioco si comportava prima di ADR-0008, non come
+	 * una statua. Vedi `FRTPivotBudget` in `RTActionDef.h`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog", meta = (ClampMin = "0", ClampMax = "3"))
+	int32 MoveEndPivotMaxSteps = 1;
+
+	/** Step di rotazione spendibili a FINE mobilita' lineare — la famiglia `Dash` di ADR-0008 §1. Vedi sopra. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog", meta = (ClampMin = "0", ClampMax = "3"))
+	int32 DashEndPivotMaxSteps = 0;
+
 	/** Affinita' ambientale dichiarata (elettricita', acqua, strutture, movimento). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName Affinity;
