@@ -314,6 +314,22 @@ namespace
 			static_cast<int64>(Outcome)));
 	}
 
+	/**
+	 * Il filtro per `ActionId`, **solo quando c'e'** (`#170`).
+	 *
+	 * ⚠️ **`NAME_None` non si scrive**, ed e' la stessa regola con cui il loader lo legge: una chiave assente
+	 * significa «nessun filtro», mentre un `"actionId": "None"` sul disco sarebbe un filtro su un'azione che
+	 * si chiama `None` — un round-trip che cambia il significato del file invece di preservarlo. E scriverlo
+	 * come stringa vuota sarebbe peggio: il loader lo RIFIUTA di proposito.
+	 */
+	void WriteLogActionId(const TSharedRef<FRTScenarioJsonWriter>& W, const TCHAR* Key, FName ActionId)
+	{
+		if (!ActionId.IsNone())
+		{
+			W->WriteValue(Key, ActionId.ToString());
+		}
+	}
+
 	void WriteScenarioExpectations(const TSharedRef<FRTScenarioJsonWriter>& W, const FRTTestScenario& Scenario)
 	{
 		const UEnum* KindEnum = StaticEnum<ERTAssertionKind>();
@@ -359,12 +375,15 @@ namespace
 			case ERTAssertionKind::LogEventCount:
 			case ERTAssertionKind::LogEventAmount:
 				WriteLogEvent(W, TEXT("category"), TEXT("outcome"), Exp.LogCategory, Exp.LogOutcome);
+				WriteLogActionId(W, TEXT("actionId"), Exp.LogActionId);
 				W->WriteValue(TEXT("value"), Exp.Value);
 				break;
 
 			case ERTAssertionKind::LogEventOrder:
 				WriteLogEvent(W, TEXT("category"), TEXT("outcome"), Exp.LogCategory, Exp.LogOutcome);
+				WriteLogActionId(W, TEXT("actionId"), Exp.LogActionId);
 				WriteLogEvent(W, TEXT("thenCategory"), TEXT("thenOutcome"), Exp.ThenCategory, Exp.ThenOutcome);
+				WriteLogActionId(W, TEXT("thenActionId"), Exp.ThenActionId);
 				break;
 
 			case ERTAssertionKind::OriginalTargetEquals:

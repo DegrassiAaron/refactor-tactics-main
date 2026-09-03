@@ -374,18 +374,27 @@ namespace
 	 * quattro insieme» — era diventata una regola di diagnosi che non vale piu', cioe' esattamente il modo in
 	 * cui un commento fa cercare il difetto nel posto sbagliato. Trovato in code review.
 	 *
-	 * ⚠️ **DUE categorie restano scoperte, ed e' dichiarato**: `ReactionClash` e `Objective`, per ragioni
-	 * diverse che vale la pena tenere distinte.
+	 * ⚠️ **UNA categoria resta scoperta, ed e' dichiarato**: `ReactionClash`. Non e' un lavoro rimandato, e'
+	 * un lavoro **BLOCCATO** — sta in `KnownUnavailableCapabilities()` con owner `#314`, e uno scenario che
+	 * la chiedesse non verrebbe eseguito affatto.
 	 *
-	 * `ReactionClash` non e' un lavoro rimandato, e' un lavoro **BLOCCATO** — sta in
-	 * `KnownUnavailableCapabilities()` con owner `#314`, e uno scenario che la chiedesse non verrebbe
-	 * eseguito affatto.
+	 * ✅ **`Objective` E' COPERTA dal 2026-09-03 (`#170`)**, e la storia della sua copertura vale piu' del
+	 * fatto. Era scoperta per **assenza di contenuto**, non di codice: dal 2026-08-29 (`#75`, CP 10.2) la
+	 * regola girava e i suoi test la esercitavano, ma nessuna mappa del corpus dichiarava una cella
+	 * obiettivo — e su una mappa senza obiettivi il Cleanup TACE di proposito
+	 * (`Objectives.SilentWithoutObjectiveCell`), altrimenti ogni scenario gia' archiviato guadagnerebbe una
+	 * voce per turno. L'istruzione scritta qui era *«si copre il giorno in cui uno scenario golden posa un
+	 * obiettivo, e allora la soglia qui sotto sale a dieci»*, ed e' stata eseguita alla lettera.
 	 *
-	 * `Objective` (#75, CP 10.2, dal 2026-08-29) e' scoperta per **assenza di contenuto**, non di codice: la
-	 * regola gira e i suoi test la esercitano, ma nessuna mappa del corpus dichiara una cella obiettivo —
-	 * e su una mappa senza obiettivi il Cleanup TACE di proposito (`Objectives.SilentWithoutObjectiveCell`),
-	 * altrimenti ogni scenario gia' archiviato guadagnerebbe una voce per turno. Si copre il giorno in cui
-	 * uno scenario golden posa un obiettivo, e allora la soglia qui sotto sale a dieci.
+	 * 🔴 **Ma il lavoro non era «scrivere uno scenario»: era una riga in una FIXTURE che nessuno aveva
+	 * nominato.** Misurato prima di scrivere, `bIsObjective = true` compariva in tutto `Source/` solo dentro
+	 * i test di `#75` e nel commandlet che timbra un asset: **nessun costruttore di arena posava un
+	 * obiettivo**. Il T8 dello showcase era `Blocked` su una capability e leggeva come «aspetta che `#75`
+	 * chiuda» — `#75` ha chiuso il 2026-09-02 e il turno e' rimasto impossibile, perche' la condizione vera
+	 * non stava in nessuna issue. E' la stessa forma di difetto che `#1593` e' venuto a correggere qui
+	 * accanto: **una nota la cui formulazione decide se un lavoro pronto viene fatto.** Quella diceva «chi ne
+	 * scrive uno» per una categoria che uno scenario ce l'aveva gia'; questa diceva «posa un obiettivo»
+	 * senza dire che il posto in cui posarlo e' `MakeShowcaseRelayBasinArena`, e nessuno lo ha cercato li'.
 	 *
 	 * 🔴 **E la prova sta nei quattro scenari che gia' la chiedono.** `Scenarios/Spec/Clash/*.json` dichiarano
 	 * `requires: ["DecisionBoundary", "ReactionClash"]` ed escono **`Blocked`** — la loro stessa nota lo
@@ -394,10 +403,12 @@ namespace
 	 * stesso paragrafo: uno scenario BLOCKED non risolve, non gira affatto. Trovato in code review.
 	 *
 	 * ➕ **QUANDO `#314` ATTERRA**: uno dei quattro `Spec/Clash` entra in `GoldenScenarioIds` e
-	 * `CategorieMinime` sale da **9** a **10**. L'istruzione stava qui prima di `#1593` — *«chi ne scrive uno
-	 * che le tocca alzi la soglia»* — e quel diff l'ha tolta spiegando il blocco senza dire piu' cosa fare
-	 * quando si sblocca. E' la stessa forma di difetto che `#1593` e' andato a correggere: una nota la cui
-	 * formulazione decide se un lavoro pronto viene fatto.
+	 * `CategorieMinime` sale da **10** a **11**, cioe' all'intero enum. L'istruzione stava qui prima di
+	 * `#1593` — *«chi ne scrive uno che le tocca alzi la soglia»* — e quel diff l'ha tolta spiegando il
+	 * blocco senza dire piu' cosa fare quando si sblocca. ⚠️ **E il numero e' stato riscritto da `#170`**:
+	 * diceva «da 9 a 10» ed era gia' falso il giorno dopo, perche' la soglia l'ha alzata `Objective`. Chi
+	 * chiude `#314` rimisuri invece di fidarsi di questa riga — che e' la ragione per cui accanto al numero
+	 * sta scritto **quale** categoria lo muove.
 	 *
 	 * 🔴 **`Fallback` stava nella stessa riga e non era lo stesso caso** (`#1593`). Non e' una capability: e'
 	 * una categoria che il runtime emette da SETTE siti (`RTTurnManager.cpp` x2, `RTTurnManager_Blast.cpp`
@@ -472,6 +483,22 @@ namespace
 		TEXT("Spec.Predictive.WhiffOnEmptyCell"),
 		TEXT("Spec.Overwatch.HoldThenFire"),
 		TEXT("Visual.Combat.FallbackTargetMoved"),
+		// ➕ **`RT_Showcase_Relay_v01` entra con `#170`, e porta `Objective`** — la categoria che la nota qui
+		// sopra dichiarava scoperta *«per assenza di contenuto, non di codice»*, con l'istruzione su come
+		// coprirla: *«si copre il giorno in cui uno scenario golden posa un obiettivo, e allora la soglia
+		// qui sotto sale a dieci»*. E' successo: `MakeShowcaseRelayBasinArena` marca `(0,0,0)` e il T8 ci
+		// sale sopra. La soglia sale, ed e' cio' che rende la copertura nuova falsificabile.
+		//
+		// ⚠️ **E' la prima voce MULTI-TURNO lunga del corpus — otto file** — mentre le tre che c'erano ne
+		// hanno due o tre. Il prezzo dichiarato in testa a questo elenco («due esecuzioni qui piu' quella di
+		// `EveryShippedScenarioRuns`») si paga qui otto volte, e si paga per una categoria in piu': e' il
+		// criterio scritto, applicato al caso piu' caro che il corpus abbia.
+		//
+		// ⚠️ **E ogni epic che accende un turno di questo scenario costera' una rigenerazione da spiegare.**
+		// Non e' un difetto del corpus: e' il motivo per cui `#170` ha aspettato che tutti e otto i turni
+		// girassero prima di entrare qui. Pinnarlo a cinque turni, come sarebbe stato possibile in agosto,
+		// avrebbe congelato una partita incompleta e prodotto tre rigenerazioni invece di zero.
+		TEXT("RT_Showcase_Relay_v01"),
 	};
 }
 
@@ -561,20 +588,23 @@ bool FRTGoldenCorpusCoverageTest::RunTest(const FString&)
 
 	// 🔴 **Il patto**: questa soglia e' cio' che il corpus promette di coprire. Alzarla e' un miglioramento;
 	// abbassarla e' una decisione da dichiarare, non un effetto collaterale.
-	// 🔴 **Nove**, misurato il 2026-08-28 (`#1593`) e CONFERMATO il 2026-08-29 (`#75`): restano scoperte
-	// `ReactionClash` — BLOCCATA, owner `#314` — e `Objective`, che il corpus non copre perche' nessuna sua
-	// mappa dichiara un obiettivo. Le ragioni stanno accanto a `GoldenScenarioIds`. La soglia **non scende**:
-	// l'enum e' passato da dieci categorie a undici, ma cio' che il corpus copre e' rimasto lo stesso, e
-	// abbassarla per far spazio a una categoria nuova sarebbe il contrario di cio' che questo patto protegge.
 	// Era **otto** finche' `Fallback` era dichiarata scoperta insieme a `ReactionClash`, pur avendo gia' il
-	// proprio scenario.
+	// proprio scenario, e **nove** dal 2026-08-28 (`#1593`), confermato il 2026-08-29 (`#75`) quando l'enum
+	// e' passato da dieci categorie a undici senza che cio' che il corpus copre cambiasse — la soglia **non
+	// scende** per far spazio a una categoria nuova, che sarebbe il contrario di cio' che questo patto
+	// protegge.
 	//
 	// ⚠️ **Alzare questo numero e' cio' che rende la copertura nuova falsificabile.** Aggiungere lo scenario
 	// all'elenco senza toccare la soglia avrebbe lasciato il test verde **prima e dopo**: la categoria in
 	// piu' non sarebbe stata misurata da nessuno, e toglierla di nuovo non avrebbe fatto rumore. Verificato
 	// per mutazione: togliendo `Visual.Combat.FallbackTargetMoved` dall'elenco, con la soglia a nove questo
 	// test va rosso; con la soglia a otto sarebbe restato verde.
-	constexpr int32 CategorieMinime = 9;
+	// ⏱️ **Dieci dal 2026-09-03 (`#170`)**, ed e' la riga che la nota accanto a `GoldenScenarioIds`
+	// prescriveva da quando `Objective` era dichiarata scoperta: *«si copre il giorno in cui uno scenario
+	// golden posa un obiettivo, e allora la soglia qui sotto sale a dieci»*. Lo scenario che la posa e' lo
+	// showcase, e la posa nella FIXTURE — `MakeShowcaseRelayBasinArena` marca `(0,0,0)` — non nel file.
+	// Resta scoperta `ReactionClash` sola, per la stessa ragione di sempre: e' BLOCCATA, owner `#314`.
+	constexpr int32 CategorieMinime = 10;
 	TestTrue(*FString::Printf(TEXT("il corpus copre almeno %d categorie (ne copre %d)"),
 		CategorieMinime, Coperte.Num()), Coperte.Num() >= CategorieMinime);
 
@@ -597,8 +627,8 @@ bool FRTGoldenCorpusCoverageTest::RunTest(const FString&)
 		}
 	}
 	Scoperte.Sort();
-	TestEqual(TEXT("e a restare scoperte sono esattamente `Objective` (#75: nessuna mappa del corpus dichiara un obiettivo) e `ReactionClash` (owner #314)"),
-		FString::Join(Scoperte, TEXT(", ")), FString(TEXT("Objective, ReactionClash")));
+	TestEqual(TEXT("e a restare scoperta e' esattamente `ReactionClash` (BLOCCATA, owner #314): `Objective` e' coperta da `RT_Showcase_Relay_v01` dal 2026-09-03 (#170)"),
+		FString::Join(Scoperte, TEXT(", ")), FString(TEXT("ReactionClash")));
 
 	return true;
 }
