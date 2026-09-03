@@ -19,6 +19,22 @@
 namespace
 {
 	/**
+	 * Quanto dura una fase alla velocita' scelta.
+	 *
+	 * ⚠️ **`Instant` non ha un moltiplicatore** e `SecondsMultiplier` risponde `0` proprio per non fingerne
+	 * uno: si chiede `IsInstant` prima, come quella libreria prescrive. Un prodotto cieco darebbe comunque
+	 * `0` qui — ma per coincidenza, e la prima velocita' istantanea con moltiplicatore diverso lo romperebbe
+	 * in silenzio.
+	 */
+	float SecondsPerPhaseAt(ERTPlaybackSpeed Velocita)
+	{
+		constexpr float Base = 1.5f; // il default del view model: `1x` non cambia niente
+		return URTPlaybackSpeedLibrary::IsInstant(Velocita)
+			? 0.f
+			: Base * URTPlaybackSpeedLibrary::SecondsMultiplier(Velocita);
+	}
+
+	/**
 	 * Il mondo su cui l'editor sta lavorando. `nullptr` in un contesto senza editor — un commandlet, o una
 	 * suite headless — ed e' un caso normale, non un errore: l'anteprima semplicemente non si posa.
 	 */
@@ -225,7 +241,13 @@ bool URTScenarioPreviewSubsystem::OpenPlayback(const URTScenarioAuthoring* Autho
 
 	// 🔴 **Si decodifica QUI e una volta sola.** Le tracce restano byte nel draft proprio per non pagarle a
 	// chi vuole solo sapere se e' PASS; chi le vuole muovere le paga adesso, non a ogni cambio di posizione.
+	// ⚠️ **Due forme della stessa traccia, e servono entrambe.** `URTReplayStateLibrary::UnitsAtPosition`
+	// vuole la sequenza PIATTA — ricostruisce lo stato scorrendo le voci fino a un punto; il view model
+	// vuole quella PER TURNO — la sua navigazione indicizza i turni. Sono due viste sugli stessi dati,
+	// costruite in un giro solo perche' decodificare due volte costerebbe il doppio per niente.
 	TArray<FRTTurnLogEntry> Voci;
+	TArray<TArray<FRTTurnLogEntry>> PerTurno;
+	PerTurno.Reserve(Tracce.Num());
 	for (const FRTTurnTrace& T : Tracce)
 	{
 		TArray<FRTTurnLogEntry> DiQuestoTurno;
@@ -235,8 +257,18 @@ bool URTScenarioPreviewSubsystem::OpenPlayback(const URTScenarioAuthoring* Autho
 			// non ha mai attraversato, e nessuno saprebbe da quale turno in poi e' inventato.
 			return false;
 		}
-		Voci.Append(MoveTemp(DiQuestoTurno));
+		Voci.Append(DiQuestoTurno);
+		PerTurno.Add(MoveTemp(DiQuestoTurno));
 	}
+
+	// 🔑 La navigazione si apre sulla STESSA traccia che si disegnera'. Se rifiuta, non si apre nemmeno
+	// il playback: marcatori che si muovono sotto controlli che non sanno dove sono e' peggio che non
+	// aprire, perche' il primo si vede e sembra funzionare.
+	if (!PlaybackVM.OpenFromTraces(MoveTemp(PerTurno)))
+	{
+		return false;
+	}
+	PlaybackVM.SecondsPerPhase = SecondsPerPhaseAt(PlaybackSpeed);
 
 	PlaybackTrace = MoveTemp(Voci);
 	PlaybackScenarioIds = Authoring->GetLastRunScenarioIds();
@@ -258,6 +290,10 @@ void URTScenarioPreviewSubsystem::ClosePlayback()
 	PlaybackTrace.Reset();
 	PlaybackInitial.Reset();
 	PlaybackScenarioIds.Reset();
+
+	// Il view model torna non-aperto: `IsPlaybackPlaying()` deve essere falso e i `CanStep*` devono
+	// rispondere «no» a playback chiuso, invece di conservare i bordi dell'ultima corsa.
+	PlaybackVM = FRTReplayViewModel();
 
 	// Si ridisegna solo se c'era qualcosa da togliere: `ClosePlayback` e' chiamata anche da `OpenPlayback`
 	// e da `ClearPreview`, e in quei due casi un `ApplyPerspective` qui sarebbe una posa in piu' — su una
@@ -287,6 +323,126 @@ bool URTScenarioPreviewSubsystem::SetPlaybackPosition(int32 TurnNumber, ERTMatch
 	// posizioni, quindi velo, marcatori e confine raccontano lo stesso istante.
 	ApplyPerspective();
 	return true;
+}
+
+// --- Trasporto (`#1625`, criterio 2) -----------------------------------------------------------------
+//
+// 🔴 **Da qui in giu' non si calcola nessuna fase e nessun turno.** Ogni funzione chiede a
+// `PlaybackVM` di spostarsi e poi applica cio' che dichiara. La regola e' verificabile per assenza: in
+// questo blocco non esiste aritmetica su `ERTMatchPhase` ne' su `TurnNumber`.
+
+bool URTScenarioPreviewSubsystem::ApplyPlaybackViewModelPosition()
+{
+	const FRTReplayPosition Posizione = PlaybackVM.Position();
+
+	// ⚠️ **Prima dell'inizio non c'e' un turno**, e chiederlo darebbe `0` — che qui sarebbe pure il valore
+	// giusto, ma per caso. Si guarda `State`, che e' il campo fatto per essere guardato: `HasTurn()` e'
+	// falso anche a fine partita, dove la posa da mostrare e' l'ultima e non la prima.
+	if (!Posizione.HasTurn())
+	{
+		// Turno 0 = nessuna voce applicata = la posa d'authoring, per la STESSA strada delle altre posizioni.
+		return SetPlaybackPosition(0, ERTMatchPhase::Cleanup);
+	}
+
+	return SetPlaybackPosition(Posizione.TurnNumber, Posizione.Phase);
+}
+
+bool URTScenarioPreviewSubsystem::PlaybackStepPhase(bool bForward)
+{
+	if (!bPlaybackOpen)
+	{
+		return false;
+	}
+
+	// Il passo lo fa il view model. Se dice di no — bordo raggiunto — non si ridisegna: ridisegnare la
+	// stessa posizione farebbe lampeggiare il campo per un comando che non ha fatto niente.
+	if (!(bForward ? PlaybackVM.StepPhaseForward() : PlaybackVM.StepPhaseBackward()))
+	{
+		return false;
+	}
+
+	return ApplyPlaybackViewModelPosition();
+}
+
+bool URTScenarioPreviewSubsystem::PlaybackStepTurn(bool bForward)
+{
+	if (!bPlaybackOpen)
+	{
+		return false;
+	}
+
+	if (!(bForward ? PlaybackVM.StepTurnForward() : PlaybackVM.StepTurnBackward()))
+	{
+		return false;
+	}
+
+	return ApplyPlaybackViewModelPosition();
+}
+
+bool URTScenarioPreviewSubsystem::PlaybackRewind()
+{
+	if (!bPlaybackOpen)
+	{
+		return false;
+	}
+
+	// ⚠️ `Rewind` ferma anche la riproduzione, ed e' il view model a deciderlo: `RESET` mentre si guarda
+	// deve tornare all'inizio E fermarsi, non ripartire da solo dall'inizio.
+	PlaybackVM.Rewind();
+	return ApplyPlaybackViewModelPosition();
+}
+
+bool URTScenarioPreviewSubsystem::CanPlaybackStepPhase(bool bForward) const
+{
+	return bPlaybackOpen
+		&& (bForward ? PlaybackVM.CanStepPhaseForward() : PlaybackVM.CanStepPhaseBackward());
+}
+
+bool URTScenarioPreviewSubsystem::CanPlaybackStepTurn(bool bForward) const
+{
+	return bPlaybackOpen
+		&& (bForward ? PlaybackVM.CanStepTurnForward() : PlaybackVM.CanStepTurnBackward());
+}
+
+void URTScenarioPreviewSubsystem::PlaybackPlay()
+{
+	if (bPlaybackOpen)
+	{
+		PlaybackVM.Play();
+	}
+}
+
+void URTScenarioPreviewSubsystem::PlaybackPause()
+{
+	PlaybackVM.Pause();
+}
+
+bool URTScenarioPreviewSubsystem::PlaybackTick(float DeltaSeconds)
+{
+	if (!bPlaybackOpen || !PlaybackVM.IsPlaying())
+	{
+		return false;
+	}
+
+	// 🔑 `Tick` risponde `true` **solo quando la posizione e' cambiata**, e questa funzione riporta
+	// quella stessa risposta: chi la chiama a ogni frame ridisegna il campo quando c'e' qualcosa di nuovo,
+	// non sessanta volte al secondo per restare fermo.
+	if (!PlaybackVM.Tick(DeltaSeconds))
+	{
+		return false;
+	}
+
+	return ApplyPlaybackViewModelPosition();
+}
+
+void URTScenarioPreviewSubsystem::SetPlaybackSpeed(ERTPlaybackSpeed Speed)
+{
+	PlaybackSpeed = Speed;
+
+	// ⛔ Si scrive anche a playback chiuso, e deve: la velocita' e' una preferenza di chi guarda, non un
+	// attributo della corsa aperta. Sceglierla prima di aprire e vedersela ignorare sarebbe un difetto che
+	// si nota solo dopo, quando il playback parte alla velocita' sbagliata.
+	PlaybackVM.SecondsPerPhase = SecondsPerPhaseAt(PlaybackSpeed);
 }
 
 bool URTScenarioPreviewSubsystem::ShowScenario(const URTScenarioAuthoring* Authoring)
