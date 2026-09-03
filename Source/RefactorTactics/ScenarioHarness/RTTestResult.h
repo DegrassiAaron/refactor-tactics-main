@@ -225,6 +225,29 @@ struct FRTTestResult
 	 */
 	TArray<FRTUnitStateDiff> StateDiff;
 
+	/**
+	 * L'identita' d'**authoring** di ogni unita', per `StableUnitId` (`#1625`).
+	 *
+	 * 🔴 **Esiste perche' i due spazi di id non si parlavano, e ricostruire il ponte a mano sarebbe stato un
+	 * difetto muto.** Uno scenario nomina le unita' con una `FString` — *«cio' che intent, decisioni e
+	 * assertion nominano; non e' un indice»* — mentre il TurnLog porta un `int32 StableUnitId`, che
+	 * `ARTTurnManager::EnsureMatchRoster` assegna **dopo** aver ordinato il roster per
+	 * `TeamId`/`Cell`/nome-actor. La corrispondenza fra i due esisteva solo dentro
+	 * `URTScenarioSession::UnitsById`, viva durante l'esecuzione, e non usciva di li'.
+	 *
+	 * ⛔ **La via scartata, e perche'.** Le si poteva ricostruire dalla cella iniziale, che e' univoca:
+	 * sarebbe stata una **seconda copia** di `MatchRosterLess` — la duplicazione che questo repository
+	 * paga ogni volta che la fa, e che diverge al primo pareggio su `(TeamId, Cell)` o al primo cambio di
+	 * quella regola. Qui si **trasporta** la corrispondenza vera invece di riderivarla.
+	 *
+	 * ⚠️ **Non entra in `StateHash` ne' nel TurnLog**, come `StateDiff` e per la stessa ragione: e' una
+	 * lettura, e una lettura che cambiasse un esito sarebbe un secondo calcolo. Un `FString` per unita' non
+	 * ha nessun diritto di muovere un hash.
+	 *
+	 * Vuota se l'esecuzione non e' arrivata a comporla — un `Error`, non un `Fail`.
+	 */
+	TMap<int32, FString> ScenarioIdByUnitId;
+
 	int32 PassedCount() const
 	{
 		int32 N = 0;
