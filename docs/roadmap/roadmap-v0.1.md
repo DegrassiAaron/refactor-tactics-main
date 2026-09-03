@@ -23,8 +23,11 @@ Un vertical slice **2v2 offline contro bot** su griglia **esagonale multilivello
 - **catalogo azioni** completo (~35 azioni con ID stabile, fase, priorità intera, fallback, cooldown);
 - **reazioni** preparate in planning (1 attivazione per turno);
 - **8 terreni attivi** con stati (Wet, Burning, Obscured, …) e propagazione deterministica — ⚠️ l'elettricità
-  si propaga ma **non lascia uno stato**: `Status.Electrified` è dichiarato e mai applicato, e la scarica è
-  istantanea ([`spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md) §D6,
+  si propaga ma **non lascia uno stato**: `Status.Electrified` non entra in `StatusTurns` e la scarica è
+  istantanea. ✅ Dal 2026-09-03 è però **osservabile**: il TurnLog ne porta una voce `Status` con esito
+  `AppliedInstantly` per ogni unità raggiunta, quindi la scarica non è più muta in un replay
+  ([D-315](../decisions/RT_PDR_00_Decision_Log.md), [#1324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1324);
+  [`spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md) §D6,
   [`spec-stati-temporanei-cp82.md`](../gameplay/spec-stati-temporanei-cp82.md) §D3, [D-211](../decisions/RT_PDR_00_Decision_Log.md));
 - **coperture direzionali e strutture** (porte, ponti, pannelli) che cambiano la topologia;
 - **obiettivi dinamici** e fine partita a più vie (eliminazione · obiettivo · `RoundLimit`, parametro di formato — **10–14** round in 2v2, valore iniziale 12);

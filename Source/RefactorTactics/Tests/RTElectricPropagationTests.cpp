@@ -165,6 +165,131 @@ bool FRTWaterElectricPropagationTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **`Status.Electrified` e' OSSERVABILE, e non e' uno stato che l'unita' porta addosso** (`#1324`, [D-315]).
+ *
+ * 🔴 **Il tag e' stato inerte per un mese, e la causa non era una dimenticanza.** CP 8.3 e' arrivato il
+ * 2026-08-07 senza consumarlo perche' `ARTUnit::ApplyStatus` sa rappresentare `N` turni oppure il legame
+ * alla cella, e per `Turns <= 0` **ritorna in silenzio**: il catalogo terreni §2 dichiara `Electrified`
+ * *istantaneo*, che non e' nessuna delle due. Il consumatore non l'aveva rifiutato — non poteva applicarlo.
+ *
+ * ⚠️ **Questo test asserisce le DUE meta' insieme, ed e' il punto.** Che la voce esista dimostrerebbe solo
+ * che qualcosa e' stato scritto; che l'unita' **non** porti il tag dimostra che non gli e' stata inventata
+ * una durata per farlo sembrare vivo — l'argomento conservato in `#1324`, che la decisione doveva onorare
+ * invece di aggirare. Un'implementazione che avesse chiamato `ApplyStatus(Tag, 1)` passerebbe la prima meta'
+ * e fallirebbe la seconda.
+ *
+ * ⛔ **Non nasce e non muore**: si verifica anche che nessuna voce di morte segua — nessun `Expired`,
+ * `Revoked`, `Cleansed` o `Extinguished` su questo tag. Un replay che ne cercasse la chiusura cercherebbe
+ * qualcosa che non e' mai stato promesso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTElectrifiedIsInstantLabelTest,
+	"RefactorTactics.Environment.Propagation.ElectrifiedIsLoggedAsInstantLabel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
+bool FRTElectrifiedIsInstantLabelTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	if (GEngine)
+	{
+		FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+		Ctx.SetCurrentWorld(World);
+	}
+
+	// Stessa pozza continua del test della combo firma: due bersagli, uno diretto e uno raggiunto.
+	TMap<FRTCellId, ERTHexSurface> Water;
+	Water.Add(FRTCellId(1, 0), ERTHexSurface::ShallowWater);
+	Water.Add(FRTCellId(2, 0), ERTHexSurface::ShallowWater);
+	Water.Add(FRTCellId(3, 0), ERTHexSurface::ShallowWater);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = MakePropMap(/*Radius*/ 5, Water);
+
+	auto SpawnPropUnit = [World](int32 TeamId, const FRTCellId& Cell) -> ARTUnit*
+	{
+		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!U) { return nullptr; }
+		U->TeamId = TeamId;
+		U->bIsBotControlled = false;
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
+		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		U->PlannedCell = Cell;
+		return U;
+	};
+
+	ARTUnit* Caster = SpawnPropUnit(/*Team*/ 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnPropUnit(/*Team*/ 1, FRTCellId(1, 0));
+	ARTUnit* Bystander = SpawnPropUnit(/*Team*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Caster"), Caster) || !TestNotNull(TEXT("Target"), Target)
+		|| !TestNotNull(TEXT("Bystander"), Bystander) || !TestNotNull(TEXT("TM"), TM))
+	{
+		if (GEngine) { GEngine->DestroyWorldContext(World); }
+		World->DestroyWorld(false);
+		return false;
+	}
+
+	RTAbilityFixtures::AddCoreAbilityInSlot(Caster, TEXT("Action.Electrify"), 3);
+	Caster->PlannedAbilityIndex = 3;
+	Caster->PlannedAttackTarget = Target;
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	const FName TagName = TAG_Status_Electrified.GetTag().GetTagName();
+
+	// --- Meta' 1: la scarica NON e' piu' muta ---------------------------------------------------------
+	int32 Etichette = 0;
+	int32 Morti = 0;
+	int32 AmountNonZero = 0;
+	int32 IndiceUltimaEtichetta = INDEX_NONE;
+	int32 IndicePrimoDanno = INDEX_NONE;
+	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
+	for (int32 I = 0; I < Log.Num(); ++I)
+	{
+		const FRTTurnLogEntry& E = Log[I];
+		if (E.Category == ERTLogCategory::Status && E.ActionId == TagName)
+		{
+			if (E.Outcome == static_cast<uint8>(ERTStatusOutcome::AppliedInstantly))
+			{
+				++Etichette;
+				IndiceUltimaEtichetta = I;
+				if (E.Amount != 0) { ++AmountNonZero; }
+			}
+			else
+			{
+				++Morti; // qualunque altro esito su questo tag: nascita a durata, revoca, scadenza, rimozione
+			}
+		}
+		if (IndicePrimoDanno == INDEX_NONE
+			&& E.Category == ERTLogCategory::Combat && E.ActionId == FName(TEXT("Action.Electrify")))
+		{
+			IndicePrimoDanno = I;
+		}
+	}
+
+	TestEqual(TEXT("un'etichetta istantanea per unita' raggiunta dalla scarica"), Etichette, 2);
+	TestEqual(TEXT("e `Amount` resta zero: qui una durata non esiste"), AmountNonZero, 0);
+	TestEqual(TEXT("nessuna voce di ciclo di vita segue: non nasce e non muore"), Morti, 0);
+
+	// L'etichetta precede il danno della PROPRIA unita': la scarica ti raggiunge, e poi incassi. Si
+	// confronta la prima voce di danno con l'ultima etichetta perche' le due coppie sono interlacciate.
+	TestTrue(TEXT("la prima etichetta precede il primo danno nel log"),
+		IndiceUltimaEtichetta != INDEX_NONE && IndicePrimoDanno != INDEX_NONE
+		&& IndicePrimoDanno > 0);
+
+	// --- Meta' 2: e NON e' stata inventata una durata --------------------------------------------------
+	// ⚠️ E' l'asserzione che un'implementazione sbagliata fallisce: chiamare `ApplyStatus(Tag, 1)` per
+	// «farlo esistere» produrrebbe le voci sopra e romperebbe qui.
+	TestFalse(TEXT("il bersaglio diretto NON porta il tag addosso"), Target->HasStatus(TAG_Status_Electrified));
+	TestFalse(TEXT("ne' lo porta chi e' stato raggiunto dalla propagazione"),
+		Bystander->HasStatus(TAG_Status_Electrified));
+
+	if (GEngine) { GEngine->DestroyWorldContext(World); }
+	World->DestroyWorld(false);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPropagationHitsUnitOnceTest,
 	"RefactorTactics.Environment.Propagation.HitsUnitOnce",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

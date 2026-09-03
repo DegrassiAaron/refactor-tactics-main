@@ -102,6 +102,20 @@ durata e **non entra in `StatusTurns`**. Qui si consegna il tag e la semantica d
 nasce con la propagazione di CP 8.3. È lo stesso pattern di `PushResistance` di Riktor: dato pronto,
 consumatore dichiarato assente — non un effetto finto con durata inventata.
 
+> ✅ **Il consumatore è arrivato il 2026-09-03, e non è quello che questa riga aspettava** —
+> [D-315](../decisions/RT_PDR_00_Decision_Log.md), [#1324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1324).
+>
+> 🔴 **La previsione «l'applicazione reale nasce con la propagazione di CP 8.3» è scaduta senza avverarsi**:
+> CP 8.3 è atterrato il 2026-08-07 e **non** ha consumato il tag. La ragione, misurata un anno dopo la stesura
+> di questa riga, è che `ARTUnit::ApplyStatus` sa rappresentare `N` turni **oppure** il legame alla cella, e
+> per `Turns <= 0` **ritorna in silenzio**: un evento istantaneo non è nessuna delle due forme. Il consumatore
+> atteso non l'ha rifiutato — non poteva applicarlo.
+>
+> Il consumatore è il **TurnLog**: la propagazione scrive una voce `ERTLogCategory::Status` con esito
+> `AppliedInstantly` per ogni unità raggiunta. ✅ La metà di questa riga che regge — *«non un effetto finto con
+> durata inventata»* — è stata **onorata**: il tag continua a non entrare in `StatusTurns`, e un test lo pinna
+> insieme all'esistenza della voce, proprio perché le due metà si contraddicono se una implementazione bara.
+
 ### D4 — `Obscured` non diventa un secondo gate del targeting *(motivata, non opzionale)*
 
 Il cap a 2 celle resta calcolato da `URTTerrainLibrary::EffectiveTargetingRange` sulla **linea** dell'attacco:
@@ -172,6 +186,9 @@ valore atteso prima dell'implementazione (es. `Burning`: 70 HP invece di 62, cio
   è una decisione, non un ritardo**: §D6 della spec di CP 8.3 dichiara *«`Status.Electrified` **non** viene
   applicato alle unità»*. Questa riga la prometteva ancora — riga **79** di
   [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md), [D-211](../decisions/RT_PDR_00_Decision_Log.md).
+  ✅ **E non arriverà**, il che chiude l'attesa invece di prorogarla: dal 2026-09-03 il tag ha un consumatore
+  che **non** è `ApplyStatus` — il TurnLog, con l'esito `AppliedInstantly`
+  ([D-315](../decisions/RT_PDR_00_Decision_Log.md), [#1324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1324)).
 - **Spegnimento del fuoco da parte dell'acqua sulla *cella*** (`Environment.WaterExtinguishesFire`) → CP 8.4
   (`#67`). Qui `Wet` rimuove `Burning` **dall'unità**: è l'altra metà, e il catalogo le distingue.
 - **`Action.Ignite` / `CreateWater`** (modifica dinamica della superficie) → CP 8.5 (`#68`).
