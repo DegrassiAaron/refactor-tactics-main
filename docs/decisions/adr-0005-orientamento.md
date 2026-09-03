@@ -302,12 +302,20 @@ cui si è scommesso).
 > ha preso — la tabella di ADR-0004 copre il **bersaglio** e non la **sorgente** — ed è aperta in
 > [#2148](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2148).
 
-**Pinnata da** `RefactorTactics.Reactions.OverwatchCoverReadsTheMicroStepCell` e
-`RefactorTactics.Reactions.OverwatchLogLineAnnouncesDealtDamage`, che misurano i **due versi** — chi esce dal
-riparo incassa pieno, chi ci entra incassa ridotto — sul percorso reale e non sulla funzione pura: la
-decisione qui è *quale cella il chiamante passa*, e [D-312](RT_PDR_00_Decision_Log.md) ha misurato che una
-prova sulla funzione lascia il chiamante scoperto. Chiudono anche la metà che [D-169](RT_PDR_00_Decision_Log.md)
-dichiarava esplicitamente non coperta.
+**Pinnata da tre test**, sul percorso reale e non sulla funzione pura: la decisione qui è *quale cella il
+chiamante passa*, e [D-312](RT_PDR_00_Decision_Log.md) ha misurato che una prova sulla funzione lascia il
+chiamante scoperto.
+
+| Test | Lato misurato |
+|---|---|
+| `Reactions.OverwatchCoverReadsTheMicroStepCell` | **bersaglio**: chi esce dal riparo incassa pieno |
+| `Reactions.OverwatchLogLineAnnouncesDealtDamage` | **bersaglio**, verso opposto: chi entra in copertura incassa ridotto, e il log annuncia il danno inflitto |
+| `Reactions.OverwatchMovingWatcherFiresFromItsCurrentCell` | **attaccante**: il watcher che si è spostato spara dalla cella in cui è |
+
+⚠️ **Il terzo non è un di più, ed è stato aggiunto dopo una code review.** Con il watcher fermo
+`State.Pos[OwnerIdx]` e `WatchOwner->Cell` coincidono a ogni micro-step: i primi due restano **verdi** con la
+metà attaccante della correzione disfatta. È quindi lui a chiudere la metà che
+[D-169](RT_PDR_00_Decision_Log.md) dichiarava non coperta — e che i primi due, da soli, non chiudevano.
 
 🔑 **Non è servita una regola d'origine nuova**: [D-302](RT_PDR_00_Decision_Log.md) punto 3 classifica già il
 colpo *diretto/mischia* come **sorgente→bersaglio**, e sia il contrattacco sia il fuoco di Overwatch — che è

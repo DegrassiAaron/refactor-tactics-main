@@ -247,7 +247,14 @@ struct FRTLogSubject
 	 *
 	 * Un solo accesso, cosi' che verdetto e soggetto d'audit non possano leggere celle diverse — che e'
 	 * precisamente il modo in cui `#2142` si e' presentato: due scritture nella stessa funzione, una sola
-	 * corretta. Senza unita' non c'e' cella, e il chiamante non deve arrivare qui.
+	 * corretta.
+	 *
+	 * ⚠️ **Senza unita' e senza cella dichiarata rende `FRTCellId()`, che e' la cella `(0,0,0)` — vera, e su
+	 * ogni arena generata anche centrale.** Non e' un valore sicuro: e' il caso che i due chiamanti non
+	 * raggiungono, ed e' la loro guardia a garantirlo, non questa funzione. `FreezeVerdictFor` esce
+	 * `NoOne()` sul soggetto senza unita' **prima** di chiedere la cella, e `AppendLogEntry` la chiede solo
+	 * dentro il proprio `if (Actor)`. Chi aggiunge un terzo chiamante porta con se' quella guardia — o la
+	 * mette qui.
 	 */
 	FRTCellId GetFactCell() const;
 

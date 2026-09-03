@@ -2778,8 +2778,15 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 	//
 	// Una voce senza attore e' un fatto di MONDO e lo dichiara: una superficie che scade, un ponte che
 	// crolla. Non e' l'assenza di una decisione.
-	Entry.Verdict = Actor ? FreezeVerdictFor(Subject)
-	                      : FRTKnowledgeVerdict::Everyone();
+	// 🔴 **Sempre da `FreezeVerdictFor`, mai da un ternario su `Actor`.** Quella funzione conosce tutte e
+	// quattro le forme di soggetto — verdetto gia' congelato, mondo, unita', assenza — e le tratta ciascuna
+	// come deve. Un `Actor ? … : Everyone()` scritto qui ne collassa **tre** su `Everyone()`: un
+	// `FRTLogSubject::Frozen` che porta un verdetto privato lo vedrebbe **scartato e sostituito da
+	// «la leggono tutti»**, cioe' un fail-OPEN dentro un filtro di privacy, e per lo stesso ingresso questo
+	// canale direbbe l'opposto di `AddLogEvent`. Nessun produttore passa oggi un `Frozen` di qui — lo fa
+	// `ConcludeTurn` verso `AddLogEvent` — ma la firma lo accetta, e un default che sbaglia in silenzio e'
+	// il difetto che questa issue sta correggendo altrove. Trovato in code review.
+	Entry.Verdict = FreezeVerdictFor(Subject);
 
 	// E il SOGGETTO contro cui e' stato congelato, che senza il verdetto non e' verificabile ([D-313]).
 	// Si scrive qui e non altrove per la stessa ragione del verdetto: e' l'unico istante in cui conoscenza
@@ -5812,16 +5819,18 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 		ARTUnit* Shooter = Armed.Shooter.Get();
 		if (!IsValid(Shooter)) { continue; }
 
-		// DOVE il tiratore si trova quando la voce nasce, che non e' la stessa domanda di *da dove il colpo
-		// e' partito* (`#2142`). Il movimento e' gia' risolto — manca solo `PlaceOnCell`, che scrivera'
-		// esattamente questa cella — quindi per il verdetto di [D-223] la posizione del soggetto e'
-		// `Resolved[ShooterIdx].Final`. La geometria del colpo resta invece quella dichiarata sopra: sono
-		// due domande diverse, e solo la seconda vuole una decisione di regola.
-		const int32 ShooterIdx = Units.IndexOfByKey(Shooter);
-		const FRTCellId ShooterCellNow = Resolved.IsValidIndex(ShooterIdx)
-			? Resolved[ShooterIdx].Final
-			: Shooter->Cell;
-
+		// ⛔ **Il verdetto di questa voce resta sulla cella di PARTENZA del tiratore, come le sue celle.**
+		//
+		// Una stesura precedente lo congelava sulla cella FINALE del tiratore — *«dove il soggetto e' quando
+		// la voce nasce»* — e una code review ha mostrato che quello era **lo stesso difetto che `#2142`
+		// corregge**, riprodotto qui: `Entry.SrcCell`, la copertura e l'origine della voce direzionale usano
+		// tutte `Shooter->Cell`, quindi un verdetto su una cella diversa avrebbe messo **due istanti nella
+		// stessa voce**. Ed era per giunta una decisione di **regola** presa dentro una correzione, cioe'
+		// esattamente cio' che questa issue ha dichiarato di non voler fare.
+		//
+		// La coerenza interna della voce vale piu' della cella «piu' giusta» scelta d'iniziativa: quale sia
+		// l'istante del tiratore al boundary predittivo lo decide `#2148`, e quel giorno le quattro letture
+		// si muovono insieme.
 		FRTTurnLogEntry Entry;
 		Entry.Phase = ERTMatchPhase::Move;
 		Entry.Category = ERTLogCategory::Predictive;
@@ -5856,7 +5865,7 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 			// `Armed.Damage` qui rimetterebbe nel TurnLog autorevole un danno mai inflitto — il difetto che
 			// il commento qui sopra registra come gia' corretto una volta.
 			Entry.Amount = Dealt;
-			AppendLogEntry(Entry, FRTLogSubject::UnitAt(Shooter, ShooterCellNow));
+			AppendLogEntry(Entry, Shooter);
 
 			// `#2128` — DA QUALE LATO la vittima ha incassato il colpo predittivo. E' la QUARTA famiglia di
 			// colpi risolti, ed e' stata trovata da una code review dopo il merge: la prima stesura di
@@ -5889,19 +5898,17 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 
 			// Il danno EFFETTIVO anche nel canale leggibile, come nella voce due righe sopra (`#2142`).
 			AddLogEvent(FString::Printf(TEXT("%s: previsione azzeccata, %d danni a %s"),
-				*Shooter->GetName(), Dealt, *Victim->GetName()),
-				FRTLogSubject::UnitAt(Shooter, ShooterCellNow));
+				*Shooter->GetName(), Dealt, *Victim->GetName()), FRTLogSubject::Unit(Shooter));
 		}
 		else
 		{
 			Entry.Outcome = static_cast<uint8>(ERTPredictiveOutcome::PredictionWhiffed);
 			Entry.Amount = 0;
-			AppendLogEntry(Entry, FRTLogSubject::UnitAt(Shooter, ShooterCellNow));
+			AppendLogEntry(Entry, Shooter);
 
 			// Il whiff si SENTE: e' il `Misplay / Failure State` di D-032, e tacerlo lo renderebbe
 			// indistinguibile da un turno in cui nessuno ha dichiarato niente.
-			AddLogEvent(FString::Printf(TEXT("%s: previsione a vuoto, nessuno e' entrato"), *Shooter->GetName()),
-				FRTLogSubject::UnitAt(Shooter, ShooterCellNow));
+			AddLogEvent(FString::Printf(TEXT("%s: previsione a vuoto, nessuno e' entrato"), *Shooter->GetName()), FRTLogSubject::Unit(Shooter));
 		}
 	}
 }

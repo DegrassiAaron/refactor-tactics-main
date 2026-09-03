@@ -192,11 +192,15 @@ quale cella si congeli il verdetto di una voce **`Move`**, dove la cella di part
 anche la `SrcCell` della voce. Questa sezione dice dove sta la posizione, non quale istante una voce debba
 raccontare.
 
-✅ **Tre test la pinnano**, sul percorso reale e non sulla funzione pura:
+✅ **Quattro test la pinnano**, sul percorso reale e non sulla funzione pura:
 `Reactions.OverwatchCoverReadsTheMicroStepCell`, `Reactions.OverwatchLogLineAnnouncesDealtDamage`,
-`Reactions.VerdictFreezesOnTheImpactCell`. La ragione della scelta è
-[D-312](../decisions/RT_PDR_00_Decision_Log.md): la decisione qui è *quale cella il chiamante passa*, e una
-prova sulla funzione chiamata resta verde mentre il chiamante sbaglia.
+`Reactions.OverwatchMovingWatcherFiresFromItsCurrentCell` e `Reactions.VerdictFreezesOnTheImpactCell`. La
+ragione della scelta è [D-312](../decisions/RT_PDR_00_Decision_Log.md): la decisione qui è *quale cella il
+chiamante passa*, e una prova sulla funzione chiamata resta verde mentre il chiamante sbaglia.
+
+⚠️ **Il terzo copre il lato ATTACCANTE, e senza di lui gli altri non lo coprono.** Con il watcher fermo le
+sue due celle coincidono per tutta la risoluzione, quindi la mutazione che rimette `WatchOwner->Cell` li
+lascia verdi: misurato in code review, dopo che due documenti dichiaravano già coperta quella metà.
 
 ### 2.1 Il `Transfer` esiste già, e vive dentro il Dash
 
