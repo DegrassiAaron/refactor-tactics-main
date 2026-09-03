@@ -207,15 +207,22 @@ with io.open(ESITI, "w", encoding="utf-8") as f:
         try:
             ripristina()   # a INIZIO ciclo: la mutazione precedente non deve sopravvivere
             atteso = "static constexpr int32 %s = %s;" % (nome, val)
-            mutato = ORIGINALE.replace(atteso, "static constexpr int32 %s = %s;" % (nome, nuovo), 1)
-            if mutato == ORIGINALE:
+            nuova_riga = "static constexpr int32 %s = %s;" % (nome, nuovo)
+            # 🔴 Sostituzione e verifica in BYTE, come la scrittura, e per la stessa ragione. Questo
+            # header e' CRLF: una rilettura in modalita' TESTO applica le universal newlines e
+            # restituisce \n, che non sara' mai uguale al testo atteso in \r\n. La verifica falliva
+            # su OGNI costante, e l'audit dichiarava undici `NON MISURATA` mutando benissimo il
+            # codice: la guardia contro la scrittura no-op scattava su se' stessa, e la direzione
+            # `-3` non e' mai stata misurabile. Misurato il 2026-09-03: 17603 byte decodificati
+            # contro 17276 caratteri riletti, differenza 327, esattamente le righe del file.
+            byte_mutati = BYTE_ORIGINALI.replace(atteso.encode("utf-8"), nuova_riga.encode("utf-8"), 1)
+            if byte_mutati == BYTE_ORIGINALI:
                 # 🔴 Una scrittura no-op farebbe scattare l'allarme piu' forte su codice NON mutato.
                 f.write("## %s = %s -> %s\n**NON MISURATA**: la sostituzione non ha agganciato la "
                         "dichiarazione (spaziatura diversa?).\n\n" % (nome, val, nuovo))
                 sospese.append(nome); f.flush(); continue
-            scrivi(BYTE_ORIGINALI.replace(atteso.encode("utf-8"),
-                                          ("static constexpr int32 %s = %s;" % (nome, nuovo)).encode("utf-8"), 1))
-            if io.open(H, encoding="utf-8").read() != mutato:
+            scrivi(byte_mutati)
+            if io.open(H, "rb").read() != byte_mutati:
                 f.write("## %s = %s -> %s\n**NON MISURATA**: il file riletto non porta la mutazione.\n\n"
                         % (nome, val, nuovo))
                 sospese.append(nome); f.flush(); continue
