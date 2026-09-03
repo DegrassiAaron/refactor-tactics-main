@@ -9,7 +9,7 @@
 
 La domanda era *«quante issue dobbiamo implementare per eseguire le PIE rimaste?»*.
 
-Per la seduta più ricca — **U42, diciannove voci** — la risposta misurata è **zero**.
+Per la seduta più ricca — **U42, venti voci** — la risposta misurata è **zero**.
 
 `unblocked_by: []`, e le sue quattro issue (`#231 #233 #1919 #2009`) sono **tutte CLOSED**. I 29 file di
 `Scenarios/Visual/` esistono, e girano: `Scenario.EveryShippedScenarioRuns` e
@@ -24,10 +24,30 @@ dice da sé — *«Il corpus Visual, diciotto scenari che nessuna seduta convoca
 
 | | |
 |---|---|
-| voci totali · aperte | **200** · **98** |
-| aperte **schedulate** in una seduta | **68** |
-| aperte **fuori da ogni seduta** | **30** |
-| aperte che dichiarano un ostacolo | **21** |
+| voci totali · aperte | **202** · **100** |
+| aperte **schedulate** in una seduta | **67** |
+| aperte **fuori da ogni seduta** | **33** |
+| aperte che dichiarano un ostacolo | 21 — ⚠️ **non rimisurato**, vedi la nota |
+
+> 🔄 **Rimisurato il 2026-09-03 su `31859e13`, e i quattro numeri erano già invecchiati prima di
+> questa passata.** Dicevano `200 · 98 · 68 · 30`; la base senza le modifiche di oggi misura
+> `201 · 99 · 66 · 33`. Questo file è stato scritto **stamattina** su `2eb4ace2`: fra le due misure
+> `main` è avanzato, ed è il difetto che il registro delle PIE documenta da undici giri — *il numero si
+> ricalcola, non si aggiorna a mente*, e vale anche per un documento nato lo stesso giorno.
+>
+> ➕ **Il contributo di questa passata è esattamente uno**: entra `PIE-V01-SHIELD`, schedulata in `U18`
+> ([#1403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1403)). Totale e aperte salgono
+> di uno, le **schedulate** di uno, e le **orfane non si muovono**: 33 prima, 33 dopo.
+>
+> ⚠️ **Le «21 con ostacolo dichiarato» non sono state rimisurate** e restano come le trovo: contarle
+> chiede di leggere il testo di ogni riga, non un marcatore, e nessuno strumento qui lo fa. Il numero
+> è quello di stamattina e va trattato come tale.
+>
+> 🔑 **Metodo**: stesso criterio del comando canonico del registro — le **righe di tabella**, non un
+> `grep` sugli ID. ⚠️ La prima stesura di questa misura usava `[A-Z0-9-]` per l'identificativo e
+> perdeva **dieci** voci, quelle con una minuscola (`PIE-AS4a`, `PIE-BU2c`, `PIE-HEXPLAY-3b`): dava
+> `192` dove il comando canonico dice `202`, e sarebbe passata inosservata se i due numeri non fossero
+> stati confrontati.
 
 ⚠️ *«Senza ostacolo dichiarato»* **non** significa eseguibile: significa che la voce non dice di essere
 bloccata. Trenta di esse non sono in nessuna sequenza, ed è la condizione che
@@ -37,12 +57,19 @@ bloccata. Trenta di esse non sono in nessuna sequenza, ed è la condizione che
 
 | seduta | voci aperte | `unblocked_by` | issue | verdetto |
 |---|---|---|---|---|
-| **U42** | **19** | `[]` | #231 #233 #1919 #2009 — tutte **CLOSED** | 🟢 **eseguibile ora, zero issue** |
-| **U43** | **10** | `[]` | #151 (EPIC aperta) | 🟡 da verificare voce per voce |
+| **U42** | **20** | `[]` | #231 #233 #1919 #2009 — tutte **CLOSED** | 🟢 **eseguibile ora, zero issue** |
+| **U43** | **7** | `[]` | #151 (EPIC aperta) | 🟡 da verificare voce per voce |
 | U25 | 6 | `[U21]` | #1095 aperta | 🔴 bloccata da una seduta |
 | U5 | 5 | `[M6.6, M6.7]` | — | 🔴 bloccata da due checkpoint |
-| U18 · U19 · U22 | 4 ciascuna | — | varie | 🟡 |
-| altre 16 sedute | 1–3 ciascuna | — | varie | — |
+| **U18** | **5** | `[]` | #450 #567 #583 #551–554 | 🟢 **non attende nulla**, come U42 |
+| U19 · U22 | 4 ciascuna | — | varie | 🟡 |
+| **U39** | **1** | `[U21]` | #1920 aperta | 🟢 **la più vicina alla chiusura** — vedi Passo 0 |
+| altre 12 sedute | 1–3 ciascuna | — | varie | — |
+
+⚠️ **`U42` e `U43` sono cambiate, e non di poco**: `U43` dichiarava **dieci** voci aperte e ne misura
+**sette**. 🔑 **`U18` esce dal gruppo delle quattro** perché questa passata le ha aggiunto
+`PIE-V01-SHIELD`, e con `unblocked_by: []` è la **seconda** seduta del file che non attende nulla — un
+fatto che la riga *«U18 · U19 · U22, varie»* nascondeva mettendola fra due sedute che invece attendono.
 
 🔑 **Due sedute coprono 29 delle 68 voci schedulate.** Le altre ventuno si dividono il resto, molte con una
 voce sola: l'ordine non è una preferenza, è dove una sessione produce venti verdetti invece di uno.
@@ -63,7 +90,7 @@ Il meccanismo esiste ed è in `PIE-TEST-CONSOLE`:
 >
 > *«due esecuzioni consecutive dello stesso scenario **non sono confrontabili** senza `R` in mezzo»*
 
-∴ con diciannove scenari in fila, **dimenticare `R` una volta contamina tutti i verdetti successivi**. La
+∴ con venti verifiche in fila, **dimenticare `R` una volta contamina tutti i verdetti successivi**. La
 procedura è: `rt.Test.Run <id>` → guarda → **`R`** → prossimo. Senza eccezioni, anche quando sembra che non
 serva.
 
@@ -72,17 +99,44 @@ serva.
 
 ## 4. L'ordine consigliato
 
-### Passo 1 — U42, diciannove voci, nessun prerequisito
+### Passo 0 — U39, **una** voce, e chiude una issue
+
+`PIE-HEX-COORD-COSTO` è l'unica voce aperta di `U39`, e la sua gemella `PIE-HEX-COORD-LEGGIBILITA` è già
+✅ (2026-09-01, confermata dall'autore su `L_DevSandbox`). **Metà del suo criterio è già misurata** — il
+conteggio dei segmenti — e resta il giudizio che nessuna sonda headless può dare: navigare l'**arena
+piena** (raggio 50, 7 651 celle) e dire se il viewport regge, anche trascinando il pennello.
+
+🔑 **È il miglior rapporto verdetto/costo del file**: una voce sola, nessuna analisi da fare prima, e
+chiudendola si chiude **l'intera seduta** e con essa [#1920](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1920),
+la cui implementazione è già tutta in `main` — runtime, guscio editor e voci di registro. Resta aperta
+**solo** per questo verdetto a schermo.
+
+⚠️ **Non è una sessione a sé**: `unblocked_by: [U21]` — su una scena non illuminata il verdetto
+direbbe più sulle luci che sulle coordinate — e `shares_setup_with: [U21, U22, U25, U26]`. Si esegue
+**nella stessa apertura** di quel gruppo, ed è il motivo per cui costa quasi nulla eseguirla: chiede
+**meno** delle altre tre, nessuno strumento attivo.
+
+⚠️ **Perché fin qui non compariva in questo file**, pur essendo la più economica: la tabella della §2
+raggruppava le sedute da una-tre voci in *«altre 16»*, e una seduta a **una** voce sparisce esattamente
+nel gruppo che l'ordinamento per resa mette per ultimo. Ordinare per numero di verdetti nasconde chi ne
+produce pochi **a costo quasi nullo**.
+
+### Passo 1 — U42, venti voci, nessun prerequisito
 
 Le voci: `PIE-VIS-ICE`, `-WETFIRE`, `-KO`, `-CHARGE`, `-ROUGH`, `-COMBO`, `-COORD`, `-FALLBACK`, `-SMOKE`,
 `-PHASES`, `-LEVEL`, `-COVER`, `-DOOR`, `-HIGH`, `-HIGHCOVER`, `-GUARD`, `-BRACE`, `-AREAGUARD`, più
-`PIE-ACC-GUARDBRACE`.
+`PIE-ACC-GUARDBRACE` e `PIE-ACC-ENVIRONMENT`.
 
-✅ Tutte e diciannove **citano il proprio scenario** nella riga di registro: nessuna richiede di indovinare
-cosa allestire.
+✅ Tutte e venti **citano il proprio scenario** nella riga di registro: nessuna richiede di indovinare
+cosa allestire — verificato anche sulla ventesima, che dichiara `Visual.Environment.Acceptance` e il
+percorso del suo file.
+
+➕ **La ventesima è `PIE-ACC-ENVIRONMENT`, ed è arrivata dopo che questo file era stato scritto**: la
+voce ombrello del composito d'ambiente, entrata in `main` lo stesso 2026-09-03. Il testo qui sopra diceva
+*diciannove* ed elencava diciannove nomi: era corretto stamattina.
 
 ⚠️ **Prima di aprire l'editor va scritto, per ciascuna, cosa la falsifica.** Sono verifiche visive: senza un
-criterio scritto prima, diciannove scenari producono diciannove *«sembra ok»*, che non è un verdetto.
+criterio scritto prima, venti verifiche producono venti *«sembra ok»*, che non è un verdetto.
 
 ### Passo 2 — U43, dieci voci
 
@@ -99,7 +153,7 @@ a una nuova, e la decisione è di `editor-sessions.yaml`, che ne è l'owner.
 
 ## 5. Cosa questa roadmap NON dice
 
-- ⛔ **Non dice che i diciannove verdetti saranno verdi.** Dice che sono *osservabili*. Uno scenario che gira
+- ⛔ **Non dice che i venti verdetti saranno verdi.** Dice che sono *osservabili*. Uno scenario che gira
   headless prova che il gioco non si rompe, non che a schermo si veda ciò che deve vedersi — è precisamente
   la ragione per cui esiste una verifica PIE.
 - ⛔ **Non copre le 21 voci con ostacolo dichiarato**: quelle hanno cause proprie, scritte nelle loro righe,
