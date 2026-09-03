@@ -621,9 +621,24 @@ sessions:
     artifacts: []
     unblocked_by: [E47.1, E47.3]
     shares_setup_with: []
-    verifies: []
+    verifies:
+      - PIE-V01-PACKAGED
     issues: [959, 1088, 1069, 79, 1296]
     done_when: esiste una registrazione di una partita 2v2 conclusa senza un solo input, eseguita due volte — PIE e pacchetto Development
+    notes: |
+      🔴 **Da sapere PRIMA di aprire l'editor: il bot NON cerca l'obiettivo.** Misurato —
+      `grep Objective Source/RefactorTactics/Bot/` dà **zero**, e il suo scoring pesa danno, uccisioni e
+      copertura; i goal veri (`SecureObjective`) sono E26. Nella partita d'autore i punti del team 1 sono
+      **turni in cui un bot ci è capitato sopra** — la porta nord è un varco naturale — non un presidio.
+      ∴ **la vittoria PER OBIETTIVO non si vedrà in autobattle**: chi vuole registrarla deve giocare a
+      mano. La registrazione che questa seduta chiede resta valida per ciò che chiede — una partita che
+      arriva alla vittoria senza input — ma non esercita la via a punti fino in fondo.
+
+      ⏱️ **La «domanda d'autore» che teneva aperta `PIE-V01-PACKAGED` non esiste più.** Fu decisa il
+      2026-08-23 — si filmano entrambe — e il presupposto che la rendeva necessaria è caduto il
+      2026-08-30: il free-run sull'asset d'autore non finisce più pari, vince il team 1 allo scadere
+      (`Match.Autobattle.ShippedFormatEndsTheAuthoredMatch`). Il criterio «arriva alla vittoria» è
+      soddisfatto dal free-run, e non c'è nulla da decidere prima di eseguire.
     unblocks: []
     steps: |
       ✅ **PRENOTABILE dal 2026-08-23**, con una domanda d'autore da sciogliere PRIMA di aprire l'editor
