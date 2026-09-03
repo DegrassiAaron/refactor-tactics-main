@@ -279,7 +279,14 @@ struct FRTCombatLogLine
 	UPROPERTY()
 	FString Text;
 
-	/** Chi ha prodotto il fatto. Resta per diagnosi e per i test: il filtro NON lo usa piu'. */
+	/**
+	 * Chi ha prodotto il fatto. Resta per diagnosi e per i test: il filtro NON lo usa piu'.
+	 *
+	 * ⛔ **E non deve tornare a usarlo** (`#1499`). Il gemello di questo campo in `FRTDescribedLine` porta
+	 * la storia per esteso; qui basta la conseguenza: `Verdict`, due righe sotto, e' l'unica risposta alla
+	 * domanda «chi puo' leggerla», e il suo default **nasconde**. Il default di questo `INDEX_NONE`
+	 * significava invece «la leggono tutti», ed e' il fail-open che `#1499` ha chiuso.
+	 */
 	UPROPERTY()
 	int32 SubjectStableUnitId = INDEX_NONE;
 
