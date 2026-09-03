@@ -179,7 +179,53 @@ codice di produzione è identica: 32,1 % → 32,2 %. Il modulo non sta degeneran
 
 ---
 
-## 6. Cosa questo referto raccomanda
+## 6. La worklist ordinata per costo, non per dimensione
+
+Una funzione lunga che nessuno tocca non costa niente a nessuno. `git log -L a,b:file` segue il movimento
+delle righe, quindi conta i commit che hanno toccato **quella funzione**, non il file che la contiene — e il
+prodotto `righe × commit` riordina la classifica in modo sostanziale (`--churn`):
+
+| Costo | Commit | Righe | Rami | Funzione | File:linea |
+|---:|---:|---:|---:|---|---|
+| 95 904 | **108** | 888 | 64 | `ARTTurnManager::ResolveCombatPasses` | `Turn/RTTurnManager.cpp:4765` |
+| 48 858 | 51 | 958 | 92 | `ARTTurnManager::PlanBots` | `Turn/RTTurnManager.cpp:646` |
+| 39 480 | 56 | 705 | 68 | `ARTHUD::DrawHUD` | `UI/RTHUD.cpp:408` |
+| 27 683 | 47 | 589 | **0** | `URTCatalogLibrary::GetCoreActionCatalog` | `Ability/RTCatalogLibrary.cpp:1055` |
+| 20 727 | 49 | 423 | 31 | `ARTTurnManager::ResolveDash` | `Turn/RTTurnManager.cpp:4101` |
+| 17 952 | 44 | 408 | 31 | `ARTTurnManager::LockInAndResolve` | `Turn/RTTurnManager.cpp:1662` |
+| 14 544 | 48 | 303 | 20 | `ARTTurnManager::ResolveMovement` | `Turn/RTTurnManager.cpp:6570` |
+| 10 324 | 29 | 356 | 21 | `URTTurnLogLibrary::DescribeEntry` | `Turn/RTTurnLogLibrary.cpp:348` |
+| 10 200 | 25 | 408 | 39 | `ARTHexMapActor::RebuildInstances` | `Map/RTHexMapActor.cpp:1211` |
+| 8 860 | 20 | 443 | 51 | `ParseScenarioTurns` | `ScenarioHarness/RTScenarioLoader.cpp:666` |
+| 8 442 | 21 | 402 | 35 | `FRTScenarioSession::Finish` | `ScenarioHarness/RTScenarioSession.cpp:1759` |
+| 7 600 | 20 | 380 | 38 | `ARTTurnManager::ApplyInterrupts` | `Turn/RTTurnManager_Blast.cpp:769` |
+
+**L'ordine cambia rispetto alla classifica per righe.** `PlanBots` è la più lunga; quella che si **paga** è
+`ResolveCombatPasses`: **108 commit in 34 giorni**, tre al giorno, perché ogni feature di combattimento le
+passa dentro. All'estremo opposto `ApplyDisplacements` misura 410 righe con **9 commit**: grande e ferma,
+cioè irrilevante per chiunque lavori oggi.
+
+Il churn conferma il falso positivo da un secondo lato, indipendente dal primo:
+`GetCoreActionCatalog` ha **47 commit** e **zero rami**. Non è logica che cambia — è una tabella a cui si
+aggiungono voci, e ogni azione nuova del catalogo la tocca.
+
+### 🔴 I due terzi del costo stanno dove l'Epic ha deciso di non entrare
+
+Delle dodici voci, sei sono in `ARTTurnManager` e valgono **205 585 su 310 574 di costo totale: il 66 %**.
+Ma #1818 mette esplicitamente fuori scope *«toccare i resolver: sono il cuore competitivo, e il loro
+sequenziamento è testato da un corpus golden»* — ed è una decisione difendibile, presa con evidenza.
+
+Il punto non è che vada ribaltata. È che **il perimetro che l'Epic si è data esclude la maggior parte del
+costo che si paga davvero**, e questo è un fatto che merita di essere scritto accanto alla decisione invece
+di restare implicito. Le fette disponibili dentro il perimetro sono, per costruzione, quelle che spostano
+meno.
+
+⚠️ **La storia del repository è di 34 giorni** (primo commit 2026-08-01). È tutto il churn che esiste, ma è
+un campione corto: una funzione toccata 9 volte può essere ferma, o solo non ancora arrivata al suo turno.
+
+---
+
+## 7. Cosa questo referto raccomanda
 
 **Per E50 #1816** — aggiungere un criterio di non-regressione accanto a quelli esistenti. Nella forma:
 *«ogni PR che tocca `RTTurnManager.*` riporta le righe di codice prima/dopo; una crescita non è un veto, ma
@@ -210,18 +256,29 @@ architettura lo descrive come ciò che *«rende l'allestimento verificabile senz
 è progettato per essere verificabile, e quasi nessuno lo verifica. Toccarlo oggi significa muoversi senza
 rete.
 
+**Un candidato che l'incrocio fa emergere**: `ARTHUD::DrawHUD` — 705 righe, **56 commit**, terzo per costo
+(39 480) — è l'unica voce alta della classifica che sta **fuori dal perimetro escluso** da #1818. Per
+l'invariante #5 la presentazione *«non decide l'esito»*: non entra in nessun hash, non tocca il
+determinismo, non ha golden da difendere. La rete è media, non densa (13 file di test nominano `ARTHUD`,
+8 `ScreenHud`), e va guardata prima di aprire la fetta — ma è il punto dove costo alto e rischio basso si
+incontrano, ed è lo stesso profilo che aveva #1817, la fetta riuscita.
+
+Va detto per intero: non riduce `ARTTurnManager`, che è l'oggetto di #1818. Riduce il **costo**, che è
+un'altra cosa e non è ancora un criterio dell'Epic.
+
 ---
 
-## 7. Ciò che questo referto NON prova
+## 8. Ciò che questo referto NON prova
 
 - **nessun build e nessuna run di `rt-suite`**: qui non è stata cambiata una riga di codice di produzione, e
   misurare non è verificare. Chi userà queste misure per una fetta dovrà comunque pagare build e suite;
 - **non prova che 74 e 66 siano sbagliati**: prova che non sono riproducibili da chi legge il referto;
 - **`rami` non è complessità ciclomatica**: conta parole chiave, non cammini. Serve a separare le tabelle di
   dati dalle funzioni con logica, non a ordinare le seconde fra loro;
-- **manca il churn**. Una funzione lunga che nessuno tocca non costa niente a nessuno; una di 120 righe
-  attraversata da ogni feature costa a ogni feature. Il selettore vero è `righe × frequenza di modifica`, e
-  la frequenza sta in `git log`, non in questo strumento. È il primo pezzo che manca a una worklist.
+- **il churn copre 34 giorni**, cioè tutta la vita del repository. È il campione che esiste, non un campione
+  rappresentativo: nove commit su una funzione possono voler dire «ferma» o «non ancora toccata»;
+- **non dice che fare**. Dice dove sta il peso, quanto costa e cosa scartare come falso positivo. Quale
+  fetta valga la pena resta una decisione, e le decisioni stanno nel Decision Log.
 
 ---
 
@@ -240,3 +297,8 @@ Restano tre rilievi, nessuno dei quali mette in discussione la direzione:
 
 Il quarto punto non è un rilievo ma un'aggiunta: **c'è un asse di debito che nessuno stava misurando**, e su
 quello la quota è ferma al 32 %. Non peggiora. Non migliora neanche.
+
+Il quinto è una constatazione, e va letta accanto alla decisione che la produce, non contro: **i due terzi
+del costo misurato stanno dentro il perimetro che #1818 ha escluso con evidenza**. Finché i resolver restano
+fuori scope — e ci sono buone ragioni perché ci restino — le fette disponibili sono quelle che spostano
+meno. Questo non chiede di cambiare la decisione: chiede che il suo prezzo sia scritto accanto ad essa.

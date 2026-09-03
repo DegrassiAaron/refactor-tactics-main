@@ -2,7 +2,8 @@
 """Le misure di E50, con il comando che le genera — e un asse che l'audit non aveva.
 
     Uso:  python tools/architettura/misure-strutturali.py [--ref <git-ref>] [--base <git-ref>]
-                                                          [--soglia N] [--markdown] [--json <file>]
+                                                          [--churn] [--soglia N]
+                                                          [--markdown] [--json <file>]
 
 Senza argomenti misura l'albero di lavoro. Con `--base` stampa il confronto fra due commit, che e'
 la forma in cui #1818 chiede di riportare ogni fetta.
@@ -59,10 +60,28 @@ una tabella di dati con la ragione di ogni voce scritta accanto. Spezzarla non t
 sposterebbe dati. Per questo la classifica riporta `rami` accanto a `righe`, e chi la legge scarta le voci
 a densita' di rami quasi nulla prima di farne una worklist.
 
+## `--churn`: una funzione lunga che nessuno tocca non costa niente
+
+`git log -L a,b:file` segue il movimento delle righe, quindi conta i commit che hanno toccato *quella
+funzione*, non il file che la contiene. Il prodotto `righe x commit` riordina la classifica, e l'ordine
+cambia:
+
+    ResolveCombatPasses    888 righe   108 commit   costo  95 904
+    PlanBots               958 righe    51 commit   costo  48 858
+    ApplyDisplacements     410 righe     9 commit   costo   3 690
+
+`PlanBots` e' la piu' lunga, `ResolveCombatPasses` e' quella che si paga: 108 commit in 34 giorni, tre al
+giorno, perche' ogni feature di combattimento le passa dentro. `ApplyDisplacements` e' grande e ferma.
+
+Il churn conferma anche il falso positivo da un secondo lato: `GetCoreActionCatalog` ha **47 commit** con
+**zero rami**. Non e' logica che cambia, e' una tabella a cui si aggiungono voci.
+
+⚠️ La storia del repository e' di **34 giorni** (primo commit 2026-08-01). E' tutto il churn che esiste, ma
+e' un campione corto: una funzione toccata 9 volte puo' essere ferma o solo non ancora arrivata al suo
+turno.
+
 ## Cosa NON misura
 
-- **la frequenza di modifica**: una funzione lunga che nessuno tocca non costa niente. Il selettore vero e'
-  `righe x churn`, e il churn sta in `git log`, non qui;
 - **la complessita' ciclomatica reale**: `rami` conta le parole chiave, non i cammini;
 - **se una fetta e' una buona idea**: dice dov'e' il peso, non cosa farne.
 """
@@ -225,11 +244,13 @@ def misura(radice, soglia):
         if "Tests" in p.parts:
             continue
         righe_prod += len(leggi(p))
-        rel = p.relative_to(radice).as_posix().replace("Source/RefactorTactics/", "")
+        path = p.relative_to(radice).as_posix()
+        rel = path.replace("Source/RefactorTactics/", "")
         for lung, rami, nome, inizio in funzioni_di(p):
             totali += 1
             if lung >= soglia:
-                lunghe.append({"righe": lung, "rami": rami, "nome": nome, "file": rel, "linea": inizio})
+                lunghe.append({"righe": lung, "rami": rami, "nome": nome,
+                               "file": rel, "path": path, "linea": inizio})
     lunghe.sort(key=lambda r: -r["righe"])
     m["produzione_righe_cpp"] = righe_prod
     m["funzioni_totali"] = totali
@@ -256,6 +277,28 @@ def albero_di(ref, radice_repo):
     subprocess.run(["tar", "-xf", str(tar), "-C", str(tmp)], check=True)
     tar.unlink()
     return tmp
+
+
+def aggiungi_churn(m, repo):
+    """Quante volte l'intervallo di righe di ogni funzione e' stato toccato.
+
+    `git log -L a,b:file` segue il movimento delle righe, quindi conta i commit che hanno toccato
+    *quella funzione*, non il file che la contiene. Il prodotto `righe x commit` e' il costo che si
+    paga davvero: una funzione lunga che nessuno tocca non costa niente a nessuno.
+    """
+    for r in m["classifica"]:
+        a = r["linea"]
+        b = a + r["righe"] - 1
+        try:
+            esito = subprocess.run(
+                ["git", "log", "-L", "%d,%d:%s" % (a, b, r["path"]), "--format=%h", "-s"],
+                cwd=str(repo), capture_output=True, text=True, timeout=120,
+            )
+            r["commit"] = len([x for x in esito.stdout.splitlines() if x.strip()])
+        except (subprocess.SubprocessError, OSError):
+            r["commit"] = None
+        r["costo"] = r["righe"] * r["commit"] if r["commit"] else 0
+    return m
 
 
 def delta(dopo, prima):
@@ -323,14 +366,36 @@ def stampa(m, base=None, markdown=False):
         for r in m["classifica"][:12]:
             print("  %6d %5d  %-48s %s:%d" % (r["righe"], r["rami"], r["nome"][:48], r["file"], r["linea"]))
 
+    if any("commit" in r for r in m["classifica"]):
+        per_costo = sorted(m["classifica"], key=lambda r: -r.get("costo", 0))[:12]
+        print()
+        if markdown:
+            print("**Worklist per costo** — `righe x commit che hanno toccato quelle righe`\n")
+            print("| costo | commit | righe | rami | funzione | file:linea |")
+            print("|---|---|---|---|---|---|")
+            for r in per_costo:
+                print("| %d | %s | %d | %d | `%s` | `%s:%d` |"
+                      % (r.get("costo", 0), r.get("commit", "?"), r["righe"], r["rami"],
+                         r["nome"], r["file"], r["linea"]))
+        else:
+            print("=== WORKLIST PER COSTO (righe x commit che hanno toccato quelle righe) ===")
+            print("  %7s %7s %6s %5s  %-44s %s" % ("COSTO", "COMMIT", "RIGHE", "RAMI", "FUNZIONE", "FILE:LINEA"))
+            for r in per_costo:
+                print("  %7d %7s %6d %5d  %-44s %s:%d"
+                      % (r.get("costo", 0), r.get("commit", "?"), r["righe"], r["rami"],
+                         r["nome"][:44], r["file"], r["linea"]))
+
 
 def main():
-    ap = argparse.ArgumentParser(description="Misure strutturali di E50 — #1816, #1818")
+    ap = argparse.ArgumentParser(description="Misure strutturali di E50 - #1816, #1818")
     ap.add_argument("--ref", help="misura questo commit invece dell'albero di lavoro")
     ap.add_argument("--base", help="commit di confronto: stampa prima/dopo/delta")
     ap.add_argument("--soglia", type=int, default=100, help="righe oltre le quali una funzione e' lunga")
     ap.add_argument("--markdown", action="store_true", help="tabelle da incollare in un commento di issue")
     ap.add_argument("--json", help="scrive le misure grezze in questo file")
+    ap.add_argument("--churn", action="store_true",
+                    help="conta i commit che hanno toccato ogni funzione e ordina per costo "
+                         "(solo sull'albero di lavoro)")
     a = ap.parse_args()
 
     repo = Path(__file__).resolve().parents[2]
@@ -341,6 +406,14 @@ def main():
             temporanee.append(radice)
         m = misura(radice, a.soglia)
         m["ref"] = a.ref or "albero di lavoro"
+
+        if a.churn:
+            if a.ref:
+                sys.stderr.write(
+                    "--churn ignorato: `git log -L` legge il repository, non la copia temporanea di --ref.\n"
+                )
+            else:
+                aggiungi_churn(m, repo)
 
         base = None
         if a.base:
