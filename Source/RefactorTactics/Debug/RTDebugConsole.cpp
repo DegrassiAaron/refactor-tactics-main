@@ -28,6 +28,7 @@
 #include "Turn/RTHexSim.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary::VisibleTrailFor
 #include "UI/RTHudViewModel.h"
 #include "Unit/RTUnit.h"
 
@@ -225,7 +226,7 @@ static void RTDebugDrawPathsCommand(const TArray<FString>& Args, UWorld* World, 
 	// con cui il filtro si verifica.
 	//
 	// ➕ **E lo verifica davvero**: accanto alla rotta autoritativa il comando stampa il tratto che
-	// `ARTTurnManager::VisibleTrailFor` concede all'osservatore — la stessa funzione che disegna `DrawHUD`,
+	// `URTMoveRouteLibrary::VisibleTrailFor` concede all'osservatore — la stessa funzione che disegna `DrawHUD`,
 	// non una seconda lettura della regola. `celle` e `visto` che differiscono sono un troncamento avvenuto;
 	// uguali, una rotta osservata per intero; `visto 0` una rotta invisibile a quella squadra. E' cosi' che
 	// `PIE-KNOW4` si controlla senza fidarsi dell'occhio.
@@ -242,7 +243,7 @@ static void RTDebugDrawPathsCommand(const TArray<FString>& Args, UWorld* World, 
 			i, Routes[i].StableUnitId,
 			Routes[i].Cells.Num() > 0 ? *Routes[i].Cells[0].ToString() : TEXT("?"), *Path,
 			Routes[i].Cells.Num(), ObserverTeamId,
-			ARTTurnManager::VisibleTrailFor(Routes[i], ObserverTeamId).Num());
+			URTMoveRouteLibrary::VisibleTrailFor(Routes[i], ObserverTeamId).Num());
 	}
 	Ar.Logf(TEXT("[RT] Percorsi dell'ultima risoluzione: %d — solo le unita' che si sono MOSSE. "
 		"Il team osservatore e' %d (primo argomento); la colonna «visto» e' cio' che l'HUD ne disegnerebbe."),
