@@ -659,7 +659,8 @@ void ARTHUD::DrawHUD()
 		// soggetto. Saltare le celle non ammesse tenderebbe un segmento fra due celle non adiacenti, proprio
 		// sopra il tratto da nascondere.
 		//
-		// ⚠️ La regola vive in una statica PURA di `ARTTurnManager`, gemella di `ComposeVisibleLogLines`:
+		// ⚠️ La regola vive in una statica PURA di `ARTTurnManager`, gemella di
+		// `URTCombatLogLibrary::ComposeVisibleLogLines` (`Turn/RTCombatLog.h` da `#1818`):
 		// `DrawHUD` non ha copertura headless, quindi cio' che si puo' sbagliare deve stare dove i test
 		// arrivano.
 		const FLinearColor TrailColor(0.6f, 0.6f, 0.6f, 0.5f);
