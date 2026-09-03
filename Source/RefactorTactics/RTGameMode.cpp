@@ -117,6 +117,14 @@ TAutoConsoleVariable<int32> CVarRTBotAllies(
 		 "(vale il resto), 0 = nessuno, N = gli ultimi N. Almeno un'unita' resta sempre al giocatore."),
 	ECVF_Default);
 
+TAutoConsoleVariable<int32> CVarRTDemoArenaRadius(
+	TEXT("rt.Match.DemoArenaRadius"),
+	-1,
+	TEXT("Raggio dell'arena di ripiego generata. -1 = non impostata (vale la proprieta' del GameMode), "
+		 "0 = nessun ripiego, N = esagono pieno di raggio N. Esiste perche' la proprieta' vive in un "
+		 "`.uasset`: senza questa, cambiare il raggio richiede di aprire l'editor."),
+	ECVF_Default);
+
 TAutoConsoleVariable<float> CVarRTPlanningSeconds(
 	TEXT("rt.Match.PlanningSeconds"),
 	-1.f,
@@ -667,7 +675,7 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	FRTMatchBootstrapConfig Config;
 	Config.MapSource             = ResolveMapSource();
 	Config.MapFixtureId          = CVarRTMapFixture.GetValueOnGameThread().TrimStartAndEnd();
-	Config.DemoArenaRadius       = DemoArenaRadius;
+	Config.DemoArenaRadius       = ResolveDemoArenaRadius();
 	Config.MatchFormat           = MatchFormat;
 	Config.ShippedFormatId       = ShippedFormatId;
 	Config.Team0Heroes           = Team0Heroes;
@@ -884,6 +892,36 @@ bool ARTGameMode::ResolveAutobattle() const
 	}
 
 	return bAutobattle;
+}
+
+int32 ARTGameMode::ResolveDemoArenaRadius() const
+{
+	// Stessa scala e stessa sentinella negativa di `ResolveBotAllies`, con una sorgente in meno: qui la
+	// riga di comando non serve, perche' il caso d'uso e' l'allestimento in EDITOR — un raggio scelto per
+	// guardare una mappa grande a schermo — e non il pacchetto. Aggiungerla senza un consumatore sarebbe
+	// la terza sorgente che nessuno usa.
+	//
+	// 🔑 **`0` e' un VALORE, non la sentinella**: e' l'opt-out dal ripiego, pinnato da
+	// `MatchSetup.GameModeNoFallbackWhenRadiusZero`. Per questo la soglia e' `>= 0` e non `> 0`:
+	// trattare lo zero come «non impostata» renderebbe quel comportamento irraggiungibile dalla console.
+	const int32 FromConsole = CVarRTDemoArenaRadius.GetValueOnGameThread();
+	if (FromConsole >= 0)
+	{
+		if (DemoArenaRadius != FromConsole)
+		{
+			// Non in silenzio, per la stessa ragione delle altre quattro: una console variable dura quanto
+			// il processo dell'editor, e continuerebbe a scavalcare la proprieta' a ogni Play successivo
+			// senza che nulla lo dica.
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] La console variable rt.Match.DemoArenaRadius=%d SCAVALCA la proprieta' "
+					 "DemoArenaRadius=%d del GameMode. Per tornare a usare la proprieta': "
+					 "`rt.Match.DemoArenaRadius -1`."),
+				FromConsole, DemoArenaRadius);
+		}
+		return FromConsole;
+	}
+
+	return DemoArenaRadius;
 }
 
 int32 ARTGameMode::ResolveBotAllies() const

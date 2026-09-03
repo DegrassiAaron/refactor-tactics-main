@@ -17,6 +17,7 @@
 
 /** Definita in ScenarioHarness/RTTestConsole.cpp. */
 extern TAutoConsoleVariable<FString> CVarRTMapSource;
+extern TAutoConsoleVariable<int32> CVarRTDemoArenaRadius;
 
 namespace
 {
@@ -35,6 +36,22 @@ namespace
 			CVarRTMapSource->Set(Value, ECVF_SetByCode);
 		}
 		~FRTMapSourceCVarGuard() { CVarRTMapSource->Set(*Previous, ECVF_SetByCode); }
+	};
+
+	/**
+	 * Stessa forma della guardia qui sopra, per la console variable del RAGGIO. Serve un ripristino
+	 * esplicito e non un valore fisso: una console variable dura quanto il processo dell'editor, quindi
+	 * un test che la lasciasse accesa cambierebbe l'allestimento di ogni test successivo della suite.
+	 */
+	struct FRTDemoArenaRadiusCVarGuard
+	{
+		int32 Previous;
+		explicit FRTDemoArenaRadiusCVarGuard(int32 Value)
+			: Previous(CVarRTDemoArenaRadius.GetValueOnGameThread())
+		{
+			CVarRTDemoArenaRadius->Set(Value, ECVF_SetByCode);
+		}
+		~FRTDemoArenaRadiusCVarGuard() { CVarRTDemoArenaRadius->Set(Previous, ECVF_SetByCode); }
 	};
 }
 
@@ -381,6 +398,120 @@ bool FRTGameModeMapSourceLevelAssetTest::RunTest(const FString&)
 		MapActor->MapAsset && MapActor->MapAsset->ComputeHash() == Authored->ComputeHash());
 	TestTrue(TEXT("ma e' una copia di lavoro: l'asset d'autore non viene modificato dalla partita"),
 		MapActor->MapAsset != Authored);
+
+	DestroySetupWorld(World);
+	return true;
+}
+
+
+/**
+ * Il RAGGIO dell'arena generata si sceglie da fuori, come le altre quattro voci d'allestimento.
+ *
+ * `DemoArenaRadius` era l'unico parametro dell'allestimento senza resolver: si leggeva nudo dalla
+ * proprieta', quindi si poteva cambiare **solo** aprendo `BP_GameMode` nell'editor, cioe' modificando un
+ * `.uasset`. Le altre quattro — sorgente mappa, scenario, autobattle, alleati bot — hanno tutte la stessa
+ * scala console variable > proprieta', e questa la completa (#2219).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeDemoArenaRadiusOverrideTest,
+	"RefactorTactics.MatchSetup.DemoArenaRadiusConsoleVariableOverridesProperty",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeDemoArenaRadiusOverrideTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("GameMode"), GameMode)) { DestroySetupWorld(World); return false; }
+
+	GameMode->DemoArenaRadius = 2;
+
+	// Sentinella: `-1` non e' «raggio -1», e' «non impostata». Vale la proprieta'.
+	{
+		FRTDemoArenaRadiusCVarGuard Guard(-1);
+		TestEqual(TEXT("senza console variable vale la proprieta'"),
+			GameMode->ResolveDemoArenaRadius(), 2);
+	}
+
+	// La console variable scavalca, ed e' l'intento di QUESTO avvio.
+	{
+		FRTDemoArenaRadiusCVarGuard Guard(3);
+		TestEqual(TEXT("la console variable scavalca la proprieta'"),
+			GameMode->ResolveDemoArenaRadius(), 3);
+	}
+
+	// Zero e' un valore LEGITTIMO e non la sentinella: e' l'opt-out dal ripiego, gia' pinnato da
+	// `GameModeNoFallbackWhenRadiusZero`. Se `0` fosse trattato come «non impostata» quel comportamento
+	// diventerebbe irraggiungibile dalla console.
+	{
+		FRTDemoArenaRadiusCVarGuard Guard(0);
+		TestEqual(TEXT("zero e' un valore, non la sentinella"),
+			GameMode->ResolveDemoArenaRadius(), 0);
+	}
+
+	// Tolta la console, la proprieta' torna a valere: la precedenza non l'ha consumata.
+	{
+		FRTDemoArenaRadiusCVarGuard Guard(-1);
+		TestEqual(TEXT("tolta la console, vale di nuovo la proprieta'"),
+			GameMode->ResolveDemoArenaRadius(), 2);
+	}
+
+	DestroySetupWorld(World);
+	return true;
+}
+
+/**
+ * E il raggio scelto ARRIVA alle celle, che e' un'altra affermazione.
+ *
+ * ⚠️ Il test qui sopra prova che il resolver *risponde*; questo prova che qualcuno lo *chiama*. Sono due
+ * cose diverse, e la seconda e' quella che difende la decisione: `Config.DemoArenaRadius` si costruisce in
+ * `SetupHexMatch`, e finche' quella riga legge la proprieta' nuda il resolver puo' essere giusto e non
+ * servire a niente. Mutazione che lo dimostra: rimettere `Config.DemoArenaRadius = DemoArenaRadius;` e
+ * questo test cade da solo, mentre quello sopra resta verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameModeDemoArenaRadiusReachesArenaTest,
+	"RefactorTactics.MatchSetup.DemoArenaRadiusReachesTheGeneratedArena",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameModeDemoArenaRadiusReachesArenaTest::RunTest(const FString&)
+{
+	UWorld* World = MakeSetupWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	// Anti-vacuita' PRIMA di tutto: se le due arene avessero lo stesso numero di celle, il confronto in
+	// fondo passerebbe qualunque raggio venisse usato, e il test non misurerebbe niente.
+	const URTHexMapAsset* FromProperty = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 2);
+	const URTHexMapAsset* FromConsole  = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
+	if (!TestNotNull(TEXT("arena di raggio 2"), FromProperty) ||
+		!TestNotNull(TEXT("arena di raggio 3"), FromConsole))
+	{
+		DestroySetupWorld(World);
+		return false;
+	}
+	if (!TestTrue(TEXT("i due raggi danno un numero di celle DIVERSO"),
+			FromProperty->NumCells() != FromConsole->NumCells()))
+	{
+		DestroySetupWorld(World);
+		return false;
+	}
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("mappa"), MapActor) || !TestNotNull(TEXT("GameMode"), GameMode))
+	{
+		DestroySetupWorld(World);
+		return false;
+	}
+
+	// L'arena generata e' scelta esplicitamente: qui non si misura la precedenza fra mappa d'autore e
+	// ripiego, che resta quella di `MapSourceLevelAssetKeepsAuthoredMap`.
+	GameMode->MapSource = ERTMapSource::GeneratedDemoArena;
+	GameMode->DemoArenaRadius = 2;
+
+	{
+		FRTDemoArenaRadiusCVarGuard Guard(3);
+		GameMode->SetupHexMatch(MapActor);
+		TestTrue(TEXT("l'arena in uso ha il raggio della CONSOLE, non quello della proprieta'"),
+			MapActor->MapAsset && MapActor->MapAsset->NumCells() == FromConsole->NumCells());
+	}
 
 	DestroySetupWorld(World);
 	return true;
