@@ -2573,11 +2573,11 @@ sessions:
       branch remoti** il 2026-09-02. Chi arriva secondo rinumera, non contende.
 
   - id: U42
-    title: Il corpus Visual, diciassette scenari che nessuna seduta convocava
+    title: Il corpus Visual, diciotto scenari che nessuna seduta convocava
     block: 1
     critical: false
     execution_lane: pie
-    produces: verdetto sulle diciassette voci `PIE-VIS-*` ancora aperte, piu' il confronto Guard/Brace
+    produces: verdetto sulle diciotto voci `PIE-VIS-*` giudicabili e aperte, piu' il confronto Guard/Brace
     artifacts: []
     unblocked_by: []
     shares_setup_with: [U43]
@@ -2599,9 +2599,10 @@ sessions:
       - PIE-VIS-HIGHCOVER
       - PIE-VIS-GUARD
       - PIE-VIS-BRACE
+      - PIE-VIS-AREAGUARD
       - PIE-ACC-GUARDBRACE
-    issues: [231, 233, 1919]
-    done_when: le diciassette voci hanno esito reale nel registro
+    issues: [231, 233, 1919, 2009]
+    done_when: le diciannove voci di `verifies` hanno esito reale nel registro
     unblocks: []
     steps: |
       **Non c'è niente da allestire, ed è il punto della seduta.** Ognuna di queste diciassette voci ha
@@ -2609,10 +2610,18 @@ sessions:
       corpus di classe B è pronto dal 2026-08-08 (`#231`). Ciò che mancava non era un file — era una
       seduta che le convocasse.
 
-      🔴 **Misurato il 2026-09-03: tutte e diciassette erano ORFANE.** Nessuna compariva in un `verifies`
+      🔴 **Misurato il 2026-09-03: tutte e diciotto erano ORFANE.** Nessuna compariva in un `verifies`
       di questo file, e il registro PIE dichiara la conseguenza in una riga — *«una voce che non sta in
-      una seduta non viene eseguita mai»*. Cinque `PIE-VIS-*` su ventidue sono verdi, e sono esattamente
-      quelle che qualcuno aveva eseguito passando di lì per altro.
+      una seduta non viene eseguita mai»*.
+
+      ⚠️ **Nessuna `PIE-VIS-*` è verde**, e la prima stesura di questa seduta diceva il contrario —
+      *«cinque su ventidue sono verdi»* — sbagliando la misura che decideva quali voci convocare. Il
+      comando canonico ristretto al prefisso dà `verde=0 · parziale=1 · aperta=21`. Le quattro che restano
+      fuori non sono verdi: `PIE-VIS-PUSH`, `-INTERPOSE` e `-DEFLECT` sono **⛔ non giudicabili oggi** —
+      `ERTResolvedEventType` non porta un evento per la spinta né per la reazione, e §8.1 di
+      `scenari-validazione-visiva.md` lo dichiara — mentre `PIE-VIS-FIRE` è 🟡, con l'ingresso nel fuoco
+      giudicabile e il tick di `Burning` cieco. Convocarle sarebbe chiedere a una persona di guardare
+      qualcosa che non viene disegnato.
 
       Il giro, per ciascuna: `BP_GameMode` → Class Defaults → *RefactorTactics|Test* → `Scenario To Run`
       → Play → si guarda. Cambiare scenario **non** richiede di chiudere l'Editor (regola di batching
@@ -2653,9 +2662,15 @@ sessions:
     steps: |
       **Due scenari, sette voci.** `Visual.Perception.Acceptance` porta in una sola scena i tre stati del
       velo — osservato, ricordato, mai visto — e `Visual.Hud.FirstPlayable` porta la partita in uno stato
-      ricco. Entrambi i compositi sono **verdi** nel registro (`PIE-ACC-PERCEPTION`, `PIE-ACC-HUD`): la
-      scena è allestita e leggibile, ed è tutto ciò che quelle due voci dichiarano. I criteri veri —
-      quelli che stanno qui sotto — non li ha ancora guardati nessuno.
+      ricco. Entrambi gli scenari sono **verdi headless**, quindi la scena si allestisce e lo stato è
+      quello giusto: non c'è niente da preparare prima di premere Play.
+
+      ⚠️ **Le due voci ombrello restano ⏳, e la prima stesura di questa seduta le dava per verdi.** Il
+      registro dice l'opposto e ne scrive la ragione: *«resta ⏳ perché nessuno l'ha GUARDATO — il verde
+      headless dice che la scena si allestisce, non che i tre stati si distinguano a schermo»*. È la
+      stessa distinzione che `PIE-ACC-GUARDBRACE` porta scritta in U42, e leggerla al contrario proprio
+      qui avrebbe fatto dichiarare fatta la parte che questa seduta esiste per fare. Lo stato delle voci
+      lo dice `test-manuali-pie.md`, che ne è l'owner: questo file cita gli ID e non li giudica (R-6).
 
       🔴 **Ed erano orfane tutte e sette**, misurato il 2026-09-03: il composito era stato scritto
       apposta per loro il 2026-08-31, e nessuna seduta lo convocava. Uno scenario di acceptance che
