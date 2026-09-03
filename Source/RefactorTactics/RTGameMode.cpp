@@ -421,9 +421,30 @@ void ARTGameMode::BeginPlay()
 	// quindi ritenta al primo `LockInAndResolve`; il rinfresco su zero unita' produce uno stato vuoto, che e'
 	// gia' il default. Se una di quelle due guardie venisse indebolita, la prima partita si romperebbe **qui**
 	// e in silenzio. Trovato in code review della PR #540 come commento diventato falso.
-	if (!UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()))
+	// 🔴 **La rivendicazione del turno 1 deve arrivare PRIMA del `BeginPlay` del TurnManager** — `#2102`,
+	// [D-314]. Da qui in poi il primo turno lo apre l'allestimento, quando la board esiste davvero: prima
+	// si apriva 348 ms troppo presto, su una board che nessuno aveva ancora allestito.
+	//
+	// ⚠️ **`SpawnActorDeferred` e non `SpawnActor`, ed e' l'unica ragione per cui cambia**: `SpawnActor`
+	// esegue `BeginPlay` prima di restituire, quindi la rivendicazione arriverebbe a turno gia' aperto —
+	// il caso che `ClaimFirstTurnForMatchSetup` sa solo *dichiarare*, non correggere.
+	ARTTurnManager* SpawningTurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+	if (SpawningTurnManager == nullptr)
 	{
-		World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass(), FTransform::Identity);
+		SpawningTurnManager = World->SpawnActorDeferred<ARTTurnManager>(
+			ARTTurnManager::StaticClass(), FTransform::Identity);
+		if (SpawningTurnManager != nullptr)
+		{
+			SpawningTurnManager->ClaimFirstTurnForMatchSetup();
+			UGameplayStatics::FinishSpawningActor(SpawningTurnManager, FTransform::Identity);
+		}
+	}
+	else
+	{
+		// Gia' nel mondo — piazzato nel livello, o spawnato da un test. La rivendicazione puo' arrivare
+		// tardi: in quel caso la funzione lo scrive nel log invece di fingere che l'ordine sia cambiato.
+		SpawningTurnManager->ClaimFirstTurnForMatchSetup();
 	}
 
 	// AUTO-RUN di uno scenario di test: se `rt.Test.Scenario` e' impostata, la partita normale NON viene
@@ -445,6 +466,11 @@ void ARTGameMode::BeginPlay()
 		// 🔴 **Fail-closed, e la riga vale quanto il resto della funzione**: chi ha chiesto uno scenario che
 		// non si carica non deve ritrovarsi a giocare una partita normale che non ha chiesto. Il motivo e'
 		// gia' nel log del coordinatore.
+		//
+		// ⚠️ Ma il turno rivendicato va **aperto lo stesso** prima di uscire (`#2102`): rivendicare e poi
+		// tornare lascerebbe un TurnManager che non apre mai il primo turno, cioe' una sessione morta —
+		// peggio del difetto d'ordine che la rivendicazione chiude.
+		OpenClaimedFirstTurn();
 		return;
 
 	case ERTScenarioStart::Started:
@@ -452,6 +478,9 @@ void ARTGameMode::BeginPlay()
 		// avanzare, e una partita normale non lo paga.
 		SetActorTickEnabled(true);
 		RecenterCameraOnScenario();
+		// Lo scenario allestisce da se' e pilota il TurnManager, ma il campione di pacing del primo turno
+		// lo apre `StartPlanningTimer`: senza questa riga, l'harness auto-run perderebbe cio' che aveva.
+		OpenClaimedFirstTurn();
 		return;
 	}
 
@@ -494,6 +523,16 @@ void ARTGameMode::BeginPlay()
 		// voce esplicita della DoD di `E13.8` (senza, il primo fotogramma rivela la mappa). Invertire
 		// le due righe lascerebbe la prima inquadratura con la conoscenza vuota, cioe' il difetto.
 		TurnManager->RefreshTeamKnowledgeNow();
+
+		// 🔑 **QUI si apre il turno 1** — `#2102`, [D-314]. E' il punto in cui l'allestimento ha finito:
+		// `FRTMatchBootstrapper::Bootstrap` ha scritto `ERTLoadPhase::Ready`, le unita' esistono, la board
+		// e' in campo. Prima il turno si apriva nel `BeginPlay` di questo attore, 348 ms troppo presto.
+		//
+		// ⚠️ **Dopo `RefreshTeamKnowledgeNow` e non prima**: `StartPlanningTimer` chiama `PlanBots()`, e il
+		// bot deve pianificare sulla conoscenza appena ricalcolata. Invertire le due righe farebbe decidere
+		// il bot sulla conoscenza vuota che il `BeginPlay` aveva lasciato — cioe' spostare il difetto invece
+		// di chiuderlo.
+		TurnManager->OpenFirstTurnAfterSetup();
 	}
 
 	// 🔴 **Il consumatore del velo (`E13.8`), che a `#1467` mancava**: il meccanismo esisteva, era coperto
@@ -541,6 +580,18 @@ void ARTGameMode::HookKnowledgeVeil()
 	if (URTKnowledgeVeilPresenter* Presenter = GetKnowledgeVeilPresenter())
 	{
 		Presenter->Hook(TurnManager);
+	}
+}
+
+void ARTGameMode::OpenClaimedFirstTurn()
+{
+	if (ARTTurnManager* TurnManager =
+			Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())))
+	{
+		// Idempotente e senza condizioni da ricordare: la guardia sta dentro `OpenFirstTurnAfterSetup`, che
+		// e' l'unico posto che sa se il turno e' stato rivendicato e se e' gia' aperto. Duplicarla qui
+		// significherebbe tenere la stessa regola in due posti — e uno dei due sarebbe sbagliato.
+		TurnManager->OpenFirstTurnAfterSetup();
 	}
 }
 

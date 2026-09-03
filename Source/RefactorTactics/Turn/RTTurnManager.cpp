@@ -61,6 +61,63 @@ void ARTTurnManager::BeginPlay()
 	// test e per lo `ScenarioHarness` che spawnano un TurnManager a mano, e farli scrivere su disco
 	// sarebbe un effetto collaterale che nessuno ha chiesto. La avvia chi allestisce una partita vera —
 	// il GameMode — con `BeginReplayRecording()`.
+
+	// 🔴 **E dal 2026-09-03 vale lo stesso per il TURNO 1** — `#2102`, [D-314].
+	//
+	// Misurato in due sessioni PIE: `Turno 1 - pianificazione` precedeva `Board 2v2 esagonale avviata` di
+	// 348 ms. Il turno si apriva su una board non ancora allestita, il cronometro della pianificazione
+	// partiva prima che ci fosse qualcosa da guardare, e `PlanBots()` decideva su uno stato che si stava
+	// componendo.
+	//
+	// ⚠️ **Lo stesso ordine aveva gia' prodotto un difetto giocabile**: il commento di `#1762` in
+	// `ARTGameMode::SetupHexMatch` dichiara che il refresh della conoscenza dentro questo `BeginPlay`
+	// «e' uscito con zero unita'», e che senza il ricalcolo successivo al primo turno il click non
+	// colpiva niente. Quella e' una compensazione; questa e' la causa.
+	//
+	// 🔑 **Ma l'attesa non puo' essere incondizionata**: qui ci passano anche i test headless e lo
+	// `ScenarioHarness`, che un bootstrapper non ce l'hanno e resterebbero senza turno per sempre. Apre
+	// chi non e' stato rivendicato.
+	if (bFirstTurnClaimedBySetup)
+	{
+		return;
+	}
+
+	bFirstTurnOpened = true;
+	StartPlanningTimer();
+}
+
+void ARTTurnManager::ClaimFirstTurnForMatchSetup()
+{
+	if (bFirstTurnOpened)
+	{
+		// ⚠️ **Tardi, e lo si dice invece di fingere.** Succede se questo attore e' piazzato nel livello e
+		// il suo `BeginPlay` ha preceduto quello del GameMode. Chiudere il turno e riaprirlo dopo
+		// significherebbe richiudere il campione di pacing — cioe' toccare `MsToLockIn`, che e' proprio
+		// cio' che il DoD di `#2102` chiede di non muovere senza misura. Il comportamento resta quello di
+		// prima della issue, e questa riga e' l'unico modo di accorgersene.
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] Turno 1 gia' aperto quando l'allestimento l'ha rivendicato: l'ordine resta quello ")
+			TEXT("precedente a #2102. Il TurnManager e' piazzato nel livello invece di essere spawnato?"));
+		return;
+	}
+
+	bFirstTurnClaimedBySetup = true;
+}
+
+void ARTTurnManager::OpenFirstTurnAfterSetup()
+{
+	if (!bFirstTurnClaimedBySetup || bFirstTurnOpened)
+	{
+		// Nessuna rivendicazione (l'ha gia' aperto `BeginPlay`), oppure gia' aperto da qui.
+		//
+		// 🔑 **L'idempotenza non e' cortesia**: `ARTGameMode::BeginPlay` chiama questa funzione da PIU'
+		// cammini d'uscita — allestimento normale, scenario non caricabile, scenario avviato — perche' un
+		// turno mai aperto e' peggio del difetto che `#2102` chiude. Senza questa guardia, due cammini che
+		// si sovrapponessero scriverebbero due voci `Turno 1` e aprirebbero due campioni di pacing.
+		return;
+	}
+
+	bFirstTurnOpened = true;
 	StartPlanningTimer();
 }
 
