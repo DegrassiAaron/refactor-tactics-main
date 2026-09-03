@@ -297,7 +297,7 @@ public:
 	 * filtrare affatto**, perche' il salto disegna proprio cio' che il verdetto negava.
 	 *
 	 * 🔴 **Esiste per essere chiamata da DUE consumatori, ed e' questo il punto.**
-	 * `ARTTurnManager::VisibleTrailFor` la usa per la traccia post-lock (`#1497`) e `BeginPlayback` per il
+	 * `URTMoveRouteLibrary::VisibleTrailFor` la usa per la traccia post-lock (`#1497`) e `BeginPlayback` per il
 	 * modello animato (`#1525`): sono le due meta' degli errori speculari che [D-223] nomina, e finche' la
 	 * regola stava in un solo posto la seconda meta' e' rimasta aperta. Due copie della stessa condizione
 	 * divergerebbero, e la contraddizione — traccia troncata mentre il modello prosegue — tornerebbe.

@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary::VisibleTrailFor
 #include "Turn/RTTurnLog.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
@@ -1702,8 +1703,8 @@ bool FRTHexMoveTrailHidesUnobservedRouteTest::RunTest(const FString&)
 		return false;
 	}
 
-	const TArray<FRTCellId> TrailB1 = ARTTurnManager::VisibleTrailFor(*RouteB1, /*ObserverTeamId*/ 0);
-	const TArray<FRTCellId> TrailB2 = ARTTurnManager::VisibleTrailFor(*RouteB2, /*ObserverTeamId*/ 0);
+	const TArray<FRTCellId> TrailB1 = URTMoveRouteLibrary::VisibleTrailFor(*RouteB1, /*ObserverTeamId*/ 0);
+	const TArray<FRTCellId> TrailB2 = URTMoveRouteLibrary::VisibleTrailFor(*RouteB2, /*ObserverTeamId*/ 0);
 
 	// "L'HUD disegna UNA traccia": quella di B1, per intero.
 	TestEqual(TEXT("la traccia di B1 e' quella che A1 ha osservato: tutta"),
@@ -1720,7 +1721,7 @@ bool FRTHexMoveTrailHidesUnobservedRouteTest::RunTest(const FString&)
 
 	// La squadra di B le vede entrambe: il troncamento e' conoscenza parziale, non censura.
 	TestEqual(TEXT("chi ha percorso la rotta la vede intera"),
-		ARTTurnManager::VisibleTrailFor(*RouteB2, /*ObserverTeamId*/ 1).Num(), RouteB2->Cells.Num());
+		URTMoveRouteLibrary::VisibleTrailFor(*RouteB2, /*ObserverTeamId*/ 1).Num(), RouteB2->Cells.Num());
 
 	DestroyHexMoveWorld(World);
 	return true;
@@ -1815,7 +1816,7 @@ bool FRTHexMoveTrailAndGhostAgreeTest::RunTest(const FString&)
 		return false;
 	}
 
-	const TArray<FRTCellId> Trail = ARTTurnManager::VisibleTrailFor(*RouteB, /*ObserverTeamId*/ 0);
+	const TArray<FRTCellId> Trail = URTMoveRouteLibrary::VisibleTrailFor(*RouteB, /*ObserverTeamId*/ 0);
 
 	// L'invariante fra i due canali, in una riga.
 	TestFalse(TEXT("finche' si vede la sagoma, la traccia NON arriva alla cella vera"),
