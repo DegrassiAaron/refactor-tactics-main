@@ -55,7 +55,7 @@
   Se la vista sembra bloccata e compaiono le **etichette degli actor** in viewport, hai fatto **Eject** (`F8`):
   stai guardando con la camera dell'editor, non con quella del gioco — `F8` di nuovo per rientrare nel pawn.
 
-> 📘 **Per la seduta `U42` esiste una guida**: [`runbooks/guida-seduta-u42-corpus-visual.md`](runbooks/guida-seduta-u42-corpus-visual.md) — diciannove voci `PIE-VIS-*` con, per ciascuna, **ciò che la falsifica**, più la procedura `Run → osserva → R` che senza il riavvio in mezzo rende non confrontabili gli scenari successivi.
+> 📘 **Per la seduta `U42` esiste una guida**: [`runbooks/guida-seduta-u42-corpus-visual.md`](runbooks/guida-seduta-u42-corpus-visual.md) — **ventuno** voci con, per ciascuna, **ciò che la falsifica**, più la procedura `Run → osserva → R` che senza il riavvio in mezzo rende non confrontabili gli scenari successivi. ⏱️ *Erano diciannove quando la guida è nata: entrano `PIE-ACC-ENVIRONMENT` e `PIE-ACC-MAP`, e con loro la seduta scende da diciannove Play a **undici** — tre compositi ne coprono nove. La sezione §3 della guida dice quali voci si giudicano dentro quale Play.*
 > ⚠️ La guida dice **come** osservare; gli **esiti** restano qui, che ne è l'owner.
 
 ## Stato in numeri — 2026-09-03
