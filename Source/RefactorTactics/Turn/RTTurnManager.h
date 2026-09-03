@@ -394,23 +394,12 @@ public:
 	 */
 	TArray<FString> GetRecentEvents() const;
 
-	/**
-	 * Le righe che un osservatore puo' leggere. Statica e PURA: la si interroga senza montare una partita.
-	 *
-	 * 🔴 Una riga il cui soggetto e' ignoto **sparisce intera**, non viene oscurata: una riga oscurata
-	 * dice comunque che qualcosa e' successo, e quando e' successo.
-	 * L'ORDINE di produzione si conserva: un combat log riordinato non e' un log.
-	 *
-	 * 🔴 **Ignoto significa «non visto ORA»**, non «senza voce»: un soggetto `Remembered` ha una voce, ma
-	 * le coordinate stampate nella riga sono quelle attuali, cioe' cio' che la squadra ha smesso di sapere.
-	 * Stessa regola di `ARTHUD::ShouldDrawUnitOverlay`, e per la stessa ragione.
-	 */
-	static TArray<FString> ComposeVisibleLogLines(const TArray<FRTCombatLogLine>& Lines, int32 ObserverTeamId);
 
 	/**
 	 * Il tratto di una rotta che un osservatore puo' vedere disegnato: il PREFISSO che il verdetto ammette.
 	 *
-	 * E' il gemello di `ComposeVisibleLogLines` per il secondo canale che [D-223] congela, ed e' statica e
+	 * E' il gemello di `URTCombatLogLibrary::ComposeVisibleLogLines` — che da `#1818` vive in
+	 * `Turn/RTCombatLog.h` — per il secondo canale che [D-223] congela, ed e' statica e
 	 * PURA per la stessa ragione di `ARTHUD::ShouldDrawUnitOverlay`: `DrawHUD` non ha copertura headless,
 	 * quindi la regola vive dove la si puo' interrogare senza montare un HUD ne' una partita.
 	 *

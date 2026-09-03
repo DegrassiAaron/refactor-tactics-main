@@ -34,6 +34,7 @@
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTCombatLog.h" // URTCombatLogLibrary: il filtro, che non vive piu' nell'Actor
 #include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -1028,7 +1029,7 @@ bool FRTLogDeathIsPublicTest::RunTest(const FString&)
 	Morte.Verdict = FRTKnowledgeVerdict::Everyone();
 
 	const TArray<FString> Visibili =
-		ARTTurnManager::ComposeVisibleLogLines({ Ordinaria, Morte }, /*ObserverTeamId*/ 0);
+		URTCombatLogLibrary::ComposeVisibleLogLines({ Ordinaria, Morte }, /*ObserverTeamId*/ 0);
 
 	bool bVedeLaMorte = false, bVedeLOrdinaria = false;
 	for (const FString& L : Visibili)

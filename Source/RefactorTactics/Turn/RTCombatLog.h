@@ -154,11 +154,19 @@ class REFACTORTACTICS_API URTCombatLogLibrary : public UBlueprintFunctionLibrary
 
 public:
 	/**
-	 * Le righe che `ObserverTeamId` puo' leggere, nell'ordine in cui sono nate.
+	 * Le righe che un osservatore puo' leggere. Pura: la si interroga senza montare una partita.
 	 *
 	 * 🔴 **Nessuna vista costruita qui, ed e' il punto di [D-223].** La domanda «puo' leggerla?» ha gia'
 	 * una risposta, decisa quando la riga e' nata: interrogare la conoscenza di ADESSO risponderebbe a una
 	 * domanda diversa, e per un soggetto nel frattempo distrutto non risponderebbe affatto.
+	 *
+	 * 🔴 Una riga il cui soggetto e' ignoto **sparisce intera**, non viene oscurata: una riga oscurata
+	 * dice comunque che qualcosa e' successo, e quando e' successo.
+	 * L'ORDINE di produzione si conserva: un combat log riordinato non e' un log.
+	 *
+	 * 🔴 **Ignoto significa «non visto ORA»**, non «senza voce»: un soggetto `Remembered` ha una voce, ma
+	 * le coordinate stampate nella riga sono quelle attuali, cioe' cio' che la squadra ha smesso di sapere.
+	 * Stessa regola di `ARTHUD::ShouldDrawUnitOverlay`, e per la stessa ragione.
 	 *
 	 * ⚠️ Il verdetto e' fail-closed di default: una riga che arrivasse qui senza verdetto non si legge.
 	 */

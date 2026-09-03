@@ -200,20 +200,6 @@ TArray<FString> ARTTurnManager::GetRecentEvents() const
 	return Out;
 }
 
-TArray<FString> ARTTurnManager::ComposeVisibleLogLines(const TArray<FRTCombatLogLine>& Lines,
-	int32 ObserverTeamId)
-{
-	// La regola vive in `URTCombatLogLibrary` da `#1818`. Questo metodo resta perche' **tre file di test**
-	// lo chiamano come `ARTTurnManager::ComposeVisibleLogLines` — `RTCombatLogTests`,
-	// `RTKnowledgeViewTests`, `RTPlayerEventProjectorTests` — e questa issue mette fuori scope il rinominare
-	// cio' che i test consumano.
-	//
-	// ⚠️ **Di produzione non lo chiama nessuno.** `RTHUD.cpp:662` e `RTPlayerEventProjector` lo nominano in
-	// un COMMENTO, e un grep li conta come consumatori: e' lo stesso inganno dei 19 `GetAllActorsOfClass`
-	// che erano 11. Quando i tre test passeranno alla library, questa delega puo' sparire.
-	return URTCombatLogLibrary::ComposeVisibleLogLines(Lines, ObserverTeamId);
-}
-
 TArray<FRTCellId> ARTTurnManager::VisibleTrailFor(const FRTMoveRoute& Route, int32 ObserverTeamId)
 {
 	// 🔴 **La regola vive in `ObservedPrefixLength`, non qui** (`#1525`). Il troncamento e il suo
@@ -340,7 +326,7 @@ TArray<FString> ARTTurnManager::GetRecentEventsForTeam(int32 ObserverTeamId) con
 	// 🔴 E non era solo lavoro sprecato: era la domanda SBAGLIATA. La vista si costruiva sulle unita' del
 	// mondo di ADESSO, quindi un'unita' distrutta a fine turno non c'era piu' fra i soggetti e ogni riga
 	// che la nominava spariva — anche per la squadra che l'aveva vista cadere.
-	return ComposeVisibleLogLines(RecentEvents, ObserverTeamId);
+	return URTCombatLogLibrary::ComposeVisibleLogLines(RecentEvents, ObserverTeamId);
 }
 
 TArray<FRTCellId> ARTTurnManager::CellsEnteredAlong(const TArray<FRTCellId>& Path)

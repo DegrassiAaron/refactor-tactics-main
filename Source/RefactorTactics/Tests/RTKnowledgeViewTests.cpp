@@ -3,7 +3,8 @@
 #include "Perception/RTKnowledgeView.h"
 #include "Perception/RTTeamKnowledge.h"
 #include "UI/RTHUD.h"
-#include "Turn/RTTurnManager.h" // ARTTurnManager::ComposeVisibleLogLines
+#include "Turn/RTTurnManager.h" // ARTTurnManager::VisibleTrailFor — l'ULTIMA ragione per cui questo test tira l'Actor
+#include "Turn/RTCombatLog.h" // URTCombatLogLibrary: il filtro, che non vive piu' nell'Actor
 #include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -242,7 +243,7 @@ bool FRTKnowledgeCombatLogOmitsUnknownTest::RunTest(const FString&)
 	Raw.Add(KvLineFor(TEXT("Nemico visto: passo -> (3,0,L0)"), { K }, Subjects[1]));
 	Raw.Add(KvLineFor(TEXT("Ignoto: passo -> (7,0,L0)"),       { K }, Subjects[2]));
 
-	const TArray<FString> Visible = ARTTurnManager::ComposeVisibleLogLines(Raw, /*ObserverTeamId*/ 0);
+	const TArray<FString> Visible = URTCombatLogLibrary::ComposeVisibleLogLines(Raw, /*ObserverTeamId*/ 0);
 
 	TestEqual(TEXT("tre righe su quattro"), Visible.Num(), 3);
 	TestTrue (TEXT("la riga di mondo resta"),  Visible.Contains(TEXT("Turno 5 - pianificazione")));
@@ -466,7 +467,7 @@ bool FRTKnowledgeCombatLogOmitsRememberedTest::RunTest(const FString&)
 	Raw.Add(KvLineFor(TEXT("Nemico visto: passo -> (3,0,L0)"), { K }, Seen));
 	Raw.Add(KvLineFor(TEXT("Ricordato: passo -> (9,0,L0)"),    { K }, Remembered)); // cella ATTUALE
 
-	const TArray<FString> Visible = ARTTurnManager::ComposeVisibleLogLines(Raw, /*ObserverTeamId*/ 0);
+	const TArray<FString> Visible = URTCombatLogLibrary::ComposeVisibleLogLines(Raw, /*ObserverTeamId*/ 0);
 
 	// 🔴 Il cuore: la riga del ricordato sparisce INTERA.
 	TestFalse(TEXT("la riga del RICORDATO sparisce"), Visible.Contains(TEXT("Ricordato: passo -> (9,0,L0)")));
@@ -740,7 +741,7 @@ bool FRTKnowledgeFrozenLineSurvivesForgettingTest::RunTest(const FString&)
 	// Anti-vacuita': se la riga non fosse leggibile nemmeno adesso, il test sotto passerebbe per la ragione
 	// sbagliata — e non misurerebbe nulla sul dimenticare.
 	if (!TestTrue(TEXT("nel turno del fatto la riga si legge"),
-		ARTTurnManager::ComposeVisibleLogLines({ Line }, 0).Num() == 1))
+		URTCombatLogLibrary::ComposeVisibleLogLines({ Line }, 0).Num() == 1))
 	{
 		return false;
 	}
@@ -753,12 +754,12 @@ bool FRTKnowledgeFrozenLineSurvivesForgettingTest::RunTest(const FString&)
 	TestNull(TEXT("adesso la porta non ha piu' una voce per lui"),
 		URTKnowledgeViewLibrary::FindEntry(ViewNow, 2));
 
-	const TArray<FString> Visible = ARTTurnManager::ComposeVisibleLogLines({ Line }, /*ObserverTeamId*/ 0);
+	const TArray<FString> Visible = URTCombatLogLibrary::ComposeVisibleLogLines({ Line }, /*ObserverTeamId*/ 0);
 	TestEqual(TEXT("la riga di allora si legge ancora"), Visible.Num(), 1);
 
 	// E resta filtrata per l'altra squadra: il congelamento non e' un lasciapassare universale.
 	TestEqual(TEXT("ma non per chi non lo vedeva"),
-		ARTTurnManager::ComposeVisibleLogLines({ Line }, /*ObserverTeamId*/ 1).Num(), 0);
+		URTCombatLogLibrary::ComposeVisibleLogLines({ Line }, /*ObserverTeamId*/ 1).Num(), 0);
 
 	return true;
 }
