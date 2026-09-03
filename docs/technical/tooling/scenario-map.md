@@ -71,8 +71,29 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 > # i BLOCKED si contano dal log della suite: RefactorTactics.Scenario.EveryShippedScenarioRuns li elenca
 > ```
 
-Totale corpus versionato: **78** scenari (`A 46 + B 21 + D-bloccati 11`) — *rimisurato il 2026-08-17 con due metodi che concordano, vedi la nota della riga **D**; diceva `73` = `A 40 + B 21 + D 12`, fermo al 2026-08-13*. Totale registro PIE: **135** voci
-(`B 21 + C 112 + 2 fuori classe`).
+Totale corpus versionato: **115** scenari (`A 78 + B 29 + D-bloccati 8`). Totale registro PIE: **198** voci
+(`B 22 + C 174 + 2 fuori classe`).
+
+> 🔴 **Rimisurati il 2026-09-03, e lo scarto era di 36 scenari e 62 voci.** La riga diceva `78` scenari
+> (`A 46 + B 21 + D 11`) e `135` voci PIE (`B 21 + C 112 + 2`): la prima misura è del 2026-08-17, la
+> seconda del 2026-08-13, e nel frattempo il corpus e il registro sono cresciuti senza che nessuna delle due
+> venisse rifatta. ⚠️ **Il riquadro del 2026-08-21 diceva già `82`** poche righe più sopra, quindi questo
+> documento portava **due** totali diversi del corpus a tre righe di distanza — la firma esatta del difetto
+> che la nota della riga `D` registra per sé.
+>
+> La ripartizione **non** è incrementata a mano: `B` è il conteggio di `Scenarios/Visual/`, `D` viene dal
+> comando di §6.1 — *e concorda con la riga che la suite stampa da sé*, `corpus eseguito: 104 PASS, 8
+> BLOCKED, 1 dichiarati expected-fail` — e `A` è la sottrazione, cioè la definizione di §2 resa aritmetica.
+> `C` è `197 − 22 − 2`, con lo stesso metodo del 2026-08-13. **Due metodi indipendenti che concordano**
+> sulla riga `D`, come questo documento chiede da sé.
+>
+> ```bash
+> find Scenarios -name '*.json' ! -name '_*' | wc -l      # 115  corpus (i tre nuovi non sono ancora tracciati)
+> find Scenarios/Visual -name '*.json' | wc -l            #  29  classe B
+> grep -c '^| \*\*PIE-'     docs/technical/test-manuali-pie.md   # 198  totale registro
+> grep -c '^| \*\*PIE-VIS-' docs/technical/test-manuali-pie.md   #  22  classe B
+> grep -c '^| \*\*PIE-MUT-' docs/technical/test-manuali-pie.md   #   2  fuori classe
+> ```
 
 > 🔴 **Rimisurato il 2026-08-13: il totale PIE diceva 117 e ne erano 135.** Il numero fu scritto il
 > 2026-08-09 (`362b717a`) e da allora **non è più stato toccato**, mentre il registro cresceva di diciotto
@@ -252,7 +273,9 @@ Il verdetto è l'assertion. Nessuna di queste righe compare nel registro PIE, ed
 | `Spec.Environment.WaterQuenchesFire` | — | — | l'acqua spegne le fiamme, e la fonte è un'azione di un eroe — idem `#282` |
 | `Spec.Map.BridgeBreaksThePath` | — | — | rompere un arco **annulla** il percorso invece di allungarlo — idem `#282` |
 | `RT_Showcase_Relay_v01` | RelayBasin | 8 | gli 8 turni della showcase, **tutti giocati** dal 2026-09-03 (`#170`): esito `PASS`, 22 assertion, e il corpus golden multi-turno che pinna la partita intera. ⏱️ La riga diceva «5 · **BLOCKED** su 5 capability»: le cinque si sono chiuse una alla volta, e l'ultima — `Objective` — non aspettava una feature ma una **cella** (nessun costruttore di arena posava un obiettivo) |
-| `Spec.Objective.PointSurvivesKO` | RelayBasin | 2 | ⏱️ **Da `BLOCKED` a `PASS` con `#170`**, insieme allo showcase e per la stessa riga di fixture. Dimostra che il punto si assegna **dopo** il KO ambientale, dentro lo stesso Cleanup |
+| `Spec.Objective.PointSurvivesKO` | RelayBasin | 8 | ⏱️ **Da `BLOCKED` a `PASS` con `#170`**, insieme allo showcase e per la stessa riga di fixture. Dimostra che il punto si assegna **dopo** il KO ambientale, dentro lo stesso Cleanup. ⏱️ *La colonna diceva `2` ed è stata rimisurata il 2026-09-03 sul log della suite: `PASS (8/8 assertion, 2 turni)` — il numero era quello dei **turni**, non delle assertion* |
+| `Spec.Combat.GuardPoolSpansMultipleHits` | r5 | 7 | la Guardia di [D-292] è un **pool**, non uno sconto sul primo colpo: tre colpi da 8 contro un budget da 15 lasciano `116`, dove la regola precedente lasciava `109`. ⚠️ **Scritto perché nessuno esercitava il caso che le distingue** (`#1919`): sopra i 15 del pool le due regole coincidono per costruzione, e il corpus era fatto di colpi da 16 in su. 🔑 **La distinzione è misurata, non dedotta** — mutando `ApplyAbsorptionPool` perché perda l'avanzo, questo scenario è l'**unico** del corpus a cadere, con `atteso 116, ottenuto 109` |
+| `Spec.Harness.RepeatedRunsAgree` | r4 | 4 ×5 | il **determinismo del runner**: `repeatCount: 5` esegue lo stesso allestimento cinque volte e confronta le tracce byte per byte. ⚠️ **È il primo consumatore della chiave**, che fino al 2026-09-03 era implementata in tutto il percorso — loader, runner, writer, quattro test — e usata da **zero** dei 112 scenari versionati. Non è il corpus di E47.5 e non prova a esserlo: quel checkpoint ha sei casi con i loro nomi |
 
 > ⚠️ `Movement.BasicFailsOnPurpose` è escluso da `EveryShippedScenarioRuns` e verificato **al contrario** da
 > `Scenario.ExpectedFailScenariosReallyFail`: deve fallire davvero, e con `FAIL`, non `ERROR`. Se il gioco
@@ -364,23 +387,42 @@ pagato quattro volte.
 
 | Sezione del registro | Voci | Perché serve una persona |
 |---|---:|---|
-| Checklist principale (materiali, editor mode, bot) | 48 | **Gesto e asset**: drag, gizmo, Undo, materiali da creare in editor. Un test può dire che `HandleClickOnCell` ha scelto la cella giusta, non che il mouse ci arrivi |
-| Partita su griglia esagonale (M6) | 21 | **Ciò che solo l'occhio vede**: unità centrate sui centri-cella, fluidità del playback, nessun residuo di griglia quadrata. ⚠️ *«La logica è coperta headless per 5 voci su 15»* era la misura del 2026-08-09 e il denominatore è cambiato con la riga: la copertura headless **non è stata rimisurata** in questo giro, quindi resta citata alla sua data invece di essere adattata al nuovo totale |
-| Contenuto della v0.1 | 22 | **Leggibilità e asset**: che il giocatore *capisca* dal log, che l'arancione del fuoco amico si **noti**, che l'asset mappa si editi a mano |
-| Strumenti di leggibilità | 2 | **Giudizio a schermo puro**: `PIE-PREVIEW-AREA` ha già trovato due difetti che nessun test poteva vedere — un contorno disegnato sotto il cilindro, e un linguaggio che parlava di celle mentre la domanda era sulle unità |
-| Mini v0.1 Autobattle (E47) | 2 | **Ciò che si guarda mentre gira da solo**: la board che si legge da due canali, e la partita non presidiata *registrata* invece che dichiarata |
+| Checklist principale (materiali, editor mode, bot) | 56 | **Gesto e asset**: drag, gizmo, Undo, materiali da creare in editor. Un test può dire che `HandleClickOnCell` ha scelto la cella giusta, non che il mouse ci arrivi |
+| Partita su griglia esagonale (M6) | 22 | **Ciò che solo l'occhio vede**: unità centrate sui centri-cella, fluidità del playback, nessun residuo di griglia quadrata. ⚠️ *«La logica è coperta headless per 5 voci su 15»* era la misura del 2026-08-09 e il denominatore è cambiato due volte da allora: la copertura headless **non è stata rimisurata**, quindi resta citata alla sua data invece di essere adattata al nuovo totale |
+| Contenuto della v0.1 | 25 | **Leggibilità e asset**: che il giocatore *capisca* dal log, che l'arancione del fuoco amico si **noti**, che l'asset mappa si editi a mano |
+| Strumenti di leggibilità | 3 | **Giudizio a schermo puro**: `PIE-PREVIEW-AREA` ha già trovato due difetti che nessun test poteva vedere — un contorno disegnato sotto il cilindro, e un linguaggio che parlava di celle mentre la domanda era sulle unità |
+| Mini v0.1 Autobattle (E47) | 3 | **Ciò che si guarda mentre gira da solo**: la board che si legge da due canali, e la partita non presidiata *registrata* invece che dichiarata |
 | Frontend shell e ciclo di partita (E46) | 6 | **Il layout dentro il binario**: la navigazione è un `USTRUCT` puro e si prova headless — che una schermata si legga, che il focus si veda, che il modale copra, no |
 | **Kit graybox degli oggetti di mappa** (`D-152`) | 6 | **L'oracolo di «è leggibile» non esiste nell'harness**, e §10 del contratto lo dichiara invece di sottintenderlo: silhouette in scala di grigi, a tre distanze di camera |
-| Il gesto dell'autore — tool Geometry (#712) | 4 | **Ciò che vive solo nell'occhio di chi disegna**: ghost, snap, Undo e residui. La parte verificabile — legalità e cottura — sta nel runtime, con i suoi test |
-| Scenario Test Harness | 6 | **Ciò che l'utente non deve dover fare**: «premo Play e parte da solo», e un esito che si legga **senza aprire l'Output Log** |
+| Il gesto dell'autore — tool Geometry (#712) | 9 | **Ciò che vive solo nell'occhio di chi disegna**: ghost, snap, Undo e residui. La parte verificabile — legalità e cottura — sta nel runtime, con i suoi test |
+| Scenario Test Harness | 7 | **Ciò che l'utente non deve dover fare**: «premo Play e parte da solo», e un esito che si legga **senza aprire l'Output Log** |
 | Verifiche di mutazione — **solo `PIE-V01-ARENA`** | 1 | La sezione ne contiene **tre**, ma le due `PIE-MUT-*` sono *fuori classe* e vanno contate a parte. `PIE-V01-ARENA` resta C a pieno titolo: chiede l'editor |
-| Durata, ritmo e scala | 6 | **Cronometro**: producono numeri di playtest, non superano gate. Si misura il **2v2** e lo si registra come tale |
+| Durata, ritmo e scala | 7 | **Cronometro**: producono numeri di playtest, non superano gate. Si misura il **2v2** e lo si registra come tale |
 | Bot — leggibilità delle decisioni | 5 | **Il perché, non il cosa**: un test può dire che lo score era il più alto, non che la scelta sembrasse sensata a chi guarda |
 | Formato e icone | 2 | **Riconoscibilità alla dimensione reale** dell'HUD, e il caso di **errore** del formato |
 | Stati del personaggio (E34) | 10 | Nessuna: **verificano un sistema che non esiste**. Sono classe D travestita da C — vedi §6 |
+| La sonda di movimento — tool Probe (#711) | 3 | **Il colore e il perché**: la sonda dice *`Reachable`* o *`NoRoute`* nel log, ma che il designer distingua i quattro motivi guardando la griglia è un'altra domanda |
+| La sonda: le coordinate sul pavimento (#1920) | 2 | **Leggibilità a schermo**: che `(q,r,L)` si legga alla distanza di lavoro, e che il costo non copra la coordinata |
+| Velo e obiettivo in partita (`E13.8`, `D-241`) | 2 | **Ciò che il giocatore deve poter dedurre**: che l'obiettivo si veda contendere, e che il velo non lo nasconda a chi lo tiene |
+| Scenari compositi di acceptance | 3 | **Che la scena sia allestita e leggibile** — le voci ombrello di `Visual.Perception.Acceptance` e `Visual.Hud.FirstPlayable`. I criteri restano dove sono |
+| PC Gym — la palestra del PlayerController (#1859) | 1 | **Il gesto**: la palestra esiste per provare l'input, e l'input non si prova senza mouse |
+| Gate visivo end-to-end della slice | 1 | **La catena intera vista da una persona**, che nessuna assertion attraversa da capo a fondo |
 
-**Somma: 141** — e la somma è il punto. `48 + 21 + 22 + 2 + 2 + 6 + 6 + 4 + 6 + 1 + 6 + 5 + 2 + 10` va
-confrontata con la riga `C` della §2 **prima** di toccare l'una o l'altra.
+**Somma: 174** — e la somma è il punto.
+`56 + 22 + 25 + 3 + 3 + 6 + 6 + 9 + 7 + 1 + 7 + 5 + 2 + 10 + 3 + 2 + 3 + 2 + 1 + 1` va confrontata con la
+riga `C` della §2 **prima** di toccare l'una o l'altra.
+
+> 🔴 **Rimisurata il 2026-09-03, e il difetto del 2026-08-13 e del 2026-08-25 si è ripetuto una terza volta,
+> identico: mancavano sei sezioni intere.** La tabella dichiarava **141** su quattordici righe; il registro ha
+> **venti** sezioni di classe C. Fuori c'erano *La sonda di movimento* (`3`), *Le coordinate sul pavimento*
+> (`2`), *Velo e obiettivo* (`2`), *Scenari compositi* (`2`), *PC Gym* (`1`) e *Gate visivo end-to-end* (`1`)
+> — undici voci. Le altre ventuno vengono da sette righe rimaste indietro, *Checklist* (`48 → 56`) per prima.
+>
+> 🔑 **La causa è quella già scritta nel 2026-08-25, e la previsione che quella nota faceva si è avverata**:
+> *«chi aggiunge una sezione al registro PIE non ha modo di sapere che esiste questa tabella»*. Nessun gate
+> confronta le due, e da **D-182** non c'è più nemmeno l'inventario dei documenti. Finché è così, questa
+> tabella si rimisura **col comando qui sotto a ogni tocco del registro** — non periodicamente, e mai
+> incrementandola a mano.
 
 > 🔴 **Rimisurata il 2026-08-25, e il difetto del 2026-08-13 si è ripetuto identico: mancavano tre sezioni
 > intere.** La tabella dichiarava **112** su **dieci** righe; il registro ha **quattordici** sezioni di
@@ -439,20 +481,49 @@ utile: **`previewUnit` è presentazione e non cambia l'esito**, verificato da
 > E9.5; e i tre `EnvironmentalActionOwner` con `#282`. Girano, giudicano, e sono di classe **A**. Nessuno ha
 > dovuto ricordarsi di «promuoverli» — è la differenza fra uno scenario-spec e una nota in un documento.
 
-I **nove** rimasti (l'elenco misurato è in
-`scenariomap.shortlist.md` §1 — ⛔ file rimosso con **D-181**):
+Gli **otto** rimasti (l'elenco misurato era in
+`scenariomap.shortlist.md` §1 — ⛔ file rimosso con **D-181**; oggi si rimisura col comando in coda alla tabella):
 
 | ScenarioId | `requires` | Epic che lo accende |
 |---|---|---|
-| `Spec.Objective.PointSurvivesKO` | `Objective` | E10 · CP 10.2 (`#75`) |
-| `Spec.Overwatch.HoldThenFire` | `DecisionBoundary` `Facing` | E14 (`#152`) + E16 (`#175`) |
+| ~~`Spec.Objective.PointSurvivesKO`~~ | ~~`Objective`~~ | ✅ **acceso il 2026-09-03** da `#170`, che posa l'obiettivo su `RelayBasin` e sblocca la capability. È lo stesso file di cui §3 dichiara il `PASS` |
+| ~~`Spec.Overwatch.HoldThenFire`~~ | ~~`DecisionBoundary` `Facing`~~ | ✅ **non è più bloccato**: `DecisionBoundary` è fra le disponibili da `#512` fase B, e `Facing` **non esisteva come capability** — era il doppione di `DeclaredRotation`, riconciliato il 2026-08-13. Il file oggi chiede `DecisionBoundary` e basta |
 | `Spec.Perception.HeardNotSeen` | `Perception` | E13 (`#151`) |
 | ~~`Spec.Predictive.WhiffOnEmptyCell`~~ | ~~`PredictiveAction`~~ | ✅ **acceso il 2026-08-10** da E18 (`#225`): `PASS`, 4/4 assertion su 2 turni |
-| `Spec.Brace.ProfileChangesResponse` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |
-| `Spec.Clash.ReadBeatsStand` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |
-| `Spec.Clash.StandBeatsShift` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |
-| `Spec.Clash.ShiftBeatsRead` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |
-| `Spec.Clash.TieAppliesOnce` | `DecisionBoundary` `ReactionClash` | E14 · CP 14.7 |
+| ~~`Spec.Brace.ProfileChangesResponse`~~ | ~~`DecisionBoundary` `ReactionClash`~~ | ✅ **acceso il 2026-08-19** dalla fetta 4: chiede `ReactionProfile`, uscita dalle non disponibili con quella slice. La coppia scritta qui non era più la sua da due settimane |
+| `Spec.Clash.ReadBeatsStand` | `ReactionClash` | E14 · CP 14.7 |
+| `Spec.Clash.StandBeatsShift` | `ReactionClash` | E14 · CP 14.7 |
+| `Spec.Clash.ShiftBeatsRead` | `ReactionClash` | E14 · CP 14.7 |
+| `Spec.Clash.TieAppliesOnce` | `ReactionClash` | E14 · CP 14.7 |
+| `Spec.Movement.AntiDashTriggerIgnoresMove` | `SemanticTrigger` | `#704` |
+| `Spec.Movement.TeleportSkipsIntermediateCells` | `Teleport` | `#704` |
+| `Spec.Movement.TripwireOnCrossEdge` | `SpatialTrigger` `Teleport` | `#704` |
+
+> 🔴 **Rimisurata il 2026-09-03, e la tabella sbagliava in tutti e tre i modi possibili.** Dichiarava
+> **nove** bloccati e ne sono **otto**; tre dei nove elencati non lo erano più — due accesi da issue chiuse
+> e uno mai bloccato da ciò che la riga diceva; e **tre mancavano del tutto**, i `Spec.Movement.*` di
+> `#704`, che sono entrati nel corpus senza che nessuno aggiungesse la riga. ⚠️ **La contraddizione era
+> già dentro questo documento**: §3 dichiarava `PointSurvivesKO` a `PASS` mentre §6.1 lo elencava fra i
+> bloccati, e nessun gate confronta due sezioni dello stesso file. La misura non si incrementa a mano —
+> si rifà incrociando i `requires` del corpus con `KnownUnavailableCapabilities()`:
+>
+> ```bash
+> # i requires di ogni scenario, contro le capability dichiarate NON disponibili in RTScenarioSession.cpp
+> python - <<'PY'
+> import json, os
+> unavail = {"ReactionClash","Perception","SpatialTrigger","SemanticTrigger","Teleport","NeverAvailable"}
+> for root, _, names in os.walk("Scenarios"):
+>     for n in [x for x in names if x.endswith(".json") and not x.startswith("_")]:
+>         d = json.load(open(os.path.join(root, n), encoding="utf-8-sig"))
+>         req = set(d.get("requires") or [])
+>         for t in d.get("turns", []): req |= set(t.get("requires") or [])
+>         if req & unavail: print(d["scenarioId"], sorted(req & unavail))
+> PY
+> ```
+>
+> ⚠️ **L'allowlist va riletta dal codice, non da qui**: `KnownUnavailableCapabilities()` è la sua unica
+> fonte, e una copia in questo documento sarebbe la seconda lista da tenere allineata — il difetto che
+> `RTScenarioSession.cpp` documenta per sé nello stesso punto in cui separa i due insiemi.
 
 > **`EnvironmentalActionOwner` era diversa dalle altre**, e la differenza si è vista nell'esito: il sistema
 > **esisteva ed era chiuso** (CP 8.3, 8.5, 9.4 verdi), mancava solo **chi possiede** le azioni. Non era
@@ -1006,7 +1077,7 @@ e stanno qui perché «tutte le feature della v0.1» non diventi un traguardo ch
 | **Fascia D mai atterrata** — 8 `Visual.*` descritti come scritti, 0 file | Il catalogo promette vetrine che non esistono; 4 temi vivono come `Spec.*` | §6.3, da riscrivere in `scenari-validazione-visiva.md` |
 | **La camera non ha copertura, e non è un debito rinviato** — `RT-FEAT-UI-TACTICAL-CAMERA` ha `scenarios: []` e gate `scenario: todo`: zero scenari, né scritti né pianificati né promessi | Nessuno **oggi**: ciò che è verificabile della camera attuale sono automation test puri ([#865](https://github.com/DegrassiAaron/refactor-tactics-main/issues/865)), non scenari. Il buco si apre davvero quando esisterà qualcosa da *guardare* — marker verticali, cutaway, transizione Strategic — e allora servirà anche una convenzione di ScenarioId per la camera, che non esiste | §6.3 · [`../../roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md`](../../roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md) |
 | **`Visual.Reaction.*` esiste, `Spec` no** — il campo `reaction` nell'intent c'è ed è validato | Nessuno: è un buco **chiuso**, registrato perché la documentazione lo dichiarava aperto per una working copy indietro di qualche commit | `scenari-validazione-visiva.md` §8.2 |
-| **Nessuna assertion su punteggio e conoscenza** — mancano `TeamScoreEquals` e un modo di asserire sulla conoscenza di squadra | Due scenari-spec non potranno diventare verdi anche quando la capability atterra | `_nota_da_completare` di `Spec.Objective.*` e `Spec.Perception.*` |
+| ~~**Nessuna assertion su punteggio e conoscenza**~~ — 🔴 **la metà PUNTEGGIO è chiusa dal 2026-09-03 (`#170`), e non con l'assertion che questa riga chiedeva.** Diceva che mancava un `TeamScoreEquals`; la `_nota_da_completare` di `Spec.Objective.PointSurvivesKO` — che questa riga dichiara come propria fonte — ora argomenta il contrario: *«un `TeamScoreEquals` non serve, e sarebbe stato **più debole** di ciò che serviva»*, perché direbbe che il punto c'è e non che è stato assegnato **dopo** il KO, cioè la metà che quello scenario esiste per misurare. Ciò che mancava era che la categoria `Objective` fosse asseribile: `OutcomeEnumForCategory` non aveva il proprio caso e uno scenario che la nominasse falliva il **caricamento**. Aggiunto quello, l'ordine si scrive col `LogEventOrder` che c'era già, e `PointSurvivesKO` porta oggi **otto** assertion. ⚠️ **Resta aperta la metà CONOSCENZA**: `Spec.Perception.HeardNotSeen` è ancora `BLOCKED` e la sua nota lo dichiara — non esiste un modo di asserire sulla conoscenza di una squadra | Uno scenario-spec su due. `Spec.Objective.*` è verde e dimostra la propria tesi; `Spec.Perception.HeardNotSeen` non potrà diventarlo nemmeno quando la capability `Perception` atterra | `_nota_da_completare` di `Spec.Perception.HeardNotSeen` |
 | ~~**Nessuna assertion che legga il TurnLog**~~ — ✅ **chiuso il 2026-08-09** (`#318`): `LogEventCount` e `LogEventOrder` leggono il log accumulato dalla sessione, e l'evento si nomina per nome | I tre `Spec.Clash.*` sono **scrivibili** (li scrive CP 14.7). Gli otto `Spec.TimeBank.*` **no**: manca il contatore, e prima serve la decisione su come tre valori in millisecondi entrano in un `FRTTurnLogEntry` che ha un solo `Amount` — vedi §6.2 | `test-automatico-unreal.md` §5.1 |
 | ~~**Il contatore del log, e le due liste `Spec.TimeBank.*` che divergono**~~ — ✅ **chiuso il 2026-08-09** (`#361`): `spec-turnlog.md` §4.2 dichiara la categoria `Decision` e due voci (`BankConsumed`, `BankAfter`) con il valore in `Amount`; le liste sono riconciliate a **dieci** scenari `harness`. I conteggi della riga precedente erano sbagliati in entrambi i sensi: §13 elencava **20** nomi, non 13, e gli orfani erano **zero** | I dieci `Spec.TimeBank.*` sono **scrivibili** appena esiste l'assertion sul contatore, che ora ha un formato da leggere. Li scrive CP 14.8 | §6.2 · `spec-turnlog.md` §4.2 |
 | ~~**L'assertion sul contatore del log**~~ — ✅ **chiusa il 2026-08-09** (`#361`): `LogEventAmount` legge `Amount` della prima voce che corrisponde, in coda all'enum come `UnitFacing` e `LogEventCount` prima di lei | I dieci `Spec.TimeBank.*` non hanno più un ostacolo tecnico: restano **da scrivere**, ed è lavoro di CP 14.8 | `test-automatico-unreal.md` §5.1 |
