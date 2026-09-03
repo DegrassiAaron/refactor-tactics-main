@@ -288,9 +288,17 @@ def albero_di(ref, radice_repo):
     """Estrae `ref` in una directory temporanea: misurare un commit non deve toccare l'albero di lavoro."""
     tmp = Path(tempfile.mkdtemp(prefix="rt-misure-"))
     tar = tmp / "albero.tar"
-    with tar.open("wb") as fh:
-        subprocess.run(["git", "archive", ref, "Source"], cwd=str(radice_repo), stdout=fh, check=True)
-    subprocess.run(["tar", "-xf", str(tar), "-C", str(tmp)], check=True)
+    try:
+        with tar.open("wb") as fh:
+            subprocess.run(["git", "archive", ref, "Source"],
+                           cwd=str(radice_repo), stdout=fh, stderr=subprocess.PIPE, check=True)
+        subprocess.run(["tar", "-xf", str(tar), "-C", str(tmp)], check=True)
+    except subprocess.CalledProcessError:
+        shutil.rmtree(str(tmp), ignore_errors=True)
+        raise SystemExit(
+            "non riesco a leggere `Source/` da `%s`: il ref non esiste, oppure e' anteriore alla\n"
+            "cartella. Un confronto con un albero che non ha i file misurati non dice niente." % ref
+        )
     tar.unlink()
     return tmp
 
@@ -443,6 +451,15 @@ def esegui_check(m, base):
     """
     print("=== GATE DI NON-REGRESSIONE - E50 #1816 ===")
     print("base: %s\n" % base["ref"])
+
+    # Se nel base mancava uno dei tre file, il delta racconta una crescita che e' solo un file
+    # comparso. `RTTurnManager_Blast.cpp` esiste da `e18eee50` (2026-08-17): un base anteriore
+    # produrrebbe un +2 277 che nessuno ha scritto.
+    mancanti = set(base["turnmanager_file"]) ^ set(m["turnmanager_file"])
+    if mancanti:
+        print("  ! il base non ha gli stessi file: %s" % ", ".join(sorted(mancanti)))
+        print("    il delta qui sotto include un file comparso, non solo codice scritto.\n")
+
     cresciute = []
     for chiave, etichetta in SORVEGLIATE:
         prima, dopo = base[chiave], m[chiave]
