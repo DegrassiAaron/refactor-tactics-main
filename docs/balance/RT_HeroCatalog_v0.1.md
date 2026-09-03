@@ -44,7 +44,7 @@ sono cablate e verificate in partita.
 |---|---|---|
 | `Hero.Gadget.ReactiveCapacitor` | `Action.Counter` | ✅ scudo 15 **e** 10 danni all'attaccante |
 | `Hero.Riktor.Interposition` | `Action.Intercept` | ✅ incassa il colpo diretto a un alleato entro 2 celle |
-| `Hero.Wraith.Deflection` | `Action.Deflect` | ✅ −20 sul colpo che l'ha innescata |
+| `Hero.Wraith.Deflection` | `Action.Deflect` | ✅ pool da 20 danni assorbibili dentro il boundary ([D-309](../decisions/RT_PDR_00_Decision_Log.md)) |
 | `Hero.Phase.FlowReaction` | — | ⏳ **E14**: produce movimento dentro un boundary di risoluzione |
 
 La rinviata lo dichiara **nei dati** (slot `None`, nessun trigger), non solo nei commenti: con lo slot

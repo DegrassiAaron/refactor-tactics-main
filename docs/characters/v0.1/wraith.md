@@ -279,7 +279,7 @@ Passing Blade è un Dash lineare di 3 celle che infligge 20 danni alle unità at
 
 #### Descrizione
 
-Deflection è una reazione su attacco diretto che riduce di 20 il danno del colpo che l'ha innescata, con cooldown 2.
+Deflection è una reazione su attacco diretto che apre un pool da 20 danni assorbibili dentro il boundary che l'ha innescata — non uno sconto sul singolo colpo: ciò che un colpo non consuma resta per i successivi ([D-309](../../decisions/RT_PDR_00_Decision_Log.md)) —, con cooldown 2.
 
 | Campo | Valore |
 | --- | --- |
@@ -294,7 +294,7 @@ Deflection è una reazione su attacco diretto che riduce di 20 il danno del colp
 | Control Strength | 20 |
 | Durata (turni) | 0 |
 | Loss/Contact Policy | Reaction.Trigger.DirectHit |
-| Interazione terreno | Riduce di 20 il colpo diretto che l'ha innescata |
+| Interazione terreno | Pool da 20 assorbibili sui colpi diretti del boundary che l'ha innescata ([D-309](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | Gameplay Tags | `Ability.Reaction.Deflect` |
 | Implementation Status | IMPLEMENTED |
 | Data Status | CANONICAL |
