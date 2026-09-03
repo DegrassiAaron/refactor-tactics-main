@@ -5805,8 +5805,41 @@ namespace
 	 *  Gli Actor restano nella firma per cio' che la posizione non porta: squadra, orientamento, vitalita'.
 	 *
 	 *  `Shape::Single`: un colpo di boundary ha un bersaglio solo. */
+	/**
+	 * **ADR-0008 §2 — il facing entra come PARAMETRO, come gia' la cella.** Fino a `#2131` questa funzione
+	 * leggeva `Target->Facing`, cioe' l'orientamento d'INGRESSO nella fase: dentro il ciclo dei micro-step
+	 * l'attore non e' ancora stato ne' spostato ne' riorientato. E' la stessa forma del difetto che `#2142`
+	 * ha corretto sulle CELLE — *«le due letture erano divergenti nello stesso micro-step»* — un anello piu'
+	 * in la': la cella veniva dal boundary e il facing dall'inizio del turno.
+	 *
+	 * Chi chiama dal boundary passa `FacingAtMicroStep`; la predittiva, che risolve **fuori** dal ciclo,
+	 * passa il facing dell'attore ed e' invariata.
+	 */
+	/**
+	 * **ADR-0008 §2** — il facing che un'unita' IN MOVIMENTO ha al decision boundary corrente: la direzione
+	 * dell'ultimo passo compiuto, derivata dal prefisso della rotta gia' percorsa.
+	 *
+	 * `FacingAtMoveStart` e' l'orientamento d'ingresso nella fase, cioe' `ARTUnit::Facing` finche' il ciclo
+	 * dei micro-step gira: `RecordFacingChange(DerivedFromMove)` scrive dopo l'uscita, e il pivot dichiarato
+	 * dopo ancora. Passare `Unit->Facing` e' quindi corretto **solo da dentro il ciclo**.
+	 *
+	 * Fail-closed su uno stato incoerente: senza rotta non c'e' niente da derivare e vale il facing d'ingresso.
+	 */
+	ERTHexDirection BoundaryFacing(const FRTMovementResolutionState& State, int32 UnitIdx,
+		ERTHexDirection FacingAtMoveStart)
+	{
+		if (!State.Paths.IsValidIndex(UnitIdx) || State.Paths[UnitIdx].Num() == 0
+			|| !State.Results.IsValidIndex(UnitIdx))
+		{
+			return FacingAtMoveStart;
+		}
+		return URTFacingLibrary::FacingAtMicroStep(State.Paths[UnitIdx][0], State.Results[UnitIdx].Entered,
+			FacingAtMoveStart);
+	}
+
 	int32 BoundaryCoverReduction(const URTHexMapAsset* Map, const ARTUnit* Attacker, const FRTCellId& AttackerCell,
-		const ARTUnit* Target, const FRTCellId& TargetCell)
+		ERTHexDirection AttackerFacing, const ARTUnit* Target, const FRTCellId& TargetCell,
+		ERTHexDirection TargetFacing)
 	{
 		if (Map == nullptr || Attacker == nullptr || Target == nullptr) { return 0; }
 
@@ -5818,7 +5851,7 @@ namespace
 		// vuole [D-169]. La predittiva passa `Shooter->Cell`; vedi il suo sito per il limite che porta.
 		A.Cell = AttackerCell;
 		A.bAlive = Attacker->IsAlive();
-		A.Facing = Attacker->Facing;
+		A.Facing = AttackerFacing;
 
 		FRTHexCombatUnit T;
 		T.UnitId = 1;
@@ -5831,7 +5864,7 @@ namespace
 		// commento citava mentre il codice faceva l'opposto.
 		T.Cell = TargetCell;
 		T.bAlive = Target->IsAlive();
-		T.Facing = Target->Facing;
+		T.Facing = TargetFacing;
 
 		return URTHexCombatLibrary::EffectiveCoverReduction(Map, A, T, ERTAbilityShape::Single);
 	}
@@ -5931,7 +5964,11 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 			// Correggerla d'iniziativa qui sarebbe inventare la regola insieme alla correzione. Dichiarata e
 			// tracciata in `#2148`, che porta anche le tre letture da cambiare **insieme** il giorno in cui
 			// la decisione arriva: questa copertura, l'origine di `HitCameFromSide` e `Entry.SrcCell`.
-			const int32 Reduction = BoundaryCoverReduction(Map, Shooter, Shooter->Cell, Victim, Armed.LockedCell);
+			// Fuori dal ciclo dei micro-step: qui `Shooter->Facing` e `Victim->Facing` SONO l'orientamento
+			// vigente, e ADR-0008 §2 non tocca questo sito. Il facing e' esplicito perche' la firma lo chiede,
+			// non perche' cambi.
+			const int32 Reduction = BoundaryCoverReduction(Map, Shooter, Shooter->Cell, Shooter->Facing,
+				Victim, Armed.LockedCell, Victim->Facing);
 			const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
 			// `Direct`: e' un colpo al decision boundary, e passa dallo scudo base come ogni colpo.
 			const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, ERTDamageSource::Direct,
@@ -6352,8 +6389,19 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 	// 🔑 Non e' un cambio di regola: ADR-0004 §*«Quale cella»* prescrive *«la cella corrente»* per il ramo
 	// `FIRE` dal giorno in cui la tabella e' stata scritta. Cambia il comportamento **osservato**, non la
 	// decisione **vigente**.
-	const int32 Reduction = BoundaryCoverReduction(Map, WatchOwner, State.Pos[OwnerIdx],
-		Target, State.Pos[TargetIdx]);
+	// **ADR-0008 §2 — il facing del boundary, e lo STESSO per i due consumatori del colpo.** La copertura
+	// (`EffectiveCoverReduction` -> `IsInFrontalArc`, CP 16.2) e la voce direzionale qui sotto descrivono
+	// un solo istante: leggerne uno dall'attore e l'altro dal micro-step riprodurrebbe, sul facing, il
+	// difetto che `#2142` ha corretto sulle celle.
+	//
+	// Il watcher NON deriva: chi ha armato l'Overwatch ha dichiarato il proprio cono in Planning e la §2
+	// parla dell'unita' **in movimento**. `WatchOwner->Facing` resta l'orientamento con cui e' entrato nella
+	// fase, che per un watcher fermo e' anche quello che ha — e per un watcher spinto e' cio' che ha
+	// dichiarato, non cio' che il caso gli ha fatto assumere.
+	const ERTHexDirection TargetBoundaryFacing = BoundaryFacing(State, TargetIdx, Target->Facing);
+
+	const int32 Reduction = BoundaryCoverReduction(Map, WatchOwner, State.Pos[OwnerIdx], WatchOwner->Facing,
+		Target, State.Pos[TargetIdx], TargetBoundaryFacing);
 	const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
 	// `Direct`: colpo di Overwatch. Stessa natura del boundary shot qui sopra.
 	const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, ERTDamageSource::Direct,
@@ -6388,16 +6436,22 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 	// voce `Facing` che descrive l'orientamento di un'unita' (`IsSubjectTheSufferer`). Congelarle sullo stesso
 	// attore renderebbe la seconda invisibile a chi la riguarda.
 	//
-	// 🔑 **Il facing e' quello con cui il bersaglio e' ENTRATO nella fase Move, e non e' un ripiego.**
-	// `ResolveReactionBoundary` gira dentro il ciclo dei micro-step; la `RecordFacingChange` che fissa
-	// `DerivedFromMove` scrive DOPO l'uscita dal ciclo. Al momento del colpo l'orientamento finale non esiste
-	// ancora — e la lettura giusta e' proprio questa: si viene colpiti *mentre* ci si muove, con
-	// l'orientamento che si aveva. Va detto, o il prossimo lettore lo scambia per una svista.
+	// 🔑 **Il facing e' quello dell'ULTIMO PASSO COMPIUTO, non quello d'ingresso nella fase** (ADR-0008 §2,
+	// `#2131`). La premessa del commento che stava qui era giusta e la conclusione no: e' vero che
+	// `RecordFacingChange(DerivedFromMove)` scrive dopo l'uscita dal ciclo e che al momento del colpo
+	// l'orientamento finale non esiste ancora — ma non ne segue che valga quello d'ingresso. La §2 dichiara
+	// che il facing intermedio **si deriva** (`FacingAt(k) = FacingFromPath(Path[0..k], FacingAtMoveStart)`),
+	// e che non serve nessuno stato nuovo per averlo. *«Si viene colpiti mentre ci si muove, con
+	// l'orientamento che si aveva»* resta vero: l'orientamento che si ha camminando e' quello del passo
+	// appena fatto, non quello con cui si e' partiti tre celle fa.
+	//
+	// ⚠️ E il pivot finale della §1 **non e' retroattivo**: questa voce e' gia' scritta quando il pivot si
+	// applica, e nessuno la rilegge.
 	//
 	// ⚠️ **`Armed.Facing` non c'entra**: quello e' il cono che il watcher ha dichiarato armando, cioe' dove
 	// GUARDA. Qui serve l'orientamento di chi SUBISCE, che e' un'altra unita' e un altro campo.
 	FRTTurnLogEntry FromSide;
-	if (URTFacingLibrary::MakeHitCameFromSideEntry(State.Pos[TargetIdx], Target->Facing,
+	if (URTFacingLibrary::MakeHitCameFromSideEntry(State.Pos[TargetIdx], TargetBoundaryFacing,
 		State.Pos[OwnerIdx], ERTMatchPhase::Move, FromSide))
 	{
 		// La geometria della voce usava gia' `State.Pos`; ora anche il suo verdetto (`#2142`). Era il caso
@@ -6491,7 +6545,11 @@ void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TA
 			if (!IsValid(Units[u]) || !Units[u]->IsAlive() || Units[u]->TeamId != WatchOwner->TeamId) { continue; }
 			FRTPerceiver P;
 			P.Cell = State.Pos.IsValidIndex(u) ? State.Pos[u] : Units[u]->Cell;
-			P.Facing = Units[u]->Facing;
+			// **ADR-0008 §2**: un osservatore che sta camminando guarda dove ha appena messo il piede, non
+			// dove guardava a inizio fase. La cella era gia' quella del micro-step; il facing no, e i due
+			// insieme sono l'arco frontale da cui `TeamAwarenessOfCell` decide se il bersaglio e' `Detected`
+			// — cioe' la seconda condizione di trigger di ADR-0004 §6.
+			P.Facing = BoundaryFacing(State, u, Units[u]->Facing);
 			P.VisionRange = Units[u]->VisionRange;
 			Observers.Add(P);
 		}

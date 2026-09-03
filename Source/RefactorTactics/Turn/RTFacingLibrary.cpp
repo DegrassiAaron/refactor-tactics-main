@@ -86,6 +86,21 @@ ERTHexDirection URTFacingLibrary::FacingFromPath(const TArray<FRTCellId>& Path, 
 	return Current;
 }
 
+ERTHexDirection URTFacingLibrary::FacingAtMicroStep(const FRTCellId& StartCell,
+	const TArray<FRTCellId>& EnteredSoFar, ERTHexDirection FacingAtMoveStart)
+{
+	// Il PREFISSO, costruito come lo descrive l'ADR: la cella di partenza piu' cio' che si e' davvero
+	// attraversato. Non e' un'ottimizzazione mancata — `FacingFromPath` guarda solo le ultime due celle —
+	// ma la forma in cui la regola e' scritta, e la sola che resti giusta se un giorno la derivazione
+	// dovesse guardare piu' indietro dell'ultimo passo.
+	TArray<FRTCellId> Prefix;
+	Prefix.Reserve(EnteredSoFar.Num() + 1);
+	Prefix.Add(StartCell);
+	Prefix.Append(EnteredSoFar);
+
+	return FacingFromPath(Prefix, FacingAtMoveStart);
+}
+
 TArray<ERTHexDirection> URTFacingLibrary::LegalFacings(ERTMovementStyle Style, const TArray<FRTCellId>& Path,
 	ERTHexDirection Current, const FRTPivotBudget& Budget)
 {

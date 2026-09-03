@@ -106,6 +106,33 @@ public:
 	static ERTHexDirection FacingFromPath(const TArray<FRTCellId>& Path, ERTHexDirection Current);
 
 	/**
+	 * **ADR-0008 §2** — il facing di un'unita' al decision boundary che cade dopo il micro-step `k`:
+	 *
+	 * ```text
+	 * FacingAt(k) = FacingFromPath( Path[0..k], FacingAtMoveStart )
+	 * ```
+	 *
+	 * cioe' `FacingFromPath` applicata al PREFISSO del percorso gia' percorso. `StartCell` e' la cella da cui
+	 * il movimento e' partito, `EnteredSoFar` le celle davvero attraversate fino a questo boundary — che e'
+	 * esattamente `FRTHexMoveResult::Entered` mentre la risoluzione e' in corso.
+	 *
+	 * 🔑 **Non c'e' stato nuovo, ed e' il punto dell'ADR**: *«il facing intermedio non si memorizza, si
+	 * calcola dal percorso gia' risolto»*. Chi la chiama deve passare il facing d'INGRESSO nella fase — non
+	 * quello corrente, che dopo il pivot finale sarebbe un altro.
+	 *
+	 * Tre proprieta', tutte derivate:
+	 * - `EnteredSoFar` vuoto (`k = 0`) -> `FacingAtMoveStart`, perche' il prefisso e' la sola `StartCell` e
+	 *   `FacingFromPath` restituisce `Current` su un percorso di una cella. Nessun caso speciale;
+	 * - all'ultimo boundary il prefisso E' la rotta intera, quindi il valore coincide **per costruzione** con
+	 *   il `FacingFinalAfterMove` di [D-020] che `ResolveMovement` scrive uscendo dal ciclo;
+	 * - il pivot finale della §1 si applica DOPO, e non retroattivamente: questa funzione non lo conosce, e
+	 *   un boundary gia' passato non viene riletto.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Facing")
+	static ERTHexDirection FacingAtMicroStep(const FRTCellId& StartCell, const TArray<FRTCellId>& EnteredSoFar,
+		ERTHexDirection FacingAtMoveStart);
+
+	/**
 	 * A quale budget risponde questo stile (ADR-0008 §1). `None` -> `Stationary`, `Budget` -> `Move`,
 	 * ogni `Linear*` -> `Dash`.
 	 *
