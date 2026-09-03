@@ -1,4 +1,8 @@
 {
+  "_numeri_letti": {
+    "_nota":
+      "115 non e' un'attesa di questo file: e' cio' che asserisce lo scenario gemello Combat.CounterStrikesBack, citato per contrasto. Qui Riktor resta a 120 pieni, ed e' il punto dello scenario."
+  },
   "scenarioId": "Combat.NoCounterWhenUnarmed",
   "tags": ["combat", "reactions", "core", "gadget", "riktor"],
   "version": 1,
