@@ -225,8 +225,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWraithDeflectionReducesTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTWraithDeflectionReducesTest::RunTest(const FString&)
 {
-	// -20 sul colpo diretto che l'ha innescata, dalla semantica di `Action.Deflect`. Wraith non ha difese
-	// passive: la deviazione e' cio' che compra con la fragilita'.
+	// Un pool di 20 assorbibili sui colpi diretti del boundary, dalla semantica di `Action.Deflect` ([D-309]).
+	// ⚠️ Qui c'e' UN SOLO colpo, quindi pool e sconto-sul-primo-colpo danno lo stesso numero e questo test
+	// non li distingue: a farlo e' `Spec.Reaction.DeflectionPoolSpansMultipleHits` (`#2190`), con quattro colpi
+	// piu' piccoli del budget. Wraith non ha difese passive: la deviazione e' cio' che compra con la fragilita'.
 	UWorld* World = MakeHeroReactWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHeroReactMap(World);
