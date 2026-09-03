@@ -316,6 +316,10 @@ bool FRTGrayboxEastReferenceTest::RunTest(const FString&)
 		// `RerunConstructionScripts` ricreava i componenti riapplicando quel flag. Sostituirla con
 		// `OnConstruction` era necessario — la prima esiste solo `WITH_EDITOR`, vedi sotto — ma ha portato
 		// via anche la pressione, in silenzio: **un fix corretto puo' invacuire l'asserto che attraversa.**
+		// ✅ **Validato per MUTAZIONE**: commentata `SetUsingAbsoluteRotation(true)` nel costruttore del
+		// fixture e rieseguita la suite, cadono **tutte e sei** le asserzioni di questo loop piu' quella
+		// d'ancora — `14/14 completati, 1 fallimenti`. Senza la riga di rotazione qui sopra ne cadrebbe
+		// **una sola**, e le sei sarebbero verdi su un fixture rotto.
 		Fixture->SetActorRotation(FRotator(0.0, 37.0 * static_cast<double>(D + 1), 0.0));
 
 		// ⚠️ `OnConstruction`, non `RerunConstructionScripts`: **stessa trappola di `#2072`, gia' scritta

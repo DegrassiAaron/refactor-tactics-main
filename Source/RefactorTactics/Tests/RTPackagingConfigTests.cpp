@@ -50,6 +50,12 @@
  *    (`(Path="/Game/RT/Editor/Scenario/WBP_RT_ScenarioComposer")`), quindi passava anche lui. Verde nel
  *    caso buono e verde in quello cattivo: la definizione di un non-oracolo.
  *    ∴ sostituita dal confronto esatto del punto 2, che il caso rotto lo **fa cadere**.
+ *
+ * ✅ **E il punto 2 e' stato VALIDATO PER MUTAZIONE, non dichiarato.** Ristretta la riga a
+ * `+DirectoriesToNeverCook=(Path="/Game/RT/Editor/Scenario")` e rieseguita la suite: `1/1 completati,
+ * 1 fallimenti`, con il messaggio *«e la FAMIGLIA /Game/RT/Editor e' esclusa, non un suo singolo ramo»*.
+ * 🔑 **E' esattamente il caso che la versione a sottostringa lasciava passare verde**: la mutazione non
+ * serviva a mostrare che il test sa fallire in generale, ma che sa fallire **su questo**.
  */
 
 namespace
