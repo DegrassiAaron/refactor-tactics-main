@@ -216,10 +216,21 @@ sessions:
 
       **`PIE-V01-SHIELD`** (aggiunta il 2026-09-03, #1403) si fa nella stessa partita e va **dopo**
       `PIE-V01-KIT-HOTKEYS`, di cui e' il caso particolare: quella stabilisce che i tasti rispondano,
-      questa che risponda la **sesta posizione**. Chiede l'unica preparazione in piu' della seduta:
-      selezionare **Phase**, non l'unita' di default — `Hero.Phase.TideGuard` e' la sesta voce del suo
-      kit, cioe' il tasto **6**. E' esattamente il caso che `D-224` aveva fatto **ritirare** quando il
-      kit contava undici voci per dieci tasti, e nessun test automatico lo distingue da un successo.
+      questa che risponda l'**ultima posizione** del kit. Chiede l'unica preparazione in piu' della
+      seduta: selezionare **Phase**, non l'unita' di default.
+      La decisione che rende legale una sesta voce d'eroe e' **D-226** — le cinque generiche escono
+      dalla fila dei numeri e prendono un tasto proprio, e `ValidateHeroes` passa da cinque a
+      cinque-o-sei. **D-224** e' il primo tentativo, **ritirato** quando il kit contava undici voci per
+      dieci tasti: il vincolo e' caduto per decisione, non ignorandolo, e nessun test lo distingue.
+      ⚠️ **Non fidarsi del numero del tasto.** Oggi `Hero.Phase.TideGuard` e' la sesta voce, cioe' il
+      tasto 6, ma la posizione non e' pinnata da nessun test e due delle cinque che la precedono
+      entrano dentro una guardia (`if (FluidTrail)`, `if (MistVeil)`): si contano le voci del kit a
+      schermo e si legge dal log quale azione si e' armata.
+      🔴 **Prima di eseguirla, `rt.Match.BotAllies` e `rt.Match.Autobattle` devono essere a `0`**: gli
+      alleati-bot si contano dal FONDO di `Team0Heroes`, quindi `1` consegna proprio **Phase** al bot, e
+      le due CVar prevalgono sulla property e durano quanto il processo dell'editor — la stessa trappola
+      che il riquadro qui sopra descrive per `rt.Test.Scenario`. Con Phase al bot la voce sembra fallita
+      senza essere stata eseguita.
       ⚠️ **`Hero.Wraith.PhaseGuard` non si verifica qui**: e' il gemello di `TideGuard`, ma nella
       formazione di default Wraith sta in **team 1** e il giocatore non ne arma le azioni. Chiederlo in
       questa partita sarebbe una verifica impossibile.

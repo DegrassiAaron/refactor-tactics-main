@@ -1,7 +1,11 @@
 # Roadmap — eseguire le PIE rimaste
 
 > `CURRENT` · **Creato**: 2026-09-03 · **Owner**: questo file, fino a quando le sedute che elenca sono aperte.
-> **Misurato su** `origin/main = 2eb4ace2`. Il registro degli esiti resta
+> **Misurato su** `origin/main` **dopo il merge di 8 commit** (vedi la nota della §1). ⚠️ **Questa riga
+> diceva `2eb4ace2` e lo ha detto per mezza giornata**: è la base su cui il file è nato, e i suoi numeri
+> non valgono più — chi rieseguisse il comando canonico contro quel commit otterrebbe `200 · 98 · 68 · 30`
+> e concluderebbe che le tabelle sono sbagliate. 🔑 **Un documento che dichiara la propria base di
+> misura deve aggiornarla quando rimisura**, o la dichiarazione diventa la bugia meglio nascosta del file. Il registro degli esiti resta
 > [`test-manuali-pie.md`](../../technical/test-manuali-pie.md); *quale voce e quando* resta
 > [`editor-sessions.yaml`](../editor-sessions.yaml). Questo file dice **in che ordine** e **cosa manca**.
 
@@ -57,7 +61,7 @@ dice da sé — *«Il corpus Visual, diciotto scenari che nessuna seduta convoca
 > stati confrontati.
 
 ⚠️ *«Senza ostacolo dichiarato»* **non** significa eseguibile: significa che la voce non dice di essere
-bloccata. Trenta di esse non sono in nessuna sequenza, ed è la condizione che
+bloccata. **Trentatré** di esse non sono in nessuna sequenza, ed è la condizione che
 `spec-tactical-designer.md` §9 descrive come *«tende a non essere mai eseguita»*.
 
 ## 2. Le sedute, in ordine di resa
@@ -70,7 +74,7 @@ bloccata. Trenta di esse non sono in nessuna sequenza, ed è la condizione che
 | U5 | 5 | `[M6.6, M6.7]` | — | 🔴 bloccata da due checkpoint |
 | **U18** | **5** | `[]` | #450 #567 #583 #551–554 | 🟢 **non attende nulla**, come U42 |
 | U19 · U22 | 4 ciascuna | — | varie | 🟡 |
-| **U39** | **1** | `[U21]` | #1920 aperta | 🟢 **la più vicina alla chiusura** — vedi Passo 0 |
+| **U39** | **1** | `[U21]` | #1920 aperta | 🔴 bloccata da una seduta, **come U25** — ma ne condivide l'allestimento: vedi in coda alla §4 |
 | altre 12 sedute | 1–3 ciascuna | — | varie | — |
 
 ⚠️ **`U42` e `U43` sono cambiate, e non di poco**: `U43` dichiarava **dieci** voci aperte e ne misura
@@ -78,7 +82,7 @@ bloccata. Trenta di esse non sono in nessuna sequenza, ed è la condizione che
 `PIE-V01-SHIELD`, e con `unblocked_by: []` è la **seconda** seduta del file che non attende nulla — un
 fatto che la riga *«U18 · U19 · U22, varie»* nascondeva mettendola fra due sedute che invece attendono.
 
-🔑 **Due sedute coprono 29 delle 68 voci schedulate.** Le altre ventuno si dividono il resto, molte con una
+🔑 **Due sedute coprono 27 delle 67 voci schedulate.** Le altre diciotto si dividono il resto, molte con una
 voce sola: l'ordine non è una preferenza, è dove una sessione produce venti verdetti invece di uno.
 
 ## 3. Come si avvia uno scenario, e la trappola che lo rende inutile
@@ -106,28 +110,6 @@ serva.
 
 ## 4. L'ordine consigliato
 
-### Passo 0 — U39, **una** voce, e chiude una issue
-
-`PIE-HEX-COORD-COSTO` è l'unica voce aperta di `U39`, e la sua gemella `PIE-HEX-COORD-LEGGIBILITA` è già
-✅ (2026-09-01, confermata dall'autore su `L_DevSandbox`). **Metà del suo criterio è già misurata** — il
-conteggio dei segmenti — e resta il giudizio che nessuna sonda headless può dare: navigare l'**arena
-piena** (raggio 50, 7 651 celle) e dire se il viewport regge, anche trascinando il pennello.
-
-🔑 **È il miglior rapporto verdetto/costo del file**: una voce sola, nessuna analisi da fare prima, e
-chiudendola si chiude **l'intera seduta** e con essa [#1920](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1920),
-la cui implementazione è già tutta in `main` — runtime, guscio editor e voci di registro. Resta aperta
-**solo** per questo verdetto a schermo.
-
-⚠️ **Non è una sessione a sé**: `unblocked_by: [U21]` — su una scena non illuminata il verdetto
-direbbe più sulle luci che sulle coordinate — e `shares_setup_with: [U21, U22, U25, U26]`. Si esegue
-**nella stessa apertura** di quel gruppo, ed è il motivo per cui costa quasi nulla eseguirla: chiede
-**meno** delle altre tre, nessuno strumento attivo.
-
-⚠️ **Perché fin qui non compariva in questo file**, pur essendo la più economica: la tabella della §2
-raggruppava le sedute da una-tre voci in *«altre 16»*, e una seduta a **una** voce sparisce esattamente
-nel gruppo che l'ordinamento per resa mette per ultimo. Ordinare per numero di verdetti nasconde chi ne
-produce pochi **a costo quasi nullo**.
-
 ### Passo 1 — U42, venti voci, nessun prerequisito
 
 Le voci: `PIE-VIS-ICE`, `-WETFIRE`, `-KO`, `-CHARGE`, `-ROUGH`, `-COMBO`, `-COORD`, `-FALLBACK`, `-SMOKE`,
@@ -142,28 +124,64 @@ percorso del suo file.
 voce ombrello del composito d'ambiente, entrata in `main` lo stesso 2026-09-03. Il testo qui sopra diceva
 *diciannove* ed elencava diciannove nomi: era corretto stamattina.
 
+⛔ **Ma la guida della seduta è ferma a diciannove, e questo file da solo non basta a colmare la
+differenza.** [`guida-seduta-u42-corpus-visual.md`](../../technical/runbooks/guida-seduta-u42-corpus-visual.md)
+dice *diciannove* in due punti e **non nomina `PIE-ACC-ENVIRONMENT`**. È quella guida a contenere, per
+ciascuna voce, *ciò che la falsifica* — esattamente ciò che il capoverso qui sotto pretende **prima** di
+aprire l'editor. 🔴 Quindi oggi la ventesima voce sarebbe eseguita **senza criterio scritto**, che è il
+modo documentato di produrre un *«sembra ok»* invece di un verdetto. Alzare il conteggio qui **non**
+aggiorna la guida: chi convoca `U42` scriva prima il criterio della ventesima, o la escluda dichiarandolo.
+
 ⚠️ **Prima di aprire l'editor va scritto, per ciascuna, cosa la falsifica.** Sono verifiche visive: senza un
 criterio scritto prima, venti verifiche producono venti *«sembra ok»*, che non è un verdetto.
 
-### Passo 2 — U43, dieci voci
+### Passo 2 — U43, sette voci
 
 `unblocked_by: []`, ma la sua issue #151 è un'**epic aperta**. Il titolo dichiara che *«i due compositi
 allestiscono già»* le voci, quindi il lavoro potrebbe essere solo di esecuzione — ⛔ **da verificare voce per
 voce prima di convocarla**, non da assumere.
 
-### Passo 3 — le 30 orfane
+### Passo 3 — le 33 orfane
 
 Non sono lavoro da implementare: sono lavoro da **schedulare**. Ognuna va assegnata a una seduta esistente o
 a una nuova, e la decisione è di `editor-sessions.yaml`, che ne è l'owner.
 
-⛔ **Non prima di U42**: assegnare trenta voci richiede un'analisi, mentre U42 è pronta adesso.
+⛔ **Non prima di U42**: assegnare trentatré voci richiede un'analisi, mentre U42 è pronta adesso.
+
+### In coda a `U21` — `U39`, **una** voce, e chiude una issue
+
+⚠️ **Non è un passo a sé, e la prima stesura di questa sezione lo chiamava «Passo 0» mettendolo
+davanti a `U42`.** Era sbagliato in due modi: `U39` dichiara `unblocked_by: [U21]` — lo **stesso**
+ostacolo per cui `U25` è marcata 🔴 due righe sopra — e `U42` invece non attende nulla. Un ordine che
+mette una seduta bloccata prima di una libera non è un ordine di esecuzione.
+
+Detto questo, quando `U21` si apre `U39` costa quasi nulla e rende molto:
+
+`PIE-HEX-COORD-COSTO` è la sua unica voce aperta, e la gemella `PIE-HEX-COORD-LEGGIBILITA` è già ✅
+(2026-09-01, confermata dall'autore su `L_DevSandbox`). **Metà del criterio è già misurata** — il
+conteggio dei segmenti — e resta il giudizio che nessuna sonda headless può dare: navigare l'**arena
+piena** (raggio 50, 7 651 celle) e dire se il viewport regge, anche trascinando il pennello.
+
+🔑 **Chiuderla chiude l'intera seduta e con essa**
+[#1920](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1920), la cui implementazione è già
+tutta in `main` — runtime, guscio editor e voci di registro. Resta aperta **solo** per questo verdetto a
+schermo.
+
+🔑 **E non chiede una propria apertura**: `shares_setup_with: [U21, U22, U25, U26]`, e di quel gruppo
+è la meno esigente — nessuno strumento attivo. Si esegue **nella stessa apertura**.
+
+⚠️ **Perché fin qui non compariva in questo file**: la tabella della §2 raggruppava le sedute da
+una-tre voci in *«altre 16»*, e una seduta a **una** voce sparisce nel gruppo che l'ordinamento per resa
+mette per ultimo. Ordinare per numero di verdetti nasconde chi ne produce pochi **a costo quasi nullo** —
+il che resta vero, ed è il motivo per cui ha una riga propria nella tabella, non un posto in cima alla fila.
 
 ## 5. Cosa questa roadmap NON dice
 
 - ⛔ **Non dice che i venti verdetti saranno verdi.** Dice che sono *osservabili*. Uno scenario che gira
   headless prova che il gioco non si rompe, non che a schermo si veda ciò che deve vedersi — è precisamente
   la ragione per cui esiste una verifica PIE.
-- ⛔ **Non copre le 21 voci con ostacolo dichiarato**: quelle hanno cause proprie, scritte nelle loro righe,
+- ⛔ **Non copre le 21 voci con ostacolo dichiarato** — ⚠️ numero **non rimisurato**, vedi la §1: quelle
+  hanno cause proprie, scritte nelle loro righe,
   e vanno lette una per una.
 - ⛔ **Non tocca le sedute con `execution_lane: asset`** (U1, U8, U24, U28, U29, U30): producono `.uasset`, e
   sono un altro mestiere — Content Browser e Binary Asset Lease, non osservazione.
