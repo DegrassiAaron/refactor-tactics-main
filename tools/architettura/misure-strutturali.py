@@ -2,11 +2,27 @@
 """Le misure di E50, con il comando che le genera — e un asse che l'audit non aveva.
 
     Uso:  python tools/architettura/misure-strutturali.py [--ref <git-ref>] [--base <git-ref>]
-                                                          [--churn] [--soglia N]
+                                                          [--churn] [--check] [--soglia N]
                                                           [--markdown] [--json <file>]
 
 Senza argomenti misura l'albero di lavoro. Con `--base` stampa il confronto fra due commit, che e'
-la forma in cui #1818 chiede di riportare ogni fetta.
+la forma in cui #1818 chiede di riportare ogni fetta. Con `--check` fa il gate di non-regressione
+di E50 contro il merge-base con `origin/main`.
+
+## `--check`: il gate che E50 non aveva
+
+⚠️ **Ordina, non decide.** Esce 1 quando una grandezza sorvegliata e' cresciuta, e quell'1 non e' un
+fallimento: e' «dichiaralo nella PR». Una feature che aggiunge un metodo al TurnManager e' legittima —
+quella che lo aggiunge *in silenzio* fa salire il fondo mentre ogni singola fetta di #1818 riesce.
+Nei quattro giorni dell'audit e' successo esattamente questo: **+395 righe di codice e +10 metodi**,
+non per colpa delle fette (che registrano anche i saldi sfavorevoli) ma per i **53 commit** di gameplay
+ordinario atterrati sulla stessa classe, perche' e' li' che vive il sequenziamento.
+
+Sorveglia **metodi** e **righe di codice**, e non le righe del file: vedi la sezione qui sotto — un gate
+che sale quando qualcuno scrive la ragione di una regola insegna a non scriverla. Il metodo e' il segnale
+piu' pulito dei due, perche' un metodo nuovo e' una decisione, non un dettaglio di formattazione.
+
+Guarda il solo `ARTTurnManager`, che e' l'oggetto di #1818. Non dice nulla del resto del modulo.
 
 ## Perche' esiste
 
@@ -395,6 +411,58 @@ def stampa(m, base=None, markdown=False):
                          r["nome"][:44], r["file"], r["linea"]))
 
 
+# Le grandezze che il gate sorveglia, e perche' proprio queste.
+#
+# NON le righe del file: il 58% di cio' che si aggiunge qui e' commento normativo, e un gate che
+# sale quando qualcuno scrive la ragione di una regola insegna a non scriverla.
+SORVEGLIATE = [
+    ("turnmanager_metodi", "metodi `ARTTurnManager::`"),
+    ("turnmanager_righe_codice", "righe di codice (3 file)"),
+]
+
+
+def base_di_confronto(repo):
+    """Il merge-base con `origin/main`: misura cio' che il branch aggiunge, non cio' che main ha nel frattempo."""
+    for riferimento in ("origin/main", "main"):
+        esito = subprocess.run(["git", "merge-base", "HEAD", riferimento],
+                               cwd=str(repo), capture_output=True, text=True)
+        if esito.returncode == 0 and esito.stdout.strip():
+            return esito.stdout.strip()
+    return None
+
+
+def esegui_check(m, base):
+    """Stampa il delta delle grandezze sorvegliate. Esce 1 se una e' cresciuta.
+
+    ⚠️ **Ordina, non decide.** L'uscita 1 non e' un fallimento e non e' un veto: e' «qui c'e' una
+    crescita, dichiarala». Una feature che aggiunge un metodo al TurnManager e' legittima; una che lo
+    aggiunge *in silenzio* fa salire il fondo mentre ogni singola fetta di #1818 riesce, ed e' cosi'
+    che la classe e' cresciuta di 395 righe di codice e 10 metodi nei quattro giorni dell'audit.
+
+    Sorveglia il solo `ARTTurnManager`, che e' l'oggetto di #1818. Non dice nulla del resto del modulo.
+    """
+    print("=== GATE DI NON-REGRESSIONE - E50 #1816 ===")
+    print("base: %s\n" % base["ref"])
+    cresciute = []
+    for chiave, etichetta in SORVEGLIATE:
+        prima, dopo = base[chiave], m[chiave]
+        d = dopo - prima
+        if d > 0:
+            cresciute.append((etichetta, prima, dopo, d))
+        print("  %-30s %6d -> %6d  %+6d   %s"
+              % (etichetta, prima, dopo, d, "DA DICHIARARE" if d > 0 else "ok"))
+    print()
+    if not cresciute:
+        print("OK - nessuna crescita da dichiarare.")
+        return 0
+    print("CRESCITA DA DICHIARARE - non e' un veto.")
+    print("  Incolla nella sezione \"Verifiche\" della PR:\n")
+    for etichetta, prima, dopo, d in cresciute:
+        print("    %s: %d -> %d (%+d), perche': ..." % (etichetta, prima, dopo, d))
+    print("\n  Una crescita motivata va bene. Una crescita silenziosa e' cio' che E50 non puo' vedere.")
+    return 1
+
+
 def main():
     ap = argparse.ArgumentParser(description="Misure strutturali di E50 - #1816, #1818")
     ap.add_argument("--ref", help="misura questo commit invece dell'albero di lavoro")
@@ -405,7 +473,16 @@ def main():
     ap.add_argument("--churn", action="store_true",
                     help="conta i commit che hanno toccato ogni funzione e ordina per costo "
                          "(solo sull'albero di lavoro)")
+    ap.add_argument("--check", action="store_true",
+                    help="gate di non-regressione: confronta le grandezze sorvegliate col merge-base "
+                         "(o con --base) ed esce 1 se sono cresciute. Non e' un veto: e' «dichiaralo»")
     a = ap.parse_args()
+
+    # La console di Windows e' cp1252: senza questo, un `—` in una tabella `--markdown` non stampa
+    # male, fa uscire lo strumento con un UnicodeEncodeError a meta' output. Misurato, non dedotto.
+    for flusso in (sys.stdout, sys.stderr):
+        if hasattr(flusso, "reconfigure"):
+            flusso.reconfigure(errors="replace")
 
     repo = Path(__file__).resolve().parents[2]
     temporanee = []
@@ -424,15 +501,25 @@ def main():
             else:
                 aggiungi_churn(m, repo)
 
+        riferimento_base = a.base
+        if a.check and not riferimento_base:
+            riferimento_base = base_di_confronto(repo)
+            if not riferimento_base:
+                sys.stderr.write("--check: nessun `origin/main` da cui calcolare il merge-base.\n")
+                return 2
+
         base = None
-        if a.base:
-            rb = albero_di(a.base, repo)
+        if riferimento_base:
+            rb = albero_di(riferimento_base, repo)
             temporanee.append(rb)
             base = misura(rb, a.soglia)
-            base["ref"] = a.base
-            if a.markdown:
+            base["ref"] = riferimento_base
+            if a.markdown and not a.check:
                 print("Misurato con `tools/architettura/misure-strutturali.py`, da `%s` a `%s`.\n"
-                      % (a.base, m["ref"]))
+                      % (riferimento_base, m["ref"]))
+
+        if a.check:
+            return esegui_check(m, base)
 
         stampa(m, base, a.markdown)
 
@@ -447,4 +534,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main() or 0)
