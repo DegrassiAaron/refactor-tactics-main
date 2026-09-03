@@ -325,6 +325,26 @@ Il contract è che l'ingresso **si presenta e non pretende**: è un pannello doc
 il layout dell'editor, non un modale; non ruba il focus; non esegue niente. Chi lo chiude non se lo ritrova
 aperto, e il meccanismo è quello nativo di Unreal — nessuno nuovo.
 
+**Dockato, e in un posto dichiarato** — `D-2168`, deciso il 2026-09-03. Il pannello vive nella colonna
+destra del Level Editor, **in scheda con i Details**. Non è una preferenza estetica: un `NomadTab` senza
+posizione nel layout si apre in una **finestra**, ed è ciò che la seduta `U31` ha visto il 2026-09-02.
+
+> ⚠️ **Registrare un tab e collocarlo sono due cose diverse.** `RegisterNomadTabSpawner` dice al motore
+> *come* costruire il pannello; *dove* metterlo lo dichiara un'estensione di layout su
+> `FLevelEditorModule::OnRegisterLayoutExtensions`. E le due metà non si invocano dallo stesso posto: la
+> posizione vive nel layout del `LevelEditorTabManager`, che è un **sub-manager**, e il tab manager globale
+> non sa scendere fin lì. Chi invoca il tab dal globale ottiene una finestra anche quando il layout
+> dichiara altro.
+
+⛔ **Il posto è dichiarato `ClosedTab`, non `OpenedTab`, e la differenza è il contract del paragrafo
+successivo**: `OpenedTab` aprirebbe il pannello su ogni livello e per chiunque apra il progetto — cioè
+«si presenta su una mappa che non è `L_DevSandbox`», che è precisamente ciò che questa sezione vieta.
+Il tab riceve un posto; ad aprirlo resta il gancio su `OnMapOpened`.
+
+⚠️ **Limite noto del motore**: un layout già salvato vince sull'estensione — `ProcessExtensions` non tocca
+un tab che l'`EditorLayout.ini` dichiara già. Chi ha usato il launcher prima di questa decisione continua a
+vederlo fluttuante finché non fa *Window → Load Layout → Default Editor Layout*.
+
 Su una mappa che non è `L_DevSandbox` l'ingresso **non si presenta da sé**. Non è una restrizione di
 capability — la facade resta raggiungibile da chi sa dove sta — è che presentarsi su `L_HexArena` o su una
 mappa di frontend affermerebbe un legame che non esiste: il bootstrap è di *questo* livello, e un ingresso che

@@ -31,8 +31,41 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
-	/** Id del tab: registrato in `FGlobalTabmanager`, e' anche la chiave con cui il layout ne ricorda la visibilita'. */
+	/**
+	 * Id del tab: registrato in `FGlobalTabmanager`, e' anche la chiave con cui il layout ne ricorda la
+	 * visibilita'.
+	 *
+	 * ⚠️ **Registrarlo e collocarlo sono due cose diverse, e vivono in due file** (#2168). Qui sta il
+	 * `TabId` e il suo spawner; **dove** il tab si docka lo dichiara
+	 * `FRefactorTacticsEditorModule::ExtendLevelEditorLayout`, che deve iscriversi a
+	 * `OnRegisterLayoutExtensions` prima che il Level Editor si costruisca. Chi cambia questa costante
+	 * cambia anche quella.
+	 *
+	 * ⛔ **E `FGlobalTabmanager` e' proprio il manager che NON sa collocarlo**: la posizione vive nel
+	 * layout del `LevelEditorTabManager`, che e' un sub-manager. Per invocarlo si usa
+	 * `InvokeTabInLayout`, non `FGlobalTabmanager::Get()->TryInvokeTab` diretto.
+	 */
 	static const FName TabId;
+
+	/**
+	 * Apre un tab **rispettando la posizione dichiarata nel layout del Level Editor**, e ricade sul tab
+	 * manager globale solo se quella strada non porta da nessuna parte.
+	 *
+	 * 🔑 **Perche' l'ordine non e' arbitrario.** `FGlobalTabmanager::Get()->TryInvokeTab` cerca il tab
+	 * chiuso in `DockAreas` e `CollapsedDockAreas`, che sono membri **di istanza**
+	 * (`TabManager.cpp:AttemptToOpenTab`). La docking area del Level Editor appartiene al
+	 * `LevelEditorTabManager` — un sub-manager creato da
+	 * `FGlobalTabmanager::Get()->NewTabManager(OwnerTab)` (`LevelEditor.cpp:815`) — e il motore ha un ramo
+	 * che sale dal sub-manager al globale (`TabManager.cpp:1778`), **nessuno** che scenda. Invocare dal
+	 * globale un tab collocato nel layout del Level Editor non lo trova, e apre una finestra: e' il
+	 * difetto che #2168 correggeva a meta' finche' questa funzione non e' esistita.
+	 *
+	 * E' il pattern del motore, non un'invenzione: `SOutputLog.cpp:2509` prova il tab manager specifico e
+	 * `2515` usa il globale come fallback; `ContentBrowserSingleton.cpp:979-983` fa lo stesso.
+	 *
+	 * @return `true` se un tab e' stato aperto, da una delle due strade.
+	 */
+	static bool InvokeTabInLayout(FName InTabId);
 
 	/**
 	 * Predicato PURO: il percorso appena aperto e' il livello di bootstrap del Tactical Designer?
