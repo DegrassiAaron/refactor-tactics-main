@@ -6,6 +6,7 @@
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTReactionOpportunityTypes.h" // HoldResponse: il decisore che il test binda per primo
+#include "Turn/RTReactionLibrary.h" // ERTReactionOutcome: «reazione» fra gli otto eventi chiave (#170)
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
@@ -26,6 +27,9 @@
 #include "ScenarioHarness/RTTestReportWriter.h" // l'ultimo anello: il campo deve arrivare in `result.json`
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "HAL/FileManager.h"  // FindFiles: la cardinalita' del corpus golden si conta sul disco (#170)
+#include "Algo/Reverse.h"     // la permutazione dell'ordine di spawn, turno per turno (#170)
+#include "Templates/Function.h" // TFunction: gli otto eventi chiave sono PREDICATI, non categorie (#170)
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 
@@ -457,7 +461,7 @@ bool FRTShowcaseBasinLayoutTest::RunTest(const FString&)
 			Data->MoveCost, Def.MoveCost);
 	}
 
-	// --- Il Relay e' pavimento libero ---------------------------------------------------------------
+	// --- Il Relay e' pavimento libero, ed E' l'obiettivo --------------------------------------------
 	// L'obiettivo non deve stare su un terreno che lo difende o lo penalizza da solo: chi lo tiene deve
 	// averlo tenuto, non esserci capitato sopra.
 	const FRTHexCellData* Relay = Arena->FindCell(FRTCellId(0, 0, 0));
@@ -466,7 +470,30 @@ bool FRTShowcaseBasinLayoutTest::RunTest(const FString&)
 		TestEqual(TEXT("il Relay e' su Floor"), static_cast<int32>(Relay->Surface),
 			static_cast<int32>(ERTHexSurface::Floor));
 		TestFalse(TEXT("il Relay non blocca il movimento"), Relay->bBlocksMovement);
+		// 🔴 **La riga che mancava, e la sua assenza non produceva nessun rosso** (`#170`). La spec owner
+		// dichiara il Relay `Objective.Relay, contendibile` (§2.2) dal primo giorno; la fixture non lo
+		// marcava, e nessun test glielo chiedeva. Il T8 restava `Blocked` su una capability, e chi avesse
+		// scoperto la capability senza questa riga avrebbe ottenuto un turno che gira, non segna e passa —
+		// perche' su una mappa senza obiettivi il Cleanup tace di proposito
+		// (`Objectives.SilentWithoutObjectiveCell`). L'assenza era invisibile in entrambi i versi.
+		TestTrue(TEXT("il Relay E' un obiettivo contendibile: e' cio' che rende giocabile il T8"),
+			Relay->bIsObjective);
 	}
+
+	// ⚠️ **UNO SOLO, e la cardinalita' e' parte dell'oracolo.** `FirstObjectiveCell()` restituisce il minimo
+	// in ordine stabile (`URTHexLibrary::StableLess`), non «quello giusto»: con un secondo obiettivo su una
+	// cella che precede il Relay, il T8 segnerebbe altrove e la riga qui sopra resterebbe **verde lo stesso**,
+	// perche' il Relay sarebbe comunque marcato. Piu' obiettivi simultanei sono CP 31.1, post-v0.1 — qui la
+	// loro assenza si misura invece di darla per scontata.
+	int32 Obiettivi = 0;
+	for (const FRTHexCellData& Cell : Arena->Cells)
+	{
+		if (Cell.bIsObjective)
+		{
+			++Obiettivi;
+		}
+	}
+	TestEqual(TEXT("la mappa dichiara ESATTAMENTE un obiettivo"), Obiettivi, 1);
 
 	// --- Gate: una PORTA chiusa, non un meccanismo nuovo (CP 9.3) -----------------------------------
 	TestEqual(TEXT("il gate e' chiuso all'inizio"),
@@ -689,8 +716,17 @@ bool FRTScenarioBlockedTurnTest::RunTest(const FString&)
 	return true;
 }
 
+// ⏱️ **Rinominato da `ShowcaseRelayV01RunsTurnOne` il 2026-09-03 (`#170`).** Il nome vecchio diceva «turno
+// uno» e il test ne pinnava **sette**: era nato quando lo showcase si fermava al T2 e ha attraversato quattro
+// sblocchi senza cambiare — l'ID restava fermo perche' era l'exit gate di una tranche di roadmap, e perche'
+// la DOMANDA («quanto lontano arriva, e cosa lo ferma») non cambiava mai.
+//
+// ⚠️ **E il nome nuovo non porta un numero, di proposito.** `RunsEightTurns` sarebbe invecchiato come
+// `RunsTurnOne`: il numero vive nell'assertion, dove cambiarlo e' un diff che si legge, non nel nome, dove
+// resta vero per definizione. Cio' che questo test dice ora e' una PROPRIETA' — li gioca **tutti** — e la
+// proprieta' e' l'unica formulazione che un nono turno non renderebbe falsa.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioShowcaseRelayV01Test,
-	"RefactorTactics.Scenario.ShowcaseRelayV01RunsTurnOne",
+	"RefactorTactics.Scenario.ShowcaseRelayV01PlaysEveryTurn",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 {
@@ -731,33 +767,27 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 	// ⏱️ **2026-08-16, `#512` fase B: da tre a CINQUE.** Il T4 chiedeva `DecisionBoundary`, che ora e' fra le
 	// disponibili; il T5 non chiede nulla. Il numero si e' mosso per la terza volta e per la terza ragione
 	// giusta — non e' il test ad essere stato aggiustato, e' il gioco ad essere arrivato piu' lontano.
-	TestEqual(TEXT("si ferma sul primo turno non supportato"),
-		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Blocked));
-	// ⏱️ **2026-08-29, `#1060`: da cinque a SETTE.** Il T6 ha il proprio contenuto e
+	// ⏱️ **2026-09-02, `#1060`: da cinque a SETTE.** Il T6 ha il proprio contenuto e
 	// `InterceptRevalidation` e' fra le disponibili; il T7 gioca **con lui**, perche' non dichiara `requires`
-	// e nessuno lo teneva fuori se non il turno prima. Il numero si e' mosso per la quarta volta e per la
-	// quarta ragione giusta — non e' il test ad essere stato aggiustato, e' il gioco ad essere arrivato
-	// piu' lontano.
-	TestEqual(TEXT("arriva a sette turni: il T6 lo apre #1060, e il T7 non chiede nulla"),
-		Result.TurnsPlayed, 7);
-	// Ora lo ferma il T8, che chiede l'obiettivo contendibile (#75).
-	TestTrue(TEXT("dichiara cosa lo blocca"), Result.BlockedReason.Contains(TEXT("Objective")));
-	// ⚠️ **E la meta' negativa che vale per QUESTA fetta**: il blocco non deve piu' nominare
-	// `InterceptRevalidation`. Senza, un T6 che tornasse `Blocked` per un difetto della sua fixture — invece
-	// che per la capability, ora presente — passerebbe il `Contains` sopra soltanto perche' il messaggio
-	// nomina un'altra capability, e il test direbbe «sette turni» sbagliando turno.
-	TestFalse(TEXT("il T6 non e' piu' cio' che lo ferma"),
-		Result.BlockedReason.Contains(TEXT("InterceptRevalidation")));
-	// ⚠️ **E la meta' negativa, senza la quale il verde qui sopra e' ambiguo**: il blocco NON deve piu'
-	// nominare `DecisionBoundary`. Senza questa riga, un T4 che tornasse `Blocked` per un difetto di
-	// traduzione della decisione — invece che per la capability — passerebbe il `Contains` sopra soltanto
-	// perche' il messaggio nomina un'altra capability, e il test direbbe «cinque turni» sbagliando turno.
-	TestFalse(TEXT("il T4 non e' piu' cio' che lo ferma"),
-		Result.BlockedReason.Contains(TEXT("DecisionBoundary")));
+	// e nessuno lo teneva fuori se non il turno prima.
+	//
+	// ⏱️ **2026-09-03, `#170`: da sette a OTTO, e l'esito passa da `BLOCKED` a `PASS`.** E' la quinta volta
+	// che questo numero si muove e la prima in cui arriva in fondo — non c'e' piu' un turno che aspetta.
+	// 🔴 **E cio' che l'ha sbloccato non e' la chiusura di `#75`**, che era avvenuta il giorno prima
+	// lasciando il T8 esattamente com'era: era una riga nella FIXTURE. `MakeShowcaseRelayBasinArena` non
+	// marcava `(0,0,0)` come obiettivo — nessun costruttore di arena ne marcava uno — e su una mappa senza
+	// obiettivi il Cleanup tace di proposito. La capability aveva il suo produttore e niente su cui girare.
+	TestEqual(TEXT("li gioca TUTTI: nessun turno resta dietro una capability"),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass));
+	TestEqual(TEXT("otto turni giocati, quanti il file ne dichiara"), Result.TurnsPlayed, 8);
+	// 🔴 **La meta' negativa, e qui vale doppio.** `PASS` con otto turni non basta a dire che nessuno e'
+	// stato saltato: `BlockedReason` VUOTO e' l'affermazione che nessuna capability e' stata invocata come
+	// scusa. Senza questa riga, un futuro turno 9 bloccato darebbe ancora otto turni giocati e un verde qui.
+	TestTrue(TEXT("e nessuna capability e' rimasta a bloccare qualcosa"), Result.BlockedReason.IsEmpty());
 
-	// Le assertion del turno 1 sono state valutate e sono passate: un BLOCKED non le nasconde.
-	TestTrue(TEXT("il turno 1 ha assertion valutate"), Result.Assertions.Num() > 0);
-	TestEqual(TEXT("nessuna assertion del turno 1 fallita"), Result.FailedCount(), 0);
+	// Le assertion sono state valutate e sono passate — tutte e ventidue, non solo quelle dei primi turni.
+	TestTrue(TEXT("le assertion di scenario sono state valutate"), Result.Assertions.Num() > 0);
+	TestEqual(TEXT("nessuna assertion fallita"), Result.FailedCount(), 0);
 
 	// Lo stato finale e' un dato, non un caso: senza hash il golden replay non esiste.
 	TestNotEqual(TEXT("lo StateHash e' stato calcolato"), Result.StateHash, static_cast<uint32>(0));
@@ -769,12 +799,21 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 		FString Json;
 		if (TestTrue(TEXT("result.json e' stato scritto"), FFileHelper::LoadFileToString(Json, *ReportPath)))
 		{
-			TestTrue(TEXT("il report dichiara l'esito BLOCKED"), Json.Contains(TEXT("BLOCKED")));
-			// Il motivo sta accanto all'esito: «BLOCKED» da solo direbbe che non tutto e' pronto, che si
-			// sapeva gia'. Il valore e' nel nome della capability — che dal 2026-08-29 e' quella del **T8**,
-			// `Objective` (#75): il T6 ha il proprio contenuto e non ferma piu' niente.
-			TestTrue(TEXT("il report nomina la capability mancante"), Json.Contains(TEXT("Objective")));
-			TestTrue(TEXT("il report distingue blockedReason da error"), Json.Contains(TEXT("blockedReason")));
+			// ⏱️ **`PASS` e non piu' `BLOCKED` dal 2026-09-03 (`#170`)**: il report diceva quale capability
+			// mancava, e ora non ne manca nessuna. ⚠️ **La riga che nominava `Objective` e' stata TOLTA e non
+			// invertita**, ed e' una scelta: un `TestFalse(Contains("Objective"))` sarebbe andato rosso per la
+			// ragione sbagliata — il report ora nomina `Objective` eccome, nelle assertion del T8 che
+			// contano le voci del TurnLog. Cercare l'assenza di una parola in un documento che ha
+			// legittimamente cominciato a usarla e' il modo piu' veloce di scrivere un test fragile.
+			TestTrue(TEXT("il report dichiara l'esito PASS"), Json.Contains(TEXT("PASS")));
+			// 🔴 **E non porta NESSUNO dei due campi diagnostici**, che e' l'affermazione simmetrica di
+			// quella che stava qui prima. Finche' l'esito era `BLOCKED` questa riga verificava che
+			// `blockedReason` esistesse **accanto** a `error` — chi legge deve poter distinguere «il test e'
+			// rotto» da «la feature non c'e' ancora». Ora che nessuna delle due condizioni vale, il report
+			// deve tacere su entrambe: `RTTestReportWriter` scrive quei campi **solo se non vuoti**, quindi
+			// trovarli in un PASS significherebbe che un residuo e' sopravvissuto all'esecuzione.
+			TestFalse(TEXT("un PASS non porta blockedReason"), Json.Contains(TEXT("blockedReason")));
+			TestFalse(TEXT("ne' error"), Json.Contains(TEXT("\"error\"")));
 			// ➕ **Il T4 ha SPARATO, e il report lo dice in due numeri.** Senza questi, «cinque turni» sarebbe
 			// compatibile con un T4 che si sblocca e non apre nessuna finestra — cioe' esattamente il verde
 			// che la fase B esiste per non produrre. `scriptedDecisionsUnused` e' la meta' negativa: una
@@ -803,7 +842,7 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 // =====================================================================================================
 // S2-3 — il turno 1 della showcase e' DETERMINISTICO.
 //
-// Che passi lo verifica gia' `ShowcaseRelayV01RunsTurnOne`. Questo verifica una cosa diversa e piu' fragile:
+// Che passi lo verifica gia' `ShowcaseRelayV01PlaysEveryTurn`. Questo verifica una cosa diversa e piu' fragile:
 // che passi SEMPRE ALLO STESSO MODO. Quattro unita' che si muovono nello stesso turno sono esattamente il
 // caso in cui l'ordine dell'array puo' decidere l'esito senza che nessuno se ne accorga — e una showcase che
 // cambia da una esecuzione all'altra non e' una dimostrazione, e' un aneddoto.
@@ -1879,6 +1918,345 @@ bool FRTBlockYardIsAdvertisedTest::RunTest(const FString&)
 {
 	TestTrue(TEXT("BlockYard e' fra le fixture note, quindi la tendina e gli scenari la vedono"),
 		URTMatchSetupLibrary::KnownFixtureIds().Contains(TEXT("BlockYard")));
+	return true;
+}
+
+// =====================================================================================================
+// CP 15.4 (#170) — il golden replay degli otto turni.
+//
+// ⚠️ **Quattro test, e nessuno dei quattro ripete `Simulation.GoldenCorpusMatches`.** Quello confronta le
+// tracce di ogni corpus col proprio riferimento su disco, showcase compreso da questo checkpoint, ed e' la
+// verifica di UGUAGLIANZA. Qui si verificano quattro cose che l'uguaglianza non copre:
+//
+//   · che il golden non sia **vacuo** — otto tracce identiche a otto tracce vuote combaciano benissimo;
+//   · che la **diagnosi** di una divergenza nomini turno, fase e azione, cioe' che serva a qualcosa;
+//   · che l'ordine di spawn non cambi lo stato **a ogni turno**, non solo alla fine;
+//   · che gli eventi chiave siano **prodotti**, e non solo rappresentabili.
+// =====================================================================================================
+
+namespace
+{
+	/** Carica lo showcase versionato. Falso — con errore gia' registrato — se non si carica. */
+	bool RTLoadShowcaseRelay(FAutomationTestBase& Test, FRTTestScenario& OutScenario)
+	{
+		FString LoadError;
+		const FString Path = URTScenarioIndex::ResolvePath(TEXT("RT_Showcase_Relay_v01"), LoadError);
+		if (Path.IsEmpty() || !URTScenarioLoader::LoadFromFile(Path, OutScenario, LoadError))
+		{
+			Test.AddError(FString::Printf(TEXT("RT_Showcase_Relay_v01 non si carica: %s"), *LoadError));
+			return false;
+		}
+		return true;
+	}
+
+	/** Tutte le voci di TurnLog della partita, in ordine di turno. Vuoto se una traccia non si rilegge. */
+	TArray<FRTTurnLogEntry> RTShowcaseAllLogEntries(const FRTTestResult& Result, FAutomationTestBase& Test)
+	{
+		TArray<FRTTurnLogEntry> Tutte;
+		for (int32 i = 0; i < Result.TurnTraces.Num(); ++i)
+		{
+			TArray<FRTTurnLogEntry> Voci;
+			if (!URTTurnLogLibrary::DeserializeTurnLog(Result.TurnTraces[i].Bytes, Voci))
+			{
+				Test.AddError(FString::Printf(TEXT("la traccia del turno %d non si rilegge"), i + 1));
+				return TArray<FRTTurnLogEntry>();
+			}
+			Tutte.Append(Voci);
+		}
+		return Tutte;
+	}
+}
+
+/**
+ * Il golden dell'intera partita **esiste, e' completo e non e' vuoto**.
+ *
+ * 🔴 **La parte che `GoldenCorpusMatches` non puo' dare, ed e' la ragione per cui questo test esiste**: un
+ * confronto e' verde anche fra due cose vuote. Se lo showcase smettesse di produrre voci — un resolver che
+ * non scrive piu' nel TurnLog, una serializzazione che tronca — le tracce fresche sarebbero vuote, e il
+ * giorno in cui qualcuno rigenerasse il corpus lo sarebbero anche le sue. Da quel momento in poi il corpus
+ * confermerebbe il nulla, e nessuno se ne accorgerebbe: `#1598` ha gia' documentato la forma simmetrica di
+ * questo difetto (il file che resta e che nessuno confronta).
+ *
+ * ⚠️ Otto, non «almeno uno»: la CARDINALITA' e' parte dell'affermazione. Un corpus di sette file per uno
+ * scenario che gioca sette turni sarebbe internamente coerente e direbbe una cosa falsa sullo showcase.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseEightTurnsGoldenTest,
+	"RefactorTactics.ShowcaseRelay.EightTurnsGoldenMatches",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseEightTurnsGoldenTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!RTLoadShowcaseRelay(*this, Scenario)) { return false; }
+
+	const FRTTestResult Result = RTWorldFixtures::RunScenarioIsolated(Scenario);
+	if (!TestEqual(TEXT("lo showcase gira fino in fondo"),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass)))
+	{
+		AddError(FString::Printf(TEXT("esito %s — %s%s"), *Result.OutcomeString(),
+			*Result.BlockedReason, *Result.ErrorMessage));
+		return false;
+	}
+
+	TestEqual(TEXT("otto tracce, una per turno"), Result.TurnTraces.Num(), 8);
+
+	// 🔴 L'anti-vacuita', turno per turno. Non «il totale e' > 0»: un turno muto in mezzo a sette parlanti
+	// sarebbe invisibile a una somma, e sarebbe precisamente il turno da guardare.
+	for (int32 i = 0; i < Result.TurnTraces.Num(); ++i)
+	{
+		TArray<FRTTurnLogEntry> Voci;
+		const bool bRiletta = URTTurnLogLibrary::DeserializeTurnLog(Result.TurnTraces[i].Bytes, Voci);
+		if (TestTrue(FString::Printf(TEXT("la traccia del turno %d si rilegge"), i + 1), bRiletta))
+		{
+			TestTrue(FString::Printf(TEXT("il turno %d lascia almeno una voce nel TurnLog"), i + 1),
+				Voci.Num() > 0);
+		}
+	}
+
+	// E gli otto file sul disco, che sono l'altra meta': il confronto lo fa `GoldenCorpusMatches`, ma se un
+	// file mancasse quel test lo direbbe **dentro un ciclo su sette corpus**, e la diagnosi arriverebbe
+	// mescolata. Qui la cardinalita' del corpus dello showcase si legge da sola.
+	const FString CorpusDir = FPaths::Combine(FPaths::ProjectDir(),
+		TEXT("Source"), TEXT("RefactorTactics"), TEXT("Tests"), TEXT("Golden"), TEXT("RT_Showcase_Relay_v01"));
+	TArray<FString> Files;
+	IFileManager::Get().FindFiles(Files, *FPaths::Combine(CorpusDir, TEXT("*.rttl")), true, false);
+	TestEqual(TEXT("otto file `turn-NN.rttl` versionati per lo showcase"), Files.Num(), 8);
+
+	return true;
+}
+
+/**
+ * La DIAGNOSI di una divergenza, non l'uguaglianza.
+ *
+ * 🔴 **Un corpus che sa solo dire «diverso» finisce rigenerato invece che letto**, ed e' il difetto che
+ * `DescribeFirstDivergence` esiste per impedire. Il test lo verifica sullo showcase e non su una traccia
+ * costruita a mano: e' la partita piu' lunga del corpus — otto turni, quattro unita', reazioni e ambiente —
+ * cioe' quella in cui «dove e' cambiato» ha un valore reale.
+ *
+ * ⚠️ Si guasta la traccia **del turno 8**, di proposito: e' l'ultimo, quindi un messaggio che nominasse il
+ * turno per posizione anziche' per numero direbbe «turno 1» e il test lo vedrebbe. Con il primo turno i due
+ * comportamenti sarebbero indistinguibili.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseDivergenceNamesTest,
+	"RefactorTactics.ShowcaseRelay.DivergenceNamesTurnPhaseAndAction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseDivergenceNamesTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!RTLoadShowcaseRelay(*this, Scenario)) { return false; }
+
+	const FRTTestResult Result = RTWorldFixtures::RunScenarioIsolated(Scenario);
+	if (!TestEqual(TEXT("otto tracce da cui partire"), Result.TurnTraces.Num(), 8)) { return false; }
+
+	TArray<FRTTurnLogEntry> Originale;
+	if (!TestTrue(TEXT("la traccia del turno 8 si rilegge"),
+		URTTurnLogLibrary::DeserializeTurnLog(Result.TurnTraces[7].Bytes, Originale)))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("il turno 8 ha voci da guastare"), Originale.Num() > 0)) { return false; }
+
+	// La voce dell'obiettivo e' quella che il T8 esiste per produrre: guastare LEI rende il messaggio
+	// verificabile su un `ActionId` che il test conosce per nome, invece che su uno qualsiasi.
+	int32 Indice = INDEX_NONE;
+	for (int32 i = 0; i < Originale.Num(); ++i)
+	{
+		if (Originale[i].Category == ERTLogCategory::Objective) { Indice = i; break; }
+	}
+	if (!TestTrue(TEXT("il turno 8 porta la voce dell'obiettivo"), Indice != INDEX_NONE)) { return false; }
+
+	TArray<FRTTurnLogEntry> Guasta = Originale;
+	// `Amount` e non l'esito: un punto che vale zero invece di uno e' la divergenza piu' silenziosa che
+	// questa voce possa avere — stessa categoria, stesso esito, stessa cella.
+	Guasta[Indice].Amount = Originale[Indice].Amount + 7;
+
+	const FString Messaggio = URTTurnLogLibrary::DescribeFirstDivergence(8, Originale, Guasta);
+	AddInfo(FString::Printf(TEXT("diagnosi: %s"), *Messaggio));
+
+	TestTrue(TEXT("la diagnosi nomina il TURNO"), Messaggio.Contains(TEXT("8")));
+	TestTrue(TEXT("la diagnosi nomina la FASE"),
+		Messaggio.Contains(TEXT("Cleanup")));
+	TestTrue(TEXT("la diagnosi nomina l'AZIONE"),
+		Messaggio.Contains(TEXT("Objective.Control")));
+
+	// 🔴 **La controprova, senza la quale i tre `Contains` sopra sono compatibili con un messaggio
+	// costante.** Due tracce identiche non devono produrre la stessa frase: se `DescribeFirstDivergence`
+	// restituisse sempre lo stesso testo, questo test sarebbe verde e non misurerebbe niente.
+	const FString Nessuna = URTTurnLogLibrary::DescribeFirstDivergence(8, Originale, Originale);
+	TestNotEqual(TEXT("e su due tracce identiche dice un'altra cosa"), Nessuna, Messaggio);
+
+	return true;
+}
+
+/**
+ * L'ordine di spawn non cambia lo stato **a ogni turno**, non solo alla fine.
+ *
+ * 🔴 **`Simulation.ChecksumStableAcrossPermutations` confronta il solo hash FINALE**, e su una partita di
+ * otto turni due divergenze che si compensano lo attraversano senza lasciare traccia. Qui si confronta
+ * turno per turno: lo scenario viene troncato a K turni per K da 1 a 8, e ogni troncamento si esegue
+ * diritto e permutato.
+ *
+ * ⚠️ **L'oracolo e' `StateHash`, NON il TurnLog**, ed e' una scelta obbligata: `TurnLog.OrderedHashIsNotThe
+ * CanonicalOne` esiste perche' un digest che **ordina il proprio input** non puo' falsificare l'invarianza
+ * d'ordine — sarebbe verde per costruzione, cioe' un test che dimostra la propria premessa.
+ *
+ * ⚠️ Le `Expect` della partita intera si SOSTITUISCONO nei troncamenti — non si azzerano. Parlano di otto
+ * turni, e valutarle al turno 3 le farebbe cadere per la ragione sbagliata; ma un `expect` vuoto e' un
+ * **errore di caricamento** dichiarato — *«nessuna assertion dichiarata: lo scenario passerebbe sempre»* —
+ * e la prima stesura di questo test lo ha scoperto cadendo. Al loro posto va l'unica affermazione che vale
+ * per ogni troncamento: che i K turni siano stati giocati tutti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseStateHashPerTurnTest,
+	"RefactorTactics.ShowcaseRelay.StateHashStablePerTurnUnderPermutation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseStateHashPerTurnTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!RTLoadShowcaseRelay(*this, Scenario)) { return false; }
+	if (!TestEqual(TEXT("otto turni da percorrere"), Scenario.Turns.Num(), 8)) { return false; }
+
+	// 🔴 La controprova, prima delle uguaglianze: se gli hash dei turni fossero tutti uguali fra loro, ogni
+	// confronto qui sotto sarebbe verde e non direbbe niente. Si raccolgono e si conta quanti valori
+	// DISTINTI producono.
+	TSet<uint32> Distinti;
+
+	for (int32 K = 1; K <= Scenario.Turns.Num(); ++K)
+	{
+		FRTTestScenario Troncato = Scenario;
+		Troncato.Turns.SetNum(K);
+		Troncato.Expect.Reset();
+		FRTTestExpectation TurniGiocati;
+		TurniGiocati.Kind = ERTAssertionKind::TurnsCompleted;
+		TurniGiocati.Value = K;
+		Troncato.Expect.Add(TurniGiocati);
+
+		FRTTestScenario Permutato = Troncato;
+		Algo::Reverse(Permutato.Units);
+		for (FRTScenarioTurn& Turno : Permutato.Turns)
+		{
+			Algo::Reverse(Turno.Intents);
+		}
+
+		const FRTTestResult Diritto = RTWorldFixtures::RunScenarioIsolated(Troncato);
+		const FRTTestResult Rovescio = RTWorldFixtures::RunScenarioIsolated(Permutato);
+
+		if (Diritto.Outcome == ERTTestOutcome::Error || Rovescio.Outcome == ERTTestOutcome::Error)
+		{
+			AddError(FString::Printf(TEXT("troncamento a %d turni non eseguibile: %s / %s"),
+				K, *Diritto.ErrorMessage, *Rovescio.ErrorMessage));
+			return false;
+		}
+
+		TestEqual(FString::Printf(TEXT("turno %d: stesso numero di turni giocati"), K),
+			Rovescio.TurnsPlayed, Diritto.TurnsPlayed);
+		TestEqual(FString::Printf(TEXT("turno %d: stesso StateHash (%08x vs %08x)"),
+			K, Rovescio.StateHash, Diritto.StateHash), Rovescio.StateHash, Diritto.StateHash);
+
+		Distinti.Add(Diritto.StateHash);
+	}
+
+	// Otto turni che cambiano lo stato producono otto hash diversi. Se ne producessero uno solo, gli otto
+	// confronti sopra sarebbero l'uguaglianza di una costante con se' stessa.
+	TestEqual(TEXT("e gli otto stati sono DISTINTI: l'hash non e' una costante travestita"),
+		Distinti.Num(), Scenario.Turns.Num());
+
+	return true;
+}
+
+/**
+ * Gli otto eventi chiave sono **prodotti**, non solo rappresentabili.
+ *
+ * 🔴 **La differenza fra i due verbi e' l'intero valore di questo test.** Il TurnLog ha una categoria per
+ * ciascuno di questi eventi da mesi: un test che verificasse che l'`enum` li contiene sarebbe verde su un
+ * gioco che non ne emette nessuno. Qui si guarda cosa lo showcase ha davvero scritto.
+ *
+ * ⚠️ **Si asserisce l'IDENTITA' di cio' che manca, non il conteggio**, ed e' la stessa forma di
+ * `GoldenCorpusCoversItsCategories`: un cambio che perdesse un evento guadagnandone un altro terrebbe il
+ * numero fermo e questo test verde, mentre la promessa diventerebbe falsa senza segnale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseKeyEventsTest,
+	"RefactorTactics.ShowcaseRelay.EveryKeyEventAppearsInTheLog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseKeyEventsTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!RTLoadShowcaseRelay(*this, Scenario)) { return false; }
+
+	const FRTTestResult Result = RTWorldFixtures::RunScenarioIsolated(Scenario);
+	const TArray<FRTTurnLogEntry> Voci = RTShowcaseAllLogEntries(Result, *this);
+	if (!TestTrue(TEXT("la partita ha lasciato un TurnLog"), Voci.Num() > 0)) { return false; }
+	AddInfo(FString::Printf(TEXT("il TurnLog dello showcase porta %d voci su %d turni"),
+		Voci.Num(), Result.TurnTraces.Num()));
+
+	// Gli otto eventi chiave del DoD, ciascuno con il predicato che lo riconosce. ⚠️ **Predicati e non
+	// categorie**: «stato» e «KO» vivono entrambi sotto `Combat` — [D-162] mette la causa in `ActionId` e la
+	// gravita' in `Outcome` — quindi una mappa evento→categoria li confonderebbe.
+	struct FEventoChiave
+	{
+		const TCHAR* Nome;
+		TFunction<bool(const FRTTurnLogEntry&)> Riconosce;
+	};
+	const FEventoChiave Chiave[] = {
+		{ TEXT("azione dichiarata"), [](const FRTTurnLogEntry& E)
+			{ return E.Category == ERTLogCategory::Move
+				&& static_cast<ERTMoveOutcome>(E.Outcome) == ERTMoveOutcome::Moved; } },
+		{ TEXT("fallback"), [](const FRTTurnLogEntry& E)
+			{ return E.Category == ERTLogCategory::Fallback; } },
+		{ TEXT("danno"), [](const FRTTurnLogEntry& E)
+			{ return E.Category == ERTLogCategory::Combat
+				&& static_cast<ERTCombatOutcome>(E.Outcome) == ERTCombatOutcome::Hit; } },
+		{ TEXT("stato"), [](const FRTTurnLogEntry& E)
+			{ return E.ActionId == FName(TEXT("Status.Burning")); } },
+		{ TEXT("reazione"), [](const FRTTurnLogEntry& E)
+			{ return E.Category == ERTLogCategory::Reaction
+				&& static_cast<ERTReactionOutcome>(E.Outcome) == ERTReactionOutcome::Activated; } },
+		{ TEXT("ambiente"), [](const FRTTurnLogEntry& E)
+			{ return E.Category == ERTLogCategory::Environment; } },
+		{ TEXT("obiettivo"), [](const FRTTurnLogEntry& E)
+			{ return E.Category == ERTLogCategory::Objective
+				&& static_cast<ERTObjectiveOutcome>(E.Outcome) == ERTObjectiveOutcome::Team0Scores; } },
+		{ TEXT("KO"), [](const FRTTurnLogEntry& E)
+			{ return E.Category == ERTLogCategory::Combat
+				&& static_cast<ERTCombatOutcome>(E.Outcome) == ERTCombatOutcome::Lethal; } },
+	};
+
+	TArray<FString> Mancanti;
+	for (const FEventoChiave& Evento : Chiave)
+	{
+		bool bProdotto = false;
+		for (const FRTTurnLogEntry& E : Voci)
+		{
+			if (Evento.Riconosce(E)) { bProdotto = true; break; }
+		}
+		if (!bProdotto) { Mancanti.Add(Evento.Nome); }
+	}
+	Mancanti.Sort();
+
+	// ⛔ **DUE degli otto non sono prodotti, e sono dichiarati invece che nascosti** (`#170`). La voce di DoD
+	// chiedeva che tutti e otto lo fossero: misurato, sei lo sono. Le due che mancano hanno ragioni diverse,
+	// ed entrambe sono di CONTENUTO — non di codice: il TurnLog sa scriverle entrambe, e altri scenari del
+	// corpus le producono.
+	//
+	//   · **`KO`** — il §T8 della spec chiede che Gadget vada KO mentre Phase segna. Misurato: non c'e'
+	//     nessuno che possa ucciderlo. Resta a (-3,-1,0) dal T4, le due unita' rosse sono a cinque celle e
+	//     piu' dopo la scivolata del T7, e la sua cella e' `Floor` — nessun hazard. Scrivere l'intento non lo
+	//     farebbe morire; asserire il KO renderebbe il turno rosso.
+	//   · **`fallback`** — nessuna azione dello showcase ripiega. La categoria e' emessa da SETTE siti del
+	//     resolver e uno scenario che la produce esiste (`Visual.Combat.FallbackTargetMoved`, il fallback
+	//     `AttackCell` di un bersaglio uscito di portata): qui semplicemente non capita, perche' ogni
+	//     bersaglio dichiarato e' ancora raggiungibile quando l'azione risolve. ⚠️ **Il whiff del T2 NON e'
+	//     un fallback**: `PredictionWhiffed` e' `Predictive`, e la previsione mancata e' l'esito voluto di
+	//     quel turno, non un ripiego.
+	//
+	// Owner di entrambe: `#2149`.
+	//
+	// ⚠️ **Questa riga cade il giorno in cui una delle due comparisse**, ed e' voluto: sarebbe la notizia che
+	// lo showcase ha guadagnato un evento chiave, e va registrata qui invece di essere ereditata in silenzio.
+	// E' la stessa disciplina che `GoldenCorpusCoversItsCategories` applica alle categorie scoperte —
+	// l'IDENTITA' di cio' che manca, non il conteggio: perderne uno guadagnandone un altro terrebbe il
+	// numero a sei e questo test verde.
+	TestEqual(TEXT("e a mancare sono esattamente `fallback` e `KO` (contenuto, non codice — owner #2149)"),
+		FString::Join(Mancanti, TEXT(", ")), FString(TEXT("fallback, KO")));
+
 	return true;
 }
 

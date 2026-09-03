@@ -221,27 +221,41 @@ bool FRTFreeRunRepeatDeterminismTest::RunTest(const FString&)
  *
  * 🔴 **Verificato per mutazione, e l'esito senza il blocco non e' quello che sembra**: disattivando il
  * controllo, questo test cade dicendo `PASS` invece di `BLOCKED` con **10 turni** giocati. Cioe' il rischio
- * non era un rosso ingiusto — era un VERDE su una partita finita per **eliminazione** dentro uno scenario che
- * dichiara di misurare l'**obiettivo**.
+ * non era un rosso ingiusto — era un VERDE su una partita giocata fino in fondo dentro uno scenario che
+ * dichiara di aver bisogno di **qualcosa che il gioco non sa ancora fare**. ⚠️ La misura risale al 2026-08,
+ * quando il nome usato qui era `Objective`; `#170` l'ha spostato fra le disponibili e la capability di
+ * comodo e' ora `Perception`. **La mutazione resta valida**: non dipendeva da quale nome fosse, ma dal fatto
+ * che il free-run non guardasse il proprio `Requires`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFreeRunScenarioRequiresTest,
 	"RefactorTactics.Scenario.FreeRun.ScenarioRequiresBlocksWithoutPlaying",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTFreeRunScenarioRequiresTest::RunTest(const FString&)
 {
-	// La premessa del test, non un'assunzione: se un giorno `Objective` diventasse disponibile, questo test
-	// direbbe cosa e' cambiato invece di fallire su un `Blocked` mancante.
-	if (!TestFalse(TEXT("premessa: 'Objective' non e' ancora disponibile"),
-		FRTScenarioSession::IsAvailableCapability(TEXT("Objective"))))
+	// La premessa del test, non un'assunzione: se un giorno la capability scelta diventasse disponibile,
+	// questo test direbbe cosa e' cambiato invece di fallire su un `Blocked` mancante.
+	//
+	// ✅ **Ed e' successo: la guardia ha fatto il proprio lavoro il 2026-09-03.** Qui stava `Objective`,
+	// che `#170` ha spostato fra le disponibili; questo test e' caduto sulla PREMESSA, con il messaggio che
+	// dice cosa e' cambiato, invece di cadere sull'assenza di un `BLOCKED` — dove la diagnosi sarebbe stata
+	// «il free-run non blocca piu'» e si sarebbe cercato il difetto nel runner. Vale la pena registrarlo:
+	// una premessa esplicita costa tre righe e sposta la diagnosi dal sintomo alla causa.
+	//
+	// ⚠️ `Perception` e non `ReactionClash`, e la scelta e' deliberata: `#314` e' lavoro
+	// attivo, mentre `Perception` (`#151`) non ha oggi nessun produttore in partita. Il nome qui e'
+	// **intercambiabile per costruzione** — al test serve un nome NOTO e non disponibile, non questo — e il
+	// giorno in cui anche `Perception` atterrasse, questa stessa guardia lo direbbe di nuovo.
+	if (!TestFalse(TEXT("premessa: 'Perception' non e' ancora disponibile"),
+		FRTScenarioSession::IsAvailableCapability(TEXT("Perception"))))
 	{
 		return false;
 	}
-	TestTrue(TEXT("premessa: 'Objective' e' comunque un nome noto"),
-		FRTScenarioSession::IsKnownCapability(TEXT("Objective")));
+	TestTrue(TEXT("premessa: 'Perception' e' comunque un nome noto"),
+		FRTScenarioSession::IsKnownCapability(TEXT("Perception")));
 
 	FRTTestScenario Scenario;
 	if (!LoadAutobattleScenario(*this, /*MaxTurns=*/ 40, Scenario)) { return false; }
-	Scenario.Requires.Add(TEXT("Objective"));
+	Scenario.Requires.Add(TEXT("Perception"));
 
 	UWorld* World = MakeFreeRunWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
@@ -251,7 +265,7 @@ bool FRTFreeRunScenarioRequiresTest::RunTest(const FString&)
 	TestEqual(TEXT("esito"), Result.OutcomeString(), FString(TEXT("BLOCKED")));
 	TestEqual(TEXT("nessun turno giocato"), Result.TurnsPlayed, 0);
 	TestTrue(FString::Printf(TEXT("il motivo nomina la capability: '%s'"), *Result.BlockedReason),
-		Result.BlockedReason.Contains(TEXT("Objective")));
+		Result.BlockedReason.Contains(TEXT("Perception")));
 	// Le assertion di fine scenario NON si valutano su una partita che non e' stata giocata, e il free-run non
 	// fa eccezione: un `MatchReachedEnd` rosso qui direbbe «il gioco e' rotto» di un'attesa legittima.
 	TestNull(TEXT("nessuna MatchReachedEnd su uno scenario bloccato"), FindMatchReachedEnd(Result));

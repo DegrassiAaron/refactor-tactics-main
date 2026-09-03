@@ -1416,6 +1416,28 @@ bool FRTHexMapPinnedDefaultsTest::RunTest(const FString&)
  * ✅ **La guardia e' invece una MUTAZIONE**: si costruisce una `High` a `30` — esattamente cio' che l'editor
  * produce oggi — e si verifica che il predicato la riconosca. Cosi' il test non e' vacuo nemmeno il giorno in
  * cui gli asset non offrono un soggetto, e se `DefaultIntegrity` o il confronto cambiassero lo direbbe.
+ *
+ * ---
+ *
+ * 🔑 **RIVERIFICATO il 2026-09-03, e la previsione qui sopra si e' AVVERATA** (`#1317`, `main = 1ad7f610`):
+ *
+ * | Asset | 2026-08-24 | 2026-09-03 |
+ * |---|---|---|
+ * | `DA_HexMap_Arena` | 64 celle, **0** coperture | 64 celle, **0** coperture |
+ * | `DA_HexMap_Sandbox` | vuoto | vuoto |
+ * | `DA_HexMap_Scratch_Basin` | **45** celle, **1** copertura | **65** celle, **4** coperture |
+ * | | 1 totale, **0** sotto catalogo | 4 totali, **0** sotto catalogo |
+ *
+ * ⚠️ **`_Scratch` e' cambiato sotto il test in dieci giorni** — celle e coperture — che e' esattamente il
+ * comportamento per cui la guardia `Totale > 0` era stata scartata. La differenza fra le due scelte non e'
+ * piu' ipotetica: una guardia appesa a quel conteggio avrebbe misurato la rigenerazione della fixture, non
+ * l'invariante. Chi rilegge questa riga fra sei mesi rifaccia il conto invece di crederle — e' la ragione
+ * per cui la tabella porta due date invece di un numero solo.
+ *
+ * 🔴 **Il difetto continua a non avere un soggetto, e le quattro coperture non sono un controesempio**:
+ * vengono tutte dalla fixture C++, che passa da `DefaultIntegrity(Type)`. `DA_HexMap_Arena` — l'unica mappa
+ * d'autore — ne ha ancora **zero** su 64 celle. **Nessuno ha ancora aggiunto una copertura a mano dal
+ * pannello dei dettagli**, ed e' la ragione per cui il percorso che produce il difetto resta non battuto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAuthoredCoversNotBelowCatalogTest,
 	"RefactorTactics.HexMap.AuthoredCoversAreNotBelowCatalog",

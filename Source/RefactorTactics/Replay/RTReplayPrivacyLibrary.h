@@ -92,10 +92,15 @@ struct FRTPublicReplayEntry
 /**
  * Il confine fra i due prodotti di [D-276].
  *
- * ⚠️ **Il confine e' qui per i CAMPI, e non esiste ancora per le VOCI.** Non e' una sfumatura: il filtro
- * per osservatore — *«questa unita' la mia squadra l'aveva vista?»* — richiede la `TeamKnowledge` del
- * turno, e la traccia archiviata **non la porta**: `FRTTurnLogEntry::Verdict` e' `UPROPERTY(Transient)` e
- * `SerializeTurnLog` non lo scrive.
+ * ⚠️ **Sono DUE confini e vivono in due momenti**, ed e' la cosa da sapere prima di leggere il resto: i
+ * **CAMPI** si tolgono in lettura (`ToPublicTrace`, qui sotto), le **VOCI** si filtrano alla registrazione
+ * (`FilterEntriesForObserver`, [D-316]).
+ *
+ * 🔴 **Perche' non nello stesso posto.** Il filtro per osservatore — *«questa unita' la mia squadra l'aveva
+ * vista?»* — ha bisogno del verdetto del turno, e la traccia archiviata **non lo porta**:
+ * `FRTTurnLogEntry::Verdict` e' `UPROPERTY(Transient)` e `SerializeTurnLog` non lo scrive. In lettura quel
+ * dato e' azzerato, e `AllowsTeam` e' fail-closed: un filtro qui non nasconderebbe troppo poco,
+ * nasconderebbe **tutto**.
  *
  * ⚠️ **L'attribuzione va tenuta dritta, perche' la prima stesura di questo file la sbagliava.** [D-223]
  * decide che un canale che racconta il PASSATO porta il verdetto **congelato quando il fatto e' accaduto**
@@ -105,8 +110,19 @@ struct FRTPublicReplayEntry
  * della simulazione»* — con le conseguenze che elenca: versione del formato, `EntryLess`, `MixEntryFields`
  * e i golden. Chi cerchera' in [D-223] il permesso di cambiare idea non lo trovera' ne' in un senso ne'
  * nell'altro.
- * Finche' quel dato non esiste in forma durevole, chi legge un replay pubblico vede i fatti di **entrambe**
- * le squadre: e' il difetto che `#1525` osserva sul playback, e questa libreria non lo chiude.
+ * ✅ **Il confine per le VOCI esiste dal 2026-09-03** — [D-316], `#2098`. Non e' stato ottenuto serializzando
+ * il verdetto: e' stato ottenuto **spostando il momento**. Il verdetto e' vivo in memoria quando la voce
+ * nasce (`ARTTurnManager::AppendLogEntry` lo congela li'), quindi il prodotto pubblico si filtra **alla
+ * registrazione**, e la traccia archiviata non ha mai bisogno di portarlo.
+ *
+ * ⚠️ **Per un anno la lettura corrente e' stata che «filtrare il replay richiede il verdetto nella
+ * traccia»**, e quella frase e' vera solo se si decide **alla lettura**. Il dato non mancava: si cercava di
+ * usarlo nel momento sbagliato.
+ *
+ * 🔴 **Ed e' la sola forma che il canone ammetteva**, non una fra tre pari.
+ * [`conoscenza-parziale-visibile-spec.md`](../../../docs/technical/systems/conoscenza-parziale-visibile-spec.md)
+ * §3.5 mette il **combat log** nella colonna *«alla scrittura»* da [D-223]: filtrare in lettura avrebbe
+ * contraddetto una decisione gia' presa, non aggiunto un'opzione.
  */
 UCLASS()
 class REFACTORTACTICS_API URTReplayPrivacyLibrary : public UBlueprintFunctionLibrary
@@ -125,4 +141,26 @@ public:
 
 	/** Da traccia di audit a traccia pubblica: l'unico ponte fra i due prodotti. */
 	static TArray<FRTPublicReplayEntry> ToPublicTrace(const TArray<FRTTurnLogEntry>& AuditTrace);
+
+	/**
+	 * Il confine per le **VOCI**: tiene solo i fatti che `ObserverTeamId` era autorizzato a conoscere quando
+	 * sono accaduti ([D-316], `#2098`).
+	 *
+	 * 🔴 **Si chiama alla REGISTRAZIONE, non alla lettura**, ed e' l'intera decisione. `FRTTurnLogEntry::Verdict`
+	 * e' `Transient` — su disco non c'e' — ma e' **vivo** nell'istante in cui la voce nasce, perche'
+	 * `ARTTurnManager::AppendLogEntry` lo congela li'. Chiamare di qui mentre la partita gira usa un dato che
+	 * esiste; chiamare da un viewer che ha appena deserializzato userebbe una maschera azzerata, e per
+	 * fail-closed **non passerebbe nulla**.
+	 *
+	 * ⚠️ **`ObserverTeamId < 0` significa spettatore NEUTRALE, e passa tutto.** Non e' una scorciatoia: un
+	 * replay pubblicato e' gia' una rinuncia alla privacy competitiva, e nasconderne meta' a chi non e' di
+	 * nessuna delle due squadre non protegge nessuno — mentre lascerebbe l'archivio senza una lettura
+	 * completa che non sia il prodotto d'audit. La scelta e' [D-316] punto (5).
+	 *
+	 * ⛔ **Non tocca i CAMPI**: chi vuole entrambi i confini compone con `ToPublicTrace`. Sono due domande
+	 * diverse — *«questa riga la posso vedere?»* e *«di questa riga quali colonne?»* — e fonderle avrebbe
+	 * reso impossibile scrivere una traccia per osservatore che resti nel formato canonico.
+	 */
+	static TArray<FRTTurnLogEntry> FilterEntriesForObserver(const TArray<FRTTurnLogEntry>& Entries,
+		int32 ObserverTeamId);
 };

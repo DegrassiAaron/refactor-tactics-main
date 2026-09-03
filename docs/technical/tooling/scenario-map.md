@@ -251,7 +251,8 @@ Il verdetto è l'assertion. Nessuna di queste righe compare nel registro PIE, ed
 | `Spec.Environment.ElectricPropagation` | — | — | la scarica corre sul grafo dell'acqua **perché un eroe la innesca** — acceso da `#282` |
 | `Spec.Environment.WaterQuenchesFire` | — | — | l'acqua spegne le fiamme, e la fonte è un'azione di un eroe — idem `#282` |
 | `Spec.Map.BridgeBreaksThePath` | — | — | rompere un arco **annulla** il percorso invece di allungarlo — idem `#282` |
-| `RT_Showcase_Relay_v01` | RelayBasin | 5 | gli 8 turni della showcase — oggi **BLOCKED** su 5 capability (§6) |
+| `RT_Showcase_Relay_v01` | RelayBasin | 8 | gli 8 turni della showcase, **tutti giocati** dal 2026-09-03 (`#170`): esito `PASS`, 22 assertion, e il corpus golden multi-turno che pinna la partita intera. ⏱️ La riga diceva «5 · **BLOCKED** su 5 capability»: le cinque si sono chiuse una alla volta, e l'ultima — `Objective` — non aspettava una feature ma una **cella** (nessun costruttore di arena posava un obiettivo) |
+| `Spec.Objective.PointSurvivesKO` | RelayBasin | 2 | ⏱️ **Da `BLOCKED` a `PASS` con `#170`**, insieme allo showcase e per la stessa riga di fixture. Dimostra che il punto si assegna **dopo** il KO ambientale, dentro lo stesso Cleanup |
 
 > ⚠️ `Movement.BasicFailsOnPurpose` è escluso da `EveryShippedScenarioRuns` e verificato **al contrario** da
 > `Scenario.ExpectedFailScenariosReallyFail`: deve fallire davvero, e con `FAIL`, non `ERROR`. Se il gioco
