@@ -339,22 +339,49 @@
           ]
         }
       ],
-      "_nota_cosa_dimostra": "D-029: non e' una combo di squadra. Phase pubblica uno stato, il sistema ambientale lo propaga e `LinearDischarge` legge lo stato — la stessa sequenza vale con qualunque altra sorgente d'acqua autorizzata. ⚠️ **La grammatica regge, l'ordine no**: come i due intenti sono scritti oggi la scarica risolve nel **Blast** e l'acqua nel **Cleanup**, quindi lo stato che dovrebbe leggere non esiste ancora (#1111, dettaglio in `_turno`). Cio' che D-029 dimostra qui e' il **disaccoppiamento** fra produttore e consumatore, non che questi due intenti si compongano in un turno. ⛔ **Questo turno NON e' ancora raggiunto**: lo scenario si ferma al T6 su `InterceptRevalidation` (#1060), quindi il contenuto e' scritto e non eseguito. Le sue assertion NON stanno in `expect`, che e' di scenario e verrebbe valutato al punto in cui il runner si ferma: metterle la' renderebbe rosso un turno mai giocato. Si aggiungono quando il T6 si sblocca — fuoco spento, propagazione che non colpisce due volte, scivolata deterministica, e il `Ram` che non parte."
+      "_nota_cosa_dimostra": "D-029: non e' una combo di squadra. Phase pubblica uno stato, il sistema ambientale lo propaga e `LinearDischarge` legge lo stato — la stessa sequenza vale con qualunque altra sorgente d'acqua autorizzata. ⚠️ **La grammatica regge, l'ordine no**: come i due intenti sono scritti oggi la scarica risolve nel **Blast** e l'acqua nel **Cleanup**, quindi lo stato che dovrebbe leggere non esiste ancora (#1111, dettaglio in `_turno`). Cio' che D-029 dimostra qui e' il **disaccoppiamento** fra produttore e consumatore, non che questi due intenti si compongano in un turno. ✅ **Questo turno E' raggiunto** dal 2026-09-02, quando `InterceptRevalidation` e' scesa fra le disponibili (#1060) e il T6 ha smesso di fermare la catena. ⚠️ **E le quattro assertion che questa nota prometteva non sono state scritte tutte e quattro, perche' due sono note FALSE** (#170): *«fuoco spento»* non e' ottenibile in un turno solo — l'ordine Blast→Cleanup lo impedisce, ed e' il vincolo che #1111 ha misurato; *«il `Ram` che non parte»* nasceva per essere rifiutato dal `Rough` sulla traiettoria, ma dal 2026-08-27 Riktor parte **da** una cella `Rough`, quindi il rifiuto avrebbe un'altra causa o nessuna. Scriverle sarebbe rosso; invertirle pinnerebbe un difetto come se fosse una regola. Al loro posto c'e' un `LogEventOrder` che rende l'ORDINE osservabile: la scarica PRIMA dell'acqua. Afferma il vincolo invece di negarlo, e cade il giorno in cui #1111 venisse risolta — che e' il segnale giusto per riscrivere il turno. Restano invece scritte e vere la scivolata deterministica su `Ice` (`UnitAtCell` di Wraith a (1,3,0), non (1,2,0)) e il danno della scarica (`UnitHpEquals` di Phase)."
     },
     {
-      "_turno": "T8 — l'obiettivo batte il KO. Phase prende la rotta alternativa e segna sul Relay mentre Gadget va KO. Servono entrambe: la predizione che manca e l'obiettivo che non esiste.",
+      "_turno": "T8 — l'obiettivo batte il deathmatch. Phase sale sul Relay e SEGNA; Riktor prova a contestarlo e non ci arriva. ✅ **Il turno gira dal 2026-09-03 (#170)**, e cio' che lo sbloccava non era la chiusura di #75: era che nessun costruttore di arena posava un obiettivo — `bIsObjective` compariva in tutto `Source/` solo dentro i test di #75 e nel commandlet che timbra un asset. `MakeShowcaseRelayBasinArena` ora marca (0,0,0), e su quella riga poggia tutto il turno. ⛔ **Due delle quattro battute del §T8 della spec NON sono scritte, e non e' una svista.** *(a)* «Gadget va KO»: misurato, non c'e' nessuno che possa ucciderlo — resta a (-3,-1,0) dal T4, Riktor e' a cinque celle e Wraith a piu' di sei dopo la scivolata, e nessun hazard tocca quella cella. Scrivere l'intento non lo farebbe morire; asserire il KO lo renderebbe rosso. *(b)* «Phase prende la rotta alternativa e non attraversa la cella prevista (`PredictionWhiffed`)»: la previsione andrebbe dichiarata da Wraith, la cui cella d'arrivo del T7 e' il risultato di una scivolata su `Ice` — un intento la cui legalita' dipende da una posizione che nessuna assertion fissava sarebbe la stessa forma di difetto che il `_turno` del T7 documenta. Il whiff nel TurnLog c'e' gia' ed e' del T2. Le due battute hanno un owner proprio: #2149. ✅ **E una decisione che la spec dichiarava BLOCCATA si chiude qui**: *«perche' Riktor fallisce la contesa deve essere una causa reale del ruleset (costo, path, stato) — il sistema objective non esiste ancora»*. Ora esiste, e la causa e' il **path**: l'obiettivo e' UNA cella, `ResolveObjectiveControl` conta chi ci sta SOPRA, e due unita' non stanno sulla stessa cella. La contesa non fallisce per un numero: fallisce perche' il posto e' occupato — e `Contested` resta irraggiungibile finche' l'obiettivo e' uno solo (CP 31.1).",
       "requires": [
-        "PredictiveAction",
         "Objective"
       ],
-      "intents": []
+      "intents": [
+        {
+          "_intento": "LA BATTUTA DEL TURNO. Un passo solo: Phase e' a (0,-1,0) dal T5 e il Relay le e' adiacente. Sale, e alla fine del Cleanup e' l'unica presenza sull'obiettivo — `ResolveObjectiveControl` restituisce `Team0Scores` e il TurnLog guadagna la sua prima voce `Objective` diversa da `Unclaimed` in tutto il corpus. ⚠️ **Il punto si assegna DOPO ambiente e KO**, ed e' il pilastro «obiettivo, non deathmatch»: chi tiene il Relay lo tiene da vivo, e chi ci muore sopra nello stesso Cleanup non lo tiene.",
+          "unit": "Phase",
+          "move": [
+            [
+              0,
+              0,
+              0
+            ]
+          ]
+        },
+        {
+          "_intento": "LA CONTESA CHE FALLISCE, e fallisce per una causa del ruleset invece che per una scelta d'autore. Da (2,0,0) il Relay costa 3 punti movimento — `Rough` a (1,0,0) ne vale 2, il Relay 1 — contro i 4 di Riktor: il piano e' LEGALE quando viene dichiarato, perche' in pianificazione Phase e' ancora a (0,-1,0). E' in risoluzione che il secondo passo trova la cella occupata. ⚠️ **Ed e' per questo che si dichiarano DUE waypoint invece della sola destinazione**: un intento che puntasse (0,0,0) e basta verrebbe fermato allo stesso modo, ma il referto non mostrerebbe che Riktor un passo l'ha fatto — la differenza fra «non ci ha provato» e «ci ha provato e la cella era presa» sparirebbe dal log.",
+          "unit": "Riktor",
+          "move": [
+            [
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0
+            ]
+          ]
+        }
+      ]
     }
   ],
   "expect": [
     {
       "type": "TurnsCompleted",
-      "value": 7,
-      "_assertion": "Sette, non cinque: sbloccando `InterceptRevalidation` il T6 gioca, e il T7 gioca con lui perche' non dichiara `requires`. Si ferma al **T8**, che chiede `Objective` — owner #75."
+      "value": 8,
+      "_assertion": "**Otto: tutti.** Lo showcase non si ferma piu' su nessuna capability. ⏱️ Valeva 5 finche' il T6 aspettava `InterceptRevalidation` (#1060), 7 quando quella e' scesa fra le disponibili, e 8 da #170 — che ha sbloccato il T8 posando l'obiettivo sulla fixture, non chiudendo una issue. ⚠️ Questo numero e' l'unica assertion che cade se un turno smette di essere raggiunto: tutte le altre parlano di CIO' CHE E' SUCCESSO, e un turno mai giocato non produce l'evento che nega."
     },
     {
       "type": "LogEventCount",
@@ -387,19 +414,20 @@
       "unit": "Phase",
       "cell": [
         0,
-        -1,
+        0,
         0
-      ]
+      ],
+      "_assertion": "**Sul Relay**, ed e' l'altra meta' del punto: la voce `Objective/Team0Scores` dice che qualcuno ha segnato, questa dice CHI e DOVE. ⛔ Valeva (0,-1,0) finche' il T8 non girava — la cella da cui Phase e' salita, adiacente all'obiettivo dal T5."
     },
     {
       "type": "UnitAtCell",
       "unit": "Riktor",
       "cell": [
-        2,
+        1,
         0,
         0
       ],
-      "_assertion": "Riktor ha aperto il varco e se n'e' tolto di mezzo: `Action.Interact` cambia il dato di mappa, e il Move dello stesso turno lo porta fuori dalle due celle del gate. ⛔ La riga diceva (3,0,0) prima che il turno esistesse, e (1,1,0) quando Riktor ci restava sopra — cioe' occupando la cella che il passaggio appena aperto richiede."
+      "_assertion": "🔴 **UN PASSO, non due: e' qui che si legge la contesa fallita.** Riktor ha aperto il varco al T5 e se n'e' tolto di mezzo (`Action.Interact` cambia il dato di mappa, e il Move dello stesso turno lo porta fuori dalle due celle del gate); al T8 punta il Relay e arriva solo a (1,0,0), perche' Phase e' gia' sopra. ⚠️ **La differenza fra (1,0,0) e (2,0,0) e' tutto cio' che questo turno dimostra**: fermo a (2,0,0) vorrebbe dire che non ci ha nemmeno provato, e la contesa sarebbe una battuta raccontata invece che eseguita. ⛔ La riga diceva (3,0,0) prima che il T5 esistesse, e (1,1,0) quando Riktor restava sulla cella che il passaggio appena aperto richiede."
     },
     {
       "type": "UnitAtCell",
@@ -447,7 +475,72 @@
       "unit": "Riktor",
       "value": 103,
       "_assertion": "120 - (22 - 5): `ArcPulse` pieno meno lo scudo. 🔴 **Pieno perche' Riktor NON ha copertura**, ed e' il punto: la copertura sta su Wraith, il bersaglio ORIGINALE. Un resolver che la conservasse invece di rivalutare la geometria su chi incassa davvero darebbe 22-10=12 danni, cioe' **113**. La distanza fra 103 e 113 e' tutto cio' che questo turno esiste per misurare (D-017)."
+    },
+    {
+      "_assertion": "🔴 **LA CATENA DEGLI OTTO TURNI, e non serve un `expect` per turno per averla.** Da quando la fixture posa l'obiettivo (#170) il Cleanup scrive una voce `Objective` a OGNI turno, giocato da chiunque: sette dicono `Unclaimed` — nessuno sul Relay — e l'ottava dice chi ha segnato. `7 + 1 = 8` e' quindi una misura INDIPENDENTE di `TurnsCompleted`, prodotta dal gioco e non dall'harness: se un turno smettesse di essere raggiunto, questo conteggio scenderebbe prima che qualcuno se ne accorga altrove. ⚠️ E' la risposta alla voce di DoD «ogni turno eseguito lascia una traccia falsificabile»: la traccia non e' un evento diverso per turno, e' un evento che ogni turno produce **una volta sola**.",
+      "type": "LogEventCount",
+      "category": "Objective",
+      "outcome": "Unclaimed",
+      "actionId": "Objective.Control",
+      "value": 7
+    },
+    {
+      "_assertion": "**IL PUNTO.** Prima voce `Objective` diversa da `Unclaimed` in tutto il corpus golden: la categoria era dichiarata scoperta in `RTGoldenCorpusTests.cpp` *«per assenza di contenuto, non di codice»*, ed e' questo turno a coprirla. ⚠️ `Team0Scores` e non `Contested`: con UN obiettivo su UNA cella la parita' e' irraggiungibile, perche' due unita' non stanno sulla stessa cella — e' la ragione per cui la contesa di Riktor fallisce per occupazione e non per punteggio.",
+      "type": "LogEventCount",
+      "category": "Objective",
+      "outcome": "Team0Scores",
+      "actionId": "Objective.Control",
+      "value": 1
+    },
+    {
+      "_assertion": "Un punto, INTERO. `Amount` porta i punti effettivamente assegnati — zero quando l'obiettivo e' conteso o di nessuno — quindi questa riga distingue «ha segnato» da «era li' e non ha segnato», che il solo esito non separa. Il DoD di #75 chiede che il progresso sia un intero e mai un float: qui si misura invece di fidarsi.",
+      "type": "LogEventAmount",
+      "category": "Objective",
+      "outcome": "Team0Scores",
+      "actionId": "Objective.Control",
+      "value": 1
+    },
+    {
+      "_assertion": "🔴 **LA CONTESA FALLITA, vista dal log.** Riktor dichiara due passi verso il Relay e il secondo trova la cella occupata da Phase. Senza questa riga, «Riktor a (1,0,0)» sarebbe indistinguibile da un piano che si fermava li' di proposito: la posizione dice DOVE si e' fermato, questa dice PERCHE'. ⚠️ Uno e non due: il primo passo riesce, ed e' quello che rende la contesa un tentativo invece di una rinuncia.",
+      "type": "LogEventCount",
+      "category": "Move",
+      "outcome": "BlockedByUnit",
+      "value": 1
+    },
+    {
+      "_assertion": "🔴 **L'assertion del T3, e ci sono voluti il filtro per `ActionId` (#170) e la chiusura di #625 per scriverla.** La nota di questo file diceva che il `Burning` uccide fuori dal TurnLog: falso da quando #625 ha chiuso — la voce c'e', ed e' `Combat`/`Hit` perche' [D-162] mette la CAUSA in `ActionId` e non nella categoria. Restava non-asseribile per un'altra ragione: `ParseScenarioLogEvent` interrogava DUE campi su quindici, e un `LogEventCount(Combat, Hit)` sarebbe stato vero anche con zero fiamme e un colpo d'arma al posto loro. ⚠️ **Senza `actionId` questa riga non sarebbe falsificabile**, ed e' esattamente il difetto che il filtro esiste per chiudere.",
+      "type": "LogEventCount",
+      "category": "Combat",
+      "outcome": "Hit",
+      "actionId": "Status.Burning",
+      "value": 2
+    },
+    {
+      "_assertion": "**L'assertion del T4**: le due finestre di reazione ricevono una risposta SCRIPTATA, non un timeout. `Chosen` e non `Timeout` ne' `NoDecider` e' cio' che distingue una decisione presa da una finestra chiusa per abbandono — e con due decisioni nel file, un conteggio a 1 direbbe che una delle due non e' stata consumata.",
+      "type": "LogEventCount",
+      "category": "ReactionDecision",
+      "outcome": "Chosen",
+      "value": 2
+    },
+    {
+      "_assertion": "🔴 **L'assertion del T7 — e afferma il VINCOLO invece di negarlo.** Il §T7 della spec descrive una combo che in un turno solo non si ottiene (#1111): `LinearDischarge` e' un `Attack` e risolve nel **Blast**, `Gadget.Sprinkler` e' `Action.CreateWater` e risolve nel **Cleanup**, e il Blast precede il Cleanup — quindi la scarica legge un bersaglio non ancora bagnato. ⚠️ **Asserire «fuoco spento» sarebbe rosso; asserire il contrario pinnerebbe un difetto come se fosse una regola.** Questa riga fa la terza cosa: rende l'ORDINE osservabile. Se un giorno la combo diventasse ottenibile — spostando la battuta nel Dash, come fa il §T2 — questa assertion cadrebbe, ed e' giusto che cada: sarebbe il segnale che #1111 e' stata risolta e che il turno va riscritto.",
+      "type": "LogEventOrder",
+      "category": "Combat",
+      "outcome": "Hit",
+      "actionId": "Hero.Gadget.LinearDischarge",
+      "thenCategory": "Environment",
+      "thenOutcome": "SurfaceChanged",
+      "thenActionId": "Gadget.Sprinkler"
+    },
+    {
+      "_assertion": "**La catena T5 → T8, cioe' che i turni si susseguono e non si sovrappongono.** Il varco si apre prima che il punto venga segnato. Il TurnLog accumula, quindi l'ordine fra due turni si pinna senza bisogno di un ambito per turno — che e' il meccanismo per cui `FRTScenarioTurn` non ha e non serve che abbia un proprio `expect`.",
+      "type": "LogEventOrder",
+      "category": "Environment",
+      "outcome": "DoorOpened",
+      "thenCategory": "Objective",
+      "thenOutcome": "Team0Scores",
+      "thenActionId": "Objective.Control"
     }
   ],
-  "_nota_cosa_non_e_asserribile": "⏱️ **Aggiornata il 2026-08-16: il T2 ORA asserisce il proprio whiff.** Questa nota diceva che `LogEventCount` non copriva `Predictive` — `OutcomeEnumForCategory` restituiva `nullptr` e un `PredictionWhiffed` faceva fallire il CARICAMENTO dello scenario. Le due righe che mancavano al loader sono state aggiunte (`Predictive` e `ReactionDecision`, entrambi `UENUM` quindi risolvibili), e il T2 ha la sua assertion: se la previsione non fallisse — o se il turno non girasse affatto — il conteggio non sarebbe 1. ⛔ **Resta senza assertion propria il T3**, e la ragione e' diversa: il danno da hazard non ha un esito in `ERTEnvironmentOutcome`, cioe' #625 — `Burning` uccide fuori dal TurnLog canonico. Cio' che prova il T3 indirettamente e' la posizione finale di Wraith a (1,-1): ci si arriva solo salendo sulla cresta al T1 e scendendo per il fuoco al T3."
+  "_nota_cosa_non_e_asserribile": "⏱️ **Aggiornata il 2026-09-03 (#170): non resta piu' nessun turno senza assertion propria.** ✅ **Il T3 ce l'ha**, e la ragione per cui non l'aveva e' cambiata due volte — vale la pena registrare entrambe, perche' la seconda e' quella che si sarebbe potuta cercare per sempre nel posto sbagliato. *(1)* La stesura del 2026-08-16 diceva che il danno da hazard «non ha un esito in `ERTEnvironmentOutcome`, cioe' #625 — `Burning` uccide fuori dal TurnLog canonico»: **superata**, #625 e' chiusa e la voce esiste. *(2)* Il T3 restava non-asseribile per una ragione diversa e piu' interessante: la voce del `Burning` e' `Combat`/`Hit` — [D-162] mette la CAUSA in `ActionId`, non nella categoria — mentre `ParseScenarioLogEvent` interrogava **due campi su quindici**, categoria ed esito. Un `LogEventCount(Combat, Hit)` scritto per dire «il fuoco ha bruciato qualcuno» sarebbe stato vero anche con zero fiamme, purche' qualcuno avesse colpito con un'arma: non era un'assertion mancante, era un'assertion **non falsificabile**. Il filtro opzionale `actionId` (#170) la scrive. ⚠️ **La stessa nota registrava una cosa che va tenuta**: cio' che prova il T3 INDIRETTAMENTE e' la posizione finale di Wraith a (1,-1) — ci si arriva solo salendo sulla cresta al T1 e scendendo per il fuoco al T3. Ora ci sono entrambe le prove, ed e' meglio cosi': una assertion di stato e una di log falliscono per motivi diversi. ⛔ **Cio' che resta non asserito, e non e' un turno: sono due battute del §T8 della spec** — «Gadget va KO» e il whiff sulla rotta prevista. Owner #2149, motivazione nel `_turno` del T8."
 }

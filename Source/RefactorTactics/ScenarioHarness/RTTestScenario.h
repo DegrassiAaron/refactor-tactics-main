@@ -655,12 +655,39 @@ struct FRTTestExpectation
 	UPROPERTY()
 	uint8 LogOutcome = 0;
 
+	/**
+	 * Filtro OPZIONALE sull'`ActionId` della voce (`LogEventCount`, `LogEventAmount`, `LogEventOrder`).
+	 * `NAME_None` = nessun filtro, cioe' il comportamento che il vocabolario aveva prima di `#170`.
+	 *
+	 * 🔴 **Esiste perche' categoria + esito non bastano a identificare un evento, e la prova e' il T3 dello
+	 * showcase.** Un danno da `Status.Burning` e' `Combat`/`Hit` esattamente come un colpo d'arma —
+	 * lo prescrive [D-162]: *«la voce e' `Combat` anche quando la causa e' ambientale … la causa di un danno
+	 * la porta `ActionId`, non la categoria»*. Senza questo campo un `LogEventCount(Combat, Hit)` che
+	 * volesse dire «il fuoco ha bruciato qualcuno» sarebbe vero anche se il fuoco non avesse bruciato
+	 * nessuno e a colpire fosse stata un'arma: un'assertion che non puo' distinguere cio' che afferma da
+	 * cio' che nega non e' falsificabile.
+	 *
+	 * ⛔ **La strada alternativa era `LogEventAmount`, ed e' stata scartata con la sua ragione**: userebbe un
+	 * NUMERO DI BILANCIAMENTO come discriminante d'identita'. La sua caduta direbbe *«il Burning fa un altro
+	 * numero»*, non *«il Burning non c'e'»*, e cambierebbe significato al primo ritocco del catalogo terreni.
+	 *
+	 * ⚠️ **Il confronto e' esatto sull'`FName`, non un prefisso.** `Status.Burning` e `Status.Burning.Tick`
+	 * sono due eventi diversi, e un match per prefisso li fonderebbe senza dirlo — la stessa ragione per cui
+	 * `ParseScenarioLogEvent` risolve i nomi contro un `UEnum` invece di accettare stringhe libere.
+	 */
+	UPROPERTY()
+	FName LogActionId;
+
 	/** Secondo evento, quello che deve venire DOPO (`LogEventOrder`). */
 	UPROPERTY()
 	ERTLogCategory ThenCategory = ERTLogCategory::Move;
 
 	UPROPERTY()
 	uint8 ThenOutcome = 0;
+
+	/** Filtro opzionale sull'`ActionId` del SECONDO evento (`LogEventOrder`). Vedi `LogActionId`. */
+	UPROPERTY()
+	FName ThenActionId;
 };
 
 /** Scenario completo, come letto dal file. */

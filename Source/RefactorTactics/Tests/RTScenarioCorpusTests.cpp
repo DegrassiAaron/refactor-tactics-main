@@ -656,7 +656,7 @@ bool FRTScenarioHoldThenFireTest::RunTest(const FString&)
 	// ⚠️ **Il docblock dice «usa `RunById` perche' scrive `result.json`»: senza questa riga quella ragione
 	// non e' verificata da niente.** Se `URTTestReportWriter::Write` fallisce — cartella non creabile, disco
 	// pieno — `RunById` torna un `OutReportDirectory` vuoto e il test resta VERDE mentre l'artefatto
-	// diagnostico su cui si appoggia non esiste. E' la stessa guardia che `ShowcaseRelayV01RunsTurnOne` ha
+	// diagnostico su cui si appoggia non esiste. E' la stessa guardia che `ShowcaseRelayV01PlaysEveryTurn` ha
 	// da sempre, e che qui mancava.
 	TestFalse(TEXT("il report ha una cartella"), ReportDir.IsEmpty());
 	return true;

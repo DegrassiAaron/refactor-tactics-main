@@ -1821,6 +1821,22 @@ protected:
 	static FRTTurnLogEntry MakeStatusDeathEntry(FGameplayTag Tag, const FRTCellId& Cell,
 		ERTStatusOutcome Outcome);
 
+	/**
+	 * La voce di uno stato ISTANTANEO: `Status.Electrified`, che e' l'etichetta di un evento e non uno
+	 * stato che dura (`#1324`, [D-315]).
+	 *
+	 * 🔴 **Terza funzione e non un terzo ramo di `MakeStatusBirthEntry`, deliberatamente.** Quella mappa una
+	 * DURATA su un esito, e la sua sentinella e' `PersistentWhileOnCell`. Inferire l'istantaneita' da
+	 * `RequestedTurns == 0` la renderebbe raggiungibile da **tutti e cinque** i suoi chiamanti: chiunque
+	 * passasse una durata nulla per un'altra ragione scriverebbe `AppliedInstantly` senza averlo chiesto, e
+	 * `0` e' un valore che si ottiene per errore molto piu' facilmente di `-1`. Qui l'istantaneita' e' nel
+	 * NOME della funzione, quindi non ci si finisce per sbaglio.
+	 *
+	 * ⚠️ Non nasce e non muore: nessuna `MakeStatusDeathEntry` seguira' mai una di queste voci.
+	 */
+	static FRTTurnLogEntry MakeStatusInstantEntry(ERTMatchPhase InPhase, FGameplayTag Tag,
+		const FRTCellId& Cell);
+
 	/** Revisione del grafo di mappa ADESSO: sale durante la risoluzione, quindi si legge a ogni emissione. */
 	int32 CurrentGraphRevision() const;
 

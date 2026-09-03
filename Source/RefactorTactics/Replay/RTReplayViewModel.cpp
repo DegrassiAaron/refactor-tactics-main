@@ -16,7 +16,8 @@ const TArray<ERTMatchPhase>& FRTReplayViewModel::ObservablePhases()
 	return Fasi;
 }
 
-ERTReplayOpenResult FRTReplayViewModel::Open(const FString& ReplaysRoot, const FGuid& MatchId)
+ERTReplayOpenResult FRTReplayViewModel::Open(const FString& ReplaysRoot, const FGuid& MatchId,
+	int32 ObserverTeamId)
 {
 	// Reset esplicito invece di `*this = FRTReplayViewModel()`: `SecondsPerPhase` e' configurazione di chi
 	// ci guarda dentro, non stato della partita aperta, e riaprire un archivio non deve resettargliela.
@@ -34,7 +35,7 @@ ERTReplayOpenResult FRTReplayViewModel::Open(const FString& ReplaysRoot, const F
 	// riassegnava lo stesso, con un commento che avvertiva di un pericolo — «una sessione parzialmente
 	// popolata» — che il Player ha gia' eliminato per costruzione. Trovato in code review: era codice
 	// morto, e il commento faceva credere il contrario di cio' che `RTReplayPlayerLibrary.cpp:11` fa.
-	OpenResult = URTReplayPlayerLibrary::OpenArchive(ReplaysRoot, MatchId, Session);
+	OpenResult = URTReplayPlayerLibrary::OpenArchive(ReplaysRoot, MatchId, Session, ObserverTeamId);
 	if (OpenResult != ERTReplayOpenResult::Opened)
 	{
 		return OpenResult;

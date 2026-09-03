@@ -186,6 +186,12 @@ bool FRTReplayManifestNeutralFieldsTest::RunTest(const FString&)
 	TestFalse(TEXT("non chiuso: un archivio senza chiusura e' parziale"), M.bClosed);
 	TestTrue(TEXT("esito in corso"), M.Outcome == ERTMatchOutcome::InProgress);
 
+	// v2 ([D-316]): un manifest che non lo dichiara non ha tracce per osservatore, e il default lo dice.
+	// ⚠️ **Il neutro qui e' VERO e non convenzionale**, che e' la ragione per cui il campo e' un elenco:
+	// un archivio `v1` davvero non le ha su disco, quindi «elenco vuoto» descrive la realta' invece di
+	// coprirla. Un `bObserverFiltered = false` avrebbe detto la stessa cosa solo per fortuna.
+	TestEqual(TEXT("nessuna traccia per osservatore dichiarata"), M.ObserverTeamIds.Num(), 0);
+
 	return true;
 }
 

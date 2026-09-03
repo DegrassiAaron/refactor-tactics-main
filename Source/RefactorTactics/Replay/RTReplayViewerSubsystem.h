@@ -87,9 +87,24 @@ public:
 
 	// --- Apertura -----------------------------------------------------------------------------------
 
-	/** Apre una partita. I **quattro** esiti restano distinti: e' un criterio di `#472`. */
+	/** Apre una partita come spettatore **neutrale**. I **quattro** esiti restano distinti: criterio di `#472`. */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
 	ERTReplayOpenResult OpenMatch(const FGuid& MatchId);
+
+	/**
+	 * Apre una partita **con gli occhi di una squadra** ([D-316], `#2098`).
+	 *
+	 * Se l'archivio porta una traccia per `ObserverTeamId` — cioe' se il suo manifest lo elenca in
+	 * `ObserverTeamIds` — da qui in poi `GetCurrentPhaseEntries` consegna solo i fatti che quella squadra
+	 * era autorizzata a conoscere **quando sono accaduti**. Altrimenti apre la canonica, come `OpenMatch`.
+	 *
+	 * ⚠️ **Due porte e non un parametro con default**, ed e' deliberato: `UFUNCTION` non ammette
+	 * l'overloading, e un solo nodo con `ObserverTeamId = -1` predefinito avrebbe reso lo **spettatore
+	 * neutrale il comportamento che si ottiene dimenticandosi di scegliere**. Qui la scelta e' nel nome del
+	 * nodo, e un widget che apra il replay del proprio giocatore non ci arriva per omissione.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
+	ERTReplayOpenResult OpenMatchAsTeam(const FGuid& MatchId, int32 ObserverTeamId);
 
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
 	bool IsOpen() const { return ViewModel.IsOpen(); }
@@ -212,13 +227,19 @@ public:
 	 * squadre. Il view model resta sulla voce completa perche' e' `USTRUCT()` e non `BlueprintType`: da li'
 	 * un widget non passa, e chi fa audit ha bisogno della voce intera.
 	 *
-	 * ⚠️ **Il filtro e' sui CAMPI, non sulle VOCI**: le voci sono ancora quelle di tutte e due le squadre.
-	 * Il filtro per osservatore richiede il verdetto congelato del turno, e la traccia archiviata non lo
-	 * porta — `FRTTurnLogEntry::Verdict` e' `Transient`. Su disco quel dato vive **solo** nel prodotto
-	 * PRIVATO (`turn-NNN.rtaudit`, [D-313] terzo record), quindi filtrare qui non e' un'implementazione:
-	 * e' una decisione sul confine dei due prodotti di [D-276]. E' `#2098`.
+	 * ✅ **E il filtro sulle VOCI esiste dal 2026-09-03** — [D-316], `#2098` — ma **non e' qui**, ed e' la
+	 * cosa da sapere prima di cercarlo in questa funzione. Le voci che questa consegna sono quelle della
+	 * traccia che `OpenMatchAsTeam` ha aperto: **gia' filtrate alla registrazione**, perche' il verdetto
+	 * congelato vive in memoria mentre la partita gira e non sopravvive alla serializzazione
+	 * (`FRTTurnLogEntry::Verdict` e' `Transient`). Chi apre con `OpenMatch` e' uno spettatore **neutrale** e
+	 * vede tutte le voci: [D-316] punto (5).
 	 *
-	 * 🔴 **Fino al 2026-09-02 questa riga citava `#1525`, e la citazione era sbagliata**: quella issue
+	 * 🔴 **Perche' non filtrare qui, che sembrava la sede ovvia.** A questo punto il verdetto e' azzerato
+	 * dalla deserializzazione: un filtro in lettura non avrebbe nascosto **troppo poco**, avrebbe nascosto
+	 * **tutto** — `AllowsTeam` e' fail-closed. Per farlo funzionare servirebbe il verdetto nel formato, che
+	 * e' il conto — versione, `EntryLess`, `MixEntryFields`, 11 golden — che [D-313] ha rifiutato di pagare.
+	 *
+	 * ⚠️ **Fino al 2026-09-02 questa riga citava `#1525`, e la citazione era sbagliata**: quella issue
 	 * riguarda il **playback della partita** — il modello che cammina nella nebbia — ed e' implementata.
 	 * Il filtro delle voci del replay e' un canale diverso, ed e' rimasto senza owner finche' qualcuno non
 	 * ha SEGUITO la citazione invece di crederle.

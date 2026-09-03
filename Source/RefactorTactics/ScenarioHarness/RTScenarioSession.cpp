@@ -317,6 +317,29 @@ namespace
 			// `MakeClashLogEntries` — e **nessun punto del resolver le chiama**: un turno che chiedesse
 			// `ReactionClash` non troverebbe niente da eseguire.
 			TEXT("ReactionProfile"),
+
+			// ➕ **`Objective` SCENDE qui con `#170`**, e le condizioni sono le stesse che questo elenco
+			// impone a chiunque — verificate, non assunte:
+			//   · il **runtime** esiste da `#75` (CP 10.2): `URTTurnRules::ResolveObjectiveControl` conta le
+			//     PRESENZE — non le azioni — ed e' chiamato da `ARTTurnManager` nel **Cleanup**, dopo gli
+			//     effetti ambientali e i KO e **prima** di `EvaluateMatchEnd`, cosi' che un punto segnato in
+			//     quel Cleanup possa chiudere la partita nello stesso Cleanup. Il produttore non e' l'harness:
+			//     e' il resolver di ogni partita;
+			//   · il **CONTENUTO** del T8 dello showcase atterra nello STESSO commit di questa riga, che e'
+			//     la regola che `#512` fase B ha speso un giro a difendere — scoprire una capability senza il
+			//     contenuto che la esercita produce un turno che si sblocca senza eseguire cio' che descrive;
+			//   · la **cella obiettivo** esiste nella fixture, ed e' la terza condizione che nessuno aveva
+			//     scritto. `MakeShowcaseRelayBasinArena` marca `(0,0,0)` — prima non lo faceva **nessun**
+			//     costruttore di arena, e su una mappa senza obiettivi il Cleanup tace di proposito
+			//     (`Objectives.SilentWithoutObjectiveCell`). Senza quella riga questa capability avrebbe
+			//     prodotto un T8 che gira, non segna e **passa**: il verde bugiardo, di nuovo.
+			//
+			// ⚠️ **Il perimetro e' UN obiettivo contendibile su UNA cella.** `bIsObjective` e' un `bool` e non
+			// un proprietario, e con una cella sola l'occupazione rende `Contested` **irraggiungibile**: due
+			// unita' non stanno sulla stessa cella. Piu' obiettivi simultanei sono CP 31.1, post-v0.1 — e
+			// quel giorno `ResolveObjectiveControl` avra' finalmente un caso di parita' da risolvere in
+			// partita, che oggi esiste solo nei suoi test.
+			TEXT("Objective"),
 		};
 		return Available;
 	}
@@ -393,7 +416,16 @@ namespace
 			// 🔴 **Quel gate e' uscito con D-182 il 2026-08-21**: un `owner:` che punta a una issue chiusa
 			// mentre la capability resta non disponibile oggi non lo segnala piu' nessuno. Chi tocca questi
 			// commenti controlli lo stato della issue a mano.
-			TEXT("Objective"),                // owner: #75
+			// ➖ **`Objective` e' USCITA da qui con `#170`**, ed e' fra le disponibili: le ragioni stanno
+			// accanto alla sua voce la' sopra. ⚠️ **La riga sopravvive come registro di un difetto di
+			// processo, e vale la pena tenerlo.** L'owner era `#75`, che ha chiuso il 2026-09-02 — e per
+			// **un giorno** questa riga ha dichiarato non disponibile una capability il cui owner era chiuso,
+			// che e' esattamente cio' che `check-capability-owners.py --online` trovava prima di uscire con
+			// `D-182`. Nessuno l'ha segnalato. E la ragione per cui non bastava chiudere `#75` e' piu'
+			// interessante del ritardo: **mancava una terza condizione che nessun documento nominava** — la
+			// cella obiettivo nella fixture. «La issue e' chiusa» non e' mai stato il criterio di questo
+			// elenco; il criterio e' *il campo ha un produttore che non e' l'harness*, e qui il produttore
+			// c'era ma non aveva niente su cui girare.
 			TEXT("Perception"),               // owner: #151
 			// Le tre che la prosa non nominava, chieste da `Spec/Movement/`: `SpatialTrigger` (tripwire che
 			// scatta attraversando un bordo), `SemanticTrigger` (trigger che distingue Dash da Move) e
@@ -443,7 +475,7 @@ namespace
 		//   ⚠️ **Misurato scoprendola per davvero, invece di prevederlo**: il piano diceva che sarebbero
 		//   passati «da `BLOCKED` a `FAIL`, che `EveryShippedScenarioRuns` non accetta». Non e' cosi' —
 		//   quel test resta VERDE. A cadere sono altri due, e dicono qualcosa di piu' preciso:
-		//   `Scenario.ShowcaseRelayV01RunsTurnOne` (`RT_Showcase_Relay_v01` arriva a **cinque** turni invece
+		//   `Scenario.ShowcaseRelayV01PlaysEveryTurn` (`RT_Showcase_Relay_v01` arriva a **cinque** turni invece
 		//   di tre: il T2 non si ferma piu') e `Scenario.UnknownCapabilityIsErrorNotBlocked`, che usa
 		//   `DecisionBoundary` proprio come **esempio** di «nota ma non disponibile» e ne perderebbe il
 		//   soggetto. Si scopre **insieme** ai dati, ed e' fase B.
@@ -558,17 +590,38 @@ namespace
 	}
 
 	/**
+	 * Vero se la voce corrisponde a categoria, esito e — quando richiesto — `ActionId` (`#170`).
+	 *
+	 * 🔴 **Il terzo campo esiste perche' i primi due non identificano un evento**, e il caso che l'ha
+	 * imposto e' il T3 dello showcase: il danno da `Status.Burning` e' `Combat`/`Hit` come un colpo d'arma,
+	 * perche' [D-162] mette la CAUSA in `ActionId` e non nella categoria. Con due soli campi un
+	 * `LogEventCount(Combat, Hit)` scritto per dire «il fuoco ha bruciato qualcuno» sarebbe vero anche se il
+	 * fuoco non avesse bruciato nessuno — cioe' non falsificabile.
+	 *
+	 * ⚠️ `NAME_None` = nessun filtro, ed e' cio' che rende la modifica RETROCOMPATIBILE: le assertion gia'
+	 * scritte non dichiarano `actionId` e continuano a confrontare due campi su quindici, esattamente come
+	 * prima. Aggiungere un terzo confronto SEMPRE attivo avrebbe rotto ogni scenario del corpus.
+	 */
+	bool MatchesScenarioLogEvent(const FRTTurnLogEntry& Entry, ERTLogCategory Category, uint8 Outcome,
+		FName ActionId)
+	{
+		if (Entry.Category != Category || Entry.Outcome != Outcome) { return false; }
+		return ActionId.IsNone() || Entry.ActionId == ActionId;
+	}
+
+	/**
 	 * Posizione della PRIMA occorrenza di un evento nel log, o `INDEX_NONE`.
 	 *
 	 * «Prima occorrenza» e non «una qualsiasi»: `LogEventOrder` chiede se una cosa e' successa prima di
 	 * un'altra, e con eventi ripetuti l'unica formulazione che non dipende da quale coppia si sceglie e'
 	 * confrontare i due esordi.
 	 */
-	int32 IndexOfScenarioLogEvent(const TArray<FRTTurnLogEntry>& Log, ERTLogCategory Category, uint8 Outcome)
+	int32 IndexOfScenarioLogEvent(const TArray<FRTTurnLogEntry>& Log, ERTLogCategory Category, uint8 Outcome,
+		FName ActionId = NAME_None)
 	{
 		for (int32 I = 0; I < Log.Num(); ++I)
 		{
-			if (Log[I].Category == Category && Log[I].Outcome == Outcome) { return I; }
+			if (MatchesScenarioLogEvent(Log[I], Category, Outcome, ActionId)) { return I; }
 		}
 		return INDEX_NONE;
 	}
@@ -1773,7 +1826,7 @@ void FRTScenarioSession::Finish()
 	// `requires` sul secondo turno, quindi il primo gira — ma e' una salvezza accidentale, non una regola.
 	//
 	// ⚠️ **Solo se NESSUN turno e' stato giocato**, e il confine e' stato stretto qui dopo che una prima
-	// versione — «bloccato ⇒ salta le assertion» — ha fatto cadere `ShowcaseRelayV01RunsTurnOne`, che gioca
+	// versione — «bloccato ⇒ salta le assertion» — ha fatto cadere `ShowcaseRelayV01PlaysEveryTurn`, che gioca
 	// il turno 1 e si blocca al secondo: le sue assertion misurano uno stato che la partita ha davvero
 	// raggiunto, e saltarle avrebbe tolto verifica invece di aggiungerne.
 	//
@@ -1994,14 +2047,14 @@ void FRTScenarioSession::Finish()
 		}
 		case ERTAssertionKind::LogEventCount:
 		{
-			const FString EventName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome);
+			const FString EventName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
 			A.Description = FString::Printf(TEXT("LogEventCount(%s)"), *EventName);
 			A.Expected = FString::FromInt(Exp.Value);
 
 			int32 Found = 0;
 			for (const FRTTurnLogEntry& Entry : ScenarioLog)
 			{
-				if (Entry.Category == Exp.LogCategory && Entry.Outcome == Exp.LogOutcome) { ++Found; }
+				if (MatchesScenarioLogEvent(Entry, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId)) { ++Found; }
 			}
 			A.Actual = FString::FromInt(Found);
 			A.bPassed = (Found == Exp.Value);
@@ -2009,13 +2062,13 @@ void FRTScenarioSession::Finish()
 		}
 		case ERTAssertionKind::LogEventAmount:
 		{
-			const FString EventName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome);
+			const FString EventName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
 			A.Description = FString::Printf(TEXT("LogEventAmount(%s)"), *EventName);
 			A.Expected = FString::FromInt(Exp.Value);
 
 			// La PRIMA occorrenza: sommarle mescolerebbe finestre diverse in un numero solo, e il residuo di
 			// una decisione non e' la somma dei residui.
-			const int32 At = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome);
+			const int32 At = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
 			if (At == INDEX_NONE)
 			{
 				// Assente non e' «vale zero»: dirlo cosi' manderebbe a cercare un valore sbagliato dove il
@@ -2032,13 +2085,13 @@ void FRTScenarioSession::Finish()
 		}
 		case ERTAssertionKind::LogEventOrder:
 		{
-			const FString FirstName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome);
-			const FString ThenName = URTScenarioLoader::DescribeLogEvent(Exp.ThenCategory, Exp.ThenOutcome);
+			const FString FirstName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
+			const FString ThenName = URTScenarioLoader::DescribeLogEvent(Exp.ThenCategory, Exp.ThenOutcome, Exp.ThenActionId);
 			A.Description = FString::Printf(TEXT("LogEventOrder(%s prima di %s)"), *FirstName, *ThenName);
 			A.Expected = FString::Printf(TEXT("%s prima di %s"), *FirstName, *ThenName);
 
-			const int32 FirstAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome);
-			const int32 ThenAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.ThenCategory, Exp.ThenOutcome);
+			const int32 FirstAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
+			const int32 ThenAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.ThenCategory, Exp.ThenOutcome, Exp.ThenActionId);
 
 			// Un evento ASSENTE non e' «fuori ordine»: e' un altro difetto, e dirlo cosi' evita di mandare a
 			// cercare un problema di sequenza dove il problema e' che l'evento non e' mai stato prodotto.

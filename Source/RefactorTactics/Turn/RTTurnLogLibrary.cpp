@@ -2,6 +2,7 @@
 #include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo del fallback, leggibile nel log
 #include "Turn/RTReactionLibrary.h" // ERTReactionOutcome: l'esito di una reazione, leggibile nel log
 #include "Turn/RTReactionOpportunityTypes.h" // FireResponseTarget/HoldResponse: la risposta si INTERROGA, non si riscrive (#1118)
+#include "Turn/RTTurnRules.h" // ERTObjectiveOutcome: l'esito del controllo dell'obiettivo, leggibile nel log (#170)
 #include "Core/RTGameplayTags.h" // TAG_Status_Burning: la causa ambientale si CHIEDE al tag, non si riscrive
 #include "Misc/FileHelper.h"
 #include "Containers/ArrayView.h" // i campi discriminanti viaggiano come una vista, non come copie
@@ -1513,6 +1514,14 @@ const UEnum* URTTurnLogLibrary::OutcomeEnumForCategory(ERTLogCategory Category)
 	case ERTLogCategory::Predictive:       return StaticEnum<ERTPredictiveOutcome>();
 	case ERTLogCategory::ReactionDecision: return StaticEnum<ERTReactionDecisionOutcome>();
 	case ERTLogCategory::ReactionClash:    return StaticEnum<ERTClashLogEvent>();
+	// 🔴 **`Objective` mancava, e l'ha trovata il suo stesso messaggio d'errore** (`#170`). La categoria
+	// esiste nell'enum dal 2026-09-02 (`#75`) e `ARTTurnManager` ne scrive una voce a ogni Cleanup su una
+	// mappa con obiettivo — ma nessuno poteva ASSERIRLA: `ParseScenarioLogEvent` chiede l'enum degli esiti a
+	// questa funzione e, non trovandolo, rifiutava il CARICAMENTO dello scenario dicendo *«la categoria
+	// Objective non e' asseribile — non e' un errore dello scenario: manca un caso nel loader, e va aggiunto
+	// li'»*. Quella frase e' stata scritta per il caso di `Predictive` e ha indicato da sola il proprio
+	// secondo caso: un evento prodotto e non asseribile e' osservabilita' a meta'.
+	case ERTLogCategory::Objective:        return StaticEnum<ERTObjectiveOutcome>();
 	default:                               return nullptr;
 	}
 }
