@@ -790,8 +790,17 @@ bool FRTReplayViewModelFromTracesTest::RunTest(const FString&)
 	}
 
 	// ⛔ ANTI-VACUITA': se il ciclo non avesse fatto nemmeno un passo, tutte le uguaglianze sopra sarebbero
-	// vere per assenza. Cinque fasi in due turni sono cio' che le tracce dichiarano.
-	TestEqual(TEXT("si sono percorse le cinque fasi dichiarate"), Passi, 5);
+	// vere per assenza.
+	//
+	// ⚠️ **Sono SEI passi per cinque fasi**, e il numero va spiegato invece che tollerato: le tracce
+	// dichiarano due fasi nel primo turno e tre nel secondo, ma l'ultimo passo non porta a una sesta fase —
+	// porta a `Ended`, che e' uno stato del replay e non un istante della partita. La prima stesura si
+	// aspettava cinque e cadeva qui: era il test a non conoscere la fine, non la navigazione a sbagliarla.
+	TestEqual(TEXT("cinque fasi, piu' l'arrivo a fine partita"), Passi, 6);
+	TestEqual(TEXT("e l'ultimo passo e' la FINE, non una sesta fase"),
+		DaMemoria.Position().State, ERTReplayPositionState::Ended);
+	TestEqual(TEXT("che le due vie raggiungono insieme"),
+		DaMemoria.Position().State, DaDisco.Position().State);
 	TestFalse(TEXT("ed entrambe sono in fondo"), DaMemoria.CanStepPhaseForward());
 
 	// Le fasi del turno corrente vengono dalla traccia, e sono le stesse.
