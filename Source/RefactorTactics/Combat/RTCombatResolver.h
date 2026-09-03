@@ -59,7 +59,17 @@ enum class ERTDamageStage : uint8
 	FirstHitDelta,
 	/** Delta su OGNI colpo: `Action.Brace` `-10`, senza il gate «una volta sola» (CP 5.2). */
 	EveryHitDelta,
-	/** Pool con eleggibilita' frontale: `Status.Guarded`, 15 (`D-292` + `D-206`). */
+	/**
+	 * Assorbimento a POOL. ⚠️ **DUE fonti, e da [D-309] un colpo puo' produrne due voci**:
+	 * la `Guard` (`Status.Guarded`, 15, con eleggibilita' frontale — [D-292] + [D-206]) e la riduzione da
+	 * REAZIONE (20 di base, nessuna clausola d'arco). A distinguerle e' il `SourceId` della voce, non lo
+	 * stadio: `URTCombatLibrary::GuardPoolSource` e `ReactionReductionPoolSource`.
+	 *
+	 * ⛔ **Con due voci per lo stesso stadio, l'ordine dell'elenco NON e' piu' ricostruibile ordinando per
+	 * `Stage`**: l'ordine canonico e' `Deflect` prima di `Guard` ([D-312]) ed e' quello di INSERIMENTO. Un
+	 * consumatore che ordinasse con un sort non stabile potrebbe emettere la Guardia per prima, cioe'
+	 * contraddire una decisione di bilanciamento. Nessuno lo fa oggi; la riga sta qui perche' non cominci.
+	 */
 	AbsorptionPool,
 	/** Somma per bersaglio sullo stato iniziale (invariante #3). */
 	TargetSum,

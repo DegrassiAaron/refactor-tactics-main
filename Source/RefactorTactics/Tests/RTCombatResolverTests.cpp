@@ -158,8 +158,8 @@ bool FRTGuardPoolPermutationTest::RunTest(const FString&)
 		return Sum;
 	};
 
-	const int32 SmallFirst = SumOn(URTCombatResolver::ApplyAbsorptionPool(Small, Pool, Eligible, FName(TEXT("D-292 · Status.Guarded"))), 1);
-	const int32 LargeFirst = SumOn(URTCombatResolver::ApplyAbsorptionPool(Large, Pool, Eligible, FName(TEXT("D-292 · Status.Guarded"))), 1);
+	const int32 SmallFirst = SumOn(URTCombatResolver::ApplyAbsorptionPool(Small, Pool, Eligible, URTCombatLibrary::GuardPoolSource), 1);
+	const int32 LargeFirst = SumOn(URTCombatResolver::ApplyAbsorptionPool(Large, Pool, Eligible, URTCombatLibrary::GuardPoolSource), 1);
 
 	// ANTI-VACUITA': un pool che non assorbisse niente sarebbe invariante e inutile. 40 e' il danno nominale.
 	TestNotEqual(TEXT("la Guardia toglie qualcosa: il totale non e' quello nominale"), SmallFirst, 40);
@@ -178,8 +178,8 @@ bool FRTGuardPoolPermutationTest::RunTest(const FString&)
 	DeflectPool.Init(0, 2);
 	DeflectPool[1] = URTCombatLibrary::DeflectDamageReduction;   // 20 — POSITIVO: e' un budget, non un delta
 
-	const int32 DeflectSmallFirst = SumOn(URTCombatResolver::ApplyAbsorptionPool(Small, DeflectPool, Eligible, FName(TEXT("D-309 · Action.Deflect"))), 1);
-	const int32 DeflectLargeFirst = SumOn(URTCombatResolver::ApplyAbsorptionPool(Large, DeflectPool, Eligible, FName(TEXT("D-309 · Action.Deflect"))), 1);
+	const int32 DeflectSmallFirst = SumOn(URTCombatResolver::ApplyAbsorptionPool(Small, DeflectPool, Eligible, URTCombatLibrary::ReactionReductionPoolSource), 1);
+	const int32 DeflectLargeFirst = SumOn(URTCombatResolver::ApplyAbsorptionPool(Large, DeflectPool, Eligible, URTCombatLibrary::ReactionReductionPoolSource), 1);
 
 	// ANTI-VACUITA', come sopra per la Guardia: un pool che non assorbisse niente sarebbe invariante e
 	// inutile, e l'uguaglianza sotto passerebbe senza dire nulla.
@@ -204,7 +204,7 @@ bool FRTGuardPoolNotConsumedFromBehindTest::RunTest(const FString&)
 	const TArray<FRTAttack> Attacks = { FRTAttack(1, 30, 0), FRTAttack(1, 10, 2) };
 	const TArray<bool> Eligible = { false, true };
 
-	const TArray<FRTAttack> Out = URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, Eligible, FName(TEXT("D-292 · Status.Guarded")));
+	const TArray<FRTAttack> Out = URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, Eligible, URTCombatLibrary::GuardPoolSource);
 
 	TestEqual(TEXT("il colpo alle spalle passa intero"), Out[0].Power, 30);
 	TestEqual(TEXT("il colpo frontale e' assorbito, e il budget bastava"), Out[1].Power, 0);
@@ -212,7 +212,7 @@ bool FRTGuardPoolNotConsumedFromBehindTest::RunTest(const FString&)
 	// ANTI-VACUITA': se la maschera fosse ignorata, il colpo da 30 avrebbe consumato tutto il pool e il
 	// frontale sarebbe passato intero. I due asserti sopra separano i due casi solo se questo vale.
 	const TArray<bool> AllEligible = { true, true };
-	const TArray<FRTAttack> Ignored = URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, AllEligible, FName(TEXT("D-292 · Status.Guarded")));
+	const TArray<FRTAttack> Ignored = URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, AllEligible, URTCombatLibrary::GuardPoolSource);
 	TestEqual(TEXT("senza maschera sarebbe il colpo alle spalle a mangiare il budget"), Ignored[0].Power, 15);
 	TestEqual(TEXT("...e il frontale passerebbe intero"), Ignored[1].Power, 10);
 	return true;
@@ -272,14 +272,14 @@ bool FRTDeflectAbsorbsBeforeGuardTest::RunTest(const FString&)
 	// L'ordine canonico: Deflect assorbe, poi Guard copre cio' che resta.
 	const int32 Canonico = SumOn(
 		URTCombatResolver::ApplyAbsorptionPool(
-			URTCombatResolver::ApplyAbsorptionPool(Attacks, DeflectPool, bDirect, FName(TEXT("D-309 · Action.Deflect"))),
-			GuardPool, bFrontal, FName(TEXT("D-292 · Status.Guarded"))), 1);
+			URTCombatResolver::ApplyAbsorptionPool(Attacks, DeflectPool, bDirect, URTCombatLibrary::ReactionReductionPoolSource),
+			GuardPool, bFrontal, URTCombatLibrary::GuardPoolSource), 1);
 
 	// L'ordine invertito, calcolato QUI e non altrove: e' l'anti-vacuita' di questo test.
 	const int32 Invertito = SumOn(
 		URTCombatResolver::ApplyAbsorptionPool(
-			URTCombatResolver::ApplyAbsorptionPool(Attacks, GuardPool, bFrontal, FName(TEXT("D-292 · Status.Guarded"))),
-			DeflectPool, bDirect, FName(TEXT("D-309 · Action.Deflect"))), 1);
+			URTCombatResolver::ApplyAbsorptionPool(Attacks, GuardPool, bFrontal, URTCombatLibrary::GuardPoolSource),
+			DeflectPool, bDirect, URTCombatLibrary::ReactionReductionPoolSource), 1);
 
 	// ANTI-VACUITA': se i due ordini coincidessero, l'asserzione sotto passerebbe per una ragione che non e'
 	// quella dichiarata — e [D-312] sarebbe stata una decisione su niente.
@@ -308,7 +308,7 @@ bool FRTGuardPoolRemainderTest::RunTest(const FString&)
 	// Tre colpi frontali da 5: il vecchio meccanismo ne azzerava UNO e lasciava passare 10.
 	const TArray<FRTAttack> Small = { FRTAttack(1, 5, 0), FRTAttack(1, 5, 2), FRTAttack(1, 5, 3) };
 	const TArray<bool> Eligible = { true, true, true };
-	const TArray<FRTAttack> Out = URTCombatResolver::ApplyAbsorptionPool(Small, Pool, Eligible, FName(TEXT("D-292 · Status.Guarded")));
+	const TArray<FRTAttack> Out = URTCombatResolver::ApplyAbsorptionPool(Small, Pool, Eligible, URTCombatLibrary::GuardPoolSource);
 
 	int32 Sum = 0;
 	for (const FRTAttack& A : Out) { Sum += A.Power; }
@@ -318,7 +318,7 @@ bool FRTGuardPoolRemainderTest::RunTest(const FString&)
 	TArray<int32> Huge;
 	Huge.Init(0, 2);
 	Huge[1] = 100;
-	const TArray<FRTAttack> Clamped = URTCombatResolver::ApplyAbsorptionPool(Small, Huge, Eligible, FName(TEXT("D-292 · Status.Guarded")));
+	const TArray<FRTAttack> Clamped = URTCombatResolver::ApplyAbsorptionPool(Small, Huge, Eligible, URTCombatLibrary::GuardPoolSource);
 	for (const FRTAttack& A : Clamped)
 	{
 		TestEqual(TEXT("un pool piu' grande del colpo lo azzera, non lo inverte"), A.Power, 0);
@@ -346,7 +346,7 @@ bool FRTGuardSingleHitUnchangedTest::RunTest(const FString&)
 		TArray<int32> Delta;     Delta.Init(0, 2);     Delta[1] = -Guard;
 
 		const TArray<FRTAttack> One = { FRTAttack(1, Power, 0) };
-		const int32 WithPool  = URTCombatResolver::ApplyAbsorptionPool(One, Pool, Eligible, FName(TEXT("D-292 · Status.Guarded")))[0].Power;
+		const int32 WithPool  = URTCombatResolver::ApplyAbsorptionPool(One, Pool, Eligible, URTCombatLibrary::GuardPoolSource)[0].Power;
 		const int32 WithDelta = URTCombatResolver::ApplyFirstHitDelta(One, Delta)[0].Power;
 
 		TestEqual(*FString::Printf(TEXT("un colpo solo da %d: pool e delta danno lo stesso esito"), Power),
