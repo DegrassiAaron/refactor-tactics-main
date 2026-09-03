@@ -191,9 +191,17 @@ valutazione, non eccezioni al motore:
 non è un insieme fisso di stati — **lo dichiara il piano**, e `PlannedCleansePriority` è insieme l'ordine e il
 filtro. Il limite vero è che **quella lista non ha produttori**: la scrivono solo i test, quindi in partita
 `Cleanse` non rimuove niente. E `Burning` **esiste** come stato di unità (8 danni nel Cleanup): l'unico tag
-dichiarato che nessuno produce è `Status.Electrified`
+dichiarato che nessuno produce **come stato d'unità** è `Status.Electrified`
 ([`spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md) §D6). Il meccanismo
 resta generico: le manca un produttore, non una regola.
+
+> ⚠️ **Precisato il 2026-09-03** — [D-315](RT_PDR_00_Decision_Log.md). *«Nessuno produce»* va letto **come
+> stato d'unità**, ed è la lettura che questa riga intendeva: il tag non entra in `StatusTurns`, quindi
+> `Cleanse` non ha nulla da togliere. Ma un consumatore ora esiste — il **TurnLog**, con l'esito
+> `AppliedInstantly` — e leggere questa riga come «nessuno lo nomina» sarebbe falso. 🔴 La conseguenza cade su
+> [#1389](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1389), che tiene aperta la
+> contraddizione fra `Cleanse` e il catalogo terreni: quella promessa di rimozione è ora **più** impossibile,
+> non meno, perché un'etichetta mai applicata non è rimovibile per costruzione.
 
 Analogamente, le clausole "non su danno ambientale" di `Counter`/`Deflect`/`Intercept` sono verificate
 **per costruzione** del trigger, non simulando hazard inesistenti.

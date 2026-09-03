@@ -1580,9 +1580,15 @@ decise **prima** di scrivere la spec owner, perché ognuna cambia la forma del d
 > — `STA-4`, che la riga qui sotto dichiara «aperta **da** `D-072`» — e il numero in prosa non ha seguito.
 > Corretto il 2026-08-25. ⚠️ **«undici» non è stato toccato, ma va letto per quello che è**:
 > `Core/RTGameplayTags.h` dichiara esattamente undici `TAG_Status_*` — contati — e *dichiarati* non è
-> sinonimo di *implementati*. Almeno uno, `Status.Electrified`, non ha nessun sistema che lo applichi
-> ([`#1324`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1324)). Chi volesse il numero
-> degli status con un produttore deve misurarlo a parte: non è questo.*
+> sinonimo di *implementati*. Chi volesse il numero degli status con un produttore deve misurarlo a parte:
+> non è questo.*
+>
+> ⚠️ *La riga citava `Status.Electrified` come l'esempio di tag «che nessun sistema applica», ed è invecchiata
+> il 2026-09-03: [D-315](decisions/RT_PDR_00_Decision_Log.md) gli dà un consumatore — il **TurnLog**, con
+> l'esito `AppliedInstantly` — pur lasciandolo fuori da `StatusTurns`, perché il catalogo lo dichiara
+> istantaneo. L'esempio è stato tolto invece che corretto: «applicato a un'unità» e «osservabile» sono due
+> proprietà diverse, e un esempio che le confonde rende il conteggio più difficile da rifare, non più facile.
+> [`#1324`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1324).*
 
 | ID | Domanda | Perché serve una risposta |
 |---|---|---|
