@@ -2593,6 +2593,7 @@ sessions:
     block: 1
     critical: false
     execution_lane: pie
+    runbook: docs/technical/runbooks/guida-seduta-u42-corpus-visual.md
     produces: verdetto sulle diciotto voci `PIE-VIS-*` giudicabili e aperte, piu' il confronto Guard/Brace
     artifacts: []
     unblocked_by: []
