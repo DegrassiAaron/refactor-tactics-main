@@ -2,7 +2,7 @@
 #include "Perception/RTTeamKnowledge.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h" // HashTurnLog: l'invariante che la proiezione non deve toccare
-#include "Turn/RTTurnManager.h"    // ComposeVisibleLogLines: il canale gemello da confrontare
+#include "Turn/RTCombatLog.h" // ComposeVisibleLogLines: il canale gemello da confrontare
 #include "UI/RTPlayerEventProjector.h"
 
 // La guardia: senza, questi test finiscono compilati DENTRO il binario Shipping. Vedi `#923`.
@@ -238,7 +238,7 @@ bool FRTPlayerEventAuthorizationMatchesTest::RunTest(const FString&)
 			L.Verdict = V;
 			Righe.Add(L);
 		}
-		const int32 AmmesseDalCanale = ARTTurnManager::ComposeVisibleLogLines(Righe, Observer).Num();
+		const int32 AmmesseDalCanale = URTCombatLogLibrary::ComposeVisibleLogLines(Righe, Observer).Num();
 
 		// ANTI-VACUITA': se entrambe ammettessero zero, l'uguaglianza sarebbe soddisfatta da due rifiuti.
 		if (!TestTrue(*FString::Printf(TEXT("premessa: la squadra %d legge qualcosa"), Observer),

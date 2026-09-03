@@ -130,49 +130,6 @@ void ARTTurnManager::Tick(float DeltaSeconds)
 	}
 }
 
-FRTLogSubject FRTLogSubject::Unit(const ARTUnit* InUnit)
-{
-	FRTLogSubject S;
-	S.Unit_ = InUnit;
-	S.StableUnitId = InUnit ? InUnit->StableUnitId : INDEX_NONE;
-	return S;
-}
-
-FRTLogSubject FRTLogSubject::UnitAt(const ARTUnit* InUnit, const FRTCellId& InFactCell)
-{
-	FRTLogSubject S = Unit(InUnit);
-	S.bFactCell = true;
-	S.FactCell = InFactCell;
-	return S;
-}
-
-FRTCellId FRTLogSubject::GetFactCell() const
-{
-	if (bFactCell)
-	{
-		return FactCell;
-	}
-	// Fuori dalla finestra di `ResolveMovement` l'Actor E' la cella del fatto, ed e' il caso della grande
-	// maggioranza dei produttori: il default non e' un ripiego.
-	return Unit_ ? Unit_->Cell : FRTCellId();
-}
-
-FRTLogSubject FRTLogSubject::Frozen(int32 InStableUnitId, const FRTKnowledgeVerdict& InVerdict)
-{
-	FRTLogSubject S;
-	S.bFrozen = true;
-	S.StableUnitId = InStableUnitId;
-	S.FrozenVerdict = InVerdict;
-	return S;
-}
-
-FRTLogSubject FRTLogSubject::World()
-{
-	FRTLogSubject S;
-	S.bWorld = true;
-	return S;
-}
-
 void ARTTurnManager::AddLogEvent(const FString& Message, FRTLogSubject Subject)
 {
 	// 🔴 Il log di SVILUPPO resta COMPLETO. E' diagnosi, non un canale del giocatore: mutilarlo renderebbe
@@ -241,26 +198,6 @@ TArray<FString> ARTTurnManager::GetRecentEvents() const
 		Out.Add(L.Text);
 	}
 	return Out;
-}
-
-TArray<FString> ARTTurnManager::ComposeVisibleLogLines(const TArray<FRTCombatLogLine>& Lines,
-	int32 ObserverTeamId)
-{
-	TArray<FString> Out;
-	Out.Reserve(Lines.Num());
-	for (const FRTCombatLogLine& L : Lines)
-	{
-		// 🔴 **Nessuna vista costruita qui, ed e' il punto di [D-223].** La domanda «puo' leggerla?» ha gia'
-		// una risposta, decisa quando la riga e' nata: interrogare la conoscenza di ADESSO risponderebbe a
-		// una domanda diversa, e per un soggetto nel frattempo distrutto non risponderebbe affatto.
-		//
-		// ⚠️ Il verdetto e' fail-closed di default: una riga che arrivasse qui senza verdetto non si legge.
-		if (L.Verdict.AllowsTeam(ObserverTeamId))
-		{
-			Out.Add(L.Text);
-		}
-	}
-	return Out; // ordine di produzione, mai riordinato
 }
 
 TArray<FRTCellId> ARTTurnManager::VisibleTrailFor(const FRTMoveRoute& Route, int32 ObserverTeamId)
@@ -389,7 +326,7 @@ TArray<FString> ARTTurnManager::GetRecentEventsForTeam(int32 ObserverTeamId) con
 	// 🔴 E non era solo lavoro sprecato: era la domanda SBAGLIATA. La vista si costruiva sulle unita' del
 	// mondo di ADESSO, quindi un'unita' distrutta a fine turno non c'era piu' fra i soggetti e ogni riga
 	// che la nominava spariva — anche per la squadra che l'aveva vista cadere.
-	return ComposeVisibleLogLines(RecentEvents, ObserverTeamId);
+	return URTCombatLogLibrary::ComposeVisibleLogLines(RecentEvents, ObserverTeamId);
 }
 
 TArray<FRTCellId> ARTTurnManager::CellsEnteredAlong(const TArray<FRTCellId>& Path)

@@ -2040,11 +2040,15 @@ sessions:
     # ⚠️ Nessuna voce `PIE-*`: questa seduta NON entra in PIE. Tutto ciò che verifica sta nell'editor prima
     # del Play — un tab che compare e un livello che non diventa dirty — e il registro `test-manuali-pie.md`
     # è dei comportamenti in gioco. Metterla lì la renderebbe introvabile a chi cerca una verifica di PIE.
-    issues: [1680]
-    # ⛔ **Perché una seduta e non un automation test.** Dei cinque test della slice, quattro misurano il
-    # predicato `ShouldOpenFor` e uno che l'iscrizione sia in piedi. Nessuno vede ciò che questa seduta vede:
-    # che Slate disegni davvero il tab, e che aprire e chiudere il pannello non marchi la `.umap` come
-    # modificata. Un predicato puro non può osservare il dirty di un binario.
+    issues: [1680, 2168]
+    # ⛔ **Perché una seduta e non un automation test.** I test della slice sono **dieci** dopo #2168:
+    # sette in `RTDevSandboxLauncherTests.cpp` — quattro sul predicato `ShouldOpenFor`, uno sull'iscrizione a
+    # `OnMapOpened`, due sulla sessione — e tre in `RTLauncherLayoutTests.cpp`, che misurano **dove il tab è
+    # dichiarato** nel layout e che il modulo riceva l'estensione.
+    # ⚠️ **#2168 ha spostato il confine, non lo ha cancellato.** Prima la posizione non era misurata da
+    # nessuno; ora il *layout* lo è, e resta fuori ciò che era sempre stato fuori: che Slate **disegni** il
+    # tab e dove lo disegni a schermo, e che aprire e chiudere il pannello non marchi la `.umap` come
+    # modificata. Un layout è un oggetto puro e si interroga; un pixel e il dirty di un binario no.
     done_when: >-
       Aperto l'editor sul progetto, `L_DevSandbox` si carica da sola (`EditorStartupMap`) e il tab
       **Tactical Designer** compare senza che nessuno lo abbia invocato; l'`Output Log` porta la riga
@@ -2053,6 +2057,12 @@ sessions:
       raggiungibile da *Window → Tools → Tactical Designer*. ⚠️ **E il criterio che conta di più**: dopo
       tutto questo `L_DevSandbox` **non** è marcata come modificata — nessun asterisco sul nome del livello,
       e `git status` pulito su `Content/RT/Maps/Dev/L_DevSandbox/`.
+      ➕ **Criterio aggiunto da [#2168](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2168)**:
+      il tab compare **dockato in scheda con i Details**, nella colonna destra, e **nessuna finestra separata**
+      si apre. ⚠️ **Vale solo su un layout che non contenga già il tab**: chi ha eseguito questa seduta
+      prima del 2026-09-03 ha `RTDevSandboxLauncher` scritto nel proprio `EditorLayout.ini` nella posizione
+      fluttuante, e l'estensione non lo sposta — `Window → Load Layout → Default Editor Layout` prima di
+      guardare, o il criterio è rosso per la ragione sbagliata.
     notes: >-
       🔄 **Tentata il 2026-09-02, interrotta al passo 2 da un crash che NON è di questa seduta.** Aprire
       `L_HexArena` terminava l'editor con `World Memory Leaks: 2 leaks objects and packages` —
@@ -2071,6 +2081,12 @@ sessions:
       dell'editor (`RTDevSandboxLauncherSubsystem.cpp:44,68`) — una lacuna di configurazione, non un
       difetto di vita degli oggetti, e per questo **fuori** da #2115. Chi decide che il posto giusto è
       dockato apra la sua issue; questa nota esiste perché la constatazione non si perda.
+      ✅ **Decisa il 2026-09-03**: la issue è
+      [#2168](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2168), e il posto è in scheda
+      con i **Details**. L'analisi sta in
+      [`plans/tactical-designer-launcher-dock-spec-panel-2026-09-03.md`](plans/tactical-designer-launcher-dock-spec-panel-2026-09-03.md).
+      ⚠️ La constatazione resta scritta qui perché è **questa seduta** ad averla prodotta: cancellarla
+      lascerebbe il criterio nuovo senza la ragione che lo ha generato.
       🔄 **Ripresa la sera del 2026-09-02, dopo il merge di #2115 — e ancora NON conclusa.** L'ordine è
       stato verificato prima di guardare, come `U32` insegna: sorgente `19:22:22` → DLL `19:23:45` →
       editor `19:45:22`, quindi il binario contiene davvero la correzione. In quella sessione il log porta
@@ -2571,3 +2587,116 @@ sessions:
       una seduta PIE.
       ⚠️ ID assegnato prima del merge: `U41`, con `U40` come massimo misurato su `main` **e su tutti i
       branch remoti** il 2026-09-02. Chi arriva secondo rinumera, non contende.
+
+  - id: U42
+    title: Il corpus Visual, diciotto scenari che nessuna seduta convocava
+    block: 1
+    critical: false
+    execution_lane: pie
+    produces: verdetto sulle diciotto voci `PIE-VIS-*` giudicabili e aperte, piu' il confronto Guard/Brace
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U43]
+    verifies:
+      - PIE-VIS-ICE
+      - PIE-VIS-WETFIRE
+      - PIE-VIS-KO
+      - PIE-VIS-CHARGE
+      - PIE-VIS-ROUGH
+      - PIE-VIS-COMBO
+      - PIE-VIS-COORD
+      - PIE-VIS-FALLBACK
+      - PIE-VIS-SMOKE
+      - PIE-VIS-PHASES
+      - PIE-VIS-LEVEL
+      - PIE-VIS-COVER
+      - PIE-VIS-DOOR
+      - PIE-VIS-HIGH
+      - PIE-VIS-HIGHCOVER
+      - PIE-VIS-GUARD
+      - PIE-VIS-BRACE
+      - PIE-VIS-AREAGUARD
+      - PIE-ACC-GUARDBRACE
+    issues: [231, 233, 1919, 2009]
+    done_when: le diciannove voci di `verifies` hanno esito reale nel registro
+    unblocks: []
+    steps: |
+      **Non c'è niente da allestire, ed è il punto della seduta.** Ognuna di queste diciassette voci ha
+      già il proprio scenario in `Scenarios/Visual/`, scritto, versionato e con le sue assertion: il
+      corpus di classe B è pronto dal 2026-08-08 (`#231`). Ciò che mancava non era un file — era una
+      seduta che le convocasse.
+
+      🔴 **Misurato il 2026-09-03: tutte e diciotto erano ORFANE.** Nessuna compariva in un `verifies`
+      di questo file, e il registro PIE dichiara la conseguenza in una riga — *«una voce che non sta in
+      una seduta non viene eseguita mai»*.
+
+      ⚠️ **Nessuna `PIE-VIS-*` è verde**, e la prima stesura di questa seduta diceva il contrario —
+      *«cinque su ventidue sono verdi»* — sbagliando la misura che decideva quali voci convocare. Il
+      comando canonico ristretto al prefisso dà `verde=0 · parziale=1 · aperta=21`. Le quattro che restano
+      fuori non sono verdi: `PIE-VIS-PUSH`, `-INTERPOSE` e `-DEFLECT` sono **⛔ non giudicabili oggi** —
+      `ERTResolvedEventType` non porta un evento per la spinta né per la reazione, e §8.1 di
+      `scenari-validazione-visiva.md` lo dichiara — mentre `PIE-VIS-FIRE` è 🟡, con l'ingresso nel fuoco
+      giudicabile e il tick di `Burning` cieco. Convocarle sarebbe chiedere a una persona di guardare
+      qualcosa che non viene disegnato.
+
+      Il giro, per ciascuna: `BP_GameMode` → Class Defaults → *RefactorTactics|Test* → `Scenario To Run`
+      → Play → si guarda. Cambiare scenario **non** richiede di chiudere l'Editor (regola di batching
+      qui sopra): diciassette voci, una apertura.
+
+      ⚠️ **L'oracolo è l'occhio, ma le assertion non sono un residuo.** Uno scenario visivo che diventa
+      rosso ti sta dicendo che stai guardando lo stato sbagliato — un VFX perfetto su un colpo che ha
+      mancato. Se una di queste esce rossa, il verdetto della voce è *sospeso*, non negativo: prima si
+      capisce perché devia la logica.
+
+      🔑 **`PIE-VIS-GUARD` porta una descrizione che [D-292] ha superato.** La voce chiede se «`Guard`
+      protegge **una volta**», e dal 2026-08-31 la Guardia è un pool di 15 danni assorbibili che i colpi
+      frontali consumano finché dura. Il suo scenario resta verde perché con un colpo da 22 le due regole
+      danno lo stesso numero — è la ragione per cui il corpus non se n'era accorto (`#1919`) — ma chi
+      esegue la voce sta leggendo una regola che non esiste più. Il caso che le distingue è
+      `Spec.Combat.GuardPoolSpansMultipleHits`, ed è di classe A: qui si guarda, non si giudica la regola.
+
+  - id: U43
+    title: Il velo e il puntatore — le voci che i due compositi allestiscono già
+    block: 1
+    critical: false
+    execution_lane: pie
+    produces: verdetto sulle voci della conoscenza parziale e sul puntatore in partita
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U42]
+    verifies:
+      - PIE-KNOW1
+      - PIE-KNOW2
+      - PIE-KNOW3
+      - PIE-KNOW4
+      - PIE-KNOW5
+      - PIE-VELO-VIEWER
+      - PIE-V01-POINTER
+    issues: [151]
+    done_when: le sette voci hanno esito reale nel registro
+    unblocks: []
+    steps: |
+      **Due scenari, sette voci.** `Visual.Perception.Acceptance` porta in una sola scena i tre stati del
+      velo — osservato, ricordato, mai visto — e `Visual.Hud.FirstPlayable` porta la partita in uno stato
+      ricco. Entrambi gli scenari sono **verdi headless**, quindi la scena si allestisce e lo stato è
+      quello giusto: non c'è niente da preparare prima di premere Play.
+
+      ⚠️ **Le due voci ombrello restano ⏳, e la prima stesura di questa seduta le dava per verdi.** Il
+      registro dice l'opposto e ne scrive la ragione: *«resta ⏳ perché nessuno l'ha GUARDATO — il verde
+      headless dice che la scena si allestisce, non che i tre stati si distinguano a schermo»*. È la
+      stessa distinzione che `PIE-ACC-GUARDBRACE` porta scritta in U42, e leggerla al contrario proprio
+      qui avrebbe fatto dichiarare fatta la parte che questa seduta esiste per fare. Lo stato delle voci
+      lo dice `test-manuali-pie.md`, che ne è l'owner: questo file cita gli ID e non li giudica (R-6).
+
+      🔴 **Ed erano orfane tutte e sette**, misurato il 2026-09-03: il composito era stato scritto
+      apposta per loro il 2026-08-31, e nessuna seduta lo convocava. Uno scenario di acceptance che
+      nessuno apre costa quanto uno che non esiste.
+
+      Il giro: `Scenario To Run = Visual.Perception.Acceptance`, `Scenario Turn Pause Seconds` alto
+      abbastanza da vedere i tre turni separati, Play. Le cinque `PIE-KNOW*` e `PIE-VELO-VIEWER` si
+      giudicano lì dentro, nell'ordine in cui i `_turno` del file le nomina. Poi
+      `Scenario To Run = Visual.Hud.FirstPlayable` per `PIE-V01-POINTER`, nello stesso processo.
+
+      ⚠️ **`PIE-ICON-01`, `PIE-V01-KIT-HOTKEYS`, `PIE-V01-LOG` e `PIE-V01-FALLBACK` NON stanno qui**,
+      benché `Visual.Hud.FirstPlayable` dichiari di allestirle: hanno già una seduta (U9, U18, U15, U14)
+      e una voce in due sedute è una voce che nessuna delle due esegue.
