@@ -2617,8 +2617,9 @@ sessions:
       - PIE-VIS-BRACE
       - PIE-VIS-AREAGUARD
       - PIE-ACC-GUARDBRACE
+      - PIE-ACC-ENVIRONMENT
     issues: [231, 233, 1919, 2009]
-    done_when: le diciannove voci di `verifies` hanno esito reale nel registro
+    done_when: le venti voci di `verifies` hanno esito reale nel registro
     unblocks: []
     steps: |
       **Non c'è niente da allestire, ed è il punto della seduta.** Ognuna di queste diciassette voci ha
