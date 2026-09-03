@@ -186,6 +186,14 @@ bool URTFacingLibrary::MakeHitCameFromSideEntry(const FRTCellId& DefenderCell, E
 		return false;
 	}
 
+	// 🔴 **Azzerata prima di scriverla, e non e' difensivismo.** Questa funzione riempie SEI campi e ne
+	// lascia intatti altri sette — `ActionId`, `BaseActionId`, `Priority`, `SelectedTargetUnitId`,
+	// `ReactionResponse`, `OpportunityId`, `ReactionInstanceId` — che sono serializzati ed entrano
+	// nell'hash ordinato. Un chiamante che riusasse un buffer, cioe' dichiarasse la `FRTTurnLogEntry` fuori
+	// dal proprio ciclo — la forma che `ApplyReactionDecision` usa gia' per un'altra voce — emetterebbe una
+	// voce direzionale con l'`OpportunityId` della precedente: il replay divergerebbe senza un errore di
+	// compilazione e senza un test rosso. Segnalato da una code review su `#2128`.
+	OutEntry = FRTTurnLogEntry{};
 	OutEntry.Phase = Phase;
 	OutEntry.Category = ERTLogCategory::Facing;
 	OutEntry.Outcome = static_cast<uint8>(ERTFacingOutcome::HitCameFromSide);

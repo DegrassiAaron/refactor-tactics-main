@@ -5218,10 +5218,15 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			// un lato da nominare — ma va saputo: chi conta «una voce per colpo» trova un buco, e non e'
 			// un difetto. `Facing.RelativeDirectionEdgeCases` pinna la regola.
 			//
-			// ⚠️ **E il buco NON e' piu' anche «questa famiglia di colpi non e' coperta»** (`#2128`): dal
-			// 2026-09-03 contrattacchi e Overwatch emettono la voce come i colpi di Blast, quindi un'assenza
-			// significa una cosa sola — nessun lato da nominare. Erano due silenzi identici con due
-			// significati, ed e' la ragione per cui la scelta e' stata emettere invece di documentare.
+			// ⚠️ **E il buco NON e' piu' anche «questa famiglia di colpi non e' coperta»** (`#2128`):
+			// contrattacchi, Overwatch e boundary della Predictive emettono la voce come i colpi di Blast,
+			// quindi un'assenza significa una cosa sola — nessun lato da nominare. Erano due silenzi identici
+			// con due significati, ed e' la ragione per cui la scelta e' stata emettere invece di documentare.
+			//
+			// ⛔ **E questa riga ha gia' mentito una volta**: dal 2026-09-03 diceva la stessa cosa nominando
+			// solo DUE famiglie nuove, mentre `ResolvePredictiveBoundary` risolveva colpi `Direct` senza
+			// emettere niente. L'ha trovato una code review, non un test. Chi aggiunge un produttore di danno
+			// **enumeri i produttori di danno**, non i propri: l'elenco autorevole e' in ADR-0005 §4-quater.
 		}
 
 		// `#649` — la DIREZIONE ha annullato una copertura, e adesso la traccia lo dice.
@@ -5411,13 +5416,20 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// l'attacco pianificato a consumare quei delta, non un contrattacco arrivato di rimbalzo.
 	// Dove comincia la coda dei contrattacchi, catturato PRIMA dell'`Append` (`#2128`).
 	//
-	// ⚠️ **Non `Plan.Hits.Num()`, che oggi darebbe lo stesso numero.** La coincidenza regge su un'invariante
-	// dichiarata sessanta righe piu' su — «`ToAttacks` mappa 1:1 e le due funzioni che stanno in mezzo copiano
-	// l'array» — e quel commento avverte gia' che «un giorno un delta potrebbe non conservare la cardinalita'».
-	// Il giorno in cui non la conservasse, il ciclo qui sotto leggerebbe `AttackSrc` a indici sfalsati e
-	// scriverebbe voci direzionali con l'origine di un ALTRO colpo: precise, plausibili e sbagliate, senza che
-	// niente diventi rosso. Contare qui non dipende da nessuna invariante remota.
+	// 🔴 **Contarlo qui NON basta da solo, e la prima stesura diceva il contrario.** `Attacks` e `AttackSrc`
+	// hanno due sorgenti di cardinalita' DIVERSE: `AttackSrc` si riempie una volta per voce di `Plan.Hits`,
+	// mentre `Attacks` esce da `ToAttacks(Plan)` passata per quattro trasformazioni. Oggi i due numeri
+	// coincidono, ma su un'invariante dichiarata altrove — e quel commento avverte gia' che «un giorno un
+	// delta potrebbe non conservare la cardinalita'». Il giorno in cui divergessero, `FirstCounter` sarebbe
+	// l'indice giusto in `Attacks` e quello SBAGLIATO in `AttackSrc`: il ciclo scriverebbe voci direzionali
+	// con l'origine di un ALTRO colpo — precise, plausibili e sbagliate.
+	//
+	// ∴ La difesa e' il `checkf` qui sotto, non il modo di contare. Trovato da una code review su `#2128`,
+	// che ha visto l'affermazione dove il codice non la sosteneva.
 	const int32 FirstCounter = Attacks.Num();
+	checkf(AttackSrc.Num() == FirstCounter,
+		TEXT("AttackSrc (%d) e Attacks (%d) hanno smesso di essere paralleli: le voci direzionali dei ")
+		TEXT("contrattacchi leggerebbero l'origine di un altro colpo"), AttackSrc.Num(), FirstCounter);
 	Attacks.Append(Reactions.CounterAttacks);
 	AttackSrc.Append(Reactions.CounterAttackSrc);
 	AttackActionId.Append(Reactions.CounterActionId);
@@ -5794,6 +5806,31 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 			// il commento qui sopra registra come gia' corretto una volta.
 			Entry.Amount = Dealt;
 			AppendLogEntry(Entry, Shooter);
+
+			// `#2128` — DA QUALE LATO la vittima ha incassato il colpo predittivo. E' la QUARTA famiglia di
+			// colpi risolti, ed e' stata trovata da una code review dopo il merge: la prima stesura di
+			// `#2128` dichiarava «tre produttori» e «un'assenza significa una cosa sola», e qui l'assenza
+			// significava ancora l'altra cosa.
+			//
+			// 🔑 **Stessa regola dell'Overwatch, non una regola nuova**: [D-302] punto 3 classifica il colpo
+			// *diretto/mischia* come **sorgente→bersaglio**, e questo colpo e' `ERTDamageSource::Direct`
+			// quattro righe sopra.
+			//
+			// ⚠️ **La cella del difensore e' `Armed.LockedCell`, non `Victim->Cell`.** Questa funzione gira
+			// PRIMA di `PlaceOnCell` — lo dichiara il commento del proprio chiamante — quindi `Victim->Cell`
+			// e' ancora la cella di PARTENZA del turno, mentre il colpo e' avvenuto nella cella bloccata.
+			// `BoundaryCoverReduction` qui sopra fa gia' la stessa scelta, e per la stessa ragione.
+			//
+			// Il facing e' quello d'INGRESSO nella fase Move, come per l'Overwatch e per lo stesso motivo:
+			// `DerivedFromMove` si scrive dopo, e al momento del colpo non esiste ancora.
+			FRTTurnLogEntry FromSide;
+			if (URTFacingLibrary::MakeHitCameFromSideEntry(Armed.LockedCell, Victim->Facing,
+				Shooter->Cell, ERTMatchPhase::Move, FromSide))
+			{
+				// CHI SUBISCE, come gli altri tre produttori (`IsSubjectTheSufferer`). La voce qui sopra e'
+				// del TIRATORE e racconta la sua scommessa; questa e' di chi l'ha incassata.
+				AppendLogEntry(FromSide, Victim);
+			}
 
 			AddLogEvent(FString::Printf(TEXT("%s: previsione azzeccata, %d danni a %s"),
 				*Shooter->GetName(), Armed.Damage, *Victim->GetName()), FRTLogSubject::Unit(Shooter));

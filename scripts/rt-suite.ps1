@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Esegue la suite di automation e dichiara se la misura VALE.
 
@@ -81,8 +81,10 @@
     partirebbe ugualmente, che e' l'esito voluto: cambia l'etichetta, non il verdetto.
 
     ⚠️ `-SelfTest` NON e' una misura, e i suoi due codici vanno letti in quel modo:
-      0  il classificatore dello stato del motore e' conforme
-      1  non lo e'  -> il difetto e' in QUESTO script, non nella suite
+      0  le regole pure di questo script sono conformi
+      1  non lo sono  -> il difetto e' in QUESTO script, non nella suite
+    Le regole coperte sono DUE: lo stato del motore (`Resolve-EngineState` e
+    `ConvertTo-EngineEntry`) e la provenienza di un processo (`Get-EngineOrigin`).
     Non tocca ne' il progetto ne' il motore, e non richiede che siano installati.
 
 .PARAMETER Filter
@@ -178,8 +180,8 @@ param(
     # nelle invarianti e NON cambia l'esito. Vedi §PROMEMORIA in fondo.
     [switch] $NoIssueRefs,
 
-    # Verifica il classificatore dello stato del motore su casi fabbricati, e esce
-    # senza toccare il motore.
+    # Verifica su casi fabbricati le regole PURE di questo script — lo stato del
+    # motore e la provenienza di un processo — e esce senza toccare il motore.
     #
     # 🔴 **Esiste perche' uno zombie WMI non si fabbrica** (#2130): la voce di DoD
     # «con solo una voce residuale la suite parte» non e' provabile a comando
@@ -436,13 +438,91 @@ function Get-EngineState {
 
 # Una riga per processo, e la sede e' una sola: la stampano il preambolo
 # d'attesa, la diagnostica di NON AVVIATA e il controllo di fine run.
+# Di CHI e' questo processo del motore. PURA, e descrittiva: nessun ramo di
+# decisione la legge — la ragione sta in #2141, e il commento del controllo di fine
+# run non la ripete: la richiama.
+#
+# 🔴 **Si confronta il PROGETTO, non la riga.** Una `IndexOf` del proprio path sulla
+# riga di comando intera e' stata scritta e respinta in revisione, e i tre modi in
+# cui mente sono misurati:
+#
+#   1. il proprio path dentro un ALTRO argomento — `-log=…\RefactorTactics.uproject.log`
+#      di un altro checkout — diceva «questo checkout», e il referto invita a chiudere
+#      cio' che dichiara nostro: si sarebbe ucciso il lavoro di un altro;
+#   2. un editor aperto SENZA progetto, o su un gioco diverso, diceva «altro
+#      checkout» — una provenienza inventata, perche' non e' un checkout di questo
+#      repository;
+#   3. il PROPRIO motore lanciato con un path relativo diceva «altro checkout», e il
+#      referto istruisce a non toccarlo: un processo nostro, bloccato, lasciato li'.
+#
+# ⚠️ Due run dello STESSO checkout hanno righe di comando identiche, quindi questa
+# risposta non identifica una run. E' voluto: identificare la run servirebbe solo a
+# cambiare il verdetto, che e' cio' che #2141 dichiara di non dover fare.
+function Get-EngineOrigin {
+    param(
+        # ⚠️ `[object]` e non `[string]`: un `$null` passato a un parametro tipizzato
+        # `[string]` viene convertito in stringa VUOTA, e allora il caso «WMI non ha
+        # una riga per questo pid» — dove `CommandLine` e' davvero `$null` — non
+        # sarebbe distinguibile ne' provabile.
+        [Parameter(Mandatory)] [AllowNull()] [object] $CommandLine,
+        [Parameter(Mandatory)] [AllowEmptyString()] [string] $OwnProjectPath
+    )
+
+    # Nessun dato ⇒ nessuna risposta. Mai «altro» per assenza: sarebbe una
+    # provenienza inventata, e il referto la stamperebbe come se fosse misurata.
+    $line = [string]$CommandLine
+    if ([string]::IsNullOrWhiteSpace($line))           { return 'provenienza ignota' }
+    if ([string]::IsNullOrWhiteSpace($OwnProjectPath)) { return 'provenienza ignota' }
+
+    # Il token del progetto: quotato, oppure non quotato ma terminato da uno spazio o
+    # dalla fine della riga. ⚠️ L'ancora finale non e' decorativa: senza,
+    # `-log=…\X.uproject.log` offrirebbe un match che finisce a `.uproject`.
+    $m = [regex]::Match($line, '"(?<p>[^"]*\.uproject)"|(?<p>[^\s"]+\.uproject)(?=\s|$)',
+        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    if (-not $m.Success) { return 'nessun progetto' }
+    $token = $m.Groups['p'].Value
+
+    # Un path relativo non e' risolvibile da qui: la directory di lavoro e' quella
+    # dell'ALTRO processo, che non conosciamo. Dire «altro» sarebbe disconoscere un
+    # processo che potrebbe essere il nostro.
+    if (-not [System.IO.Path]::IsPathRooted($token)) { return 'provenienza ignota' }
+
+    try {
+        $suo = [System.IO.Path]::GetFullPath($token)
+        $mio = [System.IO.Path]::GetFullPath($OwnProjectPath)
+    } catch {
+        return 'provenienza ignota'
+    }
+
+    # ⚠️ Confronto sul path INTERO, non per prefisso: `rt-wt-2141` e' prefisso di
+    # `rt-wt-2141-bis`. `GetFullPath` normalizza barre e `..`; NON espande i nomi
+    # 8.3 (`REPOSI~1`), che restano un limite noto e danno «altro checkout».
+    if ([string]::Equals($suo, $mio, [System.StringComparison]::OrdinalIgnoreCase)) { return 'questo checkout' }
+    return 'altro checkout'
+}
+
+# Una riga per processo, e la sede e' una sola: la stampano il preambolo d'attesa, la
+# diagnostica di NON AVVIATA e il controllo di fine run.
+#
+# 🔴 `$OwnProjectPath` e' **obbligatorio**: un quarto sito di stampa che lo
+# dimenticasse degraderebbe OGNI riga a «provenienza ignota» in silenzio, e il
+# self-test non lo vedrebbe — prova la funzione, non il cablaggio.
 function Format-EngineEntry {
-    param($Entry)
+    param(
+        [Parameter(Mandatory)] $Entry,
+        [Parameter(Mandatory)] [AllowEmptyString()] [string] $OwnProjectPath
+    )
     if ($Entry.LiveProbe -ne 'ok') { $stato = 'stato non leggibile' }
     elseif ($Entry.IsLive)         { $stato = 'vivo' }
     else                           { $stato = 'residuale' }
-    $cmd = $(if ($null -ne $Entry.CommandLine) { $Entry.CommandLine } else { '(riga di comando non disponibile)' })
-    return ("[{0,-19}] pid {1,-6} {2}" -f $stato, $Entry.ProcessId, $cmd)
+    $origine = Get-EngineOrigin -CommandLine $Entry.CommandLine -OwnProjectPath $OwnProjectPath
+    # Quando la riga di comando manca, l'origine non puo' che essere ignota: una sola
+    # delle due colonne lo dice, invece di ripetere la stessa assenza due volte e
+    # spingere a destra cio' che serve davvero a chi attribuisce un blocco.
+    if ($null -eq $Entry.CommandLine) {
+        return ("[{0,-19}] pid {1,-6} (riga di comando non disponibile: provenienza ignota)" -f $stato, $Entry.ProcessId)
+    }
+    return ("[{0,-19}] [{1,-18}] pid {2,-6} {3}" -f $stato, $origine, $Entry.ProcessId, $Entry.CommandLine)
 }
 
 # «Il motore e' libero» secondo uno stato gia' letto — mai `EngineCount -eq 0` da
@@ -709,12 +789,16 @@ function Say-Preamble {
 # davvero e che `HasExited` la marchi resta osservazione sul campo — questo blocco
 # dice che, DATA una voce cosi', la suite parte.
 #
-# ⚠️ Esce prima di toccare il motore, ma DOPO i controlli di testa su uproject e
-# percorso del motore: serve comunque un checkout valido.
+# ⚠️ Esce prima di toccare il motore, e **anche prima** dei controlli di testa su
+# uproject e percorso del motore — che sono saltati apposta per `-SelfTest`: un test
+# di funzioni pure non si fa cadere da un'installazione mancante. Gira su un clone
+# fresco, o sulla macchina di chi rilegge la PR.
 if ($SelfTest) {
     $failures = 0
+    $total = 0
     function Assert-Case {
         param([string] $Name, $Entries, [string] $EnumError, [bool] $ExpectFree, [string] $ExpectCase)
+        $script:total++
         $state = Resolve-EngineState -Entries $Entries -EnumError $EnumError
         $free = Test-EngineFree $state
         $ok = ($free -eq $ExpectFree) -and ($state.Case -eq $ExpectCase)
@@ -750,6 +834,7 @@ if ($SelfTest) {
     $nonLeggibile | Add-Member -MemberType ScriptProperty -Name HasExited -Value { throw [System.ComponentModel.Win32Exception]::new(5) }
     $e1 = ConvertTo-EngineEntry $nonLeggibile
     $ok1 = ($e1.IsLive -eq $true) -and ($e1.LiveProbe -eq 'non-leggibile')
+    $total++
     if (-not $ok1) { $failures++ }
     Say ("{0}  {1,-14} IsLive={2} LiveProbe={3} (atteso IsLive=True, probe non-leggibile)" -f `
         $(if ($ok1) { 'ok  ' } else { 'ROTTO' }), 'non-leggibile', $e1.IsLive, $e1.LiveProbe)
@@ -759,15 +844,61 @@ if ($SelfTest) {
     $uscito | Add-Member -MemberType ScriptProperty -Name HasExited -Value { $true }
     $e2 = ConvertTo-EngineEntry $uscito
     $ok2 = ($e2.IsLive -eq $false) -and ($e2.LiveProbe -eq 'ok')
+    $total++
     if (-not $ok2) { $failures++ }
     Say ("{0}  {1,-14} IsLive={2} LiveProbe={3} (atteso IsLive=False, probe ok)" -f `
         $(if ($ok2) { 'ok  ' } else { 'ROTTO' }), 'probe-uscito', $e2.IsLive, $e2.LiveProbe)
 
+    # --- provenienza del processo (#2141) ---
+    #
+    # ⚠️ **Il fixture usa la forma che la produzione produce davvero.** Una prima
+    # stesura scriveva il proprio path con le barre `/` e il commento lo giustificava
+    # dicendo che `$UProject` nasce da `Join-Path` con `/`: e' FALSO — misurato,
+    # `Join-Path` e `Split-Path` danno `\` su Windows, e la forma con `/` non capita
+    # mai. Quei casi provavano una normalizzazione su uno scenario inventato mentre
+    # la forma reale restava scoperta.
+    function Assert-Origin {
+        param([string] $Nome, [AllowNull()] [object] $Cmd, [AllowEmptyString()] [string] $Own, [string] $Atteso)
+        $script:total++
+        $got = Get-EngineOrigin -CommandLine $Cmd -OwnProjectPath $Own
+        $ok = ($got -eq $Atteso)
+        if (-not $ok) { $script:failures++ }
+        Say ("{0}  {1,-18} -> {2,-18} (atteso {3})" -f $(if ($ok) { 'ok  ' } else { 'ROTTO' }), $Nome, $got, $Atteso)
+    }
+    $mio  = 'D:\Repositories\rt-wt-2141\RefactorTactics.uproject'
+    $riga = '"D:\UE\UnrealEditor-Cmd.exe" D:\Repositories\rt-wt-2141\RefactorTactics.uproject "-ExecCmds=Automation RunTests X;Quit" -log=rt-suite.log'
+
+    Assert-Origin 'forma reale'      $riga $mio 'questo checkout'
+    Assert-Origin 'maiuscole'        ($riga.ToUpper()) $mio 'questo checkout'
+    Assert-Origin 'barre miste'      ($riga -replace 'rt-wt-2141\\Refactor','rt-wt-2141/Refactor') $mio 'questo checkout'
+    Assert-Origin 'progetto quotato' '"D:\UE\UnrealEditor-Cmd.exe" "D:\Repositories\rt-wt-2141\RefactorTactics.uproject" -log=x.log' $mio 'questo checkout'
+    Assert-Origin 'altro checkout'   ($riga -replace 'rt-wt-2141','rt-wt-2118') $mio 'altro checkout'
+    Assert-Origin 'prefisso'         ($riga -replace 'rt-wt-2141','rt-wt-2141-bis') $mio 'altro checkout'
+    # I tre modi in cui la `IndexOf` sulla riga intera mentiva, ciascuno pinnato.
+    Assert-Origin 'path in -log='    '"D:\UE\UnrealEditor-Cmd.exe" D:\altro\X.uproject "-log=D:\Repositories\rt-wt-2141\RefactorTactics.uproject.log"' $mio 'altro checkout'
+    # ⚠️ **L'ordine degli argomenti conta, e il caso sopra da solo non lo prova.**
+    # Li' il progetto vero viene PRIMA, quindi la regex si ferma su quello e non
+    # raggiunge mai il `-log=`: togliendo l'ancora finale il caso resterebbe verde
+    # (misurato). Qui il `-log=` viene prima, ed e' l'ancora — e solo lei — a impedire
+    # che `…\RefactorTactics.uproject.log` venga letto come il nostro progetto.
+    Assert-Origin 'log prima'        '"D:\UE\UnrealEditor-Cmd.exe" "-log=D:\Repositories\rt-wt-2141\RefactorTactics.uproject.log" D:\altro\X.uproject' $mio 'altro checkout'
+    Assert-Origin 'senza progetto'   '"D:\UE\UnrealEditor.exe"' $mio 'nessun progetto'
+    Assert-Origin 'altro gioco'      '"D:\UE\UnrealEditor.exe" C:\Games\Lyra\Lyra.uproject' $mio 'altro checkout'
+    Assert-Origin 'path relativo'    '"D:\UE\UnrealEditor-Cmd.exe" RefactorTactics.uproject' $mio 'provenienza ignota'
+    # `$null` vero, non una stringa vuota: il parametro e' `[object]` proprio perche'
+    # `[string]` avrebbe convertito il primo nella seconda, rendendo i due casi uno.
+    Assert-Origin 'cmdline nulla'    $null $mio 'provenienza ignota'
+    Assert-Origin 'cmdline vuota'    '   ' $mio 'provenienza ignota'
+    Assert-Origin 'proprio ignoto'   $riga '' 'provenienza ignota'
+
     if ($failures -gt 0) {
-        Say ("self-test ROSSO: {0} caso/i non conforme/i" -f $failures)
+        Say ("self-test ROSSO: {0} caso/i non conforme/i su {1}" -f $failures, $total)
         exit 1
     }
-    Say 'self-test verde: otto casi su otto'
+    # 🔑 Il numero e' CONTATO, non scritto: un conteggio a mano in un file il cui
+    # contratto e' «una dichiarazione dev'essere sostenuta da una misura» sarebbe la
+    # dichiarazione peggiore che possa contenere.
+    Say ("self-test verde: {0} casi su {0}" -f $total)
     exit 0
 }
 
@@ -787,7 +918,10 @@ if ($before.LiveCount -gt 0 -and $WaitMinutes -gt 0) {
     # Le righe di comando si chiedono a WMI QUI, una volta, perche' qui si stampano:
     # dentro il ciclo che segue costerebbero a ogni giro senza che nessuno le legga.
     $null = Add-EngineCommandLines $before
-    foreach ($e in $before.Engines) { Say ("  " + (Format-EngineEntry $e)) }
+    foreach ($e in $before.Engines) { Say ("  " + (Format-EngineEntry $e $UProject)) }
+    # Senza questa riga «provenienza ignota» e' indistinguibile da «la fonte era giu'»,
+    # e chi legge conclude che lo script non sa attribuire.
+    if ($before.DetailError) { Say "  (provenienza non determinabile: la query WMI e' fallita — $($before.DetailError))" }
 
     # 🔴 **Il jitter non e' cosmetico**, e vive dentro `Wait-EngineWindow` perche' va
     # ritirato a ogni ingresso: due sessioni bloccate dalla stessa terza run partono con
@@ -920,7 +1054,7 @@ if ($before.LiveCount -gt 0) {
     # significa «test falliti».
     if ($null -ne $script:WaitElapsed) { Say ("  (dopo {0:N0}s di attesa)" -f $script:WaitElapsed) }
     $null = Add-EngineCommandLines $before
-    foreach ($e in $before.Engines) { Say ("  " + (Format-EngineEntry $e)) }
+    foreach ($e in $before.Engines) { Say ("  " + (Format-EngineEntry $e $UProject)) }
     # La provenienza si perde solo se WMI non risponde, e allora va detto: senza
     # questa riga la lista sembra incompleta per un difetto dello script.
     if ($before.DetailError) {
@@ -1043,11 +1177,21 @@ if ($after.EngineError) {
     # cattura il pid del figlio (`& $EngineCmd` non e' `Start-Process -PassThru`),
     # quindi non sa distinguere il proprio residuo da quello di un ALTRO checkout: il
     # filtro toglieva anche il secondo, e una collisione vera passava per `VALIDA`.
-    # Un falso allarme si legge; una collisione taciuta no. Distinguere davvero
-    # richiede il pid del figlio, che e' lavoro suo — e non di #2130.
+    # Un falso allarme si legge; una collisione taciuta no.
+    #
+    # 🔴 **E il pid non si cattura, per decisione — #2141**: escluderlo dal verdetto
+    # tacerebbe l'unico caso in cui la voce del nostro motore esiste, cioe' quello in
+    # cui e' morto male e la run e' stata interrotta. Cio' che mancava era
+    # l'ATTRIBUZIONE, e la sua sede e' `Get-EngineOrigin` — la ragione per esteso sta
+    # li', e non si ripete qui: due copie di una decisione divergono.
     $problems.Add("motore    un processo del motore e' comparso durante la run:")
     $null = Add-EngineCommandLines $after
-    foreach ($e in $after.Engines) { $problems.Add("          " + (Format-EngineEntry $e)) }
+    foreach ($e in $after.Engines) { $problems.Add("          " + (Format-EngineEntry $e $UProject)) }
+    # La stessa dichiarazione del ramo di NON AVVIATA: senza, un guasto di WMI si legge
+    # come un'incapacita' dello script di attribuire.
+    if ($after.DetailError) {
+        $problems.Add("          (provenienza non determinabile: la query WMI e' fallita — $($after.DetailError))")
+    }
 }
 
 # ---------------------------------------------------------------- IL REFERTO

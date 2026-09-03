@@ -208,6 +208,11 @@ public:
 	 * `false` — e `OutEntry` intatta — quando la direzione non esiste, cioe' quando `RelativeDirectionFrom`
 	 * fallisce perche' le due celle coincidono in pianta. Fail-closed: il chiamante non emette nessuna voce.
 	 *
+	 * ⚠️ **`OutEntry` viene AZZERATA prima di essere riempita, e su questo non si fa affidamento al
+	 * contrario**: la funzione scrive sei campi e il formato ne ha altri sette serializzati che entrano
+	 * nell'hash ordinato. L'«intatta» qui sopra vale **solo** sul ramo `false`, e non e' un invito a riusare
+	 * un buffer fra due chiamate: dichiara la voce dentro il proprio ciclo, come fanno i quattro produttori.
+	 *
 	 * 🔑 **Esiste perche' i produttori sono TRE e la convenzione dev'essere una** (`#2128`). Fino al
 	 * 2026-09-03 il solo produttore era il ciclo su `Plan.Hits` di `ARTTurnManager::ResolveCombatPasses`, e la
 	 * convenzione stava scritta dove veniva usata. Con i contrattacchi e il fuoco di Overwatch sarebbero
