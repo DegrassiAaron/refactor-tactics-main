@@ -469,6 +469,7 @@ namespace
 		{ TEXT("TestArena"),  &URTMatchSetupLibrary::MakeTestArena               },
 		{ TEXT("ArenaV01"),   &URTMatchSetupLibrary::MakeArenaV01                },
 		{ TEXT("CoverYard"),  &URTMatchSetupLibrary::MakeCoverYardArena          },
+		{ TEXT("BlockYard"),  &URTMatchSetupLibrary::MakeBlockYardArena          },
 		{ TEXT("GrayKitYard"), &URTMatchSetupLibrary::MakeGrayKitYardArena        },
 		{ TEXT("VisionSplit"), &URTMatchSetupLibrary::MakeVisionSplitArena       },
 		{ TEXT("ProbeYard"),   &URTMatchSetupLibrary::MakeProbeYardArena         },
@@ -681,6 +682,57 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeCoverYardArena(UObject* Outer)
 			Draft.Set(Updated);
 		}
 	}
+
+	Draft.CommitTo(Arena);
+	return Arena;
+}
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeBlockYardArena(UObject* Outer)
+{
+	if (Outer == nullptr)
+	{
+		return nullptr;
+	}
+
+	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	FRTArenaDraft Draft;
+
+	// Esagono pieno di raggio 3, tutto pavimento: 37 celle. Stessa disciplina di `CoverYard`, e per la stessa
+	// ragione: qui si studiano i VOLUMI DI BLOCCO, e una superficie che cambia colore o rilievo offrirebbe una
+	// seconda spiegazione a «perche' quella cella si legge diversa».
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
+	{
+		Draft.Set(MakeShowcaseTerrainCell(Id, ERTHexSurface::Floor));
+	}
+
+	// ⚠️ Tocca SOLO i due flag e lascia stare `MoveCost` e `Surface`. E' la differenza con il `SetCell` di
+	// `GrayKitYard`, che riscrive anche il terreno: li' serve, qui rovinerebbe l'esperimento — una cella che
+	// blocca il passo E cambia colore si distingue per il colore, e la voce che chiede «si legge la forma?»
+	// riceverebbe un si' che non ha guardato la forma.
+	auto SetBlock = [&Draft](const FRTCellId& Id, bool bBlocksMovement, bool bBlocksSight)
+	{
+		const FRTHexCellData* Existing = Draft.Find(Id);
+		if (!Existing) { return; }
+		FRTHexCellData Cell = *Existing;
+		Cell.bBlocksMovement = bBlocksMovement;
+		Cell.bBlocksLineOfSight = bBlocksSight;
+		Draft.Set(Cell);
+	};
+
+	// ── I TRE casi di blocco, in fila e con ENTRAMBI al centro ───────────────────────────────────────
+	//
+	// 🔴 **Il caso solo-movimento non esisteva in nessuna delle otto fixture**, ed e' sempre stato lui a
+	// mancare: `ArenaV01` e `GrayKitYard` portano solo-vista ed entrambi, `CoverYard` non ha celle bloccanti.
+	// Chi eseguiva `PIE-HEX-VIZ-BLOCCHI` partiva da una fixture e poi dipingeva a mano il terzo — e fermarsi
+	// li' lasciava il confronto a due, che e' il modo in cui quella voce e' caduta il 2026-08-20.
+	//
+	// L'ordine non e' estetico: `entrambi` sta **in mezzo**, adiacente a ciascuno dei due singoli, perche' il
+	// criterio della voce e' che mostri «due volumi concentrici, non una terza forma ambigua» — e un confronto
+	// si fa con il vicino, non attraverso la mappa. Sulla riga `r = 0`, quindi tutte e tre alla stessa
+	// distanza di camera guardando dall'alto, che e' la vista in cui la voce chiede di giudicare.
+	SetBlock(FRTCellId(-1, 0, 0), /*Move=*/ true,  /*Sight=*/ false);
+	SetBlock(FRTCellId( 0, 0, 0), /*Move=*/ true,  /*Sight=*/ true );
+	SetBlock(FRTCellId( 1, 0, 0), /*Move=*/ false, /*Sight=*/ true );
 
 	Draft.CommitTo(Arena);
 	return Arena;

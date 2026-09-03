@@ -168,6 +168,25 @@ public:
 	static URTHexMapAsset* MakeCoverYardArena(UObject* Outer);
 
 	/**
+	 * 🔑 **I TRE casi di blocco affiancati: solo-movimento, entrambi, solo-vista.** E' la fixture di
+	 * `PIE-HEX-VIZ-BLOCCHI`, che chiede di capire *guardando dall'alto* quale cella si attraversa e quale no.
+	 *
+	 * Sorella di `CoverYard` — stesso esagono di raggio 3, stesso pavimento ovunque, stessa disciplina: niente
+	 * superfici, perche' un terreno che cambia colore darebbe una seconda spiegazione a «quella cella si legge
+	 * diversa» e la voce chiede della FORMA.
+	 *
+	 * ⚠️ **Esiste perche' il caso solo-movimento non c'era in nessuna delle otto fixture precedenti**, ed era
+	 * sempre lui a mancare: `ArenaV01` e `GrayKitYard` hanno solo-vista ed entrambi, `CoverYard` non ha celle
+	 * bloccanti. Chi eseguiva la voce doveva dipingerne una a mano, e fermarsi prima lasciava il confronto a
+	 * due.
+	 *
+	 * ⚠️ **Non e' una scena di gameplay e non va usata come tale**: tre celle bloccanti in fila sulla riga
+	 * centrale non descrivono un percorso, una copertura o un trade-off. Per quelli ci sono `GrayKitYard` e
+	 * `ArenaV01`. `Outer` nullo -> nullptr.
+	 */
+	static URTHexMapAsset* MakeBlockYardArena(UObject* Outer);
+
+	/**
 	 * 🔑 **La scena della seduta `U25`+`U35`: tutto cio' che le dieci verifiche guardano, in una fixture sola.**
 	 *
 	 * E' `CoverYard` con tre aggiunte, e la base identica e' un REQUISITO e non pigrizia: `PIE-GBX-FIT`
