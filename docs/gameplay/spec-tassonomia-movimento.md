@@ -148,6 +148,60 @@ una tabella che elenca test **attesi** come se esistessero — è quello di
 [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) §Verifica, con undici nomi di cui zero
 esistono, che ha già indotto in errore [D-295](../decisions/RT_PDR_00_Decision_Log.md).
 
+### 2.0-bis Dentro la risoluzione la posizione è `State.Pos`, e `Unit->Cell` è quella di partenza
+
+> ✅ **Aggiunta il 2026-09-03 da [#2142](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2142).**
+> Stessa forma della §2.0 e stessa ragione: **registra** una regola che il codice applicava e che nessuna
+> sede diceva. Con una differenza — qui il codice la applicava a **metà**, e tre consumatori la violavano.
+
+Dentro `ARTTurnManager::ResolveMovement` la posizione autorevole di un'unità è:
+
+```text
+State.Pos[i]                 durante il ciclo dei micro-step
+Resolved[i].Final            dopo FinishHexMovement, fino a PlaceOnCell
+```
+
+**`ARTUnit::Cell` è la cella di PARTENZA DEL TURNO** per tutto quel tratto: la scrive `PlaceOnCell`, che
+gira **dopo** il ciclo *e* dopo il boundary della Predictive Action. Chiunque legga l'Actor prima di quel
+punto sta leggendo dove l'unità **era**, non dove è.
+
+⚠️ **Il tratto è più lungo di quanto sembri, ed è la ragione per cui la regola serve scritta.** Non finisce
+con l'ultimo micro-step: fra `FinishHexMovement` e `PlaceOnCell` girano ancora il boundary predittivo, la
+costruzione del `MoveLog` e la cattura delle rotte. In quella coda `State` non esiste più — il ciclo è
+chiuso — e la posizione viva sta in `Resolved[i].Final`. Un consumatore che si limitasse a evitare
+`Unit->Cell` «dentro il ciclo» è ancora esposto.
+
+🔴 **Chi la violava, e cosa si vedeva** (`#2142`):
+
+| Consumatore | Leggeva | Conseguenza osservabile |
+|---|---|---|
+| copertura del colpo di Overwatch | `Target->Cell` e `Attacker->Cell` | chi usciva da un riparo incassava **ridotto** da una copertura che non aveva più; chi ci entrava non ne beneficiava |
+| verdetto di visibilità delle voci ([D-223](../decisions/RT_PDR_00_Decision_Log.md)) | `U->Cell` | chi usciva dalla nebbia si vedeva la voce **nascosta** a una squadra che lo vedeva benissimo |
+| soggetto d'audit ([D-313](../decisions/RT_PDR_00_Decision_Log.md)) | `Actor->Cell` | il ricalcolo confrontava **due copie dello stesso errore**, quindi coincideva |
+
+🔑 **La lezione non è l'errore, è la sua forma**: la regola viveva in **tre commenti locali** vicini al
+codice che la applicava, e **uno dei tre affermava il contrario del proprio codice** — *«L'Overwatch passa
+la cella corrente, che al suo micro-step è già quella giusta»*, scritto accanto a una chiamata che passava
+`Target->Cell`. Una regola ripetuta in tre punti diverge; una regola ripetuta in tre punti **e non
+dichiarata in nessuno** diverge senza che si possa dire quale copia sia quella buona.
+
+⛔ **Cosa questa riga NON decide.** Due celle di soggetto restano senza una regola, e sono aperte in
+[#2148](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2148): da dove parte il colpo di un
+**tiratore predittivo che si è mosso** — a ciclo chiuso quell'istante il resolver non lo conserva — e su
+quale cella si congeli il verdetto di una voce **`Move`**, dove la cella di partenza è difendibile perché è
+anche la `SrcCell` della voce. Questa sezione dice dove sta la posizione, non quale istante una voce debba
+raccontare.
+
+✅ **Quattro test la pinnano**, sul percorso reale e non sulla funzione pura:
+`Reactions.OverwatchCoverReadsTheMicroStepCell`, `Reactions.OverwatchLogLineAnnouncesDealtDamage`,
+`Reactions.OverwatchMovingWatcherFiresFromItsCurrentCell` e `Reactions.VerdictFreezesOnTheImpactCell`. La
+ragione della scelta è [D-312](../decisions/RT_PDR_00_Decision_Log.md): la decisione qui è *quale cella il
+chiamante passa*, e una prova sulla funzione chiamata resta verde mentre il chiamante sbaglia.
+
+⚠️ **Il terzo copre il lato ATTACCANTE, e senza di lui gli altri non lo coprono.** Con il watcher fermo le
+sue due celle coincidono per tutta la risoluzione, quindi la mutazione che rimette `WatchOwner->Cell` li
+lascia verdi: misurato in code review, dopo che due documenti dichiaravano già coperta quella metà.
+
 ### 2.1 Il `Transfer` esiste già, e vive dentro il Dash
 
 `ERTMovementStyle::LinearLeap` — *«ignora unità e celle intermedie, conta solo dove si atterra»* — produce

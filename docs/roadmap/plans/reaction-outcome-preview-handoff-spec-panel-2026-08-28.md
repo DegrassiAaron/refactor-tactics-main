@@ -136,6 +136,15 @@ non esisterebbe nella forma in cui è scritta.
 
 > Misurato a `483e031a` dopo la stesura del referto, per rispondere alla domanda che `C3` lasciava aperta:
 > *«dato nuovo da autorizzare, o da togliere?»* La dicotomia era **falsa**.
+>
+> ➕ **Lo snippet qui sotto è la fotografia di `483e031a` e resta com'era misurato, ma dal 2026-09-03 la
+> firma è cambiata** ([#2142](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2142)):
+> `BoundaryCoverReduction` prende ora **entrambe** le celle dal chiamante — `(Map, Attacker, AttackerCell,
+> Target, TargetCell)` — e l'Overwatch passa `State.Pos[OwnerIdx]` e `State.Pos[TargetIdx]`. Quel
+> `Target->Cell` era la cella di **partenza del turno**, non quella dell'impatto, ed era il difetto.
+> ⚠️ **Conta per il lavoro che questa sezione pianifica**: l'estrazione *«una funzione pura, N chiamanti»*
+> resta valida e diventa più facile — la firma non deduce più nessuna posizione dagli Actor — ma la preview,
+> che sarà il terzo chiamante, dovrà **dichiarare quali due celle sta ipotizzando** invece di ereditarle.
 
 Dentro `ApplyReactionDecision` (`Turn/RTTurnManager.cpp`) il danno effettivo è già calcolato e ha già un
 nome:

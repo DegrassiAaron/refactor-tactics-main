@@ -203,6 +203,21 @@ struct FRTLogSubject
 	static FRTLogSubject Unit(const ARTUnit* InUnit);
 
 	/**
+	 * La stessa unita', ma nella cella in cui il FATTO e' avvenuto — non in quella dove l'Actor si trova.
+	 *
+	 * 🔴 **Esiste perche' dentro `ResolveMovement` le due divergono** (`#2142`). `ARTUnit::Cell` viene
+	 * scritta da `PlaceOnCell`, che gira **dopo** il ciclo dei micro-step e dopo il boundary predittivo:
+	 * per tutto il tratto in mezzo la posizione autorevole sta in `State.Pos[i]` (o, chiuso il ciclo, in
+	 * `Resolved[i].Final`), e `Unit()` congelerebbe il verdetto sulla cella di **partenza del turno**.
+	 *
+	 * ⚠️ **Non e' un'ottimizzazione ne' un caso limite**: la cella e' l'ingresso che `ClassifyTarget`
+	 * confronta con le celle visibili della squadra, quindi sbagliarla fa vedere una riga a chi non deve e
+	 * la nasconde a chi la vedrebbe. Chi scrive un produttore che gira prima di `PlaceOnCell` usa questa
+	 * forma; chiunque altro continua a usare `Unit()`, dove `Cell` **e'** la cella del fatto.
+	 */
+	static FRTLogSubject UnitAt(const ARTUnit* InUnit, const FRTCellId& InFactCell);
+
+	/**
 	 * Un soggetto che porta GIA' la propria risposta, congelata altrove e prima.
 	 *
 	 * 🔴 **E' la forma del canale derivato dal TurnLog**, ed esiste perche' a fine turno il verdetto non e'
@@ -227,13 +242,32 @@ struct FRTLogSubject
 	bool HasFrozenVerdict() const { return bFrozen; }
 	const FRTKnowledgeVerdict& GetFrozenVerdict() const { return FrozenVerdict; }
 
+	/**
+	 * La cella in cui il fatto e' avvenuto: quella dichiarata da `UnitAt`, altrimenti quella dell'Actor.
+	 *
+	 * Un solo accesso, cosi' che verdetto e soggetto d'audit non possano leggere celle diverse — che e'
+	 * precisamente il modo in cui `#2142` si e' presentato: due scritture nella stessa funzione, una sola
+	 * corretta.
+	 *
+	 * ⚠️ **Senza unita' e senza cella dichiarata rende `FRTCellId()`, che e' la cella `(0,0,0)` — vera, e su
+	 * ogni arena generata anche centrale.** Non e' un valore sicuro: e' il caso che i due chiamanti non
+	 * raggiungono, ed e' la loro guardia a garantirlo, non questa funzione. `FreezeVerdictFor` esce
+	 * `NoOne()` sul soggetto senza unita' **prima** di chiedere la cella, e `AppendLogEntry` la chiede solo
+	 * dentro il proprio `if (Actor)`. Chi aggiunge un terzo chiamante porta con se' quella guardia — o la
+	 * mette qui.
+	 */
+	FRTCellId GetFactCell() const;
+
 private:
 	FRTLogSubject() = default;
 
 	bool bWorld = false;
 	bool bFrozen = false;
+	/** Vero se `FactCell` e' stata DICHIARATA dal produttore: senza, la cella e' quella dell'Actor. */
+	bool bFactCell = false;
 	int32 StableUnitId = INDEX_NONE;
 	const ARTUnit* Unit_ = nullptr;
+	FRTCellId FactCell;
 	FRTKnowledgeVerdict FrozenVerdict;
 };
 
@@ -1711,6 +1745,19 @@ protected:
 	 * non da subire: il parametro non ha default apposta.
 	 */
 	void AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor);
+
+	/**
+	 * La stessa emissione, ma col SOGGETTO invece del solo attore.
+	 *
+	 * 🔴 **Serve a chi scrive prima di `PlaceOnCell`** (`#2142`): li' `Actor->Cell` e' la cella di partenza
+	 * del turno, e sia il verdetto di [D-223] sia il soggetto d'audit di [D-313] verrebbero congelati su una
+	 * posizione che l'unita' ha gia' lasciato. `FRTLogSubject::UnitAt` porta la cella dell'impatto, e questa
+	 * e' la porta che la fa arrivare a entrambe le scritture — leggendola **una volta sola**, cosi' che non
+	 * possano divergere.
+	 *
+	 * L'overload con l'`ARTUnit*` resta la forma corta per tutti gli altri produttori e delega a questa.
+	 */
+	void AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject& Subject);
 
 	/**
 	 * Registra un cambio d'orientamento e ne appende le voci **passando da `AppendLogEntry`**.
