@@ -177,4 +177,129 @@ bool FRTScenarioPlaybackOpensAndMovesTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * **I controlli di trasporto, e la prova che non riesegue niente** — criterio 2 di `#1625`.
+ *
+ * 🔴 **La misura decisiva e' che il draft viene CHIUSO prima di navigare.** Un playback che
+ * ricalcolasse avrebbe bisogno di una sessione da cui ripartire, e chiuso il draft quella sessione non
+ * esiste piu': se dopo la chiusura i marcatori continuano a muoversi lungo la traccia, la sorgente e' la
+ * traccia. E' anche esattamente cio' che fa il pulsante «Esegui» del pannello, che chiude il draft subito
+ * dopo aver aperto il playback — quindi questo test copre il flusso reale, non uno di comodo.
+ *
+ * ⚠️ **Non si asserisce dove finiscano i marcatori**: quale cella occupi ogni unita' a ogni fase e' gia'
+ * provato in `Replay.State.*` e `Scenario.Playback.*`, con mutazioni su entrambe. Qui si misura la
+ * NAVIGAZIONE: che i passi rispettino i bordi, che `RESET` torni davvero indietro, e che la velocita' non
+ * cambi dove si arriva.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPlaybackTransportTest,
+	"RefactorTactics.DevSandboxLauncher.PlaybackTransportDelegatesAndDoesNotRerun",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPlaybackTransportTest::RunTest(const FString&)
+{
+	URTScenarioPreviewSubsystem* Preview = PlaybackPreview();
+	if (!TestNotNull(TEXT("il subsystem d'anteprima esiste"), Preview)) { return false; }
+
+	Preview->ClearPreview();
+	URTScenarioAuthoring* Authoring = ShowAndKeep(Preview);
+	if (!TestNotNull(TEXT("uno scenario a due squadre si mostra"), Authoring))
+	{
+		Preview->ClearPreview();
+		return false;
+	}
+
+	FRTScenarioRunReport Referto;
+	FString Errore;
+	if (Authoring->Run(Referto, Errore) != ERTScenarioAuthoringResult::Success
+		|| !Preview->OpenPlayback(Authoring))
+	{
+		AddError(Errore.IsEmpty() ? TEXT("il playback non si e' aperto sulla corsa") : *Errore);
+		Authoring->Close();
+		Preview->ClearPreview();
+		return false;
+	}
+
+	// 🔴 Da qui in poi NON c'e' piu' una sessione da cui rieseguire.
+	Authoring->Close();
+
+	// --- Si parte prima dell'inizio -------------------------------------------------------------------
+	TestFalse(TEXT("all'apertura si e' PRIMA del primo turno"), Preview->GetPlaybackPosition().HasTurn());
+	TestFalse(TEXT("e indietro non si va"), Preview->CanPlaybackStepPhase(false));
+	TestFalse(TEXT("il passo indietro infatti risponde no"), Preview->PlaybackStepPhase(false));
+
+	// --- Avanti fino in fondo, a draft chiuso ---------------------------------------------------------
+	int32 Fasi = 0;
+	while (Preview->CanPlaybackStepPhase(true))
+	{
+		if (!TestTrue(TEXT("il passo avanti riesce quando e' dichiarato possibile"),
+			Preview->PlaybackStepPhase(true)))
+		{
+			break;
+		}
+		TestTrue(TEXT("e la preview resta viva"), Preview->IsShowing());
+		if (++Fasi > 64) { break; }
+	}
+
+	// ⛔ ANTI-VACUITA': senza almeno un passo, ogni asserzione sopra e' vera per assenza — e sarebbe verde
+	// anche su un playback che non si muove affatto.
+	if (!TestTrue(TEXT("la traccia ha almeno una fase da percorrere"), Fasi > 0))
+	{
+		Preview->ClearPreview();
+		return false;
+	}
+
+	const FRTReplayPosition Fine = Preview->GetPlaybackPosition();
+	TestFalse(TEXT("in fondo non si avanza piu'"), Preview->PlaybackStepPhase(true));
+
+	// --- RESET torna indietro davvero -----------------------------------------------------------------
+	TestTrue(TEXT("il reset risponde"), Preview->PlaybackRewind());
+	TestFalse(TEXT("e riporta prima dell'inizio"), Preview->GetPlaybackPosition().HasTurn());
+	TestFalse(TEXT("fermando la riproduzione"), Preview->IsPlaybackPlaying());
+
+	// --- Il passo di TURNO e' un'altra cosa dal passo di fase -----------------------------------------
+	if (Preview->CanPlaybackStepTurn(true))
+	{
+		TestTrue(TEXT("un turno avanti"), Preview->PlaybackStepTurn(true));
+		TestTrue(TEXT("e ora si e' dentro un turno"), Preview->GetPlaybackPosition().HasTurn());
+	}
+
+	// --- `Instant` ≡ `1x`: la velocita' e' presentazione ------------------------------------------------
+	// ⚠️ Si confronta il punto d'arrivo, non la durata: la velocita' cambia QUANDO si avanza, non DOVE si
+	// finisce. Con `Instant` la fase scade subito, quindi ogni tick avanza anche con delta zero.
+	auto ScorriTutto = [Preview](ERTPlaybackSpeed Velocita, float Delta)
+	{
+		Preview->PlaybackRewind();
+		Preview->SetPlaybackSpeed(Velocita);
+		Preview->PlaybackPlay();
+		for (int32 i = 0; i < 128 && Preview->IsPlaybackPlaying(); ++i)
+		{
+			Preview->PlaybackTick(Delta);
+		}
+		Preview->PlaybackPause();
+		return Preview->GetPlaybackPosition();
+	};
+
+	const FRTReplayPosition FineIstantanea = ScorriTutto(ERTPlaybackSpeed::Instant, 0.f);
+	const FRTReplayPosition FineNormale = ScorriTutto(ERTPlaybackSpeed::Normal, 10.f);
+
+	TestEqual(TEXT("Instant e 1x finiscono nello stesso turno"),
+		FineIstantanea.TurnNumber, FineNormale.TurnNumber);
+	TestEqual(TEXT("e nella stessa fase"), FineIstantanea.Phase, FineNormale.Phase);
+	TestEqual(TEXT("e nello stesso stato"), FineIstantanea.State, FineNormale.State);
+
+	// ⛔ E finiscono dove finisce la traccia: senza questo, due riproduzioni entrambe FERME all'inizio
+	// soddisferebbero le tre uguaglianze qui sopra.
+	TestEqual(TEXT("e in fondo, dove ci si era arrivati a passi"), FineNormale.TurnNumber, Fine.TurnNumber);
+
+	// --- Chiuso il playback, i comandi si spengono ----------------------------------------------------
+	Preview->ClosePlayback();
+	TestFalse(TEXT("a playback chiuso non si avanza"), Preview->CanPlaybackStepPhase(true));
+	TestFalse(TEXT("ne' di un turno"), Preview->CanPlaybackStepTurn(true));
+	TestFalse(TEXT("e non si sta riproducendo"), Preview->IsPlaybackPlaying());
+	TestFalse(TEXT("un tick non fa niente"), Preview->PlaybackTick(1.f));
+
+	Preview->ClearPreview();
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

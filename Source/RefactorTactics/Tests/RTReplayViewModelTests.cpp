@@ -717,4 +717,89 @@ bool FRTReplayViewModelPlaybackTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * **`OpenFromTraces` e' la STESSA navigazione, non una seconda** (`#1625`).
+ *
+ * 🔑 Lo Scenario Playback riproduce l'ultima esecuzione di uno scenario, che vive in memoria e non e'
+ * mai stata scritta su disco. Senza questa porta l'unico modo di riusare la navigazione sarebbe
+ * riscriverla nell'editor — due implementazioni di «fase successiva» che possono divergere.
+ *
+ * ⛔ **Il test che conta e' l'EQUIVALENZA.** Le stesse tracce, aperte per le due vie, devono percorrersi
+ * identiche: stessi bordi, stesse fasi, stesse posizioni a ogni passo. Un test che si limitasse a
+ * verificare che la nuova porta «funziona» passerebbe anche su una navigazione leggermente diversa — ed
+ * e' precisamente il difetto che avere due porte introduce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewModelFromTracesTest,
+	"RefactorTactics.Replay.ViewModel.OpensFromTracesInMemory",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTReplayViewModelFromTracesTest::RunTest(const FString&)
+{
+	// --- Il rifiuto, per primo ------------------------------------------------------------------------
+	{
+		FRTReplayViewModel Vuoto;
+		TestFalse(TEXT("tracce vuote: rifiuta"), Vuoto.OpenFromTraces({}));
+		TestFalse(TEXT("e non risulta aperto"), Vuoto.IsOpen());
+
+		// ⚠️ Un playback aperto su zero turni mostrerebbe un campo fermo — indistinguibile da una partita
+		// in cui non e' successo niente, che e' un'affermazione diversa.
+		TestFalse(TEXT("e non si puo' nemmeno avanzare"), Vuoto.CanStepPhaseForward());
+	}
+
+	// --- Le stesse tracce, per le due vie -------------------------------------------------------------
+	const TArray<TArray<FRTTurnLogEntry>> Tracce = {
+		Traccia(1, { ERTMatchPhase::Blast, ERTMatchPhase::Move }),
+		Traccia(2, { ERTMatchPhase::Prep, ERTMatchPhase::Blast, ERTMatchPhase::Cleanup }),
+	};
+
+	const FString Root = TransientRoot(TEXT("DaMemoria"));
+	Pulisci(Root);
+	const FGuid Id = ScriviArchivio(Root, Tracce, /*bChiudi=*/ true);
+
+	FRTReplayViewModel DaDisco;
+	if (!TestEqual(TEXT("l'archivio si apre"), DaDisco.Open(Root, Id), ERTReplayOpenResult::Opened))
+	{
+		Pulisci(Root);
+		return false;
+	}
+
+	FRTReplayViewModel DaMemoria;
+	if (!TestTrue(TEXT("e le stesse tracce si aprono in memoria"), DaMemoria.OpenFromTraces(Tracce)))
+	{
+		Pulisci(Root);
+		return false;
+	}
+
+	// --- Si percorrono identiche ----------------------------------------------------------------------
+	// ⚠️ Si confrontano anche i `CanStep*`: sono cio' che accende e spegne i pulsanti, e due navigazioni
+	// che finiscono nello stesso posto per strade diverse si distinguono proprio sui bordi.
+	int32 Passi = 0;
+	while (DaDisco.CanStepPhaseForward())
+	{
+		TestTrue(TEXT("il bordo e' lo stesso"), DaMemoria.CanStepPhaseForward());
+
+		DaDisco.StepPhaseForward();
+		DaMemoria.StepPhaseForward();
+
+		TestEqual(TEXT("stesso turno"), DaMemoria.Position().TurnNumber, DaDisco.Position().TurnNumber);
+		TestEqual(TEXT("stessa fase"), DaMemoria.Position().Phase, DaDisco.Position().Phase);
+		TestEqual(TEXT("stesso stato"), DaMemoria.Position().State, DaDisco.Position().State);
+
+		if (++Passi > 32) { break; } // guardia: una navigazione che non termina e' un difetto, non un ciclo
+	}
+
+	// ⛔ ANTI-VACUITA': se il ciclo non avesse fatto nemmeno un passo, tutte le uguaglianze sopra sarebbero
+	// vere per assenza. Cinque fasi in due turni sono cio' che le tracce dichiarano.
+	TestEqual(TEXT("si sono percorse le cinque fasi dichiarate"), Passi, 5);
+	TestFalse(TEXT("ed entrambe sono in fondo"), DaMemoria.CanStepPhaseForward());
+
+	// Le fasi del turno corrente vengono dalla traccia, e sono le stesse.
+	TestEqual(TEXT("stesse fasi nel turno corrente"),
+		DaMemoria.PhasesInCurrentTurn().Num(), DaDisco.PhasesInCurrentTurn().Num());
+
+	Pulisci(Root);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
