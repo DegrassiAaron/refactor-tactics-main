@@ -1686,8 +1686,9 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 	// deve reagire una volta sola, e «una attivazione per turno» e' una garanzia del pass — chiamandolo due
 	// volte la si perderebbe qui invece che nel catalogo.
 	//
-	// Risultato in una struct PROPRIA: `Reactions` e' gia' stata consumata piu' sopra (deflect nei delta del
-	// primo danno, contrattacchi negli attacchi), e riusarla farebbe ripartire `DeflectDelta` da zero.
+	// Risultato in una struct PROPRIA: `Reactions` e' gia' stata consumata piu' sopra (il `Deflect` come POOL
+	// d'assorbimento — [D-309] —, i contrattacchi negli attacchi), e riusarla farebbe ripartire
+	// `DeflectDelta` da zero.
 	// Di questo punto si consuma `CancelledDisplacements` e basta: un contrattacco dichiarato da una reazione
 	// allo spostamento arriverebbe a colpi gia' risolti, quindi il catalogo non lo prevede (`Reaction.Anchor`
 	// dichiara solo `CancelDisplacement`).

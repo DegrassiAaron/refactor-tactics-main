@@ -41,7 +41,7 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 |---|---|---|
 | **M0–M5** MVP quadrato (tutorial) | ✅ **archiviata** | Vertical slice 2v2 offline giocabile, packaging Windows, suite verde — vedi § *Archivio* |
 | **H0–H6.5** Fondamenta esagonali | ✅ | Coordinate/asset/A\*/multilivello/editor mode + simulazione hex pura (snapshot, budget, collisioni, TurnLog, LOS, bot) — dettaglio in [`hex-map-roadmap.md`](hex-map-roadmap.md) |
-| **M6** Parità hex | 🟡 | **Codice completo** (M6.1–M6.7 mergiati): la partita gira su esagoni — wiring, movimento, input, combat, scatto/spinta, bot, HUD. Resta il **playtest** M6.8 (sessione PIE) |
+| **M6** Parità hex | 🟡 | **Codice completo** (M6.1–M6.7 mergiati): la partita gira su esagoni — wiring, movimento, input, combat, scatto/spinta, bot, HUD. Restano il **playtest** M6.8 — oggi **6 voci su 9**, `-6`/`-7`/`-8` sono 🟡 — e il **packaged** (`PIE-V01-PACKAGED`, ⏳). ⏱️ *Rimisurato il 2026-09-03: la riga nominava il solo playtest, e il DoD di milestone ha cinque condizioni. Il dettaglio sta nella tabella del lavoro residuo* |
 | **M7** Dismissione del quadrato | 🟡 | **Un solo substrato + release interna**: M7.1, M7.2 e M7.4 fatti (rimozione, packaging Development e Shipping avviati). Resta **M7.3**: 2 KPI su 4 misurati, FPS e preview richiedono rendering/editor |
 | **M8** Presentazione e identità | 🟡 | **Le regole dei 4 eroi ci sono e le reazioni funzionano in partita** (E6: 25 test; E5.5 + E6.7 del 2026-08-07 hanno reso il motore componibile e cablato `Interposition`, `Deflection`, `ReactiveCapacitor`; `InterceptShot` e `FlowReaction` sono rinviate a **E14** e lo dichiarano nei dati). Resta la **presentazione**: personaggi animati, anelli team/selezione, **Ghost Timeline del planning** (`#172`/`#173`), leggibilità tattica — banco di prova: la showcase E15 |
 | **M9** Ambienti tattici + editor maturo | 🟡 | **Terreni e stati** (E8: costi, Rough, Fire, ShallowWater, Smoke, Ice — 17 test; **E8.2 stati temporanei chiuso il 2026-08-07**, 11 test: durata legata alla cella, danno di `Burning` nel Cleanup prima dei KO, `Wet` che spegne le fiamme, `Marked` cablato). **E8.3 chiuso il 2026-08-07** (7 test: propagazione elettrica sul grafo dell'acqua, limite 3 passi, unicità per evento, ordine totale). **Epic E8 chiusa il 2026-08-07** (E8.1–E8.5): terreni, stati, propagazione elettrica, terreno dinamico con fuoco/acqua, azioni ambientali e di supporto. **E9 aperta con E9.1 ed E9.2 chiusi il 2026-08-07** (7 test, [`spec-copertura-cp91.md`](../gameplay/spec-copertura-cp91.md)): la copertura bassa esiste come dato **per bordo di cella**, il formato mappa è alla **v3** con migrazione verificata sulla serializzazione reale, e toglie 10 al danno diretto solo dal lato riparato. **E9.2** (10 test, [`spec-copertura-alta-cp92.md`](../gameplay/spec-copertura-alta-cp92.md)): la copertura **alta** nega vista, passo e proiettili sul bordo — nei due versi — e si abbatte, riaprendo LOS e grafo dalla fase successiva con la revisione incrementata. **E9.3 chiuso il 2026-08-08** (13 test, [`spec-porte-cp93.md`](../gameplay/spec-porte-cp93.md)): le **porte** sono uno stato del **bordo** (formato mappa alla **v4**), lette dallo stesso `BlocksTraversal` che già serve vista, grafo e combat — quindi una porta chiusa toglie passo **e** linea di tiro senza toccare nessuno dei tre. Un portone largo è un **gruppo di bordi** che si commuta con **una sola** revisione, e un percorso già pianificato che incontra una porta chiusa a metà turno **si ferma** invece di attraversarla (`TruncatePathToTopology`, reason code `BlockedByTopology`). **E9.4 chiuso il 2026-08-08** (10 test, [`spec-ponti-cp94.md`](../gameplay/spec-ponti-cp94.md)): i **ponti** sono archi con stato, integrità 40 e durata (formato **v5**). Un arco è **additivo**, quindi romperlo non allunga il percorso ma lo **annulla**: fra due layer non c'è adiacenza di riserva, e basta una riga in `GraphNeighbors` perché il path **fallisca** invece di teletrasportare. `Action.ModifyArc` passa al **Blast** (la ragione che il catalogo dava per il Cleanup non vale più da E9.3), crea ponti **temporanei e conduttivi**, e la scarica elettrica ora **risale** un ponte conduttivo — prima non saliva mai di layer. Resta la copertura **temporanea** con `CreateCover` (E9.5, rinviata da E8.5) e il residuo H5 dell'editor |
@@ -169,17 +169,53 @@ budget **5 MP**, reazioni, terreni e obiettivi.
 M7 mentre la tabella *Stato attuale* — nello stesso file, cento righe sopra — diceva **🟡**. Non era una
 svista di battitura: la colonna rispondeva a *«resta lavoro di epic?»* ma si chiamava come lo stato della
 milestone, e le due domande hanno risposte diverse. Per M6 nessuna epic è aperta **e** il DoD non è
-raggiunto: le nove voci `PIE-HEXPLAY` sono tutte ⏳. Sincronizzare due colonne sarebbe stato il rimedio
+raggiunto: le nove voci `PIE-HEXPLAY` erano tutte ⏳ quando questa riga fu scritta. ⏱️ **Oggi sono 8 su 9**,
+e il DoD resta aperto su altre due condizioni — la riga qui sotto le misura tutte e cinque. Sincronizzare due colonne sarebbe stato il rimedio
 sbagliato allo stesso difetto — lo stato della milestone vive in *Stato attuale*, e qui resta solo ciò che
 questa vista sa davvero.
 
 | Milestone | Lavoro di epic residuo |
 |---|---|
-| **M6** Parità hex | **Nessuno**: E2 è chiusa. Ciò che la tiene aperta non è un'epic ma il **playtest** M6.8 — `PIE-HEXPLAY-1..9`, tutte ⏳. ➕ **Dal 2026-08-16 ha un'epic che ne abbassa il costo, non che lo chiude**: [E47](roadmap-v0.1.md#e47--mini-v01-autobattle-la-partita-che-si-guarda--p1) rende la partita **non presidiata**, così le nove voci si osservano invece di giocarle. Restano verifiche umane: E47 cambia il costo, non la natura del gate ([D-145](../decisions/RT_PDR_00_Decision_Log.md)) |
+| **M6** Parità hex | **Nessuno**: E2 è chiusa. ⏱️ **Rimisurato il 2026-09-03, e il DoD di milestone ha CINQUE condizioni — tre non sono soddisfatte.** ① le nove `PIE-HEXPLAY` verdi: **6 su 9** — `-6`, `-7` e `-8` sono 🟡; ② suite automatica verde: ✅ `1903/1903` VALIDA; ③ partita 2v2 completa **dall'avvio alla vittoria**: la parte headless è `HexMatch.PlaysToCompletion`, quella in PIE no; ④ nessun percorso da `FRTGridCoord`: ✅ **zero** file non-test lo citano; ⑤ packaging Development che si avvia e gioca: ⏳ `PIE-V01-PACKAGED` è aperta. 🔴 **Questa riga ha detto due cose false di seguito**: «`PIE-HEXPLAY-1..9` tutte ⏳» dal 2026-08-09, e poi — nella correzione dello stesso 2026-09-03 — «il playtest NON è più il residuo», che è imprecisa nel verso opposto. Il playtest **resta** il residuo, insieme al packaged: cambia solo che non è più intero. ➕ **Dal 2026-08-16 ha un'epic che ne abbassa il costo, non che lo chiude**: [E47](roadmap-v0.1.md#e47--mini-v01-autobattle-la-partita-che-si-guarda--p1) rende la partita **non presidiata**, così le nove voci si osservano invece di giocarle. Restano verifiche umane: E47 cambia il costo, non la natura del gate ([D-145](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **M7** Dismissione del quadrato | **Nessuno**: E3 è chiusa. Restano i due KPI di M7.3 che richiedono rendering ed editor (FPS client, preview) |
 | **M8** Presentazione e identità | Solo **presentazione**: personaggi animati, anelli, Ghost Timeline (E11), showcase (E15). Le regole degli eroi non hanno più abilità inerti. **Dal 2026-08-08 ha un'epic corrispondente**: [E21](roadmap-v0.1.md#e21--presentazione-e-leggibilità--p1), aperta perché il Feature Registry ha reso visibile che questo lavoro non stava in nessuna delle 20 |
 | **M9** Ambienti tattici ed editor | E8 ed **E9 sono chiuse** (E9.5, coperture temporanee, il 2026-08-09): restano gli obiettivi di **E10** e il residuo editor H5 |
 | **M10** Rete e privacy | Fuori dalla v0.1. E13 ed E14 la preparano; [D-021](../decisions/RT_PDR_00_Decision_Log.md) le aggiunge la **privacy temporale** |
+
+### Il playtest come lavoro, misurato — 2026-09-03
+
+La tabella qui sopra dice *quale epic* resta aperta per milestone. Il **playtest** non è un'epic e non
+compare in nessuna riga: è il lavoro che chiude i DoD che nessun test automatico può chiudere, ed era
+citato solo come «`PIE-HEXPLAY-1..9`, tutte ⏳» — una frase scritta il 2026-08-09 e rimasta ferma per quasi un mese, mentre quelle nove si
+chiudevano una alla volta. Ecco cosa c'è davvero, con i comandi per rimisurarlo.
+
+| Misura | Valore | Come si rilegge |
+|---|---:|---|
+| Voci nel registro PIE | **203** | `grep -c '^\| \*\*PIE-' docs/technical/test-manuali-pie.md` |
+| Non verdi (⏳ · 🟡 · ❌) | **105** | il comando canonico in testa a `test-manuali-pie.md` |
+| **Gate `G9`** — subset `RELEASE-V01` | **17 voci: 13 ✅ · 4 🟡 · 0 ⏳** | `grep -c '^\| \*\*PIE-[A-Za-z0-9.-]*\*\* \`RELEASE-V01\`'` |
+| Sedute che convocano voci | **44**, per **138** voci assegnate | `editor-sessions.yaml`, campo `verifies` |
+| ⚠️ Voci **orfane** e non verdi | **25** | nessuna seduta le nomina — vedi sotto |
+
+🔑 **Il gate di release è a 13 su 17, e nessuna delle quattro che restano è aperta**: sono tutte 🟡 —
+`PIE-HEXPLAY-6` e `-8`, `PIE-V01-ROSTER` (la cui precondizione chiede un asset che non esiste e va
+riscritta) e `PIE-V01-LOG` (che aspetta il formato del combat log). `G9` non è il collo di bottiglia della
+v0.1: nessuna delle quattro è ⏳. ⏱️ *Questa riga diceva `15 · 2` ed è stata rimisurata poche ore dopo,
+risolvendo un merge: `-6` e `-8` si erano mosse. Il comando accanto alla tabella è l'oracolo, non la cifra.*
+
+⚠️ **Le 25 voci orfane sono il collo di bottiglia vero**, e non perché siano difficili: *«una voce che non
+sta in una seduta non viene eseguita mai»* — lo dichiara il registro, ed è la ragione per cui il 2026-09-03
+sono state aperte **U42** (ventuno voci, il corpus `Visual.*`) e **U43** (sette, il velo e il puntatore),
+che da sole ne hanno assorbite ventiquattro. Il numero era **49** prima di quelle due sedute.
+
+⛔ **Tre di quelle venticinque non sono eseguibili e non lo saranno finché non cambia il motore**:
+`PIE-VIS-PUSH`, `-INTERPOSE` e `-DEFLECT` chiedono di guardare un effetto che non emette alcun evento di
+playback (§8.1 di [`scenari-validazione-visiva.md`](../technical/runbooks/scenari-validazione-visiva.md)).
+Assegnarle a una seduta significherebbe chiedere a una persona di guardare qualcosa che non viene disegnato.
+
+🔑 **E il costo di una seduta non è il numero di voci: è il numero di allestimenti.** I tre compositi di
+acceptance portano **nove** voci in **tre** Play, e U42 è passata da diciannove aperture a undici. Un
+composito compra tempo di seduta, non verdetti — le voci restano ⏳ finché qualcuno non guarda.
 | **M11** Production readiness | E7 assente; E12 ha chiuso E12.1 ma non il packaging |
 
 > **La lezione del 2026-08-07, che vale più della correzione.** M8 ed M9 erano dichiarate ⏳ qui mentre E4–E6
@@ -201,7 +237,7 @@ si chiudono una volta, aggiornando entrambe le viste.
 
 ⚠️ **Allineamento 2026-08-07**: `#31` e `#32` (M6.1/M6.2) erano **aperte a lavoro concluso** — mentre `#40`,
 la rimozione del quadrato, era chiusa: non si rimuove un substrato se la partita non è già passata all'altro.
-Chiuse con l'evidenza allegata; il residuo `PIE-HEXPLAY-1/4/5` resta dove è sempre stato, in `#38`.
+Chiuse con l'evidenza allegata; il residuo `PIE-HEXPLAY-1/4/5` restava in `#38`. ⏱️ **Chiuso: tutte e tre sono ✅ al 2026-09-03.**
 
 ⚠️ Il budget di movimento «4 celle / Dash 3» della tabella §6 del canone è **superato** dall'ADR-0003
 (5 MP con costi interi per cella). L'allineamento del canone è il checkpoint **E1.1** (issue `#27`).

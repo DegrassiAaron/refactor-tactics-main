@@ -2,6 +2,11 @@
 
 #include "CoreMinimal.h"
 #include "EditorSubsystem.h"
+#include "Replay/RTReplayStateLibrary.h"    // FRTTracedUnitState
+#include "Replay/RTReplayViewModel.h"      // FRTReplayViewModel, FRTReplayPosition
+#include "Replay/RTPlaybackSpeed.h"        // ERTPlaybackSpeed
+#include "ScenarioHarness/RTScenarioDraft.h" // FRTScenarioUnitView
+#include "Turn/RTTurnLog.h"                  // FRTTurnLogEntry
 
 #include "RTScenarioPreviewSubsystem.generated.h"
 
@@ -67,6 +72,88 @@ public:
 	 *         schermo mostrerebbe uno scenario diverso da quello selezionato, che e' peggio del vuoto.
 	 */
 	bool ShowScenario(const URTScenarioAuthoring* Authoring);
+
+	// --- Playback della risoluzione (`#1625`) -------------------------------------------------------
+
+	/**
+	 * Apre un playback sull'**ultima corsa** dello scenario mostrato, e si posiziona all'inizio.
+	 *
+	 * 🔴 **Legge dal draft e non riesegue niente**, ed e' il guardrail di `#1625`: la traccia e' quella che
+	 * la partita ha prodotto, e la corrispondenza fra i suoi `UnitId` e le unita' dello scenario arriva da
+	 * `GetLastRunScenarioIds()` — non si ricalcola.
+	 *
+	 * `false` se non c'e' uno scenario mostrato, se non si e' ancora corso, o se le tracce non si
+	 * decodificano. ⚠️ In tutti e tre i casi la preview resta **quella d'authoring**: non si apre un
+	 * playback vuoto che sembrerebbe una partita in cui non e' successo niente.
+	 */
+	bool OpenPlayback(const URTScenarioAuthoring* Authoring);
+
+	/** Chiude il playback: si torna a disegnare la posa d'authoring, che non e' mai stata toccata. */
+	void ClosePlayback();
+
+	/** `true` fra `OpenPlayback` e `ClosePlayback`. */
+	bool IsPlaybackOpen() const { return bPlaybackOpen; }
+
+	/**
+	 * Sposta i marcatori a **quel punto** della traccia, e ridisegna.
+	 *
+	 * ⚠️ **Passa da `ApplyPerspective` e non da uno `ShowUnits` diretto**, per la stessa ragione che quella
+	 * funzione gia' dichiara: la conoscenza si **ricalcola sulle nuove posizioni** — un nemico che si e'
+	 * spostato dentro la vista deve comparire, uno che ne e' uscito deve sparire. Un percorso separato
+	 * disegnerebbe i marcatori aggiornati sotto un velo fermo.
+	 *
+	 * `false` se nessun playback e' aperto.
+	 */
+	bool SetPlaybackPosition(int32 TurnNumber, ERTMatchPhase Phase);
+
+	// --- Trasporto (`#1625`, criterio 2) --------------------------------------------------------------
+	//
+	// 🔴 **Nessuna di queste funzioni calcola una fase o un turno.** Chiedono al view model di
+	// `#472` di spostarsi e poi applicano la posizione che dichiara. Quel view model, a sua volta, delega il
+	// seek a `URTReplaySeekLibrary`: `+ 1` su una fase non esiste in nessuno dei due strati, ed e' la
+	// proprieta' che il criterio 2 chiede di poter verificare **per assenza**.
+	//
+	// ⚠️ La ragione non e' estetica. «Fase successiva» non e' `Fase + 1`: le fasi presenti in un turno
+	// dipendono da cio' che vi e' successo — un turno senza reazioni non ha voci di `Blast` — e la lista
+	// vera e' quella che `BuildPhaseCache` ricava dalla traccia con il seek. Un'implementazione aritmetica
+	// si fermerebbe su fasi vuote, mostrando il campo fermo su un istante che la partita non ha attraversato.
+
+	/** Avanti/indietro di una fase. `false` se non c'e' playback o se il bordo e' gia' raggiunto. */
+	bool PlaybackStepPhase(bool bForward);
+
+	/** Avanti/indietro di un turno. Stessi rifiuti di `PlaybackStepPhase`. */
+	bool PlaybackStepTurn(bool bForward);
+
+	/** Torna **prima dell'inizio**: la posa d'authoring, per la stessa strada delle altre posizioni. */
+	bool PlaybackRewind();
+
+	/** `true` se quel passo e' possibile ora: e' cio' che abilita o spegne i pulsanti. */
+	bool CanPlaybackStepPhase(bool bForward) const;
+	bool CanPlaybackStepTurn(bool bForward) const;
+
+	/** Riproduzione automatica. `PlaybackTick` avanza e ridisegna quando la fase e' scaduta. */
+	void PlaybackPlay();
+	void PlaybackPause();
+	bool IsPlaybackPlaying() const { return PlaybackVM.IsPlaying(); }
+
+	/**
+	 * Fa scorrere il tempo. `true` **solo quando la posizione e' cambiata**, cosi' chi lo chiama a ogni
+	 * frame non ridisegna il campo sessanta volte al secondo per restare fermo.
+	 */
+	bool PlaybackTick(float DeltaSeconds);
+
+	/**
+	 * La velocita' di riproduzione ([#2095]). Agisce su `SecondsPerPhase`, non sul contenuto: cambiare
+	 * velocita' non salta ne' aggiunge fasi, e alla velocita' istantanea la fase scade subito.
+	 */
+	void SetPlaybackSpeed(ERTPlaybackSpeed Speed);
+	ERTPlaybackSpeed GetPlaybackSpeed() const { return PlaybackSpeed; }
+
+	/** Dove il playback e' adesso — con `State` che dice se turno e fase sono dichiarabili. */
+	FRTReplayPosition GetPlaybackPosition() const { return PlaybackVM.Position(); }
+
+	/** Le fasi che il turno corrente contiene DAVVERO: la lista viene dalla traccia, non dall'enum. */
+	TArray<ERTMatchPhase> PlaybackPhasesInCurrentTurn() const { return PlaybackVM.PhasesInCurrentTurn(); }
 
 	/** Toglie l'anteprima e distrugge i suoi actor. Idempotente. */
 	void ClearPreview();
@@ -162,6 +249,51 @@ private:
 
 	/** La prospettiva corrente. `OmniscientTeamId` all'inizio e dopo ogni `ClearPreview`. */
 	int32 Perspective = INDEX_NONE;
+
+	/**
+	 * Le unita' **al punto di riproduzione**, quando un playback e' aperto (`#1625`).
+	 *
+	 * 🔴 **`AllUnits` resta la posa d'AUTHORING e non si tocca**, ed e' la ragione per cui questo campo
+	 * esiste invece di sovrascriverla: la posa di partenza e' cio' che il designer ha scritto, e il playback
+	 * e' una lettura sopra di essa. Sovrascriverla renderebbe `Reset` impossibile senza rileggere il draft —
+	 * e un playback che consuma la propria sorgente non si puo' riavvolgere.
+	 *
+	 * Vuoto = nessun playback: si disegna l'authoring. E' `TOptional` nella semantica, non nel tipo: un array
+	 * vuoto e' anche un playback in cui **tutti** sono caduti, e i due casi si distinguono con `bPlaybackOpen`.
+	 */
+	TArray<FRTScenarioUnitView> PlaybackUnits;
+
+	/** La traccia dell'ultima corsa, decodificata. Vuota se non si e' aperto nessun playback. */
+	TArray<FRTTurnLogEntry> PlaybackTrace;
+
+	/** Lo schieramento da cui la ricostruzione parte: la traccia dichiara i CAMBIAMENTI, non le partenze. */
+	TArray<FRTTracedUnitState> PlaybackInitial;
+
+	/** `StableUnitId` -> identita' d'authoring, per la corsa che il playback sta mostrando. */
+	TMap<int32, FString> PlaybackScenarioIds;
+
+	/**
+	 * `true` fra `OpenPlayback` e `ClosePlayback`.
+	 *
+	 * ⚠️ Distingue «playback chiuso» da «playback aperto in cui non resta nessuno», che un array vuoto
+	 * confonderebbe: il primo disegna l'authoring, il secondo un campo vuoto — e sono due immagini diverse.
+	 */
+	bool bPlaybackOpen = false;
+
+	/**
+	 * La navigazione, presa **intera** da `#472` invece di riscritta ([ADR-0010]).
+	 *
+	 * 🔑 E' il punto in cui `#1625` diventa il *secondo consumatore* dello stesso view model: posizione,
+	 * bordi, riproduzione e fasi realmente presenti sono gia' definiti e gia' provati li'. Qui si aggiunge
+	 * solo la sorgente — tracce in memoria invece di un archivio — e si applica cio' che dichiara.
+	 */
+	FRTReplayViewModel PlaybackVM;
+
+	/** Velocita' scelta; si traduce in `PlaybackVM.SecondsPerPhase` e non tocca la traccia. */
+	ERTPlaybackSpeed PlaybackSpeed = ERTPlaybackSpeed::Normal;
+
+	/** Applica la posizione che `PlaybackVM` dichiara. E' l'unico ponte fra la navigazione e il disegno. */
+	bool ApplyPlaybackViewModelPosition();
 
 	/**
 	 * L'iscrizione a `FEditorDelegates::OnMapLoad`, che toglie l'anteprima **prima** che il mondo muoia.

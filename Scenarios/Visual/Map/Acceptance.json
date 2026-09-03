@@ -1,0 +1,74 @@
+{
+  "scenarioId": "Visual.Map.Acceptance",
+  "tags": ["visual", "animation", "map", "acceptance", "relaybasin", "cover", "door", "highground", "gadget", "phase", "riktor", "wraith"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "RelayBasin",
+
+  "_nota": "COMPOSITO DI ACCEPTANCE della mappa. Non misura una regola nuova: mette in UNA scena le tre cose che `RelayBasin` sa dire sul terreno costruito — la copertura appartiene a un BORDO, la porta appartiene a un BORDO, e l'altura NON regala danno — perche' una persona le guardi nello stesso Play. Le regole stanno gia' negli scenari singoli; qui si chiede se si VEDONO.",
+
+  "_oracolo": "Le voci `PIE-VIS-COVER`, `PIE-VIS-DOOR` e `PIE-VIS-HIGH` di `docs/technical/test-manuali-pie.md`, piu' la voce ombrello `PIE-ACC-MAP` che dichiara che la scena e' allestita e leggibile. **Tre voci, un solo Play.** I tre scenari singoli restano dove sono: questo non li sostituisce, li affianca.",
+
+  "_nota_perche_esiste": "🔑 `RelayBasin` e' il secondo cluster del registro dopo `RelayLite`: tre voci `PIE-VIS-*` non verdi, tre scenari distinti, tre Play. Misurato il 2026-09-03 incrociando le voci aperte con la fixture del loro scenario. Il gemello d'ambiente e' `Visual.Environment.Acceptance`, che comprime sei voci con lo stesso criterio.",
+
+  "_nota_tre_temi_che_condividono_una_domanda": "Le tre voci sembrano indipendenti e non lo sono: due su tre dicono che **una proprieta' del terreno appartiene a un BORDO e non a una cella**. La copertura protegge da un lato solo, la porta chiude un passaggio e non una casella. La terza — l'altura che non da' bonus — e' il controesempio che completa la lezione: qualcosa che il giocatore SI ASPETTA appartenga alla cella, e che invece non esiste affatto. Guardarle insieme e' cio' che rende la scena una spiegazione invece di tre fatti.",
+
+  "_nota_un_tema_per_turno": "⚠️ **Separati per TURNO come nel gemello d'ambiente, e per una ragione misurata sulla geometria**: la linea del colpo da (0,2,0) a (0,0,0) attraversa (0,1,0), che e' la cella di partenza del Phase della porta. Con la porta al primo turno il Phase se ne va prima che qualcuno spari, e il dubbio — *un'unita' ferma sulla traiettoria cambia l'esito?* — non entra in questa scena. Un composito che dovesse rispondere a quella domanda starebbe misurando un'altra cosa.",
+
+  "_nota_geometria": "Ogni gruppo riusa la geometria del proprio scenario singolo **senza traslare nulla**: le sette celle non collidono fra loro, verificato una per una. E' il caso fortunato che l'ambiente non aveva — li' il Gadget e il Phase si contendevano (-2,0,0) e uno dei due ha dovuto spostarsi.",
+
+  "_nota_loadout_vuoto": "🔴 **R_COV entra SPOGLIA (`\"loadout\": []`), ed e' la riga che tiene in vita il gruppo della copertura.** Il default di Riktor e' `Weapon.Impact`, che aggiunge `Push 1` all'attacco base: `ImpactShot` comincia a spostare il bersaglio, e G_COV finisce a (0,-1,0) invece che sulla cella protetta. ⚠️ **La prima stesura di questo composito l'aveva dimenticata, e il primo run l'ha misurato** — `UnitAtCell(G_COV) atteso (0,0,0), ottenuto (0,-1,0)`, lo STESSO numero che `Visual.Map.LowCoverEdge` documenta nella propria nota da quando `#1054` accese i default. Copiare un allestimento significa copiarne anche le righe che sembrano dettagli: quella dichiara una variabile tenuta ferma, non una preferenza.",
+
+  "_nota_via_l_avversario_inerte": "`Visual.Map.ClosedDoor` schiera un Riktor a (4,0,0) che non fa niente: serve a quello scenario per avere due squadre in campo. Qui non serve — la squadra 1 ha gia' quattro unita' — e portarlo dentro avrebbe aggiunto una figura ferma di cui nessuno sa dire perche' e' li'. Una scena di acceptance si legge anche da cio' che NON contiene.",
+
+  "_nota_anti_vacuita": "Ogni gruppo porta un'assertion che cade se il suo fenomeno non avviene: `UnitAtCell P_DOOR (1,1,0)` per la deviazione attorno alla porta, `UnitHpEquals G_COV 76` per i due colpi che la copertura tratta in modo diverso, e `UnitHpEquals G_HIGH 53` per i due colpi identici che l'altura NON differenzia. 🔑 **Il 53 e' il numero piu' importante della scena**: e' la prova che il bonus non c'e', e sarebbe piu' basso se ci fosse.",
+
+  "units": [
+    { "id": "P_DOOR", "hero": "Hero.Phase", "team": 0, "cell": [0, 1, 0] },
+
+    { "id": "G_COV", "hero": "Hero.Gadget", "team": 0, "cell": [0, 0, 0] },
+    { "id": "W_COV", "hero": "Hero.Wraith", "team": 1, "cell": [0, -2, 0] },
+    { "id": "R_COV", "hero": "Hero.Riktor", "team": 1, "cell": [0, 2, 0], "loadout": [] },
+
+    { "id": "G_HIGH", "hero": "Hero.Gadget", "team": 0, "cell": [1, 0, 0] },
+    { "id": "W_HI", "hero": "Hero.Wraith", "team": 1, "cell": [2, -2, 0] },
+    { "id": "W_LO", "hero": "Hero.Wraith", "team": 1, "cell": [3, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — LA PORTA E' DI UN BORDO (`PIE-VIS-DOOR`). P_DOOR arriva a (1,1,0) GIRANDO: il passaggio diretto e' chiuso da un bordo, non da una cella, quindi la destinazione resta raggiungibile e il percorso si allunga. Cio' che si guarda e' che il tragitto racconti da se' perche' e' lungo — se sembra un giro senza motivo, la porta non si sta vedendo. Va per primo anche perche' libera (0,1,0), che il colpo del turno dopo attraversa.",
+      "intents": [
+        { "unit": "P_DOOR", "move": [[1, 1, 0]] }
+      ]
+    },
+    {
+      "_turno": "T2 — LA COPERTURA E' DI UN BORDO (`PIE-VIS-COVER`). Due colpi simultanei sullo stesso bersaglio, da due lati opposti: uno attraversa il bordo protetto e l'altro no, quindi arrivano con entita' DIVERSE. G_COV risponde a W_COV, cosi' la scena e' uno scambio e non un'esecuzione. E' il caso in cui un solo numero finale non basterebbe: la differenza fra i due impatti e' l'oggetto.",
+      "intents": [
+        { "unit": "G_COV", "ability": "Hero.Gadget.ArcPulse", "target": "W_COV" },
+        { "unit": "W_COV", "ability": "Hero.Wraith.PulseShot", "target": "G_COV" },
+        { "unit": "R_COV", "ability": "Hero.Riktor.ImpactShot", "target": "G_COV" }
+      ]
+    },
+    {
+      "_turno": "T3 — L'ALTURA NON DA' BONUS (`PIE-VIS-HIGH`). Due Wraith IDENTICI colpiscono lo stesso bersaglio con la stessa abilita': W_HI dalla cresta, W_LO dal piano. I due colpi devono arrivare UGUALI ([D-024]), e cio' che si guarda e' che nulla nella presentazione suggerisca il contrario — nessun numero piu' grande, nessun effetto piu' vistoso dall'alto. E' l'unica delle tre voci in cui il difetto sarebbe un'aspettativa del giocatore, non una regola.",
+      "intents": [
+        { "unit": "W_HI", "ability": "Hero.Wraith.PulseShot", "target": "G_HIGH" },
+        { "unit": "W_LO", "ability": "Hero.Wraith.PulseShot", "target": "G_HIGH" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 3 },
+
+    { "type": "UnitAtCell", "unit": "P_DOOR", "cell": [1, 1, 0] },
+
+    { "type": "UnitHpEquals", "unit": "G_COV", "value": 76 },
+    { "type": "UnitAtCell", "unit": "G_COV", "cell": [0, 0, 0] },
+
+    { "type": "UnitHpEquals", "unit": "G_HIGH", "value": 53 },
+    { "type": "UnitAlive", "unit": "G_HIGH", "value": true },
+    { "type": "UnitAtCell", "unit": "G_HIGH", "cell": [1, 0, 0] }
+  ]
+}

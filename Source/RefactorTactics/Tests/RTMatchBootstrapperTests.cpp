@@ -214,4 +214,230 @@ bool FRTBootstrapperFailsClosedOnUnknownHeroTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Senza mappa non nasce niente, e l'esito lo dice invece di lasciarlo indovinare.
+ *
+ * 🔴 **E' la prima guardia di `Bootstrap`, e non aveva un test.** Un chiamante che passa un `HexMap` nullo
+ * riceve un `FRTMatchBootstrapOutcome` di default — `bModeLatched` falso, `bUnitsSpawned` falso — e non un
+ * crash: e' cio' che permette a `ARTGameMode` di trattare l'assenza della mappa come una condizione, non
+ * come un incidente. Senza questo test, sostituire il `return` con un `check()` passerebbe la suite.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBootstrapperFailsClosedWithoutHexMapTest,
+	"RefactorTactics.Match.BootstrapperFailsClosedWithoutHexMap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBootstrapperFailsClosedWithoutHexMapTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("TurnManager"), TM))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	FRTStartupReport Report;
+	const FRTMatchBootstrapOutcome Outcome = FRTMatchBootstrapper::Bootstrap(
+		/*HexMap=*/ nullptr, TM, RTBootstrapperTestsLocal::MakeConfig(), Report);
+
+	TestFalse(TEXT("senza mappa la modalita' non si aggancia"), Outcome.bModeLatched);
+	TestFalse(TEXT("senza mappa non si spawna nessuno"), Outcome.bUnitsSpawned);
+	TestEqual(TEXT("e nel mondo non compare nessuna unita'"),
+		RTBootstrapperTestsLocal::CountBootstrappedUnits(World), 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * Un'arena a raggio zero non e' una mappa piccola: e' una mappa assente, e la partita non si allestisce.
+ *
+ * 🔴 **Fail-closed su una causa DIVERSA da quella di `DoesNotLatchModeWhenFormatFails`.** Quel test rompe
+ * il formato (`RoundLimit = 0`, asset presente e invalido); questo lascia il formato sano e toglie la
+ * **mappa**, e il rifiuto arriva dalla validazione incrociata: «formato e mappa non combaciano: mappa
+ * assente». Sono i due lati della stessa porta, e coprirne uno solo lascerebbe passare l'altro.
+ *
+ * ⚠️ **Il ramo `Start.Num() != CellsNeeded` NON e' quello che questo test attraversa, ed e' stato misurato.**
+ * Con `GeneratedDemoArena` non e' raggiungibile: a raggio 0 l'arena ha **zero** celle e la validazione
+ * formato/mappa esce prima; a raggio 1 ne ha sette, e il 2v2 ne chiede quattro. Per raggiungerlo servirebbe
+ * una mappa popolata con celle **non percorribili** — `PickStartCells` filtra quelle — cioe' una fixture che
+ * oggi non esiste. Il ramo resta scoperto, e questa nota e' la sua registrazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBootstrapperFailsClosedOnEmptyArenaTest,
+	"RefactorTactics.Match.BootstrapperFailsClosedOnEmptyArena",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBootstrapperFailsClosedOnEmptyArenaTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("TurnManager"), TM))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	FRTMatchBootstrapConfig Vuota = RTBootstrapperTestsLocal::MakeConfig();
+	Vuota.DemoArenaRadius = 0; // zero celle: non una mappa piccola, una mappa che non c'e'
+
+	// Il rifiuto e' un `Error` dichiarato, e l'automation lo tratta come fallimento se non lo si attende.
+	AddExpectedError(TEXT("Formato e mappa non combaciano"), EAutomationExpectedErrorFlags::Contains, 1);
+
+	FRTStartupReport Report;
+	const FRTMatchBootstrapOutcome Outcome = FRTMatchBootstrapper::Bootstrap(HexMap, TM, Vuota, Report);
+
+	TestFalse(TEXT("mappa assente: la modalita' non si aggancia"), Outcome.bModeLatched);
+	TestFalse(TEXT("mappa assente: nessuna unita' schierata"), Outcome.bUnitsSpawned);
+	TestEqual(TEXT("e nel mondo non ne compare nessuna"),
+		RTBootstrapperTestsLocal::CountBootstrappedUnits(World), 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * La formazione e il formato devono dire lo stesso numero, e chi non li allinea lo scopre subito.
+ *
+ * 🔴 **Non e' una preferenza di stile: e' il vincolo che tiene insieme due sorgenti indipendenti.**
+ * `Rules.UnitsPerTeam` viene dal formato (un data asset o un formato spedito); `Team0Heroes`/`Team1Heroes`
+ * vengono dalla configurazione del chiamante. Se divergono, `Bootstrap` esce senza allestire — e il log
+ * nomina entrambe le vie di riparazione, «allinea `Team0Heroes` al formato, o il formato alla formazione».
+ *
+ * Il test schiera **un** eroe dove il formato ne chiede due, cioe' il caso che si presenta davvero: un
+ * roster modificato a mano senza toccare il formato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBootstrapperNeedsFormationAlignedToFormatTest,
+	"RefactorTactics.Match.BootstrapperNeedsFormationAlignedToFormat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBootstrapperNeedsFormationAlignedToFormatTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("TurnManager"), TM))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	FRTMatchBootstrapConfig Disallineata = RTBootstrapperTestsLocal::MakeConfig();
+	Disallineata.Team0Heroes = { TEXT("Hero.Gadget") }; // uno solo, dove il formato ne chiede due
+
+	// Il disallineamento e' un `Error` dichiarato: va atteso, o l'automation lo conta come fallimento.
+	AddExpectedError(TEXT("la formazione della squadra 0 ne dichiara"),
+		EAutomationExpectedErrorFlags::Contains, 1);
+
+	FRTStartupReport Report;
+	const FRTMatchBootstrapOutcome Outcome = FRTMatchBootstrapper::Bootstrap(HexMap, TM, Disallineata, Report);
+
+	TestFalse(TEXT("formazione disallineata: non si schiera nessuno"), Outcome.bUnitsSpawned);
+	TestEqual(TEXT("nemmeno la squadra che era allineata"),
+		RTBootstrapperTestsLocal::CountBootstrappedUnits(World), 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * Su un livello con unita' proprie l'allestimento non interviene, **ma la modalita' si applica lo stesso**.
+ *
+ * 🔴 **E' la correzione di un difetto trovato in code review, e finora nessun test la teneva.** Il commento
+ * al ramo lo racconta: il blocco del Planning era stato spostato sopra il `return` per questo scenario,
+ * l'assegnazione di `bIsBotControlled` no — quindi il log dichiarava «entrambe le squadre al bot» mentre la
+ * squadra 0 non pianificava nessuno, e la partita macinava turni vuoti fino al `RoundLimit`.
+ *
+ * ⚠️ **Non e' il doppione di `Match.Autobattle.AppliesToUnitsAlreadyInTheLevel`**, ed e' misurato: quello
+ * entra da `ARTGameMode::SetupHexMatch` — la porta di produzione — e conta le unita' rimaste umane; questo
+ * entra da `Bootstrap` e legge l'**esito**, cioe' i tre campi che il GameMode non guarda. E' la meta' che
+ * il commento in testa a questo file dichiara di coprire: «che `FRTMatchBootstrapper` sia allestibile da
+ * solo». La mutazione del 2026-09-03 li ha fatti cadere **entrambi**, ed e' la prova che guardano lo stesso
+ * ramo da due porte diverse invece di ripetersi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBootstrapperAppliesAutobattleToUnitsAlreadyInTheLevelTest,
+	"RefactorTactics.Match.BootstrapperAppliesAutobattleToUnitsAlreadyInTheLevel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBootstrapperAppliesAutobattleToUnitsAlreadyInTheLevelTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Posata = World->SpawnActor<ARTUnit>();
+	if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("TurnManager"), TM)
+		|| !TestNotNull(TEXT("unita' posata a mano"), Posata))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// Premessa: l'unita' del livello NON e' del bot. Senza questa riga il test passerebbe anche se
+	// l'assegnazione tornasse sotto il `return`, perche' il default potrebbe essere gia' quello giusto.
+	Posata->bIsBotControlled = false;
+
+	FRTMatchBootstrapConfig Autobattle = RTBootstrapperTestsLocal::MakeConfig();
+	Autobattle.bAutobattle = true;
+	Autobattle.AutobattleSourceLabel = TEXT("test");
+
+	FRTStartupReport Report;
+	const FRTMatchBootstrapOutcome Outcome = FRTMatchBootstrapper::Bootstrap(HexMap, TM, Autobattle, Report);
+
+	TestTrue(TEXT("la modalita' si aggancia anche senza allestire"), Outcome.bModeLatched);
+	TestTrue(TEXT("e l'autobattle risulta in effetto"), Outcome.bAutobattleInEffect);
+	TestFalse(TEXT("l'allestimento automatico NON interviene"), Outcome.bUnitsSpawned);
+	TestTrue(TEXT("l'unita' gia' nel livello e' passata al bot"), Posata->bIsBotControlled);
+	TestEqual(TEXT("e resta l'unica nel mondo: nessuno spawn aggiuntivo"),
+		RTBootstrapperTestsLocal::CountBootstrappedUnits(World), 1);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * Lo stesso eroe schierato due volte entra una volta sola, e la seconda copia non prende una cella.
+ *
+ * 🔴 **Il duplicato passa il controllo di allineamento**: due voci contro `UnitsPerTeam = 2` sono il numero
+ * giusto, quindi il ramo della formazione non scatta e il difetto arriva fino allo spawn. La guardia sta
+ * dentro il ciclo (`Spawned.Contains`) e fa `continue`, non `return`: la partita si allestisce, con
+ * un'unita' in meno da un lato.
+ *
+ * ⚠️ E' un fail-**open** dichiarato, diverso dagli altri rami di questa suite: si sceglie una squadra
+ * incompleta invece di nessuna partita. Il test lo pinna com'e', senza giudicarlo — se un giorno la scelta
+ * cambiasse in un `return`, questo test cadrebbe e sarebbe la sede giusta per discuterlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBootstrapperIgnoresTheSecondCopyOfAHeroTest,
+	"RefactorTactics.Match.BootstrapperIgnoresTheSecondCopyOfAHero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBootstrapperIgnoresTheSecondCopyOfAHeroTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("TurnManager"), TM))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	FRTMatchBootstrapConfig Doppia = RTBootstrapperTestsLocal::MakeConfig();
+	Doppia.Team0Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Gadget") }; // due voci, un solo eroe
+
+	FRTStartupReport Report;
+	const FRTMatchBootstrapOutcome Outcome = FRTMatchBootstrapper::Bootstrap(HexMap, TM, Doppia, Report);
+
+	TestTrue(TEXT("il duplicato non impedisce l'allestimento"), Outcome.bUnitsSpawned);
+	TestEqual(TEXT("ma le unita' sono tre, non quattro: la seconda copia e' ignorata"),
+		RTBootstrapperTestsLocal::CountBootstrappedUnits(World), 3);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

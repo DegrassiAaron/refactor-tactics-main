@@ -50,7 +50,12 @@ enum class ERTDamageStage : uint8
 	ConditionalBonus,
 	/** Copertura, per-colpo e direzionale: dipende da dove sta chi SUBISCE (`D-206`). */
 	Cover,
-	/** Delta di primo colpo per bersaglio: `Status.Exposed` `+5`, `Action.Deflect` `-20`. Vale una volta. */
+	/**
+	 * Delta di primo colpo per bersaglio: `Status.Exposed` `+5`, `Status.Marked` `+6`. Vale una volta.
+	 * ⛔ **`Action.Deflect` NON e' piu' qui**: da [D-309] e' un pool e produce `AbsorptionPool`. La riga lo
+	 * nominava, e questo enum e' cio' che etichetta lo stadio nel breakdown di danno — cioe' l'unico posto
+	 * in cui un lettore del TurnLog scopre da dove viene un numero.
+	 */
 	FirstHitDelta,
 	/** Delta su OGNI colpo: `Action.Brace` `-10`, senza il gate «una volta sola» (CP 5.2). */
 	EveryHitDelta,

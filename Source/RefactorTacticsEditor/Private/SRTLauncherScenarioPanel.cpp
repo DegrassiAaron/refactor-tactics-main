@@ -27,6 +27,45 @@ namespace
 	 * Funzione libera e non membro: il pannello non possiede l'anteprima — la chiede al sottosistema, che
 	 * la possiede per tutta la vita dell'editor. Un membro suggerirebbe una proprieta' che non c'e'.
 	 */
+	/** Il sottosistema d'anteprima, o `nullptr` fuori dall'editor. */
+	URTScenarioPreviewSubsystem* PreviewSubsystem()
+	{
+		return GEditor ? GEditor->GetEditorSubsystem<URTScenarioPreviewSubsystem>() : nullptr;
+	}
+
+	/** Il nome leggibile di una velocita', preso dall'enum: il `DisplayName` e' gia' dichiarato li'. */
+	FText DescribeSpeed(ERTPlaybackSpeed Velocita)
+	{
+		if (const UEnum* Tipo = StaticEnum<ERTPlaybackSpeed>())
+		{
+			return Tipo->GetDisplayNameTextByValue(static_cast<int64>(Velocita));
+		}
+		return FText::GetEmpty();
+	}
+
+	/**
+	 * Dove il playback e' arrivato, in una riga.
+	 *
+	 * ⚠️ **Si guarda `State`, non i valori.** `TurnNumber` e `Phase` portano un default anche quando non
+	 * significano niente — prima dell'inizio e a fine partita — e stamparli comunque direbbe «turno 0, fase
+	 * Planning» come se fosse un istante della partita.
+	 */
+	FText DescribePosition(const FRTReplayPosition& Posizione)
+	{
+		if (!Posizione.HasTurn())
+		{
+			return LOCTEXT("PlaybackAtStart", "Posa iniziale.");
+		}
+
+		const UEnum* TipoFase = StaticEnum<ERTMatchPhase>();
+		const FText Fase = TipoFase
+			? TipoFase->GetDisplayNameTextByValue(static_cast<int64>(Posizione.Phase))
+			: FText::GetEmpty();
+
+		return FText::Format(LOCTEXT("PlaybackAt", "Turno {0} · {1}"),
+			FText::AsNumber(Posizione.TurnNumber), Fase);
+	}
+
 	void ClearScenarioPreview()
 	{
 		if (URTScenarioPreviewSubsystem* Preview = GEditor ? GEditor->GetEditorSubsystem<URTScenarioPreviewSubsystem>() : nullptr)
@@ -291,6 +330,14 @@ void SRTLauncherScenarioPanel::Construct(const FArguments&)
 			})
 		]
 
+		// --- trasporto del playback (`#1625`) ---------------------------------------------------------
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(RowPadding)
+		[
+			BuildTransportRow()
+		]
+
 		// --- superfici del workspace, dal registro ----------------------------------------------------
 		+ SVerticalBox::Slot()
 		.AutoHeight()
@@ -299,6 +346,14 @@ void SRTLauncherScenarioPanel::Construct(const FArguments&)
 			BuildSurfaceRow()
 		]
 	];
+
+	// Le sei velocita' vengono dalla libreria, non da un elenco riscritto qui: l'enum ha gia' un posto in
+	// cui e' enumerato, e un secondo elenco divergerebbe alla prima velocita' aggiunta.
+	SpeedOptions.Reset();
+	for (const ERTPlaybackSpeed Velocita : URTPlaybackSpeedLibrary::AllSpeeds())
+	{
+		SpeedOptions.Add(MakeShared<ERTPlaybackSpeed>(Velocita));
+	}
 
 	RefreshPerspectiveOptions();
 	RefreshFilters();
@@ -602,6 +657,208 @@ void SRTLauncherScenarioPanel::OnSearchTextChanged(const FText& NewText)
 
 	// Solo la ricerca: nessuna rilettura dell'indice mentre si digita. Vedi `RefreshFilters`.
 	RefreshVisible();
+}
+
+
+// --- Trasporto del playback (`#1625`) ---------------------------------------------------------------
+//
+// 🔴 **Qui non si calcola nessuna fase e nessun turno.** Ogni pulsante chiama una funzione del
+// sottosistema, che chiede al view model di `#472` di spostarsi. In questo blocco non compare aritmetica
+// su `ERTMatchPhase` ne' su `TurnNumber` — ed e' la proprieta' che il criterio 2 chiede di poter
+// verificare **per assenza**, leggendo.
+//
+// ⚠️ E' anche la regola che l'intestazione di questo file dichiara per tutto il resto: cio' che puo'
+// sbagliare non sta nel guscio. Una «fase successiva» scritta qui sarebbe una regola che nessun test vede.
+
+FReply SRTLauncherScenarioPanel::OnRunScenarioClicked()
+{
+	URTScenarioPreviewSubsystem* Preview = PreviewSubsystem();
+	if (!Preview || SelectedId.IsEmpty() || !Authoring.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	// Il draft si riapre per la corsa e si richiude subito: e' lo stesso ciclo della selezione, e il
+	// pannello continua a non possedere una sessione.
+	FString ApriErrore;
+	if (Authoring->OpenById(SelectedId, ApriErrore) != ERTScenarioAuthoringResult::Success)
+	{
+		ReadoutError = ApriErrore;
+		Authoring->Close();
+		RefreshReadout();
+		return FReply::Handled();
+	}
+
+	FRTScenarioRunReport Referto;
+	FString CorsaErrore;
+	const ERTScenarioAuthoringResult Esito = Authoring->Run(Referto, CorsaErrore);
+
+	if (Esito != ERTScenarioAuthoringResult::Success)
+	{
+		// ⛔ Una corsa fallita NON apre un playback. Il campo resterebbe sulla posa d'authoring, che e'
+		// indistinguibile da uno scenario in cui non succede niente — e sono due affermazioni diverse.
+		ReadoutError = CorsaErrore;
+		Authoring->Close();
+		RefreshReadout();
+		return FReply::Handled();
+	}
+
+	// ⚠️ Prima il campo torna a mostrare lo scenario: `OpenPlayback` pretende una preview viva, e muove i
+	// marcatori di QUELLA. Senza, una corsa lanciata mentre l'anteprima non c'e' non aprirebbe niente, e il
+	// pulsante sembrerebbe non funzionare.
+	Preview->ShowScenario(Authoring.Get());
+
+	ReadoutError = Preview->OpenPlayback(Authoring.Get())
+		? FString()
+		: FString(TEXT("la corsa non ha lasciato una traccia riproducibile"));
+
+	Authoring->Close();
+	RefreshReadout();
+	return FReply::Handled();
+}
+
+void SRTLauncherScenarioPanel::Tick(const FGeometry& AllottedGeometry, const double CurrentTime, const float DeltaTime)
+{
+	SCompoundWidget::Tick(AllottedGeometry, CurrentTime, DeltaTime);
+
+	// Il delta si passa e basta. Il sottosistema ridisegna solo quando la posizione cambia, quindi qui non
+	// serve — e non si deve — decidere niente in base al tempo trascorso.
+	if (URTScenarioPreviewSubsystem* Preview = PreviewSubsystem())
+	{
+		Preview->PlaybackTick(DeltaTime);
+	}
+}
+
+TSharedRef<SWidget> SRTLauncherScenarioPanel::BuildTransportRow()
+{
+	// Un pulsante di passo: etichetta, suggerimento, l'azione e la condizione che lo abilita. Entrambe
+	// interrogano il sottosistema — il pannello non tiene una copia di dove il playback e' arrivato.
+	auto Passo = [](FText Etichetta, FText Aiuto, TFunction<bool()> Agisci, TFunction<bool()> Puo)
+	{
+		return SNew(SButton)
+			.Text(Etichetta)
+			.ToolTipText(Aiuto)
+			.IsEnabled_Lambda([Puo]() { return Puo(); })
+			.OnClicked_Lambda([Agisci]() { Agisci(); return FReply::Handled(); });
+	};
+
+	return SNew(SHorizontalBox)
+
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
+		[
+			SNew(SButton)
+			.Text(LOCTEXT("RunScenario", "Esegui"))
+			.ToolTipText(LOCTEXT("RunScenarioTip",
+				"Esegue lo scenario selezionato e apre il playback della risoluzione nel viewport."))
+			.IsEnabled_Lambda([this]() { return !SelectedId.IsEmpty(); })
+			.OnClicked(this, &SRTLauncherScenarioPanel::OnRunScenarioClicked)
+		]
+
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 2.0f, 0.0f)
+		[
+			SNew(SButton)
+			.Text_Lambda([]()
+			{
+				const URTScenarioPreviewSubsystem* P = PreviewSubsystem();
+				return (P && P->IsPlaybackPlaying())
+					? LOCTEXT("PlaybackPause", "Pausa")
+					: LOCTEXT("PlaybackRun", "Riproduci");
+			})
+			.ToolTipText(LOCTEXT("PlaybackRunTip", "Avvia o ferma la riproduzione automatica."))
+			.IsEnabled_Lambda([]()
+			{
+				const URTScenarioPreviewSubsystem* P = PreviewSubsystem();
+				return P && P->IsPlaybackOpen();
+			})
+			.OnClicked_Lambda([]()
+			{
+				if (URTScenarioPreviewSubsystem* P = PreviewSubsystem())
+				{
+					if (P->IsPlaybackPlaying()) { P->PlaybackPause(); } else { P->PlaybackPlay(); }
+				}
+				return FReply::Handled();
+			})
+		]
+
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 2.0f, 0.0f)
+		[
+			Passo(LOCTEXT("PrevTurn", "|<"), LOCTEXT("PrevTurnTip", "Turno precedente."),
+				[]() { URTScenarioPreviewSubsystem* P = PreviewSubsystem(); return P && P->PlaybackStepTurn(false); },
+				[]() { const URTScenarioPreviewSubsystem* P = PreviewSubsystem(); return P && P->CanPlaybackStepTurn(false); })
+		]
+
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 2.0f, 0.0f)
+		[
+			Passo(LOCTEXT("PrevPhase", "<"), LOCTEXT("PrevPhaseTip", "Fase precedente."),
+				[]() { URTScenarioPreviewSubsystem* P = PreviewSubsystem(); return P && P->PlaybackStepPhase(false); },
+				[]() { const URTScenarioPreviewSubsystem* P = PreviewSubsystem(); return P && P->CanPlaybackStepPhase(false); })
+		]
+
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 2.0f, 0.0f)
+		[
+			Passo(LOCTEXT("NextPhase", ">"), LOCTEXT("NextPhaseTip", "Fase successiva."),
+				[]() { URTScenarioPreviewSubsystem* P = PreviewSubsystem(); return P && P->PlaybackStepPhase(true); },
+				[]() { const URTScenarioPreviewSubsystem* P = PreviewSubsystem(); return P && P->CanPlaybackStepPhase(true); })
+		]
+
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
+		[
+			Passo(LOCTEXT("NextTurn", ">|"), LOCTEXT("NextTurnTip", "Turno successivo."),
+				[]() { URTScenarioPreviewSubsystem* P = PreviewSubsystem(); return P && P->PlaybackStepTurn(true); },
+				[]() { const URTScenarioPreviewSubsystem* P = PreviewSubsystem(); return P && P->CanPlaybackStepTurn(true); })
+		]
+
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
+		[
+			Passo(LOCTEXT("PlaybackReset", "Reset"),
+				LOCTEXT("PlaybackResetTip", "Torna alla posa iniziale e ferma la riproduzione."),
+				[]() { URTScenarioPreviewSubsystem* P = PreviewSubsystem(); return P && P->PlaybackRewind(); },
+				[]() { const URTScenarioPreviewSubsystem* P = PreviewSubsystem(); return P && P->IsPlaybackOpen(); })
+		]
+
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
+		[
+			SAssignNew(SpeedCombo, SComboBox<TSharedPtr<ERTPlaybackSpeed>>)
+			.OptionsSource(&SpeedOptions)
+			.OnGenerateWidget_Lambda([](TSharedPtr<ERTPlaybackSpeed> Opzione)
+			{
+				return SNew(STextBlock).Text(DescribeSpeed(Opzione.IsValid() ? *Opzione : ERTPlaybackSpeed::Normal));
+			})
+			.OnSelectionChanged_Lambda([](TSharedPtr<ERTPlaybackSpeed> Nuova, ESelectInfo::Type)
+			{
+				if (!Nuova.IsValid())
+				{
+					return;
+				}
+				if (URTScenarioPreviewSubsystem* P = PreviewSubsystem())
+				{
+					P->SetPlaybackSpeed(*Nuova);
+				}
+			})
+			[
+				SNew(STextBlock)
+				.Text_Lambda([]()
+				{
+					// La verita' e' del sottosistema, come per la prospettiva: una copia locale divergerebbe.
+					const URTScenarioPreviewSubsystem* P = PreviewSubsystem();
+					return DescribeSpeed(P ? P->GetPlaybackSpeed() : ERTPlaybackSpeed::Normal);
+				})
+			]
+		]
+
+		+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+		[
+			SNew(STextBlock)
+			.Text_Lambda([]()
+			{
+				const URTScenarioPreviewSubsystem* P = PreviewSubsystem();
+				if (!P || !P->IsPlaybackOpen())
+				{
+					return LOCTEXT("NoPlayback", "Nessun playback: esegui uno scenario.");
+				}
+				return DescribePosition(P->GetPlaybackPosition());
+			})
+		];
 }
 
 #undef LOCTEXT_NAMESPACE

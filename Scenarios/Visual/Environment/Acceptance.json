@@ -1,0 +1,96 @@
+{
+  "scenarioId": "Visual.Environment.Acceptance",
+  "tags": ["visual", "animation", "environment", "acceptance", "relaylite", "gadget", "phase", "riktor", "wraith"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "RelayLite",
+
+  "_nota": "COMPOSITO DI ACCEPTANCE del terreno. Non misura una regola nuova: mette in UNA scena i cinque fenomeni di superficie che `RelayLite` porta — elettrico sull'acqua, scivolata sul ghiaccio, carica rifiutata dal rough, fumo che accorcia il tiro, fuoco che brucia e acqua che lo spegne — perche' una persona li guardi nello stesso Play. Le regole stanno gia' negli scenari singoli; qui si chiede se si VEDONO, che e' la domanda di classe B.",
+
+  "_oracolo": "Le voci `PIE-VIS-COMBO`, `PIE-VIS-ICE`, `PIE-VIS-ROUGH`, `PIE-VIS-SMOKE`, `PIE-VIS-FIRE` e `PIE-VIS-WETFIRE` di `docs/technical/test-manuali-pie.md`, piu' la voce ombrello `PIE-ACC-ENVIRONMENT` che dichiara che la scena e' allestita e leggibile. **Sei voci, un solo Play**: e' il ROI che giustifica il composito. I sei scenari singoli restano dove sono — questo non li sostituisce, li affianca.",
+
+  "_nota_perche_esiste": "🔑 **Misurato il 2026-09-03 incrociando le voci aperte con la fixture del loro scenario**: `RelayLite` e' il cluster piu' denso del registro — sei voci `PIE-VIS-*` non verdi, sei scenari distinti, sei Play. Nessun'altra fixture ne concentra altrettante. Il costo di eseguirle oggi e' sei volte «scegli lo scenario, premi Play, guarda»; qui e' una volta.",
+
+  "_nota_un_fenomeno_per_turno": "⚠️ **I cinque fenomeni sono separati per TURNO e non affiancati nello spazio, ed e' una scelta contro il rischio.** L'acqua della spina centrale CONDUCE, e la scarica del T1 si propaga su di essa e sui due nodi conduttivi: due esperimenti che toccassero il terreno nello stesso Blast potrebbero interferire in un modo che nessuna assertion di questo file distingue. Separandoli, ogni turno ha un solo soggetto — che e' anche il modo in cui una persona riesce a guardarli senza perderne uno.",
+
+  "_nota_ordine": "L'elettrico va PRIMA di tutto e l'acqua che spegne il fuoco per ULTIMA, e nemmeno questo e' estetica: `Hero.Phase.PressureJet` applica `Wet`, e uno stato che si propaga su una rete conduttiva gia' scaricata non e' la stessa cosa di uno che la trova intatta. Con la scarica al T1 la rete e' nello stato che `Visual.Combat.WaterElectric` misura; il resto avviene dopo, quando nessuno guarda piu' l'acqua.",
+
+  "_nota_geometria": "Ogni gruppo riusa la geometria del proprio scenario singolo, **traslata solo dove collideva**. Le collisioni erano due, e la seconda si e' vista solo ESEGUENDO. (1) `(-2,0,0)` era contesa fra il Gadget di `WaterElectric` e il Phase di `WetExtinguishesFire`: il Gadget si sposta a `(-3,0,0)`, che dista 3 dall'acqua centrale ed e' dentro la portata 5 di `LinearDischarge`. (2) 🔴 **`Hero.Phase.PressureJet` ha forma LINEA, e la linea da `(-2,0,0)` a `(0,-2,0)` passa per `(-1,-1,0)` — dove sta G_ROU.** Il primo run l'ha misurato: `UnitHpEquals(G_ROU) atteso 90, ottenuto 79`, cioe' i 16 del getto meno i 5 di scudo base. Il Phase e' quindi salito a `(0,-4,0)`, da cui il getto raggiunge il bersaglio a distanza 2 **senza attraversare nessuna cella occupata**. ⚠️ Sposta CHI SPARA e non chi guarda: G_ROU e' il bersaglio della carica rifiutata, e muoverlo avrebbe cambiato l'esperimento invece della traiettoria. Le altre celle sono quelle originali, quindi i numeri restano **ereditati da sei misure** invece che ricalcolati.",
+
+  "_nota_fuoco_e_acqua_sono_una_scena_sola": "🔑 **`Visual.Environment.FireOnEnter` e `Visual.Environment.WetExtinguishesFire` sono lo STESSO allestimento a due tempi**, e qui si fondono in una unita' sola: W_FIRE entra nel fuoco al T4 — ed e' `PIE-VIS-FIRE` — poi il getto di P_WET lo spegne al T5, che e' `PIE-VIS-WETFIRE`. Due voci, due turni, una unita'. La distanza temporale fra ingresso e getto e' **un turno**, la stessa dello scenario originale: il `Burning` dura un turno, e allungarla lo lascerebbe scadere da solo, misurando un'assenza invece di uno spegnimento.",
+
+  "_nota_le_unita_ferme": "Le unita' che non agiscono in un turno restano in campo e non dichiarano intent. Nessuna sta su acqua o su un nodo conduttivo — `(0,0)`, `(0,-1)`, `(0,1)`, `(1,-1)`, `(-1,1)` — tranne chi ci entra di proposito al T1: e' la condizione che rende la propagazione del T1 attribuibile a quel solo esperimento. `R_SMO` a `(1,0,0)` e' la piu' vicina all'acqua e non la tocca.",
+
+  "_nota_anti_vacuita": "Ogni gruppo porta almeno un'assertion che cade se il suo fenomeno non avviene: `UnitHpEquals W_ELE 63` per la scarica sull'acqua, `UnitAtCell G_ICE (-2,1,0)` per la scivolata (la cella e' oltre la fine del percorso dichiarato, quindi non e' raggiungibile camminando), `UnitAtCell R_ROU (-3,-1,0)` per la carica rifiutata, `UnitHpEquals R_SMO 120` per il colpo che il fumo non lascia arrivare, e `UnitHpEquals W_FIRE 61` per il fuoco piu' lo spegnimento — accanto a `UnitAtCell W_FIRE (0,-1,0)`, che pinna la spinta del getto. Un composito senza queste sarebbe una bella animazione di cinque cose che non sono successe.",
+
+  "units": [
+    { "id": "G_ELE", "hero": "Hero.Gadget", "team": 0, "cell": [-3, 0, 0] },
+    { "id": "W_ELE", "hero": "Hero.Wraith", "team": 1, "cell": [3, 0, 0] },
+
+    { "id": "G_ICE", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 4, 0] },
+
+    { "id": "R_ROU", "hero": "Hero.Riktor", "team": 1, "cell": [-3, -1, 0] },
+    { "id": "G_ROU", "hero": "Hero.Gadget", "team": 0, "cell": [-1, -1, 0] },
+
+    { "id": "G_SMO", "hero": "Hero.Gadget", "team": 0, "cell": [1, 4, 0] },
+    { "id": "R_SMO", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0] },
+
+    { "id": "P_WET", "hero": "Hero.Phase", "team": 0, "cell": [0, -4, 0] },
+    { "id": "W_FIRE", "hero": "Hero.Wraith", "team": 1, "cell": [0, -3, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — ACQUA + ELETTRICITA' (`PIE-VIS-COMBO`). W_ELE scatta nella spina d'acqua in fase Dash e il terreno lo bagna; la scarica lineare di G_ELE lo trova gia' bagnato e il bonus si applica. 90 - (32 - 5 di scudo base, [D-224]) = 63. Va per primo perche' la rete conduttiva dev'essere intatta.",
+      "intents": [
+        { "unit": "W_ELE", "dash": "Hero.Wraith.PassingBlade", "dashTo": [0, 0, 0] },
+        { "unit": "G_ELE", "ability": "Hero.Gadget.LinearDischarge", "target": "W_ELE" }
+      ]
+    },
+    {
+      "_turno": "T2 — GHIACCIO e ROUGH (`PIE-VIS-ICE`, `PIE-VIS-ROUGH`), due movimenti su lati opposti che non si vedono fra loro. G_ICE cammina due celle e TERMINA sul ghiaccio di (-2,2): scivola di una, e finisce su (-2,1) che non aveva dichiarato. R_ROU prova la carica verso G_ROU: la via passa dal rough di (-2,-1), il rifiuto avviene in PIANIFICAZIONE e a schermo non deve accadere niente — che e' precisamente cio' che si guarda.",
+      "intents": [
+        { "unit": "G_ICE", "move": [[-2, 3, 0], [-2, 2, 0]] },
+        { "unit": "R_ROU", "dash": "Hero.Riktor.Ram", "dashTo": [-1, -1, 0] }
+      ]
+    },
+    {
+      "_turno": "T3 — FUMO (`PIE-VIS-SMOKE`). G_SMO spara a R_SMO lungo la colonna q=1, che attraversa il fumo di (1,2): il bersaglio SI VEDE e non si puo' colpire, perche' il fumo accorcia la portata invece di accecare. R_SMO resta a 120 pieni.",
+      "intents": [
+        { "unit": "G_SMO", "ability": "Hero.Gadget.ArcPulse", "target": "R_SMO" }
+      ]
+    },
+    {
+      "_turno": "T4 — FUOCO (`PIE-VIS-FIRE`). W_FIRE entra nella fascia in fiamme di (0,-2): il danno d'ingresso e' immediato, e con lui arriva `Burning` — il conto alla rovescia del turno dopo. E' la meta' giudicabile della voce: il tick del Cleanup non ha un evento proprio e si vede solo dalla barra che scende.",
+      "intents": [
+        { "unit": "W_FIRE", "move": [[0, -2, 0]] }
+      ]
+    },
+    {
+      "_turno": "T5 — L'ACQUA SPEGNE (`PIE-VIS-WETFIRE`). P_WET, da (0,-4,0), colpisce W_FIRE col getto — la traiettoria e' libera e non attraversa nessuno, vedi `_nota_geometria`: il `Wet` che arriva spegne il `Burning` prima che il Cleanup lo faccia scattare di nuovo. Cio' che si guarda e' un'ASSENZA — i danni che non arrivano — ed e' la ragione per cui questo turno deve seguire immediatamente il precedente. 🔑 **E il getto SPINGE**: W_FIRE arretra di una cella lungo la traiettoria e finisce su (0,-1,0), che e' acqua. Lo scenario originale non lo mostra — non asserisce la cella affatto — e qui si vede, perche' la spinta porta il bruciato proprio dentro la spina d'acqua. Misurato eseguendo: la prima stesura attendeva (0,-2,0) ed e' caduta.",
+      "intents": [
+        { "unit": "P_WET", "ability": "Hero.Phase.PressureJet", "target": "W_FIRE" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 5 },
+
+    { "type": "UnitAtCell", "unit": "W_ELE", "cell": [0, 0, 0] },
+    { "type": "UnitHpEquals", "unit": "W_ELE", "value": 63 },
+
+    { "type": "UnitAtCell", "unit": "G_ICE", "cell": [-2, 1, 0] },
+
+    { "type": "UnitAtCell", "unit": "R_ROU", "cell": [-3, -1, 0] },
+    { "type": "UnitAtCell", "unit": "G_ROU", "cell": [-1, -1, 0] },
+    { "type": "UnitHpEquals", "unit": "G_ROU", "value": 90 },
+
+    { "type": "UnitHpEquals", "unit": "R_SMO", "value": 120 },
+    { "type": "UnitAtCell", "unit": "G_SMO", "cell": [1, 4, 0] },
+
+    { "type": "UnitAtCell", "unit": "W_FIRE", "cell": [0, -1, 0] },
+    { "type": "UnitHpEquals", "unit": "W_FIRE", "value": 61 },
+    { "type": "UnitAlive", "unit": "W_FIRE", "value": true }
+  ]
+}
