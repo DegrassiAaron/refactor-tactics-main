@@ -264,10 +264,17 @@ public:
 	 *
 	 * Un colpo non eleggibile passa INTERO e non consuma nulla: il budget resta per chi arriva dal davanti.
 	 *
+	 * 🔑 **La provenienza la dichiara il CHIAMANTE, e da [D-309] non e' un dettaglio**: i pool di produzione
+	 * sono due — `Deflect` e poi `Guard` ([D-312]) — e questa funzione non puo' dedurre quale dei due la sta
+	 * usando. Finche' l'etichetta era un letterale nel corpo, un assorbimento della reazione finiva nel
+	 * breakdown attribuito alla Guardia (`#2213`).
+	 *
 	 * @param PoolByTarget  budget per bersaglio, indicizzato come `TargetIndex`. Valori <= 0 non assorbono.
 	 * @param bEligible     parallelo ad `Attacks`. Se piu' corto, i colpi oltre la fine NON sono eleggibili.
+	 * @param SourceId      la decisione o il tag che governa QUESTO pool, nel vocabolario di
+	 *                      `FRTDamageStageEntry::SourceId`: `D-292 · Status.Guarded`, `D-309 · Action.Deflect`.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static TArray<FRTAttack> ApplyAbsorptionPool(const TArray<FRTAttack>& Attacks,
-		const TArray<int32>& PoolByTarget, const TArray<bool>& bEligible);
+		const TArray<int32>& PoolByTarget, const TArray<bool>& bEligible, FName SourceId);
 };

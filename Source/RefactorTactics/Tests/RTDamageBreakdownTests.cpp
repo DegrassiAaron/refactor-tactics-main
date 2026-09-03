@@ -174,9 +174,9 @@ bool FRTBreakdownGuardTellsTwoStoriesTest::RunTest(const FString&)
 
 	TMap<int32, FRTDamageBreakdown> Frontal, Behind;
 	URTCombatResolver::ResolveAttacksWithBreakdown(
-		Units, URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, Frontally), Frontal);
+		Units, URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, Frontally, FName(TEXT("D-292 · Status.Guarded"))), Frontal);
 	URTCombatResolver::ResolveAttacksWithBreakdown(
-		Units, URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, FromBehind), Behind);
+		Units, URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, FromBehind, FName(TEXT("D-292 · Status.Guarded"))), Behind);
 
 	const FRTDamageStageEntry* FrontPool = Find(Frontal[1], ERTDamageStage::AbsorptionPool);
 	if (TestNotNull(TEXT("frontale: il pool ha morso"), FrontPool))
@@ -187,6 +187,70 @@ bool FRTBreakdownGuardTellsTwoStoriesTest::RunTest(const FString&)
 
 	TestNull(TEXT("alle spalle: il pool non compare affatto"), Find(Behind[1], ERTDamageStage::AbsorptionPool));
 	TestEqual(TEXT("alle spalle: passano tutti e 12"), Behind[1].Stages.Last().After, 12);
+
+	return true;
+}
+
+/**
+ * DUE POOL, DUE PROVENIENZE — `#2213`.
+ *
+ * 🔴 **Il difetto che questo test e' nato per prendere**: `ApplyAbsorptionPool` scriveva l'etichetta di
+ * stadio come un LETTERALE nel proprio corpo — `D-292 · Status.Guarded` — e da [D-309] i chiamanti di
+ * produzione sono DUE (`RTTurnManager.cpp`: prima il pool di `Deflect`, poi quello di `Guard`, [D-312]).
+ * Un assorbimento della reazione finiva quindi nel breakdown attribuito alla GUARDIA, con un numero di
+ * decisione e un tag di stato che non la riguardano.
+ *
+ * 🔑 **Perche' nessuno se n'era accorto**: nessun test asserisce un `SourceId`, e nessun consumatore di
+ * produzione legge il breakdown — `ResolveAttacksWithBreakdown` ha per chiamanti il suo wrapper e i test.
+ * Il difetto era LATENTE, non invisibile: il breakdown esiste da `#1951` perche' il TurnLog dica da dove
+ * viene un numero, e i suoi consumatori arrivano con `#1937`.
+ *
+ * ⚠️ **Cio' che questo test NON prova, ed e' dichiarato invece che taciuto.** Chiama `ApplyAbsorptionPool`
+ * direttamente, quindi resta verde qualunque provenienza passino le due chiamate reali del `TurnManager`.
+ * Non e' pigrizia: `ARTTurnManager` passa da `ResolveAttacks`, il wrapper che costruisce il breakdown e lo
+ * SCARTA in un `TMap` locale, quindi dal percorso di partita non esce niente da osservare. E' lo stesso
+ * limite di `Combat.DeflectPoolAbsorbsBeforeGuardPool` — ma li' `Combat.GuardAndDeflectAbsorbInDeclaredOrder`
+ * lo chiude passando dal manager, perche' l'ordine dei pool si vede negli HP. Un'ETICHETTA no: finche'
+ * nessuno legge il breakdown, il lato chiamante e' protetto da una code review e non da un test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBreakdownPoolNamesItsOwnSourceTest,
+	"RefactorTactics.Damage.BreakdownPoolNamesItsOwnSource",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBreakdownPoolNamesItsOwnSourceTest::RunTest(const FString&)
+{
+	using namespace RTBreakdownTests;
+
+	const TArray<FRTUnitCombatState> Units = MakeUnits();
+	const TArray<FRTAttack> Attacks = { MakeAttack(1, 12, 0) };
+	const TArray<bool> Eligible = { true };
+
+	// Le due chiamate nell'ordine in cui `RTTurnManager` le compone ([D-312]): `Deflect` prima, `Guard` poi.
+	const TArray<int32> DeflectPool = { 0, 20, 0 };
+	const TArray<int32> GuardPool   = { 0, 15, 0 };
+
+	TMap<int32, FRTDamageBreakdown> ByDeflect, ByGuard;
+	URTCombatResolver::ResolveAttacksWithBreakdown(
+		Units, URTCombatResolver::ApplyAbsorptionPool(Attacks, DeflectPool, Eligible,
+			FName(TEXT("D-309 · Action.Deflect"))), ByDeflect);
+	URTCombatResolver::ResolveAttacksWithBreakdown(
+		Units, URTCombatResolver::ApplyAbsorptionPool(Attacks, GuardPool, Eligible,
+			FName(TEXT("D-292 · Status.Guarded"))), ByGuard);
+
+	const FRTDamageStageEntry* FromDeflect = Find(ByDeflect[1], ERTDamageStage::AbsorptionPool);
+	const FRTDamageStageEntry* FromGuard   = Find(ByGuard[1],   ERTDamageStage::AbsorptionPool);
+
+	if (!TestNotNull(TEXT("il pool del Deflect ha morso"), FromDeflect)) { return false; }
+	if (!TestNotNull(TEXT("il pool della Guardia ha morso"), FromGuard)) { return false; }
+
+	// IL DIFETTO, in una riga: prima di [D-309] queste due erano lo stesso `FName`.
+	TestEqual(TEXT("l'assorbimento del Deflect nomina la SUA decisione"),
+		FromDeflect->SourceId, FName(TEXT("D-309 · Action.Deflect")));
+	TestEqual(TEXT("quello della Guardia continua a nominare la propria"),
+		FromGuard->SourceId, FName(TEXT("D-292 · Status.Guarded")));
+
+	// ANTI-VACUITA': senza questa riga il test passerebbe anche se l'etichetta fosse ancora un letterale
+	// uguale per entrambi — basterebbe che il letterale fosse quello del Deflect.
+	TestNotEqual(TEXT("le due provenienze non coincidono"), FromDeflect->SourceId, FromGuard->SourceId);
 
 	return true;
 }
