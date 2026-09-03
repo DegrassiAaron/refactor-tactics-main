@@ -92,8 +92,11 @@ una reazione con trigger. Il suo -15 resta dov'era.
 **prima** che i colpi siano risolti, aggiornando anche lo snapshot `States` da cui il resolver legge.
 
 *Perché*: uno scudo temporaneo **scade nel Cleanup dello stesso turno**. Applicato dopo la risoluzione non
-proteggerebbe da nulla, mai: sarebbe il quarto caso di «dato che nessuno legge». La simmetria con `Deflect`
-(un pool da 20 danni assorbibili dentro il boundary, [D-309]) è la stessa regola vista da un'altra angolazione.
+proteggerebbe da nulla, mai: sarebbe il quarto caso di «dato che nessuno legge». La simmetria con `Deflect` è la
+stessa regola vista da un'altra angolazione: anche la sua mitigazione entra nella risoluzione del boundary che
+l'ha innescata, e non dopo. ⚠️ **Ciò che non è più simmetrico è la FORMA**: da
+[`D-309`](../decisions/RT_PDR_00_Decision_Log.md) `Deflect` è un pool da 20 assorbibili dentro il boundary, non
+uno sconto sul singolo colpo che l'ha innescata. Il momento in cui si applica è condiviso; la portata no.
 
 ### D4 — `FRTTurnLogEntry::ActionId` e formato serializzato v3
 
