@@ -1034,9 +1034,22 @@ struct FRTTurnLogEntry
 	 * un tempo. Chi legge questo campo puo' dire *a quale barriera* una voce appartiene; non puo' dire
 	 * quale voce di quella barriera sia venuta prima, perche' quella domanda non ha una risposta.
 	 *
-	 * ⚠️ **`0` non distingue «primo micro-step» da «traccia che non li portava».** Il campo vale `0` su
-	 * entrambi, e la differenza esiste in un posto solo: la **versione del formato**. Una traccia
-	 * antecedente a `WithMicroStep` e' phase-only, e chi vuole saperlo guarda la versione, non il valore.
+	 * ⚠️ **`INDEX_NONE` significa «questa voce non appartiene a un ciclo di micro-step»** (`#2260`), e non
+	 * e' un caso raro: e' il valore della maggior parte delle voci. Blast, status, hazard, objective e i
+	 * rifiuti in Planning nascono in fasi che un ciclo non ce l'hanno. **Non e' l'assenza di un dato — e'
+	 * un dato**, e un lettore che filtrasse i negativi come «non valorizzati» scarterebbe le voci che
+	 * dichiarano la propria natura.
+	 *
+	 * ⚠️ **Fra due VERSIONI lo `0` resta ambiguo, e la differenza vive nella versione del formato.** Una
+	 * traccia antecedente a `WithMicroStep` non porta il campo: la deserializzazione le lascia il default
+	 * qui sotto — `0`, non `INDEX_NONE` — su **ogni** voce, ed e' phase-only per costruzione. Chi vuole
+	 * distinguerla da una traccia nuova guarda la **versione**, non il valore.
+	 *
+	 * 🔑 Il default resta `0` **proprio per questo**: governa la lettura degli archivi che il campo non ce
+	 * l'hanno, ed e' il comportamento che `#1880` ha dichiarato e messo sotto test. A scegliere
+	 * `INDEX_NONE` e' chi SCRIVE — `ARTTurnManager::CurrentMicroStepIndex` — non chi legge un formato
+	 * vecchio. DENTRO una traccia `WithMicroStep`, invece, lo `0` significa una cosa sola: il PRIMO
+	 * boundary, perche' le voci senza ciclo valgono `INDEX_NONE`.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	int32 MicroStepIndex = 0;

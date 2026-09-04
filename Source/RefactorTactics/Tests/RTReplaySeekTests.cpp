@@ -305,4 +305,71 @@ bool FRTReplaySeekBoundaryTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * ⛔ **`INDEX_NONE` non e' un boundary, e chiederlo non trova niente** (`#2260`).
+ *
+ * Da quando il resolver scrive il campo, le voci nate fuori da un ciclo di micro-step — Blast, status,
+ * hazard, i rifiuti in Planning — valgono `INDEX_NONE`. Sono molte e condividono il valore, ma **non sono
+ * un gruppo simultaneo**: nessun boundary le ha decise insieme, perche' non c'e' nessun boundary.
+ *
+ * 🔴 **Il difetto che questo test impedisce e' un fail-OPEN.** Senza il rifiuto, la scansione lineare
+ * troverebbe la prima voce con `MicroStepIndex == INDEX_NONE` e risponderebbe `Found`, trasformando
+ * *«questa voce non appartiene a un ciclo»* in una posizione indirizzabile. E' lo stesso errore che
+ * `SeekToTurn` rifiuta sullo `0` dei turni non dichiarati: li' il precedente e' scritto, qui lo si applica.
+ *
+ * ⚠️ Il test verifica anche che il rifiuto **non dipenda dalla fase**: vale su una fase che esiste nella
+ * traccia e su una che non c'e'. La domanda e' mal posta a prescindere da dove la si faccia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplaySeekRejectsUnaddressableBoundaryTest,
+	"RefactorTactics.Replay.Seek.UnaddressableBoundaryIsRejected",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplaySeekRejectsUnaddressableBoundaryTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Traccia;
+	{
+		// Una voce DENTRO un ciclo: boundary `0` di Move, indirizzabile.
+		FRTTurnLogEntry A = Entry(1, ERTMatchPhase::Move, ERTLogCategory::Move, 1);
+		A.MicroStepIndex = 0;
+		Traccia.Add(A);
+
+		// Due voci FUORI da ogni ciclo, come le scrive oggi il resolver in una fase che non ne ha.
+		FRTTurnLogEntry B = Entry(1, ERTMatchPhase::Blast, ERTLogCategory::Combat, 2);
+		B.MicroStepIndex = INDEX_NONE;
+		Traccia.Add(B);
+		FRTTurnLogEntry C = Entry(1, ERTMatchPhase::Blast, ERTLogCategory::Combat, 9);
+		C.MicroStepIndex = INDEX_NONE;
+		Traccia.Add(C);
+	}
+	URTTurnLogLibrary::SortTurnLog(Traccia);
+
+	int32 Indice = 12345; // un valore riconoscibile: il seek non deve toccarlo quando non trova
+
+	// --- ⛔ il rifiuto, su una fase CHE ESISTE nella traccia -------------------------------------------
+	TestEqual(TEXT("chiedere INDEX_NONE su una fase presente non trova un boundary"),
+		URTReplaySeekLibrary::SeekToBoundary(Traccia, ERTMatchPhase::Blast, INDEX_NONE, Indice),
+		ERTReplaySeekResult::BoundaryNotFound);
+	TestEqual(TEXT("e non ha scritto una posizione"), Indice, 12345);
+
+	// --- ⛔ e su una fase che NON esiste: la domanda resta mal posta -----------------------------------
+	TestEqual(TEXT("chiedere INDEX_NONE su una fase assente non trova un boundary"),
+		URTReplaySeekLibrary::SeekToBoundary(Traccia, ERTMatchPhase::Dash, INDEX_NONE, Indice),
+		ERTReplaySeekResult::BoundaryNotFound);
+
+	// ⚠️ Qualunque negativo, non solo `INDEX_NONE`: e' il segno a dire «non e' una barriera».
+	TestEqual(TEXT("un negativo qualsiasi e' rifiutato allo stesso modo"),
+		URTReplaySeekLibrary::SeekToBoundary(Traccia, ERTMatchPhase::Blast, -7, Indice),
+		ERTReplaySeekResult::BoundaryNotFound);
+
+	// --- ✅ e il boundary vero resta raggiungibile: il rifiuto non ha rotto il caso buono ---------------
+	TestEqual(TEXT("il boundary 0 di Move si trova ancora"),
+		URTReplaySeekLibrary::SeekToBoundary(Traccia, ERTMatchPhase::Move, 0, Indice),
+		ERTReplaySeekResult::Found);
+	if (Traccia.IsValidIndex(Indice))
+	{
+		TestEqual(TEXT("ed e' una voce di quel boundary"), Traccia[Indice].MicroStepIndex, 0);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

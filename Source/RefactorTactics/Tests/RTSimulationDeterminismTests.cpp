@@ -21,6 +21,7 @@
 // scritta apposta per passare.
 
 #include "Misc/AutomationTest.h"
+#include "Replay/RTBoundaryChecksum.h"
 #include "RTWorldFixtures.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
@@ -1064,6 +1065,98 @@ bool FRTReplayArchiveResimulationTest::RunTest(const FString&)
 
 	PulisciRadice(RadiceRif);
 	PulisciRadice(RadiceRig);
+	return true;
+}
+
+
+/**
+ * **Il checksum per boundary dice DOVE, e sa fallire a meta' corsa** (`#2189`).
+ *
+ * 🔴 **L'anti-vacuita' e' nello stesso test, ed e' il criterio della issue**: un gate che sa solo dire
+ * «uguali» non misura niente. Qui la stessa traccia viene confrontata con una sua copia **alterata a un
+ * boundary intermedio**, e il gate deve nominare quel boundary — non l'ultimo, non «la partita».
+ *
+ * ⚠️ **La divergenza si inietta in un turno di mezzo, non nell'ultimo.** E' la differenza fra questo gate
+ * e `FinalStateHash`: quello vedrebbe comunque un finale diverso, e non saprebbe dire da dove. Iniettarla
+ * all'ultimo turno renderebbe i due indistinguibili, cioe' misurerebbe una proprieta' che gia' esisteva.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBoundaryChecksumNamesTheDivergenceTest,
+	"RefactorTactics.Replay.Verifier.BoundaryChecksumNamesWhereTheyDiverge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBoundaryChecksumNamesTheDivergenceTest::RunTest(const FString&)
+{
+	// --- una traccia con quattro boundary in tre turni ------------------------------------------------
+	auto Voce = [](int32 Turno, ERTMatchPhase Fase, int32 UnitId, const FRTCellId& Da, const FRTCellId& A)
+	{
+		FRTTurnLogEntry E;
+		E.TurnNumber = Turno;
+		E.Phase = Fase;
+		E.Category = ERTLogCategory::Move;
+		E.UnitId = UnitId;
+		E.SrcCell = Da;
+		E.TgtCell = A;
+		E.ActionId = FName(TEXT("Action.Move"));
+		return E;
+	};
+
+	TArray<FRTTurnLogEntry> Traccia;
+	Traccia.Add(Voce(1, ERTMatchPhase::Move, 1, FRTCellId(0, 0), FRTCellId(1, 0)));
+	Traccia.Add(Voce(2, ERTMatchPhase::Move, 1, FRTCellId(1, 0), FRTCellId(2, 0)));
+	Traccia.Add(Voce(3, ERTMatchPhase::Move, 1, FRTCellId(2, 0), FRTCellId(3, 0)));
+
+	TArray<FRTTracedUnitState> Iniziale;
+	{
+		FRTTracedUnitState S;
+		S.UnitId = 1;
+		S.Cell = FRTCellId(0, 0);
+		Iniziale.Add(S);
+	}
+
+	const TArray<FRTBoundaryChecksum> A =
+		URTBoundaryChecksumLibrary::ChecksumsAlongTrace(nullptr, Traccia, Iniziale);
+
+	// ⛔ ANTI-VACUITA' 1: senza piu' di un boundary il test non potrebbe distinguere «a meta'» da «alla
+	// fine», che e' la proprieta' che esiste per misurare.
+	if (!TestTrue(TEXT("la traccia attraversa piu' di un boundary"), A.Num() >= 3)) { return false; }
+
+	// ⛔ ANTI-VACUITA' 2: i checksum non devono essere tutti uguali, o il confronto sarebbe cieco.
+	TestNotEqual(TEXT("boundary diversi hanno checksum diversi"), A[0].Hash, A[1].Hash);
+
+	// --- il verso VERDE: la stessa traccia con se' stessa ---------------------------------------------
+	const TArray<FRTBoundaryChecksum> Uguale =
+		URTBoundaryChecksumLibrary::ChecksumsAlongTrace(nullptr, Traccia, Iniziale);
+
+	TestEqual(TEXT("due esecuzioni identiche non divergono"),
+		URTBoundaryChecksumLibrary::FirstDivergence(A, Uguale), INDEX_NONE);
+	TestEqual(TEXT("e il messaggio e' vuoto"),
+		URTBoundaryChecksumLibrary::DescribeDivergence(A, Uguale), FString());
+
+	// --- 🔴 il verso ROSSO: una divergenza al SECONDO boundary di tre -------------------------------
+	TArray<FRTTurnLogEntry> Alterata = Traccia;
+	Alterata[1].TgtCell = FRTCellId(9, 9); // il turno 2 finisce altrove
+
+	const TArray<FRTBoundaryChecksum> B =
+		URTBoundaryChecksumLibrary::ChecksumsAlongTrace(nullptr, Alterata, Iniziale);
+
+	const int32 Dove = URTBoundaryChecksumLibrary::FirstDivergence(A, B);
+
+	// ⚠️ **Il primo boundary resta uguale**: e' il fatto che rende utile questa misura. Un gate che
+	// segnalasse la divergenza dall'inizio non aiuterebbe a cercare.
+	TestEqual(TEXT("il primo boundary NON diverge"), A[0].Hash, B[0].Hash);
+	TestEqual(TEXT("la divergenza e' al secondo boundary, non all'ultimo"), Dove, 1);
+
+	const FString Messaggio = URTBoundaryChecksumLibrary::DescribeDivergence(A, B);
+	TestTrue(TEXT("il messaggio nomina il boundary"), Messaggio.Contains(A[1].ToString()));
+	TestTrue(TEXT("e non e' vuoto"), !Messaggio.IsEmpty());
+
+	// --- lunghezze diverse: si dice, invece di confrontare fin dove entrambe arrivano -----------------
+	TArray<FRTBoundaryChecksum> Corta = A;
+	Corta.Pop();
+	TestEqual(TEXT("una sequenza piu' corta diverge dove finisce"),
+		URTBoundaryChecksumLibrary::FirstDivergence(A, Corta), Corta.Num());
+	TestTrue(TEXT("e il messaggio lo dice"),
+		URTBoundaryChecksumLibrary::DescribeDivergence(A, Corta).Contains(TEXT("numero diverso")));
+
 	return true;
 }
 
