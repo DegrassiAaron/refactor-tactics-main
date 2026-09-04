@@ -67,7 +67,7 @@ canale deve aggiungere una riga, e chi ne chiude uno deve cambiarne lo stato.
 
 | Canale | Cosa rivelerebbe | Stato | Misura |
 |---|---|---|---|
-| `ARTHUD::DrawHUD` — overlay e modello | nome eroe, barra HP e scudo di ogni unità viva | ✅ **chiuso** | `ShouldDrawUnitOverlay` decide, e `if (!bIsKnownToObserver) { continue; }` salta l'unità |
+| `ARTHUD::DrawHUD` — overlay e modello | nome eroe, barra HP e scudo di ogni unità viva | ✅ **chiuso** | `ShouldDrawUnitOverlay` decide — interrogata da `ARTHUD::UpdateObserverVeil` (`Tick`) dal 2026-09-04, [#2246](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2246) — e `if (!Unit->IsKnownToObserver()) { continue; }` salta l'unità. Un produttore, due consumatori: il modello e la sovrapposizione |
 | Combat log | la cella esatta di ogni movimento, e i punteggi di utility del bot con cella e bersaglio | ✅ **chiuso** ([D-223]) | l'HUD chiama `GetRecentEventsForTeam(PlayerTeamId)`; `GetRecentEvents()` non ha **più alcun chiamante fuori dai test** |
 | Traccia post-lock | il percorso realmente eseguito da ogni unità, entrambe le squadre | ✅ **chiuso** (`#1497`) | `FRTMoveRoute::CellVerdicts` porta un verdetto **per cella**; `ARTTurnManager::VisibleTrailFor` tronca, e `DrawHUD` disegna solo il tratto che rende |
 | Sagoma dell'ultimo contatto | dove un nemico era l'ultima volta | ✅ **per costruzione** | `ContactGhostTargetForUnit` è complementare a `ShouldDrawUnitOverlay`: o l'uno o l'altra |
@@ -454,11 +454,19 @@ insegna, ed è la voce più economica dell'intera spec.
 
 ### A2 — I due leak si chiudono
 
-`ARTHUD::DrawHUD` continua a iterare gli attori, ma **salta** quelli che la vista non conosce
-(`ShouldDrawUnitOverlay`). *(Questa riga diceva «smette di iterare `GetAllActorsOfClass` e itera
-`FRTKnowledgeView`»: non è ciò che il Task 3 ha costruito, ed è una differenza che conta — il ciclo resta sugli
-attori, quindi ogni cosa che il ciclo legge dall'attore va filtrata a sua volta.)* Il combat log
-passa dallo stesso filtro prima di essere disegnato.
+`ARTHUD::DrawHUD` continua a iterare gli attori, ma **salta** quelli che la vista non conosce. *(Questa riga
+diceva «smette di iterare `GetAllActorsOfClass` e itera `FRTKnowledgeView`»: non è ciò che il Task 3 ha
+costruito, ed è una differenza che conta — il ciclo resta sugli attori, quindi ogni cosa che il ciclo legge
+dall'attore va filtrata a sua volta.)* Il combat log passa dallo stesso filtro prima di essere disegnato.
+
+> 🔄 **Aggiornato il 2026-09-04 ([#2246](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2246)): chi INTERROGA `ShouldDrawUnitOverlay` non è più `DrawHUD`.**
+> Il verdetto lo prende `ARTHUD::UpdateObserverVeil`, chiamato da `ARTHUD::Tick`; `DrawHUD` lo **legge** da
+> `ARTUnit::IsKnownToObserver()`. La regola e il suo esito non cambiano: cambia che il velo non dipende più
+> dall'essere in un percorso di disegno.
+>
+> 🔴 **Il difetto che lo ha imposto**: `DrawHUD` comincia con `if (!Canvas) { return; }` e `bKnownToObserver`
+> nasce `true`, quindi *«il driver non ha girato»* e *«tutto è noto»* producevano lo stesso schermo. La
+> coppia è ora distinta da `RefactorTactics.Veil.DriverRunsOnTick`.
 
 Senza questa voce tutte le altre sono cosmesi: si può nascondere il modello, ma il nome e la barra HP
 dell'unità nascosta resterebbero stampati a schermo, e il log ne stamperebbe la cella esatta.
