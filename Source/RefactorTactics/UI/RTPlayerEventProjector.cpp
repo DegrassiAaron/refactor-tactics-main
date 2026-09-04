@@ -50,6 +50,21 @@ namespace
 				OutImportance = ERTPlayerEventImportance::Minor;
 				return true;
 
+			// Lo scivolamento e' `Important` e non `Minor` come `Moved` (#2253). L'argomento di §D — «il
+			// giocatore lo vede gia' animato» — vale per un movimento CHIESTO: qui l'unita' e' finita dove il
+			// giocatore non l'aveva mandata, ed e' esattamente il genere di cosa che la riga esiste per
+			// raccontare. Sta con `Displaced` e `DisplacementResisted`, che sono l'altra faccia dello stesso
+			// fatto: spostamenti SUBITI.
+			//
+			// 🔴 **Senza questo ramo lo scivolamento sparisce dal feed**: prima di `Slid` la voce portava
+			// `Moved` e produceva un evento; con un valore nuovo non tradotto qui cadrebbe nel `default` e
+			// l'unita' si sposterebbe senza che nulla lo dica. Un esito nuovo va aggiunto in DUE posti — il
+			// rendering leggibile e questa proiezione — e il secondo non fallisce a compilazione.
+			case ERTMoveOutcome::Slid:
+				OutType = ERTPlayerEventType::Moved;
+				OutImportance = ERTPlayerEventImportance::Important;
+				return true;
+
 			// `Stayed` e `SupersededByDash` non sono accaduti: non c'e' niente da raccontare.
 			default:
 				return false;

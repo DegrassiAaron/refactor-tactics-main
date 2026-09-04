@@ -11,9 +11,11 @@
 #include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary: la rotta e il suo filtro
 #include "Turn/RTCombatLog.h" // FRTLogSubject, FRTCombatLogLine: i tipi del combat log
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTReplayRecording.h" // FRTReplayRecording: l'archivio in scrittura vive fuori (#2286)
 #include "Replay/RTReplayManifest.h"
 #include "Ability/RTActionDef.h" // FRTActionDef: l'impatto della carica porta con se' la definizione
 #include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
+#include "Turn/RTPacingRecorder.h" // FRTPacingRecorder: la telemetria vive fuori (#1818)
 #include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
 #include "Turn/RTPlaybackLibrary.h" // FRTPhaseTime: la fase ha due termini, e il budget ne tocca uno solo
 #include "Map/RTHexCellData.h" // ERTHexSurface: il terreno dinamico ricorda la superficie originale (CP 8.4)
@@ -489,7 +491,7 @@ public:
 	void RefreshTeamKnowledgeNow();
 
 	/** Identita' della registrazione in corso. Non valida finche' `BeginReplayRecording` non e' stata chiamata. */
-	FGuid GetReplayMatchId() const { return ReplayManifest.MatchId; }
+	FGuid GetReplayMatchId() const { return ReplayRecording.GetMatchId(); }
 
 	/** Ultimo checksum di stato catturato. `0` = mai calcolato (registrazione spenta, o nessun turno risolto). */
 	int64 GetPendingFinalStateHash() const { return PendingFinalStateHash; }
@@ -533,7 +535,7 @@ public:
 	FRTTeamKnowledgeRefreshedSignature OnTeamKnowledgeRefreshed;
 
 	/** Campioni di pacing della sessione corrente (sola lettura; telemetria, non stato di gioco). */
-	const TArray<FRTPacingSample>& GetPacingSamples() const { return PacingSamples; }
+	const TArray<FRTPacingSample>& GetPacingSamples() const { return Pacing.GetSamples(); }
 
 	/** Se vero, ogni turno appende una riga in Saved/RT/pacing_<sessione>.csv. L'accumulo in memoria e' sempre attivo. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Pacing")
@@ -1346,27 +1348,25 @@ protected:
 	 */
 	TArray<FRTPacingUnitFacts> CollectPacingUnitFacts() const;
 
-	void BeginPacingSample();
-	void ClosePacingSample();
-	void AppendPacingRow(const FRTPacingSample& Sample);
-
-	TArray<FRTPacingSample> PacingSamples;
-	/** Vedi `SetUnattendedSession`. Spinto dall'allestimento, mai dedotto qui. */
-	bool bUnattendedSession = false;
-	FRTPacingSample PacingCurrent;
 	/**
-	 * Vero fra `BeginPacingSample()` e `ClosePacingSample()`.
+	 * La telemetria di pacing, uscita da questa classe con l'ottava fetta di `#1818`.
 	 *
-	 * ⚠️ Non e' ridondante con `PacingPlanningStart != 0.0`: quel confronto risponde «l'origine e' stata
-	 * scritta almeno una volta», che dopo il primo turno resta vero per sempre — e il campione di un turno
-	 * successivo aperto da un percorso che non passa dal timer si misurerebbe da un'origine di due turni
-	 * fa. Lo stato si chiede a un flag, non lo si deduce da un valore.
+	 * 🔑 Qui restava **stato** — dieci membri — per una cosa che nessuna regola legge. Ora l'orchestratore
+	 * possiede il registratore e gli passa i fatti; la sequenza e i tempi vivono in `FRTPacingRecorder`, che
+	 * si esercita **senza un mondo**.
 	 */
-	bool bPacingSampleOpen = false;
-	double PacingPlanningStart = 0.0;  // FPlatformTime::Seconds() all'apertura della pianificazione
-	double PacingLastInput = 0.0;
-	bool bPacingHadInput = false;
-	FString PacingFilePath;            // vuoto finche' non si scrive la prima riga
+	FRTPacingRecorder Pacing;
+
+	/**
+	 * Vero quando nessun umano sta pianificando: lo dichiara chi allestisce la sessione.
+	 *
+	 * ⚠️ **Non e' stato di pacing**, benche' il pacing sia l'unico a leggerlo: e' un fatto della SESSIONE, e i
+	 * due accessori pubblici qui sopra lo espongono. E' rimasto qui quando il registratore e' uscito, e la
+	 * prima stesura di quella fetta se l'era portato via — il compilatore l'ha detto subito, ed e' la ragione
+	 * per cui un taglio si verifica compilando invece che rileggendo.
+	 */
+	bool bUnattendedSession = false;
+
 
 	/**
 	 * Registra un evento: lo scrive nel log LogRT (completo, diagnosi per sviluppatore) e lo accoda al
@@ -1460,7 +1460,14 @@ protected:
 	TArray<FRTTurnLogEntry> TurnLog;
 
 	/** Stato della registrazione in corso: id, hash per turno, chiusura. Lo tiene il manifest stesso. */
-	FRTReplayManifest ReplayManifest;
+	/**
+	 * L'archivio replay in scrittura, uscito da questa classe con la nona fetta di `#2286`.
+	 *
+	 * 🔑 Qui restavano il manifest e due timestamp per un carico **inerte all'esito**: registra cio' che
+	 * il resolver ha gia' deciso, e nessuna regola lo rilegge. L'orchestratore raccoglie i fatti e li passa;
+	 * la sequenza e lo stato vivono in `FRTReplayRecording`, che non conosce ne' il mondo ne' il TurnLog.
+	 */
+	FRTReplayRecording ReplayRecording;
 
 	/** Scrive la traccia del turno appena risolto. Silenziosa se la registrazione e' spenta. */
 	void RecordTurnToReplay();
@@ -1480,16 +1487,13 @@ protected:
 	int64 PendingFinalStateHash = 0;
 
 	/** La radice effettiva: l'override se c'e', altrimenti `Saved/Replays`. */
-	FString ResolveReplaysRoot() const;
 
 	/**
 	 * Istante reale d'inizio registrazione, per la durata nel manifest. E' l'UNICO tempo reale che tocca
 	 * l'archivio, e finisce in un campo che non entra in nessun hash.
 	 */
-	double ReplayStartRealSeconds = 0.0;
 
 	/** Istante d'inizio in UTC, per la riga dell'indice (`#416`). Il manifest porta una durata, non un inizio. */
-	FDateTime ReplayStartedUtc = FDateTime(0);
 
 	/** Rotte percorse da ogni unita' che si e' mossa nell'ultima risoluzione, ciascuna col proprio soggetto. */
 	TArray<FRTMoveRoute> LastMoveRoutes;

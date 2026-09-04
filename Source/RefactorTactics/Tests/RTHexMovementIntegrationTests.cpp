@@ -531,6 +531,32 @@ bool FRTSprintConsumesSlotsTest::RunTest(const FString&)
 	return true;
 }
 
+namespace
+{
+/**
+ * Esito registrato nel TurnLog per il Move di `Unit`, oppure un `TOptional` vuoto se la voce non c'e'.
+ *
+ * ⚠️ **Non si restituisce `Stayed` come sentinella**: `Stayed` vale `0` ed e' un esito LEGITTIMO, quindi
+ * «voce assente» e «l'unita' e' rimasta ferma» diventerebbero indistinguibili — e un test che perde la
+ * propria voce fallirebbe dicendo «atteso 13, trovato 0», puntando alla regola sbagliata.
+ *
+ * Si filtra per `UnitId`: `URTHexSimLibrary::BuildMoveLog` non lo popola, ma `ARTTurnManager::AppendLogEntry`
+ * lo scrive subito dopo con lo `StableUnitId` dell'attore, e ogni voce che arriva a `GetTurnLog()` ci e'
+ * passata. Filtrare per `SrcCell` funzionerebbe qui ma collide appena due unita' partono dalla stessa cella.
+ */
+TOptional<ERTMoveOutcome> EsitoMoveNelLog(const ARTTurnManager* TM, const ARTUnit* Unit)
+{
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Move && Unit && E.UnitId == Unit->StableUnitId)
+		{
+			return static_cast<ERTMoveOutcome>(E.Outcome);
+		}
+	}
+	return TOptional<ERTMoveOutcome>();
+}
+} // namespace
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIceSlidesInMatchTest,
 	"RefactorTactics.Terrain.Ice.SlidesInMatch",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -599,6 +625,17 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 		Mover->Health, StartHealth - 10 - URTCombatLibrary::BurningCleanupDamage);
 	TestTrue(TEXT("Burning applicato dalla cella scivolata"), Mover->HasStatus(TAG_Status_Burning));
 
+	// #2253: lo scivolamento e' un EVENTO, e il replay deve nominarlo. Prima di questa riga il log diceva
+	// `Moved` — «raggiunta la destinazione pianificata» — a un'unita' finita una cella oltre quella che il
+	// giocatore aveva scelto: una causa scritta, precisa e falsa. La posizione finale sopra e' gia' verificata,
+	// quindi questa asserzione non ripete quella: misura che il MOTIVO sia registrato.
+	const TOptional<ERTMoveOutcome> EsitoScivolata = EsitoMoveNelLog(TM, Mover);
+	if (TestTrue(TEXT("il Move del mover ha una voce nel TurnLog"), EsitoScivolata.IsSet()))
+	{
+		TestEqual(TEXT("il TurnLog nomina la scivolata invece di dire `Moved`"),
+			static_cast<int32>(*EsitoScivolata), static_cast<int32>(ERTMoveOutcome::Slid));
+	}
+
 	// Controprova: stesso ghiaccio, budget residuo insufficiente. Arrivando a IceBudget-1 celle resta 1 MP,
 	// sotto la soglia di 2 -> nessuna scivolata. E' il BUDGET a muoverla, non la superficie da sola.
 	//
@@ -623,6 +660,16 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 	RunTurn(TM);
 
 	TestTrue(TEXT("budget residuo < 2: si ferma sul ghiaccio senza scivolare"), Mover->Cell == NoSlideTarget);
+
+	// La controprova vale anche per il log: senza scivolata l'esito resta quello di sempre. Senza questa
+	// riga un `Slid` scritto incondizionatamente passerebbe il caso positivo qui sopra e nessuno se ne
+	// accorgerebbe.
+	const TOptional<ERTMoveOutcome> EsitoSenzaScivolata = EsitoMoveNelLog(TM, Mover);
+	if (TestTrue(TEXT("anche la controprova ha una voce nel TurnLog"), EsitoSenzaScivolata.IsSet()))
+	{
+		TestEqual(TEXT("senza scivolata l'esito resta `Moved`"),
+			static_cast<int32>(*EsitoSenzaScivolata), static_cast<int32>(ERTMoveOutcome::Moved));
+	}
 
 	DestroyHexMoveWorld(World);
 	return true;
