@@ -723,34 +723,29 @@ void ARTHUD::DrawHUD()
 		// 3. DISEGNA le sole viste ricevute.
 		for (const FRTIntentView& View : Views)
 		{
-			const bool bOwn = View.bIsAlly;
-			const bool bHasPlan = View.bMoving || View.bHasTarget || !View.ActionName.IsEmpty()
-				|| View.bDashing || !View.ReactionName.IsEmpty();
-			if (bOwn && !bHasPlan)
-			{
-				continue; // unita' propria senza ordine: niente da mostrare
-			}
-
-			const FLinearColor Color = bOwn
-				? FLinearColor(0.2f, 0.9f, 1.f, 1.f)   // ciano: le tue unita'
-				: FLinearColor(1.f, 0.9f, 0.2f, 1.f);  // giallo: nemico rivelato
-
 			// CP 11.2 — la resa arriva dal livello che la vista PORTA gia' calcolato. Nessun `View.bMoving`
 			// da qui in giu' per decidere lo stile: quella e' la regola, e vive in `ClassifyPlan`.
 			const FRTIntentCertaintyStyle Style = ComposeIntentCertaintyStyle(View);
 
-			// Descrizione testuale dell'intento, dalla sola vista. Composta da una statica pura: il `?` del
-			// livello e quello della reazione armata sono grammatica visiva, e in una format string qui
-			// dentro nessun test headless li raggiungerebbe.
-			const FString Intent = ComposeIntentLabel(View, Style);
+			// ⚠️ **Tre decisioni che dipendono dalla SOLA vista**, e che stavano scritte qui in mezzo alla
+			// proiezione: chi ha una riga, con che etichetta completa, di che colore. Sembravano intrecciate
+			// con la geometria e non lo erano — `bOwn` era `View.bIsAlly` e nient'altro. Ora vivono in una
+			// statica pura coi suoi test (#2184), **prefisso compreso**: quello era deciso venti righe piu'
+			// sotto, fuori da `ComposeIntentLabel`, e quindi l'etichetta completa non aveva una sede sola.
+			const FRTIntentPresentation Intento = ComposeIntentPresentation(View, Style);
+			if (!Intento.bShow)
+			{
+				continue;
+			}
+
+			const FLinearColor Color = Intento.Color;
 
 			// Etichetta sopra la testa, posizionata dalla CELLA (identita' stabile), non da un pointer all'Actor.
 			const FVector Head = HexCellWorld(View.OwnerCell, Origin, HexSize, LayerH) + FVector(0.f, 0.f, WorldHeadOffset);
 			const FVector HeadScreen = Project(Head);
 			if (HeadScreen.Z > 0.f)
 			{
-				const TCHAR* Prefix = bOwn ? TEXT("[PIANO] ") : TEXT("[REVEAL] ");
-				const FString Label = FString(Prefix) + Intent;
+				const FString Label = Intento.Label;
 
 				// Stesso vincolo della sovrapposizione dell'unita' (#729): l'ancora nasce dallo stesso offset
 				// world space, quindi soffriva dello stesso difetto — l'intento di un'unita' vicina alla
@@ -1206,4 +1201,42 @@ FRTHudTextLine ARTHUD::ComposePreviewZoneLine(int32 NumHitCells, int32 NumAllyHi
 		: FLinearColor(1.f, 0.35f, 0.3f, 1.f);
 
 	return Line;
+}
+
+FRTIntentPresentation ARTHUD::ComposeIntentPresentation(const FRTIntentView& View,
+	const FRTIntentCertaintyStyle& Style)
+{
+	FRTIntentPresentation Out;
+
+	const bool bOwn = View.bIsAlly;
+
+	// I cinque segnali di piano. ⚠️ La reazione armata e' l'unico che non si vede muovere sulla mappa,
+	// ed e' quindi il termine piu' facile da perdere riscrivendo questo `||`.
+	const bool bHasPlan = View.bMoving || View.bHasTarget || !View.ActionName.IsEmpty()
+		|| View.bDashing || !View.ReactionName.IsEmpty();
+
+	// 🔴 **L'asimmetria e' la regola, non una svista.** Si salta l'unita' PROPRIA senza ordini —
+	// altrimenti una riga vuota sovrasterebbe ogni unita' inattiva, che e' il caso piu' comune del gioco —
+	// ma MAI un nemico rivelato: per lui l'informazione non e' «cosa fara'», e' «lo sto vedendo». Togliere
+	// `bOwn` da questa guardia rende la regola simmetrica, che e' la lettura ingenua e sbagliata.
+	if (bOwn && !bHasPlan)
+	{
+		return Out;
+	}
+
+	Out.bShow = true;
+
+	// Il prefisso dice DI CHI e' il piano; il corpo lo compone `ComposeIntentLabel`, che ha i suoi test in
+	// `RTIntentPrivacyTests` e resta l'owner della grammatica dell'etichetta. Qui si aggiunge solo il
+	// prefisso, che prima viveva in `DrawHUD` e quindi non era coperto da niente.
+	Out.Label = FString(bOwn ? TEXT("[PIANO] ") : TEXT("[REVEAL] ")) + ComposeIntentLabel(View, Style);
+
+	// Lo stesso confine detto una seconda volta, col colore: l'etichetta e' piccola e sta sopra una mappa,
+	// e il colore regge dove il testo non si legge. ⚠️ Sbagliarne uno solo e' peggio che sbagliarli
+	// entrambi, perche' produce due segnali che dissentono.
+	Out.Color = bOwn
+		? FLinearColor(0.2f, 0.9f, 1.f, 1.f)   // ciano: le tue unita'
+		: FLinearColor(1.f, 0.9f, 0.2f, 1.f);  // giallo: nemico rivelato
+
+	return Out;
 }
