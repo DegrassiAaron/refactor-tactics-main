@@ -40,6 +40,11 @@ dice da sé — *«Il corpus Visual, diciotto scenari che nessuna seduta convoca
 > ⚠️ **Le voci con ostacolo dichiarato restano non rimisurate**, per la ragione già scritta: contarle
 > chiede di leggere il testo di ogni riga, non un marcatore.
 
+> ✅ **Riconfermato dopo il merge di `origin/main` (4 commit): `204 · 102 · 73 · 29`, i quattro
+> numeri NON si muovono.** ⚠️ E una conferma vale la misura quanto una correzione: il merge non ha
+> chiesto attenzione — nessun conflitto, nessun marcatore — e l'unica cosa che avrebbe segnalato uno
+> scarto era **rieseguire il comando**.
+>
 > 🔄 **Rimisurato il 2026-09-04 su `35816207`: `204 · 102 · 73 · 29`.** Totale e aperte salgono di due
 > rispetto alla misura precedente — `main` è avanzato ancora, ed è il dodicesimo giro dello stesso
 > meccanismo che questo file già registra.
