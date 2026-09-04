@@ -1216,6 +1216,32 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 			Unit->ConsumeAbility(ReactionIdx);
 			++Unit->ReactionActivationsThisTurn; // [D-092]: anche l'interposizione spende l'attivazione
 			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
+
+			// IL MOMENTO DELL'INTERPOSIZIONE (`#2191`), e questo file e' l'ALTRO punto in cui una reazione
+			// si risolve.
+			//
+			// 🔴 **Senza questa riga `PIE-VIS-INTERPOSE` resta senza il suo momento, e la sua voce dice il
+			// contrario.** L'evento e' nato in `RTTurnManager.cpp`, dove passano le reazioni generiche —
+			// `Deflect`, `Counter` — e il registro ne ha dedotto che entrambe le voci fossero coperte. Ma
+			// l'interposizione NON passa di li': ha il proprio ramo, questo, e da qui non usciva niente.
+			// Misurato: `ResolvedTimeline` compariva **zero** volte in questo file.
+			//
+			// ⚠️ **I due soggetti sono quelli del TRASFERIMENTO, non quelli del colpo**: `Source` e' chi si
+			// interpone, `Target` chi era il bersaglio. E' la stessa coppia che la voce di TurnLog scrive qui
+			// sotto con `SrcCell`/`TgtCell`, detta per identita' invece che per cella — risolvere una cella
+			// in un'unita' e' l'inferenza che [D-063] vieta.
+			//
+			// 🔑 E' la **seconda meta'** che quella voce chiede di vedere: la prima — il colpo che parte
+			// verso il bersaglio originale — arriva gia' come `Attack`. Il runbook la chiama «il caso piu'
+			// difficile del corpus» proprio perche' il trasferimento non aveva un momento proprio.
+			{
+				FRTResolvedEvent Ev;
+				Ev.Phase = ERTMatchPhase::Blast;
+				Ev.Type = ERTResolvedEventType::ReactionResolved;
+				Ev.SourceStableUnitId = Unit->StableUnitId;                  // chi si interpone
+				Ev.TargetStableUnitId = Units[OriginalTarget]->StableUnitId;  // chi era il bersaglio
+				ResolvedTimeline.Add(Ev);
+			}
 			// Bersaglio ORIGINALE -> bersaglio FINALE: il TurnLog deve dire da chi a chi e' passato il colpo,
 			// altrimenti un danno comparso su un'unita' mai bersagliata risulterebbe inspiegabile nel replay.
 			Entry.SrcCell = Units[OriginalTarget]->Cell;
