@@ -6832,10 +6832,20 @@ void ARTTurnManager::ResolveMovement()
 		// partenza, il rilevatore di cicli ferma entrambe con quel reason — non con `BlockedByUnit`, che
 		// dice «c'era un'unita' FERMA». Il caso e' lo stesso: la cella non raggiunta e' l'extra.
 		//
+		// ✅ **La lista e' COMPLETA sui quindici valori di oggi, e la verifica e' questa** — vale la pena
+		// scriverla perche' rifarla costa piu' che leggerla. Applicando il criterio «dice *non sei entrato
+		// nella cella X*» a ciascun valore: `Stayed` e `Moved` non sono blocchi; `BlockedByTopology` lo tratta
+		// il ramo qui sopra; `Displaced`, `DisplacementResisted` e `SupersededByDash` parlano d'altro;
+		// `StoppedByOverwatch` e `StoppedByPrediction` sono esclusi per scelta; `Slid` e `SlideBlocked` sono i
+		// nostri. Resta **`BlockedByImpact`**, che il criterio soddisfa — e non e' qui perche' non puo'
+		// capitare: lo scrive un ramo protetto da `IsLinearMover(i)`, e lo scivolamento e' **solo del Move
+		// normale** (`spec-terreni-e8.md` §5.2). Un'unita' che ha chiesto uno slide non e' una mobilita'
+		// lineare, mai.
+		//
 		// ⚠️ **Un reason nuovo in coda all'enum non entra qui da solo**: e' un default sicuro sul piano della
 		// verita' — non si riscrive cio' che non si e' valutato — ma NON e' gratis, e questa lista ne e' la
-		// prova: e' nata gia' incompleta di uno. Chi aggiunge un reason di blocco al Move deve chiedersi se
-		// descrive «non sei entrato nella cella X»; se si', va aggiunto qui.
+		// prova: e' nata incompleta di uno. Chi aggiunge un reason di blocco al Move rifaccia il giro qui
+		// sopra, che e' corto.
 		else if (bSlideRequested.IsValidIndex(i) && bSlideRequested[i]
 			&& Resolved[i].Final == PlannedLast[i]
 			&& (Resolved[i].Outcome == ERTMoveOutcome::BlockedByUnit
