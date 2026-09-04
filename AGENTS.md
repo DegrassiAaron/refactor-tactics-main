@@ -176,6 +176,12 @@ Mappa dettagliata:
 - Non modificare `.uasset`/`.umap` a mano.
 - Non spostare asset Unreal da Explorer/filesystem.
 - Usare Content Browser.
+- Quando serve creare, modificare, analizzare o validare asset, mappe, Blueprint o stato Editor-only, usare preferibilmente l'Unreal/Epic MCP disponibile invece di manipolare i binari dal filesystem.
+- Avviare Unreal Editor solo quando il task lo richiede realmente.
+- Il workflow che avvia l'Editor ne possiede il lifecycle: al termine deve salvare solo le modifiche intenzionali, terminare eventuale PIE/scenario attivo e chiudere l'Editor.
+- Su errore o validazione fallita, l'Editor aperto dal workflow va comunque chiuso dopo aver preservato log e diagnostica utili.
+- Non lasciare istanze Editor aperte "per comodità" tra task indipendenti.
+- Non chiudere o terminare un'istanza preesistente posseduta da un altro utente/processo salvo che il workflow attivo abbia una policy esplicita di ownership esclusiva.
 - Dopo rename/spostamenti: Fix Up Redirectors.
 - I binari Unreal non sono mergeabili.
 - Un asset binario viene modificato da un solo lavoro per volta.
@@ -323,6 +329,35 @@ assenza. Le tre cose che non vede sono nel suo docstring.
 
 Un verde dimostra soltanto ciò che quel tool misura.
 
+### Editor / PIE tramite MCP
+
+Quando il comportamento modificato è osservabile o verificabile in Unreal Editor e l'ambiente lo consente, usare l'Unreal/Epic MCP per eseguire la verifica più piccola e pertinente.
+
+Usi tipici:
+
+- avvio del progetto/editor quando necessario;
+- apertura e ispezione di mappe e asset;
+- creazione/modifica di asset supportati dal MCP;
+- verifica Blueprint/editor-facing;
+- PIE e scenari quando aggiungono evidenza rispetto ai soli Automation Test;
+- raccolta di log/evidenze;
+- chiusura dell'Editor al termine.
+
+PIE non sostituisce build, Automation Test o Scenario Harness quando questi sono richiesti.
+
+Se PIE/MCP non può essere eseguito per limiti dell'ambiente o per ownership concorrente, riportare `NOT RUN` con il motivo invece di simulare il risultato.
+
+Per ogni uso Editor/MCP:
+
+1. verificare se l'Editor serve davvero;
+2. verificare ownership/processi concorrenti;
+3. avviare o connettersi tramite tooling supportato;
+4. eseguire il test/asset operation più piccolo utile;
+5. salvare solo le modifiche intenzionali;
+6. fermare PIE/scenari;
+7. chiudere l'Editor avviato dal workflow;
+8. confermare che il processo sia terminato.
+
 ### `issue-refs.ts` — l'unico che guarda fuori dal repository
 
 Confronta i percorsi e i comandi citati dalle **issue aperte** con l'albero: chiude il difetto che
@@ -378,6 +413,8 @@ Quando applicabile:
 - Nessun output locale indesiderato.
 - PIE verificato quando richiesto.
 - Packaged verificato quando richiesto.
+- Per modifiche editor-facing/asset-facing, MCP/Editor usato quando disponibile e pertinente.
+- Nessun Unreal Editor avviato dal workflow resta aperto a fine task.
 
 ## 11. Lavoro parallelo
 
