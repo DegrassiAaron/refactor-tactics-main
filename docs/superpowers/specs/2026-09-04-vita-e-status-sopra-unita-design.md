@@ -286,10 +286,15 @@ registrerebbe la scelta (B) è il punto aperto di §5.
 
 ## 5. Prossimo passo — uno
 
-Il pezzo 3 è mergiato, quindi il passo che era condizionato è ora quello giusto: **scrivere la voce di
-Decision Log** che registra la scelta (B) — migrare la sovrapposizione a `WidgetComponent` e togliere il
-disegno dal canvas. Oggi quella scelta vive solo in questo referto e nel corpo di tre issue, e il perimetro
-che serviva a scriverla bene è ora **misurato** invece che previsto (§3.2.1).
+✅ **La voce di Decision Log è scritta**: [D-320](../../decisions/RT_PDR_00_Decision_Log.md) registra la
+scelta (B) — la sovrapposizione è un `UWidgetComponent` per unità, il disegno in canvas viene **rimosso
+nello stesso pass**, e «metà in widget, metà in canvas» è escluso. I pezzi **4** e **5** hanno ora un canone
+da citare invece di un referto.
 
-Con quella voce scritta, i pezzi **4** e **5** hanno un canone da citare invece di un referto; **1** e **2**
-non la aspettano e restano scrivibili in qualunque momento.
+Il passo successivo è il **pezzo 4**: la funzione pura che risponde *«quali stati mostrare per questa unità,
+in che ordine, con quale durata residua»*. Viene prima del widget e non dopo — un `UserWidget` in Blueprint
+ha copertura headless **zero**, quindi il giudizio deve esistere dove i test arrivano prima che ci sia
+qualcosa da disegnare. Dipende da **#2245**, che porta gli stati nella timeline.
+
+⚠️ **Ciò che D-320 non ha deciso, e resta di questo referto**: il default `bKnownToObserver = true`
+(fail-open) e la sorte della **barra di stato in alto**, che è l'altra fetta di `#2184` e resta in canvas.

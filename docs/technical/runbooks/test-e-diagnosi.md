@@ -502,6 +502,29 @@ Nessuna delle due basta da sola, ed è misurato: il log non registra tutto ciò 
 `StateHash` da solo *«sarebbe rimasto verde su #990»*, dove la divergenza compariva al turno 2 e lo stato
 finale tornava lo stesso.
 
+➕ **E dal 2026-09-04 c'è una terza grandezza, che risponde alla domanda che le prime due non ponevano**
+([#2189](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2189)): il **checksum per boundary**.
+
+`URTBoundaryChecksumLibrary::ChecksumsAlongTrace` calcola un hash di stato a **ogni** boundary che la traccia
+attraversa, e `DescribeDivergence` nomina il primo in cui due esecuzioni si separano — *«divergono al
+boundary `T2|Blast`»*. 🔑 È esattamente il caso `#990` citato qui sopra: una divergenza al turno 2 che il
+solo stato finale non vedeva, e che ora ha un **luogo** invece di un sospetto.
+
+⚠️ **Non sostituisce lo `StateHash` finale, e non può**: una traccia canonica ricostruisce **quattro** degli
+otto campi del digest — `UnitId`, `Cell`, `Facing` e la vita/morte. `Health`, `Shield`, `Energy` e `Statuses`
+restano al default e non discriminano, perché la traccia non li dichiara e dedurli dalle voci di danno
+sarebbe ricostruire uno stato che nessuno ha scritto. ∴ le tre grandezze rispondono a tre domande diverse:
+
+| Grandezza | Dice |
+|---|---|
+| `SameTurnLogAcrossRuns` | quale **voce** è diversa — il sintomo |
+| checksum per boundary | a quale **barriera** lo stato ha cominciato a differire — il luogo |
+| `SameStateHashAcrossRuns` | se il **risultato** è diverso, su tutti e otto i campi |
+
+⛔ **E il checksum per boundary non riesegue niente**: legge una traccia già prodotta e ricostruisce lo stato
+con `URTReplayStateLibrary`, la stessa strada del playback. È materia del **Verifier**, non del Player
+(ADR-0009 §3).
+
 > ⚠️ Le due chiavi **non si combinano**: il loader rifiuta `repeatCount` insieme a `variants`. Un ciclo
 > annidato produrrebbe N×M tracce di cui metà differiscono per costruzione, e un confronto che mescola le due
 > domande non risponde a nessuna.
