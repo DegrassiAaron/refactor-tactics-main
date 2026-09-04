@@ -65,6 +65,19 @@ namespace
 				OutImportance = ERTPlayerEventImportance::Important;
 				return true;
 
+			// Lo scivolamento IMPEDITO ha un tipo proprio (#2314), e non e' un lusso: con `Moved` sarebbe
+			// indistinguibile da `Slid` — stesso tipo, stessa importanza, stesso `ActionId` — e la
+			// distinzione che l'esito esiste per registrare non arriverebbe al canale piu' visibile. Con
+			// `MoveBlocked` direbbe che il piano del giocatore e' fallito, che e' falso: il Move chiesto e'
+			// riuscito, e solo lo spostamento AMBIENTALE successivo non e' avvenuto.
+			//
+			// `Important` come `Slid`: il giocatore non lo vede animato — non succede niente — ed e' proprio
+			// il non-fatto che deve leggere, perche' cambia cosa aspettarsi nel turno dopo (`D-319`).
+			case ERTMoveOutcome::SlideBlocked:
+				OutType = ERTPlayerEventType::SlideBlocked;
+				OutImportance = ERTPlayerEventImportance::Important;
+				return true;
+
 			// `Stayed` e `SupersededByDash` non sono accaduti: non c'e' niente da raccontare.
 			default:
 				return false;
@@ -136,6 +149,12 @@ namespace
 		case ERTPlayerEventType::ReactionFired: return 60;
 		case ERTPlayerEventType::StatusChanged: return 50;
 		case ERTPlayerEventType::MoveBlocked:   return 40;  // Bloccato > Movimento
+		// Fra i due, e non per caso (#2314): sopra `Moved` perche' un movimento riuscito non deve poter
+		// coprire il fatto che il terreno abbia provato a spostare l'unita'; sotto `MoveBlocked` perche' un
+		// piano fallito e' una notizia piu' grande di uno spostamento ambientale mancato. Senza una riga
+		// propria cadrebbe nel `default` a `10` e verrebbe sostituito da qualunque altro evento della stessa
+		// unita' — compreso un `Moved` `Minor`, che poi il filtro finale scarta: l'evento sparirebbe.
+		case ERTPlayerEventType::SlideBlocked:  return 30;
 		case ERTPlayerEventType::Moved:         return 20;
 		default:                                return 10;
 		}

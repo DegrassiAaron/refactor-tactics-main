@@ -184,6 +184,25 @@ muovono normalmente.
 > riaprirebbe il passaggio; e un predecessore non valido fa cadere la verifica intra-cella. Sono del
 > contratto di `GraphNeighbors`, non di questa regola.
 
+> ➕ **Uno scivolamento IMPEDITO è un esito, non un non-evento — 2026-09-04**
+> ([#2314](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2314), decisione d'autore).
+> `ApplyIceSliding` restituisce ora anche **se il terreno lo abbia chiesto** (`FRTIceSlideResult::
+> bSlideRequested`), e non solo il percorso: il percorso invariato è la risposta di sei uscite diverse, e
+> senza quel campo «nessuno scivolamento da fare» e «scivolamento impedito da un muro» sono lo stesso
+> valore. Un'unità che completa il proprio Move e non riesce a scivolare — per un muro, per un'unità, per
+> una cella contesa, indifferentemente — produce `ERTMoveOutcome::SlideBlocked`; se percorre **almeno una**
+> cella di scivolamento e poi viene fermata, l'esito resta `Slid`. Il confine conta per
+> [`D-319`](../decisions/RT_PDR_00_Decision_Log.md), che lega `Status.Unbalanced` all'essere stati spostati
+> davvero.
+>
+> **Owner del vocabolario e della tabella dei tre esiti**:
+> [`spec-turnlog.md`](../technical/architecture/spec-turnlog.md) §4.3. Qui vive la regola del **terreno**,
+> lì come il replay la racconta.
+>
+> ⚠️ **La classificazione non è nel chiamante**, e non può esserlo: distinguere «arrivata» da «ferma su una
+> cella omonima» richiede il progresso dentro il percorso, che solo il resolver possiede. Test:
+> `Terrain.Ice.WallBlockingSlideIsReportedAsSlideBlocked`.
+
 **Limite dichiarato**: una mobilità **lineare** che termina su `Ice` **non** innesca lo scivolamento.
 `URTMovementActionLibrary::ResolveLinearMove` non passa dal microstep condiviso — valuta gli ostacoli contro
 l'occupazione **congelata** a inizio fase, quindi estendere il suo percorso con una cella extra non avrebbe

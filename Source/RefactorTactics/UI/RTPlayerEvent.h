@@ -64,7 +64,26 @@ enum class ERTPlayerEventType : uint8
 	Environment,
 
 	/** Un obiettivo e' stato conquistato, perso o e' avanzato. */
-	ObjectiveChanged
+	ObjectiveChanged,
+
+	/**
+	 * Il movimento chiesto e' arrivato, e il terreno **non** e' riuscito a portarla oltre — `#2314`.
+	 *
+	 * ⛔ **Non e' `MoveBlocked`, ed e' la ragione per cui il valore esiste.** Quello dice «non e' arrivata
+	 * dove voleva», che qui e' **falso**: il piano del giocatore ha funzionato per intero. Proiettarlo come
+	 * un fallimento del movimento sposta di un canale il difetto che `#2314` chiude nel resolver.
+	 *
+	 * ⛔ **E non e' `Moved`.** Quello copre gia' due fatti — il movimento ordinario (`Minor`) e lo
+	 * scivolamento avvenuto (`Important`) — e appiattirvi anche questo renderebbe il feed incapace di
+	 * distinguere «il ghiaccio mi ha spostato» da «il ghiaccio ha provato e non ci e' riuscito», che sono la
+	 * premessa opposta per il turno dopo: solo il primo lascia `Status.Unbalanced` (`D-319`).
+	 *
+	 * 🔴 **Non nomina la causa, e non e' una lacuna.** Cio' che ha impedito lo scivolamento puo' essere
+	 * un'unita' che l'osservatore non e' autorizzato a conoscere. L'evento porta il solo soggetto — chi non
+	 * e' scivolato — e passa dallo stesso predicato di autorizzazione di ogni altro
+	 * (`URTPlayerEventProjector::IsAuthorized`); non esiste nessun campo in cui un blocker possa entrare.
+	 */
+	SlideBlocked
 };
 
 /**

@@ -6625,17 +6625,13 @@ void ARTTurnManager::ResolveMovement()
 	// aveva pianificato. Lo sa questo ciclo, e lo scrive lui nel log.
 	TArray<bool> bStoppedByTopology;
 	bStoppedByTopology.Init(false, Units.Num());
-	// Chi il GHIACCIO ha fatto scivolare, e DOVE: il resolver non puo' saperlo — riceve un percorso e non sa
-	// che l'ultima cella non era pianificata — e classificherebbe `Moved`, che dice «raggiunta la destinazione
-	// pianificata» ed e' falso di una cella. Lo sa questo ciclo, e lo scrive lui nel log.
-	//
-	// Si tiene la CELLA e non un `bool`: fra qui e la fine del turno l'unita' puo' non arrivarci (collisione
-	// nel microstep, cella contesa, Overwatch, Predictive), e «e' scivolata» si decide confrontando la
-	// posizione finale, non l'intenzione. Un flag direbbe solo «il percorso e' stato allungato».
-	TArray<FRTCellId> SlideTarget;
-	SlideTarget.Init(FRTCellId(), Units.Num());
-	TArray<bool> bSlideRequested;
-	bSlideRequested.Init(false, Units.Num());
+	// Quanto di ogni percorso il GIOCATORE ha chiesto, e se il terreno voleva portare l'unita' oltre
+	// (`#2314`). E' l'informazione che il resolver non puo' ricostruire — riceve un percorso gia' esteso e
+	// non sa che l'ultima cella non era pianificata — e che solo questo ciclo possiede, perche' e' qui che
+	// lo scivolamento viene applicato. Gliela si passa invece di correggere il suo esito a valle: la
+	// correzione nel chiamante era l'approccio di `#2290`, e ne sono usciti tre difetti di correttezza.
+	TArray<FRTPlannedMovement> PlannedMoves;
+	PlannedMoves.Init(FRTPlannedMovement(), Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
@@ -6673,16 +6669,8 @@ void ARTTurnManager::ResolveMovement()
 		// spec-terreni-e8.md: senza il microstep condiviso lo scivolamento non avrebbe la stessa garanzia
 		// sotto collisione simultanea.
 		const int32 LengthBeforeSlide = Path.Num();
-		Path = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ i, Path);
-		if (Path.Num() > LengthBeforeSlide)
-		{
-			// `ApplyIceSliding` estende di UNA cella o non estende affatto: le sue cinque uscite negative
-			// restituiscono il `Path` immutato e sono indistinguibili di qui. Il confronto sulla lunghezza e'
-			// percio' l'unico segnale disponibile, ed e' sufficiente: se e' cresciuto, l'ultima cella e' quella
-			// di scivolamento.
-			bSlideRequested[i] = true;
-			SlideTarget[i] = Path.Last();
-		}
+		const FRTIceSlideResult Slide = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ i, Path);
+		Path = Slide.Path;
 
 		// TOPOLOGIA (CP 9.3): il percorso e' stato validato quando la mappa era un'altra — una porta chiusa
 		// nel Blast di QUESTO turno, un muro caduto — e `TruncatePathToBudget` non se ne accorge, perche'
@@ -6698,6 +6686,16 @@ void ARTTurnManager::ResolveMovement()
 		Path = URTHexSimLibrary::TruncatePathToTopology(Snapshot, Path);
 		bStoppedByTopology[i] = Path.Num() < LengthBeforeSlide;
 
+		// Il piano del giocatore e' cio' che resta del percorso PRIMA dello scivolamento, dopo il taglio
+		// della topologia: `Min` perche' quel taglio puo' aver accorciato anche la parte pianificata.
+		PlannedMoves[i].PlannedLength = FMath::Min(LengthBeforeSlide, Path.Num());
+		// ⚠️ **Se la topologia ha tagliato DENTRO il piano, lo scivolamento non e' piu' la domanda.** L'unita'
+		// non completa nemmeno cio' che aveva chiesto, la precedenza va al taglio, e il ramo qui sotto scrive
+		// `BlockedByTopology`. Senza questa condizione il resolver direbbe «arrivata, scivolamento impedito»
+		// a chi si e' fermata davanti a un varco chiuso — vero sul percorso troncato, falso su cio' che
+		// l'unita' aveva pianificato: esattamente il difetto che `TruncatePathToTopology` esiste per evitare.
+		PlannedMoves[i].bSlideRequested = Slide.bSlideRequested && !bStoppedByTopology[i];
+
 		Paths.Add(Path);
 	}
 
@@ -6710,7 +6708,8 @@ void ARTTurnManager::ResolveMovement()
 	//
 	// La via a passi e quella in blocco sono LO STESSO codice — `ResolveHexPaths` e' esattamente questo ciclo
 	// — quindi il comportamento senza Overwatch armati e' invariato per costruzione, non per verifica.
-	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths);
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), PlannedMoves);
 	{
 		// CHI si e' mosso in questo micro-step, misurato e non dedotto: `Entered` cresce di una cella per ogni
 		// unita' che ha davvero avanzato, quindi il confronto col valore precedente e' l'unica lettura che
@@ -6784,27 +6783,16 @@ void ARTTurnManager::ResolveMovement()
 		{
 			MoveLog[i].Outcome = static_cast<uint8>(ERTMoveOutcome::BlockedByTopology);
 		}
-		// GHIACCIO: stessa clausola di precedenza della topologia qui sopra — si sovrascrive **solo** `Moved`,
-		// perche' ogni altro esito e' un motivo avvenuto lungo la strada, ed e' la spiegazione piu' vicina a
-		// cio' che il giocatore ha visto.
+		// ⛔ **Il GHIACCIO non ha piu' un ramo qui, ed e' il punto di `#2314`.** C'era, e riscriveva `Moved`
+		// in `Slid` confrontando `Resolved[i].Final` con la cella di scivolamento: una guardia POSIZIONALE,
+		// che un percorso capace di rivisitare una cella (`{A, B, C, B}`) soddisfa anche a un terzo di
+		// strada. E soprattutto non poteva vedere il caso opposto — arrivata e NON scivolata — perche' li'
+		// `Resolved[i].Outcome` non e' `Moved` ma il reason del blocco, e la riscrittura non scattava.
 		//
-		// ⚠️ La condizione NON e' «il percorso e' stato allungato» ma «l'unita' e' ARRIVATA dove lo
-		// scivolamento la mandava»: `Resolved[i].Final` e' la cella in cui ha davvero finito il micro-step, e
-		// senza questo confronto il log direbbe «scivolata» a chi si e' fermata tre celle prima.
-		//
-		// `else if` e non un secondo `if`: i due rami sono disgiunti per COSTRUZIONE — se la topologia ha
-		// troncato, l'ultima cella e' sparita e `Final` non puo' coincidere con `SlideTarget` — ma quella
-		// disgiunzione e' una conseguenza di come il percorso viene tagliato, non un invariante dichiarato.
-		// Con due `if` indipendenti la precedenza sarebbe l'ORDINE DI SCRITTURA (vincerebbe l'ultimo, perche'
-		// entrambe le guardie leggono `Resolved`, che la prima assegnazione non tocca); con `else if` la
-		// precedenza e' dichiarata, e va alla topologia: se un giorno le due condizioni si sovrapponessero,
-		// «bloccata da un varco chiuso» spiega al giocatore piu' di «scivolata».
-		else if (bSlideRequested.IsValidIndex(i) && bSlideRequested[i]
-			&& Resolved[i].Outcome == ERTMoveOutcome::Moved
-			&& Resolved[i].Final == SlideTarget[i])
-		{
-			MoveLog[i].Outcome = static_cast<uint8>(ERTMoveOutcome::Slid);
-		}
+		// Ora `Slid` e `SlideBlocked` li scrive `FinalizeHexMovementOutcomes` sul progresso reale dentro
+		// `FRTPlannedMovement::PlannedLength`, che e' il solo posto dove l'informazione e' completa. La
+		// precedenza fra topologia e scivolamento resta dichiarata e va alla topologia: `bSlideRequested`
+		// sopra e' gia' spento quando il taglio ha accorciato il piano.
 	}
 	// In blocco, ma una per una: `Append` bypasserebbe il contesto della v6, ed e' la seconda porta
 	// d'ingresso al TurnLog che l'helper deve presidiare quanto la prima.

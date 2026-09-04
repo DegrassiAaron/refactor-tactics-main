@@ -648,6 +648,62 @@ bool FRTLogDistinguishesUntranslatedOutcomeTest::RunTest(const FString&)
 }
 
 /**
+ * `SlideBlocked` HA UNA FRASE PROPRIA, E DICE CHE IL PIANO E' RIUSCITO — `#2314`.
+ *
+ * 🔴 **Un esito nuovo non tradotto non fallisce a compilazione**: cade nel `default` di `DescribeEntry`,
+ * che stampa *«esito di movimento non tradotto»*. La riga si legge — e' la difesa che
+ * `UI.LogDistinguishesUntranslatedOutcome` ha messo — ma non dice al giocatore niente di cio' che e'
+ * successo, e nessun test la vedrebbe se non ce ne fosse uno che chiede la traduzione per nome.
+ *
+ * ⚠️ **La frase non puo' aprire con «fermo»**, come tutti i suoi vicini nel vocabolario dei blocchi:
+ * `SlideBlocked` e' l'unico esito in cui il movimento CHIESTO dal giocatore e' riuscito, e dirgli «fermo»
+ * lo manderebbe a cercare un errore nel proprio piano invece di una lastra di ghiaccio contro un muro.
+ *
+ * ⚠️ **E deve stampare la destinazione.** E' un arrivo: nascondere `TgtCell` lascerebbe «impedito» senza
+ * la meta' che rende la riga una buona notizia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLogRendersSlideBlockedTest,
+	"RefactorTactics.UI.LogRendersSlideBlocked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLogRendersSlideBlockedTest::RunTest(const FString&)
+{
+	auto SlideEntry = [](ERTMoveOutcome Outcome)
+	{
+		FRTTurnLogEntry E;
+		E.Category = ERTLogCategory::Move;
+		E.Outcome = static_cast<uint8>(Outcome);
+		E.SrcCell = FRTCellId(0, 0, 0);
+		E.TgtCell = FRTCellId(2, -1, 0);
+		E.Amount = 2;
+		return E;
+	};
+
+	const FString Impedito = URTTurnLogLibrary::DescribeEntry(SlideEntry(ERTMoveOutcome::SlideBlocked));
+
+	TestFalse(*FString::Printf(TEXT("non e' un esito ignoto: %s"), *Impedito),
+		Impedito.Contains(TEXT("non tradotto")));
+	TestTrue(TEXT("nomina lo scivolamento impedito"), Impedito.Contains(TEXT("scivolamento impedito")));
+	// «arriva», non «fermo»: il Move chiesto dal giocatore e' riuscito.
+	TestFalse(TEXT("e NON apre dicendo che l'unita' e' ferma"), Impedito.Contains(TEXT("fermo")));
+	// La forma LUNGA — `partenza -> destinazione (N celle)` — e non la breve, che stampa la sola `SrcCell`.
+	// La freccia e' cio' che la distingue, e senza di lei la riga direbbe «impedito» e basta.
+	TestTrue(*FString::Printf(TEXT("e stampa la destinazione raggiunta: %s"), *Impedito),
+		Impedito.Contains(TEXT(" -> ")));
+
+	// DISTINTO dai tre vicini con cui potrebbe confondersi. Tre confronti e non uno: lo scivolamento
+	// avvenuto e quello impedito sono la coppia che l'esito esiste per separare, e `Moved` e' cio' che il
+	// log diceva prima di `#2314` a chi arrivava senza scivolare.
+	TestNotEqual(TEXT("non si confonde con lo scivolamento AVVENUTO"),
+		Impedito, URTTurnLogLibrary::DescribeEntry(SlideEntry(ERTMoveOutcome::Slid)));
+	TestNotEqual(TEXT("non si confonde con un movimento riuscito qualunque"),
+		Impedito, URTTurnLogLibrary::DescribeEntry(SlideEntry(ERTMoveOutcome::Moved)));
+	TestNotEqual(TEXT("non si confonde con una cella occupata"),
+		Impedito, URTTurnLogLibrary::DescribeEntry(SlideEntry(ERTMoveOutcome::BlockedByUnit)));
+
+	return true;
+}
+
+/**
  * 🔴 **Il combat log di un turno VERO non nomina un nemico che la squadra non vede piu'.**
  *
  * Test di PIPELINE, non di sito: percorre `LockInAndResolve -> TurnLog -> ConcludeTurn -> RecentEvents ->

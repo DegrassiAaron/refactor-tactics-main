@@ -216,7 +216,7 @@ bool FRTTerrainIceSlidesWithBudgetTest::RunTest(const FString&)
 	Snapshot.Units.Add(Unit);
 
 	const TArray<FRTCellId> Path = { FRTCellId(0, 0, 0), FRTCellId(1, 0, 0) };
-	const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path);
+	const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path).Path;
 
 	TestEqual(TEXT("il percorso si estende di una cella"), Extended.Num(), 3);
 	TestTrue(TEXT("la cella extra e' nella direzione d'ingresso"), Extended.Last() == FRTCellId(2, 0, 0));
@@ -248,7 +248,7 @@ bool FRTTerrainIceBlockedCellStopsSlidingTest::RunTest(const FString&)
 	Snapshot.Units.Add(Unit);
 
 	const TArray<FRTCellId> Path = { FRTCellId(0, 0, 0), FRTCellId(1, 0, 0) };
-	const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path);
+	const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path).Path;
 
 	TestEqual(TEXT("nessuno scivolamento: la cella successiva blocca il movimento"), Extended.Num(), 2);
 
@@ -301,9 +301,114 @@ bool FRTTerrainIceWallOnEdgeStopsSlidingTest::RunTest(const FString&)
 	}
 
 	const TArray<FRTCellId> Path = { FRTCellId(0, 0, 0), FRTCellId(1, 0, 0) };
-	const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path);
+	const FRTIceSlideResult Slide = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path);
 
-	TestEqual(TEXT("non si scivola attraverso un muro sul bordo"), Extended.Num(), 2);
+	TestEqual(TEXT("non si scivola attraverso un muro sul bordo"), Slide.Path.Num(), 2);
+
+	// 🔴 **Il percorso invariato non basta a raccontare cosa e' successo** (`#2314`). E' la stessa risposta
+	// che la funzione da' quando il terreno non chiede nulla — niente ghiaccio, budget finito, nessuna
+	// direzione — e quei casi producono `Moved`, mentre questo deve produrre `SlideBlocked`. Senza questo
+	// campo la distinzione muore qui, e a valle nessuno puo' ricostruirla: e' la ragione per cui `#2290`,
+	// che ci provava dal chiamante, e' stata chiusa.
+	TestTrue(TEXT("ma il terreno lo aveva CHIESTO: lo scivolamento e' impedito, non assente"),
+		Slide.bSlideRequested);
+
+	return true;
+}
+
+/**
+ * UN MURO CHE IMPEDISCE LO SCIVOLAMENTO PRODUCE `SlideBlocked` — `#2314`, decisione d'autore D1.
+ *
+ * 🔑 **E' il caso che il fix di `#2284` aveva reso corretto e MUTO.** Da quando `ApplyIceSliding` verifica
+ * la percorribilita' del passo, davanti a un muro non estende affatto il percorso: il resolver riceve un
+ * percorso che il giocatore ha pianificato per intero, lo vede completato, e scriveva `Moved` — cioe'
+ * *«arrivata, e il terreno non aveva altro da dire»*, che e' falso. Per il giocatore «non sono scivolato
+ * perche' c'era un muro» e «perche' c'era qualcuno» sono lo **stesso** fatto, e `D-319` lo conferma: chi non
+ * scivola non prende `Status.Unbalanced`, qualunque sia stata la causa.
+ *
+ * ⚠️ **Questo test cade se `ApplyIceSliding` perde `bSlideRequested`** — la mutazione prescritta dalla
+ * issue — perche' quel campo e' l'unica differenza fra questo caso e un arrivo ordinario.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainIceWallProducesSlideBlockedTest,
+	"RefactorTactics.Terrain.Ice.WallBlockingSlideIsReportedAsSlideBlocked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTerrainIceWallProducesSlideBlockedTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
+	FRTHexCellData IceCell(FRTCellId(1, 0, 0));
+	IceCell.Surface = ERTHexSurface::Ice;
+	IceCell.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::High, 50)); // muro verso (2,0)
+	Map->AddOrUpdateCell(IceCell);
+	Map->SortCells();
+
+	FRTHexSimUnit Unit;
+	Unit.UnitId = 0;
+	Unit.Cell = FRTCellId(0, 0, 0);
+	Unit.MoveBudget = 5;
+
+	FRTHexSnapshot Snapshot;
+	Snapshot.Map = Map;
+	Snapshot.Units.Add(Unit);
+
+	// Lo stesso incastro di `ARTTurnManager::ResolveMovement`: si scivola, poi si risolve. La lunghezza
+	// PRIMA dello scivolamento e' il piano del giocatore.
+	const TArray<FRTCellId> Planned = { FRTCellId(0, 0, 0), FRTCellId(1, 0, 0) };
+	const FRTIceSlideResult Slide = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Planned);
+
+	// PREMESSA: il muro ha davvero impedito l'estensione. Se un giorno cadesse, il caso qui sotto sarebbe un
+	// altro — uno scivolamento riuscito — e l'asserzione finale mentirebbe sul motivo per cui passa.
+	if (!TestEqual(TEXT("premessa: il percorso non e' stato esteso"), Slide.Path.Num(), Planned.Num()))
+	{
+		return false;
+	}
+
+	FRTPlannedMovement Plan;
+	Plan.PlannedLength = Planned.Num();
+	Plan.bSlideRequested = Slide.bSlideRequested;
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement({ Slide.Path }, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), { Plan });
+	const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+
+	if (!TestTrue(TEXT("premessa: l'unita' arriva dove il giocatore l'ha mandata"),
+		Out.Num() == 1 && Out[0].Final == FRTCellId(1, 0, 0)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("un muro che impedisce lo scivolamento produce SlideBlocked, non Moved"),
+		static_cast<int32>(Out[0].Outcome), static_cast<int32>(ERTMoveOutcome::SlideBlocked));
+
+	// CONTRO-PROVA sulla stessa mappa senza muro: il ghiaccio estende, l'unita' scivola, e l'esito e' `Slid`.
+	// Senza questa meta' un `SlideBlocked` scritto a ogni arrivo su ghiaccio passerebbe il test sopra.
+	{
+		URTHexMapAsset* Open = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
+		FRTHexCellData PlainIce(FRTCellId(1, 0, 0));
+		PlainIce.Surface = ERTHexSurface::Ice;
+		Open->AddOrUpdateCell(PlainIce);
+		Open->SortCells();
+
+		FRTHexSnapshot OpenSnapshot;
+		OpenSnapshot.Map = Open;
+		OpenSnapshot.Units.Add(Unit);
+
+		const FRTIceSlideResult Free = URTHexSimLibrary::ApplyIceSliding(OpenSnapshot, /*UnitId=*/ 0, Planned);
+		if (!TestEqual(TEXT("premessa della contro-prova: senza muro il percorso si estende"),
+			Free.Path.Num(), Planned.Num() + 1))
+		{
+			return false;
+		}
+
+		FRTPlannedMovement FreePlan;
+		FreePlan.PlannedLength = Planned.Num();
+		FreePlan.bSlideRequested = Free.bSlideRequested;
+
+		FRTMovementResolutionState FreeState = URTHexSimLibrary::BeginHexMovement({ Free.Path },
+			TArray<int32>(), TArray<bool>(), TArray<bool>(), { FreePlan });
+		const TArray<FRTHexMoveResult> FreeOut = URTHexSimLibrary::FinishHexMovement(FreeState);
+		TestEqual(TEXT("senza muro lo scivolamento avviene: Slid"),
+			static_cast<int32>(FreeOut[0].Outcome), static_cast<int32>(ERTMoveOutcome::Slid));
+	}
+
 	return true;
 }
 
@@ -505,7 +610,7 @@ bool FRTTerrainIceSlideBudgetBoundaryTest::RunTest(const FString&)
 		FRTHexSnapshot Snapshot;
 		Snapshot.Map = Map;
 		Snapshot.Units.Add(Unit);
-		return URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path);
+		return URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path).Path;
 	};
 
 	// Budget 3 - costo 1 = residuo ESATTAMENTE 2: e' il minimo che scivola.

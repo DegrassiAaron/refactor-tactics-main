@@ -93,6 +93,66 @@ struct FRTHexReachableCell
 		: Cell(InCell), Cost(InCost), FromCell(InFrom) {}
 };
 
+/**
+ * Cosa il GIOCATORE aveva chiesto, separato da cio' che il TERRENO ha aggiunto al percorso (`#2314`).
+ *
+ * 🔑 **E' la distinzione che il resolver non poteva fare.** Riceve un `Paths[i]` gia' esteso dallo
+ * scivolamento e ne considera l'ultima cella la destinazione: se quell'ultima cella non viene raggiunta
+ * scrive un `BlockReason`, cioe' *«fermo: cella occupata»* a un'unita' arrivata **esattamente dove il
+ * giocatore l'aveva mandata**. I due campi qui sotto sono l'informazione mancante, e stanno insieme perche'
+ * rispondono insieme: separati sarebbero un intero e un booleano scollegati, e nessuno dei due basta.
+ *
+ * ⚠️ **Dato PER UNITA', come `Paths`.** `FinalizeHexMovementOutcomes` dichiara che l'esito non dipende
+ * dall'ordine di iterazione; un dato per-unita' nello stato non viola quel contratto, uno globale mutabile
+ * si'. Misurato da `HexSim.PlannedLengthOutcomesAreOrderIndependent`.
+ */
+struct FRTPlannedMovement
+{
+	/**
+	 * Quante celle INIZIALI di `Paths[i]` appartengono al piano del giocatore, cella di partenza inclusa.
+	 * Tutto cio' che sta oltre e' estensione ambientale.
+	 *
+	 * `0` significa «non dichiarato»: `BeginHexMovement` lo porta a `Paths[i].Num()`, cioe' «il percorso e'
+	 * tutto pianificato», che e' il comportamento di ogni chiamante che non conosce i terreni.
+	 */
+	int32 PlannedLength = 0;
+
+	/**
+	 * Il terreno imponeva uno spostamento di slide oltre la destinazione pianificata.
+	 *
+	 * 🔴 **Vero anche quando la cella NON e' finita nel percorso.** E' il punto del campo: `ApplyIceSliding`
+	 * puo' non estendere affatto — un muro sul bordo fra la cella d'arrivo e quella di scivolamento — e
+	 * senza questo booleano quel caso arriverebbe qui indistinguibile da «il terreno non chiedeva niente».
+	 * Dedurlo dalla sola lunghezza del percorso e' precisamente cio' che non si puo' fare.
+	 */
+	bool bSlideRequested = false;
+};
+
+/**
+ * Cosa `ApplyIceSliding` ha fatto al percorso, e cosa il terreno aveva CHIESTO (`#2314`).
+ *
+ * 🔴 **Esiste perche' le uscite negative erano indistinguibili.** La funzione restituiva il `Path` immutato
+ * in sei casi diversi, e dall'esterno erano lo stesso valore: chi chiamava non poteva sapere se il terreno
+ * non avesse chiesto nulla — nessun `SlideCells`, budget sotto soglia, nessuna direzione da cui scivolare —
+ * oppure avesse chiesto uno scivolamento **impedito da un muro**. I due fatti hanno esiti diversi nel
+ * TurnLog, e la differenza non e' ricostruibile a valle: `#2290` ci ha provato e ha raccolto tre difetti di
+ * correttezza dalla stessa radice.
+ */
+struct FRTIceSlideResult
+{
+	/** Il percorso: esteso di una cella se lo scivolamento e' avvenuto, altrimenti quello ricevuto. */
+	TArray<FRTCellId> Path;
+
+	/**
+	 * Il terreno imponeva uno scivolamento da quella cella d'arrivo — superficie scivolosa, budget residuo
+	 * sufficiente, e una direzione che esiste.
+	 *
+	 * ⚠️ **Non dice che sia avvenuto.** «E' stato accodato» si legge dalla lunghezza di `Path` contro quella
+	 * ricevuta; questo campo dice che la domanda era stata posta. Vero + percorso invariato = **impedito**.
+	 */
+	bool bSlideRequested = false;
+};
+
 /** Esito del movimento simultaneo di un'unita': cella finale, celle attraversate (partenza esclusa), reason code. */
 USTRUCT(BlueprintType)
 struct FRTHexMoveResult
@@ -129,6 +189,13 @@ struct FRTMovementResolutionState
 {
 	/** Percorsi pianificati, uno per unita'. Indice = identita' dell'unita' per tutta la risoluzione. */
 	TArray<TArray<FRTCellId>> Paths;
+
+	/**
+	 * Quanto di `Paths[i]` il giocatore ha davvero chiesto, e se il terreno voleva portare l'unita' oltre
+	 * (`#2314`). Sempre della stessa lunghezza di `Paths`: `BeginHexMovement` completa cio' che manca con
+	 * «tutto pianificato, nessuno scivolamento», che e' il caso di ogni chiamante che non tocca i terreni.
+	 */
+	TArray<FRTPlannedMovement> Planned;
 
 	/** Precedenza sulla cella contesa (CP 4.8). Vuoto = tutti a parita', com'era prima delle priorita'. */
 	TArray<int32> Priorities;

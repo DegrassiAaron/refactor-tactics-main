@@ -1857,4 +1857,256 @@ bool FRTPathSameRegionStepStillAllowedTest::RunTest(const FString&)
 	return true;
 }
 
+namespace
+{
+	/** Il piano di un'unita': quante celle ha chiesto il giocatore, e se il terreno voleva portarla oltre. */
+	FRTPlannedMovement PianoDelGiocatore(int32 PlannedLength, bool bSlideRequested)
+	{
+		FRTPlannedMovement Plan;
+		Plan.PlannedLength = PlannedLength;
+		Plan.bSlideRequested = bSlideRequested;
+		return Plan;
+	}
+
+	/** Risolve in blocco e restituisce l'esito dell'unita' indicata. */
+	ERTMoveOutcome EsitoConPiano(const TArray<TArray<FRTCellId>>& Paths,
+		const TArray<FRTPlannedMovement>& Planned, int32 UnitId)
+	{
+		FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+			TArray<bool>(), TArray<bool>(), Planned);
+		const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+		return Out.IsValidIndex(UnitId) ? Out[UnitId].Outcome : ERTMoveOutcome::Stayed;
+	}
+}
+
+/**
+ * CHI ARRIVA A DESTINAZIONE MA NON RIESCE A SCIVOLARE NON E' «FERMATO» — `#2314`.
+ *
+ * 🔴 **Il difetto era una causa scritta, precisa e falsa.** Lo scivolamento allunga il percorso PRIMA del
+ * resolver, che considera l'ultima cella la destinazione: se quella cella e' impedita, l'unita' — arrivata
+ * **esattamente dove il giocatore l'aveva mandata** — compariva nel replay come *«fermo: cella occupata»*,
+ * con un `MoveBlocked`/`Important` nel feed. Il piano aveva funzionato, e il gioco diceva di no.
+ *
+ * ⚠️ **La contro-prova senza `Planned` non e' decorativa**: e' cio' che rende il test non vacuo. Lo stesso
+ * identico stato, senza dichiarare quanto fosse pianificato, deve ancora produrre `BlockedByUnit` — cioe'
+ * il comportamento di prima. Se passasse comunque `SlideBlocked`, il test starebbe misurando una costante.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementSlideBlockedByUnitTest,
+	"RefactorTactics.Movement.SlideBlockedByUnitKeepsThePlannedArrival",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementSlideBlockedByUnitTest::RunTest(const FString&)
+{
+	// L'unita' 0 ha chiesto (0,0) -> (1,0): DUE celle. Il ghiaccio ha aggiunto (2,0), dove sta ferma
+	// l'unita' 1. Il percorso che entra nel resolver ne ha quindi tre, e solo due sono del giocatore.
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+	Paths.Add({ FRTCellId(2, 0) }); // ferma: e' lei a impedire lo scivolamento
+
+	const TArray<FRTPlannedMovement> Planned = {
+		PianoDelGiocatore(/*PlannedLength*/ 2, /*bSlideRequested*/ true),
+		PianoDelGiocatore(1, false)
+	};
+
+	TestEqual(TEXT("arrivata dove voleva, scivolamento impedito: SlideBlocked"),
+		static_cast<int32>(EsitoConPiano(Paths, Planned, 0)),
+		static_cast<int32>(ERTMoveOutcome::SlideBlocked));
+
+	// E ci arriva davvero: senza questa riga «SlideBlocked» potrebbe essere scritto a un'unita' rimasta al palo.
+	{
+		FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+			TArray<bool>(), TArray<bool>(), Planned);
+		const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+		TestTrue(TEXT("e la destinazione pianificata e' stata raggiunta"),
+			Out.IsValidIndex(0) && Out[0].Final == FRTCellId(1, 0));
+	}
+
+	// CONTRO-PROVA: lo stesso stato senza il piano dichiarato torna al comportamento di prima di `#2314`.
+	TestEqual(TEXT("senza `Planned` l'esito resta quello di prima: BlockedByUnit"),
+		static_cast<int32>(EsitoConPiano(Paths, TArray<FRTPlannedMovement>(), 0)),
+		static_cast<int32>(ERTMoveOutcome::BlockedByUnit));
+
+	return true;
+}
+
+/**
+ * CHI SI FERMA PRIMA DELLA DESTINAZIONE PIANIFICATA CONSERVA IL SUO MOTIVO VERO — `#2314`.
+ *
+ * ⚠️ **E' la precedenza piu' importante del contratto.** `SlideBlocked` dice «il tuo piano ha funzionato»:
+ * scriverlo a chi si e' fermata a meta' strada sarebbe la stessa bugia di prima, rovesciata. Il motivo
+ * dell'arresto e' cio' che il giocatore ha VISTO, e resta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementStoppedBeforePlannedKeepsReasonTest,
+	"RefactorTactics.Movement.StoppedBeforePlannedDestinationKeepsItsReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementStoppedBeforePlannedKeepsReasonTest::RunTest(const FString&)
+{
+	// Piano di TRE celle, piu' una di scivolamento. L'unita' 1 e' ferma sulla seconda tappa del piano:
+	// l'unita' 0 si ferma a un terzo, ben prima di poter parlare di scivolamento.
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0) });
+	Paths.Add({ FRTCellId(2, 0) });
+
+	const TArray<FRTPlannedMovement> Planned = {
+		PianoDelGiocatore(/*PlannedLength*/ 3, /*bSlideRequested*/ true),
+		PianoDelGiocatore(1, false)
+	};
+
+	TestEqual(TEXT("fermata prima della destinazione pianificata: resta BlockedByUnit"),
+		static_cast<int32>(EsitoConPiano(Paths, Planned, 0)),
+		static_cast<int32>(ERTMoveOutcome::BlockedByUnit));
+	return true;
+}
+
+/**
+ * UNO SCIVOLAMENTO AVVENUTO ANCHE SOLO IN PARTE E' `Slid`, NON `SlideBlocked` — `#2314`.
+ *
+ * 🔑 **Il confine ha conseguenze a valle.** `D-319` lega `Status.Unbalanced` all'essere stati spostati
+ * dall'ambiente: classificare come «non scivolata» un'unita' portata via di almeno una cella le toglierebbe
+ * lo stato, e con esso il seguito che quella decisione descrive.
+ *
+ * ⚠️ **Il caso non e' raggiungibile dal percorso di produzione, ed e' voluto.** `ApplyIceSliding` legge
+ * `FRTTerrainDef::SlideCells` come un booleano e allunga di UNA cella sola (spec-terreni-e8 §5.2), quindi
+ * oggi le celle di scivolamento percorse sono `0` o `1`. Il test misura il CONTRATTO del resolver, che deve
+ * essere gia' giusto il giorno in cui CP 8.4 srotolera' `SlideCells > 1` — non un comportamento osservabile
+ * adesso in partita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementPartialSlideIsStillASlideTest,
+	"RefactorTactics.Movement.PartialSlideIsStillASlide",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementPartialSlideIsStillASlideTest::RunTest(const FString&)
+{
+	// Piano di DUE celle, estensione ambientale di DUE. L'unita' 1 e' ferma sulla seconda cella di
+	// scivolamento: la prima viene percorsa, la seconda no.
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0) });
+	Paths.Add({ FRTCellId(3, 0) });
+
+	const TArray<FRTPlannedMovement> Planned = {
+		PianoDelGiocatore(/*PlannedLength*/ 2, /*bSlideRequested*/ true),
+		PianoDelGiocatore(1, false)
+	};
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), Planned);
+	const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+
+	// ANTI-VACUITA': se l'unita' non avesse percorso NESSUNA cella di scivolamento, `Slid` sarebbe l'esito
+	// giusto per la ragione sbagliata. Il progresso si misura, non si assume.
+	if (!TestTrue(TEXT("premessa: una cella di scivolamento e' stata davvero percorsa"),
+		Out.IsValidIndex(0) && Out[0].Final == FRTCellId(2, 0)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("scivolata di una cella e poi fermata: e' comunque uno scivolamento"),
+		static_cast<int32>(Out[0].Outcome), static_cast<int32>(ERTMoveOutcome::Slid));
+	return true;
+}
+
+/**
+ * UN PERCORSO CHE RIVISITA UNA CELLA NON INGANNA IL RESOLVER — `#2314`.
+ *
+ * 🔴 **E' il caso che ha affossato l'approccio di `#2290`, e viveva anche QUI.** La classificazione
+ * confrontava la cella FINALE con l'ultima del percorso; ma `BuildCompositeHexPath` concatena i segmenti A*
+ * fra waypoint **senza deduplicare**, quindi `{A, B, C, B}` e' un percorso producibile. Un'unita' fermata a
+ * un terzo di strada, ferma su `B`, soddisfaceva l'uguaglianza e veniva registrata come **arrivata** — con
+ * `Moved` prima di `#2314`, e con `SlideBlocked` se qualcuno reintroducesse quel criterio dopo.
+ *
+ * 🔑 **Posizione finale e quantita' di percorso eseguito sono concetti diversi**, e questo test e' il punto
+ * in cui la differenza si misura.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementRevisitedCellIsNotArrivalTest,
+	"RefactorTactics.Movement.RevisitedCellIsNotProofOfArrival",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementRevisitedCellIsNotArrivalTest::RunTest(const FString&)
+{
+	// `{A, B, C, B}`: il piano torna sui propri passi, e la destinazione COINCIDE con la prima tappa.
+	// L'unita' 1 e' ferma su `C`, quindi l'unita' 0 si ferma su `B` dopo un solo passo — nella cella che e'
+	// anche la sua destinazione pianificata.
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(1, 0) });
+	Paths.Add({ FRTCellId(2, 0) });
+
+	// Il terreno chiedeva uno scivolamento dalla destinazione pianificata: cosi' un criterio posizionale non
+	// sbaglierebbe di poco — scriverebbe proprio `SlideBlocked`, l'esito che questa issue introduce.
+	const TArray<FRTPlannedMovement> Planned = {
+		PianoDelGiocatore(/*PlannedLength*/ 4, /*bSlideRequested*/ true),
+		PianoDelGiocatore(1, false)
+	};
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), Planned);
+	const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+
+	// La premessa E' il test: senza la coincidenza fra cella finale e destinazione pianificata, un criterio
+	// posizionale non verrebbe nemmeno esercitato e l'asserzione sotto passerebbe per caso.
+	if (!TestTrue(TEXT("premessa: si ferma nella cella che e' anche la destinazione pianificata"),
+		Out.IsValidIndex(0) && Out[0].Final == FRTCellId(1, 0) && Out[0].Final == Paths[0].Last()))
+	{
+		return false;
+	}
+	TestEqual(TEXT("un terzo di percorso non e' un arrivo: resta BlockedByUnit"),
+		static_cast<int32>(Out[0].Outcome), static_cast<int32>(ERTMoveOutcome::BlockedByUnit));
+	return true;
+}
+
+/**
+ * IL PIANO PER-UNITA' NON ROMPE L'INDIPENDENZA DALL'ORDINE — `#2314`.
+ *
+ * Il contratto di `FinalizeHexMovementOutcomes` e' dichiarato: *«dipende solo dai dati per-unita' dello
+ * stato, quindi e' indipendente dall'ordine»*. `FRTPlannedMovement` e' un dato dello stato quanto `Paths`,
+ * quindi non lo viola — **ma va verificato, non assunto**: e' precisamente il genere di aggiunta che
+ * introdurrebbe una dipendenza dall'ordine se qualcuno la tenesse in una variabile globale del resolver.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementPlannedLengthIsOrderIndependentTest,
+	"RefactorTactics.Movement.PlannedLengthOutcomesAreOrderIndependent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementPlannedLengthIsOrderIndependentTest::RunTest(const FString&)
+{
+	// Tre unita' con tre piani diversi: una scivola e viene impedita, una si ferma prima, una sta ferma e
+	// impedisce entrambe. Gli esiti sono i tre rami della classificazione, non uno solo.
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });                  // 0: arriva, non scivola
+	Paths.Add({ FRTCellId(0, -1), FRTCellId(1, -1), FRTCellId(1, 0), FRTCellId(2, 0) }); // 1: si ferma prima
+	Paths.Add({ FRTCellId(2, 0) });                                                    // 2: ferma
+
+	TArray<FRTPlannedMovement> Planned;
+	Planned.Add(PianoDelGiocatore(2, true));
+	Planned.Add(PianoDelGiocatore(3, true));
+	Planned.Add(PianoDelGiocatore(1, false));
+
+	TArray<ERTMoveOutcome> Reference;
+	for (int32 i = 0; i < 3; ++i) { Reference.Add(EsitoConPiano(Paths, Planned, i)); }
+
+	// ANTI-VACUITA': se tutti e tre gli esiti fossero uguali, qualunque permutazione li conserverebbe.
+	if (!TestTrue(TEXT("premessa: i tre esiti sono distinti"),
+		Reference[0] != Reference[1] && Reference[1] != Reference[2] && Reference[0] != Reference[2]))
+	{
+		return false;
+	}
+	TestEqual(TEXT("premessa: il primo e' proprio SlideBlocked"),
+		static_cast<int32>(Reference[0]), static_cast<int32>(ERTMoveOutcome::SlideBlocked));
+
+	const int32 Perms[6][3] = { {0,1,2}, {0,2,1}, {1,0,2}, {1,2,0}, {2,0,1}, {2,1,0} };
+	for (int32 p = 0; p < 6; ++p)
+	{
+		// `Paths` e `Planned` si permutano INSIEME: l'indice e' l'identita' dell'unita' per tutta la
+		// risoluzione, e disaccoppiarli misurerebbe un altro difetto.
+		TArray<TArray<FRTCellId>> ShuffledPaths;
+		TArray<FRTPlannedMovement> ShuffledPlanned;
+		for (int32 k = 0; k < 3; ++k)
+		{
+			ShuffledPaths.Add(Paths[Perms[p][k]]);
+			ShuffledPlanned.Add(Planned[Perms[p][k]]);
+		}
+
+		for (int32 k = 0; k < 3; ++k)
+		{
+			TestEqual(FString::Printf(TEXT("perm %d: l'unita' %d ha lo stesso esito"), p, Perms[p][k]),
+				static_cast<int32>(EsitoConPiano(ShuffledPaths, ShuffledPlanned, k)),
+				static_cast<int32>(Reference[Perms[p][k]]));
+		}
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

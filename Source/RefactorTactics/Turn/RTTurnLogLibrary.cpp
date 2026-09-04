@@ -401,6 +401,13 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// `SrcCell -> TgtCell` che il ramo lungo stampa e' la stessa di `Moved`, e senza una parola diversa la
 		// riga direbbe che l'unita' e' andata dove voleva — che e' precisamente cio' che non e' successo.
 		case ERTMoveOutcome::Slid:              Reason = TEXT("scivola"); break;
+		// Il movimento CHIESTO e' riuscito, e lo scivolamento che veniva dopo no (#2314). «arriva» e non
+		// «fermo»: e' l'unica riga del vocabolario dei blocchi in cui il piano del giocatore ha funzionato, e
+		// aprirla con «fermo» — come fanno `BlockedByUnit` e i suoi fratelli — manderebbe a cercare un errore
+		// nel piano invece che una lastra di ghiaccio contro un muro. La causa non si nomina di proposito: e'
+		// uniforme rispetto al motivo (unita', contesa, ciclo, muro), e nominarla richiederebbe di sapere CHI,
+		// che questa voce non porta e che [D-223] non autorizza a dedurre.
+		case ERTMoveOutcome::SlideBlocked:      Reason = TEXT("arriva: scivolamento impedito"); break;
 		// Un valore aggiunto in coda all'enum e non tradotto qui: si legge lo stesso e DICE di non essere
 		// tradotto, invece di travestirsi da «resta». Chi lo incontra sa dove guardare.
 		default:
@@ -419,9 +426,13 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// `Slid` sta qui per la stessa ragione di `SupersededByDash`: cio' che la voce deve far vedere e' la
 		// DESTINAZIONE, che non e' quella pianificata. Stampare la sola `SrcCell` nasconderebbe l'unica cosa
 		// che distingue lo scivolamento da un movimento riuscito.
+		// `SlideBlocked` sta qui perche' e' un movimento RIUSCITO: la destinazione e' quella che il giocatore
+		// aveva chiesto, e nasconderla lo lascerebbe con «impedito» senza sapere che il suo piano ha
+		// funzionato — cioe' con la lettura opposta a quella che l'esito esiste per dare.
 		if (static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Moved
 			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Displaced
 			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Slid
+			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SlideBlocked
 			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SupersededByDash)
 		{
 			return FString::Printf(TEXT("%s %s -> %s (%d celle)%s"),

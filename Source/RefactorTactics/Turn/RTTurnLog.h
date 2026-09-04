@@ -576,12 +576,48 @@ enum class ERTMoveOutcome : uint8
 	 *
 	 * ⚠️ **Si scrive sull'ESITO, non sull'intenzione.** Fra il momento in cui `ApplyIceSliding` allunga il
 	 * percorso e la fine del turno l'unita' puo' non arrivarci mai: collisione simultanea nel microstep, cella
-	 * contesa persa per priorita', `StoppedByOverwatch`, `StoppedByPrediction`. In tutti quei casi non e'
-	 * scivolata — si e' fermata prima — e il motivo giusto e' quello del resolver, che e' la spiegazione piu'
-	 * vicina a cio' che il giocatore ha visto. E' la stessa disciplina del commento di `BlockedByTopology`,
-	 * e per questo la condizione di scrittura confronta la cella FINALE con quella di scivolamento.
+	 * contesa persa per priorita', `StoppedByOverwatch`, `StoppedByPrediction`. Se si e' fermata **prima** di
+	 * completare cio' che il giocatore aveva chiesto, il motivo giusto e' quello del resolver — la spiegazione
+	 * piu' vicina a cio' che il giocatore ha visto; se ha completato il piano e lo scivolamento e' stato
+	 * impedito, il motivo e' `SlideBlocked`. E' la stessa disciplina del commento di `BlockedByTopology`.
+	 *
+	 * ⚠️ **La condizione di scrittura non e' piu' un confronto di CELLE** (`#2314`). Lo era — la cella finale
+	 * contro quella di scivolamento, nel chiamante — e non reggeva: un percorso puo' rivisitare la stessa
+	 * cella (`{A, B, C, B}`, che `BuildCompositeHexPath` produce concatenando segmenti senza deduplicare),
+	 * quindi «sono nella cella giusta» e «ho percorso il piano» sono due cose diverse. Ora lo scrive
+	 * `FinalizeHexMovementOutcomes` sul PROGRESSO dentro `FRTPlannedMovement::PlannedLength`.
 	 */
-	Slid
+	Slid,
+	/**
+	 * Il movimento pianificato dal giocatore e' RIUSCITO, e lo scivolamento che il terreno imponeva subito
+	 * dopo **non e' avvenuto**: zero celle di scivolamento percorse (`#2314`). Aggiunto in CODA, come gli
+	 * OTTO valori sopra: l'esito viaggia come `uint8` nel formato serializzato, quindi le tracce gia' scritte
+	 * non cambiano significato.
+	 *
+	 * **Perche' non e' un `BlockedBy*`, ed e' il difetto che questo valore chiude.** Prima di `#2314` il
+	 * percorso esteso entrava nel resolver, che ne considerava l'ultima cella la destinazione: un'unita'
+	 * arrivata **esattamente dove il giocatore l'aveva mandata** ma non scivolata risultava *«fermo: cella
+	 * occupata»*, con un `MoveBlocked`/`Important` nel feed. Il Move chiesto era riuscito: dire il contrario
+	 * manda il giocatore a cercare un errore nel proprio piano.
+	 *
+	 * **Perche' non riusa `Moved`.** Quello significa «arrivata, e il terreno non aveva altro da dire». Qui
+	 * il terreno aveva qualcosa da dire e qualcosa gliel'ha impedito — e la differenza ha conseguenze:
+	 * `D-319` fa dipendere `Status.Unbalanced` dall'essere scivolati davvero.
+	 *
+	 * 🔑 **E' uniforme rispetto alla CAUSA, per costruzione.** Occupazione, contesa, ciclo, collisione,
+	 * muro o bordo non attraversabile producono tutti questo esito, e non perche' qualcuno li abbia
+	 * elencati: la domanda a cui il resolver risponde e' *«quanto del piano del giocatore e' stato
+	 * percorso»*, che e' vera o falsa indipendentemente dal motivo per cui il passo dopo non e' avvenuto.
+	 * Un valore nuovo di questo enum non richiede una riga in piu' da nessuna parte — la whitelist scritta a
+	 * mano di `#2290` era nata gia' incompleta di uno (`BlockedByCycle`).
+	 *
+	 * ⚠️ **Precedenza: chi si ferma PRIMA della destinazione pianificata non prende questo esito**, mai.
+	 * Conserva il proprio `BlockReason` reale, che e' cio' che il giocatore ha visto.
+	 *
+	 * ⚠️ **Uno scivolamento avvenuto anche solo IN PARTE e' `Slid`, non questo.** Il confine conta a valle:
+	 * classificare come «non scivolata» un'unita' spostata di almeno una cella le toglierebbe `Unbalanced`.
+	 */
+	SlideBlocked
 };
 
 /**
