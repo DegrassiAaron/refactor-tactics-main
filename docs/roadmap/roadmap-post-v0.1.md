@@ -1063,7 +1063,15 @@ posti che restano owner e che questa sezione **cita** invece di ricopiare:
 FRTIntentView` esiste ed è testato da `RefactorTactics.Reactions.IntentNotVisibleToEnemy` e
 `RefactorTactics.Combat.IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed`. Ma il registry annota accanto la
 sola frase che conta: *«oggi la privacy è **banale perché il gioco è offline**»*. Un filtro che nessuno prova
-ad aggirare non è una difesa — è una convenzione. Il canary di `M10.3` è la prima riga di quel test che vale.
+ad aggirare non è una difesa — è una convenzione.
+
+➕ **Aggiornato il 2026-09-04** ([#589](https://github.com/DegrassiAaron/refactor-tactics-main/issues/589)):
+questa riga diceva *«il canary di `M10.3` è la **prima** riga di quel test che vale»*, e da oggi qualcosa lo
+precede. `Privacy.ServerOnlyTypesAreNotReplicated` presidia la **superficie di replica**: un tipo dichiarato
+`USTRUCT(meta = (RTServerOnly))` non è raggiungibile da nessuna `UPROPERTY(Replicated)` né da un parametro di
+RPC, nemmeno annidato dentro un `TArray`. ⚠️ **Non rende il canary meno necessario, e la distinzione è netta**:
+la guardia dice che non esiste una via **dichiarata** perché un intento parta, il canary che **nessun byte è
+partito**. La prima si dimostra sui tipi e gira offline; la seconda solo su una partita vera, e **packaged**.
 
 **Il vincolo che nessuno aveva quando M10 è stata scritta.**
 [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) introduce **N round-trip per turno** — una finestra
