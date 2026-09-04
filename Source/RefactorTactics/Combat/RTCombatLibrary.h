@@ -142,6 +142,51 @@ public:
 	static constexpr int32 GuardResistedPushDistance = 1;
 
 	/**
+	 * `Status.Unbalanced` ([D-319]): durata in turni, e **`2` e' una conseguenza misurata, non un gusto.**
+	 * `ARTUnit::TickStatuses()` decrementa nel **Cleanup**, e lo scivolamento che lo applica avviene nel
+	 * **Move** — la fase immediatamente precedente. Con `1` lo stato nascerebbe nel Move e morirebbe nello
+	 * stesso Cleanup, senza che nessuna fase interposta possa leggerlo.
+	 *
+	 * Il confronto che lo dimostra e' `Status.Exposed`, durata `1` da `Action.Sprint`: quella risolve in
+	 * `FastMovement`, cioe' nel **Dash**, e ha quindi Blast e Move davanti a se'. La stessa durata applicata
+	 * nel Move non ha piu' nessun resto di turno davanti.
+	 */
+	static constexpr int32 UnbalancedDurationTurns = 2;
+
+	/**
+	 * `Status.Prone` ([D-319]): durata in turni. Nasce nel **Blast**, quindi con `2` sopravvive al Cleanup
+	 * del turno `N` e copre tutto `N+1` — chi non paga perde **due** occasioni di muoversi, non una. Con
+	 * `1` avrebbe coperto il solo resto del turno in cui si cade, rendendo il pagamento quasi sempre
+	 * inutile.
+	 */
+	static constexpr int32 ProneDurationTurns = 2;
+
+	/**
+	 * Il prezzo dello **StandUp**: punti movimento sottratti al budget del turno per togliersi `Prone` in
+	 * anticipo ([D-319]). Il pagamento compra **il turno**, non l'uscita: la durata solleva comunque, ed e'
+	 * cio' che impedisce a chi ha `Root` o budget esaurito di restare a terra per sempre.
+	 *
+	 * 🔑 **Si sottrae in `ARTUnit::GetEffectiveMoveRange()`, che e' un sito solo** — quello da cui passano
+	 * sia lo snapshot del Move sia la validazione del piano. Non e' un'azione di catalogo: sarebbe una
+	 * chiave icona obbligatoria in piu' (`RequiredIconIds()` itera `GetCoreActionCatalog()`), e soprattutto
+	 * lascerebbe un'aspettativa dove ora c'e' una proprieta' — la condizione dello scivolamento legge
+	 * `MoveBudget` **dallo snapshot**, quindi abbassarlo li' rende vero che chi si e' appena rialzato
+	 * scivola di meno (`brief-stati-unbalanced-prone.md` §6).
+	 */
+	static constexpr int32 StandUpMovePointCost = 1;
+
+	/**
+	 * Celle **aggiuntive** di spostamento subito da chi e' `Unbalanced` ([D-319]): vale per la spinta e —
+	 * ⚠️ **asse nuovo** — anche per la trazione. [D-038] dichiara che *«la trazione non e' resistita»*,
+	 * quindi qui non si rovescia un antonimo esistente: si **crea** la scala.
+	 *
+	 * ⚠️ Contro `Status.Braced` il `+1` e' superfluo e non e' un difetto: quel ramo regge una spinta di
+	 * qualunque distanza. Il valore conta contro `Status.Guarded` — che resiste fino a
+	 * `GuardResistedPushDistance` — e contro chi non ha difese.
+	 */
+	static constexpr int32 UnbalancedExtraDisplacement = 1;
+
+	/**
 	 * Le due PROVENIENZE dei pool d'assorbimento, nel vocabolario di `FRTDamageStageEntry::SourceId`
 	 * (`#2213`). Stanno qui e non come letterali ai chiamanti per la stessa ragione degli altri valori di
 	 * questa lista: un letterale ripetuto e' un refuso che compila.

@@ -58,9 +58,16 @@ struct FRTTerrainDef
 	 * Sta nel catalogo e non in un `switch` perche' e' l'ultima regola di terreno che era ancora incisa
 	 * nell'enum (DoD CP 8.1: "i costi vivono nei dati, non in `switch` C++").
 	 *
-	 * **Limite dichiarato (CP 8.1)**: `URTHexSimLibrary::ApplyIceSliding` legge questo campo come un booleano
-	 * (`> 0` = scivola di UNA cella) e non srotola ancora N celle. Il valore intero e' la forma giusta del dato
-	 * per le dinamiche di CP 8.4 (ignite/disgelo), non una funzionalita' consumata oggi.
+	 * ✅ **Il limite dichiarato al CP 8.1 e' CADUTO** (`#2253`). Questo commento diceva: *«`ApplyIceSliding`
+	 * legge questo campo come un booleano (`> 0` = scivola di UNA cella) e non srotola ancora N celle. Il
+	 * valore intero e' la forma giusta del dato, non una funzionalita' consumata oggi»*. Da [D-319] il
+	 * campo e' un CONTATORE vero: la funzione srotola `SlideCells` passi, piu' quelli che
+	 * `FRTHexSimUnit::ExtraSlideCells` aggiunge per chi e' gia' `Status.Unbalanced`.
+	 *
+	 * ⚠️ **L'estensione puo' essere PARZIALE, e non e' un difetto**: ogni passo e' verificato con la stessa
+	 * domanda del primo (`StepIsWalkable`), quindi chi scivola verso un muro alla seconda cella percorre la
+	 * prima e si ferma. Il costo del movimento non cambia — lo scivolamento non e' pagato — ma la
+	 * condizione di innesco resta *«budget residuo >= 2»*, misurata **una volta** sul percorso pianificato.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Terrain")
 	int32 SlideCells = 0;
