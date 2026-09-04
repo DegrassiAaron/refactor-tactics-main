@@ -23,6 +23,12 @@ public class RefactorTacticsEditor : ModuleRules
 			"LevelEditor",
 			"InteractiveToolsFramework",
 			"EditorInteractiveToolsFramework",
+			// #2326: seguire i pin di un Blueprint dal nodo evento alla chiamata di funzione. Serve alle
+			// classi `UK2Node_*`, ed e' la ragione per cui questo test vive nel modulo EDITOR e non in
+			// quello Runtime: `RTFrontendWidgetAssetTests.cpp` dichiara di NON poter attribuire una
+			// chiamata al pulsante che la origina, perche' UMG compila ogni evento del widget in un unico
+			// ubergraph e un modulo Runtime non puo' dipendere da `BlueprintGraph` senza rompere Shipping.
+			"BlueprintGraph",
 			// Import delle texture e creazione del DA_IconCatalog dal commandlet RTBuildIconCatalog.
 			"AssetTools",
 			// Il Playground Panel (#1993): l'EditorUtilityWidget e il suo albero di widget si costruiscono
