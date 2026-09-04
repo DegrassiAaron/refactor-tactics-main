@@ -11,7 +11,9 @@
 > **Stato**: brief di requisiti · **Data**: 2026-08-07 · **Origine**: `/sc:brainstorm` su
 > `docs/archive/src/design/terreno-ghiaccio-v0.1.md` (36 sezioni)
 > **Esito**: lo **scivolamento base resta in v0.1 perché è già implementato**; il **motore** (Momentum,
-> Traction, Prone, collisioni a catena, integrità, rottura, ponti) è **fuori**, epic post-release.
+> Traction, ~~Prone~~, collisioni a catena, integrità, rottura, ponti) è **fuori**, epic post-release.
+> ✅ **Su `Unbalanced` e `Prone` questo esito è stato superato il 2026-09-04**: i due stati sono usciti
+> dall'epic con [D-319](../decisions/RT_PDR_00_Decision_Log.md) — vedi §5. Gli altri elementi del motore restano fuori.
 > **Autorità**: subordinato a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) e
 > [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md).
 
@@ -38,7 +40,7 @@ Un sistema molto più ampio, in 5 blocchi:
 |---|---|---|
 | **Superfici e stati** | `Ice`, `CrackedIce`, `Water`, `Steam`, `ElectrifiedWater` con state machine | 🟡 parziale: `Ice`, `ShallowWater`, `Smoke` esistono; `CrackedIce`, `Steam`, `ElectrifiedWater` no |
 | **Fisica del movimento** | Momentum, Traction, Stability, Slide esteso, cambio di direzione, pendenze | ⏳ **fuori**: è un motore, non un terreno |
-| **Stati dell'unità** | `Unbalanced`, `Prone`, `Sliding` | ⏳ fuori |
+| **Stati dell'unità** | `Unbalanced`, `Prone`, `Sliding` | ✅ `Unbalanced` e `Prone` sono **entrati** con [D-319](../decisions/RT_PDR_00_Decision_Log.md) — vedi §5; `Sliding` resta fuori |
 | **Integrità e rottura** | integrità del ghiaccio, crepe, rottura, caduta in acqua, ponti di ghiaccio | ⏳ fuori |
 | **Interazioni termiche** | Heat/Melt/Freeze, fuoco↔ghiaccio, steam, vento | 🟡 parziale: `Terrain.Fire.*` esiste; le transizioni di stato no |
 
@@ -80,7 +82,7 @@ Da aprire **dopo** la v0.1, con questo perimetro:
 | CP | Contenuto |
 |---|---|
 | G.1 | `CrackedIce` + integrità + rottura + caduta in acqua |
-| G.2 | Traction/Stability per eroe; `Unbalanced` e `Prone` |
+| G.2 | Traction/Stability per eroe ~~; `Unbalanced` e `Prone`~~ — i due stati sono **usciti** con [D-319](../decisions/RT_PDR_00_Decision_Log.md) |
 | G.3 | Momentum e slide esteso con resolver a punto fisso + **fuzzing deterministico** |
 | G.4 | Transizioni termiche: Heat/Melt/Freeze, `Steam` con opacità (si innesta su E13: lo steam è occultamento) |
 | G.5 | Ponti di ghiaccio: creazione, attraversamento, distruzione, revisione del grafo |
@@ -88,12 +90,13 @@ Da aprire **dopo** la v0.1, con questo perimetro:
 **Prerequisito dichiarato**: G.3 non parte senza il fuzzing, e G.4 non parte prima di E13 (lo steam è un
 modificatore di visibilità, e il modello della conoscenza deve esistere prima dei suoi modificatori).
 
-> 🔄 **Su G.2 esiste una proposta di anticipazione, e non è ancora una decisione** (2026-09-04).
-> [`brief-stati-unbalanced-prone.md`](brief-stati-unbalanced-prone.md) specifica `Unbalanced` e `Prone`
-> separandoli per **causa** dello spostamento — ambientale contro forzata — invece che per soglia di
-> Momentum, e sostiene quindi di poterli anticipare **senza** il motore che G.3 richiede.
-> ⛔ **Finché la decisione non è presa, questa riga resta vigente**: i due stati stanno in G.2. La sede della
-> risposta è [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), non uno dei due brief.
+> ✅ **G.2 si è ridotta il 2026-09-04: `Unbalanced` e `Prone` ne sono usciti**
+> ([D-319](../decisions/RT_PDR_00_Decision_Log.md), che chiude `STA-5` e la riga 96 della
+> [matrice dei conflitti](../DOC_CONFLICT_MATRIX.md), e ne porta l'istruttoria). Il modello vive in
+> [`brief-stati-unbalanced-prone.md`](brief-stati-unbalanced-prone.md).
+> ⛔ **Il resto di questa epic non è toccato, e `G.3 non parte senza il fuzzing` resta vero**: CP 12.6 lega
+> il fuzzing allo **slide a catena**, non ai due stati. Il perimetro residuo di G.2 è Traction e Stability
+> per eroe.
 
 ## 6. Il collegamento con il rumore
 

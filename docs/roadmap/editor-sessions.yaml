@@ -1066,8 +1066,22 @@ sessions:
     unblocked_by: [E8, E9, U1]
     shares_setup_with: [U1]
     verifies: [PIE-V01-COVEREDIT]
-    issues: []
-    done_when: null
+    issues: [1738]
+    done_when: >-
+      l'asse PERCEZIONE diventa misurabile, e il resto della seduta resta dichiarato aperto.
+      Percezione (#1738), su una sorgente GENERATA e non su un `.uasset` mutevole — `rt.Map.Fixture
+      VisionSplit`, impostata PRIMA del Play: entro i primi due turni `rt.Debug.Knowledge 0` riporta
+      tutti e tre i conteggi diversi da zero, con le celle mai viste `> 0`; `rt.Arena.Check` passa i tre
+      criteri di `U1-B`, oppure le sue soglie vengono rimisurate e dichiarate (le attuali sono
+      «proposte, non misurate» per parola del comando); il tripwire headless
+      `Arena.HasCellsNoOneSeesAtStart` è verde con mutazione verificata.
+      ⚠️ **Si guarda entro i primi due turni e non più tardi**: l'esplorato non scade (`D-227`), quindi
+      le celle mai viste si erodono a ogni turno e più avanti nessuna arena rende il criterio
+      falsificabile — il raggio 8 allarga la finestra, non la elimina.
+      ⛔ Gli altri contenuti dei `steps` — `Terrain.Rough`, acqua conduttiva, **porta**, copertura bassa —
+      restano fuori: #1738 li dichiara nel proprio `Out of Scope` e oggi **non hanno una issue propria**.
+      Finché non ne acquistano una, U13 non è chiudibile per intero e questo `done_when` copre la sola
+      metà che #1738 rende misurabile.
     unblocks: [U14]
     steps: |
       Estende l'artefatto di U1 con: una cella `Terrain.Rough`, una zona d'acqua adiacente a una

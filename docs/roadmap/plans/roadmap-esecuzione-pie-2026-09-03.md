@@ -40,6 +40,31 @@ dice da sé — *«Il corpus Visual, diciotto scenari che nessuna seduta convoca
 > ⚠️ **Le voci con ostacolo dichiarato restano non rimisurate**, per la ragione già scritta: contarle
 > chiede di leggere il testo di ogni riga, non un marcatore.
 
+> ✅ **Riconfermato dopo il merge di `origin/main` (4 commit): `204 · 102 · 73 · 29`, i quattro
+> numeri NON si muovono.** ⚠️ E una conferma vale la misura quanto una correzione: il merge non ha
+> chiesto attenzione — nessun conflitto, nessun marcatore — e l'unica cosa che avrebbe segnalato uno
+> scarto era **rieseguire il comando**.
+>
+> 🔄 **Rimisurato il 2026-09-04 su `35816207`: `204 · 102 · 73 · 29`.** Totale e aperte salgono di due
+> rispetto alla misura precedente — `main` è avanzato ancora, ed è il dodicesimo giro dello stesso
+> meccanismo che questo file già registra.
+>
+> 🔴 **E lo scarto sulle schedulate NON era `main`: era il mio criterio di misura.** La prima stesura
+> di questa passata contava una voce come schedulata se il suo nome compariva **in qualunque punto** di
+> `editor-sessions.yaml` — una sottostringa, non un match. Dava `74 · 28`, cioè **38 falsi positivi**:
+> `PIE-VIS-HIGH` risultava schedulata perché esiste `PIE-VIS-HIGHCOVER`, e `PIE-AI-01`…`-05`,
+> `PIE-GBX-*`, `PIE-BAL1` comparivano nella **prosa** delle sedute senza essere in nessun `verifies:`.
+>
+> ⚠️ **E la correzione ovvia sbagliava dall'altra parte.** Contando solo le righe `- PIE-…` sotto
+> `verifies:` il numero crollava a **36**: quel campo esiste in **due** formati — lista a blocchi e
+> **inline** `verifies: [PIE-AS2, PIE-FACING, PIE-AS4a]` — e leggerne uno solo perde metà delle sedute.
+> ∴ il numero buono viene da entrambi i formati con match **esatto**: `73` schedulate, `29` orfane.
+>
+> 🔑 **Tre metodi, tre risposte — `28`, `66`, `29` — sullo stesso identico file**, ed e' la stessa
+> lezione che questo documento porta già due volte: *il criterio di misura decide il numero*. Qui non
+> l'ha rivelato un confronto con la realtà, ma il **disaccordo fra due misure**: se avessi fatto solo la
+> prima, `28` sarebbe finito qui dentro senza che nulla lo contraddicesse.
+>
 > 🔄 **Rimisurato il 2026-09-03 su `31859e13`, e i quattro numeri erano già invecchiati prima di
 > questa passata.** Dicevano `200 · 98 · 68 · 30`; la base senza le modifiche di oggi misura
 > `201 · 99 · 66 · 33`. Questo file è stato scritto **stamattina** su `2eb4ace2`: fra le due misure
