@@ -4,6 +4,44 @@
 #include "Components/Image.h"
 #include "Components/ProgressBar.h"
 #include "Components/TextBlock.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
+#include "UI/RTIconLibrary.h"       // ResolveIcon: la chiave la porta la vista, il catalogo la traduce
+#include "UI/RTIconCatalogData.h"   // FRTIconResolution e URTIconCatalogData: valori di ritorno e campo
+#include "Engine/Texture2D.h"
+#include "UObject/ConstructorHelpers.h"
+
+URTUnitOverlayWidget::URTUnitOverlayWidget(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	// Il catalogo di default, cosi' che l'unico `WBP_RT_UnitOverlay` non debba assegnarlo a mano — e
+	// soprattutto non possa dimenticarlo. Resta `EditDefaultsOnly`: il Blueprint conserva l'ultima parola.
+	//
+	// ⚠️ Se l'asset non c'e', il campo resta nullo e `ResolveIcon` mostra il missing-icon con la sua
+	// warning: degrada, non crasha — la stessa forma con cui `OverlayWidgetClass` e `ContactGhostMaterial`
+	// sono opzionali.
+	static ConstructorHelpers::FObjectFinder<URTIconCatalogData> CatalogoDefault(
+		TEXT("/Game/RT/UI/DA_IconCatalog.DA_IconCatalog"));
+	if (CatalogoDefault.Succeeded())
+	{
+		IconCatalog = CatalogoDefault.Object;
+	}
+}
+
+FString URTUnitOverlayWidget::ComposeStatusDurationLabel(int32 RemainingTurns, bool bCellBound)
+{
+	if (bCellBound)
+	{
+		// 🔴 Legato alla cella: **nessun conteggio**. Dura finche' l'unita' resta dov'e', e stampare un
+		// numero direbbe una cosa falsa su quando finisce.
+		return FString();
+	}
+
+	// ⚠️ Una durata non positiva non e' un tempo da mostrare: uno stato scaduto non compare gia' nella
+	// vista (`GetActiveStatusTags` scarta i residui non positivi), e se ci arrivasse comunque sarebbe un
+	// difetto a monte — non un «0» da disegnare sopra la testa di un'unita'.
+	return RemainingTurns > 0 ? FString::FromInt(RemainingTurns) : FString();
+}
 
 FString URTUnitOverlayWidget::ComposeHealthLabel(int32 Health, int32 MaxHealth)
 {
@@ -89,25 +127,70 @@ void URTUnitOverlayWidget::SetOverlayView(const FRTUnitOverlayView& InView)
 
 		for (const FRTStatusBadgeView& Badge : View.Statuses)
 		{
-			UTextBlock* Voce = NewObject<UTextBlock>(this);
-			if (Voce == nullptr) { continue; }
-
-			// ⚠️ **Testo e non icona, ed e' una scelta dichiarata.** Le undici `RT_UI_Icon_Status_*` esistono
-			// e `Badge.IconId` porta gia' la chiave giusta, ma risolverla richiede il **catalogo**
-			// (`URTIconLibrary::ResolveIcon` su `URTIconCatalogData`), che questo widget non ha e che
-			// nessuno gli passa oggi. Mostrare la sigla e' il ripiego onesto: si vede quale stato c'e' e per
-			// quanto, e chi aggancia il catalogo sostituisce QUESTO blocco senza toccare il resto.
+			// L'ICONA. `Badge.IconId` e' gia' derivato dal tag da `BuildStatusBadges` (`#2274`): qui non si
+			// compone una seconda chiave, si risolve quella.
 			//
-			// 🔑 Non e' il ripiego che `#2244` denunciava: quello mostrava **due** stati su undici e li
-			// escludeva a vicenda. Qui ci sono tutti, ordinati per gravita', con la durata.
-			const FString Sigla = Badge.Tag.ToString().Replace(TEXT("Status."), TEXT(""));
-			const FString Testo = Badge.bCellBound
-				// Legato alla cella: niente conteggio, perche' non c'e' un numero di turni da mostrare.
-				? Sigla
-				: FString::Printf(TEXT("%s %d"), *Sigla, Badge.RemainingTurns);
+			// ⚠️ **Il `Consumer` non e' decorativo**: `ResolveIcon` lo pretende perche' la warning di
+			// un'icona mancante dica **chi** l'ha chiesta — senza, resta un messaggio che non aiuta nessuno,
+			// ed e' scritto nel suo doc-comment.
+			const FRTIconResolution Risolta = URTIconLibrary::ResolveIcon(
+				IconCatalog, Badge.IconId, TEXT("RTUnitOverlayWidget"));
 
-			Voce->SetText(FText::FromString(Testo));
-			StatusBox->AddChild(Voce);
+			// ⚠️ **`LoadSynchronous` e non un caricamento asincrono.** Le undici icone di stato sono
+			// texture piccole e gia' referenziate dal catalogo, quindi in pratica sono in memoria; un
+			// caricamento differito qui significherebbe un fotogramma con l'icona vuota **a ogni
+			// aggiornamento**, cioe' uno sfarfallio invece di un risparmio.
+			UTexture2D* Texture = Risolta.Asset.LoadSynchronous();
+
+			// Icona e durata SOVRAPPOSTE, non affiancate: sopra la testa di un'unita' lo spazio orizzontale
+			// e' la risorsa scarsa, e dieci stati affiancati con il numero accanto sarebbero il doppio
+			// larghi. Il conteggio sta nell'angolo dell'icona.
+			UOverlay* Casella = NewObject<UOverlay>(this);
+			if (Casella == nullptr) { continue; }
+
+			if (Texture)
+			{
+				UImage* Icona = NewObject<UImage>(this);
+				if (Icona)
+				{
+					Icona->SetBrushFromTexture(Texture, /*bMatchSize*/ false);
+					Icona->SetDesiredSizeOverride(FVector2D(24.f, 24.f));
+					Casella->AddChildToOverlay(Icona);
+				}
+			}
+			else
+			{
+				// 🔴 **Il ripiego resta, e serve.** Catalogo assente o chiave non risolta: si mostra la
+				// sigla invece di uno spazio vuoto, perche' «lo stato c'e' e non so disegnarlo» e «non c'e'
+				// nessuno stato» devono restare distinguibili a schermo. `ResolveIcon` ha gia' scritto la
+				// warning che nomina chiave e consumer.
+				UTextBlock* Ripiego = NewObject<UTextBlock>(this);
+				if (Ripiego)
+				{
+					Ripiego->SetText(FText::FromString(
+						Badge.Tag.ToString().Replace(TEXT("Status."), TEXT(""))));
+					Casella->AddChildToOverlay(Ripiego);
+				}
+			}
+
+			// La durata sopra l'icona, in basso a destra. Vuota per gli stati legati alla cella: li' non c'e'
+			// un conteggio, e la regola sta in una funzione pura invece che in questo `if`.
+			const FString Durata = ComposeStatusDurationLabel(Badge.RemainingTurns, Badge.bCellBound);
+			if (!Durata.IsEmpty())
+			{
+				UTextBlock* Conteggio = NewObject<UTextBlock>(this);
+				if (Conteggio)
+				{
+					Conteggio->SetText(FText::FromString(Durata));
+					if (UOverlaySlot* SlotConteggio = Casella->AddChildToOverlay(Conteggio))
+					{
+						SlotConteggio->SetHorizontalAlignment(HAlign_Right);
+						SlotConteggio->SetVerticalAlignment(VAlign_Bottom);
+					}
+				}
+			}
+
+			StatusBox->AddChild(Casella);
 		}
 	}
 

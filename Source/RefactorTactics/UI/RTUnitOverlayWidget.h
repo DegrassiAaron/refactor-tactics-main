@@ -8,6 +8,7 @@
 class UHorizontalBox;
 class UProgressBar;
 class UTextBlock;
+class URTIconCatalogData;
 
 /**
  * La sovrapposizione sopra un'unita': nome, vita, scudo, energia e stati (`#2288`, `D-320`).
@@ -36,6 +37,8 @@ class REFACTORTACTICS_API URTUnitOverlayWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	URTUnitOverlayWidget(const FObjectInitializer& ObjectInitializer);
+
 	/**
 	 * L'ultima vista ricevuta. `BlueprintReadOnly` perche' il disegno la **legge**: un widget che potesse
 	 * scriverla diventerebbe una seconda fonte di cio' che l'unita' e'.
@@ -71,7 +74,38 @@ public:
 	 */
 	static float SafeFraction(int32 Value, int32 Max);
 
+	/**
+	 * L'etichetta della durata da mostrare accanto a un'icona di stato.
+	 *
+	 * @return  i turni residui come stringa · **vuoto** se lo stato e' legato alla cella, dove un conteggio
+	 *          non esiste — e vuoto anche per una durata non positiva, che non e' un tempo da mostrare.
+	 *
+	 * 🔑 Statica e pura perche' sia verificabile senza costruire un widget: e' l'unica regola di formato che
+	 * la riga di uno stato possiede.
+	 */
+	static FString ComposeStatusDurationLabel(int32 RemainingTurns, bool bCellBound);
+
 protected:
+	/**
+	 * Il catalogo iconografico da cui risolvere le icone di stato.
+	 *
+	 * 🔴 **Non si eredita risalendo l'albero UMG, e la ragione e' strutturale.**
+	 * `URTScreenHudWidgetBase::GetIconCatalog()` risale con `GetTypedOuter` fino a `URTTacticalHUDWidget` —
+	 * e quel doc-comment dichiara gia' il proprio limite: *«se un widget viene innestato fuori dal
+	 * `WBP_RT_TacticalHUD` questa funzione restituisce `nullptr` in silenzio»*. Questo widget vive dentro un
+	 * `UWidgetComponent` su `ARTUnit`: e' **esattamente** quel caso.
+	 *
+	 * ⚠️ **`EditDefaultsOnly` con un default in C++, e non N assegnazioni a mano.** Il commento di
+	 * `GetIconCatalog` scarta l'idea di dichiararlo sulla base perche' *«ogni `WBP_RT_*` avrebbe la propria
+	 * copia da assegnare a mano — N occasioni di dimenticarne una»*. Qui **N vale uno**: esiste un solo
+	 * `WBP_RT_UnitOverlay`. Il default lo mette il costruttore, e il Blueprint conserva l'ultima parola.
+	 *
+	 * ⚠️ **Nullo non e' un difetto da nascondere**: `ResolveIcon` restituisce il missing-icon con una
+	 * warning che nomina chiave e consumer. A schermo si vede che manca, invece di un buco silenzioso.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	TObjectPtr<URTIconCatalogData> IconCatalog;
+
 	/** Il nome dell'eroe. */
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> NameText;
