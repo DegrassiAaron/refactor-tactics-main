@@ -236,6 +236,22 @@ public:
 	int32 ResolvedReactionCountForTest(int32 ReactorStableUnitId) const;
 
 	/**
+	 * Hook per i test: gli eventi `StatusChanged` emessi in questo turno (`#2245`).
+	 *
+	 * 🔴 Stessa ragione dell'accessore qui sopra — `ResolvedTimeline` e' privato e la presentazione e'
+	 * l'unico consumatore — con una in piu': l'emissione avviene in `AppendLogEntry`, cioe' in un punto
+	 * che **ogni** voce di log attraversa. Senza poter leggere la timeline, la differenza fra «emesso per
+	 * gli stati» ed «emesso per tutto» non sarebbe osservabile da un test.
+	 *
+	 * ⚠️ Restituisce gli eventi INTERI e non un conteggio: cio' che va sorvegliato qui e' il **contenuto** —
+	 * quale tag, quale causa, quanti turni — e un numero non lo direbbe. Il precedente conta perche' li'
+	 * la domanda era *«ha reagito?»*; qui e' *«che cosa e' successo a quale stato, e perche'»*.
+	 *
+	 * @return copia degli eventi `StatusChanged` nell'ordine di emissione, che e' quello delle voci di log.
+	 */
+	TArray<FRTResolvedEvent> ResolvedStatusEventsForTest() const;
+
+	/**
 	 * Hook per i test: applica una modifica temporanea di superficie dichiarandone l'autore.
 	 *
 	 * Serve perche' la scadenza ambientale — la voce che deve restare senza attore (#405) — nessuno scenario

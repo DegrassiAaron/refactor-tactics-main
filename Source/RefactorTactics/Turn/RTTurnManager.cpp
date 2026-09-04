@@ -2738,6 +2738,41 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 
 	// L'UNICO `TurnLog.Add` del file: ogni altro sito passa da qui.
 	TurnLog.Add(Entry);
+
+	// `#2245`: lo stesso fatto, sull'altro canale. La voce e' appena stata scritta e porta gia' tutto —
+	// il tag in `ActionId`, la durata in `Amount`, la causa in `Outcome` — quindi qui non si decide nulla:
+	// si COPIA.
+	//
+	// 🔑 **Perche' qui e non nei nove siti che producono le voci di stato.** Le cause sono nove, sparse su
+	// due file (`Cleansed` vive in `RTTurnManager_Blast.cpp`), e una emissione per sito sarebbe una
+	// copertura da mantenere a mano: il primo a dimenticarla sarebbe il decimo outcome. Da questo punto
+	// invece uno stato aggiunto domani e' coperto **per costruzione**, ed e' la stessa ragione per cui il
+	// gate di [D-278] itera l'enum vero invece di una lista scritta a mano.
+	//
+	// 🔴 **E i due canali non possono divergere, perche' il secondo DERIVA dal primo** — non e' una seconda
+	// fonte che qualcuno dovra' tenere allineata.
+	//
+	// ⚠️ `ResolvedTimeline` e' playback e **non entra ne' in `StateHash` ne' nel formato di replay**:
+	// `FRTTurnLogEntry` dichiara di se' *«osservabilita' separata dalla presentazione (non e'
+	// FRTResolvedEvent)»*. Verificato prima di aggiungere il valore all'enum, come `#2191` prescrive.
+	if (Entry.Category == ERTLogCategory::Status)
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = Entry.Phase;
+		Ev.Type = ERTResolvedEventType::StatusChanged;
+		// Il SOGGETTO e' l'unita' su cui lo stato nasce o muore. `0` = nessuna unita' dichiarata ([D-063]):
+		// una voce di stato senza attore non esiste oggi, ma la sentinella resta leggibile come «nessuno»
+		// invece che come l'unita' zero.
+		Ev.SourceStableUnitId = Entry.UnitId;
+		Ev.StatusTag = Entry.ActionId;
+		Ev.StatusOutcome = static_cast<ERTStatusOutcome>(Entry.Outcome);
+		// ⚠️ Per `AppliedWhileOnCell` vale `0`, e li' NON e' un conteggio: e' l'unico caso in cui `Amount`
+		// non dice «turni». Lo dichiara `ERTStatusOutcome` stesso, e chi consuma deve chiedere il verso a
+		// `IsStatusBirth` invece di dedurlo dal numero.
+		Ev.Amount = Entry.Amount;
+		Ev.Origin = Entry.SrcCell;
+		ResolvedTimeline.Add(Ev);
+	}
 }
 
 void ARTTurnManager::RecordFacingChange(FRTHexSimUnit& Unit, ERTHexDirection NewFacing, ERTFacingOutcome Reason,
@@ -6899,6 +6934,19 @@ void ARTTurnManager::ResolveMovement()
 
 // ===================== Playback della risoluzione (presentazione) =============================
 
+
+TArray<FRTResolvedEvent> ARTTurnManager::ResolvedStatusEventsForTest() const
+{
+	TArray<FRTResolvedEvent> Out;
+	for (const FRTResolvedEvent& Ev : ResolvedTimeline)
+	{
+		if (Ev.Type == ERTResolvedEventType::StatusChanged)
+		{
+			Out.Add(Ev);
+		}
+	}
+	return Out;
+}
 
 int32 ARTTurnManager::ResolvedReactionCountForTest(int32 ReactorStableUnitId) const
 {
