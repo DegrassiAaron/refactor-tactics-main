@@ -202,7 +202,37 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 
-	/** Chiude la pianificazione e risolve il turno; il movimento si applica nella fase Move. */
+	/**
+	 * Chiude la pianificazione e risolve il turno; il movimento si applica nella fase Move.
+	 *
+	 * ⚠️ **Chiamarla DUE volte senza pompare `Tick` in mezzo NON gioca due turni: la seconda chiamata
+	 * e' un no-op silenzioso.** Le fasi si risolvono qui, in modo sincrono — ma se c'e' qualcosa da
+	 * mostrare la risoluzione entra nel **playback**, che accende `bIsResolving` e rimanda `ConcludeTurn`
+	 * a `FinishPlayback`, raggiungibile **solo da `Tick`**. Finche' resta acceso, la guardia in testa a
+	 * questa funzione (`Phase != Planning || bIsResolving`) fa rientrare ogni chiamata successiva senza
+	 * dire niente.
+	 *
+	 * 🔑 **E cio' che si perde non e' solo il secondo turno: e' il refresh della conoscenza a valle
+	 * del MOVIMENTO.** `ConcludeTurn` riapre la pianificazione con `PlanBots()`, che e' l'unico punto a
+	 * chiamare `RefreshTeamKnowledgeForPlanning` dopo che le unita' si sono spostate; l'altro refresh
+	 * — quello di `ResolveCombat` — gira in fase **Blast**, cioe' PRIMA di Move, sulle posizioni di
+	 * partenza. ∴ un test che legge la conoscenza (o il velo) senza pompare rilegge lo stato
+	 * **pre-movimento** e lo scambia per una misura: nel caso che ha prodotto questa nota, tre conteggi
+	 * identici a due `LockInAndResolve` di distanza, delta `+0 +0 +0`, e il test **verde**.
+	 *
+	 * ∴ chi gioca dei turni ha due strade, e una la deve prendere:
+	 * ```cpp
+	 * TM->LockInAndResolve();
+	 * for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); } // la partita vera
+	 * ```
+	 * oppure `bEnablePlayback = false` prima di cominciare — la strada di `RTHexPerfTests` e
+	 * `RTStress4v4Tests`, che misurano il resolver e non la sua riproduzione: senza playback
+	 * `ConcludeTurn` viene chiamata subito, in linea.
+	 *
+	 * ⚠️ `Phase == Planning` DOPO la chiamata non dice che il turno non e' avanzato: Planning e' la fase
+	 * di **riposo**, e il ciclo delle fasi esce proprio quando ci torna. Il segnale vero e' `IsResolving()`
+	 * ancora acceso, oppure `GetTurnNumber()` fermo.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
 	void LockInAndResolve();
 
