@@ -1703,6 +1703,63 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 	TMap<ARTUnit*, FRTDisplacementCause>& PushCause = Ctx.PushCause;
 	TMap<ARTUnit*, FRTDisplacementCause>& PullCause = Ctx.PullCause;
 
+	// LA CADUTA ([D-319], `#2253`): chi subisce uno spostamento forzato mentre e' `Unbalanced` finisce
+	// `Prone`, e `Unbalanced` si consuma.
+	//
+	// 🔑 **Chiamata DOPO `ApplyForcedDisplacement`, e non prima**, perche' la regola e' *«niente movimento,
+	// niente caduta»*: ogni ramo che resiste — ancoraggio, guardia, irrigidimento, forze contraddittorie,
+	// destinazione impossibile o contesa — esce con un `continue` prima di arrivare qui, e la sede in cui
+	// quell'esito si legge nel replay resta `ERTMoveOutcome::DisplacementResisted` (`#420`).
+	//
+	// 🔑 **`Unbalanced` si CONSUMA, ed e' un tetto naturale**: chi si rialza e' stabile e non puo' essere
+	// riabbattuto subito, quindi due avversari che spingono a turno non producono una catena di `Prone`
+	// senza fine. L'esito e' `Spent` — lo stato ha fatto il suo lavoro, come `Status.Marked` incassato — e
+	// non `Cleansed`, che direbbe che qualcuno ha speso un'azione per toglierlo.
+	//
+	// ⚠️ **Fase `Blast`, non `Cleanup`**: e' qui che accade. Il default di `MakeStatusDeathEntry` resta
+	// `Cleanup` per non muovere le voci gia' serializzate, e i siti nuovi passano la fase vera.
+	auto CadeSeSbilanciato = [this](ARTUnit* T)
+	{
+		if (!IsValid(T) || !T->IsAlive() || !T->HasStatus(TAG_Status_Unbalanced))
+		{
+			return;
+		}
+		T->RemoveStatus(TAG_Status_Unbalanced);
+		FRTTurnLogEntry Consumato = MakeStatusDeathEntry(TAG_Status_Unbalanced, T->Cell,
+			ERTStatusOutcome::Spent, ERTMatchPhase::Blast);
+		AppendLogEntry(Consumato, T);
+
+		FRTTurnLogEntry Caduto = MakeStatusBirthEntry(ERTMatchPhase::Blast, TAG_Status_Prone, T->Cell,
+			URTCombatLibrary::ProneDurationTurns, /*bFromTerrain=*/ false);
+		ApplyStatusLogged(T, TAG_Status_Prone, URTCombatLibrary::ProneDurationTurns);
+		AppendLogEntry(Caduto, T);
+
+		// (1) NIENTE REAZIONE per il resto del turno. Si riusa `ReactionBlockedThisTurn`, che e' il
+		// meccanismo con cui `Action.Sprint` gia' fa la stessa cosa (CP 5.1): entrambi i punti che
+		// producono `ERTReactionOutcome::Unavailable` — quello generico e quello dell'interposizione — lo
+		// leggono gia'. Un terzo controllo scritto a mano in due `if` sarebbe una seconda regola da tenere
+		// d'accordo con la prima.
+		// ⚠️ **Copre il resto di QUESTO turno**; il turno successivo lo copre `ResolveDash`, che al reset
+		// rimette dentro chi e' ancora a terra — `Prone` dura 2 apposta.
+		ReactionBlockedThisTurn.Add(T);
+
+		// (2) OVERWATCH DISARMATO, con la CHARGE SPESA. `bCharged = false` e' esattamente il
+		// `ReactionStillArmed` di ADR-0004 §6 che il ciclo dei watcher legge per primo: l'armamento resta
+		// nella lista — quindi il replay lo vede — e non spara piu'. Perdere la charge e' il punto: apre la
+		// linea di gioco «spingo per disarmare», che e' cio' per cui [D-319] mette il blocco su `Prone` e
+		// non su `Unbalanced`.
+		for (FRTArmedOverwatch& Armed : ArmedOverwatches)
+		{
+			if (Armed.Owner.Get() == T) { Armed.bCharged = false; }
+		}
+
+		// (3) PREDICTIVE ARMATA PERSA. `FRTArmedPrediction` non ha una charge da spegnere — la lista **e'**
+		// lo stato — quindi si rimuove. ⚠️ Tocca il thin slice v0.1 `Hero.Wraith.InterceptShot`: una scelta
+		// dichiarata e pagata un turno prima viene cancellata da una spinta, ed e' il punto che il brief §8.4
+		// lascia da confermare con E18 davanti. Implementato come [D-319] lo descrive, non oltre.
+		ArmedPredictions.RemoveAll([T](const FRTArmedPrediction& A) { return A.Shooter.Get() == T; });
+	};
+
 	// --- Ancoraggio (CP 7.5, `#505`): il punto di valutazione degli SPOSTAMENTI ----------------------
 	// Spinte e trazioni sono decise — raccolte in `KnockCount`/`PullCount` — e non ancora applicate. E' il
 	// solo momento in cui `Reaction.Anchor` puo' annullarle: dopo, annullare vorrebbe dire rimettere indietro
@@ -1789,6 +1846,22 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 
 			if (!Pushes || *Pushes != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
 
+			// `Status.Unbalanced` amplifica di UNA cella la spinta subita ([D-319], `#2253`).
+			//
+			// 🔑 **Una volta per BERSAGLIO, e per questo sta qui e non dove `KnockDist` accumula.** Quel
+			// punto vede un EVENTO per volta: `Weapon.Impact` accoda un secondo `Push 1` all'attacco base di
+			// Phase (D-085), quindi amplificare la' darebbe `+2` a chi porta quel loadout e `+1` a tutti gli
+			// altri — un numero che dipende da quante volte la stessa spinta e' stata scritta invece che
+			// dallo stato di chi la subisce. Qui il bersaglio e' uno e la somma e' gia' fatta.
+			//
+			// ⚠️ **Prima di `Guarded`, e l'ordine e' la meta' della regola**: quel ramo confronta
+			// `KnockDist[T]` con `GuardResistedPushDistance`. Amplificare dopo lo lascerebbe misurare la
+			// spinta che il bersaglio *avrebbe* subito se fosse stato in piedi.
+			if (T->HasStatus(TAG_Status_Unbalanced))
+			{
+				KnockDist.FindOrAdd(T) += URTCombatLibrary::UnbalancedExtraDisplacement;
+			}
+
 			// `Reaction.Anchor` (CP 7.5, `#505`) annulla lo spostamento a QUALUNQUE distanza: «impedisce una
 			// spinta» e' un conteggio, non una soglia (D-094), e «una» la garantisce l'attivazione unica del
 			// pass.
@@ -1813,7 +1886,16 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// DEFAULT di Phase (D-089). Fino a CP 7.1 questo ramo assorbiva ogni spinta del gioco e il commento
 			// diceva cosi'; ora cede, e il ramo `Braced` sotto **aggiunge copertura davvero**.
 			// Pinnato da `Equipment.PushTwoSeparatesGuardFromBrace`.
-			if (T->HasStatus(TAG_Status_Guarded) && KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
+			//
+			// ⚠️ **`Unbalanced` rende la guardia inerte QUI, e solo qui** ([D-319]): chi ha perso
+			// l'equilibrio non puo' piantarsi per non cadere. ⛔ **L'inerzia si ferma allo spostamento**, e
+			// non e' una mezza misura: il pool da 15 sull'arco frontale ([D-292]) resta intatto, perche'
+			// l'argomento di design parla di equilibrio e non di protezione, e cancellarlo sposterebbe il
+			// bilanciamento di due eroi — tre pin lo misurano (`Spec.Brace.GuardAndBraceOnMixedHit`,
+			// `Spec.Brace.BraceWinsOnSecondHit`, `Visual.Combat.GuardVsBraceUnderSmallHits`). Il prezzo
+			// dello strato di danno resta una decisione aperta, non un effetto collaterale.
+			if (T->HasStatus(TAG_Status_Guarded) && !T->HasStatus(TAG_Status_Unbalanced)
+				&& KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: in guardia, resiste alla spinta"), *T->GetName()), FRTLogSubject::Unit(T));
 				// La stringa sopra e' per l'HUD e non finisce nel file (#420): la voce di TurnLog e' questa, ed
@@ -1847,7 +1929,12 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// ⚠️ Ha una conseguenza su `BAL-1` ([#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403)):
 			// l'opzione «`Guard` solo danno, `Brace` solo spostamento» era stata **preclusa** perche' senza
 			// una spinta >= 2 avrebbe lasciato `Brace` senza mestiere. Quel mestiere ora esiste.
-			if (T->HasStatus(TAG_Status_Braced))
+			// ⚠️ Stessa clausola della guardia, e per la stessa ragione ([D-319], `#2253`): chi e'
+			// `Unbalanced` non regge la spinta. ⛔ E anche qui **solo lo spostamento**: il −10 su ogni colpo
+			// resta. ⏱️ Nota sul `+1` di poco sopra — con entrambe le difese inerti sullo spostamento, il
+			// valore non serve piu' a *battere* una difesa: compra distanza contro chi non ne ha, ed e' cio'
+			// che porta il bersaglio a `Prone` invece che a un passo indietro.
+			if (T->HasStatus(TAG_Status_Braced) && !T->HasStatus(TAG_Status_Unbalanced))
 			{
 				// ➕ **[D-047], fetta 3 di E14.7: da qui il `Brace` non decide piu' da solo.** Le risposte
 				// legali vengono dal Reaction Profile che l'unita' porta, e la loro CARDINALITA' dice se si
@@ -2054,8 +2141,20 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			}
 
 			ARTUnit* T = KTargets[a];
+			const bool bScartato = Sidestepped.Contains(T);
 			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause,
-				Sidestepped.Contains(T) ? TEXT("Scarto") : TEXT("Spinta"), Map, ERTMatchPhase::Blast);
+				bScartato ? TEXT("Scarto") : TEXT("Spinta"), Map, ERTMatchPhase::Blast);
+
+			// ⛔ **Lo SCARTO non fa cadere, ed e' una scelta dichiarata.** `Sidestep` e' una risposta di
+			// reazione riuscita — il bersaglio esce dalla linea *invece* di arretrare — e la spinta non ha
+			// ottenuto quello per cui era stata pagata. Farlo cadere punirebbe la reazione, che e' l'opposto
+			// di cio' che [D-319] costruisce: `Prone` e' il premio di una giocata in due tempi, non una
+			// conseguenza di ogni cella percorsa. ⚠️ Il bersaglio si e' comunque mosso, quindi la lettura
+			// alternativa esiste: e' registrata qui, non risolta di nascosto.
+			if (!bScartato)
+			{
+				CadeSeSbilanciato(T);
+			}
 		}
 	}
 
@@ -2073,6 +2172,23 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		{
 			const int32* Pulls = PullCount.Find(T);
 			if (!Pulls || *Pulls != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
+
+			// Trazione amplificata di UNA cella per chi e' `Unbalanced` ([D-319], `#2253`).
+			//
+			// ⚠️ **Qui l'asse e' NUOVO, e va detto invece che dedotto.** [D-038] dichiara che *«la trazione
+			// non e' resistita: il catalogo v0.1 §1 riserva la resistenza di `Guard` alla spinta»*, quindi
+			// non esiste un antonimo da rovesciare: amplificare il `Pull` **crea** la scala, non ne aggiunge
+			// un valore. La simmetria e' voluta — `Prone` nasce da *«subire `Push` o `Pull`»*, e lasciare
+			// fuori la trazione avrebbe reso la caduta un effetto della sola spinta.
+			//
+			// ⚠️ **`PullDist` SOVRASCRIVE dove `KnockDist` accumula** (D-085 vale per la sola spinta): qui
+			// il valore e' quello dell'ultimo evento, non una somma. L'amplificazione resta comunque una
+			// sola — il ciclo e' per bersaglio — ma chi legge non deve dedurre dalla forma della riga che le
+			// due grandezze abbiano la stessa semantica.
+			if (T->HasStatus(TAG_Status_Unbalanced))
+			{
+				PullDist.FindOrAdd(T) += URTCombatLibrary::UnbalancedExtraDisplacement;
+			}
 
 			// `Reaction.Anchor` vale anche qui: il catalogo dice «ricevi `Push`/`Pull`», e l'ancora e' l'unica
 			// delle tre difese che la trazione incontra — `Guard` il testo lo riserva alla spinta, e la riga
@@ -2101,6 +2217,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			ARTUnit* T = PTargets[a];
 			ApplyForcedDisplacement(T, PFinal[a], PullToward[T], PullCause, TEXT("Trazione"), Map,
 				ERTMatchPhase::Blast);
+			CadeSeSbilanciato(T);
 		}
 	}
 }

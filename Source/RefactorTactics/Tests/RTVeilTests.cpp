@@ -667,7 +667,7 @@ bool FRTVeiledSurfaceColorsAreDistinguishableTest::RunTest(const FString&)
  * quindi sul suo canale quello stato e' indistinguibile da una cella che non esiste. Qui ha un'altezza, e
  * un'altezza si conta.
  *
- * ⚠️ **I conteggi si leggono dalle ISTANZE, non da un contatore**: `GetKnowledgeDebugCounts` ricava la
+ * ⚠️ **I due conteggi disegnati si leggono dalle ISTANZE, non da un contatore**: `GetKnowledgeDebugCounts` ricava la
  * frazione dalla scala Z reale, come `GetVeilCounts` legge la scala reale del disco. Un contatore
  * proverebbe che la funzione sa contare.
  */
@@ -701,7 +701,9 @@ bool FRTKnowledgeVolumesPartitionTest::RunTest(const FString&)
 
 	TestEqual(TEXT("una sola cella osservata porta il volume 3/3"), Lit, 1);
 	TestEqual(TEXT("una sola cella ricordata porta il volume 2/3"), Remembered, 1);
-	TestEqual(TEXT("tutte le altre sono mai viste, e portano il volume 1/3"), Hidden, Totale - 2);
+	// ⚠️ Dal 2026-09-04 (`#2250`) le mai viste NON portano piu' un volume: il numero e' il COMPLEMENTO,
+	// cioe' le celle dell'asset meno quelle davvero posate. L'asserzione non cambia, la sua ragione si'.
+	TestEqual(TEXT("tutte le altre sono mai viste, e nessuna porta un volume"), Hidden, Totale - 2);
 
 	// La somma ricompone il totale: senza, due errori che si compensano passerebbero — la stessa ragione per
 	// cui il test del velo asserisce anche il totale invece dei soli tre conteggi.
@@ -781,6 +783,53 @@ bool FRTKnowledgeVolumesDoNotSurviveARebuildTest::RunTest(const FString&)
 	HexMap->SetKnowledgeDebugEnabled(true, KnowledgeOf({ Osservata }, { Osservata }));
 	HexMap->GetKnowledgeDebugCounts(Hidden, Remembered, Lit);
 	TestEqual(TEXT("riacceso, i volumi tornano tutti"), Hidden + Remembered + Lit, Prima);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **L'overlay non ridisegna cio' che il velo nasconde** — `#2250`.
+ *
+ * Il velo toglie le celle mai viste (`VeilInstances` posa `FVector::ZeroVector`, il vuoto che [D-225]
+ * prescrive) e fino al 2026-09-04 questo overlay le rimetteva, un prisma per ognuna. Misurato in PIE su una
+ * board da 331 celle: **267 prismi**, l'81%. Acceso il debug, la partizione da ispezionare spariva sotto
+ * l'ispezione stessa.
+ *
+ * 🔑 **Si asserisce sul NUMERO DI ISTANZE, non sui conteggi**, ed e' la differenza che rende il test
+ * capace di cadere: `GetKnowledgeDebugCounts` risponde ancora `Hidden > 0` — per complemento — quindi un
+ * test scritto sui suoi tre numeri passerebbe identico anche disegnando tutto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeVolumesDoNotRedrawTheHiddenTest,
+	"RefactorTactics.Veil.KnowledgeVolumesDoNotRedrawWhatTheVeilHides",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeVolumesDoNotRedrawTheHiddenTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = MakeVeiledBoard(World, /*Radius=*/ 2);
+	if (!TestNotNull(TEXT("board"), HexMap)) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+	const int32 Totale = HexMap->MapAsset->NumCells();
+	const FRTCellId Osservata = HexMap->MapAsset->Cells[0].Id;
+	const FRTCellId Ricordata = HexMap->MapAsset->Cells[1].Id;
+	HexMap->SetKnowledgeDebugEnabled(true, KnowledgeOf({ Osservata }, { Osservata, Ricordata }));
+
+	int32 Hidden = 0, Remembered = 0, Lit = 0;
+	HexMap->GetKnowledgeDebugCounts(Hidden, Remembered, Lit);
+
+	// ➕ CONTROLLO POSITIVO: qualcosa e' stato disegnato, e le mai viste sono la maggioranza. Senza, «due
+	// istanze» sarebbe compatibile con un overlay che non disegna niente.
+	if (!TestEqual(TEXT("due celle note"), Lit + Remembered, 2)) { RTWorldFixtures::DestroyWorld(World); return false; }
+	TestEqual(TEXT("e tutte le altre sono mai viste"), Hidden, Totale - 2);
+
+	// 🔑 La proprieta': si posa una istanza per cella NOTA, e nessuna per le altre.
+	const int32 Istanze = HexMap->KnowledgeVolumeInstanceCount();
+	AddInfo(FString::Printf(TEXT("board %d celle: %d note, %d mai viste, %d istanze posate"),
+		Totale, Lit + Remembered, Hidden, Istanze));
+	TestEqual(TEXT("le istanze posate sono solo quelle delle celle note"), Istanze, Lit + Remembered);
+	TestTrue(TEXT("cioe' molte meno del totale della board"), Istanze < Totale);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
