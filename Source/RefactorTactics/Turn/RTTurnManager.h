@@ -11,6 +11,7 @@
 #include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary: la rotta e il suo filtro
 #include "Turn/RTCombatLog.h" // FRTLogSubject, FRTCombatLogLine: i tipi del combat log
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTReplayRecording.h" // FRTReplayRecording: l'archivio in scrittura vive fuori (#2286)
 #include "Replay/RTReplayManifest.h"
 #include "Ability/RTActionDef.h" // FRTActionDef: l'impatto della carica porta con se' la definizione
 #include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
@@ -490,7 +491,7 @@ public:
 	void RefreshTeamKnowledgeNow();
 
 	/** Identita' della registrazione in corso. Non valida finche' `BeginReplayRecording` non e' stata chiamata. */
-	FGuid GetReplayMatchId() const { return ReplayManifest.MatchId; }
+	FGuid GetReplayMatchId() const { return ReplayRecording.GetMatchId(); }
 
 	/** Ultimo checksum di stato catturato. `0` = mai calcolato (registrazione spenta, o nessun turno risolto). */
 	int64 GetPendingFinalStateHash() const { return PendingFinalStateHash; }
@@ -1459,7 +1460,14 @@ protected:
 	TArray<FRTTurnLogEntry> TurnLog;
 
 	/** Stato della registrazione in corso: id, hash per turno, chiusura. Lo tiene il manifest stesso. */
-	FRTReplayManifest ReplayManifest;
+	/**
+	 * L'archivio replay in scrittura, uscito da questa classe con la nona fetta di `#2286`.
+	 *
+	 * 🔑 Qui restavano il manifest e due timestamp per un carico **inerte all'esito**: registra cio' che
+	 * il resolver ha gia' deciso, e nessuna regola lo rilegge. L'orchestratore raccoglie i fatti e li passa;
+	 * la sequenza e lo stato vivono in `FRTReplayRecording`, che non conosce ne' il mondo ne' il TurnLog.
+	 */
+	FRTReplayRecording ReplayRecording;
 
 	/** Scrive la traccia del turno appena risolto. Silenziosa se la registrazione e' spenta. */
 	void RecordTurnToReplay();
@@ -1479,16 +1487,13 @@ protected:
 	int64 PendingFinalStateHash = 0;
 
 	/** La radice effettiva: l'override se c'e', altrimenti `Saved/Replays`. */
-	FString ResolveReplaysRoot() const;
 
 	/**
 	 * Istante reale d'inizio registrazione, per la durata nel manifest. E' l'UNICO tempo reale che tocca
 	 * l'archivio, e finisce in un campo che non entra in nessun hash.
 	 */
-	double ReplayStartRealSeconds = 0.0;
 
 	/** Istante d'inizio in UTC, per la riga dell'indice (`#416`). Il manifest porta una durata, non un inizio. */
-	FDateTime ReplayStartedUtc = FDateTime(0);
 
 	/** Rotte percorse da ogni unita' che si e' mossa nell'ultima risoluzione, ciascuna col proprio soggetto. */
 	TArray<FRTMoveRoute> LastMoveRoutes;
