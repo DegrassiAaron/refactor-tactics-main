@@ -86,6 +86,28 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 		TEXT("ATTENZIONE: assenza TEMPORANEA e attesa - due voci PIE (VIS-DEFLECT, VIS-INTERPOSE) restano non ")
 		TEXT("giudicabili finche' non nasce, e la voce va rivista allora, non ereditata.")));
 
+	// StatusChanged — NoPresentation, e l'assenza e' TEMPORANEA come quella di `AttackFootprint` e
+	// `ReactionResolved`.
+	//
+	// 🔴 **Il dato esiste perche' la cue POSSA essere costruita, ed e' il caso piu' documentato dei tre**:
+	// [D-320] ha gia' deciso COME si mostrera' — un `UWidgetComponent` per unita', con le undici icone
+	// `RT_UI_Icon_Status_*` gia' versionate — e questa voce va rivista quando quel widget nasce. Oggi
+	// l'unico canale a schermo e' il ripiego testuale di `RTHUD.cpp`, che mostra **due** stati su undici.
+	//
+	// ⚠️ **Chi scrivera' la cue deve sapere due cose che il tipo dell'evento non dice da solo**:
+	//  - il verso (nascita o morte) si chiede a `URTTurnLogLibrary::IsStatusBirth`, mai deducendolo a
+	//    occhio dai nove valori di `ERTStatusOutcome`;
+	//  - `Status.Electrified` produce una nascita (`AppliedInstantly`) e **mai** una morte — e' inerte
+	//    (`#1324`): un'icona persistente aperta su di lui resterebbe accesa per sempre.
+	//
+	// ⚠️ Voce da RIVEDERE, non da ereditare.
+	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::StatusChanged,
+		TEXT("Gli stati arrivano al playback perche' la cue POSSA essere costruita: #2245 li emette dove la ")
+		TEXT("voce di TurnLog viene scritta, e il disegno e' D-320 (WidgetComponent + le undici icone gia' ")
+		TEXT("versionate), che non esiste ancora. Nessuna cue oggi lo consuma. ATTENZIONE: assenza ")
+		TEXT("TEMPORANEA e attesa - la voce va rivista quando il widget nasce, non ereditata. Chi la scrive ")
+		TEXT("chieda il verso a IsStatusBirth, e sappia che Status.Electrified nasce e non muore mai.")));
+
 	return Out;
 }
 

@@ -49,13 +49,19 @@ bool FRTPresentationEnumSizeIsPinnedTest::RunTest(const FString&)
 	// `ERTResolvedEventType` vede fallire una riga che lo nomina, invece di scoprire mesi dopo che l'evento
 	// non si vedeva. Il gate vero copre il valore nuovo per costruzione; questa riga fa in modo che
 	// qualcuno se ne ACCORGA e vada a dichiararne la presentazione.
-	// ➕ **Era 4, ed e' diventato 5 il 2026-08-31 con `AttackFootprint` ([D-301], #1945).** Il numero non e'
-	// ➕ **Ed e' diventato 6 il 2026-09-04 con `ReactionResolved` (#2191)**: stessa storia, e la riga ha
-	// funzionato di nuovo — e' fallita, e ha mandato a dichiarare la presentazione del valore nuovo.
-	// il punto: il punto e' che quella issue ha visto fallire QUESTA riga, ed e' andata a dichiarare la
-	// presentazione del valore nuovo invece di scoprire fra sei mesi che l'evento non si vedeva.
-	TestEqual(TEXT("ERTResolvedEventType dichiara cinque valori (Move, Attack, HazardDamage, Defeated, AttackFootprint)"),
-		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 6);
+	//
+	// La storia del numero, che e' il curriculum della riga:
+	//   4 -> 5   2026-08-31   `AttackFootprint`   ([D-301], #1945)
+	//   5 -> 6   2026-09-04   `ReactionResolved`  (#2191)
+	//   6 -> 7   2026-09-04   `StatusChanged`     (#2245)
+	// Tre volte su tre e' fallita per prima e ha mandato a dichiarare la presentazione del valore nuovo.
+	//
+	// ⚠️ **Il messaggio elencava i valori per nome e si e' scollato dal numero**: diceva *«dichiara cinque
+	// valori (Move, Attack, HazardDamage, Defeated, AttackFootprint)»* mentre ne attendeva **6**, perche'
+	// `#2191` aggiorno' la cifra e non la frase. Un messaggio d'errore che mente su cio' che misura manda a
+	// cercare il difetto nel posto sbagliato — quindi l'elenco non si ripete piu' qui: lo porta l'enum.
+	TestEqual(TEXT("ERTResolvedEventType dichiara sette valori: l'ultimo aggiunto ha una voce nella tabella?"),
+		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 7);
 
 	// La reflection c'e' davvero: senza, `DeclaredEventTypeCount()` restituirebbe 0 e l'assertion sopra
 	// fallirebbe per il motivo sbagliato.

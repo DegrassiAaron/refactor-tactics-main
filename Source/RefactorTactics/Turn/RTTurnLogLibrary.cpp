@@ -1553,6 +1553,88 @@ FString URTTurnLogLibrary::DescribeOutcome(ERTLogCategory Category, uint8 Outcom
 	return Nome.IsEmpty() ? FString::FromInt(static_cast<int32>(Outcome)) : Nome;
 }
 
+bool URTTurnLogLibrary::IsStatusBirth(ERTStatusOutcome Outcome)
+{
+	switch (Outcome)
+	{
+	// NASCITE. `AppliedWhileOnCell` porta `Amount == 0` e non e' un conteggio: dura finche' l'unita' resta
+	// sulla cella. `AppliedInstantly` nasce e non muore mai — vedi la nota in `UndeclaredStatusOutcomes`.
+	case ERTStatusOutcome::AppliedByAction:
+	case ERTStatusOutcome::AppliedByTerrain:
+	case ERTStatusOutcome::AppliedWhileOnCell:
+	case ERTStatusOutcome::AppliedInstantly:
+		return true;
+
+	// MORTI, e sono CINQUE perche' la causa e' informazione: `#1077` separa `Revoked` da `Expired` (una
+	// mossa del giocatore contro il tempo che passa) e `#1314` separa `Spent` dalle altre (lo stato ha
+	// fatto il suo lavoro). Ridurle a «finito» butterebbe cio' che il TurnLog registra apposta.
+	case ERTStatusOutcome::Revoked:
+	case ERTStatusOutcome::Expired:
+	case ERTStatusOutcome::Extinguished:
+	case ERTStatusOutcome::Cleansed:
+	case ERTStatusOutcome::Spent:
+		return false;
+	}
+
+	// ⚠️ Nessun `default:` nello switch, di proposito: cosi' il compilatore avvisa su un valore nuovo. Il
+	// ripiego sta QUI fuori ed e' fail-closed — «morte» — perche' un'icona che non si apre e' un difetto
+	// visibile, mentre una che non si chiude resta accesa per sempre.
+	return false;
+}
+
+TArray<FString> URTTurnLogLibrary::UndeclaredStatusOutcomes()
+{
+	TArray<FString> Missing;
+
+	const UEnum* Enum = StaticEnum<ERTStatusOutcome>();
+	if (Enum == nullptr)
+	{
+		// Senza reflection non esiste una risposta onesta, e «nessuna mancanza» sarebbe la piu' pericolosa:
+		// il gate passerebbe proprio nel caso in cui non ha potuto misurare niente.
+		Missing.Add(TEXT("reflection non disponibile per ERTStatusOutcome"));
+		return Missing;
+	}
+
+	// `NumEnums() - 1`: l'ultimo e' il `_MAX` sintetico che UHT aggiunge e non e' un valore scrivibile —
+	// stessa convenzione di `URTPresentationBindingLibrary::DeclaredEventTypeCount`.
+	const int32 Count = FMath::Max(0, Enum->NumEnums() - 1);
+	for (int32 i = 0; i < Count; ++i)
+	{
+		const ERTStatusOutcome Value = static_cast<ERTStatusOutcome>(Enum->GetValueByIndex(i));
+
+		// 🔴 **Come si riconosce un valore NON dichiarato, visto che la funzione risponde comunque.**
+		// `IsStatusBirth` ripiega su `false`, quindi un valore nuovo e' indistinguibile da una morte
+		// guardando il solo ritorno. Il criterio e' l'elenco esplicito qui sotto: e' la lista che
+		// `IsStatusBirth` copre con un `case`, e va tenuta allineata **in questo stesso file**, dove le due
+		// righe si vedono insieme. Un valore che non compare qui e' un valore che nessuno ha esaminato.
+		static const ERTStatusOutcome Dichiarati[] = {
+			ERTStatusOutcome::AppliedByAction,
+			ERTStatusOutcome::AppliedByTerrain,
+			ERTStatusOutcome::AppliedWhileOnCell,
+			ERTStatusOutcome::AppliedInstantly,
+			ERTStatusOutcome::Revoked,
+			ERTStatusOutcome::Expired,
+			ERTStatusOutcome::Extinguished,
+			ERTStatusOutcome::Cleansed,
+			ERTStatusOutcome::Spent,
+		};
+
+		bool bDichiarato = false;
+		for (const ERTStatusOutcome& D : Dichiarati)
+		{
+			if (D == Value) { bDichiarato = true; break; }
+		}
+
+		if (!bDichiarato)
+		{
+			Missing.Add(FString::Printf(TEXT("%s: nessun verso dichiarato in IsStatusBirth"),
+				*Enum->GetNameStringByIndex(i)));
+		}
+	}
+
+	return Missing;
+}
+
 bool URTTurnLogLibrary::IsSubjectTheSufferer(const FRTTurnLogEntry& Entry)
 {
 	if (Entry.UnitId == 0)

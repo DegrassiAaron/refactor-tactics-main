@@ -115,11 +115,16 @@ Due fatti che rendono l'aggiunta a basso rischio:
    dichiara già la timeline di playback distinta dallo stato. Un valore **in coda** all'enum non tocca il
    determinismo. (In coda e non in mezzo: è un `uint8` esposto a Blueprint — il vincolo è già scritto in
    `RTResolvedEvent.h:28-29` e in D-301 punto (5).)
-2. **I tre punti dove uno status nasce e muore sono già isolati e già loggati**:
-   applicazione (`ApplyStatusLogged`, `RTTurnManager.cpp:~369`, con `ERTStatusOutcome::AppliedByAction |
-   AppliedByTerrain | AppliedWhileOnCell`), **revoca** cell-bound nel Cleanup (`:~1866`,
-   `RevokeCellBoundStatusesNotIn`), **scadenza** a turni (`:~1898`, `TickStatuses`). `#1077` ha già deciso
-   che revoca e scadenza sono **due morti diverse** e non vanno confuse.
+2. ~~**I tre punti dove uno status nasce e muore sono già isolati e già loggati**: applicazione, revoca
+   cell-bound, scadenza a turni.~~ 🔴 **FALSO, corretto il 2026-09-04 da
+   [#2245](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2245) — e la correzione ha
+   semplificato il lavoro invece di allargarlo.** Le cause sono **nove**, non tre, e stanno su **due** file:
+   quattro nascite (`AppliedByAction`, `AppliedByTerrain`, `AppliedWhileOnCell`, `AppliedInstantly`) e
+   **cinque** morti (`Revoked` — ha lasciato la cella; `Expired` — è finito il tempo; `Extinguished` —
+   l'acqua; `Cleansed` — un'azione, emesso da `RTTurnManager_Blast.cpp`; `Spent` — `Marked` incassato,
+   `#1314`). ✅ **Ma non serve toccarne nove**: tutte passano da `AppendLogEntry`, dove sta *«l'UNICO
+   `TurnLog.Add` del file»*, e la voce porta già tag, durata e causa. Emettere lì è esaustivo **per
+   costruzione**, e i due canali non possono divergere perché il secondo deriva dal primo.
 
 ⚠️ Le due durate non sono la stessa cosa: `StatusTurns` conta turni; `CellBoundStatuses` vale
 `PersistentWhileOnCell = -1` e finisce quando l'unità lascia la cella. *«Visibile finché l'effetto è

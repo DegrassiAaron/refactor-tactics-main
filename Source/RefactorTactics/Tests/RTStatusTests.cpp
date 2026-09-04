@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTTurnLogLibrary.h" // IsStatusBirth / UndeclaredStatusOutcomes: il verso di una causa (#2245)
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTHeroData.h"
@@ -621,6 +622,197 @@ bool FRTStatusExpiresInCleanupTest::RunTest(const FString&)
 	TestTrue(TEXT("lo stato legato alla cella non scade con lei"), Mover->HasStatus(TAG_Status_Wet));
 
 	DestroyStatusWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Gli stati nel PLAYBACK (`#2245`).
+//
+// Il simulatore conosce dieci stati con la loro durata e scrive ogni passaggio nel TurnLog; fino a `#2245`
+// la `ResolvedTimeline` — il canale che la presentazione riproduce — non ne portava nessuno.
+//
+// ## Perche' l'emissione sta in `AppendLogEntry` e non nei siti che producono le voci
+//
+// Le cause sono **nove** (quattro nascite, cinque morti) e stanno su **due** file. Una emissione per sito
+// sarebbe una copertura da mantenere a mano, e il primo a dimenticarla sarebbe il decimo outcome. Dal punto
+// unico invece la copertura e' **per costruzione** — e i due canali non possono divergere, perche' il
+// secondo deriva dal primo.
+//
+// ⚠️ Ne segue un rischio proprio, ed e' cio' che `NonStatusEntriesEmitNoStatusEvent` sorveglia: quel punto
+// lo attraversa **ogni** voce di log, non solo quelle di stato.
+// ---------------------------------------------------------------------------------------------------
+
+/**
+ * 🔴 **Una nascita e una morte arrivano alla timeline, con tag e CAUSA giusti.**
+ *
+ * Lo scenario e' quello di `RevokedOnLeavingCell`, riusato di proposito: li' si misura lo **stato**
+ * dell'unita', qui il **canale di playback** sullo stesso fatto. Se un giorno divergessero, i due test
+ * cadrebbero in modo diverso e si vedrebbe quale dei due canali ha sbagliato.
+ *
+ * ⚠️ **Anti-vacuita'**: si asserisce la CAUSA e non solo il numero di eventi. Un'emissione che scrivesse
+ * sempre `AppliedByAction` passerebbe un test che conta soltanto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusPlaybackCarriesTagAndCauseTest,
+	"RefactorTactics.Status.PlaybackCarriesTagAndCause",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStatusPlaybackCarriesTagAndCauseTest::RunTest(const FString&)
+{
+	UWorld* World = MakeStatusWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::ShallowWater, /*MoveCost=*/ 2);
+
+	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
+
+	// Turno 1: entra in acqua e si bagna -> NASCITA legata alla cella.
+	Mover->PlannedAbilityIndex = INDEX_NONE;
+	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
+	Mover->PlannedCell = FRTCellId(1, 0);
+	StandStill(Foe);
+	RunStatusTurn(TM);
+
+	if (!TestTrue(TEXT("premessa: fermarsi in acqua bagna"), Mover->HasStatus(TAG_Status_Wet)))
+	{
+		DestroyStatusWorld(World);
+		return false;
+	}
+
+	{
+		const TArray<FRTResolvedEvent> Eventi = TM->ResolvedStatusEventsForTest();
+		const FRTResolvedEvent* Nascita = Eventi.FindByPredicate([](const FRTResolvedEvent& E)
+		{
+			return E.StatusTag == TAG_Status_Wet.GetTag().GetTagName();
+		});
+		if (!TestNotNull(TEXT("nascita: l'evento di Wet e' nella timeline"), Nascita))
+		{
+			DestroyStatusWorld(World);
+			return false;
+		}
+		TestEqual(TEXT("nascita: la causa e' AppliedWhileOnCell"),
+			Nascita->StatusOutcome, ERTStatusOutcome::AppliedWhileOnCell);
+		TestTrue(TEXT("nascita: e' dichiarata una nascita"),
+			URTTurnLogLibrary::IsStatusBirth(Nascita->StatusOutcome));
+		// ⚠️ `0` e NON un conteggio: e' l'unico caso in cui `Amount` non dice «turni».
+		TestEqual(TEXT("nascita legata alla cella: Amount vale 0, e non e' una durata"), Nascita->Amount, 0);
+		TestEqual(TEXT("nascita: il soggetto e' chi si e' bagnato"),
+			Nascita->SourceStableUnitId, Mover->StableUnitId);
+	}
+
+	// Turno 2: esce dall'acqua -> MORTE, e la causa e' `Revoked` (una mossa), non `Expired` (il tempo).
+	Mover->PlannedAbilityIndex = INDEX_NONE;
+	Mover->PlannedPath = { FRTCellId(1, 0), FRTCellId(2, 0) };
+	Mover->PlannedCell = FRTCellId(2, 0);
+	StandStill(Foe);
+	RunStatusTurn(TM);
+
+	if (!TestFalse(TEXT("premessa: uscito dall'acqua e' asciutto"), Mover->HasStatus(TAG_Status_Wet)))
+	{
+		DestroyStatusWorld(World);
+		return false;
+	}
+
+	{
+		const TArray<FRTResolvedEvent> Eventi = TM->ResolvedStatusEventsForTest();
+		const FRTResolvedEvent* Morte = Eventi.FindByPredicate([](const FRTResolvedEvent& E)
+		{
+			return E.StatusTag == TAG_Status_Wet.GetTag().GetTagName()
+				&& E.StatusOutcome == ERTStatusOutcome::Revoked;
+		});
+		if (!TestNotNull(TEXT("morte: la revoca di Wet e' nella timeline"), Morte))
+		{
+			DestroyStatusWorld(World);
+			return false;
+		}
+		// 🔴 Il cuore: `#1077` separa la revoca dalla scadenza perche' un replay deve poter dire se
+		// qualcuno ha fatto qualcosa o se e' solo passato il tempo. Ridurle a «finito» butterebbe il fatto.
+		TestNotEqual(TEXT("la revoca NON e' una scadenza"),
+			Morte->StatusOutcome, ERTStatusOutcome::Expired);
+		TestFalse(TEXT("morte: e' dichiarata una morte"),
+			URTTurnLogLibrary::IsStatusBirth(Morte->StatusOutcome));
+	}
+
+	DestroyStatusWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **Il punto di emissione lo attraversa OGNI voce di log: le non-stato non devono produrre eventi.**
+ *
+ * E' il rischio proprio della scelta «un punto solo». Senza questa asserzione, un filtro sbagliato sulla
+ * categoria riempirebbe la timeline di `StatusChanged` per ogni movimento e ogni colpo, e il test qui sopra
+ * **passerebbe lo stesso** — troverebbe i suoi eventi in mezzo al rumore.
+ *
+ * ⚠️ **Anti-vacuita'**: si asserisce prima che il turno abbia prodotto voci di log davvero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusPlaybackIgnoresNonStatusEntriesTest,
+	"RefactorTactics.Status.PlaybackIgnoresNonStatusEntries",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStatusPlaybackIgnoresNonStatusEntriesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeStatusWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	// Nessuna acqua: su terreno asciutto un movimento non produce nessuno stato.
+	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(9, 9, 0), ERTHexSurface::Rough, /*MoveCost=*/ 1);
+
+	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
+
+	Mover->PlannedAbilityIndex = INDEX_NONE;
+	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
+	Mover->PlannedCell = FRTCellId(1, 0);
+	StandStill(Foe);
+	RunStatusTurn(TM);
+
+	// Anti-vacuita': il turno deve aver mosso davvero, altrimenti «zero eventi» non prova niente.
+	TestEqual(TEXT("premessa: il movimento e' avvenuto"), Mover->Cell, FRTCellId(1, 0));
+
+	TestEqual(TEXT("un turno senza stati non emette nessun StatusChanged"),
+		TM->ResolvedStatusEventsForTest().Num(), 0);
+
+	DestroyStatusWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **Ogni causa di `ERTStatusOutcome` dichiara il proprio verso — e un valore nuovo rende questo rosso.**
+ *
+ * Il gate che Crispin chiede: non «i casi noti passano», ma «chi si accorge del decimo?». Itera l'enum
+ * **vero** invece di una lista scritta a mano, che sarebbe essa stessa una copertura da mantenere.
+ *
+ * ⚠️ **Perche' serve, visto che `IsStatusBirth` risponde comunque**: il suo ripiego e' `false`, quindi un
+ * valore non esaminato e' indistinguibile da una morte guardando il solo ritorno. A schermo diventerebbe
+ * un'icona che non si apre mai, senza un errore che lo dica.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusOutcomeDirectionIsExhaustiveTest,
+	"RefactorTactics.Status.OutcomeDirectionIsExhaustive",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStatusOutcomeDirectionIsExhaustiveTest::RunTest(const FString&)
+{
+	const TArray<FString> Mancanti = URTTurnLogLibrary::UndeclaredStatusOutcomes();
+	if (Mancanti.Num() > 0)
+	{
+		AddError(FString::Printf(TEXT("%d causa/e di stato senza verso dichiarato: %s"),
+			Mancanti.Num(), *FString::Join(Mancanti, TEXT(" | "))));
+	}
+
+	// Anti-vacuita': se la reflection non desse nessun valore, l'elenco vuoto qui sopra sarebbe un verde
+	// su nulla — lo stesso difetto che `FindMissingRequiredIcons` dichiara per un catalogo vuoto.
+	const UEnum* Enum = StaticEnum<ERTStatusOutcome>();
+	if (!TestNotNull(TEXT("reflection di ERTStatusOutcome"), Enum)) { return false; }
+	TestTrue(TEXT("anti-vacuita': l'enum dichiara almeno le nove cause note"),
+		FMath::Max(0, Enum->NumEnums() - 1) >= 9);
+
+	// Le due estremita' della tassonomia, per nome: se qualcuno invertisse il verso di una delle due, il
+	// gate sopra resterebbe verde (sono entrambe dichiarate) e solo queste due righe cadrebbero.
+	TestTrue(TEXT("AppliedInstantly e' una nascita"),
+		URTTurnLogLibrary::IsStatusBirth(ERTStatusOutcome::AppliedInstantly));
+	TestFalse(TEXT("Spent e' una morte, non una scadenza mascherata"),
+		URTTurnLogLibrary::IsStatusBirth(ERTStatusOutcome::Spent));
+
 	return true;
 }
 

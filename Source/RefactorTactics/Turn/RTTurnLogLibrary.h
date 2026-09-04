@@ -118,6 +118,33 @@ public:
 	static bool IsSubjectTheSufferer(const FRTTurnLogEntry& Entry);
 
 	/**
+	 * Se questa causa fa NASCERE uno stato (`true`) o lo fa MORIRE (`false`).
+	 *
+	 * 🔴 **Esiste perché il verso non si deduca a occhio da nove valori.** Nascite: `AppliedByAction`,
+	 * `AppliedByTerrain`, `AppliedWhileOnCell`, `AppliedInstantly`. Morti: `Revoked`, `Expired`,
+	 * `Extinguished`, `Cleansed`, `Spent`. Chi consuma `ERTResolvedEventType::StatusChanged` chiede qui
+	 * invece di scriversi il proprio `switch` — che sarebbe una seconda tassonomia da tenere allineata.
+	 *
+	 * ⚠️ **Un valore non dichiarato è una MORTE, e fail-closed è la scelta giusta qui**: un'icona che non
+	 * si apre è un difetto visibile e correggibile; una che non si chiude resta accesa per sempre. Ma il
+	 * ripiego non è la difesa — la difesa è `UndeclaredStatusOutcomes`, che rende rosso il caso.
+	 */
+	static bool IsStatusBirth(ERTStatusOutcome Outcome);
+
+	/**
+	 * I valori di `ERTStatusOutcome` che `IsStatusBirth` non dichiara, come nomi leggibili.
+	 * **Vuoto significa copertura completa.**
+	 *
+	 * 🔑 **Itera l'enum VERO** (`StaticEnum<ERTStatusOutcome>()`), non una lista scritta a mano: un decimo
+	 * valore aggiunto domani è coperto **per costruzione**. È la stessa disciplina di
+	 * `URTPresentationBindingLibrary::FindMissingBindings` e `URTIconLibrary::FindMissingRequiredIcons`,
+	 * con la stessa ragione — un contratto rotto si scopre in un test e non a schermo.
+	 *
+	 * ⚠️ Deterministica: l'ordine dell'uscita segue i valori dell'enum, mai quello di un `TMap`.
+	 */
+	static TArray<FString> UndeclaredStatusOutcomes();
+
+	/**
 	 * L'enum degli esiti che vale per una categoria, o `nullptr` se quella categoria non lo dichiara.
 	 *
 	 * `FRTTurnLogEntry::Outcome` e' un `uint8` il cui significato lo decide la CATEGORIA: `2` puo' essere
