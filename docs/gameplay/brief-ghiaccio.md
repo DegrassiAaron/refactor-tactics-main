@@ -88,6 +88,13 @@ Da aprire **dopo** la v0.1, con questo perimetro:
 **Prerequisito dichiarato**: G.3 non parte senza il fuzzing, e G.4 non parte prima di E13 (lo steam è un
 modificatore di visibilità, e il modello della conoscenza deve esistere prima dei suoi modificatori).
 
+> 🔄 **Su G.2 esiste una proposta di anticipazione, e non è ancora una decisione** (2026-09-04).
+> [`brief-stati-unbalanced-prone.md`](brief-stati-unbalanced-prone.md) specifica `Unbalanced` e `Prone`
+> separandoli per **causa** dello spostamento — ambientale contro forzata — invece che per soglia di
+> Momentum, e sostiene quindi di poterli anticipare **senza** il motore che G.3 richiede.
+> ⛔ **Finché la decisione non è presa, questa riga resta vigente**: i due stati stanno in G.2. La sede della
+> risposta è [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), non uno dei due brief.
+
 ## 6. Il collegamento con il rumore
 
 Il §10 del documento sorgente e il §10 del [documento sul rumore](../archive/src/design/rumore-e-percezione-acustica.md)

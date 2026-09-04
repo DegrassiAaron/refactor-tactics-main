@@ -5151,8 +5151,8 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			URTCombatResolver::ApplyDamageDelta(
 				URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta),
 				EveryHitDelta),
-			DeflectPool, bDeflectEligible),
-		GuardPool, bFrontalHit);
+			DeflectPool, bDeflectEligible, URTCombatLibrary::ReactionReductionPoolSource),
+		GuardPool, bFrontalHit, URTCombatLibrary::GuardPoolSource);
 
 	TArray<FRTCellId> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
 	// Parallelo ad `AttackSrc`, e non ridondante con lui: la cella dice DA DOVE, non CHI — e dopo un Dash le
