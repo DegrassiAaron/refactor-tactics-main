@@ -45,24 +45,14 @@ ERTCombatOutcome URTCombatLibrary::ClassifyCombatOutcome(int32 HealthBefore, int
 	return ERTCombatOutcome::Hit;
 }
 
-int32 URTCombatLibrary::GainEnergy(int32 Current, int32 Gain, int32 Max)
-{
-	return FMath::Clamp(Current + Gain, 0, Max);
-}
-
-bool URTCombatLibrary::IsUltimateReady(int32 Energy, int32 Max)
-{
-	return Max > 0 && Energy >= Max;
-}
-
 int32 URTCombatLibrary::EffectiveMoveRange(int32 BaseRange, bool bRooted)
 {
 	return bRooted ? 0 : BaseRange;
 }
 
-bool URTCombatLibrary::IsAbilityUsable(int32 CooldownRemaining, int32 Energy, int32 EnergyCost)
+bool URTCombatLibrary::IsAbilityUsable(int32 CooldownRemaining)
 {
-	return CooldownRemaining <= 0 && Energy >= EnergyCost;
+	return CooldownRemaining <= 0;
 }
 
 bool URTCombatLibrary::IsIntentVisibleTo(int32 ObserverTeamId, int32 OwnerTeamId, bool bOwnerRevealed)

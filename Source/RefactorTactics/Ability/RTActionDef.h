@@ -631,7 +631,7 @@ struct FRTActionDef
 
 	/**
 	 * L'azione si DICHIARA un'aggressione contro un'unita' ([`INT-8`], `#1491`). Un colpo e' un concetto
-	 * solo: danno, trigger `HitByDirectAttack`, `EnergyOnHit` e `Marked` viaggiano insieme, quindi chi non
+	 * solo: danno, trigger `HitByDirectAttack` e `Marked` viaggiano insieme, quindi chi non
 	 * si dichiara non ne produce nessuno e nessuno dei quattro consumatori lo vede. Il cancello e' unico,
 	 * dove il colpo nasce (`URTHexCombatLibrary::CollectHexAttacks`).
 	 *

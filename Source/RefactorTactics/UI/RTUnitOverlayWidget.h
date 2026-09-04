@@ -11,7 +11,7 @@ class UTextBlock;
 class URTIconCatalogData;
 
 /**
- * La sovrapposizione sopra un'unita': nome, vita, scudo, energia e stati (`#2288`, `D-320`).
+ * La sovrapposizione sopra un'unita': nome, vita, scudo e stati (`#2288`, `D-320`).
  *
  * 🔴 **Il widget DISEGNA e non decide, e il disegno sta in C++.** Riceve una `FRTUnitOverlayView` gia'
  * composta da `URTHudViewModel::BuildUnitOverlay` — che unisce due produttori testati headless — e la posa
@@ -25,7 +25,7 @@ class URTIconCatalogData;
  * presentazione»*, non le decidono.
  *
  * ⚠️ **Tutti i binding sono `Optional`, deliberatamente**: un `WBP` a cui manca un elemento **degrada** —
- * mostra il resto — invece di rifiutarsi di compilare. Una sovrapposizione senza barra dell'energia e' un
+ * mostra il resto — invece di rifiutarsi di compilare. Una sovrapposizione senza barra dello scudo e' un
  * difetto visibile e riparabile; un widget che non compila fa sparire nome, vita e stati insieme.
  *
  * ⚠️ **Chi decide SE mostrarla non e' questo widget**: lo dice `ARTUnit::IsKnownToObserver()`, scritto dal
@@ -121,10 +121,6 @@ protected:
 	/** Lo scudo, come frazione di `MaxHealth` — la stessa scala che usava il canvas. */
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UProgressBar> ShieldBar;
-
-	/** L'energia, come frazione di `MaxEnergy`. */
-	UPROPERTY(meta = (BindWidgetOptional))
-	TObjectPtr<UProgressBar> EnergyBar;
 
 	/**
 	 * Il contenitore delle icone di stato: il C++ lo **svuota e lo riempie** a ogni aggiornamento.

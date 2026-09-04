@@ -1781,7 +1781,7 @@ void ARTTurnManager::LockInAndResolve()
 	URTTurnLogLibrary::SortTurnLog(TurnLog); // ordine totale deterministico (libreria pura testabile)
 
 	// Fase Cleanup, nell'ordine fissato da `spec-stati-temporanei-cp82.md` §4: revoca degli stati legati alla
-	// cella -> scadenza delle durate -> energia/scudo/cooldown -> conteggio delle unita' vive.
+	// cella -> scadenza delle durate -> scudo/cooldown -> conteggio delle unita' vive.
 	// La revoca precede il tick perche' le due nature non si sovrappongono: chi ha lasciato l'acqua si asciuga
 	// in QUESTO Cleanup, senza aspettare un turno.
 	ARTHexMapActor* MapActor = ARTHexMapActor::FindInWorld(GetWorld());
@@ -1927,7 +1927,7 @@ void ARTTurnManager::LockInAndResolve()
 					// decidere quale delle due e' il colpo — che e' lo stesso motivo per cui l'attacco letale,
 					// due funzioni piu' sotto, non ne scrive una seconda.
 					AddLogEvent(FString::Printf(TEXT("%s eliminato dalle fiamme"), *Unit->GetName()), FRTLogSubject::World());
-					continue; // morto adesso: non guadagna energia, non conta fra i vivi
+					continue; // morto adesso: non ricarica lo scudo, non conta fra i vivi
 				}
 			}
 
@@ -1958,7 +1958,6 @@ void ARTTurnManager::LockInAndResolve()
 				}
 			}
 
-			Unit->Energy = URTCombatLibrary::GainEnergy(Unit->Energy, Unit->EnergyPerTurn, Unit->MaxEnergy);
 			Unit->ExpireTemporaryShield(); // la protezione delle abilita' di supporto vale un turno solo
 			// [D-224]: subito DOPO la scadenza, cosi' l'invariante «a fine turno ogni unita' viva ha
 			// esattamente lo scudo base e zero temporaneo» si verifica in un punto solo.
@@ -5536,8 +5535,8 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		// `Plan.Hits` e' ordinato per `AttackerId` e poi `TargetId`, quindi bastava che la vittima della
 		// carica avesse indice minore del bersaglio dell'attacco perche' l'impatto entrasse per primo:
 		// `UsedAbilityIndex` riceveva `INDEX_NONE`, il `Contains` impediva di registrare l'attacco vero, e
-		// `ConsumeAbility(INDEX_NONE)` usciva subito. L'azione principale non pagava ne' cooldown ne'
-		// energia, ed era riutilizzabile ogni turno.
+		// `ConsumeAbility(INDEX_NONE)` usciva subito. L'azione principale non pagava il cooldown, ed era
+		// riutilizzabile ogni turno.
 		const int32 AbilityIdx = IntentAbilityIndex.IsValidIndex(Hit.IntentIndex)
 			? IntentAbilityIndex[Hit.IntentIndex] : INDEX_NONE;
 		const int32 Registrato = Attackers.IndexOfByKey(Attacker);

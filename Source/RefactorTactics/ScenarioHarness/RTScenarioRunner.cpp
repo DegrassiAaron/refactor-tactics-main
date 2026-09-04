@@ -88,7 +88,6 @@ namespace
 			Mix(static_cast<uint32>(Unit->Cell.Layer));
 			Mix(static_cast<uint32>(Unit->Health));
 			Mix(static_cast<uint32>(Unit->Shield));
-			Mix(static_cast<uint32>(Unit->Energy));
 			Mix(Unit->IsAlive() ? 1u : 0u);
 		}
 		return Hash;

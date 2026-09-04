@@ -2110,8 +2110,15 @@ void ARTTurnManager::MarkAttackerAbilitiesSpent(FRTBlastContext& Ctx)
 	TArray<ARTUnit*>& Attackers = Ctx.Attackers;
 	TArray<int32>& UsedAbilityIndex = Ctx.UsedAbilityIndex;
 
-	// Attaccanti SOPRAVVISSUTI: qui si decide CHI paga e si assegna l'energia — due cose, e il nome dice
-	// la prima. A scrivere il cooldown e' `SpendStartedAbilities`, l'unico punto che lo fa (`#1451`).
+	// Attaccanti SOPRAVVISSUTI: qui si decide CHI paga. A scrivere il cooldown e' `SpendStartedAbilities`,
+	// l'unico punto che lo fa (`#1451`).
+	//
+	// Assegnava anche l'energia: un `if (EnergyCost > 0)` che logga `Ultimate!` **oppure** accredita
+	// `EnergyOnHit`. [D-324](../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy` dal
+	// gameplay, e con essa il criterio che sceglieva fra i due rami — quindi sono spariti entrambi, non uno.
+	// ⚠️ **Con l'accredito se n'e' andata anche la voce `Ultimate!`**: era emessa sul solo percorso degli
+	// archetipi legacy, non aveva consumatori (nessuno scenario, nessuna asserzione, nessun documento la
+	// legge) ed era l'unica traccia della seconda economia che `D-324` punto (3) rimuove.
 	//
 	// ⚠️ **La guardia `IsAlive()` resta QUI e non si sposta**: per un attaccante «spesa» significa
 	// *sopravvissuto alla fase*, non *partita* — e' l'unico dei cinque punti in cui il criterio si conosce
@@ -2124,16 +2131,7 @@ void ARTTurnManager::MarkAttackerAbilitiesSpent(FRTBlastContext& Ctx)
 		{
 			continue;
 		}
-		const URTActionData* Ability = Attacker->GetAbility(UsedAbilityIndex[i]);
 		Ctx.MarkAbilitySpent(Attacker, UsedAbilityIndex[i]);
-		if (Ability && Ability->EnergyCost > 0)
-		{
-			AddLogEvent(FString::Printf(TEXT("Ultimate! %s"), *Attacker->GetName()), FRTLogSubject::Unit(Attacker));
-		}
-		else
-		{
-			Attacker->Energy = URTCombatLibrary::GainEnergy(Attacker->Energy, Attacker->EnergyOnHit, Attacker->MaxEnergy);
-		}
 	}
 }
 
@@ -2261,23 +2259,23 @@ void ARTTurnManager::SpendStartedAbilities(const FRTBlastContext& Ctx)
 	//
 	// ⚠️ **Un accoppiamento latente, dichiarato perche' oggi e' irraggiungibile e domani forse no.**
 	//
-	// `CanUseAbility` e' `IsAbilityUsable(GetAbilityCooldown(Index), Energy, EnergyCost)`: legge **il
-	// cooldown E l'energia**, cioe' entrambe le cose che questa passata ha differito. Quattro punti la
-	// chiamano dopo che qualcuno ha annotato — `ResolveInterceptions`, `RunReactionPass(BlastHits)`,
+	// `CanUseAbility` e' `IsAbilityUsable(GetAbilityCooldown(Index))`: legge **il cooldown**, cioe' la cosa
+	// che questa passata ha differito. Quattro punti la chiamano dopo che qualcuno ha annotato — `ResolveInterceptions`, `RunReactionPass(BlastHits)`,
 	// `RunReactionPass(BlastDisplacement)` e `RunReactionPass(BlastStatus)`, quest'ultimo anche dopo
 	// `MarkAttackerAbilitiesSpent`.
 	//
-	// MISURATO il 2026-08-27, e sono due condizioni indipendenti che oggi non si verificano:
-	// - **energia**: nessuna delle sei reazioni spedite dichiara `EnergyCost` (default 0), quindi
-	//   l'ultimate differita non puo' rendere attivabile una reazione che prima non lo era;
+	// MISURATO il 2026-08-27 su DUE condizioni indipendenti; oggi ne resta **una**, perche' `D-324` ha tolto
+	// `Energy` dal gameplay e con essa il ramo energia di `CanUseAbility` — la condizione non e' stata
+	// risolta, e' stata rimossa insieme al proprio soggetto:
 	// - **cooldown**: perche' si vedesse, un'unita' dovrebbe avere lo STESSO indice come azione principale
 	//   e come reazione. `CollectAttackIntents` non filtra su `Def.Slot`, quindi il caso e' costruibile —
 	//   ma i due percorsi di produzione che armano una reazione (`ARTPlayerController` e il bot) scrivono
 	//   `PlannedReactionAbility` e RITORNANO, senza mai toccare `PlannedAbilityIndex`. Ci arriva solo chi
 	//   scrive il piano a mano: test e scenari.
 	//
-	// Chi spedira' una reazione con un costo, o rendera' pianificabile come principale un'abilita' di slot
-	// reazione, guardi qui prima.
+	// Chi rendera' pianificabile come principale un'abilita' di slot reazione guardi qui prima. Lo stesso
+	// vale per chi introdurra' un secondo gate sull'uso di un'abilita': la prima versione di questa nota ne
+	// contava due, e il secondo era l'energia.
 	//
 	// L'ordine e' quello di annotazione, che e' l'ordine dei pass: `ConsumeAbility` scrive su unita' diverse,
 	// quindi non c'e' esito che dipenda dall'ordine — ma un array, e non una `TMap`, perche' la regola del

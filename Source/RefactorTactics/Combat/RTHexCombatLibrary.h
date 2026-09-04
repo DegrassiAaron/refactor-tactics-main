@@ -134,7 +134,7 @@ struct FRTHexAttackIntent
 
 	/**
 	 * L'azione si DICHIARA un'aggressione contro un'unita' ([`INT-8`], `#1491`). Un colpo e' un concetto
-	 * solo -- danno, trigger `HitByDirectAttack`, `EnergyOnHit` e `Marked` viaggiano insieme -- quindi chi
+	 * solo -- danno, trigger `HitByDirectAttack` e `Marked` viaggiano insieme -- quindi chi
 	 * non si dichiara non ne produce nessuno, e nessuno dei quattro consumatori lo vede.
 	 *
 	 * ⚠️ **`false` di default, ed e' il verso opposto agli altri flag** (`bAllowsReaction`, `bFriendlyFire`,
@@ -370,7 +370,7 @@ struct FRTHexBlastPlan
  *
  * ⚠️ **`bDashResolves` e' un ESITO gia' deciso dal chiamante, non una condizione da rivalutare qui.** Le
  * regole che dicono se uno scatto parte davvero — mobilita' rapida dichiarata dal catalogo
- * (`URTCatalogLibrary::IsFastMovement`), ricarica/energia (`ARTUnit::CanUseAbility`), destinazione diversa
+ * (`URTCatalogLibrary::IsFastMovement`), ricarica (`ARTUnit::CanUseAbility`), destinazione diversa
  * dalla cella corrente — vivono in `ARTTurnManager::ResolveDash`, e riscriverle qui sarebbe la seconda
  * autorita' che l'invariante #1 vieta. Questa libreria ne consuma la risposta.
  */

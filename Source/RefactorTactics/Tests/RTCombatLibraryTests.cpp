@@ -137,28 +137,13 @@ bool FRTDamageEnvironmentalCanKillThroughBaseTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGainEnergyTest,
-	"RefactorTactics.Combat.GainEnergyClampsToMax",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTGainEnergyTest::RunTest(const FString&)
-{
-	TestEqual(TEXT("25+25 = 50"), URTCombatLibrary::GainEnergy(25, 25, 100), 50);
-	TestEqual(TEXT("clamp al massimo"), URTCombatLibrary::GainEnergy(90, 25, 100), 100);
-	TestEqual(TEXT("gia' al massimo resta"), URTCombatLibrary::GainEnergy(100, 25, 100), 100);
-	TestEqual(TEXT("nessun guadagno"), URTCombatLibrary::GainEnergy(40, 0, 100), 40);
-	return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUltimateReadyTest,
-	"RefactorTactics.Combat.UltimateReadyAtFullEnergy",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTUltimateReadyTest::RunTest(const FString&)
-{
-	TestTrue(TEXT("energia piena -> pronto"), URTCombatLibrary::IsUltimateReady(100, 100));
-	TestFalse(TEXT("energia parziale -> non pronto"), URTCombatLibrary::IsUltimateReady(99, 100));
-	TestFalse(TEXT("energia zero -> non pronto"), URTCombatLibrary::IsUltimateReady(0, 100));
-	return true;
-}
+// `GainEnergyClampsToMax` e `UltimateReadyAtFullEnergy` stavano qui, e sono stati rimossi insieme alle due
+// funzioni che misuravano — `URTCombatLibrary::GainEnergy` e `IsUltimateReady` — quando
+// [D-324](../../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy` dal gameplay.
+//
+// ⚠️ Non erano test deboli: `IsUltimateReady` non aveva **nessun** chiamante di produzione, e questi due casi
+// erano l'unica cosa che la tenesse viva. Un'API il cui solo consumatore e' il proprio test non e' coperta:
+// e' sopravvissuta.
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEffectiveMoveRangeTest,
 	"RefactorTactics.Combat.EffectiveMoveRangeWithStatus",
@@ -173,16 +158,25 @@ bool FRTEffectiveMoveRangeTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il gate di un'abilita', che da [D-324](../../../../docs/decisions/RT_PDR_00_Decision_Log.md) e' **solo** il
+ * cooldown.
+ *
+ * Si chiamava `AbilityUsableByCooldownAndEnergy` e provava due clausole. Il nome e' cambiato con la firma:
+ * un test che continuasse a chiamarsi «...AndEnergy» direbbe al lettore che esiste una seconda condizione,
+ * e nessun gate legge i nomi dei test per accorgersene.
+ */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityUsableTest,
-	"RefactorTactics.Combat.AbilityUsableByCooldownAndEnergy",
+	"RefactorTactics.Combat.AbilityUsableByCooldownOnly",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTAbilityUsableTest::RunTest(const FString&)
 {
-	TestTrue(TEXT("pronta e senza costo"), URTCombatLibrary::IsAbilityUsable(0, 50, 0));
-	TestFalse(TEXT("in ricarica"), URTCombatLibrary::IsAbilityUsable(2, 50, 0));
-	TestTrue(TEXT("energia sufficiente"), URTCombatLibrary::IsAbilityUsable(0, 100, 100));
-	TestFalse(TEXT("energia insufficiente"), URTCombatLibrary::IsAbilityUsable(0, 99, 100));
-	TestFalse(TEXT("in ricarica anche con energia"), URTCombatLibrary::IsAbilityUsable(1, 100, 100));
+	TestTrue(TEXT("fuori ricarica -> usabile"), URTCombatLibrary::IsAbilityUsable(0));
+	TestFalse(TEXT("in ricarica -> non usabile"), URTCombatLibrary::IsAbilityUsable(2));
+	TestFalse(TEXT("un solo turno di ricarica basta a negarla"), URTCombatLibrary::IsAbilityUsable(1));
+	// Il contatore non scende sotto zero nei chiamanti, ma la funzione non lo assume: un negativo e' «fuori
+	// ricarica», non un caso da rifiutare.
+	TestTrue(TEXT("contatore negativo -> usabile"), URTCombatLibrary::IsAbilityUsable(-1));
 	return true;
 }
 

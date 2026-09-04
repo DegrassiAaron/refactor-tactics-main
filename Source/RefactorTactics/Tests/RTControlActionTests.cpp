@@ -1058,16 +1058,19 @@ bool FRTInterruptTwiceTracesOnceTest::RunTest(const FString&)
  *
  * `Plan.Hits` e' ordinato per `AttackerId` e poi `TargetId`: bastava che la vittima della CARICA avesse
  * indice minore del bersaglio dell'attacco perche' l'impatto entrasse per primo. `UsedAbilityIndex`
- * riceveva `INDEX_NONE`, `ConsumeAbility(INDEX_NONE)` usciva subito, e il ramo `EnergyCost > 0` non
- * scattava: l'unita' **guadagnava** `EnergyOnHit` invece di pagare l'ultimate, che restava riutilizzabile
- * ogni turno. `#1449` l'ha corretto — si registra il primo colpo **con un'abilita' da consumare** — e questo
+ * riceveva `INDEX_NONE` e `ConsumeAbility(INDEX_NONE)` usciva subito: l'ultimate non pagava il cooldown e
+ * restava riutilizzabile ogni turno. `#1449` l'ha corretto — si registra il primo colpo **con un'abilita' da consumare** — e questo
  * test e' la copertura che quella correzione non aveva.
  *
- * ⚠️ **L'oracolo e' un CONFRONTO, non un valore**, e la prima stesura sbagliava proprio qui: asseriva che
- * l'energia calasse, e MISURAVA 5 → 27 con l'ultimate regolarmente pagata. Nello stesso turno l'energia
- * riceve anche `EnergyPerTurn` dal Cleanup, quindi il saldo finale somma flussi diversi e non dice se
- * l'ultimate e' stata pagata. Girando lo stesso turno **con e senza la carica** quei flussi si cancellano:
- * cio' che resta e' il costo dell'ultimate, che deve essere lo stesso.
+ * ⚠️ **L'oracolo e' un CONFRONTO, non un valore**: si gira lo stesso turno **con e senza la carica**, e il
+ * cooldown dell'ultimate deve risultare partito in entrambi i giri.
+ *
+ * ⚠️ **Questo test misurava due meta', e una e' stata rimossa.** L'altra meta' era l'energia — col difetto
+ * l'unita' *guadagnava* `EnergyOnHit` invece di pagare, e i due saldi divergevano.
+ * [D-324](../../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy` dal gameplay, e la meta'
+ * energia e' caduta con essa. ⛔ Il test **non** e' stato cancellato: il difetto storico di `#1449` era che
+ * `ConsumeAbility(INDEX_NONE)` non pagava **ne' cooldown ne' energia**, e la meta' superstite copre ancora
+ * il verso che resta osservabile.
  *
  * ⚠️ **La carica avviene sul percorso reale**, non spingendo un impatto in `PendingChargeImpacts`: quel
  * campo lo popola `ResolveDashPhase` quando una mobilita' lineare si ferma addosso a qualcuno, e montarlo a
@@ -1083,8 +1086,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeDoesNotRefundUltimateTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTChargeDoesNotRefundUltimateTest::RunTest(const FString&)
 {
-	// Lo stesso turno, con e senza la carica. `OutEnergia` e' il saldo finale del caricatore.
-	auto GiraIlTurno = [this](bool bConCarica, int32& OutEnergia, bool& bOutColpito,
+	// Lo stesso turno, con e senza la carica.
+	auto GiraIlTurno = [this](bool bConCarica, bool& bOutColpito,
 		bool& bOutUltimateInRicarica) -> bool
 	{
 		UWorld* World = MakeControlWorld();
@@ -1104,8 +1107,7 @@ bool FRTChargeDoesNotRefundUltimateTest::RunTest(const FString&)
 			return false;
 		}
 
-		// L'ultimate: costa energia, e sta nello SLOT 0 perche' `AbilityCooldowns` non copre gli indici
-		// appesi. ⚠️ La portata si scrive in TUTTI E DUE i posti — `Def.RangeCells` e' quella che il resolver
+		// L'ultimate sta nello SLOT 0 perche' `AbilityCooldowns` non copre gli indici appesi. ⚠️ La portata si scrive in TUTTI E DUE i posti — `Def.RangeCells` e' quella che il resolver
 		// misura, `RangeCells` sull'oggetto e' lo specchio legacy — o l'ultimate non colpisce.
 		URTActionData* Ultimate = NewObject<URTActionData>(Caricatore);
 		Ultimate->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.BasicAttack"));
@@ -1114,10 +1116,7 @@ bool FRTChargeDoesNotRefundUltimateTest::RunTest(const FString&)
 		Ultimate->RangeCells = 3;
 		Ultimate->Power = 15;
 		Ultimate->CooldownTurns = MinCooldownTurns;
-		Ultimate->EnergyCost = 3;
 		Caricatore->Abilities[0] = Ultimate;
-
-		Caricatore->Energy = FMath::Clamp(Ultimate->EnergyCost + 2, 0, Caricatore->MaxEnergy);
 
 		if (bConCarica)
 		{
@@ -1137,12 +1136,11 @@ bool FRTChargeDoesNotRefundUltimateTest::RunTest(const FString&)
 
 		RunControlTurn(TM);
 
-		OutEnergia = Caricatore->Energy;
 		bOutColpito = Bersaglio->Health < Bersaglio->MaxHealth;
 		bOutUltimateInRicarica = !Caricatore->CanUseAbility(0);
 
-		AddInfo(FString::Printf(TEXT("%s: energia finale %d, ultimate in ricarica %s, cella %s"),
-			bConCarica ? TEXT("con carica") : TEXT("senza carica"), OutEnergia,
+		AddInfo(FString::Printf(TEXT("%s: ultimate in ricarica %s, cella %s"),
+			bConCarica ? TEXT("con carica") : TEXT("senza carica"),
 			bOutUltimateInRicarica ? TEXT("si") : TEXT("NO"), *Caricatore->Cell.ToString()));
 
 		// La premessa che rende il giro con la carica un caso: la carica DEVE essere avvenuta, o l'unita'
@@ -1161,28 +1159,24 @@ bool FRTChargeDoesNotRefundUltimateTest::RunTest(const FString&)
 		return true;
 	};
 
-	int32 EnergiaConCarica = 0, EnergiaSenza = 0;
 	bool bColpitoCon = false, bColpitoSenza = false;
 	bool bRicaricaCon = false, bRicaricaSenza = false;
-	if (!GiraIlTurno(/*bConCarica=*/ true,  EnergiaConCarica, bColpitoCon, bRicaricaCon))  { return false; }
-	if (!GiraIlTurno(/*bConCarica=*/ false, EnergiaSenza,     bColpitoSenza, bRicaricaSenza)) { return false; }
+	if (!GiraIlTurno(/*bConCarica=*/ true,  bColpitoCon, bRicaricaCon))  { return false; }
+	if (!GiraIlTurno(/*bConCarica=*/ false, bColpitoSenza, bRicaricaSenza)) { return false; }
 
 	// Le premesse: in tutti e due i giri l'ultimate deve aver COLPITO, o l'unico colpo sarebbe quello
-	// dell'impatto e l'energia salirebbe per una premessa rotta invece che per il resolver.
+	// dell'impatto e il cooldown parlerebbe di un'azione diversa da quella che il test dichiara.
 	if (!TestTrue(TEXT("premessa: con la carica l'ultimate ha colpito"), bColpitoCon)
 		|| !TestTrue(TEXT("premessa: senza la carica l'ultimate ha colpito"), bColpitoSenza))
 	{
 		return false;
 	}
 
-	// 🔴 L'invariante: la carica non cambia quanto costa l'ultimate. Col difetto, il giro CON la carica
-	// guadagnava `EnergyOnHit` invece di pagare, e i due saldi divergevano.
-	TestEqual(FString::Printf(TEXT("l'ultimate costa uguale: %d con la carica, %d senza"),
-		EnergiaConCarica, EnergiaSenza), EnergiaConCarica, EnergiaSenza);
-
-	// E l'altra meta': il cooldown parte in entrambi i casi.
+	// 🔴 L'invariante: la carica non evita all'ultimate il proprio cooldown. Col difetto di `#1449` il giro
+	// CON la carica non pagava, e i due esiti divergevano.
 	TestTrue(TEXT("l'ultimate e' in ricarica anche dopo una carica"), bRicaricaCon);
 	TestTrue(TEXT("e anche senza"), bRicaricaSenza);
+	TestEqual(TEXT("la carica non cambia se l'ultimate ha pagato"), bRicaricaCon, bRicaricaSenza);
 
 	return true;
 }
@@ -1782,17 +1776,17 @@ namespace
 	};
 
 	/**
-	 * L'energia e' l'ALTRA meta' di `ConsumeAbility` (`RTUnit.cpp`: sconta `EnergyCost` **e** scrive il
-	 * cooldown), e il refactor di `#1451` ha spostato tutte e due. Un oracolo sul solo cooldown resterebbe
-	 * verde togliendo la riga dell'energia — il difetto che la tabella esiste per non lasciar passare.
+	 * ⚠️ **Questa tabella aveva DUE oracoli, e uno e' stato rimosso.**
 	 *
-	 * ⚠️ `EnergyPerTurn` si azzera nella riga: il Cleanup accredita reddito a ogni unita' (`RTTurnManager`),
-	 * e qui e' rumore su una misura che parla di quanto si SPENDE. Non si aggira nessuna regola: si toglie
-	 * un'entrata estranea, come si alza il cooldown perche' sopravviva al decremento.
+	 * `ConsumeAbility` scontava l'energia **e** scriveva il cooldown, e la tabella misurava entrambi: un campo
+	 * `bAbilitaACosto` biforcava le righe sul ramo `EnergyCost > 0` di `MarkAttackerAbilitiesSpent`.
+	 * [D-324](../../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy` dal gameplay, quindi
+	 * `ConsumeAbility` scrive **solo** il cooldown e l'oracolo e' uno.
+	 *
+	 * ⛔ **Una riga e' stata rimossa, non adattata.** `attacco base senza costo` esisteva per tenere coperto il
+	 * ramo `GainEnergy`; senza `bAbilitaACosto` sarebbe diventata **identica** a `attacco che colpisce` — una
+	 * dodicesima riga che ripete l'undicesima non aggiunge copertura, la nasconde.
 	 */
-	constexpr int32 CostoEnergiaProva = 5;
-	constexpr int32 EnergiaIniziale = 50;
-
 	struct FSpesaCase
 	{
 		const TCHAR* Nome;
@@ -1802,7 +1796,6 @@ namespace
 		bool bAttoreVivo;            //< falso = arriva al Blast gia' caduto (Prep o Dash)
 		bool bMuoreNelBlast;         //< vero = un nemico adiacente lo uccide NELLA stessa fase
 		bool bPurificaUnoStatoPosseduto; //< solo Cleanse: dichiara la priorita' su uno stato che HA
-		bool bAbilitaACosto;         //< falso = `EnergyCost` 0, cioe' il ramo `GainEnergy` degli attaccanti
 		bool bDevePagare;
 		const TCHAR* Perche;
 	};
@@ -1815,49 +1808,46 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 {
 	const FSpesaCase Casi[] = {
 		{ TEXT("purificazione efficace"), TEXT("Action.Cleanse"), ESpesaMontaggio::SuSeStessi,
-		  0, true, false, true, true, true,
+		  0, true, false, true, true,
 		  TEXT("l'azione e' partita e ha tolto lo stato") },
 		{ TEXT("purificazione a vuoto"), TEXT("Action.Cleanse"), ESpesaMontaggio::SuSeStessi,
-		  0, true, false, false, true, true,
+		  0, true, false, false, true,
 		  TEXT("[D-200]: ha guardato e non c'era niente, che e' un ESITO — e il costo impedisce la purificazione assicurativa ogni turno") },
 		{ TEXT("cura in portata"), TEXT("Action.Heal"), ESpesaMontaggio::Alleato,
-		  1, true, false, false, true, true,
+		  1, true, false, false, true,
 		  TEXT("bersaglio raggiungibile: l'azione parte") },
 		{ TEXT("cura fuori portata"), TEXT("Action.Heal"), ESpesaMontaggio::Alleato,
-		  5, true, false, false, true, false,
+		  5, true, false, false, false,
 		  TEXT("[D-200]: la portata e' l'unico modo di fallire noto in PIANIFICAZIONE — non e' mai partita") },
 		{ TEXT("arco in portata"), TEXT("Action.ModifyArc"), ESpesaMontaggio::Alleato,
-		  1, true, false, false, true, true,
+		  1, true, false, false, true,
 		  TEXT("la topologia e' stata toccata") },
 		{ TEXT("arco fuori portata"), TEXT("Action.ModifyArc"), ESpesaMontaggio::Alleato,
-		  5, true, false, false, true, false,
+		  5, true, false, false, false,
 		  TEXT("stessa regola della cura, e ModifyArc la seguiva gia' con parole sue") },
 		{ TEXT("interruzione a segno"), TEXT("Action.Interrupt"), ESpesaMontaggio::NemicoCheAttacca,
-		  1, true, false, false, true, true,
+		  1, true, false, false, true,
 		  TEXT("#1444: ha prodotto un colpo") },
 		{ TEXT("interruzione fuori portata"), TEXT("Action.Interrupt"), ESpesaMontaggio::NemicoCheAttacca,
-		  3, true, false, false, true, false,
+		  3, true, false, false, false,
 		  TEXT("#1449: niente colpo e nessuna cella mirata — e' un'azione non avvenuta come le altre") },
 		{ TEXT("attacco che colpisce"), nullptr, ESpesaMontaggio::NemicoDaColpire,
-		  1, true, false, false, true, true,
+		  1, true, false, false, true,
 		  TEXT("il colpo e' arrivato: MarkAttackerAbilitiesSpent lo raccoglie") },
 		{ TEXT("pianificatore gia' caduto"), TEXT("Action.Heal"), ESpesaMontaggio::Alleato,
-		  1, false, false, false, true, false,
+		  1, false, false, false, false,
 		  TEXT("un cadavere non paga un'azione che non ha mai eseguito: arriva al Blast col piano addosso, e GatherBlastUnits non filtra i morti") },
 		// 🔴 Le DUE righe che pinnano l'asimmetria di [D-209], e senza le quali il rimedio «ovvio» —
 		// portare `IsAlive()` dentro `SpendStartedAbilities` — lascerebbe la tabella verde.
 		{ TEXT("curatore che cade nel Blast"), TEXT("Action.Heal"), ESpesaMontaggio::Alleato,
-		  1, true, true, false, true, true,
+		  1, true, true, false, true,
 		  TEXT("[D-209]: chi cura e' vivo quando ANNOTA, e paga anche se cade piu' tardi nella stessa fase") },
 		{ TEXT("attaccante che colpisce e cade"), nullptr, ESpesaMontaggio::NemicoDaColpire,
-		  1, true, true, false, true, false,
+		  1, true, true, false, false,
 		  TEXT("[D-209]: per un attaccante «spesa» vuol dire SOPRAVVISSUTO alla fase, e questo non lo e'") },
-		// L'altro ramo di `MarkAttackerAbilitiesSpent`: senza costo in energia non si logga `Ultimate!`, si
-		// accredita `EnergyOnHit`. Senza questa riga, cancellare quel ramo — cioe' l'accumulo di energia di
-		// ogni attaccante del gioco — non farebbe cadere niente.
-		{ TEXT("attacco base senza costo"), nullptr, ESpesaMontaggio::NemicoDaColpire,
-		  1, true, false, false, false, true,
-		  TEXT("il colpo e' arrivato e l'abilita' e' gratuita: si paga il cooldown e si ACCUMULA energia") },
+		// ⛔ Qui stava `attacco base senza costo`, la riga che teneva coperto il ramo `GainEnergy` di
+		// `MarkAttackerAbilitiesSpent`. `D-324` ha rimosso quel ramo, e senza `bAbilitaACosto` la riga sarebbe
+		// stata identica ad `attacco che colpisce`: rimossa invece di adattata.
 	};
 
 	for (const FSpesaCase& C : Casi)
@@ -1890,15 +1880,6 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 		{
 			Azione->CooldownTurns = MinCooldownTurns; // l'attacco base dell'eroe non ne dichiara uno
 		}
-		// 🔴 **Il costo in energia e' una proprieta' della RIGA, non della tabella.**
-		// `MarkAttackerAbilitiesSpent` si biforca su `EnergyCost > 0`: con un costo logga `Ultimate!`, senza
-		// accredita `EnergyOnHit`. Mettendo un costo ovunque — come faceva la prima stesura di questa
-		// misura — il ramo `GainEnergy` smetteva di essere coperto da qualunque riga, e cancellarlo del
-		// tutto (cioe' togliere l'accumulo di energia a OGNI attaccante del gioco) lasciava la tabella
-		// verde. La riga `attacco base senza costo` esiste per tenerlo rosso.
-		Azione->EnergyCost = C.bAbilitaACosto ? CostoEnergiaProva : 0;
-		Attore->Energy = EnergiaIniziale;
-		Attore->EnergyPerTurn = 0; // il reddito del Cleanup e' rumore su una misura che parla di spesa
 
 		if (!TestTrue(*FString::Printf(TEXT("%s: premessa: il cooldown e' osservabile"), C.Nome),
 			Azione->CooldownTurns >= MinCooldownTurns))
@@ -2040,10 +2021,10 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 			continue; // senza l'attore non c'e' niente da leggere, e un `Success` muto sarebbe peggio
 		}
 
-		// 🔴 **`GetAbilityCooldown` e non `CanUseAbility`**: il secondo e' falso anche per mancanza di
-		// ENERGIA (`IsAbilityUsable(cooldown, Energy, EnergyCost)`), quindi su un'ultimate a pagamento
-		// direbbe «ha pagato» per il motivo sbagliato. Qui si misura il COOLDOWN, che e' cio' che
-		// `ConsumeAbility` scrive.
+		// 🔴 **`GetAbilityCooldown` e non `CanUseAbility`.** I due oggi coincidono — da `D-324` il cooldown e'
+		// l'unico gate — ma la misura resta sul contatore: e' cio' che `ConsumeAbility` **scrive**, mentre
+		// `CanUseAbility` e' cio' che qualcun altro ne **deduce**. Un secondo gate futuro renderebbe di nuovo
+		// ambiguo il predicato, e questa riga non dovra' cambiare per accorgersene.
 		// 🔴 **La premessa della riga «muore nel Blast» si verifica, o la riga si degrada in silenzio.**
 		// L'oracolo di `curatore che cade nel Blast` e' identico a quello di `cura in portata`: se il
 		// carnefice smettesse di uccidere — un ribilanciamento del danno base, una copertura fra le due
@@ -2056,24 +2037,9 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 		}
 
 		const bool bHaPagato = AttoreDopo->GetAbilityCooldown(0) > 0;
-		AddInfo(FString::Printf(TEXT("%s -> cooldown residuo %d, energia %d (%s)"),
-			C.Nome, AttoreDopo->GetAbilityCooldown(0), AttoreDopo->Energy, C.Perche));
+		AddInfo(FString::Printf(TEXT("%s -> cooldown residuo %d (%s)"),
+			C.Nome, AttoreDopo->GetAbilityCooldown(0), C.Perche));
 		TestEqual(*FString::Printf(TEXT("%s: %s"), C.Nome, C.Perche), bHaPagato, C.bDevePagare);
-
-		// 🔴 **E l'energia, che e' l'altra meta' di `ConsumeAbility`.** Con `EnergyCost > 0` il ramo
-		// `Ultimate!` di `MarkAttackerAbilitiesSpent` non accredita `EnergyOnHit`, e `EnergyPerTurn` e'
-		// azzerato: l'unico movimento possibile e' la spesa. Senza questa riga, togliere lo scalo
-		// dell'energia da `ConsumeAbility` lascerebbe tutte e dodici le righe verdi.
-		int32 EnergiaAttesa = EnergiaIniziale;
-		if (C.bDevePagare)
-		{
-			// Con un costo si spende; senza, l'unico ramo che tocca l'energia e' il `GainEnergy` di
-			// `MarkAttackerAbilitiesSpent`, che accredita `EnergyOnHit` all'attaccante sopravvissuto.
-			EnergiaAttesa = C.bAbilitaACosto
-				? EnergiaIniziale - CostoEnergiaProva
-				: FMath::Min(AttoreDopo->MaxEnergy, EnergiaIniziale + AttoreDopo->EnergyOnHit);
-		}
-		TestEqual(*FString::Printf(TEXT("%s: energia"), C.Nome), AttoreDopo->Energy, EnergiaAttesa);
 
 		DestroyControlWorld(World);
 	}

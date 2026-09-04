@@ -58,10 +58,6 @@ namespace RTScenarioStateDiff
 		{
 			Out.Emplace(TEXT("Shield"), FString::FromInt(Before.Shield), FString::FromInt(After.Shield));
 		}
-		if (Before.Energy != After.Energy)
-		{
-			Out.Emplace(TEXT("Energy"), FString::FromInt(Before.Energy), FString::FromInt(After.Energy));
-		}
 		if (Before.bAlive != After.bAlive)
 		{
 			Out.Emplace(TEXT("bAlive"), Before.bAlive ? TEXT("true") : TEXT("false"),
@@ -1158,7 +1154,7 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 
 		// --- abilita' -------------------------------------------------------------------------------------
 		// Stessa strada del controller: si scrivono `PlannedAbilityIndex` e `PlannedAttackTarget`, esattamente
-		// come dopo un click sul nemico. Portata, LOS, cooldown ed energia li valuta il turn manager al momento
+		// come dopo un click sul nemico. Portata, LOS e cooldown li valuta il turn manager al momento
 		// della risoluzione — la sessione non li anticipa, altrimenti verificherebbe le proprie regole invece
 		// di quelle del gioco.
 		// Bersaglio a UNITA': il caso a cella e' il ramo dopo. La condizione porta `!bTargetsCell` perche'

@@ -238,14 +238,6 @@ public:
 	static FRTDamageResult ApplyDamage(int32 Damage, ERTDamageSource Source, int32 Shield,
 		int32 TemporaryShield, int32 Health);
 
-	/** Accumula energia con clamp in [0, Max]. */
-	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
-	static int32 GainEnergy(int32 Current, int32 Gain, int32 Max);
-
-	/** Vero se l'ultimate e' disponibile (energia al massimo). */
-	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
-	static bool IsUltimateReady(int32 Energy, int32 Max);
-
 	/**
 	 * Range di movimento effettivo con lo status Root: azzera. `Slow` NON passa piu' da qui (CP 4.7): il
 	 * catalogo v0.1 §5 lo definisce come **+1 al costo di ogni cella**, un meccanismo di pathfinding
@@ -256,9 +248,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static int32 EffectiveMoveRange(int32 BaseRange, bool bRooted);
 
-	/** Vero se un'abilita' e' utilizzabile: non in ricarica e con energia sufficiente. */
+	/**
+	 * Vero se un'abilita' e' utilizzabile: non in ricarica.
+	 *
+	 * La firma portava anche `Energy` e `EnergyCost`, e la clausola era `CooldownRemaining <= 0 && Energy >=
+	 * EnergyCost`. [D-324](../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy` dal gameplay:
+	 * **il cooldown e' rimasto l'unico gate**, e i due parametri sono spariti invece di restare a leggere 0
+	 * contro 0 — una seconda clausola sempre vera e' un posto dove sbagliare, non una difesa.
+	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
-	static bool IsAbilityUsable(int32 CooldownRemaining, int32 Energy, int32 EnergyCost);
+	static bool IsAbilityUsable(int32 CooldownRemaining);
 
 	/**
 	 * Invariante #6 (privacy dell'intento): il piano di un'unita' e' visibile agli alleati

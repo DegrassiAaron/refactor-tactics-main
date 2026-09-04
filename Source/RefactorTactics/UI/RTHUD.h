@@ -312,7 +312,7 @@ public:
 	 * @param Anchor      punto desiderato: X centro del blocco, Y riga della barra HP.
 	 * @param HalfWidth   meta' larghezza del blocco piu' largo (barra o nome).
 	 * @param AboveAnchor quanto il blocco sale sopra `Anchor.Y` (nome e status).
-	 * @param BelowAnchor quanto scende sotto `Anchor.Y` (barra ed energia).
+	 * @param BelowAnchor quanto scende sotto `Anchor.Y` (la barra).
 	 * @param Viewport    dimensioni del canvas.
 	 * @param Margin      distanza minima dal bordo.
 	 *

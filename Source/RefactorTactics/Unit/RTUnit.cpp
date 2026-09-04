@@ -125,7 +125,7 @@ ARTUnit::ARTUnit()
 	// normale erediterebbe il transform e la trascinerebbe con l'unita' vera, che nel frattempo puo' essersi
 	// mossa altrove. La aggiorna solo `UpdateContactGhost`, mai `RefreshComponentVisibility` (che nasconde il
 	// personaggio vero) ne' `ApplyTeamColor`/`ApplyFacingArrow` (che sono presentazione del vivo).
-	// Sovrapposizione sopra la testa (`#2288`, `D-320`): nome, vita, scudo, energia, stati.
+	// Sovrapposizione sopra la testa (`#2288`, `D-320`): nome, vita, scudo, stati.
 	//
 	// ⚠️ `Screen` space e non `World`: e' cio' che sostituisce il disegno in canvas, che era in coordinate
 	// schermo. In `World` la sovrapposizione rimpicciolirebbe con la distanza — e a camera tattica, dove le
@@ -1087,7 +1087,7 @@ int32 ARTUnit::GetEffectiveDashRange(int32 BaseRange) const
 }
 
 URTActionData* ARTUnit::MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area,
-	int32 Cooldown, int32 EnergyCost, FGameplayTag Status, int32 StatusDur)
+	int32 Cooldown, FGameplayTag Status, int32 StatusDur)
 {
 	URTActionData* Ability = NewObject<URTActionData>(this);
 	Ability->DisplayName = FText::FromString(Name);
@@ -1096,7 +1096,6 @@ URTActionData* ARTUnit::MakeAbility(const FString& Name, int32 Range, int32 Powe
 	Ability->AreaRadius = Area;
 	Ability->Shape = (Area > 0) ? ERTAbilityShape::Area : ERTAbilityShape::Single;
 	Ability->CooldownTurns = Cooldown;
-	Ability->EnergyCost = EnergyCost;
 	return Ability;
 }
 
@@ -1106,14 +1105,22 @@ void ARTUnit::EnsureDefaultAbilities()
 	{
 		return;
 	}
-	Abilities.Add(MakeAbility(TEXT("Attacco"), AttackRange, AttackPower, 0, 0, 0, FGameplayTag(), 0));
-	Abilities.Add(MakeAbility(TEXT("Colpo pesante"), FMath::Max(1, AttackRange - 1), AttackPower + 20, 0, 2, 0, FGameplayTag(), 0));
-	Abilities.Add(MakeAbility(TEXT("Ultimate"), AttackRange, AttackPower * UltimateMultiplier, UltimateRadius, 0, MaxEnergy, TAG_Status_Slow, 2));
+	Abilities.Add(MakeAbility(TEXT("Attacco"), AttackRange, AttackPower, 0, 0, FGameplayTag(), 0));
+	Abilities.Add(MakeAbility(TEXT("Colpo pesante"), FMath::Max(1, AttackRange - 1), AttackPower + 20, 0, 2, FGameplayTag(), 0));
+	// L'Ultimate legacy aveva `EnergyCost = MaxEnergy` e cooldown **0**: il costo ERA il suo unico gate, e
+	// con `EnergyPerTurn = 25` su un cap di 100 tornava disponibile ogni **quattro** turni.
+	//
+	// [D-324](../../../docs/decisions/RT_PDR_00_Decision_Log.md) toglie `Energy` dal gameplay. Lasciare qui
+	// lo `0` avrebbe reso l'Ultimate usabile OGNI turno — non la rimozione di un'economia, ma la sua
+	// sostituzione con nessuna. Il `4` traduce il gate esistente nell'unico asse che
+	// [D-265](../../../docs/decisions/RT_PDR_00_Decision_Log.md) lascia in piedi — slot, cooldown, drawback —
+	// e conserva il comportamento osservabile invece del numero che lo produceva.
+	Abilities.Add(MakeAbility(TEXT("Ultimate"), AttackRange, AttackPower * UltimateMultiplier, UltimateRadius, 4, TAG_Status_Slow, 2));
 	// Scatto generico: portata, ricarica e identita' vengono da `Action.Dodge`, non da numeri inventati qui.
 	// E' anche cio' che lo rende riconoscibile come mobilita' rapida: il gate e' la FASE dichiarata dal
 	// catalogo (`URTCatalogLibrary::IsFastMovement`), non un flag booleano sull'asset.
 	const FRTActionDef DodgeDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
-	URTActionData* Scatto = MakeAbility(TEXT("Scatto"), DodgeDef.RangeCells, 0, 0, DodgeDef.CooldownTurns, 0, FGameplayTag(), 0);
+	URTActionData* Scatto = MakeAbility(TEXT("Scatto"), DodgeDef.RangeCells, 0, 0, DodgeDef.CooldownTurns, FGameplayTag(), 0);
 	Scatto->Def = DodgeDef;
 	Abilities.Add(Scatto);
 
@@ -1285,7 +1292,7 @@ bool ARTUnit::SetPlannedReactionCondition(const FRTDeclaredCondition& Condition)
 bool ARTUnit::CanUseAbility(int32 Index) const
 {
 	const URTActionData* Ability = GetAbility(Index);
-	return Ability && URTCombatLibrary::IsAbilityUsable(GetAbilityCooldown(Index), Energy, Ability->EnergyCost);
+	return Ability && URTCombatLibrary::IsAbilityUsable(GetAbilityCooldown(Index));
 }
 
 bool ARTUnit::PlannedDashApplies() const
@@ -1313,10 +1320,6 @@ void ARTUnit::ConsumeAbility(int32 Index)
 	if (!Ability)
 	{
 		return;
-	}
-	if (Ability->EnergyCost > 0)
-	{
-		Energy = FMath::Max(0, Energy - Ability->EnergyCost);
 	}
 	if (Ability->CooldownTurns > 0 && AbilityCooldowns.IsValidIndex(Index))
 	{

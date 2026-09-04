@@ -422,11 +422,14 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 		}
 
 		// Un colpo nasce solo da cio' che si DICHIARA aggressione ([`INT-8`], `#1491`). Il cancello sta QUI e
-		// non nel trigger delle reazioni ne' nel guadagno d'energia: il colpo e' un concetto SOLO, quindi i suoi
-		// quattro consumatori -- danno, `HitByDirectAttack`, `EnergyOnHit` e `Marked` -- lo ereditano da un punto
-		// unico invece di ricontrollarlo ciascuno a modo proprio. Prima il danno a 0 li lasciava passare tutti:
-		// `Action.Interact` puntata su un'unita' incassava un contrattacco e caricava 15 di energia per aver
-		// aperto una porta.
+		// non nel trigger delle reazioni: il colpo e' un concetto SOLO, quindi i suoi tre consumatori -- danno,
+		// `HitByDirectAttack` e `Marked` -- lo ereditano da un punto unico invece di ricontrollarlo ciascuno a
+		// modo proprio. Prima il danno a 0 li lasciava passare tutti: `Action.Interact` puntata su un'unita'
+		// incassava un contrattacco per aver aperto una porta.
+		//
+		// I consumatori erano QUATTRO: il quarto era `EnergyOnHit`, l'accredito di energia a chi colpisce, e
+		// `D-324` l'ha tolto dal gameplay. Il cancello unico non cambia: e' cio' che ha impedito al quarto
+		// consumatore di divergere finche' e' esistito.
 		//
 		// ⚠️ DOPO la raccolta dell'op sulla porta, e non prima: `Action.Interact` non colpisce nessuno, ma il suo
 		// lavoro vero e' gia' in `Plan.DoorOps` qui sopra. Spegnerla piu' in alto la renderebbe inerte.

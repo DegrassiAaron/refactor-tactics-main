@@ -65,8 +65,6 @@ FRTUnitCardView URTHudViewModel::BuildUnitCard(const ARTUnit* Unit, int32 Player
 	Card.Health = Unit->Health;
 	Card.MaxHealth = Unit->MaxHealth;
 	Card.Shield = Unit->Shield;
-	Card.Energy = Unit->Energy;
-	Card.MaxEnergy = Unit->MaxEnergy;
 	Card.bIsAlly = (Unit->TeamId == PlayerTeamId);
 	Card.bAlive = Unit->IsAlive();
 
@@ -289,7 +287,8 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 			? FMath::Clamp(1.f - static_cast<float>(View.TurnsRemaining) / static_cast<float>(View.TotalTurns), 0.f, 1.f)
 			: 1.f;
 
-		// Usabile ADESSO e' un'altra domanda: `CanUseAbility` guarda ricarica **ed** energia.
+		// Usabile ADESSO: `CanUseAbility` guardava ricarica **ed** energia, e da `D-324` guarda la sola
+		// ricarica — quindi oggi risponde come `TurnsRemaining == 0`, per una ragione e non per caso.
 		View.bUsableNow = Unit->CanUseAbility(Index);
 
 		Cooldowns.Add(View);

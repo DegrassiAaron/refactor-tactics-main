@@ -43,7 +43,6 @@ namespace
 		U.Cell = FRTCellId(0, 0);
 		U.Health = 100;
 		U.Shield = 0;
-		U.Energy = 25;
 		U.bAlive = true;
 		return { U };
 	}
@@ -639,8 +638,8 @@ bool FRTChecksumSeesArcConductivityTest::RunTest(const FString&)
  * **Ogni campo del digest entra nell'hash**, e nessuno può sparire in silenzio.
  *
  * 🔴 **Trovato per mutazione**: rimuovendo `Mix(U.Shield)` da `HashMatchState` la suite restava interamente
- * verde. Due partite che differiscono solo per lo scudo — o per l'energia, o per il piano — producevano lo
- * stesso `StateHash`, e il replay le avrebbe dichiarate identiche.
+ * verde. Due partite che differiscono solo per lo scudo — o per il piano — producevano lo stesso
+ * `StateHash`, e il replay le avrebbe dichiarate identiche.
  *
  * ⚠️ **La prima stesura di questo test copriva tre campi, e la review ne ha trovati altri cinque scoperti**:
  * `UnitId`, `Health`, `bAlive`, `Cell.X` e `Cell.Y` stanno sulle righe *adiacenti* dello stesso ciclo, e
@@ -653,9 +652,13 @@ bool FRTChecksumSeesArcConductivityTest::RunTest(const FString&)
  *    `Mix(Campo != 0)` degradato, che collasserebbe `Shield=10` e `Shield=20` sullo stesso hash. Questo file
  *    scrive già casi contro quella degradazione per l'identità di porte e archi; qui si applica la stessa
  *    disciplina ai campi dell'unità.
- * 2. **Due campi non devono collidere fra loro.** Un `Mix(Shield + Energy)` commutativo passerebbe ogni
- *    disuguaglianza per-campo, e renderebbe identici `(Shield 25, Energy 0)` e `(Shield 0, Energy 25)`. Solo
+ * 2. **Due campi non devono collidere fra loro.** Un `Mix(Health + Shield)` commutativo passerebbe ogni
+ *    disuguaglianza per-campo, e renderebbe identici `(Health 25, Shield 0)` e `(Health 0, Shield 25)`. Solo
  *    uno **scambio di valori** lo smaschera.
+ *
+ *    ⚠️ La coppia era `(Shield, Energy)`: `D-324` ha tolto `Energy` dal digest, e lo scambio e' stato
+ *    **riscritto** su due campi superstiti invece di essere cancellato. Cancellarlo avrebbe lasciato il test
+ *    verde su una proprieta' che non verificava piu' — il difetto peggiore di un asserto che cade.
  */
 namespace
 {
@@ -667,7 +670,6 @@ namespace
 		U.Cell = FRTCellId(1, -1, 0);
 		U.Health = 40;
 		U.Shield = 10;
-		U.Energy = 30;
 		U.bAlive = true;
 		return { U };
 	}
@@ -704,7 +706,6 @@ bool FRTChecksumSeesEveryUnitFieldTest::RunTest(const FString&)
 		{ TEXT("UnitId"),     [](FRTUnitStateDigest& U) { U.UnitId = 7; } },                    // baseline 3
 		{ TEXT("Health"),     [](FRTUnitStateDigest& U) { U.Health = 55; } },                   // baseline 40
 		{ TEXT("Shield"),     [](FRTUnitStateDigest& U) { U.Shield = 20; } },                   // baseline 10
-		{ TEXT("Energy"),     [](FRTUnitStateDigest& U) { U.Energy = 45; } },                   // baseline 30
 		{ TEXT("bAlive"),     [](FRTUnitStateDigest& U) { U.bAlive = false; } },
 		// `Facing` — `D-261`, `#1800`: e' stato logico, non presentazione, e `Combat/` lo consuma.
 		{ TEXT("Facing"),     [](FRTUnitStateDigest& U) { U.Facing = ERTHexDirection::W; } },
@@ -721,19 +722,23 @@ bool FRTChecksumSeesEveryUnitFieldTest::RunTest(const FString&)
 	}
 
 	// ⚠️ **Lo scambio di valori**: è l'unico caso che smaschera un hash che SOMMA due campi invece di
-	// mescolarli in ordine. `(Shield 25, Energy 0)` e `(Shield 0, Energy 25)` hanno la stessa somma e sono due
+	// mescolarli in ordine. `(Health 25, Shield 0)` e `(Health 0, Shield 25)` hanno la stessa somma e sono due
 	// stati diversi; ogni assertion per-campo qui sopra passerebbe comunque.
+	//
+	// La coppia era `(Shield, Energy)` finché `Energy` è stata nel digest (`D-324`). `Health` e `Shield` sono
+	// **adiacenti** nel ciclo di `HashMatchState` esattamente come lo erano `Shield` ed `Energy`: è la stessa
+	// proprietà, provata sui campi che restano.
 	{
+		TArray<FRTUnitStateDigest> HealthHeavy = RichBaseUnits();
+		HealthHeavy[0].Health = 25;
+		HealthHeavy[0].Shield = 0;
+
 		TArray<FRTUnitStateDigest> ShieldHeavy = RichBaseUnits();
+		ShieldHeavy[0].Health = 0;
 		ShieldHeavy[0].Shield = 25;
-		ShieldHeavy[0].Energy = 0;
 
-		TArray<FRTUnitStateDigest> EnergyHeavy = RichBaseUnits();
-		EnergyHeavy[0].Shield = 0;
-		EnergyHeavy[0].Energy = 25;
-
-		TestNotEqual(TEXT("scudo ed energia non collidono fra loro"),
-			HashOf(ShieldHeavy), HashOf(EnergyHeavy));
+		TestNotEqual(TEXT("vita e scudo non collidono fra loro"),
+			HashOf(HealthHeavy), HashOf(ShieldHeavy));
 	}
 
 	// Stessa domanda per le due coordinate: `(q=2,r=1)` e `(q=1,r=2)` sono celle diverse, e un `MixCell` che
@@ -785,7 +790,7 @@ bool FRTChecksumUnitFieldListIsCompleteTest::RunTest(const FString&)
 	// stati temporanei, caso 3). Se questo elenco e quello della struct divergono, uno dei due va aggiornato —
 	// e quale non è automatico, per questo il test dice cosa è cambiato invece di adattarsi da solo.
 	TArray<FString> Covered = { TEXT("UnitId"), TEXT("Cell"), TEXT("Health"),
-		TEXT("Shield"), TEXT("Energy"), TEXT("bAlive"), TEXT("Facing"), TEXT("Statuses") };
+		TEXT("Shield"), TEXT("bAlive"), TEXT("Facing"), TEXT("Statuses") };
 	Covered.Sort();
 
 	TestEqual(
