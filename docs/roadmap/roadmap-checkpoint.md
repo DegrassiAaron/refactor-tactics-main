@@ -386,10 +386,23 @@ Corrisponde a **H7** e alla fase **F1** del PDR.
 |---|---|---|
 | **M10.1** | Listen server + autorità | Ogni decisione di gameplay è calcolata sul server; il client produce solo preview; hash dell'asset mappa validato all'ingresso |
 | **M10.2** | Piani team-only | I piani viaggiano in DTO filtrati per squadra: nessuna replica globale con occultamento grafico |
-| **M10.3** | Canary anti-leak | Test automatico che fallisce se un client riceve **qualunque** byte del piano avversario prima del reveal |
+| **M10.3** | Canary anti-leak | Test automatico che fallisce se un client riceve **qualunque** byte del piano avversario prima del reveal, **eseguito su build packaged**. Procedura: [`procedura-canary-anti-leak.md`](../technical/systems/procedura-canary-anti-leak.md) |
 
-**DoD di milestone**: **intent leak = 0** dimostrato dal canary · il server rifiuta ogni percorso illegale
-proposto dal client (test) · una partita in rete completata senza desync (replay divergence 0).
+**DoD di milestone**: **intent leak = 0** dimostrato dal canary **packaged** · il server rifiuta ogni percorso
+illegale proposto dal client (test) · una partita in rete completata senza desync (replay divergence 0).
+
+> 🔴 **«Packaged» non è zelo: è la modalità di fallimento per cui il canary esiste** — PDR-04 §9.5,
+> [#589](https://github.com/DegrassiAaron/refactor-tactics-main/issues/589). In PIE server e client
+> condividono il processo e larga parte dello stato: un dato «arrivato» al client può non aver mai
+> attraversato un `NetDriver`. ∴ *se il canary passa in PIE e fallisce packaged, il difetto è nella
+> **replica**, non nella logica* — e un canary PIE-only è verde proprio sulla classe di difetto che deve
+> trovare. Un'esecuzione solo in PIE vale **`NOT RUN`**, non verde, e non chiude questo checkpoint.
+>
+> ✅ **Un pezzo di M10.3 è già in main, e non aspettava la rete**: PDR-04 §9 ha **sei** voci e la sesta —
+> *«un test che fallisce se un tipo server-only acquisisce proprietà replicated»* — è una verifica sulla
+> **reflection**, chiusa il 2026-09-04 da `RefactorTactics.Privacy.ServerOnlyTypesAreNotReplicated`.
+> ⚠️ **Non anticipa il canary e non lo sostituisce**: dice che non esiste una via *dichiarata* perché un
+> intento parta, non che nessun byte sia partito. La seconda cosa si dimostra solo su una partita vera.
 
 > ⚠️ **Rischio accettato**: il PDR ordina le fasi *per rischio* e metterebbe la rete subito dopo le fondamenta.
 > Posticiparla a M10 significa che M8 e M9 aggiungono superficie da rendere autoritativa. **Mitigazione**: ogni
@@ -420,7 +433,7 @@ che blocca la CI su mappa non valida, soak test senza crash.
 | Resolver | < 100 ms/turno | ✅ **0,41 ms/turno** (2026-08-06, headless, 2v2 su mappa r=6, playback escluso: è presentazione) |
 | Intent updates | 8–12 Hz | ⏳ con M10 |
 | **Replay divergence** | **0** | ✅ determinismo by-design; TurnLog permutazione-invariante, hash di replay, serializzazione versionata con checksum, verificato **anche su hex** (`RefactorTactics.HexSim.ReplayDivergenceZero`) |
-| **Intent leak** | **0** | ⏳ canary con M10 — privacy già invariante #6, oggi banale perché offline |
+| **Intent leak** | **0** | ⏳ canary **packaged** con M10.3. ➕ **2026-09-04** ([#589](https://github.com/DegrassiAaron/refactor-tactics-main/issues/589)): la *superficie* di replica è presidiata offline da `Privacy.ServerOnlyTypesAreNotReplicated`. Resta banale che nessun byte parta — il gioco è offline — non più che nessuno **possa** partire |
 | **Round per partita** (2v2) | 10–14 (cap 14–16) | 🔴 **21** misurato su partita reale (2026-08-19, `-game -RTAutobattle` sulla configurazione **spedita**, registrato in #149) — **fuori banda del 50%**. Il **10** che questa riga portava è del 2026-08-06 ed è anteriore alla correzione del deadlock di #1088: era `HexMatch.PlaysToCompletion`, che allestisce l'arena nel test. ⚠️ Resta *«un bot contro un bot»*, e **D-102** lo rende inammissibile come evidenza di bilanciamento: [**D-184**](../decisions/RT_PDR_00_Decision_Log.md) decide di non ritarare nulla su questo dato, e accetta il pareggio allo scadere come esito legittimo |
 | **Durata match P50 / P90** | 25–30 min / < 40–45 min *(3v3 Standard)* | ⏳ **il 3v3 non esiste**: in v0.1 si misura la banda 2v2 e si registra come tale |
 | **Playback per round** | 8–15 s (2v2) | ⏳ con la sonda di pacing (`MsPlayback`) |
