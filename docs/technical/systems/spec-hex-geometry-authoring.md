@@ -541,6 +541,41 @@ strumento per il designer, **non** la leggibilità in partita, che è `E21`.
 
 ---
 
+### 10.3 Il corpo strutturale è derivato, e la sua frazione è d'autore — `#1865`
+
+Una superficie elevata non è un disco sospeso: sotto di lei si vede un **corpo**. Quel corpo è
+**presentazione derivata**, non dato di gioco.
+
+⛔ **Non crea `FRTCellId`, non entra nel grafo, non compare in `ComputeHash`.** Due mappe che differiscono
+solo per il riempimento si giocano identiche, e lo misura
+`StructuralBody.FillChangesNeitherCellsNorHash` confrontando l'hash prima e dopo il cambio del campo — non
+contro una costante, che direbbe soltanto che l'hash è stabile.
+
+**Quanto lo dichiara l'autore**, in terzi: `FRTHexCellData::BodyFill` (`None` · `1/3` · `2/3` · `3/3`).
+
+🔴 **E non è derivabile dal contesto.** Il caso che lo dimostra è il ponte: un ponte e una collina hanno
+**entrambi** il vuoto sotto di sé — il primo deve restare attraversabile, la seconda no — e nessun segnale
+geometrico li distingue. Una regola che deducesse il riempimento dall'ambiente trasformerebbe ogni ponte in
+un muro. È la stessa disciplina di [D-308] sulla scavalcabilità: *la proprietà è un dato, non una
+conseguenza*.
+
+**Dove si ferma lo decide la geometria**: se la frazione porterebbe la base dentro la prima cella
+sottostante nella stessa colonna, il corpo si tronca sulla sua **faccia superiore** (`RTCellTopZ`). Le due
+geometrie si toccano senza compenetrare — la convenzione che lo `static_assert` sul rilievo difende in
+`RTHexMapActor.cpp`. `FRTStructuralBody::bTruncated` distingue *«l'autore ha chiesto poco»* da *«sotto
+c'era qualcosa»*, che a valle sarebbero indistinguibili.
+
+∴ ponte, tunnel e terrazzo **non sono tre regole**: sono la stessa, con frazioni diverse.
+
+⚠️ **`LayerHeight` resta presentazione e non diventa una formula di quota.** È il parametro contro cui la
+frazione si misura — `1/3` significa un terzo di `LayerHeight` — non una regola che assegni quote ai piani:
+`Layer` resta identità topologica, e la quota per-cella è `Height`.
+
+Il derivatore è `URTStructuralBodyLibrary::DeriveBodies`, **puro**: nessun mondo, nessun actor, quote in
+spazio mappa, ordine canonico per `StableLess`. Chi disegna somma l'origine dell'actor.
+
+---
+
 ## 11. Determinismo
 
 Tutto ciò che influenza il gameplay è intero, enum o ID stabile; indipendente dall'ordine delle collection;
