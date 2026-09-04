@@ -255,6 +255,58 @@ bool FRTTerrainIceBlockedCellStopsSlidingTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * UN MURO SUL BORDO FERMA LO SCIVOLAMENTO QUANTO UNA CELLA CHE BLOCCA — `#2284`.
+ *
+ * 🔴 **Il difetto che questo test impedisce era invisibile al test gemello.**
+ * `Terrain.Ice.BlockedCellStopsSliding` mette `bBlocksMovement` sulla CELLA, e passava. Ma muri e
+ * coperture alte non stanno nella cella: stanno sul BORDO fra due celle
+ * (`URTHexCoverLibrary::BlocksTraversal`), e `bBlocksMovement` non li vede. Un'unita' che finiva il Move
+ * su una lastra addossata a un muro ci scivolava attraverso.
+ *
+ * Dentro `ResolveMovement` il danno era mascherato da `TruncatePathToTopology`, che a valle taglia il
+ * passo — ma questa e' una funzione **pura e pubblica**, e ogni chiamante diretto riceveva il percorso
+ * che attraversa il muro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainIceWallOnEdgeStopsSlidingTest,
+	"RefactorTactics.Terrain.Ice.WallOnEdgeStopsSliding",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTerrainIceWallOnEdgeStopsSlidingTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
+	FRTHexCellData IceCell(FRTCellId(1, 0, 0));
+	IceCell.Surface = ERTHexSurface::Ice;
+	// Il muro sta sul BORDO verso (2,0), la cella di scivolamento. Quella cella resta percorribile in se'
+	// — e' il passo per raggiungerla che non esiste.
+	IceCell.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::High, 50));
+	Map->AddOrUpdateCell(IceCell);
+	Map->SortCells();
+
+	FRTHexSimUnit Unit;
+	Unit.UnitId = 0;
+	Unit.Cell = FRTCellId(0, 0, 0);
+	Unit.MoveBudget = 5;
+
+	FRTHexSnapshot Snapshot;
+	Snapshot.Map = Map;
+	Snapshot.Units.Add(Unit);
+
+	// PREMESSA MISURATA: la cella di destinazione esiste e NON blocca il movimento. Senza questa riga il
+	// test potrebbe passare per la ragione sbagliata — una cella assente — e non proverebbe niente sul bordo.
+	const FRTHexCellData* Beyond = Map->FindCell(FRTCellId(2, 0, 0));
+	if (!TestTrue(TEXT("premessa: la cella oltre il muro esiste e non blocca"),
+		Beyond != nullptr && !Beyond->bBlocksMovement))
+	{
+		return false;
+	}
+
+	const TArray<FRTCellId> Path = { FRTCellId(0, 0, 0), FRTCellId(1, 0, 0) };
+	const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path);
+
+	TestEqual(TEXT("non si scivola attraverso un muro sul bordo"), Extended.Num(), 2);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainSmokeLimitsTargetingTest,
 	"RefactorTactics.Terrain.Smoke.LimitsTargeting",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
