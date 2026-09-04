@@ -424,7 +424,13 @@ e [`../archive/src/design/2026-08-08-hud-faction-icons.md`](../archive/src/desig
 > **Fuori dalla v0.1, registrate qui perché esistono i documenti sorgente**: il **motore del ghiaccio**
 > (Momentum, Traction, Slide a catena, Unbalanced/Prone, integrità, rottura, ponti) descritto in
 > `docs/archive/src/design/terreno-ghiaccio-v0.1.md` →
-> [`brief-ghiaccio.md`](../gameplay/brief-ghiaccio.md). Lo **scivolamento base** resta in v0.1 perché è **già implementato**
+> [`brief-ghiaccio.md`](../gameplay/brief-ghiaccio.md).
+> ⚠️ **Su `Unbalanced/Prone` questa riga è contestata dal 2026-09-04**, e la domanda è aperta in
+> [`STA-5`](../OPEN_DECISIONS.md): [`brief-stati-unbalanced-prone.md`](../gameplay/brief-stati-unbalanced-prone.md)
+> sostiene che i due stati **non appartengano** al motore, perché si separano per causa dello spostamento e
+> non per soglia di Momentum. Resta vigente finché non si decide. ⛔ **Il resto dell'elenco non è toccato**, e
+> in particolare lo **slide a catena** resta fuori: è quello, non i due stati, che tiene scartato il fuzzing
+> deterministico di CP 12.6. Lo **scivolamento base** resta in v0.1 perché è **già implementato**
 > (§2.1). I livelli di percezione oltre l'incerto (identificazione, firma, sensori) restano in
 > [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md) §9.
 
