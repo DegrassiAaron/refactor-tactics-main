@@ -956,11 +956,23 @@ bool FRTSimulationSeedDeclaredUnconsumedTest::RunTest(const FString&)
  * era quel chiamante.** E il corpus golden non copre questo: le sue referenze sono `.rttl` COMMITTATI, non
  * archivi PRODOTTI da una corsa»*. Da qui in poi qualcuno lo e'.
  *
- * 🔑 **Le altre due gambe restano, e questa non le sostituisce.**
+ * 🔑 **Le altre TRE gambe restano, e questa non le sostituisce.**
  *   · `Replay.Verifier.ResimulationIsDeterministic` — scenario → resolver → confronto di hash, in memoria;
  *   · `Replay.Producer.TwoIdenticalMatchesLeaveIdenticalArchives` — due archivi **entrambi prodotti** nella
- *     stessa run.
- * Nessuna delle due riapre un artefatto **conservato** per chiedergli se le regole lo riproducono ancora.
+ *     stessa run;
+ *   · `Simulation.GoldenCorpusMatches` — un `.rttl` **committato** contro una ri-esecuzione con la build di
+ *     oggi (`RTGoldenCorpusTests.cpp`, CP 12.6): e' la riproduzione **cross-build**, e c'e' dal 2026-08-10.
+ *
+ * 🔴 **Cio' che questa aggiunge NON e' la proprieta' cross-build: e' il PRODUTTORE.** Il corpus golden
+ * confronta le `TurnTraces` in memoria del runner di scenario; qui si passa dal **registratore di replay**
+ * — `BeginReplayRecording` → file su disco → `LoadTurnLogFromFile`. Sono due percorsi di SCRITTURA diversi,
+ * e finche' non li si esercita entrambi *«formato implementato, produttore assente»* resta possibile su
+ * quello non coperto: la classe di difetto che l'intestazione di `RTReplayProducerTests.cpp` dichiara di
+ * aver gia' pagato tre volte (`UnitId` [D-063], `GraphRevision` [D-067], il checksum di fine partita).
+ *
+ * ⚠️ *Una stesura precedente di questo paragrafo affermava che la riproduzione cross-build non era coperta
+ * da nessuno e serviva un archivio committato in una issue propria. Era falso: il corpus golden la copre.
+ * Misurato applicando SEARCH -> REUSE prima di aprire quella issue, che infatti non si e' aperta.*
  *
  * ⚠️ **La fixture e' `Spec.Overwatch.HoldThenFire`, e la scelta e' stata MISURATA, non preferita.** La prima
  * stesura di questo test prendeva l'archivio da una partita 2v2 bot-contro-bot: quell'allestimento non apre
