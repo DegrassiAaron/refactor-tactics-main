@@ -142,10 +142,18 @@ int32 URTBoundaryChecksumLibrary::FirstDivergence(const TArray<FRTBoundaryChecks
 	const int32 Comune = FMath::Min(A.Num(), B.Num());
 	for (int32 i = 0; i < Comune; ++i)
 	{
-		// ⚠️ Si confrontano anche turno e fase, non solo l'hash: due sequenze che attraversassero boundary
-		// DIVERSI con lo stesso hash sono divergenti lo stesso — e sarebbe la divergenza piu' insidiosa,
-		// perche' i numeri coinciderebbero.
-		if (A[i].TurnNumber != B[i].TurnNumber || A[i].Phase != B[i].Phase || A[i].Hash != B[i].Hash)
+		// ⚠️ Si confronta il **luogo** oltre all'hash: due sequenze che attraversassero boundary DIVERSI con
+		// lo stesso hash sono divergenti lo stesso — e sarebbe la divergenza piu' insidiosa, perche' i
+		// numeri coinciderebbero.
+		//
+		// 🔴 **`MicroStepIndex` fa parte del luogo** (`#2374`). Ometterlo qui lascerebbe passare due
+		// esecuzioni che attraversano un numero diverso di barriere dentro la stessa fase ogni volta che gli
+		// hash pareggiano — e pareggiano spesso, perche' un micro-step che non muove nessuno lascia lo stato
+		// identico al precedente. La chiave si e' allargata: il confronto si allarga con lei.
+		if (A[i].TurnNumber != B[i].TurnNumber
+			|| A[i].Phase != B[i].Phase
+			|| A[i].MicroStepIndex != B[i].MicroStepIndex
+			|| A[i].Hash != B[i].Hash)
 		{
 			return i;
 		}
@@ -176,7 +184,13 @@ FString URTBoundaryChecksumLibrary::DescribeDivergence(const TArray<FRTBoundaryC
 			A.Num(), B.Num(), *Esistente.ToString());
 	}
 
-	if (A[i].TurnNumber != B[i].TurnNumber || A[i].Phase != B[i].Phase)
+	// 🔴 Il **luogo** e' la terna, non la coppia (`#2374`): due esecuzioni che alla stessa posizione hanno
+	// micro-step diversi attraversano boundary diversi, ed e' quello che il messaggio deve dire. Senza
+	// `MicroStepIndex` qui il caso cadrebbe nel ramo sotto, che stamperebbe *«divergono al boundary
+	// T1|Move#0: 0x1234 contro 0x1234»* — due hash identici come spiegazione di una divergenza.
+	if (A[i].TurnNumber != B[i].TurnNumber
+		|| A[i].Phase != B[i].Phase
+		|| A[i].MicroStepIndex != B[i].MicroStepIndex)
 	{
 		return FString::Printf(TEXT("le due esecuzioni attraversano boundary diversi: %s contro %s"),
 			*A[i].ToString(), *B[i].ToString());

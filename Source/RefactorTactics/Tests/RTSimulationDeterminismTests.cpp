@@ -1321,4 +1321,58 @@ bool FRTBoundaryChecksumIsPhaseOnlyBeforeTheMicroStepVersionTest::RunTest(const 
 	return true;
 }
 
+/**
+ * `#2374` — il confronto guarda il LUOGO, non solo l'hash: due micro-step diversi con lo stesso stato
+ * restano una divergenza.
+ *
+ * 🔴 **E' il caso che pareggia sui numeri, ed e' frequente.** Un micro-step in cui nessuno si muove lascia
+ * lo stato identico al precedente, quindi il suo hash coincide. Se `FirstDivergence` guardasse solo turno,
+ * fase e hash — com'era prima di `#2374` — due esecuzioni che attraversano un numero **diverso** di
+ * barriere dentro la stessa fase si direbbero uguali fin li'. La chiave si e' allargata alla terza
+ * coordinata: il confronto doveva allargarsi con lei, e questo test lo pinna.
+ *
+ * ⚠️ Le sequenze si costruiscono a mano invece che da una traccia: serve **esattamente** il caso in cui gli
+ * hash coincidono e il luogo no, e derivarlo da una traccia lo renderebbe dipendente da quali celle
+ * l'hash mescola — cioe' da un'altra proprieta'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBoundaryChecksumComparesThePlaceNotOnlyTheHashTest,
+	"RefactorTactics.Replay.Verifier.BoundaryChecksumComparesThePlaceNotOnlyTheHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBoundaryChecksumComparesThePlaceNotOnlyTheHashTest::RunTest(const FString&)
+{
+	auto Boundary = [](int32 MicroStep, int64 Hash)
+	{
+		FRTBoundaryChecksum C;
+		C.TurnNumber = 1;
+		C.Phase = ERTMatchPhase::Move;
+		C.MicroStepIndex = MicroStep;
+		C.Hash = Hash;
+		return C;
+	};
+
+	// Stesso turno, stessa fase, **stesso hash**: differiscono solo per la barriera che nominano.
+	TArray<FRTBoundaryChecksum> A;
+	A.Add(Boundary(/*MicroStep*/ 0, /*Hash*/ 0x1234));
+
+	TArray<FRTBoundaryChecksum> B;
+	B.Add(Boundary(/*MicroStep*/ 1, /*Hash*/ 0x1234));
+
+	TestEqual(TEXT("l'hash non li distingue"), A[0].Hash, B[0].Hash);
+
+	TestEqual(TEXT("ma il luogo si', e la divergenza e' alla posizione 0"),
+		URTBoundaryChecksumLibrary::FirstDivergence(A, B), 0);
+
+	const FString Messaggio = URTBoundaryChecksumLibrary::DescribeDivergence(A, B);
+	TestTrue(TEXT("e il messaggio nomina entrambi i boundary"),
+		Messaggio.Contains(TEXT("T1|Move#0")) && Messaggio.Contains(TEXT("T1|Move#1")));
+
+	// Il verso verde: due boundary identici in tutto non divergono.
+	TArray<FRTBoundaryChecksum> Uguale;
+	Uguale.Add(Boundary(0, 0x1234));
+	TestEqual(TEXT("due boundary identici non divergono"),
+		URTBoundaryChecksumLibrary::FirstDivergence(A, Uguale), (int32)INDEX_NONE);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
