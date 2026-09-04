@@ -284,13 +284,25 @@ domanda sola**: la parte misurabile è stata chiusa headless e dal ponte MCP —
 esatto per `PIE-HEXPLAY-8`, cinquanta mosse senza illegali per `PIE-V01-ROSTER`, il formato del log con il
 motivo accanto per `PIE-V01-LOG`.
 
-🔴 **Una sola delle quattro non si chiude guardando, e va saputo prima di aprire.** `PIE-HEXPLAY-6` chiede
-che il muro si veda, e [`#1873`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1873)
-misura che la **sola** presentazione del blocco-vista è un anello di `DrawCellOverlay`, sotto
-`if (bCellOverlay)`: nella vista del giocatore non c'è niente. ⚠️ Chi guarda dal **viewport dell'editor**
-vede gli anelli e conclude «si vede» — è l'errore da non fare, ed è stato fatto il 2026-09-04 prima che
-`#1873` lo correggesse. ∴ Quella voce resta gialla finché `#1873` non è chiusa, **qualunque cosa si
-guardi**: le altre tre si chiudono in questa seduta, la quarta aspetta codice.
+⌫ **Questo paragrafo diceva il contrario, e la fonte era `#1873` — riscritta il 2026-09-04 attorno al residuo
+reale, con l'istruttoria originale conservata.** Sosteneva che la sola presentazione
+del blocco-vista fosse un anello di `DrawCellOverlay` e che «nella vista del giocatore non c'è niente», e
+ne concludeva che `PIE-HEXPLAY-6` aspettasse **codice**. 🔴 **È falso, ed è stato scritto senza
+rimisurare**: `RebuildInstances` popola l'ISM persistente `Blockers` con una **lastra** `0.75 × 10 cm` per
+`bBlocksLineOfSight` e una **colonna** `0.40 × 55 cm` per `bBlocksMovement` — indipendenti, senza guardia
+di compilazione, pinnate da `HexMapActor.BlockerVolumesComeFromCellFlags`. Il codice è su `main` dal
+**2026-08-12** (`46d9ef5f`, *«dare volume ai blocchi, e distinguere "non si passa" da "non si vede"»*),
+**diciotto giorni prima** che `#1873` ne misurasse l'assenza. E `bCellOverlay` **nasce spento**: chi guarda
+vede i volumi, non gli anelli — l'inferenza «overlay spento ⇒ non resta nulla» non è mai stata verificata
+a schermo, né dalla issue né da questo documento.
+
+∴ **`PIE-HEXPLAY-6` non aspetta codice**: aspetta un giudizio come le altre tre. La domanda si è però
+ristretta a una sola — se la lastra, alta **10 cm**, si legga **a camera obliqua**. ⚠️ E il banco non è
+`L_HexArena`: le sue celle di barriera hanno **entrambi** i flag, quindi lastra e colonna si sovrappongono
+sempre. È `Visual.Map.SightWallIsWalkable`, il muro che si attraversa.
+⛔ Il velo fa parte della misura: `VeilInstances` porta a scala **zero** i volumi delle celle mai viste
+([D-225]), quindi una cella non osservata non mostra nulla **per progetto** — e scambiarlo per un'assenza
+di resa è precisamente l'errore che questo paragrafo conteneva.
 
 ⛔ **E nessuna delle quattro si delega.** Misurato dal ponte MCP: `CaptureViewport` renderizza il mondo
 dell'**editor**, non quello PIE — `find_actors` trova `BP_Unit_Gadget_C_0` a `(-519,-30,-200)` e una
