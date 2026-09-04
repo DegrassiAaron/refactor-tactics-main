@@ -5,7 +5,18 @@
 sorgente di **questo** checkout, non su un DLL altrui.
 **Sorgente consumato:** `RT_Scenari_Test_Danni_Bot_Pacing.md` (bozza esterna del 2026-09-03), letto per intero e
 rimosso a fine sessione.
-**Modalità:** osservazione e diagnosi. Nessuna modifica a `Source/`, nessun commit, nessun peso ritoccato.
+**Evidenza:** `docs/technical/evidence/2269/partita-2v2-autobattle-2026-09-04.log` — le 469 righe `LogRT`
+della partita, committate insieme a questo referto perché ogni numero della Parte B si possa ricontare.
+**Modalità:** osservazione e diagnosi. Nessuna modifica a `Source/`, nessun peso ritoccato.
+
+⚠️ **L'albero misurato non è `main`, e la differenza va dichiarata invece che lasciata dedurre.** `b063a60f`
+non è un antenato di `origin/main`: porta due modifiche in più, `Content/RT/.../BP_Unit_Riktor.uasset` e
+`docs/technical/test-manuali-pie.md` (`#2167`). La prima tocca **proprio l'unità** che il referto misura
+inerte, quindi la si guarda invece di scartarla: è il flag `bFaceMovementDirection`, che
+`Source/RefactorTactics/Unit/RTUnit.h:91-95` dichiara **presentazione** — interpola lo yaw della mesh — mentre
+l'orientamento che le regole leggono è `Facing`. I suoi due soli lettori fuori dai test stanno nel playback
+(`RTUnit.cpp:739`). ∴ non può spostare una decisione del bot; ma il delta esiste e chi rifà la misura su
+`main` deve saperlo.
 
 ---
 
@@ -19,17 +30,26 @@ repository**, e che quattro sue premesse sono false al 2026-09-04.
 
 | Voce del kit | Cosa afferma | Cosa misura il repository |
 |---|---|---|
-| **D-01** — swap `A↔B` deve bloccare, «oggi lo scambio avviene (#1922)» | bug aperto | 🔴 **Falso.** `#1922` è **CLOSED** (2026-09-01, PR #1986). `RefactorTactics.HexSim.ResolveSwapBlocked` (`RTHexSimTests.cpp:658`) asserisce il blocco; il test si chiamava `ResolveSwapAllowed` e **asseriva l'opposto** |
+| **D-01** — swap `A↔B` deve bloccare, «oggi lo scambio avviene (#1922)» | bug aperto | 🔴 **Falso.** `#1922` è **CLOSED** (2026-08-31, PR #1986). `RefactorTactics.HexSim.ResolveSwapBlocked` (`RTHexSimTests.cpp:658`) asserisce il blocco; il test si chiamava `ResolveSwapAllowed` e **asseriva l'opposto** |
 | **D-02** — ciclo chiuso a 3, «test mancante» | da scrivere | 🔴 **Già scritto.** `HexSim.ResolveClosedCycleBlocked` (`:680`), più `ResolveFreeTailConvoyStillAdvances` (`:709`) e `ResolveSwapBlockedEvenWhenPassingThrough` (`:739`). Il convoy a coda libera — che il kit **non nomina** — è il test che distingue una regola corretta da una che rompe la catena |
 | **D-03** — «Seed non consumato»: due seed diversi, stessi hash | regressione da tenere | ⛔ **Tautologia dichiarata.** Non esiste RNG nel runtime: il determinismo è strutturale (`RNG-1`/`RNG-2` in `docs/OPEN_DECISIONS.md`, e il `_nota_seed` di `Scenarios/AutoBattle/OpenField.json`). Uno scenario così sarebbe verde per costruzione |
-| **A-04** — Deflect pool commutativa, «collegato a #1918» | da verificare | 🔴 **Già deciso e pinnato.** `#1918` **CLOSED** (2026-09-01) → **D-312**; `RTCombatResolverTests.cpp:188` asserisce *«il totale sul bersaglio con Deflect non dipende da quale colpo arriva per primo»*, e `:190` che vale `40-20` senza avanzi persi nel clamp |
+| **A-04** — Deflect pool commutativa, «collegato a #1918» | da verificare | 🔴 **Già deciso e pinnato.** `#1918` **CLOSED** (2026-09-01) → **D-309**; `RTCombatResolverTests.cpp:188` asserisce *«il totale sul bersaglio con Deflect non dipende da quale colpo arriva per primo»*, e `:190` che vale `40-20` senza avanzi persi nel clamp |
 
-Il kit è datato 2026-09-03 e lavora su uno stato del repository **anteriore al 2026-09-01**.
+Il kit è datato 2026-09-03 e lavora su uno stato del repository **anteriore al 2026-08-31**, giorno in cui
+`#1922` ha chiuso; `#1918` il giorno dopo.
+
+⚠️ **`D-309` e non `D-312`**, e la distinzione non è pedanteria: `D-309` decide che `Deflect` **è** una
+pool commutativa (l'uscita B della domanda di `#1918`); `D-312` decide l'**ordine** fra `Deflect` e `Guard`
+quando due pool coprono lo stesso colpo. Chi cerca l'owner della commutatività e atterra su `D-312` legge una
+decisione diversa.
 
 ## A.2 Errori di nomenclatura
 
-- **«E27» per `ScenarioDefinition`/`Runner`/`Result`**: `E27` è *Percezione completa* (v0.3, `#327`). L'harness non ha
-  quell'epic; il suo owner è `ADR-0010` e i CP 47.x.
+- **«E27» per `ScenarioDefinition`/`Runner`/`Result`**: `E27` è *Percezione completa* (v0.3, `#327`), e con
+  l'harness non c'entra. ⚠️ **Qui il referto non sostituisce un numero all'altro**: `ADR-0010` governa solo
+  la *facciata Blueprint* dell'harness, e `CP 47.4` (E47) le sole chiavi del free-run; i test `Scenario.*`
+  sono contati sotto **E12**. Chi cerca «l'epic dell'harness» non trova una risposta secca, e affermarne una
+  sarebbe lo stesso difetto che questa sezione contesta al kit.
 - **«E26 Objective System»**: `E26` è *Tactical Bot v1* (v0.2, `#326`). Gli obiettivi sono **E10** — *Obiettivi
   dinamici e fine partita*, **chiusa** — e E31 per i multipli. L'inversione conta: il kit rimanda B-02 aspettando
   che «E26 esponga l'obiettivo», mentre l'obiettivo **esiste già in partita** (§B.6 lo misura) e ciò che manca è
@@ -43,8 +63,8 @@ Il kit è datato 2026-09-03 e lavora su uno stato del repository **anteriore al 
 |---|---|---|
 | **A-01** TTK sotto fuoco concentrato | ✅ misurato | `Scenarios/Visual/Combat/Defeat.json`: Riktor+Wraith (8+21) su Gadget (90 HP) → **KO al turno 6**, con la ragione scritta (`BaseShield` 5/turno di D-224 + `ReactiveCapacitor`). Fuori dalla banda 3-5 che il kit proponeva a priori |
 | **A-03** «High è mitigazione o occlusione?» | ✅ risposto dai dati | `ERTHexCoverType::High` **nega** vista, passo e proiettili (`RTHexCellData.h:46`); scenario `Visual/Map/HighCoverBlocks.json` |
-| **A-02** riduzione Low | ✅ pinnata per colpo | `-10` sul danno diretto dal lato riparato, arco frontale (`Visual/Map/LowCoverEdge.json`). Il Δ **sul TTK** non è misurato da nessuno |
-| **B-01/B-03** bot che non attacca, partite che scadono | ✅ già misurato e chiuso | `#1088` **CLOSED** (2026-08-23); `RTBotStalemateProbeTests.cpp` ha 11 test dedicati |
+| **A-02** riduzione Low | ⚠️ **coperta a metà** | `-10` sul danno diretto dal lato riparato, arco frontale (`Visual/Map/LowCoverEdge.json`). Il Δ **sul TTK** non è misurato da nessuno |
+| **B-01/B-03** bot che non attacca, partite che scadono | ⚠️ **una causa chiusa, non il fenomeno** | `#1088` **CLOSED** (2026-08-23) e `RTBotStalemateProbeTests.cpp` ha 11 test dedicati — ma la Parte B di questo stesso referto misura una partita **12/12 round decisa allo scadere, con una unità a 0 danni**. La chiusura ha tolto il deadlock geometrico; l'attesa numerica è rimasta |
 | **C-01** standoff/stallo | ✅ coperto | stesso file, `StalemateProbe*` |
 | **C-02** durata reale del turno | ✅ sistema esistente | telemetria di pacing completa: `FRTPacingSample`, `URTPacingLibrary::SummarizeSamples`, `CountOpenedReactionWindows`, comando `rt.Debug.Pacing`, owner `docs/gameplay/spec-pacing-turno.md` |
 | «estrattore di metriche dal TurnLog» | ✅ due già presenti | `FRTTestResult` (`TurnTraces`, `StateDiff`, assertion) e la telemetria di pacing |
@@ -61,8 +81,14 @@ Blocchi A-05, B-01, B-02, B-03 producono numeri da partite **bot contro bot** e 
 La partita della Parte B è l'istanza esatta: **una delle quattro unità non ha attaccato mai**. Qualunque soglia di
 danno tarata su quella partita misurerebbe il pianificatore, non i numeri.
 
-∴ Delle 13 voci, l'unica che sopravvive all'audit come lavoro nuovo e utile è il **Δ del TTK con copertura Low**
-(A-02), perché è scriptata e non passa dal bot. Non è stata eseguita in questa sessione: §NOT RUN.
+∴ Sopravvivono all'audit **due** cose, e il criterio è lo stesso: non passano da un bot non certificato.
+
+1. Il **Δ del TTK con copertura Low** (A-02): scriptato, deterministico, nessun bot nel circuito. Non eseguito
+   in questa sessione — §NOT RUN.
+2. La **domanda** di B-01/B-03, che il kit poneva male ma poneva. La Parte B la riapre con un dato: la partita
+   giocata qui finisce allo scadere. ⚠️ Ciò che `D-102` vieta non è **misurare** quel comportamento, è
+   ricavarne una soglia di **bilanciamento**: «utilizzo ≥ 70% degli attacchi legali» resta inammissibile,
+   «il bot resta fermo 26 volte su 43» è un fatto e si registra.
 
 ---
 
@@ -81,13 +107,17 @@ UnrealEditor-Cmd.exe RefactorTactics.uproject /Game/RT/Maps/Dev/L_HexArena/L_Hex
 - Formazioni spedite: **team 0** Gadget + Phase, **team 1** Riktor + Wraith (`RTMatchSetupLibrary`).
 - Percezione, pathfinding, abilità, reazioni e `ARTTurnManager::PlanBots()` sono quelli del gioco: l'autobattle
   cambia **chi** è segnato come bot, non **come** decide (`RTGameMode.h:136`).
-- Log integrale conservato: 469 righe `LogRT` (copia in scratchpad, sorgente `Saved/Logs/RefactorTactics.log`).
+- Log integrale committato come evidenza:
+  [`docs/technical/evidence/2269/partita-2v2-autobattle-2026-09-04.log`](../../technical/evidence/2269/partita-2v2-autobattle-2026-09-04.log)
+  — 469 righe, il flusso `LogRT` ripulito dei soli prefissi di timestamp, sorgente `Saved/Logs/RefactorTactics.log`.
+  ⚠️ Il **kit consumato** invece non è recuperabile: era un file non tracciato, letto per intero e rimosso
+  secondo il mandato. Ciò che la Parte A ne cita è verificabile solo contro questo referto.
 
 ## B.1 Executive summary
 
 I bot sembrano stupidi perché **la partita è giocata da due unità su quattro**. Riktor (team 1) attraversa dodici
-turni senza sferrare un colpo, e Gadget (team 0) resta fermo per due turni mentre la compagna viene uccisa a
-quattro celle di distanza. Non è un difetto di esecuzione: è la forma del punteggio. `WThreat` vale **100**, il
+turni senza sferrare un colpo, e Gadget (team 0) resta fermo per due turni mentre la compagna viene uccisa
+**una cella più in là** — le quattro celle sono la distanza dal nemico, non dall'alleata. Non è un difetto di esecuzione: è la forma del punteggio. `WThreat` vale **100**, il
 bonus «da qui potrò ingaggiare» vale **15** e decade, e un attacco vale `WDamage × danno` **solo se è legale
 adesso**. Ne segue una regola implicita — *avanza soltanto se spari in questo turno* — che produce attesa quando
 la linea di tiro manca, e oscillazione quando il contatto si perde e si riprende. Sopra questo, il piano è
@@ -101,6 +131,10 @@ avvicinamento, minaccia e quota, mai per l'obiettivo. Ha vinto per caso.
 
 Posizioni in `(q,r)`, layer 0. «piano» è il piano **loggato** per il turno successivo, col punteggio della
 candidata vincente (le altre candidate non sono loggate: §B.9).
+
+⚠️ **È un riassunto, non l'enumerazione di ogni colpo**: una riga porta ciò che quel turno decide, non tutte
+le voci del TurnLog. I totali di §B.7 sono contati sul log integrale — 18 righe `Colpo:` — non su questa
+tabella, che ne mostra meno.
 
 | T | Gadget (t0) | Phase (t0) | Wraith (t1) | Riktor (t1) | Esito del turno |
 |---|---|---|---|---|---|
@@ -124,7 +158,8 @@ candidata vincente (le altre candidate non sono loggate: §B.9).
 
 ### 1. T3→T4 — Gadget spara dove il bersaglio non è più
 
-- **Stato**: Gadget `(-1,1)`, Wraith conosciuto a `(-2,2)`, distanza 2.
+- **Stato**: Gadget `(-1,1)`, Wraith conosciuto a `(-2,2)` — **adiacente**, distanza 1. Il 2 è la distanza
+  dalla cella in cui Wraith sarebbe finita **dopo** lo scatto, ed è già il difetto che questo caso descrive.
 - **Decisione**: `utility -> (-1,1) attacca Wraith score=130` — resta e usa `LinearDischarge`.
 - **Risultato**: `(-1,1) -> (-2,0): nessuna linea di tiro (Hero.Gadget.LinearDischarge)`. Turno perso.
 - **Perché sembra stupida**: era il turno in cui il team 0 aveva il focus fire (Phase 50 + Gadget 130 sullo stesso
@@ -160,11 +195,14 @@ candidata vincente (le altre candidate non sono loggate: §B.9).
 
 ### 4. T7→T9 — Gadget guarda morire la compagna da fermo
 
-- **Stato**: Gadget `(-2,2)` con `score=-50 (resta)` per due turni consecutivi; Wraith a `(-1,-2)`/`(-1,-3)`,
-  distanza esagonale 4; Phase a `(-2,1)` che incassa 21 a turno.
+- **Stato**: Gadget `(-2,2)` con `score=-50 (resta)` per due turni consecutivi; Wraith a `(-1,-3)` e poi
+  `(-1,-2)` — distanza esagonale **5** e poi **4**; Phase a `(-2,1)`, **adiacente a Gadget**, che incassa 21
+  a turno.
 - **Decisione**: restare, due volte.
 - **Risultato**: Phase eliminata al T9. Gadget attacca per la prima volta al T10 — **il turno dopo** il KO.
-- **Perché sembra stupida**: la portata di `ArcPulse` è 4 e la distanza era 4. All'occhio, era a tiro.
+- **Perché sembra stupida**: la portata di `ArcPulse` è 4, e **sul secondo dei due turni** la distanza era 4
+  — a tiro. Sul primo era 5, quindi lì il non-attacco è legale e non discutibile: resta discutibile lo
+  **stare fermo** mentre l'alleata adiacente incassa 21 a turno.
 - **Perché il codice l'ha scelta**: il piano d'attacco nasce solo se la cella di partenza ha gittata **e** LOS;
   `bQualcunoDaIngaggiare` era vero (qualche cella raggiungibile vedeva il nemico) quindi il ramo di ricerca del
   contatto **non** è scattato, ma tutte quelle celle costano `-WThreat = -100`, mentre restare costava `-50`. Il
@@ -176,15 +214,18 @@ candidata vincente (le altre candidate non sono loggate: §B.9).
 
 - **Stato**: 12 turni, 8 movimenti, 4 «resta», 1 piano d'attacco (quello a vuoto), **0 danni inflitti**.
 - **Decisione**: piani di solo movimento con punteggio sempre negativo (`-20 · -30 · -30 · -30 · -40 · -40 · -45`),
-  e due turni **senza alcun piano loggato** (T1-T2 con contatto assente, T7 con contatto noto ma non ingaggiabile).
+  e **tre** turni senza alcun piano loggato (T1 e T2 con contatto assente, T7 con contatto noto ma non
+  ingaggiabile).
 - **Risultato**: oscillazione fra `(0,-3)`, `(-1,-1)` e `(1,-1)` per otto turni.
 - **Perché sembra stupida**: è il 50% della potenza di fuoco della squadra, ferma a fare la spola.
 - **Perché il codice l'ha scelta**: tre cause che si sommano, tutte verificabili.
   1. `ImpactShot` ha **gittata 3** e 8 danni (ADR-0007): la finestra in cui una candidata d'attacco esiste è la più
      stretta del roster, e Riktor ha 4 MP — il più lento.
-  2. `DeriveKiteStandoff` (`RTHexBotLibrary.h:309`) restituisce 0 sotto gittata 5: Riktor è trattato come mischia,
-     `-WApproach × MinDist`, e quel termine è **l'unico** che lo muove. Con `WApproach = 10` contro
-     `WThreat = 100`, avvicinarsi a chi ti vede è sempre in perdita.
+  2. `DeriveKiteStandoff` (`RTHexBotLibrary.h:309`) restituisce 0 sotto gittata 5: Riktor è trattato come
+     mischia e paga `-WApproach × MinDist`. Con `WApproach = 10` contro `WThreat = 100`, avvicinarsi a chi ti
+     vede è sempre in perdita. ⚠️ **Non è l'unico termine positivo disponibile**: `WEngage` si applica
+     proprio ai piani senza attacco (`RTHexBotLibrary.cpp:426`), cioè a tutti quelli di Riktor tranne la
+     carica — ma vale al più 15 e **decade**, quindi non ribalta un −100.
   3. Quando il contatto non è ingaggiabile entra il ramo silenzioso di `RTTurnManager.cpp:1103` — punto di
      osservazione, altrimenti baricentro — che **non logga nulla** e non ha isteresi: la meta cambia appena il
      contatto si sposta, e l'unità torna indietro. **MODELLO V0.1**, con un pezzo di **TUNING**.
@@ -240,8 +281,10 @@ modello corrente avrebbe scelto. L'unico bug è di **osservabilità**.
   e il punto arriva dopo. Il resolver **sa** contare le presenze (`URTTurnRules::ResolveObjectiveControl`,
   chiamato nel Cleanup): è il bot a non guardare.
 - **G · Threat evaluation** — `WThreat` è **binario per nemico**: `-100` se quel nemico ha gittata e LOS sulla
-  cella, indipendentemente dal fatto che possa fare 8 danni o 36. Un `ImpactShot` da 8 e un `PassingBlade` da 36
-  pesano identici. Confronto diretto nel log: Riktor (8 danni) e Wraith (21+) generano la stessa penalità.
+  cella, indipendentemente da quanto quel nemico possa fare. Un `ImpactShot` da **8**, un `PulseShot` da **21**
+  e un `PassingBlade` da **20** (`RTHeroCatalogLibrary.cpp:862`) generano la stessa identica penalità.
+  Confronto diretto in questa partita: Riktor e Wraith pesano uguale sulla cella che entrambi coprono, con un
+  fattore 2,6 di danno fra loro.
 - **H · Uso delle reaction** — **42 armamenti** registrati e **4 attivazioni** (ReactiveCapacitor
   di Gadget al T10, Deflection di Wraith al T11). Riktor ha armato `Interposition` in tutti i 12 turni senza mai
   essere vicino all'alleato che avrebbe dovuto coprire. Nessuna finestra Overwatch si è aperta, quindi
@@ -307,11 +350,21 @@ Dichiarato invece che aggirato:
 2. **Passare dalla scelta per unità alla combinazione di squadra** (D-097, CP 26.1). «Riktor non gioca» non è
    tarabile: nessun peso su un punteggio per unità può far preferire a Riktor una posizione che vale poco *a lui*
    e molto *alla squadra*. **È architetturale, e va detto chiaramente.**
-3. **Ritarare il rapporto minaccia/ingaggio** — `WThreat` 100 contro `WEngage` 15 — e dare isteresi alla meta di
-   ricerca. È l'intervento che toglie l'attesa a vista e l'andirivieni, cioè i due comportamenti che a schermo
-   *sembrano* stupidi più di ogni altro. Va fatto dopo il punto 1, o si taratura sul rumore. ⚠️ Vincolo
-   già scritto e da non violare: `WElevation × MaxLayer < WApproach`
-   (`HexBot.ElevationNeverOutweighsClosingOneCell`).
+3. **Dare isteresi alla meta di ricerca del contatto** — CP 26.4 (`#534`). È la metà tarabile del terzo
+   problema: toglie l'andirivieni di Riktor senza toccare pesi già misurati.
+
+   🔴 **E NON «ritarare il rapporto `WThreat`/`WEngage`», che è la prima cosa che verrebbe da fare e che il
+   codice ha già escluso.** Il docstring di `WEngageDecay` (`RTHexBotLibrary.h:172-191`) lo scrive:
+   *«la coppia si tara sull'ESITO, non con una formula: non è il rapporto a decidere»*. Quattro punti
+   misurati — `15/5` ✅, `20/10` ✅, `20/5` 🔴, `30/10` 🔴 — e senza decadimento la finestra è **vuota**:
+   `Match.Autobattle.EngagesOnTheGeneratedTestArena` cade da `W = 7`, `NobodyParksOnTheAuthoredMap` si sblocca
+   solo da `W = 11`, e fra 7 e 10 sono rossi entrambi. Alzare `WEngage` contro `WThreat` come rapporto esce
+   dalla finestra misurata e rende rossi due oracoli di parcheggio.
+
+   ⚠️ L'invariante che questo referto citava qui — `WElevation × MaxLayer < WApproach`
+   (`HexBot.ElevationNeverOutweighsClosingOneCell`) — è vera ma di **un'altra coppia**: vincola l'elevazione,
+   non l'ingaggio. Il presidio giusto è `HexBot.EngageBonusFadesWithIdleTurns`, sull'esito di
+   `ChooseBestPlan`. La taratura fine resta bilanciamento: `#149` e `D-102`.
 
 ⚠️ Le tre proposte sono **osservazioni, non un mandato**: D-102 chiede che una metrica bot-contro-bot porti con sé
 lo stato di competenza delle capability che la producono, e quello schema (`#798`) non esiste ancora.
@@ -323,17 +376,21 @@ Alle 09:57, mentre questa misura era in corso, nell'albero è comparso un second
 mandato di questa sessione — e non è stato modificato. Dichiara nel proprio corpo di riferirsi a
 `DegrassiAaron/refactor-tactics-main` e di **non essere un'autorità** sul repository vivo.
 
-Vale registrare l'incrocio, perché le due analisi sono indipendenti e di natura diversa: quella è una lettura del
-**codice**, questa è una **misura** di una partita.
+Vale registrare l'incrocio, perché le due analisi sono indipendenti e di natura diversa: quella è una lettura
+del **codice**, questa è una **misura** di una partita.
+
+⚠️ Le citazioni qui sotto vengono tutte dal **§1 Executive summary** del brief, che è dove quelle
+formulazioni compaiono: le sezioni indicate nella prima stesura di questa tabella rimandavano ai capitoli che
+sviluppano il tema, non al testo citato.
 
 | Tesi del brief | Cosa aggiunge questa misura |
 |---|---|
-| «No true joint team planning» (§3.1) | ✅ confermata con un numero: **una unità su quattro non attacca mai** in 12 turni |
-| «One-turn greedy reasoning» (§4) | ✅ confermata: due azioni a vuoto (T4 tiro, T6 carica) su 18 colpi risolti |
-| «Objective reasoning weak / not integrated» (§7) | ✅ confermata e **rafforzata**: non è debole, è **assente** dal contesto del bot — e in questa partita ha deciso il risultato (3-0) |
-| «Search without contact is primitive» (§8) | ✅ confermata, con l'aggiunta che è anche **muta**: 9 decisioni non compaiono nel log |
-| «Kiter panic … may cause tactically poor escapes», e il §6 chiede verifica comportamentale | 🔴 **corretta**: in questa partita il ramo **non è mai scattato**. `DeriveKiteStandoff` lo abilita solo sopra gittata 5 — nel roster **solo Phase** — e la soglia `Standoff/2` vale **1**. Prima di scrivere test su «kiter panic vs letale garantito» conviene misurare se quel ramo sia raggiungibile nel formato spedito |
-| «Reaction response selection is primitive» (§9) | ⚠️ **non falsificabile qui**: nessuna finestra Overwatch si è aperta, quindi `DecideReactionResponse` non è stato esercitato |
+| «No true joint team planning» (§1) | ✅ confermata con un numero: **una unità su quattro non attacca mai** in 12 turni |
+| «One-turn greedy reasoning» (§1) | ✅ confermata: due azioni a vuoto (T4 tiro, T6 carica) su 18 colpi risolti |
+| «Objective reasoning is weak/not integrated into the current core utility» (§1) | ✅ confermata e **rafforzata**: non è debole, è **assente** dal contesto del bot — e in questa partita ha deciso il risultato (3-0) |
+| «No-contact search is **intentionally** primitive» (§1; §8 aggiunge *«Do not "fix" this…»*) | ⚠️ **Non è una debolezza che confermo: è una scelta dichiarata**, e la prima stesura di questa riga la citava senza l'avverbio che la regge. Ciò che aggiungo è un'altra cosa: quel ramo è anche **muto** — 9 decisioni su 41 non compaiono nel log — e l'osservabilità non è una scelta di design |
+| «Kiter panic … may cause tactically poor escapes» (§1), e §6 ne chiede verifica comportamentale | 🔴 **corretta**: in questa partita il ramo **non è mai scattato**. `DeriveKiteStandoff` lo abilita solo sopra gittata 5 — nel roster **solo Phase** — e la soglia `Standoff/2` vale **1**. Prima di scrivere test su «kiter panic vs letale garantito» conviene misurare se quel ramo sia raggiungibile nel formato spedito |
+| «Reaction response selection is primitive» (§1) | ⚠️ **non falsificabile qui**: nessuna finestra Overwatch si è aperta, quindi `DecideReactionResponse` non è stato esercitato |
 
 ---
 
