@@ -2,14 +2,19 @@
 //
 // Perché esiste (#2184): la riga viveva dentro `ARTHUD::DrawHUD`, che il motore chiama ogni fotogramma e
 // che **non ha copertura headless** — quindi ogni sua regola era verificabile solo a occhio. Quattro
-// decisioni ci abitavano, e tre di esse sono reticenze: cosa NON scrivere quando un dato non si applica.
-// Sono precisamente quelle che un controllo a schermo non vede, perché l'assenza di un pezzo di testo non
-// somiglia a un difetto.
+// decisioni ci abitavano, e tutte e quattro sono reticenze: cosa NON scrivere quando un dato non si
+// applica. Sono precisamente quelle che un controllo a schermo non vede, perché l'assenza di un pezzo di
+// testo non somiglia a un difetto.
 //
 //   1. il contatore mostra il limite solo se il formato ne dichiara uno — mai «/0»;
 //   2. durante la riproduzione la riga dice fase e percentuale, e come saltarla;
 //   3. il conto alla rovescia compare solo in Pianificazione e solo se un timer esiste;
 //   4. l'obiettivo compare solo se la mappa ne dichiara uno, e la soglia solo se il formato la fissa.
+//
+// ⚠️ **`TestEqualSensitive` e non `TestEqual`.** `FAutomationTestBase::TestEqual` su stringhe passa da
+// `FCString::Stricmp` (`AutomationTest.cpp:2163`): è case-INSENSITIVE, quindi con `TestEqual` un
+// `Fine` → `FINE` o un `Obiettivo` → `obiettivo` regredirebbe in PIE lasciando questi test verdi — cioè
+// esattamente il buco che questo file esiste per chiudere.
 //
 // ⚠️ **La funzione prende `FRTMatchHeaderView` e non l'attore**, che è l'altra metà del punto: la vista è
 // già prodotta da `URTHudViewModel::BuildMatchHeader` per lo Screen HUD, e `DrawHUD` la ricostruiva a mano
@@ -17,6 +22,13 @@
 //
 // ⛔ Non si verifica qui che i numeri siano giusti: quelli vengono dalla vista, e `RTHudViewModelTests` è
 // già il loro proprietario. Qui si verifica **cosa la riga scrive**, dato ciò che la vista porta.
+//
+// ⚠️ **Le uguaglianze esatte qui sotto pinnano un PREFISSO di ciò che si vede a schermo, non la riga
+// intera.** `DrawHUD` appende dopo il segmento della velocità di riproduzione (`  -  Velocita': x1 (V)`),
+// che resta fuori da questa funzione perché `screen-hud-umg-2026-08-26.md` lo classifica come **debug con
+// regole proprie**, separato da round, fase e timer — e perché ha già la sua statica pura,
+// `ARTHUD::ComposePlaybackSpeedLabel`, con i test di `RTHudPlaybackSpeedTests`. Una regressione nella
+// concatenazione fra i due pezzi non la vede nessuno dei due file: e' il buco dichiarato di questa fetta.
 
 #include "Misc/AutomationTest.h"
 #include "UI/RTHUD.h"
@@ -40,14 +52,14 @@ bool FRTHudMatchStatusRoundCounterTest::RunTest(const FString&)
 	View.Phase = ERTMatchPhase::MatchEnded;
 
 	View.RoundLimit = 12;
-	TestEqual(TEXT("con un formato in vigore il limite si vede"),
+	TestEqualSensitive(TEXT("con un formato in vigore il limite si vede"),
 		ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, /*bHasObjectiveCell=*/ false),
 		FString(TEXT("Round 3/12  -  Fine")));
 
 	// Senza formato il limite sparisce del tutto: non diventa zero.
 	View.RoundLimit = 0;
 	const FString NoFormat = ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, /*bHasObjectiveCell=*/ false);
-	TestEqual(TEXT("senza formato resta il solo numero"), NoFormat, FString(TEXT("Round 3  -  Fine")));
+	TestEqualSensitive(TEXT("senza formato resta il solo numero"), NoFormat, FString(TEXT("Round 3  -  Fine")));
 	TestFalse(TEXT("nessun «/0» da nessuna parte"), NoFormat.Contains(TEXT("/0")));
 
 	return true;
@@ -68,12 +80,23 @@ bool FRTHudMatchStatusPlaybackTest::RunTest(const FString&)
 	View.Round = 2;
 	View.bResolving = true;
 
-	TestEqual(TEXT("fase in riproduzione, avanzamento e via d'uscita"),
+	TestEqualSensitive(TEXT("fase in riproduzione, avanzamento e via d'uscita"),
 		ARTHUD::ComposeMatchStatusLine(View, FString(TEXT("Blast")), 0.5f, /*bHasObjectiveCell=*/ false),
 		FString(TEXT("Round 2  -  Risoluzione: Blast  [50%]  (Spazio: salta)")));
 
 	TestTrue(TEXT("la percentuale si arrotonda al piu' vicino"),
 		ARTHUD::ComposeMatchStatusLine(View, FString(TEXT("Move")), 0.336f, false).Contains(TEXT("[34%]")));
+
+	// ⚠️ **Fuori da `[0,1]` la percentuale si CLAMPA, e non è difensività generica.** La funzione è una
+	// statica pubblica: la garanzia `[0,1]` era strutturale finché l'unico chiamante passava da
+	// `ARTTurnManager::GetPlaybackProgress01()`, che clampa; ora un secondo chiamante — il viewer di
+	// replay, che nomina già `FRTMatchHeaderView` come proprio modello — può passare un `Elapsed/Total`
+	// grezzo. Senza clamp `FMath::RoundToInt` su x64 rende `0x80000000` per un NaN, e la barra stampa
+	// `[-2147483648%]`.
+	TestTrue(TEXT("oltre 1 la percentuale si ferma a 100"),
+		ARTHUD::ComposeMatchStatusLine(View, FString(TEXT("Move")), 1.43f, false).Contains(TEXT("[100%]")));
+	TestTrue(TEXT("sotto 0 la percentuale si ferma a 0"),
+		ARTHUD::ComposeMatchStatusLine(View, FString(TEXT("Move")), -0.12f, false).Contains(TEXT("[0%]")));
 
 	// In riproduzione la fase del modello non si nomina: quella che scorre è un'altra, e nominarle entrambe
 	// direbbe che il gioco è in due fasi insieme.
@@ -101,26 +124,47 @@ bool FRTHudMatchStatusPhaseTest::RunTest(const FString&)
 	View.Phase = ERTMatchPhase::Planning;
 
 	View.PlanningSecondsRemaining = 3.2f;
-	TestEqual(TEXT("in Pianificazione con timer: i secondi arrotondati per eccesso"),
+	TestEqualSensitive(TEXT("in Pianificazione con timer: i secondi arrotondati per eccesso"),
 		ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, false),
 		FString(TEXT("Round 1  -  Pianificazione  -  4s")));
 
-	// Negativo = «la domanda non si applica»: nessun timer impostato. Una partita headless gira con
-	// `SetPlanningSeconds(0)`, e un «0s» lampeggiante direbbe che il tempo è appena scaduto.
+	// 🔴 **Il timer positivo FUORI dalla Pianificazione non si mostra, e senza questo caso metà della
+	// regola che dà il nome al test resterebbe non misurata**: togliendo il congiunto
+	// `Phase == Planning` dalla guardia, ogni altra asserzione qui resterebbe verde.
+	View.Phase = ERTMatchPhase::MatchEnded;
+	TestEqualSensitive(TEXT("timer positivo a partita finita: nessun conto alla rovescia"),
+		ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, false),
+		FString(TEXT("Round 1  -  Fine")));
+
+	// ⚠️ **Zero non è «resta un secondo»: è «non si applica».** `PlanningSecondsRemaining` vale esattamente
+	// `0.f` in una finestra REALE — `ARTTurnManager::BeginPlay` non arma il timer quando il primo turno lo
+	// rivendica l'allestimento, e `ARTGameMode` lo apre ~350 ms dopo. In quel varco la fase è già Planning
+	// e `PlanningSeconds` è 30, quindi `BuildMatchHeader` pubblica `0.f`. Con la guardia rilassata a
+	// `>= 0.f` la barra mostrerebbe `0s` lampeggiante a ogni inizio partita.
+	View.Phase = ERTMatchPhase::Planning;
+	View.PlanningSecondsRemaining = 0.f;
+	TestEqualSensitive(TEXT("timer a zero: «non si applica», non «scaduto adesso»"),
+		ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, false),
+		FString(TEXT("Round 1  -  Pianificazione")));
+
+	// Negativo = la stessa cosa detta dalla vista quando la domanda non si pone affatto.
 	View.PlanningSecondsRemaining = -1.f;
-	TestEqual(TEXT("in Pianificazione senza timer: nessun conto alla rovescia"),
+	TestEqualSensitive(TEXT("in Pianificazione senza timer: nessun conto alla rovescia"),
 		ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, false),
 		FString(TEXT("Round 1  -  Pianificazione")));
 
 	View.Phase = ERTMatchPhase::MatchEnded;
-	TestEqual(TEXT("a partita finita: «Fine»"),
+	TestEqualSensitive(TEXT("a partita finita: «Fine»"),
 		ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, false),
 		FString(TEXT("Round 1  -  Fine")));
 
-	// Ogni altra fase del turno è, per chi guarda, «Risoluzione»: le fasi interne hanno nomi che il
-	// giocatore non ha mai visto altrove.
+	// ⚠️ **Questo caso pinna il contratto della funzione, non uno stato che si vede.** `ARTTurnManager`
+	// assegna `Phase` in due soli punti — il ciclo sincrono di `LockInAndResolve`, che non cede un
+	// fotogramma, e `MatchEnded` — quindi `GetPhase()` è osservabile solo come `Planning` o `MatchEnded` e
+	// il ramo `default:` non è raggiungibile dal percorso spedito. Resta perché la funzione è pubblica e
+	// un secondo chiamante (il viewer di replay) può costruirsi la vista a mano.
 	View.Phase = ERTMatchPhase::Blast;
-	TestEqual(TEXT("una fase interna si legge come Risoluzione"),
+	TestEqualSensitive(TEXT("una fase interna, se mai arrivasse, si legge come Risoluzione"),
 		ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, false),
 		FString(TEXT("Round 1  -  Risoluzione")));
 
@@ -146,20 +190,49 @@ bool FRTHudMatchStatusObjectiveTest::RunTest(const FString&)
 	View.Team0Score = 2;
 	View.Team1Score = 1;
 
-	TestEqual(TEXT("mappa senza obiettivo: nessun punteggio, nemmeno 0-0"),
+	TestEqualSensitive(TEXT("mappa senza obiettivo: nessun punteggio, nemmeno 0-0"),
 		ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, /*bHasObjectiveCell=*/ false),
 		FString(TEXT("Round 1  -  Fine")));
 
 	// Con obiettivo ma senza soglia (la via per obiettivo è disattivata in v0.1): il progresso si vede, il
 	// «a quanto» tace. Un «(a 0)» leggerebbe come «già vinta».
-	TestEqual(TEXT("con obiettivo e senza soglia: solo il progresso"),
+	TestEqualSensitive(TEXT("con obiettivo e senza soglia: solo il progresso"),
 		ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, /*bHasObjectiveCell=*/ true),
 		FString(TEXT("Round 1  -  Fine  -  Obiettivo 2-1")));
 
+	// 🔴 **`0-0` CON obiettivo dichiarato si mostra**, ed è il complemento della prima asserzione: lì è
+	// inventato perché nessuno sta correndo la gara, qui è il punteggio vero di una gara in parità al
+	// calcio d'inizio. Senza questo caso una guardia `(Team0Score > 0 || Team1Score > 0)` passerebbe la
+	// suite e farebbe sparire la riga proprio all'inizio.
+	View.Team0Score = 0;
+	View.Team1Score = 0;
+	TestEqualSensitive(TEXT("con obiettivo, 0-0 e' un punteggio vero e si mostra"),
+		ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, /*bHasObjectiveCell=*/ true),
+		FString(TEXT("Round 1  -  Fine  -  Obiettivo 0-0")));
+
+	View.Team0Score = 2;
+	View.Team1Score = 1;
 	View.ScoreToWin = 3;
-	TestEqual(TEXT("con soglia dichiarata: anche il traguardo"),
+	TestEqualSensitive(TEXT("con soglia dichiarata: anche il traguardo"),
 		ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, /*bHasObjectiveCell=*/ true),
 		FString(TEXT("Round 1  -  Fine  -  Obiettivo 2-1 (a 3)")));
+
+	// 🔴 **La soglia SENZA obiettivo dichiarato tace anche lei.** È la quarta reticenza, e senza questo
+	// caso staccare `if (ScoreToWin > 0)` dalla guardia dell'obiettivo passerebbe la suite: su una mappa
+	// senza obiettivo la barra scriverebbe `Round 1  -  Fine (a 3)` — un traguardo per una gara che
+	// nessuno sta correndo. Un formato che dichiara la soglia esiste già: `RTHudViewModelTests` pinna
+	// `ScoreToWin == 3`.
+	TestEqualSensitive(TEXT("soglia dichiarata ma nessun obiettivo: tace anche il traguardo"),
+		ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, /*bHasObjectiveCell=*/ false),
+		FString(TEXT("Round 1  -  Fine")));
+
+	// 🔴 **L'obiettivo si mostra ANCHE durante la riproduzione**, ed è il momento in cui conta di più: un
+	// obiettivo conteso cambia mano proprio lì. Senza questo caso, spostare il blocco dentro il ramo
+	// `else` passerebbe la suite e farebbe sparire il punteggio per tutta la risoluzione.
+	View.bResolving = true;
+	TestEqualSensitive(TEXT("in riproduzione l'obiettivo resta visibile"),
+		ARTHUD::ComposeMatchStatusLine(View, FString(TEXT("Blast")), 0.5f, /*bHasObjectiveCell=*/ true),
+		FString(TEXT("Round 1  -  Risoluzione: Blast  [50%]  (Spazio: salta)  -  Obiettivo 2-1 (a 3)")));
 
 	return true;
 }

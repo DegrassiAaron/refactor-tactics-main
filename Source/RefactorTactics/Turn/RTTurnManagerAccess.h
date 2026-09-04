@@ -34,9 +34,25 @@ class UWorld;
  * Blueprint»*. Esporlo per alleggerire un include sarebbe pagare un confine di privacy con un tempo di
  * compilazione.
  *
- * ⚠️ **Rende `nullptr` quando il manager non c'e' ancora, e non e' un caso limite.**
+ * 🔴 **Rende un `TWeakObjectPtr`, e non e' una comodita': e' la ragione per cui il distacco REGGE.**
+ * `TWeakObjectPtr<T>::operator=(T*)` deve convertire `T*` in `UObject*`, e una conversione di base vuole il
+ * **tipo completo**. Il chiamante tiene un `TWeakObjectPtr<ARTTurnManager>`: se questa funzione rendesse un
+ * puntatore nudo, l'assegnazione richiederebbe l'header proprio nel file che questa esiste per liberarne.
+ *
+ * ⚠️ **Con un `ARTTurnManager*` il file compilava lo stesso, ma per un accidente della unity build**:
+ * il tipo completo arrivava da un `.cpp` vicino nello stesso blob. Appena UBT estrae il file dal blob —
+ * cosa che fa da sola per ogni file modificato di recente — la compilazione cade con `C2679` su
+ * `WeakObjectPtrTemplates.h`. Misurato il 2026-09-04 su `UI/RTScreenHudWidgets.cpp` al contenuto di #2217,
+ * con una sola riga di commento aggiunta per forzarne la compilazione isolata. La copia
+ * `TWeakObjectPtr` → `TWeakObjectPtr` non tocca `T` e non vuole niente.
+ *
+ * 🔑 Conta oltre il singolo file: l'AC di #1821 dichiara che **la compilazione** e' la prova
+ * strutturale del distacco — «un file che non include piu' l'header e continua a compilare non ne aveva
+ * bisogno». Con l'unity build attiva quella prova si puo' superare a vuoto, ed e' cosi' che era passata.
+ *
+ * ⚠️ **Rende un riferimento NON VALIDO quando il manager non c'e' ancora, e non e' un caso limite.**
  * `ARTGameMode::BeginPlay` presenta il HUD **prima** di spawnare il `ARTTurnManager`: un widget che nasce
  * in quel momento cerca un actor che non esiste. Chi chiama questa funzione tiene il proprio retry — non
  * lo eredita da qui.
  */
-REFACTORTACTICS_API ARTTurnManager* FindTurnManagerInWorld(const UWorld* World);
+REFACTORTACTICS_API TWeakObjectPtr<ARTTurnManager> FindTurnManagerInWorld(const UWorld* World);

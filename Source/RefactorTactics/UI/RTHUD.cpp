@@ -896,21 +896,20 @@ void ARTHUD::DrawHUD()
 		// e il commento di `FRTMatchHeaderView::RoundLimit` citava proprio questo Canvas come riferimento.
 		const FRTMatchHeaderView Header = URTHudViewModel::BuildMatchHeader(TurnManager);
 
-		// Interrogati solo mentre scorre, com'era prima: fuori dal playback non nominano niente di vero.
-		const FString PlaybackPhaseName = Header.bResolving ? TurnManager->GetPlaybackPhaseName() : FString();
-		const float PlaybackProgress01 = Header.bResolving ? TurnManager->GetPlaybackProgress01() : 0.f;
+		// ⚠️ **Nessuna guardia `bResolving` qui, e la prima stesura ne aveva una di troppo.** I due accessori
+		// rendono gia' stringa vuota e `0.f` fuori dal playback (`RTTurnManager.cpp:7318` e `:7335`), e il
+		// compositore li ignora quando la vista non e' in risoluzione: una terza sede per la stessa condizione
+		// e' una che si scollega dalle altre due il giorno in cui «in risoluzione» cambia definizione.
+		const FString PlaybackPhaseName = TurnManager->GetPlaybackPhaseName();
+		const float PlaybackProgress01 = TurnManager->GetPlaybackProgress01();
 
-		// L'obiettivo lo dichiara la MAPPA, non il formato. Il mondo si interroga qui; la reticenza che ne
-		// segue — tacere invece di scrivere `0-0` — sta nella funzione pura, dove un test la puo' vedere.
-		bool bHasObjectiveCell = false;
-		if (const ARTHexMapActor* ObjectiveMapActor = ARTHexMapActor::FindInWorld(GetWorld()))
-		{
-			FVector IgnoredOrigin = FVector::ZeroVector;
-			float IgnoredSize = 0.f;
-			float IgnoredLayerH = 0.f;
-			const URTHexMapAsset* ObjectiveMap = ObjectiveMapActor->GetHexContext(IgnoredOrigin, IgnoredSize, IgnoredLayerH);
-			bHasObjectiveCell = ObjectiveMap && ObjectiveMap->HasObjectiveCell();
-		}
+		// L'obiettivo lo dichiara la MAPPA, non il formato. La reticenza che ne segue — tacere invece di
+		// scrivere `0-0` — sta nella funzione pura, dove un test la puo' vedere.
+		//
+		// ⚠️ `Map` e' quello gia' risolto in cima a `DrawHUD`: la prima stesura rifaceva
+		// `ARTHexMapActor::FindInWorld`, che e' un `TActorIterator` su tutto il livello, una seconda volta per
+		// fotogramma — e su un livello senza mappa entrambe le passate lo scorrevano intero per rendere nullo.
+		const bool bHasObjectiveCell = Map && Map->HasObjectiveCell();
 
 		FString Status = ComposeMatchStatusLine(Header, PlaybackPhaseName, PlaybackProgress01, bHasObjectiveCell);
 
@@ -1083,9 +1082,7 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 	// (`Planning -> Prep -> Dash -> Blast -> Move -> Cleanup`), e il contatore qui e' quello che si
 	// confronta con `RoundLimit` del formato. Il DoD di CP 11.1 lo chiede esplicitamente, e la riga
 	// diceva «Turno %d/%d» — cioe' nominava una cosa e ne mostrava un'altra.
-	const FString TurnCounter = Header.RoundLimit > 0
-		? FString::Printf(TEXT("Round %d/%d"), Header.Round, Header.RoundLimit)
-		: FString::Printf(TEXT("Round %d"), Header.Round);
+	const FString TurnCounter = URTHudViewModel::ComposeRoundCounter(Header);
 
 	FString Status;
 	if (Header.bResolving)
@@ -1093,7 +1090,12 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 		// Durante il playback: fase in riproduzione + avanzamento + come saltare. La fase del MODELLO non
 		// si nomina qui — quella che scorre e' un'altra, e dirle entrambe direbbe che il gioco e' in due
 		// fasi insieme.
-		const int32 Pct = FMath::RoundToInt(PlaybackProgress01 * 100.f);
+			// ⚠️ **Il clamp e' qui e non nel chiamante.** La garanzia `[0,1]` era strutturale finche' l'unico
+		// chiamante passava da `ARTTurnManager::GetPlaybackProgress01()`, che clampa; questa e' una statica
+		// PUBBLICA, e un secondo chiamante — il viewer di replay, che nomina gia' `FRTMatchHeaderView` come
+		// proprio modello — puo' passare un `Elapsed/Total` grezzo. `FMath::RoundToInt` su x64 rende
+		// `0x80000000` per un NaN: la barra stamperebbe `[-2147483648%]`.
+		const int32 Pct = FMath::RoundToInt(FMath::Clamp(PlaybackProgress01, 0.f, 1.f) * 100.f);
 		Status = FString::Printf(TEXT("%s  -  Risoluzione: %s  [%d%%]  (Spazio: salta)"),
 			*TurnCounter, *PlaybackPhaseName, Pct);
 	}
@@ -1108,11 +1110,16 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 		}
 		Status = FString::Printf(TEXT("%s  -  %s"), *TurnCounter, PhaseName);
 
-		// ⚠️ **Il negativo e' «non si applica», e non lo si converte in zero.** `PlanningSecondsRemaining`
-		// resta sotto zero fuori dal Planning e quando un timer non e' mai stato impostato — le run headless
-		// girano con `SetPlanningSeconds(0)`. Un `0s` lampeggiante direbbe «scaduto adesso», che e' un'altra
-		// cosa e non e' vera. Arrotondamento per ECCESSO: a 3,2 secondi restano `4s`, perche' `3s` farebbe
-		// sparire dal conto l'ultimo secondo di chi lo sta guardando.
+		// ⚠️ **Non-positivo significa «non si applica», e comprende lo ZERO.** La vista porta un negativo
+		// quando la domanda non si pone — fuori dal Planning, o senza timer nelle run headless che girano con
+		// `SetPlanningSeconds(0)` — ma porta esattamente `0.f` in una finestra REALE: `BeginPlay` non arma il
+		// timer quando il primo turno lo rivendica l'allestimento, e `ARTGameMode` lo apre ~350 ms dopo. In
+		// quel varco la fase e' gia' Planning e `PlanningSeconds` vale 30, quindi `BuildMatchHeader` pubblica
+		// lo `0.f` che `FRTMatchHeaderView` documenta come impossibile. Rilassare a `>= 0.f` mostrerebbe un
+		// `0s` lampeggiante a ogni inizio partita.
+		//
+		// Arrotondamento per ECCESSO: a 3,2 secondi restano `4s`, perche' `3s` farebbe sparire dal conto
+		// l'ultimo secondo di chi lo sta guardando.
 		if (Header.Phase == ERTMatchPhase::Planning && Header.PlanningSecondsRemaining > 0.f)
 		{
 			Status += FString::Printf(TEXT("  -  %.0fs"), FMath::CeilToFloat(Header.PlanningSecondsRemaining));

@@ -1275,8 +1275,15 @@ ripropone per altri elementi. Tagliare adesso una riga di `ARTHUD` significhereb
 
 Quando ci si arriva, i candidati da confrontare sono:
 
-- `RTHUD.cpp:403` — round su `RoundLimit`
-- `:418-430` — fase e timer di planning
+- il round su `RoundLimit` — dal **2026-09-04 (#2184)** non e' piu' una riga di `DrawHUD`: la decisione vive
+  in `URTHudViewModel::ComposeRoundCounter`, che **questo** widget e il Canvas chiamano entrambi, quindi qui
+  non c'e' piu' una duplicazione da sciogliere — c'e' una riga di Canvas da spegnere quando UMG la copre
+- la fase e il timer di planning — stessa data: sono in `ARTHUD::ComposeMatchStatusLine`, statica pura con
+  test headless (`RefactorTactics.HUD.MatchStatus*`)
+
+> ⚠️ I due riferimenti di riga precedenti (`RTHUD.cpp:403` e `:418-430`) sono stati tolti invece che
+> aggiornati: puntavano a righe che #2184 ha spostato, e un numero di riga in un piano invecchia al primo
+> refactoring. Chi raccoglie questo task cerchi i due nomi di funzione.
 - la riga di velocità di playback (`x1 (V)`), che è **debug** e ha regole sue
 
 ⚠️ Toccare `ARTHUD` richiede di riverificare `RefactorTactics.HUD.*`, che copre quelle 910 righe.

@@ -395,9 +395,10 @@ public:
 	 * e' un `AHUD::DrawHUD` che il motore chiama ogni fotogramma — quindi cio' che si puo' sbagliare deve
 	 * stare dove i test arrivano (#2184).
 	 *
-	 * ⚠️ **Tre delle quattro decisioni sono RETICENZE**: tacere il limite senza formato, il timer senza
-	 * orologio, il punteggio senza obiettivo dichiarato. Sono quelle che una verifica a schermo non vede,
-	 * perche' l'assenza di un pezzo di testo non somiglia a un difetto.
+	 * ⚠️ **Tutte e quattro le decisioni sono RETICENZE**: tacere il limite senza formato, il timer senza
+	 * orologio, il punteggio senza obiettivo dichiarato e la **soglia** senza obiettivo dichiarato. Sono
+	 * quelle che una verifica a schermo non vede, perche' l'assenza di un pezzo di testo non somiglia a un
+	 * difetto — e la quarta era anche quella che il conteggio di questa riga aveva perso.
 	 *
 	 * ⚠️ **Prende la vista, non l'attore.** `FRTMatchHeaderView` la produce gia'
 	 * `URTHudViewModel::BuildMatchHeader` per lo Screen HUD: leggere i campi una seconda volta dal

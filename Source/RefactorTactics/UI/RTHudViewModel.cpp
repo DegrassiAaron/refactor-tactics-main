@@ -245,3 +245,13 @@ TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray
 	}
 	return Authoritative;
 }
+
+FString URTHudViewModel::ComposeRoundCounter(const FRTMatchHeaderView& Header)
+{
+	// Il limite si nomina solo se il formato ne dichiara uno: `0` = «nessun limite», e stamparlo direbbe
+	// che la partita e' gia' scaduta. Vedi il commento della dichiarazione per perche' sta qui e non nei
+	// due chiamanti.
+	return Header.RoundLimit > 0
+		? FString::Printf(TEXT("Round %d/%d"), Header.Round, Header.RoundLimit)
+		: FString::Printf(TEXT("Round %d"), Header.Round);
+}

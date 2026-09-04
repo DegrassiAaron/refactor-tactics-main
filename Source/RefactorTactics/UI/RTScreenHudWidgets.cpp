@@ -86,7 +86,7 @@ void URTScreenHudWidgetBase::AcquireMatchContext()
 	}
 }
 
-void URTScreenHudWidgetBase::SetMatchContextForTest(ARTTurnManager* InTurnManager, int32 InPlayerTeamId)
+void URTScreenHudWidgetBase::SetMatchContextForTest(TWeakObjectPtr<ARTTurnManager> InTurnManager, int32 InPlayerTeamId)
 {
 	TurnManager = InTurnManager;
 	PlayerTeamId = InPlayerTeamId;
@@ -161,13 +161,11 @@ FText URTTurnHeaderWidget::GetRoundCounterText() const
 		return FText::FromString(TEXT("—"));
 	}
 
-	// `RoundLimit == 0` = «nessun limite dichiarato», che NON e' «su zero». Una partita senza formato non e'
-	// una partita gia' scaduta, e un binding ingenuo stamperebbe `Round 3/0`.
-	if (Header.RoundLimit > 0)
-	{
-		return FText::FromString(FString::Printf(TEXT("Round %d/%d"), Header.Round, Header.RoundLimit));
-	}
-	return FText::FromString(FString::Printf(TEXT("Round %d"), Header.Round));
+	// La regola — `RoundLimit == 0` = «nessun limite», mai `Round 3/0` — vive in una sede sola da #2184:
+	// il Canvas di `ARTHUD` ne aveva una seconda copia, e con `rt.HUD.CanvasPanels` attivo i due contatori
+	// rendono nello stesso fotogramma, quindi potevano dissentire. Qui resta il solo vestito `FText`, che e'
+	// cio' che il binding vuole; la decisione la fa `URTHudViewModel::ComposeRoundCounter`.
+	return FText::FromString(URTHudViewModel::ComposeRoundCounter(Header));
 }
 
 // =====================================================================================================
