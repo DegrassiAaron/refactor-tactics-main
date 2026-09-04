@@ -226,8 +226,14 @@ public:
 	 * questa funzione. Va chiamata SOLO sul path del movimento normale, MAI su una mobilita' lineare
 	 * (`URTMovementActionLibrary::ResolveLinearMove`): lo Scatto non passa dal microstep condiviso, quindi
 	 * non avrebbe la stessa garanzia sotto collisione simultanea — vedi docs/gameplay/spec-terreni-e8.md §5.2.
+	 *
+	 * ⚠️ **Restituisce anche se il terreno lo abbia CHIESTO** (`FRTIceSlideResult::bSlideRequested`, `#2314`),
+	 * e non e' un dettaglio: il percorso invariato e' la risposta di sei uscite diverse, e chi chiama non
+	 * potrebbe distinguere «nessuno scivolamento da fare» da «scivolamento impedito da un muro». I due hanno
+	 * esiti diversi nel TurnLog — `Moved` contro `ERTMoveOutcome::SlideBlocked` — e la differenza non e'
+	 * ricostruibile a valle.
 	 */
-	static TArray<FRTCellId> ApplyIceSliding(const FRTHexSnapshot& Snapshot, int32 UnitId, const TArray<FRTCellId>& Path);
+	static FRTIceSlideResult ApplyIceSliding(const FRTHexSnapshot& Snapshot, int32 UnitId, const TArray<FRTCellId>& Path);
 
 	/**
 	 * Movimento simultaneo lungo path esagonali gia' troncati al budget (ogni path e' From..To, From = indice 0),
@@ -277,10 +283,16 @@ public:
 	 *
 	 * Serve a un Overwatch interattivo, che deve poter fermare il movimento **dentro** il calcolo. Chi non ha
 	 * bisogno di fermarlo continua a chiamare `ResolveHexPaths` e non si accorge di nulla.
+	 *
+	 * `Planned` dichiara quanto di ogni percorso il GIOCATORE aveva chiesto, contro quanto vi ha aggiunto il
+	 * terreno (`#2314`). Vuoto, piu' corto di `Paths`, o con `PlannedLength` a `0` -> «tutto pianificato,
+	 * nessuno scivolamento» per le unita' mancanti: con l'array vuoto la classificazione e' quella di sempre.
+	 * Lo compila `ARTTurnManager::ResolveMovement`, che e' il solo punto in cui i due pezzi sono distinguibili.
 	 */
 	static FRTMovementResolutionState BeginHexMovement(const TArray<TArray<FRTCellId>>& Paths,
 		const TArray<int32>& Priorities = TArray<int32>(), const TArray<bool>& bLinearMovers = TArray<bool>(),
-		const TArray<bool>& bPassThrough = TArray<bool>());
+		const TArray<bool>& bPassThrough = TArray<bool>(),
+		const TArray<FRTPlannedMovement>& Planned = TArray<FRTPlannedMovement>());
 
 	/**
 	 * Esegue UN microstep: tutte le unita' avanzano di una cella e si risolvono le collisioni.
