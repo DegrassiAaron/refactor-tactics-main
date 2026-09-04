@@ -108,7 +108,14 @@ bloccata. **Ventinove** di esse non sono in nessuna sequenza, ed è la condizion
 | U19 · U22 | 4 ciascuna | — | varie | 🟡 |
 | **U45** | **3** | `[E12]` | — | 🟡 attende un checkpoint, non una seduta |
 | **U39** | **1** | `[U21]` — già soddisfatto | #1920 aperta | 🟢 **eseguibile**: `GenerateIntoAsset` allestisce la mappa in un gesto — vedi in coda alla §4 |
+| **U46** | **4** | `[]` | #1873 aperta, e blocca una delle quattro | 🟢 **eseguibile ora, e sono le uniche quattro voci non verdi del gate `G9`** |
 | altre 14 sedute | 1–2 ciascuna | — | varie | — |
+🔑 **`U46` non ordina per resa, e va letta a parte.** Quattro voci sono meno di ventuno, ma sono **le
+uniche quattro non verdi del subset `RELEASE-V01`**: finché restano gialle, `G9` non è verde e la v0.1 non
+è consegnabile. Le altre sedute di questa tabella producono verdetti; questa produce **il gate**.
+⚠️ **E le sue quattro voci compaiono due volte in `editor-sessions.yaml`**, qui e nelle sedute d'origine
+(`U4`, `U6`, `U11`, `U15`): è deliberato e temporaneo — `U46` è una **coda**, non un trasferimento, e
+sparisce quando i residui sono chiusi. Chi conta le voci schedulate non le conti due volte.
 
 🔑 **`U45` non era in questa tabella e ha tre voci aperte da prima di oggi**: è il tipo di riga che
 l’ordinamento per resa nasconde, ed è lo stesso motivo per cui `U39` ci è entrata solo ieri.
@@ -260,6 +267,35 @@ schermo.
 una-tre voci in *«altre 16»*, e una seduta a **una** voce sparisce nel gruppo che l'ordinamento per resa
 mette per ultimo. Ordinare per numero di verdetti nasconde chi ne produce pochi **a costo quasi nullo** —
 il che resta vero, ed è il motivo per cui ha una riga propria nella tabella, non un posto in cima alla fila.
+
+### Fuori dall'ordine per resa — `U46`, quattro voci che **sono** il gate
+
+Le tre passate qui sopra ordinano per resa: `U42` ventuno voci, `U43` sette, poi le orfane. `U46` ne ha
+**quattro** e va comunque fatta presto, perché non è una seduta come le altre: le sue quattro voci sono
+l'intero residuo non verde di `G9`.
+
+**Perché esiste.** Le quattro non erano orfane — avevano già una seduta ciascuna. Il difetto era il
+simmetrico di quello di `U45`: **sedute quasi esaurite che nessuno riaprirà per una voce sola**. Misurato
+il 2026-09-04 — `U4` 1 residuo su 3, `U6` 1 su 4, `U11` 1 su 1, `U15` 2 su 5. Quattro aperture per quattro
+voci; `U46` ne chiede una.
+
+**Cosa la rende eseguibile ora.** `unblocked_by: []`, e dal 2026-09-04 il residuo di ciascuna voce è **una
+domanda sola**: la parte misurabile è stata chiusa headless e dal ponte MCP — la salita a `LayerHeight`
+esatto per `PIE-HEXPLAY-8`, cinquanta mosse senza illegali per `PIE-V01-ROSTER`, il formato del log con il
+motivo accanto per `PIE-V01-LOG`.
+
+🔴 **Una sola delle quattro non si chiude guardando, e va saputo prima di aprire.** `PIE-HEXPLAY-6` chiede
+che il muro si veda, e [`#1873`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1873)
+misura che la **sola** presentazione del blocco-vista è un anello di `DrawCellOverlay`, sotto
+`if (bCellOverlay)`: nella vista del giocatore non c'è niente. ⚠️ Chi guarda dal **viewport dell'editor**
+vede gli anelli e conclude «si vede» — è l'errore da non fare, ed è stato fatto il 2026-09-04 prima che
+`#1873` lo correggesse. ∴ Quella voce resta gialla finché `#1873` non è chiusa, **qualunque cosa si
+guardi**: le altre tre si chiudono in questa seduta, la quarta aspetta codice.
+
+⛔ **E nessuna delle quattro si delega.** Misurato dal ponte MCP: `CaptureViewport` renderizza il mondo
+dell'**editor**, non quello PIE — `find_actors` trova `BP_Unit_Gadget_C_0` a `(-519,-30,-200)` e una
+cattura centrata lì mostra la cella e **non l'unità**. Mappa, celle e quote si giudicano da remoto; unità,
+HUD, VFX e playback no.
 
 ## 5. Cosa questa roadmap NON dice
 
