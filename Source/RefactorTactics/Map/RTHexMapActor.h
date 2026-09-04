@@ -696,6 +696,22 @@ protected:
 	TObjectPtr<UInstancedStaticMeshComponent> Blockers;
 
 	/**
+	 * Il CORPO sotto una superficie: il volume che `URTStructuralBodyLibrary::DeriveBodies` calcola da
+	 * `FRTHexCellData::BodyFill` (`#1865`).
+	 *
+	 * 🔑 **Una famiglia sua e non un riuso di `Cells`**, perche' risponde a una domanda diversa: `Cells` e' il
+	 * pavimento su cui si gioca — ha collisione, e' il proxy di click della selezione, e porta il colore della
+	 * superficie — mentre questo e' cio' che si vede **sotto** e non si calpesta. Metterli insieme darebbe al
+	 * corpo la collisione della cella, e un click sul fianco di una collina selezionerebbe una cella che il
+	 * giocatore non sta guardando.
+	 *
+	 * ⛔ **Nessuna collisione, nessun custom data**: non e' terreno, non entra nel velo, non e' selezionabile.
+	 * E' geometria che riempie un vuoto visivo.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> StructuralBodies;
+
+	/**
 	 * Pannelli su BORDO: coperture e porte. Sono l'unica cosa della mappa che non appartiene a una cella ma a
 	 * un **lato**, e l'overlay a cerchi centrati non poteva dirle — da che lato si e' riparati e' cio' che
 	 * decide se una posizione e' buona.
