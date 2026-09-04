@@ -244,6 +244,33 @@ struct FRTHexDoor
 };
 
 /**
+ * Quanto del volume-cella e' PIENO sotto la superficie, in terzi — `#1865`.
+ *
+ * 🔑 **E' un dato d'AUTORE e non una deduzione**, ed e' la ragione per cui e' un enum e non un `float`: la
+ * regola del corpo non e' derivabile dal contesto senza ambiguita'. Un ponte e una collina hanno entrambi
+ * il vuoto sotto di se' — il primo deve restare attraversabile, la seconda no — e nessun segnale
+ * geometrico li distingue. Lo dichiara chi disegna.
+ *
+ * ⛔ **Non entra in `ComputeHash`**: e' presentazione. Due mappe che differiscono solo qui si giocano
+ * identiche, ed e' il non-goal che `#1865` dichiara per prima cosa.
+ *
+ * ⚠️ `None` e' il default e significa «nessun corpo», che e' cio' che ogni mappa scritta prima del formato
+ * v15 gia' era: le superfici elevate erano dischi sospesi. Una ricarica non inventa un volume.
+ */
+UENUM(BlueprintType)
+enum class ERTHexBodyFill : uint8
+{
+	/** Nessun corpo: la superficie resta un disco. */
+	None = 0,
+	/** Un terzo del volume-cella. Il caso del ponte e del tunnel: sotto resta spazio. */
+	Third,
+	/** Due terzi. */
+	TwoThirds,
+	/** Volume pieno: il corpo occupa l'intero `LayerHeight` sotto la superficie. */
+	Full
+};
+
+/**
  * Dato compatto e AUTOREVOLE di una cella esagonale (serializzato nell'asset mappa). Nessun Actor per cella.
  * Estendibile in milestone successive (hazard, Gameplay Tags, interazioni) senza rompere il formato.
  */
@@ -261,6 +288,16 @@ struct FRTHexCellData
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	ERTHexSurface Surface = ERTHexSurface::Floor;
+
+	/**
+	 * Quanto volume si vede SOTTO questa superficie (`#1865`). Presentazione: non entra in `ComputeHash`.
+	 *
+	 * La quota della base la calcola `URTStructuralBodyLibrary::DeriveBodies`, che tronca il corpo sulla
+	 * faccia superiore della prima cella sottostante: la frazione dichiara l'INTENZIONE, il derivatore la
+	 * concilia con cio' che c'e' sotto.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	ERTHexBodyFill BodyFill = ERTHexBodyFill::None;
 
 	/** Costo di movimento base della cella (intero: no float nel pathfinding). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")

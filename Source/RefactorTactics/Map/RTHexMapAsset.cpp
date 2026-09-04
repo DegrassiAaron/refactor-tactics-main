@@ -1229,6 +1229,12 @@ void URTHexMapAsset::MigrateToCurrentFormat()
 	// scavalcabilita' non esisteva come dato, e nessuna geometria poteva dichiararsi superabile.
 	// ⛔ **Una ricarica non deduce il campo dall'altezza**: un `Low` non diventa scavalcabile migrando, ed e'
 	// precisamente cio' che `D-308` vieta — *«la scavalcabilita' e' un dato, non una conseguenza dell'altezza»*.
+	// v14 -> v15 (#1865): la cella guadagna `BodyFill`, quanto volume si vede SOTTO la sua superficie. Il
+	// default `None` e' cio' che ogni mappa scritta prima gia' era — una superficie elevata era un disco
+	// sospeso, e il corpo non esisteva come dato — quindi anche qui non c'e' niente da convertire.
+	// ⛔ **Una ricarica non deduce il riempimento dal contesto**, ed e' la stessa disciplina di `D-308`
+	// sulla scavalcabilita': un ponte e una collina hanno entrambi il vuoto sotto, e dedurre trasformerebbe
+	// il primo in un muro. La frazione la dichiara chi disegna, o non c'e'.
 	// In nessuno di questi c'e' qualcosa da convertire — il campo nuovo nasce vuoto e una mappa che non lo usa
 	// si comporta esattamente come prima — quindi la migrazione si limita a dichiarare la versione. Il giorno
 	// in cui una migrazione dovra' TRASFORMARE dati, il posto e' questo, un `if (FormatVersion < N)` per
