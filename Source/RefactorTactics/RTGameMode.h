@@ -198,6 +198,7 @@ public:
 	 *
 	 * ⚠️ `0` non e' la sentinella ma l'opt-out dal ripiego: la soglia e' `>= 0`.
 	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Match")
 	int32 ResolveDemoArenaRadius() const;
 
 	/**

@@ -120,9 +120,11 @@ TAutoConsoleVariable<int32> CVarRTBotAllies(
 TAutoConsoleVariable<int32> CVarRTDemoArenaRadius(
 	TEXT("rt.Match.DemoArenaRadius"),
 	-1,
-	TEXT("Raggio dell'arena di ripiego generata. -1 = non impostata (vale la proprieta' del GameMode), "
-		 "0 = nessun ripiego, N = esagono pieno di raggio N. Esiste perche' la proprieta' vive in un "
-		 "`.uasset`: senza questa, cambiare il raggio richiede di aprire l'editor."),
+	TEXT("Raggio dell'arena generata. -1 = non impostata (vale la proprieta' del GameMode), "
+		 "N = esagono pieno di raggio N, tetto 100. Con MapSource=LevelAsset, 0 = nessun ripiego "
+		 "(si tiene la mappa del livello); con MapSource=GeneratedDemoArena, 0 lascia la partita SENZA "
+		 "mappa. Esiste perche' la proprieta' vive in un `.uasset`: senza questa, cambiare il raggio "
+		 "richiede di aprire l'editor."),
 	ECVF_Default);
 
 TAutoConsoleVariable<float> CVarRTPlanningSeconds(
@@ -904,7 +906,24 @@ int32 ARTGameMode::ResolveDemoArenaRadius() const
 	// 🔑 **`0` e' un VALORE, non la sentinella**: e' l'opt-out dal ripiego, pinnato da
 	// `MatchSetup.GameModeNoFallbackWhenRadiusZero`. Per questo la soglia e' `>= 0` e non `> 0`:
 	// trattare lo zero come «non impostata» renderebbe quel comportamento irraggiungibile dalla console.
+	// Il caso pieno che questo repository documenta e' raggio 50 (7 651 celle). Il tetto lascia il doppio
+	// di margine e chiude un rischio che la proprieta' non aveva: un refuso alla console — `1000` invece
+	// di `100` — costruirebbe 3 003 001 celle, e `RebuildInstances` ne farebbe altrettante istanze,
+	// appendendo l'editor senza dire perche'. La proprieta' non e' clampata: la si cambia nel pannello,
+	// con il numero sotto gli occhi, mentre una console variable si digita al volo e dura tutto il processo.
+	static constexpr int32 MaxDemoArenaRadius = 100;
+
 	const int32 FromConsole = CVarRTDemoArenaRadius.GetValueOnGameThread();
+	if (FromConsole > MaxDemoArenaRadius)
+	{
+		// Ridotto e DICHIARATO, come `BotAllies` quando eccede la formazione: un valore silenziosamente
+		// diverso da quello chiesto e' peggio di un rifiuto.
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] rt.Match.DemoArenaRadius=%d supera il tetto di %d: ridotto a %d. Oltre, la mappa "
+				 "generata avrebbe piu' celle di quante l'editor ne disegni in tempo utile."),
+			FromConsole, MaxDemoArenaRadius, MaxDemoArenaRadius);
+		return MaxDemoArenaRadius;
+	}
 	if (FromConsole >= 0)
 	{
 		if (DemoArenaRadius != FromConsole)

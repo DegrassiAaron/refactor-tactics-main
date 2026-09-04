@@ -15,8 +15,11 @@
 // 2026-08-15) senza che la suite, che gira sul target Editor, se ne accorgesse.
 #if WITH_DEV_AUTOMATION_TESTS
 
-/** Definita in ScenarioHarness/RTTestConsole.cpp. */
+/** Definite in ScenarioHarness/RTTestConsole.cpp. */
 extern TAutoConsoleVariable<FString> CVarRTMapSource;
+extern TAutoConsoleVariable<FString> CVarRTMapFixture;
+
+/** Definita in RTGameMode.cpp, non in RTTestConsole.cpp come le due qui sopra. */
 extern TAutoConsoleVariable<int32> CVarRTDemoArenaRadius;
 
 namespace
@@ -52,6 +55,22 @@ namespace
 			CVarRTDemoArenaRadius->Set(Value, ECVF_SetByCode);
 		}
 		~FRTDemoArenaRadiusCVarGuard() { CVarRTDemoArenaRadius->Set(Previous, ECVF_SetByCode); }
+	};
+
+	/**
+	 * `rt.Map.Fixture` VINCE su `rt.Map.Source` e sulla proprieta' (`RTMatchBootstrapper.cpp:59`), e il
+	 * registro delle PIE istruisce a impostarla a mano prima di un Play. Un test che allestisce una
+	 * partita senza azzerarla misurerebbe la fixture di chi ha usato l'editor prima, non il proprio caso.
+	 */
+	struct FRTMapFixtureCVarGuard
+	{
+		FString Previous;
+		explicit FRTMapFixtureCVarGuard(const TCHAR* Value)
+			: Previous(CVarRTMapFixture.GetValueOnGameThread())
+		{
+			CVarRTMapFixture->Set(Value, ECVF_SetByCode);
+		}
+		~FRTMapFixtureCVarGuard() { CVarRTMapFixture->Set(*Previous, ECVF_SetByCode); }
 	};
 }
 
@@ -432,9 +451,13 @@ bool FRTGameModeDemoArenaRadiusOverrideTest::RunTest(const FString&)
 			GameMode->ResolveDemoArenaRadius(), 2);
 	}
 
-	// La console variable scavalca, ed e' l'intento di QUESTO avvio.
+	// La console variable scavalca, ed e' l'intento di QUESTO avvio. L'annuncio non e' decorativo:
+	// senza questa attesa, cancellare il blocco di log lascerebbe il test verde, e il comportamento che il
+	// commento del resolver chiama la lezione costosa resterebbe senza guardiano.
 	{
 		FRTDemoArenaRadiusCVarGuard Guard(3);
+		AddExpectedError(TEXT("rt\\.Match\\.DemoArenaRadius=3 SCAVALCA la proprieta'"),
+			EAutomationExpectedErrorFlags::Contains, 1);
 		TestEqual(TEXT("la console variable scavalca la proprieta'"),
 			GameMode->ResolveDemoArenaRadius(), 3);
 	}
@@ -444,8 +467,19 @@ bool FRTGameModeDemoArenaRadiusOverrideTest::RunTest(const FString&)
 	// diventerebbe irraggiungibile dalla console.
 	{
 		FRTDemoArenaRadiusCVarGuard Guard(0);
+		AddExpectedError(TEXT("rt\\.Match\\.DemoArenaRadius=0 SCAVALCA la proprieta'"),
+			EAutomationExpectedErrorFlags::Contains, 1);
 		TestEqual(TEXT("zero e' un valore, non la sentinella"),
 			GameMode->ResolveDemoArenaRadius(), 0);
+	}
+
+	// Il tetto: un refuso alla console non costruisce tre milioni di celle.
+	{
+		FRTDemoArenaRadiusCVarGuard Guard(1000);
+		AddExpectedError(TEXT("supera il tetto di 100: ridotto a 100"),
+			EAutomationExpectedErrorFlags::Contains, 1);
+		TestEqual(TEXT("oltre il tetto si riduce, e lo dice"),
+			GameMode->ResolveDemoArenaRadius(), 100);
 	}
 
 	// Tolta la console, la proprieta' torna a valere: la precedenza non l'ha consumata.
@@ -476,22 +510,15 @@ bool FRTGameModeDemoArenaRadiusReachesArenaTest::RunTest(const FString&)
 	UWorld* World = MakeSetupWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	// Anti-vacuita' PRIMA di tutto: se le due arene avessero lo stesso numero di celle, il confronto in
-	// fondo passerebbe qualunque raggio venisse usato, e il test non misurerebbe niente.
-	const URTHexMapAsset* FromProperty = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 2);
-	const URTHexMapAsset* FromConsole  = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
-	if (!TestNotNull(TEXT("arena di raggio 2"), FromProperty) ||
-		!TestNotNull(TEXT("arena di raggio 3"), FromConsole))
-	{
-		DestroySetupWorld(World);
-		return false;
-	}
-	if (!TestTrue(TEXT("i due raggi danno un numero di celle DIVERSO"),
-			FromProperty->NumCells() != FromConsole->NumCells()))
-	{
-		DestroySetupWorld(World);
-		return false;
-	}
+	// I due conteggi sono literal, come in `MapSourceDemoArenaIsPlainFloor`: un esagono pieno di raggio R
+	// ha 3R(R+1)+1 celle, quindi 19 per il raggio della proprieta' e 37 per quello della console.
+	// Sono diversi, ed e' l'anti-vacuita' di questo test: se coincidessero, il confronto in fondo
+	// passerebbe con qualunque raggio venisse usato.
+	// ⚠️ Prima erano due `MakeFlatArena` costruite qui: due `UObject` nel transient package tenuti da
+	// puntatori C++ attraverso `SetupHexMatch`, quindi non protetti dal garbage collector.
+	static constexpr int32 CellsAtRadiusTwo   = 19;
+	static constexpr int32 CellsAtRadiusThree = 37;
+	static_assert(CellsAtRadiusTwo != CellsAtRadiusThree, "il confronto in fondo non discriminerebbe");
 
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
@@ -506,11 +533,19 @@ bool FRTGameModeDemoArenaRadiusReachesArenaTest::RunTest(const FString&)
 	GameMode->MapSource = ERTMapSource::GeneratedDemoArena;
 	GameMode->DemoArenaRadius = 2;
 
+	// ⚠️ Le altre due console variable dell'allestimento vanno azzerate, non lasciate al caso:
+	// `rt.Map.Source` scavalca `MapSource`, e `rt.Map.Fixture` vince su entrambi e ritorna PRIMA che il
+	// raggio sia letto. Con una delle due accesa da una sessione precedente questo test fallirebbe
+	// indicando il resolver del raggio, che non e' cio' che si sarebbe rotto.
 	{
+		FRTMapSourceCVarGuard SourceGuard(TEXT(""));
+		FRTMapFixtureCVarGuard FixtureGuard(TEXT(""));
 		FRTDemoArenaRadiusCVarGuard Guard(3);
+		AddExpectedError(TEXT("rt\\.Match\\.DemoArenaRadius=3 SCAVALCA la proprieta'"),
+			EAutomationExpectedErrorFlags::Contains, 1);
 		GameMode->SetupHexMatch(MapActor);
-		TestTrue(TEXT("l'arena in uso ha il raggio della CONSOLE, non quello della proprieta'"),
-			MapActor->MapAsset && MapActor->MapAsset->NumCells() == FromConsole->NumCells());
+		TestEqual(TEXT("l'arena in uso ha il raggio della CONSOLE, non quello della proprieta'"),
+			MapActor->MapAsset ? MapActor->MapAsset->NumCells() : -1, CellsAtRadiusThree);
 	}
 
 	DestroySetupWorld(World);
