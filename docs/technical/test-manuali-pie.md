@@ -82,7 +82,9 @@
 
 ## Stato in numeri — 2026-09-04
 
-**204 voci**: ✅ **76 verdi** · 🟡 **24 parziali** · ❌ **2 fallite** · ⏳ **102 aperte**.
+**212 voci**: ✅ **77 verdi** · 🟡 **27 parziali** · ❌ **2 fallite** · ⏳ **106 aperte**.
+
+➕ **Rimisurato il 2026-09-04 ([#589](https://github.com/DegrassiAaron/refactor-tactics-main/issues/589), privacy di rete): il comando canonico contava `209 · 77/27/2/103` **prima** di toccare il file e `212 · 77/27/2/106` **dopo**.** Delta **esattamente tre e tutto su ⏳**: entra la famiglia `PIE-NET-*` — `CANARY-PACKAGED`, `NO-PAUSE`, `LATEJOIN` — sezione *Rete e privacy degli intenti (M10, post-v0.1)*. Verdi, parziali e fallite non si muovono, `senza-marcatore=0` prima e dopo, e il subset `RELEASE-V01` resta **17**: nessuna delle tre lo dichiara, e non devono — sono post-v0.1. 🔴 **E l'intestazione era di nuovo falsa quando l'ho letta**: diceva `204 · 76/24/2/102` mentre il comando ne contava `209 · 77/27/2/103` — cinque voci, un verde e **tre** parziali arrivati da altre sessioni fra il 2026-09-04 mattina e il pomeriggio. La riga qui sopra è riscritta sul misurato, non sul dichiarato. 🔑 **Le tre voci nascono ⏳ e non sono lavoro in ritardo**: aspettano `M10.1`, cioè una rete che al 2026-09-04 non esiste — misurato, `Source/` non contiene una sola `UPROPERTY(Replicated)`. È esattamente ciò che l'intestazione di questo file dichiara: un catalogo cresce con le feature, e le voci non verdi sono ciò che *si potrà* verificare.
 
 ➕ **Rimisurato il 2026-09-04 (playback dello scenario, [#1625](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1625)): il comando canonico contava `203 · 76/24/2/101` **prima** di toccare il file e `204 · 76/24/2/102` **dopo**.** Delta **esattamente uno e tutto su ⏳**: entra `PIE-SCEN-PLAYBACK`, che porta nel registro la seduta `U44`. `senza-marcatore=0` prima e dopo. ✅ **E per la seconda volta la riga di partenza era giusta**: `203 · 76/24/2/101` scritto e `203 · 76/24/2/101` misurato — l'intestazione non era già falsa quando l'ho letta.
 
@@ -1463,6 +1465,27 @@ Se una tappa fallisce per **semantica** dell'input e non per leggibilità, il di
 |----|-----------------|---------------|--------------|-------|
 | **PIE-ICON-01** | Le icone si distinguono a schermo | CP 20.2 atterrato, catalogo popolato per Identity/Action/Phase/Status/Certainty | Ogni icona è riconoscibile alla dimensione reale dell'HUD e **due stati diversi non si confondono**. Nessuna informazione affidata al **solo colore** (§12.4 del sorgente muri/porte, stessa regola per l'HUD). Una chiave non risolta si vede come errore, non come spazio vuoto | ⏳ **E20** (CP 20.3) |
 | **PIE-FMT-01** | Formato e mappa concordano | CP 19.1 atterrato | Avviando una mappa `Skirmish` con un formato `Standard` il gioco **rifiuta e lo dice**; con formato e mappa coerenti parte normalmente. Il caso di errore è quello da guardare: se fallisce in silenzio, la classe non sta proteggendo niente | ⏳ **E19** (CP 19.1) |
+
+### Rete e privacy degli intenti (M10, post-v0.1)
+
+Tutte ⏳ e **tutte dipendenti da una rete che non esiste**: misurato il 2026-09-04, `Source/` non contiene
+una sola `UPROPERTY(Replicated)` — l'unica occorrenza della parola sta dentro un commento. Nascono qui
+perché il ciclo docs → checkpoint → PIE resti chiuso, non perché siano eseguibili oggi.
+Issue [#589](https://github.com/DegrassiAaron/refactor-tactics-main/issues/589) · owner del checkpoint
+`M10.3` · procedura [`systems/procedura-canary-anti-leak.md`](systems/procedura-canary-anti-leak.md).
+
+> 🔑 **Perché la privacy di rete ha bisogno di voci a mano, avendo già dei test.** Ciò che è automatizzabile
+> è già automatizzato su due livelli: il filtro logico (quattro test su `FilterForTeam`) e la superficie di
+> replica (`Privacy.ServerOnlyTypesAreNotReplicated`, dal 2026-09-04). Restano tre cose che nessun test
+> headless vede: che il canary giri **davvero** sul pacchetto e non in PIE, che l'attesa avversaria **non
+> si veda** — [D-021], il tempo è un canale e un cronometro headless non è un occhio — e che una
+> connessione che arriva **fuori** dal flusso normale non riceva ciò che il flusso normale filtra.
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-NET-CANARY-PACKAGED** | Il canary anti-leak gira sul **pacchetto**, non in PIE | `M10.1` + `M10.2` · build packaged Development · due squadre | Il canary del Team A **si trova** nel client A e **non si trova** in nessuna delle tre superfici del Team B — RPC, proprietà replicate, log. 🔑 **Le due asserzioni sono entrambe obbligatorie**: senza la prima, «non trovato in B» è indistinguibile da «cercato nel posto sbagliato». ⛔ Un'esecuzione in PIE vale `NOT RUN`: server e client condividono il processo, quindi il canary è verde anche a replica rotta | ⏳ **M10.3** |
+| **PIE-NET-NO-PAUSE** | L'attesa avversaria non si vede — [D-021] | `M10.1` · una finestra di reazione con `AllowedResponses` ≥ 2 su una sola squadra | Sullo schermo del Team B **non** compare una pausa la cui durata segua la scelta del Team A: né un fermo-immagine variabile, né un ritmo che rallenta quando l'altro pensa. 🔑 **È l'unica voce che un test non può prendere**: la sospensione logica al boundary è globale **per progetto** e resta invariante, quindi un oracolo headless la misura identica in entrambi i casi. Ciò che deve non essere osservabile è la **presentazione**, e quella la giudica un occhio | ⏳ **M10.3** |
+| **PIE-NET-LATEJOIN** | Chi entra a pianificazione iniziata non riceve l'arretrato | `M10.1` · una partita con planning già dichiarato · un secondo client che entra dopo | Il client che entra riceve lo stato **pubblico** e i piani della **propria** squadra, mai quelli avversari già dichiarati. Stessa verifica per `reconnect` e `spectator` (PDR-04 §9.4). ⚠️ **È un ingresso fuori dal flusso normale**, ed è il punto: il filtro per squadra presidia il relay continuo, non necessariamente il bootstrap di una connessione nuova — sono due percorsi di codice diversi | ⏳ **M10.3** |
 
 ### Stati del personaggio (E34, post-v0.1)
 
