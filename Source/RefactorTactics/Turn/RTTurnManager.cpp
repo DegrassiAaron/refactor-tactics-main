@@ -1616,6 +1616,76 @@ void ARTTurnManager::OnPlanningTimeout()
 	LockInAndResolve();
 }
 
+void ARTTurnManager::RequestLockIn()
+{
+	// Stessa guardia di `LockInAndResolve`, e non e' ridondanza: senza, un Ready fuori pianificazione armerebbe
+	// un countdown che poi troverebbe la porta chiusa — tre secondi di attesa per un no-op.
+	if (Phase != ERTMatchPhase::Planning || bIsResolving)
+	{
+		return;
+	}
+
+	// Un secondo Ready non riarma il countdown: chi preme due volte non si regala altri tre secondi.
+	if (IsReadyCountdownActive())
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World || ReadyCountdownSeconds <= 0.f)
+	{
+		// La via di sempre: commit sincrono. E' quella dei test headless e dell'harness, ed e' la ragione per
+		// cui `#2193` non cambia un solo TurnLog esistente.
+		LockInAndResolve();
+		return;
+	}
+
+	World->GetTimerManager().SetTimer(ReadyCountdownTimerHandle, this,
+		&ARTTurnManager::LockInAndResolve, ReadyCountdownSeconds, false);
+
+	// ⚠️ **Diagnostica, non combat log**: questa riga non riguarda chi gioca — l'ha appena fatto lui. Serve a
+	// chi legge `RefactorTactics.log` dopo una seduta e deve distinguere «ha aspettato il timer» da «ha
+	// dichiarato Ready e il countdown ha fatto il resto». Stessa scelta di `#1957` per il lock-in muto.
+	UE_LOG(LogRT, Log, TEXT("[RT] Ready del giocatore -> countdown %.1fs prima del commit (turno %d)"),
+		ReadyCountdownSeconds, TurnNumber);
+}
+
+void ARTTurnManager::CancelLockIn()
+{
+	if (!IsReadyCountdownActive())
+	{
+		return; // no-op silenzioso: l'Unready fuori dal countdown non e' un errore, e' un tasto premuto a vuoto
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ReadyCountdownTimerHandle);
+	}
+
+	// 🔴 **`PlanningTimerHandle` non si tocca.** Non e' stato fermato dal Ready, quindi non va fatto ripartire
+	// dall'Unready: sta ancora scorrendo da dov'era. E' la meta' meno ovvia di *«il countdown non sostituisce
+	// il timer massimo»* — se l'Unready riarmasse il tetto, la coppia Ready+Unready sarebbe un modo di
+	// pianificare senza limite.
+	UE_LOG(LogRT, Log, TEXT("[RT] Unready -> il piano torna in pianificazione (turno %d, restano %.1fs)"),
+		TurnNumber, GetPlanningTimeRemaining());
+}
+
+bool ARTTurnManager::IsReadyCountdownActive() const
+{
+	const UWorld* World = GetWorld();
+	return World && World->GetTimerManager().IsTimerActive(ReadyCountdownTimerHandle);
+}
+
+float ARTTurnManager::GetReadyCountdownRemaining() const
+{
+	if (const UWorld* World = GetWorld())
+	{
+		const float Remaining = World->GetTimerManager().GetTimerRemaining(ReadyCountdownTimerHandle);
+		return Remaining > 0.f ? Remaining : 0.f;
+	}
+	return 0.f;
+}
+
 float ARTTurnManager::GetPlanningTimeRemaining() const
 {
 	if (const UWorld* World = GetWorld())
@@ -1663,7 +1733,17 @@ void ARTTurnManager::LockInAndResolve()
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(PlanningTimerHandle);
+
+		// 🔑 **E il countdown, qualunque dei due orologi ci abbia portati qui** (`#2193`). E' la riga che rende
+		// *«il countdown non sostituisce il timer massimo»* una proprieta' della struttura: se il tetto scade
+		// mentre il countdown scorre, arriviamo qui dal tetto e il countdown muore senza aver committato due
+		// volte. Il primo che scatta vince, e la guardia in testa a questa funzione fa il resto.
+		World->GetTimerManager().ClearTimer(ReadyCountdownTimerHandle);
 	}
+
+	// Il commit e' avvenuto: chi disegna un'anteprima di pianificazione deve spegnerla adesso, e da qui in poi
+	// mostrerebbe una minaccia gia' decisa. Annuncio, non comando: uno scenario headless non ascolta.
+	OnLockInCommitted.Broadcast();
 
 	// Nuova risoluzione: azzera la timeline del turno (verra' popolata dalle fasi).
 	ResolvedTimeline.Reset();
