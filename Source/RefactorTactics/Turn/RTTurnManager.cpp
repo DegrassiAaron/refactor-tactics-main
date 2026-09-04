@@ -1940,7 +1940,15 @@ void ARTTurnManager::LockInAndResolve()
 		// misura — «un turno di controllo vale un progresso» — ed e' intero come la DoD chiede: un float
 		// renderebbe il punteggio dipendente dall'ordine delle somme, che e' esattamente cio' che il
 		// determinismo del TurnLog non ammette. Quanti punti servano per vincere e' un'altra domanda, e vive
-		// in `FRTMatchRules::ScoreToWin` — oggi ZERO, cioe' via disattivata.
+		// in `FRTMatchRules::ScoreToWin`: **CINQUE** nel formato spedito (`RTMatchFormatLibrary.cpp`,
+		// **D-247**, 2026-08-30), derivato dalla geometria dell'arena e non da una partita.
+		//
+		// 🔴 Qui c'era scritto «oggi ZERO, cioe' via disattivata», e lo e' rimasto CINQUE GIORNI dopo che
+		// D-247 lo aveva smentito — quella decisione cita perfino questo commento senza aggiornarlo. Nel
+		// frattempo due documenti lo hanno COPIATO come misura invece di leggere il formato. Lo zero non era
+		// nemmeno il valore sbagliato: era il **default della struct**, che vale solo dove nessuno carica un
+		// formato — lo ScenarioHarness, per esempio. Un avverbio temporale senza data e' una scadenza che
+		// nessun gate controlla: se questa riga cambia di nuovo, si aggiorna QUI, nello stesso commit.
 		const int32 Points = 1;
 		if (Control == ERTObjectiveOutcome::Team0Scores) { AddTeamScore(0, Points); }
 		else if (Control == ERTObjectiveOutcome::Team1Scores) { AddTeamScore(1, Points); }
