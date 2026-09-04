@@ -639,6 +639,35 @@ public:
 	TArray<FName> GetActiveStatusNames() const;
 
 	/**
+	 * Gli stessi stati attivi, come **tag** invece che come nomi, nello stesso ordine.
+	 *
+	 * 🔑 **`GetActiveStatusNames` e' implementata SU QUESTA**, e non viceversa: l'ordine — che e' parte del
+	 * contratto, perche' `TMap`/`TSet` non sono deterministiche (invariante #4) — vive in un posto solo.
+	 * Due enumerazioni parallele che ordinano ciascuna per conto proprio sono due ordini che un giorno
+	 * divergono.
+	 *
+	 * Serve a chi deve poi CHIEDERE qualcosa sul tag — la durata residua, l'icona — e con un `FName` dovrebbe
+	 * risolverlo indietro con `RequestGameplayTag`, che puo' fallire.
+	 */
+	TArray<FGameplayTag> GetActiveStatusTags() const;
+
+	/**
+	 * Quanto dura ancora questo stato su questa unita'.
+	 *
+	 * @return  turni residui (`> 0`) · `PersistentWhileOnCell` se e' legato alla cella · `0` se non e' attivo.
+	 *
+	 * 🔴 **`PersistentWhileOnCell` NON e' un numero di turni**, ed e' l'unico valore di ritorno che non si
+	 * puo' stampare come tale: significa *«finche' resti dove sei»*. Chi lo tratta come un conteggio scrive
+	 * «-1 turni» sopra la testa di un'unita'.
+	 *
+	 * ⚠️ **Lo stesso tag puo' essere ENTRAMBE le cose insieme** — bagnato dall'acqua bassa *e* da
+	 * `PressureJet` — e i due contenitori esistono apposta per farle coesistere. Qui vince la durata a
+	 * **termine**: e' l'informazione che scade, quindi quella che chi guarda deve poter vedere scendere.
+	 * Quando finisce, questa funzione risponde `PersistentWhileOnCell` finche' la cella lo sostiene.
+	 */
+	int32 GetStatusRemainingTurns(FGameplayTag Tag) const;
+
+	/**
 	 * Applica `Status.Marked` registrando la SQUADRA del marcatore (CP 8.2).
 	 *
 	 * Il catalogo promette "+6 al prossimo attacco **alleato**": senza sapere chi ha marcato, il marchio

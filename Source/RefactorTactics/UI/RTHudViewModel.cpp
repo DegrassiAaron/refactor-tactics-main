@@ -6,6 +6,8 @@
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h" // l'autorita' su quale slot consuma un'azione
 #include "Core/RTGameplayTags.h"      // TAG_Status_Reveal: cosa rende un piano visibile all'avversario
+#include "UI/RTIconLibrary.h"         // MakeIconId: la chiave dell'icona si deriva dal tag, non si compone
+#include "Turn/RTReactionLibrary.h"   // ControlSeverityRank: la gravita' dei controlli ha gia' un owner (#2274)
 #include "Turn/RTIntentPrivacyLibrary.h"
 
 FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnManager)
@@ -137,6 +139,74 @@ FRTUnitSlotsView URTHudViewModel::BuildUnitSlots(const ARTUnit* Unit)
 	}
 
 	return Slots;
+}
+
+TArray<FRTStatusBadgeView> URTHudViewModel::BuildStatusBadges(const ARTUnit* Unit)
+{
+	TArray<FRTStatusBadgeView> Badges;
+	if (Unit == nullptr)
+	{
+		return Badges;
+	}
+
+	// L'elenco arriva gia' ordinato e senza duplicati, e le due sorgenti (a termine e legata alla cella)
+	// sono gia' unite: qui non si enumera niente per conto proprio.
+	TArray<FGameplayTag> Tags = Unit->GetActiveStatusTags();
+	Badges.Reserve(Tags.Num());
+
+	// L'ordine di presentazione si decide QUI, sui tag, prima di costruire le viste.
+	//
+	// 🔑 **La gravita' si CHIEDE, non si ricopia.** `ARTHUD::DrawHUD` mostrava `ROOT` e poi `SLOW` in un
+	// `if`/`else if`: lo stesso ordine di `ControlStatusesBySeverity`, scritto una seconda volta. Se quella
+	// lista cambiasse — o nascesse un terzo controllo — l'HUD sarebbe rimasto fermo, e il guardiano
+	// `Reaction.ControlStatusesAreTwo` non se ne sarebbe accorto: sorveglia la lista, non chi la copia.
+	//
+	// 🔴 **Si ordina sui TAG e non sulle viste** perche' il rango si chiede a un `FGameplayTag`: ordinare
+	// dopo costringerebbe a risolvere ogni `FName` indietro con `RequestGameplayTag` — dentro un
+	// comparatore, e con una chiamata che puo' fallire — per riottenere cio' che qui si ha gia' in mano.
+	//
+	// ⚠️ **`StableSort` e non `Sort`**: i non-controlli hanno tutti lo stesso rango, e senza stabilita' il
+	// loro ordine relativo — che `GetActiveStatusTags` ha reso deterministico apposta — tornerebbe a
+	// dipendere dall'implementazione del sort (invariante #4).
+	Tags.StableSort([](const FGameplayTag& A, const FGameplayTag& B)
+	{
+		const int32 RankA = URTReactionLibrary::ControlSeverityRank(A);
+		const int32 RankB = URTReactionLibrary::ControlSeverityRank(B);
+		const bool bControlA = (RankA != INDEX_NONE);
+		const bool bControlB = (RankB != INDEX_NONE);
+
+		if (bControlA != bControlB)
+		{
+			return bControlA; // i controlli davanti
+		}
+		if (!bControlA)
+		{
+			return false; // fra non-controlli decide l'ordine gia' stabilito: `StableSort` lo preserva
+		}
+		return RankA < RankB; // fra due controlli, `0` e' il piu' grave
+	});
+
+	for (const FGameplayTag& Tag : Tags)
+	{
+		FRTStatusBadgeView Badge;
+		Badge.Tag = Tag.GetTagName();
+		// La chiave dell'icona si DERIVA dall'identificatore stabile, non si compone accanto a lui.
+		Badge.IconId = URTIconLibrary::MakeIconId(Tag.GetTagName());
+
+		const int32 Remaining = Unit->GetStatusRemainingTurns(Tag);
+		Badge.bCellBound = (Remaining == ARTUnit::PersistentWhileOnCell);
+		// 🔴 `PersistentWhileOnCell` non attraversa questo confine: e' `-1`, e sopra la testa di un'unita' si
+		// leggerebbe «meno un turno». Chi disegna guarda `bCellBound`, che dice la stessa cosa senza fingere
+		// di essere un conteggio.
+		Badge.RemainingTurns = Badge.bCellBound ? 0 : FMath::Max(0, Remaining);
+
+		// L'appartenenza alla famiglia dei controlli la dichiara chi la possiede, non un elenco locale.
+		Badge.bIsControl = (URTReactionLibrary::ControlSeverityRank(Tag) != INDEX_NONE);
+
+		Badges.Add(Badge);
+	}
+
+	return Badges;
 }
 
 TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTUnit* Unit)

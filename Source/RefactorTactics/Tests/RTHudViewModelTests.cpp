@@ -7,6 +7,8 @@
 
 #include "Misc/AutomationTest.h"
 #include "UI/RTHudViewModel.h"
+#include "UI/RTIconLibrary.h"      // MakeIconId: la chiave che la vista porta gia' derivata (#2274)
+#include "Core/RTGameplayTags.h"   // i tag di stato usati dai test dei badge (#2274)
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
@@ -606,6 +608,169 @@ bool FRTHudVmObjectiveScoreTest::RunTest(const FString&)
 		TestEqual(TEXT("senza manager, squadra 1 a zero"), View.Team1Score, 0);
 		TestEqual(TEXT("senza manager, nessuna soglia"), View.ScoreToWin, 0);
 	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Quali stati mostrare, in che ordine, con quale durata (`#2274`, `D-320`).
+//
+// Il giudizio sta qui e non nel widget perche' un `UserWidget` in Blueprint ha copertura headless zero.
+// ---------------------------------------------------------------------------------------------------
+
+/**
+ * 🔴 **I controlli vengono per primi, e la gravita' NON e' ricopiata: si chiede a chi la possiede.**
+ *
+ * `ARTHUD::DrawHUD` mostrava `ROOT` e poi `SLOW` in un `if`/`else if` — lo stesso ordine che
+ * `URTReactionLibrary::ControlStatusesBySeverity` dichiara, scritto una seconda volta. Questo test cade se
+ * l'ordine torna a essere una copia: e' costruito **al contrario** della gravita' attesa (`Slow` applicato
+ * prima di `Root`, e `Burning` prima di entrambi in ordine alfabetico), quindi solo un riordino vero lo
+ * soddisfa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusBadgesControlsComeFirstTest,
+	"RefactorTactics.HudViewModel.StatusBadgesControlsComeFirst",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStatusBadgesControlsComeFirstTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	// Applicati DELIBERATAMENTE nell'ordine sbagliato: `Burning` precede entrambi in alfabetico, e `Slow`
+	// e' meno grave di `Root`. Se la funzione non riordinasse, uscirebbero cosi' come sono entrati.
+	Unit->ApplyStatus(TAG_Status_Burning, /*Turni*/ 2);
+	Unit->ApplyStatus(TAG_Status_Slow,    /*Turni*/ 3);
+	Unit->ApplyStatus(TAG_Status_Root,    /*Turni*/ 1);
+
+	const TArray<FRTStatusBadgeView> Badges = URTHudViewModel::BuildStatusBadges(Unit);
+
+	if (!TestEqual(TEXT("tre stati attivi, tre badge"), Badges.Num(), 3))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// 🔴 Il cuore: `Root` (rango 0) prima di `Slow` (rango 1), ed entrambi prima di cio' che non e' controllo.
+	TestEqual(TEXT("primo: Root, il controllo piu' grave"),
+		Badges[0].Tag, TAG_Status_Root.GetTag().GetTagName());
+	TestEqual(TEXT("secondo: Slow, il controllo meno grave"),
+		Badges[1].Tag, TAG_Status_Slow.GetTag().GetTagName());
+	TestEqual(TEXT("terzo: Burning, che controllo non e'"),
+		Badges[2].Tag, TAG_Status_Burning.GetTag().GetTagName());
+
+	TestTrue(TEXT("Root e' marcato come controllo"),  Badges[0].bIsControl);
+	TestTrue(TEXT("Slow e' marcato come controllo"),  Badges[1].bIsControl);
+	TestFalse(TEXT("Burning NON e' un controllo"),    Badges[2].bIsControl);
+
+	// La durata e' quella vera, non un numero qualsiasi.
+	TestEqual(TEXT("Root: un turno residuo"),    Badges[0].RemainingTurns, 1);
+	TestEqual(TEXT("Slow: tre turni residui"),   Badges[1].RemainingTurns, 3);
+	TestEqual(TEXT("Burning: due turni residui"), Badges[2].RemainingTurns, 2);
+
+	// L'icona arriva gia' derivata: chi disegna non compone chiavi.
+	TestEqual(TEXT("l'IconId e' derivato dal tag"),
+		Badges[0].IconId, URTIconLibrary::MakeIconId(TAG_Status_Root.GetTag().GetTagName()));
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **Uno stato legato alla cella non porta un conteggio, e il `-1` non attraversa il confine.**
+ *
+ * `ARTUnit::PersistentWhileOnCell` vale `-1`: stampato sopra la testa di un'unita' si leggerebbe «meno un
+ * turno». La vista lo traduce in `bCellBound`, che dice la stessa cosa senza fingere di essere un numero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusBadgesCellBoundHasNoCountTest,
+	"RefactorTactics.HudViewModel.StatusBadgesCellBoundHasNoCount",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStatusBadgesCellBoundHasNoCountTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	Unit->ApplyStatus(TAG_Status_Wet, ARTUnit::PersistentWhileOnCell);
+
+	const TArray<FRTStatusBadgeView> Badges = URTHudViewModel::BuildStatusBadges(Unit);
+	if (!TestEqual(TEXT("un solo stato attivo"), Badges.Num(), 1))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	TestTrue(TEXT("Wet dall'acqua e' legato alla cella"), Badges[0].bCellBound);
+	// 🔴 Il cuore: `0`, non `-1`. Il valore sentinella resta dentro `ARTUnit`.
+	TestEqual(TEXT("legato alla cella: nessun conteggio da mostrare"), Badges[0].RemainingTurns, 0);
+	TestNotEqual(TEXT("il -1 non attraversa il confine"),
+		Badges[0].RemainingTurns, ARTUnit::PersistentWhileOnCell);
+
+	// L'altra meta': lo stesso tag puo' essere ANCHE a termine, e allora vince la durata che scade — perche'
+	// e' l'unica che chi guarda puo' vedere scendere.
+	Unit->ApplyStatus(TAG_Status_Wet, /*Turni*/ 2);
+	const TArray<FRTStatusBadgeView> Dopo = URTHudViewModel::BuildStatusBadges(Unit);
+	if (TestEqual(TEXT("resta un solo badge: le due nature non lo duplicano"), Dopo.Num(), 1))
+	{
+		TestFalse(TEXT("con una durata a termine non e' piu' 'finche' resti li''"), Dopo[0].bCellBound);
+		TestEqual(TEXT("e il conteggio e' quello a termine"), Dopo[0].RemainingTurns, 2);
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **La vista mostra ESATTAMENTE cio' che l'unita' porta: uno stato non attivo non compare.**
+ *
+ * ⚠️ **Questo test e' stato riscritto perche' la prima stesura affermava una cosa falsa**, e il rosso l'ha
+ * mostrato. Diceva *«`Status.Electrified` non compare mai»* e lo applicava con `ApplyStatus(Tag, 1)`
+ * aspettandosi che venisse rifiutato. Non lo e': `ApplyStatus` ritorna in silenzio per `Turns <= 0`, ma con
+ * una durata **positiva** applica qualunque tag — l'inerzia di `Electrified` (`#1324`) sta nel fatto che
+ * **nessun produttore lo chiama con una durata**, non in un rifiuto di questa API.
+ *
+ * 🔑 Ne segue dove vive davvero la garanzia, e vale saperlo prima di cercarla qui: **a monte**, nel
+ * produttore — che per la scarica emette `AppliedInstantly` e non tocca `StatusTurns` — ed e' coperta da
+ * `RTElectricPropagationTests`. `BuildStatusBadges` non ha un filtro su `Electrified` e non deve averlo:
+ * mostra cio' che l'unita' porta, e l'unita' non lo porta.
+ *
+ * ⚠️ **Anti-vacuita'**: si applica anche uno stato vero, altrimenti «non compare» sarebbe verde in un mondo
+ * dove la funzione non restituisce mai niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusBadgesShowOnlyWhatTheUnitCarriesTest,
+	"RefactorTactics.HudViewModel.StatusBadgesShowOnlyWhatTheUnitCarries",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStatusBadgesShowOnlyWhatTheUnitCarriesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	Unit->ApplyStatus(TAG_Status_Burning, /*Turni*/ 2);
+
+	const TArray<FRTStatusBadgeView> Badges = URTHudViewModel::BuildStatusBadges(Unit);
+
+	// Anti-vacuita': lo stato applicato esce davvero.
+	TestEqual(TEXT("anti-vacuita': lo stato attivo c'e'"), Badges.Num(), 1);
+
+	// 🔴 Il cuore: uno stato che l'unita' NON porta non compare — nemmeno uno che esiste nel registro dei
+	// tag e ha la sua icona nel catalogo, come `Electrified`.
+	const bool bHaNonApplicato = Badges.ContainsByPredicate([](const FRTStatusBadgeView& B)
+	{
+		return B.Tag == TAG_Status_Electrified.GetTag().GetTagName()
+			|| B.Tag == TAG_Status_Root.GetTag().GetTagName();
+	});
+	TestFalse(TEXT("uno stato non attivo non compare"), bHaNonApplicato);
+
+	// E la porta che lo dice, interrogata direttamente: `0` significa «non attivo», e non e' una durata.
+	TestEqual(TEXT("un tag non attivo ha durata residua 0"),
+		Unit->GetStatusRemainingTurns(TAG_Status_Root), 0);
 
 	DestroyHudVmWorld(World);
 	return true;
