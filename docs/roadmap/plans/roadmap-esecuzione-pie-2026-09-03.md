@@ -284,7 +284,8 @@ domanda sola**: la parte misurabile è stata chiusa headless e dal ponte MCP —
 esatto per `PIE-HEXPLAY-8`, cinquanta mosse senza illegali per `PIE-V01-ROSTER`, il formato del log con il
 motivo accanto per `PIE-V01-LOG`.
 
-⌫ **Questo paragrafo diceva il contrario, e la fonte era `#1873`.** Sosteneva che la sola presentazione
+⌫ **Questo paragrafo diceva il contrario, e la fonte era `#1873` — riscritta il 2026-09-04 attorno al residuo
+reale, con l'istruttoria originale conservata.** Sosteneva che la sola presentazione
 del blocco-vista fosse un anello di `DrawCellOverlay` e che «nella vista del giocatore non c'è niente», e
 ne concludeva che `PIE-HEXPLAY-6` aspettasse **codice**. 🔴 **È falso, ed è stato scritto senza
 rimisurare**: `RebuildInstances` popola l'ISM persistente `Blockers` con una **lastra** `0.75 × 10 cm` per

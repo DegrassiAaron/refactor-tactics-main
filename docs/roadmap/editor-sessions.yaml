@@ -2947,7 +2947,8 @@ sessions:
       sostituita?
 
       **② `PIE-HEXPLAY-6` — che il muro si veda.** `rt.Test.Scenario Combat.BlockedByWall`, poi Play.
-      ⌫ **Questa riga diceva il contrario fino al 2026-09-04, e la fonte era `#1873`.** Diceva che la sola
+      ⌫ **Questa riga diceva il contrario fino al 2026-09-04, e la fonte era `#1873` — che nel frattempo e'
+      stata riscritta attorno al residuo reale.** Diceva che la sola
       presentazione del blocco-vista e' un anello di debug e che «con l'overlay spento non resta nulla»:
       **e' falso**. `RebuildInstances` popola l'ISM persistente `Blockers` — **lastra** `0.75 x 10 cm` per
       `bBlocksLineOfSight`, **colonna** `0.40 x 55 cm` per `bBlocksMovement`, indipendenti e senza guardia
