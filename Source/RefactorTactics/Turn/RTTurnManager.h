@@ -182,6 +182,21 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRTTeamKnowledgeRefreshedSignature, 
  */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FRTOnMatchEndedSignature, const FRTMatchResult&, Result, const FRTMatchState&, State);
 
+/**
+ * Il piano e' stato committato: la pianificazione e' chiusa e la risoluzione sta per cominciare (`#2193`).
+ *
+ * ⚠️ **E' un annuncio, non un comando**, come `FRTOnMatchEndedSignature` otto righe sopra: la simulazione non
+ * conosce la presentazione, e chi ascolta decide cosa farne. Serve a chi disegna un'anteprima di
+ * pianificazione, che dopo il commit mostrerebbe una minaccia gia' decisa.
+ *
+ * 🔴 **Scatta su TUTTI i percorsi di commit**, ed e' la ragione per cui e' un delegate invece di una riga in
+ * piu' nel controller. Prima di `#2193` solo `ARTPlayerController::OnLockIn` spegneva l'anteprima: un turno
+ * chiuso dal **timeout** la lasciava accesa per tutta la risoluzione, perche' `OnPlanningTimeout` chiama
+ * `LockInAndResolve` senza passare dal controller. Col countdown i percorsi diventano tre, e tre copie della
+ * stessa riga sarebbero state due occasioni di dimenticarne una.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRTLockInCommittedSignature);
+
 // `FRTLogSubject` e `FRTCombatLogLine` vivono in `Turn/RTCombatLog.h` da `#1818`: chiunque volesse una
 // riga di log doveva includere QUESTO header per una struct di tre campi.
 
@@ -202,9 +217,94 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 
-	/** Chiude la pianificazione e risolve il turno; il movimento si applica nella fase Move. */
+	/**
+	 * Chiude la pianificazione e risolve il turno; il movimento si applica nella fase Move.
+	 *
+	 * ⚠️ **Chiamarla DUE volte senza pompare `Tick` in mezzo NON gioca due turni: la seconda chiamata
+	 * e' un no-op silenzioso.** Le fasi si risolvono qui, in modo sincrono — ma se c'e' qualcosa da
+	 * mostrare la risoluzione entra nel **playback**, che accende `bIsResolving` e rimanda `ConcludeTurn`
+	 * a `FinishPlayback`, raggiungibile **solo da `Tick`**. Finche' resta acceso, la guardia in testa a
+	 * questa funzione (`Phase != Planning || bIsResolving`) fa rientrare ogni chiamata successiva senza
+	 * dire niente.
+	 *
+	 * 🔑 **E cio' che si perde non e' solo il secondo turno: e' il refresh della conoscenza a valle
+	 * del MOVIMENTO.** `ConcludeTurn` riapre la pianificazione con `PlanBots()`, che e' l'unico punto a
+	 * chiamare `RefreshTeamKnowledgeForPlanning` dopo che le unita' si sono spostate; l'altro refresh
+	 * — quello di `ResolveCombat` — gira in fase **Blast**, cioe' PRIMA di Move, sulle posizioni di
+	 * partenza. ∴ un test che legge la conoscenza (o il velo) senza pompare rilegge lo stato
+	 * **pre-movimento** e lo scambia per una misura: nel caso che ha prodotto questa nota, tre conteggi
+	 * identici a due `LockInAndResolve` di distanza, delta `+0 +0 +0`, e il test **verde**.
+	 *
+	 * ∴ chi gioca dei turni ha due strade, e una la deve prendere:
+	 * ```cpp
+	 * TM->LockInAndResolve();
+	 * for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); } // la partita vera
+	 * ```
+	 * oppure `bEnablePlayback = false` prima di cominciare — la strada di `RTHexPerfTests` e
+	 * `RTStress4v4Tests`, che misurano il resolver e non la sua riproduzione: senza playback
+	 * `ConcludeTurn` viene chiamata subito, in linea.
+	 *
+	 * ⚠️ `Phase == Planning` DOPO la chiamata non dice che il turno non e' avanzato: Planning e' la fase
+	 * di **riposo**, e il ciclo delle fasi esce proprio quando ci torna. Il segnale vero e' `IsResolving()`
+	 * ancora acceso, oppure `GetTurnNumber()` fermo.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
 	void LockInAndResolve();
+
+	/**
+	 * Il **Ready del giocatore**: arma il countdown annullabile, e solo al suo scadere committa (`#2193`,
+	 * [`spec-durata-partita-e-scala-mappe.md`](../../../docs/gameplay/spec-durata-partita-e-scala-mappe.md) §7.2).
+	 *
+	 * 🔴 **Non e' un secondo `LockInAndResolve`, ed e' il punto dell'intera issue.** `LockInAndResolve` e' il
+	 * punto di CONFLUENZA di tre percorsi — questo, il timeout, e lo Scenario Harness che lo chiama diretto —
+	 * e mettere tre secondi di attesa li' dentro li avrebbe fatti aspettare tutti, cioe' avrebbe messo tempo
+	 * di parete in un percorso headless che oggi non ne ha. Il countdown sta **a monte**, e il punto comune
+	 * resta sincrono.
+	 *
+	 * ⛔ **Non tocca lo snapshot.** Lo snapshot nasce dentro `LockInAndResolve`, cioe' DOPO che il countdown e'
+	 * finito: durante l'attesa l'autorita' non ha accettato niente, ed e' il vincolo che `#2193` pone. E' anche
+	 * la classificazione che la spec dava gia' a questo parametro — `ReadyCountdownSeconds` sta fra i **Tempi
+	 * UX**, *«tempo di parete: non devono mai raggiungere il TurnLog»*.
+	 *
+	 * ⚠️ **Con `ReadyCountdownSeconds <= 0` committa SUBITO**, come faceva il lock-in prima di questa issue:
+	 * e' la via che tiene i test headless e l'harness sul comportamento di sempre.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void RequestLockIn();
+
+	/**
+	 * **Unready**: annulla il countdown e torna alla pianificazione. No-op se non e' armato (`#2193`).
+	 *
+	 * 🔴 **Il tetto NON si riarma**, e non e' una dimenticanza: `PlanningTimerHandle` non e' mai stato fermato
+	 * — continua da dov'era. Riarmarlo regalerebbe tempo a ogni Unready, e il criterio dice che il countdown
+	 * *«non sostituisce il timer massimo»*: se lo sostituisse in questo verso, premere Ready e disdire sarebbe
+	 * il modo di pianificare all'infinito.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void CancelLockIn();
+
+	/** Il countdown fra Ready e commit e' in corso. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	bool IsReadyCountdownActive() const;
+
+	/** Secondi che mancano al commit; `0` se il countdown non e' armato. Per l'HUD e per i test. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	float GetReadyCountdownRemaining() const;
+
+	/**
+	 * Cambia la durata del countdown, clampando a zero. Stessa forma di `SetPlanningSeconds`, e per la stessa
+	 * ragione: e' ritmo di presentazione, non una regola di gioco.
+	 *
+	 * ⚠️ **Non rifa' un countdown gia' armato**, a differenza di `SetPlanningSeconds` col suo timer: cambiare
+	 * la durata a meta' attesa sposterebbe il commit sotto le dita di chi ha appena premuto Ready. Il valore
+	 * nuovo vale dal Ready successivo.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void SetReadyCountdownSeconds(float NewSeconds) { ReadyCountdownSeconds = FMath::Max(0.f, NewSeconds); }
+
+	/** Durata corrente del countdown (diagnostica e test). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	float GetReadyCountdownSeconds() const { return ReadyCountdownSeconds; }
 
 	/** Hook per i test d'integrazione headless: invoca la pianificazione dei bot senza timer/playback. */
 	void PlanBotsForTest() { PlanBots(); }
@@ -643,6 +743,10 @@ public:
 	 */
 	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Match")
 	FRTOnMatchEndedSignature OnMatchEnded;
+
+	/** Il piano e' committato e la risoluzione comincia (`#2193`). Vedi `FRTLockInCommittedSignature`. */
+	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Turn")
+	FRTLockInCommittedSignature OnLockInCommitted;
 
 	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Playback")
 	FRTUnitPlaybackSignature OnUnitMoveStarted;
@@ -1612,6 +1716,20 @@ protected:
 	float PlanningSeconds = 30.f;
 
 	/**
+	 * Durata del countdown fra il Ready del giocatore e il commit, in secondi: **3,0 s** (`D-010`,
+	 * [`spec-durata-partita-e-scala-mappe.md`](../../../docs/gameplay/spec-durata-partita-e-scala-mappe.md) §7.2).
+	 *
+	 * Sta qui accanto a `PlanningSeconds` per la ragione che la spec dichiara di entrambi: sono **Tempi UX**,
+	 * tempo di PARETE, e non devono mai raggiungere il TurnLog. Un tempo di parete nel log lo renderebbe non
+	 * deterministico ([`spec-pacing-turno.md`](../../../docs/gameplay/spec-pacing-turno.md) **D3**).
+	 *
+	 * ⚠️ **`0` non e' «countdown istantaneo»: e' «nessun countdown».** `RequestLockIn()` committa nello stesso
+	 * frame, che e' il comportamento di prima di `#2193` ed e' quello su cui girano l'harness e i test.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
+	float ReadyCountdownSeconds = 3.f;
+
+	/**
 	 * Durata della finestra Fast Reaction, in secondi (ADR-0004 §8, CP 14.6): **3,0 s**.
 	 *
 	 * Sta qui e non in `FRTMatchRules` per la ragione che quel file dichiara di se': e' un tempo di PARETE,
@@ -1907,6 +2025,18 @@ public:
 protected:
 
 	FTimerHandle PlanningTimerHandle;
+
+	/**
+	 * Il countdown fra Ready e commit (`#2193`). Vive accanto a `PlanningTimerHandle` perche' i due orologi
+	 * hanno una precedenza, e una precedenza con due proprietari sarebbe due regole.
+	 *
+	 * 🔑 **La precedenza non e' scritta da nessuna parte, ed e' voluto**: i due timer chiamano entrambi
+	 * `LockInAndResolve`, che li spegne tutti e due appena entra. Il primo che scatta vince, e siccome il
+	 * countdown non allunga mai il tetto, il primo che scatta e' il tetto quando manca meno di
+	 * `ReadyCountdownSeconds` alla sua scadenza. *«Il countdown non sostituisce il timer massimo»* diventa cosi'
+	 * una proprieta' della struttura invece di un `if` da ricordare.
+	 */
+	FTimerHandle ReadyCountdownTimerHandle;
 
 	/**
 	 * L'allestimento ha rivendicato l'apertura del turno 1 (`#2102`, [D-314]).

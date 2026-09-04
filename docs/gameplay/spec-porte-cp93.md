@@ -152,6 +152,38 @@ scrivere nel TurnLog — stessa forma di `ApplyStructureDamage`.
 confronta insieme all'hash: non è stato costruito un secondo meccanismo di invalidazione, si è usato quello che
 CP 9.1 aveva messo lì per questo.
 
+### 4b. L'autoraggio è un'altra cosa, e ha il suo ingresso
+
+⚠️ **`SetDoorState` cambia lo STATO di una porta che esiste; non ne crea nessuna.** La distinzione non è
+pedanteria: fino al 2026-09-04 questa sezione era l'unico «punto di scrittura» nominato, e la conseguenza è
+stata misurata da
+[#2312](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2312) — **nell'intero contenuto
+versionato non esisteva una porta**. Le mesh del kit erano committate, `ARTHexMapActor` le disegnava,
+`Interact` le apriva e il formato le portava dalla v4: mancava solo il gesto che ne posa una.
+
+Da [#2330](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2330) l'ingresso c'è:
+
+```text
+URTMapEditLibrary::AddDoor(Map, Cell, Edge, State, DoorId, StableId) -> ERTMapEditOutcome
+```
+
+e una CLI ripetibile che lo espone, con la stessa disciplina di `RTSetObjectiveCell` — *«un `.uasset` non è
+diffabile, quindi il diff di una PR non può mostrare cosa è cambiato dentro»*:
+
+```text
+UnrealEditor-Cmd RefactorTactics.uproject -run=RTSetCellDoor
+    -Map=<asset> -Cell=q,r[,layer] -Edge=NE [-State=Closed] [-StableId=…] [-DryRun]
+```
+
+🔴 **Il rifiuto che vale la pena conoscere è `RefusedNoNeighbour`**: oltre un bordo di frontiera non c'è
+nessuna cella, quindi una porta lì **non negherebbe nessuna adiacenza** — è la proprietà di §1, applicata
+all'autoraggio. Senza quel rifiuto l'asset si salverebbe, l'hash cambierebbe, la porta si vedrebbe pure, e
+non farebbe niente.
+
+⚠️ **`AddDoor` scrive UNA faccia sola**, coerentemente con §2 *«Due facce, un bordo»*, e da
+`RefactorTactics.MapEdit.AddDoorIsVisibleFromBothSides` quella simmetria non è più solo dichiarata: è
+**pinnata** su `DoorBetween`.
+
 ---
 
 ## 5. Il vettore in partita

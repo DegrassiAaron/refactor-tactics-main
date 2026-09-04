@@ -667,7 +667,7 @@ bool FRTVeiledSurfaceColorsAreDistinguishableTest::RunTest(const FString&)
  * quindi sul suo canale quello stato e' indistinguibile da una cella che non esiste. Qui ha un'altezza, e
  * un'altezza si conta.
  *
- * ⚠️ **I conteggi si leggono dalle ISTANZE, non da un contatore**: `GetKnowledgeDebugCounts` ricava la
+ * ⚠️ **I due conteggi disegnati si leggono dalle ISTANZE, non da un contatore**: `GetKnowledgeDebugCounts` ricava la
  * frazione dalla scala Z reale, come `GetVeilCounts` legge la scala reale del disco. Un contatore
  * proverebbe che la funzione sa contare.
  */
@@ -701,7 +701,9 @@ bool FRTKnowledgeVolumesPartitionTest::RunTest(const FString&)
 
 	TestEqual(TEXT("una sola cella osservata porta il volume 3/3"), Lit, 1);
 	TestEqual(TEXT("una sola cella ricordata porta il volume 2/3"), Remembered, 1);
-	TestEqual(TEXT("tutte le altre sono mai viste, e portano il volume 1/3"), Hidden, Totale - 2);
+	// ⚠️ Dal 2026-09-04 (`#2250`) le mai viste NON portano piu' un volume: il numero e' il COMPLEMENTO,
+	// cioe' le celle dell'asset meno quelle davvero posate. L'asserzione non cambia, la sua ragione si'.
+	TestEqual(TEXT("tutte le altre sono mai viste, e nessuna porta un volume"), Hidden, Totale - 2);
 
 	// La somma ricompone il totale: senza, due errori che si compensano passerebbero — la stessa ragione per
 	// cui il test del velo asserisce anche il totale invece dei soli tre conteggi.
@@ -781,6 +783,53 @@ bool FRTKnowledgeVolumesDoNotSurviveARebuildTest::RunTest(const FString&)
 	HexMap->SetKnowledgeDebugEnabled(true, KnowledgeOf({ Osservata }, { Osservata }));
 	HexMap->GetKnowledgeDebugCounts(Hidden, Remembered, Lit);
 	TestEqual(TEXT("riacceso, i volumi tornano tutti"), Hidden + Remembered + Lit, Prima);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **L'overlay non ridisegna cio' che il velo nasconde** — `#2250`.
+ *
+ * Il velo toglie le celle mai viste (`VeilInstances` posa `FVector::ZeroVector`, il vuoto che [D-225]
+ * prescrive) e fino al 2026-09-04 questo overlay le rimetteva, un prisma per ognuna. Misurato in PIE su una
+ * board da 331 celle: **267 prismi**, l'81%. Acceso il debug, la partizione da ispezionare spariva sotto
+ * l'ispezione stessa.
+ *
+ * 🔑 **Si asserisce sul NUMERO DI ISTANZE, non sui conteggi**, ed e' la differenza che rende il test
+ * capace di cadere: `GetKnowledgeDebugCounts` risponde ancora `Hidden > 0` — per complemento — quindi un
+ * test scritto sui suoi tre numeri passerebbe identico anche disegnando tutto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeVolumesDoNotRedrawTheHiddenTest,
+	"RefactorTactics.Veil.KnowledgeVolumesDoNotRedrawWhatTheVeilHides",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeVolumesDoNotRedrawTheHiddenTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = MakeVeiledBoard(World, /*Radius=*/ 2);
+	if (!TestNotNull(TEXT("board"), HexMap)) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+	const int32 Totale = HexMap->MapAsset->NumCells();
+	const FRTCellId Osservata = HexMap->MapAsset->Cells[0].Id;
+	const FRTCellId Ricordata = HexMap->MapAsset->Cells[1].Id;
+	HexMap->SetKnowledgeDebugEnabled(true, KnowledgeOf({ Osservata }, { Osservata, Ricordata }));
+
+	int32 Hidden = 0, Remembered = 0, Lit = 0;
+	HexMap->GetKnowledgeDebugCounts(Hidden, Remembered, Lit);
+
+	// ➕ CONTROLLO POSITIVO: qualcosa e' stato disegnato, e le mai viste sono la maggioranza. Senza, «due
+	// istanze» sarebbe compatibile con un overlay che non disegna niente.
+	if (!TestEqual(TEXT("due celle note"), Lit + Remembered, 2)) { RTWorldFixtures::DestroyWorld(World); return false; }
+	TestEqual(TEXT("e tutte le altre sono mai viste"), Hidden, Totale - 2);
+
+	// 🔑 La proprieta': si posa una istanza per cella NOTA, e nessuna per le altre.
+	const int32 Istanze = HexMap->KnowledgeVolumeInstanceCount();
+	AddInfo(FString::Printf(TEXT("board %d celle: %d note, %d mai viste, %d istanze posate"),
+		Totale, Lit + Remembered, Hidden, Istanze));
+	TestEqual(TEXT("le istanze posate sono solo quelle delle celle note"), Istanze, Lit + Remembered);
+	TestTrue(TEXT("cioe' molte meno del totale della board"), Istanze < Totale);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
@@ -1088,4 +1137,134 @@ bool FRTVeilBoardDoesNotCloseBehindThePlayerTest::RunTest(const FString&)
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }
+
+/**
+ * 🔴 **Sull'arena `VisionSplit`, dopo due turni giocati, i TRE stati sono tutti non vuoti** — l'`AC1` di
+ * [#1738](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1738), che fino al 2026-09-04 era
+ * verificabile **solo a mano** in PIE.
+ *
+ * Misurato a schermo quel giorno: `93 osservate · 30 ricordate · 97 mai viste` su 220 celle. Questo test
+ * pinna la proprietà, non quei numeri — che dipendono da come i bot decidono di muoversi.
+ *
+ * 🔑 **Il turno 0 è parte dell'asserzione, e non è decorativo.** Le due esecuzioni manuali fallite prima di
+ * quella buona hanno sbagliato **per due ragioni diverse**, e questa è la seconda: con le unità ferme
+ * *«ricordate»* resta `0` su qualunque arena, perché una cella diventa un ricordo solo quando **esce** da un
+ * cono di vista. Asserire `R0 == 0` e poi `R > 0` distingue «il velo ricorda» da «il velo ha sempre
+ * ricordato qualcosa», che a conteggio finale sarebbero indistinguibili.
+ *
+ * 🔑 **E `N > 0` DOPO i turni è la proprietà per cui `VisionSplit` esiste.** Sul banco precedente — raggio
+ * 4 — le celle mai viste andavano a **zero al turno 2**, misurato da #1814 (`9 → 9 → 0 → 0`): lì i tre
+ * stati non potevano essere tutti non vuoti insieme in nessun istante. Se qualcuno riducesse il raggio
+ * della fixture o ne togliesse le occlusioni, questa riga tornerebbe rossa invece di tornare invisibile.
+ *
+ * ⚠️ **Non asserisce i numeri esatti**: i bot scelgono, e un cambio di pesi li sposterebbe senza che nulla
+ * sia rotto. La proprietà è «tutti e tre non vuoti», che è ciò che `AC1` chiede.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilThreeStatesNonEmptyOnVisionSplitTest,
+	"RefactorTactics.Veil.ThreeStatesAreAllNonEmptyOnVisionSplit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVeilThreeStatesNonEmptyOnVisionSplitTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	World->InitializeActorsForPlay(FURL()); // senza, il delegate dinamico del GameMode non arriva (#939)
+
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("TurnManager"), TM)
+		|| !TestNotNull(TEXT("GameMode"), GameMode))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// ⚠️ La fixture si assegna PRIMA di `DispatchBeginPlay`: `MapSource` vale `LevelAsset`, quindi il
+	// bootstrapper tiene l'asset che trova sull'actor invece di generarne uno. E' la stessa strada che in
+	// PIE prende `rt.Map.Fixture`, senza toccare una cvar globale che altri test si troverebbero addosso.
+	HexMap->MapAsset = URTMatchSetupLibrary::MakeVisionSplitArena(HexMap);
+	if (!TestNotNull(TEXT("l'arena VisionSplit"), HexMap->MapAsset.Get()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const int32 Totale = HexMap->MapAsset->NumCells();
+
+	GameMode->bAutobattle = true; // i bot muovono da soli: è il movimento che lascia il ricordo
+	GameMode->DispatchBeginPlay();
+
+	auto Conta = [&](int32& A, int32& R, int32& N) { HexMap->GetVeilCounts(A, R, N); };
+	auto Vive = [&]()
+	{
+		int32 V = 0;
+		for (TActorIterator<ARTUnit> It(World); It; ++It) { if (It->IsAlive()) { ++V; } }
+		return V;
+	};
+
+	int32 A0 = 0, R0 = 0, N0 = 0;
+	Conta(A0, R0, N0);
+	const int32 Vive0 = Vive();
+	AddInfo(FString::Printf(TEXT("turno 0 su %d celle: %d accese, %d ricordate, %d nascoste (%d vive)"),
+		Totale, A0, R0, N0, Vive0));
+
+	// ➕ CONTROLLO POSITIVO: il velo vede qualcosa e ha qualcosa da nascondere. Senza, «tutti e tre non
+	// vuoti» più avanti potrebbe passare su una board degenere.
+	if (!TestTrue(TEXT("all'inizio la squadra vede qualcosa"), A0 > 0)
+		|| !TestTrue(TEXT("e c'è terreno mai visto da nascondere"), N0 > 0))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	// 🔑 Nessuno si è ancora mosso: il ricordo non può esistere. È la causa che ha fatto fallire due
+	// esecuzioni manuali, ed è qui perché il test la distingua dal caso buono.
+	TestEqual(TEXT("a unità ferme non esiste ancora nessun ricordo"), R0, 0);
+
+	// --- Si gioca. Due turni: è il minimo perché una cella esca da un cono e diventi un ricordo. --------
+	int32 Turni = 0;
+	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Turni < 2)
+	{
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+		++Turni;
+	}
+
+	int32 A = 0, R = 0, N = 0;
+	Conta(A, R, N);
+	AddInfo(FString::Printf(TEXT("dopo %d turni: %d accese, %d ricordate, %d nascoste (%d vive)"),
+		Turni, A, R, N, Vive()));
+
+	// ⚠️ Un cadavere non vede: se la squadra ha perso unità la conoscenza si assottiglia per una ragione
+	// legittima, e asserire sarebbe misurare un'altra cosa. Si dichiara e si esce.
+	if (Vive() < Vive0)
+	{
+		AddInfo(TEXT("unità perse durante i due turni: l'asserzione non è più significativa, il test si ferma"));
+		RTWorldFixtures::DestroyWorld(World);
+		return true;
+	}
+
+	// 🔑 AC1: tutti e tre non vuoti, nello stesso istante.
+	TestTrue(TEXT("osservate > 0"), A > 0);
+	TestTrue(TEXT("ricordate > 0: qualcuno si è mosso e una cella è uscita dal cono"), R > 0);
+	TestTrue(TEXT("mai viste > 0: l'arena è più grande di quanto la squadra veda"), N > 0);
+
+	// E restano una partizione: nessuna cella si perde per strada fra i tre insiemi.
+	TestEqual(TEXT("i tre stati partizionano la board"), A + R + N, Totale);
+
+	// 🔑 **E la board non si richiude alle spalle.** L'esplorato non scade — [D-227] ha esaminato e
+	// RIFIUTATO il velo senza memoria — quindi l'insieme nascosto può solo calare o restare fermo.
+	// `BoardDoesNotCloseBehindThePlayer` pinna la stessa invariante sulla board di DEFAULT; qui vale su
+	// `VisionSplit`, e la finestra di due turni è quella che `PIE-HEX-VIZ-VELO` dichiara.
+	//
+	// ⚠️ **Non è implicata da `N > 0` qui sopra**: quella dice che qualcosa resta nascosto, non che
+	// l'insieme nascosto non sia CRESCIUTO. Misurato il 2026-09-04: 170 nascoste al turno 0, 93 dopo due
+	// turni. È anche l'unica asserzione di questo test che diventerebbe rossa se il turno non avanzasse,
+	// perché a velo fermo `N` resterebbe uguale a `N0` — al limite, ma non oltre.
+	TestTrue(*FString::Printf(
+			TEXT("la board non si richiude: %d nascoste, non più delle %d iniziali"), N, N0),
+		N <= N0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

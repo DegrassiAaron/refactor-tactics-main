@@ -138,11 +138,22 @@ ARTUnit::ARTUnit()
 	OverlayWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("OverlayWidget"));
 	OverlayWidget->SetupAttachment(SceneRoot);
 	OverlayWidget->SetWidgetSpace(EWidgetSpace::Screen);
-	// 🔴 **SOPRA la testa, non ai piedi.** Il componente si proietta dalla propria posizione nel mondo: senza
-	// questo offset la sovrapposizione nascerebbe alla base del cilindro, cioe' addosso ai piedi dell'unita'.
-	// Il valore e' quello che il canvas usava (`ARTHUD::WorldHeadOffset`), cosi' l'altezza non cambia
-	// passando da un supporto all'altro.
-	OverlayWidget->SetRelativeLocation(FVector(0.f, 0.f, 200.f));
+	// 🔴 **L'ancora e' la SOMMITA' dell'unita', non un offset arbitrario sopra di lei** (`#2315`).
+	//
+	// L'attore sta al CENTRO del cilindro — `WorldForCell` somma gia' `VisualZOffset`, che vale
+	// `UnitHalfHeight` — quindi la testa e' esattamente una semi-altezza piu' su. Da li' in poi la distanza
+	// dalla testa la mette il **pivot**, che e' in frazioni del widget e quindi in **pixel**.
+	//
+	// ⚠️ **Perche' NON i 200 del canvas, che pure erano lo stesso punto.** `ARTHUD::WorldHeadOffset` sommava
+	// 200 unita' di MONDO e poi proiettava a mano; il commento di `ClampOverlayAnchor` dice cosa comporta:
+	// *«un offset fisso nel mondo produce uno spostamento VARIABILE sullo schermo, tanto piu' grande quanto
+	// l'unita' e' vicina alla camera»*. Il canvas lo correggeva a valle col clamp; qui non c'e' un clamp, e
+	// l'effetto si vedeva — misurato in PIE su `#2288`: la sovrapposizione di un'unita' lontana cadeva
+	// appena sopra la sua testa, quella di un'unita' vicina finiva a mezzo schermo piu' su.
+	//
+	// 🔑 Con l'ancora sulla testa e la distanza affidata al pivot, lo scostamento e' in **pixel** e non
+	// dipende piu' dalla distanza dalla camera.
+	OverlayWidget->SetRelativeLocation(FVector(0.f, 0.f, UnitHalfHeight));
 	// ⚠️ **`DrawSize` esplicito e `bDrawAtDesiredSize = false`.** Misurato in PIE: con la dimensione
 	// desiderata le sovrapposizioni finivano **tutte impilate in alto a sinistra** invece che sopra le
 	// rispettive unita' — un widget in Screen space senza una dimensione dichiarata non ha un centro da cui
@@ -150,7 +161,9 @@ ARTUnit::ARTUnit()
 	// `#2288` chiede il PIE.
 	OverlayWidget->SetDrawAtDesiredSize(false);
 	OverlayWidget->SetDrawSize(FVector2D(220.f, 90.f));
-	OverlayWidget->SetPivot(FVector2D(0.5f, 1.f)); // ancorata in basso al centro: cresce verso l'alto
+	// Il fondo del widget poggia sull'ancora e il contenuto cresce verso l'alto: con l'ancora sulla testa,
+	// la sovrapposizione sta **subito sopra** l'unita', a una distanza che non cambia con la camera.
+	OverlayWidget->SetPivot(FVector2D(0.5f, 1.f));
 	OverlayWidget->SetCollisionEnabled(ECollisionEnabled::NoCollision); // mai un proxy di click
 	OverlayWidget->SetGenerateOverlapEvents(false);
 	OverlayWidget->SetVisibility(false); // il velo la accende: nasce spenta come gli anelli

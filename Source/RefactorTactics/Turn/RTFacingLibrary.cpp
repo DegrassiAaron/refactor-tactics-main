@@ -279,6 +279,13 @@ void URTFacingLibrary::RecordFacingChange(FRTHexSimUnit& Unit, ERTHexDirection N
 ERTHexDirection URTFacingLibrary::ReadFacingForConsumer(const FRTHexSimUnit& Unit, ERTFacingOutcome Consumer,
 	ERTMatchPhase Phase, TArray<FRTTurnLogEntry>& Log)
 {
-	Log.Add(MakeFacingEntry(Unit.Cell, Unit.Facing, Consumer, Phase));
-	return Unit.Facing;
+	// Delega all'overload sui due campi: una sola scrittura, quindi le due forme non possono divergere.
+	return ReadFacingForConsumer(Unit.Cell, Unit.Facing, Consumer, Phase, Log);
+}
+
+ERTHexDirection URTFacingLibrary::ReadFacingForConsumer(const FRTCellId& Cell, ERTHexDirection Facing,
+	ERTFacingOutcome Consumer, ERTMatchPhase Phase, TArray<FRTTurnLogEntry>& Log)
+{
+	Log.Add(MakeFacingEntry(Cell, Facing, Consumer, Phase));
+	return Facing;
 }

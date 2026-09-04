@@ -65,7 +65,7 @@ non un calendario.»*
 | 5 | Camera, selezione, graybox 2D | Pan/zoom/rotate, cell hover/select. | 🟡 *(hover cella ⏳, CP 1.4)* |
 | 6 | FRTCellId, lookup, grafo, A* | Path visibile e testato. | ✅ *(`FRTGridCoord`, pathfinding pesato/grafo, test)* |
 | 7 | Due unità e planning movimento | Draft path per unità. | ✅ *(waypoint + preview)* |
-| 8 | Ready simultaneo locale | Countdown annullabile. | 🟡 *(timer 30 s + lock-in immediato con Spazio; il **countdown annullabile di 3 s** non esiste — verificato 2026-08-07 su `ARTTurnManager::LockInAndResolve`. Baseline in [`../gameplay/spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §7.2)* |
+| 8 | Ready simultaneo locale | Countdown annullabile. | ✅ *(dal 2026-09-04, [#2193](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2193): `ARTTurnManager::RequestLockIn`/`CancelLockIn`, `ReadyCountdownSeconds` **3 s**, Unready su RMB/Backspace. ~~il **countdown annullabile di 3 s** non esiste — verificato 2026-08-07~~. Baseline in [`../gameplay/spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §7.2.* ⚠️ *«Simultaneo» resta parziale per una ragione di formato, non di codice: la v0.1 ha **un solo umano**, quindi il quorum «tutti Ready» non è osservabile prima del 3v3 e di **M10**)* |
 | 9 | Snapshot e movement resolution | Esito indipendente dal frame. | ✅ *(resolver ordine-indipendente, test)* |
 | 10 | TurnLog + Automation Test | Log visibile e test automatico. | 🟡 *(combat log + 63 test; TurnLog strutturato/replay ⏳)* |
 | 11 | Roadmap successiva | Backlog rete, GAS, multilivello, dedicated. | ✅ *(questo doc + tracker)* |

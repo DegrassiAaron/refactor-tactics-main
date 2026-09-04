@@ -297,4 +297,23 @@ public:
 	 */
 	static ERTHexDirection ReadFacingForConsumer(const FRTHexSimUnit& Unit, ERTFacingOutcome Consumer,
 		ERTMatchPhase Phase, TArray<FRTTurnLogEntry>& Log);
+
+	/**
+	 * La stessa registrazione, dai due dati che servono davvero: **cella e facing** (`#1933`).
+	 *
+	 * 🔑 **Esiste perche' il consumatore reale non ha una `FRTHexSimUnit` da porgere.** Il Blast legge il
+	 * facing in `ResolveCombatPasses`, dove le unita' sono `FRTHexCombatUnit` — un tipo diverso, con gli
+	 * stessi due campi che questa funzione usa. La nota di `RTTurnLog.h` lo dichiarava come **il costo** di
+	 * chiudere il residuo: *«`ReadFacingForConsumer` accetta una `FRTHexSimUnit` mentre il Blast maneggia
+	 * `FRTHexCombatUnit`»*.
+	 *
+	 * ⛔ **Un overload, non una firma cambiata**: l'esistente ha due chiamanti nei test e delega qui, cosi'
+	 * la voce prodotta e' la stessa per costruzione. Convertire i chiamanti a mano avrebbe creato due
+	 * scritture da tenere d'accordo — che e' il difetto, non la soluzione.
+	 *
+	 * ⚠️ Non prende l'unita' per non chiedere piu' di quanto legge: una funzione che accetta una struct
+	 * intera per usarne due campi invita il chiamante a credere che ne guardi altri.
+	 */
+	static ERTHexDirection ReadFacingForConsumer(const FRTCellId& Cell, ERTHexDirection Facing,
+		ERTFacingOutcome Consumer, ERTMatchPhase Phase, TArray<FRTTurnLogEntry>& Log);
 };

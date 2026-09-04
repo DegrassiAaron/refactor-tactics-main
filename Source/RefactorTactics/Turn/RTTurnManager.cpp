@@ -815,6 +815,25 @@ void ARTTurnManager::PlanBots()
 		// Il ramo era scritto per `Guardian.Barrier`, che di cooldown ne aveva 3 e dava 40 di scudo. Chiedere
 		// un effetto curativo lo riporta a quel significato senza dipendere dai cooldown, che sono
 		// bilanciamento e cambiano.
+		//
+		// 🔴 2026-09-04 (`#2283`): **e lo SCUDO non basta, serve la CURA.** Lo stesso loop e' tornato
+		// appena `Action.Shield` ha dichiarato `bSelfTarget` e i suoi due portatori d'eroe hanno dato al ramo
+		// il suo primo consumatore reale del roster. La ragione sta nella condizione d'ingresso, non nei
+		// cooldown: `Health * 2 < MaxHealth` la scioglie **solo** un effetto che alza gli HP. Lo scudo di
+		// `Action.Shield` e' TEMPORANEO — `AddTemporaryShield`, scade nel Cleanup — quindi non tocca
+		// `Health`, la condizione resta vera per sempre e il bot rientra qui a ogni ricarica. Misurato: Wraith
+		// ferma 5 turni contro un limite di 4, «di cui 2 inerti e 3 armati», con `Bot.StallDefinitions...`,
+		// `Match.Autobattle...`, `Replay.Producer...` e il playback dell'Editor rossi a cascata.
+		//
+		// 🔑 Il criterio e' quindi **l'effetto che scioglie la guardia**, non «supporto» in generale: e'
+		// cio' che rende il ramo non ripetibile a vuoto senza aggiungere stato all'unita' — stato che il
+		// replay dovrebbe serializzare, e sarebbe determinismo speso per un ripiego.
+		//
+		// Con questo il ramo torna NON ATTRAVERSATO nel roster v0.1, che e' lo stato documentato da `#464` e
+		// scelto dal progetto: rendere un'azione curativa lanciabile su di se' *«e' una scelta di
+		// bilanciamento — un eroe che si cura da solo cambia il ritmo dello scontro — non un refactoring»*,
+		// ed e' rinviata alla v0.2. Chi la prendera' trovera' qui la prova che «schermi» non equivale a
+		// «curi», e che il ramo va ripensato prima di aprirlo allo scudo.
 		bool bUsedSupport = false;
 		for (int32 A = 0; A < Bot->NumAbilities(); ++A)
 		{
@@ -824,7 +843,9 @@ void ARTTurnManager::PlanBots()
 			{
 				for (const FRTActionEffectSpec& Spec : Ab->Def.Effects)
 				{
-					if (Spec.Effect == ERTActionEffect::Heal || Spec.Effect == ERTActionEffect::Shield)
+					// Solo `Heal`: vedi sopra — uno scudo non alza `Health`, quindi non scioglie la guardia
+					// che ha fatto entrare qui, e il ramo si ripeterebbe a ogni ricarica (#2283).
+					if (Spec.Effect == ERTActionEffect::Heal)
 					{
 						bRestores = true;
 						break;
@@ -1641,6 +1662,76 @@ void ARTTurnManager::OnPlanningTimeout()
 	LockInAndResolve();
 }
 
+void ARTTurnManager::RequestLockIn()
+{
+	// Stessa guardia di `LockInAndResolve`, e non e' ridondanza: senza, un Ready fuori pianificazione armerebbe
+	// un countdown che poi troverebbe la porta chiusa — tre secondi di attesa per un no-op.
+	if (Phase != ERTMatchPhase::Planning || bIsResolving)
+	{
+		return;
+	}
+
+	// Un secondo Ready non riarma il countdown: chi preme due volte non si regala altri tre secondi.
+	if (IsReadyCountdownActive())
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World || ReadyCountdownSeconds <= 0.f)
+	{
+		// La via di sempre: commit sincrono. E' quella dei test headless e dell'harness, ed e' la ragione per
+		// cui `#2193` non cambia un solo TurnLog esistente.
+		LockInAndResolve();
+		return;
+	}
+
+	World->GetTimerManager().SetTimer(ReadyCountdownTimerHandle, this,
+		&ARTTurnManager::LockInAndResolve, ReadyCountdownSeconds, false);
+
+	// ⚠️ **Diagnostica, non combat log**: questa riga non riguarda chi gioca — l'ha appena fatto lui. Serve a
+	// chi legge `RefactorTactics.log` dopo una seduta e deve distinguere «ha aspettato il timer» da «ha
+	// dichiarato Ready e il countdown ha fatto il resto». Stessa scelta di `#1957` per il lock-in muto.
+	UE_LOG(LogRT, Log, TEXT("[RT] Ready del giocatore -> countdown %.1fs prima del commit (turno %d)"),
+		ReadyCountdownSeconds, TurnNumber);
+}
+
+void ARTTurnManager::CancelLockIn()
+{
+	if (!IsReadyCountdownActive())
+	{
+		return; // no-op silenzioso: l'Unready fuori dal countdown non e' un errore, e' un tasto premuto a vuoto
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ReadyCountdownTimerHandle);
+	}
+
+	// 🔴 **`PlanningTimerHandle` non si tocca.** Non e' stato fermato dal Ready, quindi non va fatto ripartire
+	// dall'Unready: sta ancora scorrendo da dov'era. E' la meta' meno ovvia di *«il countdown non sostituisce
+	// il timer massimo»* — se l'Unready riarmasse il tetto, la coppia Ready+Unready sarebbe un modo di
+	// pianificare senza limite.
+	UE_LOG(LogRT, Log, TEXT("[RT] Unready -> il piano torna in pianificazione (turno %d, restano %.1fs)"),
+		TurnNumber, GetPlanningTimeRemaining());
+}
+
+bool ARTTurnManager::IsReadyCountdownActive() const
+{
+	const UWorld* World = GetWorld();
+	return World && World->GetTimerManager().IsTimerActive(ReadyCountdownTimerHandle);
+}
+
+float ARTTurnManager::GetReadyCountdownRemaining() const
+{
+	if (const UWorld* World = GetWorld())
+	{
+		const float Remaining = World->GetTimerManager().GetTimerRemaining(ReadyCountdownTimerHandle);
+		return Remaining > 0.f ? Remaining : 0.f;
+	}
+	return 0.f;
+}
+
 float ARTTurnManager::GetPlanningTimeRemaining() const
 {
 	if (const UWorld* World = GetWorld())
@@ -1688,7 +1779,17 @@ void ARTTurnManager::LockInAndResolve()
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(PlanningTimerHandle);
+
+		// 🔑 **E il countdown, qualunque dei due orologi ci abbia portati qui** (`#2193`). E' la riga che rende
+		// *«il countdown non sostituisce il timer massimo»* una proprieta' della struttura: se il tetto scade
+		// mentre il countdown scorre, arriviamo qui dal tetto e il countdown muore senza aver committato due
+		// volte. Il primo che scatta vince, e la guardia in testa a questa funzione fa il resto.
+		World->GetTimerManager().ClearTimer(ReadyCountdownTimerHandle);
 	}
+
+	// Il commit e' avvenuto: chi disegna un'anteprima di pianificazione deve spegnerla adesso, e da qui in poi
+	// mostrerebbe una minaccia gia' decisa. Annuncio, non comando: uno scenario headless non ascolta.
+	OnLockInCommitted.Broadcast();
 
 	// Nuova risoluzione: azzera la timeline del turno (verra' popolata dalle fasi).
 	ResolvedTimeline.Reset();
@@ -1965,7 +2066,15 @@ void ARTTurnManager::LockInAndResolve()
 		// misura — «un turno di controllo vale un progresso» — ed e' intero come la DoD chiede: un float
 		// renderebbe il punteggio dipendente dall'ordine delle somme, che e' esattamente cio' che il
 		// determinismo del TurnLog non ammette. Quanti punti servano per vincere e' un'altra domanda, e vive
-		// in `FRTMatchRules::ScoreToWin` — oggi ZERO, cioe' via disattivata.
+		// in `FRTMatchRules::ScoreToWin`: **CINQUE** nel formato spedito (`RTMatchFormatLibrary.cpp`,
+		// **D-247**, 2026-08-30), derivato dalla geometria dell'arena e non da una partita.
+		//
+		// 🔴 Qui c'era scritto «oggi ZERO, cioe' via disattivata», e lo e' rimasto CINQUE GIORNI dopo che
+		// D-247 lo aveva smentito — quella decisione cita perfino questo commento senza aggiornarlo. Nel
+		// frattempo due documenti lo hanno COPIATO come misura invece di leggere il formato. Lo zero non era
+		// nemmeno il valore sbagliato: era il **default della struct**, che vale solo dove nessuno carica un
+		// formato — lo ScenarioHarness, per esempio. Un avverbio temporale senza data e' una scadenza che
+		// nessun gate controlla: se questa riga cambia di nuovo, si aggiorna QUI, nello stesso commit.
 		const int32 Points = 1;
 		if (Control == ERTObjectiveOutcome::Team0Scores) { AddTeamScore(0, Points); }
 		else if (Control == ERTObjectiveOutcome::Team1Scores) { AddTeamScore(1, Points); }
@@ -5087,6 +5196,50 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 				&& URTHexCombatLibrary::IsInFrontalArc(
 					HexUnits[i].Cell, HexUnits[i].Facing, ImpactOrigin);
 			bFrontalHit[h] = bFrontal;
+
+			// 🔴 **La LETTURA si registra qui, ed e' il produttore che `UsedByBlast` aspettava** (`#1933`).
+			//
+			// `D-020` chiede che snapshot e TurnLog registrino **quale** facing ha usato ciascun
+			// consumatore. Il vocabolario c'era — `ERTFacingOutcome::UsedByBlast` — e il consumatore pure:
+			// la riga qui sopra legge `HexUnits[i].Facing` e ne fa dipendere `bFrontal`. Mancava solo chi lo
+			// scrivesse: `ReadFacingForConsumer` aveva **zero chiamanti in gioco**, e `RTTurnLog.h` lo
+			// dichiarava.
+			//
+			// ⚠️ **Questo ramo e' quello della GUARDIA, non ogni lettura del Blast**, e la differenza va
+			// conosciuta da chi legge la traccia: il ciclo salta le unita' senza `Status.Guarded`. L'altra
+			// lettura — la copertura generale — sta in `EffectiveCoverReduction`, che e' **pura**: darle un
+			// log significherebbe passare un `TArray<FRTTurnLogEntry>&` dentro il resolver, cioe' rompere
+			// il confine che `RTCombatResolver.h` dichiara. ∴ una traccia senza voci `UsedByBlast` non dice
+			// «il Blast non ha letto il facing»: dice «nessun difensore era in Guardia».
+			//
+			// ⚠️ **`HexUnits[i]` e' una `FRTHexCombatUnit`, non una `FRTHexSimUnit`**, ed e' il costo che la
+			// nota di `RTTurnLog.h` dichiarava. Si passa per l'overload sui due campi — cella e facing — che
+			// sono gli stessi che la funzione usa: il tipo non combacia, l'informazione si'.
+			//
+			// ⚠️ **Dentro `bOriginResolved`, e non fuori.** Il `&&` e' a corto circuito: senza un'origine
+			// risolta `IsInFrontalArc` non viene chiamata affatto, quindi nessuna lettura avviene.
+			// Registrarla lo stesso scriverebbe una voce che dichiara una lettura mai fatta — il dato
+			// plausibile e falso che il repository evita per scelta (`FRTPacingSample::Unmeasured`), e la
+			// ragione esatta per cui il gemello `UsedByOverwatch` **resta senza produttore**: li' il cono
+			// pianificato non esiste, e la lettura non avviene mai.
+			//
+			// ⛔ Non e' una voce di ESITO: dice cosa il Blast ha letto, non cosa ne ha concluso. Il ramo
+			// `RearHitBypassedGuard` qui sotto racconta la conseguenza, e le due non si sostituiscono —
+			// una risponde «quale facing», l'altra «con quale effetto».
+			if (bOriginResolved)
+			{
+				// L'array locale e il giro da `AppendLogEntry` sono il pattern di `RecordFacingChange`: la
+				// libreria non puo' riempire turno, revisione del grafo e identita' dell'attore, e una voce
+				// aggiunta a mano a `TurnLog` nascerebbe senza contesto.
+				TArray<FRTTurnLogEntry> Lette;
+				URTFacingLibrary::ReadFacingForConsumer(
+					HexUnits[i].Cell, HexUnits[i].Facing,
+					ERTFacingOutcome::UsedByBlast, ERTMatchPhase::Blast, Lette);
+				for (FRTTurnLogEntry& Voce : Lette)
+				{
+					AppendLogEntry(Voce, Units[i]);
+				}
+			}
 
 			if (!bFrontal && bOriginResolved)
 			{

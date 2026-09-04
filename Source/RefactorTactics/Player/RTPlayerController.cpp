@@ -1614,12 +1614,28 @@ void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 			UE_LOG(LogRT, Log, TEXT("[RT] Lock-in del giocatore -> risoluzione anticipata (turno %d)"),
 				TurnManager->GetTurnNumber());
 
-			// L'anteprima muore col lock-in: da qui in poi mostrerebbe una minaccia gia' risolta, e la traccia
-			// del percorso la sostituisce `LastMoveRoutes` (cio' che e' DAVVERO successo, non cio' che si voleva).
-			RefreshPlanningPreview(GetWorld(), nullptr);
-			TurnManager->LockInAndResolve();
+			// 🔴 **L'anteprima NON muore qui, e dal 2026-09-04 e' il punto** (`#2193`). Fra il Ready e il commit
+			// c'e' un countdown annullabile: spegnere il piano al Ready renderebbe falso il criterio che dice
+			// *«premendo Unready si torna alla pianificazione senza aver perso il piano»* — i dati ci sarebbero,
+			// e per chi gioca un piano invisibile e' un piano perso.
+			//
+			// Muore al **commit**, che e' un fatto del `TurnManager` e non di questo tasto: `OnLockInCommitted`
+			// scatta dentro `LockInAndResolve`, quindi da qualunque dei percorsi ci si arrivi.
+			//
+			// ⚠️ `AddUniqueDynamic` e non `AddDynamic`: questa riga passa una volta per Ready, e senza `Unique`
+			// il turno decimo spegnerebbe l'anteprima dieci volte.
+			TurnManager->OnLockInCommitted.AddUniqueDynamic(this, &ARTPlayerController::HandleLockInCommitted);
+			TurnManager->RequestLockIn();
 		}
 	}
+}
+
+void ARTPlayerController::HandleLockInCommitted()
+{
+	// L'anteprima muore col COMMIT, non col Ready: da qui in poi mostrerebbe una minaccia gia' risolta, e la
+	// traccia del percorso la sostituisce `LastMoveRoutes` (cio' che e' DAVVERO successo, non cio' che si
+	// voleva). E' la riga che stava in `OnLockIn` fino a `#2193`.
+	RefreshPlanningPreview(GetWorld(), nullptr);
 }
 
 void ARTPlayerController::ApplyNextPlaybackSpeed(ARTTurnManager* TurnManager)
@@ -1828,6 +1844,28 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 	if (IsPlanningInputInert())
 	{
 		return;
+	}
+
+	// 🔑 **Durante il countdown questo tasto e' l'Unready** (`#2193`, deciso il 2026-09-04).
+	//
+	// Non e' un secondo significato contemporaneo: gli stati sono **mutuamente esclusivi**. Con il countdown
+	// armato la pianificazione e' chiusa, quindi non c'e' nessun waypoint da annullare, e il tasto Annulla
+	// annulla cio' che e' annullabile adesso. E' anche il motivo per cui l'Unready non e' un tasto nuovo: il
+	// kit v0.1 ha gia' nove voci piu' quattro generiche (`E48` #1408), e un gesto attivo tre secondi a turno
+	// era il candidato peggiore per allungarlo.
+	//
+	// ⛔ **E non e' un toggle su Spazio**: chi preme due volte per abitudine annullerebbe senza volerlo, cioe'
+	// l'opposto esatto del difetto che il countdown esiste per prevenire.
+	//
+	// ⚠️ Sta DOPO le tre guardie qui sopra, e ognuna serve: una schermata bloccante copre la partita,
+	// `Alt`+destro e' un dolly, e in una sessione non presidiata non c'e' un umano che possa disdire.
+	if (ARTTurnManager* TM = PacingTurnManager(this))
+	{
+		if (TM->IsReadyCountdownActive())
+		{
+			TM->CancelLockIn();
+			return;
+		}
 	}
 
 	ARTUnit* Unit = GetSelectedUnit();
