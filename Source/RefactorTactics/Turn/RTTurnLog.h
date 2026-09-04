@@ -581,7 +581,25 @@ enum class ERTMoveOutcome : uint8
 	 * vicina a cio' che il giocatore ha visto. E' la stessa disciplina del commento di `BlockedByTopology`,
 	 * e per questo la condizione di scrittura confronta la cella FINALE con quella di scivolamento.
 	 */
-	Slid
+	Slid,
+	/**
+	 * Arrivata dove il giocatore l'aveva mandata, e il ghiaccio l'avrebbe portata OLTRE ma qualcosa l'ha
+	 * impedito: la cella di scivolamento era occupata da un'unita' ferma, contesa da un'altra mobilita', o
+	 * coperta da un Overwatch o da una Predictive (#2284). Aggiunto in CODA, come gli otto valori sopra.
+	 *
+	 * **Perche' non `Moved`, che sarebbe letteralmente vero.** Lo e' — la destinazione pianificata e' stata
+	 * raggiunta — ma dopo [D-319] «non sono scivolato» e' informazione di GIOCO e non una sfumatura di
+	 * rendering: chi scivola riceve `Status.Unbalanced`, chi non scivola resta intero. Due esiti che lasciano
+	 * l'unita' in stati diversi non possono condividere una riga di replay.
+	 *
+	 * **Perche' non il reason del blocco**, che e' cio' che il resolver produce oggi. `BlockedByUnit` e i suoi
+	 * fratelli dicono «non e' arrivata», e qui e' falso: e' arrivata, e cio' che le e' stato impedito e'
+	 * l'EXTRA che non aveva chiesto. Il resolver non sbaglia — vede `Final != Paths.Last()` e non puo' sapere
+	 * che l'ultima cella non era pianificata; il suo contratto e' dichiarato «dipende solo da `Final`/`Paths`,
+	 * quindi indipendente dall'ordine», ed e' una proprieta' da non toccare. Chi conosce la destinazione vera
+	 * e' il CHIAMANTE, ed e' li' che questo esito si scrive.
+	 */
+	SlideBlocked
 };
 
 /**

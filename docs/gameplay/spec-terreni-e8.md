@@ -159,11 +159,33 @@ order-independent (destinazione contesa → contendenti fermi da lì; cella di u
 scambio diretto → consentito). Lo scivolamento si inserisce **prima** di questa chiamata: se il percorso
 troncato al budget (da `FindPathForUnit`/`BuildCompositeHexPath`) termina su `Ice` e il budget residuo
 dell'unità è **≥ 2**, si appende una cella nella direzione dell'ultimo passo (stessa direzione
-dell'ingresso), verificando solo che la cella esista e non blocchi il movimento (`bBlocksMovement`) — **non**
-serve controllare l'occupazione qui: il path esteso entra comunque nel microstep di `ResolveHexPaths`, che
-gestisce occupazione e collisioni con lo stesso meccanismo di qualunque altro passo pianificato. **Nessun
-limite da dichiarare per il Move**: due unità che scivolano verso la stessa cella libera vengono gestite dal
-resolver esistente esattamente come due unità che vi si muovono normalmente.
+dell'ingresso), verificando che la cella esista, che non blocchi il movimento (`bBlocksMovement`) e che il
+**passo** verso di essa sia percorribile — **non** serve controllare l'occupazione qui: il path esteso entra
+comunque nel microstep di `ResolveHexPaths`, che gestisce occupazione e collisioni con lo stesso meccanismo
+di qualunque altro passo pianificato. **Nessun limite da dichiarare per il Move**: due unità che scivolano
+verso la stessa cella libera vengono gestite dal resolver esistente esattamente come due unità che vi si
+muovono normalmente.
+
+> ➕ **La percorribilità del passo è stata aggiunta il 2026-09-04** ([#2284](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2284)).
+> Muri e coperture alte non stanno nella cella ma sul **bordo** fra due celle
+> (`URTHexCoverLibrary::BlocksTraversal`), quindi `bBlocksMovement` non li vedeva: un'unità che finiva il
+> Move su una lastra addossata a un muro ci **scivolava attraverso**. La rinuncia dichiarata sopra riguarda
+> l'**occupazione**, che è un'altra domanda e resta corretta. Dentro `ResolveMovement` il difetto era
+> mascherato da `TruncatePathToTopology`; `ApplyIceSliding` è però pura e pubblica, e ogni chiamante diretto
+> riceveva il muro attraversato. Si chiede a `GraphNeighbors` invece di rileggere i bordi: la regola su cosa
+> separa due celle vive in un posto solo. Test: `Terrain.Ice.WallOnEdgeStopsSliding`.
+
+> ➕ **E lo scivolamento impedito ha un esito proprio**, dalla stessa issue. Il percorso esteso entra nel
+> resolver, che considera `Paths.Last()` la destinazione — ma quella cella **non è pianificata dal
+> giocatore**. Con lo slide impedito (cella occupata, contesa, Overwatch, Predictive)
+> `FinalizeHexMovementOutcomes` vedeva `Final != Paths.Last()` e registrava il reason del blocco: un'unità
+> arrivata **dove il giocatore l'aveva mandata** compariva nel replay come «fermo: cella occupata».
+> ⛔ **Il resolver non è stato toccato**: il suo contratto — *«dipende solo da `Final`/`Paths`, quindi
+> indipendente dall'ordine»* — è una proprietà da preservare, e chi conosce la destinazione vera è il
+> chiamante. Nasce così `ERTMoveOutcome::SlideBlocked`, distinto da `Moved` perché dopo
+> [`D-319`](../decisions/RT_PDR_00_Decision_Log.md) *«non sono scivolato»* è informazione di gioco: chi
+> scivola riceve `Status.Unbalanced`, chi non scivola resta intero. Test:
+> `Terrain.Ice.SlideBlockedIsNotAFailedMove` e `UI.PlayerEventLog.SlideBlockedIsNotAFailure`.
 
 **Limite dichiarato**: una mobilità **lineare** che termina su `Ice` **non** innesca lo scivolamento.
 `URTMovementActionLibrary::ResolveLinearMove` non passa dal microstep condiviso — valuta gli ostacoli contro

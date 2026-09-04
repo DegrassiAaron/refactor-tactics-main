@@ -401,6 +401,11 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// `SrcCell -> TgtCell` che il ramo lungo stampa e' la stessa di `Moved`, e senza una parola diversa la
 		// riga direbbe che l'unita' e' andata dove voleva — che e' precisamente cio' che non e' successo.
 		case ERTMoveOutcome::Slid:              Reason = TEXT("scivola"); break;
+		// «arriva» e non «si muove» (#2284): la riga deve dire che la destinazione E' stata raggiunta — il
+		// contrario di quello che il reason di blocco diceva prima — e insieme che il ghiaccio non ha
+		// completato l'opera. Il perche' preciso (occupata, contesa, Overwatch) resta nella voce che quel
+		// blocco lo ha prodotto: qui si racconta il movimento, non chi lo ha ostacolato.
+		case ERTMoveOutcome::SlideBlocked:      Reason = TEXT("arriva, scivolata impedita"); break;
 		// Un valore aggiunto in coda all'enum e non tradotto qui: si legge lo stesso e DICE di non essere
 		// tradotto, invece di travestirsi da «resta». Chi lo incontra sa dove guardare.
 		default:
@@ -422,6 +427,7 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		if (static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Moved
 			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Displaced
 			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Slid
+			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SlideBlocked
 			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SupersededByDash)
 		{
 			return FString::Printf(TEXT("%s %s -> %s (%d celle)%s"),

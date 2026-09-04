@@ -56,11 +56,29 @@ namespace
 			// raccontare. Sta con `Displaced` e `DisplacementResisted`, che sono l'altra faccia dello stesso
 			// fatto: spostamenti SUBITI.
 			//
-			// 🔴 **Senza questo ramo lo scivolamento sparisce dal feed**: prima di `Slid` la voce portava
-			// `Moved` e produceva un evento; con un valore nuovo non tradotto qui cadrebbe nel `default` e
-			// l'unita' si sposterebbe senza che nulla lo dica. Un esito nuovo va aggiunto in DUE posti — il
-			// rendering leggibile e questa proiezione — e il secondo non fallisce a compilazione.
+			// 🔴 **Un esito nuovo va tradotto QUI oltre che nel rendering leggibile, e questo posto non
+			// fallisce a compilazione**: lo `switch` finisce in `default: return false`, quindi un valore non
+			// tradotto semplicemente non produce nulla.
+			//
+			// ⚠️ **Rettifica a `#2258`, che qui scriveva «senza questo ramo lo scivolamento SPARISCE dal
+			// feed».** Era falso, ed e' stato misurato in `#2284`: `Moved` e' `Minor`, e i `Minor` vengono
+			// tolti in blocco alla fine di `Project` (§D li vuole «normalmente silenziosi»). Lo scivolamento
+			// non compariva **gia' prima**; questo ramo non ripara una regressione, lo rende visibile per la
+			// prima volta.
 			case ERTMoveOutcome::Slid:
+				OutType = ERTPlayerEventType::Moved;
+				OutImportance = ERTPlayerEventImportance::Important;
+				return true;
+
+			// `Important` come `Slid`, e non `Minor` come `Moved` (#2284). §D tiene silenzioso il movimento
+			// riuscito perche' e' l'esito ATTESO — e i `Minor` vengono tolti in blocco in fondo a `Project`,
+			// quindi «Minor» qui significherebbe «mai raccontato». Questo esito e' invece un'aspettativa
+			// DISATTESA: il ghiaccio non ha fatto cio' che fa sempre.
+			//
+			// I due sono simmetrici e stanno insieme: `Slid` e' «e' successo qualcosa che non avevi chiesto»,
+			// `SlideBlocked` e' «non e' successo qualcosa su cui contavi». Dopo [D-319] la differenza si vede
+			// nello stato dell'unita': uno dei due lascia `Status.Unbalanced`, l'altro no.
+			case ERTMoveOutcome::SlideBlocked:
 				OutType = ERTPlayerEventType::Moved;
 				OutImportance = ERTPlayerEventImportance::Important;
 				return true;

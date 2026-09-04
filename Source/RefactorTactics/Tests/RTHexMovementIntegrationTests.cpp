@@ -557,6 +557,67 @@ TOptional<ERTMoveOutcome> EsitoMoveNelLog(const ARTTurnManager* TM, const ARTUni
 }
 } // namespace
 
+/**
+ * CHI ARRIVA A DESTINAZIONE MA NON RIESCE A SCIVOLARE NON E' UN MOVIMENTO FALLITO — `#2284`.
+ *
+ * 🔴 **Il difetto: il resolver aveva ragione e il TurnLog mentiva.** Il percorso esteso entra nel
+ * microstep, che considera `Paths.Last()` la destinazione — ma quella cella non e' pianificata dal
+ * giocatore. Con la cella di scivolamento occupata, `FinalizeHexMovementOutcomes` vedeva
+ * `Final != Paths.Last()` e scriveva `BlockedByUnit`: «fermo, cella occupata», per un'unita' arrivata
+ * esattamente dove l'avevano mandata.
+ *
+ * Il contratto del resolver — «dipende solo da `Final`/`Paths`, quindi indipendente dall'ordine» — non si
+ * tocca: chi conosce la destinazione vera e' il chiamante, ed e' li' che l'esito si corregge.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIceSlideBlockedIsNotAFailedMoveTest,
+	"RefactorTactics.Terrain.Ice.SlideBlockedIsNotAFailedMove",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTIceSlideBlockedIsNotAFailedMoveTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 6))
+	{
+		FRTHexCellData Data(Id);
+		if (Id == FRTCellId(2, 0)) { Data.Surface = ERTHexSurface::Ice; }
+		Map->AddOrUpdateCell(Data);
+	}
+	Map->SortCells();
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Map;
+
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	// L'ostacolo sta sulla cella di SCIVOLAMENTO, non su quella di destinazione: (3,0) e' dove il ghiaccio
+	// porterebbe, (2,0) e' dove il giocatore ha chiesto di andare.
+	ARTUnit* Blocker = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Blocker) { DestroyHexMoveWorld(World); return false; }
+
+	Mover->PlannedCell = FRTCellId(2, 0);
+	Blocker->PlannedCell = Blocker->Cell; // fermo: e' un ostacolo, non un contendente
+	RunTurn(TM);
+
+	// PREMESSA: l'unita' e' arrivata dove aveva chiesto. Se fallisse, il test misurerebbe un altro difetto.
+	if (!TestTrue(TEXT("premessa: il mover raggiunge la destinazione pianificata"),
+		Mover->Cell == FRTCellId(2, 0)))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	const TOptional<ERTMoveOutcome> Esito = EsitoMoveNelLog(TM, Mover);
+	if (TestTrue(TEXT("il Move del mover ha una voce nel TurnLog"), Esito.IsSet()))
+	{
+		TestEqual(TEXT("arrivata a destinazione con la scivolata impedita: non e' un movimento fallito"),
+			static_cast<int32>(*Esito), static_cast<int32>(ERTMoveOutcome::SlideBlocked));
+	}
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIceSlidesInMatchTest,
 	"RefactorTactics.Terrain.Ice.SlidesInMatch",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

@@ -449,6 +449,33 @@ TArray<FRTCellId> URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapsh
 		return Path;
 	}
 
+	// Il PASSO, non solo la cella (#2284). Muri e coperture non stanno nella cella ma sul BORDO fra due
+	// celle (`URTHexCoverLibrary::BlocksTraversal`), quindi `bBlocksMovement` qui sopra non li vede: senza
+	// questo controllo un'unita' che finisce il Move su una lastra addossata a un muro ci scivolava
+	// attraverso.
+	//
+	// Si chiede al GRAFO, come fa `TruncatePathToTopology`: la regola su cosa separa due celle vive in un
+	// posto solo, e riscriverla qui darebbe due risposte alla stessa domanda, destinate a divergere.
+	//
+	// ⚠️ **Non e' il controllo che `spec-terreni-e8.md` §5.2 dichiara di NON fare.** Quella riga rinuncia
+	// all'OCCUPAZIONE — chi sta nella cella — ed e' corretta: il microstep di `ResolveHexPaths` la gestisce
+	// come per qualunque altro passo. La percorribilita' del bordo e' un'altra domanda, e la spec non la
+	// nominava: dentro `ResolveMovement` il taglio a valle la mascherava, ma questa funzione e' pura e
+	// pubblica, e chi la chiama direttamente riceveva il muro attraversato.
+	bool bStepIsWalkable = false;
+	for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Snapshot.Map, LastCell))
+	{
+		if (Step.Key == SlideCell)
+		{
+			bStepIsWalkable = true;
+			break;
+		}
+	}
+	if (!bStepIsWalkable)
+	{
+		return Path; // un muro fra la cella d'arrivo e quella di scivolamento: non si scivola
+	}
+
 	TArray<FRTCellId> Extended = Path;
 	Extended.Add(SlideCell);
 	return Extended;

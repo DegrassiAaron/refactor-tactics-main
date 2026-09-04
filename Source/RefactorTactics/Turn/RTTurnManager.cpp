@@ -6631,6 +6631,8 @@ void ARTTurnManager::ResolveMovement()
 	SlideTarget.Init(FRTCellId(), Units.Num());
 	TArray<bool> bSlideRequested;
 	bSlideRequested.Init(false, Units.Num());
+	TArray<FRTCellId> PlannedLast;
+	PlannedLast.Init(FRTCellId(), Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
@@ -6677,6 +6679,10 @@ void ARTTurnManager::ResolveMovement()
 			// di scivolamento.
 			bSlideRequested[i] = true;
 			SlideTarget[i] = Path.Last();
+			// La destinazione che il GIOCATORE ha chiesto, cioe' l'ultima cella prima dell'estensione. Il
+			// resolver non la conosce — vede un percorso solo e ne prende l'ultima cella — ed e' la ragione
+			// per cui l'esito «arrivata ma non scivolata» si scrive qui e non li' (#2284).
+			PlannedLast[i] = Path[LengthBeforeSlide - 1];
 		}
 
 		// TOPOLOGIA (CP 9.3): il percorso e' stato validato quando la mappa era un'altra — una porta chiusa
@@ -6799,6 +6805,20 @@ void ARTTurnManager::ResolveMovement()
 			&& Resolved[i].Final == SlideTarget[i])
 		{
 			MoveLog[i].Outcome = static_cast<uint8>(ERTMoveOutcome::Slid);
+		}
+		// ARRIVATA MA NON SCIVOLATA (#2284). Il resolver ha visto `Final != Paths.Last()` e ha scritto il
+		// reason del blocco — corretto per lui, falso per il giocatore: la cella che l'unita' non ha
+		// raggiunto e' quella EXTRA, che non aveva chiesto. Dove voleva andare c'e' arrivata.
+		//
+		// ⚠️ **Qui si sovrascrive un reason di BLOCCO, non `Moved`**, ed e' l'unico dei tre rami che lo fa:
+		// il criterio non e' «l'esito del resolver e' innocuo» ma «la destinazione pianificata e' stata
+		// raggiunta», che e' un fatto piu' forte e vale contro qualunque reason. Chi si e' fermata PRIMA
+		// della propria destinazione non entra qui, e conserva il motivo del resolver.
+		else if (bSlideRequested.IsValidIndex(i) && bSlideRequested[i]
+			&& Resolved[i].Outcome != ERTMoveOutcome::Moved
+			&& Resolved[i].Final == PlannedLast[i])
+		{
+			MoveLog[i].Outcome = static_cast<uint8>(ERTMoveOutcome::SlideBlocked);
 		}
 	}
 	// In blocco, ma una per una: `Append` bypasserebbe il contesto della v6, ed e' la seconda porta

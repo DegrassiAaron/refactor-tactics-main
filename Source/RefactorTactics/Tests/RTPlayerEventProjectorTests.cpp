@@ -31,6 +31,40 @@ namespace
 }
 
 /**
+ * CHI ARRIVA MA NON SCIVOLA E' UN MOVIMENTO RIUSCITO, NON UNO BLOCCATO — `#2284`.
+ *
+ * Prima di `SlideBlocked` questa unita' portava il reason del blocco (`BlockedByUnit` e simili) e il feed
+ * le dava un `MoveBlocked`/`Important`: una riga che diceva al giocatore che il suo movimento era fallito,
+ * mentre l'unita' era arrivata esattamente dove l'aveva mandata.
+ *
+ * ⚠️ **`Important` come `Slid`**: i `Minor` vengono tolti in blocco alla fine di `Project` (§D), quindi
+ * un `Minor` qui vorrebbe dire «mai raccontato». `Slid` e `SlideBlocked` sono simmetrici: uno e'
+ * cio' che non hai chiesto, l'altro cio' su cui contavi e non e' avvenuto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerEventSlideBlockedIsNotAFailureTest,
+	"RefactorTactics.UI.PlayerEventLog.SlideBlockedIsNotAFailure",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerEventSlideBlockedIsNotAFailureTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Log;
+	Log.Add(PlayerEventEntry(ERTLogCategory::Move,
+		static_cast<uint8>(ERTMoveOutcome::SlideBlocked), /*UnitId*/ 4, /*Team*/ 0));
+
+	const TArray<FRTPlayerEvent> Events = URTPlayerEventProjector::Project(Log, /*ObserverTeamId*/ 0);
+
+	// ANTI-VACUITA': un esito non tradotto nel projector non produce NIENTE e non fallisce a compilazione.
+	if (!TestEqual(TEXT("produce una riga"), Events.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("e' un movimento riuscito, non un `MoveBlocked`"),
+		static_cast<int32>(Events[0].Type), static_cast<int32>(ERTPlayerEventType::Moved));
+	TestEqual(TEXT("ed e' Important: e' un'aspettativa disattesa, non l'esito normale"),
+		static_cast<int32>(Events[0].Importance), static_cast<int32>(ERTPlayerEventImportance::Important));
+	return true;
+}
+
+/**
  * LO SCIVOLAMENTO ARRIVA AL FEED, E NON COME UN MOVIMENTO QUALUNQUE — `#2253`.
  *
  * 🔴 **Il difetto che questo test esiste per impedire e' una SPARIZIONE, e non fallisce a compilazione.**
