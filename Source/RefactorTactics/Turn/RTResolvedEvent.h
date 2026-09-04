@@ -28,7 +28,36 @@ enum class ERTResolvedEventType : uint8
 	 * ⚠️ **In CODA e non accanto ad `Attack`**: e' un `uint8` esposto a Blueprint, e inserirlo in mezzo
 	 * rinumererebbe `HazardDamage` e `Defeated`, cambiando in silenzio ogni default gia' serializzato.
 	 */
-	AttackFootprint
+	AttackFootprint,
+
+	/**
+	 * Una reazione dichiarata è **scattata e si è risolta** (#2191): il momento in cui la difesa ha agito.
+	 *
+	 * 🔴 **Il momento non esisteva, e senza di esso due voci PIE non erano osservabili.** `PIE-VIS-DEFLECT`
+	 * lo dice per intero: senza questo evento *«la parata non ha un momento proprio: resta la sola barra che
+	 * scende poco»* — cioè esattamente l'*«attacco debole invece di una difesa riuscita»* che quella voce
+	 * esiste per escludere. E `PIE-VIS-INTERPOSE` chiede che *«entrambe le metà si vedano»* — il colpo che
+	 * parte verso uno e finisce sull'altro — dove la seconda metà era *«precisamente il momento che non
+	 * esiste»*.
+	 *
+	 * ⚠️ **Non è un `Attack`, e la differenza è il soggetto.** `Attack` dice *«questo colpo ha tolto N a
+	 * quello»*; qui il fatto è *«questa unità ha reagito»*, e il colpo che ne consegue — contrattacco,
+	 * riduzione, scudo — resta un evento suo. Un solo `Attack` con un flag non basterebbe: una
+	 * `DamageReduction` non produce nessun `Attack`, e sarebbe il caso più importante a restare invisibile.
+	 *
+	 * 🔑 **`SourceStableUnitId` è CHI reagisce; `TargetStableUnitId` è chi ha innescato**, cioè il verso
+	 * naturale della frase «X reagisce a Y». ⛔ Non il bersaglio del contrattacco: quello lo porta l'`Attack`
+	 * che segue, e duplicarlo qui creerebbe due fonti per lo stesso fatto.
+	 *
+	 * ⚠️ **In CODA, come `AttackFootprint`, e per la stessa ragione dichiarata sopra**: è un `uint8` esposto
+	 * a Blueprint, e inserirlo in mezzo rinumererebbe i valori successivi cambiando in silenzio ogni default
+	 * già serializzato.
+	 *
+	 * ⛔ **Che ASPETTO abbia non è deciso qui**: questo valore consegna il **momento**, non il suo VFX. La
+	 * grammatica visiva della reazione si decide quando c'è qualcosa da animare — ed è fuori dallo scope di
+	 * #2191, che lo dichiara.
+	 */
+	ReactionResolved
 };
 
 /**

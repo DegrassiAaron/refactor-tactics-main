@@ -28,10 +28,17 @@ dice da sé — *«Il corpus Visual, diciotto scenari che nessuna seduta convoca
 
 | | |
 |---|---|
-| voci totali · aperte | **203** · **101** |
-| aperte **schedulate** in una seduta | **69** |
-| aperte **fuori da ogni seduta** | **32** |
+| voci totali · aperte | **204** · **102** |
+| aperte **schedulate** in una seduta | **73** |
+| aperte **fuori da ogni seduta** | **29** |
 | aperte che dichiarano un ostacolo | 21 — ⚠️ **non rimisurato**, vedi la nota |
+
+> 🔄 **Rimisurato il 2026-09-04 su `main`, dopo #2228.** Dicevano `203 · 101 · 69 · 32`; il comando
+> canonico conta `204 · 76/24/2/102`, e l’incrocio con `editor-sessions.yaml` dà **73 schedulate** e
+> **29 orfane**. 🔑 **Lo scarto sulle schedulate non veniva da voci nuove**: `U45` era già nel file con
+> tre voci (`PIE-V01-ARENA`, `PIE-OBJ-PUNTI`, `PIE-V01-BOARD`) e la tabella non la contava.
+> ⚠️ **Le voci con ostacolo dichiarato restano non rimisurate**, per la ragione già scritta: contarle
+> chiede di leggere il testo di ogni riga, non un marcatore.
 
 > 🔄 **Rimisurato il 2026-09-03 su `31859e13`, e i quattro numeri erano già invecchiati prima di
 > questa passata.** Dicevano `200 · 98 · 68 · 30`; la base senza le modifiche di oggi misura
@@ -74,8 +81,12 @@ bloccata. **Trentatré** di esse non sono in nessuna sequenza, ed è la condizio
 | U5 | 5 | `[M6.6, M6.7]` | — | 🔴 bloccata da due checkpoint |
 | **U18** | **5** | `[]` | #450 #567 #583 #551–554 | 🟢 **non attende nulla**, come U42 |
 | U19 · U22 | 4 ciascuna | — | varie | 🟡 |
-| **U39** | **1** | `[U21]` | #1920 aperta | 🔴 bloccata da una seduta, **come U25** — ma ne condivide l'allestimento: vedi in coda alla §4 |
-| altre 12 sedute | 1–3 ciascuna | — | varie | — |
+| **U45** | **3** | `[E12]` | — | 🟡 attende un checkpoint, non una seduta |
+| **U39** | **1** | `[U21]` | #1920 aperta | 🟡 **l’ostacolo tecnico è caduto** (#2228): resta l’allestimento condiviso con U21 — vedi in coda alla §4 |
+| altre 14 sedute | 1–2 ciascuna | — | varie | — |
+
+🔑 **`U45` non era in questa tabella e ha tre voci aperte da prima di oggi**: è il tipo di riga che
+l’ordinamento per resa nasconde, ed è lo stesso motivo per cui `U39` ci è entrata solo ieri.
 
 ⚠️ **`U42` e `U43` sono cambiate, e non di poco**: `U43` dichiarava **dieci** voci aperte e ne misura
 **sette**. 🔑 **`U18` esce dal gruppo delle quattro** perché questa passata le ha aggiunto
@@ -155,6 +166,19 @@ a una nuova, e la decisione è di `editor-sessions.yaml`, che ne è l'owner.
 ⛔ **Non prima di U42**: assegnare trentatré voci richiede un'analisi, mentre U42 è pronta adesso.
 
 ### In coda a `U21` — `U39`, **una** voce, e chiude una issue
+
+✅ **L’ostacolo che rendeva questa seduta ineseguibile è caduto il 2026-09-04.** L’arena piena chiede
+raggio 50, e fino a #2228 quel regime **non era allestibile senza toccare un asset**: il pennello ha
+`BrushRadius` con `ClampMax = "8"`, nessuna fixture arriva a 50, e l’arena raggio 50 esisteva solo
+dentro un automation test. Ora si allestisce da riga di comando, senza aprire nessun `.uasset`:
+
+```
+UnrealEditor.exe <uproject> -dpcvars=rt.Map.Source=GeneratedDemoArena,rt.Match.DemoArenaRadius=50
+```
+
+⚠️ **Resta comunque legata a `U21`, e per una ragione diversa da prima**: non è più il regime a
+mancare, è la **scena illuminata**. Su un livello al buio il verdetto direbbe più sulle luci che sulle
+coordinate.
 
 ⚠️ **Non è un passo a sé, e la prima stesura di questa sezione lo chiamava «Passo 0» mettendolo
 davanti a `U42`.** Era sbagliato in due modi: `U39` dichiara `unblocked_by: [U21]` — lo **stesso**

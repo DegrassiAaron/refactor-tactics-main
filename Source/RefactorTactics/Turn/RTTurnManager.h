@@ -221,6 +221,21 @@ public:
 	int32 ResolvedMoveVerdictCountForTest(int32 StableUnitId) const;
 
 	/**
+	 * Hook per i test: quante reazioni RISOLTE ha emesso l'unita' data in questo turno (#2191).
+	 *
+	 * 🔴 Esiste perche' `ResolvedTimeline` e' privato e la presentazione e' l'unico consumatore: senza
+	 * questo accessore l'emissione sarebbe verificabile solo a schermo, cioe' proprio la meta' che le voci
+	 * `PIE-VIS-DEFLECT` e `PIE-VIS-INTERPOSE` esistono per giudicare — e un test che non puo' vedere il
+	 * fatto non lo sorveglia.
+	 *
+	 * ⚠️ Conta gli eventi, non gli effetti: una reazione che apre uno scudo e una che contrattacca
+	 * valgono **uno** ciascuna. Quanti danni siano passati lo dicono gli `Attack`, che restano loro.
+	 *
+	 * @return il numero di eventi `ReactionResolved` con quel soggetto; `0` se non ha reagito.
+	 */
+	int32 ResolvedReactionCountForTest(int32 ReactorStableUnitId) const;
+
+	/**
 	 * Hook per i test: applica una modifica temporanea di superficie dichiarandone l'autore.
 	 *
 	 * Serve perche' la scadenza ambientale — la voce che deve restare senza attore (#405) — nessuno scenario

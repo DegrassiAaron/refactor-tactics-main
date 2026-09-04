@@ -50,10 +50,12 @@ bool FRTPresentationEnumSizeIsPinnedTest::RunTest(const FString&)
 	// non si vedeva. Il gate vero copre il valore nuovo per costruzione; questa riga fa in modo che
 	// qualcuno se ne ACCORGA e vada a dichiararne la presentazione.
 	// ➕ **Era 4, ed e' diventato 5 il 2026-08-31 con `AttackFootprint` ([D-301], #1945).** Il numero non e'
+	// ➕ **Ed e' diventato 6 il 2026-09-04 con `ReactionResolved` (#2191)**: stessa storia, e la riga ha
+	// funzionato di nuovo — e' fallita, e ha mandato a dichiarare la presentazione del valore nuovo.
 	// il punto: il punto e' che quella issue ha visto fallire QUESTA riga, ed e' andata a dichiarare la
 	// presentazione del valore nuovo invece di scoprire fra sei mesi che l'evento non si vedeva.
 	TestEqual(TEXT("ERTResolvedEventType dichiara cinque valori (Move, Attack, HazardDamage, Defeated, AttackFootprint)"),
-		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 5);
+		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 6);
 
 	// La reflection c'e' davvero: senza, `DeclaredEventTypeCount()` restituirebbe 0 e l'assertion sopra
 	// fallirebbe per il motivo sbagliato.
