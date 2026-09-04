@@ -1533,11 +1533,16 @@ bool FRTScenarioStatusVocabularyIsTheRuntimeOneTest::RunTest(const FString&)
  * 2026-09-04 quella meta' non era esprimibile affatto, e il buco non aveva sintomi — si vedeva solo
  * provando a scrivere lo scenario.
  *
- * ⛔ **Le due porte erano entrambe chiuse.** Senza `target`: *«l'abilita' non dichiara un bersaglio»*,
- * perche' `bResolvesOnSelf` interrogava il solo catalogo CORE e un'azione d'eroe non c'e'. Con
- * `"target"` su se stessa: *«l'unita' bersaglia se stessa»*, dalla guardia che il suo stesso commento
+ * ⛔ **Le due porte erano entrambe chiuse.** Senza `target`: *«l'abilita' non dichiara un bersaglio»*.
+ * Con `"target"` su se stessa: *«l'unita' bersaglia se stessa»*, dalla guardia che il suo stesso commento
  * diceva di rilassare *«di PROPOSITO»* il giorno in cui un'abilita' del genere fosse esistita. Quel
  * giorno e' il 2026-08-28 (`D-226`, `Action.Shield` prende due portatori) e nessuno l'ha preso.
+ *
+ * 🔑 **Il criterio e' il FLAG `bSelfTarget`, non la fase.** Una prima stesura di questo test passava
+ * deducendo «risolve su se'» da `ResolutionPhase == Prep`, ed era sbagliata: `Action.CreateCover` e'
+ * `Preparation` con portata 3 e uno `StructureOp`. Il punto 2 qui sotto e' esattamente quel caso, ed e'
+ * l'anti-vacuita' che serve — la precedente usava un attacco senza `DerivedFromActionId`, che non
+ * passava nemmeno dal codice nuovo e sarebbe rimasta verde sotto la mutazione.
  *
  * ⚠️ **La correzione non rilassa la guardia sull'auto-bersaglio**, che resta giusta: un'azione self
  * semplicemente non dichiara bersaglio, quindi non ci ricade. Il test lo pinna sotto, al punto 3.
@@ -1578,14 +1583,24 @@ bool FRTScenarioHeroSelfActionTest::RunTest(const FString&)
 		}
 	}
 
-	// 2. ANTI-VACUITA': un'azione d'eroe che NON risolve su se stessa deve restare rifiutata senza bersaglio.
-	//    Senza questo, il punto 1 passerebbe anche se la correzione avesse semplicemente spento il controllo.
+	// 2. ANTI-VACUITA' DISCRIMINANTE: `Hero.Riktor.KineticPanel` deriva da `Action.CreateCover`, che e'
+	//    `Preparation` come `Action.Shield` MA bersaglia una cella a portata 3 e non se stessa. Se il
+	//    criterio tornasse a essere la fase invece del flag, questo caso passerebbe e il pannello si
+	//    piazzerebbe senza dire dove: lo scenario girerebbe verde-o-rosso per il motivo sbagliato.
+	{
+		FRTTestScenario S;
+		FString Error;
+		const bool bLoaded = Load(TEXT("{ \"unit\": \"R1\", \"ability\": \"Hero.Riktor.KineticPanel\" }"), S, Error);
+		TestFalse(TEXT("un'azione d'eroe di Prep che NON e' self resta rifiutata"), bLoaded);
+		TestTrue(TEXT("e il motivo lo nomina"), Error.Contains(TEXT("bersaglio")));
+	}
+
+	// 2b. E un attacco d'eroe, che non deriva da nessun core: stessa attesa, altro percorso nel predicato.
 	{
 		FRTTestScenario S;
 		FString Error;
 		const bool bLoaded = Load(TEXT("{ \"unit\": \"P1\", \"ability\": \"Hero.Phase.PressureJet\" }"), S, Error);
 		TestFalse(TEXT("un attacco d'eroe senza bersaglio resta rifiutato"), bLoaded);
-		TestTrue(TEXT("e il motivo lo nomina"), Error.Contains(TEXT("bersaglio")));
 	}
 
 	// 3. La guardia sull'auto-bersaglio NON e' stata rilassata: dichiararlo esplicitamente resta un errore.

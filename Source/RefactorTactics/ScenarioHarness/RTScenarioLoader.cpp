@@ -184,27 +184,56 @@ namespace
 	 * ⚠️ Nessun elenco scritto a mano, per la stessa ragione di `KnownHeroIds`: un'abilita' aggiunta
 	 * domani non deve ricordarsi di questa riga.
 	 */
-	FName CoreBehindHeroAction(const FName& AbilityId)
+	/**
+	 * Questa abilita' si applica a chi la usa? — `#2283`.
+	 *
+	 * 🔑 **Si legge il FLAG, non si deduce.** `bSelfTarget` e' una proprieta' dichiarata dal catalogo, e
+	 * il suo docstring in `RTActionDef.h` avverte esplicitamente contro il dedurla: *«Dedurlo da
+	 * `RangeCells == 0` sarebbe stato sbagliato»*. La fase non e' un criterio migliore della portata:
+	 * `Action.CreateCover` e' `Preparation` con portata 3 e uno `StructureOp`, quindi bersaglia una cella
+	 * lontana — e `Hero.Riktor.KineticPanel`, che ne deriva, deve continuare a pretendere un bersaglio.
+	 *
+	 * ⚠️ **Il roster si legge UNA volta**, per la ragione gia' scritta accanto a `KnownHeroIds`:
+	 * `GetHeroRoster()` istanzia quattro `URTHeroData` con tutte le loro abilita' a ogni chiamata, e questo
+	 * predicato viene interrogato per ogni intent senza bersaglio, in due punti del file.
+	 */
+	bool AbilityResolvesOnSelf(const FName& AbilityId)
 	{
 		if (AbilityId.IsNone())
 		{
-			return NAME_None;
+			return false;
 		}
-		for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+
+		const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(AbilityId);
+		if (!Core.ActionId.IsNone())
 		{
-			if (!Hero)
+			return Core.bSelfTarget;
+		}
+
+		// Azione d'EROE: non sta nel catalogo core, e porta il flag sul proprio `Def` — lo eredita da
+		// `MakeHeroActionFromCore`, che dal 2026-09-04 lo copia (#2283).
+		static const TMap<FName, bool> SelfByHeroAction = []()
+		{
+			TMap<FName, bool> Map;
+			for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
 			{
-				continue;
-			}
-			for (const URTActionData* Action : Hero->Actions)
-			{
-				if (Action && Action->Def.ActionId == AbilityId)
+				if (!Hero)
 				{
-					return Action->Def.DerivedFromActionId;
+					continue;
+				}
+				for (const URTActionData* Action : Hero->Actions)
+				{
+					if (Action && !Action->Def.ActionId.IsNone())
+					{
+						Map.Add(Action->Def.ActionId, Action->Def.bSelfTarget);
+					}
 				}
 			}
-		}
-		return NAME_None;
+			return Map;
+		}();
+
+		const bool* Found = SelfByHeroAction.Find(AbilityId);
+		return Found != nullptr && *Found;
 	}
 
 	/** Gli HeroId che il catalogo conosce davvero. Nessun elenco scritto a mano: se il roster cambia, questa segue. */
@@ -950,23 +979,9 @@ namespace
 								// Se l'ID non e' nel catalogo core la Def torna vuota e la fase e' quella di default:
 								// non e' Prep, quindi il bersaglio resta obbligatorio. Le azioni d'eroe passano di
 								// qui, ed e' il comportamento che avevano prima.
-								FRTActionDef Def = URTCatalogLibrary::FindCoreAction(Intent.Ability);
-								if (Def.ActionId.IsNone())
-								{
-									// Azione d'EROE: non sta nel catalogo core, ma DERIVA da una che ci sta, e la fase
-									// e' quella del core (#2283). Senza questo passo `Hero.Phase.TideGuard` — uno scudo
-									// su chi lo arma, da `Action.Shield` che e' `Preparation` — non era esprimibile in
-									// nessun modo: senza `target` la si rifiutava qui, e con `target` su se stessa la
-									// rifiutava la guardia sull'auto-bersaglio piu' sotto. Nessuno dei 119 scenari la
-									// esercitava, e non per distrazione.
-									const FName Core = CoreBehindHeroAction(Intent.Ability);
-									if (!Core.IsNone())
-									{
-										Def = URTCatalogLibrary::FindCoreAction(Core);
-									}
-								}
-								const bool bResolvesOnSelf = !Def.ActionId.IsNone()
-									&& URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) == ERTMatchPhase::Prep;
+								// 🔑 Il FLAG, non la fase: `Action.CreateCover` e' `Preparation` e bersaglia una cella
+								// a portata 3, quindi `Hero.Riktor.KineticPanel` deve restare senza scorciatoie (#2283).
+								const bool bResolvesOnSelf = AbilityResolvesOnSelf(Intent.Ability);
 								if (!bResolvesOnSelf)
 								{
 									// Per tutte le altre, un'abilita' senza bersaglio non e' un'omissione innocua: lo
@@ -1804,22 +1819,10 @@ namespace
 					// respinga cercando un'unita' di nome "".
 					if (Intent.Target.IsEmpty())
 					{
-						// ⚠️ La stessa risalita al core della lettura piu' sopra, e per la stessa ragione (#2283):
-						// un'azione d'EROE non sta nel catalogo core, quindi `FindCoreAction` da sola torna vuota e
-						// il bersaglio vuoto verrebbe respinto qui invece che la'. Correggerne una sola delle due
-						// spostava l'errore senza toglierlo — misurato: da «non dichiara un bersaglio» a
-						// «bersaglio '' non schierato».
-						FRTActionDef SelfDef = URTCatalogLibrary::FindCoreAction(Intent.Ability);
-						if (SelfDef.ActionId.IsNone())
-						{
-							const FName Core = CoreBehindHeroAction(Intent.Ability);
-							if (!Core.IsNone())
-							{
-								SelfDef = URTCatalogLibrary::FindCoreAction(Core);
-							}
-						}
-						if (!SelfDef.ActionId.IsNone()
-							&& URTCatalogLibrary::MapResolutionPhase(SelfDef.ResolutionPhase) == ERTMatchPhase::Prep)
+						// ⚠️ Lo STESSO predicato della lettura piu' sopra, non una sua copia: correggerne una
+						// sola spostava l'errore senza toglierlo — misurato, da «non dichiara un bersaglio» a
+						// «bersaglio '' non schierato» (#2283).
+						if (AbilityResolvesOnSelf(Intent.Ability))
 						{
 							continue;
 						}
