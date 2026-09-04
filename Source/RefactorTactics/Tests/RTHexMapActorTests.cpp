@@ -1240,4 +1240,70 @@ bool FRTHexMapActorStructuralBodyLayerViewTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * 🔴 **Il costo di una modifica è quello dell'INTERA board, e questo test lo dice con un numero** —
+ * `#1865`, punto 3.
+ *
+ * L'AC chiede che *«modificare una cella ricostruisca solo la regione toccata: il numero di istanze
+ * ricreate è proporzionale alla modifica, non alla mappa»*. Fino a oggi non era falsificabile: un rebuild
+ * totale e uno parziale sono indistinguibili da fuori, quindi nessuno poteva dire se l'ottimizzazione
+ * fosse avvenuta — né accorgersi che era regredita.
+ *
+ * 🔑 **Questo test è scritto per essere ROSSO il giorno in cui il difetto viene corretto**, ed è
+ * deliberato: pinna la baseline. Chi renderà incrementale la ricostruzione lo vedrà cadere, e quella
+ * caduta è il criterio di successo — non un fastidio da aggiornare in silenzio. Il commento accanto
+ * all'asserzione dice cosa scrivere al suo posto.
+ *
+ * ⚠️ **Si confrontano due board di DIMENSIONE DIVERSA**, non due modifiche: è l'unico modo di distinguere
+ * «proporzionale alla modifica» da «proporzionale alla mappa». Con una board sola, qualunque numero
+ * sarebbe compatibile con entrambe le ipotesi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorRebuildCostTest,
+	"RefactorTactics.HexMapActor.RebuildCostScalesWithTheMapNotTheEdit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorRebuildCostTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// La stessa modifica — una cella sola — su due board di taglia diversa.
+	auto CostoDiUnaPennellata = [&](int32 Radius) -> int32
+	{
+		URTHexMapAsset* Asset = MakeActorTestAsset(Radius);
+		ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+		if (!Actor) { return -1; }
+
+		// Una cella sola cambia superficie: e' la pennellata minima che l'autore possa dare.
+		const FRTCellId Toccata = Asset->Cells[0].Id;
+		FRTHexCellData Dipinta = Asset->Cells[0];
+		Dipinta.Surface = Dipinta.Surface == ERTHexSurface::Floor ? ERTHexSurface::Rough : ERTHexSurface::Floor;
+		Asset->AddOrUpdateCell(Dipinta);
+
+		Actor->RebuildInstances();
+		return Actor->LastRebuildCreatedInstances();
+	};
+
+	const int32 Piccola = CostoDiUnaPennellata(/*Radius=*/ 1);   // 7 celle
+	const int32 Grande  = CostoDiUnaPennellata(/*Radius=*/ 4);   // 61 celle
+	if (!TestTrue(TEXT("entrambe le board si sono costruite"), Piccola > 0 && Grande > 0)) { return false; }
+
+	AddInfo(FString::Printf(
+		TEXT("una pennellata su UNA cella costa %d istanze su board r=1 (7 celle) e %d su board r=4 (61 celle)"),
+		Piccola, Grande));
+
+	// 🔴 LA BASELINE, e il difetto: la stessa modifica costa molto di piu' sulla board grande, cioe' il
+	// costo segue la MAPPA e non la modifica.
+	//
+	// ⚠️ **Quando il punto 3 di #1865 sara' implementato questa riga DEVE cadere**, e va sostituita con il
+	// suo opposto: `Grande` vicino a `Piccola`, perche' entrambe hanno dipinto una cella sola. Non
+	// riallineare il numero: e' la caduta a dire che l'ottimizzazione e' arrivata.
+	TestTrue(*FString::Printf(
+			TEXT("BASELINE (difetto noto): il costo segue la mappa — %d contro %d, oltre il triplo"),
+			Grande, Piccola),
+		Grande > Piccola * 3);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
