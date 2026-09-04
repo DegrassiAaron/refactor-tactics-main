@@ -1,5 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTIntentPrivacyLibrary.h"
+// `#2331`: la partizione dei campi si legge dalla REFLECTION, non da un elenco scritto a mano.
+#include "UObject/UnrealType.h"
 // La RESA dei tre livelli (CP 11.2, passo 4) vive su `ARTHUD` come statica pura: si verifica senza montare
 // una partita, che e' cio' che il DoD intende con «test headless su `ARTHUD`».
 #include "UI/RTHUD.h"
@@ -305,6 +307,338 @@ bool FRTNoEnemyIntentExposedTest::RunTest(const FString&)
 		if (!TestEqual(TEXT("il nemico rivelato produce una vista"), V.Num(), 1)) { return false; }
 		TestTrue(TEXT("senza la sua reazione"), V[0].ReactionName.IsEmpty());
 	}
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// #2331 — la privacy dei CAMPI, non dei valori: il difetto e' il QUINTO campo
+//
+// Le quattro righe dentro `if (bIsAlly)` hanno gia' quattro guardie, e le hanno tutte: `ReactionName` e
+// `PlannedWaypoints` qui sopra (`:78-80`), `bDeclaresRotation` e `DeclaredFacing` in
+// `RefactorTactics.Facing.IntentIsTeamFiltered` (`RTFacingTests.cpp:525-526`, dal 2026-08-09) — che
+// `adr-0005` §Verifica elenca gia' come il test normativo della rotazione dichiarata.
+//
+// 🔴 **Ma sono quattro asserzioni puntuali, e nessuna di esse e' il meccanismo che genera la quinta.** Un
+// `View.NuovoCampo = Intent.NuovoCampo;` scritto domani FUORI dal ramo passa l'intero corpus in verde: le
+// quattro guardie esistono per fortuna, non per costruzione. E' la stessa domanda che `#1805` ha posto al
+// TurnLog — *«un campo audit-only aggiunto al modello non deve poter finire nell'export pubblico senza far
+// diventare rosso un test»* — e la risposta ha la stessa forma: non si guardano dei valori, si guardano dei
+// CAMPI, **obbligando a classificare**. Il precedente e' `RTReplayPrivacyTests.cpp:87-126`.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/**
+	 * Da dove viene un campo di `FRTIntentView`.
+	 *
+	 * ⚠️ **Questa tabella vive nel TEST, e non deve migrare in produzione.** `RTReplayPrivacyTests` legge la
+	 * propria da `URTReplayPrivacyLibrary::FieldVisibility()` perche' li' la classificazione GUIDA l'export:
+	 * e' il produttore. Qui il produttore e' il corpo di `FilterForTeam`, e una seconda tabella che dicesse
+	 * la stessa regola sarebbe una copia libera di divergere — il difetto di `#507`, dove una regola
+	 * riscritta inline restava verde su una funzione che nessuno chiamava. Qui e' un'asserzione ESTERNA su
+	 * un produttore unico; li' sarebbe un secondo produttore.
+	 */
+	enum class ERTIntentViewFieldClass : uint8
+	{
+		/** Copiato dall'intento per chiunque riceva una vista, avversario rivelato incluso. */
+		Public,
+		/** Copiato solo dentro `if (bIsAlly)`. Per un avversario resta al proprio default. */
+		AllyOnly,
+		/**
+		 * Non copiato da `FRTPlannedIntent`: calcolato mentre la vista si costruisce.
+		 *
+		 * ⚠️ Sono due, ed e' la ragione per cui le classi sono tre e non due. `bIsAlly` nasce dal confronto
+		 * fra le squadre e vale `false` — cioe' il proprio default — in **ogni** vista avversaria, del tutto
+		 * correttamente: classificarlo `Public` renderebbe falso il terzo blocco del test qui sotto.
+		 * `Certainty` viene da `ClassifyPlan`, e la sua cecita' ai piani altrui e' proprieta' di
+		 * `NoEnemyIntentExposed`, non di una tabella di copia. Le loro guardie puntuali esistono gia'
+		 * (`:53, :71` e `IntentCertaintyClassification`).
+		 */
+		Derived
+	};
+
+	struct FRTIntentFieldRow
+	{
+		FName Field;
+		ERTIntentViewFieldClass Class;
+	};
+
+	/**
+	 * La classe di OGNI campo di `FRTIntentView`. Un campo aggiunto al DTO e non aggiunto qui fa rosso
+	 * `IntentViewFieldsAreClassified`: e' l'unico scopo di questo elenco.
+	 *
+	 * 🔴 **In un array e non direttamente in una `TMap`, per la ragione che `RTReplayPrivacyLibrary.cpp:16-18`
+	 * ha gia' pagato**: una `TMap` costruita da initializer list INGOIA una chiave duplicata, e l'ultima riga
+	 * vince in silenzio. Un campo elencato due volte in due classi diverse passerebbe ogni gate — `Contains`
+	 * e' vero, non ci sono fantasmi, i conteggi tornano — mentre chi legge il file lo vede nella classe
+	 * sbagliata. Con l'array la duplicazione e' misurabile, ed e' misurata.
+	 *
+	 * `GET_MEMBER_NAME_CHECKED` e non un `FName` letterale: un campo RINOMINATO deve rompere la
+	 * COMPILAZIONE, non lasciare qui un nome che non esiste piu'.
+	 */
+	const TArray<FRTIntentFieldRow>& IntentViewFieldRows()
+	{
+		static const TArray<FRTIntentFieldRow> Rows = {
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, OwnerCell),         ERTIntentViewFieldClass::Public },
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, bIsAlly),           ERTIntentViewFieldClass::Derived },
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, bMoving),           ERTIntentViewFieldClass::Public },
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, PlannedCell),       ERTIntentViewFieldClass::Public },
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, ActionName),        ERTIntentViewFieldClass::Public },
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, bHasTarget),        ERTIntentViewFieldClass::Public },
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, TargetCell),        ERTIntentViewFieldClass::Public },
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, ReactionName),      ERTIntentViewFieldClass::AllyOnly },
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, PlannedPath),       ERTIntentViewFieldClass::Public },
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, PlannedWaypoints),  ERTIntentViewFieldClass::AllyOnly },
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, bDashing),          ERTIntentViewFieldClass::Public },
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, DashCell),          ERTIntentViewFieldClass::Public },
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, DashStyle),         ERTIntentViewFieldClass::Public },
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, Facing),            ERTIntentViewFieldClass::Public },
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, bDeclaresRotation), ERTIntentViewFieldClass::AllyOnly },
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, DeclaredFacing),    ERTIntentViewFieldClass::AllyOnly },
+			{ GET_MEMBER_NAME_CHECKED(FRTIntentView, Certainty),         ERTIntentViewFieldClass::Derived }
+		};
+		return Rows;
+	}
+
+	/** Le stesse righe indicizzate per nome. Un duplicato si perde QUI, ed e' per questo che si contano. */
+	const TMap<FName, ERTIntentViewFieldClass>& IntentViewFieldClasses()
+	{
+		static const TMap<FName, ERTIntentViewFieldClass> Table = []
+		{
+			TMap<FName, ERTIntentViewFieldClass> Built;
+			for (const FRTIntentFieldRow& Row : IntentViewFieldRows())
+			{
+				Built.Add(Row.Field, Row.Class);
+			}
+			return Built;
+		}();
+		return Table;
+	}
+
+	/** Nomi ordinati, per un messaggio di fallimento che dica QUALE campo e non solo che ce n'e' uno. */
+	FString ListedIntentFields(const TSet<FName>& Names)
+	{
+		TArray<FString> As;
+		for (const FName& N : Names) { As.Add(N.ToString()); }
+		As.Sort();
+		return FString::Join(As, TEXT(", "));
+	}
+
+	/** I campi di `FRTIntentView` in una data classe. */
+	TSet<FName> IntentViewFieldsOfClass(ERTIntentViewFieldClass Wanted)
+	{
+		TSet<FName> Out;
+		for (const TPair<FName, ERTIntentViewFieldClass>& Row : IntentViewFieldClasses())
+		{
+			if (Row.Value == Wanted) { Out.Add(Row.Key); }
+		}
+		return Out;
+	}
+
+	/** Vero se il campo `P` della vista `V` vale ancora il default della struttura: non e' arrivato. */
+	bool IntentViewFieldIsDefault(const FProperty* P, const FRTIntentView& V)
+	{
+		static const FRTIntentView Default;
+		return P->Identical(P->ContainerPtrToValuePtr<void>(&V), P->ContainerPtrToValuePtr<void>(&Default));
+	}
+
+	/**
+	 * Un intento con un valore DIVERSO dal proprio default in ogni campo che raggiunge il DTO.
+	 *
+	 * 🔴 **La saturazione e' il test, non un dettaglio della fixture.** Su un campo lasciato al default,
+	 * *«non e' arrivato»* e *«e' arrivato e valeva il default»* sono indistinguibili, e l'asserzione di
+	 * privacy e' verde per la ragione sbagliata. E' la lezione di `SaturatedEntry()`
+	 * (`RTReplayPrivacyTests.cpp:44-49`) e, in questo stesso file, quella dell'ancora di
+	 * `NoEnemyIntentExposed` (`:288-289`).
+	 *
+	 * ⚠️ Non sostituisce `MakeFullIntent`, che NON e' saturo (`:21-39`: niente `Facing`, `DashStyle`,
+	 * `bDeclaresRotation`, `DeclaredFacing`) e su cui poggiano i test sopra.
+	 *
+	 * ⚠️ `DeclaredFacing` (`SE`) e' scelto diverso da `Facing` (`NW`) **e** dal default (`E`): se coincidesse
+	 * con la posa pubblica, un `DeclaredFacing` copiato per sbaglio fuori dal ramo si confonderebbe con il
+	 * valore lecito. E' la stessa cura di `RTFacingTests.cpp:502-504`.
+	 */
+	FRTPlannedIntent SaturatedIntentForPrivacy(int32 TeamId, bool bRevealed)
+	{
+		FRTPlannedIntent I;
+		I.OwnerCell = FRTCellId(3, 1, 0);
+		I.TeamId = TeamId;
+		I.bAlive = true;
+		I.bRevealed = bRevealed;
+		I.bMoving = true;
+		I.PlannedCell = FRTCellId(2, 0);
+		I.ActionName = FText::FromString(TEXT("Tiro"));
+		I.bHasTarget = true;
+		I.TargetCell = FRTCellId(4, 0);
+		I.ReactionName = FText::FromString(TEXT("Contrattacco"));
+		I.PlannedPath = { FRTCellId(3, 1, 0), FRTCellId(2, 1), FRTCellId(2, 0) };
+		I.PlannedWaypoints = { FRTCellId(2, 0) };
+		I.bDashing = true;
+		I.DashCell = FRTCellId(1, 1);
+		I.DashStyle = ERTMovementStyle::LinearDash;
+		I.Facing = ERTHexDirection::NW;
+		I.bDeclaresRotation = true;
+		I.DeclaredFacing = ERTHexDirection::SE;
+		return I;
+	}
+}
+
+/**
+ * Ogni campo del DTO ha una classe DICHIARATA — il gate che #2331 chiede per nome.
+ *
+ * Non si ottiene guardando dei valori: si ottiene obbligando a classificare. Chi aggiunge una `UPROPERTY` a
+ * `FRTIntentView` e non dice se e' pubblica, ally-only o derivata trova questo rosso, e la classificazione
+ * diventa una decisione presa invece che un default subito.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIntentViewFieldsAreClassifiedTest,
+	"RefactorTactics.UI.IntentViewFieldsAreClassified",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTIntentViewFieldsAreClassifiedTest::RunTest(const FString&)
+{
+	const TMap<FName, ERTIntentViewFieldClass>& Table = IntentViewFieldClasses();
+
+	TSet<FName> Reflected;
+	for (TFieldIterator<FProperty> It(FRTIntentView::StaticStruct()); It; ++It)
+	{
+		Reflected.Add(It->GetFName());
+	}
+
+	// ANTI-VACUITA': una tabella vuota, o una reflection che non vede niente, renderebbe verdi per assenza
+	// di soggetto tutti i confronti qui sotto.
+	TestTrue(TEXT("la tabella classifica almeno un campo"), Table.Num() > 0);
+	TestTrue(TEXT("la reflection vede almeno un campo di FRTIntentView"), Reflected.Num() > 0);
+
+	// Il cuore: nessun campo del DTO puo' restare senza classe.
+	TSet<FName> Unclassified;
+	for (const FName& N : Reflected)
+	{
+		if (!Table.Contains(N)) { Unclassified.Add(N); }
+	}
+	TestTrue(
+		FString::Printf(TEXT("ogni campo di FRTIntentView e' classificato; non classificati: [%s]"),
+			*ListedIntentFields(Unclassified)),
+		Unclassified.Num() == 0);
+
+	// Il difetto simmetrico: un nome nella tabella che non esiste piu' nella struttura. Qui
+	// `GET_MEMBER_NAME_CHECKED` lo previene gia' in compilazione, ma un gate che dipende dall'aver usato la
+	// macro giusta non e' un gate — e' una convenzione.
+	TSet<FName> Ghosts;
+	for (const TPair<FName, ERTIntentViewFieldClass>& Row : Table)
+	{
+		if (!Reflected.Contains(Row.Key)) { Ghosts.Add(Row.Key); }
+	}
+	TestTrue(
+		FString::Printf(TEXT("la tabella non classifica campi inesistenti; fantasmi: [%s]"),
+			*ListedIntentFields(Ghosts)),
+		Ghosts.Num() == 0);
+
+	// 🔴 Il duplicato NON si vede confrontando la mappa con la reflection: elencare `ReactionName` due volte
+	// e in due classi diverse lascerebbe 17 chiavi su 17 campi, tutti i gate verdi, e la classe decisa
+	// dall'ORDINE delle righe invece che da chi le ha scritte. Si vede solo contro l'array sorgente, dove il
+	// duplicato esiste ancora.
+	TestEqual(TEXT("nessun campo classificato due volte"), IntentViewFieldRows().Num(), Table.Num());
+
+	// E la classificazione deve coprire la struttura esattamente: non un campo di meno, non uno di piu'.
+	TestEqual(TEXT("una riga per campo del DTO"), Table.Num(), Reflected.Num());
+
+	// E le tre classi devono essere tutte abitate, o due terzi del test qui sotto non avrebbero soggetto.
+	TestTrue(TEXT("almeno un campo pubblico"),
+		IntentViewFieldsOfClass(ERTIntentViewFieldClass::Public).Num() > 0);
+	TestTrue(TEXT("almeno un campo ally-only"),
+		IntentViewFieldsOfClass(ERTIntentViewFieldClass::AllyOnly).Num() > 0);
+	TestTrue(TEXT("almeno un campo derivato"),
+		IntentViewFieldsOfClass(ERTIntentViewFieldClass::Derived).Num() > 0);
+
+	return true;
+}
+
+/**
+ * Nessun campo ally-only raggiunge un avversario — misurato su TUTTI i campi ally-only, non su due.
+ *
+ * ⚠️ **Il terzo blocco e' la meta' che si dimentica sempre**, ed e' la stessa che `PublicFieldsKeepTheirValue`
+ * aggiunge al replay (`RTReplayPrivacyTests.cpp:192-195`): un `FilterForTeam` che per eccesso di zelo
+ * smettesse di copiare la rotta a un avversario rivelato passerebbe qualunque test di privacy — e non
+ * sarebbe piu' un filtro, sarebbe un muro. `Status.Reveal` esiste per mostrare cosa un'unita' sta per FARE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEnemyViewCarriesNoAllyOnlyFieldTest,
+	"RefactorTactics.UI.EnemyViewCarriesNoAllyOnlyField",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEnemyViewCarriesNoAllyOnlyFieldTest::RunTest(const FString&)
+{
+	// Rivelato: e' il caso PIU' PERMISSIVO che la funzione conosce, quindi quello in cui un leak ha piu'
+	// strade per passare. Su un avversario non rivelato non ci sarebbe nemmeno una riga da ispezionare.
+	const TArray<FRTPlannedIntent> Intents = { SaturatedIntentForPrivacy(/*TeamId*/ 0, /*bRevealed*/ true) };
+
+	const TArray<FRTIntentView> AsAlly = URTIntentPrivacyLibrary::FilterForTeam(/*Observer*/ 0, Intents);
+	const TArray<FRTIntentView> AsEnemy = URTIntentPrivacyLibrary::FilterForTeam(/*Observer*/ 1, Intents);
+	if (!TestEqual(TEXT("l'alleato riceve la vista"), AsAlly.Num(), 1)) { return false; }
+	if (!TestEqual(TEXT("e l'avversario rivelato pure"), AsEnemy.Num(), 1)) { return false; }
+
+	const TMap<FName, ERTIntentViewFieldClass>& Table = IntentViewFieldClasses();
+
+	// 1. ANTI-VACUITA' — la fixture satura davvero, e il filtro riempie: sulla vista ALLEATA nessun campo,
+	//    di nessuna classe, resta al proprio default. Senza questo blocco il punto 2 sarebbe verde anche su
+	//    una `FilterForTeam` che non copia niente.
+	TSet<FName> StillDefaultForAlly;
+	for (TFieldIterator<FProperty> It(FRTIntentView::StaticStruct()); It; ++It)
+	{
+		if (IntentViewFieldIsDefault(*It, AsAlly[0])) { StillDefaultForAlly.Add(It->GetFName()); }
+	}
+	TestTrue(
+		FString::Printf(TEXT("l'intento saturo non lascia nessun campo al default nella vista alleata; fermi: [%s]"),
+			*ListedIntentFields(StillDefaultForAlly)),
+		StillDefaultForAlly.Num() == 0);
+
+	// 2. IL CUORE — ogni campo ally-only e' al default nella vista di un avversario: non e' spedito e
+	//    nascosto, non e' proprio valorizzato (invariante #6). Sono i quattro di oggi e i quinti di domani.
+	TSet<FName> LeakedToEnemy;
+	TSet<FName> WronglyClearedForAlly;
+	for (const FName& N : IntentViewFieldsOfClass(ERTIntentViewFieldClass::AllyOnly))
+	{
+		const FProperty* P = FRTIntentView::StaticStruct()->FindPropertyByName(N);
+		if (!P) { continue; } // gia' rosso in `IntentViewFieldsAreClassified` come fantasma
+		if (!IntentViewFieldIsDefault(P, AsEnemy[0])) { LeakedToEnemy.Add(N); }
+		if (IntentViewFieldIsDefault(P, AsAlly[0])) { WronglyClearedForAlly.Add(N); }
+	}
+	TestTrue(
+		FString::Printf(TEXT("nessun campo ally-only raggiunge un avversario rivelato; trapelati: [%s]"),
+			*ListedIntentFields(LeakedToEnemy)),
+		LeakedToEnemy.Num() == 0);
+	TestTrue(
+		FString::Printf(TEXT("e l'alleato li riceve tutti, o la privacy sarebbe un muro; mancanti: [%s]"),
+			*ListedIntentFields(WronglyClearedForAlly)),
+		WronglyClearedForAlly.Num() == 0);
+
+	// 3. LA META' CHE SI DIMENTICA — un campo PUBBLICO arriva all'avversario rivelato con lo STESSO valore
+	//    che ha per l'alleato. `Reveal` mostra l'intento; azzerare tutto passerebbe ogni assert di privacy.
+	//    I `Derived` restano fuori, e non e' una scappatoia: `bIsAlly` vale correttamente `false` di la' e
+	//    `true` di qua — sono la ragione per cui le classi sono tre.
+	TSet<FName> DivergentPublic;
+	for (const FName& N : IntentViewFieldsOfClass(ERTIntentViewFieldClass::Public))
+	{
+		const FProperty* P = FRTIntentView::StaticStruct()->FindPropertyByName(N);
+		if (!P) { continue; }
+		if (!P->Identical(P->ContainerPtrToValuePtr<void>(&AsEnemy[0]),
+			P->ContainerPtrToValuePtr<void>(&AsAlly[0])))
+		{
+			DivergentPublic.Add(N);
+		}
+	}
+	TestTrue(
+		FString::Printf(TEXT("un campo pubblico vale lo stesso per l'alleato e per l'avversario rivelato; divergenti: [%s]"),
+			*ListedIntentFields(DivergentPublic)),
+		DivergentPublic.Num() == 0);
+
+	// I tre cicli qui sopra iterano sulla TABELLA, non sulla struttura: un campo aggiunto al DTO e non
+	// classificato non li farebbe fallire, li lascerebbe girare su un insieme piu' piccolo — cioe' questo
+	// test smetterebbe di verificare in silenzio proprio nel caso che deve coprire.
+	// `IntentViewFieldsAreClassified` lo misura, e questa riga fa in modo che questo test non dipenda dal
+	// fatto che qualcuno non abbia cancellato quello.
+	int32 ReflectedCount = 0;
+	for (TFieldIterator<FProperty> It(FRTIntentView::StaticStruct()); It; ++It) { ++ReflectedCount; }
+	TestEqual(TEXT("la tabella copre la struttura, o i cicli qui sopra girano su meno campi di quanti ce ne sono"),
+		Table.Num(), ReflectedCount);
+
 	return true;
 }
 
