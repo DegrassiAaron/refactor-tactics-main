@@ -48,8 +48,20 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Obscured); // offuscato: targeting lim
  * `Conductive` esistono gia' e la loro semantica lo nomina; dargli una durata inventata per farlo sembrare
  * vivo sarebbe peggio di un dato dichiaratamente inerte (stesso pattern di `PushResistance` di Riktor).
  *
- * ⚠️ `UI.Icon.Status.Electrified` resta una chiave richiesta in `RTIconCatalogTests`: in `Content/`
- * versionato non esiste **nessuna** icona di stato — `Wet`, `Burning`, `Obscured` contano tutte zero — e
- * questa non e' distintiva.
+ * ⚠️ `UI.Icon.Status.Electrified` resta una chiave richiesta in `RTIconCatalogTests`, e la sua icona
+ * **esiste**: `Content/RT/UI/Icons/` porta **undici** `RT_UI_Icon_Status_*` versionate — `Braced`,
+ * `Burning`, `Electrified`, `Exposed`, `Guarded`, `Marked`, `Obscured`, `Reveal`, `Root`, `Slow`, `Wet`.
+ *
+ * 🔴 **Questa riga diceva l'opposto — «in `Content/` versionato non esiste nessuna icona di stato, e
+ * `Wet`, `Burning`, `Obscured` contano tutte zero» — ed era falsa gia' quando e' stata scritta** (`#2244`).
+ * Le icone entrano con `7112056f` il **2026-08-28**; la frase con `2c43dbfc` il **2026-09-03**, sei giorni
+ * dopo. Non e' pedanteria: e' la frase che il prossimo autore legge per decidere se puo' usare un'icona, e
+ * gli fa scrivere il ripiego testuale che non serviva — quello che `RTHUD.cpp` porta ancora, con **due**
+ * stati su undici mostrati come testo.
+ *
+ * ⚠️ **Cio' che resta vero di questo tag e' l'INERZIA, ed e' l'altra meta' della nota**: `Electrified`
+ * **accade e non permane**. Ha una voce nel TurnLog — `ERTStatusOutcome::AppliedInstantly` esiste apposta
+ * per lui — ma non entra in `StatusTurns`, l'unita' non lo porta addosso, e `HasStatus` non risponde mai
+ * vero. Chi disegna gli stati non deve aprirgli uno stato persistente: sarebbe un'icona accesa per sempre.
  */
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Electrified);
