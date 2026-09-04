@@ -415,6 +415,16 @@ public:
 	 * cosi' il conteggio resta vero anche se la quota fra i piani cambia.
 	 */
 	void GetKnowledgeDebugCounts(int32& OutHidden, int32& OutRemembered, int32& OutLit) const;
+
+	/**
+	 * Quante istanze l'overlay ha DAVVERO posato — diagnostica, e serve a una domanda che i tre conteggi non
+	 * possono piu' rispondere (`#2250`).
+	 *
+	 * 🔑 `GetKnowledgeDebugCounts` risponde `Hidden > 0` per **complemento**, quindi resta vero anche se
+	 * l'overlay disegnasse tutto: un test scritto sui suoi numeri non potrebbe accorgersi della regressione.
+	 * Questo conta gli oggetti in scena, ed e' l'unico modo di provare che le mai viste non si disegnano.
+	 */
+	int32 KnowledgeVolumeInstanceCount() const;
 #endif
 
 	/** Quante istanze il velo ha lasciato accese, ricordate e nascoste. Diagnostica e test. */

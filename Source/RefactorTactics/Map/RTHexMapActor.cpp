@@ -598,9 +598,24 @@ void ARTHexMapActor::SetKnowledgeDebugEnabled(bool bEnabled, const FRTTeamKnowle
 	{
 		const bool bVisible = Visible.Contains(Cell.Id);
 		const bool bKnown = bVisible || Explored.Contains(Cell.Id);
-		const int32 Which = bVisible
-			? RTKnowledgeVolumeLit
-			: (bKnown ? RTKnowledgeVolumeRemembered : RTKnowledgeVolumeHidden);
+		// 🔴 **Le celle MAI VISTE non si disegnano** (`#2250`), ed e' il difetto che questo overlay
+		// aveva: il velo le toglie — `VeilInstances` posa `FVector::ZeroVector`, il vuoto che [D-225]
+		// prescrive — e questo le rimetteva, un prisma per ognuna. Misurato in PIE il 2026-09-04: **267 su
+		// 331**, l'81% dei prismi. Acceso il debug, la partizione che si voleva ispezionare spariva.
+		//
+		// ⚠️ **Non e' una scelta di leggibilita', e' una contraddizione tolta**: uno strumento
+		// d'ispezione che ridisegna cio' che il suo oggetto nasconde non puo' misurarlo. E' la regola che
+		// `RTDebugConsole.cpp:13` gia' dichiara — *«uno strumento d'ispezione che muove cio' che ispeziona
+		// produce sessioni di debug che non si possono confrontare fra loro»*.
+		//
+		// ➕ Il conteggio delle mai viste NON si perde: `GetKnowledgeDebugCounts` lo ricava come
+		// complemento, e resta il numero che `rt.Debug.Knowledge` stampa.
+		if (!bKnown)
+		{
+			continue;
+		}
+
+		const int32 Which = bVisible ? RTKnowledgeVolumeLit : RTKnowledgeVolumeRemembered;
 
 		const float Fraction = RTKnowledgeVolumeFractions[Which];
 		const float FlatScale = Fraction * UseLayerH / (2.f * RTCellPrismRadius);
@@ -611,6 +626,11 @@ void ARTHexMapActor::SetKnowledgeDebugEnabled(bool bEnabled, const FRTTeamKnowle
 			FTransform(FRotator::ZeroRotator, World, FVector(PlanarScale, PlanarScale, FlatScale)),
 			/*bWorldSpace=*/ true);
 	}
+}
+
+int32 ARTHexMapActor::KnowledgeVolumeInstanceCount() const
+{
+	return KnowledgeVolumes ? KnowledgeVolumes->GetInstanceCount() : 0;
 }
 
 void ARTHexMapActor::GetKnowledgeDebugCounts(int32& OutHidden, int32& OutRemembered, int32& OutLit) const
@@ -626,6 +646,12 @@ void ARTHexMapActor::GetKnowledgeDebugCounts(int32& OutHidden, int32& OutRemembe
 
 	// Si legge la scala REALE e si ricava la frazione, invece di fidarsi di un contatore: la stessa scelta
 	// che `GetVeilCounts` motiva — un contatore proverebbe che la funzione sa contare, non che ha disegnato.
+	//
+	// 🔑 **Le MAI VISTE fanno eccezione, e per costruzione**: da `#2250` non si disegnano piu', quindi
+	// non c'e' un'istanza da leggere. Si ricavano per COMPLEMENTO — le celle dell'asset meno quelle davvero
+	// posate — che tiene la promessa del commento qui sopra invece di romperla: se il disegno smettesse di
+	// funzionare, le due famiglie lette calerebbero e il complemento si gonfierebbe, cioe' il difetto si
+	// vedrebbe nei numeri. Un contatore memorizzato all'accensione, no.
 	const float UseLayerH = Map->LayerHeight;
 	if (UseLayerH <= 0.f)
 	{
@@ -649,7 +675,13 @@ void ARTHexMapActor::GetKnowledgeDebugCounts(int32& OutHidden, int32& OutRemembe
 		};
 		if (Vicino(RTKnowledgeVolumeLit))              { ++OutLit; }
 		else if (Vicino(RTKnowledgeVolumeRemembered))  { ++OutRemembered; }
-		else if (Vicino(RTKnowledgeVolumeHidden))      { ++OutHidden; }
+	}
+
+	// Il COMPLEMENTO: cio' che l'asset ha e che non e' stato disegnato. Solo a debug acceso — spento non
+	// c'e' niente di posato, e dire «tutte mai viste» sarebbe falso quanto dire zero.
+	if (bKnowledgeDebug)
+	{
+		OutHidden = FMath::Max(0, Map->NumCells() - OutLit - OutRemembered);
 	}
 }
 #endif // !UE_BUILD_SHIPPING
