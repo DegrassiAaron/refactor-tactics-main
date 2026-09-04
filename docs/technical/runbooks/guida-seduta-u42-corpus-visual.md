@@ -41,7 +41,10 @@ comando»*:
 Verificato nel codice: il ramo `ERTScenarioStart::Started` fa **`return`** prima di allestire la partita
 (`RTGameMode.cpp:476-483`), quindi **nessun roster e nessuna sovrapposizione**.
 
-### Il ciclo, diciannove volte
+### Il ciclo, **undici** volte
+
+⏱️ *Erano diciannove finché i tre compositi non hanno assorbito tredici voci. La sequenza esatta è nella
+§2-bis qui sotto: falla in quell'ordine, non a caso.*
 
 1. Details del **GameMode** → categoria `RefactorTactics|Test` → **`Scenario To Run`**.
 2. Scegli lo scenario dal **menu a tendina**.
@@ -77,6 +80,38 @@ viewport** no.
 - ⚠️ **I verdetti saranno su CILINDRI, non su personaggi**: le unità degli scenari sono `ARTUnit` nudi. Per
   voci come `PIE-VIS-KO` non cambia niente; per altre potrebbe non bastare, e va deciso **voce per voce**
   invece di assumerlo.
+
+## 2-bis. La sequenza: undici Play in quest'ordine
+
+**I tre compositi per primi, ed è una scelta.** Portano tredici voci su ventuno: se la seduta si
+interrompe a metà, quello che hai in mano è il massimo possibile. E chiedono più attenzione degli altri —
+un fenomeno per turno, da riconoscere mentre passa — quindi vanno fatti quando sei fresco, non in coda.
+
+| # | scenario | fixture | turni | voci che chiudi |
+|---:|---|---|---:|---|
+| **1** | `Visual.Environment.Acceptance` | RelayLite | 5 | `-ICE` `-WETFIRE` `-COMBO` `-SMOKE` `-ROUGH` · `PIE-ACC-ENVIRONMENT` |
+| **2** | `Visual.Map.Acceptance` | RelayBasin | 3 | `-COVER` `-DOOR` `-HIGH` · `PIE-ACC-MAP` |
+| **3** | `Visual.Combat.GuardVsBraceUnderSmallHits` | r5 | 1 | `-GUARD` `-BRACE` · `PIE-ACC-GUARDBRACE` |
+| 4 | `Visual.Combat.AreaGuardFromImpactCenter` | r5 | 1 | `PIE-VIS-AREAGUARD` |
+| 5 | `Visual.Combat.WaterElectricCoordinated` | r5 | 1 | `PIE-VIS-COORD` |
+| 6 | `Visual.Combat.FallbackTargetMoved` | r5 | 1 | `PIE-VIS-FALLBACK` |
+| 7 | `Visual.Core.PhaseOrder` | r4 | 1 | `PIE-VIS-PHASES` |
+| 8 | `Visual.Movement.Charge` | r4 | 1 | `PIE-VIS-CHARGE` |
+| 9 | `Visual.Combat.Defeat` | r4 | 6 | `PIE-VIS-KO` |
+| 10 | `Visual.Map.MultiLevel` | TestArena | 1 | `PIE-VIS-LEVEL` |
+| 11 | `Visual.Map.HighCoverBlocks` | CoverYard | 1 | `PIE-VIS-HIGHCOVER` |
+
+🔑 **Dopo i compositi l'ordine segue la FIXTURE, non il tema**: i Play 4-6 restano su `r5`, i 7-9 su `r4`,
+poi si cambia due volte in coda. Una fixture che non cambia è una scena che l'occhio riconosce già, e la
+differenza fra un Play e il precedente diventa il fenomeno invece del terreno.
+
+⚠️ **Il numero 9 dura sei turni, gli altri singoli uno.** `Visual.Combat.Defeat` è l'unico lungo del lotto:
+mettilo dove sei ancora attento, non per ultimo. Il criterio è che l'unità **non sparisca prima** che il
+colpo sia arrivato — se lo guardi stanco, quel mezzo secondo non lo vedi.
+
+⛔ **Fra un Play e il successivo va rifatto lo Stop**, e non è pedanteria: senza il riavvio in mezzo gli
+scenari successivi non sono confrontabili, ed è la ragione per cui questa guida parla di un *ciclo* invece
+che di una lista.
 
 ## 3. Le ventuno voci, con ciò che le falsifica
 
