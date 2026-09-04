@@ -24,6 +24,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "UI/RTHUD.h"
 #include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -142,6 +143,149 @@ bool FRTUnitRediscoveryDoesNotSelectTest::RunTest(const FString&)
 	TestTrue(TEXT("riavvistata: il segnaposto torna"), Placeholder->GetVisibleFlag());
 
 	UvDestroyWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Il DRIVER del velo (`#2246`).
+//
+// ## Il difetto che questi due test chiudono
+//
+// `bKnownToObserver` nasce `true` — *«un'unita' nasce nota»* — e fino a `#2246` l'unico posto che lo
+// smentiva era il ciclo di `ARTHUD::DrawHUD`, che comincia con `if (!Canvas) { return; }`.
+//
+// Ne segue che **«il driver non ha girato» e «tutto e' noto» producono lo stesso schermo**, e nessun test
+// li distingueva: si poteva spostare la sovrapposizione altrove — la migrazione a `WidgetComponent` che
+// `#613` prepara — portarsi via il velo, e restare verdi con ogni nemico visibile.
+//
+// Servono ENTRAMBI, e nessuno dei due basta:
+//   - `EnemyWithoutViewIsHidden` prova che il driver DECIDE bene;
+//   - `DriverRunsOnTick` prova che il driver VIENE ESEGUITO.
+// ---------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/**
+	 * Un HUD e due unita' nello stesso mondo: una avversaria e una della squadra dell'osservatore.
+	 *
+	 * ⚠️ **Senza `PlayerController` il team dell'osservatore e' `0`** — e' il ripiego dichiarato da
+	 * `ARTPlayerState::TeamIdOf`, non un caso non gestito: e' cio' che rende `TeamId = 1` un avversario e
+	 * `TeamId = 0` un alleato senza dover montare un player state.
+	 *
+	 * ⚠️ **Senza `ARTTurnManager` la vista di conoscenza resta VUOTA**, quindi l'avversario non ha voce,
+	 * quindi non e' `Live`: e' esattamente lo stato in cui il velo deve spegnerlo.
+	 */
+	struct FUvVeilFixture
+	{
+		UWorld* World = nullptr;
+		ARTHUD* Hud = nullptr;
+		ARTUnit* Enemy = nullptr;
+		ARTUnit* Ally = nullptr;
+	};
+
+	FUvVeilFixture UvMakeVeilFixture()
+	{
+		FUvVeilFixture F;
+		F.World = UvMakeWorld();
+		if (!F.World) { return F; }
+
+		F.Hud = F.World->SpawnActor<ARTHUD>();
+
+		F.Enemy = F.World->SpawnActor<ARTUnit>();
+		if (F.Enemy) { F.Enemy->TeamId = 1; F.Enemy->StableUnitId = 1; }
+
+		F.Ally = F.World->SpawnActor<ARTUnit>();
+		if (F.Ally) { F.Ally->TeamId = 0; F.Ally->StableUnitId = 2; }
+
+		return F;
+	}
+}
+
+/**
+ * 🔴 **Il driver spegne l'avversario che la vista non conosce, e NON tocca l'alleato.**
+ *
+ * ⚠️ **Anti-vacuita' su due fronti.** Un test che guardasse solo l'avversario passerebbe anche se il driver
+ * spegnesse *tutto* — che a schermo e' un altro difetto, non una riparazione. E il flag da solo non basta:
+ * si asserisce anche il COMPONENTE, perche' `SetKnownToObserver` ha un guard di idempotenza e la
+ * visibilita' e' una funzione dello stato, non un'assegnazione (vedi i test qui sopra).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilEnemyWithoutViewIsHiddenTest,
+	"RefactorTactics.Veil.EnemyWithoutViewIsHidden",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVeilEnemyWithoutViewIsHiddenTest::RunTest(const FString&)
+{
+	FUvVeilFixture F = UvMakeVeilFixture();
+	if (!TestNotNull(TEXT("mondo di prova"), F.World)) { return false; }
+	if (!TestNotNull(TEXT("HUD"), F.Hud) || !TestNotNull(TEXT("avversario"), F.Enemy)
+		|| !TestNotNull(TEXT("alleato"), F.Ally))
+	{
+		UvDestroyWorld(F.World);
+		return false;
+	}
+
+	UStaticMeshComponent* EnemyMesh = UvComponentNamed(F.Enemy, TEXT("Mesh"));
+	UStaticMeshComponent* AllyMesh  = UvComponentNamed(F.Ally,  TEXT("Mesh"));
+	if (!TestNotNull(TEXT("segnaposto avversario"), EnemyMesh)
+		|| !TestNotNull(TEXT("segnaposto alleato"), AllyMesh))
+	{
+		UvDestroyWorld(F.World);
+		return false;
+	}
+
+	// Premessa: entrambe nascono note, ed e' il default che rende il difetto silenzioso.
+	TestTrue(TEXT("premessa: l'avversario nasce noto"), F.Enemy->IsKnownToObserver());
+	TestTrue(TEXT("premessa: l'alleato nasce noto"),    F.Ally->IsKnownToObserver());
+
+	F.Hud->UpdateObserverVeil();
+
+	// 🔴 Il cuore: senza voce nella vista, l'avversario non e' `Live` e sparisce.
+	TestFalse(TEXT("avversario senza vista: non e' piu' noto"), F.Enemy->IsKnownToObserver());
+	TestFalse(TEXT("avversario senza vista: il segnaposto sparisce"), EnemyMesh->GetVisibleFlag());
+
+	// 🔴 L'altra meta': la propria squadra si vede SEMPRE. Nasconderla a se' stessi non e' conoscenza
+	// parziale, e' un difetto — ed e' il caso che un driver troppo zelante romperebbe.
+	TestTrue(TEXT("alleato: resta noto"), F.Ally->IsKnownToObserver());
+	TestTrue(TEXT("alleato: il segnaposto resta"), AllyMesh->GetVisibleFlag());
+
+	UvDestroyWorld(F.World);
+	return true;
+}
+
+/**
+ * 🔴 **Il driver e' CABLATO al tick, e il tick e' acceso.**
+ *
+ * Due asserzioni, e nessuna delle due e' sufficiente da sola:
+ *
+ *   - `bCanEverTick` — `AHUD` nasce con il tick spento. Senza, il motore non chiamerebbe mai `Tick`, e il
+ *     velo non verrebbe applicato **mai**: ogni nemico visibile, nessun errore, nessun log;
+ *   - `Tick()` produce l'effetto — cioe' `Tick` chiama davvero il driver. Se qualcuno domani ne stacca la
+ *     chiamata, questa asserzione cade mentre `bCanEverTick` resterebbe verde.
+ *
+ * ⚠️ E' il test che distingue *«il driver ha deciso "noto"»* da *«il driver non e' mai girato»*, che e'
+ * precisamente la coppia che il default `true` rende indistinguibile a schermo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilDriverRunsOnTickTest,
+	"RefactorTactics.Veil.DriverRunsOnTick",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVeilDriverRunsOnTickTest::RunTest(const FString&)
+{
+	FUvVeilFixture F = UvMakeVeilFixture();
+	if (!TestNotNull(TEXT("mondo di prova"), F.World)) { return false; }
+	if (!TestNotNull(TEXT("HUD"), F.Hud) || !TestNotNull(TEXT("avversario"), F.Enemy))
+	{
+		UvDestroyWorld(F.World);
+		return false;
+	}
+
+	// 1. Il motore deve poterlo chiamare.
+	TestTrue(TEXT("il tick dell'HUD e' abilitato"), F.Hud->PrimaryActorTick.bCanEverTick);
+
+	// 2. E chiamarlo deve applicare il velo, senza disegnare nulla.
+	TestTrue(TEXT("premessa: l'avversario nasce noto"), F.Enemy->IsKnownToObserver());
+	F.Hud->Tick(0.f);
+	TestFalse(TEXT("dopo un tick: l'avversario non e' piu' noto"), F.Enemy->IsKnownToObserver());
+
+	UvDestroyWorld(F.World);
 	return true;
 }
 
