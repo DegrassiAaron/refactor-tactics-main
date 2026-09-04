@@ -143,3 +143,46 @@ float URTPlaybackLibrary::DirectionYaw(const FVector& From, const FVector& To)
 	// Atan2(Y,X): +X=0, +Y=90, -X=+/-180, -Y=-90 (convenzione yaw UE). Z ignorata (facing planare).
 	return FMath::RadiansToDegrees(FMath::Atan2(Dir.Y, Dir.X));
 }
+
+int32 URTPlaybackLibrary::MicroStepsInPath(const TArray<FVector>& Waypoints)
+{
+	// `Max(0, ...)` e non `Num()-1` nudo: su un array vuoto quello darebbe `-1`, e un conteggio negativo
+	// propagherebbe un divisore assurdo dentro `AlphaAtMicroStep`.
+	return FMath::Max(0, Waypoints.Num() - 1);
+}
+
+float URTPlaybackLibrary::AlphaAtMicroStep(int32 StepIndex, int32 StepCount)
+{
+	if (StepCount <= 0)
+	{
+		// Nessun segmento: la fase e' gia' conclusa. `1.f` e non `0.f`, altrimenti un percorso degenere
+		// resterebbe in attesa di un avanzamento che non puo' avvenire.
+		return 1.f;
+	}
+	return FMath::Clamp(static_cast<float>(StepIndex) / static_cast<float>(StepCount), 0.f, 1.f);
+}
+
+float URTPlaybackLibrary::NextMicroStepBoundary(float Alpha, int32 StepCount)
+{
+	if (StepCount <= 0)
+	{
+		return 1.f; // niente da attraversare
+	}
+
+	const float Passo = 1.f / static_cast<float>(StepCount);
+
+	// 🔴 **`FloorToInt(Alpha/Passo) + 1`, e il `+1` e' la regola**: si va al confine SUCCESSIVO anche
+	// quando `Alpha` e' gia' esattamente su uno. Con un arrotondamento «al piu' vicino >=» premere `Step`
+	// due volte su un boundary non farebbe nulla la seconda volta.
+	//
+	// ⚠️ **`UE_KINDA_SMALL_NUMBER` si SOMMA, e il verso e' la parte che sbaglia facilmente.** `Alpha`
+	// arriva da un'accumulazione in virgola mobile, e `1/3` vale `0.333333343`: senza tolleranza quel
+	// valore cadrebbe appena SOTTO il proprio confine, il floor lo assegnerebbe al segmento precedente, e
+	// «il prossimo» sarebbe il confine su cui ci si trova gia' — cioe' `Step` non avanzerebbe.
+	// ⛔ Sottrarla fa esattamente questo difetto su OGNI confine esatto, non solo su quelli inesatti:
+	// misurato, `NextMicroStepBoundary(0.25f, 4)` restituiva `0.25` invece di `0.5`.
+	const int32 Corrente = FMath::FloorToInt((FMath::Max(0.f, Alpha) + UE_KINDA_SMALL_NUMBER) / Passo);
+	const int32 Prossimo = FMath::Max(0, Corrente) + 1;
+
+	return AlphaAtMicroStep(Prossimo, StepCount);
+}
