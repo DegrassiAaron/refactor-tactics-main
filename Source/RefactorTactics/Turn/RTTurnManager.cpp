@@ -1548,7 +1548,7 @@ void ARTTurnManager::StartPlanningTimer()
 		return;
 	}
 
-	BeginPacingSample(); // apre il campione: il cronometro parte quando parte la pianificazione
+	Pacing.Begin(TurnNumber, CollectPacingUnitFacts(), PacingTeamId); // apre il campione: il cronometro parte quando parte la pianificazione
 
 	PlanBots(); // il bot pianifica a inizio turno
 
@@ -1563,7 +1563,7 @@ void ARTTurnManager::StartPlanningTimer()
 void ARTTurnManager::OnPlanningTimeout()
 {
 	UE_LOG(LogRT, Log, TEXT("[RT] Timer scaduto -> lock-in automatico"));
-	PacingCurrent.LockInSource = ERTLockInSource::Timeout; // non l'ha chiusa il giocatore
+	Pacing.Current().LockInSource = ERTLockInSource::Timeout; // non l'ha chiusa il giocatore
 	LockInAndResolve();
 }
 
@@ -1604,50 +1604,10 @@ void ARTTurnManager::LockInAndResolve()
 		// ⚠️ Ma i TEMPI no: l'origine sarebbe «adesso», e `MsToLockIn` verrebbe zero. Zero e' un lock-in
 		// istantaneo, cioe' un valore legittimo: sarebbe il dato plausibile e falso che `Unmeasured` esiste
 		// per non produrre. I tre tempi dichiarano di non essere stati misurati (`#1421`).
-		const bool bWasOpen = bPacingSampleOpen;
-		if (!bWasOpen)
-		{
-			BeginPacingSample();
-		}
-
-		// #971 — la SECONDA causa, e arriva allo stesso esito per la stessa ragione. In una sessione non
-		// presidiata il campione viene aperto regolarmente da `StartPlanningTimer`, quindi i tempi
-		// sarebbero tutti misurabili e tutti veri di un cronometro che nessuno guardava: `MsToLockIn` e'
-		// la durata del Planning, e il ramo `else` qui sotto scriverebbe `MsSinceLastInput = MsToLockIn`
-		// classificando il turno fra le **attese a vuoto**. E' la classificazione giusta per un umano che
-		// non ha toccato niente, e falsa per una partita in cui non c'era nessun umano: `SummarizeSamples`
-		// li sommerebbe agli stessi contatori. Terzo esito della domanda che #971 poneva come binaria
-		// (*«registra o tace?»*) — si registra il CONTESTO e si dichiara che i tempi non sono misurati,
-		// che e' cio' che `Unmeasured` esiste per fare da #1421.
-		//
-		// ⚠️ I CONTEGGI restano: `SelectionCount`/`OrderCount`/`UndoCount` valgono zero, ed e' un fatto
-		// vero — nessun input e' stato accettato, perche' `ARTPlayerController::IsPlanningInputInert()` li
-		// ha resi inerti a monte. Solo i tre TEMPI sarebbero plausibili e falsi.
-		if (!bWasOpen || bUnattendedSession)
-		{
-			PacingCurrent.MsToLockIn = FRTPacingSample::Unmeasured;
-			PacingCurrent.MsSinceLastInput = FRTPacingSample::Unmeasured;
-			PacingCurrent.MsToFirstInput = FRTPacingSample::Unmeasured;
-		}
-		else
-		{
-			// ⚠️ Un clamp al posto di tutto questo toglierebbe il comportamento non definito e lascerebbe il
-			// dato falso: su Windows `FPlatformTime::Seconds()` non e' un tempo dall'avvio del processo
-			// (porta dentro `16777216.0`), quindi `(Now - 0.0) * 1000.0` vale circa `1.7e10` e
-			// `FMath::RoundToInt` lo tronca in un `int32` che arriva a `2.1e9`. Clampato sarebbe
-			// `INT32_MAX`: un numero, e comunque non un tempo di pianificazione.
-			const double Now = FPlatformTime::Seconds();
-			PacingCurrent.MsToLockIn = FMath::RoundToInt((Now - PacingPlanningStart) * 1000.0);
-			// Senza nessun input, "tempo dall'ultimo input" e' l'intera pianificazione: cosi' un turno passato
-			// inerte finisce fra le attese a vuoto e non fra i tagli, che e' la classificazione corretta.
-			PacingCurrent.MsSinceLastInput = bPacingHadInput
-				? FMath::RoundToInt((Now - PacingLastInput) * 1000.0)
-				: PacingCurrent.MsToLockIn;
-			if (!bPacingHadInput)
-			{
-				PacingCurrent.MsToFirstInput = PacingCurrent.MsToLockIn;
-			}
-		}
+		// 🔑 La regola — *se l'origine non c'era, i tempi non sono misurabili* — vive nel registratore,
+		// insieme allo stato che la rende vera. Qui resta il solo fatto che l'orchestratore conosce: se la
+		// sessione è presidiata.
+		Pacing.NoteLockIn(bUnattendedSession, TurnNumber, CollectPacingUnitFacts(), PacingTeamId);
 	}
 
 	// Chiude la pianificazione: ferma il timer (utile anche per il lock-in manuale).
@@ -3196,7 +3156,7 @@ void ARTTurnManager::ConcludeTurn()
 	}
 	// PRIMA di tutto il resto: a partita finita questa funzione esce anticipatamente, e il turno che
 	// decide la partita e' proprio quello che non verrebbe mai misurato.
-	ClosePacingSample();
+	Pacing.Close(PlaybackElapsedTotal, CollectPacingUnitFacts(), PacingTeamId, TurnLog, bRecordPacing);
 
 	// La traccia del turno appena risolto va su disco ADESSO, non a fine partita: un archivio serve
 	// soprattutto quando la partita non arriva alla fine. `TurnNumber` e' ancora quello del turno chiuso —
@@ -7340,7 +7300,7 @@ void ARTTurnManager::SkipPlayback()
 	{
 		return;
 	}
-	PacingCurrent.bPlaybackSkipped = true;
+	Pacing.Current().bPlaybackSkipped = true;
 	AddLogEvent(TEXT("Risoluzione: salto"), FRTLogSubject::World());
 	FinishPlayback();
 }
@@ -7438,21 +7398,6 @@ TArray<FRTPacingUnitFacts> ARTTurnManager::CollectPacingUnitFacts() const
 	return Facts;
 }
 
-void ARTTurnManager::BeginPacingSample()
-{
-	PacingCurrent = FRTPacingSample();
-	PacingCurrent.TurnNumber = TurnNumber;
-
-	// Quali unita' contano e quali no e' una REGOLA, e vive in `URTPacingLibrary::ApplyOpeningCounts` dove
-	// si prova senza mondo (#1818). Qui resta la raccolta dei fatti dagli Actor.
-	URTPacingLibrary::ApplyOpeningCounts(CollectPacingUnitFacts(), PacingTeamId, PacingCurrent);
-
-	PacingPlanningStart = FPlatformTime::Seconds();
-	PacingLastInput = PacingPlanningStart;
-	bPacingHadInput = false;
-	bPacingSampleOpen = true; // da qui l'origine esiste, e i tempi si possono misurare
-}
-
 void ARTTurnManager::RecordPlanningInput(ERTPlanningInput Kind)
 {
 	if (Phase != ERTMatchPhase::Planning)
@@ -7460,76 +7405,9 @@ void ARTTurnManager::RecordPlanningInput(ERTPlanningInput Kind)
 		return; // un input fuori dalla pianificazione non e' una decisione di turno
 	}
 
-	// 🔴 Il SECONDO percorso dello stesso difetto, e il piu' facile da non vedere: `Phase` vale `Planning`
-	// per default, quindi la guardia qui sopra NON ferma un TurnManager che non e' mai passato da
-	// `BeginPlay`, e `(Now - 0.0) * 1000.0` sfora l'`int32` esattamente come nel lock-in. I contatori di
-	// composizione — selezioni, ordini, annullamenti — restano validi: sono conteggi, non tempi.
-	const double Now = FPlatformTime::Seconds();
-	if (bPacingSampleOpen && !bPacingHadInput)
-	{
-		bPacingHadInput = true;
-		PacingCurrent.MsToFirstInput = FMath::RoundToInt((Now - PacingPlanningStart) * 1000.0);
-	}
-	PacingLastInput = Now;
-
-	switch (Kind)
-	{
-	case ERTPlanningInput::Selection: ++PacingCurrent.SelectionCount; break;
-	case ERTPlanningInput::Order:     ++PacingCurrent.OrderCount;     break;
-	case ERTPlanningInput::Undo:      ++PacingCurrent.UndoCount;      break;
-	case ERTPlanningInput::Click:
-	default:
-		break; // attivita' generica: aggiorna solo i tempi
-	}
+	// ⚠️ La guardia sull'origine è **dentro** il registratore, non qui: `Phase` vale `Planning` per default,
+	// quindi questa riga NON ferma un TurnManager che non è mai passato da `BeginPlay`. Tenerla di là
+	// significa che nessun chiamante può dimenticarsene.
+	Pacing.NoteInput(Kind);
 }
 
-void ARTTurnManager::ClosePacingSample()
-{
-	PacingCurrent.MsPlayback = FMath::RoundToInt(PlaybackElapsedTotal * 1000.f);
-
-	// Quante finestre di reazione hanno occupato la squadra misurata in QUESTO turno (CP 14.6, `#166`).
-	//
-	// Si DERIVA dal TurnLog invece di essere contato durante la risoluzione: l'apertura di una finestra e' gia'
-	// un fatto registrato, e un contatore parallelo nel resolver sarebbe una seconda verita' che diverge al
-	// primo esito nuovo — con l'aggravante di essere uno stato mutabile su un percorso che deve restare
-	// deterministico. Qui la misura e' telemetria pura: legge, non decide.
-	{
-		// Chi conta come responder — la squadra misurata, i caduti INCLUSI, l'id `0` escluso ([D-063],
-		// [D-167]) — e' una regola, e vive in `URTPacingLibrary::RespondersForPacing` con i suoi test
-		// headless (#1818). Le due esclusioni erano scritte qui solo come commento.
-		const TSet<int32> Responders(URTPacingLibrary::RespondersForPacing(
-			CollectPacingUnitFacts(), PacingTeamId));
-
-		// ⚠️ Nessun filtro per turno, e non e' una dimenticanza: `LockInAndResolve` fa `TurnLog.Reset()`
-		// prima di ogni risoluzione, quindi il log contiene **gia' e solo** il turno corrente. Il filtro che
-		// stava qui copiava l'intero array — ogni voce con le sue `FString` — per un predicato sempre vero.
-		PacingCurrent.ReactionWindowsOpened =
-			URTPacingLibrary::CountOpenedReactionWindows(TurnLog, Responders);
-	}
-
-	PacingSamples.Add(PacingCurrent);
-	if (bRecordPacing)
-	{
-		AppendPacingRow(PacingCurrent);
-	}
-	PacingCurrent = FRTPacingSample();
-	// Il campione e' chiuso: il prossimo turno misura solo se qualcuno lo riapre. Senza questo, un turno
-	// aperto dal timer e uno successivo raggiunto da un altro percorso si misurerebbero entrambi
-	// dall'origine del primo.
-	bPacingSampleOpen = false;
-}
-
-void ARTTurnManager::AppendPacingRow(const FRTPacingSample& Sample)
-{
-	if (PacingFilePath.IsEmpty())
-	{
-		// Un file per esecuzione. Si scrive UNA RIGA PER TURNO: un riavvio della partita non perde nulla.
-		const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RT"));
-		IFileManager::Get().MakeDirectory(*Dir, /*Tree=*/ true);
-		PacingFilePath = FPaths::Combine(Dir,
-			FString::Printf(TEXT("pacing_%s.csv"), *FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S"))));
-		FFileHelper::SaveStringToFile(URTPacingLibrary::CsvHeader() + LINE_TERMINATOR, *PacingFilePath);
-	}
-	FFileHelper::SaveStringToFile(URTPacingLibrary::CsvRow(Sample) + LINE_TERMINATOR, *PacingFilePath,
-		FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), EFileWrite::FILEWRITE_Append);
-}
