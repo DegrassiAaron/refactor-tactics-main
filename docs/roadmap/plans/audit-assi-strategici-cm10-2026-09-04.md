@@ -35,7 +35,7 @@ Un contatore che sale da solo soddisfa 1 e non 2. Un budget che si ripristina og
 | **Cooldown** | ✅ | `Unit->TickCooldowns()` nel Cleanup (`RTTurnManager.cpp:1898`) | ✅ |
 | **Carica di reazione** | ✅ | `bCharged`: `HOLD` la conserva, solo `FIRE` la consuma | ✅ |
 | **HP** | ✅ | — | ⚠️ |
-| **Energia (risorsa firma)** | ✅ | `GainEnergy(Energy, EnergyPerTurn, MaxEnergy)` nel Cleanup (`:1881`) | 🔴 **no** |
+| **Energia (risorsa firma)** | ✅ | `GainEnergy(Energy, EnergyPerTurn, MaxEnergy)` nel Cleanup (`:1881`) | 🔴 **no** | <!-- superata: vedi nota in coda -->
 | **Punteggio obiettivo** | ✅ | un punto per Cleanup controllato | 🔴 **no** |
 | Slot · Movement Point · Pivot | ❌ | ripristinati ogni turno | tattici |
 | Status | ~ | durate di **1–2** turni | orizzonte breve |
@@ -169,3 +169,19 @@ cercare un nome o un percorso e concludere l'assenza. `Risorsa firma` non esiste
 canonico** — si chiama `Energy`; `Energy` non è in `Characters/` — la classe vive in `Unit/`. Un grep che
 torna zero misura **il termine cercato**, non il fatto. Vale come promemoria per il prossimo audit:
 prima di scrivere *«non esiste»*, cercare almeno un sinonimo e un percorso alternativo.
+
+---
+
+## ⛔ Nota di supersessione — 2026-09-04, più tardi nello stesso giorno
+
+> Questo referto ha misurato l'**Energia (risorsa firma)** come uno degli assi accesi, e ha concluso che è
+> *«una macchina e non una decisione»*. La conclusione ha avuto un effetto: la stessa sera
+> [`D-324`](../../decisions/RT_PDR_00_Decision_Log.md) ha deciso che `Energy` **esce dal gameplay**, e
+> [#610](https://github.com/DegrassiAaron/refactor-tactics-main/issues/610) l'ha rimossa dal codice e dal
+> digest nello stesso commit.
+>
+> ∴ **La riga «Energia» di questa tabella non descrive più il runtime.** Il referto resta com'è — è una
+> fotografia datata, e riscriverlo cancellerebbe la misura che ha prodotto la decisione — ma chi lo legge
+> per sapere *quanti assi strategici il gioco possiede oggi* ne tolga uno: dei due interruttori che `CM-10`
+> aveva trovato spenti, questo non è stato acceso, è stato **rimosso**. Resta il punteggio obiettivo
+> (`ScoreToWin = 0`).
