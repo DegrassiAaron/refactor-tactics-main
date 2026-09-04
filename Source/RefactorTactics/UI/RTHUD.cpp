@@ -1193,9 +1193,14 @@ FRTHudTextLine ARTHUD::ComposePreviewZoneLine(int32 NumHitCells, int32 NumAllyHi
 			NumAllyHitCells, NumAllyHitCells > 1 ? TEXT("/I") : TEXT(""));
 	}
 
-	// Arancione quando c'e' fuoco amico: stesso codice colore del nome marcato sopra la testa, cosi' le due
-	// informazioni si riconoscono come la stessa cosa detta in due posti. Cambia al PRIMO alleato, non a
-	// una soglia: uno basta a rendere il tiro un'altra decisione.
+	// Arancione quando c'e' fuoco amico: **lo stesso letterale** del nome marcato sopra la testa, che dal
+	// 2026-09-04 (#2288) vive in `UI/RTUnitOverlayWidget.cpp:48` sotto `View.bFriendlyFire`. Le due
+	// informazioni devono riconoscersi come la stessa cosa detta in due posti.
+	//
+	// ⚠️ Il colore e' ripetuto e non condiviso: chi lo cambia deve cambiarlo in ENTRAMBE le sedi di
+	// produzione, e un test qui lo pinna. Una costante comune sarebbe la cura, ed e' fuori da questa fetta.
+	//
+	// Cambia al PRIMO alleato, non a una soglia: uno basta a rendere il tiro un'altra decisione.
 	Line.Color = NumAllyHitCells > 0
 		? FLinearColor(1.f, 0.6f, 0.12f, 1.f)
 		: FLinearColor(1.f, 0.35f, 0.3f, 1.f);
