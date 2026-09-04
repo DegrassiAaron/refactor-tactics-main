@@ -1459,4 +1459,97 @@ bool FRTBlockedMoveIsNotRepeatedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * ✅ **`UsedByBlast` entra in una traccia REALE** (`#1933`) — il residuo si chiude, **per il ramo della
+ * Guardia**.
+ *
+ * ⚠️ **Il perimetro va detto subito, perché è più stretto del nome del consumatore.** La lettura registrata
+ * è quella di `ResolveCombatPasses`, che gira **solo per le unità con `Status.Guarded`**: è la Guardia a
+ * chiedere se il colpo viene dall'arco frontale. L'altra lettura del Blast — la copertura generale, in
+ * `EffectiveCoverReduction` → `IsInFrontalArc` — vive in una funzione **pura**, senza log: registrarla da
+ * lì vorrebbe dire passare un `TArray<FRTTurnLogEntry>&` dentro il resolver, che è il confine che
+ * `RTCombatResolver.h` dichiara di tenere (*«il resolver resta puro: nessun Actor, nessuna mappa»*).
+ *
+ * 🔴 **Il difetto che questo test chiude era invisibile a un test verde.**
+ * `Facing.TurnLogNamesConsumerAndReason` muta **a mano** una voce `UsedByBlast` per verificare che l'hash
+ * distingua i consumatori: misura il TurnLog, non chi lo produce. `ReadFacingForConsumer` aveva **zero
+ * chiamanti in gioco** — `RTTurnLog.h` lo dichiarava — quindi quella voce non entrava in nessuna traccia
+ * prodotta dal gioco, e nessun test se ne accorgeva perché nessuno la cercava in una traccia vera.
+ *
+ * ∴ qui la traccia è quella di un turno **giocato**: se il produttore sparisse, questo test diventerebbe
+ * rosso e quello di `RTFacingTests` resterebbe verde.
+ *
+ * ⚠️ Cosa il test NON afferma: nulla su `UsedByOverwatch`. Quel consumatore **non ha oggetto** — l'Overwatch
+ * decide con quattro condizioni e nessuna riguarda l'orientamento — e resta deliberatamente senza
+ * produttore. Registrarlo dichiarerebbe una lettura mai avvenuta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCombatLogBlastRecordsFacingReadTest,
+	"RefactorTactics.Facing.BlastRecordsTheFacingItRead",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCombatLogBlastRecordsFacingReadTest::RunTest(const FString&)
+{
+	UWorld* World = RTCombatLogFixture::MakeWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTHexMapActor* Map = RTCombatLogFixture::SpawnMap(World);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Difensore = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 1, FRTCellId(0, 0, 0));
+	ARTUnit* Attaccante = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 0, FRTCellId(-1, 0, 0));
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("mappa"), Map)
+		|| !TestNotNull(TEXT("difensore"), Difensore) || !TestNotNull(TEXT("attaccante"), Attaccante))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	Difensore->Facing = ERTHexDirection::E;
+	// 🔴 **La Guardia non e' un dettaglio della fixture: e' la CONDIZIONE del ramo che legge il facing.**
+	// `ResolveCombatPasses` salta le unita' senza `Status.Guarded` — `if (!Units[i]->HasStatus(...)) continue`
+	// — quindi senza questa riga nessuna lettura avviene e il test misurerebbe l'assenza di un produttore
+	// che invece esiste. Misurato: la prima stesura non ce l'aveva ed e' fallita per questo.
+	Difensore->ApplyStatus(TAG_Status_Guarded, 1);
+	Attaccante->PlannedAbilityIndex = 0; // attacco base
+	Attaccante->PlannedAttackTarget = Difensore;
+
+	RTCombatLogFixture::RunTurn(TM);
+
+	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
+	const TArray<FRTTurnLogEntry> Letture = Log.FilterByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Facing
+			&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::UsedByBlast);
+	});
+
+	if (!TestTrue(TEXT("il Blast ha registrato il facing che ha letto"), Letture.Num() > 0))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	// --- 🔴 il VALORE registrato e' quello letto, non un default ---------------------------------------
+	// Senza questa asserzione una voce con `Amount` a zero passerebbe: e' il modo in cui un produttore
+	// «presente» puo' comunque non dire nulla.
+	const FRTTurnLogEntry& Lettura = Letture[0];
+	TestEqual(TEXT("e il valore e' il facing del difensore, non uno zero"),
+		Lettura.Amount, static_cast<int32>(ERTHexDirection::E));
+
+	// --- la voce nomina l'unita' di cui racconta l'orientamento ----------------------------------------
+	TestEqual(TEXT("e nomina il difensore, non l'attaccante"),
+		Lettura.UnitId, Difensore->StableUnitId);
+	TestEqual(TEXT("nella fase Blast"), Lettura.Phase, ERTMatchPhase::Blast);
+
+	// --- ⛔ e NON registra il consumatore che non legge nulla ------------------------------------------
+	// `UsedByOverwatch` resta senza produttore per una ragione misurata, non per dimenticanza: se un
+	// giorno comparisse in una traccia senza che il cono pianificato esista, sarebbe un dato falso.
+	TestEqual(TEXT("⛔ nessuna voce UsedByOverwatch: quel consumatore non legge nulla"),
+		Log.FilterByPredicate([](const FRTTurnLogEntry& E)
+		{
+			return E.Category == ERTLogCategory::Facing
+				&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::UsedByOverwatch);
+		}).Num(), 0);
+
+	RTCombatLogFixture::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -5011,6 +5011,50 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 					HexUnits[i].Cell, HexUnits[i].Facing, ImpactOrigin);
 			bFrontalHit[h] = bFrontal;
 
+			// 🔴 **La LETTURA si registra qui, ed e' il produttore che `UsedByBlast` aspettava** (`#1933`).
+			//
+			// `D-020` chiede che snapshot e TurnLog registrino **quale** facing ha usato ciascun
+			// consumatore. Il vocabolario c'era — `ERTFacingOutcome::UsedByBlast` — e il consumatore pure:
+			// la riga qui sopra legge `HexUnits[i].Facing` e ne fa dipendere `bFrontal`. Mancava solo chi lo
+			// scrivesse: `ReadFacingForConsumer` aveva **zero chiamanti in gioco**, e `RTTurnLog.h` lo
+			// dichiarava.
+			//
+			// ⚠️ **Questo ramo e' quello della GUARDIA, non ogni lettura del Blast**, e la differenza va
+			// conosciuta da chi legge la traccia: il ciclo salta le unita' senza `Status.Guarded`. L'altra
+			// lettura — la copertura generale — sta in `EffectiveCoverReduction`, che e' **pura**: darle un
+			// log significherebbe passare un `TArray<FRTTurnLogEntry>&` dentro il resolver, cioe' rompere
+			// il confine che `RTCombatResolver.h` dichiara. ∴ una traccia senza voci `UsedByBlast` non dice
+			// «il Blast non ha letto il facing»: dice «nessun difensore era in Guardia».
+			//
+			// ⚠️ **`HexUnits[i]` e' una `FRTHexCombatUnit`, non una `FRTHexSimUnit`**, ed e' il costo che la
+			// nota di `RTTurnLog.h` dichiarava. Si passa per l'overload sui due campi — cella e facing — che
+			// sono gli stessi che la funzione usa: il tipo non combacia, l'informazione si'.
+			//
+			// ⚠️ **Dentro `bOriginResolved`, e non fuori.** Il `&&` e' a corto circuito: senza un'origine
+			// risolta `IsInFrontalArc` non viene chiamata affatto, quindi nessuna lettura avviene.
+			// Registrarla lo stesso scriverebbe una voce che dichiara una lettura mai fatta — il dato
+			// plausibile e falso che il repository evita per scelta (`FRTPacingSample::Unmeasured`), e la
+			// ragione esatta per cui il gemello `UsedByOverwatch` **resta senza produttore**: li' il cono
+			// pianificato non esiste, e la lettura non avviene mai.
+			//
+			// ⛔ Non e' una voce di ESITO: dice cosa il Blast ha letto, non cosa ne ha concluso. Il ramo
+			// `RearHitBypassedGuard` qui sotto racconta la conseguenza, e le due non si sostituiscono —
+			// una risponde «quale facing», l'altra «con quale effetto».
+			if (bOriginResolved)
+			{
+				// L'array locale e il giro da `AppendLogEntry` sono il pattern di `RecordFacingChange`: la
+				// libreria non puo' riempire turno, revisione del grafo e identita' dell'attore, e una voce
+				// aggiunta a mano a `TurnLog` nascerebbe senza contesto.
+				TArray<FRTTurnLogEntry> Lette;
+				URTFacingLibrary::ReadFacingForConsumer(
+					HexUnits[i].Cell, HexUnits[i].Facing,
+					ERTFacingOutcome::UsedByBlast, ERTMatchPhase::Blast, Lette);
+				for (FRTTurnLogEntry& Voce : Lette)
+				{
+					AppendLogEntry(Voce, Units[i]);
+				}
+			}
+
 			if (!bFrontal && bOriginResolved)
 			{
 				FRTTurnLogEntry Bypassed;

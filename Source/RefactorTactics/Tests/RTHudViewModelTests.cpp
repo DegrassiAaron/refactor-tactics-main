@@ -8,6 +8,7 @@
 #include "Misc/AutomationTest.h"
 #include "UI/RTHudViewModel.h"
 #include "UI/RTIconLibrary.h"      // MakeIconId: la chiave che la vista porta gia' derivata (#2274)
+#include "UI/RTUnitOverlayWidget.h" // ComposeStatusDurationLabel: la regola di formato di uno stato (#2336)
 #include "Core/RTGameplayTags.h"   // i tag di stato usati dai test dei badge (#2274)
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
@@ -906,6 +907,42 @@ bool FRTUnitOverlayFriendlyFireWinsOverTargetedTest::RunTest(const FString&)
 	}
 
 	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **L'etichetta della durata: un numero quando c'è un conteggio, NIENTE quando non c'è.**
+ *
+ * È l'unica regola di formato della riga di uno stato, ed è pura apposta: sta qui invece che dentro
+ * `SetOverlayView`, dove verificarla richiederebbe di costruire un widget.
+ *
+ * ⚠️ **Il caso che conta è il legato-alla-cella.** `Wet` dall'acqua bassa dura *finché resti dov'è*, e
+ * `FRTStatusBadgeView` gli mette `RemainingTurns = 0` proprio perché il `-1` di `PersistentWhileOnCell` non
+ * attraversi il confine. Un formato che stampasse quel `0` scriverebbe «zero turni» su uno stato che non sta
+ * per finire — l'opposto del vero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusDurationLabelTest,
+	"RefactorTactics.HudViewModel.StatusDurationLabelIsEmptyWhenThereIsNoCount",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStatusDurationLabelTest::RunTest(const FString&)
+{
+	// Con un conteggio: il numero, e nient'altro — l'icona dice già quale stato è.
+	TestEqual(TEXT("due turni residui"),
+		URTUnitOverlayWidget::ComposeStatusDurationLabel(2, /*bCellBound*/ false), FString(TEXT("2")));
+	TestEqual(TEXT("un turno residuo"),
+		URTUnitOverlayWidget::ComposeStatusDurationLabel(1, /*bCellBound*/ false), FString(TEXT("1")));
+
+	// 🔴 Legato alla cella: nessun conteggio, **anche se il numero fosse diverso da zero**. È il verso che
+	// conta: `bCellBound` decide, non `RemainingTurns`.
+	TestTrue(TEXT("legato alla cella: nessuna etichetta"),
+		URTUnitOverlayWidget::ComposeStatusDurationLabel(0, /*bCellBound*/ true).IsEmpty());
+	TestTrue(TEXT("legato alla cella: nessuna etichetta nemmeno con un numero"),
+		URTUnitOverlayWidget::ComposeStatusDurationLabel(3, /*bCellBound*/ true).IsEmpty());
+
+	// Una durata non positiva non è un tempo da mostrare: uno stato scaduto non arriva nemmeno alla vista.
+	TestTrue(TEXT("zero turni: nessuna etichetta"),
+		URTUnitOverlayWidget::ComposeStatusDurationLabel(0, /*bCellBound*/ false).IsEmpty());
+
 	return true;
 }
 
