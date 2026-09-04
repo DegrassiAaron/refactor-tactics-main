@@ -35,10 +35,28 @@ void URTUnitOverlayWidget::SetOverlayView(const FRTUnitOverlayView& InView)
 	// Ogni elemento e' opzionale: un `WBP` incompleto mostra il resto invece di non compilare.
 	if (NameText)
 	{
-		NameText->SetText(FText::FromString(View.DisplayName));
-		// Il colore viene dalla vista, che lo ha derivato da `bIsAlly`: alleato o avversario **per chi
-		// guarda**, mai «team 0/team 1».
-		NameText->SetColorAndOpacity(FSlateColor(View.TeamColor));
+		// 🔴 **L'avviso di fuoco amico sta sul NOME**, ed e' il posto giusto: c'e' gia', l'occhio ci va gia'
+		// per sapere chi e' chi, e non aggiunge un elemento nuovo da imparare. E' la stessa forma che il
+		// canvas usava prima di `#2288` — cambia il supporto, non il linguaggio.
+		FString Etichetta = View.DisplayName;
+		FLinearColor Colore = View.TeamColor;
+		if (View.bFriendlyFire)
+		{
+			// L'avviso deve essere piu' forte del colore di squadra: e' l'unico caso in cui chi guarda
+			// potrebbe voler cambiare idea prima del lock-in.
+			Etichetta = TEXT("! ") + Etichetta;
+			Colore = FLinearColor(1.f, 0.6f, 0.12f, 1.f);
+		}
+		else if (View.bTargeted)
+		{
+			Etichetta = TEXT("* ") + Etichetta;
+			Colore = FLinearColor(1.f, 0.35f, 0.3f, 1.f);
+		}
+
+		NameText->SetText(FText::FromString(Etichetta));
+		// Fuori dai due avvisi il colore viene dalla vista, che lo ha derivato da `bIsAlly`: alleato o
+		// avversario **per chi guarda**, mai «team 0/team 1».
+		NameText->SetColorAndOpacity(FSlateColor(Colore));
 	}
 
 	if (HealthBar)

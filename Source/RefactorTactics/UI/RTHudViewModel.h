@@ -243,6 +243,24 @@ struct FRTUnitOverlayView
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FLinearColor TeamColor = FLinearColor::White;
+
+	/**
+	 * Questa unita' e' dentro l'area di un piano d'attacco della PROPRIA squadra: **fuoco amico**.
+	 *
+	 * 🔴 **La cosa piu' importante che questa vista porta, e per poco andava persa.** L'avviso nasce da
+	 * un'osservazione in PIE del 2026-08-08 — *«non capisco se sto facendo un tiro e se nel tiro si
+	 * interseca con un cilindro»* — e vive sull'UNITA' e non solo sulla cella, perche' la domanda che ci si
+	 * fa guardando lo schermo e' «questo cilindro lo prendo o no?».
+	 *
+	 * ⚠️ Si calcola dai PIANI e non dall'anteprima dell'unita' selezionata: l'avviso deve restare acceso
+	 * anche mentre si seleziona qualcun altro per muoverlo — cioe' proprio mentre si finisce il turno.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bFriendlyFire = false;
+
+	/** Questa unita' e' dentro l'area di un piano d'attacco: e' un bersaglio. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bTargeted = false;
 };
 
 /** La ricarica residua di una singola azione del kit, in TURNI INTERI. */
@@ -441,7 +459,8 @@ public:
 	 * ⛔ **Non decide se mostrarla.** Quello lo dice `ARTUnit::IsKnownToObserver()`, scritto dal velo
 	 * (`#2246`): un secondo giudizio qui sarebbe la divergenza che quella issue ha appena tolto.
 	 */
-	static FRTUnitOverlayView BuildUnitOverlay(const ARTUnit* Unit, int32 PlayerTeamId);
+	static FRTUnitOverlayView BuildUnitOverlay(const ARTUnit* Unit, int32 PlayerTeamId,
+		const TSet<FRTCellId>& PlannedHitCells, const TSet<FRTCellId>& PlannedAllyHitCells);
 
 	/**
 	 * I piani **autorevoli** di tutte le unita' vive, non filtrati per nessun osservatore.

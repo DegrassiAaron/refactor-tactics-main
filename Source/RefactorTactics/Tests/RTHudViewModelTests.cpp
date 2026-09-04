@@ -802,9 +802,9 @@ bool FRTUnitOverlayViewIsObserverRelativeTest::RunTest(const FString&)
 	Unit->ApplyStatus(TAG_Status_Burning, /*Turni*/ 2);
 
 	// Visto da un compagno di squadra...
-	const FRTUnitOverlayView Alleata = URTHudViewModel::BuildUnitOverlay(Unit, /*PlayerTeamId*/ 0);
+	const FRTUnitOverlayView Alleata = URTHudViewModel::BuildUnitOverlay(Unit, /*PlayerTeamId*/ 0, {}, {});
 	// ...e dall'avversario.
-	const FRTUnitOverlayView Nemica  = URTHudViewModel::BuildUnitOverlay(Unit, /*PlayerTeamId*/ 1);
+	const FRTUnitOverlayView Nemica  = URTHudViewModel::BuildUnitOverlay(Unit, /*PlayerTeamId*/ 1, {}, {});
 
 	// I due produttori sono arrivati entrambi.
 	TestEqual(TEXT("la card porta la vita vera"), Alleata.Card.Health, 60);
@@ -837,7 +837,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitOverlayViewIsNeutralWithoutUnitTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTUnitOverlayViewIsNeutralWithoutUnitTest::RunTest(const FString&)
 {
-	const FRTUnitOverlayView Vuota = URTHudViewModel::BuildUnitOverlay(nullptr, /*PlayerTeamId*/ 0);
+	const FRTUnitOverlayView Vuota = URTHudViewModel::BuildUnitOverlay(nullptr, /*PlayerTeamId*/ 0, {}, {});
 
 	TestTrue(TEXT("nessun nome"), Vuota.DisplayName.IsEmpty());
 	TestEqual(TEXT("nessuno stato"), Vuota.Statuses.Num(), 0);
@@ -845,6 +845,67 @@ bool FRTUnitOverlayViewIsNeutralWithoutUnitTest::RunTest(const FString&)
 	// `MaxHealth > 0` e `Health == 0`. Chi disegna una barra deve poterli separare.
 	TestEqual(TEXT("nessuna vita massima: non e' un morto, e' un'assenza"), Vuota.Card.MaxHealth, 0);
 
+	return true;
+}
+
+/**
+ * 🔴 **L'avviso di fuoco amico sopravvive al cambio di supporto, e il fuoco amico VINCE sul bersaglio.**
+ *
+ * ⚠️ **Questo test esiste perche' la prima stesura di `#2288` aveva PERSO l'avviso.** Rimuovendo il blocco
+ * di disegno dal canvas e' andato via anche l'unico consumatore di `ComputePlannedHitMarks`: i due `TSet`
+ * restavano calcolati e mai letti, e a schermo spariva un avviso che nasce da un'osservazione in PIE del
+ * 2026-08-08 — *«non capisco se sto facendo un tiro e se nel tiro si interseca con un cilindro»*.
+ *
+ * Nessun test lo ha visto, perche' nessun test lo copriva: il canvas non ne aveva. Ora ce l'ha.
+ *
+ * 🔑 **Perche' il fuoco amico deve vincere**: e' l'unico caso in cui chi guarda potrebbe voler **cambiare
+ * idea** prima del lock-in. Due avvisi sullo stesso nome si annullerebbero a vicenda.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitOverlayFriendlyFireWinsOverTargetedTest,
+	"RefactorTactics.HudViewModel.UnitOverlayFriendlyFireWinsOverTargeted",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitOverlayFriendlyFireWinsOverTargetedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+	Unit->Cell = FRTCellId(3, 1, 0);
+
+	const TSet<FRTCellId> Vuoto;
+	const TSet<FRTCellId> SullaCella = { FRTCellId(3, 1, 0) };
+	const TSet<FRTCellId> Altrove = { FRTCellId(9, 9, 0) };
+
+	// Nessun piano la tocca: nessun avviso.
+	{
+		const FRTUnitOverlayView V = URTHudViewModel::BuildUnitOverlay(Unit, 0, Vuoto, Vuoto);
+		TestFalse(TEXT("nessun piano: niente fuoco amico"), V.bFriendlyFire);
+		TestFalse(TEXT("nessun piano: non e' bersaglio"), V.bTargeted);
+	}
+
+	// Dentro l'area di un attacco: e' un bersaglio.
+	{
+		const FRTUnitOverlayView V = URTHudViewModel::BuildUnitOverlay(Unit, 0, SullaCella, Vuoto);
+		TestTrue(TEXT("nell'area: e' bersaglio"), V.bTargeted);
+		TestFalse(TEXT("ma non e' fuoco amico"), V.bFriendlyFire);
+	}
+
+	// 🔴 Il cuore: dentro l'area E alleato -> **fuoco amico**, e il bersaglio si spegne.
+	{
+		const FRTUnitOverlayView V = URTHudViewModel::BuildUnitOverlay(Unit, 0, SullaCella, SullaCella);
+		TestTrue(TEXT("alleato nell'area: fuoco amico"), V.bFriendlyFire);
+		TestFalse(TEXT("e il bersaglio NON si accende insieme"), V.bTargeted);
+	}
+
+	// Anti-vacuita': un piano su un'altra cella non riguarda questa unita'.
+	{
+		const FRTUnitOverlayView V = URTHudViewModel::BuildUnitOverlay(Unit, 0, Altrove, Altrove);
+		TestFalse(TEXT("piano altrove: niente fuoco amico"), V.bFriendlyFire);
+		TestFalse(TEXT("piano altrove: non e' bersaglio"), V.bTargeted);
+	}
+
+	DestroyHudVmWorld(World);
 	return true;
 }
 

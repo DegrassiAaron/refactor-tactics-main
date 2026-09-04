@@ -499,6 +499,17 @@ void ARTHUD::UpdateObserverVeil()
 	// fotogramma, e ricostruirla per ognuna sarebbe lavoro ripetuto per un risultato identico.
 	const FRTKnowledgeView KnowledgeView = UvViewForObserver(TurnManager, Units, PlayerTeamId);
 
+	// Chi verrebbe colpito dai PIANI, non dall'anteprima dell'unita' selezionata: cosi' l'avviso di fuoco
+	// amico resta acceso anche mentre si seleziona qualcun altro per muoverlo, che e' esattamente il momento
+	// in cui prima spariva (`PIE-PREVIEW-PERSIST`).
+	//
+	// ⚠️ **Legge solo i piani di `PlayerTeamId`** (invariante #6, privacy dell'intento): i piani avversari
+	// non entrano, nemmeno per dedurne una cella. La regola sta dentro `ComputePlannedHitMarks`, che e'
+	// statica e senza accesso alla selezione **di proposito**.
+	TSet<FRTCellId> PlannedHitCells;
+	TSet<FRTCellId> PlannedAllyHitCells;
+	ComputePlannedHitMarks(Units, PlayerTeamId, PlannedHitCells, PlannedAllyHitCells);
+
 	// La geometria serve SOLO a posare la sagoma del ricordo. `DrawHUD` la recupera per conto suo per le
 	// sue conversioni cella -> schermo: e' la stessa chiamata fatta due volte, non una seconda regola —
 	// l'origine resta `ARTHexMapActor`, che di geometria resta l'unico owner.
@@ -563,7 +574,8 @@ void ARTHUD::UpdateObserverVeil()
 		{
 			if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(Raw))
 			{
-				Overlay->SetOverlayView(URTHudViewModel::BuildUnitOverlay(Unit, PlayerTeamId));
+				Overlay->SetOverlayView(URTHudViewModel::BuildUnitOverlay(
+					Unit, PlayerTeamId, PlannedHitCells, PlannedAllyHitCells));
 			}
 		}
 	}
@@ -587,22 +599,13 @@ void ARTHUD::DrawHUD()
 	// tutti gli altri lettori di squadra. Vedi `ARTPlayerState::TeamIdOf`, che porta la ragione per esteso.
 	const int32 PlayerTeamId = ARTPlayerState::TeamIdOf(GetOwningPlayerController());
 
-	// Barre HP/scudo sopra ogni unita' viva.
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 
-	// Chi verrebbe colpito dai PIANI, non dall'anteprima dell'unita' selezionata: cosi' l'avviso di fuoco
-	// amico resta acceso anche mentre si seleziona qualcun altro per muoverlo, che e' esattamente il momento
-	// in cui prima spariva.
-	TArray<ARTUnit*> AllUnits;
-	AllUnits.Reserve(Actors.Num());
-	for (AActor* A : Actors)
-	{
-		if (ARTUnit* U = Cast<ARTUnit>(A)) { AllUnits.Add(U); }
-	}
-	TSet<FRTCellId> PlannedHitCells;
-	TSet<FRTCellId> PlannedAllyHitCells;
-	ComputePlannedHitMarks(AllUnits, PlayerTeamId, PlannedHitCells, PlannedAllyHitCells);
+	// ⚠️ **`ComputePlannedHitMarks` non si chiama piu' QUI** (`#2288`): il suo unico consumatore era il nome
+	// sopra la testa, che ora e' nel widget. La chiama `UpdateObserverVeil`, che compone la vista.
+	// Lasciarla qui avrebbe calcolato due `TSet` per fotogramma senza che nessuno li leggesse — trovato in
+	// review, dopo che la prima stesura di questa PR aveva rimosso il consumatore e non il calcolo.
 
 	// Recuperato QUI, PRIMA del ciclo delle unita': serve alla traccia post-lock e al numero di turno.
 	const ARTTurnManager* TurnManager =

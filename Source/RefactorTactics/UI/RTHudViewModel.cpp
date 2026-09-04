@@ -141,7 +141,8 @@ FRTUnitSlotsView URTHudViewModel::BuildUnitSlots(const ARTUnit* Unit)
 	return Slots;
 }
 
-FRTUnitOverlayView URTHudViewModel::BuildUnitOverlay(const ARTUnit* Unit, int32 PlayerTeamId)
+FRTUnitOverlayView URTHudViewModel::BuildUnitOverlay(const ARTUnit* Unit, int32 PlayerTeamId,
+	const TSet<FRTCellId>& PlannedHitCells, const TSet<FRTCellId>& PlannedAllyHitCells)
 {
 	FRTUnitOverlayView View;
 	if (Unit == nullptr)
@@ -162,6 +163,16 @@ FRTUnitOverlayView URTHudViewModel::BuildUnitOverlay(const ARTUnit* Unit, int32 
 	// azzurro e gli altri in rosso, **non** «team 0 azzurro» — la distinzione conta per lo spettatore.
 	View.TeamColor = ARTUnit::TeamColorFor(View.Card.bIsAlly ? 0 : 1,
 		FLinearColor(0.55f, 0.75f, 1.f, 1.f), FLinearColor(1.f, 0.62f, 0.55f, 1.f));
+
+	// 🔴 **Chi viene colpito, marcato sull'UNITA' e non solo sulla cella.** L'anteprima a terra dice quali
+	// CELLE entrano nella zona; la domanda che ci si fa guardando lo schermo e' un'altra — «questo cilindro
+	// lo prendo o no?». Finche' c'era solo la prima, l'anteprima si vedeva e non si capiva (osservato in PIE
+	// il 2026-08-08).
+	//
+	// ⚠️ **Il fuoco amico VINCE sul bersaglio**: e' l'unico caso in cui chi guarda potrebbe voler cambiare
+	// idea, e due avvisi sullo stesso nome si annullerebbero a vicenda.
+	View.bFriendlyFire = PlannedAllyHitCells.Contains(Unit->Cell);
+	View.bTargeted = !View.bFriendlyFire && PlannedHitCells.Contains(Unit->Cell);
 
 	return View;
 }
