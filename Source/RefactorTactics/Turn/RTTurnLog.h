@@ -794,18 +794,32 @@ struct FRTTurnLogEntry
 	 * `#1429` / [D-198]: passano dal wrapper `ARTTurnManager::RecordFacingChange`, che travasa con
 	 * `AppendLogEntry`.
 	 *
-	 * ⚠️ **Un residuo resta, ed e' innocuo**: `UsedByBlast` e `UsedByOverwatch` nascono da
-	 * `ReadFacingForConsumer`, che non ha nessun chiamante in gioco — solo due test. Quelle due voci non
-	 * entrano in nessuna traccia reale, quindi non c'e' nessun `UnitId` a zero da correggere finche' un
-	 * produttore non esiste.
+	 * ✅ **`UsedByBlast` ha un produttore dal 2026-09-04** (`#1933`): `ResolveCombatPasses` registra la
+	 * lettura del facing nell'istante in cui la fa, subito dopo `IsInFrontalArc`. Quelle voci entrano ora
+	 * nelle tracce reali, e portano `UnitId` del difensore — l'unita' di cui raccontano l'orientamento.
 	 *
-	 * 🔴 **E i due residui NON sono lo stesso residuo** — misurato il 2026-09-01 lavorando `#1933`,
-	 * perche' «manca il chiamante» faceva sembrare i due casi simmetrici e non lo sono:
+	 * ⚠️ **Copre il ramo della GUARDIA, non ogni lettura del Blast.** Quel ciclo salta le unita' senza
+	 * `Status.Guarded`; la copertura generale legge il facing in `EffectiveCoverReduction`, che e' pura e
+	 * non ha log. ∴ **una traccia senza voci `UsedByBlast` non prova che il facing non sia stato letto** —
+	 * prova che nessun difensore era in Guardia. Chi ne deduca il contrario sbaglia, ed e' il motivo per cui
+	 * questa riga esiste.
 	 *
-	 * · `UsedByBlast` ha **oggetto**: il Blast il facing lo legge davvero, in `IsInFrontalArc`, e ne
-	 *   decide l'esito. Manca solo chi registri la lettura. ⚠️ Il costo non e' la riga: `ReadFacingForConsumer`
-	 *   accetta una `FRTHexSimUnit` mentre il Blast maneggia `FRTHexCombatUnit`, e ogni voce in piu' sposta
-	 *   l'hash di ogni traccia archiviata che contenga un colpo direzionale.
+	 * ⚠️ **Un residuo resta, e non e' lo stesso**: `UsedByOverwatch` nasce ancora da
+	 * `ReadFacingForConsumer` senza chiamanti in gioco.
+	 *
+	 * 🔴 **I due residui NON erano lo stesso residuo** — misurato il 2026-09-01 lavorando `#1933`, perche'
+	 * «manca il chiamante» faceva sembrare i due casi simmetrici e non lo sono. E' la ragione per cui il
+	 * primo si e' potuto chiudere e il secondo no:
+	 *
+	 * · `UsedByBlast` aveva **oggetto**: il Blast il facing lo legge davvero, in `IsInFrontalArc`, e ne
+	 *   decide l'esito. Mancava solo chi registrasse la lettura. ⚠️ Il costo non era la riga:
+	 *   `ReadFacingForConsumer` accettava **solo** una `FRTHexSimUnit`, mentre `ResolveCombatPasses` maneggia
+	 *   `FRTHexCombatUnit` — due tipi diversi con gli stessi due campi che quella funzione usa. La chiusura
+	 *   e' passata da un **overload su cella e facing**, con la forma originale che vi delega: una sola
+	 *   scrittura, quindi le due non possono divergere. ⛔ Nessuna firma cambiata e nessun chiamante
+	 *   convertito a mano. ⚠️ Ogni voce in piu' sposta comunque l'hash di ogni
+	 *   traccia che contenga un colpo direzionale: il corpus golden e' stato rigenerato nella stessa PR,
+	 *   come il gate di `#2271` ora impone.
 	 *
 	 * · `UsedByOverwatch` **non ha oggetto**, ed e' la differenza che conta: l'Overwatch non legge nessun
 	 *   facing. Le sue quattro condizioni sono `TargetInsideArea`, `TargetDetected`, `HasLineOfSight` e

@@ -1201,6 +1201,19 @@ bool FRTVeilThreeStatesNonEmptyOnVisionSplitTest::RunTest(const FString&)
 	// E restano una partizione: nessuna cella si perde per strada fra i tre insiemi.
 	TestEqual(TEXT("i tre stati partizionano la board"), A + R + N, Totale);
 
+	// 🔑 **E la board non si richiude alle spalle.** L'esplorato non scade — [D-227] ha esaminato e
+	// RIFIUTATO il velo senza memoria — quindi l'insieme nascosto può solo calare o restare fermo.
+	// `BoardDoesNotCloseBehindThePlayer` pinna la stessa invariante sulla board di DEFAULT; qui vale su
+	// `VisionSplit`, e la finestra di due turni è quella che `PIE-HEX-VIZ-VELO` dichiara.
+	//
+	// ⚠️ **Non è implicata da `N > 0` qui sopra**: quella dice che qualcosa resta nascosto, non che
+	// l'insieme nascosto non sia CRESCIUTO. Misurato il 2026-09-04: 170 nascoste al turno 0, 93 dopo due
+	// turni. È anche l'unica asserzione di questo test che diventerebbe rossa se il turno non avanzasse,
+	// perché a velo fermo `N` resterebbe uguale a `N0` — al limite, ma non oltre.
+	TestTrue(*FString::Printf(
+			TEXT("la board non si richiude: %d nascoste, non più delle %d iniziali"), N, N0),
+		N <= N0);
+
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }
