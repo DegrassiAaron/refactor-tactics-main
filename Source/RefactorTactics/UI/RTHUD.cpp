@@ -887,71 +887,32 @@ void ARTHUD::DrawHUD()
 	// Barra di stato in alto: turno, fase e timer/avanzamento. (§4.1 — vedi `rt.HUD.CanvasPanels`)
 	if (bCanvasPanels && TurnManager)
 	{
-		// Contatore del turno: con un formato in vigore mostra anche il limite, altrimenti resta il solo
-		// numero — un "su 0" direbbe che la partita e' gia' scaduta, che non e' cio' che accade.
-		// «Round», non «Turno»: nel progetto il TURNO e' la sequenza di fasi DENTRO il round
-		// (`Planning -> Prep -> Dash -> Blast -> Move -> Cleanup`), e il contatore qui e' quello che si
-		// confronta con `RoundLimit` del formato. Il DoD di CP 11.1 lo chiede esplicitamente, e la riga
-		// diceva «Turno %d/%d» — cioe' nominava una cosa e ne mostrava un'altra.
-		const int32 RoundLimit = TurnManager->GetMatchRules().RoundLimit;
-		const FString TurnCounter = RoundLimit > 0
-			? FString::Printf(TEXT("Round %d/%d"), TurnManager->GetTurnNumber(), RoundLimit)
-			: FString::Printf(TEXT("Round %d"), TurnManager->GetTurnNumber());
-
-		FString Status;
-		if (TurnManager->IsResolving())
-		{
-			// Durante il playback: fase in riproduzione + avanzamento + come saltare.
-			const int32 Pct = FMath::RoundToInt(TurnManager->GetPlaybackProgress01() * 100.f);
-			Status = FString::Printf(TEXT("%s  -  Risoluzione: %s  [%d%%]  (Spazio: salta)"),
-				*TurnCounter, *TurnManager->GetPlaybackPhaseName(), Pct);
-		}
-		else
-		{
-			const TCHAR* PhaseName = TEXT("");
-			switch (TurnManager->GetPhase())
-			{
-			case ERTMatchPhase::Planning:   PhaseName = TEXT("Pianificazione"); break;
-			case ERTMatchPhase::MatchEnded: PhaseName = TEXT("Fine"); break;
-			default:                        PhaseName = TEXT("Risoluzione"); break;
-			}
-			Status = FString::Printf(TEXT("%s  -  %s"), *TurnCounter, PhaseName);
-			const float Remaining = TurnManager->GetPlanningTimeRemaining();
-			if (TurnManager->GetPhase() == ERTMatchPhase::Planning && Remaining > 0.f)
-			{
-				Status += FString::Printf(TEXT("  -  %.0fs"), FMath::CeilToFloat(Remaining));
-			}
-		}
-
-		// Il progresso sull'OBIETTIVO contendibile (`CP 10.2`, `#75`). Il punto lo assegna il Cleanup e lo
-		// registra nel TurnLog da tempo; la DoD lo voleva anche «nell'HUD», e fino a qui nessuno lo mostrava.
+		// La riga la COMPONE una statica pura (`ComposeMatchStatusLine`, #2184): qui restano la raccolta di
+		// cio' che serve e il tracciamento. Le decisioni — quando tacere un limite, un timer, un punteggio —
+		// vivono dove i test arrivano, per la stessa ragione di `ShouldDrawUnitOverlay` e `ComposeSlotLines`.
 		//
-		// ⚠️ **Solo se la mappa DICHIARA un obiettivo.** Su una mappa che non ne ha, `0-0` non sarebbe una
-		// partita in parita': sarebbe un punteggio inventato per una gara che non si sta correndo. E' la
-		// stessa reticenza che il resolver ha gia' — `RTTurnManager` non scrive la voce di log senza
-		// `HasObjectiveCell()`, e `Objectives.SilentWithoutObjectiveCell` la misura.
+		// ⚠️ **La vista viene da `BuildMatchHeader`, la stessa che alimenta lo Screen HUD.** Questo blocco
+		// leggeva i sette campi dall'attore per conto proprio: due sedi per lo stesso dato, allineate a mano —
+		// e il commento di `FRTMatchHeaderView::RoundLimit` citava proprio questo Canvas come riferimento.
+		const FRTMatchHeaderView Header = URTHudViewModel::BuildMatchHeader(TurnManager);
+
+		// Interrogati solo mentre scorre, com'era prima: fuori dal playback non nominano niente di vero.
+		const FString PlaybackPhaseName = Header.bResolving ? TurnManager->GetPlaybackPhaseName() : FString();
+		const float PlaybackProgress01 = Header.bResolving ? TurnManager->GetPlaybackProgress01() : 0.f;
+
+		// L'obiettivo lo dichiara la MAPPA, non il formato. Il mondo si interroga qui; la reticenza che ne
+		// segue — tacere invece di scrivere `0-0` — sta nella funzione pura, dove un test la puo' vedere.
+		bool bHasObjectiveCell = false;
 		if (const ARTHexMapActor* ObjectiveMapActor = ARTHexMapActor::FindInWorld(GetWorld()))
 		{
 			FVector IgnoredOrigin = FVector::ZeroVector;
 			float IgnoredSize = 0.f;
 			float IgnoredLayerH = 0.f;
 			const URTHexMapAsset* ObjectiveMap = ObjectiveMapActor->GetHexContext(IgnoredOrigin, IgnoredSize, IgnoredLayerH);
-			if (ObjectiveMap && ObjectiveMap->HasObjectiveCell())
-			{
-				// Interi, come nel resolver e nel log: la riga mostrata dev'essere confrontabile con la
-				// colonna `Amount` del TurnLog, non somigliarle.
-				Status += FString::Printf(TEXT("  -  Obiettivo %d-%d"),
-					TurnManager->GetTeamScore(0), TurnManager->GetTeamScore(1));
-
-				// La soglia viene dal FORMATO, come `RoundLimit` qui sopra, e si tace quando e' `0`: la via
-				// per obiettivo e' disattivata in v0.1, e «a 0» leggerebbe come «gia' vinta».
-				const int32 ScoreToWin = TurnManager->GetMatchRules().ScoreToWin;
-				if (ScoreToWin > 0)
-				{
-					Status += FString::Printf(TEXT(" (a %d)"), ScoreToWin);
-				}
-			}
+			bHasObjectiveCell = ObjectiveMap && ObjectiveMap->HasObjectiveCell();
 		}
+
+		FString Status = ComposeMatchStatusLine(Header, PlaybackPhaseName, PlaybackProgress01, bHasObjectiveCell);
 
 		// Il controllo di velocita' (CP 47.7, #1015). Sta nella riga di stato e non in un pannello suo
 		// perche' quella riga e' l'unico elemento sempre visibile durante la risoluzione — che e' quando
@@ -1111,4 +1072,71 @@ void ARTHUD::DrawHUD()
 		DrawText(Restart, FLinearColor(0.85f, 0.85f, 0.85f, 1.f),
 			(Canvas->SizeX - RW) * 0.5f, Canvas->SizeY * 0.4f + TH + 8.f, nullptr, 1.2f);
 	}
+}
+
+FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
+	const FString& PlaybackPhaseName, float PlaybackProgress01, bool bHasObjectiveCell)
+{
+	// Contatore del round: con un formato in vigore mostra anche il limite, altrimenti resta il solo
+	// numero — un "su 0" direbbe che la partita e' gia' scaduta, che non e' cio' che accade.
+	// «Round», non «Turno»: nel progetto il TURNO e' la sequenza di fasi DENTRO il round
+	// (`Planning -> Prep -> Dash -> Blast -> Move -> Cleanup`), e il contatore qui e' quello che si
+	// confronta con `RoundLimit` del formato. Il DoD di CP 11.1 lo chiede esplicitamente, e la riga
+	// diceva «Turno %d/%d» — cioe' nominava una cosa e ne mostrava un'altra.
+	const FString TurnCounter = Header.RoundLimit > 0
+		? FString::Printf(TEXT("Round %d/%d"), Header.Round, Header.RoundLimit)
+		: FString::Printf(TEXT("Round %d"), Header.Round);
+
+	FString Status;
+	if (Header.bResolving)
+	{
+		// Durante il playback: fase in riproduzione + avanzamento + come saltare. La fase del MODELLO non
+		// si nomina qui — quella che scorre e' un'altra, e dirle entrambe direbbe che il gioco e' in due
+		// fasi insieme.
+		const int32 Pct = FMath::RoundToInt(PlaybackProgress01 * 100.f);
+		Status = FString::Printf(TEXT("%s  -  Risoluzione: %s  [%d%%]  (Spazio: salta)"),
+			*TurnCounter, *PlaybackPhaseName, Pct);
+	}
+	else
+	{
+		const TCHAR* PhaseName = TEXT("");
+		switch (Header.Phase)
+		{
+		case ERTMatchPhase::Planning:   PhaseName = TEXT("Pianificazione"); break;
+		case ERTMatchPhase::MatchEnded: PhaseName = TEXT("Fine"); break;
+		default:                        PhaseName = TEXT("Risoluzione"); break;
+		}
+		Status = FString::Printf(TEXT("%s  -  %s"), *TurnCounter, PhaseName);
+
+		// ⚠️ **Il negativo e' «non si applica», e non lo si converte in zero.** `PlanningSecondsRemaining`
+		// resta sotto zero fuori dal Planning e quando un timer non e' mai stato impostato — le run headless
+		// girano con `SetPlanningSeconds(0)`. Un `0s` lampeggiante direbbe «scaduto adesso», che e' un'altra
+		// cosa e non e' vera. Arrotondamento per ECCESSO: a 3,2 secondi restano `4s`, perche' `3s` farebbe
+		// sparire dal conto l'ultimo secondo di chi lo sta guardando.
+		if (Header.Phase == ERTMatchPhase::Planning && Header.PlanningSecondsRemaining > 0.f)
+		{
+			Status += FString::Printf(TEXT("  -  %.0fs"), FMath::CeilToFloat(Header.PlanningSecondsRemaining));
+		}
+	}
+
+	// Il progresso sull'OBIETTIVO contendibile (`CP 10.2`, `#75`), e **solo se la mappa ne dichiara uno**:
+	// su una mappa che non ne ha, `0-0` non sarebbe una parita' ma un punteggio inventato per una gara che
+	// nessuno sta correndo. E' la stessa reticenza del resolver, che non scrive la voce di TurnLog senza
+	// `HasObjectiveCell()` — `Objectives.SilentWithoutObjectiveCell` la misura.
+	//
+	// Interi, come nel resolver e nel log: la riga mostrata dev'essere confrontabile con la colonna
+	// `Amount` del TurnLog, non somigliarle.
+	if (bHasObjectiveCell)
+	{
+		Status += FString::Printf(TEXT("  -  Obiettivo %d-%d"), Header.Team0Score, Header.Team1Score);
+
+		// La soglia viene dal FORMATO, come `RoundLimit`, e si tace quando e' `0`: la via per obiettivo e'
+		// disattivata in v0.1, e «a 0» leggerebbe come «gia' vinta».
+		if (Header.ScoreToWin > 0)
+		{
+			Status += FString::Printf(TEXT(" (a %d)"), Header.ScoreToWin);
+		}
+	}
+
+	return Status;
 }
