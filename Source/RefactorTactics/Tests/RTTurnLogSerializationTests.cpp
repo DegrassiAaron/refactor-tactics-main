@@ -1494,9 +1494,13 @@ bool FRTTurnLogLegacyWithoutReactionResponseTest::RunTest(const FString&)
  * **Il micro-step attraversa il formato, e una traccia vecchia resta leggibile** (`#1880`).
  *
  * 🔴 **La meta' che conta e' la seconda**, e non usa una traccia costruita per l'occasione: legge un file
- * del **corpus golden**, scritto alla v10 e versionato nel repository. Una traccia sintetica «vecchia»
- * proverebbe che il codice sa leggere cio' che il codice stesso ha appena scritto; un golden prova che sa
+ * **realmente scritto alla v10** e versionato nel repository. Una traccia sintetica «vecchia» proverebbe
+ * che il codice sa leggere cio' che il codice stesso ha appena scritto; un file d'archivio prova che sa
  * leggere cio' che e' stato scritto mesi fa, che e' la domanda vera della compatibilita'.
+ *
+ * ⚠️ **Quel file stava nel corpus golden fino a `#2271`, e non poteva restarci**: il corpus si rigenera a
+ * ogni bump di formato, una fixture di compatibilita' no. Ora vive in `Tests/Fixtures/Legacy/`, ed e' lo
+ * stesso file byte per byte. La ragione per esteso sta accanto alla lettura, qui sotto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogMicroStepRoundTripTest,
 	"RefactorTactics.TurnLog.MicroStepSurvivesTheFormat",
@@ -1538,21 +1542,37 @@ bool FRTTurnLogMicroStepRoundTripTest::RunTest(const FString&)
 	TestEqual(TEXT("e anche il piu' alto"), Passi[1], 7);
 
 	// --- 🔴 una traccia VERA di versione precedente ---------------------------------------------------
-	const FString Golden = FPaths::Combine(FPaths::ProjectDir(),
-		TEXT("Source/RefactorTactics/Tests/Golden/Movement.Collision/turn-01.rttl"));
+	//
+	// 🔑 **Non e' piu' un golden, ed e' `#2271` a spiegare perche'.** Questa meta' del test leggeva
+	// `Golden/Movement.Collision/turn-01.rttl`, che allora era scritto alla `v10`. Quel file aveva **due
+	// ruoli incompatibili**: corpus golden — che una regola obbliga a **rigenerare** a ogni bump — e fixture
+	// di compatibilita', che per definizione **non va rigenerata**, perche' il suo valore e' proprio essere
+	// vecchia.
+	//
+	// ⚠️ **I due ruoli sono rimasti compatibili finche' nessuno rigenerava**, cioe' finche' il corpus era
+	// indietro di due versioni senza che un gate lo dicesse. Quando `#2271` ha allineato il corpus, la
+	// premessa qui sotto e' diventata falsa e il test ha fallito — **come era stato scritto per fare**. La
+	// guardia anti-vacuita' ha funzionato: ha detto «non sto piu' misurando cio' che credi» invece di
+	// passare su una domanda diversa.
+	//
+	// ∴ la traccia vecchia vive in `Tests/Fixtures/Legacy/`, fuori dal corpus e fuori dalla portata del
+	// rigeneratore. E' **lo stesso file**, byte per byte, che era in `Movement.Collision/turn-01.rttl` prima
+	// dell'allineamento.
+	const FString Legacy = FPaths::Combine(FPaths::ProjectDir(),
+		TEXT("Source/RefactorTactics/Tests/Fixtures/Legacy/turnlog-v10-movement-collision.rttl"));
 
 	TArray<uint8> Vecchi;
-	if (!TestTrue(TEXT("il golden esiste"), FFileHelper::LoadFileToArray(Vecchi, *Golden)))
+	if (!TestTrue(TEXT("la fixture legacy esiste"), FFileHelper::LoadFileToArray(Vecchi, *Legacy)))
 	{
 		return false;
 	}
 
-	// ⚠️ La premessa, misurata invece che assunta: se un giorno il corpus venisse rigenerato alla versione
-	// corrente, questo test smetterebbe di misurare la compatibilita' — e lo direbbe qui, invece di
-	// continuare a passare su una domanda diversa.
+	// ⚠️ La premessa, misurata invece che assunta: se un giorno anche questa fixture venisse riscritta alla
+	// versione corrente, il test smetterebbe di misurare la compatibilita' — e lo direbbe qui, invece di
+	// continuare a passare su una domanda diversa. ⛔ **Non rigenerare questo file**: e' il punto.
 	uint16 Versione = 0;
 	if (Vecchi.Num() >= 6) { Versione = static_cast<uint16>(Vecchi[4]) | (static_cast<uint16>(Vecchi[5]) << 8); }
-	TestTrue(TEXT("il golden e' scritto a una versione PRECEDENTE"),
+	TestTrue(TEXT("la fixture e' scritta a una versione PRECEDENTE"),
 		Versione < static_cast<uint16>(ERTTurnLogFormatVersion::WithMicroStep));
 
 	TArray<FRTTurnLogEntry> DaVecchia;
