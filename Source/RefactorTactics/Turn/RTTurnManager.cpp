@@ -878,6 +878,33 @@ void ARTTurnManager::PlanBots()
 		Ctx.WElevation = WElevation;
 		Ctx.WEngage = WEngage;
 		Ctx.WEngageDecay = WEngageDecay;
+		Ctx.WObjective = WObjective;
+		Ctx.WObjectiveFalloff = WObjectiveFalloff;
+
+		// Le celle OBIETTIVO, lette dai dati di mappa (`#2269`).
+		//
+		// ⚠️ **Geometria pubblica, e per questo NON passa dal filtro di percezione** che le righe qui sotto
+		// applicano ai nemici. Dov'e' l'obiettivo lo vedono entrambe le squadre — il giocatore umano ce l'ha
+		// sullo schermo dal primo fotogramma — quindi nasconderlo al bot non sarebbe fairness, sarebbe
+		// renderlo cieco a un'informazione che non e' mai stata segreta. Cio' che CP 13.5 protegge sono le
+		// UNITA' avversarie e i loro intenti, non il terreno.
+		//
+		// ⚠️ **Si legge da `Map->Cells`, che e' ordinato** (`SortCells`): l'ordine dell'array e' stabile, e
+		// nessuna decisione del bot dipende dall'ordine di enumerazione (invariante #4).
+		//
+		// ⚠️ Su una mappa senza obiettivi l'array resta vuoto e il termine vale zero riga per riga: e' la
+		// ragione per cui nessuna arena generata — che un obiettivo non lo posa — cambia comportamento.
+		if (Snapshot.Map)
+		{
+			for (const FRTHexCellData& Cell : Snapshot.Map->Cells)
+			{
+				if (Cell.bIsObjective)
+				{
+					Ctx.ObjectiveCells.Add(Cell.Id);
+				}
+			}
+		}
+
 		// La memoria per unita' del termine di ingaggio: quanti turni consecutivi questa unita' non
 		// pianifica un attacco (#1300, D-185). Si aggiorna piu' sotto, a piano scelto.
 		Ctx.IdleTurns = BotIdleTurns.FindRef(Bot->StableUnitId);
@@ -1426,6 +1453,23 @@ void ARTTurnManager::PlanBots()
 			? Units[EnemyUnitIndex[Best.TargetIndex]] : nullptr;
 		const int32 Score = URTHexBotLibrary::ScorePlan(Snapshot.Map, Best, Ctx);
 
+		// Il TERMINE d'obiettivo accanto al totale, non dentro (`#2269`).
+		//
+		// 🔴 **E' la proprieta' che `spec-bot-tattico.md` §5 chiede, e il motivo per cui la chiede.** Un
+		// `score=-40` senza righe e' indebuggabile: quando il bot sbaglia non si sa QUALE termine ha vinto, e
+		// si finisce a ritoccare i pesi a caso. Il difetto che questa issue chiude e' stato diagnosticato
+		// esattamente cosi' — leggendo `utility -> (q=0,r=-3,L0) score=-40` e non potendo dire se quella cella
+		// avesse vinto per l'obiettivo (impossibile: il termine non esisteva) o per avvicinamento e quota.
+		//
+		// ⚠️ **Il breakdown COMPLETO e' lavoro di E26**, e questa e' una riga sola: si scrive quando pesa,
+		// cosi' che ogni partita su una mappa senza obiettivi produca un log identico a prima. La differenza
+		// fra «il termine vale zero» e «il termine non c'e'» qui non si vede — e per una mappa senza obiettivi
+		// e' la stessa cosa.
+		const int32 ObjectiveTerm = URTHexBotLibrary::ScoreObjectiveTerm(Snapshot.Map, Best.DestCell, Ctx);
+		const FString ObjectiveNote = ObjectiveTerm > 0
+			? FString::Printf(TEXT(" [obiettivo +%d]"), ObjectiveTerm)
+			: FString();
+
 		// La memoria si aggiorna UNA VOLTA per round: `PlanBotsForTest()` e `LockInAndResolve()`
 		// pianificano entrambi lo stesso round, e senza guardia il decadimento andrebbe al doppio.
 		{
@@ -1452,8 +1496,9 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedDashCell = Ctx.Enemies[Best.TargetIndex];
 			// Il soggetto e' il BOT, non il bersaglio: e' la sua posizione e la sua intenzione che trapelano
 			// qui. Il bersaglio e' gia' filtrato dalla riga che lo riguarda.
-			AddLogEvent(FString::Printf(TEXT("%s: utility -> CARICA su %s (impatto da (q=%d,r=%d,L%d)) score=%d"),
-				*Bot->GetName(), *Target->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score), FRTLogSubject::Unit(Bot));
+			AddLogEvent(FString::Printf(TEXT("%s: utility -> CARICA su %s (impatto da (q=%d,r=%d,L%d)) score=%d%s"),
+				*Bot->GetName(), *Target->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
+				*ObjectiveNote), FRTLogSubject::Unit(Bot));
 		}
 		else if (bViaDash && Target && BestAbility != INDEX_NONE)
 		{
@@ -1464,8 +1509,9 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedAttackTarget = Target;
 			Scelto = Target;
 			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
-			AddLogEvent(FString::Printf(TEXT("%s: utility -> scatto (q=%d,r=%d,L%d) + attacca %s score=%d"),
-				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score), FRTLogSubject::Unit(Bot));
+			AddLogEvent(FString::Printf(TEXT("%s: utility -> scatto (q=%d,r=%d,L%d) + attacca %s score=%d%s"),
+				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score,
+				*ObjectiveNote), FRTLogSubject::Unit(Bot));
 		}
 		else if (Target && BestAbility != INDEX_NONE)
 		{
@@ -1475,24 +1521,27 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedAttackTarget = Target;
 			Scelto = Target;
 			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
-			AddLogEvent(FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) attacca %s score=%d"),
-				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score), FRTLogSubject::Unit(Bot));
+			AddLogEvent(FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) attacca %s score=%d%s"),
+				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score,
+				*ObjectiveNote), FRTLogSubject::Unit(Bot));
 		}
 		else if (bViaDash)
 		{
 			// Riposizionamento rapido con lo scatto (nessun tiro disponibile da nessuna cella).
 			Bot->PlannedDashAbility = DashIdx;
 			Bot->PlannedDashCell = Best.DestCell;
-			AddLogEvent(FString::Printf(TEXT("%s: scatto -> (q=%d,r=%d,L%d) score=%d"),
-				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score), FRTLogSubject::Unit(Bot));
+			AddLogEvent(FString::Printf(TEXT("%s: scatto -> (q=%d,r=%d,L%d) score=%d%s"),
+				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
+				*ObjectiveNote), FRTLogSubject::Unit(Bot));
 		}
 		else
 		{
 			// Posizionamento con il movimento normale (o "resta", se l'utility preferisce la cella attuale).
 			Bot->PlannedCell = Best.DestCell;
-			AddLogEvent(FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) score=%d%s"),
+			AddLogEvent(FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) score=%d%s%s"),
 				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
-				Best.DestCell == Bot->Cell ? TEXT(" (resta)") : TEXT("")), FRTLogSubject::Unit(Bot));
+				Best.DestCell == Bot->Cell ? TEXT(" (resta)") : TEXT(""),
+				*ObjectiveNote), FRTLogSubject::Unit(Bot));
 		}
 
 		// [D-313] — si chiude il record con il bersaglio SCELTO, quando c'e'.

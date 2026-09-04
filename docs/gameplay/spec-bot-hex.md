@@ -162,7 +162,64 @@ Pinnata da `HexBot.EngageBonusFadesWithIdleTurns`, che misura la scelta di `Choo
 inerte; la taratura fine resta bilanciamento, sede [#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149)
 e [D-102](../decisions/RT_PDR_00_Decision_Log.md).
 
-### 3f. I pesi
+### 3f. L'obiettivo — la condizione di vittoria entra nel punteggio
+
+Per la cella in cui il piano **termina**, con o senza attacco:
+
+```text
+Score += max(0, WObjective − WObjectiveFalloff × passi-fino-all-obiettivo-più-vicino)
+```
+
+I **passi** sono quelli sul grafo, la stessa misura dell'avvicinamento: un obiettivo dietro un muro non è
+vicino perché lo sembra sulla griglia. Occupare la cella vale `passi = 0`, cioè il bonus pieno — che è il
+«controllo» di [`spec-bot-tattico.md`](spec-bot-tattico.md) §5, categoria `Objective`.
+
+🔴 **Prima di [#2269](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2269) questo termine non
+esisteva, e il bot giocava un gioco diverso da quello che vince.** `FRTHexBotContext` non aveva alcun campo
+obiettivo e `ScorePlan` nessun termine: il bucket `Objective` di `spec-bot-tattico.md` §4 era **vuoto per
+costruzione**, e il ruolo `ObjectiveRunner` che §6 vuole emergente non poteva emergere da un punteggio che
+l'obiettivo non lo nomina. Misurato il 2026-09-04, 2v2 bot contro bot su `L_HexArena` con
+`Format.Skirmish2v2`: partita chiusa allo scadere dei round con **obiettivo 0-3**, un KO per parte, e i tre
+punti presi da un'unità che in dodici turni non ha inflitto **un solo danno** — era finita sulla cella
+`(0,-3,L0)` tre volte come migliore candidata di solo movimento, a punteggio **negativo**.
+
+⚠️ **Vale su ogni piano, anche su quelli con attacco**, al contrario del bonus di ingaggio di §3e. Le due
+domande sono diverse: `WEngage` chiede «da qui potrò sparare», che un piano che già spara ha risolto;
+l'obiettivo chiede «da qui segno», che resta vero mentre si spara — ed è proprio la candidata «resto
+sull'obiettivo e colpisco» quella che si vuole far emergere.
+
+⚠️ **Il floor a zero è parte del termine, non una guardia.** Senza, un'unità lontana pagherebbe una penalità
+crescente per non stare sull'obiettivo, e quella penalità entrerebbe in **ogni** confronto — comprese le
+scelte di combattimento dall'altra parte della mappa. Ne segue un **raggio d'attrazione dichiarato**: con
+`120/15` il termine è spento da otto passi in poi.
+
+🔴 **INVARIANTE: `WObjectiveFalloff > WApproach`.** È l'analogo di quella di §3d, con il segno rovesciato:
+lì un bonus di posizione troppo **grande** batte l'avvicinamento e produce il parcheggio, qui un gradiente
+troppo **piccolo** si fa battere e produce l'indifferenza. A gradienti pari, un passo che avvicina
+l'obiettivo e allontana il nemico vale **zero**, i punteggi si appiattiscono e il tie-break «a parità vince
+la mossa minima» fa restare fermo il bot — cioè il termine è decorativo proprio nel caso per cui esiste.
+Pinnata da `HexBot.ObjectivePullBeatsClosingOneCell`, che la misura sull'**esito** di `ChooseBestPlan`.
+
+⚠️ **INVARIANTE dichiarata: `WObjective < WKill`.** Un obiettivo non vale mai quanto un colpo letale, e con
+`120` contro `10000` il margine è di due ordini di grandezza. È una dichiarazione di tuning e **non** un
+gate: nessun valore sensato la viola, quindi un test che la asserisse non potrebbe fallire. A essere pinnato
+è l'esito, con `HexBot.ObjectiveNeverOutweighsAKill`.
+
+⚠️ **Nessun termine per la CONTESA, e il perimetro lo dichiara**: con un obiettivo su una cella sola due
+unità non ci stanno insieme, quindi «prendo» e «tolgo a lui» oggi coincidono. Distinguerli è
+[CP 31.1](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1583).
+
+⛔ **Il ramo di RICERCA non passa di qui.** Quando nessuna cella raggiungibile vede un contatto noto,
+`PlanBots` sceglie un punto d'osservazione senza chiamare `ScorePlan`
+([#1287](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1287)): un bot cieco cammina verso
+l'osservazione o verso il baricentro, e l'obiettivo non lo considera. È un limite dichiarato, non un difetto
+chiuso da questo lavoro.
+
+⚠️ **Le celle obiettivo sono geometria PUBBLICA e non passano dalla Team Knowledge.** La mappa la vedono
+entrambe le squadre — il giocatore umano ce l'ha sullo schermo dal primo fotogramma — quindi nasconderle al
+bot non sarebbe fairness. Ciò che CP 13.5 protegge sono le **unità** avversarie e i loro intenti.
+
+### 3g. I pesi
 
 | Peso | Default | Cosa governa |
 |---|---:|---|
@@ -175,6 +232,8 @@ e [D-102](../decisions/RT_PDR_00_Decision_Log.md).
 | `WElevation` | 4 | per layer di quota — vincolato da `WElevation × MaxLayer < WApproach` (#1088) |
 | `WEngage` | 15 | bonus per una cella da cui si vede un contatto noto, sui piani senza attacco (`D-185`) |
 | `WEngageDecay` | 5 | quanto quel bonus cala per ogni turno consecutivo senza ingaggiare — **zero lo riporta alla forma che non passa gli oracoli** |
+| `WObjective` | 120 | controllo della cella obiettivo — indicativo, viene da `spec-bot-tattico.md` §5 ([#2269](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2269)) |
+| `WObjectiveFalloff` | 15 | quanto quel bonus cala per ogni passo che manca — vincolato da `WObjectiveFalloff > WApproach` |
 
 Sono **interi bilanciabili senza toccare la logica**. La scala relativa fra `WThreat` e `WDamage` è nota
 essere un punto dolente: vedi [#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149), che

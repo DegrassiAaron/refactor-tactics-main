@@ -108,6 +108,33 @@ struct FRTHexBotContext
 	/** HP+scudo di ciascun alleato (parallelo a Allies): serve a riconoscere il collaterale letale. */
 	UPROPERTY() TArray<int32> AllyHealth;
 
+	/**
+	 * Le celle OBIETTIVO della mappa (`FRTHexCellData::bIsObjective`, formato mappa v11, `#75`).
+	 *
+	 * 🔴 **E' l'ingresso che mancava, e senza di lui il bot non conosceva la condizione di vittoria del
+	 * formato che la v0.1 spedisce** (`#2269`). Misurato il 2026-09-04 su `L_HexArena`: una partita 2v2
+	 * bot contro bot finita `obiettivo 0-3`, con i tre punti presi da un'unita' che era arrivata sulla cella
+	 * come miglior candidata di SOLO MOVIMENTO, a punteggio negativo — cioe' per avvicinamento e quota, per
+	 * ragioni che con l'obiettivo non c'entrano.
+	 *
+	 * ⚠️ **E' geometria PUBBLICA, e per questo non passa dalla Team Knowledge.** La mappa la vedono
+	 * entrambe le squadre: dov'e' l'obiettivo non e' informazione nascosta piu' di quanto lo sia dov'e' un
+	 * muro, che `ScorePlan` gia' legge dall'asset. Il filtro di percezione (CP 13.5) protegge le UNITA'
+	 * avversarie, non il terreno — e allargarlo al terreno renderebbe il bot cieco a cio' che il giocatore
+	 * umano vede sullo schermo dal primo fotogramma.
+	 *
+	 * ⚠️ **Un array e non una cella sola**, benche' oggi il perimetro sia **un** obiettivo contendibile su
+	 * **una** cella: `URTHexMapAsset::FirstObjectiveCell()` esiste e sarebbe bastata, ma CP 31.1 (`#1583`)
+	 * porta piu' obiettivi simultanei, e la forma plurale costa qui zero righe mentre la' ne costerebbe una
+	 * firma da cambiare.
+	 *
+	 * ⛔ **Sta nel contesto e non si rilegge dalla mappa dentro `ScorePlan`, ed e' una scelta di scala.**
+	 * `FirstObjectiveCell()` scandisce TUTTE le celle dell'asset, e `ScorePlan` gira una volta per
+	 * candidata: su una mappa d'autore sarebbero decine di migliaia di scansioni per unita' per turno. Qui
+	 * si paga una volta, e la distanza riusa la cache per goal di `StepsToGoalField` (`#1436`).
+	 */
+	UPROPERTY() TArray<FRTCellId> ObjectiveCells;
+
 	/** Gittata dell'attacco del bot. */
 	UPROPERTY() int32 AttackRange = 0;
 
@@ -190,6 +217,44 @@ struct FRTHexBotContext
 	 * resta bilanciamento: #149 e D-102.
 	 */
 	UPROPERTY() int32 WEngageDecay = 5;
+
+	/**
+	 * Categoria `Objective` del punteggio (`spec-bot-tattico.md` §5): quanto vale CONTROLLARE la cella
+	 * obiettivo — cioe' terminare il piano sopra di essa (`#2269`).
+	 *
+	 * ⚠️ **`120` viene dalla spec ed e' dichiarato indicativo**, accanto a `Damage +290` e
+	 * `KillPotential +210`. Non e' un numero deciso: §5 scrive *«i valori sono tuning, non regola»*, e la
+	 * sede del bilanciamento resta `#149` con il banco di prova che `D-102` richiede. Cio' che qui e'
+	 * MISURATO e' che a questo valore nessun oracolo di parcheggio, ingaggio o oscillazione cambia verdetto.
+	 *
+	 * ⚠️ **INVARIANTE dichiarata: `WObjective < WKill`.** Un obiettivo non vale mai quanto un colpo letale —
+	 * e con `120` contro `10000` il margine e' di due ordini di grandezza. E' una dichiarazione di tuning e
+	 * **non** un gate: nessun valore sensato la viola, quindi un test che la asserisse non potrebbe fallire.
+	 * A essere pinnato e' l'ESITO — `HexBot.ObjectiveNeverOutweighsAKill` — che e' la stessa proprieta'
+	 * misurata dove si decide invece che dove si dichiara.
+	 */
+	UPROPERTY() int32 WObjective = 120;
+
+	/**
+	 * Quanto `WObjective` cala per ogni PASSO che manca all'obiettivo piu' vicino.
+	 *
+	 * 🔴 **INVARIANTE: `WObjectiveFalloff > WApproach`, e questa e' l'invariante che PUO' fallire.** Il
+	 * termine tira verso l'obiettivo mentre `WApproach` tira verso il nemico: se i due gradienti si
+	 * pareggiano, un passo che avvicina l'obiettivo e allontana il nemico vale esattamente zero, il
+	 * tie-break «a parita' vince la mossa minima» fa restare, e il bot non ci va **proprio nel caso per cui
+	 * il termine esiste**. Con `WApproach` a 10 servono almeno 11; si spedisce 15. Pinnata da
+	 * `HexBot.ObjectivePullBeatsClosingOneCell`, che la misura sull'esito di `ChooseBestPlan` — non sul
+	 * punteggio di una candidata isolata, che il tie-break non lo vede.
+	 *
+	 * ⚠️ **Da qui esce un RAGGIO d'attrazione dichiarato**: a `120/15` il termine e' zero da otto passi in
+	 * poi. Oltre quella distanza l'obiettivo e' invisibile al punteggio, ed e' voluto — un'attrazione che
+	 * arrivasse da qualunque punto della mappa sarebbe indistinguibile da un secondo `WApproach` con un goal
+	 * diverso, e renderebbe ogni altra decisione una funzione di dove sta l'obiettivo.
+	 *
+	 * ⛔ **Zero non «disattiva il decadimento»: rende il bonus PIATTO su tutta la mappa**, che e' la forma
+	 * assorbente di `#1088` con un goal nuovo. Per spegnere il termine si azzera `WObjective`, non questo.
+	 */
+	UPROPERTY() int32 WObjectiveFalloff = 15;
 
 	/**
 	 * Da quanti turni consecutivi il piano scelto per questa unita' **non contiene un attacco**. E' la
@@ -318,6 +383,34 @@ public:
 	 * meno la penalita' di posizionamento (kiter sotto standoff o oltre la propria portata / mischia lontana), piu' il bonus di quota.
 	 */
 	static int32 ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context);
+
+	/**
+	 * Il solo termine di categoria `Objective`, per la cella in cui il piano TERMINA (`#2269`).
+	 *
+	 * ```text
+	 * max(0, WObjective - WObjectiveFalloff * passi-fino-all-obiettivo-piu-vicino)
+	 * ```
+	 *
+	 * I **passi** sono quelli sul grafo (la stessa misura dell'avvicinamento dal 2026-08-23, `#1296`), non
+	 * la distanza in linea d'aria: un obiettivo dietro un muro non e' vicino perche' lo sembra sulla
+	 * griglia. Occupare la cella vale `passi = 0`, cioe' il bonus pieno — che e' il «controllo» dello scope.
+	 *
+	 * 🔴 **E' pubblica perche' e' il BREAKDOWN, non per comodita' dei test.** `spec-bot-tattico.md` §5 chiede
+	 * che ogni candidata produca un conto in chiaro e non un totale — *«un `Score = 670` senza righe e'
+	 * indebuggabile: quando il bot sbaglia non si sa quale termine ha vinto, e si finisce a ritoccare i pesi
+	 * a caso»*. Il breakdown completo e' lavoro di E26; questa e' la sua prima riga, e con lei
+	 * `ARTTurnManager` puo' scrivere nel log **quanto** l'obiettivo ha pesato sulla scelta invece di lasciarlo
+	 * dedurre da un totale.
+	 *
+	 * ⚠️ **Il floor a zero e' parte del termine, non una guardia.** Senza, un'unita' lontana pagherebbe una
+	 * penalita' crescente per non stare sull'obiettivo, e quella penalita' entrerebbe in OGNI confronto —
+	 * comprese le scelte di combattimento dall'altra parte della mappa, dove l'obiettivo non c'entra nulla.
+	 *
+	 * Mappa nulla o nessuna cella obiettivo -> `0`, e il punteggio resta quello di prima riga per riga: e'
+	 * la ragione per cui questo lavoro non muove nessuna arena generata, che un obiettivo non ce l'ha.
+	 */
+	static int32 ScoreObjectiveTerm(const URTHexMapAsset* Map, const FRTCellId& DestCell,
+		const FRTHexBotContext& Context);
 
 	/**
 	 * Punteggio tattico di una REAZIONE ([D-268], `#1802`), chiavato sul suo `ReactionTrigger`.

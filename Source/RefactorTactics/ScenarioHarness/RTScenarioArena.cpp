@@ -51,6 +51,7 @@ URTHexMapAsset* URTScenarioArenaLibrary::BuildArena(const FRTTestScenario& Scena
 			Cell.MoveCost = Spec.MoveCost;
 		}
 		Cell.OccupancySurcharge = Spec.OccupancySurcharge; // 0 = cella larga, come una non elencata
+		Cell.bIsObjective = Spec.bIsObjective;             // #2269: l'obiettivo si dichiara, non serve una fixture
 		Map->AddOrUpdateCell(Cell);
 	}
 

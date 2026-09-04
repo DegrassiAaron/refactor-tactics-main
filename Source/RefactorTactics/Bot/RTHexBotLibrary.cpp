@@ -220,6 +220,34 @@ namespace
 	}
 }
 
+int32 URTHexBotLibrary::ScoreObjectiveTerm(const URTHexMapAsset* Map, const FRTCellId& DestCell,
+	const FRTHexBotContext& Context)
+{
+	if (Context.WObjective <= 0 || Context.ObjectiveCells.Num() == 0)
+	{
+		return 0;
+	}
+
+	// L'obiettivo PIU' VICINO in passi. Oggi il perimetro e' una cella sola e questo ciclo gira una volta;
+	// con CP 31.1 (`#1583`) ne girera' quante sono, e la regola «vale il piu' vicino» e' gia' quella giusta.
+	//
+	// ⚠️ **`ApproachSteps` e non `HexDistance`**: il campo di distanze e' cachato per goal (`#1436`), quindi
+	// l'obiettivo aggiunge UNA voce alla cache e una BFS per turno — non una per candidata. E' la stessa
+	// misura con cui si paga l'avvicinamento al nemico dal 2026-08-23, e usarne una diversa qui rimetterebbe
+	// in gioco la metrica che mente (`#1287`): dietro un muro, «vicino» e «raggiungibile» non coincidono.
+	int32 Passi = MAX_int32;
+	for (const FRTCellId& Objective : Context.ObjectiveCells)
+	{
+		Passi = FMath::Min(Passi, ApproachSteps(Map, DestCell, Objective));
+	}
+	if (Passi == MAX_int32)
+	{
+		return 0;
+	}
+
+	return FMath::Max(0, Context.WObjective - Context.WObjectiveFalloff * Passi);
+}
+
 int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context)
 {
 	int32 Score = 0;
@@ -436,6 +464,25 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 			}
 		}
 	}
+
+	// OBIETTIVO — la condizione di vittoria del formato spedito, che fino a `#2269` il punteggio non nominava.
+	//
+	// 🔴 **Non e' una rifinitura: senza, il bot gioca un gioco diverso da quello che vince.** Misurato il
+	// 2026-09-04, 2v2 bot contro bot su `L_HexArena` con `Format.Skirmish2v2`: partita chiusa allo scadere
+	// dei round con `obiettivo 0-3`, un KO per parte, e i tre punti presi da un Riktor che in dodici turni
+	// non ha inflitto un solo danno. Era finito sulla cella `(0,-3,L0)` tre volte come migliore candidata di
+	// solo movimento, a punteggio **negativo** — cioe' per avvicinamento, minaccia e quota. Il punto arrivava
+	// dopo, nel Cleanup, e nessuno dei due bot lo stava giocando.
+	//
+	// ⚠️ **Vale su OGNI piano, con o senza attacco**, al contrario del bonus di ingaggio qui sopra. La
+	// ragione e' che le due domande sono diverse: `WEngage` chiede «da qui potro' sparare», che un piano che
+	// gia' spara ha gia' risolto; l'obiettivo chiede «da qui segno», che resta vero anche mentre si spara —
+	// ed e' proprio la candidata «resto sull'obiettivo e colpisco» quella che si vuole far emergere.
+	//
+	// ⚠️ **Non c'e' un termine per la CONTESA**, e il perimetro lo dichiara: con un obiettivo su una cella
+	// sola due unita' non ci stanno insieme, quindi «prendo» e «tolgo a lui» oggi coincidono. Distinguerli
+	// e' CP 31.1 (`#1583`), dove piu' celle rendono la contesa raggiungibile in partita.
+	Score += ScoreObjectiveTerm(Map, Plan.DestCell, Context);
 
 	// Elevazione: premia la quota della cella di destinazione.
 	//

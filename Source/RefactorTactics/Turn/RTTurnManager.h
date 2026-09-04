@@ -754,6 +754,32 @@ public:
 	int32 WEngageDecay = FRTHexBotContext{}.WEngageDecay;
 
 	/**
+	 * Quanto vale CONTROLLARE la cella obiettivo, cioe' terminare il piano sopra di essa (`#2269`).
+	 *
+	 * E' la categoria `Objective` di `spec-bot-tattico.md` §5, e prima di questa riga il punteggio del bot
+	 * non la nominava affatto: su `L_HexArena` — che un obiettivo ce l'ha, a `(0,-3,L0)` — una partita 2v2
+	 * si e' decisa `obiettivo 0-3` senza che nessuno dei due bot lo stesse giocando.
+	 *
+	 * ⚠️ **Zero spegne il termine**, e sul roster spedito non c'e' nessun'altra manopola che lo faccia: e'
+	 * l'interruttore con cui la verifica di mutazione misura che il termine stia davvero decidendo qualcosa.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
+	int32 WObjective = FRTHexBotContext{}.WObjective;
+
+	/**
+	 * Quanto `WObjective` cala per ogni passo che manca all'obiettivo piu' vicino.
+	 *
+	 * 🔴 **INVARIANTE: `WObjectiveFalloff > WApproach`.** Sotto quella soglia il gradiente verso l'obiettivo
+	 * pareggia quello verso il nemico, il tie-break «a parita' vince la mossa minima» fa restare, e il bot
+	 * non raggiunge l'obiettivo nemmeno quando gli e' accanto. Pinnata da
+	 * `HexBot.ObjectivePullBeatsClosingOneCell` sull'ESITO di `ChooseBestPlan`.
+	 * ⛔ Abbassarlo da qui in editor riapre quel difetto, esattamente come alzare `WElevation` riapre `#1088`:
+	 * questa e' la sorgente che vince in partita, perche' `PlanBots` copia queste UPROPERTY nel contesto.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
+	int32 WObjectiveFalloff = FRTHexBotContext{}.WObjectiveFalloff;
+
+	/**
 	 * Snapshot dello stato corrente della partita (unita' VIVE del livello + mappa autorevole).
 	 * `OutUnits[i]` e' l'unita' con `UnitId == i`: e' la chiave con cui rileggere gli esiti.
 	 *

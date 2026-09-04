@@ -1,0 +1,46 @@
+{
+  "scenarioId": "Spec.Bot.SeeksUncontestedObjective",
+  "tags": ["bot", "objectives", "spec", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 12,
+
+  "_nota": "CP 26.5 (#2269): il bot conosce la condizione di vittoria del formato che la v0.1 spedisce. L'obiettivo e' raggiungibile in un turno e nessun nemico puo' colpire — il bot ci va. Prima di questo lavoro `FRTHexBotContext` non aveva alcun campo obiettivo e `ScorePlan` non aveva alcun termine: il bucket `Objective` di spec-bot-tattico.md §4 era vuoto per costruzione.",
+
+  "_nota_geometria": "🔴 **L'obiettivo sta dalla parte OPPOSTA al nemico, e senza quello lo scenario non misura niente.** BOT parte da (0,0,0), l'obiettivo e' a (-1,0,0) e FOE sta a (12,0,0): raggiungere l'obiettivo significa ALLONTANARSI di un passo dal nemico, cioe' pagare `WApproach`. Con l'obiettivo sulla strada del nemico il bot ci arriverebbe anche senza sapere che esiste — si avvicinava gia' — e il verde direbbe soltanto che il bot cammina.",
+
+  "_nota_distanza": "⚠️ **Dodici celle non sono estetica: sono la condizione «nessun nemico in grado di colpire», misurata in ENTRAMBE le direzioni.** Il bot non deve avere un tiro disponibile da nessuna cella raggiungibile, altrimenti il colpo vale `WDamage x danno` — due ordini di grandezza sopra l'obiettivo — e vincerebbe correttamente, misurando pero' il focus-fire invece della domanda. Con `MoveRange` fino a 5 e `AttackRange` fino a 5, dodici celle lasciano un margine di due. ⛔ E' anche il motivo per cui questo scenario NON usa la fixture `RelayBasin`, l'unica board che posi un obiettivo: 45 celle, distanza massima 8, obiettivo al centro — li' quella condizione non e' soddisfacibile da nessuna posa.",
+
+  "_nota_vista": "`visionRange` e' DICHIARATA e non ereditata dal roster: a dodici celle il nemico sarebbe fuori da qualunque vista spedita, `Ctx.Enemies` resterebbe vuoto e `PlanBots` entrerebbe nel ramo di RICERCA (#1287), che sceglie un punto d'osservazione senza passare da `ScorePlan`. Lo scenario misurerebbe quel ramo, non il termine. Stessa ragione per cui il test C++ gemello scrive i numeri invece di fidarsi del bilanciamento.",
+
+  "_nota_mutazione": "⚠️ Verifica di mutazione: azzerando `WObjective` il bot chiude la distanza invece di salire sull'obiettivo, e questo file torna rosso su ENTRAMBE le assertion — la posizione e il punto. Il controllo diretto sul punteggio resta `RefactorTactics.HexBot.SeeksUncontestedObjective`, che asserisce anche la premessa: senza il termine vincerebbe la cella d'avvicinamento.",
+
+  "units": [
+    { "id": "BOT", "hero": "Hero.Riktor", "team": 1, "cell": [0, 0, 0], "bot": true, "visionRange": 20 },
+    { "id": "FOE", "hero": "Hero.Riktor", "team": 0, "cell": [12, 0, 0] }
+  ],
+
+  "cells": [
+    { "cell": [-1, 0, 0], "objective": true,
+      "_cella": "L'obiettivo contendibile. Dichiarato qui e non ereditato da una fixture: prima di #2269 `bIsObjective` non era esprimibile da uno scenario, e l'unico costruttore d'arena che ne posi uno e' `MakeShowcaseRelayBasinArena`." }
+  ],
+
+  "turns": [
+    {
+      "_turno": "Un turno solo. BOT pianifica da se': nessun intento dichiarato per lui, e FOE non ne ha perche' non deve fare niente — la sua unica funzione e' esistere abbastanza vicino da essere CONOSCIUTO e abbastanza lontano da non essere colpibile.",
+      "requires": ["BotPlanning", "Objective"],
+      "intents": []
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "BOT", "cell": [-1, 0, 0],
+      "_assertion": "🔴 **La tesi.** Il bot sale sull'obiettivo, che e' un passo NELLA DIREZIONE OPPOSTA al nemico. Senza il termine la stessa scena lo porta su (1,0,0), che chiude la distanza." },
+    { "type": "UnitAlive", "unit": "FOE", "value": true,
+      "_assertion": "E il nemico e' intatto: nessun colpo e' partito, quindi il piano scelto e' davvero di solo movimento e non un attacco che passava di li'. Senza questa riga, un bot che avesse trovato un tiro avrebbe potuto muoversi per caso sulla cella giusta." },
+    { "type": "LogEventCount",
+      "category": "Objective", "outcome": "Team1Scores", "actionId": "Objective.Control", "value": 1,
+      "_assertion": "**E il punto viene assegnato.** E' la meta' che rende lo scenario una specifica del GIOCO e non del punteggio: `URTTurnRules::ResolveObjectiveControl` conta le presenze nel Cleanup, dopo il Move, e il bot c'e'. Un `UnitAtCell` da solo proverebbe che e' arrivato, non che essere arrivato serva a qualcosa." },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
