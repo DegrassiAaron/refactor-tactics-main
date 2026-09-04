@@ -811,6 +811,25 @@ void ARTTurnManager::PlanBots()
 		// Il ramo era scritto per `Guardian.Barrier`, che di cooldown ne aveva 3 e dava 40 di scudo. Chiedere
 		// un effetto curativo lo riporta a quel significato senza dipendere dai cooldown, che sono
 		// bilanciamento e cambiano.
+		//
+		// 🔴 2026-09-04 (`#2283`): **e lo SCUDO non basta, serve la CURA.** Lo stesso loop e' tornato
+		// appena `Action.Shield` ha dichiarato `bSelfTarget` e i suoi due portatori d'eroe hanno dato al ramo
+		// il suo primo consumatore reale del roster. La ragione sta nella condizione d'ingresso, non nei
+		// cooldown: `Health * 2 < MaxHealth` la scioglie **solo** un effetto che alza gli HP. Lo scudo di
+		// `Action.Shield` e' TEMPORANEO — `AddTemporaryShield`, scade nel Cleanup — quindi non tocca
+		// `Health`, la condizione resta vera per sempre e il bot rientra qui a ogni ricarica. Misurato: Wraith
+		// ferma 5 turni contro un limite di 4, «di cui 2 inerti e 3 armati», con `Bot.StallDefinitions...`,
+		// `Match.Autobattle...`, `Replay.Producer...` e il playback dell'Editor rossi a cascata.
+		//
+		// 🔑 Il criterio e' quindi **l'effetto che scioglie la guardia**, non «supporto» in generale: e'
+		// cio' che rende il ramo non ripetibile a vuoto senza aggiungere stato all'unita' — stato che il
+		// replay dovrebbe serializzare, e sarebbe determinismo speso per un ripiego.
+		//
+		// Con questo il ramo torna NON ATTRAVERSATO nel roster v0.1, che e' lo stato documentato da `#464` e
+		// scelto dal progetto: rendere un'azione curativa lanciabile su di se' *«e' una scelta di
+		// bilanciamento — un eroe che si cura da solo cambia il ritmo dello scontro — non un refactoring»*,
+		// ed e' rinviata alla v0.2. Chi la prendera' trovera' qui la prova che «schermi» non equivale a
+		// «curi», e che il ramo va ripensato prima di aprirlo allo scudo.
 		bool bUsedSupport = false;
 		for (int32 A = 0; A < Bot->NumAbilities(); ++A)
 		{
@@ -820,7 +839,9 @@ void ARTTurnManager::PlanBots()
 			{
 				for (const FRTActionEffectSpec& Spec : Ab->Def.Effects)
 				{
-					if (Spec.Effect == ERTActionEffect::Heal || Spec.Effect == ERTActionEffect::Shield)
+					// Solo `Heal`: vedi sopra — uno scudo non alza `Health`, quindi non scioglie la guardia
+					// che ha fatto entrare qui, e il ramo si ripeterebbe a ogni ricarica (#2283).
+					if (Spec.Effect == ERTActionEffect::Heal)
 					{
 						bRestores = true;
 						break;

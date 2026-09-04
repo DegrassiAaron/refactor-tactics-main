@@ -1526,6 +1526,96 @@ bool FRTScenarioStatusVocabularyIsTheRuntimeOneTest::RunTest(const FString&)
 }
 
 /**
+ * UN'ABILITA' D'EROE CHE RISOLVE SU CHI LA USA E' ESPRIMIBILE — `#2283`.
+ *
+ * 🔑 **E' la meta' mancante del criterio di `EveryD025ActionIsExpressible` qui sotto**: quello copre le
+ * sette azioni GENERICHE, questo le azioni d'EROE che risolvono in Preparation su chi le arma. Fino al
+ * 2026-09-04 quella meta' non era esprimibile affatto, e il buco non aveva sintomi — si vedeva solo
+ * provando a scrivere lo scenario.
+ *
+ * ⛔ **Le due porte erano entrambe chiuse.** Senza `target`: *«l'abilita' non dichiara un bersaglio»*.
+ * Con `"target"` su se stessa: *«l'unita' bersaglia se stessa»*, dalla guardia che il suo stesso commento
+ * diceva di rilassare *«di PROPOSITO»* il giorno in cui un'abilita' del genere fosse esistita. Quel
+ * giorno e' il 2026-08-28 (`D-226`, `Action.Shield` prende due portatori) e nessuno l'ha preso.
+ *
+ * 🔑 **Il criterio e' il FLAG `bSelfTarget`, non la fase.** Una prima stesura di questo test passava
+ * deducendo «risolve su se'» da `ResolutionPhase == Prep`, ed era sbagliata: `Action.CreateCover` e'
+ * `Preparation` con portata 3 e uno `StructureOp`. Il punto 2 qui sotto e' esattamente quel caso, ed e'
+ * l'anti-vacuita' che serve — la precedente usava un attacco senza `DerivedFromActionId`, che non
+ * passava nemmeno dal codice nuovo e sarebbe rimasta verde sotto la mutazione.
+ *
+ * ⚠️ **La correzione non rilassa la guardia sull'auto-bersaglio**, che resta giusta: un'azione self
+ * semplicemente non dichiara bersaglio, quindi non ci ricade. Il test lo pinna sotto, al punto 3.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioHeroSelfActionTest,
+	"RefactorTactics.Scenario.HeroActionOnSelfIsExpressible",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioHeroSelfActionTest::RunTest(const FString&)
+{
+	auto Load = [](const FString& Intents, FRTTestScenario& OutScenario, FString& OutError) -> bool
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON({
+		  "scenarioId": "T", "version": 1, "mapRadius": 3,
+		  "units": [
+		    { "id": "P1", "hero": "Hero.Phase", "team": 0, "cell": [-1,0,0] },
+		    { "id": "R1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+		  ],
+		  "turns": [ { "intents": [ %s ] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), *Intents);
+		return URTScenarioLoader::LoadFromString(*Json, OutScenario, OutError);
+	};
+
+	// 1. Il caso: `Hero.Phase.TideGuard` deriva da `Action.Shield`, che nel catalogo core e' `Preparation`.
+	//    Risolve su chi la arma, quindi non ha un bersaglio da dichiarare.
+	{
+		FRTTestScenario S;
+		FString Error;
+		const bool bLoaded = Load(TEXT("{ \"unit\": \"P1\", \"ability\": \"Hero.Phase.TideGuard\" }"), S, Error);
+		if (!TestTrue(FString::Printf(TEXT("TideGuard senza bersaglio si esprime (errore: '%s')"), *Error), bLoaded))
+		{
+			return false;
+		}
+		if (TestTrue(TEXT("il turno porta l'intento"), S.Turns.Num() > 0 && S.Turns[0].Intents.Num() > 0))
+		{
+			TestEqual(TEXT("con l'abilita' giusta"), S.Turns[0].Intents[0].Ability, FName(TEXT("Hero.Phase.TideGuard")));
+			TestTrue(TEXT("e nessun bersaglio dichiarato"), S.Turns[0].Intents[0].Target.IsEmpty());
+		}
+	}
+
+	// 2. ANTI-VACUITA' DISCRIMINANTE: `Hero.Riktor.KineticPanel` deriva da `Action.CreateCover`, che e'
+	//    `Preparation` come `Action.Shield` MA bersaglia una cella a portata 3 e non se stessa. Se il
+	//    criterio tornasse a essere la fase invece del flag, questo caso passerebbe e il pannello si
+	//    piazzerebbe senza dire dove: lo scenario girerebbe verde-o-rosso per il motivo sbagliato.
+	{
+		FRTTestScenario S;
+		FString Error;
+		const bool bLoaded = Load(TEXT("{ \"unit\": \"R1\", \"ability\": \"Hero.Riktor.KineticPanel\" }"), S, Error);
+		TestFalse(TEXT("un'azione d'eroe di Prep che NON e' self resta rifiutata"), bLoaded);
+		TestTrue(TEXT("e il motivo lo nomina"), Error.Contains(TEXT("bersaglio")));
+	}
+
+	// 2b. E un attacco d'eroe, che non deriva da nessun core: stessa attesa, altro percorso nel predicato.
+	{
+		FRTTestScenario S;
+		FString Error;
+		const bool bLoaded = Load(TEXT("{ \"unit\": \"P1\", \"ability\": \"Hero.Phase.PressureJet\" }"), S, Error);
+		TestFalse(TEXT("un attacco d'eroe senza bersaglio resta rifiutato"), bLoaded);
+	}
+
+	// 3. La guardia sull'auto-bersaglio NON e' stata rilassata: dichiararlo esplicitamente resta un errore.
+	{
+		FRTTestScenario S;
+		FString Error;
+		const bool bLoaded = Load(TEXT("{ \"unit\": \"P1\", \"ability\": \"Hero.Phase.TideGuard\", \"target\": \"P1\" }"), S, Error);
+		TestFalse(TEXT("bersagliare se stessi resta un errore"), bLoaded);
+		TestTrue(TEXT("e il motivo lo dice"), Error.Contains(TEXT("se stessa")));
+	}
+
+	return true;
+}
+
+/**
  * LE SETTE AZIONI DI `D-025` SONO ESPRIMIBILI, E IL TEST DICE COME — `#1626`.
  *
  * 🔑 **È il criterio di copertura scritto come misura invece che come dichiarazione.** La issue chiede che
