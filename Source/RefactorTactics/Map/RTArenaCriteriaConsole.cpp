@@ -59,9 +59,28 @@ static void RTArenaCheckCommand(const TArray<FString>& Args, UWorld* World, FOut
 	URTArenaCriteriaLibrary::FormatReport(Report).ParseIntoArrayLines(Lines);
 	for (const FString& Line : Lines) { Ar.Logf(TEXT("[RT] %s"), *Line); }
 
+	// 🔴 **E' una MISURA, non un verdetto** — deciso il 2026-09-04 lavorando `AC3` di `#1738`.
+	//
+	// Le due righe qui sotto dicevano *«l'arena rispetta il DoD di U1»* e *«almeno un criterio non passa»*:
+	// un giudizio sulla mappa. Ma questi tre criteri descrivono un'arena **giocabile** — copertura fra gli
+	// spawn, distanza dentro il budget di movimento, due rotte con esposizione diversa da scegliere — e non
+	// tutte le mappe esistono per essere giocate.
+	//
+	// Il caso che l'ha imposto: `VisionSplit` (`#1825`) e' un banco di PERCEZIONE. Il suo muro divide la
+	// squadra in due camere invece di coprire la linea fra gli spawn, e il raggio 8 esiste perche' resti
+	// terreno mai visto. Fallisce tre criteri su tre **per costruzione**, e nessuna soglia diversa li fa
+	// passare: non e' una taratura sbagliata, e' una mappa che misura altro.
+	//
+	// ⚠️ Il progetto non ha un modo di dichiarare il RUOLO di una mappa: `ERTMapClass` esiste ma dichiara la
+	// **scala del formato** (`Skirmish`/`Standard`/`Operations`), non l'uso. Finche' non ce l'ha, questo
+	// comando non puo' sapere a chi applicare un verdetto — quindi non ne emette uno.
+	//
+	// ➕ Chi legge decide: la seduta che costruisce l'arena e' gia' dichiarata come *«il posto dove
+	// confermare o cambiare»* le soglie, ed e' lo stesso posto dove si decide se una mappa debba rispettarle.
 	Ar.Logf(TEXT("[RT] %s"), Report.AllPassed()
-		? TEXT("Tutti e tre i criteri sono soddisfatti: l'arena rispetta il DoD di U1.")
-		: TEXT("Almeno un criterio non passa: il dettaglio qui sopra dice di quanto."));
+		? TEXT("I tre criteri sono soddisfatti: questa mappa ha la forma di un'arena giocabile.")
+		: TEXT("Non tutti i criteri sono soddisfatti: il dettaglio dice di quanto. NON e' un verdetto — "
+			   "un banco di prova puo' fallirli per costruzione, e va giudicato dalla seduta che lo possiede."));
 }
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTArenaCheck(
