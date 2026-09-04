@@ -7404,12 +7404,32 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 
 	if (Ph == ERTMatchPhase::Dash || Ph == ERTMatchPhase::Move || Ph == ERTMatchPhase::Blast)
 	{
-		// Movimento in PARALLELO: i cilindri di QUESTA fase (Dash o Move) scorrono con lo stesso Alpha.
-		const float Alpha = (PhaseDur > 0.f) ? FMath::Clamp(PlaybackPhaseElapsed / PhaseDur, 0.f, 1.f) : 1.f;
+		// Movimento in PARALLELO: i cilindri di QUESTA fase partono insieme.
+		//
+		// 🔑 **In parallelo significa partire insieme, non finire insieme** (`#2370`). Fino al 2026-09-05
+		// qui c'era UN solo `Alpha` — `PlaybackPhaseElapsed / PhaseDur` — condiviso da tutte le anim. Poiche'
+		// `PhaseDur` vale il percorso PIU' LUNGO e `InterpolateAlongPath` distribuisce `Alpha` sull'INTERO
+		// percorso, 2 celle e 10 celle arrivavano nello stesso istante: chi ne aveva `S` in una fase da `M`
+		// si muoveva a `CellsPerSecond * S/M`, cioe' cinque volte piu' lento del rate base dichiarato.
+		// Era la durata target a decidere la velocita' visuale — l'invariante che `#1878` nega — su un
+		// canale che quella issue non aveva guardato.
+		//
+		// ⚠️ **Il `Blast` resta sull'`Alpha` di fase, e resta di proposito.** Li' `PhaseDuration` vale
+		// `Max(colpi, spinta)` e NON `MaxSeg / rate`: la spinta del knockback si distende sulla finestra
+		// dei colpi, ed e' documentato come deliberato in `URTPlaybackLibrary.h`. Cambiarlo e' una
+		// decisione separata con la sua evidenza, non un effetto collaterale di questa.
+		const bool bAlphaPerPercorso = (Ph != ERTMatchPhase::Blast);
+		const float AlphaFase = (PhaseDur > 0.f) ? FMath::Clamp(PlaybackPhaseElapsed / PhaseDur, 0.f, 1.f) : 1.f;
 		for (const FRTMoveAnim& A : MoveAnims)
 		{
 			if (A.Phase == Ph && A.Unit.IsValid())
 			{
+				// I segmenti sono quelli che l'anim DISEGNA, non quelli del percorso reale: `A.World` e' gia'
+				// troncato al prefisso osservabile (`ObservedPrefixLength`), e leggerlo qui tiene la
+				// presentazione dalla parte giusta del confine di privacy.
+				const float Alpha = bAlphaPerPercorso
+					? URTPlaybackLibrary::RouteAlpha(A.World.Num() - 1, PlaybackPhaseElapsed, PlaybackCellsPerSecond)
+					: AlphaFase;
 				A.Unit->SetVisualLocation(URTPlaybackLibrary::InterpolateAlongPath(A.World, Alpha));
 			}
 		}

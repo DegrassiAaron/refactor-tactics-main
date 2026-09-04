@@ -133,6 +133,17 @@ float URTPlaybackLibrary::EffectivePlaybackSpeed(float ViewerSpeed)
 	return (ViewerSpeed > 0.f) ? ViewerSpeed : 1.f;
 }
 
+float URTPlaybackLibrary::RouteAlpha(int32 RouteSegments, float PhaseElapsed, float CellsPerSecond)
+{
+	if (RouteSegments <= 0 || CellsPerSecond <= 0.f)
+	{
+		// Niente da attraversare, o movimento istantaneo: il percorso e' gia' concluso. Non e' il caso
+		// degenere di una divisione per zero — e' la stessa convenzione di `PhaseDuration`.
+		return 1.f;
+	}
+	return FMath::Clamp((PhaseElapsed * CellsPerSecond) / static_cast<float>(RouteSegments), 0.f, 1.f);
+}
+
 float URTPlaybackLibrary::DirectionYaw(const FVector& From, const FVector& To)
 {
 	const FVector Dir = To - From;

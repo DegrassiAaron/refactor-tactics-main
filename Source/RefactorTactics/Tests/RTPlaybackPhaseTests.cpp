@@ -275,4 +275,126 @@ bool FRTVisualVelocityTest::RunTest(const FString&)
 	return true;
 }
 
+
+// ---------------------------------------------------------------------------------------------------------
+// DUE CELLE E DIECI CELLE (`#2370`) — la stessa fase, due percorsi, due momenti di arrivo.
+//
+// Il test di libreria (`RefactorTactics.Playback.RouteAlphaIsPerRouteNotPerPhase`) misura la formula. Questo
+// misura il **playback vero**: piani, risoluzione, `TickPlayback`, e la posizione degli Actor sul mondo.
+// Senza, la formula potrebbe essere giusta e non essere chiamata da nessuno.
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * **Il percorso corto arriva prima, e quello lungo prosegue.**
+ *
+ * 🔴 Il difetto che questo test copre: fino al 2026-09-05 `TickPlayback` dava a ogni animazione della fase
+ * lo stesso `Alpha`, normalizzato su `PhaseDur` — che vale il percorso PIU' LUNGO. Poiche'
+ * `InterpolateAlongPath` distribuisce `Alpha` sull'intero percorso, 2 celle e 10 celle **arrivavano
+ * insieme**: la corta si trascinava a `rate * 2/10`, cioe' cinque volte sotto il rate base dichiarato.
+ *
+ * ⚠️ **La durata di fase non cambia**, e il test lo verifica: la lunga chiude quando la fase chiude. Cio'
+ * che cambia e' che la corta ci arriva prima invece di essere rallentata per aspettarla.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackShortRouteArrivesFirstTest,
+	"RefactorTactics.Playback.ShortRouteArrivesBeforeLongRoute",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackShortRouteArrivesFirstTest::RunTest(const FString&)
+{
+	UWorld* World = MakePlaybackWorld();
+	TestNotNull(TEXT("World creato"), World);
+	if (!World) { return false; }
+
+	// Raggio 16: la cella (10,4) dista 14 dal centro, e senza mappa sotto i piedi il movimento e'
+	// fail-closed — nessuna anim, e il test resterebbe verde senza aver mosso nessuno.
+	SpawnPlaybackMap(World, 16);
+
+	ARTUnit* Corta = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Lunga = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 4));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Corta || !Lunga) { DestroyPlaybackWorld(World); return false; }
+
+	// Il budget di movimento non e' l'oggetto di questa misura: si alza per poter chiedere dieci celle.
+	Lunga->MoveRange = 12;
+
+	// Righe diverse (`r` = 0 e 4): i due percorsi non si incrociano e nessuno deve deviare.
+	Corta->PlannedCell = FRTCellId(2, 0);   // 2 celle
+	Lunga->PlannedCell = FRTCellId(10, 4);  // 10 celle
+
+	TM->LockInAndResolve();
+
+	if (!TestTrue(TEXT("la fase Move viene riprodotta"), AdvanceUntilPhase(TM, TEXT("Move"))))
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+
+	// Campionamento a passo fisso: per ciascuna si registra il tick in cui si e' mossa l'ULTIMA volta.
+	// E' il suo momento di arrivo, e non richiede di conoscere la geometria della mappa dal test.
+	const float Dt = 0.05f;
+	FVector PrecCorta = Corta->GetActorLocation();
+	FVector PrecLunga = Lunga->GetActorLocation();
+	int32 ArrivoCorta = -1;
+	int32 ArrivoLunga = -1;
+	int32 PrimoMovimentoCorta = -1;
+	int32 PrimoMovimentoLunga = -1;
+	int32 Tick = 0;
+
+	for (; Tick < 600 && TM->IsResolving() && TM->GetPlaybackPhaseName() == TEXT("Move"); ++Tick)
+	{
+		TM->Tick(Dt);
+
+		const FVector OraCorta = Corta->GetActorLocation();
+		const FVector OraLunga = Lunga->GetActorLocation();
+
+		if (!OraCorta.Equals(PrecCorta, 0.01f))
+		{
+			ArrivoCorta = Tick;
+			if (PrimoMovimentoCorta < 0) { PrimoMovimentoCorta = Tick; }
+		}
+		if (!OraLunga.Equals(PrecLunga, 0.01f))
+		{
+			ArrivoLunga = Tick;
+			if (PrimoMovimentoLunga < 0) { PrimoMovimentoLunga = Tick; }
+		}
+		PrecCorta = OraCorta;
+		PrecLunga = OraLunga;
+	}
+
+	// --- ⛔ ANTI-VACUITA': se non si e' mosso nessuno, ogni confronto sotto e' vero per vuoto ------------
+	if (!TestTrue(TEXT("l'unita' corta si e' mossa davvero"), ArrivoCorta >= 0)
+		|| !TestTrue(TEXT("e anche quella lunga"), ArrivoLunga >= 0))
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+
+	// --- 🔴 L'ASSERZIONE CHE PORTA IL PESO -------------------------------------------------------------
+	// Con l'`Alpha` condiviso i due arrivi coincidevano. Il margine e' largo di proposito: 2 celle su 10
+	// arrivano intorno al 20% della fase, e chiedere «meno della meta'» non e' sensibile al frame rate.
+	TestTrue(FString::Printf(TEXT("⛔ la corta arriva PRIMA della lunga (tick %d < %d)"), ArrivoCorta, ArrivoLunga),
+		ArrivoCorta < ArrivoLunga);
+	TestTrue(FString::Printf(TEXT("⛔ e con un margine reale, non per un tick (tick %d < %d/2)"), ArrivoCorta, ArrivoLunga),
+		static_cast<float>(ArrivoCorta) < static_cast<float>(ArrivoLunga) * 0.5f);
+
+	// --- Scenario M2: concorrenti, non serializzate ----------------------------------------------------
+	// ⚠️ Nessuna A-poi-B indotta dall'ordine di `MoveAnims` o da `StableUnitId`: partono insieme.
+	TestEqual(TEXT("le due unita' partono nello stesso tick"), PrimoMovimentoCorta, PrimoMovimentoLunga);
+
+	// --- La fase non si e' accorciata: la lunga chiude quando chiude la fase ---------------------------
+	// ⚠️ Questa NON discrimina il difetto — anche con l'`Alpha` condiviso la lunga arrivava a fine fase.
+	// Sta qui per l'altra meta' dell'invariante: il fix accorcia l'attesa della corta, non la fase.
+	TestTrue(FString::Printf(TEXT("la lunga si muove fin quasi a fine fase (arrivo %d, tick %d)"), ArrivoLunga, Tick),
+		static_cast<float>(ArrivoLunga) > static_cast<float>(Tick) * 0.8f);
+
+	// --- Lo stato logico e' quello pianificato: la presentazione non ha deciso niente ------------------
+	AdvanceUntilDone(TM);
+	TestEqual(TEXT("la corta e' arrivata dove pianificato"),
+		Corta->Cell.ToString(), FRTCellId(2, 0, 0).ToString());
+	TestEqual(TEXT("e la lunga anche"),
+		Lunga->Cell.ToString(), FRTCellId(10, 4, 0).ToString());
+
+	DestroyPlaybackWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
