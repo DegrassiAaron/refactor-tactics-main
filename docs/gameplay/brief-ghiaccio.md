@@ -93,7 +93,9 @@ modificatore di visibilità, e il modello della conoscenza deve esistere prima d
 > separandoli per **causa** dello spostamento — ambientale contro forzata — invece che per soglia di
 > Momentum, e sostiene quindi di poterli anticipare **senza** il motore che G.3 richiede.
 > ⛔ **Finché la decisione non è presa, questa riga resta vigente**: i due stati stanno in G.2. La sede della
-> risposta è [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), non uno dei due brief.
+> risposta è [`MOV-5`](../OPEN_DECISIONS.md) — aperta il 2026-09-04 — non uno dei due brief.
+> ⚠️ **E la risposta può essere parziale**: `MOV-5` misura che `Unbalanced` è rappresentabile con il
+> contratto di oggi e `Prone` **no**, quindi fra le sue uscite c'è anticiparne **uno solo**.
 
 ## 6. Il collegamento con il rumore
 

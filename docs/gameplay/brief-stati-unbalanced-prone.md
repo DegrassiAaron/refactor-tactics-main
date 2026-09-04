@@ -263,6 +263,11 @@ da tarare, nessun resolver iterativo, nessun fuzzing come prerequisito.
 > implicita»*. Finché la decisione non è presa, **`brief-ghiaccio.md` §5 resta vigente** e i due stati
 > restano in G.2. Questo documento è la proposta di cambiarlo, non il cambiamento.
 >
-> **Cosa serve per chiudere**: una voce in [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — *«i due stati si
-> anticipano fuori da G.2, o si aspetta il motore?»* — e, se la risposta è sì, l'aggiornamento di
+> **Cosa serve per chiudere**: la voce [`MOV-5`](../OPEN_DECISIONS.md) — *«i due stati si anticipano fuori da
+> G.2, o si aspetta il motore?»*, aperta il 2026-09-04 — e, se la risposta è sì, l'aggiornamento di
 > `brief-ghiaccio.md` §5, il cui perimetro residuo diventerebbe Traction e Stability per eroe.
+>
+> 🔑 **`MOV-5` porta un'uscita che questo brief non aveva visto.** I due stati non hanno lo stesso costo:
+> `Unbalanced` è pienamente rappresentabile oggi, `Prone` no (§8.1). La domanda di scope si può quindi
+> risolvere **a metà** — anticipare il solo `Unbalanced` e lasciare `Prone` a G.2 col resto del motore —
+> senza che ne nasca un'incoerenza.

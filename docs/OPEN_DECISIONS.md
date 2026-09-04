@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-31
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-09-04
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -22,6 +22,19 @@
 > risposta, ed è la disciplina che questo documento dichiara dodici righe più in alto.
 > 🔴 **`GBX-1` e `GBX-5` NON sono fra queste**: la sessione ne ha deciso il **metodo**
 > ([`D-283`](decisions/RT_PDR_00_Decision_Log.md)) e ha lasciato i **numeri aperti** fino a `U25`.
+
+---
+
+## Aperta — `Unbalanced` e `Prone` fuori da G.2, dalla seduta di design del 2026-09-04
+
+Origine: [`brief-stati-unbalanced-prone.md`](gameplay/brief-stati-unbalanced-prone.md), scritto in una
+sessione `/sc:brainstorm` e mergiato con [#2229](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2229).
+Il brief **dichiara di essere una proposta** e non una sostituzione: apre questa voce invece di decidere da sé,
+come [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md) impone a un conflitto fra due sedi vive.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `MOV-5` | `Unbalanced` e `Prone` si **anticipano** fuori dall'epic G.2, o restano dietro al motore che G.3 costruirà? | Due sedi vive dicono cose diverse e **nessuna è normativa sull'altra**. [`brief-ghiaccio.md`](gameplay/brief-ghiaccio.md) §5 assegna i due stati a **G.2**, post-v0.1, in un'epic il cui §2 li classifica *«un motore, non un terreno»*; [`brief-stati-unbalanced-prone.md`](gameplay/brief-stati-unbalanced-prone.md) sostiene di poterli anticipare **senza** motore. 🔑 **L'argomento della proposta è verificabile e regge**: il sorgente separava i due stati con **soglie di Momentum** (`<60`, `60-89`, `≥90`, dichiarate graybox), mentre il brief li separa per **causa** dello spostamento — ambientale contro forzata — e la distinzione ha già un tipo, `ERTDisplacementCause`. Nessuna scala da tarare, nessun resolver a punto fisso, e quindi **nessun fuzzing deterministico** come prerequisito: cade la dipendenza che teneva G.3 dietro a [roadmap-v0.1 §5 CP 12.6](roadmap/roadmap-v0.1.md). ⚠️ **Ma il tipo non è un canale**: `ERTDisplacementCause::Environmental` compare **solo nei test** (`RTFacingTests.cpp`), l'unico produttore vivo scrive `Forced` costante, e `ApplyIceSliding` non nomina l'enum. Il produttore va scritto: è costo, non riuso. 🔴 **I due stati non hanno lo stesso costo, ed è l'uscita che nessuna delle due sedi aveva visto.** `Unbalanced` è **pienamente rappresentabile** oggi — è uno status a durata `2`, dentro il contratto di [`spec-stati-temporanei-cp82.md`](gameplay/spec-stati-temporanei-cp82.md). `Prone` **non lo è**: `ARTUnit::ApplyStatus` conosce `N` turni **oppure** il legame alla cella, ogni `Turns <= 0` ritorna in silenzio, e uno stato che finisce *quando paghi 1 MP* non è nessuna delle due — la sentinella di cella sarebbe attivamente sbagliata, perché un'unità a terra **spinta** altrove si rialzerebbe da sola. ∴ la domanda di scope si può risolvere **a metà** senza incoerenza. **Uscite**: *(a)* anticipare entrambi — richiede prima di decidere la rappresentazione di `Prone` (§8.1 del brief), e riduce G.2 a Traction/Stability per eroe · *(b)* non anticipare nulla — il brief resta design-ready e `brief-ghiaccio.md` §5 non si tocca · *(c)* anticipare il solo `Unbalanced`, che non chiede nessun contratto nuovo, e lasciare `Prone` a G.2 col resto del motore. ⛔ **In nessuna delle tre si implementa prima di un valore proprio in `ERTMoveOutcome` per lo scivolamento**: oggi chi scivola produce `Moved`, cioè *«raggiunta la destinazione pianificata»*, che è falso — e `Displaced` non serve, perché attribuisce la sorgente cercando una voce `Combat` che per un evento ambientale non esiste. **Innesco**: la pianificazione di G.2, o una decisione d'autore che voglia i due stati prima |
 
 ---
 
