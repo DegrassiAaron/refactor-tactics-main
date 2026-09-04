@@ -186,8 +186,9 @@ muovono normalmente.
 
 > ➕ **Uno scivolamento IMPEDITO è un esito, non un non-evento — 2026-09-04**
 > ([#2314](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2314), decisione d'autore).
-> `ApplyIceSliding` restituisce ora anche **se il terreno lo abbia chiesto** (`FRTIceSlideResult::
-> bSlideRequested`), e non solo il percorso: il percorso invariato è la risposta di sei uscite diverse, e
+> `ApplyIceSliding` restituisce ora anche **se il terreno lo abbia chiesto**
+> (`FRTIceSlideResult::bSlideRequested`), e non solo il percorso: il percorso invariato è la risposta di
+> sei uscite diverse, e
 > senza quel campo «nessuno scivolamento da fare» e «scivolamento impedito da un muro» sono lo stesso
 > valore. Un'unità che completa il proprio Move e non riesce a scivolare — per un muro, per un'unità, per
 > una cella contesa, indifferentemente — produce `ERTMoveOutcome::SlideBlocked`; se percorre **almeno una**
@@ -201,7 +202,14 @@ muovono normalmente.
 >
 > ⚠️ **La classificazione non è nel chiamante**, e non può esserlo: distinguere «arrivata» da «ferma su una
 > cella omonima» richiede il progresso dentro il percorso, che solo il resolver possiede. Test:
-> `Terrain.Ice.WallBlockingSlideIsReportedAsSlideBlocked`.
+> `Terrain.Ice.WallBlockingSlideIsReportedAsSlideBlocked` · `Terrain.Ice.SlideBlockedInMatch`.
+>
+> ⚠️ **Il BORDO DELLA MAPPA produce `SlideBlocked`, ed è una conseguenza da conoscere.** `StepIsWalkable`
+> chiede al grafo, e una cella assente non è nei vicini: uno scivolamento verso l'esterno dell'arena è
+> quindi «impedito» quanto uno contro un muro. È coerente con la decisione — *«bordo non attraversabile»* —
+> ma vale anche dove non c'è nulla che impedisca, e su un'arena piccola con ghiaccio sull'anello esterno
+> diventa una riga `Important` frequente. Pinnato da `Terrain.Ice.MapEdgeBlocksSliding`; se il confine
+> dovesse essere spostato, è una decisione d'autore, non una correzione.
 
 **Limite dichiarato**: una mobilità **lineare** che termina su `Ice` **non** innesca lo scivolamento.
 `URTMovementActionLibrary::ResolveLinearMove` non passa dal microstep condiviso — valuta gli ostacoli contro

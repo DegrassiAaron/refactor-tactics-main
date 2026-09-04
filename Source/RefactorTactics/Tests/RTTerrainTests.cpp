@@ -252,6 +252,13 @@ bool FRTTerrainIceBlockedCellStopsSlidingTest::RunTest(const FString&)
 
 	TestEqual(TEXT("nessuno scivolamento: la cella successiva blocca il movimento"), Extended.Num(), 2);
 
+	// E il terreno lo aveva CHIESTO (`#2314`), come per il muro sul bordo: le due uscite negative sono lo
+	// stesso fatto — «impedito», non «non richiesto» — e devono produrre lo stesso esito. Senza questa riga
+	// una regressione che spegnesse il flag su QUESTO ramo e non su quello del muro resterebbe verde, e la
+	// cella bloccante tornerebbe a produrre `Moved`.
+	TestTrue(TEXT("ma lo scivolamento era richiesto: e' impedito, non assente"),
+		URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path).bSlideRequested);
+
 	return true;
 }
 
@@ -312,6 +319,64 @@ bool FRTTerrainIceWallOnEdgeStopsSlidingTest::RunTest(const FString&)
 	// che ci provava dal chiamante, e' stata chiusa.
 	TestTrue(TEXT("ma il terreno lo aveva CHIESTO: lo scivolamento e' impedito, non assente"),
 		Slide.bSlideRequested);
+
+	return true;
+}
+
+/**
+ * IL BORDO DELLA MAPPA IMPEDISCE LO SCIVOLAMENTO QUANTO UN MURO — `#2314`.
+ *
+ * ⚠️ **Questo test PINNA una conseguenza, non celebra un requisito.** `StepIsWalkable` interroga il grafo,
+ * e una cella che non esiste non compare fra i vicini: uno scivolamento verso l'esterno dell'arena e'
+ * percio' indistinguibile da uno contro un muro, e produce `SlideBlocked`. E' coerente con la decisione
+ * d'autore — che elenca il *«bordo non attraversabile»* fra le cause — ma vale anche dove non c'e' nulla
+ * che impedisca alcunche', solo l'assenza di mondo.
+ *
+ * 🔑 **Sta scritto perche' il confine sia visibile a chi lo vorra' spostare.** Il rilievo viene dalla code
+ * review della PR: su un'arena piccola con ghiaccio sull'anello esterno questa diventa una riga
+ * `Important` frequente per un non-evento. Spostare il confine e' una decisione d'autore, e il giorno in
+ * cui verra' presa questo test dira' esattamente cosa cambia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainIceMapEdgeBlocksSlidingTest,
+	"RefactorTactics.Terrain.Ice.MapEdgeBlocksSliding",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTerrainIceMapEdgeBlocksSlidingTest::RunTest(const FString&)
+{
+	// Arena di raggio 2: (2,0,0) e' sull'anello esterno, e (3,0,0) non esiste.
+	URTHexMapAsset* Map = MakeMapWithSurface(/*Radius=*/ 2, FRTCellId(2, 0, 0), ERTHexSurface::Ice);
+
+	// PREMESSA: la cella oltre il ghiaccio e' davvero ASSENTE, non solo bloccata. Senza questa riga il test
+	// potrebbe misurare un muro e non il bordo, cioe' il caso gia' coperto altrove.
+	if (!TestNull(TEXT("premessa: la cella oltre il bordo non esiste"), Map->FindCell(FRTCellId(3, 0, 0))))
+	{
+		return false;
+	}
+
+	FRTHexSimUnit Unit;
+	Unit.UnitId = 0;
+	Unit.Cell = FRTCellId(0, 0, 0);
+	Unit.MoveBudget = 6;
+
+	FRTHexSnapshot Snapshot;
+	Snapshot.Map = Map;
+	Snapshot.Units.Add(Unit);
+
+	const TArray<FRTCellId> Path = { FRTCellId(0, 0, 0), FRTCellId(1, 0, 0), FRTCellId(2, 0, 0) };
+	const FRTIceSlideResult Slide = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path);
+
+	TestEqual(TEXT("fuori dall'arena non si scivola"), Slide.Path.Num(), Path.Num());
+	TestTrue(TEXT("e il terreno lo aveva chiesto: l'esito sara' SlideBlocked, non Moved"),
+		Slide.bSlideRequested);
+
+	FRTPlannedMovement Plan;
+	Plan.PlannedLength = Path.Num();
+	Plan.bSlideRequested = Slide.bSlideRequested;
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement({ Slide.Path }, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), { Plan });
+	const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+	TestEqual(TEXT("il bordo mappa e' una causa come le altre"),
+		static_cast<int32>(Out[0].Outcome), static_cast<int32>(ERTMoveOutcome::SlideBlocked));
 
 	return true;
 }

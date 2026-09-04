@@ -355,7 +355,7 @@ FRTTurnLogEntry ARTTurnManager::MakeStatusBirthEntry(ERTMatchPhase InPhase, FGam
 	return E;
 }
 
-/** La voce di MORTE di uno stato: revoca (una mossa) o scadenza (il tempo). Sempre nel Cleanup. */
+/** La voce di MORTE di uno stato: revoca (una mossa), scadenza (il tempo), o una causa che la toglie. */
 void ARTTurnManager::ApplyStatusLogged(ARTUnit* Unit, FGameplayTag Tag, int32 Turns)
 {
 	if (Unit == nullptr)
@@ -375,14 +375,18 @@ void ARTTurnManager::ApplyStatusLogged(ARTUnit* Unit, FGameplayTag Tag, int32 Tu
 	}
 }
 
-FRTTurnLogEntry ARTTurnManager::MakeStatusDeathEntry(FGameplayTag Tag, const FRTCellId& Cell, ERTStatusOutcome Outcome)
+FRTTurnLogEntry ARTTurnManager::MakeStatusDeathEntry(FGameplayTag Tag, const FRTCellId& Cell,
+	ERTStatusOutcome Outcome, ERTMatchPhase InPhase, int32 Amount)
 {
 	FRTTurnLogEntry E;
-	E.Phase = ERTMatchPhase::Cleanup;
+	E.Phase = InPhase;
 	E.Category = ERTLogCategory::Status;
 	E.ActionId = Tag.GetTagName();
 	E.SrcCell = Cell;
 	E.TgtCell = Cell;
+	// Zero per le quattro morti che non hanno un numero da dire. `ShakenOff` e' l'eccezione dichiarata:
+	// li' `Amount` porta il PREZZO pagato, non una durata residua (`#2253`).
+	E.Amount = Amount;
 	E.Outcome = static_cast<uint8>(Outcome);
 	return E;
 }
@@ -811,6 +815,25 @@ void ARTTurnManager::PlanBots()
 		// Il ramo era scritto per `Guardian.Barrier`, che di cooldown ne aveva 3 e dava 40 di scudo. Chiedere
 		// un effetto curativo lo riporta a quel significato senza dipendere dai cooldown, che sono
 		// bilanciamento e cambiano.
+		//
+		// 🔴 2026-09-04 (`#2283`): **e lo SCUDO non basta, serve la CURA.** Lo stesso loop e' tornato
+		// appena `Action.Shield` ha dichiarato `bSelfTarget` e i suoi due portatori d'eroe hanno dato al ramo
+		// il suo primo consumatore reale del roster. La ragione sta nella condizione d'ingresso, non nei
+		// cooldown: `Health * 2 < MaxHealth` la scioglie **solo** un effetto che alza gli HP. Lo scudo di
+		// `Action.Shield` e' TEMPORANEO — `AddTemporaryShield`, scade nel Cleanup — quindi non tocca
+		// `Health`, la condizione resta vera per sempre e il bot rientra qui a ogni ricarica. Misurato: Wraith
+		// ferma 5 turni contro un limite di 4, «di cui 2 inerti e 3 armati», con `Bot.StallDefinitions...`,
+		// `Match.Autobattle...`, `Replay.Producer...` e il playback dell'Editor rossi a cascata.
+		//
+		// 🔑 Il criterio e' quindi **l'effetto che scioglie la guardia**, non «supporto» in generale: e'
+		// cio' che rende il ramo non ripetibile a vuoto senza aggiungere stato all'unita' — stato che il
+		// replay dovrebbe serializzare, e sarebbe determinismo speso per un ripiego.
+		//
+		// Con questo il ramo torna NON ATTRAVERSATO nel roster v0.1, che e' lo stato documentato da `#464` e
+		// scelto dal progetto: rendere un'azione curativa lanciabile su di se' *«e' una scelta di
+		// bilanciamento — un eroe che si cura da solo cambia il ritmo dello scontro — non un refactoring»*,
+		// ed e' rinviata alla v0.2. Chi la prendera' trovera' qui la prova che «schermi» non equivale a
+		// «curi», e che il ramo va ripensato prima di aprirlo allo scudo.
 		bool bUsedSupport = false;
 		for (int32 A = 0; A < Bot->NumAbilities(); ++A)
 		{
@@ -820,7 +843,9 @@ void ARTTurnManager::PlanBots()
 			{
 				for (const FRTActionEffectSpec& Spec : Ab->Def.Effects)
 				{
-					if (Spec.Effect == ERTActionEffect::Heal || Spec.Effect == ERTActionEffect::Shield)
+					// Solo `Heal`: vedi sopra — uno scudo non alza `Health`, quindi non scioglie la guardia
+					// che ha fatto entrare qui, e il ramo si ripeterebbe a ogni ricarica (#2283).
+					if (Spec.Effect == ERTActionEffect::Heal)
 					{
 						bRestores = true;
 						break;
@@ -945,6 +970,9 @@ void ARTTurnManager::PlanBots()
 			// catalogo, cioe' dato pubblico — sapere che Phase ha portata 5 non e' sapere dov'e' Phase.
 			FRTCellId KnownCell = Other->Cell;
 			int32 KnownHealth = Other->Health + Other->Shield;
+			// La CONDIZIONE segue la stessa disciplina degli HP: su un contatto incerto non si sa, e non si
+			// indovina ([D-319], `#2253`). Vedi il ramo `CellOnly` sotto.
+			bool bKnownUnbalanced = Other->HasStatus(TAG_Status_Unbalanced);
 			switch (URTTeamKnowledgeLibrary::ClassifyTarget(BotKnowledge, Other->StableUnitId,
 				Other->TeamId, Other->Cell))
 			{
@@ -970,6 +998,10 @@ void ARTTurnManager::PlanBots()
 				// una decisione di formato, non un dettaglio di questo checkpoint. L'errore va nella
 				// direzione sicura — il bot sottostima le occasioni, non ne inventa.
 				KnownHealth = Other->MaxHealth;
+				// Stesso argomento, stesso verso sicuro: «sbilanciato» e' CONDIZIONE, non identita'. Dirlo
+				// su un ricordo manderebbe il bot a capitalizzare su un'unita' che non vede, ed e' la fuga
+				// di conoscenza che il filtro esiste per chiudere. Il bot perde occasioni, non ne inventa.
+				bKnownUnbalanced = false;
 				break;
 			}
 
@@ -980,6 +1012,7 @@ void ARTTurnManager::PlanBots()
 			Ctx.Enemies.Add(KnownCell);
 			Ctx.EnemyRanges.Add(EnemyReach);
 			Ctx.EnemyHealth.Add(KnownHealth);
+			Ctx.EnemyUnbalanced.Add(bKnownUnbalanced);
 			// CP 13.5 — l'ORIENTAMENTO del nemico, che decide se la sua copertura vale (ADR-0005 §4a).
 			//
 			// Si prende quello corrente e non si filtra, ed e' corretto: il facing e' cio' che la mesh mostra,
@@ -1339,6 +1372,19 @@ void ARTTurnManager::PlanBots()
 				LocalCtx.AttackShape = ShapedAbility->Shape;
 				LocalCtx.AttackAreaRadius = ShapedAbility->AreaRadius;
 				LocalCtx.bAttackFriendlyFire = ShapedAbility->Def.bFriendlyFire;
+				// Chi SPOSTA, letto dagli effetti dichiarati ([D-319], `#2253`). Dal `Def` e non da una
+				// lista di `ActionId`: cosi' vale anche per gli effetti che l'EQUIPAGGIAMENTO aggiunge —
+				// `Weapon.Impact` accoda un `Push` all'attacco base, ed e' il loadout di default di Phase
+				// (D-089). Una lista di nomi avrebbe mancato proprio il caso piu' comune.
+				LocalCtx.bAttackDisplaces = false;
+				for (const FRTActionEffectSpec& Effect : ShapedAbility->Def.Effects)
+				{
+					if (Effect.Effect == ERTActionEffect::Push || Effect.Effect == ERTActionEffect::Pull)
+					{
+						LocalCtx.bAttackDisplaces = true;
+						break;
+					}
+				}
 			}
 			for (const FRTHexBotPlan& Candidate : URTHexBotLibrary::BuildCandidates(Snap, BotIdx, LocalCtx))
 			{
@@ -1616,6 +1662,76 @@ void ARTTurnManager::OnPlanningTimeout()
 	LockInAndResolve();
 }
 
+void ARTTurnManager::RequestLockIn()
+{
+	// Stessa guardia di `LockInAndResolve`, e non e' ridondanza: senza, un Ready fuori pianificazione armerebbe
+	// un countdown che poi troverebbe la porta chiusa — tre secondi di attesa per un no-op.
+	if (Phase != ERTMatchPhase::Planning || bIsResolving)
+	{
+		return;
+	}
+
+	// Un secondo Ready non riarma il countdown: chi preme due volte non si regala altri tre secondi.
+	if (IsReadyCountdownActive())
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World || ReadyCountdownSeconds <= 0.f)
+	{
+		// La via di sempre: commit sincrono. E' quella dei test headless e dell'harness, ed e' la ragione per
+		// cui `#2193` non cambia un solo TurnLog esistente.
+		LockInAndResolve();
+		return;
+	}
+
+	World->GetTimerManager().SetTimer(ReadyCountdownTimerHandle, this,
+		&ARTTurnManager::LockInAndResolve, ReadyCountdownSeconds, false);
+
+	// ⚠️ **Diagnostica, non combat log**: questa riga non riguarda chi gioca — l'ha appena fatto lui. Serve a
+	// chi legge `RefactorTactics.log` dopo una seduta e deve distinguere «ha aspettato il timer» da «ha
+	// dichiarato Ready e il countdown ha fatto il resto». Stessa scelta di `#1957` per il lock-in muto.
+	UE_LOG(LogRT, Log, TEXT("[RT] Ready del giocatore -> countdown %.1fs prima del commit (turno %d)"),
+		ReadyCountdownSeconds, TurnNumber);
+}
+
+void ARTTurnManager::CancelLockIn()
+{
+	if (!IsReadyCountdownActive())
+	{
+		return; // no-op silenzioso: l'Unready fuori dal countdown non e' un errore, e' un tasto premuto a vuoto
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ReadyCountdownTimerHandle);
+	}
+
+	// 🔴 **`PlanningTimerHandle` non si tocca.** Non e' stato fermato dal Ready, quindi non va fatto ripartire
+	// dall'Unready: sta ancora scorrendo da dov'era. E' la meta' meno ovvia di *«il countdown non sostituisce
+	// il timer massimo»* — se l'Unready riarmasse il tetto, la coppia Ready+Unready sarebbe un modo di
+	// pianificare senza limite.
+	UE_LOG(LogRT, Log, TEXT("[RT] Unready -> il piano torna in pianificazione (turno %d, restano %.1fs)"),
+		TurnNumber, GetPlanningTimeRemaining());
+}
+
+bool ARTTurnManager::IsReadyCountdownActive() const
+{
+	const UWorld* World = GetWorld();
+	return World && World->GetTimerManager().IsTimerActive(ReadyCountdownTimerHandle);
+}
+
+float ARTTurnManager::GetReadyCountdownRemaining() const
+{
+	if (const UWorld* World = GetWorld())
+	{
+		const float Remaining = World->GetTimerManager().GetTimerRemaining(ReadyCountdownTimerHandle);
+		return Remaining > 0.f ? Remaining : 0.f;
+	}
+	return 0.f;
+}
+
 float ARTTurnManager::GetPlanningTimeRemaining() const
 {
 	if (const UWorld* World = GetWorld())
@@ -1663,7 +1779,17 @@ void ARTTurnManager::LockInAndResolve()
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(PlanningTimerHandle);
+
+		// 🔑 **E il countdown, qualunque dei due orologi ci abbia portati qui** (`#2193`). E' la riga che rende
+		// *«il countdown non sostituisce il timer massimo»* una proprieta' della struttura: se il tetto scade
+		// mentre il countdown scorre, arriviamo qui dal tetto e il countdown muore senza aver committato due
+		// volte. Il primo che scatta vince, e la guardia in testa a questa funzione fa il resto.
+		World->GetTimerManager().ClearTimer(ReadyCountdownTimerHandle);
 	}
+
+	// Il commit e' avvenuto: chi disegna un'anteprima di pianificazione deve spegnerla adesso, e da qui in poi
+	// mostrerebbe una minaccia gia' decisa. Annuncio, non comando: uno scenario headless non ascolta.
+	OnLockInCommitted.Broadcast();
 
 	// Nuova risoluzione: azzera la timeline del turno (verra' popolata dalle fasi).
 	ResolvedTimeline.Reset();
@@ -1940,7 +2066,15 @@ void ARTTurnManager::LockInAndResolve()
 		// misura — «un turno di controllo vale un progresso» — ed e' intero come la DoD chiede: un float
 		// renderebbe il punteggio dipendente dall'ordine delle somme, che e' esattamente cio' che il
 		// determinismo del TurnLog non ammette. Quanti punti servano per vincere e' un'altra domanda, e vive
-		// in `FRTMatchRules::ScoreToWin` — oggi ZERO, cioe' via disattivata.
+		// in `FRTMatchRules::ScoreToWin`: **CINQUE** nel formato spedito (`RTMatchFormatLibrary.cpp`,
+		// **D-247**, 2026-08-30), derivato dalla geometria dell'arena e non da una partita.
+		//
+		// 🔴 Qui c'era scritto «oggi ZERO, cioe' via disattivata», e lo e' rimasto CINQUE GIORNI dopo che
+		// D-247 lo aveva smentito — quella decisione cita perfino questo commento senza aggiornarlo. Nel
+		// frattempo due documenti lo hanno COPIATO come misura invece di leggere il formato. Lo zero non era
+		// nemmeno il valore sbagliato: era il **default della struct**, che vale solo dove nessuno carica un
+		// formato — lo ScenarioHarness, per esempio. Un avverbio temporale senza data e' una scadenza che
+		// nessun gate controlla: se questa riga cambia di nuovo, si aggiorna QUI, nello stesso commit.
 		const int32 Points = 1;
 		if (Control == ERTObjectiveOutcome::Team0Scores) { AddTeamScore(0, Points); }
 		else if (Control == ERTObjectiveOutcome::Team1Scores) { AddTeamScore(1, Points); }
@@ -2760,9 +2894,11 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 	// il tag in `ActionId`, la durata in `Amount`, la causa in `Outcome` — quindi qui non si decide nulla:
 	// si COPIA.
 	//
-	// 🔑 **Perche' qui e non nei nove siti che producono le voci di stato.** Le cause sono nove, sparse su
+	// 🔑 **Perche' qui e non nei siti che producono le voci di stato.** Le cause sono dieci, sparse su
 	// due file (`Cleansed` vive in `RTTurnManager_Blast.cpp`), e una emissione per sito sarebbe una
-	// copertura da mantenere a mano: il primo a dimenticarla sarebbe il decimo outcome. Da questo punto
+	// copertura da mantenere a mano: il primo a dimenticarla sarebbe il decimo outcome. ⏱️ **E il decimo
+	// e' arrivato** (`ShakenOff`, `#2253`): questa riga lo ha previsto, e la copertura ha retto senza che
+	// nessuno la toccasse — che e' esattamente cio' che «per costruzione» significa. Da questo punto
 	// invece uno stato aggiunto domani e' coperto **per costruzione**, ed e' la stessa ragione per cui il
 	// gate di [D-278] itera l'enum vero invece di una lista scritta a mano.
 	//
@@ -4017,6 +4153,22 @@ void ARTTurnManager::ResolveDash()
 	// posto dove si sa CON CERTEZZA cosa ha davvero usato lo slot di scatto.
 	ReactionBlockedThisTurn.Reset();
 
+	// ...e subito richiuso per chi e' ancora A TERRA ([D-319], `#2253`). `Status.Prone` toglie *la*
+	// reazione del turno ([D-092]: e' UNA attivazione, quindi non se ne perde «qualcuna»), e la perdita
+	// deve valere per il turno INTERO — non solo per la coda di quello in cui si e' caduti.
+	//
+	// 🔑 **Qui e non altrove, perche' questo e' il punto in cui il set nasce.** Il reset gira all'inizio
+	// del Dash, cioe' prima di ogni punto che valuta una reazione; aggiungere altrove significherebbe
+	// coprire solo i pass a valle. E' lo stesso ragionamento per cui `Action.Sprint` viene registrato dove
+	// risulta *effettivamente usato* invece che dove e' stato pianificato.
+	for (ARTUnit* Unit : Units)
+	{
+		if (IsValid(Unit) && Unit->HasStatus(TAG_Status_Prone))
+		{
+			ReactionBlockedThisTurn.Add(Unit);
+		}
+	}
+
 	// Indice (in Units) dell'attaccante per ogni impatto accodato in QUESTO scatto: serve a scartare l'impatto,
 	// dopo la risoluzione simultanea, se la collisione ha bloccato il caricatore prima del contatto (CP 4.8).
 	TArray<int32> PendingImpactAttackerIdx;
@@ -4052,6 +4204,40 @@ void ARTTurnManager::ResolveDash()
 
 		if (!bDashApplies)
 		{
+			continue;
+		}
+
+		// `Status.Unbalanced` NEGA la corsa ([D-319], `#2253`). Il criterio e' lo STILE dichiarato dal
+		// catalogo — mobilita' rapida a BUDGET, oggi il solo `Action.Sprint` — e non l'`ActionId`: chi ha
+		// perso l'equilibrio non sceglie celle una per una correndo, mentre uno slancio lineare gia' deciso
+		// puo' ancora compierlo. Un confronto sul nome lascerebbe fuori la prossima azione a budget senza
+		// che nulla diventi rosso.
+		//
+		// 🔑 **Rifiuto DICHIARATO, non scarto muto.** Stessa forma della principale scartata da una
+		// `MovementAndMain` piu' sotto: famiglia `Fallback`/`Cancelled`, causa in `Amount`. Chi rilegge il
+		// turno vede *perche'* la corsa non c'e' stata — l'alternativa (scartare alla risoluzione) chiedeva
+		// un evento nuovo e lasciava un buco al posto di una spiegazione. E' la scelta di `brief` §8.7.
+		//
+		// ⚠️ **`PlannedDashAbility` e' gia' azzerato** dalla riga sopra: l'azione e' consumata per il turno
+		// comunque, esattamente come per ogni altro scatto che non si compie. Chi ha pianificato `Sprint`
+		// resta fermo — lo `Sprint` occupa lo slot movimento, quindi non c'e' un Move da ripiegare.
+		if (Unit->HasStatus(TAG_Status_Unbalanced)
+			&& !URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle))
+		{
+			FRTTurnLogEntry Rifiutata;
+			Rifiutata.Phase = ERTMatchPhase::Dash;
+			Rifiutata.Category = ERTLogCategory::Fallback;
+			Rifiutata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+			Rifiutata.ActionId = Dash->Def.ActionId;
+			Rifiutata.BaseActionId = Dash->Def.BaseActionId;
+			Rifiutata.Priority = Dash->Def.Priority;
+			Rifiutata.SrcCell = Unit->Cell;
+			Rifiutata.TgtCell = Unit->Cell;
+			Rifiutata.Amount = static_cast<int32>(ERTActionInvalidReason::Unbalanced);
+			AppendLogEntry(Rifiutata, Unit);
+
+			AddLogEvent(FString::Printf(TEXT("%s: sbilanciato, non puo' correre"), *Unit->GetName()),
+				FRTLogSubject::Unit(Unit));
 			continue;
 		}
 
@@ -5663,6 +5849,14 @@ FRTHexSimUnit ARTTurnManager::MakeSimUnit(int32 Index, const ARTUnit* Unit) cons
 	// applicato nel Blast (stesso turno) si riflette gia' sulla fase Move che segue, senza bisogno di
 	// ricordare "quando" e' stato applicato.
 	SimUnit.MoveCostModifier = Unit->HasStatus(TAG_Status_Slow) ? 1 : 0;
+	// `Status.Unbalanced` ([D-319]): chi scivola mentre e' gia' sbilanciato percorre una cella in piu'.
+	// Letto FRESCO come lo `Slow` sopra e per la stessa ragione — lo stato applicato nel Move del turno
+	// precedente vale nel Move di questo, senza che nessuno debba travasarlo.
+	//
+	// ⚠️ **Qui il tag diventa un NUMERO, ed e' il confine dello strato puro**: `URTHexSimLibrary` non
+	// conosce `ARTUnit` ne' i Gameplay Tag, e la traduzione avviene una volta sola, qui.
+	SimUnit.ExtraSlideCells = Unit->HasStatus(TAG_Status_Unbalanced)
+		? URTCombatLibrary::UnbalancedExtraDisplacement : 0;
 	// Orientamento (CP 16.1): lo si porta perche' e' stato di gioco, e perche' il facing di fine round e'
 	// quello di inizio del round dopo senza nessun travaso esplicito.
 	SimUnit.Facing = Unit->Facing;
@@ -6773,6 +6967,20 @@ void ARTTurnManager::ResolveMovement()
 	// forzato hanno altri produttori e dichiareranno la propria.
 	TArray<FRTTurnLogEntry> MoveLog = URTHexSimLibrary::BuildMoveLog(Paths, Resolved, TEXT("Action.Move"),
 		URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).Priority);
+
+	// 🔑 **Chi e' SCIVOLATO DAVVERO, e non chi lo ha solo chiesto** (`#2253`). Il predicato non e'
+	// `bSlideRequested[i]`: fra la richiesta e la fine del Move l'unita' puo' essere fermata dal microstep,
+	// perdere la cella contesa per priorita', o essere interrotta da `StoppedByOverwatch` /
+	// `StoppedByPrediction`. E' esattamente la distinzione che `#2258` ha gia' dovuto fare per l'esito del
+	// log, e le due cose devono restare la STESSA cosa — da cui la LETTURA dell'esito finale qui sotto,
+	// invece di una seconda condizione scritta a mano che divergerebbe alla prima modifica. Da `#2314` chi
+	// decide e' `FinalizeHexMovementOutcomes`, e questo predicato ne e' un lettore, non un secondo giudice.
+	//
+	// L'invariante che ne discende e' falsificabile e pinnata da `Status.UnbalancedIffSlid`:
+	// *«`Status.Unbalanced` c'e' se e solo se il TurnLog di quel movimento dice `Slid`»*.
+	TArray<bool> bSlidThisMove;
+	bSlidThisMove.Init(false, MoveLog.Num());
+
 	for (int32 i = 0; i < MoveLog.Num(); ++i)
 	{
 		// Il reason code della topologia sostituisce quello del resolver solo se l'unita' ha davvero percorso
@@ -6793,6 +7001,14 @@ void ARTTurnManager::ResolveMovement()
 		// `FRTPlannedMovement::PlannedLength`, che e' il solo posto dove l'informazione e' completa. La
 		// precedenza fra topologia e scivolamento resta dichiarata e va alla topologia: `bSlideRequested`
 		// sopra e' gia' spento quando il taglio ha accorciato il piano.
+
+		// 🔑 **`Status.Unbalanced` si legge dalla voce FINALE, ed e' l'invariante alla lettera.**
+		// `Status.UnbalancedIffSlid` dice *«c'e' se e solo se il TurnLog di quel movimento dice `Slid`»*:
+		// leggerlo qui — dopo la riscrittura della topologia, sull'esito che verra' davvero scritto — rende
+		// la condizione la STESSA cosa che il replay racconta, invece di una seconda condizione da tenere
+		// d'accordo con la prima. Prima di `#2314` era il ramo del ghiaccio a fissarlo, e quel ramo non
+		// esiste piu'.
+		bSlidThisMove[i] = static_cast<ERTMoveOutcome>(MoveLog[i].Outcome) == ERTMoveOutcome::Slid;
 	}
 	// In blocco, ma una per una: `Append` bypasserebbe il contesto della v6, ed e' la seconda porta
 	// d'ingresso al TurnLog che l'helper deve presidiare quanto la prima.
@@ -6891,8 +7107,30 @@ void ARTTurnManager::ResolveMovement()
 
 		FRTHexSimUnit Moved(i, Units[i]->Cell, /*InMoveBudget=*/ 0);
 		Moved.Facing = Units[i]->Facing;
-		const ERTHexDirection Derived = URTFacingLibrary::FacingFromPath(Walked, Moved.Facing);
-		RecordFacingChange(Moved, Derived, ERTFacingOutcome::DerivedFromMove,
+
+		// 🔑 **Il canale `Environmental`, che finora era un tipo senza produttore** (`#2253`).
+		// `ERTDisplacementCause::Environmental` esisteva da `#726` con il commento che lo motiva — *«una
+		// spinta ha una sorgente verso cui girarsi, uno scivolamento no»* — e compariva **solo nei test**:
+		// l'unico produttore vivo (`ApplyForcedDisplacement`) scrive `Forced` costante. Lo stesso vale per
+		// il suo gemello nel log, `ERTFacingOutcome::KeptOnEnvironmentalDisplacement`, dichiarato e senza
+		// un solo sito che lo scrivesse.
+		//
+		// ⛔ **Perche' l'ultimo passo non puo' derivare l'orientamento.** `FacingFromPath` risponde alla
+		// domanda *«dove stavo andando?»*, e per una cella di scivolamento quella domanda non ha soggetto:
+		// il passo non e' stato scelto. Derivare da li' significherebbe girare l'unita' verso una
+		// direzione che nessuno ha voluto, e per giunta farlo comparire nel replay come `DerivedFromMove`,
+		// cioe' attribuendo al giocatore una rotazione del terreno.
+		//
+		// Le due celle coincidono di proposito: `FacingAfterDisplacement` con causa ambientale ignora la
+		// sorgente e lascia l'orientamento invariato — pinnato da
+		// `RefactorTactics.Facing.EnvironmentalDisplacementKeepsFacing`, che esisteva prima di questo sito.
+		const bool bScivolato = bSlidThisMove.IsValidIndex(i) && bSlidThisMove[i];
+		const ERTHexDirection Derived = bScivolato
+			? URTFacingLibrary::FacingAfterDisplacement(Units[i]->Cell, Units[i]->Cell,
+				ERTDisplacementCause::Environmental, Moved.Facing)
+			: URTFacingLibrary::FacingFromPath(Walked, Moved.Facing);
+		RecordFacingChange(Moved, Derived,
+			bScivolato ? ERTFacingOutcome::KeptOnEnvironmentalDisplacement : ERTFacingOutcome::DerivedFromMove,
 			ERTMatchPhase::Move, Units[i]);
 		Units[i]->Facing = Moved.Facing;
 
@@ -6900,6 +7138,61 @@ void ARTTurnManager::ResolveMovement()
 		// l'eventuale traccia dello scatto perche' il Move risolve dopo ed e' l'ultimo movimento del round.
 		Units[i]->MovementStyleThisTurn = ERTMovementStyle::Budget;
 		Units[i]->WalkedThisTurn = Walked;
+	}
+
+	// STANDUP: chi era `Prone` e si e' MOSSO ha pagato il punto movimento, e si rialza ([D-319]).
+	//
+	// 🔑 **Il prezzo e' gia' stato pagato prima di qui, e non si sottrae due volte.**
+	// `ARTUnit::GetEffectiveMoveRange()` lo toglie dal budget con cui questo Move e' stato pianificato e
+	// risolto: questo ciclo non scala niente, registra che e' avvenuto e toglie lo stato.
+	//
+	// ⚠️ **La condizione e' «si e' mosso», non «e' `Prone`»**: chi resta fermo non paga e resta a terra —
+	// e' l'altra meta' della regola, quella che rende `Prone` un costo invece che una tassa. `Entered` e'
+	// la misura giusta perche' conta le celle DAVVERO percorse: un'unita' bloccata al primo micro-step non
+	// ha speso niente e non si rialza.
+	//
+	// ⚠️ **Fase `Move`, non `Cleanup`**: e' qui che accade. Vedi la nota su `MakeStatusDeathEntry`, dove il
+	// default resta `Cleanup` per non toccare le voci gia' serializzate.
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		if (!IsValid(Units[i]) || !Resolved.IsValidIndex(i) || Resolved[i].Entered.Num() == 0)
+		{
+			continue;
+		}
+		if (!Units[i]->HasStatus(TAG_Status_Prone))
+		{
+			continue;
+		}
+		Units[i]->RemoveStatus(TAG_Status_Prone);
+		FRTTurnLogEntry Rialzato = MakeStatusDeathEntry(TAG_Status_Prone, Units[i]->Cell,
+			ERTStatusOutcome::ShakenOff, ERTMatchPhase::Move,
+			/*Amount=*/ URTCombatLibrary::StandUpMovePointCost);
+		AppendLogEntry(Rialzato, Units[i]);
+	}
+
+	// `Status.Unbalanced` a chi e' scivolato ([D-319], `brief-stati-unbalanced-prone.md` §2). Ciclo
+	// PROPRIO e non un ramo di quello sopra: quello esce presto su chi non si e' mosso (`continue`), e
+	// appendere qui una regola che dipende da un'altra condizione la renderebbe muta il giorno in cui la
+	// prima cambia. L'ordine per indice tiene le voci deterministiche.
+	//
+	// ⚠️ **`AppliedByTerrain` e non `AppliedByAction`**: la sorgente e' il ghiaccio — `FRTTerrainDef` —
+	// non un'azione pianificata da qualcuno. E' la stessa lettura per cui la causa dello spostamento e'
+	// `Environmental` due righe piu' su: se qui si scrivesse `AppliedByAction`, il replay direbbe due cose
+	// opposte sullo stesso evento.
+	//
+	// ⏱️ **Durata `2` e non `1`, ed e' misurato**: `TickStatuses()` decrementa nel Cleanup e questo e' il
+	// Move, la fase immediatamente precedente. Con `1` lo stato nascerebbe e morirebbe senza che nessuna
+	// fase interposta possa leggerlo — vedi il commento del tag.
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		if (!bSlidThisMove.IsValidIndex(i) || !bSlidThisMove[i] || !IsValid(Units[i]))
+		{
+			continue;
+		}
+		FRTTurnLogEntry Nato = MakeStatusBirthEntry(ERTMatchPhase::Move, TAG_Status_Unbalanced,
+			Units[i]->Cell, URTCombatLibrary::UnbalancedDurationTurns, /*bFromTerrain=*/ true);
+		ApplyStatusLogged(Units[i], TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
+		AppendLogEntry(Nato, Units[i]);
 	}
 
 	// Rotazione DICHIARATA in pianificazione (D-020, #291). Ultimo passo del round, DOPO l'orientamento

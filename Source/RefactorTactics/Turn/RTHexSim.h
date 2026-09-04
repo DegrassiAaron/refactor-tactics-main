@@ -43,6 +43,19 @@ struct FRTHexSimUnit
 	int32 MoveCostModifier = 0;
 
 	/**
+	 * Celle di scivolamento AGGIUNTIVE per questa unita', oltre a quelle che il terreno dichiara
+	 * (`FRTTerrainDef::SlideCells`). Oggi il solo produttore e' `Status.Unbalanced`, che vale `1`
+	 * ([D-319]): chi scivola mentre e' gia' sbilanciato percorre due celle invece di una.
+	 *
+	 * 🔑 **Un numero e non un `bool bUnbalanced`, e il precedente e' `MoveCostModifier` due righe sopra.**
+	 * Lo strato esagonale e' PURO: non conosce `ARTUnit`, non conosce i Gameplay Tag, e non deve
+	 * cominciare — `Action.Slow` entra qui come sovrapprezzo, non come nome di stato, ed e' la stessa
+	 * disciplina. Chi legge questo campo non ha bisogno di sapere *perche'* l'unita' scivoli di piu'.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
+	int32 ExtraSlideCells = 0;
+
+	/**
 	 * Orientamento AUTOREVOLE (CP 16.1): non lo yaw della mesh, ma il dato che decide da che lato si e'
 	 * scoperti e dove punta un cono. Entra nello snapshot perche' e' stato di gioco, quindi entra anche
 	 * nell'hash del replay attraverso le voci di TurnLog che lo registrano.

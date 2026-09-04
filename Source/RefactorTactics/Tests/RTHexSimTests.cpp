@@ -1964,11 +1964,13 @@ bool FRTMovementStoppedBeforePlannedKeepsReasonTest::RunTest(const FString&)
  * dall'ambiente: classificare come «non scivolata» un'unita' portata via di almeno una cella le toglierebbe
  * lo stato, e con esso il seguito che quella decisione descrive.
  *
- * ⚠️ **Il caso non e' raggiungibile dal percorso di produzione, ed e' voluto.** `ApplyIceSliding` legge
- * `FRTTerrainDef::SlideCells` come un booleano e allunga di UNA cella sola (spec-terreni-e8 §5.2), quindi
- * oggi le celle di scivolamento percorse sono `0` o `1`. Il test misura il CONTRATTO del resolver, che deve
- * essere gia' giusto il giorno in cui CP 8.4 srotolera' `SlideCells > 1` — non un comportamento osservabile
- * adesso in partita.
+ * ⚠️ **Il caso E' raggiungibile in partita, e lo e' diventato mentre questa PR era aperta.** Quando fu
+ * scritto non lo era — `ApplyIceSliding` allungava di UNA cella sola — ma `#2253` ha reso `SlideCells` un
+ * contatore e [D-319] gli somma `FRTHexSimUnit::ExtraSlideCells`, che vale `1` per chi e' gia'
+ * `Status.Unbalanced`: uno sbilanciato che scivola di due celle e trova la seconda occupata percorre la
+ * prima e si ferma. Questo test misura comunque il CONTRATTO del resolver — costruisce il piano a mano,
+ * quindi non dipende da quei valori — e il flusso di produzione e' coperto da
+ * `Terrain.Ice.SlideBlockedInMatch`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementPartialSlideIsStillASlideTest,
 	"RefactorTactics.Movement.PartialSlideIsStillASlide",

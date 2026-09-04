@@ -395,7 +395,33 @@ enum class ERTStatusOutcome : uint8
 	 * darebbero a `Amount` un secondo significato sotto la stessa categoria, che e' precisamente cio' che
 	 * [D-162] vieta. I passi restano nel log testuale, dove gia' sono.
 	 */
-	AppliedInstantly
+	AppliedInstantly,
+
+	// ---- Una rimozione PAGATA dalla vittima stessa (`#2253`) ----------------------------------------
+	//
+	// 🔴 **Nessuno dei nove sopra sa dirla, ed e' il motivo per cui questo esiste.** `Cleansed` e'
+	// *«un'azione deliberata l'ha tolto (`Action.Cleanse`)»* — c'e' un'azione, e spesso non e' dell'unita'
+	// che porta lo stato; riusarlo manderebbe chi legge un replay a cercare un `Action.Cleanse` che non e'
+	// mai stato pianificato, che e' lo stesso difetto di attribuzione per cui `Displaced` e' stato scartato
+	// al prerequisito di questa issue (`#2258`). `Spent` e' *«lo stato ha fatto il suo lavoro»*, il caso
+	// `Marked` incassato: qui lo stato non ha lavorato per nessuno, e' stato **subito**.
+	//
+	// ⚠️ **Il formato NON cambia versione**: valore aggiunto in coda a un enum che viaggia nel `uint8` gia'
+	// presente, come `Extinguished`/`Cleansed`/`Spent` (`#1314`) e `AppliedInstantly` (`#1324`) prima.
+	// Cambiano gli hash dei turni in cui qualcuno si rialza — turni che prima non potevano esistere.
+
+	/**
+	 * SCROLLATO VIA: chi lo portava ha speso una risorsa propria per liberarsene prima della scadenza.
+	 * `Amount` porta il **prezzo pagato** (per `Status.Prone`: `1`, il punto movimento dello StandUp) —
+	 * e' un conteggio, come nelle nascite, e non una durata residua: la durata sarebbe l'informazione che
+	 * il replay puo' gia' derivare dalla voce di nascita.
+	 *
+	 * ⚠️ Si distingue da `Cleansed` perche' **non c'e' un'azione pianificata dietro**, e da `Spent` perche'
+	 * lo stato non era una risorsa di chi lo portava. Il soggetto che paga e' la **vittima**, ed e' cio'
+	 * che questo valore rende leggibile: senza di lui un replay vedrebbe uno stato di durata 2 sparire
+	 * dopo uno, senza sapere se qualcuno ha pagato o se il conteggio ha mentito.
+	 */
+	ShakenOff
 };
 
 /**

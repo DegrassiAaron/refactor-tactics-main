@@ -55,6 +55,17 @@ struct FRTHexBotPlan
 	 * scoring. Per chi resta fermo vale `DestCell`, e il facing non cambia.
 	 */
 	UPROPERTY() FRTCellId FromCell;
+
+	/**
+	 * L'azione d'attacco della candidata porta un effetto di SPOSTAMENTO (`Push` o `Pull`).
+	 *
+	 * Serve al termine mirato di [D-319]: un bersaglio `Status.Unbalanced` che subisce uno spostamento cade
+	 * `Prone`, e senza questo campo il bot non potrebbe distinguere l'azione che capitalizza da quella che
+	 * fa lo stesso danno e non capitalizza. E' un dato dell'AZIONE, non del bersaglio, quindi viaggia col
+	 * piano come `Shape` e `AreaRadius` — per la stessa ragione: `ChooseBestPlan` confronta candidate di
+	 * abilita' diverse, e ognuna deve portare la propria.
+	 */
+	UPROPERTY() bool bAttackDisplaces = false;
 };
 
 /**
@@ -156,6 +167,23 @@ struct FRTHexBotContext
 	 */
 	UPROPERTY() bool bAttackFriendlyFire = false;
 
+	/** L'azione in valutazione porta `Push` o `Pull`: si travasa in `FRTHexBotPlan::bAttackDisplaces`. */
+	UPROPERTY() bool bAttackDisplaces = false;
+
+	/**
+	 * Chi, fra i nemici conosciuti, porta `Status.Unbalanced` — parallelo a `Enemies` ([D-319], `#2253`).
+	 *
+	 * ⚠️ **Su un contatto `CellOnly` vale `false`, come per `EnemyHealth`.** Quello che una squadra conserva
+	 * di un ricordo e' l'IDENTITA', non la CONDIZIONE: dire al bot che un'unita' che non vede e' sbilanciata
+	 * sarebbe la stessa fuga di conoscenza degli HP correnti. L'errore va nella direzione sicura — il bot
+	 * perde occasioni, non ne inventa.
+	 *
+	 * ⛔ **Un array e non un canale generico agli status.** Questo e' il debito dichiarato di [D-319]: la
+	 * Fase 2, dietro `STA-4`, porta il framework che fa leggere al bot OGNI stato e **sostituisce** questo
+	 * campo insieme al termine che lo consuma. Il successore e' nominato prima che il debito nasca.
+	 */
+	UPROPERTY() TArray<bool> EnemyUnbalanced;
+
 	/** >0 = kiter (mantiene la distanza di sicurezza); 0 = mischia (chiude la distanza). */
 	UPROPERTY() int32 KiteStandoff = 0;
 
@@ -172,6 +200,20 @@ struct FRTHexBotContext
 	UPROPERTY() int32 WThreat = 100;
 	UPROPERTY() int32 WKiteViolation = 50;
 	UPROPERTY() int32 WApproach = 10;
+
+	/**
+	 * Quanto vale spingere o tirare un bersaglio gia' `Status.Unbalanced`, cioe' farlo cadere `Prone`
+	 * ([D-319]).
+	 *
+	 * 🔑 **Il criterio che deve soddisfare e' dichiarato e minimo**: *«a PARITA' di danno atteso il bot
+	 * sceglie l'azione con `Push` invece dell'attacco base»*. Qualunque valore positivo lo rende vero; `60`
+	 * lo colloca sopra sei punti di danno (`WDamage` e' per punto) e sotto la minaccia — abbattere vale piu'
+	 * di qualche punto, meno di rimuovere un pericolo, e molto meno di un kill.
+	 *
+	 * ⚠️ **Non e' un numero misurato**: nessun playtest lo ha tarato, ed e' un peso intero apposta perche'
+	 * si possa cambiare senza toccare la logica. Va riletto quando la Fase 2 sostituisce il termine.
+	 */
+	UPROPERTY() int32 WUnbalancedFollowUp = 60;
 	/**
 	 * Bonus per la quota (`Layer`) della cella di destinazione (#1088).
 	 *

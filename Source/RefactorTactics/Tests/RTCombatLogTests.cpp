@@ -683,8 +683,11 @@ bool FRTLogRendersSlideBlockedTest::RunTest(const FString&)
 	TestFalse(*FString::Printf(TEXT("non e' un esito ignoto: %s"), *Impedito),
 		Impedito.Contains(TEXT("non tradotto")));
 	TestTrue(TEXT("nomina lo scivolamento impedito"), Impedito.Contains(TEXT("scivolamento impedito")));
-	// «arriva», non «fermo»: il Move chiesto dal giocatore e' riuscito.
-	TestFalse(TEXT("e NON apre dicendo che l'unita' e' ferma"), Impedito.Contains(TEXT("fermo")));
+	// «arriva», non «fermo»: il Move chiesto dal giocatore e' riuscito. `StartsWith` e non `Contains`,
+	// perche' la regola parla della parola d'APERTURA: un `Contains(TEXT("fermo"))` negativo passerebbe
+	// anche per una riga che dice «fermo» piu' avanti, e fallirebbe per una cella o un `ActionId` che
+	// contenessero quella sequenza di lettere per caso.
+	TestTrue(*FString::Printf(TEXT("apre con «arriva»: %s"), *Impedito), Impedito.StartsWith(TEXT("arriva")));
 	// La forma LUNGA — `partenza -> destinazione (N celle)` — e non la breve, che stampa la sola `SrcCell`.
 	// La freccia e' cio' che la distingue, e senza di lei la riga direbbe «impedito» e basta.
 	TestTrue(*FString::Printf(TEXT("e stampa la destinazione raggiunta: %s"), *Impedito),

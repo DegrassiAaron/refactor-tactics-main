@@ -500,12 +500,23 @@ bool FRTHeroKitsMatchTheirCatalogDefTest::RunTest(const FString&)
 		TEXT("almeno un'abilita' d'eroe dichiara una ricarica diversa dal default %d, idem"),
 		Nuda->CooldownTurns), RicaricaDiversaDalDefault > 0);
 
-	// ⚠️ Il tripwire. Se questa riga diventa rossa NON e' un difetto del test: significa che un'abilita'
-	// d'eroe ha cominciato a dichiarare `Def.bSelfTarget`, e che va verificato che lo specchio la segua —
-	// `MakeHeroAction` oggi non copia quel campo, quindi molto probabilmente non la segue.
-	TestEqual(TEXT("nessuna abilita' d'eroe dichiara ancora l'auto-bersaglio: quando la prima arrivera', ")
-		TEXT("controllare che MakeHeroAction ne copi lo specchio prima di rendere verde questa riga"),
-		AutoBersaglioDichiarato, 0);
+	// ✅ **Il tripwire e' scattato, e aveva ragione** (2026-09-04, `#2283`). Diceva: *«se questa riga
+	// diventa rossa NON e' un difetto del test: significa che un'abilita' d'eroe ha cominciato a dichiarare
+	// `Def.bSelfTarget`, e va verificato che lo specchio la segua — `MakeHeroAction` oggi non copia quel
+	// campo, quindi molto probabilmente non la segue»*. E' andata esattamente cosi': `Action.Shield` ha
+	// preso `bSelfTarget` per i suoi due portatori, lo specchio NON la seguiva, e le prime due righe di
+	// questo stesso test sono cadute su `TideGuard` e `PhaseGuard`. Ora `MakeHeroActionFromCore` copia
+	// entrambi i campi.
+	//
+	// ⚠️ **Il tripwire resta, con la soglia spostata**: due sono le abilita' che oggi lo dichiarano, e
+	// una terza deve tornare a farlo notare. Non e' un `> 0`: un conteggio esatto e' cio' che distingue
+	// «ho aggiunto un'abilita' self di proposito» da «ne e' comparsa una che non so di avere».
+	// 🔑 Chi la vede rossa faccia la stessa verifica di allora: che i due campi — `Def.bSelfTarget` e
+	// lo specchio su `URTActionData` — dicano la stessa cosa per la nuova arrivata, PRIMA di aggiornare
+	// questo numero.
+	TestEqual(TEXT("due abilita' d'eroe dichiarano l'auto-bersaglio (`TideGuard`, `PhaseGuard`): se il ")
+		TEXT("numero cambia, controllare che lo specchio segua il `Def` prima di aggiornarlo"),
+		AutoBersaglioDichiarato, 2);
 
 	return true;
 }
