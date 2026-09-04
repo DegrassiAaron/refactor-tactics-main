@@ -48,6 +48,26 @@ struct FRTMatchHeaderView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	float PlanningSecondsRemaining = -1.f;
 
+	/**
+	 * Secondi che restano al **commit** dopo un Ready anticipato (`#2193`). **Negativo** quando il countdown
+	 * non e' armato — cioe' quasi sempre.
+	 *
+	 * ⚠️ **Eredita la convenzione di `PlanningSecondsRemaining`, ma con un caso in MENO.** Quel campo ha una
+	 * tripla guardia perche' `GetPlanningTimeRemaining()` risponde `0.f` in due situazioni diverse — scaduto
+	 * e **mai armato** — e c'e' un varco reale di ~350 ms a inizio partita in cui pubblicherebbe uno zero.
+	 * Il countdown non ha quel varco: si arma **solo** su input esplicito, e `IsReadyCountdownActive()`
+	 * risponde sulla presenza del timer invece che sul suo residuo. ⛔ Copiare qui la tripla guardia
+	 * aggiungerebbe due condizioni che non possono essere false.
+	 *
+	 * 🔴 **Questo campo NON e' «quanto manca al commit», ed e' la distinzione che vale la riga di stato.**
+	 * Il tetto vince sul countdown (`#2193`): con 1,5 s di `PlanningSecondsRemaining` e 3 s qui, il commit
+	 * arriva fra 1,5 s. Chi MOSTRA un numero mostri il **minore dei due** — `ARTHUD::ComposeMatchStatusLine`
+	 * lo fa, e ha entrambi sotto mano. Un countdown che annuncia 3 e committa a 1,5 insegna una durata
+	 * sbagliata proprio mentre il giocatore decide se annullare.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	float ReadyCountdownSecondsRemaining = -1.f;
+
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bResolving = false;
 

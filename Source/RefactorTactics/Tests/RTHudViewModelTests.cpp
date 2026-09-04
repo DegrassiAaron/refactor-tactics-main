@@ -946,4 +946,57 @@ bool FRTStatusDurationLabelTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// Il countdown del Ready arriva alla vista (`#2358`)
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * **IL COUNTDOWN ARMATO DIVENTA UN NUMERO NELLA VISTA, E DA SPENTO RESTA «NON SI APPLICA»**.
+ *
+ * ⚠️ **La prima meta' e' il controllo, e senza di lei la seconda non proverebbe niente**: `-1.f` e' il
+ * DEFAULT del campo, quindi «non armato → negativo» e' vero anche in una vista che non avesse mai letto il
+ * `TurnManager`. E' la stessa forma di `UntimedPlanningIsNotExpired` qui sopra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmReadyCountdownTest,
+	"RefactorTactics.HudViewModel.ReadyCountdownReachesTheView",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmReadyCountdownTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHudVmWorld(World); return false; }
+
+	// CONTROLLO: senza Ready dichiarato la domanda non si applica.
+	const FRTMatchHeaderView Spento = URTHudViewModel::BuildMatchHeader(TM);
+	TestTrue(TEXT("countdown non armato: il campo dice «non si applica»"),
+		Spento.ReadyCountdownSecondsRemaining < 0.f);
+
+	// LA MISURA: dopo il Ready il countdown e' un numero utilizzabile.
+	TM->SetPlanningSeconds(30.f);
+	TM->RequestLockIn();
+	if (!TestTrue(TEXT("il countdown e' armato: senza, la misura non proverebbe niente"),
+		TM->IsReadyCountdownActive()))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	const FRTMatchHeaderView Armato = URTHudViewModel::BuildMatchHeader(TM);
+	TestTrue(TEXT("countdown armato: il campo porta un numero"),
+		Armato.ReadyCountdownSecondsRemaining >= 0.f);
+	TestTrue(TEXT("e non supera la durata dichiarata"),
+		Armato.ReadyCountdownSecondsRemaining <= TM->GetReadyCountdownSeconds());
+
+	// E dopo l'Unready torna a tacere: il campo segue lo stato, non lo ricorda.
+	TM->CancelLockIn();
+	const FRTMatchHeaderView Annullato = URTHudViewModel::BuildMatchHeader(TM);
+	TestTrue(TEXT("dopo l'Unready il campo torna a «non si applica»"),
+		Annullato.ReadyCountdownSecondsRemaining < 0.f);
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -1085,10 +1085,16 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 	}
 	else
 	{
+		// 🔴 **Il countdown cambia la PAROLA, non solo il numero** (`#2358`). Durante l'attesa la fase e'
+		// ancora `Planning`: una riga che si limitasse a scambiare i secondi direbbe «Pianificazione» mentre
+		// il piano sta per partire, e il criterio chiede che i due stati si distinguano **senza contare i
+		// secondi**.
+		const bool bReadyCountdown = Header.ReadyCountdownSecondsRemaining >= 0.f;
+
 		const TCHAR* PhaseName = TEXT("");
 		switch (Header.Phase)
 		{
-		case ERTMatchPhase::Planning:   PhaseName = TEXT("Pianificazione"); break;
+		case ERTMatchPhase::Planning:   PhaseName = bReadyCountdown ? TEXT("Ready") : TEXT("Pianificazione"); break;
 		case ERTMatchPhase::MatchEnded: PhaseName = TEXT("Fine"); break;
 		default:                        PhaseName = TEXT("Risoluzione"); break;
 		}
@@ -1104,7 +1110,24 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 		//
 		// Arrotondamento per ECCESSO: a 3,2 secondi restano `4s`, perche' `3s` farebbe sparire dal conto
 		// l'ultimo secondo di chi lo sta guardando.
-		if (Header.Phase == ERTMatchPhase::Planning && Header.PlanningSecondsRemaining > 0.f)
+		if (bReadyCountdown)
+		{
+			// 🔴 **Il MINORE dei due orologi, e non e' un dettaglio di stile.** Il tetto vince sul countdown
+			// (`#2193`): con 1,5 s di planning residuo e 3 s di countdown, il commit arriva fra 1,5 s.
+			// Stampare `3s` sarebbe una durata FALSA detta proprio mentre il giocatore decide se annullare —
+			// e imparerebbe che il countdown dura meno di quanto dice, invece che il contrario.
+			//
+			// ⚠️ Il tetto entra nel confronto **solo se si applica**: `PlanningSecondsRemaining` e' negativo
+			// nelle run senza timer, e un `Min` cieco stamperebbe un numero negativo.
+			const float ToCommit = (Header.PlanningSecondsRemaining > 0.f)
+				? FMath::Min(Header.ReadyCountdownSecondsRemaining, Header.PlanningSecondsRemaining)
+				: Header.ReadyCountdownSecondsRemaining;
+
+			// Il gesto si NOMINA, come fa gia' la riga della risoluzione con `(Spazio: salta)`: sapere di
+			// avere tre secondi senza sapere cosa farne non e' informazione.
+			Status += FString::Printf(TEXT("  -  %.0fs  (RMB: annulla)"), FMath::CeilToFloat(ToCommit));
+		}
+		else if (Header.Phase == ERTMatchPhase::Planning && Header.PlanningSecondsRemaining > 0.f)
 		{
 			Status += FString::Printf(TEXT("  -  %.0fs"), FMath::CeilToFloat(Header.PlanningSecondsRemaining));
 		}

@@ -50,6 +50,16 @@ FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnM
 		View.PlanningSecondsRemaining = TurnManager->GetPlanningTimeRemaining();
 	}
 
+	// Il countdown del Ready (`#2193`, `#2358`). **Una guardia sola**, e non e' una svista rispetto alle tre
+	// qui sopra: `IsReadyCountdownActive()` risponde sulla presenza del timer, non sul suo residuo, e il
+	// countdown si arma solo su input esplicito — quindi il varco che affligge `PlanningSecondsRemaining`
+	// (fase gia' Planning, timer non ancora armato) qui non esiste. Aggiungere `Phase == Planning` sarebbe
+	// una condizione che non puo' essere falsa: `RequestLockIn()` non arma niente fuori dal Planning.
+	if (TurnManager->IsReadyCountdownActive())
+	{
+		View.ReadyCountdownSecondsRemaining = TurnManager->GetReadyCountdownRemaining();
+	}
+
 	return View;
 }
 
