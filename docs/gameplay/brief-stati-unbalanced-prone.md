@@ -5,10 +5,12 @@
 > **Autorità**: subordinato al canone, ad [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) §1 per
 > l'ordine delle macro-fasi e a [`spec-stati-temporanei-cp82.md`](spec-stati-temporanei-cp82.md) per il
 > **contratto runtime** degli status.
-> **Nessuna implementazione**: questo brief fissa forma, effetti e vincoli. Non apre lavoro.
+> ✅ **Deciso il 2026-09-04 da [D-319](../decisions/RT_PDR_00_Decision_Log.md)**, che chiude
+> [`STA-5`](../OPEN_DECISIONS.md): i due stati **escono dall'epic G.2** e diventano lavoro proprio.
+> Le decisioni prese in chiusura sono segnate ✅ qui sotto; ciò che resta aperto è in §8.
 
-> 🔴 **`Prone` come è specificato qui NON è rappresentabile dal contratto esistente, e la cosa va decisa
-> prima di scrivere codice.** `ARTUnit::ApplyStatus` conosce **due** forme e nessuna terza:
+> ✅ **Era il blocco, ed è risolto: `Prone` ha una durata, e `1 MP` la rimuove in anticipo.** La difficoltà
+> era reale — `ARTUnit::ApplyStatus` conosce **due** forme e nessuna terza:
 > `Turns > 0`, un conto alla rovescia che `TickStatuses()` decrementa a ogni Cleanup; e la sentinella
 > `PersistentWhileOnCell` (`-1`), che finisce in `CellBoundStatuses` e significa *«scade quando l'unità lascia
 > la cella»*. Ogni **altro** `Turns <= 0` esce senza applicare nulla — «altro» perché la sentinella `-1` **è**
@@ -18,12 +20,13 @@
 > sa rappresentare `N` turni **oppure** il legame alla cella»*.
 > Uno stato che dura *finché non paghi per uscirne* non è nessuna delle due: la sentinella di cella sarebbe
 > attivamente sbagliata, perché un'unità a terra **spinta** su un'altra cella si rialzerebbe da sola.
-> **Le vie sono tre**, e la scelta è §8.1 — non una domanda di bilanciamento, come questo brief la
-> classificava nella sua prima stesura, ma un vincolo di rappresentabilità:
+> Delle **tre vie** possibili, [D-319](../decisions/RT_PDR_00_Decision_Log.md) adotta la **prima**: non
+> chiede contratto nuovo, e solleva anche chi ha `Root` o budget esaurito, che altrimenti resterebbe a
+> terra per sempre. Il pagamento compra **il turno**, non l'uscita:
 >
 > | Via | Costo |
 > |---|---|
-> | `Prone` ha **anche** una durata, e `1 MP` la rimuove in anticipo (`StatusTurns.Remove`, che già esiste) | nessun contratto nuovo |
+> | ✅ **ADOTTATA** — `Prone` ha **anche** una durata, e `1 MP` la rimuove in anticipo (`StatusTurns.Remove`, che già esiste) | nessun contratto nuovo |
 > | Una **terza forma** in `ApplyStatus` | è il secondo meccanismo che [D-279](../decisions/RT_PDR_00_Decision_Log.md) vieta |
 > | `Prone` **non** è uno status ma un campo di `ARTUnit` | esce dal contratto per la porta di servizio: HUD, bot, checksum e TurnLog perdono `HasStatus` come API unica |
 
@@ -104,8 +107,8 @@ scivolamento no»*.
 **Chi lo applica**: subire `Push` o `Pull` mentre si è `Unbalanced`. Si applica **dopo** che il movimento
 forzato (già amplificato di +1) è stato risolto.
 **Uscita**: **1 MP** dal budget di movimento del turno.
-**Durata**: 🔴 **non decisa** — vedi il riquadro in testa e §8.1. Non è un dettaglio rinviabile: senza una
-durata lo stato non è esprimibile con l'API esistente.
+**Durata**: `2`, come `Unbalanced` — un solo numero in tutto il modello. Chi **non** paga resta a terra per
+il turno e si rialza gratis nel Cleanup: il MP compra **il turno**, non l'uscita.
 **Al momento della caduta `Unbalanced` viene rimosso**: si è `Prone` e basta.
 
 > 🔑 **Perché `Unbalanced` si consuma.** È un tetto naturale: una caduta per scivolata. Chi si rialza è
@@ -217,17 +220,12 @@ la parola *«Moved»*.
 
 ## 8. Domande aperte
 
-1. 🔴 **Come si rappresenta `Prone`.** Non è una domanda di bilanciamento ma di **esprimibilità**: l'API
-   conosce due forme e uno stato che finisce quando paghi non è nessuna delle due. Le tre vie sono nel
-   riquadro in testa al documento. Fino a che non è decisa, `Prone` non è implementabile — e con essa la
-   domanda di contorno: un'unità con `Root`, o senza budget residuo, resta a terra e senza reazione finché
-   non recupera movimento.
-2. **Spinta bloccata: si cade lo stesso?** `Prone` si applica «dopo il movimento forzato». Se la spinta non
-   produce spostamento (nessuna destinazione, cella bloccata, resistenza), non c'è un movimento dopo cui
-   cadere. 🔑 La risposta ha già dove essere scritta: `ERTMoveOutcome::DisplacementResisted` esiste per il
-   caso *«la spinta è stata registrata e risolta, e l'unità è rimasta dov'era»* (`#420`), e porta il perché in
-   `Amount` come `ERTDisplacementBlockReason`. Che quell'esito produca o no `Prone` è la decisione; il posto
-   in cui si legge c'è già.
+1. ~~**Come si rappresenta `Prone`.**~~ ✅ **Chiusa da [D-319](../decisions/RT_PDR_00_Decision_Log.md)**:
+   durata `2` più `StatusTurns.Remove` a `1 MP`. Nessun contratto nuovo, e il caso `Root`/budget-zero si
+   scioglie da sé — la durata solleva comunque.
+2. ~~**Spinta bloccata: si cade lo stesso?**~~ ✅ **Chiusa da [D-319](../decisions/RT_PDR_00_Decision_Log.md)**: **niente movimento, niente caduta**. La sede in cui l'esito si
+   legge è `ERTMoveOutcome::DisplacementResisted`, che già esiste per il caso *«la spinta è stata registrata
+   e risolta, e l'unità è rimasta dov'era»* (`#420`).
 3. **`Unbalanced` permanente sul ghiaccio largo.** `ApplyStatus` conserva la durata maggiore fra quella
    presente e quella nuova: chi cammina su una lastra estesa rinnova lo stato a ogni turno e non lo vede
    scadere mai. Con la reazione fuori da `Unbalanced` la cosa è molto meno grave di quanto sarebbe stata, ma
@@ -238,40 +236,47 @@ la parola *«Moved»*.
 5. **Il prezzo di «`Guard`/`Brace` inerti».** Cancellare un pool da 15 e un −10 su ogni colpo è molto più che
    togliere la resistenza alla spinta. Va misurato prima di implementare, e potrebbe voler dire limitare
    l'inerzia alla sola componente di spostamento.
-6. **Dove si nega lo `Sprint`** — in validazione del piano o alla risoluzione. Cambia il costo e cambia ciò
+6. ➕ **Il framework di lettura degli status nel bot** (Fase 2). [D-319](../decisions/RT_PDR_00_Decision_Log.md)
+   porta in Fase 1 un termine **mirato** in `ScorePlan` — bonus a `Push`/`Pull` se il bersaglio è
+   `Unbalanced` — e lascia a dopo il canale generico, che dipende da `STA-4`. Quel canale **sostituirà** il
+   termine e porterà con sé `Exposed`, `Marked` e `Guarded`, oggi ugualmente ignorati: misurato, `Source/
+   RefactorTactics/Bot/` ha **0** occorrenze di `HasStatus` e **0** di `Push`/`Pull`. Il termine mirato nasce
+   quindi come **debito dichiarato, con il successore già nominato**.
+7. **Dove si nega lo `Sprint`** — in validazione del piano o alla risoluzione. Cambia il costo e cambia ciò
    che il replay racconta.
-7. **`Status.Prone` o `Status.Movement.Prone`?** I tag esistenti sono a due livelli; il documento sorgente
+8. **`Status.Prone` o `Status.Movement.Prone`?** I tag esistenti sono a due livelli; il documento sorgente
    propone tre. Scegliere il primo e restare coerenti, o aprire il sottolivello per l'intera famiglia.
-8. **Il ramo «sbatti contro qualcosa».** `ApplyIceSliding` esce senza estendere il percorso quando la cella di
+9. **Il ramo «sbatti contro qualcosa».** `ApplyIceSliding` esce senza estendere il percorso quando la cella di
    destinazione è bloccata — ma ⚠️ **quel ramo non distingue niente**: restituisce lo stesso `Path` immutato
    delle altre quattro uscite, e per giunta accorpa «ho sbattuto contro un ostacolo» e «la cella non esiste»
    (fuori mappa). È spazio di design **potenziale**, e va reso osservabile prima di poterci appendere
    qualcosa.
 
-## 9. Rapporto con l'epic G.2 — una proposta, non una sostituzione
+## 9. Rapporto con l'epic G.2 — deciso
 
-[`brief-ghiaccio.md`](brief-ghiaccio.md) §5 colloca `Unbalanced` e `Prone` in **G.2**, epic post-v0.1, insieme
-a Traction/Stability per eroe — e **G.3** vi aggiunge il Momentum con resolver a punto fisso, subordinato al
-fuzzing deterministico.
+[`brief-ghiaccio.md`](brief-ghiaccio.md) §5 collocava `Unbalanced` e `Prone` in **G.2**, dietro al motore che
+**G.3** costruirà. ✅ **Il 2026-09-04 [D-319](../decisions/RT_PDR_00_Decision_Log.md) li ha fatti uscire**,
+chiudendo [`STA-5`](../OPEN_DECISIONS.md) e la riga 96 della
+[matrice dei conflitti](../DOC_CONFLICT_MATRIX.md). Il perimetro residuo di G.2 è **Traction e Stability per
+eroe**.
 
-Questo brief **propone** di anticipare i due stati senza il motore. È possibile perché l'innesco non è
-numerico: il sorgente separava `Unbalanced` da `Prone` con soglie di Momentum (§7: `<60`, `60-89`, `≥90`,
-dichiarate graybox), mentre qui la separazione è **categoriale** — quale causa ti ha spostato. Nessuna scala
-da tarare, nessun resolver iterativo, nessun fuzzing come prerequisito.
+L'argomento che ha retto: il sorgente separava i due stati con soglie di Momentum (§7: `<60`, `60-89`, `≥90`,
+graybox) e avrebbe richiesto un resolver a punto fisso; la separazione per **causa** dello spostamento non ha
+scale da tarare e non chiede il motore.
 
-> ⛔ **Questo brief non supersede `brief-ghiaccio.md`, e la scelta non è implicita.**
-> [`DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) vieta di risolvere un conflitto in silenzio: *«O si
-> registra `SUPERSEDED` con la fonte che prevale, o diventa una voce di `OPEN_DECISIONS.md`. Mai una scelta
-> implicita»*. Finché la decisione non è presa, **`brief-ghiaccio.md` §5 resta vigente** e i due stati
-> restano in G.2. Questo documento è la proposta di cambiarlo, non il cambiamento.
->
-> **Dove si decide**: la voce [`STA-5`](../OPEN_DECISIONS.md), aperta il 2026-09-04 nella famiglia degli
-> status — accanto a `STA-3`, che pone la stessa domanda su `Suppressed` e `Dazed`. Quel che manca per
-> chiudere non è più la voce, che esiste: è la **risposta**. Se è sì, si aggiornano `brief-ghiaccio.md` §5 e
-> [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md), che elenca i due stati fra ciò che è fuori dalla v0.1.
->
-> 🔑 **Una conseguenza che questo brief misura senza trarla.** L'asimmetria di §8.1 — `Unbalanced` è uno
-> status a durata come gli altri, `Prone` no — non è solo un problema implementativo: rende la domanda di
-> scope divisibile. Si può anticipare il solo `Unbalanced` e lasciare `Prone` col resto del motore, ed è la
-> terza uscita registrata in `STA-5`. ⚠️ Non «gratis», però: `Unbalanced` porta con sé i punti aperti §8.5,
-> §8.6 e §8.7, e l'amplificazione del `Pull`, che è un asse nuovo.
+> ⛔ **Ciò che NON è cambiato, e va letto prima di pianificare G.3.** `G.3 non parte senza il fuzzing`
+> resta vero. [roadmap-v0.1 §5 CP 12.6](../roadmap/roadmap-v0.1.md) scarta il fuzzing deterministico
+> *«solo perché il motore del ghiaccio (**slide a catena**) resta fuori dalla v0.1 — se rientrasse, andrebbe
+> riaperto»*, e i due stati non sono lo slide a catena. La prima stesura di questa decisione affermava il
+> contrario, ed è stata corretta in code review prima del merge.
+
+**Le due fasi**, dichiarate in `D-319`:
+
+| Fase | Contenuto | Dipendenze |
+|---|---|---|
+| **1** | i due stati, più un termine **mirato** in `ScorePlan` che li fa capitalizzare al bot | nessuna aperta — il valore proprio in `ERTMoveOutcome` per lo scivolamento resta il prerequisito bloccante (§7) |
+| **2** | il **framework** che fa leggere al bot ogni status, e che sostituisce il termine mirato | `STA-4`, aperta |
+
+La Fase 1 non aspetta `STA-4`: quella è prerequisito del **canale generico**, non di un singolo termine. È la
+distinzione che ha evitato di far atterrare la meccanica **a senso unico** — con il bot cieco, in v0.1
+`Prone` sarebbe stato uno strumento del giocatore invece che una minaccia.
