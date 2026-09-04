@@ -150,6 +150,32 @@ public:
 	 */
 	void TearDown();
 
+	/**
+	 * Il marchio che porta ogni unita' spawnata da uno scenario (`#2223`).
+	 *
+	 * 🔴 **Serve perche' in PIE non si puo' ricreare il mondo.** Fuori dal PIE ogni corsa costruisce un
+	 * `UWorld` temporaneo e parte pulita per costruzione; in PIE il mondo e' quello della sessione, e senza
+	 * questo marchio lo scenario successivo si sommerebbe al precedente — che e' esattamente il difetto
+	 * osservato lanciando scenari uno dopo l'altro su `L_DevSandbox`.
+	 *
+	 * ⛔ **E' un marchio e non un conteggio, e la differenza e' tutta qui**: in PIE lo scenario gira DENTRO
+	 * una partita, e le `ARTUnit` in campo non sono tutte sue. Sgomberare *«tutte le unita' del mondo»*
+	 * distruggerebbe la partita che lo ospita. Si toglie solo cio' che uno scenario ha messo.
+	 *
+	 * ⚠️ Vive in `AActor::Tags`, non in un campo di `ARTUnit`: e' una marcatura dell'HARNESS su un tipo di
+	 * gioco, e non deve entrare nel contratto di quel tipo ne' in cio' che il gioco serializza.
+	 */
+	static const FName SpawnedByScenarioTag;
+
+	/**
+	 * Toglie dal mondo le unita' marcate da una corsa precedente. Restituisce quante ne ha tolte.
+	 *
+	 * ⚠️ **Chiamata all'inizio, non alla fine.** Un teardown al termine non scatterebbe mai su uno scenario
+	 * interrotto a meta' — ed e' proprio quello che lascia il campo sporco. Sgomberare all'ingresso rende la
+	 * corsa pulita *qualunque cosa* sia successa alla precedente.
+	 */
+	static int32 ClearScenarioSpawnedUnits(UWorld* InWorld);
+
 private:
 	enum class EState : uint8
 	{

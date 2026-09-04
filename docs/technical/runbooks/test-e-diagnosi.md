@@ -268,6 +268,24 @@ Scenarios/Movement/Basic.json
 Il turn manager e il resolver **non sanno** di essere sotto test: non esiste nessun `if (IsTest)` nel
 gameplay. È la proprietà che rende un test verde significativo.
 
+### Lanciarne due di seguito in PIE — il campo si sgombera da solo
+
+Fuori dal PIE ogni corsa riceve un `UWorld` **temporaneo** e parte pulita per costruzione. In PIE il mondo è
+quello della sessione e non si può ricreare: fino al 2026-09-04 il secondo scenario si **sommava** al primo,
+e ciò che si misurava era il residuo ([#2223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2223)).
+
+Ora `FRTScenarioSession::Start` toglie dal mondo, **prima di posare qualunque cosa**, le unità marcate da una
+corsa precedente.
+
+- ⛔ **Si tolgono solo le unità che uno scenario ha messo**, mai tutte quelle in campo: in PIE lo scenario
+  gira *dentro* una partita, e sgomberarla sarebbe un rimedio peggiore del difetto. Il marchio è
+  `FRTScenarioSession::SpawnedByScenarioTag`, in `AActor::Tags`.
+- ⚠️ **Si sgombera all'ingresso, non alla fine**: uno scenario interrotto a metà non arriverebbe mai a un
+  teardown finale — ed è proprio quello a lasciare il campo sporco. Entrando, la corsa è pulita *qualunque
+  cosa* sia successa alla precedente.
+- La **board** non c'entra e non si duplicava: `BuildScenarioArena` riusa l'actor esistente e chiama
+  `RebuildInstances()`.
+
 ### 3-bis. Chi decide: un harness solo, e provider che restituiscono decisioni
 
 **[D-101](../../decisions/RT_PDR_00_Decision_Log.md)** (2026-08-11). L'harness sopra è **l'unico**, e ogni modo
