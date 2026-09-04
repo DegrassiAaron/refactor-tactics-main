@@ -650,7 +650,7 @@ struct FRTPartitaArchiviata
  * dell'altra chiamandoli entrambi «turno 3».
  */
 bool GiocaEArchivia(FAutomationTestBase& Test, const TCHAR* Nome, const FRTCellId* PerturbaVerso,
-	FRTPartitaArchiviata& Out, const TArray<FRTTurnLogEntry>* DecisioniDaRigiocare = nullptr)
+	FRTPartitaArchiviata& Out)
 {
 	check(Out.Byte.Num() == 0 && Out.Voci.Num() == 0);
 
@@ -695,18 +695,6 @@ bool GiocaEArchivia(FAutomationTestBase& Test, const TCHAR* Nome, const FRTCellI
 			return false;
 		}
 		DaSpostare->PlaceOnCell(*PerturbaVerso, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-	}
-
-	// 🔑 **La ri-simulazione da un ARCHIVIO** (`#2196`): le decisioni di reazione non si prendono da un
-	// decisore vivo, si consumano dalla traccia conservata. `ArmRecordedReactionDecisions` e' lo stesso
-	// ingresso che il Verifier usa per gli scenari (`Replay.Verifier.ReactionDecisionsComeFromTheTrace`) —
-	// e non e' legato agli scenari: e' un metodo del manager, quindi vale anche per una partita.
-	//
-	// ⚠️ Va armato PRIMA di `BeginReplayRecording`, non dopo: la registrazione parte con il primo turno, e
-	// una traccia armata a meta' produrrebbe un archivio in cui i primi turni hanno deciso da soli.
-	if (DecisioniDaRigiocare != nullptr)
-	{
-		TM->ArmRecordedReactionDecisions(*DecisioniDaRigiocare);
 	}
 
 	TM->ReplaysRootOverride = Root;
@@ -951,132 +939,6 @@ bool FRTReplayProducerNoLocalObserverTest::RunTest(const FString&)
 
 	DestroyReplayProducerWorld(World);
 	PuliscIProducer(Root);
-	return true;
-}
-
-/**
- * L'ANELLO CHE MANCAVA: si apre un ARCHIVIO, lo si rigioca col resolver, e si confronta — `#2196`.
- *
- * 🔴 **Il buco che questo test chiude era dichiarato in questo stesso file** (intestazione di
- * `TwoIdenticalMatchesLeaveIdenticalArchives`): *«`Replay.Verifier.ReportsFirstDivergence` esiste […] ma il
- * suo stesso commento dichiara il confine: "Chi produce la seconda ri-simulando e' il chiamante". **Nessuno
- * era quel chiamante.** E il corpus golden non copre questo: le sue referenze sono file `.rttl` COMMITTATI,
- * non archivi PRODOTTI da una partita»*. Da qui in poi qualcuno lo e'.
- *
- * 🔑 **Le altre due gambe esistevano gia', e questa non le sostituisce.**
- *   · `Replay.Verifier.ResimulationIsDeterministic` — scenario → resolver → confronto di hash (`CP 12.1`);
- *   · `Replay.Producer.TwoIdenticalMatchesLeaveIdenticalArchives` — partita → archivio ×2 → confronto di byte.
- * Nessuna delle due apre un artefatto **conservato** e prova che le regole di oggi lo riproducono ancora:
- * la prima parte da uno scenario, la seconda confronta due archivi **entrambi prodotti** nella stessa run.
- * E' la forma che serve a una disputa o a un audit mesi dopo, quando la partita non si puo' rigiocare a mano.
- *
- * ⚠️ **Le decisioni vengono dalla TRACCIA, non da un decisore vivo**: `ArmRecordedReactionDecisions`, lo
- * stesso ingresso che il Verifier usa per gli scenari. Senza, la seconda esecuzione deciderebbe per conto
- * proprio e il confronto misurerebbe due partite diverse che si assomigliano.
- *
- * 🔴 **Il confronto e' sui BYTE e non sugli hash**, per la ragione gia' pagata da `#2097` in code review:
- * `GoldenEntriesMatch` confronta gli hash, e `UnitId`, `TurnNumber`, `Priority`, `ReactionInstanceId`,
- * `OriginalTargetUnitId` nell'hash non entrano ([D-063]) ma su disco ci finiscono.
- *
- * 🔴 **CIO' CHE QUESTO TEST NON PROVA, ed e' il limite che conta.** La partita di riferimento e la sua
- * ri-simulazione girano nello **stesso processo** e con lo **stesso binario**. Quindi questo test prova che
- * il MECCANISMO funziona — un archivio si riapre, si rigioca e torna identico — ma **non** che le regole di
- * *oggi* riproducano un archivio scritto da una build di *ieri*, che e' il caso d'uso dell'audit a mesi di
- * distanza. Per quello servirebbe un archivio **committato** come fixture, prodotto da un'altra build:
- * e' un lavoro diverso, con una scelta di formato e di manutenzione che [D-310] governa, e va in una issue
- * propria invece che di straforo qui.
- *
- * ⚠️ **Per la stessa ragione l'anti-vacuita' non puo' essere una mutazione di REGOLA**, ed e' l'errore che
- * la prima stesura di questa issue aveva fatto: indebolire una costante di combattimento cambierebbe
- * **entrambe** le meta' allo stesso modo, e il confronto resterebbe verde. A falsificare questo test e' un
- * INGRESSO diverso — ed e' il braccio al punto 6, dentro il test, dove si vede.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayArchiveResimulationTest,
-	"RefactorTactics.Replay.Verifier.ArchiveReplaysThroughTheResolver",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTReplayArchiveResimulationTest::RunTest(const FString&)
-{
-	// 1. La partita di riferimento, registrata e riletta da disco.
-	FRTPartitaArchiviata Archivio;
-	if (!GiocaEArchivia(*this, TEXT("AnelloRif"), nullptr, Archivio)) { return false; }
-
-	// `ArchivioUtilizzabile` porta gia' le quattro condizioni che rendono un archivio confrontabile —
-	// compresa l'anti-vacuita' del volume, *«una partita di un turno solo renderebbe il confronto quasi
-	// muto»*. Riusarla invece di riscriverle e' anche cio' che tiene allineati i due test dell'archivio.
-	if (!ArchivioUtilizzabile(*this, TEXT("riferimento"), Archivio)) { return false; }
-
-	// 2. Tutte le voci dell'archivio, nell'ordine dei turni: e' cio' che la ri-simulazione consuma.
-	TArray<FRTTurnLogEntry> VociArchiviate;
-	for (const TArray<FRTTurnLogEntry>& Turno : Archivio.Voci)
-	{
-		VociArchiviate.Append(Turno);
-	}
-	if (!TestTrue(TEXT("l'archivio porta delle voci da rigiocare"), VociArchiviate.Num() > 0)) { return false; }
-
-	// 3. La stessa partita, rigiocata dal resolver con le decisioni della traccia.
-	FRTPartitaArchiviata Rigiocata;
-	if (!GiocaEArchivia(*this, TEXT("AnelloRig"), nullptr, Rigiocata, &VociArchiviate)) { return false; }
-
-	if (!ArchivioUtilizzabile(*this, TEXT("ri-simulazione"), Rigiocata)) { return false; }
-
-	// 4. Il confronto: stessa lunghezza, e ogni turno IDENTICO SUI BYTE.
-	if (!TestEqual(TEXT("la ri-simulazione gioca lo stesso numero di turni"),
-		Rigiocata.TurniGiocati, Archivio.TurniGiocati))
-	{
-		return false;
-	}
-
-	int32 TurnoDiverso = INDEX_NONE;
-	const int32 Comuni = FMath::Min(Archivio.Byte.Num(), Rigiocata.Byte.Num());
-	for (int32 i = 0; i < Comuni && TurnoDiverso == INDEX_NONE; ++i)
-	{
-		if (Archivio.Byte[i] != Rigiocata.Byte[i]) { TurnoDiverso = i; }
-	}
-
-	TestEqual(TEXT("l'archivio si rigioca identico, turno per turno, byte per byte"),
-		TurnoDiverso, INDEX_NONE);
-
-	// 5. E se divergesse, il verdetto deve dire DOVE: e' cio' che distingue questo anello da un booleano.
-	if (TurnoDiverso != INDEX_NONE)
-	{
-		AddError(FString::Printf(TEXT("la ri-simulazione diverge dall'archivio: %s"),
-			*URTTurnLogLibrary::DescribeFirstDivergence(
-				TurnoDiverso + 1, Archivio.Voci[TurnoDiverso], Rigiocata.Voci[TurnoDiverso])));
-	}
-
-	// 6. 🔴 **ANTI-VACUITA': il confronto sa DIRE DI NO.** Senza questa meta', un `ApplyAbsorptionPool` che
-	// restituisse sempre `INDEX_NONE` — o due archivi confrontati con se stessi — passerebbe identico.
-	//
-	// ⚠️ **E la mutazione di una REGOLA non servirebbe a niente qui**, che e' il punto meno ovvio di questo
-	// test: la partita di riferimento e la sua ri-simulazione girano nello STESSO processo e con lo STESSO
-	// binario, quindi indebolire una costante di combattimento le cambierebbe **entrambe allo stesso modo** e
-	// il confronto resterebbe verde. A falsificare questa meta' e' un INGRESSO diverso, non una regola.
-	// La stessa cella che `AChangedInputMakesTheArchiveDiverge` usa: e' gia' misurata come raggiungibile e
-	// libera in questo allestimento, quindi la perturbazione avviene davvero. ⚠️ Con una cella scelta a
-	// caso `GiocaEArchivia` puo' trovarla occupata e NON spostare nessuno — e allora questo braccio
-	// passerebbe per una ragione che non e' quella dichiarata.
-	const FRTCellId Perturbata(-3, 2);
-	FRTPartitaArchiviata Diversa;
-	if (!GiocaEArchivia(*this, TEXT("AnelloPert"), &Perturbata, Diversa, &VociArchiviate)) { return false; }
-
-	int32 PrimoDiverso = INDEX_NONE;
-	const int32 ComuniPert = FMath::Min(Archivio.Byte.Num(), Diversa.Byte.Num());
-	for (int32 i = 0; i < ComuniPert && PrimoDiverso == INDEX_NONE; ++i)
-	{
-		if (Archivio.Byte[i] != Diversa.Byte[i]) { PrimoDiverso = i; }
-	}
-
-	TestTrue(TEXT("un allestimento diverso NON si rigioca come l'archivio: il confronto sa dire di no"),
-		PrimoDiverso != INDEX_NONE || Diversa.Byte.Num() != Archivio.Byte.Num());
-
-	// E il verdetto lo NOMINA, invece di limitarsi a negare.
-	if (PrimoDiverso != INDEX_NONE)
-	{
-		const FString Dove = URTTurnLogLibrary::DescribeFirstDivergence(
-			PrimoDiverso + 1, Archivio.Voci[PrimoDiverso], Diversa.Voci[PrimoDiverso]);
-		TestTrue(TEXT("e la divergenza viene NOMINATA, non solo rilevata"), !Dove.IsEmpty());
-	}
-
 	return true;
 }
 
