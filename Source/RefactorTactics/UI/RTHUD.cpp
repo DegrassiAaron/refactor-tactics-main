@@ -1076,41 +1076,25 @@ void ARTHUD::DrawHUD()
 			if (const ARTHexMapActor* HexMap = Cast<ARTHexMapActor>(
 					UGameplayStatics::GetActorOfClass(this, ARTHexMapActor::StaticClass())))
 			{
-				const int32 NumHit = HexMap->NumPreviewHitCells();
-				if (NumHit > 0)
+				// Cosa scrivere e di che colore lo decide una statica pura (#2184); qui resta il tracciamento.
+				// Testo vuoto = nessuna zona puntata, e non «una riga vuota».
+				const FRTHudTextLine Zona = ComposePreviewZoneLine(
+					HexMap->NumPreviewHitCells(), HexMap->NumPreviewAllyHitCells());
+				if (!Zona.Text.IsEmpty())
 				{
-					const int32 NumAlly = HexMap->NumPreviewAllyHitCells();
-					FString Zona = FString::Printf(TEXT("TIRO: %d celle"), NumHit);
-					if (NumAlly > 0)
-					{
-						Zona += FString::Printf(TEXT("  -  %d ALLEATO%s NELLA ZONA"),
-							NumAlly, NumAlly > 1 ? TEXT("/I") : TEXT(""));
-					}
-					// Arancione quando c'e' fuoco amico: stesso codice colore del nome marcato sopra la testa,
-					// cosi' le due informazioni si riconoscono come la stessa cosa detta in due posti.
-					DrawText(Zona, NumAlly > 0 ? FLinearColor(1.f, 0.6f, 0.12f, 1.f) : FLinearColor(1.f, 0.35f, 0.3f, 1.f),
-						X, Y - LineH - 6.f, nullptr, 1.f);
+					DrawText(Zona.Text, Zona.Color, X, Y - LineH - 6.f, nullptr, 1.f);
 				}
 			}
-			for (int32 A = 0; A < Sel->NumAbilities(); ++A)
+			// ⚠️ **La vista, non l'unita'.** Questo ciclo rileggeva `CanUseAbility` e `GetAbilityCooldown`
+			// dall'attore, mentre `BuildAbilityCooldowns` produce gia' `bUsableNow` e `TurnsRemaining` — e
+			// `WBP_RT_ActionSlot` li consuma: con `rt.HUD.CanvasPanels` attivo le due vie rendevano nello stesso
+			// fotogramma lo stesso dato letto da due sorgenti. La vista salta le abilita' nulle con lo stesso
+			// `continue` che c'era qui, e conserva `AbilityIndex`, quindi righe e numerazione non si muovono.
+			for (const FRTAbilityCooldownView& Ability : URTHudViewModel::BuildAbilityCooldowns(Sel))
 			{
-				const URTActionData* Ability = Sel->GetAbility(A);
-				if (!Ability)
-				{
-					continue;
-				}
-				const bool bActive = (A == Sel->SelectedAbilityIndex);
-				const bool bUsable = Sel->CanUseAbility(A);
-				const int32 CD = Sel->GetAbilityCooldown(A);
-
-				FString Line = FString::Printf(TEXT("%d. %s"), A + 1, *Ability->DisplayName.ToString());
-				if (CD > 0) { Line += FString::Printf(TEXT("  (ricarica %d)"), CD); }
-				else if (Ability->EnergyCost > 0 && Sel->Energy < Ability->EnergyCost) { Line += TEXT("  (energia)"); }
-				if (bActive) { Line = TEXT("> ") + Line; }
-
-				const FLinearColor Color = bActive ? FLinearColor::White
-					: (bUsable ? FLinearColor(0.8f, 0.8f, 0.8f, 1.f) : FLinearColor(0.45f, 0.45f, 0.45f, 1.f));
-				DrawText(Line, Color, X, Y, nullptr, 1.f);
+				const FRTHudTextLine Line = ComposeAbilityLine(
+					Ability, /*bArmed=*/ Ability.AbilityIndex == Sel->SelectedAbilityIndex);
+				DrawText(Line.Text, Line.Color, X, Y, nullptr, 1.f);
 				Y += LineH;
 			}
 
@@ -1235,4 +1219,75 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 	}
 
 	return Status;
+}
+
+FRTHudTextLine ARTHUD::ComposeAbilityLine(const FRTAbilityCooldownView& Ability, bool bArmed)
+{
+	FRTHudTextLine Line;
+
+	// Il numero e' 1-based: e' la scorciatoia che il giocatore preme, non l'indice del kit.
+	Line.Text = FString::Printf(TEXT("%d. %s"), Ability.AbilityIndex + 1, *Ability.DisplayName.ToString());
+
+	// 🔴 **La ricarica VINCE sull'energia, ed e' una precedenza dichiarata.** Un'abilita' puo' essere
+	// entrambe le cose insieme; mostrarne una sola e' una scelta, e la scelta e' la ricarica perche' e'
+	// quella che passa da sola col tempo — l'energia dipende da cosa fara' il giocatore.
+	//
+	// ⚠️ **Il motivo «energia» si INFERISCE, e oggi l'inferenza e' completa.**
+	// `URTCombatLibrary::IsAbilityUsable` e' `CooldownRemaining <= 0 && Energy >= EnergyCost`: due clausole
+	// sole, quindi «non usabile pur essendo fuori ricarica» non puo' che essere energia. La stesura
+	// precedente rileggeva `EnergyCost` e `Energy` dall'attore per dirlo; la vista lo porta gia' dentro
+	// `bUsableNow`. ⛔ Se un giorno comparisse una TERZA clausola, questa riga nominerebbe un motivo
+	// sbagliato: il posto dove accorgersene e' `AbilityLineShowsCooldownBeforeEnergy`.
+	if (Ability.TurnsRemaining > 0)
+	{
+		Line.Text += FString::Printf(TEXT("  (ricarica %d)"), Ability.TurnsRemaining);
+	}
+	else if (!Ability.bUsableNow)
+	{
+		Line.Text += TEXT("  (energia)");
+	}
+
+	// L'abilita' armata si distingue DUE volte, dal prefisso e dal colore: i tre livelli di grigio sono
+	// vicini, e il solo colore non basta a dire quale delle tre sto per usare.
+	if (bArmed)
+	{
+		Line.Text = TEXT("> ") + Line.Text;
+	}
+
+	// ⚠️ **Armata batte inutilizzabile.** «Cosa sto per fare» e «posso farlo» sono due domande, e il
+	// bianco risponde alla prima: un'ultimate armata e senza energia resta riconoscibile come quella scelta,
+	// e il motivo lo dice il testo.
+	Line.Color = bArmed
+		? FLinearColor::White
+		: (Ability.bUsableNow ? FLinearColor(0.8f, 0.8f, 0.8f, 1.f) : FLinearColor(0.45f, 0.45f, 0.45f, 1.f));
+
+	return Line;
+}
+
+FRTHudTextLine ARTHUD::ComposePreviewZoneLine(int32 NumHitCells, int32 NumAllyHitCells)
+{
+	FRTHudTextLine Line;
+
+	// Nessuna cella puntata: nessuna riga. Un «TIRO: 0 celle» direbbe che sto mirando a niente, che e'
+	// un'altra cosa dal non star mirando.
+	if (NumHitCells <= 0)
+	{
+		return Line;
+	}
+
+	Line.Text = FString::Printf(TEXT("TIRO: %d celle"), NumHitCells);
+	if (NumAllyHitCells > 0)
+	{
+		Line.Text += FString::Printf(TEXT("  -  %d ALLEATO%s NELLA ZONA"),
+			NumAllyHitCells, NumAllyHitCells > 1 ? TEXT("/I") : TEXT(""));
+	}
+
+	// Arancione quando c'e' fuoco amico: stesso codice colore del nome marcato sopra la testa, cosi' le due
+	// informazioni si riconoscono come la stessa cosa detta in due posti. Cambia al PRIMO alleato, non a
+	// una soglia: uno basta a rendere il tiro un'altra decisione.
+	Line.Color = NumAllyHitCells > 0
+		? FLinearColor(1.f, 0.6f, 0.12f, 1.f)
+		: FLinearColor(1.f, 0.35f, 0.3f, 1.f);
+
+	return Line;
 }
