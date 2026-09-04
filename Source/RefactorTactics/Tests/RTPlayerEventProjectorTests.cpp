@@ -31,6 +31,43 @@ namespace
 }
 
 /**
+ * LO SCIVOLAMENTO ARRIVA AL FEED, E NON COME UN MOVIMENTO QUALUNQUE — `#2253`.
+ *
+ * 🔴 **Il difetto che questo test esiste per impedire e' una SPARIZIONE, e non fallisce a compilazione.**
+ * `ClassifyEntry` traduce gli esiti di `Move` con uno `switch` che termina in `default: return false`:
+ * un valore nuovo dell'enum non tradotto qui non rompe nulla — semplicemente non produce piu' l'evento
+ * che produceva prima. Quando `Slid` e' stato aggiunto, lo scivolamento e' passato da `Moved`/`Minor` a
+ * NESSUNA riga, e la suite e' rimasta verde perche' nessun test guardava questo caso.
+ *
+ * ⚠️ **`Important` e non `Minor`**: l'argomento di §D per cui un movimento riuscito e' minore — «il
+ * giocatore lo vede gia' animato» — vale per un movimento CHIESTO. Qui l'unita' e' finita dove il
+ * giocatore non l'aveva mandata, ed e' la stessa natura di `Displaced`: uno spostamento subito.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerEventSlideIsImportantTest,
+	"RefactorTactics.UI.PlayerEventLog.SlideIsImportant",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerEventSlideIsImportantTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Log;
+	Log.Add(PlayerEventEntry(ERTLogCategory::Move,
+		static_cast<uint8>(ERTMoveOutcome::Slid), /*UnitId*/ 3, /*Team*/ 0));
+
+	const TArray<FRTPlayerEvent> Events = URTPlayerEventProjector::Project(Log, /*ObserverTeamId*/ 0);
+
+	// ANTI-VACUITA': senza questa riga il test passerebbe anche se `Slid` non producesse NIENTE — che e'
+	// esattamente il difetto da cogliere, non un caso limite.
+	if (!TestEqual(TEXT("uno scivolamento produce una riga"), Events.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("e' un evento di movimento"),
+		static_cast<int32>(Events[0].Type), static_cast<int32>(ERTPlayerEventType::Moved));
+	TestEqual(TEXT("ed e' Important: l'unita' e' finita dove il giocatore non l'ha mandata"),
+		static_cast<int32>(Events[0].Importance), static_cast<int32>(ERTPlayerEventImportance::Important));
+	return true;
+}
+
+/**
  * IL MOVIMENTO NON PRODUCE UNA RIGA PER CELLA — `#1936` §E.
  *
  * ⚠️ **Il difetto non sarebbe nel TurnLog ma nel feed**, ed e' la ragione per cui il test sta qui: il
