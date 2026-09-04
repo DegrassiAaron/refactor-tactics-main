@@ -3301,7 +3301,7 @@ void ARTTurnManager::AddTeamScore(int32 TeamId, int32 Points)
 
 void ARTTurnManager::CaptureFinalStateHash()
 {
-	if (!bRecordReplay || !ReplayManifest.MatchId.IsValid() || ReplayManifest.bClosed)
+	if (!bRecordReplay || !ReplayRecording.IsRecording() || ReplayRecording.IsClosed())
 	{
 		return;
 	}
@@ -3341,42 +3341,17 @@ void ARTTurnManager::CaptureFinalStateHash()
 
 void ARTTurnManager::BeginReplayRecording()
 {
-	if (!bRecordReplay)
+	// Le due guardie restano QUI: `bRecordReplay` e il formato sono condizioni che l'orchestratore conosce,
+	// e duplicarle nel registratore creerebbe due posti in cui la stessa domanda ha risposta.
+	if (!bRecordReplay || MatchRules.FormatId.IsNone())
 	{
 		return;
 	}
 
-	// Senza un formato risolto non si registra. `SetupHexMatch` esce anticipatamente quando
-	// `ApplyMatchFormat` fallisce — la mappa resta a schermo col motivo nel log, e nessuna partita viene
-	// allestita — ma il chiamante e' fuori da quella funzione e non lo sa. Un archivio che dichiara
-	// `FormatId = None` non e' confrontabile con niente (`CompareSerializedTraces` distingue proprio il
-	// `FormatMismatch`), e sarebbe la registrazione di una partita che non e' mai cominciata.
-	if (MatchRules.FormatId.IsNone())
-	{
-		return;
-	}
-
-	ReplayManifest = FRTReplayManifest();
-	ReplayManifest.MatchId = FGuid::NewGuid();
-	// Il formato si legge ADESSO e non a `BeginPlay`: il GameMode spawna il TurnManager prima di risolvere
-	// il formato di partita (`ApplyMatchFormat`), quindi a quel punto `MatchRules.FormatId` non e' ancora
-	// quello vero. Un manifest che dichiara il formato sbagliato e' peggio di uno che non lo dichiara.
-	ReplayManifest.FormatId = MatchRules.FormatId;
-	ReplayManifest.bHexTopology = true; // un solo substrato: `FRTCellId` e' esagonale (ADR-0002)
-
-	// Le squadre per cui l'archivio portera' una traccia PER OSSERVATORE ([D-316], `#2098`).
-	//
-	// 🔴 **Si decide ADESSO e vale per tutta la partita**, ed e' la sola forma coerente: `ObserverTeamIds`
-	// vive nel manifest, che descrive l'archivio intero. Ricalcolarlo a ogni turno dalle unita' VIVE
-	// smetterebbe di produrre la traccia di una squadra nel momento in cui perde l'ultima unita' — cioe'
-	// proprio il turno che quella squadra vorrebbe rivedere.
-	//
-	// ⚠️ **Ordinate**, come in `RefreshTeamKnowledgeForPlanning` e per la stessa ragione: l'ordine di un
-	// `TSet` dipende dall'hash, e qui si itera per scrivere file.
-	//
-	// ⛔ **Zero unita' = nessuna traccia per osservatore**, e l'archivio lo dichiara con un elenco vuoto
-	// invece di prometterne una che non c'e'. E' il caso preesistente che il GameMode nomina: formato
-	// valido, allestimento fallito dopo.
+	// ⚠️ **I fatti si raccolgono qui**, perche' interrogano il mondo: chi sono le squadre in campo e chi sta
+	// guardando. `FRTReplayRecording` non sa cosa sia un `ARTUnit`, ed e' la proprieta' che la rende
+	// esercitabile senza un mondo.
+	TArray<int32> Osservatori;
 	{
 		TArray<AActor*> Attori;
 		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Attori);
@@ -3386,105 +3361,56 @@ void ARTTurnManager::BeginReplayRecording()
 		{
 			if (const ARTUnit* Unita = Cast<ARTUnit>(Attore))
 			{
-				// Non si filtra sui vivi: a `BeginReplayRecording` lo sono tutti, e un filtro qui sarebbe
-				// una guardia che non guarda niente e che il primo lettore scambierebbe per una regola.
 				Squadre.Add(Unita->TeamId);
 			}
 		}
-		ReplayManifest.ObserverTeamIds = Squadre.Array();
-		ReplayManifest.ObserverTeamIds.Sort();
+		Osservatori = Squadre.Array();
+		Osservatori.Sort();
 	}
 
-	// Di CHI e' questa registrazione ([D-317], `#2156`): la squadra del giocatore locale, che e' cio' che
-	// `OpenMatchAsRecordedObserver` rileggera' per aprire il replay con gli occhi giusti.
-	//
-	// 🔴 **NON si usa `ARTPlayerState::TeamIdOf` nuda, ed e' la riga piu' importante di questo blocco.**
-	// Quella funzione risponde `0` anche senza controller — un ripiego corretto *in partita*, dove un
-	// giocatore c'e' sempre, e sbagliato qui: un dedicated server registrerebbe «questa e' la partita della
-	// squadra 0» quando non e' di nessuno in locale. `INDEX_NONE` non e' «non lo so», e' «non c'era», e si
-	// rilegge come spettatore neutrale — cioe' il comportamento che quell'archivio deve avere.
-	//
-	// ⚠️ E si distingue anche il controller SENZA `PlayerState`: e' lo stesso caso, e passare di li'
-	// riporterebbe lo zero dalla porta di servizio.
+	int32 OsservatoreLocale = INDEX_NONE;
 	{
+		// 🔴 Non `ARTPlayerState::TeamIdOf`: quella risponde `0` senza un controller, e `0` e' una squadra
+		// vera. Qui l'assenza di osservatore locale deve restare `INDEX_NONE`.
 		const APlayerController* Locale = UGameplayStatics::GetPlayerController(this, 0);
 		const ARTPlayerState* Stato = Locale ? Cast<ARTPlayerState>(Locale->PlayerState) : nullptr;
-		ReplayManifest.LocalObserverTeamId = Stato ? Stato->GetTeamId() : INDEX_NONE;
+		OsservatoreLocale = Stato ? Stato->GetTeamId() : INDEX_NONE;
 	}
 
-	// L'UNICO tempo reale che tocca l'archivio: da qui esce la durata nel manifest e la data nell'indice.
-	// Nessuno dei due entra in un hash.
-	ReplayStartRealSeconds = FPlatformTime::Seconds();
-	ReplayStartedUtc = FDateTime::UtcNow();
-
-	// La partita entra nella lista ADESSO e non alla fine (`#416`): se entrasse alla fine, una partita
-	// interrotta non comparirebbe da nessuna parte pur avendo lasciato un archivio riproducibile su disco.
-	// La riga si completa alla chiusura — `AppendOrUpdate` aggiorna la stessa, non ne accoda una seconda.
-	URTMatchHistoryLibrary::AppendOrUpdate(ResolveReplaysRoot(),
-		URTMatchHistoryLibrary::EntryFromManifest(ReplayManifest, ReplayStartedUtc));
-}
-
-FString ARTTurnManager::ResolveReplaysRoot() const
-{
-	// 🔴 **Il default lo CHIEDE, non lo ricostruisce** (`#1050`). Fino al 2026-08-16 questa funzione
-	// ripeteva qui `FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Replays"))`, e la stessa espressione
-	// viveva in altri due punti: chi avesse spostato gli archivi ne avrebbe cambiato uno, e il lettore
-	// avrebbe elencato una cartella vuota su una macchina piena di registrazioni — indistinguibile da
-	// «non hai ancora giocato». Ne' il compilatore ne' un test se ne accorgono: sono funzioni corrette che
-	// rispondono alla stessa domanda.
-	//
-	// ⚠️ Il posto e' il **produttore**: chi scrive possiede la disposizione su disco — cartella per partita,
-	// manifest, una traccia per turno — e la radice ne e' il primo livello. Chi legge la chiede.
-	// La terza copia era in `URTReplayViewerSubsystem`, tolta con `#999`/#1005; questa e' rimasta indietro
-	// perche' allora `RTTurnManager.cpp` non era nel `writable` di nessuna track (`D-139`).
-	return ReplaysRootOverride.IsEmpty()
-		? URTReplayRecorderLibrary::DefaultReplaysRoot()
-		: ReplaysRootOverride;
+	ReplayRecording.Begin(MatchRules.FormatId, MoveTemp(Osservatori), OsservatoreLocale,
+		FRTReplayRecording::ResolveRoot(ReplaysRootOverride));
 }
 
 void ARTTurnManager::RecordTurnToReplay()
 {
-	if (!bRecordReplay || !ReplayManifest.MatchId.IsValid())
+	if (!bRecordReplay || !ReplayRecording.IsRecording())
 	{
 		return;
 	}
 
-	// Il TurnManager non sa scrivere: consegna la traccia a chi lo fa. Non riordina e non serializza —
-	// `SortTurnLog` ha gia' fissato l'ordine canonico, e la serializzazione e' della libreria del TurnLog.
-	if (!URTReplayRecorderLibrary::RecordTurn(ResolveReplaysRoot(), ReplayManifest, TurnNumber, TurnLog))
+	const FString Radice = FRTReplayRecording::ResolveRoot(ReplaysRootOverride);
+
+	// ⛔ Il registratore risponde `false` e NON logga: il TurnLog e' del manager, e un registratore che vi
+	// scrivesse dovrebbe conoscerlo. Chi chiama decide cosa dirne — ed e' qui.
+	if (!ReplayRecording.RecordTurn(Radice, TurnNumber, TurnLog))
 	{
-		// Non e' un errore di gioco: la partita continua anche se il disco no. Ma va DETTO, o un archivio
-		// che non c'e' si scopre solo quando qualcuno prova a riaprirlo.
 		AddLogEvent(FString::Printf(TEXT("Replay: il turno %d non e' stato registrato"), TurnNumber), FRTLogSubject::World());
 		return;
 	}
 
-	// [D-313] — l'evidenza d'audit, ACCANTO alla traccia e non dentro.
-	//
-	// 🔴 **Solo se la traccia e' andata a buon fine**, e il `return` qui sopra e' la riga che lo
-	// garantisce: un audit senza la sua traccia sarebbe una prova che non prova niente, e peggio, un archivio
-	// che sembra completo. E' la disciplina di `RecordTurn` e `CloseMatch`, un livello piu' su.
+	// ⚠️ **La composizione dell'audit resta qui**, e non e' pigrizia: pesca da quattro buffer di questa
+	// classe — decisioni dei bot e conoscenza a due istanti — che nessun altro possiede. Portarla nel
+	// registratore avrebbe trascinato dentro meta' dello stato del manager, cioe' l'opposto della fetta.
 	FRTTurnAudit Audit;
-	Audit.MatchId = ReplayManifest.MatchId;
+	Audit.MatchId = ReplayRecording.GetMatchId();
 	Audit.TurnNumber = TurnNumber;
+	Audit.OrderedHash = ReplayRecording.LastOrderedHash();
 
-	// L'ancora: `RecordTurn` ha appena accodato l'hash ordinato di QUESTO turno. Lega l'evidenza alla
-	// TRACCIA, non solo alla partita e al numero — cosi' una traccia rigenerata smette di sembrarne la coppia.
-	Audit.OrderedHash = ReplayManifest.OrderedHashPerTurn.Num() > 0
-		? ReplayManifest.OrderedHashPerTurn.Last()
-		: 0;
-
-	// 🔴 **Un'istantanea di un altro turno non e' evidenza: e' un errore che sembra una prova.** Le due
-	// copie si azzerano a ogni Planning, e `FRTTeamKnowledge::TurnNumber` dice a quale turno appartengono:
-	// se non e' questo, si registra il turno senza quella meta' invece di attribuirgli quella sbagliata.
 	auto DiQuestoTurno = [this](const TArray<FRTTeamKnowledge>& Snapshot)
 	{
 		return Snapshot.Num() > 0 && Snapshot[0].TurnNumber == TurnNumber;
 	};
 
-	// Stessa disciplina delle due istantanee, sul timbro invece che sul campo: le scelte di un altro turno
-	// non si attribuiscono a questo. Un turno che arriva qui senza scelte archiviate le lascia vuote, e il
-	// test d'integrazione lo dichiara turno per turno invece di lasciarlo passare nel totale.
 	if (BotDecisionsTurnForAudit == TurnNumber)
 	{
 		Audit.BotDecisions = BotDecisionsForAudit;
@@ -3493,9 +3419,6 @@ void ARTTurnManager::RecordTurnToReplay()
 	if (DiQuestoTurno(PlanningKnowledgeForAudit)) { Audit.PlanningKnowledge = PlanningKnowledgeForAudit; }
 	if (DiQuestoTurno(BlastKnowledgeForAudit)) { Audit.BlastKnowledge = BlastKnowledgeForAudit; }
 
-	// I verdetti nell'ordine in cui le voci sono ARCHIVIATE: `TurnLog` e' gia' ordinato quando si arriva
-	// qui, ed e' lo stesso ordine che il recorder scrive. Il soggetto viaggia sull'entry proprio perche' un
-	// indice non sarebbe sopravvissuto a `SortTurnLog`.
 	Audit.Verdicts.Reserve(TurnLog.Num());
 	for (const FRTTurnLogEntry& Entry : TurnLog)
 	{
@@ -3508,7 +3431,7 @@ void ARTTurnManager::RecordTurnToReplay()
 		Audit.Verdicts.Add(Record);
 	}
 
-	if (!URTReplayAuditLibrary::RecordTurnAudit(ResolveReplaysRoot(), Audit))
+	if (!ReplayRecording.RecordAudit(Radice, Audit))
 	{
 		AddLogEvent(FString::Printf(TEXT("Replay: l'audit del turno %d non e' stato registrato"), TurnNumber),
 			FRTLogSubject::World());
@@ -3517,27 +3440,16 @@ void ARTTurnManager::RecordTurnToReplay()
 
 void ARTTurnManager::CloseReplayArchive()
 {
-	if (!bRecordReplay || !ReplayManifest.MatchId.IsValid() || ReplayManifest.bClosed)
+	if (!bRecordReplay || !ReplayRecording.IsRecording() || ReplayRecording.IsClosed())
 	{
 		return;
 	}
 
-	// Il checksum e' quello catturato in `CaptureFinalStateHash`, PRIMA che le unita' morte sparissero: qui
-	// non si puo' piu' calcolare, perche' `DestroyDefeatedUnits` e' gia' passato.
-	// La DURATA si misura adesso: nasce in `BeginReplayRecording` e finisce qui. E' l'unico tempo reale che
-	// l'archivio porta, e vive in un campo che non entra in nessun hash.
-	const float WallClock = static_cast<float>(FPlatformTime::Seconds() - ReplayStartRealSeconds);
-	if (!URTReplayRecorderLibrary::CloseMatch(ResolveReplaysRoot(), ReplayManifest,
-		PendingResult.Outcome, PendingFinalStateHash, WallClock))
+	if (!ReplayRecording.Close(FRTReplayRecording::ResolveRoot(ReplaysRootOverride),
+		PendingResult.Outcome, PendingFinalStateHash))
 	{
 		AddLogEvent(TEXT("Replay: l'archivio non e' stato chiuso"), FRTLogSubject::World());
 	}
-
-	// La riga della lista si completa con quello che il manifest dice ADESSO: esito, turni, durata e la
-	// disponibilita' del replay, che e' la chiusura stessa. Se la chiusura e' fallita, `bClosed` e' rimasto
-	// `false` e l'indice lo riporta — la lista non promette una partita intera che il disco non ha.
-	URTMatchHistoryLibrary::AppendOrUpdate(ResolveReplaysRoot(),
-		URTMatchHistoryLibrary::EntryFromManifest(ReplayManifest, ReplayStartedUtc));
 }
 
 void ARTTurnManager::DestroyDefeatedUnits()
