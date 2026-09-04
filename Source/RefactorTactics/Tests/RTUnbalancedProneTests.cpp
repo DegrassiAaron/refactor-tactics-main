@@ -592,41 +592,49 @@ bool FRTProneSurvivesToNextTurnTest::RunTest(const FString&)
  *
  * 🔑 **E' la linea di gioco che [D-319] costruisce**, ed e' la ragione per cui il blocco della reazione sta
  * su `Prone` e non su `Unbalanced`: spingere per disarmare costa un'azione all'avversario, mentre scivolare
- * non costa niente a nessuno (`brief` §4). Senza questo test la meccanica resterebbe un commento.
+ * non costa niente a nessuno (`brief` §4).
  *
- * ⚠️ **Il confronto e' fra due partite identiche tranne per lo stato**, e la geometria e' scelta perche' non
- * confonda: il guardiano viene spinto in entrambi i casi — di **1** cella se in piedi, di **2** se
- * sbilanciato — e da entrambe le celle il varco sorvegliato resta dentro la gittata. Se un giorno non lo
- * fosse piu', a cadere sarebbe il caso di CONTROLLO, cioe' rumorosamente.
+ * ⚠️ **TRE casi in un solo montaggio, e non e' abbondanza.** Il guardiano che cade viene anche SPOSTATO, e
+ * lo spostamento e' un secondo cambiamento fra i due casi: senza un terzo termine, uno zero danni non
+ * distingue *«e' stato disarmato»* da *«la spinta lo ha portato dove non vede piu' niente»*. Il caso `A` —
+ * nessuna spinta — fissa che l'Overwatch spari davvero in questo montaggio; il caso `B` — spinto, in piedi
+ * — fissa che la spinta da sola non lo spenga; solo allora lo zero del caso `C` significa qualcosa.
  *
- * ⛔ **La predictive armata NON e' coperta qui.** `Prone` la rimuove nello stesso punto e con la stessa
- * riga, ma armare `Hero.Wraith.InterceptShot` chiede un montaggio proprio: dichiarato come lacuna invece
- * che sottinteso come coperto.
+ * 🔑 **La geometria e' scelta perche' la spinta NON tolga il varco dalla linea guardata.** Il guardiano
+ * guarda a EST e viene spinto a EST — la sorgente sta a ovest — quindi la linea trasla lungo se stessa. Il
+ * varco e' a distanza 4 dalla posizione iniziale e 3 o 2 da quelle dopo la spinta, dentro la gittata
+ * dell'arma in tutti e tre i casi. ⚠️ Il facing che la spinta ruota **non** c'entra: `FRTArmedOverwatch`
+ * conserva la direzione dichiarata armando, e il codice lo dice.
+ *
+ * ⛔ **La predictive armata NON e' coperta.** `Prone` la rimuove nello stesso punto e con la stessa riga, ma
+ * armare `Hero.Wraith.InterceptShot` chiede un montaggio proprio: dichiarato come lacuna invece che
+ * sottinteso come coperto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTProneDisarmsOverwatchTest,
 	"RefactorTactics.Status.ProneDisarmsOverwatchAndSpendsCharge",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTProneDisarmsOverwatchTest::RunTest(const FString&)
 {
-	// `bSbilanciato` decide se il guardiano cade. Torna il danno subito da chi attraversa il varco.
-	auto DannoSubitoDalMover = [this](bool bSbilanciato, bool& bOutMontaggioValido) -> int32
+	// `bConSpinta` decide se il guardiano viene spinto; `bSbilanciato` se, essendolo, cade.
+	// Torna il danno subito da chi attraversa il varco, e riempie `OutNota` con cio' che serve a leggerlo.
+	auto DannoNelVarco = [this](bool bConSpinta, bool bSbilanciato, FString& OutNota) -> int32
 	{
-		bOutMontaggioValido = false;
+		OutNota.Reset();
 
 		UWorld* World = MakeFallWorld();
-		if (!World) { return 0; }
-		SpawnFallMap(World, /*Radius=*/ 6);
+		if (!World) { OutNota = TEXT("world non creato"); return -1; }
+		SpawnFallMap(World, /*Radius=*/ 7);
 
-		// Il guardiano guarda a EST (facing di default), cioe' verso `+q`: il varco sorvegliato e' davanti
-		// a lui, e la spinta lo allontana lungo lo stesso asse invece che di traverso.
+		// Il guardiano guarda a EST (facing di default) e la spinta lo allontana lungo lo STESSO asse: la
+		// linea guardata trasla su se stessa invece di ruotare via dal varco.
 		ARTUnit* Watcher = SpawnFallUnit(World, 0, FRTCellId(0, 0));
 		ARTUnit* Pusher = SpawnFallUnit(World, 1, FRTCellId(-1, 0));
 		ARTUnit* Mover = SpawnFallUnit(World, 1, FRTCellId(4, 1));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Watcher || !Pusher || !Mover) { DestroyFallWorld(World); return 0; }
+		if (!TM || !Watcher || !Pusher || !Mover) { DestroyFallWorld(World); OutNota = TEXT("spawn fallito"); return -1; }
 
-		// Un decisore che spara a qualunque finestra glielo consenta: senza, un boundary aperto scadrebbe
-		// in `Hold Ground` e il caso di controllo direbbe «non ha sparato» per la ragione sbagliata.
+		// Un decisore che spara a qualunque finestra glielo consenta: senza, un boundary aperto scadrebbe in
+		// `Hold Ground` e il caso di controllo direbbe «non ha sparato» per la ragione sbagliata.
 		TM->ReactionDecider.BindLambda(
 			[](const FRTReactionOpportunity& Opportunity, int32) -> FString
 			{
@@ -642,7 +650,7 @@ bool FRTProneDisarmsOverwatchTest::RunTest(const FString&)
 
 		const int32 OverwatchIdx = RTAbilityFixtures::AddCoreAbilityInSlot(
 			Watcher, TEXT("Action.Overwatch"), /*SlotIndex=*/ 3);
-		if (OverwatchIdx == INDEX_NONE) { DestroyFallWorld(World); return 0; }
+		if (OverwatchIdx == INDEX_NONE) { DestroyFallWorld(World); OutNota = TEXT("Action.Overwatch non installabile"); return -1; }
 		Watcher->PlannedAbilityIndex = OverwatchIdx; // armare costa l'azione PRINCIPALE (catalogo §1)
 		Watcher->PlannedCell = Watcher->Cell;
 
@@ -651,10 +659,16 @@ bool FRTProneDisarmsOverwatchTest::RunTest(const FString&)
 			Watcher->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
 		}
 
-		if (PlanCoreAttack(Pusher, TEXT("Action.Push"), Watcher) == INDEX_NONE)
+		if (bConSpinta)
 		{
-			DestroyFallWorld(World);
-			return 0;
+			if (PlanCoreAttack(Pusher, TEXT("Action.Push"), Watcher) == INDEX_NONE)
+			{
+				DestroyFallWorld(World); OutNota = TEXT("Action.Push non installabile"); return -1;
+			}
+		}
+		else
+		{
+			StandStill(Pusher);
 		}
 
 		Mover->PlannedAbilityIndex = INDEX_NONE;
@@ -665,34 +679,47 @@ bool FRTProneDisarmsOverwatchTest::RunTest(const FString&)
 		RunFallTurn(TM);
 		const int32 Danno = SaluteIniziale - (Mover->Health + Mover->Shield);
 
-		// Il montaggio vale solo se la spinta e' davvero avvenuta e la caduta e' quella attesa: senza
-		// queste due, un `0 danni` potrebbe venire da un guardiano che non ha mai armato niente.
-		bOutMontaggioValido = (Watcher->Cell != FRTCellId(0, 0))
-			&& (Watcher->HasStatus(TAG_Status_Prone) == bSbilanciato)
-			&& (Mover->Cell == FRTCellId(4, 0));
+		// Quante finestre di reazione sono state aperte, e quante decise: senza, uno zero danni non dice se
+		// il watcher non ha sparato o se non gli e' mai stato chiesto.
+		int32 Opportunita = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::ReactionDecision) { ++Opportunita; }
+		}
+
+		OutNota = FString::Printf(
+			TEXT("watcher %s->(q=%d,r=%d) prone=%d | mover (q=%d,r=%d) | decisioni=%d | danno=%d"),
+			bConSpinta ? TEXT("spinto") : TEXT("fermo"),
+			Watcher->Cell.X, Watcher->Cell.Y, Watcher->HasStatus(TAG_Status_Prone) ? 1 : 0,
+			Mover->Cell.X, Mover->Cell.Y, Opportunita, Danno);
 
 		DestroyFallWorld(World);
 		return Danno;
 	};
 
-	bool bControlloValido = false;
-	const int32 DannoInPiedi = DannoSubitoDalMover(/*bSbilanciato=*/ false, bControlloValido);
-	if (!TestTrue(TEXT("premessa del controllo: spinta avvenuta, nessuna caduta, mover nel varco"), bControlloValido))
+	// A — nessuna spinta: fissa che in QUESTO montaggio l'Overwatch spari davvero.
+	FString NotaA;
+	const int32 DannoA = DannoNelVarco(/*bConSpinta=*/ false, /*bSbilanciato=*/ false, NotaA);
+	if (!TestTrue(FString::Printf(TEXT("A) premessa: un guardiano fermo SPARA [%s]"), *NotaA), DannoA > 0))
 	{
-		return false;
-	}
-	if (!TestTrue(TEXT("premessa: un guardiano in piedi SPARA"), DannoInPiedi > 0))
-	{
-		// Senza questa, «zero danni» nel caso sotto sarebbe vero anche in un mondo dove l'Overwatch non
-		// funziona affatto — cioe' il verde su nulla che questo file esiste per non produrre.
+		// Senza questa, gli zeri sotto sarebbero veri anche in un mondo dove l'Overwatch non funziona
+		// affatto — il verde su nulla che questo file esiste per non produrre.
 		return false;
 	}
 
-	bool bCadutaValida = false;
-	const int32 DannoACaduto = DannoSubitoDalMover(/*bSbilanciato=*/ true, bCadutaValida);
-	TestTrue(TEXT("premessa: spinto di due celle ed e' caduto"), bCadutaValida);
-	TestEqual(TEXT("chi e' a terra non spara: l'Overwatch e' disarmato e la charge e' persa"),
-		DannoACaduto, 0);
+	// B — spinto ma in piedi: fissa che a spegnerlo non basta lo spostamento.
+	FString NotaB;
+	const int32 DannoB = DannoNelVarco(/*bConSpinta=*/ true, /*bSbilanciato=*/ false, NotaB);
+	if (!TestTrue(FString::Printf(TEXT("B) premessa: spinto ma in piedi SPARA ancora [%s]"), *NotaB), DannoB > 0))
+	{
+		return false;
+	}
+
+	// C — spinto e sbilanciato: cade, e non spara.
+	FString NotaC;
+	const int32 DannoC = DannoNelVarco(/*bConSpinta=*/ true, /*bSbilanciato=*/ true, NotaC);
+	TestEqual(FString::Printf(
+		TEXT("C) chi e' a terra non spara: Overwatch disarmato e charge persa [%s]"), *NotaC), DannoC, 0);
 
 	return true;
 }
