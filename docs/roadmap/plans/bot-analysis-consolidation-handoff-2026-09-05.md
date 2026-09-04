@@ -62,7 +62,7 @@ Tutto misurato su `4d6964a4`, non ripreso dal kit.
 | §1.3 · §7 · L'obiettivo non è integrato nella utility corrente | `RTHexBotLibrary.h:264-309` — `WObjective = 120`, `WObjectiveFalloff = 30`, **due invarianti dichiarate**, `ScoreObjectiveTerm` a `.h:464` | 🔴 **Falsificato** |
 | §1.6 · §6 · Guardia «panico» del kiter intorno a `NearestDistance <= Standoff / 2`, prima della utility | `RTTurnManager.cpp:1325` — `if (bKiter && Nearest && NearestDistance <= Standoff / 2)`, e il commento sopra dice *«Guardia del bot quadrato, conservata: **non passa dalla utility**»* | ✅ **Confermato alla lettera**, e il codice dichiara il bypass come intenzionale |
 | §1.7 · §9 · `DecideReactionResponse()` sceglie il primo `FIRE:` legale | `RTHexBotLibrary.cpp:779-790` — ciclo su `AllowedResponses`, `return` al primo con `FireResponseTarget() != INDEX_NONE` | ✅ **Confermato** |
-| §9 · «l'arming ha del punteggio, la scelta della risposta no» | `ScoreReaction` (`.cpp:808`) punteggia quale reazione **armare**; la scelta della risposta non lo usa | ✅ La distinzione del kit è esatta |
+| §9 · «l'arming ha del punteggio, la scelta della risposta no» | `ScoreReaction` (`.cpp:809`) punteggia quale reazione **armare**; la scelta della risposta non lo usa | ✅ La distinzione del kit è esatta |
 | §1.4 · §8 · Ricerca senza contatto primitiva, verso il centro mappa | `RTTurnManager.cpp:1104-1243`, `CP 13.5` — *«la condotta è la più povera che ristabilisce il contatto: avvicinarsi al CENTRO della mappa»* | ✅ |
 | §7 · «manda entrambe le unità sullo stesso percorso di ricerca» | `RTTurnManager.cpp:1243` — *«puntano ENTRAMBE la cella più vicina al centro, che è una sola»* | ✅ **Il codice lo dichiara già** |
 | §8 · «nessuna memoria delle aree già cercate» | `FRTLastKnownContact` (`CP 13.4`) esiste ed è usata a `.cpp:1157` | ⚠️ **Parziale**: la memoria del **contatto** c'è, quella dei **settori cercati** no |
@@ -73,6 +73,7 @@ Tutto misurato su `4d6964a4`, non ripreso dal kit.
 | §19 · `#327` = «E27 belief» | **OPEN** — titolo reale: *«E27 · Percezione completa: vista, udito, memoria»*, `v0.3` | ⚠️ Il belief è **§8 di `spec-bot-tattico.md`**, non il titolo dell'epic |
 | §19 · `#328` = «E28 predictive» | **OPEN** — `#328` è *«E28 · Expert Bot v2»*; il predictive è **`#329` · E29 · Predictive avanzato** | 🔴 **Mappatura errata** |
 | §24 · I dieci nomi di test proposti | `grep` su tutto l'albero → **0 su 10** esistono | ⚠️ Sono **proposte**, non pin: nessuno le assuma già presidiate |
+| §24 · «reuse existing naming conventions if the repository has them» | I nomi vivi sono `RefactorTactics.HexBot.` (**37**) e `RefactorTactics.Bot.` (**29**). `Spec.Bot.` → **zero** | 🔴 Il prefisso che il kit propone non esiste, e nessun nome del repository comincia senza `RefactorTactics.` |
 
 ### 3.1 La premessa che era stale entro tre ore
 
@@ -150,12 +151,19 @@ oggi, non in v0.2.
 | 🔴 **§19 `#328` = E28 predictive** | `#328` è *Expert Bot v2*; il predictive è `#329` E29. Il §8 che assegna la predizione a «E28» va tradotto |
 | ⚠️ **§8 «nessuna memoria»** | La memoria del contatto (`FRTLastKnownContact`, `CP 13.4`) esiste. Manca quella dei settori cercati |
 | ⚠️ **§26 «ordine preferito di esecuzione»** | Mette `CP 26.1` al secondo posto, ma **E26 è v0.2** e i due gap reali sono **v0.1**. L'ordine del kit inverte le priorità di release |
-| ⚠️ **§24 dieci nomi di test** | Zero esistono. Il kit dice *«reuse existing naming conventions»* senza misurarle: i test bot vivi usano il prefisso `HexBot.` e `Bot.`, non `Spec.Bot.` |
+| ⚠️ **§24 dieci nomi di test** | Zero esistono. Il kit dice *«reuse existing naming conventions»* senza misurarle: i nomi vivi sono `RefactorTactics.HexBot.` (37) e `RefactorTactics.Bot.` (29), e `Spec.Bot.` non compare mai |
 
 ⛔ **Non misurato, e il kit lo dà per scontato**: il §3.1 afferma che il planning sequenziale «impedisce»
 il focus fire senza overkill. Non ho eseguito nessuno scenario che lo dimostri — è un'inferenza
 dall'architettura, plausibile e non provata. `RTBotTeamPlanningTests.cpp` esiste ma misura **prenotazione
 di rotta e lock-in**, non combinazione tattica: sei test, nessuno sull'overkill.
+
+⚠️ **E un test si chiama già come il finding senza esserne la misura.**
+`RefactorTactics.HexBot.ScoreFocusFire` (`RTHexBotTests.cpp:263`) confronta quattro punteggi di **una sola
+unità** — attaccare batte non attaccare, forte batte debole, letale prende il bonus — su un `Ctx` con un
+nemico solo. È la utility locale, non il focus fire di squadra: chi cerca copertura per il §13.1 del kit
+la trova per nome e non per contenuto. **Il nome è occupato**, e questo vincola come scrivere il test
+nuovo.
 
 ---
 
