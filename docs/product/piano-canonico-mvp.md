@@ -373,7 +373,7 @@ nei cataloghi di [`balance/`](../balance)):
 | Fine partita | eliminazione **oppure** obiettivi **oppure** `RoundLimit` (parametro di formato — v0.1 2v2: **10–14**, hard cap 14–16) |
 | Reazioni | slot Reazione con trigger, **1 attivazione per turno**; finestra interattiva **3,0 s** ([ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §8) |
 | Timer pianificazione | **30 s** in 2v2 (configurabile, da tarare sul misurato); baseline 3v3 Standard **40–45 s** |
-| Ready | Ready anticipato + **countdown annullabile di 3 s** quando tutti sono Ready ⏳ *non ancora implementato* |
+| Ready | Ready anticipato + **countdown annullabile di 3 s** quando tutti sono Ready ✅ *implementato il 2026-09-04, [#2193](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2193)* — l'Unready è **RMB / Backspace**; con un solo umano «tutti Ready» ≡ «io Ready» |
 | Durata della partita | target 3v3 Standard **25–30 min**; **45 min** è il tetto da evitare, non un obiettivo |
 
 **Valori storici dell'MVP quadrato** (tabella conservata come riferimento di *parità*, non come regola vigente):
