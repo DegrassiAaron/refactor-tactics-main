@@ -7127,6 +7127,88 @@ void ARTTurnManager::EnterPlaybackPhase()
 	}
 }
 
+int32 ARTTurnManager::MicroStepsInCurrentPlaybackPhase() const
+{
+	if (!PlaybackPhases.IsValidIndex(PlaybackPhaseIdx))
+	{
+		return 0;
+	}
+	const ERTMatchPhase Ph = PlaybackPhases[PlaybackPhaseIdx];
+
+	int32 Massimo = 0;
+	for (const FRTMoveAnim& A : MoveAnims)
+	{
+		if (A.Phase == Ph)
+		{
+			Massimo = FMath::Max(Massimo, URTPlaybackLibrary::MicroStepsInPath(A.World));
+		}
+	}
+	return Massimo;
+}
+
+void ARTTurnManager::SetPlaybackControlsEnabled(bool bEnabled)
+{
+	bPlaybackControlsEnabled = bEnabled;
+	if (!bEnabled)
+	{
+		// ⚠️ Togliere i controlli mentre il playback e' fermo lo fa RIPARTIRE. Lasciarlo in pausa senza il
+		// comando per riprenderlo sarebbe una partita bloccata da un flag, e il modo piu' facile di
+		// arrivarci e' proprio disabilitare i controlli in una sessione in pausa.
+		bPlaybackPaused = false;
+		PlaybackStepTargetElapsed = -1.f;
+	}
+}
+
+void ARTTurnManager::PausePlayback()
+{
+	if (!bPlaybackControlsEnabled)
+	{
+		return; // fail-closed: vedi `bPlaybackControlsEnabled`
+	}
+	bPlaybackPaused = true;
+	// Uno `Step` in volo viene abbandonato: la pausa e' esplicita e vince su un avanzamento gia' chiesto.
+	PlaybackStepTargetElapsed = -1.f;
+}
+
+void ARTTurnManager::ResumePlayback()
+{
+	if (!bPlaybackControlsEnabled)
+	{
+		return;
+	}
+	bPlaybackPaused = false;
+	PlaybackStepTargetElapsed = -1.f;
+}
+
+void ARTTurnManager::StepMicroStep()
+{
+	if (!bPlaybackControlsEnabled)
+	{
+		return;
+	}
+
+	const int32 Passi = MicroStepsInCurrentPlaybackPhase();
+	const float Durata = PlaybackPhases.IsValidIndex(PlaybackPhaseIdx)
+		? DurationForPlaybackPhase(PlaybackPhases[PlaybackPhaseIdx])
+		: 0.f;
+
+	// Una fase senza segmenti o senza durata non ha barriere da attraversare: si resta fermi invece di
+	// inventare un avanzamento. ⚠️ Senza questo, `Alpha` sarebbe una divisione per zero.
+	if (Passi <= 0 || Durata <= 0.f)
+	{
+		bPlaybackPaused = true;
+		PlaybackStepTargetElapsed = -1.f;
+		return;
+	}
+
+	const float AlphaCorrente = FMath::Clamp(PlaybackPhaseElapsed / Durata, 0.f, 1.f);
+	const float AlphaTarget = URTPlaybackLibrary::NextMicroStepBoundary(AlphaCorrente, Passi);
+
+	// Il confine in SECONDI, calcolato ora: il tick ci arriva senza sapere quanti frame servono.
+	PlaybackStepTargetElapsed = AlphaTarget * Durata;
+	bPlaybackPaused = false; // si riparte, ma solo fino al confine
+}
+
 void ARTTurnManager::TickPlayback(float DeltaSeconds)
 {
 	// RILETTA a ogni tick, non congelata in BeginPlayback: e' cio' che rende la velocita' scelta
@@ -7138,9 +7220,31 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 	// **il** modo in cui la durata target finiva per decidere la velocita' visuale della locomozione. Il
 	// budget agisce ora sulla DURATA della fase (`DurationForPlaybackPhase`, attese comprimibili), non
 	// sulla velocita' con cui la si attraversa.
+	// 🔴 **In pausa l'orologio non avanza, e il tick esce prima di toccare qualunque cosa** (`#1879`).
+	// Non `Dt = 0`: un tick che prosegue con passo nullo rivelerebbe comunque i colpi del Blast, perche'
+	// `AttacksToShow` legge `PlaybackPhaseElapsed` e non il passo. Fermarsi significa non guardare.
+	if (bPlaybackPaused && PlaybackStepTargetElapsed < 0.f)
+	{
+		return;
+	}
+
 	const float Dt = DeltaSeconds * URTPlaybackLibrary::EffectivePlaybackSpeed(ViewerPlaybackSpeed);
 	PlaybackPhaseElapsed += Dt;
 	PlaybackElapsedTotal += Dt;
+
+	// ⛔ **Lo `Step` si ferma AL confine, mai oltre.** Il tick puo' superarlo — il passo dipende dal frame
+	// rate — quindi si riporta indietro l'orologio della fase al confine esatto: senza, la stessa
+	// pressione fermerebbe il playback in punti diversi su macchine diverse, e due `Step` di fila
+	// finirebbero per saltare una barriera.
+	if (PlaybackStepTargetElapsed >= 0.f && PlaybackPhaseElapsed >= PlaybackStepTargetElapsed)
+	{
+		// `PlaybackElapsedTotal` si corregge dello stesso scarto: e' il tempo mostrato a chi guarda, e
+		// lasciarlo avanti direbbe che la riproduzione e' durata piu' di quanto si e' visto.
+		PlaybackElapsedTotal -= (PlaybackPhaseElapsed - PlaybackStepTargetElapsed);
+		PlaybackPhaseElapsed = PlaybackStepTargetElapsed;
+		PlaybackStepTargetElapsed = -1.f;
+		bPlaybackPaused = true;
+	}
 
 	const ERTMatchPhase Ph = PlaybackPhases[PlaybackPhaseIdx];
 	const float PhaseDur = DurationForPlaybackPhase(Ph);
