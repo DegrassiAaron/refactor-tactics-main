@@ -1,4 +1,5 @@
 #include "Map/RTHexMapActor.h"
+#include "Map/RTStructuralBodyLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
@@ -729,6 +730,13 @@ ARTHexMapActor::ARTHexMapActor()
 	}
 
 	// Volumi delle regole di blocco: stessa disciplina del rilievo — nessuna collisione, nessuna ombra.
+	// Il corpo strutturale (#1865): sotto le superfici, senza collisione — non si calpesta e non si clicca.
+	StructuralBodies = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("StructuralBodies"));
+	StructuralBodies->SetupAttachment(Cells);
+	StructuralBodies->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	StructuralBodies->SetCollisionResponseToAllChannels(ECR_Ignore);
+	StructuralBodies->CastShadow = false;
+
 	Blockers = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Blockers"));
 	Blockers->SetupAttachment(Cells);
 	Blockers->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -1302,6 +1310,14 @@ void ARTHexMapActor::RebuildInstances()
 		if (CellShape != nullptr) { Blockers->SetStaticMesh(CellShape); }
 		Blockers->ClearInstances();
 	}
+	if (StructuralBodies)
+	{
+		// La NONA famiglia. Sta nell'elenco perche' l'ottava — `KnowledgeVolumes` — ci e' finita solo dopo
+		// aver lasciato prismi appesi su una board che non esisteva piu' (`#2222`): un componente che non si
+		// azzera qui sopravvive alla mappa che descrive.
+		if (CellShape != nullptr) { StructuralBodies->SetStaticMesh(CellShape); }
+		StructuralBodies->ClearInstances();
+	}
 	if (EdgeFeatures)
 	{
 		// La mesh dei bordi NON segue `CellMesh`: quella e' la mesh della cella, e un pannello non e' una cella.
@@ -1634,6 +1650,39 @@ void ARTHexMapActor::RebuildInstances()
 			// disallineati gli indici di TUTTI i pannelli, non solo dei suoi ([D-227]).
 			EdgeFeatureCells.Add(Wall.Cell);
 			EdgeFeatureBaseScale.Add(WallXf.GetScale3D());
+		}
+	}
+
+	// ➕ **IL CORPO STRUTTURALE** (`#1865`): il volume che si vede SOTTO una superficie.
+	//
+	// 🔑 **Il derivatore decide, questo posa.** Le quote arrivano gia' conciliate da
+	// `URTStructuralBodyLibrary::DeriveBodies` — frazione d'autore contro cio' che c'e' sotto — e qui non si
+	// ricalcola niente: duplicare quella regola nel rendering sarebbe la seconda verita' che #1865 vieta.
+	//
+	// ⚠️ Le quote del derivatore sono in **spazio mappa** (origine a `Z = 0`), quindi ci si somma l'origine
+	// dell'actor. La X e la Y vengono da `AxialToWorld` come per ogni altra famiglia; la sua Z **no**, perche'
+	// quella e' la quota del CENTRO CELLA e il corpo sta piu' in basso.
+	//
+	// ⛔ **Rispetta il filtro dei piani** come le celle: un corpo che restasse visibile in `ActiveOnly`
+	// mostrerebbe il volume di un piano che l'editor ha nascosto.
+	if (StructuralBodies && MapAsset != nullptr && CellShape != nullptr)
+	{
+		const FVector ActorOrigin = GetActorLocation();
+		for (const FRTStructuralBody& Body : URTStructuralBodyLibrary::DeriveBodies(MapAsset))
+		{
+			if (!PassesLayerFilter(Body.Cell.Layer))
+			{
+				continue;
+			}
+			const FVector Centro = URTHexLibrary::AxialToWorld(Body.Cell, ActorOrigin, UseHexSize, UseLayerH);
+			// La mesh nasce alta `2 * RTCellPrismRadius` col pivot al centro: la scala Z e' quel rapporto, e
+			// il centro del corpo sta a meta' fra le sue due facce.
+			const float AltezzaZ = Body.Height() / (2.f * RTCellPrismRadius);
+			const FVector Posizione(Centro.X, Centro.Y,
+				ActorOrigin.Z + static_cast<double>(Body.BottomZ + Body.TopZ) * 0.5);
+			StructuralBodies->AddInstance(
+				FTransform(FRotator::ZeroRotator, Posizione, FVector(PlanarScale, PlanarScale, AltezzaZ)),
+				/*bWorldSpace=*/ true);
 		}
 	}
 

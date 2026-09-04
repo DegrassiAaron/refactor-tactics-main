@@ -8,6 +8,8 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTMapVisuals.h"          // RTCellPrismRadius: la scala Z del corpo si legge contro la mesh
+#include "Map/RTStructuralBodyLibrary.h" // il corpo lo calcola il derivatore, il test non lo ricalcola
 #include "Perception/RTTeamKnowledge.h" // il velo: la griglia deve seguirlo, non ignorarlo
 #include "Map/RTMapVisuals.h"          // le quote condivise: qui si LEGGONO, non si ricopiano
 #include "Terrain/RTTerrainLibrary.h" // il costo di Rough arriva dal catalogo, non da un numero scritto qui
@@ -1121,6 +1123,120 @@ bool FRTHexMapGridFollowsTheVeilTest::RunTest(const FString&)
 	TestEqual(TEXT("il velo e' reversibile: la griglia torna su tutte e sette"), NascosteDopo, 0);
 
 	DestroyMapActorWorld(World);
+	return true;
+}
+
+
+/**
+ * 🔴 **Il corpo dichiarato dall'autore diventa geometria, e quello non dichiarato non esiste** — `#1865`.
+ *
+ * Il derivatore era gia' provato headless (`RefactorTactics.StructuralBody.*`); questo prova l'altra meta':
+ * che `RebuildInstances` lo **posi**, e che le quote arrivino da `DeriveBodies` invece di essere ricalcolate
+ * qui — una seconda formula del confine sarebbe la verita' duplicata che #1865 vieta.
+ *
+ * ➕ **Il controllo negativo e' nello stesso test**: la stessa board con `BodyFill = None` non produce nulla.
+ * Senza, «una istanza» sarebbe compatibile con un rendering che disegna un corpo per ogni cella.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorStructuralBodyTest,
+	"RefactorTactics.HexMapActor.StructuralBodyIsPosedOnlyWhereDeclared",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorStructuralBodyTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>(GetTransientPackage());
+	// Due superfici nella stessa colonna: una a Layer 1 che dichiara un corpo pieno, una a Layer 0 che non
+	// dichiara niente. Il corpo atteso e' UNO, e sta sotto quella di sopra.
+	{
+		FRTHexCellData Sotto(FRTCellId(0, 0, 0));
+		Asset->AddOrUpdateCell(Sotto);
+		FRTHexCellData Sopra(FRTCellId(0, 0, 1));
+		Sopra.BodyFill = ERTHexBodyFill::Full;
+		Asset->AddOrUpdateCell(Sopra);
+		Asset->SortCells();
+	}
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { return false; }
+
+	const TArray<FTransform> Corpi = InstancesOf(Actor, TEXT("StructuralBodies"));
+	if (!TestEqual(TEXT("un corpo, solo per la cella che lo dichiara"), Corpi.Num(), 1)) { return false; }
+
+	// 🔑 Le quote vengono dal derivatore: si confrontano con quelle, non con una formula riscritta qui.
+	const TArray<FRTStructuralBody> Attesi = URTStructuralBodyLibrary::DeriveBodies(Asset);
+	if (!TestEqual(TEXT("il derivatore ne calcola uno"), Attesi.Num(), 1)) { return false; }
+
+	const float AltezzaAttesa = Attesi[0].Height();
+	const float CentroAtteso = (Attesi[0].TopZ + Attesi[0].BottomZ) * 0.5f;
+	AddInfo(FString::Printf(TEXT("corpo: top %.1f · bottom %.1f · alto %.1f · centro %.1f"),
+		Attesi[0].TopZ, Attesi[0].BottomZ, AltezzaAttesa, CentroAtteso));
+
+	TestTrue(TEXT("l'istanza sta alla quota che il derivatore ha calcolato"),
+		FMath::IsNearlyEqual(static_cast<float>(Corpi[0].GetLocation().Z), CentroAtteso, 0.5f));
+	// La mesh nasce alta `2 * RTCellPrismRadius`: la scala Z e' quel rapporto, e senza questa riga un corpo
+	// alto la meta' starebbe comunque nel posto giusto.
+	TestTrue(TEXT("ed e' alta quanto il derivatore ha chiesto"),
+		FMath::IsNearlyEqual(static_cast<float>(Corpi[0].GetScale3D().Z) * 2.f * RTCellPrismRadius,
+			AltezzaAttesa, 0.5f));
+
+	// ➕ CONTROLLO NEGATIVO: senza dichiarazione non nasce nessun corpo.
+	{
+		FRTHexCellData Sopra(FRTCellId(0, 0, 1));
+		Sopra.BodyFill = ERTHexBodyFill::None;
+		Asset->AddOrUpdateCell(Sopra);
+		Asset->SortCells();
+		Actor->RebuildInstances();
+		TestEqual(TEXT("senza BodyFill non si posa niente"),
+			InstancesOf(Actor, TEXT("StructuralBodies")).Num(), 0);
+	}
+	return true;
+}
+
+/**
+ * 🔑 **Il corpo rispetta il filtro dei piani, e non si accumula.**
+ *
+ * Due proprieta' in un test perche' sono lo stesso rischio visto da due lati: un componente che non
+ * partecipa alle viste mostra il volume di un piano nascosto, e uno che non si azzera mostra il volume di
+ * una board che non esiste piu' — il difetto che `KnowledgeVolumes` ha gia' avuto (`#2222`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorStructuralBodyLayerViewTest,
+	"RefactorTactics.HexMapActor.StructuralBodyFollowsTheLayerFilter",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorStructuralBodyLayerViewTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>(GetTransientPackage());
+	{
+		FRTHexCellData Sopra(FRTCellId(0, 0, 1));
+		Sopra.BodyFill = ERTHexBodyFill::Full;
+		Asset->AddOrUpdateCell(Sopra);
+		Asset->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 0)));
+		Asset->SortCells();
+	}
+
+	// `AllLayers`: il corpo del piano 1 si vede. E' il controllo positivo del test.
+	ARTHexMapActor* Tutti = SpawnMapActor(World, Asset, /*ActiveLayer=*/ 0, ERTLayerViewMode::AllLayers);
+	if (!TestNotNull(TEXT("actor AllLayers"), Tutti)) { return false; }
+	if (!TestEqual(TEXT("con tutti i piani il corpo si vede"),
+			InstancesOf(Tutti, TEXT("StructuralBodies")).Num(), 1))
+	{
+		return false;
+	}
+
+	// `ActiveOnly` sul piano 0: il corpo appartiene al piano 1, quindi sparisce con la sua superficie.
+	ARTHexMapActor* SoloAttivo = SpawnMapActor(World, Asset, /*ActiveLayer=*/ 0, ERTLayerViewMode::ActiveOnly);
+	if (!TestNotNull(TEXT("actor ActiveOnly"), SoloAttivo)) { return false; }
+	TestEqual(TEXT("col solo piano attivo il corpo di un altro piano non si disegna"),
+		InstancesOf(SoloAttivo, TEXT("StructuralBodies")).Num(), 0);
+
+	// 🔑 E non si accumula: due ricostruzioni di seguito lasciano una istanza, non due.
+	Tutti->RebuildInstances();
+	Tutti->RebuildInstances();
+	TestEqual(TEXT("due ricostruzioni non raddoppiano i corpi"),
+		InstancesOf(Tutti, TEXT("StructuralBodies")).Num(), 1);
 	return true;
 }
 
