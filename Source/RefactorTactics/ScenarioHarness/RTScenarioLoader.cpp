@@ -340,6 +340,9 @@ namespace
 				Obj->TryGetBoolField(TEXT("blocksLineOfSight"), Cell.bBlocksLineOfSight);
 				Obj->TryGetNumberField(TEXT("moveCost"), Cell.MoveCost);
 				Obj->TryGetNumberField(TEXT("occupancySurcharge"), Cell.OccupancySurcharge);
+				// `objective`: la cella contendibile (`#2269`). Prima di questa riga un obiettivo era
+				// esprimibile solo da una fixture, e l'unica che ne posi uno e' `RelayBasin`.
+				Obj->TryGetBoolField(TEXT("objective"), Cell.bIsObjective);
 				OutScenario.Cells.Add(Cell);
 			}
 		}
