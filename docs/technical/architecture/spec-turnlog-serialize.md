@@ -23,9 +23,17 @@ e porta il KPI «Replay divergence = 0» a ✅ (traccia salvabile, ricaricabile 
   e il marcatore `ERTLogTopology` nei flags dell'header distingue i due) + `Amount` (int32). Nessun float.
 - `URTTurnLogLibrary::{EntryLess, SortTurnLog, HashTurnLog}` (FNV-1a 32-bit, permutazione-invariante) `ff5e079`.
 
-> ⚠️ **Allineamento 2026-08-19 — il formato in codice è `v10`.** Questa
+> ⚠️ **Allineamento 2026-09-04 — il formato in codice è `v12`.** Questa
 > sezione descrive la **v2**, che era il formato al momento della stesura. Da allora `ERTTurnLogFormatVersion`
-> è cresciuto **otto volte**, sempre in modo retrocompatibile:
+> è cresciuto **dieci volte**, sempre in modo retrocompatibile:
+>
+> 🔴 **E ha mentito una terza volta — di nuovo, e nel modo che il capoverso qui sotto descrive.** Il
+> 2026-09-04, arrivando per aggiungere la `v12`, il banner diceva ancora `v10` e la tabella si fermava li':
+> la **`v11` (`ResponseAndReasonSplit`) era in codice da settimane e non era mai stata scritta qui**. Non
+> l'ha trovata una review: l'ha trovata chi doveva aggiungere la riga successiva e ha contato le righe
+> esistenti prima di scriverla. ⚠️ Ne segue una regola d'uso, non un'altra riga di prosa: **chi aggiunge
+> una versione conta la tabella contro l'enum**, invece di appendere in fondo e fidarsi del numero nel
+> titolo.
 >
 > 🔴 **Questo banner ha già mentito due volte, e la seconda l'ha corretta una code review.** Diceva «cresciuto
 > *tre volte*» con la tabella ferma alla **v6** mentre le versioni erano nove — un numero in prosa scritto una
@@ -47,6 +55,8 @@ e porta il KPI «Replay divergence = 0» a ✅ (traccia salvabile, ricaricabile 
 > | `WithReactionDecision = 8` | la decisione di una finestra: `OpportunityId` (stringa) + `ReactionInstanceId` e `SelectedTargetUnitId` (due int32), in coda | **sì** — due decisioni diverse sono due partite diverse | leggibili, id vuoto e interi a `INDEX_NONE` |
 > | `WithRedirectOrigin = 9` | `OriginalTargetUnitId` ([#1060](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1060)): chi era il bersaglio *prima* di un redirect, un int32 in coda | no — il redirect è **già** discriminato da `SrcCell`, che nell'hash c'è | leggibili, `INDEX_NONE`. ⚠️ **Non** si deduce risolvendo l'occupante della cella: [D-063](../../decisions/RT_PDR_00_Decision_Log.md) vieta quell'inferenza |
 > | `WithReactionResponse = 10` | `ReactionResponse` ([D-047](../../decisions/RT_PDR_00_Decision_Log.md)): il **token** della risposta applicata a un decision boundary, scritto come l'`ActionId`, in coda | no — la decisione è già discriminata da `Outcome` e `SelectedTargetUnitId`. ⚠️ Conseguenza dichiarata: due risposte di profilo diverse con lo stesso esito danno **lo stesso hash** — che resta ciò che quell'hash promette, cioè che lo *stato finale* coincide | leggibili, token **vuoto** — e il vuoto significa *«la risposta è derivabile dall'esito»*, che è esattamente ciò che quei byte contenevano |
+> | `ResponseAndReasonSplit = 11` | nessun byte nuovo: cambia il **significato** dei valori di `Outcome` sulle voci `ReactionDecision`, separando la risposta dalla ragione ([#1118](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1118)) | — | si **migrano** in lettura |
+> | `WithMicroStep = 12` | `MicroStepIndex` per voce: la terza coordinata del boundary, dopo `TurnNumber` e `Phase` ([#1880](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1880)). Un `int32` in coda | sì — è un dato della voce | il campo resta `0`, e **non** si deduce |
 >
 > ⚠️ **Ogni campo che questo formato SCRIVE deve stare anche in `EntryLess`.** La forma canonica è definita
 > dall'ordinamento: un campo serializzato che il confronto non guarda lascia due voci a pari merito, e
@@ -74,6 +84,33 @@ e porta il KPI «Replay divergence = 0» a ✅ (traccia salvabile, ricaricabile 
 > sono **accodati** e viaggiano come `uint8`, quindi i file già scritti restano leggibili. Si incrementa la
 > versione solo quando cambia il **layout** di header o voce. Inserire un valore *in mezzo* rinumererebbe
 > `Combat` e riscriverebbe il significato dei file esistenti: quello sì.
+
+### Il boundary, e perché non è un ordine (`v12`, 2026-09-04)
+
+`MicroStepIndex` rende **indirizzabile** una barriera logica: il boundary è la terna
+`(TurnNumber, Phase, MicroStepIndex)`, e `URTReplaySeekLibrary::SeekToBoundary` la cerca.
+
+🔑 **Il concetto non è nuovo, ed è la ragione per cui il campo si chiama così.** `FRTReactionOpportunityKey`
+porta già `TurnNumber · MacroPhase · MicroStepIndex`, e `DeriveOpportunityId` li serializza nella stringa
+`T4|P3|M7|U12|action.overwatch|S0`. Il micro-step era già l'identità di un boundary — ma viveva **dentro una
+`FString`**, leggibile solo facendo il parse di un id, e solo sulle voci di reazione. La `v12` lo promuove a
+campo: stessa informazione, indirizzabile.
+
+⛔ **Non è un ordine di emissione, e la traccia continua a non portarne uno.** Le voci che condividono il
+boundary sono un **gruppo simultaneo**: il resolver le ha decise insieme, e l'ordine in cui compaiono resta
+quello di `EntryLess` — una chiave di sort, non un tempo. ⚠️ Per questo **`EntryLess` non è stato toccato**:
+ordinare per micro-step avrebbe riordinato voci simultanee, e avrebbe invalidato il corpus golden, che
+contiene scenari di reazione. Si legge il campo; non si riordina la traccia.
+
+⚠️ **`0` non distingue «primo micro-step» da «traccia che non li portava».** Il campo vale `0` in entrambi i
+casi, e la differenza esiste in un posto solo: la **versione**. Ne segue il comportamento di `SeekToBoundary`
+su una traccia phase-only — chiedere il boundary `0` trova la prima voce della fase, perché è l'unico
+boundary che quella traccia conosce; chiedere un boundary diverso dà `BoundaryNotFound`, perché quella
+traccia davvero non lo porta. Nessuna inferenza dalla posizione.
+
+✅ **Misurato**: `TurnLog.MicroStepSurvivesTheFormat` (round-trip con due micro-step diversi, più la
+rilettura di un file **del corpus golden** scritto alla `v10`) e `Replay.Seek.BoundaryIsAddressable` (la
+terna, le due assenze distinte, e il gruppo che resta adiacente dopo il sort).
 
 ## 3. Formato binario (versione 2, `WithChecksum`) — *storico, vedi il riquadro sopra*
 
