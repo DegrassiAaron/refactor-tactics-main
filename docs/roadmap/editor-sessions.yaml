@@ -1097,6 +1097,7 @@ sessions:
     block: 5
     critical: true
     execution_lane: pie
+    runbook: docs/technical/runbooks/guida-seduta-u14-collisione-stallo-e-denial.md
     produces: verdetto sulle regole ambientali e strutturali
     artifacts: []
     unblocked_by: [U13]
