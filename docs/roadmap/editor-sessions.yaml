@@ -2915,7 +2915,7 @@ sessions:
     block: 6
     critical: true
     execution_lane: pie
-    produces: i quattro verdetti che separano `G9` dal verde
+    produces: i quattro verdetti che separano `G9` dal verde, piu' i due che chiudono gli scenari orfani
     artifacts: []
     # 🔑 **Perche' questa seduta esiste, ed e' il difetto SIMMETRICO a quello di U45.** Li' erano voci
     # senza casa; qui sono **sedute quasi esaurite che nessuno riaprira' per una voce sola**. Misurato il
@@ -2934,9 +2934,11 @@ sessions:
     # `unblocked_by` vuoto e non e' una svista: il codice c'e' tutto. Le quattro voci non aspettano un
     # checkpoint, aspettano un occhio — e per `PIE-HEXPLAY-6` aspettano anche `#1873`, vedi sotto.
     shares_setup_with: []
-    verifies: [PIE-HEXPLAY-6, PIE-HEXPLAY-8, PIE-V01-ROSTER, PIE-V01-LOG]
+    verifies: [PIE-HEXPLAY-6, PIE-HEXPLAY-8, PIE-V01-ROSTER, PIE-V01-LOG, PIE-VIS-SIGHTWALL,
+               PIE-VIS-TWOLAYERS]
     issues: [1873]
-    done_when: le quattro voci hanno un esito reale nel registro, in un verso o nell'altro
+    done_when: le sei voci hanno un esito reale nel registro, in un verso o nell'altro — le quattro del
+      gate `G9` e le due che il 2026-09-04 hanno chiuso i due scenari `Visual.*` orfani
     unblocks: []
     steps: |
       Una apertura, quattro giudizi. Lo scenario si cambia da console con PIE **fermo** — cambiare
@@ -2984,6 +2986,17 @@ sessions:
       ✅ Il ramo del bot e' **chiuso dal 2026-09-04**: due partite in autobattle, **cinquanta mosse,
       zero illegali**, ogni eroe dentro il proprio budget. Resta il giudizio di chi li gioca, piu' il
       ramo «asset mancante = fallback al cilindro», che si prova solo svuotando `HeroUnitClasses`.
+
+      **⑤ `PIE-VIS-SIGHTWALL`** — nello **stesso Play del ②**, e non e' un'aggiunta di lavoro: e' la voce
+      che guarda `Visual.Map.SightWallIsWalkable`, cioe' lo scenario che il ② usa gia'. Il ② giudica per
+      `PIE-HEXPLAY-6` («il muro si vede»), questa registra il verdetto della **vista di gioco** sulla
+      coppia lastra/colonna — la meta' che `PIE-HEX-VIZ-BLOCCHI` non copre, perche' quella chiede la vista
+      **a picco** ed e' ❌ dal 2026-08-20 con la causa in `#1246`.
+
+      **⑥ `PIE-VIS-TWOLAYERS`** — `rt.Test.Scenario Visual.Map.TwoLayersSameColumn`, poi Play. Zero turni:
+      e' una **configurazione**, non una regola. Due unita' sulla stessa colonna `(X=2, Y=0)` e su piani
+      diversi; si vedono **entrambe** e si capisce che stanno a quote diverse. Un viewport che perde il
+      layer alto ne mostra una sola, ed e' cio' che questa configurazione esiste per far vedere.
 
       ➕ **Opportunistica, nello stesso allestimento di ①**: `PIE-V01-DEBUG`, l'altro residuo di U15.
       Non e' nel subset `RELEASE-V01` e non entra nel `done_when` di questa seduta, ma chi ha gia'
