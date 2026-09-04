@@ -22,6 +22,23 @@ struct FRTSlotLine
 };
 
 /**
+ * Una riga del Canvas gia' decisa: cosa scrivere e di che colore.
+ *
+ * Tiene insieme testo e colore perche' nella barra abilita' le due cose sono decise dallo **stesso** stato
+ * e non sono separabili senza rileggerlo due volte: l'abilita' armata si distingue per il prefisso `> ` E
+ * per il bianco, e il fuoco amico cambia il colore della riga di zona senza cambiarne il testo.
+ *
+ * ⚠️ Testo VUOTO significa «non c'e' niente da mostrare», e non «mostra una riga vuota»: e' come la riga
+ * di zona dice che nessuna zona e' puntata.
+ */
+struct FRTHudTextLine
+{
+	FString Text;
+
+	FLinearColor Color = FLinearColor::White;
+};
+
+/**
  * Dove disegnare la sagoma dell'ultimo contatto, e a che turno risale — l'esito di
  * `ARTHUD::ContactGhostTargetForUnit` quando c'e' davvero qualcosa da mostrare.
  *
@@ -322,6 +339,33 @@ public:
 	 * puo' dipenderne.
 	 */
 	static TArray<FRTSlotLine> ComposeSlotLines(const struct FRTUnitSlotsView& Slots);
+
+	/**
+	 * La riga di un'abilita' nella barra: numero, nome, il motivo per cui non si puo' usare, il colore.
+	 *
+	 * Statica e PURA sul modello di `ComposeSlotLines`: `DrawHUD` non ha copertura headless e non l'avra',
+	 * quindi cio' che si puo' sbagliare deve stare dove i test arrivano (#2184).
+	 *
+	 * 🔑 **Prende la VISTA, non l'unita'.** `FRTAbilityCooldownView` porta gia' `TurnsRemaining` e
+	 * `bUsableNow`, che questo Canvas rileggeva da `ARTUnit::GetAbilityCooldown` e `CanUseAbility` — e
+	 * `WBP_RT_ActionSlot` consuma gli stessi due campi. Con `rt.HUD.CanvasPanels` attivo le due vie rendono
+	 * nello stesso fotogramma: erano due sorgenti per un dato solo.
+	 *
+	 * @param bArmed  l'abilita' scelta adesso (`ARTUnit::SelectedAbilityIndex`). E' SELEZIONE, non stato
+	 *                dell'abilita', e per questo non sta nella vista.
+	 */
+	static FRTHudTextLine ComposeAbilityLine(const struct FRTAbilityCooldownView& Ability, bool bArmed);
+
+	/**
+	 * La riga di zona sopra la barra: quante celle il tiro sta per coprire, e se fra loro c'e' un alleato.
+	 *
+	 * ⚠️ **Testo vuoto quando non c'e' una zona puntata**, e non una riga vuota: dice la differenza fra
+	 * «sto scegliendo» e «sto per tirare», che dai soli contorni a terra non si legge.
+	 *
+	 * 🔴 L'avviso di fuoco amico e' la decisione con la conseguenza peggiore se sbagliata: chi la
+	 * legge sta per premere. Cambia al PRIMO alleato, non a una soglia.
+	 */
+	static FRTHudTextLine ComposePreviewZoneLine(int32 NumHitCells, int32 NumAllyHitCells);
 
 	/**
 	 * Come rendere un intento, dato il livello di certezza che la vista **porta gia' calcolato** (CP 11.2).
