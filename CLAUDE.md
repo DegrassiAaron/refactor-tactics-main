@@ -172,6 +172,7 @@ Non:
 Usare:
 
 - Content Browser;
+- Unreal/Epic MCP come prima scelta quando serve creare, modificare, analizzare o validare asset, mappe, Blueprint o altro stato Editor-only;
 - Fix Up Redirectors;
 - Binary Asset Lease;
 - write-set esplicito.
@@ -181,6 +182,28 @@ Il repository non usa Git LFS.
 Owner:
 
 [`docs/technical/tooling/convenzioni-contenuti-ue.md`](docs/technical/tooling/convenzioni-contenuti-ue.md)
+
+### Lifecycle Editor / MCP
+
+Non tenere Unreal Editor aperto per default.
+
+Quando il task richiede asset, mappe, Blueprint, PIE o altra verifica Editor-only:
+
+1. scopri gli strumenti Unreal/Epic MCP realmente disponibili;
+2. verifica se esiste già un'istanza Editor per RefactorTactics e chi la possiede;
+3. avvia l'Editor solo se necessario;
+4. preferisci MCP alle manipolazioni filesystem dei binari Unreal;
+5. esegui l'operazione o il test minimo che produce evidenza utile;
+6. salva solo le modifiche intenzionali;
+7. termina PIE/scenari;
+8. chiudi l'Editor avviato da questo workflow;
+9. verifica che il processo sia terminato.
+
+Il cleanup vale anche su errore.
+
+Una sessione non deve lasciare un Editor da lei avviato disponibile indefinitamente: dopo l'uso lo rilascia chiudendolo, così la risorsa torna disponibile agli altri processi.
+
+Non terminare un Editor preesistente posseduto da un altro workflow/persona salvo che il comando corrente dichiari esplicitamente ownership esclusiva (per esempio una skill dedicata che lo prevede).
 
 ## 6. Test
 
@@ -220,6 +243,17 @@ Dopo un'attesa lunga:
 Se PIE/Editor/packaged non sono stati eseguiti:
 
 **NOT RUN**.
+
+Quando il cambiamento è verificabile in Editor e l'ambiente lo consente, usa Unreal/Epic MCP anche per PIE o scenario validation. Preferiscilo soprattutto per:
+
+- selezione/input/camera e comportamento editor-facing;
+- mappe, Blueprint e asset;
+- interazioni visuali che richiedono il runtime Editor;
+- regressioni che Automation Test da solo non dimostra.
+
+PIE/MCP aggiunge evidenza, non sostituisce build, Automation Test o Scenario Harness richiesti.
+
+Se non è possibile eseguirlo, dichiarare `NOT RUN` con il motivo.
 
 Prima del merge:
 
