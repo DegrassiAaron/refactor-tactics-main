@@ -260,6 +260,18 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static FRTMatchHeaderView BuildMatchHeader(const ARTTurnManager* TurnManager);
 
+	/**
+	 * Il contatore del round come si mostra: `Round N/L` con un formato in vigore, `Round N` senza.
+	 *
+	 * 🔴 **Una sola sede, e non e' una preferenza di stile.** `RoundLimit == 0` significa «nessun limite
+	 * dichiarato», e un `Round 3/0` si legge come una partita gia' scaduta: e' il punto esatto in cui un
+	 * consumatore sbaglia. Fino a #2184 la regola viveva in due implementazioni — il binding UMG di
+	 * `URTTurnHeaderWidget::GetRoundCounterText` e il Canvas di `ARTHUD` — che rendono **entrambe** a
+	 * schermo con `rt.HUD.CanvasPanels` attivo: due contatori che potevano dissentire. Ora la decidono
+	 * qui, e i due chiamanti la vestono (`FText` per UMG, concatenazione per il Canvas).
+	 */
+	static FString ComposeRoundCounter(const FRTMatchHeaderView& Header);
+
 	/** La carta di una singola unita', vista da `PlayerTeamId`. Unita' nulla da' una carta vuota e non viva. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static FRTUnitCardView BuildUnitCard(const ARTUnit* Unit, int32 PlayerTeamId);

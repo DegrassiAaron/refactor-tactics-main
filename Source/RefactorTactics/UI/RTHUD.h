@@ -423,6 +423,33 @@ public:
 	 */
 	static FString ComposePlaybackSpeedLabel(float ViewerSpeed);
 
+	/**
+	 * La barra di stato in alto: contatore del round, fase o riproduzione, timer, progresso sull'obiettivo.
+	 *
+	 * Statica e PURA sul modello di `ComposeSlotLines`: `DrawHUD` non ha copertura headless e non l'avra' —
+	 * e' un `AHUD::DrawHUD` che il motore chiama ogni fotogramma — quindi cio' che si puo' sbagliare deve
+	 * stare dove i test arrivano (#2184).
+	 *
+	 * ⚠️ **Tutte e quattro le decisioni sono RETICENZE**: tacere il limite senza formato, il timer senza
+	 * orologio, il punteggio senza obiettivo dichiarato e la **soglia** senza obiettivo dichiarato. Sono
+	 * quelle che una verifica a schermo non vede, perche' l'assenza di un pezzo di testo non somiglia a un
+	 * difetto — e la quarta era anche quella che il conteggio di questa riga aveva perso.
+	 *
+	 * ⚠️ **Prende la vista, non l'attore.** `FRTMatchHeaderView` la produce gia'
+	 * `URTHudViewModel::BuildMatchHeader` per lo Screen HUD: leggere i campi una seconda volta dal
+	 * `TurnManager` creava due sedi per lo stesso dato, che si scollegano al primo campo aggiunto a una sola.
+	 *
+	 * ⛔ **Non compone il controllo di velocita'**, che `DrawHUD` appende dopo: quello ha gia' la sua statica
+	 * (`ComposePlaybackSpeedLabel`) e i suoi test, e legge un campo — `ViewerPlaybackSpeed` — che #1821 tiene
+	 * esplicitamente fuori scope in quanto campo.
+	 *
+	 * @param PlaybackPhaseName   la fase che sta scorrendo. Letta solo se `Header.bResolving`.
+	 * @param PlaybackProgress01  avanzamento in `[0,1]`; mostrato in percento, arrotondato al piu' vicino.
+	 * @param bHasObjectiveCell   se la MAPPA dichiara un obiettivo. Falso = il punteggio non si scrive.
+	 */
+	static FString ComposeMatchStatusLine(const struct FRTMatchHeaderView& Header,
+		const FString& PlaybackPhaseName, float PlaybackProgress01, bool bHasObjectiveCell);
+
 protected:
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HUD")
 	float BarWidth = 64.f;

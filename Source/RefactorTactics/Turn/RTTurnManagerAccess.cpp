@@ -3,7 +3,7 @@
 #include "Turn/RTTurnManager.h" // l'UNICO posto che paga l'header pesante per conto dei chiamanti
 #include "Kismet/GameplayStatics.h"
 
-ARTTurnManager* FindTurnManagerInWorld(const UWorld* World)
+TWeakObjectPtr<ARTTurnManager> FindTurnManagerInWorld(const UWorld* World)
 {
 	if (!World)
 	{

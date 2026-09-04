@@ -4,14 +4,21 @@
 #include "Player/RTPlayerController.h"
 #include "Player/RTPlayerState.h"
 #include "Turn/RTTurnManagerAccess.h" // FindTurnManagerInWorld: la ricerca senza l'header dell'orchestratore
-#include "Turn/RTTurnManager.h" // 🔴 Il tipo COMPLETO serve lo stesso: `TurnManager` e' un
-// `TWeakObjectPtr<ARTTurnManager>`, e assegnarci un puntatore vuole la definizione — il compilatore deve
-// sapere che deriva da `UObject`. Con la sola forward di `RTTurnManagerAccess.h` il messaggio e' *«i tipi
-// indicati non sono correlati»*, che non nomina l'include mancante.
-// ⚠️ **Compilava solo grazie alla UNITY BUILD**, che glielo offriva di rimbalzo da un altro file dello
-// stesso blob: un difetto latente, scoperto da #2257 quando l'Adaptive Build ha escluso due file dal blob
-// e ne ha cambiato la composizione. ⛔ Non un difetto di #1821: quella issue ha tolto l'header dove serviva
-// solo NOMINARE il tipo, e qui invece lo si ASSEGNA.
+// 🔴 **`Turn/RTTurnManager.h` NON serve piu', e la storia va tenuta perche' il difetto era vero.**
+// #2257 l'ha rimesso il 2026-09-04 con questa diagnosi, esatta: `TurnManager` e' un
+// `TWeakObjectPtr<ARTTurnManager>`, assegnarci un puntatore nudo vuole la definizione — il compilatore deve
+// sapere che deriva da `UObject` — e il file **compilava solo grazie alla UNITY BUILD**, che il tipo glielo
+// offriva di rimbalzo da un vicino di blob. Difetto latente reale, trovato per due strade indipendenti lo
+// stesso giorno: #2257 dall'Adaptive Build che ha ricomposto i blob, #2184 toccando il file per altro.
+//
+// ✅ **Ma la premessa e' caduta: qui non si ASSEGNA piu' un puntatore nudo.** Dal #2184
+// `FindTurnManagerInWorld` rende un `TWeakObjectPtr<ARTTurnManager>` costruito dentro
+// `RTTurnManagerAccess.cpp`, l'unico posto che paga l'header, e `SetMatchContextForTest` ne prende uno: la
+// copia weak → weak non tocca `T` e non chiede la definizione. Restava solo il costo.
+//
+// ⚠️ **Toglierlo non e' un ripristino di comodo: e' cio' che rende VERO il distacco di #1821.** Con
+// l'include, la prova strutturale di quella issue — «un file che non include piu' l'header non ne aveva
+// bisogno» — resta soddisfatta a vuoto. Verificato compilando questo file FUORI dal blob unity.
 #include "Unit/RTUnit.h"
 #include "UI/RTIconLibrary.h"
 #include "Kismet/GameplayStatics.h"
@@ -94,7 +101,7 @@ void URTScreenHudWidgetBase::AcquireMatchContext()
 	}
 }
 
-void URTScreenHudWidgetBase::SetMatchContextForTest(ARTTurnManager* InTurnManager, int32 InPlayerTeamId)
+void URTScreenHudWidgetBase::SetMatchContextForTest(TWeakObjectPtr<ARTTurnManager> InTurnManager, int32 InPlayerTeamId)
 {
 	TurnManager = InTurnManager;
 	PlayerTeamId = InPlayerTeamId;
@@ -169,13 +176,11 @@ FText URTTurnHeaderWidget::GetRoundCounterText() const
 		return FText::FromString(TEXT("—"));
 	}
 
-	// `RoundLimit == 0` = «nessun limite dichiarato», che NON e' «su zero». Una partita senza formato non e'
-	// una partita gia' scaduta, e un binding ingenuo stamperebbe `Round 3/0`.
-	if (Header.RoundLimit > 0)
-	{
-		return FText::FromString(FString::Printf(TEXT("Round %d/%d"), Header.Round, Header.RoundLimit));
-	}
-	return FText::FromString(FString::Printf(TEXT("Round %d"), Header.Round));
+	// La regola — `RoundLimit == 0` = «nessun limite», mai `Round 3/0` — vive in una sede sola da #2184:
+	// il Canvas di `ARTHUD` ne aveva una seconda copia, e con `rt.HUD.CanvasPanels` attivo i due contatori
+	// rendono nello stesso fotogramma, quindi potevano dissentire. Qui resta il solo vestito `FText`, che e'
+	// cio' che il binding vuole; la decisione la fa `URTHudViewModel::ComposeRoundCounter`.
+	return FText::FromString(URTHudViewModel::ComposeRoundCounter(Header));
 }
 
 // =====================================================================================================
