@@ -93,7 +93,7 @@ dice da sé — *«Il corpus Visual, diciotto scenari che nessuna seduta convoca
 > stati confrontati.
 
 ⚠️ *«Senza ostacolo dichiarato»* **non** significa eseguibile: significa che la voce non dice di essere
-bloccata. **Trentatré** di esse non sono in nessuna sequenza, ed è la condizione che
+bloccata. **Ventinove** di esse non sono in nessuna sequenza, ed è la condizione che
 `spec-tactical-designer.md` §9 descrive come *«tende a non essere mai eseguita»*.
 
 ## 2. Le sedute, in ordine di resa
@@ -107,7 +107,7 @@ bloccata. **Trentatré** di esse non sono in nessuna sequenza, ed è la condizio
 | **U18** | **5** | `[]` | #450 #567 #583 #551–554 | 🟢 **non attende nulla**, come U42 |
 | U19 · U22 | 4 ciascuna | — | varie | 🟡 |
 | **U45** | **3** | `[E12]` | — | 🟡 attende un checkpoint, non una seduta |
-| **U39** | **1** | `[U21]` | #1920 aperta | 🟡 **l’ostacolo tecnico è caduto** (#2228): resta l’allestimento condiviso con U21 — vedi in coda alla §4 |
+| **U39** | **1** | `[U21]` — già soddisfatto | #1920 aperta | 🟢 **eseguibile**: `GenerateIntoAsset` allestisce la mappa in un gesto — vedi in coda alla §4 |
 | altre 14 sedute | 1–2 ciascuna | — | varie | — |
 
 🔑 **`U45` non era in questa tabella e ha tre voci aperte da prima di oggi**: è il tipo di riga che
@@ -118,7 +118,7 @@ l’ordinamento per resa nasconde, ed è lo stesso motivo per cui `U39` ci è en
 `PIE-V01-SHIELD`, e con `unblocked_by: []` è la **seconda** seduta del file che non attende nulla — un
 fatto che la riga *«U18 · U19 · U22, varie»* nascondeva mettendola fra due sedute che invece attendono.
 
-🔑 **Due sedute coprono 28 delle 69 voci schedulate.** Le altre diciotto si dividono il resto, molte con una
+🔑 **Due sedute coprono 28 delle 73 voci schedulate.** Le altre ventuno si dividono il resto, molte con una
 voce sola: l'ordine non è una preferenza, è dove una sessione produce venti verdetti invece di uno.
 
 ## 3. Come si avvia uno scenario, e la trappola che lo rende inutile
@@ -183,12 +183,12 @@ criterio scritto prima, venti verifiche producono venti *«sembra ok»*, che non
 allestiscono già»* le voci, quindi il lavoro potrebbe essere solo di esecuzione — ⛔ **da verificare voce per
 voce prima di convocarla**, non da assumere.
 
-### Passo 3 — le 33 orfane
+### Passo 3 — le 29 orfane
 
 Non sono lavoro da implementare: sono lavoro da **schedulare**. Ognuna va assegnata a una seduta esistente o
 a una nuova, e la decisione è di `editor-sessions.yaml`, che ne è l'owner.
 
-⛔ **Non prima di U42**: assegnare trentatré voci richiede un'analisi, mentre U42 è pronta adesso.
+⛔ **Non prima di U42**: assegnare ventinove voci richiede un'analisi, mentre U42 è pronta adesso.
 
 ### In coda a `U21` — `U39`, **una** voce, e chiude una issue
 
@@ -204,6 +204,37 @@ UnrealEditor.exe <uproject> -dpcvars=rt.Map.Source=GeneratedDemoArena,rt.Match.D
 ⚠️ **Resta comunque legata a `U21`, e per una ragione diversa da prima**: non è più il regime a
 mancare, è la **scena illuminata**. Su un livello al buio il verdetto direbbe più sulle luci che sulle
 coordinate.
+
+✅ **Si allestisce in un gesto, e il 2026-09-04 è stato fatto.** Sull’`ARTHexMapActor` del livello:
+si imposta `DemoRadius` nel pannello Details e si preme **`Generate Into Asset`**
+(`UFUNCTION(CallInEditor)`, `RTHexMapActor.cpp:1736`). La funzione scrive
+`HexArea(centro, DemoRadius)` nel `MapAsset` assegnato, poi `SortCells()` e `RebuildInstances()`.
+
+Misurato con `DemoRadius = 10` su `L_DevSandbox`, via `RTDevToolset.GetCurrentMap`:
+
+```
+numCells: 331   (era 65)      graphRevision: 7994  (era 11)
+layers: [0]     (era [0,1])   numTransitions: 0    (era 2)
+```
+
+✅ E le coordinate **si leggono a schermo** su quelle celle — `4,-2,0`, `2,2,0`, `1,1,0` — nel viewport
+editor, dove il **pennello** esiste. 🔑 **331 celle superano il DoD**: il piano che ha creato questa voce
+chiedeva *«una mappa da almeno 200 celle»*
+([`2026-08-31-coordinate-cella-pavimento.md`](../../superpowers/plans/2026-08-31-coordinate-cella-pavimento.md)).
+⚠️ La riga di registro chiede *«l’arena piena, raggio 50, 7 651 celle»*: è una **deriva** rispetto al
+piano che l’ha generata, non un requisito che qualcuno abbia deciso.
+
+⛔ **Non salvare l’asset dopo la generazione**: `GenerateIntoAsset` fa `MarkPackageDirty()` sul
+`MapAsset` del livello, che è versionato. Per una verifica una tantum non serve, e non deve entrare in un
+commit — la generazione **sostituisce** il contenuto precedente (i due layer di `Scratch_Basin` sono
+diventati uno, le transizioni sono sparite).
+
+🔴 **Questa sezione ha detto due cose sbagliate prima di questa, e vanno lasciate leggibili.**
+Il 2026-09-04 diceva che #2228 aveva reso eseguibile la seduta: **meccanismo sbagliato** — il
+`-dpcvars` allestisce l’arena nella copia **PIE**, dove né le coordinate né il pennello esistono. Poche
+ore dopo diceva che la seduta era **impossibile**: **conclusione sbagliata**, perché nessuno aveva
+cercato un generatore nell’editor. ∴ Il difetto comune non era l’ipotesi ma il metodo — **concludere
+senza cercare** — e `GenerateIntoAsset` stava due righe sotto il codice che si stava leggendo.
 
 ⚠️ **Non è un passo a sé, e la prima stesura di questa sezione lo chiamava «Passo 0» mettendolo
 davanti a `U42`.** Era sbagliato in due modi: `U39` dichiara `unblocked_by: [U21]` — lo **stesso**
