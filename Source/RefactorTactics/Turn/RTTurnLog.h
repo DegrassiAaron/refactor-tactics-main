@@ -1241,6 +1241,32 @@ enum class ERTTurnLogFormatVersion : uint16
 };
 
 /**
+ * 🔴 **CHI AGGIUNGE UNA VERSIONE QUI SOPRA RIGENERA IL CORPUS GOLDEN NELLO STESSO COMMIT** (`#2271`).
+ *
+ * Non e' una raccomandazione: e' un gate — `RefactorTactics.Simulation.GoldenCorpusIsAtCurrentFormat` —
+ * e diventa rosso appena un `.rttl` dichiara una versione diversa da quella che `SerializeTurnLog` scrive.
+ *
+ * ⚠️ **Il gate esiste perche' la convenzione da sola non ha funzionato.** Era scritta — *«si rigenerano
+ * nello stesso commit che cambia la regola»*, in `RTGoldenCorpusTests.cpp` — e il 2026-09-04 il corpus
+ * misurava **8 file alla v10, 11 alla v11, zero alla v12**, con la v11 introdotta il 2026-08-29 e i file
+ * toccati anche dopo. Nessun test lo diceva.
+ *
+ * 🔑 **La ragione per cui era invisibile va conosciuta prima di bumpare**: il confronto del corpus e' un
+ * hash sui campi di `VisitDiscriminatingFields`, e ne' la versione ne' un campo nuovo ci entrano finche'
+ * qualcuno non ce li mette. ∴ **aggiungere un campo alla voce non rende rossi i golden**, e il verde di
+ * `GoldenCorpusMatches` non significa «il corpus e' fedele»: significa «le voci sono equivalenti sui campi
+ * che l'hash guarda».
+ *
+ * Come si rigenera — la CVar va in `-dpcvars`, **mai** in testa a `-ExecCmds`:
+ *
+ *   UnrealEditor-Cmd.exe <progetto> -ExecCmds="Automation RunTests RefactorTactics.Simulation.GoldenCorpusMatches; Quit"
+ *     -dpcvars="rt.Test.RegenerateGolden=1" -unattended -nopause -nosplash -nullrhi -NoLiveCoding
+ *
+ * ⚠️ Il costo e' ~20 file binari nella PR che bumpa. E' lo stesso lavoro di sempre, pagato da chi cambia il
+ * formato invece che accumulato a carico di chi passa di li' mesi dopo.
+ */
+
+/**
  * Topologia della griglia a cui appartengono le celle del log, dichiarata nei flags dell'header.
  * Le voci portano 3 interi per cella: nel quadrato sono offset (X,Y,Layer), nell'esagonale assiali (q,r,Layer).
  * Senza questo marcatore le due tracce sarebbero indistinguibili e un confronto incrociato darebbe un falso
