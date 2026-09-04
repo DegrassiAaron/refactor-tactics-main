@@ -1216,6 +1216,24 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 			Unit->ConsumeAbility(ReactionIdx);
 			++Unit->ReactionActivationsThisTurn; // [D-092]: anche l'interposizione spende l'attivazione
 			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
+
+			// IL MOMENTO DELL'INTERPOSIZIONE (`#2191`), la SECONDA meta' che `PIE-VIS-INTERPOSE` chiede di
+			// vedere: la prima e' il colpo che parte verso il bersaglio originale, e arriva gia' come
+			// `Attack`. Questa e' il trasferimento — «e' passato a me» — che il runbook chiama *il caso piu'
+			// difficile del corpus* proprio perche' non aveva un momento proprio.
+			//
+			// ⚠️ I due soggetti sono quelli del TRASFERIMENTO e non quelli del colpo: `Source` e' chi si
+			// interpone, `Target` e' chi era il bersaglio. E' la stessa coppia che la voce di TurnLog scrive
+			// qui accanto con `SrcCell`/`TgtCell`, detta per identita' invece che per cella — l'inferenza da
+			// cella a unita' e' quella che [D-063] vieta.
+			{
+				FRTResolvedEvent Ev;
+				Ev.Phase = ERTMatchPhase::Blast;
+				Ev.Type = ERTResolvedEventType::ReactionResolved;
+				Ev.SourceStableUnitId = Unit->StableUnitId; // chi si interpone
+				Ev.TargetStableUnitId = Units[OriginalTarget]->StableUnitId; // chi era il bersaglio
+				ResolvedTimeline.Add(Ev);
+			}
 			// Bersaglio ORIGINALE -> bersaglio FINALE: il TurnLog deve dire da chi a chi e' passato il colpo,
 			// altrimenti un danno comparso su un'unita' mai bersagliata risulterebbe inspiegabile nel replay.
 			Entry.SrcCell = Units[OriginalTarget]->Cell;

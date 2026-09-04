@@ -62,6 +62,25 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Defeated,
 		{ FName(TEXT("HideForDefeat")), FName(TEXT("PlayDefeatMontage")) }));
 
+	// ReactionResolved — NoPresentation, e per la stessa ragione di `AttackFootprint`: l'assenza e'
+	// TEMPORANEA e attesa, non una scelta di design.
+	//
+	// 🔴 **L'evento esiste precisamente perche' un giorno si mostri.** `#2191` lo introduce per dare un
+	// momento alla reazione risolta, e le due voci che ne dipendono — `PIE-VIS-DEFLECT` e
+	// `PIE-VIS-INTERPOSE` — chiedono che quel momento si VEDA. La cue che lo disegna e' presentazione, e la
+	// issue la mette fuori scope apposta: si decide quando l'evento esiste, non prima.
+	//
+	// ⚠️ **Dichiarare una cue inventata sarebbe peggio che dichiarare l'assenza**, e vale qui come per
+	// `AttackFootprint`: le altre voci nominano funzioni che il C++ chiama davvero.
+	//
+	// ⚠️ **Questa voce va RIVISTA appena la cue nasce**, non ereditata. Finche' resta, le due voci PIE
+	// restano ⛔: l'evento c'e', il momento a schermo no.
+	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::ReactionResolved,
+		TEXT("Il momento esiste perche' la cue POSSA essere costruita: #2191 porta a valle il fatto che una ")
+		TEXT("reazione ha agito, e la sua resa e' fuori dal suo scope. Nessuna cue oggi lo consuma. ")
+		TEXT("ATTENZIONE: come AttackFootprint questa assenza e' TEMPORANEA e attesa - la voce va rivista ")
+		TEXT("appena la cue nasce, e con lei le due voci PIE che aspettano di vedere quel momento.")));
+
 	return Out;
 }
 

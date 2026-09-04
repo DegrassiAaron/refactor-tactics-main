@@ -488,7 +488,7 @@ volta insieme alla feature che la usa**, mai tutte insieme:
 | `Push` | la spinta si legge come spinta, non come teletrasporto | basso: il dato c'è già nella risoluzione |
 | `StatusChanged` | Wet, Burning, Shield, e ogni stato futuro di CP 8.2 | medio: serve decidere cosa entra nel DTO |
 | `EnvironmentChanged` | celle che cambiano superficie, porte, coperture | medio: dipende da chi muta l'ambiente |
-| `ReactionResolved` | la reazione che scatta ha un momento suo | basso, ma ha senso solo dopo §8.2 |
+| ~~`ReactionResolved`~~ | la reazione che scatta ha un momento suo | ✅ **l'EVENTO esiste dal 2026-09-04** (`#2191`): è in coda a `ERTResolvedEventType` e il `TurnManager` lo emette dove la reazione si risolve. ⚠️ **Resta la CUE**: il binding è `NoPresentation`, quindi il momento c'è nel dato e non a schermo, e `PIE-VIS-DEFLECT`/`-INTERPOSE` restano ⛔ per la seconda metà. La resa è presentazione e si decide ora che l'evento esiste |
 
 `FRTResolvedEvent` ha già `Amount` e i due riferimenti a unità: per `Push` e `StatusChanged` la struttura
 regge senza cambiamenti di forma. Aggiungere un valore all'enum **in coda** non rinumera i precedenti.

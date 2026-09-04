@@ -4527,6 +4527,26 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 			++Unit->ReactionActivationsThisTurn;
 			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
 
+			// IL MOMENTO DELLA REAZIONE, per la presentazione (`#2191`). Emesso QUI — dove la reazione si
+			// risolve — e non dove viene armata: armarla non e' un fatto da mostrare, puo' non scattare mai,
+			// e annunciarla rivelerebbe un intento che [D-021] tiene privato.
+			//
+			// ⚠️ **Non porta il danno**: gli effetti che questa reazione produce escono a valle come `Attack`
+			// coi loro numeri. Questo dice soltanto *«qui ha agito una reazione»*, ed e' cio' che mancava a
+			// `PIE-VIS-DEFLECT` — senza, la parata resta la sola barra che scende poco.
+			{
+				FRTResolvedEvent Ev;
+				Ev.Phase = Phase;
+				Ev.Type = ERTResolvedEventType::ReactionResolved;
+				Ev.SourceStableUnitId = Unit->StableUnitId; // chi reagisce
+				// Chi ha innescato, quando il trigger lo nomina. `INDEX_NONE` resta un soggetto assente e non
+				// si traduce in zero: `StableUnitId` 0 e' un'unita' valida, e confonderli darebbe alla
+				// presentazione un bersaglio inventato.
+				Ev.TargetStableUnitId = (Units.IsValidIndex(TriggeredBy) && Units[TriggeredBy])
+					? Units[TriggeredBy]->StableUnitId : INDEX_NONE;
+				ResolvedTimeline.Add(Ev);
+			}
+
 			// TUTTI gli effetti che la reazione DICHIARA, non il primo che questo orchestratore riconosce
 			// (CP 5.5). `URTReactionLibrary::BuildReactionEvents` decide anche CHI li subisce, per tipo di
 			// effetto: offensivi a chi ha innescato, difensivi a chi reagisce. Qui non si guarda mai

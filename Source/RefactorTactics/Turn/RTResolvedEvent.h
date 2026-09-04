@@ -28,7 +28,29 @@ enum class ERTResolvedEventType : uint8
 	 * ⚠️ **In CODA e non accanto ad `Attack`**: e' un `uint8` esposto a Blueprint, e inserirlo in mezzo
 	 * rinumererebbe `HazardDamage` e `Defeated`, cambiando in silenzio ogni default gia' serializzato.
 	 */
-	AttackFootprint
+	AttackFootprint,
+	/**
+	 * Una REAZIONE si e' risolta: il momento in cui la difesa ha agito, distinto dal colpo che l'ha innescata
+	 * (`#2191`).
+	 *
+	 * 🔴 **Due voci PIE erano bloccate da questa assenza, ed e' l'unica coppia del corpus Visual che
+	 * condivide una causa.** `PIE-VIS-DEFLECT` — senza un momento proprio «la parata resta la sola barra che
+	 * scende poco», cioe' esattamente l'*attacco debole invece di una difesa riuscita* che quella voce esiste
+	 * per escludere. `PIE-VIS-INTERPOSE` — la voce chiede che si vedano *entrambe* le meta', e la seconda e'
+	 * precisamente il momento che non esisteva.
+	 *
+	 * ⚠️ **Non e' l'evento di un DANNO**: il colpo di ritorno di un `Counter` e la riduzione di un `Deflect`
+	 * arrivano gia' a valle come `Attack` con i loro numeri. Questo dice *«qui ha agito una reazione»*, e i
+	 * suoi due soggetti sono chi REAGISCE (`Source`) e chi ha innescato o e' stato protetto (`Target`).
+	 *
+	 * ⚠️ **Emesso dove la reazione si RISOLVE, non dove viene pianificata**: armare una reazione non e' un
+	 * fatto da mostrare — puo' non scattare mai, e un playback che la annunciasse rivelerebbe un intento che
+	 * [D-021] tiene privato.
+	 *
+	 * ⚠️ **In CODA**, per la stessa ragione scritta sopra per `AttackFootprint`: e' un `uint8` esposto a
+	 * Blueprint, e inserirlo in mezzo rinumererebbe i valori gia' serializzati.
+	 */
+	ReactionResolved
 };
 
 /**

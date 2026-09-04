@@ -52,8 +52,13 @@ bool FRTPresentationEnumSizeIsPinnedTest::RunTest(const FString&)
 	// ➕ **Era 4, ed e' diventato 5 il 2026-08-31 con `AttackFootprint` ([D-301], #1945).** Il numero non e'
 	// il punto: il punto e' che quella issue ha visto fallire QUESTA riga, ed e' andata a dichiarare la
 	// presentazione del valore nuovo invece di scoprire fra sei mesi che l'evento non si vedeva.
-	TestEqual(TEXT("ERTResolvedEventType dichiara cinque valori (Move, Attack, HazardDamage, Defeated, AttackFootprint)"),
-		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 5);
+	// ➕ **E 6 dal 2026-09-04 con `ReactionResolved` (`#2191`), che e' la seconda volta che il meccanismo
+	// funziona come descritto**: la riga e' caduta con «atteso 5, ottenuto 6», e la issue aveva gia'
+	// dichiarato il binding — `NoPresentation` con la ragione, come `AttackFootprint`. ⚠️ Il gate vero
+	// (`FindMissingBindings`) era **verde** anche prima di questa correzione, perche' itera l'enum: e' questa
+	// riga a essere il campanello, e per questo va aggiornata a mano e non derivata.
+	TestEqual(TEXT("ERTResolvedEventType dichiara sei valori (Move, Attack, HazardDamage, Defeated, AttackFootprint, ReactionResolved)"),
+		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 6);
 
 	// La reflection c'e' davvero: senza, `DeclaredEventTypeCount()` restituirebbe 0 e l'assertion sopra
 	// fallirebbe per il motivo sbagliato.
