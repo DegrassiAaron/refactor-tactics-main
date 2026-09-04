@@ -554,9 +554,14 @@ enum class ERTMoveOutcome : uint8
 	BlockedByCycle,
 	/**
 	 * Andata OLTRE la destinazione pianificata perche' il terreno l'ha fatta scivolare (`FRTTerrainDef::
-	 * SlideCells`, oggi il solo `Ice`). Aggiunto in CODA, come i sei valori sopra: l'esito viaggia come
-	 * `uint8` nel formato serializzato, quindi le tracce gia' scritte non cambiano significato — e nessuno
-	 * scenario del corpus golden attraversa il ghiaccio, quindi non c'e' niente da rigenerare.
+	 * SlideCells`, oggi il solo `Ice`). Aggiunto in CODA, come i SETTE valori sopra: l'esito viaggia come
+	 * `uint8` nel formato serializzato, quindi le tracce gia' scritte non cambiano significato.
+	 *
+	 * ⚠️ **Il corpus golden invece SI' e' stato rigenerato**, e la prima stesura di questo commento diceva il
+	 * contrario: `RT_Showcase_Relay_v01` scivola al turno 7, e la sua traccia e' cambiata nello stesso commit
+	 * di questo valore. L'errore veniva dall'aver cercato `Ice` fra i `.rttl` — che sono le TRACCE, dove la
+	 * superficie non compare: sta negli `Scenarios/*.json`. Il corpus ha fatto il suo lavoro e ha detto
+	 * «outcome atteso Moved, trovato Slid».
 	 *
 	 * **Perche' non riusa `Moved`.** Quello dice «raggiunta la destinazione pianificata», e qui e' falso in un
 	 * modo che nessun altro valore copre: l'unita' non si e' fermata prima: e' finita **una cella piu' in la'**

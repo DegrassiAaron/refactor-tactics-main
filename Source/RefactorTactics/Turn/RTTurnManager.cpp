@@ -6681,9 +6681,14 @@ void ARTTurnManager::ResolveMovement()
 		// guarda il budget. Senza questo taglio un percorso gia' pianificato attraverserebbe un varco che nel
 		// frattempo si e' chiuso: il «path fantasma». Il movimento si FERMA all'ultima cella valida
 		// (`Fallback.Stop`), non si annulla.
-		const int32 PlannedLength = Path.Num();
+		// ⚠️ **Si confronta contro la lunghezza PRIMA dello scivolamento, non contro `Path.Num()` di adesso**
+		// (#2253). La cella di slide non e' pianificata dal giocatore: se la topologia toglie SOLO quella —
+		// basta un bordo non attraversabile accanto al ghiaccio, e `ApplyIceSliding` guarda `bBlocksMovement`
+		// della cella, non la percorribilita' del passo — l'unita' arriva esattamente dove aveva chiesto, e
+		// dirle «fermo: varco chiuso» sarebbe falso. Con il vecchio confronto lo diceva, e non serviva nemmeno
+		// un cambio di topologia a meta' turno perche' accadesse.
 		Path = URTHexSimLibrary::TruncatePathToTopology(Snapshot, Path);
-		bStoppedByTopology[i] = Path.Num() < PlannedLength;
+		bStoppedByTopology[i] = Path.Num() < LengthBeforeSlide;
 
 		Paths.Add(Path);
 	}
