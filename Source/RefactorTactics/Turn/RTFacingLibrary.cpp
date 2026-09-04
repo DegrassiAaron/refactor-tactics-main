@@ -241,13 +241,33 @@ void URTFacingLibrary::RecordFacingChange(FRTHexSimUnit& Unit, ERTHexDirection N
 	ERTMatchPhase Phase, TArray<FRTTurnLogEntry>& Log)
 {
 	const bool bRejection = (Reason == ERTFacingOutcome::DeclarationRejected);
-	if (Unit.Facing == NewFacing && !bRejection)
+
+	// 🔴 **DUE esiti si registrano ANCHE quando il facing non cambia, e il secondo e' arrivato con
+	// `#2253`.** La regola non e' «registra se qualcosa e' cambiato»: e' «registra quando il silenzio
+	// sarebbe indistinguibile da un fatto diverso».
+	//
+	// - `DeclarationRejected`: senza voce, una dichiarazione illegale sarebbe indistinguibile da una
+	//   dichiarazione **mai fatta**. E' l'argomento con cui questo ramo e' nato.
+	// - `KeptOnEnvironmentalDisplacement`: chi arriva SCIVOLANDO conserva l'orientamento, perche' l'ultimo
+	//   passo non l'ha scelto. Senza voce, quel turno sarebbe indistinguibile da **«non si e' mosso»** —
+	//   ed e' il caso peggiore, perche' l'unita' si e' mossa eccome, di una cella oltre la destinazione.
+	//   Il valore d'enum esisteva dal CP 16.1 e non aveva un solo produttore: senza questa riga sarebbe
+	//   rimasto tale, perche' il suo unico chiamante passa per definizione un facing INVARIATO.
+	const bool bSempreRegistrato = bRejection
+		|| Reason == ERTFacingOutcome::KeptOnEnvironmentalDisplacement;
+
+	if (Unit.Facing == NewFacing && !bSempreRegistrato)
 	{
 		return; // non e' successo niente: non c'e' niente da raccontare
 	}
 
 	// Il rifiuto si registra col facing CONSERVATO, non con quello chiesto: il log dice cosa vale, non cosa
 	// era stato domandato — e cio' che vale, dopo un rifiuto, e' l'orientamento di prima.
+	//
+	// ⚠️ Lo scivolamento NON e' in questo ramo, ed e' corretto: il suo chiamante passa gia' il facing
+	// conservato (`FacingAfterDisplacement` con causa ambientale restituisce l'orientamento in ingresso),
+	// quindi `NewFacing` **e'** cio' che vale. Scrivere `Unit.Facing = NewFacing` e' un no-op che tiene la
+	// funzione con un solo ramo di assegnazione invece di due.
 	const ERTHexDirection Recorded = bRejection ? Unit.Facing : NewFacing;
 	if (!bRejection)
 	{

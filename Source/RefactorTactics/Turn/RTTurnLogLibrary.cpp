@@ -340,6 +340,7 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	case ERTActionInvalidReason::NoEffect:       return TEXT("nessun effetto da applicare");
 	// ⚠️ Diverso da «interrotta»: quella e' stata CANCELLATA, questa e' avvenuta senza ottenere niente.
 	case ERTActionInvalidReason::Neutralised:    return TEXT("neutralizzata da un'interruzione reciproca");
+	case ERTActionInvalidReason::Unbalanced:     return TEXT("sbilanciato: non puo' correre");
 	default:                                     return TEXT("non eseguibile");
 	}
 }
@@ -462,6 +463,10 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 			return FString::Printf(TEXT("%s: %s purificato"), *Dove, *Quale);
 		case ERTStatusOutcome::Spent:
 			return FString::Printf(TEXT("%s: %s incassato"), *Dove, *Quale);
+		// `Amount` qui e' il PREZZO, non una durata: e' l'unico esito di stato in cui la vittima paga
+		// (`#2253`), e la riga deve far vedere quanto — altrimenti «rialzato» e «scaduto» si somigliano.
+		case ERTStatusOutcome::ShakenOff:
+			return FString::Printf(TEXT("%s: %s scrollato via, %d MP spesi"), *Dove, *Quale, Entry.Amount);
 		default:
 			return FString::Printf(TEXT("%s: esito di stato non tradotto (%d) su %s"),
 				*Dove, Entry.Outcome, *Quale);
@@ -1581,6 +1586,10 @@ bool URTTurnLogLibrary::IsStatusBirth(ERTStatusOutcome Outcome)
 	case ERTStatusOutcome::Extinguished:
 	case ERTStatusOutcome::Cleansed:
 	case ERTStatusOutcome::Spent:
+	// `ShakenOff` e' una MORTE come le altre quattro, e la sotto-causa che porta — «l'ha pagata la
+	// vittima» — vive nel valore, non nel verso: `IsStatusBirth` risponde alla sola domanda «l'icona si
+	// apre o si chiude?», e qui si chiude (`#2253`).
+	case ERTStatusOutcome::ShakenOff:
 		return false;
 	}
 
@@ -1625,6 +1634,7 @@ TArray<FString> URTTurnLogLibrary::UndeclaredStatusOutcomes()
 			ERTStatusOutcome::Extinguished,
 			ERTStatusOutcome::Cleansed,
 			ERTStatusOutcome::Spent,
+			ERTStatusOutcome::ShakenOff,
 		};
 
 		bool bDichiarato = false;

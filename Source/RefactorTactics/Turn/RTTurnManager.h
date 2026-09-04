@@ -1775,8 +1775,21 @@ protected:
 	 */
 	static FRTTurnLogEntry MakeStatusBirthEntry(ERTMatchPhase InPhase, FGameplayTag Tag, const FRTCellId& Cell,
 		int32 RequestedTurns, bool bFromTerrain);
+	/**
+	 * ⚠️ **`InPhase` ha un default e non e' pigrizia: e' il minimo diff su un campo serializzato.** Fino a
+	 * `#2253` la fase era scritta `Cleanup` **costante** dentro la funzione, con il commento *«sempre nel
+	 * Cleanup»*. Vero per revoca e scadenza, che il tick produce; **falso** per le morti causate da un
+	 * effetto, che accadono dove l'effetto accade — e infatti la voce `Spent` di `Status.Marked`
+	 * (`RTTurnManager.cpp`, Blast) e quella `Cleansed` di `Action.Cleanse` (`RTTurnManager_Blast.cpp`)
+	 * dichiarano `Cleanup` stando nel **Blast**.
+	 *
+	 * ⛔ **Le due voci sbagliate NON sono corrette qui**, e la ragione e' che la fase e' un campo
+	 * serializzato: raddrizzarle cambia l'hash di ogni turno in cui uno stato viene incassato o purificato,
+	 * cioe' impone una rigenerazione del corpus golden per un difetto che questa issue non ha introdotto.
+	 * Registrato come tale, non sanato di straforo. I siti **nuovi** passano la fase vera.
+	 */
 	static FRTTurnLogEntry MakeStatusDeathEntry(FGameplayTag Tag, const FRTCellId& Cell,
-		ERTStatusOutcome Outcome);
+		ERTStatusOutcome Outcome, ERTMatchPhase InPhase = ERTMatchPhase::Cleanup, int32 Amount = 0);
 
 	/**
 	 * La voce di uno stato ISTANTANEO: `Status.Electrified`, che e' l'etichetta di un evento e non uno

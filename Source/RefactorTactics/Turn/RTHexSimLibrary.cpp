@@ -445,13 +445,24 @@ TArray<FRTCellId> URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapsh
 	}
 
 	// Regola dal CATALOGO, non dall'enum: e' un dato del terreno come il costo e il blocco allo scatto. Con
-	// `SlideCells <= 0` non si scivola. Oggi si estende comunque di UNA sola cella (vedi FRTTerrainDef::SlideCells).
+	// `SlideCells <= 0` non si scivola.
+	//
+	// ✅ **Da `#2253` il campo e' un CONTATORE**, e il limite che il suo commento dichiarava al CP 8.1 —
+	// *«letto come un booleano»* — e' caduto: si srotolano `SlideCells` passi, piu' quelli che l'unita'
+	// porta con se' (`ExtraSlideCells`, oggi `Status.Unbalanced`).
 	const FRTCellId LastCell = Path.Last();
 	const FRTHexCellData* LastData = Snapshot.Map->FindCell(LastCell);
-	if (!LastData || URTTerrainLibrary::FindTerrainDef(LastData->Surface).SlideCells <= 0)
+	const int32 TerrainSlide = LastData
+		? URTTerrainLibrary::FindTerrainDef(LastData->Surface).SlideCells : 0;
+	if (TerrainSlide <= 0)
 	{
 		return Path;
 	}
+	// ⚠️ **L'extra si somma solo dove il terreno gia' fa scivolare.** Uno sbilanciato che finisce su una
+	// cella normale non scivola affatto: `ExtraSlideCells` amplifica un effetto, non lo crea — altrimenti
+	// `Unbalanced` diventerebbe una sorgente di scivolamento e la catena si autoalimenterebbe fuori dal
+	// ghiaccio, che non e' cio' che [D-319] descrive.
+	const int32 TotalSlide = TerrainSlide + FMath::Max(0, Unit->ExtraSlideCells);
 
 	// Stessa formula di TruncatePathToBudget: costo della cella PIU' il modificatore dell'unita' (`Slow` lo
 	// alza, CP 4.7). Sommare il solo MoveCost sottostimerebbe la spesa di chi e' rallentato, e lo si vedrebbe
@@ -493,8 +504,10 @@ TArray<FRTCellId> URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapsh
 		return Path; // ultimo passo non e' un vicino diretto
 	}
 
-	const FRTCellId SlideCell(LastCell.X + Dir.X, LastCell.Y + Dir.Y, LastCell.Layer);
-
+	// Si srotola una cella per volta nella STESSA direzione, e ogni passo risponde alla stessa domanda del
+	// primo. Un ciclo e non una moltiplicazione: la seconda cella puo' essere un muro mentre la prima e'
+	// libera, e in quel caso lo scivolamento e' PARZIALE — l'unita' percorre quella che c'e' e si ferma.
+	//
 	// Il PASSO, non solo la cella (#2284). `StepIsWalkable` copre in una domanda sola cio' che prima erano
 	// due controlli separati e incompleti: la cella assente e `bBlocksMovement` — che `GraphNeighbors` gia'
 	// implica — piu' i muri sul BORDO e la geometria INTERNA della cella d'arrivo, che nessuno guardava.
@@ -504,13 +517,25 @@ TArray<FRTCellId> URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapsh
 	// come per qualunque altro passo. La percorribilita' e' un'altra domanda, e la spec non la nominava:
 	// dentro `ResolveMovement` il taglio a valle la mascherava, ma questa funzione e' pura e pubblica, e chi
 	// la chiama direttamente riceveva il muro attraversato.
-	if (!StepIsWalkable(Snapshot.Map, PrevCell, LastCell, SlideCell))
-	{
-		return Path; // un muro fra la cella d'arrivo e quella di scivolamento: non si scivola
-	}
-
+	//
+	// ⚠️ **La DIREZIONE non si ricalcola a ogni passo**, e non e' una semplificazione: uno scivolamento e'
+	// un solo evento con una sola inerzia. Ricalcolarla dall'ultimo passo darebbe lo stesso risultato —
+	// `Dir` e' costante per costruzione — ma inviterebbe il prossimo lettore a credere che una curva sia
+	// possibile.
 	TArray<FRTCellId> Extended = Path;
-	Extended.Add(SlideCell);
+	FRTCellId FromCell = PrevCell;
+	FRTCellId AtCell = LastCell;
+	for (int32 Step = 0; Step < TotalSlide; ++Step)
+	{
+		const FRTCellId SlideCell(AtCell.X + Dir.X, AtCell.Y + Dir.Y, AtCell.Layer);
+		if (!StepIsWalkable(Snapshot.Map, FromCell, AtCell, SlideCell))
+		{
+			break; // un muro fra la cella corrente e la successiva: si ferma qui, e cio' che ha gia' fatto vale
+		}
+		Extended.Add(SlideCell);
+		FromCell = AtCell;
+		AtCell = SlideCell;
+	}
 	return Extended;
 }
 

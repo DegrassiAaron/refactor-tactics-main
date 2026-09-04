@@ -1063,7 +1063,31 @@ int32 ARTUnit::GetEffectiveMoveRange() const
 {
 	// Root azzera. Slow (CP 4.7) non passa piu' da qui: e' un costo per cella nel pathfinding
 	// (ARTTurnManager::MakeCurrentSnapshot), non una riduzione flat del budget.
-	return URTCombatLibrary::EffectiveMoveRange(MoveRange, HasStatus(TAG_Status_Root));
+	const int32 Base = URTCombatLibrary::EffectiveMoveRange(MoveRange, HasStatus(TAG_Status_Root));
+
+	// 🔑 **Lo StandUp e' QUI, e questo e' l'unico sito che lo rende una proprieta' invece di
+	// un'aspettativa** ([D-319], `#2253`). Da questa funzione passano ENTRAMBI i consumatori del budget —
+	// lo snapshot del Move (`ARTTurnManager::MakeCurrentSnapshot`) e la validazione del piano
+	// (`ARTPlayerController`) — quindi il prezzo e' visibile a chi pianifica e a chi risolve, senza
+	// bisogno di tenerli d'accordo.
+	//
+	// ⛔ **Non e' un'azione di catalogo, e la ragione non e' il risparmio.** `Action.StandUp` porterebbe
+	// con se' una chiave icona obbligatoria (`URTIconLibrary::RequiredIconIds()` itera
+	// `GetCoreActionCatalog()`) e uno slot da prezzare contro [D-028]; ma soprattutto lascerebbe FALSA
+	// l'anti-ciclicita' che `brief-stati-unbalanced-prone.md` §6 dichiara — *«chi si e' appena rialzato
+	// scivola meno»* — perche' la condizione dello scivolamento legge `MoveBudget` **dallo snapshot**, e
+	// solo abbassandolo qui quella frase diventa vera.
+	//
+	// ⚠️ **`Max(0, ...)` e non una sottrazione nuda**: chi ha `Root` e' gia' a zero, e chi ha 1 solo punto
+	// finirebbe a `-1`. Un budget negativo attraverserebbe il pathfinding senza far rumore.
+	//
+	// ⛔ **Non tocca `GetEffectiveDashRange`**: `Prone` costa un turno di POSIZIONAMENTO, e lo slot rapido
+	// non e' nel perimetro di [D-319]. Dichiarato, non dimenticato.
+	if (HasStatus(TAG_Status_Prone))
+	{
+		return FMath::Max(0, Base - URTCombatLibrary::StandUpMovePointCost);
+	}
+	return Base;
 }
 
 int32 ARTUnit::GetEffectiveDashRange(int32 BaseRange) const
