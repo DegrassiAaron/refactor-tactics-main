@@ -1328,6 +1328,33 @@ void ARTHexMapActor::RebuildInstances()
 		CellBorders->SetVisibility(bCellBordersVisible);
 	}
 
+	// 🔴 **L'OTTAVA famiglia, ed era l'unica che sopravviveva a questa funzione** (`#2222`).
+	//
+	// `KnowledgeVolumes` e' la sola vista che NON deriva dall'asset: la posa `SetKnowledgeDebugEnabled` a
+	// partire da una conoscenza che questo actor non conserva. Finche' non veniva azzerata qui, ricostruire
+	// la board lasciava appesi i prismi della board PRECEDENTE, sopra celle che nel frattempo erano diventate
+	// altre celle — e in PIE si vedeva come geometria che si accumula a ogni scenario.
+	//
+	// ⚠️ **Si spegne anche il flag, e non e' pignoleria.** `bKnowledgeDebug` rimasto `true` con il
+	// componente vuoto farebbe divergere lo stato interno da cio' che si vede, **in silenzio**. E' la stessa
+	// superficie che ha gia' prodotto una diagnosi di velo rotto su un difetto inesistente: il registro PIE
+	// annota che `rt.Debug.Knowledge` *«posa una fotografia e non la aggiorna»*, e che i suoi sintomi sono
+	// «indistinguibili da un velo rotto». Un secondo modo di mentire sulla stessa superficie non si aggiunge.
+	//
+	// ⛔ **Non si RICOSTRUISCONO, e la scelta e' dichiarata**: l'actor non ha la conoscenza da cui rifarli,
+	// e conservarne una copia farebbe di un componente di presentazione una seconda sede della conoscenza di
+	// squadra — cio' che [D-242] esiste per impedire. Si rilancia il comando, che e' gia' la sua semantica.
+	if (KnowledgeVolumes && (bKnowledgeDebug || KnowledgeVolumes->GetInstanceCount() > 0))
+	{
+		KnowledgeVolumes->ClearInstances();
+		KnowledgeVolumes->SetVisibility(false);
+		bKnowledgeDebug = false;
+		// Una riga per ACCENSIONE, non per pennellata: `RebuildInstances` gira a ogni cella dipinta, ma dal
+		// giro successivo la condizione qui sopra e' falsa e questo ramo non si ripete.
+		UE_LOG(LogRT, Warning, TEXT("[HexMap] Board ricostruita: i volumi di rt.Debug.Knowledge sono stati "
+			"rimossi e il debug e' spento. Rilancia il comando per rileggere la conoscenza."));
+	}
+
 	// Sorgente celle: l'asset se popolato, altrimenti un graybox demo (esagono pieno di raggio DemoRadius).
 	const float UseHexSize = MapAsset ? MapAsset->HexSize : HexSize;
 	const float UseLayerH = MapAsset ? MapAsset->LayerHeight : LayerHeight;
