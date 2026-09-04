@@ -159,11 +159,30 @@ order-independent (destinazione contesa → contendenti fermi da lì; cella di u
 scambio diretto → consentito). Lo scivolamento si inserisce **prima** di questa chiamata: se il percorso
 troncato al budget (da `FindPathForUnit`/`BuildCompositeHexPath`) termina su `Ice` e il budget residuo
 dell'unità è **≥ 2**, si appende una cella nella direzione dell'ultimo passo (stessa direzione
-dell'ingresso), verificando solo che la cella esista e non blocchi il movimento (`bBlocksMovement`) — **non**
-serve controllare l'occupazione qui: il path esteso entra comunque nel microstep di `ResolveHexPaths`, che
-gestisce occupazione e collisioni con lo stesso meccanismo di qualunque altro passo pianificato. **Nessun
-limite da dichiarare per il Move**: due unità che scivolano verso la stessa cella libera vengono gestite dal
-resolver esistente esattamente come due unità che vi si muovono normalmente.
+dell'ingresso), verificando che la cella esista, che non blocchi il movimento (`bBlocksMovement`) e che il
+**passo** verso di essa sia percorribile — **non** serve controllare l'occupazione qui: il path esteso entra
+comunque nel microstep di `ResolveHexPaths`, che gestisce occupazione e collisioni con lo stesso meccanismo
+di qualunque altro passo pianificato. **Nessun limite da dichiarare per il Move**: due unità che scivolano
+verso la stessa cella libera vengono gestite dal resolver esistente esattamente come due unità che vi si
+muovono normalmente.
+
+> ➕ **La percorribilità del passo è stata aggiunta il 2026-09-04**
+> ([#2284](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2284)). Muri e coperture alte non
+> stanno nella cella ma sul **bordo** fra due celle (`URTHexCoverLibrary::BlocksTraversal`), e la geometria
+> **interna** della cella d'arrivo è un'altra cosa ancora (`CanTransitCell`, `#2100`): `bBlocksMovement` non
+> vedeva né l'una né l'altra, e un'unità che finiva il Move su una lastra addossata a un muro ci **scivolava
+> attraverso**. La rinuncia dichiarata sopra riguarda l'**occupazione**, che è una domanda diversa e resta
+> corretta.
+>
+> Dentro `ResolveMovement` il difetto era mascherato da `TruncatePathToTopology`; `ApplyIceSliding` è però
+> pura e pubblica, e ogni chiamante diretto riceveva il muro attraversato. Le due domande vivono ora in
+> `StepIsWalkable`, che **entrambi** i siti chiamano — prima erano due copie, e la seconda aveva già
+> dimenticato il controllo intra-cella. Test: `Terrain.Ice.WallOnEdgeStopsSliding`.
+>
+> ⚠️ **Due limiti restano, ereditati da `GraphNeighbors`**: il suo ramo degli **archi** espliciti non
+> consulta `BlocksTraversal`, quindi una mappa che dichiara un arco attivo sopra un bordo coperto
+> riaprirebbe il passaggio; e un predecessore non valido fa cadere la verifica intra-cella. Sono del
+> contratto di `GraphNeighbors`, non di questa regola.
 
 **Limite dichiarato**: una mobilità **lineare** che termina su `Ice` **non** innesca lo scivolamento.
 `URTMovementActionLibrary::ResolveLinearMove` non passa dal microstep condiviso — valuta gli ostacoli contro
