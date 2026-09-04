@@ -138,10 +138,44 @@ ARTUnit::ARTUnit()
 	OverlayWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("OverlayWidget"));
 	OverlayWidget->SetupAttachment(SceneRoot);
 	OverlayWidget->SetWidgetSpace(EWidgetSpace::Screen);
-	OverlayWidget->SetDrawAtDesiredSize(true);
+	// 🔴 **SOPRA la testa, non ai piedi.** Il componente si proietta dalla propria posizione nel mondo: senza
+	// questo offset la sovrapposizione nascerebbe alla base del cilindro, cioe' addosso ai piedi dell'unita'.
+	// Il valore e' quello che il canvas usava (`ARTHUD::WorldHeadOffset`), cosi' l'altezza non cambia
+	// passando da un supporto all'altro.
+	OverlayWidget->SetRelativeLocation(FVector(0.f, 0.f, 200.f));
+	// ⚠️ **`DrawSize` esplicito e `bDrawAtDesiredSize = false`.** Misurato in PIE: con la dimensione
+	// desiderata le sovrapposizioni finivano **tutte impilate in alto a sinistra** invece che sopra le
+	// rispettive unita' — un widget in Screen space senza una dimensione dichiarata non ha un centro da cui
+	// proiettarsi. E' il difetto che nessun test headless poteva vedere, ed e' la ragione per cui la DoD di
+	// `#2288` chiede il PIE.
+	OverlayWidget->SetDrawAtDesiredSize(false);
+	OverlayWidget->SetDrawSize(FVector2D(220.f, 90.f));
+	OverlayWidget->SetPivot(FVector2D(0.5f, 1.f)); // ancorata in basso al centro: cresce verso l'alto
 	OverlayWidget->SetCollisionEnabled(ECollisionEnabled::NoCollision); // mai un proxy di click
 	OverlayWidget->SetGenerateOverlapEvents(false);
 	OverlayWidget->SetVisibility(false); // il velo la accende: nasce spenta come gli anelli
+
+	// La classe di default del widget.
+	//
+	// 🔑 **In C++ e non sui quattro `BP_Unit_*`, e la ragione non e' la pigrizia.** La sovrapposizione e'
+	// **uguale per tutti** — lo era anche quando la disegnava il canvas, che non sapeva nemmeno quale eroe
+	// stesse disegnando. Metterla su ogni eroe sarebbe quattro binari da tenere allineati per un dato che
+	// non varia, e il primo dimenticato sarebbe un'unita' senza barra della vita che nessun test vede.
+	//
+	// ⚠️ Resta `EditDefaultsOnly`: un `BP_Unit_*` puo' **sovrascriverla** il giorno che un eroe voglia una
+	// sovrapposizione propria. Il C++ dichiara il default, il dato conserva l'ultima parola — che e' il
+	// confine di `AGENTS.md` §3.
+	//
+	// ⚠️ **Il suffisso `_C` non e' un dettaglio**: senza, il path punta all'ASSET e non alla sua classe
+	// generata, e il `FClassFinder` non risolve.
+	static ConstructorHelpers::FClassFinder<URTUnitOverlayWidget> OverlayBP(
+		TEXT("/Game/RT/UI/Match/WBP_RT_UnitOverlay.WBP_RT_UnitOverlay_C"));
+	if (OverlayBP.Succeeded())
+	{
+		OverlayWidgetClass = OverlayBP.Class;
+	}
+	// Se l'asset manca il campo resta nullo e non si vede niente: degrada, non crasha — la stessa forma con
+	// cui il cilindro segnaposto qui sopra e' condizionato a `CylinderMesh.Succeeded()`.
 
 	ContactGhost = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ContactGhost"));
 	ContactGhost->SetupAttachment(SceneRoot);
