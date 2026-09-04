@@ -189,4 +189,46 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static float EffectivePlaybackSpeed(float ViewerSpeed);
+
+	/**
+	 * Quanti **micro-step** contiene un percorso di playback: `Waypoints.Num() - 1`, mai negativo (`#1879`).
+	 *
+	 * 🔑 **Non e' una granularita' nuova: e' quella che il playback gia' interpola.**
+	 * `InterpolateAlongPath` dichiara che *«1 passo logico = 1 segmento»* e assegna a ogni segmento la
+	 * stessa frazione di `Alpha`. Un micro-step del playback **e'** un segmento, e contarli e' contare i
+	 * waypoint meno l'origine.
+	 *
+	 * ⚠️ Un percorso vuoto o con un solo waypoint vale `0`: un'unita' che non si e' mossa non ha barriere
+	 * da attraversare, e chi divide per questo conteggio deve trattarlo prima di dividere.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static int32 MicroStepsInPath(const TArray<FVector>& Waypoints);
+
+	/**
+	 * L'`Alpha` al confine del micro-step `StepIndex`, su un percorso che ne ha `StepCount` (`#1879`).
+	 *
+	 * `StepIndex` 0 e' l'inizio, `StepCount` e' la fine: e' l'inversa esatta di `InterpolateAlongPath`, che
+	 * divide `[0,1]` in `StepCount` frazioni uguali.
+	 *
+	 * ⚠️ `StepCount <= 0` -> `1.f`, cioe' «fine»: una fase senza segmenti e' gia' conclusa, e restituire `0`
+	 * la lascerebbe in attesa di un avanzamento che non puo' avvenire.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static float AlphaAtMicroStep(int32 StepIndex, int32 StepCount);
+
+	/**
+	 * L'`Alpha` del **prossimo** confine di micro-step dopo `Alpha`, cioe' dove si ferma uno `Step` (`#1879`).
+	 *
+	 * 🔴 **Strettamente maggiore, e qui sta la regola**: da un `Alpha` che e' gia' esattamente su un confine
+	 * si avanza al successivo. Un `>=` lascerebbe `Step` fermo sul posto ogni volta che lo si preme due
+	 * volte di fila su un boundary — che e' precisamente l'uso per cui esiste.
+	 *
+	 * ⚠️ Non supera mai `1.f`: uno `Step` oltre l'ultimo segmento porta a fine fase e non oltre. Chi vuole
+	 * passare alla fase successiva lo decide altrove; questa funzione non conosce le fasi.
+	 *
+	 * ⛔ **Il valore restituito e' un confine, mai un punto intermedio.** E' cio' che rende
+	 * `StepExecutesWholeMicroStep` vero per costruzione: non esiste un ingresso che produca mezzo segmento.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static float NextMicroStepBoundary(float Alpha, int32 StepCount);
 };

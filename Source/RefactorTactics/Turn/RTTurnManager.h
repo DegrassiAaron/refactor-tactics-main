@@ -306,6 +306,73 @@ public:
 	float GetPlanningSeconds() const { return PlanningSeconds; }
 
 	/**
+	 * Abilita Pause e Step del playback — **Vs Bot e Debug**, dove osservare una risoluzione e' lo scopo
+	 * (`#1879`).
+	 *
+	 * ⛔ **Chi non chiama questo non ha i controlli**, e non e' una svista di ergonomia: e' il fail-closed
+	 * del criterio sul PvP live competitivo, dove fermare la riproduzione localmente non e' lecito. Vedi
+	 * `bPlaybackControlsEnabled` per la ragione per cui il divieto e' un default e non un controllo di
+	 * modalita'.
+	 *
+	 * Disabilitare mentre il playback e' fermo lo fa **ripartire**: lasciarlo in pausa senza il comando per
+	 * riprenderlo sarebbe una partita bloccata da un flag.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playback")
+	void SetPlaybackControlsEnabled(bool bEnabled);
+
+	/** `true` se Pause/Step sono disponibili in questa sessione. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	bool ArePlaybackControlsEnabled() const { return bPlaybackControlsEnabled; }
+
+	/**
+	 * Ferma la riproduzione **al prossimo confine di micro-step**, mai a meta' (`#1879`).
+	 *
+	 * ⚠️ Ferma cio' che si VEDE. La risoluzione e' gia' avvenuta per intero quando il playback comincia:
+	 * non esiste uno stato logico a meta' barriera da proteggere, ed e' giusto dirlo invece di difendersi
+	 * da un pericolo che non c'e'. Cio' che la regola protegge e' l'immagine — nessun mondo mostrato a
+	 * meta' di una barriera che il resolver ha deciso in blocco.
+	 *
+	 * Senza controlli abilitati non fa nulla. Idempotente.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playback")
+	void PausePlayback();
+
+	/** Riprende dopo una pausa. Senza controlli abilitati non fa nulla. Idempotente. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playback")
+	void ResumePlayback();
+
+	/**
+	 * Esegue **un intero** micro-step e torna in pausa (`#1879`).
+	 *
+	 * 🔑 **Non spezza gli eventi simultanei, e non per disciplina**: tutte le animazioni di una fase
+	 * condividono lo stesso `Alpha`, quindi avanzano insieme per costruzione. Non esiste un ingresso che
+	 * faccia avanzare una sola unita'.
+	 *
+	 * Il confine si calcola **alla pressione** e in secondi, non in tick: un «avanza per N frame»
+	 * dipenderebbe dal frame rate, e la stessa pressione fermerebbe il playback in punti diversi su
+	 * macchine diverse.
+	 *
+	 * Senza controlli abilitati non fa nulla. A fase conclusa non avanza oltre la fine.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playback")
+	void StepMicroStep();
+
+	/** `true` se la riproduzione e' ferma (diagnostica, UI e test). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	bool IsPlaybackPaused() const { return bPlaybackPaused; }
+
+	/**
+	 * Quanti micro-step contiene la fase di playback in corso: il **massimo** fra i percorsi delle unita'
+	 * che si muovono in questa fase.
+	 *
+	 * ⚠️ Il massimo e non la somma, ne' il minimo: le unita' avanzano **in parallelo** sullo stesso
+	 * `Alpha`, quindi la fase dura quanto il percorso piu' lungo. La somma conterebbe piu' volte barriere
+	 * che sono la stessa; il minimo fermerebbe la fase mentre qualcuno e' ancora in cammino.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	int32 MicroStepsInCurrentPlaybackPhase() const;
+
+	/**
 	 * Durata della finestra Fast Reaction (ADR-0004 §8). E' cio' che alimenta il countdown del DTO di
 	 * CP 14.6: la presentazione la LEGGE da qui, non ne tiene una copia.
 	 */
@@ -1879,6 +1946,34 @@ private:
 	// Stato runtime del playback.
 	bool bIsResolving = false;
 	bool bPrepActiveThisTurn = false;
+
+	/**
+	 * 🔴 **Pause/Step sono NEGATI finche' qualcuno non li abilita, e il default e' la regola** (`#1879`).
+	 *
+	 * La matrice delle modalita' di `#1879` vieta Pause e Step nel **PvP live competitivo**: l'autorita' non
+	 * puo' essere fermata localmente da un client, e la deducibilita' del ritmo ha gia' un proprietario
+	 * (`#759`).
+	 *
+	 * ⚠️ **Quella modalita' non esiste ancora nel codice** — `ERTMatchMode`, `bCompetitive`, `bIsPvP`:
+	 * zero occorrenze su `origin/main`, coerente con l'assenza di replica di rete misurata su `#1805`.
+	 * ⛔ Inventarla per poterla negare sarebbe fabbricare una dipendenza. Il divieto si ottiene invece
+	 * **per costruzione**: chi non abilita esplicitamente questi controlli non li ha. Il giorno in cui il
+	 * PvP live esistera' sara' gia' fuori, senza che nessuno debba ricordarsi di escluderlo — che e' la
+	 * differenza fra un fail-closed e una convenzione.
+	 */
+	bool bPlaybackControlsEnabled = false;
+
+	/** Il playback e' fermo. ⚠️ Ferma la PRESENTAZIONE: la risoluzione e' gia' avvenuta per intero. */
+	bool bPlaybackPaused = false;
+
+	/**
+	 * Se `>= 0`, il playback avanza fino a questo `PlaybackPhaseElapsed` e poi si ferma: e' lo `Step`.
+	 *
+	 * 🔑 **Un tempo e non un contatore di frame**: il confine si calcola una volta, alla pressione, e il
+	 * tick ci arriva senza sapere quanti frame servono. Un «avanza per N tick» dipenderebbe dal frame rate,
+	 * e la stessa pressione fermerebbe il playback in punti diversi su macchine diverse.
+	 */
+	float PlaybackStepTargetElapsed = -1.f;
 
 	/** Esito + via calcolati nel Cleanup e consumati da ConcludeTurn (che chiude o apre il round dopo). */
 	FRTMatchResult PendingResult;
