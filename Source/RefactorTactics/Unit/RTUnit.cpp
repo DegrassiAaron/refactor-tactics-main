@@ -818,9 +818,36 @@ bool ARTUnit::HasStatus(FGameplayTag Tag) const
 	return (Turns && *Turns > 0) || CellBoundStatuses.Contains(Tag);
 }
 
-TArray<FName> ARTUnit::GetActiveStatusNames() const
+namespace
 {
-	TArray<FName> Names;
+	/**
+	 * Ordina i tag per NOME, e non e' cosmesi (#1077).
+	 *
+	 * 🔴 I due contenitori da cui questi tag escono sono una `TSet` e una `TMap`: il loro ordine di
+	 * iterazione non e' una proprieta' del gioco. Consegnarlo cosi' com'e' al TurnLog farebbe dipendere
+	 * l'ORDINE DELLE VOCI dall'implementazione del contenitore, quindi l'hash del turno cambierebbe fra
+	 * due esecuzioni identiche — l'invariante «niente dipendenza dall'ordine di `TMap`/`TSet`» esiste per
+	 * questo, e `HashTurnLogOrdered` esiste per renderlo visibile quando succede.
+	 */
+	void OrdinaPerNome(TArray<FGameplayTag>& Tags)
+	{
+		// 🔴 **`FName::Compare` e NON `FString::operator<`**, ed e' una correzione di code review: la prima
+		// stesura rifaceva, in un'altra forma, il difetto che `RTTurnLogLibrary.cpp` documenta a proprie
+		// spese — `FString::UEOpLessThan` e' `FPlatformString::Stricmp(...) < 0`, quindi **non e' un ordine
+		// totale** sui byte. Due tag che differiscono solo per il caso pareggerebbero in entrambi i versi,
+		// resterebbero a pari merito, e `TArray::Sort` — che non e' stabile — deciderebbe secondo l'ordine
+		// di iterazione del contenitore: esattamente il non-determinismo che questa funzione esiste per
+		// togliere. In piu' `Compare` non alloca due `FString` per confronto.
+		Tags.Sort([](const FGameplayTag& A, const FGameplayTag& B)
+		{
+			return A.GetTagName().Compare(B.GetTagName()) < 0;
+		});
+	}
+}
+
+TArray<FGameplayTag> ARTUnit::GetActiveStatusTags() const
+{
+	TArray<FGameplayTag> ActiveTags;
 
 	// Solo gli status con durata RESIDUA: uno scaduto e' assente, non presente a zero — altrimenti il
 	// checksum distinguerebbe due stati che il gioco considera identici.
@@ -828,18 +855,63 @@ TArray<FName> ARTUnit::GetActiveStatusNames() const
 	{
 		if (Pair.Value > 0)
 		{
-			Names.AddUnique(Pair.Key.GetTagName());
+			ActiveTags.AddUnique(Pair.Key);
 		}
 	}
 	for (const FGameplayTag& Tag : CellBoundStatuses)
 	{
-		Names.AddUnique(Tag.GetTagName());
+		ActiveTags.AddUnique(Tag);
 	}
 
 	// `TMap`/`TSet` non hanno un ordine di iterazione stabile: senza questo sort il risultato dipenderebbe
 	// dall'ordine di inserimento, e due esecuzioni identiche darebbero digest diversi (invariante #4).
-	Names.Sort([](const FName& A, const FName& B) { return A.Compare(B) < 0; });
+	//
+	// 🔑 **La stessa `OrdinaPerNome` che usano revoca e scadenza**, e non una copia: la sua ragione — perche'
+	// `FName::Compare` e non `FString::operator<`, che non e' un ordine totale — e' gia' pagata una volta, e
+	// riscriverla qui avrebbe rifatto un difetto che quel commento documenta a proprie spese. Il blocco e'
+	// stato spostato sopra il primo consumatore per questo (`#2274`).
+	//
+	// ⚠️ E' l'ordine che `GetActiveStatusNames` produceva gia' prima di `#2274`: il checksum non cambia.
+	OrdinaPerNome(ActiveTags);
+	return ActiveTags;
+}
+
+TArray<FName> ARTUnit::GetActiveStatusNames() const
+{
+	// 🔑 Derivata, non parallela (`#2274`): l'ordine e' definito una volta sola in `GetActiveStatusTags`.
+	// Due enumerazioni che ordinano ciascuna per conto proprio sono due ordini che un giorno divergono — e
+	// qui uno dei due alimenta un checksum di fine partita.
+	TArray<FName> Names;
+	const TArray<FGameplayTag> ActiveTags = GetActiveStatusTags();
+	Names.Reserve(ActiveTags.Num());
+	for (const FGameplayTag& Tag : ActiveTags)
+	{
+		Names.Add(Tag.GetTagName());
+	}
 	return Names;
+}
+
+int32 ARTUnit::GetStatusRemainingTurns(FGameplayTag Tag) const
+{
+	// La durata a TERMINE vince su quella legata alla cella quando il tag e' entrambe le cose: e'
+	// l'informazione che scade, quindi l'unica che chi guarda puo' vedere scendere. Quando finisce, la
+	// riga sotto risponde `PersistentWhileOnCell` finche' la cella lo sostiene.
+	if (const int32* Turns = StatusTurns.Find(Tag))
+	{
+		if (*Turns > 0)
+		{
+			return *Turns;
+		}
+	}
+
+	if (CellBoundStatuses.Contains(Tag))
+	{
+		return PersistentWhileOnCell;
+	}
+
+	// ⚠️ `0` e' «non attivo», e non si confonde con una durata: `ApplyStatus` non registra mai uno stato a
+	// zero turni, e `GetActiveStatusTags` scarta i residui non positivi.
+	return 0;
 }
 
 void ARTUnit::ApplyMarkedBy(int32 MarkerTeamId, int32 Turns)
@@ -866,33 +938,6 @@ bool ARTUnit::RemoveStatus(FGameplayTag Tag)
 	StatusTurns.Remove(Tag);
 	CellBoundStatuses.Remove(Tag);
 	return true;
-}
-
-namespace
-{
-	/**
-	 * Ordina i tag per NOME, e non e' cosmesi (#1077).
-	 *
-	 * 🔴 I due contenitori da cui questi tag escono sono una `TSet` e una `TMap`: il loro ordine di
-	 * iterazione non e' una proprieta' del gioco. Consegnarlo cosi' com'e' al TurnLog farebbe dipendere
-	 * l'ORDINE DELLE VOCI dall'implementazione del contenitore, quindi l'hash del turno cambierebbe fra
-	 * due esecuzioni identiche — l'invariante «niente dipendenza dall'ordine di `TMap`/`TSet`» esiste per
-	 * questo, e `HashTurnLogOrdered` esiste per renderlo visibile quando succede.
-	 */
-	void OrdinaPerNome(TArray<FGameplayTag>& Tags)
-	{
-		// 🔴 **`FName::Compare` e NON `FString::operator<`**, ed e' una correzione di code review: la prima
-		// stesura rifaceva, in un'altra forma, il difetto che `RTTurnLogLibrary.cpp` documenta a proprie
-		// spese — `FString::UEOpLessThan` e' `FPlatformString::Stricmp(...) < 0`, quindi **non e' un ordine
-		// totale** sui byte. Due tag che differiscono solo per il caso pareggerebbero in entrambi i versi,
-		// resterebbero a pari merito, e `TArray::Sort` — che non e' stabile — deciderebbe secondo l'ordine
-		// di iterazione del contenitore: esattamente il non-determinismo che questa funzione esiste per
-		// togliere. In piu' `Compare` non alloca due `FString` per confronto.
-		Tags.Sort([](const FGameplayTag& A, const FGameplayTag& B)
-		{
-			return A.GetTagName().Compare(B.GetTagName()) < 0;
-		});
-	}
 }
 
 TArray<FGameplayTag> ARTUnit::RevokeCellBoundStatusesNotIn(const TSet<FGameplayTag>& Sustained)

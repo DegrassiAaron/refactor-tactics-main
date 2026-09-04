@@ -183,6 +183,49 @@ struct FRTUnitSlotsView
 	FRTPlannedSlotView Reaction;
 };
 
+/**
+ * Uno stato temporaneo da mostrare sopra un'unita': quale, con che icona, per quanto ancora (`#2274`).
+ *
+ * 🔑 **Porta l'`IconId` e non lascia che sia chi disegna a comporlo.** La chiave si deriva dal tag con
+ * `URTIconLibrary::MakeIconId`, che e' l'owner della regola; comporla nel widget significherebbe una
+ * seconda derivazione, e un widget in Blueprint e' il posto con **meno** copertura del progetto.
+ */
+USTRUCT(BlueprintType)
+struct FRTStatusBadgeView
+{
+	GENERATED_BODY()
+
+	/** Il tag dello stato (`Status.Burning`, …). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FName Tag;
+
+	/** La chiave dell'icona nel catalogo (`UI.Icon.Status.Burning`), gia' derivata. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FName IconId;
+
+	/**
+	 * Turni residui, `> 0`.
+	 *
+	 * 🔴 **Vale `0` quando lo stato e' legato alla cella**, e li' **non c'e' un conteggio da mostrare**:
+	 * dura finche' l'unita' resta dov'e'. Chi disegna guarda `bCellBound` PRIMA di stampare un numero — il
+	 * `-1` di `ARTUnit::PersistentWhileOnCell` non arriva mai fin qui, proprio perche' scritto sopra la
+	 * testa di un'unita' si leggerebbe come «meno un turno».
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 RemainingTurns = 0;
+
+	/** Vero se lo stato dura finche' l'unita' resta sulla cella: allora `RemainingTurns` non significa nulla. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bCellBound = false;
+
+	/**
+	 * Vero se e' uno stato di CONTROLLO (`Root`, `Slow`): la famiglia che
+	 * `URTReactionLibrary::ControlStatusesBySeverity` ordina per gravita', e che questa vista mette per prima.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bIsControl = false;
+};
+
 /** La ricarica residua di una singola azione del kit, in TURNI INTERI. */
 USTRUCT(BlueprintType)
 struct FRTAbilityCooldownView
@@ -325,6 +368,45 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static TArray<FRTAbilityCooldownView> BuildAbilityCooldowns(const ARTUnit* Unit);
+
+	/**
+	 * Quali stati mostrare sopra un'unita', **in che ordine** e con quale durata residua (`#2274`, `D-320`).
+	 *
+	 * 🔴 **Esiste perche' il giudizio non nasca dentro il widget.** Un `UserWidget` in Blueprint ha copertura
+	 * headless **zero**; senza questa funzione dovrebbe interrogare `HasStatus` dieci volte per unita' a ogni
+	 * fotogramma e inventarsi ordine e durata — cioe' la presentazione che ricostruisce un fatto che il
+	 * simulatore ha gia' stabilito. E' la stessa disciplina di `ShouldDrawUnitOverlay`.
+	 *
+	 * ## L'ordine, e perche' non ne inventa uno nuovo
+	 *
+	 * 1. **prima i controlli, per gravita'** — chiedendola a `URTReactionLibrary::ControlSeverityRank`, che
+	 *    ne e' l'owner (`0` = il piu' grave);
+	 * 2. **poi gli altri**, nell'ordine gia' deterministico di `ARTUnit::GetActiveStatusTags`.
+	 *
+	 * 🔴 **Chiude una duplicazione che esisteva**: `ARTHUD::DrawHUD` mostrava `ROOT` e poi `SLOW` in un
+	 * `if`/`else if` — lo **stesso** ordine di `ControlStatusesBySeverity`, ricopiato a mano. Se quella lista
+	 * cambiasse, o nascesse un terzo controllo, l'HUD sarebbe rimasto fermo e nessun test lo avrebbe detto:
+	 * `Reaction.ControlStatusesAreTwo` sorveglia la lista, non chi la copia.
+	 *
+	 * ⛔ **Non inventa una gravita' per gli altri otto stati.** `ControlStatusesBySeverity` ne copre **due** e
+	 * dichiara il proprio limite (*«e' una lista nel codice, non un dato del catalogo»*); una scala completa e'
+	 * `E36`, **v0.2**. Inventarla qui creerebbe una seconda tassonomia che quell'epic dovrebbe riconciliare.
+	 *
+	 * ⚠️ **Non tronca.** Quante icone stiano sopra un cilindro e' una domanda di layout, e la risposta
+	 * appartiene a chi disegna: la lista esce **ordinata** proprio perche' troncarla in coda sia una
+	 * decisione del consumatore, cambiabile senza toccare il giudizio.
+	 *
+	 * ⚠️ **Non c'e' nessun filtro su `Status.Electrified`, e non deve essercene**: la funzione mostra cio' che
+	 * l'unita' porta, e l'unita' non lo porta. L'inerzia (`#1324`) e' garantita **a monte** — nessun produttore
+	 * lo applica con una durata, la scarica emette `AppliedInstantly` e non tocca `StatusTurns` — ed e'
+	 * coperta da `RTElectricPropagationTests`, non da qui. 🔎 La prima stesura di questa riga prometteva un
+	 * filtro, e il test scritto per pinnarlo e' diventato **rosso**: `ApplyStatus` con una durata positiva
+	 * applica qualunque tag, quindi «Electrified non compare» e' una proprieta' del produttore, non di questa
+	 * funzione.
+	 *
+	 * @return vuoto se `Unit` e' nullo o non ha stati attivi.
+	 */
+	static TArray<FRTStatusBadgeView> BuildStatusBadges(const ARTUnit* Unit);
 
 	/**
 	 * I piani **autorevoli** di tutte le unita' vive, non filtrati per nessun osservatore.
