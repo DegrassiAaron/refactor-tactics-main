@@ -12,6 +12,8 @@
 > `docs/archive/src/design/terreno-ghiaccio-v0.1.md` (36 sezioni)
 > **Esito**: lo **scivolamento base resta in v0.1 perché è già implementato**; il **motore** (Momentum,
 > Traction, Prone, collisioni a catena, integrità, rottura, ponti) è **fuori**, epic post-release.
+> ⚠️ **Su `Unbalanced` e `Prone` questo esito è contestato dal 2026-09-04** e la domanda è aperta in
+> [`STA-5`](../OPEN_DECISIONS.md) — vedi §5. Resta vigente finché non si decide, ma non leggerlo come chiuso.
 > **Autorità**: subordinato a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) e
 > [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md).
 
@@ -93,9 +95,10 @@ modificatore di visibilità, e il modello della conoscenza deve esistere prima d
 > separandoli per **causa** dello spostamento — ambientale contro forzata — invece che per soglia di
 > Momentum, e sostiene quindi di poterli anticipare **senza** il motore che G.3 richiede.
 > ⛔ **Finché la decisione non è presa, questa riga resta vigente**: i due stati stanno in G.2. La sede della
-> risposta è [`MOV-5`](../OPEN_DECISIONS.md) — aperta il 2026-09-04 — non uno dei due brief.
-> ⚠️ **E la risposta può essere parziale**: `MOV-5` misura che `Unbalanced` è rappresentabile con il
-> contratto di oggi e `Prone` **no**, quindi fra le sue uscite c'è anticiparne **uno solo**.
+> risposta è [`STA-5`](../OPEN_DECISIONS.md) — aperta il 2026-09-04 — non uno dei due brief.
+> ⚠️ **E la risposta può essere parziale**: la misura è del brief (§8.1) — `Unbalanced` è uno status a durata
+> come gli altri, `Prone` finisce quando paghi e non lo è — e fra le uscite di `STA-5` c'è quindi anticiparne
+> **uno solo**.
 
 ## 6. Il collegamento con il rumore
 

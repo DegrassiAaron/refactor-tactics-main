@@ -11,7 +11,9 @@
 > prima di scrivere codice.** `ARTUnit::ApplyStatus` conosce **due** forme e nessuna terza:
 > `Turns > 0`, un conto alla rovescia che `TickStatuses()` decrementa a ogni Cleanup; e la sentinella
 > `PersistentWhileOnCell` (`-1`), che finisce in `CellBoundStatuses` e significa *«scade quando l'unità lascia
-> la cella»*. Ogni `Turns <= 0` **ritorna in silenzio**.
+> la cella»*. Ogni **altro** `Turns <= 0` esce senza applicare nulla — «altro» perché la sentinella `-1` **è**
+> un `Turns <= 0`, ed è testata per prima; e l'uscita non è muta, perché propaga comunque lo spegnimento del
+> `Burning` che un `Wet` provoca.
 > [`spec-stati-temporanei-cp82.md`](spec-stati-temporanei-cp82.md) lo dichiara verbatim: *«`ARTUnit::ApplyStatus`
 > sa rappresentare `N` turni **oppure** il legame alla cella»*.
 > Uno stato che dura *finché non paghi per uscirne* non è nessuna delle due: la sentinella di cella sarebbe
@@ -263,11 +265,13 @@ da tarare, nessun resolver iterativo, nessun fuzzing come prerequisito.
 > implicita»*. Finché la decisione non è presa, **`brief-ghiaccio.md` §5 resta vigente** e i due stati
 > restano in G.2. Questo documento è la proposta di cambiarlo, non il cambiamento.
 >
-> **Cosa serve per chiudere**: la voce [`MOV-5`](../OPEN_DECISIONS.md) — *«i due stati si anticipano fuori da
-> G.2, o si aspetta il motore?»*, aperta il 2026-09-04 — e, se la risposta è sì, l'aggiornamento di
-> `brief-ghiaccio.md` §5, il cui perimetro residuo diventerebbe Traction e Stability per eroe.
+> **Dove si decide**: la voce [`STA-5`](../OPEN_DECISIONS.md), aperta il 2026-09-04 nella famiglia degli
+> status — accanto a `STA-3`, che pone la stessa domanda su `Suppressed` e `Dazed`. Quel che manca per
+> chiudere non è più la voce, che esiste: è la **risposta**. Se è sì, si aggiornano `brief-ghiaccio.md` §5 e
+> [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md), che elenca i due stati fra ciò che è fuori dalla v0.1.
 >
-> 🔑 **`MOV-5` porta un'uscita che questo brief non aveva visto.** I due stati non hanno lo stesso costo:
-> `Unbalanced` è pienamente rappresentabile oggi, `Prone` no (§8.1). La domanda di scope si può quindi
-> risolvere **a metà** — anticipare il solo `Unbalanced` e lasciare `Prone` a G.2 col resto del motore —
-> senza che ne nasca un'incoerenza.
+> 🔑 **Una conseguenza che questo brief misura senza trarla.** L'asimmetria di §8.1 — `Unbalanced` è uno
+> status a durata come gli altri, `Prone` no — non è solo un problema implementativo: rende la domanda di
+> scope divisibile. Si può anticipare il solo `Unbalanced` e lasciare `Prone` col resto del motore, ed è la
+> terza uscita registrata in `STA-5`. ⚠️ Non «gratis», però: `Unbalanced` porta con sé i punti aperti §8.5,
+> §8.6 e §8.7, e l'amplificazione del `Pull`, che è un asse nuovo.
