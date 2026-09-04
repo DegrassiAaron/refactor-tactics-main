@@ -85,8 +85,20 @@ struct FRTReactionOpportunityKey
  * La cardinalita' di `AllowedResponses` e' l'unico discriminante fra i due regimi, e non esiste un secondo
  * criterio: `≤ 1` e' il caso degenere — le reazioni E5 di oggi, che scattano o non scattano — e `≥ 2` apre il
  * decision boundary. Un modello solo, con E5 conservata dentro, invece di due da mantenere.
+ *
+ * 🔑 **`RTServerOnly` — e la fonte e' [D-021], non una deduzione** (`#589`). Quella decisione elenca cio'
+ * che il DTO avversario non contiene: *«trigger, opportunity, `AllowedResponses`, identita' del responder
+ * ne' timeout»*. Questa struct porta due di quelle voci — `AllowedResponses` e, dentro `Key`, l'`OwnerId`
+ * che e' l'identita' del responder — quindi la sua classe di dato e' **Server-only** (PDR-04 §2), e
+ * `RefactorTactics.Privacy.ServerOnlyTypesAreNotReplicated` lo verifica sulla reflection.
+ *
+ * ⚠️ **`FRTReactionOpportunityKey` da sola NON e' marcata, ed e' deliberato**: la terna che identifica una
+ * finestra entra nel **TurnLog**, che dopo la resolution e' pubblico. Marcarla produrrebbe un falso
+ * positivo, e il primo che lo incontra lo «risolve» togliendo il marcatore — indebolendo la guardia per un
+ * difetto della guardia. Qui e' protetta perche' e' CONTENUTA, che e' la protezione giusta: durante il
+ * planning non parte, dopo la resolution parte come parte del log pubblico.
  */
-USTRUCT()
+USTRUCT(meta = (RTServerOnly))
 struct FRTReactionOpportunity
 {
 	GENERATED_BODY()
