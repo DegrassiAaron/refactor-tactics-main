@@ -18,6 +18,8 @@
 #include "Animation/AnimSingleNodeInstance.h"
 #include "Unit/RTUnitAnimInstance.h"
 #include "Perception/RTTeamKnowledge.h" // ContactLifetimeTurns: la durata del ricordo ha un owner, non si ricopia
+#include "Components/WidgetComponent.h" // la sovrapposizione sopra la testa (#2288, D-320)
+#include "UI/RTUnitOverlayWidget.h"  // la classe base del widget: serve il tipo completo per SetWidgetClass
 
 ARTUnit::ARTUnit()
 {
@@ -123,6 +125,58 @@ ARTUnit::ARTUnit()
 	// normale erediterebbe il transform e la trascinerebbe con l'unita' vera, che nel frattempo puo' essersi
 	// mossa altrove. La aggiorna solo `UpdateContactGhost`, mai `RefreshComponentVisibility` (che nasconde il
 	// personaggio vero) ne' `ApplyTeamColor`/`ApplyFacingArrow` (che sono presentazione del vivo).
+	// Sovrapposizione sopra la testa (`#2288`, `D-320`): nome, vita, scudo, energia, stati.
+	//
+	// ⚠️ `Screen` space e non `World`: e' cio' che sostituisce il disegno in canvas, che era in coordinate
+	// schermo. In `World` la sovrapposizione rimpicciolirebbe con la distanza — e a camera tattica, dove le
+	// unita' stanno a quote diverse, due barre della stessa lunghezza logica avrebbero due lunghezze
+	// diverse a schermo. Chi la vuole diegetica cambia QUESTA riga, e sa gia' cosa sta scambiando.
+	//
+	// 🔑 **`Screen` space risolve anche lo scarto «dietro la camera»** che il canvas otteneva con
+	// `Screen.Z <= 0`: un widget in screen space non viene proiettato a mano, e il motore non lo disegna
+	// quando il componente e' dietro il piano di vista.
+	OverlayWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("OverlayWidget"));
+	OverlayWidget->SetupAttachment(SceneRoot);
+	OverlayWidget->SetWidgetSpace(EWidgetSpace::Screen);
+	// 🔴 **SOPRA la testa, non ai piedi.** Il componente si proietta dalla propria posizione nel mondo: senza
+	// questo offset la sovrapposizione nascerebbe alla base del cilindro, cioe' addosso ai piedi dell'unita'.
+	// Il valore e' quello che il canvas usava (`ARTHUD::WorldHeadOffset`), cosi' l'altezza non cambia
+	// passando da un supporto all'altro.
+	OverlayWidget->SetRelativeLocation(FVector(0.f, 0.f, 200.f));
+	// ⚠️ **`DrawSize` esplicito e `bDrawAtDesiredSize = false`.** Misurato in PIE: con la dimensione
+	// desiderata le sovrapposizioni finivano **tutte impilate in alto a sinistra** invece che sopra le
+	// rispettive unita' — un widget in Screen space senza una dimensione dichiarata non ha un centro da cui
+	// proiettarsi. E' il difetto che nessun test headless poteva vedere, ed e' la ragione per cui la DoD di
+	// `#2288` chiede il PIE.
+	OverlayWidget->SetDrawAtDesiredSize(false);
+	OverlayWidget->SetDrawSize(FVector2D(220.f, 90.f));
+	OverlayWidget->SetPivot(FVector2D(0.5f, 1.f)); // ancorata in basso al centro: cresce verso l'alto
+	OverlayWidget->SetCollisionEnabled(ECollisionEnabled::NoCollision); // mai un proxy di click
+	OverlayWidget->SetGenerateOverlapEvents(false);
+	OverlayWidget->SetVisibility(false); // il velo la accende: nasce spenta come gli anelli
+
+	// La classe di default del widget.
+	//
+	// 🔑 **In C++ e non sui quattro `BP_Unit_*`, e la ragione non e' la pigrizia.** La sovrapposizione e'
+	// **uguale per tutti** — lo era anche quando la disegnava il canvas, che non sapeva nemmeno quale eroe
+	// stesse disegnando. Metterla su ogni eroe sarebbe quattro binari da tenere allineati per un dato che
+	// non varia, e il primo dimenticato sarebbe un'unita' senza barra della vita che nessun test vede.
+	//
+	// ⚠️ Resta `EditDefaultsOnly`: un `BP_Unit_*` puo' **sovrascriverla** il giorno che un eroe voglia una
+	// sovrapposizione propria. Il C++ dichiara il default, il dato conserva l'ultima parola — che e' il
+	// confine di `AGENTS.md` §3.
+	//
+	// ⚠️ **Il suffisso `_C` non e' un dettaglio**: senza, il path punta all'ASSET e non alla sua classe
+	// generata, e il `FClassFinder` non risolve.
+	static ConstructorHelpers::FClassFinder<URTUnitOverlayWidget> OverlayBP(
+		TEXT("/Game/RT/UI/Match/WBP_RT_UnitOverlay.WBP_RT_UnitOverlay_C"));
+	if (OverlayBP.Succeeded())
+	{
+		OverlayWidgetClass = OverlayBP.Class;
+	}
+	// Se l'asset manca il campo resta nullo e non si vede niente: degrada, non crasha — la stessa forma con
+	// cui il cilindro segnaposto qui sopra e' condizionato a `CylinderMesh.Succeeded()`.
+
 	ContactGhost = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ContactGhost"));
 	ContactGhost->SetupAttachment(SceneRoot);
 	ContactGhost->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -143,6 +197,31 @@ void ARTUnit::BeginPlay()
 	ApplyUnitMeshLOD();
 	ApplyMeshYawOffset();
 	ApplyFacingArrow();
+	ApplyOverlayWidgetClass();
+}
+
+void ARTUnit::ApplyOverlayWidgetClass()
+{
+	if (OverlayWidget == nullptr || OverlayWidgetClass == nullptr)
+	{
+		// Senza una classe assegnata il componente resta vuoto e non si vede niente: degrada, non crasha.
+		// E' la stessa forma con cui `HeroMeshClass` e `ContactGhostMaterial` sono opzionali — l'assenza di
+		// un asset di presentazione non deve poter fermare una partita.
+		return;
+	}
+
+	// ⚠️ Conversione esplicita: `SetWidgetClass` vuole un `TSubclassOf<UUserWidget>` e il campo dichiara il
+	// tipo piu' STRETTO (`URTUnitOverlayWidget`), che e' cio' che impedisce di assegnare un widget
+	// qualunque dal Blueprint. La stretta sta nel dato, il cast e' solo il prezzo di averla.
+	OverlayWidget->SetWidgetClass(TSubclassOf<UUserWidget>(OverlayWidgetClass));
+}
+
+UUserWidget* ARTUnit::GetOverlayWidgetObject() const
+{
+	// ⚠️ Il widget vero nasce quando il componente lo istanzia, non nel costruttore: prima di allora — e in
+	// un mondo senza rendering, come quello dei test headless — questa risponde `nullptr`, ed e' il caso
+	// normale, non un errore. Chi la chiama deve poterlo attraversare senza dire niente.
+	return OverlayWidget ? OverlayWidget->GetUserWidgetObject() : nullptr;
 }
 
 void ARTUnit::ApplyUnitAnimClass()
@@ -360,6 +439,12 @@ void ARTUnit::RefreshComponentVisibility()
 
 	// La freccia di facing ha il proprio interruttore di presentazione.
 	if (FacingArrow)   { FacingArrow->SetVisibility(bRender && bShowFacingArrow, false); }
+
+	// La sovrapposizione segue il velo come mesh e anelli (`#2288`): su un nemico che la squadra non vede
+	// non deve esserci nome ne' barra della vita. ⚠️ **Al contrario di `ContactGhost`**, che e' escluso da
+	// questa funzione proprio perche' deve vedersi quando l'unita' non si vede — e mescolarli sarebbe il
+	// difetto opposto, un ricordo che sparisce insieme al suo soggetto.
+	if (OverlayWidget) { OverlayWidget->SetVisibility(bRender, false); }
 
 	if (HeroSkeletal)
 	{
