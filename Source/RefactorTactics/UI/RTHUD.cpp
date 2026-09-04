@@ -460,13 +460,19 @@ void ARTHUD::Tick(float DeltaSeconds)
 
 	// ⚠️ Nel fotogramma il `Tick` precede `DrawHUD`: cio' che il disegno legge da `IsKnownToObserver()` e'
 	// deciso in questo stesso giro, non in quello prima.
+	//
+	// ⚠️ **Il caso scoperto in review, dichiarato invece che chiuso**: un'unita' che nascesse DOPO questo
+	// tick e prima del disegno dello stesso fotogramma verrebbe disegnata una volta col suo default
+	// (`bKnownToObserver == true`). Prima di `#2246` non poteva accadere, perche' decisione e disegno
+	// stavano nello stesso ciclo. Non si chiude riportando il driver dentro `DrawHUD` — sarebbe annullare
+	// lo scopo — e in v0.1 non si verifica: il roster e' congelato dal bootstrap (`EnsureMatchRoster`), non
+	// arrivano unita' a meta' partita. Se un giorno ne arrivassero, il posto da guardare e' questo.
 	UpdateObserverVeil();
 }
 
 void ARTHUD::UpdateObserverVeil()
 {
-	const UWorld* World = GetWorld();
-	if (World == nullptr)
+	if (GetWorld() == nullptr)
 	{
 		return;
 	}
