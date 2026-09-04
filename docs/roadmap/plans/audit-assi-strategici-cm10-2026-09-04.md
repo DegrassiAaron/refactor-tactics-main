@@ -35,7 +35,7 @@ Un contatore che sale da solo soddisfa 1 e non 2. Un budget che si ripristina og
 | **Cooldown** | ✅ | `Unit->TickCooldowns()` nel Cleanup (`RTTurnManager.cpp:1898`) | ✅ |
 | **Carica di reazione** | ✅ | `bCharged`: `HOLD` la conserva, solo `FIRE` la consuma | ✅ |
 | **HP** | ✅ | — | ⚠️ |
-| **Energia (risorsa firma)** | ✅ | `GainEnergy(Energy, EnergyPerTurn, MaxEnergy)` nel Cleanup (`:1881`) | 🔴 **no** | <!-- superata: vedi nota in coda -->
+| **Energia (risorsa firma)** | ✅ | `GainEnergy(Energy, EnergyPerTurn, MaxEnergy)` nel Cleanup (`:1881`) | 🔴 **no** ⛔ **SUPERATA il 2026-09-04** — vedi la nota in coda |
 | **Punteggio obiettivo** | ✅ | un punto per Cleanup controllato | 🔴 **no** |
 | Slot · Movement Point · Pivot | ❌ | ripristinati ogni turno | tattici |
 | Status | ~ | durate di **1–2** turni | orizzonte breve |

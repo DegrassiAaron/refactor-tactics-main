@@ -763,9 +763,15 @@ private:
 	/** Popola Abilities con un set di default (attacco, colpo pesante, ultimate) se vuota. */
 	void EnsureDefaultAbilities();
 
-	/** Crea un'abilita' data-driven in codice. */
-	URTActionData* MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area,
-		int32 Cooldown, FGameplayTag Status, int32 StatusDur);
+	/**
+	 * Crea un'abilita' data-driven in codice.
+	 *
+	 * ⚠️ Portava anche `EnergyCost` (tolto da `D-324`) e una coppia `Status`/`StatusDur` che **non e' mai
+	 * stata assegnata**: `URTActionData` non ha un campo per lo stato, quindi il `TAG_Status_Slow, 2` che
+	 * l'Ultimate legacy passava era inerte da sempre e faceva credere al lettore che l'abilita' applicasse
+	 * Slow. Rimossa insieme all'altro parametro morto invece di sopravvivergli.
+	 */
+	URTActionData* MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area, int32 Cooldown);
 
 public:
 

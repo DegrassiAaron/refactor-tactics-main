@@ -54,10 +54,10 @@ bool FRTHudAbilityLineReasonTest::RunTest(const FString&)
 		ARTHUD::ComposeAbilityLine(Ability, false).Text,
 		FString(TEXT("1. Scatto  (ricarica 2)")));
 
-	// La riga non nomina nessun altro motivo accanto alla ricarica.
-	const FString InRicarica = ARTHUD::ComposeAbilityLine(Ability, false).Text;
-	TestTrue(TEXT("in ricarica la riga dice i turni"), InRicarica.Contains(TEXT("(ricarica 2)")));
-	TestFalse(TEXT("e non nomina l'energia"), InRicarica.Contains(TEXT("energia")));
+	// ⛔ Qui stavano due assertion su `Contains("(ricarica 2)")` e `!Contains("energia")` sullo STESSO stato
+	// gia' pinnato dall'uguaglianza esatta qui sopra: strettamente piu' deboli, quindi nessuna mutazione
+	// poteva farle cadere lasciando verde la riga precedente. Erano il residuo del caso «entrambi i motivi»,
+	// che `D-324` ha reso impossibile.
 
 	// 🔴 **Il caso che sostituisce la precedenza**: fuori ricarica ma dichiarata inutilizzabile.
 	//

@@ -38,7 +38,7 @@ issue [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613).
 >
 > ⚠️ **Nei due `WBP_RT_*` la barra è ancora disegnata** — `WBP_RT_UnitOverlay` (`EnergyBar`) e
 > `WBP_RT_UnitCard`. Il binding era `BindWidgetOptional`, quindi non rompe nulla: resta un elemento inerte
-> che nessuno aggiorna, e va tolto dal Blueprint in Editor.
+> che nessuno aggiorna, e va tolto dal Blueprint in Editor. **Owner: [#2372](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2372).**
 
 ---
 

@@ -1088,7 +1088,7 @@ bool FRTChargeDoesNotRefundUltimateTest::RunTest(const FString&)
 {
 	// Lo stesso turno, con e senza la carica.
 	auto GiraIlTurno = [this](bool bConCarica, bool& bOutColpito,
-		bool& bOutUltimateInRicarica) -> bool
+		bool& bOutUltimateInRicarica, int32& OutCooldown) -> bool
 	{
 		UWorld* World = MakeControlWorld();
 		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -1138,6 +1138,7 @@ bool FRTChargeDoesNotRefundUltimateTest::RunTest(const FString&)
 
 		bOutColpito = Bersaglio->Health < Bersaglio->MaxHealth;
 		bOutUltimateInRicarica = !Caricatore->CanUseAbility(0);
+		OutCooldown = Caricatore->GetAbilityCooldown(0);
 
 		AddInfo(FString::Printf(TEXT("%s: ultimate in ricarica %s, cella %s"),
 			bConCarica ? TEXT("con carica") : TEXT("senza carica"),
@@ -1161,8 +1162,9 @@ bool FRTChargeDoesNotRefundUltimateTest::RunTest(const FString&)
 
 	bool bColpitoCon = false, bColpitoSenza = false;
 	bool bRicaricaCon = false, bRicaricaSenza = false;
-	if (!GiraIlTurno(/*bConCarica=*/ true,  bColpitoCon, bRicaricaCon))  { return false; }
-	if (!GiraIlTurno(/*bConCarica=*/ false, bColpitoSenza, bRicaricaSenza)) { return false; }
+	int32 CooldownCon = 0, CooldownSenza = 0;
+	if (!GiraIlTurno(/*bConCarica=*/ true,  bColpitoCon, bRicaricaCon, CooldownCon))  { return false; }
+	if (!GiraIlTurno(/*bConCarica=*/ false, bColpitoSenza, bRicaricaSenza, CooldownSenza)) { return false; }
 
 	// Le premesse: in tutti e due i giri l'ultimate deve aver COLPITO, o l'unico colpo sarebbe quello
 	// dell'impatto e il cooldown parlerebbe di un'azione diversa da quella che il test dichiara.
@@ -1176,7 +1178,14 @@ bool FRTChargeDoesNotRefundUltimateTest::RunTest(const FString&)
 	// CON la carica non pagava, e i due esiti divergevano.
 	TestTrue(TEXT("l'ultimate e' in ricarica anche dopo una carica"), bRicaricaCon);
 	TestTrue(TEXT("e anche senza"), bRicaricaSenza);
-	TestEqual(TEXT("la carica non cambia se l'ultimate ha pagato"), bRicaricaCon, bRicaricaSenza);
+
+	// ⚠️ **Il CONFRONTO e' sul valore residuo, non sui due booleani.** `TestEqual(bRicaricaCon, bRicaricaSenza)`
+	// sarebbe implicato dalle due righe sopra — se entrambe reggono non puo' cadere — e il secondo giro
+	// diventerebbe un costo senza potere. Il contatore invece distingue anche un pagamento **parziale**: un
+	// difetto che scontasse meno turni sul percorso con la carica separerebbe i due numeri lasciando entrambi
+	// i booleani veri.
+	TestEqual(FString::Printf(TEXT("la carica non cambia QUANTO paga: %d con, %d senza"),
+		CooldownCon, CooldownSenza), CooldownCon, CooldownSenza);
 
 	return true;
 }

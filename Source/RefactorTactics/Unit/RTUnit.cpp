@@ -1087,7 +1087,7 @@ int32 ARTUnit::GetEffectiveDashRange(int32 BaseRange) const
 }
 
 URTActionData* ARTUnit::MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area,
-	int32 Cooldown, FGameplayTag Status, int32 StatusDur)
+	int32 Cooldown)
 {
 	URTActionData* Ability = NewObject<URTActionData>(this);
 	Ability->DisplayName = FText::FromString(Name);
@@ -1095,7 +1095,16 @@ URTActionData* ARTUnit::MakeAbility(const FString& Name, int32 Range, int32 Powe
 	Ability->Power = Power;
 	Ability->AreaRadius = Area;
 	Ability->Shape = (Area > 0) ? ERTAbilityShape::Area : ERTAbilityShape::Single;
+	// 🔴 **Il cooldown si scrive in TUTTI E DUE i posti, e la seconda riga e' una correzione.**
+	//
+	// `ConsumeAbility` legge lo specchio legacy `CooldownTurns`, ma l'HUD legge `Def.CooldownTurns` come
+	// DENOMINATORE della carica (`URTHudViewModel::BuildAbilityCooldowns`). Scrivendo solo il primo, un'abilita'
+	// in ricarica mostrava `TotalTurns = 0`, quindi `ChargeFraction = 1.f`: **barra piena su un'azione che non
+	// si puo' usare**. Ogni altro produttore del progetto tiene la coppia allineata di proposito
+	// (`RTCatalogLibrary`, `RTHeroCatalogLibrary`, `RTWorkbenchVariant`); questa era l'unica che non lo faceva,
+	// e il difetto era silente finche' l'unica abilita' legacy con ricarica era `Colpo pesante`.
 	Ability->CooldownTurns = Cooldown;
+	Ability->Def.CooldownTurns = Cooldown;
 	return Ability;
 }
 
@@ -1105,22 +1114,31 @@ void ARTUnit::EnsureDefaultAbilities()
 	{
 		return;
 	}
-	Abilities.Add(MakeAbility(TEXT("Attacco"), AttackRange, AttackPower, 0, 0, FGameplayTag(), 0));
-	Abilities.Add(MakeAbility(TEXT("Colpo pesante"), FMath::Max(1, AttackRange - 1), AttackPower + 20, 0, 2, FGameplayTag(), 0));
+	Abilities.Add(MakeAbility(TEXT("Attacco"), AttackRange, AttackPower, 0, 0));
+	Abilities.Add(MakeAbility(TEXT("Colpo pesante"), FMath::Max(1, AttackRange - 1), AttackPower + 20, 0, 2));
 	// L'Ultimate legacy aveva `EnergyCost = MaxEnergy` e cooldown **0**: il costo ERA il suo unico gate, e
 	// con `EnergyPerTurn = 25` su un cap di 100 tornava disponibile ogni **quattro** turni.
 	//
 	// [D-324](../../../docs/decisions/RT_PDR_00_Decision_Log.md) toglie `Energy` dal gameplay. Lasciare qui
 	// lo `0` avrebbe reso l'Ultimate usabile OGNI turno — non la rimozione di un'economia, ma la sua
-	// sostituzione con nessuna. Il `4` traduce il gate esistente nell'unico asse che
-	// [D-265](../../../docs/decisions/RT_PDR_00_Decision_Log.md) lascia in piedi — slot, cooldown, drawback —
-	// e conserva il comportamento osservabile invece del numero che lo produceva.
-	Abilities.Add(MakeAbility(TEXT("Ultimate"), AttackRange, AttackPower * UltimateMultiplier, UltimateRadius, 4, TAG_Status_Slow, 2));
+	// sostituzione con nessuna. Il `4` traduce il gate nell'unico asse che
+	// [D-265](../../../docs/decisions/RT_PDR_00_Decision_Log.md) lascia in piedi: slot, cooldown, drawback.
+	//
+	// ⚠️ **Conserva il PERIODO, non l'APERTURA, e la differenza va dichiarata.** `Energy` partiva da zero,
+	// quindi il primo uso arrivava al turno **5**; `AbilityCooldowns` nasce `SetNumZeroed`, quindi il primo
+	// uso e' disponibile al turno **1**. Fra due usi restano quattro turni in entrambi i regimi, ma l'attesa
+	// iniziale non c'e' piu'.
+	//
+	// ⛔ **Non e' stata ricostruita, ed e' una scelta.** Servirebbe innescare il contatore allo spawn — cioe'
+	// uno stato iniziale che nessun'altra abilita' del progetto ha — per riprodurre la rampa di un
+	// sottosistema **scartato** da `D-265`. Questo e' il percorso degli **archetipi legacy**: il roster
+	// spedito prende `Abilities = Hero->Actions` e non passa mai di qui (`D-324` punto 1).
+	Abilities.Add(MakeAbility(TEXT("Ultimate"), AttackRange, AttackPower * UltimateMultiplier, UltimateRadius, 4));
 	// Scatto generico: portata, ricarica e identita' vengono da `Action.Dodge`, non da numeri inventati qui.
 	// E' anche cio' che lo rende riconoscibile come mobilita' rapida: il gate e' la FASE dichiarata dal
 	// catalogo (`URTCatalogLibrary::IsFastMovement`), non un flag booleano sull'asset.
 	const FRTActionDef DodgeDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
-	URTActionData* Scatto = MakeAbility(TEXT("Scatto"), DodgeDef.RangeCells, 0, 0, DodgeDef.CooldownTurns, FGameplayTag(), 0);
+	URTActionData* Scatto = MakeAbility(TEXT("Scatto"), DodgeDef.RangeCells, 0, 0, DodgeDef.CooldownTurns);
 	Scatto->Def = DodgeDef;
 	Abilities.Add(Scatto);
 

@@ -135,7 +135,7 @@ struct FRTHexAttackIntent
 	/**
 	 * L'azione si DICHIARA un'aggressione contro un'unita' ([`INT-8`], `#1491`). Un colpo e' un concetto
 	 * solo -- danno, trigger `HitByDirectAttack` e `Marked` viaggiano insieme -- quindi chi
-	 * non si dichiara non ne produce nessuno, e nessuno dei quattro consumatori lo vede.
+	 * non si dichiara non ne produce nessuno, e nessuno dei tre consumatori lo vede.
 	 *
 	 * ⚠️ **`false` di default, ed e' il verso opposto agli altri flag** (`bAllowsReaction`, `bFriendlyFire`,
 	 * `InterruptPolicy` parte dal valore permissivo). La rottura di simmetria e' deliberata: quelli descrivono PERMESSI,

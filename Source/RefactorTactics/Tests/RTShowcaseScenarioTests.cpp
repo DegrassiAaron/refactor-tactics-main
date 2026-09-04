@@ -2157,10 +2157,6 @@ bool FRTShowcaseStateHashPerTurnTest::RunTest(const FString&)
 		PerTurno.Add(Diritto.StateHash);
 	}
 
-	// La controprova che gli otto confronti sopra non siano l'uguaglianza di una costante con se' stessa.
-	TestTrue(TEXT("l'hash non e' una costante travestita: piu' d'un valore fra gli otto turni"),
-		Distinti.Num() > 1);
-
 	// 🔴 **SETTE valori distinti su otto turni, e la collisione e' NOTA, misurata e attesa.**
 	//
 	// Questa riga asseriva `Distinti.Num() == Turns.Num()`, cioe' otto, e passava. ⚠️ **Passava per il motivo
@@ -2191,12 +2187,17 @@ bool FRTShowcaseStateHashPerTurnTest::RunTest(const FString&)
 	               "digest — il cooldown che paga non ne fa parte"),
 		Distinti.Num(), 7);
 
-	if (PerTurno.Num() >= 2)
+	// La collisione e' ESATTAMENTE quella dichiarata, non una qualsiasi: se collidessero due altri turni il
+	// conteggio resterebbe 7 e la riga sopra tacerebbe.
+	//
+	// ⚠️ Nessuna guardia `if (PerTurno.Num() >= 2)`: un salto silenzioso toglierebbe di mezzo proprio
+	// l'assertion piu' stretta senza dirlo. Il loop gira su otto turni gia' verificati sopra — se ne
+	// producesse meno, e' un errore da dichiarare, non da aggirare.
+	if (!TestEqual(TEXT("premessa: un hash per turno"), PerTurno.Num(), Scenario.Turns.Num()))
 	{
-		// La collisione e' ESATTAMENTE quella dichiarata, non una qualsiasi: se collidessero due altri turni
-		// il conteggio resterebbe 7 e la riga sopra tacerebbe.
-		TestEqual(TEXT("e la collisione e' T1 con T2, non un'altra coppia"), PerTurno[0], PerTurno[1]);
+		return false;
 	}
+	TestEqual(TEXT("e la collisione e' T1 con T2, non un'altra coppia"), PerTurno[0], PerTurno[1]);
 
 	return true;
 }

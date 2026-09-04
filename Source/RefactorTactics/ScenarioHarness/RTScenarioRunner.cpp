@@ -57,6 +57,12 @@ namespace
 	 * container non ordinato — cioe' esattamente cio' che l'invariante #4 vieta, dentro lo strumento che
 	 * dovrebbe verificarlo.
 	 */
+	// ⛔ **SENZA CHIAMANTI, misurato il 2026-09-05.** `git grep HashFinalState -- Source/` da' questa
+	// definizione e una citazione in un commento di test: nient'altro. Lo `StateHash` che gli scenari
+	// pubblicano viene da `URTMatchStateHashLibrary::HashMatchState` via `RTScenarioSession.cpp`, e
+	// `RTScenarioRunner` lo propaga da `RunResult.StateHash`. ⚠️ `D-284` e `D-324` contano questo fra i **due
+	// siti di `Mix`** da tenere allineati: uno dei due e' questa funzione morta, e la nota va letta sapendolo.
+	// La rimozione non e' fatta qui — sarebbe una pulizia che le due voci non prevedono.
 	uint32 HashFinalState(const TMap<FString, ARTUnit*>& UnitsById)
 	{
 		TArray<FString> Ids;
