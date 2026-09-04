@@ -228,6 +228,14 @@ Il delta reale della proposta, portato dove il processo ha già un proprietario:
 | capability probe prima di affidare un passo a MCP, e *un vuoto non è un no* | `CLAUDE.md` §5, *Lifecycle Editor / MCP* |
 | la regola dell'asset caldo come decisione esplicita, con ciò che **non** decide | Decision Log, `D-330` |
 
+🔴 **Rileggendo la consegna prima del merge, due difetti erano nella regola consegnata, non nella proposta.**
+*(a)* La catena diceva `salva → chiudi → build/suite → riapri → giudica` **senza condizione**, e avrebbe
+imposto un'ora di build a chi cambia una property in un `.uasset`: il build ci sta solo se il write-set tocca
+`Source/`. *(b)* *«L'assenza in uno dei tre non è un buco»* autorizzava, letta alla lettera, a scrivere in
+una issue l'esito di una voce `PIE-*` — che `test-manuali-pie.md` possiede. Entrambe corrette in `AGENTS.md`
+§9 e in `D-330` prima che il numero entrasse in `main`. ⚠️ È la stessa forma dell'errore di §2: una regola
+scritta bene in generale, sbagliata sul caso che non era stato percorso.
+
 Non consegnato, e perché:
 
 - **le fasi A0–A6 / B0–B7**: sono `AGENTS.md` §8–§10 con altri nomi (R1);

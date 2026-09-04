@@ -369,7 +369,10 @@ precedere l'implementazione — un asset è spesso un prerequisito, non una veri
 
 Se la sessione ha scritto asset binari, il giudizio non vale nel processo che li ha scritti:
 
-**salva → chiudi l'Editor → build/suite → riapri → giudica**
+**salva → chiudi l'Editor → *(build/suite se il write-set tocca `Source/`)* → riapri → giudica**
+
+Il build sta nella catena solo quando il work item ha toccato codice: per un write-set di soli asset non
+cambia ciò che si sta giudicando, e costa un'ora.
 
 La riapertura è parte dell'oracolo quando si verifica persistenza, serializzazione, riferimenti, startup
 map, layout, errori di load, inizializzazione da zero, asset registry o cook. Fuori da questi casi non
@@ -388,6 +391,9 @@ Il verdetto va scritto dove il suo owner lo cerca:
 
 L'assenza in uno dei tre non è un buco se un altro porta il verdetto. Se non lo porta nessuno: `NOT RUN`
 con il motivo.
+
+⛔ La scelta non è libera: se la verifica **ha** una voce `PIE-*`, il verdetto va nel registro, che ne
+resta l'owner — una issue non lo sostituisce.
 
 ### `issue-refs.ts` — l'unico che guarda fuori dal repository
 
