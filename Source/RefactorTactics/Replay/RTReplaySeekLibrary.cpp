@@ -27,6 +27,18 @@ ERTReplaySeekResult URTReplaySeekLibrary::SeekToBoundary(const TArray<FRTTurnLog
 	// non l'ha attraversata. Se la fase c'e' ma non a quel micro-step, e' `BoundaryNotFound`: la barriera
 	// chiesta non esiste in un turno che pure ha avuto quella fase. Dire la prima al posto della seconda
 	// manderebbe a cercare il turno sbagliato.
+	// ⛔ `INDEX_NONE` NON e' una barriera indirizzabile, ed e' lo stesso rifiuto che `SeekToTurn` oppone allo
+	// `0` dei turni non dichiarati (`#2260`). Da quando il resolver scrive il campo, le voci nate fuori da un
+	// ciclo di micro-step — Blast, status, hazard, i rifiuti in Planning — valgono `INDEX_NONE`: sono molte,
+	// condividono il valore e **non formano un gruppo simultaneo**, perche' non c'e' nessun boundary che le
+	// abbia decise insieme. Lasciar passare la richiesta risponderebbe `Found` puntando alla prima di esse,
+	// cioe' trasformerebbe «questa voce non appartiene a un ciclo» in una posizione — l'opposto del
+	// fail-closed, e la smentita di cio' che il nome di questa funzione promette.
+	if (MicroStepIndex < 0)
+	{
+		return ERTReplaySeekResult::BoundaryNotFound;
+	}
+
 	bool bPhaseSeen = false;
 	for (int32 Index = 0; Index < Trace.Num(); ++Index)
 	{

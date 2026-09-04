@@ -1845,6 +1845,71 @@ bool FRTHexMoveTrailAndGhostAgreeTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * ⚠️ **Una voce nata fuori da un ciclo di micro-step lo DICHIARA, e non eredita l'indice dell'ultima
+ * barriera** (`#2260`).
+ *
+ * Questo turno non ha reazioni: nessun Overwatch e' armato, quindi il ciclo di `ResolveNextHexMicroStep`
+ * gira ma non produce voci. Tutto cio' che finisce nel TurnLog nasce **fuori** — le voci di movimento
+ * arrivano da `BuildMoveLog`, che gira DOPO `FinishHexMovement` e produce una voce per UNITA', non una
+ * per passo. Nessuna di esse appartiene a un boundary, e tutte devono valere `INDEX_NONE`.
+ *
+ * 🔴 **Due difetti diversi, e il test li separa entrambi:**
+ *
+ * | Se manca | La voce vale | Cosa direbbe di falso |
+ * |---|---|---|
+ * | la scrittura in `AppendLogEntry` | `0`, il default della struct | «primo boundary», che e' una barriera che questa voce non ha attraversato |
+ * | il ripristino `ON_SCOPE_EXIT` | l'ultimo indice del ciclo | «boundary N», cioe' appartenere a un ciclo gia' finito |
+ *
+ * ∴ pretendere `INDEX_NONE` — e **non** `0` — e' l'unica asserzione che le esclude tutte e due. Un test
+ * che accettasse «qualunque valore» passerebbe con entrambi i difetti dentro.
+ *
+ * ⛔ Cio' che questo test NON prova: l'incremento. Senza reazioni nessuna voce nasce dentro il ciclo, e il
+ * caso `MicroStepIndex >= 0` vive negli scenari con Overwatch del corpus golden. Dichiararlo qui evita che
+ * il verde di questo test venga letto come «l'alimentazione e' verificata», che sarebbe la meta'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveEntriesDeclareNoBoundaryTest,
+	"RefactorTactics.HexMove.EntriesOutsideACycleDeclareIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveEntriesDeclareNoBoundaryTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 4);
+
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	// Piu' di un passo, cosi' il ciclo dei micro-step gira davvero e il contatore sale prima di essere
+	// rimesso a posto: con una cella sola il ripristino sarebbe verificato su un ciclo di lunghezza 1.
+	Mover->PlannedCell = FRTCellId(2, -1);
+	Foe->PlannedCell = Foe->Cell;
+
+	RunTurn(TM);
+
+	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
+	if (!TestTrue(TEXT("il turno ha prodotto voci"), Log.Num() > 0))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	int32 Dichiarate = 0, ConBoundary = 0;
+	for (const FRTTurnLogEntry& E : Log)
+	{
+		if (E.MicroStepIndex == INDEX_NONE) { ++Dichiarate; }
+		else { ++ConBoundary; }
+	}
+
+	TestEqual(TEXT("nessuna voce si attribuisce un boundary in un turno senza reazioni"), ConBoundary, 0);
+	TestEqual(TEXT("e tutte dichiarano di non appartenere a un ciclo"), Dichiarate, Log.Num());
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.

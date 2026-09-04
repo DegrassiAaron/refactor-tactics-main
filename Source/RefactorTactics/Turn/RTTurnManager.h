@@ -1559,6 +1559,26 @@ protected:
 	void RefreshTeamKnowledgeForPlanning(const TArray<ARTUnit*>& Live);
 
 	/**
+	 * Il boundary IN CORSO, che `AppendLogEntry` stampa su ogni voce come terza coordinata dopo turno e fase
+	 * (`#2260`). Vive qui, e non come variabile locale del ciclo, per una ragione sola: il punto che CONTA i
+	 * micro-step e il punto che SCRIVE la traccia sono funzioni diverse, e l'unico modo di tenerli d'accordo
+	 * senza duplicare il contatore e' che ne leggano uno solo.
+	 *
+	 * ⚠️ **`INDEX_NONE` non e' «non inizializzato»: e' un valore con un significato**, ed e' quello che vale
+	 * per la maggior parte della partita. Una voce nasce fuori da un ciclo di micro-step ogni volta che la
+	 * sua fase non ne ha — Blast, status, hazard, objective, i rifiuti in Planning — e li' `INDEX_NONE` dice
+	 * esattamente questo: *nessun ciclo qui*. Cosi' `0` dentro una traccia `WithMicroStep` torna a
+	 * significare **una cosa sola**, il PRIMO boundary, invece di due.
+	 *
+	 * 🔑 **Lo ripristina chi lo alza, e per costruzione**: il ciclo di movimento lo porta a `0` quando
+	 * comincia e un `ON_SCOPE_EXIT` lo rimette a `INDEX_NONE` quando esce. Senza quel ripristino ogni voce
+	 * emessa DOPO il movimento erediterebbe in silenzio l'indice dell'ultima barriera, e direbbe di
+	 * appartenere a un ciclo gia' finito. Affidarlo a un `return` che non dimentichi sarebbe affidarlo alla
+	 * disciplina, che e' precisamente cio' che questo campo esiste per non dover chiedere.
+	 */
+	int32 CurrentMicroStepIndex = INDEX_NONE;
+
+	/**
 	 * Aggiunge una voce al TurnLog stampandoci i campi di CONTESTO della v6 (#405): turno, revisione del grafo
 	 * e identita' dell'attore. Ogni emissione passa di qui — se un sito chiamasse `TurnLog.Add` direttamente,
 	 * la sua voce nascerebbe senza contesto e nessun test se ne accorgerebbe.
