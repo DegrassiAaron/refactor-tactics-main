@@ -385,6 +385,57 @@ FRTHexPathResult URTHexSimLibrary::FindPathForUnit(const FRTHexSnapshot& Snapsho
 		/*MaxNodes*/ 100000, FMath::Max(0, Unit->MoveCostModifier));
 }
 
+namespace
+{
+/**
+ * Il passo `From -> To` e' percorribile? Due domande, e vanno fatte entrambe (#2284):
+ *
+ * 1. il GRAFO offre ancora quell'arco — copre la cella assente, `bBlocksMovement` e la copertura alta o la
+ *    porta chiusa sul BORDO (`URTHexCoverLibrary::BlocksTraversal`, che `GraphNeighbors` gia' interroga);
+ * 2. la cella `From` si ATTRAVERSA da dove si e' arrivati a dove si va — la geometria interna di `#2100`,
+ *    che il grafo non vede perche' guarda i bordi e non l'interno.
+ *
+ * ⚠️ **DUE LIMITI, entrambi ereditati da `GraphNeighbors` e non chiusi qui.** Il suo ramo degli ARCHI
+ * espliciti controlla `FindCell` e `bBlocksMovement` ma **non** `BlocksTraversal`: una mappa che dichiara
+ * un arco attivo sopra un bordo con copertura alta lo rende comunque percorribile, e lo scivolamento
+ * passerebbe. E `CameFrom` non valido fa cadere la sola verifica intra-cella, cioe' fallisce APERTO: oggi
+ * il solo chiamante lo passa sempre valido — `ApplyIceSliding` ha gia' verificato layer e adiacenza — ma
+ * un secondo chiamante che scrivesse `FRTCellId()` non se ne accorgerebbe. Entrambi sono di
+ * `GraphNeighbors` e del suo contratto, non di questa funzione.
+ *
+ * Esiste come funzione e non come due copie perche' la seconda era gia' stata dimenticata una volta: la
+ * prima stesura di `#2284` chiedeva solo al grafo, e uno scivolamento attraversava i muri INTERNI dopo
+ * averne appena chiuso il caso sui bordi.
+ */
+bool StepIsWalkable(const URTHexMapAsset* Map, const FRTCellId& CameFrom, const FRTCellId& From,
+	const FRTCellId& To)
+{
+	bool bOnGraph = false;
+	for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Map, From))
+	{
+		if (Step.Key == To)
+		{
+			bOnGraph = true;
+			break;
+		}
+	}
+	if (!bOnGraph)
+	{
+		return false;
+	}
+
+	// `CameFrom` invalido significa «nessun predecessore»: non c'e' una traversata da validare.
+	ERTHexDirection EntryDir = ERTHexDirection::E;
+	ERTHexDirection ExitDir = ERTHexDirection::E;
+	if (URTHexLibrary::DirectionBetween(From, CameFrom, EntryDir)
+		&& URTHexLibrary::DirectionBetween(From, To, ExitDir))
+	{
+		return URTHexPathLibrary::CanTransitCell(Map, From, EntryDir, ExitDir);
+	}
+	return true;
+}
+} // namespace
+
 TArray<FRTCellId> URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapshot, int32 UnitId, const TArray<FRTCellId>& Path)
 {
 	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
@@ -443,10 +494,19 @@ TArray<FRTCellId> URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapsh
 	}
 
 	const FRTCellId SlideCell(LastCell.X + Dir.X, LastCell.Y + Dir.Y, LastCell.Layer);
-	const FRTHexCellData* SlideData = Snapshot.Map->FindCell(SlideCell);
-	if (!SlideData || SlideData->bBlocksMovement)
+
+	// Il PASSO, non solo la cella (#2284). `StepIsWalkable` copre in una domanda sola cio' che prima erano
+	// due controlli separati e incompleti: la cella assente e `bBlocksMovement` — che `GraphNeighbors` gia'
+	// implica — piu' i muri sul BORDO e la geometria INTERNA della cella d'arrivo, che nessuno guardava.
+	//
+	// ⚠️ **Non e' il controllo che `spec-terreni-e8.md` §5.2 dichiara di NON fare.** Quella riga rinuncia
+	// all'OCCUPAZIONE — chi sta nella cella — ed e' corretta: il microstep di `ResolveHexPaths` la gestisce
+	// come per qualunque altro passo. La percorribilita' e' un'altra domanda, e la spec non la nominava:
+	// dentro `ResolveMovement` il taglio a valle la mascherava, ma questa funzione e' pura e pubblica, e chi
+	// la chiama direttamente riceveva il muro attraversato.
+	if (!StepIsWalkable(Snapshot.Map, PrevCell, LastCell, SlideCell))
 	{
-		return Path;
+		return Path; // un muro fra la cella d'arrivo e quella di scivolamento: non si scivola
 	}
 
 	TArray<FRTCellId> Extended = Path;
@@ -646,36 +706,13 @@ TArray<FRTCellId> URTHexSimLibrary::TruncatePathToTopology(const FRTHexSnapshot&
 	Walkable.Add(Path[0]);
 	for (int32 k = 1; k < Path.Num(); ++k)
 	{
-		// Si CHIEDE AL GRAFO invece di rileggere i bordi: la regola su cosa separa due celle vive in un posto
-		// solo (`URTHexCoverLibrary::BlocksTraversal`, che `GraphNeighbors` gia' interroga), e riscriverla qui
-		// significherebbe due risposte alla stessa domanda, destinate a divergere.
-		bool bStepStillExists = false;
-		for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Snapshot.Map, Path[k - 1]))
+		// Stessa domanda dello scivolamento, stessa funzione (#2284): `StepIsWalkable` fa il controllo sul
+		// grafo e quello sulla traversata intra-cella, che qui erano due blocchi separati. Il predecessore
+		// esiste solo da `k >= 2`; al primo passo non c'e' traversata da validare, e la funzione lo gestisce.
+		const FRTCellId CameFrom = (k >= 2) ? Path[k - 2] : Path[k - 1];
+		if (!StepIsWalkable(Snapshot.Map, CameFrom, Path[k - 1], Path[k]))
 		{
-			if (Step.Key == Path[k])
-			{
-				bStepStillExists = true;
-				break;
-			}
-		}
-		if (!bStepStillExists)
-		{
-			break; // la topologia e' cambiata da quando il piano e' stato scritto: si ferma QUI
-		}
-
-		// 🔴 **La traversata intra-cella** (#2100). Qui il predecessore e il successore sono ENTRAMBI
-		// noti — si sta validando un percorso intero, non esplorando — quindi non serve nessuno stato:
-		// si chiede direttamente se `Path[k - 1]` si attraversa da dove si e' arrivati a dove si va.
-		if (k >= 2)
-		{
-			ERTHexDirection EntryDir = ERTHexDirection::E;
-			ERTHexDirection ExitDir = ERTHexDirection::E;
-			if (URTHexLibrary::DirectionBetween(Path[k - 1], Path[k - 2], EntryDir)
-				&& URTHexLibrary::DirectionBetween(Path[k - 1], Path[k], ExitDir)
-				&& !URTHexPathLibrary::CanTransitCell(Snapshot.Map, Path[k - 1], EntryDir, ExitDir))
-			{
-				break; // geometria interna: il piano attraversava un muro, e si ferma PRIMA di entrarci
-			}
+			break; // la topologia e' cambiata da quando il piano e' stato scritto, o il piano attraversava un muro
 		}
 
 		Walkable.Add(Path[k]);
