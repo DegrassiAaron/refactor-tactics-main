@@ -1348,7 +1348,8 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		Catalog.Add(Counter);
 	}
 
-	// `Deflect` — riduce di 20 il danno diretto che l'ha innescata, DICHIARANDOLO come effetto
+	// `Deflect` — apre un pool di 20 danni assorbibili sui colpi diretti del boundary che l'ha innescata
+	// ([D-309]; prima di quella voce era uno sconto sul solo colpo innescante), DICHIARANDOLO come effetto
 	// (`ERTActionEffect::DamageReduction`, CP 5.5). Fino a CP 5.2 il numero viveva solo come
 	// `URTCombatLibrary::DeflectDamageReduction` letta da un `if (ActionId == "Action.Deflect")` nel
 	// `TurnManager`: la costante resta la fonte del valore, ma chi lo applica ora lo legge dai dati — cosi' una

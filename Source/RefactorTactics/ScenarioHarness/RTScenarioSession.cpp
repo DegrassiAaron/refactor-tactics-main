@@ -1,4 +1,5 @@
 #include "ScenarioHarness/RTScenarioSession.h"
+#include "EngineUtils.h" // TActorIterator: lo sgombero di `#2223` percorre il mondo
 
 #include "ScenarioHarness/RTScenarioArena.h" // l'arena la costruisce chi la costruisce anche per l'authoring
 #include "Turn/RTMatchStateHash.h"
@@ -672,6 +673,35 @@ bool FRTScenarioSession::IsAvailableCapability(const FString& Capability)
 	return IsCapabilityAvailable(Capability);
 }
 
+const FName FRTScenarioSession::SpawnedByScenarioTag(TEXT("RTScenario.Spawned"));
+
+int32 FRTScenarioSession::ClearScenarioSpawnedUnits(UWorld* InWorld)
+{
+	if (!InWorld)
+	{
+		return 0;
+	}
+
+	// ⚠️ Si raccoglie PRIMA e si distrugge poi: `Destroy()` durante un `TActorIterator` modifica cio' che
+	// l'iteratore sta percorrendo.
+	TArray<ARTUnit*> DaTogliere;
+	for (TActorIterator<ARTUnit> It(InWorld); It; ++It)
+	{
+		ARTUnit* Unit = *It;
+		if (IsValid(Unit) && Unit->ActorHasTag(SpawnedByScenarioTag))
+		{
+			DaTogliere.Add(Unit);
+		}
+	}
+
+	for (ARTUnit* Unit : DaTogliere)
+	{
+		Unit->Destroy();
+	}
+
+	return DaTogliere.Num();
+}
+
 bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenario)
 {
 	Scenario = InScenario;
@@ -723,6 +753,20 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		MapActor->GetHexContext(MapOrigin, MapHexSize, MapLayerHeight);
 	}
 
+	// 🔴 **Il campo si sgombera QUI, prima di posare qualunque cosa** (`#2223`).
+	//
+	// Fuori dal PIE ogni corsa riceve un `UWorld` temporaneo e parte pulita per costruzione. In PIE il mondo
+	// e' quello della sessione e non si puo' ricreare: senza questa riga il secondo scenario si SOMMA al
+	// primo, e cio' che si misura e' il residuo. Osservato lanciando scenari uno dopo l'altro su
+	// `L_DevSandbox`.
+	//
+	// ⛔ Si tolgono **solo le unita' marcate**, mai tutte quelle del mondo: in PIE lo scenario gira dentro
+	// una partita, e sgomberarla sarebbe un rimedio peggiore del difetto.
+	//
+	// ⚠️ E si sgombera all'INGRESSO invece che alla fine: uno scenario interrotto a meta' non arriverebbe mai
+	// a un teardown finale, e sarebbe proprio quello a lasciare il campo sporco.
+	ClearScenarioSpawnedUnits(World.Get());
+
 	for (const FRTScenarioUnit& Spec : Scenario.Units)
 	{
 		URTHeroData* Hero = FindScenarioHero(Spec.HeroId);
@@ -755,6 +799,9 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		{
 			return Fail(FString::Printf(TEXT("spawn fallito per l'unita' '%s'"), *Spec.Id));
 		}
+		// Il marchio PRIMA di `FinishSpawningActor`: da qui in poi l'unita' e' riconoscibile come roba di
+		// scenario, anche se la corsa si interrompe subito dopo.
+		Unit->Tags.Add(SpawnedByScenarioTag);
 		Unit->TeamId = Spec.TeamId;
 		Unit->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);

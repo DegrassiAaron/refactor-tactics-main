@@ -174,9 +174,9 @@ bool FRTBreakdownGuardTellsTwoStoriesTest::RunTest(const FString&)
 
 	TMap<int32, FRTDamageBreakdown> Frontal, Behind;
 	URTCombatResolver::ResolveAttacksWithBreakdown(
-		Units, URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, Frontally), Frontal);
+		Units, URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, Frontally, URTCombatLibrary::GuardPoolSource), Frontal);
 	URTCombatResolver::ResolveAttacksWithBreakdown(
-		Units, URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, FromBehind), Behind);
+		Units, URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, FromBehind, URTCombatLibrary::GuardPoolSource), Behind);
 
 	const FRTDamageStageEntry* FrontPool = Find(Frontal[1], ERTDamageStage::AbsorptionPool);
 	if (TestNotNull(TEXT("frontale: il pool ha morso"), FrontPool))
@@ -187,6 +187,96 @@ bool FRTBreakdownGuardTellsTwoStoriesTest::RunTest(const FString&)
 
 	TestNull(TEXT("alle spalle: il pool non compare affatto"), Find(Behind[1], ERTDamageStage::AbsorptionPool));
 	TestEqual(TEXT("alle spalle: passano tutti e 12"), Behind[1].Stages.Last().After, 12);
+
+	return true;
+}
+
+/**
+ * DUE POOL, DUE PROVENIENZE — `#2213`.
+ *
+ * 🔴 **Il difetto che questo test e' nato per prendere**: `ApplyAbsorptionPool` scriveva l'etichetta di
+ * stadio come un LETTERALE nel proprio corpo — `D-292 · Status.Guarded` — e da [D-309] i chiamanti di
+ * produzione sono DUE (`RTTurnManager.cpp`: prima il pool di `Deflect`, poi quello di `Guard`, [D-312]).
+ * Un assorbimento della reazione finiva quindi nel breakdown attribuito alla GUARDIA, con un numero di
+ * decisione e un tag di stato che non la riguardano.
+ *
+ * 🔑 **Perche' nessuno se n'era accorto**: nessun test asserisce un `SourceId`, e nessun consumatore di
+ * produzione legge il breakdown — `ResolveAttacksWithBreakdown` ha per chiamanti il suo wrapper e i test.
+ * Il difetto era LATENTE, non invisibile: il breakdown esiste da `#1951` perche' il TurnLog dica da dove
+ * viene un numero, e i suoi consumatori arrivano con `#1937`.
+ *
+ * ⚠️ **Cio' che questo test NON prova, ed e' dichiarato invece che taciuto.** Compone i due pool come fa
+ * `RTTurnManager`, ma li chiama DIRETTAMENTE: resta quindi verde qualunque provenienza passino le due
+ * chiamate reali del manager. Non e' pigrizia — `ARTTurnManager` passa da `ResolveAttacks`, il wrapper che
+ * costruisce il breakdown e lo SCARTA in un `TMap` locale, quindi dal percorso di partita non esce niente
+ * da osservare. E' lo stesso limite di `Combat.DeflectPoolAbsorbsBeforeGuardPool` — ma li'
+ * `Combat.GuardAndDeflectAbsorbInDeclaredOrder` lo chiude passando dal manager, perche' l'ordine dei pool
+ * si vede negli HP. Un'ETICHETTA no: finche' nessuno legge il breakdown, il lato chiamante e' protetto da
+ * una code review e non da un test. ✅ Cio' che l'uso delle costanti condivise
+ * (`URTCombatLibrary::GuardPoolSource`, `ReactionReductionPoolSource`) aggiunge e' che un refuso non e'
+ * piu' possibile: prima il test portava una copia PROPRIA dei due letterali, quindi un errore di battitura
+ * ai chiamanti di produzione sarebbe rimasto verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBreakdownPoolNamesItsOwnSourceTest,
+	"RefactorTactics.Damage.BreakdownPoolNamesItsOwnSource",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBreakdownPoolNamesItsOwnSourceTest::RunTest(const FString&)
+{
+	using namespace RTBreakdownTests;
+
+	const TArray<FRTUnitCombatState> Units = MakeUnits();
+	const TArray<FRTAttack> Attacks = { MakeAttack(1, 12, 0) };
+	const TArray<bool> Eligible = { true };
+
+	// 🔑 I DUE POOL COMPOSTI, non risolti separatamente: e' la forma di `RTTurnManager.cpp` — reazione
+	// prima, `Guard` poi ([D-312]) — e produce DUE voci `AbsorptionPool` nello STESSO breakdown. Risolverli
+	// in due passate darebbe una voce per elenco, cioe' un `Find`-per-stadio non ambiguo per costruzione:
+	// esattamente l'ambiguita' che in produzione non c'e'. *La prima stesura faceva cosi'; trovato da una
+	// code review.*
+	//
+	// I budget sono PICCOLI e presi dalle costanti: 5 alla reazione e il resto alla Guardia, cosi' il colpo
+	// da 12 ne consuma 5 dalla prima e 7 dalla seconda e **entrambe** mordono. Con i valori pieni la prima
+	// assorbirebbe tutto e la seconda non lascerebbe voce.
+	const TArray<int32> ReactionPool = { 0, 5, 0 };
+	const TArray<int32> GuardPool    = { 0, URTCombatLibrary::GuardFirstHitReduction, 0 };
+
+	TMap<int32, FRTDamageBreakdown> ByTarget;
+	URTCombatResolver::ResolveAttacksWithBreakdown(
+		Units,
+		URTCombatResolver::ApplyAbsorptionPool(
+			URTCombatResolver::ApplyAbsorptionPool(Attacks, ReactionPool, Eligible,
+				URTCombatLibrary::ReactionReductionPoolSource),
+			GuardPool, Eligible, URTCombatLibrary::GuardPoolSource),
+		ByTarget);
+
+	// `Find` e non `operator[]`: una chiave assente deve far fallire QUESTO test, non abbattere la passata
+	// di automation. E' il pattern che `BreakdownFinalValueMatchesDamageDealt` usa gia' in questo file.
+	const FRTDamageBreakdown* B = ByTarget.Find(1);
+	if (!TestNotNull(TEXT("il bersaglio ha un registro"), B)) { return false; }
+
+	TArray<const FRTDamageStageEntry*> Pools;
+	for (const FRTDamageStageEntry& E : B->Stages)
+	{
+		if (E.Stage == ERTDamageStage::AbsorptionPool) { Pools.Add(&E); }
+	}
+
+	if (!TestEqual(TEXT("due pool hanno morso, e lasciano DUE voci nello stesso registro"),
+		Pools.Num(), 2))
+	{
+		return false;
+	}
+
+	// IL DIFETTO, in due righe: prima di `#2213` queste due voci portavano lo STESSO `FName`, e la seconda
+	// era quella della Guardia — quindi l'assorbimento della reazione risultava suo.
+	TestEqual(TEXT("la prima voce e' della reazione, e nomina la SUA decisione"),
+		Pools[0]->SourceId, URTCombatLibrary::ReactionReductionPoolSource);
+	TestEqual(TEXT("la seconda e' della Guardia, e nomina la propria"),
+		Pools[1]->SourceId, URTCombatLibrary::GuardPoolSource);
+
+	// ⚠️ **E l'ordine e' quello di [D-312]**, leggibile qui perche' le due voci convivono: la reazione
+	// assorbe per prima. Un elenco che le contenesse invertite descriverebbe un bilanciamento diverso.
+	TestEqual(TEXT("la reazione ha assorbito il suo budget intero"), Pools[0]->Operand, 5);
+	TestEqual(TEXT("e la Guardia ha preso cio' che restava"), Pools[1]->Operand, 7);
 
 	return true;
 }

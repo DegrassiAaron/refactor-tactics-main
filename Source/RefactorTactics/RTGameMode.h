@@ -193,6 +193,15 @@ public:
 	int32 ResolveBotAllies() const;
 
 	/**
+	 * Raggio dell'arena di ripiego, risolto fra console variable e proprieta'. Stessa scala e stessa
+	 * sentinella negativa di `ResolveBotAllies()`, senza la sorgente da riga di comando.
+	 *
+	 * ⚠️ `0` non e' la sentinella ma l'opt-out dal ripiego: la soglia e' `>= 0`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Match")
+	int32 ResolveDemoArenaRadius() const;
+
+	/**
 	 * La modalita' in vigore per QUESTA sessione, **decisa una volta** in `SetupHexMatch`.
 	 *
 	 * ⚠️ Non e' un doppione di `ResolveAutobattle()`, ed e' la differenza fra cio' che si puo' *chiedere* e

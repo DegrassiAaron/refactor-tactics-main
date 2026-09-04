@@ -117,6 +117,16 @@ TAutoConsoleVariable<int32> CVarRTBotAllies(
 		 "(vale il resto), 0 = nessuno, N = gli ultimi N. Almeno un'unita' resta sempre al giocatore."),
 	ECVF_Default);
 
+TAutoConsoleVariable<int32> CVarRTDemoArenaRadius(
+	TEXT("rt.Match.DemoArenaRadius"),
+	-1,
+	TEXT("Raggio dell'arena generata. -1 = non impostata (vale la proprieta' del GameMode), "
+		 "N = esagono pieno di raggio N, tetto 100. Con MapSource=LevelAsset, 0 = nessun ripiego "
+		 "(si tiene la mappa del livello); con MapSource=GeneratedDemoArena, 0 lascia la partita SENZA "
+		 "mappa. Esiste perche' la proprieta' vive in un `.uasset`: senza questa, cambiare il raggio "
+		 "richiede di aprire l'editor."),
+	ECVF_Default);
+
 TAutoConsoleVariable<float> CVarRTPlanningSeconds(
 	TEXT("rt.Match.PlanningSeconds"),
 	-1.f,
@@ -667,7 +677,7 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	FRTMatchBootstrapConfig Config;
 	Config.MapSource             = ResolveMapSource();
 	Config.MapFixtureId          = CVarRTMapFixture.GetValueOnGameThread().TrimStartAndEnd();
-	Config.DemoArenaRadius       = DemoArenaRadius;
+	Config.DemoArenaRadius       = ResolveDemoArenaRadius();
 	Config.MatchFormat           = MatchFormat;
 	Config.ShippedFormatId       = ShippedFormatId;
 	Config.Team0Heroes           = Team0Heroes;
@@ -884,6 +894,53 @@ bool ARTGameMode::ResolveAutobattle() const
 	}
 
 	return bAutobattle;
+}
+
+int32 ARTGameMode::ResolveDemoArenaRadius() const
+{
+	// Stessa scala e stessa sentinella negativa di `ResolveBotAllies`, con una sorgente in meno: qui la
+	// riga di comando non serve, perche' il caso d'uso e' l'allestimento in EDITOR — un raggio scelto per
+	// guardare una mappa grande a schermo — e non il pacchetto. Aggiungerla senza un consumatore sarebbe
+	// la terza sorgente che nessuno usa.
+	//
+	// 🔑 **`0` e' un VALORE, non la sentinella**: e' l'opt-out dal ripiego, pinnato da
+	// `MatchSetup.GameModeNoFallbackWhenRadiusZero`. Per questo la soglia e' `>= 0` e non `> 0`:
+	// trattare lo zero come «non impostata» renderebbe quel comportamento irraggiungibile dalla console.
+	// Il caso pieno che questo repository documenta e' raggio 50 (7 651 celle). Il tetto lascia il doppio
+	// di margine e chiude un rischio che la proprieta' non aveva: un refuso alla console — `1000` invece
+	// di `100` — costruirebbe 3 003 001 celle, e `RebuildInstances` ne farebbe altrettante istanze,
+	// appendendo l'editor senza dire perche'. La proprieta' non e' clampata: la si cambia nel pannello,
+	// con il numero sotto gli occhi, mentre una console variable si digita al volo e dura tutto il processo.
+	static constexpr int32 MaxDemoArenaRadius = 100;
+
+	const int32 FromConsole = CVarRTDemoArenaRadius.GetValueOnGameThread();
+	if (FromConsole > MaxDemoArenaRadius)
+	{
+		// Ridotto e DICHIARATO, come `BotAllies` quando eccede la formazione: un valore silenziosamente
+		// diverso da quello chiesto e' peggio di un rifiuto.
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] rt.Match.DemoArenaRadius=%d supera il tetto di %d: ridotto a %d. Oltre, la mappa "
+				 "generata avrebbe piu' celle di quante l'editor ne disegni in tempo utile."),
+			FromConsole, MaxDemoArenaRadius, MaxDemoArenaRadius);
+		return MaxDemoArenaRadius;
+	}
+	if (FromConsole >= 0)
+	{
+		if (DemoArenaRadius != FromConsole)
+		{
+			// Non in silenzio, per la stessa ragione delle altre quattro: una console variable dura quanto
+			// il processo dell'editor, e continuerebbe a scavalcare la proprieta' a ogni Play successivo
+			// senza che nulla lo dica.
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] La console variable rt.Match.DemoArenaRadius=%d SCAVALCA la proprieta' "
+					 "DemoArenaRadius=%d del GameMode. Per tornare a usare la proprieta': "
+					 "`rt.Match.DemoArenaRadius -1`."),
+				FromConsole, DemoArenaRadius);
+		}
+		return FromConsole;
+	}
+
+	return DemoArenaRadius;
 }
 
 int32 ARTGameMode::ResolveBotAllies() const

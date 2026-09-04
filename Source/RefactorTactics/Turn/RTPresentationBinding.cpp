@@ -62,6 +62,30 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Defeated,
 		{ FName(TEXT("HideForDefeat")), FName(TEXT("PlayDefeatMontage")) }));
 
+	// ReactionResolved — NoPresentation, e l'assenza e' TEMPORANEA come quella di `AttackFootprint`.
+	//
+	// 🔴 **Questo evento nasce proprio perche' un giorno si mostri**, ed e' il caso piu' netto della
+	// tabella: due voci PIE — `PIE-VIS-DEFLECT` e `PIE-VIS-INTERPOSE` — esistono per giudicare a schermo
+	// cio' che senza una cue non si vede. `PIE-VIS-DEFLECT` lo dice per intero: senza il momento della
+	// reazione *«resta la sola barra che scende poco»*, cioe' un attacco debole invece di una difesa
+	// riuscita.
+	//
+	// ⚠️ **Il dato viene prima del disegno, deliberatamente** (#2191): la grammatica visiva della
+	// reazione e' fuori dallo scope di quella issue, che lo dichiara. Dichiarare qui una cue inventata
+	// renderebbe questa tabella una lista di intenzioni — la stessa ragione scritta per `AttackFootprint`.
+	//
+	// ✅ **A differenza di `HazardDamage`, questo valore un PRODUTTORE ce l'ha**: `RunReactionPass` lo
+	// emette dove la reazione scatta, e `Reactions.Counter.DealsDamageToAttacker` lo presidia — validato
+	// per mutazione. Quindi il gate non e' verde su un evento muto: e' verde su un evento che accade e che
+	// nessuno disegna ancora.
+	//
+	// ⚠️ Voce da RIVEDERE, non da ereditare: appena la cue nasce, le due voci PIE diventano giudicabili.
+	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::ReactionResolved,
+		TEXT("Il momento della reazione esiste perche' la cue POSSA essere costruita: #2191 lo emette dove la ")
+		TEXT("reazione scatta, e la grammatica visiva e' fuori dal suo scope. Nessuna cue oggi lo consuma. ")
+		TEXT("ATTENZIONE: assenza TEMPORANEA e attesa - due voci PIE (VIS-DEFLECT, VIS-INTERPOSE) restano non ")
+		TEXT("giudicabili finche' non nasce, e la voce va rivista allora, non ereditata.")));
+
 	return Out;
 }
 

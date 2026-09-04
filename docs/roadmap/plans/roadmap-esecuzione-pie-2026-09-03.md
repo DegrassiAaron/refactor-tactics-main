@@ -13,7 +13,7 @@
 
 La domanda era *«quante issue dobbiamo implementare per eseguire le PIE rimaste?»*.
 
-Per la seduta più ricca — **U42, venti voci** — la risposta misurata è **zero**.
+Per la seduta più ricca — **U42, ventuno voci in undici Play** — la risposta misurata è **zero**.
 
 `unblocked_by: []`, e le sue quattro issue (`#231 #233 #1919 #2009`) sono **tutte CLOSED**. I 29 file di
 `Scenarios/Visual/` esistono, e girano: `Scenario.EveryShippedScenarioRuns` e
@@ -28,10 +28,17 @@ dice da sé — *«Il corpus Visual, diciotto scenari che nessuna seduta convoca
 
 | | |
 |---|---|
-| voci totali · aperte | **202** · **100** |
-| aperte **schedulate** in una seduta | **67** |
-| aperte **fuori da ogni seduta** | **33** |
+| voci totali · aperte | **204** · **102** |
+| aperte **schedulate** in una seduta | **73** |
+| aperte **fuori da ogni seduta** | **29** |
 | aperte che dichiarano un ostacolo | 21 — ⚠️ **non rimisurato**, vedi la nota |
+
+> 🔄 **Rimisurato il 2026-09-04 su `main`, dopo #2228.** Dicevano `203 · 101 · 69 · 32`; il comando
+> canonico conta `204 · 76/24/2/102`, e l’incrocio con `editor-sessions.yaml` dà **73 schedulate** e
+> **29 orfane**. 🔑 **Lo scarto sulle schedulate non veniva da voci nuove**: `U45` era già nel file con
+> tre voci (`PIE-V01-ARENA`, `PIE-OBJ-PUNTI`, `PIE-V01-BOARD`) e la tabella non la contava.
+> ⚠️ **Le voci con ostacolo dichiarato restano non rimisurate**, per la ragione già scritta: contarle
+> chiede di leggere il testo di ogni riga, non un marcatore.
 
 > 🔄 **Rimisurato il 2026-09-03 su `31859e13`, e i quattro numeri erano già invecchiati prima di
 > questa passata.** Dicevano `200 · 98 · 68 · 30`; la base senza le modifiche di oggi misura
@@ -41,7 +48,7 @@ dice da sé — *«Il corpus Visual, diciotto scenari che nessuna seduta convoca
 >
 > ➕ **Il contributo di questa passata è esattamente uno**: entra `PIE-V01-SHIELD`, schedulata in `U18`
 > ([#1403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1403)). Totale e aperte salgono
-> di uno, le **schedulate** di uno, e le **orfane non si muovono**: 33 prima, 33 dopo.
+> di uno, le **schedulate** di uno, e le **orfane non si muovono**: 33 prima, 33 dopo. ⏱️ *Rimisurato il 2026-09-04: le orfane sono **32** — `PIE-V01-PACKAGED` è entrata in `U23`, che aveva `verifies: []` pur avendo un piano e cinque issue.*
 >
 > ⚠️ **Le «21 con ostacolo dichiarato» non sono state rimisurate** e restano come le trovo: contarle
 > chiede di leggere il testo di ogni riga, non un marcatore, e nessuno strumento qui lo fa. Il numero
@@ -68,21 +75,25 @@ bloccata. **Trentatré** di esse non sono in nessuna sequenza, ed è la condizio
 
 | seduta | voci aperte | `unblocked_by` | issue | verdetto |
 |---|---|---|---|---|
-| **U42** | **20** | `[]` | #231 #233 #1919 #2009 — tutte **CLOSED** | 🟢 **eseguibile ora, zero issue** |
+| **U42** | **21** | `[]` | #231 #233 #1919 #2009 **CLOSED** · #2187 la convoca | 🟢 **eseguibile ora, e sono 11 Play non 21** |
 | **U43** | **7** | `[]` | #151 (EPIC aperta) | 🟡 da verificare voce per voce |
 | U25 | 6 | `[U21]` | #1095 aperta | 🔴 bloccata da una seduta |
 | U5 | 5 | `[M6.6, M6.7]` | — | 🔴 bloccata da due checkpoint |
 | **U18** | **5** | `[]` | #450 #567 #583 #551–554 | 🟢 **non attende nulla**, come U42 |
 | U19 · U22 | 4 ciascuna | — | varie | 🟡 |
-| **U39** | **1** | `[U21]` | #1920 aperta | 🔴 bloccata da una seduta, **come U25** — ma ne condivide l'allestimento: vedi in coda alla §4 |
-| altre 12 sedute | 1–3 ciascuna | — | varie | — |
+| **U45** | **3** | `[E12]` | — | 🟡 attende un checkpoint, non una seduta |
+| **U39** | **1** | `[U21]` | #1920 aperta | 🟡 **l’ostacolo tecnico è caduto** (#2228): resta l’allestimento condiviso con U21 — vedi in coda alla §4 |
+| altre 14 sedute | 1–2 ciascuna | — | varie | — |
+
+🔑 **`U45` non era in questa tabella e ha tre voci aperte da prima di oggi**: è il tipo di riga che
+l’ordinamento per resa nasconde, ed è lo stesso motivo per cui `U39` ci è entrata solo ieri.
 
 ⚠️ **`U42` e `U43` sono cambiate, e non di poco**: `U43` dichiarava **dieci** voci aperte e ne misura
 **sette**. 🔑 **`U18` esce dal gruppo delle quattro** perché questa passata le ha aggiunto
 `PIE-V01-SHIELD`, e con `unblocked_by: []` è la **seconda** seduta del file che non attende nulla — un
 fatto che la riga *«U18 · U19 · U22, varie»* nascondeva mettendola fra due sedute che invece attendono.
 
-🔑 **Due sedute coprono 27 delle 67 voci schedulate.** Le altre diciotto si dividono il resto, molte con una
+🔑 **Due sedute coprono 28 delle 69 voci schedulate.** Le altre diciotto si dividono il resto, molte con una
 voce sola: l'ordine non è una preferenza, è dove una sessione produce venti verdetti invece di uno.
 
 ## 3. Come si avvia uno scenario, e la trappola che lo rende inutile
@@ -110,7 +121,7 @@ serva.
 
 ## 4. L'ordine consigliato
 
-### Passo 1 — U42, venti voci, nessun prerequisito
+### Passo 1 — U42, ventuno voci in **undici Play**, nessun prerequisito
 
 Le voci: `PIE-VIS-ICE`, `-WETFIRE`, `-KO`, `-CHARGE`, `-ROUGH`, `-COMBO`, `-COORD`, `-FALLBACK`, `-SMOKE`,
 `-PHASES`, `-LEVEL`, `-COVER`, `-DOOR`, `-HIGH`, `-HIGHCOVER`, `-GUARD`, `-BRACE`, `-AREAGUARD`, più
@@ -124,13 +135,19 @@ percorso del suo file.
 voce ombrello del composito d'ambiente, entrata in `main` lo stesso 2026-09-03. Il testo qui sopra diceva
 *diciannove* ed elencava diciannove nomi: era corretto stamattina.
 
-⛔ **Ma la guida della seduta è ferma a diciannove, e questo file da solo non basta a colmare la
-differenza.** [`guida-seduta-u42-corpus-visual.md`](../../technical/runbooks/guida-seduta-u42-corpus-visual.md)
-dice *diciannove* in due punti e **non nomina `PIE-ACC-ENVIRONMENT`**. È quella guida a contenere, per
-ciascuna voce, *ciò che la falsifica* — esattamente ciò che il capoverso qui sotto pretende **prima** di
-aprire l'editor. 🔴 Quindi oggi la ventesima voce sarebbe eseguita **senza criterio scritto**, che è il
-modo documentato di produrre un *«sembra ok»* invece di un verdetto. Alzare il conteggio qui **non**
-aggiorna la guida: chi convoca `U42` scriva prima il criterio della ventesima, o la escluda dichiarandolo.
+✅ **La guida è stata allineata il 2026-09-03, e il ⛔ che stava qui è superato.**
+[`guida-seduta-u42-corpus-visual.md`](../../technical/runbooks/guida-seduta-u42-corpus-visual.md) dice ora
+**ventuno** voci, nomina `PIE-ACC-ENVIRONMENT` e `PIE-ACC-MAP`, e porta in testa alla §3 la sezione che
+cambia la resa della seduta: **tre Play coprono tredici voci**.
+
+🔑 **La seduta non è ventuno aperture: è UNDICI.** I tre compositi di acceptance —
+`Visual.Environment.Acceptance` (6 voci), `Visual.Map.Acceptance` (4) e
+`Visual.Combat.GuardVsBraceUnderSmallHits` (3) — ne coprono tredici; le altre otto (`-KO`, `-CHARGE`,
+`-COORD`, `-FALLBACK`, `-PHASES`, `-LEVEL`, `-HIGHCOVER`, `-AREAGUARD`) hanno un Play ciascuna.
+
+⚠️ **Un composito toglie l'allestimento, non il giudizio**, e chiede *più* attenzione per Play non meno:
+la colonna «falsificata se» della guida va letta **prima** di premere Play. Se al terzo turno non ricordi
+cosa stavi cercando, hai risparmiato un riavvio e perso un verdetto.
 
 ⚠️ **Prima di aprire l'editor va scritto, per ciascuna, cosa la falsifica.** Sono verifiche visive: senza un
 criterio scritto prima, venti verifiche producono venti *«sembra ok»*, che non è un verdetto.
@@ -149,6 +166,19 @@ a una nuova, e la decisione è di `editor-sessions.yaml`, che ne è l'owner.
 ⛔ **Non prima di U42**: assegnare trentatré voci richiede un'analisi, mentre U42 è pronta adesso.
 
 ### In coda a `U21` — `U39`, **una** voce, e chiude una issue
+
+✅ **L’ostacolo che rendeva questa seduta ineseguibile è caduto il 2026-09-04.** L’arena piena chiede
+raggio 50, e fino a #2228 quel regime **non era allestibile senza toccare un asset**: il pennello ha
+`BrushRadius` con `ClampMax = "8"`, nessuna fixture arriva a 50, e l’arena raggio 50 esisteva solo
+dentro un automation test. Ora si allestisce da riga di comando, senza aprire nessun `.uasset`:
+
+```
+UnrealEditor.exe <uproject> -dpcvars=rt.Map.Source=GeneratedDemoArena,rt.Match.DemoArenaRadius=50
+```
+
+⚠️ **Resta comunque legata a `U21`, e per una ragione diversa da prima**: non è più il regime a
+mancare, è la **scena illuminata**. Su un livello al buio il verdetto direbbe più sulle luci che sulle
+coordinate.
 
 ⚠️ **Non è un passo a sé, e la prima stesura di questa sezione lo chiamava «Passo 0» mettendolo
 davanti a `U42`.** Era sbagliato in due modi: `U39` dichiara `unblocked_by: [U21]` — lo **stesso**

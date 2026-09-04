@@ -4527,6 +4527,39 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 			++Unit->ReactionActivationsThisTurn;
 			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
 
+			// 🔴 **Il momento della reazione, per la presentazione** (#2191). Prima di questa riga una
+			// reazione riuscita non aveva un istante proprio nel playback: restava la barra che scende poco,
+			// cioè — parole di `PIE-VIS-DEFLECT` — *«un attacco debole invece di una difesa riuscita»*.
+			//
+			// ⚠️ **Qui e non dove la reazione viene PIANIFICATA**: il piano dice cosa si è dichiarato, questo
+			// dice cosa è successo. Emetterlo all'armamento mostrerebbe una parata anche nei turni in cui il
+			// trigger non scatta — e il log ne è pieno: *«reazione pronta, nessun trigger»*.
+			//
+			// ⛔ **Solo presentazione, e la misura lo conferma**: `FRTResolvedEvent` non entra nel TurnLog —
+			// `RTTurnLog.h:630` lo dichiara, *«osservabilita' separata dalla presentazione (non e'
+			// FRTResolvedEvent)»* — quindi un valore nuovo nell'enum non tocca il formato versionato che un
+			// replay rilegge. Verificato prima di aggiungerlo, come `#2191` prescriveva.
+			{
+				FRTResolvedEvent Ev;
+				Ev.Phase = ERTMatchPhase::Blast;
+				Ev.Type = ERTResolvedEventType::ReactionResolved;
+				// ✅ **Validato per mutazione**: invertiti i due id, `Reactions.Counter.DealsDamageToAttacker`
+				// cade con *«chi reagisce ha un evento di reazione risolta: atteso 1, ottenuto 0»*.
+				// CHI reagisce nel soggetto, chi ha innescato nel bersaglio: il verso della frase «X reagisce
+				// a Y». ⚠️ `0` non e' un'unita' (D-063): un trigger senza attaccante identificato — la
+				// predittiva che scatta su una previsione — lascia `0`, che chi consuma deve leggere come
+				// «nessuno» e non come l'unita' zero.
+				Ev.SourceStableUnitId = Unit->StableUnitId;
+				Ev.TargetStableUnitId = Units.IsValidIndex(TriggeredBy) && Units[TriggeredBy]
+					? Units[TriggeredBy]->StableUnitId : 0;
+				Ev.Origin = Unit->Cell;
+				// ⛔ **Nessun `ActionId` qui, e non e' una dimenticanza**: `FRTResolvedEvent` non ha quel
+				// campo, e QUALE reazione sia scattata lo dice gia' il TurnLog (`Entry.ActionId`, due righe
+				// sopra). Aggiungerlo alla struct creerebbe una seconda fonte per lo stesso fatto, e la
+				// presentazione non ne ha bisogno per dare un momento alla reazione.
+				ResolvedTimeline.Add(MoveTemp(Ev));
+			}
+
 			// TUTTI gli effetti che la reazione DICHIARA, non il primo che questo orchestratore riconosce
 			// (CP 5.5). `URTReactionLibrary::BuildReactionEvents` decide anche CHI li subisce, per tipo di
 			// effetto: offensivi a chi ha innescato, difensivi a chi reagisce. Qui non si guarda mai
@@ -5118,8 +5151,8 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			URTCombatResolver::ApplyDamageDelta(
 				URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta),
 				EveryHitDelta),
-			DeflectPool, bDeflectEligible),
-		GuardPool, bFrontalHit);
+			DeflectPool, bDeflectEligible, URTCombatLibrary::ReactionReductionPoolSource),
+		GuardPool, bFrontalHit, URTCombatLibrary::GuardPoolSource);
 
 	TArray<FRTCellId> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
 	// Parallelo ad `AttackSrc`, e non ridondante con lui: la cella dice DA DOVE, non CHI — e dopo un Dash le
@@ -6866,6 +6899,21 @@ void ARTTurnManager::ResolveMovement()
 
 // ===================== Playback della risoluzione (presentazione) =============================
 
+
+int32 ARTTurnManager::ResolvedReactionCountForTest(int32 ReactorStableUnitId) const
+{
+	int32 Count = 0;
+	for (const FRTResolvedEvent& Ev : ResolvedTimeline)
+	{
+		// Il SOGGETTO e' chi reagisce, non chi ha innescato: e' il verso con cui l'evento viene emesso, e
+		// invertirlo qui darebbe zero su un turno in cui la reazione e' scattata davvero.
+		if (Ev.Type == ERTResolvedEventType::ReactionResolved && Ev.SourceStableUnitId == ReactorStableUnitId)
+		{
+			++Count;
+		}
+	}
+	return Count;
+}
 
 int32 ARTTurnManager::ResolvedMoveVerdictCountForTest(int32 StableUnitId) const
 {

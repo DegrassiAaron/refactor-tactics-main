@@ -11,6 +11,8 @@
 #include "ScenarioHarness/RTScenarioSession.h"
 #include "Player/RTPlayerController.h"
 #include "Map/RTHexMapActor.h"
+#include "Unit/RTUnit.h"
+#include "EngineUtils.h" // TActorIterator: il conteggio di `#2223`
 #include "ScenarioHarness/RTTestReportWriter.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
@@ -1770,6 +1772,90 @@ bool FRTScenarioInitialStatusIsActiveTest::RunTest(const FString&)
 		TestEqual(TEXT("e lo stesso scenario da' lo stesso checksum"), Again.StateHash, Result.StateHash);
 	}
 
+	return true;
+}
+
+
+/**
+ * **Due scenari di seguito nello stesso mondo lasciano in campo solo il secondo** (`#2223`).
+ *
+ * 🔴 **E' il caso del PIE, ed e' l'unico in cui il difetto esiste.** Fuori dal PIE ogni corsa riceve un
+ * `UWorld` temporaneo e parte pulita per costruzione; in PIE il mondo e' quello della sessione e non si puo'
+ * ricreare, quindi il secondo scenario si sommava al primo e cio' che si misurava era il residuo. Questo
+ * test riproduce quella condizione **riusando lo stesso mondo**, che e' precisamente cio' che gli altri
+ * test di questo file non fanno.
+ *
+ * ⛔ **La meta' che conta di piu' e' l'unita' ESTRANEA.** In PIE lo scenario gira dentro una partita, e
+ * sgomberare *«tutte le `ARTUnit` del mondo»* la distruggerebbe: sarebbe un rimedio peggiore del difetto, e
+ * un test che contasse solo le unita' di scenario lo direbbe verde. Qui un'unita' non marcata sta in campo
+ * per tutte e due le corse e **deve sopravvivere**.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioResidueBetweenRunsTest,
+	"RefactorTactics.Scenario.Runner.ConsecutiveRunsLeaveOnlyTheLastUnits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioResidueBetweenRunsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+
+	auto Conta = [World](bool bSoloMarcate)
+	{
+		int32 N = 0;
+		for (TActorIterator<ARTUnit> It(World); It; ++It)
+		{
+			if (!IsValid(*It)) { continue; }
+			if (!bSoloMarcate || It->ActorHasTag(FRTScenarioSession::SpawnedByScenarioTag)) { ++N; }
+		}
+		return N;
+	};
+
+	FRTTestScenario Primo, Secondo;
+	if (!LoadShippedScenario(*this, TEXT("Combat.BasicAttack"), Primo)
+		|| !LoadShippedScenario(*this, TEXT("Movement.Basic"), Secondo))
+	{
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	// ⛔ L'unita' che NON appartiene a nessuno scenario: sta per la partita che in PIE ospita la corsa.
+	ARTUnit* Estranea = World->SpawnActor<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+	if (!TestNotNull(TEXT("l'unita' estranea si posa"), Estranea))
+	{
+		DestroyRunnerWorld(World);
+		return false;
+	}
+	TestFalse(TEXT("e non porta il marchio dello scenario"),
+		Estranea->ActorHasTag(FRTScenarioSession::SpawnedByScenarioTag));
+
+	// --- prima corsa ----------------------------------------------------------------------------------
+	URTScenarioRunner::Run(World, Primo);
+	const int32 DopoPrimo = Conta(/*bSoloMarcate=*/ true);
+
+	// ⛔ ANTI-VACUITA': senza unita' marcate dopo la prima corsa, il confronto sotto sarebbe vero per
+	// assenza — e passerebbe anche su un harness che non spawna niente.
+	if (!TestTrue(TEXT("la prima corsa ha posato delle unita'"), DopoPrimo > 0))
+	{
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	// --- seconda corsa, STESSO mondo ------------------------------------------------------------------
+	URTScenarioRunner::Run(World, Secondo);
+	const int32 DopoSecondo = Conta(/*bSoloMarcate=*/ true);
+
+	// Il numero atteso e' quello dichiarato dal SECONDO scenario, non la somma dei due.
+	TestEqual(TEXT("in campo restano le unita' del secondo scenario, non la somma"),
+		DopoSecondo, Secondo.Units.Num());
+
+	// 🔴 La riga che vale il test: senza il difetto, questo numero sarebbe la somma.
+	TestNotEqual(TEXT("e infatti NON e' la somma delle due corse"),
+		DopoSecondo, DopoPrimo + Secondo.Units.Num());
+
+	// --- ⛔ e la partita che ospitava la corsa e' ancora viva -------------------------------------------
+	TestTrue(TEXT("l'unita' NON marcata sopravvive a entrambe le corse"), IsValid(Estranea));
+	TestEqual(TEXT("e il totale in campo la comprende"), Conta(/*bSoloMarcate=*/ false), DopoSecondo + 1);
+
+	DestroyRunnerWorld(World);
 	return true;
 }
 

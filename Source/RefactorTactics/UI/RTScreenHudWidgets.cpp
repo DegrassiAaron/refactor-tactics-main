@@ -3,7 +3,7 @@
 #include "RefactorTactics.h"
 #include "Player/RTPlayerController.h"
 #include "Player/RTPlayerState.h"
-#include "Turn/RTTurnManager.h"
+#include "Turn/RTTurnManagerAccess.h" // FindTurnManagerInWorld: la ricerca senza l'header dell'orchestratore
 #include "Unit/RTUnit.h"
 #include "UI/RTIconLibrary.h"
 #include "Kismet/GameplayStatics.h"
@@ -48,8 +48,11 @@ void URTScreenHudWidgetBase::AcquireMatchContext()
 		return;
 	}
 
-	TurnManager = Cast<ARTTurnManager>(
-		UGameplayStatics::GetActorOfClass(World, ARTTurnManager::StaticClass()));
+	// La ricerca vive in `Turn/RTTurnManagerAccess.h` da `#1821`: questo file non chiama **nessun** metodo
+	// del manager — lo cerca, lo tiene in un weak pointer e lo passa alla view model — quindi non ha
+	// ragione di includerne l'header da 1 856 righe. Il retry qui sotto resta dov'era: la ricerca cambia
+	// indirizzo, non momento.
+	TurnManager = FindTurnManagerInWorld(World);
 
 	// 🔴 **Il HUD di partita puo' nascere SENZA owning player, e senza di esso non esiste una selezione.**
 	// `URTFrontendNavigator::PresentMatchHud` lo crea con `CreateWidget(GameInstance, ...)` dentro

@@ -867,12 +867,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// fra fermarsi, fermarsi addosso, scavalcare e attraversare non e' un `if` sull'ActionId.
 	Wraith->Actions[2]->Def.MovementStyle = ERTMovementStyle::LinearPass;
 
-	// Indice 3 — Deflection (CP 6.7). REAZIONE cablata sulla semantica di `Action.Deflect`: -20 sul colpo
-	// diretto che l'ha innescata. La riduzione arriva dagli effetti del core (`ERTActionEffect::DamageReduction`,
-	// CP 5.5) e resta distinta dallo scudo: uno scudo ASSORBE e si consuma, questa toglie punti al colpo.
-	// Stessa famiglia di `Action.Guard` ma con un trigger invece di una stance — e con una differenza che
-	// [D-292] ha aperto: `Deflect` passa ancora da `ApplyFirstHitDelta` e vale UNA volta, la Guardia e' un
-	// POOL di 15 che i colpi frontali consumano finche' dura. Erano la stessa meccanica fino al 2026-08-31.
+	// Indice 3 — Deflection (CP 6.7). REAZIONE cablata sulla semantica di `Action.Deflect`: un POOL di 20
+	// danni assorbibili sui colpi diretti del boundary che l'ha innescata. La riduzione arriva dagli effetti
+	// del core (`ERTActionEffect::DamageReduction`, CP 5.5).
+	// Stessa famiglia di `Action.Guard` ma con un trigger invece di una stance, e da [D-309] anche la stessa
+	// FORMA: entrambe sono pool che consumano un budget, entrambe passano da `ApplyAbsorptionPool`. Cio' che
+	// resta diverso e' il gate — la Guardia e' uno stato di Prep eleggibile sui soli colpi frontali ([D-206]),
+	// il Deflect e' una reazione senza clausola d'arco — e l'ORDINE: `Deflect` assorbe per primo ([D-312]).
+	// ⚠️ La divergenza aperta da [D-292] il 2026-08-31 e' durata un giorno: [D-309] l'ha richiusa.
 	// Cooldown 2, uguale al core: il catalogo eroi non ne dichiara uno diverso.
 	AddAbility(Wraith, MakeHeroReactionFromCoreAction(TEXT("Hero.Wraith.Deflection"), TEXT("Action.Deflect"),
 		/*Cooldown*/ 2));
