@@ -1097,6 +1097,7 @@ sessions:
     block: 5
     critical: true
     execution_lane: pie
+    runbook: docs/technical/runbooks/guida-seduta-u14-collisione-stallo-e-denial.md
     produces: verdetto sulle regole ambientali e strutturali
     artifacts: []
     unblocked_by: [U13]
@@ -1118,6 +1119,11 @@ sessions:
     unblocks: []
     notes: >-
       Le voci si aprono gradualmente man mano che E4, E5, E8 ed E9 chiudono: non tutte insieme.
+      2026-09-04: PIE-V01-COLL ha due clausole in piu' (#2277) e vuole un allestimento PROPRIO,
+      diverso dal resto della seduta - un choke a varco unico, descritto cella per cella dallo
+      scenario Movement.CollisionChoke. Chi apre U14 lo prepari a parte: l'arena ambientale del
+      blocco 5 non ha un varco obbligato, e senza quello due delle clausole della voce non sono
+      osservabili. L'esito atteso resta in test-manuali-pie.md (R-6).
 
   # --- Blocco 6 ---------------------------------------------------------------
 
