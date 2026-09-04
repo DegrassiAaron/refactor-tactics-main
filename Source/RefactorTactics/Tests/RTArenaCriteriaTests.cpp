@@ -5,6 +5,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
+#include "Perception/RTPerceptionLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Pathfinding/RTHexPathLibrary.h"
 
@@ -501,6 +502,140 @@ bool FRTArenaUnreachableSharedTest::RunTest(const FString&)
 			TestEqual(TEXT("l'isolamento e' del piano staccato"), Cell.Layer, 1);
 		}
 	}
+	return true;
+}
+
+
+
+/**
+ * 🔴 **Il banco esercita davvero il velo**: al primo turno la squadra vede una FRAZIONE del suolo, e le
+ * occlusioni fanno un lavoro MISURABILE. E' il difetto che
+ * [#1738](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1738) ha misurato, espresso come
+ * tripwire — perche' quando torna, torna **invisibile**: una board che si scopre da sola non fa fallire
+ * `PIE-HEX-VIZ-VELO`, la rende non giudicabile, e a schermo somiglia a un velo rotto. E' gia' costato una
+ * sessione di diagnosi su un difetto che non esisteva.
+ *
+ * 🔴 **L'oracolo e' la frazione VISTA, non il conteggio del mai visto, e la differenza e' stata pagata da
+ * una verifica di mutazione.** La prima stesura asseriva «almeno un terzo del suolo resta mai visto» ed era
+ * **vacua**: l'arco frontale lascia fuori la maggior parte di qualunque board grande, quindi passava con e
+ * senza le occlusioni. Misurato riducendo il raggio della fixture a 4 — la mutazione che doveva farla
+ * cadere — il test restava **verde** e le celle mai viste *salivano* (`suolo 66 · viste 12 · mai viste 57`),
+ * perche' il muro va da `-Radius` a `0` e su una board piccola chiude tutto. Un'asserzione che il difetto
+ * rende piu' vera non e' un tripwire.
+ *
+ * ∴ si misura cio' che separa davvero i due banchi:
+ *
+ * | banco | suolo | viste | frazione |
+ * |---|---|---|---|
+ * | `VisionSplit` (r=8) | 217 | 55 | **25%** |
+ * | `MakeFlatArena(4)`, il banco che #1738 dichiara inadeguato | 61 | 56 | **92%** |
+ *
+ * **(1) Meno di meta' del suolo.** Su un banco adeguato la squadra vede poco, ed e' cio' che lascia
+ * margine al velo anche dopo che l'esplorato si accumula ([D-227]).
+ *
+ * **(2) 🔑 Il confronto CONTROLLATO, che e' il vero presidio delle occlusioni.** Gli stessi due
+ * osservatori, dalle stesse celle, su una board **piatta di pari raggio**: li' devono vedere STRETTAMENTE
+ * di piu'. L'unica variabile e' la geometria, quindi il verdetto parla delle occlusioni e di nient'altro.
+ * Togliere `bBlocksLineOfSight` dal muro fa convergere i due numeri e fa cadere questa riga — che e' la
+ * mutazione che la prima stesura non aveva.
+ *
+ * ⚠️ **`VisionRange` 7, il piu' LUNGO del roster** (Gadget; Phase e Riktor 5, Wraith 6): e' il verso
+ * difficile. Con una vista corta la frazione vista sarebbe piccola anche su una mappa inadeguata.
+ *
+ * ➕ **Il controllo positivo non e' decorativo**: senza `Seen.Num() > 0` un difetto che AZZERASSE la vista
+ * di squadra soddisferebbe entrambe le asserzioni per la ragione opposta a quella che interessa.
+ *
+ * ⛔ **Cio' che NON prova**: che i tre stati si DISTINGUANO a schermo — resta il giudizio percettivo di
+ * `PIE-HEX-VIZ-VELO`, criterio 5 — e non prova nulla sui turni successivi al primo: l'erosione dovuta a
+ * [D-227] la misura `Veil.BoardDoesNotCloseBehindThePlayer`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArenaHasCellsNoOneSeesAtStartTest,
+	"RefactorTactics.Arena.HasCellsNoOneSeesAtStart",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTArenaHasCellsNoOneSeesAtStartTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeVisionSplitArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("arena VisionSplit"), Arena)) { return false; }
+
+	// ⚠️ Le partenze si CHIEDONO a `PickStartCells`, la stessa funzione che allestisce la partita vera:
+	// inventarle qui misurerebbe un allestimento che nessuno gioca.
+	const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Arena, /*NumPerTeam=*/ 2, /*Layer=*/ 0);
+	if (!TestEqual(TEXT("quattro celle di partenza (2 per squadra)"), Start.Num(), 4)) { return false; }
+
+	TArray<FRTPerceiver> Team;
+	for (int32 I = 0; I < 2; ++I)
+	{
+		FRTPerceiver P;
+		P.Cell = Start[I];
+		P.VisionRange = 7; // Gadget, il piu' lungo del roster: il verso difficile.
+		Team.Add(P);
+	}
+
+	// 🔑 Il conteggio e' sul SOLO SUOLO. La piattaforma del layer 1 e' una regione separata per costruzione
+	// del grafo, e includerla farebbe rispondere al test una domanda diversa da quella posta — e' lo stesso
+	// errore che una verifica di mutazione ha gia' bocciato nel test gemello.
+	const int32 Suolo = Arena->CellsInLayer(0).Num();
+	if (!TestTrue(TEXT("il suolo non e' vuoto"), Suolo > 0)) { return false; }
+
+	// 🔑 Si contano le sole viste sul LAYER 0, perche' `Suolo` e' il layer 0: mescolarli farebbe rispondere
+	// al rapporto una domanda diversa da quella posta — la piattaforma del layer 1 e' tre celle che
+	// entrerebbero al numeratore e mai al denominatore.
+	auto VisteAlSuolo = [](const URTHexMapAsset* Map, const TArray<FRTPerceiver>& Chi)
+	{
+		int32 N = 0;
+		for (const FRTCellId& Cella : URTPerceptionLibrary::TeamVisibleCells(Map, Chi))
+		{
+			if (Cella.Layer == 0) { ++N; }
+		}
+		return N;
+	};
+
+	const int32 Viste = VisteAlSuolo(Arena, Team);
+
+	// ➕ CONTROLLO POSITIVO: la vista funziona. Senza, «non vede quasi niente» passerebbe per la ragione
+	// opposta a quella che interessa.
+	if (!TestTrue(TEXT("la squadra vede qualcosa dalle proprie partenze"), Viste > 0)) { return false; }
+
+	// (1) Il banco e' grande rispetto alla vista: resta margine per il velo.
+	TestTrue(TEXT("la vista di squadra copre meno di meta' del suolo"), Viste * 2 < Suolo);
+
+	// (2) 🔑 CONFRONTO CONTROLLATO: stessi osservatori, stesse celle, board piatta di PARI RAGGIO. L'unica
+	// variabile e' la geometria, quindi il verdetto parla delle occlusioni e di nient'altro. Le due celle
+	// di partenza esistono anche qui: un esagono di raggio 8 le contiene entrambe.
+	URTHexMapAsset* Piatta = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 8);
+	if (!TestNotNull(TEXT("board piatta di confronto"), Piatta)) { return false; }
+	const int32 VistePiatta = VisteAlSuolo(Piatta, Team);
+
+	AddInfo(FString::Printf(
+		TEXT("VisionSplit: suolo %d · viste %d (%d%%) · partenze team 0 (%d,%d) e (%d,%d) — piatta r=8: viste %d"),
+		Suolo, Viste, Suolo > 0 ? (Viste * 100) / Suolo : 0,
+		Start[0].X, Start[0].Y, Start[1].X, Start[1].Y, VistePiatta));
+
+	TestTrue(TEXT("le occlusioni tolgono vista rispetto a una board piatta di pari raggio"),
+		VistePiatta > Viste);
+
+	// 📊 Diagnostico e non asserzione: il banco che #1738 dichiara inadeguato, misurato accanto a quello che
+	// lo sostituisce. Non e' un assert perche' quel numero dipende da una mappa che questa issue NON possiede.
+	if (URTHexMapAsset* Vecchia = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 4))
+	{
+		const TArray<FRTCellId> S = URTMatchSetupLibrary::PickStartCells(Vecchia, /*NumPerTeam=*/ 2, /*Layer=*/ 0);
+		if (S.Num() >= 2)
+		{
+			TArray<FRTPerceiver> Vecchio;
+			for (int32 I = 0; I < 2; ++I)
+			{
+				FRTPerceiver P;
+				P.Cell = S[I];
+				P.VisionRange = 7;
+				Vecchio.Add(P);
+			}
+			const int32 SuoloVecchio = Vecchia->CellsInLayer(0).Num();
+			const int32 VisteVecchio = VisteAlSuolo(Vecchia, Vecchio);
+			AddInfo(FString::Printf(TEXT("banco vecchio (piatta r=4): suolo %d · viste %d (%d%%)"),
+				SuoloVecchio, VisteVecchio, SuoloVecchio > 0 ? (VisteVecchio * 100) / SuoloVecchio : 0));
+		}
+	}
+
 	return true;
 }
 
