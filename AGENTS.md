@@ -358,6 +358,37 @@ Per ogni uso Editor/MCP:
 7. chiudere l'Editor avviato dal workflow;
 8. confermare che il processo sia terminato.
 
+### Authoring e acceptance
+
+Non sono la stessa apertura, e la seconda non vale dentro la prima.
+
+**Authoring**: creare o modificare `.uasset`, `.umap`, Data Asset, Blueprint, montage, posa in mappa. Può
+precedere l'implementazione — un asset è spesso un prerequisito, non una verifica.
+
+**Acceptance**: giudicare la feature sul risultato consolidato.
+
+Se la sessione ha scritto asset binari, il giudizio non vale nel processo che li ha scritti:
+
+**salva → chiudi l'Editor → build/suite → riapri → giudica**
+
+La riapertura è parte dell'oracolo quando si verifica persistenza, serializzazione, riferimenti, startup
+map, layout, errori di load, inizializzazione da zero, asset registry o cook. Fuori da questi casi non
+serve, e chiedere un restart che nessuna di queste domande richiede costa un'apertura per niente.
+
+Una nuova apertura si giustifica solo se cambia una **precondizione**: asset da salvare, restart pulito
+richiesto, processo o configurazione incompatibili. Cambiare mappa, fermare e riavviare PIE, o eseguire un
+altro scenario **non** lo sono: si fanno nella stessa apertura. Quali sedute condividano un allestimento è
+già dichiarato in `docs/roadmap/editor-sessions.yaml`, campo `shares_setup_with`.
+
+Il verdetto va scritto dove il suo owner lo cerca:
+
+- una voce `PIE-*` in `docs/technical/test-manuali-pie.md`, quando il comportamento è **in gioco**;
+- la **issue owner**, quando la verifica sta nell'editor prima del Play;
+- un **artifact** versionato, quando la seduta produce un file.
+
+L'assenza in uno dei tre non è un buco se un altro porta il verdetto. Se non lo porta nessuno: `NOT RUN`
+con il motivo.
+
 ### `issue-refs.ts` — l'unico che guarda fuori dal repository
 
 Confronta i percorsi e i comandi citati dalle **issue aperte** con l'albero: chiude il difetto che
