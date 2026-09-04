@@ -223,6 +223,9 @@ namespace
 int32 URTHexBotLibrary::ScoreObjectiveTerm(const URTHexMapAsset* Map, const FRTCellId& DestCell,
 	const FRTHexBotContext& Context)
 {
+	// ⚠️ **La guardia sul peso non e' ridondante: e' cio' che rende GRATIS il termine spento.** Il `Max` in
+	// fondo restituirebbe zero comunque, ma solo dopo aver percorso il grafo — e con `WObjective = 0`, che e'
+	// la forma della verifica di mutazione, si pagherebbe una BFS per goal per turno per non cambiare niente.
 	if (Context.WObjective <= 0 || Context.ObjectiveCells.Num() == 0)
 	{
 		return 0;
@@ -235,14 +238,15 @@ int32 URTHexBotLibrary::ScoreObjectiveTerm(const URTHexMapAsset* Map, const FRTC
 	// l'obiettivo aggiunge UNA voce alla cache e una BFS per turno — non una per candidata. E' la stessa
 	// misura con cui si paga l'avvicinamento al nemico dal 2026-08-23, e usarne una diversa qui rimetterebbe
 	// in gioco la metrica che mente (`#1287`): dietro un muro, «vicino» e «raggiungibile» non coincidono.
+	//
+	// ⚠️ **Non c'e' un caso «nessun cammino», e non e' una svista.** `ApproachSteps` risponde SEMPRE: quando
+	// il grafo non collega le due celle ripiega sulla distanza esagonale, con la stessa scelta — dichiarata
+	// li' — con cui gia' misura l'avvicinamento ai nemici. Un ramo per il cammino inesistente sarebbe codice
+	// morto, e chi lo leggesse penserebbe che il caso e' gestito quando invece non si presenta.
 	int32 Passi = MAX_int32;
 	for (const FRTCellId& Objective : Context.ObjectiveCells)
 	{
 		Passi = FMath::Min(Passi, ApproachSteps(Map, DestCell, Objective));
-	}
-	if (Passi == MAX_int32)
-	{
-		return 0;
 	}
 
 	return FMath::Max(0, Context.WObjective - Context.WObjectiveFalloff * Passi);
