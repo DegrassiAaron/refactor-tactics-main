@@ -183,7 +183,42 @@ class REFACTORTACTICS_API ARTHUD : public AHUD
 	GENERATED_BODY()
 
 public:
+	ARTHUD();
+
 	virtual void DrawHUD() override;
+
+	/**
+	 * Esegue il driver del velo (`UpdateObserverVeil`) una volta per fotogramma.
+	 *
+	 * 🔴 **Esiste perche' l'applicazione del velo NON e' disegno.** Fino a `#2246` viveva dentro il ciclo di
+	 * `DrawHUD`, che comincia con `if (!Canvas) { return; }`: senza un canvas nessuno spegneva i nemici non
+	 * osservati, e `bKnownToObserver` nasce `true`. Cioe' *«il driver non ha girato»* e *«tutto e' noto»*
+	 * producevano lo stesso schermo, e nessun test li distingueva.
+	 */
+	virtual void Tick(float DeltaSeconds) override;
+
+	/**
+	 * Applica al mondo cio' che l'osservatore locale sa: accende e spegne i modelli
+	 * (`ARTUnit::SetKnownToObserver`) e pilota la sagoma dell'ultimo contatto (CP 13.5).
+	 *
+	 * 🔴 **Non disegna niente, ed e' il punto.** Nel ciclo di `DrawHUD` questi due gesti stavano accanto al
+	 * disegno delle barre e ne condividevano il destino: chi avesse spostato la sovrapposizione altrove — la
+	 * migrazione a `WidgetComponent` che `#613` prepara — se li sarebbe portati via in silenzio, e i nemici
+	 * non osservati sarebbero rimasti **visibili**. Un difetto di privacy (`AGENTS.md` §4), non estetico.
+	 *
+	 * 🔑 **Perche' sull'HUD e non su un attore condiviso.** Il velo e' relativo a UN osservatore: il team
+	 * si legge da `ARTPlayerState::TeamIdOf(GetOwningPlayerController())`, che senza controller ripiega su
+	 * `0`. Un `AGameState` o un subsystem di mondo non hanno un osservatore da cui derivarlo, e la risposta
+	 * dovrebbe comunque essere per-giocatore — oltre al fatto che `#1820` tiene fuori dal perimetro un
+	 * contenitore di stato pubblico. L'HUD e' gia' per-player e conosce gia' quel team.
+	 *
+	 * ⚠️ **CONSUMA i due giudizi, non li rifa'**: `ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit`
+	 * restano l'unica definizione delle due regole.
+	 *
+	 * ⚠️ **Pubblica per essere interrogabile senza aspettare un fotogramma**: `DrawHUD` non ha copertura
+	 * headless, ed e' esattamente il motivo per cui cio' che si puo' sbagliare esce di li'.
+	 */
+	void UpdateObserverVeil();
 
 	/**
 	 * Chi verrebbe colpito dai piani d'attacco **delle proprie unita'**: celle bersagliate e, fra queste,

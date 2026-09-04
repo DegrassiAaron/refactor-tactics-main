@@ -1087,6 +1087,19 @@ public:
 	void SetKnownToObserver(bool bKnown);
 
 	/**
+	 * Cio' che l'osservatore locale sa di questa unita', come gliel'ha dichiarato `SetKnownToObserver`.
+	 *
+	 * 🔑 **Esiste perche' il velo abbia UN produttore e piu' consumatori.** Lo scrive `ARTHUD::UpdateObserverVeil`,
+	 * che interroga `ShouldDrawUnitOverlay`; chi disegna una sovrapposizione **legge qui** invece di
+	 * ricostruire la vista di conoscenza per conto proprio. Due ricostruzioni per fotogramma sarebbero due
+	 * risposte che possono divergere, ed e' la stessa ragione per cui quei predicati sono statici e puri.
+	 *
+	 * ⚠️ **Non e' «l'unita' si vede».** La visibilita' e' una FUNZIONE di questo flag e della vita
+	 * (`ShouldBeRendered`), e la morte vince sempre: un caduto non torna visibile perche' e' noto.
+	 */
+	bool IsKnownToObserver() const { return bKnownToObserver; }
+
+	/**
 	 * Opacita' della sagoma del ricordo. Pura: la dissolvenza e' PRESENTAZIONE e non ha effetti logici, ma
 	 * la sua REGOLA e' testabile e va tenuta fuori dal Tick.
 	 *

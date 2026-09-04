@@ -39,6 +39,7 @@
 #include "TimerManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/ScopeExit.h" // ON_SCOPE_EXIT: il boundary torna a `INDEX_NONE` per costruzione (#2260)
 #include "Replay/RTMatchHistoryLibrary.h" // indice delle partite: una riga per partita, fuori dagli archivi (#416)
 #include "Replay/RTReplayAuditLibrary.h"
 #include "Replay/RTReplayRecorderLibrary.h"
@@ -2686,6 +2687,13 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 	// Letta ADESSO e non a inizio turno: una porta che si apre o un ponte che crolla la fanno salire in mezzo
 	// alla risoluzione, ed e' esattamente la ragione per cui il campo sta nella voce e non nell'header.
 	Entry.GraphRevision = CurrentGraphRevision();
+	// La terza coordinata del boundary, per la stessa ragione e nello stesso istante delle altre due (`#2260`).
+	// `#1880` ha aggiunto il campo alla voce e il lettore che lo cerca; finche' nessuno lo SCRIVEVA, ogni
+	// traccia restava phase-only anche alla `WithMicroStep` — schema e ricerca senza produttore.
+	//
+	// ⚠️ Vale `INDEX_NONE` fuori dal ciclo di movimento, che e' la maggior parte delle voci, e li' significa
+	// «nessun ciclo qui» — non «non lo so». La distinzione e' su `CurrentMicroStepIndex`.
+	Entry.MicroStepIndex = CurrentMicroStepIndex;
 	// Chi ha AGITO, che e' la ragione per cui `UnitId` esiste ([D-063]): la cella non lo identifica — le voci
 	// ambientali non hanno un'unita', l'interposizione scrive in `SrcCell` la cella del PROTETTO, e dopo un
 	// Dash la cella dell'attore in fase Blast non e' piu' quella di partenza. Per questo l'attore arriva come
@@ -6685,7 +6693,15 @@ void ARTTurnManager::ResolveMovement()
 		TArray<int32> EnteredBefore;
 		EnteredBefore.Init(0, Paths.Num());
 
-		int32 MicroStepIndex = 0;
+		// ⚠️ Il contatore e' UNO SOLO e vive sul manager (`#2260`): `AppendLogEntry` lo legge per stampare il
+		// boundary sulle voci che nascono qui dentro. Una copia locale — com'era prima — tornerebbe a essere
+		// invisibile da li', e l'unico modo di riallinearle sarebbe un secondo contatore da tenere d'accordo
+		// col primo. Lo stesso valore alimenta la voce del log e `FRTReactionOpportunityKey`.
+		CurrentMicroStepIndex = 0;
+		// Il ripristino e' STRUTTURALE, non affidato alla disciplina: senza, ogni voce emessa dopo la
+		// risoluzione del movimento erediterebbe l'indice dell'ultima barriera e direbbe di appartenere a un
+		// ciclo gia' finito. Un `break` uscirebbe comunque di qui; un `return` futuro, no.
+		ON_SCOPE_EXIT{ CurrentMicroStepIndex = INDEX_NONE; };
 		while (URTHexSimLibrary::ResolveNextHexMicroStep(State))
 		{
 			TArray<int32> MovedUnitIds;
@@ -6702,8 +6718,8 @@ void ARTTurnManager::ResolveMovement()
 			// IL DECISION BOUNDARY. La «sospensione globale» di ADR-0004 §5 e' il fatto che questa chiamata
 			// stia fra due micro-step e debba ritornare prima del successivo: nessuna unita' avanza mentre una
 			// finestra e' aperta, e non perche' qualcuno le fermi — perche' il ciclo non gira.
-			ResolveReactionBoundary(Snapshot.Map, Units, State, MovedUnitIds, MicroStepIndex);
-			++MicroStepIndex;
+			ResolveReactionBoundary(Snapshot.Map, Units, State, MovedUnitIds, CurrentMicroStepIndex);
+			++CurrentMicroStepIndex;
 		}
 	}
 	// Non esegue nulla: il ciclo qui sopra e' uscito perche' `ResolveNextHexMicroStep` ha restituito falso,

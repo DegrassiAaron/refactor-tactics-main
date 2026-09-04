@@ -1099,7 +1099,7 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	// Il FormatId sta DOPO i flags e prima del conteggio: le posizioni dei campi precedenti non si spostano,
 	// cosi' un lettore che ispeziona magic/versione/flags continua a trovarli dove sono sempre stati.
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
-	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::ResponseAndReasonSplit));
+	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithMicroStep));
 	AppendU16LE(Out, static_cast<uint16>(Topology));
 	AppendStringUtf8(Out, FormatId.IsNone() ? FString() : FormatId.ToString());
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
@@ -1139,6 +1139,9 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 		// dell'Overwatch — la sua risposta si deduce, e una traccia scritta prima della v10 significa la
 		// stessa cosa di una scritta dopo.
 		AppendStringUtf8(Out, E.ReactionResponse);
+		// v12 (`#1880`): il micro-step, in coda — i campi precedenti non si spostano, come per ogni
+		// estensione dalla v7 in poi.
+		AppendI32LE(Out, E.MicroStepIndex);
 	}
 
 	// Checksum FNV di tutto cio' che precede (header + voci), in coda: rileva la corruzione del contenuto.
@@ -1235,8 +1238,12 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	if (!ReadU16LE(Bytes, Pos, Version)) { return false; }
 	// v11 (`#1118`): risposta e ragione separate. Non aggiunge byte — il campo c'era gia' dalla v10 — ma
 	// cambia il SIGNIFICATO dei valori di `Outcome` sulle voci `ReactionDecision`, quindi va distinta.
-	const bool bIsResponseAndReasonSplit =
-		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::ResponseAndReasonSplit));
+	// v12 (`#1880`): la voce porta il micro-step. Sta in cima alla catena perche' e' la piu' recente, e
+	// come ogni versione implica tutte quelle sotto.
+	const bool bHasMicroStep =
+		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithMicroStep));
+	const bool bIsResponseAndReasonSplit = bHasMicroStep
+		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::ResponseAndReasonSplit));
 	// v10 (E14.7, [D-047]): il token della risposta. Come per ogni estensione precedente, la versione nuova
 	// implica tutte quelle sotto — le versioni sono cumulative, non alternative.
 	const bool bHasReactionResponse = bIsResponseAndReasonSplit
@@ -1400,6 +1407,17 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 		if (bHasReactionResponse)
 		{
 			if (!ReadStringUtf8(Bytes, Pos, E.ReactionResponse))
+			{
+				OutEntries.Reset();
+				return false;
+			}
+		}
+		// v12 (`#1880`): il micro-step. Sotto la v12 resta `0`, e **non** si deduce: `0` e' anche un
+		// micro-step legittimo, quindi il campo non puo' distinguere «prima barriera» da «traccia che non le
+		// portava». La differenza vive nella VERSIONE, ed e' l'unico posto in cui e' onesta.
+		if (bHasMicroStep)
+		{
+			if (!ReadI32LE(Bytes, Pos, E.MicroStepIndex))
 			{
 				OutEntries.Reset();
 				return false;

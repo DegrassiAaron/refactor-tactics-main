@@ -4,6 +4,14 @@
 #include "Player/RTPlayerController.h"
 #include "Player/RTPlayerState.h"
 #include "Turn/RTTurnManagerAccess.h" // FindTurnManagerInWorld: la ricerca senza l'header dell'orchestratore
+#include "Turn/RTTurnManager.h" // 🔴 Il tipo COMPLETO serve lo stesso: `TurnManager` e' un
+// `TWeakObjectPtr<ARTTurnManager>`, e assegnarci un puntatore vuole la definizione — il compilatore deve
+// sapere che deriva da `UObject`. Con la sola forward di `RTTurnManagerAccess.h` il messaggio e' *«i tipi
+// indicati non sono correlati»*, che non nomina l'include mancante.
+// ⚠️ **Compilava solo grazie alla UNITY BUILD**, che glielo offriva di rimbalzo da un altro file dello
+// stesso blob: un difetto latente, scoperto da #2257 quando l'Adaptive Build ha escluso due file dal blob
+// e ne ha cambiato la composizione. ⛔ Non un difetto di #1821: quella issue ha tolto l'header dove serviva
+// solo NOMINARE il tipo, e qui invece lo si ASSEGNA.
 #include "Unit/RTUnit.h"
 #include "UI/RTIconLibrary.h"
 #include "Kismet/GameplayStatics.h"

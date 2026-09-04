@@ -1462,7 +1462,11 @@ bool FRTTurnLogLegacyWithoutReactionResponseTest::RunTest(const FString&)
 	// Il token vuoto occupa 2 byte di lunghezza, subito prima del checksum (4 byte). Si tolgono quei 2 e si
 	// ricalcola il checksum sul payload accorciato.
 	if (!TestTrue(TEXT("il file ha almeno checksum e token"), Bytes.Num() >= 6)) { return false; }
-	Bytes.RemoveAt(Bytes.Num() - 6, 2);
+	// ⚠️ **Va aggiornata a OGNI campo aggiunto in coda al record**, ed e' il prezzo di costruire una
+	// traccia «vecchia» patchandone una nuova: il layout della coda cambia sotto di lei. Oggi sono
+	// `ReactionResponse` (2 byte, stringa vuota) piu' `MicroStepIndex` (4 byte, v12) prima del checksum.
+	// Se un giorno fallisce con «una voce letta: 0», il primo sospetto e' un campo nuovo, non il lettore.
+	Bytes.RemoveAt(Bytes.Num() - 10, 6);
 	uint32 H = 2166136261u;
 	for (int32 i = 0; i < Bytes.Num() - 4; ++i) { H ^= Bytes[i]; H *= 16777619u; }
 	Bytes[Bytes.Num() - 4] = H & 0xFF;
@@ -1482,6 +1486,89 @@ bool FRTTurnLogLegacyWithoutReactionResponseTest::RunTest(const FString&)
 	TestEqual(TEXT("e il bersaglio pure"), Out[0].SelectedTargetUnitId, 3);
 	TestEqual(TEXT("e il token e' stato RICOSTRUITO dal bersaglio, non lasciato vuoto"),
 		Out[0].ReactionResponse, URTReactionOpportunityLibrary::FireResponse(3));
+	return true;
+}
+
+
+/**
+ * **Il micro-step attraversa il formato, e una traccia vecchia resta leggibile** (`#1880`).
+ *
+ * 🔴 **La meta' che conta e' la seconda**, e non usa una traccia costruita per l'occasione: legge un file
+ * del **corpus golden**, scritto alla v10 e versionato nel repository. Una traccia sintetica «vecchia»
+ * proverebbe che il codice sa leggere cio' che il codice stesso ha appena scritto; un golden prova che sa
+ * leggere cio' che e' stato scritto mesi fa, che e' la domanda vera della compatibilita'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogMicroStepRoundTripTest,
+	"RefactorTactics.TurnLog.MicroStepSurvivesTheFormat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogMicroStepRoundTripTest::RunTest(const FString&)
+{
+	// --- andata e ritorno ------------------------------------------------------------------------------
+	TArray<FRTTurnLogEntry> Voci;
+	{
+		FRTTurnLogEntry A = MakeSerEntry(ERTMatchPhase::Move, ERTLogCategory::Move, 0,
+			FRTCellId(0, 0), FRTCellId(1, 0), 3);
+		A.TurnNumber = 4;
+		A.MicroStepIndex = 7;
+		Voci.Add(A);
+
+		// Stessa fase, boundary DIVERSO: e' il caso che un formato che perdesse il campo appiattirebbe.
+		FRTTurnLogEntry B = MakeSerEntry(ERTMatchPhase::Move, ERTLogCategory::Move, 0,
+			FRTCellId(2, 0), FRTCellId(3, 0), 5);
+		B.TurnNumber = 4;
+		B.MicroStepIndex = 2;
+		Voci.Add(B);
+	}
+
+	const TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog(Voci);
+
+	TArray<FRTTurnLogEntry> Rilette;
+	if (!TestTrue(TEXT("la traccia si rilegge"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Rilette)))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("due voci"), Rilette.Num(), 2)) { return false; }
+
+	// ⛔ ANTI-VACUITA': i due micro-step sono DIVERSI, quindi un campo perso o azzerato si vede. Se fossero
+	// entrambi 0 il test passerebbe anche su un formato che non li scrive affatto.
+	TArray<int32> Passi;
+	for (const FRTTurnLogEntry& E : Rilette) { Passi.Add(E.MicroStepIndex); }
+	Passi.Sort();
+	TestEqual(TEXT("il micro-step piu' basso sopravvive"), Passi[0], 2);
+	TestEqual(TEXT("e anche il piu' alto"), Passi[1], 7);
+
+	// --- 🔴 una traccia VERA di versione precedente ---------------------------------------------------
+	const FString Golden = FPaths::Combine(FPaths::ProjectDir(),
+		TEXT("Source/RefactorTactics/Tests/Golden/Movement.Collision/turn-01.rttl"));
+
+	TArray<uint8> Vecchi;
+	if (!TestTrue(TEXT("il golden esiste"), FFileHelper::LoadFileToArray(Vecchi, *Golden)))
+	{
+		return false;
+	}
+
+	// ⚠️ La premessa, misurata invece che assunta: se un giorno il corpus venisse rigenerato alla versione
+	// corrente, questo test smetterebbe di misurare la compatibilita' — e lo direbbe qui, invece di
+	// continuare a passare su una domanda diversa.
+	uint16 Versione = 0;
+	if (Vecchi.Num() >= 6) { Versione = static_cast<uint16>(Vecchi[4]) | (static_cast<uint16>(Vecchi[5]) << 8); }
+	TestTrue(TEXT("il golden e' scritto a una versione PRECEDENTE"),
+		Versione < static_cast<uint16>(ERTTurnLogFormatVersion::WithMicroStep));
+
+	TArray<FRTTurnLogEntry> DaVecchia;
+	if (!TestTrue(TEXT("e si legge ancora"), URTTurnLogLibrary::DeserializeTurnLog(Vecchi, DaVecchia)))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("con delle voci dentro"), DaVecchia.Num() > 0)) { return false; }
+
+	for (const FRTTurnLogEntry& E : DaVecchia)
+	{
+		// `0` e non un valore inventato: quei byte non contenevano il micro-step, e dedurlo dalla posizione
+		// sarebbe la ricostruzione che [D-310] vieta.
+		TestEqual(TEXT("il micro-step di una traccia vecchia e' 0, non dedotto"), E.MicroStepIndex, 0);
+	}
+
 	return true;
 }
 
