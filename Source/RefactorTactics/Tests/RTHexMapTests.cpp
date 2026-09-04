@@ -1510,5 +1510,150 @@ bool FRTAuthoredCoversNotBelowCatalogTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Quante porte ha la mappa che la partita carica, e la risposta e' ZERO** (`#2312`).
+ *
+ * 🔴 **Questo test e' nato per asserire il contrario, e la misura l'ha falsificato.** `#2312` chiedeva un
+ * oracolo che dicesse *«la mappa d'autore contiene almeno una porta apribile»*, perche'
+ * `docs/roadmap/roadmap-v0.1.md` §2 lo affermava. Eseguito la prima volta il 2026-09-04:
+ *
+ * ```text
+ * DA_HexMap_Arena: 64 celle, 0 porte — Open 0, Closed 0, Locked 0, Destroyed 0
+ * ```
+ *
+ * ⛔ **La fonte di quell'affermazione era una lettura della NAME TABLE del `.uasset`, ed era un falso
+ * positivo.** `RTHexDoor` e `Doors` compaiono nella tabella come **nomi di tipo e di proprieta'** dello
+ * schema serializzato, non come prova di contenuto. Il discriminante usato allora — *«`InteriorWalls` non
+ * c'e', quindi l'assenza discrimina»* — non discriminava affatto: `InteriorWalls` e' un campo della **v12**
+ * (`#1864`) che quell'asset non porta per **versione**, non per contenuto vuoto. Due assenze con cause
+ * diverse lette come la stessa cosa.
+ *
+ * ---
+ *
+ * 🔑 **Che cosa questo oracolo fa ORA: e' un filo teso fra un asset e un documento.** La riga di `§2` deve
+ * dire il vero sulla mappa che il giocatore carica, e nessun altro meccanismo lo garantisce. Il giorno in
+ * cui qualcuno autorera' una porta su `DA_HexMap_Arena` questo test diventera' **rosso**, e quel rosso e'
+ * il promemoria di aggiornare la riga — non un difetto da riparare togliendo l'asserzione.
+ *
+ * ⚠️ **La capability NON e' in discussione, e confonderle e' l'errore che questo test esiste per impedire.**
+ * `Action.Interact` apre una porta: `CP 10.1` (`#74`) e' chiusa con `Structures.Door.InteractFromKitOpensDoor`
+ * e `Spec/Map/InteractOpensDoor.json`. Ma quegli scenari girano su mappe che **si costruiscono da sole**, e
+ * le porte esistono nelle fixture (`MakeShowcaseRelayBasinArena` ne posa una, `MakeGrayKitYardArena` quattro
+ * in quattro stati). «`Interact` funziona» e «la mappa spedita ha qualcosa su cui usarlo» sono proposizioni
+ * diverse: la prima e' vera, la seconda e' falsa, e §2.1 le aveva gia' confuse una volta dichiarando
+ * *«#833 ha portato porte e interruttori»* — vero per il codice, non per `DA_HexMap_Arena`.
+ *
+ * ⚠️ **Si asserisce SOLO sulla mappa d'autore**, e le altre due si limitano a un `AddInfo`. E' la lezione
+ * del vicino `AuthoredCoversAreNotBelowCatalog`: `_Scratch` e' una fixture che **si rigenera** — misurata a
+ * 45 celle e 1 copertura, poi a 65 e 4 in dieci giorni — quindi un'asserzione su di lei misurerebbe la
+ * rigenerazione, non un invariante. `DA_HexMap_Arena` e' autorata a mano e stabile: e' l'unica delle tre su
+ * cui un conteggio significhi qualcosa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAuthoredArenaDoorCountTest,
+	"RefactorTactics.HexMap.AuthoredArenaDoorCountMatchesTheRoadmap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAuthoredArenaDoorCountTest::RunTest(const FString&)
+{
+	// Il conteggio in UN posto solo: lo consumano l'asserzione, il referto e la guardia di mutazione, quindi
+	// non possono divergere. Una lambda e non una funzione libera, perche' in unity build due helper omonimi
+	// di file diversi collidono — la convenzione che questo file gia' rispetta.
+	const auto ContaPorte = [](const URTHexMapAsset* Mappa, int32 (&PerStato)[4], TArray<FString>* OutDove) -> int32
+	{
+		int32 Totale = 0;
+		for (const FRTHexCellData& Cella : Mappa->Cells)
+		{
+			for (const FRTHexDoor& Porta : Cella.Doors)
+			{
+				++Totale;
+				const int32 Indice = static_cast<int32>(Porta.State);
+				if (Indice >= 0 && Indice < 4)
+				{
+					++PerStato[Indice];
+				}
+				if (OutDove != nullptr)
+				{
+					OutDove->Add(FString::Printf(TEXT("%s bordo %d stato %d"),
+						*Cella.Id.ToString(), static_cast<int32>(Porta.Edge), Indice));
+				}
+			}
+		}
+		return Totale;
+	};
+
+	// I tre `URTHexMapAsset` versionati, gli stessi che il vicino elenca. Solo il primo e' autorato a mano.
+	const TCHAR* PercorsiAsset[] =
+	{
+		RTAuthoredArena::Path(),
+		TEXT("/Game/RT/Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox.DA_HexMap_Sandbox"),
+		TEXT("/Game/RT/Maps/Dev/_Scratch/DA_HexMap_Scratch_Basin.DA_HexMap_Scratch_Basin"),
+	};
+
+	URTHexMapAsset* Autorata = nullptr;
+	for (const TCHAR* Percorso : PercorsiAsset)
+	{
+		URTHexMapAsset* Mappa = LoadObject<URTHexMapAsset>(nullptr, Percorso);
+
+		// Un oracolo che perde il proprio soggetto e resta verde e' peggio di un oracolo assente.
+		if (!TestNotNull(*FString::Printf(TEXT("l'asset committato si carica: %s"), Percorso), Mappa))
+		{
+			continue;
+		}
+		if (Autorata == nullptr)
+		{
+			Autorata = Mappa;
+		}
+
+		int32 PerStato[4] = { 0, 0, 0, 0 };
+		TArray<FString> Dove;
+		const int32 Totale = ContaPorte(Mappa, PerStato, &Dove);
+
+		AddInfo(FString::Printf(
+			TEXT("%s: %d celle, %d porte — Open %d, Closed %d, Locked %d, Destroyed %d%s"),
+			Percorso, Mappa->NumCells(), Totale,
+			PerStato[static_cast<int32>(ERTHexDoorState::Open)],
+			PerStato[static_cast<int32>(ERTHexDoorState::Closed)],
+			PerStato[static_cast<int32>(ERTHexDoorState::Locked)],
+			PerStato[static_cast<int32>(ERTHexDoorState::Destroyed)],
+			Dove.Num() > 0 ? *FString::Printf(TEXT(" — %s"), *FString::Join(Dove, TEXT(" · "))) : TEXT("")));
+	}
+
+	if (!TestNotNull(TEXT("la mappa d'autore e' fra gli asset caricati"), Autorata))
+	{
+		return false;
+	}
+
+	// L'ASSERZIONE, e vale solo sulla mappa d'autore.
+	int32 PerStatoAutorata[4] = { 0, 0, 0, 0 };
+	const int32 PorteAutorate = ContaPorte(Autorata, PerStatoAutorata, nullptr);
+	TestEqual(
+		TEXT("la mappa d'autore non porta nessuna porta, e `roadmap-v0.1.md` §2 lo dice — se questo numero ")
+		TEXT("cambia, la riga va aggiornata invece di togliere l'asserzione"),
+		PorteAutorate, 0);
+
+	// 🔴 **La guardia di mutazione si fa su un DUPLICATO, e non e' pedanteria.** `LoadObject` restituisce la
+	// STESSA istanza a ogni chiamante del processo: scrivere `Doors` sull'originale lo lascerebbe scritto per
+	// `SerializedAssetMigratesWithoutGainingData` e per i quattro oracoli su `L_HexArena` che girano dopo,
+	// nella stessa run. E' la ragione per cui anche la partita lavora su una copia (`CP 8`,
+	// `RTMatchBootstrapperMapViewTests`).
+	//
+	// ⚠️ **Con un'asserzione a ZERO la mutazione e' l'unica cosa che rende il test non vacuo**: senza,
+	// resterebbe verde anche se `ContaPorte` non contasse niente.
+	URTHexMapAsset* Copia = DuplicateObject<URTHexMapAsset>(Autorata, GetTransientPackage());
+	if (TestNotNull(TEXT("la copia di lavoro esiste"), Copia) && Copia->Cells.Num() > 0)
+	{
+		Copia->Cells[0].Doors.Add(FRTHexDoor(ERTHexDirection::E, ERTHexDoorState::Closed));
+
+		int32 PerStatoCopia[4] = { 0, 0, 0, 0 };
+		TestEqual(TEXT("aggiungendo una porta il conteggio la vede: non sta contando qualcos'altro"),
+			ContaPorte(Copia, PerStatoCopia, nullptr), 1);
+		TestEqual(TEXT("e la vede come Closed"),
+			PerStatoCopia[static_cast<int32>(ERTHexDoorState::Closed)], 1);
+
+		int32 PerStatoDopo[4] = { 0, 0, 0, 0 };
+		TestEqual(TEXT("e l'originale non e' stato toccato: la mutazione non esce da questo test"),
+			ContaPorte(Autorata, PerStatoDopo, nullptr), PorteAutorate);
+	}
+	return true;
+}
 
 #endif // WITH_DEV_AUTOMATION_TESTS
