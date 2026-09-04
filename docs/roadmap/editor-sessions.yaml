@@ -1025,7 +1025,7 @@ sessions:
     done_when: i quattro asset sono tracciati da git e la voce ha esito reale
     unblocks: [U12]
     steps: |
-      Un asset eroe per personaggio con statistiche distinte (90/95/120/100 HP, 5/5/4/6 MP), poi una
+      Un asset eroe per personaggio con statistiche distinte (90/95/120/**90** HP, 5/5/4/6 MP — Wraith sceso da 100 con D-069, `#131`; questa riga diceva 100 fino al 2026-09-04, e il registro lo aveva gia' corretto), poi una
       partita per vedere che il bot gestisca MP diversi senza proporre mosse illegali.
       Asset mancante = fallback al cilindro, previsto.
     notes: >-
@@ -2903,3 +2903,79 @@ sessions:
       `FColor(25,25,25)`: questa voce e' **l'unico posto** in cui quella domanda viene posta.
       ⚠️ **Ed e' l'ultimo criterio di #1665**, chiusa il 2026-09-03 consegnandole questa lettura: se la
       board risultasse ancora nera il difetto e' **tornato**, e va riaperta.
+
+  - id: U46
+    title: I quattro residui del gate G9, in una sola apertura
+    block: 6
+    critical: true
+    execution_lane: pie
+    produces: i quattro verdetti che separano `G9` dal verde
+    artifacts: []
+    # 🔑 **Perche' questa seduta esiste, ed e' il difetto SIMMETRICO a quello di U45.** Li' erano voci
+    # senza casa; qui sono **sedute quasi esaurite che nessuno riaprira' per una voce sola**. Misurato il
+    # 2026-09-04 incrociando `test-manuali-pie.md` con questo file:
+    #
+    #   U4  «Combat e linea di tiro»       1 residuo su 3   -> PIE-HEXPLAY-6
+    #   U6  «Multilivello e partita»       1 residuo su 4   -> PIE-HEXPLAY-8
+    #   U11 «I 4 eroi»                     1 residuo su 1   -> PIE-V01-ROSTER
+    #   U15 «HUD, intenti, log e debug»    2 residui su 5   -> PIE-V01-LOG (+ PIE-V01-DEBUG)
+    #
+    # Convocarle dalle sedute d'origine costa **quattro aperture** per quattro voci. Sono tutte giudizi a
+    # schermo, e dal 2026-09-04 il residuo di ciascuna e' **una domanda sola**: stanno in una apertura.
+    # ⛔ Nessuna delle quattro e' orfana — hanno gia' una seduta, e questa NON la sostituisce: la coda
+    # esiste finche' i residui sono sparsi, e sparisce quando sono chiusi.
+    unblocked_by: []
+    # `unblocked_by` vuoto e non e' una svista: il codice c'e' tutto. Le quattro voci non aspettano un
+    # checkpoint, aspettano un occhio — e per `PIE-HEXPLAY-6` aspettano anche `#1873`, vedi sotto.
+    shares_setup_with: []
+    verifies: [PIE-HEXPLAY-6, PIE-HEXPLAY-8, PIE-V01-ROSTER, PIE-V01-LOG]
+    issues: [1873]
+    done_when: le quattro voci hanno un esito reale nel registro, in un verso o nell'altro
+    unblocks: []
+    steps: |
+      Una apertura, quattro giudizi. Lo scenario si cambia da console con PIE **fermo** — cambiare
+      scenario e fare Stop/Start non richiede di riaprire l'editor (vedi la regola di batching in testa
+      a questo file).
+
+      **① `PIE-V01-LOG` — che il log si legga.** `rt.Test.Scenario Visual.Environment.Acceptance`, poi
+      Play: cinque turni con i cinque fenomeni di superficie, e fra questi una **carica rifiutata dal
+      rough**, che e' il fallback che la precondizione chiede. Si legge in `Window -> Output Log`,
+      filtro `LogRT`.
+      ⚠️ **La partita normale su `L_HexArena` NON serve a questa voce**: misurato il 2026-09-04, dodici
+      turni senza un solo fallback ne' una modifica ambientale. E' un fatto sulla mappa, non sul codice.
+      La domanda: chi apre quel log **senza sapere cosa cercare** capisce perche' un'azione e' stata
+      sostituita?
+
+      **② `PIE-HEXPLAY-6` — che il muro si veda.** `rt.Test.Scenario Combat.BlockedByWall`, poi Play.
+      🔴 **Leggi `#1873` prima di guardare, o il verdetto sara' sbagliato.** La sola presentazione del
+      blocco-vista e' un **anello di debug** (`DrawCellOverlay`, sotto `if (bCellOverlay)`): con
+      l'overlay spento — cioe' nella vista del giocatore — non resta nulla. Chi guarda col viewport
+      dell'editor vede gli anelli e conclude «si vede»: e' l'errore da non fare.
+
+      **③ `PIE-HEXPLAY-8` — che il crollo del ponte si veda.**
+      `rt.Test.Scenario Spec.Map.BridgeBreaksThePath`, poi Play: due turni, l'unico arco fra i layer si
+      rompe e il percorso **fallisce** invece di teletrasportare.
+      ✅ L'altra meta' del residuo e' **chiusa dal 2026-09-04**: la salita porta l'unita' a
+      `LayerHeight` esatto — `z` 140,0 contro -110,0, **250,0** di dislivello, misurato sugli Actor con
+      `Spec.Map.MatchArenaPlatformClimb`. Qui resta il solo crollo.
+
+      **④ `PIE-V01-ROSTER` — che i quattro si sentano diversi.** `rt.Test.Scenario ""`, poi Play:
+      partita normale, si comandano Gadget (5 MP, 90 HP) e Phase (5, 95) contro Riktor (4, 120) e
+      Wraith (6, 90).
+      ✅ Il ramo del bot e' **chiuso dal 2026-09-04**: due partite in autobattle, **cinquanta mosse,
+      zero illegali**, ogni eroe dentro il proprio budget. Resta il giudizio di chi li gioca, piu' il
+      ramo «asset mancante = fallback al cilindro», che si prova solo svuotando `HeroUnitClasses`.
+
+      ➕ **Opportunistica, nello stesso allestimento di ①**: `PIE-V01-DEBUG`, l'altro residuo di U15.
+      Non e' nel subset `RELEASE-V01` e non entra nel `done_when` di questa seduta, ma chi ha gia'
+      l'editor aperto sul log la chiude quasi gratis.
+    notes: >-
+      ⛔ **Perche' nessuna di queste quattro si delega a un agente.** Misurato il 2026-09-04 dal ponte
+      MCP: `CaptureViewport` renderizza il mondo dell'**editor**, non quello PIE. La prova e' diretta —
+      `find_actors` trova `BP_Unit_Gadget_C_0` a `(-519,-30,-200)`, e una cattura centrata esattamente
+      su quel punto mostra la cella e **non l'unita'**. Via MCP si giudicano mappa, celle e quote; non
+      unita', HUD, VFX ne' playback. Le quattro voci di questa seduta chiedono precisamente cio' che il
+      ponte non vede, e per questo restano di una persona a schermo.
+      ⚠️ E la stessa misura spiega perche' `#1873` va letta prima di ②: chi cattura dall'editor vede gli
+      anelli di `DrawCellOverlay` e crede che il muro si veda, mentre nella vista del giocatore quegli
+      anelli non ci sono.
