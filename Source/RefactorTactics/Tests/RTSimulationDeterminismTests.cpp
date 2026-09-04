@@ -31,6 +31,12 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Algo/Reverse.h"
+#include "Replay/RTReplayRecorderLibrary.h"   // `#2196`: l'archivio su disco, non la traccia in memoria
+#include "Turn/RTTurnRules.h"                 // `FRTMatchRules`: senza formato la registrazione si rifiuta
+#include "Turn/RTMatchFormatLibrary.h"
+#include "HAL/PlatformFileManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -136,8 +142,73 @@ namespace
 	 * (`GetActorOfClass`) invece di crearne un secondo, ed e' l'unico punto in cui il test puo' configurarlo.
 	 * Le divergenze si leggono prima di distruggere il mondo, per la stessa ragione.
 	 */
+	/**
+	 * L'ARCHIVIO su disco di una corsa, letto turno per turno (`#2196`).
+	 *
+	 * ⚠️ **I byte, non le voci.** `GoldenEntriesMatch` confronta per HASH, e `UnitId`, `TurnNumber`,
+	 * `Priority`, `ReactionInstanceId`, `OriginalTargetUnitId` nell'hash non entrano ([D-063]) ma
+	 * `SerializeTurnLog` li scrive. Confrontare gli hash direbbe «identici» su archivi diversi su disco.
+	 */
+	struct FRTArchivioSuDisco
+	{
+		TArray<TArray<uint8>> Byte;
+		TArray<TArray<FRTTurnLogEntry>> Voci;
+		bool bCompleto = false;   // ogni turno atteso ha il suo file, e si e' letto
+	};
+
+	FString RadiceArchivio(const TCHAR* Nome)
+	{
+		return FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("VerifierArchivio"), Nome);
+	}
+
+	void PulisciRadice(const FString& Root)
+	{
+		IPlatformFile& PF = FPlatformFileManager::Get().GetPlatformFile();
+		if (PF.DirectoryExists(*Root)) { PF.DeleteDirectoryRecursively(*Root); }
+	}
+
+	/** Rilegge da disco i turni `1..TurniAttesi` di un archivio. Una lettura fallita si DICHIARA, non si salta. */
+	FRTArchivioSuDisco LeggiArchivio(const FString& Root, const FGuid& MatchId, int32 TurniAttesi)
+	{
+		FRTArchivioSuDisco Out;
+		Out.bCompleto = (MatchId.IsValid() && TurniAttesi > 0);
+
+		for (int32 Turno = 1; Turno <= TurniAttesi && Out.bCompleto; ++Turno)
+		{
+			const FString Path = FPaths::Combine(
+				URTReplayRecorderLibrary::MatchDirectory(Root, MatchId),
+				URTReplayRecorderLibrary::TurnFileName(Turno));
+
+			TArray<uint8> Byte;
+			TArray<FRTTurnLogEntry> Voci;
+			// ⚠️ Saltare una lettura fallita compatterebbe gli array, e da li' in poi `Voci[i]` non sarebbe
+			// piu' il turno `i+1`: un archivio rotto diventerebbe indistinguibile da una divergenza vera.
+			if (!FFileHelper::LoadFileToArray(Byte, *Path)
+				|| !URTTurnLogLibrary::LoadTurnLogFromFile(Path, Voci))
+			{
+				Out.bCompleto = false;
+				break;
+			}
+			Out.Byte.Add(MoveTemp(Byte));
+			Out.Voci.Add(MoveTemp(Voci));
+		}
+		return Out;
+	}
+
+	/** Il primo turno in cui due archivi divergono sui byte, o `INDEX_NONE`. Indice a base 0. */
+	int32 PrimoTurnoDiverso(const FRTArchivioSuDisco& A, const FRTArchivioSuDisco& B)
+	{
+		const int32 Comuni = FMath::Min(A.Byte.Num(), B.Byte.Num());
+		for (int32 i = 0; i < Comuni; ++i)
+		{
+			if (A.Byte[i] != B.Byte[i]) { return i; }
+		}
+		return INDEX_NONE;
+	}
+
 	FRTTestResult RunAsVerifier(const FRTTestScenario& Scenario, const TArray<FRTTurnLogEntry>& Trace,
-		TFunction<FString(const FRTReactionOpportunity&, int32)> Decider, TArray<FString>& OutDivergences)
+		TFunction<FString(const FRTReactionOpportunity&, int32)> Decider, TArray<FString>& OutDivergences,
+		const FString* RadiceRegistrazione = nullptr, FRTArchivioSuDisco* OutArchivio = nullptr)
 	{
 		OutDivergences.Reset();
 
@@ -155,6 +226,28 @@ namespace
 		{
 			TM->ArmRecordedReactionDecisions(Trace);
 		}
+
+		// 🔑 **La registrazione su DISCO** (`#2196`): senza, questo helper produce una traccia in memoria, e
+		// «ri-simulare da un archivio» resterebbe indistinguibile da «ri-simulare da un array».
+		FGuid MatchId;
+		if (RadiceRegistrazione != nullptr)
+		{
+			// ⚠️ **Il formato va risolto PRIMA di registrare, o `BeginReplayRecording` esce in silenzio.**
+			// Si rifiuta con `MatchRules.FormatId.IsNone()`, perche' un archivio con formato assente non e'
+			// confrontabile con niente. Il percorso di PARTITA lo riceve dal GameMode (`ApplyMatchFormat`);
+			// quello dello SCENARIO no, e senza questa riga l'archivio resta vuoto — *misurato: la prima
+			// stesura falliva su «l'archivio di riferimento e' completo su disco»*.
+			FRTMatchRules Rules = TM->GetMatchRules();
+			if (Rules.FormatId.IsNone())
+			{
+				Rules.FormatId = URTMatchFormatLibrary::Skirmish2v2FormatId;
+				TM->SetMatchRules(Rules);
+			}
+
+			TM->ReplaysRootOverride = *RadiceRegistrazione;
+			TM->BeginReplayRecording();
+			MatchId = TM->GetReplayMatchId();
+		}
 		if (Decider)
 		{
 			TM->ReactionDecider.BindLambda(Decider);
@@ -166,6 +259,12 @@ namespace
 		// una chiave orfana diventa dichiarabile.
 		TM->ReportOrphanRecordedDecisions();
 		OutDivergences = TM->GetVerificationDivergences();
+
+		// L'archivio si rilegge PRIMA di distruggere il mondo, come le divergenze e per la stessa ragione.
+		if (OutArchivio != nullptr && RadiceRegistrazione != nullptr)
+		{
+			*OutArchivio = LeggiArchivio(*RadiceRegistrazione, MatchId, Result.TurnTraces.Num());
+		}
 
 		RTWorldFixtures::DestroyWorld(World);
 		return Result;
@@ -844,6 +943,115 @@ bool FRTSimulationSeedDeclaredUnconsumedTest::RunTest(const FString&)
 		return false;
 	}
 
+	return true;
+}
+
+/**
+ * L'ANELLO CHE MANCAVA: si apre un ARCHIVIO SU DISCO, lo si rigioca col resolver, e si confronta — `#2196`.
+ *
+ * 🔴 **Il buco era dichiarato in `RTReplayProducerTests.cpp`**, nell'intestazione di
+ * `TwoIdenticalMatchesLeaveIdenticalArchives`: *«`Replay.Verifier.ReportsFirstDivergence` esiste […] ma il
+ * suo stesso commento dichiara il confine: "Chi produce la seconda ri-simulando e' il chiamante". **Nessuno
+ * era quel chiamante.** E il corpus golden non copre questo: le sue referenze sono `.rttl` COMMITTATI, non
+ * archivi PRODOTTI da una corsa»*. Da qui in poi qualcuno lo e'.
+ *
+ * 🔑 **Le altre due gambe restano, e questa non le sostituisce.**
+ *   · `Replay.Verifier.ResimulationIsDeterministic` — scenario → resolver → confronto di hash, in memoria;
+ *   · `Replay.Producer.TwoIdenticalMatchesLeaveIdenticalArchives` — due archivi **entrambi prodotti** nella
+ *     stessa run.
+ * Nessuna delle due riapre un artefatto **conservato** per chiedergli se le regole lo riproducono ancora.
+ *
+ * ⚠️ **La fixture e' `Spec.Overwatch.HoldThenFire`, e la scelta e' stata MISURATA, non preferita.** La prima
+ * stesura di questo test prendeva l'archivio da una partita 2v2 bot-contro-bot: quell'allestimento non apre
+ * **nessuna** finestra di reazione, quindi `ArmRecordedReactionDecisions` costruiva una mappa VUOTA,
+ * `AskReactionDecision` tornava al decisore vivo, e la «ri-simulazione» era una terza partita decisa dal
+ * vivo — byte identici perche' deterministica, test verde, anello mai percorso. Il difetto e' stato preso
+ * dalla guardia `DecisioniArmate > 0` qui sotto, che l'ha reso rosso: `«e ne ha 0»`. *Trovato da una code
+ * review, e misurato.*
+ *
+ * 🔑 **Percio' la guardia viene PRIMA del confronto**: un test che confronta byte senza aver verificato di
+ * aver consumato la traccia misura il determinismo, non il replay — e il determinismo ha gia' due test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayArchiveResimulationTest,
+	"RefactorTactics.Replay.Verifier.ArchiveReplaysThroughTheResolver",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayArchiveResimulationTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadDeterminismScenario(*this, TEXT("Spec.Overwatch.HoldThenFire"), Scenario)) { return false; }
+
+	const FString RadiceRif = RadiceArchivio(TEXT("Rif"));
+	const FString RadiceRig = RadiceArchivio(TEXT("Rig"));
+	PulisciRadice(RadiceRif);
+	PulisciRadice(RadiceRig);
+
+	// 1. La corsa di riferimento: decide dal vivo (lo scenario porta le proprie risposte) e si ARCHIVIA.
+	TArray<FString> Divergenze;
+	FRTArchivioSuDisco Archivio;
+	const FRTTestResult Rif = RunAsVerifier(Scenario, {}, nullptr, Divergenze, &RadiceRif, &Archivio);
+	if (Rif.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("la corsa di riferimento e' fallita: %s"), *Rif.ErrorMessage));
+		PulisciRadice(RadiceRif); PulisciRadice(RadiceRig);
+		return false;
+	}
+	if (!TestTrue(TEXT("l'archivio di riferimento e' completo su disco"), Archivio.bCompleto))
+	{
+		PulisciRadice(RadiceRif); PulisciRadice(RadiceRig);
+		return false;
+	}
+
+	// 2. 🔴 LA GUARDIA: la traccia porta decisioni ARMABILI. Senza, tutto il resto misura un'altra cosa.
+	const TArray<FRTTurnLogEntry> Traccia = AllEntries(Rif);
+	int32 Decisioni = 0, Fuochi = 0;
+	CountDecisionEntries(Traccia, Decisioni, Fuochi);
+	if (!TestTrue(FString::Printf(TEXT("l'archivio porta decisioni da rigiocare, e ne ha %d"), Decisioni),
+		Decisioni > 0))
+	{
+		PulisciRadice(RadiceRif); PulisciRadice(RadiceRig);
+		return false;
+	}
+	// ⚠️ **Il numero si STAMPA anche quando passa.** `TestTrue` parla solo fallendo, e un verde muto su
+	// questa riga e' precisamente cio' che ha lasciato passare la prima stesura: l'anello non percorso era
+	// indistinguibile da quello percorso. Ora il referto porta la misura, non la sua assenza.
+	AddInfo(FString::Printf(TEXT("l'archivio porta %d decisioni (%d FIRE) su %d turni: l'anello e' percorso"),
+		Decisioni, Fuochi, Archivio.Byte.Num()));
+
+	// 3. La stessa corsa, rigiocata dal resolver consumando le decisioni dell'ARCHIVIO — non dello scenario:
+	//    `WithoutScriptedDecisions` toglie le risposte scritte, quindi se la traccia non fosse consumata non
+	//    risponderebbe nessuno e la divergenza sarebbe immediata.
+	const FRTTestScenario Muto = WithoutScriptedDecisions(Scenario);
+	TArray<FString> DivergenzeRig;
+	FRTArchivioSuDisco Rigiocata;
+	const FRTTestResult Rig = RunAsVerifier(Muto, Traccia, nullptr, DivergenzeRig, &RadiceRig, &Rigiocata);
+	if (Rig.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("la ri-simulazione e' fallita: %s"), *Rig.ErrorMessage));
+		PulisciRadice(RadiceRif); PulisciRadice(RadiceRig);
+		return false;
+	}
+
+	TestTrue(TEXT("anche l'archivio della ri-simulazione e' completo"), Rigiocata.bCompleto);
+
+	// 4. Il Verifier non protesta: nessuna finestra scoperta dalla traccia, nessuna risposta diventata
+	//    illegale. Un archivio che si rigioca «identico» mentre il Verifier ha da ridire e' identico per caso.
+	TestEqual(FString::Printf(TEXT("nessun disaccordo del Verifier (%s)"),
+		DivergenzeRig.Num() > 0 ? *DivergenzeRig[0] : TEXT("nessuno")), DivergenzeRig.Num(), 0);
+
+	// 5. E i due archivi coincidono sui BYTE, turno per turno.
+	const int32 TurnoDiverso = PrimoTurnoDiverso(Archivio, Rigiocata);
+	if (TurnoDiverso != INDEX_NONE)
+	{
+		AddError(FString::Printf(TEXT("la ri-simulazione diverge dall'archivio al turno %d: %s"),
+			TurnoDiverso + 1,
+			*URTTurnLogLibrary::DescribeFirstDivergence(
+				TurnoDiverso + 1, Archivio.Voci[TurnoDiverso], Rigiocata.Voci[TurnoDiverso])));
+	}
+	TestEqual(TEXT("e i due archivi hanno lo stesso numero di turni"),
+		Rigiocata.Byte.Num(), Archivio.Byte.Num());
+
+	PulisciRadice(RadiceRif);
+	PulisciRadice(RadiceRig);
 	return true;
 }
 
