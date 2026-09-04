@@ -510,6 +510,23 @@ attraversa, e `DescribeDivergence` nomina il primo in cui due esecuzioni si sepa
 boundary `T2|Blast`»*. 🔑 È esattamente il caso `#990` citato qui sopra: una divergenza al turno 2 che il
 solo stato finale non vedeva, e che ora ha un **luogo** invece di un sospetto.
 
+➕ **E dal 2026-09-04 il luogo è più stretto di una fase**
+([#2374](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2374)): la chiave del boundary è la
+**terna** `(TurnNumber, Phase, MicroStepIndex)`, quindi il verdetto sa dire *«divergono al boundary
+`T1|Move#1`»* — il **secondo** micro-step di quella fase, non la fase intera. Prima due esecuzioni che si
+separavano a metà di un movimento producevano lo stesso checksum di fase, e il messaggio nominava un
+intervallo che conteneva la causa insieme a due barriere innocenti.
+
+| Forma stampata | Significato |
+|---|---|
+| `T1|Move#1` | il boundary del micro-step **1** — lo stato è **parziale per costruzione**: a metà movimento le unità non hanno ancora la cella finale |
+| `T2|Blast` | la **fase intera**, cioè il boundary `INDEX_NONE`, che chiude la fase e sta **dopo** i suoi micro-step |
+
+⚠️ **Su un archivio antecedente alla `v12` (`WithMicroStep`) resta phase-only, e non è un degrado
+silenzioso**: `ChecksumsAlongTrace` vuole la versione della traccia come **parametro obbligatorio**. Quelle
+tracce il campo non lo portano, e la deserializzazione lascia `0` su ogni voce: chiavare su quello
+stamperebbe `T1|Move#0` dove nessun micro-step è mai stato scritto.
+
 ⚠️ **Non sostituisce lo `StateHash` finale, e non può**: una traccia canonica ricostruisce **quattro** degli
 otto campi del digest — `UnitId`, `Cell`, `Facing` e la vita/morte. `Health`, `Shield`, `Energy` e `Statuses`
 restano al default e non discriminano, perché la traccia non li dichiara e dedurli dalle voci di danno
