@@ -107,7 +107,7 @@ bloccata. **Trentatré** di esse non sono in nessuna sequenza, ed è la condizio
 | **U18** | **5** | `[]` | #450 #567 #583 #551–554 | 🟢 **non attende nulla**, come U42 |
 | U19 · U22 | 4 ciascuna | — | varie | 🟡 |
 | **U45** | **3** | `[E12]` | — | 🟡 attende un checkpoint, non una seduta |
-| **U39** | **1** | `[U21]` | #1920 aperta | 🟡 **l’ostacolo tecnico è caduto** (#2228): resta l’allestimento condiviso con U21 — vedi in coda alla §4 |
+| **U39** | **1** | `[U21]` | #1920 aperta | 🔴 **non eseguibile**: l’arena piena e il pennello non coesistono — vedi in coda alla §4 |
 | altre 14 sedute | 1–2 ciascuna | — | varie | — |
 
 🔑 **`U45` non era in questa tabella e ha tre voci aperte da prima di oggi**: è il tipo di riga che
@@ -192,18 +192,44 @@ a una nuova, e la decisione è di `editor-sessions.yaml`, che ne è l'owner.
 
 ### In coda a `U21` — `U39`, **una** voce, e chiude una issue
 
-✅ **L’ostacolo che rendeva questa seduta ineseguibile è caduto il 2026-09-04.** L’arena piena chiede
-raggio 50, e fino a #2228 quel regime **non era allestibile senza toccare un asset**: il pennello ha
-`BrushRadius` con `ClampMax = "8"`, nessuna fixture arriva a 50, e l’arena raggio 50 esisteva solo
-dentro un automation test. Ora si allestisce da riga di comando, senza aprire nessun `.uasset`:
+🔴 **Questa seduta NON è eseguibile, e la stesura precedente diceva il contrario.** Il 2026-09-04
+aveva scritto che #2228 ne aveva fatto cadere l’ostacolo. È stato verificato **a schermo** lo stesso
+giorno, e l’affermazione cade.
+
+✅ **Quello che #2228 fa davvero**, misurato con
+`-dpcvars=rt.Map.Source=GeneratedDemoArena,rt.Match.DemoArenaRadius=50` su `main`:
 
 ```
-UnrealEditor.exe <uproject> -dpcvars=rt.Map.Source=GeneratedDemoArena,rt.Match.DemoArenaRadius=50
+[RT] La console variable rt.Match.DemoArenaRadius=50 SCAVALCA la proprieta' DemoArenaRadius=12
+[RT] MapSource=GeneratedDemoArena: uso l'arena di ripiego (esagono r=50, 7651 celle)
+[RT] Board 2v2 esagonale avviata su 7651 celle con 4 eroi
 ```
 
-⚠️ **Resta comunque legata a `U21`, e per una ragione diversa da prima**: non è più il regime a
-mancare, è la **scena illuminata**. Su un livello al buio il verdetto direbbe più sulle luci che sulle
-coordinate.
+L’arena piena si allestisce. ⛔ **Ma non dove serve.**
+
+| | arena 7 651 celle | coordinate incise | pennello |
+|---|---|---|---|
+| mondo **PIE** | ✅ | ❌ | ❌ |
+| mondo **editor** | ❌ (65 celle) | ✅ | ✅ |
+
+- Le 7 651 celle vivono **solo nella copia PIE**: `RTDevToolset.GetCurrentMap`, interrogato durante la
+  partita, riporta ancora `DA_HexMap_Scratch_Basin` con **65 celle** — quello è il mondo editor, e il
+  bootstrapper lavora sulla copia.
+- `CoordinateLabels` nasce da `CreateEditorOnlyDefaultSubobject` e `RebuildCoordinateLabels()` sta sotto
+  `#if WITH_EDITOR`: `bIsEditorOnly` lo esclude dai mondi non-editor.
+- 🔑 **E il pennello in PIE non esiste**: è uno strumento del viewport editor. Questa metà non dipende
+  da nessuna interpretazione del codice.
+
+∴ Dove c’è l’arena piena non c’è il pennello; dove c’è il pennello l’arena è da 65 celle. La voce
+chiede **entrambe le cose insieme**.
+
+⚠️ **Cosa servirebbe davvero**: un `URTHexMapAsset` grande **assegnato all’actor nel livello editor**
+— la strada scartata il 2026-09-03 per il peso in un repository senza LFS. Il resolver non ci arriva:
+agisce sull’allestimento della **partita**, non sul contenuto del **livello**.
+
+🔴 **Come l’errore è nato, perché non si ripeta**: l’eseguibilità era stata dedotta dal log — *«7 651
+celle, quindi il regime c’è»* — senza chiedersi **in quale mondo** vivessero quelle celle e in quale
+vivesse lo strumento. Un conteggio giusto, letto per rispondere alla domanda sbagliata.
 
 ⚠️ **Non è un passo a sé, e la prima stesura di questa sezione lo chiamava «Passo 0» mettendolo
 davanti a `U42`.** Era sbagliato in due modi: `U39` dichiara `unblocked_by: [U21]` — lo **stesso**
