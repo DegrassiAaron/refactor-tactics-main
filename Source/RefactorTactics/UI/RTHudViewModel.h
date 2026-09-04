@@ -63,6 +63,17 @@ struct FRTMatchHeaderView
 	 * renderebbe il punteggio mostrato dipendente dall'ordine delle somme, e la vista smetterebbe di poter
 	 * dire la stessa cosa che dice il TurnLog. `int32` a entrambe le estremita' è cio' che rende la vista
 	 * verificabile contro il log invece che solo simile.
+	 *
+	 * 🔴 **Significa qualcosa solo se la MAPPA dichiara un obiettivo**, e il tipo non lo dice: chi legge
+	 * questo campo deve saperlo da fuori. Su una mappa che non ne ha, `0-0` non e' una parita' — e' un
+	 * punteggio inventato per una gara che nessuno sta correndo, e il resolver lo evita gia': non scrive la
+	 * voce di TurnLog senza `HasObjectiveCell()`, e `Objectives.SilentWithoutObjectiveCell` lo misura.
+	 *
+	 * La condizione si chiede a `URTHexMapAsset::HasObjectiveCell()`, che si raggiunge da
+	 * `ARTHexMapActor::FindInWorld(World)`. Il percorso Canvas la rispetta — `ARTHUD::ComposeMatchStatusLine`
+	 * la riceve come parametro e tace senza — e `RefactorTactics.HUD.MatchStatusShowsObjectiveOnlyWhenMapDeclaresOne`
+	 * la misura. ⚠️ **Un binding Blueprint su questo campo NON e' protetto da niente**: misurato il
+	 * 2026-09-04, oggi nessun `WBP_*` lo lega, e portare la condizione dentro il tipo e' **#2281**.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 Team0Score = 0;
@@ -77,6 +88,10 @@ struct FRTMatchHeaderView
 	 * «su 0»: una partita che non si vince per obiettivo non è una partita già vinta. È la stessa
 	 * distinzione che `RoundLimit` fa qui sopra, e il motivo per cui questo campo esiste separato dai due
 	 * punteggi: senza di lui un widget non può sapere se `1` sia molto o niente.
+	 *
+	 * 🔴 **Stessa precondizione dei due punteggi qui sopra**: senza un obiettivo dichiarato dalla mappa
+	 * questa soglia non ha soggetto, e mostrarla scriverebbe un traguardo per una gara che nessuno corre.
+	 * E' una reticenza in piu' rispetto a `RoundLimit`, che invece dipende dal solo formato. Vedi **#2281**.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 ScoreToWin = 0;
