@@ -6,7 +6,8 @@
 > l'ordine delle macro-fasi e a [`spec-stati-temporanei-cp82.md`](spec-stati-temporanei-cp82.md) per il
 > **contratto runtime** degli status.
 > ✅ **Deciso il 2026-09-04 da [D-319](../decisions/RT_PDR_00_Decision_Log.md)**, che chiude
-> [`STA-5`](../OPEN_DECISIONS.md): i due stati **escono dall'epic G.2** e diventano lavoro proprio.
+> [`STA-5`](../OPEN_DECISIONS.md): i due stati **escono dall'epic G.2** e diventano lavoro proprio, con
+> owner [#2253](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2253) per la Fase 1.
 > Le decisioni prese in chiusura sono segnate ✅ qui sotto; ciò che resta aperto è in §8.
 
 > ✅ **Era il blocco, ed è risolto: `Prone` ha una durata, e `1 MP` la rimuove in anticipo.** La difficoltà
@@ -26,7 +27,7 @@
 >
 > | Via | Costo |
 > |---|---|
-> | ✅ **ADOTTATA** — `Prone` ha **anche** una durata, e `1 MP` la rimuove in anticipo (`StatusTurns.Remove`, che già esiste) | nessun contratto nuovo |
+> | ✅ **ADOTTATA** — `Prone` ha **anche** una durata, e `1 MP` la rimuove in anticipo con `ARTUnit::RemoveStatus`, che già esiste ed è **pubblica** | nessun contratto nuovo |
 > | Una **terza forma** in `ApplyStatus` | è il secondo meccanismo che [D-279](../decisions/RT_PDR_00_Decision_Log.md) vieta |
 > | `Prone` **non** è uno status ma un campo di `ARTUnit` | esce dal contratto per la porta di servizio: HUD, bot, checksum e TurnLog perdono `HasStatus` come API unica |
 
@@ -107,8 +108,13 @@ scivolamento no»*.
 **Chi lo applica**: subire `Push` o `Pull` mentre si è `Unbalanced`. Si applica **dopo** che il movimento
 forzato (già amplificato di +1) è stato risolto.
 **Uscita**: **1 MP** dal budget di movimento del turno.
-**Durata**: `2`, come `Unbalanced` — un solo numero in tutto il modello. Chi **non** paga resta a terra per
-il turno e si rialza gratis nel Cleanup: il MP compra **il turno**, non l'uscita.
+**Durata**: `2`.
+
+> 🔑 **Cosa costa davvero, contato sulle fasi.** `Prone` nasce nel **Blast**, non nel Move: applicato nel
+> turno `N` con durata `2`, sopravvive al Cleanup di `N` e copre tutto `N+1`. Chi **non** paga perde quindi
+> il Move di `N` **e** l'intero `N+1` — due occasioni di muoversi, non una. Chi paga `1 MP` ne recupera una
+> per volta. È il numero scelto in [D-319](../decisions/RT_PDR_00_Decision_Log.md) sapendolo: `1` avrebbe
+> coperto il solo resto del turno in cui cadi, rendendo il pagamento quasi sempre inutile.
 **Al momento della caduta `Unbalanced` viene rimosso**: si è `Prone` e basta.
 
 > 🔑 **Perché `Unbalanced` si consuma.** È un tetto naturale: una caduta per scivolata. Chi si rialza è
@@ -221,7 +227,7 @@ la parola *«Moved»*.
 ## 8. Domande aperte
 
 1. ~~**Come si rappresenta `Prone`.**~~ ✅ **Chiusa da [D-319](../decisions/RT_PDR_00_Decision_Log.md)**:
-   durata `2` più `StatusTurns.Remove` a `1 MP`. Nessun contratto nuovo, e il caso `Root`/budget-zero si
+   durata `2` più `ARTUnit::RemoveStatus` a `1 MP`. Nessun contratto nuovo, e il caso `Root`/budget-zero si
    scioglie da sé — la durata solleva comunque.
 2. ~~**Spinta bloccata: si cade lo stesso?**~~ ✅ **Chiusa da [D-319](../decisions/RT_PDR_00_Decision_Log.md)**: **niente movimento, niente caduta**. La sede in cui l'esito si
    legge è `ERTMoveOutcome::DisplacementResisted`, che già esiste per il caso *«la spinta è stata registrata
@@ -239,8 +245,8 @@ la parola *«Moved»*.
 6. ➕ **Il framework di lettura degli status nel bot** (Fase 2). [D-319](../decisions/RT_PDR_00_Decision_Log.md)
    porta in Fase 1 un termine **mirato** in `ScorePlan` — bonus a `Push`/`Pull` se il bersaglio è
    `Unbalanced` — e lascia a dopo il canale generico, che dipende da `STA-4`. Quel canale **sostituirà** il
-   termine e porterà con sé `Exposed`, `Marked` e `Guarded`, oggi ugualmente ignorati: misurato, `Source/
-   RefactorTactics/Bot/` ha **0** occorrenze di `HasStatus` e **0** di `Push`/`Pull`. Il termine mirato nasce
+   termine e porterà con sé `Exposed`, `Marked` e `Guarded`, oggi ugualmente ignorati:
+   `Source/RefactorTactics/Bot/` ha **0** occorrenze di `HasStatus` e **0** di `Push`/`Pull`. Il termine nasce
    quindi come **debito dichiarato, con il successore già nominato**.
 7. **Dove si nega lo `Sprint`** — in validazione del piano o alla risoluzione. Cambia il costo e cambia ciò
    che il replay racconta.
@@ -274,7 +280,7 @@ scale da tarare e non chiede il motore.
 
 | Fase | Contenuto | Dipendenze |
 |---|---|---|
-| **1** | i due stati, più un termine **mirato** in `ScorePlan` che li fa capitalizzare al bot | nessuna aperta — il valore proprio in `ERTMoveOutcome` per lo scivolamento resta il prerequisito bloccante (§7) |
+| **1** — [#2253](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2253) | i due stati, più un termine **mirato** in `ScorePlan` che li fa capitalizzare al bot | ⛔ **bloccata** dal valore proprio in `ERTMoveOutcome` per lo scivolamento (§7). Nessuna *decisione* aperta: il prerequisito è lavoro, non una scelta |
 | **2** | il **framework** che fa leggere al bot ogni status, e che sostituisce il termine mirato | `STA-4`, aperta |
 
 La Fase 1 non aspetta `STA-4`: quella è prerequisito del **canale generico**, non di un singolo termine. È la
