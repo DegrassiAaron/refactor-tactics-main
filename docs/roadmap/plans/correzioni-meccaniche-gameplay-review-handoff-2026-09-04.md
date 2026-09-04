@@ -11,7 +11,9 @@
 > **Sedi collegate**: Epic [#2276](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2276) ·
 > prima issue [#2277](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2277) ·
 > mirror Drive *«RefactorTactics — Correzioni meccaniche — Gameplay Review & Claude Handoff — 2026-09-04»*
-> ([doc](https://docs.google.com/document/d/1WCV5jZ9o7wLDueKKoALUyDhH-mGXHjAHEI5y9tshKKw/edit)).
+> ([doc](https://docs.google.com/document/d/1WCV5jZ9o7wLDueKKoALUyDhH-mGXHjAHEI5y9tshKKw/edit)) ·
+> addendum Drive *«… — RECONCILIATION GitHub/main — 2026-09-04»*
+> ([doc](https://docs.google.com/document/d/1jArN7ko69clEH4RBos60UtAiT2r4Mgm27omKjSDpAyI/edit)).
 
 ## 0. Come si legge questo documento
 
@@ -327,7 +329,7 @@ una decisione già aperta (`MOV-4`).
 | Issue [#2277](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2277) | l'audit operativo e il piano di playtest |
 | Questo file | la preservazione della review e l'esito della riconciliazione |
 | [Doc Drive](https://docs.google.com/document/d/1WCV5jZ9o7wLDueKKoALUyDhH-mGXHjAHEI5y9tshKKw/edit) | design intent e provenance della review |
-| Doc Drive di reconciliation | gli ID GitHub reali e l'esito della riconciliazione, affiancato al precedente |
+| [Doc Drive di reconciliation](https://docs.google.com/document/d/1jArN7ko69clEH4RBos60UtAiT2r4Mgm27omKjSDpAyI/edit) | gli ID GitHub reali e l'esito della riconciliazione, affiancato al precedente perche' il connettore non puo' scrivere nel corpo del sorgente |
 
 ⚠️ **Il connettore Drive non modifica il corpo di un documento esistente**: può creare file e cambiare
 titolo/cartella, non appendere testo. Per questo la sincronizzazione del §7-D prende la forma che il work
