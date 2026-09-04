@@ -343,7 +343,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainIceMapEdgeBlocksSlidingTest,
 bool FRTTerrainIceMapEdgeBlocksSlidingTest::RunTest(const FString&)
 {
 	// Arena di raggio 2: (2,0,0) e' sull'anello esterno, e (3,0,0) non esiste.
-	URTHexMapAsset* Map = MakeMapWithSurface(/*Radius=*/ 2, FRTCellId(2, 0, 0), ERTHexSurface::Ice);
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 2);
+	FRTHexCellData IceCell(FRTCellId(2, 0, 0));
+	IceCell.Surface = ERTHexSurface::Ice;
+	Map->AddOrUpdateCell(IceCell);
+	Map->SortCells();
 
 	// PREMESSA: la cella oltre il ghiaccio e' davvero ASSENTE, non solo bloccata. Senza questa riga il test
 	// potrebbe misurare un muro e non il bordo, cioe' il caso gia' coperto altrove.

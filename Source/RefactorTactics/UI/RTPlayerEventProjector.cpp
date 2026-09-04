@@ -154,6 +154,14 @@ namespace
 		// piano fallito e' una notizia piu' grande di uno spostamento ambientale mancato. Senza una riga
 		// propria cadrebbe nel `default` a `10` e verrebbe sostituito da qualunque altro evento della stessa
 		// unita' — compreso un `Moved` `Minor`, che poi il filtro finale scarta: l'evento sparirebbe.
+		//
+		// ⚠️ **Ne esce un'asimmetria con `Slid`, ed e' consapevole.** Lo scivolamento AVVENUTO non ha un
+		// tipo proprio — resta `Moved`, rango 20 — quindi un `Displaced` dello stesso turno, arrivato prima
+		// e con lo stesso rango, lo tiene fuori dal feed; questo esito, a 30, entrerebbe. Sembra rovesciato,
+		// e ha una ragione: `Slid` ha una SECONDA voce che lo racconta — `Status.Unbalanced` ([D-319]),
+		// proiettata come `StatusChanged` a rango 50, che vince su tutto quanto sopra — mentre `SlideBlocked`
+		// non ne ha nessuna. Abbassarlo a 20 per simmetria lo renderebbe l'unico dei due davvero muto.
+		// Che `Slid` meriti un tipo proprio resta aperto, ed e' fuori dal perimetro di `#2314`.
 		case ERTPlayerEventType::SlideBlocked:  return 30;
 		case ERTPlayerEventType::Moved:         return 20;
 		default:                                return 10;

@@ -131,12 +131,12 @@ struct FRTPlannedMovement
 	int32 PlannedLength = 0;
 
 	/**
-	 * Il terreno imponeva uno spostamento di slide oltre la destinazione pianificata.
+	 * Il terreno imponeva uno spostamento di slide oltre la destinazione pianificata — **anche quando
+	 * nessuna cella e' finita nel percorso**.
 	 *
-	 * 🔴 **Vero anche quando la cella NON e' finita nel percorso.** E' il punto del campo: `ApplyIceSliding`
-	 * puo' non estendere affatto — un muro sul bordo fra la cella d'arrivo e quella di scivolamento — e
-	 * senza questo booleano quel caso arriverebbe qui indistinguibile da «il terreno non chiedeva niente».
-	 * Dedurlo dalla sola lunghezza del percorso e' precisamente cio' che non si puo' fare.
+	 * Lo produce `FRTIceSlideResult::bSlideRequested`, dove sta il perche' per esteso; qui viaggia come
+	 * dato dello stato. Il chiamante puo' spegnerlo — la topologia che taglia dentro al piano toglie allo
+	 * scivolamento la sua precedenza — quindi i due campi non sono sempre lo stesso valore.
 	 */
 	bool bSlideRequested = false;
 };
