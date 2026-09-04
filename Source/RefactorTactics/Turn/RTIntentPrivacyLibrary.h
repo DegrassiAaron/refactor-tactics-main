@@ -55,8 +55,18 @@ enum class ERTIntentCertainty : uint8
  * Piano COMPLETO di un'unita': il dato autorevole, che vive dove vive lo stato del turno (il server, quando
  * la rete arrivera' a M10). Non va mai spedito a un client cosi' com'e' — e' `FRTIntentView` cio' che si
  * spedisce, dopo il filtro per squadra.
+ *
+ * 🔑 **`RTServerOnly` rende quella frase MISURABILE** (`#589`, PDR-04 §9 passo 6). Fino al 2026-09-04 la
+ * regola viveva solo in questo commento: `git grep -riE "server.?only" Source/` dava **zero**, quindi
+ * nessuno strumento poteva accorgersi se questo tipo finiva dentro una `UPROPERTY(Replicated)` o dentro un
+ * parametro di RPC. Ora `RefactorTactics.Privacy.ServerOnlyTypesAreNotReplicated` lo verifica sulla
+ * reflection, e la classe di dato e' quella che PDR-04 §2 chiama **Server-only**.
+ *
+ * ⚠️ **Il marcatore NON e' il filtro.** `FilterForTeam` decide *cosa* un osservatore ha diritto di sapere;
+ * il marcatore difende dal caso in cui il dato parta **aggirando** il filtro. Toglierlo non rompe nessun
+ * comportamento in partita — spegne una guardia, in silenzio.
  */
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (RTServerOnly))
 struct FRTPlannedIntent
 {
 	GENERATED_BODY()

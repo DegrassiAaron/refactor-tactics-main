@@ -1063,7 +1063,15 @@ posti che restano owner e che questa sezione **cita** invece di ricopiare:
 FRTIntentView` esiste ed è testato da `RefactorTactics.Reactions.IntentNotVisibleToEnemy` e
 `RefactorTactics.Combat.IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed`. Ma il registry annota accanto la
 sola frase che conta: *«oggi la privacy è **banale perché il gioco è offline**»*. Un filtro che nessuno prova
-ad aggirare non è una difesa — è una convenzione. Il canary di `M10.3` è la prima riga di quel test che vale.
+ad aggirare non è una difesa — è una convenzione.
+
+➕ **Aggiornato il 2026-09-04** ([#589](https://github.com/DegrassiAaron/refactor-tactics-main/issues/589)):
+questa riga diceva *«il canary di `M10.3` è la **prima** riga di quel test che vale»*, e da oggi qualcosa lo
+precede. `Privacy.ServerOnlyTypesAreNotReplicated` presidia la **superficie di replica**: un tipo dichiarato
+`USTRUCT(meta = (RTServerOnly))` non è raggiungibile da nessuna `UPROPERTY(Replicated)` né da un parametro di
+RPC, nemmeno annidato dentro un `TArray`. ⚠️ **Non rende il canary meno necessario, e la distinzione è netta**:
+la guardia dice che non esiste una via **dichiarata** perché un intento parta, il canary che **nessun byte è
+partito**. La prima si dimostra sui tipi e gira offline; la seconda solo su una partita vera, e **packaged**.
 
 **Il vincolo che nessuno aveva quando M10 è stata scritta.**
 [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) introduce **N round-trip per turno** — una finestra
@@ -1081,7 +1089,15 @@ la preview è continua e perdibile, il commit è raro e non può perdersi.
 5. **Risoluzione autoritativa** — il resolver gira sul server e da nessun'altra parte.
 6. **Canary anti-leak** (`M10.3`) — fallisce se un client riceve **un solo byte** del piano avversario prima
    del reveal. Il KPI *Intent leak = 0* smette di essere vero per costruzione e comincia a essere verificato.
-7. **Scenario packaged a due squadre** — la prova che il percorso regge fuori dall'editor.
+   ⚠️ **Si esegue packaged, e non è il punto 7** ([#589](https://github.com/DegrassiAaron/refactor-tactics-main/issues/589)):
+   *packaged* è una proprietà **di questo passo**, non un passo successivo. In PIE server e client condividono
+   il processo, quindi un canary che passa lì è verde anche quando il difetto c'è — è la modalità di
+   fallimento che PDR-04 §9.5 nomina. Letta come sequenza, questa lista faceva concludere che il canary si
+   potesse validare prima del pacchetto. Procedura: [`../technical/systems/procedura-canary-anti-leak.md`](../technical/systems/procedura-canary-anti-leak.md).
+   ✅ **La parte offline è già chiusa** dal 2026-09-04 — `Privacy.ServerOnlyTypesAreNotReplicated` presidia la
+   *superficie* di replica; il canary resta l'unica prova sul **byte**.
+7. **Scenario packaged a due squadre** — la prova che il percorso regge fuori dall'editor. ⚠️ È una prova più
+   larga del canary, non il suo contenitore: qui si guarda che l'intero percorso di rete regga, non la privacy.
 
 **Fuori perimetro**, e non per fretta: matchmaking, ranked, dedicated server, riconnessione. Il dedicated è
 **E42** e non è un dettaglio d'infrastruttura — cambia chi possiede l'autorità.

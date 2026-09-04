@@ -73,7 +73,7 @@ Questa sezione è una **mappa rapida**, non un posto dove mantenere numeri di bi
 - Griglia: **esagonale multilivello**, unico substrato, coordinate `FRTCellId{X=q, Y=r, Layer}`.
 - No GAS nella v0.1: azioni/eroi/equipaggiamento sono data-driven con `UPrimaryDataAsset`.
 - Authority: separata dal presentation layer anche in offline; rete completa è post-v0.1.
-- Privacy intenti: il modello esiste già (`FRTPlannedIntent → FilterForTeam → FRTIntentView`); il gate di rete arriva in M10.
+- Privacy intenti: il modello esiste già (`FRTPlannedIntent → FilterForTeam → FRTIntentView`); il gate di **rete** (canary, **packaged**) arriva in M10.3. ⚠️ **Un gate però c'è già, dal 2026-09-04** ([#589](https://github.com/DegrassiAaron/refactor-tactics-main/issues/589)) — questa riga faceva concludere che non ce ne fosse nessuno: un tipo si dichiara `USTRUCT(meta = (RTServerOnly))` e `Privacy.ServerOnlyTypesAreNotReplicated` verifica sulla reflection che nessuna proprietà replicata né parametro di RPC lo raggiunga. Presidia la **superficie**, non il byte.
 - Reazioni live: modello deciso `Opportunity → Commit`, Fast Reaction baseline **3,0 s**, timeout `HOLD`; implementazione interattiva è E14.
 - Conoscenza parziale: vista/udito alimentano `Team Knowledge`; implementazione è E13. ⚠️ **La geometria non osservata si nasconde** da [D-225](decisions/RT_PDR_00_Decision_Log.md) (2026-08-28) — questa riga diceva «mappa statica nota».
 - Facing è stato gameplay; implementazione completa è E16.
