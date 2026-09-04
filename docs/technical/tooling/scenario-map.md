@@ -260,6 +260,7 @@ Il verdetto è l'assertion. Nessuna di queste righe compare nel registro PIE, ed
 | `Movement.BasicFailsOnPurpose` | r3 | 1 | **`expected-fail`**: è l'unica prova che l'harness sappia dire «rosso» |
 | `Movement.Blocked` | r3 | 3 | una destinazione bloccata non produce un percorso |
 | `Movement.Collision` | r3 | 3 | chi cede la cella contesa, e con quale reason |
+| `Movement.CollisionChoke` | r3 | 4 | **diagnostico di `CM-02`** ([#2277](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2277)): quando la cella contesa e' l'UNICO varco, lo stallo si ripete e chi entra per primo nega il passaggio **standoci fermo**. Conta gli esiti invece di guardare le sole posizioni: 4 `BlockedContested` + 1 `Moved` su 6 intenti, e **zero** `BlockedByUnit` — il denial non lascia traccia nel TurnLog, perche' il percorso e' rifiutato in pianificazione ([#79](https://github.com/DegrassiAaron/refactor-tactics-main/issues/79)). ⛔ Misura il costo della policy corrente, **non** la cambia: la domanda resta `MOV-4` |
 | `Movement.LongWalk` | r5 | 3 | due unità attraversano l'arena su due turni |
 | `Movement.SwapRejectedByPlanning` | r3 | 3 | lo scambio diretto A↔B è rifiutato **in pianificazione**, non dal resolver |
 | `Spec.Facing.DerivesFromMove` | — | — | il `Move` fissa `FacingFinalAfterMove`, che **persiste** nel round dopo |
