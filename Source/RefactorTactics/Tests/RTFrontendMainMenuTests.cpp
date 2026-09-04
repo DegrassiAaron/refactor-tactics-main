@@ -832,4 +832,60 @@ bool FRTFrontendEveryConfiguredScreenLoadsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `MatchHistory` e' raggiungibile dal back stack e **si torna indietro** — `#2326`.
+ *
+ * 🔑 **Gemello di `MainMenuSettingsIsReachableAndReversible`, e per la stessa ragione**: la voce nuova del
+ * menu spinge una schermata, quindi il «nessun dead-end» del DoD vale identico. Se la cronologia non fosse
+ * reversibile, un giocatore che apre la lista per curiosita' resterebbe chiuso dentro.
+ *
+ * ⛔ **Cosa questo test NON prova, e va saputo per non fidarsene troppo.** Prova che il **navigatore** sa
+ * andare e tornare, non che il **pulsante** del menu chiami questa schermata: quello vive dentro
+ * `WBP_RT_MainMenu.uasset` e lo presidia `RefactorTactics.Editor.MainMenuReplayEntryPushesMatchHistory`,
+ * che segue i pin del Blueprint. Le due asserzioni sono complementari e nessuna delle due basta da sola —
+ * questa resterebbe verde con l'ingresso cancellato dall'asset.
+ *
+ * ⚠️ E la registrazione della schermata **e' parte della premessa**: se `MatchHistory` non arrivasse dalla
+ * configurazione, `PushScreen` fallirebbe e il test sarebbe rosso per un motivo che non e' il suo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMainMenuMatchHistoryIsReachableAndReversibleTest,
+	"RefactorTactics.Frontend.MainMenuMatchHistoryIsReachableAndReversible",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMainMenuMatchHistoryIsReachableAndReversibleTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeMainMenuNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseMainMenuNavigator(GI); return false; }
+
+	ExpectFrontendAssetNoise(*this);
+
+	if (!TestTrue(TEXT("premessa: il frontend e' partito"), Nav->StartFrontend()))
+	{
+		ReleaseMainMenuNavigator(GI);
+		return false;
+	}
+
+	// La premessa dichiarata: la schermata arriva dalla configurazione, non da questo test.
+	TestTrue(TEXT("premessa: MatchHistory e' registrata"),
+		Nav->GetRegisteredScreenIds().Contains(RTScreenIds::MatchHistory));
+
+	TestEqual(TEXT("la cronologia si apre"), Nav->PushScreen(RTScreenIds::MatchHistory), ERTNavResult::Ok);
+	TestEqual(TEXT("ed e' la schermata corrente"), Nav->GetCurrentScreen(), RTScreenIds::MatchHistory);
+	TestScreenIsLive(*this, Nav, RTScreenIds::MatchHistory);
+	TestTrue(TEXT("da qui si torna indietro"), Nav->CanGoBack());
+
+	TestEqual(TEXT("il Back riporta al menu"), Nav->PopScreen(), ERTNavResult::Ok);
+	TestEqual(TEXT("siamo di nuovo sul Main Menu"), Nav->GetCurrentScreen(), RTScreenIds::Main);
+	TestScreenIsLive(*this, Nav, RTScreenIds::Main);
+
+	// ⛔ **La clausola che il DoD chiede per nome**: *«dal Main Menu, `Back` non rientra nella cronologia»*.
+	// Senza questa riga il test resterebbe verde con un `PopScreen` che lascia la lista in pila, e il
+	// giocatore ci rientrerebbe premendo indietro una seconda volta.
+	TestFalse(TEXT("e dalla radice non si torna dentro la cronologia"), Nav->CanGoBack());
+	TestEqual(TEXT("profondita' tornata a 1"), Nav->GetDepth(), 1);
+
+	ReleaseMainMenuNavigator(GI);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
