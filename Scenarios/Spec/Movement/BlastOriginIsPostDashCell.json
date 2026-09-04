@@ -1,0 +1,59 @@
+{
+  "scenarioId": "Spec.Movement.BlastOriginIsPostDashCell",
+  "tags": ["spec", "movement", "dash", "combat", "los", "diagnostic", "gadget", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "SCENARIO DIAGNOSTICO di CM-04 (#2277, epic #2276): l'attacco parte dalla cella POST-DASH, e qui lo si vede in partita invece che dedurlo. Una barriera di sola vista separa B1 dal bersaglio: dalla cella di partenza il colpo non parte, dalla cella dello scatto si'. Se il Blast leggesse la posizione pre-Dash, T1 resterebbe a 90 HP pieni - la differenza fra 87 e 90 E' l'oracolo.",
+
+  "_nota_il_gap_che_copre": "In tutto il corpus NESSUN intent dichiarava `dash` e un attacco insieme sulla stessa unita' (misurato il 2026-09-04 su tutti gli scenari con `dash`). La regola era pinnata sull'ANTEPRIMA (`RefactorTactics.Preview.OriginIsPlannedDashCell`, che verifica cio' che la UI disegna) e sul resolver (`RTTurnManager_Blast.cpp:163`, «la posizione autorevole per il Blast e' quella post-Dash»), mai eseguita end-to-end. E' lo stesso gap che `Spec.Movement.DashDiscardsPlannedMove` ha chiuso per la coppia dash+move.",
+
+  "_nota_perche_la_barriera_e_di_sola_vista": "`blocksLineOfSight` senza `blocksMovement`: la carica ATTRAVERSA e la linea di tiro NO. E' la scelta che isola la variabile - se la barriera fermasse anche il movimento, un T1 illeso avrebbe due spiegazioni («lo scatto non e' arrivato» oppure «l'origine e' quella sbagliata») e lo scenario non discriminerebbe piu' nulla. Stessa barriera di `Combat.BlockedByWall`, che e' il controllo negativo di questo file e vive gia' nel corpus: stessa arena, stesso muro, nessuno scatto, bersaglio a HP pieni.",
+
+  "_nota_aritmetica": "T1 (Gadget) parte da 90 HP. `Hero.Riktor.ImpactShot` dichiara 8 danni - il piu' basso del roster - e il BaseShield di [D-224] ne ferma 5, quindi ne restano 3: l'attesa e' 87. Sono gli stessi numeri di `Combat.RiktorImpactShotSlows`, dove Gadget passa da 90 a 87 con lo stesso colpo.",
+
+  "_nota_portata": "La distanza fra la cella dello scatto (1,0,0) e T1 (3,0,0) e' di DUE celle. `Hero.Riktor.ImpactShot` dichiara portata 3, ma l'equipaggiamento di default (`Weapon.Impact`) ne toglie una: con il loadout montato la portata scende a 2 e il colpo passerebbe per un pelo. T1 entra quindi SPOGLIO (`loadout: []`) come in `Combat.RiktorImpactShotSlows`, che dichiara la stessa riga per la stessa ragione - tenere ferma una variabile che altrimenti deciderebbe l'esito al posto della regola in prova.",
+
+  "_nota_la_spinta_che_nessuno_aveva_previsto": "🔴 MISURATA DUE VOLTE il 2026-09-04, e nessuna delle due era prevista. Prima stesura: T1 su (2,0,0), atteso fermo, ottenuto (3,0,0). Seconda: T1 allontanato su (3,0,0) nell'ipotesi che fosse un effetto di ADIACENZA alla cella d'arrivo, ottenuto (4,0,0). L'ipotesi e' quindi FALSA: la spinta non dipende dalla distanza, e vale una cella nella direzione della carica. ⚠️ E arriva SENZA il danno della carica: `Action.Charge` porta `{ Damage 20, Push 1 }`, ma T1 chiude a 87 HP, cioe' ha perso i soli 3 dell'ImpactShot - dei 20 nemmeno uno. Un effetto della coppia passa, l'altro no. ⛔ Questo file NON e' l'owner di quel comportamento e non lo spiega: lo registra. Chi indaga parta da `RTTurnManager.cpp:5270` (dove il Push viene applicato al bersaglio dell'intent) e da `ERTInterruptPolicy::SuppressSecondary`, che `Action.Charge` dichiara nel core. 🔑 PERCHE' NON INTACCA L'ORACOLO: la spinta e' collineare alla carica, quindi allontana T1 lungo la stessa riga. Se avviene PRIMA del colpo, il colpo parte da (1,0,0) verso (4,0,0) - tre celle, dentro la portata 3 di un ImpactShot senza equipaggiamento, e la linea passa per (2,0,0) e (3,0,0), che non sono barriera. Se avviene DOPO, la geometria del colpo e' quella dichiarata. In ENTRAMBI gli ordini la linea dalla cella PRE-Dash sarebbe passata per (0,0,0), che e' barriera: l'oracolo distingue le due origini in ogni caso, ed e' per questo che il valore misurato si registra invece di riprogettare la board una terza volta. ➕ E la spinta e' essa stessa un reperto per CM-04: chi dichiara carica + attacco deve prevedere che il proprio bersaglio si sposti di una cella per effetto del movimento, senza subirne il danno. E' una regola in piu' da tenere a mente nello stesso turno - esattamente il sovraccarico di previsione che la review misura.",
+
+  "_nota_la_terza_posizione_non_esiste": "🔴 La review parlava di TRE posizioni - Dash, Blast, Move - e la terza non e' esprimibile. [D-028] da' al turno UN movimento e UNA azione principale: si sceglie *schivo e sparo* (`Dash` + attacco) oppure *sparo e muovo* (attacco + `Move`), e `Hero.Riktor.Ram` occupa lo slot Movement ([D-191]). Chi dichiara entrambi vede vincere lo scatto, ed e' cio' che `Spec.Movement.DashDiscardsPlannedMove` misura. Questo file percorre quindi la sola meta' che esiste, e la sua assenza di `move` non e' una semplificazione: e' la regola.",
+
+  "_nota_facing": "Non si dichiara un `facing` iniziale: la carica va verso `+q`, lo scatto riorienta (`Spec.Facing.DashReorients`) e T1 sta a est della cella d'arrivo, cioe' nell'arco frontale. Se un giorno il riorientamento cadesse, questo scenario diventerebbe rosso sul danno - il che e' corretto, perche' `RefactorTactics.Facing.DashThenBlastUsesLatestValue` dichiara che il Blast legge il valore piu' recente.",
+
+  "cells": [
+    { "cell": [0, -1, 0], "blocksLineOfSight": true },
+    { "cell": [0,  0, 0], "blocksLineOfSight": true },
+    { "cell": [0,  1, 0], "blocksLineOfSight": true }
+  ],
+
+  "units": [
+    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "T1", "hero": "Hero.Gadget", "team": 1, "cell": [ 3, 0, 0], "loadout": [] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 - un turno solo, due dichiarazioni della STESSA unita': la carica nello slot Movimento e l'attacco base nella principale. La carica arriva a (1,0,0) - tre celle in linea da (-2,0,0), dentro la portata 3 - attraversando la barriera, che ferma la vista e non i corpi. Nessuno sta sulla traiettoria, quindi la carica non consegna il proprio danno e l'unico colpo del turno e' quello del Blast.",
+      "intents": [
+        { "unit": "B1", "dash": "Hero.Riktor.Ram", "dashTo": [1, 0, 0], "ability": "Hero.Riktor.ImpactShot", "target": "T1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "_assertion": "🔴 L'ORACOLO. T1 perde 3 HP, quindi il colpo E' partito: la linea di tiro esisteva solo dalla cella dello scatto. Se il Blast avesse letto la posizione pre-Dash, la barriera avrebbe fermato il colpo e questo valore sarebbe 90 - che e' esattamente cio' che `Combat.BlockedByWall` misura sulla stessa arena senza scatto.",
+      "type": "UnitHpEquals", "unit": "T1", "value": 87 },
+
+    { "_assertion": "Lo scatto e' avvenuto, e si e' fermato dove dichiarato. Senza questa riga un T1 a 87 non distinguerebbe «il colpo parte dalla cella post-Dash» da «la barriera non ha mai bloccato niente».",
+      "type": "UnitAtCell", "unit": "B1", "cell": [1, 0, 0] },
+
+    { "_assertion": "🔴 IL BERSAGLIO E' SPINTO DI UNA CELLA, E QUESTO VALORE E' REGISTRATO, NON DEDOTTO. T1 parte da (3,0,0) e finisce a (4,0,0): la carica lo spinge di una cella nella propria direzione. Vedi `_nota_la_spinta_che_nessuno_aveva_previsto` per la misura e per il motivo per cui non intacca l'oracolo. ⚠️ `ImpactShot` lascia anche `Status.Slow` addosso a T1 ([ADR-0007]), che qui non ha effetti perche' T1 non pianifica movimento - il posto dove quello Slow si vede AGIRE resta `Combat.RiktorImpactShotSlows`.",
+      "type": "UnitAtCell", "unit": "T1", "cell": [4, 0, 0] },
+
+    { "_assertion": "Nessuno e' caduto: 3 danni su 90 HP non abbattono, e un T1 morto renderebbe l'assertion sugli HP vera per la ragione sbagliata.",
+      "type": "UnitAlive", "unit": "T1", "value": true },
+
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
