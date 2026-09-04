@@ -776,4 +776,76 @@ bool FRTStatusBadgesShowOnlyWhatTheUnitCarriesTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **La vista della sovrapposizione unisce i due produttori, e il colore dipende da CHI GUARDA.**
+ *
+ * `BuildUnitOverlay` non calcola nulla di nuovo: e' il collante fra `BuildUnitCard` e `BuildStatusBadges`.
+ * Cio' che vale testare e' proprio il collante — che i due arrivino davvero, e che il nome e il colore
+ * (le sole due cose che nessuno dei due possiede) siano quelli giusti **per l'osservatore**.
+ *
+ * ⚠️ **Il colore e' l'asserzione che conta**: la stessa unita' vista da due osservatori deve dare due
+ * viste diverse. Un'implementazione che leggesse `TeamId` invece di `bIsAlly` passerebbe ogni test scritto
+ * da un solo punto di vista, e a schermo colorerebbe i nemici come i propri per lo spettatore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitOverlayViewIsObserverRelativeTest,
+	"RefactorTactics.HudViewModel.UnitOverlayViewIsObserverRelative",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitOverlayViewIsObserverRelativeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	Unit->Health = 60;
+	Unit->ApplyStatus(TAG_Status_Burning, /*Turni*/ 2);
+
+	// Visto da un compagno di squadra...
+	const FRTUnitOverlayView Alleata = URTHudViewModel::BuildUnitOverlay(Unit, /*PlayerTeamId*/ 0);
+	// ...e dall'avversario.
+	const FRTUnitOverlayView Nemica  = URTHudViewModel::BuildUnitOverlay(Unit, /*PlayerTeamId*/ 1);
+
+	// I due produttori sono arrivati entrambi.
+	TestEqual(TEXT("la card porta la vita vera"), Alleata.Card.Health, 60);
+	TestEqual(TEXT("gli stati sono quelli attivi"), Alleata.Statuses.Num(), 1);
+	TestEqual(TEXT("e sono quelli giusti"),
+		Alleata.Statuses[0].Tag, TAG_Status_Burning.GetTag().GetTagName());
+
+	// Il nome e' quello canonico del catalogo, non l'ID: `Hero.Gadget` si legge `Gadget`.
+	TestFalse(TEXT("il nome non e' vuoto"), Alleata.DisplayName.IsEmpty());
+	TestFalse(TEXT("il nome non e' l'ID grezzo"), Alleata.DisplayName.Equals(TEXT("Hero.Gadget")));
+
+	// 🔴 Il cuore: stessa unita', due osservatori, due viste.
+	TestTrue(TEXT("per il compagno e' un'alleata"),  Alleata.Card.bIsAlly);
+	TestFalse(TEXT("per l'avversario non lo e'"),    Nemica.Card.bIsAlly);
+	TestNotEqual(TEXT("e il colore cambia con chi guarda"), Alleata.TeamColor, Nemica.TeamColor);
+
+	// Anti-vacuita': cio' che NON dipende dall'osservatore resta identico.
+	TestEqual(TEXT("la vita non dipende da chi guarda"), Alleata.Card.Health, Nemica.Card.Health);
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * Una vista neutra per un'unita' che non c'e': un widget costruito prima dell'unita' mostra un vuoto, non
+ * un morto a 0 HP. E' la stessa scelta gia' presa da `BuildMatchHeader`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitOverlayViewIsNeutralWithoutUnitTest,
+	"RefactorTactics.HudViewModel.UnitOverlayViewIsNeutralWithoutUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitOverlayViewIsNeutralWithoutUnitTest::RunTest(const FString&)
+{
+	const FRTUnitOverlayView Vuota = URTHudViewModel::BuildUnitOverlay(nullptr, /*PlayerTeamId*/ 0);
+
+	TestTrue(TEXT("nessun nome"), Vuota.DisplayName.IsEmpty());
+	TestEqual(TEXT("nessuno stato"), Vuota.Statuses.Num(), 0);
+	// ⚠️ `MaxHealth` a zero e' cio' che distingue «non c'e' unita'» da «unita' morta»: un morto ha
+	// `MaxHealth > 0` e `Health == 0`. Chi disegna una barra deve poterli separare.
+	TestEqual(TEXT("nessuna vita massima: non e' un morto, e' un'assenza"), Vuota.Card.MaxHealth, 0);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

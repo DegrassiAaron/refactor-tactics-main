@@ -211,6 +211,40 @@ struct FRTStatusBadgeView
 	bool bIsControl = false;
 };
 
+/**
+ * La sovrapposizione sopra un'unita', come un widget la riceve gia' composta (`#2288`, `D-320`).
+ *
+ * 🔴 **Esiste perche' il widget non debba comporre nulla.** Un `UserWidget` in Blueprint ha copertura
+ * headless **zero**: ogni `if` scritto li' dentro e' un `if` che nessun test vede. Qui invece tutto e' un
+ * campo, e chi disegna sceglie solo *dove* metterlo.
+ */
+USTRUCT(BlueprintType)
+struct FRTUnitOverlayView
+{
+	GENERATED_BODY()
+
+	/** Il nome da mostrare, gia' risolto (`ARTUnit::DisplayLabel`): il nome canonico del catalogo, non l'ID. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FString DisplayName;
+
+	/** Vita, scudo ed energia: la stessa vista che il pannello di squadra usa gia'. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FRTUnitCardView Card;
+
+	/** Gli stati attivi, gia' ordinati e con la durata (`#2274`). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	TArray<FRTStatusBadgeView> Statuses;
+
+	/**
+	 * Il colore di squadra **dal punto di vista di chi guarda**: alleato o avversario, non «team 0/team 1».
+	 *
+	 * ⚠️ Deriva da `Card.bIsAlly`, quindi da `PlayerTeamId`: la stessa unita' e' due colori diversi per due
+	 * osservatori, ed e' voluto.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FLinearColor TeamColor = FLinearColor::White;
+};
+
 /** La ricarica residua di una singola azione del kit, in TURNI INTERI. */
 USTRUCT(BlueprintType)
 struct FRTAbilityCooldownView
@@ -392,6 +426,22 @@ public:
 	 * @return vuoto se `Unit` e' nullo o non ha stati attivi.
 	 */
 	static TArray<FRTStatusBadgeView> BuildStatusBadges(const ARTUnit* Unit);
+
+	/**
+	 * Tutto cio' che la sovrapposizione sopra un'unita' mostra, in **una** vista (`#2288`, `D-320`).
+	 *
+	 * 🔑 **Non calcola niente di nuovo: unisce due produttori che esistono gia'** — `BuildUnitCard` per vita,
+	 * scudo ed energia, `BuildStatusBadges` per gli stati — e aggiunge le sole due cose che nessuno dei due
+	 * possiede: il **nome** da mostrare e il **colore di squadra**, che dipendono da chi guarda.
+	 *
+	 * ⚠️ **`PlayerTeamId` non e' un parametro decorativo**: decide `bIsAlly`, quindi il colore. La stessa
+	 * unita' vista da due osservatori e' due viste diverse — ed e' la ragione per cui il driver di questa
+	 * vista sta sull'HUD, che un osservatore ce l'ha, e non su un attore condiviso.
+	 *
+	 * ⛔ **Non decide se mostrarla.** Quello lo dice `ARTUnit::IsKnownToObserver()`, scritto dal velo
+	 * (`#2246`): un secondo giudizio qui sarebbe la divergenza che quella issue ha appena tolto.
+	 */
+	static FRTUnitOverlayView BuildUnitOverlay(const ARTUnit* Unit, int32 PlayerTeamId);
 
 	/**
 	 * I piani **autorevoli** di tutte le unita' vive, non filtrati per nessun osservatore.

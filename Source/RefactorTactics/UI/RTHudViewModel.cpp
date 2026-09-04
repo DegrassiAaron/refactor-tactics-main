@@ -141,6 +141,31 @@ FRTUnitSlotsView URTHudViewModel::BuildUnitSlots(const ARTUnit* Unit)
 	return Slots;
 }
 
+FRTUnitOverlayView URTHudViewModel::BuildUnitOverlay(const ARTUnit* Unit, int32 PlayerTeamId)
+{
+	FRTUnitOverlayView View;
+	if (Unit == nullptr)
+	{
+		// Vista neutra e non «zero»: un widget costruito prima dell'unita' mostra un vuoto, non un morto a
+		// 0 HP. E' la stessa scelta di `BuildMatchHeader`.
+		return View;
+	}
+
+	View.Card = BuildUnitCard(Unit, PlayerTeamId);
+	View.Statuses = BuildStatusBadges(Unit);
+
+	// Il nome CANONICO del catalogo ([D-120]), non l'ID stabile: `Hero.Gadget` si legge `Gadget`. Il
+	// ripiego sull'ID resta dentro `DisplayLabel`, per le unita' che nessun eroe ha configurato.
+	View.DisplayName = ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName());
+
+	// Gli stessi due colori che il canvas usava, e presi dalla stessa porta: chi guarda vede i propri in
+	// azzurro e gli altri in rosso, **non** «team 0 azzurro» — la distinzione conta per lo spettatore.
+	View.TeamColor = ARTUnit::TeamColorFor(View.Card.bIsAlly ? 0 : 1,
+		FLinearColor(0.55f, 0.75f, 1.f, 1.f), FLinearColor(1.f, 0.62f, 0.55f, 1.f));
+
+	return View;
+}
+
 TArray<FRTStatusBadgeView> URTHudViewModel::BuildStatusBadges(const ARTUnit* Unit)
 {
 	TArray<FRTStatusBadgeView> Badges;

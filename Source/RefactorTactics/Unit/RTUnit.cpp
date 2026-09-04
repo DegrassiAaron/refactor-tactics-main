@@ -18,6 +18,8 @@
 #include "Animation/AnimSingleNodeInstance.h"
 #include "Unit/RTUnitAnimInstance.h"
 #include "Perception/RTTeamKnowledge.h" // ContactLifetimeTurns: la durata del ricordo ha un owner, non si ricopia
+#include "Components/WidgetComponent.h" // la sovrapposizione sopra la testa (#2288, D-320)
+#include "UI/RTUnitOverlayWidget.h"  // la classe base del widget: serve il tipo completo per SetWidgetClass
 
 ARTUnit::ARTUnit()
 {
@@ -123,6 +125,24 @@ ARTUnit::ARTUnit()
 	// normale erediterebbe il transform e la trascinerebbe con l'unita' vera, che nel frattempo puo' essersi
 	// mossa altrove. La aggiorna solo `UpdateContactGhost`, mai `RefreshComponentVisibility` (che nasconde il
 	// personaggio vero) ne' `ApplyTeamColor`/`ApplyFacingArrow` (che sono presentazione del vivo).
+	// Sovrapposizione sopra la testa (`#2288`, `D-320`): nome, vita, scudo, energia, stati.
+	//
+	// ⚠️ `Screen` space e non `World`: e' cio' che sostituisce il disegno in canvas, che era in coordinate
+	// schermo. In `World` la sovrapposizione rimpicciolirebbe con la distanza — e a camera tattica, dove le
+	// unita' stanno a quote diverse, due barre della stessa lunghezza logica avrebbero due lunghezze
+	// diverse a schermo. Chi la vuole diegetica cambia QUESTA riga, e sa gia' cosa sta scambiando.
+	//
+	// 🔑 **`Screen` space risolve anche lo scarto «dietro la camera»** che il canvas otteneva con
+	// `Screen.Z <= 0`: un widget in screen space non viene proiettato a mano, e il motore non lo disegna
+	// quando il componente e' dietro il piano di vista.
+	OverlayWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("OverlayWidget"));
+	OverlayWidget->SetupAttachment(SceneRoot);
+	OverlayWidget->SetWidgetSpace(EWidgetSpace::Screen);
+	OverlayWidget->SetDrawAtDesiredSize(true);
+	OverlayWidget->SetCollisionEnabled(ECollisionEnabled::NoCollision); // mai un proxy di click
+	OverlayWidget->SetGenerateOverlapEvents(false);
+	OverlayWidget->SetVisibility(false); // il velo la accende: nasce spenta come gli anelli
+
 	ContactGhost = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ContactGhost"));
 	ContactGhost->SetupAttachment(SceneRoot);
 	ContactGhost->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -143,6 +163,31 @@ void ARTUnit::BeginPlay()
 	ApplyUnitMeshLOD();
 	ApplyMeshYawOffset();
 	ApplyFacingArrow();
+	ApplyOverlayWidgetClass();
+}
+
+void ARTUnit::ApplyOverlayWidgetClass()
+{
+	if (OverlayWidget == nullptr || OverlayWidgetClass == nullptr)
+	{
+		// Senza una classe assegnata il componente resta vuoto e non si vede niente: degrada, non crasha.
+		// E' la stessa forma con cui `HeroMeshClass` e `ContactGhostMaterial` sono opzionali — l'assenza di
+		// un asset di presentazione non deve poter fermare una partita.
+		return;
+	}
+
+	// ⚠️ Conversione esplicita: `SetWidgetClass` vuole un `TSubclassOf<UUserWidget>` e il campo dichiara il
+	// tipo piu' STRETTO (`URTUnitOverlayWidget`), che e' cio' che impedisce di assegnare un widget
+	// qualunque dal Blueprint. La stretta sta nel dato, il cast e' solo il prezzo di averla.
+	OverlayWidget->SetWidgetClass(TSubclassOf<UUserWidget>(OverlayWidgetClass));
+}
+
+UUserWidget* ARTUnit::GetOverlayWidgetObject() const
+{
+	// ⚠️ Il widget vero nasce quando il componente lo istanzia, non nel costruttore: prima di allora — e in
+	// un mondo senza rendering, come quello dei test headless — questa risponde `nullptr`, ed e' il caso
+	// normale, non un errore. Chi la chiama deve poterlo attraversare senza dire niente.
+	return OverlayWidget ? OverlayWidget->GetUserWidgetObject() : nullptr;
 }
 
 void ARTUnit::ApplyUnitAnimClass()
@@ -360,6 +405,12 @@ void ARTUnit::RefreshComponentVisibility()
 
 	// La freccia di facing ha il proprio interruttore di presentazione.
 	if (FacingArrow)   { FacingArrow->SetVisibility(bRender && bShowFacingArrow, false); }
+
+	// La sovrapposizione segue il velo come mesh e anelli (`#2288`): su un nemico che la squadra non vede
+	// non deve esserci nome ne' barra della vita. ⚠️ **Al contrario di `ContactGhost`**, che e' escluso da
+	// questa funzione proprio perche' deve vedersi quando l'unita' non si vede — e mescolarli sarebbe il
+	// difetto opposto, un ricordo che sparisce insieme al suo soggetto.
+	if (OverlayWidget) { OverlayWidget->SetVisibility(bRender, false); }
 
 	if (HeroSkeletal)
 	{
