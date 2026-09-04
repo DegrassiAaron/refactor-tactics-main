@@ -105,14 +105,21 @@ bool FRTHudAbilityLineArmedTest::RunTest(const FString&)
 	TestTrue(TEXT("pronta: grigio chiaro"), Pronta.Color.Equals(FLinearColor(0.8f, 0.8f, 0.8f, 1.f)));
 
 	// 🔴 **Armata resta bianca anche se non e' usabile.** «Cosa sto per fare» e «posso farlo» sono due
-	// domande, e il prefisso risponde alla prima: un'ultimate armata senza energia deve restare
+	// domande, e il prefisso risponde alla prima: un'ultimate armata e ancora in ricarica deve restare
 	// riconoscibile come quella scelta. Senza questo caso, far vincere `bUsableNow` sul bianco passerebbe.
+	//
+	// ⚠️ **Il motivo si legge su un'abilita' IN RICARICA, e non e' un dettaglio di comodo.** Questo blocco
+	// asseriva che una riga armata e *scarica* — `TurnsRemaining = 0`, `bUsableNow = false` — mostrasse
+	// comunque `(energia)`. [D-324](../../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy`
+	// dal gameplay: quella combinazione non e' piu' producibile dal ViewModel — `bUsableNow` viene da
+	// `CanUseAbility`, che ora e' il solo cooldown — e la riga non ha piu' un secondo motivo da scrivere.
+	// Il caso si sposta su un'abilita' in ricarica, dove il motivo esiste ancora.
 	Ability.bUsableNow = false;
-	Ability.TurnsRemaining = 0;
+	Ability.TurnsRemaining = 2;
 	const FRTHudTextLine ArmataScarica = ARTHUD::ComposeAbilityLine(Ability, /*bArmed=*/ true);
-	TestTrue(TEXT("armata e scarica: resta bianca"), ArmataScarica.Color.Equals(FLinearColor::White));
-	TestTrue(TEXT("armata e scarica: il motivo si vede comunque"),
-		ArmataScarica.Text.Contains(TEXT("(energia)")));
+	TestTrue(TEXT("armata e in ricarica: resta bianca"), ArmataScarica.Color.Equals(FLinearColor::White));
+	TestTrue(TEXT("armata e in ricarica: il motivo si vede comunque"),
+		ArmataScarica.Text.Contains(TEXT("(ricarica 2)")));
 
 	// Non armata e non usabile: il grigio più scuro, il terzo livello.
 	const FRTHudTextLine Spenta = ARTHUD::ComposeAbilityLine(Ability, /*bArmed=*/ false);

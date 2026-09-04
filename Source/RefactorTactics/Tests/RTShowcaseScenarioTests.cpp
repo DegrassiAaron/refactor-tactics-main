@@ -2118,6 +2118,7 @@ bool FRTShowcaseStateHashPerTurnTest::RunTest(const FString&)
 	// confronto qui sotto sarebbe verde e non direbbe niente. Si raccolgono e si conta quanti valori
 	// DISTINTI producono.
 	TSet<uint32> Distinti;
+	TArray<uint32> PerTurno;
 
 	for (int32 K = 1; K <= Scenario.Turns.Num(); ++K)
 	{
@@ -2151,13 +2152,51 @@ bool FRTShowcaseStateHashPerTurnTest::RunTest(const FString&)
 		TestEqual(FString::Printf(TEXT("turno %d: stesso StateHash (%08x vs %08x)"),
 			K, Rovescio.StateHash, Diritto.StateHash), Rovescio.StateHash, Diritto.StateHash);
 
+		AddInfo(FString::Printf(TEXT("turno %d: StateHash %08x"), K, Diritto.StateHash));
 		Distinti.Add(Diritto.StateHash);
+		PerTurno.Add(Diritto.StateHash);
 	}
 
-	// Otto turni che cambiano lo stato producono otto hash diversi. Se ne producessero uno solo, gli otto
-	// confronti sopra sarebbero l'uguaglianza di una costante con se' stessa.
-	TestEqual(TEXT("e gli otto stati sono DISTINTI: l'hash non e' una costante travestita"),
-		Distinti.Num(), Scenario.Turns.Num());
+	// La controprova che gli otto confronti sopra non siano l'uguaglianza di una costante con se' stessa.
+	TestTrue(TEXT("l'hash non e' una costante travestita: piu' d'un valore fra gli otto turni"),
+		Distinti.Num() > 1);
+
+	// 🔴 **SETTE valori distinti su otto turni, e la collisione e' NOTA, misurata e attesa.**
+	//
+	// Questa riga asseriva `Distinti.Num() == Turns.Num()`, cioe' otto, e passava. ⚠️ **Passava per il motivo
+	// sbagliato**: nel digest c'era `Energy`, che cresceva di `EnergyPerTurn` a ogni Cleanup di ogni unita'
+	// viva. Un contatore monotono rende ogni turno distinto **qualunque cosa accada nella partita** — faceva
+	// da marca temporale, non da stato. [D-324](../../../../docs/decisions/RT_PDR_00_Decision_Log.md) l'ha
+	// tolta dal gameplay, e la misura ha smesso di essere mascherata.
+	//
+	// **T1 e T2 producono lo stesso hash, e lo scenario dichiara perche'**: il T2 e' il *whiff* — Wraith
+	// arma `Hero.Wraith.InterceptShot` su una cella che nessuno attraversa. Nessuno si muove, nessuno subisce
+	// danno, nessuno cambia stato: dei sette campi del digest non ne cambia **nessuno**.
+	//
+	// 🔴 **Ma una cosa cambia, e il digest non la vede: il COOLDOWN.** `InterceptShot` dichiara `Cooldown 2`,
+	// e il catalogo eroi scrive che *«chi scommette paga il cooldown anche quando sbaglia, ed e' la meta' del
+	// costo che rende il whiff una scelta»*. Dopo il T2 Wraith **non puo' rifare** quell'azione per due turni:
+	// e' stato di gioco, e due partite che differissero solo per quello hanno lo stesso `StateHash`. E' la
+	// stessa classe di difetto che [D-261](../../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha corretto
+	// per il `Facing`, e soddisfa il criterio di `D-284` (3) — *«un campo entra solo se due oggetti possono
+	// differire solo per quello»*.
+	//
+	// ⛔ **Non e' corretto qui**: aggiungere un campo al digest e' una decisione, non un adattamento di test.
+	// Owner: #2366.
+	//
+	// ✅ **Questa riga e' il segnalibro.** Quando il cooldown entrera' nel digest, T1 e T2 si separeranno e
+	// questa assertion cadra' — e chi la legge trovera' scritto qui che la caduta e' la **conferma** attesa,
+	// non una regressione: si porta il `7` a `8` e si cancella questo blocco.
+	TestEqual(TEXT("sette distinti su otto: T1 e T2 collidono perche' il whiff non tocca nessun campo del "
+	               "digest — il cooldown che paga non ne fa parte"),
+		Distinti.Num(), 7);
+
+	if (PerTurno.Num() >= 2)
+	{
+		// La collisione e' ESATTAMENTE quella dichiarata, non una qualsiasi: se collidessero due altri turni
+		// il conteggio resterebbe 7 e la riga sopra tacerebbe.
+		TestEqual(TEXT("e la collisione e' T1 con T2, non un'altra coppia"), PerTurno[0], PerTurno[1]);
+	}
 
 	return true;
 }
