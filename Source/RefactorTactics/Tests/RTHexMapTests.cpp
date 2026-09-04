@@ -368,7 +368,11 @@ bool FRTHexMapFormatMigrationTest::RunTest(const FString&)
 	// v12 (#1864) da' un nome stabile al muro interno, perche' il muro SI SPOSTA e il move cambia la sua
 	// chiave naturale `(Cell, Segment)`; nessun dato precedente cambia significato, e il default
 	// `NAME_None` e' cio' che ogni muro scritto prima gia' era.
-	TestEqual(TEXT("la versione corrente e' la 14"), URTHexMapAsset::CurrentFormatVersion, 14);
+	// v15 (#1865): la cella guadagna `BodyFill`, quanto volume si vede SOTTO la sua superficie. Passo
+	// dichiarativo: il default `None` e' cio' che ogni superficie elevata gia' era — un disco sospeso — e
+	// la ricarica non deduce il riempimento dal contesto, perche' un ponte e una collina hanno entrambi il
+	// vuoto sotto e dedurre trasformerebbe il primo in un muro.
+	TestEqual(TEXT("la versione corrente e' la 15"), URTHexMapAsset::CurrentFormatVersion, 15);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 3);
 	TestEqual(TEXT("nessuna transizione persa"), Legacy->Transitions.Num(), 2); // bidirezionale
 	// v11: una mappa vecchia non guadagna OBIETTIVI ricaricandosi. E' la promessa del passo dichiarativo, e

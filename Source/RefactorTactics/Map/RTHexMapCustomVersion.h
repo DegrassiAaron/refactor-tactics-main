@@ -124,6 +124,18 @@ struct FRTHexMapCustomVersion
 		 */
 		AuthoredTraversal = 14,
 
+		/**
+		 * Il corpo strutturale sotto la superficie (`FRTHexCellData::BodyFill`), `#1865`.
+		 *
+		 * Dichiarativo: il campo nasce `None`, e ogni superficie elevata scritta prima era un disco sospeso
+		 * — il corpo non esisteva come dato, quindi «nessun corpo» e' cio' che quelle mappe gia' erano.
+		 *
+		 * ⛔ **La ricarica non lo deduce**, con la stessa ragione di `AuthoredTraversal`: un ponte e una
+		 * collina hanno entrambi il vuoto sotto di se', e dedurre il riempimento dal contesto trasformerebbe
+		 * il primo in un muro.
+		 */
+		StructuralBodyFill = 15,
+
 		// -----<le versioni nuove si aggiungono SOPRA questa riga>------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
