@@ -243,10 +243,11 @@ Le schede esistono già come `DATA_SPEC`/`DESIGN_SPEC`: [`../characters/v0.2/`](
 
 | CP | Obiettivo | DoD misurabile |
 |---|---|---|
-| **35.1** | Sentinel Directorate — Steel, Murdock | I due `URTHeroData` esistono con azioni a catalogo; affinità *Protection → Fire Sector* emerge da meccaniche generiche, nessun `FactionSetBonus` |
-| **35.2** | Resonance — Aurora, Kwang | Idem per *Terrain Shaping → Anchor Geometry* |
+| **35.1** | Sentinel Directorate — Ward, Vigil | I due `URTHeroData` esistono con azioni a catalogo; affinità *Protection → Fire Sector* emerge da meccaniche generiche, nessun `FactionSetBonus` |
+| **35.2** | Resonance — Rime, Tethra | Idem per *Terrain Shaping → Anchor Geometry* |
 | **35.3** | Bilanciamento a 8 | `Heroes.RosterIsBalanced` esteso a 8: nessun eroe domina, le coppie di affinità restano simmetriche |
 | **35.4** | Wiki e cataloghi allineati | `../wiki/fazioni/` e `../balance/RT_HeroCatalog_v0.1.md` descrivono 8 eroi con i valori realmente a runtime |
+| **35.5** | Paragon naming purge | Nessuna identità Paragon sopravvive nel namespace RT-owned, e un gate contestuale — sui campi `HeroId`, `DisplayName`, namespace dell'`ActionId`, Gameplay Tag e voci di catalogo — impedisce che rientri. Path e package vendor restano leciti. Issue [#2291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2291) |
 
 **Dipendenze**: E6 (roster 4) chiusa. **Rischi**: il roster raddoppia la matrice di interazioni da testare —
 il costo non è lineare.

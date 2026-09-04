@@ -209,8 +209,15 @@ public:
 
 	/**
 	 * Se Path termina su una cella Ice e il budget residuo dell'unita' (MoveBudget - costo del percorso) e'
-	 * >= 2, estende Path di una cella nella direzione dell'ultimo passo (se esiste e non blocca il
-	 * movimento). Altrimenti ritorna Path invariato. Path.Num() < 2, o l'ultimo passo non e' un vicino
+	 * >= 2, estende Path di una cella nella direzione dell'ultimo passo, **se quel passo e' percorribile**.
+	 * Altrimenti ritorna Path invariato.
+	 *
+	 * «Percorribile» sono DUE domande, e le fa entrambe (#2284): che il grafo offra l'arco — il che copre la
+	 * cella assente, `bBlocksMovement` e i muri o le porte sul BORDO — e che la cella d'arrivo si ATTRAVERSI
+	 * dalla direzione d'ingresso a quella d'uscita (geometria interna, #2100). Prima di #2284 guardava solo
+	 * `FindCell` e `bBlocksMovement`, e uno scivolamento poteva attraversare un muro: dentro `ResolveMovement`
+	 * il taglio a valle lo mascherava, ma questa funzione e' pura e i chiamanti diretti ricevevano il
+	 * percorso sbagliato. Path.Num() < 2, o l'ultimo passo non e' un vicino
 	 * diretto sullo stesso layer (es. arrivo via transizione), -> Path invariato.
 	 *
 	 * La cella aggiunta NON e' verificata per occupazione: il path esteso entra nel microstep di

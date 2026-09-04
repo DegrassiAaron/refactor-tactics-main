@@ -206,8 +206,11 @@ public:
 	 * catalogo e trasportato qui da `ConfigureFromHeroData`. `FText` perché è testo mostrato all'utente e
 	 * deve restare localizzabile.
 	 *
-	 * ⚠️ **Non è lo Stable ID.** `HeroId` resta `Hero.Gadget` e non si rinomina: D-120 tiene i due piani
-	 * separati, e la migrazione degli identificatori ha un blocker proprio ancora aperto (#716).
+	 * ⚠️ **Non è lo Stable ID**, e i due piani restano separati — D-037, che D-321 ha ripristinato come
+	 * invariante. Ma `Hero.Gadget` **sarà rinominato**: D-321 dichiara che i quattro nomi del roster v0.1
+	 * sono identità legacy temporanee, D-322 fissa i sostituti (`Hero.Gadget` → `Hero.Nexis`), e la
+	 * migrazione è differita post-v0.1 con owner #2297. Il blocker di namespace che rendeva impossibile il
+	 * rename è sciolto da D-130, che ha chiuso #716 scegliendo `Hero.<Nome>.<Abilità>`.
 	 * Vuoto = nessun eroe l'ha dichiarato: la presentazione ricade su `ShortHeroName`, mai su stringa vuota.
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
@@ -1225,6 +1228,21 @@ protected:
 	 */
 	void ApplyUnitAnimClass();
 
+	/** Cabla `OverlayWidgetClass` sul componente. Senza classe assegnata non fa nulla (`#2288`). */
+	void ApplyOverlayWidgetClass();
+
+public:
+	/**
+	 * Il widget della sovrapposizione, se il componente lo ha gia' istanziato (`#2288`).
+	 *
+	 * ⚠️ **`nullptr` e' un esito normale**, non un errore: senza `OverlayWidgetClass`, prima
+	 * dell'istanziazione, e in un mondo headless il widget non esiste. Chi lo aggiorna deve attraversare
+	 * quel caso in silenzio.
+	 */
+	UUserWidget* GetOverlayWidgetObject() const;
+
+protected:
+
 	/** Inchioda le skeletal dell'unita' a `ForcedMeshLOD` (vedi il perche' su quella proprieta'). */
 	void ApplyUnitMeshLOD();
 
@@ -1322,6 +1340,31 @@ protected:
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	TObjectPtr<USkeletalMeshComponent> ContactGhost;
+
+	/**
+	 * La sovrapposizione sopra la testa — nome, vita, scudo, energia, stati (`#2288`, `D-320`).
+	 *
+	 * 🔴 **Segue il velo, al contrario di `ContactGhost`.** La sagoma del ricordo deve vedersi *proprio
+	 * quando* l'unita' non si vede, quindi e' esclusa da `RefreshComponentVisibility`; questa invece e' la
+	 * sovrapposizione dell'unita' **vera**, e su un nemico non osservato non deve esserci. Passa quindi
+	 * dallo stesso `bRender` di mesh e anelli, e il velo la spegne senza che nessuno scriva una seconda
+	 * regola.
+	 *
+	 * ⚠️ **La classe del widget non e' cablata qui**: la dichiara `OverlayWidgetClass`, che un `BP_Unit_*`
+	 * assegna. Senza, il componente resta vuoto e non si vede niente — degrada, non crasha, ed e' la stessa
+	 * forma con cui `HeroMeshClass` e `ContactGhostMaterial` sono opzionali.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TObjectPtr<class UWidgetComponent> OverlayWidget;
+
+	/**
+	 * Il `WBP_RT_UnitOverlay` da mostrare sopra questa unita'. Assegnato dal Blueprint dell'eroe.
+	 *
+	 * ⚠️ **Un `TSubclassOf` e non un asset diretto**: e' la stessa forma di `HeroMeshClass` ([D-037]), e per
+	 * la stessa ragione — il C++ dichiara *che ci vuole un widget*, il dato dice *quale*.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TSubclassOf<class URTUnitOverlayWidget> OverlayWidgetClass;
 
 	/**
 	 * Materiale della sagoma (M_LastContactGhost: Translucent, Unlit, emissivo grigio monocromo, parametro

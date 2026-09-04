@@ -1,5 +1,6 @@
 #include "UI/RTHUD.h"
 #include "UI/RTHudViewModel.h"
+#include "UI/RTUnitOverlayWidget.h" // la sovrapposizione e' un widget, non piu' canvas (#2288)
 #include "RTGameMode.h"
 #include "Unit/RTUnit.h"
 #include "Turn/RTIntentPrivacyLibrary.h"
@@ -498,6 +499,17 @@ void ARTHUD::UpdateObserverVeil()
 	// fotogramma, e ricostruirla per ognuna sarebbe lavoro ripetuto per un risultato identico.
 	const FRTKnowledgeView KnowledgeView = UvViewForObserver(TurnManager, Units, PlayerTeamId);
 
+	// Chi verrebbe colpito dai PIANI, non dall'anteprima dell'unita' selezionata: cosi' l'avviso di fuoco
+	// amico resta acceso anche mentre si seleziona qualcun altro per muoverlo, che e' esattamente il momento
+	// in cui prima spariva (`PIE-PREVIEW-PERSIST`).
+	//
+	// ⚠️ **Legge solo i piani di `PlayerTeamId`** (invariante #6, privacy dell'intento): i piani avversari
+	// non entrano, nemmeno per dedurne una cella. La regola sta dentro `ComputePlannedHitMarks`, che e'
+	// statica e senza accesso alla selezione **di proposito**.
+	TSet<FRTCellId> PlannedHitCells;
+	TSet<FRTCellId> PlannedAllyHitCells;
+	ComputePlannedHitMarks(Units, PlayerTeamId, PlannedHitCells, PlannedAllyHitCells);
+
 	// La geometria serve SOLO a posare la sagoma del ricordo. `DrawHUD` la recupera per conto suo per le
 	// sue conversioni cella -> schermo: e' la stessa chiamata fatta due volte, non una seconda regola —
 	// l'origine resta `ARTHexMapActor`, che di geometria resta l'unico owner.
@@ -547,6 +559,25 @@ void ARTHUD::UpdateObserverVeil()
 			// Niente da ricordare: propria squadra, nemico `Live`, o nemico `Rejected`.
 			Unit->HideContactGhost();
 		}
+
+		// La sovrapposizione (`#2288`, `D-320`): nome, vita, scudo, energia, stati.
+		//
+		// 🔑 **Qui e non in `DrawHUD`, e per la stessa ragione del velo**: e' un aggiornamento di stato, non
+		// un disegno. Il widget si disegna da se' quando il motore lo compone; questo giro gli consegna
+		// solo **cosa** mostrare.
+		//
+		// ⚠️ **Si aggiorna anche l'unita' che il velo ha appena spento.** Il componente e' invisibile, quindi
+		// nessuno la vede — ma se si saltasse, al riavvistamento il widget mostrerebbe per un fotogramma la
+		// vista di quando lo si e' perso di vista: vita e stati vecchi. E' lo stesso motivo per cui il
+		// contact ghost si aggiorna prima del filtro.
+		if (UUserWidget* Raw = Unit->GetOverlayWidgetObject())
+		{
+			if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(Raw))
+			{
+				Overlay->SetOverlayView(URTHudViewModel::BuildUnitOverlay(
+					Unit, PlayerTeamId, PlannedHitCells, PlannedAllyHitCells));
+			}
+		}
 	}
 }
 
@@ -568,22 +599,13 @@ void ARTHUD::DrawHUD()
 	// tutti gli altri lettori di squadra. Vedi `ARTPlayerState::TeamIdOf`, che porta la ragione per esteso.
 	const int32 PlayerTeamId = ARTPlayerState::TeamIdOf(GetOwningPlayerController());
 
-	// Barre HP/scudo sopra ogni unita' viva.
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 
-	// Chi verrebbe colpito dai PIANI, non dall'anteprima dell'unita' selezionata: cosi' l'avviso di fuoco
-	// amico resta acceso anche mentre si seleziona qualcun altro per muoverlo, che e' esattamente il momento
-	// in cui prima spariva.
-	TArray<ARTUnit*> AllUnits;
-	AllUnits.Reserve(Actors.Num());
-	for (AActor* A : Actors)
-	{
-		if (ARTUnit* U = Cast<ARTUnit>(A)) { AllUnits.Add(U); }
-	}
-	TSet<FRTCellId> PlannedHitCells;
-	TSet<FRTCellId> PlannedAllyHitCells;
-	ComputePlannedHitMarks(AllUnits, PlayerTeamId, PlannedHitCells, PlannedAllyHitCells);
+	// ⚠️ **`ComputePlannedHitMarks` non si chiama piu' QUI** (`#2288`): il suo unico consumatore era il nome
+	// sopra la testa, che ora e' nel widget. La chiama `UpdateObserverVeil`, che compone la vista.
+	// Lasciarla qui avrebbe calcolato due `TSet` per fotogramma senza che nessuno li leggesse — trovato in
+	// review, dopo che la prima stesura di questa PR aveva rimosso il consumatore e non il calcolo.
 
 	// Recuperato QUI, PRIMA del ciclo delle unita': serve alla traccia post-lock e al numero di turno.
 	const ARTTurnManager* TurnManager =
@@ -614,128 +636,17 @@ void ARTHUD::DrawHUD()
 		Map = HexMap->GetHexContext(Origin, HexSize, LayerH);
 	}
 
-	for (AActor* Actor : Actors)
-	{
-		ARTUnit* Unit = Cast<ARTUnit>(Actor);
-		if (!Unit || !Unit->IsAlive())
-		{
-			continue;
-		}
-
-		// Filtro di conoscenza (CP 13.5): un'unita' avversaria si disegna solo se la squadra del giocatore
-		// la VEDE ORA (`Live`). Un ricordo (`Remembered`) non si disegna qui — lo disegna la sagoma
-		// dell'ultimo contatto, alla cella del contatto: le due strade sono complementari, mai
-		// contemporanee. La propria squadra si disegna sempre.
-		//
-		// 🔴 **Si LEGGE, non si ricalcola** (`#2246`). Il verdetto lo ha gia' preso `UpdateObserverVeil` in
-		// questo stesso fotogramma, interrogando `ShouldDrawUnitOverlay`: e' lo stesso che ha acceso o
-		// spento il modello. Ricostruire qui la vista di conoscenza darebbe una seconda risposta alla
-		// stessa domanda — e il giorno in cui le due divergessero, un'unita' verrebbe disegnata invisibile
-		// o nascosta con la sua barra sopra la testa.
-		if (!Unit->IsKnownToObserver())
-		{
-			continue;
-		}
-
-		const FVector Head = Unit->GetActorLocation() + FVector(0.f, 0.f, WorldHeadOffset);
-		const FVector Screen = Project(Head);
-		if (Screen.Z <= 0.f)
-		{
-			continue; // dietro la camera
-		}
-
-		// Il NOME si compone qui, prima di disegnare, perche' la sua larghezza serve al vincolo orizzontale:
-		// l'etichetta e' spesso piu' larga della barra, e vincolare sulla sola barra la lascerebbe uscire.
-		FString HeroName = ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName());
-		FLinearColor NameColor = ARTUnit::TeamColorFor(Unit->TeamId,
-			FLinearColor(0.55f, 0.75f, 1.f, 1.f), FLinearColor(1.f, 0.62f, 0.55f, 1.f));
-		if (PlannedAllyHitCells.Contains(Unit->Cell))
-		{
-			// Fuoco amico: l'avviso deve essere piu' forte del colore di squadra, perche' e' l'unico caso
-			// in cui chi guarda potrebbe voler cambiare idea. E deve restare finche' il piano esiste, non
-			// finche' l'unita' e' selezionata.
-			HeroName = TEXT("! ") + HeroName;
-			NameColor = FLinearColor(1.f, 0.6f, 0.12f, 1.f);
-		}
-		else if (PlannedHitCells.Contains(Unit->Cell))
-		{
-			HeroName = TEXT("* ") + HeroName;
-			NameColor = FLinearColor(1.f, 0.35f, 0.3f, 1.f);
-		}
-
-		float NameW = 0.f;
-		float NameH = 0.f;
-		GetTextSize(HeroName, NameW, NameH, nullptr, 0.9f);
-
-		// L'ancora si vincola al viewport PRIMA di disegnare: senza, un'unita' vicina alla camera perde
-		// l'intera sovrapposizione — nome e barre insieme, che condividono questa Y (#729).
-		// Il blocco va da `Y - 36` (riga del nome) a `Y + BarHeight + 4` (fondo della barra energia).
-		const FVector2D Anchor = ClampOverlayAnchor(
-			FVector2D(Screen.X, Screen.Y - BarHeight),
-			FMath::Max(BarWidth, NameW) * 0.5f,
-			/*AboveAnchor=*/ 36.f,
-			/*BelowAnchor=*/ BarHeight + 4.f,
-			FVector2D(Canvas->SizeX, Canvas->SizeY),
-			/*Margin=*/ 4.f);
-
-		const float CenterX = Anchor.X;
-		const float X = CenterX - BarWidth * 0.5f;
-		const float Y = Anchor.Y;
-
-		// Sfondo.
-		DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.6f), X - 1.f, Y - 1.f, BarWidth + 2.f, BarHeight + 2.f);
-
-		// HP: verde (pieno) -> rosso (vuoto).
-		const float HpFrac = Unit->MaxHealth > 0 ? FMath::Clamp((float)Unit->Health / Unit->MaxHealth, 0.f, 1.f) : 0.f;
-		DrawRect(FLinearColor(1.f - HpFrac, HpFrac, 0.15f, 1.f), X, Y, BarWidth * HpFrac, BarHeight);
-
-		// Scudo: barretta ciano sopra la barra HP (proporzionale a MaxHealth).
-		if (Unit->Shield > 0 && Unit->MaxHealth > 0)
-		{
-			const float ShieldFrac = FMath::Clamp((float)Unit->Shield / Unit->MaxHealth, 0.f, 1.f);
-			DrawRect(FLinearColor(0.2f, 0.8f, 1.f, 1.f), X, Y - 4.f, BarWidth * ShieldFrac, 3.f);
-		}
-
-		// Energia: barretta sotto la barra HP (oro se ultimate pronta, giallo scuro se in carica).
-		if (Unit->MaxEnergy > 0)
-		{
-			const float EnergyFrac = FMath::Clamp((float)Unit->Energy / Unit->MaxEnergy, 0.f, 1.f);
-			const bool bReady = Unit->Energy >= Unit->MaxEnergy;
-			const FLinearColor EColor = bReady ? FLinearColor(1.f, 0.85f, 0.1f, 1.f) : FLinearColor(0.5f, 0.45f, 0.1f, 1.f);
-			DrawRect(EColor, X, Y + BarHeight + 1.f, BarWidth * EnergyFrac, 3.f);
-		}
-
-		// Marker di status sopra la barra HP.
-		FString StatusStr;
-		if (Unit->HasStatus(TAG_Status_Root)) { StatusStr = TEXT("ROOT"); }
-		else if (Unit->HasStatus(TAG_Status_Slow)) { StatusStr = TEXT("SLOW"); }
-		if (!StatusStr.IsEmpty())
-		{
-			DrawText(StatusStr, FLinearColor(1.f, 0.6f, 0.2f, 1.f), X, Y - 20.f, nullptr, 0.8f);
-		}
-
-		// NOME dell'eroe, sopra a tutto e centrato sulla barra. Senza, quattro cilindri identici rendono
-		// impossibile dire chi sta facendo cosa — e un giudizio sul bot o sul ritmo della partita, che e' cio'
-		// che il playtest deve dare, non varrebbe nulla. Posizione FISSA (non sotto lo status): un'etichetta che
-		// salta quando arriva un ROOT si legge peggio di una ferma.
-		// Il nome CANONICO del catalogo (D-120), non l'ID stabile: `Hero.Gadget` si legge `Gadget`. Il ripiego
-		// sull'ID resta dentro `DisplayLabel` per le unita' che nessun eroe ha configurato.
-		// CHI viene colpito, marcato sull'UNITA' e non solo sulla cella — il prefisso e il colore sono stati
-		// decisi sopra, insieme al nome, perche' la larghezza serviva al vincolo.
-		//
-		// L'anteprima a terra dice quali CELLE entrano nella zona; la domanda che ci si fa guardando lo schermo
-		// e' un'altra — «questo cilindro lo prendo o no?». Sono due informazioni diverse, e finche' c'era solo
-		// la prima l'anteprima si vedeva e non si capiva (osservato in PIE il 2026-08-08: «non capisco se sto
-		// facendo un tiro e se nel tiro si interseca con un cilindro»).
-		//
-		// Il nome sopra la testa e' il posto giusto: c'e' gia', l'occhio ci va gia' per sapere chi e' chi, e
-		// non aggiunge un elemento nuovo da imparare.
-		//
-		// Ombra di 1px: il testo chiaro su cielo chiaro sparirebbe, e la camera tattica guarda spesso il vuoto.
-		DrawText(HeroName, FLinearColor(0.f, 0.f, 0.f, 0.75f),
-			CenterX - NameW * 0.5f + 1.f, Y - 36.f + 1.f, nullptr, 0.9f);
-		DrawText(HeroName, NameColor, CenterX - NameW * 0.5f, Y - 36.f, nullptr, 0.9f);
-	}
+	// 🔴 **Il ciclo che disegnava la sovrapposizione dell'unita' e' stato RIMOSSO** (`#2288`, `D-320`):
+	// nome, barra HP, scudo, energia e il marker di stato ora vivono in un `UWidgetComponent` per unita'
+	// (`URTUnitOverlayWidget`), aggiornato da `UpdateObserverVeil` con una vista gia' composta.
+	//
+	// ⚠️ **Rimosso NELLO STESSO pass che introduce il widget**, come `D-320` prescrive: lasciarli entrambi
+	// avrebbe dato due produttori dello stesso fatto sopra la stessa testa — il difetto che `#1500` ha gia'
+	// misurato cinque volte, con la suite verde.
+	//
+	// 🔑 Cio' che il canvas dava gratis e il widget ottiene altrove: lo scarto «dietro la camera» viene dallo
+	// screen space del componente; il vincolo al viewport (`ClampOverlayAnchor`, `#729`) resta usato dal
+	// pannello degli intenti piu' sotto, quindi la funzione e i suoi test **non** vanno via con questo blocco.
 
 	// Traccia post-lock: il percorso realmente eseguito nell'ultima risoluzione (grigio, sotto le preview).
 	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning)

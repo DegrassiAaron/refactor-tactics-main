@@ -298,8 +298,9 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	URTHeroData* Gadget = NewObject<URTHeroData>();
 	Gadget->HeroId = TEXT("Hero.Gadget");
 	// ⚠️ La variabile dice `Gadget` e il nome dice `Gadget`, e NON e' un refuso: D-120 separa i due piani.
-	// `Hero.Gadget` e' lo Stable ID — chiave di codice, scenari e replay, che non si rinomina finche' #716 non
-	// scioglie la collisione di namespace. `Gadget` e' il nome canonico/player-facing del personaggio.
+	// `Hero.Gadget` e' lo Stable ID — chiave di codice, scenari e replay. #716 ha gia' sciolto la collisione
+	// di namespace (D-130), e il rename e' deciso: `Hero.Gadget` -> `Hero.Nexis`, differito post-v0.1 (D-321,
+	// D-322), owner #2297. `Gadget` e' il nome canonico/player-facing di oggi, legacy temporaneo.
 	// Da qui il nome raggiunge l'unita' (`ConfigureFromHeroData`) e poi la HUD; il gate del confine e'
 	// `RefactorTactics.Unit.HeroDataCrossesTheBoundary`.
 	Gadget->DisplayName = FText::FromString(TEXT("Gadget"));

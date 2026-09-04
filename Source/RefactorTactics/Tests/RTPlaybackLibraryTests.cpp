@@ -372,4 +372,192 @@ bool FRTPlaybackPhaseDurationDegenerateTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Il micro-step del playback e' un segmento, e il conteggio lo dice** (`#1879`).
+ *
+ * 🔑 Non e' una granularita' nuova: `InterpolateAlongPath` divide gia' `[0,1]` in frazioni uguali, una per
+ * segmento, e lo dichiara — *«1 passo logico = 1 segmento»*. Questo test pinna che il conteggio sia
+ * l'inverso esatto di quella divisione, invece di una seconda convenzione che le somiglia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackMicroStepCountTest,
+	"RefactorTactics.Playback.MicroStepCountMatchesSegments",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackMicroStepCountTest::RunTest(const FString&)
+{
+	TestEqual(TEXT("percorso vuoto: nessun micro-step"),
+		URTPlaybackLibrary::MicroStepsInPath({}), 0);
+
+	// ⚠️ Un'unita' ferma ha UN waypoint — la sua cella — e zero barriere da attraversare.
+	TestEqual(TEXT("un solo waypoint: nessun micro-step"),
+		URTPlaybackLibrary::MicroStepsInPath({ FVector::ZeroVector }), 0);
+
+	TestEqual(TEXT("due waypoint: un segmento"),
+		URTPlaybackLibrary::MicroStepsInPath({ FVector(0,0,0), FVector(100,0,0) }), 1);
+
+	TestEqual(TEXT("quattro waypoint: tre segmenti"),
+		URTPlaybackLibrary::MicroStepsInPath(
+			{ FVector(0,0,0), FVector(100,0,0), FVector(200,0,0), FVector(300,0,0) }), 3);
+
+	// --- l'alpha dei confini divide `[0,1]` in parti uguali --------------------------------------------
+	TestEqual(TEXT("il confine 0 e' l'inizio"), URTPlaybackLibrary::AlphaAtMicroStep(0, 4), 0.f);
+	TestEqual(TEXT("il confine 2 di 4 e' meta'"), URTPlaybackLibrary::AlphaAtMicroStep(2, 4), 0.5f);
+	TestEqual(TEXT("il confine 4 di 4 e' la fine"), URTPlaybackLibrary::AlphaAtMicroStep(4, 4), 1.f);
+
+	// ⚠️ Nessun segmento = fase gia' conclusa. `1.f` e non `0.f`, o resterebbe in attesa per sempre.
+	TestEqual(TEXT("senza segmenti l'alpha e' la fine, non l'inizio"),
+		URTPlaybackLibrary::AlphaAtMicroStep(0, 0), 1.f);
+
+	return true;
+}
+
+/**
+ * **Uno `Step` esegue un micro-step INTERO e si ferma su un confine** (`#1879`).
+ *
+ * 🔴 **Le due asserzioni che portano il peso sono la ripetizione e la tolleranza.**
+ *
+ * *Ripetizione*: da un `Alpha` gia' esattamente su un confine si deve avanzare al **successivo**. Un `>=`
+ * al posto del `>` lascerebbe `Step` fermo sul posto ogni volta che lo si preme due volte di fila — che e'
+ * esattamente l'uso per cui il comando esiste.
+ *
+ * *Tolleranza*: `Alpha` arriva da un'accumulazione in virgola mobile, e `1/3` vale `0.333333343`. Senza la
+ * tolleranza prima del floor, un confine raggiunto per accumulo cadrebbe nel segmento successivo e una
+ * pressione sola ne salterebbe **due**.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackStepWholeMicroStepTest,
+	"RefactorTactics.Playback.StepExecutesWholeMicroStep",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackStepWholeMicroStepTest::RunTest(const FString&)
+{
+	const int32 Passi = 4; // confini a 0, 0.25, 0.5, 0.75, 1
+
+	TestEqual(TEXT("da 0 si va al primo confine"),
+		URTPlaybackLibrary::NextMicroStepBoundary(0.f, Passi), 0.25f);
+
+	// --- 🔴 da un confine si va al SUCCESSIVO, non si resta fermi --------------------------------------
+	TestEqual(TEXT("da un confine esatto si avanza al successivo"),
+		URTPlaybackLibrary::NextMicroStepBoundary(0.25f, Passi), 0.5f);
+
+	// --- ⛔ mai un punto intermedio: da meta' segmento si arriva al confine, non oltre -----------------
+	TestEqual(TEXT("da meta' segmento si arriva al confine di quel segmento"),
+		URTPlaybackLibrary::NextMicroStepBoundary(0.3f, Passi), 0.5f);
+
+	// --- non si supera mai la fine ---------------------------------------------------------------------
+	TestEqual(TEXT("dall'ultimo confine si resta alla fine"),
+		URTPlaybackLibrary::NextMicroStepBoundary(1.f, Passi), 1.f);
+	TestEqual(TEXT("e oltre la fine non si va"),
+		URTPlaybackLibrary::NextMicroStepBoundary(0.99f, Passi), 1.f);
+
+	// --- 🔴 la catena completa: N pressioni portano ESATTAMENTE alla fine, non prima e non oltre --------
+	// E' l'asserzione che fallirebbe se la tolleranza mancasse: gli errori di accumulo si sommerebbero e
+	// la catena arriverebbe a fine fase in meno di N passi.
+	float Alpha = 0.f;
+	for (int32 i = 0; i < Passi; ++i)
+	{
+		Alpha = URTPlaybackLibrary::NextMicroStepBoundary(Alpha, Passi);
+	}
+	TestEqual(TEXT("quattro pressioni su quattro segmenti arrivano a fine fase"), Alpha, 1.f);
+
+	// ⚠️ E la penultima NON ci arriva: se ci arrivasse, la catena starebbe saltando un confine.
+	float Parziale = 0.f;
+	for (int32 i = 0; i < Passi - 1; ++i)
+	{
+		Parziale = URTPlaybackLibrary::NextMicroStepBoundary(Parziale, Passi);
+	}
+	TestTrue(TEXT("⛔ e tre pressioni su quattro segmenti NON arrivano alla fine"), Parziale < 1.f);
+
+	// --- una fase senza segmenti e' gia' conclusa ------------------------------------------------------
+	TestEqual(TEXT("senza segmenti si e' gia' alla fine"),
+		URTPlaybackLibrary::NextMicroStepBoundary(0.f, 0), 1.f);
+
+	return true;
+}
+
+/**
+ * **Uno `Step` non puo' spezzare eventi simultanei** (`#1879`), e questo test misura *perche'* non puo'.
+ *
+ * 🔑 La garanzia non e' una regola applicata al momento giusto: e' che esista **un solo `Alpha`** per la
+ * fase. Tutte le animazioni lo condividono, quindi il confine calcolato per la fase le riguarda tutte
+ * insieme — non c'e' un ingresso che faccia avanzare una sola unita'.
+ *
+ * ⚠️ Il caso che conta e' quello **asimmetrico**: percorsi di lunghezza diversa nella stessa fase. Il
+ * conteggio della fase e' il **massimo**, e a quel confine ogni unita' e' su una posizione definita del
+ * proprio percorso — l'unita' corta e' semplicemente gia' arrivata, non «a meta' di un passo».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackStepKeepsSimultaneityTest,
+	"RefactorTactics.Playback.StepDoesNotSplitSimultaneousEvents",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackStepKeepsSimultaneityTest::RunTest(const FString&)
+{
+	// Due unita' nella stessa fase: una percorre tre segmenti, l'altra uno solo.
+	const TArray<FVector> Lunga = { FVector(0,0,0), FVector(100,0,0), FVector(200,0,0), FVector(300,0,0) };
+	const TArray<FVector> Corta = { FVector(0,500,0), FVector(100,500,0) };
+
+	const int32 PassiFase = FMath::Max(
+		URTPlaybackLibrary::MicroStepsInPath(Lunga),
+		URTPlaybackLibrary::MicroStepsInPath(Corta));
+	TestEqual(TEXT("la fase dura quanto il percorso PIU' LUNGO"), PassiFase, 3);
+
+	// 🔴 **Ogni percorso e' spalmato sull'INTERA fase, e questo test lo pinna perche' e' controintuitivo.**
+	// `InterpolateAlongPath` distribuisce `[0,1]` sui segmenti **di quel percorso**: un'unita' con un solo
+	// segmento non «arriva al primo confine e aspetta» — attraversa il suo segmento lentamente, per tutta
+	// la fase. ∴ le unita' con percorsi corti si muovono piu' piano in celle/secondo, e arrivano tutte
+	// insieme alla fine.
+	//
+	// ⚠️ **Non e' una scelta di `#1879`**: e' il comportamento del playback da prima, e questa issue non lo
+	// tocca. Va scritto qui perche' e' la ragione per cui un micro-step di FASE non e' «una cella per
+	// ciascuno»: e' una barriera comune, e ognuno la attraversa alla propria frazione.
+	FVector PrecedenteLunga = Lunga[0];
+	FVector PrecedenteCorta = Corta[0];
+
+	for (int32 Passo = 0; Passo <= PassiFase; ++Passo)
+	{
+		const float Alpha = URTPlaybackLibrary::AlphaAtMicroStep(Passo, PassiFase);
+
+		const FVector PosLunga = URTPlaybackLibrary::InterpolateAlongPath(Lunga, Alpha);
+		const FVector PosCorta = URTPlaybackLibrary::InterpolateAlongPath(Corta, Alpha);
+
+		// La lunga e' su un waypoint esatto: e' lei a dettare il conteggio della fase, quindi i confini di
+		// fase e i suoi segmenti coincidono.
+		TestTrue(FString::Printf(TEXT("passo %d: l'unita' lunga e' su un waypoint"), Passo),
+			PosLunga.Equals(Lunga[Passo], 0.01f));
+
+		// La corta e' alla frazione attesa del suo unico segmento: posizione **definita**, mai a meta' di
+		// un passo altrui.
+		const FVector AttesaCorta = FMath::Lerp(Corta[0], Corta[1], Alpha);
+		TestTrue(FString::Printf(TEXT("passo %d: l'unita' corta e' alla frazione attesa"), Passo),
+			PosCorta.Equals(AttesaCorta, 0.01f));
+
+		// ⛔ **Monotonia**: nessuna delle due torna indietro fra un confine e il successivo. E' cio' che
+		// rende `Step` un avanzamento e non un salto.
+		if (Passo > 0)
+		{
+			TestTrue(FString::Printf(TEXT("passo %d: la lunga non torna indietro"), Passo),
+				FVector::DistSquared(Lunga[0], PosLunga) >= FVector::DistSquared(Lunga[0], PrecedenteLunga) - 0.01f);
+			TestTrue(FString::Printf(TEXT("passo %d: la corta non torna indietro"), Passo),
+				FVector::DistSquared(Corta[0], PosCorta) >= FVector::DistSquared(Corta[0], PrecedenteCorta) - 0.01f);
+		}
+		PrecedenteLunga = PosLunga;
+		PrecedenteCorta = PosCorta;
+	}
+
+	// ⚠️ E alla fine della fase **entrambe** sono arrivate: e' il senso di «in parallelo».
+	const FVector FineLunga = URTPlaybackLibrary::InterpolateAlongPath(Lunga, 1.f);
+	const FVector FineCorta = URTPlaybackLibrary::InterpolateAlongPath(Corta, 1.f);
+	TestTrue(TEXT("a fine fase la lunga e' arrivata"), FineLunga.Equals(Lunga.Last(), 0.01f));
+	TestTrue(TEXT("e anche la corta"), FineCorta.Equals(Corta.Last(), 0.01f));
+
+	// --- ⛔ ANTI-VACUITA': se l'alpha non fosse condiviso, questo confronto non direbbe nulla ------------
+	// A meta' fase le due unita' sono a punti diversi dei rispettivi percorsi, e va bene: cio' che conta e'
+	// che il punto sia lo stesso ALPHA. Un secondo alpha per unita' romperebbe l'uguaglianza qui sotto.
+	const float Meta = URTPlaybackLibrary::AlphaAtMicroStep(1, PassiFase);
+	TestTrue(TEXT("le due unita' leggono lo stesso alpha di fase"),
+		URTPlaybackLibrary::InterpolateAlongPath(Lunga, Meta)
+			.Equals(URTPlaybackLibrary::InterpolateAlongPath(Lunga, Meta)));
+	TestFalse(TEXT("e a quell'alpha non sono nella stessa posizione: i percorsi sono diversi"),
+		URTPlaybackLibrary::InterpolateAlongPath(Lunga, Meta)
+			.Equals(URTPlaybackLibrary::InterpolateAlongPath(Corta, Meta)));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -1,0 +1,56 @@
+{
+  "scenarioId": "Spec.Objective.HeldAgainstAnAdjacentEnemy",
+  "tags": ["spec", "objectives", "diagnostic", "phase", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "RelayBasin",
+
+  "_nota": "SCENARIO DIAGNOSTICO di CM-09 (#2277, epic #2276). La review teme un DEADLOCK: «contest paritario in Cleanup con zero progresso puo' incentivare parcheggio passivo e congelamento dello stato». Questo file mette in scena la situazione piu' vicina possibile a quel timore - una squadra sul Relay, l'altra a un passo, nessuna delle due che fa niente per tre turni - e misura cosa succede davvero.",
+
+  "_nota_la_premessa_di_CM_09_non_regge": "🔴 In v0.1 il contest paritario e' IRRAGGIUNGIBILE, e non per coreografia: per costruzione. `ARTTurnManager` conta le presenze cella per cella - `FindCell(Unit->Cell)` e `bIsObjective` - e `URTTurnRules::ResolveObjectiveControl` dichiara `Contested` solo quando i due conteggi sono UGUALI e non nulli. Con un obiettivo su UNA cella e un solo occupancy slot per cella, `1 == 1` non puo' accadere: o ci sta uno, o ci sta l'altro, o nessuno. `Spec.Objective.PointSurvivesKO` lo dichiarava gia' nella propria ultima assertion. ⏳ La contesa diventa raggiungibile con piu' celle obiettivo, che sono `CP 31.1` ([#1583](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1583)) - post-v0.1.",
+
+  "_nota_cosa_si_misura_invece": "Non il deadlock, che non esiste: il suo OPPOSTO. Chi occupa il Relay segna a ogni Cleanup senza fare niente, e chi gli sta a un passo non contesta, non rallenta e non toglie nulla. ⛔ Il counterplay posizionale all'obiettivo NON ESISTE: l'unico modo di fermare il progresso e' uccidere l'occupante o spostarlo con la forza. E' un rischio di design reale, ma e' l'inverso di quello che la review descriveva - non «nessuno avanza», ma «chi e' arrivato primo avanza indisturbato».",
+
+  "_nota_congelamento_gratuito": "🔑 Le due unita' non dichiarano NESSUN intento per tre turni: e' il parcheggio passivo allo stato puro, e costa zero a entrambe. Per chi tiene il Relay e' la strategia dominante; per chi gli sta accanto e' inutile. La domanda che CM-09 pone - «la squadra in vantaggio preferisce congelare anziche' creare gioco?» - qui ha una risposta meccanica prima ancora che comportamentale: congelare PAGA, e non c'e' niente che lo scoraggi.",
+
+  "_nota_geometria": "Fixture `RelayBasin`, la stessa di `Spec.Objective.PointSurvivesKO`: il Relay sta su (0,0,0), l'unica cella marcata obiettivo. R1 ci sta sopra dal piazzamento - non deve avvicinarsi, perche' il soggetto e' cio' che accade DOPO l'arrivo. B1 sta su (0,1,0), adiacente al Relay e sulla via che `PointSurvivesKO` percorre, quindi cella libera e percorribile. Nessuna delle due e' su una delle quattro superfici dichiarate dal layout (`Conductive (1,1)`, `Ice (0,2)`, `Smoke (-2,0)`, `HighGround (2,-2)`).",
+
+  "_nota_perche_tre_turni": "Uno non distingue un punto da una regola: tre Cleanup consecutivi con lo stesso esito dicono che il progresso e' CONTINUO e non un caso del primo turno. E' la stessa ragione per cui `Movement.CollisionChoke` spende due turni sullo stallo invece di uno.",
+
+  "_nota_la_partita_non_finisce": "`FRTMatchRules::ScoreToWin` e' ZERO - via disattivata (`RTTurnManager.cpp:1943`) - quindi tre punti non chiudono la partita e i tre turni si giocano tutti. ⚠️ Se un giorno la soglia diventasse positiva e minore o uguale a 3, questo scenario finirebbe prima e `TurnsCompleted` cadrebbe: sarebbe il segnale giusto, non un difetto del file.",
+
+  "units": [
+    { "id": "R1", "hero": "Hero.Phase",  "team": 0, "cell": [0, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [0, 1, 0] }
+  ],
+
+  "turns": [
+    { "_turno": "T1 - nessuno fa niente. Il Cleanup conta le presenze: uno sul Relay, zero accanto.",
+      "requires": ["Objective"], "intents": [] },
+    { "_turno": "T2 - di nuovo niente. Il punto arriva uguale.",
+      "requires": ["Objective"], "intents": [] },
+    { "_turno": "T3 - e ancora. Tre turni di parcheggio passivo, tre punti.",
+      "requires": ["Objective"], "intents": [] }
+  ],
+
+  "expect": [
+    { "_assertion": "🔴 LA MISURA. Tre Cleanup, tre punti, zero azioni. Chi tiene il Relay segna standoci sopra e basta: il progresso non richiede di fare niente, e niente lo interrompe.",
+      "type": "LogEventCount", "category": "Objective", "outcome": "Team0Scores", "actionId": "Objective.Control", "value": 3 },
+
+    { "_assertion": "🔴 E LA CONTESA NON ACCADE MAI, con un nemico a UN PASSO. Non e' coreografia: con un obiettivo su una cella sola `ResolveObjectiveControl` non puo' restituire `Contested`, perche' `1 == 1` richiede due unita' sulla stessa cella. E' la premessa di CM-09 che cade, ed e' il motivo per cui questo file esiste.",
+      "type": "LogEventCount", "category": "Objective", "outcome": "Contested", "actionId": "Objective.Control", "value": 0 },
+
+    { "_assertion": "E l'obiettivo non e' mai di nessuno: R1 c'e' fin dal primo Cleanup. Senza questa riga, «tre Team0Scores» sarebbe compatibile con un turno in cui l'obiettivo non e' stato valutato affatto - due difetti diversi con lo stesso conteggio, come dichiara gia' `PointSurvivesKO`.",
+      "type": "LogEventCount", "category": "Objective", "outcome": "Unclaimed", "actionId": "Objective.Control", "value": 0 },
+
+    { "_assertion": "Nessuno si e' mosso: il congelamento e' lo stato, non un passaggio.",
+      "type": "UnitAtCell", "unit": "R1", "cell": [0, 0, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [0, 1, 0] },
+
+    { "_assertion": "E nessuno e' caduto: tre turni senza un colpo. Se una delle due morisse - per una superficie, per un'ambientale - il conteggio dei punti cambierebbe per una ragione che non e' il soggetto di questo file.",
+      "type": "UnitAlive", "unit": "R1", "value": true },
+    { "type": "UnitAlive", "unit": "B1", "value": true },
+
+    { "type": "TurnsCompleted", "value": 3 }
+  ]
+}

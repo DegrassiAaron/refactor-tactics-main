@@ -1,0 +1,65 @@
+{
+  "scenarioId": "Spec.Overwatch.ThreeArmedWatchersOnOneEntry",
+  "tags": ["spec", "reactions", "overwatch", "pacing", "diagnostic", "gadget", "wraith"],
+  "version": 2,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "SCENARIO DIAGNOSTICO di CM-05 (#2277, epic #2276): quanti Manual Decision Boundaries apre UN SOLO ingresso quando tre unita' sono armate. Tre Overwatch, tre linee che convergono sulla stessa cella, un mover che ci entra con un passo. Il numero di finestre e' il moltiplicatore del pacing: la DoD di CP 14.6 (#166) chiede la misura con 1/2/3 unita' armate, e il costo in secondi e' `boundary x FastReactionDuration` - dove i 3,0 s sono gia' pinnati e il MOLTIPLICATORE e' cio' che manca.",
+
+  "_nota_il_gap_che_copre": "⚠️ `RefactorTactics.Overwatch.SegmentedResolutionOverhead` misura gia' l'overhead della risoluzione segmentata, ma lo fa nello STRATO PURO e con UN SOLO watcher: il suo `AddInfo` lo dichiara - «%d finestre costruite per risoluzione SENZA cap (in partita ne arrivano al piu' %d: il cap dei prompt vive in ResolveReactionBoundary, non nello strato puro)». Il numero che conta per il pacing e' quello IN PARTITA, dopo il cap, con piu' watcher: vive nel TurnManager, quindi si misura in uno scenario e non in un unit test. Questo file lo misura.",
+
+  "_nota_cosa_NON_puo_misurare": "⛔ I SECONDI. La durata della Resolution dipende dal tempo reale e da decisori veri; una soglia temporale in una suite che gira su macchine diverse sarebbe rossa a giorni alterni - lo dichiara gia' `SegmentedResolutionOverhead`, e questo file non ci prova. La soglia dei 20 s di ADR-0004 resta il punto di taratura di CP 14.6 (#166) con decisori umani. Qui si misura la sola meta' deterministica: QUANTE volte il gioco si ferma a chiedere. ⚠️ Chi legge questo numero come «secondi» sta leggendo la cosa sbagliata.",
+
+  "_nota_geometria": "La zona dell'Overwatch e' una LINEA di celle nella direzione del facing, lunga quanto la portata dell'arma (`Hero.Wraith.PulseShot`, 4) - non un cono. Le tre linee convergono su (0,0,0): V1 da (2,0,0) guardando W copre (1,0) (0,0) (-1,0) (-2,0); V2 da (0,-2,0) guardando SE copre (0,-1) (0,0) (0,1) (0,2); V3 da (2,-2,0) guardando SW copre (1,-1) (0,0) (-1,1) (-2,2). Delta assiali da `ERTHexDirection` (`RTCellId.h:11`): W = (-1,0), SE = (0,+1), SW = (-1,+1).",
+
+  "_nota_perche_F1_parte_dentro_una_zona": "F1 parte da (-1,0,0), che sta gia' nella linea di V1, e fa UN passo in (0,0,0). L'Overwatch scatta sull'INGRESSO in una cella controllata: F1 in (-1,0,0) c'e' gia' dal piazzamento, quindi li' non si apre niente e l'unico ingresso del turno e' quello in (0,0,0). E' cio' che rende il conteggio attribuibile a UN evento invece che a due. ⚠️ (-1,0,0) non appartiene alle linee di V2 e V3 - verificato cella per cella - quindi nemmeno loro hanno un ingresso da cui partire.",
+
+  "_nota_facing_al_piazzamento": "I tre facing stanno fra le UNITA' e non fra gli intent, ed e' un errore gia' commesso e documentato: `Spec.Overwatch.HoldThenFire` lo registra nella propria `_nota_facing_di_piazzamento` - `Armed.Facing = Unit->Facing` si legge in PREP, mentre una rotazione dichiarata si applica dentro `ResolveMovement`, cioe' troppo tardi per il proprio cono. Un'unita' che non si muove conserva il facing di piazzamento, ed e' quello che serve qui.",
+
+  "_nota_tre_HOLD": "Le tre risposte sono HOLD, non FIRE: un FIRE troncherebbe il movimento e consumerebbe la carica, e il conteggio delle finestre finirebbe per dipendere da quale colpo e' arrivato per primo. Con tre HOLD il mover arriva dove ha dichiarato e le finestre restano l'unica cosa che si muove. ⚠️ Se le finestre aperte fossero meno di tre, le decisioni dichiarate in piu' non trovano una finestra: il runner lo registra, e la differenza fra dichiarate e applicate e' essa stessa la misura.",
+
+  "_nota_ipotesi_da_falsificare": "🔑 L'attesa di TRE e' derivata dalla regola - ogni watcher armato che vede l'ingresso decide per se' - non dall'output. Le due uscite sono entrambe informative: TRE significa che il costo del pacing SCALA con le unita' armate, e con 3,0 s a boundary un solo ingresso vale 9 s; UNA significherebbe che le finestre si raggruppano per micro-step e il costo NON scala col numero di watcher, che sarebbe la notizia migliore possibile per la soglia dei 20 s. ⛔ Se il numero e' diverso da tre non si riallinea l'attesa in silenzio: si scrive qui perche'.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,  0, 0] },
+
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 2,  0, 0], "facing": "W"  },
+    { "id": "V2", "hero": "Hero.Wraith", "team": 1, "cell": [ 0, -2, 0], "facing": "SE" },
+    { "id": "V3", "hero": "Hero.Wraith", "team": 1, "cell": [ 2, -2, 0], "facing": "SW" }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 - i tre Wraith armano l'Overwatch sulla linea che gia' controllano; F1 fa un passo dentro (0,0,0), che tutte e tre coprono. Un ingresso, tre unita' armate: il numero di finestre che si aprono e' cio' che questo turno misura.",
+      "requires": ["DecisionBoundary"],
+      "intents": [
+        { "unit": "V1", "ability": "Action.Overwatch" },
+        { "unit": "V2", "ability": "Action.Overwatch" },
+        { "unit": "V3", "ability": "Action.Overwatch" },
+        { "unit": "F1", "move": [[0, 0, 0]] }
+      ],
+      "decisions": [
+        { "unit": "V1", "respond": "HOLD" },
+        { "unit": "V2", "respond": "HOLD" },
+        { "unit": "V3", "respond": "HOLD" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "_assertion": "🔴 LA MISURA. Quante volte il gioco si e' fermato a chiedere, in un turno con UN ingresso e TRE unita' armate. E' il moltiplicatore del pacing di CP 14.6: con `FastReactionDuration` a 3,0 s, tre boundary valgono nove secondi su un solo passo. ⚠️ Il valore e' derivato dalla regola, non dall'output - vedi `_nota_ipotesi_da_falsificare`.",
+      "type": "LogEventCount", "category": "ReactionDecision", "outcome": "Chosen", "value": 3 },
+
+    { "_assertion": "Nessuna finestra e' scaduta: le tre risposte sono arrivate tutte entro la finestra, quindi il conteggio qui sopra misura decisioni PRESE e non timeout mascherati da decisioni.",
+      "type": "LogEventCount", "category": "ReactionDecision", "outcome": "Timeout", "value": 0 },
+
+    { "_assertion": "Il mover e' arrivato: tre HOLD non troncano il movimento. Se fosse rimasto a (-1,0,0), qualcuno avrebbe sparato e il conteggio delle finestre non sarebbe piu' attribuibile al solo ingresso.",
+      "type": "UnitAtCell", "unit": "F1", "cell": [0, 0, 0] },
+
+    { "_assertion": "E non ha incassato niente: 90 HP pieni. E' il discriminante fra HOLD e FIRE sul dato invece che sulla dichiarazione.",
+      "type": "UnitHpEquals", "unit": "F1", "value": 90 },
+
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

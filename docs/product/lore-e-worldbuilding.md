@@ -123,6 +123,38 @@ Il mondo iniziò a distinguere due epoche:
 
 ---
 
+## Identità dei personaggi e asset vendor
+
+La lore usa soltanto identità **RefactorTactics**. I nomi degli asset o degli slot vendor non sono identità
+narrative e non diventano nomi player-facing, nomi di abilità, `CharacterId` o lore.
+[D-037](../decisions/RT_PDR_00_Decision_Log.md) lo stabilisce — *«lo slot non è l'identità»* — e
+[D-321](../decisions/RT_PDR_00_Decision_Log.md) lo riporta a invariante dopo averlo trovato violato.
+
+Le otto identità retail del roster sono decise:
+
+| Fazione | Identità RefactorTactics | Release |
+|---|---|---|
+| Conflux | **Nexis** · **Slake** | v0.1 ⏳ |
+| Constrine | **Kern** · **Scryer** | v0.1 ⏳ |
+| Sentinel Directorate | **Ward** · **Vigil** | v0.2 |
+| Resonance | **Rime** · **Tethra** | v0.2 |
+
+⏳ **Identità decisa, runtime non ancora migrato.** Il codice porta ancora gli ID legacy `Hero.Gadget`,
+`Hero.Phase`, `Hero.Riktor` e `Hero.Wraith` — che sono i nomi degli **slot Paragon**, non nomi ispirati ad
+essi. La migrazione è differita **post-v0.1** da [D-321](../decisions/RT_PDR_00_Decision_Log.md) e ha come
+owner [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297).
+
+⚠️ **Fino ad allora quei quattro nomi sono identità temporanee, non eccezioni permanenti**, e la lore evita di
+cristallizzarli come canonici: dove serve nominare un personaggio della v0.1, si scrive l'identità retail.
+
+Gli slot asset vendor continuano a essere citati **solo** nei documenti tecnici di mapping e provenienza.
+Tabella owner: [`../characters/paragon.md`](../characters/paragon.md).
+
+Tracking operativo: [#2291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2291) — purge e gate ·
+[#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297) — migrazione tecnica.
+
+---
+
 # Le quattro fazioni
 
 Le fazioni di RefactorTactics non sono classi e non obbligano la composizione di squadra.
@@ -141,7 +173,7 @@ Una squadra può contenere liberamente membri di fazioni diverse e non esistono 
 ## Conflux
 
 **FactionId:** `Faction.Conflux`  
-**Membri iniziali:** [Gadget](../characters/v0.1/gadget.md) · [Phase](../characters/v0.1/phase.md) — **v0.1**
+**Membri iniziali:** **Nexis** · **Slake** — **v0.1** ⏳ · schede: [`v0.1/gadget.md`](../characters/v0.1/gadget.md) · [`v0.1/phase.md`](../characters/v0.1/phase.md)
 
 > **Tutto è collegato.**
 
@@ -190,7 +222,7 @@ Alcuni archivi Conflux contengono log di connessioni e percorsi emergenti che no
 ## Constrine
 
 **FactionId:** `Faction.Constrine`  
-**Membri iniziali:** [Riktor](../characters/v0.1/riktor.md) · [Wraith](../characters/v0.1/wraith.md) — **v0.1**
+**Membri iniziali:** **Kern** · **Scryer** — **v0.1** ⏳ · schede: [`v0.1/riktor.md`](../characters/v0.1/riktor.md) · [`v0.1/wraith.md`](../characters/v0.1/wraith.md)
 
 > **Ciò che è delimitato può essere controllato.**
 
@@ -235,7 +267,7 @@ In alcuni archivi queste configurazioni sono indicate come **Forbidden Configura
 ## Sentinel Directorate
 
 **FactionId:** `Faction.Sentinel`  
-**Membri iniziali:** [Steel](../characters/v0.2/steel.md) · [Murdock](../characters/v0.2/murdock.md) — **v0.2**
+**Membri iniziali:** **Ward** · **Vigil** — **v0.2** · schede: [`v0.2/steel.md`](../characters/v0.2/steel.md) · [`v0.2/murdock.md`](../characters/v0.2/murdock.md)
 
 > **Una posizione controllata diventa una certezza.**
 
@@ -281,7 +313,7 @@ Il Directorate mantiene dossier su:
 ## Resonance
 
 **FactionId:** `Faction.Resonance`  
-**Membri iniziali:** [Aurora](../characters/v0.2/aurora.md) · [Kwang](../characters/v0.2/kwang.md) — **v0.2**
+**Membri iniziali:** **Rime** · **Tethra** — **v0.2** · schede: [`v0.2/aurora.md`](../characters/v0.2/aurora.md) · [`v0.2/kwang.md`](../characters/v0.2/kwang.md)
 
 > **Potere e posizione hanno valore quando entrano in risonanza.**
 
@@ -501,7 +533,7 @@ Le quattro fazioni possono cooperare quando l'obiettivo lo richiede.
 
 **Dentro il repository** — le schede dei personaggi nominati qui:
 [`characters/v0.1/`](../characters/v0.1/gadget.md) (Gadget, Phase, Riktor, Wraith) ·
-[`characters/v0.2/`](../characters/v0.2/steel.md) (Steel, Murdock, Aurora, Kwang) ·
+[`characters/v0.2/`](../characters/v0.2/steel.md) (Ward · Vigil · Rime · Tethra) ·
 [`characters/paragon.md`](../characters/paragon.md) per la mappatura visuale
 ([D-037](../decisions/RT_PDR_00_Decision_Log.md)).
 
