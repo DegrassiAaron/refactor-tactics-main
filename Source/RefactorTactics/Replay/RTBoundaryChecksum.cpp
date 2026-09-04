@@ -40,7 +40,7 @@ TArray<FRTBoundaryChecksum> URTBoundaryChecksumLibrary::ChecksumsAlongTrace(cons
 
 		// --- la traduzione verso il digest, e cio' che resta al default -------------------------------
 		//
-		// 🔴 `Health`, `Shield`, `Energy` e `Statuses` **non si popolano**: la traccia non li dichiara, e
+		// 🔴 `Health`, `Shield` e `Statuses` **non si popolano**: la traccia non li dichiara, e
 		// dedurli sommando le voci di danno sarebbe ricostruire uno stato che nessuno ha scritto. Restano
 		// al default, uguali ovunque, quindi non discriminano — ed e' dichiarato nell'header invece che
 		// scoperto da chi legge un checksum che non distingue due stati diversi.

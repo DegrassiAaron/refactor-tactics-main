@@ -114,11 +114,6 @@ void URTUnitOverlayWidget::SetOverlayView(const FRTUnitOverlayView& InView)
 		ShieldBar->SetPercent(SafeFraction(View.Card.Shield, View.Card.MaxHealth));
 	}
 
-	if (EnergyBar)
-	{
-		EnergyBar->SetPercent(SafeFraction(View.Card.Energy, View.Card.MaxEnergy));
-	}
-
 	if (StatusBox)
 	{
 		// Svuotato e riempito: gli stati cambiano di numero e di ordine, e un pool da riciclare sarebbe una

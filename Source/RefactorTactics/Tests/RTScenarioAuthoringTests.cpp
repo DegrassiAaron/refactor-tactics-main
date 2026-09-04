@@ -472,7 +472,6 @@ bool FRTScenarioStateDiffOnlyChangedTest::RunTest(const FString&)
 	Before.Cell = FRTCellId(0, 0, 0);
 	Before.Health = 40;
 	Before.Shield = 5;
-	Before.Energy = 3;
 	Before.Facing = ERTHexDirection::E;
 
 	FRTUnitStateDigest After = Before;

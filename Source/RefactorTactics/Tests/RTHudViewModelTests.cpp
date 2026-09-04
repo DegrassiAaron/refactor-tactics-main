@@ -128,12 +128,10 @@ bool FRTHudVmCardMirrorsUnitTest::RunTest(const FString&)
 
 	Riktor->Health = 42;
 	Riktor->Shield = 7;
-	Riktor->Energy = 13;
 
 	const FRTUnitCardView Card = URTHudViewModel::BuildUnitCard(Riktor, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("salute"), Card.Health, 42);
 	TestEqual(TEXT("scudo"), Card.Shield, 7);
-	TestEqual(TEXT("energia"), Card.Energy, 13);
 	TestEqual(TEXT("salute massima dal catalogo eroi"), Card.MaxHealth, Riktor->MaxHealth);
 	TestEqual(TEXT("identita'"), Card.HeroId, Riktor->HeroId);
 	TestTrue(TEXT("alleato"), Card.bIsAlly);

@@ -1354,7 +1354,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		}
 		else if (!bReady)
 		{
-			UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica/energia)"), *Ability->DisplayName.ToString());
+			UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica)"), *Ability->DisplayName.ToString());
 		}
 		else
 		{
@@ -2171,7 +2171,7 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 
 	if (!Unit->CanUseAbility(Armed))
 	{
-		UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica/energia)"), *Ability->DisplayName.ToString());
+		UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica)"), *Ability->DisplayName.ToString());
 		return false;
 	}
 
@@ -2236,7 +2236,7 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 
 	if (!Unit->CanUseAbility(Armed))
 	{
-		UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica/energia)"), *Ability->DisplayName.ToString());
+		UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica)"), *Ability->DisplayName.ToString());
 		return false;
 	}
 

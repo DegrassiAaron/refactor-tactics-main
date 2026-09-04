@@ -216,21 +216,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	FText HeroDisplayName;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
-	int32 MaxEnergy = 100;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
-	int32 Energy = 0;
-
-	/** Energia guadagnata a ogni turno. */
-	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Combat")
-	int32 EnergyPerTurn = 25;
-
-	/** Energia guadagnata quando si porta a segno un attacco (non ultimate). */
-	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Combat")
-	int32 EnergyOnHit = 15;
-
-	/** Moltiplicatore di danno dell'ultimate (attacco a energia piena). */
+	/** Moltiplicatore di danno dell'ultimate. */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Combat")
 	int32 UltimateMultiplier = 2;
 
@@ -529,14 +515,14 @@ public:
 	 */
 	bool HasPlannedNormalMove() const { return PlannedCell != Cell || PlannedPath.Num() > 1; }
 
-	/** Vero se l'abilita' e' pronta (non in ricarica) e c'e' energia sufficiente. */
+	/** Vero se l'abilita' e' pronta: non in ricarica. Il cooldown e' l'unico gate da `D-324`. */
 	bool CanUseAbility(int32 Index) const;
 
 	/**
 	 * Lo scatto pianificato si applichera' davvero all'inizio della risoluzione?
 	 *
 	 * Tre condizioni, ed e' la stessa congiunzione che `ARTTurnManager::ResolveDash` valuta per decidere se
-	 * muovere l'unita': mobilita' rapida dichiarata dal catalogo, azione utilizzabile (ricarica ed energia),
+	 * muovere l'unita': mobilita' rapida dichiarata dal catalogo, azione utilizzabile (ricarica),
 	 * destinazione diversa dalla cella corrente.
 	 *
 	 * 🔴 **Sta qui perche' ha due consumatori, e la seconda copia sarebbe divergibile.** Oltre al resolver la
@@ -555,7 +541,7 @@ public:
 	/** Seleziona l'abilita' attiva del giocatore (se l'indice e' valido). */
 	void SelectAbility(int32 Index);
 
-	/** Avvia la ricarica dell'abilita' e ne consuma l'energia. */
+	/** Avvia la ricarica dell'abilita'. Consumava anche energia: `D-324` l'ha tolta dal gameplay. */
 	void ConsumeAbility(int32 Index);
 
 	/** Decrementa i cooldown di tutte le abilita'. */
@@ -777,9 +763,15 @@ private:
 	/** Popola Abilities con un set di default (attacco, colpo pesante, ultimate) se vuota. */
 	void EnsureDefaultAbilities();
 
-	/** Crea un'abilita' data-driven in codice. */
-	URTActionData* MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area,
-		int32 Cooldown, int32 EnergyCost, FGameplayTag Status, int32 StatusDur);
+	/**
+	 * Crea un'abilita' data-driven in codice.
+	 *
+	 * ⚠️ Portava anche `EnergyCost` (tolto da `D-324`) e una coppia `Status`/`StatusDur` che **non e' mai
+	 * stata assegnata**: `URTActionData` non ha un campo per lo stato, quindi il `TAG_Status_Slow, 2` che
+	 * l'Ultimate legacy passava era inerte da sempre e faceva credere al lettore che l'abilita' applicasse
+	 * Slow. Rimossa insieme all'altro parametro morto invece di sopravvivergli.
+	 */
+	URTActionData* MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area, int32 Cooldown);
 
 public:
 
@@ -1342,7 +1334,7 @@ protected:
 	TObjectPtr<USkeletalMeshComponent> ContactGhost;
 
 	/**
-	 * La sovrapposizione sopra la testa — nome, vita, scudo, energia, stati (`#2288`, `D-320`).
+	 * La sovrapposizione sopra la testa — nome, vita, scudo, stati (`#2288`, `D-320`).
 	 *
 	 * 🔴 **Segue il velo, al contrario di `ContactGhost`.** La sagoma del ricordo deve vedersi *proprio
 	 * quando* l'unita' non si vede, quindi e' esclusa da `RefreshComponentVisibility`; questa invece e' la
