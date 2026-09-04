@@ -113,11 +113,23 @@ public:
 	 * questa funzione restituisce l'indice della prima in ordine canonico, che e' il punto da cui il gruppo
 	 * comincia — non «la prima che e' accaduta», perche' quella domanda non ha risposta.
 	 *
-	 * ⚠️ **Su una traccia phase-only ogni voce vale `MicroStepIndex == 0`**, e il comportamento e'
-	 * dichiarato invece che dedotto: chiedere il boundary `0` trova la prima voce della fase — e' l'unico
-	 * boundary che quella traccia conosce, e rispondere e' corretto; chiedere un boundary diverso da `0`
-	 * da' `BoundaryNotFound`, perche' quella traccia davvero non lo porta. Nessuna inferenza dalla
-	 * posizione, nessun fallback alla fase intera.
+	 * ⚠️ **Su una traccia phase-only — cioe' ANTECEDENTE a `WithMicroStep` — ogni voce vale
+	 * `MicroStepIndex == 0`**, e il comportamento e' dichiarato invece che dedotto: chiedere il boundary `0`
+	 * trova la prima voce della fase — e' l'unico boundary che quella traccia conosce, e rispondere e'
+	 * corretto; chiedere un boundary diverso da `0` da' `BoundaryNotFound`, perche' quella traccia davvero
+	 * non lo porta. Nessuna inferenza dalla posizione, nessun fallback alla fase intera.
+	 *
+	 * 🔴 **La precisazione «antecedente» non era necessaria finche' TUTTE le tracce erano phase-only.** Lo
+	 * erano: `#1880` aveva consegnato il campo e questo lettore, ma nessuno lo scriveva, quindi anche una
+	 * traccia `WithMicroStep` nasceva con ogni voce a `0`. Da `#2260` il resolver lo popola, e le due
+	 * famiglie divergono: in una traccia nuova lo `0` e' il PRIMO boundary di un ciclo che ne ha altri.
+	 *
+	 * ⛔ **`MicroStepIndex < 0` e' rifiutato con `BoundaryNotFound`, senza scandire la traccia** (`#2260`).
+	 * `INDEX_NONE` e' cio' che una voce scrive per dire *«non appartengo a nessun ciclo di micro-step»* —
+	 * Blast, status, hazard, i rifiuti in Planning — e quelle voci **non sono un gruppo simultaneo**:
+	 * condividono un valore, non una barriera che le abbia decise insieme. Rispondere `Found` le
+	 * trasformerebbe in una posizione indirizzabile, che e' lo stesso errore che `SeekToTurn` rifiuta sullo
+	 * `0` dei turni non dichiarati.
 	 */
 	static ERTReplaySeekResult SeekToBoundary(const TArray<FRTTurnLogEntry>& Trace, ERTMatchPhase Phase,
 		int32 MicroStepIndex, int32& OutEntryIndex);
