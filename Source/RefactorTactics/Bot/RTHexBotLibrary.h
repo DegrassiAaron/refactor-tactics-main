@@ -242,19 +242,29 @@ struct FRTHexBotContext
 	 * termine tira verso l'obiettivo mentre `WApproach` tira verso il nemico: se i due gradienti si
 	 * pareggiano, un passo che avvicina l'obiettivo e allontana il nemico vale esattamente zero, il
 	 * tie-break «a parita' vince la mossa minima» fa restare, e il bot non ci va **proprio nel caso per cui
-	 * il termine esiste**. Con `WApproach` a 10 servono almeno 11; si spedisce 15. Pinnata da
+	 * il termine esiste**. Con `WApproach` a 10 servono almeno 11. Pinnata da
 	 * `HexBot.ObjectivePullBeatsClosingOneCell`, che la misura sull'esito di `ChooseBestPlan` — non sul
 	 * punteggio di una candidata isolata, che il tie-break non lo vede.
 	 *
-	 * ⚠️ **Da qui esce un RAGGIO d'attrazione dichiarato**: a `120/15` il termine e' zero da otto passi in
-	 * poi. Oltre quella distanza l'obiettivo e' invisibile al punteggio, ed e' voluto — un'attrazione che
-	 * arrivasse da qualunque punto della mappa sarebbe indistinguibile da un secondo `WApproach` con un goal
-	 * diverso, e renderebbe ogni altra decisione una funzione di dove sta l'obiettivo.
+	 * 🔴 **E il RAGGIO che ne esce vale UN TURNO DI MOVIMENTO, e il numero e' stato misurato contro
+	 * l'oracolo di parcheggio, non scelto.** `WObjective / WObjectiveFalloff` e' la distanza oltre la quale
+	 * il termine e' spento: a `120/30` sono **quattro passi**, cioe' il `MoveRange` del roster. La domanda
+	 * che il termine pone diventa *«posso prendere l'obiettivo adesso?»* e non *«sto vagamente dalla parte
+	 * giusta della mappa?»*.
+	 *
+	 * ⛔ **La prima stesura spediva `120/15`, raggio OTTO, ed e' stata falsificata.** Su `L_HexArena` — 64
+	 * celle, obiettivo a `(0,-3,L0)` — un raggio di otto copre quasi tutta la board, e li' il termine smette
+	 * di essere una meta e diventa un bonus posizionale generale: cioe' la forma di `#1088`, che compete con
+	 * l'avvicinamento e paga per **stare**. Misurato il 2026-09-04:
+	 * `Match.Autobattle.NobodyParksOnTheAuthoredMap` **rosso**, sequenza ferma **5** contro un limite di 4 —
+	 * e l'unita' parcheggiata era Gadget su `(-1,1,L0)`, che dista **cinque** passi dall'obiettivo e
+	 * incassava comunque `+45`. Non era l'obiettivo a trattenerla: era il termine che, a quella distanza,
+	 * non parla piu' dell'obiettivo.
 	 *
 	 * ⛔ **Zero non «disattiva il decadimento»: rende il bonus PIATTO su tutta la mappa**, che e' la forma
 	 * assorbente di `#1088` con un goal nuovo. Per spegnere il termine si azzera `WObjective`, non questo.
 	 */
-	UPROPERTY() int32 WObjectiveFalloff = 15;
+	UPROPERTY() int32 WObjectiveFalloff = 30;
 
 	/**
 	 * Da quanti turni consecutivi il piano scelto per questa unita' **non contiene un attacco**. E' la

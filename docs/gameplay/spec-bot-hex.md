@@ -190,8 +190,21 @@ sull'obiettivo e colpisco» quella che si vuole far emergere.
 
 ⚠️ **Il floor a zero è parte del termine, non una guardia.** Senza, un'unità lontana pagherebbe una penalità
 crescente per non stare sull'obiettivo, e quella penalità entrerebbe in **ogni** confronto — comprese le
-scelte di combattimento dall'altra parte della mappa. Ne segue un **raggio d'attrazione dichiarato**: con
-`120/15` il termine è spento da otto passi in poi.
+scelte di combattimento dall'altra parte della mappa.
+
+🔴 **Il RAGGIO che ne esce vale un turno di movimento, e il numero è misurato contro l'oracolo di parcheggio.**
+`WObjective / WObjectiveFalloff` è la distanza oltre cui il termine è spento: con `120/30` sono **quattro
+passi**, cioè il `MoveRange` del roster. La domanda che il termine pone diventa *«posso prendere l'obiettivo
+adesso?»* e non *«sto vagamente dalla parte giusta della mappa?»*.
+
+⛔ **La prima stesura spediva `120/15`, raggio otto, ed è stata falsificata.** Su `L_HexArena` — 64 celle,
+obiettivo a `(0,-3,L0)` — un raggio di otto copre quasi tutta la board, e lì il termine smette di essere una
+meta e diventa un bonus posizionale generale: la forma di
+[#1088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1088), che compete con l'avvicinamento e
+paga per **stare**. Misurato il 2026-09-04: `Match.Autobattle.NobodyParksOnTheAuthoredMap` **rosso**, sequenza
+ferma **5** contro un limite di 4 — e l'unità parcheggiata era Gadget su `(-1,1,L0)`, a **cinque** passi
+dall'obiettivo, che incassava comunque `+45`. Non era l'obiettivo a trattenerla: era il termine che, a quella
+distanza, non parla più dell'obiettivo.
 
 🔴 **INVARIANTE: `WObjectiveFalloff > WApproach`.** È l'analogo di quella di §3d, con il segno rovesciato:
 lì un bonus di posizione troppo **grande** batte l'avvicinamento e produce il parcheggio, qui un gradiente
@@ -233,7 +246,7 @@ bot non sarebbe fairness. Ciò che CP 13.5 protegge sono le **unità** avversari
 | `WEngage` | 15 | bonus per una cella da cui si vede un contatto noto, sui piani senza attacco (`D-185`) |
 | `WEngageDecay` | 5 | quanto quel bonus cala per ogni turno consecutivo senza ingaggiare — **zero lo riporta alla forma che non passa gli oracoli** |
 | `WObjective` | 120 | controllo della cella obiettivo — indicativo, viene da `spec-bot-tattico.md` §5 ([#2269](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2269)) |
-| `WObjectiveFalloff` | 15 | quanto quel bonus cala per ogni passo che manca — vincolato da `WObjectiveFalloff > WApproach` |
+| `WObjectiveFalloff` | 30 | quanto quel bonus cala per ogni passo che manca — vincolato da `WObjectiveFalloff > WApproach`, e il raggio che ne esce (`120/30 = 4`) vale un turno di movimento |
 
 Sono **interi bilanciabili senza toccare la logica**. La scala relativa fra `WThreat` e `WDamage` è nota
 essere un punto dolente: vedi [#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149), che
