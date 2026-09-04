@@ -6691,11 +6691,14 @@ void ARTTurnManager::ResolveMovement()
 		// frattempo si e' chiuso: il «path fantasma». Il movimento si FERMA all'ultima cella valida
 		// (`Fallback.Stop`), non si annulla.
 		// ⚠️ **Si confronta contro la lunghezza PRIMA dello scivolamento, non contro `Path.Num()` di adesso**
-		// (#2253). La cella di slide non e' pianificata dal giocatore: se la topologia toglie SOLO quella —
-		// basta un bordo non attraversabile accanto al ghiaccio, e `ApplyIceSliding` guarda `bBlocksMovement`
-		// della cella, non la percorribilita' del passo — l'unita' arriva esattamente dove aveva chiesto, e
-		// dirle «fermo: varco chiuso» sarebbe falso. Con il vecchio confronto lo diceva, e non serviva nemmeno
-		// un cambio di topologia a meta' turno perche' accadesse.
+		// (#2253). La cella di slide non e' pianificata dal giocatore: se la topologia toglie SOLO quella,
+		// l'unita' arriva esattamente dove aveva chiesto, e dirle «fermo: varco chiuso» sarebbe falso.
+		//
+		// ⚠️ **La giustificazione originale di questa riga e' stata invalidata da `#2284`**, che qui diceva
+		// «basta un bordo non attraversabile accanto al ghiaccio»: da quando `ApplyIceSliding` verifica la
+		// percorribilita' del passo, quel caso non produce piu' un'estensione da tagliare. Il confronto resta
+		// necessario per il caso che lo motivava davvero — una topologia che cambia DURANTE il turno, una
+		// porta chiusa nel Blast — dove il percorso e' stato esteso quando il varco era ancora aperto.
 		Path = URTHexSimLibrary::TruncatePathToTopology(Snapshot, Path);
 		bStoppedByTopology[i] = Path.Num() < LengthBeforeSlide;
 
@@ -6810,13 +6813,21 @@ void ARTTurnManager::ResolveMovement()
 		// reason del blocco — corretto per lui, falso per il giocatore: la cella che l'unita' non ha
 		// raggiunto e' quella EXTRA, che non aveva chiesto. Dove voleva andare c'e' arrivata.
 		//
-		// ⚠️ **Qui si sovrascrive un reason di BLOCCO, non `Moved`**, ed e' l'unico dei tre rami che lo fa:
-		// il criterio non e' «l'esito del resolver e' innocuo» ma «la destinazione pianificata e' stata
-		// raggiunta», che e' un fatto piu' forte e vale contro qualunque reason. Chi si e' fermata PRIMA
-		// della propria destinazione non entra qui, e conserva il motivo del resolver.
+		// 🔴 **La whitelist e' deliberata, e la prima stesura non ce l'aveva.** Assorbire OGNI reason diverso
+		// da `Moved` distruggeva informazione che non esiste altrove: `State.Results[i].Outcome` e' l'unico
+		// posto in cui il `BlockReason` viene scritto, e questa voce e' la sua unica destinazione. Sui tre
+		// reason elencati la perdita e' accettabile — dicono «non sei entrato nella cella X», e X e' l'extra
+		// che il giocatore non aveva chiesto — ma su `StoppedByOverwatch` e `StoppedByPrediction` sarebbe
+		// stata una bugia: quelle due dicono che qualcuno le ha SPARATO, e riscriverle come «arriva,
+		// scivolata impedita» avrebbe raccontato un movimento riuscito a un'unita' appena colpita.
+		//
+		// ⚠️ Un reason nuovo aggiunto in coda a `ERTMoveOutcome` **non** entra qui da solo, ed e' voluto:
+		// tacere e' il default sicuro, mentre assorbire per omissione avrebbe fatto sparire il caso nuovo.
 		else if (bSlideRequested.IsValidIndex(i) && bSlideRequested[i]
-			&& Resolved[i].Outcome != ERTMoveOutcome::Moved
-			&& Resolved[i].Final == PlannedLast[i])
+			&& Resolved[i].Final == PlannedLast[i]
+			&& (Resolved[i].Outcome == ERTMoveOutcome::BlockedByUnit
+				|| Resolved[i].Outcome == ERTMoveOutcome::BlockedContested
+				|| Resolved[i].Outcome == ERTMoveOutcome::BlockedByPriority))
 		{
 			MoveLog[i].Outcome = static_cast<uint8>(ERTMoveOutcome::SlideBlocked);
 		}

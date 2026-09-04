@@ -569,6 +569,76 @@ TOptional<ERTMoveOutcome> EsitoMoveNelLog(const ARTTurnManager* TM, const ARTUni
  * Il contratto del resolver — «dipende solo da `Final`/`Paths`, quindi indipendente dall'ordine» — non si
  * tocca: chi conosce la destinazione vera e' il chiamante, ed e' li' che l'esito si corregge.
  */
+/**
+ * CHI SI FERMA PRIMA DELLA PROPRIA DESTINAZIONE CONSERVA IL MOTIVO DEL RESOLVER — `#2284`.
+ *
+ * 🔴 **E' la guardia che impedisce a `SlideBlocked` di inghiottire ogni blocco.** Il ramo si attiva su
+ * `Final == PlannedLast`: senza quel confronto, un'unita' che ha chiesto uno scivolamento e si e' fermata
+ * tre celle prima verrebbe raccontata come «arriva, scivolata impedita» — cioe' come un movimento riuscito
+ * — mentre non e' arrivata da nessuna parte.
+ *
+ * Il test gemello (`SlideBlockedIsNotAFailedMove`) copre il caso in cui il ramo DEVE scattare; questo
+ * copre quello in cui NON deve, ed e' l'unico che cade se la guardia viene tolta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIceStoppedShortKeepsResolverReasonTest,
+	"RefactorTactics.Terrain.Ice.StoppedShortKeepsResolverReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTIceStoppedShortKeepsResolverReasonTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 6))
+	{
+		FRTHexCellData Data(Id);
+		if (Id == FRTCellId(3, 0)) { Data.Surface = ERTHexSurface::Ice; }
+		Map->AddOrUpdateCell(Data);
+	}
+	Map->SortCells();
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	if (!TestNotNull(TEXT("map actor"), MapActor)) { DestroyHexMoveWorld(World); return false; }
+	MapActor->MapAsset = Map;
+
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	// L'ostacolo sta A META' STRADA, non sulla cella di scivolamento: il mover non arriva nemmeno alla
+	// propria destinazione, quindi il reason del resolver e' la spiegazione giusta e va conservato.
+	ARTUnit* Blocker = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Blocker) { DestroyHexMoveWorld(World); return false; }
+
+	// Il percorso e' scritto A MANO, come fa `Terrain.Fire.DamagesAndBurnsOnEnter` e per la stessa ragione:
+	// con `PlannedCell` l'A* aggira l'ostacolo, il mover arriva sul ghiaccio e SCIVOLA. Misurato — la prima
+	// stesura di questo test falliva con «atteso 3, trovato 13» (`Slid`), e la premessa era passata lo stesso
+	// perche' scivolando l'unita' finisce su una cella diversa dalla destinazione: un falso negativo che
+	// verificava il contrario di cio' che dichiara.
+	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0) };
+	Mover->PlannedCell = FRTCellId(3, 0); // ghiaccio: lo scivolamento viene RICHIESTO
+	Blocker->PlannedCell = Blocker->Cell;
+	RunTurn(TM);
+
+	// PREMESSA, e va misurata sulla cella ESATTA: «non e' sulla destinazione» sarebbe vero anche per
+	// un'unita' che ci e' passata e ha scivolato oltre.
+	if (!TestTrue(TEXT("premessa: il mover resta alla partenza, bloccato dal primo passo"),
+		Mover->Cell == FRTCellId(0, 0)))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	const TOptional<ERTMoveOutcome> Esito = EsitoMoveNelLog(TM, Mover);
+	if (TestTrue(TEXT("il Move del mover ha una voce nel TurnLog"), Esito.IsSet()))
+	{
+		TestNotEqual(TEXT("fermata prima della destinazione: NON e' `SlideBlocked`"),
+			static_cast<int32>(*Esito), static_cast<int32>(ERTMoveOutcome::SlideBlocked));
+		TestEqual(TEXT("e conserva il motivo del resolver"),
+			static_cast<int32>(*Esito), static_cast<int32>(ERTMoveOutcome::BlockedByUnit));
+	}
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIceSlideBlockedIsNotAFailedMoveTest,
 	"RefactorTactics.Terrain.Ice.SlideBlockedIsNotAFailedMove",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -594,6 +664,16 @@ bool FRTIceSlideBlockedIsNotAFailedMoveTest::RunTest(const FString&)
 	ARTUnit* Blocker = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Blocker) { DestroyHexMoveWorld(World); return false; }
+
+	// PREMESSA MISURATA sul budget, come fa `SlidesInMatch`: lo scivolamento chiede un residuo >= 2 dopo un
+	// percorso di 2 celle. Senza questa riga, un cambio al catalogo dell'eroe farebbe fallire il test con
+	// «atteso 14, trovato 1» — mandando il lettore al ramo `SlideBlocked` invece che al catalogo.
+	if (!TestTrue(TEXT("premessa: il budget consente lo scivolamento"),
+		Mover->GetEffectiveMoveRange() >= 4))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
 
 	Mover->PlannedCell = FRTCellId(2, 0);
 	Blocker->PlannedCell = Blocker->Cell; // fermo: e' un ostacolo, non un contendente

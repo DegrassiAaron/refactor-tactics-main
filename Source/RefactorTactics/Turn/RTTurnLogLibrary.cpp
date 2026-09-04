@@ -403,8 +403,13 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		case ERTMoveOutcome::Slid:              Reason = TEXT("scivola"); break;
 		// «arriva» e non «si muove» (#2284): la riga deve dire che la destinazione E' stata raggiunta — il
 		// contrario di quello che il reason di blocco diceva prima — e insieme che il ghiaccio non ha
-		// completato l'opera. Il perche' preciso (occupata, contesa, Overwatch) resta nella voce che quel
-		// blocco lo ha prodotto: qui si racconta il movimento, non chi lo ha ostacolato.
+		// completato l'opera.
+		//
+		// ⚠️ **Il reason originale si PERDE, e non resta altrove**: `FinalizeHexMovementOutcomes` scrive il
+		// `BlockReason` solo in `Results[i].Outcome`, che confluisce in questa voce e in nessun'altra. La
+		// perdita e' accettabile perche' il chiamante assorbe **solo** i tre reason di occupazione e contesa,
+		// che dicono «non sei entrato nella cella X» dove X e' l'extra non pianificato: chi e' stato fermato
+		// da un Overwatch o da una Predictive conserva il proprio.
 		case ERTMoveOutcome::SlideBlocked:      Reason = TEXT("arriva, scivolata impedita"); break;
 		// Un valore aggiunto in coda all'enum e non tradotto qui: si legge lo stesso e DICE di non essere
 		// tradotto, invece di travestirsi da «resta». Chi lo incontra sa dove guardare.

@@ -76,8 +76,9 @@ namespace
 			// DISATTESA: il ghiaccio non ha fatto cio' che fa sempre.
 			//
 			// I due sono simmetrici e stanno insieme: `Slid` e' «e' successo qualcosa che non avevi chiesto»,
-			// `SlideBlocked` e' «non e' successo qualcosa su cui contavi». Dopo [D-319] la differenza si vede
-			// nello stato dell'unita': uno dei due lascia `Status.Unbalanced`, l'altro no.
+			// `SlideBlocked` e' «non e' successo qualcosa su cui contavi». Dopo [D-319] la differenza si vedra'
+			// nello stato dell'unita': uno dei due lascera' `Status.Unbalanced`, l'altro no. ⚠️ Al futuro: quella
+			// decisione e' accettata e non implementata, e `Status.Unbalanced` non esiste ancora in `Source/`.
 			case ERTMoveOutcome::SlideBlocked:
 				OutType = ERTPlayerEventType::Moved;
 				OutImportance = ERTPlayerEventImportance::Important;

@@ -184,7 +184,12 @@ muovono normalmente.
 > indipendente dall'ordine»* — è una proprietà da preservare, e chi conosce la destinazione vera è il
 > chiamante. Nasce così `ERTMoveOutcome::SlideBlocked`, distinto da `Moved` perché dopo
 > [`D-319`](../decisions/RT_PDR_00_Decision_Log.md) *«non sono scivolato»* è informazione di gioco: chi
-> scivola riceve `Status.Unbalanced`, chi non scivola resta intero. Test:
+> scivolerà riceverà `Status.Unbalanced` e chi non scivola no.
+> ⚠️ **Al futuro, e va letto così**: `D-319` è **accettata e non implementata** — `Status.Unbalanced` non
+> esiste ancora in `Source/`, e l'owner della Fase 1 è
+> [#2253](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2253). L'esito distinto è quindi in
+> anticipo sul meccanismo che lo renderà osservabile: una scelta dichiarata, perché il replay lo registri da
+> subito e le tracce sappiano già distinguere i due casi quando lo stato arriverà. Test:
 > `Terrain.Ice.SlideBlockedIsNotAFailedMove` e `UI.PlayerEventLog.SlideBlockedIsNotAFailure`.
 
 **Limite dichiarato**: una mobilità **lineare** che termina su `Ice` **non** innesca lo scivolamento.

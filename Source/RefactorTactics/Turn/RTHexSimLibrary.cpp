@@ -385,6 +385,49 @@ FRTHexPathResult URTHexSimLibrary::FindPathForUnit(const FRTHexSnapshot& Snapsho
 		/*MaxNodes*/ 100000, FMath::Max(0, Unit->MoveCostModifier));
 }
 
+namespace
+{
+/**
+ * Il passo `From -> To` e' percorribile? Due domande, e vanno fatte entrambe (#2284):
+ *
+ * 1. il GRAFO offre ancora quell'arco — copre la cella assente, `bBlocksMovement` e la copertura alta o la
+ *    porta chiusa sul BORDO (`URTHexCoverLibrary::BlocksTraversal`, che `GraphNeighbors` gia' interroga);
+ * 2. la cella `From` si ATTRAVERSA da dove si e' arrivati a dove si va — la geometria interna di `#2100`,
+ *    che il grafo non vede perche' guarda i bordi e non l'interno.
+ *
+ * Esiste come funzione e non come due copie perche' la seconda era gia' stata dimenticata una volta: la
+ * prima stesura di `#2284` chiedeva solo al grafo, e uno scivolamento attraversava i muri INTERNI dopo
+ * averne appena chiuso il caso sui bordi.
+ */
+bool StepIsWalkable(const URTHexMapAsset* Map, const FRTCellId& CameFrom, const FRTCellId& From,
+	const FRTCellId& To)
+{
+	bool bOnGraph = false;
+	for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Map, From))
+	{
+		if (Step.Key == To)
+		{
+			bOnGraph = true;
+			break;
+		}
+	}
+	if (!bOnGraph)
+	{
+		return false;
+	}
+
+	// `CameFrom` invalido significa «nessun predecessore»: non c'e' una traversata da validare.
+	ERTHexDirection EntryDir = ERTHexDirection::E;
+	ERTHexDirection ExitDir = ERTHexDirection::E;
+	if (URTHexLibrary::DirectionBetween(From, CameFrom, EntryDir)
+		&& URTHexLibrary::DirectionBetween(From, To, ExitDir))
+	{
+		return URTHexPathLibrary::CanTransitCell(Map, From, EntryDir, ExitDir);
+	}
+	return true;
+}
+} // namespace
+
 TArray<FRTCellId> URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapshot, int32 UnitId, const TArray<FRTCellId>& Path)
 {
 	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
@@ -443,35 +486,17 @@ TArray<FRTCellId> URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapsh
 	}
 
 	const FRTCellId SlideCell(LastCell.X + Dir.X, LastCell.Y + Dir.Y, LastCell.Layer);
-	const FRTHexCellData* SlideData = Snapshot.Map->FindCell(SlideCell);
-	if (!SlideData || SlideData->bBlocksMovement)
-	{
-		return Path;
-	}
 
-	// Il PASSO, non solo la cella (#2284). Muri e coperture non stanno nella cella ma sul BORDO fra due
-	// celle (`URTHexCoverLibrary::BlocksTraversal`), quindi `bBlocksMovement` qui sopra non li vede: senza
-	// questo controllo un'unita' che finisce il Move su una lastra addossata a un muro ci scivolava
-	// attraverso.
-	//
-	// Si chiede al GRAFO, come fa `TruncatePathToTopology`: la regola su cosa separa due celle vive in un
-	// posto solo, e riscriverla qui darebbe due risposte alla stessa domanda, destinate a divergere.
+	// Il PASSO, non solo la cella (#2284). `StepIsWalkable` copre in una domanda sola cio' che prima erano
+	// due controlli separati e incompleti: la cella assente e `bBlocksMovement` — che `GraphNeighbors` gia'
+	// implica — piu' i muri sul BORDO e la geometria INTERNA della cella d'arrivo, che nessuno guardava.
 	//
 	// ⚠️ **Non e' il controllo che `spec-terreni-e8.md` §5.2 dichiara di NON fare.** Quella riga rinuncia
 	// all'OCCUPAZIONE — chi sta nella cella — ed e' corretta: il microstep di `ResolveHexPaths` la gestisce
-	// come per qualunque altro passo. La percorribilita' del bordo e' un'altra domanda, e la spec non la
-	// nominava: dentro `ResolveMovement` il taglio a valle la mascherava, ma questa funzione e' pura e
-	// pubblica, e chi la chiama direttamente riceveva il muro attraversato.
-	bool bStepIsWalkable = false;
-	for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Snapshot.Map, LastCell))
-	{
-		if (Step.Key == SlideCell)
-		{
-			bStepIsWalkable = true;
-			break;
-		}
-	}
-	if (!bStepIsWalkable)
+	// come per qualunque altro passo. La percorribilita' e' un'altra domanda, e la spec non la nominava:
+	// dentro `ResolveMovement` il taglio a valle la mascherava, ma questa funzione e' pura e pubblica, e chi
+	// la chiama direttamente riceveva il muro attraversato.
+	if (!StepIsWalkable(Snapshot.Map, PrevCell, LastCell, SlideCell))
 	{
 		return Path; // un muro fra la cella d'arrivo e quella di scivolamento: non si scivola
 	}

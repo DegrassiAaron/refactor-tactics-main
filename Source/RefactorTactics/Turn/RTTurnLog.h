@@ -589,7 +589,11 @@ enum class ERTMoveOutcome : uint8
 	 *
 	 * **Perche' non `Moved`, che sarebbe letteralmente vero.** Lo e' — la destinazione pianificata e' stata
 	 * raggiunta — ma dopo [D-319] «non sono scivolato» e' informazione di GIOCO e non una sfumatura di
-	 * rendering: chi scivola riceve `Status.Unbalanced`, chi non scivola resta intero. Due esiti che lasciano
+	 * rendering: chi scivolera' ricevera' `Status.Unbalanced` e chi non scivola no. ⚠️ **Al FUTURO: `D-319` e'
+	 * accettata e NON implementata** — `Status.Unbalanced` non esiste ancora in `Source/`, e l'owner della
+	 * Fase 1 e' `#2253`. La distinzione fra i due esiti e' quindi in anticipo sul meccanismo che la rende
+	 * osservabile, ed e' una scelta dichiarata: il replay la registra da subito, cosi' quando lo stato
+	 * arrivera' le tracce vecchie sapranno gia' distinguere i due casi. Due esiti destinati a lasciare
 	 * l'unita' in stati diversi non possono condividere una riga di replay.
 	 *
 	 * **Perche' non il reason del blocco**, che e' cio' che il resolver produce oggi. `BlockedByUnit` e i suoi
