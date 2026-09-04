@@ -1018,6 +1018,29 @@ struct FRTTurnLogEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	FString ReactionResponse;
 
+	/**
+	 * Il **micro-step** in cui la voce e' nata: la terza coordinata del boundary, dopo `TurnNumber` e
+	 * `Phase` (`#1880`).
+	 *
+	 * 🔑 **Non e' un concetto nuovo, e non doveva esserlo.** `FRTReactionOpportunityKey` porta gia'
+	 * `TurnNumber · MacroPhase · MicroStepIndex`, e `DeriveOpportunityId` li serializza nella stringa
+	 * `T4|P3|M7|U12|action.overwatch|S0`. Il micro-step era gia' l'identita' di un boundary — ma viveva
+	 * **dentro una `FString`**, leggibile solo facendo il parse di un id, e solo sulle voci di reazione.
+	 * Qui diventa un campo: la stessa informazione, indirizzabile.
+	 *
+	 * ⛔ **NON e' un ordine di emissione, e non va usato per ricostruirlo.** Gli eventi che condividono
+	 * `(TurnNumber, Phase, MicroStepIndex)` sono un **gruppo simultaneo**: il resolver li ha decisi
+	 * insieme, e l'ordine in cui compaiono resta quello canonico di `EntryLess` — una chiave di sort, non
+	 * un tempo. Chi legge questo campo puo' dire *a quale barriera* una voce appartiene; non puo' dire
+	 * quale voce di quella barriera sia venuta prima, perche' quella domanda non ha una risposta.
+	 *
+	 * ⚠️ **`0` non distingue «primo micro-step» da «traccia che non li portava».** Il campo vale `0` su
+	 * entrambi, e la differenza esiste in un posto solo: la **versione del formato**. Una traccia
+	 * antecedente a `WithMicroStep` e' phase-only, e chi vuole saperlo guarda la versione, non il valore.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 MicroStepIndex = 0;
+
 	FRTTurnLogEntry() = default;
 };
 
@@ -1192,7 +1215,16 @@ enum class ERTTurnLogFormatVersion : uint16
 	 * ricalcola l'hash su entrambi i lati — ma un archivio di replay con `OrderedHashPerTurn` scritti prima
 	 * di questa versione non si confronta con uno scritto dopo, e va rigenerato.
 	 */
-	ResponseAndReasonSplit = 11
+	ResponseAndReasonSplit = 11,
+
+	/**
+	 * v12 (`#1880`): la voce porta il **micro-step**, la terza coordinata del boundary.
+	 *
+	 * ⚠️ **Cumulativa come tutte le precedenti**: la v12 implica la v11 e tutte quelle sotto. Una traccia
+	 * v11 resta leggibile e il campo vale `0` — non e' un'inferenza, e' che quei byte non contenevano
+	 * quell'informazione. Ricostruirla sarebbe cio' che [D-310] vieta.
+	 */
+	WithMicroStep = 12
 };
 
 /**

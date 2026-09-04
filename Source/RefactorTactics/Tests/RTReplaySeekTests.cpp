@@ -219,4 +219,90 @@ bool FRTReplaySeekLegacyTraceTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * **`SeekToBoundary` indirizza la terza coordinata, e distingue le due assenze** (`#1880`).
+ *
+ * ⛔ **Il caso che decide e' `BoundaryNotFound` contro `PhaseNotFound`.** Sono due fatti diversi — «il turno
+ * non ha attraversato quella fase» e «la fase c'e' ma non a quel micro-step» — e un seek che li confondesse
+ * manderebbe a cercare nel turno sbagliato. Un'implementazione che restituisse sempre `PhaseNotFound`
+ * passerebbe qualunque test che non li separi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplaySeekBoundaryTest,
+	"RefactorTactics.Replay.Seek.BoundaryIsAddressable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplaySeekBoundaryTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Traccia;
+	{
+		FRTTurnLogEntry A = Entry(1, ERTMatchPhase::Move, ERTLogCategory::Move, 1);
+		A.MicroStepIndex = 0;
+		Traccia.Add(A);
+
+		// Due voci allo STESSO boundary: sono un gruppo simultaneo.
+		FRTTurnLogEntry B = Entry(1, ERTMatchPhase::Move, ERTLogCategory::Move, 2);
+		B.MicroStepIndex = 3;
+		Traccia.Add(B);
+		FRTTurnLogEntry C = Entry(1, ERTMatchPhase::Move, ERTLogCategory::Move, 9);
+		C.MicroStepIndex = 3;
+		Traccia.Add(C);
+
+		FRTTurnLogEntry D = Entry(1, ERTMatchPhase::Blast, ERTLogCategory::Combat, 4);
+		D.MicroStepIndex = 0;
+		Traccia.Add(D);
+	}
+	URTTurnLogLibrary::SortTurnLog(Traccia);
+
+	int32 Indice = INDEX_NONE;
+
+	// --- la terna si indirizza ------------------------------------------------------------------------
+	TestEqual(TEXT("il boundary 3 di Move si trova"),
+		URTReplaySeekLibrary::SeekToBoundary(Traccia, ERTMatchPhase::Move, 3, Indice),
+		ERTReplaySeekResult::Found);
+	if (Traccia.IsValidIndex(Indice))
+	{
+		TestEqual(TEXT("e l'indice punta a una voce di QUEL boundary"), Traccia[Indice].MicroStepIndex, 3);
+		TestEqual(TEXT("e di quella fase"), Traccia[Indice].Phase, ERTMatchPhase::Move);
+	}
+
+	TestEqual(TEXT("e il boundary 0 e' un'altra posizione"),
+		URTReplaySeekLibrary::SeekToBoundary(Traccia, ERTMatchPhase::Move, 0, Indice),
+		ERTReplaySeekResult::Found);
+	if (Traccia.IsValidIndex(Indice))
+	{
+		TestEqual(TEXT("col suo micro-step"), Traccia[Indice].MicroStepIndex, 0);
+	}
+
+	// --- 🔴 le due assenze, che non vanno confuse -------------------------------------------------------
+	TestEqual(TEXT("la fase c'e' ma non a quel micro-step: BoundaryNotFound"),
+		URTReplaySeekLibrary::SeekToBoundary(Traccia, ERTMatchPhase::Move, 99, Indice),
+		ERTReplaySeekResult::BoundaryNotFound);
+
+	TestEqual(TEXT("la fase non c'e' affatto: PhaseNotFound"),
+		URTReplaySeekLibrary::SeekToBoundary(Traccia, ERTMatchPhase::Dash, 0, Indice),
+		ERTReplaySeekResult::PhaseNotFound);
+
+	// --- ⛔ il gruppo resta un gruppo -------------------------------------------------------------------
+	// Le due voci del boundary 3 devono stare INSIEME dopo l'ordinamento canonico: se `EntryLess` le
+	// separasse, il boundary smetterebbe di essere una posizione e diventerebbe un insieme sparso.
+	int32 Primo = INDEX_NONE, Ultimo = INDEX_NONE, Quante = 0;
+	for (int32 i = 0; i < Traccia.Num(); ++i)
+	{
+		if (Traccia[i].Phase == ERTMatchPhase::Move && Traccia[i].MicroStepIndex == 3)
+		{
+			if (Primo == INDEX_NONE) { Primo = i; }
+			Ultimo = i;
+			++Quante;
+		}
+	}
+	TestEqual(TEXT("le due voci del boundary ci sono entrambe"), Quante, 2);
+	TestEqual(TEXT("e sono adiacenti: il gruppo non si sparpaglia"), Ultimo - Primo, Quante - 1);
+
+	// ⚠️ E `SeekToBoundary` punta all'INIZIO del gruppo, non a una voce qualsiasi.
+	URTReplaySeekLibrary::SeekToBoundary(Traccia, ERTMatchPhase::Move, 3, Indice);
+	TestEqual(TEXT("il seek punta alla prima voce del gruppo"), Indice, Primo);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -17,6 +17,37 @@ ERTReplaySeekResult URTReplaySeekLibrary::SeekToPhase(const TArray<FRTTurnLogEnt
 	return ERTReplaySeekResult::PhaseNotFound;
 }
 
+ERTReplaySeekResult URTReplaySeekLibrary::SeekToBoundary(const TArray<FRTTurnLogEntry>& Trace,
+	ERTMatchPhase Phase, int32 MicroStepIndex, int32& OutEntryIndex)
+{
+	// Stessa scansione lineare di `SeekToPhase`, e per la stessa ragione: il valore del seek e' non
+	// riprodurre cio' che precede, non il costo di trovare l'indice.
+	//
+	// ⚠️ Si distinguono DUE assenze. Se la fase non compare affatto, l'esito e' `PhaseNotFound` — il turno
+	// non l'ha attraversata. Se la fase c'e' ma non a quel micro-step, e' `BoundaryNotFound`: la barriera
+	// chiesta non esiste in un turno che pure ha avuto quella fase. Dire la prima al posto della seconda
+	// manderebbe a cercare il turno sbagliato.
+	bool bPhaseSeen = false;
+	for (int32 Index = 0; Index < Trace.Num(); ++Index)
+	{
+		if (Trace[Index].Phase != Phase)
+		{
+			continue;
+		}
+		bPhaseSeen = true;
+
+		if (Trace[Index].MicroStepIndex == MicroStepIndex)
+		{
+			// La PRIMA in ordine canonico, che e' dove il gruppo comincia. Non la prima accaduta: le voci di
+			// un boundary sono simultanee, e la traccia non porta — deliberatamente — un ordine fra loro.
+			OutEntryIndex = Index;
+			return ERTReplaySeekResult::Found;
+		}
+	}
+
+	return bPhaseSeen ? ERTReplaySeekResult::BoundaryNotFound : ERTReplaySeekResult::PhaseNotFound;
+}
+
 ERTReplaySeekResult URTReplaySeekLibrary::SeekToTurn(const TArray<TArray<FRTTurnLogEntry>>& Sequence,
 	int32 TurnNumber, FRTReplayCursor& OutCursor)
 {
