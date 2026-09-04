@@ -405,6 +405,145 @@ FString ARTHUD::ComposePlaybackSpeedLabel(float ViewerSpeed)
 		: FString::Printf(TEXT("x%.1f"), Effective);
 }
 
+namespace
+{
+	/**
+	 * La vista di conoscenza dell'osservatore, dai soggetti che le unita' vive e morte dichiarano.
+	 *
+	 * ⚠️ **Senza `TurnManager` la vista resta VUOTA, e non e' un caso degenere da ignorare**: ogni nemico
+	 * risulta senza voce, quindi non `Live`, quindi spento. E' il verso giusto — in assenza di conoscenza
+	 * non si mostra un avversario — ed e' cio' che `Veil.EnemyWithoutViewIsHidden` misura.
+	 *
+	 * ⚠️ `bAlive` entra fra i soggetti e non filtra: e' `ViewForTeam` a decidere cosa farne, e togliere qui
+	 * i caduti significherebbe prendere quella decisione due volte.
+	 */
+	FRTKnowledgeView UvViewForObserver(const ARTTurnManager* TurnManager,
+		const TArray<ARTUnit*>& Units, int32 PlayerTeamId)
+	{
+		if (TurnManager == nullptr)
+		{
+			return FRTKnowledgeView();
+		}
+
+		TArray<FRTKnowledgeSubject> Subjects;
+		Subjects.Reserve(Units.Num());
+		for (const ARTUnit* U : Units)
+		{
+			if (!U) { continue; }
+			FRTKnowledgeSubject S;
+			S.StableUnitId = U->StableUnitId;
+			S.TeamId = U->TeamId;
+			S.Cell = U->Cell;
+			S.HeroId = U->HeroId;
+			S.HeroDisplayName = U->HeroDisplayName;
+			S.bAlive = U->IsAlive();
+			Subjects.Add(S);
+		}
+
+		return URTKnowledgeViewLibrary::ViewForTeam(
+			TurnManager->KnowledgeForTeamPublic(PlayerTeamId), Subjects, PlayerTeamId);
+	}
+}
+
+ARTHUD::ARTHUD()
+{
+	// 🔴 `AHUD` nasce con il tick SPENTO, e il driver del velo ne dipende: senza questa riga
+	// `UpdateObserverVeil` non verrebbe mai chiamato e ogni unita' resterebbe al suo default — cioe'
+	// `bKnownToObserver == true`, cioe' tutti i nemici visibili. Il fallimento e' silenzioso in entrambi i
+	// sensi (nessun crash, nessun log), e per questo `Veil.DriverRunsOnTick` lo pinna.
+	PrimaryActorTick.bCanEverTick = true;
+}
+
+void ARTHUD::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	// ⚠️ Nel fotogramma il `Tick` precede `DrawHUD`: cio' che il disegno legge da `IsKnownToObserver()` e'
+	// deciso in questo stesso giro, non in quello prima.
+	UpdateObserverVeil();
+}
+
+void ARTHUD::UpdateObserverVeil()
+{
+	const UWorld* World = GetWorld();
+	if (World == nullptr)
+	{
+		return;
+	}
+
+	// La stessa porta unica che usa il resto della presentazione ([D-242]). Senza controller ripiega su `0`,
+	// ed e' un ripiego dichiarato in `TeamIdOf`, non un caso non gestito.
+	const int32 PlayerTeamId = ARTPlayerState::TeamIdOf(GetOwningPlayerController());
+
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+
+	TArray<ARTUnit*> Units;
+	Units.Reserve(Actors.Num());
+	for (AActor* A : Actors)
+	{
+		if (ARTUnit* U = Cast<ARTUnit>(A)) { Units.Add(U); }
+	}
+
+	const ARTTurnManager* TurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+
+	// Costruita UNA volta prima del ciclo: `ViewForTeam` e' pura ma il ciclo gira su ogni unita' a ogni
+	// fotogramma, e ricostruirla per ognuna sarebbe lavoro ripetuto per un risultato identico.
+	const FRTKnowledgeView KnowledgeView = UvViewForObserver(TurnManager, Units, PlayerTeamId);
+
+	// La geometria serve SOLO a posare la sagoma del ricordo. `DrawHUD` la recupera per conto suo per le
+	// sue conversioni cella -> schermo: e' la stessa chiamata fatta due volte, non una seconda regola —
+	// l'origine resta `ARTHexMapActor`, che di geometria resta l'unico owner.
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 150.f;
+	float LayerH = 250.f;
+	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
+	{
+		HexMap->GetHexContext(Origin, HexSize, LayerH);
+	}
+
+	for (ARTUnit* Unit : Units)
+	{
+		if (!Unit || !Unit->IsAlive())
+		{
+			continue;
+		}
+
+		// La voce di conoscenza si cerca UNA volta per unita' e alimenta ENTRAMBE le decisioni sotto
+		// (`ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit`) — non due `FindEntry` separate per la
+		// stessa domanda (review). Per la propria squadra non si cerca nemmeno: entrambe le funzioni
+		// decidono da `bIsOwnTeam` prima di guardare `Entry`.
+		const bool bIsOwnTeam = (Unit->TeamId == PlayerTeamId);
+		const FRTKnowledgeEntry* Entry = bIsOwnTeam
+			? nullptr
+			: URTKnowledgeViewLibrary::FindEntry(KnowledgeView, Unit->StableUnitId);
+
+		// `ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit` sono statiche e PURE (dichiarate in
+		// `RTHUD.h`, testate senza montare un HUD): ricalcolare una qualunque delle due regole inline qui
+		// sarebbe una seconda definizione, e le due potrebbero divergere (review).
+		Unit->SetKnownToObserver(ShouldDrawUnitOverlay(Entry, bIsOwnTeam));
+
+		// Sagoma dell'ultimo contatto (Task 6b, CP 13.5): SPENTA per default, e accesa SOLO per un
+		// ricordo (`Remembered`) di un nemico. Gira per OGNI unita' viva — anche per quelle che il velo ha
+		// appena spento — perche' spegnerla vale soprattutto per loro: un nemico senza voce nella vista
+		// (`Rejected`, ricordo scaduto) non ha nemmeno una sagoma, e resterebbe accesa dall'ultima volta.
+		if (const TOptional<FRTContactGhostTarget> GhostTarget = ContactGhostTargetForUnit(Entry, bIsOwnTeam))
+		{
+			// `GhostTarget->Cell` e' quella del CONTATTO (Task 2), mai la posizione attuale dell'attore:
+			// `ContactGhostTargetForUnit` non riceve nemmeno `Unit`, quindi non puo' leggerla per sbaglio.
+			const int32 CurrentTurn = TurnManager ? TurnManager->GetTurnNumber() : 0;
+			Unit->UpdateContactGhost(HexCellWorld(GhostTarget->Cell, Origin, HexSize, LayerH),
+				GhostTarget->ContactTurn, CurrentTurn);
+		}
+		else
+		{
+			// Niente da ricordare: propria squadra, nemico `Live`, o nemico `Rejected`.
+			Unit->HideContactGhost();
+		}
+	}
+}
+
 void ARTHUD::DrawHUD()
 {
 	Super::DrawHUD();
@@ -440,42 +579,17 @@ void ARTHUD::DrawHUD()
 	TSet<FRTCellId> PlannedAllyHitCells;
 	ComputePlannedHitMarks(AllUnits, PlayerTeamId, PlannedHitCells, PlannedAllyHitCells);
 
-	// Recuperato QUI, PRIMA del ciclo delle unita': la vista di conoscenza sotto ha bisogno del
-	// TurnManager, e recuperarlo dopo il ciclo (come accadeva prima di questo task) lascerebbe la vista
-	// sempre vuota — un filtro che non filtra nulla.
+	// Recuperato QUI, PRIMA del ciclo delle unita': serve alla traccia post-lock e al numero di turno.
 	const ARTTurnManager* TurnManager =
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
 
-	// Costruita UNA volta prima del ciclo: `ViewForTeam` e' pura ma il ciclo gira su ogni unita' a ogni
-	// frame, e ricostruirla per ognuna sarebbe lavoro ripetuto per un risultato identico.
-	FRTKnowledgeView KnowledgeView;
-	if (TurnManager)
-	{
-		TArray<FRTKnowledgeSubject> Subjects;
-		Subjects.Reserve(AllUnits.Num());
-		for (ARTUnit* U : AllUnits)
-		{
-			if (!U) { continue; }
-			FRTKnowledgeSubject S;
-			S.StableUnitId = U->StableUnitId;
-			S.TeamId = U->TeamId;
-			S.Cell = U->Cell;
-			S.HeroId = U->HeroId;
-			S.HeroDisplayName = U->HeroDisplayName;
-			S.bAlive = U->IsAlive();
-			Subjects.Add(S);
-		}
-		KnowledgeView = URTKnowledgeViewLibrary::ViewForTeam(
-			TurnManager->KnowledgeForTeamPublic(PlayerTeamId), Subjects, PlayerTeamId);
-	}
-
 	// Geometria della mappa ESAGONALE: unica fonte di scala per ogni conversione cella -> schermo di questa
-	// HUD (traccia, anteprime, waypoint, e ora anche la sagoma dell'ultimo contatto). La stessa che usano
-	// risoluzione e playback (ARTHexMapActor).
+	// HUD (traccia, anteprime, waypoint). La stessa che usano risoluzione e playback (ARTHexMapActor).
 	//
-	// ⚠️ Recuperata QUI, PRIMA del ciclo delle unita' — spostata da dopo il ciclo, dov'era finche' solo la
-	// visualizzazione degli intenti (sotto) ne aveva bisogno: il ciclo ora chiama `UpdateContactGhost`, che
-	// richiede la stessa conversione cella -> mondo per posizionare la sagoma di un ricordo (CP 13.5).
+	// ⚠️ **La sagoma dell'ultimo contatto non e' piu' fra i consumatori di questa riga** (`#2246`): la posa
+	// `UpdateObserverVeil`, che recupera la geometria per conto proprio perche' non gira piu' dentro il
+	// disegno. E' la stessa chiamata fatta in due posti, non una seconda fonte — l'owner resta
+	// `ARTHexMapActor`.
 	//
 	// ⚠️ **Non e' l'unico punto del file che interroga `ARTHexMapActor`**, e la riga che lo affermava era
 	// falsa gia' quando e' stata scritta. Il secondo e' il pannello della terna piu' sotto in questa stessa
@@ -502,48 +616,17 @@ void ARTHUD::DrawHUD()
 			continue;
 		}
 
-		// La voce di conoscenza si cerca UNA volta per unita' e alimenta ENTRAMBE le decisioni sotto
-		// (`ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit`) — non due `FindEntry` separate per la
-		// stessa domanda (review). Per la propria squadra non si cerca nemmeno: entrambe le funzioni
-		// decidono da `bIsOwnTeam` prima di guardare `Entry`, esattamente come faceva prima questo ramo.
-		const bool bIsOwnTeam = (Unit->TeamId == PlayerTeamId);
-		const FRTKnowledgeEntry* Entry = bIsOwnTeam
-			? nullptr
-			: URTKnowledgeViewLibrary::FindEntry(KnowledgeView, Unit->StableUnitId);
-
-		// `ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit` sono statiche e PURE (dichiarate in
-		// `RTHUD.h`, testate senza montare un HUD): ricalcolare una qualunque delle due regole inline qui
-		// sarebbe una seconda definizione, e le due potrebbero divergere (review).
-		const bool bIsKnownToObserver = ShouldDrawUnitOverlay(Entry, bIsOwnTeam);
-
-		// Applica lo stato di conoscenza PRIMA del filtro sottostante: altrimenti l'unita' saltata dal
-		// `continue` qui sotto non riceverebbe mai il comando e resterebbe visibile.
-		Unit->SetKnownToObserver(bIsKnownToObserver);
-
-		// Sagoma dell'ultimo contatto (Task 6b, CP 13.5): SPENTA per default, e accesa SOLO per un
-		// ricordo (`Remembered`) di un nemico. Gira per OGNI unita' viva — prima del filtro sottostante —
-		// perche' spegnerla vale anche per chi quel filtro sta per saltare: un nemico senza voce nella vista
-		// (`Rejected`, ricordo scaduto) non ha nemmeno una sagoma, e resterebbe accesa dall'ultima volta se
-		// il `continue` la saltasse prima di arrivarci.
-		if (const TOptional<FRTContactGhostTarget> GhostTarget = ContactGhostTargetForUnit(Entry, bIsOwnTeam))
-		{
-			// `GhostTarget->Cell` e' quella del CONTATTO (Task 2), mai la posizione attuale dell'attore:
-			// `ContactGhostTargetForUnit` non riceve nemmeno `Unit`, quindi non puo' leggerla per sbaglio.
-			const int32 CurrentTurn = TurnManager ? TurnManager->GetTurnNumber() : 0;
-			Unit->UpdateContactGhost(HexCellWorld(GhostTarget->Cell, Origin, HexSize, LayerH),
-				GhostTarget->ContactTurn, CurrentTurn);
-		}
-		else
-		{
-			// Niente da ricordare: propria squadra, nemico `Live`, o nemico `Rejected`.
-			Unit->HideContactGhost();
-		}
-
 		// Filtro di conoscenza (CP 13.5): un'unita' avversaria si disegna solo se la squadra del giocatore
-		// la VEDE ORA (`Live`). Un ricordo (`Remembered`) non si disegna qui — lo disegna la sagoma qui
-		// sopra, alla cella del contatto: le due strade sono complementari, mai contemporanee.
-		// La propria squadra si disegna sempre.
-		if (!bIsKnownToObserver)
+		// la VEDE ORA (`Live`). Un ricordo (`Remembered`) non si disegna qui — lo disegna la sagoma
+		// dell'ultimo contatto, alla cella del contatto: le due strade sono complementari, mai
+		// contemporanee. La propria squadra si disegna sempre.
+		//
+		// 🔴 **Si LEGGE, non si ricalcola** (`#2246`). Il verdetto lo ha gia' preso `UpdateObserverVeil` in
+		// questo stesso fotogramma, interrogando `ShouldDrawUnitOverlay`: e' lo stesso che ha acceso o
+		// spento il modello. Ricostruire qui la vista di conoscenza darebbe una seconda risposta alla
+		// stessa domanda — e il giorno in cui le due divergessero, un'unita' verrebbe disegnata invisibile
+		// o nascosta con la sua barra sopra la testa.
+		if (!Unit->IsKnownToObserver())
 		{
 			continue;
 		}
