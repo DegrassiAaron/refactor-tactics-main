@@ -71,10 +71,11 @@ enum class ERTResolvedEventType : uint8
 	 * esisterebbero coppie **rappresentabili e impossibili** — un `StatusApplied` che porta `Revoked`. Il
 	 * verso si chiede a `URTTurnLogLibrary::IsStatusBirth`, che è l'unico posto che lo sa.
 	 *
-	 * ⚠️ **Nove cause, non due.** Nascite: `AppliedByAction`, `AppliedByTerrain`, `AppliedWhileOnCell`,
+	 * ⚠️ **Dieci cause, non due.** Nascite: `AppliedByAction`, `AppliedByTerrain`, `AppliedWhileOnCell`,
 	 * `AppliedInstantly`. Morti: `Revoked` (ha lasciato la cella), `Expired` (è finito il tempo),
-	 * `Extinguished` (l'acqua), `Cleansed` (un'azione), `Spent` (`Marked` incassato, `#1314`). Il TurnLog le
-	 * distingue già tutte, e questo evento le **trasporta** invece di ridurle.
+	 * `Extinguished` (l'acqua), `Cleansed` (un'azione), `Spent` (`Marked` incassato, `#1314`), `ShakenOff`
+	 * (la vittima ha pagato per rialzarsi, `#2253`). Il TurnLog le distingue già tutte, e questo evento le
+	 * **trasporta** invece di ridurle.
 	 *
 	 * 🔑 **Non è emesso dai nove siti che le producono, ma dall'unico punto in cui la voce di log viene
 	 * scritta** — `AppendLogEntry`, dove sta *«l'UNICO `TurnLog.Add` del file»*. Ne segue che uno stato

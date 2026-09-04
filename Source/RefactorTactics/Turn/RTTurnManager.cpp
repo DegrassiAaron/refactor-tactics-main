@@ -2785,9 +2785,11 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 	// il tag in `ActionId`, la durata in `Amount`, la causa in `Outcome` — quindi qui non si decide nulla:
 	// si COPIA.
 	//
-	// 🔑 **Perche' qui e non nei nove siti che producono le voci di stato.** Le cause sono nove, sparse su
+	// 🔑 **Perche' qui e non nei siti che producono le voci di stato.** Le cause sono dieci, sparse su
 	// due file (`Cleansed` vive in `RTTurnManager_Blast.cpp`), e una emissione per sito sarebbe una
-	// copertura da mantenere a mano: il primo a dimenticarla sarebbe il decimo outcome. Da questo punto
+	// copertura da mantenere a mano: il primo a dimenticarla sarebbe il decimo outcome. ⏱️ **E il decimo
+	// e' arrivato** (`ShakenOff`, `#2253`): questa riga lo ha previsto, e la copertura ha retto senza che
+	// nessuno la toccasse — che e' esattamente cio' che «per costruzione» significa. Da questo punto
 	// invece uno stato aggiunto domani e' coperto **per costruzione**, ed e' la stessa ragione per cui il
 	// gate di [D-278] itera l'enum vero invece di una lista scritta a mano.
 	//
