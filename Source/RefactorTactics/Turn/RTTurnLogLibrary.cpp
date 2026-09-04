@@ -397,6 +397,10 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// che nessuno ha tradotto: dodici turni di autobattle producevano solo righe «resta», e non si poteva
 		// sapere se fosse una scelta o un esito ignoto (#79, misurato il 2026-08-23).
 		case ERTMoveOutcome::Stayed:            Reason = TEXT("resta"); break;
+		// Il terreno l'ha portata OLTRE la destinazione (#2253). «scivola» e non «si muove»: la coppia
+		// `SrcCell -> TgtCell` che il ramo lungo stampa e' la stessa di `Moved`, e senza una parola diversa la
+		// riga direbbe che l'unita' e' andata dove voleva — che e' precisamente cio' che non e' successo.
+		case ERTMoveOutcome::Slid:              Reason = TEXT("scivola"); break;
 		// Un valore aggiunto in coda all'enum e non tradotto qui: si legge lo stesso e DICE di non essere
 		// tradotto, invece di travestirsi da «resta». Chi lo incontra sa dove guardare.
 		default:
@@ -412,8 +416,12 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// `SupersededByDash` sta QUI e non nel ramo breve: la sua ragione d'essere e' la destinazione mai
 		// raggiunta, e un rendering che stampa solo `SrcCell` la nasconde. La coppia descrive la rotta
 		// scartata, ed e' la stessa forma di `Moved` — cambia il motivo, non la geometria.
+		// `Slid` sta qui per la stessa ragione di `SupersededByDash`: cio' che la voce deve far vedere e' la
+		// DESTINAZIONE, che non e' quella pianificata. Stampare la sola `SrcCell` nasconderebbe l'unica cosa
+		// che distingue lo scivolamento da un movimento riuscito.
 		if (static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Moved
 			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Displaced
+			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Slid
 			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SupersededByDash)
 		{
 			return FString::Printf(TEXT("%s %s -> %s (%d celle)%s"),

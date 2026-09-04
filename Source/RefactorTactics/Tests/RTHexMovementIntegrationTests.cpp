@@ -531,6 +531,28 @@ bool FRTSprintConsumesSlotsTest::RunTest(const FString&)
 	return true;
 }
 
+namespace
+{
+/**
+ * Esito registrato nel TurnLog per il Move partito da `Partenza`, o `Stayed` se nessuna voce lo riguarda.
+ *
+ * ⚠️ Si filtra per la cella di PARTENZA e non per unita': `URTHexSimLibrary::BuildMoveLog` non popola
+ * `FRTTurnLogEntry::UnitId`, che resta al default `0` per ogni voce — filtrarci sopra selezionerebbe la
+ * prima voce qualunque, e la controprova sarebbe vacua. `SrcCell` invece lo scrive, ed e' nota al test.
+ */
+ERTMoveOutcome EsitoMoveNelLog(const ARTTurnManager* TM, const FRTCellId& Partenza)
+{
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Move && E.SrcCell == Partenza)
+		{
+			return static_cast<ERTMoveOutcome>(E.Outcome);
+		}
+	}
+	return ERTMoveOutcome::Stayed;
+}
+} // namespace
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIceSlidesInMatchTest,
 	"RefactorTactics.Terrain.Ice.SlidesInMatch",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -599,6 +621,13 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 		Mover->Health, StartHealth - 10 - URTCombatLibrary::BurningCleanupDamage);
 	TestTrue(TEXT("Burning applicato dalla cella scivolata"), Mover->HasStatus(TAG_Status_Burning));
 
+	// #2253: lo scivolamento e' un EVENTO, e il replay deve nominarlo. Prima di questa riga il log diceva
+	// `Moved` — «raggiunta la destinazione pianificata» — a un'unita' finita una cella oltre quella che il
+	// giocatore aveva scelto: una causa scritta, precisa e falsa. La posizione finale sopra e' gia' verificata,
+	// quindi questa asserzione non ripete quella: misura che il MOTIVO sia registrato.
+	TestEqual(TEXT("il TurnLog nomina la scivolata invece di dire `Moved`"),
+		static_cast<int32>(EsitoMoveNelLog(TM, FRTCellId(0, 0))), static_cast<int32>(ERTMoveOutcome::Slid));
+
 	// Controprova: stesso ghiaccio, budget residuo insufficiente. Arrivando a IceBudget-1 celle resta 1 MP,
 	// sotto la soglia di 2 -> nessuna scivolata. E' il BUDGET a muoverla, non la superficie da sola.
 	//
@@ -623,6 +652,12 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 	RunTurn(TM);
 
 	TestTrue(TEXT("budget residuo < 2: si ferma sul ghiaccio senza scivolare"), Mover->Cell == NoSlideTarget);
+
+	// La controprova vale anche per il log: senza scivolata l'esito resta quello di sempre. Senza questa
+	// riga un `Slid` scritto incondizionatamente passerebbe il caso positivo qui sopra e nessuno se ne
+	// accorgerebbe.
+	TestEqual(TEXT("senza scivolata l'esito resta `Moved`"),
+		static_cast<int32>(EsitoMoveNelLog(TM, FRTCellId(0, 0))), static_cast<int32>(ERTMoveOutcome::Moved));
 
 	DestroyHexMoveWorld(World);
 	return true;

@@ -551,7 +551,32 @@ enum class ERTMoveOutcome : uint8
 	 * rami sono disgiunti, e un'unita' che sta solo TRANSITANDO per la cella dell'altra chiude comunque il
 	 * ciclo: non si passa attraverso qualcuno che nello stesso istante sta venendo verso di noi.
 	 */
-	BlockedByCycle
+	BlockedByCycle,
+	/**
+	 * Andata OLTRE la destinazione pianificata perche' il terreno l'ha fatta scivolare (`FRTTerrainDef::
+	 * SlideCells`, oggi il solo `Ice`). Aggiunto in CODA, come i sei valori sopra: l'esito viaggia come
+	 * `uint8` nel formato serializzato, quindi le tracce gia' scritte non cambiano significato — e nessuno
+	 * scenario del corpus golden attraversa il ghiaccio, quindi non c'e' niente da rigenerare.
+	 *
+	 * **Perche' non riusa `Moved`.** Quello dice «raggiunta la destinazione pianificata», e qui e' falso in un
+	 * modo che nessun altro valore copre: l'unita' non si e' fermata prima: e' finita **una cella piu' in la'**
+	 * di dove il giocatore l'aveva mandata. Senza questo valore lo scivolamento e' l'unico evento del Move che
+	 * il replay non nomina, e ogni effetto che ne discendesse avrebbe una causa invisibile.
+	 *
+	 * **Perche' non riusa `Displaced`.** Quello e' lo spostamento SUBITO da una spinta, e il suo contratto lo
+	 * dice: chi ha spinto «si ricostruisce dal log stesso», cercando nello stesso Blast la voce `Combat` il cui
+	 * `TgtCell` coincide con il `SrcCell` di questa. Per uno scivolamento quella voce **non esiste** — e'
+	 * `ERTDisplacementCause::Environmental`, cioe' «nessuna sorgente» — e riusarlo manderebbe il lettore a
+	 * cercare un attaccante che non c'e'.
+	 *
+	 * ⚠️ **Si scrive sull'ESITO, non sull'intenzione.** Fra il momento in cui `ApplyIceSliding` allunga il
+	 * percorso e la fine del turno l'unita' puo' non arrivarci mai: collisione simultanea nel microstep, cella
+	 * contesa persa per priorita', `StoppedByOverwatch`, `StoppedByPrediction`. In tutti quei casi non e'
+	 * scivolata — si e' fermata prima — e il motivo giusto e' quello del resolver, che e' la spiegazione piu'
+	 * vicina a cio' che il giocatore ha visto. E' la stessa disciplina del commento di `BlockedByTopology`,
+	 * e per questo la condizione di scrittura confronta la cella FINALE con quella di scivolamento.
+	 */
+	Slid
 };
 
 /**
