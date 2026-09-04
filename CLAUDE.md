@@ -199,6 +199,17 @@ Quando il task richiede asset, mappe, Blueprint, PIE o altra verifica Editor-onl
 8. chiudi l'Editor avviato da questo workflow;
 9. verifica che il processo sia terminato.
 
+Il passo 1 è una misura, non una presunzione: la superficie MCP cambia con la sessione e con lo stato del ponte.
+
+⚠️ **Una risposta vuota non è un no.** Con l'Editor in play mode alcune query rispondono `[]` o `False`
+**senza errore**, e un elenco vuoto sembra una misura. Prima di dichiarare una capability assente — e di
+spostare il lavoro su una persona — ripeti la query fuori da PIE, con il ponte acceso. Se resta assente:
+`NOT RUN` con il motivo.
+
+Se un passo è eseguibile via MCP ma il suo oracolo resta umano, restano due cose distinte: MCP esegue, la
+persona giudica. Averlo eseguito non promuove il verdetto — la ripartizione è in
+[`docs/technical/tooling/scenario-map.md`](docs/technical/tooling/scenario-map.md), e non si riclassifica qui.
+
 Il cleanup vale anche su errore.
 
 Una sessione non deve lasciare un Editor da lei avviato disponibile indefinitamente: dopo l'uso lo rilascia chiudendolo, così la risorsa torna disponibile agli altri processi.
