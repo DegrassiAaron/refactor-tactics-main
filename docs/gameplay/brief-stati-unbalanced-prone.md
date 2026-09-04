@@ -200,15 +200,23 @@ una proprietà.
 «Scivolo e poi mi spingono» nello stesso turno non può accadere. L'avversario ha un turno per capitalizzare,
 la vittima un turno per lasciare il ghiaccio.
 
-## 7. Prerequisito — lo scivolamento non è ancora un evento
+## 7. ✅ Il prerequisito è soddisfatto — lo scivolamento è un evento
 
-`ERTMoveOutcome` non ha un valore per lo scivolamento. Un'unità che scivola arriva una cella oltre la
-destinazione pianificata e il TurnLog scrive **`Moved`**, che quel valore definisce come *«raggiunta la
-destinazione pianificata»*: falso.
+> ✅ **Chiuso il 2026-09-04.** `ERTMoveOutcome::Slid` è atterrato con
+> [#2258](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2258) e
+> `ERTMoveOutcome::SlideBlocked` con [#2290](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2290).
+> **La Fase 1 di [#2253](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2253) non è più
+> bloccata da questo punto.**
 
-Finché resta così, tutti gli effetti di questo brief discenderebbero da una causa che il replay non nomina.
-Un giocatore che perde Overwatch, predictive, guardia e un punto movimento vedrebbe, nella traccia,
-la parola *«Moved»*.
+Il problema era: un'unità che scivola arriva una cella oltre la destinazione pianificata e il TurnLog
+scriveva **`Moved`**, che quel valore definisce come *«raggiunta la destinazione pianificata»*: falso. Tutti
+gli effetti di questo brief sarebbero discesi da una causa che il replay non nominava — un giocatore che
+perde Overwatch, predictive, guardia e un punto movimento avrebbe letto, nella traccia, la parola
+*«Moved»*.
+
+Gli esiti sono **due** e non uno, perché lo scivolamento può anche essere **impedito**: chi arriva a
+destinazione senza scivolare non ha preso `Unbalanced`, e dopo `D-319` è una differenza di stato, non di
+rendering.
 
 > ⚠️ **E il valore che sembra adatto non lo è.** L'enum porta già `Displaced` — *«spostamento SUBITO, non
 > scelto»* (`#307`) — ma il suo commento ne dichiara il meccanismo di attribuzione: chi ha spinto *«si
@@ -218,11 +226,16 @@ la parola *«Moved»*.
 > attaccante che non c'è — cioè produrrebbe, per un evento reale, il sospetto di un difetto del resolver che
 > `#307` esiste proprio per rimuovere.
 
-> 📌 **Nessun effetto di questo brief va implementato prima di un valore proprio per lo scivolamento.**
-> Aggiunto **in coda** all'enum, dove stanno già `BlockedByTopology`, `StoppedByPrediction`, `Displaced`,
-> `DisplacementResisted`, `StoppedByOverwatch`, `SupersededByDash` e `BlockedByCycle`: l'esito viaggia come
-> `uint8` nel formato serializzato, quindi le tracce già scritte non cambiano significato. Sette valori prima
-> di questo portano lo stesso argomento — è una disciplina consolidata, non un'eccezione da negoziare.
+> ✅ **Entrambi aggiunti in coda all'enum**, dove stanno già `BlockedByTopology`, `StoppedByPrediction`,
+> `Displaced`, `DisplacementResisted`, `StoppedByOverwatch`, `SupersededByDash` e `BlockedByCycle`: l'esito
+> viaggia come `uint8` nel formato serializzato, quindi le tracce già scritte non cambiano significato.
+> ⚠️ Il corpus golden **è stato rigenerato** per `RT_Showcase_Relay_v01/turn-07`, che scivola: la prima
+> analisi diceva il contrario, avendo cercato `Ice` fra i `.rttl` — che sono le tracce, mentre la superficie
+> sta negli `Scenarios/*.json`.
+
+> 📌 **Resta un prerequisito, ma è un altro**: definire `Status.Unbalanced` e `Status.Prone` **rompe la
+> suite** finché non esistono le due texture, perché `RTIconCatalogTests` copre ogni tag sotto `Status.`
+> (§5). È il punto 9 di #2253.
 
 ## 8. Domande aperte
 

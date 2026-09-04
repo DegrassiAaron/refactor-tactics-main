@@ -79,6 +79,17 @@ namespace
 			// `SlideBlocked` e' «non e' successo qualcosa su cui contavi». Dopo [D-319] la differenza si vedra'
 			// nello stato dell'unita': uno dei due lascera' `Status.Unbalanced`, l'altro no. ⚠️ Al futuro: quella
 			// decisione e' accettata e non implementata, e `Status.Unbalanced` non esiste ancora in `Source/`.
+			// 🔴 **LIMITE DICHIARATO: nel feed `Slid` e `SlideBlocked` sono indistinguibili.** Producono lo
+			// stesso `Type`, la stessa `Importance` e lo stesso `ActionId`, e `FRTPlayerEvent` non ha un campo
+			// che li separi — il giocatore legge «si e' mosso» in entrambi i casi, mentre il replay li
+			// distingue. E' l'esatta distinzione che questa PR argomenta di dover registrare, e nel canale
+			// PIU' visibile non arriva. Separarli chiede un `ERTPlayerEventType` nuovo, cioe' toccare il
+			// vocabolario degli eventi: fuori dal perimetro di #2284, e da aprire quando `Status.Unbalanced`
+			// esistera' e la differenza sara' osservabile in partita.
+			//
+			// ⚠️ E `DominanceRank` da' `Moved` = 20 contro `MoveBlocked` = 40: questa riga e' piu' facilmente
+			// soppiantata di quanto non fosse quando portava il reason di blocco. Voluto — il movimento e'
+			// riuscito — ma e' una conseguenza da rivedere insieme al punto sopra.
 			case ERTMoveOutcome::SlideBlocked:
 				OutType = ERTPlayerEventType::Moved;
 				OutImportance = ERTPlayerEventImportance::Important;

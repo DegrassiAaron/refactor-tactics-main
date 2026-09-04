@@ -395,6 +395,14 @@ namespace
  * 2. la cella `From` si ATTRAVERSA da dove si e' arrivati a dove si va — la geometria interna di `#2100`,
  *    che il grafo non vede perche' guarda i bordi e non l'interno.
  *
+ * ⚠️ **DUE LIMITI, entrambi ereditati da `GraphNeighbors` e non chiusi qui.** Il suo ramo degli ARCHI
+ * espliciti controlla `FindCell` e `bBlocksMovement` ma **non** `BlocksTraversal`: una mappa che dichiara
+ * un arco attivo sopra un bordo con copertura alta lo rende comunque percorribile, e lo scivolamento
+ * passerebbe. E `CameFrom` non valido fa cadere la sola verifica intra-cella, cioe' fallisce APERTO: oggi
+ * il solo chiamante lo passa sempre valido — `ApplyIceSliding` ha gia' verificato layer e adiacenza — ma
+ * un secondo chiamante che scrivesse `FRTCellId()` non se ne accorgerebbe. Entrambi sono di
+ * `GraphNeighbors` e del suo contratto, non di questa funzione.
+ *
  * Esiste come funzione e non come due copie perche' la seconda era gia' stata dimenticata una volta: la
  * prima stesura di `#2284` chiedeva solo al grafo, e uno scivolamento attraversava i muri INTERNI dopo
  * averne appena chiuso il caso sui bordi.
@@ -698,36 +706,13 @@ TArray<FRTCellId> URTHexSimLibrary::TruncatePathToTopology(const FRTHexSnapshot&
 	Walkable.Add(Path[0]);
 	for (int32 k = 1; k < Path.Num(); ++k)
 	{
-		// Si CHIEDE AL GRAFO invece di rileggere i bordi: la regola su cosa separa due celle vive in un posto
-		// solo (`URTHexCoverLibrary::BlocksTraversal`, che `GraphNeighbors` gia' interroga), e riscriverla qui
-		// significherebbe due risposte alla stessa domanda, destinate a divergere.
-		bool bStepStillExists = false;
-		for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Snapshot.Map, Path[k - 1]))
+		// Stessa domanda dello scivolamento, stessa funzione (#2284): `StepIsWalkable` fa il controllo sul
+		// grafo e quello sulla traversata intra-cella, che qui erano due blocchi separati. Il predecessore
+		// esiste solo da `k >= 2`; al primo passo non c'e' traversata da validare, e la funzione lo gestisce.
+		const FRTCellId CameFrom = (k >= 2) ? Path[k - 2] : Path[k - 1];
+		if (!StepIsWalkable(Snapshot.Map, CameFrom, Path[k - 1], Path[k]))
 		{
-			if (Step.Key == Path[k])
-			{
-				bStepStillExists = true;
-				break;
-			}
-		}
-		if (!bStepStillExists)
-		{
-			break; // la topologia e' cambiata da quando il piano e' stato scritto: si ferma QUI
-		}
-
-		// 🔴 **La traversata intra-cella** (#2100). Qui il predecessore e il successore sono ENTRAMBI
-		// noti — si sta validando un percorso intero, non esplorando — quindi non serve nessuno stato:
-		// si chiede direttamente se `Path[k - 1]` si attraversa da dove si e' arrivati a dove si va.
-		if (k >= 2)
-		{
-			ERTHexDirection EntryDir = ERTHexDirection::E;
-			ERTHexDirection ExitDir = ERTHexDirection::E;
-			if (URTHexLibrary::DirectionBetween(Path[k - 1], Path[k - 2], EntryDir)
-				&& URTHexLibrary::DirectionBetween(Path[k - 1], Path[k], ExitDir)
-				&& !URTHexPathLibrary::CanTransitCell(Snapshot.Map, Path[k - 1], EntryDir, ExitDir))
-			{
-				break; // geometria interna: il piano attraversava un muro, e si ferma PRIMA di entrarci
-			}
+			break; // la topologia e' cambiata da quando il piano e' stato scritto, o il piano attraversava un muro
 		}
 
 		Walkable.Add(Path[k]);

@@ -6694,11 +6694,17 @@ void ARTTurnManager::ResolveMovement()
 		// (#2253). La cella di slide non e' pianificata dal giocatore: se la topologia toglie SOLO quella,
 		// l'unita' arriva esattamente dove aveva chiesto, e dirle «fermo: varco chiuso» sarebbe falso.
 		//
-		// ⚠️ **La giustificazione originale di questa riga e' stata invalidata da `#2284`**, che qui diceva
-		// «basta un bordo non attraversabile accanto al ghiaccio»: da quando `ApplyIceSliding` verifica la
-		// percorribilita' del passo, quel caso non produce piu' un'estensione da tagliare. Il confronto resta
-		// necessario per il caso che lo motivava davvero — una topologia che cambia DURANTE il turno, una
-		// porta chiusa nel Blast — dove il percorso e' stato esteso quando il varco era ancora aperto.
+		// ⚠️ **Oggi questo confronto e' EQUIVALENTE a quello con `Path.Num()` di prima del taglio, e va detto**
+		// (misurato in `#2284`, seconda review). `ApplyIceSliding` e `TruncatePathToTopology` leggono lo STESSO
+		// `Snapshot`, nella stessa iterazione, e da `#2284` fanno la STESSA domanda sulla percorribilita': la
+		// cella appena appesa non puo' quindi essere l'unica tagliata, e il caso che distingueva le due forme
+		// non e' piu' raggiungibile. Le due stesure precedenti di questo commento motivavano la riga con
+		// scenari che il codice rendeva impossibili — prima un bordo non attraversabile, poi una porta chiusa
+		// nel Blast, che pero' gira PRIMA di questa fase e quindi e' gia' dentro lo snapshot.
+		//
+		// Si tiene `LengthBeforeSlide` perche' e' la forma che dice cosa il GIOCATORE aveva pianificato, e
+		// resta vera se un domani lo slide potesse essere troncato da solo — non perche' oggi cambi un esito.
+		// E' difensivo, non necessario: dichiararlo evita che la prossima lettura ne deduca un caso che non c'e'.
 		Path = URTHexSimLibrary::TruncatePathToTopology(Snapshot, Path);
 		bStoppedByTopology[i] = Path.Num() < LengthBeforeSlide;
 
@@ -6821,13 +6827,21 @@ void ARTTurnManager::ResolveMovement()
 		// stata una bugia: quelle due dicono che qualcuno le ha SPARATO, e riscriverle come «arriva,
 		// scivolata impedita» avrebbe raccontato un movimento riuscito a un'unita' appena colpita.
 		//
-		// ⚠️ Un reason nuovo aggiunto in coda a `ERTMoveOutcome` **non** entra qui da solo, ed e' voluto:
-		// tacere e' il default sicuro, mentre assorbire per omissione avrebbe fatto sparire il caso nuovo.
+		// `BlockedByCycle` e' il quarto, e la sua assenza dalla prima stesura era il difetto stesso
+		// riaperto: se l'unita' sulla cella di scivolamento e' a sua volta in movimento verso quella di
+		// partenza, il rilevatore di cicli ferma entrambe con quel reason — non con `BlockedByUnit`, che
+		// dice «c'era un'unita' FERMA». Il caso e' lo stesso: la cella non raggiunta e' l'extra.
+		//
+		// ⚠️ **Un reason nuovo in coda all'enum non entra qui da solo**: e' un default sicuro sul piano della
+		// verita' — non si riscrive cio' che non si e' valutato — ma NON e' gratis, e questa lista ne e' la
+		// prova: e' nata gia' incompleta di uno. Chi aggiunge un reason di blocco al Move deve chiedersi se
+		// descrive «non sei entrato nella cella X»; se si', va aggiunto qui.
 		else if (bSlideRequested.IsValidIndex(i) && bSlideRequested[i]
 			&& Resolved[i].Final == PlannedLast[i]
 			&& (Resolved[i].Outcome == ERTMoveOutcome::BlockedByUnit
 				|| Resolved[i].Outcome == ERTMoveOutcome::BlockedContested
-				|| Resolved[i].Outcome == ERTMoveOutcome::BlockedByPriority))
+				|| Resolved[i].Outcome == ERTMoveOutcome::BlockedByPriority
+				|| Resolved[i].Outcome == ERTMoveOutcome::BlockedByCycle))
 		{
 			MoveLog[i].Outcome = static_cast<uint8>(ERTMoveOutcome::SlideBlocked);
 		}

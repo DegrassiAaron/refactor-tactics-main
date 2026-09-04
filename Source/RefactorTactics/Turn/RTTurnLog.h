@@ -584,8 +584,15 @@ enum class ERTMoveOutcome : uint8
 	Slid,
 	/**
 	 * Arrivata dove il giocatore l'aveva mandata, e il ghiaccio l'avrebbe portata OLTRE ma qualcosa l'ha
-	 * impedito: la cella di scivolamento era occupata da un'unita' ferma, contesa da un'altra mobilita', o
-	 * coperta da un Overwatch o da una Predictive (#2284). Aggiunto in CODA, come gli otto valori sopra.
+	 * impedito: la cella di scivolamento era **occupata** da un'unita' ferma, **contesa** da un'altra
+	 * mobilita', persa per **priorita'** dichiarata, o chiusa da un **ciclo** fra unita' in movimento
+	 * (#2284). Aggiunto in CODA, come gli otto valori sopra.
+	 *
+	 * ⛔ **Quattro reason, e non «ogni blocco».** Chi e' stato fermato da un `StoppedByOverwatch` o da uno
+	 * `StoppedByPrediction` **conserva il proprio** esito: quelli non dicono «la cella era presa», dicono
+	 * che qualcuno le ha SPARATO, e riscriverli come «arriva, scivolata impedita» racconterebbe un
+	 * movimento riuscito a un'unita' appena colpita. La lista vive nel chiamante, in `ResolveMovement`,
+	 * perche' e' li' che si sa quale fosse la destinazione pianificata.
 	 *
 	 * **Perche' non `Moved`, che sarebbe letteralmente vero.** Lo e' — la destinazione pianificata e' stata
 	 * raggiunta — ma dopo [D-319] «non sono scivolato» e' informazione di GIOCO e non una sfumatura di

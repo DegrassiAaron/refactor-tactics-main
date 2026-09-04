@@ -177,12 +177,15 @@ muovono normalmente.
 
 > ➕ **E lo scivolamento impedito ha un esito proprio**, dalla stessa issue. Il percorso esteso entra nel
 > resolver, che considera `Paths.Last()` la destinazione — ma quella cella **non è pianificata dal
-> giocatore**. Con lo slide impedito (cella occupata, contesa, Overwatch, Predictive)
+> giocatore**. Con lo slide impedito (cella occupata, contesa, persa per priorità, o chiusa da un ciclo)
 > `FinalizeHexMovementOutcomes` vedeva `Final != Paths.Last()` e registrava il reason del blocco: un'unità
 > arrivata **dove il giocatore l'aveva mandata** compariva nel replay come «fermo: cella occupata».
 > ⛔ **Il resolver non è stato toccato**: il suo contratto — *«dipende solo da `Final`/`Paths`, quindi
 > indipendente dall'ordine»* — è una proprietà da preservare, e chi conosce la destinazione vera è il
-> chiamante. Nasce così `ERTMoveOutcome::SlideBlocked`, distinto da `Moved` perché dopo
+> chiamante, che assorbe **quattro** reason di blocco e non «ogni blocco»: chi è stato fermato da un
+> `StoppedByOverwatch` o da uno `StoppedByPrediction` **conserva il proprio**, perché quelli non dicono «la
+> cella era presa» ma che qualcuno le ha sparato. Nasce così `ERTMoveOutcome::SlideBlocked`, distinto da
+> `Moved` perché dopo
 > [`D-319`](../decisions/RT_PDR_00_Decision_Log.md) *«non sono scivolato»* è informazione di gioco: chi
 > scivolerà riceverà `Status.Unbalanced` e chi non scivola no.
 > ⚠️ **Al futuro, e va letto così**: `D-319` è **accettata e non implementata** — `Status.Unbalanced` non

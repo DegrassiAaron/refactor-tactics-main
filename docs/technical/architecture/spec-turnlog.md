@@ -404,7 +404,10 @@ coda** a un enum già serializzato come `uint8`.
 UENUM(BlueprintType) enum class ERTMoveOutcome : uint8 {
     /* … valori esistenti, invariati … */
     Displaced,            // spostamento SUBITO: spinta o trazione, non scelto da chi lo subisce
-    DisplacementResisted  // spostamento forzato ANNULLATO: la spinta c'è stata, l'unità è rimasta (#420)
+    DisplacementResisted, // spostamento forzato ANNULLATO: la spinta c'è stata, l'unità è rimasta (#420)
+    /* … */
+    Slid,                 // il terreno ha portato l'unità OLTRE la destinazione pianificata (#2253)
+    SlideBlocked          // è arrivata a destinazione, e lo scivolamento è stato impedito (#2284)
 };
 ```
 
@@ -415,6 +418,8 @@ UENUM(BlueprintType) enum class ERTMoveOutcome : uint8 {
 | Spinta / trazione | `Category=Move`, `Phase=Blast`, **`Outcome=Displaced`**, `ActionId` = l'azione che l'ha causata |
 | Reazione | *nessun produttore in v0.1* — nessuna reazione del catalogo dichiara `Push`/`Pull`. Quando esisterà, userà lo stesso campo |
 | Spinta **annullata** | `Category=Move`, `Phase=Blast`, **`Outcome=DisplacementResisted`**, `SrcCell == TgtCell`, e il **perché** in `Amount` — vedi sotto |
+| **Scivolamento** | `Category=Move`, `Phase=Move`, **`Outcome=Slid`**, `ActionId=Action.Move`, `TgtCell` = la cella **oltre** quella pianificata: il terreno ha portato l'unità più in là di dove il giocatore l'aveva mandata ([#2253](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2253)) |
+| **Scivolamento impedito** | `Category=Move`, `Phase=Move`, **`Outcome=SlideBlocked`**, `TgtCell` = la destinazione **pianificata**, che è stata raggiunta: il terreno avrebbe portato oltre, e qualcosa l'ha impedito ([#2284](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2284)). ⛔ Sostituisce **quattro** reason di blocco — `BlockedByUnit`, `BlockedContested`, `BlockedByPriority`, `BlockedByCycle` — e **non** `StoppedByOverwatch`/`StoppedByPrediction`, che conservano il proprio: quelli non dicono «la cella era presa» ma che qualcuno ha sparato |
 | Movimento **superato dallo scatto** | `Category=Move`, **`Phase=Dash`**, **`Outcome=SupersededByDash`**, `ActionId=Action.Move`, `TgtCell` = la destinazione **mai raggiunta** — vedi sotto |
 
 ### Il movimento che lo scatto ha superato ([D-194](../../decisions/RT_PDR_00_Decision_Log.md), CP 38.2)

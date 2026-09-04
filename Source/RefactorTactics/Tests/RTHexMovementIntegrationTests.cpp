@@ -607,6 +607,17 @@ bool FRTIceStoppedShortKeepsResolverReasonTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Blocker) { DestroyHexMoveWorld(World); return false; }
 
+	// PREMESSA MISURATA, e qui vale doppio: se il budget non consentisse lo scivolamento, `bSlideRequested`
+	// sarebbe falso, la guardia non verrebbe MAI raggiunta e questo test passerebbe **vacuamente** —
+	// continuando a dichiarare, nel proprio docblock, di essere l'unico che cade se la guardia sparisce.
+	// Il percorso costa 3, e lo slide chiede un residuo >= 2.
+	if (!TestTrue(TEXT("premessa: il budget consente lo scivolamento, quindi la guardia viene raggiunta"),
+		Mover->GetEffectiveMoveRange() >= 5))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
 	// Il percorso e' scritto A MANO, come fa `Terrain.Fire.DamagesAndBurnsOnEnter` e per la stessa ragione:
 	// con `PlannedCell` l'A* aggira l'ostacolo, il mover arriva sul ghiaccio e SCIVOLA. Misurato — la prima
 	// stesura di questo test falliva con «atteso 3, trovato 13» (`Slid`), e la premessa era passata lo stesso
