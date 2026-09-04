@@ -2117,7 +2117,7 @@ sessions:
     artifacts: []
     unblocked_by: []
     shares_setup_with: []
-    verifies: []
+    verifies: [PIE-TD-PRESENT, PIE-TD-DOCK, PIE-TD-CLEAN]
     # ⚠️ Nessuna voce `PIE-*`: questa seduta NON entra in PIE. Tutto ciò che verifica sta nell'editor prima
     # del Play — un tab che compare e un livello che non diventa dirty — e il registro `test-manuali-pie.md`
     # è dei comportamenti in gioco. Metterla lì la renderebbe introvabile a chi cerca una verifica di PIE.
@@ -2198,7 +2198,7 @@ sessions:
     # questa guarda cosa c'e' dentro. Sono la stessa mappa, lo stesso avvio e lo stesso binario: separarle in
     # due sedute significherebbe aprire l'editor due volte per due meta' della stessa schermata.
     shares_setup_with: [U31]
-    verifies: []
+    verifies: [PIE-TD-SELECTION, PIE-TD-FILTERS, PIE-TD-CLEAN]
     # ⚠️ Nessuna voce `PIE-*`: come `U31`, questa seduta NON entra in PIE. Tutto cio' che verifica sta
     # nell'editor prima del Play.
     issues: [1705]
