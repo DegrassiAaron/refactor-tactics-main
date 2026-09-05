@@ -195,6 +195,27 @@ dall'esterno. Perché una porta si chiuda *durante* il turno serve un vettore in
 **Decisione**: un **effetto dichiarato**, `ERTActionEffect::SetDoorState`, raccolto nel Blast e applicato a
 fase conclusa — la stessa forma che CP 9.2 ha dato a `DamageStructure`.
 
+> ⏱️ **Aggiornamento del 2026-09-05 — l'effetto sono DUE** ([D-331](../decisions/RT_PDR_00_Decision_Log.md),
+> `#2380`, chiude `INT-7`). Accanto a `SetDoorState`, che dichiara uno stato ASSOLUTO, esiste
+> `ERTActionEffect::ToggleDoorState`, che porta la porta allo stato **opposto** su `Open ↔ Closed`, ed è quello
+> che `Action.Interact` dichiara da oggi. Tre righe che chi tocca questo sottosistema deve avere in mano:
+>
+> 1. 🔴 **Il bersaglio si risolve UNA VOLTA, dallo stato pre-Blast**, in `URTHexCombatLibrary::CollectHexAttacks`
+>    — pre-Blast *per costruzione*, perché ogni mutazione avviene in `ApplyEnvironmentChanges`, a colpi risolti.
+>    Da lì in poi tutto ciò che sta a valle porta di nuovo uno stato **assoluto**: `FRTDoorOp`, `ApplyDoorOps`,
+>    `SetDoorState` e il TurnLog non sanno che qualcuno abbia commutato. Risolvendolo per-operazione due
+>    commutazioni si annullerebbero e l'ordine tornerebbe a decidere, contro l'invariante #3.
+> 2. ⛔ **`Locked` e `Destroyed` non commutano**: sono **rifiuti** con reason code distinti
+>    (`ERTActionInvalidReason::DoorLocked` / `DoorDestroyed`), in traccia. È così che il buco `Locked → Closed`
+>    resta chiuso **senza toccare `CanTransition`** — la stessa tecnica di [D-151], applicata al verso nuovo.
+> 3. ⚠️ **Lo stato di TRAVERSATA non è lo stato della porta.** `DoorBetween` usa `Restriction`, dove
+>    `Destroyed` vale **zero come `Open`**: giusto per chi ci deve passare, sbagliato per chi deve sapere cosa
+>    c'è. Chi legge una porta per commutarla legge quella **dichiarata**, o il rifiuto su `Destroyed` sparisce
+>    dentro `CanTransition` senza lasciare una voce.
+>
+> ⛔ Il **grafo di interazione remota** (`CP 23.4`) NON commuta e continua a chiedere `Open`: una sorgente
+> comanda N bersagli che possono divergere, ed è la sotto-domanda con cui `INT-7` era nata.
+
 - **Non** è un'azione nuova nel catalogo: l'azione di gioco che apre e chiude porte è CP 10.1
   (`Action.Interact` — una sola, dopo `#199` e [D-134](../decisions/RT_PDR_00_Decision_Log.md); test
   `Objectives.ActivateDoorChangesGraph`). Anticiparla qui sarebbe scope creep, e andrebbe bilanciata
@@ -258,8 +279,13 @@ esiti si aggiungono **in coda** a `ERTEnvironmentOutcome`:
 2. **Nessuna azione di catalogo apre o chiude porte.** C'è l'effetto dichiarato; l'azione è CP 10.1.
    Conseguenza: in partita oggi solo un'abilità a cui l'effetto viene aggiunto esplicitamente può agire su una
    porta.
+   > ⏱️ **Scaduto due volte.** Dal 2026-08-16 `Action.Interact` dichiara l'effetto ([D-148]/[D-151]) e apre;
+   > dal 2026-09-05 lo **commuta** ([D-331]), quindi apre **e chiude**. La riga resta come storia del
+   > checkpoint, non come stato del codice.
 3. **`Locked` non ha ancora chi la sblocchi.** `SetDoorState` rifiuta `Locked → Open` per costruzione;
    l'apertura autorizzata (chiave, consolle, obiettivo) è CP 10.1.
+   > ⏱️ **Ancora vero il 2026-09-05, e ora è anche DETTO al giocatore**: un `Interact` su una `Locked` produce
+   > un rifiuto con reason code `DoorLocked` invece di non fare niente in silenzio ([D-331]).
 4. **Le porte non hanno integrità.** `Destroyed` è uno stato raggiungibile solo per comando esplicito: il danno
    strutturale che le abbatta è fuori dal perimetro di questo checkpoint (le coperture ce l'hanno da CP 9.2).
 5. **Il gruppo `DoorId` non è disegnabile.** Il dato lo prevede e i test lo esercitano, ma nessuno strumento lo

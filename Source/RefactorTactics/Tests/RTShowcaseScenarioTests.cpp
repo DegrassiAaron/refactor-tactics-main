@@ -2118,6 +2118,7 @@ bool FRTShowcaseStateHashPerTurnTest::RunTest(const FString&)
 	// confronto qui sotto sarebbe verde e non direbbe niente. Si raccolgono e si conta quanti valori
 	// DISTINTI producono.
 	TSet<uint32> Distinti;
+	TArray<uint32> PerTurno;
 
 	for (int32 K = 1; K <= Scenario.Turns.Num(); ++K)
 	{
@@ -2151,13 +2152,44 @@ bool FRTShowcaseStateHashPerTurnTest::RunTest(const FString&)
 		TestEqual(FString::Printf(TEXT("turno %d: stesso StateHash (%08x vs %08x)"),
 			K, Rovescio.StateHash, Diritto.StateHash), Rovescio.StateHash, Diritto.StateHash);
 
+		AddInfo(FString::Printf(TEXT("turno %d: StateHash %08x"), K, Diritto.StateHash));
 		Distinti.Add(Diritto.StateHash);
+		PerTurno.Add(Diritto.StateHash);
 	}
 
-	// Otto turni che cambiano lo stato producono otto hash diversi. Se ne producessero uno solo, gli otto
-	// confronti sopra sarebbero l'uguaglianza di una costante con se' stessa.
+	// ✅ **OTTO valori distinti su otto turni, e il `7` che stava qui e' caduto come previsto** — `D-333`,
+	// `#2366`.
+	//
+	// Questa riga ha avuto tre stati, e vale la pena leggerli in fila perche' due erano verdi per motivi
+	// diversi. Asseriva **otto** e passava, ma per il motivo sbagliato: nel digest c'era `Energy`, che
+	// cresceva a ogni Cleanup e faceva da marca temporale — ogni turno distinto **qualunque cosa accadesse**.
+	// `D-324` l'ha rimossa e il conteggio e' sceso a **sette**: T1 e T2 collidevano, perche' il T2 e' il
+	// *whiff* — Wraith arma `InterceptShot` su una cella che nessuno attraversa — e nessuno dei sette campi
+	// di allora cambiava. `#610` ha pinnato quel `7` come **segnalibro**, dichiarando che sarebbe caduto.
+	//
+	// ✅ Ora il digest porta i cooldown: il `Cooldown 2` che il whiff paga — *«la meta' del costo che rende
+	// il whiff una scelta»*, dice il catalogo eroi — e' finalmente stato che il checksum vede, e i due turni
+	// si separano.
+	//
+	// ⚠️ **Otto e' di nuovo il valore atteso, ma non e' lo stesso otto di prima.** Il primo lo produceva un
+	// contatore che cresceva da solo; questo lo producono otto turni che cambiano davvero.
 	TestEqual(TEXT("e gli otto stati sono DISTINTI: l'hash non e' una costante travestita"),
 		Distinti.Num(), Scenario.Turns.Num());
+
+	// 🔴 **T1 e T2 SEPARATI, ed e' il caso che pinna la correzione di `#2366`.**
+	//
+	// Era l'assertion opposta: `TestEqual(PerTurno[0], PerTurno[1])`, che pinnava la collisione nota. Il
+	// conteggio a otto qui sopra non basterebbe da solo a dire che sono proprio QUESTI due a essersi
+	// separati, e sono l'unica coppia che il difetto faceva coincidere.
+	//
+	// ⚠️ Nessuna guardia `if (PerTurno.Num() >= 2)`: un salto silenzioso toglierebbe di mezzo l'assertion
+	// piu' stretta senza dirlo.
+	if (!TestEqual(TEXT("premessa: un hash per turno"), PerTurno.Num(), Scenario.Turns.Num()))
+	{
+		return false;
+	}
+	TestNotEqual(TEXT("T1 e T2 non collidono piu': il cooldown del whiff entra nel digest"),
+		PerTurno[0], PerTurno[1]);
 
 	return true;
 }

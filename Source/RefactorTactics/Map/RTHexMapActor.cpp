@@ -896,7 +896,7 @@ void ARTHexMapActor::BindToMapAsset()
 	UnbindFromMapAsset();
 	if (MapAsset)
 	{
-		MapChangedHandle = MapAsset->OnMapChanged.AddUObject(this, &ARTHexMapActor::RebuildInstances);
+		MapChangedHandle = MapAsset->OnMapChanged.AddUObject(this, &ARTHexMapActor::RebuildAllForAssetChange);
 		BoundAsset = MapAsset;
 	}
 }
@@ -1247,12 +1247,22 @@ bool ARTHexMapActor::PassesLayerFilter(int32 Layer) const
 	return LayerView == ERTLayerViewMode::AllLayers || Layer == ActiveLayer;
 }
 
-void ARTHexMapActor::RebuildInstances()
+void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 {
 	if (!Cells)
 	{
 		return;
 	}
+
+	// Cio' che non e' nella maschera non viene ne' pulito ne' riempito: i suoi array paralleli restano
+	// coerenti perche' nessuno li tocca. E' la ragione per cui la granularita' e' la famiglia (`#1865`).
+	const bool bDoCells   = EnumHasAnyFlags(Families, ERTRebuildFamily::Cells);
+	const bool bDoGlyphs  = EnumHasAnyFlags(Families, ERTRebuildFamily::Glyphs);
+	const bool bDoRelief  = EnumHasAnyFlags(Families, ERTRebuildFamily::Relief);
+	const bool bDoBlock   = EnumHasAnyFlags(Families, ERTRebuildFamily::Blockers);
+	const bool bDoEdges   = EnumHasAnyFlags(Families, ERTRebuildFamily::EdgeFeatures);
+	const bool bDoBorders = EnumHasAnyFlags(Families, ERTRebuildFamily::Borders);
+	const bool bDoBodies  = EnumHasAnyFlags(Families, ERTRebuildFamily::Bodies);
 
 	// Mesh configurabile con fallback. Il fallback e' il prisma esagonale generato, NON piu' il cilindro
 	// engine: quello restava un disco, ed e' il difetto che `U22` ha visto a schermo. `CellMesh` continua a
@@ -1283,36 +1293,57 @@ void ARTHexMapActor::RebuildInstances()
 		Cells->SetMaterial(0, Mat);
 	}
 
-	Cells->ClearInstances();
-	InstanceCells.Reset();
-	InstanceBaseScale.Reset();
-	// Lo stato del velo si azzera con gli indici a cui si riferisce: sopravvivergli significherebbe saltare
-	// istanze che nel frattempo sono diventate altre celle.
-	LastVeilState.Reset();
-	for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring)
+	// ⚠️ **Ogni azzeramento sta con la sua famiglia**, e non piu' tutti insieme: una famiglia fuori dalla
+	// maschera conserva istanze E array paralleli, che restano allineati fra loro perche' nessuno li tocca.
+	// Separarli e' cio' che rende sicura la ricostruzione parziale.
+	if (bDoCells)
 	{
-		GlyphCells[Ring].Reset();
-		GlyphBaseScale[Ring].Reset();
-		LastGlyphVeilState[Ring].Reset();
+		Cells->ClearInstances();
+		InstanceCells.Reset();
+		InstanceBaseScale.Reset();
+		// Lo stato del velo si azzera con gli indici a cui si riferisce: sopravvivergli significherebbe saltare
+		// istanze che nel frattempo sono diventate altre celle.
+		LastVeilState.Reset();
 	}
-	ReliefCells.Reset();
-	ReliefBaseScale.Reset();
-	LastReliefVeilState.Reset();
-	BlockerCells.Reset();
-	BlockerBaseScale.Reset();
-	LastBlockerVeilState.Reset();
-	EdgeFeatureCells.Reset();
-	EdgeFeatureBaseScale.Reset();
-	LastEdgeFeatureVeilState.Reset();
-	BorderCells.Reset();
-	BorderBaseScale.Reset();
-	LastBorderVeilState.Reset();
+	if (bDoGlyphs)
+	{
+		for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring)
+		{
+			GlyphCells[Ring].Reset();
+			GlyphBaseScale[Ring].Reset();
+			LastGlyphVeilState[Ring].Reset();
+		}
+	}
+	if (bDoRelief)
+	{
+		ReliefCells.Reset();
+		ReliefBaseScale.Reset();
+		LastReliefVeilState.Reset();
+	}
+	if (bDoBlock)
+	{
+		BlockerCells.Reset();
+		BlockerBaseScale.Reset();
+		LastBlockerVeilState.Reset();
+	}
+	if (bDoEdges)
+	{
+		EdgeFeatureCells.Reset();
+		EdgeFeatureBaseScale.Reset();
+		LastEdgeFeatureVeilState.Reset();
+	}
+	if (bDoBorders)
+	{
+		BorderCells.Reset();
+		BorderBaseScale.Reset();
+		LastBorderVeilState.Reset();
+	}
 
 	// I glifi si ricostruiscono con le celle: `RebuildInstances` gira a ogni pennellata, e istanze vecchie
 	// resterebbero appese a superfici che nel frattempo sono cambiate.
 	for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring)
 	{
-		if (!SurfaceGlyphs[Ring]) { continue; }
+		if (!bDoGlyphs || !SurfaceGlyphs[Ring]) { continue; }
 		SurfaceGlyphs[Ring]->ClearInstances();
 		if (UStaticMesh* GlyphMesh = GetCellGlyphMesh(Ring + 1))
 		{
@@ -1332,17 +1363,17 @@ void ARTHexMapActor::RebuildInstances()
 	bUnreachableDirty = true;
 	// Rilievo e blocchi seguono la stessa forma delle celle: sono volumi annidati DENTRO l'esagono
 	// (`RTVolumeRelief`, `RTVolumeBlocker`), e un cilindro dentro un prisma si vedrebbe sporgere agli spigoli.
-	if (Relief)
+	if (bDoRelief && Relief)
 	{
 		if (CellShape != nullptr) { Relief->SetStaticMesh(CellShape); }
 		Relief->ClearInstances();
 	}
-	if (Blockers)
+	if (bDoBlock && Blockers)
 	{
 		if (CellShape != nullptr) { Blockers->SetStaticMesh(CellShape); }
 		Blockers->ClearInstances();
 	}
-	if (StructuralBodies)
+	if (bDoBodies && StructuralBodies)
 	{
 		// La NONA famiglia. Sta nell'elenco perche' l'ottava — `KnowledgeVolumes` — ci e' finita solo dopo
 		// aver lasciato prismi appesi su una board che non esisteva piu' (`#2222`): un componente che non si
@@ -1350,7 +1381,7 @@ void ARTHexMapActor::RebuildInstances()
 		if (CellShape != nullptr) { StructuralBodies->SetStaticMesh(CellShape); }
 		StructuralBodies->ClearInstances();
 	}
-	if (EdgeFeatures)
+	if (bDoEdges && EdgeFeatures)
 	{
 		// La mesh dei bordi NON segue `CellMesh`: quella e' la mesh della cella, e un pannello non e' una cella.
 		EdgeFeatures->ClearInstances();
@@ -1358,7 +1389,7 @@ void ARTHexMapActor::RebuildInstances()
 
 	// La griglia: mesh propria e generata, come i glifi. NON segue `CellMesh` — quella e' il pieno della
 	// cella, e un contorno non e' un pieno.
-	if (CellBorders)
+	if (bDoBorders && CellBorders)
 	{
 		CellBorders->ClearInstances();
 		if (UStaticMesh* BorderMesh = GetCellBorderMesh())
@@ -1464,33 +1495,39 @@ void ARTHexMapActor::RebuildInstances()
 		FVector World = URTHexLibrary::AxialToWorld(CellIds[I], GetActorLocation(), UseHexSize, UseLayerH);
 		World.Z += static_cast<double>(Heights[I]);
 		const FTransform Xf(FRotator::ZeroRotator, World, FVector(PlanarScale, PlanarScale, FlatScale));
-		const int32 InstanceIndex = Cells->AddInstance(Xf, /*bWorldSpace=*/ true);
-		InstanceCells.Add(CellIds[I]);
-		// La scala piena si registra QUI, dove la si conosce: il velo nasconde azzerandola, e da uno zero non
-		// si torna indietro ([D-227]).
-		InstanceBaseScale.Add(Xf.GetScale3D());
+		// Il pavimento si posa solo se la sua famiglia e' richiesta: `InstanceIndex` e le custom data
+		// vivono qui dentro, e senza la posa non avrebbero un'istanza a cui riferirsi.
+		if (bDoCells)
+		{
+			const int32 InstanceIndex = Cells->AddInstance(Xf, /*bWorldSpace=*/ true);
+			InstanceCells.Add(CellIds[I]);
+			// La scala piena si registra QUI, dove la si conosce: il velo nasconde azzerandola, e da uno zero non
+			// si torna indietro ([D-227]).
+			InstanceBaseScale.Add(Xf.GetScale3D());
 
-		// Colore della superficie, per ISTANZA. La tavolozza e' `URTHexLibrary::SurfaceColor` — la stessa che
-		// disegna l'anello dell'overlay e il marker dell'editor: una cella non puo' avere due colori a seconda
-		// di chi la guarda.
-		// ⚠️ `SurfaceColor` restituisce un `FColor` sRGB a 8 bit, il materiale legge **lineare** — sul canale
-		// **Emissive** di `M_HexCell`, non sul Base Color come questo commento ha dichiarato fino al 2026-08-23.
-		// `FromSRGBColor` fa la conversione; dividere per 255 darebbe tinte slavate, e lo sbaglio si vedrebbe
-		// solo mettendo la mesh accanto al proprio anello.
-		const FLinearColor CellColor = FLinearColor::FromSRGBColor(URTHexLibrary::SurfaceColor(Surfaces[I]));
-		Cells->SetCustomDataValue(InstanceIndex, 0, CellColor.R);
-		Cells->SetCustomDataValue(InstanceIndex, 1, CellColor.G);
-		// Il render state si marca una volta sola, sull'ultima istanza: farlo a ogni canale ricostruirebbe il
-		// buffer 3N volte, e `RebuildInstances` gira a ogni OnClickDrag del pennello.
-		Cells->SetCustomDataValue(InstanceIndex, 2, CellColor.B,
-			/*bMarkRenderStateDirty=*/ I == CellIds.Num() - 1);
+			// Colore della superficie, per ISTANZA. La tavolozza e' `URTHexLibrary::SurfaceColor` — la stessa che
+			// disegna l'anello dell'overlay e il marker dell'editor: una cella non puo' avere due colori a seconda
+			// di chi la guarda.
+			// ⚠️ `SurfaceColor` restituisce un `FColor` sRGB a 8 bit, il materiale legge **lineare** — sul canale
+			// **Emissive** di `M_HexCell`, non sul Base Color come questo commento ha dichiarato fino al 2026-08-23.
+			// `FromSRGBColor` fa la conversione; dividere per 255 darebbe tinte slavate, e lo sbaglio si vedrebbe
+			// solo mettendo la mesh accanto al proprio anello.
+			const FLinearColor CellColor = FLinearColor::FromSRGBColor(URTHexLibrary::SurfaceColor(Surfaces[I]));
+			Cells->SetCustomDataValue(InstanceIndex, 0, CellColor.R);
+			Cells->SetCustomDataValue(InstanceIndex, 1, CellColor.G);
+			// Il render state si marca una volta sola, sull'ultima istanza: farlo a ogni canale ricostruirebbe il
+			// buffer 3N volte, e `RebuildInstances` gira a ogni OnClickDrag del pennello.
+			Cells->SetCustomDataValue(InstanceIndex, 2, CellColor.B,
+				/*bMarkRenderStateDirty=*/ I == CellIds.Num() - 1);
 
-		// ── La GRIGLIA (#1758): il canale che dice DOVE FINISCE la cella ───────────────────────────────
-		//
-		// Una per cella, sempre: a differenza del glifo — che cinque superfici su nove non ricevono — il
-		// confine non dipende dal terreno. Una griglia che saltasse le celle senza segno lascerebbe buchi
-		// proprio sul pavimento, che e' la superficie piu' diffusa della board.
-		if (CellBorders)
+			// ── La GRIGLIA (#1758): il canale che dice DOVE FINISCE la cella ───────────────────────────────
+			//
+			// Una per cella, sempre: a differenza del glifo — che cinque superfici su nove non ricevono — il
+			// confine non dipende dal terreno. Una griglia che saltasse le celle senza segno lascerebbe buchi
+			// proprio sul pavimento, che e' la superficie piu' diffusa della board.
+		}
+
+		if (bDoBorders && CellBorders)
 		{
 			// ⚠️ La scala e' `PlanarScale` e NON `UseHexSize / 50.f`, ed e' l'opposto della scelta fatta per
 			// il glifo tre righe piu' sotto: quello porta il `0.95` DENTRO la propria mesh, questo lo vuole
@@ -1521,7 +1558,7 @@ void ARTHexMapActor::RebuildInstances()
 		// Cinque superfici su nove non ne ricevono uno, ed e' una scelta dichiarata: `SurfaceRingCount`
 		// restituisce zero e qui non si monta niente.
 		const int32 Rings = URTHexLibrary::SurfaceRingCount(Surfaces[I]);
-		if (Rings > 0 && Rings <= RTGlyphMaxRings && SurfaceGlyphs[Rings - 1])
+		if (bDoGlyphs && Rings > 0 && Rings <= RTGlyphMaxRings && SurfaceGlyphs[Rings - 1])
 		{
 			// La scala NON include il fattore 0.95 di `PlanarScale`: la mesh se lo porta gia' dentro
 			// (`RTGlyphOuterScale`), e applicarlo due volte stringerebbe il segno del 10% senza che nessun
@@ -1555,7 +1592,7 @@ void ARTHexMapActor::RebuildInstances()
 		// Rilievo del costo: un blocco alto quanto il SOVRAPPREZZO della cella. Il pavimento non ne produce
 		// nessuno — una mappa senza terreni costosi resta piatta, ed e' giusto: non c'e' niente da segnalare.
 		const float ReliefHeight = URTHexLibrary::ReliefHeightForCost(MoveCosts[I]);
-		if (Relief && ReliefHeight > 0.f)
+		if (bDoRelief && Relief && ReliefHeight > 0.f)
 		{
 			// Poggia sulla faccia del disco e cresce verso l'alto; il cilindro engine e' CENTRATO, quindi il
 			// suo centro sta a meta' altezza. Piu' stretto della cella (0.6) per non coprire il contorno
@@ -1575,7 +1612,7 @@ void ARTHexMapActor::RebuildInstances()
 		// quest'ultimo caso si vedono tutte e due — la lastra larga e bassa attorno alla colonna stretta e
 		// alta. Confonderle e' l'errore piu' frequente su questa mappa: una cella che blocca la vista si
 		// ATTRAVERSA, ed e' cio' che serve a una rotta coperta ma percorribile.
-		if (Blockers)
+		if (bDoBlock && Blockers)
 		{
 			auto AddVolume = [&](float PlanarFraction, float VolumeHeight)
 			{
@@ -1697,7 +1734,7 @@ void ARTHexMapActor::RebuildInstances()
 	//
 	// ⛔ **Rispetta il filtro dei piani** come le celle: un corpo che restasse visibile in `ActiveOnly`
 	// mostrerebbe il volume di un piano che l'editor ha nascosto.
-	if (StructuralBodies && MapAsset != nullptr && CellShape != nullptr)
+	if (bDoBodies && StructuralBodies && MapAsset != nullptr && CellShape != nullptr)
 	{
 		const FVector ActorOrigin = GetActorLocation();
 		for (const FRTStructuralBody& Body : URTStructuralBodyLibrary::DeriveBodies(MapAsset))
@@ -1715,6 +1752,35 @@ void ARTHexMapActor::RebuildInstances()
 			StructuralBodies->AddInstance(
 				FTransform(FRotator::ZeroRotator, Posizione, FVector(PlanarScale, PlanarScale, AltezzaZ)),
 				/*bWorldSpace=*/ true);
+		}
+	}
+
+	// ➕ **IL COSTO DELLA RICOSTRUZIONE, reso leggibile** (`#1865`, punto 3).
+	//
+	// 🔑 Oggi «create» e «totali» coincidono, perche' questa funzione azzera ogni famiglia e le rifa' da
+	// capo: e' precisamente il difetto che l'AC descrive — *«il numero di istanze ricreate deve essere
+	// proporzionale alla modifica, non alla mappa»* — e senza questo numero non era falsificabile.
+	//
+	// ⚠️ **Chi rendera' incrementale la ricostruzione dovra' cambiare COME si conta**, non solo dove: un
+	// rebuild parziale crea poche istanze e ne aggiorna molte, e sommare i totali continuerebbe a
+	// rispondere «tutta la board» nascondendo l'ottimizzazione appena fatta. La somma qui sotto vale
+	// finche' il rebuild e' totale, ed e' vera oggi.
+	{
+		// 🔑 **Si contano SOLO le famiglie richieste**, ed e' il cambiamento che il commento precedente
+		// annunciava: *«chi rendera' incrementale la ricostruzione dovra' cambiare COME si conta»*. Sommare
+		// i totali di tutte le famiglie continuerebbe a rispondere «tutta la board» anche dopo una
+		// ricostruzione parziale, nascondendo l'ottimizzazione appena fatta.
+		auto Conta = [](const UInstancedStaticMeshComponent* C) { return C ? C->GetInstanceCount() : 0; };
+		LastRebuildCreated = 0;
+		if (bDoCells)   { LastRebuildCreated += Conta(Cells); }
+		if (bDoRelief)  { LastRebuildCreated += Conta(Relief); }
+		if (bDoBlock)   { LastRebuildCreated += Conta(Blockers); }
+		if (bDoEdges)   { LastRebuildCreated += Conta(EdgeFeatures); }
+		if (bDoBorders) { LastRebuildCreated += Conta(CellBorders); }
+		if (bDoBodies)  { LastRebuildCreated += Conta(StructuralBodies); }
+		if (bDoGlyphs)
+		{
+			for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring) { LastRebuildCreated += Conta(SurfaceGlyphs[Ring]); }
 		}
 	}
 

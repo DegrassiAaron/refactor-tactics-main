@@ -57,10 +57,21 @@ uint32 URTMatchStateHashLibrary::HashMatchState(const URTHexMapAsset* Map,
 		MixCell(U.Cell);
 		Mix(static_cast<uint32>(U.Health));
 		Mix(static_cast<uint32>(U.Shield));
-		Mix(static_cast<uint32>(U.Energy));
 		Mix(U.bAlive ? 1u : 0u);
 		// Il facing entra come intero dell'enum, nella stessa forma degli altri scalari — `D-261`.
 		Mix(static_cast<uint32>(U.Facing));
+
+		// I cooldown entrano IN ORDINE DI SLOT e senza ordinamento — `D-333`. `AbilityCooldowns` e' un
+		// `TArray<int32>` indicizzato per slot, non un container associativo: l'ordine e' gia' un dato del
+		// gioco, e ordinarlo cancellerebbe proprio l'informazione che serve — *quale* abilita' e' in ricarica.
+		//
+		// ⚠️ Anche la LUNGHEZZA entra: due unita' con kit di dimensione diversa e cooldown tutti a zero sono
+		// stati diversi, e senza questa riga `[0,0]` e `[0,0,0]` mescolerebbero la stessa sequenza.
+		Mix(static_cast<uint32>(U.AbilityCooldowns.Num()));
+		for (const int32 Cooldown : U.AbilityCooldowns)
+		{
+			Mix(static_cast<uint32>(Cooldown));
+		}
 
 		// Stati ORDINATI: arrivano da `TMap`/`TSet`, la cui iterazione non è deterministica. Senza l'ordine,
 		// due esecuzioni identiche darebbero hash diversi — il checksum diventerebbe la fonte del falso
@@ -213,12 +224,22 @@ TArray<FRTUnitStateDigest> URTMatchStateHashLibrary::BuildUnitDigests(const TArr
 		Digest.Cell = Unit->Cell;
 		Digest.Health = Unit->Health;
 		Digest.Shield = Unit->Shield;
-		Digest.Energy = Unit->Energy;
 		// NON si filtra sui vivi: una caduta entra con `bAlive = false`, ed e' il motivo per cui quel campo
 		// esiste. Senza, «tre vivi e un caduto» e «tre vivi e basta» darebbero lo stesso hash.
 		Digest.bAlive = Unit->IsAlive();
 		Digest.Facing = Unit->Facing;
 		Digest.Statuses = Unit->GetActiveStatusNames();
+		// `D-333`: quanto manca a ogni abilita', per slot.
+		//
+		// ⚠️ **Si passa dall'accessor, non dal campo.** `ARTUnit::AbilityCooldowns` e' `private` di proposito —
+		// a scriverlo sono `ConsumeAbility`, `TickCooldowns` e `SyncAbilityCooldowns`, e il digest e' un
+		// LETTORE. `GetAbilityCooldown` normalizza anche gli indici fuori kit, quindi la lunghezza del
+		// risultato e' sempre `NumAbilities()`: e' la stessa scala che l'HUD e il bot leggono.
+		Digest.AbilityCooldowns.Reset(Unit->NumAbilities());
+		for (int32 Slot = 0; Slot < Unit->NumAbilities(); ++Slot)
+		{
+			Digest.AbilityCooldowns.Add(Unit->GetAbilityCooldown(Slot));
+		}
 		Digests.Add(Digest);
 	}
 

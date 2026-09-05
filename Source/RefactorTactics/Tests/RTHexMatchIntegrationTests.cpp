@@ -19,6 +19,9 @@
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "Tests/RTWorldFixtures.h"
+// `#2359`: la sonda del commit, e il controller che vi si aggancia.
+#include "Player/RTPlayerController.h"
+#include "Tests/RTLockInCommittedProbeForTest.h"
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -1024,6 +1027,65 @@ bool FRTZeroCountdownCommitsSynchronouslyTest::RunTest(const FString&)
 	DrainPlayback(TM);
 	TestTrue(TEXT("e il turno si chiude senza che sia passato tempo di parete"),
 		TM->GetTurnNumber() > TurnoPrima);
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// #2359 — la riserva di #2193, messa alla prova
+//
+// #2193 ha introdotto `OnLockInCommitted` dentro `LockInAndResolve` e ne ha dichiarato in PR un effetto
+// collaterale: *«prima di questa PR solo `OnLockIn` spegneva l'anteprima, quindi un turno chiuso dal
+// timeout la lasciava accesa per tutta la risoluzione. `OnLockInCommitted` scatta su tutti i percorsi e
+// lo copre — ⚠️ effetto osservato, non testato in isolamento»*.
+//
+// Misurato prima di scrivere (`4d6964a4`): **zero** test nominavano `OnLockInCommitted`, e zero
+// `HandleLockInCommitted`. La riserva era ancora tutta da verificare.
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Il commit si annuncia anche quando a chiudere il turno e' il TETTO, non il giocatore.
+ *
+ * 🔑 **Il turno DEVE chiudersi dal timer, e non da `RequestLockIn()`.** Quella sarebbe la riga di comodo
+ * che rende il test cieco proprio al difetto che deve coprire: il broadcast riportato dentro
+ * `ARTPlayerController::OnLockIn` — cioe' la regressione storica — lascerebbe verde un test che passa
+ * dal Ready, perche' e' l'unico percorso che quel tasto attraversa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInCommittedFiresOnTimeoutTest,
+	"RefactorTactics.HexMatch.LockInCommittedFiresOnPlanningTimeout",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInCommittedFiresOnTimeoutTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTTurnManager* TM = MakeCountdownMatch(World);
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHexMatchWorld(World); return false; }
+
+	URTLockInCommittedProbeForTest* Probe = NewObject<URTLockInCommittedProbeForTest>(TM);
+	TM->OnLockInCommitted.AddDynamic(Probe, &URTLockInCommittedProbeForTest::OnLockInCommitted);
+
+	// Un tetto corto, e NESSUN Ready: e' il percorso che passa da `OnPlanningTimeout`.
+	TM->SetPlanningSeconds(1.0f);
+	const int32 TurnoPrima = TM->GetTurnNumber();
+
+	// ANTI-VACUITA' — senza questa riga «e' scattato» e «era gia' scattato» sono indistinguibili.
+	TestEqual(TEXT("prima del tetto il commit non e' stato annunciato"), Probe->Broadcasts, 0);
+	TestFalse(TEXT("e nessun countdown e' armato: non stiamo misurando la via del Ready"),
+		TM->IsReadyCountdownActive());
+
+	AdvanceWallClock(World, 1.5f);
+
+	// ANCORA — il turno si e' chiuso DAVVERO. Senza, un avanzamento che non avesse committato niente
+	// darebbe lo stesso «zero broadcast», e il test misurerebbe la propria fixture invece del delegate.
+	TestTrue(TEXT("il tetto ha chiuso il turno"), TM->IsResolving() || TM->GetTurnNumber() > TurnoPrima);
+
+	// Il cuore: il commit da timeout si annuncia, una volta sola.
+	TestEqual(TEXT("il commit da timeout annuncia se stesso"), Probe->Broadcasts, 1);
+
+	DrainPlayback(TM);
+	TestTrue(TEXT("a playback finito il turno e' avanzato"), TM->GetTurnNumber() > TurnoPrima);
+	TestEqual(TEXT("e la risoluzione non ha annunciato un secondo commit"), Probe->Broadcasts, 1);
 
 	DestroyHexMatchWorld(World);
 	return true;

@@ -107,6 +107,24 @@ struct FRTHexAttackIntent
 	ERTHexDoorState DoorState = ERTHexDoorState::Closed;
 
 	/**
+	 * L'azione COMMUTA invece di dichiarare uno stato assoluto ([`INT-7`], `#2380`): la porta va allo stato
+	 * opposto a quello che ha, su `Open <-> Closed`.
+	 *
+	 * 🔑 **Non sostituisce `bChangesDoor`, lo qualifica.** `bChangesDoor` continua a dire *«questo intento
+	 * agisce su una porta»* — ed e' cio' che il ramo della raccolta interroga per decidere se cercare un
+	 * bordo; `bTogglesDoor` dice *come*. Tenerli separati e' cio' che permette di lasciare intatti tutti i
+	 * consumatori a valle: dopo la risoluzione `DoorState` porta di nuovo uno stato ASSOLUTO, e `FRTDoorOp`,
+	 * `ApplyDoorOps` e `SetDoorState` non sanno che qualcuno abbia commutato.
+	 *
+	 * ⚠️ `DoorState` e' IGNORATO quando questo flag e' alto: lo stato vero lo calcola `CollectHexAttacks` in
+	 * una locale, e l'intento resta `const` per tutta la fase (invariante #3). Chi volesse dire in anteprima
+	 * *«questo Interact chiudera' la porta»* deve percio' leggere lo STATO DELLA PORTA, non questo intento —
+	 * ed e' il costo dichiarato di `#2380`: con la commutazione l'intento non e' piu' auto-descrittivo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bTogglesDoor = false;
+
+	/**
 	 * Il bordo che il GIOCATORE ha dichiarato, quando l'ha dichiarato (CP 10.1, `#74`).
 	 *
 	 * 🔴 **Senza questo campo l'operazione agisce su un bordo che nessuno ha scelto.** `FirstDoorEdge` cammina
@@ -134,8 +152,8 @@ struct FRTHexAttackIntent
 
 	/**
 	 * L'azione si DICHIARA un'aggressione contro un'unita' ([`INT-8`], `#1491`). Un colpo e' un concetto
-	 * solo -- danno, trigger `HitByDirectAttack`, `EnergyOnHit` e `Marked` viaggiano insieme -- quindi chi
-	 * non si dichiara non ne produce nessuno, e nessuno dei quattro consumatori lo vede.
+	 * solo -- danno, trigger `HitByDirectAttack` e `Marked` viaggiano insieme -- quindi chi
+	 * non si dichiara non ne produce nessuno, e nessuno dei tre consumatori lo vede.
 	 *
 	 * ⚠️ **`false` di default, ed e' il verso opposto agli altri flag** (`bAllowsReaction`, `bFriendlyFire`,
 	 * `InterruptPolicy` parte dal valore permissivo). La rottura di simmetria e' deliberata: quelli descrivono PERMESSI,
@@ -279,6 +297,31 @@ struct FRTAttackFootprint
 	FRTAttackFootprint() = default;
 };
 
+/**
+ * Una commutazione RIFIUTATA perche' la porta non ha un opposto ([`INT-7`], `#2380`).
+ *
+ * Porta lo STATO oltre all'indice perche' il motivo che finisce nel TurnLog dipende da quale dei due era:
+ * `Locked` e `Destroyed` hanno reason code distinti, e senza questo campo il chiamante dovrebbe rileggere la
+ * mappa — cioe' rileggerla DOPO che il Blast l'ha mutata, che e' un'altra domanda e un'altra risposta.
+ */
+USTRUCT(BlueprintType)
+struct FRTDoorToggleRefusal
+{
+	GENERATED_BODY()
+
+	/** Indice nell'array degli intenti della fase. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	int32 IntentIndex = INDEX_NONE;
+
+	/** Lo stato PRE-BLAST che ha rifiutato la commutazione: `Locked` o `Destroyed`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	ERTHexDoorState State = ERTHexDoorState::Locked;
+
+	FRTDoorToggleRefusal() = default;
+	FRTDoorToggleRefusal(int32 InIntentIndex, ERTHexDoorState InState)
+		: IntentIndex(InIntentIndex), State(InState) {}
+};
+
 USTRUCT(BlueprintType)
 struct FRTHexBlastPlan
 {
@@ -315,6 +358,19 @@ struct FRTHexBlastPlan
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
 	TArray<int32> DoorlessIntents;
+
+	/**
+	 * Commutazioni rifiutate perche' la porta puntata era `Locked` o `Destroyed` ([`INT-7`], `#2380`), in
+	 * ordine canonico di indice.
+	 *
+	 * 🔑 **Quarto canale e non un riuso di `DoorlessIntents`**, per la stessa disciplina con cui quello e'
+	 * separato da `BlockedIntents`: *«non c'era niente su cui agire»* e *«c'era, e non si commuta»* sono due
+	 * fatti diversi, e il reason code che ne esce e' diverso. Fonderli scriverebbe `NoEffect` su una porta
+	 * che esiste — una causa falsa su una partita vera, che e' esattamente cio' che i tre canali separati
+	 * esistono per non fare.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<FRTDoorToggleRefusal> DoorToggleRefusals;
 
 	/**
 	 * Danno raccolto contro le STRUTTURE, sommato per bordo e in ordine canonico (CP 9.2). Sta nel piano e non
@@ -370,7 +426,7 @@ struct FRTHexBlastPlan
  *
  * ⚠️ **`bDashResolves` e' un ESITO gia' deciso dal chiamante, non una condizione da rivalutare qui.** Le
  * regole che dicono se uno scatto parte davvero — mobilita' rapida dichiarata dal catalogo
- * (`URTCatalogLibrary::IsFastMovement`), ricarica/energia (`ARTUnit::CanUseAbility`), destinazione diversa
+ * (`URTCatalogLibrary::IsFastMovement`), ricarica (`ARTUnit::CanUseAbility`), destinazione diversa
  * dalla cella corrente — vivono in `ARTTurnManager::ResolveDash`, e riscriverle qui sarebbe la seconda
  * autorita' che l'invariante #1 vieta. Questa libreria ne consuma la risposta.
  */

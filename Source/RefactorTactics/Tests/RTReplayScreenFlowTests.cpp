@@ -252,4 +252,53 @@ bool FRTReplayScreenFlowEmptyVsFailedTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * L'etichetta di una riga dice **come e' finita**, e distingue l'archivio incompleto — `#2379`.
+ *
+ * 🔑 **Il ramo che conta e' `bReplayComplete`**: una partita interrotta si apre e finisce prima di dove il
+ * suo `TurnCount` promette, e questa riga e' l'unico punto in cui chi guarda lo sa **senza aprirla** —
+ * l'indice per design non guarda dentro le cartelle.
+ *
+ * ⚠️ Le asserzioni sono su `Contains` e non sul testo intero: il formato di data e ora dipende dalla
+ * localizzazione della macchina, e pinnarlo renderebbe il test rosso su un'altra impostazione senza che
+ * nulla sia rotto. Cio' che si verifica e' che ogni ramo dica **la sua** parola.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchHistoryEntryLabelTest,
+	"RefactorTactics.Replay.Screens.EntryLabelNamesTheOutcomeAndTheIncompleteArchive",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMatchHistoryEntryLabelTest::RunTest(const FString&)
+{
+	FRTMatchHistoryEntry Voce;
+	Voce.FormatId = TEXT("Format.Skirmish2v2");
+	Voce.TurnCount = 12;
+	Voce.bReplayComplete = true;
+
+	Voce.Outcome = ERTMatchOutcome::Team0Wins;
+	const FString Vittoria = URTMatchHistoryWidgetBase::GetEntryLabel(Voce).ToString();
+	TestTrue(TEXT("la vittoria della squadra 0 si legge"), Vittoria.Contains(TEXT("squadra 0")));
+	TestTrue(TEXT("il formato si legge"), Vittoria.Contains(TEXT("Skirmish2v2")));
+	TestTrue(TEXT("i turni si leggono"), Vittoria.Contains(TEXT("12")));
+	TestFalse(TEXT("e un archivio completo non dice «incompleta»"), Vittoria.Contains(TEXT("incompleta")));
+
+	Voce.Outcome = ERTMatchOutcome::Draw;
+	TestTrue(TEXT("il pareggio si legge"),
+		URTMatchHistoryWidgetBase::GetEntryLabel(Voce).ToString().Contains(TEXT("pareggio")));
+
+	// `InProgress` in un archivio chiuso non e' uno stato: e' una partita che il registratore non ha visto
+	// finire.
+	Voce.Outcome = ERTMatchOutcome::InProgress;
+	TestTrue(TEXT("una partita non finita si dichiara interrotta"),
+		URTMatchHistoryWidgetBase::GetEntryLabel(Voce).ToString().Contains(TEXT("interrotta")));
+
+	// 🔑 Il ramo dell'archivio incompleto e' indipendente dall'esito: si somma, non sostituisce.
+	Voce.Outcome = ERTMatchOutcome::Team1Wins;
+	Voce.bReplayComplete = false;
+	const FString Incompleta = URTMatchHistoryWidgetBase::GetEntryLabel(Voce).ToString();
+	TestTrue(TEXT("l'archivio incompleto si dichiara"), Incompleta.Contains(TEXT("incompleta")));
+	TestTrue(TEXT("e l'esito resta leggibile accanto"), Incompleta.Contains(TEXT("squadra 1")));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -700,14 +700,21 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// a uno stato che non esiste.
 		for (const FRTActionEffectSpec& Spec : Ability->Def.Effects)
 		{
-			if (Spec.Effect != ERTActionEffect::SetDoorState)
+			const bool bToggles = Spec.Effect == ERTActionEffect::ToggleDoorState;
+			if (Spec.Effect != ERTActionEffect::SetDoorState && !bToggles)
 			{
 				continue;
 			}
-			if (Spec.Amount >= 0 && Spec.Amount <= static_cast<int32>(ERTHexDoorState::Destroyed))
+			// ⚠️ `ToggleDoorState` NON legge `Amount`: non c'e' nessuno stato da dichiarare, quindi non c'e'
+			// nessun intervallo da validare. Lo stato lo calcola il resolver leggendo la porta pre-Blast
+			// ([`INT-7`], `#2380`) — e' l'unica differenza fra i due rami, e sta tutta qui.
+			if (bToggles || (Spec.Amount >= 0 && Spec.Amount <= static_cast<int32>(ERTHexDoorState::Destroyed)))
 			{
 				Intent.bChangesDoor = true;
-				Intent.DoorState = static_cast<ERTHexDoorState>(Spec.Amount);
+				Intent.bTogglesDoor = bToggles;
+				Intent.DoorState = bToggles
+					? ERTHexDoorState::Closed // ignorato: `CollectHexAttacks` risolve in una locale
+					: static_cast<ERTHexDoorState>(Spec.Amount);
 
 				// Il bordo che il giocatore ha CLICCATO, se l'ha dichiarato (CP 10.1, `#74`). Lo stesso campo
 				// del piano che il ramo delle coperture legge da sempre: qui non arrivava, e l'operazione
@@ -1131,6 +1138,16 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		return InterruptedIntents.Contains(IntentIdx);
 	});
 
+	// 🔴 **E lo stesso per i rifiuti di commutazione** ([`INT-7`], `#2380`): un `Interact` su una porta
+	// `Locked`, interrotto nello stesso Blast, lascerebbe nel TurnLog sia `Interrupted` sia
+	// `Fallback/Cancelled` con `DoorLocked`. Vale la ragione scritta qui sopra parola per parola — quando due
+	// motivi sono veri vince quello che ha fermato l'azione per primo — e si filtra QUI perche' la coerenza
+	// e' una proprieta' del punto in cui si cancella, non una disciplina da ricordare in tre posti.
+	Plan.DoorToggleRefusals.RemoveAll([&InterruptedIntents](const FRTDoorToggleRefusal& Refusal)
+	{
+		return InterruptedIntents.Contains(Refusal.IntentIndex);
+	});
+
 	// 🔴 **E l'impronta dell'area sparisce con l'azione che l'avrebbe prodotta** ([D-301]). Un colpo
 	// interrotto non ha investito nessuna cella: lasciarne il footprint mostrerebbe a schermo un'area che
 	// il resolver ha annullato — cioe' una presentazione che contraddice l'esito, che e' il difetto
@@ -1416,6 +1433,56 @@ void ARTTurnManager::LogBlockedIntents(const FRTBlastContext& Ctx)
 			Doorless.bHasDeclaredDoorEdge
 				? TEXT("nessuna porta sul bordo dichiarato")
 				: TEXT("nessuna porta sulla traiettoria")),
+			FRTLogSubject::Unit(Actor));
+	}
+
+	// COMMUTAZIONI RIFIUTATE ([`INT-7`], `#2380`): la porta c'era, e non ha un opposto.
+	//
+	// 🔑 **Motivo PROPRIO e non `NoEffect`.** Il pass qui sopra dice «non avevo niente su cui agire»; questo
+	// dice «avevo esattamente qualcosa, e la regola lo vieta». Sono due situazioni con rimedi diversi — la
+	// prima si corregge cliccando un altro bordo, la seconda no — e un motivo solo per entrambe manderebbe
+	// il giocatore a cercare la causa dove non e'.
+	//
+	// ⚠️ **E i due stati portano motivi DISTINTI.** `Locked` e' uno stato da cui l'apertura autorizzata di
+	// CP 10.1 fara' uscire chi ne ha diritto; `Destroyed` e' TERMINALE e non ci sara' nessuna chiave. Dirlo
+	// con un motivo solo affermerebbe che le due hanno lo stesso rimedio.
+	for (const FRTDoorToggleRefusal& Refusal : Plan.DoorToggleRefusals)
+	{
+		if (!Intents.IsValidIndex(Refusal.IntentIndex)) { continue; }
+		const FRTHexAttackIntent& Refused = Intents[Refusal.IntentIndex];
+		if (!HexUnits.IsValidIndex(Refused.AttackerId)) { continue; }
+
+		// La coppia di celle E' IL BORDO, con la stessa convenzione del pass qui sopra e per la stessa
+		// ragione ([D-196]): due rifiuti della stessa unita' verso la stessa cella ma su bordi DIVERSI non
+		// devono produrre righe identiche byte a byte.
+		const FRTCellId RefusedCell = HexUnits.IsValidIndex(Refused.TargetId)
+			? HexUnits[Refused.TargetId].Cell : Refused.TargetCell;
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Blast;
+		Entry.Category = ERTLogCategory::Fallback;
+		Entry.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		Entry.SrcCell = RefusedCell;
+		Entry.TgtCell = Refused.bHasDeclaredDoorEdge
+			? URTHexLibrary::Neighbor(RefusedCell, Refused.DeclaredDoorEdge)
+			: RefusedCell;
+		Entry.Amount = static_cast<int32>(Refusal.State == ERTHexDoorState::Destroyed
+			? ERTActionInvalidReason::DoorDestroyed
+			: ERTActionInvalidReason::DoorLocked);
+		if (IntentDefs.IsValidIndex(Refusal.IntentIndex))
+		{
+			Entry.ActionId = IntentDefs[Refusal.IntentIndex].ActionId;
+			Entry.BaseActionId = IntentDefs[Refusal.IntentIndex].BaseActionId;
+			Entry.Priority = IntentDefs[Refusal.IntentIndex].Priority;
+		}
+
+		ARTUnit* Actor = Units.IsValidIndex(Refused.AttackerId) ? Units[Refused.AttackerId] : nullptr;
+		AppendLogEntry(Entry, Actor);
+		AddLogEvent(FString::Printf(TEXT("%s: %s"),
+			Actor ? *Actor->GetName() : TEXT("unita'"),
+			Refusal.State == ERTHexDoorState::Destroyed
+				? TEXT("la porta e' distrutta: non c'e' piu' niente da commutare")
+				: TEXT("la porta e' bloccata: serve un'apertura autorizzata")),
 			FRTLogSubject::Unit(Actor));
 	}
 }
@@ -2227,8 +2294,15 @@ void ARTTurnManager::MarkAttackerAbilitiesSpent(FRTBlastContext& Ctx)
 	TArray<ARTUnit*>& Attackers = Ctx.Attackers;
 	TArray<int32>& UsedAbilityIndex = Ctx.UsedAbilityIndex;
 
-	// Attaccanti SOPRAVVISSUTI: qui si decide CHI paga e si assegna l'energia — due cose, e il nome dice
-	// la prima. A scrivere il cooldown e' `SpendStartedAbilities`, l'unico punto che lo fa (`#1451`).
+	// Attaccanti SOPRAVVISSUTI: qui si decide CHI paga. A scrivere il cooldown e' `SpendStartedAbilities`,
+	// l'unico punto che lo fa (`#1451`).
+	//
+	// Assegnava anche l'energia: un `if (EnergyCost > 0)` che logga `Ultimate!` **oppure** accredita
+	// `EnergyOnHit`. [D-324](../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy` dal
+	// gameplay, e con essa il criterio che sceglieva fra i due rami — quindi sono spariti entrambi, non uno.
+	// ⚠️ **Con l'accredito se n'e' andata anche la voce `Ultimate!`**: era emessa sul solo percorso degli
+	// archetipi legacy, non aveva consumatori (nessuno scenario, nessuna asserzione, nessun documento la
+	// legge) ed era l'unica traccia della seconda economia che `D-324` punto (3) rimuove.
 	//
 	// ⚠️ **La guardia `IsAlive()` resta QUI e non si sposta**: per un attaccante «spesa» significa
 	// *sopravvissuto alla fase*, non *partita* — e' l'unico dei cinque punti in cui il criterio si conosce
@@ -2241,16 +2315,7 @@ void ARTTurnManager::MarkAttackerAbilitiesSpent(FRTBlastContext& Ctx)
 		{
 			continue;
 		}
-		const URTActionData* Ability = Attacker->GetAbility(UsedAbilityIndex[i]);
 		Ctx.MarkAbilitySpent(Attacker, UsedAbilityIndex[i]);
-		if (Ability && Ability->EnergyCost > 0)
-		{
-			AddLogEvent(FString::Printf(TEXT("Ultimate! %s"), *Attacker->GetName()), FRTLogSubject::Unit(Attacker));
-		}
-		else
-		{
-			Attacker->Energy = URTCombatLibrary::GainEnergy(Attacker->Energy, Attacker->EnergyOnHit, Attacker->MaxEnergy);
-		}
 	}
 }
 
@@ -2378,23 +2443,23 @@ void ARTTurnManager::SpendStartedAbilities(const FRTBlastContext& Ctx)
 	//
 	// ⚠️ **Un accoppiamento latente, dichiarato perche' oggi e' irraggiungibile e domani forse no.**
 	//
-	// `CanUseAbility` e' `IsAbilityUsable(GetAbilityCooldown(Index), Energy, EnergyCost)`: legge **il
-	// cooldown E l'energia**, cioe' entrambe le cose che questa passata ha differito. Quattro punti la
-	// chiamano dopo che qualcuno ha annotato — `ResolveInterceptions`, `RunReactionPass(BlastHits)`,
+	// `CanUseAbility` e' `IsAbilityUsable(GetAbilityCooldown(Index))`: legge **il cooldown**, cioe' la cosa
+	// che questa passata ha differito. Quattro punti la chiamano dopo che qualcuno ha annotato — `ResolveInterceptions`, `RunReactionPass(BlastHits)`,
 	// `RunReactionPass(BlastDisplacement)` e `RunReactionPass(BlastStatus)`, quest'ultimo anche dopo
 	// `MarkAttackerAbilitiesSpent`.
 	//
-	// MISURATO il 2026-08-27, e sono due condizioni indipendenti che oggi non si verificano:
-	// - **energia**: nessuna delle sei reazioni spedite dichiara `EnergyCost` (default 0), quindi
-	//   l'ultimate differita non puo' rendere attivabile una reazione che prima non lo era;
+	// MISURATO il 2026-08-27 su DUE condizioni indipendenti; oggi ne resta **una**, perche' `D-324` ha tolto
+	// `Energy` dal gameplay e con essa il ramo energia di `CanUseAbility` — la condizione non e' stata
+	// risolta, e' stata rimossa insieme al proprio soggetto:
 	// - **cooldown**: perche' si vedesse, un'unita' dovrebbe avere lo STESSO indice come azione principale
 	//   e come reazione. `CollectAttackIntents` non filtra su `Def.Slot`, quindi il caso e' costruibile —
 	//   ma i due percorsi di produzione che armano una reazione (`ARTPlayerController` e il bot) scrivono
 	//   `PlannedReactionAbility` e RITORNANO, senza mai toccare `PlannedAbilityIndex`. Ci arriva solo chi
 	//   scrive il piano a mano: test e scenari.
 	//
-	// Chi spedira' una reazione con un costo, o rendera' pianificabile come principale un'abilita' di slot
-	// reazione, guardi qui prima.
+	// Chi rendera' pianificabile come principale un'abilita' di slot reazione guardi qui prima. Lo stesso
+	// vale per chi introdurra' un secondo gate sull'uso di un'abilita': la prima versione di questa nota ne
+	// contava due, e il secondo era l'energia.
 	//
 	// L'ordine e' quello di annotazione, che e' l'ordine dei pass: `ConsumeAbility` scrive su unita' diverse,
 	// quindi non c'e' esito che dipenda dall'ordine — ma un array, e non una `TMap`, perche' la regola del

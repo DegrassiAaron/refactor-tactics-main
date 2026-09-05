@@ -50,7 +50,41 @@ FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnM
 		View.PlanningSecondsRemaining = TurnManager->GetPlanningTimeRemaining();
 	}
 
+	// Il countdown del Ready (`#2193`, `#2358`). **Una guardia sola**, e non e' una svista rispetto alle tre
+	// qui sopra: `IsReadyCountdownActive()` risponde sulla presenza del timer, non sul suo residuo, e il
+	// countdown si arma solo su input esplicito — quindi il varco che affligge `PlanningSecondsRemaining`
+	// (fase gia' Planning, timer non ancora armato) qui non esiste. Aggiungere `Phase == Planning` sarebbe
+	// una condizione che non puo' essere falsa: `RequestLockIn()` non arma niente fuori dal Planning.
+	if (TurnManager->IsReadyCountdownActive())
+	{
+		View.ReadyCountdownSecondsRemaining = TurnManager->GetReadyCountdownRemaining();
+	}
+
+	// Il derivato si pubblica **dopo** i due orologi, ed e' l'unico ordine possibile: legge
+	// entrambi. Chi riceve la vista intera trova il numero gia' fatto; chi la costruisce a mano
+	// chiama la funzione.
+	View.SecondsUntilCommit = ComputeSecondsUntilCommit(View);
+
 	return View;
+}
+
+float URTHudViewModel::ComputeSecondsUntilCommit(const FRTMatchHeaderView& Header)
+{
+	// Il countdown del Ready, quando e' armato, non decide da solo: il tetto del Planning lo accorcia se
+	// scade prima (`#2193`). `>= 0.f` e non `> 0.f` — uno zero qui significa «commit adesso», che e' un
+	// numero da mostrare, non un caso da escludere.
+	if (Header.ReadyCountdownSecondsRemaining >= 0.f)
+	{
+		// ⚠️ Il tetto entra **solo se si applica**: nelle run headless `PlanningSecondsRemaining` e'
+		// negativo, e un `Min` cieco restituirebbe quel negativo spegnendo l'unico orologio in corsa.
+		return (Header.PlanningSecondsRemaining > 0.f)
+			? FMath::Min(Header.ReadyCountdownSecondsRemaining, Header.PlanningSecondsRemaining)
+			: Header.ReadyCountdownSecondsRemaining;
+	}
+
+	// Senza Ready il commit arriva alla scadenza del Planning — e se quel campo dice «non si applica», la
+	// risposta e' la stessa: non c'e' nessun conto alla rovescia da mostrare.
+	return Header.PlanningSecondsRemaining;
 }
 
 FRTUnitCardView URTHudViewModel::BuildUnitCard(const ARTUnit* Unit, int32 PlayerTeamId)
@@ -65,8 +99,6 @@ FRTUnitCardView URTHudViewModel::BuildUnitCard(const ARTUnit* Unit, int32 Player
 	Card.Health = Unit->Health;
 	Card.MaxHealth = Unit->MaxHealth;
 	Card.Shield = Unit->Shield;
-	Card.Energy = Unit->Energy;
-	Card.MaxEnergy = Unit->MaxEnergy;
 	Card.bIsAlly = (Unit->TeamId == PlayerTeamId);
 	Card.bAlive = Unit->IsAlive();
 
@@ -289,7 +321,8 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 			? FMath::Clamp(1.f - static_cast<float>(View.TurnsRemaining) / static_cast<float>(View.TotalTurns), 0.f, 1.f)
 			: 1.f;
 
-		// Usabile ADESSO e' un'altra domanda: `CanUseAbility` guarda ricarica **ed** energia.
+		// Usabile ADESSO: `CanUseAbility` guardava ricarica **ed** energia, e da `D-324` guarda la sola
+		// ricarica — quindi oggi risponde come `TurnsRemaining == 0`, per una ragione e non per caso.
 		View.bUsableNow = Unit->CanUseAbility(Index);
 
 		Cooldowns.Add(View);

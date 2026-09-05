@@ -555,6 +555,46 @@ stato del mondo.
 > **senza colpire** lascerebbe una voce `Displaced` senza sorgente ricostruibile. Il campo `ActionId` direbbe
 > comunque *con che cosa*, e sarebbe quello il momento per decidere se serve di più.
 
+### Lo scivolamento, e lo scivolamento impedito (`#2253` · [`#2314`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2314))
+
+Il terreno può portare un'unità **oltre** la destinazione che il giocatore ha scelto — oggi il solo `Ice`,
+`FRTTerrainDef::SlideCells`. Il fatto è di questa spec perché è un **esito**, e per un po' non ha avuto un
+nome: chi scivolava produceva `Moved`, cioè *«raggiunta la destinazione pianificata»*, che è falso di una
+cella. Gli esiti sono **tre**, e la regola del terreno vive in
+[`spec-terreni-e8.md` §5.2](../../gameplay/spec-terreni-e8.md), che resta il suo owner.
+
+| Esito | Il piano del giocatore | Lo scivolamento | La riga che il replay stampa |
+|---|---|---|---|
+| `Moved` | completato | il terreno non ne chiedeva | «si muove» |
+| `Slid` | completato | avvenuto, **almeno una** cella | «scivola» |
+| `SlideBlocked` | completato | richiesto, **zero** celle: impedito | «arriva: scivolamento impedito» |
+| il `BlockReason` reale | **non** completato | irrilevante | la riga del blocco — «fermo: …» |
+
+🔑 **`SlideBlocked` è uniforme rispetto alla causa, per costruzione.** Occupazione, contesa, ciclo,
+collisione, muro o bordo non attraversabile producono tutti questo esito, e la frase **non li nomina**: la
+domanda a cui il resolver risponde è *«quanto del piano del giocatore è stato percorso»*, vera o falsa
+indipendentemente dal motivo per cui il passo successivo non è avvenuto. Nominare la causa richiederebbe
+inoltre di dire **chi**, che una voce `Move` non porta e che [D-063] non autorizza a dedurre da una cella.
+
+⚠️ **La frase apre con «arriva» e non con «fermo»**, unica fra i vicini del vocabolario dei blocchi: il Move
+che il giocatore ha chiesto **è riuscito**. Aprire con «fermo» lo manderebbe a cercare un errore nel proprio
+piano invece di una lastra di ghiaccio contro un muro — ed è la stessa ragione per cui nel feed l'evento non
+è `MoveBlocked`.
+
+⚠️ **La precedenza dell'ultima riga è la regola più importante.** Chi si ferma **prima** della destinazione
+pianificata conserva il proprio esito reale. `SlideBlocked` non lo sostituisce mai.
+
+> 🔴 **Perché la classificazione sta nel resolver, e non in chi lo chiama.** Il percorso esteso dal terreno
+> entra in `ResolveHexPaths` con una destinazione che il giocatore non ha mai chiesto: correggerne l'esito a
+> valle richiede di sapere **quanto** del piano sia stato percorso, e chi chiama non lo sa. Il tentativo
+> caller-side ([#2290](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2290), chiusa) è uscito da
+> tre review con tre difetti dalla stessa radice: una guardia **posizionale** (`Final == PlannedLast`) che un
+> percorso capace di rivisitare una cella — `{A, B, C, B}`, che `BuildCompositeHexPath` produce concatenando
+> i segmenti A\* senza deduplicare — soddisfa anche a un terzo di strada; l'impossibilità di distinguere un
+> muro da «nessuno scivolamento richiesto»; e una whitelist di `BlockReason` scritta a mano, nata già
+> incompleta di uno. `FRTPlannedMovement` porta l'informazione **nello stato del resolver**, per unità come
+> `Paths`, e la classificazione diventa uniforme senza che nessuno enumeri nulla.
+
 ### 4.4 `Priority` — formato **v7** *(2026-08-10, CP 11.3 `#79`)*
 
 Il DoD di CP 11.3 chiede la **priorità** in ogni voce. Nella prima passata non c'era, e la ragione era di

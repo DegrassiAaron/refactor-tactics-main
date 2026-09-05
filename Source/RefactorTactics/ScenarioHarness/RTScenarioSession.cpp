@@ -58,14 +58,24 @@ namespace RTScenarioStateDiff
 		{
 			Out.Emplace(TEXT("Shield"), FString::FromInt(Before.Shield), FString::FromInt(After.Shield));
 		}
-		if (Before.Energy != After.Energy)
-		{
-			Out.Emplace(TEXT("Energy"), FString::FromInt(Before.Energy), FString::FromInt(After.Energy));
-		}
 		if (Before.bAlive != After.bAlive)
 		{
 			Out.Emplace(TEXT("bAlive"), Before.bAlive ? TEXT("true") : TEXT("false"),
 				After.bAlive ? TEXT("true") : TEXT("false"));
+		}
+		if (Before.AbilityCooldowns != After.AbilityCooldowns)
+		{
+			// Slot per slot, perche' «i cooldown sono cambiati» non dice quale azione e' tornata disponibile.
+			auto Descrivi = [](const TArray<int32>& Cooldowns)
+			{
+				TArray<FString> Pezzi;
+				for (int32 I = 0; I < Cooldowns.Num(); ++I)
+				{
+					Pezzi.Add(FString::Printf(TEXT("%d:%d"), I, Cooldowns[I]));
+				}
+				return Pezzi.Num() > 0 ? FString::Join(Pezzi, TEXT(" ")) : FString(TEXT("(nessuna abilita')"));
+			};
+			Out.Emplace(TEXT("AbilityCooldowns"), Descrivi(Before.AbilityCooldowns), Descrivi(After.AbilityCooldowns));
 		}
 		if (Before.Facing != After.Facing)
 		{
@@ -1158,7 +1168,7 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 
 		// --- abilita' -------------------------------------------------------------------------------------
 		// Stessa strada del controller: si scrivono `PlannedAbilityIndex` e `PlannedAttackTarget`, esattamente
-		// come dopo un click sul nemico. Portata, LOS, cooldown ed energia li valuta il turn manager al momento
+		// come dopo un click sul nemico. Portata, LOS e cooldown li valuta il turn manager al momento
 		// della risoluzione — la sessione non li anticipa, altrimenti verificherebbe le proprie regole invece
 		// di quelle del gioco.
 		// Bersaglio a UNITA': il caso a cella e' il ramo dopo. La condizione porta `!bTargetsCell` perche'
