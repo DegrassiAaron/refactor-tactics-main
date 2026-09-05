@@ -355,11 +355,83 @@ namespace
 	}
 
 	/**
+	 * La riga con il contenuto di `"..."` e `'...'` sostituito da spazi.
+	 *
+	 * ⛔ **Le graffe dentro un letterale non sono graffe**, e ignorarlo falsa la profondita' per tutto cio'
+	 * che segue nel file. Questo sorgente ne ha quattro righe — `TEXT("namespace {")`, `TEXT('{')` — quindi
+	 * l'estrattore inciampava sul **proprio** codice: misurato confrontando due regole di ammissione, e la
+	 * divergenza era tutta li'.
+	 */
+	FString RTSenzaLetterali(const FString& Riga)
+	{
+		FString Fuori;
+		Fuori.Reserve(Riga.Len());
+		for (int32 Indice = 0; Indice < Riga.Len(); ++Indice)
+		{
+			const TCHAR Carattere = Riga[Indice];
+			if (Carattere == TCHAR('"') || Carattere == TCHAR('\''))
+			{
+				// Il letterale diventa uno spazio: la riga resta allineata come lunghezza logica.
+				Fuori.AppendChar(TCHAR(' '));
+				for (++Indice; Indice < Riga.Len(); ++Indice)
+				{
+					if (Riga[Indice] == TCHAR('\\'))
+					{
+						++Indice;
+						continue;
+					}
+					if (Riga[Indice] == Carattere)
+					{
+						break;
+					}
+				}
+				continue;
+			}
+			Fuori.AppendChar(Carattere);
+		}
+		return Fuori;
+	}
+
+	/**
+	 * Vero se il testo davanti al nome somiglia a un **tipo di ritorno**, non a un pezzo di espressione.
+	 *
+	 * ⛔ **Senza questo, `return Foo(x)` spezzata a capo e' indistinguibile da una definizione.** Misurato sul
+	 * corpus: `return AnchorCellCenter(Ref.Cell)` e `return BlueprintPropertyCarriesTexture(AsMap->KeyProp)`
+	 * venivano estratte come firme. Due file con la stessa continuazione avrebbero reso il gate **rosso su
+	 * codice giusto** — cioe' spento entro un giorno, che e' il modo noto in cui un gate muore.
+	 */
+	bool RTPrefissoEUnTipo(const FString& Prefisso)
+	{
+		const FString Ripulito = Prefisso.TrimStartAndEnd();
+		if (Ripulito.IsEmpty())
+		{
+			return false;
+		}
+		static const TCHAR* const Vietati[] = {
+			TEXT("return"), TEXT("="), TEXT(","), TEXT("||"), TEXT("&&"),
+			TEXT("+"), TEXT("?"), TEXT(":"), TEXT("!")
+		};
+		for (const TCHAR* const Vietato : Vietati)
+		{
+			if (Ripulito.Contains(Vietato, ESearchCase::CaseSensitive))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
 	 * Estrae le firme delle funzioni libere definite nei namespace anonimi di un sorgente.
+	 *
+	 * 🔑 **Una funzione libera sta a profondita' ESATTAMENTE 1**, cioe' direttamente dentro il namespace
+	 * anonimo; un membro di `struct` sta a 2 o piu'. E' la regola che sostituisce un contatore di
+	 * `struct`/`class`, e non e' una semplificazione estetica: quel contatore non tornava a zero dopo una
+	 * struct **annidata**, e da li' in poi l'estrattore restava cieco — verde, e senza dirlo.
 	 *
 	 * ⚠️ Riconosce **entrambi** gli stili di graffa. Quello di questo repository e' `namespace` e `{` su righe
 	 * diverse: una prima stesura che cercava il solo `namespace {` restituiva **zero** anche sull'albero in cui
-	 * `StandStill` era duplicata — verde, e cieca.
+	 * `StandStill` era duplicata.
 	 */
 	void RTEstraiFirmeAnonime(const FString& NomeFile, const FString& Testo, TArray<FRTFirmaAnonima>& Fuori)
 	{
@@ -367,25 +439,23 @@ namespace
 		Testo.ParseIntoArrayLines(Righe, /*InCullEmpty*/ false);
 
 		bool bDentroAnonimo = false;
-		int32 Livello = 0;        // graffe aperte dentro il namespace anonimo
-		int32 LivelloRecord = 0;  // >0 = dentro una struct/class: i membri non collidono
+		int32 Livello = 0;
 
 		for (int32 Indice = 0; Indice < Righe.Num(); ++Indice)
 		{
-			FString Riga = Righe[Indice];
-			Riga.TrimStartAndEndInline();
+			// I letterali via PRIMA di qualunque conteggio: vedi `RTSenzaLetterali`.
+			const FString Riga = RTSenzaLetterali(Righe[Indice]).TrimStartAndEnd();
 
 			if (!bDentroAnonimo)
 			{
 				const bool bInLinea = (Riga == TEXT("namespace {"));
 				const bool bAllman = (Riga == TEXT("namespace"))
 					&& (Indice + 1 < Righe.Num())
-					&& (Righe[Indice + 1].TrimStartAndEnd() == TEXT("{"));
+					&& (RTSenzaLetterali(Righe[Indice + 1]).TrimStartAndEnd() == TEXT("{"));
 				if (bInLinea || bAllman)
 				{
 					bDentroAnonimo = true;
 					Livello = 1;
-					LivelloRecord = 0;
 					if (bAllman)
 					{
 						++Indice;
@@ -397,29 +467,20 @@ namespace
 			int32 Delta = 0;
 			for (const TCHAR Carattere : Riga)
 			{
-				Delta += (Carattere == TEXT('{')) ? 1 : ((Carattere == TEXT('}')) ? -1 : 0);
+				Delta += (Carattere == TCHAR('{')) ? 1 : ((Carattere == TCHAR('}')) ? -1 : 0);
 			}
 
-			if (Riga.StartsWith(TEXT("struct "), ESearchCase::CaseSensitive)
-				|| Riga.StartsWith(TEXT("class "), ESearchCase::CaseSensitive)
-				|| Riga.StartsWith(TEXT("union "), ESearchCase::CaseSensitive)
-				|| Riga.StartsWith(TEXT("enum "), ESearchCase::CaseSensitive))
-			{
-				++LivelloRecord;
-			}
-
+			// La profondita' PRIMA della riga: la firma di una funzione libera si trova a 1, sia che la
+			// graffa apra sulla stessa riga sia che apra sotto.
+			const int32 LivelloPrima = Livello;
 			Livello += Delta;
 			if (Livello <= 0)
 			{
 				bDentroAnonimo = false;
 				continue;
 			}
-			if (LivelloRecord > 0)
+			if (LivelloPrima != 1)
 			{
-				if (Delta < 0 && Livello <= 1)
-				{
-					LivelloRecord = FMath::Max(0, LivelloRecord - 1);
-				}
 				continue;
 			}
 
@@ -431,7 +492,7 @@ namespace
 			}
 
 			int32 Apre = INDEX_NONE;
-			if (!Riga.FindChar(TEXT('('), Apre) || Apre == 0)
+			if (!Riga.FindChar(TCHAR('('), Apre) || Apre == 0)
 			{
 				continue;
 			}
@@ -453,7 +514,7 @@ namespace
 			while (Inizio > 0)
 			{
 				const TCHAR Precedente = Riga[Inizio - 1];
-				if (FChar::IsAlnum(Precedente) || Precedente == TEXT('_'))
+				if (FChar::IsAlnum(Precedente) || Precedente == TCHAR('_'))
 				{
 					--Inizio;
 					continue;
@@ -464,8 +525,7 @@ namespace
 			{
 				continue;
 			}
-			const TCHAR PrimaDelNome = Riga[Inizio - 1];
-			if (PrimaDelNome != TEXT(' ') && PrimaDelNome != TEXT('*') && PrimaDelNome != TEXT('&'))
+			if (!RTPrefissoEUnTipo(Riga.Left(Inizio)))
 			{
 				continue;
 			}
@@ -502,6 +562,11 @@ bool FRTAnonymousHelpersDoNotCollideTest::RunTest(const FString&)
 			TEXT("\t{\n")
 			TEXT("\t}\n")
 			TEXT("\n")
+			TEXT("\tint32 RTCampioneConContinuazione()\n")
+			TEXT("\t{\n")
+			TEXT("\t\treturn RTCampioneDaEstrarre(0)\n")
+			TEXT("\t\t\t+ 1;\n")
+			TEXT("\t}\n")
 			TEXT("\tstruct FRTCampioneRecord\n")
 			TEXT("\t{\n")
 			TEXT("\t\tvoid RTMembroDaIgnorare(int32 Valore)\n")
@@ -513,7 +578,7 @@ bool FRTAnonymousHelpersDoNotCollideTest::RunTest(const FString&)
 		TArray<FRTFirmaAnonima> Estratte;
 		RTEstraiFirmeAnonime(TEXT("<campione>"), Campione, Estratte);
 
-		if (!TestEqual(TEXT("il campione produce una firma sola"), Estratte.Num(), 1))
+		if (!TestEqual(TEXT("il campione produce due firme libere, non tre"), Estratte.Num(), 2))
 		{
 			for (const FRTFirmaAnonima& Firma : Estratte)
 			{
