@@ -318,9 +318,6 @@ bool FRTPresentationHazardDamageIsDeclaredSilentTest::RunTest(const FString&)
 		return true;
 	}
 
-	TestTrue(TEXT("HazardDamage e' NoPresentation, non una voce dimenticata"),
-		Hazard->Kind == ERTPresentationKind::NoPresentation);
-
 	// 🔴 **`PendingPresentation` dal 2026-09-05 (`#2455`), e il verso e' cambiato per una MISURA, non per un
 	// ripensamento.** Questa voce ha detto tre cose in cinque giorni: *«non ha un produttore»* (2026-08-31),
 	// *«il produttore esiste, ma non si disegna per scelta»* (`#2460`), e ora *«si disegnera', e manca
