@@ -227,6 +227,28 @@ collidono sotto unity build. **Verificato ancora vero** su `215b23d2`: entrambe 
 posto. Il fix è in volo — PR [#2398](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2398),
 worktree `D:/rt-wt-2387` su `fix/2409-standstill-unity-collision`.
 
+> ✅ **SBLOCCATO alle 11:02 locali.** `#2398` mergiata — `origin/main` = **`4cc23af9`** — e la build misurata,
+> non dedotta: `RefactorTacticsEditor Win64 Development` su un worktree pulito e **senza makefile
+> preesistente**, `Result: Succeeded`, exit 0, 211,56 s.
+>
+> 🔑 **E non è un verde per raggruppamento fortunato**: i due file sono finiti nello **stesso** blob unity —
+> `Module.RefactorTactics.19.cpp`, righe 5 e 16 su 15 include — cioè esattamente la condizione che
+> falliva. Il blob ha prodotto un `.obj` da 10,3 MB. ⚠️ `#2410` era un duplicato dello stesso fix di
+> un'altra sessione, e resta aperta.
+>
+> ✅ **E la suite intera è VALIDA sullo stesso commit**, misurata alle 11:14 sul binario di quella build:
+> `HEAD 4cc23af9 · albero ae48caf4 · 2022/2022 completati, 0 fallimenti · 06:42`. Lo script ha atteso 254 s
+> il lock del motore e **ha ridichiarato lo stato al risveglio**: HEAD, digest dell'albero e mtime di
+> entrambi i moduli **identici** prima e dopo l'attesa.
+>
+> 🔑 **Il limite che `rt-suite` dichiara di non coprire qui non si applica**: *«un DLL compilato da un
+> commit diverso resta identico dall'inizio alla fine, quindi passa»*. Il binario porta `11:00:08` ed è
+> quello che ho costruito io da questo `HEAD` su albero pulito — la provenienza copre ciò che l'invariante
+> non vede.
+>
+> ∴ Il §7.1 **non è più un blocco**, e i tre `USER CHECK` del §9 sono eseguibili. Restano `7.2` (nessun
+> MCP) e `7.4` (`#1777` è `post-v0.1`).
+
 ∴ Il gate `A9` (*«project compiles; automated tests pass»*) **non è soddisfacibile**, e tutta la Roadmap B
 si ferma a `B0`.
 
