@@ -1,0 +1,78 @@
+{
+  "scenarioId": "Spec.Map.InteractClosesOpenDoor",
+  "tags": [
+    "spec",
+    "map",
+    "door",
+    "interact",
+    "toggle",
+    "riktor"
+  ],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "SPECIFICA ESEGUIBILE del verso che fino al 2026-09-05 non esisteva: `Action.Interact` CHIUDE una porta aperta ([`INT-7`] chiusa, `#2380`). Gemello speculare di `Spec.Map.InteractOpensDoor`, e insieme sono cio' che prova che la commutazione e' una commutazione — un `Closed` assoluto travestito farebbe passare questo file e cadere quello.",
+
+  "_nota_perche_non_era_scrivibile_prima": "[D-151] limitava `Action.Interact` a chiedere `Open`, e `CanTransition` restituisce `false` quando `Current == Wanted`: su una porta gia' aperta l'azione era un no-op **silenzioso** — nessun cambio, nessuna voce, nessun modo di distinguerla da un'azione mai partita. Il giocatore non poteva chiudere una porta, e la lacuna era dichiarata in `OPEN_DECISIONS.md` come `INT-7`.",
+
+  "_nota_il_corridoio_e_il_discriminante": "⛔ **`UnitAtCell` da solo non prova che una porta blocchi**, ed e' la lezione che `Spec.Map.InteractOpensDoor` porta scritta nelle proprie note: misurato il 2026-08-27, con la porta mai aperta l'A* AGGIRA il gate e arriva alla stessa cella — l'assertion passa lo stesso. Qui il difetto e' tolto alla radice invece che compensato con un oracolo piu' fine: le cinque celle attorno a (1,0,0) sono `blocksMovement`, quindi **l'unico ingresso e' il bordo con la porta**. Chiusa la porta, (1,0,0) non e' raggiungibile per nessuna via, e «R1 e' rimasto in (0,0,0)» diventa una prova invece di un indizio. E' la stessa tecnica del corridoio di `Spec.Map.Interaction.OpenFailsDependentMoveBlocks`.",
+
+  "_nota_perche_due_turni": "Il T1 chiude, il T2 prova a passare. Non si fondono: il piano di movimento si compone in pianificazione, quando la porta e' ancora aperta, e chiedere il passo nello stesso turno misurerebbe se il percorso viene rivalutato dopo il Blast — un'altra domanda, senza una risposta dichiarata. Separandoli, il T2 pianifica su una mappa in cui la porta e' gia' chiusa.",
+
+  "_nota_bersaglio": "Si punta la cella OLTRE la porta e non il bordo: senza un bordo dichiarato il resolver cerca la prima porta sulla traiettoria (`FirstDoorEdge`), e da (0,0,0) a (1,0,0) quella traiettoria E' il bordo. La portata di `Action.Interact` e' 1 ([D-149]) e le due celle sono adiacenti. Stessa scelta di `InteractOpensDoor`, cosi' i due file differiscono per lo STATO INIZIALE e per nient'altro.",
+
+  "_nota_cosa_NON_prova": "Non prova la risoluzione una-volta-sola del bersaglio, che e' il cuore di `#2380`: qui commuta una sola unita', e con un solo commutatore ogni implementazione da' lo stesso esito. Quella la prova `RefactorTactics.Structures.Door.ToggleTargetResolvesOncePreBlast`, che ne mette DUE sullo stesso bordo e asserisce il valore finale. Le due misure non si sostituiscono.",
+
+  "cells": [
+    { "_perche": "Le cinque facce di (1,0,0) diverse da quella con la porta. Neighbour axiali di (1,0): (2,0) (0,0) (1,1) (1,-1) (2,-1) (0,1) — si lascia aperta solo (0,0), dove sta R1.", "cell": [2, 0, 0], "blocksMovement": true },
+    { "cell": [1, 1, 0], "blocksMovement": true },
+    { "cell": [1, -1, 0], "blocksMovement": true },
+    { "cell": [2, -1, 0], "blocksMovement": true },
+    { "cell": [0, 1, 0], "blocksMovement": true }
+  ],
+
+  "doors": [
+    { "_perche": "APERTA per costruzione: e' l'unica differenza con `InteractOpensDoor`, ed e' cio' che l'azione deve commutare.",
+      "cell": [0, 0, 0], "edge": "E", "doorId": 1, "state": "Open" }
+  ],
+
+  "units": [
+    { "id": "R1", "hero": "Hero.Riktor", "team": 0, "cell": [0, 0, 0] },
+    { "_perche": "Serve solo perche' la partita abbia due squadre. Non dichiara intenti, e le sue assertion sono la controprova che il turno non ha fatto altro.",
+      "id": "W1", "hero": "Hero.Wraith", "team": 1, "cell": [0, -4, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 - R1 interagisce con la porta APERTA. Nessun movimento: cio' che si misura e' il cambio di stato.",
+      "intents": [
+        { "unit": "R1", "ability": "Action.Interact", "targetCell": [1, 0, 0] }
+      ]
+    },
+    {
+      "_turno": "T2 - con la porta chiusa il passo non esiste piu', e non esiste nemmeno una via alternativa: il corridoio non ce l'ha.",
+      "intents": [
+        { "unit": "R1", "move": [[1, 0, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "_assertion": "IL DISCRIMINANTE DEL T1: la porta si e' CHIUSA, una volta sola. Se l'azione dichiarasse ancora `Open` assoluto ([D-151]) qui non ci sarebbe nessuna voce — su una porta gia' aperta `CanTransition` rifiuta, in silenzio.",
+      "type": "LogEventCount", "category": "Environment", "outcome": "DoorClosed", "value": 1 },
+
+    { "_assertion": "E nessuna apertura: la commutazione ha girato nel verso giusto, e nessuno l'ha riaperta nello stesso turno.",
+      "type": "LogEventCount", "category": "Environment", "outcome": "DoorOpened", "value": 0 },
+
+    { "_assertion": "IL DISCRIMINANTE DEL T2: R1 e' rimasto dov'era. Regge come prova SOLO grazie al corridoio di `cells` — senza, l'A* aggirerebbe il bordo chiuso e arriverebbe comunque, come misurato il 2026-08-27 sul gemello.",
+      "type": "UnitAtCell", "unit": "R1", "cell": [0, 0, 0] },
+
+    { "_assertion": "L'avversario non si e' mosso e non ha subito nulla: il turno ha fatto una cosa sola.",
+      "type": "UnitAtCell", "unit": "W1", "cell": [0, -4, 0] },
+    { "type": "UnitHpEquals", "unit": "W1", "value": 90 },
+    { "type": "UnitHpEquals", "unit": "R1", "value": 120 },
+
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}

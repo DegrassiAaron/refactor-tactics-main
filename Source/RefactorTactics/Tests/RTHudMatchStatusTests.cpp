@@ -237,4 +237,59 @@ bool FRTHudMatchStatusObjectiveTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **IL COUNTDOWN DEL READY SI VEDE, E IL NUMERO NON MENTE** (`#2358`).
+ *
+ * Tre proprieta', e la terza e' quella che vale il test:
+ *
+ * 1. cambia la **parola** — durante il countdown la fase e' ancora `Planning`, quindi una riga che
+ *    scambiasse solo i secondi direbbe «Pianificazione» mentre il piano sta per partire;
+ * 2. **nomina il gesto**, come fa gia' la risoluzione con `(Spazio: salta)`;
+ * 3. 🔴 mostra il **MINORE** fra countdown e tetto residuo. Il tetto vince sul countdown (`#2193`): con
+ *    1,5 s di planning e 3 s di countdown il commit arriva fra 1,5 s, e stampare `3s` insegnerebbe una
+ *    durata falsa proprio mentre si decide se annullare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudReadyCountdownLineTest,
+	"RefactorTactics.HUD.MatchStatusShowsTheReadyCountdown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudReadyCountdownLineTest::RunTest(const FString&)
+{
+	FRTMatchHeaderView View;
+	View.Round = 1;
+	View.Phase = ERTMatchPhase::Planning;
+
+	// (1) e (2): la parola cambia, e il gesto e' nominato.
+	View.PlanningSecondsRemaining = 25.f;
+	View.ReadyCountdownSecondsRemaining = 3.f;
+	TestEqualSensitive(TEXT("countdown armato: la riga dice Ready e nomina l'annullamento"),
+		ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, false),
+		FString(TEXT("Round 1  -  Ready  -  3s  (RMB: annulla)")));
+
+	// (3) 🔴 Il tetto e' piu' corto del countdown: vince lui, e la riga lo dice.
+	View.PlanningSecondsRemaining = 1.5f;
+	View.ReadyCountdownSecondsRemaining = 3.f;
+	TestEqualSensitive(TEXT("tetto piu' corto del countdown: si mostra il tetto, non il countdown"),
+		ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, false),
+		FString(TEXT("Round 1  -  Ready  -  2s  (RMB: annulla)")));
+
+	// Senza timer di planning — le run headless — il countdown resta l'unico orologio, e un `Min` cieco
+	// avrebbe stampato il negativo.
+	View.PlanningSecondsRemaining = -1.f;
+	View.ReadyCountdownSecondsRemaining = 3.f;
+	TestEqualSensitive(TEXT("senza tetto: il countdown resta l'unico orologio"),
+		ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, false),
+		FString(TEXT("Round 1  -  Ready  -  3s  (RMB: annulla)")));
+
+	// ⚠️ **La riga di sempre non cambia di un carattere.** E' la meta' che nessuno guarda e che una
+	// regressione di formato romperebbe per prima: `-1.f` e' il default del campo, quindi ogni riga gia'
+	// scritta nel resto di questo file passa da qui.
+	View.PlanningSecondsRemaining = 25.f;
+	View.ReadyCountdownSecondsRemaining = -1.f;
+	TestEqualSensitive(TEXT("countdown non armato: la riga e' quella di sempre"),
+		ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, false),
+		FString(TEXT("Round 1  -  Pianificazione  -  25s")));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
