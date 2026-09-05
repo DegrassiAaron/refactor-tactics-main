@@ -12,6 +12,15 @@
 
 class UAnimSequenceBase;
 class UStaticMeshComponent;
+
+/**
+ * Il ruolo di presentazione, dichiarato da `URTUnitAnimInstance` (`#2441`).
+ *
+ * ⚠️ **Dichiarazione anticipata e non `#include`**: l'header del grafo di animazione tira dentro
+ * `Animation/AnimInstance.h` e tre nodi di `AnimGraphRuntime`, e `RTUnit.h` e' incluso da mezzo runtime.
+ * I due metodi che lo usano non sono `UFUNCTION`, quindi a UHT non serve il tipo completo qui.
+ */
+enum class ERTPresentationRole : uint8;
 class UArrowComponent;
 class USkeletalMeshComponent;
 class UMaterialInstanceDynamic;
@@ -920,6 +929,56 @@ public:
 	/** L'unita' eliminata esegue il montaggio di morte, prima della rimozione visiva. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
 	void PlayDefeatMontage();
+
+	// --- Il canale della presentazione discreta (#2448) ---------------------------------------------
+	//
+	// 🔴 **I tre eventi qui sopra non scelgono niente: chiedono al Blueprint di scegliere.** Sono
+	// `BlueprintImplementableEvent` SENZA parametri, quindi quale clip suoni lo decide il `BP_Unit_*` —
+	// un asset binario. Dal 2026-09-05 (`#2441`) il roster porta nove ruoli con varianti e una attiva
+	// per ruolo, e **sette ruoli su nove non hanno un consumatore**: promuovere una variante di `Attack`
+	// non produce alcun effetto, perche' nessuno la va a leggere.
+	//
+	// 🔑 **La via scelta NON cambia la firma di quegli eventi**, e la ragione e' misurata. Cambiarla
+	// romperebbe i quattro `BP_Unit_*.uasset` alla compilazione e richiederebbe di ri-salvarli — lavoro
+	// su binari che appartiene a `#2444`. L'engine offre gia' cio' che serve:
+	// `UAnimInstance::PlaySlotAnimationAsDynamicMontage` (UE 5.8, `AnimInstance.h:591`) prende una
+	// `UAnimSequenceBase` — **non** un `UAnimMontage` — e la suona su uno slot nominato, costruendo il
+	// montaggio a runtime. E lo slot esiste gia': `FRTUnitAnimProxy::Slot` e' la RADICE del grafo
+	// (`GetCustomRootNode`), con `SlotName = FAnimSlotGroup::DefaultSlotName`.
+	//
+	// ∴ Zero `.uasset` toccati, zero `AM_*` richiesti (restano lavoro di `#288`), e i tre eventi
+	// Blueprint continuano a funzionare per chi voglia sovrascrivere la presentazione in BP.
+	//
+	// ⚠️ **Solo presentazione** (invariante #1): niente qui decide un esito. Ogni fallimento e' un
+	// no-op silenzioso e la partita si gioca uguale.
+
+	/**
+	 * La clip che il canale suonerebbe per questo ruolo, **senza suonarla**.
+	 *
+	 * 🔑 **Esiste separata da `PlayPresentationRole` perche' e' l'unica meta' OSSERVABILE headless.**
+	 * Gli scenari spawnano `ARTUnit::StaticClass()` e non i `BP_Unit_*` (`RTScenarioSession.cpp:807`),
+	 * quindi senza rendering non esiste nessun `AnimInstance` e non esiste niente da riprodurre: un test
+	 * che asserisse «l'animazione giusta e' partita» sarebbe verde per costruzione. Qui l'oracolo e'
+	 * **quale clip e' stata scelta**, che e' deterministico e falsificabile.
+	 *
+	 * Risponde vuoto — e non e' un errore — quando l'unita' non ha una skeletal d'eroe, non ha un
+	 * `URTUnitAnimInstance`, l'eroe non e' a catalogo, il ruolo non e' popolato, o nessuna variante e'
+	 * attiva.
+	 *
+	 * ⛔ **Non elegge una variante al posto dell'autore.** Se l'attiva manca, la risposta e' «nessuna»,
+	 * mai «la prima disponibile»: la scelta e' sua, e un ripiego automatico gliela toglierebbe in
+	 * silenzio.
+	 */
+	TSoftObjectPtr<UAnimSequenceBase> ResolvePresentationClip(ERTPresentationRole Role) const;
+
+	/**
+	 * Suona sul canale la clip attiva per questo ruolo, se ce n'e' una.
+	 *
+	 * ⚠️ **Non ha valore di ritorno di proposito**: chi la chiama non deve poter ramificare sull'esito
+	 * della presentazione. Se non c'e' niente da suonare, non succede niente — e la simulazione non se
+	 * ne accorge.
+	 */
+	void PlayPresentationRole(ERTPresentationRole Role);
 
 	// IRTSelectable
 	virtual void OnSelected() override;

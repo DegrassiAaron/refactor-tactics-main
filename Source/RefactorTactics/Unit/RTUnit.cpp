@@ -16,6 +16,7 @@
 #include "Components/ArrowComponent.h"
 #include "Animation/AnimSequenceBase.h"
 #include "Animation/AnimSingleNodeInstance.h"
+#include "Animation/Skeleton.h" // FAnimSlotGroup::DefaultSlotName: lo slot su cui il canale suona (#2448)
 #include "Unit/RTUnitAnimInstance.h"
 #include "Perception/RTTeamKnowledge.h" // ContactLifetimeTurns: la durata del ricordo ha un owner, non si ricopia
 #include "Components/WidgetComponent.h" // la sovrapposizione sopra la testa (#2288, D-320)
@@ -543,6 +544,70 @@ TSoftObjectPtr<UAnimSequenceBase> ARTUnit::GhostFallbackClipPath() const
 	}
 
 	return GhostFallbackClipFor(Defaults, HeroId);
+}
+
+TSoftObjectPtr<UAnimSequenceBase> ARTUnit::ResolvePresentationClip(ERTPresentationRole Role) const
+{
+	// ⚠️ `FindHeroSkeletal`, non `GetComponents`: esclude `ContactGhost` **per identita'**, che e' il
+	// criterio robusto. L'esclusione per asset nullo che usano `ApplyUnitAnimClass` e `ApplyMeshYawOffset`
+	// smette di valere appena `UpdateContactGhost` assegna una mesh alla sagoma del ricordo, e allora il
+	// canale suonerebbe su un fantasma.
+	const USkeletalMeshComponent* Skeletal = FindHeroSkeletal();
+	if (Skeletal == nullptr)
+	{
+		// Il caso normale headless: gli scenari spawnano `ARTUnit::StaticClass()` e la skeletal la aggiunge
+		// il Blueprint. Nessuna clip da scegliere, e non e' un errore.
+		return nullptr;
+	}
+
+	// ⚠️ Si legge dall'ISTANZA e non dal CDO di `UnitAnimClass`: un `BP_Unit_*` puo' scavalcare una voce
+	// del roster senza ricompilare, ed e' esattamente la via che `EditDefaultsOnly` lascia aperta. Leggere
+	// il CDO ignorerebbe quell'override e mostrerebbe una clip che non e' quella che suona.
+	const URTUnitAnimInstance* Anim = Cast<URTUnitAnimInstance>(Skeletal->GetAnimInstance());
+	if (Anim == nullptr)
+	{
+		return nullptr;
+	}
+
+	// `ActiveClipFor` copre da sola le tre vie che danno «nessuna clip» — eroe fuori catalogo, ruolo non
+	// popolato, nessuna variante attiva — e nessuna delle tre e' un errore. Non se ne scrive un secondo.
+	return Anim->ActiveClipFor(HeroId, Role);
+}
+
+void ARTUnit::PlayPresentationRole(ERTPresentationRole Role)
+{
+	const TSoftObjectPtr<UAnimSequenceBase> Scelta = ResolvePresentationClip(Role);
+	if (Scelta.IsNull())
+	{
+		return;
+	}
+
+	// `LoadSynchronous` su un soft pointer che non risolve restituisce `nullptr` senza rumore: e' il caso
+	// di chi ha clonato il repository senza i pack Paragon, che sono gitignorati (~48 GB).
+	UAnimSequenceBase* Clip = Scelta.LoadSynchronous();
+	if (Clip == nullptr)
+	{
+		return;
+	}
+
+	USkeletalMeshComponent* Skeletal = FindHeroSkeletal();
+	UAnimInstance* Anim = Skeletal ? Skeletal->GetAnimInstance() : nullptr;
+	if (Anim == nullptr)
+	{
+		// Non ridondante con `ResolvePresentationClip`: fra la risoluzione e qui l'istanza puo' essere
+		// stata ricreata (cambio di LOD, re-init del grafo). Si ricontrolla invece di fidarsi.
+		return;
+	}
+
+	// 🔑 **Il montaggio non e' un asset: lo costruisce l'engine attorno alla sequenza.**
+	// `PlaySlotAnimationAsDynamicMontage` prende una `UAnimSequenceBase` e la suona sullo slot nominato —
+	// ed e' la ragione per cui questa issue non ha bisogno dei dodici `AM_*` di `#288`, ne' di toccare un
+	// solo `.uasset`.
+	//
+	// ⚠️ Lo slot e' quello che il grafo dichiara come RADICE (`FRTUnitAnimProxy::GetCustomRootNode`), con
+	// `SlotName = FAnimSlotGroup::DefaultSlotName`. Passare un nome diverso farebbe partire il montaggio
+	// su uno slot che il grafo non attraversa: nessun errore, nessun log, e niente a schermo.
+	Anim->PlaySlotAnimationAsDynamicMontage(Clip, FAnimSlotGroup::DefaultSlotName);
 }
 
 USkeletalMeshComponent* ARTUnit::FindHeroSkeletal() const
