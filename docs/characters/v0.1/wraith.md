@@ -23,7 +23,7 @@ Duellante predittivo: il più mobile del roster, punisce traiettorie e movimento
 | Tipo danno | Kinetic |
 | Complessità gameplay | TBD |
 | Complessità tecnica (1–5) | TBD |
-| Risorsa firma | Slancio |
+| Risorsa firma | Slancio ⛔ *(disegno — vedi §«Risorsa firma»)* |
 | Signature primaria | Predictive Interception |
 | Signature secondaria | Movement Punish |
 | Framework principali | Movement, Reaction, Prediction, Control |
@@ -137,9 +137,17 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 
 ## Risorsa firma
 
+> ⛔ **DISEGNATA, DELIBERATAMENTE NON IMPLEMENTATA** — [`D-265`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-30) e [`D-324`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-09-04).
+>
+> **Non esiste una risorsa firma universale**: l'economia comune del turno è **slot, cooldown e drawback**. `D-324` ha tolto `Energy` — l'unica implementazione viva di quel modello — dal gameplay, e [#610](https://github.com/DegrassiAaron/refactor-tactics-main/issues/610) l'ha rimossa dal codice. In `Source/` non c'è nessun sottosistema che legga questa tabella.
+>
+> ✅ **Resta perché la via è aperta, non per inerzia.** `D-265` ammette una risorsa **come meccanica specifica di un kit che la motivi**, con un proprio contratto di dati e validazione. Questo è il disegno di quel kit, in attesa di chi lo prenderà.
+>
+> ⚠️ **Chi lo prenderà** parta da `D-265`, non da questa tabella: il `Cap 4` e la ricarica `1` nascono dal modello universale che è stato **scartato**, e vanno rimotivati per questo eroe invece che ereditati. E risponda a `AE-6` — *«questa risorsa si ricarica con `Wait`?»* — che [`D-329`](../../decisions/RT_PDR_00_Decision_Log.md) ha chiuso per assorbimento lasciando la domanda in eredità al primo kit che la adotti.
+
 | Resource_ID | Nome | Cap | Start | Regen | Regen_Trigger | Spesa | Regola | Audience | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| RES_VEKTOR_MOMENTUM | Slancio | 4 | — | 1 | Movimento eseguito | Abilità firma | Cap 4; start non specificato | Team-visible | CANONICAL_PARTIAL |
+| RES_VEKTOR_MOMENTUM | Slancio | 4 | — | 1 | Movimento eseguito | Abilità firma | Cap 4; start non specificato | Team-visible | NOT_IMPLEMENTED (D-265) |
 
 > **Ownership del kit:** le abilità di questa pagina appartengono esclusivamente a questo personaggio. Le sinergie con altri eroi sono esempi derivati da stati, superfici, geometria e altre regole comuni; non sono abilità condivise. Vedi [Sinergie e combinazioni](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/sinergie-e-combinazioni).
 

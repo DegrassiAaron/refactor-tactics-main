@@ -66,10 +66,13 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 > (cap **1**) è lo slot Reazione dell'ADR-0003. **Sono lo stesso sistema con due nomi**: la tabella qui sopra
 > resta la formulazione canonica, «AP» è ammesso come sinonimo nei documenti di bilanciamento.
 >
-> **Risorsa firma** — ciò che l'MVP chiamava *energia* è per-personaggio, con nome e trigger di ricarica
-> propri: `Gadget` Carica Conduttiva · `Phase` Riserva Idrica · `Riktor` Integrità Strutturale · `Wraith`
-> Slancio. Cap **4** per tutte (valore più basso fra i candidati), ricarica **1** sul trigger d'affinità.
-> Cambia il nome e cosa la ricarica, **non** la regola.
+> **Risorsa firma** — ⛔ **voce di disegno, non di regola.** L'MVP chiamava *energia* un contatore per unità;
+> [`D-265`](../decisions/RT_PDR_00_Decision_Log.md) ha deciso che **non esiste una risorsa firma universale** e
+> [`D-324`](../decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy` dal gameplay ([#610](https://github.com/DegrassiAaron/refactor-tactics-main/issues/610)).
+> Un kit **può** dichiarare una risorsa propria, con contratto di dati e validazione suoi: allora è quel kit a
+> definirne nome, cap e trigger. I nomi per eroe — `Gadget` Carica Conduttiva · `Phase` Riserva Idrica ·
+> `Riktor` Integrità Strutturale · `Wraith` Slancio — restano nel catalogo eroi come **disegno**, e il `Cap 4`
+> con ricarica `1` è il parametro del modello scartato: va rimotivato, non ereditato.
 
 Un piano completo dichiara: percorso di movimento · azione principale · reazione (se disponibile) · **facing
 finale** · fallback.

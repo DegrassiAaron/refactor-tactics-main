@@ -214,7 +214,19 @@ La colonna **Vista** smette di essere inerte: con lo slice di conoscenza parzial
 Nessuna azione del roster supera la vista di chi la usa (max `range` 5 su vista minima 5), quindi il vincolo
 non riduce la gittata di nessuno: la vista lunga vale **anticipo d'informazione**, non danno.
 
-| Eroe | Vista | Soglia d'udito | Ruolo | Risorsa firma | Ricarica su | Cap |
+> ⛔ **Le tre colonne di risorsa — `Risorsa firma`, `Ricarica su`, `Cap` — NON descrivono un sistema esistente.**
+> [`D-265`](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-30) ha deciso che **non esiste una risorsa firma
+> universale**: l'economia comune del turno è **slot, cooldown e drawback**. [`D-324`](../decisions/RT_PDR_00_Decision_Log.md)
+> ha tolto `Energy` dal gameplay e [#610](https://github.com/DegrassiAaron/refactor-tactics-main/issues/610) l'ha
+> rimossa dal codice: **nessun sottosistema legge questi tre valori**.
+>
+> ✅ Restano come **disegno per il kit che li adotterà** — `D-265` lascia aperta la via kit-specific — e i nomi
+> propri sono canone per l'identità dell'eroe. ⚠️ Ma il `Cap 4` e la ricarica `1` nascono dal modello universale
+> che è stato scartato: chi implementerà una risorsa li **rimotivi** per quell'eroe invece di ereditarli.
+>
+> Le colonne `Vista` e `Soglia d'udito` di questa stessa tabella sono **vive** e non sono toccate da questa nota.
+
+| Eroe | Vista | Soglia d'udito | Ruolo | Risorsa firma ⛔ | Ricarica su ⛔ | Cap ⛔ |
 |---|---:|---:|---|---|---|---:|
 | Gadget | 7 | 5 | Controller | Carica Conduttiva | interazione elettrica | 4 |
 | Phase | 5 | 3 | Support | Riserva Idrica | interazione con acqua | 4 |
