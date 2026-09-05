@@ -372,7 +372,11 @@ bool FRTHexMapFormatMigrationTest::RunTest(const FString&)
 	// dichiarativo: il default `None` e' cio' che ogni superficie elevata gia' era — un disco sospeso — e
 	// la ricarica non deduce il riempimento dal contesto, perche' un ponte e una collina hanno entrambi il
 	// vuoto sotto e dedurre trasformerebbe il primo in un muro.
-	TestEqual(TEXT("la versione corrente e' la 15"), URTHexMapAsset::CurrentFormatVersion, 15);
+	// v16 (#2401): il bordo guadagna i PARAPETTI (`EdgeGuards`). Passo dichiarativo: l'array nasce vuoto, e
+	// «nessun parapetto» e' cio' che ogni mappa scritta prima gia' era. La ricarica non lo deduce — un bordo
+	// sul vuoto e uno protetto sono identici nel dato di cella, e dedurre trasformerebbe ogni terrazza in
+	// una gabbia.
+	TestEqual(TEXT("la versione corrente e' la 16"), URTHexMapAsset::CurrentFormatVersion, 16);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 3);
 	TestEqual(TEXT("nessuna transizione persa"), Legacy->Transitions.Num(), 2); // bidirezionale
 	// v11: una mappa vecchia non guadagna OBIETTIVI ricaricandosi. E' la promessa del passo dichiarativo, e

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BaseTools/ClickDragTool.h"
+#include "Map/RTHexMapActor.h" // ERTRebuildFamily: la maschera che il pennello passa al rebuild
 #include "Map/RTHexCellData.h" // FRTCellId + ERTHexSurface (brush)
 #include "ScopedTransaction.h" // TUniquePtr<FScopedTransaction> membro
 #include "RTHexPaintTool.generated.h"
@@ -93,6 +94,12 @@ public:
 	virtual void SetWorld(UWorld* World);
 	virtual void Setup() override;
 	virtual FInputRayHit CanBeginClickDragSequence(const FInputDeviceRay& PressPos) override;
+	/**
+	 * Le famiglie che una pennellata puo' cambiare (`#1865`). `bPaint` falso -> tutte, perche' l'erase
+	 * toglie la cella da OGNI famiglia. Statica e pubblica per essere verificabile senza pilotare il tool.
+	 */
+	static ERTRebuildFamily BrushRebuildMask(bool bPaint);
+
 	virtual void OnClickPress(const FInputDeviceRay& PressPos) override;
 	virtual void OnClickDrag(const FInputDeviceRay& DragPos) override;
 	virtual void OnClickRelease(const FInputDeviceRay& ReleasePos) override;
