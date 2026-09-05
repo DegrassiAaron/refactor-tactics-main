@@ -79,8 +79,11 @@ bersaglio e' `Map.OpenEdge.GuardSuppressesOpenness`. Risponde alla domanda che p
   `bersagli`, e il gate lo puo' solo segnalare (`BERSAGLI DIVERSI`), non risolvere.
 - **Non copre le mutazioni che non sono in tabella.** Cinque mutazioni sono cinque, non «il codice
   della caduta e' coperto».
-- **Non vede il binario.** Come `rt-suite`: se non stampa `GATE COMPLETO`, il DLL sul disco puo'
-  essere ancora quello mutato - **ricostruire prima di qualunque altra misura**.
+- **Il binario, alla fine, non e' quello del sorgente** finche' non lo si ricostruisce. Il ciclo
+  ripristina il sorgente dopo ogni misura ma non ricompila: l'ultimo DLL prodotto e' quello MUTATO.
+  Misurato il 2026-09-05 — sorgente pulito, DLL mutato di quattro minuti prima. Per questo il gate
+  **ricostruisce da se'** alla fine, e se quel build fallisce lo dice forte: e' la meta' che
+  `rt-suite` non sa vedere, e chi misurasse dopo misurerebbe la mutazione.
 - **Non misura gli effetti numerici della caduta** (`FallEffects`/`ImpactEffects`): non esistono come
   dato, e `#2402` D001 lo dichiara. Sono materia di `#2430`.
 - **Non sostituisce l'accettazione in Editor** (`#2408`) ne' l'evidenza packaged (`#2407`).
@@ -620,11 +623,25 @@ try:
     completo = True
 finally:
     ripristina_tutto()
-    if completo:
+
+    # 🔴 Il sorgente e' tornato a posto, il BINARIO no: l'ultimo build e' quello della mutazione, e
+    # nessuno ricompila dopo l'ultima misura. Chi lanciasse una suite qui dopo misurerebbe la
+    # mutazione su un sorgente sano - un rosso senza causa visibile nel diff. Si ricostruisce qui,
+    # e vale sia sul percorso riuscito sia su quello interrotto.
+    riallineato = True
+    if costruito_mutato:
+        print("\nricostruzione del binario sul sorgente ripristinato...")
+        riallineato = build()
+        print("binario riallineato al sorgente." if riallineato else
+              "⛔ RICOSTRUZIONE FALLITA: il DLL sul disco e' ancora quello MUTATO.\n"
+              "   Ricostruire a mano PRIMA di qualunque altra misura in questo checkout.")
+
+    if not riallineato:
+        pass                     # l'avviso sopra e' gia' il piu' forte: non lo si annacqua
+    elif completo:
         print("\nGATE COMPLETO - esiti in " + ESITI)
     elif costruito_mutato:
-        print("\n⛔ GATE INTERROTTO: il sorgente e' ripristinato ma il BINARIO puo' essere ancora\n"
-              "   quello mutato. RICOSTRUIRE prima di qualunque altra misura.")
+        print("\nGATE INTERROTTO dopo aver mutato: sorgente e binario sono entrambi ripristinati.")
     else:
         print("\nGATE FERMATO prima di mutare: nessuna scrittura sui sorgenti, binario intatto.")
 
