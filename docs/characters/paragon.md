@@ -6,7 +6,7 @@ Questa sezione raccoglie **tutti i 38 hero asset slot** presenti nel Character M
 >
 > 🔴 **Corretta il 2026-09-04 da [D-321](../decisions/RT_PDR_00_Decision_Log.md): questa riga affermava il contrario di ciò che è vero.** Diceva che *«le quattro pagine v0.1 di Gadget, Phase, Riktor e Wraith sono personaggi RefactorTactics separati: hanno un asset Paragon come base visuale, non un'identità Paragon»*. È **falso**, e la misura che lo falsifica è nella tabella qui sotto: quei quattro nomi **sono** i nomi degli slot, non nomi ispirati ad essi — `Gadget`, `Phase`, `Riktor` e `Wraith` compaiono in [`candidates/`](candidates/), il pool dei 38. La coincidenza è letterale, quindi sono identità Paragon.
 >
-> Le loro identità retail sono **Nexis**, **Slake**, **Kern** e **Scryer** ([D-322](../decisions/RT_PDR_00_Decision_Log.md)). ⏳ Il runtime porta ancora gli ID legacy: la migrazione è **post-v0.1** e ha come owner [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297).
+> Le loro identità retail sono **Aevik**, **Muiren**, **Branth** e **Ivrin** ([D-334](../decisions/RT_PDR_00_Decision_Log.md), che supersede [D-322](../decisions/RT_PDR_00_Decision_Log.md) sui soli quattro nomi v0.1). ⏳ Il runtime porta ancora gli ID legacy: la migrazione è **post-v0.1** e ha come owner [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297).
 
 I nomi Paragon identificano la **base asset / slot di roster**. CharacterId, nome finale, lore, kit e bilanciamento RefactorTactics sono originali. Dal 2026-09-04 **nessuno slot del roster ha più un nome retail `TBD`**: gli otto sono decisi da [D-322](../decisions/RT_PDR_00_Decision_Log.md) (v0.1) e dalla decisione d'autore registrata in [#322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/322) (v0.2).
 
@@ -17,16 +17,16 @@ altri documenti la referenziano, non la copiano.
 
 | Identità RefactorTactics | `RT Character ID` | Slot asset Paragon | Release |
 |---|---|---|---|
-| **Nexis** ⏳ | `Hero.Gadget` → `Hero.Nexis` | [Gadget](candidates/gadget.md) | v0.1 |
-| **Slake** ⏳ | `Hero.Phase` → `Hero.Slake` | [Phase](candidates/phase.md) | v0.1 |
-| **Kern** ⏳ | `Hero.Riktor` → `Hero.Kern` | [Riktor](candidates/riktor.md) | v0.1 |
-| **Scryer** ⏳ | `Hero.Wraith` → `Hero.Scryer` | [Wraith](candidates/wraith.md) | v0.1 |
+| **Aevik** ⏳ | `Hero.Gadget` → `Hero.Aevik` | [Gadget](candidates/gadget.md) | v0.1 |
+| **Muiren** ⏳ | `Hero.Phase` → `Hero.Muiren` | [Phase](candidates/phase.md) | v0.1 |
+| **Branth** ⏳ | `Hero.Riktor` → `Hero.Branth` | [Riktor](candidates/riktor.md) | v0.1 |
+| **Ivrin** ⏳ | `Hero.Wraith` → `Hero.Ivrin` | [Wraith](candidates/wraith.md) | v0.1 |
 | **Ward** | `Hero.Ward` | [Steel](v0.2/steel.md) | v0.2 |
 | **Rime** | `Hero.Rime` | [Aurora](v0.2/aurora.md) | v0.2 |
 | **Vigil** | `Hero.Vigil` | [Murdock](v0.2/murdock.md) | v0.2 |
 | **Tethra** | `Hero.Tethra` | [Kwang](v0.2/kwang.md) | v0.2 |
 
-⏳ = **identità decisa, ID non ancora migrato.** La freccia è il lavoro di [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297), differito post-v0.1 da [D-321](../decisions/RT_PDR_00_Decision_Log.md). Finché quella issue è aperta, `Hero.Gadget` è ciò che il codice contiene e `Nexis` è ciò che il personaggio si chiama: **due verità simultanee e dichiarate**, non una divergenza.
+⏳ = **identità decisa, ID non ancora migrato.** La freccia è il lavoro di [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297), differito post-v0.1 da [D-321](../decisions/RT_PDR_00_Decision_Log.md). Finché quella issue è aperta, `Hero.Gadget` è ciò che il codice contiene e `Aevik` è ciò che il personaggio si chiama: **due verità simultanee e dichiarate**, non una divergenza.
 
 Tre concetti, tre colonne, e restano separati:
 
@@ -37,8 +37,8 @@ Tre concetti, tre colonne, e restano separati:
 ~~Per i quattro slot v0.2 il nome coincide con quello di lavoro. **Coincidere non è essere deciso**: il nome retail
 resta soggetto alla governance del roster.~~
 
-✅ **Chiuso il 2026-09-04.** La governance ha deciso: **Ward · Vigil · Rime · Tethra** per la v0.2, **Nexis · Slake ·
-Kern · Scryer** per la v0.1 ([D-322](../decisions/RT_PDR_00_Decision_Log.md)). La riga «Identità originale» di
+✅ **Chiuso il 2026-09-04.** La governance ha deciso: **Ward · Vigil · Rime · Tethra** per la v0.2, **Aevik · Muiren ·
+Branth · Ivrin** per la v0.1 ([D-322](../decisions/RT_PDR_00_Decision_Log.md), i cui quattro nomi v0.1 sono stati ridecisi il 2026-09-05 da [D-334](../decisions/RT_PDR_00_Decision_Log.md)). La riga «Identità originale» di
 [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) non ha più uno slot di roster da coprire. La frase barrata resta
 perché descriveva correttamente lo stato fino a quel giorno, ed è la ragione per cui i nomi v0.2 sono stati a lungo
 scritti come *nomi di lavoro*.
@@ -53,7 +53,7 @@ base visuale non diventa un personaggio RefactorTactics.~~
 
 🔁 **Doppiamente superata, e va letta come storia.** `Hero.Flux` non esiste più dal 2026-08-13:
 [D-130](../decisions/RT_PDR_00_Decision_Log.md) ha rimosso `Flux`, `Riva`, `Bastion` e `Vektor` da tutto il
-repository, e quei quattro **non tornano** — la transizione in corso è `Gadget → Nexis`, non un ritorno.
+repository, e quei quattro **non tornano** — la transizione in corso è `Gadget → Aevik`, non un ritorno.
 La conclusione è caduta a sua volta: [D-321](../decisions/RT_PDR_00_Decision_Log.md) stabilisce che un nome
 **identico** allo slot *è* identità Paragon, e quindi il mapping oggi **rinomina eccome** — in modo differito,
 tracciato e con un owner ([#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297)).
@@ -133,15 +133,15 @@ Ogni pagina contiene una card grafica locale in `images/paragon/`. È un placeho
 | [Grux](candidates/grux.md) | Bruiser | Battle Momentum | 3/5 | Candidate |
 | [Rampage](candidates/rampage.md) | Bruiser / Tank | Fury | 3/5 | Candidate |
 | [Sevarog](candidates/sevarog.md) | Tank / Controller | Essence Harvest | 4/5 | Candidate |
-| [Riktor](candidates/riktor.md) | Controller | Tether | 4/5 | **Roster v0.1** — `Hero.Riktor` → `Hero.Kern` ⏳ |
+| [Riktor](candidates/riktor.md) | Controller | Tether | 4/5 | **Roster v0.1** — `Hero.Riktor` → `Hero.Branth` ⏳ |
 | [Crunch](candidates/crunch.md) | Combo Fighter | Combo State Machine | 5/5 | Candidate |
 | [Boris](candidates/boris.md) | Bruiser | Overdrive / Heat | 3/5 | Candidate |
 | [TwinBlast](candidates/twinblast.md) | Skirmisher | Alternating Rhythm | 4/5 | Candidate |
 | [Drongo](candidates/drongo.md) | Striker / Controller | Payload Mix | 4/5 | Candidate |
-| [Wraith](candidates/wraith.md) | Recon / Predicter | Insight | 5/5 | **Roster v0.1** — `Hero.Wraith` → `Hero.Scryer` ⏳ |
+| [Wraith](candidates/wraith.md) | Recon / Predicter | Insight | 5/5 | **Roster v0.1** — `Hero.Wraith` → `Hero.Ivrin` ⏳ |
 | [Lt. Belica](candidates/lt-belica.md) | Counter / Control | Suppression Charge | 4/5 | Candidate |
 | [GRIM.exe](candidates/grim-exe.md) | Ranged / Utility | Core Modes | 4/5 | Candidate |
-| [Gadget](candidates/gadget.md) | Engineer | Device Network | 5/5 | **Roster v0.1** — `Hero.Gadget` → `Hero.Nexis` ⏳ |
+| [Gadget](candidates/gadget.md) | Engineer | Device Network | 5/5 | **Roster v0.1** — `Hero.Gadget` → `Hero.Aevik` ⏳ |
 | [Howitzer](candidates/howitzer.md) | Artillery | Artillery Heat | 4/5 | Candidate |
 | [Zinx](candidates/zinx.md) | Sustain / Controller | Energy Debt | 5/5 | Candidate |
 | [Muriel](candidates/muriel.md) | Support | Guardian Link | 4/5 | Candidate |
@@ -157,7 +157,7 @@ Ogni pagina contiene una card grafica locale in `images/paragon/`. È un placeho
 | [Gideon](candidates/gideon.md) | Controller / Mobility | Rift Network | 5/5 | Candidate |
 | [The Fey](candidates/the-fey.md) | Terrain Controller | Growth | 5/5 | Candidate |
 | [Morigesh](candidates/morigesh.md) | Hexer / Hunter | Hex | 4/5 | Candidate |
-| [Phase](candidates/phase.md) | Support / Mobility | Phase Link | 5/5 | **Roster v0.1** — `Hero.Phase` → `Hero.Slake` ⏳ |
+| [Phase](candidates/phase.md) | Support / Mobility | Phase Link | 5/5 | **Roster v0.1** — `Hero.Phase` → `Hero.Muiren` ⏳ |
 | [Narbash](candidates/narbash.md) | Support / Rhythm | Beat | 4/5 | Candidate |
 | [Iggy & Scorch](candidates/iggy-and-scorch.md) | Terrain Controller / Duo | Combustion Field | 5/5 | Candidate |
 | [Sparrow](candidates/sparrow.md) | Marksman | Precision Chain | 3/5 | Candidate |
