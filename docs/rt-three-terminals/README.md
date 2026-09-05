@@ -12,6 +12,42 @@ Configurazione locale VS Code per separare sviluppo, validazione Unreal ed Edito
 
 La modalità globale della macchina è separata dal ruolo di ogni terminale. Aprire o chiudere terminali non modifica lo stato globale.
 
+## Ruolo e wave
+
+Ci sono due livelli. Non confonderli.
+
+| Livello | Domanda | Documenti |
+|---|---|---|
+| **Ruolo** | Cosa può occupare questo terminale, e con chi confligge | [`prompts/TERMINAL_DEV.md`](prompts/TERMINAL_DEV.md) · [`prompts/TERMINAL_VALIDATION.md`](prompts/TERMINAL_VALIDATION.md) · [`prompts/TERMINAL_EDITOR.md`](prompts/TERMINAL_EDITOR.md) |
+| **Wave** | Come si esegue e si consegna un lavoro attraverso i ruoli | [`prompts/RT3_CONTRACT.md`](prompts/RT3_CONTRACT.md) · [`prompts/WAVE_DEV_LEAD.md`](prompts/WAVE_DEV_LEAD.md) · [`prompts/WAVE_DEV_MAIN.md`](prompts/WAVE_DEV_MAIN.md) · [`prompts/WAVE_DEV_TEST.md`](prompts/WAVE_DEV_TEST.md) · [`prompts/WAVE_EDITOR.md`](prompts/WAVE_EDITOR.md) · [`prompts/WAVE_VALIDATION.md`](prompts/WAVE_VALIDATION.md) |
+
+Un prompt di wave presuppone il prompt di ruolo. Non lo sostituisce.
+
+I prompt di wave si incollano **uno per sessione**. Dichiarano identità mutuamente esclusive: incollarne due insieme dà a un agente due ruoli contraddittori.
+
+Formato degli handoff, verdetti e matrice canonica: [`prompts/RT3_CONTRACT.md`](prompts/RT3_CONTRACT.md).
+Esempio compilato: [`prompts/RT3_EXAMPLE.md`](prompts/RT3_EXAMPLE.md).
+Handoff persistiti: [`waves/`](waves/README.md).
+
+### DEV-LEAD
+
+Per una wave, una singola istanza DEV possiede l'integrazione: consolida il lavoro degli altri DEV ed emette l'handoff RT3 di ingresso verso EDITOR.
+
+`DEV-LEAD` è un ruolo **di wave**, non un quarto ruolo di terminale: `rtmode` e le regole di concorrenza restano quelle DEV.
+
+Se per una wave DEV-LEAD non è designato, la wave non ha ingresso.
+
+Prompt: [`prompts/WAVE_DEV_LEAD.md`](prompts/WAVE_DEV_LEAD.md).
+
+### DEV-MAIN e DEV-TEST
+
+Le altre istanze DEV della wave. Sono ruoli **di wave**, non ruoli di terminale: valgono le regole di concorrenza di `TERMINAL_DEV.md` e nessuna delle due occupa Unreal.
+
+- **DEV-MAIN** implementa il comportamento di produzione dentro lo scope assegnato — [`prompts/WAVE_DEV_MAIN.md`](prompts/WAVE_DEV_MAIN.md);
+- **DEV-TEST** scrive Automation Test, scenari e validator, e dichiara i comandi che VALIDATION eseguirà — [`prompts/WAVE_DEV_TEST.md`](prompts/WAVE_DEV_TEST.md).
+
+Nessuna delle due emette un handoff RT3: i tre punti fissi della catena restano DEV-LEAD, EDITOR, VALIDATION. Consegnano un **contributo** in [`waves/<feature-slug>/contrib/`](waves/README.md), che DEV-LEAD consolida in un unico `RT3-DEVLEAD-<sha7>.md`.
+
 ## Quanti terminali posso aprire?
 
 I ruoli supportano **N terminali nella stessa directory / stesso checkout**.

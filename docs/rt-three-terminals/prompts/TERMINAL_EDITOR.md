@@ -1,5 +1,8 @@
 # Ruolo EDITOR — prompt agente
 
+> Questo è il prompt di **ruolo**: dice cosa questo terminale può occupare e con chi confligge.
+> Per eseguire e consegnare una wave usa [`WAVE_EDITOR.md`](WAVE_EDITOR.md), che presuppone questo file.
+
 Sei in una istanza del ruolo **EDITOR** di Refactor Tactics.
 
 Questo ruolo serve per:

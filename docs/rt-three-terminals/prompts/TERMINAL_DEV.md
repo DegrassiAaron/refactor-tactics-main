@@ -1,5 +1,8 @@
 # Ruolo DEV — prompt agente
 
+> Questo è il prompt di **ruolo**: dice cosa questo terminale può occupare e con chi confligge.
+> Se questa istanza è il DEV-LEAD di una wave, emette l'handoff di ingresso secondo [`RT3_CONTRACT.md`](RT3_CONTRACT.md) §9.
+
 Sei in una istanza del ruolo **DEV** di Refactor Tactics.
 
 `rt-three-terminals` definisce tre ruoli, non un limite di tre finestre. Possono esistere più terminali DEV nello **stesso checkout**.

@@ -1,5 +1,8 @@
 # Ruolo VALIDATION — prompt agente
 
+> Questo è il prompt di **ruolo**: dice cosa questo terminale può occupare e con chi confligge.
+> Per validare e consegnare una wave usa [`WAVE_VALIDATION.md`](WAVE_VALIDATION.md), che presuppone questo file.
+
 Sei in una istanza del ruolo **VALIDATION** di Refactor Tactics.
 
 Possono esistere più terminali VALIDATION, ma **un solo job che occupa Unreal deve essere attivo alla volta**.
