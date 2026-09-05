@@ -28,12 +28,21 @@ costruisce ogni passo su `Target.Layer` **costante**.
 
 Un lato di cella può essere, per il passaggio:
 
-| Qualifica | Significato | Effetto sulla caduta |
-|---|---|---|
-| **aperto** | il lato dà sul vuoto: nessuna cella adiacente sul proprio layer | uno spostamento che lo attraversa **cade** |
-| **parapetto** | il lato dà sul vuoto ma è protetto | lo spostamento **si ferma**, come oggi |
-| **bloccante** | muro, copertura alta, porta chiusa | invariato, già canone |
-| **percorribile** | adiacenza planare normale | invariato |
+| Qualifica | Significato | Come si sa | Effetto sulla caduta |
+|---|---|---|---|
+| **percorribile** | adiacenza planare normale | già canone | nessuno |
+| **bloccante** | muro, copertura alta, porta chiusa | già canone — `bBlocksMovement`, `FRTHexCover`, `FRTHexDoor` | nessuno |
+| **aperto** | nessuna cella adiacente su quel lato, nello stesso layer | **derivato**: `URTHexLedgeLibrary::IsEdgeOpen` | uno spostamento che lo attraversa **cade** |
+| **parapetto** | il lato dà sul vuoto ma è protetto | **autorato**: `FRTHexEdgeGuard` | lo spostamento **si ferma**, come oggi |
+
+🔑 **Delle quattro qualifiche una sola è dato nuovo**, e la colonna «come si sa» è il motivo. Due esistono
+già con i loro owner; *aperto* è **derivabile** dalla mappa — l'assenza di un vicino è scritta lì. Solo la
+**negazione** di una caduta altrimenti implicita non è deducibile da niente, ed è lo stesso argomento che
+`ERTHexBodyFill` usa per sé: un ponte e una collina hanno entrambi il vuoto sotto, e nessun segnale
+geometrico li distingue.
+
+⛔ **Non si autora l'apertura.** Sarebbe una seconda sede per un fatto che la mappa già contiene, e andrebbe
+fuori sincrono al primo ridisegno.
 
 🔑 **Dove vive**, e perché la sede ovvia è sbagliata. Non su `FRTHexEdge`: quella struttura dichiara di sé che
 *«L'arco è ADDITIVO: crea un collegamento dove non c'era. È la ragione per cui le PORTE non stanno qui ma sui
