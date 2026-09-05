@@ -809,6 +809,26 @@ public:
 	float AttackShowSeconds = 0.50f;
 
 	/**
+	 * Coda finale quando l'ULTIMA fase riprodotta si chiude su un'eliminazione (secondi).
+	 *
+	 * 🔴 **Esiste perche' altrimenti il montaggio `Death` avrebbe finestra ZERO** (#2452). L'eliminazione si
+	 * annuncia a fine della fase in cui e' avvenuta e il montaggio gioca durante le fasi che restano — ma
+	 * `PlaybackPhases` e' `Prep -> Dash -> Blast -> Move` e mai `Cleanup`, quindi chi cade nell'ultima fase
+	 * vedrebbe `FinishPlayback` subito dopo l'annuncio. E' il caso del banco `Visual.Combat.Defeat`, dove
+	 * nessuno si muove e la morte cade nel `Blast` finale.
+	 *
+	 * ⚠️ **E' tempo `Shown`, non `Slack`**: mostra qualcosa, quindi il budget non puo' toglierlo (#1878).
+	 * Scala invece con la velocita' scelta da chi guarda, come tutto il resto del playback.
+	 *
+	 * ⛔ **Non e' una callback di animazione e non aspetta il montaggio**: e' una durata dichiarata, quindi
+	 * la risoluzione resta deterministica e un montaggio assente non blocca nulla. Il valore e' da tarare a
+	 * schermo (`PIE-AS4b` / `PIE-VIS-KO`); a `0` la coda e' disattivata e si torna al comportamento
+	 * precedente.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
+	float DefeatBeatSeconds = 0.80f;
+
+	/**
 	 * Budget SOFT di durata del playback: oltre, si comprimono le ATTESE (0 = nessun budget).
 	 *
 	 * ⚠️ **Non accelera piu' la locomozione, e la parola «soft» e' quella differenza** (`#1878`,
@@ -2164,6 +2184,31 @@ private:
 	TArray<FRTMoveAnim> MoveAnims;          // derivati dagli eventi Move
 	TArray<FRTResolvedEvent> PlaybackAttacks; // eventi Attack, mostrati in serie nel Blast
 	TArray<FRTResolvedEvent> PlaybackDefeated; // eventi Defeated, mostrati a fine della loro fase
+
+	/**
+	 * Chi ha gia' ricevuto l'annuncio di morte in questo playback, per `StableUnitId`.
+	 *
+	 * 🔴 **Esiste perche' `IsHidden()` non puo' piu' fare da guardia** (#2452). Fino al 2026-09-05
+	 * l'idempotenza dell'annuncio veniva dall'hide stesso: si nascondeva l'unita' e la si riconosceva
+	 * «gia' mostrata» perche' era nascosta. Ma nascondere PRIMA di `PlayDefeatMontage()` rendeva il
+	 * montaggio `Death` invisibile, quindi l'hide si e' spostato a `FinishPlayback` — e senza un
+	 * marcatore proprio il catch-all rifarebbe partire il montaggio e ribroadcasterebbe
+	 * `OnUnitDefeated` sulla stessa unita'.
+	 *
+	 * ⚠️ **Non se ne itera mai l'ordine** (solo `Contains`/`Add`): l'invariante «niente dipendenza
+	 * dall'ordine di un container hash» resta intatta.
+	 */
+	TSet<int32> PlaybackDefeatShown;
+
+	/**
+	 * Secondi che restano alla coda finale della morte, `0` quando non e' in corso (#2452).
+	 *
+	 * Quando l'ultima fase si chiude su un'eliminazione il playback NON finisce: entra qui, e
+	 * `FinishPlayback` arriva allo scadere. ⚠️ `SkipPlayback` la scavalca — chiama `FinishPlayback`
+	 * direttamente — ed e' voluto: chi salta la risoluzione non vuole aspettare una coda.
+	 */
+	float PlaybackDefeatBeatRemaining = 0.f;
+
 	TArray<ERTMatchPhase> PlaybackPhases;   // fasi attive, in ordine
 	int32 PlaybackPhaseIdx = 0;
 	float PlaybackPhaseElapsed = 0.f;
