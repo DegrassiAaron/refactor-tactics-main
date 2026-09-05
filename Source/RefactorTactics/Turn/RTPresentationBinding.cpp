@@ -21,20 +21,31 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// 🔴 **La clausola fa parte della dichiarazione, e non e' pedanteria.** Il danno da terreno ACCADE ed e'
 	// tutt'altro che marginale — `Fire` fa 10 danni all'ingresso contro gli 8 del Cleanup, passa da
 	// `ApplyDamage(..., Environmental, ...)`, puo' uccidere, e ha la voce canonica nel TurnLog dal 2026-08-16
-	// (`#1067`). Non si mostra perche' ha gia' due canali visibili: la barra vita, e il combat log. E quando
-	// uccide, l'evento emesso e' `Defeated`, che una presentazione ce l'ha: si vede morire, non si vede
-	// bruciare.
+	// (`#1067`). Non si mostra perche' ha gia' due canali visibili: la barra vita, e il combat log.
 	//
-	// ⚠️ **Ma oggi questo valore non ha un PRODUTTORE**: il TurnLog registra il danno, la `ResolvedTimeline`
-	// non riceve mai l'evento. Questa voce vale «quando accadra'», non «perche' non accade», e va **rivista**
-	// il giorno in cui qualcuno lo emette — altrimenti il gate resta verde su un evento muto, cioe'
-	// esattamente il difetto che questa tabella esiste per impedire. A questo stesso fatto e' gia' successo
-	// una volta sul canale della traccia (`#1067`).
+	// ✅ **Il PRODUTTORE ora esiste** (`#2460`, 2026-09-05). Fino a quel giorno questa voce portava la
+	// clausola *«oggi il valore non ha un produttore … va rivista appena ne acquista uno»*: e' quel giorno,
+	// e questa e' la revisione. L'evento nasce in `ARTTurnManager::AppendLogEntry`, dallo stesso punto e
+	// nello stesso istante della voce di TurnLog, per entrambe le cause che
+	// `URTTurnLogLibrary::IsEnvironmentalDamage` riconosce — `Terrain.<Surface>` all'ingresso e
+	// `Status.Burning` nel Cleanup.
+	//
+	// 🔴 **La voce resta `NoPresentation`, e la scelta e' deliberata.** Il produttore consegna il **dato**;
+	// la cue e' lavoro di `#2455`. Promuoverla adesso a una presentazione dichiarerebbe disegnato un evento
+	// che nessuno disegna — cioe' il difetto opposto e peggiore, ed e' precisamente quello che questa
+	// tabella esiste per impedire.
+	//
+	// ⚠️ **Corretta insieme una frase che era falsa**: diceva *«quando uccide, l'evento emesso e' `Defeated`,
+	// che una presentazione ce l'ha»*. Misurato: `Defeated` lo emette **solo** `ResolveCombatPasses`, da
+	// `NewlyDefeated` calcolato sul Blast. Chi muore bruciato nel Cleanup, o entrando nel fuoco, **non lo
+	// produce**: resta coperto dal catch-all di `ConcludeTurn` (`DestroyDefeatedUnits`). Chi costruira' la
+	// cue non deve credere che la morte da hazard abbia gia' un beat proprio — non ce l'ha.
 	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::HazardDamage,
-		TEXT("Il danno da terreno si legge dalla barra vita e dal combat log, e quando uccide emette Defeated ")
-		TEXT("(che ha presentazione): una cue dedicata non aggiunge leggibilita' in v0.1, e D-124 tiene il ")
-		TEXT("sistema VFX degli status fuori dal perimetro. ATTENZIONE: oggi il valore non ha un produttore ")
-		TEXT("(nessuno emette l'evento) - questa voce vale «quando accadra'» e va rivista appena ne acquista uno.")));
+		TEXT("Il danno da terreno si legge dalla barra vita e dal combat log: una cue dedicata non aggiunge ")
+		TEXT("leggibilita' in v0.1, e D-124 tiene il sistema VFX degli status fuori dal perimetro. Il ")
+		TEXT("produttore ESISTE da #2460 (AppendLogEntry, per ogni causa che IsEnvironmentalDamage riconosce): ")
+		TEXT("l'assenza e' una scelta sul disegno, non un evento muto. La cue e' lavoro di #2455. ATTENZIONE: ")
+		TEXT("la morte da hazard non emette Defeated - la nasconde il catch-all di ConcludeTurn.")));
 
 	// AttackFootprint — NoPresentation, e per una ragione OPPOSTA a quella di HazardDamage.
 	//
@@ -74,10 +85,14 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// reazione e' fuori dallo scope di quella issue, che lo dichiara. Dichiarare qui una cue inventata
 	// renderebbe questa tabella una lista di intenzioni — la stessa ragione scritta per `AttackFootprint`.
 	//
-	// ✅ **A differenza di `HazardDamage`, questo valore un PRODUTTORE ce l'ha**: `RunReactionPass` lo
-	// emette dove la reazione scatta, e `Reactions.Counter.DealsDamageToAttacker` lo presidia — validato
-	// per mutazione. Quindi il gate non e' verde su un evento muto: e' verde su un evento che accade e che
-	// nessuno disegna ancora.
+	// ✅ **Questo valore un PRODUTTORE ce l'ha**: `RunReactionPass` lo emette dove la reazione scatta, e
+	// `Reactions.Counter.DealsDamageToAttacker` lo presidia — validato per mutazione. Quindi il gate non e'
+	// verde su un evento muto: e' verde su un evento che accade e che nessuno disegna ancora.
+	//
+	// ⚠️ **Fino a `#2460` questa riga diceva «a differenza di `HazardDamage`», e quel confronto e' scaduto**:
+	// da allora ogni valore dell'enum ha un produttore, e la tabella non ha piu' voci mute. Cio' che resta
+	// vero e' la distinzione fra le tre assenze, ed e' un altro asse: `HazardDamage` non si disegna **per
+	// scelta**, questo e `AttackFootprint` non si disegnano **ancora**.
 	//
 	// ⚠️ Voce da RIVEDERE, non da ereditare: appena la cue nasce, le due voci PIE diventano giudicabili.
 	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::ReactionResolved,
