@@ -307,7 +307,8 @@ Oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari portano a
 | ScenarioId | Fixture | Voce PIE | Cosa deve vedersi |
 |---|---|---|---|
 | `Visual.Combat.BraceReducesEveryHit` | r4 | `PIE-VIS-BRACE` | `Brace` toglie 10 a **ogni** colpo e non finisce mai |
-| `Visual.Combat.Defeat` | r4 | `PIE-VIS-KO` | barra che scende due volte, poi la rimozione — mai prima del colpo |
+| `Visual.Combat.Defeat` | r4 | `PIE-VIS-KO` · **`PIE-AS4b`** · **`PIE-AS4c`** | barra che scende due volte, poi la rimozione — mai prima del colpo. ➕ **Dal 2026-09-06 e' anche il banco delle animazioni discrete**: `Cast` / `Hit` / `Death`, e la **taratura di `DefeatBeatSeconds`**. 🔑 Qui **nessuno si muove**, quindi la morte cade nell'ULTIMA fase riprodotta e senza la coda il montaggio avrebbe finestra **zero**: e' il caso peggiore, ed e' il motivo per cui serve il gemello |
+| `Visual.Combat.DefeatDuringMove` | r4 | **`PIE-AS4c`** | 🆕 **Il gemello, e si guardano in COPPIA.** Identico al precedente tranne una cosa: all'ultimo turno Phase **muove**, quindi la fase `Move` segue il `Blast` e il montaggio di `Death` ha una finestra **naturale**. Se la morte si legge qui e non nell'altro, `DefeatBeatSeconds` e' troppo corto; se si trascina qui, e' l'animazione a essere lunga e la coda non c'entra |
 | `Visual.Combat.FallbackTargetMoved` | r5 | `PIE-VIS-FALLBACK` | il piano rivalidato, non un colpo a caso |
 | `Visual.Combat.GuardReducesFirstHit` | r4 | `PIE-VIS-GUARD` | `Guard` toglie 15 al **primo** colpo e finisce lì |
 | `Visual.Combat.PushResistance` | r4 | `PIE-VIS-PUSH` | Riktor incassa e **non arretra**, Wraith arretra |
