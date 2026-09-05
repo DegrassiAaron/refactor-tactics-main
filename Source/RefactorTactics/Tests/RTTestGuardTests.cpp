@@ -222,4 +222,366 @@ bool FRTRuntimeTestsAvoidEditorOnlyApiTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * **Nessuna funzione libera in namespace anonimo ha nome E firma uguali a una di un altro file.**
+ *
+ * 🔴 **Questo oracolo esiste perche' il difetto ha fermato `main` il 2026-09-05** (#2397): `StandStill(ARTUnit*)`
+ * era definita in namespace anonimo sia in `RTStatusTests.cpp:97` sia in `RTUnbalancedProneTests.cpp:103`.
+ * In C++ e' legale — due unita' di traduzione separate, internal linkage — ma la **unity build** le concatena
+ * nello stesso blob, e li' due definizioni identiche sono `C2084`, piu' una cascata di `C2264` su ogni
+ * chiamata (tredici, quel giorno).
+ *
+ * ⚠️ **Il difetto e' LATENTE, e nessun gate poteva prenderlo al momento in cui veniva introdotto.** Non
+ * dipende dal codice, dipende dal **raggruppamento**: i due file convivevano dal 2026-09-04 senza collidere,
+ * finche' un merge che non toccava nessuno dei due ha spostato i confini dei blob. La suite era `VALIDA` un'ora
+ * prima sullo stesso albero — quella misura era corretta, il difetto non era ancora raggiungibile.
+ *
+ * ⚠️ **E il modo di fallire e' il peggiore**: chi aggiunge un file qualsiasi vede un errore in un file di test
+ * che non ha mai aperto, e lo legge come *«ho rotto qualcosa io»*.
+ *
+ * ∴ #2397 ha riparato **un esemplare** — con una verifica di chiusura, `git grep "void StandStill"`, che e'
+ * specifica di un simbolo e non dell'invariante. Al momento in cui questo oracolo e' stato scritto ne
+ * restavano **quattro** armate, tutte fra `RTFrontendWidgetAssetTests.cpp` e `RTMatchWidgetAssetTests.cpp`
+ * (#2423): il giorno in cui l'unity li avesse messi insieme non sarebbe esplosa una collisione, ma quattro.
+ *
+ * ---
+ *
+ * 🔑 **Le TRE condizioni, che sono la specifica di questo oracolo.** Una `C2084` le richiede tutte insieme, e
+ * un gate che ne verificasse meno sarebbe rosso su codice giusto — cioe' spento entro un giorno:
+ *
+ * 1. **stesso modulo** — l'unity blob non attraversa i moduli. Qui e' garantito dal soggetto: si legge solo
+ *    `Source/RefactorTactics/Tests`, che sta tutto nel modulo runtime.
+ * 2. **stessa firma** — nome **e** tipi dei parametri. Due omonime con parametri diversi sono **overload
+ *    legali**, anche nello stesso blob: confrontare i soli nomi darebbe decine di falsi positivi (misurato:
+ *    25 nomi contro 5 firme).
+ * 3. **funzione libera** — i membri di `struct`/`class` dichiarati dentro il namespace anonimo non collidono
+ *    mai fra loro. Ignorarlo produceva due falsi positivi su sei (`Clear()` e `Set(const TCHAR*)`, membri di
+ *    `FRTScopedEntryCommandLine` e `FRTScopedEntryCVar`).
+ *
+ * ---
+ *
+ * ⚠️ **I QUATTRO LIMITI, dichiarati invece che scoperti dopo.** Questo test e' facile da leggere come
+ * *«nessuna collisione di unity build»*, e non e' cio' che misura:
+ *
+ * 1. **Guarda `Source/RefactorTactics/Tests`, non tutto il modulo.** L'unity blob contiene **anche** `Turn/`,
+ *    `Map/`, `Unit/`: un helper di test e uno di produzione con la stessa firma collidono allo stesso modo, e
+ *    questo oracolo non li vedrebbe. Al momento in cui e' stato scritto non ce n'erano — misurato — ma e'
+ *    un'assenza, non una garanzia. Allargare il perimetro significa cambiare `RTLeggiSorgentiDeiTest`, che ha
+ *    altri due consumatori: e' una decisione, non un dettaglio.
+ * 2. **Il modulo `RefactorTacticsEditor` non e' coperto.** Ha i propri test in `Private/Tests/` e nessun
+ *    oracolo di questa specie. Non puo' collidere con questo modulo — vedi condizione 1 — ma puo' collidere
+ *    con se stesso.
+ * 3. **Solo funzioni.** Variabili, costanti e tipi omonimi in namespace anonimi seguono la stessa regola e
+ *    non sono coperti.
+ * 4. **Solo firme su una riga.** Una definizione spezzata su piu' righe non viene vista. Sono poche, e
+ *    dichiararlo costa meno che fingere un parser completo.
+ *
+ * ⛔ **La guardia anti-vacuita' e' obbligatoria qui piu' che altrove**, perche' il conteggio atteso e' **zero**
+ * — e uno zero non distingue *«non ci sono collisioni»* da *«l'estrattore non riconosce piu' un namespace
+ * anonimo»*. Due campioni sintetici lo falsificano prima che possa mentire: uno che DEVE essere estratto, e
+ * uno — un membro di `struct` — che NON deve esserlo. Il primo dei due prende il tranello che ha reso cieca la
+ * prima stesura di questo estrattore: in questo repository `namespace` e la graffa stanno su **righe diverse**.
+ */
+
+namespace
+{
+	/** Una funzione libera trovata in un namespace anonimo: `Nome(tipo,tipo)` e dove sta. */
+	struct FRTFirmaAnonima
+	{
+		FString Firma;
+		FString File;
+		int32 Riga = 0;
+	};
+
+	/** Le parole che aprono una parentesi senza essere una definizione di funzione. */
+	bool RTEParolaChiave(const FString& Nome)
+	{
+		static const TCHAR* const Parole[] = {
+			TEXT("if"), TEXT("for"), TEXT("while"), TEXT("switch"), TEXT("return"), TEXT("sizeof"),
+			TEXT("catch"), TEXT("do"), TEXT("else"), TEXT("TEXT"), TEXT("check"), TEXT("ensure"),
+			TEXT("NSLOCTEXT"), TEXT("LOCTEXT")
+		};
+		for (const TCHAR* Parola : Parole)
+		{
+			if (Nome == Parola)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * I soli TIPI dei parametri, senza i loro nomi: e' cio' che decide l'overload, ed e' quindi cio' che
+	 * decide la collisione. `const`, `*` e `&` restano — due firme che differiscono li' sono overload diversi.
+	 */
+	FString RTTipiDeiParametri(const FString& Parametri)
+	{
+		TArray<FString> Pezzi;
+		Parametri.ParseIntoArray(Pezzi, TEXT(","), /*InCullEmpty*/ true);
+
+		TArray<FString> Tipi;
+		for (FString Pezzo : Pezzi)
+		{
+			Pezzo.TrimStartAndEndInline();
+			// Il nome del parametro e' l'ultimo identificatore, e si toglie solo se resta un tipo davanti.
+			int32 Spazio = INDEX_NONE;
+			if (Pezzo.FindLastChar(TEXT(' '), Spazio) && Spazio > 0)
+			{
+				const FString Coda = Pezzo.Mid(Spazio + 1);
+				bool bSoloIdentificatore = !Coda.IsEmpty();
+				for (const TCHAR Carattere : Coda)
+				{
+					if (!FChar::IsAlnum(Carattere) && Carattere != TEXT('_'))
+					{
+						bSoloIdentificatore = false;
+						break;
+					}
+				}
+				if (bSoloIdentificatore)
+				{
+					Pezzo = Pezzo.Left(Spazio);
+				}
+			}
+			Pezzo.TrimStartAndEndInline();
+			Pezzo.ReplaceInline(TEXT(" "), TEXT(""));
+			Tipi.Add(Pezzo);
+		}
+		return FString::Join(Tipi, TEXT(","));
+	}
+
+	/**
+	 * Estrae le firme delle funzioni libere definite nei namespace anonimi di un sorgente.
+	 *
+	 * ⚠️ Riconosce **entrambi** gli stili di graffa. Quello di questo repository e' `namespace` e `{` su righe
+	 * diverse: una prima stesura che cercava il solo `namespace {` restituiva **zero** anche sull'albero in cui
+	 * `StandStill` era duplicata — verde, e cieca.
+	 */
+	void RTEstraiFirmeAnonime(const FString& NomeFile, const FString& Testo, TArray<FRTFirmaAnonima>& Fuori)
+	{
+		TArray<FString> Righe;
+		Testo.ParseIntoArrayLines(Righe, /*InCullEmpty*/ false);
+
+		bool bDentroAnonimo = false;
+		int32 Livello = 0;        // graffe aperte dentro il namespace anonimo
+		int32 LivelloRecord = 0;  // >0 = dentro una struct/class: i membri non collidono
+
+		for (int32 Indice = 0; Indice < Righe.Num(); ++Indice)
+		{
+			FString Riga = Righe[Indice];
+			Riga.TrimStartAndEndInline();
+
+			if (!bDentroAnonimo)
+			{
+				const bool bInLinea = (Riga == TEXT("namespace {"));
+				const bool bAllman = (Riga == TEXT("namespace"))
+					&& (Indice + 1 < Righe.Num())
+					&& (Righe[Indice + 1].TrimStartAndEnd() == TEXT("{"));
+				if (bInLinea || bAllman)
+				{
+					bDentroAnonimo = true;
+					Livello = 1;
+					LivelloRecord = 0;
+					if (bAllman)
+					{
+						++Indice;
+					}
+				}
+				continue;
+			}
+
+			int32 Delta = 0;
+			for (const TCHAR Carattere : Riga)
+			{
+				Delta += (Carattere == TEXT('{')) ? 1 : ((Carattere == TEXT('}')) ? -1 : 0);
+			}
+
+			if (Riga.StartsWith(TEXT("struct "), ESearchCase::CaseSensitive)
+				|| Riga.StartsWith(TEXT("class "), ESearchCase::CaseSensitive)
+				|| Riga.StartsWith(TEXT("union "), ESearchCase::CaseSensitive)
+				|| Riga.StartsWith(TEXT("enum "), ESearchCase::CaseSensitive))
+			{
+				++LivelloRecord;
+			}
+
+			Livello += Delta;
+			if (Livello <= 0)
+			{
+				bDentroAnonimo = false;
+				continue;
+			}
+			if (LivelloRecord > 0)
+			{
+				if (Delta < 0 && Livello <= 1)
+				{
+					LivelloRecord = FMath::Max(0, LivelloRecord - 1);
+				}
+				continue;
+			}
+
+			// Commenti e direttive non definiscono funzioni.
+			if (Riga.StartsWith(TEXT("//")) || Riga.StartsWith(TEXT("*")) || Riga.StartsWith(TEXT("/*"))
+				|| Riga.StartsWith(TEXT("#")))
+			{
+				continue;
+			}
+
+			int32 Apre = INDEX_NONE;
+			if (!Riga.FindChar(TEXT('('), Apre) || Apre == 0)
+			{
+				continue;
+			}
+			const int32 Chiude = Riga.Find(TEXT(")"), ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			if (Chiude < Apre)
+			{
+				continue;
+			}
+
+			// Dopo la parentesi chiusa: solo la graffa o niente. Una chiamata finisce con `;` ed esce di qui.
+			const FString Coda = Riga.Mid(Chiude + 1).TrimStartAndEnd();
+			if (!Coda.IsEmpty() && Coda != TEXT("{"))
+			{
+				continue;
+			}
+
+			// Il nome e' l'identificatore che precede la parentesi; davanti deve esserci un tipo di ritorno.
+			int32 Inizio = Apre;
+			while (Inizio > 0)
+			{
+				const TCHAR Precedente = Riga[Inizio - 1];
+				if (FChar::IsAlnum(Precedente) || Precedente == TEXT('_'))
+				{
+					--Inizio;
+					continue;
+				}
+				break;
+			}
+			if (Inizio == Apre || Inizio == 0)
+			{
+				continue;
+			}
+			const TCHAR PrimaDelNome = Riga[Inizio - 1];
+			if (PrimaDelNome != TEXT(' ') && PrimaDelNome != TEXT('*') && PrimaDelNome != TEXT('&'))
+			{
+				continue;
+			}
+
+			const FString Nome = Riga.Mid(Inizio, Apre - Inizio);
+			if (Nome.IsEmpty() || RTEParolaChiave(Nome))
+			{
+				continue;
+			}
+
+			const FString Parametri = Riga.Mid(Apre + 1, Chiude - Apre - 1);
+			FRTFirmaAnonima Trovata;
+			Trovata.Firma = FString::Printf(TEXT("%s(%s)"), *Nome, *RTTipiDeiParametri(Parametri));
+			Trovata.File = NomeFile;
+			Trovata.Riga = Indice + 1;
+			Fuori.Add(MoveTemp(Trovata));
+		}
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnonymousHelpersDoNotCollideTest,
+	"RefactorTactics.Meta.AnonymousHelpersDoNotCollideUnderUnity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnonymousHelpersDoNotCollideTest::RunTest(const FString&)
+{
+	// ⛔ Il controllo POSITIVO viene prima di tutto: se l'estrattore e' cieco, il conteggio zero piu' sotto
+	// sarebbe verde e falso. Il campione porta lo stile di graffa di questo repository, che e' il tranello.
+	{
+		const FString Campione =
+			TEXT("namespace\n")
+			TEXT("{\n")
+			TEXT("\tvoid RTCampioneDaEstrarre(int32 Valore)\n")
+			TEXT("\t{\n")
+			TEXT("\t}\n")
+			TEXT("\n")
+			TEXT("\tstruct FRTCampioneRecord\n")
+			TEXT("\t{\n")
+			TEXT("\t\tvoid RTMembroDaIgnorare(int32 Valore)\n")
+			TEXT("\t\t{\n")
+			TEXT("\t\t}\n")
+			TEXT("\t};\n")
+			TEXT("}\n");
+
+		TArray<FRTFirmaAnonima> Estratte;
+		RTEstraiFirmeAnonime(TEXT("<campione>"), Campione, Estratte);
+
+		if (!TestEqual(TEXT("il campione produce una firma sola"), Estratte.Num(), 1))
+		{
+			for (const FRTFirmaAnonima& Firma : Estratte)
+			{
+				AddError(FString::Printf(TEXT("estratta inattesa: %s"), *Firma.Firma));
+			}
+			return false;
+		}
+		if (!TestEqual(TEXT("l'estrattore riconosce la funzione libera"),
+			Estratte[0].Firma, FString(TEXT("RTCampioneDaEstrarre(int32)"))))
+		{
+			return false;
+		}
+	}
+
+	const TArray<FRTSorgenteDiTest> Sorgenti = RTLeggiSorgentiDeiTest(*this);
+
+	// ⚠️ Se non trova i sorgenti FALLISCE: stessa disciplina dei due oracoli qui sopra.
+	if (!TestTrue(TEXT("i sorgenti dei test sono leggibili"), Sorgenti.Num() > 0))
+	{
+		return false;
+	}
+
+	TArray<FRTFirmaAnonima> Tutte;
+	for (const FRTSorgenteDiTest& Sorgente : Sorgenti)
+	{
+		RTEstraiFirmeAnonime(Sorgente.Nome, Sorgente.Testo, Tutte);
+	}
+
+	// La stessa firma nello stesso file e' un'altra cosa (overload dichiarato e definito, o una svista che il
+	// compilatore prende da solo): qui interessa solo cio' che attraversa due unita' di traduzione.
+	TMap<FString, TArray<FRTFirmaAnonima>> PerFirma;
+	for (const FRTFirmaAnonima& Firma : Tutte)
+	{
+		PerFirma.FindOrAdd(Firma.Firma).Add(Firma);
+	}
+
+	int32 Collisioni = 0;
+	for (const TPair<FString, TArray<FRTFirmaAnonima>>& Voce : PerFirma)
+	{
+		TSet<FString> FileDistinti;
+		for (const FRTFirmaAnonima& Firma : Voce.Value)
+		{
+			FileDistinti.Add(Firma.File);
+		}
+		if (FileDistinti.Num() < 2)
+		{
+			continue;
+		}
+
+		++Collisioni;
+		FString Dove;
+		for (const FRTFirmaAnonima& Firma : Voce.Value)
+		{
+			Dove += FString::Printf(TEXT("\n    %s:%d"), *Firma.File, Firma.Riga);
+		}
+		AddError(FString::Printf(
+			TEXT("%s e' definita in namespace anonimo in %d file diversi dello stesso modulo:%s\n")
+			TEXT("  Il namespace anonimo NON protegge sotto unity build: le due definizioni finiscono nello ")
+			TEXT("stesso blob e la compilazione muore con C2084, piu' un C2264 per ogni chiamata. Rinomina ")
+			TEXT("quella del file piu' recente, oppure — se i CORPI sono identici — spostala in un header ")
+			TEXT("condiviso con namespace NOMINATO. Se i corpi differiscono NON unificarle: vedi #2397."),
+			*Voce.Key, FileDistinti.Num(), *Dove));
+	}
+
+	AddInfo(FString::Printf(TEXT("file ispezionati: %d, firme in namespace anonimo: %d"),
+		Sorgenti.Num(), Tutte.Num()));
+
+	// Secondo controllo positivo: se l'estrattore smettesse di trovare firme sul corpus reale, il conteggio
+	// delle collisioni resterebbe zero senza che nulla sia stato guardato.
+	TestTrue(TEXT("il corpus contiene firme in namespace anonimo"), Tutte.Num() > 0);
+	TestEqual(TEXT("nessuna firma anonima e' definita in due file"), Collisioni, 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

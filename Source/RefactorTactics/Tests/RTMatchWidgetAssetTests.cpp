@@ -24,6 +24,7 @@
 #include "Components/Widget.h"
 #include "UI/RTScreenHudWidgets.h"
 #include "Engine/Texture2D.h" // UTexture2D: il tipo che il gate rifiuta, esplicito e non ereditato
+#include "Tests/RTWidgetAssetTestHelpers.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -36,12 +37,6 @@ namespace
 	const TCHAR* const ActionDockPath = TEXT("/Game/RT/UI/Match/WBP_RT_ActionDock.WBP_RT_ActionDock_C");
 	const TCHAR* const ActionSlotPath = TEXT("/Game/RT/UI/Match/WBP_RT_ActionSlot.WBP_RT_ActionSlot_C");
 	const TCHAR* const UnitCardPath = TEXT("/Game/RT/UI/Match/WBP_RT_UnitCard.WBP_RT_UnitCard_C");
-
-	UWidgetBlueprintGeneratedClass* LoadWidgetClass(const TCHAR* Path)
-	{
-		return Cast<UWidgetBlueprintGeneratedClass>(
-			StaticLoadObject(UWidgetBlueprintGeneratedClass::StaticClass(), nullptr, Path));
-	}
 
 	/**
 	 * Vero se la proprieta' e' — o contiene — una `UTexture2D`.
@@ -92,16 +87,7 @@ namespace
 		return Names;
 	}
 
-	FString DescribeBinding(const FDelegateRuntimeBinding& Binding)
-	{
-		return FString::Printf(TEXT("  %s.%s <- %s()  [Kind=%s]"),
-			*Binding.ObjectName,
-			*Binding.PropertyName.ToString(),
-			*Binding.FunctionName.ToString(),
-			Binding.Kind == EBindingKind::Function ? TEXT("Function") : TEXT("Property"));
-	}
-
-	FString DescribeWidget(const UWidget* Widget)
+	FString DescribeWidgetSlotOffsets(const UWidget* Widget)
 	{
 		if (!Widget)
 		{
@@ -131,7 +117,7 @@ namespace
 	 * domani entra nel report senza che nessuno aggiorni questo file. E' la differenza fra un oracolo e un
 	 * promemoria.
 	 */
-	void ReportAsset(FAutomationTestBase& Test, const UWidgetBlueprintGeneratedClass* Class, const TCHAR* Label)
+	void ReportBindingsAndUnconsumedPure(FAutomationTestBase& Test, const UWidgetBlueprintGeneratedClass* Class, const TCHAR* Label)
 	{
 		Test.AddInfo(FString::Printf(TEXT("=== %s: %d binding, base = %s ==="),
 			Label, Class->Bindings.Num(),
@@ -139,7 +125,7 @@ namespace
 
 		for (const FDelegateRuntimeBinding& Binding : Class->Bindings)
 		{
-			Test.AddInfo(DescribeBinding(Binding));
+			Test.AddInfo(RTWidgetAssetTest::DescribeBinding(Binding));
 		}
 
 		const TSet<FName> Bound = BoundFunctionNames(Class);
@@ -175,7 +161,7 @@ namespace
 				Label, Tree->RootWidget ? *Tree->RootWidget->GetName() : TEXT("<nessuna>")));
 			Tree->ForEachWidget([&Test](UWidget* Widget)
 			{
-				Test.AddInfo(DescribeWidget(Widget));
+				Test.AddInfo(DescribeWidgetSlotOffsets(Widget));
 			});
 		}
 	}
@@ -183,13 +169,13 @@ namespace
 	/** Carica e riporta. `nullptr` se l'asset non c'e': il chiamante lo dichiara fallimento col path. */
 	UWidgetBlueprintGeneratedClass* LoadAndReport(FAutomationTestBase& Test, const TCHAR* Path, const TCHAR* Label)
 	{
-		UWidgetBlueprintGeneratedClass* Class = LoadWidgetClass(Path);
+		UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(Path);
 		if (!Class)
 		{
 			Test.AddError(FString::Printf(TEXT("%s: l'asset non si carica — %s"), Label, Path));
 			return nullptr;
 		}
-		ReportAsset(Test, Class, Label);
+		ReportBindingsAndUnconsumedPure(Test, Class, Label);
 		return Class;
 	}
 }
@@ -342,7 +328,7 @@ bool FRTMatchWidgetsDeriveFromCppBaseTest::RunTest(const FString&)
 
 	for (const FExpected& E : Expected)
 	{
-		UWidgetBlueprintGeneratedClass* Class = LoadWidgetClass(E.Path);
+		UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(E.Path);
 		if (!Class)
 		{
 			AddError(FString::Printf(TEXT("%s: l'asset non si carica — %s"), E.Label, E.Path));
