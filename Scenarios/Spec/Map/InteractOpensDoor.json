@@ -29,7 +29,7 @@
   "_nota_avversario": "W1 sta all'estremita' opposta del bacino e non dichiara intenti: serve solo perche' la partita abbia due squadre. Le sue assertion di posizione e vita sono la controprova che il turno non ha fatto altro.",
 
   "units": [
-    { "id": "R1", "hero": "Hero.Riktor", "team": 0, "cell": [0, 1, 0] },
+    { "id": "R1", "hero": "Hero.Branth", "team": 0, "cell": [0, 1, 0] },
     { "id": "W1", "hero": "Hero.Wraith", "team": 1, "cell": [0, -3, 0] }
   ],
 

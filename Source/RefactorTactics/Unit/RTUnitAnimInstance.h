@@ -261,7 +261,7 @@ struct FRTUnitAnimProxy : public FAnimInstanceProxy
 	 *
 	 * ⚠️ **Il difetto non si vede all'avvio**, ed e' la ragione per cui e' passato: le prime
 	 * animazioni sono corrette, e la posa degrada solo dopo che il LOD e' cambiato. Su un umanoide una
-	 * cache stantia si nota appena; su **Riktor**, che porta decine di ossa in fila
+	 * cache stantia si nota appena; su **Branth**, che porta decine di ossa in fila
 	 * (`arm_chain_long_r_01`, `_sub_01`, `_sub_02`, ...), le catene si stendono sullo schermo.
 	 *
 	 * ⛔ **Non e' un dettaglio di stile**: `FRTUnitAnimClipsTest` verifica che le clip dei quattro

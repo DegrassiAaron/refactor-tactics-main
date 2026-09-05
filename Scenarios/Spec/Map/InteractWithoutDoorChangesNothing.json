@@ -21,7 +21,7 @@
   "_nota_limite_dichiarato": "Cio' che NON si asserisce qui e' che la porta del gate sia rimasta chiusa: nessun oracolo del formato legge lo stato di un bordo, e l'unico modo di dedurlo sarebbe un movimento che si ferma — cioe' una seconda cosa misurata nello stesso file. Il conteggio a zero e' l'asserzione onesta che il formato permette.",
 
   "units": [
-    { "id": "R1", "hero": "Hero.Riktor", "team": 0, "cell": [0, 1, 0] },
+    { "id": "R1", "hero": "Hero.Branth", "team": 0, "cell": [0, 1, 0] },
     { "id": "W1", "hero": "Hero.Wraith", "team": 1, "cell": [0, -3, 0] }
   ],
 

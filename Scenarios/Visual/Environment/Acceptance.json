@@ -29,11 +29,11 @@
 
     { "id": "G_ICE", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 4, 0] },
 
-    { "id": "R_ROU", "hero": "Hero.Riktor", "team": 1, "cell": [-3, -1, 0] },
+    { "id": "R_ROU", "hero": "Hero.Branth", "team": 1, "cell": [-3, -1, 0] },
     { "id": "G_ROU", "hero": "Hero.Gadget", "team": 0, "cell": [-1, -1, 0] },
 
     { "id": "G_SMO", "hero": "Hero.Gadget", "team": 0, "cell": [1, 4, 0] },
-    { "id": "R_SMO", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0] },
+    { "id": "R_SMO", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] },
 
     { "id": "P_WET", "hero": "Hero.Phase", "team": 0, "cell": [0, -4, 0] },
     { "id": "W_FIRE", "hero": "Hero.Wraith", "team": 1, "cell": [0, -3, 0] }
@@ -51,7 +51,7 @@
       "_turno": "T2 — GHIACCIO e ROUGH (`PIE-VIS-ICE`, `PIE-VIS-ROUGH`), due movimenti su lati opposti che non si vedono fra loro. G_ICE cammina due celle e TERMINA sul ghiaccio di (-2,2): scivola di una, e finisce su (-2,1) che non aveva dichiarato. R_ROU prova la carica verso G_ROU: la via passa dal rough di (-2,-1), il rifiuto avviene in PIANIFICAZIONE e a schermo non deve accadere niente — che e' precisamente cio' che si guarda.",
       "intents": [
         { "unit": "G_ICE", "move": [[-2, 3, 0], [-2, 2, 0]] },
-        { "unit": "R_ROU", "dash": "Hero.Riktor.Ram", "dashTo": [-1, -1, 0] }
+        { "unit": "R_ROU", "dash": "Hero.Branth.Ram", "dashTo": [-1, -1, 0] }
       ]
     },
     {

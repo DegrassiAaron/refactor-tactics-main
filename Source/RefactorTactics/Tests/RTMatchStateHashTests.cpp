@@ -162,19 +162,19 @@ namespace
 		}
 	}
 
-	/** Un turno, due unità ferme. Con `bErectCover` Riktor erige un pannello sul proprio bordo E. */
+	/** Un turno, due unità ferme. Con `bErectCover` Branth erige un pannello sul proprio bordo E. */
 	FRTTestScenario MakeCoverWiringScenario(bool bErectCover)
 	{
 		FRTTestScenario S;
 		S.ScenarioId = TEXT("Internal.ChecksumMapWiring");
 		S.MapRadius = 3;
 
-		FRTScenarioUnit Riktor;
-		Riktor.Id = TEXT("B1");
-		Riktor.HeroId = FName(TEXT("Hero.Riktor"));
-		Riktor.TeamId = 0;
-		Riktor.Cell = FRTCellId(0, 0);
-		S.Units.Add(Riktor);
+		FRTScenarioUnit Branth;
+		Branth.Id = TEXT("B1");
+		Branth.HeroId = FName(TEXT("Hero.Branth"));
+		Branth.TeamId = 0;
+		Branth.Cell = FRTCellId(0, 0);
+		S.Units.Add(Branth);
 
 		// Un avversario lontano e inerte: serve solo perché la partita non finisca per eliminazione prima di
 		// arrivare al digest.
@@ -190,7 +190,7 @@ namespace
 		{
 			FRTScenarioIntent Erect;
 			Erect.UnitId = TEXT("B1");
-			Erect.Ability = FName(TEXT("Hero.Riktor.KineticPanel"));
+			Erect.Ability = FName(TEXT("Hero.Branth.KineticPanel"));
 			Erect.TargetCell = FRTCellId(0, 0);
 			Erect.bTargetsCell = true;
 			Erect.CoverEdge = ERTHexDirection::E;

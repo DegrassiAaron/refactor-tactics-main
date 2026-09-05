@@ -496,7 +496,7 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 	//
 	// 🔴 **Non e' una rifinitura: senza, il bot gioca un gioco diverso da quello che vince.** Misurato il
 	// 2026-09-04, 2v2 bot contro bot su `L_HexArena` con `Format.Skirmish2v2`: partita chiusa allo scadere
-	// dei round con `obiettivo 0-3`, un KO per parte, e i tre punti presi da un Riktor che in dodici turni
+	// dei round con `obiettivo 0-3`, un KO per parte, e i tre punti presi da un Branth che in dodici turni
 	// non ha inflitto un solo danno. Era finito sulla cella `(0,-3,L0)` tre volte come migliore candidata di
 	// solo movimento, a punteggio **negativo** — cioe' per avvicinamento, minaccia e quota. Il punto arrivava
 	// dopo, nel Cleanup, e nessuno dei due bot lo stava giocando.
@@ -516,7 +516,7 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 	// 🔴 **QUI SI E' FORMATO LO STATO ASSORBENTE DI #1088, e la difesa e' UN NUMERO — non questa formula.**
 	// Il termine compete con l'avvicinamento: finche' `WElevation * Layer` supera quello che `WApproach`
 	// rende scendendo, restare in alto batte muoversi e il bot si parcheggia. Misurato su
-	// `GeneratedTestArena` con `WElevation` 20: Riktor saliva sulla piattaforma al turno 3 e non scendeva
+	// `GeneratedTestArena` con `WElevation` 20: Branth saliva sulla piattaforma al turno 3 e non scendeva
 	// fino al 12 — restare valeva `+20 - 40 = -20` contro `-30` dello scendere.
 	//
 	// ⛔ **Non si prova a renderlo RELATIVO all'origine: sarebbe un no-op.** `Context.Origin` e' fisso per
@@ -667,7 +667,7 @@ TArray<FRTHexBotPlan> URTHexBotLibrary::BuildCandidates(const FRTHexSnapshot& Sn
 	// dominio «spezza l'oscillazione fra cerca e avvicinati senza introdurre stato», perche' «uscire dalla
 	// ricerca non puo' riportare su una cella cieca: quelle non sono piu' candidate». Uscire dalla ricerca
 	// significa pero' `bVedeGia == true`, e con quella condizione il filtro **e' spento**: le celle cieche
-	// tornano candidate nello stesso istante. Misurato su `L_HexArena` il 2026-08-23 — Riktor fra
+	// tornano candidate nello stesso istante. Misurato su `L_HexArena` il 2026-08-23 — Branth fra
 	// `(1,-1,L0)` e la piattaforma `(3,-3,L1)`, otto alternanze in dodici turni — e pinnato da
 	// `Match.Autobattle.NobodyOscillatesOnTheAuthoredMap`.
 	//

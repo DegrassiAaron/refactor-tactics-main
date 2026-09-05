@@ -190,10 +190,10 @@ bool FRTBotAllyBootstrapTest::RunTest(const FString&)
 
 	ARTUnit* Gadget = FindBotAllyHero(Units, TEXT("Hero.Gadget"));
 	ARTUnit* Phase = FindBotAllyHero(Units, TEXT("Hero.Phase"));
-	ARTUnit* Riktor = FindBotAllyHero(Units, TEXT("Hero.Riktor"));
+	ARTUnit* Branth = FindBotAllyHero(Units, TEXT("Hero.Branth"));
 	ARTUnit* Wraith = FindBotAllyHero(Units, TEXT("Hero.Wraith"));
 	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Phase"), Phase)
-		|| !TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("Wraith"), Wraith))
+		|| !TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Wraith"), Wraith))
 	{
 		DestroyBotAllyWorld(World);
 		return false;
@@ -207,7 +207,7 @@ bool FRTBotAllyBootstrapTest::RunTest(const FString&)
 	// ...ma chi la pianifica si': e' la prima volta che due unita' della stessa squadra si dividono qui.
 	TestFalse(TEXT("Gadget resta al giocatore"), Gadget->bIsBotControlled);
 	TestTrue(TEXT("Phase passa al bot"), Phase->bIsBotControlled);
-	TestTrue(TEXT("gli avversari restano al bot"), Riktor->bIsBotControlled && Wraith->bIsBotControlled);
+	TestTrue(TEXT("gli avversari restano al bot"), Branth->bIsBotControlled && Wraith->bIsBotControlled);
 
 	// E il gate lo vede: senza questa riga il test proverebbe l'assegnazione e non il suo effetto.
 	TestTrue(TEXT("Gadget e' comandabile"),

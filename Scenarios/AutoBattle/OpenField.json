@@ -7,7 +7,7 @@
 
   "_nota": "CP 47.4, il caso base del free-run: 2v2 bot contro bot su campo aperto, nessun turno enumerato. La partita decide quando finire — il file dichiara solo il TETTO, che e' una guardia di sicurezza e non una regola di gioco.",
 
-  "_nota_geometria": "Raggio 5 e squadre agli angoli opposti in diagonale sono la GEOMETRIA di `RefactorTactics.HexMatch.PlaysToCompletion`. ⚠️ Il ROSTER no, ed e' bene dirlo: quel test schiera Wraith+Riktor da entrambi i lati (specchiato), qui ci sono le formazioni della partita vera — `Gadget+Phase` contro `Riktor+Wraith` (`RTMatchSetupLibrary`). La sua misura «si decide al turno 10» vale per il suo allestimento, non per questo: prendere in prestito quel numero sarebbe una premessa non verificata.",
+  "_nota_geometria": "Raggio 5 e squadre agli angoli opposti in diagonale sono la GEOMETRIA di `RefactorTactics.HexMatch.PlaysToCompletion`. ⚠️ Il ROSTER no, ed e' bene dirlo: quel test schiera Wraith+Branth da entrambi i lati (specchiato), qui ci sono le formazioni della partita vera — `Gadget+Phase` contro `Branth+Wraith` (`RTMatchSetupLibrary`). La sua misura «si decide al turno 10» vale per il suo allestimento, non per questo: prendere in prestito quel numero sarebbe una premessa non verificata.",
 
   "_nota_terminazione": "La terminazione di QUESTO allestimento e' misurata a parte, e vale 10 turni con un vincitore per eliminazione (2026-08-21, `Scenario.FreeRun.ShippedOpenFieldReachesAWinner`, che esclude per nome il pareggio allo scadere). Il test la rimisura a ogni run: se la partita smettesse di decidersi, il tetto la fermerebbe e uscirebbe FAIL.",
 
@@ -21,7 +21,7 @@
   "units": [
     { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-4, 2, 0], "bot": true },
     { "id": "A2", "hero": "Hero.Phase",  "team": 0, "cell": [-4, 3, 0], "bot": true },
-    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [4, -2, 0], "bot": true },
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [4, -2, 0], "bot": true },
     { "id": "B2", "hero": "Hero.Wraith", "team": 1, "cell": [4, -3, 0], "bot": true }
   ],
 

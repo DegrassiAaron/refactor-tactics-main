@@ -145,7 +145,7 @@ bool FRTNoiseAttenuationBySurfaceTest::RunTest(const FString&)
 	const FRTCellId Origin(0, 0);
 	const FRTCellId TwoAway(2, 0);
 
-	// Su terreno libero uno Sprint (5) attenuato di 2 celle arriva a 3: lo sentono Phase e Riktor
+	// Su terreno libero uno Sprint (5) attenuato di 2 celle arriva a 3: lo sentono Phase e Branth
 	// (soglia 3), non Gadget e Wraith (soglia 5). E' l'esempio che D-041 usa per giustificare i valori.
 	const int32 OnFloor = HeardAt(Map, Sprint(Origin), TwoAway);
 	TestEqual(TEXT("Sprint su terreno libero, a due celle: 3"), OnFloor, 3);
@@ -184,16 +184,16 @@ bool FRTNoiseThresholdDecidesTest::RunTest(const FString&)
 	// guarda e' una riga di documentazione.
 	const URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
 	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
-	const URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+	const URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
 	const URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
 	if (!TestNotNull(TEXT("roster costruito"), Gadget) || !TestNotNull(TEXT("roster costruito"), Phase)
-		|| !TestNotNull(TEXT("roster costruito"), Riktor) || !TestNotNull(TEXT("roster costruito"), Wraith))
+		|| !TestNotNull(TEXT("roster costruito"), Branth) || !TestNotNull(TEXT("roster costruito"), Wraith))
 	{
 		return false;
 	}
 	TestEqual(TEXT("Gadget 5"), Gadget->HearingThreshold, 5);
 	TestEqual(TEXT("Phase 3"), Phase->HearingThreshold, 3);
-	TestEqual(TEXT("Riktor 3"), Riktor->HearingThreshold, 3);
+	TestEqual(TEXT("Branth 3"), Branth->HearingThreshold, 3);
 	TestEqual(TEXT("Wraith 5"), Wraith->HearingThreshold, 5);
 
 	// L'udito COMPENSA la vista: chi vede lontano sente meno. E' la proprieta' che rende l'udito una seconda
@@ -395,7 +395,7 @@ bool FRTNoisePlausibleAreaIgnoresSourceTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MakeNoiseMap(6);
 	const FRTCellId Listener(0, 0);
-	const int32 Threshold = 3; // orecchio di Phase/Riktor (D-041)
+	const int32 Threshold = 3; // orecchio di Phase/Branth (D-041)
 
 	// Due sorgenti reali, in direzioni opposte, che arrivano all'ascoltatore con la STESSA intensita'.
 	FRTNoiseEvent East;

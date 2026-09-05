@@ -243,7 +243,7 @@ bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
 	// Guardian e bersaglio allineati sull'asse q, a distanza 3: dentro la portata della Carica (4).
-	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0, 0));
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
 	ARTUnit* Enemy   = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(3, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Charger || !Enemy) { DestroyInteractionWorld(World); return false; }
@@ -351,7 +351,7 @@ bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
 // 🔴 **La voce si scrive in RISOLUZIONE, non al lock-in**, ed e' la lezione della code review: al commit il
 // piano si contraddice e basta, ma CHI verra' scartato lo decide il resolver. L'ordine canonico di
 // `ValidatePlan` — per larghezza di slot, poi per `ActionId` — davanti a `Action.Move` e
-// `Hero.Riktor.Ram` nomina **Ram**, che invece esegue. Una voce scritta al lock-in avrebbe accusato
+// `Hero.Branth.Ram` nomina **Ram**, che invece esegue. Una voce scritta al lock-in avrebbe accusato
 // l'azione sbagliata.
 //
 // I tre test vanno tenuti INSIEME, e il portante e' il TERZO. Il secondo — piano legale senza scatto —
@@ -373,7 +373,7 @@ bool FRTDashSupersedesNormalMoveTest::RunTest(const FString&)
 		return false;
 	}
 
-	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 1));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
@@ -482,7 +482,7 @@ bool FRTNoSupersededEntryOnALegalPlanTest::RunTest(const FString&)
 		return false;
 	}
 
-	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 1));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
@@ -546,7 +546,7 @@ bool FRTNoSupersededEntryOnADashWithoutAPlannedMoveTest::RunTest(const FString&)
 	}
 
 	const FRTCellId Start(1, 1);
-	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), Start);
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), Start);
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
@@ -628,7 +628,7 @@ bool FRTLockInDeclaresTheContradictionTest::RunTest(const FString&)
 		return false;
 	}
 
-	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 1));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
@@ -680,7 +680,7 @@ bool FRTLockInStaysSilentOnALegalPlanTest::RunTest(const FString&)
 		return false;
 	}
 
-	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 1));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
@@ -716,7 +716,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInNamesBothActionsTest,
 bool FRTLockInNamesBothActionsTest::RunTest(const FString&)
 {
 	// 🔴 Il messaggio NON deve nominare un solo colpevole. `ValidatePlan` ordina per larghezza di slot e poi
-	// per `ActionId`: `Action.Move` precede `Hero.Riktor.Ram` alfabeticamente, quindi Move prende lo slot e
+	// per `ActionId`: `Action.Move` precede `Hero.Branth.Ram` alfabeticamente, quindi Move prende lo slot e
 	// Ram risulta «l'offender» — ma e' Ram che ESEGUE, ed e' Move che il resolver scarta. Nominare una sola
 	// azione qui significa accusare quella sbagliata; nominarle entrambe e' vero comunque vada.
 	UWorld* World = MakeInteractionWorld();
@@ -727,7 +727,7 @@ bool FRTLockInNamesBothActionsTest::RunTest(const FString&)
 		return false;
 	}
 
-	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 1));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
@@ -798,7 +798,7 @@ bool FRTLockInDescribesTheCooldownReasonTest::RunTest(const FString&)
 		return false;
 	}
 
-	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 1));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
@@ -809,11 +809,11 @@ bool FRTLockInDescribesTheCooldownReasonTest::RunTest(const FString&)
 	}
 	PC->SelectActorForTest(U);
 
-	// KineticPanel (indice 1 nel roster di Riktor, RTHeroCatalogLibrary.cpp): Main, cooldown 2.
+	// KineticPanel (indice 1 nel roster di Branth, RTHeroCatalogLibrary.cpp): Main, cooldown 2.
 	constexpr int32 PanelIdx = 1;
 	const URTActionData* Panel = U->GetAbility(PanelIdx);
 	if (!TestTrue(TEXT("premessa: e' KineticPanel, e ha un cooldown"),
-		Panel && Panel->Def.ActionId == FName(TEXT("Hero.Riktor.KineticPanel")) && Panel->Def.CooldownTurns > 0))
+		Panel && Panel->Def.ActionId == FName(TEXT("Hero.Branth.KineticPanel")) && Panel->Def.CooldownTurns > 0))
 	{
 		DestroyInteractionWorld(World);
 		return false;
@@ -902,8 +902,8 @@ bool FRTLockInRejectionsFollowTheStableOrderTest::RunTest(const FString&)
 
 	const FRTCellId CellaTardi(3, 0); // spawnata per PRIMA, canonicamente SECONDA
 	const FRTCellId CellaPrima(1, 0); // spawnata per SECONDA, canonicamente PRIMA
-	ARTUnit* Tardi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), CellaTardi);
-	ARTUnit* Prima = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), CellaPrima);
+	ARTUnit* Tardi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), CellaTardi);
+	ARTUnit* Prima = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), CellaPrima);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita' spawnata per prima"), Tardi) || !TestNotNull(TEXT("unita' spawnata per seconda"), Prima)
 		|| !TestNotNull(TEXT("turn manager"), TM))
@@ -1312,7 +1312,7 @@ bool FRTWaypointRejectionNamesOccupantTest::RunTest(const FString&)
 	const FRTCellId Mia(0, 0, 0);
 	const FRTCellId Loro(2, 0, 0);
 	ARTUnit* Chi  = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Mia);
-	ARTUnit* Alt  = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), Loro);
+	ARTUnit* Alt  = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Loro);
 	if (!TestNotNull(TEXT("chi pianifica"), Chi) || !TestNotNull(TEXT("chi occupa"), Alt))
 	{
 		DestroyInteractionWorld(World); return false;

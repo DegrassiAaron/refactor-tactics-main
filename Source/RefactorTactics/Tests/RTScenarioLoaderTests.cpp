@@ -28,7 +28,7 @@ namespace
 	  "mapRadius": 3,
 	  "units": [
 	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
-	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0] }
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0] }
 	  ],
 	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
 	  "expect": [ { "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] } ]
@@ -38,16 +38,16 @@ namespace
 	// Le decisioni di finestra come DATO (CP 15.3 meta' B, #512). Nome distinto, come sopra.
 	//
 	// ⚠️ Gli id eroe sono i LEGACY, e non e' una svista: `RTHeroCatalogLibrary.cpp` dichiara oggi solo
-	// `Hero.Gadget`, `Hero.Phase`, `Hero.Riktor`, `Hero.Wraith`, e i nomi di [D-130] — Gadget, Phase, Riktor,
+	// `Hero.Gadget`, `Hero.Phase`, `Hero.Branth`, `Hero.Wraith`, e i nomi di [D-130] — Gadget, Phase, Branth,
 	// Wraith — hanno ZERO occorrenze in tutto `Source/`, perche' la fetta 3 (`#753`) non e' stata eseguita.
-	// Un `Hero.Riktor` qui non risolverebbe. Si rinominano insieme al catalogo, non prima.
+	// Un `Hero.Branth` qui non risolverebbe. Si rinominano insieme al catalogo, non prima.
 	const TCHAR* ScenarioLoaderDecisionsJson = TEXT(R"JSON(
 	{
 	  "scenarioId": "Spec.Decisions.Parse",
 	  "version": 2,
 	  "mapRadius": 3,
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] },
 	    { "id": "B1", "hero": "Hero.Wraith",  "team": 1, "cell": [ 2, 0, 0] }
 	  ],
 	  "turns": [ {
@@ -170,7 +170,7 @@ bool FRTScenarioLoaderRejectsTest::RunTest(const FString&)
 	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,0]}],"turns":[{"intents":[{"unit":"A","dashCell":[1,0,0]}]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("chiave sconosciuta"), TEXT("chiave di intent inventata"));
 
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Riktor","team":0,"cell":[0,0,0]}],"turns":[{"intents":[{"unit":"A","dash":"Riktor.Ram","dashCell":[1,0,0]}]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Branth","team":0,"cell":[0,0,0]}],"turns":[{"intents":[{"unit":"A","dash":"Branth.Ram","dashCell":[1,0,0]}]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("chiave sconosciuta"), TEXT("refuso su una chiave vera"));
 
 	// Una direzione inventata in UnitFacing non deve diventare «guarda a est» per arrotondamento.
@@ -256,7 +256,7 @@ bool FRTScenarioLoaderLogAssertionsTest::RunTest(const FString&)
 		  "mapRadius": 3,
 		  "units": [
 		    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-1, 0, 0] },
-		    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0] }
+		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] }
 		  ],
 		  "turns": [ { "intents": [] } ],
 		  "expect": [ %s ]
@@ -410,7 +410,7 @@ bool FRTScenarioLoaderBotUnitTest::RunTest(const FString&)
 		FString Error;
 		const bool bOk = Load(
 			TEXT(R"({ "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1, 0, 0] },
-			         { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0], "bot": true, "health": 7, "shield": 0, "visionRange": 1 })"),
+			         { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0], "bot": true, "health": 7, "shield": 0, "visionRange": 1 })"),
 			TEXT(R"({ "intents": [] })"), Scenario, Error);
 		if (TestTrue(FString::Printf(TEXT("scenario valido (%s)"), *Error), bOk))
 		{
@@ -437,7 +437,7 @@ bool FRTScenarioLoaderBotUnitTest::RunTest(const FString&)
 		FString Error;
 		const bool bOk = Load(
 			TEXT(R"({ "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1, 0, 0], "bot": true },
-			         { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0] })"),
+			         { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] })"),
 			TEXT(R"({ "intents": [ { "unit": "A1", "move": [[0, 0, 0]] } ] })"), Scenario, Error);
 		TestFalse(TEXT("un intent su un'unita' bot e' rifiutato"), bOk);
 		TestTrue(FString::Printf(TEXT("e il motivo nomina l'unita' (%s)"), *Error), Error.Contains(TEXT("A1")));
@@ -478,7 +478,7 @@ bool FRTScenarioLoaderVariantsTest::RunTest(const FString&)
 		  "mapRadius": 4,
 		  "units": [
 		    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-1, 0, 0] },
-		    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0] }
+		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] }
 		  ],
 		  %s
 		  "variants": [ %s ],
@@ -585,7 +585,7 @@ bool FRTScenarioLoaderDeclaredFacingTest::RunTest(const FString&)
 		  "scenarioId": "Test.DeclaredFacing",
 		  "mapRadius": 3,
 		  "units": [ { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [0, 0, 0] },
-		             { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] } ],
+		             { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] } ],
 		  "turns": [ { "requires": ["DeclaredRotation"], "intents": [ %s ] } ],
 		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 		})JSON"), IntentJson);
@@ -683,7 +683,7 @@ bool FRTScenarioLoaderDecisionsRejectTest::RunTest(const FString&)
 		{
 		  "scenarioId": "Spec.Decisions.Reject", "version": 2, "mapRadius": 3,
 		  "units": [
-		    { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] },
+		    { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] },
 		    { "id": "B1", "hero": "Hero.Wraith",  "team": 1, "cell": [ 2, 0, 0] }
 		  ],
 		  "turns": [ { "intents": [], "decisions": [ %s ] } ],
@@ -727,7 +727,7 @@ bool FRTScenarioLoaderTurnKeysTest::RunTest(const FString&)
 	const TCHAR* Json = TEXT(R"JSON(
 	{
 	  "scenarioId": "Spec.Decisions.TurnKey", "version": 1, "mapRadius": 3,
-	  "units": [ { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] } ],
+	  "units": [ { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] } ],
 	  "turns": [ { "intents": [], "desicions": [] } ],
 	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 	}
@@ -745,7 +745,7 @@ bool FRTScenarioLoaderTurnKeysTest::RunTest(const FString&)
 	const TCHAR* ConCommento = TEXT(R"JSON(
 	{
 	  "scenarioId": "Spec.Decisions.TurnComment", "version": 1, "mapRadius": 3,
-	  "units": [ { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] } ],
+	  "units": [ { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] } ],
 	  "turns": [ { "_turno": "commento", "_nota": "altro", "intents": [] } ],
 	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 	}
@@ -775,7 +775,7 @@ bool FRTScenarioLoaderVersionTwoTest::RunTest(const FString&)
 		const FString Json = FString::Printf(TEXT(R"JSON(
 		{
 		  "scenarioId": "Spec.Decisions.Version", "version": %d, "mapRadius": 3,
-		  "units": [ { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] } ],
+		  "units": [ { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] } ],
 		  "turns": [ { "intents": [] } ],
 		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 		}
@@ -829,7 +829,7 @@ bool FRTScenarioLoadoutThreeFormsTest::RunTest(const FString&)
 		const FString Json = FString::Printf(TEXT(R"JSON(
 		{
 		  "scenarioId": "Spec.Loadout.Forme", "version": 1, "mapRadius": 3,
-		  "units": [ { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0]%s } ],
+		  "units": [ { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0]%s } ],
 		  "turns": [ { "intents": [] } ],
 		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 		}
@@ -895,7 +895,7 @@ bool FRTScenarioLoaderDecisionsNeedVersionTwoTest::RunTest(const FString&)
 		const FString Json = FString::Printf(TEXT(R"JSON(
 		{
 		  "scenarioId": "Spec.Decisions.VersionGate", "version": %d, "mapRadius": 3,
-		  "units": [ { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] } ],
+		  "units": [ { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] } ],
 		  "turns": [ { "intents": [], %s } ],
 		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 		}
@@ -1421,7 +1421,7 @@ bool FRTScenarioUnknownStatusIsRefusedTest::RunTest(const FString&)
 	  "units": [
 	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0],
 	      "statuses": [ { "tag": "Status.Guarded1", "turns": 2 } ] },
-	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
 	  ],
 	  "turns": [ { "intents": [] } ],
 	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
@@ -1439,7 +1439,7 @@ bool FRTScenarioUnknownStatusIsRefusedTest::RunTest(const FString&)
 	  "units": [
 	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0],
 	      "statuses": [ { "tag": "Status.Wet", "turns": 0 } ] },
-	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
 	  ],
 	  "turns": [ { "intents": [] } ],
 	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
@@ -1455,7 +1455,7 @@ bool FRTScenarioUnknownStatusIsRefusedTest::RunTest(const FString&)
 	  "units": [
 	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0],
 	      "statuses": [ { "tag": "Status.Wet", "turns": 2 } ] },
-	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
 	  ],
 	  "turns": [ { "intents": [] } ],
 	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
@@ -1496,7 +1496,7 @@ bool FRTScenarioStatusVocabularyIsTheRuntimeOneTest::RunTest(const FString&)
 		  "units": [
 		    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0],
 		      "statuses": [ { "tag": "%s", "turns": 1 } ] },
-		    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
 		  ],
 		  "turns": [ { "intents": [] } ],
 		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
@@ -1558,7 +1558,7 @@ bool FRTScenarioHeroSelfActionTest::RunTest(const FString&)
 		  "scenarioId": "T", "version": 1, "mapRadius": 3,
 		  "units": [
 		    { "id": "P1", "hero": "Hero.Phase", "team": 0, "cell": [-1,0,0] },
-		    { "id": "R1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+		    { "id": "R1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
 		  ],
 		  "turns": [ { "intents": [ %s ] } ],
 		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
@@ -1583,14 +1583,14 @@ bool FRTScenarioHeroSelfActionTest::RunTest(const FString&)
 		}
 	}
 
-	// 2. ANTI-VACUITA' DISCRIMINANTE: `Hero.Riktor.KineticPanel` deriva da `Action.CreateCover`, che e'
+	// 2. ANTI-VACUITA' DISCRIMINANTE: `Hero.Branth.KineticPanel` deriva da `Action.CreateCover`, che e'
 	//    `Preparation` come `Action.Shield` MA bersaglia una cella a portata 3 e non se stessa. Se il
 	//    criterio tornasse a essere la fase invece del flag, questo caso passerebbe e il pannello si
 	//    piazzerebbe senza dire dove: lo scenario girerebbe verde-o-rosso per il motivo sbagliato.
 	{
 		FRTTestScenario S;
 		FString Error;
-		const bool bLoaded = Load(TEXT("{ \"unit\": \"R1\", \"ability\": \"Hero.Riktor.KineticPanel\" }"), S, Error);
+		const bool bLoaded = Load(TEXT("{ \"unit\": \"R1\", \"ability\": \"Hero.Branth.KineticPanel\" }"), S, Error);
 		TestFalse(TEXT("un'azione d'eroe di Prep che NON e' self resta rifiutata"), bLoaded);
 		TestTrue(TEXT("e il motivo lo nomina"), Error.Contains(TEXT("bersaglio")));
 	}
@@ -1641,7 +1641,7 @@ bool FRTScenarioD025CoverageTest::RunTest(const FString&)
 		  "scenarioId": "T", "version": 1, "mapRadius": 3,
 		  "units": [
 		    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0] },
-		    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
 		  ],
 		  "turns": [ { "intents": [ %s ] } ],
 		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
@@ -1720,7 +1720,7 @@ bool FRTScenarioD025CoverageTest::RunTest(const FString&)
 		  "scenarioId": "T", "version": 1, "mapRadius": 3,
 		  "units": [
 		    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0] },
-		    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
 		  ],
 		  "turns": [ { "intents": [ %s ] } ],
 		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
@@ -1785,7 +1785,7 @@ bool FRTScenarioTargetFormsTest::RunTest(const FString&)
 		  "scenarioId": "T", "version": 1, "mapRadius": 3,
 		  "units": [
 		    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0] },
-		    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] }
+		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
 		  ],
 		  "turns": [ { "intents": [ %s ] } ],
 		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]

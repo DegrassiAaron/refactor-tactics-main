@@ -148,12 +148,12 @@ namespace
 		ARTTurnManager* TurnManager = nullptr;
 		ARTPlayerController* PC = nullptr;
 		ARTUnit* Gadget = nullptr;   // team 0, azione base + area
-		ARTUnit* Riktor = nullptr;   // team 0, azione su struttura
+		ARTUnit* Branth = nullptr;   // team 0, azione su struttura
 		ARTUnit* Enemy = nullptr;    // team 1
 
 		bool IsComplete() const
 		{
-			return World && Map && GameMode && TurnManager && PC && Gadget && Riktor && Enemy;
+			return World && Map && GameMode && TurnManager && PC && Gadget && Branth && Enemy;
 		}
 
 		/** Rilatcha la modalita' passando dalla porta vera. */
@@ -184,7 +184,7 @@ namespace
 		}
 
 		B.Gadget = SpawnInertUnit(B.World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
-		B.Riktor = SpawnInertUnit(B.World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-1, 0, 0));
+		B.Branth = SpawnInertUnit(B.World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-1, 0, 0));
 		B.Enemy  = SpawnInertUnit(B.World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, 0, 0));
 
 		B.GameMode = B.World->SpawnActor<ARTGameMode>();
@@ -228,9 +228,9 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 	}
 
 	const int32 AreaIdx = FindInertAreaAbility(B.Gadget);
-	const int32 StructIdx = FindInertStructureAbility(B.Riktor);
+	const int32 StructIdx = FindInertStructureAbility(B.Branth);
 	if (!TestTrue(TEXT("premessa: Gadget ha un'azione ad AREA"), AreaIdx != INDEX_NONE)
-		|| !TestTrue(TEXT("premessa: Riktor ha un'azione su STRUTTURA"), StructIdx != INDEX_NONE))
+		|| !TestTrue(TEXT("premessa: Branth ha un'azione su STRUTTURA"), StructIdx != INDEX_NONE))
 	{
 		RTWorldFixtures::DestroyWorld(B.World);
 		return false;
@@ -265,13 +265,13 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 
 	// (4) bersaglio a bordo
 	ClearInertPlan(B.Gadget);
-	B.PC->SelectActorForTest(B.Riktor);
-	B.Riktor->SelectAbility(StructIdx);
+	B.PC->SelectActorForTest(B.Branth);
+	B.Branth->SelectAbility(StructIdx);
 	TestTrue(TEXT("controllo (4): il bersaglio a bordo e' accettato"),
 		B.PC->HandleTargetEdge(FRTCellId(-2, 0, 0), ERTHexDirection::NE));
 
 	// (5) rotazione dichiarata
-	ClearInertPlan(B.Riktor);
+	ClearInertPlan(B.Branth);
 	B.PC->SelectActorForTest(B.Gadget);
 	B.PC->BeginFacingDeclaration();
 	TestTrue(TEXT("controllo (5): la rotazione dichiarata e' accettata"),
@@ -281,7 +281,7 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 	// PASSO 2 — LA MISURA: autobattle in vigore, gli stessi cinque siti non agganciano piu' niente.
 	// ---------------------------------------------------------------------------------------------
 	ClearInertPlan(B.Gadget);
-	ClearInertPlan(B.Riktor);
+	ClearInertPlan(B.Branth);
 	B.Setup(/*bAutobattle=*/ true);
 	if (!TestTrue(TEXT("la misura: l'input e' inerte"), B.PC->IsPlanningInputInert()))
 	{
@@ -309,11 +309,11 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 		B.PC->HandleTargetCell(FRTCellId(0, -1, 0)));
 	TestFalse(TEXT("(3) e non ha sporcato il piano"), B.Gadget->bAttackTargetsCell);
 
-	B.PC->SelectActorForTest(B.Riktor);
-	B.Riktor->SelectAbility(StructIdx);
+	B.PC->SelectActorForTest(B.Branth);
+	B.Branth->SelectAbility(StructIdx);
 	TestFalse(TEXT("(4) il bersaglio a bordo e' rifiutato"),
 		B.PC->HandleTargetEdge(FRTCellId(-2, 0, 0), ERTHexDirection::NE));
-	TestFalse(TEXT("(4) e nessun lato e' stato registrato"), B.Riktor->bHasPlannedCoverEdge);
+	TestFalse(TEXT("(4) e nessun lato e' stato registrato"), B.Branth->bHasPlannedCoverEdge);
 
 	B.PC->SelectActorForTest(B.Gadget);
 	B.PC->BeginFacingDeclaration();

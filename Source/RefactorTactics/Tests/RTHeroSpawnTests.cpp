@@ -110,7 +110,7 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 	TestEqual(TEXT("quattro eroi distinti"), InPlay.Num(), 4);
 	TestTrue(TEXT("c'e' Gadget"), InPlay.Contains(FName(TEXT("Hero.Gadget"))));
 	TestTrue(TEXT("c'e' Phase"), InPlay.Contains(FName(TEXT("Hero.Phase"))));
-	TestTrue(TEXT("c'e' Riktor"), InPlay.Contains(FName(TEXT("Hero.Riktor"))));
+	TestTrue(TEXT("c'e' Branth"), InPlay.Contains(FName(TEXT("Hero.Branth"))));
 	TestTrue(TEXT("c'e' Wraith"), InPlay.Contains(FName(TEXT("Hero.Wraith"))));
 
 	// Ogni unita' porta le statistiche del SUO eroe, sopravvissute a BeginPlay.
@@ -145,27 +145,27 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 			Unit->GetAbility(0)->Def.ActionId, Hero->Actions[0]->Def.ActionId);
 	}
 
-	// Formazione di default: Gadget+Phase (giocatore) contro Riktor+Wraith (bot).
+	// Formazione di default: Gadget+Phase (giocatore) contro Branth+Wraith (bot).
 	ARTUnit* Gadget = FindByHeroId(Units, TEXT("Hero.Gadget"));
 	ARTUnit* Phase = FindByHeroId(Units, TEXT("Hero.Phase"));
-	ARTUnit* Riktor = FindByHeroId(Units, TEXT("Hero.Riktor"));
+	ARTUnit* Branth = FindByHeroId(Units, TEXT("Hero.Branth"));
 	ARTUnit* Wraith = FindByHeroId(Units, TEXT("Hero.Wraith"));
-	if (Gadget && Phase && Riktor && Wraith)
+	if (Gadget && Phase && Branth && Wraith)
 	{
 		TestEqual(TEXT("Gadget e' del giocatore"), Gadget->TeamId, 0);
 		TestEqual(TEXT("Phase anche: la combo Wet e' giocabile"), Phase->TeamId, 0);
-		TestEqual(TEXT("Riktor e' del bot"), Riktor->TeamId, 1);
+		TestEqual(TEXT("Branth e' del bot"), Branth->TeamId, 1);
 		TestEqual(TEXT("Wraith anche"), Wraith->TeamId, 1);
 		TestFalse(TEXT("il giocatore comanda i suoi"), Gadget->bIsBotControlled);
-		TestTrue(TEXT("il bot comanda i propri"), Riktor->bIsBotControlled);
+		TestTrue(TEXT("il bot comanda i propri"), Branth->bIsBotControlled);
 
 		// **Il punto della DoD sul bot**: MP diversi arrivano davvero in campo. Il budget dello snapshot viene
-		// da `MoveRange`, quindi il bot non puo' proporre a Riktor una mossa da 6 celle.
-		TestEqual(TEXT("Riktor: 4 MP"), Riktor->MoveRange, 4);
+		// da `MoveRange`, quindi il bot non puo' proporre a Branth una mossa da 6 celle.
+		TestEqual(TEXT("Branth: 4 MP"), Branth->MoveRange, 4);
 		TestEqual(TEXT("Wraith: 6 MP"), Wraith->MoveRange, 6);
 		// ⚠️ **La portata ora dipende dalla VARIANTE D'ARMA, e il valore atteso si deriva** (`#1054`).
 		// Gadget non ha un loadout — §4 gli assegna `Gadget.Insulator`, che v0.1 non costruisce — quindi
-		// resta a 4, il numero del catalogo. Riktor monta `Weapon.Impact`, che toglie una cella: **3 → 2**.
+		// resta a 4, il numero del catalogo. Branth monta `Weapon.Impact`, che toglie una cella: **3 → 2**.
 		// Il `2` non e' scritto qui: lo produce `ApplyWeaponVariant`, cosi' un ribilanciamento della
 		// variante fa cadere il catalogo e non questo file, e il giorno in cui Gadget avra' il suo gadget
 		// questa riga comincera' a coprire anche lui senza che nessuno la aggiorni.
@@ -185,12 +185,12 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 		};
 		TestEqual(TEXT("Gadget colpisce alla portata del catalogo (nessun loadout)"),
 			Gadget->AttackRange, PortataAttesa(TEXT("Hero.Gadget")));
-		TestEqual(TEXT("Riktor colpisce alla portata ridotta dalla sua variante"),
-			Riktor->AttackRange, PortataAttesa(TEXT("Hero.Riktor")));
+		TestEqual(TEXT("Branth colpisce alla portata ridotta dalla sua variante"),
+			Branth->AttackRange, PortataAttesa(TEXT("Hero.Branth")));
 		// E che le due NON siano lo stesso numero: senza questa riga il lambda potrebbe restituire sempre
 		// la portata base e le due asserzioni sopra passerebbero senza dimostrare che la variante morde.
-		TestNotEqual(TEXT("la variante d'arma cambia davvero la portata di Riktor"),
-			Riktor->AttackRange, URTHeroCatalogLibrary::MakeRiktor()->Actions[0]->Def.RangeCells);
+		TestNotEqual(TEXT("la variante d'arma cambia davvero la portata di Branth"),
+			Branth->AttackRange, URTHeroCatalogLibrary::MakeBranth()->Actions[0]->Def.RangeCells);
 
 		// Ogni unita' ha le PROPRIE istanze d'azione: due eroi che condividessero un `URTActionData`
 		// ricaricherebbero insieme.
@@ -442,7 +442,7 @@ bool FRTUnknownHeroIsDeclaredFatalTest::RunTest(const FString&)
 		return false;
 	}
 
-	GameMode->Team1Heroes = { TEXT("Hero.Riktor"), TEXT("Hero.NonEsiste") };
+	GameMode->Team1Heroes = { TEXT("Hero.Branth"), TEXT("Hero.NonEsiste") };
 
 	AddExpectedError(TEXT("non e' nel catalogo eroi"), EAutomationExpectedErrorFlags::Contains, 1);
 	GameMode->SetupHexMatch(HexMap);
@@ -497,10 +497,14 @@ bool FRTHeroUnitClassesDefaultTest::RunTest(const FString&)
 	// ⚠️ **E il percorso e' per eroe**, perche' l'errore facile in quel costruttore e' lo scambio: quattro
 	// `Assegna` in fila con quattro finder simili, e `Hero.Phase` che riceve il Blueprint di Gadget passerebbe
 	// un asserto scritto solo su «non e' il cilindro».
+	// ⚠️ **`Hero.Branth` mappa su un path che dice `Riktor`, ed e' la coppia CORRETTA oggi.** [D-334] ha
+	// rinominato l'identita', non l'asset: il rename di `/Game/RT/Characters/Riktor/` e' la fetta E di
+	// #2297. Questa riga e' il pin che tiene insieme le due meta' — quando l'asset si muove, si muove anche
+	// qui, e finche' non si muove il disallineamento e' la verita' del progetto, non un errore da correggere.
 	const TMap<FName, FString> Attesi = {
 		{ FName(TEXT("Hero.Gadget")), TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget") },
 		{ FName(TEXT("Hero.Phase")),  TEXT("/Game/RT/Characters/Phase/Blueprints/BP_Unit_Phase")   },
-		{ FName(TEXT("Hero.Riktor")), TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor") },
+		{ FName(TEXT("Hero.Branth")), TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor") },
 		{ FName(TEXT("Hero.Wraith")), TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith") },
 	};
 
@@ -625,7 +629,7 @@ bool FRTHeroUnitClassesPartialTest::RunTest(const FString&)
 	}
 	UClass* AttesaGadget = ClasseGadget->Get();
 
-	GameMode->HeroUnitClasses.Remove(FName(TEXT("Hero.Riktor")));
+	GameMode->HeroUnitClasses.Remove(FName(TEXT("Hero.Branth")));
 	GameMode->HeroUnitClasses.Remove(FName(TEXT("Hero.Wraith")));
 
 	GameMode->SetupHexMatch(HexMap);
@@ -634,14 +638,14 @@ bool FRTHeroUnitClassesPartialTest::RunTest(const FString&)
 	TestEqual(TEXT("le quattro unita' entrano"), Units.Num(), 4);
 
 	const ARTUnit* Gadget = FindByHeroId(Units, TEXT("Hero.Gadget"));
-	const ARTUnit* Riktor = FindByHeroId(Units, TEXT("Hero.Riktor"));
-	if (TestNotNull(TEXT("Gadget in campo"), Gadget) && TestNotNull(TEXT("Riktor in campo"), Riktor))
+	const ARTUnit* Branth = FindByHeroId(Units, TEXT("Hero.Branth"));
+	if (TestNotNull(TEXT("Gadget in campo"), Gadget) && TestNotNull(TEXT("Branth in campo"), Branth))
 	{
 		TestEqual(TEXT("Gadget ha la sua classe visiva"), Gadget->GetClass(), AttesaGadget);
-		TestEqual(TEXT("Riktor, senza voce, ricade sul cilindro"), Riktor->GetClass(), ARTUnit::StaticClass());
+		TestEqual(TEXT("Branth, senza voce, ricade sul cilindro"), Branth->GetClass(), ARTUnit::StaticClass());
 
 		// La meta' senza asset non degrada l'altra: e' il punto della domanda.
-		TestNotEqual(TEXT("le due meta' restano distinte"), Gadget->GetClass(), Riktor->GetClass());
+		TestNotEqual(TEXT("le due meta' restano distinte"), Gadget->GetClass(), Branth->GetClass());
 	}
 
 	DestroyRosterWorld(World);

@@ -275,7 +275,7 @@ enum class ERTEnvironmentOutcome : uint8
 	CoverCreated,
 	/** Una copertura temporanea e' scaduta: da qui in poi quel bordo non ripara piu' nessuno. */
 	CoverExpired,
-	/** Una copertura e' stata SPOSTATA su un altro bordo (`Riktor.Reconfigure`): non ne nasce una seconda. */
+	/** Una copertura e' stata SPOSTATA su un altro bordo (`Branth.Reconfigure`): non ne nasce una seconda. */
 	CoverMoved,
 	/**
 	 * La copertura non e' nata: bersaglio fuori portata, bordo non dichiarato o gia' riparato. E' il `Cancel`
@@ -543,7 +543,7 @@ enum class ERTMoveOutcome : uint8
 	 * al lock-in. La differenza non e' di comodo: al commit il piano si contraddice e basta — CHI verra'
 	 * scartato lo decide il resolver, che fa vincere lo scatto sempre. Una voce scritta prima dovrebbe
 	 * indovinarlo, e l'ordine canonico di `ValidatePlan` (per larghezza di slot, poi per `ActionId`) darebbe
-	 * la risposta sbagliata: davanti a `Action.Move` + `Hero.Riktor.Ram` nomina **Ram**, che invece esegue.
+	 * la risposta sbagliata: davanti a `Action.Move` + `Hero.Branth.Ram` nomina **Ram**, che invece esegue.
 	 *
 	 * `SrcCell` e' la cella di PARTENZA dello scatto, non l'arrivo — e' la chiave stabile dell'unita' nel
 	 * turno su cui `FilterTracesByEmitter` filtra (`ExcludedSources.Contains(Entry.SrcCell)`) per confrontare
@@ -791,7 +791,7 @@ struct FRTTurnLogEntry
 	 * IDENTITA' dell'azione che ha prodotto la voce, quando ne ha una (CP 5.5). `NAME_None` = non dichiarata.
 	 *
 	 * Serve perche' le reazioni degli eroi riusano la semantica delle azioni core: senza questo campo
-	 * `Riktor.Interposition` e `Action.Intercept` produrrebbero voci IDENTICHE, e un replay non potrebbe piu'
+	 * `Branth.Interposition` e `Action.Intercept` produrrebbero voci IDENTICHE, e un replay non potrebbe piu'
 	 * dire quale abilita' e' scattata. E' l'ActionId del catalogo, cioe' la chiave stabile: non cambia mai.
 	 *
 	 * Dal 2026-08-10 (CP 11.3, `#79`) lo popolano **anche le voci di combattimento** — colpi pianificati,
@@ -807,10 +807,10 @@ struct FRTTurnLogEntry
 	FName ActionId;
 
 	/**
-	 * L'azione GENERICA di cui `ActionId` e' un profilo (es. `Action.BasicAttack` per `Riktor.ImpactShot`).
+	 * L'azione GENERICA di cui `ActionId` e' un profilo (es. `Action.BasicAttack` per `Branth.ImpactShot`).
 	 * `NAME_None` quando l'azione non e' profilo di niente, o quando chi ha scritto la voce non lo sapeva.
 	 *
-	 * Sta QUI e non solo nel catalogo perche' `Riktor.ImpactShot` e' un'azione d'EROE: chi legge una traccia
+	 * Sta QUI e non solo nel catalogo perche' `Branth.ImpactShot` e' un'azione d'EROE: chi legge una traccia
 	 * non la risolve consultando il catalogo core, gli servirebbero i data asset del roster. Senza questo
 	 * campo la traccia non e' spiegabile da sola, e [D-033](../../../docs/decisions/RT_PDR_00_Decision_Log.md)
 	 * chiede esattamente questo.
@@ -1070,8 +1070,8 @@ struct FRTTurnLogEntry
 	 * CHI era il bersaglio ORIGINALE, quando un colpo e' stato **redirezionato** (`#1060`). `INDEX_NONE` su
 	 * ogni voce che non redirige — che e' la verita': non c'e' stato nessun trasferimento.
 	 *
-	 * Oggi lo produce la sola interposizione (`ERTReactionTrigger::AllyHitByDirectAttack`): Riktor si mette
-	 * davanti a Wraith, e il colpo che era per Wraith lo incassa Riktor. `UnitId` dice **chi lo incassa** —
+	 * Oggi lo produce la sola interposizione (`ERTReactionTrigger::AllyHitByDirectAttack`): Branth si mette
+	 * davanti a Wraith, e il colpo che era per Wraith lo incassa Branth. `UnitId` dice **chi lo incassa** —
 	 * e' l'unita' che reagisce — quindi con questo campo la voce nomina entrambi i capi del trasferimento.
 	 *
 	 * 🔴 **Porta uno `StableUnitId`, come `UnitId` e a differenza di `SelectedTargetUnitId`**, che invece porta

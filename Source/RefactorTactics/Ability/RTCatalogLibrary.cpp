@@ -7,7 +7,7 @@
 
 TArray<FRTReactionProfileDef> URTCatalogLibrary::GetReactionProfileCatalog()
 {
-	// I tre profili di `spec-reaction-clash-e14.md` §2.5, e **tre e' il numero giusto**: Riktor non ne ha uno
+	// I tre profili di `spec-reaction-clash-e14.md` §2.5, e **tre e' il numero giusto**: Branth non ne ha uno
 	// perche' `Hold Ground` fa gia' cio' che il suo `ANCHOR` avrebbe fatto. Vedi il commento della
 	// dichiarazione — qui non si ripete, si esegue.
 	//
@@ -73,7 +73,7 @@ FRTReactionProfileDef URTCatalogLibrary::FindReactionProfile(const FName& Profil
 	}
 
 	// Profilo base: id vuoto e nessuna risposta extra. Ci si arriva da due strade — chi non ne dichiara uno
-	// (Riktor) e chi ne dichiara uno che il catalogo non conosce — e l'esito e' lo stesso di proposito:
+	// (Branth) e chi ne dichiara uno che il catalogo non conosce — e l'esito e' lo stesso di proposito:
 	// cardinalita' 1, nessuna finestra. Inventare risposte per un profilo assente aprirebbe un boundary su
 	// scelte che il gioco non ha.
 	return FRTReactionProfileDef();
@@ -320,12 +320,12 @@ URTEquipmentData* URTCatalogLibrary::MakePortableCoverGadget()
 	Cover->DisplayName = FText::FromString(TEXT("Copertura portatile"));
 	Cover->Slot = ERTEquipmentSlot::Gadget;
 	Cover->Advantage = FText::FromString(
-		TEXT("erige una copertura bassa su un bordo, anche per chi non e' Riktor"));
+		TEXT("erige una copertura bassa su un bordo, anche per chi non e' Branth"));
 
 	// Lo svantaggio e' **obbligatorio** (regola di prodotto: senza, l'equipaggiamento e' una scelta verticale),
 	// e il catalogo equipaggiamento non ne dichiara uno specifico per questo gadget. Invece di inventare un
 	// numero si dichiara quello che i cataloghi gia' dicono: **cooldown 3** per ogni gadget, contro il 2 del
-	// pannello d'eroe, e l'unico slot gadget occupato. Chi non e' Riktor puo' erigere pannelli, ma piu' di
+	// pannello d'eroe, e l'unico slot gadget occupato. Chi non e' Branth puo' erigere pannelli, ma piu' di
 	// rado e rinunciando a medkit, isolante o sensore.
 	Cover->Drawback = FText::FromString(
 		TEXT("ricarica 3 turni invece dei 2 del pannello d'eroe, e occupa l'unico slot gadget"));
@@ -420,7 +420,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
 	Split->ExtraTargets = 1;
 	Variants.Add(Split);
 
-	// Soppressione — applica `Slow`, −5 danni. Stesso mestiere dell'attacco base di Riktor (ADR-0007), che
+	// Soppressione — applica `Slow`, −5 danni. Stesso mestiere dell'attacco base di Branth (ADR-0007), che
 	// e' la prova che lo `Slow` su un attacco base e' gia' rappresentabile e gia' osservato in partita.
 	URTEquipmentData* Suppressive = WeaponVariant(TEXT("Weapon.Suppressive"), TEXT("Soppressione"),
 		TEXT("l'attacco base applica Status.Slow per 1 turno"), TEXT("-5 danni"));
@@ -515,7 +515,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeGadgets()
 	//   catalogo stesso dichiara raggio e durata «non specificati dalla fonte», quindi mancano anche i numeri.
 	// - `Gadget.Anchor` (impedisce **una** spinta): il campo `PushResistance` esiste ma e' una SOGLIA
 	//   permanente, non un contatore. Darlo a chi porta l'ancora lo renderebbe immune a OGNI spinta del gioco
-	//   — tutte valgono 1 — cioe' esattamente l'immunita' non decisa che `D-075` ha appena tolto a Riktor.
+	//   — tutte valgono 1 — cioe' esattamente l'immunita' non decisa che `D-075` ha appena tolto a Branth.
 	//   «Una» spinta richiede un consumo per turno che non esiste.
 
 	return Gadgets;
@@ -634,9 +634,9 @@ TArray<FString> URTCatalogLibrary::WarnOnVariantForAttack(const FRTActionDef& Ba
 		*Variant->EquipmentId.ToString(), *BasicAttack.ActionId.ToString());
 
 	// 1. STATUS DUPLICATO. E' la regola generale dietro un caso concreto: `Weapon.Suppressive` applica
-	// `Slow`, e `Riktor.ImpactShot` lo applica gia' — quindi la variante fa pagare 5 danni su 8 per un
+	// `Slow`, e `Branth.ImpactShot` lo applica gia' — quindi la variante fa pagare 5 danni su 8 per un
 	// effetto che l'eroe possiede. Non e' subottimale, e' priva di senso, e D-086 la vieta. La regola non
-	// nomina Riktor: vale per ogni eroe futuro il cui attacco base porti gia' uno status.
+	// nomina Branth: vale per ogni eroe futuro il cui attacco base porti gia' uno status.
 	for (const FRTActionEffectSpec& Aggiunto : Variant->AddedEffects)
 	{
 		if (Aggiunto.Effect != ERTActionEffect::Status || !Aggiunto.StatusTag.IsValid()) { continue; }
@@ -748,9 +748,9 @@ FName URTCatalogLibrary::DefaultWeaponVariantFor(const FName& HeroId)
 		{ FName(TEXT("Hero.Phase")),    FName(TEXT("Weapon.Impact")) },
 		// Wraith e' il piu' mobile (Move 6): `Suppressive` gli da' come impedirlo agli altri.
 		{ FName(TEXT("Hero.Wraith")),  FName(TEXT("Weapon.Suppressive")) },
-		// Riktor tiene `Impact` perche' e' l'unica che NON gli toglie danno — paga in portata — e l'attacco
+		// Branth tiene `Impact` perche' e' l'unica che NON gli toglie danno — paga in portata — e l'attacco
 		// base diventa displacement, coerente con Utility/Emergency (ADR-0007).
-		{ FName(TEXT("Hero.Riktor")), FName(TEXT("Weapon.Impact")) },
+		{ FName(TEXT("Hero.Branth")), FName(TEXT("Weapon.Impact")) },
 	};
 	const FName* Found = Defaults.Find(HeroId);
 	return Found ? *Found : FName();
@@ -774,8 +774,8 @@ FName URTCatalogLibrary::DefaultGadgetFor(const FName& HeroId)
 		// Sprinkler: acqua raggio 1. Dal 2026-08-16 e' anche l'unico produttore d'acqua che il roster puo'
 		// portare in campo — `Hero.Phase.FluidTrail` l'ha persa con D-046 superata (#1006).
 		{ FName(TEXT("Hero.Phase")), FName(TEXT("Gadget.Sprinkler")) },
-		// Copertura portatile: crea una copertura bassa su un bordo. Riktor e' l'eroe delle strutture.
-		{ FName(TEXT("Hero.Riktor")), FName(TEXT("Gadget.PortableCover")) },
+		// Copertura portatile: crea una copertura bassa su un bordo. Branth e' l'eroe delle strutture.
+		{ FName(TEXT("Hero.Branth")), FName(TEXT("Gadget.PortableCover")) },
 		// Sensore: alza la Team Knowledge in un'area.
 		{ FName(TEXT("Hero.Wraith")), FName(TEXT("Gadget.Sensor")) },
 	};
@@ -792,14 +792,14 @@ FName URTCatalogLibrary::DefaultReactionModuleFor(const FName& HeroId)
 		// Fuga hazard: `Reposition 1` quando la cella diventa pericolosa.
 		{ FName(TEXT("Hero.Phase")), FName(TEXT("Reaction.HazardEscape")) },
 		// 🔴 **Purificazione, non interposizione** (`#1403`, [D-218]). §4 prescriveva
-		// `Reaction.AllyIntercept`, costruito su `Action.Intercept` — e la reazione di KIT di Riktor,
-		// `Hero.Riktor.Interposition`, e' costruita sullo **stesso** `Action.Intercept`. Lo slot di loadout
+		// `Reaction.AllyIntercept`, costruito su `Action.Intercept` — e la reazione di KIT di Branth,
+		// `Hero.Branth.Interposition`, e' costruita sullo **stesso** `Action.Intercept`. Lo slot di loadout
 		// spendeva su cio' che l'eroe ha gia': due voci per una capacita' sola, e nessuna scelta reale al
 		// giocatore. `Reaction.Cleanse` non gli toglie niente e gli da' l'unica risposta esistente allo
-		// `Status.Slow` che `Hero.Riktor.ImpactShot` — il suo **attacco base** — applica a ogni colpo
+		// `Status.Slow` che `Hero.Branth.ImpactShot` — il suo **attacco base** — applica a ogni colpo
 		// (`#1479`). ⚠️ Questa riga si scosta da §4 del catalogo equipaggiamento, e lo dichiara: la fonte
 		// prescriveva un duplicato, e per [D-210] il codice recepito prevale su un catalogo di `balance/`.
-		{ FName(TEXT("Hero.Riktor")), FName(TEXT("Reaction.Cleanse")) },
+		{ FName(TEXT("Hero.Branth")), FName(TEXT("Reaction.Cleanse")) },
 		// Dash d'emergenza: `Reposition 1` quando sei bersagliato.
 		{ FName(TEXT("Hero.Wraith")), FName(TEXT("Reaction.EmergencyDash")) },
 	};
@@ -1246,7 +1246,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// Occupa il MOVIMENTO come ogni altra mobilita' rapida [D-191]: che una carica faccia danno a chi raggiunge
 	// non cambia CHE COSA ha speso. Fino al 2026-08-26 questo capoverso diceva l'opposto - «l'unica mobilita'
 	// lineare che resta sulla principale, e chi carica conserva il movimento» - seguendo la clausola di D-028
-	// che D-191 ha superato: con la carica sulla principale Riktor pianificava `Ram` E l'attacco base, e il
+	// che D-191 ha superato: con la carica sulla principale Branth pianificava `Ram` E l'attacco base, e il
 	// resolver eseguiva entrambe. Chi vuole che una mobilita' costi ANCHE la principale lo dichiara con
 	// `MovementAndMain`, che oggi nessuna azione dei cataloghi usa.
 

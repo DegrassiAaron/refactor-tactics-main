@@ -5,13 +5,13 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "Gemello di controllo di `Combat.RiktorImpactShotSlows`: stessa scena, stesse celle, stesso piano di movimento. Cambia UNA riga — Riktor non spara. F1 paga 1 a cella, spende 4 dei suoi 5 MP e arriva dove aveva chiesto, a (2,0). Resta a 90 HP.",
+  "_nota": "Gemello di controllo di `Combat.BranthImpactShotSlows`: stessa scena, stesse celle, stesso piano di movimento. Cambia UNA riga — Branth non spara. F1 paga 1 a cella, spende 4 dei suoi 5 MP e arriva dove aveva chiesto, a (2,0). Resta a 90 HP.",
 
-  "_nota_perche_esiste": "Senza questo, «F1 si e' fermato a (0,0)» non prova che sia stato lo Slow: proverebbe soltanto che si e' fermato. Potrebbe essere un budget diverso da quello che credo, un costo di cella diverso da 1, un troncamento che sbaglia. La coppia isola l'unica variabile che cambia — l'intento di Riktor — ed e' lo stesso metodo di `Spec.Facing.FrontAttackKeepsGuard` / `BackAttackIgnoresGuard`: da sola, ciascuna meta' passerebbe anche con un'implementazione che applica la regola SEMPRE o MAI.",
+  "_nota_perche_esiste": "Senza questo, «F1 si e' fermato a (0,0)» non prova che sia stato lo Slow: proverebbe soltanto che si e' fermato. Potrebbe essere un budget diverso da quello che credo, un costo di cella diverso da 1, un troncamento che sbaglia. La coppia isola l'unica variabile che cambia — l'intento di Branth — ed e' lo stesso metodo di `Spec.Facing.FrontAttackKeepsGuard` / `BackAttackIgnoresGuard`: da sola, ciascuna meta' passerebbe anche con un'implementazione che applica la regola SEMPRE o MAI.",
 
   "units": [
     { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [-2, 0, 0] },
-    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [-2, 3, 0] }
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [-2, 3, 0] }
   ],
 
   "turns": [

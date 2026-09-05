@@ -7,7 +7,7 @@
 class URTActionData;
 
 /**
- * Definizione data-driven di un EROE del catalogo v0.1 (Gadget, Phase, Riktor, Wraith).
+ * Definizione data-driven di un EROE del catalogo v0.1 (Gadget, Phase, Branth, Wraith).
  *
  * Contiene solo cio' che il catalogo dichiara come **fisso** dell'eroe: identita', statistiche base e le
  * azioni fondamentali (attacco base compreso). Cio' che e' configurabile FRA eroi diversi (variante d'arma,
@@ -52,7 +52,7 @@ public:
 	 * **almeno** a questo valore perche' l'eroe lo senta. Scala `0-10`, la stessa dell'intensita'
 	 * (`Wait 0 · Sprint 5 · Dash 6 · esplosione 10`), e soglia **bassa = orecchio fine**.
 	 *
-	 * Quarta statistica, e **compensa** la vista invece di seguirla: Gadget 5 · Phase 3 · Riktor 3 · Wraith 5.
+	 * Quarta statistica, e **compensa** la vista invece di seguirla: Gadget 5 · Phase 3 · Branth 3 · Wraith 5.
 	 * Chi vede lontano sente meno. La terza via — udito allineato alla vista — e' stata scartata perche'
 	 * raddoppiare lo stesso vantaggio su due canali renderebbe gli eroi da ricognizione *migliori*, non
 	 * diversi.
@@ -63,7 +63,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 HearingThreshold = 5;
 
-	/** Celle di spinta assorbite prima di essere spostato (Riktor: 1). */
+	/** Celle di spinta assorbite prima di essere spostato (Branth: 1). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 PushResistance = 0;
 
@@ -74,7 +74,7 @@ public:
 	 * |---|---:|---:|
 	 * | Gadget | 2 | 2 |
 	 * | Phase | 2 | 3 |
-	 * | Riktor | 1 | **0** |
+	 * | Branth | 1 | **0** |
 	 * | Wraith | 3 | 3 |
 	 *
 	 * ⚠️ **Ipotesi iniziali, non bilanciamento approvato.** L'ADR li dichiara «*ipotesi da scenario/playtest*»
@@ -113,7 +113,7 @@ public:
 	 * qui, ogni eroe nuovo sarebbe una copia del contenuto invece che un puntatore a un'entita' condivisa, e
 	 * riassegnare un profilo costerebbe un rename in due posti.
 	 *
-	 * 🔵 **`None` non e' un valore mancante**: e' Riktor, e per lui e' la scelta giusta — `Hold Ground` fa
+	 * 🔵 **`None` non e' un valore mancante**: e' Branth, e per lui e' la scelta giusta — `Hold Ground` fa
 	 * gia' cio' che un suo profilo avrebbe fatto, quindi la cardinalita' resta 1 e nessuna finestra si apre.
 	 * Per questo il campo **non** e' fra quelli che `ValidateHeroes` pretende: un eroe senza profilo e'
 	 * valido, a differenza di un eroe senza `Weakness`.

@@ -73,17 +73,17 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 
 	ARTUnit* Gadget = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
 	ARTUnit* Phase = SpawnHudVmUnit(World, TEXT("Hero.Phase"), /*TeamId*/ 0);
-	ARTUnit* Riktor = SpawnHudVmUnit(World, TEXT("Hero.Riktor"), /*TeamId*/ 1);
+	ARTUnit* Branth = SpawnHudVmUnit(World, TEXT("Hero.Branth"), /*TeamId*/ 1);
 	ARTUnit* Wraith = SpawnHudVmUnit(World, TEXT("Hero.Wraith"), /*TeamId*/ 1);
 
 	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Phase"), Phase)
-		|| !TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("Wraith"), Wraith))
+		|| !TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Wraith"), Wraith))
 	{
 		DestroyHudVmWorld(World);
 		return false;
 	}
 
-	const TArray<ARTUnit*> All = { Gadget, Phase, Riktor, Wraith };
+	const TArray<ARTUnit*> All = { Gadget, Phase, Branth, Wraith };
 
 	const TArray<FRTUnitCardView> Mine = URTHudViewModel::BuildTeamRoster(All, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("il roster ha le due unita' della mia squadra"), Mine.Num(), 2);
@@ -91,7 +91,7 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 	{
 		TestTrue(*FString::Printf(TEXT("%s e' un alleato"), *Card.HeroId.ToString()), Card.bIsAlly);
 		TestFalse(TEXT("nessun avversario nel roster"),
-			Card.HeroId == TEXT("Hero.Riktor") || Card.HeroId == TEXT("Hero.Wraith"));
+			Card.HeroId == TEXT("Hero.Branth") || Card.HeroId == TEXT("Hero.Wraith"));
 	}
 
 	// Simmetrico: cambiando squadra cambia il roster, e la funzione non ha altri parametri con cui sbagliare.
@@ -123,22 +123,22 @@ bool FRTHudVmCardMirrorsUnitTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-	ARTUnit* Riktor = SpawnHudVmUnit(World, TEXT("Hero.Riktor"), /*TeamId*/ 0);
-	if (!TestNotNull(TEXT("Riktor"), Riktor)) { DestroyHudVmWorld(World); return false; }
+	ARTUnit* Branth = SpawnHudVmUnit(World, TEXT("Hero.Branth"), /*TeamId*/ 0);
+	if (!TestNotNull(TEXT("Branth"), Branth)) { DestroyHudVmWorld(World); return false; }
 
-	Riktor->Health = 42;
-	Riktor->Shield = 7;
+	Branth->Health = 42;
+	Branth->Shield = 7;
 
-	const FRTUnitCardView Card = URTHudViewModel::BuildUnitCard(Riktor, /*PlayerTeamId*/ 0);
+	const FRTUnitCardView Card = URTHudViewModel::BuildUnitCard(Branth, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("salute"), Card.Health, 42);
 	TestEqual(TEXT("scudo"), Card.Shield, 7);
-	TestEqual(TEXT("salute massima dal catalogo eroi"), Card.MaxHealth, Riktor->MaxHealth);
-	TestEqual(TEXT("identita'"), Card.HeroId, Riktor->HeroId);
+	TestEqual(TEXT("salute massima dal catalogo eroi"), Card.MaxHealth, Branth->MaxHealth);
+	TestEqual(TEXT("identita'"), Card.HeroId, Branth->HeroId);
 	TestTrue(TEXT("alleato"), Card.bIsAlly);
 	TestTrue(TEXT("vivo"), Card.bAlive);
 
 	// La stessa unita' vista dall'altra squadra e' la stessa unita': cambia la RELAZIONE, non i numeri.
-	const FRTUnitCardView Enemy = URTHudViewModel::BuildUnitCard(Riktor, /*PlayerTeamId*/ 1);
+	const FRTUnitCardView Enemy = URTHudViewModel::BuildUnitCard(Branth, /*PlayerTeamId*/ 1);
 	TestFalse(TEXT("vista da squadra 1 non e' alleata"), Enemy.bIsAlly);
 	TestEqual(TEXT("ma la salute e' la stessa"), Enemy.Health, 42);
 

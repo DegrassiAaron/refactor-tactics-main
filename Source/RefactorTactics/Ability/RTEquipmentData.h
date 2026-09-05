@@ -132,7 +132,7 @@ public:
 	 *
 	 * E' un id e non una copia della definizione: un gadget che duplicasse i numeri dell'azione sarebbe un
 	 * secondo catalogo da tenere allineato, e il primo a cambiare romperebbe il secondo in silenzio — lo
-	 * stesso motivo per cui `Riktor.Ram` legge `Action.Charge` invece di riscriverlo.
+	 * stesso motivo per cui `Branth.Ram` legge `Action.Charge` invece di riscriverlo.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName GrantedActionId;

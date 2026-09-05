@@ -31,7 +31,7 @@ bool FRTUnitArchetypeCooldownTest::RunTest(const FString&)
 {
 	ARTUnit* Unit = NewObject<ARTUnit>();
 	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
-	Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeRiktor());
+	Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeBranth());
 
 	// L'abilita' la sceglie il KIT, non un indice scritto a mano: se i numeri dell'archetipo cambiano, il
 	// test resta valido invece di verificare la cosa sbagliata in silenzio.
@@ -368,19 +368,19 @@ bool FRTCatalogFastMovementIsFoundAsDashTest::RunTest(const FString&)
 {
 	// Le azioni degli eroi arrivano dal catalogo e dichiarano la FASE, non un flag: fino a #142 nessuna di
 	// loro veniva riconosciuta come scatto, quindi il bot non ne pianificava mai uno per i quattro eroi.
-	URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
-	if (!TestNotNull(TEXT("Riktor dal catalogo"), Riktor)) { return false; }
+	URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
+	if (!TestNotNull(TEXT("Branth dal catalogo"), Branth)) { return false; }
 
 	ARTUnit* Unit = NewObject<ARTUnit>();
 	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
-	Unit->ConfigureFromHeroData(Riktor);
+	Unit->ConfigureFromHeroData(Branth);
 
 	const int32 DashIdx = Unit->FindDashAbilityIndex();
 	if (!TestTrue(TEXT("l'unita' riconosce la sua mobilita' rapida"), DashIdx != INDEX_NONE)) { return false; }
 
 	const URTActionData* Dash = Unit->GetAbility(DashIdx);
 	if (!TestNotNull(TEXT("l'abilita' trovata esiste"), (void*)Dash)) { return false; }
-	TestTrue(TEXT("ed e' proprio la carica di Riktor"), Dash->Def.ActionId == FName(TEXT("Hero.Riktor.Ram")));
+	TestTrue(TEXT("ed e' proprio la carica di Branth"), Dash->Def.ActionId == FName(TEXT("Hero.Branth.Ram")));
 
 	// La verifica ha senso solo se il riconoscimento NON passa da un campo dell'asset: e' la fase del
 	// catalogo a dirlo. Se un giorno tornasse un flag, questa asserzione cadrebbe insieme al motivo del test.
@@ -452,7 +452,7 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 	const TMap<FName, TPair<FString, FString>> Attese = {
 		{ FName(TEXT("Hero.Gadget")), { TEXT("Idle"),           TEXT("Run_Fwd") } },
 		{ FName(TEXT("Hero.Phase")),  { TEXT("Idle"),           TEXT("Jog_Fwd") } },
-		{ FName(TEXT("Hero.Riktor")), { TEXT("Idle"),           TEXT("Jog_Fwd") } },
+		{ FName(TEXT("Hero.Branth")), { TEXT("Idle"),           TEXT("Jog_Fwd") } },
 		{ FName(TEXT("Hero.Wraith")), { TEXT("Idle_NonCombat"), TEXT("Jog_Fwd") } },
 	};
 
@@ -608,7 +608,7 @@ bool FRTUnitBaseShieldSurvivesTemporaryExpiryTest::RunTest(const FString&)
  * **La sagoma dell'ultimo contatto punta all'IDLE dell'eroe, non alla corsa e non al nulla** (#1750).
  *
  * 🔴 Il difetto che chiude: un `USkeletalMeshComponent` con una mesh e senza `AnimInstance` disegna la
- * **posa di riferimento** dello skeleton — la T-pose — e su Riktor quella posa stende le catene attraverso
+ * **posa di riferimento** dello skeleton — la T-pose — e su Branth quella posa stende le catene attraverso
  * lo schermo. Osservato a schermo il 2026-09-03, dopo che le altre due cause dello stesso sintomo erano
  * state chiuse (#1719 la scala, #1784 le ossa a LOD basso): è l'unica delle tre rimasta.
  *
@@ -650,7 +650,7 @@ bool FRTUnitGhostFallbackClipTest::RunTest(const FString&)
 
 	const FName Eroi[] = {
 		FName(TEXT("Hero.Gadget")), FName(TEXT("Hero.Phase")),
-		FName(TEXT("Hero.Riktor")), FName(TEXT("Hero.Wraith")),
+		FName(TEXT("Hero.Branth")), FName(TEXT("Hero.Wraith")),
 	};
 
 	for (const FName& Eroe : Eroi)
@@ -692,7 +692,7 @@ bool FRTUnitGhostFallbackClipTest::RunTest(const FString&)
 		ARTUnit::GhostFallbackClipFor(Cdo, FName(TEXT("Hero.NonEsiste"))).IsNull());
 	// ⛔ E senza clip del tutto: `nullptr` non deve crashare, deve dare un ripiego vuoto.
 	TestTrue(TEXT("senza AnimInstance il ripiego e' vuoto invece di crashare"),
-		ARTUnit::GhostFallbackClipFor(nullptr, FName(TEXT("Hero.Riktor"))).IsNull());
+		ARTUnit::GhostFallbackClipFor(nullptr, FName(TEXT("Hero.Branth"))).IsNull());
 	return true;
 }
 
@@ -779,7 +779,7 @@ bool FRTUnitContactPoseCaptureIsOneShotTest::RunTest(const FString&)
  * posa di riferimento» — non poteva.
  *
  * ⛔ **Cio' che questo test NON dimostra**: che la posa a schermo sia quella giusta. Quella resta la verifica
- * PIE su Riktor, ed e' registrata come tale.
+ * PIE su Branth, ed e' registrata come tale.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitGhostPoseSourceTest,
 	"RefactorTactics.Unit.ContactGhostPrefersTheRememberedPose",
