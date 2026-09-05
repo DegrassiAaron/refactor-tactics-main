@@ -1,6 +1,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
+// Il catalogo lega una clip a un RUOLO, e il vocabolario dei ruoli ha un solo owner: duplicarlo qui come
+// `FName` renderebbe rappresentabile un ruolo che il runtime non conosce, e il validator dovrebbe
+// reinventare l'elenco che l'enum gia' e'.
+//
+// ⚠️ **Si include il VOCABOLARIO, non `RTUnitAnimInstance.h`.** Misurato il 2026-09-05: quell'header
+// trascina `AnimNodes/AnimNode_Slot.h`, cioe' `AnimGraphRuntime`, e includerlo da qui impediva al modulo
+// Editor di compilare. E' la ragione per cui `ERTPresentationRole` e' stato estratto in un header suo.
+#include "Unit/RTPresentationRole.h"
 #include "RTAnimCatalogTypes.generated.h"
 
 /**
@@ -83,6 +91,38 @@ struct FRTAnimClipDerived
 };
 
 /**
+ * Il legame fra una clip e un `(eroe, ruolo)`, deciso da una persona.
+ *
+ * ⚠️ **`bActive` e' unico dentro `(HeroId, Role)`, non dentro la voce.** Una clip puo' essere attiva per
+ * Gadget/`Move` e legata-ma-inattiva per Phase/`Move`: l'unicita' che conta e' quella del ruolo, ed e'
+ * la stessa invariante che `FRTAnimRoleClips::ActiveClipVariant` porta a runtime. Qui vive nel testo, e
+ * `ValidateCatalog` la difende — perche' un file lo si puo' modificare a mano.
+ */
+USTRUCT(BlueprintType)
+struct FRTAnimBinding
+{
+	GENERATED_BODY()
+
+	/** `Hero.Gadget`, `Hero.Wraith`, … */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Anim")
+	FName HeroId;
+
+	/** Il ruolo di presentazione. Vocabolario di `ERTPresentationRole` (#2441). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Anim")
+	ERTPresentationRole Role = ERTPresentationRole::Idle;
+
+	/**
+	 * Se questa e' la variante che suona per quel `(eroe, ruolo)`.
+	 *
+	 * ⛔ **Il default e' `false`, e non e' un dettaglio**: una variante appena legata entra INATTIVA,
+	 * qualunque sia lo stato del ruolo. «E' l'unica, quindi sara' lei» e' la deduzione che l'autore non
+	 * ha chiesto, ed e' la stessa regola che `FRTAnimRoleClips::AddVariant` applica a runtime.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Anim")
+	bool bActive = false;
+};
+
+/**
  * La meta' AUTHORED di una voce: il giudizio umano, che nessuna automazione sovrascrive.
  *
  * ⛔ Nessuna funzione di questo modulo deduce una `Label` da un nome di file. `Heavy`, `Fast`, `Attack` sono
@@ -105,6 +145,20 @@ struct FRTAnimClipAuthored
 	/** Perche' questa clip e' stata promossa o scartata. E' la memoria che oggi non esiste. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Anim")
 	FString Notes;
+
+	/**
+	 * A quali `(eroe, ruolo)` questa clip e' legata, e in quale di essi e' quella attiva.
+	 *
+	 * 🔴 **E' authoring, non runtime.** Il gioco legge `URTUnitAnimInstance::ClipsPerHero`, mai questo
+	 * file: un JSON sotto `Data/` non e' un asset versionato sotto `/Game/RT` e il cook non sa seguirlo
+	 * (`D-262`). Il ponte fra i due e' il commandlet `RTBuildAnimBindings`, che da qui **genera**
+	 * l'asset — la stessa disciplina di `RTBuildGrayboxMeshes` e `RTBuildIconCatalog` (`D-229`: la
+	 * sorgente e' il codice, l'asset e' il suo output).
+	 *
+	 * ⛔ Vuoto finche' una persona non lega la clip. Nessuna automazione scrive qui.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Anim")
+	TArray<FRTAnimBinding> Bindings;
 };
 
 /** Una voce del catalogo: un `AV_ID` stabile, cio' che si rilegge e cio' che una persona ha deciso. */
