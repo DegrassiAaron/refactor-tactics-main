@@ -952,10 +952,16 @@ sessions:
          scelta *senza avere un'animazione da guardare*. E' il numero che decide se la morte si legge
          o si trascina, e si tara qui.
 
-      ⚠️ **Nessun `.uasset` va creato o toccato.** In particolare i quattro `BP_Unit_*` restano
-      intatti: i tre `BlueprintImplementableEvent` non vanno implementati — misurato il 2026-09-05
-      sulla name table dei quattro binari, oggi non li implementa nessuno, e con la via dati non
-      serve. `find Content -iname "AM_*"` deve restare **0**.
+      ⚠️ **In QUESTA seduta nessun `.uasset` va creato o toccato**: si giudica.
+      `find Content -iname "AM_*"` deve restare **0**.
+
+      ⚠️ I tre `BlueprintImplementableEvent` non vanno implementati — misurato il 2026-09-05 sulla
+      name table dei quattro binari, oggi non li implementa nessuno, e con la via dati non serve.
+
+      🔴 **Ma i quattro `BP_Unit_*` NON restano intatti**, e questa riga lo diceva fino al
+      2026-09-05: prima di questa seduta **#2444** deve aggiungerci il **riferimento duro** alle
+      dodici clip, o il cook non le porta nel pacchetto (`D-262`). E' un gesto diverso dal wiring
+      degli eventi, sugli stessi file: confonderli costa un gate rosso.
 
       > ⚠️ **Riscritta tre volte.** Il 2026-08-10 chiedeva `ABP_Gideon` e `ABP_Sparrow` in
       > `Blueprints/`: due anim BP intitolati a pack fuori dal roster, nella cartella sbagliata. Il
