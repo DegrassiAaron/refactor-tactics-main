@@ -26,11 +26,11 @@
 
 namespace
 {
-	const TCHAR* OverlayAsset = TEXT("/Game/RT/UI/Match/WBP_RT_UnitOverlay");
+	const TCHAR* TokenOverlayAssetPath = TEXT("/Game/RT/UI/Match/WBP_RT_UnitOverlay");
 
-	UWidgetBlueprint* LoadOverlay()
+	UWidgetBlueprint* LoadTokenOverlayBlueprint()
 	{
-		return LoadObject<UWidgetBlueprint>(nullptr, OverlayAsset);
+		return LoadObject<UWidgetBlueprint>(nullptr, TokenOverlayAssetPath);
 	}
 }
 
@@ -47,7 +47,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverlayDamageTokenBindingTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTOverlayDamageTokenBindingTest::RunTest(const FString&)
 {
-	UWidgetBlueprint* Overlay = LoadOverlay();
+	UWidgetBlueprint* Overlay = LoadTokenOverlayBlueprint();
 	if (!TestNotNull(TEXT("l'overlay e' caricabile dal suo percorso"), Overlay))
 	{
 		return false;
@@ -127,7 +127,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverlayBoundWidgetsExistTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTOverlayBoundWidgetsExistTest::RunTest(const FString&)
 {
-	UWidgetBlueprint* Overlay = LoadOverlay();
+	UWidgetBlueprint* Overlay = LoadTokenOverlayBlueprint();
 	UWidgetTree* Tree = Overlay ? ToRawPtr(Overlay->WidgetTree) : nullptr;
 	if (!TestNotNull(TEXT("l'overlay e' caricabile"), Overlay) ||
 		!TestNotNull(TEXT("l'overlay ha un widget tree"), Tree))

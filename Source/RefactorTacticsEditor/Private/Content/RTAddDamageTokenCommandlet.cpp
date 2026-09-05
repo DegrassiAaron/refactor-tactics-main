@@ -14,13 +14,21 @@ DEFINE_LOG_CATEGORY_STATIC(LogRTDamageToken, Log, All);
 
 namespace
 {
-	const TCHAR* OverlayPath = TEXT("/Game/RT/UI/Match/WBP_RT_UnitOverlay.WBP_RT_UnitOverlay");
+	// 🔴 **Nomi PREFISSATI, e non e' pedanteria: la unity build condivide la translation unit.**
+	// `RTRemoveEnergyBarCommandlet.cpp` dichiara nel PROPRIO namespace anonimo un `OverlayPath` e un
+	// `SaveWidgetPackage` — gli stessi nomi che questo file aveva alla prima stesura, per la buona ragione
+	// che fanno la stessa cosa sullo stesso asset. Finche' i due file finivano in blob diverse compilava;
+	// il giorno in cui un merge altrove ha cambiato le dimensioni e li ha messi nella stessa, e' uscito
+	// `C2374: ridefinizione` su un file che il diff non toccava. ⚠️ **«Il mio diff non tocca quel file» non
+	// assolve**: il raggruppamento e' per dimensione, quindi la collisione la decide un cambiamento di
+	// qualcun altro. Un prefisso distintivo la rende impossibile invece che improbabile.
+	const TCHAR* DamageTokenOverlayPath = TEXT("/Game/RT/UI/Match/WBP_RT_UnitOverlay.WBP_RT_UnitOverlay");
 
 	/** Il nome e' la MANIGLIA del `BindWidgetOptional`: cambiarlo qui scollega il C++ in silenzio. */
-	const TCHAR* TokenName = TEXT("DamageTokenText");
+	const TCHAR* DamageTokenWidgetName = TEXT("DamageTokenText");
 
 	/** Il contenitore verticale che l'asset gia' porta, con dentro nome, vita, scudo e stati. */
-	const TCHAR* RootBoxName = TEXT("RootBox");
+	const TCHAR* DamageTokenRootBoxName = TEXT("RootBox");
 
 	/**
 	 * 🔴 **Piu' grande della vita, e la misura viene da una seduta PIE, non da un gusto.**
@@ -34,7 +42,7 @@ namespace
 	 * ⚠️ La gerarchia la fa la **differenza** fra le dimensioni, non la dimensione in se' — e' la stessa
 	 * ragione gia' scritta in `RTBuildPlaygroundPanel`.
 	 */
-	constexpr int32 TokenFontSize = 26;
+	constexpr int32 DamageTokenFontSize = 26;
 
 	/**
 	 * Il contorno, che e' cio' che rende il token leggibile su **qualunque** fondo.
@@ -44,14 +52,14 @@ namespace
 	 * la stessa regola del secondo canale che [D-146] fissa per le celle — se l'unico canale fallisce, la
 	 * lettura non degrada, **sparisce**.
 	 */
-	constexpr int32 TokenOutlineSize = 2;
+	constexpr int32 DamageTokenOutlineSize = 2;
 
 	/** Stile del token: applicato sia quando nasce sia quando esiste gia', cosi' il comando e' RIPETIBILE. */
-	void ApplyTokenStyle(UTextBlock* Token)
+	void ApplyDamageTokenStyle(UTextBlock* Token)
 	{
 		FSlateFontInfo Font = Token->GetFont();
-		Font.Size = TokenFontSize;
-		Font.OutlineSettings.OutlineSize = TokenOutlineSize;
+		Font.Size = DamageTokenFontSize;
+		Font.OutlineSettings.OutlineSize = DamageTokenOutlineSize;
 		Font.OutlineSettings.OutlineColor = FLinearColor(0.f, 0.f, 0.f, 1.f);
 		Token->SetFont(Font);
 		Token->SetJustification(ETextJustify::Center);
@@ -63,7 +71,7 @@ namespace
 	}
 
 	/** Il salvataggio, nella stessa forma di `RTRemoveEnergyBar` e `RTBuildPlaygroundPanel`. */
-	bool SaveWidgetPackage(UPackage* Package, UBlueprint* Blueprint)
+	bool SaveDamageTokenOverlayPackage(UPackage* Package, UBlueprint* Blueprint)
 	{
 		const FString FileName = FPackageName::LongPackageNameToFilename(
 			Package->GetName(), FPackageName::GetAssetPackageExtension());
@@ -92,15 +100,15 @@ int32 URTAddDamageTokenCommandlet::Main(const FString& Params)
 	UE_LOG(LogRTDamageToken, Display, TEXT("=== RTAddDamageToken%s ==="),
 		bDryRun ? TEXT(" [DryRun]") : TEXT(""));
 
-	UWidgetBlueprint* Overlay = LoadObject<UWidgetBlueprint>(nullptr, OverlayPath);
+	UWidgetBlueprint* Overlay = LoadObject<UWidgetBlueprint>(nullptr, DamageTokenOverlayPath);
 	if (!Overlay || !Overlay->WidgetTree)
 	{
-		UE_LOG(LogRTDamageToken, Error, TEXT("overlay non caricato: %s"), OverlayPath);
+		UE_LOG(LogRTDamageToken, Error, TEXT("overlay non caricato: %s"), DamageTokenOverlayPath);
 		return 1;
 	}
 
 	// ------------------------------------------------------------------ 1. c'e' gia'?
-	if (UWidget* Existing = Overlay->WidgetTree->FindWidget(FName(TokenName)))
+	if (UWidget* Existing = Overlay->WidgetTree->FindWidget(FName(DamageTokenWidgetName)))
 	{
 		if (!Cast<UTextBlock>(Existing))
 		{
@@ -108,7 +116,7 @@ int32 URTAddDamageTokenCommandlet::Main(const FString& Params)
 			// alla cieca cancellerebbe una cosa diversa da quella che questa issue ha misurato.
 			UE_LOG(LogRTDamageToken, Error,
 				TEXT("'%s' esiste ma e' una %s, non un UTextBlock — non lo tocco"),
-				TokenName, *Existing->GetClass()->GetName());
+				DamageTokenWidgetName, *Existing->GetClass()->GetName());
 			return 1;
 		}
 
@@ -116,16 +124,16 @@ int32 URTAddDamageTokenCommandlet::Main(const FString& Params)
 		// RI-APPLICA, o una taratura decisa dopo una seduta PIE non raggiungerebbe mai un asset in cui
 		// l'elemento e' gia' presente — e il comando direbbe «niente da fare» su un token illeggibile.
 		UTextBlock* Presente = Cast<UTextBlock>(Existing);
-		ApplyTokenStyle(Presente);
+		ApplyDamageTokenStyle(Presente);
 		Presente->SetVisibility(ESlateVisibility::Collapsed);
 		UE_LOG(LogRTDamageToken, Display,
 			TEXT("'%s' e' gia' nell'albero: stile riapplicato (corpo %d, contorno %d)"),
-			TokenName, TokenFontSize, TokenOutlineSize);
+			DamageTokenWidgetName, DamageTokenFontSize, DamageTokenOutlineSize);
 
 		FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Overlay);
 		FKismetEditorUtilities::CompileBlueprint(Overlay);
 		Overlay->MarkPackageDirty();
-		if (!SaveWidgetPackage(Overlay->GetOutermost(), Overlay))
+		if (!SaveDamageTokenOverlayPackage(Overlay->GetOutermost(), Overlay))
 		{
 			UE_LOG(LogRTDamageToken, Error, TEXT("overlay NON salvato"));
 			return 1;
@@ -135,14 +143,14 @@ int32 URTAddDamageTokenCommandlet::Main(const FString& Params)
 	}
 
 	// ------------------------------------------------------------------ 2. dove va
-	UVerticalBox* RootBox = Cast<UVerticalBox>(Overlay->WidgetTree->FindWidget(FName(RootBoxName)));
+	UVerticalBox* RootBox = Cast<UVerticalBox>(Overlay->WidgetTree->FindWidget(FName(DamageTokenRootBoxName)));
 	if (!RootBox)
 	{
 		// ⚠️ Fail-closed, e con il motivo scritto: senza il contenitore atteso non si INVENTA una gerarchia
 		// nuova. Un token appeso alla radice sbagliata si disegnerebbe in un posto che nessuno ha deciso.
 		UE_LOG(LogRTDamageToken, Error,
 			TEXT("'%s' non trovato (o non e' una UVerticalBox): l'albero dell'asset non e' quello atteso"),
-			RootBoxName);
+			DamageTokenRootBoxName);
 		return 1;
 	}
 
@@ -151,21 +159,21 @@ int32 URTAddDamageTokenCommandlet::Main(const FString& Params)
 		UE_LOG(LogRTDamageToken, Display,
 			TEXT("[DryRun] aggiungerei '%s' (UTextBlock, corpo %d, nascosto a riposo) in cima a '%s', "
 			     "che oggi ha %d figli, e ne registrerei il GUID"),
-			TokenName, TokenFontSize, RootBoxName, RootBox->GetChildrenCount());
+			DamageTokenWidgetName, DamageTokenFontSize, DamageTokenRootBoxName, RootBox->GetChildrenCount());
 		UE_LOG(LogRTDamageToken, Display, TEXT("=== fatto [DryRun: nulla e' stato scritto] ==="));
 		return 0;
 	}
 
 	// ------------------------------------------------------------------ 3. si costruisce
 	UTextBlock* Token = Overlay->WidgetTree->ConstructWidget<UTextBlock>(
-		UTextBlock::StaticClass(), FName(TokenName));
+		UTextBlock::StaticClass(), FName(DamageTokenWidgetName));
 	if (!Token)
 	{
-		UE_LOG(LogRTDamageToken, Error, TEXT("costruzione di '%s' fallita"), TokenName);
+		UE_LOG(LogRTDamageToken, Error, TEXT("costruzione di '%s' fallita"), DamageTokenWidgetName);
 		return 1;
 	}
 
-	ApplyTokenStyle(Token);
+	ApplyDamageTokenStyle(Token);
 
 	// 🔴 **Nasce NASCOSTO, e il default dell'asset conta quanto il codice.** `SetOverlayView` riafferma il
 	// riposo a ogni fotogramma, ma il primo disegno avviene **prima** di quel giro: un elemento che nasce
@@ -207,14 +215,14 @@ int32 URTAddDamageTokenCommandlet::Main(const FString& Params)
 
 	UE_LOG(LogRTDamageToken, Display,
 		TEXT("'%s' aggiunto in cima a '%s' (ora %d figli), variabile, GUID registrato"),
-		TokenName, RootBoxName, RootBox->GetChildrenCount());
+		DamageTokenWidgetName, DamageTokenRootBoxName, RootBox->GetChildrenCount());
 
 	// ------------------------------------------------------------------ 5. ricompila e salva
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Overlay);
 	FKismetEditorUtilities::CompileBlueprint(Overlay);
 	Overlay->MarkPackageDirty();
 
-	if (!SaveWidgetPackage(Overlay->GetOutermost(), Overlay))
+	if (!SaveDamageTokenOverlayPackage(Overlay->GetOutermost(), Overlay))
 	{
 		UE_LOG(LogRTDamageToken, Error, TEXT("overlay NON salvato"));
 		return 1;
