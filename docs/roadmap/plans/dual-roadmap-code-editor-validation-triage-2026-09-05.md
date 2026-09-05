@@ -1,7 +1,8 @@
 # Dual Roadmap «Code/Architecture + Editor/MCP/Human» — triage del secondo giro
 
 > `CURRENT` · **Stato**: triage chiuso, nessuna roadmap nuova creata, tre gap reali **nominati con il loro owner** · **Data**: 2026-09-05
-> **HEAD della misura**: `026850c0` (= `origin/main` al 2026-09-05, dopo `fetch --prune`)
+> **HEAD della misura**: `026850c0`, **rimisurato a `a27e99f5` e a `215b23d2`** — `origin/main` si è mosso
+> due volte durante la run, e §2 dice cosa è cambiato
 > **Oggetto**: il work order esterno *RefactorTactics — Dual Roadmap: Code/Architecture + Editor/MCP/Human
 > Validation*, che chiede di produrre due roadmap nuove più una `EDITOR VALIDATION MATRIX`.
 > ⚠️ **Il documento di lavoro non è nel repository e non entra**: era una consegna effimera, consumata a fine
@@ -61,7 +62,7 @@ grep -c '^| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`' docs/technical/test-manual
 
 grep -cE '^  - id:' docs/roadmap/editor-sessions.yaml                                       # 46 sedute
 grep -cE '^    shares_setup_with: \[[^]]' docs/roadmap/editor-sessions.yaml                 # 25 con batching
-find Scenarios -name '*.json' ! -name '_*' | wc -l                                          # 125
+find Scenarios -name '*.json' ! -name '_*' | wc -l                                          # 126
 grep -c 'PIE-PACE\|\bPACE-[0-9]' docs/technical/test-manuali-pie.md                         # 0
 
 # L'unico conteggio di R4 che non veniva da qui, corretto in review: erano 10, sono 8
@@ -82,6 +83,13 @@ dietro i numeri **di questa sezione** e non quelli dietro *ogni* numero del docu
 e cita. La conseguenza si era già materializzata — la nota sui banner mescolava due SHA in una frase sola — ed
 è corretta lì. ⚠️ **Un gate di rimisura si deriva dai numeri pubblicati, non dalla sezione che li ha
 prodotti**: enumerare i secondi esenta in silenzio ogni conteggio introdotto altrove.
+
+✅ **E il gate allargato ha preso qualcosa al giro dopo, che quello stretto avrebbe mancato.** `origin/main` è
+avanzato una seconda volta a **`215b23d2`** (`#2396`, `#2400`), e questa volta `Scenarios/` **è cambiato**:
+`Spec/Map/InteractClosesOpenDoor.json` è nuovo. Il corpus passa da **125** a **126**, cioè il denominatore
+della battuta di §5. Rieseguita sul corpus nuovo: **stessi 6 turni, stessi 3 scenari, stesso 4:1** — la
+conclusione non si muove, ma il numero pubblicato sì, ed è stato riscritto invece che lasciato. Invariati sul
+terzo SHA: registro PIE `216`, `RELEASE-V01` `17`, sedute `46`, `Replay.Seek.*` `8`, `plans/` `126`.
 
 ⛔ **`origin/main` non compila a `a27e99f5`**, e riguarda ciò che questo referto cita: `void
 StandStill(ARTUnit*)` è definita in namespace anonimo **sia** in `RTStatusTests.cpp:97` **sia** in
@@ -318,7 +326,7 @@ Il commento di chiusura di `#2370` dichiara, fra i residui:
 La prima metà è vera: `Movement.LongWalk` muove `A1` da `(-4,0)` a `(-1,0)` e `B1` da `(4,-2)` a `(1,-2)`,
 **3 celle ciascuno**, per due turni. La seconda — la generalizzazione al corpus — **è falsa**.
 
-Misurato su tutti i **125** scenari, sommando la distanza esagonale fra i waypoint dichiarati di ogni
+Misurato su tutti i **126** scenari, sommando la distanza esagonale fra i waypoint dichiarati di ogni
 intento `move` e confrontando le lunghezze **dentro lo stesso turno**:
 
 | Scenario | Turno | Route | Rapporto |
