@@ -226,6 +226,16 @@ def classifica(verdetto, nuovi, attesi):
     return "CADUTA (BERSAGLI DIVERSI)", True    # cade qualcosa, ma non cio' che si diceva di misurare
 
 
+def bersagli_mancanti(attesi, eseguiti):
+    """Quali bersagli la baseline non ha nemmeno ESEGUITO.
+
+    🔴 Un bersaglio che non gira non puo' cadere. Se manca, l'esito della sua mutazione sarebbe
+    `SOPRAVVISSUTA` — l'allarme piu' forte dello strumento — puntando pero' su un filtro sbagliato o
+    su un Editor morto all'avvio (`#2393`), non su un test cieco. Sono due diagnosi opposte, e
+    confonderle manda a riscrivere un test che stava benissimo."""
+    return set(attesi) - set(eseguiti)
+
+
 def self_test():
     """Esercita `atterrata` e `classifica`. Nessun motore, nessun sorgente toccato."""
     casi = []
@@ -254,6 +264,15 @@ def self_test():
     rossi_dopo = {"Preesistente"}
     c("un rosso preesistente che guarisce non maschera la sopravvissuta",
       classifica("VALIDA", rossi_dopo - rossi_base, {"A"}), ("SOPRAVVISSUTA", False))
+
+    # 🔴 #2393: Editor morto all'avvio su worktree nuovo -> `0/?, 0 fail`. Zero rossi su zero test
+    # eseguiti supera qualunque controllo che guardi solo i rossi.
+    c("nessun test eseguito: il bersaglio risulta mancante",
+      bersagli_mancanti({"A"}, set()), {"A"})
+    c("filtro che esclude il bersaglio",
+      bersagli_mancanti({"A"}, {"B", "C"}), {"A"})
+    c("bersaglio eseguito: niente da segnalare",
+      bersagli_mancanti({"A"}, {"A", "B"}), set())
 
     falliti = [x for x in casi if not x[1]]
     for nome, ok, ottenuto, atteso in casi:
@@ -337,7 +356,12 @@ def build(tentativi=40):
 
 
 def suite():
-    """Coda per il motore, poi misura. Torna (verdetto, esito, insieme dei test rossi)."""
+    """Coda per il motore, poi misura. Torna (verdetto, esito, rossi, eseguiti).
+
+    🔴 `eseguiti` non e' un di piu': e' il modo di accorgersi che la suite non ha misurato niente.
+    `#2393` descrive un Editor che muore durante l'avvio su un **worktree nuovo**, con `rt-suite` che
+    riporta `0/?, 0 fail`. Zero fallimenti su zero test eseguiti supera qualunque controllo che guardi
+    solo i rossi, e una mutazione sembrerebbe SOPRAVVISSUTA su una misura mai avvenuta."""
     r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
                         "scripts/rt-suite.ps1", "-Filter", FILTRO, "-WaitMinutes", "90"],
                        capture_output=True, text=True, errors="replace")
@@ -353,10 +377,12 @@ def suite():
     m = re.search(r"esito\s+(\d+)/(\d+) completati, (\d+) fallimenti", out)
     esito = m.group(0) if m else "(nessun esito)"
     rossi = set()
+    eseguiti = set()
     if os.path.exists(LOG):
         testo = io.open(LOG, encoding="utf-8", errors="replace").read()
         rossi = set(re.findall(r"Result=\{Fail\} Name=\{[^}]*\} Path=\{([^}]+)\}", testo))
-    return verdetto, esito, rossi
+        eseguiti = set(re.findall(r"Test Started\. Name=\{[^}]*\} Path=\{([^}]+)\}", testo))
+    return verdetto, esito, rossi, eseguiti
 
 
 def misura():
@@ -364,12 +390,12 @@ def misura():
     una coda lunga un'altra sessione puo' aver riscritto il DLL condiviso (AGENTS.md, CLAUDE.md §6)."""
     if not build():
         return None
-    v, e, rossi = suite()
+    v, e, rossi, eseguiti = suite()
     if v == "NON AVVIATA":
         if not build():
             return None
-        v, e, rossi = suite()
-    return v, e, rossi
+        v, e, rossi, eseguiti = suite()
+    return v, e, rossi, eseguiti
 
 
 def applicabile(m):
@@ -458,8 +484,26 @@ try:
             print("BASELINE NON MISURABILE")
             sys.exit(1)
         ROSSI_BASE = base[2]
-        f.write("Baseline: **%s** - %s%s\n\n" % (
-            base[0], base[1],
+        ESEGUITI_BASE = base[3]
+
+        # 🔴 La baseline ha davvero ESEGUITO i bersagli? Senza questo controllo, un Editor morto
+        # all'avvio (#2393) o un filtro troppo stretto darebbero `SOPRAVVISSUTA` su tutta la riga.
+        TUTTI_ATTESI = set()
+        for m in APPLICABILI:
+            TUTTI_ATTESI |= set(m["bersagli"])
+        mancanti = bersagli_mancanti(TUTTI_ATTESI, ESEGUITI_BASE)
+        if mancanti:
+            f.write("## ⛔ BASELINE SENZA BERSAGLI\n\nLa baseline e' `%s` ma NON ha eseguito: %s\n\n"
+                    "Test eseguiti in totale: **%d**. Un bersaglio che non gira non puo' cadere, e la\n"
+                    "sua mutazione risulterebbe SOPRAVVISSUTA puntando su un filtro sbagliato o su un\n"
+                    "Editor morto all'avvio (#2393) invece che su un test cieco. Il gate non parte.\n"
+                    % (base[0], ", ".join(sorted(mancanti)), len(ESEGUITI_BASE)))
+            print("BASELINE SENZA BERSAGLI: " + ", ".join(sorted(mancanti))
+                  + " (test eseguiti: %d)" % len(ESEGUITI_BASE))
+            sys.exit(1)
+
+        f.write("Baseline: **%s** - %s - test eseguiti: **%d**%s\n\n" % (
+            base[0], base[1], len(ESEGUITI_BASE),
             (" - gia' rossi: " + ", ".join(sorted(ROSSI_BASE))) if ROSSI_BASE else ""))
         f.write("| # | Mutazione | Esito | Nuovi rossi | Bersagli attesi |\n|---|---|---|---|---|\n")
         f.flush()
@@ -486,8 +530,11 @@ try:
                 sopravvissute.append(m["id"] + " (build fallito)")
                 continue
 
-            verdetto, esito, rossi = r
+            verdetto, esito, rossi, eseguiti = r
             nuovi = rossi - ROSSI_BASE          # DIFFERENZA di insiemi, mai un totale
+            # Se la run mutata non ha eseguito il bersaglio, non e' cieco: e' assente dalla misura.
+            if verdetto == "VALIDA" and bersagli_mancanti(m["bersagli"], eseguiti):
+                verdetto = "SENZA BERSAGLIO (%d test eseguiti)" % len(eseguiti)
             attesi = set(m["bersagli"])
             etichetta, e_caduta = classifica(verdetto, nuovi, attesi)
 
