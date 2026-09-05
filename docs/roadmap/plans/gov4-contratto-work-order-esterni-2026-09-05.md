@@ -1,6 +1,6 @@
 # `GOV-4` — il contratto «Dual Roadmap» come owner: decisione e emendamento
 
-> `CURRENT` · **Stato**: decisione presa e registrata (`D-335`) · **Data**: 2026-09-05
+> `CURRENT` · **Stato**: decisione presa e registrata (`D-336`) · **Data**: 2026-09-05
 > **HEAD della misura**: `origin/main` = `009ef817`. ⚠️ Durante la sessione `origin/main` si è mosso **tre
 > volte** (`f335b6d8` → `5ee69775` → `009ef817`) e il branch del checkout condiviso è cambiato **due volte**
 > sotto la run: la scrittura è avvenuta in un worktree isolato su `D:/rt-gov4`, mai nel working tree condiviso.
@@ -18,7 +18,7 @@
 > repository un terzo contratto — e la ragione per cui *(c)* è legittima è che [`D-330`](../../decisions/RT_PDR_00_Decision_Log.md)
 > aveva già stabilito che le fasi `A0…A6`/`B0…B7` *sono* «`AGENTS.md` §8–§10 con altri nomi».**
 
-Registrata come [`D-335`](../../decisions/RT_PDR_00_Decision_Log.md).
+Registrata come [`D-336`](../../decisions/RT_PDR_00_Decision_Log.md).
 
 ---
 
@@ -55,7 +55,7 @@ revisione si ripete a ogni consegna — senza però giustificare *(b)*, per la r
 🔴 **Una è mia.** Il report che ha innescato questa decisione affermava che il mandato del 2026-09-05 fosse
 *«il quarto work order della stessa forma»*. **È falso in senso stretto.** Il contratto `A/B` compare in tre
 file; quel mandato non lo usa — ha una struttura propria, `§1…§14`. È il quarto **genere**, non la quarta
-**forma**. La correzione è scritta anche in `D-335`, perché cambia cosa la decisione governa: il **genere**.
+**forma**. La correzione è scritta anche in `D-336`, perché cambia cosa la decisione governa: il **genere**.
 
 ⚠️ **Una è della voce stessa.** *«Tre istanze in due giorni»* sottoconta perché guarda il solo contratto `A/B`:
 
@@ -120,15 +120,33 @@ Da qui la prima clausola della sottosezione: **misura le premesse, decadono in o
 | File | Cosa |
 |---|---|
 | [`AGENTS.md`](../../../AGENTS.md) §8 | nuova sottosezione *«Un work order esterno»* — 28 righe, in coda a *Prima/Durante/Dopo* |
-| [`RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md) | `D-335`, più la nota di assegnazione del numero |
+| [`RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md) | `D-336`, più la nota di assegnazione del numero |
 | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) | `GOV-4` **barrata** con l'esito; l'istruttoria originale è **conservata** dietro *«Istruttoria conservata»*, come il documento impone |
 
-### `D-335` — il numero
+### `D-336` — il numero, e la collisione che ha reso `D-335` inutilizzabile
 
-Verificato nei tre posti che la nota su `D-304` prescrive, su `origin/main` = `009ef817`: il registro arriva a
-`D-334`; **nessuna** delle PR aperte tocca il file del registro; **nessuno** dei **10** branch remoti, diffati
-contro `origin/main` sul solo registro, rivendica un `D-3nn` che `main` non abbia già.
-⚠️ **Va riverificato prima del merge** — `D-323` al merge si trovò **79 commit** più avanti.
+**Primo tentativo: `D-335`.** Verificato nei tre posti che la nota su `D-304` prescrive, su `origin/main` =
+`009ef817`: registro a `D-334`; **nessuna** delle PR aperte tocca il file; **nessuno** dei **10** branch
+remoti, diffati contro `origin/main` sul solo registro, rivendica un `D-3nn` che `main` non abbia già.
+
+🔴 **Alla riverifica prima del merge la collisione c'era.** `origin/docs/gov-5-busta-payload` rivendica
+`D-335` per `GOV-5`, con un commit delle **18:25:13**. Il mio è delle **18:23:53** — ottanta secondi prima —
+e **nessuna delle due sessioni poteva vedere l'altra**.
+
+🔑 **Il metodo non era difettoso: il branch non esisteva ancora al momento del controllo.** Rieseguito adesso,
+lo stesso `git diff origin/main..<branch>` sul solo registro lo trova. Il controllo misura un **istante**.
+
+⚠️ **Ed è la lezione che vale più del numero.** Fra la misura a tre posti e il merge c'è una finestra in cui
+una seconda sessione può rivendicare lo stesso ID senza che nessuna delle due se ne accorga — e ottanta
+secondi bastano. La riverifica prima del merge non è prudenza: è **l'unico** momento in cui quella finestra si
+chiude. Il precedente di `D-323`, che al merge si trovò **79 commit** più avanti, diceva già questo; qui la
+finestra si è chiusa su un intervallo di un minuto e venti.
+
+✅ **Ceduto `D-335`, preso `D-336`** — verificato libero su `origin/main` e su **tutti** i branch remoti alla
+stessa misura, insieme a `D-337`…`D-340`. La cessione non è un giudizio sul merito: è l'opzione che non chiede
+niente all'altra sessione, ed è più economica di un coordinamento che nessun canale rende possibile.
+
+⚠️ **Va riverificato di nuovo prima del merge**, per la ragione appena scritta.
 
 ---
 
