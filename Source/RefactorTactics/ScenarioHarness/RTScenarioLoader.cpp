@@ -44,18 +44,39 @@ namespace
 		return true;
 	}
 
-	/** Cella da array `[q, r, layer]`. Il layer e' opzionale (default 0), come nella maggior parte degli scenari piani. */
+	/**
+	 * Cella da array `[q, r, layer]`, ESATTAMENTE tre elementi.
+	 *
+	 * ⛔ **Il layer non e' opzionale e la coda in eccesso non si scarta** (#2482). Le due forme che questa
+	 * funzione accettava prima — `[q, r]` con il layer dedotto a 0, e `[q, r, layer, ...]` con gli elementi
+	 * oltre il terzo ignorati in silenzio — sono la stessa classe di difetto: un array sotto-specificato, o
+	 * scritto per abitudine come una coordinata cubica, diventa una cella VALIDA e SBAGLIATA. Uno scenario
+	 * e' autorevole per il gate, quindi quella cella non produce un rosso: produce un verde su un'altra
+	 * partita. La cella dedotta E' il difetto, e nessun ripiego la migliora — meglio rifiutare che dedurre.
+	 *
+	 * Il messaggio nomina la lunghezza TROVATA oltre a quella attesa: e' il dato che distingue un layer
+	 * dimenticato da una coordinata cubica copiata, e senza di esso il log dice che l'array e' sbagliato
+	 * ma non di quanto.
+	 */
 	bool ParseCell(const TArray<TSharedPtr<FJsonValue>>* Arr, FRTCellId& Out, FString& OutError, const TCHAR* Where)
 	{
-		if (!Arr || Arr->Num() < 2)
+		// Array assente e array di lunghezza sbagliata sono due difetti diversi, e portano due messaggi:
+		// «trovati 0» su un campo che manca del tutto direbbe una cosa falsa su un array che non c'e'.
+		if (!Arr)
 		{
-			OutError = FString::Printf(TEXT("%s: la cella deve essere [q, r] oppure [q, r, layer]"), Where);
+			OutError = FString::Printf(TEXT("%s: la cella manca o non e' un array [q, r, layer]"), Where);
+			return false;
+		}
+		if (Arr->Num() != 3)
+		{
+			OutError = FString::Printf(
+				TEXT("%s: la cella deve essere [q, r, layer] — attesi 3 elementi, trovati %d"), Where, Arr->Num());
 			return false;
 		}
 		Out = FRTCellId(
 			static_cast<int32>((*Arr)[0]->AsNumber()),
 			static_cast<int32>((*Arr)[1]->AsNumber()),
-			Arr->Num() >= 3 ? static_cast<int32>((*Arr)[2]->AsNumber()) : 0);
+			static_cast<int32>((*Arr)[2]->AsNumber()));
 		return true;
 	}
 
