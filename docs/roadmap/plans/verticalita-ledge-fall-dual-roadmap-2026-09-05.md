@@ -66,7 +66,7 @@ Il mandato tratta la capability come greenfield. Metà del substrato esiste.
 | terreno `Void` | `ERTHexSurface::Void` | ✅ |
 | spinta / trazione | `ARTTurnManager::ApplyDisplacements` · ramo `ERTActionEffect::Push` | ✅ |
 | destinazione della spinta | `URTHexCombatLibrary::HexKnockbackDestination` | ✅ |
-| vocabolario d'esito bloccato | `ERTDisplacementBlockReason` — 6 valori, serializzati nel TurnLog **v7** | ✅ |
+| vocabolario d'esito bloccato | `ERTDisplacementBlockReason` — 6 valori, il cui indice viaggia in `Amount` nel TurnLog | ✅ |
 | causa dello spostamento | `ERTDisplacementCause { Forced, Environmental }` | ✅ |
 | divieto di auto-reroute | `spec-tassonomia-movimento.md` §2 — già canone su tutte le famiglie | ✅ |
 | un arco per unità per micro-step | `D-305`, pinnato da [#2000](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2000) | ✅ |
@@ -123,7 +123,7 @@ owner»*.
 
 `roadmap-v0.1.md` conferma dall'altro lato: la v0.1 è un vertical slice su griglia esagonale **multilivello**
 — il *substrato* c'è, con pathfinding A\* multilivello e LOS che attraversa i layer — ma nessuna delle
-ventitré epic possiede la caduta, e la sezione *«Fuori dalla v0.1»* non la nomina né per includerla né per
+ventiquattro epic possiede la caduta, e la sezione *«Fuori dalla v0.1»* non la nomina né per includerla né per
 escluderla.
 
 ∴ Creare sette issue `v0.1` avrebbe **espanso lo scope della release** contro un `DEFER` registrato, che è
@@ -217,8 +217,10 @@ Non-scope: collisione ricorsiva · spinta a catena · pathfinding di atterraggio
 L'esito di atterraggio deve distinguere almeno **primario**, **alternativa adiacente** e **fallback su
 `LastStableCell`**.
 
-🔴 **Costo da dichiarare prima di scrivere**: `ERTDisplacementBlockReason` è serializzato nel TurnLog
-**formato v7**, e `ERTMoveOutcome` pure. Aggiungere valori in coda **non** è una migrazione; cambiare esiti
+🔴 **Costo da dichiarare prima di scrivere**: `ERTDisplacementBlockReason` ed `ERTMoveOutcome` viaggiano
+nel TurnLog come **indice** — `ERTTurnLogFormatVersion` è oggi a **`WithMicroStep = 12`**, e `WithPriority = 7`
+è la versione in cui entrò la precedenza, non il formato corrente. Aggiungere valori in coda **non** è una
+migrazione; riordinarli sì, e cambiare esiti
 già prodotti sì, e porta con sé la rigenerazione del corpus golden — la conseguenza già pagata da `D-245`.
 Il ramo `NoDestination` che oggi ferma la spinta al bordo porta già il commento che dice dove il valore nuovo
 va scritto.
