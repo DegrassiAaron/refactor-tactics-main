@@ -392,7 +392,7 @@ bool FRTMatchWidgetsDeclareNoTextureTest::RunTest(const FString&)
 
 	for (int32 i = 0; i < UE_ARRAY_COUNT(Paths); ++i)
 	{
-		UWidgetBlueprintGeneratedClass* Class = LoadWidgetClass(Paths[i]);
+		UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(Paths[i]);
 		if (!Class)
 		{
 			AddError(FString::Printf(TEXT("%s: l'asset non si carica — %s"), Labels[i], Paths[i]));
