@@ -8,7 +8,7 @@ Questa sezione raccoglie **tutti i 38 hero asset slot** presenti nel Character M
 >
 > Le loro identità retail sono **Aevik**, **Muiren**, **Branth** e **Ivrin** ([D-334](../decisions/RT_PDR_00_Decision_Log.md), che supersede [D-322](../decisions/RT_PDR_00_Decision_Log.md) sui soli quattro nomi v0.1). ⏳ Il runtime porta ancora gli ID legacy: la migrazione è **post-v0.1** e ha come owner [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297).
 
-I nomi Paragon identificano la **base asset / slot di roster**. CharacterId, nome finale, lore, kit e bilanciamento RefactorTactics sono originali. Dal 2026-09-04 **nessuno slot del roster ha più un nome retail `TBD`**: gli otto sono decisi da [D-322](../decisions/RT_PDR_00_Decision_Log.md) (v0.1) e dalla decisione d'autore registrata in [#322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/322) (v0.2).
+I nomi Paragon identificano la **base asset / slot di roster**. CharacterId, nome finale, lore, kit e bilanciamento RefactorTactics sono originali. Dal 2026-09-04 **nessuno slot del roster ha più un nome retail `TBD`**: gli otto sono decisi da [D-334](../decisions/RT_PDR_00_Decision_Log.md) (v0.1, che supersede [D-322](../decisions/RT_PDR_00_Decision_Log.md)) e dalla decisione d'autore registrata in [#322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/322) (v0.2).
 
 ## Mapping visuale del roster
 
