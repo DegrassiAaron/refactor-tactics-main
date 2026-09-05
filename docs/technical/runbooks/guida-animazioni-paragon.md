@@ -235,7 +235,94 @@ e una **clip non in loop**.
 
 ---
 
-## AS.4b — Colpi e morte (montaggi via eventi C++)
+## AS.4b — Colpi e morte (ruoli come dati, non montaggi)
+
+> 🔴 **Riscritta il 2026-09-05, e questa volta è caduta la VIA, non i nomi.**
+> Questa sezione mandava a creare dodici `AM_<Pack>_{Attack,Hit,Death}.uasset` e a collegarli nei quattro
+> `BP_Unit_*`. [#2450](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2450) ha cambiato via:
+> i tre ruoli si popolano come **dati** nel CDO di `URTUnitAnimInstance`. La procedura precedente resta
+> leggibile in fondo alla sezione, sotto **§ Procedura superata**.
+
+**Nessun `.uasset` va creato.**
+
+🔴 **Ma i quattro `BP_Unit_*` VANNO toccati, e questa riga diceva il contrario fino al 2026-09-05.**
+Non per il **wiring degli eventi** — quello non serve davvero, la clip la sceglie il C++ (#2448) — ma per il
+**riferimento duro** che porta la clip nel cook: `D-262` prescrive che il meccanismo sia il riferimento da un
+asset versionato sotto `/Game/RT`, ed è così che le clip di locomozione ci arrivano già (misurato sulla name
+table: `Run_Fwd` ×2 in `BP_Unit_Gadget`, `Jog_Fwd` e `Idle_NonCombat` ×2 in `BP_Unit_Wraith`).
+
+Sono **due ragioni diverse** per aprire gli stessi quattro binari, e confonderle costa un gate rosso:
+`RefactorTactics.Packaging.RequiredAnimationClipsAreCooked` → *«12 clip richieste su 20 senza un riferimento
+che le porti nel cook»*. Il gesto appartiene a **#2444**.
+
+### Perché non serve un montaggio-asset
+
+`UAnimInstance::PlaySlotAnimationAsDynamicMontage(UAnimSequenceBase* Asset, FName SlotNodeName, …)` —
+verificato in `Engine/Source/Runtime/Engine/Classes/Animation/AnimInstance.h:591` e **non dedotto dal nome**
+— suona una qualunque sequenza su uno slot, costruendo il montaggio a runtime. Prende **esattamente** il
+tipo che `FRTAnimVariant::Clip` già contiene, e lo slot è già la radice del grafo (`DefaultSlotName`,
+**D-248**).
+
+Il conto è lo stesso che ha scartato gli `ABP_*`: dodici binari peserebbero **+120–240 KB** stimati sui
+**0,7 MB** di `Content/` versionato, non si fondono e non si comprimono per delta. E **otto su dodici
+andrebbero autorati da zero**, perché nessun pack del roster porta un montaggio `Hit` o `Death` — misurato
+sul disco: Gadget ne ha tre (`LevelStart`, `LMB_Fire_B`, `SelectScreenStart`), e nessuno è quello che serve.
+
+⚖️ **Cosa la via dati non dà**: un **notify** — un frame d'impatto a cui agganciare suono, VFX o il numero
+di danno. Oggi non serve (la barra vita e il log li guida il resolver, non l'animazione), e la scelta non è
+irreversibile: `FRTAnimRoleClips` tiene varianti **per ruolo**, quindi un montaggio autorato si aggiunge per
+quel solo ruolo senza disfare nulla.
+
+### Cosa si fa, e dove
+
+Si popolano tre ruoli nel CDO, per i quattro eroi del roster. La macchina esiste: `MakeRuolo(Pack, Clip)`
+crea un ruolo con la sua variante già attiva, e `MakeClips` ne popola già due (`Idle`, `Move`).
+
+🔴 **Il ruolo è `Attack`, e la clip si chiama `Cast`.** L'enum `ERTPresentationRole` ha **anche** un
+ruolo `Cast`, che è un'altra cosa e non ha consumatore: scriverci dentro la clip d'attacco dà un dato
+corretto che non suona **mai**, senza errore, senza warning e senza log.
+
+| Ruolo | `Paragon.Gadget` | `Paragon.Phase` | `Paragon.Riktor` | `Paragon.Wraith` |
+|---|---|---|---|---|
+| **`Attack`** | `Cast` | `Cast` | `Cast` | `Cast` |
+| **`Hit`** | 🔴 `Hitreact_Fwd` | 🔴 `HitReact_Fwd` | `HitReact_Front` | `HitReact_Front` |
+| **`Death`** | `Death_Fwd` | 🔴 `Death` | `Death_Fwd` | 🔴 `Death_Forward` |
+
+⚠️ **Quattro caselle su dodici** non si chiamano come ci si aspetta — contate su questa tabella, non a
+memoria. `Cast` regge **4 volte su 4**: è l'unico ruolo che si trasferisce sempre, come
+[AS.3b](#as3b--le-clip-dei-quattro-pack-del-roster) misura sulle sue venti caselle. Si **leggono dalla
+cartella**, non si deducono.
+
+### L'ordine, che è obbligato
+
+    #2448 (il canale: gli eventi ricevono l'animazione risolta)
+          └─► #2450 (i dati: tre ruoli x quattro eroi nel CDO)
+                    └─► U8 · PIE-AS4b (il giudizio a schermo)
+
+Popolare il CDO prima che #2448 apra il canale dà dati corretti e **zero effetto osservabile**: `Attack`,
+`Hit` e `Death` passano ancora dai tre `BlueprintImplementableEvent`, che il `TurnManager` chiama **senza
+parametri**.
+
+### Verifica (PIE)
+
+Colpo → attacco + reazione del bersaglio; morte → caduta, sincronizzati col playback. Voce `PIE-AS4b`, banco
+`Visual.Combat.Defeat`.
+
+➕ **E si tara `DefeatBeatSeconds`** (`ARTTurnManager`, oggi **0,80 s**): è la coda che
+[#2452](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2452) ha introdotto perché il montaggio
+di morte avesse una finestra invece di zero — `PlaybackPhases` è `Prep → Dash → Blast → Move` e mai
+`Cleanup`, quindi chi cade nell'ultima fase non avrebbe tempo di mostrarsi. È stata scelta *senza avere
+un'animazione da guardare*.
+
+> Sincronia col resolver: gli eventi arrivano già al momento giusto (Blast per i colpi, fine fase per la
+> morte). L'animazione **riproduce**, non decide (invariante #1).
+
+<details>
+<summary>§ Procedura superata — i dodici montaggi <code>AM_*</code> (2026-08-03 → 2026-09-05)</summary>
+
+⚠️ **Conservata per la storia, non da eseguire.** Le tre righe che seguono chiedevano asset che
+[#2450](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2450) non produce più. Il punto 2 —
+*«lo slot non va inserito: c'è già»* — resta **vero** e vale anche per la via dati.
 
 Il C++ è pronto (commit `feat(unit): eventi montaggio colpi/morte`): `RTUnit` espone 3 eventi —
 `PlayAttackMontage`, `PlayHitMontage`, `PlayDefeatMontage` — che il `TurnManager` chiama **da solo**
@@ -269,6 +356,8 @@ solo i 3 eventi nel BP (uniforme per ogni personaggio; se un evento non è imple
 > Sincronia col resolver: gli eventi arrivano già al momento giusto (Blast per i colpi, fine fase per la morte).
 > L'animazione **riproduce**, non decide (invariante #1).
 
+
+</details>
 ---
 
 ## Facing (fatto in C++)

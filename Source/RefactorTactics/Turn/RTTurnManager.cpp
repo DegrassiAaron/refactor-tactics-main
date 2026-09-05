@@ -1659,7 +1659,116 @@ void ARTTurnManager::OnPlanningTimeout()
 {
 	UE_LOG(LogRT, Log, TEXT("[RT] Timer scaduto -> lock-in automatico"));
 	Pacing.Current().LockInSource = ERTLockInSource::Timeout; // non l'ha chiusa il giocatore
+
+	// La finestra di preparazione dell'autobattle (`#2386`). Sta QUI e non dentro `LockInAndResolve` perche'
+	// quello e' il punto di confluenza che lo Scenario Harness chiama diretto: una finestra li' dentro
+	// metterebbe tre secondi di attesa in ogni run headless. Vedi `IsPrepWindowActive`.
+	//
+	// 🔑 `LockInSource` resta `Timeout` ed e' gia' scritto sopra: la finestra non e' un'altra origine del
+	// commit — e' lo stesso timeout, mostrato. Un valore nuovo direbbe che il turno si e' chiuso per una
+	// ragione diversa, e non e' vero.
+	UWorld* World = GetWorld();
+	if (bUnattendedSession && PrepWindowSeconds > 0.f && World)
+	{
+		bPrepWindowPaused = false;
+		PrepWindowRemainingOnPause = 0.f;
+
+		World->GetTimerManager().SetTimer(PrepWindowTimerHandle, this,
+			&ARTTurnManager::LockInAndResolve, PrepWindowSeconds, false);
+
+		// ⚠️ Diagnostica, non combat log: serve a chi legge `RefactorTactics.log` dopo una seduta e deve
+		// distinguere «l'autobattle ha aspettato la finestra» da «ha risolto subito». Stessa scelta di
+		// `#2193` per il countdown.
+		UE_LOG(LogRT, Log, TEXT("[RT] Autobattle -> finestra di preparazione %.1fs prima della risoluzione (turno %d)"),
+			PrepWindowSeconds, TurnNumber);
+		return;
+	}
+
 	LockInAndResolve();
+}
+
+bool ARTTurnManager::IsPrepWindowActive() const
+{
+	// In pausa il timer NON esiste — `PausePrepWindow` lo cancella, perche' `FTimerManager` non sa fermarsi.
+	// La finestra e' pero' ancora «attiva» nel senso che conta: c'e' una risoluzione trattenuta, e l'HUD deve
+	// continuare a dirlo. Senza il secondo termine, mettere in pausa farebbe sparire la riga di stato.
+	if (bPrepWindowPaused)
+	{
+		return true;
+	}
+
+	const UWorld* World = GetWorld();
+	return World && World->GetTimerManager().IsTimerActive(PrepWindowTimerHandle);
+}
+
+float ARTTurnManager::GetPrepWindowRemaining() const
+{
+	if (bPrepWindowPaused)
+	{
+		return PrepWindowRemainingOnPause;
+	}
+
+	if (const UWorld* World = GetWorld())
+	{
+		const float Remaining = World->GetTimerManager().GetTimerRemaining(PrepWindowTimerHandle);
+		return FMath::Max(0.f, Remaining);
+	}
+
+	return 0.f;
+}
+
+void ARTTurnManager::PausePrepWindow()
+{
+	UWorld* World = GetWorld();
+	if (!World || bPrepWindowPaused)
+	{
+		return;
+	}
+
+	// Non c'e' niente da fermare: la finestra non e' armata. Un no-op silenzioso, come `CancelLockIn` fuori
+	// dal countdown — chi preme pausa senza una finestra non deve trovarsi uno stato inventato.
+	if (!World->GetTimerManager().IsTimerActive(PrepWindowTimerHandle))
+	{
+		return;
+	}
+
+	// L'ordine conta: il residuo si legge PRIMA di cancellare, altrimenti `GetTimerRemaining` risponde su un
+	// handle spento e la ripresa ripartirebbe da zero, cioe' risolverebbe subito.
+	PrepWindowRemainingOnPause = FMath::Max(0.f, World->GetTimerManager().GetTimerRemaining(PrepWindowTimerHandle));
+	World->GetTimerManager().ClearTimer(PrepWindowTimerHandle);
+	bPrepWindowPaused = true;
+
+	UE_LOG(LogRT, Log, TEXT("[RT] Autobattle -> finestra in pausa a %.1fs dalla risoluzione (turno %d)"),
+		PrepWindowRemainingOnPause, TurnNumber);
+}
+
+void ARTTurnManager::ResumePrepWindow()
+{
+	UWorld* World = GetWorld();
+	if (!World || !bPrepWindowPaused)
+	{
+		return;
+	}
+
+	bPrepWindowPaused = false;
+
+	// ⚠️ Un residuo a zero non si riarma: `SetTimer` con `0.f` non scatterebbe mai, e la partita resterebbe
+	// ferma per sempre — lo stesso difetto che `MinUnattendedPlanningSeconds` esiste per impedire sul
+	// planning. Se il residuo e' esaurito la risoluzione e' dovuta adesso.
+	if (PrepWindowRemainingOnPause <= 0.f)
+	{
+		PrepWindowRemainingOnPause = 0.f;
+		LockInAndResolve();
+		return;
+	}
+
+	World->GetTimerManager().SetTimer(PrepWindowTimerHandle, this,
+		&ARTTurnManager::LockInAndResolve, PrepWindowRemainingOnPause, false);
+
+	UE_LOG(LogRT, Log, TEXT("[RT] Autobattle -> finestra ripresa, %.1fs alla risoluzione (turno %d)"),
+		PrepWindowRemainingOnPause, TurnNumber);
+
+	PrepWindowRemainingOnPause = 0.f;
 }
 
 void ARTTurnManager::RequestLockIn()
@@ -1785,7 +1894,19 @@ void ARTTurnManager::LockInAndResolve()
 		// mentre il countdown scorre, arriviamo qui dal tetto e il countdown muore senza aver committato due
 		// volte. Il primo che scatta vince, e la guardia in testa a questa funzione fa il resto.
 		World->GetTimerManager().ClearTimer(ReadyCountdownTimerHandle);
+
+		// 🔑 **E la finestra dell'autobattle** (`#2386`), per la stessa ragione e con lo stesso effetto: se il
+		// tetto del planning scade mentre la finestra scorre, arriviamo qui dal tetto e la finestra muore
+		// senza risolvere due volte. E' anche cio' che rende le due pause mutuamente esclusive senza un `if`:
+		// quando il playback comincia, la finestra non esiste piu'.
+		World->GetTimerManager().ClearTimer(PrepWindowTimerHandle);
 	}
+
+	// Lo stato della pausa segue il suo timer. Senza questa riga una finestra messa in pausa e poi superata
+	// dal tetto lascerebbe `bPrepWindowPaused` acceso, e `IsPrepWindowActive()` continuerebbe a dire vero per
+	// tutta la risoluzione — la riga di stato mostrerebbe una preparazione durante il playback.
+	bPrepWindowPaused = false;
+	PrepWindowRemainingOnPause = 0.f;
 
 	// Il commit e' avvenuto: chi disegna un'anteprima di pianificazione deve spegnerla adesso, e da qui in poi
 	// mostrerebbe una minaccia gia' decisa. Annuncio, non comando: uno scenario headless non ascolta.
@@ -1964,8 +2085,21 @@ void ARTTurnManager::LockInAndResolve()
 
 				if (!Unit->IsAlive())
 				{
-					// L'eliminazione da hazard non ha un beat di playback (la timeline e' gia' chiusa):
-					// la nasconde il catch-all di ConcludeTurn, che esiste proprio per questo caso.
+					// L'eliminazione da hazard non ha un beat di playback: la nasconde il catch-all di
+					// `ConcludeTurn` (`DestroyDefeatedUnits`), che esiste proprio per questo caso.
+					//
+					// ⚠️ **La ragione qui scritta fino a `#2460` era «la timeline e' gia' chiusa», ed era
+					// falsa.** Misurato: `ResolvedTimeline.Reset()` sta in testa a questa stessa funzione,
+					// questo blocco e' a meta', e l'unica lettura — `ResolvedTimeline.Num() > 0`, che decide
+					// fra playback e conclusione immediata — arriva **dopo**. Un `Add` da qui sarebbe letto
+					// senza problemi, ed e' precisamente cio' che `#2460` fa venti righe piu' su per il danno.
+					// A mancare non e' la possibilita' tecnica: e' la **decisione** di dare un beat alla
+					// morte, che e' presentazione e vive in `#2455`. Chi verra' a scriverla non deve credere
+					// di doversi prima spostare altrove.
+					//
+					// 🔑 **`Defeated` non copre questo caso, e non e' una svista**: lo emette solo
+					// `ResolveCombatPasses`, da `NewlyDefeated` calcolato sul Blast. Chi cade bruciato nel
+					// Cleanup non ci passa.
 					//
 					// ⚠️ **La morte la porta l'`Outcome` della voce sopra, non una seconda voce.** Il DoD
 					// chiede che l'eliminazione sia «distinta dal danno che non uccide», e `Lethal` la
@@ -2131,7 +2265,7 @@ void ARTTurnManager::LockInAndResolve()
 
 void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& NewCell,
 	const FRTCellId& FacingSource, const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget,
-	const TCHAR* LogVerb, const URTHexMapAsset* Map, ERTMatchPhase InPhase)
+	const TCHAR* LogVerb, const URTHexMapAsset* Map, ERTMatchPhase InPhase, ERTMoveOutcome Outcome)
 {
 	if (!IsValid(Unit))
 	{
@@ -2151,7 +2285,7 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 	// 3. La voce di TurnLog CON LA CAUSA (#307). Prima lo spostamento esisteva solo come riga di combat log:
 	// il replay registrava il danno e taceva il movimento, e chi rileggeva il file vedeva l'unita' altrove
 	// senza nulla che lo spiegasse.
-	AppendDisplacementEntry(Unit, OldCell, NewCell, Path.Num() - 1, CauseByTarget);
+	AppendDisplacementEntry(Unit, OldCell, NewCell, Path.Num() - 1, CauseByTarget, Outcome);
 
 	// 4. Evento per il playback: lo spostamento scivola OldCell -> NewCell nella fase Blast.
 	{
@@ -2207,14 +2341,14 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 }
 
 void ARTTurnManager::AppendDisplacementEntry(const ARTUnit* Target, const FRTCellId& From, const FRTCellId& To,
-	int32 Steps, const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget)
+	int32 Steps, const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget, ERTMoveOutcome Outcome)
 {
 	FRTTurnLogEntry Entry;
 	// Fase `Blast`: lo spostamento forzato avviene dove avviene il colpo che lo produce, non nella fase Move.
 	// E' quello che rende leggibile «sono stato spostato PRIMA di potermi muovere».
 	Entry.Phase = ERTMatchPhase::Blast;
 	Entry.Category = ERTLogCategory::Move;
-	Entry.Outcome = static_cast<uint8>(ERTMoveOutcome::Displaced);
+	Entry.Outcome = static_cast<uint8>(Outcome);
 	Entry.SrcCell = From;
 	Entry.TgtCell = To;
 	Entry.Amount = FMath::Max(0, Steps);
@@ -2921,6 +3055,86 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 		// ⚠️ Per `AppliedWhileOnCell` vale `0`, e li' NON e' un conteggio: e' l'unico caso in cui `Amount`
 		// non dice «turni». Lo dichiara `ERTStatusOutcome` stesso, e chi consuma deve chiedere il verso a
 		// `IsStatusBirth` invece di dedurlo dal numero.
+		Ev.Amount = Entry.Amount;
+		Ev.Origin = Entry.SrcCell;
+		ResolvedTimeline.Add(Ev);
+	}
+
+	// `#2460`: il danno AMBIENTALE sull'altro canale, con la stessa forma e per la stessa ragione della
+	// riga di stato qui sopra. La voce e' appena stata scritta e porta gia' tutto — la fase in `Phase`, chi
+	// subisce in `UnitId`, il danno nominale in `Amount`, la cella in `SrcCell` — quindi qui non si decide
+	// nulla: si COPIA.
+	//
+	// 🔴 **`HazardDamage` era dichiarato e non lo emetteva nessuno**: fuori dai test, l'unica occorrenza del
+	// valore in tutto `Source/` era la riga della tabella che lo dichiara. Il danno c'e' — `Fire` fa **10**
+	// all'ingresso contro gli **8** del Cleanup, e **puo' uccidere** — e il TurnLog lo registra dal
+	// 2026-08-16 (`#625`, `#1067`). La `ResolvedTimeline` non lo riceveva mai: chi guardava la risoluzione
+	// vedeva la barra scendere **senza che nulla lo spiegasse**, che e' la stessa frase con cui quelle due
+	// issue descrivevano lo stesso difetto un livello piu' a monte. Questa riga chiude il canale della
+	// presentazione dopo che quelle hanno chiuso il canale della traccia.
+	//
+	// 🔑 **Perche' QUI e non nei due siti che applicano il danno.** La issue proponeva di emettere accanto
+	// alla voce, dentro `ApplyTerrainOnEnterEffects`. Misurato: quella funzione copre **tre** dei quattro
+	// percorsi — Dash, Move, spostamento forzato, ambiente — ma **non** il `Status.Burning` del Cleanup, che
+	// vive in `LockInAndResolve` fuori dalla funzione. Sarebbero **due** emissioni da tenere allineate a
+	// mano, ed e' esattamente la copertura che la riga di stato qui sopra dichiara di aver evitato: da qui
+	// un percorso aggiunto domani e' coperto **per costruzione**, e i due canali non possono divergere
+	// perche' il secondo DERIVA dal primo.
+	//
+	// 🔑 **E ne segue la fase giusta senza doverla scegliere.** `Entry.Phase` la porta il produttore, che
+	// riceve `InPhase` per parametro: non c'e' un membro `Phase` da leggere per sbaglio — e durante il
+	// Cleanup quel membro vale `Planning`, trappola in cui il codice di `ApplyTerrainOnEnterEffects` e'
+	// gia' caduto una volta.
+	//
+	// ⚠️ **Il discriminante e' `IsEnvironmentalDamage`, non un elenco di cause scritto qui.** Quella
+	// funzione conosce gia' entrambe (`Terrain.*` e `Status.Burning`, la seconda chiesta al tag e non a un
+	// letterale) ed e' gia' l'owner della domanda «`UnitId` porta chi SUBISCE» (`#1150`). Un secondo elenco
+	// sarebbe la seconda verita' che [D-098] vieta, e divergerebbe al primo che cambia.
+	//
+	// ⛔ **E per la stessa ragione NON c'e' una guardia `Category == Combat` qui davanti**, benche' scriverla
+	// sarebbe stato naturale: quella condizione e' gia' la prima riga di `IsEnvironmentalDamage`, e
+	// ripeterla la trasformerebbe da promemoria in **vincolo**. Il precedente che dice come va a finire e'
+	// nella funzione gemella: `IsDamageInflictedByActor` ha dovuto allargarsi oltre `Combat` — Overwatch
+	// scrive `ReactionDecision`, la previsione `Predictive` — e una guardia esterna avrebbe bloccato
+	// quell'allargamento **in silenzio**, lasciando l'evento non emesso senza che niente diventasse rosso.
+	// L'owner della domanda e' uno solo, e questo `if` gli si affida per intero.
+	//
+	// ⚠️ **Un falso positivo EREDITATO, e da qui in poi si vede.** La rete secondaria di quella funzione e'
+	// `SrcCell == TgtCell`, e il suo header dichiara gia' il caso: un'area con fuoco amico che investa la
+	// cella di chi la lancia. Finora costava una statistica sottostimata; da adesso quel colpo emette un
+	// `HazardDamage` **oltre** al suo `Attack`. ⛔ Non si corregge restringendo il predicato — sarebbe la
+	// seconda definizione appena vietata — e la direzione resta quella innocua: un evento di troppo su un
+	// tipo che oggi non disegna nulla.
+	//
+	// 🔑 **Entrare nel fuoco produce DUE eventi nello stesso turno, non uno** — misurato, non previsto: la
+	// prima stesura dei test ne attendeva uno e la suite ne ha riportati due. Sono due danni distinti:
+	// `Terrain.Fire` (10) nella fase del movimento, e lo `Status.Burning` (8) che quella stessa cella ha
+	// appena concesso e che il Cleanup **dello stesso turno** fa gia' scattare. Chi costruira' la cue
+	// (`#2455`) lo deve sapere: sono due colpi con due cause e due importi, e fonderli racconterebbe 18
+	// danni in un lampo solo. Si distinguono per `Phase` e per `Amount`.
+	//
+	// ⛔ **Nessun beat di morte per chi muore bruciato, ed e' una scelta.** `Defeated` lo emette solo
+	// `ResolveCombatPasses`, da `NewlyDefeated` sul Blast; chi cade per hazard resta coperto dal catch-all
+	// di `ConcludeTurn` (`DestroyDefeatedUnits`). Emetterlo qui sarebbe presentazione, cioe' `#2455`. La
+	// distinzione fra il danno che uccide e quello che non uccide vive nell'`Outcome` della voce gemella,
+	// dove `ClassifyCombatOutcome` scrive `Lethal`.
+	//
+	// ⚠️ Come per la riga di stato, `ResolvedTimeline` e' playback e **non entra ne' in `StateHash` ne' nel
+	// formato di replay**: `CaptureFinalStateHash` passa da `HashMatchState(Map, UnitDigests, TeamScores)`,
+	// e la timeline non e' fra i suoi ingressi. Verificato prima di aggiungere il produttore.
+	if (URTTurnLogLibrary::IsEnvironmentalDamage(Entry))
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = Entry.Phase;
+		Ev.Type = ERTResolvedEventType::HazardDamage;
+		// ⚠️ **`Target` e non `Source`, ed e' l'INVERSO della riga di stato qui sopra.** La convenzione della
+		// struct e' «`Source` = chi ha AGITO», e in un danno da terreno non c'e' un attaccante: lo `0`
+		// resta, e chi consuma deve leggerlo come «nessuno» ([D-063]) e mai come «l'unita' zero». E' la
+		// stessa scelta gia' fatta da `#625`/`#1150` sul canale della traccia.
+		Ev.TargetStableUnitId = Entry.UnitId;
+		// ⚠️ Il danno **NOMINALE** del catalogo, non gli HP effettivamente persi: e' cio' che porta la voce
+		// gemella, e cambiarlo qui solo renderebbe i due canali non confrontabili. Con lo scudo che assorbe
+		// tutto questo vale comunque 10, e quanto sia arrivato agli HP lo dice l'`Outcome` di quella voce.
 		Ev.Amount = Entry.Amount;
 		Ev.Origin = Entry.SrcCell;
 		ResolvedTimeline.Add(Ev);
@@ -7256,6 +7470,29 @@ TArray<FRTResolvedEvent> ARTTurnManager::ResolvedStatusEventsForTest() const
 	return Out;
 }
 
+TArray<FRTResolvedEvent> ARTTurnManager::ResolvedHazardEventsForTest() const
+{
+	TArray<FRTResolvedEvent> Out;
+	for (const FRTResolvedEvent& Ev : ResolvedTimeline)
+	{
+		if (Ev.Type == ERTResolvedEventType::HazardDamage)
+		{
+			Out.Add(Ev);
+		}
+	}
+	return Out;
+}
+
+int32 ARTTurnManager::ResolvedEventCountOfTypeForTest(ERTResolvedEventType Type) const
+{
+	int32 N = 0;
+	for (const FRTResolvedEvent& Ev : ResolvedTimeline)
+	{
+		if (Ev.Type == Type) { ++N; }
+	}
+	return N;
+}
+
 int32 ARTTurnManager::ResolvedReactionCountForTest(int32 ReactorStableUnitId) const
 {
 	int32 Count = 0;
@@ -7665,8 +7902,8 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				// `FRTLogSubject::Unit` vuole l'Actor e non l'id, e lo dichiara: da un id soltanto il
 				// verdetto di [D-223] non si calcola — servono anche squadra e cella.
 				Atk.Amount), FRTLogSubject::Unit(AtkSrc));
-			if (AtkSrc) { AtkSrc->PlayAttackMontage(); }
-			if (AtkTgt) { AtkTgt->PlayHitMontage(); }
+			if (AtkSrc) { AtkSrc->PlayPresentationRole(ERTPresentationRole::Attack); }
+			if (AtkTgt) { AtkTgt->PlayPresentationRole(ERTPresentationRole::Hit); }
 			OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Atk.Amount);
 			++AttacksShown;
 		}
@@ -7692,8 +7929,8 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				const FRTResolvedEvent& Atk = PlaybackAttacks[AttacksShown];
 				ARTUnit* const AtkSrc = UnitByStableId(Atk.SourceStableUnitId);
 				ARTUnit* const AtkTgt = UnitByStableId(Atk.TargetStableUnitId);
-				if (AtkSrc) { AtkSrc->PlayAttackMontage(); }
-				if (AtkTgt) { AtkTgt->PlayHitMontage(); }
+				if (AtkSrc) { AtkSrc->PlayPresentationRole(ERTPresentationRole::Attack); }
+				if (AtkTgt) { AtkTgt->PlayPresentationRole(ERTPresentationRole::Hit); }
 				OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Atk.Amount);
 				++AttacksShown;
 			}
@@ -7730,7 +7967,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				PlaybackDefeatShown.Add(D.SourceStableUnitId);
 				bMorteAnnunciataInQuestaFase = true;
 				AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *DefU->GetName()), FRTLogSubject::World());
-				DefU->PlayDefeatMontage();
+				DefU->PlayPresentationRole(ERTPresentationRole::Death);
 				OnUnitDefeated.Broadcast(DefU);
 			}
 		}
@@ -7812,7 +8049,7 @@ void ARTTurnManager::FinishPlayback()
 		{
 			PlaybackDefeatShown.Add(D.SourceStableUnitId);
 			AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *DefU->GetName()), FRTLogSubject::World());
-			DefU->PlayDefeatMontage();
+			DefU->PlayPresentationRole(ERTPresentationRole::Death);
 			OnUnitDefeated.Broadcast(DefU);
 		}
 		if (!DefU->IsHidden())

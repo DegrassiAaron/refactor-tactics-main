@@ -238,6 +238,26 @@ quello della presentazione — il che è una scelta difendibile solo se resta di
 📝 Portato nella DoD ([commento](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1801#issuecomment-5479386333)): la voce dichiara per iscritto che il valore non
 ha produttore, e va **rivista** quando ne acquista uno.
 
+✅ **Superato il 2026-09-05 da [#2460](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2460), e la clausola ha funzionato come previsto.** Il produttore esiste:
+l'evento nasce in `ARTTurnManager::AppendLogEntry`, dallo stesso punto e nello stesso istante della voce di
+TurnLog, per entrambe le cause che `URTTurnLogLibrary::IsEnvironmentalDamage` riconosce. La voce della
+tabella **resta** `NoPresentation` — il dato viene prima del disegno, che è lavoro di
+[#2455](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2455) — ma il suo motivo è stato riscritto, ed è passato da «nessuno lo emette» a
+«nessuno lo disegna ancora, e la cue ha un owner».
+
+⚠️ **Due correzioni a questa sezione, che restano qui perché il ragionamento le usava.**
+
+1. La frase *«quando uccide emette `Defeated`, che una presentazione ce l'ha … si vede morire, non si vede
+   bruciare»* è **falsa**, e lo era già quando fu scritta. Misurato in `#2460`: `Defeated` lo emette
+   **solo** `ResolveCombatPasses`, da `NewlyDefeated` calcolato sul Blast. Chi muore per hazard — nel fuoco
+   o bruciato nel Cleanup — non lo produce: sparisce con il catch-all di `ConcludeTurn`
+   (`DestroyDefeatedUnits`), senza alcun beat. ∴ *non* si vede morire, e la scelta di `NoPresentation`
+   perde uno dei suoi due argomenti. Resta l'altro — la barra vita e il combat log — che basta per la v0.1.
+2. Il **limite del gate** che questo caso ha reso visibile va detto insieme al resto: `FindMissingBindings`
+   verifica che ogni tipo sia *dichiarato*, non che sia *emesso*, ed è per questo che è rimasto verde per
+   cinque giorni su un evento che non accadeva. La clausola nella singola voce non è un ornamento: è
+   l'**unica** rete su quella seconda domanda.
+
 🔑 **E le due scelte di §7.1 interagiscono, il che non era ovvio prima di farle.** Senza Data Asset **non c'è nulla da
 validare al salvataggio**: il validatore editor/commandlet del precedente (§5.1) **non ha oggetto**, e resta la
 coppia *funzione pura + Automation Test*. È la ragione per cui `U3` mette l'owner del giudizio nella funzione

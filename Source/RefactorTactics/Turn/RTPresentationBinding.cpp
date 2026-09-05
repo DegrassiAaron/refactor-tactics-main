@@ -13,33 +13,65 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// Attack — due cue e due soggetti diversi: l'attaccante gioca il colpo, il bersaglio lo incassa
 	// (`RTTurnManager.cpp:6257-6258`). Sono `BlueprintImplementableEvent` su `ARTUnit`: se un BP non le
 	// implementa non succede nulla, e la logica resta invariata (invariante #1).
+	// ⚠️ **Dal 2026-09-05 (#2448) la clip la sceglie il C++**: il `TurnManager` chiama
+	// `PlayPresentationRole(Attack|Hit)`, che risolve dal CDO, suona sullo slot e POI notifica il
+	// Blueprint passandogli cio' che ha suonato. I due nomi qui sotto restano quelli degli EVENTI
+	// Blueprint, che e' cio' che questa tabella dichiara: la cue vista da chi guarda non e' cambiata.
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Attack,
 		{ FName(TEXT("PlayAttackMontage")), FName(TEXT("PlayHitMontage")) }));
 
-	// HazardDamage — NoPresentation, deciso il 2026-08-31.
+	// HazardDamage — PendingPresentation dal 2026-09-05, owner `#2455`. Era `NoPresentation` dal 2026-08-31.
 	//
 	// 🔴 **La clausola fa parte della dichiarazione, e non e' pedanteria.** Il danno da terreno ACCADE ed e'
 	// tutt'altro che marginale — `Fire` fa 10 danni all'ingresso contro gli 8 del Cleanup, passa da
 	// `ApplyDamage(..., Environmental, ...)`, puo' uccidere, e ha la voce canonica nel TurnLog dal 2026-08-16
-	// (`#1067`). Non si mostra perche' ha gia' due canali visibili: la barra vita, e il combat log. E quando
-	// uccide, l'evento emesso e' `Defeated`, che una presentazione ce l'ha: si vede morire, non si vede
-	// bruciare.
+	// (`#1067`). Non si mostra perche' ha gia' due canali visibili: la barra vita, e il combat log.
 	//
-	// ⚠️ **Ma oggi questo valore non ha un PRODUTTORE**: il TurnLog registra il danno, la `ResolvedTimeline`
-	// non riceve mai l'evento. Questa voce vale «quando accadra'», non «perche' non accade», e va **rivista**
-	// il giorno in cui qualcuno lo emette — altrimenti il gate resta verde su un evento muto, cioe'
-	// esattamente il difetto che questa tabella esiste per impedire. A questo stesso fatto e' gia' successo
-	// una volta sul canale della traccia (`#1067`).
-	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::HazardDamage,
-		TEXT("Il danno da terreno si legge dalla barra vita e dal combat log, e quando uccide emette Defeated ")
-		TEXT("(che ha presentazione): una cue dedicata non aggiunge leggibilita' in v0.1, e D-124 tiene il ")
-		TEXT("sistema VFX degli status fuori dal perimetro. ATTENZIONE: oggi il valore non ha un produttore ")
-		TEXT("(nessuno emette l'evento) - questa voce vale «quando accadra'» e va rivista appena ne acquista uno.")));
+	// ✅ **Il PRODUTTORE ora esiste** (`#2460`, 2026-09-05). Fino a quel giorno questa voce portava la
+	// clausola *«oggi il valore non ha un produttore … va rivista appena ne acquista uno»*: e' quel giorno,
+	// e questa e' la revisione. L'evento nasce in `ARTTurnManager::AppendLogEntry`, dallo stesso punto e
+	// nello stesso istante della voce di TurnLog, per entrambe le cause che
+	// `URTTurnLogLibrary::IsEnvironmentalDamage` riconosce — `Terrain.<Surface>` all'ingresso e
+	// `Status.Burning` nel Cleanup.
+	//
+	// 🔁 **La voce e' `PendingPresentation`, e la decisione e' d'autore (2026-09-05).** `#2460` l'aveva
+	// lasciata `NoPresentation` scrivendo *«la scelta e' deliberata»*, ma nella stessa frase diceva anche
+	// *«la cue e' lavoro di #2455»* — e sotto la tassonomia che `#2483` ha introdotto poche ore dopo, le due
+	// clausole si contraddicono: la prima e' un'assenza decisa, la seconda e' un'attesa con un owner. La
+	// domanda e' stata posta all'autore invece di essere risolta a intuito, e la risposta e' **in attesa,
+	// owner `#2455`**.
+	//
+	// ⛔ **Non e' una promozione a "disegnato".** `PendingPresentation` dichiara che l'evento **non si
+	// mostra** — esattamente come `NoPresentation` — e aggiunge chi lo mostrera'. Il timore scritto qui da
+	// `#2460`, *«dichiarerebbe disegnato un evento che nessuno disegna»*, riguardava il passaggio a `Cues`,
+	// che non e' questo: `FindMissingBindings` continua a non chiedere nessuna cue per questa voce.
+	//
+	// 🔑 **Cosa cambia davvero**: il giorno in cui `#2455` chiude senza rivedere questa riga,
+	// `Presentation.AbsenceCensusIsPinned` diventa **rosso**. Prima non lo diventava, e il promemoria viveva
+	// in una frase.
+	//
+	// ⚠️ **Corretta insieme una frase che era falsa**: diceva *«quando uccide, l'evento emesso e' `Defeated`,
+	// che una presentazione ce l'ha»*. Misurato: `Defeated` lo emette **solo** `ResolveCombatPasses`, da
+	// `NewlyDefeated` calcolato sul Blast. Chi muore bruciato nel Cleanup, o entrando nel fuoco, **non lo
+	// produce**: resta coperto dal catch-all di `ConcludeTurn` (`DestroyDefeatedUnits`). Chi costruira' la
+	// cue non deve credere che la morte da hazard abbia gia' un beat proprio — non ce l'ha.
+	Out.Add(FRTPresentationBinding::MakePendingPresentation(ERTResolvedEventType::HazardDamage,
+		TEXT("Il danno da terreno si legge oggi dalla barra vita e dal combat log, e D-124 tiene il sistema ")
+		TEXT("VFX degli status fuori dal perimetro v0.1. Il produttore ESISTE da #2460 (AppendLogEntry, per ")
+		TEXT("ogni causa che IsEnvironmentalDamage riconosce): l'evento accade, e non e' muto. ATTENZIONE: ")
+		TEXT("la morte da hazard non emette Defeated - la nasconde il catch-all di ConcludeTurn, quindi chi ")
+		TEXT("scrive la cue non dia per scontato un beat di morte che non esiste."),
+		TEXT("#2455")));
 
-	// AttackFootprint — NoPresentation, e per una ragione OPPOSTA a quella di HazardDamage.
+	// AttackFootprint — PendingPresentation.
 	//
-	// 🔴 **Qui l'assenza e' temporanea e attesa, non una scelta di design.** `HazardDamage` non si mostra
-	// perche' si e' deciso che non deve; questo evento esiste **precisamente perche' un giorno si mostri** —
+	// ✅ **Dal 2026-09-05 (#2483) la differenza sta nel DATO, non in questo commento.** Fino ad allora
+	// era `NoPresentation` con la nota dentro il motivo, e nessuna macchina leggeva quella frase.
+	//
+	// 🔴 **Qui l'assenza e' temporanea e attesa.** ⚠️ Fino al 2026-09-05 questa riga contrapponeva il caso a
+	// `HazardDamage` — *«quello non si mostra perche' si e' deciso che non deve»* — e il contrasto **non
+	// regge piu'**: la decisione d'autore ha portato anche `HazardDamage` in attesa, con owner `#2455`.
+	// Questo evento esiste **precisamente perche' un giorno si mostri** —
 	// #1945 lo introduce per portare a valle le celle risolte, e la cue che le disegna (tracer, impatto,
 	// resa dell'area) e' lavoro di E21 che non e' ancora stato fatto.
 	//
@@ -50,11 +82,11 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	//
 	// ⚠️ **Questa voce va RIVISTA, non ereditata**, appena la cue nasce: e' il segnaposto che il gate
 	// sorveglia, ed e' il motivo per cui il dato viene emesso prima del disegno e non insieme a lui.
-	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::AttackFootprint,
+	// 🔑 L'owner che la sciogliera' e' ora un CAMPO (`PendingOwner`), non una frase: `E21`.
+	Out.Add(FRTPresentationBinding::MakePendingPresentation(ERTResolvedEventType::AttackFootprint,
 		TEXT("Il dato esiste perche' la cue POSSA essere costruita: #1945 porta a valle le celle risolte, e ")
-		TEXT("la resa dell'area e' fuori dal suo scope (E21). Nessuna cue oggi lo consuma. ATTENZIONE: a ")
-		TEXT("differenza di HazardDamage questa assenza e' TEMPORANEA e attesa - la voce va rivista appena ")
-		TEXT("la cue nasce, non ereditata.")));
+		TEXT("la resa dell'area e' fuori dal suo scope (E21). Nessuna cue oggi lo consuma."),
+		TEXT("E21")));
 
 	// Defeated — la morte visiva e' DIFFERITA: l'unita' sparisce dopo che il colpo o l'attraversamento e'
 	// stato mostrato. La presentazione non decide quando si muore: lo decide il resolver, e questa cue lo
@@ -72,7 +104,7 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Defeated,
 		{ FName(TEXT("HideForDefeat")), FName(TEXT("PlayDefeatMontage")) }));
 
-	// ReactionResolved — NoPresentation, e l'assenza e' TEMPORANEA come quella di `AttackFootprint`.
+	// ReactionResolved — PendingPresentation, come `AttackFootprint`: l'assenza e' TEMPORANEA.
 	//
 	// 🔴 **Questo evento nasce proprio perche' un giorno si mostri**, ed e' il caso piu' netto della
 	// tabella: due voci PIE — `PIE-VIS-DEFLECT` e `PIE-VIS-INTERPOSE` — esistono per giudicare a schermo
@@ -84,19 +116,23 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// reazione e' fuori dallo scope di quella issue, che lo dichiara. Dichiarare qui una cue inventata
 	// renderebbe questa tabella una lista di intenzioni — la stessa ragione scritta per `AttackFootprint`.
 	//
-	// ✅ **A differenza di `HazardDamage`, questo valore un PRODUTTORE ce l'ha**: `RunReactionPass` lo
-	// emette dove la reazione scatta, e `Reactions.Counter.DealsDamageToAttacker` lo presidia — validato
-	// per mutazione. Quindi il gate non e' verde su un evento muto: e' verde su un evento che accade e che
-	// nessuno disegna ancora.
+	// ✅ **Questo valore un PRODUTTORE ce l'ha**: `RunReactionPass` lo emette dove la reazione scatta, e
+	// `Reactions.Counter.DealsDamageToAttacker` lo presidia — validato per mutazione. Quindi il gate non e'
+	// verde su un evento muto: e' verde su un evento che accade e che nessuno disegna ancora.
+	//
+	// ⚠️ **Fino a `#2460` questa riga diceva «a differenza di `HazardDamage`», e quel confronto e' scaduto**:
+	// da allora ogni valore dell'enum ha un produttore, e la tabella non ha piu' voci mute. Cio' che resta
+	// vero e' la distinzione fra le tre assenze, ed e' un altro asse: `HazardDamage` non si disegna **per
+	// scelta**, questo e `AttackFootprint` non si disegnano **ancora**.
 	//
 	// ⚠️ Voce da RIVEDERE, non da ereditare: appena la cue nasce, le due voci PIE diventano giudicabili.
-	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::ReactionResolved,
+	Out.Add(FRTPresentationBinding::MakePendingPresentation(ERTResolvedEventType::ReactionResolved,
 		TEXT("Il momento della reazione esiste perche' la cue POSSA essere costruita: #2191 lo emette dove la ")
 		TEXT("reazione scatta, e la grammatica visiva e' fuori dal suo scope. Nessuna cue oggi lo consuma. ")
-		TEXT("ATTENZIONE: assenza TEMPORANEA e attesa - due voci PIE (VIS-DEFLECT, VIS-INTERPOSE) restano non ")
-		TEXT("giudicabili finche' non nasce, e la voce va rivista allora, non ereditata.")));
+		TEXT("Due voci PIE (VIS-DEFLECT, VIS-INTERPOSE) restano non giudicabili finche' non nasce."),
+		TEXT("#2454")));
 
-	// StatusChanged — NoPresentation, e l'assenza e' TEMPORANEA come quella di `AttackFootprint` e
+	// StatusChanged — PendingPresentation, e l'assenza e' TEMPORANEA come quella di `AttackFootprint` e
 	// `ReactionResolved`.
 	//
 	// 🔴 **Il dato esiste perche' la cue POSSA essere costruita, ed e' il caso piu' documentato dei tre**:
@@ -111,12 +147,12 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	//    (`#1324`): un'icona persistente aperta su di lui resterebbe accesa per sempre.
 	//
 	// ⚠️ Voce da RIVEDERE, non da ereditare.
-	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::StatusChanged,
+	Out.Add(FRTPresentationBinding::MakePendingPresentation(ERTResolvedEventType::StatusChanged,
 		TEXT("Gli stati arrivano al playback perche' la cue POSSA essere costruita: #2245 li emette dove la ")
 		TEXT("voce di TurnLog viene scritta, e il disegno e' D-320 (WidgetComponent + le undici icone gia' ")
-		TEXT("versionate), che non esiste ancora. Nessuna cue oggi lo consuma. ATTENZIONE: assenza ")
-		TEXT("TEMPORANEA e attesa - la voce va rivista quando il widget nasce, non ereditata. Chi la scrive ")
-		TEXT("chieda il verso a IsStatusBirth, e sappia che Status.Electrified nasce e non muore mai.")));
+		TEXT("versionate), che non esiste ancora. Nessuna cue oggi lo consuma. Chi la scrive chieda il verso ")
+		TEXT("a IsStatusBirth, e sappia che Status.Electrified nasce e non muore mai."),
+		TEXT("#2456")));
 
 	return Out;
 }
@@ -191,6 +227,27 @@ TArray<FString> URTPresentationBindingLibrary::FindMissingBindings(
 			{
 				Missing.Add(FString::Printf(
 					TEXT("%s: NoPresentation dichiarato senza motivo scritto"), *TypeName));
+			}
+			continue;
+		}
+
+		if (Found->Kind == ERTPresentationKind::PendingPresentation)
+		{
+			// ✅ Una voce «in attesa» BEN FORMATA **copre** (`#2483`), e non e' una concessione: se il gate
+			// andasse rosso su uno stato legittimo, la pressione sarebbe a cancellare la distinzione per
+			// tornare verdi — e il gate tornerebbe a misurare niente. Rosso solo se e' MAL formata.
+			if (Found->Rationale.TrimStartAndEnd().IsEmpty())
+			{
+				Missing.Add(FString::Printf(
+					TEXT("%s: PendingPresentation dichiarato senza motivo scritto"), *TypeName));
+				continue;
+			}
+			// 🔑 Senza owner, «in attesa» e' una promessa che nessuno puo' riscuotere: non si puo' chiedere
+			// *«quell'owner e' ancora aperto?»*, che e' l'unica domanda per cui questo stato esiste.
+			if (Found->PendingOwner.TrimStartAndEnd().IsEmpty())
+			{
+				Missing.Add(FString::Printf(
+					TEXT("%s: PendingPresentation dichiarato senza owner che la sciolga"), *TypeName));
 			}
 			continue;
 		}
