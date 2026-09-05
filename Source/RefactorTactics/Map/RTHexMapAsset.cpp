@@ -412,6 +412,21 @@ uint32 URTHexMapAsset::ComputeHash() const
 			// lascia «fresco» uno snapshot in cache dopo un rename che cambia proprio quella risoluzione.
 			Hash = HashCombine(Hash, HashStableId(Door.StableId));
 		}
+
+		// I parapetti entrano nell'hash, e l'ordinamento e' obbligatorio per la stessa ragione di Covers e
+		// Doors: l'ordine di dichiarazione nell'asset non deve cambiare il digest.
+		//
+		// 🔑 **Perche' QUI, a differenza di `BodyFill`**: un parapetto cambia dove finisce un'unita' spinta
+		// oltre il bordo, quindi e' stato competitivo. `BodyFill` no — due mappe che differiscono solo per il
+		// volume mostrato si giocano identiche. Il criterio non e' «e' un campo nuovo» ma «cambia l'esito».
+		C.Guards.Sort([](const FRTHexEdgeGuard& A, const FRTHexEdgeGuard& B)
+		{
+			return static_cast<uint8>(A.Edge) < static_cast<uint8>(B.Edge);
+		});
+		for (const FRTHexEdgeGuard& Guard : C.Guards)
+		{
+			Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(Guard.Edge)));
+		}
 	}
 
 	// Le transizioni sono dato autorevole (i ponti/tunnel cambiano il pathing): entrano nell'hash, ordinate
@@ -622,6 +637,39 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 			{
 				Errors.Add(FString::Printf(TEXT("Error: porta dentro una copertura alta sul bordo %d di %s"),
 					static_cast<int32>(Door.Edge), *C.Id.ToString()));
+			}
+		}
+
+		// Parapetti (`#2401`): due difetti, e sono di gravita' diversa apposta.
+		//
+		// Il doppione e' un ERRORE come per coperture e porte — due voci sullo stesso bordo dicono la stessa
+		// cosa due volte, e la seconda non puo' che essere una svista.
+		//
+		// ⚠️ Il parapetto su un bordo CONNESSO e' invece un warning, e la differenza non e' timidezza: da
+		// quel bordo non si cade comunque, quindi la voce e' inerte e non cambia nessun esito. Ma una mappa
+		// cambia intorno a un parapetto autorato — si aggiunge la cella accanto, e la ringhiera resta li'
+		// legittima — e trasformarlo in errore renderebbe invalide mappe corrette il giorno prima.
+		for (int32 I = 0; I < C.Guards.Num(); ++I)
+		{
+			const FRTHexEdgeGuard& Guard = C.Guards[I];
+			for (int32 J = 0; J < I; ++J)
+			{
+				if (C.Guards[J].Edge == Guard.Edge)
+				{
+					Errors.Add(FString::Printf(TEXT("Error: parapetti sovrapposti sul bordo %d di %s"),
+						static_cast<int32>(Guard.Edge), *C.Id.ToString()));
+				}
+			}
+
+			// ⚠️ `FindCell` e NON `Seen`: quel set si popola DENTRO questo stesso ciclo, quindi per la prima
+			// cella non contiene ancora i vicini che verranno. Con `Seen` la segnalazione dipendeva
+			// dall'ordine dell'array — un parapetto inerte veniva visto o no a seconda di chi era stato
+			// scritto prima. Lo ha trovato `EdgeGuard.OnConnectedEdgeIsInert`, non una rilettura.
+			if (FindCell(URTHexLibrary::Neighbor(C.Id, Guard.Edge)) != nullptr)
+			{
+				Errors.Add(FString::Printf(
+					TEXT("Warning: parapetto inerte sul bordo %d di %s: il vicino esiste, da li' non si cade"),
+					static_cast<int32>(Guard.Edge), *C.Id.ToString()));
 			}
 		}
 	}

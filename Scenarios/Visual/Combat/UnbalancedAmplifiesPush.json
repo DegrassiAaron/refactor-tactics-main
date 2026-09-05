@@ -1,0 +1,49 @@
+{
+  "scenarioId": "Visual.Combat.UnbalancedAmplifiesPush",
+  "tags": ["animation", "combat", "status", "phase", "wraith"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "BANCO VFX per l'amplificazione della spinta e per la caduta ([D-319], #2253). La stessa identica spinta su due bersagli identici, nello stesso turno: l'unica variabile e' `Status.Unbalanced`. Il bersaglio in piedi arretra di UNA cella; quello sbilanciato di DUE, e resta a terra.",
+
+  "_nota_leggibilita": "E' il motivo per cui il file sta fra i `Visual`, e la domanda che pone non e' se il gioco calcoli bene — quello lo dicono gia' `Status.PushOnUnbalancedFalls` e `Status.UnbalancedIffSlid`, headless. La domanda e': la seconda cella si legge come **piu' forza**, o come **una seconda spinta**? Se l'animazione ripete il contraccolpo due volte, il giocatore leggera' due colpi dove ce n'e' uno, e cerchera' un secondo attaccante che non esiste.",
+
+  "_nota_seconda_domanda": "E la caduta e' un secondo fatto nello stesso istante. `V1` finisce `Prone` e `Unbalanced` gli viene tolto: due cambiamenti di stato mentre l'unita' e' ancora in movimento. Se arrivano insieme al contraccolpo, a schermo diventano un fotogramma solo e nessuno dei due si legge. La coppia `Unbalanced` -> `Prone` deve poter essere raccontata come una CATENA, che e' cio' che [D-319] costruisce.",
+
+  "_nota_geometria": "Copiata da `Visual.Combat.PushResistance`, che ha gia' provato questa forma: un attaccante per bersaglio, due righe separate, colpo lungo la riga. Cosi' l'arretramento e' la cella successiva della stessa riga ed e' scrivibile a mano, e due colpi sullo stesso bersaglio non finiscono nel ramo `*Pushes != 1` che li escluderebbe entrambi dalla spinta.",
+
+  "_nota_loadout_vuoto": "I due attaccanti entrano SPOGLI (`\"loadout\": []`), per la stessa ragione di `PushResistance`: il default di Phase e' `Weapon.Impact`, che porta la spinta di `PressureJet` da 1 a 2. Con 2 il bersaglio in piedi arretrerebbe di due celle e quello sbilanciato di tre — il confronto resterebbe vero ma il file mostrerebbe un'altra cosa. La spinta a 1 e' la variabile tenuta ferma.",
+
+  "_nota_status_seminato": "`Status.Unbalanced` e' SEMINATO nel setup invece di essere prodotto da uno scivolamento. Il modo naturale costa due turni — il Blast precede il Move ([ADR-0003] §1), quindi «scivolo e poi mi spingono» non puo' accadere nello stesso turno — e mostrerebbe la catena invece dell'amplificazione. Come si arriva sbilanciati lo mostra `Visual.Environment.IceSlide`; qui si guarda cosa succede quando lo si e' gia'.",
+
+  "_nota_numeri": "Entrambi i bersagli sono Wraith e incassano lo stesso colpo: `PressureJet` 16, meno i 5 dello scudo base ([D-224]), fanno 11. 90 - 11 = **79** per tutti e due. Lo stato non tocca il danno: se un giorno i due HP divergessero, la meccanica avrebbe smesso di essere solo di spostamento.",
+
+  "units": [
+    { "id": "B1", "hero": "Hero.Wraith", "team": 0, "cell": [0,  0, 0] },
+
+    { "id": "V1", "hero": "Hero.Wraith", "team": 0, "cell": [0, -2, 0],
+      "statuses": [ { "tag": "Status.Unbalanced", "turns": 2 } ] },
+
+    { "facing": "W", "id": "R1", "hero": "Hero.Phase", "team": 1, "cell": [3,  0, 0], "loadout": [] },
+    { "facing": "W", "id": "R2", "hero": "Hero.Phase", "team": 1, "cell": [3, -2, 0], "loadout": [] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "Due spinte identiche. `B1` e' in piedi, `V1` e' sbilanciato: e' l'unica differenza fra le due righe.",
+      "intents": [
+        { "unit": "R1", "ability": "Hero.Phase.PressureJet", "target": "B1" },
+        { "unit": "R2", "ability": "Hero.Phase.PressureJet", "target": "V1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell",     "unit": "B1", "cell": [-1,  0, 0] },
+    { "type": "UnitAtCell",     "unit": "V1", "cell": [-2, -2, 0] },
+    { "type": "UnitHpEquals",   "unit": "B1", "value": 79 },
+    { "type": "UnitHpEquals",   "unit": "V1", "value": 79 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
