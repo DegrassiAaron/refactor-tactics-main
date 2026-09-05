@@ -108,6 +108,18 @@ Misurata sul disco il **2026-08-13**, cartella
 | **Colpito** (Hit) | 🔴 `Hitreact_Fwd` | 🔴 `HitReact_Fwd` | `HitReact_Front` | `HitReact_Front` |
 | **Morte** (Defeated) | `Death_Fwd` | 🔴 `Death` | `Death_Fwd` | 🔴 `Death_Forward` |
 
+> 📇 **Da qui in poi questo lavoro lascia un dato, non solo prosa.** La tabella qui sopra è stata misurata
+> una volta, a occhio, e non ha prodotto nulla che una macchina possa rileggere — mentre
+> `.../Gadget/Animations/` da sola contiene **85** voci. Il catalogo versionato
+> [`Data/Anim/AnimCatalog.json`](../../../Data/Anim/AnimCatalog.json) è l'owner di **quale clip è stata
+> guardata, promossa o scartata**, con un `AV_ID` stabile per voce; il formato è descritto in
+> [`architettura-codice.md`](../architecture/architettura-codice.md) alla riga `Unit/RTAnimCatalogTypes.h`
+> ([#2445](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2445)).
+>
+> ⚠️ **Questa sezione resta l'owner del *perché* un nome diverge; il catalogo è l'owner del *giudizio*.**
+> Le due cose non si duplicano: qui si spiega che Gadget non ha `Jog_Fwd`, lì si registra che una persona
+> ha scelto `Run_Fwd` — e nessuna automazione può scrivere quella scelta al posto sua.
+
 Le quattro caselle che fanno perdere più tempo, e perché:
 
 - **Gadget non ha `Jog_Fwd`.** Ha `Jog_Fwd_Start`, `_Stop`, `_CircleLeft`, `_Pivot180` — tutte transizioni, non

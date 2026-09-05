@@ -1,0 +1,96 @@
+{
+	"formatVersion": 1,
+	"nextId": 6,
+	"entries": [
+		{
+			"id": "AV_0001",
+			"derived": {
+				"assetPath": "/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Animations/Idle.Idle",
+				"assetName": "Idle",
+				"skeleton": "",
+				"durationSeconds": 0,
+				"frameCount": 0,
+				"bHasRootMotion": false,
+				"bIsAdditive": false,
+				"fingerprint": ""
+			},
+			"authored": {
+				"status": "Unreviewed",
+				"label": "",
+				"notes": "Casella Idle della tabella AS.3b (guida-animazioni-paragon.md), presenza verificata sul disco il 2026-09-05. Mai aperta: lo Status resta Unreviewed finche' una persona non la guarda."
+			}
+		},
+		{
+			"id": "AV_0002",
+			"derived": {
+				"assetPath": "/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Animations/Run_Fwd.Run_Fwd",
+				"assetName": "Run_Fwd",
+				"skeleton": "",
+				"durationSeconds": 0,
+				"frameCount": 0,
+				"bHasRootMotion": false,
+				"bIsAdditive": false,
+				"fingerprint": ""
+			},
+			"authored": {
+				"status": "Unreviewed",
+				"label": "",
+				"notes": "Casella Corsa di AS.3b. Su Gadget si chiama Run_Fwd e non Jog_Fwd: e' una delle sei caselle su venti che divergono dal nome atteso, ed e' il motivo per cui questo catalogo esiste."
+			}
+		},
+		{
+			"id": "AV_0003",
+			"derived": {
+				"assetPath": "/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Animations/Cast.Cast",
+				"assetName": "Cast",
+				"skeleton": "",
+				"durationSeconds": 0,
+				"frameCount": 0,
+				"bHasRootMotion": false,
+				"bIsAdditive": false,
+				"fingerprint": ""
+			},
+			"authored": {
+				"status": "Unreviewed",
+				"label": "",
+				"notes": "Casella Attacco di AS.3b. Cast e' l'unico nome che regge su tutti e quattro i pack del roster."
+			}
+		},
+		{
+			"id": "AV_0004",
+			"derived": {
+				"assetPath": "/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Animations/Hitreact_Fwd.Hitreact_Fwd",
+				"assetName": "Hitreact_Fwd",
+				"skeleton": "",
+				"durationSeconds": 0,
+				"frameCount": 0,
+				"bHasRootMotion": false,
+				"bIsAdditive": false,
+				"fingerprint": ""
+			},
+			"authored": {
+				"status": "Unreviewed",
+				"label": "",
+				"notes": "Casella Colpito di AS.3b. Su Gadget la R e' minuscola (Hitreact_Fwd), su Phase no (HitReact_Fwd): il nome si legge dalla cartella, non si deduce."
+			}
+		},
+		{
+			"id": "AV_0005",
+			"derived": {
+				"assetPath": "/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Animations/Death_Fwd.Death_Fwd",
+				"assetName": "Death_Fwd",
+				"skeleton": "",
+				"durationSeconds": 0,
+				"frameCount": 0,
+				"bHasRootMotion": false,
+				"bIsAdditive": false,
+				"fingerprint": ""
+			},
+			"authored": {
+				"status": "Unreviewed",
+				"label": "",
+				"notes": "Casella Morte di AS.3b."
+			}
+		}
+	]
+}
