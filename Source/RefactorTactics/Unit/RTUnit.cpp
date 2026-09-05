@@ -745,7 +745,16 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 		// ⛔ **Il grafo della sagoma, assegnato QUI e non da `ApplyUnitAnimClass`** — che continua a non
 		// raggiungere `ContactGhost` perche' `FindHeroSkeletal` lo esclude per identita'. Se ci arrivasse
 		// da li' prenderebbe `URTUnitAnimInstance` e si animerebbe dal vivo.
-		if (ContactGhostAnimClass != nullptr && ContactGhost->GetAnimClass() != ContactGhostAnimClass)
+		//
+		// ⚠️ **La guardia controlla il MODO e non solo la classe**, e la differenza morde su un cammino
+		// preciso: `SetAnimationMode(AnimationSingleNode)` — che il ramo del ripiego chiama — **non azzera**
+		// `AnimClass`. Guardando la sola classe, una sagoma passata per il ripiego resterebbe in
+		// `AnimationSingleNode` con `GetAnimClass()` gia' uguale a questa: la posa ricordata non tornerebbe
+		// mai piu', e a schermo si vedrebbe un idle al posto del ricordo. Oggi quel cammino non e'
+		// raggiungibile (vedi il ramo `Fallback`), e la guardia non ci si appoggia.
+		if (ContactGhostAnimClass != nullptr
+			&& (ContactGhost->GetAnimationMode() != EAnimationMode::AnimationBlueprint
+				|| ContactGhost->GetAnimClass() != ContactGhostAnimClass))
 		{
 			ContactGhost->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 			ContactGhost->SetAnimInstanceClass(ContactGhostAnimClass);
@@ -766,10 +775,18 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 	}
 	case ERTGhostPoseSource::Fallback:
 	{
-		// ⚠️ **Si torna a `AnimationSingleNode` esplicitamente**, e non e' ridondante: la stessa sagoma puo'
-		// aver mostrato uno snapshot in un turno precedente — un'unita' vista, persa, e poi solo SENTITA
-		// non porta piu' una posa valida da mostrare. Senza il cambio di modo resterebbe agganciata al
-		// grafo dello snapshot, che a quel punto valuterebbe una posa vuota.
+		// ⚠️ **Si torna a `AnimationSingleNode` esplicitamente**, e la guardia include il MODO perche' una
+		// sagoma passata per il ramo dello snapshot resterebbe altrimenti agganciata a quel grafo.
+		//
+		// 🔴 **Il cammino snapshot → ripiego NON e' raggiungibile oggi, e va detto invece che lasciato
+		// dedurre.** `LastSeenPose` non viene mai invalidato: una volta che l'unita' e' stata vista, il
+		// ricordo resta valido per tutta la partita, quindi `GhostPoseSourceFor` non torna piu' al ripiego su
+		// quell'unita'. Il caso *«vista, persa, e poi solo SENTITA»* mostra la posa dell'ultimo avvistamento
+		// sulla cella del rumore — ed e' **voluto**: la posa e' memoria come la cella, e il referto del
+		// 2026-09-05 §7 lo dichiara *«da dichiarare, non da correggere»*.
+		// ∴ questa guardia e' una difesa contro un futuro invalidamento, non la copertura di un caso vivo.
+		// Una stesura precedente di questo commento affermava il contrario, e sarebbe stata la prima cosa a
+		// ingannare chi venisse a cercare quando il ripiego torna.
 		if (ContactGhost->GetAnimationMode() != EAnimationMode::AnimationSingleNode
 			|| ContactGhost->AnimationData.AnimToPlay != IdleClip)
 		{
