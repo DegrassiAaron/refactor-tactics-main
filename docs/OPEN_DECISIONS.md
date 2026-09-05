@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-09-04
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-09-05
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -22,6 +22,23 @@
 > risposta, ed è la disciplina che questo documento dichiara dodici righe più in alto.
 > 🔴 **`GBX-1` e `GBX-5` NON sono fra queste**: la sessione ne ha deciso il **metodo**
 > ([`D-283`](decisions/RT_PDR_00_Decision_Log.md)) e ha lasciato i **numeri aperti** fino a `U25`.
+
+---
+
+## Aperte — il contratto di wave RT3 e il ruolo di ingresso, dal 2026-09-05
+
+Origine: il bundle `docs/rt-three-terminals/`, livello wave, introdotto il 2026-09-05 da `75ad7241`
+([`prompts/RT3_CONTRACT.md`](rt-three-terminals/prompts/RT3_CONTRACT.md)) e completato lo stesso giorno sul
+lato DEV da `0f7465f8` e `53323c2d`
+([`prompts/WAVE_DEV_LEAD.md`](rt-three-terminals/prompts/WAVE_DEV_LEAD.md) ·
+[`WAVE_DEV_MAIN.md`](rt-three-terminals/prompts/WAVE_DEV_MAIN.md) ·
+[`WAVE_DEV_TEST.md`](rt-three-terminals/prompts/WAVE_DEV_TEST.md)).
+Conflitto registrato alla riga **97** di [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md).
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `GOV-5` | **Lo schema di handoff §9 prevede un ruolo che non possiede lo strumento di prova, o il ruolo di ingresso non emette un handoff §9?** | Non si deduce perché **la gerarchia fra le due fonti produce un requisito impossibile**. §9 impone che l'handoff porti una `## MATRICE` con *«voci in scope, con verdetto tipizzato»*, e §6 dice che una voce malformata **si legge `BLOCKED`**. Ma DEV-LEAD è una istanza DEV: §7 non gli assegna alcuna colonna nella matrice canonica, e §3 stabilisce che `file modificato != build/test/PIE/packaged verificato`. ∴ applicare §9 alla lettera chiede a un ruolo di emettere verdetti che il contratto stesso gli vieta di produrre, e l'handoff di ingresso — che `WAVE_EDITOR.md` e `WAVE_VALIDATION.md` richiedono entrambi come `INPUT_HANDOFF` — nasce malformato. ⚠️ **Le uscite hanno costi diversi e nessuna è dominante.** *(a)* **§9 aggiunge il caso**: la `MATRICE` di un ruolo senza strumento di prova porta i sistemi in scope **senza** verdetto; costa una riga di contratto, e in cambio lo scoping di §8 si fa una volta all'ingresso invece che due volte a valle. *(b)* **Il ruolo di ingresso non è un emittente §9**: produce un artefatto di tipo diverso (assegnazione + write-set + contratto comportamentale), e i due prompt a valle cambiano il nome del campo che consumano; costa la modifica di due prompt già scritti. *(c)* **`MATRICE` tutta `N/A`**: ⛔ §8 dice che `N/A` è giustificato **dal write-set**, mai dal ruolo, e quei sistemi sono in scope — sarebbe un `N/A` falso che a valle nasconde proprio ciò che va misurato. 🔑 **Ciò che nessuna misura può dire è se `RT3_CONTRACT.md` voglia possedere un solo tipo di artefatto o due**: è una scelta di forma del contratto, non un dato del repository. **Innesco**: la prima wave che parte, oppure la prima revisione di `RT3_CONTRACT.md` |
+| `GOV-6` | **La forma del contratto comportamentale (`Given`/`When`/`Then`/`Authority`/`SEED_SOURCE`/…) sale in `RT3_CONTRACT.md`, o resta materia dei prompt di wave DEV?** | Non si deduce perché **il contratto non dichiara se possiede anche la forma di ciò che si consegna, o solo il processo con cui lo si consegna**. Misurato: la tabella vive oggi in `WAVE_DEV_LEAD.md` §«Contratto comportamentale» e la usa `WAVE_DEV_MAIN.md`, che per compilarla deve **aprire un prompt che non gli viene incollato accanto** — i prompt di wave dichiarano identità mutuamente esclusive, e una dipendenza fra due di essi è legittima come lettura ma è fragile come istruzione. **Uscite**: *(a)* **sale nel contratto** come sezione propria: diventa canone per ogni ruolo e i prompt la referenziano invece di ospitarla; ⛔ ma allarga `RT3_CONTRACT.md` con materia gameplay-side, mentre oggi il contratto parla solo di processo, verdetti ed evidenza. *(b)* **resta dov'è**, e `WAVE_DEV_MAIN.md` la referenzia esplicitamente: costo zero, dipendenza fra prompt dichiarata invece che implicita. *(c)* **duplicata nei due prompt**: ⛔ è la duplicazione parziale di un contratto che questo bundle esiste per impedire, e che ha già prodotto un vocabolario `STATUS` parallelo corretto da `53323c2d`. **Innesco**: la prima wave DEV, oppure la decisione su `GOV-5` — se §9 viene comunque toccato, conviene decidere le due insieme |
 
 ---
 

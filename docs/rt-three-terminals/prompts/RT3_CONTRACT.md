@@ -298,3 +298,18 @@ Un `FINDING_ID` è stabile. Ricomparire con un id nuovo per azzerare il contator
 Rileggila alla chiusura. Se è cambiata durante la wave, vale quella corrente.
 
 Nessun verdetto verde senza il campo che lo prova.
+
+---
+
+## Aperti
+
+Due domande sul contratto stesso, **non normative**: registrate perché l'owner le decida, non risolte qui.
+
+Non modificano nessuna regola sopra. Finché restano aperte, vale il testo delle sezioni §1–§13.
+
+| ID | Domanda | Registro |
+|---|---|---|
+| `GOV-5` | §9 prevede un ruolo che non possiede lo strumento di prova, o il ruolo di ingresso non emette un handoff §9? DEV-LEAD deve produrre una `## MATRICE`, ma §7 non gli assegna una colonna e §3 dice che `file modificato != verificato`. | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) · conflitto alla riga **97** di [`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) |
+| `GOV-6` | La forma del contratto comportamentale (`Given`/`When`/`Then`/`Authority`/`SEED_SOURCE`/…) sale qui, o resta nei prompt di wave DEV? Oggi vive in `WAVE_DEV_LEAD.md` e la usa `WAVE_DEV_MAIN.md`. | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) |
+
+`GOV-5` ha un innesco vicino: la prima wave che parte produce un handoff di ingresso, e con la lettura letterale di §9 quell'handoff è malformato prima ancora di essere letto.
