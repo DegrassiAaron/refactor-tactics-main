@@ -243,7 +243,17 @@ e una **clip non in loop**.
 > i tre ruoli si popolano come **dati** nel CDO di `URTUnitAnimInstance`. La procedura precedente resta
 > leggibile in fondo alla sezione, sotto **§ Procedura superata**.
 
-**Nessun `.uasset` va creato**, e i quattro `BP_Unit_*` non si toccano.
+**Nessun `.uasset` va creato.**
+
+🔴 **Ma i quattro `BP_Unit_*` VANNO toccati, e questa riga diceva il contrario fino al 2026-09-05.**
+Non per il **wiring degli eventi** — quello non serve davvero, la clip la sceglie il C++ (#2448) — ma per il
+**riferimento duro** che porta la clip nel cook: `D-262` prescrive che il meccanismo sia il riferimento da un
+asset versionato sotto `/Game/RT`, ed è così che le clip di locomozione ci arrivano già (misurato sulla name
+table: `Run_Fwd` ×2 in `BP_Unit_Gadget`, `Jog_Fwd` e `Idle_NonCombat` ×2 in `BP_Unit_Wraith`).
+
+Sono **due ragioni diverse** per aprire gli stessi quattro binari, e confonderle costa un gate rosso:
+`RefactorTactics.Packaging.RequiredAnimationClipsAreCooked` → *«12 clip richieste su 20 senza un riferimento
+che le porti nel cook»*. Il gesto appartiene a **#2444**.
 
 ### Perché non serve un montaggio-asset
 
