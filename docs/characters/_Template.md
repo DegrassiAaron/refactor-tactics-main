@@ -8,7 +8,7 @@
 
 ## Identità tattica
 
-<ruoli, specializzazione, range, tipo danno, risorsa firma, player question>
+<ruoli, specializzazione, range, tipo danno, player question>
 
 ## Meccanica firma
 
@@ -47,9 +47,13 @@ regole** ma legge male il turno>
 
 <valori + stato>
 
-## Risorsa firma
+<!-- 26e0 La sezione "Risorsa firma" e' stata RIMOSSA da questo template il 2026-09-05 (D-265, D-324, #2357).
+     Non esiste una risorsa firma universale: l'economia comune del turno e' slot, cooldown e drawback, e
+     Energy — l'unica implementazione viva di quel modello — e' uscita dal gameplay con #610.
+     Finche' il template la portava, ogni scheda nuova nasceva descrivendo un sistema che non esiste.
 
-<valori o NOT DEFINED>
+     Un kit PUO' dichiarare una risorsa propria: D-265 lascia la via aperta. Ma allora la sezione si aggiunge
+     a quella scheda con il suo contratto di dati e la sua validazione — non si eredita da qui. -->
 
 ## Ownership del kit
 
