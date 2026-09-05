@@ -26,7 +26,7 @@ notte scorsa**: il gap 2-vs-10 celle che dovrebbe alimentare la Roadmap A è chi
 | **R1** | è il **secondo** giro dello stesso contratto di processo, e non nomina il referto che lo ha già revisionato | 🔴 |
 | **R2** | la premessa tecnica (**«il gap corrente è la durata per route/cella»**) è **chiusa su `main` da nove ore** al momento della richiesta | 🔴 |
 | **R3** | §1 «Precedenza» ripropone la **scala universale** che `D-282` ha scartato per nome | 🔴 |
-| **R4** | **14 dei 20** check `PACE-*` richiesti sono già coperti da automation verde; la matrice ne sarebbe una seconda copia | 🟠 |
+| **R4** | **13 dei 20** check `PACE-*` sono già automation verde e un quattordicesimo lo è a metà; la matrice ne sarebbe una seconda copia | 🟠 |
 | **R5** | le sedute `E1…E5` proposte esistono già come `U44`/`U46`, con `shares_setup_with` che è il campo di batching che il §5 chiede di inventare | 🟠 |
 | **R6** | «massima copertura Editor» contro un gate che chiede **4** voci su **216**: il selettore esiste ed è `RELEASE-V01` | 🟠 |
 | **R7** | la famiglia di ID `PACE-*` non esiste nel registro, e il registro è l'owner degli ID delle verifiche manuali | 🟡 |
@@ -183,7 +183,7 @@ La §B6 chiede una «matrice minima» `PACE-01…PACE-20`. Mappata sul corpus di
 | `PACE-03` completamento anticipato | `RouteAlpha` è `Clamp(...,0,1)`: l'overshoot non è rappresentabile. Più `Playback.StillUnitNeverRuns` | **A** ✅ |
 | `PACE-04` niente teleport / slow-motion | — | **C** ⏳ |
 | `PACE-05` `OnEnter` al boundary | `Playback.StepExecutesWholeMicroStep` · `Playback.MicroStepCountMatchesSegments` · `Terrain.Fire.DamagesAndBurnsOnEnter` | **A** ✅ |
-| `PACE-06` hazard nella cella corretta | `Actions.Push.CrossesHazardsOfEveryCell` · famiglia `Actions.Hazard.*` (6 test) | **A** ✅ |
+| `PACE-06` hazard nella cella corretta | ⚠️ **solo sul ramo `Push`**: `Actions.Push.CrossesHazardsOfEveryCell` è scritto su una spinta, non su un `Move` volontario, e il suo commento dichiara che *«la cella d'ARRIVO non brucia: è deliberato»* perché la domanda è sulle **intermedie**. `Terrain.Fire.DamagesAndBurnsOnEnter` pinna l'ingresso, non l'attraversamento. Nessun test nomina *Move* **e** hazard insieme | **A** parziale |
 | `PACE-07` reaction / `EventGroup` simultaneo | `Playback.StepDoesNotSplitSimultaneousEvents` · `Overwatch.TriggerReadsMicroStepFacing` | **A** ✅ |
 | `PACE-08` collision / contest | `Scenarios/Movement/Collision.json` · `CollisionChoke.json` · `SwapRejectedByPlanning.json` | **A** ✅ |
 | `PACE-09` viewer speed | `Playback.InstantEqualsNormalInEverythingButTime` · `Playback.SpeedScaleIsCompleteAndInstantIsNamed` · `Match.Autobattle.DeterminismIsIndependentOfPlayback` | **A** ✅ |
@@ -199,7 +199,15 @@ La §B6 chiede una «matrice minima» `PACE-01…PACE-20`. Mappata sul corpus di
 | `PACE-19` ripetibilità | `Replay.Verifier.ResimulationIsDeterministic` (gate `G4`, 100 ripetizioni) | **A** ✅ |
 | `PACE-20` stress v0.1 | `Perf.PathfindingMedian` · `Perf.PlanningPreviewMedian` · `Perf.TurnResolverMedian` — ⚠️ **nessuno misura il playback**: coprono resolver e pathfinding | **D** — vedi §6 |
 
-**14 su 20 in classe A e verdi. 5 richiedono un occhio. 1 non è coperto da niente.**
+**13 su 20 pienamente in classe `A` e verdi · 1 coperto solo sul ramo `Push` · 5 richiedono un occhio · 1 non
+è coperto da niente.**
+
+🔴 **Il conteggio è sceso da 14 a 13 rileggendo le proprie righe**, ed è la forma di errore che questo referto
+denuncia altrove: `Actions.Push.CrossesHazardsOfEveryCell` *contiene* la parola giusta e verifica l'oggetto
+sbagliato. ⚠️ **Non è promosso a quarto gap**, e la ragione è dichiarata: `AGENTS.md` §5 tiene `Move · Dash ·
+Forced` in **una sola famiglia** — Traversal — che *«produce una sequenza di celle attraversate»*, quindi il
+meccanismo è condiviso e il ramo `Push` lo esercita. Ciò che manca è la **prova** che il ramo `Move` lo
+erediti, non l'implementazione. Vale una riga in un test esistente, non una issue.
 
 ⛔ **Scriverli in una matrice nuova li duplicherebbe senza owner**, che è precisamente il rilievo `R10` di
 ieri: *«novanta voci ridicono a mano ciò che vive in `test-manuali-pie.md`, `scenario-map.md` ed
