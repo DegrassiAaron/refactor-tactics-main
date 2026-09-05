@@ -102,6 +102,22 @@ struct FRTContactGhostTarget
  * sarebbe un campo dichiarato, trasportato e mai letto. L'icona appartiene al layer widget (§4.1 di
  * `progettazione-hud.md`, che e' **#613**), e la si aggiunge quando esiste chi la rende.
  */
+/**
+ * La riga d'intento gia' decisa: se mostrarla, cosa scrivere, di che colore.
+ *
+ * ⚠️ `bShow` falso significa **nessuna riga**, e i campi accanto non vanno letti: non e' «una riga
+ * vuota». La distinzione conta perche' il caso piu' comune del gioco e' un'unita' propria senza ordini.
+ */
+struct FRTIntentPresentation
+{
+	bool bShow = false;
+
+	/** Completa, prefisso incluso. Vuota quando `bShow` e' falso. */
+	FString Label;
+
+	FLinearColor Color = FLinearColor::White;
+};
+
 struct FRTIntentCertaintyStyle
 {
 	/**
@@ -422,6 +438,25 @@ public:
 	 * servizio.
 	 */
 	static FString ComposeIntentLabel(const struct FRTIntentView& View, const FRTIntentCertaintyStyle& Style);
+
+	/**
+	 * Chi ha una riga d'intento sopra la testa, con che etichetta completa e di che colore.
+	 *
+	 * Statica e PURA sul modello di `ComposeSlotLines`: `DrawHUD` non ha copertura headless e non l'avra',
+	 * quindi cio' che si puo' sbagliare deve stare dove i test arrivano (#2184).
+	 *
+	 * 🔑 **Non tocca la geometria, e non e' un caso.** Le tre decisioni dipendono dalla sola vista:
+	 * `bOwn` e' `View.bIsAlly`, e «ha un piano» e' un `||` di cinque suoi campi. Nel `DrawHUD` erano scritte
+	 * in mezzo alla proiezione, il che le faceva sembrare intrecciate con lei — non lo erano.
+	 *
+	 * 🔴 **L'asimmetria e' la regola, non una svista**: si salta l'unita' PROPRIA senza ordini, mai un
+	 * nemico rivelato. Per lui l'informazione non e' «cosa fara'», e' «lo sto vedendo».
+	 *
+	 * ⛔ Il CORPO dell'etichetta resta di `ComposeIntentLabel`, che questa chiama: qui si aggiunge solo il
+	 * prefisso, che prima era deciso in `DrawHUD` e quindi scoperto. L'etichetta completa ha ora una sede sola.
+	 */
+	static FRTIntentPresentation ComposeIntentPresentation(const struct FRTIntentView& View,
+		const FRTIntentCertaintyStyle& Style);
 
 	// 🔴 **Qui c'era `ApplyCertaintyTint`, RIMOSSA il 2026-08-19 con la funzione che la chiamava.**
 	// Sbiadiva il colore di squadra secondo la certezza, e la code review ha mostrato tre cose insieme:
