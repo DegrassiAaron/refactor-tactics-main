@@ -1633,6 +1633,15 @@ generata invece che da una sessione di pianificazione. Il numero `E21` è stato 
 
 ### E46 — Frontend shell e ciclo di partita · P1
 
+> **Stato GitHub live — 2026-09-05.** L'epic [#934](https://github.com/DegrassiAaron/refactor-tactics-main/issues/934)
+> è **aperta**. I checkpoint [#936](https://github.com/DegrassiAaron/refactor-tactics-main/issues/936),
+> [#937](https://github.com/DegrassiAaron/refactor-tactics-main/issues/937),
+> [#938](https://github.com/DegrassiAaron/refactor-tactics-main/issues/938),
+> [#939](https://github.com/DegrassiAaron/refactor-tactics-main/issues/939) e
+> [#941](https://github.com/DegrassiAaron/refactor-tactics-main/issues/941) sono **chiusi**; [#940](https://github.com/DegrassiAaron/refactor-tactics-main/issues/940) è **aperta**.
+> La chiusura GitHub non sostituisce la verifica di prodotto: le sei voci `PIE-V01-FRONTEND-*` restano
+> nel loro stato documentato finché non sono eseguite nel registro manuale.
+
 **Perché esiste** *(2026-08-16, [D-144](../decisions/RT_PDR_00_Decision_Log.md))*. Il gate **G13** chiede
 *«partita giocabile senza editor dalla build packaged»* ed è 🟡 dal 2026-08-10 con la riserva già scritta
 nella DoD: il pacchetto avvia su `MapSource=GeneratedTestArena`, *«e una build che avvia sull'arena di
@@ -1891,11 +1900,29 @@ dimenticato. La domanda aperta sul seed è [#960](https://github.com/DegrassiAar
 
 **Perché è qui** *(2026-08-17, [D-160](../decisions/RT_PDR_00_Decision_Log.md))*. Anticipata dalla **v0.2**.
 Non è scope nuovo e non è una scommessa: **metà dell'epic è già passata**. `E23.3` è chiuso con
-[#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832) e `E23.4` è in corso su
-[#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833), con la prima fetta già in `main`.
+[#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832) e `E23.4` è chiuso con
+[#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833) dal 2026-09-01, con la prima fetta già in `main`.
 L'anticipazione è in gran parte una **presa d'atto**: il lavoro stava atterrando nella v0.1 mentre l'epic
 dichiarava v0.2, e **cinque owner** si contraddicevano — GitHub, Feature Registry, Execution Graph,
 `roadmap-post-v0.1.md` e `scenario-map.md`.
+
+> **Stato GitHub live — 2026-09-05.** L'epic [#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)
+> è **aperta**. Sono **chiuse** [#619](https://github.com/DegrassiAaron/refactor-tactics-main/issues/619),
+> [#620](https://github.com/DegrassiAaron/refactor-tactics-main/issues/620),
+> [#621](https://github.com/DegrassiAaron/refactor-tactics-main/issues/621),
+> [#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832),
+> [#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833),
+> [#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826),
+> [#1827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1827),
+> [#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828),
+> [#1830](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1830) e
+> [#1832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1832). Restano **aperte**
+> [#712](https://github.com/DegrassiAaron/refactor-tactics-main/issues/712),
+> [#834](https://github.com/DegrassiAaron/refactor-tactics-main/issues/834),
+> [#1829](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1829),
+> [#1831](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1831) e
+> [#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833). Questo snapshot prevale
+> sulle formulazioni precedenti di stato; le note datate sottostanti restano storia e non evidenza corrente.
 
 **Obiettivo**: muri e porte come **oggetti logici sugli archi**, non come mesh che il gameplay interroga.
 
@@ -1904,10 +1931,10 @@ dichiarava v0.2, e **cinque owner** si contraddicevano — GitHub, Feature Regis
 | **E23.1** | Separazione geometria/logica | La logica di transizione non legge la mesh: legge archi e stati. Cambiare l'arte non cambia il gameplay | |
 | **E23.2** | Porta come oggetto logico unico | Una porta larga più celle resta **un** oggetto con **uno** stato, non N archi indipendenti (gruppo atomico) | |
 | **E23.3** | Stable ID e binding | Gli ID sono stabili attraverso il cook; binding duplicati o in conflitto sono errori di validazione, non comportamenti impliciti | ✅ [#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832) |
-| **E23.4** | Interaction graph | Chi può agire su cosa è un grafo **dato**, con cardinalità dichiarata. ⚠️ `D-150`: l'operazione su N bersagli **non** è atomica — si applicano gli applicabili e si riporta l'esito degli altri | 🟡 [#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833) |
+| **E23.4** | Interaction graph | Chi può agire su cosa è un grafo **dato**, con cardinalità dichiarata. ⚠️ `D-150`: l'operazione su N bersagli **non** è atomica — si applicano gli applicabili e si riporta l'esito degli altri | ✅ [#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833) **chiusa** il 2026-09-01 |
 | **E23.5** | Leggibilità | Etichette tattiche, hover sorgente→bersagli e bersaglio→controllori; **mai il solo colore** a distinguere uno stato | |
 | **E23.6** | Standability cotta da geometria | Il muro sta dove vuole — 90°, obliquo, a metà cella — e la calpestabilità è l'esito di `Footprint @ CellAnchor ∩ blocking geometry`, calcolato **in cottura**. Il runtime continua a leggere `bBlocksMovement`. Scenari: `Spec.Map.WallCrossesCellStillStandable` · `.FootprintCollisionBlocksCell` · `.NinetyDegreeCornerBakesCorrectly` | 🟢 **Cablato il 2026-09-01** — [#1827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1827). `URTGeometryBakeLibrary` deriva ora `bBlocksMovement` da `HasLegalPlacement`: la primitiva aveva 13 test verdi e **nessun chiamante di produzione**, ed e' quello che mancava. Formato **v13** per la provenienza del blocco (`bMovementBlockGenerated`), cosi' il rebake toglie il proprio e non tocca quello d'autore. 6 test `Standability.*`, verifica di mutazione con attribuzione pulita. ✅ Sbloccato da [#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826) (`D-306`, `MSE-4`). ⚠️ **Gli scenari `Spec.Map.*` restano da scrivere**: l'harness non conosce i muri interni — `FRTTestScenarioCell` ha `bBlocksMovement` e nessun campo di geometria — quindi i tre nomi dichiarati qui chiedono prima di estenderlo. I criteri sono coperti da automation test, incluso quello sul percorso reale |
-| **E23.7** | La transizione è un dato, non un corollario della cella | `Cell A` valida ∧ `Cell B` valida ∧ `A→B` chiusa è esprimibile **senza** inventare una copertura che non copre. Include la *swept clearance*: si verifica il corridoio attraversato, non i soli estremi. ➕ **E il caso intra-cella** (`D-289`): un muro continuo divide lo spazio di posa di UNA cella, e `SideA → SideB` richiede una traversata autorata. Scenari: `Spec.Map.ValidCellsBlockedTransition` · `.DoorOpensTransition` | 🟡 [#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828) — `ClassifyIntraCellTraversal` è in `main`; manca il **vocabolario** della traversata autorata |
+| **E23.7** | La transizione è un dato, non un corollario della cella | `Cell A` valida ∧ `Cell B` valida ∧ `A→B` chiusa è esprimibile **senza** inventare una copertura che non copre. Include la *swept clearance*: si verifica il corridoio attraversato, non i soli estremi. ➕ **E il caso intra-cella** (`D-289`): un muro continuo divide lo spazio di posa di UNA cella, e `SideA → SideB` richiede una traversata autorata. Scenari: `Spec.Map.ValidCellsBlockedTransition` · `.DoorOpensTransition` | ✅ [#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828) **chiusa** il 2026-09-02 — `ClassifyIntraCellTraversal` è in `main`; `MAP-4` resta una decisione aperta |
 
 > ➕ **`E23.6` ed `E23.7` sono stati aperti il 2026-08-30**, dopo tredici giorni senza issue, dal Decision
 > Record d'autore *«Cover Placement & Intra-Hex Geometry»* recepito da

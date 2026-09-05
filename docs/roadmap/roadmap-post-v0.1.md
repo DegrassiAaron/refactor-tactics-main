@@ -292,6 +292,21 @@ fissarla (scenario 4 del sorgente).
 > cinque feature che dichiarano `epic: E23`, `RT-FEAT-MAP-INTERACTION-GRAPH` era già passata a `v0.1` col
 > giro di `#833`; `D-160` sposta le altre quattro. Dopo, **nessuna feature di E23 dichiara più v0.2**.
 
+> **Stato GitHub live — 2026-09-05.** Questa non è l'owner della release: lo snapshot corrente di E23 vive
+> in [`roadmap-v0.1.md`](roadmap-v0.1.md) § E23. [#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)
+> resta **aperta**; sono **chiuse** [#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832),
+> [#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833),
+> [#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826),
+> [#1827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1827),
+> [#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828),
+> [#1830](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1830) e
+> [#1832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1832); restano **aperte**
+> [#712](https://github.com/DegrassiAaron/refactor-tactics-main/issues/712),
+> [#834](https://github.com/DegrassiAaron/refactor-tactics-main/issues/834),
+> [#1829](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1829),
+> [#1831](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1831) e
+> [#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833).
+
 **Tracciata su GitHub**: epic [#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324).
 
 **Obiettivo**: muri e porte come **oggetti logici sugli archi**, non come mesh che il gameplay interroga.
