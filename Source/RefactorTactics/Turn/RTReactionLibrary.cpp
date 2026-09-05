@@ -36,6 +36,7 @@ namespace
 		// switch non era esaustivo e il commento qui sopra prometteva una garanzia che non dava.
 		case ERTActionEffect::DamageStructure:
 		case ERTActionEffect::SetDoorState:
+		case ERTActionEffect::ToggleDoorState:
 			return false; // difendere SE STESSI
 		}
 		return false;
