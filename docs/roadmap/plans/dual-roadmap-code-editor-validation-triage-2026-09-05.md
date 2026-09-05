@@ -64,6 +64,11 @@ find Scenarios -name '*.json' ! -name '_*' | wc -l                              
 grep -c 'PIE-PACE\|\bPACE-[0-9]' docs/technical/test-manuali-pie.md                         # 0
 ```
 
+✅ **Rimisurato prima del merge, come `AGENTS.md` §11 impone.** `origin/main` è avanzato a `a27e99f5` (sei
+commit) mentre il referto veniva scritto: `git diff --stat 026850c0 origin/main` sui file che questi conteggi
+leggono — registro PIE, `editor-sessions.yaml`, `scenario-map.md`, la DoD, `Scenarios/`, `RTPlaybackLibrary.h`,
+`RTTurnManager.cpp` e il Decision Log — **non tocca nessuno di essi**. I numeri valgono su entrambi gli SHA.
+
 Superficie MCP, misurata **live** sull'unico ponte acceso (`127.0.0.1:8770`, l'Editor di un altro
 workflow su `rt-wt-replay`), con `initialize` → `tools/list` → `list_toolsets` → `describe_toolset`:
 **56 toolset**, **3** tool di dispatch (`list_toolsets`, `describe_toolset`, `call_tool`). Dettaglio in §4/R8.
@@ -117,6 +122,17 @@ catalogo.
 ⚠️ **Non è una critica alla qualità del testo**, che è migliore del precedente. È la constatazione che
 riscriverlo una terza volta produce il difetto che il work order stesso vieta al §0.4 — *«Riusa. Non
 duplicare»* — sull'asse del processo invece che su quello dei test.
+
+🔑 **E i giri sono tre, non due: il terzo è arrivato mentre questo referto veniva scritto.** `origin/main` è
+passato da `026850c0` a `a27e99f5` durante la run, e fra i sei commit c'è
+[`#2391`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2391) —
+[`verticalita-ledge-fall-dual-roadmap-2026-09-05.md`](verticalita-ledge-fall-dual-roadmap-2026-09-05.md),
+che consuma *«Dual Roadmap: Code/Architecture + Editor/MCP/User — Verticality, Ledge, Fall, Forced
+Movement»*, **stesso giorno e stessa forma di work order, oggetto diverso**. ⛔ **I due referti non sono
+duplicati** — quello copre la verticalità e ha prodotto un owner di capability (`#2388`), questo copre
+playback e validazione Editor — ma insieme dicono che il contratto `A/B` è un **template ricorrente**, non
+una proposta una tantum. È la ragione per cui `R1` vale più della singola richiesta: ciò che va deciso una
+volta è se il template diventa un owner, non se questo testo entra.
 
 ### R2 — 🔴 La premessa tecnica è caduta prima della richiesta
 
