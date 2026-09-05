@@ -112,6 +112,20 @@ int32 URTRemoveEnergyBarCommandlet::Main(const FString& Params)
 			const FName DeletedName = Bar->GetFName();
 			Overlay->WidgetTree->RemoveWidget(Bar);
 			Overlay->WidgetVariableNameToGuidMap.Remove(DeletedName);
+
+			// 🔴 **E non basta ancora: il widget va STACCATO dall'outer.**
+			//
+			// `RemoveWidget` lo toglie dall'ALBERO, ma l'oggetto resta un subobject del `UWidgetTree`, e il
+			// compilatore UMG non itera l'albero — itera gli oggetti con quell'outer
+			// (`UBaseWidgetBlueprint::ForEachSourceWidgetImpl` -> `ForEachObjectWithOuter`). Trovandolo
+			// senza piu' il GUID che gli abbiamo tolto, `ValidateAndFixUpVariableGuids` emette DUE ensure
+			// che si contraddicono — *«was added but did not get a GUID»* e *«was deleted but still has a
+			// GUID»* — e il commandlet esce **1** pur avendo fatto il lavoro giusto. Misurato.
+			//
+			// Il rename nel package transiente lo toglie dall'iterazione senza distruggerlo a meta' di una
+			// compilazione. `REN_DontCreateRedirectors`: un redirector verso un widget cancellato non serve
+			// a nessuno e finirebbe salvato nel package.
+			Bar->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional);
 			UE_LOG(LogRTEnergyBar, Display, TEXT("overlay: '%s' rimosso dall'albero e dalla mappa dei GUID"),
 				BarName);
 		}
