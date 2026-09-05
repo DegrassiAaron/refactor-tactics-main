@@ -202,13 +202,18 @@ int32 URTAnimCatalogLibrary::AllocateIds(FRTAnimCatalog& Catalog, const TArray<F
 
 		// 🔴 L'ID viene dall'high-water mark, e da NIENT'ALTRO. Questa funzione non legge gli ID gia'
 		// assegnati: e' cio' che le rende impossibile riciclarne uno dopo una rimozione.
-		int32 MutantHighest = 0;
-		for (const FRTAnimCatalogEntry& Seen : Catalog.Entries)
-		{
-			int32 SeenNumber = 0;
-			if (ParseId(Seen.Id, SeenNumber)) { MutantHighest = FMath::Max(MutantHighest, SeenNumber); }
-		}
-		Entry.Id = FName(*MakeId(MutantHighest + 1));
+		//
+		// ⚠️ **Questa riga e' stata ripristinata il 2026-09-05 (#2442), e come si era rotta e' la
+		// lezione.** Il commit `d9168bac` — intitolato *«l'ultima modifica non staged del lavoro
+		// fermato»* — l'aveva sostituita con `max(ID esistenti) + 1`, dentro una variabile chiamata
+		// `MutantHighest`: era una **sonda di mutazione**, lasciata dentro da un «metto al sicuro tutto»
+		// di una sessione che si stava fermando. Il commento qui sopra continuava a dichiarare il
+		// contrario di cio' che il codice faceva.
+		//
+		// ⛔ Un working tree sporco puo' contenere una mutazione: committarlo in blocco la promuove a
+		// codice. Qui l'ha colta `RemovedIdIsNeverReused`, due giorni dopo e in un altro branch — che e'
+		// esattamente il lavoro per cui quel test esiste.
+		Entry.Id = FName(*MakeId(Catalog.NextId));
 		++Catalog.NextId;
 
 		// Si scrive il path e basta. ⛔ Nemmeno `AssetName` viene dedotto dalla stringa: derivare un dato dal
