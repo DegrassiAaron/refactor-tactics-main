@@ -560,7 +560,7 @@ void ARTHUD::UpdateObserverVeil()
 			Unit->HideContactGhost();
 		}
 
-		// La sovrapposizione (`#2288`, `D-320`): nome, vita, scudo, energia, stati.
+		// La sovrapposizione (`#2288`, `D-320`): nome, vita, scudo, stati.
 		//
 		// 🔑 **Qui e non in `DrawHUD`, e per la stessa ragione del velo**: e' un aggiornamento di stato, non
 		// un disegno. Il widget si disegna da se' quando il motore lo compone; questo giro gli consegna
@@ -637,7 +637,7 @@ void ARTHUD::DrawHUD()
 	}
 
 	// 🔴 **Il ciclo che disegnava la sovrapposizione dell'unita' e' stato RIMOSSO** (`#2288`, `D-320`):
-	// nome, barra HP, scudo, energia e il marker di stato ora vivono in un `UWidgetComponent` per unita'
+	// nome, barra HP, scudo e il marker di stato ora vivono in un `UWidgetComponent` per unita'
 	// (`URTUnitOverlayWidget`), aggiornato da `UpdateObserverVeil` con una vista gia' composta.
 	//
 	// ⚠️ **Rimosso NELLO STESSO pass che introduce il widget**, come `D-320` prescrive: lasciarli entrambi
@@ -1085,10 +1085,16 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 	}
 	else
 	{
+		// 🔴 **Il countdown cambia la PAROLA, non solo il numero** (`#2358`). Durante l'attesa la fase e'
+		// ancora `Planning`: una riga che si limitasse a scambiare i secondi direbbe «Pianificazione» mentre
+		// il piano sta per partire, e il criterio chiede che i due stati si distinguano **senza contare i
+		// secondi**.
+		const bool bReadyCountdown = Header.ReadyCountdownSecondsRemaining >= 0.f;
+
 		const TCHAR* PhaseName = TEXT("");
 		switch (Header.Phase)
 		{
-		case ERTMatchPhase::Planning:   PhaseName = TEXT("Pianificazione"); break;
+		case ERTMatchPhase::Planning:   PhaseName = bReadyCountdown ? TEXT("Ready") : TEXT("Pianificazione"); break;
 		case ERTMatchPhase::MatchEnded: PhaseName = TEXT("Fine"); break;
 		default:                        PhaseName = TEXT("Risoluzione"); break;
 		}
@@ -1104,7 +1110,24 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 		//
 		// Arrotondamento per ECCESSO: a 3,2 secondi restano `4s`, perche' `3s` farebbe sparire dal conto
 		// l'ultimo secondo di chi lo sta guardando.
-		if (Header.Phase == ERTMatchPhase::Planning && Header.PlanningSecondsRemaining > 0.f)
+		if (bReadyCountdown)
+		{
+			// 🔴 **Il MINORE dei due orologi, e non e' un dettaglio di stile.** Il tetto vince sul countdown
+			// (`#2193`): con 1,5 s di planning residuo e 3 s di countdown, il commit arriva fra 1,5 s.
+			// Stampare `3s` sarebbe una durata FALSA detta proprio mentre il giocatore decide se annullare —
+			// e imparerebbe che il countdown dura meno di quanto dice, invece che il contrario.
+			//
+			// ⚠️ Il tetto entra nel confronto **solo se si applica**: `PlanningSecondsRemaining` e' negativo
+			// nelle run senza timer, e un `Min` cieco stamperebbe un numero negativo.
+			const float ToCommit = (Header.PlanningSecondsRemaining > 0.f)
+				? FMath::Min(Header.ReadyCountdownSecondsRemaining, Header.PlanningSecondsRemaining)
+				: Header.ReadyCountdownSecondsRemaining;
+
+			// Il gesto si NOMINA, come fa gia' la riga della risoluzione con `(Spazio: salta)`: sapere di
+			// avere tre secondi senza sapere cosa farne non e' informazione.
+			Status += FString::Printf(TEXT("  -  %.0fs  (RMB: annulla)"), FMath::CeilToFloat(ToCommit));
+		}
+		else if (Header.Phase == ERTMatchPhase::Planning && Header.PlanningSecondsRemaining > 0.f)
 		{
 			Status += FString::Printf(TEXT("  -  %.0fs"), FMath::CeilToFloat(Header.PlanningSecondsRemaining));
 		}
@@ -1139,23 +1162,19 @@ FRTHudTextLine ARTHUD::ComposeAbilityLine(const FRTAbilityCooldownView& Ability,
 	// Il numero e' 1-based: e' la scorciatoia che il giocatore preme, non l'indice del kit.
 	Line.Text = FString::Printf(TEXT("%d. %s"), Ability.AbilityIndex + 1, *Ability.DisplayName.ToString());
 
-	// 🔴 **La ricarica VINCE sull'energia, ed e' una precedenza dichiarata.** Un'abilita' puo' essere
-	// entrambe le cose insieme; mostrarne una sola e' una scelta, e la scelta e' la ricarica perche' e'
-	// quella che passa da sola col tempo — l'energia dipende da cosa fara' il giocatore.
+	// 🔴 **La ricarica e' l'UNICO motivo mostrabile, e non e' piu' una precedenza.**
 	//
-	// ⚠️ **Il motivo «energia» si INFERISCE, e oggi l'inferenza e' completa.**
-	// `URTCombatLibrary::IsAbilityUsable` e' `CooldownRemaining <= 0 && Energy >= EnergyCost`: due clausole
-	// sole, quindi «non usabile pur essendo fuori ricarica» non puo' che essere energia. La stesura
-	// precedente rileggeva `EnergyCost` e `Energy` dall'attore per dirlo; la vista lo porta gia' dentro
-	// `bUsableNow`. ⛔ Se un giorno comparisse una TERZA clausola, questa riga nominerebbe un motivo
-	// sbagliato: il posto dove accorgersene e' `AbilityLineShowsCooldownBeforeEnergy`.
+	// Questa riga sceglieva fra due motivi — ricarica ed energia — e la scelta era dichiarata: vince la
+	// ricarica, perche' passa da sola col tempo. [D-324](../../../docs/decisions/RT_PDR_00_Decision_Log.md)
+	// ha tolto `Energy` dal gameplay: `IsAbilityUsable` e' rimasta la sola `CooldownRemaining <= 0`, quindi
+	// `bUsableNow` **coincide** con `TurnsRemaining == 0` e il ramo «energia» era diventato irraggiungibile.
+	//
+	// ⛔ Non e' stato lasciato «per sicurezza»: un ramo morto che nomina un sottosistema rimosso e' peggio di
+	// nessun ramo — dice al lettore che esiste un secondo motivo, e non c'e'. Se un giorno comparisse una
+	// SECONDA clausola, il motivo va aggiunto qui **insieme** al test che lo pinna.
 	if (Ability.TurnsRemaining > 0)
 	{
 		Line.Text += FString::Printf(TEXT("  (ricarica %d)"), Ability.TurnsRemaining);
-	}
-	else if (!Ability.bUsableNow)
-	{
-		Line.Text += TEXT("  (energia)");
 	}
 
 	// L'abilita' armata si distingue DUE volte, dal prefisso e dal colore: i tre livelli di grigio sono
@@ -1166,8 +1185,8 @@ FRTHudTextLine ARTHUD::ComposeAbilityLine(const FRTAbilityCooldownView& Ability,
 	}
 
 	// ⚠️ **Armata batte inutilizzabile.** «Cosa sto per fare» e «posso farlo» sono due domande, e il
-	// bianco risponde alla prima: un'ultimate armata e senza energia resta riconoscibile come quella scelta,
-	// e il motivo lo dice il testo.
+	// bianco risponde alla prima: un'ultimate armata e ancora in ricarica resta riconoscibile come quella
+	// scelta, e il motivo lo dice il testo.
 	Line.Color = bArmed
 		? FLinearColor::White
 		: (Ability.bUsableNow ? FLinearColor(0.8f, 0.8f, 0.8f, 1.f) : FLinearColor(0.45f, 0.45f, 0.45f, 1.f));

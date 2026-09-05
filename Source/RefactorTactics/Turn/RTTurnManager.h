@@ -1101,7 +1101,11 @@ protected:
 	void ApplyDisplacements(FRTBlastContext& Ctx);
 
 	/**
-	 * Decide QUALI attaccanti pagano — i sopravvissuti — e assegna energia o la voce `Ultimate!`.
+	 * Decide QUALI attaccanti pagano — i sopravvissuti.
+	 *
+	 * Assegnava anche energia, o in alternativa la voce di log `Ultimate!` quando l'abilita' aveva un costo.
+	 * [D-324](../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy` dal gameplay, e con essa
+	 * il criterio che sceglieva fra i due rami: qui resta la sola annotazione.
 	 *
 	 * ⚠️ Il cooldown NON lo scrive: annota con `MarkAbilitySpent`, e a pagare e' `SpendStartedAbilities`
 	 * (`#1451` punto 3). Si chiamava `ConsumeAttackerAbilities`, e il nome e' stato cambiato perche' dopo

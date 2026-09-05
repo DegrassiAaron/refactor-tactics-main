@@ -279,6 +279,52 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 - **Fase Move — tutti in parallelo**: tutte le unità che si muovono scorrono **contemporaneamente** lungo i
   rispettivi `Path`. Coerente con il resolver **order-independent** e con il *batching* del PDF (p.2):
   *risoluzione simultanea = visione simultanea*. Evita di suggerire un ordine che nella logica **non esiste**.
+
+> ### 📌 Emendamento 2026-09-05 — in parallelo è **partire** insieme, non **finire** insieme (`#2370`)
+>
+> ⛔ **La regola qui sopra non cambia: cambia il fatto che sia vera.** *«Scorrono contemporaneamente lungo i
+> rispettivi `Path`»* è ciò che questa spec ha sempre prescritto. Ciò che il codice faceva era una cosa
+> diversa, e più forte: le faceva **arrivare** contemporaneamente.
+>
+> **Cosa faceva.** `ARTTurnManager::TickPlayback` calcolava **un solo** `Alpha` per la fase —
+> `PlaybackPhaseElapsed / PhaseDur` — e lo passava a `InterpolateAlongPath` per **ogni** animazione.
+> `PhaseDur` vale il percorso **più lungo** (`MaxSeg / rate`) e `InterpolateAlongPath` distribuisce
+> `[0,1]` sull'**intero** percorso di ciascuno: ne segue che un percorso di `S` celle, in una fase il cui
+> più lungo ne ha `M`, si percorreva a `PlaybackCellsPerSecond × S/M`. Con 2 celle accanto a 10:
+> **0,288 celle/s invece di 1,44**, e i due modelli arrivavano nello stesso istante.
+>
+> 🔴 **Ne segue che la taratura del 2026-09-03 valeva per una sola unità per fase.** Quel numero è *«la
+> velocità a cui il piede non scivola»*, e lo era per chi dettava la durata della fase. Per tutti gli altri
+> il residuo di scivolamento non era `−0,2%`: era `−0,2%` solo a parità di lunghezza, e cresceva con il
+> divario. Il pattinamento che `1.44` esiste per eliminare era ancora lì, su ogni percorso più corto del
+> più lungo del turno, e nessun test lo guardava.
+>
+> 🔑 **È la stessa invariante di `#1878` su un secondo canale.** Lì era il **tetto** di durata a decidere la
+> velocità visuale, verso l'alto; qui è la **durata di fase** — decisa dal percorso di qualcun altro — a
+> deciderla verso il basso. `SlackScaleForBudget` documenta che *«il tempo che il movimento ha per
+> attraversare le sue celle non scende mai sotto `MaxSeg / PlaybackCellsPerSecond`»*: vero, e vero **solo
+> per il percorso più lungo**.
+>
+> **Cosa fa adesso.** `URTPlaybackLibrary::RouteAlpha` dà a ogni animazione l'`Alpha` derivato dai **propri**
+> segmenti al rate base — `Clamp(PhaseElapsed × CellsPerSecond / RouteSegments, 0, 1)`. Il percorso corto
+> arriva prima e aspetta; quello lungo prosegue; la fase dura **esattamente quanto prima**, perché la sua
+> durata è sempre stata quella del più lungo, che raggiunge `1` proprio a fine fase.
+>
+> ✅ **Effetto collaterale voluto: l'ingresso-cella torna a coincidere con il confine canonico.**
+> `StepMicroStep` (`#1879`) mette le barriere a `k / CellsPerSecond` secondi. Con l'`Alpha` condiviso, al
+> confine `k` un'unità con `S ≠ M` segmenti si trovava a `k/M` del **proprio** percorso — in mezzo a un
+> segmento, cioè fra due celle. Adesso è sulla propria cella `k`, o è arrivata.
+>
+> ⚠️ **Il `Blast` resta sull'`Alpha` di fase, e resta di proposito.** Lì `PhaseDuration` vale
+> `Max(colpi, spinta)` e **non** `MaxSeg / rate`: la spinta del knockback si distende sulla finestra dei
+> colpi, ed è documentato come deliberato in `URTPlaybackLibrary.h` (comprimere quello slack faceva
+> scorrere la spinta fino a 6,5× più in fretta). Applicare `RouteAlpha` anche lì è una **decisione
+> separata**, con la sua evidenza: va nominata, non fatta di straforo.
+>
+> ⚠️ **Il troncamento di privacy non peggiora e non migliora.** `RouteAlpha` legge i segmenti che
+> l'animazione **disegna** (`A.World`, già tagliato da `ObservedPrefixLength`), non quelli del percorso
+> reale: un osservatore vede scorrere il prefisso che ha diritto di vedere, alla velocità base, e nulla di
+> più di prima.
 - **Fase Blast — leggermente serializzabile**: i colpi possono susseguirsi con un piccolo stacco
   (`AttackShowSeconds`) per leggibilità dei numeri di danno. È qui che nasce gran parte del *senso di durata*.
 

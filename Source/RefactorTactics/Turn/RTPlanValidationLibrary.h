@@ -14,7 +14,7 @@ class ARTUnit;
  *
  * Il cooldown residuo e' un PARAMETRO e non un campo dello snapshot perche' oggi vive altrove:
  * `ARTUnit::AbilityCooldowns` e' privato e parallelo ad `Abilities`, sull'Actor. Passarlo qui e' lo stesso
- * pattern gia' in uso in `URTCombatLibrary::IsAbilityUsable(CooldownRemaining, Energy, EnergyCost)`, e
+ * pattern gia' in uso in `URTCombatLibrary::IsAbilityUsable(CooldownRemaining)`, e
  * mantiene la validazione una funzione pura: stessa coppia (snapshot, piano) => stesso verdetto.
  */
 USTRUCT(BlueprintType)

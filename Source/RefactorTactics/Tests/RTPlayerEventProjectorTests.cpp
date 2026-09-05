@@ -68,6 +68,117 @@ bool FRTPlayerEventSlideIsImportantTest::RunTest(const FString&)
 }
 
 /**
+ * LO SCIVOLAMENTO IMPEDITO E' UN FATTO SUO — `#2314`, decisione d'autore D2.
+ *
+ * 🔴 **`Slid` e `SlideBlocked` raccontano due cose OPPOSTE**, e nel feed rischiavano di essere la stessa
+ * riga: in `#2290` producevano `Type` uguale, `Importance` uguale e `ActionId` uguale, cioe' la distinzione
+ * che l'esito esiste per registrare non arrivava al canale piu' visibile. Il terreno che ti ha spostato e il
+ * terreno che ci ha provato senza riuscirci sono la premessa opposta per il turno dopo — solo il primo
+ * lascia `Status.Unbalanced` (`D-319`).
+ *
+ * ⛔ **E non e' `MoveBlocked`.** Il Move che il giocatore ha chiesto e' RIUSCITO. Presentarlo come un
+ * fallimento del movimento sposta di un canale il difetto che `#2314` chiude nel resolver — e sarebbe il
+ * secondo posto in cui il gioco dice al giocatore che il suo piano non ha funzionato quando ha funzionato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerEventSlideBlockedIsDistinctTest,
+	"RefactorTactics.UI.PlayerEventLog.SlideBlockedIsDistinctFromSlid",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerEventSlideBlockedIsDistinctTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Bloccato;
+	Bloccato.Add(PlayerEventEntry(ERTLogCategory::Move,
+		static_cast<uint8>(ERTMoveOutcome::SlideBlocked), /*UnitId*/ 3, /*Team*/ 0));
+	const TArray<FRTPlayerEvent> EventiBloccato = URTPlayerEventProjector::Project(Bloccato, 0);
+
+	// ANTI-VACUITA': un esito non tradotto in `ClassifyEntry` cade nel `default` e NON produce niente —
+	// senza questa riga il test passerebbe proprio nel caso che deve cogliere.
+	if (!TestEqual(TEXT("uno scivolamento impedito produce una riga"), EventiBloccato.Num(), 1))
+	{
+		return false;
+	}
+
+	TArray<FRTTurnLogEntry> Scivolato;
+	Scivolato.Add(PlayerEventEntry(ERTLogCategory::Move,
+		static_cast<uint8>(ERTMoveOutcome::Slid), /*UnitId*/ 3, /*Team*/ 0));
+	const TArray<FRTPlayerEvent> EventiScivolato = URTPlayerEventProjector::Project(Scivolato, 0);
+	if (!TestEqual(TEXT("premessa: anche lo scivolamento avvenuto ne produce una"), EventiScivolato.Num(), 1))
+	{
+		return false;
+	}
+
+	TestNotEqual(TEXT("i due sono tipi DIVERSI, non la stessa riga con un'altra importanza"),
+		static_cast<int32>(EventiBloccato[0].Type), static_cast<int32>(EventiScivolato[0].Type));
+	TestEqual(TEXT("ed e' il tipo dedicato"),
+		static_cast<int32>(EventiBloccato[0].Type), static_cast<int32>(ERTPlayerEventType::SlideBlocked));
+	TestEqual(TEXT("importanza Important: il non-fatto va letto, non seppellito"),
+		static_cast<int32>(EventiBloccato[0].Importance),
+		static_cast<int32>(ERTPlayerEventImportance::Important));
+	TestNotEqual(TEXT("e NON e' MoveBlocked: il movimento chiesto era riuscito"),
+		static_cast<int32>(EventiBloccato[0].Type), static_cast<int32>(ERTPlayerEventType::MoveBlocked));
+
+	// `Important` e non `Minor`: il filtro finale toglie i `Minor`, e un `SlideBlocked` classificato cosi'
+	// sparirebbe dal feed senza che nessuna asserzione sul tipo se ne accorga.
+	TestEqual(TEXT("e sopravvive al filtro dei Minor"),
+		PlayerEventCountOf(EventiBloccato, ERTPlayerEventType::SlideBlocked), 1);
+	return true;
+}
+
+/**
+ * LO SCIVOLAMENTO IMPEDITO NON DICE CHI L'HA IMPEDITO — `#2314`, guardrail di privacy.
+ *
+ * 🔴 **Un esito nuovo e' una porta nuova.** Il `TurnLog` autorevole sa perche' lo scivolamento non e'
+ * avvenuto — puo' essere stata un'unita' che l'osservatore non e' autorizzato a vedere — e il feed e' il
+ * canale piu' visibile che esista. La difesa non e' una policy nuova: e' `IsAuthorized`, che chiama
+ * `FRTKnowledgeVerdict::AllowsTeam` come **primo** passo, piu' il fatto che una voce `Move` porti il solo
+ * soggetto (`#1150`, `[D-063]`) e nessun campo in cui un blocker possa entrare.
+ *
+ * ⚠️ **Il test misura entrambe le meta'.** Che la voce non autorizzata non produca **niente** — nemmeno un
+ * conteggio o un tipo, che e' la differenza fra filtrare prima e sanitizzare dopo — e che quella
+ * autorizzata non porti con se' l'altro capo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerEventSlideBlockedHidesTheBlockerTest,
+	"RefactorTactics.UI.PlayerEventLog.SlideBlockedDoesNotRevealTheBlocker",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerEventSlideBlockedHidesTheBlockerTest::RunTest(const FString&)
+{
+	// Lo scivolamento di un'unita' AVVERSARIA, impedito: la voce esiste nel TurnLog autorevole ed e'
+	// leggibile dalla squadra 1, non dalla 0.
+	TArray<FRTTurnLogEntry> Log;
+	FRTTurnLogEntry Nemica = PlayerEventEntry(ERTLogCategory::Move,
+		static_cast<uint8>(ERTMoveOutcome::SlideBlocked), /*UnitId*/ 9, /*AllowedTeam*/ 1);
+	Nemica.SrcCell = FRTCellId(4, -2, 0);
+	Nemica.TgtCell = FRTCellId(5, -2, 0);
+	Log.Add(Nemica);
+
+	// PREMESSA: per chi e' autorizzato la riga c'e'. Senza, «zero eventi» sarebbe soddisfatto anche da un
+	// proiettore rotto, e il test proverebbe la privacy misurando un difetto.
+	const TArray<FRTPlayerEvent> PerLAutorizzato = URTPlayerEventProjector::Project(Log, /*Team*/ 1);
+	if (!TestEqual(TEXT("premessa: chi e' autorizzato legge lo scivolamento impedito"),
+		PlayerEventCountOf(PerLAutorizzato, ERTPlayerEventType::SlideBlocked), 1))
+	{
+		return false;
+	}
+
+	// E per chi non lo e': NIENTE. Non una riga anonima, non un conteggio.
+	const TArray<FRTPlayerEvent> PerLAltro = URTPlayerEventProjector::Project(Log, /*Team*/ 0);
+	TestEqual(TEXT("chi non e' autorizzato non riceve nessun evento"), PerLAltro.Num(), 0);
+
+	// L'evento autorizzato parla del SOGGETTO — chi non e' scivolato — e di nessun altro: `SecondaryUnitId`
+	// resta vuoto, ed e' il campo in cui un blocker potrebbe entrare per distrazione.
+	TestEqual(TEXT("l'evento nomina chi non e' scivolato"), PerLAutorizzato[0].PrimaryUnitId, 9);
+	TestEqual(TEXT("e nessun secondo soggetto: il blocker non ha un campo dove stare"),
+		PerLAutorizzato[0].SecondaryUnitId, static_cast<int32>(INDEX_NONE));
+
+	// ⛔ E l'autorizzazione e' quella ESISTENTE, non una scritta per questo esito: lo stesso predicato che
+	// il canale testuale applica. Un `SlideBlocked` che si autorizzasse da solo passerebbe le righe sopra.
+	TestFalse(TEXT("e passa dal predicato di autorizzazione condiviso"),
+		URTPlayerEventProjector::IsAuthorized(Nemica, /*ObserverTeamId*/ 0));
+	TestTrue(TEXT("che ammette la squadra autorizzata"),
+		URTPlayerEventProjector::IsAuthorized(Nemica, /*ObserverTeamId*/ 1));
+	return true;
+}
+
+/**
  * IL MOVIMENTO NON PRODUCE UNA RIGA PER CELLA — `#1936` §E.
  *
  * ⚠️ **Il difetto non sarebbe nel TurnLog ma nel feed**, ed e' la ragione per cui il test sta qui: il

@@ -191,6 +191,39 @@ public:
 	static float EffectivePlaybackSpeed(float ViewerSpeed);
 
 	/**
+	 * `Alpha` del percorso di UNA unita': le **sue** celle al rate base, non la durata della fase (`#2370`).
+	 *
+	 * = `Clamp(PhaseElapsed * CellsPerSecond / RouteSegments, 0, 1)`
+	 *
+	 * 🔑 **E' l'inversa di `PhaseDuration` letta per-unita' invece che per-fase.** `PhaseDuration` dice
+	 * quanto dura la fase — `MaxSeg / CellsPerSecond`, il percorso piu' lungo — e questa dice a che punto
+	 * del proprio percorso si trova, allo stesso rate, chi ne ha uno piu' corto. Il percorso piu' lungo
+	 * arriva a `1` esattamente quando la fase finisce: le due formule non possono divergere.
+	 *
+	 * ⚠️ **Sostituisce l'`Alpha` unico condiviso da tutte le anim della fase**, e lo sostituisce per un
+	 * difetto misurato: `Clamp(PhaseElapsed / PhaseDur, 0, 1)` normalizzava ogni percorso sulla durata
+	 * decisa dal **piu' lungo**, e poiche' `InterpolateAlongPath` distribuisce `Alpha` sull'intero
+	 * percorso, 2 celle e 10 celle finivano nello **stesso istante**. La velocita' visuale effettiva di
+	 * chi ne aveva `S` in una fase da `M` era `CellsPerSecond * S/M` — con i default, 2 celle accanto a 10
+	 * si percorrevano a `0,288` celle/s invece di `1,44`.
+	 *
+	 * 🔑 **E' la stessa invariante di `#1878` applicata a un secondo canale.** Li' era il tetto di durata a
+	 * decidere la velocita' visuale, verso l'alto; qui e' la durata di fase — decisa da un percorso altrui —
+	 * a deciderla verso il basso. `SlackScaleForBudget` garantisce che il movimento non scenda mai sotto
+	 * `MaxSeg / CellsPerSecond`: vero per il percorso piu' lungo, e per nessun altro.
+	 *
+	 * ✅ **Allinea l'ingresso-cella al confine canonico.** `StepMicroStep` mette le barriere a
+	 * `k / CellsPerSecond` secondi (`AlphaTarget * Durata` con `Durata = MaxSeg / CellsPerSecond`): con
+	 * questa formula, al confine `k` ogni unita' e' esattamente sulla propria cella `k` — o e' arrivata.
+	 * Con l'`Alpha` condiviso era a `k/MaxSeg` del proprio percorso, cioe' in mezzo a un segmento.
+	 *
+	 * `RouteSegments <= 0` (percorso vuoto o di un solo waypoint) e `CellsPerSecond <= 0` (movimento
+	 * istantaneo) restituiscono `1`: non c'e' nulla da attraversare, e non e' una divisione per zero.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static float RouteAlpha(int32 RouteSegments, float PhaseElapsed, float CellsPerSecond);
+
+	/**
 	 * Quanti **micro-step** contiene un percorso di playback: `Waypoints.Num() - 1`, mai negativo (`#1879`).
 	 *
 	 * 🔑 **Non e' una granularita' nuova: e' quella che il playback gia' interpola.**
