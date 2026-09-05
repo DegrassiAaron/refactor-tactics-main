@@ -263,9 +263,25 @@ Un asset è **accettabile** solo se soddisfa criteri verificabili:
 | **MetaHuman** | UE ≤ 5.5: MetaHuman Creator EULA; UE ≥ 5.6: **Unreal Engine EULA**. Uso **dentro UE**; **vietato** vendere/trasferire la tecnologia standalone. | `unrealengine.com/eula/mhc` · `unrealengine.com/eula/unreal` |
 | **CC0 / CC-BY (itch.io, OpenGameArt, Freesound)** | CC0: libero; CC-BY: **richiede attribuzione**. Verificare per singolo asset. | pagina del singolo asset |
 
-**Requisito `FR-ASSET-LIC-01`**: ogni asset importato ha una riga in un **registro di provenienza**
-(`docs/technical/asset-licenze.md` o `DT_AssetProvenance`): nome, fonte, URL, licenza, data, note attribuzione.
-*Verifica: nessun asset in `Content/` privo di riga nel registro.*
+**Requisito `FR-ASSET-LIC-01`**: ogni asset importato ha una riga in
+[`docs/technical/asset-licenze.md`](../asset-licenze.md), il **registro di provenienza**: nome, fonte,
+URL, licenza, versione, data, versione UE, note di attribuzione, consumer. La riga entra **nello stesso
+commit dell'asset** — [`asset-map.md`](../tooling/asset-map.md) §6.
+*Verifica: `node tools/asset-provenance/check.ts`.*
+
+⛔ **Il gate verifica che una riga esista, non che dica il vero.** Un verde significa «registrato», mai
+«consentito»: nessun controllo automatico puo' leggere un EULA. Un asset la cui licenza non e' accertata
+si registra con `NON VERIFICATA` — omettere la riga e' sempre peggio che scrivere che non si sa.
+
+🔴 *Fino al 2026-09-05 questa riga ammetteva due percorsi — «`docs/technical/asset-licenze.md` **o**
+`DT_AssetProvenance`» — e verificava «nessun asset in `Content/` privo di riga». Entrambe le meta'
+erano difettose, e [#1767](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1767) le ha
+misurate. **Due percorsi ammessi** rendono indistinguibili «manca il registro» e «c'e', ma non e'
+quello che guardo»: per dieci mesi non e' esistito nessuno dei due e il verificatore non poteva
+fallire. **E lo scope `Content/`** era il posto sbagliato dove guardare: l'unico materiale di terze
+parti versionato erano — e sono — le **106 icone Paragon in `tools/icons-downloader/`**, che quel
+verificatore non avrebbe visto. Il registro nasce con 33 righe; il gate guarda cio' che e' versionato
+**e** cio' che i package versionati referenziano senza che il repository lo contenga.*
 
 ---
 

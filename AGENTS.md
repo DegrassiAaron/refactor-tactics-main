@@ -310,13 +310,24 @@ node tools/radar/doc-tables.ts --check
 node tools/radar/issue-refs.ts --check
 node tools/radar/scenario-notes.ts --check
 node tools/asset-refs/check.ts
+node tools/asset-provenance/check.ts
 python tools/architettura/misure-strutturali.py --check   # solo se la PR tocca Turn/RTTurnManager.*
 
 cd tools/radar
 node --test
+
+cd ../asset-provenance
+node --test
 ```
 
 Ogni tool dichiara nel docstring **cosa non copre**.
+
+⛔ `tools/asset-provenance/check.ts` verifica che ogni asset abbia una **riga** nel registro di
+provenienza ([`docs/technical/asset-licenze.md`](docs/technical/asset-licenze.md)), non che la licenza
+sia rispettata. Un verde significa **«registrato»**, mai «consentito»: nessun controllo automatico puo'
+leggere un EULA. Guarda due popolazioni — cio' che e' versionato sotto `Content/` e `tools/`, e cio' che
+i package versionati **referenziano** senza che il repository lo contenga — perche' la prima da sola
+sarebbe cieca sui ~15,8 GB di pack che stanno fuori dal repository per scelta.
 
 ⛔ `tools/mutation/costanti-combattimento.py` **non e' fra i controlli noti**, e di proposito. Modifica un sorgente e occupa il motore per **un build completo piu' una suite intera per ogni costante**, piu' una baseline: con le 11 di `RTCombatLibrary.h` sono **ore**, e le direzioni di mutazione da misurare sono **due** (`+3` e `-3` danno risposte diverse — vedi il docstring). Mentre gira, ogni altra misura in parallelo e' NON VALIDA. Si lancia per rispondere alla domanda che `#2118` ha posto — *quali costanti si possono cambiare senza che niente diventi rosso* — non a ogni PR.
 

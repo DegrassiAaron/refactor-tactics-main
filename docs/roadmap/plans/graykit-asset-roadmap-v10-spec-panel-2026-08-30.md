@@ -164,6 +164,17 @@ grep -rn "DT_AssetProvenance" Source/ docs/ # → solo la riga del requisito
 E **nessuna delle 296 issue aperte** nomina il registro: la ricerca semantica sui corpi — non sui titoli —
 per `asset-licenze|AssetProvenance|FR-ASSET-LIC|registro di provenienza|Fab Standard License` dà **zero**.
 
+> 🟢 **Superato il 2026-09-05** — [#1767](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1767).
+> Le due misure qui sopra restano vere **per il 2026-08-30 su `9434b950`**, che è la data di questo
+> referto; oggi non lo sono più. Il registro esiste a
+> [`docs/technical/asset-licenze.md`](../../technical/asset-licenze.md) con **33 righe**, il requisito
+> nomina **un solo** percorso, e il verificatore è `node tools/asset-provenance/check.ts`.
+> ⚠️ Due cose sono cambiate anche nei fatti che il referto misurava: `Content/FabAsset/` **esiste** sul
+> disco di sviluppo (28 root, 37.482 `.uasset`, acquisiti fino al 2026-09-04), e l'unico materiale di
+> terze parti **versionato** non sta sotto `Content/` ma sono le 106 icone in
+> `tools/icons-downloader/Paragon_Skill_Icons/` — che il verificatore originale, limitato a `Content/`,
+> non avrebbe visto.
+
 **Nygard**: il requisito non è teorico. I quattro `BP_Unit_*` versionati referenziano Skeletal Mesh Paragon
 che stanno sotto `Content/FabAsset/` — escluso dal repository — e
 [#1663](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1663) misura *«756 asset Paragon
@@ -344,9 +355,17 @@ corpo: un corpo d'autore riscritto da fuori perde la provenienza, e questo refer
 ⛔ **Nessun pack entra nel repository oggi**, e questa checklist non autorizza a farlo: descrive il giorno in
 cui un consumer esiste. «Gratis» non significa «necessario».
 
+> ⚠️ **Aggiornamento 2026-09-05.** La riga qui sopra resta vera alla lettera — nessun pack è entrato **nel
+> repository**, `Content/FabAsset/` è ignorato per scelta — ma **un'acquisizione è avvenuta lo stesso**: il
+> listing `6f401fb5` è stato scaricato e collocato sul disco di sviluppo il **2026-09-04**, e questa
+> checklist **non è stata eseguita** per quel pack. Le sue righe sono state riconciliate a posteriori da
+> [#1767](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1767): la registrazione c'è, la
+> verifica della licenza sulla pagina del pack **no** — il registro porta `listing n/d` su **20 root delle
+> 28** proprio per questo. Chi esegue la prossima acquisizione la esegue **prima**, non dopo.
+
 ```text
 PRECONDIZIONE
-[ ] NEW-A chiusa: il registro di provenienza esiste e ha uno schema
+[x] NEW-A chiusa: il registro di provenienza esiste e ha uno schema   (#1767, 2026-09-05)
 [ ] esiste un consumer NOMINATO — issue, asset di destinazione, release
 
 PER OGNI PACK
