@@ -2970,6 +2970,14 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 	// letterale) ed e' gia' l'owner della domanda «`UnitId` porta chi SUBISCE» (`#1150`). Un secondo elenco
 	// sarebbe la seconda verita' che [D-098] vieta, e divergerebbe al primo che cambia.
 	//
+	// ⛔ **E per la stessa ragione NON c'e' una guardia `Category == Combat` qui davanti**, benche' scriverla
+	// sarebbe stato naturale: quella condizione e' gia' la prima riga di `IsEnvironmentalDamage`, e
+	// ripeterla la trasformerebbe da promemoria in **vincolo**. Il precedente che dice come va a finire e'
+	// nella funzione gemella: `IsDamageInflictedByActor` ha dovuto allargarsi oltre `Combat` — Overwatch
+	// scrive `ReactionDecision`, la previsione `Predictive` — e una guardia esterna avrebbe bloccato
+	// quell'allargamento **in silenzio**, lasciando l'evento non emesso senza che niente diventasse rosso.
+	// L'owner della domanda e' uno solo, e questo `if` gli si affida per intero.
+	//
 	// ⚠️ **Un falso positivo EREDITATO, e da qui in poi si vede.** La rete secondaria di quella funzione e'
 	// `SrcCell == TgtCell`, e il suo header dichiara gia' il caso: un'area con fuoco amico che investa la
 	// cella di chi la lancia. Finora costava una statistica sottostimata; da adesso quel colpo emette un
@@ -2993,7 +3001,7 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 	// ⚠️ Come per la riga di stato, `ResolvedTimeline` e' playback e **non entra ne' in `StateHash` ne' nel
 	// formato di replay**: `CaptureFinalStateHash` passa da `HashMatchState(Map, UnitDigests, TeamScores)`,
 	// e la timeline non e' fra i suoi ingressi. Verificato prima di aggiungere il produttore.
-	if (Entry.Category == ERTLogCategory::Combat && URTTurnLogLibrary::IsEnvironmentalDamage(Entry))
+	if (URTTurnLogLibrary::IsEnvironmentalDamage(Entry))
 	{
 		FRTResolvedEvent Ev;
 		Ev.Phase = Entry.Phase;
