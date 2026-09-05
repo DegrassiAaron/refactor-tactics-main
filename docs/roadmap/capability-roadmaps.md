@@ -46,7 +46,7 @@ Tre regole che questo modello esiste per proteggere:
    con un link di dipendenza — non ne apre una copia.
 3. **Nessun `E<n>` nuovo per organizzare una vista.** Gli identificatori `E<n>` hanno semantica di release e
    sono allocati fino a `E51`. Le epic trasversali del repository non ne hanno per scelta — #1881, #1937,
-   #1105, #1861, #1990, #2276 — e questa vista segue la stessa convenzione.
+   #1105, #1861, #1990, #2276, #2388 — e questa vista segue la stessa convenzione.
 
 ---
 
@@ -204,6 +204,42 @@ Result ── Play Again · Main Menu
 
 ---
 
+### CR-VERT — Verticalità tattica
+
+**Ancora**: **#2388** *«Verticalità tattica — Ledge, Fall e Forced Movement»* (cross-release)
+
+✅ **Release: v0.1**, da [`D-332`](../decisions/RT_PDR_00_Decision_Log.md) (2026-09-05), che chiude `REL-3`.
+⚠️ *Questa nota diceva «è l'unica capability di questa vista che non ha ancora una release», ed era vera per
+un giorno.* L'owner semantico delle regole è [`../gameplay/spec-caduta-e-bordi.md`](../gameplay/spec-caduta-e-bordi.md);
+questa vista **linka e non forka**, come le altre otto.
+
+La catena che questa capability non negozia:
+
+```text
+spostamento forzato
+  → bordo aperto attraversato
+       → displacement orizzontale TERMINATO
+            → risoluzione della caduta (effetti, sempre)
+                 → esito di atterraggio  →  posizione finale
+```
+
+⛔ **Mai** il verso opposto — «prima decido dove atterra, poi vedo se la caduta è avvenuta»: gli effetti non
+dipendono dalla disponibilità della cella finale, ed è il punto che rende il fallback saturo leggibile invece
+che un difetto.
+
+| Confine | Owner reale |
+|---|---|
+| bordo, muri, porte, interaction graph | **#324** · E23 |
+| authoring e validazione della mappa | **#1861** · Map Editor 0.1 |
+| resolver dello spostamento | `ApplyDisplacements` · `HexKnockbackDestination` |
+| traccia, replay, seek | **CR-REPLAY** · #1881 |
+| leggibilità dell'esito | **CR-PRESENT** · #1937 |
+
+Maturità di capability: `Contratto → Runtime → Traccia → Authoring validato → Leggibilità`.
+⚠️ Sono maturità di **capability**, non versioni di prodotto: non si confrontano con `v0.2`.
+
+---
+
 ## 4. Dove le capability si incontrano
 
 I contratti sono il posto in cui una capability **consuma** un'altra senza riscriverla.
@@ -219,6 +255,9 @@ I contratti sono il posto in cui una capability **consuma** un'altra senza riscr
 | Online × Replay | replay pubblico sanitizzato e audit trace privata sono **due prodotti** sugli stessi dati canonici |
 | Online × Explainability | la proiezione avviene **dopo** l'autorizzazione dell'osservatore, mai prima |
 | Shell × Replay | Main Menu e Result navigano verso lo stesso viewer di #472 |
+| Verticalità × Map Editor | stessa qualificazione del bordo in authoring e a runtime — una sola sede, mai due |
+| Verticalità × Replay | l’esito di atterraggio è un valore serializzato: si aggiunge **in coda**, non si riordina |
+| Verticalità × Explainability | la caduta è avvenuta anche quando la posizione finale non lo mostra — il log lo deve dire |
 
 ---
 

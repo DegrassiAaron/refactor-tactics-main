@@ -134,7 +134,31 @@ enum class ERTActionEffect : uint8
 	 *
 	 * ⚠️ In coda all'enum, mai in mezzo: i valori entrano nel TurnLog serializzato.
 	 */
-	CancelStatus
+	CancelStatus,
+
+	/**
+	 * COMMUTA una porta fra `Open` e `Closed` ([`INT-7`], `#2380`): la porta la si porta allo stato OPPOSTO a
+	 * quello che ha, invece di dichiararne uno assoluto come fa `SetDoorState`.
+	 *
+	 * 🔑 **Effetto proprio e non un `Amount` sentinella su `SetDoorState`.** Li' lo stato viaggia in `Amount`
+	 * come intero (invariante #4), e un valore che significasse «nessuno stato» sarebbe indistinguibile da un
+	 * data asset scritto male — che e' esattamente il caso che il ramo di `RTTurnManager` scarta oggi
+	 * controllando l'intervallo. Qui `Amount` e' **inutilizzato**, e nessuno lo legge.
+	 *
+	 * 🔴 **Il bersaglio si risolve UNA VOLTA, dallo stato PRE-BLAST**, dentro `ResolveHexAttacks` — che e'
+	 * pre-Blast per costruzione, perche' ogni mutazione di porta avviene in `ApplyEnvironmentChanges`, a
+	 * colpi risolti. Risolvendolo per-operazione durante l'applicazione, due commutazioni sulla stessa porta
+	 * leggerebbero stati diversi — la seconda disferebbe la prima — e la fusione per restrittivita' di
+	 * `ApplyDoorOps` non basterebbe piu': l'ordine tornerebbe a decidere, contro l'invariante #3.
+	 *
+	 * ⚠️ Solo `Open` e `Closed` hanno un opposto: `Locked` e `Destroyed` sono RIFIUTI con reason code
+	 * (`ERTActionInvalidReason::DoorLocked` / `DoorDestroyed`), non casi non definiti. E' cosi' che il buco
+	 * `Locked -> Closed` che [D-151] aveva chiuso limitando l'azione ad `Open` resta chiuso **senza toccare
+	 * `CanTransition`** — la stessa tecnica, applicata al verso nuovo.
+	 *
+	 * ⚠️ In coda all'enum, mai in mezzo: i valori entrano nel TurnLog serializzato.
+	 */
+	ToggleDoorState
 };
 
 /**

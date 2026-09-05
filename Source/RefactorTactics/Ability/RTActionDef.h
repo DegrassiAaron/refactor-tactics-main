@@ -255,7 +255,8 @@ enum class ERTStructureOp : uint8
 	/** Sposta una copertura gia' esistente su un altro bordo, conservandone integrita' e durata residua. */
 	MoveCover,
 	/**
-	 * Porta una PORTA allo stato dichiarato da `ERTActionEffect::SetDoorState` ([D-148]).
+	 * Porta una PORTA a uno stato nuovo: quello dichiarato da `ERTActionEffect::SetDoorState` ([D-148]),
+	 * oppure quello OPPOSTO a quello corrente con `ERTActionEffect::ToggleDoorState` ([`INT-7`], `#2380`).
 	 *
 	 * Non e' un'operazione di copertura e non passa dal loop delle strutture: l'esecuzione la raccoglie il
 	 * Blast su `FirstDoorEdge` (CP 9.3) e la applica `URTHexDoorLibrary::SetDoorState`, che resta l'unico
