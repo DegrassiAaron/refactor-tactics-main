@@ -229,8 +229,19 @@ ruoli**, e #2445/#2446/#2447 sono **chiuse**.
 1. **`Interact` non ha un ruolo di presentazione**, ma è una delle sette azioni universali dichiarate in
    `AGENTS.md` §1 (`Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`). Non sono le sole
    scoperte: **`Wait` e `Overwatch` non hanno un ruolo**, e **`Guard` e `Brace` — due azioni distinte —
-   condividono `Defend`**. Su sette azioni universali, i nove ruoli ne coprono **tre** con un ruolo
-   proprio.
+   condividono `Defend`**. Il conto esatto sulle sette azioni universali: **due** hanno un ruolo proprio
+   (`Move`, `BasicAttack`), **due** ne condividono uno (`Guard` e `Brace` su `Defend`), **tre** non ne
+   hanno nessuno (`Wait`, `Interact`, `Overwatch`).
+
+   ⚠️ *La prima stesura di questa riga diceva «ne coprono **tre** con un ruolo proprio», e il numero era
+   sbagliato: `Guard` e `Brace` hanno un ruolo, ma non **proprio**, e contarli fra i coperti confondeva
+   le due colonne. Corretto il 2026-09-05 ricontando contro `AGENTS.md` §1 e l'enum su `main`; il
+   conteggio giusto è anche nel commento di [#2448](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2448).*
+
+   🔴 **E la condivisione non è neutra**: il corpus separa esplicitamente le due difese
+   (`Scenarios/Visual/Combat/GuardVsBraceUnderSmallHits.json`, `GuardReducesFirstHit`,
+   `BraceReducesEveryHit`). Due azioni che il resolver tratta diversamente e che giocano la stessa posa
+   non sono distinguibili a schermo — è un problema di leggibilità, cioè di E21.
 2. **`Fall` è uno stato solo.** Una coppia `Knockdown`/`GetUp` sarebbe due clip e una transizione; `Fall`
    non lo è. Non va promosso a coppia senza un consumer reale — e oggi non ce n'è.
 
