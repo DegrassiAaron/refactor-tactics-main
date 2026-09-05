@@ -519,8 +519,8 @@ intervallo che conteneva la causa insieme a due barriere innocenti.
 
 | Forma stampata | Significato |
 |---|---|
-| `T1|Move#1` | il boundary del micro-step **1** — lo stato è **parziale per costruzione**: a metà movimento le unità non hanno ancora la cella finale |
-| `T2|Blast` | la **fase intera**, cioè il boundary `INDEX_NONE`, che chiude la fase e sta **dopo** i suoi micro-step |
+| `T1\|Move#1` | il boundary del micro-step **1** — lo stato è **parziale per costruzione**: a metà movimento le unità non hanno ancora la cella finale |
+| `T2\|Blast` | la **fase intera**, cioè il boundary `INDEX_NONE`, che chiude la fase e sta **dopo** i suoi micro-step |
 
 ⚠️ **Su un archivio antecedente alla `v12` (`WithMicroStep`) resta phase-only, e non è un degrado
 silenzioso**: `ChecksumsAlongTrace` vuole la versione della traccia come **parametro obbligatorio**. Quelle
