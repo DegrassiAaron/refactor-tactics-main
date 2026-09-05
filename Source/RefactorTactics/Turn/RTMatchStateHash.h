@@ -53,7 +53,6 @@ struct FRTUnitStateDigest
 	UPROPERTY() FRTCellId Cell;
 	UPROPERTY() int32 Health = 0;
 	UPROPERTY() int32 Shield = 0;
-	UPROPERTY() int32 Energy = 0;
 	UPROPERTY() bool bAlive = true;
 
 	/**

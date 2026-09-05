@@ -846,7 +846,7 @@ bool FRTIceSlidesTwoWhenUnbalancedTest::RunTest(const FString&)
 		Snapshot.Map = Map;
 		Snapshot.Units.Add(Unit);
 
-		const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path);
+		const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path).Path;
 		TestEqual(TEXT("in piedi: si scivola di una cella"), Extended.Num(), 3);
 		TestTrue(TEXT("e ci si ferma li'"), Extended.Last() == FRTCellId(2, 0, 0));
 	}
@@ -863,7 +863,7 @@ bool FRTIceSlidesTwoWhenUnbalancedTest::RunTest(const FString&)
 		Snapshot.Map = Map;
 		Snapshot.Units.Add(Unit);
 
-		const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path);
+		const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path).Path;
 		TestEqual(TEXT("sbilanciato: si scivola di due celle"), Extended.Num(), 4);
 		TestTrue(TEXT("in linea retta, senza curve"), Extended.Last() == FRTCellId(3, 0, 0));
 	}
@@ -885,7 +885,7 @@ bool FRTIceSlidesTwoWhenUnbalancedTest::RunTest(const FString&)
 		Snapshot.Map = Map;
 		Snapshot.Units.Add(Unit);
 
-		const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path);
+		const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, Path).Path;
 		TestEqual(TEXT("un muro alla seconda cella non annulla la prima"), Extended.Num(), 3);
 		TestTrue(TEXT("ci si ferma prima del muro"), Extended.Last() == FRTCellId(2, 0, 0));
 	}
@@ -904,7 +904,7 @@ bool FRTIceSlidesTwoWhenUnbalancedTest::RunTest(const FString&)
 		Snapshot.Map = Map;
 		Snapshot.Units.Add(Unit);
 
-		const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, SuFloor);
+		const TArray<FRTCellId> Extended = URTHexSimLibrary::ApplyIceSliding(Snapshot, /*UnitId=*/ 0, SuFloor).Path;
 		TestEqual(TEXT("su terreno normale non si scivola, sbilanciati o no"), Extended.Num(), 2);
 	}
 

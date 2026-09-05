@@ -23,12 +23,17 @@
 /**
  * La riga di un'abilità: numero, nome, e il motivo per cui non la si può usare.
  *
- * 🔴 **La ricarica VINCE sull'energia, ed è una precedenza, non un caso.** Un'abilità in ricarica e senza
- * energia è entrambe le cose: mostrarne una sola è una scelta, e la scelta è la ricarica perché è quella
- * che passa da sola col tempo. Senza un caso che le tenga insieme, invertirle non farebbe cadere niente.
+ * 🔴 **La ricarica è l'UNICO motivo, e il test pinna anche il motivo che NON deve comparire.**
+ *
+ * Questo test verificava una **precedenza** fra due motivi — ricarica ed energia — perché un'abilità poteva
+ * essere entrambe le cose. [D-324](../../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy`
+ * dal gameplay: la precedenza non ha più due termini, e il test è stato riscritto invece di essere
+ * cancellato. ⚠️ Il caso che conta è l'ultimo: una vista costruita a mano con `bUsableNow = false` fuori
+ * ricarica — impossibile in produzione, dove `bUsableNow` coincide con `TurnsRemaining == 0` — **non deve
+ * produrre nessun motivo**. È il posto dove si accorgerebbe qualcuno se il ramo «energia» tornasse.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudAbilityLineReasonTest,
-	"RefactorTactics.HUD.AbilityLineShowsCooldownBeforeEnergy",
+	"RefactorTactics.HUD.AbilityLineShowsCooldownOnly",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHudAbilityLineReasonTest::RunTest(const FString&)
 {
@@ -49,26 +54,23 @@ bool FRTHudAbilityLineReasonTest::RunTest(const FString&)
 		ARTHUD::ComposeAbilityLine(Ability, false).Text,
 		FString(TEXT("1. Scatto  (ricarica 2)")));
 
-	// 🔴 Ricarica **e** energia insieme: e' il caso che fissa la precedenza. Senza di lui, scambiare i due
-	// rami lascerebbe la suite verde.
-	const FString Entrambi = ARTHUD::ComposeAbilityLine(Ability, false).Text;
-	TestTrue(TEXT("con entrambi i motivi vince la ricarica"), Entrambi.Contains(TEXT("(ricarica 2)")));
-	TestFalse(TEXT("con entrambi i motivi l'energia tace"), Entrambi.Contains(TEXT("energia")));
+	// ⛔ Qui stavano due assertion su `Contains("(ricarica 2)")` e `!Contains("energia")` sullo STESSO stato
+	// gia' pinnato dall'uguaglianza esatta qui sopra: strettamente piu' deboli, quindi nessuna mutazione
+	// poteva farle cadere lasciando verde la riga precedente. Erano il residuo del caso «entrambi i motivi»,
+	// che `D-324` ha reso impossibile.
 
-	// Solo energia: la ricarica e' finita e resta inutilizzabile.
+	// 🔴 **Il caso che sostituisce la precedenza**: fuori ricarica ma dichiarata inutilizzabile.
 	//
-	// ⚠️ **Il motivo si INFERISCE, e oggi l'inferenza e' completa.**
-	// `URTCombatLibrary::IsAbilityUsable` e' `CooldownRemaining <= 0 && Energy >= EnergyCost`: due clausole
-	// sole, quindi «non usabile senza ricarica» non puo' che essere energia. Se un giorno comparisse una
-	// terza clausola, questa riga direbbe «energia» di un motivo diverso — e questo test e' il posto dove
-	// se ne accorgerebbe qualcuno.
+	// In produzione non accade — `bUsableNow` viene da `CanUseAbility`, che da `D-324` e' il solo cooldown,
+	// quindi coincide con `TurnsRemaining == 0`. Ma la vista e' una struct, e un chiamante puo' comporla
+	// cosi': la riga deve tacere invece di inventare un motivo che non esiste piu'.
 	Ability.TurnsRemaining = 0;
 	Ability.bUsableNow = false;
-	TestEqualSensitive(TEXT("senza ricarica ma inutilizzabile: e' l'energia"),
+	TestEqualSensitive(TEXT("fuori ricarica e inutilizzabile: nessun motivo da scrivere"),
 		ARTHUD::ComposeAbilityLine(Ability, false).Text,
-		FString(TEXT("1. Scatto  (energia)")));
+		FString(TEXT("1. Scatto")));
 
-	// Un'abilita' senza costo di energia e fuori ricarica e' usabile: nessun motivo da scrivere.
+	// Fuori ricarica e usabile: nessun motivo da scrivere.
 	Ability.bUsableNow = true;
 	TestEqualSensitive(TEXT("pronta di nuovo: nessun motivo"),
 		ARTHUD::ComposeAbilityLine(Ability, false).Text,
@@ -103,14 +105,21 @@ bool FRTHudAbilityLineArmedTest::RunTest(const FString&)
 	TestTrue(TEXT("pronta: grigio chiaro"), Pronta.Color.Equals(FLinearColor(0.8f, 0.8f, 0.8f, 1.f)));
 
 	// 🔴 **Armata resta bianca anche se non e' usabile.** «Cosa sto per fare» e «posso farlo» sono due
-	// domande, e il prefisso risponde alla prima: un'ultimate armata senza energia deve restare
+	// domande, e il prefisso risponde alla prima: un'ultimate armata e ancora in ricarica deve restare
 	// riconoscibile come quella scelta. Senza questo caso, far vincere `bUsableNow` sul bianco passerebbe.
+	//
+	// ⚠️ **Il motivo si legge su un'abilita' IN RICARICA, e non e' un dettaglio di comodo.** Questo blocco
+	// asseriva che una riga armata e *scarica* — `TurnsRemaining = 0`, `bUsableNow = false` — mostrasse
+	// comunque `(energia)`. [D-324](../../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy`
+	// dal gameplay: quella combinazione non e' piu' producibile dal ViewModel — `bUsableNow` viene da
+	// `CanUseAbility`, che ora e' il solo cooldown — e la riga non ha piu' un secondo motivo da scrivere.
+	// Il caso si sposta su un'abilita' in ricarica, dove il motivo esiste ancora.
 	Ability.bUsableNow = false;
-	Ability.TurnsRemaining = 0;
+	Ability.TurnsRemaining = 2;
 	const FRTHudTextLine ArmataScarica = ARTHUD::ComposeAbilityLine(Ability, /*bArmed=*/ true);
-	TestTrue(TEXT("armata e scarica: resta bianca"), ArmataScarica.Color.Equals(FLinearColor::White));
-	TestTrue(TEXT("armata e scarica: il motivo si vede comunque"),
-		ArmataScarica.Text.Contains(TEXT("(energia)")));
+	TestTrue(TEXT("armata e in ricarica: resta bianca"), ArmataScarica.Color.Equals(FLinearColor::White));
+	TestTrue(TEXT("armata e in ricarica: il motivo si vede comunque"),
+		ArmataScarica.Text.Contains(TEXT("(ricarica 2)")));
 
 	// Non armata e non usabile: il grigio più scuro, il terzo livello.
 	const FRTHudTextLine Spenta = ARTHUD::ComposeAbilityLine(Ability, /*bArmed=*/ false);

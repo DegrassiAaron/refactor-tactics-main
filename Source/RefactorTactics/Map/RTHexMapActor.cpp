@@ -1718,6 +1718,23 @@ void ARTHexMapActor::RebuildInstances()
 		}
 	}
 
+	// ➕ **IL COSTO DELLA RICOSTRUZIONE, reso leggibile** (`#1865`, punto 3).
+	//
+	// 🔑 Oggi «create» e «totali» coincidono, perche' questa funzione azzera ogni famiglia e le rifa' da
+	// capo: e' precisamente il difetto che l'AC descrive — *«il numero di istanze ricreate deve essere
+	// proporzionale alla modifica, non alla mappa»* — e senza questo numero non era falsificabile.
+	//
+	// ⚠️ **Chi rendera' incrementale la ricostruzione dovra' cambiare COME si conta**, non solo dove: un
+	// rebuild parziale crea poche istanze e ne aggiorna molte, e sommare i totali continuerebbe a
+	// rispondere «tutta la board» nascondendo l'ottimizzazione appena fatta. La somma qui sotto vale
+	// finche' il rebuild e' totale, ed e' vera oggi.
+	{
+		auto Conta = [](const UInstancedStaticMeshComponent* C) { return C ? C->GetInstanceCount() : 0; };
+		LastRebuildCreated = Conta(Cells) + Conta(Relief) + Conta(Blockers) + Conta(EdgeFeatures)
+			+ Conta(CellBorders) + Conta(StructuralBodies);
+		for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring) { LastRebuildCreated += Conta(SurfaceGlyphs[Ring]); }
+	}
+
 #if WITH_EDITOR
 	// Le coordinate seguono la mappa: stesso innesco delle istanze, quindi nessuna regola di
 	// invalidazione nuova da tenere allineata.

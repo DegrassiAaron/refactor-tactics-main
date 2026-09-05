@@ -675,6 +675,89 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * LO SCIVOLAMENTO IMPEDITO ARRIVA AL TURNLOG DALLA PARTITA VERA — `#2314`.
+ *
+ * 🔴 **E' il test che copre l'unico codice di PRODUZIONE che calcola `FRTPlannedMovement`.** I test del
+ * resolver costruiscono quella struttura a mano — e' giusto, misurano il contratto — ma nessuno di loro
+ * tocca le due righe di `ARTTurnManager::ResolveMovement` che la riempiono. Senza questo test, sostituire
+ * `FMath::Min(LengthBeforeSlide, Path.Num())` con `Path.Num()` **reintroduce il difetto di `#2314`** e la
+ * suite resta interamente verde: `Terrain.Ice.SlidesInMatch`, l'unico altro test end-to-end del ghiaccio,
+ * esercita solo uno scivolamento RIUSCITO. Il rilievo viene dalla code review della PR.
+ *
+ * ⚠️ **Il blocco e' un'unita' FERMA sulla cella di scivolamento**, non un muro: il caso del muro e' gia'
+ * coperto da `Terrain.Ice.WallBlockingSlideIsReportedAsSlideBlocked`, e questo esercita l'altro ramo —
+ * quello in cui `ApplyIceSliding` **estende** il percorso e a fermarlo e' il microstep.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIceSlideBlockedInMatchTest,
+	"RefactorTactics.Terrain.Ice.SlideBlockedInMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTIceSlideBlockedInMatchTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	// Ghiaccio su (2,0), destinazione pianificata. Lo scivolamento punterebbe a (3,0), dove sta un nemico
+	// FERMO: il percorso viene esteso, e il microstep lo blocca.
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 6))
+	{
+		FRTHexCellData Data(Id);
+		if (Id == FRTCellId(2, 0))
+		{
+			Data.Surface = ERTHexSurface::Ice;
+		}
+		Map->AddOrUpdateCell(Data);
+	}
+	Map->SortCells();
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Map;
+
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Blocker = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Blocker) { DestroyHexMoveWorld(World); return false; }
+
+	// PREMESSA: il budget deve bastare a scivolare, altrimenti il test verificherebbe la soglia invece del
+	// blocco — e passerebbe con `Moved`, cioe' proprio l'esito che non deve piu' comparire.
+	if (!TestTrue(TEXT("premessa: budget sufficiente per lo scivolamento"),
+		Mover->GetEffectiveMoveRange() >= 4))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	Mover->PlannedCell = FRTCellId(2, 0);
+	Blocker->PlannedCell = Blocker->Cell; // fermo: e' lui a impedire lo scivolamento
+	RunTurn(TM);
+
+	// PREMESSA MISURATA: l'unita' e' arrivata ESATTAMENTE dove il giocatore l'aveva mandata. E' la meta'
+	// dell'affermazione che l'esito deve fare, e senza di lei «SlideBlocked» potrebbe essere scritto a
+	// un'unita' fermata a meta' strada.
+	if (!TestTrue(TEXT("premessa: arriva alla destinazione pianificata"), Mover->Cell == FRTCellId(2, 0)))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+	TestTrue(TEXT("premessa: il blocker non si e' mosso"), Blocker->Cell == FRTCellId(3, 0));
+
+	const TOptional<ERTMoveOutcome> Esito = EsitoMoveNelLog(TM, Mover);
+	if (TestTrue(TEXT("il Move del mover ha una voce nel TurnLog"), Esito.IsSet()))
+	{
+		// ⛔ Prima di `#2314` qui c'era `BlockedByUnit`: «fermo: cella occupata» a un'unita' arrivata.
+		TestEqual(TEXT("arrivata e non scivolata: il TurnLog dice SlideBlocked, non un blocco"),
+			static_cast<int32>(*Esito), static_cast<int32>(ERTMoveOutcome::SlideBlocked));
+	}
+
+	// `Status.Unbalanced` NON si applica: lo scivolamento non e' avvenuto ([D-319]). E' il lato di
+	// `Status.UnbalancedIffSlid` che questo esito rende raggiungibile, e va misurato qui perche' il
+	// predicato che lo governa legge proprio la voce appena verificata.
+	TestFalse(TEXT("chi non scivola non si sbilancia"), Mover->HasStatus(TAG_Status_Unbalanced));
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainFireDamagesAndBurnsOnEnterTest,
 	"RefactorTactics.Terrain.Fire.DamagesAndBurnsOnEnter",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
