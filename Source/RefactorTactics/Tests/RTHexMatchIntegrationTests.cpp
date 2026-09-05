@@ -1091,4 +1091,185 @@ bool FRTLockInCommittedFiresOnTimeoutTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// #2390 — chi ASCOLTA il commit, non chi lo annuncia
+//
+// `FRTLockInCommittedFiresOnTimeoutTest` qui sopra prova che `OnLockInCommitted` scatta anche quando a
+// chiudere il turno e' il tetto, e resta VERDE mentre il difetto di #2390 esiste: attacca la propria sonda
+// direttamente al `TurnManager`, quindi scavalca l'unico iscritto che conta a schermo. Le due domande sono
+// diverse — *il commit si annuncia?* e *qualcuno lo sta ascoltando?* — e il verde della prima non dice
+// niente della seconda.
+//
+// `ARTPlayerController::OnLockIn` iscrive `HandleLockInCommitted` **dentro il ramo del Ready**. Nessun
+// Ready, nessun iscritto: il broadcast parte, non lo raccoglie nessuno, e l'anteprima di pianificazione
+// resta accesa per tutta la risoluzione mostrando una minaccia gia' risolta.
+//
+// 🔑 **Il soggetto qui e' `ARTPlayerController` insieme ad `ARTHexMapActor`, non il delegate.** Lo stato
+// osservabile e' `NumPreviewReachableCells()` perche' il produttore reale (`RefreshPlanningPreview`) vive
+// in un namespace anonimo dentro `RTPlayerController.cpp` e non e' chiamabile da un test — limite gia'
+// dichiarato in `RTBlastPreviewTests.cpp:6`. Si osserva l'EFFETTO sui setter della mappa, non il produttore.
+// =====================================================================================================
+
+namespace
+{
+	// Nomi distinti da ogni altro file di test: nella unity build condividono la translation unit.
+
+	/** L'unita' della squadra indicata in questo mondo; `nullptr` se non c'e'. */
+	ARTUnit* LockInPreviewUnitOfTeam(UWorld* World, int32 TeamId)
+	{
+		TArray<AActor*> Found;
+		UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Found);
+		for (AActor* A : Found)
+		{
+			ARTUnit* U = Cast<ARTUnit>(A);
+			if (U && U->TeamId == TeamId)
+			{
+				return U;
+			}
+		}
+		return nullptr;
+	}
+
+	/** La mappa esagonale del mondo: e' lei che CONSERVA lo stato dell'anteprima, e quindi lo espone. */
+	ARTHexMapActor* LockInPreviewHexMap(UWorld* World)
+	{
+		return Cast<ARTHexMapActor>(UGameplayStatics::GetActorOfClass(World, ARTHexMapActor::StaticClass()));
+	}
+}
+
+/**
+ * **CASO BUG (#2390).** Il tetto chiude il primo turno e l'anteprima si spegne, benche' nessun Ready sia
+ * mai stato premuto in questa partita.
+ *
+ * 🔑 **Il turno DEVE chiudersi dal tetto, e il Ready non va premuto nemmeno una volta.** Premerlo — anche
+ * in un turno precedente — iscriverebbe il controller e renderebbe il test cieco proprio al difetto:
+ * `AddUniqueDynamic` e' permanente, quindi dal primo Ready in poi il comportamento e' corretto per sempre.
+ * E' il motivo per cui il difetto si vede **solo** prima del primo Ready.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningPreviewClearsOnTimeoutWithoutReadyTest,
+	"RefactorTactics.HexMatch.PlanningPreviewClearsOnTimeoutWithoutReady",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanningPreviewClearsOnTimeoutWithoutReadyTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTTurnManager* TM = MakeCountdownMatch(World);
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHexMatchWorld(World); return false; }
+
+	ARTHexMapActor* HexMap = LockInPreviewHexMap(World);
+	ARTUnit* Mine = LockInPreviewUnitOfTeam(World, /*TeamId=*/ 0);
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, /*TeamId=*/ 0);
+	if (!TestNotNull(TEXT("mappa esagonale"), HexMap)
+		|| !TestNotNull(TEXT("unita' del giocatore"), Mine)
+		|| !TestNotNull(TEXT("player controller"), PC))
+	{
+		DestroyHexMatchWorld(World);
+		return false;
+	}
+
+	// L'anteprima si accende come si accende in partita: selezionando. `bRecordAsPlayerInput=false` perche'
+	// a selezionare qui non e' una persona, e la telemetria di ritmo non deve contare questa riga.
+	PC->SelectUnit(Mine, /*bRecordAsPlayerInput=*/ false);
+
+	// ANTI-VACUITA' — senza questa riga «zero celle alla fine» e «zero celle da sempre» sono
+	// indistinguibili, e il test misurerebbe la propria fixture invece del difetto.
+	TestTrue(TEXT("l'anteprima e' ACCESA prima del tetto"), HexMap->NumPreviewReachableCells() > 0);
+
+	// ANCORA — la via del Ready non e' stata percorsa. E' la condizione stessa di #2390.
+	TestFalse(TEXT("e nessun Ready e' stato premuto: non stiamo misurando la via del countdown"),
+		TM->IsReadyCountdownActive());
+
+	// DIAGNOSTICA — separa «nessuno ascolta» da «l'ascoltatore non spegne». E' la domanda di #2390.
+	TestTrue(TEXT("qualcuno ascolta il commit gia' prima del primo Ready"), TM->OnLockInCommitted.IsBound());
+
+	TM->SetPlanningSeconds(1.0f);
+	const int32 TurnoPrima = TM->GetTurnNumber();
+
+	AdvanceWallClock(World, 1.5f);
+
+	// ANCORA — il turno si e' chiuso DAVVERO. Senza, un avanzamento che non avesse committato niente
+	// darebbe lo stesso «anteprima spenta» solo perche' non e' successo nulla.
+	TestTrue(TEXT("il tetto ha chiuso il turno"), TM->IsResolving() || TM->GetTurnNumber() > TurnoPrima);
+
+	// IL CUORE — e' la riga che #2390 dice essere rossa.
+	TestEqual(TEXT("il commit da tetto spegne l'anteprima anche senza un Ready precedente"),
+		HexMap->NumPreviewReachableCells(), 0);
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+/**
+ * **CONTROLLO POSITIVO.** La stessa anteprima, spenta dal percorso che gia' funziona: Ready -> countdown
+ * -> commit.
+ *
+ * Non duplica il test qui sopra: serve a distinguere *«il fix ha acceso l'iscrizione»* da *«il banco
+ * spegne l'anteprima comunque»*. Se questo diventasse rosso dopo il fix di #2390, il fix avrebbe rotto la
+ * via del Ready invece di aggiungerne una seconda.
+ *
+ * ⚠️ Il tetto e' messo a 60 s **apposta**: senza, il turno potrebbe chiudersi da solo prima del countdown e
+ * questo test misurerebbe di nuovo il timeout, cioe' l'altro caso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningPreviewClearsOnReadyCommitTest,
+	"RefactorTactics.HexMatch.PlanningPreviewClearsOnReadyCommit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanningPreviewClearsOnReadyCommitTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTTurnManager* TM = MakeCountdownMatch(World);
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHexMatchWorld(World); return false; }
+
+	ARTHexMapActor* HexMap = LockInPreviewHexMap(World);
+	ARTUnit* Mine = LockInPreviewUnitOfTeam(World, /*TeamId=*/ 0);
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, /*TeamId=*/ 0);
+	if (!TestNotNull(TEXT("mappa esagonale"), HexMap)
+		|| !TestNotNull(TEXT("unita' del giocatore"), Mine)
+		|| !TestNotNull(TEXT("player controller"), PC))
+	{
+		DestroyHexMatchWorld(World);
+		return false;
+	}
+
+	// DIAGNOSTICA — il controller del gioco ha iniziato a giocare. Senza, il banco misura un PC a meta'.
+	PC->DispatchBeginPlay();
+
+	// DIAGNOSTICA — separa «il broadcast non raggiunge nessuno» da «raggiunge, e il PC non spegne».
+	URTLockInCommittedProbeForTest* Probe = NewObject<URTLockInCommittedProbeForTest>(TM);
+	TM->OnLockInCommitted.AddDynamic(Probe, &URTLockInCommittedProbeForTest::OnLockInCommitted);
+
+	PC->SelectUnit(Mine, /*bRecordAsPlayerInput=*/ false);
+	TestTrue(TEXT("l'anteprima e' ACCESA prima del Ready"), HexMap->NumPreviewReachableCells() > 0);
+
+	// Il tetto lontano isola la via del Ready: a chiudere il turno sara' il countdown, non il timeout.
+	TM->SetPlanningSeconds(60.0f);
+	TM->SetReadyCountdownSeconds(0.5f);
+	const int32 TurnoPrima = TM->GetTurnNumber();
+
+	PC->OnLockInForTest();
+
+	// ANTI-VACUITA' — senza, un `OnLockInForTest` che non avesse fatto NIENTE darebbe lo stesso
+	// «non ha ancora risolto», ed e' la stessa sanita' di `FRTReadyCountdownDelaysCommitTest`.
+	TestTrue(TEXT("il Ready ha armato il countdown"), TM->IsReadyCountdownActive());
+
+	// DIAGNOSTICA — se questa e' verde e l'anteprima resta accesa, il guasto NON e' l'iscrizione.
+	TestTrue(TEXT("il Ready ha iscritto qualcuno al commit"), TM->OnLockInCommitted.IsBound());
+
+	AdvanceWallClock(World, 1.0f);
+
+	TestTrue(TEXT("il countdown ha chiuso il turno"), TM->IsResolving() || TM->GetTurnNumber() > TurnoPrima);
+	TestEqual(TEXT("e il commit ha raggiunto i suoi iscritti"), Probe->Broadcasts, 1);
+
+	// DIAGNOSTICA — i tre anelli fra il broadcast e la mappa. Il primo che cade e' il guasto.
+	TestTrue(TEXT("A) il PC e' ancora iscritto PER NOME dopo il commit"),
+		TM->OnLockInCommitted.Contains(PC, FName(TEXT("HandleLockInCommitted"))));
+	TestTrue(TEXT("B) il PC vive nel mondo di prova"), PC->GetWorld() == World);
+	TestTrue(TEXT("C) dal mondo del PC si trova LA STESSA mappa che il test osserva"),
+		ARTHexMapActor::FindInWorld(PC->GetWorld()) == HexMap);
+	TestEqual(TEXT("il commit dal Ready spegne l'anteprima"), HexMap->NumPreviewReachableCells(), 0);
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
