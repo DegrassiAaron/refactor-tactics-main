@@ -1296,21 +1296,34 @@ bool FRTHexInteractTogglesOpenDoorClosedTest::RunTest(const FString&)
 
 /**
  * 🔴 **IL BERSAGLIO DELLA COMMUTAZIONE SI RISOLVE UNA VOLTA SOLA, DALLO STATO PRE-BLAST** ([`INT-7`],
- * `#2380`). E' il test che rende corretta l'implementazione, e la sua FORMA e' un reperto dello spec-panel.
+ * `#2380`). E' il test che rende corretta l'implementazione, e la sua FORMA e' costata due errori.
  *
- * ⛔ **La DoD della issue chiedeva l'ordine-indipendenza, e quell'assertion NON discrimina il difetto.**
- * Chiedeva: *«due unita' che commutano la stessa porta nello stesso turno producono lo stesso esito
- * qualunque sia il loro ordine»*. Con la risoluzione per-operazione due commutazioni identiche su una porta
- * `Open` danno `Closed` e poi di nuovo `Open` — e lo danno **in entrambi gli ordini**, perche' due
- * involuzioni si annullano comunque le si componga. Un test cosi' e' verde sul mutante.
+ * ⛔ **Primo errore — quello che la DoD della issue chiedeva.** Diceva: *«due unita' che commutano la stessa
+ * porta nello stesso turno producono lo stesso esito qualunque sia il loro ordine»*. L'ordine-indipendenza
+ * **non discrimina**: due commutatori identici sono simmetrici, quindi scambiarli non cambia niente
+ * nemmeno per un'implementazione sbagliata. Serve asserire il VALORE.
  *
- * 🔑 **A discriminare e' il VALORE.** Risolvendo una volta sola dallo stato pre-Blast, entrambi i
- * commutatori leggono `Open` e vogliono entrambi `Closed`; `ApplyDoorOps` fonde due ordini identici e la
- * porta **resta chiusa**. Risolvendo per-operazione, la seconda commutazione legge il risultato della prima
- * e la disfa: la porta finisce **aperta**, cioe' l'ordine dell'array ha deciso la partita (invariante #3).
+ * ⛔ **Secondo errore — asserire il valore sulla porta sbagliata, e l'ha trovato la verifica di mutazione.**
+ * La prima stesura partiva da una porta `Open`, e il mutante «risolvi per-operazione» le passava **verde**:
  *
- * Il test asserisce percio' TRE cose sul valore — porta chiusa, **una** `DoorClosed`, **zero** `DoorOpened` —
- * e in piu' l'ordine-indipendenza, che resta una proprieta' vera ma non e' cio' che cade sotto mutazione.
+ *   partenza `Open`   corretto: entrambi vogliono `Closed`      -> fusione `Closed`  -> porta CHIUSA
+ *                     mutante:  il secondo vede `Closed`, vuole `Open` -> fusione **`Closed`** -> porta CHIUSA
+ *
+ * Identici. **La fusione per restrittivita' di `ApplyDoorOps` MASCHERA il difetto in quella direzione**,
+ * perche' a parita' di bordo vince lo stato piu' restrittivo e `Closed` e' proprio quello che il mutante
+ * produce per sbaglio. Misurato il 2026-09-05: mutante applicato, `Structures.Door` **17/17 verdi**.
+ *
+ * 🔑 **A discriminare e' la partenza `Closed`**, dove la restrittivita' lavora nel verso opposto:
+ *
+ *   partenza `Closed` corretto: entrambi vogliono `Open`        -> fusione `Open`    -> porta APERTA
+ *                     mutante:  il secondo vede `Open`, vuole `Closed` -> fusione **`Closed`** -> NON CAMBIA NULLA
+ *
+ * Il mutante non solo sbaglia: non produce **nessuna** voce di ambiente, perche' `CanTransition` rifiuta
+ * `Closed -> Closed`. `DoorOpened == 1` contro `0` e' lo scarto piu' largo che questo sottosistema possa
+ * dare.
+ *
+ * ∴ il test misura **entrambe** le direzioni — la seconda perche' e' il comportamento, la prima perche' e'
+ * la prova — e in ciascuna anche l'ordine, che resta una proprieta' vera benche' non discriminante.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexToggleResolvesOncePreBlastTest,
 	"RefactorTactics.Structures.Door.ToggleTargetResolvesOncePreBlast",
@@ -1319,8 +1332,8 @@ bool FRTHexToggleResolvesOncePreBlastTest::RunTest(const FString&)
 {
 	// Due unita' della stessa squadra, entrambe adiacenti alla cella bersaglio, che dichiarano lo STESSO
 	// bordo. `bSwapped` inverte l'ordine di spawn, che e' l'ordine con cui gli intenti entrano nell'array.
-	auto RunWithOrder = [this](bool bSwapped, bool& bOutBlocked, int32& OutClosedEntries,
-		int32& OutOpenedEntries) -> bool
+	auto RunWithOrder = [this](ERTHexDoorState Initial, bool bSwapped, bool& bOutBlocked,
+		int32& OutClosedEntries, int32& OutOpenedEntries) -> bool
 	{
 		UWorld* World = MakeHexBlastWorld();
 		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -1329,7 +1342,7 @@ bool FRTHexToggleResolvesOncePreBlastTest::RunTest(const FString&)
 		const FRTCellId West(0, 0);
 		const FRTCellId Target(1, 0);
 		const FRTCellId East(2, 0);
-		AddDoor(MapActor, Target, ERTHexDirection::W, ERTHexDoorState::Open);
+		AddDoor(MapActor, Target, ERTHexDirection::W, Initial);
 
 		ARTUnit* First = nullptr;
 		ARTUnit* Second = nullptr;
@@ -1347,8 +1360,9 @@ bool FRTHexToggleResolvesOncePreBlastTest::RunTest(const FString&)
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !First || !Second || !Foe) { DestroyHexBlastWorld(World); return false; }
 
-		if (!TestFalse(TEXT("premessa: la porta e' APERTA"),
-			URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, West, Target)))
+		if (!TestEqual(TEXT("premessa: la porta parte dallo stato dichiarato"),
+			static_cast<int32>(URTHexDoorLibrary::DoorBetween(MapActor->MapAsset, West, Target)),
+			static_cast<int32>(Initial)))
 		{
 			DestroyHexBlastWorld(World);
 			return false;
@@ -1377,21 +1391,49 @@ bool FRTHexToggleResolvesOncePreBlastTest::RunTest(const FString&)
 		return true;
 	};
 
+	// ───────────────────────────────────────────────────────────────────────────────────────────────
+	// 🔴 IL DISCRIMINANTE: si parte da `Closed`. Per-operazione la fusione sceglierebbe `Closed` e la porta
+	// non si aprirebbe affatto — zero voci, non una voce sbagliata.
 	bool bBlockedA = false, bBlockedB = false;
 	int32 ClosedA = 0, OpenedA = 0, ClosedB = 0, OpenedB = 0;
-	if (!RunWithOrder(/*bSwapped*/ false, bBlockedA, ClosedA, OpenedA)) { return false; }
-	if (!RunWithOrder(/*bSwapped*/ true, bBlockedB, ClosedB, OpenedB)) { return false; }
+	if (!RunWithOrder(ERTHexDoorState::Closed, /*bSwapped*/ false, bBlockedA, ClosedA, OpenedA))
+	{
+		return false;
+	}
+	if (!RunWithOrder(ERTHexDoorState::Closed, /*bSwapped*/ true, bBlockedB, ClosedB, OpenedB))
+	{
+		return false;
+	}
 
-	// 🔴 IL DISCRIMINANTE: il VALORE. Per-operazione la seconda commutazione riaprirebbe, e questa riga
-	// cadrebbe in entrambi gli ordini.
-	TestTrue(TEXT("due commutatori sulla stessa porta aperta la CHIUDONO"), bBlockedA);
-	TestEqual(TEXT("e il cambio e' UNO SOLO: la fusione per bordo di ApplyDoorOps"), ClosedA, 1);
-	TestEqual(TEXT("e nessuno la riapre nello stesso turno"), OpenedA, 0);
+	TestFalse(TEXT("due commutatori su una porta CHIUSA la APRONO"), bBlockedA);
+	TestEqual(TEXT("e il cambio e' UNO SOLO: la fusione per bordo di ApplyDoorOps"), OpenedA, 1);
+	TestEqual(TEXT("e nessuno la richiude nello stesso turno"), ClosedA, 0);
 
-	// L'ordine-indipendenza: vera, utile, e non e' cio' che cade sotto mutazione.
-	TestEqual(TEXT("l'ordine degli intenti non cambia lo stato finale"), bBlockedB, bBlockedA);
-	TestEqual(TEXT("l'ordine degli intenti non cambia le voci di chiusura"), ClosedB, ClosedA);
-	TestEqual(TEXT("l'ordine degli intenti non cambia le voci di apertura"), OpenedB, OpenedA);
+	TestEqual(TEXT("l'ordine non cambia lo stato finale (partenza Closed)"), bBlockedB, bBlockedA);
+	TestEqual(TEXT("l'ordine non cambia le voci di apertura"), OpenedB, OpenedA);
+	TestEqual(TEXT("l'ordine non cambia le voci di chiusura"), ClosedB, ClosedA);
+
+	// ───────────────────────────────────────────────────────────────────────────────────────────────
+	// Il verso opposto: e' il COMPORTAMENTO, e resta misurato. Non discrimina il mutante — la fusione lo
+	// maschera — ed e' scritto qui sopra perche' nessuno lo riscopra a caro prezzo una seconda volta.
+	bool bBlockedC = false, bBlockedD = false;
+	int32 ClosedC = 0, OpenedC = 0, ClosedD = 0, OpenedD = 0;
+	if (!RunWithOrder(ERTHexDoorState::Open, /*bSwapped*/ false, bBlockedC, ClosedC, OpenedC))
+	{
+		return false;
+	}
+	if (!RunWithOrder(ERTHexDoorState::Open, /*bSwapped*/ true, bBlockedD, ClosedD, OpenedD))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("due commutatori su una porta APERTA la CHIUDONO"), bBlockedC);
+	TestEqual(TEXT("un solo cambio"), ClosedC, 1);
+	TestEqual(TEXT("e nessuna riapertura"), OpenedC, 0);
+
+	TestEqual(TEXT("l'ordine non cambia lo stato finale (partenza Open)"), bBlockedD, bBlockedC);
+	TestEqual(TEXT("l'ordine non cambia le voci di chiusura"), ClosedD, ClosedC);
+	TestEqual(TEXT("l'ordine non cambia le voci di apertura"), OpenedD, OpenedC);
 
 	return true;
 }
