@@ -366,9 +366,17 @@ che è ciò che una lettura letterale del residuo di `#2370` avrebbe fatto fare.
 
 Tre gap, e nessuno dei tre è una roadmap.
 
-⛔ **Nessuno dei tre è ancora arrivato al proprio owner, e va detto qui invece che nell'intestazione.** Il
-write-set di questo pass è **questo file più la voce `GOV-4`**: `test-manuali-pie.md` ed `editor-sessions.yaml`
-non sono toccati, `#801` non ha un commento nuovo, e per `G-1` non esiste una issue. 🔴 **È la stessa forma del
+⛔ **Nessuno dei tre è arrivato al proprio owner nel pass che ha scritto questo file, e va detto qui invece
+che nell'intestazione.** Il write-set di quel pass era **questo file più la voce `GOV-4`**:
+`test-manuali-pie.md` ed `editor-sessions.yaml` non erano toccati, `#801` non aveva un commento nuovo, e per
+`G-1` non esisteva una issue.
+
+➕ **`G-1` una casa ce l'ha dal 2026-09-05: [`#2411`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2411)**,
+sub-issue **nativa** di `#1881` — collegata via API, perché la riga `**Epic**:` nel corpo non collega nulla,
+ed è la ragione per cui `#2370` **non** compare fra le sub-issue della propria epic pur dichiarandola.
+⚠️ **Restano `G-2` e `G-3`**, e la frase qui sopra vale ancora per loro. ⚠️ E la voce `PIE-*` **non** è ancora
+scritta: `#2411` la chiede come proprio deliverable, quindi il verdetto non ha ancora un owner nel registro —
+ciò che è cambiato è che adesso qualcuno lo cerca. 🔴 **È la stessa forma del
 difetto che `G-1` denuncia** — *«sotto quella issue oggi non è un posto dove qualcuno guarderà»* — un livello
 più su: un documento di `plans/` **non è un owner**, e questa cartella lo dichiara di sé nel proprio
 [`README.md`](README.md). ∴ finché la riga nel registro e il commento a `#801` non sono scritti, i tre gap sono
