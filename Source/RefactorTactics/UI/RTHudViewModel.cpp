@@ -60,7 +60,31 @@ FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnM
 		View.ReadyCountdownSecondsRemaining = TurnManager->GetReadyCountdownRemaining();
 	}
 
+	// Il derivato si pubblica **dopo** i due orologi, ed e' l'unico ordine possibile: legge
+	// entrambi. Chi riceve la vista intera trova il numero gia' fatto; chi la costruisce a mano
+	// chiama la funzione.
+	View.SecondsUntilCommit = ComputeSecondsUntilCommit(View);
+
 	return View;
+}
+
+float URTHudViewModel::ComputeSecondsUntilCommit(const FRTMatchHeaderView& Header)
+{
+	// Il countdown del Ready, quando e' armato, non decide da solo: il tetto del Planning lo accorcia se
+	// scade prima (`#2193`). `>= 0.f` e non `> 0.f` — uno zero qui significa «commit adesso», che e' un
+	// numero da mostrare, non un caso da escludere.
+	if (Header.ReadyCountdownSecondsRemaining >= 0.f)
+	{
+		// ⚠️ Il tetto entra **solo se si applica**: nelle run headless `PlanningSecondsRemaining` e'
+		// negativo, e un `Min` cieco restituirebbe quel negativo spegnendo l'unico orologio in corsa.
+		return (Header.PlanningSecondsRemaining > 0.f)
+			? FMath::Min(Header.ReadyCountdownSecondsRemaining, Header.PlanningSecondsRemaining)
+			: Header.ReadyCountdownSecondsRemaining;
+	}
+
+	// Senza Ready il commit arriva alla scadenza del Planning — e se quel campo dice «non si applica», la
+	// risposta e' la stessa: non c'e' nessun conto alla rovescia da mostrare.
+	return Header.PlanningSecondsRemaining;
 }
 
 FRTUnitCardView URTHudViewModel::BuildUnitCard(const ARTUnit* Unit, int32 PlayerTeamId)
