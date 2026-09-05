@@ -651,9 +651,23 @@ sessions:
     shares_setup_with: []
     verifies:
       - PIE-V01-PACKAGED
-    issues: [959, 1088, 1069, 79, 1296]
+      - PIE-V01-PREPWINDOW
+    issues: [959, 1088, 1069, 79, 1296, 2386]
     done_when: esiste una registrazione di una partita 2v2 conclusa senza un solo input, eseguita due volte — PIE e pacchetto Development
     notes: |
+      ➕ **`PIE-V01-PREPWINDOW` si aggiunge qui il 2026-09-06 (#2386) e NON chiede una seduta propria**,
+      perche' condivide l'allestimento per intero: la modalita' non presidiata attiva, che e' gia'
+      `unblocked_by: E47.1`. Chi registra la partita di `PIE-V01-PACKAGED` **vede gia' la finestra** — sono
+      i tre secondi fra la fine della pianificazione e la risoluzione, a ogni turno. ⚠️ **Ma le due voci
+      chiedono cose diverse e non si spuntano insieme**: quella chiede una partita che arriva alla vittoria
+      *senza input*, questa chiede di **premere `P`** e guardare cosa succede. Chi esegue la prima senza mai
+      toccare la tastiera lascia questa aperta, ed e' corretto.
+
+      ⛔ **Nessuno scenario puo' sostituirla, e non per una capability mancante.** `RTScenarioSession`
+      chiama `LockInAndResolve()` diretto dopo `SetPlanningSeconds(0.f)`: non attraversa
+      `OnPlanningTimeout`, che e' dove la finestra si arma. E' la proprieta' che le impedisce di mettere tre
+      secondi d'attesa in ogni run headless — dichiarata in `scenario-map.md` §5.
+
       🔴 **Da sapere PRIMA di aprire l'editor: il bot NON cerca l'obiettivo.** Misurato —
       `grep Objective Source/RefactorTactics/Bot/` dà **zero**, e il suo scoring pesa danno, uccisioni e
       copertura; i goal veri (`SecureObjective`) sono E26. Nella partita d'autore i punti del team 1 sono
@@ -924,9 +938,9 @@ sessions:
     artifacts: []
     unblocked_by: []
     shares_setup_with: [U7, U9]
-    verifies: [PIE-AS4b]
-    issues: [288]
-    done_when: PIE-AS4b ha esito reale sui quattro eroi, e DefeatBeatSeconds e' tarato a schermo
+    verifies: [PIE-AS4b, PIE-AS4c]
+    issues: [288, 2444, 2448, 2450, 2452]
+    done_when: PIE-AS4b e PIE-AS4c hanno esito reale sui quattro eroi
     unblocks: [U9, U19]
     steps: |
       🔴 **Questa seduta non produce piu' NIENTE: giudica.** Dal 2026-09-05 (#2450) i tre ruoli
@@ -938,7 +952,11 @@ sessions:
 
           #2448 (il canale: gli eventi ricevono l'animazione risolta)
                 └─► #2450 (i dati: tre ruoli x quattro eroi nel CDO)
-                          └─► QUESTA seduta · PIE-AS4b (il giudizio a schermo)
+                          └─► QUESTA seduta · PIE-AS4b + PIE-AS4c (il giudizio a schermo)
+
+      ✅ **Le tre issue a monte sono CHIUSE dal 2026-09-05**: #2448 (il canale), #2450 (i dati) e
+      #2444 (i riferimenti duri che portano le clip nel cook). La seduta e' **eseguibile**, e per la
+      prima volta: fino a quel giorno non c'era nulla da guardare.
 
       Aprirla prima che i dati esistano significa guardare quattro unita' che restano in posa di
       riferimento, senza errore e senza log.
@@ -947,7 +965,8 @@ sessions:
 
       1. `PIE-AS4b` — nel Blast l'attaccante gioca `Cast`, il bersaglio `Hit`; l'eliminazione gioca
          `Death`. Banco: `Visual.Combat.Defeat` (`PIE-VIS-KO`).
-      2. **`DefeatBeatSeconds`** (`ARTTurnManager`, oggi **0,80 s**) — e' la coda che #2452 ha
+      2. **`PIE-AS4c` — taratura di `DefeatBeatSeconds`** (`ARTTurnManager`, oggi **0,80 s**). E' la
+         coda che #2452 ha
          introdotto perche' il montaggio di morte avesse una finestra invece di zero, ed e' stata
          scelta *senza avere un'animazione da guardare*. E' il numero che decide se la morte si legge
          o si trascina, e si tara qui.

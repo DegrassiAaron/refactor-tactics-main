@@ -5,6 +5,10 @@
 #include "LevelEditor.h"
 #include "RTDevSandboxLauncherSubsystem.h"
 #include "RTHexEditorModeCommands.h"
+#include "SRTAnimBrowserPanel.h"
+#include "Widgets/Docking/SDockTab.h"
+#include "WorkspaceMenuStructure.h"
+#include "WorkspaceMenuStructureModule.h"
 
 #define LOCTEXT_NAMESPACE "FRefactorTacticsEditorModule"
 
@@ -52,6 +56,26 @@ void FRefactorTacticsEditorModule::StartupModule()
 		return;
 	}
 
+	// Il browser delle animazioni (#2443). Stessa guardia di sopra e per la stessa ragione: un tab non lo
+	// guarda nessun commandlet, e `RTBuildAnimBindings` gira proprio come commandlet.
+	//
+	// ⛔ `RegisterNomadTabSpawner` e non un'estensione di layout: questo pannello **non** deve avere una
+	// posizione che lo apra da solo. Si apre da Window > Tools quando l'autore decide di rivedere delle
+	// clip — e' la stessa disciplina di #1680, che ha deciso di non mettersi addosso a chi ha aperto
+	// l'editor per un'altra ragione.
+	FGlobalTabmanager::Get()
+		->RegisterNomadTabSpawner(SRTAnimBrowserPanel::TabId, FOnSpawnTab::CreateLambda(
+			[](const FSpawnTabArgs&)
+			{
+				return SNew(SDockTab)
+					.TabRole(ETabRole::NomadTab)
+					[ SNew(SRTAnimBrowserPanel) ];
+			}))
+		.SetDisplayName(LOCTEXT("AnimBrowserTitle", "Anim Browser"))
+		.SetTooltipText(LOCTEXT("AnimBrowserTooltip",
+			"Guarda le clip di un pack, promuovile o scartale, e legale a un ruolo."))
+		.SetGroup(WorkspaceMenu::GetMenuStructure().GetToolsCategory());
+
 	if (FLevelEditorModule* LevelEditor = FModuleManager::LoadModulePtr<FLevelEditorModule>(TEXT("LevelEditor")))
 	{
 		// ⛔ `OnRegisterLayoutExtensions` e' un broadcast **singolo**, dentro la costruzione del Level
@@ -71,6 +95,13 @@ void FRefactorTacticsEditorModule::StartupModule()
 void FRefactorTacticsEditorModule::ShutdownModule()
 {
 	FRTHexEditorModeCommands::Unregister();
+
+	// Uno spawner che sopravvive allo scarico del modulo fa costruire un widget di una classe che
+	// non c'e' piu': stessa ragione dell'handle qui sotto.
+	if (FSlateApplication::IsInitialized())
+	{
+		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(SRTAnimBrowserPanel::TabId);
+	}
 
 	// Un handle che sopravvive allo scarico del modulo fa chiamare una funzione che non c'e' piu'.
 	if (LayoutExtensionHandle.IsValid())

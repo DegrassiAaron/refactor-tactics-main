@@ -28,9 +28,9 @@ dice da sé — *«Il corpus Visual, diciotto scenari che nessuna seduta convoca
 
 | | |
 |---|---|
-| voci totali · aperte | **204** · **102** |
-| aperte **schedulate** in una seduta | **73** |
-| aperte **fuori da ogni seduta** | **29** |
+| voci totali · aperte | **225** · **118** |
+| aperte **schedulate** in una seduta | **80** |
+| aperte **fuori da ogni seduta** | **38** |
 | aperte che dichiarano un ostacolo | 21 — ⚠️ **non rimisurato**, vedi la nota |
 
 > 🔄 **Rimisurato il 2026-09-04 su `main`, dopo #2228.** Dicevano `203 · 101 · 69 · 32`; il comando
@@ -323,3 +323,52 @@ HUD, VFX e playback no.
   e vanno lette una per una.
 - ⛔ **Non tocca le sedute con `execution_lane: asset`** (U1, U8, U24, U28, U29, U30): producono `.uasset`, e
   sono un altro mestiere — Content Browser e Binary Asset Lease, non osservazione.
+
+---
+
+## 🆕 2026-09-05 — U8 è diventata eseguibile, e la lista cresce di una voce
+
+🔑 **La notizia non è il numero: è che una seduta è passata da «non convocabile» a «eseguibile».**
+`U8` verifica `PIE-AS4b` — *«l'attaccante gioca `Cast`, il bersaglio `Hit`, l'eliminazione `Death`»* — e per
+tutta la sua vita non ha avuto **nulla da guardare**. Oggi ce l'ha:
+
+- **#2448** ha aperto il canale: la clip la sceglie il C++ e la suona con `PlaySlotAnimationAsDynamicMontage`
+  sullo slot che il grafo già espone;
+- **#2450** ha popolato i tre ruoli come **dati** nel CDO — i dodici montaggi `.uasset` non si faranno;
+- **#2444** ha aggiunto i dodici **riferimenti duri** che portano le clip nel cook;
+- **#2452** aveva tolto il blocco che nessuno aveva visto: `HideForDefeat()` nascondeva l'attore la riga
+  **prima** di far partire il montaggio, quindi `Death` non sarebbe stato visibile comunque.
+
+Tutte e quattro **CLOSED**.
+
+### La voce nuova: `PIE-AS4c`
+
+➕ **Taratura di `DefeatBeatSeconds`**, e non è rifinitura. È la coda che tiene il corpo in campo dopo il
+colpo mortale: senza, chi cade nell'**ultima fase riprodotta** ha una finestra di durata **zero**
+(`PlaybackPhases` è `Prep → Dash → Blast → Move` e mai `Cleanup`) — ed è il caso del banco che la seduta
+usa, `Visual.Combat.Defeat`, dove nessuno si muove.
+
+⚠️ **Il valore corrente, 0,80 s, è stato scelto senza avere un'animazione da guardare.** Questa voce esiste
+per sostituirlo con un numero **visto**. Si giudica nella **stessa seduta** di `PIE-AS4b`, sulla stessa
+sequenza, e `DefeatBeatSeconds` è `EditAnywhere`: si cambia **a PIE avviato**, senza ricompilare.
+
+### I numeri, misurati e con due metodi che concordano
+
+|  | prima | dopo |
+|---|---|---|
+| voci totali | 224 | **225** |
+| aperte | 117 | **118** |
+| aperte schedulate | — | **80** |
+| aperte orfane | — | **38** |
+
+Comando canonico di `test-manuali-pie.md` § *«il numero di voci è `grep -c` sulle righe, sempre»*, più
+l'incrocio con i campi `verifies:` di `editor-sessions.yaml`.
+
+> 🔴 **E i due numeri di schedulate/orfane della §1 erano fermi al 2026-09-04**, quando dicevano
+> `73` e `29`. Non sono cresciuti di una voce sola: sono **80** e **38**. Lo scarto non l'ho indagato — lo
+> dichiaro invece di lasciarlo sembrare un aggiornamento di +1.
+
+> ⚠️ **Un secondo metodo ha dato 224 · 101 ed era SBAGLIATO**, vale la pena scriverlo: prendeva il primo
+> marcatore **dell'alfabeto** invece del primo **in posizione**, e in questo file moltissime celle portano
+> un ✅ storico prima del ⏳ corrente. Due metodi che divergono non si scelgono a occhio: si trova quale
+> dei due mente.

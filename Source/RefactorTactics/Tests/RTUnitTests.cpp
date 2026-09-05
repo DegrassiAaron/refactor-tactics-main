@@ -468,8 +468,15 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 		// `ClipsPerHero.Num()` continuerebbe a dire 4 con le mappe dei ruoli VUOTE, e allora i due path
 		// letti sotto sarebbero due stringhe vuote uguali fra loro: i `TestEqual` cadrebbero, ma il
 		// messaggio parlerebbe di nomi sbagliati invece che di ruoli assenti.
-		if (!TestEqual(*FString::Printf(TEXT("%s: i due ruoli di locomozione sono popolati"), *Chi),
-				Clips->PerRole.Num(), 2))
+		//
+		// ⚠️ **Si chiede la PRESENZA dei due ruoli, non il loro NUMERO** (#2450): contare diceva `2` ed
+		// e' diventato `5` il giorno in cui `Attack`/`Hit`/`Death` sono entrati nel CDO. Un conteggio qui
+		// avrebbe fatto fallire questo test per una ragione che non e' la sua — e il messaggio avrebbe
+		// parlato di locomozione mentre il cambiamento era altrove.
+		if (!TestNotNull(*FString::Printf(TEXT("%s: il ruolo Idle e' popolato"), *Chi),
+				(const void*)Clips->FindRole(ERTPresentationRole::Idle))
+			|| !TestNotNull(*FString::Printf(TEXT("%s: il ruolo Move e' popolato"), *Chi),
+				(const void*)Clips->FindRole(ERTPresentationRole::Move)))
 		{
 			continue;
 		}
@@ -504,6 +511,69 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 	{
 		TestEqual(TEXT("l'unita' usa il grafo C++ per default"),
 			UnitCdo->UnitAnimClass.Get(), URTUnitAnimInstance::StaticClass());
+	}
+	return true;
+}
+
+
+/**
+ * **I tre ruoli discreti — `Attack`, `Hit`, `Death` — puntano alle clip misurate sul disco** (#2450).
+ *
+ * 🔴 **Il gemello di `LocomotionClipsMatchThePacks`, e la ragione per cui e' un test SEPARATO**: quello
+ * presidia cio' che il GRAFO suona di continuo (due sequence player), questo cio' che il CANALE discreto
+ * suona a evento (#2448, sullo slot). Sono due consumatori diversi, e un giorno uno dei due potrebbe
+ * cambiare senza l'altro.
+ *
+ * ⚠️ **Quattro caselle su dodici** non si chiamano come ci si aspetta — contate sulla tabella di §AS.3b,
+ * non a memoria: `Hitreact_Fwd` con la `r` minuscola per Gadget, `HitReact_Fwd` per Phase, `Death` nudo per
+ * Phase, `Death_Forward` per Wraith. `Cast` regge **4 volte su 4**, ed e' l'unico ruolo che si trasferisce
+ * sempre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitDiscreteRoleClipsTest,
+	"RefactorTactics.Unit.DiscreteRoleClipsMatchThePacks",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitDiscreteRoleClipsTest::RunTest(const FString&)
+{
+	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
+	if (!TestNotNull(TEXT("CDO dell'AnimInstance"), Cdo)) { return false; }
+
+	struct FAttesa { const TCHAR* Hero; const TCHAR* Attack; const TCHAR* Hit; const TCHAR* Death; };
+	static const FAttesa Attese[] = {
+		{ TEXT("Hero.Gadget"), TEXT("Cast"), TEXT("Hitreact_Fwd"),   TEXT("Death_Fwd") },
+		{ TEXT("Hero.Phase"),  TEXT("Cast"), TEXT("HitReact_Fwd"),   TEXT("Death") },
+		{ TEXT("Hero.Riktor"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd") },
+		{ TEXT("Hero.Wraith"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward") },
+	};
+
+	for (const FAttesa& A : Attese)
+	{
+		const FName Chiave(A.Hero);
+		const FString Chi = Chiave.ToString();
+		const FString Pack = Chi.RightChop(5);   // `Hero.Gadget` -> `Gadget`
+		const FString Radice = FString::Printf(
+			TEXT("/Game/FabAsset/Paragon/Paragon%s/Characters/Heroes/%s/Animations/"), *Pack, *Pack);
+
+		const TCHAR* const Nomi[] = { A.Attack, A.Hit, A.Death };
+		const ERTPresentationRole Ruoli[] = {
+			ERTPresentationRole::Attack, ERTPresentationRole::Hit, ERTPresentationRole::Death };
+		const TCHAR* const Etichette[] = { TEXT("Attack"), TEXT("Hit"), TEXT("Death") };
+
+		for (int32 I = 0; I < 3; ++I)
+		{
+			const FString Visto = Cdo->ActiveClipFor(Chiave, Ruoli[I]).ToSoftObjectPath().ToString();
+			// Il PACK e' parte dell'asserto quanto la clip: lo scambio fra due eroi passerebbe un controllo
+			// scritto sul solo nome, perche' `Cast` e' identico su tutti e quattro e due condividono
+			// `HitReact_Front`.
+			TestEqual(*FString::Printf(TEXT("%s: %s"), *Chi, Etichette[I]),
+				Visto, FString::Printf(TEXT("%s%s.%s"), *Radice, Nomi[I], Nomi[I]));
+		}
+
+		// 🔴 **L'errore che non fa rumore, asserito e non solo scritto in un commento.**
+		// La clip d'attacco si CHIAMA `Cast`, e l'enum ha ANCHE un ruolo `Cast`. Se qualcuno la scrivesse
+		// li', `ActiveClipFor(Attack)` tornerebbe vuoto e l'unita' resterebbe in posa di riferimento senza
+		// errore, senza warning e senza log — mentre il dato sembrerebbe corretto a chi legge il CDO.
+		TestTrue(*FString::Printf(TEXT("%s: il ruolo Cast resta VUOTO (la clip `Cast` sta in Attack)"), *Chi),
+			Cdo->ActiveClipFor(Chiave, ERTPresentationRole::Cast).IsNull());
 	}
 	return true;
 }

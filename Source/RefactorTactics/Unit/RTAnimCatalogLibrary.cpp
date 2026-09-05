@@ -34,6 +34,34 @@ namespace
 	const TCHAR* KeyLabel = TEXT("label");
 	const TCHAR* KeyNotes = TEXT("notes");
 
+	const TCHAR* KeyBindings = TEXT("bindings");
+	const TCHAR* KeyHero = TEXT("hero");
+	const TCHAR* KeyRole = TEXT("role");
+	const TCHAR* KeyActive = TEXT("active");
+
+	/** Il ruolo si serializza per NOME, per la stessa ragione dello `Status`: si legge in un diff. */
+	FString RoleToString(ERTPresentationRole Role)
+	{
+		const UEnum* Enum = StaticEnum<ERTPresentationRole>();
+		return Enum ? Enum->GetNameStringByValue(static_cast<int64>(Role)) : FString();
+	}
+
+	bool RoleFromString(const FString& Text, ERTPresentationRole& OutRole)
+	{
+		const UEnum* Enum = StaticEnum<ERTPresentationRole>();
+		if (Enum == nullptr)
+		{
+			return false;
+		}
+		const int64 Value = Enum->GetValueByNameString(Text);
+		if (Value == INDEX_NONE)
+		{
+			return false;
+		}
+		OutRole = static_cast<ERTPresentationRole>(Value);
+		return true;
+	}
+
 	/**
 	 * Lo `Status` si serializza per NOME, non per numero.
 	 *
@@ -362,6 +390,42 @@ bool URTAnimCatalogLibrary::LoadFromString(const FString& JsonText, FRTAnimCatal
 
 			(*AuthoredObj)->TryGetStringField(KeyLabel, Entry.Authored.Label);
 			(*AuthoredObj)->TryGetStringField(KeyNotes, Entry.Authored.Notes);
+
+			// I binding (#2443). Assenti nei cataloghi scritti prima: un'assenza e' zero legami, non un
+			// errore di formato — e per questo `formatVersion` non cambia.
+			const TArray<TSharedPtr<FJsonValue>>* BindingsArr = nullptr;
+			if ((*AuthoredObj)->TryGetArrayField(KeyBindings, BindingsArr) && BindingsArr != nullptr)
+			{
+				for (const TSharedPtr<FJsonValue>& BindingVal : *BindingsArr)
+				{
+					const TSharedPtr<FJsonObject>* BindingObj = nullptr;
+					if (!BindingVal.IsValid() || !BindingVal->TryGetObject(BindingObj) || BindingObj == nullptr)
+					{
+						OutError = FString::Printf(TEXT("voce #%d ('%s'): un binding non e' un oggetto"),
+							Index, *IdText);
+						return false;
+					}
+
+					FRTAnimBinding Binding;
+					FString HeroText;
+					(*BindingObj)->TryGetStringField(KeyHero, HeroText);
+					Binding.HeroId = FName(*HeroText);
+
+					FString RoleText;
+					(*BindingObj)->TryGetStringField(KeyRole, RoleText);
+					// ⚠️ Stessa disciplina dello `Status`: un ruolo sconosciuto NON ricade su `Idle`.
+					// Ricadere legherebbe la clip a un ruolo che l'autore non ha scelto, in silenzio.
+					if (!RoleFromString(RoleText, Binding.Role))
+					{
+						OutError = FString::Printf(TEXT("voce #%d ('%s'): ruolo '%s' sconosciuto"),
+							Index, *IdText, *RoleText);
+						return false;
+					}
+
+					(*BindingObj)->TryGetBoolField(KeyActive, Binding.bActive);
+					Entry.Authored.Bindings.Add(MoveTemp(Binding));
+				}
+			}
 		}
 
 		OutCatalog.Entries.Add(MoveTemp(Entry));
@@ -420,6 +484,20 @@ bool URTAnimCatalogLibrary::SaveToString(const FRTAnimCatalog& Catalog, FString&
 		Writer->WriteValue(KeyStatus, StatusToString(Entry.Authored.Status));
 		Writer->WriteValue(KeyLabel, Entry.Authored.Label);
 		Writer->WriteValue(KeyNotes, Entry.Authored.Notes);
+
+		// ⚠️ L'array si scrive **anche vuoto**: una chiave che compare e scompare a seconda del contenuto
+		// produce diff rumorosi sul primo binding di ogni clip, e questo file esiste per essere letto in
+		// un diff.
+		Writer->WriteArrayStart(KeyBindings);
+		for (const FRTAnimBinding& Binding : Entry.Authored.Bindings)
+		{
+			Writer->WriteObjectStart();
+			Writer->WriteValue(KeyHero, Binding.HeroId.ToString());
+			Writer->WriteValue(KeyRole, RoleToString(Binding.Role));
+			Writer->WriteValue(KeyActive, Binding.bActive);
+			Writer->WriteObjectEnd();
+		}
+		Writer->WriteArrayEnd();
 		Writer->WriteObjectEnd();
 
 		Writer->WriteObjectEnd();
@@ -517,6 +595,38 @@ TArray<FString> URTAnimCatalogLibrary::ValidateCatalog(const FRTAnimCatalog* Cat
 		Errors.Add(FString::Printf(
 			TEXT("nextId %d non domina %s: un ID gia' assegnato verrebbe riciclato"),
 			Catalog->NextId, *MakeId(HighestAssignedId)));
+	}
+
+	// 🔴 **Al piu' UNA variante attiva per `(eroe, ruolo)`, e qui e' l'unico posto che puo' difenderlo.**
+	//
+	// A runtime l'invariante e' strutturale: `FRTAnimRoleClips::ActiveClipVariant` e' UN `FName`, e due
+	// attive non sono nemmeno rappresentabili. Nel testo lo sono — bastano due `"active": true` scritti a
+	// mano, o un merge che unisce due rami che hanno legato la stessa Action.
+	//
+	// Senza questo controllo il commandlet dovrebbe scegliere quale delle due vince, e sceglierebbe per
+	// posizione nell'array: cioe' l'autore vedrebbe cambiare la clip che suona riordinando un file.
+	TMap<TPair<FName, ERTPresentationRole>, FName> AttivaPerRuolo;
+	for (const FRTAnimCatalogEntry& Entry : Catalog->Entries)
+	{
+		for (const FRTAnimBinding& Binding : Entry.Authored.Bindings)
+		{
+			if (!Binding.bActive)
+			{
+				continue;   // legata e inattiva e' lo stato normale: nessun vincolo di unicita'
+			}
+			const TPair<FName, ERTPresentationRole> Chiave(Binding.HeroId, Binding.Role);
+			if (const FName* Gia = AttivaPerRuolo.Find(Chiave))
+			{
+				Errors.Add(FString::Printf(
+					TEXT("%s / %s: '%s' e '%s' sono entrambe attive, e il ruolo ne ammette una sola"),
+					*Binding.HeroId.ToString(), *RoleToString(Binding.Role),
+					*Gia->ToString(), *Entry.Id.ToString()));
+			}
+			else
+			{
+				AttivaPerRuolo.Add(Chiave, Entry.Id);
+			}
+		}
 	}
 
 	return Errors;
