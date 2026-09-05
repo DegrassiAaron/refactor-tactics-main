@@ -9,6 +9,7 @@
 #include "Selection/RTSelectable.h"
 #include "Map/RTMapVisuals.h" // #983: RTCellTopZ si include invece di ricopiarlo in un commento
 #include "Animation/PoseSnapshot.h" // #1750: il ricordo di posa e' un membro per valore, non un puntatore
+#include "Unit/RTUnitAnimInstance.h" // #2448: ERTPresentationRole entra nella firma del canale discreto
 #include "RTUnit.generated.h"
 
 class UAnimSequenceBase;
@@ -945,19 +946,49 @@ public:
 	 */
 	virtual FVector GetVelocity() const override;
 
-	// --- Eventi di presentazione del combattimento (montaggi): implementati nei BP_Unit, chiamati dal TurnManager.
-	//     Se un BP non li implementa non succede nulla (nessun crash): la logica resta invariata (invariante #1).
-	/** L'attaccante esegue il montaggio d'attacco (fase Blast). */
-	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
-	void PlayAttackMontage();
+	// --- Presentazione discreta del combattimento (#2448).
+	//
+	// 🔑 **La clip NON la sceglie piu' il Blueprint: la sceglie il C++**, leggendola dal CDO di
+	// `UnitAnimClass` per `(HeroId, ruolo)`. Il `TurnManager` chiama `PlayPresentationRole`, che risolve,
+	// suona sullo slot e POI notifica il Blueprint passandogli **cio' che ha suonato**.
+	//
+	// ⚠️ **I tre eventi ora portano un parametro**, ed e' una rottura del contratto C++/Blueprint che si e'
+	// potuta scegliere perche' misurata innocua: al 2026-09-05 **nessuno dei quattro `BP_Unit_*` li
+	// implementa** (verificato sulla name table dei binari, con token di controllo). Non c'e' nessun
+	// Blueprint da ricablare.
+	//
+	// Se un BP non li implementa non succede nulla (nessun crash): la logica resta invariata (invariante #1).
 
-	/** Il bersaglio reagisce al colpo subito. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
-	void PlayHitMontage();
+	/**
+	 * Risolve il ruolo dal CDO, lo suona sullo slot `DefaultSlot` e notifica il Blueprint.
+	 *
+	 * ⛔ **Degrada in silenzio, sempre**: senza skeletal, senza `AnimInstance`, senza voce nel CDO o con un
+	 * `TSoftObjectPtr` che non risolve, non fa nulla e non rompe niente. La partita si gioca uguale.
+	 * ⚠️ Solo presentazione: non tocca stato logico, TurnLog ne' ordinamento (invariante #1).
+	 */
+	void PlayPresentationRole(ERTPresentationRole Ruolo);
 
-	/** L'unita' eliminata esegue il montaggio di morte, prima della rimozione visiva. */
+	/**
+	 * Il PATH della clip che `PlayPresentationRole` suonerebbe per questo ruolo, senza caricarla.
+	 *
+	 * 🔑 **Separata dal suo uso per la stessa ragione di `GhostFallbackClipPath`**: i pack Paragon non sono
+	 * versionati, quindi headless `LoadSynchronous` da' `nullptr` e un test non distinguerebbe «la clip
+	 * giusta non si carica» da «punto alla clip sbagliata». Il path invece c'e' sempre, ed e' cio' che il
+	 * controllo positivo di `SimulationOutcomeIsUnchangedAcrossVariants` puo' asserire.
+	 */
+	TSoftObjectPtr<UAnimSequenceBase> ResolvedClipPathFor(ERTPresentationRole Ruolo) const;
+
+	/** L'attaccante esegue la presentazione d'attacco (fase Blast), con la clip gia' risolta. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
-	void PlayDefeatMontage();
+	void PlayAttackMontage(UAnimSequenceBase* Resolved);
+
+	/** Il bersaglio reagisce al colpo subito, con la clip gia' risolta. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
+	void PlayHitMontage(UAnimSequenceBase* Resolved);
+
+	/** L'unita' eliminata esegue la morte, con la clip gia' risolta, prima della rimozione visiva. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
+	void PlayDefeatMontage(UAnimSequenceBase* Resolved);
 
 	// IRTSelectable
 	virtual void OnSelected() override;
