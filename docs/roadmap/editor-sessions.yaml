@@ -910,49 +910,52 @@ sessions:
     title: Animazioni
     block: 3
     critical: true
-    execution_lane: asset
-    produces: i dodici montaggi Cast/Hit/Death dei quattro personaggi
-    artifacts:
-      - Content/RT/Characters/Gadget/Animation/AM_Gadget_Attack.uasset
-      - Content/RT/Characters/Gadget/Animation/AM_Gadget_Hit.uasset
-      - Content/RT/Characters/Gadget/Animation/AM_Gadget_Death.uasset
-      - Content/RT/Characters/Phase/Animation/AM_Phase_Attack.uasset
-      - Content/RT/Characters/Phase/Animation/AM_Phase_Hit.uasset
-      - Content/RT/Characters/Phase/Animation/AM_Phase_Death.uasset
-      - Content/RT/Characters/Riktor/Animation/AM_Riktor_Attack.uasset
-      - Content/RT/Characters/Riktor/Animation/AM_Riktor_Hit.uasset
-      - Content/RT/Characters/Riktor/Animation/AM_Riktor_Death.uasset
-      - Content/RT/Characters/Wraith/Animation/AM_Wraith_Attack.uasset
-      - Content/RT/Characters/Wraith/Animation/AM_Wraith_Hit.uasset
-      - Content/RT/Characters/Wraith/Animation/AM_Wraith_Death.uasset
+    execution_lane: pie   # NON piu' `asset`: dal 2026-09-05 questa seduta non produce binari, giudica
+    produces: il giudizio `PIE-AS4b` su Cast/Hit/Death dei quattro personaggi
+    # 🔴 **Questa seduta non produce piu' asset, e il campo `artifacts` e' VUOTO di proposito.**
+    # Fino al 2026-09-05 elencava i dodici montaggi `AM_<Pack>_{Attack,Hit,Death}.uasset`. #2450 ha
+    # cambiato via: i tre ruoli si popolano come DATI nel CDO di `URTUnitAnimInstance`, non come
+    # `.uasset`, perche' `PlaySlotAnimationAsDynamicMontage(UAnimSequenceBase*, FName)`
+    # (`AnimInstance.h:591`) suona una clip sullo slot che il grafo gia' espone. Le dodici righe
+    # d'allowlist sono uscite dal `.gitignore`, e le dodici righe da `asset-map.md`, nello stesso commit.
+    #
+    # ⚠️ Un `artifacts` vuoto qui NON e' una dimenticanza: e' la dichiarazione che la seduta
+    # e' di giudizio e non di produzione. Chi lo ripopola sta reintroducendo la via scartata.
+    artifacts: []
     unblocked_by: []
     shares_setup_with: [U7, U9]
     verifies: [PIE-AS4b]
     issues: [288]
-    done_when: i dodici montaggi sono tracciati da git e PIE-AS4b ha esito reale
+    done_when: PIE-AS4b ha esito reale sui quattro eroi, e DefeatBeatSeconds e' tarato a schermo
     unblocks: [U9, U19]
     steps: |
-      🔴 **Questa seduta NON produce piu' anim BP: il grafo di locomozione vive in C++.**
-      `URTUnitAnimInstance` monta Idle/Run in un blend e lo slot `DefaultSlot` come radice, e
-      `ARTUnit::ApplyUnitAnimClass()` assegna la classe allo spawn — vedi **D-248**. Restano solo i
-      **montaggi**, che sono lavoro reale: lo slot che li ospita esiste gia'.
+      🔴 **Questa seduta non produce piu' NIENTE: giudica.** Dal 2026-09-05 (#2450) i tre ruoli
+      `Attack`, `Hit` e `Death` si popolano come **dati** nel CDO di `URTUnitAnimInstance`, non come
+      `.uasset`: `PlaySlotAnimationAsDynamicMontage(UAnimSequenceBase*, FName)` (`AnimInstance.h:591`)
+      suona una clip sullo slot `DefaultSlot`, che il grafo espone gia' come radice (**D-248**).
 
-      Procedura in `guida-animazioni-paragon.md` §AS.4b. Per ogni pack, tre montaggi dalle clip
-      *Attacco*, *Colpito* e *Morte* di §AS.3b, poi i tre eventi `PlayAttackMontage`,
-      `PlayHitMontage` e `PlayDefeatMontage` sul `BP_Unit_<Pack>`, ciascuno collegato a un
-      `Play Anim Montage` col target sullo Skeletal Mesh Component. Niente bind, niente branch,
-      niente cast: li chiama il `TurnManager` da solo.
+      **L'ordine e' obbligato, e questa seduta viene per ULTIMA:**
 
-      **Il nome segue il PACK** (deciso 2026-08-11, come U7): `AM_Gadget_Attack`, `AM_Gadget_Hit`,
-      `AM_Gadget_Death`, e cosi' per Phase, Riktor e Wraith. La collocazione e'
-      `/Game/RT/Characters/<Pack>/Animation/` — non `Blueprints/`, che ospita i `BP_Unit_*`.
+          #2448 (il canale: gli eventi ricevono l'animazione risolta)
+                └─► #2450 (i dati: tre ruoli x quattro eroi nel CDO)
+                          └─► QUESTA seduta · PIE-AS4b (il giudizio a schermo)
 
-      ⚠️ **Le clip di partenza si MISURANO, non si deducono**: §AS.3b conta **sei caselle su venti**
-      che non si chiamano come ci si aspetta — `Hitreact_Fwd` con la `r` minuscola per Gadget,
-      `Death` nudo per Phase, `Death_Forward` per Wraith.
+      Aprirla prima che i dati esistano significa guardare quattro unita' che restano in posa di
+      riferimento, senza errore e senza log.
 
-      ⚠️ **Un `.uasset` per volta**: due non si fondono. I quattro pack sono file distinti, quindi il
-      lavoro e' parallelizzabile — ma non sullo stesso.
+      **Cosa si giudica, e sono due cose:**
+
+      1. `PIE-AS4b` — nel Blast l'attaccante gioca `Cast`, il bersaglio `Hit`; l'eliminazione gioca
+         `Death`. Banco: `Visual.Combat.Defeat` (`PIE-VIS-KO`).
+      2. **`DefeatBeatSeconds`** (`ARTTurnManager`, oggi **0,80 s**) — e' la coda che #2452 ha
+         introdotto perche' il montaggio di morte avesse una finestra invece di zero, ed e' stata
+         scelta *senza avere un'animazione da guardare*. E' il numero che decide se la morte si legge
+         o si trascina, e si tara qui.
+
+      ⚠️ **Nessun `.uasset` va creato o toccato.** In particolare i quattro `BP_Unit_*` restano
+      intatti: i tre `BlueprintImplementableEvent` non vanno implementati — misurato il 2026-09-05
+      sulla name table dei quattro binari, oggi non li implementa nessuno, e con la via dati non
+      serve. `find Content -iname "AM_*"` deve restare **0**.
 
       > ⚠️ **Riscritta tre volte.** Il 2026-08-10 chiedeva `ABP_Gideon` e `ABP_Sparrow` in
       > `Blueprints/`: due anim BP intitolati a pack fuori dal roster, nella cartella sbagliata. Il

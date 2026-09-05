@@ -151,12 +151,21 @@ esso l'errore di aprire la cartella sbagliata.
 | Riktor | `Hero.Riktor` | **`Riktor`** |
 | Wraith | `Hero.Wraith` | **`Wraith`** |
 
-Vale per la cartella e per gli asset di **presentazione**: `Characters/Gadget/Blueprints/BP_Unit_Gadget`,
-`Characters/Gadget/Animation/AM_Gadget_Attack`.
+Vale per la cartella e per gli asset di **presentazione**: `Characters/Gadget/Blueprints/BP_Unit_Gadget`.
 
-⚠️ *Questo esempio citava `ABP_Gadget` fino al 2026-08-30. La **regola di naming non cambia** — il nome
-segue il pack — ma quell'asset non è più previsto: il grafo di animazione vive in C++
-([D-248](../../decisions/RT_PDR_00_Decision_Log.md)), e in `Animation/` ci vanno i montaggi.*
+⚠️ *Questo esempio è invecchiato **due volte**, e la regola di naming non è mai cambiata — cambia ogni volta
+l'asset che gli fa da esempio.* Citava `ABP_Gadget` fino al **2026-08-30**: il grafo di animazione vive in
+C++ ([D-248](../../decisions/RT_PDR_00_Decision_Log.md)). Poi citava
+`Characters/Gadget/Animation/AM_Gadget_Attack`, e aggiungeva *«in `Animation/` ci vanno i montaggi»*, fino al
+**2026-09-05**: anche quelli non sono più previsti — i ruoli `Attack`/`Hit`/`Death` si popolano come **dati**
+nel CDO di `URTUnitAnimInstance`
+([#2450](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2450)).
+
+🔑 **La regola resta quella: il nome segue il pack.** Ma `Characters/<CharacterId>/Animation/` **non ha oggi
+nessun asset previsto** — la cartella esiste nel percorso perché la convenzione la definisce, non perché ci
+sia qualcosa da metterci. Il rimedio all'esempio che invecchia è quello che §6 di
+[`asset-map.md`](asset-map.md) ha già scelto per sé: **non citare un caso vivo**, e puntare alla sezione che
+i casi li tiene aggiornati per mestiere.
 
 **Eccezione: i dati restano intitolati all'eroe.** `DA_Hero_Gadget` sta in `Characters/Gadget/Data/` ma non
 diventa `DA_Hero_Gadget`. Un data asset eroe descrive *statistiche e abilità*, che non dipendono dalla mesh:
