@@ -108,7 +108,7 @@ bloccata. **Ventinove** di esse non sono in nessuna sequenza, ed è la condizion
 | U19 · U22 | 4 ciascuna | — | varie | 🟡 |
 | **U45** | **3** | `[E12]` | — | 🟡 attende un checkpoint, non una seduta |
 | **U39** | **1** | `[U21]` — già soddisfatto | #1920 aperta | 🟢 **eseguibile**: `GenerateIntoAsset` allestisce la mappa in un gesto — vedi in coda alla §4 |
-| **U46** | **6** | `[]` | #1873 · #1246 — nessuna delle due la blocca | 🟢 **eseguibile ora**: quattro sono le uniche voci non verdi del gate `G9`, due chiudono altrettanti scenari orfani |
+| **U46** | **6** | `[]` | #1246 — non la blocca · #1873 **chiusa** il 2026-09-05 | 🟢 **eseguibile ora**: quattro sono le uniche voci non verdi del gate `G9`, due chiudono altrettanti scenari orfani |
 | altre 14 sedute | 1–2 ciascuna | — | varie | — |
 🔑 **`U46` non ordina per resa, e va letta a parte.** Sei voci sono meno di ventuno, ma quattro sono **le
 uniche non verdi del subset `RELEASE-V01`**: finché restano gialle, `G9` non è verde e la v0.1 non è
