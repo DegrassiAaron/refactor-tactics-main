@@ -26,6 +26,7 @@
 #include "UI/RTHudViewModel.h"
 #include "RTWorldFixtures.h"
 #include "TimerManager.h"
+#include "CoreGlobals.h"   // GFrameCounter: vedi AvanzaOrologioPrep
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -64,6 +65,32 @@ namespace
 			B.TurnManager->SetPrepWindowSeconds(PrepSeconds);
 		}
 		return B;
+	}
+
+	/**
+	 * 🔴 **Far scorrere l'orologio di un test costa due righe, e senza la prima il test e' MUTO.**
+	 *
+	 * `FTimerManager::Tick` esce **subito** se e' gia' stato tickato nel frame corrente
+	 * (`TimerManager.cpp:1136`, `if (HasBeenTickedThisFrame()) return;`), e in una run di automation nessuno
+	 * fa avanzare `GFrameCounter`: senza incrementarlo a mano, il **secondo** `Tick` e ogni successivo sono
+	 * no-op **silenziosi**. Un test che chiamasse `Tick(1.f)` tre volte misurerebbe un secondo solo, e
+	 * l'assertion sbagliata passerebbe o fallirebbe per la ragione sbagliata.
+	 *
+	 * ⚠️ **E il PRIMO tick non consuma tempo: attiva.** `SetTimer` in un mondo mai tickato crea il timer
+	 * `Pending` (`TimerManager.cpp:759`, `bQueueForCurrentFrame` falso), e per uno stato non-`Active`
+	 * `GetTimerRemaining` restituisce il **rate**, non il residuo. E' il Tick a promuoverlo, con
+	 * `ExpireTime += InternalTime` (`:1384`). Percio' l'orologio si avvia con un `Avanza(0.f)` prima di
+	 * misurare qualunque residuo.
+	 *
+	 * ✅ **Niente di tutto questo riguarda la partita**: in gioco il TimerManager e' tickato ogni frame,
+	 * quindi il timer nasce gia' `Active`. E' una proprieta' dell'ambiente di test, e sta scritta qui perche'
+	 * il prossimo che misura un timer non la riscopra da un rosso.
+	 */
+	void AvanzaOrologioPrep(UWorld* World, float Secondi)
+	{
+		if (!World) { return; }
+		++GFrameCounter;
+		World->GetTimerManager().Tick(Secondi);
 	}
 }
 
@@ -157,11 +184,15 @@ bool FRTPrepWindowPauseResumesFromRemainingTest::RunTest(const FString&)
 	if (!TestTrue(TEXT("banco allestito"), B.IsComplete())) { return false; }
 
 	B.TurnManager->OnPlanningTimeoutForTest();
+	// Avvia l'orologio SENZA consumare tempo: il timer nasce `Pending` e questo tick lo promuove ad
+	// `Active` con `ExpireTime += InternalTime`. Un tick che promuovesse E consumasse insieme lascerebbe
+	// il residuo intatto, perche' i due effetti si annullano. Vedi `AvanzaOrologioPrep`.
+	AvanzaOrologioPrep(B.World, 0.f);
 	if (!TestTrue(TEXT("finestra armata"), B.TurnManager->IsPrepWindowActive())) { return false; }
 
 	// Il tempo scorre di un secondo: e' l'unico modo di distinguere «riprende dal residuo» da «riprende da
 	// capo». Senza avanzare l'orologio i due comportamenti darebbero lo stesso numero.
-	B.World->GetTimerManager().Tick(1.f);
+	AvanzaOrologioPrep(B.World, 1.f);
 
 	B.TurnManager->PausePrepWindow();
 
@@ -173,7 +204,7 @@ bool FRTPrepWindowPauseResumesFromRemainingTest::RunTest(const FString&)
 	TestEqual(TEXT("il residuo congelato e' quello di un secondo dopo"), RimastoInPausa, 2.f, 0.05f);
 
 	// Il tempo scorre ancora, ma in pausa non deve consumare niente.
-	B.World->GetTimerManager().Tick(1.f);
+	AvanzaOrologioPrep(B.World, 1.f);
 	TestEqual(TEXT("in pausa il residuo non scende"), B.TurnManager->GetPrepWindowRemaining(),
 		RimastoInPausa, 0.01f);
 
@@ -213,7 +244,11 @@ bool FRTPrepWindowPauseIsIdempotentTest::RunTest(const FString&)
 	TestFalse(TEXT("ripresa senza pausa non arma niente"), B.TurnManager->IsPrepWindowActive());
 
 	B.TurnManager->OnPlanningTimeoutForTest();
-	B.World->GetTimerManager().Tick(1.f);
+	// Avvia l'orologio SENZA consumare tempo: il timer nasce `Pending` e questo tick lo promuove ad
+	// `Active` con `ExpireTime += InternalTime`. Un tick che promuovesse E consumasse insieme lascerebbe
+	// il residuo intatto, perche' i due effetti si annullano. Vedi `AvanzaOrologioPrep`.
+	AvanzaOrologioPrep(B.World, 0.f);
+	AvanzaOrologioPrep(B.World, 1.f);
 	B.TurnManager->PausePrepWindow();
 	const float Rimasto = B.TurnManager->GetPrepWindowRemaining();
 
@@ -250,12 +285,16 @@ bool FRTPrepWindowLeavesTurnLogUnchangedTest::RunTest(const FString&)
 		if (!B.IsComplete()) { return -1; }
 
 		B.TurnManager->OnPlanningTimeoutForTest();
+		// Avvia l'orologio SENZA consumare tempo: il timer nasce `Pending` e questo tick lo promuove ad
+		// `Active` con `ExpireTime += InternalTime`. Un tick che promuovesse E consumasse insieme lascerebbe
+		// il residuo intatto, perche' i due effetti si annullano. Vedi `AvanzaOrologioPrep`.
+		AvanzaOrologioPrep(B.World, 0.f);
 
 		// Con la finestra accesa la risoluzione e' trattenuta: la si fa arrivare facendo scorrere l'orologio,
 		// che e' esattamente cio' che accade in partita. Con la finestra spenta e' gia' avvenuta.
 		if (PrepSeconds > 0.f)
 		{
-			B.World->GetTimerManager().Tick(PrepSeconds + 0.1f);
+			AvanzaOrologioPrep(B.World, PrepSeconds + 0.1f);
 		}
 
 		const int32 Voci = B.TurnManager->GetTurnLog().Num();
