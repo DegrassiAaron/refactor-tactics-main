@@ -71,6 +71,25 @@ struct FRTMatchHeaderView
 	float ReadyCountdownSecondsRemaining = -1.f;
 
 	/**
+	 * La finestra di preparazione dell'autobattle (`#2386`). Negativo quando non e' armata.
+	 *
+	 * 🔑 **E' il terzo orologio, e non compete con gli altri due**: vive DOPO la scadenza del Planning —
+	 * `OnPlanningTimeout` la arma — quindi quando questo e' positivo `PlanningSecondsRemaining` e'
+	 * gia' esaurito e `ReadyCountdownSecondsRemaining` non e' mai stato armato (in autobattle nessuno
+	 * preme Ready). I tre sono mutuamente esclusivi **per costruzione**, non per convenzione.
+	 *
+	 * ⚠️ **In pausa resta positivo e fermo.** Chi mostra questo numero deve leggere anche
+	 * `bPrepWindowPaused`: un residuo che non scende senza un'etichetta che dica perche' sembra un HUD
+	 * bloccato.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	float PrepWindowSecondsRemaining = -1.f;
+
+	/** La finestra di preparazione e' armata ma ferma (`#2386`). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bPrepWindowPaused = false;
+
+	/**
 	 * 🔑 **Il numero da MOSTRARE: quanti secondi mancano al commit del piano.** Negativo quando la domanda
 	 * non si applica — nessun orologio in corsa.
 	 *
