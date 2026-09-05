@@ -62,6 +62,25 @@ struct FRTPlaygroundStationInfo
 	bool bLive = false;
 };
 
+/**
+ * I quattro parametri **numerici** del fixture, come vocabolario invece che come posizione.
+ *
+ * 🔑 Esiste perche' il grafo possa dire *quale* campo e' cambiato senza passare quattro `float` in un
+ * ordine che nessun compilatore verifica: quattro parametri dello stesso tipo si scambiano in silenzio,
+ * ed e' il difetto che `PanelReadFixtureParametersRoundTrips` prova con quattro valori diversi.
+ *
+ * ⛔ Non comprende `Facing`, che ha gia' `ApplyFixtureFacing`: e' un enum, non una misura, e mescolarlo
+ * qui vorrebbe dire passarlo come `float`.
+ */
+UENUM(BlueprintType)
+enum class ERTPlaygroundFixtureParam : uint8
+{
+	BodyRadius,
+	BodyHeight,
+	FaceHeight,
+	MarkerLength
+};
+
 /** Lo stato che l'`HEADER` mostra. Due valori: o si lavora, o si dice perche' no. */
 UENUM(BlueprintType)
 enum class ERTPlaygroundReadiness : uint8
@@ -192,6 +211,47 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playground")
 	static bool ApplyFixtureParameters(ARTGrayboxUnitFacingFixture* Fixture,
 		float BodyRadius, float BodyHeight, float FaceHeight, float MarkerLength);
+
+	/**
+	 * Scrive **un solo** parametro, e ricostruisce.
+	 *
+	 * 🔑 **Perche' uno alla volta, quando esiste gia' la versione che li scrive tutti e quattro.** Il
+	 * grafo riceve da `OnValueChanged` il valore del campo che l'utente ha appena mosso, e **basta
+	 * quello**: per usare `ApplyFixtureParameters` dovrebbe rileggere gli altri tre dai rispettivi
+	 * `USpinBox`, e `SpinBox|GetValue` e' un nodo **ambiguo** — `USlider` e `USpinBox` dichiarano
+	 * entrambi `GetValue(float)` con `Category="Behavior"`, e il DSL prende la prima. E' esattamente la
+	 * trappola gia' pagata su `ComboBox|GetSelectedOption`.
+	 *
+	 * ⚠️ **E c'e' una ragione che vale anche senza il DSL**: gli altri tre valori vengono cosi' dal
+	 * **fixture**, che e' la fonte di verita', invece che dai widget. Se un campo e il fixture
+	 * divergessero, rileggere dai widget propagherebbe la divergenza sull'attore.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playground")
+	static bool ApplyFixtureParameter(ARTGrayboxUnitFacingFixture* Fixture,
+		ERTPlaygroundFixtureParam Parameter, float Value);
+
+	/**
+	 * Riempie i quattro campi del pannello con i valori **veri** del fixture.
+	 *
+	 * 🔴 **Senza questa chiamata il pannello mentirebbe al primo tocco.** Un `USpinBox` nasce a `0`: se
+	 * `Select Fixture` non li riempisse, la prima rotellata scriverebbe `0` su un corpo che vale `60` —
+	 * il pannello *sembrerebbe* funzionare mentre cancella il fixture. Serve anche dopo `Reset`, dove i
+	 * campi resterebbero sui valori sporchi mentre l'attore e' gia' tornato ai default.
+	 *
+	 * 🔑 **Prende i widget come parametri invece di leggerli**, e non e' un giro largo: `SpinBox|SetValue`
+	 * e' ambiguo fra `USlider` e `USpinBox` (stessa `Category`, stessa firma) e il DSL prende la prima.
+	 * Passando i quattro widget la scrittura avviene in C++, dove il tipo e' esatto, e il grafo fa **una**
+	 * chiamata invece di quattro nodi ambigui.
+	 *
+	 * ⚠️ Tollera i puntatori nulli **uno per uno**: un campo non ancora costruito non deve impedire agli
+	 * altri tre di aggiornarsi. Restituisce quanti ne ha scritti.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playground")
+	static int32 PushFixtureParametersToSpinBoxes(const ARTGrayboxUnitFacingFixture* Fixture,
+		class USpinBox* BodyRadiusBox, class USpinBox* BodyHeightBox,
+		class USpinBox* FaceHeightBox, class USpinBox* MarkerLengthBox);
+
+		static int32 SetStationLabelsVisible(const UObject* WorldContextObject, bool bVisible);
 
 	/**
 	 * Rimette i **default dichiarati**.

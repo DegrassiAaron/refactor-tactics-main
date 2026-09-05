@@ -2,6 +2,7 @@
 
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
+#include "Engine/TextRenderActor.h"
 #include "Engine/World.h"
 #include "Map/RTHexLibrary.h"
 #include "RTPlaygroundLayout.h"
@@ -9,7 +10,9 @@
 #include "RTPlaygroundPanelLibrary.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
+#include "Components/CheckBox.h"
 #include "Components/ComboBoxString.h"
+#include "Components/SpinBox.h"
 #include "Components/TextBlock.h"
 #include "EditorUtilityWidgetBlueprint.h"
 #include "EdGraph/EdGraph.h"
@@ -498,6 +501,14 @@ bool FRTPanelGraphCallsTheModelTest::RunTest(const FString&)
 		TEXT("CameraPresetArmLengths"),  // i tre bracci vengono dal modello, non scritti nel grafo
 		TEXT("CameraPresetPitch"),       // e l'inclinazione e' quella del gioco, non un -90 inventato
 		TEXT("SetLevelViewportCameraInfo"), // 🔑 e la camera si MUOVE davvero
+		// 🔴 **Aggiunte il 2026-09-05, e l'assenza di questa riga era il difetto.** `ApplyFixtureParameters`
+		// esisteva dal primo giorno, era `BlueprintCallable`, aveva un test unitario — e **nessun chiamante
+		// nel grafo**: quattro dei cinque parametri della DoD non si potevano toccare dal pannello. Questo
+		// test elencava dieci funzioni, non lei, ed era **verde**. Un elenco di attese che non copre cio'
+		// che la DoD chiede non sorveglia il grafo: certifica la propria lista.
+		TEXT("ApplyFixtureParameter"),   // 🔑 il numero mosso arriva al fixture, e il marker si ricostruisce
+		TEXT("PushFixtureParametersToSpinBoxes"), // e i campi partono dal valore VERO, non da zero
+		TEXT("SetStationLabelsVisible"), // il toggle delle etichette chiede al modello, non cerca da se'
 	};
 	for (const FName& Function : Expected)
 	{
@@ -772,6 +783,192 @@ bool FRTPanelPlannedMarkTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("station %d: il marchio segue bLive"), Station.Number),
 			Label.Contains(TEXT("[PLANNED]")), !Station.bLive);
 	}
+	return true;
+}
+
+/**
+ * 🔴 **I controlli che la DoD nomina ESISTONO come widget.** Fino al 2026-09-05 non esistevano, e
+ * nessuno dei quattordici test se n'era accorto: `PanelGraphCallsTheModel` guardava le **chiamate** del
+ * grafo, `PanelButtonLabels` i **pulsanti**, `PanelComboOptions` le **combo**. Nessuno chiedeva se i
+ * controlli della DoD ci fossero, quindi *«i cinque parametri si leggono e si modificano dal pannello»*
+ * e *«i tre toggle»* erano criteri senza guardiano — misurato sul `.uasset`: zero `SpinBox`, zero
+ * `CheckBox`, zero `Slider`, zero occorrenze di `Radius`/`Height`/`Marker`.
+ *
+ * 🔑 **Cerca per CLASSE oltre che per nome**, ed e' la differenza che regge alla mutazione: un
+ * `UTextBlock` chiamato `Spn_BodyRadius` soddisferebbe un test che si fida del nome, e a schermo
+ * resterebbe una riga di testo che non si puo' toccare.
+ *
+ * ⛔ **`Chk_Guide` e `Chk_Bounds` non sono attesi, e non e' una svista.** La DoD chiede tre toggle; la
+ * mappa offre un aggancio stabile per **uno** solo. Vedi `SetStationLabelsVisible` e la integration
+ * request verso #1991. Pretenderli qui renderebbe il test rosso su un lavoro che non e' di questo lato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelDeclaredControlsTest,
+	"RefactorTactics.Playground.PanelDeclaredControlsExist",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelDeclaredControlsTest::RunTest(const FString&)
+{
+	UEditorUtilityWidgetBlueprint* Panel = LoadObject<UEditorUtilityWidgetBlueprint>(
+		nullptr, TEXT("/Game/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground"));
+	if (!TestNotNull(TEXT("il pannello e' caricabile dal suo percorso"), Panel) || !Panel->WidgetTree)
+	{
+		return false;
+	}
+	UWidgetTree* Tree = Panel->WidgetTree;
+
+	// I quattro parametri numerici della DoD, ciascuno con il proprio controllo EDITABILE.
+	const TCHAR* SpinNames[] = {
+		TEXT("Spn_BodyRadius"), TEXT("Spn_BodyHeight"), TEXT("Spn_FaceHeight"), TEXT("Spn_MarkerLength")
+	};
+	for (const TCHAR* Name : SpinNames)
+	{
+		UWidget* Found = Tree->FindWidget(FName(Name));
+		TestNotNull(*FString::Printf(TEXT("%s esiste nel pannello"), Name), Found);
+		// ⛔ Per CLASSE: il nome da solo non dice che si possa toccare.
+		TestNotNull(*FString::Printf(TEXT("%s e' uno SpinBox, non un'etichetta"), Name),
+			Cast<USpinBox>(Found));
+	}
+
+	// Il toggle che ha un soggetto nella scena.
+	UWidget* Labels = Tree->FindWidget(TEXT("Chk_Labels"));
+	TestNotNull(TEXT("Chk_Labels esiste nel pannello"), Labels);
+	TestNotNull(TEXT("Chk_Labels e' una CheckBox"), Cast<UCheckBox>(Labels));
+
+	// 🔑 E ogni controllo deve essere una VARIABILE, altrimenti il grafo non ha maniglia e il suo
+	// `Get<Nome>` non esiste: il widget ci sarebbe e resterebbe scollegato.
+	for (const TCHAR* Name : SpinNames)
+	{
+		if (const UWidget* Widget = Tree->FindWidget(FName(Name)))
+		{
+			TestTrue(*FString::Printf(TEXT("%s e' una variabile, quindi il grafo lo raggiunge"), Name),
+				Widget->bIsVariable);
+		}
+	}
+	if (Labels)
+	{
+		TestTrue(TEXT("Chk_Labels e' una variabile"), Labels->bIsVariable);
+	}
+	return true;
+}
+
+/**
+ * `ApplyFixtureParameter` scrive **il campo giusto**, e `PushFixtureParametersToSpinBoxes` riporta nel
+ * pannello il valore **vero**.
+ *
+ * 🔑 **Quattro valori diversi fra loro, e uno per volta.** Un enum sbagliato — `FaceHeight` che scrive
+ * `BodyHeight` — e' invisibile se i valori coincidono o se si scrivono tutti insieme: qui ogni chiamata
+ * tocca un campo solo e il test verifica che **gli altri tre non si muovano**. E' cio' che l'enum esiste
+ * per rendere verificabile, invece di quattro `float` in un ordine che nessun compilatore controlla.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelApplyOneParameterTest,
+	"RefactorTactics.Playground.PanelApplyFixtureParameterWritesOnlyItsOwnField",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelApplyOneParameterTest::RunTest(const FString&)
+{
+	UWorld* World = MakePanelWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World))
+	{
+		return false;
+	}
+	ARTGrayboxUnitFacingFixture* Fixture =
+		World->SpawnActor<ARTGrayboxUnitFacingFixture>(FVector::ZeroVector, FRotator::ZeroRotator);
+	if (!TestNotNull(TEXT("il fixture si posa"), Fixture))
+	{
+		DestroyPanelWorld(World);
+		return false;
+	}
+
+	URTPlaygroundPanelLibrary::ApplyFixtureParameters(Fixture, 11.f, 22.f, 33.f, 44.f);
+
+	struct FCase { ERTPlaygroundFixtureParam Param; const TCHAR* Name; float ARTGrayboxUnitFacingFixture::* Field; };
+	const FCase Cases[] = {
+		{ ERTPlaygroundFixtureParam::BodyRadius,   TEXT("BodyRadius"),   &ARTGrayboxUnitFacingFixture::BodyRadius },
+		{ ERTPlaygroundFixtureParam::BodyHeight,   TEXT("BodyHeight"),   &ARTGrayboxUnitFacingFixture::BodyHeight },
+		{ ERTPlaygroundFixtureParam::FaceHeight,   TEXT("FaceHeight"),   &ARTGrayboxUnitFacingFixture::FaceHeight },
+		{ ERTPlaygroundFixtureParam::MarkerLength, TEXT("MarkerLength"), &ARTGrayboxUnitFacingFixture::MarkerLength },
+	};
+
+	for (const FCase& Case : Cases)
+	{
+		// Si riparte ogni volta dagli stessi quattro valori, cosi' «non si e' mosso» e' verificabile.
+		URTPlaygroundPanelLibrary::ApplyFixtureParameters(Fixture, 11.f, 22.f, 33.f, 44.f);
+		TestTrue(*FString::Printf(TEXT("%s: la scrittura accetta"), Case.Name),
+			URTPlaygroundPanelLibrary::ApplyFixtureParameter(Fixture, Case.Param, 77.f));
+		TestEqual(*FString::Printf(TEXT("%s ha preso il valore"), Case.Name),
+			Fixture->*(Case.Field), 77.f);
+
+		// ⛔ E gli altri tre sono rimasti dov'erano: e' la meta' che scopre un enum mappato male.
+		for (const FCase& Other : Cases)
+		{
+			if (Other.Param != Case.Param)
+			{
+				TestNotEqual(*FString::Printf(TEXT("scrivendo %s, %s non si e' mosso"), Case.Name, Other.Name),
+					Fixture->*(Other.Field), 77.f);
+			}
+		}
+	}
+
+	TestFalse(TEXT("rifiuta un attore nullo"),
+		URTPlaygroundPanelLibrary::ApplyFixtureParameter(nullptr, ERTPlaygroundFixtureParam::BodyRadius, 1.f));
+
+	// I quattro campi del pannello ricevono i valori del FIXTURE, ciascuno il proprio.
+	URTPlaygroundPanelLibrary::ApplyFixtureParameters(Fixture, 11.f, 22.f, 33.f, 44.f);
+	USpinBox* Radius = NewObject<USpinBox>();
+	USpinBox* Height = NewObject<USpinBox>();
+	USpinBox* Face   = NewObject<USpinBox>();
+	USpinBox* Marker = NewObject<USpinBox>();
+	TestEqual(TEXT("scrive tutti e quattro i campi"),
+		URTPlaygroundPanelLibrary::PushFixtureParametersToSpinBoxes(Fixture, Radius, Height, Face, Marker), 4);
+	TestEqual(TEXT("BodyRadius nel suo campo"),   Radius->GetValue(), 11.f);
+	TestEqual(TEXT("BodyHeight nel suo campo"),   Height->GetValue(), 22.f);
+	TestEqual(TEXT("FaceHeight nel suo campo"),   Face->GetValue(),   33.f);
+	TestEqual(TEXT("MarkerLength nel suo campo"), Marker->GetValue(), 44.f);
+
+	// ⚠️ Un campo nullo non deve fermare gli altri tre: sarebbero tre campi a zero per colpa del quarto.
+	TestEqual(TEXT("un campo mancante non ferma gli altri"),
+		URTPlaygroundPanelLibrary::PushFixtureParametersToSpinBoxes(Fixture, Radius, nullptr, Face, Marker), 3);
+	TestEqual(TEXT("e senza fixture non scrive niente"),
+		URTPlaygroundPanelLibrary::PushFixtureParametersToSpinBoxes(nullptr, Radius, Height, Face, Marker), 0);
+
+	DestroyPanelWorld(World);
+	return true;
+}
+
+/**
+ * Il toggle delle etichette **tocca gli `ATextRenderActor` e nessun altro**, e restituisce quanti.
+ *
+ * 🔑 Il conteggio non e' decorazione: e' cio' che distingue *«non c'erano etichette»* da *«non ho potuto
+ * guardare»*, e senza mondo la funzione torna `-1` invece di `0`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelLabelToggleTest,
+	"RefactorTactics.Playground.PanelLabelToggleFindsLabelsByClass",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelLabelToggleTest::RunTest(const FString&)
+{
+	UWorld* World = MakePanelWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World))
+	{
+		return false;
+	}
+
+	// Tre etichette e un attore che NON lo e': se il toggle contasse per mondo invece che per classe,
+	// il conteggio direbbe quattro.
+	for (int32 I = 0; I < 3; ++I)
+	{
+		World->SpawnActor<ATextRenderActor>(FVector(I * 100.f, 0.f, 0.f), FRotator::ZeroRotator);
+	}
+	World->SpawnActor<ARTGrayboxUnitFacingFixture>(FVector::ZeroVector, FRotator::ZeroRotator);
+
+	const int32 Hidden = URTPlaygroundPanelLibrary::SetStationLabelsVisible(World, false);
+	TestEqual(TEXT("spegne le TRE etichette, e non il fixture"), Hidden, 3);
+
+	const int32 Shown = URTPlaygroundPanelLibrary::SetStationLabelsVisible(World, true);
+	TestEqual(TEXT("e le riaccende tutte e tre"), Shown, 3);
+
+	// ⛔ Senza mondo: `-1`, non `0`. Un `0` si leggerebbe come «guardato, nessuna trovata».
+	TestEqual(TEXT("senza un mondo dice -1, non zero"),
+		URTPlaygroundPanelLibrary::SetStationLabelsVisible(nullptr, true), -1);
+
+	DestroyPanelWorld(World);
 	return true;
 }
 
