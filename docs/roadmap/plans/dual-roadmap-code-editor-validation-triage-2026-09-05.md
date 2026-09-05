@@ -1,6 +1,6 @@
 # Dual Roadmap «Code/Architecture + Editor/MCP/Human» — triage del secondo giro
 
-> `CURRENT` · **Stato**: triage chiuso, nessuna roadmap nuova creata, tre gap reali consegnati agli owner · **Data**: 2026-09-05
+> `CURRENT` · **Stato**: triage chiuso, nessuna roadmap nuova creata, tre gap reali **nominati con il loro owner** · **Data**: 2026-09-05
 > **HEAD della misura**: `026850c0` (= `origin/main` al 2026-09-05, dopo `fetch --prune`)
 > **Oggetto**: il work order esterno *RefactorTactics — Dual Roadmap: Code/Architecture + Editor/MCP/Human
 > Validation*, che chiede di produrre due roadmap nuove più una `EDITOR VALIDATION MATRIX`.
@@ -30,7 +30,8 @@ notte scorsa**: il gap 2-vs-10 celle che dovrebbe alimentare la Roadmap A è chi
 | **R5** | le sedute `E1…E5` proposte esistono già come `U44`/`U46`, con `shares_setup_with` che è il campo di batching che il §5 chiede di inventare | 🟠 |
 | **R6** | «massima copertura Editor» contro un gate che chiede **4** voci su **216**: il selettore esiste ed è `RELEASE-V01` | 🟠 |
 | **R7** | la famiglia di ID `PACE-*` non esiste nel registro, e il registro è l'owner degli ID delle verifiche manuali | 🟡 |
-| ~~**R8**~~ | ~~«nessuno scenario del corpus esercita percorsi di lunghezza diversa»~~ — 🔴 **smentito misurando**: sono **6 turni in 3 scenari**, e il migliore vale **4:1**. Vedi §5 | — |
+| **R8** | superficie MCP misurata: `StartPIE` esiste, ma `CaptureViewport` non vede PIE — `PACE-04/16/17/18` restano `C` per misura, non per prudenza | 🔵 |
+| ~~**R9**~~ | ~~«nessuno scenario del corpus esercita percorsi di lunghezza diversa»~~ — 🔴 **smentito misurando**: sono **6 turni in 3 scenari**, e il migliore vale **4:1**. Vedi §5 | — |
 
 **Cosa si salva, e vale la run**: tre gap reali che nessun owner possiede oggi — §6.
 
@@ -62,12 +63,35 @@ grep -cE '^  - id:' docs/roadmap/editor-sessions.yaml                           
 grep -cE '^    shares_setup_with: \[[^]]' docs/roadmap/editor-sessions.yaml                 # 25 con batching
 find Scenarios -name '*.json' ! -name '_*' | wc -l                                          # 125
 grep -c 'PIE-PACE\|\bPACE-[0-9]' docs/technical/test-manuali-pie.md                         # 0
+
+# L'unico conteggio di R4 che non veniva da qui, corretto in review: erano 10, sono 8
+git grep -ohE '"RefactorTactics[.]Replay[.]Seek[.][A-Za-z0-9.]+"' -- Source | sort -u | wc -l   # 8
+
+# I banner di questa cartella, per la nota di §8 — letti dai file, mai incrementati
+git ls-tree -r --name-only a27e99f5 docs/roadmap/plans/ | grep -c 'md$'                        # 127 (126 + README)
 ```
 
 ✅ **Rimisurato prima del merge, come `AGENTS.md` §11 impone.** `origin/main` è avanzato a `a27e99f5` (sei
-commit) mentre il referto veniva scritto: `git diff --stat 026850c0 origin/main` sui file che questi conteggi
-leggono — registro PIE, `editor-sessions.yaml`, `scenario-map.md`, la DoD, `Scenarios/`, `RTPlaybackLibrary.h`,
-`RTTurnManager.cpp` e il Decision Log — **non tocca nessuno di essi**. I numeri valgono su entrambi gli SHA.
+commit) mentre il referto veniva scritto: `git diff --stat 026850c0 origin/main` sui file che i conteggi di
+questa sezione leggono — registro PIE, `editor-sessions.yaml`, `scenario-map.md`, la DoD, `Scenarios/`,
+`RTPlaybackLibrary.h`, `RTTurnManager.cpp` e il Decision Log — **non tocca nessuno di essi**.
+
+🔴 **E la prima stesura di questo controllo era al livello sbagliato, trovato in review.** Enumerava i file
+dietro i numeri **di questa sezione** e non quelli dietro *ogni* numero del documento: i sei commit toccano
+`docs/roadmap/plans/` (+1 file) e `docs/OPEN_DECISIONS.md` (+13 righe), che sono esattamente ciò che §8 conta
+e cita. La conseguenza si era già materializzata — la nota sui banner mescolava due SHA in una frase sola — ed
+è corretta lì. ⚠️ **Un gate di rimisura si deriva dai numeri pubblicati, non dalla sezione che li ha
+prodotti**: enumerare i secondi esenta in silenzio ogni conteggio introdotto altrove.
+
+⛔ **`origin/main` non compila a `a27e99f5`**, e riguarda ciò che questo referto cita: `void
+StandStill(ARTUnit*)` è definita in namespace anonimo **sia** in `RTStatusTests.cpp:97` **sia** in
+`RTUnbalancedProneTests.cpp:103` — la collisione di unity build di
+[`#2397`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2397) e
+[`#2409`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2409), entrambe **OPEN**. ∴ il
+`1997/1997` citato al §1 e in §6 è un **fatto storico** del merge di `#2370`, verificabile lì e **non
+riproducibile** all'SHA che questo documento dichiara come proprio HEAD. Verificare l'identità dei file non è
+verificarne la costruibilità, e dichiararle insieme sarebbe la confusione fra *«file modificato»* e *«file
+verificato»* che `AGENTS.md` §12 vieta.
 
 Superficie MCP, misurata **live** sull'unico ponte acceso (`127.0.0.1:8770`, l'Editor di un altro
 workflow su `rt-wt-replay`), con `initialize` → `tools/list` → `list_toolsets` → `describe_toolset`:
@@ -190,7 +214,7 @@ La §B6 chiede una «matrice minima» `PACE-01…PACE-20`. Mappata sul corpus di
 | `PACE-10` hot speed change | **risposto dal codice**: `TickPlayback` rilegge `EffectivePlaybackSpeed(ViewerPlaybackSpeed)` a **ogni tick** (`RTTurnManager.cpp:7555`) e scala solo `Dt`. Non c'è salto logico perché non c'è stato da riapplicare | **A** ✅ (per costruzione) |
 | `PACE-11` Pause al safe boundary | `#1879` · `Playback.ControlsAreDeniedByDefault` · `Playback.StepOnAnEmptyPhaseDoesNotAdvance` | **A** ✅ |
 | `PACE-12` StepMicroStep | `Playback.StepExecutesWholeMicroStep` — *«non esiste un ingresso che produca mezzo segmento»* | **A** ✅ |
-| `PACE-13` Seek ≡ playback | `Replay.State.PlaybackToBoundaryEqualsSeek`, più 10 test `Replay.Seek.*` | **A** ✅ |
+| `PACE-13` Seek ≡ playback | `Replay.State.PlaybackToBoundaryEqualsSeek`, più **8** test `Replay.Seek.*` (comando in §2) | **A** ✅ |
 | `PACE-14` Skip resta Skip | `RTAutobattleInputInertTests` (Spazio non chiama `RecordPlanningInput`) · verdetto umano già dato in `PIE-FACING-1` ✅ 2026-08-30 | **A+C** ✅ |
 | `PACE-15` multilivello / transizione | `Spec.Map.MatchArenaPlatformClimb` (250,0 di dislivello, misurato sugli Actor) · `Spec.Map.BridgeBreaksThePath` | **A** ✅ |
 | `PACE-16` leggibilità camera | — | **C** ⏳ |
@@ -314,15 +338,33 @@ aspettando il Wraith. È un divario percepibile, su **quattro** unità contempor
 classe **A** già versionato e verde.
 
 ∴ **il banco per il giudizio umano del caso asimmetrico esiste già.** Non serve scrivere uno scenario nuovo,
-che è ciò che una lettura letterale del residuo di `#2370` avrebbe fatto fare. ⚠️ **Limite dichiarato della
-misura**: la distanza esagonale fra waypoint ignora ostacoli e costi di terreno, quindi è un **minimo** —
-la route reale può essere più lunga, mai più corta. Il rapporto 4:1 è dunque un limite inferiore.
+che è ciò che una lettura letterale del residuo di `#2370` avrebbe fatto fare.
+
+⚠️ **Due limiti dichiarati della misura, e il secondo è stato trovato in review.**
+
+1. La distanza esagonale fra waypoint **ignora ostacoli e costi di terreno**, quindi è un **minimo**: la
+   route reale può essere più lunga, mai più corta. Il rapporto 4:1 è un limite inferiore.
+2. La battuta conta i soli intenti **`move`**, e non i **`dash`** — `10` file del corpus ne portano. Non è
+   innocuo per costruzione: `TickPlayback` applica `RouteAlpha` a `Dash` **e** `Move` nello stesso ramo
+   (`RTTurnManager.cpp:7576`), quindi il difetto vive anche lì. ✅ **Verificato che la conclusione non
+   cambia**: nessun turno del corpus mette due unità in `Dash` nello stesso turno, quindi non esiste
+   asimmetria di fase `Dash` da guardare. Chi rieseguisse la battuta su un corpus cresciuto di un secondo
+   *dasher* otterrebbe un risultato diverso da quello che il metodo dichiarato lascia attendere: **il
+   filtro va allargato prima, non il numero riletto dopo.**
 
 ---
 
 ## 6. Cosa resta davvero da fare
 
 Tre gap, e nessuno dei tre è una roadmap.
+
+⛔ **Nessuno dei tre è ancora arrivato al proprio owner, e va detto qui invece che nell'intestazione.** Il
+write-set di questo pass è **questo file più la voce `GOV-4`**: `test-manuali-pie.md` ed `editor-sessions.yaml`
+non sono toccati, `#801` non ha un commento nuovo, e per `G-1` non esiste una issue. 🔴 **È la stessa forma del
+difetto che `G-1` denuncia** — *«sotto quella issue oggi non è un posto dove qualcuno guarderà»* — un livello
+più su: un documento di `plans/` **non è un owner**, e questa cartella lo dichiara di sé nel proprio
+[`README.md`](README.md). ∴ finché la riga nel registro e il commento a `#801` non sono scritti, i tre gap sono
+**nominati**, non consegnati — ed è per questo che l'intestazione dice *«nominati con il loro owner»*.
 
 ### G-1 — Il giudizio umano sul caso asimmetrico non ha una casa
 
@@ -374,7 +416,7 @@ come tabella permanente ricreerebbe la vista che `D-181` ha rimosso.
 | budget playback (**G-2**) | `#801` **OPEN** | **no** — aggiornare | `#801` | A | `G11` (KPI) |
 | 4 residui `G9` | `U46`, `critical: true` | **no** | nessuna: aspettano un occhio | B | **`G9`** |
 | leggibilità playback | `U44`, `PIE-SCEN-PLAYBACK` | **no** | `U21` | B | fuori `G9` |
-| `Blast` su `Alpha` di fase | dichiarato deliberato in `RTTurnManager.cpp:7592` e in `#2370` | **no** — è una decisione separata | — | A | — |
+| `Blast` su `Alpha` di fase | dichiarato deliberato in `RTTurnManager.cpp:7588-7590` e in `#2370` | **no** — è una decisione separata | — | A | — |
 
 ---
 
@@ -387,15 +429,19 @@ nei loro test, e le quattro di `G9` in `U46`.
 | ID | Area | Rischio | Classe | Metodo | Tool / scenario | Setup | Expected | Evidence | Gate | Stato |
 |---|---|---|---|---|---|---|---|---|---|---|
 | **G-1** | playback / pacing | il corto che arriva prima e aspetta si legge come *impuntato* invece che come *arrivato* | **C** | occhio, in PIE | `RT_Showcase_Relay_v01` turno 1 (4:1, quattro unità) | `U44` — dopo `U21` | tre unità concludono e restano ferme mentre il Wraith prosegue; nessuna riparte, nessun drift, nessun overshoot | verdetto nel registro PIE | fuori `G9` | `NOT RUN` |
-| **G-2** | performance | `RouteAlpha` per-anim per-tick non è misurata | **D** | budget suite | `#801` | packaged | il playback resta dentro un budget dichiarato | numero in `#801` | `G11` | `NOT RUN` |
+| **G-2** | performance | `RouteAlpha` per-anim per-tick non è misurata | **D** | budget suite | `#801` | ⚠️ **packaged, non `U44`** | il playback resta dentro un budget dichiarato | numero in `#801` | `G11` | `NOT RUN` |
+| `PACE-04` | playback / pacing | teletrasporto o slow-motion artificiale percepiti | **C** | occhio, in PIE | stesso Play di **G-1** | `U44` | il movimento si legge come scorrimento continuo a ogni lunghezza di route; nessuno salta sulla destinazione, nessuno rallenta senza causa | verdetto nel registro PIE | fuori `G9` | `NOT RUN` |
 | `PACE-16` | camera | route molto diverse rendono illeggibile uno dei due mover | **C** | occhio | stesso Play di **G-1** | `U44` | entrambi restano inquadrati | verdetto | fuori `G9` | `NOT RUN` |
 | `PACE-17` | animazione | foot sliding fuori dalla taratura `1.44` | **B** | `Playback.DefaultRateMatchesTheRunClip` prepara il numero, l'occhio giudica | stesso Play di **G-1** | `U44` | nessuno scivolamento a nessuna delle lunghezze | verdetto | fuori `G9` | `NOT RUN` |
 | `PACE-18` | UI | la stima è tarata all'avvio e diverge dopo un hot speed change | **C** | occhio | stesso Play di **G-1**, cambiando velocità a metà | `U44` | la barra non suggerisce che il mover corto stia ancora muovendo | verdetto | fuori `G9` | `NOT RUN` |
 
-🔑 **Cinque righe, una sola apertura, un solo allestimento** — è l'obiettivo del §0.5 applicato invece che
-enunciato. Le quattro `PACE-*` qui sopra **non sono ID nuovi**: sono i nomi del work order tenuti solo per
-tracciabilità di questo referto, e diventano voci `PIE-*` — con gli ID che il registro assegna — quando
-qualcuno le esegue.
+🔑 **Cinque righe in una sola apertura, più una che non è un'apertura d'Editor** — è l'obiettivo del §0.5
+applicato invece che enunciato. ⚠️ **`G-2` sta a parte, e la riga di sintesi lo diceva sbagliato fino alla
+review**: gira su **packaged** e risponde a `G11`, quindi non condivide l'allestimento `U44` con le altre
+cinque. Sommarlo avrebbe gonfiato proprio la metrica che `G-3` introduce.
+
+Le quattro `PACE-*` qui sopra **non sono ID nuovi**: sono i nomi del work order tenuti solo per tracciabilità
+di questo referto, e diventano voci `PIE-*` — con gli ID che il registro assegna — quando qualcuno le esegue.
 
 ---
 
@@ -407,24 +453,35 @@ qualcuno le esegue.
   difetto che `D-181` ha pagato per rimuovere.
 - **Una issue per ciascun check**: vietato dal §9 del work order e dal repository. Una sola, per **G-1**.
 - **Le sedute `E1…E5`**: `U44` e `U46` le coprono, con il batching già dichiarato (`R5`).
-- **Una voce in `OPEN_DECISIONS.md`**: quel registro è *«ciò che aspetta una persona»*, e qui nessuna
-  decisione è aperta — `G-1` aspetta un'esecuzione, non una scelta.
+- ~~**Una voce in `OPEN_DECISIONS.md`**~~ — 🔴 **la ragione scritta qui era falsa, trovata in review.**
+  Diceva *«nessuna decisione è aperta: `G-1` aspetta un'esecuzione, non una scelta»*, ed è vero per `G-1` e
+  **falso per `R1`**, che è il rilievo 🔴 di questo referto e si chiude con *«ciò che va deciso una volta è se
+  il template diventa un owner»* — cioè una scelta, che aspetta una persona, e che non ha né issue né voce di
+  registro. Il referto gemello di [`#2391`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2391)
+  ha usato lo stesso meccanismo lo stesso giorno (`REL-3`). ✅ **Aperta come
+  [`GOV-4`](../../OPEN_DECISIONS.md)**, con le due uscite e il loro costo: `R1` sarebbe altrimenti morto col
+  referto, mentre la tesi del referto è che un template ricorrente ha bisogno di un owner.
 - **Un tool MCP nuovo**: i sei criteri del §0.4 non sono soddisfatti da nessun candidato. `AutomationTestToolset`
   e `EditorAppToolset` coprono esecuzione e allestimento; ciò che manca (`CaptureViewport` su PIE) è un limite
   dell'engine, non un tool da scrivere qui.
 - **Il blocco `RT_PIANI_BANNER` di [`README.md`](README.md)**, che questa cartella prescriverebbe di
-  rimisurare a ogni file aggiunto. 🔴 **È stato misurato e non riscritto, di proposito**: il blocco dichiara
-  **69** documenti, la cartella ne conteneva **125** prima di questo referto — una deriva di **56**, contro le
-  8 che la nota del 2026-08-30 registrava. Riscriverlo richiede la regola di classificazione dei banner, che
-  il README stesso dichiara ambigua (*«i vocabolari sono tre, non due»*): un conteggio rapido dà `CURRENT 87 ·
-  SNAPSHOT 9 · nessun banner 29 · PLAN 1`, e i **29** senza banner sono troppi per essere creduti senza
-  leggere i file uno a uno. ⚠️ Anche l'archivio è a **44**, non 43. Rimisurarli è un lavoro proprio, non un
-  effetto collaterale di questo pass — e dichiararlo qui è meno dannoso che pubblicare un numero indifendibile
-  nell'indice che tutti leggono per primo.
+  rimisurare a ogni file aggiunto. 🔴 **È stato misurato e non riscritto, di proposito.** Tutto su
+  **`a27e99f5`**, escluso questo referto: il blocco dichiara **69** documenti, la cartella ne contiene
+  **126** — deriva di **57**, contro le 8 che la nota del 2026-08-30 registrava — e la scomposizione è
+  `CURRENT 87 · SNAPSHOT 9 · nessun banner 29 · PLAN 1`, **che somma a 126**. L'archivio è a **44**, non 43.
+  🔴 **La prima stesura di questa nota diceva «125» accanto a una scomposizione che ne sommava 126**, perché
+  il totale era preso a `026850c0` e gli addendi a `a27e99f5`: due SHA in una frase sola, nel documento la
+  cui intestazione promette che nessun numero è ricordato. Trovato in review e ancorato a un SHA solo.
+  ⛔ **Resta non riscritto** perché rifarlo richiede la regola di classificazione dei banner, che il README
+  stesso dichiara ambigua (*«i vocabolari sono tre, non due»*): i **29** senza banner sono troppi per essere
+  pubblicati senza leggere i file uno a uno. Rimisurarli è un lavoro proprio, non un effetto collaterale di
+  questo pass — e dichiararlo qui è meno dannoso che mettere un numero indifendibile nell'indice che tutti
+  leggono per primo.
 
 ## 9. La tensione che resta aperta
 
-`RouteAlpha` non è applicata al `Blast`, e la ragione scritta in `RTTurnManager.cpp:7592` regge: lì
+`RouteAlpha` non è applicata al `Blast`, e la ragione — scritta in `RTTurnManager.cpp:7588-7590`, il commento
+sopra l'esclusione che sta a `7592` — regge: lì
 `PhaseDuration` vale `Max(colpi, spinta)` e non `MaxSeg / rate`, quindi la spinta del knockback si distende
 **di proposito** sulla finestra dei colpi. ⚠️ Ma è la stessa forma del difetto che `#2370` ha corretto — una
 durata decisa da altro che governa una velocità visuale — e la differenza è che lì è **voluta**. Chi la

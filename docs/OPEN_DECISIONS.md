@@ -25,6 +25,21 @@
 
 ---
 
+## Aperta — il contratto «Dual Roadmap» come template ricorrente, dal triage del 2026-09-05
+
+Origine: due work order esterni della **stessa forma** consumati lo stesso giorno — *Verticality, Ledge,
+Fall, Forced Movement* ([referto](roadmap/plans/verticalita-ledge-fall-dual-roadmap-2026-09-05.md),
+la cui `REL-3` è stata chiusa il 2026-09-05 da [`D-332`](decisions/RT_PDR_00_Decision_Log.md)) e *Code/Architecture + Editor/MCP/Human Validation*, istruito da
+[`dual-roadmap-code-editor-validation-triage-2026-09-05.md`](roadmap/plans/dual-roadmap-code-editor-validation-triage-2026-09-05.md)
+— dopo che un terzo, *Cloud Dual-Roadmap Contract*, era stato revisionato il 2026-09-04 e ne era uscita
+[`D-330`](decisions/RT_PDR_00_Decision_Log.md).
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `GOV-4` | **Il contratto `A/B` «Dual Roadmap» diventa un owner del repository, o resta un formato d'ingresso che ogni volta si revisiona?** | Non si deduce perché **la misura dice solo che il template ricorre, non cosa farne**. Misurato: tre istanze in due giorni, con fasi `A0…A6`/`B0…B7` che [`D-330`](decisions/RT_PDR_00_Decision_Log.md) ha già stabilito essere *«`AGENTS.md` §8–§10 con altri nomi»*. ⚠️ **Le due uscite hanno costi opposti e nessuna è dominante.** *(a)* **Resta formato d'ingresso**: ogni kit paga una revisione — quella del 2026-09-04 ha salvato il ~15% del testo, quella del 2026-09-05 ha prodotto tre gap e nessuna roadmap — e il costo si ripete a ogni consegna, ma **nessuna regola si duplica**. *(b)* **Diventa owner**: si scrive una volta cosa il repository accetta come work order, e i kit successivi ci si conformano; ⛔ ma sarebbe il **terzo** contratto di processo accanto ad `AGENTS.md` e `CLAUDE.md`, che è precisamente il rilievo `R1` di entrambi i referti e il difetto che `D-181` ha pagato per rimuovere sull'asse delle viste. 🔑 **Ciò che nessuna misura può dire è quanti kit arriveranno ancora**: con pochi vince *(a)*, con molti vince *(b)*, e il numero è una scelta d'autore sul modo di lavorare, non un dato del repository. **Innesco**: il quarto work order della stessa forma, oppure una decisione d'autore sul canale con cui i kit entrano |
+
+---
+
 ## ✅ Chiusa il 2026-09-05 da `D-332` — la caduta da un bordo aperto entra nella v0.1
 
 Origine: l'handoff esterno *Dual Roadmap — Verticality, Ledge, Fall, Forced Movement* (2026-09-04),
