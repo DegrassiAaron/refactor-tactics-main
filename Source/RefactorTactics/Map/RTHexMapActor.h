@@ -40,6 +40,45 @@ enum class ERTLayerViewMode : uint8
  * autorita' sui dati: legge le celle da URTHexMapAsset (o genera un graybox demo se l'asset e' assente).
  * La logica (coordinate/pathfinding) resta separata dal rendering.
  */
+/**
+ * Quali famiglie di istanze una ricostruzione deve rifare — `#1865`, punto 3.
+ *
+ * 🔑 **La granularita' e' la FAMIGLIA e non la cella, ed e' una decisione** (2026-09-05). Per cella
+ * soddisferebbe l'AC alla lettera e costerebbe il rischio piu' alto del rendering: `RemoveInstance`
+ * rimescola gli indici, e su quelli poggiano dodici array paralleli — `InstanceCells`, `GlyphCells[4]`,
+ * `Relief`/`Blocker`/`Border`/`EdgeFeature` per `Cells`/`BaseScale`/`LastVeilState` — con
+ * `ApplyKnowledgeVeil` che ha un `ensure` proprio sugli indici stantii.
+ *
+ * Per famiglia gli indici restano coerenti: una famiglia si azzera e si riempie tutta, quindi nessun array
+ * parallelo va risistemato. Cio' che NON e' nella maschera non viene ne' pulito ne' riempito, e resta
+ * esattamente com'era.
+ *
+ * ⚠️ **Non promette la proporzionalita' alla modifica**: il costo resta lineare nella mappa, su meno
+ * famiglie. `HexMapActor.RebuildCostScalesWithTheMapNotTheEdit` continua a misurarlo, e non cade.
+ */
+UENUM(meta = (Bitflags))
+enum class ERTRebuildFamily : uint8
+{
+	None         = 0,
+	/** Il pavimento: transform e colore della superficie. */
+	Cells        = 1 << 0,
+	/** I glifi di superficie: `SurfaceRingCount` decide quante e quale dei quattro ISM. */
+	Glyphs       = 1 << 1,
+	/** Il rilievo del costo di movimento: `ReliefHeightForCost` decide se esiste. */
+	Relief       = 1 << 2,
+	/** Le colonne di blocco a vista e a passo. */
+	Blockers     = 1 << 3,
+	/** Pannelli di bordo: coperture, porte e muri interni. */
+	EdgeFeatures = 1 << 4,
+	/** La griglia di contorno delle celle. */
+	Borders      = 1 << 5,
+	/** Il corpo strutturale sotto le superfici. */
+	Bodies       = 1 << 6,
+	/** Tutto: il comportamento di sempre, ed e' il default di `RebuildInstances`. */
+	All          = 0x7F
+};
+ENUM_CLASS_FLAGS(ERTRebuildFamily);
+
 UCLASS()
 class REFACTORTACTICS_API ARTHexMapActor : public AActor
 {
@@ -302,7 +341,27 @@ public:
 
 	/** Ricostruisce tutte le istanze dalle celle (asset o demo). */
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "RefactorTactics|HexMap")
-	void RebuildInstances();
+	/**
+	 * Ricostruisce le istanze delle famiglie richieste. Il default `All` e' il comportamento di sempre:
+	 * ogni chiamante esistente — bootstrapper, scenari, `OnConstruction`, `OnMapChanged` — resta invariato.
+	 *
+	 * ⚠️ Passare una maschera parziale e' sicuro solo se il cambio non tocca le altre famiglie: la matrice
+	 * campo→famiglia e' scritta su `#1865`. `OnMapChanged` non sa cosa e' cambiato (undo/redo), quindi resta
+	 * il fallback totale.
+	 */
+	void RebuildInstances(ERTRebuildFamily Families = ERTRebuildFamily::All);
+
+	/**
+	 * Il punto d'ingresso di `OnMapChanged`: ricostruisce **tutto**.
+	 *
+	 * 🔑 **Esiste perche' quel delegate non sa cosa e' cambiato, e non e' un limite da aggirare**: nasce per
+	 * *«undo/redo, editing dal suo editor»* — vie non mediate dalle API — dove l'informazione non c'e'
+	 * proprio. Un fallback totale li' e' la risposta giusta, non una rinuncia.
+	 *
+	 * ⚠️ E serve anche tecnicamente: un `TMulticastDelegate<void()>` non lega una funzione con parametro,
+	 * nemmeno con un default. Il default di `RebuildInstances` vale per i chiamanti C++, non per i delegate.
+	 */
+	void RebuildAllForAssetChange() { RebuildInstances(ERTRebuildFamily::All); }
 
 	/**
 	 * Cella corrispondente a un'istanza.

@@ -1306,4 +1306,86 @@ bool FRTHexMapActorRebuildCostTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * 🔑 **Una ricostruzione parziale costa meno, e non tocca le famiglie fuori dalla maschera** — `#1865`,
+ * punto 3, decisione del 2026-09-05.
+ *
+ * Due proprietà in un test perché sono le due metà della stessa promessa: se il costo scendesse ma le
+ * famiglie escluse venissero svuotate, avremmo un numero più basso e una board rotta.
+ *
+ * ⚠️ **La seconda metà è quella che può fallire in silenzio.** Un `ClearInstances` dimenticato fuori dalla
+ * sua condizione non cambia il conteggio della maschera — conta solo le famiglie richieste — quindi
+ * sarebbe invisibile a un test scritto sul solo costo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorPartialRebuildTest,
+	"RefactorTactics.HexMapActor.PartialRebuildCostsLessAndSparesTheOthers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorPartialRebuildTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius=*/ 3);
+	// Una cella con rilievo e una che blocca: senza, `Relief` e `Blockers` sarebbero vuote e «risparmiate»
+	// sarebbe vero per la ragione sbagliata.
+	{
+		FRTHexCellData Costosa = Asset->Cells[1];
+		Costosa.MoveCost = 3;
+		Asset->AddOrUpdateCell(Costosa);
+		FRTHexCellData Muro = Asset->Cells[2];
+		Muro.bBlocksMovement = true;
+		Asset->AddOrUpdateCell(Muro);
+		Asset->SortCells();
+	}
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor"), Actor)) { return false; }
+
+	Actor->RebuildInstances(ERTRebuildFamily::All);
+	const int32 CostoTotale = Actor->LastRebuildCreatedInstances();
+	const int32 ReliefPrima  = InstancesOf(Actor, TEXT("Relief")).Num();
+	const int32 BlockerPrima = InstancesOf(Actor, TEXT("Blockers")).Num();
+	const int32 CellePrima   = InstancesOf(Actor, TEXT("Cells")).Num();
+
+	// ➕ CONTROLLO POSITIVO: le famiglie che devono sopravvivere non sono vuote in partenza.
+	if (!TestTrue(TEXT("il rilievo esiste"), ReliefPrima > 0)
+		|| !TestTrue(TEXT("i blocchi esistono"), BlockerPrima > 0)
+		|| !TestTrue(TEXT("le celle esistono"), CellePrima > 0))
+	{
+		return false;
+	}
+
+	// Il caso di un cambio di `Height`: tocca i transform del pavimento e nient'altro.
+	//
+	// ⚠️ **Si sceglie una famiglia NON vuota apposta.** Con `Bodies` il costo parziale sarebbe `0` — la board
+	// di prova non dichiara `BodyFill` — e `0 < totale` sarebbe vero senza dire quanto si guadagna: un test
+	// che passa perche' non c'era niente da fare non misura un'ottimizzazione.
+	Actor->RebuildInstances(ERTRebuildFamily::Cells);
+	const int32 CostoParziale = Actor->LastRebuildCreatedInstances();
+
+	AddInfo(FString::Printf(TEXT("board r=3: rebuild totale %d istanze, rebuild del solo pavimento %d"),
+		CostoTotale, CostoParziale));
+
+	// 🔑 Metà uno: costa meno.
+	TestTrue(*FString::Printf(TEXT("il rebuild parziale costa meno del totale (%d < %d)"),
+			CostoParziale, CostoTotale),
+		CostoParziale < CostoTotale);
+
+	// 🔑 Metà due: le altre famiglie sono INTATTE, non svuotate. È la riga che coglie un `ClearInstances`
+	// lasciato fuori dalla sua condizione — invisibile al conteggio, perché quello guarda solo la maschera.
+	TestEqual(TEXT("il rilievo è intatto"), InstancesOf(Actor, TEXT("Relief")).Num(), ReliefPrima);
+	TestEqual(TEXT("i blocchi sono intatti"), InstancesOf(Actor, TEXT("Blockers")).Num(), BlockerPrima);
+	// Le celle SONO state ricostruite — erano nella maschera — e devono essere tornate tutte: una
+	// ricostruzione parziale che ne perdesse per strada sarebbe peggio di nessuna ottimizzazione.
+	TestEqual(TEXT("le celle ricostruite sono tutte quelle di prima"),
+		InstancesOf(Actor, TEXT("Cells")).Num(), CellePrima);
+
+	// E il default resta il comportamento di sempre: ogni chiamante esistente non cambia.
+	Actor->RebuildInstances();
+	TestEqual(TEXT("senza maschera si ricostruisce tutto, come prima"),
+		Actor->LastRebuildCreatedInstances(), CostoTotale);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
