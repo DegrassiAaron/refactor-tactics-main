@@ -36,7 +36,10 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 		TEXT("sistema VFX degli status fuori dal perimetro. ATTENZIONE: oggi il valore non ha un produttore ")
 		TEXT("(nessuno emette l'evento) - questa voce vale «quando accadra'» e va rivista appena ne acquista uno.")));
 
-	// AttackFootprint — NoPresentation, e per una ragione OPPOSTA a quella di HazardDamage.
+	// AttackFootprint — PendingPresentation, e per una ragione OPPOSTA a quella di HazardDamage.
+	//
+	// ✅ **Dal 2026-09-05 (#2483) la differenza sta nel DATO, non in questo commento.** Fino ad allora
+	// era `NoPresentation` con la nota dentro il motivo, e nessuna macchina leggeva quella frase.
 	//
 	// 🔴 **Qui l'assenza e' temporanea e attesa, non una scelta di design.** `HazardDamage` non si mostra
 	// perche' si e' deciso che non deve; questo evento esiste **precisamente perche' un giorno si mostri** —
@@ -50,11 +53,11 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	//
 	// ⚠️ **Questa voce va RIVISTA, non ereditata**, appena la cue nasce: e' il segnaposto che il gate
 	// sorveglia, ed e' il motivo per cui il dato viene emesso prima del disegno e non insieme a lui.
-	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::AttackFootprint,
+	// 🔑 L'owner che la sciogliera' e' ora un CAMPO (`PendingOwner`), non una frase: `E21`.
+	Out.Add(FRTPresentationBinding::MakePendingPresentation(ERTResolvedEventType::AttackFootprint,
 		TEXT("Il dato esiste perche' la cue POSSA essere costruita: #1945 porta a valle le celle risolte, e ")
-		TEXT("la resa dell'area e' fuori dal suo scope (E21). Nessuna cue oggi lo consuma. ATTENZIONE: a ")
-		TEXT("differenza di HazardDamage questa assenza e' TEMPORANEA e attesa - la voce va rivista appena ")
-		TEXT("la cue nasce, non ereditata.")));
+		TEXT("la resa dell'area e' fuori dal suo scope (E21). Nessuna cue oggi lo consuma."),
+		TEXT("E21")));
 
 	// Defeated — la morte visiva e' DIFFERITA: l'unita' sparisce dopo che il colpo o l'attraversamento e'
 	// stato mostrato. La presentazione non decide quando si muore: lo decide il resolver, e questa cue lo
@@ -72,7 +75,7 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Defeated,
 		{ FName(TEXT("HideForDefeat")), FName(TEXT("PlayDefeatMontage")) }));
 
-	// ReactionResolved — NoPresentation, e l'assenza e' TEMPORANEA come quella di `AttackFootprint`.
+	// ReactionResolved — PendingPresentation, come `AttackFootprint`: l'assenza e' TEMPORANEA.
 	//
 	// 🔴 **Questo evento nasce proprio perche' un giorno si mostri**, ed e' il caso piu' netto della
 	// tabella: due voci PIE — `PIE-VIS-DEFLECT` e `PIE-VIS-INTERPOSE` — esistono per giudicare a schermo
@@ -90,13 +93,13 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// nessuno disegna ancora.
 	//
 	// ⚠️ Voce da RIVEDERE, non da ereditare: appena la cue nasce, le due voci PIE diventano giudicabili.
-	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::ReactionResolved,
+	Out.Add(FRTPresentationBinding::MakePendingPresentation(ERTResolvedEventType::ReactionResolved,
 		TEXT("Il momento della reazione esiste perche' la cue POSSA essere costruita: #2191 lo emette dove la ")
 		TEXT("reazione scatta, e la grammatica visiva e' fuori dal suo scope. Nessuna cue oggi lo consuma. ")
-		TEXT("ATTENZIONE: assenza TEMPORANEA e attesa - due voci PIE (VIS-DEFLECT, VIS-INTERPOSE) restano non ")
-		TEXT("giudicabili finche' non nasce, e la voce va rivista allora, non ereditata.")));
+		TEXT("Due voci PIE (VIS-DEFLECT, VIS-INTERPOSE) restano non giudicabili finche' non nasce."),
+		TEXT("#2454")));
 
-	// StatusChanged — NoPresentation, e l'assenza e' TEMPORANEA come quella di `AttackFootprint` e
+	// StatusChanged — PendingPresentation, e l'assenza e' TEMPORANEA come quella di `AttackFootprint` e
 	// `ReactionResolved`.
 	//
 	// 🔴 **Il dato esiste perche' la cue POSSA essere costruita, ed e' il caso piu' documentato dei tre**:
@@ -111,12 +114,12 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	//    (`#1324`): un'icona persistente aperta su di lui resterebbe accesa per sempre.
 	//
 	// ⚠️ Voce da RIVEDERE, non da ereditare.
-	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::StatusChanged,
+	Out.Add(FRTPresentationBinding::MakePendingPresentation(ERTResolvedEventType::StatusChanged,
 		TEXT("Gli stati arrivano al playback perche' la cue POSSA essere costruita: #2245 li emette dove la ")
 		TEXT("voce di TurnLog viene scritta, e il disegno e' D-320 (WidgetComponent + le undici icone gia' ")
-		TEXT("versionate), che non esiste ancora. Nessuna cue oggi lo consuma. ATTENZIONE: assenza ")
-		TEXT("TEMPORANEA e attesa - la voce va rivista quando il widget nasce, non ereditata. Chi la scrive ")
-		TEXT("chieda il verso a IsStatusBirth, e sappia che Status.Electrified nasce e non muore mai.")));
+		TEXT("versionate), che non esiste ancora. Nessuna cue oggi lo consuma. Chi la scrive chieda il verso ")
+		TEXT("a IsStatusBirth, e sappia che Status.Electrified nasce e non muore mai."),
+		TEXT("#2456")));
 
 	return Out;
 }
@@ -191,6 +194,27 @@ TArray<FString> URTPresentationBindingLibrary::FindMissingBindings(
 			{
 				Missing.Add(FString::Printf(
 					TEXT("%s: NoPresentation dichiarato senza motivo scritto"), *TypeName));
+			}
+			continue;
+		}
+
+		if (Found->Kind == ERTPresentationKind::PendingPresentation)
+		{
+			// ✅ Una voce «in attesa» BEN FORMATA **copre** (`#2483`), e non e' una concessione: se il gate
+			// andasse rosso su uno stato legittimo, la pressione sarebbe a cancellare la distinzione per
+			// tornare verdi — e il gate tornerebbe a misurare niente. Rosso solo se e' MAL formata.
+			if (Found->Rationale.TrimStartAndEnd().IsEmpty())
+			{
+				Missing.Add(FString::Printf(
+					TEXT("%s: PendingPresentation dichiarato senza motivo scritto"), *TypeName));
+				continue;
+			}
+			// 🔑 Senza owner, «in attesa» e' una promessa che nessuno puo' riscuotere: non si puo' chiedere
+			// *«quell'owner e' ancora aperto?»*, che e' l'unica domanda per cui questo stato esiste.
+			if (Found->PendingOwner.TrimStartAndEnd().IsEmpty())
+			{
+				Missing.Add(FString::Printf(
+					TEXT("%s: PendingPresentation dichiarato senza owner che la sciolga"), *TypeName));
 			}
 			continue;
 		}
