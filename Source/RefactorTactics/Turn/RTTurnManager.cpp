@@ -7902,8 +7902,8 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				// `FRTLogSubject::Unit` vuole l'Actor e non l'id, e lo dichiara: da un id soltanto il
 				// verdetto di [D-223] non si calcola — servono anche squadra e cella.
 				Atk.Amount), FRTLogSubject::Unit(AtkSrc));
-			if (AtkSrc) { AtkSrc->PlayAttackMontage(); }
-			if (AtkTgt) { AtkTgt->PlayHitMontage(); }
+			if (AtkSrc) { AtkSrc->PlayPresentationRole(ERTPresentationRole::Attack); }
+			if (AtkTgt) { AtkTgt->PlayPresentationRole(ERTPresentationRole::Hit); }
 			OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Atk.Amount);
 			++AttacksShown;
 		}
@@ -7929,8 +7929,8 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				const FRTResolvedEvent& Atk = PlaybackAttacks[AttacksShown];
 				ARTUnit* const AtkSrc = UnitByStableId(Atk.SourceStableUnitId);
 				ARTUnit* const AtkTgt = UnitByStableId(Atk.TargetStableUnitId);
-				if (AtkSrc) { AtkSrc->PlayAttackMontage(); }
-				if (AtkTgt) { AtkTgt->PlayHitMontage(); }
+				if (AtkSrc) { AtkSrc->PlayPresentationRole(ERTPresentationRole::Attack); }
+				if (AtkTgt) { AtkTgt->PlayPresentationRole(ERTPresentationRole::Hit); }
 				OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Atk.Amount);
 				++AttacksShown;
 			}
@@ -7967,7 +7967,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				PlaybackDefeatShown.Add(D.SourceStableUnitId);
 				bMorteAnnunciataInQuestaFase = true;
 				AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *DefU->GetName()), FRTLogSubject::World());
-				DefU->PlayDefeatMontage();
+				DefU->PlayPresentationRole(ERTPresentationRole::Death);
 				OnUnitDefeated.Broadcast(DefU);
 			}
 		}
@@ -8049,7 +8049,7 @@ void ARTTurnManager::FinishPlayback()
 		{
 			PlaybackDefeatShown.Add(D.SourceStableUnitId);
 			AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *DefU->GetName()), FRTLogSubject::World());
-			DefU->PlayDefeatMontage();
+			DefU->PlayPresentationRole(ERTPresentationRole::Death);
 			OnUnitDefeated.Broadcast(DefU);
 		}
 		if (!DefU->IsHidden())

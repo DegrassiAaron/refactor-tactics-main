@@ -607,6 +607,63 @@ TSoftObjectPtr<UAnimSequenceBase> ARTUnit::GhostFallbackClipPath() const
 	return GhostFallbackClipFor(Defaults, HeroId);
 }
 
+TSoftObjectPtr<UAnimSequenceBase> ARTUnit::ResolvedClipPathFor(ERTPresentationRole Ruolo) const
+{
+	// Stessa porta di `GhostFallbackClipPath`, e per la stessa ragione: il CDO di `UnitAnimClass` e' l'unica
+	// lista dei nomi delle clip. Una seconda lista qui divergerebbe alla prima modifica.
+	if (UnitAnimClass == nullptr)
+	{
+		return nullptr;
+	}
+
+	const URTUnitAnimInstance* Defaults = Cast<URTUnitAnimInstance>(UnitAnimClass->GetDefaultObject());
+	if (Defaults == nullptr)
+	{
+		return nullptr;
+	}
+
+	// 🔑 Risolve SENZA caricare: headless i pack non ci sono, e il PATH e' cio' che un test puo' asserire.
+	return Defaults->ActiveClipFor(HeroId, Ruolo);
+}
+
+void ARTUnit::PlayPresentationRole(ERTPresentationRole Ruolo)
+{
+	// ⛔ Ogni uscita anticipata di questa funzione e' un DEGRADO previsto, non un errore: l'unita' resta in
+	// posa di riferimento e la partita si gioca uguale (invariante #1, come D-248 per la locomozione).
+	const TSoftObjectPtr<UAnimSequenceBase> Path = ResolvedClipPathFor(Ruolo);
+	UAnimSequenceBase* const Sequenza = Path.IsNull() ? nullptr : Path.LoadSynchronous();
+
+	if (Sequenza != nullptr)
+	{
+		// La skeletal dell'EROE, mai `ContactGhost`: quella ha un grafo suo, e animarla dal vivo
+		// contraddirebbe cio' che la sagoma e' (#1750).
+		if (USkeletalMeshComponent* const Skeletal = FindHeroSkeletal())
+		{
+			if (UAnimInstance* const Anim = Skeletal->GetAnimInstance())
+			{
+				// 🔑 **Nessun montaggio-asset**: `PlaySlotAnimationAsDynamicMontage` costruisce il montaggio
+				// a runtime attorno alla sequenza, sullo slot che `FRTUnitAnimProxy` espone gia' come radice
+				// (`FAnimSlotGroup::DefaultSlotName`, D-248). E' la ragione per cui i dodici `AM_*` non
+				// servono (#2450).
+				Anim->PlaySlotAnimationAsDynamicMontage(Sequenza, FAnimSlotGroup::DefaultSlotName);
+			}
+		}
+	}
+
+	// Il Blueprint viene notificato SEMPRE, anche quando non si e' suonato niente: riceve `nullptr` e sa
+	// che il ruolo e' scattato senza una clip. Un BP che non implementa l'evento non fa nulla.
+	switch (Ruolo)
+	{
+	case ERTPresentationRole::Attack: PlayAttackMontage(Sequenza); break;
+	case ERTPresentationRole::Hit:    PlayHitMontage(Sequenza);    break;
+	case ERTPresentationRole::Death:  PlayDefeatMontage(Sequenza); break;
+	default:
+		// Gli altri ruoli non hanno un evento discreto: `Idle` e `Move` li suona il grafo, e i restanti non
+		// hanno ancora un consumatore. Suonare la clip resta corretto; notificare non avrebbe chi ascolta.
+		break;
+	}
+}
+
 USkeletalMeshComponent* ARTUnit::FindHeroSkeletal() const
 {
 	TArray<USkeletalMeshComponent*> Skeletals;

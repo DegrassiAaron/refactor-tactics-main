@@ -13,6 +13,10 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// Attack — due cue e due soggetti diversi: l'attaccante gioca il colpo, il bersaglio lo incassa
 	// (`RTTurnManager.cpp:6257-6258`). Sono `BlueprintImplementableEvent` su `ARTUnit`: se un BP non le
 	// implementa non succede nulla, e la logica resta invariata (invariante #1).
+	// ⚠️ **Dal 2026-09-05 (#2448) la clip la sceglie il C++**: il `TurnManager` chiama
+	// `PlayPresentationRole(Attack|Hit)`, che risolve dal CDO, suona sullo slot e POI notifica il
+	// Blueprint passandogli cio' che ha suonato. I due nomi qui sotto restano quelli degli EVENTI
+	// Blueprint, che e' cio' che questa tabella dichiara: la cue vista da chi guarda non e' cambiata.
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Attack,
 		{ FName(TEXT("PlayAttackMontage")), FName(TEXT("PlayHitMontage")) }));
 
