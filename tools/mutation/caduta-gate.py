@@ -114,6 +114,12 @@ LOG = os.path.join(RADICE, "Saved", "Logs", "rt-suite.log")
 UPROJECT = os.path.join(RADICE, "RefactorTactics.uproject")
 BUILD_BAT = r"D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat"
 
+# 🔴 `pwsh`, non `powershell`. Windows PowerShell 5.1 non riesce nemmeno a fare il PARSING di
+# `rt-suite.ps1` — errori «'}' di chiusura mancante» — e **termina con codice 0**. Il risultato e' un
+# processo che sembra riuscito, non stampa nessun marcatore `[RT-MEASURE]`, e lascia il gate senza
+# verdetto. Misurato il 2026-09-05: la prima taratura e' morta esattamente qui.
+PWSH = "pwsh"
+
 # Filtro della suite. Il mutex del motore ferma ogni checkout, e una suite intera per mutazione sono
 # ore: #2406 chiede un filtro stretto. Resta comunque un prefisso, non una lista di nomi, perche' una
 # mutazione che fa cadere un test FUORI dal filtro e' esattamente cio' che non si vuole non vedere.
@@ -226,6 +232,27 @@ def classifica(verdetto, nuovi, attesi):
     return "CADUTA (BERSAGLI DIVERSI)", True    # cade qualcosa, ma non cio' che si diceva di misurare
 
 
+def verdetto_da_output(out):
+    """Il verdetto di `rt-suite`, letto dal suo stdout.
+
+    🔴 «Nessun marcatore» non e' un caso qualunque, ed e' per questo che ha un nome proprio: se
+    `[RT-MEASURE]` non compare affatto, `rt-suite` non ha parlato — non ha misurato male, non ha
+    misurato. La causa piu' probabile e' l'interprete sbagliato (`powershell` 5.1 non fa il parsing
+    dello script e esce 0), e chiamarla `ALTRO` la rende indistinguibile da una suite andata storta."""
+    if "[RT-MEASURE] NON VALIDA" in out:
+        return "NON VALIDA"
+    if "[RT-MEASURE] VALIDA" in out:
+        return "VALIDA"
+    if "NON AVVIATA" in out:
+        return "NON AVVIATA"
+    if "[RT-MEASURE]" not in out:
+        if re.search(r"ParserError|chiusura mancante|missing closing|Unexpected token|"
+                     r"CommandNotFoundException|non e' riconosciuto|is not recognized", out):
+            return "INTERPRETE SBAGLIATO"
+        return "SENZA MARCATORE"
+    return "ALTRO"
+
+
 def bersagli_mancanti(attesi, eseguiti):
     """Quali bersagli la baseline non ha nemmeno ESEGUITO.
 
@@ -264,6 +291,22 @@ def self_test():
     rossi_dopo = {"Preesistente"}
     c("un rosso preesistente che guarisce non maschera la sopravvissuta",
       classifica("VALIDA", rossi_dopo - rossi_base, {"A"}), ("SOPRAVVISSUTA", False))
+
+    # 🔴 L'interprete sbagliato: misurato il 2026-09-05. `powershell` 5.1 non fa il parsing di
+    # rt-suite.ps1, stampa errori di sintassi e ESCE 0. Senza un nome proprio finiva in `ALTRO`,
+    # indistinguibile da una suite andata storta, e la diagnosi costava un ciclo di build.
+    c("errore di parsing 5.1: interprete, non 'altro'",
+      verdetto_da_output("In rt-suite.ps1:1067\n'}' di chiusura mancante nel blocco"),
+      "INTERPRETE SBAGLIATO")
+    c("comando assente: interprete",
+      verdetto_da_output("pwsh: is not recognized as an internal or external command"),
+      "INTERPRETE SBAGLIATO")
+    c("nessun marcatore ma nessun errore noto",
+      verdetto_da_output("qualcosa di inatteso"), "SENZA MARCATORE")
+    c("verdetto valida", verdetto_da_output("[RT-MEASURE] VALIDA"), "VALIDA")
+    c("verdetto non valida non e' valida",
+      verdetto_da_output("[RT-MEASURE] NON VALIDA"), "NON VALIDA")
+    c("non avviata", verdetto_da_output("[RT-MEASURE] NON AVVIATA: il lock"), "NON AVVIATA")
 
     # 🔴 #2393: Editor morto all'avvio su worktree nuovo -> `0/?, 0 fail`. Zero rossi su zero test
     # eseguiti supera qualunque controllo che guardi solo i rossi.
@@ -344,7 +387,7 @@ def build(tentativi=40):
     risposta possibile. Si ritenta perche' la causa tipica e' un Editor su un altro checkout
     (`Unable to build while Live Coding is active`, oppure `Failed (OtherCompilationError)` di #971)."""
     for _ in range(tentativi):
-        r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+        r = subprocess.run([PWSH, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
                             "& '" + BUILD_BAT + "' RefactorTacticsEditor Win64 Development "
                             "-Project='" + UPROJECT + "' -WaitMutex"],
                            capture_output=True, text=True, errors="replace")
@@ -362,18 +405,11 @@ def suite():
     `#2393` descrive un Editor che muore durante l'avvio su un **worktree nuovo**, con `rt-suite` che
     riporta `0/?, 0 fail`. Zero fallimenti su zero test eseguiti supera qualunque controllo che guardi
     solo i rossi, e una mutazione sembrerebbe SOPRAVVISSUTA su una misura mai avvenuta."""
-    r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+    r = subprocess.run([PWSH, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
                         "scripts/rt-suite.ps1", "-Filter", FILTRO, "-WaitMinutes", "90"],
                        capture_output=True, text=True, errors="replace")
     out = (r.stdout or "") + (r.stderr or "")
-    if "[RT-MEASURE] NON VALIDA" in out:
-        verdetto = "NON VALIDA"
-    elif "[RT-MEASURE] VALIDA" in out:
-        verdetto = "VALIDA"
-    elif "NON AVVIATA" in out:
-        verdetto = "NON AVVIATA"
-    else:
-        verdetto = "ALTRO"
+    verdetto = verdetto_da_output(out)
     m = re.search(r"esito\s+(\d+)/(\d+) completati, (\d+) fallimenti", out)
     esito = m.group(0) if m else "(nessun esito)"
     rossi = set()
@@ -429,6 +465,15 @@ if DRY:
     print("\n--dry-run: nessun build, nessuna suite, nessuna scrittura sui sorgenti.")
     sys.exit(0 if not NON_APPLICABILI else 2)
 
+# 🔴 L'interprete si verifica PRIMA del primo build, non dopo. La prima taratura ha pagato un build
+# completo per scoprire che `rt-suite` non era nemmeno partito.
+prova = subprocess.run([PWSH, "-NoProfile", "-Command", "exit 0"],
+                       capture_output=True, text=True, errors="replace")
+if prova.returncode != 0:
+    print("\n⛔ FERMO: `%s` non e' eseguibile. `rt-suite.ps1` richiede PowerShell 7:\n"
+          "   Windows PowerShell 5.1 non ne fa nemmeno il parsing, e termina con codice 0." % PWSH)
+    sys.exit(2)
+
 for m in APPLICABILI:
     if sporco(m["file"]):
         print("\n⛔ FERMO: %s ha modifiche non committate.\n"
@@ -462,6 +507,10 @@ sopravvissute = []
 bersagli_diversi = []
 cadute = []
 completo = False
+# 🔴 Se nessuna mutazione e' mai stata scritta, il binario sul disco e' quello sano: avvisare di
+# ricostruire sarebbe un falso allarme, e i falsi allarmi sono il modo in cui un avviso vero smette
+# di essere letto. La prima taratura si e' fermata sulla baseline, prima di mutare qualsiasi cosa.
+costruito_mutato = False
 
 try:
     ripristina_tutto()   # una corsa interrotta lascia la mutazione sul disco
@@ -521,6 +570,7 @@ try:
                 continue
 
             scrivi(percorso, dopo.encode("utf-8"))
+            costruito_mutato = True     # da qui il binario puo' contenere la mutazione
             r = misura()
             ripristina_tutto()
 
@@ -572,9 +622,11 @@ finally:
     ripristina_tutto()
     if completo:
         print("\nGATE COMPLETO - esiti in " + ESITI)
-    else:
+    elif costruito_mutato:
         print("\n⛔ GATE INTERROTTO: il sorgente e' ripristinato ma il BINARIO puo' essere ancora\n"
               "   quello mutato. RICOSTRUIRE prima di qualunque altra misura.")
+    else:
+        print("\nGATE FERMATO prima di mutare: nessuna scrittura sui sorgenti, binario intatto.")
 
 if sopravvissute:
     sys.exit(1)
