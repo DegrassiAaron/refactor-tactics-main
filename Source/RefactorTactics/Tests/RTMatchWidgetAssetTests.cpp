@@ -45,7 +45,11 @@ namespace
 	 * gemella vive nel namespace anonimo di `RTScreenHudWidgetTests.cpp`: sotto **unity build** i due file
 	 * finiscono nella stessa unita' di traduzione e i due namespace anonimi si fondono, quindi due funzioni
 	 * omonime sono una ridefinizione — un errore che compare a chi aggiunge il file DOPO, non a chi lo
-	 * scrive. Duplicare quattro righe costa meno che esportare un helper di test in un header condiviso.
+	 * scrive. ⌨ ~~Duplicare quattro righe costa meno che esportare un helper di test in un header
+	 * condiviso.~~ 🔴 **Superata da #2423, e questo file ora fa il contrario venti righe piu' su**:
+	 * include `Tests/RTWidgetAssetTestHelpers.h`. La regola corretta non e' «duplicare» ne' «condividere»,
+	 * e' **guardare i corpi**: identici → header condiviso con namespace nominato; diversi → rinominare,
+	 * che e' il divieto di #2397. Le quattro omonime di questi due file erano due per tipo.
 	 */
 	bool BlueprintPropertyCarriesTexture(const FProperty* Prop)
 	{

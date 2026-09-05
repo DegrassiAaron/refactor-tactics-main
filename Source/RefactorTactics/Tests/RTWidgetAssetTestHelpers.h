@@ -14,10 +14,16 @@
 // divieto che #2397 ha scritto: *«il nome era in comune, il contratto no»*. Sono state **rinominate** nel
 // file piu' recente, non unificate.
 //
-// ⛔ **Namespace NOMINATO, non anonimo.** Un namespace anonimo in un header da' a ogni unita' di traduzione
-// la propria copia — il che sotto unity significa di nuovo una copia sola, e il problema tornerebbe il
-// giorno in cui i due file finissero in blob diversi con un terzo consumatore in mezzo. Un namespace
-// nominato con funzioni `inline` non ha quel modo di fallire.
+// ⛔ **Namespace NOMINATO e funzioni `inline`.** 🔴 **La prima stesura di questa riga motivava la scelta
+// con un guasto che non esiste**, ed e' stata corretta in code review: un namespace anonimo in un header da'
+// a **ogni** unita' di traduzione la propria copia a linkage interno, quindi non produce ne' `C2084` ne'
+// `LNK2005` — compilerebbe. Le ragioni vere sono altre due, e bastano: una copia per TU e' codice duplicato
+// nel binario, e un helper anonimo incluso in un header e' una trappola ODR appena qualcuno lo usa da un
+// template o da una funzione `inline`. Il namespace nominato non ha nessuno dei due problemi.
+//
+// ⚠️ **E una funzione NON `inline` in un header sarebbe invece la collisione vera**: due `.cpp` che la
+// includono la definiscono due volte nello stesso blob. E' il limite 3 dell'oracolo di `RTTestGuardTests.cpp`
+// — gli header di `Tests/` non sono guardati — e questo file e' dentro quel punto cieco.
 
 #pragma once
 
