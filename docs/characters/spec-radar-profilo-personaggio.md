@@ -235,8 +235,13 @@ ridurre il radar a ciò che era già derivabile. Sotto §4 «modellare» signifi
 dati dei cataloghi.
 
 Gli input che il catalogo eroi dichiara **per eroe** sono: `Salute`, `Movimento`, `Range visivo`,
-`Resistenza Push`, `Affinità`/`Debolezza`, la risorsa firma con ricarica e cap, e le abilità con
-danno, range, effetto e cooldown.
+`Resistenza Push`, `Affinità`/`Debolezza`, e le abilità con danno, range, effetto e cooldown.
+
+⛔ **La risorsa firma NON è più fra gli input**, e non lo era di fatto: [`D-265`](../decisions/RT_PDR_00_Decision_Log.md)
+ha deciso che non esiste come sistema universale e [`D-324`](../decisions/RT_PDR_00_Decision_Log.md) ha tolto
+`Energy` dal gameplay ([#610](https://github.com/DegrassiAaron/refactor-tactics-main/issues/610)). Il catalogo
+eroi conserva le colonne come **disegno**, ma un profilo che le leggesse come dato costruirebbe un asse su un
+valore che nessuna regola consuma.
 
 | Asse | Si deriva da | Stato |
 |---|---|:--:|

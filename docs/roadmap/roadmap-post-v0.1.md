@@ -714,7 +714,7 @@ stesso checkpoint.
 > tentativo verificato vive su `feat/641-sprint-post-blast`: compila su entrambi i target, e i suoi **4 test
 > rossi** sono la misura del buco.
 
-**Non fa**: i valori (`AE-5` per lo `Sneak`, `AE-4` per la risorsa firma) · il costo del pivot (`FAC-12`, che
+**Non fa**: i valori (`AE-5` per lo `Sneak`; ~~`AE-4` per la risorsa firma~~ — chiusa da `D-265`/`D-324`, vedi #2357) · il costo del pivot (`FAC-12`, che
 si guarda alla revisione dei numeri di ADR-0008) · i fatti del percorso (`AE-3`) · il workbook di
 bilanciamento, che [`balance/README.md`](../balance/README.md) vieta di correggere cella per cella.
 
