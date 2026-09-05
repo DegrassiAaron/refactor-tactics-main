@@ -110,6 +110,23 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
 	ESlateVisibility GetEmptyNoticeVisibility() const;
 
+	/**
+	 * L'etichetta di **una riga** della lista: quando, quale formato, quanti turni, com'e' finita.
+	 *
+	 * ⛔ **Il testo lo compone questa funzione e non il Blueprint**, per la stessa ragione di
+	 * `GetOpenFailureText`: qui i rami sono cinque — quattro esiti piu' l'archivio incompleto — e cinque
+	 * rami in un graph node sono cinque occasioni di scriverne quattro.
+	 *
+	 * ⚠️ **`bReplayComplete` non e' un dettaglio estetico.** Una partita interrotta si apre e finisce prima
+	 * di dove il suo `TurnCount` promette: dirlo nella lista e' l'unico punto in cui chi guarda puo'
+	 * saperlo **prima** di aprirla, perche' l'indice non apre le cartelle e nessun altro lo controlla.
+	 *
+	 * Statica e con la voce in ingresso, come `LoadMatchesFrom` e `SelectAndNavigate`: si prova senza
+	 * costruire un widget e senza una `GameInstance`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
+	static FText GetEntryLabel(const FRTMatchHistoryEntry& Entry);
+
 protected:
 	/** Il subsystem del replay, o `nullptr` fuori da una `GameInstance`. */
 	URTReplayViewerSubsystem* Replay() const;

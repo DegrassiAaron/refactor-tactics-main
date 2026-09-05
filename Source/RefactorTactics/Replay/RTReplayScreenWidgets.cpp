@@ -168,6 +168,40 @@ bool URTReplayViewerWidgetBase::BackToListOn(URTReplayViewerSubsystem* V, URTFro
 	return true;
 }
 
+FText URTMatchHistoryWidgetBase::GetEntryLabel(const FRTMatchHistoryEntry& Entry)
+{
+	// L'esito, nelle parole di chi guarda. `InProgress` in un archivio **chiuso** non e' uno stato: e' una
+	// partita che il registratore non ha visto finire, ed e' cio' che «interrotta» dice.
+	FText Esito;
+	switch (Entry.Outcome)
+	{
+	case ERTMatchOutcome::Team0Wins: Esito = LOCTEXT("MatchRowTeam0", "vince la squadra 0"); break;
+	case ERTMatchOutcome::Team1Wins: Esito = LOCTEXT("MatchRowTeam1", "vince la squadra 1"); break;
+	case ERTMatchOutcome::Draw:      Esito = LOCTEXT("MatchRowDraw", "pareggio"); break;
+	default:                         Esito = LOCTEXT("MatchRowUnfinished", "interrotta"); break;
+	}
+
+	// ⚠️ **La data si mostra locale, e il campo e' UTC.** `StartedUtc` e' l'ora dell'archivio — quella che
+	// entra nell'ordinamento e nel confronto fra registrazioni — e mostrarla cruda darebbe a chi gioca un
+	// orario che non e' quello del suo orologio. La conversione sta qui e non nel dato.
+	const FText Quando = FText::AsDateTime(Entry.StartedUtc, EDateTimeStyle::Short, EDateTimeStyle::Short);
+
+	const FText Base = FText::Format(
+		LOCTEXT("MatchRow", "{0} · {1} · {2} turni · {3}"),
+		Quando,
+		FText::FromName(Entry.FormatId),
+		FText::AsNumber(Entry.TurnCount),
+		Esito);
+
+	// 🔑 Un archivio non chiuso finisce **prima** di dove il suo `TurnCount` promette, e questa riga e'
+	// l'unico posto in cui lo si puo' sapere senza aprirlo: l'indice non guarda dentro le cartelle.
+	if (!Entry.bReplayComplete)
+	{
+		return FText::Format(LOCTEXT("MatchRowIncomplete", "{0} · registrazione incompleta"), Base);
+	}
+	return Base;
+}
+
 FText URTReplayViewerWidgetBase::GetOpenFailureText(ERTReplayOpenResult Result)
 {
 	switch (Result)
