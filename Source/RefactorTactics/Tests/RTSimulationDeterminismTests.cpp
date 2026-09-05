@@ -1096,6 +1096,12 @@ bool FRTBoundaryChecksumNamesTheDivergenceTest::RunTest(const FString&)
 		E.SrcCell = Da;
 		E.TgtCell = A;
 		E.ActionId = FName(TEXT("Action.Move"));
+		// ⚠️ **Esplicito, e non ridondante** (`#2374`): `FRTTurnLogEntry::MicroStepIndex` vale `0` di
+		// default, che dentro una traccia `WithMicroStep` significa *«il PRIMO micro-step»*. Lasciarlo al
+		// default farebbe misurare a questo test dei boundary di ciclo, mentre cio' che esiste per
+		// misurare e' la localizzazione fra TURNI. `Action.Move` porta `INDEX_NONE` nella partita vera,
+		// e qui deve portarlo per la stessa ragione.
+		E.MicroStepIndex = INDEX_NONE;
 		return E;
 	};
 
@@ -1121,6 +1127,19 @@ bool FRTBoundaryChecksumNamesTheDivergenceTest::RunTest(const FString&)
 
 	// ⛔ ANTI-VACUITA' 2: i checksum non devono essere tutti uguali, o il confronto sarebbe cieco.
 	TestNotEqual(TEXT("boundary diversi hanno checksum diversi"), A[0].Hash, A[1].Hash);
+
+	// ⛔ ANTI-VACUITA' 3 — il SOGGETTO (`#2387`): questi boundary sono di **fase intera**, e questo test
+	// misura la localizzazione fra TURNI.
+	//
+	// 🔴 **Senza queste due righe la premessa non e' verificata da nessuno.** `MicroStepIndex` vale `0` di
+	// default: se le voci sopra tornassero al default, dentro una traccia `WithMicroStep` quello `0`
+	// significherebbe *«il primo micro-step»*, i boundary diventerebbero di ciclo — `T1|Move#0` — e ogni
+	// assertion qui sotto resterebbe **vera lo stesso**, misurando un'altra cosa. E' successo davvero, ed
+	// e' il difetto che `#2387` ha chiuso: il verde era preservato e il soggetto era cambiato in silenzio.
+	TestEqual(TEXT("i boundary sono di fase intera, non di ciclo"),
+		A[0].MicroStepIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("e l'etichetta non porta un micro-step che la traccia non dichiara"),
+		A[0].ToString(), FString(TEXT("T1|Move")));
 
 	// --- il verso VERDE: la stessa traccia con se' stessa ---------------------------------------------
 	const TArray<FRTBoundaryChecksum> Uguale =
