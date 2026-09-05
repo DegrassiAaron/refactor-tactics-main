@@ -20,7 +20,7 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Attack,
 		{ FName(TEXT("PlayAttackMontage")), FName(TEXT("PlayHitMontage")) }));
 
-	// HazardDamage — NoPresentation, deciso il 2026-08-31.
+	// HazardDamage — PendingPresentation dal 2026-09-05, owner `#2455`. Era `NoPresentation` dal 2026-08-31.
 	//
 	// 🔴 **La clausola fa parte della dichiarazione, e non e' pedanteria.** Il danno da terreno ACCADE ed e'
 	// tutt'altro che marginale — `Fire` fa 10 danni all'ingresso contro gli 8 del Cleanup, passa da
@@ -34,30 +34,44 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// `URTTurnLogLibrary::IsEnvironmentalDamage` riconosce — `Terrain.<Surface>` all'ingresso e
 	// `Status.Burning` nel Cleanup.
 	//
-	// 🔴 **La voce resta `NoPresentation`, e la scelta e' deliberata.** Il produttore consegna il **dato**;
-	// la cue e' lavoro di `#2455`. Promuoverla adesso a una presentazione dichiarerebbe disegnato un evento
-	// che nessuno disegna — cioe' il difetto opposto e peggiore, ed e' precisamente quello che questa
-	// tabella esiste per impedire.
+	// 🔁 **La voce e' `PendingPresentation`, e la decisione e' d'autore (2026-09-05).** `#2460` l'aveva
+	// lasciata `NoPresentation` scrivendo *«la scelta e' deliberata»*, ma nella stessa frase diceva anche
+	// *«la cue e' lavoro di #2455»* — e sotto la tassonomia che `#2483` ha introdotto poche ore dopo, le due
+	// clausole si contraddicono: la prima e' un'assenza decisa, la seconda e' un'attesa con un owner. La
+	// domanda e' stata posta all'autore invece di essere risolta a intuito, e la risposta e' **in attesa,
+	// owner `#2455`**.
+	//
+	// ⛔ **Non e' una promozione a "disegnato".** `PendingPresentation` dichiara che l'evento **non si
+	// mostra** — esattamente come `NoPresentation` — e aggiunge chi lo mostrera'. Il timore scritto qui da
+	// `#2460`, *«dichiarerebbe disegnato un evento che nessuno disegna»*, riguardava il passaggio a `Cues`,
+	// che non e' questo: `FindMissingBindings` continua a non chiedere nessuna cue per questa voce.
+	//
+	// 🔑 **Cosa cambia davvero**: il giorno in cui `#2455` chiude senza rivedere questa riga,
+	// `Presentation.AbsenceCensusIsPinned` diventa **rosso**. Prima non lo diventava, e il promemoria viveva
+	// in una frase.
 	//
 	// ⚠️ **Corretta insieme una frase che era falsa**: diceva *«quando uccide, l'evento emesso e' `Defeated`,
 	// che una presentazione ce l'ha»*. Misurato: `Defeated` lo emette **solo** `ResolveCombatPasses`, da
 	// `NewlyDefeated` calcolato sul Blast. Chi muore bruciato nel Cleanup, o entrando nel fuoco, **non lo
 	// produce**: resta coperto dal catch-all di `ConcludeTurn` (`DestroyDefeatedUnits`). Chi costruira' la
 	// cue non deve credere che la morte da hazard abbia gia' un beat proprio — non ce l'ha.
-	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::HazardDamage,
-		TEXT("Il danno da terreno si legge dalla barra vita e dal combat log: una cue dedicata non aggiunge ")
-		TEXT("leggibilita' in v0.1, e D-124 tiene il sistema VFX degli status fuori dal perimetro. Il ")
-		TEXT("produttore ESISTE da #2460 (AppendLogEntry, per ogni causa che IsEnvironmentalDamage riconosce): ")
-		TEXT("l'assenza e' una scelta sul disegno, non un evento muto. La cue e' lavoro di #2455. ATTENZIONE: ")
-		TEXT("la morte da hazard non emette Defeated - la nasconde il catch-all di ConcludeTurn.")));
+	Out.Add(FRTPresentationBinding::MakePendingPresentation(ERTResolvedEventType::HazardDamage,
+		TEXT("Il danno da terreno si legge oggi dalla barra vita e dal combat log, e D-124 tiene il sistema ")
+		TEXT("VFX degli status fuori dal perimetro v0.1. Il produttore ESISTE da #2460 (AppendLogEntry, per ")
+		TEXT("ogni causa che IsEnvironmentalDamage riconosce): l'evento accade, e non e' muto. ATTENZIONE: ")
+		TEXT("la morte da hazard non emette Defeated - la nasconde il catch-all di ConcludeTurn, quindi chi ")
+		TEXT("scrive la cue non dia per scontato un beat di morte che non esiste."),
+		TEXT("#2455")));
 
-	// AttackFootprint — PendingPresentation, e per una ragione OPPOSTA a quella di HazardDamage.
+	// AttackFootprint — PendingPresentation.
 	//
 	// ✅ **Dal 2026-09-05 (#2483) la differenza sta nel DATO, non in questo commento.** Fino ad allora
 	// era `NoPresentation` con la nota dentro il motivo, e nessuna macchina leggeva quella frase.
 	//
-	// 🔴 **Qui l'assenza e' temporanea e attesa, non una scelta di design.** `HazardDamage` non si mostra
-	// perche' si e' deciso che non deve; questo evento esiste **precisamente perche' un giorno si mostri** —
+	// 🔴 **Qui l'assenza e' temporanea e attesa.** ⚠️ Fino al 2026-09-05 questa riga contrapponeva il caso a
+	// `HazardDamage` — *«quello non si mostra perche' si e' deciso che non deve»* — e il contrasto **non
+	// regge piu'**: la decisione d'autore ha portato anche `HazardDamage` in attesa, con owner `#2455`.
+	// Questo evento esiste **precisamente perche' un giorno si mostri** —
 	// #1945 lo introduce per portare a valle le celle risolte, e la cue che le disegna (tracer, impatto,
 	// resa dell'area) e' lavoro di E21 che non e' ancora stato fatto.
 	//
