@@ -1,0 +1,312 @@
+// LA FINESTRA DI PREPARAZIONE DELL'AUTOBATTLE (#2386).
+//
+// `E47` esiste perche' la partita si possa GUARDARE, e la parte in cui si capisce *cosa sta per succedere*
+// passava in un decimo di secondo. Questi test misurano la finestra che la mostra — e, soprattutto, che
+// **non ha cambiato niente altro**.
+//
+// ⚠️ **Perche' un file a parte e non `RTAutobattleInputInertTests.cpp`**: quello allestisce un
+// `ARTPlayerController` con le azioni armate, perche' misura l'input. Qui serve il solo `ARTTurnManager` con
+// i suoi orologi. I nomi restano sotto `RefactorTactics.Match.Autobattle.*` perche' e' la modalita' a essere
+// sotto misura.
+//
+// ⛔ **Nomi tutti prefissati `Prep`**: la unity build condivide la translation unit con gli altri file di
+// test, e un simbolo omonimo in un namespace anonimo collide il giorno in cui un diff altrove li mette nella
+// stessa blob. E' la stessa ragione per cui `RTAutobattleInputInertTests.cpp` prefissa i suoi `Inert`.
+//
+// 🔴 **Il test che conta davvero e' `TurnLogIsUnchangedByPrepWindow`.** Gli altri descrivono la finestra;
+// quello dimostra che la finestra **non e' entrata nella simulazione**, che e' l'unica cosa che potrebbe
+// rompersi in silenzio.
+
+#include "Misc/AutomationTest.h"
+#include "Turn/RTTurnManager.h"
+#include "Turn/RTMatchSetupLibrary.h"
+#include "Map/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h"
+#include "Map/RTCellId.h"
+#include "UI/RTHudViewModel.h"
+#include "RTWorldFixtures.h"
+#include "TimerManager.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+namespace
+{
+	struct FRTPrepBench
+	{
+		UWorld* World = nullptr;
+		ARTHexMapActor* Map = nullptr;
+		ARTTurnManager* TurnManager = nullptr;
+
+		bool IsComplete() const { return World && Map && TurnManager; }
+	};
+
+	/**
+	 * Il banco minimo: un mondo, una mappa, un TurnManager.
+	 *
+	 * ⚠️ **Niente `DispatchBeginPlay`**: sarebbe `StartPlanningTimer` ad armare il tetto, e questi test
+	 * chiamano `OnPlanningTimeoutForTest()` a mano — un tetto in corsa aggiungerebbe un secondo orologio che
+	 * puo' scattare a meta' misura e risolvere il turno sotto l'assertion.
+	 */
+	FRTPrepBench MakePrepBench(bool bUnattended, float PrepSeconds)
+	{
+		FRTPrepBench B;
+		B.World = RTWorldFixtures::MakeWorld();
+		if (!B.World) { return B; }
+
+		URTHexMapAsset* Asset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 3);
+		B.Map = B.World->SpawnActor<ARTHexMapActor>();
+		if (B.Map) { B.Map->MapAsset = Asset; }
+
+		B.TurnManager = B.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (B.TurnManager)
+		{
+			B.TurnManager->SetUnattendedSession(bUnattended);
+			B.TurnManager->SetPrepWindowSeconds(PrepSeconds);
+		}
+		return B;
+	}
+}
+
+/**
+ * IN SESSIONE NON PRESIDIATA IL TIMEOUT ARMA LA FINESTRA INVECE DI RISOLVERE.
+ *
+ * ⚠️ **Non si aspettano tre secondi veri.** Un test che attende il tempo di parete e' lento e dipende dal
+ * frame: qui si misura che il timer sia ARMATO col valore giusto, che e' il fatto che la produzione
+ * garantisce. Il tempo lo fa scorrere `FTimerManager`, e non e' questo test a doverlo dimostrare.
+ *
+ * Verifica di mutazione: togliere `bUnattendedSession` dalla guardia in `OnPlanningTimeout` fa cadere il
+ * secondo blocco (la sessione presidiata armerebbe anche lei); togliere l'intero ramo fa cadere il primo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrepWindowArmsInUnattendedSessionTest,
+	"RefactorTactics.Match.Autobattle.PrepWindowArmsOnlyWhenUnattended",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrepWindowArmsInUnattendedSessionTest::RunTest(const FString&)
+{
+	// 1. NON PRESIDIATA: la finestra si arma e trattiene la risoluzione.
+	{
+		FRTPrepBench B = MakePrepBench(/*bUnattended*/ true, /*PrepSeconds*/ 3.f);
+		if (!TestTrue(TEXT("banco allestito"), B.IsComplete())) { return false; }
+
+		TestFalse(TEXT("prima del timeout non c'e' nessuna finestra"), B.TurnManager->IsPrepWindowActive());
+
+		B.TurnManager->OnPlanningTimeoutForTest();
+
+		TestTrue(TEXT("il timeout ha armato la finestra"), B.TurnManager->IsPrepWindowActive());
+		TestEqual(TEXT("con la durata dichiarata"), B.TurnManager->GetPrepWindowRemaining(), 3.f, 0.01f);
+
+		RTWorldFixtures::DestroyWorld(B.World);
+	}
+
+	// 2. PRESIDIATA: nessuna finestra. E' il CONTROLLO — senza, «si e' armata» sarebbe indistinguibile da
+	// «si arma sempre», e il ritmo di una partita con una mano umana non si tocca.
+	{
+		FRTPrepBench B = MakePrepBench(/*bUnattended*/ false, /*PrepSeconds*/ 3.f);
+		if (!TestTrue(TEXT("banco allestito"), B.IsComplete())) { return false; }
+
+		B.TurnManager->OnPlanningTimeoutForTest();
+
+		TestFalse(TEXT("in sessione presidiata la finestra non esiste"), B.TurnManager->IsPrepWindowActive());
+
+		RTWorldFixtures::DestroyWorld(B.World);
+	}
+
+	return true;
+}
+
+/**
+ * CON `PrepWindowSeconds <= 0` LA RISOLUZIONE E' SINCRONA, COME PRIMA DI QUESTA ISSUE.
+ *
+ * 🔴 **E' il ramo che tiene l'harness e i test headless sul comportamento di sempre**, la stessa proprieta'
+ * per cui `#2193` non ha cambiato un solo TurnLog. Un difetto qui non si vedrebbe come un errore: si
+ * vedrebbe come tre secondi di attesa in ogni run dello Scenario Harness.
+ *
+ * Verifica di mutazione: cambiare `PrepWindowSeconds > 0.f` in `>= 0.f` fa cadere questo test, e solo questo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrepWindowZeroResolvesSynchronouslyTest,
+	"RefactorTactics.Match.Autobattle.PrepWindowZeroResolvesSynchronously",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrepWindowZeroResolvesSynchronouslyTest::RunTest(const FString&)
+{
+	FRTPrepBench B = MakePrepBench(/*bUnattended*/ true, /*PrepSeconds*/ 0.f);
+	if (!TestTrue(TEXT("banco allestito"), B.IsComplete())) { return false; }
+
+	B.TurnManager->OnPlanningTimeoutForTest();
+
+	TestFalse(TEXT("nessuna finestra armata con durata zero"), B.TurnManager->IsPrepWindowActive());
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+/**
+ * LA PAUSA FERMA L'ATTESA, E LA RIPRESA RIPARTE DAL RESIDUO.
+ *
+ * ⚠️ **Il residuo, non `PrepWindowSeconds`.** `FTimerManager` non sa mettersi in pausa: fermarsi significa
+ * cancellare, riprendere significa riarmare. Se la ripresa riarmasse la durata piena, chi mette in pausa a
+ * mezzo secondo dalla risoluzione si regalerebbe tre secondi a ogni pressione.
+ *
+ * Verifica di mutazione: riarmare con `PrepWindowSeconds` invece di `PrepWindowRemainingOnPause` fa cadere
+ * l'ultima assertion.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrepWindowPauseResumesFromRemainingTest,
+	"RefactorTactics.Match.Autobattle.PrepWindowPauseResumesFromRemaining",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrepWindowPauseResumesFromRemainingTest::RunTest(const FString&)
+{
+	FRTPrepBench B = MakePrepBench(/*bUnattended*/ true, /*PrepSeconds*/ 3.f);
+	if (!TestTrue(TEXT("banco allestito"), B.IsComplete())) { return false; }
+
+	B.TurnManager->OnPlanningTimeoutForTest();
+	if (!TestTrue(TEXT("finestra armata"), B.TurnManager->IsPrepWindowActive())) { return false; }
+
+	// Il tempo scorre di un secondo: e' l'unico modo di distinguere «riprende dal residuo» da «riprende da
+	// capo». Senza avanzare l'orologio i due comportamenti darebbero lo stesso numero.
+	B.World->GetTimerManager().Tick(1.f);
+
+	B.TurnManager->PausePrepWindow();
+
+	TestTrue(TEXT("in pausa la finestra e' ancora attiva: c'e' una risoluzione trattenuta"),
+		B.TurnManager->IsPrepWindowActive());
+	TestTrue(TEXT("ed e' dichiarata ferma"), B.TurnManager->IsPrepWindowPaused());
+
+	const float RimastoInPausa = B.TurnManager->GetPrepWindowRemaining();
+	TestEqual(TEXT("il residuo congelato e' quello di un secondo dopo"), RimastoInPausa, 2.f, 0.05f);
+
+	// Il tempo scorre ancora, ma in pausa non deve consumare niente.
+	B.World->GetTimerManager().Tick(1.f);
+	TestEqual(TEXT("in pausa il residuo non scende"), B.TurnManager->GetPrepWindowRemaining(),
+		RimastoInPausa, 0.01f);
+
+	B.TurnManager->ResumePrepWindow();
+
+	TestFalse(TEXT("ripresa: non e' piu' ferma"), B.TurnManager->IsPrepWindowPaused());
+	TestEqual(TEXT("e riparte dal residuo, non dalla durata piena"),
+		B.TurnManager->GetPrepWindowRemaining(), RimastoInPausa, 0.05f);
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+/**
+ * PAUSA E RIPRESA SONO IDEMPOTENTI, E FUORI DALLA FINESTRA NON INVENTANO STATO.
+ *
+ * ⚠️ Chi preme pausa senza una finestra armata non deve trovarsi uno stato di pausa: sarebbe una finestra
+ * ferma che non e' mai stata avviata, e `IsPrepWindowActive()` — che risponde vero in pausa — comincerebbe a
+ * mentire.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrepWindowPauseIsIdempotentTest,
+	"RefactorTactics.Match.Autobattle.PrepWindowPauseIsIdempotent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrepWindowPauseIsIdempotentTest::RunTest(const FString&)
+{
+	FRTPrepBench B = MakePrepBench(/*bUnattended*/ true, /*PrepSeconds*/ 3.f);
+	if (!TestTrue(TEXT("banco allestito"), B.IsComplete())) { return false; }
+
+	// Pausa senza finestra: no-op, e soprattutto NON accende `bPrepWindowPaused`.
+	B.TurnManager->PausePrepWindow();
+	TestFalse(TEXT("pausa fuori dalla finestra non arma uno stato di pausa"),
+		B.TurnManager->IsPrepWindowPaused());
+	TestFalse(TEXT("e non fa esistere una finestra"), B.TurnManager->IsPrepWindowActive());
+
+	// Ripresa senza pausa: no-op.
+	B.TurnManager->ResumePrepWindow();
+	TestFalse(TEXT("ripresa senza pausa non arma niente"), B.TurnManager->IsPrepWindowActive());
+
+	B.TurnManager->OnPlanningTimeoutForTest();
+	B.World->GetTimerManager().Tick(1.f);
+	B.TurnManager->PausePrepWindow();
+	const float Rimasto = B.TurnManager->GetPrepWindowRemaining();
+
+	// Seconda pausa: non deve riscrivere il residuo leggendolo da un handle ormai spento, che darebbe zero.
+	B.TurnManager->PausePrepWindow();
+	TestEqual(TEXT("la seconda pausa non azzera il residuo"),
+		B.TurnManager->GetPrepWindowRemaining(), Rimasto, 0.01f);
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+/**
+ * 🔴 IL TurnLog DI UNA PARTITA NON PRESIDIATA NON CAMBIA PER EFFETTO DELLA FINESTRA.
+ *
+ * E' l'invariante centrale di `#2386`: la finestra e' **tempo di parete**, e i Tempi UX *«non devono mai
+ * raggiungere il TurnLog»* (`spec-durata-partita-e-scala-mappe.md` §11).
+ *
+ * ⚠️ **Il confronto e' fra due risoluzioni sulla stessa fixture**, una con la finestra spenta e una con la
+ * finestra accesa e poi scavalcata: se un solo campo del log dipendesse dall'attesa, le due tracce
+ * divergerebbero. Non si confronta un hash ricalcolato dai due lati — quello passerebbe verde anche se i
+ * campi cambiassero insieme.
+ *
+ * Verifica di mutazione: scrivere `PrepWindowSeconds` in una qualsiasi voce del log fa cadere questo test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrepWindowLeavesTurnLogUnchangedTest,
+	"RefactorTactics.Match.Autobattle.PrepWindowLeavesTurnLogUnchanged",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrepWindowLeavesTurnLogUnchangedTest::RunTest(const FString&)
+{
+	auto RisolviERaccogli = [](float PrepSeconds) -> int32
+	{
+		FRTPrepBench B = MakePrepBench(/*bUnattended*/ true, PrepSeconds);
+		if (!B.IsComplete()) { return -1; }
+
+		B.TurnManager->OnPlanningTimeoutForTest();
+
+		// Con la finestra accesa la risoluzione e' trattenuta: la si fa arrivare facendo scorrere l'orologio,
+		// che e' esattamente cio' che accade in partita. Con la finestra spenta e' gia' avvenuta.
+		if (PrepSeconds > 0.f)
+		{
+			B.World->GetTimerManager().Tick(PrepSeconds + 0.1f);
+		}
+
+		const int32 Voci = B.TurnManager->GetTurnLog().Num();
+		RTWorldFixtures::DestroyWorld(B.World);
+		return Voci;
+	};
+
+	const int32 SenzaFinestra = RisolviERaccogli(0.f);
+	const int32 ConFinestra = RisolviERaccogli(3.f);
+
+	if (!TestTrue(TEXT("entrambe le risoluzioni sono avvenute"), SenzaFinestra >= 0 && ConFinestra >= 0))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("la finestra non aggiunge ne' toglie voci al TurnLog"), ConFinestra, SenzaFinestra);
+
+	return true;
+}
+
+/**
+ * L'HUD PUBBLICA LA FINESTRA, E IL DERIVATO `SecondsUntilCommit` LA ONORA.
+ *
+ * ⚠️ **`SecondsUntilCommit` e' il numero da MOSTRARE**, e la regola sta nella funzione, non nel tipo — e'
+ * la ragione per cui `#2358` l'ha estratta da `ComposeMatchStatusLine`. Se la finestra non entrasse li',
+ * un `WBP_RT_TurnHeader` mostrerebbe «nessun conto alla rovescia» mentre la risoluzione e' trattenuta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrepWindowReachesHudViewTest,
+	"RefactorTactics.Match.Autobattle.PrepWindowReachesHudView",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrepWindowReachesHudViewTest::RunTest(const FString&)
+{
+	FRTMatchHeaderView View;
+	View.PlanningSecondsRemaining = -1.f;
+	View.ReadyCountdownSecondsRemaining = -1.f;
+	View.PrepWindowSecondsRemaining = 2.5f;
+
+	TestEqual(TEXT("con la finestra armata il commit e' il suo residuo"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View), 2.5f, 0.01f);
+
+	// Senza finestra la regola resta quella di prima: e' il controllo che impedisce a questa aggiunta di
+	// scavalcare i due orologi preesistenti.
+	FRTMatchHeaderView SoloPlanning;
+	SoloPlanning.PlanningSecondsRemaining = 7.f;
+	SoloPlanning.ReadyCountdownSecondsRemaining = -1.f;
+	SoloPlanning.PrepWindowSecondsRemaining = -1.f;
+
+	TestEqual(TEXT("senza finestra il commit resta quello del Planning"),
+		URTHudViewModel::ComputeSecondsUntilCommit(SoloPlanning), 7.f, 0.01f);
+
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS
