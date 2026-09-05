@@ -321,11 +321,144 @@ bool FRTPresentationHazardDamageIsDeclaredSilentTest::RunTest(const FString&)
 	TestTrue(TEXT("HazardDamage e' NoPresentation, non una voce dimenticata"),
 		Hazard->Kind == ERTPresentationKind::NoPresentation);
 
-	// 🔴 La clausola: oggi il valore non ha un produttore, e la voce deve DIRLO. Senza questa riga la
-	// dichiarazione varrebbe «perche' non accade» invece che «quando accadra'», e resterebbe verde il
-	// giorno in cui qualcuno emette l'evento — cioe' il difetto che questa tabella esiste per impedire.
-	TestTrue(TEXT("il motivo avverte che oggi il valore non ha un produttore"),
-		Hazard->Rationale.Contains(TEXT("produttore")));
+	// 🔴 **La clausola, e da `#2460` sorveglia il fatto OPPOSTO.** Fino a quel giorno chiedeva che la voce
+	// dichiarasse di non avere un produttore; il produttore e' arrivato, e la voce e' stata riscritta.
+	//
+	// ⚠️ **Il predicato di allora — `Rationale.Contains("produttore")` — sarebbe rimasto VERDE**: la frase
+	// nuova dice *«il produttore ESISTE»*, e contiene la stessa parola. Un guardiano che passa su una stringa
+	// che afferma il contrario di cio' che gli era stato chiesto non e' un guardiano: e' un test che ha
+	// smesso di misurare senza diventare rosso. Riscritto insieme alla voce, come la voce stessa prescriveva.
+	//
+	// 🔑 **Cosa resta da sorvegliare adesso.** L'assenza di cue e' ora una **scelta di disegno** su un evento
+	// che accade, non un evento muto: la voce deve continuare a dire perche' non si disegna e a chi tocca
+	// farlo, o il giorno in cui `#2455` scrivera' la cue nessuno sapra' che questa riga andava rivista.
+	TestTrue(TEXT("il motivo dichiara che il produttore esiste, non che manca"),
+		Hazard->Rationale.Contains(TEXT("produttore ESISTE")));
+	TestTrue(TEXT("il motivo indirizza alla issue che possiede la cue"),
+		Hazard->Rationale.Contains(TEXT("#2455")));
+
+	// ⚠️ **E che la morte da hazard non ha un beat proprio.** Misurato in `#2460`: `Defeated` lo emette solo
+	// `ResolveCombatPasses`, sul Blast. La voce lo dichiara perche' chi costruira' la cue non dia per
+	// scontato un momento di morte che non esiste — era precisamente l'errore della stesura precedente.
+	TestTrue(TEXT("il motivo avverte che la morte da hazard non emette Defeated"),
+		Hazard->Rationale.Contains(TEXT("non emette Defeated")));
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * `PendingPresentation` ben formata COPRE; senza owner o senza motivo NON copre (`#2483`).
+ *
+ * 🔑 **La controprova non e' decorativa.** Senza il caso (c) i due sopra proverebbero solo che il gate si
+ * lamenta, non che sa **distinguere** una voce in attesa legittima da una malformata — ed e' esattamente la
+ * forma che il caso (d) di `HollowDeclarationsDoNotCover` usa gia' per `NoPresentation`.
+ *
+ * ⛔ Se una voce in attesa ben formata NON coprisse, la pressione sarebbe a cancellare la distinzione per
+ * tornare verdi, e il gate tornerebbe a misurare niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationPendingNeedsOwnerAndRationaleTest,
+	"RefactorTactics.Presentation.PendingNeedsOwnerAndRationale",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationPendingNeedsOwnerAndRationaleTest::RunTest(const FString&)
+{
+	const TArray<ERTResolvedEventType> AllTypes = PresAllEventTypes();
+
+	// Tabella completa in cui SOLO `Move` e' dichiarato nel modo in esame: l'unica mancanza attesa e' quella.
+	auto TabellaCon = [&AllTypes](const FRTPresentationBinding& InEsame)
+	{
+		TArray<FRTPresentationBinding> T;
+		for (const ERTResolvedEventType Type : AllTypes)
+		{
+			T.Add(Type == ERTResolvedEventType::Move ? InEsame : PresBindingWithCue(Type));
+		}
+		return T;
+	};
+
+	// (a) In attesa senza owner: la promessa che nessuno puo' riscuotere.
+	{
+		const FRTPresentationBinding SenzaOwner = FRTPresentationBinding::MakePendingPresentation(
+			ERTResolvedEventType::Move, TEXT("motivo scritto"), TEXT("   "));
+		const TArray<FString> Missing =
+			URTPresentationBindingLibrary::FindMissingBindings(TabellaCon(SenzaOwner));
+		TestEqual(TEXT("(a) PendingPresentation senza owner non copre"), Missing.Num(), 1);
+	}
+
+	// (b) In attesa senza motivo: vale la stessa regola di `NoPresentation`, e non e' assorbita da (a).
+	{
+		const FRTPresentationBinding SenzaMotivo = FRTPresentationBinding::MakePendingPresentation(
+			ERTResolvedEventType::Move, TEXT("  "), TEXT("#2454"));
+		const TArray<FString> Missing =
+			URTPresentationBindingLibrary::FindMissingBindings(TabellaCon(SenzaMotivo));
+		TestEqual(TEXT("(b) PendingPresentation senza motivo non copre"), Missing.Num(), 1);
+	}
+
+	// (c) Controprova: ben formata, COPRE.
+	{
+		const FRTPresentationBinding BenFormata = FRTPresentationBinding::MakePendingPresentation(
+			ERTResolvedEventType::Move, TEXT("motivo scritto"), TEXT("#2454"));
+		const TArray<FString> Missing =
+			URTPresentationBindingLibrary::FindMissingBindings(TabellaCon(BenFormata));
+		TestEqual(TEXT("(c) PendingPresentation con motivo e owner copre"), Missing.Num(), 0);
+	}
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Il censimento delle assenze e' PINNATO: quante decise, quante in attesa, e ogni in-attesa nomina l'owner.
+ *
+ * 🔴 **E' il test che rende falsificabile la classificazione, e senza di esso `#2483` non consegna niente.**
+ * I due test sopra provano che il *gate* sa distinguere; questo prova che le voci *reali* sono classificate.
+ * Declassare `AttackFootprint` da `PendingPresentation` a `NoPresentation` lascerebbe il gate verde — la
+ * voce resterebbe ben formata — e la distinzione morirebbe in silenzio. Qui diventa rossa.
+ *
+ * ⚠️ **I numeri sono un'osservazione, non una derivazione**, e vanno **rimisurati** se il censimento cambia
+ * per una ragione legittima — non aggiornati d'ufficio al numero nuovo. Chi li cambia dichiari perche'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationAbsenceCensusIsPinnedTest,
+	"RefactorTactics.Presentation.AbsenceCensusIsPinned",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
+{
+	const TArray<FRTPresentationBinding> Reale = URTPresentationBindingLibrary::DeclaredBindings();
+
+	int32 Decise = 0;
+	int32 InAttesa = 0;
+	int32 InAttesaSenzaOwner = 0;
+	for (const FRTPresentationBinding& B : Reale)
+	{
+		if (B.Kind == ERTPresentationKind::NoPresentation) { ++Decise; }
+		else if (B.Kind == ERTPresentationKind::PendingPresentation)
+		{
+			++InAttesa;
+			if (B.PendingOwner.TrimStartAndEnd().IsEmpty()) { ++InAttesaSenzaOwner; }
+		}
+	}
+
+	// Misurato il 2026-09-05: `HazardDamage` e' l'unica assenza DECISA; `AttackFootprint`,
+	// `ReactionResolved` e `StatusChanged` sono in attesa, e ognuna nomina chi la sciogliera'.
+	TestEqual(TEXT("una sola assenza e' DECISA"), Decise, 1);
+	TestEqual(TEXT("tre assenze sono IN ATTESA"), InAttesa, 3);
+	TestEqual(TEXT("nessuna voce in attesa e' senza owner"), InAttesaSenzaOwner, 0);
+
+	// Gli owner per nome: senza questa riga il conteggio starebbe in piedi anche con owner scambiati fra
+	// loro, e «chi chiude #2454 sa quale riga lo riguarda» tornerebbe a non essere vero.
+	auto OwnerDi = [&Reale](ERTResolvedEventType Type) -> FString
+	{
+		const FRTPresentationBinding* B = Reale.FindByPredicate(
+			[Type](const FRTPresentationBinding& X) { return X.Type == Type; });
+		return B ? B->PendingOwner : FString();
+	};
+	TestEqual(TEXT("AttackFootprint attende E21"),
+		OwnerDi(ERTResolvedEventType::AttackFootprint), FString(TEXT("E21")));
+	TestEqual(TEXT("ReactionResolved attende #2454"),
+		OwnerDi(ERTResolvedEventType::ReactionResolved), FString(TEXT("#2454")));
+	TestEqual(TEXT("StatusChanged attende #2456"),
+		OwnerDi(ERTResolvedEventType::StatusChanged), FString(TEXT("#2456")));
 
 	return true;
 }

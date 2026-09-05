@@ -442,6 +442,40 @@ public:
 	TArray<FRTResolvedEvent> ResolvedStatusEventsForTest() const;
 
 	/**
+	 * Hook per i test: gli eventi `HazardDamage` emessi in questo turno (`#2460`).
+	 *
+	 * 🔴 Stessa ragione dell'accessore qui sopra, e lo stesso rischio: l'emissione avviene in
+	 * `AppendLogEntry`, il punto che **ogni** voce di log attraversa. Senza poter leggere la timeline, la
+	 * differenza fra «emesso per il danno ambientale» ed «emesso per ogni colpo» non sarebbe osservabile.
+	 *
+	 * ⚠️ **E qui non c'e' un secondo canale che possa supplire.** `HazardDamage` e' dichiarato
+	 * `NoPresentation` finche' la cue di `#2455` non esiste: nessuna verifica a schermo puo' vederlo, quindi
+	 * questo accessore e' l'**unico** modo di sorvegliarlo. Un evento sbagliato resterebbe altrimenti
+	 * invisibile a entrambe le reti.
+	 *
+	 * ⚠️ Restituisce gli eventi INTERI: cio' che va sorvegliato e' il **contenuto** — quale fase, chi
+	 * subisce, quanto danno — e un conteggio non lo direbbe. Un'emissione che scrivesse sempre `Move` come
+	 * fase passerebbe un test che conta soltanto.
+	 *
+	 * @return copia degli eventi `HazardDamage` nell'ordine di emissione, che e' quello delle voci di log.
+	 */
+	TArray<FRTResolvedEvent> ResolvedHazardEventsForTest() const;
+
+	/**
+	 * Hook per i test: quanti eventi di quel tipo ci sono sulla timeline di questo turno.
+	 *
+	 * 🔴 Esiste per le asserzioni di **assenza**, che gli accessori filtrati qui sopra non possono reggere:
+	 * cercare un `Defeated` fra gli eventi gia' filtrati su `HazardDamage` risponde zero **per costruzione**,
+	 * ed e' un asserto vacuo travestito da verifica. Serve la timeline intera, e questa e' la porta.
+	 *
+	 * ⚠️ Un CONTEGGIO e non gli eventi: la domanda che questa funzione esiste per rispondere e' *«ce n'e'
+	 * qualcuno?»*. Chi deve guardare il contenuto usa l'accessore tipizzato, che porta i campi.
+	 *
+	 * @return il numero di eventi con quel `Type`; `0` se il tipo non e' stato emesso in questo turno.
+	 */
+	int32 ResolvedEventCountOfTypeForTest(ERTResolvedEventType Type) const;
+
+	/**
 	 * Hook per i test: applica una modifica temporanea di superficie dichiarandone l'autore.
 	 *
 	 * Serve perche' la scadenza ambientale — la voce che deve restare senza attore (#405) — nessuno scenario
@@ -895,6 +929,26 @@ public:
 	/** Durata di visualizzazione di ogni colpo nel Blast (secondi). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	float AttackShowSeconds = 0.50f;
+
+	/**
+	 * Coda finale quando l'ULTIMA fase riprodotta si chiude su un'eliminazione (secondi).
+	 *
+	 * 🔴 **Esiste perche' altrimenti il montaggio `Death` avrebbe finestra ZERO** (#2452). L'eliminazione si
+	 * annuncia a fine della fase in cui e' avvenuta e il montaggio gioca durante le fasi che restano — ma
+	 * `PlaybackPhases` e' `Prep -> Dash -> Blast -> Move` e mai `Cleanup`, quindi chi cade nell'ultima fase
+	 * vedrebbe `FinishPlayback` subito dopo l'annuncio. E' il caso del banco `Visual.Combat.Defeat`, dove
+	 * nessuno si muove e la morte cade nel `Blast` finale.
+	 *
+	 * ⚠️ **E' tempo `Shown`, non `Slack`**: mostra qualcosa, quindi il budget non puo' toglierlo (#1878).
+	 * Scala invece con la velocita' scelta da chi guarda, come tutto il resto del playback.
+	 *
+	 * ⛔ **Non e' una callback di animazione e non aspetta il montaggio**: e' una durata dichiarata, quindi
+	 * la risoluzione resta deterministica e un montaggio assente non blocca nulla. Il valore e' da tarare a
+	 * schermo (`PIE-AS4b` / `PIE-VIS-KO`); a `0` la coda e' disattivata e si torna al comportamento
+	 * precedente.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
+	float DefeatBeatSeconds = 0.80f;
 
 	/**
 	 * Budget SOFT di durata del playback: oltre, si comprimono le ATTESE (0 = nessun budget).
@@ -2287,6 +2341,31 @@ private:
 	TArray<FRTMoveAnim> MoveAnims;          // derivati dagli eventi Move
 	TArray<FRTResolvedEvent> PlaybackAttacks; // eventi Attack, mostrati in serie nel Blast
 	TArray<FRTResolvedEvent> PlaybackDefeated; // eventi Defeated, mostrati a fine della loro fase
+
+	/**
+	 * Chi ha gia' ricevuto l'annuncio di morte in questo playback, per `StableUnitId`.
+	 *
+	 * 🔴 **Esiste perche' `IsHidden()` non puo' piu' fare da guardia** (#2452). Fino al 2026-09-05
+	 * l'idempotenza dell'annuncio veniva dall'hide stesso: si nascondeva l'unita' e la si riconosceva
+	 * «gia' mostrata» perche' era nascosta. Ma nascondere PRIMA di `PlayDefeatMontage()` rendeva il
+	 * montaggio `Death` invisibile, quindi l'hide si e' spostato a `FinishPlayback` — e senza un
+	 * marcatore proprio il catch-all rifarebbe partire il montaggio e ribroadcasterebbe
+	 * `OnUnitDefeated` sulla stessa unita'.
+	 *
+	 * ⚠️ **Non se ne itera mai l'ordine** (solo `Contains`/`Add`): l'invariante «niente dipendenza
+	 * dall'ordine di un container hash» resta intatta.
+	 */
+	TSet<int32> PlaybackDefeatShown;
+
+	/**
+	 * Secondi che restano alla coda finale della morte, `0` quando non e' in corso (#2452).
+	 *
+	 * Quando l'ultima fase si chiude su un'eliminazione il playback NON finisce: entra qui, e
+	 * `FinishPlayback` arriva allo scadere. ⚠️ `SkipPlayback` la scavalca — chiama `FinishPlayback`
+	 * direttamente — ed e' voluto: chi salta la risoluzione non vuole aspettare una coda.
+	 */
+	float PlaybackDefeatBeatRemaining = 0.f;
+
 	TArray<ERTMatchPhase> PlaybackPhases;   // fasi attive, in ordine
 	int32 PlaybackPhaseIdx = 0;
 	float PlaybackPhaseElapsed = 0.f;

@@ -66,7 +66,7 @@ Non emetti verdetti.
 
 Sei una istanza DEV: non compili, non esegui `rt-suite`, non apri l'Editor, non tocchi `.uasset`/`.umap`. Per §3, `file modificato != build/test/PIE/packaged verificato`, e non possiedi lo strumento che prova nessuna voce di §7.
 
-La tua colonna nella matrice canonica non esiste. Dichiari **quali** sistemi devono ricevere un verdetto, non quale verdetto ricevono.
+La tua colonna nella matrice canonica non esiste, e §9 ne trae la conseguenza: il tuo handoff porta la **busta** e non il **payload di verdetti**. Dichiari **quali** sistemi devono ricevere un verdetto, non quale verdetto ricevono.
 
 Non sei il Validator, e non chiudi la wave.
 
@@ -186,11 +186,10 @@ Oltre ai campi di §9, il tuo handoff porta:
 ## NOT RUN                     (con motivo: build, suite e PIE non competono a questo ruolo)
 ```
 
-`## MATRICE` di §9 resta senza verdetti per questo ruolo, con una riga esplicita:
+Non compili `## MATRICE`, `## FINDINGS`, `## EVIDENCE` né `## USER_REQUIRED` come voci di verdetto: §9 le colloca nel payload, e il payload si porta solo se §7 assegna una colonna. `## SISTEMI IN SCOPE` le sostituisce.
 
-```text
-## MATRICE
-nessun verdetto — DEV-LEAD non possiede lo strumento di prova per alcun sistema di §7
-```
+⚠️ Un handoff senza payload **non è malformato**: §6 legge `BLOCKED` una voce di verdetto malformata, e qui non ci sono voci. Se un ruolo a valle te lo contesta, la sede è §9, non una deroga.
+
+`## USER_REQUIRED` resta, ma non come verdetto: elenca i check a oracolo umano **previsti**, con `Result: NOT RUN`, perché EDITOR e VALIDATION sappiano cosa aspettarsi.
 
 `STATUS: READY` significa che la wave ha un ingresso leggibile, non che qualcosa è stato verificato.

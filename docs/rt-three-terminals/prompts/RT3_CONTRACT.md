@@ -114,6 +114,8 @@ Regole di forma:
 - `N/A` è giustificato dal write-set, mai dalla difficoltà o dal tempo;
 - `OBSERVED` esiste perché alcuni ruoli possono guardare un sistema senza poterlo provare. Vedi §7.
 
+⚠️ **Queste regole valgono per le voci di verdetto.** Un handoff che per §9 non porta payload non ha voci: la loro assenza non è una voce malformata, e non si legge `BLOCKED`.
+
 `EVIDENCE_REF` è un riferimento ad artefatto, non prosa:
 
 ```text
@@ -177,6 +179,8 @@ Caso guida — `PRIVACY`. EDITOR può constatare che un dato privato non compare
 
 Disaccordo tra colonne: vince VALIDATION quando il suo verdetto è `FAIL`. Un `PASS` EDITOR contro un `FAIL` VALIDATION apre un Finding, non una media.
 
+⚠️ **Un ruolo assente da questa tabella non ha un tetto basso: non ha lo strumento.** DEV-LEAD non compare in nessuna colonna, ed è da qui che §9 trae la conseguenza — il suo handoff non porta payload di verdetti.
+
 ## 8. Scoping dal write-set
 
 La matrice non si compila per intero a ogni wave.
@@ -195,6 +199,10 @@ Non ampliare lo scope per completezza. Non restringerlo per costo.
 
 Tre punti fissi, non uno. Un ruolo che scrive produce un commit diverso da quello che ha ricevuto.
 
+Un handoff ha due parti. La **busta** identifica e traccia, e la portano tutti. Il **payload** porta i verdetti, e lo porta chi possiede lo strumento per produrli.
+
+### Busta — sempre
+
 ```text
 === RT3 HANDOFF ===
 
@@ -212,6 +220,12 @@ PRODUCED_SHA:  commit dopo le scritture di questo ruolo
 WRITE_SET:     path espliciti, testuali e binari
 BINARY_ASSETS: .uasset/.umap toccati, oppure "nessuno"
 
+STATUS: READY | PARTIAL | BLOCKED
+```
+
+### Payload — se e solo se §7 assegna al ruolo una colonna
+
+```text
 ## MATRICE
 <voci in scope, con verdetto tipizzato e campi richiesti>
 
@@ -223,9 +237,13 @@ BINARY_ASSETS: .uasset/.umap toccati, oppure "nessuno"
 
 ## USER_REQUIRED
 <check a oracolo umano, con Result: NOT RUN>
-
-STATUS: READY | PARTIAL | BLOCKED
 ```
+
+La condizione non è un'eccezione da ricordare: si legge in §7. Un ruolo che non compare nella matrice canonica non possiede lo strumento che prova quei sistemi, e §3 lo dice già — `file modificato != build/test/PIE/packaged verificato`.
+
+⚠️ **Assenza di payload non è payload malformato.** §6 legge `BLOCKED` una **voce di verdetto** malformata. Un handoff che per questa sezione non porta payload non ha voci: non c'è nulla da leggere malformato, e non è `BLOCKED` per questo.
+
+**DEV-LEAD è oggi l'unico ruolo in questa condizione.** Il suo handoff porta la busta e, al posto del payload, i **sistemi in scope** derivati dal write-set con §8 — senza verdetto. Lo scoping fatto una volta all'ingresso vale per entrambi i ruoli a valle, che altrimenti lo ripetono.
 
 `PARENT_BRANCH` è obbligatorio: la PR va aperta sul branch padre, non su `main` per default.
 
@@ -298,3 +316,18 @@ Un `FINDING_ID` è stabile. Ricomparire con un id nuovo per azzerare il contator
 Rileggila alla chiusura. Se è cambiata durante la wave, vale quella corrente.
 
 Nessun verdetto verde senza il campo che lo prova.
+
+---
+
+## Aperti
+
+Due domande sul contratto stesso, **non normative**: registrate perché l'owner le decida, non risolte qui.
+
+Non modificano nessuna regola sopra. Finché restano aperte, vale il testo delle sezioni §1–§13.
+
+| ID | Domanda | Registro |
+|---|---|---|
+| ~~`GOV-5`~~ | ✅ **Chiusa il 2026-09-05 da [`D-335`](../../decisions/RT_PDR_00_Decision_Log.md).** §9 separa la **busta**, che portano tutti, dal **payload di verdetti**, che si porta se e solo se §7 assegna una colonna. La regola è recepita sopra e non è più aperta. | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) · riga **97** di [`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) |
+| `GOV-6` | La forma del contratto comportamentale (`Given`/`When`/`Then`/`Authority`/`SEED_SOURCE`/…) sale qui, o resta nei prompt di wave DEV? Oggi vive in `WAVE_DEV_LEAD.md` e la usa `WAVE_DEV_MAIN.md`. | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) |
+
+`GOV-6` resta aperta e non blocca: è una questione di sede, non di correttezza. Un prompt che apre un altro prompt per leggere una tabella funziona; è fragile, non rotto.

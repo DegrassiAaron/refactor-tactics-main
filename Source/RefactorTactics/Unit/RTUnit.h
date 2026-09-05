@@ -231,7 +231,7 @@ public:
 	 *
 	 * ⚠️ **Non è lo Stable ID**, e i due piani restano separati — D-037, che D-321 ha ripristinato come
 	 * invariante. Ma `Hero.Gadget` **sarà rinominato**: D-321 dichiara che i quattro nomi del roster v0.1
-	 * sono identità legacy temporanee, D-322 fissa i sostituti (`Hero.Gadget` → `Hero.Nexis`), e la
+	 * sono identità legacy temporanee, D-334 fissa i sostituti (`Hero.Gadget` → `Hero.Aevik`), e la
 	 * migrazione è differita post-v0.1 con owner #2297. Il blocker di namespace che rendeva impossibile il
 	 * rename è sciolto da D-130, che ha chiuso #716 scegliendo `Hero.<Nome>.<Abilità>`.
 	 * Vuoto = nessun eroe l'ha dichiarato: la presentazione ricade su `ShortHeroName`, mai su stringa vuota.
