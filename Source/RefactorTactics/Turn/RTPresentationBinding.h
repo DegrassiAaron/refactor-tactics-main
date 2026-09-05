@@ -142,6 +142,13 @@ struct FRTPresentationBinding
  * la presentazione mente per omissione. Non e' un'ipotesi: `HazardDamage` e' entrato nell'enum ed e' rimasto
  * muto, e nessun test e' diventato rosso.
  *
+ * ⚠️ **E quel caso mostra anche il LIMITE di questo gate, che va saputo prima di fidarsene.** `HazardDamage`
+ * e' rimasto senza produttore fino a `#2460` **mentre questa tabella era gia' verde**: `FindMissingBindings`
+ * verifica che ogni tipo sia *dichiarato*, non che sia *emesso*, e un `NoPresentation` formalmente valido
+ * copre benissimo un evento che non accade mai. Le due domande sono diverse e questa libreria risponde solo
+ * alla prima; la seconda vive nelle clausole delle singole voci, che per questo vanno lette e riviste invece
+ * che ereditate.
+ *
  * 🔑 **Il gate itera l'enum VERO** (`StaticEnum<ERTResolvedEventType>()`), non una lista scritta a mano: una
  * lista sarebbe essa stessa una copertura da mantenere, e sposterebbe il difetto invece di chiuderlo. Cosi'
  * un valore aggiunto domani e' coperto **per costruzione**, senza che nessuno tocchi il gate.

@@ -354,6 +354,40 @@ public:
 	TArray<FRTResolvedEvent> ResolvedStatusEventsForTest() const;
 
 	/**
+	 * Hook per i test: gli eventi `HazardDamage` emessi in questo turno (`#2460`).
+	 *
+	 * 🔴 Stessa ragione dell'accessore qui sopra, e lo stesso rischio: l'emissione avviene in
+	 * `AppendLogEntry`, il punto che **ogni** voce di log attraversa. Senza poter leggere la timeline, la
+	 * differenza fra «emesso per il danno ambientale» ed «emesso per ogni colpo» non sarebbe osservabile.
+	 *
+	 * ⚠️ **E qui non c'e' un secondo canale che possa supplire.** `HazardDamage` e' dichiarato
+	 * `NoPresentation` finche' la cue di `#2455` non esiste: nessuna verifica a schermo puo' vederlo, quindi
+	 * questo accessore e' l'**unico** modo di sorvegliarlo. Un evento sbagliato resterebbe altrimenti
+	 * invisibile a entrambe le reti.
+	 *
+	 * ⚠️ Restituisce gli eventi INTERI: cio' che va sorvegliato e' il **contenuto** — quale fase, chi
+	 * subisce, quanto danno — e un conteggio non lo direbbe. Un'emissione che scrivesse sempre `Move` come
+	 * fase passerebbe un test che conta soltanto.
+	 *
+	 * @return copia degli eventi `HazardDamage` nell'ordine di emissione, che e' quello delle voci di log.
+	 */
+	TArray<FRTResolvedEvent> ResolvedHazardEventsForTest() const;
+
+	/**
+	 * Hook per i test: quanti eventi di quel tipo ci sono sulla timeline di questo turno.
+	 *
+	 * 🔴 Esiste per le asserzioni di **assenza**, che gli accessori filtrati qui sopra non possono reggere:
+	 * cercare un `Defeated` fra gli eventi gia' filtrati su `HazardDamage` risponde zero **per costruzione**,
+	 * ed e' un asserto vacuo travestito da verifica. Serve la timeline intera, e questa e' la porta.
+	 *
+	 * ⚠️ Un CONTEGGIO e non gli eventi: la domanda che questa funzione esiste per rispondere e' *«ce n'e'
+	 * qualcuno?»*. Chi deve guardare il contenuto usa l'accessore tipizzato, che porta i campi.
+	 *
+	 * @return il numero di eventi con quel `Type`; `0` se il tipo non e' stato emesso in questo turno.
+	 */
+	int32 ResolvedEventCountOfTypeForTest(ERTResolvedEventType Type) const;
+
+	/**
 	 * Hook per i test: applica una modifica temporanea di superficie dichiarandone l'autore.
 	 *
 	 * Serve perche' la scadenza ambientale — la voce che deve restare senza attore (#405) — nessuno scenario

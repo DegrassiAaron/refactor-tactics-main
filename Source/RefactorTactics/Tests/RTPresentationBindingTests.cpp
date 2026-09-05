@@ -321,11 +321,27 @@ bool FRTPresentationHazardDamageIsDeclaredSilentTest::RunTest(const FString&)
 	TestTrue(TEXT("HazardDamage e' NoPresentation, non una voce dimenticata"),
 		Hazard->Kind == ERTPresentationKind::NoPresentation);
 
-	// 🔴 La clausola: oggi il valore non ha un produttore, e la voce deve DIRLO. Senza questa riga la
-	// dichiarazione varrebbe «perche' non accade» invece che «quando accadra'», e resterebbe verde il
-	// giorno in cui qualcuno emette l'evento — cioe' il difetto che questa tabella esiste per impedire.
-	TestTrue(TEXT("il motivo avverte che oggi il valore non ha un produttore"),
-		Hazard->Rationale.Contains(TEXT("produttore")));
+	// 🔴 **La clausola, e da `#2460` sorveglia il fatto OPPOSTO.** Fino a quel giorno chiedeva che la voce
+	// dichiarasse di non avere un produttore; il produttore e' arrivato, e la voce e' stata riscritta.
+	//
+	// ⚠️ **Il predicato di allora — `Rationale.Contains("produttore")` — sarebbe rimasto VERDE**: la frase
+	// nuova dice *«il produttore ESISTE»*, e contiene la stessa parola. Un guardiano che passa su una stringa
+	// che afferma il contrario di cio' che gli era stato chiesto non e' un guardiano: e' un test che ha
+	// smesso di misurare senza diventare rosso. Riscritto insieme alla voce, come la voce stessa prescriveva.
+	//
+	// 🔑 **Cosa resta da sorvegliare adesso.** L'assenza di cue e' ora una **scelta di disegno** su un evento
+	// che accade, non un evento muto: la voce deve continuare a dire perche' non si disegna e a chi tocca
+	// farlo, o il giorno in cui `#2455` scrivera' la cue nessuno sapra' che questa riga andava rivista.
+	TestTrue(TEXT("il motivo dichiara che il produttore esiste, non che manca"),
+		Hazard->Rationale.Contains(TEXT("produttore ESISTE")));
+	TestTrue(TEXT("il motivo indirizza alla issue che possiede la cue"),
+		Hazard->Rationale.Contains(TEXT("#2455")));
+
+	// ⚠️ **E che la morte da hazard non ha un beat proprio.** Misurato in `#2460`: `Defeated` lo emette solo
+	// `ResolveCombatPasses`, sul Blast. La voce lo dichiara perche' chi costruira' la cue non dia per
+	// scontato un momento di morte che non esiste — era precisamente l'errore della stesura precedente.
+	TestTrue(TEXT("il motivo avverte che la morte da hazard non emette Defeated"),
+		Hazard->Rationale.Contains(TEXT("non emette Defeated")));
 
 	return true;
 }
