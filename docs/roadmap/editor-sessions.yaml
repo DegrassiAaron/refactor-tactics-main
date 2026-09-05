@@ -651,9 +651,23 @@ sessions:
     shares_setup_with: []
     verifies:
       - PIE-V01-PACKAGED
-    issues: [959, 1088, 1069, 79, 1296]
+      - PIE-V01-PREPWINDOW
+    issues: [959, 1088, 1069, 79, 1296, 2386]
     done_when: esiste una registrazione di una partita 2v2 conclusa senza un solo input, eseguita due volte — PIE e pacchetto Development
     notes: |
+      ➕ **`PIE-V01-PREPWINDOW` si aggiunge qui il 2026-09-06 (#2386) e NON chiede una seduta propria**,
+      perche' condivide l'allestimento per intero: la modalita' non presidiata attiva, che e' gia'
+      `unblocked_by: E47.1`. Chi registra la partita di `PIE-V01-PACKAGED` **vede gia' la finestra** — sono
+      i tre secondi fra la fine della pianificazione e la risoluzione, a ogni turno. ⚠️ **Ma le due voci
+      chiedono cose diverse e non si spuntano insieme**: quella chiede una partita che arriva alla vittoria
+      *senza input*, questa chiede di **premere `P`** e guardare cosa succede. Chi esegue la prima senza mai
+      toccare la tastiera lascia questa aperta, ed e' corretto.
+
+      ⛔ **Nessuno scenario puo' sostituirla, e non per una capability mancante.** `RTScenarioSession`
+      chiama `LockInAndResolve()` diretto dopo `SetPlanningSeconds(0.f)`: non attraversa
+      `OnPlanningTimeout`, che e' dove la finestra si arma. E' la proprieta' che le impedisce di mettere tre
+      secondi d'attesa in ogni run headless — dichiarata in `scenario-map.md` §5.
+
       🔴 **Da sapere PRIMA di aprire l'editor: il bot NON cerca l'obiettivo.** Misurato —
       `grep Objective Source/RefactorTactics/Bot/` dà **zero**, e il suo scoring pesa danno, uccisioni e
       copertura; i goal veri (`SecureObjective`) sono E26. Nella partita d'autore i punti del team 1 sono
