@@ -140,19 +140,20 @@ void URTScenarioPreviewSubsystem::ClearPreview()
 	// `AllUnits` gia' svuotato, quindi uno stato di playback sopravvissuto tradurrebbe una traccia contro
 	// uno scenario che non c'e' piu'. Si azzera **dopo** aver tolto tutto, e senza ridisegnare — non c'e'
 	// piu' niente su cui.
+	const bool bCeraUnaCorsa = bPlaybackOpen;
+
 	bPlaybackOpen = false;
 	PlaybackUnits.Reset();
 	PlaybackTrace.Reset();
 	PlaybackInitial.Reset();
 	PlaybackScenarioIds.Reset();
 
-	// 🔴 **Il termine di paragone NON si azzera qui, e la prima stesura lo faceva.** Il pulsante Run del
-	// pannello chiama `ShowScenario()` — che comincia proprio con questa funzione — e subito dopo
-	// `OpenPlayback()`: azzerare il paragone qui lo azzerava a OGNI corsa, e il verdetto di divergenza non
-	// partiva mai. La protezione contro il confronto fra scenari diversi ora sta nell'identita'
-	// (`PreviousRunScenarioId`), non nel fatto che qualcuno passi di qua.
-	PlaybackBoundaries.Reset();
-	PlaybackScenarioId.Reset();
+	// 🔴 **Qui la corsa uscente si PROMUOVE, non si butta.** Il pulsante Run del pannello chiama
+	// `ShowScenario()` — che comincia proprio con questa funzione — e subito dopo `OpenPlayback()`. Una
+	// stesura che azzerasse qui perderebbe il paragone a OGNI corsa, e il verdetto di divergenza non
+	// partirebbe mai: e' il difetto trovato in review, e il test
+	// `DevSandboxLauncher.PlaybackComparesWithThePreviousRun` percorre esattamente questa via.
+	PromoteRunToComparison(bCeraUnaCorsa);
 }
 
 TArray<int32> URTScenarioPreviewSubsystem::GetSelectableTeams() const
@@ -233,13 +234,6 @@ void URTScenarioPreviewSubsystem::ApplyPerspective()
 
 bool URTScenarioPreviewSubsystem::OpenPlayback(const URTScenarioAuthoring* Authoring)
 {
-	// 🔑 La corsa uscente si cattura PRIMA di `ClosePlayback()`, che la azzera, e si promuove a termine di
-	// paragone solo se la nuova apertura riesce: promuoverla in chiusura perderebbe l'ultima corsa buona
-	// ogni volta che l'apertura successiva fallisce.
-	TArray<FRTBoundaryChecksum> Uscenti = MoveTemp(PlaybackBoundaries);
-	const FString ScenarioUscente = PlaybackScenarioId;
-	const bool bCeraUnaCorsa = bPlaybackOpen;
-
 	ClosePlayback();
 
 	// Serve uno scenario GIA' mostrato: il playback muove i marcatori di quello, non ne apre un altro.
@@ -302,15 +296,6 @@ bool URTScenarioPreviewSubsystem::OpenPlayback(const URTScenarioAuthoring* Autho
 		PreviewArena, PlaybackTrace, PlaybackInitial, ERTTurnLogFormatVersion::WithMicroStep);
 	PlaybackScenarioId = Authoring->GetDraft().GetScenario().ScenarioId;
 
-	// La corsa precedente diventa il paragone, con la propria identita' accanto: il confronto avverra' solo
-	// se i due scenari coincidono.
-	if (bCeraUnaCorsa)
-	{
-		PreviousRunBoundaries = MoveTemp(Uscenti);
-		PreviousRunScenarioId = ScenarioUscente;
-		bHasPreviousRun = true;
-	}
-
 	bPlaybackOpen = true;
 
 	// All'inizio: turno 0, cioe' prima che qualunque voce sia stata applicata. E' la posa d'authoring, ma
@@ -329,11 +314,8 @@ void URTScenarioPreviewSubsystem::ClosePlayback()
 	PlaybackInitial.Reset();
 	PlaybackScenarioIds.Reset();
 
-	// ⛔ Qui NON si ruota il paragone. La rotazione vive in `OpenPlayback`, che e' il solo punto in cui si
-	// sa se una corsa NUOVA e' davvero riuscita: ruotare in chiusura significherebbe sostituire il paragone
-	// anche quando l'apertura successiva fallisce, perdendo l'ultima corsa buona.
-	PlaybackBoundaries.Reset();
-	PlaybackScenarioId.Reset();
+	// Anche qui: chi smonta un playback aperto lo promuove. Il flag arriva da `bEra`, catturato in testa.
+	PromoteRunToComparison(bEra);
 
 	// Il view model torna non-aperto: `IsPlaybackPlaying()` deve essere falso e i `CanStep*` devono
 	// rispondere «no» a playback chiuso, invece di conservare i bordi dell'ultima corsa.
@@ -600,4 +582,19 @@ TArray<FString> URTScenarioPreviewSubsystem::DescribePlaybackBoundaries() const
 		PreviousRunBoundaries, PlaybackBoundaries));
 
 	return Righe;
+}
+
+void URTScenarioPreviewSubsystem::PromoteRunToComparison(bool bWasOpen)
+{
+	// ⚠️ Il flag, e non «l'array e' pieno»: una corsa che ha prodotto ZERO boundary e' comunque una corsa,
+	// e distinguerla da «non ce n'e' mai stata una» e' il lavoro di `bHasPreviousRun`.
+	if (bWasOpen)
+	{
+		PreviousRunBoundaries = MoveTemp(PlaybackBoundaries);
+		PreviousRunScenarioId = PlaybackScenarioId;
+		bHasPreviousRun = true;
+	}
+
+	PlaybackBoundaries.Reset();
+	PlaybackScenarioId.Reset();
 }

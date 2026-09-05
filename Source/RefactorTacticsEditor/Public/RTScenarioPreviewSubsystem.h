@@ -287,6 +287,20 @@ private:
 	/** Lo schieramento da cui la ricostruzione parte: la traccia dichiara i CAMBIAMENTI, non le partenze. */
 	TArray<FRTTracedUnitState> PlaybackInitial;
 
+	/**
+	 * Promuove la corsa in playback a **termine di paragone** e azzera quella corrente.
+	 *
+	 * 🔴 **Esiste perche' lo smontaggio avviene in DUE posti** — `ClearPreview` e `ClosePlayback` — e la
+	 * promozione deve avvenire in entrambi, mentre la corsa uscente e' ancora intatta. La prima stesura
+	 * provava a catturarla in `OpenPlayback`: troppo tardi, perche' il pulsante Run passa da
+	 * `ShowScenario()` → `ClearPreview()`, che l'aveva gia' azzerata.
+	 *
+	 * ⚠️ `bWasOpen` arriva dal CHIAMANTE e non si legge da `bPlaybackOpen`: entrambi gli smontaggi azzerano
+	 * quel flag fra le prime righe, quindi leggerlo qui dentro renderebbe la promozione dipendente
+	 * dall'ordine delle istruzioni sopra — una rottura silenziosa al primo riordino.
+	 */
+	void PromoteRunToComparison(bool bWasOpen);
+
 	/** I boundary della corsa in playback, calcolati una volta all'apertura. */
 	TArray<FRTBoundaryChecksum> PlaybackBoundaries;
 
