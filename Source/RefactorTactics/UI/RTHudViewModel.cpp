@@ -60,6 +60,15 @@ FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnM
 		View.ReadyCountdownSecondsRemaining = TurnManager->GetReadyCountdownRemaining();
 	}
 
+	// La finestra di preparazione dell'autobattle (`#2386`). Stessa forma del countdown e per la stessa
+	// ragione: `IsPrepWindowActive()` risponde sulla presenza, non sul residuo — e in pausa risponde vero
+	// con il timer spento, che e' precisamente il caso in cui la riga di stato deve continuare a parlare.
+	if (TurnManager->IsPrepWindowActive())
+	{
+		View.PrepWindowSecondsRemaining = TurnManager->GetPrepWindowRemaining();
+		View.bPrepWindowPaused = TurnManager->IsPrepWindowPaused();
+	}
+
 	// Il derivato si pubblica **dopo** i due orologi, ed e' l'unico ordine possibile: legge
 	// entrambi. Chi riceve la vista intera trova il numero gia' fatto; chi la costruisce a mano
 	// chiama la funzione.
@@ -70,6 +79,16 @@ FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnM
 
 float URTHudViewModel::ComputeSecondsUntilCommit(const FRTMatchHeaderView& Header)
 {
+	// La finestra dell'autobattle (`#2386`) ha la precedenza su tutto, e non e' una priorita' arbitraria: e'
+	// l'ULTIMO orologio della catena. Quando e' armata il Planning e' gia' scaduto — la arma proprio la sua
+	// scadenza — quindi non c'e' nessun tetto che possa accorciarla, e in autobattle nessuno preme Ready.
+	// ⚠️ In pausa il numero e' fermo, e resta quello giusto da mostrare: il commit arrivera' fra tanti
+	// secondi quanti ne restano, appena si riprende.
+	if (Header.PrepWindowSecondsRemaining >= 0.f)
+	{
+		return Header.PrepWindowSecondsRemaining;
+	}
+
 	// Il countdown del Ready, quando e' armato, non decide da solo: il tetto del Planning lo accorcia se
 	// scade prima (`#2193`). `>= 0.f` e non `> 0.f` — uno zero qui significa «commit adesso», che e' un
 	// numero da mostrare, non un caso da escludere.

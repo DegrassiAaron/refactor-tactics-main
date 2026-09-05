@@ -306,8 +306,96 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	float GetReadyCountdownSeconds() const { return ReadyCountdownSeconds; }
 
+	// --- Finestra di preparazione dell'autobattle (`#2386`) -------------------------------------------
+
+	/**
+	 * 🔴 **La finestra fra il piano dei bot e la sua risoluzione, e serve solo a farlo VEDERE.**
+	 *
+	 * `E47` esiste perche' la partita si possa guardare, e in autobattle la parte in cui si capisce *cosa
+	 * sta per succedere* passava in un decimo di secondo (`MinUnattendedPlanningSeconds`): si vedeva solo
+	 * l'esito, mai l'intenzione. Un tattico a turni simultanei senza la lettura dell'intenzione e' un
+	 * risultato, non una partita.
+	 *
+	 * 🔑 **Sta su `OnPlanningTimeout` e non dentro `LockInAndResolve`**, per la stessa ragione scritta per
+	 * `RequestLockIn`: `LockInAndResolve` e' il punto di CONFLUENZA di tre percorsi, e lo Scenario Harness
+	 * lo chiama **diretto** (`RTScenarioRunner.cpp`, `RTScenarioSession.cpp`). Una finestra li' dentro
+	 * metterebbe tre secondi di attesa in ogni run headless. Qui l'harness non passa: non la vede **per
+	 * costruzione**, non per disciplina.
+	 *
+	 * ⛔ **Non tocca lo snapshot ne' il TurnLog.** Lo snapshot nasce dentro `LockInAndResolve`, cioe' DOPO;
+	 * durante l'attesa l'autorita' non ha accettato niente. E' la stessa classificazione di
+	 * `ReadyCountdownSeconds` fra i **Tempi UX** di `spec-durata-partita-e-scala-mappe.md` §11: *«tempo di
+	 * parete: non devono mai raggiungere il TurnLog»*.
+	 *
+	 * ⚠️ **Con `PrepWindowSeconds <= 0` risolve SUBITO**, come faceva il timeout prima di questa issue: e'
+	 * la via che tiene i test headless sul comportamento di sempre, e la ragione per cui `#2386` non cambia
+	 * un solo TurnLog esistente.
+	 *
+	 * ⚠️ **Solo in sessione non presidiata** (`bUnattendedSession`): in una partita con una mano umana il
+	 * ritmo e' quello del giocatore, e non si tocca.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	bool IsPrepWindowActive() const;
+
+	/**
+	 * Secondi che mancano alla risoluzione; `0` se la finestra non e' armata. Per l'HUD e per i test.
+	 *
+	 * ⚠️ **In pausa restituisce il residuo congelato**, non zero: il timer e' stato fermato, ma cio' che la
+	 * riga di stato deve dire e' *quanto manca quando riparte*. Un `0` qui farebbe lampeggiare un commit
+	 * imminente che nessuno sta per fare.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	float GetPrepWindowRemaining() const;
+
+	/**
+	 * Ferma l'attesa. No-op se la finestra non e' armata o e' gia' in pausa.
+	 *
+	 * 🔴 **Ferma l'ATTESA, mai la simulazione**, ed e' la proprieta' che rende questa pausa diversa da
+	 * `PausePlayback` (`#1879`): li' si ferma una risoluzione **gia' decisa** che si sta mostrando; qui il
+	 * turno non e' ancora committato, e fermarsi non congela nessuno stato — semplicemente il commit non
+	 * arriva finche' non si riprende.
+	 *
+	 * 🔑 **Le due pause non possono coesistere, e non per convenzione**: questa vive in `Planning` prima del
+	 * commit, quella del playback durante la risoluzione. `LockInAndResolve` cancella questo timer, quindi
+	 * quando il playback comincia la finestra non esiste piu'. Il test
+	 * `PrepWindowAndPlaybackPauseAreMutuallyExclusive` lo tiene vero.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void PausePrepWindow();
+
+	/** Riprende **dal residuo**, non da `PrepWindowSeconds`. No-op se non e' in pausa. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void ResumePrepWindow();
+
+	/** La finestra e' armata ma ferma. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	bool IsPrepWindowPaused() const { return bPrepWindowPaused; }
+
+	/**
+	 * Cambia la durata della finestra, clampando a zero. Stessa forma — e stessa ragione — di
+	 * `SetReadyCountdownSeconds`: e' ritmo di presentazione, non una regola di gioco.
+	 *
+	 * ⚠️ **Non rifa' una finestra gia' armata**: cambiare la durata a meta' attesa sposterebbe la
+	 * risoluzione sotto gli occhi di chi sta guardando. Il valore nuovo vale dal turno successivo.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void SetPrepWindowSeconds(float NewSeconds) { PrepWindowSeconds = FMath::Max(0.f, NewSeconds); }
+
+	/** Durata corrente della finestra (diagnostica e test). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	float GetPrepWindowSeconds() const { return PrepWindowSeconds; }
+
 	/** Hook per i test d'integrazione headless: invoca la pianificazione dei bot senza timer/playback. */
 	void PlanBotsForTest() { PlanBots(); }
+
+	/**
+	 * Hook per i test: percorre il timeout del planning senza aspettare il tetto.
+	 *
+	 * 🔑 **Serve perche' e' il timeout, non `LockInAndResolve`, a decidere se aprire la finestra** (`#2386`):
+	 * un test che chiamasse `LockInAndResolve()` diretto — come fa l'harness — non passerebbe mai dal ramo
+	 * sotto misura, e sarebbe verde senza aver provato niente.
+	 */
+	void OnPlanningTimeoutForTest() { OnPlanningTimeout(); }
 
 	/**
 	 * Hook per i test: quanti verdetti porta l'evento di movimento di questa unita' nella timeline risolta.
@@ -1788,6 +1876,22 @@ protected:
 	float ReadyCountdownSeconds = 3.f;
 
 	/**
+	 * La finestra di preparazione dell'autobattle (`#2386`). **Terzo Tempo UX**, accanto agli altri due e
+	 * per la stessa ragione: tempo di PARETE, mai nel TurnLog.
+	 *
+	 * ⚠️ **Non sostituisce `MinUnattendedPlanningSeconds`, si aggiunge dopo.** Il pavimento di 0,1 s del
+	 * `RTMatchBootstrapper` esiste per impedire il «fermo per sempre» di `PlanningSeconds == 0` e resta
+	 * dov'e'; questa finestra si apre **allo scadere** di quel planning, cioe' quando `PlanBots` ha gia'
+	 * prodotto i piani. L'ordine e' obbligato: estendere il planning invece di aggiungere la finestra
+	 * mostrerebbe tre secondi di schermata **vuota**, perche' i piani non esistono ancora.
+	 *
+	 * ⚠️ **`0` non e' «finestra istantanea»: e' «nessuna finestra»**, e il timeout risolve nello stesso
+	 * frame come prima di questa issue.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
+	float PrepWindowSeconds = 3.f;
+
+	/**
 	 * Durata della finestra Fast Reaction, in secondi (ADR-0004 §8, CP 14.6): **3,0 s**.
 	 *
 	 * Sta qui e non in `FRTMatchRules` per la ragione che quel file dichiara di se': e' un tempo di PARETE,
@@ -2095,6 +2199,25 @@ protected:
 	 * una proprieta' della struttura invece di un `if` da ricordare.
 	 */
 	FTimerHandle ReadyCountdownTimerHandle;
+
+	/**
+	 * La finestra di preparazione dell'autobattle (`#2386`). Terzo orologio accanto agli altri due, e con la
+	 * stessa precedenza gia' scritta sopra: chiama `LockInAndResolve`, che lo spegne insieme agli altri
+	 * appena entra. Nessun `if` nuovo da ricordare.
+	 */
+	FTimerHandle PrepWindowTimerHandle;
+
+	/** La finestra e' armata ma ferma. Vedi `PausePrepWindow`. */
+	bool bPrepWindowPaused = false;
+
+	/**
+	 * Il residuo congelato dalla pausa, in secondi.
+	 *
+	 * 🔴 **Serve perche' `FTimerManager` non ha un «pausa»**: fermarsi significa cancellare il timer, e
+	 * riprendere significa riarmarlo. Senza questo campo la ripresa ripartirebbe da `PrepWindowSeconds`, e
+	 * chi mette in pausa a mezzo secondo dalla risoluzione si regalerebbe tre secondi ogni volta.
+	 */
+	float PrepWindowRemainingOnPause = 0.f;
 
 	/**
 	 * L'allestimento ha rivendicato l'apertura del turno 1 (`#2102`, [D-314]).
