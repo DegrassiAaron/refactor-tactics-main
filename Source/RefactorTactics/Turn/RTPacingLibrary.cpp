@@ -43,6 +43,7 @@ FRTPacingSummary URTPacingLibrary::SummarizeSamples(const TArray<FRTPacingSample
 		// osservato del turno e non dipendono dal cronometro della pianificazione. Un turno senza tempi
 		// misurati — ogni run headless — ha comunque aperto le finestre che ha aperto.
 		Out.TotalReactionWindows += S.ReactionWindowsOpened;
+		Out.TotalReactionOpportunities += S.ReactionOpportunities;
 
 		// ⚠️ Un campione NON MISURATO non e' un lock-in rapido: e' l'assenza di una misura, e va tolto da
 		// ogni statistica che risponde «quanto tempo». La sentinella e' negativa apposta, ma escluderla non
@@ -81,6 +82,41 @@ FRTPacingSummary URTPacingLibrary::SummarizeSamples(const TArray<FRTPacingSample
 		? PercentileNearestRank(LockIn, 90) : FRTPacingSample::Unmeasured;
 	Out.MedianMsPlayback = PercentileNearestRank(Playback, 50);
 	return Out;
+}
+
+int32 URTPacingLibrary::CountReactionOpportunities(const TArray<FRTTurnLogEntry>& Entries,
+	const TSet<int32>& ResponderUnitIds)
+{
+	int32 Opportunities = 0;
+	for (const FRTTurnLogEntry& Entry : Entries)
+	{
+		// Nessuno `switch` sull'esito, ed e' deliberato: qui si contano le opportunity, non il tempo che
+		// hanno occupato. Un esito nuovo aggiunto in coda all'enum entra in questo conteggio ed e' giusto
+		// che ci entri — e' comunque una opportunity. Il gemello qui sotto ha l'elenco positivo perche'
+		// risponde a una domanda diversa.
+		if (Entry.Category != ERTLogCategory::ReactionDecision)
+		{
+			continue;
+		}
+		if (!ResponderUnitIds.Contains(Entry.UnitId))
+		{
+			continue;
+		}
+		++Opportunities;
+	}
+	return Opportunities;
+}
+
+float URTPacingLibrary::PerTurnRate(int32 Total, int32 TurnCount)
+{
+	// ⚠️ `TurnCount <= 0` non e' «zero per turno»: e' l'assenza del denominatore. Un `Total` negativo non
+	// puo' venire da un conteggio, quindi se arriva e' un difetto del chiamante e va detto con la stessa
+	// sentinella invece di propagare un rapporto inventato.
+	if (TurnCount <= 0 || Total < 0)
+	{
+		return UnmeasuredRate;
+	}
+	return static_cast<float>(Total) / static_cast<float>(TurnCount);
 }
 
 int32 URTPacingLibrary::CountOpenedReactionWindows(const TArray<FRTTurnLogEntry>& Entries,
@@ -205,13 +241,13 @@ FString URTPacingLibrary::CsvHeader()
 	// scritti, e inserirla prima sposterebbe ogni colonna a valle senza che nessun errore lo dica.
 	return TEXT("Turn,AliveT0,AliveT1,ActionsAvailable,MsToFirstInput,SelectionCount,OrderCount,")
 		   TEXT("UndoCount,MsToLockIn,MsSinceLastInput,LockInSource,MsPlayback,PlaybackSkipped,")
-		   TEXT("ReactionWindows");
+		   TEXT("ReactionWindows,ReactionOpportunities");
 }
 
 FString URTPacingLibrary::CsvRow(const FRTPacingSample& Sample)
 {
 	// Tutti %d: nessun float, quindi nessuna virgola decimale da locale che spezzi le colonne.
-	return FString::Printf(TEXT("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d"),
+	return FString::Printf(TEXT("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d"),
 		Sample.TurnNumber,
 		Sample.UnitsAliveTeam0,
 		Sample.UnitsAliveTeam1,
@@ -225,5 +261,6 @@ FString URTPacingLibrary::CsvRow(const FRTPacingSample& Sample)
 		static_cast<int32>(Sample.LockInSource),
 		Sample.MsPlayback,
 		Sample.bPlaybackSkipped ? 1 : 0,
-		Sample.ReactionWindowsOpened);
+		Sample.ReactionWindowsOpened,
+		Sample.ReactionOpportunities);
 }
