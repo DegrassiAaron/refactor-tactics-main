@@ -1,5 +1,7 @@
 #include "RTScenarioPreviewSubsystem.h"
 
+#include "Debug/RTDebugReportLibrary.h"
+
 #include "RTScenarioPreviewActor.h"
 #include "RTScenarioViewportModel.h"
 
@@ -143,6 +145,13 @@ void URTScenarioPreviewSubsystem::ClearPreview()
 	PlaybackTrace.Reset();
 	PlaybackInitial.Reset();
 	PlaybackScenarioIds.Reset();
+
+	// ⛔ **Anche il termine di paragone, e qui SI CANCELLA invece di ruotare.** Due corse di scenari
+	// DIVERSI non sono confrontabili: un paragone sopravvissuto alla chiusura dello scenario farebbe
+	// divergere la prima corsa del prossimo per costruzione, e il verdetto direbbe una cosa falsa
+	// nominando un boundary vero — che e' il modo peggiore di sbagliare.
+	PlaybackBoundaries.Reset();
+	PreviousRunBoundaries.Reset();
 }
 
 TArray<int32> URTScenarioPreviewSubsystem::GetSelectableTeams() const
@@ -273,6 +282,17 @@ bool URTScenarioPreviewSubsystem::OpenPlayback(const URTScenarioAuthoring* Autho
 	PlaybackTrace = MoveTemp(Voci);
 	PlaybackScenarioIds = Authoring->GetLastRunScenarioIds();
 	PlaybackInitial = RTScenarioPlayback::InitialStatesFromViews(AllUnits, PlaybackScenarioIds);
+
+	// 🔑 I boundary si calcolano UNA volta, all'apertura: la serie dipende dalla traccia e dallo
+	// schieramento, che da qui in poi non cambiano piu'. Ricalcolarla a ogni richiesta darebbe la stessa
+	// risposta pagandola ogni volta.
+	//
+	// ⚠️ `WithMicroStep` non e' un'assunzione: e' la versione che `SerializeTurnLog` scrive oggi
+	// (`RTTurnLogLibrary.cpp:1126`), e questa traccia l'ha appena prodotta il runner. Una traccia
+	// antecedente degraderebbe a un boundary per fase, che e' il comportamento dichiarato e non un errore.
+	PlaybackBoundaries = URTBoundaryChecksumLibrary::ChecksumsAlongTrace(
+		PreviewArena, PlaybackTrace, PlaybackInitial, ERTTurnLogFormatVersion::WithMicroStep);
+
 	bPlaybackOpen = true;
 
 	// All'inizio: turno 0, cioe' prima che qualunque voce sia stata applicata. E' la posa d'authoring, ma
@@ -290,6 +310,17 @@ void URTScenarioPreviewSubsystem::ClosePlayback()
 	PlaybackTrace.Reset();
 	PlaybackInitial.Reset();
 	PlaybackScenarioIds.Reset();
+
+	// La corsa che si chiude diventa il TERMINE DI PARAGONE della prossima: la domanda del designer dopo
+	// una modifica non e' «qual e' l'hash?» ma «dove e' cambiata la risoluzione?».
+	//
+	// ⚠️ Solo se una corsa c'era davvero. `ClosePlayback` e' chiamata anche da `OpenPlayback` prima di
+	// aprire: ruotare su un playback mai aperto sostituirebbe il paragone con il vuoto.
+	if (bEra)
+	{
+		PreviousRunBoundaries = MoveTemp(PlaybackBoundaries);
+	}
+	PlaybackBoundaries.Reset();
 
 	// Il view model torna non-aperto: `IsPlaybackPlaying()` deve essere falso e i `CanStep*` devono
 	// rispondere «no» a playback chiuso, invece di conservare i bordi dell'ultima corsa.
@@ -508,4 +539,27 @@ bool URTScenarioPreviewSubsystem::ShowScenario(const URTScenarioAuthoring* Autho
 	// l'unico punto da cui passano le conversioni cella<->mondo.
 	ApplyPerspective();
 	return true;
+}
+
+TArray<FString> URTScenarioPreviewSubsystem::DescribePlaybackBoundaries() const
+{
+	// ⚠️ «Nessun playback» si DICE. Un array vuoto sarebbe indistinguibile da una corsa senza boundary.
+	if (!bPlaybackOpen)
+	{
+		return { TEXT("[RT] Nessun playback aperto: non c'e' nessuna corsa da misurare.") };
+	}
+
+	TArray<FString> Righe = URTDebugReportLibrary::DescribeBoundaryChecksums(PlaybackBoundaries);
+
+	// 🔴 La domanda del designer dopo una modifica non e' «qual e' l'hash?» ma «DOVE e' cambiata la
+	// risoluzione?». Senza un termine di paragone quella domanda non ha risposta — ed e' la chiamata che
+	// toglie `DescribeDivergence` dalla condizione di funzione senza chiamanti di produzione (`#2486`).
+	if (PreviousRunBoundaries.Num() > 0)
+	{
+		Righe.Add(TEXT("[RT] --- rispetto alla corsa precedente ---"));
+		Righe.Append(URTDebugReportLibrary::DescribeBoundaryDivergence(
+			PreviousRunBoundaries, PlaybackBoundaries));
+	}
+
+	return Righe;
 }

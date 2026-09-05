@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "EditorSubsystem.h"
 #include "Replay/RTReplayStateLibrary.h"    // FRTTracedUnitState
+#include "Replay/RTBoundaryChecksum.h"
 #include "Replay/RTReplayViewModel.h"      // FRTReplayViewModel, FRTReplayPosition
 #include "Replay/RTPlaybackSpeed.h"        // ERTPlaybackSpeed
 #include "ScenarioHarness/RTScenarioDraft.h" // FRTScenarioUnitView
@@ -93,6 +94,23 @@ public:
 
 	/** `true` fra `OpenPlayback` e `ClosePlayback`. */
 	bool IsPlaybackOpen() const { return bPlaybackOpen; }
+
+	/**
+	 * Le righe dei **boundary checksum** della corsa in playback, e dove diverge dalla corsa precedente.
+	 *
+	 * 🔴 **E' il consumer che `#2374` non aveva.** `URTBoundaryChecksumLibrary::DescribeDivergence` esisteva,
+	 * era testata e nessuno la chiamava fuori dai test: la capacita' di dire *«la risoluzione e' cambiata a
+	 * `T1|Move#1`»* era costruita e irraggiungibile. Qui diventa raggiungibile, e da un attore che ha una
+	 * ragione per chiederlo — il designer che ha appena modificato lo scenario.
+	 *
+	 * ⚠️ **Questa e' la sola via che possiede `Initial`.** `ChecksumsAlongTrace` ha bisogno dello schieramento
+	 * di partenza e la traccia non lo porta: `ARTTurnManager` espone lo stato CORRENTE, non quello iniziale,
+	 * quindi un comando `rt.Debug.*` sulla partita viva non potrebbe costruirlo. Qui c'e' gia'
+	 * (`PlaybackInitial`, da `RTScenarioPlayback::InitialStatesFromViews`).
+	 *
+	 * Sola lettura: non calcola hash e non riordina boundary, delega.
+	 */
+	TArray<FString> DescribePlaybackBoundaries() const;
 
 	/**
 	 * Sposta i marcatori a **quel punto** della traccia, e ridisegna.
@@ -268,6 +286,17 @@ private:
 
 	/** Lo schieramento da cui la ricostruzione parte: la traccia dichiara i CAMBIAMENTI, non le partenze. */
 	TArray<FRTTracedUnitState> PlaybackInitial;
+
+	/** I boundary della corsa in playback, calcolati una volta all'apertura. */
+	TArray<FRTBoundaryChecksum> PlaybackBoundaries;
+
+	/**
+	 * I boundary della corsa PRECEDENTE: il termine di paragone.
+	 *
+	 * ⚠️ Sopravvive a `ClosePlayback` **di proposito** — e' cio' che rende possibile la domanda «dove e'
+	 * cambiato rispetto a prima?» attraverso una riapertura, che e' esattamente il giro che il designer fa.
+	 */
+	TArray<FRTBoundaryChecksum> PreviousRunBoundaries;
 
 	/** `StableUnitId` -> identita' d'authoring, per la corsa che il playback sta mostrando. */
 	TMap<int32, FString> PlaybackScenarioIds;
