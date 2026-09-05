@@ -1114,9 +1114,12 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 			//
 			// ⚠️ Il tetto entra nel confronto **solo se si applica**: `PlanningSecondsRemaining` e' negativo
 			// nelle run senza timer, e un `Min` cieco stamperebbe un numero negativo.
-			const float ToCommit = (Header.PlanningSecondsRemaining > 0.f)
-				? FMath::Min(Header.ReadyCountdownSecondsRemaining, Header.PlanningSecondsRemaining)
-				: Header.ReadyCountdownSecondsRemaining;
+			// 🔑 **La regola non si riscrive qui.** Con lo Screen HUD in UMG (`#613`) arriva un secondo
+			// consumatore che questa riga non la attraversa: due copie sarebbero due occasioni di
+			// scriverne una sbagliata, e la sbagliata non fallisce nessun test — mostra un numero
+			// plausibile. La sede unica e' `URTHudViewModel::ComputeSecondsUntilCommit`, che porta con se'
+			// entrambe le trappole (il tetto vince; il tetto entra solo se si applica).
+			const float ToCommit = URTHudViewModel::ComputeSecondsUntilCommit(Header);
 
 			// Il gesto si NOMINA, come fa gia' la riga della risoluzione con `(Spazio: salta)`: sapere di
 			// avere tre secondi senza sapere cosa farne non e' informazione.
