@@ -36,7 +36,18 @@ Un vertical slice **2v2 offline contro bot** su griglia **esagonale multilivello
 - **shell di frontend** — `Main Menu → Play → partita → Result → Quit`, più pausa, loading ed error modal
   (**E46**, aggiunta il 2026-08-16 con [D-144](../decisions/RT_PDR_00_Decision_Log.md)). ⚠️ Questa voce è
   entrata **dopo** le altre, ed è la ragione per cui la §1 va riletta quando nasce un'epic: il precedente è
-  del 2026-08-08, quando questa lista fu corretta perché *«letta com'era, escludeva un'epic pianificata»*.
+  del 2026-08-08, quando questa lista fu corretta perché *«letta com'era, escludeva un'epic pianificata»*;
+- **caduta da un bordo aperto** — chi è spinto oltre un lato che dà sul vuoto smette di essere spostato
+  orizzontalmente, cade sul layer sottostante e riceve gli effetti **anche** quando la cella d'arrivo non è
+  occupabile ([D-332](../decisions/RT_PDR_00_Decision_Log.md), 2026-09-05, che chiude `REL-3`; owner
+  semantico [`spec-caduta-e-bordi.md`](../gameplay/spec-caduta-e-bordi.md), capability
+  [#2388](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2388)). ⚠️ **È il secondo
+  ampliamento che questa lista riceve dopo la stesura**, ed è esattamente il caso che la voce precedente
+  annuncia: il substrato multilivello era in v0.1 dal primo giorno — `FRTCellId{X, Y, Layer}`, A\*
+  multilivello, LOS fra i layer — ma nessuna regola diceva cosa succede a chi ne esce. 🔑 **Il costo che
+  ha reso possibile l'ampliamento è misurato**: `StepUntilBlocked` ferma già la spinta sulla cella libera
+  precedente, quindi il fallback non è una posizione da inventare — mancano gli effetti e la traccia.
+  ⛔ Il **motore del ghiaccio** resta fuori, e con lui lo slide a catena.
 
 **Fuori scope v0.1** (restano north-star): multiplayer in rete, 4v4, GAS, progressione, modding, editor di
 mappe dinamico a runtime.

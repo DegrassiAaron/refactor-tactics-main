@@ -425,6 +425,21 @@ public:
 	 * Questo conta gli oggetti in scena, ed e' l'unico modo di provare che le mai viste non si disegnano.
 	 */
 	int32 KnowledgeVolumeInstanceCount() const;
+
+	/**
+	 * Quante istanze l'ultima ricostruzione ha CREATO, su tutte le famiglie — `#1865`, punto 3.
+	 *
+	 * 🔑 **Esiste perche' senza di lui l'AC non e' falsificabile.** L'issue chiede che *«il numero di istanze
+	 * ricreate sia proporzionale alla modifica, non alla mappa»*, e oggi quel numero non si puo' leggere: un
+	 * rebuild totale e uno parziale sono indistinguibili da fuori, quindi nessun test puo' dire se
+	 * l'ottimizzazione e' avvenuta — ne' accorgersi che e' regredita.
+	 *
+	 * ⚠️ **E' un contatore di EVENTO, non uno stato**, ed e' il motivo per cui qui non vale la regola di
+	 * `GetKnowledgeDebugCounts` (*«leggi le istanze, non un contatore»*). Li' la domanda e' «cosa c'e' in
+	 * scena», e la scena e' la fonte; qui e' «quante ne ho create l'ultima volta», che la scena non ricorda:
+	 * mille istanze ricreate e mille istanze aggiornate lasciano la stessa board.
+	 */
+	int32 LastRebuildCreatedInstances() const { return LastRebuildCreated; }
 #endif
 
 	/** Quante istanze il velo ha lasciato accese, ricordate e nascoste. Diagnostica e test. */
@@ -859,6 +874,9 @@ protected:
 	 * Mapping instance index -> FRTCellId (per selezione/debug). Stato DERIVATO, non serializzato:
 	 * viene rigenerato da RebuildInstances a ogni costruzione dell'actor.
 	 */
+	/** Contatore dell'ultima ricostruzione (`#1865`): quante istanze sono state create, non aggiornate. */
+	int32 LastRebuildCreated = 0;
+
 	TArray<FRTCellId> InstanceCells;
 
 	/**

@@ -98,7 +98,15 @@ turno.
 
 ## Cosa NON misura
 
-- **la complessita' ciclomatica reale**: `rami` conta le parole chiave, non i cammini;
+- **la complessita' ciclomatica reale**: `rami` conta le parole chiave, non i cammini.
+  🔴 **E non vede i ternari ne' `&&`/`||`**, che e' la sintassi in cui le decisioni di
+  presentazione sono quasi sempre scritte: `bOwn ? ciano : giallo`. Una fetta che porta fuori tre
+  decisioni scritte cosi' lascia `rami` **invariato** — misurato su #2184, fetta 3: `35 -> 35`.
+  Per questo accanto a `rami` c'e' ora **`scelte`**, che conta anche ternari e corto circuito (e che
+  toglie i letterali di stringa prima di contare, perche' un `?` in un testo non e' una decisione).
+  ⚠️ `rami` NON e' stato cambiato: baseline gia' dichiarate in #1818, #1816 e nei referti datati
+  continuano a valere. Chi apre una fetta di presentazione guardi `scelte`; chi confronta con una
+  baseline vecchia guardi `rami`;
 - **se una fetta e' una buona idea**: dice dov'e' il peso, non cosa farne.
 """
 
@@ -126,6 +134,13 @@ RE_TEST_NAME = re.compile(r'"RefactorTactics\.[A-Za-z0-9_.]+"')
 RE_METODO_TM = re.compile(r"ARTTurnManager::[A-Za-z0-9_~]+")
 RE_COMMENTO = re.compile(r"^\s*(//|/\*|\*)")
 RE_RAMO = re.compile(r"\b(if|for|while|switch|else)\b")
+# Ogni punto in cui il controllo O UN VALORE dipende da una condizione: le parole chiave di `RE_RAMO`
+# piu' il ternario e i due operatori di corto circuito. Vedi `scelte` in "Cosa NON misura".
+RE_SCELTA = re.compile(r"\b(if|for|while|switch|else)\b|\?|&&|\|\|")
+# I letterali di stringa si tolgono PRIMA di contare `scelte`, perche' un `?` dentro un testo italiano
+# ("Vuoi uscire?") non e' una decisione. `RE_RAMO` resta senza questo filtro di proposito: cambiarlo
+# muoverebbe numeri gia' dichiarati in baseline altrui.
+RE_STRINGA = re.compile(r'"(?:[^"\\]|\\.)*"')
 RE_FIRMA = re.compile(r"([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z0-9_~]+)?)\s*\(")
 RE_NON_FUNZIONE = re.compile(r"\b(namespace|class|struct|enum|union)\b")
 NON_FUNZIONI = {"if", "for", "while", "switch", "return", "sizeof", "catch", "do"}
@@ -181,13 +196,14 @@ def funzioni_di(path):
             if not RE_NON_FUNZIONE.search(ctx):
                 cand = [c for c in RE_FIRMA.findall(ctx) if c not in NON_FUNZIONI]
                 if cand:
-                    stack.append([cand[-1], i, profondita, 0])
+                    stack.append([cand[-1], i, profondita, 0, 0])
         if stack:
             stack[-1][3] += len(RE_RAMO.findall(pulita))
+            stack[-1][4] += len(RE_SCELTA.findall(RE_STRINGA.sub('""', pulita)))
         profondita += apre - chiude
         if stack and profondita <= stack[-1][2]:
-            nome, inizio, _, rami = stack.pop()
-            esiti.append((i - inizio + 1, rami, nome, inizio))
+            nome, inizio, _, rami, scelte = stack.pop()
+            esiti.append((i - inizio + 1, rami, scelte, nome, inizio))
         if pulita.strip():
             recenti.append(pulita)
             if len(recenti) > 4:
@@ -262,10 +278,10 @@ def misura(radice, soglia):
         righe_prod += len(leggi(p))
         path = p.relative_to(radice).as_posix()
         rel = path.replace("Source/RefactorTactics/", "")
-        for lung, rami, nome, inizio in funzioni_di(p):
+        for lung, rami, scelte, nome, inizio in funzioni_di(p):
             totali += 1
             if lung >= soglia:
-                lunghe.append({"righe": lung, "rami": rami, "nome": nome,
+                lunghe.append({"righe": lung, "rami": rami, "scelte": scelte, "nome": nome,
                                "file": rel, "path": path, "linea": inizio})
     lunghe.sort(key=lambda r: -r["righe"])
     m["produzione_righe_cpp"] = righe_prod
@@ -385,37 +401,40 @@ def stampa(m, base=None, markdown=False):
             print("| %s | %d | %d |" % (k, v["funzioni"], v["righe"]))
         print()
         print("**Le 12 piu' lunghe** — `rami` quasi nullo = tabella di dati, non complessita'\n")
-        print("| righe | rami | funzione | file:linea |")
-        print("|---|---|---|---|")
+        print("| righe | rami | scelte | funzione | file:linea |")
+        print("|---|---|---|---|---|")
         for r in m["classifica"][:12]:
-            print("| %d | %d | `%s` | `%s:%d` |" % (r["righe"], r["rami"], r["nome"], r["file"], r["linea"]))
+            print("| %d | %d | %d | `%s` | `%s:%d` |"
+                  % (r["righe"], r["rami"], r["scelte"], r["nome"], r["file"], r["linea"]))
     else:
         print("=== FUNZIONI >= %d RIGHE, PER CONTENITORE ===" % m["soglia"])
         for k, v in ordinati:
             print("  %-32s %4d funzioni %7d righe" % (k, v["funzioni"], v["righe"]))
         print()
         print("=== LE 12 PIU' LUNGHE (rami quasi nullo = dati, non complessita') ===")
-        print("  %6s %5s  %-48s %s" % ("RIGHE", "RAMI", "FUNZIONE", "FILE:LINEA"))
+        print("  %6s %5s %6s  %-48s %s" % ("RIGHE", "RAMI", "SCELTE", "FUNZIONE", "FILE:LINEA"))
         for r in m["classifica"][:12]:
-            print("  %6d %5d  %-48s %s:%d" % (r["righe"], r["rami"], r["nome"][:48], r["file"], r["linea"]))
+            print("  %6d %5d %6d  %-48s %s:%d"
+                  % (r["righe"], r["rami"], r["scelte"], r["nome"][:48], r["file"], r["linea"]))
 
     if any("commit" in r for r in m["classifica"]):
         per_costo = sorted(m["classifica"], key=lambda r: -r.get("costo", 0))[:12]
         print()
         if markdown:
             print("**Worklist per costo** — `righe x commit che hanno toccato quelle righe`\n")
-            print("| costo | commit | righe | rami | funzione | file:linea |")
-            print("|---|---|---|---|---|---|")
+            print("| costo | commit | righe | rami | scelte | funzione | file:linea |")
+            print("|---|---|---|---|---|---|---|")
             for r in per_costo:
-                print("| %d | %s | %d | %d | `%s` | `%s:%d` |"
-                      % (r.get("costo", 0), r.get("commit", "?"), r["righe"], r["rami"],
+                print("| %d | %s | %d | %d | %d | `%s` | `%s:%d` |"
+                      % (r.get("costo", 0), r.get("commit", "?"), r["righe"], r["rami"], r["scelte"],
                          r["nome"], r["file"], r["linea"]))
         else:
             print("=== WORKLIST PER COSTO (righe x commit che hanno toccato quelle righe) ===")
-            print("  %7s %7s %6s %5s  %-44s %s" % ("COSTO", "COMMIT", "RIGHE", "RAMI", "FUNZIONE", "FILE:LINEA"))
+            print("  %7s %7s %6s %5s %6s  %-44s %s"
+                  % ("COSTO", "COMMIT", "RIGHE", "RAMI", "SCELTE", "FUNZIONE", "FILE:LINEA"))
             for r in per_costo:
-                print("  %7d %7s %6d %5d  %-44s %s:%d"
-                      % (r.get("costo", 0), r.get("commit", "?"), r["righe"], r["rami"],
+                print("  %7d %7s %6d %5d %6d  %-44s %s:%d"
+                      % (r.get("costo", 0), r.get("commit", "?"), r["righe"], r["rami"], r["scelte"],
                          r["nome"][:44], r["file"], r["linea"]))
 
 
