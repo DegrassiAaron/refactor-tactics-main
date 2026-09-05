@@ -1153,6 +1153,20 @@ bool FRTPlanningPreviewClearsOnTimeoutWithoutReadyTest::RunTest(const FString&)
 {
 	UWorld* World = MakeHexMatchWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	// 🔴 **Senza questa riga il broadcast NON raggiunge il PlayerController, e non lo dice.**
+	// `AActor::ProcessEvent` scarta ogni evento se `GetWorld()->AreActorsInitialized()` e' falso
+	// (`Actor.cpp:1513`), e un delegate DINAMICO invoca proprio da li'. Misurato il 2026-09-05 su questo
+	// banco: con il PC iscritto per nome, il broadcast recapitato e la mappa raggiungibile dal suo mondo,
+	// l'anteprima restava accesa, mentre lo stesso handler chiamato direttamente in C++ la spegneva.
+	// La sonda `UObject` legata allo STESSO delegate riceveva, perche' passa da `UObject::ProcessEvent`,
+	// che quella guardia non ce l'ha: e' cio' che rendeva il difetto invisibile.
+	//
+	// ⚠️ **Non basta `DispatchBeginPlay()` sull'actor.** Il flag e' del MONDO, non dell'actor, e le due
+	// domande si somigliano abbastanza da far cercare dalla parte sbagliata — lo stesso avvertimento sta
+	// gia' in `RTFrontendNavigationTests.cpp:1070`, scritto da chi ci era passato prima.
+	World->InitializeActorsForPlay(FURL());
+
 	ARTTurnManager* TM = MakeCountdownMatch(World);
 	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHexMatchWorld(World); return false; }
 
@@ -1179,7 +1193,8 @@ bool FRTPlanningPreviewClearsOnTimeoutWithoutReadyTest::RunTest(const FString&)
 	TestFalse(TEXT("e nessun Ready e' stato premuto: non stiamo misurando la via del countdown"),
 		TM->IsReadyCountdownActive());
 
-	// DIAGNOSTICA — separa «nessuno ascolta» da «l'ascoltatore non spegne». E' la domanda di #2390.
+	// 🔑 **LA TESI DI #2390, misurata direttamente.** Non passa dall'anteprima, quindi non e' ambigua:
+	// se nessuno ascolta il commit, l'annuncio che parte dal tetto non raggiunge nessuno.
 	TestTrue(TEXT("qualcuno ascolta il commit gia' prima del primo Ready"), TM->OnLockInCommitted.IsBound());
 
 	TM->SetPlanningSeconds(1.0f);
@@ -1217,6 +1232,20 @@ bool FRTPlanningPreviewClearsOnReadyCommitTest::RunTest(const FString&)
 {
 	UWorld* World = MakeHexMatchWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	// 🔴 **Senza questa riga il broadcast NON raggiunge il PlayerController, e non lo dice.**
+	// `AActor::ProcessEvent` scarta ogni evento se `GetWorld()->AreActorsInitialized()` e' falso
+	// (`Actor.cpp:1513`), e un delegate DINAMICO invoca proprio da li'. Misurato il 2026-09-05 su questo
+	// banco: con il PC iscritto per nome, il broadcast recapitato e la mappa raggiungibile dal suo mondo,
+	// l'anteprima restava accesa, mentre lo stesso handler chiamato direttamente in C++ la spegneva.
+	// La sonda `UObject` legata allo STESSO delegate riceveva, perche' passa da `UObject::ProcessEvent`,
+	// che quella guardia non ce l'ha: e' cio' che rendeva il difetto invisibile.
+	//
+	// ⚠️ **Non basta `DispatchBeginPlay()` sull'actor.** Il flag e' del MONDO, non dell'actor, e le due
+	// domande si somigliano abbastanza da far cercare dalla parte sbagliata — lo stesso avvertimento sta
+	// gia' in `RTFrontendNavigationTests.cpp:1070`, scritto da chi ci era passato prima.
+	World->InitializeActorsForPlay(FURL());
+
 	ARTTurnManager* TM = MakeCountdownMatch(World);
 	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHexMatchWorld(World); return false; }
 
@@ -1231,10 +1260,8 @@ bool FRTPlanningPreviewClearsOnReadyCommitTest::RunTest(const FString&)
 		return false;
 	}
 
-	// DIAGNOSTICA — il controller del gioco ha iniziato a giocare. Senza, il banco misura un PC a meta'.
-	PC->DispatchBeginPlay();
-
-	// DIAGNOSTICA — separa «il broadcast non raggiunge nessuno» da «raggiunge, e il PC non spegne».
+	// La sonda misura che il commit sia stato ANNUNCIATO: senza, «l'anteprima e' spenta» non distingue
+	// «il commit l'ha spenta» da «il commit non e' mai avvenuto».
 	URTLockInCommittedProbeForTest* Probe = NewObject<URTLockInCommittedProbeForTest>(TM);
 	TM->OnLockInCommitted.AddDynamic(Probe, &URTLockInCommittedProbeForTest::OnLockInCommitted);
 
@@ -1252,20 +1279,10 @@ bool FRTPlanningPreviewClearsOnReadyCommitTest::RunTest(const FString&)
 	// «non ha ancora risolto», ed e' la stessa sanita' di `FRTReadyCountdownDelaysCommitTest`.
 	TestTrue(TEXT("il Ready ha armato il countdown"), TM->IsReadyCountdownActive());
 
-	// DIAGNOSTICA — se questa e' verde e l'anteprima resta accesa, il guasto NON e' l'iscrizione.
-	TestTrue(TEXT("il Ready ha iscritto qualcuno al commit"), TM->OnLockInCommitted.IsBound());
-
 	AdvanceWallClock(World, 1.0f);
 
 	TestTrue(TEXT("il countdown ha chiuso il turno"), TM->IsResolving() || TM->GetTurnNumber() > TurnoPrima);
 	TestEqual(TEXT("e il commit ha raggiunto i suoi iscritti"), Probe->Broadcasts, 1);
-
-	// DIAGNOSTICA — i tre anelli fra il broadcast e la mappa. Il primo che cade e' il guasto.
-	TestTrue(TEXT("A) il PC e' ancora iscritto PER NOME dopo il commit"),
-		TM->OnLockInCommitted.Contains(PC, FName(TEXT("HandleLockInCommitted"))));
-	TestTrue(TEXT("B) il PC vive nel mondo di prova"), PC->GetWorld() == World);
-	TestTrue(TEXT("C) dal mondo del PC si trova LA STESSA mappa che il test osserva"),
-		ARTHexMapActor::FindInWorld(PC->GetWorld()) == HexMap);
 	TestEqual(TEXT("il commit dal Ready spegne l'anteprima"), HexMap->NumPreviewReachableCells(), 0);
 
 	DestroyHexMatchWorld(World);

@@ -1290,6 +1290,12 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 	SelectedActor = Actor;
 	UE_LOG(LogRT, Log, TEXT("[RT] Selezionata: %s"), *Actor->GetName());
 
+	// 🔑 **Chi puo' ACCENDERE l'anteprima garantisce che qualcuno la spenga** (`#2390`). Da qui in poi
+	// esiste uno stato di presentazione che il commit deve spegnere, e il commit puo' arrivare dal tetto
+	// senza che il Ready sia mai stato premuto. Il `TurnManager` qui esiste per forza: c'e' una partita in
+	// cui selezionare.
+	EnsureLockInCommittedSubscription();
+
 	// L'anteprima segue la selezione: mostra il piano dell'unita' scelta (vuoto se non ne ha).
 	FVector SOrigin; float SHexSize; float SLayerH; const URTHexMapAsset* SMap = nullptr;
 	if (ARTHexMapActor* SHexMap = HexMapWithContext(GetWorld(), SOrigin, SHexSize, SLayerH, SMap))
@@ -1631,9 +1637,11 @@ void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 			// Muore al **commit**, che e' un fatto del `TurnManager` e non di questo tasto: `OnLockInCommitted`
 			// scatta dentro `LockInAndResolve`, quindi da qualunque dei percorsi ci si arrivi.
 			//
-			// ⚠️ `AddUniqueDynamic` e non `AddDynamic`: questa riga passa una volta per Ready, e senza `Unique`
-			// il turno decimo spegnerebbe l'anteprima dieci volte.
-			TurnManager->OnLockInCommitted.AddUniqueDynamic(this, &ARTPlayerController::HandleLockInCommitted);
+			// ⚠️ **Resta anche qui, e non e' ridondanza.** Dal 2026-09-05 l'iscrizione la fa gia' `SelectUnit`
+			// (`#2390`), ma un Ready puo' arrivare senza che si sia selezionato niente — e il turno si chiude
+			// lo stesso. Le due chiamate sono idempotenti: la sede della regola e' una,
+			// `EnsureLockInCommittedSubscription`, e `AddUniqueDynamic` le rende innocue a ripetersi.
+			EnsureLockInCommittedSubscription();
 			TurnManager->RequestLockIn();
 		}
 	}
@@ -1645,6 +1653,21 @@ void ARTPlayerController::HandleLockInCommitted()
 	// traccia del percorso la sostituisce `LastMoveRoutes` (cio' che e' DAVVERO successo, non cio' che si
 	// voleva). E' la riga che stava in `OnLockIn` fino a `#2193`.
 	RefreshPlanningPreview(GetWorld(), nullptr);
+}
+
+void ARTPlayerController::EnsureLockInCommittedSubscription()
+{
+	// ⚠️ **Non in `BeginPlay`**: `ARTGameMode` spawna il `TurnManager` quando non lo trova gia' nel livello
+	// (`RTGameMode.cpp:446`), e l'ordine rispetto al `BeginPlay` del controller non e' garantito. Un
+	// aggancio che dipendesse da quell'ordine sarebbe verde sulla mappa di oggi e muto sulla prossima.
+	//
+	// ⛔ **E non in `PlayerTick`**: una patch cosi' e' gia' stata scritta e ritirata (`#2359`), perche' i
+	// test headless non chiamano `PlayerTick` — non sarebbe ne' verificabile ne' protetta da regressioni,
+	// su codice eseguito a ogni frame.
+	if (ARTTurnManager* TurnManager = PacingTurnManager(this))
+	{
+		TurnManager->OnLockInCommitted.AddUniqueDynamic(this, &ARTPlayerController::HandleLockInCommitted);
+	}
 }
 
 void ARTPlayerController::ApplyNextPlaybackSpeed(ARTTurnManager* TurnManager)
