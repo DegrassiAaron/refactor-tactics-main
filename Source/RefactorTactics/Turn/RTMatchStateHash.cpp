@@ -61,7 +61,7 @@ uint32 URTMatchStateHashLibrary::HashMatchState(const URTHexMapAsset* Map,
 		// Il facing entra come intero dell'enum, nella stessa forma degli altri scalari — `D-261`.
 		Mix(static_cast<uint32>(U.Facing));
 
-		// I cooldown entrano IN ORDINE DI SLOT e senza ordinamento — `D-331`. `AbilityCooldowns` e' un
+		// I cooldown entrano IN ORDINE DI SLOT e senza ordinamento — `D-333`. `AbilityCooldowns` e' un
 		// `TArray<int32>` indicizzato per slot, non un container associativo: l'ordine e' gia' un dato del
 		// gioco, e ordinarlo cancellerebbe proprio l'informazione che serve — *quale* abilita' e' in ricarica.
 		//
@@ -229,7 +229,7 @@ TArray<FRTUnitStateDigest> URTMatchStateHashLibrary::BuildUnitDigests(const TArr
 		Digest.bAlive = Unit->IsAlive();
 		Digest.Facing = Unit->Facing;
 		Digest.Statuses = Unit->GetActiveStatusNames();
-		// `D-331`: quanto manca a ogni abilita', per slot.
+		// `D-333`: quanto manca a ogni abilita', per slot.
 		//
 		// ⚠️ **Si passa dall'accessor, non dal campo.** `ARTUnit::AbilityCooldowns` e' `private` di proposito —
 		// a scriverlo sono `ConsumeAbility`, `TickCooldowns` e `SyncAbilityCooldowns`, e il digest e' un

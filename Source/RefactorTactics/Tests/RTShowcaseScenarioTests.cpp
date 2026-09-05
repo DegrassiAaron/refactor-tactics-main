@@ -2157,7 +2157,7 @@ bool FRTShowcaseStateHashPerTurnTest::RunTest(const FString&)
 		PerTurno.Add(Diritto.StateHash);
 	}
 
-	// ✅ **OTTO valori distinti su otto turni, e il `7` che stava qui e' caduto come previsto** — `D-331`,
+	// ✅ **OTTO valori distinti su otto turni, e il `7` che stava qui e' caduto come previsto** — `D-333`,
 	// `#2366`.
 	//
 	// Questa riga ha avuto tre stati, e vale la pena leggerli in fila perche' due erano verdi per motivi

@@ -671,7 +671,7 @@ namespace
 		U.Health = 40;
 		U.Shield = 10;
 		U.bAlive = true;
-		// `D-331`: due slot con ricariche DIVERSE fra loro e diverse da zero. Un array uniforme non
+		// `D-333`: due slot con ricariche DIVERSE fra loro e diverse da zero. Un array uniforme non
 		// distinguerebbe un `Mix` che guarda solo il primo elemento, ne' uno che ne somma i valori.
 		U.AbilityCooldowns = { 2, 1 };
 		return { U };
@@ -710,7 +710,7 @@ bool FRTChecksumSeesEveryUnitFieldTest::RunTest(const FString&)
 		{ TEXT("Health"),     [](FRTUnitStateDigest& U) { U.Health = 55; } },                   // baseline 40
 		{ TEXT("Shield"),     [](FRTUnitStateDigest& U) { U.Shield = 20; } },                   // baseline 10
 		{ TEXT("bAlive"),     [](FRTUnitStateDigest& U) { U.bAlive = false; } },
-		// `D-331`, `#2366`: cambia UN SOLO slot, e da un valore non nullo a un altro non nullo.
+		// `D-333`, `#2366`: cambia UN SOLO slot, e da un valore non nullo a un altro non nullo.
 		{ TEXT("AbilityCooldowns"), [](FRTUnitStateDigest& U) { U.AbilityCooldowns[1] = 3; } },   // baseline {2,1}
 		// `Facing` — `D-261`, `#1800`: e' stato logico, non presentazione, e `Combat/` lo consuma.
 		{ TEXT("Facing"),     [](FRTUnitStateDigest& U) { U.Facing = ERTHexDirection::W; } },
@@ -746,7 +746,7 @@ bool FRTChecksumSeesEveryUnitFieldTest::RunTest(const FString&)
 			HashOf(HealthHeavy), HashOf(ShieldHeavy));
 	}
 
-	// ⚠️ **L'ORDINE degli slot conta, e il caso per-campo non lo prova** — `D-331`. Uno slot 0 in ricarica
+	// ⚠️ **L'ORDINE degli slot conta, e il caso per-campo non lo prova** — `D-333`. Uno slot 0 in ricarica
 	// per due turni non e' lo stesso stato di uno slot 1 in ricarica per due turni: cambia QUALE azione e'
 	// negata. Un `Mix` che sommasse i cooldown, o che ordinasse l'array come fa con `Statuses`, li renderebbe
 	// identici — e ogni assertion per-campo qui sopra passerebbe comunque.

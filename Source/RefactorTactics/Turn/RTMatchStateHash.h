@@ -79,7 +79,7 @@ struct FRTUnitStateDigest
 	UPROPERTY() TArray<FName> Statuses;
 
 	/**
-	 * I COOLDOWN delle abilita', per slot — `D-331`, `#2366`.
+	 * I COOLDOWN delle abilita', per slot — `D-333`, `#2366`.
 	 *
 	 * 🔴 **Senza, due stati che differiscono solo per cosa un'unita' PUO' FARE davano lo stesso digest.**
 	 * Misurato sullo showcase: il turno del *whiff* — Wraith arma `Hero.Wraith.InterceptShot` su una cella
