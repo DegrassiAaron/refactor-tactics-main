@@ -2,7 +2,8 @@
 
 > `CURRENT` · **Stato**: revisione chiusa. Il sorgente è **recensito, non applicato**: nessuna roadmap
 > nuova creata · **Data**: 2026-09-06
-> **HEAD della misura**: `2a08f4c2` (`origin/main` dopo `fetch --prune`, worktree
+> **HEAD della misura**: `2a08f4c2`, **rimisurato su `2eb32f34`** — `origin/main` si è mosso durante la
+> run, e §3 `R8` dice cosa è cambiato (worktree
 > `docs/schematiche-editor-execution-spec-panel`)
 > **Oggetto**: il work order esterno *«RefactorTactics — Roadmap Schematiche: Editor Execution»*, fornito
 > in chat **senza sha né data**, che chiede di eseguire e validare in Editor quindici schematiche `S01…S15`
@@ -70,7 +71,8 @@ Il testo resta buono; la sede è occupata.
 
 ## 3. I rilievi, con la misura che li produce
 
-Ogni comando è stato eseguito nel worktree su `2a08f4c2`.
+Ogni comando è stato eseguito nel worktree su `2a08f4c2`, e i conteggi sono stati **riverificati su
+`2eb32f34`** dopo che `origin/main` si è mosso: reggono tutti — `R8`.
 
 ### R1 — Il settimo giro
 
@@ -215,6 +217,15 @@ grep -oE "PIE-[A-Z0-9-]+" docs/technical/test-manuali-pie.md | sort -u | wc -l  
 *«il registro PIE venga aggiornato solo dopo verifiche realmente eseguite»*, ma nessuna `S` dichiara
 **quale voce** aggiorna. Una `S` eseguita senza quella riga non tocca niente, e ricade nella condizione
 che il registro descrive già per `PIE-SCEN-COMPOSER`: *«nel registro e fuori da ogni sequenza»*.
+
+🔄 **Rimisurato su `2eb32f34`**, dove `origin/main` si è spostato mentre questo referto era in scrittura —
+e il commit che è arrivato è **il precedente che questo rilievo chiede**. La PR `#2520` aggancia
+`PIE-V01-PREPWINDOW` alla seduta `U23`: scrive `verifies: [… PIE-V01-PREPWINDOW]` nei dati della seduta,
+annota `📌 Seduta: U23` sulla voce del registro, e dichiara la classe — *«nessuno scenario può
+sostituirla… classe **C** in `scenario-map.md` §5»*. 🔑 **È esattamente il legame che `R8` dice mancare e
+la classificazione che `R6` dice esistere**, fatti a mano su una voce. Il difetto non è che non si sappia
+fare: è che non è un campo, e va rifatto a mano ogni volta. I conteggi non cambiano — `48` sedute e `228`
+voci anche dopo il merge, perché quella PR ha aggiunto un aggancio, non un identificatore nuovo.
 
 ### R9 / R10 — I due minori
 
