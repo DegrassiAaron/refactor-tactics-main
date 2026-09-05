@@ -289,7 +289,10 @@ namespace
 	/** Una funzione libera trovata in un namespace anonimo: `Nome(tipo,tipo)` e dove sta. */
 	struct FRTFirmaAnonima
 	{
+		/** La chiave del confronto: senza spazi, cosi' `const UWidget *` e `const UWidget*` coincidono. */
 		FString Firma;
+		/** La stessa firma come l'ha scritta l'autore: e' cio' che va nel messaggio d'errore. */
+		FString Leggibile;
 		FString File;
 		int32 Riga = 0;
 	};
@@ -476,6 +479,7 @@ namespace
 			const FString Parametri = Riga.Mid(Apre + 1, Chiude - Apre - 1);
 			FRTFirmaAnonima Trovata;
 			Trovata.Firma = FString::Printf(TEXT("%s(%s)"), *Nome, *RTTipiDeiParametri(Parametri));
+			Trovata.Leggibile = FString::Printf(TEXT("%s(%s)"), *Nome, *Parametri.TrimStartAndEnd());
 			Trovata.File = NomeFile;
 			Trovata.Riga = Indice + 1;
 			Fuori.Add(MoveTemp(Trovata));
@@ -571,7 +575,7 @@ bool FRTAnonymousHelpersDoNotCollideTest::RunTest(const FString&)
 			TEXT("stesso blob e la compilazione muore con C2084, piu' un C2264 per ogni chiamata. Rinomina ")
 			TEXT("quella del file piu' recente, oppure — se i CORPI sono identici — spostala in un header ")
 			TEXT("condiviso con namespace NOMINATO. Se i corpi differiscono NON unificarle: vedi #2397."),
-			*Voce.Key, FileDistinti.Num(), *Dove));
+			*Voce.Value[0].Leggibile, FileDistinti.Num(), *Dove));
 	}
 
 	AddInfo(FString::Printf(TEXT("file ispezionati: %d, firme in namespace anonimo: %d"),
