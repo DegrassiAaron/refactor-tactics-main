@@ -24,6 +24,8 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTCellId.h"
 #include "UI/RTHudViewModel.h"
+#include "UI/RTHUD.h"
+#include "Player/RTPlayerController.h"
 #include "RTWorldFixtures.h"
 #include "TimerManager.h"
 #include "CoreGlobals.h"   // GFrameCounter: vedi AvanzaOrologioPrep
@@ -362,6 +364,96 @@ bool FRTPrepWindowReachesHudViewTest::RunTest(const FString&)
 
 	TestEqual(TEXT("senza finestra il commit resta quello del Planning"),
 		URTHudViewModel::ComputeSecondsUntilCommit(SoloPlanning), 7.f, 0.01f);
+
+	return true;
+}
+
+/**
+ * IL GESTO `P` FERMA E RIPRENDE, E FUNZIONA DOVE GLI ALTRI SONO SPENTI.
+ *
+ * 🔴 **Il punto e' l'ULTIMA assertion.** In una partita non presidiata l'input che pianifica e' inerte per
+ * decisione (`#971`, `IsPlanningInputInert()`), e questo comando vive esattamente li': se ereditasse quella
+ * guardia sarebbe spento proprio nella sola modalita' in cui ha senso. Un'API corretta che nessun tasto
+ * raggiunge e' una funzione che non esiste per chi guarda.
+ *
+ * Verifica di mutazione: aggiungere `if (IsPlanningInputInert()) return;` in testa a
+ * `OnTogglePrepWindowPause` fa cadere questo test, e solo questo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrepWindowGestureTogglesTest,
+	"RefactorTactics.Match.Autobattle.PrepWindowGestureTogglesPause",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrepWindowGestureTogglesTest::RunTest(const FString&)
+{
+	FRTPrepBench B = MakePrepBench(/*bUnattended*/ true, /*PrepSeconds*/ 3.f);
+	if (!TestTrue(TEXT("banco allestito"), B.IsComplete())) { return false; }
+
+	ARTPlayerController* PC = B.World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("controller allestito"), PC)) { return false; }
+
+	B.TurnManager->OnPlanningTimeoutForTest();
+	AvanzaOrologioPrep(B.World, 0.f);
+	if (!TestTrue(TEXT("finestra armata"), B.TurnManager->IsPrepWindowActive())) { return false; }
+
+	PC->OnTogglePrepWindowPauseForTest();
+	TestTrue(TEXT("il gesto ferma l'attesa"), B.TurnManager->IsPrepWindowPaused());
+
+	PC->OnTogglePrepWindowPauseForTest();
+	TestFalse(TEXT("e lo stesso gesto la riprende"), B.TurnManager->IsPrepWindowPaused());
+	TestTrue(TEXT("la finestra e' ancora armata dopo la ripresa"), B.TurnManager->IsPrepWindowActive());
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+/**
+ * LA RIGA DI STATO CAMBIA LA PAROLA, E NOMINA IL GESTO.
+ *
+ * 🔑 **La parola, non solo il numero** — e' il criterio che `#2358` ha posto per il countdown del Ready e
+ * vale identico qui: durante la finestra la fase e' ancora `Planning`, e una riga che si limitasse a
+ * scambiare i secondi direbbe «Pianificazione» mentre i bot hanno gia' pianificato. I due stati devono
+ * distinguersi **senza contare i secondi**.
+ *
+ * ⚠️ **E il gesto cambia con lo stato**: un «P: pausa» stampato su una finestra gia' ferma direbbe di fare
+ * cio' che si e' appena fatto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrepWindowStatusLineNamesGestureTest,
+	"RefactorTactics.Match.Autobattle.PrepWindowStatusLineNamesGesture",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrepWindowStatusLineNamesGestureTest::RunTest(const FString&)
+{
+	FRTMatchHeaderView View;
+	View.Phase = ERTMatchPhase::Planning;
+	View.PlanningSecondsRemaining = -1.f;
+	View.ReadyCountdownSecondsRemaining = -1.f;
+	View.PrepWindowSecondsRemaining = 3.f;
+
+	{
+		const FString Riga = ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, /*bHasObjectiveCell=*/ false);
+		TestTrue(TEXT("la parola cambia: non dice piu' «Pianificazione»"), !Riga.Contains(TEXT("Pianificazione")));
+		TestTrue(TEXT("dice «Preparazione»"), Riga.Contains(TEXT("Preparazione")));
+		TestTrue(TEXT("e nomina il gesto per fermarla"), Riga.Contains(TEXT("(P: pausa)")));
+	}
+
+	{
+		View.bPrepWindowPaused = true;
+		const FString Riga = ARTHUD::ComposeMatchStatusLine(View, FString(), 0.f, /*bHasObjectiveCell=*/ false);
+		TestTrue(TEXT("in pausa lo dice"), Riga.Contains(TEXT("in pausa")));
+		TestTrue(TEXT("e il gesto diventa «riprendi»"), Riga.Contains(TEXT("(P: riprendi)")));
+	}
+
+	// CONTROLLO: senza finestra la riga resta quella di sempre. Senza, «dice Preparazione» sarebbe
+	// indistinguibile da «lo dice sempre».
+	{
+		FRTMatchHeaderView Normale;
+		Normale.Phase = ERTMatchPhase::Planning;
+		Normale.PlanningSecondsRemaining = 12.f;
+		Normale.ReadyCountdownSecondsRemaining = -1.f;
+		Normale.PrepWindowSecondsRemaining = -1.f;
+
+		const FString Riga = ARTHUD::ComposeMatchStatusLine(Normale, FString(), 0.f, /*bHasObjectiveCell=*/ false);
+		TestTrue(TEXT("senza finestra dice «Pianificazione»"), Riga.Contains(TEXT("Pianificazione")));
+		TestFalse(TEXT("e non nomina il gesto"), Riga.Contains(TEXT("(P:")));
+	}
 
 	return true;
 }
