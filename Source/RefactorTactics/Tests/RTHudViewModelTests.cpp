@@ -997,4 +997,105 @@ bool FRTHudVmReadyCountdownTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// I due orologi e la regola che li combina (`#2193`, `#2358`, `#613`)
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * **IL NUMERO DA MOSTRARE E' IL PIU' VICINO DEI DUE, E LA REGOLA STA IN UN POSTO SOLO.**
+ *
+ * 🔴 **Perche' questo test esiste adesso.** La regola c'era gia' — dentro `ARTHUD::ComposeMatchStatusLine`,
+ * e `HUD.MatchStatusShowsTheReadyCountdown` la copre **attraverso la riga di testo del Canvas**. Con lo
+ * Screen HUD in UMG (`#613`) arriva un secondo consumatore che quella riga non la attraversa: un
+ * `WBP_RT_TurnHeader` che stampasse `ReadyCountdownSecondsRemaining` sarebbe corretto secondo il tipo e
+ * sbagliato secondo il gioco, e **nessun test lo direbbe**. Qui la regola e' misurata da sola, cosi' che
+ * ogni consumatore possa consumarla invece di riscriverla.
+ *
+ * ⚠️ Il caso che discrimina e' il secondo: se qualcuno «semplificasse» la funzione restituendo il countdown,
+ * tutti gli altri casi resterebbero verdi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmSecondsUntilCommitTest,
+	"RefactorTactics.HudViewModel.SecondsUntilCommitIsTheNearerClock",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmSecondsUntilCommitTest::RunTest(const FString&)
+{
+	FRTMatchHeaderView View;
+
+	// CONTROLLO della premessa: sulla vista neutra non c'e' nessun conto alla rovescia da mostrare, e la
+	// risposta e' un negativo — non uno zero, che si leggerebbe «commit adesso».
+	TestTrue(TEXT("vista neutra: nessun orologio, risposta negativa"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View) < 0.f);
+
+	// Solo il tetto del Planning: e' lui il momento del commit.
+	View.PlanningSecondsRemaining = 25.f;
+	View.ReadyCountdownSecondsRemaining = -1.f;
+	TestEqual(TEXT("senza Ready: il commit arriva alla scadenza del Planning"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View), 25.f);
+
+	// 🔴 IL CASO CHE DISCRIMINA: il tetto e' piu' corto del countdown e vince lui (`#2193`).
+	View.PlanningSecondsRemaining = 1.5f;
+	View.ReadyCountdownSecondsRemaining = 3.f;
+	TestEqual(TEXT("tetto piu' corto del countdown: vince il tetto"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View), 1.5f);
+
+	// Il verso opposto, che da solo non proverebbe niente ma serve a escludere un `Min` invertito.
+	View.PlanningSecondsRemaining = 25.f;
+	View.ReadyCountdownSecondsRemaining = 3.f;
+	TestEqual(TEXT("countdown piu' corto del tetto: vince il countdown"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View), 3.f);
+
+	// Run headless: il Planning non ha orologio, e un `Min` cieco avrebbe restituito il negativo spegnendo
+	// l'unico conto in corsa.
+	View.PlanningSecondsRemaining = -1.f;
+	View.ReadyCountdownSecondsRemaining = 3.f;
+	TestEqual(TEXT("senza tetto: il countdown resta l'unico orologio"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View), 3.f);
+
+	// Zero non e' «non si applica»: e' un numero da mostrare, ed e' l'ultimo istante prima del commit.
+	View.PlanningSecondsRemaining = 25.f;
+	View.ReadyCountdownSecondsRemaining = 0.f;
+	TestEqual(TEXT("countdown a zero: commit adesso, non «non si applica»"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View), 0.f);
+
+	return true;
+}
+
+/**
+ * **E il campo pubblicato dice la stessa cosa della funzione.**
+ *
+ * ⚠️ `FRTMatchHeaderView::SecondsUntilCommit` e' una **comodita' derivata**: chi costruisce la vista a mano
+ * lo trova al default. Questo test copre l'unico produttore che deve popolarlo — `BuildMatchHeader` — e lo
+ * fa confrontandolo con la funzione invece che con un numero scritto qui: un valore atteso costante
+ * pinnerebbe l'orologio, non la coerenza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmSecondsUntilCommitIsPublishedTest,
+	"RefactorTactics.HudViewModel.SecondsUntilCommitIsPublishedByTheProducer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmSecondsUntilCommitIsPublishedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHudVmWorld(World); return false; }
+
+	TM->SetPlanningSeconds(30.f);
+	TM->RequestLockIn();
+	if (!TestTrue(TEXT("il countdown e' armato: senza, la misura non proverebbe niente"),
+		TM->IsReadyCountdownActive()))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	const FRTMatchHeaderView Vista = URTHudViewModel::BuildMatchHeader(TM);
+	TestEqual(TEXT("il campo pubblicato coincide con la funzione"),
+		Vista.SecondsUntilCommit, URTHudViewModel::ComputeSecondsUntilCommit(Vista));
+	TestTrue(TEXT("e con un countdown armato porta un numero, non «non si applica»"),
+		Vista.SecondsUntilCommit >= 0.f);
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
