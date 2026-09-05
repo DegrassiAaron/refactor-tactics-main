@@ -26,7 +26,9 @@
 #include "UI/RTHudViewModel.h"
 #include "UI/RTHUD.h"
 #include "Player/RTPlayerController.h"
+#include "RTGameMode.h"
 #include "RTWorldFixtures.h"
+#include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 #include "CoreGlobals.h"   // GFrameCounter: vedi AvanzaOrologioPrep
 
@@ -389,6 +391,31 @@ bool FRTPrepWindowGestureTogglesTest::RunTest(const FString&)
 
 	ARTPlayerController* PC = B.World->SpawnActor<ARTPlayerController>();
 	if (!TestNotNull(TEXT("controller allestito"), PC)) { return false; }
+
+	// 🔴 **Il GameMode con l'autobattle ACCESO, e senza di lui questo test non misura niente.**
+	// `IsPlanningInputInert()` risale al GameMode con `GetActorOfClass` e risponde `false` quando non ce
+	// n'e' uno: su un banco senza GameMode la guardia sarebbe inerte a prescindere, e aggiungerla a
+	// `OnTogglePrepWindowPause` non farebbe cadere nulla. Misurato: la prima stesura di questo test non
+	// spawnava il GameMode e la mutazione passava indenne.
+	// ⚠️ `bAutobattleInEffect` si latcha in `SetupHexMatch`, non nella proprieta': impostare `bAutobattle`
+	// senza chiamarlo lascerebbe il predicato falso.
+	ARTGameMode* GameMode = B.World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("game mode allestito"), GameMode)) { return false; }
+	GameMode->bAutobattle = true;
+	GameMode->SetupHexMatch(B.Map);
+	if (!TestTrue(TEXT("l'autobattle e' in vigore: l'input di pianificazione E' inerte"),
+		GameMode->IsAutobattleInEffect()))
+	{
+		return false;
+	}
+
+	// Il `SetupHexMatch` puo' aver riallestito il turno: si riprende il TurnManager dal mondo, che e' la
+	// stessa porta da cui passa il controller.
+	B.TurnManager = Cast<ARTTurnManager>(
+		UGameplayStatics::GetActorOfClass(B.World, ARTTurnManager::StaticClass()));
+	if (!TestNotNull(TEXT("turn manager raggiungibile"), B.TurnManager)) { return false; }
+	B.TurnManager->SetUnattendedSession(true);
+	B.TurnManager->SetPrepWindowSeconds(3.f);
 
 	B.TurnManager->OnPlanningTimeoutForTest();
 	AvanzaOrologioPrep(B.World, 0.f);
