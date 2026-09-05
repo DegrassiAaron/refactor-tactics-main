@@ -108,11 +108,15 @@ bloccata. **Ventinove** di esse non sono in nessuna sequenza, ed è la condizion
 | U19 · U22 | 4 ciascuna | — | varie | 🟡 |
 | **U45** | **3** | `[E12]` | — | 🟡 attende un checkpoint, non una seduta |
 | **U39** | **1** | `[U21]` — già soddisfatto | #1920 aperta | 🟢 **eseguibile**: `GenerateIntoAsset` allestisce la mappa in un gesto — vedi in coda alla §4 |
-| **U46** | **4** | `[]` | #1873 aperta, e blocca una delle quattro | 🟢 **eseguibile ora, e sono le uniche quattro voci non verdi del gate `G9`** |
+| **U46** | **6** | `[]` | #1873 · #1246 — nessuna delle due la blocca | 🟢 **eseguibile ora**: quattro sono le uniche voci non verdi del gate `G9`, due chiudono altrettanti scenari orfani |
 | altre 14 sedute | 1–2 ciascuna | — | varie | — |
-🔑 **`U46` non ordina per resa, e va letta a parte.** Quattro voci sono meno di ventuno, ma sono **le
-uniche quattro non verdi del subset `RELEASE-V01`**: finché restano gialle, `G9` non è verde e la v0.1 non
-è consegnabile. Le altre sedute di questa tabella producono verdetti; questa produce **il gate**.
+🔑 **`U46` non ordina per resa, e va letta a parte.** Sei voci sono meno di ventuno, ma quattro sono **le
+uniche non verdi del subset `RELEASE-V01`**: finché restano gialle, `G9` non è verde e la v0.1 non è
+consegnabile. Le altre sedute di questa tabella producono verdetti; questa produce **il gate**.
+➕ **Dal 2026-09-04 ne porta due in più, e non sono lavoro aggiunto**: `PIE-VIS-SIGHTWALL` si giudica nello
+**stesso Play** del punto ② — è la voce che guarda lo scenario che quel punto usa già — e `PIE-VIS-TWOLAYERS`
+costa un Play a zero turni. Chiudono i due scenari `Visual.*` che il registro dichiarava *«eseguiti, verdi, e
+mai guardati da nessuno»*.
 ⚠️ **E le sue quattro voci compaiono due volte in `editor-sessions.yaml`**, qui e nelle sedute d'origine
 (`U4`, `U6`, `U11`, `U15`): è deliberato e temporaneo — `U46` è una **coda**, non un trasferimento, e
 sparisce quando i residui sono chiusi. Chi conta le voci schedulate non le conti due volte.

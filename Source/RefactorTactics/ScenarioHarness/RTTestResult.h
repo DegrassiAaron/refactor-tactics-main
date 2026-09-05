@@ -150,7 +150,7 @@ struct FRTTestResult
 	int32 Seed = 0;
 
 	/**
-	 * Digest dello stato finale: posizione, salute, scudo, energia e stati di ogni unità — **anche di quelle
+	 * Digest dello stato finale: posizione, salute, scudo e stati di ogni unità — **anche di quelle
 	 * cadute**, che entrano con `bAlive = false`. Non è un dettaglio: senza, «tre vivi e un caduto» e «tre
 	 * vivi e basta» darebbero lo stesso hash ([D-084](../../../docs/decisions/RT_PDR_00_Decision_Log.md)).
 	 *

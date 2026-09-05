@@ -56,7 +56,7 @@ struct FRTPacingUnitFacts
 	UPROPERTY()
 	bool bIsAlive = false;
 
-	/** Quante delle sue abilita' sono utilizzabili in questo istante (cooldown ed energia gia' considerati). */
+	/** Quante delle sue abilita' sono utilizzabili in questo istante (cooldown gia' considerato). */
 	UPROPERTY()
 	int32 UsableAbilities = 0;
 };
@@ -102,7 +102,7 @@ struct FRTPacingSample
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 UnitsAliveTeam1 = 0;
 
-	/** Azioni utilizzabili dalle unita' vive della squadra misurata (cooldown/energia escludono). */
+	/** Azioni utilizzabili dalle unita' vive della squadra misurata (il cooldown esclude). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 ActionsAvailable = 0;
 
