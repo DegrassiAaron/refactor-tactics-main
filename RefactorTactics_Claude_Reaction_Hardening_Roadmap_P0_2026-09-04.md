@@ -7,78 +7,6 @@
 
 ---
 
-# ⚠️ AUDIT 2026-09-05 — questo handoff è superato in quattro punti
-
-Verificato sul repository e su GitHub il **2026-09-05**, non a memoria. Le sezioni che seguono restano leggibili come cronaca; dove contraddicono questo blocco, **vince questo blocco**.
-
-Regola applicata: la §11.8 di questo stesso documento — «se il codice o issue corrente contraddicono questo handoff, NON inventare la correzione: segnala il conflitto nella issue tracker principale». Il tracker è **#2462**.
-
-## A. Tre issue del critical path erano già chiuse
-
-| Issue | §1 e §3 di questo doc | Stato misurato 2026-09-05 |
-|---|---|---|
-| #1879 | promuovere a P0 | **CLOSED / COMPLETED** — 2026-09-04 12:11 |
-| #1880 | «mantenere il blocco duro» | **CLOSED / COMPLETED** — 2026-09-04 06:47 |
-| #2189 | promuovere a P0 | **CLOSED / COMPLETED** — 2026-09-04 07:58, via #2261 |
-
-**R4, R5 e R6 di §5 sono consegnati.** Questo documento è stato scritto lo stesso giorno in cui quelle tre si chiudevano, e ne ha fotografato lo stato precedente.
-
-## B. Metà delle «nuove issue» di §4 descriveva codice già in produzione
-
-| Proposta | Realtà misurata |
-|---|---|
-| NUOVA 2 — Canonical Event → Opportunity → Boundary | `FRTReactionOpportunityKey` esiste (CP 14.3): id **funzione dello stato**, non GUID, replay-stabile. `AllowedResponses` ha già la semantica `<= 1` auto / `>= 2` boundary — `RTReactionOpportunityTypes.cpp:64`. Marcato `RTServerOnly`, fonte [D-021] |
-| NUOVA 3 — indexed trigger registry | Il costo `unità × reaction × target × micro-step` **non è stato misurato**. Prima serve uno spike su `BuildOverwatchTriggers` (`RTReactionOpportunityTypes.h:669`, chiamato da `RTTurnManager.cpp:5093`) |
-| NUOVA 4 — «non usare `RevalidateEverything()`» | Quella funzione **non esiste**. La premessa non regge come scritta |
-| §7 — test da creare | Molti esistono già con altri nomi: `Reactions.MultipleTriggersStillOnce`, `Overwatch.SimultaneousTargetsSingleOpportunity`, `Overwatch.OrderIsDeterministic`, `Reactions.OpportunityIdIsDerivedNotRandom`, `Overwatch.OpportunityLeaksNoFuture` — 57 in tutto |
-
-**NUOVA 2, 3 e 4 non sono state create.** Crearle avrebbe duplicato sottosistemi già spediti, contro `SEARCH → REUSE → CREATE`.
-
-## C. I nomi delle metriche di §6 non sono quelli del repository
-
-§6 usa nomi puntati (`Reaction.DecisionSeconds`, `Resolution.PlaybackSeconds`). Il repository usa `ReactionDecisionSeconds` e `ResolutionPlaybackSeconds`, e la §7 di questo stesso documento chiede di adattarsi alle convenzioni reali.
-
-Cercate con i nomi nativi: **1 metrica su 8 esiste** — `ReactionDecisionSeconds`, 7 occorrenze in `Source/`. Le altre sette a zero.
-
-E il pacing **è già stato misurato**: il Deliverable A di #166 è atterrato con PR #1554 il 2026-08-28 — 9,0 / 18,0 / 24,0 s con 1, 2 e 3 unità armate dello stesso giocatore. Ciò che manca è il **costo** della reaction, non il suo ritmo.
-
-## D. Reaction Clash è P3 ma ha già otto test
-
-Esistono 8 `RefactorTactics.Clash.*` mentre #314 è `P3` e questo documento la vuole fuori dalla baseline. Da riconciliare: o i test coprono una baseline che non sapevamo di avere, o #314 è più avanti della sua label.
-
-## Cosa è stato eseguito
-
-| Azione di questo documento | Esito |
-|---|---|
-| §3.A — #152 P2 → **P0** | fatto, + sezione guardrail nel corpo |
-| §3.B — #166 P2 → **P0** | fatto, + AC di aggregazione UI e `ResolutionPlaybackSeconds` |
-| §3.C e §3.D — #1879 e #2189 a P0 | **non applicabile**: chiuse come COMPLETED |
-| §3.E — #759 collegata come guardrail | fatto nel tracker, owner **non** spostato |
-| §3.F — #314 e #319 restano P3 | già vero, nessuna azione |
-| §4 NUOVA 1 — tracker | creato: **#2462**, con critical path corretto |
-| §4 NUOVA 2, 3, 4 | **non create** — vedi B |
-| gap misurati e senza owner | **#2459** (costo) e **#2461** (invarianti 3 e 8) |
-
-## Ordine di implementazione corretto — sostituisce §5
-
-```text
-✅ FATTO   R4 boundary identity            #1880
-✅ FATTO   R5 boundary determinism         #2189
-✅ FATTO   R6 runtime stepping             #1879
-✅ FATTO   canonical opportunity contract  CP 14.3
-
-🔴 APERTO  invarianti 3 e 8                #2461
-🔴 APERTO  costo della reaction            #2459
-🔴 APERTO  UI, aggregazione e pacing       #166
-🟡 SPIKE   esiste davvero un global scan?  misurare prima di indicizzare
-⏭️ POST    privacy temporale multiplayer   #759, owner separato
-
-P3, NON BLOCCANTI
-     #314 Reaction Clash · #319 Decision Time Bank
-```
-
----
-
 ## 0. Mandato operativo
 
 Agisci direttamente sul repository GitHub.
@@ -99,8 +27,6 @@ Il lavoro è **alta priorità**. La baseline del Reaction System e i suoi invari
 ---
 
 # 1. Stato già verificato
-
-> ⛔ **Stale su tre righe.** #1879, #1880 e #2189 sono CLOSED / COMPLETED dal 2026-09-04. Vedi l'AUDIT 2026-09-05 in testa.
 
 ## Issue esistenti da RIUSARE
 
@@ -480,8 +406,6 @@ Out of scope: dependency graph dinamico generale, ECS, multithreading gameplay.
 ---
 
 # 5. Ordine di implementazione raccomandato
-
-> ⛔ **Superato.** R4, R5 e R6 sono consegnati. L'ordine valido è quello nell'AUDIT 2026-09-05 in testa.
 
 ```text
 R0 — Triage / labels
