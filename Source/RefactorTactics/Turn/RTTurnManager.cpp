@@ -7295,6 +7295,7 @@ void ARTTurnManager::BeginPlayback()
 	MoveAnims.Reset();
 	PlaybackAttacks.Reset();
 	PlaybackDefeated.Reset();
+	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
 	// 🔴 **La squadra di chi GUARDA, e il playback si tronca su di essa** (`#1525`, [D-223]). Stessa porta
 	// di `ARTHUD::DrawHUD` e del velo: una sola risposta a «di che squadra e' questo giocatore» ([D-285]).
 	//
@@ -7659,15 +7660,35 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			}
 		}
 
-		// Morte visiva differita: le unita' eliminate IN QUESTA fase spariscono ora, dopo che il colpo
-		// (Blast) o l'attraversamento (Move) e' stato mostrato. Idempotente (guardia IsHidden).
+		// Morte visiva differita: l'eliminazione si ANNUNCIA qui, a fine della fase in cui e' avvenuta, dopo
+		// che il colpo (Blast) o l'attraversamento (Move) e' stato mostrato.
+		//
+		// 🔴 **La sparizione non avviene piu' qui, e la ragione e' misurata** (#2452). `HideForDefeat()`
+		// chiama `SetActorHiddenInGame(true)`, che propaga a TUTTI i componenti — skeletal compresa.
+		// Chiamarlo la riga prima di `PlayDefeatMontage()` faceva partire il montaggio su un attore gia'
+		// nascosto: `Death` non veniva **mai** disegnato, e la terza clausola di `PIE-AS4b` non era
+		// raggiungibile a nessuna qualita' degli asset. Ora nasconde un solo punto — `FinishPlayback` — e il
+		// montaggio ha per finestra le fasi che restano.
+		//
+		// ⚠️ **Il limite residuo e' dichiarato, non nascosto**: chi cade nell'ULTIMA fase riprodotta ha una
+		// finestra di durata zero, perche' `FinishPlayback` segue immediatamente. `PlaybackPhases` contiene
+		// `Prep -> Dash -> Blast -> Move` e mai `Cleanup`, quindi il caso comune (morte nel Blast con un Move
+		// dopo) e' coperto e quello di coda no. Chiuderlo richiede un'attesa a fine playback: e' la parte di
+		// #2452 che resta aperta.
+		//
+		// ⚠️ **La guardia non puo' piu' essere `IsHidden()`** — era l'hide stesso a renderla idempotente.
+		// Il marcatore e' `PlaybackDefeatShown`, altrimenti il catch-all di `FinishPlayback` rifarebbe
+		// partire il montaggio e ribroadcasterebbe `OnUnitDefeated` sulla stessa unita'.
+		//
+		// ⛔ **Nulla di logico si muove**: `HP=0` lo ha gia' deciso il resolver (`ApplyCombatState`) e la
+		// distruzione resta in `ConcludeTurn`. La presentazione non decide — invariante #1.
 		for (const FRTResolvedEvent& D : PlaybackDefeated)
 		{
 			ARTUnit* const DefU = UnitByStableId(D.SourceStableUnitId);
-			if (D.Phase == Ph && DefU && !DefU->IsHidden())
+			if (D.Phase == Ph && DefU && !PlaybackDefeatShown.Contains(D.SourceStableUnitId))
 			{
+				PlaybackDefeatShown.Add(D.SourceStableUnitId);
 				AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *DefU->GetName()), FRTLogSubject::World());
-				DefU->HideForDefeat();
 				DefU->PlayDefeatMontage();
 				OnUnitDefeated.Broadcast(DefU);
 			}
@@ -7718,22 +7739,39 @@ void ARTTurnManager::FinishPlayback()
 		}
 	}
 
-	// Catch-all: nasconde eventuali eliminati non ancora mostrati (hazard di Cleanup, oppure skip del playback).
+	// Fine della presentazione di morte. Da #2452 questo e' l'UNICO punto che nasconde, e le due cose che fa
+	// sono distinte:
+	//
+	//   1. il **catch-all dell'annuncio** — chi e' caduto in una fase che non e' stata riprodotta (`Cleanup`
+	//      non e' mai una fase di playback) o quando la risoluzione e' stata saltata. Qui il montaggio ha
+	//      finestra ZERO: e' il limite residuo dichiarato in #2452;
+	//   2. la **sparizione**, che vale per tutti — annunciati qui o in una fase precedente.
+	//
+	// ⚠️ L'ordine conta: annunciare prima di nascondere e' precisamente cio' che il difetto sbagliava.
 	for (const FRTResolvedEvent& D : PlaybackDefeated)
 	{
 		ARTUnit* const DefU = UnitByStableId(D.SourceStableUnitId);
-		if (DefU && !DefU->IsHidden())
+		if (!DefU)
 		{
+			continue;
+		}
+		if (!PlaybackDefeatShown.Contains(D.SourceStableUnitId))
+		{
+			PlaybackDefeatShown.Add(D.SourceStableUnitId);
 			AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *DefU->GetName()), FRTLogSubject::World());
-			DefU->HideForDefeat();
 			DefU->PlayDefeatMontage();
 			OnUnitDefeated.Broadcast(DefU);
+		}
+		if (!DefU->IsHidden())
+		{
+			DefU->HideForDefeat();
 		}
 	}
 
 	MoveAnims.Reset();
 	PlaybackAttacks.Reset();
 	PlaybackDefeated.Reset();
+	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
 	PlaybackPhases.Reset();
 
 	AddLogEvent(FString::Printf(TEXT("Risoluzione completata (%.1fs)"), PlaybackElapsedTotal), FRTLogSubject::World());

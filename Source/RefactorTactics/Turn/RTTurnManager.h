@@ -2164,6 +2164,22 @@ private:
 	TArray<FRTMoveAnim> MoveAnims;          // derivati dagli eventi Move
 	TArray<FRTResolvedEvent> PlaybackAttacks; // eventi Attack, mostrati in serie nel Blast
 	TArray<FRTResolvedEvent> PlaybackDefeated; // eventi Defeated, mostrati a fine della loro fase
+
+	/**
+	 * Chi ha gia' ricevuto l'annuncio di morte in questo playback, per `StableUnitId`.
+	 *
+	 * 🔴 **Esiste perche' `IsHidden()` non puo' piu' fare da guardia** (#2452). Fino al 2026-09-05
+	 * l'idempotenza dell'annuncio veniva dall'hide stesso: si nascondeva l'unita' e la si riconosceva
+	 * «gia' mostrata» perche' era nascosta. Ma nascondere PRIMA di `PlayDefeatMontage()` rendeva il
+	 * montaggio `Death` invisibile, quindi l'hide si e' spostato a `FinishPlayback` — e senza un
+	 * marcatore proprio il catch-all rifarebbe partire il montaggio e ribroadcasterebbe
+	 * `OnUnitDefeated` sulla stessa unita'.
+	 *
+	 * ⚠️ **Non se ne itera mai l'ordine** (solo `Contains`/`Add`): l'invariante «niente dipendenza
+	 * dall'ordine di un container hash» resta intatta.
+	 */
+	TSet<int32> PlaybackDefeatShown;
+
 	TArray<ERTMatchPhase> PlaybackPhases;   // fasi attive, in ordine
 	int32 PlaybackPhaseIdx = 0;
 	float PlaybackPhaseElapsed = 0.f;
