@@ -2,8 +2,59 @@
 
 > `CURRENT` · **Stato**: revisione chiusa · **mandato non eseguito, per decisione registrata in §6** · **Data**: 2026-09-05
 > **HEAD della revisione**: misure aperte a `6f6a9997`, chiuse a **`853e92b1`** (`origin/main`) — il delta è dichiarato in §2
+> **Aggiornato**: `b8ad0efb`, 2026-09-05 ~14:45Z — **§0**: il bersaglio di §6 è decaduto, la diagnosi regge
 > **Panel**: Wiegers (lead) · Fowler · Nygard · Adzic · Crispin · Cockburn · Newman
 > **Modo**: `critique` · **Perimetro**: la specifica RT3-A Wave 1. Nessun codice scritto, nessuna suite eseguita, nessun `.uasset` toccato.
+> **Scade quando**: `main` avanza sulla serie ANIM, o una delle issue di §5 cambia stato.
+
+---
+
+## 0. Aggiornamento — questo referto è decaduto in un'ora, e sul punto che contava
+
+Fra la stesura e il merge, **quattro issue della serie ANIM si sono chiuse**. Il §6 originale mandava la
+lane su #2441: **è chiusa**. Il §5 le contava «cinque issue aperte»: ne restano cinque, ma non le stesse.
+
+| Issue | Chiusa (UTC) | Portava |
+|---|---|---|
+| **#2447** · *ANIM CORE 3/4 · Binding e **resolver*** | **13:35:52** | 🔴 **il resolver** — chiuso **un'ora prima** che questa revisione fosse consegnata |
+| #2445 · ANIM CORE 1/4 · catalogo, `AV_ID` stabile | 13:35:56 | il catalogo |
+| #2446 · ANIM CORE 2/4 · lo scanner di Gadget | 13:35:58 | lo scan |
+| **#2441** · il contratto `Role × Variant` | **14:34:12** | ⚠️ **83 secondi dopo il merge di questo documento** |
+
+🔴 **#2447 è la scoperta che questa revisione ha mancato**, e il suo scope è RT3-A §6 e §3 `Q3` scritti
+prima:
+
+> *«**Resolver come funzione pura**, con esito **osservabile**: `SpecificVariant | GenericFallback |
+> MissingPresentation`. Contratto: se `ActiveVariantId` esiste e risolve → variante specifica; altrimenti
+> → fallback generico del `PresentationRole`.»* · *«⛔ **nessuna selezione automatica di un'altra
+> variante. Mai.**»*
+
+Funzione pura, esito strutturato, catena `specific → generic`, nessun first-wins. Ed esegue il
+DUPLICATION GATE meglio del mandato che lo predicava: nomina `URTPresentationBindingLibrary`
+([D-278](../../decisions/RT_PDR_00_Decision_Log.md), #1801) come owner adiacente e scrive perché sono
+**due assi diversi** — `ERTResolvedEventType` (6 valori) → cue, contro `Action.*` (~30) → `Role` →
+variante.
+
+### Perché non l'avevo trovata — un difetto di metodo, non di fortuna
+
+Le issue della serie sono state cercate con `gh issue list **--state open** --search …`. #2445, #2446 e
+#2447 erano **già chiuse** al momento della ricerca, quindi il filtro le ha rese invisibili. ⚠️ **Cercare
+l'owner di un design solo fra le issue aperte è cieco esattamente sul caso peggiore**: quello in cui il
+lavoro è già stato consegnato. Il predicato corretto è `--state all`.
+
+### Cosa cambia, e cosa no
+
+| | |
+|---|---|
+| ✅ **La diagnosi regge, rafforzata** | non costruire un secondo resolver: adesso il primo non è più un design in una issue, è codice su `main` con test |
+| ❌ **Il bersaglio di §6 decade** | #2441 e #2447 sono chiuse: non c'è più lavoro da assegnarvi |
+| 🎯 **Il bersaglio corretto è [#2448](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2448)** | `v0.1` `P1`, OPEN, **sbloccata** dalla chiusura di #2447 da cui dipendeva |
+
+**#2448 nomina il vero collo di bottiglia**, e lo dice meglio di come lo direbbe questo referto:
+
+> *«Il `TurnManager` chiama `PlayAttackMontage()` **senza parametri**. Cioè: oggi la clip la sceglie il
+> Blueprint. Un resolver che sceglie una variante può essere corretto, testato e completamente
+> **inerte**, perché nessuno gli chiede niente.»*
 
 ---
 
@@ -12,7 +63,8 @@
 Il mandato RT3-A è **operativamente disciplinato e architetturalmente cieco**: write-set, anti-vacuità e authority
 firewall sono di qualità alta, ma il DUPLICATION GATE che la specifica stessa impone al §1 ha **già una risposta**
 nel repository, e la risposta è che il contratto `Role × Variant × Promotion` che RT3-A vuole costruire da zero è
-già posseduto da **cinque issue aperte in milestone `v0.1 · Leggibilità`, P1**, create lo stesso giorno del mandato.
+già posseduto da una serie di issue in milestone `v0.1 · Leggibilità`, `P1`, create lo stesso giorno del mandato —
+e che **il resolver stesso era già stato consegnato** un'ora prima di questa revisione (#2447, **§0**).
 
 | | Voci |
 |---|---:|
@@ -108,16 +160,21 @@ sbagliata nel proprio dominio.
 
 ## 5. Il fatto che chiude il caso — `ANIM LAB` esisteva già
 
-Cinque issue **aperte**, milestone `v0.1 · Leggibilità`, `P1`, generate da `/implement-feature ANIM LAB` il
-**2026-09-05**, cioè lo stesso giorno del mandato RT3-A:
+Le issue della serie, milestone `v0.1 · Leggibilità`, `P1`, generate da `/implement-feature ANIM LAB` il
+**2026-09-05**, cioè lo stesso giorno del mandato RT3-A — **gli stati sono quelli di §0, non quelli
+misurati durante la stesura**:
 
-| Issue | Titolo | Cosa possiede |
-|---|---|---|
-| **#2441** | *ClipsPerHero si allarga a eroe × ruolo × variante* | **il contratto** `Role` + `Variant` |
-| **#2442** | *Centotredici file non sono centotredici animazioni…* | lo scan, e il gate di cook per ruolo |
-| **#2443** | *Anim Browser: … si promuovono a mano…* | **`PromotionState`** |
-| **#2444** | VALIDATION_EDITOR | la validazione lato Editor |
-| **#2448** | *ANIM LAB · sette ruoli su nove non hanno un consumatore* | la copertura dei ruoli |
+| Issue | Stato | Titolo | Cosa possiede |
+|---|---|---|---|
+| **#2445** | ✅ chiusa | ANIM CORE 1/4 · catalogo, `AV_ID` stabile | il catalogo |
+| **#2446** | ✅ chiusa | ANIM CORE 2/4 · lo scanner di Gadget | lo scan |
+| **#2447** | ✅ chiusa | ANIM CORE 3/4 · **Binding e resolver** | 🔴 **il resolver** — vedi §0 |
+| **#2441** | ✅ chiusa | *ClipsPerHero si allarga a eroe × ruolo × variante* | **il contratto** `Role` + `Variant` |
+| **#2442** | ⏳ aperta | *Centotredici file non sono centotredici animazioni…* | lo scan, e il gate di cook per ruolo |
+| **#2443** | ⏳ aperta | *Anim Browser: … si promuovono a mano…* | **`PromotionState`** |
+| **#2444** | ⏳ aperta | VALIDATION_EDITOR · golden flow su Gadget | la validazione lato Editor |
+| **#2448** | 🎯 aperta | *ANIM LAB · sette ruoli su nove non hanno un consumatore* | **il canale**: senza, il resolver è inerte |
+| **#2450** | ⏳ aperta | *I dodici montaggi `AM_<Pack>_{Attack,Hit,Death}` non esistono* | il contenuto, di #288 |
 
 **#2441 si dichiara il produttore del contratto**: *«questa issue **produce il contratto** contro cui le altre
 compilano»* · *«**Blocca**: #2442, #2443, #2444»*. E lo porta già scritto:
@@ -153,8 +210,12 @@ che RT3-A §3 chiede di *segnalare senza inventare* era già chiuso quando il ma
 
 ## 6. La decisione
 
-**RT3-A Wave 1 §4–§6 non si esegue.** La lane implementa il contratto già progettato in **#2441** —
-`ERTPresentationRole`, `FRTAnimVariant`, `ClipsPerHero → eroe × ruolo × variante` — invece di crearne un secondo.
+**RT3-A Wave 1 §4–§6 non si esegue.**
+
+> ⏱️ **Il bersaglio è cambiato dopo la stesura — vale §0.** Questa sezione mandava la lane a *implementare*
+> il contratto di **#2441**; #2441 e #2447 si sono chiuse nel frattempo e quel contratto **è già su
+> `main`**. Il bersaglio corrente è **#2448**, che apre il canale con cui il resolver esistente smette di
+> essere inerte. La decisione sotto — non costruirne un secondo — resta valida e si rafforza.
 
 Le ragioni, in ordine di peso:
 
@@ -255,11 +316,20 @@ Le misure sono `git`, `gh` e `grep` su `6f6a9997` → `853e92b1`, con il delta d
 
 ## 9. Richieste di integrazione
 
-### Per RT3-B — `feat/rt3b-graykit-animation-feasibility`
+### Per RT3-B — ✅ nessuna collisione: ha consegnato
 
-🔴 **Verificare #2441 prima di produrre una tassonomia di ruolo.** Il mandato RT3-A dichiara che «la lane B sta
-misurando» il problema della tassonomia: se B lo misura e propone un enum, e #2441 ne ha già uno approvato con
-nove valori, il conflitto arriva al merge invece che alla revisione.
+L'avvertimento originale era: *«verificare #2441 prima di produrre una tassonomia di ruolo — se B propone un
+enum, il conflitto arriva al merge invece che alla revisione»*. **Non si è materializzato.** B ha consegnato
+un referto e non un enum ([PR #2469](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2469),
+mergiata alle **14:32:58Z**, nove secondi dopo questa) —
+[`rt3b-graykit-animation-feasibility-2026-09-05.md`](rt3b-graykit-animation-feasibility-2026-09-05.md).
+`git grep "enum class ERT.*Role"` su `main` dà **un solo file**: `RTUnitAnimInstance.h`.
+
+🔑 **E le due lane convergono da lati opposti.** B risponde `SI, MA` e il `MA` è *«una decisione già presa
+che nessuno ha ancora registrato»* — il rig di fallback, deciso chiudendo #2449, senza `D-nnn` e con due
+gate aperti (costo binario, licenza). A risponde *«il resolver esiste già»*. Due mandati indipendenti, la
+stessa forma di risposta: **il lavoro della Wave 1 era in gran parte già fatto o già deciso, e nessuno dei
+due mandati lo sapeva.**
 
 ### Per RT3-C — `docs/technical/test-manuali-pie.md` · `docs/roadmap/editor-sessions.yaml`
 
@@ -277,7 +347,8 @@ divieto vale.
 ## 10. Cosa questo documento NON fa
 
 - ⛔ non esegue il mandato RT3-A, e non ne salva le parti eseguibili: la riassegnazione è totale;
-- ⛔ non implementa #2441 — registra la decisione di assegnarvi la lane, non il lavoro;
+- ⛔ non implementa nulla della serie ANIM — registra dove va la lane, non il lavoro;
+- ⛔ non riapre #2441, #2445, #2446 né #2447: sono chiuse `COMPLETED`, e §0 le registra, non le contesta;
 - ⛔ non decide se il fallback GrayKit per Animation sia una issue nuova o un'estensione di #2441 (§6);
 - ⛔ non tocca `URTIconCatalogData` né #267: il Channel Icon ha owner, ed è `E25`;
 - ⛔ non crea una Epic, non assegna un `D-nnn`, non modifica il Decision Log;
