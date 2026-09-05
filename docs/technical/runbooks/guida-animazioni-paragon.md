@@ -143,6 +143,35 @@ Misurata sul disco il **2026-08-13**, cartella
 > ⛔ **Il runtime non legge mai il catalogo.** Un JSON sotto `Data/` non è un asset versionato sotto
 > `/Game/RT`, quindi non è un referente che il cook sappia seguire (`D-262`): farlo leggere a runtime
 > metterebbe la presentazione su una via che il pacchetto non porta.
+>
+> 🛠️ **Come si passa dall'uno all'altro, dal 2026-09-05**
+> ([#2443](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2443)).
+>
+> Il pannello **Window ▸ Tools ▸ Anim Browser** mostra le clip del catalogo, le fa vedere in movimento e
+> raccoglie la decisione: `Promote`, `Candidate`, `Reject`. Da una clip `Promoted` si lega un
+> `(eroe, ruolo)`; la variante entra **sempre inattiva**, e `Make Active` la accende spegnendo l'altra
+> nello stesso passo.
+>
+> Poi il commandlet traduce il testo in asset:
+>
+> ```powershell
+> & "<engine>/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "<repo>/RefactorTactics.uproject" `
+>     -run=RTBuildAnimBindings           # aggiungi -DryRun per leggere e validare senza scrivere
+> ```
+>
+> Genera `/Game/RT/Anim/ABP_RTUnitAuthored`, figlio di `URTUnitAnimInstance` con `ClipsPerHero` scritto
+> sul CDO. Si avvia ed esce da solo: non lascia un Editor aperto.
+>
+> ⚠️ **Perché funziona senza ricompilare**: `ClipsPerHero` è `EditDefaultsOnly`, e
+> `ARTUnit::ApplyUnitAnimClass` dichiara che *«una `Anim Class` già scelta in Blueprint VINCE»*.
+>
+> ⛔ **Il commandlet rifiuta un catalogo non valido.** Due varianti attive sullo stesso `(eroe, ruolo)`
+> sono scrivibili nel testo ma non a runtime: generare comunque significherebbe sceglierne una per
+> posizione nell'array, cioè far dipendere la clip che suona dall'ordine delle righe di un file.
+>
+> ⚠️ **L'anteprima resta vuota su un checkout senza i pack**, e lo dice invece di mostrare un riquadro
+> nero: `Content/FabAsset/` è gitignorato. E monta la mesh dello **Skeleton della clip** — una clip su un
+> corpo che non è il suo produce deformazioni che sembrano un difetto della clip.
 
 Le quattro caselle che fanno perdere più tempo, e perché:
 
