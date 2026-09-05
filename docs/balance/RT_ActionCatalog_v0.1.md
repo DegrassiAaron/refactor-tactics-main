@@ -102,8 +102,10 @@ Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch
 >
 > `Interact` è entrata il **2026-08-26**: era fuori perché *«nessun codice risolve un'interazione»*, e quel
 > motivo è scaduto con [D-148](../decisions/RT_PDR_00_Decision_Log.md)/[D-151](../decisions/RT_PDR_00_Decision_Log.md)
-> — apre le porte, e solo quelle. Il criterio d'ammissione è sempre lo stesso: *si aggiunge la generica quando
-> l'altra metà esiste*. Storia e riserve in
+> — agisce sulle porte, e solo su quelle. ⏱️ *Diceva «apre le porte» fino al 2026-09-05: da
+> [D-331](../decisions/RT_PDR_00_Decision_Log.md) (`#2380`, chiude `INT-7`) l'azione **commuta** — apre una porta
+> chiusa e chiude una aperta — mentre `Locked` e `Destroyed` sono rifiuti con reason code distinti.* Il criterio
+> d'ammissione è sempre lo stesso: *si aggiunge la generica quando l'altra metà esiste*. Storia e riserve in
 > [`../gameplay/brief-azioni-generiche-overwatch.md`](../gameplay/brief-azioni-generiche-overwatch.md).
 >
 > ⌨️ **E dal 2026-08-26 il giocatore le raggiunge tutte**: i tasti abilità sono `1`–`9` più `0`, dieci

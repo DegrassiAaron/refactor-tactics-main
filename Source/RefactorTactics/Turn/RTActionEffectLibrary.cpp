@@ -54,12 +54,18 @@ TArray<FRTActionEvent> URTActionEffectLibrary::ProduceEvents(const FRTActionInst
 			continue; // dichiarato ma vuoto: l'azione occupa lo slot e basta
 
 		case ERTActionEffect::SetDoorState:
+		case ERTActionEffect::ToggleDoorState:
 			// Come `DamageStructure`: non e' un evento verso un'unita'. Lo raccoglie il Blast sul bordo, e un
 			// evento con `TargetUnitId` valido lo farebbe applicare a chi sta dietro la porta.
 			//
 			// Questo `case` NON e' garantito dallo switch: il commento qui sopra promette che aggiungere un
 			// effetto senza tradurlo non compili, ma non e' vero — passerebbe in silenzio producendo un evento
 			// con `Amount` 0.
+			//
+			// ⏱️ *E la promessa e' stata smentita di nuovo il 2026-09-05 (`#2380`): `ToggleDoorState` e'
+			// entrato nell'enum, la build e' passata **verde**, e senza questa riga `Action.Interact` avrebbe
+			// ricominciato a produrre un evento verso chi sta oltre la porta. La guardia vera e'
+			// `Actions.Interact.DeclaresDoorToggle`, che chiama `TestActionProducesNoUnitEvents`.*
 			continue;
 
 		case ERTActionEffect::DamageStructure:
