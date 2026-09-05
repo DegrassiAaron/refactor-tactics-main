@@ -202,7 +202,13 @@ int32 URTAnimCatalogLibrary::AllocateIds(FRTAnimCatalog& Catalog, const TArray<F
 
 		// 🔴 L'ID viene dall'high-water mark, e da NIENT'ALTRO. Questa funzione non legge gli ID gia'
 		// assegnati: e' cio' che le rende impossibile riciclarne uno dopo una rimozione.
-		Entry.Id = FName(*MakeId(Catalog.NextId));
+		int32 MutantHighest = 0;
+		for (const FRTAnimCatalogEntry& Seen : Catalog.Entries)
+		{
+			int32 SeenNumber = 0;
+			if (ParseId(Seen.Id, SeenNumber)) { MutantHighest = FMath::Max(MutantHighest, SeenNumber); }
+		}
+		Entry.Id = FName(*MakeId(MutantHighest + 1));
 		++Catalog.NextId;
 
 		// Si scrive il path e basta. ⛔ Nemmeno `AssetName` viene dedotto dalla stringa: derivare un dato dal
