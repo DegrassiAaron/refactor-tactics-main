@@ -671,6 +671,9 @@ namespace
 		U.Health = 40;
 		U.Shield = 10;
 		U.bAlive = true;
+		// `D-331`: due slot con ricariche DIVERSE fra loro e diverse da zero. Un array uniforme non
+		// distinguerebbe un `Mix` che guarda solo il primo elemento, ne' uno che ne somma i valori.
+		U.AbilityCooldowns = { 2, 1 };
 		return { U };
 	}
 }
@@ -707,6 +710,8 @@ bool FRTChecksumSeesEveryUnitFieldTest::RunTest(const FString&)
 		{ TEXT("Health"),     [](FRTUnitStateDigest& U) { U.Health = 55; } },                   // baseline 40
 		{ TEXT("Shield"),     [](FRTUnitStateDigest& U) { U.Shield = 20; } },                   // baseline 10
 		{ TEXT("bAlive"),     [](FRTUnitStateDigest& U) { U.bAlive = false; } },
+		// `D-331`, `#2366`: cambia UN SOLO slot, e da un valore non nullo a un altro non nullo.
+		{ TEXT("AbilityCooldowns"), [](FRTUnitStateDigest& U) { U.AbilityCooldowns[1] = 3; } },   // baseline {2,1}
 		// `Facing` — `D-261`, `#1800`: e' stato logico, non presentazione, e `Combat/` lo consuma.
 		{ TEXT("Facing"),     [](FRTUnitStateDigest& U) { U.Facing = ERTHexDirection::W; } },
 		{ TEXT("Cell.X"),     [](FRTUnitStateDigest& U) { U.Cell = FRTCellId(-1, -1, 0); } },   // baseline (1,-1,0)
@@ -739,6 +744,34 @@ bool FRTChecksumSeesEveryUnitFieldTest::RunTest(const FString&)
 
 		TestNotEqual(TEXT("vita e scudo non collidono fra loro"),
 			HashOf(HealthHeavy), HashOf(ShieldHeavy));
+	}
+
+	// ⚠️ **L'ORDINE degli slot conta, e il caso per-campo non lo prova** — `D-331`. Uno slot 0 in ricarica
+	// per due turni non e' lo stesso stato di uno slot 1 in ricarica per due turni: cambia QUALE azione e'
+	// negata. Un `Mix` che sommasse i cooldown, o che ordinasse l'array come fa con `Statuses`, li renderebbe
+	// identici — e ogni assertion per-campo qui sopra passerebbe comunque.
+	{
+		TArray<FRTUnitStateDigest> PrimoSlot = RichBaseUnits();
+		PrimoSlot[0].AbilityCooldowns = { 3, 0 };
+
+		TArray<FRTUnitStateDigest> SecondoSlot = RichBaseUnits();
+		SecondoSlot[0].AbilityCooldowns = { 0, 3 };
+
+		TestNotEqual(TEXT("lo slot in ricarica conta: {3,0} non e' {0,3}"),
+			HashOf(PrimoSlot), HashOf(SecondoSlot));
+	}
+
+	// ⚠️ **E la LUNGHEZZA**: un kit da due abilita' tutte pronte non e' un kit da tre tutte pronte. Senza il
+	// `Mix` del conteggio, `[0,0]` e `[0,0,0]` mescolerebbero la stessa sequenza di zeri.
+	{
+		TArray<FRTUnitStateDigest> KitCorto = RichBaseUnits();
+		KitCorto[0].AbilityCooldowns = { 0, 0 };
+
+		TArray<FRTUnitStateDigest> KitLungo = RichBaseUnits();
+		KitLungo[0].AbilityCooldowns = { 0, 0, 0 };
+
+		TestNotEqual(TEXT("la dimensione del kit conta: due slot pronti non sono tre"),
+			HashOf(KitCorto), HashOf(KitLungo));
 	}
 
 	// Stessa domanda per le due coordinate: `(q=2,r=1)` e `(q=1,r=2)` sono celle diverse, e un `MixCell` che
@@ -790,7 +823,8 @@ bool FRTChecksumUnitFieldListIsCompleteTest::RunTest(const FString&)
 	// stati temporanei, caso 3). Se questo elenco e quello della struct divergono, uno dei due va aggiornato —
 	// e quale non è automatico, per questo il test dice cosa è cambiato invece di adattarsi da solo.
 	TArray<FString> Covered = { TEXT("UnitId"), TEXT("Cell"), TEXT("Health"),
-		TEXT("Shield"), TEXT("bAlive"), TEXT("Facing"), TEXT("Statuses") };
+		TEXT("Shield"), TEXT("bAlive"), TEXT("Facing"), TEXT("Statuses"),
+		TEXT("AbilityCooldowns") };
 	Covered.Sort();
 
 	TestEqual(

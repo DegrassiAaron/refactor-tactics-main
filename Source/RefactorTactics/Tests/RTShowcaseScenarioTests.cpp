@@ -2157,47 +2157,39 @@ bool FRTShowcaseStateHashPerTurnTest::RunTest(const FString&)
 		PerTurno.Add(Diritto.StateHash);
 	}
 
-	// 🔴 **SETTE valori distinti su otto turni, e la collisione e' NOTA, misurata e attesa.**
+	// ✅ **OTTO valori distinti su otto turni, e il `7` che stava qui e' caduto come previsto** — `D-331`,
+	// `#2366`.
 	//
-	// Questa riga asseriva `Distinti.Num() == Turns.Num()`, cioe' otto, e passava. ⚠️ **Passava per il motivo
-	// sbagliato**: nel digest c'era `Energy`, che cresceva di `EnergyPerTurn` a ogni Cleanup di ogni unita'
-	// viva. Un contatore monotono rende ogni turno distinto **qualunque cosa accada nella partita** — faceva
-	// da marca temporale, non da stato. [D-324](../../../../docs/decisions/RT_PDR_00_Decision_Log.md) l'ha
-	// tolta dal gameplay, e la misura ha smesso di essere mascherata.
+	// Questa riga ha avuto tre stati, e vale la pena leggerli in fila perche' due erano verdi per motivi
+	// diversi. Asseriva **otto** e passava, ma per il motivo sbagliato: nel digest c'era `Energy`, che
+	// cresceva a ogni Cleanup e faceva da marca temporale — ogni turno distinto **qualunque cosa accadesse**.
+	// `D-324` l'ha rimossa e il conteggio e' sceso a **sette**: T1 e T2 collidevano, perche' il T2 e' il
+	// *whiff* — Wraith arma `InterceptShot` su una cella che nessuno attraversa — e nessuno dei sette campi
+	// di allora cambiava. `#610` ha pinnato quel `7` come **segnalibro**, dichiarando che sarebbe caduto.
 	//
-	// **T1 e T2 producono lo stesso hash, e lo scenario dichiara perche'**: il T2 e' il *whiff* — Wraith
-	// arma `Hero.Wraith.InterceptShot` su una cella che nessuno attraversa. Nessuno si muove, nessuno subisce
-	// danno, nessuno cambia stato: dei sette campi del digest non ne cambia **nessuno**.
+	// ✅ Ora il digest porta i cooldown: il `Cooldown 2` che il whiff paga — *«la meta' del costo che rende
+	// il whiff una scelta»*, dice il catalogo eroi — e' finalmente stato che il checksum vede, e i due turni
+	// si separano.
 	//
-	// 🔴 **Ma una cosa cambia, e il digest non la vede: il COOLDOWN.** `InterceptShot` dichiara `Cooldown 2`,
-	// e il catalogo eroi scrive che *«chi scommette paga il cooldown anche quando sbaglia, ed e' la meta' del
-	// costo che rende il whiff una scelta»*. Dopo il T2 Wraith **non puo' rifare** quell'azione per due turni:
-	// e' stato di gioco, e due partite che differissero solo per quello hanno lo stesso `StateHash`. E' la
-	// stessa classe di difetto che [D-261](../../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha corretto
-	// per il `Facing`, e soddisfa il criterio di `D-284` (3) — *«un campo entra solo se due oggetti possono
-	// differire solo per quello»*.
-	//
-	// ⛔ **Non e' corretto qui**: aggiungere un campo al digest e' una decisione, non un adattamento di test.
-	// Owner: #2366.
-	//
-	// ✅ **Questa riga e' il segnalibro.** Quando il cooldown entrera' nel digest, T1 e T2 si separeranno e
-	// questa assertion cadra' — e chi la legge trovera' scritto qui che la caduta e' la **conferma** attesa,
-	// non una regressione: si porta il `7` a `8` e si cancella questo blocco.
-	TestEqual(TEXT("sette distinti su otto: T1 e T2 collidono perche' il whiff non tocca nessun campo del "
-	               "digest — il cooldown che paga non ne fa parte"),
-		Distinti.Num(), 7);
+	// ⚠️ **Otto e' di nuovo il valore atteso, ma non e' lo stesso otto di prima.** Il primo lo produceva un
+	// contatore che cresceva da solo; questo lo producono otto turni che cambiano davvero.
+	TestEqual(TEXT("e gli otto stati sono DISTINTI: l'hash non e' una costante travestita"),
+		Distinti.Num(), Scenario.Turns.Num());
 
-	// La collisione e' ESATTAMENTE quella dichiarata, non una qualsiasi: se collidessero due altri turni il
-	// conteggio resterebbe 7 e la riga sopra tacerebbe.
+	// 🔴 **T1 e T2 SEPARATI, ed e' il caso che pinna la correzione di `#2366`.**
 	//
-	// ⚠️ Nessuna guardia `if (PerTurno.Num() >= 2)`: un salto silenzioso toglierebbe di mezzo proprio
-	// l'assertion piu' stretta senza dirlo. Il loop gira su otto turni gia' verificati sopra — se ne
-	// producesse meno, e' un errore da dichiarare, non da aggirare.
+	// Era l'assertion opposta: `TestEqual(PerTurno[0], PerTurno[1])`, che pinnava la collisione nota. Il
+	// conteggio a otto qui sopra non basterebbe da solo a dire che sono proprio QUESTI due a essersi
+	// separati, e sono l'unica coppia che il difetto faceva coincidere.
+	//
+	// ⚠️ Nessuna guardia `if (PerTurno.Num() >= 2)`: un salto silenzioso toglierebbe di mezzo l'assertion
+	// piu' stretta senza dirlo.
 	if (!TestEqual(TEXT("premessa: un hash per turno"), PerTurno.Num(), Scenario.Turns.Num()))
 	{
 		return false;
 	}
-	TestEqual(TEXT("e la collisione e' T1 con T2, non un'altra coppia"), PerTurno[0], PerTurno[1]);
+	TestNotEqual(TEXT("T1 e T2 non collidono piu': il cooldown del whiff entra nel digest"),
+		PerTurno[0], PerTurno[1]);
 
 	return true;
 }
