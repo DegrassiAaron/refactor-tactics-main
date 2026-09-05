@@ -223,16 +223,43 @@ int32 URTHexCombatLibrary::HexCoverDamageReduction(const URTHexMapAsset* Map, co
 int32 URTHexCombatLibrary::EffectiveCoverReduction(const URTHexMapAsset* Map,
 	const FRTHexCombatUnit& Attacker, const FRTHexCombatUnit& Target, ERTAbilityShape Shape)
 {
+	bool bIgnorato = false;
+	return EffectiveCoverReduction(Map, Attacker, Target, Shape, bIgnorato);
+}
+
+int32 URTHexCombatLibrary::EffectiveCoverReduction(const URTHexMapAsset* Map,
+	const FRTHexCombatUnit& Attacker, const FRTHexCombatUnit& Target, ERTAbilityShape Shape,
+	bool& bOutFacingWasRead)
+{
+	bOutFacingWasRead = false;
+
 	const int32 Reduction = HexCoverDamageReduction(Map, Attacker.Cell, Target.Cell, Shape);
 
 	// CP 16.2: l'emisfero posteriore e' SCOPERTO. Un colpo che non arriva dall'arco frontale annulla la
 	// riduzione — non aggiunge danno. E' la differenza fra togliere una protezione e introdurre un bonus di
 	// fianco: il secondo avrebbe richiesto un numero nuovo da bilanciare, il primo no.
-	if (Reduction > 0 && !IsInFrontalArc(Target.Cell, Target.Facing, Attacker.Cell))
+	//
+	// 🔴 **Il corto circuito e' cio' che `bOutFacingWasRead` esiste per riportare** (`#2341`). Senza
+	// copertura la seconda condizione non viene valutata affatto: il facing **non viene guardato**, e una
+	// voce che dichiarasse la lettura sarebbe un'invenzione. Il chiamante il valore ce l'ha gia' — l'ha
+	// passato lui in `Target.Facing` — ma non puo' sapere se sia stato raggiunto, e questo e' l'unico
+	// posto che lo sa.
+	if (Reduction > 0)
 	{
-		return 0;
+		bOutFacingWasRead = true;
+		if (!IsInFrontalArc(Target.Cell, Target.Facing, Attacker.Cell))
+		{
+			return 0;
+		}
 	}
 	return Reduction;
+}
+
+bool URTHexCombatLibrary::CoverReadTargetFacing(const FRTHexAttackHit& Hit)
+{
+	// La copertura NOMINALE ricomposta dai due termini che il colpo porta: quella rimasta piu' quella che
+	// la direzione ha annullato. `EffectiveCoverReduction` legge il facing se e solo se quella e' positiva.
+	return (Hit.CoverReduction + Hit.CoverBypassedByFacing) > 0;
 }
 
 FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTHexAttackHit& Hit,
