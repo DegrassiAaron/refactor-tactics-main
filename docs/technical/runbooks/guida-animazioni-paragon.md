@@ -159,7 +159,7 @@ Il grafo è `URTUnitAnimInstance` (`Source/RefactorTactics/Unit/RTUnitAnimInstan
 | «+ Variable `bIsMoving`, Event Blueprint Update Animation, Cast To `RTUnit`» | il proxy legge `ARTUnit::bIsMovingVisually` da sé, senza bind e senza cast in Blueprint |
 | «Add New State Machine `Locomotion`, stati Idle e Run, transizioni» | `FRTUnitAnimProxy::Initialize` monta `Idle` e `Run` in un `FAnimNode_TwoWayBlend` e ne pilota l'`Alpha` |
 | «Anim Class = `ABP_<Eroe>`» | `ARTUnit::ApplyUnitAnimClass()` allo spawn; il default è `URTUnitAnimInstance`, assegnato nel costruttore |
-| «le clip si prendono pack per pack da [AS.3b](#as3b--le-clip-dei-quattro-pack-del-roster)» | `ClipsPerHero`, `TSoftObjectPtr` composti a runtime — restano **dati diffabili**, non un binario |
+| «le clip si prendono pack per pack da [AS.3b](#as3b--le-clip-dei-quattro-pack-del-roster)» | `ClipsPerHero`, `TSoftObjectPtr` composti a runtime — restano **dati diffabili**, non un binario. ⚠️ Dal 2026-09-05 la mappa è per **ruolo × variante** ([#2441](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2441)); il grafo ne legge due, `Idle` e `Move` |
 
 ⚠️ **Il `Try Get Pawn Owner` resta lo scoglio, ma non è più tuo.** `ARTUnit` deriva da **`AActor`** e non da
 `APawn`, quindi quel nodo restituisce `null` e la macchina resterebbe in `Idle` senza un errore, senza un
@@ -285,6 +285,28 @@ storia di questo file.
 deducono ([AS.3b](#as3b--le-clip-dei-quattro-pack-del-roster) conta sei caselle su venti che divergono). Poi
 aggancia la Skeletal Mesh al suo `BP_Unit_<Eroe>`, che è l'unico passo rimasto in editor
 ([AS.4a](#as4a--locomozione-idle--run-obiettivo-i-quattro-eroi-corrono-nel-move)).
+
+⚠️ **La forma di quella riga è cambiata il 2026-09-05
+([#2441](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2441)), il contenuto no.** Non è più
+una coppia `Idle`/corsa: è una mappa per **ruolo**, e ogni ruolo porta una lista di varianti più l'id di
+quella attiva.
+
+```text
+ClipsPerHero[HeroId].PerRole[ERTPresentationRole::Idle].Variants[0].Clip
+ClipsPerHero[HeroId].PerRole[ERTPresentationRole::Idle].ActiveClipVariant
+```
+
+I default del roster usano il costruttore `MakeClips(Pack, Idle, Move)`, che scrive **una** variante per
+ruolo e la rende attiva: per un eroe in più la riga da copiare resta una sola. E i path restano gli stessi —
+la migrazione non ha toccato nessuno dei venti nomi misurati in AS.3b.
+
+⚠️ **`Run` si chiama `Move` fra i ruoli**, perché il ruolo è la fase del turno e non la clip. Il nome della
+clip resta quello del disco, e su Gadget è `Run_Fwd`.
+
+⚠️ **Il grafo continua a leggere due ruoli.** `ERTPresentationRole` ne nomina nove perché servono
+all'authoring, ma `FRTUnitAnimProxy::Initialize` monta `Idle` e `Move` e nient'altro: `Attack`, `Hit` e
+`Death` passano ancora dai tre `BlueprintImplementableEvent`, e gli altri quattro non hanno consumatore.
+Popolare un ruolo che nessuno legge non fa suonare niente.
 
 ## Nota — fix ordine-spawn (applicato)
 `ARTGameMode::BeginPlay` ora spawna il `TurnManager` **prima** delle unità: in `BP_Unit` puoi agganciarti ai

@@ -517,8 +517,10 @@ TSoftObjectPtr<UAnimSequenceBase> ARTUnit::GhostFallbackClipFor(
 	{
 		return nullptr;
 	}
-	const FRTLocomotionClips* Trovate = Clips->FindClipsFor(HeroId);
-	return Trovate ? Trovate->Idle : TSoftObjectPtr<UAnimSequenceBase>(nullptr);
+	// ⚠️ **La variante ATTIVA del ruolo `Idle`**, non «il campo Idle»: dal 2026-09-05 un ruolo puo' avere
+	// piu' varianti e nessuna attiva. `ActiveClipFor` restituisce vuoto in tutte e tre le vie che danno
+	// «niente» — eroe fuori catalogo, ruolo non popolato, nessuna attiva — e nessuna e' un errore.
+	return Clips->ActiveClipFor(HeroId, ERTPresentationRole::Idle);
 }
 
 TSoftObjectPtr<UAnimSequenceBase> ARTUnit::GhostFallbackClipPath() const
