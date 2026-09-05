@@ -470,6 +470,20 @@ private:
 	 */
 	UFUNCTION()
 	void HandleLockInCommitted();
+
+	/**
+	 * Garantisce che `HandleLockInCommitted` sia iscritto al commit, una volta sola (`#2390`).
+	 *
+	 * 🔴 **Iscriversi dentro `OnLockIn` non basta, ed e' il difetto che questa funzione chiude.** Li'
+	 * l'iscrizione avviene al primo **Ready**: un primo turno chiuso dal TETTO trova il delegate senza
+	 * ascoltatori, e l'anteprima resta accesa per tutta la risoluzione mostrando una minaccia gia' decisa.
+	 * Il broadcast parte lo stesso — `HexMatch.LockInCommittedFiresOnPlanningTimeout` lo prova — ma un
+	 * annuncio raggiunge solo chi si e' iscritto.
+	 *
+	 * ⚠️ **Si vede solo prima del PRIMO Ready**: `AddUniqueDynamic` punta al `TurnManager`, che e' lo
+	 * stesso oggetto per tutto il match, quindi dal primo Ready in poi l'iscrizione persiste da se'.
+	 */
+	void EnsureLockInCommittedSubscription(class ARTTurnManager* TurnManager);
 	// Uno per posizione del kit, e sono one-liner che passano tutti da `SelectAbilityForCurrent`. Uno per
 	// posizione e non un handler solo perche' l'indice deve arrivare dalla BINDATURA: `FInputActionValue`
 	// porta il valore, non l'azione che l'ha prodotto, quindi un handler unico non saprebbe quale tasto e'
