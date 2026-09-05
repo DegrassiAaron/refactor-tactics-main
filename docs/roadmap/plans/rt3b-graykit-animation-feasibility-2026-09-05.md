@@ -188,7 +188,7 @@ cui un fallback GrayKit si aggancerebbe, ed è già scritto con la disciplina ch
 | `Move` | `bIsMovingVisually`, `SetVisualLocation` |
 | `Attack` | `PlayAttackMontage` (attaccante), `PlayHitMontage` (bersaglio) |
 | `Defeated` | `HideForDefeat`, `PlayDefeatMontage` |
-| `HazardDamage` | *NoPresentation* — per scelta, ma ⚠️ **senza produttore** |
+| `HazardDamage` | *NoPresentation* — per scelta. ✅ Il produttore **esiste** da [#2460](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2460): l'assenza è sul disegno, non sull'evento |
 | `AttackFootprint` · `ReactionResolved` · `StatusChanged` | *NoPresentation* — assenza **temporanea e attesa** |
 
 Il `TurnManager` chiama le cue da sé (`RTTurnManager.cpp:7628-7629, 7655-7656, 7671, 7729`). La durata

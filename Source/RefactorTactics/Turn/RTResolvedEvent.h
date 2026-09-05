@@ -131,7 +131,15 @@ struct FRTResolvedEvent
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	int32 SourceStableUnitId = 0;
 
-	/** Chi ha subito, come `ARTUnit::StableUnitId`. `0` = nessuno. Solo `Attack` lo valorizza. */
+	/**
+	 * Chi ha subito, come `ARTUnit::StableUnitId`. `0` = nessuno.
+	 *
+	 * Lo valorizzano `Attack` e — da `#2460` — `HazardDamage`. ⚠️ **Sul secondo e' l'UNICO campo che porta un
+	 * soggetto**: in un danno da terreno non c'e' un attaccante, quindi `SourceStableUnitId` resta `0`, ed e'
+	 * la convenzione gia' scelta da `#625`/`#1150` sul canale della traccia. Chi consuma deve leggere quello
+	 * `0` come «nessuno» ([D-063]) e non come «l'unita' numero zero» — un evento di danno ambientale letto
+	 * dal verso sbagliato accrediterebbe il colpo a chi l'ha subito.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	int32 TargetStableUnitId = 0;
 

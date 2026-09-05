@@ -108,7 +108,9 @@ UENUM(BlueprintType)
 enum class ERTResolvedEventType : uint8
 {
     Move, Attack, HazardDamage, Defeated,
-    AttackFootprint                          // l'impronta a terra di un attacco — D-301
+    AttackFootprint,                         // l'impronta a terra di un attacco — D-301
+    ReactionResolved,                        // una reazione dichiarata e' scattata — #2191
+    StatusChanged                            // uno stato e' nato o morto — #2245
 };
 
 USTRUCT(BlueprintType)
@@ -117,7 +119,8 @@ struct FRTResolvedEvent
     ERTMatchPhase        Phase;              // fase in cui l'evento è stato risolto
     ERTResolvedEventType Type;
     int32                SourceStableUnitId; // ID, non puntatore (#1800). 0 = nessuno (D-063)
-    int32                TargetStableUnitId; // solo Attack
+    int32                TargetStableUnitId; // Attack e HazardDamage (#2460). Su HazardDamage e' l'unico
+                                             // soggetto: Source resta 0, non c'e' un attaccante
     TArray<FRTCellId>    Path;               // per Move: start + celle attraversate, in ordine
     TArray<FRTKnowledgeVerdict> CellVerdicts;// parallelo a Path per indice — D-223 / #1525
     int32                Amount;             // danno / scudo / durata, secondo Type
