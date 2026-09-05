@@ -17,8 +17,31 @@ enum class ERTPresentationKind : uint8
 {
 	/** L'evento si mostra: la voce elenca le cue richieste. */
 	Cues,
-	/** L'evento NON si mostra, e qualcuno lo ha deciso. Richiede un motivo scritto (`Rationale`). */
-	NoPresentation
+	/**
+	 * L'evento NON si mostra, e qualcuno lo ha **deciso**. Richiede un motivo scritto (`Rationale`).
+	 *
+	 * ⛔ Non usarlo per un'assenza che si sa gia' temporanea: quello e' `PendingPresentation`.
+	 */
+	NoPresentation,
+	/**
+	 * L'evento **si mostrera'**, e la cue non e' ancora stata scritta (`#2483`).
+	 *
+	 * 🔑 **Perche' non basta un `NoPresentation` con la nota nel motivo.** Fino a `#2483` la differenza fra
+	 * *«non si mostra per scelta»* e *«nessuno ha ancora scritto la cue»* viveva **in prosa**, dentro la
+	 * stringa di `Rationale` — tre voci su quattro chiudevano con «va RIVISTA, non ereditata», e nessuna
+	 * macchina leggeva quella frase. Il referto di [`#1801`] §5.3 aveva gia' scritto il principio per un
+	 * collasso gemello: *«sono due stati diversi, e senza questa riga collassano nel medesimo»*.
+	 *
+	 * ⚠️ **In CODA, e non accanto a `NoPresentation`.** E' un `uint8` esposto a Blueprint: inserirlo in mezzo
+	 * rinumererebbe `NoPresentation` e cambierebbe in silenzio ogni default gia' serializzato. E' la stessa
+	 * regola che `ERTResolvedEventType` scrive per `AttackFootprint`.
+	 *
+	 * 🔑 **Richiede `PendingOwner` OLTRE al motivo**, e non per pedanteria: senza il nome di chi la sciogliera',
+	 * «in attesa» e' una promessa che nessuno puo' riscuotere. Si costruisce solo da `MakePendingPresentation`.
+	 *
+	 * ⛔ **Il default resta `Cues`** — vedi il commento dell'enum: un default che copre e' il difetto d'origine.
+	 */
+	PendingPresentation
 };
 
 /**
@@ -58,19 +81,54 @@ struct FRTPresentationBinding
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Presentation")
 	FString Rationale;
 
+	/**
+	 * CHI fara' nascere la cue: una issue (`#2454`), un `D-nnn` o un checkpoint.
+	 *
+	 * Significativo **solo** con `Kind == PendingPresentation`, dove e' **obbligatorio**: senza, «in attesa»
+	 * non e' interrogabile — non si puo' chiedere *«questo owner e' ancora aperto?»*, che e' l'unica domanda
+	 * per cui la distinzione esiste.
+	 *
+	 * ⛔ Vuoto per `Cues` e per `NoPresentation`: li' non c'e' niente da attendere.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Presentation")
+	FString PendingOwner;
+
 	FRTPresentationBinding() = default;
 
 	/** Voce con cue. */
 	FRTPresentationBinding(ERTResolvedEventType InType, const TArray<FName>& InCues)
 		: Type(InType), Kind(ERTPresentationKind::Cues), Cues(InCues) {}
 
-	/** Voce `NoPresentation`: il motivo non e' decorativo, e' cio' che la distingue da un'assenza. */
+	/**
+	 * Voce `NoPresentation`: il motivo non e' decorativo, e' cio' che la distingue da un'assenza.
+	 *
+	 * ⛔ **Solo per un'assenza DECISA.** Se la cue e' attesa, `MakePendingPresentation`.
+	 */
 	static FRTPresentationBinding MakeNoPresentation(ERTResolvedEventType InType, const FString& InRationale)
 	{
 		FRTPresentationBinding B;
 		B.Type = InType;
 		B.Kind = ERTPresentationKind::NoPresentation;
 		B.Rationale = InRationale;
+		return B;
+	}
+
+	/**
+	 * Voce `PendingPresentation`: l'assenza e' temporanea, e questa e' l'unica via per dichiararla.
+	 *
+	 * 🔑 **L'owner e' obbligatorio per COSTRUZIONE, non per convenzione.** Passare da qui e' l'unico modo di
+	 * ottenere `PendingPresentation`, e la firma non lascia dimenticarlo — che e' la differenza fra una
+	 * regola e un promemoria. Un owner vuoto resta possibile (una stringa vuota si puo' passare), e per
+	 * quello c'e' il gate: `FindMissingBindings` non la copre.
+	 */
+	static FRTPresentationBinding MakePendingPresentation(
+		ERTResolvedEventType InType, const FString& InRationale, const FString& InPendingOwner)
+	{
+		FRTPresentationBinding B;
+		B.Type = InType;
+		B.Kind = ERTPresentationKind::PendingPresentation;
+		B.Rationale = InRationale;
+		B.PendingOwner = InPendingOwner;
 		return B;
 	}
 };
