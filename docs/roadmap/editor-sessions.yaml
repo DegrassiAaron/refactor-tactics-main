@@ -2931,12 +2931,16 @@ sessions:
     # ⛔ Nessuna delle quattro e' orfana — hanno gia' una seduta, e questa NON la sostituisce: la coda
     # esiste finche' i residui sono sparsi, e sparisce quando sono chiusi.
     unblocked_by: []
-    # `unblocked_by` vuoto e non e' una svista: il codice c'e' tutto. Le quattro voci non aspettano un
-    # checkpoint, aspettano un occhio — e per `PIE-HEXPLAY-6` aspettano anche `#1873`, vedi sotto.
+    # `unblocked_by` vuoto e non e' una svista: il codice c'e' tutto. Le voci non aspettano un
+    # checkpoint, aspettano un occhio.
+    # ⌫ Questa riga aggiungeva «e per `PIE-HEXPLAY-6` aspettano anche `#1873`»: quella issue e' **chiusa**
+    # dal 2026-09-05, perche' la sua premessa era falsa — la resa persistente esisteva dal 2026-08-12. Il
+    # residuo e' passato a `PIE-VIS-SIGHTWALL`, che questa seduta convoca; il difetto misurato, che sta a
+    # picco e non nella vista di gioco, resta di `#1246`.
     shares_setup_with: []
     verifies: [PIE-HEXPLAY-6, PIE-HEXPLAY-8, PIE-V01-ROSTER, PIE-V01-LOG, PIE-VIS-SIGHTWALL,
                PIE-VIS-TWOLAYERS]
-    issues: [1873]
+    issues: [1246]
     done_when: le sei voci hanno un esito reale nel registro, in un verso o nell'altro — le quattro del
       gate `G9` e le due che il 2026-09-04 hanno chiuso i due scenari `Visual.*` orfani
     unblocks: []
@@ -3008,6 +3012,86 @@ sessions:
       su quel punto mostra la cella e **non l'unita'**. Via MCP si giudicano mappa, celle e quote; non
       unita', HUD, VFX ne' playback. Le quattro voci di questa seduta chiedono precisamente cio' che il
       ponte non vede, e per questo restano di una persona a schermo.
-      ⚠️ E la stessa misura spiega perche' `#1873` va letta prima di ②: chi cattura dall'editor vede gli
-      anelli di `DrawCellOverlay` e crede che il muro si veda, mentre nella vista del giocatore quegli
-      anelli non ci sono.
+      ⚠️ E la stessa misura spiega la trappola del ②: chi cattura **dall'editor** vede gli anelli di
+      `DrawCellOverlay` — che pero' nascono spenti (`bCellOverlay = false`) — e crede di aver giudicato
+      la vista del giocatore. Il ② si giudica in PIE, alla camera del giocatore, non nel viewport di
+      lavoro. ⌫ Questa riga rimandava a `#1873`, chiusa il 2026-09-05: cio' che resta da leggere prima
+      di guardare e' `#1246`, che porta le tre concause della vista **a picco**.
+
+  - id: U47
+    title: La catena Unbalanced -> Prone, guardata mentre accade
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto su leggibilita' della spinta amplificata, della caduta e del prezzo per rialzarsi
+    artifacts: []
+    # 🔑 **Perche' e' una seduta e non tre voci sparse.** Le tre domande sono la stessa storia in tre
+    # momenti — ci si sbilancia, si cade, si paga per rialzarsi — e [D-319] la costruisce come CATENA.
+    # Giudicarne un anello per volta, in tre aperture diverse, e' il modo di non accorgersi che i tre
+    # momenti a schermo si somigliano: e' proprio la somiglianza il difetto da cercare.
+    #
+    # ⚠️ **Due dei tre banchi seminano lo stato invece di produrlo**, ed e' dichiarato nei file: la catena
+    # naturale e' INTER-TURNO per costruzione — il Blast precede il Move ([ADR-0003] §1), quindi «scivolo e
+    # poi mi spingono» non puo' accadere nello stesso turno. Come ci si sbilancia lo mostra il terzo banco,
+    # che e' lo scivolamento vero.
+    unblocked_by: [E8]
+    shares_setup_with: []
+    verifies: [PIE-VIS-UNBAL, PIE-VIS-PRONE, PIE-VIS-SLIDESTATE]
+    issues: [2378, 2253]
+    done_when: le tre voci hanno esito reale nel registro
+    unblocks: []
+    steps: |
+      Tre scenari, nell'ordine in cui il gioco li produce. `Scenario Filter A = animation` nel
+      `BP_GameMode`, poi `Scenario To Run = <id>` e Play — oppure `rt.Test.Scenario <Id>`.
+
+      ① `Visual.Environment.IceSlide` — **`PIE-VIS-SLIDESTATE`**. E' lo stesso banco di `PIE-VIS-ICE`,
+      guardato per un'altra domanda: la cella extra si vedeva gia', lo **stato** che ne segue e' nuovo.
+      Guardalo sapendo che arriva nell'**ultima** fase del turno, quando l'attenzione e' gia' altrove: se
+      non si vede li', non si vedra' mai.
+
+      ② `Visual.Combat.UnbalancedAmplifiesPush` — **`PIE-VIS-UNBAL`**. Due bersagli identici, la stessa
+      spinta, una sola variabile. Guarda **il contraccolpo**, non la distanza: la distanza si conta, il
+      contraccolpo si legge. Se si ripete due volte, la spinta amplificata sembrera' due spinte.
+      ⚠️ E nello stesso istante nascono `Prone` e muore `Unbalanced`. Sono due fatti: contali.
+
+      ③ `Visual.Movement.ProneStandUpCosts` — **`PIE-VIS-PRONE`**. Due rotte identiche, una si ferma prima.
+      La domanda non e' se il conto torni — lo dice `Status.StandUpCostsOneMovePoint`, headless — ma se
+      la cella mancante si legga come un **prezzo pagato** invece che come un movimento rotto.
+
+      ⛔ **Cio' che questa seduta NON deve fare e' verificare che gli scenari passino.** Sono verdi
+      headless prima che tu prema Play: se uno e' rosso, il gioco e' deviato e la seduta non e' il posto
+      dove scoprirlo.
+
+  - id: U48
+    title: Le due icone di movimento, alla dimensione in cui si giocano
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto sulla distinguibilita' di `Status.Unbalanced` e `Status.Prone` a schermo
+    artifacts: []
+    # 🔴 **Le due icone sono entrate nel catalogo senza che nessuno le guardasse**, ed e' la lacuna che
+    # questa seduta chiude. Il gate `IconCatalog.RealCatalogCoversRequiredIds` dimostra che la chiave
+    # RISOLVE — cioe' che a schermo non compare un ripiego testuale — non che il glifo si LEGGA.
+    #
+    # ⚠️ **Separata da U47 di proposito.** Li' si giudica un'animazione, qui un glifo di ~10 px: due
+    # distanze di camera diverse, e chi le mescola finisce per non fare bene nessuna delle due. La
+    # precondizione e' pero' la stessa scena, quindi si aprono di seguito.
+    unblocked_by: [E20]
+    shares_setup_with: [U47]
+    verifies: [PIE-ICON-02]
+    issues: [2378, 2253]
+    done_when: la voce ha esito reale nel registro
+    unblocks: []
+    steps: |
+      Apri `Visual.Combat.UnbalancedAmplifiesPush`: a spinta risolta la scena porta un'unita' `Unbalanced`
+      e una `Prone` **nello stesso fotogramma**, che e' la sola condizione in cui la domanda ha senso.
+
+      **Avvicina la camera a mano.** In cattura automatica il glifo occupa una decina di pixel sopra
+      un'unita' inquadrata a picco, e la differenza fra corpo inclinato e corpo orizzontale non e'
+      giudicabile: e' la scommessa che il generatore dichiara e che nessuno ha ancora misurato.
+
+      Poi allontanala fino alla distanza di gioco e **rifai la domanda**. Il verdetto e' quello a
+      distanza di gioco, non quello ravvicinato: se si distinguono solo da vicino, non si distinguono.
+
+      ⛔ Se compare una warning di `ResolveIcon` — nomina chiave e consumer — stai guardando il ripiego
+      testuale e non la texture: la voce **non e' eseguibile** finche' quella riga c'e'.

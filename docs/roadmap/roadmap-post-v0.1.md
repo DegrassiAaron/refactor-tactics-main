@@ -299,6 +299,21 @@ fissarla (scenario 4 del sorgente).
 > cinque feature che dichiarano `epic: E23`, `RT-FEAT-MAP-INTERACTION-GRAPH` era già passata a `v0.1` col
 > giro di `#833`; `D-160` sposta le altre quattro. Dopo, **nessuna feature di E23 dichiara più v0.2**.
 
+> **Stato GitHub live — 2026-09-05.** Questa non è l'owner della release: lo snapshot corrente di E23 vive
+> in [`roadmap-v0.1.md`](roadmap-v0.1.md) § E23. [#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)
+> resta **aperta**; sono **chiuse** [#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832),
+> [#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833),
+> [#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826),
+> [#1827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1827),
+> [#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828),
+> [#1830](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1830) e
+> [#1832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1832); restano **aperte**
+> [#712](https://github.com/DegrassiAaron/refactor-tactics-main/issues/712),
+> [#834](https://github.com/DegrassiAaron/refactor-tactics-main/issues/834),
+> [#1829](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1829),
+> [#1831](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1831) e
+> [#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833).
+
 **Tracciata su GitHub**: epic [#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324).
 
 **Obiettivo**: muri e porte come **oggetti logici sugli archi**, non come mesh che il gameplay interroga.
@@ -699,7 +714,7 @@ stesso checkpoint.
 > tentativo verificato vive su `feat/641-sprint-post-blast`: compila su entrambi i target, e i suoi **4 test
 > rossi** sono la misura del buco.
 
-**Non fa**: i valori (`AE-5` per lo `Sneak`, `AE-4` per la risorsa firma) · il costo del pivot (`FAC-12`, che
+**Non fa**: i valori (`AE-5` per lo `Sneak`; ~~`AE-4` per la risorsa firma~~ — chiusa da `D-265`/`D-324`, vedi #2357) · il costo del pivot (`FAC-12`, che
 si guarda alla revisione dei numeri di ADR-0008) · i fatti del percorso (`AE-3`) · il workbook di
 bilanciamento, che [`balance/README.md`](../balance/README.md) vieta di correggere cella per cella.
 

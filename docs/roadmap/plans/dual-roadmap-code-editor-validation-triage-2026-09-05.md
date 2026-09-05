@@ -374,7 +374,9 @@ che nell'intestazione.** Il write-set di quel pass era **questo file più la voc
 ➕ **`G-1` una casa ce l'ha dal 2026-09-05: [`#2411`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2411)**,
 sub-issue **nativa** di `#1881` — collegata via API, perché la riga `**Epic**:` nel corpo non collega nulla,
 ed è la ragione per cui `#2370` **non** compare fra le sub-issue della propria epic pur dichiarandola.
-⚠️ **Restano `G-2` e `G-3`**, e la frase qui sopra vale ancora per loro. ⚠️ E la voce `PIE-*` **non** è ancora
+➕ **E `G-2` è stato consegnato lo stesso giorno**, come commento a `#801`, che lo scope di quella issue già
+copriva — con una correzione alla voce stessa, che confondeva la *durata* del playback col suo *costo*: vedi
+`G-2` qui sotto. ⚠️ **Resta `G-3`**, e la frase qui sopra vale ancora per lui. ⚠️ E la voce `PIE-*` **non** è ancora
 scritta: `#2411` la chiede come proprio deliverable, quindi il verdetto non ha ancora un owner nel registro —
 ciò che è cambiato è che adesso qualcuno lo cerca. 🔴 **È la stessa forma del
 difetto che `G-1` denuncia** — *«sotto quella issue oggi non è un posto dove qualcuno guarderà»* — un livello
@@ -399,16 +401,45 @@ criterio falsificabile, e la sua convocazione in `U44` — che è la seduta del 
 ⛔ **Non una issue per test**: il §9 del work order lo vieta e il repository pure. Una sola issue
 implementativa, oppure la voce nel registro più la riga nella seduta.
 
-### G-2 — `PACE-20`: nessun budget di performance misura il playback
+### G-2 — `PACE-20`: il costo macchina del playback, e non la sua durata
 
-I tre `Perf.*` esistenti misurano **pathfinding**, **anteprima di pianificazione** e **resolver**. Il
-playback — `TickPlayback` con N unità, route di lunghezza diversa, `MoveAnims` scandito a ogni tick — non ha
-un budget. `RouteAlpha` aggiunge una divisione per anim e per tick: è trascurabile in teoria e **non
-misurato**, che è la distinzione che `A4` del work order chiede di rispettare (*«non ottimizzare senza
-misura»* vale anche al contrario: non dichiarare senza misura).
+⌫ **Questa voce diceva «nessun budget di performance misura il playback», e la misura del 2026-09-05 su
+[`#801`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/801) l'ha corretta in due punti.** La
+formulazione originale confondeva **due grandezze diverse**, ed è la stessa specie di errore che `R4` di
+questo referto commette su `PACE-06`: la parola giusta sull'oggetto sbagliato.
 
-**Owner esistente**: [`#801`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/801) — *CP 43.5 ·
-Suite dei budget di performance, misurata su packaged*, **OPEN**. Il gap va lì, non in una issue nuova.
+**① La durata del playback ha già un produttore, ed è vivo.** La tabella KPI di
+[`roadmap-checkpoint.md`](../roadmap-checkpoint.md) porta la riga `Playback per round | 8–15 s (2v2)`, ⏳, e
+la sonda che la alimenta non è un piano: `RTTurnManager.cpp:3343` chiama `Pacing.Close(PlaybackElapsedTotal,
+…)` **incondizionatamente** — `bRecordPacing` governa solo il CSV, e l'header dichiara che *«l'accumulo in
+memoria è sempre attivo»*. Ogni round di ogni partita produce già il campione. Quella riga si **trascrive**,
+non si costruisce.
+
+⚠️ **Con un difetto che la trascrizione incontrerà**: `MsPlayback` riceve `PlaybackElapsedTotal`, che è *«nelle
+unità dell'orologio del playback, non in secondi di parete»* (`RTTurnManager.cpp:7404`), e `FRTPacingSample`
+**non ha un campo velocità** — 14 campi, zero occorrenze. Sulla scala supportata (`0.25x` … `4x`) fra gli
+estremi ci sono **16×**, e da un campione archiviato il tempo di parete non è ricostruibile. Se il target
+`8–15 s` significhi *«quanto contenuto ha un round»* o *«quanto aspetta chi guarda»* è una decisione di
+`roadmap-checkpoint.md` e `D-010`, non di questo referto.
+
+**② Ciò che davvero non ha nessuno è il costo macchina.** I tre `Perf.*` misurano pathfinding, anteprima e
+resolver — e quello del resolver esclude il playback **per costruzione**, *«2v2, mappa r=6, senza playback»*.
+Il costo per frame di `TickPlayback` — la scansione di `MoveAnims`, e da `#2370` una `RouteAlpha` per anim e
+per tick invece di un `Alpha` solo per fase — non è misurato da niente. La riga che lo coprirebbe è
+`Client FPS`, ⏳ e *«non misurabile in `-nullrhi`»*. ⛔ E `-nullrhi` è **vietato** su dati cotti, non solo
+insufficiente (gate `G2` della DoD): ∴ il packaged gate di `#801` è l'unico posto dove quel numero può
+esistere.
+
+⚠️ **Non è un'affermazione che ci sia un costo**: `RouteAlpha` è una divisione e un clamp su un array che in
+2v2 ha al più quattro elementi. È che **non è misurato**, e `A4` del work order chiede di non dichiarare
+senza misura — in entrambi i versi.
+
+🔑 **Le asserzioni dei tre `Perf.*` non sono i loro budget**: `PathfindingMedian` ha target `< 2 ms` e
+asserisce `< 20.0`; `TurnResolverMedian` ha target `< 100 ms` e asserisce `< 1000.0`. Sono guard-rail a un
+ordine di grandezza. Un verde lì dice *«non siamo regrediti di 10×»*, non *«siamo dentro il target»*.
+
+✅ **Consegnato a [`#801`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/801#issuecomment-5550305101)
+il 2026-09-05**, dove lo scope nominava già il playback: nessuna issue nuova, nessun allargamento.
 
 ### G-3 — Il costo in aperture d'Editor non è scritto da nessuna parte
 
