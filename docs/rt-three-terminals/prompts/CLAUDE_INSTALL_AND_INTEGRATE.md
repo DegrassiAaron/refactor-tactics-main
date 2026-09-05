@@ -1,136 +1,170 @@
-# Prompt Claude — installa e integra i 3 terminali di Refactor Tactics
+# Prompt Claude — integra RT Three Terminal Roles
 
 Lavora nel repository `DegrassiAaron/refactor-tactics-main`.
 
 ## Obiettivo
 
-Integra un workflow locale VS Code con tre terminali distinti e visivamente riconoscibili:
+Integra un workflow locale VS Code basato su **tre ruoli operativi con N terminali**:
 
-1. **DEV — verde**
-2. **VALIDATION — giallo**
-3. **EDITOR — blu**
+1. **DEV — verde** — 1..N istanze;
+2. **VALIDATION — giallo** — 1..N finestre possibili, ma un solo job Unreal attivo alla volta;
+3. **EDITOR — blu** — normalmente una sola sessione Unreal attiva e un solo writer binario.
 
-Il fine NON è aggiungere CI o altra infrastruttura. Il fine è ridurre il tempo in cui processi automatici occupano Unreal e impedire che suite/build si accodino durante il normale sviluppo o mentre l'utente vuole usare l'Editor.
+Il nome storico `rt-three-terminals` resta per compatibilità, ma “three” descrive i ruoli, non il numero massimo di finestre.
+
+Esempio valido:
+
+```text
+DEV-1
+DEV-2
+DEV-3
+DEV-4
+VALIDATION-1
+EDITOR-1
+```
+
+Tutte le istanze dello stesso slice usano:
+- stesso repository root;
+- stesso HEAD;
+- stesso branch;
+- stesso working tree;
+- stessa modalità globale engine.
 
 ## Prima di modificare
 
-Leggi e rispetta:
-- `AGENTS.md`, soprattutto le regole su Unreal/Editor/build/test;
+Leggi:
+- `AGENTS.md`;
 - `scripts/rt-suite.ps1`;
 - `docs/roadmap/editor-sessions.yaml`;
-- le decisioni/issue che spiegano il mutex e `-WaitMinutes`, se disponibili.
+- issue/decisioni su mutex e `-WaitMinutes`;
+- `docs/rt-three-terminals/README.md`;
+- tutti i file del bundle corrente.
 
-Non inventare requisiti mancanti.
+Verifica specificamente che ogni file referenziato dall’installer esista davvero.
 
-## Vincoli fondamentali
+## Vincoli
 
-- Non introdurre GitHub Actions, Jenkins, daemon, scheduler, package manager o nuovi servizi.
-- Non cambiare la semantica di validità di `rt-suite.ps1`.
-- Non uccidere Unreal Editor aperti da altri processi/sessioni.
-- Non far cambiare modalità globale semplicemente aprendo un terminale.
-- Ruolo del terminale e modalità globale della macchina sono due concetti distinti.
-- Default globale: `DEV`.
-- In DEV gli agenti NON devono attendere che Unreal si liberi: niente `rt-suite -WaitMinutes ...` come comportamento ordinario.
-- Se una validazione non può essere eseguita, registrarla come `NOT RUN / VALIDATION PENDING`; non fingere DONE.
-- La full suite va eseguita una volta per batch integrato, non automaticamente dopo ogni issue.
-- Modifiche ad alto rischio (resolver, replay format, TurnLog, serialization, map hash, determinism) non devono accumulare dipendenze non validate.
+- niente CI/daemon/scheduler/servizi nuovi;
+- non cambiare la semantica di validità di `rt-suite.ps1`;
+- non uccidere Unreal Editor di altre sessioni;
+- aprire un terminale NON cambia la modalità globale;
+- default globale: DEV;
+- in DEV niente waiting queue ordinaria per Unreal;
+- NOT RUN non è PASS;
+- full suite una volta per batch;
+- niente catene lunghe non validate per modifiche ad alto rischio;
+- più DEV nello stesso checkout non significa isolamento Git;
+- un solo writer `.uasset/.umap` alla volta;
+- più VALIDATION non autorizzano test Unreal concorrenti.
 
-## File forniti nel bundle
+## Bundle VS Code
 
-Valuta e installa/adatta:
-- `.vscode/settings.json`
-- `.vscode/tasks.json`
-- `scripts/rt-terminal.ps1`
-- `scripts/rt-mode.ps1`
-- `scripts/rt-suite-safe.ps1`
+Il repository ignora `.vscode/`. Perciò i template versionati del bundle devono vivere sotto:
 
-Il repository attuale ignora `.vscode/`: mantieni la configurazione VS Code locale salvo decisione esplicita contraria.
+```text
+docs/rt-three-terminals/payload/vscode/
+```
+
+e l’installer deve copiarli in:
+
+```text
+<RepoRoot>/.vscode/
+```
+
+Non usare `payload/.vscode/` come sorgente versionata.
+
+L’installer deve verificare TUTTO il payload prima di iniziare a copiare, per evitare installazioni parziali.
 
 ## Comportamento atteso
 
-### DEV — verde
+### DEV
 
 Consentito:
-- edit codice;
+- code;
 - test authoring;
-- git;
 - review;
-- Node/Python/static tooling;
-- analisi headless che non usa Unreal.
+- Git/GitHub;
+- Node/Python/static tooling.
 
-Vietato come comportamento autonomo:
-- UnrealEditor;
-- UnrealEditor-Cmd;
-- suite Unreal;
-- packaging;
-- mutation;
-- build che richiedono l'Editor chiuso / monopolizzano Unreal.
+Possono esistere N istanze DEV.
 
-### VALIDATION — giallo
+Regole shared-working-tree:
+- ownership file esplicita;
+- staging per path;
+- evitare `git add -A`, `commit -am`, reset/restore/clean/switch/rebase mentre altri DEV hanno modifiche.
 
-Usare solo quando l'utente ha ceduto Unreal alla finestra di validazione.
+### VALIDATION
 
-Ordine preferito:
-1. static/tool checks;
+Ordine:
+1. static;
 2. build;
-3. targeted Unreal tests;
-4. targeted Scenario Harness;
-5. full suite una volta sul batch integrato.
+3. targeted;
+4. scenario;
+5. full suite x1/batch.
 
-`-WaitMinutes` può avere senso SOLO qui.
+`rtsuite` deve richiedere:
+- role VALIDATION;
+- engine mode VALIDATION.
 
-### EDITOR — blu
+La mutua esclusione reale resta nel percorso/mutex canonico.
+
+### EDITOR
 
 Consentito:
-- Unreal Editor;
+- UE Editor;
 - PIE;
-- MCP/editor automation;
+- MCP;
 - authoring asset;
-- acceptance visuale/manuale.
+- visual acceptance.
 
-Non consentire che suite/build concorrenti rubino Unreal.
+Normalmente:
+- una sessione Editor attiva;
+- un writer binario.
 
-Per asset scritti nella stessa sessione, rispettare:
-`save -> close Editor -> build/suite se Source è cambiato -> reopen -> judge`.
+Per asset scritti:
+`save -> close -> validation/build se necessario -> reopen -> judge`.
 
-## Implementazione richiesta
+## Identità istanza
 
-1. Verifica che i file forniti siano compatibili con il repository attuale.
-2. Mantieni i tre terminali nominati e colorati in VS Code.
-3. Mantieni lo stato globale locale in `.vscode/rt-engine-mode.txt`.
-4. Fornisci i comandi:
-   - `rtstatus`
-   - `rtmode DEV`
-   - `rtmode VALIDATION`
-   - `rtmode EDITOR`
-   - `rtsuite ...` protetto
-5. `rtsuite` deve rifiutare l'esecuzione se:
-   - non proviene dal terminale VALIDATION;
-   - la modalità globale non è VALIDATION.
-6. Non modificare direttamente `rt-suite.ps1` nella prima iterazione se un wrapper sottile basta.
-7. Se proponi successivamente di integrare il controllo dentro `rt-suite.ps1`, separalo in una issue/step distinto e spiega impatti su self-test, exit code 2, mutex e `-WaitMinutes`.
-8. Non hardcodare il percorso di Unreal Engine se il repository possiede già una fonte canonica per individuarlo.
+Ogni `rt-terminal.ps1` deve avere un ID locale di istanza, preferibilmente derivato dal PID se non fornito:
 
-## Verifiche minime
+```text
+[DEV:18452] [ENGINE:DEV]
+```
 
-Senza aprire Unreal:
-- parsing JSON di `.vscode/settings.json` e `.vscode/tasks.json`;
-- avvio dei tre terminali;
-- colori/nome corretti;
+L’ID è solo visuale.
+
+## Task VS Code richiesti
+
+- `RT: Open DEV terminal`
+- `RT: Open VALIDATION terminal`
+- `RT: Open EDITOR terminal`
+- `RT: Open role set (DEV + VALIDATION + EDITOR)`
+- alias compatibile `RT: Open 3 terminals`
+
+Il task DEV deve poter essere rieseguito in parallelo (`panel: new`, `instanceLimit > 1`).
+
+## Verifiche minime senza Unreal
+
+- parsing JSON dei template VS Code;
+- installer preflight payload;
+- install in directory test;
+- due o più istanze DEV contemporanee;
+- ID istanza differenti;
+- una istanza VALIDATION;
+- una istanza EDITOR;
 - `rtstatus`;
-- cambio DEV -> VALIDATION -> EDITOR -> DEV;
+- DEV -> VALIDATION -> EDITOR -> DEV;
 - `rtsuite` bloccato da DEV;
-- `rtsuite` bloccato dal terminale EDITOR;
-- nessuna modifica involontaria del working tree oltre ai file previsti;
-- nessun processo Unreal avviato durante questi test.
-
-Se devi eseguire una vera suite Unreal, fermati e classificala `VALIDATION PENDING` finché non è stata aperta esplicitamente una Validation Window.
+- `rtsuite` bloccato da EDITOR;
+- nessun processo Unreal avviato;
+- nessun file imprevisto modificato.
 
 ## Output finale
 
 Riporta:
 - file modificati;
-- test eseguiti;
-- test NON RUN;
-- eventuali rischi residui;
-- eventuale proposta di issue successiva per integrare il guard direttamente nei launcher canonici.
+- verifiche eseguite;
+- NOT RUN;
+- rischi residui;
+- conferma esplicita che il modello è “3 roles, N terminals”.

@@ -378,6 +378,13 @@ dipendere da un percorso esterno. Non va riproposto.
 I pack scaricati vivono in `Content/FabAsset/` e `Content/Paragon*/`, **fuori dal repository per scelta**:
 sono decine di GB e chi clona se li riscarica.
 
+🔴 **Fuori dal repository non vuol dire fuori dal registro.** Le 28 root Paragon hanno una riga in
+[`docs/technical/asset-licenze.md`](../asset-licenze.md) — fonte, licenza, data, consumer — perché la
+riga copre un **prefisso di path**, non un file: `/Game/FabAsset/Paragon/ParagonGadget/` si registra
+anche se nessuno dei suoi 1.229 `.uasset` è versionato. È la metà del difetto che
+[#1767](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1767) chiama *«un registro che
+esiste fuori dal versionamento non è un registro, è un file»*.
+
 🔴 **`git clean -fdx` li cancella, e l'esclusione a una sola cartella non basta.** Il comando che gira
 nel progetto — `git clean -fdx -e Content/FabAsset` — protegge la prima e **non** la seconda, mentre
 `.gitignore` le dichiara entrambe ignorate (`/Content/FabAsset/`, `/Content/Paragon*/`). Servono
@@ -397,7 +404,8 @@ lo stesso comando.)*
 
 ## 6. Come si aggiunge un asset
 
-Tre righe, in quest'ordine. Saltarne una produce un difetto silenzioso, e per ognuna è già successo:
+Quattro righe, in quest'ordine. Saltarne una produce un difetto silenzioso, e per le prime tre è già
+successo:
 
 1. **`.gitignore`** — la riga `!Content/RT/…` con il path esatto. Senza, `git add` tace e l'asset resta
    locale. **I casi aperti stanno in §2.1**, e questa riga non ne nomina più nessuno: è la regola, non
@@ -420,13 +428,26 @@ Tre righe, in quest'ordine. Saltarne una produce un difetto silenzioso, e per og
    contro stringhe dentro `tracked_artifacts()` e `session_state()`: l'artefatto non risulta mai
    `done`, la seduta resta bloccata, **e nessun gate fallisce**.
 3. **questo file** — la riga nella tabella della sua release.
+4. **[`docs/technical/asset-licenze.md`](../asset-licenze.md)** — la riga di **provenienza**, se
+   l'asset viene da fuori. Nome, fonte, URL, licenza, versione, data, versione UE, attribuzione,
+   consumer: è `FR-ASSET-LIC-01`, e vale anche per ciò che resta **fuori** dal repository, perché il
+   registro copre un prefisso di path e non un file. Verifica: `node tools/asset-provenance/check.ts`.
+   🔴 **Nello stesso commit dell'asset.** Non il commit dopo: fra i due momenti l'asset è materiale di
+   terze parti senza titolo dichiarato, e non c'è niente che lo dica. Se la licenza non è accertata la
+   riga si scrive lo stesso, con `NON VERIFICATA` — **omettere la riga è sempre peggio che scrivere
+   che non si sa**, perché la prima forma è invisibile e la seconda è cercabile.
+   *(Questa riga è nata il 2026-09-05 con
+   [#1767](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1767): il requisito la
+   prescriveva dal 2026-08-30, ma il file che nominava non esisteva, quindi la sua verifica non poteva
+   fallire.)*
 
-⚠️ **Un rename tocca tutte e tre.** Le convenzioni lo dichiarano già per il caso `<CharacterId>`: gli otto
+⚠️ **Un rename tocca le prime tre.** Le convenzioni lo dichiarano già per il caso `<CharacterId>`: gli otto
 path degli artefatti sono elencati **per esteso** nell'allowlist, quindi un rename li rende muti senza che
-niente fallisca.
+niente fallisca. La quarta la tocca **solo** quando sposta l'asset fuori dal prefisso che lo copre — e
+quello è il caso in cui il gate lo dichiara scoperto, cioè l'unico in cui serve toccarla.
 
-🔴 **E poi c'è il gesto che nessuna delle tre righe copre: `git add` alla prima salvata.** Le tre righe
-rendono l'asset *committabile*; non lo committano. Fra il momento in cui l'editor scrive il `.uasset` e
+🔴 **E poi c'è il gesto che nessuna delle quattro righe copre: `git add` alla prima salvata.** Le quattro
+righe rendono l'asset *committabile*; non lo committano. Fra il momento in cui l'editor scrive il `.uasset` e
 il momento in cui qualcuno lo aggiunge all'indice, quel file è **untracked** — e un `git clean -fd`, che
 in questo progetto si esegue di routine per non toccare i pack, lo cancella senza traccia recuperabile.
 Non aspettare che l'asset sia finito: un lavoro a metà committato è un lavoro a metà, un lavoro a metà

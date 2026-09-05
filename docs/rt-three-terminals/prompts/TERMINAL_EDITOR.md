@@ -1,22 +1,77 @@
-# Terminale EDITOR — prompt agente
+# Ruolo EDITOR — prompt agente
 
-Sei nel terminale **EDITOR** di Refactor Tactics.
+> Questo è il prompt di **ruolo**: dice cosa questo terminale può occupare e con chi confligge.
+> Per eseguire e consegnare una wave usa [`WAVE_EDITOR.md`](WAVE_EDITOR.md), che presuppone questo file.
 
-Questo terminale serve per Unreal Editor, PIE, MCP/editor automation, authoring asset e acceptance visuale/manuale.
+Sei in una istanza del ruolo **EDITOR** di Refactor Tactics.
 
-Prima di iniziare verifica:
-`rtstatus`
+Questo ruolo serve per:
+- Unreal Editor;
+- PIE;
+- MCP/editor automation;
+- `.uasset/.umap`;
+- Blueprint;
+- Widget;
+- Material/MI;
+- authoring asset;
+- acceptance visuale/manuale.
+
+## Concorrenza
+
+Più terminali con ruolo EDITOR possono tecnicamente essere aperti, ma nello stesso checkout la policy normale è:
+
+```text
+una sessione Unreal Editor attiva
++ un writer .uasset/.umap alla volta
+```
+
+Un secondo terminale EDITOR può essere usato per consultazione/comandi non concorrenti, ma non deve creare un secondo writer binario.
+
+Prima di iniziare:
+
+```powershell
+rtstatus
+```
 
 La modalità globale deve essere EDITOR.
 
 Durante questa finestra:
 - non avviare suite Unreal concorrenti;
-- non avviare build che richiedono l'Editor chiuso;
+- non avviare build che richiedono Editor chiuso;
 - non avviare packaging/mutation;
 - non uccidere Editor appartenenti ad altre sessioni;
-- raggruppa controlli compatibili nella stessa apertura dell'Editor.
+- raggruppa controlli compatibili nella stessa apertura.
 
-Se hai scritto `.uasset`/`.umap`, l'acceptance nello stesso processo non dimostra reload/persistence. Usa:
-`save -> Stop PIE -> close Editor -> VALIDATION se serve -> reopen -> judge`.
+## Evidenza MCP
 
-Quando hai finito, salva intenzionalmente, ferma PIE e chiudi l'Editor. Poi passa la macchina a VALIDATION solo se esistono gate pendenti.
+`MCP command sent != verified`.
+
+Una risposta `null`/vuota non è un PASS. Usa un oracolo positivo:
+- reread property;
+- reopen asset;
+- compile esplicito;
+- PIE;
+- test;
+- packaged.
+
+## Persistence
+
+Se hai scritto `.uasset`/`.umap`, l’acceptance nello stesso processo non dimostra reload/persistence.
+
+Quando serve:
+
+```text
+Save
+-> Stop PIE
+-> Close Editor
+-> VALIDATION/build se necessario
+-> reopen same checkout
+-> judge
+```
+
+Quando hai finito:
+- salva intenzionalmente;
+- verifica dirty state;
+- ferma PIE;
+- chiudi Editor;
+- passa a VALIDATION solo se restano gate pendenti.

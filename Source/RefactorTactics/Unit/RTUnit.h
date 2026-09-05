@@ -8,6 +8,7 @@
 #include "Turn/RTDeclaredCondition.h" // la condizione dichiarata vive nel piano dell'unita'
 #include "Selection/RTSelectable.h"
 #include "Map/RTMapVisuals.h" // #983: RTCellTopZ si include invece di ricopiarlo in un commento
+#include "Animation/PoseSnapshot.h" // #1750: il ricordo di posa e' un membro per valore, non un puntatore
 #include "RTUnit.generated.h"
 
 class UAnimSequenceBase;
@@ -18,6 +19,28 @@ class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class URTActionData;
 class URTHeroData;
+
+/**
+ * Da dove la **sagoma dell'ultimo contatto** prende la propria posa (#1750).
+ *
+ * I due criteri della issue, in ordine, piu' il caso in cui non c'e' niente da mostrare:
+ *
+ *  - `Snapshot` — la posa **ricordata**, catturata dalla skeletal viva quando la squadra ha perso di vista
+ *    l'unita'. E' il ricordo vero: *«com'era quando l'hai vista l'ultima volta»*;
+ *  - `Fallback` — il **ripiego**, il primo frame dell'idle dell'eroe. ⛔ **Non e' un'alternativa allo
+ *    snapshot: ne e' il ripiego obbligatorio**, perche' un contatto puo' nascere da RUMORE (`CP 13.4`) e
+ *    un'unita' sentita e mai vista non ha nessuna posa da ricordare;
+ *  - `None` — nessuna delle due (eroe senza clip, checkout senza i pack Paragon). La sagoma resta in posa
+ *    di riferimento, che e' il comportamento dichiarato da `#287`: se una clip manca, la partita si gioca
+ *    uguale.
+ */
+UENUM()
+enum class ERTGhostPoseSource : uint8
+{
+	None,
+	Fallback,
+	Snapshot,
+};
 
 /**
  * Unita' segnaposto per il demo: una mesh su una cella, colorata per team e selezionabile.
@@ -208,7 +231,7 @@ public:
 	 *
 	 * ⚠️ **Non è lo Stable ID**, e i due piani restano separati — D-037, che D-321 ha ripristinato come
 	 * invariante. Ma `Hero.Gadget` **sarà rinominato**: D-321 dichiara che i quattro nomi del roster v0.1
-	 * sono identità legacy temporanee, D-322 fissa i sostituti (`Hero.Gadget` → `Hero.Nexis`), e la
+	 * sono identità legacy temporanee, D-334 fissa i sostituti (`Hero.Gadget` → `Hero.Aevik`), e la
 	 * migrazione è differita post-v0.1 con owner #2297. Il blocker di namespace che rendeva impossibile il
 	 * rename è sciolto da D-130, che ha chiuso #716 scegliendo `Hero.<Nome>.<Abilità>`.
 	 * Vuoto = nessun eroe l'ha dichiarato: la presentazione ricade su `ShortHeroName`, mai su stringa vuota.
@@ -827,6 +850,21 @@ public:
 	TSubclassOf<UAnimInstance> UnitAnimClass;
 
 	/**
+	 * Classe di animazione della **sagoma** dell'ultimo contatto (#1750, secondo criterio): applica la posa
+	 * ricordata e non avanza mai.
+	 *
+	 * ⛔ **Assegnata esplicitamente da `UpdateContactGhost`, MAI da `ApplyUnitAnimClass`.** Se la sagoma
+	 * ricevesse `UnitAnimClass` prenderebbe `URTUnitAnimInstance` e si animerebbe **dal vivo** su un'unita'
+	 * che l'osservatore non vede: e' precisamente il leak per cui `FindHeroSkeletal` esclude `ContactGhost`
+	 * per identita', e quell'esclusione **resta**.
+	 *
+	 * ⚠️ Separata da `UnitAnimClass` e non dedotta: sono due grafi con due garanzie diverse — quello vivo
+	 * **puo'** animarsi, questo no.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TSubclassOf<UAnimInstance> ContactGhostAnimClass;
+
+	/**
 	 * 🔴 **Rotazione della MESH rispetto al forward dell'attore, in gradi di yaw.**
 	 *
 	 * Le skeletal di personaggio si modellano quasi sempre rivolte lungo **+Y**, mentre il forward di un
@@ -950,6 +988,41 @@ public:
 	 */
 	static TSoftObjectPtr<UAnimSequenceBase> GhostFallbackClipFor(
 		const class URTUnitAnimInstance* Clips, const FName& HeroId);
+
+	/**
+	 * 🔴 **La cattura della posa si arma su una TRANSIZIONE, non su una condizione** (#1750, secondo
+	 * criterio). Vero solo quando l'unita' passa da renderizzata a non renderizzata.
+	 *
+	 * ⛔ **Perche' non basta `!bRender`, misurato sui chiamanti.** `RefreshComponentVisibility` ha quattro
+	 * chiamanti, e **tre** la invocano a visibilita' invariata: `ApplyTeamColor`, `OnSelected`,
+	 * `OnDeselected`. Un `if (!bRender) SnapshotPose(...)` catturerebbe a ogni selezione e a ogni cambio
+	 * colore di un'unita' gia' nascosta.
+	 *
+	 * 🔴 **E la cattura ripetuta non e' innocua, misurato sull'engine.** Il default di
+	 * `VisibilityBasedAnimTickOption` e' `AlwaysTickPoseAndRefreshBones`
+	 * (`SkeletalMeshComponent.cpp:446`): la posa di un'unita' nascosta **continua ad avanzare**. Ricatturare
+	 * non darebbe «sempre lo stesso valore», darebbe la posa **corrente** del nemico frame per frame — non
+	 * un ricordo, una telecamera. E' il terzo leak che #1750 conta due volte nel titolo.
+	 *
+	 * ⚠️ Il referto del 2026-08-30 §3 motivava la cattura anticipata con l'opposto — *«UE puo' aver smesso
+	 * di aggiornare la posa»*. La raccomandazione regge, la ragione no: catturare **prima** e' giusto
+	 * perche' non dipende da un'opzione di componente che qualunque `BP_Unit_*` puo' cambiare.
+	 */
+	static bool ShouldCaptureContactPose(bool bWasRendered, bool bWillBeRendered);
+
+	/**
+	 * Da dove la sagoma prende la posa, come **funzione pura** dello stato (#1750).
+	 *
+	 * 🔴 **Statica e non un ramo dentro `UpdateContactGhost`, e la ragione e' una verifica di mutazione
+	 * gia' fallita una volta su questa stessa issue**: il primo test del ripiego leggeva il CDO invece di
+	 * chiamare il codice del fix, ed era verde su un'implementazione mutata. La scelta vive dove un test la
+	 * puo' **chiamare**.
+	 *
+	 * ⚠️ **Uno snapshot con `bIsValid == false` non e' uno snapshot**: `FPoseSnapshot` nasce invalido
+	 * (`bIsValid(false)` nel costruttore), quindi il caso «mai catturato» e il caso «catturato male» hanno
+	 * la stessa risposta — il ripiego.
+	 */
+	static ERTGhostPoseSource GhostPoseSourceFor(const FPoseSnapshot& Snapshot, bool bHasFallbackClip);
 
 	static FString ShortHeroName(FName InHeroId, const FString& Fallback);
 
@@ -1166,6 +1239,26 @@ public:
 	 */
 	void HideContactGhost();
 
+	/**
+	 * 🔴 **Il one-shot, con lo stato che lo rende tale** (#1750). Le si passa la visibilita' che
+	 * `RefreshComponentVisibility` sta per applicare; aggiorna la memoria della visibilita' precedente e
+	 * restituisce vero **solo** sulla transizione renderizzata → nascosta.
+	 *
+	 * ⚠️ **Pubblica di proposito: e' l'oracolo del test.** `ShouldCaptureContactPose` da sola non prova il
+	 * one-shot — una mutazione che sostituisse la transizione con `!bRender` vivrebbe nel CHIAMANTE e
+	 * lascerebbe verde un test scritto sulla sola funzione pura. Chiamando questa in **sequenza**
+	 * (`true, false, false`) il difetto cade: la seconda chiamata deve dare `false`.
+	 *
+	 * ⚠️ La memoria parte da `false` — «non ancora renderizzata» — e non da `true`. Con `true` la prima
+	 * `SetKnownToObserver(false)` su un nemico mai visto catturerebbe la posa dell'istante zero, che e' la
+	 * posa di riferimento: uno snapshot **valido e inutile**, che scavalcherebbe il ripiego rimettendo a
+	 * schermo la T-pose dentro la sua correzione.
+	 */
+	bool NotifyRenderStateForPoseCapture(bool bWillBeRendered);
+
+	/** Il ricordo di posa attualmente conservato: e' cio' che un test puo' leggere senza una mesh. */
+	const FPoseSnapshot& GetLastSeenPose() const { return LastSeenPose; }
+
 protected:
 	/** Vero finche' l'osservatore locale non dichiara il contrario: un'unita' nasce nota. */
 	UPROPERTY()
@@ -1178,6 +1271,46 @@ protected:
 	 */
 	UPROPERTY()
 	bool bSelected = false;
+
+	/**
+	 * L'ultima visibilita' applicata da `RefreshComponentVisibility`. Esiste **solo** per rendere one-shot
+	 * la cattura della posa (#1750): senza, «catturare quando l'unita' e' nascosta» diventerebbe «catturare
+	 * a ogni refresh finche' resta nascosta», che e' una vista e non un ricordo.
+	 *
+	 * ⚠️ Parte da `false`, non da `true`: vedi `NotifyRenderStateForPoseCapture`.
+	 */
+	UPROPERTY(Transient)
+	bool bLastRenderApplied = false;
+
+	/**
+	 * 🔴 **La posa dell'ultimo contatto: presentazione, e SOLO presentazione** (#1750, secondo criterio).
+	 *
+	 * ⛔ **Non e' in `FRTLastKnownContact`, e il posto "naturale" era proprio quello sbagliato.** Accanto a
+	 * `Cell` e `TurnNumber` questo dato entrerebbe in `FRTTeamKnowledge` → `FRTHexSim`, cioe' nello
+	 * **snapshot di simulazione che un replay rilegge**: bump di versione del formato, corpus golden da
+	 * rigenerare, e soprattutto un dato **non deterministico** (dipende dal tempo di animazione) dentro la
+	 * struttura che il TurnLog esiste per tenere deterministica. Referto del 2026-08-30, §2.
+	 *
+	 * ⚠️ **Un ricordo per ATTORE, mentre la conoscenza e' per SQUADRA (D-043).** Due incoerenze latenti,
+	 * che sono la stessa e scadono insieme — al secondo osservatore locale:
+	 *   1. questa casella e' una sola: due squadre che avessero perso di vista la stessa unita' in momenti
+	 *      diversi condividerebbero un ricordo solo;
+	 *   2. la cattura si arma su `bKnownToObserver`, cioe' sulla conoscenza dell'osservatore **locale**:
+	 *      con due visori la posa verrebbe catturata sulla transizione del primo e mostrata anche al
+	 *      secondo.
+	 * In v0.1 il visore e' uno e non si vede. E' dichiarato qui perche' si possa **cercare**, invece che
+	 * scoprirlo fra sei mesi.
+	 *
+	 * 🔴 **Eredita il difetto di `#1784`, sullo stesso eroe.** `USkeletalMeshComponent::SnapshotPose` scrive
+	 * la posa di **riferimento** per ogni osso fuori dalle *required bones* del LOD corrente
+	 * (`bBoneHasEvaluated ? ... : RefPoseSpaceBaseTMs[i]`), e le ossa che le LOD dei pack Paragon rimuovono
+	 * sono **le catene di Riktor**. Su un'unita' non a LOD 0 questo snapshot rimetterebbe a schermo le
+	 * catene distese — lo stesso fotogramma che ha aperto #1750, arrivato per un'altra strada. Oggi non
+	 * morde perche' `#1784` tiene le unita' a LOD 0; chi un giorno riabilitasse le LOD deve trovare
+	 * scritto **dove** guardare.
+	 */
+	UPROPERTY(Transient)
+	FPoseSnapshot LastSeenPose;
 
 	/**
 	 * Ricalcola la visibilita' di TUTTI i componenti visivi dallo stato dell'unita'
