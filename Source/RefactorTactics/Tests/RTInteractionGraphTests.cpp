@@ -1182,4 +1182,79 @@ bool FRTGraphOpenFailsScenarioTest::RunTest(const FString&)
 	return RunGraphScenario(*this, TEXT("OpenFailsDependentMoveBlocks.json"), /*Doors*/ 3, /*Bindings*/ 1);
 }
 
+
+/**
+ * 🔴 **IL RAMO REMOTO NON COMMUTA, e questo test e' il confine** ([`INT-7`], `#2380`).
+ *
+ * Da quando `Action.Interact` commuta sul bordo puntato, la domanda ovvia e' se commuti anche quando quel
+ * bordo e' una SORGENTE. La risposta e' **no**, e non e' una dimenticanza: una sorgente comanda N bersagli
+ * che possono divergere — `Spec.Map.Interaction.OpenFailsDependentMoveBlocks` ne ha gia' due, `Closed` e
+ * `Locked` — e «commutare il gruppo» e' letteralmente la sotto-domanda con cui `INT-7` era nata:
+ * *«`SetDoorState` opera su un GRUPPO di bordi il cui stato corrente puo' non essere unico — commutare
+ * cosa, se due facce divergono?»*. Resta a `CP 23.4`.
+ *
+ * 🔑 **La leva di questo test e' `Open`, ed e' cio' che rende il test una prova.** Nel corpus ogni leva e'
+ * `Closed`, quindi una commutazione letta dalla SORGENTE produrrebbe `Open` e tutti gli scenari resterebbero
+ * verdi **per coincidenza**. Con una leva `Open` le due regole divergono: commutando si manderebbe `Closed`
+ * ai bersagli — cioe' una leva autorata aperta chiuderebbe le porte che dovrebbe aprire, in silenzio e su
+ * ogni binding esistente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGraphRemoteBindingDoesNotToggleTest,
+	"RefactorTactics.InteractionGraph.RemoteBindingDoesNotToggle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGraphRemoteBindingDoesNotToggleTest::RunTest(const FString&)
+{
+	const FRTCellId Where(0, 0, 0);
+	const FRTCellId Beyond(1, 0, 0);
+	const FRTCellId Far(-2, 0, 0);
+
+	TArray<FRTHexCombatUnit> Units;
+	FRTHexCombatUnit U;
+	U.UnitId = 0;
+	U.TeamId = 0;
+	U.Cell = Where;
+	Units.Add(U);
+
+	// L'intento e' quello che il catalogo produce da oggi: COMMUTA.
+	FRTHexAttackIntent Intent;
+	Intent.AttackerId = 0;
+	Intent.TargetId = INDEX_NONE;
+	Intent.TargetCell = Beyond;
+	Intent.bChangesDoor = true;
+	Intent.bTogglesDoor = true;
+	Intent.RangeCells = 1;
+	const TArray<FRTHexAttackIntent> Intents = { Intent };
+
+	URTHexMapAsset* Wired = MakeGraphMap(4);
+	// La leva e' APERTA: e' la configurazione su cui le due regole danno risposte diverse.
+	PutGraphDoorInState(Wired, Where, ERTHexDirection::E, 1, TEXT("S1"), ERTHexDoorState::Open);
+	PutGraphDoor(Wired, Far, ERTHexDirection::E, 2, TEXT("D1"));
+	Wired->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+
+	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Wired);
+
+	TestEqual(TEXT("nessun ordine di porta: la sorgente instrada"), Plan.DoorOps.Num(), 0);
+	if (!TestEqual(TEXT("un'interazione, come senza commutazione"), Plan.InteractionOps.Num(), 1))
+	{
+		return false; // un accesso fuori guardia farebbe CADERE la suite invece di farla fallire
+	}
+	// 🔴 LA RIGA DEL CONFINE: `Open`, non `Closed`. Commutando dalla sorgente qui arriverebbe `Closed`.
+	TestEqual(TEXT("il ramo remoto chiede ancora Open, anche con una leva aperta"),
+		Plan.InteractionOps[0].State, ERTHexDoorState::Open);
+	TestEqual(TEXT("e nomina la sorgente"), Plan.InteractionOps[0].SourceId, FName(TEXT("S1")));
+
+	// E la controprova sul dato: applicando, il bersaglio remoto si APRE.
+	TArray<FString> Refusals;
+	const TArray<FRTDoorChange> Changes = URTHexDoorLibrary::ApplyInteraction(
+		Wired, Plan.InteractionOps[0].SourceId, Plan.InteractionOps[0].State,
+		Plan.InteractionOps[0].ActorId, &Refusals);
+	if (TestEqual(TEXT("la porta remota cambia"), Changes.Num(), 1))
+	{
+		TestTrue(TEXT("e si APRE: il binding fa ancora quello che l'asset dichiara"),
+			Changes[0].State == ERTHexDoorState::Open);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
