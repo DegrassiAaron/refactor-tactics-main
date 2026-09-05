@@ -1120,8 +1120,11 @@ del criterio, non una svista.
 > «assegnarle a una seduta è il prossimo passo naturale di G9». Misurando i campi `verifies:` di
 > `editor-sessions.yaml`, l'assegnazione **c'è per tutte e nove**: l'affermazione era vera quando è stata
 > scritta e nessuno l'ha rimisurata dopo che U11 e U15 sono nate. Il prossimo passo di G9 è **eseguirle**.
-> Il conteggio delle voci davvero orfane — 55, nessuna nel subset — vive in
-> `../../roadmap/editormap.shortlist.md`, che è coerente con questa misura.
+> Il conteggio delle voci davvero orfane — 55, nessuna nel subset — viveva in
+> `../../roadmap/editormap.shortlist.md`. ⛔ *Quella vista è uscita col Feature Registry il 2026-08-21
+> (`D-181`) e nessuno script la rigenera: il conteggio corrente vive in
+> [`../../roadmap/plans/roadmap-esecuzione-pie-2026-09-03.md`](../../roadmap/plans/roadmap-esecuzione-pie-2026-09-03.md),
+> che lo rimisura col comando canonico — corretto il 2026-09-06.*
 
 `PIE-FACING-1` è entrata col merge di E16, e non per completezza: dal CP 16.2 l'emisfero posteriore è
 **scoperto**, quindi il facing decide il danno. Un orientamento visibile diverso da quello che il resolver ha
