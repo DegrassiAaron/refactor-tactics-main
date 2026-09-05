@@ -9,6 +9,15 @@
 > ⚠️ **Il documento sorgente non è nel repository e non entra**: questo referto è l'unico posto in cui il suo
 > contenuto resta citabile.
 
+> 🔁 **Aggiornato lo stesso giorno — `REL-3` è chiusa, e il §4 di questo referto non descrive più lo stato.**
+> [`D-332`](../../decisions/RT_PDR_00_Decision_Log.md) ha deciso l'uscita *(a)*: **la caduta entra nella v0.1**.
+> ⚠️ **Il corpo non è stato riscritto, ed è deliberato**: era vero quando fu scritto ed è il record
+> dell'istruttoria che ha portato alla decisione. Ciò che è cambiato: le voci `A1`…`A7` **non sono più**
+> *«dietro `REL-3`»* e sono diventate issue; l'owner semantico delle regole non è questo piano ma
+> [`spec-caduta-e-bordi.md`](../../gameplay/spec-caduta-e-bordi.md), creato con `D-332`; le sedute della
+> lane B restano non registrate finché `A1`–`A6` non sono complete, e quella condizione **non** è caduta
+> con la decisione di release.
+
 ---
 
 ## 1. Il verdetto in una riga
