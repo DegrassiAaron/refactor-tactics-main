@@ -8,8 +8,16 @@
 # c'e' piu' nemmeno uno script che lo cammini come testo generico: `scripts/` e' stata rimossa.
 #
 # ⚠️ Chi aggiunge una seduta oggi scrive in un file che nessuno rende. Resta perche' il CONTENUTO vale
-# — 27 sedute con passi, prerequisiti e artefatti, scritti a mano — non perche' qualcosa lo consumi.
+# — 48 sedute con passi, prerequisiti e artefatti, scritti a mano — non perche' qualcosa lo consumi.
 # L'esito delle voci `PIE-*` vive in `docs/technical/test-manuali-pie.md`, che lo rende leggibile.
+#
+# ⏱️ **48 misurate il 2026-09-06**, e la riga qui sopra diceva `27`: era esatta il 2026-08-21 quando fu
+# scritta (`d671df47`), e sono 21 sedute in 16 giorni. Tre metodi indipendenti concordano —
+# `grep -oE "^  - id: U[0-9]+" | sort -u | wc -l` (zero duplicati), la somma per `block`
+# (29+7+4+3+3+2) e `yaml.safe_load(...)['sessions']`.
+# 🔑 Il numero non contraddice l'avvertimento qui sopra, lo rafforza: il file cresce di una seduta ogni
+# 18 ore e continua a non avere ne' vista ne' consumatore. Referto:
+# `docs/roadmap/plans/schematiche-editor-execution-spec-panel-2026-09-06.md` §6.
 #
 # Regola che questo file esiste per far rispettare (R-6 della spec):
 #   qui si citano gli **ID** delle voci PIE, mai il loro esito atteso.

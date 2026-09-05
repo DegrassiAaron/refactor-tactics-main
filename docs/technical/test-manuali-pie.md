@@ -24,10 +24,13 @@
 > illeggibile perché la seduta che l'aveva pronunciato non nominava nessuna voce.
 >
 > ⚠️ **Non è una regola nuova**: l'intestazione qui sopra dice già «questo file è il **registro**» e rimanda
-> alla EditorMap per la sequenza. Mancava la parte che rende leggibile il numero — *quale sottoinsieme ha
+> altrove per la sequenza. Mancava la parte che rende leggibile il numero — *quale sottoinsieme ha
 > una scadenza* — e senza quella ogni conteggio di voci aperte si legge come un debito.
-> **Quale voce affrontare e quando** lo dice la **EditorMap**: questo file
-> resta il **registro** (esito atteso e stato), quella è la **sequenza** — sedute, preparazione condivisa,
+> **Quale voce affrontare e quando** lo dicono [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml),
+> che possiede i **dati** delle sedute, e
+> [`roadmap-esecuzione-pie-2026-09-03.md`](../roadmap/plans/roadmap-esecuzione-pie-2026-09-03.md), che dice
+> **in che ordine e cosa manca**: questo file
+> resta il **registro** (esito atteso e stato), quelli sono la **sequenza** — sedute, preparazione condivisa,
 > artefatti da creare, dipendenze verso i checkpoint di codice. Le voci aperte sono raggruppate lì per
 > preparazione, così l'editor si apre una volta per gruppo invece che una per voce.
 > **Chi esegue cosa** — quali verifiche una macchina fa da sola e quali richiedono per forza una persona — lo dice
@@ -1618,9 +1621,19 @@ docs → epic → scenario → PIE resti chiuso, non perché siano eseguibili og
 ## La sequenza: quale voce affrontare, e quando
 
 Questo file e' il **registro**: dice cosa verificare e com'e' andata. **Non** dice in che ordine, con quale
-preparazione condivisa, ne' quali asset creare prima — quella e' la
-**EditorMap**, generata da
-[`editor-sessions.yaml`](../roadmap/editor-sessions.yaml).
+preparazione condivisa, ne' quali asset creare prima — quelli stanno in
+[`editor-sessions.yaml`](../roadmap/editor-sessions.yaml), che possiede i **dati** delle sedute `U*`, e in
+[`roadmap-esecuzione-pie-2026-09-03.md`](../roadmap/plans/roadmap-esecuzione-pie-2026-09-03.md), che dice
+**in che ordine e cosa manca**.
+
+> 🔴 **Questa frase rimandava alla EditorMap, e la EditorMap non esiste dal 2026-08-21** — `D-181` ha
+> rimosso `editormap.shortlist.md` e il generatore che la produceva, e `editor-sessions.yaml` lo dichiara
+> di se': *«questo file non ha piu' una vista, e non ha piu' un consumatore»*. ⚠️ **E' lo stesso difetto
+> gia' corretto il 2026-08-28 sulla voce `PIE-SCEN-COMPOSER`**, dove la nota e' rimasta: la correzione
+> tocco' **una voce**, non l'intestazione ne' questa sezione, che e' quella che possiede l'affermazione.
+> Rinviare a un owner rimosso significa che nessuna voce viene schedulata da nessuno — corretto il
+> **2026-09-06**, referto
+> [`schematiche-editor-execution-spec-panel-2026-09-06.md`](../roadmap/plans/schematiche-editor-execution-spec-panel-2026-09-06.md) §6.
 
 > **Le sessioni A-G stavano qui, e sono state spostate** il 2026-08-10 (issue
 > [#371](https://github.com/DegrassiAaron/refactor-tactics-main/issues/371)). Raggruppavano le voci per
