@@ -809,6 +809,26 @@ public:
 	float AttackShowSeconds = 0.50f;
 
 	/**
+	 * Coda finale quando l'ULTIMA fase riprodotta si chiude su un'eliminazione (secondi).
+	 *
+	 * 🔴 **Esiste perche' altrimenti il montaggio `Death` avrebbe finestra ZERO** (#2452). L'eliminazione si
+	 * annuncia a fine della fase in cui e' avvenuta e il montaggio gioca durante le fasi che restano — ma
+	 * `PlaybackPhases` e' `Prep -> Dash -> Blast -> Move` e mai `Cleanup`, quindi chi cade nell'ultima fase
+	 * vedrebbe `FinishPlayback` subito dopo l'annuncio. E' il caso del banco `Visual.Combat.Defeat`, dove
+	 * nessuno si muove e la morte cade nel `Blast` finale.
+	 *
+	 * ⚠️ **E' tempo `Shown`, non `Slack`**: mostra qualcosa, quindi il budget non puo' toglierlo (#1878).
+	 * Scala invece con la velocita' scelta da chi guarda, come tutto il resto del playback.
+	 *
+	 * ⛔ **Non e' una callback di animazione e non aspetta il montaggio**: e' una durata dichiarata, quindi
+	 * la risoluzione resta deterministica e un montaggio assente non blocca nulla. Il valore e' da tarare a
+	 * schermo (`PIE-AS4b` / `PIE-VIS-KO`); a `0` la coda e' disattivata e si torna al comportamento
+	 * precedente.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
+	float DefeatBeatSeconds = 0.80f;
+
+	/**
 	 * Budget SOFT di durata del playback: oltre, si comprimono le ATTESE (0 = nessun budget).
 	 *
 	 * ⚠️ **Non accelera piu' la locomozione, e la parola «soft» e' quella differenza** (`#1878`,
@@ -2179,6 +2199,15 @@ private:
 	 * dall'ordine di un container hash» resta intatta.
 	 */
 	TSet<int32> PlaybackDefeatShown;
+
+	/**
+	 * Secondi che restano alla coda finale della morte, `0` quando non e' in corso (#2452).
+	 *
+	 * Quando l'ultima fase si chiude su un'eliminazione il playback NON finisce: entra qui, e
+	 * `FinishPlayback` arriva allo scadere. ⚠️ `SkipPlayback` la scavalca — chiama `FinishPlayback`
+	 * direttamente — ed e' voluto: chi salta la risoluzione non vuole aspettare una coda.
+	 */
+	float PlaybackDefeatBeatRemaining = 0.f;
 
 	TArray<ERTMatchPhase> PlaybackPhases;   // fasi attive, in ordine
 	int32 PlaybackPhaseIdx = 0;

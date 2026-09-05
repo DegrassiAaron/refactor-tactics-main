@@ -64,6 +64,25 @@ namespace
 			TM->Tick(0.05f);
 		}
 	}
+
+	/**
+	 * Come sopra, ma **contando i tick** e comunicandoli alla sonda prima di ognuno.
+	 *
+	 * Restituisce il tick in cui la risoluzione si e' chiusa. Il numero da solo non dice niente: cio' che
+	 * conta e' la DISTANZA da `FirstAnnouncementTick`, cioe' quanto il playback e' continuato dopo
+	 * l'annuncio della morte.
+	 */
+	int32 RunCountingTicks(ARTTurnManager* TM, URTDefeatPresentationProbeForTest* Sonda)
+	{
+		TM->LockInAndResolve();
+		int32 I = 0;
+		for (; I < 400 && TM->IsResolving(); ++I)
+		{
+			Sonda->CurrentTick = I;
+			TM->Tick(0.05f);
+		}
+		return I;
+	}
 }
 
 /**
@@ -198,6 +217,122 @@ bool FRTDefeatAnnouncedExactlyOnceTest::RunTest(const FString&)
 		Sonda->Announcements), QuanteVolteLaVittima, 1);
 
 	DestroyDefeatPresentationWorld(World);
+	return true;
+}
+
+/**
+ * **Quando la morte cade nell'ULTIMA fase riprodotta, il playback non finisce nello stesso istante**: tiene
+ * ancora `DefeatBeatSeconds`, cosi' il montaggio `Death` ha una finestra invece di zero (#2452).
+ *
+ * 🔴 **Il caso non e' di laboratorio, ed e' il peggiore che ci sia**: e' la forma di
+ * `Scenarios/Visual/Combat/Defeat.json`, il banco di `PIE-VIS-KO` che #288 raccomanda per giudicare la
+ * sequenza colpo → barra → rimozione. Li' **nessuno si muove**: tutti gli intent sono attacchi, quindi
+ * `PlaybackPhases` finisce con `Blast` e l'eliminazione avviene proprio nel `Blast`. Spostare l'hide a
+ * `FinishPlayback` — la prima meta' di #2452 — non basta a rendere `Death` visibile su quel banco, perche'
+ * `FinishPlayback` segue immediatamente.
+ *
+ * 🔑 **Il controllo positivo e' dentro il test**: lo stesso scenario viene eseguito due volte, una con
+ * `DefeatBeatSeconds = 0` e una col valore reale. Senza il confronto, «il playback e' durato N tick» non
+ * direbbe nulla — N dipende dalla durata delle fasi, non dalla coda. Cio' che si misura e' la **differenza**
+ * fra i due mondi, e la distanza fra annuncio e fine dentro ciascuno.
+ *
+ * ⛔ **Non prova che il montaggio si veda**, e non potrebbe: negli scenari headless nessun `AnimInstance`
+ * viene istanziato. Prova che la finestra ESISTE. Che dentro quella finestra si veda `Death` e' `PIE-AS4b`,
+ * e il suo oracolo e' una persona.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDefeatInLastPhaseGetsABeatTest,
+	"RefactorTactics.Playback.DefeatInLastPhaseGetsABeat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDefeatInLastPhaseGetsABeatTest::RunTest(const FString&)
+{
+	// --- Mondo 1: la coda DISATTIVATA, che e' il comportamento senza questa correzione ----------------
+	int32 DistanzaSenzaCoda = -1;
+	{
+		UWorld* World = MakeDefeatPresentationWorld();
+		if (!TestNotNull(TEXT("world di controllo"), World)) { return false; }
+		SpawnDefeatPresentationMap(World);
+
+		ARTUnit* Vittima = SpawnDefeatPresentationUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Carnefice = SpawnDefeatPresentationUnit(World, 1, FRTCellId(2, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Vittima || !Carnefice) { DestroyDefeatPresentationWorld(World); return false; }
+
+		// Nessuno si muove: solo un attacco. `PlaybackPhases` finisce con `Blast`, ed e' li' che si muore.
+		Vittima->Health = 1;
+		Vittima->Shield = 0;
+		Carnefice->PlannedAbilityIndex = 0;
+		Carnefice->PlannedAttackTarget = Vittima;
+
+		TM->DefeatBeatSeconds = 0.f; // il controllo: coda spenta
+
+		URTDefeatPresentationProbeForTest* Sonda = NewObject<URTDefeatPresentationProbeForTest>();
+		TM->OnUnitDefeated.AddDynamic(Sonda, &URTDefeatPresentationProbeForTest::OnUnitDefeated);
+
+		const int32 TickFine = RunCountingTicks(TM, Sonda);
+
+		if (!TestTrue(TEXT("controllo positivo: nel mondo di controllo la morte e' avvenuta"),
+			Sonda->FirstAnnouncementTick >= 0))
+		{
+			DestroyDefeatPresentationWorld(World);
+			return false;
+		}
+		DistanzaSenzaCoda = TickFine - Sonda->FirstAnnouncementTick;
+		DestroyDefeatPresentationWorld(World);
+	}
+
+	// Senza coda il playback si chiude praticamente addosso all'annuncio: e' precisamente la finestra zero.
+	TestTrue(*FString::Printf(
+		TEXT("premessa: senza coda la risoluzione finisce subito dopo l'annuncio (distanza %d tick)"),
+		DistanzaSenzaCoda), DistanzaSenzaCoda <= 1);
+
+	// --- Mondo 2: la coda ATTIVA -----------------------------------------------------------------------
+	int32 DistanzaConCoda = -1;
+	{
+		UWorld* World = MakeDefeatPresentationWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnDefeatPresentationMap(World);
+
+		ARTUnit* Vittima = SpawnDefeatPresentationUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Carnefice = SpawnDefeatPresentationUnit(World, 1, FRTCellId(2, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Vittima || !Carnefice) { DestroyDefeatPresentationWorld(World); return false; }
+
+		Vittima->Health = 1;
+		Vittima->Shield = 0;
+		Carnefice->PlannedAbilityIndex = 0;
+		Carnefice->PlannedAttackTarget = Vittima;
+
+		// Il default del CDO, non un valore scritto qui: se qualcuno lo azzerasse, questo test lo direbbe.
+		if (!TestTrue(TEXT("premessa: la coda e' configurata a un valore positivo"), TM->DefeatBeatSeconds > 0.f))
+		{
+			DestroyDefeatPresentationWorld(World);
+			return false;
+		}
+
+		URTDefeatPresentationProbeForTest* Sonda = NewObject<URTDefeatPresentationProbeForTest>();
+		TM->OnUnitDefeated.AddDynamic(Sonda, &URTDefeatPresentationProbeForTest::OnUnitDefeated);
+
+		const int32 TickFine = RunCountingTicks(TM, Sonda);
+
+		if (!TestTrue(TEXT("controllo positivo: la morte e' avvenuta anche qui"),
+			Sonda->FirstAnnouncementTick >= 0))
+		{
+			DestroyDefeatPresentationWorld(World);
+			return false;
+		}
+		DistanzaConCoda = TickFine - Sonda->FirstAnnouncementTick;
+
+		// La vita logica non e' cambiata: la distruzione resta in `ConcludeTurn`.
+		TestFalse(TEXT("la coda non ha tenuto in vita l'eliminata"), IsValid(Vittima));
+
+		DestroyDefeatPresentationWorld(World);
+	}
+
+	// --- L'oracolo -------------------------------------------------------------------------------------
+	TestTrue(*FString::Printf(
+		TEXT("con la coda il playback continua DOPO l'annuncio (%d tick contro %d senza)"),
+		DistanzaConCoda, DistanzaSenzaCoda), DistanzaConCoda > DistanzaSenzaCoda + 1);
+
 	return true;
 }
 

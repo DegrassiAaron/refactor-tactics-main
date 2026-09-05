@@ -44,10 +44,26 @@ public:
 	/** I nomi annunciati, in ordine di arrivo: serve a distinguere «due unita'» da «due volte la stessa». */
 	TArray<FString> AnnouncedNames;
 
+	/** Tick di risoluzione in corso, scritto dal test prima di ogni `ARTTurnManager::Tick`. */
+	int32 CurrentTick = -1;
+
+	/**
+	 * Il tick in cui e' arrivato il PRIMO annuncio, `-1` se non ne e' arrivato nessuno.
+	 *
+	 * 🔑 Serve a misurare la **coda della morte** (#2452): quanto il playback continua DOPO l'annuncio.
+	 * Quando l'eliminazione cade nell'ultima fase riprodotta, senza coda il playback finisce nello stesso
+	 * tick e il montaggio `Death` ha finestra zero.
+	 */
+	int32 FirstAnnouncementTick = -1;
+
 	UFUNCTION()
 	void OnUnitDefeated(ARTUnit* Unit)
 	{
 		++Announcements;
+		if (FirstAnnouncementTick < 0)
+		{
+			FirstAnnouncementTick = CurrentTick;
+		}
 		if (Unit)
 		{
 			AnnouncedNames.Add(Unit->GetName());

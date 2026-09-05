@@ -7296,6 +7296,7 @@ void ARTTurnManager::BeginPlayback()
 	PlaybackAttacks.Reset();
 	PlaybackDefeated.Reset();
 	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
+	PlaybackDefeatBeatRemaining = 0.f; // e nemmeno la coda: `SkipPlayback` passa di qui e la scavalca
 	// 🔴 **La squadra di chi GUARDA, e il playback si tronca su di essa** (`#1525`, [D-223]). Stessa porta
 	// di `ARTHUD::DrawHUD` e del velo: una sola risposta a «di che squadra e' questo giocatore» ([D-285]).
 	//
@@ -7388,6 +7389,22 @@ void ARTTurnManager::BeginPlayback()
 		const FRTPhaseTime T = PhaseTimeForPlaybackPhase(Ph);
 		ShownTotal += T.Shown;
 		SlackTotal += T.Slack;
+	}
+
+	// La coda della morte entra nella STIMA, e in `Shown` e non in `Slack` (#2452 con #1878): mostra
+	// qualcosa, quindi il budget non puo' toglierla. Si aggiunge SOLO se un'eliminazione cade nell'ultima
+	// fase riprodotta — per tutte le altre la finestra del montaggio sono le fasi che seguono, gia' contate.
+	//
+	// ⚠️ Senza questa riga la barra di avanzamento direbbe una durata piu' corta di quella che si vede.
+	if (DefeatBeatSeconds > 0.f && PlaybackPhases.Num() > 0)
+	{
+		const ERTMatchPhase UltimaFase = PlaybackPhases.Last();
+		const bool bMorteNellUltimaFase = PlaybackDefeated.ContainsByPredicate(
+			[UltimaFase](const FRTResolvedEvent& D) { return D.Phase == UltimaFase; });
+		if (bMorteNellUltimaFase)
+		{
+			ShownTotal += DefeatBeatSeconds;
+		}
 	}
 	// ⚠️ Da qui in poi `DurationForPlaybackPhase` restituisce la durata GIA' compressa: va calcolato prima
 	// di qualunque lettura, o il primo tick userebbe la scala del round precedente.
@@ -7554,6 +7571,28 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 	}
 
 	const float Dt = DeltaSeconds * URTPlaybackLibrary::EffectivePlaybackSpeed(ViewerPlaybackSpeed);
+
+	// 🔴 **La coda della morte, e sta PRIMA di leggere la fase corrente** (#2452): quando l'ultima fase si e'
+	// chiusa su un'eliminazione, `PlaybackPhaseIdx` e' gia' oltre l'ultimo indice — `PlaybackPhases[Idx]`
+	// qui sotto sarebbe fuori range. Il tick si esaurisce qui finche' la coda non scade.
+	//
+	// Il tempo scorre con lo stesso `Dt` di tutto il resto, quindi la coda scala con la velocita' scelta da
+	// chi guarda; e `PlaybackElapsedTotal` la conta, perche' e' tempo che si vede.
+	//
+	// ⛔ Non aspetta il montaggio: aspetta una DURATA. Un `Death` assente non blocca nulla, e la risoluzione
+	// resta deterministica — la presentazione non decide (invariante #1).
+	if (PlaybackDefeatBeatRemaining > 0.f)
+	{
+		PlaybackDefeatBeatRemaining -= Dt;
+		PlaybackElapsedTotal += Dt;
+		if (PlaybackDefeatBeatRemaining <= 0.f)
+		{
+			PlaybackDefeatBeatRemaining = 0.f;
+			FinishPlayback();
+		}
+		return;
+	}
+
 	PlaybackPhaseElapsed += Dt;
 	PlaybackElapsedTotal += Dt;
 
@@ -7682,12 +7721,14 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		//
 		// ⛔ **Nulla di logico si muove**: `HP=0` lo ha gia' deciso il resolver (`ApplyCombatState`) e la
 		// distruzione resta in `ConcludeTurn`. La presentazione non decide — invariante #1.
+		bool bMorteAnnunciataInQuestaFase = false;
 		for (const FRTResolvedEvent& D : PlaybackDefeated)
 		{
 			ARTUnit* const DefU = UnitByStableId(D.SourceStableUnitId);
 			if (D.Phase == Ph && DefU && !PlaybackDefeatShown.Contains(D.SourceStableUnitId))
 			{
 				PlaybackDefeatShown.Add(D.SourceStableUnitId);
+				bMorteAnnunciataInQuestaFase = true;
 				AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *DefU->GetName()), FRTLogSubject::World());
 				DefU->PlayDefeatMontage();
 				OnUnitDefeated.Broadcast(DefU);
@@ -7697,6 +7738,18 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		++PlaybackPhaseIdx;
 		if (PlaybackPhaseIdx >= PlaybackPhases.Num())
 		{
+			// 🔴 **La coda della morte** (#2452). Se l'ULTIMA fase si e' appena chiusa su un'eliminazione, il
+			// montaggio `Death` avrebbe finestra ZERO: non c'e' nessuna fase dopo in cui giocarlo, e
+			// `PlaybackPhases` non contiene mai `Cleanup`. Il playback tiene ancora `DefeatBeatSeconds`.
+			//
+			// ⛔ Aspetta una DURATA, non il montaggio: nessuna callback di animazione, nessun
+			// `IsPlaying()`. Un `Death` assente non allunga e non accorcia niente, e `DefeatBeatSeconds = 0`
+			// riporta al comportamento precedente.
+			if (bMorteAnnunciataInQuestaFase && DefeatBeatSeconds > 0.f)
+			{
+				PlaybackDefeatBeatRemaining = DefeatBeatSeconds;
+				return;
+			}
 			FinishPlayback();
 			return;
 		}
@@ -7772,6 +7825,7 @@ void ARTTurnManager::FinishPlayback()
 	PlaybackAttacks.Reset();
 	PlaybackDefeated.Reset();
 	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
+	PlaybackDefeatBeatRemaining = 0.f; // e nemmeno la coda: `SkipPlayback` passa di qui e la scavalca
 	PlaybackPhases.Reset();
 
 	AddLogEvent(FString::Printf(TEXT("Risoluzione completata (%.1fs)"), PlaybackElapsedTotal), FRTLogSubject::World());
