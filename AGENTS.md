@@ -251,19 +251,19 @@ senza evidenza.
 
 ### Un work order esterno
 
-Un kit, brief, mandato o «roadmap» che arriva da fuori e' un **ingresso**, non un owner.
+Un kit, brief, mandato o «roadmap» che arriva da fuori è un **ingresso**, non un owner.
 
 Entra il **contenuto**: candidate tecniche, difetti nominati, domande aperte.
 
-Non entra il **preambolo di processo**. Ricognizione, anti-duplicazione, priorita', label, milestone e
-formato del report sono gia' scritti qui e in [`CLAUDE.md`](CLAUDE.md). Un kit che li riscrive non li
+Non entra il **preambolo di processo**. Ricognizione, anti-duplicazione, priorità, label, milestone e
+formato del report sono già scritti qui e in [`CLAUDE.md`](CLAUDE.md). Un kit che li riscrive non li
 sostituisce, e non li emenda.
 
 Se il kit e il contratto divergono, vince il contratto.
 
 Prima di eseguirlo:
 
-- misura le sue premesse: decadono in ore, e la piu' vistosa e' spesso gia' chiusa;
+- misura le sue premesse: decadono in ore, e la più vistosa è spesso già chiusa;
 - cerca l'owner di ogni voce prima di crearne una;
 - non assegnare `D-nnn`, `Enn` o altri contatori condivisi dal kit;
 - non creare le milestone, le label o le epic che nomina senza verificare la tassonomia esistente.
@@ -273,8 +273,8 @@ Un kit senza sha e senza data non porta una misura: porta un'opinione datata ign
 Dopo:
 
 - il referto va in `docs/roadmap/plans/`, e cita lo sha su cui ha misurato;
-- cio' che il kit chiedeva e non e' stato fatto si dichiara, col motivo;
-- il kit stesso non si versiona: e' una consegna effimera, e il referto e' l'unico posto in cui resta
+- ciò che il kit chiedeva e non è stato fatto si dichiara, col motivo;
+- il kit stesso non si versiona: è una consegna effimera, e il referto è l'unico posto in cui resta
   citabile.
 
 ## 9. Build e test
