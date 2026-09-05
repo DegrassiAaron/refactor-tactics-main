@@ -1359,9 +1359,14 @@ protected:
 	 *
 	 * `Steps` e' quante celle sono state attraversate — la lunghezza della linea meno la partenza — e finisce
 	 * in `Amount`, dove le voci di movimento portano gia' quel numero.
+	 *
+	 * `Outcome` ha un default perche' i chiamanti storici scrivono tutti `Displaced`: lo passa esplicito
+	 * solo la CADUTA (#2402), dove `Displaced` direbbe *«raggiunta la destinazione della spinta»* su
+	 * un'unita' finita altrove.
 	 */
 	void AppendDisplacementEntry(const ARTUnit* Target, const FRTCellId& From, const FRTCellId& To, int32 Steps,
-		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget);
+		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget,
+		ERTMoveOutcome Outcome = ERTMoveOutcome::Displaced);
 
 	/**
 	 * Applica uno spostamento FORZATO gia' deciso: i dieci passi che devono avvenire tutti, in un posto solo
@@ -1386,10 +1391,14 @@ protected:
 	 * ⚠️ `InPhase` viaggia fino agli hazard attraversati (passo 8): uno spostamento forzato nasce in fasi
 	 * diverse — spinta e trazione nel `Blast`, fuga in `Dash` o in `Cleanup` — e il danno da terreno che ne
 	 * consegue deve dichiarare **quella**, non una fissa (`#1067`).
+	 *
+	 * `Outcome` esiste per la CADUTA (#2402) e ha il default storico: chi cade percorre gli stessi dieci
+	 * passi — traccia, playback, cella, facing, hazard — ma la sua voce non puo' dire `Displaced`.
 	 */
 	void ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& NewCell, const FRTCellId& FacingSource,
 		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget, const TCHAR* LogVerb,
-		const URTHexMapAsset* Map, ERTMatchPhase InPhase);
+		const URTHexMapAsset* Map, ERTMatchPhase InPhase,
+		ERTMoveOutcome Outcome = ERTMoveOutcome::Displaced);
 
 	/**
 	 * Voce di TurnLog per uno spostamento forzato ANNULLATO (#420): la spinta e' stata registrata, risolta, e

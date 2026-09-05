@@ -94,6 +94,13 @@ una regola nuova: è la stessa regola che incontra la caduta.
 L'atterraggio primario è la cella sottostante il punto di uscita. Gli esiti sono **tre**, e si distinguono
 nella traccia.
 
+⚠️ **I tre esiti presuppongono che un primario ESISTA**, e c'è un quarto caso che non è un esito di
+atterraggio: una colonna **senza fondo**, dove `FindLandingCell` non trova nessuna cella sotto il punto di
+uscita. Non è una caduta con un atterraggio brutto — è una caduta senza atterraggio, e la garanzia è
+un'altra: l'unità **resta su `LastStableCell`** e non esce dal mondo. Lo copre
+[#2402](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2402) D006, e il test è
+`Fall.NoCellBelowStaysOnLastStable`.
+
 ### 4.1 Primario libero
 
 Effetti di caduta a chi cade, collocazione sul primario. È il caso normale.
@@ -154,6 +161,12 @@ vanno risolte separatamente.
 ⛔ **Nessun numero è deciso qui.** Il danno da caduta, la sua scala con il dislivello e gli effetti d'impatto
 sono materia di bilanciamento (`BAL-*`) e del catalogo. Questo documento dice **che** si applicano e
 **quando**, non **quanto**.
+
+🔴 **Lo scope è diviso, e la divisione è misurata.** `FallEffects`, `ImpactEffects` e `FallDamage` hanno
+**zero occorrenze in `Source/`**: il criterio *«chi cade prende gli effetti di caduta»* non è testabile
+finché quel dato non esiste, e un test che lo asserisse misurerebbe la propria invenzione.
+∴ [#2402](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2402) consegna **posizione, esito e
+traccia**; gli effetti sono [#2430](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2430).
 
 Guardrail di baseline, finché il bilanciamento non dice altro:
 
