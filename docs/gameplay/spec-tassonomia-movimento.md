@@ -373,6 +373,40 @@ Criterio di uscita — perché una domanda aperta senza criterio non si chiude m
   sopra una volta ogni due round, si prova C;
 - chi decide è l'autore, e la decisione diventa una `D-0xx`.
 
+### 5.1 La misura che il criterio chiedeva — 2026-09-06, [#2501](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2501)
+
+🔴 **Il criterio di uscita è superato, e non di poco.**
+
+Prima di misurare, due fatti che nessuno aveva messo insieme:
+
+- il codice **non** implementa `A`. `ApplyForcedDisplacement` azzera la path composita — quello sì è `A` —
+  ma una **destinazione** dichiarata sopravvive, e `ResolveMovement` le ricalcola un percorso dalla nuova
+  origine (`FindPathForUnit`). Cioè `B`, il modello che [`D-045`](../decisions/RT_PDR_00_Decision_Log.md)
+  esclude per nome;
+- ne segue un'asimmetria che nessuna regola dichiara: chi posa **waypoint** perde il turno, chi clicca una
+  **destinazione** no. Lo stesso intento, due esiti.
+
+`A` è stato quindi implementato in via sperimentale — `PlannedCell = NewCell` incondizionato — e misurato
+sulla suite intera, con baseline sullo stesso commit per non attribuire alla modifica un rosso preesistente:
+
+| Misura | Baseline (`B`, il codice di oggi) | `A` implementato |
+|---|---|---|
+| `Bot.StallDefinitionsOnTheGeneratedTestArena` | ✅ | ❌ |
+| `Match.Autobattle.EngagesOnTheGeneratedTestArena` | ✅ | ❌ |
+| sequenza ferma più lunga (arena generata, 12 turni, 4 unità) | — | **11** (limite in uso: **4**) |
+
+**Undici turni fermi su dodici.** Il criterio parla di *«più di una volta ogni due round»*: qui il Move
+decade praticamente a ogni turno, perché in mischia lo spostamento forzato è la norma e non l'eccezione — e
+i bot pianificano **destinazioni**, non waypoint (`RTTurnManager.cpp:775`), quindi sono esattamente la
+popolazione che `A` colpisce.
+
+⛔ **La modifica è stata ritirata**: il codice resta su `B`. Non perché `B` sia giusto — resta il modello che
+`D-045` esclude — ma perché sostituirlo con un `A` che ferma il gioco non è ciò che quella decisione voleva,
+e la scelta fra `C` e una revisione di `D-045` **è dell'autore**.
+
+⚠️ Cosa questa misura **non** dice: non dice che `C` funzioni. Dice che `A`, applicato alla lettera, supera
+il proprio criterio di uscita al primo tentativo.
+
 ## 6. Riconciliazione col kit d'autore
 
 Il kit `RefactorTactics_Move_Consolidation_Claude.md` propone 59 sezioni. Non tutte erano nuove; **due erano

@@ -12,6 +12,7 @@ struct FRTHexSnapshot;
 struct FRTCellId;
 struct FRTOccupancyMask;
 struct FRTPlacementRegion;
+struct FRTBoundaryChecksum;
 
 /**
  * L'esito di `rt.Debug.VerifyReplay`: il VERDETTO separato dalle righe che lo stampano.
@@ -154,4 +155,36 @@ public:
 	 */
 	static TArray<FString> DescribeCellPlacement(const FRTCellId& Cell, const FRTOccupancyMask& Mask,
 		const TArray<FRTPlacementRegion>& Regions, const TArray<FRTHexCover>& Covers);
+
+	/**
+	 * Le righe di una serie di boundary checksum: una per boundary, nella forma di `ToString()`.
+	 *
+	 * 🔑 **Prende i checksum GIA' CALCOLATI, e non la traccia.** Chiamare `ChecksumsAlongTrace` qui dentro
+	 * obbligherebbe questa funzione a possedere anche `Initial`, la mappa e la versione di formato — cioe' a
+	 * decidere *quale* misura sta facendo il chiamante. La separazione tiene il compositore puro rispetto al
+	 * modello: qui non si ricalcola nessun hash e non si riordina nessun boundary.
+	 *
+	 * ⚠️ **Una serie vuota produce una riga, non il vuoto.** «Nessun boundary» e' un esito che va detto:
+	 * un output vuoto e' indistinguibile da un comando che non e' partito.
+	 *
+	 * Pinnata da `RefactorTactics.Debug.BoundaryChecksumReportNamesEveryBoundary`.
+	 */
+	static TArray<FString> DescribeBoundaryChecksums(const TArray<FRTBoundaryChecksum>& Checksums);
+
+	/**
+	 * Il verdetto del confronto fra due corse **alla granularita' del boundary**: dove divergono, non solo
+	 * che divergono.
+	 *
+	 * 🔴 **E' il consumer che mancava a `#2374`.** `URTBoundaryChecksumLibrary::DescribeDivergence` esisteva,
+	 * era testata e non la chiamava nessuno fuori dai test: la capacita' di dire *«divergono a `T1|Move#1`»*
+	 * era costruita e irraggiungibile. Questa funzione la rende raggiungibile da un consumer di produzione.
+	 *
+	 * ⚠️ **Non riscrive il criterio.** `FirstDivergence` decide *dove*, `DescribeDivergence` decide *come si
+	 * dice*: un compositore che confrontasse gli hash per conto proprio risponderebbe a una domanda diversa
+	 * da quella del gate, ed e' esattamente il difetto che `rt.Debug.VerifyReplay` evita delegando.
+	 *
+	 * Pinnata da `RefactorTactics.Debug.BoundaryDivergenceReportNamesTheTriple`.
+	 */
+	static TArray<FString> DescribeBoundaryDivergence(const TArray<FRTBoundaryChecksum>& A,
+		const TArray<FRTBoundaryChecksum>& B);
 };
