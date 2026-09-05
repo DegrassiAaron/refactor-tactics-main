@@ -17,6 +17,49 @@ ERTReplaySeekResult URTReplaySeekLibrary::SeekToPhase(const TArray<FRTTurnLogEnt
 	return ERTReplaySeekResult::PhaseNotFound;
 }
 
+ERTReplaySeekResult URTReplaySeekLibrary::SeekToBoundary(const TArray<FRTTurnLogEntry>& Trace,
+	ERTMatchPhase Phase, int32 MicroStepIndex, int32& OutEntryIndex)
+{
+	// Stessa scansione lineare di `SeekToPhase`, e per la stessa ragione: il valore del seek e' non
+	// riprodurre cio' che precede, non il costo di trovare l'indice.
+	//
+	// ⚠️ Si distinguono DUE assenze. Se la fase non compare affatto, l'esito e' `PhaseNotFound` — il turno
+	// non l'ha attraversata. Se la fase c'e' ma non a quel micro-step, e' `BoundaryNotFound`: la barriera
+	// chiesta non esiste in un turno che pure ha avuto quella fase. Dire la prima al posto della seconda
+	// manderebbe a cercare il turno sbagliato.
+	// ⛔ `INDEX_NONE` NON e' una barriera indirizzabile, ed e' lo stesso rifiuto che `SeekToTurn` oppone allo
+	// `0` dei turni non dichiarati (`#2260`). Da quando il resolver scrive il campo, le voci nate fuori da un
+	// ciclo di micro-step — Blast, status, hazard, i rifiuti in Planning — valgono `INDEX_NONE`: sono molte,
+	// condividono il valore e **non formano un gruppo simultaneo**, perche' non c'e' nessun boundary che le
+	// abbia decise insieme. Lasciar passare la richiesta risponderebbe `Found` puntando alla prima di esse,
+	// cioe' trasformerebbe «questa voce non appartiene a un ciclo» in una posizione — l'opposto del
+	// fail-closed, e la smentita di cio' che il nome di questa funzione promette.
+	if (MicroStepIndex < 0)
+	{
+		return ERTReplaySeekResult::BoundaryNotFound;
+	}
+
+	bool bPhaseSeen = false;
+	for (int32 Index = 0; Index < Trace.Num(); ++Index)
+	{
+		if (Trace[Index].Phase != Phase)
+		{
+			continue;
+		}
+		bPhaseSeen = true;
+
+		if (Trace[Index].MicroStepIndex == MicroStepIndex)
+		{
+			// La PRIMA in ordine canonico, che e' dove il gruppo comincia. Non la prima accaduta: le voci di
+			// un boundary sono simultanee, e la traccia non porta — deliberatamente — un ordine fra loro.
+			OutEntryIndex = Index;
+			return ERTReplaySeekResult::Found;
+		}
+	}
+
+	return bPhaseSeen ? ERTReplaySeekResult::BoundaryNotFound : ERTReplaySeekResult::PhaseNotFound;
+}
+
 ERTReplaySeekResult URTReplaySeekLibrary::SeekToTurn(const TArray<TArray<FRTTurnLogEntry>>& Sequence,
 	int32 TurnNumber, FRTReplayCursor& OutCursor)
 {

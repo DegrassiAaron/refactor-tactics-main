@@ -1,7 +1,136 @@
 #include "ScenarioHarness/RTScenarioSession.h"
+#include "EngineUtils.h" // TActorIterator: lo sgombero di `#2223` percorre il mondo
 
 #include "ScenarioHarness/RTScenarioArena.h" // l'arena la costruisce chi la costruisce anche per l'authoring
 #include "Turn/RTMatchStateHash.h"
+
+namespace RTScenarioStateDiff
+{
+	/**
+	 * I DIGEST DELLE UNITA' VIVE, in ordine di `UnitId` — `#1630`.
+	 *
+	 * 🔴 **L'ordine non e' cosmetico.** `UnitsById` e' una `TMap` e la sua iterazione non e' garantita:
+	 * `HashMatchState` se ne salva perche' ordina internamente prima di mescolare, ma un elenco ESPOSTO
+	 * cambierebbe ordine fra due run, e un diff che cambia ordine non e' ne' confrontabile ne' diffabile a
+	 * vista. E' lo stesso difetto corretto in `ResolveAttacks` da `#1951`.
+	 */
+	REFACTORTACTICS_API TArray<FRTUnitStateDigest> Snapshot(const TMap<FString, TWeakObjectPtr<ARTUnit>>& UnitsById)
+	{
+		TArray<ARTUnit*> Alive;
+		Alive.Reserve(UnitsById.Num());
+		for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
+		{
+			if (ARTUnit* Unit = Pair.Value.Get())
+			{
+				Alive.Add(Unit);
+			}
+		}
+
+		TArray<FRTUnitStateDigest> Digests = URTMatchStateHashLibrary::BuildUnitDigests(Alive);
+		Digests.Sort([](const FRTUnitStateDigest& A, const FRTUnitStateDigest& B)
+			{ return A.UnitId < B.UnitId; });
+		return Digests;
+	}
+
+	FString StatusesToText(const TArray<FName>& Statuses)
+	{
+		// Ordinati: arrivano da un set, e due elenchi identici in ordine diverso direbbero «cambiato».
+		TArray<FString> Names;
+		Names.Reserve(Statuses.Num());
+		for (const FName& Tag : Statuses) { Names.Add(Tag.ToString()); }
+		Names.Sort();
+		return FString::Join(Names, TEXT(","));
+	}
+
+	/** Confronta due digest e produce SOLO i campi diversi. */
+	void CompareInto(const FRTUnitStateDigest& Before, const FRTUnitStateDigest& After,
+		TArray<FRTUnitFieldChange>& Out)
+	{
+		if (!(Before.Cell == After.Cell))
+		{
+			Out.Emplace(TEXT("Cell"), Before.Cell.ToString(), After.Cell.ToString());
+		}
+		if (Before.Health != After.Health)
+		{
+			Out.Emplace(TEXT("Health"), FString::FromInt(Before.Health), FString::FromInt(After.Health));
+		}
+		if (Before.Shield != After.Shield)
+		{
+			Out.Emplace(TEXT("Shield"), FString::FromInt(Before.Shield), FString::FromInt(After.Shield));
+		}
+		if (Before.bAlive != After.bAlive)
+		{
+			Out.Emplace(TEXT("bAlive"), Before.bAlive ? TEXT("true") : TEXT("false"),
+				After.bAlive ? TEXT("true") : TEXT("false"));
+		}
+		if (Before.AbilityCooldowns != After.AbilityCooldowns)
+		{
+			// Slot per slot, perche' «i cooldown sono cambiati» non dice quale azione e' tornata disponibile.
+			auto Descrivi = [](const TArray<int32>& Cooldowns)
+			{
+				TArray<FString> Pezzi;
+				for (int32 I = 0; I < Cooldowns.Num(); ++I)
+				{
+					Pezzi.Add(FString::Printf(TEXT("%d:%d"), I, Cooldowns[I]));
+				}
+				return Pezzi.Num() > 0 ? FString::Join(Pezzi, TEXT(" ")) : FString(TEXT("(nessuna abilita')"));
+			};
+			Out.Emplace(TEXT("AbilityCooldowns"), Descrivi(Before.AbilityCooldowns), Descrivi(After.AbilityCooldowns));
+		}
+		if (Before.Facing != After.Facing)
+		{
+			Out.Emplace(TEXT("Facing"), FString::FromInt(static_cast<int32>(Before.Facing)),
+				FString::FromInt(static_cast<int32>(After.Facing)));
+		}
+		const FString BeforeTags = StatusesToText(Before.Statuses);
+		const FString AfterTags = StatusesToText(After.Statuses);
+		if (BeforeTags != AfterTags)
+		{
+			Out.Emplace(TEXT("Statuses"), BeforeTags, AfterTags);
+		}
+	}
+
+	/** Il diff fra due elenchi gia' ordinati: campi cambiati, comparse e sparizioni. */
+	REFACTORTACTICS_API TArray<FRTUnitStateDiff> Build(const TArray<FRTUnitStateDigest>& Before,
+		const TArray<FRTUnitStateDigest>& After)
+	{
+		TMap<int32, const FRTUnitStateDigest*> AfterById;
+		for (const FRTUnitStateDigest& D : After) { AfterById.Add(D.UnitId, &D); }
+
+		TArray<FRTUnitStateDiff> Result;
+		TSet<int32> Seen;
+		for (const FRTUnitStateDigest& Was : Before)
+		{
+			Seen.Add(Was.UnitId);
+			FRTUnitStateDiff Entry;
+			Entry.UnitId = Was.UnitId;
+			if (const FRTUnitStateDigest* const* Now = AfterById.Find(Was.UnitId))
+			{
+				Entry.Presence = ERTUnitDiffPresence::Present;
+				CompareInto(Was, **Now, Entry.Changes);
+			}
+			else
+			{
+				// ⚠️ Una sparizione NON e' un `Health` che va a zero: e' un'assenza, e si dice come tale.
+				Entry.Presence = ERTUnitDiffPresence::Disappeared;
+			}
+			Result.Add(MoveTemp(Entry));
+		}
+
+		for (const FRTUnitStateDigest& Now : After)
+		{
+			if (Seen.Contains(Now.UnitId)) { continue; }
+			FRTUnitStateDiff Entry;
+			Entry.UnitId = Now.UnitId;
+			Entry.Presence = ERTUnitDiffPresence::Appeared;
+			Result.Add(MoveTemp(Entry));
+		}
+
+		// Gli ingressi sono ordinati, le comparse si accodano: si riordina perche' l'elenco intero lo sia.
+		Result.Sort([](const FRTUnitStateDiff& A, const FRTUnitStateDiff& B) { return A.UnitId < B.UnitId; });
+		return Result;
+	}
+}
 #include "Turn/RTTurnLogLibrary.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
@@ -54,10 +183,15 @@ namespace
 			// L'affermazione «nessun chiamante» era l'unica parte scaduta.
 			//
 			// La divisione e' fra i due nomi che esistono gia', non con un terzo: la DECISIONE su
-			// un'opportunity a due risposte e' `DecisionBoundary`. Misurato che i tre scenari che chiedono
+			// un'opportunity a due risposte e' `DecisionBoundary`. Misurato che gli scenari che chiedono
 			// `Reaction` — `Combat/CounterStrikesBack`, `Visual/Reaction/Deflection`,
-			// `Visual/Reaction/Interposition` — sono tutti nel regime `<= 1`: un nome nuovo li costringerebbe a
-			// cambiare senza che cambi cio' che chiedono.
+			// `Visual/Reaction/Interposition`, `Spec/Overwatch/ConditionCollapsesToHold` e
+			// `Spec/Reaction/DeflectionReducesByTwenty` — sono tutti nel regime `<= 1`: un nome nuovo li
+			// costringerebbe a cambiare senza che cambi cio' che chiedono.
+			//
+			// ⚠️ **La conta diceva TRE fino al 2026-09-02**, ed erano gia' cinque: un elenco in un commento
+			// invecchia a ogni scenario nuovo. Chi lo rilegge lo rimisuri con un grep invece di crederci.
+			// Cio' che non invecchia e' il criterio — il regime `<= 1` — non l'elenco.
 			//
 			// Pinnata da `Scenario.ReactionAndDecisionBoundaryAreDistinct`, che chiede **entrambe** le domande
 			// — noto e disponibile — perche' un nome noto e indisponibile e' precisamente l'altro caso.
@@ -153,6 +287,21 @@ namespace
 			// disponibile la scelta.
 			TEXT("DecisionBoundary"),
 
+			// ➕ **`InterceptRevalidation` SCENDE qui con `#1060`**, e le tre condizioni che la sua vecchia
+			// riga prescriveva sono soddisfatte tutte e tre — verificate, non assunte:
+			//   · il **runtime** esiste da `#200`: `URTHexCombatLibrary` rivalida la geometria sul bersaglio
+			//     effettivo (D-017), con tre test che la pinnano (`Cover.InterceptRecalculatesOnEffectiveTarget`,
+			//     `...RevalidatesFacingOnEffectiveTarget`, `...DoesNotOpenSecondOpportunity`);
+			//   · il **VOCABOLARIO** esiste da `#1196`: `OriginalTargetEquals` ed `EffectiveTargetEquals` sono
+			//     tipi di assertion, con parsing e messaggio d'errore — era il collo di bottiglia dichiarato;
+			//   · il **contenuto** del T6 atterra nello STESSO commit di questa riga, che e' la condizione che
+			//     la vecchia nota poneva: scoprirla da sola farebbe passare un turno con `intents: []`.
+			// ⚠️ E la fixture e' **discriminante**, che e' la quarta condizione e non era scritta: la copertura
+			// sul bordo `(1,0)->(2,0)` ripara Riktor e non Wraith, quindi un resolver che conservasse la
+			// copertura del bersaglio ORIGINALE darebbe 98 invece di 108 — e il turno cadrebbe. Senza quella
+			// copertura, i due comportamenti sarebbero indistinguibili e il verde non direbbe niente.
+			TEXT("InterceptRevalidation"),
+
 			// ➕ **`ReactionProfile` SCENDE qui il 2026-08-19 con la fetta 4 di `#314`**, e le tre condizioni
 			// che la riga di sopra prescriveva sono soddisfatte tutte e tre — verificate, non assunte:
 			//   · il **runtime** esiste: `RTTurnManager_Blast.cpp`, ramo `Status.Braced`, costruisce
@@ -179,6 +328,29 @@ namespace
 			// `MakeClashLogEntries` — e **nessun punto del resolver le chiama**: un turno che chiedesse
 			// `ReactionClash` non troverebbe niente da eseguire.
 			TEXT("ReactionProfile"),
+
+			// ➕ **`Objective` SCENDE qui con `#170`**, e le condizioni sono le stesse che questo elenco
+			// impone a chiunque — verificate, non assunte:
+			//   · il **runtime** esiste da `#75` (CP 10.2): `URTTurnRules::ResolveObjectiveControl` conta le
+			//     PRESENZE — non le azioni — ed e' chiamato da `ARTTurnManager` nel **Cleanup**, dopo gli
+			//     effetti ambientali e i KO e **prima** di `EvaluateMatchEnd`, cosi' che un punto segnato in
+			//     quel Cleanup possa chiudere la partita nello stesso Cleanup. Il produttore non e' l'harness:
+			//     e' il resolver di ogni partita;
+			//   · il **CONTENUTO** del T8 dello showcase atterra nello STESSO commit di questa riga, che e'
+			//     la regola che `#512` fase B ha speso un giro a difendere — scoprire una capability senza il
+			//     contenuto che la esercita produce un turno che si sblocca senza eseguire cio' che descrive;
+			//   · la **cella obiettivo** esiste nella fixture, ed e' la terza condizione che nessuno aveva
+			//     scritto. `MakeShowcaseRelayBasinArena` marca `(0,0,0)` — prima non lo faceva **nessun**
+			//     costruttore di arena, e su una mappa senza obiettivi il Cleanup tace di proposito
+			//     (`Objectives.SilentWithoutObjectiveCell`). Senza quella riga questa capability avrebbe
+			//     prodotto un T8 che gira, non segna e **passa**: il verde bugiardo, di nuovo.
+			//
+			// ⚠️ **Il perimetro e' UN obiettivo contendibile su UNA cella.** `bIsObjective` e' un `bool` e non
+			// un proprietario, e con una cella sola l'occupazione rende `Contested` **irraggiungibile**: due
+			// unita' non stanno sulla stessa cella. Piu' obiettivi simultanei sono CP 31.1, post-v0.1 — e
+			// quel giorno `ResolveObjectiveControl` avra' finalmente un caso di parita' da risolvere in
+			// partita, che oggi esiste solo nei suoi test.
+			TEXT("Objective"),
 		};
 		return Available;
 	}
@@ -255,8 +427,16 @@ namespace
 			// 🔴 **Quel gate e' uscito con D-182 il 2026-08-21**: un `owner:` che punta a una issue chiusa
 			// mentre la capability resta non disponibile oggi non lo segnala piu' nessuno. Chi tocca questi
 			// commenti controlli lo stato della issue a mano.
-			TEXT("InterceptRevalidation"),    // owner: #1060
-			TEXT("Objective"),                // owner: #75
+			// ➖ **`Objective` e' USCITA da qui con `#170`**, ed e' fra le disponibili: le ragioni stanno
+			// accanto alla sua voce la' sopra. ⚠️ **La riga sopravvive come registro di un difetto di
+			// processo, e vale la pena tenerlo.** L'owner era `#75`, che ha chiuso il 2026-09-02 — e per
+			// **un giorno** questa riga ha dichiarato non disponibile una capability il cui owner era chiuso,
+			// che e' esattamente cio' che `check-capability-owners.py --online` trovava prima di uscire con
+			// `D-182`. Nessuno l'ha segnalato. E la ragione per cui non bastava chiudere `#75` e' piu'
+			// interessante del ritardo: **mancava una terza condizione che nessun documento nominava** — la
+			// cella obiettivo nella fixture. «La issue e' chiusa» non e' mai stato il criterio di questo
+			// elenco; il criterio e' *il campo ha un produttore che non e' l'harness*, e qui il produttore
+			// c'era ma non aveva niente su cui girare.
 			TEXT("Perception"),               // owner: #151
 			// Le tre che la prosa non nominava, chieste da `Spec/Movement/`: `SpatialTrigger` (tripwire che
 			// scatta attraversando un bordo), `SemanticTrigger` (trigger che distingue Dash da Move) e
@@ -306,7 +486,7 @@ namespace
 		//   ⚠️ **Misurato scoprendola per davvero, invece di prevederlo**: il piano diceva che sarebbero
 		//   passati «da `BLOCKED` a `FAIL`, che `EveryShippedScenarioRuns` non accetta». Non e' cosi' —
 		//   quel test resta VERDE. A cadere sono altri due, e dicono qualcosa di piu' preciso:
-		//   `Scenario.ShowcaseRelayV01RunsTurnOne` (`RT_Showcase_Relay_v01` arriva a **cinque** turni invece
+		//   `Scenario.ShowcaseRelayV01PlaysEveryTurn` (`RT_Showcase_Relay_v01` arriva a **cinque** turni invece
 		//   di tre: il T2 non si ferma piu') e `Scenario.UnknownCapabilityIsErrorNotBlocked`, che usa
 		//   `DecisionBoundary` proprio come **esempio** di «nota ma non disponibile» e ne perderebbe il
 		//   soggetto. Si scopre **insieme** ai dati, ed e' fase B.
@@ -324,9 +504,11 @@ namespace
 		//   esito non cambia di una riga: resta bloccato su `DecisionBoundary`, che e' il punto — la
 		//   correzione di un refuso non deve spostare un verdetto.
 		//
-		//   `InterceptRevalidation`, `Objective`, `Perception` — chieste da scenari gia' in repo. Restano fuori
-		//   finche' qualcuno non misura, come si e' fatto qui per `Reaction`, che il gioco le sappia fare in
-		//   partita e non solo in una libreria pura.
+		//   `Objective` e `Perception` — chieste da scenari gia' in repo. Restano fuori finche' qualcuno non
+		//   misura, come si e' fatto qui per `Reaction`, che il gioco le sappia fare in partita e non solo in
+		//   una libreria pura.
+		//   ➕ **`InterceptRevalidation` e' uscita da questo elenco con `#1060`** ed e' fra le disponibili:
+		//   la misura che mancava e' stata fatta, e il T6 dello showcase la esercita in partita.
 		//
 		//   ⚠️ La CONDIZIONE dichiarata di [D-109] (`TargetHealthAtOrBelowPercent`) non e' ancora implementata,
 		//   e quando lo sara' vale per lei la stessa regola: **nessuna chiave di scenario** finche' non esiste
@@ -419,17 +601,38 @@ namespace
 	}
 
 	/**
+	 * Vero se la voce corrisponde a categoria, esito e — quando richiesto — `ActionId` (`#170`).
+	 *
+	 * 🔴 **Il terzo campo esiste perche' i primi due non identificano un evento**, e il caso che l'ha
+	 * imposto e' il T3 dello showcase: il danno da `Status.Burning` e' `Combat`/`Hit` come un colpo d'arma,
+	 * perche' [D-162] mette la CAUSA in `ActionId` e non nella categoria. Con due soli campi un
+	 * `LogEventCount(Combat, Hit)` scritto per dire «il fuoco ha bruciato qualcuno» sarebbe vero anche se il
+	 * fuoco non avesse bruciato nessuno — cioe' non falsificabile.
+	 *
+	 * ⚠️ `NAME_None` = nessun filtro, ed e' cio' che rende la modifica RETROCOMPATIBILE: le assertion gia'
+	 * scritte non dichiarano `actionId` e continuano a confrontare due campi su quindici, esattamente come
+	 * prima. Aggiungere un terzo confronto SEMPRE attivo avrebbe rotto ogni scenario del corpus.
+	 */
+	bool MatchesScenarioLogEvent(const FRTTurnLogEntry& Entry, ERTLogCategory Category, uint8 Outcome,
+		FName ActionId)
+	{
+		if (Entry.Category != Category || Entry.Outcome != Outcome) { return false; }
+		return ActionId.IsNone() || Entry.ActionId == ActionId;
+	}
+
+	/**
 	 * Posizione della PRIMA occorrenza di un evento nel log, o `INDEX_NONE`.
 	 *
 	 * «Prima occorrenza» e non «una qualsiasi»: `LogEventOrder` chiede se una cosa e' successa prima di
 	 * un'altra, e con eventi ripetuti l'unica formulazione che non dipende da quale coppia si sceglie e'
 	 * confrontare i due esordi.
 	 */
-	int32 IndexOfScenarioLogEvent(const TArray<FRTTurnLogEntry>& Log, ERTLogCategory Category, uint8 Outcome)
+	int32 IndexOfScenarioLogEvent(const TArray<FRTTurnLogEntry>& Log, ERTLogCategory Category, uint8 Outcome,
+		FName ActionId = NAME_None)
 	{
 		for (int32 I = 0; I < Log.Num(); ++I)
 		{
-			if (Log[I].Category == Category && Log[I].Outcome == Outcome) { return I; }
+			if (MatchesScenarioLogEvent(Log[I], Category, Outcome, ActionId)) { return I; }
 		}
 		return INDEX_NONE;
 	}
@@ -478,6 +681,35 @@ bool FRTScenarioSession::IsKnownCapability(const FString& Capability)
 bool FRTScenarioSession::IsAvailableCapability(const FString& Capability)
 {
 	return IsCapabilityAvailable(Capability);
+}
+
+const FName FRTScenarioSession::SpawnedByScenarioTag(TEXT("RTScenario.Spawned"));
+
+int32 FRTScenarioSession::ClearScenarioSpawnedUnits(UWorld* InWorld)
+{
+	if (!InWorld)
+	{
+		return 0;
+	}
+
+	// ⚠️ Si raccoglie PRIMA e si distrugge poi: `Destroy()` durante un `TActorIterator` modifica cio' che
+	// l'iteratore sta percorrendo.
+	TArray<ARTUnit*> DaTogliere;
+	for (TActorIterator<ARTUnit> It(InWorld); It; ++It)
+	{
+		ARTUnit* Unit = *It;
+		if (IsValid(Unit) && Unit->ActorHasTag(SpawnedByScenarioTag))
+		{
+			DaTogliere.Add(Unit);
+		}
+	}
+
+	for (ARTUnit* Unit : DaTogliere)
+	{
+		Unit->Destroy();
+	}
+
+	return DaTogliere.Num();
 }
 
 bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenario)
@@ -531,6 +763,20 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		MapActor->GetHexContext(MapOrigin, MapHexSize, MapLayerHeight);
 	}
 
+	// 🔴 **Il campo si sgombera QUI, prima di posare qualunque cosa** (`#2223`).
+	//
+	// Fuori dal PIE ogni corsa riceve un `UWorld` temporaneo e parte pulita per costruzione. In PIE il mondo
+	// e' quello della sessione e non si puo' ricreare: senza questa riga il secondo scenario si SOMMA al
+	// primo, e cio' che si misura e' il residuo. Osservato lanciando scenari uno dopo l'altro su
+	// `L_DevSandbox`.
+	//
+	// ⛔ Si tolgono **solo le unita' marcate**, mai tutte quelle del mondo: in PIE lo scenario gira dentro
+	// una partita, e sgomberarla sarebbe un rimedio peggiore del difetto.
+	//
+	// ⚠️ E si sgombera all'INGRESSO invece che alla fine: uno scenario interrotto a meta' non arriverebbe mai
+	// a un teardown finale, e sarebbe proprio quello a lasciare il campo sporco.
+	ClearScenarioSpawnedUnits(World.Get());
+
 	for (const FRTScenarioUnit& Spec : Scenario.Units)
 	{
 		URTHeroData* Hero = FindScenarioHero(Spec.HeroId);
@@ -563,6 +809,9 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		{
 			return Fail(FString::Printf(TEXT("spawn fallito per l'unita' '%s'"), *Spec.Id));
 		}
+		// Il marchio PRIMA di `FinishSpawningActor`: da qui in poi l'unita' e' riconoscibile come roba di
+		// scenario, anche se la corsa si interrompe subito dopo.
+		Unit->Tags.Add(SpawnedByScenarioTag);
 		Unit->TeamId = Spec.TeamId;
 		Unit->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
@@ -599,6 +848,22 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		{
 			Unit->VisionRange = Spec.VisionRange;
 		}
+
+		// GLI STATUS INIZIALI, applicati con la porta VERA — `#1629`. `ApplyStatus` e' l'unico percorso:
+		// scrivere gli stati a mano qui sarebbe un secondo modo di renderli attivi, e i due diverrebbero
+		// il giorno che quella funzione cambia.
+		for (const FRTScenarioStatus& Status : Spec.Statuses)
+		{
+			const FGameplayTag Tag = FGameplayTag::RequestGameplayTag(Status.Tag, /*ErrorIfNotFound=*/ false);
+			if (!Tag.IsValid())
+			{
+				// Non dovrebbe accadere: il loader rifiuta gia' i tag sconosciuti. Se accade, la fixture e'
+				// stata costruita in memoria saltando il loader, e tacere renderebbe il test verde a vuoto.
+				return Fail(FString::Printf(TEXT("unita' '%s': status '%s' sconosciuto all'applicazione"),
+					*Spec.Id, *Status.Tag.ToString()));
+			}
+			Unit->ApplyStatus(Tag, Status.Turns);
+		}
 		// EQUIPAGGIAMENTO. Che i pezzi esistano e che l'insieme sia legale l'ha gia' verificato il loader,
 		// che rifiuta lo scenario con un motivo invece di lasciarlo girare a meta'. Qui si sceglie QUALE
 		// loadout, e ad applicarlo e' `ARTUnit::EquipLoadout` — la stessa funzione che chiama
@@ -624,6 +889,43 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		Unit->EquipLoadout(Pezzi);
 
 		UnitsById.Add(Spec.Id, Unit);
+	}
+
+	// LA VARIANTE SPERIMENTALE (`#2004`). Qui e non altrove, e le due condizioni contano entrambe:
+	//
+	//   · DOPO il ciclo, perche' un override si valida contro l'unione dei kit — un `ActionId` che
+	//     NESSUNA unita' porta e' un errore di run, e dentro il ciclo non si potrebbe ancora saperlo;
+	//   · DOPO `EquipLoadout`, che e' la configurazione di produzione: l'esperimento sta SOPRA di essa.
+	//     Applicarlo prima lo farebbe sovrascrivere da una variante d'arma, e il designer vedrebbe il
+	//     proprio numero sparire senza un motivo visibile.
+	//
+	// ⚠️ L'override raggiunge OGNI istanza che porta l'azione, non la prima: ogni unita' ha le proprie da
+	// `ConfigureFromHeroData`, e fermarsi alla prima farebbe leggere una differenza che viene da QUALE
+	// unita' ha agito invece che dal numero.
+	if (!WorkbenchVariant.IsBaseline())
+	{
+		TArray<URTActionData*> KitDiTutti;
+		for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Voce : UnitsById)
+		{
+			ARTUnit* U = Voce.Value.Get();
+			if (U == nullptr) { continue; }
+			for (int32 i = 0; i < U->NumAbilities(); ++i)
+			{
+				if (URTActionData* A = U->GetAbility(i)) { KitDiTutti.Add(A); }
+			}
+		}
+
+		FRTWorkbenchVariant Ripristino;
+		const ERTVariantApplyResult Esito =
+			URTWorkbenchVariantLibrary::Apply(WorkbenchVariant, KitDiTutti, Ripristino);
+		if (Esito != ERTVariantApplyResult::Ok)
+		{
+			// Fail-closed PRIMA del primo turno: una variante applicata a meta' darebbe una run che il
+			// designer attribuirebbe all'esperimento che ha configurato, e non lo sarebbe.
+			return Fail(FString::Printf(
+				TEXT("variante '%s': non applicabile al kit di questo scenario (esito %d)"),
+				*WorkbenchVariant.VariantId.ToString(), static_cast<int32>(Esito)));
+		}
 	}
 
 	ARTTurnManager* TM = Cast<ARTTurnManager>(
@@ -719,6 +1021,11 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 	State = EState::PauseBeforeTurn;
 	PauseElapsed = 0.f;
 	TurnIndex = 0;
+
+	// LO STATO D'INGRESSO, catturato qui perche' qui l'allestimento e' finito e nessun turno e' girato —
+	// `#1630`. Un istante prima le unita' non esistono; uno dopo il primo turno le ha gia' toccate.
+	InitialUnitStates = RTScenarioStateDiff::Snapshot(UnitsById);
+
 	ApplyPreviewSelection();
 	return true;
 }
@@ -861,7 +1168,7 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 
 		// --- abilita' -------------------------------------------------------------------------------------
 		// Stessa strada del controller: si scrivono `PlannedAbilityIndex` e `PlannedAttackTarget`, esattamente
-		// come dopo un click sul nemico. Portata, LOS, cooldown ed energia li valuta il turn manager al momento
+		// come dopo un click sul nemico. Portata, LOS e cooldown li valuta il turn manager al momento
 		// della risoluzione — la sessione non li anticipa, altrimenti verificherebbe le proprie regole invece
 		// di quelle del gioco.
 		// Bersaglio a UNITA': il caso a cella e' il ramo dopo. La condizione porta `!bTargetsCell` perche'
@@ -1550,6 +1857,33 @@ void FRTScenarioSession::Finish()
 		const TArray<FRTUnitStateDigest> UnitStates =
 			URTMatchStateHashLibrary::BuildUnitDigests(UnitsForDigest);
 
+		// IL DIFF — `#1630`. Legge i due stati, non li calcola: quello finale e' lo stesso che alimenta il
+		// checksum due righe piu' sotto, quello iniziale e' stato catturato in `Start()`.
+		Result.StateDiff = RTScenarioStateDiff::Build(InitialUnitStates,
+			RTScenarioStateDiff::Snapshot(UnitsById));
+
+		// IL PONTE FRA I DUE SPAZI DI ID — `#1625`.
+		//
+		// 🔴 **Si trasporta qui perche' QUI la corrispondenza esiste**, e da nessun'altra parte: `UnitsById`
+		// lega la `FString` d'authoring all'`ARTUnit`, e l'actor porta lo `StableUnitId` che
+		// `EnsureMatchRoster` gli ha assegnato. Fuori da questa funzione i due mondi non si toccano piu' —
+		// il TurnLog ha solo l'intero, la vista d'authoring solo la stringa.
+		//
+		// ⚠️ **Si legge dall'actor e non si ricalcola.** L'id nasce da un roster ORDINATO per
+		// `TeamId`/`Cell`/nome-actor: riprodurre quell'ordine altrove sarebbe una seconda regola, e
+		// divergerebbe al primo pareggio o al primo cambio di `MatchRosterLess`.
+		//
+		// ⛔ Un'unita' distrutta durante la partita non ha piu' un actor da cui leggere: il suo id resta
+		// fuori dalla mappa, e chi legge trova l'assenza invece di uno zero che sembrerebbe un'unita' vera.
+		Result.ScenarioIdByUnitId.Reset();
+		for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
+		{
+			if (const ARTUnit* Unit = Pair.Value.Get())
+			{
+				Result.ScenarioIdByUnitId.Add(Unit->StableUnitId, Pair.Key);
+			}
+		}
+
 		// Punteggi indicizzati per TeamId: la v0.1 e' 2v2, e il giudice della fine partita li tiene qui.
 		TArray<int32> TeamScores;
 		if (const ARTTurnManager* TM = TurnManager.Get())
@@ -1571,7 +1905,7 @@ void FRTScenarioSession::Finish()
 	// `requires` sul secondo turno, quindi il primo gira — ma e' una salvezza accidentale, non una regola.
 	//
 	// ⚠️ **Solo se NESSUN turno e' stato giocato**, e il confine e' stato stretto qui dopo che una prima
-	// versione — «bloccato ⇒ salta le assertion» — ha fatto cadere `ShowcaseRelayV01RunsTurnOne`, che gioca
+	// versione — «bloccato ⇒ salta le assertion» — ha fatto cadere `ShowcaseRelayV01PlaysEveryTurn`, che gioca
 	// il turno 1 e si blocca al secondo: le sue assertion misurano uno stato che la partita ha davvero
 	// raggiunto, e saltarle avrebbe tolto verifica invece di aggiungerne.
 	//
@@ -1792,14 +2126,14 @@ void FRTScenarioSession::Finish()
 		}
 		case ERTAssertionKind::LogEventCount:
 		{
-			const FString EventName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome);
+			const FString EventName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
 			A.Description = FString::Printf(TEXT("LogEventCount(%s)"), *EventName);
 			A.Expected = FString::FromInt(Exp.Value);
 
 			int32 Found = 0;
 			for (const FRTTurnLogEntry& Entry : ScenarioLog)
 			{
-				if (Entry.Category == Exp.LogCategory && Entry.Outcome == Exp.LogOutcome) { ++Found; }
+				if (MatchesScenarioLogEvent(Entry, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId)) { ++Found; }
 			}
 			A.Actual = FString::FromInt(Found);
 			A.bPassed = (Found == Exp.Value);
@@ -1807,13 +2141,13 @@ void FRTScenarioSession::Finish()
 		}
 		case ERTAssertionKind::LogEventAmount:
 		{
-			const FString EventName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome);
+			const FString EventName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
 			A.Description = FString::Printf(TEXT("LogEventAmount(%s)"), *EventName);
 			A.Expected = FString::FromInt(Exp.Value);
 
 			// La PRIMA occorrenza: sommarle mescolerebbe finestre diverse in un numero solo, e il residuo di
 			// una decisione non e' la somma dei residui.
-			const int32 At = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome);
+			const int32 At = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
 			if (At == INDEX_NONE)
 			{
 				// Assente non e' «vale zero»: dirlo cosi' manderebbe a cercare un valore sbagliato dove il
@@ -1830,13 +2164,13 @@ void FRTScenarioSession::Finish()
 		}
 		case ERTAssertionKind::LogEventOrder:
 		{
-			const FString FirstName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome);
-			const FString ThenName = URTScenarioLoader::DescribeLogEvent(Exp.ThenCategory, Exp.ThenOutcome);
+			const FString FirstName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
+			const FString ThenName = URTScenarioLoader::DescribeLogEvent(Exp.ThenCategory, Exp.ThenOutcome, Exp.ThenActionId);
 			A.Description = FString::Printf(TEXT("LogEventOrder(%s prima di %s)"), *FirstName, *ThenName);
 			A.Expected = FString::Printf(TEXT("%s prima di %s"), *FirstName, *ThenName);
 
-			const int32 FirstAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome);
-			const int32 ThenAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.ThenCategory, Exp.ThenOutcome);
+			const int32 FirstAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
+			const int32 ThenAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.ThenCategory, Exp.ThenOutcome, Exp.ThenActionId);
 
 			// Un evento ASSENTE non e' «fuori ordine»: e' un altro difetto, e dirlo cosi' evita di mandare a
 			// cercare un problema di sequenza dove il problema e' che l'evento non e' mai stato prodotto.

@@ -59,8 +59,9 @@ Reactor e dà senso alla fase + profondità alla pianificazione (il Blast usa le
   `URTCatalogLibrary::IsFastMovement(Def)` è vero quando la macro-fase è `Dash`. Il flag `URTActionData::bDash`
   è stato **rimosso** con `#142`: esisteva in parallelo alla fase, e le azioni degli eroi (che dichiarano solo
   la fase) non venivano riconosciute — il bot non pianificava scatti per nessuno dei quattro.
-- **Come si sposta** lo dice `FRTActionDef::MovementStyle`: `LinearDash` · `LinearCharge` (si ferma addosso al
-  primo nemico e lo colpisce) · `LinearLeap` (scavalca) · `Budget` (`Action.Sprint`, pathfinding). `None` su
+- **Come si sposta** lo dice `FRTActionDef::MovementStyle`: `LinearDash` · `LinearCharge` (si ferma sulla cella
+  **adiacente** al primo nemico e lo colpisce — [D-296](../decisions/RT_PDR_00_Decision_Log.md), mai *sulla* sua
+  cella) · `LinearLeap` (scavalca) · `Budget` (`Action.Sprint`, pathfinding). `None` su
   un'azione di fase Dash è un **errore**, sorvegliato da `RefactorTactics.Actions.EveryFastMovementDeclaresStyle`
   su tutti e tre i cataloghi (generico, spedito, eroi).
 - `ARTUnit::PlannedDashAbility` (`INDEX_NONE` = nessuno) + `ARTUnit::PlannedDashCell` — pianificazione dello
@@ -123,7 +124,8 @@ dalla selezione d'attacco (non sono attacchi) e dal calcolo della minaccia nemic
   il dash verso quella cella. La validazione usa **lo stesso codice che eseguirà lo scatto** (`#142`): lineare
   per le mobilità lineari, pathfinding per quelle a budget. Vale la regola di CP 4.5 — **o si arriva sulla cella
   richiesta, o lo scatto non si pianifica**: niente scatto a metà verso una cella che il giocatore non ha
-  scelto. L'unica eccezione è la **carica**, per cui fermarsi addosso al nemico *è* il modo di arrivare.
+  scelto. L'unica eccezione è la **carica**, per cui fermarsi sulla cella **adiacente** al nemico *è* il modo
+  di arrivare ([D-296](../decisions/RT_PDR_00_Decision_Log.md)).
   Cliccare un nemico con lo scatto selezionato non fa nulla (lo scatto è su cella).
 - **HUD**: la preview dello scatto è disegnata in **magenta** (percorso + destinazione), distinta dal movimento
   normale (ciano). La traiettoria segue **lo stile dichiarato** (`FRTIntentView::DashStyle`): linea retta per le

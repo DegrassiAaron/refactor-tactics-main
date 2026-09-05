@@ -12,6 +12,7 @@
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
 #include "Turn/RTMovementActionLibrary.h"
+#include "Turn/RTHexSimLibrary.h" // #1939: lo snapshot e la sua Occupancy, che il test del rifiuto costruisce
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
@@ -1273,6 +1274,245 @@ bool FRTPlayerInputRayAwayFromPlaneDoesNotResolveBehindTest::RunTest(const FStri
 	const FRTCellId Ahead = URTHexLibrary::ResolveRayToCellOnLayer(RayOrigin, Down.GetSafeNormal(),
 		Origin, HexSize, LayerHeight, /*ActiveLayer=*/ 0, /*bHasValidHit=*/ false, FVector::ZeroVector);
 	TestNotEqual(TEXT("verso il piano la cella e' avanti, non sotto la camera"), Ahead.X, 0);
+
+	return true;
+}
+
+/**
+ * 🔴 **Un rifiuto per cella occupata nomina CHI occupa, non chi pianifica** (`#1939`).
+ *
+ * Il messaggio riceveva `SelectedUnit`, quindi prometteva un occupante e consegnava il pianificante:
+ *
+ * ```text
+ * [RT] Waypoint (3,0,L0) rifiutato: cella occupata da un'altra unita' (RTUnit_0)   <- RTUnit_0 e' CHI CLICCA
+ * ```
+ *
+ * ⚠️ **Tre righe su quattro erano giuste**, ed e' per questo che il difetto e' rimasto: `NotOnMap`,
+ * `BlocksMovement` e il ramo del budget nominano *di chi e' il piano* e non promettono nessun secondo
+ * attore. Il test li pinna tutti e quattro, cosi' correggere il quarto non puo' spostare gli altri tre.
+ *
+ * ⚠️ L'id in `Occupancy` e' l'**indice** nell'array delle unita' vive, non uno `StableUnitId`: qui gli
+ * indici dello snapshot e quelli di `Units` combaciano per costruzione, che e' esattamente il contratto che
+ * `PlanningSnapshotFor` garantisce in partita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWaypointRejectionNamesOccupantTest,
+	"RefactorTactics.PlayerInput.WaypointRejectionNamesTheOccupant",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTWaypointRejectionNamesOccupantTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 3);
+	if (!TestNotNull(TEXT("mappa pulita"), MapActor))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	const FRTCellId Mia(0, 0, 0);
+	const FRTCellId Loro(2, 0, 0);
+	ARTUnit* Chi  = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Mia);
+	ARTUnit* Alt  = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), Loro);
+	if (!TestNotNull(TEXT("chi pianifica"), Chi) || !TestNotNull(TEXT("chi occupa"), Alt))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	// Gli id dello snapshot sono gli INDICI di `Units`: 0 = chi pianifica, 1 = chi occupa.
+	const TArray<ARTUnit*> Units = { Chi, Alt };
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(MapActor->MapAsset, {
+		FRTHexSimUnit(0, Mia,  /*MoveBudget=*/ 4),
+		FRTHexSimUnit(1, Loro, /*MoveBudget=*/ 4)
+	});
+
+	// --- 1. 🔴 Il ramo che era sbagliato -------------------------------------------------------------
+	{
+		const FString Riga = ARTPlayerController::DescribeWaypointRejection(
+			Snap, Units, /*PlannerIndex=*/ 0, Loro, /*SpentCost=*/ 0, /*Budget=*/ 4);
+
+		TestTrue(*FString::Printf(TEXT("nomina CHI OCCUPA: %s"), *Riga), Riga.Contains(Alt->GetName()));
+		// La riga resta utile anche su chi ha pianificato: sono due identita' diverse, e servono entrambe.
+		TestTrue(*FString::Printf(TEXT("e dice di chi era il piano: %s"), *Riga), Riga.Contains(Chi->GetName()));
+		// L'ordine e' cio' che rende la frase vera: l'occupante viene DOPO «occupata da».
+		TestTrue(*FString::Printf(TEXT("l'occupante segue «occupata da»: %s"), *Riga),
+			Riga.Contains(FString(TEXT("occupata da ")) + Alt->GetName()));
+	}
+
+	// --- 2. La propria cella non e' «occupata»: e' un waypoint legittimo, quindi il motivo e' il budget --
+	{
+		const FString Riga = ARTPlayerController::DescribeWaypointRejection(
+			Snap, Units, /*PlannerIndex=*/ 0, Mia, /*SpentCost=*/ 3, /*Budget=*/ 4);
+		TestTrue(*FString::Printf(TEXT("la propria cella non e' un'occupazione: %s"), *Riga),
+			Riga.Contains(TEXT("oltre il budget")));
+		TestTrue(*FString::Printf(TEXT("e il budget si legge: %s"), *Riga), Riga.Contains(TEXT("3 di 4")));
+	}
+
+	// --- 3. Fuori mappa: soggetto = chi pianifica, ed e' corretto -------------------------------------
+	{
+		const FString Riga = ARTPlayerController::DescribeWaypointRejection(
+			Snap, Units, /*PlannerIndex=*/ 0, FRTCellId(99, 99, 0), 0, 4);
+		TestTrue(*FString::Printf(TEXT("dice fuori dalla mappa: %s"), *Riga),
+			Riga.Contains(TEXT("fuori dalla mappa")));
+		TestTrue(*FString::Printf(TEXT("e nomina chi pianifica: %s"), *Riga), Riga.Contains(Chi->GetName()));
+	}
+
+	// --- 4. Un indice fuori range non inventa un nome -------------------------------------------------
+	{
+		const TArray<ARTUnit*> Monca = { Chi }; // l'occupante non ha un Actor a cui corrispondere
+		const FString Riga = ARTPlayerController::DescribeWaypointRejection(
+			Snap, Monca, /*PlannerIndex=*/ 0, Loro, 0, 4);
+		TestTrue(*FString::Printf(TEXT("resta un rifiuto per occupazione: %s"), *Riga),
+			Riga.Contains(TEXT("occupata da")));
+		TestFalse(*FString::Printf(TEXT("e NON attribuisce l'occupazione a chi pianifica: %s"), *Riga),
+			Riga.Contains(FString(TEXT("occupata da ")) + Chi->GetName()));
+	}
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+
+/**
+ * IL TURNO 1 ACCETTA LA SELEZIONE ESATTAMENTE COME IL TURNO 2 — e il turno 2 e' il controllo, non un extra.
+ *
+ * L'indagine di `#1957` per la strada che non richiede l'editor. Il referto di playtest dice *«dopo `Play`
+ * il primo turno non accetta input: il giocatore preme Spazio, e solo dal turno 2 riesce a selezionare
+ * un'unita'»*, e il turno che si chiudeva da solo si e' gia' rivelato un lock-in muto
+ * (`HexMatch.FirstTurnDoesNotCloseItself`). Resta questo, che e' il disagio vero e la cui causa e' IGNOTA.
+ *
+ * 🔑 **Il turno 2 nello stesso test, sullo stesso montaggio.** Senza, un turno 1 che seleziona non
+ * distinguerebbe *«il difetto non c'e'»* da *«la fixture non permetteva di selezionare comunque»* — che e'
+ * il modo piu' comune di scrivere un verde che non misura niente. Cio' che si asserisce e' la **differenza**
+ * fra i due turni, e la differenza attesa e' nessuna.
+ *
+ * ⚠️ **Cosa questo test NON puo' vedere, ed e' meta' del suo valore.** `OnSelect` comincia con un
+ * `GetHitResultUnderCursor`, cioe' un raycast dal viewport che headless non esiste: da qui si esercita la
+ * strada che comincia DOPO, con l'attore gia' risolto. Se il test passa, il difetto non e' nella selezione
+ * ne' nelle guardie che la precedono, e cio' che resta da guardare in PIE si restringe a raycast, viewport
+ * e possessione del pawn — che e' un'informazione, non un fallimento.
+ *
+ * ⛔ E non usa `SelectActorForTest`, che scrive `SelectedActor` direttamente: quella scorciatoia salterebbe
+ * proprio il codice in esame. Qui si chiama `SelectUnit`, che e' cio' che `OnSelect` invoca dopo il raycast.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFirstTurnAcceptsSelectionTest,
+	"RefactorTactics.PlayerInput.FirstTurnAcceptsSelectionLikeTheSecond",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFirstTurnAcceptsSelectionTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	if (MapActor) { MapActor->MapAsset = Arena; }
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Mia = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, -2, 0));
+	// ⚠️ **Un avversario serve, e la prima stesura non ce l'aveva.** Con una sola squadra in campo
+	// `EvaluateOutcome` dichiara vinta la partita alla fine del turno 1: `Phase` diventa `MatchEnded`,
+	// `TurnNumber` resta `1` e il turno 2 — che qui e' il CONTROLLO — non arriva mai. L'ha intercettato
+	// la guardia sull'avanzamento, con «era 1, ora 1».
+	//
+	// Lontano e senza piano: deve esistere, non partecipare.
+	ARTUnit* Avversario = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 2, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("unita'"), Mia)
+		|| !TestNotNull(TEXT("avversario"), Avversario)
+		|| !TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("mappa"), MapActor))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	// E' `BeginPlay` ad aprire il turno 1. Senza, `TurnNumber` varrebbe 1 per default e il test misurerebbe
+	// un turno che nessuno ha mai iniziato — cioe' non il turno 1 del referto.
+	TM->DispatchBeginPlay();
+
+	// Cio' che si osserva a ogni turno: le due guardie che `OnSelect` attraversa PRIMA del raycast, e l'esito
+	// della selezione. Si raccoglie in una lambda perche' i due turni devono essere misurati allo stesso
+	// modo: due blocchi copiati divergerebbero al primo ritocco, ed e' la differenza l'oggetto del test.
+	struct FEsito
+	{
+		bool bInputBloccato = false;
+		bool bInputInerte = false;
+		bool bSelezionata = false;
+		int32 Waypoint = 0;
+	};
+	auto ProvaSelezione = [PC, Mia](const FRTCellId& Destinazione)
+	{
+		FEsito E;
+		E.bInputBloccato = PC->IsGameplayInputBlocked();
+		E.bInputInerte = PC->IsPlanningInputInert();
+
+		PC->SelectUnit(Mia); // la strada vera, quella che `OnSelect` prende dopo il raycast
+		E.bSelezionata = (PC->GetSelectedUnit() == Mia);
+
+		Mia->PlannedWaypoints.Reset();
+		PC->HandleClickOnCell(Destinazione);
+		E.Waypoint = Mia->PlannedWaypoints.Num();
+		return E;
+	};
+
+	// ── Turno 1
+	if (!TestEqual(TEXT("si parte dal turno 1"), TM->GetTurnNumber(), 1))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	const FEsito Primo = ProvaSelezione(FRTCellId(3, -2, 0));
+
+	// ── Si chiude il turno e si arriva al secondo, che e' il CONTROLLO.
+	//
+	// ⚠️ **Il piano si azzera per intero, `PlannedCell` COMPRESA.** Resettare i soli waypoint non
+	// basta: il resolver muove verso `PlannedCell`, quindi l'unita' arrivava sulla cella che il turno 2
+	// avrebbe poi cliccato — e un click sulla cella in cui gia' ti trovi non produce nessun waypoint.
+	// La premessa del controllo cadeva, e il test sembrava dire qualcosa sulla selezione mentre
+	// misurava una geometria che si era spostata sotto.
+	//
+	// Ferma fra i due turni, la stessa destinazione resta valida per entrambi: e' cio' che rende i due
+	// esiti confrontabili.
+	Mia->PlannedWaypoints.Reset();
+	Mia->PlannedPath.Reset();
+	Mia->PlannedCell = Mia->Cell;
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+	{
+		TM->Tick(0.05f);
+	}
+	const int32 TurnoDopo = TM->GetTurnNumber();
+
+	const FEsito Secondo = ProvaSelezione(FRTCellId(3, -2, 0));
+	const FRTCellId CellaFinale = Mia->Cell;
+	DestroyInteractionWorld(World);
+
+	// ── Il controllo vale solo se il turno e' davvero avanzato: altrimenti si starebbero confrontando due
+	// misure dello stesso turno, e l'uguaglianza sarebbe vera per costruzione.
+	if (!TestTrue(*FString::Printf(TEXT("il turno e' avanzato (era 1, ora %d)"), TurnoDopo), TurnoDopo >= 2))
+	{
+		return false;
+	}
+
+	// ── ANTI-VACUITA': al turno 2 la selezione deve funzionare. Se non funzionasse nemmeno li', il confronto
+	// sotto sarebbe soddisfatto da due fallimenti uguali.
+	if (!TestTrue(TEXT("premessa: al turno 2 la selezione funziona"), Secondo.bSelezionata))
+	{
+		return false;
+	}
+	if (!TestTrue(*FString::Printf(TEXT("premessa: al turno 2 il click produce un waypoint (cella %d,%d)"),
+		CellaFinale.X, CellaFinale.Y), Secondo.Waypoint > 0))
+	{
+		return false;
+	}
+
+	// ── Il cuore: i due turni si comportano allo stesso modo.
+	TestEqual(TEXT("l'input non e' bloccato al turno 1 piu' che al 2"),
+		Primo.bInputBloccato, Secondo.bInputBloccato);
+	TestEqual(TEXT("l'input non e' inerte al turno 1 piu' che al 2"),
+		Primo.bInputInerte, Secondo.bInputInerte);
+	TestEqual(TEXT("il turno 1 accetta la selezione come il turno 2"),
+		Primo.bSelezionata, Secondo.bSelezionata);
+	TestEqual(TEXT("e il click su cella produce lo stesso numero di waypoint"),
+		Primo.Waypoint, Secondo.Waypoint);
 
 	return true;
 }

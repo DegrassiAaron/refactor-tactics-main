@@ -37,4 +37,13 @@ private:
 	 * risultato al viewport.
 	 */
 	void FrameEditableMap();
+
+	/**
+	 * `#1864`: cancella cio' che la selezione condivisa nomina, in **una sola** transazione.
+	 *
+	 * ⚠️ La regola non e' qui: `URTMapEditLibrary::DeleteElement` sta nel runtime, e' provata headless e sa
+	 * gia' che cosa non puo' sopravvivere a cio' che si cancella. Questo metodo apre la transazione, chiama,
+	 * e ricostruisce la vista — cioe' fa il mestiere dell'editor e non quello del dominio.
+	 */
+	void EraseSelection();
 };

@@ -20,6 +20,7 @@
 #include "Turn/RTFacingLibrary.h" // l'insieme legale si CHIEDE al servizio, non si indovina nel test
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexLibrary.h"
+#include "RTWorldFixtures.h" // il mondo di prova: stessa porta che usano gli altri test d'integrazione
 #include "Turn/RTPlaybackLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTCellId.h"
@@ -503,13 +504,18 @@ bool FRTPointerIllegalFacingRejectedTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, -2, 0));
+	// 🔴 **Riktor e non Wraith, e la sostituzione e' il punto del test** — ADR-0008 §1 (#1605). Questo test
+	// ha bisogno che esista almeno una direzione ILLEGALE da rifiutare, e con Wraith non esiste piu':
+	// `MoveEndPivotMaxSteps = 3` gli concede tutte e sei le direzioni a fine Move. Riktor, con budget 1, ne
+	// concede tre e ne lascia tre da rifiutare. Il soggetto del test — «una rotazione illegale e'
+	// rifiutata» — resta lo stesso; cambia l'eroe che ne ha ancora una.
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 
 	PC->SelectActorForTest(Unit);
 
-	// Con un percorso pianificato lo stile diventa `Budget`: restano solo le tre direzioni dell'ultimo passo.
+	// Con un percorso pianificato lo stile diventa `Budget`: restano le direzioni del budget dell'eroe.
 	PC->HandleClickOnCell(FRTCellId(3, -2, 0));
 	if (!TestTrue(TEXT("premessa: c'e' un percorso pianificato"), Unit->PlannedPath.Num() > 1))
 	{
@@ -522,8 +528,8 @@ bool FRTPointerIllegalFacingRejectedTest::RunTest(const FString&)
 	// c'e' dentro, qualunque essa sia. Hardcodarne una renderebbe il test dipendente dalla geometria della
 	// mappa di prova invece che dalla regola.
 	const TArray<ERTHexDirection> Legal = URTFacingLibrary::LegalFacings(
-		ERTMovementStyle::Budget, Unit->PlannedPath, Unit->Facing);
-	if (!TestTrue(TEXT("premessa: a budget le direzioni legali sono meno di sei"), Legal.Num() < 6))
+		ERTMovementStyle::Budget, Unit->PlannedPath, Unit->Facing, Unit->PivotBudget());
+	if (!TestTrue(TEXT("premessa: il budget di questo eroe lascia meno di sei direzioni"), Legal.Num() < 6))
 	{
 		DestroyPointerWorld(World); return false;
 	}
@@ -580,7 +586,8 @@ bool FRTCycleDeclaredFacingTest::RunTest(const FString&)
 	// partenza. Un'implementazione che dichiarasse sempre la stessa direzione passerebbe un controllo
 	// scritto solo su «dopo la pressione c'e' una dichiarazione».
 	const TArray<ERTHexDirection> Legali =
-		URTFacingLibrary::LegalFacings(ERTMovementStyle::None, Unit->PlannedPath, Unit->Facing);
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::None, Unit->PlannedPath, Unit->Facing,
+			Unit->PivotBudget());
 	TestEqual(TEXT("da ferma le legali sono sei"), Legali.Num(), 6);
 
 	TSet<ERTHexDirection> Viste;
@@ -682,7 +689,8 @@ bool FRTPlannedFacingPreviewTest::RunTest(const FString&)
 	// divergessero, l'anteprima mostrerebbe una direzione e il turno ne produrrebbe un'altra.
 	PC->BeginFacingDeclaration();
 	const TArray<ERTHexDirection> Legali =
-		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, Unit->PlannedPath, Unit->Facing);
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, Unit->PlannedPath, Unit->Facing,
+			Unit->PivotBudget());
 	const ERTHexDirection Scelta = Legali.Last();   // una legale diversa dal derivato, quando ce n'e' piu' d'una
 	if (TestTrue(TEXT("la dichiarazione e' accettata"), PC->HandleFacingSector(Scelta)))
 	{
@@ -691,6 +699,138 @@ bool FRTPlannedFacingPreviewTest::RunTest(const FString&)
 	}
 
 	DestroyPointerWorld(World);
+	return true;
+}
+
+/**
+ * CAMBIARE HOVER NON TOCCA NIENTE DI CIO' CHE E' STATO DECISO — `#1766`, e sblocca `#1614`.
+ *
+ * 🔑 **È un test di regressione su un'invariante che già regge**, ed è il motivo per cui si scrive adesso:
+ * `#1614` allarga l'overlay dell'hover, e un overlay più grande rende **più visibile** un comportamento che
+ * nessuno stava misurando. Se domani `SetHoveredCell` cominciasse a toccare la selezione o il piano, oggi
+ * nessun test lo direbbe.
+ *
+ * ⚠️ **Il puntamento non è un impegno.** L'hover vive su `ARTHexMapActor` e scrive tre cose — `HoveredCell`,
+ * `bHoveredValid`, `SetActorTickEnabled` — e nient'altro. Questo test lo verifica dal **verso opposto**:
+ * costruisce uno stato deciso (selezione, waypoint, bersaglio, facing dichiarato), muove l'hover su celle
+ * che sarebbero ottimi candidati per ciascuno di essi, e pretende che nulla si muova.
+ *
+ * ⛔ Non tocca `Player/` né `Map/`: questa issue aggiunge un test, non cambia comportamento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerHoverNeverCommitsTest,
+	"RefactorTactics.PlayerInput.HoverNeverCommits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerHoverNeverCommitsTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+
+	ARTHexMapActor* Map = World->SpawnActor<ARTHexMapActor>();
+	ARTUnit* Unit = World->SpawnActor<ARTUnit>();
+	if (!Map || !Unit)
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	Map->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 4);
+
+	// LO STATO DECISO: le quattro cose che `#1614` elenca nella propria DoD.
+	Unit->Cell = FRTCellId(0, 0, 0);
+	Unit->PlannedWaypoints = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0) };
+	Unit->PlannedAttackCell = FRTCellId(2, -1, 0);
+	Unit->bDeclaresPlannedFacing = true;
+	Unit->PlannedFacing = ERTHexDirection::NE;
+
+	const TArray<FRTCellId> WaypointsBefore = Unit->PlannedWaypoints;
+	const FRTCellId AttackBefore = Unit->PlannedAttackCell;
+	const ERTHexDirection FacingBefore = Unit->PlannedFacing;
+	const bool bDeclaresBefore = Unit->bDeclaresPlannedFacing;
+	const FRTCellId CellBefore = Unit->Cell;
+
+	// L'hover passa su celle che sarebbero candidati PLAUSIBILI per ciascuna decisione: la cella del
+	// bersaglio, il prossimo waypoint, una cella libera. Se il puntamento impegnasse, impegnerebbe qui.
+	const FRTCellId Sweep[] = {
+		FRTCellId(2, -1, 0),   // proprio il bersaglio dichiarato
+		FRTCellId(3, 0, 0),    // il waypoint successivo naturale
+		FRTCellId(-1, 1, 0),   // una cella qualunque, dall'altra parte
+		FRTCellId(0, 0, 0)     // la cella dell'unita' stessa
+	};
+	for (const FRTCellId& Hovered : Sweep)
+	{
+		Map->SetHoveredCell(Hovered, /*bValid=*/ true);
+	}
+	Map->SetHoveredCell(FRTCellId(9, 9, 0), /*bValid=*/ false);
+
+	// L'hover E' cambiato: senza questa riga, tutto il resto sarebbe vero anche se la funzione non facesse
+	// niente, e il test passerebbe misurando l'assenza di una chiamata invece della sua innocuita'.
+	TestEqual(TEXT("controllo: l'hover ha registrato l'ultima cella"), Map->GetHoveredCell(), FRTCellId(9, 9, 0));
+	TestFalse(TEXT("controllo: e la sua validita'"), Map->IsHoveredCellValid());
+
+	TestEqual(TEXT("i waypoint non cambiano"), Unit->PlannedWaypoints.Num(), WaypointsBefore.Num());
+	for (int32 i = 0; i < WaypointsBefore.Num() && i < Unit->PlannedWaypoints.Num(); ++i)
+	{
+		TestEqual(FString::Printf(TEXT("waypoint %d"), i), Unit->PlannedWaypoints[i], WaypointsBefore[i]);
+	}
+	TestEqual(TEXT("l'azione armata mira ancora dove mirava"), Unit->PlannedAttackCell, AttackBefore);
+	TestEqual(TEXT("il facing dichiarato non ruota"), static_cast<int32>(Unit->PlannedFacing),
+		static_cast<int32>(FacingBefore));
+	TestEqual(TEXT("e resta dichiarato"), Unit->bDeclaresPlannedFacing, bDeclaresBefore);
+	TestEqual(TEXT("l'unita' non si e' mossa"), Unit->Cell, CellBefore);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * IL TASTO DESTRO SMONTA UN PASSO PER VOLTA, E QUANDO NON C'E' NIENTE DA SMONTARE NON FA NIENTE — `#1766`.
+ *
+ * 🔑 **«Cancella solo l'anteprima» vuol dire due cose insieme**: che il passo indietro tolga *il livello più
+ * esterno* e non l'intera dichiarazione, e che a mani vuote **non** deselezioni. La seconda metà è già
+ * pinnata da `PlayerInput.RightClickNeverDeselects`; questa copre la prima e il loro punto di incontro —
+ * `ERTPointerBackStep::None`, l'unico esito che non smonta niente.
+ *
+ * ⚠️ Il verso che conta è **l'assenza di scorciatoie**: nessun contesto salta un livello. Un `Targeting` con
+ * tre waypoint montati non deve tornare al `Planning` in un colpo, o l'anteprima non sarebbe più
+ * annullabile «solo» — sarebbe annullabile *tutta*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerRightClickCancelsPreviewOnlyTest,
+	"RefactorTactics.PlayerInput.RightClickCancelsPreviewOnly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerRightClickCancelsPreviewOnlyTest::RunTest(const FString&)
+{
+	// Da `Targeting` con tutto montato si esce di UN livello: l'inspector, non la dichiarazione.
+	TestEqual(TEXT("con l'inspector aperto, il primo passo indietro chiude quello"),
+		URTPointerLibrary::ResolveBack(ERTPointerContext::Targeting, /*Inspector=*/ true, /*Waypoints=*/ 3,
+			/*PhaseFocus=*/ true),
+		ERTPointerBackStep::Inspector);
+
+	// ⛔ E NON scende oltre: chiuso l'inspector, il passo successivo esce dal targeting — non dal phase focus.
+	TestEqual(TEXT("il passo dopo esce dal targeting, non dalla fase"),
+		URTPointerLibrary::ResolveBack(ERTPointerContext::Targeting, false, 3, true),
+		ERTPointerBackStep::Declaration);
+
+	// I waypoint si smontano UNO per volta, e finche' ce n'e' uno il contesto non si abbandona.
+	TestEqual(TEXT("con tre waypoint ne toglie uno"),
+		URTPointerLibrary::ResolveBack(ERTPointerContext::Pathing, false, 3, true),
+		ERTPointerBackStep::Waypoint);
+	TestEqual(TEXT("con uno solo, ancora un waypoint e non il contesto"),
+		URTPointerLibrary::ResolveBack(ERTPointerContext::Pathing, false, 1, true),
+		ERTPointerBackStep::Waypoint);
+	TestEqual(TEXT("a zero waypoint esce dal Pathing"),
+		URTPointerLibrary::ResolveBack(ERTPointerContext::Pathing, false, 0, true),
+		ERTPointerBackStep::Pathing);
+
+	// 🔑 IL PUNTO DELLA VOCE: a mani vuote il tasto destro non ha niente da annullare, e NON deseleziona.
+	TestEqual(TEXT("senza niente montato non succede nulla"),
+		URTPointerLibrary::ResolveBack(ERTPointerContext::Planning, false, 0, false),
+		ERTPointerBackStep::None);
+
+	// ⚠️ La controprova che `None` non sia l'esito di comodo di ogni caso non gestito: con il solo phase
+	// focus montato, lo stesso contesto risponde diversamente.
+	TestEqual(TEXT("ma col phase focus montato, quello cade"),
+		URTPointerLibrary::ResolveBack(ERTPointerContext::Planning, false, 0, true),
+		ERTPointerBackStep::PhaseFocus);
+
 	return true;
 }
 

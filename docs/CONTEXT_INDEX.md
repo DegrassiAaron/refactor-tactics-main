@@ -73,7 +73,7 @@ Questa sezione è una **mappa rapida**, non un posto dove mantenere numeri di bi
 - Griglia: **esagonale multilivello**, unico substrato, coordinate `FRTCellId{X=q, Y=r, Layer}`.
 - No GAS nella v0.1: azioni/eroi/equipaggiamento sono data-driven con `UPrimaryDataAsset`.
 - Authority: separata dal presentation layer anche in offline; rete completa è post-v0.1.
-- Privacy intenti: il modello esiste già (`FRTPlannedIntent → FilterForTeam → FRTIntentView`); il gate di rete arriva in M10.
+- Privacy intenti: il modello esiste già (`FRTPlannedIntent → FilterForTeam → FRTIntentView`); il gate di **rete** (canary, **packaged**) arriva in M10.3. ⚠️ **Un gate però c'è già, dal 2026-09-04** ([#589](https://github.com/DegrassiAaron/refactor-tactics-main/issues/589)) — questa riga faceva concludere che non ce ne fosse nessuno: un tipo si dichiara `USTRUCT(meta = (RTServerOnly))` e `Privacy.ServerOnlyTypesAreNotReplicated` verifica sulla reflection che nessuna proprietà replicata né parametro di RPC lo raggiunga. Presidia la **superficie**, non il byte.
 - Reazioni live: modello deciso `Opportunity → Commit`, Fast Reaction baseline **3,0 s**, timeout `HOLD`; implementazione interattiva è E14.
 - Conoscenza parziale: vista/udito alimentano `Team Knowledge`; implementazione è E13. ⚠️ **La geometria non osservata si nasconde** da [D-225](decisions/RT_PDR_00_Decision_Log.md) (2026-08-28) — questa riga diceva «mappa statica nota».
 - Facing è stato gameplay; implementazione completa è E16.
@@ -276,6 +276,11 @@ Owner principali:
   Forced — percorre lo spazio) contro **`Transfer`** (Leap · Blink · Swap · Recall — cambia posizione senza
   percorrerlo); `Reaction` è una **causa**, non una famiglia. È l'unico documento che le confronta; i
   singoli restano owner di sé stessi
+- `docs/technical/systems/spec-cover-placement-intra-hex.md` — **posa nella cella, copertura selezionabile e
+  geometria intra-hex** (`D-289`, 2026-08-30). Owner di: regioni di posa, `CoverSource`/`CoverOption`/
+  `CoverSide`, traversata `SideA ↔ SideB`, e l'invariante **uno slot di occupancy per `FRTCellId`**.
+  ⚠️ **Corregge `spec-hex-geometry-authoring.md` §5 e §6**: la soglia dei settori e il contatto col centro
+  **non decidono più la calpestabilità** — la decide l'esistenza di un placement per il footprint
 - `docs/technical/architecture/spec-mappa-multilivello.md`
 - `docs/technical/architecture/spec-pathfinding-pf3-pf4.md`
 - `docs/gameplay/spec-copertura-cp91.md` e successive spec CP9.x
@@ -306,6 +311,7 @@ Owner numerici:
 - `docs/balance/RT_HeroCatalog_v0.1.md`
 - `docs/balance/RT_TerrainCatalog_v0.1.md`
 - `docs/balance/RT_EquipmentCatalog_v0.1.md`
+- `docs/balance/RT_FootprintCatalog_v0.1.md` — ⚠️ **sorgente senza lettore**: nessuna unità dichiara ancora un footprint
 
 Il workbook XLSX è **research**, non owner dei numeri vigenti.
 

@@ -47,6 +47,10 @@ void FRTHexEditorModeCommands::RegisterCommands()
 	// un builder per ogni voce. Il binding vive in `URTHexEditorMode::BindCommands`.
 	UI_COMMAND(FrameMap, "Frame Map", "Inquadra l'intera mappa editabile, comprese le celle sui layer diversi da quello attivo.",
 		EUserInterfaceActionType::Button, FInputChord(EKeys::Home));
+
+	// `#1864`: azione come sopra, e per lo stesso motivo fuori da `ToolCommands`.
+	UI_COMMAND(EraseSelection, "Erase", "Cancella l'elemento selezionato, qualunque sia il tipo, insieme a cio' che non puo' sopravvivergli. Un solo Undo riporta indietro tutto.",
+		EUserInterfaceActionType::Button, FInputChord(EKeys::Delete));
 }
 
 TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> FRTHexEditorModeCommands::GetCommands()

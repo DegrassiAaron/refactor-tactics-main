@@ -9,6 +9,9 @@ struct FRTPlannedIntent;
 struct FRTTurnLogEntry;
 struct FRTHexCellData;
 struct FRTHexSnapshot;
+struct FRTCellId;
+struct FRTOccupancyMask;
+struct FRTPlacementRegion;
 
 /**
  * L'esito di `rt.Debug.VerifyReplay`: il VERDETTO separato dalle righe che lo stampano.
@@ -127,4 +130,28 @@ public:
 
 	/** Le righe di `rt.Debug.DumpTurnLog`: una per voce, piu' un'intestazione col conteggio e l'hash. */
 	static TArray<FString> DescribeTurnLogEntries(const TArray<FRTTurnLogEntry>& Entries);
+
+	/**
+	 * Le righe di `rt.Debug.DumpCellPlacement`: la maschera dei dodici settori di una cella e le sue
+	 * regioni libere, ciascuna col proprio `FirstWedge` e `Size`.
+	 *
+	 * 🔑 **Esiste perche' [#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826) lo
+	 * chiedeva e non c'era**: la sua stessa sezione *Debug / log evidence* dichiarava *«oggi non esiste
+	 * alcun comando che lo faccia, e la misura di questa issue e' stata ottenuta da un test»*. Una regola
+	 * che si puo' osservare solo da un test e' una regola che, in partita, nessuno puo' guardare.
+	 *
+	 * ⚠️ **`Regions` si passa invece di ricalcolarla qui.** Questa funzione formatta e non decide: se
+	 * chiamasse `ComputeFreeRegions` da se', due chiamanti potrebbero stampare regioni diverse da quelle
+	 * che hanno usato. Il comando calcola una volta e passa cio' che ha calcolato.
+	 *
+	 * Pinnata da `RefactorTactics.Debug.CellPlacementReportShowsMaskAndRegions`.
+	 *
+	 * 🔴 **`Covers` non e' un di piu': senza, questo report MENTE per omissione.** Un raggio disegnato dal
+	 * centro al punto medio di un lato viene scritto dal bake come copertura di **bordo** — `EdgesTouchedBy`
+	 * non esce vuoto — e la maschera dei settori non la porta. Il comando rispondeva quindi *«zero settori,
+	 * zero muri interni»* a una cella che geometria ne aveva: vero campo per campo, e falso come risposta.
+	 * Misurato in seduta PIE il 2026-09-02, dove e' costato mezz'ora di diagnosi nella direzione sbagliata.
+	 */
+	static TArray<FString> DescribeCellPlacement(const FRTCellId& Cell, const FRTOccupancyMask& Mask,
+		const TArray<FRTPlacementRegion>& Regions, const TArray<FRTHexCover>& Covers);
 };

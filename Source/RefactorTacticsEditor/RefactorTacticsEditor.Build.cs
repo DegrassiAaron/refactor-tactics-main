@@ -23,8 +23,23 @@ public class RefactorTacticsEditor : ModuleRules
 			"LevelEditor",
 			"InteractiveToolsFramework",
 			"EditorInteractiveToolsFramework",
+			// #2326: seguire i pin di un Blueprint dal nodo evento alla chiamata di funzione. Serve alle
+			// classi `UK2Node_*`, ed e' la ragione per cui questo test vive nel modulo EDITOR e non in
+			// quello Runtime: `RTFrontendWidgetAssetTests.cpp` dichiara di NON poter attribuire una
+			// chiamata al pulsante che la origina, perche' UMG compila ogni evento del widget in un unico
+			// ubergraph e un modulo Runtime non puo' dipendere da `BlueprintGraph` senza rompere Shipping.
+			"BlueprintGraph",
 			// Import delle texture e creazione del DA_IconCatalog dal commandlet RTBuildIconCatalog.
 			"AssetTools",
+			// Il Playground Panel (#1993): l'EditorUtilityWidget e il suo albero di widget si costruiscono
+			// dal commandlet `RTBuildPlaygroundPanel`, con la stessa disciplina delle mesh graybox — la
+			// sorgente e' il codice, l'asset e' il suo output (`D-229`).
+			"UMG",
+			"UMGEditor",
+			"Blutility",
+			// `PanelGraphCallsTheModel` interroga i nodi dell'EventGraph del pannello per NOME DI FUNZIONE
+			// (`UK2Node_CallFunction::FunctionReference`), non per titolo: il titolo e' presentazione.
+			"BlueprintGraph",
 			// Generazione e salvataggio delle mesh del kit graybox (D-229, commandlet RTBuildGrayboxMeshes):
 			// la FMeshDescription si costruisce qui e diventa la SORGENTE dell'asset salvato.
 			"MeshDescription",

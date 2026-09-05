@@ -23,7 +23,7 @@ Tecnico della conduzione: fragile, controlla il campo e converte setup elettrici
 | Tipo danno | Electric |
 | Complessità gameplay | TBD |
 | Complessità tecnica (1–5) | TBD |
-| Risorsa firma | Carica Conduttiva |
+| Risorsa firma | Carica Conduttiva ⛔ *(disegno — vedi §«Risorsa firma»)* |
 | Signature primaria | Conduction |
 | Signature secondaria | Water-Electric Combo |
 | Framework principali | Resource, Environment, Status, AoE |
@@ -142,9 +142,17 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 
 ## Risorsa firma
 
+> ⛔ **DISEGNATA, DELIBERATAMENTE NON IMPLEMENTATA** — [`D-265`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-30) e [`D-324`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-09-04).
+>
+> **Non esiste una risorsa firma universale**: l'economia comune del turno è **slot, cooldown e drawback**. `D-324` ha tolto `Energy` — l'unica implementazione viva di quel modello — dal gameplay, e [#610](https://github.com/DegrassiAaron/refactor-tactics-main/issues/610) l'ha rimossa dal codice. In `Source/` non c'è nessun sottosistema che legga questa tabella.
+>
+> ✅ **Resta perché la via è aperta, non per inerzia.** `D-265` ammette una risorsa **come meccanica specifica di un kit che la motivi**, con un proprio contratto di dati e validazione. Questo è il disegno di quel kit, in attesa di chi lo prenderà.
+>
+> ⚠️ **Chi lo prenderà** parta da `D-265`, non da questa tabella: il `Cap 4` e la ricarica `1` nascono dal modello universale che è stato **scartato**, e vanno rimotivati per questo eroe invece che ereditati. E risponda a `AE-6` — *«questa risorsa si ricarica con `Wait`?»* — che [`D-329`](../../decisions/RT_PDR_00_Decision_Log.md) ha chiuso per assorbimento lasciando la domanda in eredità al primo kit che la adotti.
+
 | Resource_ID | Nome | Cap | Start | Regen | Regen_Trigger | Spesa | Regola | Audience | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| RES_FLUX_CONDUCTIVE | Carica Conduttiva | 4 | — | 1 | Interazione elettrica | Abilità firma | Cap 4; start non specificato | Team-visible | CANONICAL_PARTIAL |
+| RES_FLUX_CONDUCTIVE | Carica Conduttiva | 4 | — | 1 | Interazione elettrica | Abilità firma | Cap 4; start non specificato | Team-visible | NOT_IMPLEMENTED (D-265) |
 
 > **Ownership del kit:** le abilità di questa pagina appartengono esclusivamente a questo personaggio. Le sinergie con altri eroi sono esempi derivati da stati, superfici, geometria e altre regole comuni; non sono abilità condivise. Vedi [Sinergie e combinazioni](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/sinergie-e-combinazioni).
 
@@ -185,7 +193,7 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 | Che cosa | Dove |
 | --- | --- |
 | Il payload è nel dato | `RefactorTactics.Heroes.Hero.Gadget.MatchesCatalog` · `RefactorTactics.Heroes.BasicAttackByRangeBand` — è l'unico legato alla fascia condivisa |
-| L'effetto si vede in partita | `Combat.BasicAttack` — 120 − 22 = 98 su Riktor |
+| L'effetto si vede in partita | `Combat.BasicAttack` — 120 − (22 − 5 di `BaseShield`, D-224) = 103 su Riktor |
 | Il payload di carica | ⏳ **non esiste** — dipende da `RT-FEAT-ENV-ELECTRIC`, non da questa pagina |
 
 ## Abilità

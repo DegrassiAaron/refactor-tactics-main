@@ -40,6 +40,45 @@ enum class ERTLayerViewMode : uint8
  * autorita' sui dati: legge le celle da URTHexMapAsset (o genera un graybox demo se l'asset e' assente).
  * La logica (coordinate/pathfinding) resta separata dal rendering.
  */
+/**
+ * Quali famiglie di istanze una ricostruzione deve rifare — `#1865`, punto 3.
+ *
+ * 🔑 **La granularita' e' la FAMIGLIA e non la cella, ed e' una decisione** (2026-09-05). Per cella
+ * soddisferebbe l'AC alla lettera e costerebbe il rischio piu' alto del rendering: `RemoveInstance`
+ * rimescola gli indici, e su quelli poggiano dodici array paralleli — `InstanceCells`, `GlyphCells[4]`,
+ * `Relief`/`Blocker`/`Border`/`EdgeFeature` per `Cells`/`BaseScale`/`LastVeilState` — con
+ * `ApplyKnowledgeVeil` che ha un `ensure` proprio sugli indici stantii.
+ *
+ * Per famiglia gli indici restano coerenti: una famiglia si azzera e si riempie tutta, quindi nessun array
+ * parallelo va risistemato. Cio' che NON e' nella maschera non viene ne' pulito ne' riempito, e resta
+ * esattamente com'era.
+ *
+ * ⚠️ **Non promette la proporzionalita' alla modifica**: il costo resta lineare nella mappa, su meno
+ * famiglie. `HexMapActor.RebuildCostScalesWithTheMapNotTheEdit` continua a misurarlo, e non cade.
+ */
+UENUM(meta = (Bitflags))
+enum class ERTRebuildFamily : uint8
+{
+	None         = 0,
+	/** Il pavimento: transform e colore della superficie. */
+	Cells        = 1 << 0,
+	/** I glifi di superficie: `SurfaceRingCount` decide quante e quale dei quattro ISM. */
+	Glyphs       = 1 << 1,
+	/** Il rilievo del costo di movimento: `ReliefHeightForCost` decide se esiste. */
+	Relief       = 1 << 2,
+	/** Le colonne di blocco a vista e a passo. */
+	Blockers     = 1 << 3,
+	/** Pannelli di bordo: coperture, porte e muri interni. */
+	EdgeFeatures = 1 << 4,
+	/** La griglia di contorno delle celle. */
+	Borders      = 1 << 5,
+	/** Il corpo strutturale sotto le superfici. */
+	Bodies       = 1 << 6,
+	/** Tutto: il comportamento di sempre, ed e' il default di `RebuildInstances`. */
+	All          = 0x7F
+};
+ENUM_CLASS_FLAGS(ERTRebuildFamily);
+
 UCLASS()
 class REFACTORTACTICS_API ARTHexMapActor : public AActor
 {
@@ -199,7 +238,12 @@ public:
 
 	/**
 	 * Nome della fixture da scrivere nell'asset: `ArenaV01`, `RelayBasin`, `RelayLite`, `TestArena`,
-	 * `CoverYard`.
+	 * `CoverYard`, `BlockYard`, `GrayKitYard`, `VisionSplit`, `ProbeYard`.
+	 *
+	 * ⚠️ **Completato il 2026-08-31, e ne mancavano tre**: `GrayKitYard`, `VisionSplit` e `ProbeYard` erano
+	 * nel dispatcher e non qui. Il test qui sotto verifica **una direzione sola** — che ogni nome elencato
+	 * costruisca — quindi un nome che esiste e non e' elencato resta invisibile: non e' rotto, e' solo
+	 * introvabile da chi legge il tooltip invece del codice.
 	 *
 	 * ⚠️ **L'autorita' e' `URTMatchSetupLibrary::KnownFixtureIds()`**, non questa riga: e' un tooltip di
 	 * `UPROPERTY`, quindi un literal che UHT deve poter leggere a compile time e che non puo' chiamare una
@@ -297,7 +341,27 @@ public:
 
 	/** Ricostruisce tutte le istanze dalle celle (asset o demo). */
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "RefactorTactics|HexMap")
-	void RebuildInstances();
+	/**
+	 * Ricostruisce le istanze delle famiglie richieste. Il default `All` e' il comportamento di sempre:
+	 * ogni chiamante esistente — bootstrapper, scenari, `OnConstruction`, `OnMapChanged` — resta invariato.
+	 *
+	 * ⚠️ Passare una maschera parziale e' sicuro solo se il cambio non tocca le altre famiglie: la matrice
+	 * campo→famiglia e' scritta su `#1865`. `OnMapChanged` non sa cosa e' cambiato (undo/redo), quindi resta
+	 * il fallback totale.
+	 */
+	void RebuildInstances(ERTRebuildFamily Families = ERTRebuildFamily::All);
+
+	/**
+	 * Il punto d'ingresso di `OnMapChanged`: ricostruisce **tutto**.
+	 *
+	 * 🔑 **Esiste perche' quel delegate non sa cosa e' cambiato, e non e' un limite da aggirare**: nasce per
+	 * *«undo/redo, editing dal suo editor»* — vie non mediate dalle API — dove l'informazione non c'e'
+	 * proprio. Un fallback totale li' e' la risposta giusta, non una rinuncia.
+	 *
+	 * ⚠️ E serve anche tecnicamente: un `TMulticastDelegate<void()>` non lega una funzione con parametro,
+	 * nemmeno con un default. Il default di `RebuildInstances` vale per i chiamanti C++, non per i delegate.
+	 */
+	void RebuildAllForAssetChange() { RebuildInstances(ERTRebuildFamily::All); }
 
 	/**
 	 * Cella corrispondente a un'istanza.
@@ -410,6 +474,31 @@ public:
 	 * cosi' il conteggio resta vero anche se la quota fra i piani cambia.
 	 */
 	void GetKnowledgeDebugCounts(int32& OutHidden, int32& OutRemembered, int32& OutLit) const;
+
+	/**
+	 * Quante istanze l'overlay ha DAVVERO posato — diagnostica, e serve a una domanda che i tre conteggi non
+	 * possono piu' rispondere (`#2250`).
+	 *
+	 * 🔑 `GetKnowledgeDebugCounts` risponde `Hidden > 0` per **complemento**, quindi resta vero anche se
+	 * l'overlay disegnasse tutto: un test scritto sui suoi numeri non potrebbe accorgersi della regressione.
+	 * Questo conta gli oggetti in scena, ed e' l'unico modo di provare che le mai viste non si disegnano.
+	 */
+	int32 KnowledgeVolumeInstanceCount() const;
+
+	/**
+	 * Quante istanze l'ultima ricostruzione ha CREATO, su tutte le famiglie — `#1865`, punto 3.
+	 *
+	 * 🔑 **Esiste perche' senza di lui l'AC non e' falsificabile.** L'issue chiede che *«il numero di istanze
+	 * ricreate sia proporzionale alla modifica, non alla mappa»*, e oggi quel numero non si puo' leggere: un
+	 * rebuild totale e uno parziale sono indistinguibili da fuori, quindi nessun test puo' dire se
+	 * l'ottimizzazione e' avvenuta — ne' accorgersi che e' regredita.
+	 *
+	 * ⚠️ **E' un contatore di EVENTO, non uno stato**, ed e' il motivo per cui qui non vale la regola di
+	 * `GetKnowledgeDebugCounts` (*«leggi le istanze, non un contatore»*). Li' la domanda e' «cosa c'e' in
+	 * scena», e la scena e' la fonte; qui e' «quante ne ho create l'ultima volta», che la scena non ricorda:
+	 * mille istanze ricreate e mille istanze aggiornate lasciano la stessa board.
+	 */
+	int32 LastRebuildCreatedInstances() const { return LastRebuildCreated; }
 #endif
 
 	/** Quante istanze il velo ha lasciato accese, ricordate e nascoste. Diagnostica e test. */
@@ -446,6 +535,14 @@ public:
 	 * terreni — risponde `Floor`, che e' cio' che `RebuildInstances` disegna nello stesso caso.
 	 */
 	ERTHexSurface SurfaceForCell(const FRTCellId& Cell) const;
+
+	/**
+	 * Filtro layer (H4): solo `AllLayers` impila i piani; `ActiveOnly` e `Focus` tengono solo il layer
+	 * attivo. Un'UNICA regola, condivisa da `RebuildInstances` (le istanze) e `RebuildCoordinateLabels`
+	 * (le terne incise): due formule per lo stesso filtro sono il difetto che questo file evita gia' per la
+	 * geometria dell'esagono (`URTHexLibrary::CellCorners`) — qui vale lo stesso principio.
+	 */
+	bool PassesLayerFilter(int32 Layer) const;
 
 	/**
 	 * Il colpo di un raycast di selezione cade su una cella selezionabile di QUESTO actor?
@@ -497,6 +594,22 @@ public:
 	 * Vengono da `URTHexSimLibrary::ReachableCells`: budget, blocchi, occupanti e archi sono gia' applicati.
 	 */
 	void SetPreviewReachableCells(const TArray<FRTCellId>& ReachableCells);
+
+	/**
+	 * Origine e mira dell'attacco pianificato: da DOVE parte il colpo e verso cosa. `bValid = false` spegne
+	 * entrambe.
+	 *
+	 * 🔴 **L'origine non e' sempre la cella in cui l'unita' si trova ora.** Il ciclo risolve
+	 * `Prep -> Dash -> Blast -> Move`: uno scatto pianificato si applica PRIMA degli attacchi, quindi sposta
+	 * l'origine di questo turno. La cella la deriva `URTHexCombatLibrary::BlastOriginCell` — qui non si
+	 * calcola, si riceve.
+	 *
+	 * `bOriginPredicted` distingue un'origine confermata (cella corrente) da una prevista (cella dello
+	 * scatto, che la collisione simultanea puo' accorciare): il disegno la rende con un tratteggio, cioe' un
+	 * canale non cromatico.
+	 */
+	void SetPreviewAttack(const FRTCellId& OriginCell, const FRTCellId& AimCell, bool bValid,
+		bool bOriginPredicted);
 
 	/** Conteggi dell'anteprima (diagnostica e test headless: il disegno non e' verificabile senza schermo). */
 	int32 NumPreviewHitCells() const { return PreviewHitCells.Num(); }
@@ -591,6 +704,15 @@ protected:
 	/** Celle raggiungibili dall'unita' selezionata, impostate dal controller (sola presentazione). */
 	TArray<FRTCellId> PreviewReachable;
 
+	/** Cella da cui parte l'attacco pianificato — post-scatto quando lo scatto si applica. */
+	FRTCellId PreviewAttackOrigin;
+	/** Cella verso cui punta la mira (bersaglio dichiarato o cella mirata). */
+	FRTCellId PreviewAttackAim;
+	/** Falso = nessun attacco pianificato: origine e linea di mira restano spente. */
+	bool bPreviewAttackValid = false;
+	/** Vero = l'origine viene dallo scatto pianificato: prevista, non confermata (linea tratteggiata). */
+	bool bPreviewOriginPredicted = false;
+
 	/** Vero se qualcosa va disegnato: evita di tenere il Tick acceso su un actor che non mostra nulla. */
 	bool HasAnythingToDraw() const;
 	/**
@@ -656,6 +778,22 @@ protected:
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TObjectPtr<UInstancedStaticMeshComponent> Blockers;
+
+	/**
+	 * Il CORPO sotto una superficie: il volume che `URTStructuralBodyLibrary::DeriveBodies` calcola da
+	 * `FRTHexCellData::BodyFill` (`#1865`).
+	 *
+	 * 🔑 **Una famiglia sua e non un riuso di `Cells`**, perche' risponde a una domanda diversa: `Cells` e' il
+	 * pavimento su cui si gioca — ha collisione, e' il proxy di click della selezione, e porta il colore della
+	 * superficie — mentre questo e' cio' che si vede **sotto** e non si calpesta. Metterli insieme darebbe al
+	 * corpo la collisione della cella, e un click sul fianco di una collina selezionerebbe una cella che il
+	 * giocatore non sta guardando.
+	 *
+	 * ⛔ **Nessuna collisione, nessun custom data**: non e' terreno, non entra nel velo, non e' selezionabile.
+	 * E' geometria che riempie un vuoto visivo.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> StructuralBodies;
 
 	/**
 	 * Pannelli su BORDO: coperture e porte. Sono l'unica cosa della mappa che non appartiene a una cella ma a
@@ -758,10 +896,46 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|HexMap")
 	TObjectPtr<UInstancedStaticMeshComponent> KnowledgeVolumes;
 
+#if WITH_EDITORONLY_DATA
+	/**
+	 * Le coordinate incise sul pavimento (#1920). **Solo editor**, e non e' un ottavo ISM.
+	 *
+	 * 🔑 **Perche' un `ULineBatchComponent` e non un disegno per frame.** La GEOMETRIA (i punti di ogni
+	 * stroke) si calcola una volta, quando la mappa cambia, invece che a ogni frame come farebbe un
+	 * `DrawDebugLine` posato da `Tick` — il ricalcolo per evento che #711 ha gia' pagato, un costo che
+	 * nessun test misura e che si scopre solo quando il viewport smette di seguire il mouse.
+	 *
+	 * ⚠️ **Non e' pero' un vantaggio assoluto sul costo PER FRAME.** `ULineBatchComponent::TickComponent`
+	 * scorre comunque tutte le linee registrate a ogni frame, e la sua scene proxy le riemette al PDI per
+	 * ogni vista: disegnare `N` linee resta `O(N)` a ogni frame, qui come con `DrawDebugLine`. Cio' che si
+	 * evita e' il costo di RICOSTRUIRE quell'`N` — l'iterazione su celle/glifi/stroke di
+	 * `RebuildCoordinateLabels` — a ogni frame invece che a ogni cambiamento della mappa.
+	 *
+	 * ⚠️ Le sette famiglie di ISM sono canali di lettura DELLA PARTITA. Questo no: in una build di gioco
+	 * il componente non esiste, e si verifica per assenza.
+	 *
+	 * ⚠️ **`WITH_EDITORONLY_DATA` e non `WITH_EDITOR`, per la `UPROPERTY`**: UHT rifiuta una `UPROPERTY`
+	 * dentro `WITH_EDITOR` — *«UProperties should not be wrapped by WITH_EDITOR, use WITH_EDITORONLY_DATA
+	 * instead»* — mentre la funzione sotto, che non e' una `UPROPERTY`, resta sotto `WITH_EDITOR` come nel
+	 * resto del file. Le due macro coincidono per i target di questo progetto (Editor vs Game), quindi il
+	 * confine «solo editor» e' lo stesso.
+	 */
+	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|HexMap")
+	TObjectPtr<class ULineBatchComponent> CoordinateLabels;
+#endif
+
+#if WITH_EDITOR
+	/** Ridisegna le terne di tutte le celle. Nessuna decisione: consuma `BuildCellLabel`. */
+	void RebuildCoordinateLabels();
+#endif
+
 	/**
 	 * Mapping instance index -> FRTCellId (per selezione/debug). Stato DERIVATO, non serializzato:
 	 * viene rigenerato da RebuildInstances a ogni costruzione dell'actor.
 	 */
+	/** Contatore dell'ultima ricostruzione (`#1865`): quante istanze sono state create, non aggiornate. */
+	int32 LastRebuildCreated = 0;
+
 	TArray<FRTCellId> InstanceCells;
 
 	/**

@@ -23,7 +23,7 @@ Duellante predittivo: il più mobile del roster, punisce traiettorie e movimento
 | Tipo danno | Kinetic |
 | Complessità gameplay | TBD |
 | Complessità tecnica (1–5) | TBD |
-| Risorsa firma | Slancio |
+| Risorsa firma | Slancio ⛔ *(disegno — vedi §«Risorsa firma»)* |
 | Signature primaria | Predictive Interception |
 | Signature secondaria | Movement Punish |
 | Framework principali | Movement, Reaction, Prediction, Control |
@@ -137,9 +137,17 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 
 ## Risorsa firma
 
+> ⛔ **DISEGNATA, DELIBERATAMENTE NON IMPLEMENTATA** — [`D-265`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-30) e [`D-324`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-09-04).
+>
+> **Non esiste una risorsa firma universale**: l'economia comune del turno è **slot, cooldown e drawback**. `D-324` ha tolto `Energy` — l'unica implementazione viva di quel modello — dal gameplay, e [#610](https://github.com/DegrassiAaron/refactor-tactics-main/issues/610) l'ha rimossa dal codice. In `Source/` non c'è nessun sottosistema che legga questa tabella.
+>
+> ✅ **Resta perché la via è aperta, non per inerzia.** `D-265` ammette una risorsa **come meccanica specifica di un kit che la motivi**, con un proprio contratto di dati e validazione. Questo è il disegno di quel kit, in attesa di chi lo prenderà.
+>
+> ⚠️ **Chi lo prenderà** parta da `D-265`, non da questa tabella: il `Cap 4` e la ricarica `1` nascono dal modello universale che è stato **scartato**, e vanno rimotivati per questo eroe invece che ereditati. E risponda a `AE-6` — *«questa risorsa si ricarica con `Wait`?»* — che [`D-329`](../../decisions/RT_PDR_00_Decision_Log.md) ha chiuso per assorbimento lasciando la domanda in eredità al primo kit che la adotti.
+
 | Resource_ID | Nome | Cap | Start | Regen | Regen_Trigger | Spesa | Regola | Audience | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| RES_VEKTOR_MOMENTUM | Slancio | 4 | — | 1 | Movimento eseguito | Abilità firma | Cap 4; start non specificato | Team-visible | CANONICAL_PARTIAL |
+| RES_VEKTOR_MOMENTUM | Slancio | 4 | — | 1 | Movimento eseguito | Abilità firma | Cap 4; start non specificato | Team-visible | NOT_IMPLEMENTED (D-265) |
 
 > **Ownership del kit:** le abilità di questa pagina appartengono esclusivamente a questo personaggio. Le sinergie con altri eroi sono esempi derivati da stati, superfici, geometria e altre regole comuni; non sono abilità condivise. Vedi [Sinergie e combinazioni](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/sinergie-e-combinazioni).
 
@@ -175,7 +183,7 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 | Che cosa | Dove |
 | --- | --- |
 | Il payload è nel dato | `RefactorTactics.Heroes.Hero.Wraith.MatchesCatalog` |
-| L'effetto si vede in partita | `Visual.Combat.Defeat` — 21 a turno per quattro turni · `Visual.Map.LowCoverEdge`, dove è **il suo** colpo a passare dal bordo riparato e a scendere da 21 a 11: è la misura della copertura, e regge solo perché il suo danno è più grande della riduzione |
+| L'effetto si vede in partita | `Visual.Combat.Defeat` — 21 a turno per **sei** turni (D-224 lo ha allungato da quattro) · `Visual.Map.LowCoverEdge`, dove è **il suo** colpo a passare dal bordo riparato e a scendere da 21 a 11: è la misura della copertura, e regge solo perché il suo danno è più grande della riduzione |
 
 ## Abilità
 
@@ -279,7 +287,7 @@ Passing Blade è un Dash lineare di 3 celle che infligge 20 danni alle unità at
 
 #### Descrizione
 
-Deflection è una reazione su attacco diretto che riduce di 20 il danno del colpo che l'ha innescata, con cooldown 2.
+Deflection è una reazione su attacco diretto che apre un pool da 20 danni assorbibili dentro il boundary che l'ha innescata — non uno sconto sul singolo colpo: ciò che un colpo non consuma resta per i successivi ([D-309](../../decisions/RT_PDR_00_Decision_Log.md)) —, con cooldown 2.
 
 | Campo | Valore |
 | --- | --- |
@@ -294,7 +302,7 @@ Deflection è una reazione su attacco diretto che riduce di 20 il danno del colp
 | Control Strength | 20 |
 | Durata (turni) | 0 |
 | Loss/Contact Policy | Reaction.Trigger.DirectHit |
-| Interazione terreno | Riduce di 20 il colpo diretto che l'ha innescata |
+| Interazione terreno | Pool da 20 assorbibili sui colpi diretti del boundary che l'ha innescata ([D-309](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | Gameplay Tags | `Ability.Reaction.Deflect` |
 | Implementation Status | IMPLEMENTED |
 | Data Status | CANONICAL |

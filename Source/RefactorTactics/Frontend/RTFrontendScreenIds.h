@@ -115,4 +115,28 @@ namespace RTScreenIds
 	 * quel test itera le voci del `.ini`, e questa non e' una di quelle.
 	 */
 	REFACTORTACTICS_API extern const FName Match;
+
+	/**
+	 * La lista delle partite registrate (`#416`), spinta dal Main Menu (`#472`).
+	 *
+	 * ⚠️ **Porta l'indice, non gli archivi**: `URTMatchHistoryLibrary::LoadIndex` non apre nessuna cartella,
+	 * ed e' la ragione per cui la lista e' istantanea e una riga il cui archivio e' stato cancellato resta
+	 * **nella lista** invece di sparire — lo dice quando la si apre, che e' l'unico momento in cui si sa.
+	 */
+	REFACTORTACTICS_API extern const FName MatchHistory;
+
+	/**
+	 * Il viewer di un replay, spinto **da `MatchHistory`** e mai dal Main (`#472`).
+	 *
+	 * 🔴 **Non e' raggiungibile senza un `MatchId`**, ed e' il motivo per cui non e' una voce di menu: una
+	 * schermata che si apra senza il suo dato non ha niente da mostrare, ed e' il dead-end che
+	 * `spec-frontend-navigazione.md` §3.2 vieta.
+	 *
+	 * ⚠️ **Il dato non viaggia in `PushScreen`**, che prende un solo `FName`: la selezione vive sul
+	 * `URTReplayViewerSubsystem` — `SelectMatch` prima di spingere, `ConsumeSelectedMatch` all'apertura —
+	 * con lo stesso schema di `PendingMatchLevel`/`ConsumePendingMatchLevel` per l'avvio partita. Sta li' e
+	 * non sul navigatore perche' **il navigatore non conosce il replay**, ed e' un invariante che vale la
+	 * pena non perdere per un campo.
+	 */
+	REFACTORTACTICS_API extern const FName ReplayViewer;
 }

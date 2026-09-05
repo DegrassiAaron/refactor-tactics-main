@@ -169,7 +169,7 @@ public:
 	 *
 	 * ⚠️ Eredita **identita', fase, priorita', portata, fallback ed effetti** — e nient'altro. Restano fuori
 	 * lo `Slot` e tutti i campi di comportamento: `MovementStyle`, `StructureOp`, `PropagationLimit`,
-	 * `bCreatesSurface`/`SurfaceCreated`/`SurfaceRadius`, `bCanBeInterrupted`, `bSelfTarget`,
+	 * `bCreatesSurface`/`SurfaceCreated`/`SurfaceRadius`, `InterruptPolicy`, `bSelfTarget`,
 	 * `bAllowsReaction`, `bTargetsCell`, `ReactionTrigger` e i campi predittivi. L'elenco e' lungo apposta:
 	 * un'abilita' derivata da `Action.Ignite` che non copia `bCreatesSurface` risolve e non crea niente.
 	 */

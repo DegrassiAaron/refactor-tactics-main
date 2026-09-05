@@ -176,6 +176,12 @@ Mappa dettagliata:
 - Non modificare `.uasset`/`.umap` a mano.
 - Non spostare asset Unreal da Explorer/filesystem.
 - Usare Content Browser.
+- Quando serve creare, modificare, analizzare o validare asset, mappe, Blueprint o stato Editor-only, usare preferibilmente l'Unreal/Epic MCP disponibile invece di manipolare i binari dal filesystem.
+- Avviare Unreal Editor solo quando il task lo richiede realmente.
+- Il workflow che avvia l'Editor ne possiede il lifecycle: al termine deve salvare solo le modifiche intenzionali, terminare eventuale PIE/scenario attivo e chiudere l'Editor.
+- Su errore o validazione fallita, l'Editor aperto dal workflow va comunque chiuso dopo aver preservato log e diagnostica utili.
+- Non lasciare istanze Editor aperte "per comodità" tra task indipendenti.
+- Non chiudere o terminare un'istanza preesistente posseduta da un altro utente/processo salvo che il workflow attivo abbia una policy esplicita di ownership esclusiva.
 - Dopo rename/spostamenti: Fix Up Redirectors.
 - I binari Unreal non sono mergeabili.
 - Un asset binario viene modificato da un solo lavoro per volta.
@@ -301,7 +307,10 @@ node tools/radar/wiki-alt.ts --wiki-root <clone> --check
 node tools/radar/doc-links.ts --check
 node tools/radar/catalog-code.ts
 node tools/radar/doc-tables.ts --check
+node tools/radar/issue-refs.ts --check
+node tools/radar/scenario-notes.ts --check
 node tools/asset-refs/check.ts
+python tools/architettura/misure-strutturali.py --check   # solo se la PR tocca Turn/RTTurnManager.*
 
 cd tools/radar
 node --test
@@ -309,7 +318,117 @@ node --test
 
 Ogni tool dichiara nel docstring **cosa non copre**.
 
+⛔ `tools/mutation/costanti-combattimento.py` **non e' fra i controlli noti**, e di proposito. Modifica un sorgente e occupa il motore per **un build completo piu' una suite intera per ogni costante**, piu' una baseline: con le 11 di `RTCombatLibrary.h` sono **ore**, e le direzioni di mutazione da misurare sono **due** (`+3` e `-3` danno risposte diverse — vedi il docstring). Mentre gira, ogni altra misura in parallelo e' NON VALIDA. Si lancia per rispondere alla domanda che `#2118` ha posto — *quali costanti si possono cambiare senza che niente diventi rosso* — non a ogni PR.
+
+⚠️ E se non stampa `AUDIT COMPLETO`, **ricostruire prima di qualunque altra misura**: un'interruzione lascia mutato anche il binario, che e' la meta' che `rt-suite` non sa vedere.
+
+⚠️ `scenario-notes.ts` confronta i numeri citati nella **prosa** di uno scenario con ciò che il file
+stesso asserisce — è la deriva che `#1904` ha misurato propagarsi nei documenti a valle, e che `#2049`
+ha ripulito. **Ordina, non decide**: ogni riga segnalata va letta, e un verde non è una prova di
+assenza. Le tre cose che non vede sono nel suo docstring.
+
 Un verde dimostra soltanto ciò che quel tool misura.
+
+### Editor / PIE tramite MCP
+
+Quando il comportamento modificato è osservabile o verificabile in Unreal Editor e l'ambiente lo consente, usare l'Unreal/Epic MCP per eseguire la verifica più piccola e pertinente.
+
+Usi tipici:
+
+- avvio del progetto/editor quando necessario;
+- apertura e ispezione di mappe e asset;
+- creazione/modifica di asset supportati dal MCP;
+- verifica Blueprint/editor-facing;
+- PIE e scenari quando aggiungono evidenza rispetto ai soli Automation Test;
+- raccolta di log/evidenze;
+- chiusura dell'Editor al termine.
+
+PIE non sostituisce build, Automation Test o Scenario Harness quando questi sono richiesti.
+
+Se PIE/MCP non può essere eseguito per limiti dell'ambiente o per ownership concorrente, riportare `NOT RUN` con il motivo invece di simulare il risultato.
+
+Per ogni uso Editor/MCP:
+
+1. verificare se l'Editor serve davvero;
+2. verificare ownership/processi concorrenti;
+3. avviare o connettersi tramite tooling supportato;
+4. eseguire il test/asset operation più piccolo utile;
+5. salvare solo le modifiche intenzionali;
+6. fermare PIE/scenari;
+7. chiudere l'Editor avviato dal workflow;
+8. confermare che il processo sia terminato.
+
+### Authoring e acceptance
+
+Non sono la stessa apertura, e la seconda non vale dentro la prima.
+
+**Authoring**: creare o modificare `.uasset`, `.umap`, Data Asset, Blueprint, montage, posa in mappa. Può
+precedere l'implementazione — un asset è spesso un prerequisito, non una verifica.
+
+**Acceptance**: giudicare la feature sul risultato consolidato.
+
+Se la sessione ha scritto asset binari, il giudizio non vale nel processo che li ha scritti:
+
+**salva → chiudi l'Editor → *(build/suite se il write-set tocca `Source/`)* → riapri → giudica**
+
+Il build sta nella catena solo quando il work item ha toccato codice: per un write-set di soli asset non
+cambia ciò che si sta giudicando, e costa un'ora.
+
+La riapertura è parte dell'oracolo quando si verifica persistenza, serializzazione, riferimenti, startup
+map, layout, errori di load, inizializzazione da zero, asset registry o cook. Fuori da questi casi non
+serve, e chiedere un restart che nessuna di queste domande richiede costa un'apertura per niente.
+
+Una nuova apertura si giustifica solo se cambia una **precondizione**: asset da salvare, restart pulito
+richiesto, processo o configurazione incompatibili. Cambiare mappa, fermare e riavviare PIE, o eseguire un
+altro scenario **non** lo sono: si fanno nella stessa apertura. Quali sedute condividano un allestimento è
+già dichiarato in `docs/roadmap/editor-sessions.yaml`, campo `shares_setup_with`.
+
+Il verdetto va scritto dove il suo owner lo cerca:
+
+- una voce `PIE-*` in `docs/technical/test-manuali-pie.md`, quando il comportamento è **in gioco**;
+- la **issue owner**, quando la verifica sta nell'editor prima del Play;
+- un **artifact** versionato, quando la seduta produce un file.
+
+L'assenza in uno dei tre non è un buco se un altro porta il verdetto. Se non lo porta nessuno: `NOT RUN`
+con il motivo.
+
+⛔ La scelta non è libera: se la verifica **ha** una voce `PIE-*`, il verdetto va nel registro, che ne
+resta l'owner — una issue non lo sostituisce.
+
+### `issue-refs.ts` — l'unico che guarda fuori dal repository
+
+Confronta i percorsi e i comandi citati dalle **issue aperte** con l'albero: chiude il difetto che
+`doc-links.ts` dichiara di non coprire, cioè i riferimenti scritti in prosa dove nessun link li rende
+verificabili.
+
+Tre cose da sapere prima di usarlo:
+
+- **Segnala il cancellato, non l'assente.** Un percorso mai esistito è un deliverable e non è un
+  difetto; uno rimosso è un riferimento morto. La distinzione toglie ~114 falsi positivi.
+- **Serve la storia completa.** Su un clone shallow dichiara `NOT RUN` invece di un verde: senza
+  `git log --diff-filter=D` nessun percorso risulta rimosso.
+- **Senza rete dichiara `NOT RUN` ed esce 0.** Non blocca chi lavora offline e non finge un verde.
+
+Una issue il cui *oggetto* è la rimozione si esenta dal proprio corpo, **col motivo obbligatorio**:
+
+```html
+<!-- issue-refs: ignora — perché questa issue cita di proposito percorsi rimossi -->
+```
+
+Il gate stampa le esenzioni a ogni esecuzione.
+
+⚠️ **Si lancia a mano, come gli altri radar** — vedi §9: *«non introdurre CI senza una decisione
+esplicita»*. Il difetto che chiude però non nasce da un commit, **nasce dal tempo che passa** fra la
+rimozione di un percorso e la issue che nessuno riapre.
+
+Per questo `rt-suite.ps1` lo esegue **come promemoria** dopo un verdetto `VALIDA`, e lo si disattiva con
+`-NoIssueRefs`:
+
+🔴 **Non concorre al verdetto della suite, ed è una scelta, non una svista.** Legge GitHub, che cambia
+mentre la suite gira: in una run da quaranta minuti può passare all'avvio e fallire alla fine. Farlo
+entrare nelle invarianti di §9 renderebbe `NON VALIDA` una misura sana per una issue che ha modificato
+qualcun altro — cioè il difetto che `rt-suite.ps1` esiste per impedire. Stampa, e l'esito resta quello
+dei test.
 
 Gli output generati dei radar non si editano a mano.
 
@@ -331,6 +450,8 @@ Quando applicabile:
 - Nessun output locale indesiderato.
 - PIE verificato quando richiesto.
 - Packaged verificato quando richiesto.
+- Per modifiche editor-facing/asset-facing, MCP/Editor usato quando disponibile e pertinente.
+- Nessun Unreal Editor avviato dal workflow resta aperto a fine task.
 
 ## 11. Lavoro parallelo
 
@@ -377,6 +498,43 @@ Non confondere:
 con
 
 **file verificato**.
+
+### Chiudere una issue
+
+`fix(605)` **non chiude** la issue 605.
+
+GitHub lo legge come uno **scope Conventional Commits**, non come un riferimento. La forma che chiude e' una
+parola chiave seguita da `#N`:
+
+```
+Closes #605
+```
+
+Le parole riconosciute sono `close`/`closes`/`closed`, `fix`/`fixes`/`fixed`,
+`resolve`/`resolves`/`resolved`. `fix(605)` non e' nessuna di queste: manca il `#`, e la parentesi ne fa
+uno scope.
+
+**Dove va**: nel **corpo della PR**, in cima. Non nel messaggio di commit.
+
+Il corpo della PR e' il canale che GitHub processa al merge, ed e' l'unico che un agente controlla davvero:
+`gh pr create --body-file` scrive li'.
+
+⛔ **`.github/pull_request_template.md` non basta.** Il template si applica solo alle PR aperte
+dall'interfaccia web: `gh pr create` con `--body` o `--body-file` lo **sostituisce**, e non avvisa. Chi apre
+PR da riga di comando — cioe' ogni agente — deve scrivere la riga a mano.
+
+⚠️ **Se la base della PR non e' il branch di default, `Closes` non chiude niente al merge.** La issue si
+chiudera' solo quando quel branch arrivera' su `main`. Una PR verso un branch padre intermedio chiude la
+propria issue **a mano**, oppure lo dichiara.
+
+**Perche' questa sezione esiste.** Misurato il 2026-09-02: **57** issue aperte avevano almeno un commit
+`fix()`/`feat()` mergiato su `main`, e nessuna si era chiusa da sola. Fra queste, `#1473`, `#605`, `#75` e
+`#61` avevano il lavoro **finito**: la loro correzione era su `main` da giorni o settimane, e restavano
+aperte perche' il messaggio diceva `fix(1473)` invece di `fixes #1473`.
+
+⚠️ **Non e' un difetto di disciplina, ed e' per questo che vale una regola scritta**: `fix(605)` *sembra* un
+riferimento. Il triage completo e' nel commento di chiusura di
+[`#1473`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1473).
 
 ### ID condivisi
 

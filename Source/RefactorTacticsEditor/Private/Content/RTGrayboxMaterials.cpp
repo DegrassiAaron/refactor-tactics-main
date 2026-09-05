@@ -57,6 +57,21 @@ namespace RTGraybox
 		{ TEXT("SM_Graybox_Surface_Ice"),   TEXT("MI_Graybox_Surface_Ice"),   0.65f,  0.55f },
 	};
 
+	// ⚠️ `MeshName` qui nomina il COMPONENTE che l'istanza veste, non una mesh del kit: queste tre vestono
+	// primitive engine. Vedi la doc nell'header per perche' non stanno nella tabella dei sei.
+	//
+	// 🔴 **Il marker e' l'elemento PIU' CHIARO, e il verso non e' arbitrario.** La prima stesura lo faceva
+	// quasi nero (`0.08`) contro un corpo chiaro: separava dal corpo e spariva contro il PAVIMENTO, che in
+	// `L_GrayKitPlayground` e' `WorldGridMaterial` — un grigio medio. A terra leggeva come un'ombra.
+	// Facendolo il piu' chiaro la separazione regge contro entrambi senza dipendere dal valore esatto del
+	// pavimento, che non e' nostro e puo' cambiare. Il guardiano e' `FixtureMarkerIsTheBrightest`.
+	const FRTGrayboxMaterialSpec FixtureMaterials[3] = {
+		//  componente                    istanza                              valore  ruvidita'
+		{ TEXT("UnitBody"),               TEXT("MI_Graybox_Fixture_Body"),      0.45f,  0.85f },
+		{ TEXT("FacingMarker"),           TEXT("MI_Graybox_Fixture_Marker"),    0.90f,  0.15f },
+		{ TEXT("GroundAnchor"),           TEXT("MI_Graybox_Fixture_Anchor"),    0.05f,  0.95f },
+	};
+
 	float Luminance(const FLinearColor& Color)
 	{
 		return 0.2126f * Color.R + 0.7152f * Color.G + 0.0722f * Color.B;
@@ -200,54 +215,76 @@ namespace
 	}
 }
 
+namespace
+{
+	/** Il corpo condiviso: costruisce e salva le istanze di UNA tabella. Due tabelle, una sola procedura. */
+	int32 BuildSpecs(
+		const FString& PackageRoot,
+		TArrayView<const RTGraybox::FRTGrayboxMaterialSpec> Specs,
+		const bool bDryRun,
+		TMap<FString, UMaterialInterface*>& OutInstances)
+	{
+		const FString MasterPackage = FString::Printf(TEXT("%s/%s/%s"),
+			*PackageRoot, RTGraybox::MaterialsFolder, RTGraybox::MasterAssetName);
+
+		UE_LOG(LogRTGrayboxMaterials, Display, TEXT("Master -> %s%s"),
+			*MasterPackage, bDryRun ? TEXT("  [DryRun]") : TEXT(""));
+
+		if (bDryRun)
+		{
+			for (const RTGraybox::FRTGrayboxMaterialSpec& Spec : Specs)
+			{
+				UE_LOG(LogRTGrayboxMaterials, Display,
+					TEXT("  %s -> %s | valore %.2f | ruvidita' %.2f"),
+					Spec.MeshName, Spec.InstanceName, Spec.Value, Spec.Roughness);
+			}
+			return 0;
+		}
+
+		UMaterial* Master = EnsureMaster(MasterPackage, RTGraybox::MasterAssetName);
+		if (!Master || !SaveMaterialPackage(Master))
+		{
+			UE_LOG(LogRTGrayboxMaterials, Error, TEXT("%s non e' stato salvato."), RTGraybox::MasterAssetName);
+			return 1;
+		}
+
+		int32 Failed = 0;
+		for (const RTGraybox::FRTGrayboxMaterialSpec& Spec : Specs)
+		{
+			const FString InstancePackage =
+				FString::Printf(TEXT("%s/%s/%s"), *PackageRoot, RTGraybox::MaterialsFolder, Spec.InstanceName);
+
+			UMaterialInstanceConstant* Instance = EnsureInstance(InstancePackage, Spec.InstanceName, Master, Spec);
+			if (Instance && SaveMaterialPackage(Instance))
+			{
+				OutInstances.Add(FString(Spec.MeshName), Instance);
+				UE_LOG(LogRTGrayboxMaterials, Display,
+					TEXT("  %s -> %s | valore %.2f | ruvidita' %.2f"),
+					Spec.MeshName, *InstancePackage, Spec.Value, Spec.Roughness);
+			}
+			else
+			{
+				++Failed;
+				UE_LOG(LogRTGrayboxMaterials, Error, TEXT("%s non e' stata salvata."), Spec.InstanceName);
+			}
+		}
+
+		return Failed;
+	}
+}
+
 int32 RTGraybox::BuildKitMaterials(
 	const FString& PackageRoot,
 	const bool bDryRun,
 	TMap<FString, UMaterialInterface*>& OutInstances)
 {
-	const FString MasterPackage = FString::Printf(TEXT("%s/%s/%s"), *PackageRoot, MaterialsFolder, MasterAssetName);
+	return BuildSpecs(PackageRoot, KitMaterials, bDryRun, OutInstances);
+}
 
-	UE_LOG(LogRTGrayboxMaterials, Display, TEXT("Master -> %s%s"),
-		*MasterPackage, bDryRun ? TEXT("  [DryRun]") : TEXT(""));
-
-	if (bDryRun)
-	{
-		for (const FRTGrayboxMaterialSpec& Spec : KitMaterials)
-		{
-			UE_LOG(LogRTGrayboxMaterials, Display,
-				TEXT("  %s -> %s | valore %.2f | ruvidita' %.2f"),
-				Spec.MeshName, Spec.InstanceName, Spec.Value, Spec.Roughness);
-		}
-		return 0;
-	}
-
-	UMaterial* Master = EnsureMaster(MasterPackage, MasterAssetName);
-	if (!Master || !SaveMaterialPackage(Master))
-	{
-		UE_LOG(LogRTGrayboxMaterials, Error, TEXT("%s non e' stato salvato."), MasterAssetName);
-		return 1;
-	}
-
-	int32 Failed = 0;
-	for (const FRTGrayboxMaterialSpec& Spec : KitMaterials)
-	{
-		const FString InstancePackage =
-			FString::Printf(TEXT("%s/%s/%s"), *PackageRoot, MaterialsFolder, Spec.InstanceName);
-
-		UMaterialInstanceConstant* Instance = EnsureInstance(InstancePackage, Spec.InstanceName, Master, Spec);
-		if (Instance && SaveMaterialPackage(Instance))
-		{
-			OutInstances.Add(FString(Spec.MeshName), Instance);
-			UE_LOG(LogRTGrayboxMaterials, Display,
-				TEXT("  %s -> %s | valore %.2f | ruvidita' %.2f"),
-				Spec.MeshName, *InstancePackage, Spec.Value, Spec.Roughness);
-		}
-		else
-		{
-			++Failed;
-			UE_LOG(LogRTGrayboxMaterials, Error, TEXT("%s non e' stata salvata."), Spec.InstanceName);
-		}
-	}
-
-	return Failed;
+int32 RTGraybox::BuildFixtureMaterials(
+	const FString& PackageRoot,
+	const bool bDryRun,
+	TMap<FString, UMaterialInterface*>& OutInstances)
+{
+	return BuildSpecs(PackageRoot, FixtureMaterials, bDryRun, OutInstances);
 }

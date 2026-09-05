@@ -334,10 +334,23 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
  *
  * 🔴 **Il difetto che nessun criterio scritto sui siti `Order` avrebbe raggiunto.** `OnLockIn` — il tasto
  * Spazio — non chiama `RecordPlanningInput` affatto: durante il playback **salta la risoluzione**,
- * altrimenti **chiude la pianificazione e risolve il turno**. Per una modalita' che esiste per essere
- * registrata in video e' peggio del piano che evapora: non rende il filmato confuso, lo taglia.
+ * altrimenti **chiude la pianificazione**. Per una modalita' che esiste per essere registrata in video e'
+ * peggio del piano che evapora: non rende il filmato confuso, lo taglia.
  *
- * Il controllo e la misura usano due banchi separati perche' il turno, una volta risolto, non si annulla.
+ * Il controllo e la misura usano banchi separati perche' il turno, una volta risolto, non si annulla.
+ *
+ * ---
+ *
+ * 🔵 **Riscritto il 2026-09-04 dopo `#2193`** (`#2356`), che ha cambiato *cosa* fa il tasto: non chiude piu'
+ * il turno subito, **arma un countdown di 3 s** e committa al suo scadere. Il canary del controllo e' caduto
+ * su `main`, e ha fatto il suo mestiere — senza di lui la misura sarebbe diventata **vacua in silenzio**:
+ * *«il lock-in non chiude il turno»* aveva smesso di distinguere l'autobattle da qualunque altra modalita',
+ * perche' il lock-in non chiudeva piu' niente da nessuna parte.
+ *
+ * ⚠️ **La correzione non rilassa il controllo: lo raddoppia.** `A` prova che il tasto arriva al
+ * `TurnManager` (il countdown si arma), `B` che con la via sincrona chiude davvero un turno. E la misura
+ * gira con `ReadyCountdownSeconds = 0`, cioe' nella configurazione in cui un input non inerte chiuderebbe il
+ * turno **nello stesso frame**: e' piu' severa di prima, non meno.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleLockInInertTest,
 	"RefactorTactics.Match.Autobattle.LockInDoesNotCloseTheTurn",
@@ -346,8 +359,9 @@ bool FRTAutobattleLockInInertTest::RunTest(const FString&)
 {
 	FRTScopedInertSessionState StateGuard;
 
-	// CONTROLLO: senza la modalita', lo stesso tasto chiude il turno. Senza questo passo «il turno non e'
-	// avanzato» non distinguerebbe la guardia da un banco che non sapeva avanzare.
+	// CONTROLLO A: senza la modalita', il tasto ARMA il countdown. E' l'osservabile che separa le due
+	// modalita' sulla semantica nuova, ed e' piu' vicino al difetto di quello vecchio: prova che l'input e'
+	// arrivato al `TurnManager`, non che il turno sia avanzato.
 	{
 		FRTInertBench B = MakeInertBench(/*bWithTurnManagerBeginPlay=*/ true);
 		if (!TestTrue(TEXT("banco di controllo completo"), B.IsComplete()))
@@ -357,15 +371,41 @@ bool FRTAutobattleLockInInertTest::RunTest(const FString&)
 		}
 		B.Setup(/*bAutobattle=*/ false);
 
+		B.PC->OnLockInForTest();
+		TestTrue(TEXT("controllo: il lock-in ha ARMATO il countdown"),
+			B.TurnManager->IsReadyCountdownActive());
+
+		RTWorldFixtures::DestroyWorld(B.World);
+	}
+
+	// CONTROLLO B: e con il countdown a zero lo stesso tasto chiude un turno, come prima di `#2193`.
+	//
+	// 🔴 **Serve, e non e' ridondante col controllo A.** Il countdown si arma anche se il commit poi non
+	// arrivasse mai: senza questo passo, «il tasto fa qualcosa» non sarebbe «il tasto chiude il turno», e la
+	// misura qui sotto tornerebbe a non distinguere la guardia da un banco che non sapeva avanzare — che e'
+	// la ragione per cui il controllo esiste dal 2026-08 (`#971`).
+	{
+		FRTInertBench B = MakeInertBench(/*bWithTurnManagerBeginPlay=*/ true);
+		if (!TestTrue(TEXT("banco di controllo completo"), B.IsComplete()))
+		{
+			RTWorldFixtures::DestroyWorld(B.World);
+			return false;
+		}
+		B.Setup(/*bAutobattle=*/ false);
+		B.TurnManager->SetReadyCountdownSeconds(0.f); // la via sincrona, senza tempo di parete nel test
+
 		const int32 Before = B.TurnManager->GetPacingSamples().Num();
 		B.PC->OnLockInForTest();
-		TestEqual(TEXT("controllo: il lock-in ha chiuso un turno"),
+		TestEqual(TEXT("controllo: senza countdown il lock-in chiude un turno"),
 			B.TurnManager->GetPacingSamples().Num(), Before + 1);
 
 		RTWorldFixtures::DestroyWorld(B.World);
 	}
 
-	// LA MISURA.
+	// LA MISURA — con il countdown a ZERO, cioe' nella configurazione in cui un input NON inerte chiuderebbe
+	// il turno **nello stesso frame**. E' piu' severa della stesura precedente: prima il countdown non
+	// esisteva e questa scelta non c'era; adesso lasciarlo a 3 s renderebbe «non ha chiuso il turno» vero
+	// anche per un input arrivato e semplicemente in attesa.
 	{
 		FRTInertBench B = MakeInertBench(/*bWithTurnManagerBeginPlay=*/ true);
 		if (!TestTrue(TEXT("banco della misura completo"), B.IsComplete()))
@@ -374,11 +414,14 @@ bool FRTAutobattleLockInInertTest::RunTest(const FString&)
 			return false;
 		}
 		B.Setup(/*bAutobattle=*/ true);
+		B.TurnManager->SetReadyCountdownSeconds(0.f);
 
 		const int32 Before = B.TurnManager->GetPacingSamples().Num();
 		B.PC->OnLockInForTest();
 		TestEqual(TEXT("il lock-in non chiude il turno"),
 			B.TurnManager->GetPacingSamples().Num(), Before);
+		TestFalse(TEXT("e non ha nemmeno armato un countdown: l'input non e' arrivato affatto"),
+			B.TurnManager->IsReadyCountdownActive());
 
 		RTWorldFixtures::DestroyWorld(B.World);
 	}

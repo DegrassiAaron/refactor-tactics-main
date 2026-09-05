@@ -317,6 +317,10 @@ owner più la nota interna dello scenario stesso** sono rimaste al valore preced
 > vicina scrive *«10 danni all'ingresso, 8 nel Cleanup»*, cioè `90 − 18 = 72`). Tre righe, **tre** ragioni.
 > Aperta [#1904](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1904), che le tiene tutte.
 
+✅ **Corretto il 2026-09-01 da [#2051](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2051)**: le sei righe portano ora `103`, `72` e `75`, ciascuna con la propria derivazione. La tabella del §8 **non** è stata riscritta — è la misura del difetto, e correggerla ne cancellerebbe la provenienza.
+
+⚠️ **E il difetto era ancora piu' grande.** La code review di quella PR ha trovato **altre cinque righe** della stessa famiglia, tutte nei documenti che questo referto dichiarava di aver misurato: `Visual.Combat.Defeat` fermo a **quattro** turni quando il file ne dichiara **sei**, `GuardReducesFirstHit` a `92` invece di `97`, `BraceReducesEveryHit` a `97` invece di `102`, la spiegazione sotto la tabella ancora a `82` **sette righe sotto** la riga appena corretta a `72`, e l'aritmetica di `WaterElectricCoordinated` calcolata su **100 HP** che nessun eroe del roster ha. Corrette nella stessa PR. 🔴 **La ragione per cui questo referto non le aveva viste è la stessa per cui il gate di #1904 non le vede**: il comando `rg` cerca il letterale `UnitHpEquals`, e nessuna di quelle cinque righe lo contiene. Il gate strutturale è in [#2049](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2049).
+
 ➕ **Difetto minore, stessa famiglia**: il corpo di `#1105` elenca `#1753`, `#1754`, `#1755` come `[ ]`
 aperte; tutte e tre risultano **CLOSED**.
 

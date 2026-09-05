@@ -21,7 +21,7 @@ Ogni azione dichiara:
 | **Range / Dist.** | Portata in celle, o in MP dove indicato |
 | **CD** | Cooldown in turni completi |
 | **Fallback** | Comportamento quando l'azione non è più eseguibile al momento della risoluzione |
-| **Interr.** | `bCanBeInterrupted`: se falso, `Action.Interrupt` non ha effetto su di essa |
+| **Interr.** | `InterruptPolicy` ([D-298](../decisions/RT_PDR_00_Decision_Log.md)): quanto dell'azione sopravvive a un `Action.Interrupt` — `None` (non la tocca) · `InterruptBeforeEffect` (non produce nulla) · `SuppressSecondary` (resta il primo effetto dichiarato) · `CancelChannel` (**riservata**, il validator la rifiuta) |
 
 **Ordine totale di risoluzione** (mai l'ordine di una `TMap`):
 `Macro-fase → Priority → ActionDefinitionId → SourceUnitId → EventSequence`.
@@ -66,10 +66,13 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 > (cap **1**) è lo slot Reazione dell'ADR-0003. **Sono lo stesso sistema con due nomi**: la tabella qui sopra
 > resta la formulazione canonica, «AP» è ammesso come sinonimo nei documenti di bilanciamento.
 >
-> **Risorsa firma** — ciò che l'MVP chiamava *energia* è per-personaggio, con nome e trigger di ricarica
-> propri: `Gadget` Carica Conduttiva · `Phase` Riserva Idrica · `Riktor` Integrità Strutturale · `Wraith`
-> Slancio. Cap **4** per tutte (valore più basso fra i candidati), ricarica **1** sul trigger d'affinità.
-> Cambia il nome e cosa la ricarica, **non** la regola.
+> **Risorsa firma** — ⛔ **voce di disegno, non di regola.** L'MVP chiamava *energia* un contatore per unità;
+> [`D-265`](../decisions/RT_PDR_00_Decision_Log.md) ha deciso che **non esiste una risorsa firma universale** e
+> [`D-324`](../decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy` dal gameplay ([#610](https://github.com/DegrassiAaron/refactor-tactics-main/issues/610)).
+> Un kit **può** dichiarare una risorsa propria, con contratto di dati e validazione suoi: allora è quel kit a
+> definirne nome, cap e trigger. I nomi per eroe — `Gadget` Carica Conduttiva · `Phase` Riserva Idrica ·
+> `Riktor` Integrità Strutturale · `Wraith` Slancio — restano nel catalogo eroi come **disegno**, e il `Cap 4`
+> con ricarica `1` è il parametro del modello scartato: va rimotivato, non ereditato.
 
 Un piano completo dichiara: percorso di movimento · azione principale · reazione (se disponibile) · **facing
 finale** · fallback.
@@ -99,8 +102,10 @@ Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch
 >
 > `Interact` è entrata il **2026-08-26**: era fuori perché *«nessun codice risolve un'interazione»*, e quel
 > motivo è scaduto con [D-148](../decisions/RT_PDR_00_Decision_Log.md)/[D-151](../decisions/RT_PDR_00_Decision_Log.md)
-> — apre le porte, e solo quelle. Il criterio d'ammissione è sempre lo stesso: *si aggiunge la generica quando
-> l'altra metà esiste*. Storia e riserve in
+> — agisce sulle porte, e solo su quelle. ⏱️ *Diceva «apre le porte» fino al 2026-09-05: da
+> [D-331](../decisions/RT_PDR_00_Decision_Log.md) (`#2380`, chiude `INT-7`) l'azione **commuta** — apre una porta
+> chiusa e chiude una aperta — mentre `Locked` e `Destroyed` sono rifiuti con reason code distinti.* Il criterio
+> d'ammissione è sempre lo stesso: *si aggiunge la generica quando l'altra metà esiste*. Storia e riserve in
 > [`../gameplay/brief-azioni-generiche-overwatch.md`](../gameplay/brief-azioni-generiche-overwatch.md).
 >
 > ⌨️ **E dal 2026-08-26 il giocatore le raggiunge tutte**: i tasti abilità sono `1`–`9` più `0`, dieci
@@ -498,7 +503,7 @@ macro-fase separata: ADR-0003 §3).
 | `Action.Push` | Spinta | Blast | 30 | 40 | 1 | spinta 1 | istantanea | 1 |
 | `Action.Pull` | Trazione | Blast | 30 | 40 | 2 | trazione 1 | istantanea | 1 |
 | `Action.Root` | Radicamento | Blast | 30 | 25 | 1 | blocca il movimento | 1 turno | 2 |
-| `Action.Interrupt` | Interruzione | Blast | 30 | 20 | 1 | annulla azione compatibile | istantanea | 2 |
+| `Action.Interrupt` | Interruzione | Blast | 30 | 20 | 1 | annulla — o **degrada** — un'azione compatibile, secondo la sua `InterruptPolicy` ([D-300](../decisions/RT_PDR_00_Decision_Log.md)) | istantanea | 2 |
 | `Action.Slow` | Rallentamento | Blast | 30 | 50 | 1 | +1 costo movimento | 1 turno | 1 |
 
 **Range — decisa in CP 4.7, non nel PDF**: questa è l'unica sezione del catalogo la cui tabella non dichiarava
@@ -519,7 +524,7 @@ non annulla un teletrasporto già risolto. Implementato tramite `GetEffectiveMov
 Move dello stesso turno, anche su un percorso a waypoint già pianificato prima del radicamento
 (`URTHexSimLibrary::TruncatePathToBudget`, CP 4.7).
 
-**Interrupt** — un'azione è interrompibile **solo** se dichiara `bCanBeInterrupted = true`. Non tutte lo sono.
+**Interrupt** — un'azione è interrompibile **solo** se la sua `InterruptPolicy` non è `None`. Non tutte lo sono, e da [D-300](../decisions/RT_PDR_00_Decision_Log.md) «interrompibile» non significa più «cancellabile»: `Action.Charge` dichiara `SuppressSecondary` e, interrotta, colpisce senza spingere.
 Cancella l'intera azione bersaglio (danno ed effetti collaterali insieme), non solo i suoi effetti: si applica
 filtrando i colpi già raccolti nel Blast, prima che diventino danno o eventi.
 
@@ -613,10 +618,10 @@ diretti usano **Cancel** · le cure usano **Cancel** · **le reazioni non hanno 
 | 4 | Fase 50 «Ambiente» come fase a sé | Propagazione ambientale nel **Cleanup**, prima dei KO | Stesso motivo di #3; dopo il Move, così colpisce anche chi è appena entrato |
 | 5 | UE 5.6.x | UE **5.8.1** | Versione bloccata dal canone |
 | 6 | Cooldown di `Action.Wait`, `Move`, `BasicAttack` non esplicitati per ogni riga (tabella disallineata nel PDF) | Ricostruiti per posizione e verificati contro le descrizioni testuali | Le tabelle del PDF sono estratte con colonne sfalsate; dove il numero era ambiguo si è preferita la descrizione a parole |
-| 7 | `Fallback` e `bCanBeInterrupted` non dichiarati per **ogni** azione | Compilati per tutte, seguendo le regole generali del §12 del PDF | Il DoD del catalogo richiede che «ogni azione dichiari fase, priorità e fallback» |
+| 7 | `Fallback` e `InterruptPolicy` non dichiarati per **ogni** azione | Compilati per tutte, seguendo le regole generali del §12 del PDF | Il DoD del catalogo richiede che «ogni azione dichiari fase, priorità e fallback» |
 
 **Non ancora deciso** (assente nel PDF, da fissare quando servirà): l'elenco puntuale delle azioni con
-`bCanBeInterrupted = false` oltre a `Wait`, `Guard` e `SuppressiveLine`; qui sono marcate «no» solo dove il testo
+`InterruptPolicy = None` oltre a `Wait`, `Guard` e `SuppressiveLine`; qui sono marcate «no» solo dove il testo
 lo implica.
 
 ---

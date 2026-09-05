@@ -84,6 +84,34 @@ portandosi dietro un dato.
 | Raggiunta da | `PushScreen` dal Main Menu | `PushScreen` **da `MatchHistory`**, mai dal Main |
 | Porta | l'indice (`URTMatchHistoryLibrary::LoadIndex`) | un `MatchId`, che è il solo dato in ingresso |
 | `Back` | torna al Main | torna alla **lista**, non al Main |
+| Base C++ | `URTMatchHistoryWidgetBase` | `URTReplayViewerWidgetBase` |
+| Binding `.ini` | ✅ dal 2026-09-03 | ✅ dal 2026-09-03 |
+
+### 2.2.1 Come il `MatchId` attraversa il `PushScreen`
+
+*(Aggiunto il 2026-09-03 con l'implementazione di [`#472`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/472).)*
+
+`PushScreen` prende un `FName` e basta: non c'è un canale per il dato. La selezione vive quindi sul
+`URTReplayViewerSubsystem` — `SelectMatch` **prima** di navigare, `ConsumeSelectedMatch` all'arrivo — con lo
+stesso schema di `PendingMatchLevel`/`ConsumePendingMatchLevel` per l'avvio partita.
+
+🔴 **L'ordine è il contratto.** `PushScreen` presenta il widget in modo **sincrono**, quindi il viewer
+consuma la selezione *durante* la chiamata della lista. Dichiararla dopo darebbe un viewer che si apre su
+niente — sempre, non a intermittenza.
+
+⚠️ **Sta sul subsystem del replay e non sul navigatore**, che non conosce il replay: non lo conosce nemmeno
+per chiudere l'archivio, che è la schermata a fare uscendo. Un `PendingReplayMatchId` là dentro sarebbe il
+primo campo di dominio in un tipo che ne è rimasto libero.
+
+⛔ **Si consuma, non si legge.** Una selezione che sopravvivesse alla propria apertura verrebbe riusata da
+una comparsa successiva, e il viewer riaprirebbe la partita di prima senza che nulla lo dica: un `FGuid`
+invalido è un difetto rumoroso, uno valido ma **vecchio** è muto. Per la stessa ragione una navigazione
+**rifiutata** ritira la selezione.
+
+✅ **Il viewer apre con `OpenMatchAsRecordedObserver`** ([D-317](../../decisions/RT_PDR_00_Decision_Log.md)),
+non con `OpenMatch`: l'osservatore lo dichiara l'archivio, e la schermata non ha modo di conoscerlo.
+Chiamare `OpenMatch` darebbe la vista dello spettatore **neutrale** — legittima per chi la sceglie,
+sbagliata per chi ci finisce senza averlo chiesto.
 
 ⚠️ **`ReplayViewer` non è raggiungibile senza un `MatchId`**, e questo è il motivo per cui non è una voce
 di menu: una schermata che si apra senza il suo dato non avrebbe niente da mostrare, e sarebbe il

@@ -26,8 +26,16 @@ enum class ERTHexTargetReason : uint8
  * passivo che ogni unita' porta ferma i colpi, non gli hazard. Lo scudo TEMPORANEO assorbe entrambi —
  * quello e' protezione che qualcuno ha speso un'azione per costruire.
  *
- * Non e' `DamageType` (`Kinetic`/`Fire`/...), che risponde a un'altra domanda — quale resistenza leggere —
- * e arriva con E49. Qui la domanda e' una sola e binaria: la base partecipa?
+ * Non e' `DamageType` (`Kinetic`/`Fire`/...), che risponde a un'altra domanda — quale resistenza leggere.
+ * Qui la domanda e' una sola e binaria: la base partecipa?
+ *
+ * ⚠️ **`DamageType` non ha un'epic, e il numero che questo commento citava era di un altro.**
+ * Diceva *«arriva con E49»*, ma `E49` e' l'epic della **Tactical Camera** (`#1769`, 2026-08-30): chi
+ * seguiva il puntatore per capire dove nascera' `DamageType` atterrava sulla camera, e nulla lo
+ * avvertiva. Un link a vuoto si nota, un link a un'altra cosa no. L'owner reale e' **`D-238`**, che
+ * decide di non congelare la formula e dichiara che *«E49 resta una proposta e nessuna issue e' stata
+ * creata»*; il materiale di studio sta in `docs/research/prd/prd-damage-model-armor-shield.md`, che
+ * e' livello 8 e **non e' normativo**. Corretto da `#1898`.
  */
 UENUM(BlueprintType)
 enum class ERTDamageSource : uint8
@@ -73,8 +81,26 @@ public:
 	static constexpr int32 ExposedFirstHitBonus = 5;
 
 	/**
-	 * `Action.Guard`: riduce di 15 il PRIMO danno diretto ricevuto (catalogo v0.1 §1). Non protegge dagli
-	 * hazard ambientali gia' presenti — quelli non passano dai colpi diretti e arrivano con l'epic E8.
+	 * `Action.Guard`: **POOL** di 15 danni assorbibili, che i colpi dell'arco FRONTALE consumano finche'
+	 * dura ([D-292] + [D-206]). Non protegge dagli hazard ambientali gia' presenti — quelli non passano dai
+	 * colpi diretti e arrivano con l'epic E8.
+	 *
+	 * 🔴 **Questo commento diceva «riduce di 15 il PRIMO danno diretto ricevuto» fino al 2026-09-03, e
+	 * D-292 l'aveva superato il 2026-08-31.** La differenza non e' di parole: col vecchio delta la riduzione
+	 * che avanzava si PERDEVA, e quanta se ne perdesse dipendeva da quale colpo fosse arrivato prima — un
+	 * bersaglio colpito da 10 e da 30 incassava 30 o 25 a seconda dell'indice dell'attaccante. Il pool
+	 * consuma sempre lo stesso totale, quindi l'esito e' invariante per permutazione **per costruzione**.
+	 *
+	 * ⚠️ **Il NOME resta `GuardFirstHitReduction`, e non e' una svista.** Rinominarlo tocca i chiamanti ed
+	 * e' un refactor, non una correzione di prosa: finche' il nome vive, questo commento e' l'unico posto
+	 * che dice cosa il valore fa davvero. Chi lo rinomina porti via anche questo paragrafo.
+	 *
+	 * Il valore lo consuma `URTCombatResolver::ApplyAbsorptionPool`, **non** `ApplyFirstHitDelta` — che
+	 * resta la strada di `Status.Exposed` e `Status.Marked`. ⚠️ *Questa riga diceva «`Status.Exposed` e
+	 * `Action.Deflect`», ed era vera quando fu scritta: [D-309] ha reso un pool anche il `Deflect` il giorno
+	 * dopo. E' il modo in cui una deriva si allarga — correggendo meta' di una regola.* Esercitato dal corpus con
+	 * `Spec.Combat.GuardPoolSpansMultipleHits`, che usa colpi PIU' PICCOLI del pool: sopra i 15 le due
+	 * regole danno lo stesso numero, ed e' la ragione per cui il corpus non si accorse del cambio (`#1919`).
 	 */
 	static constexpr int32 GuardFirstHitReduction = 15;
 
@@ -116,6 +142,68 @@ public:
 	static constexpr int32 GuardResistedPushDistance = 1;
 
 	/**
+	 * `Status.Unbalanced` ([D-319]): durata in turni, e **`2` e' una conseguenza misurata, non un gusto.**
+	 * `ARTUnit::TickStatuses()` decrementa nel **Cleanup**, e lo scivolamento che lo applica avviene nel
+	 * **Move** — la fase immediatamente precedente. Con `1` lo stato nascerebbe nel Move e morirebbe nello
+	 * stesso Cleanup, senza che nessuna fase interposta possa leggerlo.
+	 *
+	 * Il confronto che lo dimostra e' `Status.Exposed`, durata `1` da `Action.Sprint`: quella risolve in
+	 * `FastMovement`, cioe' nel **Dash**, e ha quindi Blast e Move davanti a se'. La stessa durata applicata
+	 * nel Move non ha piu' nessun resto di turno davanti.
+	 */
+	static constexpr int32 UnbalancedDurationTurns = 2;
+
+	/**
+	 * `Status.Prone` ([D-319]): durata in turni. Nasce nel **Blast**, quindi con `2` sopravvive al Cleanup
+	 * del turno `N` e copre tutto `N+1` — chi non paga perde **due** occasioni di muoversi, non una. Con
+	 * `1` avrebbe coperto il solo resto del turno in cui si cade, rendendo il pagamento quasi sempre
+	 * inutile.
+	 */
+	static constexpr int32 ProneDurationTurns = 2;
+
+	/**
+	 * Il prezzo dello **StandUp**: punti movimento sottratti al budget del turno per togliersi `Prone` in
+	 * anticipo ([D-319]). Il pagamento compra **il turno**, non l'uscita: la durata solleva comunque, ed e'
+	 * cio' che impedisce a chi ha `Root` o budget esaurito di restare a terra per sempre.
+	 *
+	 * 🔑 **Si sottrae in `ARTUnit::GetEffectiveMoveRange()`, che e' un sito solo** — quello da cui passano
+	 * sia lo snapshot del Move sia la validazione del piano. Non e' un'azione di catalogo: sarebbe una
+	 * chiave icona obbligatoria in piu' (`RequiredIconIds()` itera `GetCoreActionCatalog()`), e soprattutto
+	 * lascerebbe un'aspettativa dove ora c'e' una proprieta' — la condizione dello scivolamento legge
+	 * `MoveBudget` **dallo snapshot**, quindi abbassarlo li' rende vero che chi si e' appena rialzato
+	 * scivola di meno (`brief-stati-unbalanced-prone.md` §6).
+	 */
+	static constexpr int32 StandUpMovePointCost = 1;
+
+	/**
+	 * Celle **aggiuntive** di spostamento subito da chi e' `Unbalanced` ([D-319]): vale per la spinta e —
+	 * ⚠️ **asse nuovo** — anche per la trazione. [D-038] dichiara che *«la trazione non e' resistita»*,
+	 * quindi qui non si rovescia un antonimo esistente: si **crea** la scala.
+	 *
+	 * ⚠️ Contro `Status.Braced` il `+1` e' superfluo e non e' un difetto: quel ramo regge una spinta di
+	 * qualunque distanza. Il valore conta contro `Status.Guarded` — che resiste fino a
+	 * `GuardResistedPushDistance` — e contro chi non ha difese.
+	 */
+	static constexpr int32 UnbalancedExtraDisplacement = 1;
+
+	/**
+	 * Le due PROVENIENZE dei pool d'assorbimento, nel vocabolario di `FRTDamageStageEntry::SourceId`
+	 * (`#2213`). Stanno qui e non come letterali ai chiamanti per la stessa ragione degli altri valori di
+	 * questa lista: un letterale ripetuto e' un refuso che compila.
+	 *
+	 * ⛔ **`ReactionReductionPoolSource` NON nomina un `ActionId`, ed e' deliberato.** Il pool si costruisce
+	 * da `FRTReactionPassResult::DeflectDelta`, che il dispatcher riempie per QUALUNQUE reazione dichiari
+	 * `ERTActionEffect::DamageReduction` — *«Qui non si guarda mai l'`ActionId`: e' cio' che permette a una
+	 * reazione d'eroe di riusare la semantica di `Action.Deflect` con numeri propri»* (`RTTurnManager.cpp`).
+	 * Etichettarlo `Action.Deflect` attribuirebbe a `Hero.Wraith.Deflection` un'azione che l'unita' non ha
+	 * usato: lo stesso difetto che `#2213` corregge, un livello piu' sotto. Trovato da una code review.
+	 *
+	 * ⚠️ La Guardia invece un tag ce l'ha, ed e' esatto: il suo pool e' gated su `TAG_Status_Guarded`.
+	 */
+	static const FName GuardPoolSource;
+	static const FName ReactionReductionPoolSource;
+
+	/**
 	 * `Status.Marked` (`Action.MarkTarget`, catalogo v0.1 §3): +6 al PROSSIMO attacco alleato contro il
 	 * bersaglio, che consuma il marchio.
 	 *
@@ -126,20 +214,33 @@ public:
 	static constexpr int32 MarkedFirstHitBonus = 6;
 
 	/**
-	 * `Action.Deflect` (catalogo v0.1 §4): riduce di 20 il danno diretto che ha fatto scattare la reazione.
+	 * `Action.Deflect` (catalogo v0.1 §4): apre un POOL di 20 danni assorbibili sui colpi diretti del
+	 * boundary che ha fatto scattare la reazione.
 	 *
-	 * Passa da `ApplyFirstHitDelta` come `Guard`: la reazione si attiva UNA volta, quindi vale sul colpo che
-	 * l'ha innescata, non su tutti quelli del turno. Se il danno arriva a zero l'attacco resta comunque un
-	 * colpo AVVENUTO (il clamp e' sul valore, non sulla voce): conta per trigger e marchi, come dice il catalogo.
+	 * Passa da `ApplyAbsorptionPool` come la `Guard` ([D-309], che estende al `Deflect` la forma che
+	 * [D-292] aveva dato alla Guardia): cio' che un colpo non consuma **resta** per i successivi, quindi il
+	 * totale assorbito non dipende da quale colpo arriva per primo. ⚠️ La REAZIONE si attiva una volta sola
+	 * — e' quello che la distingue dalla `Guard`, che e' uno stato — ma cio' che l'attivazione produce e' un
+	 * budget per l'intero boundary, non uno sconto sul colpo innescante. ⛔ **Mai attraverso boundary diversi**:
+	 * aggregare colpi di boundary differenti distruggerebbe la simultaneita' che il resolver garantisce.
+	 * Se il danno arriva a zero l'attacco resta comunque un colpo AVVENUTO (il clamp e' sul valore, non sulla
+	 * voce): conta per trigger e marchi, come dice il catalogo.
+	 *
+	 * ⚠️ Quando due pool coprono lo stesso colpo, `Deflect` assorbe PRIMA di `Guard` — [D-312], e non e' un
+	 * dettaglio d'implementazione: su 2940 configurazioni raggiungibili 558 danno un esito diverso.
 	 */
 	static constexpr int32 DeflectDamageReduction = 20;
 
 	/**
 	 * `Action.Brace` (catalogo v0.1 §4): riduce di 10 OGNI danno diretto fino al Cleanup.
 	 *
-	 * A differenza di `Guard`/`Deflect` NON passa da `ApplyFirstHitDelta`: "tutti i danni diretti" e' un'altra
-	 * regola, e usa `ApplyDamageDelta` (nessun gate "una volta sola"). E' la differenza che rende `Brace`
-	 * un'azione diversa da una guardia piu' forte.
+	 * A differenza di `Guard`/`Deflect` NON e' un POOL: quelli hanno un budget che si esaurisce
+	 * ([D-292] e [D-309]), questo e' un delta su OGNI colpo che non si consuma mai — `ApplyDamageDelta`,
+	 * nessun gate "una volta sola". E' la differenza che rende `Brace` un'azione diversa da una guardia
+	 * piu' forte: contro molti colpi piccoli la `Brace` non finisce, un pool si'.
+	 * ⚠️ *Questa riga diceva «NON passa da `ApplyFirstHitDelta`», il che implicava che `Guard` e `Deflect`
+	 * ci passassero: non e' piu' vero per nessuno dei due. L'argomento — `Brace` vale su tutti i colpi —
+	 * regge lo stesso, ma il termine di paragone e' cambiato.*
 	 */
 	static constexpr int32 BraceDamageReduction = 10;
 
@@ -182,14 +283,6 @@ public:
 	static FRTDamageResult ApplyDamage(int32 Damage, ERTDamageSource Source, int32 Shield,
 		int32 TemporaryShield, int32 Health);
 
-	/** Accumula energia con clamp in [0, Max]. */
-	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
-	static int32 GainEnergy(int32 Current, int32 Gain, int32 Max);
-
-	/** Vero se l'ultimate e' disponibile (energia al massimo). */
-	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
-	static bool IsUltimateReady(int32 Energy, int32 Max);
-
 	/**
 	 * Range di movimento effettivo con lo status Root: azzera. `Slow` NON passa piu' da qui (CP 4.7): il
 	 * catalogo v0.1 §5 lo definisce come **+1 al costo di ogni cella**, un meccanismo di pathfinding
@@ -200,9 +293,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static int32 EffectiveMoveRange(int32 BaseRange, bool bRooted);
 
-	/** Vero se un'abilita' e' utilizzabile: non in ricarica e con energia sufficiente. */
+	/**
+	 * Vero se un'abilita' e' utilizzabile: non in ricarica.
+	 *
+	 * La firma portava anche `Energy` e `EnergyCost`, e la clausola era `CooldownRemaining <= 0 && Energy >=
+	 * EnergyCost`. [D-324](../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy` dal gameplay:
+	 * **il cooldown e' rimasto l'unico gate**, e i due parametri sono spariti invece di restare a leggere 0
+	 * contro 0 — una seconda clausola sempre vera e' un posto dove sbagliare, non una difesa.
+	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
-	static bool IsAbilityUsable(int32 CooldownRemaining, int32 Energy, int32 EnergyCost);
+	static bool IsAbilityUsable(int32 CooldownRemaining);
 
 	/**
 	 * Invariante #6 (privacy dell'intento): il piano di un'unita' e' visibile agli alleati
@@ -242,6 +342,38 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static bool CanPlayerControlUnit(int32 UnitTeamId, int32 PlayerTeamId, bool bUnitIsBotControlled = false);
+
+	/**
+	 * IL GRUPPO DI CONTROLLO di un'unita': quale persona della squadra la comanda — `CP 19.3`, `#1124`.
+	 *
+	 * `IndexInTeam / UnitsPerPlayer`, e non c'e' altro: con `UnitsPerPlayer = 2` su una squadra da due, le
+	 * unita' `0` e `1` stanno **entrambe** nel gruppo `0` — una sola persona comanda la squadra intera, che
+	 * e' il caso della v0.1. Con `UnitsPerPlayer = 1` finiscono in gruppi diversi, ed e' il modello
+	 * `1 player = 1 character` che il formato dichiara come default.
+	 *
+	 * ⛔ **Fail-closed su `UnitsPerPlayer <= 0`**: restituisce `INDEX_NONE`, non `0`. Il default del campo e'
+	 * `0` — un formato che non dichiara quante unita' comanda una persona non deve produrre un gruppo
+	 * *valido* per inerzia, ed e' la stessa scelta che `ARTGameMode::AssignSeats` fa un livello sopra
+	 * rifiutando di dividere per zero. Un `INDEX_NONE` non coincide con nessun gruppo di giocatore, quindi
+	 * nessuno comanda nulla: si perde il controllo, non lo si regala.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static int32 ControlGroupForUnit(int32 IndexInTeam, int32 UnitsPerPlayer);
+
+	/**
+	 * LA REGOLA DI CONTROLLO con i gruppi: stessa squadra, **stesso gruppo**, e non pianificata dal bot.
+	 *
+	 * 🔑 **Con i valori della v0.1 risponde come `CanPlayerControlUnit`**, ed e' voluto: `Format.Skirmish2v2`
+	 * dichiara `UnitsPerPlayer = 2` su `UnitsPerTeam = 2`, quindi un posto per squadra e un gruppo solo. La
+	 * regola nuova non cambia nessuna partita di oggi — cambia cio' che diventa esprimibile domani, quando
+	 * due persone siedono nella stessa squadra e ciascuna comanda le proprie unita'.
+	 *
+	 * ⚠️ **Non sostituisce `CanPlayerControlUnit`, che resta** la regola di SQUADRA e ha ancora i propri
+	 * chiamanti: qui si aggiunge una condizione, non se ne riscrive una.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static bool CanPlayerControlUnitInGroup(int32 UnitTeamId, int32 UnitControlGroup, int32 PlayerTeamId,
+		int32 PlayerControlGroup, bool bUnitIsBotControlled = false);
 
 	/**
 	 * Vero se il bersaglio e' ingaggiabile su griglia esagonale: entro `RangeCells` (distanza esagonale) e con

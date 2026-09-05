@@ -32,10 +32,20 @@
  *
  * ## Perche' `MakeGenericActions` e non gli eroi
  *
- * Le azioni d'eroe hanno gia' un guardiano: `RefactorTactics.Catalog.HeroKitsMatchTheirCatalogDef` in
- * `RTCatalogTests.cpp` confronta `Def` e specchio per le venti abilita' del roster. Ma **esclude
- * esplicitamente le generiche**, e la ragione scritta li' e' che «arrivano da `MakeGenericActions` e
- * lasciano i campi legacy a zero».
+ * 🔴 **Questo paragrafo affermava una copertura che non esisteva, ed e' stato corretto da `#1953`.**
+ * Diceva: *«Le azioni d'eroe hanno gia' un guardiano: `RefactorTactics.Catalog.HeroKitsMatchTheirCatalogDef`
+ * in `RTCatalogTests.cpp` confronta `Def` e specchio per le venti abilita' del roster»*.
+ *
+ * **Misurato il 2026-08-31**: `grep -rn "HeroKitsMatchTheirCatalogDef" Source/` dava **una sola
+ * occorrenza — questa riga**. `RTCatalogTests.cpp` conteneva dodici test e nessuno era quello; nessun
+ * test con `Hero` nel nome confrontava `Def` e specchio. La frase non prometteva copertura futura: la
+ * dava per fatta al passato, e giustificava con essa un'**esclusione** — quindi chi la leggeva smetteva
+ * di cercare invece di trovare un buco. Il guardiano ora esiste davvero, in fondo a questo file, e si
+ * chiama `RefactorTactics.Actions.HeroKitsMatchTheirCatalogDef`.
+ *
+ * Resta vera la ragione per cui i due test sono separati: le generiche arrivano da `MakeGenericActions`
+ * e gli eroi da `MakeHeroAction`, che sono due percorsi di costruzione diversi con due modi diversi di
+ * rompersi.
  *
  * ⚠️ **Quell'affermazione oggi e' falsa.** `MakeGenericActions` i campi legacy li copia eccome — sono le
  * righe `Action->RangeCells = Def.RangeCells` e `Action->bSelfTarget = Def.bSelfTarget`. L'esclusione era
@@ -375,6 +385,138 @@ bool FRTSelfTargetDecidesWhatThePointerAsksTest::RunTest(const FString&)
 
 	TestTrue(TEXT("almeno una generica e' su se stessi"), SuSeStessi > 0);
 	TestTrue(TEXT("e almeno una non lo e', o il confronto vale a vuoto per meta'"), SuAltri > 0);
+
+	return true;
+}
+
+/**
+ * **Le abilita' del roster rispecchiano il proprio `Def`** — il guardiano che l'intestazione di questo
+ * file dichiarava esistente da prima di `#1953`, e che non esisteva.
+ *
+ * ## Cosa copriva davvero il roster, prima
+ *
+ * Un verso solo. `UnitKitCarriesNoUndeclaredDamage` verifica che un catalogo **muto** produca uno
+ * specchio muto, e fa `continue` appena `DeclaredDamageOf(Def) > 0`: il caso in cui il catalogo
+ * **dichiara** `22` e lo specchio potrebbe dirne un altro non veniva guardato da nessuno. E
+ * `UnitPaysTheDeclaredCooldown` cerca **apposta** fra le generiche, con il commento «il loro cooldown lo
+ * copia `MakeHeroAction`, che lo fa correttamente»: un assunto, non un'asserzione.
+ *
+ * ## Perche' un test che oggi non trova niente vale comunque
+ *
+ * MISURATO su `996804dc`: `MakeHeroAction` alimenta `Def` e specchio dagli **stessi parametri** (righe
+ * `Action->Def.RangeCells = Range` / `Action->RangeCells = Range`), e nessuna delle mutazioni
+ * post-costruzione del catalogo eroi tocca un campo specchio — `PropagationLimit`, `Slot`,
+ * `MovementStyle`, `SurfaceCreated`, `StructureOp`, `PredictiveTargeting`, `BaseActionId`,
+ * `DerivedFromActionId`, `ReactionTrigger`. Quindi il test nasce **verde**, e non e' un difetto: e'
+ * esattamente cio' che `#1552` ha chiesto per le generiche dopo aver misurato che senza guardiano si
+ * poteva **smettere del tutto di copiare** restando a `1346/1346, 0 fallimenti`. Il valore non e' cio'
+ * che trova oggi: e' che da oggi togliere una di quelle righe diventa rosso.
+ *
+ * ⚠️ **Per questo le guardie di anti-vacuita' qui sotto non sono decorative**: senza, il test
+ * confronterebbe due copie della stessa variabile e sarebbe una tautologia con l'aria di una verifica.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroKitsMatchTheirCatalogDefTest,
+	"RefactorTactics.Actions.HeroKitsMatchTheirCatalogDef",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroKitsMatchTheirCatalogDefTest::RunTest(const FString&)
+{
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0))
+	{
+		return false;
+	}
+
+	const URTActionData* Nuda = RTMirrorFields::Defaults();
+	if (!TestNotNull(TEXT("i default di URTActionData sono leggibili"), Nuda))
+	{
+		return false;
+	}
+
+	// Anti-vacuita': quante abilita' si discostano dal default per ciascun campo. Se un contatore resta a
+	// zero, l'assertion corrispondente e' vera per coincidenza e non sorveglia niente.
+	int32 PortataDiversaDalDefault = 0;
+	int32 DannoDiversoDalDefault = 0;
+	int32 RicaricaDiversaDalDefault = 0;
+
+	// NON e' un contatore di anti-vacuita': e' un TRIPWIRE, e la differenza sta nell'asserzione in fondo.
+	// `MakeHeroAction` non scrive `Def.bSelfTarget` ne' il suo specchio, quindi oggi ogni abilita' d'eroe
+	// li ha entrambi a `false` e il confronto qui sotto e' vero a vuoto. Il giorno in cui un eroe avra' un
+	// auto-bersaglio potra' dichiararlo solo scrivendo `->Def.bSelfTarget = true` DOPO la costruzione —
+	// che lo specchio non lo segue — e quel giorno il puntatore chiederebbe un bersaglio per un'abilita'
+	// che non ne ha (vedi `SelfTargetDecidesWhatThePointerAsks`). Il tripwire lo fa scoprire allora.
+	int32 AutoBersaglioDichiarato = 0;
+
+	int32 AbilitaEsaminate = 0;
+
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!TestNotNull(TEXT("l'eroe del roster esiste"), Hero)) { continue; }
+
+		const FString Chi = Hero->HeroId.ToString();
+
+		for (const TObjectPtr<URTActionData>& Voce : Hero->Actions)
+		{
+			const URTActionData* Azione = Voce;
+			if (!TestNotNull(*FString::Printf(TEXT("%s: l'abilita' del kit esiste"), *Chi), Azione))
+			{
+				continue;
+			}
+
+			++AbilitaEsaminate;
+
+			const FString Id = Azione->Def.ActionId.ToString();
+			const int32 Dichiarato = RTMirrorFields::DeclaredDamageOf(Azione->Def);
+
+			TestEqual(*FString::Printf(TEXT("`%s`: la portata rispecchia il catalogo"), *Id),
+				Azione->RangeCells, Azione->Def.RangeCells);
+			TestEqual(*FString::Printf(TEXT("`%s`: la ricarica rispecchia il catalogo"), *Id),
+				Azione->CooldownTurns, Azione->Def.CooldownTurns);
+			TestEqual(*FString::Printf(TEXT("`%s`: il danno rispecchia gli effetti del catalogo"), *Id),
+				Azione->Power, Dichiarato);
+			TestEqual(*FString::Printf(TEXT("`%s`: l'auto-bersaglio rispecchia il catalogo"), *Id),
+				Azione->bSelfTarget, Azione->Def.bSelfTarget);
+
+			if (Azione->Def.RangeCells != Nuda->RangeCells) { ++PortataDiversaDalDefault; }
+			if (Dichiarato != Nuda->Power) { ++DannoDiversoDalDefault; }
+			if (Azione->Def.CooldownTurns != Nuda->CooldownTurns) { ++RicaricaDiversaDalDefault; }
+			if (Azione->Def.bSelfTarget) { ++AutoBersaglioDichiarato; }
+		}
+	}
+
+	// Il catalogo v0.1 vincola ogni eroe a 5 o 6 abilita' (`ValidateHeroes`): sotto il minimo per eroe il
+	// ciclo sopra ha guardato meno di quel che il roster dichiara, e il verde non copre cio' che promette.
+	TestTrue(*FString::Printf(
+		TEXT("il ciclo ha esaminato almeno cinque abilita' per eroe (%d su %d eroi)"),
+		AbilitaEsaminate, Roster.Num()), AbilitaEsaminate >= Roster.Num() * 5);
+
+	TestTrue(*FString::Printf(
+		TEXT("almeno un'abilita' d'eroe dichiara una portata diversa dal default %d, o il confronto sopra ")
+		TEXT("non distingue una copia da una riga mancante"), Nuda->RangeCells),
+		PortataDiversaDalDefault > 0);
+	TestTrue(*FString::Printf(
+		TEXT("almeno un'abilita' d'eroe dichiara un danno diverso dal default %d, idem"), Nuda->Power),
+		DannoDiversoDalDefault > 0);
+	TestTrue(*FString::Printf(
+		TEXT("almeno un'abilita' d'eroe dichiara una ricarica diversa dal default %d, idem"),
+		Nuda->CooldownTurns), RicaricaDiversaDalDefault > 0);
+
+	// ✅ **Il tripwire e' scattato, e aveva ragione** (2026-09-04, `#2283`). Diceva: *«se questa riga
+	// diventa rossa NON e' un difetto del test: significa che un'abilita' d'eroe ha cominciato a dichiarare
+	// `Def.bSelfTarget`, e va verificato che lo specchio la segua — `MakeHeroAction` oggi non copia quel
+	// campo, quindi molto probabilmente non la segue»*. E' andata esattamente cosi': `Action.Shield` ha
+	// preso `bSelfTarget` per i suoi due portatori, lo specchio NON la seguiva, e le prime due righe di
+	// questo stesso test sono cadute su `TideGuard` e `PhaseGuard`. Ora `MakeHeroActionFromCore` copia
+	// entrambi i campi.
+	//
+	// ⚠️ **Il tripwire resta, con la soglia spostata**: due sono le abilita' che oggi lo dichiarano, e
+	// una terza deve tornare a farlo notare. Non e' un `> 0`: un conteggio esatto e' cio' che distingue
+	// «ho aggiunto un'abilita' self di proposito» da «ne e' comparsa una che non so di avere».
+	// 🔑 Chi la vede rossa faccia la stessa verifica di allora: che i due campi — `Def.bSelfTarget` e
+	// lo specchio su `URTActionData` — dicano la stessa cosa per la nuova arrivata, PRIMA di aggiornare
+	// questo numero.
+	TestEqual(TEXT("due abilita' d'eroe dichiarano l'auto-bersaglio (`TideGuard`, `PhaseGuard`): se il ")
+		TEXT("numero cambia, controllare che lo specchio segua il `Def` prima di aggiornarlo"),
+		AutoBersaglioDichiarato, 2);
 
 	return true;
 }

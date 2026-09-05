@@ -26,6 +26,18 @@ namespace
 	// Lo scenario copre di proposito i campi che un round-trip ingenuo perde: i `tags` (che il loader
 	// ignorava), un `facing` non-default, `health`/`shield` dichiarati, un `loadout`, una cella modificata,
 	// un intent con `move` multi-passo e uno con `ability` + `target`, e due assertion di tipo diverso.
+	// 🔑 **I QUATTRO SLOT DELL'INTENT, TUTTI POPOLATI — `#1626`.** Prima di questa slice il JSON di prova
+	// esercitava `unit`, `move` e `facing`: il confronto semantico guardava **quattordici** campi e ne
+	// provava tre, quindi undici confronti erano vacui e una regressione su `target`, `dash`, `edge`,
+	// `reaction` o `condition` non avrebbe fatto cadere niente. E' la stessa cecita' che questo file aveva
+	// gia' avuto sulle pareti interne e sugli status.
+	//
+	// ⚠️ **Ogni campo sta su una unita' che puo' portarlo davvero**, e non e' pedanteria: `B1` e' affidata
+	// al bot e `ValidateScenarioTurns` rifiuta un intent dichiarato per lei — *«il suo piano lo produce
+	// l'utility scoring, non il file»*. Percio' `C1` (Wraith) esiste: possiede `PassingBlade` e
+	// `Deflection`, mentre Gadget non ha ne' un dash ne' quella reazione. Una fixture che nominasse una
+	// mobilita' inesistente girerebbe lo stesso — il possesso del dash non e' validato — e sarebbe un dato
+	// finto che sembra una prova.
 	const TCHAR* ScenarioWriterRichJson = TEXT(R"JSON(
 	{
 	  "scenarioId": "Movement.WriterRoundTrip",
@@ -34,19 +46,40 @@ namespace
 	  "mapRadius": 4,
 	  "cells": [
 	    { "cell": [0, 0, 0], "blocksMovement": true, "moveCost": 2 },
-	    { "cell": [1, 0, 0], "blocksLineOfSight": true, "occupancySurcharge": 3 }
+	    { "cell": [1, 0, 0], "blocksLineOfSight": true, "occupancySurcharge": 3 },
+	    { "cell": [-1, 0, 0], "moveCost": 1 }
+	  ],
+	  "interiorWalls": [
+	    { "cell": [-1, 0, 0], "axis": "Deg90", "alongStart": -12, "alongEnd": 12, "type": "High" },
+	    { "cell": [-1, 0, 0], "axis": "Deg0", "offset": 6, "alongStart": 0, "alongEnd": 12,
+	      "type": "Low", "stableId": "Muretto" }
 	  ],
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0], "facing": "SW", "health": 12 },
-	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0], "shield": 4, "visionRange": 6, "bot": true }
+	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0], "facing": "SW", "health": 12,
+	      "statuses": [ { "tag": "Status.Guarded", "turns": 3 }, { "tag": "Status.Wet", "turns": 1 } ] },
+	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0], "shield": 4, "visionRange": 6, "bot": true },
+	    { "id": "C1", "hero": "Hero.Wraith", "team": 0, "cell": [-2, 1, 0] }
 	  ],
 	  "turns": [
 	    { "intents": [ { "unit": "A1", "move": [[-1, 0, 0], [0, -1, 0]] } ] },
-	    { "intents": [ { "unit": "A1", "facing": "NE" } ], "requires": ["Movement"] }
+	    { "intents": [ { "unit": "A1", "facing": "NE" } ], "requires": ["Movement"] },
+	    { "intents": [
+	        { "unit": "A1", "move": [[0, 0, 0]], "ability": "Action.BasicAttack", "target": "B1",
+	          "facing": "SE", "edge": "NW" },
+	        { "unit": "C1", "ability": "Action.Guard" }
+	    ] },
+	    { "intents": [
+	        { "unit": "C1", "dash": "Hero.Wraith.PassingBlade", "dashTo": [1, -1, 0] },
+	        { "unit": "A1", "ability": "Action.Interact", "targetCell": [0, 0, 0] }
+	    ] },
+	    { "intents": [
+	        { "unit": "C1", "reaction": "Hero.Wraith.Deflection",
+	          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": 10 } }
+	    ] }
 	  ],
 	  "expect": [
 	    { "type": "UnitAtCell", "unit": "A1", "cell": [0, -1, 0] },
-	    { "type": "TurnsCompleted", "value": 2 },
+	    { "type": "TurnsCompleted", "value": 5 },
 	    { "type": "UnitAlive", "unit": "B1", "value": true },
 	    { "type": "UnitFacing", "unit": "A1", "value": "NE" }
 	  ],
@@ -87,6 +120,33 @@ namespace
 			if (A.OccupancySurcharge != B.OccupancySurcharge) { return Fail(FString::Printf(TEXT("cells[%d].occupancySurcharge"), I)); }
 		}
 
+		// I MURI INTERNI, che stanno alla RADICE e non nella cella — `#1830` li porta, `#2031` li fa
+		// sopravvivere alla riscrittura.
+		//
+		// ⚠️ Senza queste righe il confronto e' CIECO al campo: misurato su `main` il 2026-09-01, il
+		// writer non li scriveva affatto e questo test era verde lo stesso. Un gate che smette di guardare
+		// non lo dice.
+		if (L.InteriorWalls.Num() != R.InteriorWalls.Num())
+		{
+			return Fail(FString::Printf(TEXT("interiorWalls: %d contro %d"),
+				L.InteriorWalls.Num(), R.InteriorWalls.Num()));
+		}
+		for (int32 W = 0; W < L.InteriorWalls.Num(); ++W)
+		{
+			const FRTHexInteriorWall& WA = L.InteriorWalls[W];
+			const FRTHexInteriorWall& WB = R.InteriorWalls[W];
+			if (!(WA.Cell == WB.Cell) || WA.Segment.Axis != WB.Segment.Axis
+				|| WA.Segment.Offset != WB.Segment.Offset
+				|| WA.Segment.AlongStart != WB.Segment.AlongStart
+				|| WA.Segment.AlongEnd != WB.Segment.AlongEnd
+				|| WA.Segment.Layer != WB.Segment.Layer
+				|| WA.Segment.WallType != WB.Segment.WallType
+				|| WA.StableId != WB.StableId)
+			{
+				return Fail(FString::Printf(TEXT("interiorWalls[%d] su %s"), W, *WA.Cell.ToString()));
+			}
+		}
+
 		if (L.Units.Num() != R.Units.Num()) { return Fail(TEXT("numero di unita'")); }
 		for (int32 I = 0; I < L.Units.Num(); ++I)
 		{
@@ -101,7 +161,22 @@ namespace
 			if (A.Health != B.Health) { return Fail(FString::Printf(TEXT("units[%d].health: %d vs %d"), I, A.Health, B.Health)); }
 			if (A.Shield != B.Shield) { return Fail(FString::Printf(TEXT("units[%d].shield"), I)); }
 			if (A.VisionRange != B.VisionRange) { return Fail(FString::Printf(TEXT("units[%d].visionRange"), I)); }
-			if (A.bLoadoutDeclared != B.bLoadoutDeclared) { return Fail(FString::Printf(TEXT("units[%d].loadout dichiarato"), I)); }
+			// GLI STATUS INIZIALI — `#1629`. ⚠️ Senza queste righe il round-trip sarebbe CIECO al campo:
+		// il writer potrebbe non scriverli e il test resterebbe verde.
+		if (A.Statuses.Num() != B.Statuses.Num())
+		{
+			return Fail(FString::Printf(TEXT("units[%d].statuses: %d contro %d"),
+				I, A.Statuses.Num(), B.Statuses.Num()));
+		}
+		for (int32 S = 0; S < A.Statuses.Num(); ++S)
+		{
+			if (A.Statuses[S].Tag != B.Statuses[S].Tag || A.Statuses[S].Turns != B.Statuses[S].Turns)
+			{
+				return Fail(FString::Printf(TEXT("units[%d].statuses[%d]"), I, S));
+			}
+		}
+
+		if (A.bLoadoutDeclared != B.bLoadoutDeclared) { return Fail(FString::Printf(TEXT("units[%d].loadout dichiarato"), I)); }
 			if (A.Loadout != B.Loadout) { return Fail(FString::Printf(TEXT("units[%d].loadout"), I)); }
 		}
 

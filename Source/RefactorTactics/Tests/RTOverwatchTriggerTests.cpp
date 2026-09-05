@@ -709,7 +709,8 @@ bool FRTOverwatchActionIsInCoreCatalogTest::RunTest(const FString&)
 	TestEqual(TEXT("nessun cooldown"), Def.CooldownTurns, 0);
 	TestEqual(TEXT("fallback `Cancel`"), Def.Fallback, ERTActionFallback::Cancel);
 	TestEqual(TEXT("costa l'azione principale, non lo slot reazione"), Def.Slot, ERTActionSlot::Main);
-	TestFalse(TEXT("non interrompibile: una volta armata, c'e'"), Def.bCanBeInterrupted);
+	TestEqual(TEXT("non interrompibile: una volta armata, c'e'"), Def.InterruptPolicy,
+		ERTInterruptPolicy::None);
 
 	// PORTATA ed EFFETTO restano fuori, come per `Action.BasicAttack` e per la stessa ragione: dipendono dal
 	// PROFILO — area, arco, raggio e cosa scatta — e i profili dei quattro eroi della v0.1 sono ancora una

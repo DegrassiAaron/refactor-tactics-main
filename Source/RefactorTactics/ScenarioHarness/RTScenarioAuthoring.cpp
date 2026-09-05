@@ -92,6 +92,12 @@ ERTScenarioAuthoringResult URTScenarioAuthoring::RemoveTurn(int32 TurnIndex, FSt
 	return Draft.RemoveTurn(TurnIndex, OutError);
 }
 
+ERTScenarioAuthoringResult URTScenarioAuthoring::DuplicateTurn(int32 SourceIndex, int32& OutNewIndex,
+	FString& OutError)
+{
+	return Draft.DuplicateTurn(SourceIndex, OutNewIndex, OutError);
+}
+
 TArray<FRTScenarioIntentView> URTScenarioAuthoring::ListIntents(int32 TurnIndex) const
 {
 	return Draft.ListIntents(TurnIndex);
@@ -112,6 +118,48 @@ ERTScenarioAuthoringResult URTScenarioAuthoring::SetWaitIntent(int32 TurnIndex, 
 	FString& OutError)
 {
 	return Draft.SetWaitIntent(TurnIndex, UnitId, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::SetDashIntent(int32 TurnIndex, const FString& UnitId,
+	FName DashAbility, FRTCellId DashCell, FString& OutError)
+{
+	return Draft.SetDashIntent(TurnIndex, UnitId, DashAbility, DashCell, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::SetMainAction(int32 TurnIndex, const FString& UnitId,
+	FName AbilityId, FString& OutError)
+{
+	return Draft.SetMainAction(TurnIndex, UnitId, AbilityId, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::SetMainActionOnUnit(int32 TurnIndex, const FString& UnitId,
+	FName AbilityId, const FString& TargetUnitId, FString& OutError)
+{
+	return Draft.SetMainActionOnUnit(TurnIndex, UnitId, AbilityId, TargetUnitId, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::SetMainActionOnCell(int32 TurnIndex, const FString& UnitId,
+	FName AbilityId, FRTCellId TargetCell, FString& OutError)
+{
+	return Draft.SetMainActionOnCell(TurnIndex, UnitId, AbilityId, TargetCell, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::SetFacingIntent(int32 TurnIndex, const FString& UnitId,
+	bool bDeclare, ERTHexDirection Facing, FString& OutError)
+{
+	return Draft.SetFacingIntent(TurnIndex, UnitId, bDeclare, Facing, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::SetCoverEdgeIntent(int32 TurnIndex, const FString& UnitId,
+	bool bDeclare, ERTHexDirection Edge, FString& OutError)
+{
+	return Draft.SetCoverEdgeIntent(TurnIndex, UnitId, bDeclare, Edge, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::SetReactionIntent(int32 TurnIndex, const FString& UnitId,
+	FName ReactionAbility, FName ConditionId, int32 ConditionParam, FString& OutError)
+{
+	return Draft.SetReactionIntent(TurnIndex, UnitId, ReactionAbility, ConditionId, ConditionParam, OutError);
 }
 
 ERTScenarioAuthoringResult URTScenarioAuthoring::RemoveIntent(int32 TurnIndex, const FString& UnitId,
@@ -257,3 +305,23 @@ URTHexMapAsset* URTScenarioAuthoring::BuildArena(UObject* Outer) const
 }
 
 #undef LOCTEXT_NAMESPACE
+
+TArray<FRTScenarioLogEntryView> URTScenarioAuthoring::FilterLogByCategory(
+	const TArray<FRTScenarioLogEntryView>& Entries, const TArray<ERTLogCategory>& Categories)
+{
+	if (Categories.Num() == 0)
+	{
+		return Entries;
+	}
+
+	TArray<FRTScenarioLogEntryView> Kept;
+	Kept.Reserve(Entries.Num());
+	for (const FRTScenarioLogEntryView& Entry : Entries)
+	{
+		if (Categories.Contains(Entry.Category))
+		{
+			Kept.Add(Entry);
+		}
+	}
+	return Kept;
+}

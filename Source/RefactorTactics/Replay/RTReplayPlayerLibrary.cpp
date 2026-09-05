@@ -4,7 +4,7 @@
 #include "Misc/Paths.h"
 
 ERTReplayOpenResult URTReplayPlayerLibrary::OpenArchive(const FString& ReplaysRoot, const FGuid& MatchId,
-	FRTReplaySession& OutSession)
+	FRTReplaySession& OutSession, int32 ObserverTeamId)
 {
 	// Si lavora su una sessione TEMPORANEA e la si adotta solo a lettura riuscita: su un rifiuto a meta'
 	// apertura, chi chiama deve ritrovare la sessione che aveva — non una mezza partita caricata.
@@ -27,12 +27,29 @@ ERTReplayOpenResult URTReplayPlayerLibrary::OpenArchive(const FString& ReplaysRo
 
 	const FString Dir = URTReplayRecorderLibrary::MatchDirectory(ReplaysRoot, MatchId);
 
+	// Quale PRODOTTO si apre ([D-316], `#2098`): la traccia per osservatore se l'archivio ne porta una per
+	// questa squadra, altrimenti la canonica.
+	//
+	// 🔴 **Si guarda il MANIFEST e non il disco**, per la stessa ragione per cui il conteggio dei turni viene
+	// di li': un file che c'e' senza essere dichiarato non e' parte dell'archivio, e uno dichiarato che manca
+	// e' un archivio rotto — non un caso da compensare in silenzio ricadendo sulla canonica, che mostrerebbe
+	// a una squadra i fatti dell'altra.
+	//
+	// ⚠️ **Una squadra non elencata NON e' un errore**: e' uno spettatore che chiede una vista che questo
+	// archivio non ha — ogni `v1`, e ogni partita registrata prima di [D-316]. Riceve la canonica, cioe' la
+	// stessa cosa che riceveva prima, e la differenza e' osservabile da `Manifest.ObserverTeamIds` invece di
+	// essere taciuta.
+	const bool bVistaFiltrata = ObserverTeamId >= 0
+		&& Aperta.Manifest.ObserverTeamIds.Contains(ObserverTeamId);
+
 	// Il manifest DICHIARA quanti turni ci sono: si caricano quelli, non quelli che si trovano in cartella.
 	// Fidarsi dell'elenco dei file renderebbe una traccia lasciata li' per sbaglio parte della partita.
 	Aperta.Traces.Reserve(Aperta.Manifest.TurnCount);
 	for (int32 Turno = 1; Turno <= Aperta.Manifest.TurnCount; ++Turno)
 	{
-		const FString Percorso = FPaths::Combine(Dir, URTReplayRecorderLibrary::TurnFileName(Turno));
+		const FString Percorso = FPaths::Combine(Dir, bVistaFiltrata
+			? URTReplayRecorderLibrary::TurnFileNameForObserver(Turno, ObserverTeamId)
+			: URTReplayRecorderLibrary::TurnFileName(Turno));
 
 		TArray<FRTTurnLogEntry> Traccia;
 		ERTLogTopology Topologia = ERTLogTopology::Square;

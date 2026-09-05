@@ -108,6 +108,46 @@ struct FRTHexMapCustomVersion
 		 */
 		InteriorWallIdentity = 12,
 
+		/**
+		 * v13 — `FRTHexCellData::bMovementBlockGenerated`: la PROVENIENZA del blocco al movimento.
+		 *
+		 * Passo DICHIARATIVO: il campo nasce `false`, cioe' «d'autore», ed e' cio' che ogni cella scritta
+		 * prima di questa versione gia' era. Nessun dato esistente cambia significato — una cella con
+		 * `bBlocksMovement = true` scritta a v12 resta d'autore, e il rebake non la tocchera'.
+		 */
+		MovementBlockProvenance = 13,
+
+		/**
+		 * La traversata autorata sul muro interno (`FRTHexInteriorWall::bTraversable`), `#1828`/`E23.7`.
+		 * Dichiarativo: il campo nasce `false`, e nessun muro scritto prima era scavalcabile — quella
+		 * proprieta' non esisteva.
+		 */
+		AuthoredTraversal = 14,
+
+		/**
+		 * Il corpo strutturale sotto la superficie (`FRTHexCellData::BodyFill`), `#1865`.
+		 *
+		 * Dichiarativo: il campo nasce `None`, e ogni superficie elevata scritta prima era un disco sospeso
+		 * — il corpo non esisteva come dato, quindi «nessun corpo» e' cio' che quelle mappe gia' erano.
+		 *
+		 * ⛔ **La ricarica non lo deduce**, con la stessa ragione di `AuthoredTraversal`: un ponte e una
+		 * collina hanno entrambi il vuoto sotto di se', e dedurre il riempimento dal contesto trasformerebbe
+		 * il primo in un muro.
+		 */
+		StructuralBodyFill = 15,
+
+		/**
+		 * Il parapetto di bordo (`FRTHexCellData::Guards`), `#2401`/[D-332].
+		 *
+		 * Dichiarativo: l'array nasce vuoto, e «nessun parapetto» e' cio' che ogni mappa scritta prima gia'
+		 * era — da un bordo aperto non si cadeva perche' la caduta non esisteva, non perche' fosse protetto.
+		 *
+		 * ⛔ **La ricarica non lo deduce**, per la stessa ragione di `StructuralBodyFill`: un bordo che da'
+		 * sul vuoto e uno protetto da una ringhiera sono geometricamente identici nel dato di cella. Lo
+		 * dichiara chi disegna, e dedurlo trasformerebbe ogni terrazza in una gabbia.
+		 */
+		EdgeGuards = 16,
+
 		// -----<le versioni nuove si aggiungono SOPRA questa riga>------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

@@ -2,6 +2,57 @@
 
 ---
 
+## 2026-09-01 — L'ultimo file non-Markdown esce dalla radice, e il criterio che lo cercava era troppo largo
+
+**Origine**: [#1723](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1723) — coda di
+[D-246](decisions/RT_PDR_00_Decision_Log.md).
+
+### Cosa è cambiato
+
+| File | Modifica |
+|---|---|
+| `RT_PDF_SourceOfTruth_Governance.patch` | **rimosso** |
+
+**Perché rimosso e non ricollocato.** Il suo contenuto — *«un `.pdf` non è mai source of truth»*, `PDR` nel
+nome non rende storico un Markdown owner, l'esclusione dal preflight — è già canone in **due** owner:
+[`AGENTS.md`](../AGENTS.md) §«PDF: mai source of truth» alla lettera, e [`CLAUDE.md`](../CLAUDE.md)
+§«Non usare come autorità implicita», che elenca i PDF fra le fonti che non fanno testo. E non si applicava
+comunque: `git apply --check` risponde `patch with only garbage at :4` — i suoi hunk non hanno numeri di
+riga. Un artefatto che non si può applicare e il cui contenuto è già recepito non è una patch in attesa: è
+un residuo che somiglia a lavoro da fare. La storia git lo conserva.
+
+### Cosa era già stato fatto, e non da questa issue
+
+⚠️ I **tre PNG** che #1723 elencava — `Roadmap2808.png`, `Roadmap2808.2.png`,
+`RefactorTactics_Roadmap_DIR_ABC_v0.1_Detailed.png`, 3,2 MB senza consumatore — erano già usciti con
+`d9feb9b0`. Misurato prima di toccare qualcosa, invece di rifare un lavoro fatto.
+
+### ⛔ Il criterio di accettazione di #1723 è più largo del suo scope
+
+Chiedeva che questo comando non stampasse nulla:
+
+```
+git ls-tree --name-only main | grep -vE '^(\.|AGENTS\.md|CLAUDE\.md|README\.md|Config|Content|Plugins|RefactorTactics\.uproject|Scenarios|Source|docs|scripts|tools)$'
+```
+
+Non può essere vuoto, e per due ragioni indipendenti:
+
+1. l'alternativa `\.` è ancorata da `$`, quindi esclude **solo** un file chiamato esattamente `.` — non
+   `.gitignore`, `.gitattributes`, `.github`, `.editorconfig`, `.claude`, `.mcp.json`, che sono tutti
+   legittimi e presenti;
+2. pescherebbe `PROMPT_LAUNCHER_CLAUDE.md`, che è **Markdown** e quindi fuori dallo scope dichiarato dalla
+   issue — *«restano però quattro file non-Markdown»*.
+
+Il criterio che misura ciò che la issue intendeva è:
+
+```
+git ls-tree --name-only main | grep -vE '^\.' | grep -vE '\.md$' | grep -vE '^(Config|Content|Plugins|RefactorTactics\.uproject|Scenarios|Source|docs|scripts|tools)$'
+```
+
+— e con questa modifica **non stampa nulla**.
+
+---
+
 ## 2026-08-30 — La radice torna a tre Markdown, e il worldbuilding esce dalla casella di posta
 
 **Origine**: [D-246](decisions/RT_PDR_00_Decision_Log.md) — i sei `.md` accumulati in radice fra il

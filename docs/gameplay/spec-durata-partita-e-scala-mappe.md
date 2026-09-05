@@ -251,10 +251,30 @@ Player B READY @ 28 s
 
 Il countdown **non sostituisce** il timer massimo del planning: è la scorciatoia quando tutti hanno finito prima.
 
-> ⚠️ **Stato di implementazione (verificato 2026-08-07)**: oggi il lock-in è **immediato** — Spazio chiude il
-> planning senza countdown e senza possibilità di annullare (`RTPlayerController.cpp`, `LockInAndResolve`).
-> Il countdown annullabile **non esiste**. `RT_PDR_10 §2` riga 8 lo dichiarava ✅ ed è stato corretto a 🟡.
-> In 2v2 offline la differenza è nulla (un solo umano); diventa reale con il 3v3 e con **M10**.
+> ~~⚠️ **Stato di implementazione (verificato 2026-08-07)**: oggi il lock-in è **immediato** — Spazio chiude il~~
+> ~~planning senza countdown e senza possibilità di annullare (`RTPlayerController.cpp`, `LockInAndResolve`).~~
+> ~~Il countdown annullabile **non esiste**. `RT_PDR_10 §2` riga 8 lo dichiarava ✅ ed è stato corretto a 🟡.~~
+>
+> ✅ **Il countdown ESISTE dal 2026-09-04** ([#2193](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2193)).
+> `ARTTurnManager::RequestLockIn()` arma `ReadyCountdownSeconds` (**3 s**) e solo al suo scadere chiama
+> `LockInAndResolve()`; `CancelLockIn()` è l'Unready. Il gesto è **RMB / Backspace** — `UndoAction`, che
+> durante il countdown non ha waypoint da annullare — e non un toggle su Spazio: chi preme due volte per
+> abitudine annullerebbe senza volerlo, cioè l'opposto del difetto che il countdown previene.
+>
+> 🔴 **Il tetto vince, ed è una proprietà della struttura.** I due orologi chiamano entrambi
+> `LockInAndResolve`, che li spegne tutti e due appena entra: il primo che scatta vince, e il countdown non
+> allunga mai `PlanningSeconds`. *«Non sostituisce il timer massimo»* non è un `if` da ricordare.
+> ⚠️ E l'**Unready non riarma il tetto**: sarebbe l'altro modo di sostituirlo, in un verso che permetterebbe
+> di pianificare senza limite.
+>
+> Il perché di questa forma — e il motivo per cui il countdown **non** è uno stato di simulazione — sta nel
+> referto [`../roadmap/plans/ready-countdown-spec-panel-2026-09-04.md`](../roadmap/plans/ready-countdown-spec-panel-2026-09-04.md):
+> la risposta era già in §11 di questo documento, dove `ReadyCountdownSeconds` è classificato fra i **Tempi UX**.
+>
+> ⚠️ **In 2v2 offline la differenza resta quella dichiarata** (un solo umano): il valore che il countdown porta
+> *oggi* non è l'attesa reciproca, è **annullare una chiusura involontaria**. La forma «tutti Ready» diventa
+> osservabile con il 3v3 e con **M10**, e `RequestLockIn` è un punto solo perché aggiungerci il quorum non
+> richieda di spostare il countdown.
 
 ---
 
@@ -660,26 +680,46 @@ campo, e si paga finché nessun formato ne ha bisogno — il giorno in cui servi
 altro `int32` ma una **ripartizione esplicita**, e va decisa allora con il caso d'uso in mano invece che oggi
 per simmetria.
 
-#### Chi legge il campo — e la regola di autorizzazione NON entra qui
+#### Chi legge il campo — e la regola di autorizzazione, rientrata col suo consumatore
 
-Il campo ha per lettori il **validator** e nient'altro. È poco, ed è deliberato: il precedente sta in
-questo stesso asset, dove `ExpectedRounds` **non è letto da alcun codice di gioco** e vive perché il
-validator ne ha bisogno.
+Il campo ha per lettori il **validator** e la **regola di autorizzazione**. Fino al 2026-09-02 aveva solo il
+primo, ed era deliberato: il precedente sta in questo stesso asset, dove `ExpectedRounds` **non è letto da
+alcun codice di gioco** e vive perché il validator ne ha bisogno.
 
-⛔ **La regola di autorizzazione per gruppi di controllo era scritta e è stata RIMOSSA prima del merge, in
-code review.** Erano due funzioni pure (`ControlGroupForUnit`, `CanPlayerControlUnitInGroup`) con il loro
-test, e non avevano **nessun chiamante**: l'assegnazione delle unità ai gruppi vive in `ARTGameMode` — dove
-stanno tutti e sei i consumatori runtime di `UnitsPerTeam`. *(Fino al 2026-08-20 quel file apparteneva a
-un'altra track del write-set di batch e si aspettava il suo owner; con
-[D-178](../decisions/RT_PDR_00_Decision_Log.md) il vincolo non esiste più.)*
+⛔ **La regola era stata scritta e RIMOSSA prima del merge, in code review.** Erano due funzioni pure
+(`ControlGroupForUnit`, `CanPlayerControlUnitInGroup`) con il loro test, e non avevano **nessun chiamante**:
+l'assegnazione delle unità ai gruppi vive in `ARTGameMode` — dove stanno tutti e sei i consumatori runtime di
+`UnitsPerTeam`. *(Fino al 2026-08-20 quel file apparteneva a un'altra track del write-set di batch e si
+aspettava il suo owner; con [D-178](../decisions/RT_PDR_00_Decision_Log.md) il vincolo non esiste più.)*
 
-La ragione per cui sono uscite non è la prudenza: è una **regola scritta nel repository**, e sta nell'header
-che le ospitava. Il commento di `URTCombatLibrary::IsIntentVisibleTo` dice, di sé:
+La ragione per cui erano uscite non era la prudenza: è una **regola scritta nel repository**, e sta
+nell'header che le ospitava. Il commento di `URTCombatLibrary::IsIntentVisibleTo` dice, di sé:
 *«Se un giorno tornasse senza consumatori, la risposta e' rimuoverla, non lasciarla a fare da falsa
 copertura»*. Un test verde su una funzione che nessuno chiama misura la funzione, non il gioco — ed è il
 difetto che `#507` ha già pagato una volta su quella stessa riga.
 
-Tornano insieme al loro consumatore, quando `#937` rilascia `ARTGameMode`.
+✅ **Sono rientrate insieme al consumatore con `#1124`**, dopo che `#937` ha rilasciato `ARTGameMode`. Oggi:
+
+| Pezzo | Dove |
+|---|---|
+| `ControlGroupForUnit(IndexInTeam, UnitsPerPlayer)` | `URTCombatLibrary` — divisione intera, `INDEX_NONE` fail-closed su ingressi che non partizionano |
+| `CanPlayerControlUnitInGroup(...)` | `URTCombatLibrary` — **squadra prima**, poi gruppo; `INDEX_NONE` da un lato o dall'altro rifiuta |
+| Assegnazione all'allestimento | `ARTGameMode::AssignUnitControlGroups()`, in coda ad `AssignSeats()` |
+| Il gruppo della persona | `ARTPlayerState::ControlGroup`, `Arrival / 2` — i posti si assegnano alternati |
+| Il gruppo dell'unità | `ARTUnit::ControlGroup` |
+| I due consumatori | le guardie di comando in `ARTPlayerController::HandleClick` |
+| Il test | `RefactorTactics.Combat.ControlGroupPartitionsTheTeam` |
+
+⚠️ **Nella v0.1 la regola non cambia alcun esito**, e questo è il punto delicato: un giocatore per squadra
+significa un solo gruppo, e ogni unità cade nel caso degenere. Il valore non è comportamentale — è che la
+partizione sia *esprimibile e fissata* prima che i posti diventino due. Perché la sostituzione ai due call
+site non sia una regressione muta, il test misura che con tutti a gruppo `0` la regola nuova risponda **come
+quella vecchia** su ogni combinazione di squadre; i default di entrambi i campi sono `0` proprio per questo.
+
+⚠️ **L'ordine con cui le unità entrano nei gruppi è `StableLess` sulla cella**, lo stesso di
+`ARTTurnManager::CollectLivingUnits` — non quello di `GetAllActorsOfClass`, che non promette nulla. Il gruppo
+decide *chi comanda* un'unità: farlo dipendere dall'ordine di registrazione degli Actor renderebbe la
+partizione diversa a ogni avvio.
 
 **Lavoro tracciato**: E19 · CP 19.3, feature `RT-FEAT-MATCH-FORMAT`. Il consolidamento che ha prodotto questa
 sezione è nello [spec panel del 2026-08-17](../roadmap/plans/multihero-timebank-preferred-response-spec-panel-2026-08-17.md) §3 F1.

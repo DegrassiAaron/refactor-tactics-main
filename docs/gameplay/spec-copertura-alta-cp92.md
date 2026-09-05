@@ -48,7 +48,25 @@ snapshot e cache di percorso — cioè ciò che impedisce i path fantasma, l'obi
 `SrcCell`/`TgtCell` identifica il bordo senza aggiungere un campo direzione, `Amount` porta l'integrità
 residua.
 
-## 4. Due difetti trovati dai test, non a tavolino
+## 4. Difetti trovati dai test, non a tavolino
+
+> 🔴 **Il terzo è arrivato 26 giorni dopo, e i test lo nascondevano invece di trovarlo — [#2035](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2035), 2026-09-01.**
+>
+> §3 qui sotto dichiara **tre** aree che consumano `URTHexCoverLibrary`: vista, grafo e combat. La migrazione
+> di questo checkpoint ne ha aggiornate **due**. `URTOffensiveActionLibrary::LineCells` — l'attacco lineare e
+> la linea di soppressione — è nata il **2026-08-06**, un giorno prima di `URTHexCoverLibrary`, e ha
+> conservato la sua risposta propria: `FRTHexCellData::bBlocksLineOfSight`, che è la proprietà di una **cella**
+> e non una copertura. Per 26 giorni una copertura alta di bordo ha fermato la vista e lasciato passare il
+> colpo — cioè esattamente il *«difetto invisibile finché qualcuno non ci cammina attraverso»* che §3 dice di
+> voler impedire, nella sua forma speculare.
+>
+> ⚠️ **Perché nessun test l'ha visto**: la fixture di `RTOffensiveActionTests` si chiamava `MakeHighCover` e
+> scriveva `bBlocksLineOfSight`, con un commento che diceva *«nel modello dati di oggi è l'unico dato che la
+> rappresenta»*. Era vero il giorno in cui è stata scritta, e ha smesso di esserlo il giorno dopo — quando
+> `FRTHexCover` è arrivato con questo checkpoint. Tre test dicevano *«la copertura alta ferma il colpo»* ed
+> erano verdi su un'altra cosa. **Una fixture che invecchia è indistinguibile da una copertura che funziona.**
+
+
 
 1. **`ProduceEvents` traduceva anche `DamageStructure`** in un evento su un'unità, che avrebbe applicato il
    danno-muro a chi sta dietro. L'ha trovato `Actions.HeavyAttack.NoEffectIfInterrupted`, che contava due
@@ -64,8 +82,16 @@ residua.
 1. **`HexLine` e i vertici**: se una linea esagonale saltasse da una cella a una non adiacente, `CoverBetween`
    restituirebbe `None` e la barriera non fermerebbe quel colpo (fail-**open**). Non osservato, ma è la sola
    assunzione geometrica non verificata da un test.
-2. **Il bot non conosce le barriere**: il suo `ScoreThreatRespectsCover` ragiona su `bBlocksLineOfSight`.
-   Cambiare le sue premesse è CP 13.5.
+2. ~~**Il bot non conosce le barriere**: il suo `ScoreThreatRespectsCover` ragiona su `bBlocksLineOfSight`.
+   Cambiare le sue premesse è CP 13.5.~~
+   🔄 **Corretto il 2026-09-01 ([#2035](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2035)): la conclusione non seguiva dalla premessa.** Il bot **le conosce**:
+   `RTHexBotLibrary.cpp` chiama `HasLineOfSight` in tre punti (`308`, `415`, `543`) e non legge
+   `bBlocksLineOfSight` **da nessuna parte** — quindi consulta i bordi da questo checkpoint, come ogni altro
+   consumatore. A ragionare su `bBlocksLineOfSight` è il **test** omonimo, tramite la sua fixture
+   `BlockBotSight`.
+   ⚠️ **Resta un buco di COPERTURA DI TEST**, che è cosa diversa da un buco di comportamento: nessun test del
+   bot esercita una barriera di **bordo**. È lo stesso vuoto che ha lasciato passare il difetto di §4 per 26
+   giorni, e qui non è ancora stato colmato.
 3. **Nessuna azione crea coperture alte**: si disegnano nel data asset. `CreateCover` (bassa, temporanea)
    resta a CP 9.5, `BreachCharge` a #61.
 4. **La copertura bassa si distrugge anche lei** (stessa funzione, integrità 30): non era richiesto dalla DoD,

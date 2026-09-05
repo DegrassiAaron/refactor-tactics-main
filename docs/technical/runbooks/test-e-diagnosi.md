@@ -268,6 +268,24 @@ Scenarios/Movement/Basic.json
 Il turn manager e il resolver **non sanno** di essere sotto test: non esiste nessun `if (IsTest)` nel
 gameplay. È la proprietà che rende un test verde significativo.
 
+### Lanciarne due di seguito in PIE — il campo si sgombera da solo
+
+Fuori dal PIE ogni corsa riceve un `UWorld` **temporaneo** e parte pulita per costruzione. In PIE il mondo è
+quello della sessione e non si può ricreare: fino al 2026-09-04 il secondo scenario si **sommava** al primo,
+e ciò che si misurava era il residuo ([#2223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2223)).
+
+Ora `FRTScenarioSession::Start` toglie dal mondo, **prima di posare qualunque cosa**, le unità marcate da una
+corsa precedente.
+
+- ⛔ **Si tolgono solo le unità che uno scenario ha messo**, mai tutte quelle in campo: in PIE lo scenario
+  gira *dentro* una partita, e sgomberarla sarebbe un rimedio peggiore del difetto. Il marchio è
+  `FRTScenarioSession::SpawnedByScenarioTag`, in `AActor::Tags`.
+- ⚠️ **Si sgombera all'ingresso, non alla fine**: uno scenario interrotto a metà non arriverebbe mai a un
+  teardown finale — ed è proprio quello a lasciare il campo sporco. Entrando, la corsa è pulita *qualunque
+  cosa* sia successa alla precedente.
+- La **board** non c'entra e non si duplicava: `BuildScenarioArena` riusa l'actor esistente e chiama
+  `RebuildInstances()`.
+
 ### 3-bis. Chi decide: un harness solo, e provider che restituiscono decisioni
 
 **[D-101](../../decisions/RT_PDR_00_Decision_Log.md)** (2026-08-11). L'harness sopra è **l'unico**, e ogni modo
@@ -484,6 +502,46 @@ Nessuna delle due basta da sola, ed è misurato: il log non registra tutto ciò 
 `StateHash` da solo *«sarebbe rimasto verde su #990»*, dove la divergenza compariva al turno 2 e lo stato
 finale tornava lo stesso.
 
+➕ **E dal 2026-09-04 c'è una terza grandezza, che risponde alla domanda che le prime due non ponevano**
+([#2189](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2189)): il **checksum per boundary**.
+
+`URTBoundaryChecksumLibrary::ChecksumsAlongTrace` calcola un hash di stato a **ogni** boundary che la traccia
+attraversa, e `DescribeDivergence` nomina il primo in cui due esecuzioni si separano — *«divergono al
+boundary `T2|Blast`»*. 🔑 È esattamente il caso `#990` citato qui sopra: una divergenza al turno 2 che il
+solo stato finale non vedeva, e che ora ha un **luogo** invece di un sospetto.
+
+➕ **E dal 2026-09-04 il luogo è più stretto di una fase**
+([#2374](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2374)): la chiave del boundary è la
+**terna** `(TurnNumber, Phase, MicroStepIndex)`, quindi il verdetto sa dire *«divergono al boundary
+`T1|Move#1`»* — il **secondo** micro-step di quella fase, non la fase intera. Prima due esecuzioni che si
+separavano a metà di un movimento producevano lo stesso checksum di fase, e il messaggio nominava un
+intervallo che conteneva la causa insieme a due barriere innocenti.
+
+| Forma stampata | Significato |
+|---|---|
+| `T1\|Move#1` | il boundary del micro-step **1** — lo stato è **parziale per costruzione**: a metà movimento le unità non hanno ancora la cella finale |
+| `T2\|Blast` | la **fase intera**, cioè il boundary `INDEX_NONE`, che chiude la fase e sta **dopo** i suoi micro-step |
+
+⚠️ **Su un archivio antecedente alla `v12` (`WithMicroStep`) resta phase-only, e non è un degrado
+silenzioso**: `ChecksumsAlongTrace` vuole la versione della traccia come **parametro obbligatorio**. Quelle
+tracce il campo non lo portano, e la deserializzazione lascia `0` su ogni voce: chiavare su quello
+stamperebbe `T1|Move#0` dove nessun micro-step è mai stato scritto.
+
+⚠️ **Non sostituisce lo `StateHash` finale, e non può**: una traccia canonica ricostruisce **quattro** degli
+otto campi del digest — `UnitId`, `Cell`, `Facing` e la vita/morte. `Health`, `Shield`, `Energy` e `Statuses`
+restano al default e non discriminano, perché la traccia non li dichiara e dedurli dalle voci di danno
+sarebbe ricostruire uno stato che nessuno ha scritto. ∴ le tre grandezze rispondono a tre domande diverse:
+
+| Grandezza | Dice |
+|---|---|
+| `SameTurnLogAcrossRuns` | quale **voce** è diversa — il sintomo |
+| checksum per boundary | a quale **barriera** lo stato ha cominciato a differire — il luogo |
+| `SameStateHashAcrossRuns` | se il **risultato** è diverso, su tutti e otto i campi |
+
+⛔ **E il checksum per boundary non riesegue niente**: legge una traccia già prodotta e ricostruisce lo stato
+con `URTReplayStateLibrary`, la stessa strada del playback. È materia del **Verifier**, non del Player
+(ADR-0009 §3).
+
 > ⚠️ Le due chiavi **non si combinano**: il loader rifiuta `repeatCount` insieme a `variants`. Un ciclo
 > annidato produrrebbe N×M tracce di cui metà differiscono per costruzione, e un confronto che mescola le due
 > domande non risponde a nessuna.
@@ -539,7 +597,7 @@ ostacolo** (una situazione che il gioco non produrrebbe mai) vengono rifiutate c
 | `Movement.Blocked` | un muro rende il percorso impossibile: il piano è rifiutato, l'unità resta ferma, il turno si chiude lo stesso |
 | `Movement.Collision` | due unità verso la stessa cella si fermano **entrambe** |
 | `Movement.LongWalk` | due unità attraversano l'arena, 3 celle per turno per 2 turni — **fatto per essere guardato** in PIE |
-| `Combat.BasicAttack` | Gadget colpisce Riktor: 120 → 98 HP. Il primo scenario che verifica un **danno** |
+| `Combat.BasicAttack` | Gadget colpisce Riktor: 120 → 103 HP — 22 dichiarati, 5 assorbiti dal `BaseShield` (D-224), 17 applicati. Il primo scenario che verifica un **danno** |
 | `Combat.BlockedByWall` | stesso attacco con un muro in mezzo: il colpo **non parte** |
 | `Combat.SplashHitsAlliesNotSelf` | l'area colpisce i vicini **e** l'alleato, ma non chi la lancia |
 | `Combat.LineHitsThrough` | la linea colpisce chi sta in mezzo, non solo il bersaglio |
@@ -825,7 +883,7 @@ che nessuno dei test esistenti poteva mostrare. Vale come esempio di quando conv
 
 | Livello | Regola | Test | Esito |
 |---|---|---|---|
-| Resolver | lo scambio **è consentito** | `HexSim.ResolveSwapAllowed` | ✅ verde |
+| Resolver | lo scambio **blocca** — come ciclo, `BlockedByCycle` | `HexSim.ResolveSwapBlocked` | ✅ verde |
 | Planner | goal occupato → **`NoPath`** | `HexSim.PathAvoidsOccupiedCell` | ✅ verde |
 
 Entrambe corrette, entrambe verdi, **ognuna guardata da sola**. Insieme rendono la regola del resolver
@@ -843,3 +901,18 @@ scenario fa.
 
 **Cosa NON fare**: correggere la regola di iniziativa. Se lo scambio debba essere possibile è una decisione di
 design. Il difetto si fissa con una caratterizzazione e si segnala; chi decide, decide.
+
+> ✅ **Deciso il 2026-08-31, ed è la conferma che questa consegna funziona.** `AUTHOR-MOVE-001` — seduta
+> d'autore, sincronizzata da [D-295](../../decisions/RT_PDR_00_Decision_Log.md) — dichiara che **lo scambio
+> diretto e i cicli chiusi bloccano**, salvo permesso esplicito. Vince quindi la regola del *planner*, e il
+> test del resolver è quello che deve cambiare: l'implementazione è
+> [#1922](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1922), che porta anche i due test
+> mancanti — il **ciclo chiuso** (nessuno ruota) e il **convoy a coda libera** (tutte avanzano), oggi coperto
+> solo per costruzione.
+>
+> 🔎 **La parte che vale come metodo**: questo paragrafo è del **2026-08-19** (`a3e789d8`), e la domanda è
+> rimasta senza risposta **dodici giorni** — **non** perché nessuno la vedesse, è scritta qui sopra, ma
+> perché **non aveva un owner cercabile**: nessuna voce in
+> `OPEN_DECISIONS.md`, nessuna issue. Un difetto segnalato in un paragrafo di runbook è un difetto che solo
+> chi rilegge il runbook ritrova. Segnalare e **dare un owner** sono due gesti diversi, e questo caso ha
+> pagato il secondo.

@@ -1,6 +1,8 @@
 #include "Combat/RTOffensiveActionLibrary.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexCoverLibrary.h"     // il bordo: l'unica sede di «cosa c'e' fra queste due celle» (`CP 9.2`)
+#include "Map/RTHexOcclusionLibrary.h" // la geometria intra-cella, LA STESSA che consuma la LoS (`D-269`)
 #include "Terrain/RTTerrainLibrary.h" // il cap di portata e' un dato del terreno (`#1085`)
 #include "Turn/RTMovementActionLibrary.h"
 
@@ -33,6 +35,12 @@ TArray<FRTCellId> URTOffensiveActionLibrary::LineCells(const URTHexMapAsset* Map
 	// (`bBlocksLineOfSight = false` nel catalogo): oscura, e chi spara attraverso non vede lontano.
 	int32 CapResiduo = -1;
 
+	// La cella che si sta LASCIANDO e il vicino da cui vi si e' entrati: servono a chiedere la corda giusta a
+	// `URTHexOcclusionLibrary`. Al primo giro coincidono con `From`, che e' il modo in cui quella funzione
+	// dice «la linea nasce qui» — il capo della corda e' il centro della cella del tiratore.
+	FRTCellId Current = From;
+	FRTCellId EnteredFrom = From;
+
 	for (int32 K = 1; K <= RangeCells; ++K)
 	{
 		if (CapResiduo == 0)
@@ -41,6 +49,42 @@ TArray<FRTCellId> URTOffensiveActionLibrary::LineCells(const URTHexMapAsset* Map
 		}
 
 		const FRTCellId Next(From.X + UnitStep.X * K, From.Y + UnitStep.Y * K, From.Layer);
+
+		// ➕ **LA GEOMETRIA INTRA-CELLA** (`D-269`, `D-270`, `#1830`), e la funzione e' **la stessa** che
+		// consuma `URTHexVisionLibrary::DescribeLineOfSight`.
+		//
+		// 🔑 **Non e' una parita' asserita, e' strutturale**: non esiste una seconda regola d'attraversamento
+		// da tenere allineata a questa, perche' non ce n'e' una seconda. `D-269` lo chiede con la ragione
+		// scritta — risposte diverse renderebbero *«visibile un bersaglio che non si puo' colpire»* — e la
+		// forma con cui questo repository lo ottiene e' sempre questa, non un test di parita' su un corpus.
+		//
+		// ⚠️ **La domanda qui e' l'ATTRAVERSAMENTO** — la corda entra da un lato ed esce dall'altro — mentre
+		// quella del tiro mirato e' `HasLineOfSight` fino al CENTRO del bersaglio. Sono due domande legittime
+		// e diverse sulla stessa geometria; cio' che non si sdoppia e' la regola che le risponde.
+		if (URTHexOcclusionLibrary::BlocksSight(Map, EnteredFrom, Current, Next))
+		{
+			break; // un muro interno alto taglia la corda: il colpo si ferma PRIMA di uscire dalla cella
+		}
+
+		// ➕ **IL BORDO ATTRAVERSATO** (`CP 9.2`, `#2035`), e questa riga mancava dal 2026-08-07.
+		//
+		// 🔴 `URTHexCoverLibrary::BlocksTraversal` dichiara su di se' di essere *«l'UNICA funzione che vista,
+		// grafo e combat interrogano»*, e di negare l'attraversamento a *«vista, passo e PROIETTILI»*. Questa
+		// marcia aveva una risposta propria — `bBlocksLineOfSight`, che e' la proprieta' di una CELLA e non
+		// una copertura — quindi una copertura alta di bordo fermava la vista e lasciava passare il colpo.
+		//
+		// Non era una scelta: `LineCells` e' nata il 2026-08-06, `URTHexCoverLibrary` il 2026-08-07, e la
+		// migrazione di `CP 9.2` ha aggiornato vista e grafo lasciando indietro l'attacco lineare. Il
+		// catalogo la regola la diceva gia' — *«una copertura alta interrompe la linea»* (§3) — ed e' la
+		// stessa riga che il commento di `ResolveLineAttack` cita da sempre.
+		//
+		// ⚠️ **L'ordine e' quello di `DescribeLineOfSight`**: prima la corda dentro la cella, poi il bordo
+		// che si attraversa, poi la cella in cui si entra. Le due marce ora rispondono nello stesso ordine
+		// perche' consumano le stesse tre regole, e nessuna delle tre ha una seconda implementazione.
+		if (URTHexCoverLibrary::BlocksTraversal(Map, Current, Next))
+		{
+			break; // copertura alta o porta chiusa sul bordo: il colpo non esce dalla cella
+		}
 
 		const FRTHexCellData* Data = Map->FindCell(Next);
 		if (Data == nullptr)
@@ -53,6 +97,8 @@ TArray<FRTCellId> URTOffensiveActionLibrary::LineCells(const URTHexMapAsset* Map
 		}
 
 		Cells.Add(Next);
+		EnteredFrom = Current;
+		Current = Next;
 		if (CapResiduo > 0)
 		{
 			--CapResiduo;
@@ -108,7 +154,9 @@ FRTLineAttackResult URTOffensiveActionLibrary::ResolveLineAttack(const URTHexMap
 		if (Occupant != nullptr && Hostiles.Contains(*Occupant))
 		{
 			// Primo bersaglio VALIDO: il colpo si ferma qui. Un alleato invece non e' un bersaglio e non
-			// interrompe la linea — a interromperla e' solo la copertura alta (catalogo §3).
+			// interrompe la linea — a interromperla e' la GEOMETRIA (catalogo §3: *«una copertura alta
+			// interrompe la linea»*), e da `#2035` la copertura alta e' davvero fra le cose che la fermano:
+			// fino ad allora questa riga descriveva una regola che il ciclo qui sopra non applicava.
 			Result.HitUnitId = *Occupant;
 			Result.Stop = ERTLineStop::Hit;
 			return Result;
@@ -126,6 +174,27 @@ FRTLineAttackResult URTOffensiveActionLibrary::ResolveLineAttack(const URTHexMap
 	const FIntPoint UnitStep((Toward.X - From.X) / Distance, (Toward.Y - From.Y) / Distance);
 	const int32 K = Traced.Num() + 1; // la prima cella NON tracciata: e' quella che ha fermato la linea
 	const FRTCellId Blocker(From.X + UnitStep.X * K, From.Y + UnitStep.Y * K, From.Layer);
+
+	// La geometria intra-cella si chiede PRIMA, con lo stesso ordine con cui `LineCells` interrompe: li' il
+	// muro ferma la linea prima ancora di guardare se la cella successiva esista. Non e' una seconda regola —
+	// e' la stessa chiamata, sulla stessa corda, rifatta per NOMINARE la causa invece di dedurla.
+	const FRTCellId LastTraced = (Traced.Num() > 0) ? Traced.Last() : From;
+	const FRTCellId EnteredFrom = (Traced.Num() > 1) ? Traced[Traced.Num() - 2] : From;
+	if (URTHexOcclusionLibrary::BlocksSight(Map, EnteredFrom, LastTraced, Blocker))
+	{
+		Result.Stop = ERTLineStop::BlockedByInteriorGeometry;
+		return Result;
+	}
+
+	// Poi il BORDO, con lo stesso ordine del ciclo: li' ferma prima che si guardi se la cella successiva
+	// esista, quindi qui viene chiesto prima di `OffMap`. Un bordo murato sul confine della mappa e' un muro,
+	// non un bordo del livello.
+	if (URTHexCoverLibrary::BlocksTraversal(Map, LastTraced, Blocker))
+	{
+		Result.Stop = ERTLineStop::BlockedByEdgeCover;
+		return Result;
+	}
+
 	Result.Stop = (Map->FindCell(Blocker) == nullptr) ? ERTLineStop::OffMap : ERTLineStop::BlockedByCover;
 	return Result;
 }

@@ -3,7 +3,22 @@
 #include "RefactorTactics.h"
 #include "Player/RTPlayerController.h"
 #include "Player/RTPlayerState.h"
-#include "Turn/RTTurnManager.h"
+#include "Turn/RTTurnManagerAccess.h" // FindTurnManagerInWorld: la ricerca senza l'header dell'orchestratore
+// 🔴 **`Turn/RTTurnManager.h` NON serve piu', e la storia va tenuta perche' il difetto era vero.**
+// #2257 l'ha rimesso il 2026-09-04 con questa diagnosi, esatta: `TurnManager` e' un
+// `TWeakObjectPtr<ARTTurnManager>`, assegnarci un puntatore nudo vuole la definizione — il compilatore deve
+// sapere che deriva da `UObject` — e il file **compilava solo grazie alla UNITY BUILD**, che il tipo glielo
+// offriva di rimbalzo da un vicino di blob. Difetto latente reale, trovato per due strade indipendenti lo
+// stesso giorno: #2257 dall'Adaptive Build che ha ricomposto i blob, #2184 toccando il file per altro.
+//
+// ✅ **Ma la premessa e' caduta: qui non si ASSEGNA piu' un puntatore nudo.** Dal #2184
+// `FindTurnManagerInWorld` rende un `TWeakObjectPtr<ARTTurnManager>` costruito dentro
+// `RTTurnManagerAccess.cpp`, l'unico posto che paga l'header, e `SetMatchContextForTest` ne prende uno: la
+// copia weak → weak non tocca `T` e non chiede la definizione. Restava solo il costo.
+//
+// ⚠️ **Toglierlo non e' un ripristino di comodo: e' cio' che rende VERO il distacco di #1821.** Con
+// l'include, la prova strutturale di quella issue — «un file che non include piu' l'header non ne aveva
+// bisogno» — resta soddisfatta a vuoto. Verificato compilando questo file FUORI dal blob unity.
 #include "Unit/RTUnit.h"
 #include "UI/RTIconLibrary.h"
 #include "Kismet/GameplayStatics.h"
@@ -48,8 +63,11 @@ void URTScreenHudWidgetBase::AcquireMatchContext()
 		return;
 	}
 
-	TurnManager = Cast<ARTTurnManager>(
-		UGameplayStatics::GetActorOfClass(World, ARTTurnManager::StaticClass()));
+	// La ricerca vive in `Turn/RTTurnManagerAccess.h` da `#1821`: questo file non chiama **nessun** metodo
+	// del manager — lo cerca, lo tiene in un weak pointer e lo passa alla view model — quindi non ha
+	// ragione di includerne l'header da 1 856 righe. Il retry qui sotto resta dov'era: la ricerca cambia
+	// indirizzo, non momento.
+	TurnManager = FindTurnManagerInWorld(World);
 
 	// 🔴 **Il HUD di partita puo' nascere SENZA owning player, e senza di esso non esiste una selezione.**
 	// `URTFrontendNavigator::PresentMatchHud` lo crea con `CreateWidget(GameInstance, ...)` dentro
@@ -83,7 +101,7 @@ void URTScreenHudWidgetBase::AcquireMatchContext()
 	}
 }
 
-void URTScreenHudWidgetBase::SetMatchContextForTest(ARTTurnManager* InTurnManager, int32 InPlayerTeamId)
+void URTScreenHudWidgetBase::SetMatchContextForTest(TWeakObjectPtr<ARTTurnManager> InTurnManager, int32 InPlayerTeamId)
 {
 	TurnManager = InTurnManager;
 	PlayerTeamId = InPlayerTeamId;
@@ -158,13 +176,11 @@ FText URTTurnHeaderWidget::GetRoundCounterText() const
 		return FText::FromString(TEXT("—"));
 	}
 
-	// `RoundLimit == 0` = «nessun limite dichiarato», che NON e' «su zero». Una partita senza formato non e'
-	// una partita gia' scaduta, e un binding ingenuo stamperebbe `Round 3/0`.
-	if (Header.RoundLimit > 0)
-	{
-		return FText::FromString(FString::Printf(TEXT("Round %d/%d"), Header.Round, Header.RoundLimit));
-	}
-	return FText::FromString(FString::Printf(TEXT("Round %d"), Header.Round));
+	// La regola — `RoundLimit == 0` = «nessun limite», mai `Round 3/0` — vive in una sede sola da #2184:
+	// il Canvas di `ARTHUD` ne aveva una seconda copia, e con `rt.HUD.CanvasPanels` attivo i due contatori
+	// rendono nello stesso fotogramma, quindi potevano dissentire. Qui resta il solo vestito `FText`, che e'
+	// cio' che il binding vuole; la decisione la fa `URTHudViewModel::ComposeRoundCounter`.
+	return FText::FromString(URTHudViewModel::ComposeRoundCounter(Header));
 }
 
 // =====================================================================================================

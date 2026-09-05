@@ -20,7 +20,15 @@ enum class ERTLinearStop : uint8
 	BlockedByTerrain,
 	/** Fermata davanti a un'unita' (o perche' la cella d'arrivo era occupata). */
 	BlockedByUnit,
-	/** Fermata SUL primo nemico incontrato: e' l'impatto della carica. */
+	/**
+	 * Fermata sulla cella ADIACENTE al primo nemico incontrato, che viene colpito: e' l'impatto della
+	 * carica.
+	 *
+	 * ⚠️ **Non «sul» nemico**, che questa riga diceva fino a [D-296]: due unita' nella stessa cella non
+	 * sono rappresentabili. Il ciclo di `ResolveLinearMove` esce **senza** far avanzare `Current`, quindi
+	 * `Final` e' la cella precedente — e `HexMatch.ChargeStopsOnEnemyAndHits` lo pinna, asserendo
+	 * `(2,0,0)` con il bersaglio su `(3,0)`.
+	 */
 	Impact
 };
 
@@ -46,7 +54,7 @@ struct FRTLinearMoveResult
 	 * Unita' ATTRAVERSATE lungo la traiettoria (`LinearPass`), nell'ordine in cui sono state incontrate.
 	 * Vuoto per ogni altro stile.
 	 *
-	 * Lista e non singolo id, a differenza di `ImpactUnitId`: la carica si ferma sul primo bersaglio, quindi
+	 * Lista e non singolo id, a differenza di `ImpactUnitId`: la carica si ferma AL primo bersaglio, quindi
 	 * ne ha uno per definizione; la lama ne incontra quanti ne stanno sulla linea.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Movement")

@@ -1,0 +1,38 @@
+{
+  "scenarioId": "Spec.Combat.AreaGuardFromImpactCenterKeepsPool",
+  "tags": ["spec", "combat", "guard", "facing", "area", "d-302", "gadget", "wraith"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "SPECIFICA ESEGUIBILE di `D-302` punto (3): per un'AREA la direzione d'impatto e' `centro d'impatto -> bersaglio`, non `lanciatore -> bersaglio`. Una granata fatta cadere DAVANTI a un'unita' in Guardia da un lanciatore che le sta ALLE SPALLE arriva, per lei, da davanti: il pool va consumato e la Guardia regge.",
+
+  "_nota_perche_esiste": "#2009. Il pool `Guard` decideva la frontalita' con la cella di CHI ha attaccato, qualunque fosse la forma, e `D-302` era accettata e non implementata. Il difetto e' stato corretto e misurato in suite (`RefactorTactics.Combat.AreaGuardUsesImpactCenter`), ma NON esisteva in partita: nessuno scenario del corpus combinava `Action.Guard` con `ERTAbilityShape::Area`, quindi il cambio viveva nel motore e non nel corpus. E' lo stesso buco che #1919 misura per i colpi multipli.",
+
+  "_nota_geometria": "Il difensore sta in (0,0,0) e guarda a OVEST, quindi chi sta a X negativo lo prende di fronte e chi sta a X positivo alle spalle. Il lanciatore e' in (2,0,0) — ALLE SPALLE — e mira alla cella (-1,0,0) — DAVANTI. `Hero.Gadget.Overload` ha raggio 1, quindi l'area attorno a (-1,0,0) investe anche (0,0,0). Distanza lanciatore -> centro: 3 celle, che e' esattamente la portata dell'azione.",
+
+  "_nota_oracolo": "`LogEventCount` a zero su `Facing`/`RearHitBypassedGuard`: e' l'esito che il difetto produceva, e la sua assenza non dipende da nessun numero di bilanciamento. NIENTE assertion sugli HP, ed e' una scelta: il danno di `Overload`, il pool della Guardia e lo scudo base sono tre numeri di bilanciamento, e legarli qui renderebbe rosso questo file al primo ritocco del catalogo — su una regola che non e' cambiata. Verificato per mutazione il 2026-09-02: forzando `bArea` a `false` in `ResolveCombatPasses` — cioe' rimettendo la cella del lanciatore al posto del centro d'impatto — questo scenario diventa `FAIL` con «atteso 0, ottenuto 1», e il gemello con «atteso 1, ottenuto 0». Cadono in direzioni OPPOSTE, che e' cio' che prova che misurano la regola e non un valore.",
+
+  "_nota_il_gemello": "Un solo verso non basterebbe: questo scenario passerebbe anche con la regola sbagliata «per le aree il pool si consuma sempre». La meta' che la esclude e' `Spec.Combat.AreaGuardFromImpactCenterIsBypassed`, dove il centro cade alle spalle e il pool NON deve proteggere. I due file vanno letti insieme.",
+
+  "units": [
+    { "id": "LAN", "hero": "Hero.Gadget", "team": 0, "cell": [2, 0, 0] },
+    { "id": "DIF", "hero": "Hero.Wraith", "team": 1, "cell": [0, 0, 0], "facing": "W" }
+  ],
+
+  "turns": [
+    {
+      "_turno": "`Action.Guard` non ha bersaglio e non riorienta chi la usa, quindi il facing dichiarato sopra e' anche quello con cui il colpo viene valutato.",
+      "intents": [
+        { "unit": "DIF", "ability": "Action.Guard" },
+        { "unit": "LAN", "ability": "Hero.Gadget.Overload", "targetCell": [-1, 0, 0] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitFacing", "unit": "DIF", "value": "W" },
+    { "type": "LogEventCount", "category": "Facing", "outcome": "RearHitBypassedGuard", "value": 0 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

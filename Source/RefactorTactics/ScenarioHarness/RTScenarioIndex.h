@@ -85,6 +85,20 @@ public:
 	static FString ResolvePath(const FString& ScenarioId, FString& OutError);
 
 	/**
+	 * `Abbrev` e' un **suffisso di segmenti** di `Full`? (#2257)
+	 *
+	 * `Environment.IceSlide` lo e' di `Visual.Environment.IceSlide`; `Slide` no, e `ceSlide` nemmeno.
+	 *
+	 * 🔑 **Statica e pura perche' il test la CHIAMI.** `ResolvePath` legge il corpus vero dal disco:
+	 * un test su di lei misurerebbe anche quali file esistono oggi, e la regola di confronto resterebbe
+	 * verificata solo di rimbalzo. Qui la regola si prova da sola, con casi che non dipendono dal disco.
+	 *
+	 * ⛔ Il confine e' il **segmento**, non il carattere: un match per sottostringa sembra comodo finche'
+	 * non nasce un ID che ne contiene un altro, e da quel giorno sceglie in silenzio.
+	 */
+	static bool IsSegmentSuffix(const FString& Full, const FString& Abbrev);
+
+	/**
 	 * ID degli scenari che portano **entrambi** i tag dati, in ordine alfabetico. Un filtro vuoto non
 	 * restringe nulla, quindi `ListIds("", "")` è l'elenco completo.
 	 *

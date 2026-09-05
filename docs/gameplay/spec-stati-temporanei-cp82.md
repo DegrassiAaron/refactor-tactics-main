@@ -87,7 +87,9 @@ marchio»). Tre conseguenze di progetto:
 > priorità**: i marchi dichiarati dagli intenti si applicano prima, e il +6 va al primo colpo qualificato con
 > priorità **strettamente maggiore** (`PrecisionAttack` 60, `BasicAttack` 50). Resta «raccogli poi applica» —
 > si aggiustano i `Power` di colpi già congelati, non si ricalcolano bersagli. Il precedente nel codice è
-> `Action.Interrupt` (priorità 20), che filtra i colpi del piano prima che diventino danno.
+> `Action.Interrupt` (priorità 20), che filtra i colpi del piano prima che diventino danno — o, da
+> [D-300](../decisions/RT_PDR_00_Decision_Log.md), ne **degrada** uno lasciandolo nel piano senza i suoi
+> effetti oltre il primo.
 >
 > L'ordine di spesa è totale (`priorità → ActionId → AttackerId → IntentIndex`): «il *prossimo* attacco
 > alleato» deve avere una sola risposta anche quando due alleati colpiscono lo stesso bersaglio nello stesso
@@ -99,6 +101,20 @@ Il catalogo terreni §2 lo definisce **istantaneo** («una sola volta per evento
 durata e **non entra in `StatusTurns`**. Qui si consegna il tag e la semantica documentata; l'applicazione reale
 nasce con la propagazione di CP 8.3. È lo stesso pattern di `PushResistance` di Riktor: dato pronto,
 consumatore dichiarato assente — non un effetto finto con durata inventata.
+
+> ✅ **Il consumatore è arrivato il 2026-09-03, e non è quello che questa riga aspettava** —
+> [D-315](../decisions/RT_PDR_00_Decision_Log.md), [#1324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1324).
+>
+> 🔴 **La previsione «l'applicazione reale nasce con la propagazione di CP 8.3» è scaduta senza avverarsi**:
+> CP 8.3 è atterrato il 2026-08-07 e **non** ha consumato il tag. La ragione, misurata un anno dopo la stesura
+> di questa riga, è che `ARTUnit::ApplyStatus` sa rappresentare `N` turni **oppure** il legame alla cella, e
+> per `Turns <= 0` **ritorna in silenzio**: un evento istantaneo non è nessuna delle due forme. Il consumatore
+> atteso non l'ha rifiutato — non poteva applicarlo.
+>
+> Il consumatore è il **TurnLog**: la propagazione scrive una voce `ERTLogCategory::Status` con esito
+> `AppliedInstantly` per ogni unità raggiunta. ✅ La metà di questa riga che regge — *«non un effetto finto con
+> durata inventata»* — è stata **onorata**: il tag continua a non entrare in `StatusTurns`, e un test lo pinna
+> insieme all'esistenza della voce, proprio perché le due metà si contraddicono se una implementazione bara.
 
 ### D4 — `Obscured` non diventa un secondo gate del targeting *(motivata, non opzionale)*
 
@@ -120,6 +136,45 @@ all'ingresso: è già il comportamento coperto da `Terrain.Fire.ErodesTemporaryS
 Il catalogo terreni §4 lascia aperta la durata di `Wet` applicato lontano dall'acqua. Il catalogo eroi la
 dichiara già **1 turno** per `Hero.Phase.PressureJet` e `Hero.Phase.CircularTide`: si adotta quel valore e si aggiorna il
 catalogo terreni, invece di tenere aperta una domanda a cui il repository ha già risposto.
+
+### D7 — Uno stato che finisce **quando paghi**: durata più `RemoveStatus`, non una terza forma *(2026-09-04)*
+
+➕ Aggiunta da [D-319](../decisions/RT_PDR_00_Decision_Log.md) e implementata da
+[#2253](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2253), che portano in vita
+`Status.Unbalanced` e `Status.Prone`.
+
+Il contratto che questa spec dichiara — *«`ARTUnit::ApplyStatus` sa rappresentare `N` turni **oppure** il
+legame alla cella»* — resta **intatto**, e la ragione va scritta perché è la stessa che D3 usa per
+`Electrified`: uno stato che dura *finché non paghi per uscirne* non è nessuna delle due forme, e inventarne
+una terza sarebbe il secondo meccanismo che [D-279](../decisions/RT_PDR_00_Decision_Log.md) vieta.
+
+**La forma adottata**: `Prone` ha una durata come tutti gli altri (`2`), e chi vuole uscirne prima paga
+`1 MP` — che `ARTUnit::RemoveStatus` toglie, l'API **pubblica**, non il membro privato `StatusTurns`. Il
+pagamento compra **il turno**, non l'uscita: la durata solleva comunque, ed è ciò che impedisce a chi ha
+`Root` o budget esaurito di restare a terra per sempre.
+
+| Stato | Durata | Chi lo applica | Uscita anticipata | Esito nel TurnLog |
+|---|---|---|---|---|
+| `Unbalanced` | `2` | lo scivolamento, nella fase Move — **sse** l'esito è `ERTMoveOutcome::Slid` | nessuna: si **consuma** quando la caduta avviene | nascita `AppliedByTerrain` · consumo `Spent` |
+| `Prone` | `2` | `Push`/`Pull` subito mentre si è `Unbalanced`, nella fase Blast, **dopo** lo spostamento | `1 MP`, sottratto in `ARTUnit::GetEffectiveMoveRange()` | nascita `AppliedByAction` · uscita `ShakenOff` |
+
+> 🔑 **`2` e non `1`, e il numero discende da questa spec.** `TickStatuses()` decrementa nel **Cleanup**:
+> uno stato applicato nel **Move** con durata `1` nascerebbe e morirebbe nello stesso Cleanup, senza che
+> nessuna fase interposta possa leggerlo. Il confronto che lo dimostra è `Status.Exposed` — durata `1` da
+> `Action.Sprint`, che però risolve nel **Dash** e ha Blast e Move davanti a sé.
+
+> ➕ **Un decimo `ERTStatusOutcome`: `ShakenOff`.** Nessuno dei nove sapeva dire «l'ha pagata la vittima»:
+> `Cleansed` è *«un'azione deliberata l'ha tolto (`Action.Cleanse`)»* e manderebbe chi legge un replay a
+> cercare un'azione che non è mai stata pianificata; `Spent` è *«lo stato ha fatto il suo lavoro»*, e qui lo
+> stato è stato **subito**. `Amount` porta il **prezzo**, non una durata residua — è l'unico esito di stato
+> in cui la vittima paga. Valore in coda: il formato non cambia versione.
+
+> ⚠️ **`MakeStatusDeathEntry` scriveva `Cleanup` costante**, e per revoca e scadenza è vero. È **falso** per
+> le morti causate da un effetto, che accadono dove l'effetto accade: le voci `Spent` di `Status.Marked` e
+> `Cleansed` di `Action.Cleanse` dichiarano `Cleanup` stando nel **Blast**. Le due non sono state corrette —
+> la fase è un campo serializzato, e raddrizzarle impone una rigenerazione del corpus golden per un difetto
+> che `#2253` non ha introdotto. La funzione ora **accetta** la fase, con default `Cleanup`, e i siti nuovi
+> passano quella vera.
 
 ## 4. Ordine del Cleanup (nuovo)
 
@@ -170,6 +225,9 @@ valore atteso prima dell'implementazione (es. `Burning`: 70 HP invece di 62, cio
   è una decisione, non un ritardo**: §D6 della spec di CP 8.3 dichiara *«`Status.Electrified` **non** viene
   applicato alle unità»*. Questa riga la prometteva ancora — riga **79** di
   [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md), [D-211](../decisions/RT_PDR_00_Decision_Log.md).
+  ✅ **E non arriverà**, il che chiude l'attesa invece di prorogarla: dal 2026-09-03 il tag ha un consumatore
+  che **non** è `ApplyStatus` — il TurnLog, con l'esito `AppliedInstantly`
+  ([D-315](../decisions/RT_PDR_00_Decision_Log.md), [#1324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1324)).
 - **Spegnimento del fuoco da parte dell'acqua sulla *cella*** (`Environment.WaterExtinguishesFire`) → CP 8.4
   (`#67`). Qui `Wet` rimuove `Burning` **dall'unità**: è l'altra metà, e il catalogo le distingue.
 - **`Action.Ignite` / `CreateWater`** (modifica dinamica della superficie) → CP 8.5 (`#68`).

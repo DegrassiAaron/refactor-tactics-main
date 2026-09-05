@@ -5,7 +5,7 @@
   "seed": 0,
   "fixture": "RelayLite",
 
-  "_nota": "La combo firma acqua+elettricita', nell'unica forma in cui il gioco di oggi la sa eseguire. Wraith scatta dentro la spina d'acqua a (0,0) in fase **Dash**; il terreno gli applica `Status.Wet` all'ingresso; il Blast arriva DOPO, e la scarica di Gadget trova un bersaglio bagnato: 24 + 8 = 32. Wraith 90 -> 58.",
+  "_nota": "La combo firma acqua+elettricita', nell'unica forma in cui il gioco di oggi la sa eseguire. Wraith scatta dentro la spina d'acqua a (0,0) in fase **Dash**; il terreno gli applica `Status.Wet` all'ingresso; il Blast arriva DOPO, e la scarica di Gadget trova un bersaglio bagnato: 24 + 8 = 32, meno i 5 dello scudo base ([D-224]). Wraith 90 -> 63.",
 
   "_nota_ordine": "Non e' un dettaglio di allestimento, e' LA regola: il bonus si applica leggendo `HasStatus(Wet)` quando i colpi vengono preparati. Solo cio' che bagna PRIMA del Blast conta — e prima del Blast c'e' il Dash, non il Move.",
 

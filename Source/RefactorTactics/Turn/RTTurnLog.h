@@ -191,7 +191,29 @@ enum class ERTFacingOutcome : uint8
 	 * di riduzione. Un consumatore che filtrava `Facing`/`RearHitBypassedCover` e leggeva `Amount` otteneva un
 	 * numero plausibile e sbagliato, senza nessun modo di sapere quale dei due aveva in mano.
 	 */
-	RearHitBypassedGuard
+	RearHitBypassedGuard,
+	/**
+	 * Da quale dei SEI LATI, relativamente al facing del difensore, e' arrivato un colpo risolto ([D-126],
+	 * `#726`). `Amount` porta l'INDICE RELATIVO `(spicchio - facing + 6) % 6`, cioe' un `ERTRelativeDirection`
+	 * — non i punti di riduzione di `RearHitBypassedCover` ne' il facing assoluto di `RearHitBypassedGuard`.
+	 *
+	 * ⚠️ **In coda, per la stessa ragione di `RearHitBypassedGuard`**: `Outcome` viaggia come `uint8` nel
+	 * formato serializzato, quindi inserire un valore in mezzo rinumera tutti quelli che seguono e riscrive
+	 * il significato di ogni traccia gia' archiviata. Il formato NON cambia versione: nessun campo nuovo,
+	 * solo un valore in piu' in un enum gia' serializzato come intero.
+	 *
+	 * 🔑 **Un esito PROPRIO e non un terzo significato di `Amount` su un esito esistente.** E' la lezione di
+	 * `#1430`/[D-199]: fino al 2026-08-27 guardia e copertura emettevano lo STESSO esito con due `Amount`
+	 * incompatibili, e un consumatore che filtrava non aveva modo di sapere quale dei due avesse in mano.
+	 * Aggiungere qui una terza semantica sotto una coppia `(Category, Outcome)` gia' usata avrebbe rifatto
+	 * quel difetto sapendolo.
+	 *
+	 * ⚠️ **Questa voce e' descrittiva, non decisionale**: non cambia nessun esito di combattimento. E' il
+	 * primo consumatore che [D-126] chiedeva — senza, la relazione a sei lati sarebbe un ramo morto, cioe' il
+	 * `runtime: partial` che il registry punisce. Il secondo consumatore (un'abilita' che dichiara il proprio
+	 * insieme di lati) arriva col primo contenuto che ne ha bisogno.
+	 */
+	HitCameFromSide
 };
 
 /**
@@ -335,7 +357,71 @@ enum class ERTStatusOutcome : uint8
 	 * CONSUMATO: lo stato era una risorsa e qualcuno l'ha spesa (`Status.Marked` che viene incassato).
 	 * Non e' una rimozione subita ne' voluta contro di esso: e' lo stato che ha fatto il suo lavoro.
 	 */
-	Spent
+	Spent,
+
+	// ---- L'etichetta di un EVENTO, che non nasce e non muore (`#1324`) ------------------------------
+	//
+	// 🔴 **La TERZA forma, e le prime due non la sapevano dire.** `ARTUnit::ApplyStatus` rappresenta uno
+	// stato che dura `N` turni oppure uno legato alla cella (`PersistentWhileOnCell`), e per `Turns <= 0`
+	// **ritorna in silenzio**: `ApplyStatus(TAG_Status_Electrified, 0)` e' un no-op. Il catalogo terreni §2
+	// dichiara `Electrified` **istantaneo** — «una sola volta per evento» — che non e' nessuna delle due, e
+	// per questo il tag e' rimasto senza consumatore anche dopo che CP 8.3 (`#66`) e' arrivato.
+	//
+	// ⚠️ **Non e' una durata inventata, ed e' il punto.** L'argomento conservato in `#1324` — *«dargli una
+	// durata inventata per farlo sembrare vivo sarebbe peggio di un dato dichiaratamente inerte»* — resta
+	// intatto: il tag NON entra in `StatusTurns`, l'unita' non lo porta addosso, e nessuno dovra' mai
+	// scadere. Cio' che cambia e' che la scarica smette di essere **muta** per chi guarda un replay.
+	//
+	// 🔴 **Perche' qui e non in `ERTCombatOutcome`** ([D-162], [D-315]): la propagazione gia' scrive una
+	// voce `Combat` per il danno, e i tre esiti di quell'enum — `Hit`, `Lethal`, `ShieldAbsorbed` — sanno
+	// dire *quanto e' andata male*, non *che cosa ti e' successo*. «Una categoria, un enum»: si sceglie la
+	// categoria il cui enum di esito contiene i valori che l'evento deve dire, e questo e' l'enum degli
+	// eventi di stato.
+	//
+	// ⚠️ **Il formato NON cambia versione**: valore aggiunto in coda a un enum che viaggia nel `uint8` gia'
+	// presente, come `Extinguished`/`Cleansed`/`Spent` prima. Cambiano gli hash dei turni in cui una scarica
+	// si propaga — quei turni prima erano muti su questo.
+
+	/**
+	 * ISTANTANEO: l'etichetta di un evento che e' gia' finito quando la voce esce, e `Amount` vale `0`
+	 * perche' qui una durata non esiste **per definizione del catalogo**, non perche' sia legata a un luogo.
+	 *
+	 * ⚠️ Si distingue da `AppliedWhileOnCell`, che e' l'altro esito con `Amount = 0`: quello e' uno stato
+	 * **vivo** la cui fine e' geografica invece che temporale, e infatti ha un `Revoked` che lo aspetta.
+	 * Questo non ha una morte perche' non ha avuto una vita — nessun `Expired` seguira' mai una di queste
+	 * voci, e un replay che ne cercasse la chiusura cercherebbe qualcosa che non e' mai stato promesso.
+	 *
+	 * ⛔ **`Amount` NON porta i passi di propagazione**, che sarebbero l'altra informazione tentante:
+	 * darebbero a `Amount` un secondo significato sotto la stessa categoria, che e' precisamente cio' che
+	 * [D-162] vieta. I passi restano nel log testuale, dove gia' sono.
+	 */
+	AppliedInstantly,
+
+	// ---- Una rimozione PAGATA dalla vittima stessa (`#2253`) ----------------------------------------
+	//
+	// 🔴 **Nessuno dei nove sopra sa dirla, ed e' il motivo per cui questo esiste.** `Cleansed` e'
+	// *«un'azione deliberata l'ha tolto (`Action.Cleanse`)»* — c'e' un'azione, e spesso non e' dell'unita'
+	// che porta lo stato; riusarlo manderebbe chi legge un replay a cercare un `Action.Cleanse` che non e'
+	// mai stato pianificato, che e' lo stesso difetto di attribuzione per cui `Displaced` e' stato scartato
+	// al prerequisito di questa issue (`#2258`). `Spent` e' *«lo stato ha fatto il suo lavoro»*, il caso
+	// `Marked` incassato: qui lo stato non ha lavorato per nessuno, e' stato **subito**.
+	//
+	// ⚠️ **Il formato NON cambia versione**: valore aggiunto in coda a un enum che viaggia nel `uint8` gia'
+	// presente, come `Extinguished`/`Cleansed`/`Spent` (`#1314`) e `AppliedInstantly` (`#1324`) prima.
+	// Cambiano gli hash dei turni in cui qualcuno si rialza — turni che prima non potevano esistere.
+
+	/**
+	 * SCROLLATO VIA: chi lo portava ha speso una risorsa propria per liberarsene prima della scadenza.
+	 * `Amount` porta il **prezzo pagato** (per `Status.Prone`: `1`, il punto movimento dello StandUp) —
+	 * e' un conteggio, come nelle nascite, e non una durata residua: la durata sarebbe l'informazione che
+	 * il replay puo' gia' derivare dalla voce di nascita.
+	 *
+	 * ⚠️ Si distingue da `Cleansed` perche' **non c'e' un'azione pianificata dietro**, e da `Spent` perche'
+	 * lo stato non era una risorsa di chi lo portava. Il soggetto che paga e' la **vittima**, ed e' cio'
+	 * che questo valore rende leggibile: senza di lui un replay vedrebbe uno stato di durata 2 sparire
+	 * dopo uno, senza sapere se qualcuno ha pagato o se il conteggio ha mentito.
+	 */
+	ShakenOff
 };
 
 /**
@@ -467,7 +553,97 @@ enum class ERTMoveOutcome : uint8
 	 * `Amount` porta le celle del percorso RISOLTO scartato — `0` per un piano che dichiarava solo una
 	 * destinazione senza posare waypoint (il bot), dove la destinazione resta leggibile in `TgtCell`.
 	 */
-	SupersededByDash
+	SupersededByDash,
+	/**
+	 * Fermata perche' il proprio movimento chiude un **ciclo** con altre unita' in movimento: uno scambio
+	 * diretto `A↔B` o una catena `A→B→C→A` in cui ognuna punta alla cella occupata dalla successiva e
+	 * l'ultima punta alla prima (#1922, `D-295` ← `AUTHOR-MOVE-001`). Aggiunto in CODA, come i cinque valori
+	 * sopra: l'esito viaggia come `uint8` nel formato serializzato, quindi le tracce gia' scritte non
+	 * cambiano significato.
+	 *
+	 * **Perche' un valore proprio, e uno solo per scambio e ciclo.** Sono la STESSA struttura: lo scambio e'
+	 * il ciclo con `n = 2`. Cio' che li distingue da un **convoy** (`A→B→C→libera`), che deve continuare ad
+	 * avanzare, non e' una differenza di forma ma l'ultima cella della catena — per questo la regola e' un
+	 * rilevamento di ciclo sul grafo `target → occupante`, non un confronto a coppie.
+	 *
+	 * **Perche' non riusa i valori vicini.** `BlockedContested` dice «due unita' verso la STESSA cella», e in
+	 * un ciclo le celle sono distinte: nessuno contende nulla. `BlockedByUnit` dice «c'era un'unita' FERMA»,
+	 * e in un ciclo sono tutte in movimento. `BlockedByImpact` e' lo scontro frontale fra due mobilita'
+	 * LINEARI: resta una regola sua, viene PRIMA nell'ordine dei controlli, e il suo reason e' asserito per
+	 * nome da `HexSim.ResolveHeadOnBlocksLinearSwap`.
+	 *
+	 * ⚠️ **`bPassThrough` non partecipa.** Quel flag governa il ramo dell'unita' FERMA
+	 * (`RTHexSimLibrary.cpp`, filtro `!Moving[j]`); ciclo e scambio vivono fra unita' in MOVIMENTO. I due
+	 * rami sono disgiunti, e un'unita' che sta solo TRANSITANDO per la cella dell'altra chiude comunque il
+	 * ciclo: non si passa attraverso qualcuno che nello stesso istante sta venendo verso di noi.
+	 */
+	BlockedByCycle,
+	/**
+	 * Andata OLTRE la destinazione pianificata perche' il terreno l'ha fatta scivolare (`FRTTerrainDef::
+	 * SlideCells`, oggi il solo `Ice`). Aggiunto in CODA, come i SETTE valori sopra: l'esito viaggia come
+	 * `uint8` nel formato serializzato, quindi le tracce gia' scritte non cambiano significato.
+	 *
+	 * ⚠️ **Il corpus golden invece SI' e' stato rigenerato**, e la prima stesura di questo commento diceva il
+	 * contrario: `RT_Showcase_Relay_v01` scivola al turno 7, e la sua traccia e' cambiata nello stesso commit
+	 * di questo valore. L'errore veniva dall'aver cercato `Ice` fra i `.rttl` — che sono le TRACCE, dove la
+	 * superficie non compare: sta negli `Scenarios/*.json`. Il corpus ha fatto il suo lavoro e ha detto
+	 * «outcome atteso Moved, trovato Slid».
+	 *
+	 * **Perche' non riusa `Moved`.** Quello dice «raggiunta la destinazione pianificata», e qui e' falso in un
+	 * modo che nessun altro valore copre: l'unita' non si e' fermata prima: e' finita **una cella piu' in la'**
+	 * di dove il giocatore l'aveva mandata. Senza questo valore lo scivolamento e' l'unico evento del Move che
+	 * il replay non nomina, e ogni effetto che ne discendesse avrebbe una causa invisibile.
+	 *
+	 * **Perche' non riusa `Displaced`.** Quello e' lo spostamento SUBITO da una spinta, e il suo contratto lo
+	 * dice: chi ha spinto «si ricostruisce dal log stesso», cercando nello stesso Blast la voce `Combat` il cui
+	 * `TgtCell` coincide con il `SrcCell` di questa. Per uno scivolamento quella voce **non esiste** — e'
+	 * `ERTDisplacementCause::Environmental`, cioe' «nessuna sorgente» — e riusarlo manderebbe il lettore a
+	 * cercare un attaccante che non c'e'.
+	 *
+	 * ⚠️ **Si scrive sull'ESITO, non sull'intenzione.** Fra il momento in cui `ApplyIceSliding` allunga il
+	 * percorso e la fine del turno l'unita' puo' non arrivarci mai: collisione simultanea nel microstep, cella
+	 * contesa persa per priorita', `StoppedByOverwatch`, `StoppedByPrediction`. Se si e' fermata **prima** di
+	 * completare cio' che il giocatore aveva chiesto, il motivo giusto e' quello del resolver — la spiegazione
+	 * piu' vicina a cio' che il giocatore ha visto; se ha completato il piano e lo scivolamento e' stato
+	 * impedito, il motivo e' `SlideBlocked`. E' la stessa disciplina del commento di `BlockedByTopology`.
+	 *
+	 * ⚠️ **La condizione di scrittura non e' piu' un confronto di CELLE** (`#2314`). Lo era — la cella finale
+	 * contro quella di scivolamento, nel chiamante — e non reggeva: un percorso puo' rivisitare la stessa
+	 * cella (`{A, B, C, B}`, che `BuildCompositeHexPath` produce concatenando segmenti senza deduplicare),
+	 * quindi «sono nella cella giusta» e «ho percorso il piano» sono due cose diverse. Ora lo scrive
+	 * `FinalizeHexMovementOutcomes` sul PROGRESSO dentro `FRTPlannedMovement::PlannedLength`.
+	 */
+	Slid,
+	/**
+	 * Il movimento pianificato dal giocatore e' RIUSCITO, e lo scivolamento che il terreno imponeva subito
+	 * dopo **non e' avvenuto**: zero celle di scivolamento percorse (`#2314`). Aggiunto in CODA, come gli
+	 * OTTO valori sopra: l'esito viaggia come `uint8` nel formato serializzato, quindi le tracce gia' scritte
+	 * non cambiano significato.
+	 *
+	 * **Perche' non e' un `BlockedBy*`, ed e' il difetto che questo valore chiude.** Prima di `#2314` il
+	 * percorso esteso entrava nel resolver, che ne considerava l'ultima cella la destinazione: un'unita'
+	 * arrivata **esattamente dove il giocatore l'aveva mandata** ma non scivolata risultava *«fermo: cella
+	 * occupata»*, con un `MoveBlocked`/`Important` nel feed. Il Move chiesto era riuscito: dire il contrario
+	 * manda il giocatore a cercare un errore nel proprio piano.
+	 *
+	 * **Perche' non riusa `Moved`.** Quello significa «arrivata, e il terreno non aveva altro da dire». Qui
+	 * il terreno aveva qualcosa da dire e qualcosa gliel'ha impedito — e la differenza ha conseguenze:
+	 * `D-319` fa dipendere `Status.Unbalanced` dall'essere scivolati davvero.
+	 *
+	 * 🔑 **E' uniforme rispetto alla CAUSA, per costruzione.** Occupazione, contesa, ciclo, collisione,
+	 * muro o bordo non attraversabile producono tutti questo esito, e non perche' qualcuno li abbia
+	 * elencati: la domanda a cui il resolver risponde e' *«quanto del piano del giocatore e' stato
+	 * percorso»*, che e' vera o falsa indipendentemente dal motivo per cui il passo dopo non e' avvenuto.
+	 * Un valore nuovo di questo enum non richiede una riga in piu' da nessuna parte — la whitelist scritta a
+	 * mano di `#2290` era nata gia' incompleta di uno (`BlockedByCycle`).
+	 *
+	 * ⚠️ **Precedenza: chi si ferma PRIMA della destinazione pianificata non prende questo esito**, mai.
+	 * Conserva il proprio `BlockReason` reale, che e' cio' che il giocatore ha visto.
+	 *
+	 * ⚠️ **Uno scivolamento avvenuto anche solo IN PARTE e' `Slid`, non questo.** Il confine conta a valle:
+	 * classificare come «non scivolata» un'unita' spostata di almeno una cella le toglierebbe `Unbalanced`.
+	 */
+	SlideBlocked
 };
 
 /**
@@ -549,6 +725,30 @@ enum class ERTCombatOutcome : uint8
  * voci ambientali, per l'interposizione (che scrive la cella del protetto) e dopo un Dash. L'identita' la
  * porta `UnitId` dal formato v6 (D-063).
  */
+/**
+ * I tre soli ingressi che `FreezeVerdict` legge, per dire contro CHI un verdetto e' stato congelato.
+ *
+ * ⚠️ **Non e' un `FRTKnowledgeSubject`, ed e' deliberato**: quello porta anche `HeroId`, `HeroDisplayName`
+ * e `bAlive`, che `ClassifyTarget` non guarda. Una `FText` dentro la struct piu' copiata e ordinata del
+ * resolver costerebbe traffico di refcount a ogni copia di `TurnLog`, per un dato che nessuno legge — e
+ * trascinerebbe `Perception/RTKnowledgeView.h` dentro uno degli header piu' inclusi del progetto.
+ */
+USTRUCT(BlueprintType)
+struct FRTVerdictSubjectRef
+{
+	GENERATED_BODY()
+
+	/** `INDEX_NONE` = fatto di MONDO: nessun soggetto, e il verdetto e' `Everyone()` per REGOLA. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 StableUnitId = INDEX_NONE;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 TeamId = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	FRTCellId Cell;
+};
+
 USTRUCT(BlueprintType)
 struct FRTTurnLogEntry
 {
@@ -656,10 +856,43 @@ struct FRTTurnLogEntry
 	 * `#1429` / [D-198]: passano dal wrapper `ARTTurnManager::RecordFacingChange`, che travasa con
 	 * `AppendLogEntry`.
 	 *
-	 * ⚠️ **Un residuo resta, ed e' innocuo**: `UsedByBlast` e `UsedByOverwatch` nascono da
-	 * `ReadFacingForConsumer`, che non ha nessun chiamante in gioco — solo due test. Quelle due voci non
-	 * entrano in nessuna traccia reale, quindi non c'e' nessun `UnitId` a zero da correggere finche' un
-	 * produttore non esiste.
+	 * ✅ **`UsedByBlast` ha un produttore dal 2026-09-04** (`#1933`): `ResolveCombatPasses` registra la
+	 * lettura del facing nell'istante in cui la fa, subito dopo `IsInFrontalArc`. Quelle voci entrano ora
+	 * nelle tracce reali, e portano `UnitId` del difensore — l'unita' di cui raccontano l'orientamento.
+	 *
+	 * ⚠️ **Copre il ramo della GUARDIA, non ogni lettura del Blast.** Quel ciclo salta le unita' senza
+	 * `Status.Guarded`; la copertura generale legge il facing in `EffectiveCoverReduction`, che e' pura e
+	 * non ha log. ∴ **una traccia senza voci `UsedByBlast` non prova che il facing non sia stato letto** —
+	 * prova che nessun difensore era in Guardia. Chi ne deduca il contrario sbaglia, ed e' il motivo per cui
+	 * questa riga esiste.
+	 *
+	 * ⚠️ **Un residuo resta, e non e' lo stesso**: `UsedByOverwatch` nasce ancora da
+	 * `ReadFacingForConsumer` senza chiamanti in gioco.
+	 *
+	 * 🔴 **I due residui NON erano lo stesso residuo** — misurato il 2026-09-01 lavorando `#1933`, perche'
+	 * «manca il chiamante» faceva sembrare i due casi simmetrici e non lo sono. E' la ragione per cui il
+	 * primo si e' potuto chiudere e il secondo no:
+	 *
+	 * · `UsedByBlast` aveva **oggetto**: il Blast il facing lo legge davvero, in `IsInFrontalArc`, e ne
+	 *   decide l'esito. Mancava solo chi registrasse la lettura. ⚠️ Il costo non era la riga:
+	 *   `ReadFacingForConsumer` accettava **solo** una `FRTHexSimUnit`, mentre `ResolveCombatPasses` maneggia
+	 *   `FRTHexCombatUnit` — due tipi diversi con gli stessi due campi che quella funzione usa. La chiusura
+	 *   e' passata da un **overload su cella e facing**, con la forma originale che vi delega: una sola
+	 *   scrittura, quindi le due non possono divergere. ⛔ Nessuna firma cambiata e nessun chiamante
+	 *   convertito a mano. ⚠️ Ogni voce in piu' sposta comunque l'hash di ogni
+	 *   traccia che contenga un colpo direzionale: il corpus golden e' stato rigenerato nella stessa PR,
+	 *   come il gate di `#2271` ora impone.
+	 *
+	 * · `UsedByOverwatch` **non ha oggetto**, ed e' la differenza che conta: l'Overwatch non legge nessun
+	 *   facing. Le sue quattro condizioni sono `TargetInsideArea`, `TargetDetected`, `HasLineOfSight` e
+	 *   l'appartenenza di squadra (`BuildOverwatchTriggers`), e la zona e' una **linea** `From -> Toward`
+	 *   (`MakeSuppressiveZone` -> `LineCells`), non un settore orientato. Ne' `FRTOverwatchWatcher` ne'
+	 *   `FRTSuppressionMover` portano un `Facing`.
+	 *
+	 * ∴ Il produttore che [D-020] e [ADR-0005] riga 86 presuppongono — *«l'Overwatch usa il **cono
+	 * pianificato**»* — non puo' nascere qui: quel cono nel codice **non esiste**. Chiamare
+	 * `ReadFacingForConsumer` dal trigger scriverebbe una voce che dichiara una lettura mai avvenuta,
+	 * cioe' il dato plausibile e falso che `Unmeasured` esiste altrove per non produrre.
 	 *
 	 * ⚠️ **Cosa si perde, detto invece che taciuto**: con `UnitId` sul difensore, l'attaccante resta nella
 	 * voce solo come `SrcCell` — e questo stesso commento dichiara che la cella non identifica un'unita'.
@@ -674,6 +907,18 @@ struct FRTTurnLogEntry
 	 * plausibile e sbagliato senza nessun modo di sapere quale dei due avesse in mano. Separarli ha toccato
 	 * `Outcome`, che ENTRA nell'hash: il costo e' dichiarato in [D-199]. Sull'unita' dichiarata erano gia'
 	 * d'accordo — chi subisce — e restano d'accordo: `IsSubjectTheSufferer` risponde `true` a entrambi.
+	 *
+	 * ➕ **E dal 2026-09-02 sono tre** (`#726`): `HitCameFromSide` racconta da quale dei sei lati un colpo e'
+	 * arrivato, quindi descrive anch'essa il difensore e `IsSubjectTheSufferer` risponde `true`. `Amount` vi
+	 * porta l'INDICE RELATIVO (`ERTRelativeDirection`), che e' una terza semantica ancora — non la direzione
+	 * assoluta della guardia ne' i punti della copertura — ed e' la ragione per cui e' un esito proprio e non
+	 * un terzo significato sotto una coppia gia' usata.
+	 * 🔴 **Ma con una differenza che vale per chi consuma**: quella voce **non porta la cella
+	 * dell'attaccante**, ne' in `SrcCell` ne' altrove — entrambe le celle sono quelle del difensore, come in
+	 * ogni altra voce `Facing` che descrive l'orientamento di un'unita'. Il verdetto di visibilita' si
+	 * congela su chi SUBISCE, quindi scriverci la posizione di chi spara la pubblicherebbe a chi vede il
+	 * bersaglio, e su OGNI colpo risolto invece che sui rari bypass. Il «cosa si perde» dichiarato qui sopra
+	 * vale li' in forma piu' forte: per l'attaccante non c'e' nemmeno la cella.
 	 *
 	 * **Conseguenza per chi consuma**: sommare il danno *inflitto* per `UnitId` filtrando su
 	 * `Category == Combat` accredita a chi brucia i danni fatti a se' stesso — un numero **plausibile e
@@ -706,6 +951,25 @@ struct FRTTurnLogEntry
 	 */
 	UPROPERTY(Transient)
 	FRTKnowledgeVerdict Verdict;
+
+	/**
+	 * Il soggetto contro cui `Verdict` e' stato congelato ([D-313], `#2074`).
+	 *
+	 * 🔴 **Senza, il verdetto non e' VERIFICABILE**, ed e' l'unica ragione per cui esiste: nessuno dei tre
+	 * ingressi di `FreezeVerdict` si ricava dalla voce archiviata. `SrcCell` e' la cella di PARTENZA del
+	 * turno, non quella al momento della scrittura; il `TeamId` non c'e'; e `UnitId` su una voce di danno e'
+	 * spesso chi SUBISCE. Ricalcolare da li' produrrebbe falsi disallineamenti — un controllo che accusa il
+	 * gioco di un difetto che non ha.
+	 *
+	 * ⚠️ **Vive QUI e non in un array parallelo, per la stessa ragione del verdetto**: `SortTurnLog`
+	 * riordina, e un indice non sopravviverebbe al sort. Il campo si'.
+	 *
+	 * 🔴 **`Transient`, come `Verdict`**: non entra nel formato, non entra in `EntryLess`, non entra in
+	 * `MixEntryFields`, e nessun golden si rigenera. Chi lo vuole durevole lo trova nell'artefatto d'audit
+	 * accanto alla traccia, che e' il posto che [D-313] gli assegna.
+	 */
+	UPROPERTY(Transient)
+	FRTVerdictSubjectRef VerdictSubject;
 
 	/**
 	 * Turno in cui la voce e' stata emessa. `0` = non dichiarato (tracce scritte prima del formato v6).
@@ -859,6 +1123,42 @@ struct FRTTurnLogEntry
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	FString ReactionResponse;
+
+	/**
+	 * Il **micro-step** in cui la voce e' nata: la terza coordinata del boundary, dopo `TurnNumber` e
+	 * `Phase` (`#1880`).
+	 *
+	 * 🔑 **Non e' un concetto nuovo, e non doveva esserlo.** `FRTReactionOpportunityKey` porta gia'
+	 * `TurnNumber · MacroPhase · MicroStepIndex`, e `DeriveOpportunityId` li serializza nella stringa
+	 * `T4|P3|M7|U12|action.overwatch|S0`. Il micro-step era gia' l'identita' di un boundary — ma viveva
+	 * **dentro una `FString`**, leggibile solo facendo il parse di un id, e solo sulle voci di reazione.
+	 * Qui diventa un campo: la stessa informazione, indirizzabile.
+	 *
+	 * ⛔ **NON e' un ordine di emissione, e non va usato per ricostruirlo.** Gli eventi che condividono
+	 * `(TurnNumber, Phase, MicroStepIndex)` sono un **gruppo simultaneo**: il resolver li ha decisi
+	 * insieme, e l'ordine in cui compaiono resta quello canonico di `EntryLess` — una chiave di sort, non
+	 * un tempo. Chi legge questo campo puo' dire *a quale barriera* una voce appartiene; non puo' dire
+	 * quale voce di quella barriera sia venuta prima, perche' quella domanda non ha una risposta.
+	 *
+	 * ⚠️ **`INDEX_NONE` significa «questa voce non appartiene a un ciclo di micro-step»** (`#2260`), e non
+	 * e' un caso raro: e' il valore della maggior parte delle voci. Blast, status, hazard, objective e i
+	 * rifiuti in Planning nascono in fasi che un ciclo non ce l'hanno. **Non e' l'assenza di un dato — e'
+	 * un dato**, e un lettore che filtrasse i negativi come «non valorizzati» scarterebbe le voci che
+	 * dichiarano la propria natura.
+	 *
+	 * ⚠️ **Fra due VERSIONI lo `0` resta ambiguo, e la differenza vive nella versione del formato.** Una
+	 * traccia antecedente a `WithMicroStep` non porta il campo: la deserializzazione le lascia il default
+	 * qui sotto — `0`, non `INDEX_NONE` — su **ogni** voce, ed e' phase-only per costruzione. Chi vuole
+	 * distinguerla da una traccia nuova guarda la **versione**, non il valore.
+	 *
+	 * 🔑 Il default resta `0` **proprio per questo**: governa la lettura degli archivi che il campo non ce
+	 * l'hanno, ed e' il comportamento che `#1880` ha dichiarato e messo sotto test. A scegliere
+	 * `INDEX_NONE` e' chi SCRIVE — `ARTTurnManager::CurrentMicroStepIndex` — non chi legge un formato
+	 * vecchio. DENTRO una traccia `WithMicroStep`, invece, lo `0` significa una cosa sola: il PRIMO
+	 * boundary, perche' le voci senza ciclo valgono `INDEX_NONE`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 MicroStepIndex = 0;
 
 	FRTTurnLogEntry() = default;
 };
@@ -1034,8 +1334,43 @@ enum class ERTTurnLogFormatVersion : uint16
 	 * ricalcola l'hash su entrambi i lati — ma un archivio di replay con `OrderedHashPerTurn` scritti prima
 	 * di questa versione non si confronta con uno scritto dopo, e va rigenerato.
 	 */
-	ResponseAndReasonSplit = 11
+	ResponseAndReasonSplit = 11,
+
+	/**
+	 * v12 (`#1880`): la voce porta il **micro-step**, la terza coordinata del boundary.
+	 *
+	 * ⚠️ **Cumulativa come tutte le precedenti**: la v12 implica la v11 e tutte quelle sotto. Una traccia
+	 * v11 resta leggibile e il campo vale `0` — non e' un'inferenza, e' che quei byte non contenevano
+	 * quell'informazione. Ricostruirla sarebbe cio' che [D-310] vieta.
+	 */
+	WithMicroStep = 12
 };
+
+/**
+ * 🔴 **CHI AGGIUNGE UNA VERSIONE QUI SOPRA RIGENERA IL CORPUS GOLDEN NELLO STESSO COMMIT** (`#2271`).
+ *
+ * Non e' una raccomandazione: e' un gate — `RefactorTactics.Simulation.GoldenCorpusIsAtCurrentFormat` —
+ * e diventa rosso appena un `.rttl` dichiara una versione diversa da quella che `SerializeTurnLog` scrive.
+ *
+ * ⚠️ **Il gate esiste perche' la convenzione da sola non ha funzionato.** Era scritta — *«si rigenerano
+ * nello stesso commit che cambia la regola»*, in `RTGoldenCorpusTests.cpp` — e il 2026-09-04 il corpus
+ * misurava **8 file alla v10, 11 alla v11, zero alla v12**, con la v11 introdotta il 2026-08-29 e i file
+ * toccati anche dopo. Nessun test lo diceva.
+ *
+ * 🔑 **La ragione per cui era invisibile va conosciuta prima di bumpare**: il confronto del corpus e' un
+ * hash sui campi di `VisitDiscriminatingFields`, e ne' la versione ne' un campo nuovo ci entrano finche'
+ * qualcuno non ce li mette. ∴ **aggiungere un campo alla voce non rende rossi i golden**, e il verde di
+ * `GoldenCorpusMatches` non significa «il corpus e' fedele»: significa «le voci sono equivalenti sui campi
+ * che l'hash guarda».
+ *
+ * Come si rigenera — la CVar va in `-dpcvars`, **mai** in testa a `-ExecCmds`:
+ *
+ *   UnrealEditor-Cmd.exe <progetto> -ExecCmds="Automation RunTests RefactorTactics.Simulation.GoldenCorpusMatches; Quit"
+ *     -dpcvars="rt.Test.RegenerateGolden=1" -unattended -nopause -nosplash -nullrhi -NoLiveCoding
+ *
+ * ⚠️ Il costo e' ~20 file binari nella PR che bumpa. E' lo stesso lavoro di sempre, pagato da chi cambia il
+ * formato invece che accumulato a carico di chi passa di li' mesi dopo.
+ */
 
 /**
  * Topologia della griglia a cui appartengono le celle del log, dichiarata nei flags dell'header.

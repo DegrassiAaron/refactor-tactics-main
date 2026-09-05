@@ -83,12 +83,12 @@ namespace
 
 	/**
 	 * Aggiorna l'anteprima di pianificazione (SOLA PRESENTAZIONE) dallo stato dell'unita' selezionata:
-	 * dove puo' arrivare e, se ha un attacco pianificato, quali celle colpirebbe — segnalando gli ALLEATI
-	 * che finirebbero nell'area.
+	 * dove puo' arrivare, da DOVE agira' e quali celle colpirebbe — segnalando gli ALLEATI che finirebbero
+	 * nell'area.
 	 *
-	 * Entrambi gli insiemi vengono dalle stesse funzioni che decidono l'esito (`ReachableCells`,
-	 * `HexHitCells`): nessun calcolo parallelo, altrimenti il giocatore vedrebbe una zona e ne subirebbe
-	 * un'altra. `Unit == nullptr` (deselezione, fine pianificazione) spegne l'anteprima.
+	 * Ogni insieme viene dalle stesse funzioni che decidono l'esito (`ReachableCells`, `BlastOriginCell`,
+	 * `HexHitCells` via `MakeBlastPreview`): nessun calcolo parallelo, altrimenti il giocatore vedrebbe una
+	 * zona e ne subirebbe un'altra. `Unit == nullptr` (deselezione, fine pianificazione) spegne l'anteprima.
 	 */
 	void RefreshPlanningPreview(const UWorld* World, const ARTUnit* Unit)
 	{
@@ -102,6 +102,7 @@ namespace
 		{
 			HexMap->SetPreviewReachableCells(TArray<FRTCellId>());
 			HexMap->SetPreviewHitCells(TArray<FRTCellId>(), TArray<FRTCellId>());
+			HexMap->SetPreviewAttack(FRTCellId(), FRTCellId(), /*bValid=*/ false, /*bOriginPredicted=*/ false);
 			return;
 		}
 
@@ -122,35 +123,69 @@ namespace
 		}
 		HexMap->SetPreviewReachableCells(Reachable);
 
-		// Chi colpirebbe: solo se c'e' davvero un attacco pianificato su un bersaglio vivo.
-		TArray<FRTCellId> Hit;
-		TArray<FRTCellId> Allies;
-		const URTActionData* Ability = Unit->GetAbility(Unit->PlannedAbilityIndex);
-		const ARTUnit* Target = Unit->PlannedAttackTarget;
-		if (Ability && Target && Target->IsAlive())
-		{
-			Hit = URTHexCombatLibrary::HexHitCells(Ability->Shape, Unit->Cell, Target->Cell,
-				Ability->RangeCells, Ability->AreaRadius);
+		// Da dove agira' e su cosa. La derivazione sta in `URTHexCombatLibrary::MakeBlastPreview`, che e'
+		// pura e testabile headless: qui si TRADUCE il piano, non si decide.
+		//
+		// 🔴 **Il ramo del bersaglio a CELLA e' la meta' che prima mancava.** Il codice leggeva il solo
+		// `PlannedAttackTarget`, che `HandleTargetCell` azzera per costruzione (il bersaglio e' la cella):
+		// dichiarare un'area su un varco vuoto SPEGNEVA l'anteprima invece di mostrarla — il caso che `#737`
+		// aveva dichiarato coperto («l'area colpita in preview prima del click»).
+		//
+		// 🔴 **E l'origine non e' piu' `Unit->Cell` in ogni caso.** La fase Dash precede il Blast, quindi chi
+		// ha pianificato una carica sparera' da dove sara' arrivato. `PlannedDashApplies()` e' la stessa
+		// domanda che `ResolveDash` si pone.
+		FRTBlastPreviewPlan PreviewPlan;
+		PreviewPlan.AttackerId = UnitId;
+		PreviewPlan.bDashResolves = Unit->PlannedDashApplies();
+		PreviewPlan.PlannedDashCell = Unit->PlannedDashCell;
 
-			// Fuoco amico: un alleato dentro l'area va visto PRIMA del lock-in, non dedotto dai danni dopo.
-			//
-			// Ma solo se l'azione puo' DAVVERO colpirlo. L'avviso nasceva dalla sola geometria, e quindi
-			// compariva anche per abilita' con `bFriendlyFire` a false, dove l'alleato non subisce nulla: un
-			// allarme su un evento impossibile insegna a ignorare gli allarmi. Oggi riguarda `CircularTide`,
-			// che per limite dichiarato non tocca i propri (curerebbe con l'effetto sbagliato).
-			if (Ability->Def.bFriendlyFire)
+		const URTActionData* Ability = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		if (Ability)
+		{
+			PreviewPlan.bHasAction = true;
+			PreviewPlan.Shape = Ability->Shape;
+			PreviewPlan.RangeCells = Ability->RangeCells;
+			PreviewPlan.AreaRadius = Ability->AreaRadius;
+			// L'avviso di fuoco amico solo se l'azione puo' DAVVERO colpire i propri: un allarme su un evento
+			// impossibile insegna a ignorare gli allarmi.
+			PreviewPlan.bFriendlyFire = Ability->Def.bFriendlyFire;
+			if (Unit->bAttackTargetsCell)
 			{
-				for (const ARTUnit* Other : Units)
-				{
-					if (Other && Other != Unit && Other->IsAlive() && Other->TeamId == Unit->TeamId
-						&& Hit.Contains(Other->Cell))
-					{
-						Allies.AddUnique(Other->Cell);
-					}
-				}
+				PreviewPlan.bTargetsCell = true;
+				PreviewPlan.TargetCell = Unit->PlannedAttackCell;
+			}
+			else
+			{
+				// `Units` contiene le unita' VIVE dello snapshot: un bersaglio caduto semplicemente non c'e',
+				// e `INDEX_NONE` diventa «nessuna area», che e' l'esito giusto.
+				PreviewPlan.TargetId = Units.IndexOfByKey(Unit->PlannedAttackTarget.Get());
 			}
 		}
-		HexMap->SetPreviewHitCells(Hit, Allies);
+
+		// Le unita' nella forma che il Blast riceve, con gli STESSI indici dello snapshot: cosi' l'identita'
+		// dell'attaccante e quella dei bersagli sono le stesse da entrambi i lati.
+		TArray<FRTHexCombatUnit> HexUnits;
+		HexUnits.Reserve(Units.Num());
+		for (int32 i = 0; i < Units.Num(); ++i)
+		{
+			FRTHexCombatUnit HU;
+			HU.UnitId = i;
+			HU.TeamId = Units[i] ? Units[i]->TeamId : INDEX_NONE;
+			HU.Cell = Units[i] ? Units[i]->Cell : FRTCellId();
+			HU.bAlive = Units[i] && Units[i]->IsAlive();
+			HexUnits.Add(HU);
+		}
+
+		const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(PreviewPlan, HexUnits);
+		HexMap->SetPreviewHitCells(Blast.HitCells, Blast.AllyCells);
+
+		// Origine e mira si accendono solo con un bersaglio davvero previsualizzabile: una linea che parte e
+		// non arriva da nessuna parte direbbe che c'e' un attacco dove non c'e'.
+		const bool bHasAim = Blast.HitCells.Num() > 0;
+		const FRTCellId AimCell = PreviewPlan.bTargetsCell
+			? PreviewPlan.TargetCell
+			: (HexUnits.IsValidIndex(PreviewPlan.TargetId) ? HexUnits[PreviewPlan.TargetId].Cell : FRTCellId());
+		HexMap->SetPreviewAttack(Blast.Origin, AimCell, bHasAim, Blast.bOriginFromPlannedDash);
 	}
 
 	/** Testo del motivo di rifiuto di un waypoint, dallo stato del pathfinding (per il log). */
@@ -1091,8 +1126,9 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 
 	// Guardia di autorita': si pianifica solo per le proprie unita'. Se per qualche via SelectedActor fosse
 	// un'unita' avversaria, la deselezioniamo invece di prenderne il comando.
-	if (SelectedUnit && !URTCombatLibrary::CanPlayerControlUnit(SelectedUnit->TeamId,
-		ARTPlayerState::TeamIdOf(this), SelectedUnit->bIsBotControlled))
+	if (SelectedUnit && !URTCombatLibrary::CanPlayerControlUnitInGroup(SelectedUnit->TeamId,
+		SelectedUnit->ControlGroup, ARTPlayerState::TeamIdOf(this), ARTPlayerState::ControlGroupOf(this),
+		SelectedUnit->bIsBotControlled))
 	{
 		if (IRTSelectable* PreviousSel = Cast<IRTSelectable>(SelectedActor))
 		{
@@ -1112,21 +1148,32 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	// Click su un'unita' AVVERSARIA senza nulla di selezionato: non e' nostra, non la si comanda. Senza questa
 	// guardia resterebbe "selezionata" e ogni click successivo su una nostra unita' finirebbe nel ramo di
 	// pianificazione dell'attacco qui sopra, rendendo le proprie unita' inselezionabili.
-	if (ClickedUnit && !URTCombatLibrary::CanPlayerControlUnit(ClickedUnit->TeamId,
-		ARTPlayerState::TeamIdOf(this), ClickedUnit->bIsBotControlled))
+	if (ClickedUnit && !URTCombatLibrary::CanPlayerControlUnitInGroup(ClickedUnit->TeamId,
+		ClickedUnit->ControlGroup, ARTPlayerState::TeamIdOf(this), ARTPlayerState::ControlGroupOf(this),
+		ClickedUnit->bIsBotControlled))
 	{
-		// ⚠️ **Due rifiuti diversi meritano due messaggi diversi.** Un compagno pianificato dal bot supera la
+		// ⚠️ **Rifiuti diversi meritano messaggi diversi.** Un compagno pianificato dal bot supera la
 		// prova di squadra e cade su questa stessa guardia: dirgli «e' avversaria» manderebbe a cercare un
 		// difetto nell'assegnazione delle squadre, che e' corretta. E' la stessa cura che
 		// `RTAutobattleEntry::FromCommandLine` prende sul valore non riconosciuto — un rifiuto che non spiega
 		// il proprio motivo costa piu' di quello che fa risparmiare.
 		//
-		// ⚠️ Due `UE_LOG` e non un formato scelto con un ternario: la macro monta uno `static_assert` che
+		// Da `#1124` i motivi sono TRE, non due: la guardia ora chiede anche il gruppo, e un'unita' della
+		// propria squadra affidata a un altro giocatore la attraversa senza essere ne' avversaria ne' del bot.
+		// Nella v0.1 quel ramo non si raggiunge — un gruppo per squadra — ma il messaggio esiste prima del
+		// caso, perche' il giorno in cui i posti sono due il rifiuto non deve mentire sul proprio motivo.
+		//
+		// ⚠️ Tre `UE_LOG` e non un formato scelto con un ternario: la macro monta uno `static_assert` che
 		// pretende un array di TCHAR, e un `const TCHAR*` non lo e' — non compilerebbe.
 		if (ClickedUnit->TeamId == ARTPlayerState::TeamIdOf(this) && ClickedUnit->bIsBotControlled)
 		{
 			UE_LOG(LogRT, Log, TEXT("[RT] %s la pianifica il bot: non e' comandabile (vedi rt.Match.BotAllies)"),
 				*ClickedUnit->GetName());
+		}
+		else if (ClickedUnit->TeamId == ARTPlayerState::TeamIdOf(this))
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] %s e' della tua squadra ma la comanda un altro giocatore (gruppo %d, il tuo e' %d)"),
+				*ClickedUnit->GetName(), ClickedUnit->ControlGroup, ARTPlayerState::ControlGroupOf(this));
 		}
 		else
 		{
@@ -1307,7 +1354,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		}
 		else if (!bReady)
 		{
-			UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica/energia)"), *Ability->DisplayName.ToString());
+			UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica)"), *Ability->DisplayName.ToString());
 		}
 		else
 		{
@@ -1326,6 +1373,54 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 				break;
 			}
 		}
+	}
+}
+
+FString ARTPlayerController::DescribeWaypointRejection(const FRTHexSnapshot& Snapshot,
+	const TArray<ARTUnit*>& Units, int32 PlannerIndex, const FRTCellId& Cell, int32 SpentCost, int32 Budget)
+{
+	// Il nome di chi pianifica: e' il soggetto corretto di TRE rami su quattro — dicono di chi e' il piano
+	// rifiutato — e resta utile anche nel quarto, dove pero' non e' l'occupante.
+	const ARTUnit* Planner = Units.IsValidIndex(PlannerIndex) ? Units[PlannerIndex] : nullptr;
+	const FString PlannerName = Planner != nullptr ? Planner->GetName() : FString(TEXT("unita' ignota"));
+
+	const FString Dove = FString::Printf(TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: "),
+		Cell.X, Cell.Y, Cell.Layer);
+
+	switch (URTHexSimLibrary::ClassifyWaypointCell(Snapshot, PlannerIndex, Cell))
+	{
+	case ERTHexWaypointReason::NotOnMap:
+		return Dove + FString::Printf(TEXT("cella fuori dalla mappa (%s)"), *PlannerName);
+
+	case ERTHexWaypointReason::BlocksMovement:
+		return Dove + FString::Printf(TEXT("cella bloccata (%s)"), *PlannerName);
+
+	case ERTHexWaypointReason::Occupied:
+	{
+		// 🔴 **Qui stava il difetto (#1939)**: la frase prometteva un occupante e riceveva `SelectedUnit`,
+		// cioe' chi pianifica. Chi legge concludeva che la propria unita' fosse l'ostacolo.
+		//
+		// ⚠️ L'id in `Occupancy` e' l'INDICE nell'array delle unita' vive, non uno `StableUnitId`:
+		// `PlanningSnapshotFor` lo dichiara, e `Units` viene da li' con gli stessi indici. Trattarlo come
+		// `StableUnitId` prenderebbe l'unita' sbagliata — silenziosamente, perche' entrambi sono `int32`.
+		const int32* Occupant = Snapshot.Occupancy.Find(Cell);
+		const ARTUnit* Blocker = (Occupant != nullptr && Units.IsValidIndex(*Occupant))
+			? Units[*Occupant] : nullptr;
+
+		// Senza un Actor da nominare si dice l'assenza, non un nome inventato: una riga che nomina l'unita'
+		// sbagliata e' peggio di una che ammette di non saperlo — ed e' precisamente il difetto che questa
+		// funzione chiude.
+		const FString BlockerName = Blocker != nullptr
+			? Blocker->GetName() : FString(TEXT("un'altra unita'"));
+
+		return Dove + FString::Printf(TEXT("cella occupata da %s (piano di %s)"), *BlockerName, *PlannerName);
+	}
+
+	case ERTHexWaypointReason::Ok:
+	default:
+		// La cella e' percorribile e libera: quel che manca sono punti movimento.
+		return Dove + FString::Printf(TEXT("oltre il budget (gia' spesi %d di %d) per %s"),
+			SpentCost, Budget, *PlannerName);
 	}
 }
 
@@ -1456,37 +1551,15 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		SelectedUnit->PlannedWaypoints.Pop(); // rifiutato: si torna al piano precedente, non a uno a meta'
 
 		// Il motivo GIUSTO, non un elenco di tre: se la cella in se' va bene, il rifiuto e' questione di budget,
-		// e allora si dice quanto era gia' speso. Test: HexSim.WaypointRejectionSaysWhich.
-		const ERTHexWaypointReason CellReason =
-			URTHexSimLibrary::ClassifyWaypointCell(Snapshot, UnitId, Cell);
-		const int32 Budget = SelectedUnit->GetEffectiveMoveRange();
-		switch (CellReason)
-		{
-		case ERTHexWaypointReason::NotOnMap:
-			UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: cella fuori dalla mappa (%s)"),
-				Cell.X, Cell.Y, Cell.Layer, *SelectedUnit->GetName());
-			break;
-		case ERTHexWaypointReason::BlocksMovement:
-			UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: cella bloccata (%s)"),
-				Cell.X, Cell.Y, Cell.Layer, *SelectedUnit->GetName());
-			break;
-		case ERTHexWaypointReason::Occupied:
-			UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: cella occupata da un'altra unita' (%s)"),
-				Cell.X, Cell.Y, Cell.Layer, *SelectedUnit->GetName());
-			break;
-		case ERTHexWaypointReason::Ok:
-		default:
-			// La cella e' percorribile e libera: quel che manca sono punti movimento. Il percorso precedente
-			// (quello ancora valido) dice quanto e' gia' impegnato.
-			{
-				const FRTHexPathResult Kept =
-					URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, SelectedUnit->PlannedWaypoints);
-				UE_LOG(LogRT, Log,
-					TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: oltre il budget (gia' spesi %d di %d) per %s"),
-					Cell.X, Cell.Y, Cell.Layer, Kept.TotalCost, Budget, *SelectedUnit->GetName());
-			}
-			break;
-		}
+		// e allora si dice quanto era gia' speso. Test: HexSim.WaypointRejectionSaysWhich per la
+		// classificazione, `PlayerInput.WaypointRejectionNamesTheOccupant` per il TESTO (#1939).
+		//
+		// Il percorso ancora valido serve al solo ramo del budget, e si calcola qui perche' e' l'unico punto
+		// che ha i waypoint gia' ripristinati dal `Pop`.
+		const FRTHexPathResult Kept =
+			URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, SelectedUnit->PlannedWaypoints);
+		UE_LOG(LogRT, Log, TEXT("%s"), *DescribeWaypointRejection(Snapshot, SnapshotUnits, UnitId, Cell,
+			Kept.TotalCost, SelectedUnit->GetEffectiveMoveRange()));
 		return;
 	}
 
@@ -1529,12 +1602,40 @@ void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 		}
 		else
 		{
-			// L'anteprima muore col lock-in: da qui in poi mostrerebbe una minaccia gia' risolta, e la traccia
-			// del percorso la sostituisce `LastMoveRoutes` (cio' che e' DAVVERO successo, non cio' che si voleva).
-			RefreshPlanningPreview(GetWorld(), nullptr);
-			TurnManager->LockInAndResolve();
+			// 🔴 **Il lock-in del giocatore era MUTO, e una diagnosi ci si e' rotta sopra** (`#1957`). L'unica
+			// riga che abbia mai parlato di lock-in e' quella di `OnPlanningTimeout`, quindi un turno chiuso da
+			// chi gioca e un turno chiuso **da solo** lasciavano il log identico: nessun evento fra l'apertura
+			// del turno e la risoluzione. Un referto di playtest ne ha concluso che il turno 1 «si chiude da
+			// solo dopo 6 s»; l'esperimento `RefactorTactics.HexMatch.FirstTurnDoesNotCloseItself` mostra che
+			// non si chiude affatto, e quei 6 s erano il tempo che il giocatore ha impiegato a premere.
+			//
+			// ⚠️ **Diagnostica, non combat log**: `AddLogEvent` la mostrerebbe a chi gioca, che questa riga
+			// non riguarda. Serve a chi legge `RefactorTactics.log` dopo una seduta.
+			UE_LOG(LogRT, Log, TEXT("[RT] Lock-in del giocatore -> risoluzione anticipata (turno %d)"),
+				TurnManager->GetTurnNumber());
+
+			// 🔴 **L'anteprima NON muore qui, e dal 2026-09-04 e' il punto** (`#2193`). Fra il Ready e il commit
+			// c'e' un countdown annullabile: spegnere il piano al Ready renderebbe falso il criterio che dice
+			// *«premendo Unready si torna alla pianificazione senza aver perso il piano»* — i dati ci sarebbero,
+			// e per chi gioca un piano invisibile e' un piano perso.
+			//
+			// Muore al **commit**, che e' un fatto del `TurnManager` e non di questo tasto: `OnLockInCommitted`
+			// scatta dentro `LockInAndResolve`, quindi da qualunque dei percorsi ci si arrivi.
+			//
+			// ⚠️ `AddUniqueDynamic` e non `AddDynamic`: questa riga passa una volta per Ready, e senza `Unique`
+			// il turno decimo spegnerebbe l'anteprima dieci volte.
+			TurnManager->OnLockInCommitted.AddUniqueDynamic(this, &ARTPlayerController::HandleLockInCommitted);
+			TurnManager->RequestLockIn();
 		}
 	}
+}
+
+void ARTPlayerController::HandleLockInCommitted()
+{
+	// L'anteprima muore col COMMIT, non col Ready: da qui in poi mostrerebbe una minaccia gia' risolta, e la
+	// traccia del percorso la sostituisce `LastMoveRoutes` (cio' che e' DAVVERO successo, non cio' che si
+	// voleva). E' la riga che stava in `OnLockIn` fino a `#2193`.
+	RefreshPlanningPreview(GetWorld(), nullptr);
 }
 
 void ARTPlayerController::ApplyNextPlaybackSpeed(ARTTurnManager* TurnManager)
@@ -1743,6 +1844,28 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 	if (IsPlanningInputInert())
 	{
 		return;
+	}
+
+	// 🔑 **Durante il countdown questo tasto e' l'Unready** (`#2193`, deciso il 2026-09-04).
+	//
+	// Non e' un secondo significato contemporaneo: gli stati sono **mutuamente esclusivi**. Con il countdown
+	// armato la pianificazione e' chiusa, quindi non c'e' nessun waypoint da annullare, e il tasto Annulla
+	// annulla cio' che e' annullabile adesso. E' anche il motivo per cui l'Unready non e' un tasto nuovo: il
+	// kit v0.1 ha gia' nove voci piu' quattro generiche (`E48` #1408), e un gesto attivo tre secondi a turno
+	// era il candidato peggiore per allungarlo.
+	//
+	// ⛔ **E non e' un toggle su Spazio**: chi preme due volte per abitudine annullerebbe senza volerlo, cioe'
+	// l'opposto esatto del difetto che il countdown esiste per prevenire.
+	//
+	// ⚠️ Sta DOPO le tre guardie qui sopra, e ognuna serve: una schermata bloccante copre la partita,
+	// `Alt`+destro e' un dolly, e in una sessione non presidiata non c'e' un umano che possa disdire.
+	if (ARTTurnManager* TM = PacingTurnManager(this))
+	{
+		if (TM->IsReadyCountdownActive())
+		{
+			TM->CancelLockIn();
+			return;
+		}
 	}
 
 	ARTUnit* Unit = GetSelectedUnit();
@@ -2048,7 +2171,7 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 
 	if (!Unit->CanUseAbility(Armed))
 	{
-		UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica/energia)"), *Ability->DisplayName.ToString());
+		UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica)"), *Ability->DisplayName.ToString());
 		return false;
 	}
 
@@ -2113,7 +2236,7 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 
 	if (!Unit->CanUseAbility(Armed))
 	{
-		UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica/energia)"), *Ability->DisplayName.ToString());
+		UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica)"), *Ability->DisplayName.ToString());
 		return false;
 	}
 
@@ -2237,7 +2360,8 @@ void ARTPlayerController::CycleDeclaredFacing()
 	const bool bHasPlannedMove = Unit->PlannedPath.Num() > 1;
 	const ERTMovementStyle Style = bHasPlannedMove ? ERTMovementStyle::Budget : ERTMovementStyle::None;
 
-	const TArray<ERTHexDirection> Legal = URTFacingLibrary::LegalFacings(Style, Unit->PlannedPath, Unit->Facing);
+	const TArray<ERTHexDirection> Legal =
+		URTFacingLibrary::LegalFacings(Style, Unit->PlannedPath, Unit->Facing, Unit->PivotBudget());
 	if (Legal.Num() == 0)
 	{
 		return; // nessuna rotazione possibile: non c'e' niente da ciclare
@@ -2300,14 +2424,15 @@ bool ARTPlayerController::HandleFacingSector(ERTHexDirection Sector)
 
 	ERTHexDirection Applied = Unit->Facing;
 	const bool bLegal = URTFacingLibrary::TryApplyDeclaredFacing(
-		Style, Unit->PlannedPath, Unit->Facing, Sector, Applied);
+		Style, Unit->PlannedPath, Unit->Facing, Sector, Unit->PivotBudget(), Applied);
 
 	if (!bLegal)
 	{
 		// Rifiutata, MAI corretta in silenzio verso la legale piu' vicina: e' la regola di `URTFacingLibrary`,
 		// e qui la si rispetta invece di riscriverla.
-		UE_LOG(LogRT, Log, TEXT("[RT] Rotazione %d illegale per lo stile di movimento pianificato"),
-			(int32)Sector);
+		UE_LOG(LogRT, Log,
+			TEXT("[RT] Rotazione %d fuori dal budget di pivot (Move %d / Dash %d) per il movimento pianificato"),
+			(int32)Sector, Unit->MoveEndPivotMaxSteps, Unit->DashEndPivotMaxSteps);
 		return false;
 	}
 

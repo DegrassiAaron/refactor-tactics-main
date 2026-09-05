@@ -55,6 +55,17 @@ struct FRTHexBotPlan
 	 * scoring. Per chi resta fermo vale `DestCell`, e il facing non cambia.
 	 */
 	UPROPERTY() FRTCellId FromCell;
+
+	/**
+	 * L'azione d'attacco della candidata porta un effetto di SPOSTAMENTO (`Push` o `Pull`).
+	 *
+	 * Serve al termine mirato di [D-319]: un bersaglio `Status.Unbalanced` che subisce uno spostamento cade
+	 * `Prone`, e senza questo campo il bot non potrebbe distinguere l'azione che capitalizza da quella che
+	 * fa lo stesso danno e non capitalizza. E' un dato dell'AZIONE, non del bersaglio, quindi viaggia col
+	 * piano come `Shape` e `AreaRadius` — per la stessa ragione: `ChooseBestPlan` confronta candidate di
+	 * abilita' diverse, e ognuna deve portare la propria.
+	 */
+	UPROPERTY() bool bAttackDisplaces = false;
 };
 
 /**
@@ -108,6 +119,33 @@ struct FRTHexBotContext
 	/** HP+scudo di ciascun alleato (parallelo a Allies): serve a riconoscere il collaterale letale. */
 	UPROPERTY() TArray<int32> AllyHealth;
 
+	/**
+	 * Le celle OBIETTIVO della mappa (`FRTHexCellData::bIsObjective`, formato mappa v11, `#75`).
+	 *
+	 * 🔴 **E' l'ingresso che mancava, e senza di lui il bot non conosceva la condizione di vittoria del
+	 * formato che la v0.1 spedisce** (`#2269`). Misurato il 2026-09-04 su `L_HexArena`: una partita 2v2
+	 * bot contro bot finita `obiettivo 0-3`, con i tre punti presi da un'unita' che era arrivata sulla cella
+	 * come miglior candidata di SOLO MOVIMENTO, a punteggio negativo — cioe' per avvicinamento e quota, per
+	 * ragioni che con l'obiettivo non c'entrano.
+	 *
+	 * ⚠️ **E' geometria PUBBLICA, e per questo non passa dalla Team Knowledge.** La mappa la vedono
+	 * entrambe le squadre: dov'e' l'obiettivo non e' informazione nascosta piu' di quanto lo sia dov'e' un
+	 * muro, che `ScorePlan` gia' legge dall'asset. Il filtro di percezione (CP 13.5) protegge le UNITA'
+	 * avversarie, non il terreno — e allargarlo al terreno renderebbe il bot cieco a cio' che il giocatore
+	 * umano vede sullo schermo dal primo fotogramma.
+	 *
+	 * ⚠️ **Un array e non una cella sola**, benche' oggi il perimetro sia **un** obiettivo contendibile su
+	 * **una** cella: `URTHexMapAsset::FirstObjectiveCell()` esiste e sarebbe bastata, ma CP 31.1 (`#1583`)
+	 * porta piu' obiettivi simultanei, e la forma plurale costa qui zero righe mentre la' ne costerebbe una
+	 * firma da cambiare.
+	 *
+	 * ⛔ **Sta nel contesto e non si rilegge dalla mappa dentro `ScorePlan`, ed e' una scelta di scala.**
+	 * `FirstObjectiveCell()` scandisce TUTTE le celle dell'asset, e `ScorePlan` gira una volta per
+	 * candidata: su una mappa d'autore sarebbero decine di migliaia di scansioni per unita' per turno. Qui
+	 * si paga una volta, e la distanza riusa la cache per goal di `StepsToGoalField` (`#1436`).
+	 */
+	UPROPERTY() TArray<FRTCellId> ObjectiveCells;
+
 	/** Gittata dell'attacco del bot. */
 	UPROPERTY() int32 AttackRange = 0;
 
@@ -129,6 +167,23 @@ struct FRTHexBotContext
 	 */
 	UPROPERTY() bool bAttackFriendlyFire = false;
 
+	/** L'azione in valutazione porta `Push` o `Pull`: si travasa in `FRTHexBotPlan::bAttackDisplaces`. */
+	UPROPERTY() bool bAttackDisplaces = false;
+
+	/**
+	 * Chi, fra i nemici conosciuti, porta `Status.Unbalanced` — parallelo a `Enemies` ([D-319], `#2253`).
+	 *
+	 * ⚠️ **Su un contatto `CellOnly` vale `false`, come per `EnemyHealth`.** Quello che una squadra conserva
+	 * di un ricordo e' l'IDENTITA', non la CONDIZIONE: dire al bot che un'unita' che non vede e' sbilanciata
+	 * sarebbe la stessa fuga di conoscenza degli HP correnti. L'errore va nella direzione sicura — il bot
+	 * perde occasioni, non ne inventa.
+	 *
+	 * ⛔ **Un array e non un canale generico agli status.** Questo e' il debito dichiarato di [D-319]: la
+	 * Fase 2, dietro `STA-4`, porta il framework che fa leggere al bot OGNI stato e **sostituisce** questo
+	 * campo insieme al termine che lo consuma. Il successore e' nominato prima che il debito nasca.
+	 */
+	UPROPERTY() TArray<bool> EnemyUnbalanced;
+
 	/** >0 = kiter (mantiene la distanza di sicurezza); 0 = mischia (chiude la distanza). */
 	UPROPERTY() int32 KiteStandoff = 0;
 
@@ -145,6 +200,20 @@ struct FRTHexBotContext
 	UPROPERTY() int32 WThreat = 100;
 	UPROPERTY() int32 WKiteViolation = 50;
 	UPROPERTY() int32 WApproach = 10;
+
+	/**
+	 * Quanto vale spingere o tirare un bersaglio gia' `Status.Unbalanced`, cioe' farlo cadere `Prone`
+	 * ([D-319]).
+	 *
+	 * 🔑 **Il criterio che deve soddisfare e' dichiarato e minimo**: *«a PARITA' di danno atteso il bot
+	 * sceglie l'azione con `Push` invece dell'attacco base»*. Qualunque valore positivo lo rende vero; `60`
+	 * lo colloca sopra sei punti di danno (`WDamage` e' per punto) e sotto la minaccia — abbattere vale piu'
+	 * di qualche punto, meno di rimuovere un pericolo, e molto meno di un kill.
+	 *
+	 * ⚠️ **Non e' un numero misurato**: nessun playtest lo ha tarato, ed e' un peso intero apposta perche'
+	 * si possa cambiare senza toccare la logica. Va riletto quando la Fase 2 sostituisce il termine.
+	 */
+	UPROPERTY() int32 WUnbalancedFollowUp = 60;
 	/**
 	 * Bonus per la quota (`Layer`) della cella di destinazione (#1088).
 	 *
@@ -192,6 +261,54 @@ struct FRTHexBotContext
 	UPROPERTY() int32 WEngageDecay = 5;
 
 	/**
+	 * Categoria `Objective` del punteggio (`spec-bot-tattico.md` §5): quanto vale CONTROLLARE la cella
+	 * obiettivo — cioe' terminare il piano sopra di essa (`#2269`).
+	 *
+	 * ⚠️ **`120` viene dalla spec ed e' dichiarato indicativo**, accanto a `Damage +290` e
+	 * `KillPotential +210`. Non e' un numero deciso: §5 scrive *«i valori sono tuning, non regola»*, e la
+	 * sede del bilanciamento resta `#149` con il banco di prova che `D-102` richiede. Cio' che qui e'
+	 * MISURATO e' che a questo valore nessun oracolo di parcheggio, ingaggio o oscillazione cambia verdetto.
+	 *
+	 * ⚠️ **INVARIANTE dichiarata: `WObjective < WKill`.** Un obiettivo non vale mai quanto un colpo letale —
+	 * e con `120` contro `10000` il margine e' di due ordini di grandezza. E' una dichiarazione di tuning e
+	 * **non** un gate: nessun valore sensato la viola, quindi un test che la asserisse non potrebbe fallire.
+	 * A essere pinnato e' l'ESITO — `HexBot.ObjectiveNeverOutweighsAKill` — che e' la stessa proprieta'
+	 * misurata dove si decide invece che dove si dichiara.
+	 */
+	UPROPERTY() int32 WObjective = 120;
+
+	/**
+	 * Quanto `WObjective` cala per ogni PASSO che manca all'obiettivo piu' vicino.
+	 *
+	 * 🔴 **INVARIANTE: `WObjectiveFalloff > WApproach`, e questa e' l'invariante che PUO' fallire.** Il
+	 * termine tira verso l'obiettivo mentre `WApproach` tira verso il nemico: se i due gradienti si
+	 * pareggiano, un passo che avvicina l'obiettivo e allontana il nemico vale esattamente zero, il
+	 * tie-break «a parita' vince la mossa minima» fa restare, e il bot non ci va **proprio nel caso per cui
+	 * il termine esiste**. Con `WApproach` a 10 servono almeno 11. Pinnata da
+	 * `HexBot.ObjectivePullBeatsClosingOneCell`, che la misura sull'esito di `ChooseBestPlan` — non sul
+	 * punteggio di una candidata isolata, che il tie-break non lo vede.
+	 *
+	 * 🔴 **E il RAGGIO che ne esce vale UN TURNO DI MOVIMENTO, e il numero e' stato misurato contro
+	 * l'oracolo di parcheggio, non scelto.** `WObjective / WObjectiveFalloff` e' la distanza oltre la quale
+	 * il termine e' spento: a `120/30` sono **quattro passi**, cioe' il `MoveRange` del roster. La domanda
+	 * che il termine pone diventa *«posso prendere l'obiettivo adesso?»* e non *«sto vagamente dalla parte
+	 * giusta della mappa?»*.
+	 *
+	 * ⛔ **La prima stesura spediva `120/15`, raggio OTTO, ed e' stata falsificata.** Su `L_HexArena` — 64
+	 * celle, obiettivo a `(0,-3,L0)` — un raggio di otto copre quasi tutta la board, e li' il termine smette
+	 * di essere una meta e diventa un bonus posizionale generale: cioe' la forma di `#1088`, che compete con
+	 * l'avvicinamento e paga per **stare**. Misurato il 2026-09-04:
+	 * `Match.Autobattle.NobodyParksOnTheAuthoredMap` **rosso**, sequenza ferma **5** contro un limite di 4 —
+	 * e l'unita' parcheggiata era Gadget su `(-1,1,L0)`, che dista **cinque** passi dall'obiettivo e
+	 * incassava comunque `+45`. Non era l'obiettivo a trattenerla: era il termine che, a quella distanza,
+	 * non parla piu' dell'obiettivo.
+	 *
+	 * ⛔ **Zero non «disattiva il decadimento»: rende il bonus PIATTO su tutta la mappa**, che e' la forma
+	 * assorbente di `#1088` con un goal nuovo. Per spegnere il termine si azzera `WObjective`, non questo.
+	 */
+	UPROPERTY() int32 WObjectiveFalloff = 30;
+
+	/**
 	 * Da quanti turni consecutivi il piano scelto per questa unita' **non contiene un attacco**. E' la
 	 * memoria per unita' che `E26` (#326) portera' per intero; qui ne entra il minimo che serve al termine
 	 * qui sopra.
@@ -204,6 +321,61 @@ struct FRTHexBotContext
 	 * sta sull'eroe: e' un comportamento del BOT, e un'unita' che muovi tu non lo consulta mai.
 	 */
 	UPROPERTY() int32 IdleTurns = 0;
+};
+
+/**
+ * Una reazione che il bot puo' armare, con il suo punteggio e la sua ORIGINE ([D-268], `#1802`).
+ *
+ * ⚠️ **L'origine e' un dato, non una posizione nell'array.** Fino a [D-220] «prima il kit» funzionava
+ * perche' `EquipLoadout` accoda, cioe' per accidente: chi costruisce le candidate la chiede al catalogo, e
+ * lo spareggio la legge di qui.
+ */
+USTRUCT()
+struct FRTReactionCandidate
+{
+	GENERATED_BODY()
+
+	/** Indice dell'abilita' sull'unita'. */
+	UPROPERTY() int32 AbilityIndex = INDEX_NONE;
+
+	/** Punteggio tattico, da `ScoreReaction`. */
+	UPROPERTY() int32 Score = 0;
+
+	/** `true` se viene dal KIT dell'eroe, `false` se da un modulo di loadout. */
+	UPROPERTY() bool bFromKit = false;
+};
+
+/**
+ * CHE COSA ha deciso la scelta, che non e' la stessa cosa di quale sia stata ([D-245]).
+ *
+ * 🔴 Serve perche' senza, uno spareggio che decide **sempre** sarebbe indistinguibile da un punteggio che
+ * funziona: chi legge il log vedrebbe due volte la stessa riga per due meccanismi diversi.
+ */
+UENUM()
+enum class ERTReactionTieBreak : uint8
+{
+	/** Nessuna candidata: non c'e' niente da armare. */
+	None,
+
+	/** Ha vinto per punteggio: nessuna la pareggiava in cima. */
+	Utility,
+
+	/** Pareggio in cima sciolto dall'ORIGINE: il kit prima del loadout. */
+	Kit,
+
+	/** Pareggio in cima fra candidate della STESSA origine, sciolto dall'indice piu' basso. */
+	Index
+};
+
+/** La reazione scelta, con il perche'. */
+USTRUCT()
+struct FRTReactionChoice
+{
+	GENERATED_BODY()
+
+	UPROPERTY() int32 AbilityIndex = INDEX_NONE;
+	UPROPERTY() int32 Score = 0;
+	UPROPERTY() ERTReactionTieBreak DecidedBy = ERTReactionTieBreak::None;
 };
 
 /**
@@ -263,6 +435,69 @@ public:
 	 * meno la penalita' di posizionamento (kiter sotto standoff o oltre la propria portata / mischia lontana), piu' il bonus di quota.
 	 */
 	static int32 ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context);
+
+	/**
+	 * Il solo termine di categoria `Objective`, per la cella in cui il piano TERMINA (`#2269`).
+	 *
+	 * ```text
+	 * max(0, WObjective - WObjectiveFalloff * passi-fino-all-obiettivo-piu-vicino)
+	 * ```
+	 *
+	 * I **passi** sono quelli sul grafo (la stessa misura dell'avvicinamento dal 2026-08-23, `#1296`), non
+	 * la distanza in linea d'aria: un obiettivo dietro un muro non e' vicino perche' lo sembra sulla
+	 * griglia. Occupare la cella vale `passi = 0`, cioe' il bonus pieno — che e' il «controllo» dello scope.
+	 *
+	 * 🔴 **E' pubblica perche' e' il BREAKDOWN, non per comodita' dei test.** `spec-bot-tattico.md` §5 chiede
+	 * che ogni candidata produca un conto in chiaro e non un totale — *«un `Score = 670` senza righe e'
+	 * indebuggabile: quando il bot sbaglia non si sa quale termine ha vinto, e si finisce a ritoccare i pesi
+	 * a caso»*. Il breakdown completo e' lavoro di E26; questa e' la sua prima riga, e con lei
+	 * `ARTTurnManager` puo' scrivere nel log **quanto** l'obiettivo ha pesato sulla scelta invece di lasciarlo
+	 * dedurre da un totale.
+	 *
+	 * ⚠️ **Il floor a zero e' parte del termine, non una guardia.** Senza, un'unita' lontana pagherebbe una
+	 * penalita' crescente per non stare sull'obiettivo, e quella penalita' entrerebbe in OGNI confronto —
+	 * comprese le scelte di combattimento dall'altra parte della mappa, dove l'obiettivo non c'entra nulla.
+	 *
+	 * Mappa nulla o nessuna cella obiettivo -> `0`, e il punteggio resta quello di prima riga per riga: e'
+	 * la ragione per cui questo lavoro non muove nessuna arena generata, che un obiettivo non ce l'ha.
+	 */
+	static int32 ScoreObjectiveTerm(const URTHexMapAsset* Map, const FRTCellId& DestCell,
+		const FRTHexBotContext& Context);
+
+	/**
+	 * Punteggio tattico di una REAZIONE ([D-268], `#1802`), chiavato sul suo `ReactionTrigger`.
+	 *
+	 * Vale in proporzione alla minaccia a cui puo' rispondere, e la minaccia si misura **solo** su cio' che
+	 * `Context` contiene — che e' gia' filtrato sulla conoscenza autorizzata della squadra, con la stessa
+	 * regola del targeting umano. Nessun peso nuovo: `WThreat` e' quello del tuning.
+	 *
+	 * 🔴 **`Map` non e' un parametro di comodo: senza, il punteggio conterebbe nemici che non possono
+	 * sparare.** `ScorePlan` la minaccia la misura come gittata **E** linea di vista, e sulla mappa d'autore
+	 * — quella con l'ostacolo centrale che blocca vista e passo — un punteggio a sola distanza armerebbe un
+	 * contrattacco contro chi sta dietro il muro: cioe' esattamente la «reazione che non sarebbe scattata»
+	 * che [D-268] esiste per togliere, col segno rovesciato.
+	 *
+	 * ⚠️ **Un solo peso per tutti i termini, e non e' pigrizia.** In `ScorePlan` `WAllyDamage` e' per PUNTO
+	 * di danno e `WThreat` e' per NEMICO: usarli qui come se fossero la stessa unita' avrebbe reso
+	 * l'interposizione (10) sempre perdente contro un contrattacco (100) — il difetto di [D-220] rovesciato.
+	 * `WThreat` misura «quanta minaccia questa reazione risponde», e vale per la mia cella come per quella di
+	 * un alleato.
+	 *
+	 * ⚠️ **Si misura dalla cella di PARTENZA.** La selezione avviene prima che il piano — e quindi lo scatto
+	 * — sia scelto, mentre i due trigger si valutano nel Blast, dopo il Dash. Un bot che scatta puo' quindi
+	 * aver segnato la minaccia da una cella che avra' lasciato. E' una sovrastima dichiarata, non un modello
+	 * completo: il codice di prima non guardava nessuna posizione.
+	 */
+	static int32 ScoreReaction(const URTHexMapAsset* Map, const FRTActionDef& Def, const FRTHexBotContext& Context);
+
+	/**
+	 * La reazione da armare fra le candidate: punteggio massimo, e a **parita' esatta** vince il kit
+	 * ([D-268]). Ancora pari, vince l'indice piu' basso — cosi' permutare le candidate non cambia l'esito.
+	 *
+	 * Restituisce anche **da che cosa** e' stata decisa, perche' [D-245] chiede che la ragione sia un dato e
+	 * non una deduzione di chi legge il log.
+	 */
+	static FRTReactionChoice SelectReaction(const TArray<FRTReactionCandidate>& Candidates);
 
 	/**
 	 * Candidata a punteggio massimo. TIE-BREAK ASSOLUTO: a parita' di punteggio vince la MOSSA MINIMA da

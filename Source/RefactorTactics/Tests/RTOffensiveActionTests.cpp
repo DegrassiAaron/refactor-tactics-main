@@ -10,6 +10,7 @@
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexVisionLibrary.h" // l'oracolo: la vista e la linea non possono divergere (`D-269`, `#2035`)
 #include "Turn/RTActionEffectLibrary.h"
 #include "Turn/RTActionQueue.h"
 #include "Turn/RTTurnRules.h"
@@ -41,11 +42,30 @@ namespace
 		return M;
 	}
 
-	/** Copertura ALTA: blocca la linea di tiro (nel modello dati di oggi e' l'unico dato che la rappresenta). */
-	void MakeHighCover(URTHexMapAsset* Map, const FRTCellId& Id)
+	/**
+	 * Una CELLA che blocca la linea di tiro: un ostacolo pieno.
+	 *
+	 * 🔴 **Si chiamava `MakeHighCover`, e il nome mentiva da 26 giorni.** La sua riga diceva *«Copertura
+	 * ALTA: blocca la linea di tiro (nel modello dati di oggi e' l'unico dato che la rappresenta)»*, ed era
+	 * vera il 2026-08-06, quando questo file e' nato: `FRTHexCover` arriva il giorno dopo con `CP 9.2`. Da
+	 * allora tre test dicevano *«la copertura alta ferma il colpo»* e misuravano `bBlocksLineOfSight` — una
+	 * proprieta' di cella, che copertura non e'. La copertura vera non e' mai stata provata su questo
+	 * percorso, e infatti non funzionava (`#2035`).
+	 */
+	void MakeSightBlockingCell(URTHexMapAsset* Map, const FRTCellId& Id)
 	{
 		FRTHexCellData Data = Map->FindCell(Id) ? *Map->FindCell(Id) : FRTHexCellData(Id);
 		Data.bBlocksLineOfSight = true;
+		Map->AddOrUpdateCell(Data);
+		Map->SortCells();
+	}
+
+	/** Copertura ALTA vera: sta sul BORDO fra due celle, ed e' cio' che il catalogo chiama copertura. */
+	void MakeHighCoverEdge(URTHexMapAsset* Map, const FRTCellId& Id, ERTHexDirection Edge)
+	{
+		FRTHexCellData Data = Map->FindCell(Id) ? *Map->FindCell(Id) : FRTHexCellData(Id);
+		Data.Covers.Add(FRTHexCover(Edge, ERTHexCoverType::High,
+			FRTHexCover::DefaultIntegrity(ERTHexCoverType::High)));
 		Map->AddOrUpdateCell(Data);
 		Map->SortCells();
 	}
@@ -124,7 +144,8 @@ bool FRTOffensiveActionsMatchCatalogTest::RunTest(const FString&)
 
 	// La soppressione si PREPARA: e' l'unica offensiva fuori dal Blast, e non e' interrompibile.
 	const FRTActionDef Suppressive = OffensiveDef(TEXT("Action.SuppressiveLine"));
-	TestFalse(TEXT("una linea preparata non si interrompe"), Suppressive.bCanBeInterrupted);
+	TestEqual(TEXT("una linea preparata non si interrompe"), Suppressive.InterruptPolicy,
+		ERTInterruptPolicy::None);
 	TestEqual(TEXT("la portata della linea e' 5"), Suppressive.RangeCells, 5);
 	TestEqual(TEXT("il centro dell'area si sceglie entro 4 celle"),
 		OffensiveDef(TEXT("Action.CircularAoE")).RangeCells, 4);
@@ -210,7 +231,8 @@ bool FRTHeavyAttackInterruptedTest::RunTest(const FString&)
 	{
 		return false;
 	}
-	TestTrue(TEXT("e' interrompibile: e' cio' che si paga per 35 danni"), Heavy.Def.bCanBeInterrupted);
+	TestEqual(TEXT("e' interrompibile del tutto: e' cio' che si paga per 35 danni"),
+		Heavy.Def.InterruptPolicy, ERTInterruptPolicy::InterruptBeforeEffect);
 
 	const TArray<FRTActionEvent> Normal = URTActionEffectLibrary::ProduceEvents(Heavy);
 	if (!TestEqual(TEXT("non interrotta: un evento di danno"), Normal.Num(), 1)) { return false; }
@@ -228,7 +250,7 @@ bool FRTHeavyAttackInterruptedTest::RunTest(const FString&)
 	Precision.bInterrupted = true;
 	TestEqual(TEXT("vale anche per la precisione"), URTActionEffectLibrary::ProduceEvents(Precision).Num(), 0);
 
-	// Chi dichiara di non essere interrompibile non lo e' nemmeno col flag alzato: `bCanBeInterrupted` resta
+	// Chi dichiara di non essere interrompibile non lo e' nemmeno col flag alzato: `InterruptPolicy` resta
 	// l'ultima parola, e la linea preparata continua a esistere (catalogo §3).
 	FRTActionInstance Suppressive;
 	Suppressive.Def = OffensiveDef(TEXT("Action.SuppressiveLine"));
@@ -269,14 +291,14 @@ bool FRTLineAttackFirstTargetTest::RunTest(const FString&)
 		Map, From, FRTCellId(1, 0), 5, Occupancy, Hostiles);
 	TestTrue(TEXT("stessa direzione, stesso bersaglio"), SameDirection.HitUnitId == 5);
 
-	// Una COPERTURA ALTA fra l'attaccante e il bersaglio interrompe la linea.
+	// Una CELLA che oscura fra l'attaccante e il bersaglio interrompe la linea.
 	URTHexMapAsset* Covered = MakeOffensiveMap();
-	MakeHighCover(Covered, FRTCellId(1, 0));
+	MakeSightBlockingCell(Covered, FRTCellId(1, 0));
 	const FRTLineAttackResult Blocked = URTOffensiveActionLibrary::ResolveLineAttack(
 		Covered, From, FRTCellId(5, 0), 5, Occupancy, Hostiles);
-	TestTrue(TEXT("la copertura alta ferma il colpo"), Blocked.Stop == ERTLineStop::BlockedByCover);
+	TestTrue(TEXT("un ostacolo di cella ferma il colpo"), Blocked.Stop == ERTLineStop::BlockedByCover);
 	TestEqual(TEXT("e nessuno viene colpito"), Blocked.HitUnitId, INDEX_NONE);
-	TestEqual(TEXT("la linea non arriva nemmeno alla copertura"), Blocked.Cells.Num(), 0);
+	TestEqual(TEXT("la linea non arriva nemmeno all'ostacolo"), Blocked.Cells.Num(), 0);
 
 	// Un ALLEATO non e' un bersaglio valido e non fa da scudo: il colpo prosegue oltre.
 	TMap<FRTCellId, int32> WithAlly;
@@ -304,6 +326,102 @@ bool FRTLineAttackFirstTargetTest::RunTest(const FString&)
 	const FRTLineAttackResult NoMap = URTOffensiveActionLibrary::ResolveLineAttack(
 		nullptr, From, FRTCellId(5, 0), 5, Occupancy, Hostiles);
 	TestTrue(TEXT("senza mappa non si colpisce"), NoMap.Stop == ERTLineStop::NoMap && NoMap.HitUnitId == INDEX_NONE);
+	return true;
+}
+
+/**
+ * LA COPERTURA ALTA DI BORDO FERMA IL COLPO, e la vista e la linea non possono divergere — `#2035`.
+ *
+ * 🔴 **Il caso non era mai stato provato**, ed e' il motivo per cui non funzionava. Fino al 2026-09-01 la
+ * fixture chiamata `MakeHighCover` scriveva `bBlocksLineOfSight` — una proprieta' di CELLA — e tre test
+ * dicevano *«la copertura alta ferma il colpo»* misurando un'altra cosa. La copertura vera sta sul BORDO
+ * (`FRTHexCover`, `CP 9.2`), e `LineCells` non la consultava: nata il 2026-08-06, un giorno prima di
+ * `URTHexCoverLibrary`, non era mai stata migrata.
+ *
+ * 🔑 **L'oracolo non e' una costante attesa: e' `HasLineOfSight` sugli stessi due punti.** E' la forma che
+ * `D-269` impone — *«le due validazioni consumano UNA SOLA primitiva»* — e la sola che si accorga se un
+ * giorno una delle due marce tornasse ad avere una risposta propria.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLineAttackEdgeCoverTest,
+	"RefactorTactics.Actions.LineAttack.EdgeCoverStopsTheShot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLineAttackEdgeCoverTest::RunTest(const FString&)
+{
+	const FRTCellId From(0, 0);
+	const FRTCellId Target(5, 0);
+
+	TMap<FRTCellId, int32> Occupancy;
+	Occupancy.Add(FRTCellId(3, 0), 6);
+	const TSet<int32> Hostiles = { 6 };
+
+	// Via libera: il colpo arriva e la vista pure. E' il controllo che rende significativo il caso bloccato —
+	// «nessuno colpito» e' anche il risultato di un attacco che non parte mai.
+	{
+		URTHexMapAsset* Open = MakeOffensiveMap();
+		const FRTLineAttackResult Hit = URTOffensiveActionLibrary::ResolveLineAttack(
+			Open, From, Target, 5, Occupancy, Hostiles);
+		TestTrue(TEXT("senza copertura il colpo arriva"), Hit.HitUnitId == 6);
+		TestTrue(TEXT("e la vista passa"), URTHexVisionLibrary::HasLineOfSight(Open, From, FRTCellId(3, 0)));
+	}
+
+	// Copertura ALTA sul bordo `(1,0) -> (2,0)`, cioe' sul lato `E` della cella `(1,0)`.
+	{
+		URTHexMapAsset* Walled = MakeOffensiveMap();
+		MakeHighCoverEdge(Walled, FRTCellId(1, 0), ERTHexDirection::E);
+
+		TestFalse(TEXT("la vista e' bloccata dal bordo"),
+			URTHexVisionLibrary::HasLineOfSight(Walled, From, FRTCellId(3, 0)));
+
+		const FRTLineAttackResult Blocked = URTOffensiveActionLibrary::ResolveLineAttack(
+			Walled, From, Target, 5, Occupancy, Hostiles);
+		TestTrue(TEXT("e il colpo si ferma con la stessa geometria"),
+			Blocked.Stop == ERTLineStop::BlockedByEdgeCover);
+		TestEqual(TEXT("nessuno viene colpito"), Blocked.HitUnitId, INDEX_NONE);
+		TestEqual(TEXT("la linea entra in (1,0) e non oltre"), Blocked.Cells.Num(), 1);
+
+		// ⚠️ La ragione NOMINA il bordo, e non si confonde con l'ostacolo di cella: sono due gesti diversi
+		// per chi gioca — girare attorno al muro, o spostarsi.
+		TestTrue(TEXT("e non e' l'ostacolo di cella"), Blocked.Stop != ERTLineStop::BlockedByCover);
+	}
+
+	// La copertura BASSA non chiude il passaggio: ripara chi ci sta dietro, non ferma il colpo. E' la stessa
+	// asimmetria che `BlocksTraversal` applica alla vista, e questo test impedisce che il fix la allarghi.
+	{
+		URTHexMapAsset* LowWalled = MakeOffensiveMap();
+		FRTHexCellData Data = *LowWalled->FindCell(FRTCellId(1, 0));
+		Data.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::Low,
+			FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
+		LowWalled->AddOrUpdateCell(Data);
+		LowWalled->SortCells();
+
+		const FRTLineAttackResult Through = URTOffensiveActionLibrary::ResolveLineAttack(
+			LowWalled, From, Target, 5, Occupancy, Hostiles);
+		TestTrue(TEXT("una copertura bassa non ferma il colpo"), Through.HitUnitId == 6);
+		TestTrue(TEXT("come non ferma la vista"),
+			URTHexVisionLibrary::HasLineOfSight(LowWalled, From, FRTCellId(3, 0)));
+	}
+
+	// ⚠️ **Nessuna coppia puo' divergere**: su ogni cella della direzione, vista e linea devono dare lo
+	// stesso verdetto. E' il corpus che si accorgerebbe di una regola riscritta in uno solo dei due posti.
+	{
+		URTHexMapAsset* Walled = MakeOffensiveMap();
+		MakeHighCoverEdge(Walled, FRTCellId(2, 0), ERTHexDirection::E);
+
+		for (int32 X = 1; X <= 5; ++X)
+		{
+			const FRTCellId Cell(X, 0);
+			const bool bSight = URTHexVisionLibrary::HasLineOfSight(Walled, From, Cell);
+
+			TMap<FRTCellId, int32> One;
+			One.Add(Cell, 7);
+			const FRTLineAttackResult Shot = URTOffensiveActionLibrary::ResolveLineAttack(
+				Walled, From, FRTCellId(5, 0), 5, One, TSet<int32>{ 7 });
+			const bool bReached = Shot.HitUnitId == 7;
+
+			TestEqual(FString::Printf(TEXT("(%d,0): vista e colpo danno lo stesso verdetto"), X),
+				bReached, bSight);
+		}
+	}
 	return true;
 }
 
@@ -436,7 +554,7 @@ bool FRTSuppressiveLineTest::RunTest(const FString&)
 
 	// Una copertura alta accorcia la linea tanto quanto ferma un attacco lineare: stessa geometria.
 	URTHexMapAsset* Covered = MakeOffensiveMap();
-	MakeHighCover(Covered, FRTCellId(3, 0));
+	MakeSightBlockingCell(Covered, FRTCellId(3, 0));
 	const FRTSuppressiveZone Short = URTOffensiveActionLibrary::MakeSuppressiveZone(
 		Covered, 0, 0, FRTCellId(0, 0), FRTCellId(1, 0), Def.RangeCells, DeclaredDamage(Def));
 	TestEqual(TEXT("la copertura alta accorcia la linea a 2 celle"), Short.Cells.Num(), 2);
@@ -557,7 +675,7 @@ bool FRTOffensiveSmokeCapTest::RunTest(const FString&)
 		TestEqual(TEXT("e concede due celle oltre se stessa"), ConFumo.Num(), 3);
 
 		URTHexMapAsset* MapCover = MakeOffensiveMap();
-		MakeHighCover(MapCover, FRTCellId(1, 0));
+		MakeSightBlockingCell(MapCover, FRTCellId(1, 0));
 		const TArray<FRTCellId> ConCopertura =
 			URTOffensiveActionLibrary::LineCells(MapCover, FRTCellId(0, 0), FRTCellId(1, 0), /*RangeCells*/ 6);
 		TestFalse(TEXT("la copertura alta invece NON e' nella linea"),
@@ -587,6 +705,192 @@ bool FRTOffensiveSmokeCapTest::RunTest(const FString&)
 		}
 	}
 
+	return true;
+}
+
+/**
+ * [D-298] `SuppressSecondary` lascia in piedi il PRIMO effetto e toglie gli altri.
+ *
+ * Il soggetto e' `Action.Charge` (`Damage` + `Push`) e **non** `Action.HeavyAttack`, che pure ha due
+ * effetti: il secondo di HeavyAttack e' `DamageStructure`, che `ProduceEvents` non traduce nemmeno da
+ * intero (lo raccoglie il Blast sul bordo). Su HeavyAttack le due policy sarebbero indistinguibili da qui,
+ * e il test avrebbe misurato un `continue` invece del ramo che dichiara di provare.
+ *
+ * Il test varia UNA cosa — la policy — su una def altrimenti identica, e confronta i tre esiti fra loro:
+ * intera, monca, vuota. Asserire solo la monca non proverebbe che la differenza viene dalla policy.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptSuppressSecondaryTest,
+	"RefactorTactics.Actions.InterruptPolicy.SuppressSecondaryKeepsTheFirstEffect",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptSuppressSecondaryTest::RunTest(const FString&)
+{
+	const TArray<FRTActionDef> Catalog = URTCatalogLibrary::GetCoreActionCatalog();
+	const FRTActionDef* Charge = Catalog.FindByPredicate([](const FRTActionDef& D)
+		{ return D.ActionId == FName(TEXT("Action.Charge")); });
+	if (!TestNotNull(TEXT("Action.Charge e' nel catalogo"), Charge)) { return false; }
+
+	// La premessa del test, misurata invece che assunta: servono DUE effetti, ed entrambi devono essere
+	// traducibili in eventi. Senza questo controllo il test resterebbe verde su un catalogo che ha smesso
+	// di avere il caso che dice di coprire.
+	if (!TestEqual(TEXT("Charge dichiara due effetti"), Charge->Effects.Num(), 2)) { return false; }
+	TestEqual(TEXT("il primo e' il danno"), Charge->Effects[0].Effect, ERTActionEffect::Damage);
+	TestEqual(TEXT("il secondo e' la spinta"), Charge->Effects[1].Effect, ERTActionEffect::Push);
+
+	FRTActionInstance Instance;
+	Instance.Def = *Charge;
+	Instance.SourceUnitId = 0;
+	Instance.TargetUnitId = 1;
+
+	// (a) non interrotta: entrambi gli effetti passano, qualunque sia la policy.
+	Instance.bInterrupted = false;
+	Instance.Def.InterruptPolicy = ERTInterruptPolicy::SuppressSecondary;
+	const TArray<FRTActionEvent> Intera = URTActionEffectLibrary::ProduceEvents(Instance);
+	if (!TestEqual(TEXT("non interrotta: due eventi"), Intera.Num(), 2)) { return false; }
+
+	// (b) interrotta con `SuppressSecondary`: resta il colpo, cade la spinta.
+	Instance.bInterrupted = true;
+	const TArray<FRTActionEvent> Monca = URTActionEffectLibrary::ProduceEvents(Instance);
+	if (!TestEqual(TEXT("SuppressSecondary: un evento solo"), Monca.Num(), 1)) { return false; }
+	TestEqual(TEXT("ed e' il PRIMO dichiarato, il danno"), Monca[0].Kind, ERTActionEffect::Damage);
+	TestEqual(TEXT("col suo valore intero: non e' mezzo danno"), Monca[0].Amount, Charge->Effects[0].Amount);
+
+	// (c) stessa azione, stesso interrupt, policy diversa: non resta niente. E' il confronto che prova che
+	// la differenza viene dalla policy e non da qualcos'altro dell'istanza.
+	Instance.Def.InterruptPolicy = ERTInterruptPolicy::InterruptBeforeEffect;
+	TestEqual(TEXT("InterruptBeforeEffect: nessun evento"),
+		URTActionEffectLibrary::ProduceEvents(Instance).Num(), 0);
+
+	// (d) e chi non e' interrompibile non perde nulla nemmeno da interrotto.
+	Instance.Def.InterruptPolicy = ERTInterruptPolicy::None;
+	TestEqual(TEXT("None: l'interrupt non la tocca, due eventi"),
+		URTActionEffectLibrary::ProduceEvents(Instance).Num(), 2);
+	return true;
+}
+
+/**
+ * [D-298] `SuppressSecondary` su un'azione a UN effetto solo non lo trasforma in zero, e non inventa un
+ * secondo effetto da togliere: sopravvive il primo, che qui e' anche l'unico.
+ *
+ * Copre il `FMath::Min` di `ProduceEvents`. Un'implementazione che avesse scritto `Effects.Num() - 1`
+ * sarebbe passata sul caso a due effetti e avrebbe azzerato questo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptSuppressSecondarySingleEffectTest,
+	"RefactorTactics.Actions.InterruptPolicy.SuppressSecondaryOnASingleEffectKeepsIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptSuppressSecondarySingleEffectTest::RunTest(const FString&)
+{
+	// `Action.LineAttack` e non l'attacco base: `MakeWeaponAttack("Action.BasicAttack")` restituisce una def
+	// con ZERO effetti — il danno dell'attacco base viene dall'arma, non da `Effects` — e su una lista vuota
+	// questo test non misurerebbe il `Min` che dice di coprire. Trovato dal test stesso, rosso alla prima
+	// esecuzione: la premessa era assunta invece che misurata.
+	const TArray<FRTActionDef> Catalog = URTCatalogLibrary::GetCoreActionCatalog();
+	const FRTActionDef* Line = Catalog.FindByPredicate([](const FRTActionDef& D)
+		{ return D.ActionId == FName(TEXT("Action.LineAttack")); });
+	if (!TestNotNull(TEXT("Action.LineAttack e' nel catalogo"), Line)) { return false; }
+
+	FRTActionInstance Instance;
+	Instance.Def = *Line;
+	Instance.SourceUnitId = 0;
+	Instance.TargetUnitId = 1;
+	if (!TestEqual(TEXT("la linea dichiara un effetto solo"), Instance.Def.Effects.Num(), 1))
+	{
+		return false;
+	}
+
+	Instance.bInterrupted = true;
+	Instance.Def.InterruptPolicy = ERTInterruptPolicy::SuppressSecondary;
+	TestEqual(TEXT("resta l'unico effetto dichiarato"),
+		URTActionEffectLibrary::ProduceEvents(Instance).Num(), 1);
+
+	// Un'azione SENZA effetti non deve guadagnarne uno: il `Min` va misurato anche dal basso.
+	Instance.Def.Effects.Empty();
+	TestEqual(TEXT("nessun effetto dichiarato, nessun evento"),
+		URTActionEffectLibrary::ProduceEvents(Instance).Num(), 0);
+	return true;
+}
+
+/**
+ * [D-298] Il validator RIFIUTA `CancelChannel`, che e' riservata finche' nessuna azione dura piu' di un
+ * boundary.
+ *
+ * Il test verifica anche il verso opposto — le altre tre policy passano — perche' un validator che
+ * rifiutasse tutto darebbe lo stesso rosso e sarebbe altrettanto «verde» su questa meta'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptCancelChannelRejectedTest,
+	"RefactorTactics.Actions.InterruptPolicy.ValidatorRejectsCancelChannel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptCancelChannelRejectedTest::RunTest(const FString&)
+{
+	// Il catalogo spedito non porta la policy riservata: se la portasse, il gioco non partirebbe.
+	const TArray<FRTActionDef> Catalog = URTCatalogLibrary::GetCoreActionCatalog();
+	TestEqual(TEXT("il catalogo core e' valido"), URTCatalogLibrary::ValidateActions(Catalog).Num(), 0);
+	const bool bNessunaRiservata = !Catalog.ContainsByPredicate([](const FRTActionDef& D)
+		{ return D.InterruptPolicy == ERTInterruptPolicy::CancelChannel; });
+	TestTrue(TEXT("nessuna azione spedita dichiara CancelChannel"), bNessunaRiservata);
+
+	FRTActionDef Def;
+	Def.ActionId = TEXT("Action.Test.Channel");
+	Def.ResolutionPhase = ERTResolutionPhase::Attack;
+
+	for (const ERTInterruptPolicy Ammessa : { ERTInterruptPolicy::None,
+		ERTInterruptPolicy::InterruptBeforeEffect, ERTInterruptPolicy::SuppressSecondary })
+	{
+		Def.InterruptPolicy = Ammessa;
+		TestEqual(TEXT("le tre policy con un soggetto passano"),
+			URTCatalogLibrary::ValidateActions({ Def }).Num(), 0);
+	}
+
+	Def.InterruptPolicy = ERTInterruptPolicy::CancelChannel;
+	const TArray<FString> Errori = URTCatalogLibrary::ValidateActions({ Def });
+	if (!TestEqual(TEXT("CancelChannel: un errore"), Errori.Num(), 1)) { return false; }
+	// L'errore deve DIRE quale azione e quale campo: un messaggio che non lo dice non aiuta chi lo legge.
+	TestTrue(TEXT("l'errore nomina l'azione"), Errori[0].Contains(TEXT("Action.Test.Channel")));
+	TestTrue(TEXT("l'errore nomina la policy"), Errori[0].Contains(TEXT("CancelChannel")));
+	return true;
+}
+
+
+/**
+ * [D-298] `SuppressSecondary` taglia per POSIZIONE nella lista, e questo test lo pinna sul caso che il
+ * commento dell'enum dichiara come limite: un `Damage` in SECONDA posizione viene tagliato dagli eventi.
+ *
+ * Serve perche' quel limite era scritto e non misurato. Cio' che il test **non** puo' mostrare da qui e' la
+ * seconda meta' del limite — che quel danno arriverebbe **lo stesso**, perche' nella pipeline del Blast
+ * viaggia su `Intent.Power`/`Hit.Power` e non sugli eventi. Quella meta' vive nel Blast, e la copre
+ * l'integrazione di [#1955](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1955): qui si
+ * pinna il taglio, li' si pinnerà il canale.
+ *
+ * ⚠️ Il test costruisce una def a mano invece di prenderla dal catalogo: **nessuna azione spedita
+ * dichiara `Damage` in seconda posizione**, e inventarne una nel catalogo per farci passare un test sarebbe
+ * peggio del test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptSuppressSecondaryCutsByPositionTest,
+	"RefactorTactics.Actions.InterruptPolicy.SuppressSecondaryCutsByPositionNotByKind",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptSuppressSecondaryCutsByPositionTest::RunTest(const FString&)
+{
+	FRTActionInstance Instance;
+	Instance.Def.ActionId = TEXT("Action.Test.PushThenDamage");
+	Instance.Def.ResolutionPhase = ERTResolutionPhase::Attack;
+	Instance.Def.Effects = {
+		FRTActionEffectSpec(ERTActionEffect::Push, 1),
+		FRTActionEffectSpec(ERTActionEffect::Damage, 30) };
+	Instance.Def.InterruptPolicy = ERTInterruptPolicy::SuppressSecondary;
+	Instance.SourceUnitId = 0;
+	Instance.TargetUnitId = 1;
+
+	const TArray<FRTActionEvent> Intera = URTActionEffectLibrary::ProduceEvents(Instance);
+	if (!TestEqual(TEXT("non interrotta: entrambi gli effetti"), Intera.Num(), 2)) { return false; }
+
+	Instance.bInterrupted = true;
+	const TArray<FRTActionEvent> Monca = URTActionEffectLibrary::ProduceEvents(Instance);
+	if (!TestEqual(TEXT("interrotta: un evento solo"), Monca.Num(), 1)) { return false; }
+
+	// 🔴 Il punto del test: sopravvive la SPINTA, non il danno. La policy non conosce i tipi di effetto,
+	// conosce l'ordine — e su `Action.Charge` il danno sopravvive perche' e' PRIMO, non perche' sia danno.
+	TestEqual(TEXT("sopravvive il primo dichiarato, che qui e' la spinta"), Monca[0].Kind,
+		ERTActionEffect::Push);
+	TestEqual(TEXT("e il danno, dichiarato secondo, e' stato tagliato dagli EVENTI"), Monca[0].Amount, 1);
 	return true;
 }
 

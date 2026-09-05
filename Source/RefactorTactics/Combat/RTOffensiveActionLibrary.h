@@ -7,7 +7,18 @@
 
 class URTHexMapAsset;
 
-/** Perche' un attacco lineare si e' fermato dove si e' fermato. E' il reason code del TurnLog. */
+/**
+ * Perche' un attacco lineare si e' fermato dove si e' fermato.
+ *
+ * ⚠️ **Questa riga diceva «e' il reason code del TurnLog», e il TurnLog non lo riceve** — misurato il
+ * 2026-09-01 (`#2035`): fuori da questa libreria e dai suoi test `ERTLineStop` **non ha consumatori**, e
+ * `spec-turnlog.md` §12 registra che `BlockedByCover` fu *rimosso* dai reason del combat il 2026-08-03. E'
+ * un'aspirazione scritta al presente, non un fatto — la stessa forma del dato dichiarato e mai letto che
+ * `LineCells` documenta per `MaxTargetingRangeThrough`.
+ *
+ * Cio' che resta vero e' la DISCIPLINA: i valori si aggiungono **in coda**, perche' il giorno in cui il log
+ * lo riceva davvero gli ordinali saranno gia' stabili, e il costo di farlo oggi e' zero.
+ */
 UENUM(BlueprintType)
 enum class ERTLineStop : uint8
 {
@@ -15,14 +26,56 @@ enum class ERTLineStop : uint8
 	Hit,
 	/** Ha percorso tutta la portata senza incontrare nessuno. */
 	NoTarget,
-	/** Interrotta da una COPERTURA ALTA: una cella che blocca la linea di tiro. */
+	/**
+	 * Interrotta da una CELLA che blocca la linea di tiro (`FRTHexCellData::bBlocksLineOfSight`): un ostacolo
+	 * pieno, non una copertura.
+	 *
+	 * ⚠️ **Il nome dice «Cover» e il dato non e' una copertura, ed e' storia da non riscrivere.** Fino al
+	 * 2026-09-01 questo valore era l'unico che potesse fermare la linea, e la sua riga diceva *«una COPERTURA
+	 * ALTA: una cella che blocca la linea di tiro»* — due cose diverse messe insieme perche' il 2026-08-06,
+	 * quando questo enum e' nato, `FRTHexCover` non esisteva ancora: nasce il giorno dopo con `CP 9.2`. Il
+	 * valore nuovo e' `BlockedByEdgeCover`, in coda; questo conserva il significato che ha sempre avuto.
+	 */
 	BlockedByCover,
 	/** Uscita dalla mappa: la linea finisce dove finisce il livello. */
 	OffMap,
 	/** Il punto mirato non sta su una delle sei direzioni esagonali: l'azione non parte. */
 	NotAligned,
 	/** Nessuna mappa autorevole: non si valuta e non si colpisce (fail-closed). */
-	NoMap
+	NoMap,
+
+	/**
+	 * Interrotta dalla GEOMETRIA INTRA-CELLA: un muro alto DENTRO una cella, non un ostacolo di cella
+	 * (`D-269`, `D-270`, `#1830`).
+	 *
+	 * 🔑 **Vale un valore proprio perche' e' un difetto diverso da correggere per chi gioca**, ed e'
+	 * esattamente cio' che il DoD di `#1830` chiede al combat log: *«non c'e' copertura»* e *«la geometria
+	 * interna ha fermato il colpo»* portano a due gesti diversi — spostarsi di una cella nel primo caso,
+	 * girare attorno al muro nel secondo. Confonderli rende il log una bugia, che e' la ragione gia' scritta
+	 * per `NoTarget` / `OffMap` / `BlockedByCover`.
+	 *
+	 * ⚠️ **In CODA, e non e' estetica**: infilare un valore in mezzo rinumererebbe `OffMap`, `NotAligned` e
+	 * `NoMap`. E' la disciplina che `ERTIntraCellTraversal` dichiara per se stesso — *«va aggiunto in coda
+	 * insieme al suo produttore»* — e il produttore, qui, arriva nello stesso commit. Vale anche se oggi
+	 * nessun log riceve questo enum: vedi il cappello sopra.
+	 */
+	BlockedByInteriorGeometry,
+
+	/**
+	 * Interrotta dal BORDO attraversato: `URTHexCoverLibrary::BlocksTraversal` — copertura ALTA o porta
+	 * chiusa/bloccata (`CP 9.2`/`9.3`, `#2035`).
+	 *
+	 * 🔑 **E' il valore che il catalogo descriveva da sempre e che nessun ramo produceva.** `Line Attack`
+	 * dice *«una copertura alta interrompe la linea»*, e la copertura sta sui BORDI: fino al 2026-09-01
+	 * questa marcia leggeva solo `bBlocksLineOfSight`, che copertura non e'. Il gemello sulla vista e'
+	 * `ERTLineOfSightBlock::EdgeBlocker`, e come quello **non distingue** il muro dalla porta: chi vuole il
+	 * dettaglio chiede a `URTHexCoverLibrary`, che ne e' l'autorita'.
+	 *
+	 * ⚠️ **Vale un valore proprio perche' chiede un gesto diverso** da `BlockedByCover`: da un bordo ci si
+	 * gira attorno o lo si apre, da un ostacolo di cella ci si sposta. E' il criterio gia' scritto per
+	 * `BlockedByInteriorGeometry`.
+	 */
+	BlockedByEdgeCover
 };
 
 /** Esito di un attacco lineare: chi colpisce, dove passa e perche' si ferma. */

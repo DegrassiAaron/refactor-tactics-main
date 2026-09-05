@@ -92,7 +92,8 @@ bool FRTWaitAllowsFacingTest::RunTest(const FString&)
 	TestTrue(TEXT("non occupa alcuno slot del turno"), Wait.Slot == ERTActionSlot::None);
 	TestEqual(TEXT("non produce effetti"), Wait.Effects.Num(), 0);
 	TestEqual(TEXT("risolve per ultima, cosi' non anticipa nulla"), Wait.Priority, 100);
-	TestFalse(TEXT("non e' interrompibile: non c'e' nulla da interrompere"), Wait.bCanBeInterrupted);
+	TestEqual(TEXT("non e' interrompibile: non c'e' nulla da interrompere"), Wait.InterruptPolicy,
+		ERTInterruptPolicy::None);
 
 	// Confronto che rende esplicita la differenza: l'azione principale e il movimento SI spendono.
 	TestTrue(TEXT("l'attacco base occupa l'azione principale"),
@@ -179,7 +180,7 @@ bool FRTGuardFirstHitOnlyTest::RunTest(const FString&)
 	TestTrue(TEXT("ed e' Status.Guarded per un turno (scade nel Cleanup)"),
 		Guard.Effects.Num() == 1 && Guard.Effects[0].Effect == ERTActionEffect::Status
 		&& Guard.Effects[0].StatusTag == TAG_Status_Guarded && Guard.Effects[0].StatusDuration == 1);
-	TestFalse(TEXT("la guardia non e' interrompibile"), Guard.bCanBeInterrupted);
+	TestEqual(TEXT("la guardia non e' interrompibile"), Guard.InterruptPolicy, ERTInterruptPolicy::None);
 	return true;
 }
 
@@ -220,7 +221,7 @@ namespace
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractOpensDoorsTest,
-	"RefactorTactics.Actions.Interact.DeclaresOpenDoor",
+	"RefactorTactics.Actions.Interact.DeclaresDoorToggle",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTInteractOpensDoorsTest::RunTest(const FString&)
 {
@@ -228,6 +229,11 @@ bool FRTInteractOpensDoorsTest::RunTest(const FString&)
 	// in cui l'azione avesse ricevuto un effetto. Quel giorno e' [D-148] (2026-08-16): aprire una porta e'
 	// UNIVERSALE — chiunque la apre allo stesso modo — quindi l'effetto vive nel catalogo core e non in un
 	// profilo d'eroe, che e' il confine tracciato da [D-033].
+	//
+	// ⏱️ *E si chiamava `DeclaresOpenDoor` fino al 2026-09-05, quando asseriva `SetDoorState` verso `Open`
+	// per [D-151]. [`INT-7`] (`#2380`) ha chiuso quella decisione scegliendo la COMMUTAZIONE, e il test e'
+	// stato riscritto invece che cancellato: cio' che difendeva — il percorso `Locked -> Closed` fuori
+	// portata **senza toccare `CanTransition`** — resta vero, per una via diversa.*
 	const FRTActionDef Def = CoreActionDef(TEXT("Action.Interact"));
 
 	TestEqual(TEXT("Interact dichiara UN solo effetto"), Def.Effects.Num(), 1);
@@ -236,24 +242,24 @@ bool FRTInteractOpensDoorsTest::RunTest(const FString&)
 		return true;
 	}
 
-	TestTrue(TEXT("e l'effetto e' SetDoorState"),
-		Def.Effects[0].Effect == ERTActionEffect::SetDoorState);
+	// 🔴 **`ToggleDoorState`, non `SetDoorState`** ([`INT-7`]). La differenza non e' cosmetica: `SetDoorState`
+	// porta lo stato in `Amount` e lo DICHIARA, la commutazione lo calcola dal pre-Blast. Un effetto proprio
+	// invece di un `Amount` sentinella e' cio' che rende impossibile confondere «commuta» con un data asset
+	// che ha dimenticato di scrivere lo stato.
+	TestTrue(TEXT("e l'effetto e' ToggleDoorState"),
+		Def.Effects[0].Effect == ERTActionEffect::ToggleDoorState);
 
-	// 🔴 **`Open` e non altro** ([D-151]). Non e' una restrizione di comodo: `CanTransition` vieta
-	// `Locked -> Open` — ed e' la protezione su cui poggia «non si apre da sola» — ma AMMETTE
-	// `Locked -> Closed`, che a una porta bloccata toglie il lock. Finche' nessuna azione dichiarava
-	// `SetDoorState` quel percorso era irraggiungibile; D-148 lo rende raggiungibile per la prima volta, e
-	// questa asserzione e' cio' che lo tiene fuori portata senza dover toccare `CanTransition`.
-	TestEqual(TEXT("verso Open, che nel trasporto e' Amount"),
-		Def.Effects[0].Amount, static_cast<int32>(ERTHexDoorState::Open));
-
-	// ⚠️ Lo stato viaggia in `Amount` e `Open` vale **zero**: un `Amount` di default sarebbe
-	// indistinguibile da una dichiarazione vera. Cio' che salva la distinzione e' `bChangesDoor`, che
-	// `RTTurnManager` alza solo trovando la spec — non il valore. L'asserzione qui sopra e' quindi
-	// necessaria ma non sufficiente da sola: senza il flag, «ogni azione del catalogo ordinerebbe di
-	// aprire ogni porta sulla propria linea di tiro» (`RTHexCombatLibrary.h`).
-	TestEqual(TEXT("Open e' zero: per questo il flag esiste"),
-		static_cast<int32>(ERTHexDoorState::Open), 0);
+	// 🔴 **La guardia di [D-151], nella sua forma nuova.** `CanTransition` vieta `Locked -> Open` — ed e' la
+	// protezione su cui poggia «non si apre da sola» — ma AMMETTE `Locked -> Closed`, che a una porta
+	// bloccata toglie il lock. [D-151] lo teneva fuori portata limitando l'azione ad `Open`; la commutazione
+	// lo tiene fuori portata definendosi **solo** su `Open <-> Closed`, cosi' `Locked` non e' mai una
+	// sorgente valida. In entrambi i casi il guard sta nell'AZIONE, e `CanTransition` non si tocca.
+	// Chi lo verifica sul comportamento e' `Structures.Door.InteractOnLockedDoorIsRefused`.
+	//
+	// ⚠️ `Amount` e' INUTILIZZATO da questo effetto: l'asserzione dice che nessuno ci ha rimesso uno stato
+	// di nascosto, il che renderebbe di nuovo ambiguo cosa l'azione chiede.
+	TestEqual(TEXT("e non porta nessuno stato in Amount: lo calcola il resolver"),
+		Def.Effects[0].Amount, 0);
 
 	// La portata resta 1 ([D-149]): il giocatore bersaglia la SORGENTE, che e' adiacente, e il grafo di
 	// #833 raggiunge i bersagli remoti. Con portata 1 la «prima porta sulla traiettoria» che

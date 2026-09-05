@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
+#include "Map/RTHexMapAsset.h" // FRTHexInteriorWall: la geometria intra-cella e' dato di gioco (`D-269`)
 #include "Turn/RTTurnLog.h" // ERTLogCategory: un'assertion sul log parla il vocabolario del log
 #include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: la condizione dichiarata di [D-109] sull'intent
 #include "RTTestScenario.generated.h"
@@ -152,7 +153,6 @@ enum class ERTAssertionKind : uint8
 	 */
 	EffectiveTargetEquals
 };
-
 /**
  * Modifica di una cella dell'arena generata: ostacoli, muri, terreno costoso.
  *
@@ -190,9 +190,72 @@ struct FRTScenarioCell
 	 */
 	UPROPERTY()
 	int32 OccupancySurcharge = 0;
+
+	/**
+	 * Obiettivo contendibile su questa cella (`FRTHexCellData::bIsObjective`, formato mappa v11 — `#75`).
+	 *
+	 * 🔴 **Esiste perche' senza di lui l'obiettivo era esprimibile SOLO da una fixture** (`#2269`), e l'unica
+	 * che ne posi uno e' `RelayBasin`. Misurato prima di aggiungerlo: su quella board — 45 celle, distanza
+	 * massima 8, obiettivo al centro — non esiste una posa in cui il nemico sia insieme **visibile** e
+	 * **fuori portata**, perche' con `MoveRange 4` e `AttackRange` fino a 5 il bot arriva a tiro da
+	 * qualunque parte. E senza quella condizione uno scenario sull'obiettivo misura il focus-fire: il colpo
+	 * vale due ordini di grandezza piu' dell'obiettivo, e vince — correttamente, ma non e' la domanda.
+	 *
+	 * ⚠️ **Entra nell'hash della mappa** (`URTHexMapAsset::ComputeHash`), come per ogni altra proprieta' di
+	 * cella: due arene identiche in tutto tranne dove sta l'obiettivo non si giocano allo stesso modo. Uno
+	 * scenario che lo dichiara ha quindi un hash diverso da uno che non lo dichiara — e un golden registrato
+	 * prima non e' confrontabile con uno registrato dopo.
+	 *
+	 * `false` = cella normale, che e' anche il default di una cella non elencata.
+	 */
+	UPROPERTY()
+	bool bIsObjective = false;
+
+};
+
+/**
+ * Una PORTA dichiarata dallo scenario, con la cella che la contiene.
+ *
+ * ⚠️ Serve un tipo perche' `FRTHexDoor` porta il bordo ma non la cella: nell'asset vive **dentro**
+ * `FRTHexCellData::Doors`, e qui le porte si dichiarano in una sezione propria — piu' leggibile di una
+ * porta annidata in ogni cella, e simmetrica a `interiorWalls`.
+ */
+USTRUCT()
+struct FRTScenarioDoor
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FRTCellId Cell;
+
+	UPROPERTY()
+	FRTHexDoor Door;
 };
 
 /** Un'unita' schierata dallo scenario. */
+USTRUCT()
+struct FRTScenarioStatus
+{
+	GENERATED_BODY()
+
+	/**
+	 * Il nome del tag, come lo dichiara `Core/RTGameplayTags.cpp`: `"Status.Guarded"`, `"Status.Wet"`, …
+	 *
+	 * ⚠️ Si risolve a caricamento e un nome sconosciuto RIFIUTA lo scenario. `RequestGameplayTag` con
+	 * `ErrorIfNotFound=false` tornerebbe un tag vuoto senza lamentarsi, e un tag vuoto applicato non fa
+	 * niente: lo scenario girerebbe verde verificando l'assenza di un effetto mai richiesto.
+	 */
+	UPROPERTY()
+	FName Tag;
+
+	/** Turni di durata. Deve essere > 0: uno status che dura zero turni non e' uno status. */
+	UPROPERTY()
+	int32 Turns = 1;
+
+	FRTScenarioStatus() = default;
+	FRTScenarioStatus(FName InTag, int32 InTurns) : Tag(InTag), Turns(InTurns) {}
+};
+
 USTRUCT()
 struct FRTScenarioUnit
 {
@@ -323,6 +386,27 @@ struct FRTScenarioUnit
 	 */
 	UPROPERTY()
 	bool bLoadoutDeclared = false;
+
+	/**
+	 * GLI STATUS ATTIVI ALL'AVVIO, con la loro durata — `#1629`.
+	 *
+	 * 🔑 **Uno status non e' un nome: e' un nome E una durata.** `ARTUnit::ApplyStatus` prende
+	 * `(FGameplayTag, int32 Turns)`, e un formato che scrivesse il solo tag dovrebbe inventare un default
+	 * — cioe' prendere una decisione di gioco dentro un serializzatore. La coppia sta insieme perche' e'
+	 * una cosa sola.
+	 *
+	 * ⚠️ **Il vocabolario e' quello del runtime**, `Core/RTGameplayTags.cpp`, e non ce n'e' un secondo:
+	 * il JSON porta il nome del tag (`"Status.Guarded"`) e il loader lo risolve. Un tag sconosciuto e'
+	 * un **errore di caricamento**, non uno status vuoto applicato in silenzio: quello darebbe uno
+	 * scenario verde che verifica l'assenza di un effetto che nessuno ha mai chiesto.
+	 *
+	 * ⛔ **Niente flag «dichiarato»**, a differenza di `Loadout`: per il loadout serve distinguere
+	 * «non dichiarato» da «dichiarato vuoto», perche' un'unita' senza loadout ne riceve uno di default.
+	 * Per gli status no — nessuno status E' lo stato naturale di un'unita', e un array assente e uno vuoto
+	 * significano la stessa cosa. Un flag che non distingue niente e' peso.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioStatus> Statuses;
 };
 
 /**
@@ -591,12 +675,39 @@ struct FRTTestExpectation
 	UPROPERTY()
 	uint8 LogOutcome = 0;
 
+	/**
+	 * Filtro OPZIONALE sull'`ActionId` della voce (`LogEventCount`, `LogEventAmount`, `LogEventOrder`).
+	 * `NAME_None` = nessun filtro, cioe' il comportamento che il vocabolario aveva prima di `#170`.
+	 *
+	 * 🔴 **Esiste perche' categoria + esito non bastano a identificare un evento, e la prova e' il T3 dello
+	 * showcase.** Un danno da `Status.Burning` e' `Combat`/`Hit` esattamente come un colpo d'arma —
+	 * lo prescrive [D-162]: *«la voce e' `Combat` anche quando la causa e' ambientale … la causa di un danno
+	 * la porta `ActionId`, non la categoria»*. Senza questo campo un `LogEventCount(Combat, Hit)` che
+	 * volesse dire «il fuoco ha bruciato qualcuno» sarebbe vero anche se il fuoco non avesse bruciato
+	 * nessuno e a colpire fosse stata un'arma: un'assertion che non puo' distinguere cio' che afferma da
+	 * cio' che nega non e' falsificabile.
+	 *
+	 * ⛔ **La strada alternativa era `LogEventAmount`, ed e' stata scartata con la sua ragione**: userebbe un
+	 * NUMERO DI BILANCIAMENTO come discriminante d'identita'. La sua caduta direbbe *«il Burning fa un altro
+	 * numero»*, non *«il Burning non c'e'»*, e cambierebbe significato al primo ritocco del catalogo terreni.
+	 *
+	 * ⚠️ **Il confronto e' esatto sull'`FName`, non un prefisso.** `Status.Burning` e `Status.Burning.Tick`
+	 * sono due eventi diversi, e un match per prefisso li fonderebbe senza dirlo — la stessa ragione per cui
+	 * `ParseScenarioLogEvent` risolve i nomi contro un `UEnum` invece di accettare stringhe libere.
+	 */
+	UPROPERTY()
+	FName LogActionId;
+
 	/** Secondo evento, quello che deve venire DOPO (`LogEventOrder`). */
 	UPROPERTY()
 	ERTLogCategory ThenCategory = ERTLogCategory::Move;
 
 	UPROPERTY()
 	uint8 ThenOutcome = 0;
+
+	/** Filtro opzionale sull'`ActionId` del SECONDO evento (`LogEventOrder`). Vedi `LogActionId`. */
+	UPROPERTY()
+	FName ThenActionId;
 };
 
 /** Scenario completo, come letto dal file. */
@@ -678,6 +789,38 @@ struct FRTTestScenario
 	/** Celle da modificare nell'arena generata (ostacoli, muri, terreno costoso). Vuoto = arena liscia. */
 	UPROPERTY()
 	TArray<FRTScenarioCell> Cells;
+
+	/**
+	 * MURI DENTRO una cella, non sui suoi bordi (`D-269`/`D-270`, `#1830`). Vuoto = nessuna geometria interna.
+	 *
+	 * 🔑 **Esiste perche' altrimenti la geometria intra-cella sarebbe verificabile solo da un test C++ — cioe'
+	 * mai in una partita vera.** E' la stessa ragione, scritta per lo stesso motivo, di
+	 * `FRTScenarioCell::OccupancySurcharge`.
+	 *
+	 * ⚠️ Riusa `FRTHexInteriorWall`, il tipo dell'asset, invece di una copia da scenario: una seconda
+	 * rappresentazione dello stesso muro sarebbe due verita' da tenere allineate, e la geometria e' proprio
+	 * il posto dove questo repository ha gia' deciso che non se ne fanno due (`D-270`).
+	 */
+	UPROPERTY()
+	TArray<FRTHexInteriorWall> InteriorWalls;
+
+	/**
+	 * PORTE con la loro identita' stabile, e i BINDING che legano una sorgente ai propri bersagli
+	 * (`CP 23.3`/`23.4`, `#833`). Vuoti = nessuna struttura interattiva.
+	 *
+	 * 🔑 **Esistono per la stessa ragione di `InteriorWalls`**: senza, il grafo di interazione sarebbe
+	 * verificabile solo da un test C++ — cioe' mai in una partita, mai in un replay. E
+	 * [`scenario-map.md`](../../../docs/technical/tooling/scenario-map.md) dichiara **gia'** i tre scenari
+	 * attesi con i loro nomi, che senza questi due campi non erano scrivibili.
+	 *
+	 * ⚠️ Riusano i tipi dell'asset — `FRTHexDoor`, `FRTInteractionBinding` — invece di copie da scenario: una
+	 * seconda rappresentazione della stessa porta sarebbe due verita' da tenere allineate.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioDoor> Doors;
+
+	UPROPERTY()
+	TArray<FRTInteractionBinding> InteractionBindings;
 
 	UPROPERTY()
 	TArray<FRTScenarioUnit> Units;

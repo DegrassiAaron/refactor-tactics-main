@@ -8,6 +8,7 @@
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTReactionOpportunityTypes.h" // IsDeclaredConditionAllowed: il validator della condizione sta nel gioco
 #include "Map/RTHexLibrary.h"
+#include "Map/RTGeometryGrammar.h" // i muri interni si validano con la grammatica, non con una sua copia (#2031)
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Dom/JsonObject.h"
@@ -80,6 +81,41 @@ namespace
 	 * file (l'elenco delle chiavi note contro il parser che leggeva `edge`). Cosi' aggiungere un esito al
 	 * TurnLog lo rende scrivibile negli scenari senza toccare il loader.
 	 */
+	/**
+	 * Il filtro OPZIONALE per `ActionId` di un'assertion sul TurnLog (`#170`). Assente = nessun filtro.
+	 *
+	 * 🔴 **Una stringa VUOTA e' un errore, non «nessun filtro».** Un `"actionId": ""` ha l'aria di
+	 * discriminare e non discrimina niente: l'assertion tornerebbe al comportamento senza filtro mentre chi
+	 * legge il file crede di aver ristretto l'evento. E' la stessa classe di difetto che questo loader
+	 * rifiuta altrove — *«meglio rifiutare che ignorare»* — applicata al valore invece che alla chiave.
+	 *
+	 * ⚠️ Nessuna validazione contro un elenco di `ActionId` noti, ed e' deliberato: non esiste un `UEnum` da
+	 * interrogare come per categorie ed esiti — gli `ActionId` sono `FName` che il runtime conia da tag
+	 * (`Status.Burning`, `Objective.Control`) e dal catalogo, che e' aperto. Un elenco chiuso qui sarebbe
+	 * una seconda verita' da tenere allineata. Il prezzo e' che un `ActionId` scritto male non fallisce il
+	 * CARICAMENTO: fallisce l'assertion, dicendo che l'evento non c'e'.
+	 */
+	bool ParseScenarioLogActionId(const TSharedPtr<FJsonObject>& Obj, const TCHAR* Field, FName& OutActionId,
+		FString& OutError)
+	{
+		FString Text;
+		if (!Obj->TryGetStringField(Field, Text))
+		{
+			OutActionId = NAME_None;
+			return true;
+		}
+		if (Text.IsEmpty())
+		{
+			OutError = FString::Printf(
+				TEXT("assertion sul TurnLog: '%s' e' una stringa vuota — o si toglie la chiave (nessun ")
+				TEXT("filtro), o si scrive l'ActionId. Una stringa vuota non filtra niente e sembra ")
+				TEXT("filtrare."), Field);
+			return false;
+		}
+		OutActionId = FName(*Text);
+		return true;
+	}
+
 	bool ParseScenarioLogEvent(const TSharedPtr<FJsonObject>& Obj, const TCHAR* CategoryField,
 		const TCHAR* OutcomeField, ERTLogCategory& OutCategory, uint8& OutOutcome, FString& OutError)
 	{
@@ -139,6 +175,67 @@ namespace
 		return true;
 	}
 
+	/**
+	 * Il core da cui un'azione d'EROE deriva, o `NAME_None` se l'id non e' di un'azione d'eroe.
+	 *
+	 * 🔑 Serve a rispondere «questa abilita' risolve su chi la usa?» per le azioni d'eroe, che nel
+	 * catalogo core non ci sono: la fase e' quella del core da cui derivano (`DerivedFromActionId`), ed e'
+	 * gia' il modo in cui il resolver le riconduce al proprio comportamento (`RTTurnManager_Blast.cpp`).
+	 * ⚠️ Nessun elenco scritto a mano, per la stessa ragione di `KnownHeroIds`: un'abilita' aggiunta
+	 * domani non deve ricordarsi di questa riga.
+	 */
+	/**
+	 * Questa abilita' si applica a chi la usa? — `#2283`.
+	 *
+	 * 🔑 **Si legge il FLAG, non si deduce.** `bSelfTarget` e' una proprieta' dichiarata dal catalogo, e
+	 * il suo docstring in `RTActionDef.h` avverte esplicitamente contro il dedurla: *«Dedurlo da
+	 * `RangeCells == 0` sarebbe stato sbagliato»*. La fase non e' un criterio migliore della portata:
+	 * `Action.CreateCover` e' `Preparation` con portata 3 e uno `StructureOp`, quindi bersaglia una cella
+	 * lontana — e `Hero.Riktor.KineticPanel`, che ne deriva, deve continuare a pretendere un bersaglio.
+	 *
+	 * ⚠️ **Il roster si legge UNA volta**, per la ragione gia' scritta accanto a `KnownHeroIds`:
+	 * `GetHeroRoster()` istanzia quattro `URTHeroData` con tutte le loro abilita' a ogni chiamata, e questo
+	 * predicato viene interrogato per ogni intent senza bersaglio, in due punti del file.
+	 */
+	bool AbilityResolvesOnSelf(const FName& AbilityId)
+	{
+		if (AbilityId.IsNone())
+		{
+			return false;
+		}
+
+		const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(AbilityId);
+		if (!Core.ActionId.IsNone())
+		{
+			return Core.bSelfTarget;
+		}
+
+		// Azione d'EROE: non sta nel catalogo core, e porta il flag sul proprio `Def` — lo eredita da
+		// `MakeHeroActionFromCore`, che dal 2026-09-04 lo copia (#2283).
+		static const TMap<FName, bool> SelfByHeroAction = []()
+		{
+			TMap<FName, bool> Map;
+			for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+			{
+				if (!Hero)
+				{
+					continue;
+				}
+				for (const URTActionData* Action : Hero->Actions)
+				{
+					if (Action && !Action->Def.ActionId.IsNone())
+					{
+						Map.Add(Action->Def.ActionId, Action->Def.bSelfTarget);
+					}
+				}
+			}
+			return Map;
+		}();
+
+		const bool* Found = SelfByHeroAction.Find(AbilityId);
+		return Found != nullptr && *Found;
+	}
+
 	/** Gli HeroId che il catalogo conosce davvero. Nessun elenco scritto a mano: se il roster cambia, questa segue. */
 	TSet<FName> KnownHeroIds()
 	{
@@ -187,6 +284,12 @@ FString URTScenarioLoader::DescribeLogEvent(ERTLogCategory Category, uint8 Outco
 	// portarne uno che questa build non conosce piu'. Mostrarlo GREZZO e' l'unica risposta onesta.
 	return FString::Printf(TEXT("%s.%s"), *CategoryName,
 		OutcomeName.IsEmpty() ? *FString::Printf(TEXT("esito %d"), static_cast<int32>(Outcome)) : *OutcomeName);
+}
+
+FString URTScenarioLoader::DescribeLogEvent(ERTLogCategory Category, uint8 Outcome, FName ActionId)
+{
+	const FString Base = DescribeLogEvent(Category, Outcome);
+	return ActionId.IsNone() ? Base : FString::Printf(TEXT("%s[%s]"), *Base, *ActionId.ToString());
 }
 
 bool URTScenarioLoader::LoadFromFile(const FString& FilePath, FRTTestScenario& OutScenario, FString& OutError)
@@ -298,7 +401,180 @@ namespace
 				Obj->TryGetBoolField(TEXT("blocksLineOfSight"), Cell.bBlocksLineOfSight);
 				Obj->TryGetNumberField(TEXT("moveCost"), Cell.MoveCost);
 				Obj->TryGetNumberField(TEXT("occupancySurcharge"), Cell.OccupancySurcharge);
+				// `objective`: la cella contendibile (`#2269`). Prima di questa riga un obiettivo era
+				// esprimibile solo da una fixture, e l'unica che ne posi uno e' `RelayBasin`.
+				Obj->TryGetBoolField(TEXT("objective"), Cell.bIsObjective);
 				OutScenario.Cells.Add(Cell);
+			}
+		}
+
+		// --- muri INTERNI alla cella (opzionale, `#1830`) -----------------------------------------------------
+		//
+		// Sono geometria di gioco autorevole da `D-269`: fermano vista e proiettili. Senza questa sezione un
+		// muro interno sarebbe esprimibile solo in C++, e nessuno scenario — quindi nessun replay, nessun
+		// autobattle — potrebbe esercitarlo.
+		const TArray<TSharedPtr<FJsonValue>>* WallsJson = nullptr;
+		if (Root->TryGetArrayField(TEXT("interiorWalls"), WallsJson))
+		{
+			// I nomi si risolvono per RIFLESSIONE, come `ERTLogCategory` piu' sopra: una tabella scritta a mano
+			// qui mentirebbe in silenzio il giorno in cui l'enum cambia.
+			const UEnum* AxisEnum = StaticEnum<ERTTacticalAxis>();
+			const UEnum* TypeEnum = StaticEnum<ERTHexCoverType>();
+
+			for (const TSharedPtr<FJsonValue>& Value : *WallsJson)
+			{
+				const TSharedPtr<FJsonObject> Obj = Value->AsObject();
+				if (!Obj.IsValid()) { OutError = TEXT("interiorWalls: voce non valida"); return false; }
+
+				FRTHexInteriorWall Wall;
+				const TArray<TSharedPtr<FJsonValue>>* CellArr = nullptr;
+				Obj->TryGetArrayField(TEXT("cell"), CellArr);
+				if (!ParseCell(CellArr, Wall.Cell, OutError, TEXT("interiorWalls")))
+				{
+					return false;
+				}
+
+				FString AxisText;
+				Obj->TryGetStringField(TEXT("axis"), AxisText);
+				const int64 AxisValue = AxisEnum ? AxisEnum->GetValueByNameString(AxisText) : INDEX_NONE;
+				if (AxisValue == INDEX_NONE)
+				{
+					OutError = FString::Printf(TEXT("interiorWalls: asse '%s' sconosciuto"), *AxisText);
+					return false;
+				}
+				Wall.Segment.Axis = static_cast<ERTTacticalAxis>(AxisValue);
+
+				Obj->TryGetNumberField(TEXT("offset"), Wall.Segment.Offset);
+				Obj->TryGetNumberField(TEXT("alongStart"), Wall.Segment.AlongStart);
+				Obj->TryGetNumberField(TEXT("alongEnd"), Wall.Segment.AlongEnd);
+				Wall.Segment.Layer = Wall.Cell.Layer;
+				Obj->TryGetNumberField(TEXT("layer"), Wall.Segment.Layer);
+
+				// `type` e' opzionale e vale `High`: un muro interno che non occlude e' il caso raro, e
+				// scriverlo esplicitamente e' meno grave che dimenticarlo e non capire perche' la vista passa.
+				FString TypeText;
+				if (Obj->TryGetStringField(TEXT("type"), TypeText))
+				{
+					const int64 TypeValue = TypeEnum ? TypeEnum->GetValueByNameString(TypeText) : INDEX_NONE;
+					if (TypeValue == INDEX_NONE)
+					{
+						OutError = FString::Printf(TEXT("interiorWalls: tipo '%s' sconosciuto"), *TypeText);
+						return false;
+					}
+					Wall.Segment.WallType = static_cast<ERTHexCoverType>(TypeValue);
+				}
+
+				FString StableText;
+				if (Obj->TryGetStringField(TEXT("stableId"), StableText))
+				{
+					Wall.StableId = FName(*StableText);
+				}
+
+				// La grammatica decide, il loader la chiama: un segmento fuori grammatica e' un errore di
+				// scrittura dello scenario, e va detto QUI invece di essere ignorato a runtime.
+				const ERTGeometryViolation Violation = URTGeometryGrammarLibrary::ValidateSegment(Wall.Segment);
+				if (Violation != ERTGeometryViolation::None)
+				{
+					OutError = FString::Printf(TEXT("interiorWalls: segmento fuori grammatica su %s (violazione %d)"),
+						*Wall.Cell.ToString(), static_cast<int32>(Violation));
+					return false;
+				}
+
+				OutScenario.InteriorWalls.Add(Wall);
+			}
+		}
+
+		// --- porte e grafo di interazione (opzionali, `#833`) --------------------------------------------------
+		//
+		// Senza queste due sezioni il grafo sorgente -> bersaglio sarebbe esercitabile solo da un test C++, e
+		// `scenario-map.md` dichiara gia' i tre scenari attesi che non erano scrivibili.
+		const UEnum* DoorStateEnum = StaticEnum<ERTHexDoorState>();
+		const UEnum* DirEnum = StaticEnum<ERTHexDirection>();
+
+		const TArray<TSharedPtr<FJsonValue>>* DoorsJson = nullptr;
+		if (Root->TryGetArrayField(TEXT("doors"), DoorsJson))
+		{
+			for (const TSharedPtr<FJsonValue>& Value : *DoorsJson)
+			{
+				const TSharedPtr<FJsonObject> Obj = Value->AsObject();
+				if (!Obj.IsValid()) { OutError = TEXT("doors: voce non valida"); return false; }
+
+				FRTScenarioDoor Entry;
+				const TArray<TSharedPtr<FJsonValue>>* CellArr = nullptr;
+				Obj->TryGetArrayField(TEXT("cell"), CellArr);
+				if (!ParseCell(CellArr, Entry.Cell, OutError, TEXT("doors")))
+				{
+					return false;
+				}
+
+				FString EdgeText;
+				Obj->TryGetStringField(TEXT("edge"), EdgeText);
+				const int64 EdgeValue = DirEnum ? DirEnum->GetValueByNameString(EdgeText) : INDEX_NONE;
+				if (EdgeValue == INDEX_NONE)
+				{
+					OutError = FString::Printf(TEXT("doors: bordo '%s' sconosciuto"), *EdgeText);
+					return false;
+				}
+				Entry.Door.Edge = static_cast<ERTHexDirection>(EdgeValue);
+
+				// `Closed` e' il default: una porta che nasce aperta e' il caso raro, e scriverlo esplicitamente
+				// costa meno che dimenticarlo e non capire perche' il varco c'era gia'.
+				FString StateText;
+				if (Obj->TryGetStringField(TEXT("state"), StateText))
+				{
+					const int64 StateValue = DoorStateEnum ? DoorStateEnum->GetValueByNameString(StateText) : INDEX_NONE;
+					if (StateValue == INDEX_NONE)
+					{
+						OutError = FString::Printf(TEXT("doors: stato '%s' sconosciuto"), *StateText);
+						return false;
+					}
+					Entry.Door.State = static_cast<ERTHexDoorState>(StateValue);
+				}
+
+				int32 DoorId = 0;
+				Obj->TryGetNumberField(TEXT("doorId"), DoorId);
+				Entry.Door.DoorId = DoorId;
+
+				FString StableText;
+				if (Obj->TryGetStringField(TEXT("stableId"), StableText))
+				{
+					Entry.Door.StableId = FName(*StableText);
+				}
+				OutScenario.Doors.Add(Entry);
+			}
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* BindingsJson = nullptr;
+		if (Root->TryGetArrayField(TEXT("interactionBindings"), BindingsJson))
+		{
+			for (const TSharedPtr<FJsonValue>& Value : *BindingsJson)
+			{
+				const TSharedPtr<FJsonObject> Obj = Value->AsObject();
+				if (!Obj.IsValid()) { OutError = TEXT("interactionBindings: voce non valida"); return false; }
+
+				FRTInteractionBinding Binding;
+				FString SourceText;
+				Obj->TryGetStringField(TEXT("source"), SourceText);
+				if (SourceText.IsEmpty())
+				{
+					OutError = TEXT("interactionBindings: 'source' mancante");
+					return false;
+				}
+				Binding.SourceId = FName(*SourceText);
+
+				// ⚠️ L'ORDINE dei bersagli e' dato, non dettaglio: `ApplyInteraction` li applica come sono
+				// scritti, ed e' la proprieta' che l'invariante n. 3 difende.
+				const TArray<TSharedPtr<FJsonValue>>* TargetsJson = nullptr;
+				if (!Obj->TryGetArrayField(TEXT("targets"), TargetsJson) || TargetsJson->Num() == 0)
+				{
+					OutError = FString::Printf(TEXT("interactionBindings: '%s' senza bersagli"), *SourceText);
+					return false;
+				}
+				for (const TSharedPtr<FJsonValue>& T : *TargetsJson)
+				{
+					Binding.TargetIds.Add(FName(*T->AsString()));
+				}
+				OutScenario.InteractionBindings.Add(Binding);
 			}
 		}
 		return true;
@@ -386,6 +662,58 @@ namespace
 						return false;
 					}
 					Unit.Loadout.Add(FName(*PieceId));
+				}
+
+			}
+
+			// GLI STATUS INIZIALI — `#1629`. Assente = nessuno status, che e' lo stato naturale: qui NON
+			// serve distinguere «non dichiarato» da «dichiarato vuoto» come per il loadout, perche' un'unita'
+			// senza status non ne riceve di default.
+			const TArray<TSharedPtr<FJsonValue>>* StatusArr = nullptr;
+			if (Obj->TryGetArrayField(TEXT("statuses"), StatusArr) && StatusArr != nullptr)
+			{
+				for (const TSharedPtr<FJsonValue>& Entry : *StatusArr)
+				{
+					const TSharedPtr<FJsonObject> StatusObj = Entry->AsObject();
+					if (!StatusObj.IsValid())
+					{
+						OutError = FString::Printf(
+							TEXT("unita' '%s': statuses deve essere una lista di oggetti { tag, turns }"), *Unit.Id);
+						return false;
+					}
+
+					FString TagText;
+					if (!StatusObj->TryGetStringField(TEXT("tag"), TagText) || TagText.IsEmpty())
+					{
+						OutError = FString::Printf(TEXT("unita' '%s': uno status senza 'tag'"), *Unit.Id);
+						return false;
+					}
+
+					// 🔴 **Un tag sconosciuto RIFIUTA lo scenario**, e il nome sbagliato entra nel
+					// messaggio. `RequestGameplayTag` con `ErrorIfNotFound=false` tornerebbe un tag vuoto
+					// senza lamentarsi, e un tag vuoto applicato non fa niente: lo scenario girerebbe verde
+					// verificando l'assenza di un effetto che nessuno ha mai chiesto.
+					const FGameplayTag Resolved =
+						FGameplayTag::RequestGameplayTag(FName(*TagText), /*ErrorIfNotFound=*/ false);
+					if (!Resolved.IsValid())
+					{
+						OutError = FString::Printf(
+							TEXT("unita' '%s': status '%s' sconosciuto — il vocabolario e' quello di ")
+							TEXT("Core/RTGameplayTags.cpp"), *Unit.Id, *TagText);
+						return false;
+					}
+
+					int32 Turns = 1;
+					StatusObj->TryGetNumberField(TEXT("turns"), Turns);
+					if (Turns <= 0)
+					{
+						OutError = FString::Printf(
+							TEXT("unita' '%s': status '%s' con turns %d — uno status che dura zero turni non ")
+							TEXT("e' uno status"), *Unit.Id, *TagText, Turns);
+						return false;
+					}
+
+					Unit.Statuses.Emplace(FName(*TagText), Turns);
 				}
 			}
 
@@ -654,9 +982,9 @@ namespace
 								// Se l'ID non e' nel catalogo core la Def torna vuota e la fase e' quella di default:
 								// non e' Prep, quindi il bersaglio resta obbligatorio. Le azioni d'eroe passano di
 								// qui, ed e' il comportamento che avevano prima.
-								const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(Intent.Ability);
-								const bool bResolvesOnSelf = !Def.ActionId.IsNone()
-									&& URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) == ERTMatchPhase::Prep;
+								// 🔑 Il FLAG, non la fase: `Action.CreateCover` e' `Preparation` e bersaglia una cella
+								// a portata 3, quindi `Hero.Riktor.KineticPanel` deve restare senza scorciatoie (#2283).
+								const bool bResolvesOnSelf = AbilityResolvesOnSelf(Intent.Ability);
 								if (!bResolvesOnSelf)
 								{
 									// Per tutte le altre, un'abilita' senza bersaglio non e' un'omissione innocua: lo
@@ -945,6 +1273,10 @@ namespace
 					{
 						return false;
 					}
+					if (!ParseScenarioLogActionId(Obj, TEXT("actionId"), Exp.LogActionId, OutError))
+					{
+						return false;
+					}
 					// Conteggio ATTESO, e `0` e' un valore legittimo — anzi e' quello che serve per asserire
 					// un'assenza. Assente del tutto = 1, cioe' «l'evento c'e'»: e' il caso piu' comune e scriverlo
 					// ogni volta sarebbe rumore.
@@ -964,7 +1296,15 @@ namespace
 					{
 						return false;
 					}
+					if (!ParseScenarioLogActionId(Obj, TEXT("actionId"), Exp.LogActionId, OutError))
+					{
+						return false;
+					}
 					if (!ParseScenarioLogEvent(Obj, TEXT("thenCategory"), TEXT("thenOutcome"), Exp.ThenCategory, Exp.ThenOutcome, OutError))
+					{
+						return false;
+					}
+					if (!ParseScenarioLogActionId(Obj, TEXT("thenActionId"), Exp.ThenActionId, OutError))
 					{
 						return false;
 					}
@@ -973,6 +1313,10 @@ namespace
 				{
 					Exp.Kind = ERTAssertionKind::LogEventAmount;
 					if (!ParseScenarioLogEvent(Obj, TEXT("category"), TEXT("outcome"), Exp.LogCategory, Exp.LogOutcome, OutError))
+					{
+						return false;
+					}
+					if (!ParseScenarioLogActionId(Obj, TEXT("actionId"), Exp.LogActionId, OutError))
 					{
 						return false;
 					}
@@ -1255,6 +1599,7 @@ namespace
 					*Cell.Cell.ToString(), Cell.OccupancySurcharge);
 				return false;
 			}
+
 		}
 		return true;
 	}
@@ -1477,9 +1822,10 @@ namespace
 					// respinga cercando un'unita' di nome "".
 					if (Intent.Target.IsEmpty())
 					{
-						const FRTActionDef SelfDef = URTCatalogLibrary::FindCoreAction(Intent.Ability);
-						if (!SelfDef.ActionId.IsNone()
-							&& URTCatalogLibrary::MapResolutionPhase(SelfDef.ResolutionPhase) == ERTMatchPhase::Prep)
+						// ⚠️ Lo STESSO predicato della lettura piu' sopra, non una sua copia: correggerne una
+						// sola spostava l'errore senza toglierlo — misurato, da «non dichiara un bersaglio» a
+						// «bersaglio '' non schierato» (#2283).
+						if (AbilityResolvesOnSelf(Intent.Ability))
 						{
 							continue;
 						}

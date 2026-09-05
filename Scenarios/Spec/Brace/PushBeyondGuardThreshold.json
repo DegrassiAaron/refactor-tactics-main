@@ -17,7 +17,7 @@
 
   "_nota_in_partita_ANCORA_NO": "⚠️ ANCORA VERO, ed e' la fetta B di #63. Il gioco non equipaggia: `DefaultWeaponVariantFor` dichiara `Weapon.Impact` come default di Phase (D-089) e ha chiamanti solo nei test; ne' `RTGameMode.cpp` ne' `RTUnit.cpp` nominano equipaggiamento o loadout. Quindi la spinta di 2 ora esiste nei dati E in questo scenario, ma non in una partita. La seduta U20 continua a non poter distinguere `Guard` da `Brace` a video finche' l'assegnazione automatica non arriva -- e quella tocca 33 scenari su 78, quindi e' stata separata apposta.",
 
-  "_nota_numeri": "Danno invariato rispetto allo scenario gemello: `Weapon.Impact` non ha `DamageDelta`, aggiunge `Push 1` e toglie 1 di portata. Guardia 16-15=1 -> 89; irrigidimento 16-10=6 -> 84; niente 16 -> 74. La SPINTA e' cio' che cambia: 2 celle invece di 1.",
+  "_nota_numeri": "Danno invariato rispetto allo scenario gemello: `Weapon.Impact` non ha `DamageDelta`, aggiunge `Push 1` e toglie 1 di portata. Guardia 16-15=1, e lo scudo base ([D-224]) lo assorbe tutto -> 90; irrigidimento 16-10=6, meno 5 -> 89; niente 16, meno 5 -> 79. La SPINTA e' cio' che cambia: 2 celle invece di 1.",
 
   "_nota_la_differenza_che_la_presentazione_deve_mostrare": "`Guard` regge fino a `GuardResistedPushDistance = 1`: contro 2 CEDE e arretra di due celle. Il ramo `Braced` del resolver non controlla la distanza (D-132), quindi `Brace` REGGE e resta fermo. Chi non ha difeso arretra come la guardia. A schermo: due unita' che scivolano indietro e una che non si muove, a parita' di colpo -- ed e' l'unico frame in cui le due difese si comportano in modo diverso.",
 

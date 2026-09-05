@@ -1,0 +1,75 @@
+{
+  "scenarioId": "Visual.Combat.GuardVsBraceUnderSmallHits",
+  "tags": ["visual", "animation", "combat", "guard", "brace", "bal-1", "d-292", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "COMPOSITO DI CONFRONTO fra le due difese, sotto colpi PICCOLI e RIPETUTI. Tre difensori identici prendono lo stesso identico attacco — tre `Hero.Riktor.ImpactShot` da 8, tutti frontali — con tre risposte diverse: guardia, irrigidimento, niente. I tre esiti stanno nello stesso Play, quindi cio' che si guarda e' la DIFFERENZA, non un numero isolato.",
+
+  "_oracolo": "Le voci `PIE-VIS-GUARD` e `PIE-VIS-BRACE` di `docs/technical/test-manuali-pie.md`: due criteri, un solo Play. Non sostituisce i loro scenari — `Visual.Combat.GuardReducesFirstHit` e `Visual.Combat.BraceReducesEveryHit` restano, e mostrano ciascuna difesa contro colpi GRANDI, dove il confronto si inverte.",
+
+  "_nota_perche_esiste": "⚖️ **Il confronto fra due difese non si osserva in due partite diverse.** `PIE-BAL1` chiede se `Guard` e `Brace` sono *«leggibili come scelte diverse»*, e due Play separati mostrano due numeri che il giocatore deve ricordare e sottrarre a mente. Qui la scelta si legge nella stessa inquadratura. ⚠️ **`PIE-BAL1` NON diventa eseguibile per questo**: resta ferma su `D-204`…`D-208`, e questo file ne prepara la scena, non ne anticipa il verdetto.",
+
+  "_nota_perche_colpi_piccoli": "🔑 **E' il caso in cui le due difese si invertono, e nel corpus non c'era.** Con un colpo da 16 la guardia domina — `Spec.Brace.GuardAndBraceOnMixedHit` lo misura: 1 danno contro 6. Con colpi da **8** il rapporto si capovolge, perche' i 10 di `BraceDamageReduction` azzerano ogni singolo colpo mentre i 15 del pool di [D-292] si esauriscono dopo il secondo. Chi guarda vede la regola vera: la guardia e' un budget che finisce, l'irrigidimento e' una soglia che non si consuma.",
+
+  "_nota_numeri": "Tre colpi da 8 su ciascun difensore, e tre esiti distinti su 120 HP di partenza. **Guardia**: il pool da 15 assorbe 8 e poi 7, il terzo colpo passa intero, la somma e' 9 e lo scudo base ne ferma 5 ([D-224]) — **116**. **Irrigidimento**: ogni colpo perde 10 e 8 meno 10 e' zero, quindi non arriva niente — **120**, illeso. **Niente**: 24 meno i 5 dello scudo — **101**. La distanza fra i due estremi e' quello che si guarda.",
+
+  "_nota_perche_ImpactShot": "L'unica ABILITA' PRINCIPALE del roster sotto entrambe le soglie: 8 danni (ADR-0007). Ogni altra abilita' dichiarabile in un intent vale 16 o piu', e sopra i 10 del `Brace` il confronto tornerebbe quello che gli scenari esistenti mostrano gia'. ⚠️ *Sotto la soglia esistono anche `Reaction.CounterShot` (14), `Hero.Gadget.ReactiveCapacitor` (10) e la variante `InterceptShot.Extended` (14) — due reazioni e una variante di workbench, che uno scenario non puo' schierare come colpo scelto. La prima stesura diceva «ogni altro colpo del catalogo» e li ignorava; corretto dopo una code review.*",
+
+  "_nota_niente_spinta": "Gli attaccanti entrano SPOGLI (`\"loadout\": []`), come in `Spec.Brace.GuardAndBraceOnMixedHit` e per la stessa ragione: il default di Riktor e' `Weapon.Impact`, che aggiunge `Push 1` all'attacco base e toglie una cella di portata. Con i default montati questa scena mostrerebbe anche degli spostamenti — cioe' una terza regola sopra le due che confronta — e la parte sulla portata NON si applica qui: le distanze sono `1, 2, 2` per ogni difensore, quindi con la portata ridotta a 2 tutti i colpi arriverebbero lo stesso. Regge solo la meta' sulla spinta, che da sola basta — nove spinte in una scena che confronta due difese misurerebbero una terza regola. ⚠️ *La prima stesura importava anche l'argomento della portata da `Spec.Combat.GuardPoolSpansMultipleHits`, dove e' vero perche' un attaccante sta a distanza 3. Qui era falso, e una ragione falsa accanto a una vera e' peggio di una ragione sola: chi la verifica e la trova sbagliata smette di credere anche all'altra. Trovato da una code review.*",
+
+  "_nota_geometria": "Le tre file sono TRASLAZIONI PURE l'una dell'altra sull'asse `r` (+2, 0, -2), quindi ogni attaccante sta rispetto al proprio difensore nella stessa identica posizione relativa: `(1,0)`, `(2,0)` e `(2,-1)`. Una traslazione in coordinate assiali conserva distanze e archi, percio' i tre gruppi sono confrontabili per costruzione e non per verifica. Tutti gli attaccanti stanno a EST del proprio bersaglio, cioe' nell'arco frontale di chi guarda a est di partenza e non fa niente per girarsi (CP 16.2): con un colpo alle spalle la guardia non varrebbe e questa scena misurerebbe la direzionalita' invece del confronto.",
+
+  "_nota_tre_attaccanti_per_difensore": "Un attaccante dedicato per colpo, e non tre colpi da uno solo: un'unita' dichiara UN intent per turno. La spinta non c'entra — `ImpactShot` spoglio non ne porta — ma la scena resta comunque fuori dalla regola dei bersagli colpiti da piu' attaccanti, che `Spec.Brace.GuardAndBraceOnMixedHit` evita di proposito.",
+
+  "units": [
+    { "id": "DG", "hero": "Hero.Riktor", "team": 0, "cell": [0, 2, 0] },
+    { "id": "DB", "hero": "Hero.Riktor", "team": 0, "cell": [0, 0, 0] },
+    { "id": "DN", "hero": "Hero.Riktor", "team": 0, "cell": [0, -2, 0] },
+
+    { "id": "AG1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 2, 0], "facing": "W", "loadout": [] },
+    { "id": "AG2", "hero": "Hero.Riktor", "team": 1, "cell": [2, 2, 0], "facing": "W", "loadout": [] },
+    { "id": "AG3", "hero": "Hero.Riktor", "team": 1, "cell": [2, 1, 0], "facing": "W", "loadout": [] },
+
+    { "id": "AB1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0], "facing": "W", "loadout": [] },
+    { "id": "AB2", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0], "facing": "W", "loadout": [] },
+    { "id": "AB3", "hero": "Hero.Riktor", "team": 1, "cell": [2, -1, 0], "facing": "W", "loadout": [] },
+
+    { "id": "AN1", "hero": "Hero.Riktor", "team": 1, "cell": [1, -2, 0], "facing": "W", "loadout": [] },
+    { "id": "AN2", "hero": "Hero.Riktor", "team": 1, "cell": [2, -2, 0], "facing": "W", "loadout": [] },
+    { "id": "AN3", "hero": "Hero.Riktor", "team": 1, "cell": [2, -3, 0], "facing": "W", "loadout": [] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "Un turno solo. Le due difese sono azioni principali di Prep e risolvono su chi le usa — nessun bersaglio da dichiarare — e i nove colpi cadono nello stesso passaggio di Blast. DN non dichiara niente: e' il controllo, e la sua assenza di intento e' il contenuto.",
+      "intents": [
+        { "unit": "DG", "ability": "Action.Guard" },
+        { "unit": "DB", "ability": "Action.Brace" },
+
+        { "unit": "AG1", "ability": "Hero.Riktor.ImpactShot", "target": "DG" },
+        { "unit": "AG2", "ability": "Hero.Riktor.ImpactShot", "target": "DG" },
+        { "unit": "AG3", "ability": "Hero.Riktor.ImpactShot", "target": "DG" },
+
+        { "unit": "AB1", "ability": "Hero.Riktor.ImpactShot", "target": "DB" },
+        { "unit": "AB2", "ability": "Hero.Riktor.ImpactShot", "target": "DB" },
+        { "unit": "AB3", "ability": "Hero.Riktor.ImpactShot", "target": "DB" },
+
+        { "unit": "AN1", "ability": "Hero.Riktor.ImpactShot", "target": "DN" },
+        { "unit": "AN2", "ability": "Hero.Riktor.ImpactShot", "target": "DN" },
+        { "unit": "AN3", "ability": "Hero.Riktor.ImpactShot", "target": "DN" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals", "unit": "DG", "value": 116 },
+    { "type": "UnitHpEquals", "unit": "DB", "value": 120 },
+    { "type": "UnitHpEquals", "unit": "DN", "value": 101 },
+    { "type": "UnitAtCell", "unit": "DG", "cell": [0, 2, 0] },
+    { "type": "UnitAtCell", "unit": "DB", "cell": [0, 0, 0] },
+    { "type": "UnitAtCell", "unit": "DN", "cell": [0, -2, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

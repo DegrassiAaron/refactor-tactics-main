@@ -5,7 +5,7 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "La reazione che cambia CHI subisce un colpo altrui. Gadget spara a Wraith; Riktor, che sta a una cella da lui, ha armato `Hero.Riktor.Interposition` e diventa lui il bersaglio. Wraith resta a 90 pieni senza aver fatto nulla, Riktor scende a 98 senza che nessun intent lo avesse messo sulla linea di tiro.",
+  "_nota": "La reazione che cambia CHI subisce un colpo altrui. Gadget spara a Wraith; Riktor, che sta a una cella da lui, ha armato `Hero.Riktor.Interposition` e diventa lui il bersaglio. Wraith resta a 90 pieni senza aver fatto nulla, Riktor scende a 103 — 22 meno i 5 dello scudo base ([D-224]) — senza che nessun intent lo avesse messo sulla linea di tiro.",
 
   "_nota_presentazione": "E' il caso piu' difficile da rendere leggibile di tutto il corpus: a schermo il proiettile deve **cambiare destinatario** a mezz'aria, o la scena si legge come «Gadget ha sbagliato mira». Il colpo parte verso Wraith perche' quello era il piano, e finisce su Riktor perche' una reazione e' scattata: entrambe le meta' devono vedersi, altrimenti la reazione sembra un bug di targeting.",
 

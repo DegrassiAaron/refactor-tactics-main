@@ -78,6 +78,26 @@ bool FRTWraithMatchesCatalogTest::RunTest(const FString&)
 	TestTrue(TEXT("e non si ferma addosso come la carica"),
 		PassingBlade->Def.MovementStyle != ChargeDef.MovementStyle);
 
+	// 🔑 **La RIDUZIONE della parata, che era l'unico numero del kit di Wraith che questo file non
+	// guardava** (`#2105`). Scritta a mano di proposito: leggerla da
+	// `URTCombatLibrary::DeflectDamageReduction` renderebbe la riga tautologica come i tre test di reazione
+	// — `RTHeroReactionTests`, `RTDefensiveReactionTests`, `RTComposableReactionTests` — che calcolano
+	// l'attesa DALLA costante e restano verdi quando cambia.
+	//
+	// ➕ Il numero non era del tutto scoperto: `RTCombatResolverTests` lo confronta con un letterale
+	// sull'aritmetica del pool di assorbimento. ⚠️ Ma li' e' un livello sotto il catalogo, e
+	// `Visual.Reaction.Deflection` — il solo scenario che la nominava — da [D-224] e' verde per
+	// qualunque riduzione >= 17, perche' i 2 residui finiscono interi nello scudo base. La meta' in partita
+	// la misura ora `Spec.Reaction.DeflectionReducesByTwenty`.
+	const URTActionData* Deflection = Wraith->Actions[3];
+	TestEqual(TEXT("Deflection: un budget di 20 sui colpi del turno"),
+		WraithEffectAmount(Deflection->Def.Effects, ERTActionEffect::DamageReduction), 20);
+	// ⚠️ **E NON dichiara anche uno scudo**, che sarebbe un'altra cosa: uno scudo assorbe e si
+	// consuma come oggetto proprio, questa e' un budget sul colpo. La riga sopra non copre il caso in cui
+	// i due effetti coesistano — li' leggerebbe ancora 20 e tacerebbe.
+	TestEqual(TEXT("Deflection: nessuno scudo accanto alla riduzione"),
+		Deflection->Def.Effects.Num(), 1);
+
 	// Feint risolve nel Blast per priorita' (fase Control, codice 30 del catalogo): precede il danno.
 	const URTActionData* Feint = Wraith->Actions[4];
 	TestTrue(TEXT("Feint: risolve nel Blast"),
@@ -111,7 +131,8 @@ bool FRTWraithInterceptShotStopsMovementTest::RunTest(const FString&)
 	// gia' armato su una cella non si annulla.
 	TestTrue(TEXT("si arma nel Prep"),
 		URTCatalogLibrary::MapResolutionPhase(Intercept->Def.ResolutionPhase) == ERTMatchPhase::Prep);
-	TestFalse(TEXT("una previsione armata non si interrompe"), Intercept->Def.bCanBeInterrupted);
+	TestEqual(TEXT("una previsione armata non si interrompe"), Intercept->Def.InterruptPolicy,
+		ERTInterruptPolicy::None);
 
 	// Lo STOP e' rappresentabile: c'e' un esito di movimento che lo dice, e non riusa `BlockedByUnit` —
 	// la cella e' libera, e mandare il giocatore a cercare un'unita' che non c'e' sarebbe una bugia.

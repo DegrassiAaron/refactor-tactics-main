@@ -371,6 +371,38 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 		Draft.Set(MakeShowcaseTerrainCell(Patch.Cell, Patch.Surface));
 	}
 
+	// --- L'obiettivo -------------------------------------------------------------------------------------
+	// Il Relay e' una cella OBIETTIVO contendibile (CP 10.2, formato mappa v11).
+	//
+	// 🔴 **Questa riga e' il vero prerequisito del T8, e per tre settimane non l'ha nominata nessuno**
+	// (`#170`). Il T8 dello showcase dichiara `requires: ["PredictiveAction", "Objective"]` e la issue
+	// leggeva quel nome come «aspetta che `#75` chiuda». `#75` ha chiuso — la regola gira, e
+	// `URTTurnRules::ResolveObjectiveControl` conta le PRESENZE nel Cleanup, prima di `EvaluateMatchEnd`.
+	// Ma la regola non aveva **niente su cui girare**: misurato prima di scrivere, `bIsObjective = true`
+	// compariva in tutto `Source/` solo dentro `RTObjectiveTests.cpp` e nel commandlet che timbra un asset —
+	// **nessun costruttore di arena posava un obiettivo**, questo compreso. E su una mappa senza obiettivi
+	// il Cleanup TACE di proposito (`Objectives.SilentWithoutObjectiveCell`), quindi l'assenza non produceva
+	// nessun rosso da nessuna parte: il T8 sarebbe rimasto `Blocked` per una capability, e scoprendo la
+	// capability sarebbe diventato un turno che gira, non segna e **passa**.
+	//
+	// ⚠️ Non e' una scelta di design fatta qui: `docs/product/showcase-v0.1.md` §2.2 la dichiara dal primo
+	// giorno — *«| Relay | (0,0,0) | `Objective.Relay`, contendibile |»*. Questa riga riconcilia la fixture
+	// con la propria spec owner; il disallineamento era che la spec lo diceva e il codice no.
+	//
+	// ⚠️ **Cambia l'hash della mappa, ed e' voluto**: `bIsObjective` entra in `ComputeHash` perche' due
+	// mappe identiche in tutto tranne dove sta l'obiettivo **non si giocano allo stesso modo**. Un golden
+	// registrato prima di questa riga non e' confrontabile con uno registrato dopo, e la rigenerazione va
+	// dichiarata — che e' esattamente la disciplina che `rt.Test.RegenerateGolden` esiste per imporre.
+	//
+	// ⛔ Un `bool` e non un proprietario: l'obiettivo e' CONTENDIBILE e non appartiene a nessuno finche'
+	// qualcuno non lo occupa. Piu' obiettivi distinti sono CP 31.1, post-v0.1.
+	if (const FRTHexCellData* RelayObjective = Draft.Find(FRTCellId(0, 0, 0)))
+	{
+		FRTHexCellData Updated = *RelayObjective;
+		Updated.bIsObjective = true;
+		Draft.Set(Updated);
+	}
+
 	// --- Elementi di bordo --------------------------------------------------------------------------------
 	// Copertura bassa sull'approccio NORD al Relay: da quel lato ci si avvicina riparati, dagli altri no.
 	// La direzione si CHIEDE alla libreria invece di scriverla a mano: se la convenzione dei sei lati
@@ -381,6 +413,35 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 		if (URTHexCoverLibrary::EdgeDirection(FRTCellId(0, 0, 0), FRTCellId(0, -1, 0), Edge))
 		{
 			FRTHexCellData Updated = *RelayCell;
+			Updated.Covers.Add(FRTHexCover(Edge, ERTHexCoverType::Low,
+				FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
+			Draft.Set(Updated);
+		}
+	}
+
+	// Copertura bassa sul bordo `(0,-1) <-> (1,-1)`, ed e' l'oracolo del **T6** (#1060): ripara **Wraith**, il
+	// bersaglio ORIGINALE, dal colpo che gli arriva da ovest.
+	//
+	// ⚠️ **Sta sulla VITTIMA e non sull'intercettore, ed e' la scelta che rende il turno discriminante.**
+	// D-017 chiede che la geometria si rivaluti sul bersaglio EFFETTIVO: quando Riktor si interpone, la
+	// copertura che conta e' la SUA — e lui non ne ha. Un resolver che conservasse quella del bersaglio
+	// originale gli farebbe 12 danni invece di 22, cioe' **113 punti vita invece di 103**. E' il caso
+	// `CoveredVictim` di `Cover.InterceptRecalculatesOnEffectiveTarget`, portato sulla pipeline reale.
+	//
+	// ⛔ **L'inverso non era praticabile, ed e' misurato**: una copertura sul bordo d'ingresso di RIKTOR
+	// varrebbe zero. CP 16.2 dichiara scoperto l'emisfero posteriore, e Riktor arriva su (2,0) orientato a
+	// **NE** mentre Gadget sta a ovest. Orientarlo con una rotazione dichiarata non e' possibile: il gioco la
+	// rifiuta — *«rotazione dichiarata RIFIUTATA (illegale per lo stile di movimento)»* — perche' nello stesso
+	// turno si muove. Wraith invece guarda gia' **W**, verso chi lo attacca.
+	//
+	// ⛔ `Low` e non `High`: una copertura alta toglierebbe la linea di tiro, e il colpo non partirebbe
+	// affatto — l'interposizione non avrebbe nulla da intercettare.
+	if (const FRTHexCellData* WraithCell = Draft.Find(FRTCellId(1, -1, 0)))
+	{
+		ERTHexDirection Edge;
+		if (URTHexCoverLibrary::EdgeDirection(FRTCellId(1, -1, 0), FRTCellId(0, -1, 0), Edge))
+		{
+			FRTHexCellData Updated = *WraithCell;
 			Updated.Covers.Add(FRTHexCover(Edge, ERTHexCoverType::Low,
 				FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
 			Draft.Set(Updated);
@@ -440,6 +501,7 @@ namespace
 		{ TEXT("TestArena"),  &URTMatchSetupLibrary::MakeTestArena               },
 		{ TEXT("ArenaV01"),   &URTMatchSetupLibrary::MakeArenaV01                },
 		{ TEXT("CoverYard"),  &URTMatchSetupLibrary::MakeCoverYardArena          },
+		{ TEXT("BlockYard"),  &URTMatchSetupLibrary::MakeBlockYardArena          },
 		{ TEXT("GrayKitYard"), &URTMatchSetupLibrary::MakeGrayKitYardArena        },
 		{ TEXT("VisionSplit"), &URTMatchSetupLibrary::MakeVisionSplitArena       },
 		{ TEXT("ProbeYard"),   &URTMatchSetupLibrary::MakeProbeYardArena         },
@@ -563,14 +625,20 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeVisionSplitArena(UObject* Outer)
 		Draft.Set(Cell);
 	}
 
-	// Piattaforma sul layer 1: nel grafo tattico e' una regione separata, perche' `Neighbors` non
-	// attraversa i layer. Serve al caso multilivello, che il suolo da solo non produce.
-	for (const FRTCellId& Id : { FRTCellId(-6, 3, 1), FRTCellId(-6, 4, 1), FRTCellId(-5, 3, 1) })
-	{
-		// Nessuna superficie esplicita: il costruttore ne da' gia' una, e la piattaforma serve alla
-		// TOPOLOGIA (una regione su un layer diverso), non a un terreno particolare.
-		Draft.Set(FRTHexCellData(Id));
-	}
+	// ⛔ **NIENTE piattaforma sul layer 1, e la sua rimozione e' una decisione** — 2026-09-04.
+	//
+	// Tre celle a `L1` c'erano, e servivano *«alla TOPOLOGIA: una regione su un layer diverso»*. Ma non
+	// avevano **nessuna** `Transition` verso il suolo: nel gioco nessuno poteva salirci, e `rt.Arena.Check`
+	// le contava — correttamente — fra le celle percorribili non raggiungibili dagli spawn.
+	//
+	// 🔑 **E non servivano a nessun test.** `Perception.VisionSplitYieldsDisconnectedRegions` conta le
+	// componenti del **solo suolo**, e ci e' arrivato per correzione: la sua prima stesura contava tutti i
+	// layer e *«la seconda componente era la piattaforma, non la camera sud — passava per la ragione
+	// sbagliata»*. Da allora la piattaforma era un residuo che nessuno interrogava.
+	//
+	// ➕ Cio' che questa fixture perde e' il caso MULTILIVELLO, e va detto invece di lasciarlo scoprire:
+	// per quello ci sono `MakeTestArena` e `MatchArenaPlatformClimb`, che una transizione ce l'hanno.
+	// `VisionSplit` resta il banco della percezione, e fa una cosa sola.
 
 	Draft.CommitTo(Arena);
 	return Arena;
@@ -652,6 +720,57 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeCoverYardArena(UObject* Outer)
 			Draft.Set(Updated);
 		}
 	}
+
+	Draft.CommitTo(Arena);
+	return Arena;
+}
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeBlockYardArena(UObject* Outer)
+{
+	if (Outer == nullptr)
+	{
+		return nullptr;
+	}
+
+	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	FRTArenaDraft Draft;
+
+	// Esagono pieno di raggio 3, tutto pavimento: 37 celle. Stessa disciplina di `CoverYard`, e per la stessa
+	// ragione: qui si studiano i VOLUMI DI BLOCCO, e una superficie che cambia colore o rilievo offrirebbe una
+	// seconda spiegazione a «perche' quella cella si legge diversa».
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
+	{
+		Draft.Set(MakeShowcaseTerrainCell(Id, ERTHexSurface::Floor));
+	}
+
+	// ⚠️ Tocca SOLO i due flag e lascia stare `MoveCost` e `Surface`. E' la differenza con il `SetCell` di
+	// `GrayKitYard`, che riscrive anche il terreno: li' serve, qui rovinerebbe l'esperimento — una cella che
+	// blocca il passo E cambia colore si distingue per il colore, e la voce che chiede «si legge la forma?»
+	// riceverebbe un si' che non ha guardato la forma.
+	auto SetBlock = [&Draft](const FRTCellId& Id, bool bBlocksMovement, bool bBlocksSight)
+	{
+		const FRTHexCellData* Existing = Draft.Find(Id);
+		if (!Existing) { return; }
+		FRTHexCellData Cell = *Existing;
+		Cell.bBlocksMovement = bBlocksMovement;
+		Cell.bBlocksLineOfSight = bBlocksSight;
+		Draft.Set(Cell);
+	};
+
+	// ── I TRE casi di blocco, in fila e con ENTRAMBI al centro ───────────────────────────────────────
+	//
+	// 🔴 **Il caso solo-movimento non esisteva in nessuna delle otto fixture**, ed e' sempre stato lui a
+	// mancare: `ArenaV01` e `GrayKitYard` portano solo-vista ed entrambi, `CoverYard` non ha celle bloccanti.
+	// Chi eseguiva `PIE-HEX-VIZ-BLOCCHI` partiva da una fixture e poi dipingeva a mano il terzo — e fermarsi
+	// li' lasciava il confronto a due, che e' il modo in cui quella voce e' caduta il 2026-08-20.
+	//
+	// L'ordine non e' estetico: `entrambi` sta **in mezzo**, adiacente a ciascuno dei due singoli, perche' il
+	// criterio della voce e' che mostri «due volumi concentrici, non una terza forma ambigua» — e un confronto
+	// si fa con il vicino, non attraverso la mappa. Sulla riga `r = 0`, quindi tutte e tre alla stessa
+	// distanza di camera guardando dall'alto, che e' la vista in cui la voce chiede di giudicare.
+	SetBlock(FRTCellId(-1, 0, 0), /*Move=*/ true,  /*Sight=*/ false);
+	SetBlock(FRTCellId( 0, 0, 0), /*Move=*/ true,  /*Sight=*/ true );
+	SetBlock(FRTCellId( 1, 0, 0), /*Move=*/ false, /*Sight=*/ true );
 
 	Draft.CommitTo(Arena);
 	return Arena;

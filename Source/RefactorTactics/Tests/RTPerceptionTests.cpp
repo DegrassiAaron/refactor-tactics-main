@@ -383,7 +383,8 @@ bool FRTPerceptionSeesAcrossLayersTest::RunTest(const FString&)
  * 🔑 **L'oracolo e' il numero di COMPONENTI CONNESSE**, non un conteggio di celle: e' la proprieta'
  * che rende il caso interessante, ed e' invariante a mappa, roster e `VisionRange` finche' la geometria
  * regge. La connessione si calcola su `URTHexLibrary::Neighbors`, che **non attraversa i layer** — quindi
- * la piattaforma del layer 1, se vista, e' una componente sua per costruzione del grafo.
+ * un layer diverso sarebbe una componente a se' per costruzione del grafo — ed e' la ragione per cui
+ * questo test conta il SOLO suolo, anche ora che `VisionSplit` non ha piu' celle fuori dal layer 0.
  *
  * ⚠️ Gli osservatori non sono inventati: si chiedono a `PickStartCells`, la **stessa** funzione che
  * allestisce la partita vera. Se un giorno cambiasse l'ordine delle celle di partenza, i due compagni

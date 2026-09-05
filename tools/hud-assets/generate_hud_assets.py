@@ -41,7 +41,13 @@ from color_metrics import check_palette
 
 try:
     import cairosvg
-except ImportError:  # pragma: no cover - dipendenza opzionale
+# 🔴 **`OSError` e non il solo `ImportError`, e la differenza non e' teorica** (`#2253`). Su Windows
+# `cairosvg` si importa benissimo: e' `cairocffi` che, dentro l'import, cerca la libreria NATIVA
+# (`libcairo-2.dll`) e solleva `OSError` quando non la trova. Con la guardia sul solo `ImportError` il
+# generatore MORIVA in cima invece di cadere nel ripiego che dichiara tre righe sotto — *«cairosvg
+# assente: scritti solo gli SVG»* — cioe' il ripiego esisteva e non era raggiungibile dall'ambiente per
+# cui era stato scritto. Misurato su una macchina senza GTK runtime.
+except (ImportError, OSError):  # pragma: no cover - dipendenza opzionale, e la sua libreria nativa
     cairosvg = None
 
 
@@ -909,6 +915,29 @@ def g_create_water() -> str:
     ])
 
 
+def g_create_smoke() -> str:
+    """`CreateSmoke`: la nuvola che `Environment.Smoke` mostra, piu' il segno di creazione.
+
+    🔴 **Questa chiave era RICHIESTA e non disegnata**, e nessun gate lo diceva. `Action.CreateSmoke`
+    entra nel catalogo core con `#2087` — «il fumo era l'unica delle otto superfici senza un'azione» — e
+    `URTIconLibrary::RequiredIconIds()` la pretende da quel giorno, ma `DA_IconCatalog` non e' mai stato
+    ricostruito: la chiave cadeva sul `MissingIcon` a schermo, in silenzio. Trovata da `#2253` mentre
+    aggiungeva le due dei nuovi stati, e il gate che la fa vedere e'
+    `RefactorTactics.IconCatalog.RealCatalogCoversRequiredIds`.
+
+    ⛔ **Non riusa `g_env_smoke`**: quello porta `cell_hex()`, cioe' dice «questa CELLA e' fumo». Qui il
+    soggetto e' l'azione che la crea, e la famiglia delle tre ambientali (`CreateCover`, `CreateWater`)
+    la marca con il `+` in alto a destra — senza esagono, che appartiene alla superficie e non all'atto.
+    """
+    return "\n".join([
+        path("M7.4 14.4 Q5.2 12.6 6.8 10.8 Q7 7.8 10 8.2 Q12 6.6 13.8 8.6 Q16.4 9 15.8 11.6 "
+             "Q16.4 14.2 13.8 14.6 Q10.6 15.8 8.6 14.6 Z",
+             stroke_dasharray="2.6 2", stroke_width=1.6),
+        path("M4.4 18.6 L15.4 18.6", stroke_width=1.5),
+        path("M19 5.4 L19 11.4 M16 8.4 L22 8.4", stroke_width=1.6),
+    ])
+
+
 def g_electrify() -> str:
     """`Electrify`: payload `Electric` su una superficie. Contro `Status.Electrified`: qui c'e' la
     superficie sotto, la' c'e' l'unita'."""
@@ -1010,6 +1039,36 @@ def g_status_root() -> str:
         dot(12, 9.4, 2.0),
         path("M5.4 15.4 L18.6 15.4"),
         path("M8.4 15.4 L8.4 18.6 M12 15.4 L12 18.6 M15.6 15.4 L15.6 18.6", stroke_width=1.4),
+    ]))
+
+
+def g_status_unbalanced() -> str:
+    """`Status.Unbalanced`: in piedi, ma non piu' in asse.
+
+    Le due meta' della famiglia restano leggibili: il punto unita' in basso (base condivisa) dice «e' uno
+    stato», e il corpo INCLINATO sopra di lui dice quale. L'inclinazione e' la marca, e a 16 px e'
+    l'unica cosa che serve distinguere — contro `Status.Prone`, dove il corpo e' ORIZZONTALE. Le due si
+    leggono in coppia: sbandare e cadere sono la stessa storia in due momenti.
+
+    ⛔ Nessuna freccia e nessun cue di bersaglio: chi ha fatto scivolare l'unita' e' il terreno, e non e'
+    parte dello stato — stessa regola con cui `Status.Root` rinuncia al cue che `Action.Root` ha.
+    """
+    return _status("\n".join([
+        path("M9.6 16.4 L14.4 6.4", stroke_width=2.0),
+        arc_deg(12, 16.4, 4.6, -150, -108, stroke_width=1.3),
+    ]))
+
+
+def g_status_prone() -> str:
+    """`Status.Prone`: a terra.
+
+    Il corpo e' orizzontale e POGGIA sulla linea di suolo, che e' il secondo elemento e non un vezzo:
+    senza, un tratto orizzontale a mezz'altezza si legge come una barra qualunque. L'asse orizzontale
+    contro quello inclinato di `Status.Unbalanced` e' cio' che separa le due a 16 px.
+    """
+    return _status("\n".join([
+        path("M6.8 13.4 L17.2 13.4", stroke_width=2.0),
+        path("M5.4 16.4 L18.6 16.4", stroke_width=1.3),
     ]))
 
 
@@ -2084,6 +2143,8 @@ ICONS = [
      "assente dal mock"),
     ("Action.CreateWater", g_create_water, "Utility",
      "assente dal mock"),
+    ("Action.CreateSmoke", g_create_smoke, "Disabled",
+     "assente dal mock — chiave richiesta da #2087 e mai disegnata, trovata da #2253"),
     ("Action.Electrify", g_electrify, "Electric",
      "assente dal mock"),
     ("Action.Ignite", g_ignite, "Attack",
@@ -2161,12 +2222,16 @@ ICONS = [
      "assente dal mock"),
     ("Status.Obscured", g_status_obscured, "Utility",
      "assente dal mock"),
+    ("Status.Prone", g_status_prone, "Hazard",
+     "assente dal mock — [D-319]/#2253, coppia con Status.Unbalanced"),
     ("Status.Reveal", g_status_reveal, "Utility",
      "assente dal mock"),
     ("Status.Root", g_status_root, "Hazard",
      "assente dal mock"),
     ("Status.Slow", g_status_slow, "Hazard",
      "assente dal mock"),
+    ("Status.Unbalanced", g_status_unbalanced, "Hazard",
+     "assente dal mock — [D-319]/#2253, coppia con Status.Prone"),
     ("Status.Wet", g_status_wet, "Utility",
      "assente dal mock"),
     ("Identity.Gadget", g_identity_gadget, "Electric",

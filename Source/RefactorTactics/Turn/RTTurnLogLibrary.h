@@ -47,7 +47,21 @@ struct FRTDescribedLine
 	UPROPERTY()
 	FString Text;
 
-	/** `INDEX_NONE` = voce di mondo. La traduzione dallo `0` del TurnLog avviene una volta sola, qui. */
+	/**
+	 * CHI la riga nomina. `INDEX_NONE` = voce di mondo; la traduzione dallo `0` del TurnLog avviene una
+	 * volta sola, qui.
+	 *
+	 * ⛔ **NON e' una fonte di autorita', e non deve tornare a esserlo** (`#1499`). Chi puo' leggere questa
+	 * riga lo dice `Verdict`, congelato quando il fatto e' accaduto ([D-223]) — questo campo serve a
+	 * diagnosi, aggregazione e test.
+	 *
+	 * 🔴 **La distinzione ha una storia, ed e' il motivo per cui la riga esiste.** Prima di [D-223] il
+	 * soggetto ERA il filtro, e il suo sentinella `INDEX_NONE` significava «riga senza soggetto» = **la
+	 * leggono tutti**: un fail-open per omissione, cioe' il difetto che `#1499` ha aperto. Oggi il default
+	 * di `Verdict` e' l'opposto — una riga senza verdetto **non si legge** — e riattaccare una decisione di
+	 * privacy a questo `int32` la riporterebbe indietro **senza che il compilatore possa accorgersene**.
+	 * Resta un `int32` per decisione: tipizzarlo proteggerebbe un campo che non decide nulla.
+	 */
 	UPROPERTY()
 	int32 SubjectStableUnitId = INDEX_NONE;
 
@@ -102,6 +116,33 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|TurnLog")
 	static bool IsSubjectTheSufferer(const FRTTurnLogEntry& Entry);
+
+	/**
+	 * Se questa causa fa NASCERE uno stato (`true`) o lo fa MORIRE (`false`).
+	 *
+	 * 🔴 **Esiste perché il verso non si deduca a occhio da dieci valori.** Nascite: `AppliedByAction`,
+	 * `AppliedByTerrain`, `AppliedWhileOnCell`, `AppliedInstantly`. Morti: `Revoked`, `Expired`,
+	 * `Extinguished`, `Cleansed`, `Spent`, `ShakenOff`. Chi consuma `ERTResolvedEventType::StatusChanged` chiede qui
+	 * invece di scriversi il proprio `switch` — che sarebbe una seconda tassonomia da tenere allineata.
+	 *
+	 * ⚠️ **Un valore non dichiarato è una MORTE, e fail-closed è la scelta giusta qui**: un'icona che non
+	 * si apre è un difetto visibile e correggibile; una che non si chiude resta accesa per sempre. Ma il
+	 * ripiego non è la difesa — la difesa è `UndeclaredStatusOutcomes`, che rende rosso il caso.
+	 */
+	static bool IsStatusBirth(ERTStatusOutcome Outcome);
+
+	/**
+	 * I valori di `ERTStatusOutcome` che `IsStatusBirth` non dichiara, come nomi leggibili.
+	 * **Vuoto significa copertura completa.**
+	 *
+	 * 🔑 **Itera l'enum VERO** (`StaticEnum<ERTStatusOutcome>()`), non una lista scritta a mano: un decimo
+	 * valore aggiunto domani è coperto **per costruzione**. È la stessa disciplina di
+	 * `URTPresentationBindingLibrary::FindMissingBindings` e `URTIconLibrary::FindMissingRequiredIcons`,
+	 * con la stessa ragione — un contratto rotto si scopre in un test e non a schermo.
+	 *
+	 * ⚠️ Deterministica: l'ordine dell'uscita segue i valori dell'enum, mai quello di un `TMap`.
+	 */
+	static TArray<FString> UndeclaredStatusOutcomes();
 
 	/**
 	 * L'enum degli esiti che vale per una categoria, o `nullptr` se quella categoria non lo dichiara.
@@ -232,8 +273,26 @@ public:
 	 *
 	 * `DescribeTurnLog` e' un adattatore su questa: un solo produttore, quindi testo e ordine non possono
 	 * divergere fra le due forme.
+	 *
+	 * 🔴 **Le righe di MOVIMENTO nominano il soggetto anche nel TESTO** (`#1932`). Fino ad allora il soggetto
+	 * viaggiava solo in `SubjectStableUnitId` — serviva al filtro di conoscenza, e chi LEGGEVA la riga non
+	 * l'aveva. Costo misurato: [#1733](../../../docs/roadmap/plans/unita-sovrapposte-1733-spec-panel-2026-08-30.md)
+	 * e' stata aperta come bug di gameplay perche' due righe della **stessa** unita' — *«si muove (-1,-1) ->
+	 * (1,-1)»* nel Dash e *«resta (1,-1)»* nel Move — si leggevano come due unita' sulla stessa cella. Una
+	 * sovrapposizione che non e' mai avvenuta, e una revisione con panel per smontarla.
+	 *
+	 * ⚠️ **Solo `ERTLogCategory::Move`, e non e' timidezza**: il prefisso funziona dove il soggetto e' anche
+	 * il soggetto GRAMMATICALE del predicato. Per il danno `UnitId` porta chi **subisce** (`#1150`), e
+	 * *«Gadget: colpisce»* direbbe il falso; le voci `Status` cominciano gia' con la cella. Estendere ad
+	 * altre categorie vuole prima un predicato che regga il soggetto davanti.
+	 *
+	 * @param SubjectNames  `StableUnitId` -> nome leggibile (`ARTUnit::DisplayLabel`). Chi manca ricade su
+	 *                      `u<id>`, che e' verificabile e non mente; una mappa vuota e' legittima e da' righe
+	 *                      con i soli id. La libreria resta **pura**: i nomi li risolve il chiamante, che ha
+	 *                      gli Actor.
 	 */
-	static TArray<FRTDescribedLine> DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries);
+	static TArray<FRTDescribedLine> DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries,
+		const TMap<int32, FString>& SubjectNames = TMap<int32, FString>());
 
 	/**
 	 * L'identita' dell'azione di una voce, come **azione base + profilo** quando la voce sa dirlo:

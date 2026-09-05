@@ -21,6 +21,27 @@ issue [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613).
 
 ---
 
+## ⛔ Superata in un punto — 2026-09-04: la barra dell'energia non ha più un dato
+
+> Questo piano prescrive due volte una **barra dell'energia** — Step 4.2 (*«una seconda [Progress Bar] per
+> l'energia»*), Step 5.3 (*«energia → `Percent` = `Energy / MaxEnergy`»*) — e dichiara `Energy/MaxEnergy`
+> fra i campi di `FRTUnitCardView`.
+>
+> 🔴 **Quei campi non esistono più.** [`D-324`](../../decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy`
+> dal gameplay e [#610](https://github.com/DegrassiAaron/refactor-tactics-main/issues/610) l'ha
+> implementato: `FRTUnitCardView` non porta `Energy`/`MaxEnergy`, e `URTUnitOverlayWidget` non ha più
+> `EnergyBar`.
+>
+> ⛔ **Gli step qui sotto NON sono stati riscritti**: sono spuntati, cioè sono il registro di lavoro
+> realmente fatto il 2026-08-26, e correggerli cancellerebbe la storia invece di aggiornarla. Chi rilegge il
+> piano per rifare un widget salti la barra dell'energia; chi cerca *perché* c'era, la trova qui.
+>
+> ⚠️ **Nei due `WBP_RT_*` la barra è ancora disegnata** — `WBP_RT_UnitOverlay` (`EnergyBar`) e
+> `WBP_RT_UnitCard`. Il binding era `BindWidgetOptional`, quindi non rompe nulla: resta un elemento inerte
+> che nessuno aggiorna, e va tolto dal Blueprint in Editor. **Owner: [#2372](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2372).**
+
+---
+
 ## 🔄 Riconciliazione del registro — 2026-08-30
 
 > Il piano ha portato **61 caselle e zero spuntate** per quattro giorni, mentre il lavoro arrivava fino al
@@ -1275,8 +1296,15 @@ ripropone per altri elementi. Tagliare adesso una riga di `ARTHUD` significhereb
 
 Quando ci si arriva, i candidati da confrontare sono:
 
-- `RTHUD.cpp:403` — round su `RoundLimit`
-- `:418-430` — fase e timer di planning
+- il round su `RoundLimit` — dal **2026-09-04 (#2184)** non e' piu' una riga di `DrawHUD`: la decisione vive
+  in `URTHudViewModel::ComposeRoundCounter`, che **questo** widget e il Canvas chiamano entrambi, quindi qui
+  non c'e' piu' una duplicazione da sciogliere — c'e' una riga di Canvas da spegnere quando UMG la copre
+- la fase e il timer di planning — stessa data: sono in `ARTHUD::ComposeMatchStatusLine`, statica pura con
+  test headless (`RefactorTactics.HUD.MatchStatus*`)
+
+> ⚠️ I due riferimenti di riga precedenti (`RTHUD.cpp:403` e `:418-430`) sono stati tolti invece che
+> aggiornati: puntavano a righe che #2184 ha spostato, e un numero di riga in un piano invecchia al primo
+> refactoring. Chi raccoglie questo task cerchi i due nomi di funzione.
 - la riga di velocità di playback (`x1 (V)`), che è **debug** e ha regole sue
 
 ⚠️ Toccare `ARTHUD` richiede di riverificare `RefactorTactics.HUD.*`, che copre quelle 910 righe.

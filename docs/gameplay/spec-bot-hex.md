@@ -162,7 +162,77 @@ Pinnata da `HexBot.EngageBonusFadesWithIdleTurns`, che misura la scelta di `Choo
 inerte; la taratura fine resta bilanciamento, sede [#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149)
 e [D-102](../decisions/RT_PDR_00_Decision_Log.md).
 
-### 3f. I pesi
+### 3f. L'obiettivo — la condizione di vittoria entra nel punteggio
+
+Per la cella in cui il piano **termina**, con o senza attacco:
+
+```text
+Score += max(0, WObjective − WObjectiveFalloff × passi-fino-all-obiettivo-più-vicino)
+```
+
+I **passi** sono quelli sul grafo, la stessa misura dell'avvicinamento: un obiettivo dietro un muro non è
+vicino perché lo sembra sulla griglia. Occupare la cella vale `passi = 0`, cioè il bonus pieno — che è il
+«controllo» di [`spec-bot-tattico.md`](spec-bot-tattico.md) §5, categoria `Objective`.
+
+🔴 **Prima di [#2269](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2269) questo termine non
+esisteva, e il bot giocava un gioco diverso da quello che vince.** `FRTHexBotContext` non aveva alcun campo
+obiettivo e `ScorePlan` nessun termine: il bucket `Objective` di `spec-bot-tattico.md` §4 era **vuoto per
+costruzione**, e il ruolo `ObjectiveRunner` che §6 vuole emergente non poteva emergere da un punteggio che
+l'obiettivo non lo nomina. Misurato il 2026-09-04, 2v2 bot contro bot su `L_HexArena` con
+`Format.Skirmish2v2`: partita chiusa allo scadere dei round con **obiettivo 0-3**, un KO per parte, e i tre
+punti presi da un'unità che in dodici turni non ha inflitto **un solo danno** — era finita sulla cella
+`(0,-3,L0)` tre volte come migliore candidata di solo movimento, a punteggio **negativo**.
+
+⚠️ **Vale su ogni piano, anche su quelli con attacco**, al contrario del bonus di ingaggio di §3e. Le due
+domande sono diverse: `WEngage` chiede «da qui potrò sparare», che un piano che già spara ha risolto;
+l'obiettivo chiede «da qui segno», che resta vero mentre si spara — ed è proprio la candidata «resto
+sull'obiettivo e colpisco» quella che si vuole far emergere.
+
+⚠️ **Il floor a zero è parte del termine, non una guardia.** Senza, un'unità lontana pagherebbe una penalità
+crescente per non stare sull'obiettivo, e quella penalità entrerebbe in **ogni** confronto — comprese le
+scelte di combattimento dall'altra parte della mappa.
+
+🔴 **Il RAGGIO che ne esce vale un turno di movimento, e il numero è misurato contro l'oracolo di parcheggio.**
+`WObjective / WObjectiveFalloff` è la distanza oltre cui il termine è spento: con `120/30` sono **quattro
+passi**, cioè il `MoveRange` del roster. La domanda che il termine pone diventa *«posso prendere l'obiettivo
+adesso?»* e non *«sto vagamente dalla parte giusta della mappa?»*.
+
+⛔ **La prima stesura spediva `120/15`, raggio otto, ed è stata falsificata.** Su `L_HexArena` — 64 celle,
+obiettivo a `(0,-3,L0)` — un raggio di otto copre quasi tutta la board, e lì il termine smette di essere una
+meta e diventa un bonus posizionale generale: la forma di
+[#1088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1088), che compete con l'avvicinamento e
+paga per **stare**. Misurato il 2026-09-04: `Match.Autobattle.NobodyParksOnTheAuthoredMap` **rosso**, sequenza
+ferma **5** contro un limite di 4 — e l'unità parcheggiata era Gadget su `(-1,1,L0)`, a **cinque** passi
+dall'obiettivo, che incassava comunque `+45`. Non era l'obiettivo a trattenerla: era il termine che, a quella
+distanza, non parla più dell'obiettivo.
+
+🔴 **INVARIANTE: `WObjectiveFalloff > WApproach`.** È l'analogo di quella di §3d, con il segno rovesciato:
+lì un bonus di posizione troppo **grande** batte l'avvicinamento e produce il parcheggio, qui un gradiente
+troppo **piccolo** si fa battere e produce l'indifferenza. A gradienti pari, un passo che avvicina
+l'obiettivo e allontana il nemico vale **zero**, i punteggi si appiattiscono e il tie-break «a parità vince
+la mossa minima» fa restare fermo il bot — cioè il termine è decorativo proprio nel caso per cui esiste.
+Pinnata da `HexBot.ObjectivePullBeatsClosingOneCell`, che la misura sull'**esito** di `ChooseBestPlan`.
+
+⚠️ **INVARIANTE dichiarata: `WObjective < WKill`.** Un obiettivo non vale mai quanto un colpo letale, e con
+`120` contro `10000` il margine è di due ordini di grandezza. È una dichiarazione di tuning e **non** un
+gate: nessun valore sensato la viola, quindi un test che la asserisse non potrebbe fallire. A essere pinnato
+è l'esito, con `HexBot.ObjectiveNeverOutweighsAKill`.
+
+⚠️ **Nessun termine per la CONTESA, e il perimetro lo dichiara**: con un obiettivo su una cella sola due
+unità non ci stanno insieme, quindi «prendo» e «tolgo a lui» oggi coincidono. Distinguerli è
+[CP 31.1](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1583).
+
+⛔ **Il ramo di RICERCA non passa di qui.** Quando nessuna cella raggiungibile vede un contatto noto,
+`PlanBots` sceglie un punto d'osservazione senza chiamare `ScorePlan`
+([#1287](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1287)): un bot cieco cammina verso
+l'osservazione o verso il baricentro, e l'obiettivo non lo considera. È un limite dichiarato, non un difetto
+chiuso da questo lavoro.
+
+⚠️ **Le celle obiettivo sono geometria PUBBLICA e non passano dalla Team Knowledge.** La mappa la vedono
+entrambe le squadre — il giocatore umano ce l'ha sullo schermo dal primo fotogramma — quindi nasconderle al
+bot non sarebbe fairness. Ciò che CP 13.5 protegge sono le **unità** avversarie e i loro intenti.
+
+### 3g. I pesi
 
 | Peso | Default | Cosa governa |
 |---|---:|---|
@@ -175,6 +245,8 @@ e [D-102](../decisions/RT_PDR_00_Decision_Log.md).
 | `WElevation` | 4 | per layer di quota — vincolato da `WElevation × MaxLayer < WApproach` (#1088) |
 | `WEngage` | 15 | bonus per una cella da cui si vede un contatto noto, sui piani senza attacco (`D-185`) |
 | `WEngageDecay` | 5 | quanto quel bonus cala per ogni turno consecutivo senza ingaggiare — **zero lo riporta alla forma che non passa gli oracoli** |
+| `WObjective` | 120 | controllo della cella obiettivo — indicativo, viene da `spec-bot-tattico.md` §5 ([#2269](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2269)) |
+| `WObjectiveFalloff` | 30 | quanto quel bonus cala per ogni passo che manca — vincolato da `WObjectiveFalloff > WApproach`, e il raggio che ne esce (`120/30 = 4`) vale un turno di movimento |
 
 Sono **interi bilanciabili senza toccare la logica**. La scala relativa fra `WThreat` e `WDamage` è nota
 essere un punto dolente: vedi [#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149), che
@@ -242,8 +314,67 @@ Questa sezione è la più importante, perché è quella dove la spec e il DoD de
 | **Nessun accesso agli intenti nemici nascosti** | ✅ **vero**. `FRTHexBotContext` non contiene intenti: solo posizioni, gittate e HP. Il bot non può leggere il piano avversario perché il tipo non lo trasporta |
 | **Pianifica sulla Team Knowledge della propria squadra** | ✅ **vero dal 2026-08-11** (CP 13.5, [#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160)). `PlanBots` costruisce `Ctx.Enemies` da `FRTTeamKnowledge` con la **stessa** regola del targeting umano (`ClassifyTarget`): visto → cella e condizione attuali; ricordato → cella dell'ultimo contatto e HP **massimi**, perché la squadra conosce l'identità e non la condizione; ignoto → non esiste. Il gate è `HexBotPlay.HiddenEnemyFairness`, e cade se l'onniscienza rientra |
 | **Tiene conto del facing e dell'arco frontale** | ❌ **non ancora**. `ScorePlan` non legge il facing: né il proprio, né quello dei nemici. La minaccia è calcolata su gittata + LOS, senza cono |
-| **Ha una politica di reazione esplicita** | ❌ **non ancora**. Il bot non arma reazioni e non dichiara un regime |
+| **Ha una politica di reazione esplicita** | ✅ **vero dal 2026-09-02** ([D-268], [#1802](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1802)). Il bot arma reazioni da [D-220] e da qui le **sceglie col punteggio**: vedi §6.1 |
 | **Validato sotto stress 4v4** | ❌ **non ancora**. La suite lo esercita a 2v2 |
+
+### 6.1 La politica di reazione — punteggio, e il kit come spareggio
+
+[D-220] aveva **dichiarato la regola che c'era già** — prima il kit, il modulo di loadout come riserva —
+invece di sceglierne una: deterministica, ma non tattica. La reazione d'identità vinceva sempre, quale che
+fosse il suo valore in quella situazione. [D-268] sceglie la politica, e questa spec la registra.
+
+```text
+per ogni reazione utilizzabile (kit E loadout):
+    Score = ScoreReaction(Map, Def, Ctx)     // solo su cio' che la SQUADRA conosce
+si arma:  punteggio massimo
+          a parita' esatta -> quella di KIT
+          ancora pari      -> indice piu' basso
+```
+
+I termini, chiavati sul `ReactionTrigger` dell'azione, e **senza nessun peso nuovo**. La minaccia è gittata
+**e** linea di vista, come in `ScorePlan`: un nemico dietro un muro non è un'occasione per una reazione.
+
+| Trigger | Termine | Perché |
+|---|---|---|
+| `HitByDirectAttack` | `WThreat` × nemici **conosciuti** che raggiungono e **vedono** la mia cella | una parata vale se qualcuno può colpirmi |
+| `AllyHitByDirectAttack` | `WThreat` × alleati entro `RangeCells` che un nemico conosciuto raggiunge e vede | un'interposizione vale se c'è chi proteggere |
+| `AboutToBeDisplaced` | **0** | ⛔ la conoscenza autorizzata non porta le **capacità** nemiche |
+| `AboutToReceiveControl` | **0** | ⛔ stessa ragione |
+| `CellBecameHazardous` | **0** | ⛔ ragione **diversa**: il soggetto è il terreno, che è pubblico, ma il contesto del bot non porta gli hazard |
+
+⚠️ **Un solo peso per tutti i termini, e non è pigrizia.** In `ScorePlan` `WAllyDamage` è per **punto di
+danno** e `WThreat` è per **nemico**: usarli qui come se fossero la stessa unità avrebbe reso
+l'interposizione (10) sempre perdente contro un contrattacco (100) — il difetto di [D-220] rovesciato, e
+nascosto dietro la frase «nessun peso nuovo». `WThreat` misura *«quanta minaccia questa reazione risponde»*,
+e la minaccia si conta allo stesso modo sulla propria cella e su quella di un alleato.
+
+🔴 **I tre zeri sono dichiarati, non dimenticati**, e le ragioni sono due. `AboutToBeDisplaced` e
+`AboutToReceiveControl` risponderebbero a una spinta o a un controllo, e il bot sa **dove** sono i nemici e
+**quanto arrivano lontano**, non **che cosa sanno fare**: inventare un termine per loro sarebbe
+l'onniscienza rientrata dalla finestra, cioè il difetto che il filtro di percezione di CP 13.5 esiste per
+togliere. `CellBecameHazardous` è zero per un'altra ragione — il suo soggetto è il **terreno**, che è
+pubblico e scrivibile: manca il dato nel contesto, non il diritto di guardarlo.
+
+⚠️ **La conseguenza va detta**: finché restano a zero, i moduli `Reaction.Anchor`, `Reaction.Cleanse` e
+`Reaction.HazardEscape` — **tre dei sette spediti** — non possono mai vincere *per punteggio*. Vincono solo
+quando sono l'unica reazione utilizzabile. Lo `switch` che li classifica **non ha un `default`**, per la
+stessa ragione per cui non ce l'ha `PassPointFor`: un trigger nuovo deve non compilare, non valere zero in
+silenzio.
+
+🔑 **La proprietà che ha reso il cambio atterrabile**: dove la conoscenza non separa i candidati tutti i
+punteggi valgono zero, decide lo spareggio, e il bot arma esattamente ciò che armava prima. Il cambio si vede
+solo dove la conoscenza li separa davvero — ed è lì che [D-220] perdeva il valore del loadout.
+
+⚠️ **Il punteggio si misura DOPO la raccolta dei nemici conosciuti**, e non prima come la selezione di
+[D-220]: un punteggio cieco renderebbe vacua l'AC di equità — un punteggio costante la soddisfa senza
+guardare niente.
+
+⚠️ **E si misura dalla cella di PARTENZA, che è un limite dichiarato.** La selezione avviene prima che il
+piano — e quindi lo scatto — sia scelto, mentre i due trigger con un termine si valutano nel `Blast`, cioè
+**dopo** il `Dash`. Un bot che scatta può quindi aver contato una minaccia da una cella che avrà lasciato, e
+lo stesso vale per un alleato che si sposta fuori dalla portata dell'interposizione. È una sovrastima, non
+un modello completo — e la direzione è quella sicura: arma una reazione che potrebbe non scattare, non ne
+perde una che sarebbe scattata. Il codice di prima non guardava **nessuna** posizione.
 
 **Perché va scritto così.** Un documento che descrivesse il bot come già conforme a E13/E16 renderebbe
 invisibile il lavoro che manca, e i test verdi di oggi sembrerebbero provare qualcosa che non provano.

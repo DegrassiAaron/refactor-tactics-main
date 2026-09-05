@@ -464,15 +464,25 @@ bool FRTHexBotSupportTest::RunTest(const FString&)
 	// la SCELTA DEL BOT («se sono ferito e ho un supporto su di me, lo uso invece di attaccare»), non chi
 	// possiede quell'azione: senza darne una all'unita' il ramo non e' raggiungibile e resterebbe senza
 	// verifica — e' l'unica che ha. Vedi #425 per la decisione su chi debba dichiararlo nel roster.
-	// Deve CURARE o schermare, non solo essere su di se': il ramo del bot chiede un effetto `Heal`/`Shield`.
-	// Costruita su `Action.Guard` per fase e slot — quello che le manca, e che qui conta, e' lo scudo:
-	// `Guard` applica uno stato difensivo e non rimette in piedi nessuno, quindi da sola non basta piu'.
-	// E' la stessa forma di `Guardian.Barrier`, l'azione per cui questo ramo era stato scritto: +40 scudo.
+	// Deve CURARE, non solo essere su di se' ne' genericamente difendere: il ramo del bot chiede un effetto
+	// `Heal`. Costruita su `Action.Guard` per fase e slot — quello che le manca, e che qui conta, e' il
+	// ripristino: `Guard` applica uno stato difensivo e non rimette in piedi nessuno.
+	//
+	// 🔴 **Era +40 di SCUDO, come `Guardian.Barrier`, ed e' diventata cura il 2026-09-04** (`#2283`).
+	// Non e' il test adattato alla sua implementazione: e' la stessa proprieta' misurata su un effetto che
+	// la regge. La condizione d'ingresso del ramo e' `Health * 2 < MaxHealth`, e uno scudo temporaneo non
+	// la scioglie — scade nel Cleanup senza toccare `Health`. Questo test dura UN turno, quindi non
+	// poteva vederlo: in partita il bot rientrava nel ramo a ogni ricarica e si parcheggiava (Wraith ferma
+	// 5 turni contro un limite di 4, con quattro test di partita rossi a cascata).
+	//
+	// ⚠️ Chi volesse riaprire il ramo allo scudo — `#464`, v0.2 — non cambi solo questa riga: serve
+	// prima togliere al ramo il `continue` incondizionato, o dargli un criterio di ripetizione. Con lo
+	// scudo, questo test resta verde e la partita si pianta lo stesso.
 	URTActionData* SelfSupport = NewObject<URTActionData>(Hurt);
 	SelfSupport->DisplayName = FText::FromString(TEXT("Barriera di prova"));
 	SelfSupport->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Guard"));
 	SelfSupport->Def.ActionId = FName(TEXT("Test.SelfSupport"));
-	SelfSupport->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Shield, 40));
+	SelfSupport->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Heal, 40));
 	SelfSupport->bSelfTarget = true;
 	SelfSupport->RangeCells = 0;
 	SelfSupport->Power = 0;
@@ -567,11 +577,23 @@ namespace
 		int32 DashAbility = INDEX_NONE;
 		FRTCellId DashCell;
 
+		/**
+		 * Lo slot REAZIONE, aggiunto con [D-268] (`#1802`).
+		 *
+		 * 🔴 **Senza, il canary non guardava l'uscita piu' nuova di `PlanBots`.** Da quando la reazione si
+		 * sceglie col punteggio, la scelta dipende dalla conoscenza — quindi e' proprio il tipo di uscita che
+		 * questo test esiste per sorvegliare. La mutazione che lo dimostra: far leggere a `ScoreReaction` la
+		 * cella VERA di ogni nemico vivo invece di `Ctx.Enemies` — onniscienza piena — e con la vecchia
+		 * impronta il canary restava verde.
+		 */
+		int32 ReactionAbility = INDEX_NONE;
+
 		bool operator==(const FRTBotPlanFingerprint& O) const
 		{
 			return Cell == O.Cell && bHasAttackTarget == O.bHasAttackTarget
 				&& (!bHasAttackTarget || AttackTargetCell == O.AttackTargetCell)
-				&& AbilityIndex == O.AbilityIndex && DashAbility == O.DashAbility && DashCell == O.DashCell;
+				&& AbilityIndex == O.AbilityIndex && DashAbility == O.DashAbility && DashCell == O.DashCell
+				&& ReactionAbility == O.ReactionAbility;
 		}
 	};
 
@@ -585,6 +607,7 @@ namespace
 		F.AbilityIndex = Bot->PlannedAbilityIndex;
 		F.DashAbility = Bot->PlannedDashAbility;
 		F.DashCell = Bot->PlannedDashCell;
+		F.ReactionAbility = Bot->PlannedReactionAbility;
 		return F;
 	}
 }
@@ -1185,6 +1208,18 @@ bool FRTHexBotPlansAreLegalTest::RunTest(const FString&)
  * È il comportamento che c'era già: cambia che ora è una **regola dichiarata** invece del risultato
  * dell'ordine degli indici ([D-220], `#1403`). Prima di [D-218] ogni eroe portava una reazione sola e la
  * domanda non si poneva; oggi Riktor porta `Interposition` (kit) **e** `Reaction.Cleanse` (modulo).
+ *
+ * 🔴 **Da [D-268] (`#1802`) questo test misura lo SPAREGGIO, non la politica, e la differenza va detta.**
+ * La regola non è più «prima il kit»: è «punteggio più alto, e a parità esatta il kit». Qui i due candidati
+ * pareggiano **a zero**, e la premessa è la geometria di questa scena, non un'invariante del gioco: Riktor
+ * sta a `(2,-3)` e Wraith a `(-2,3)` su un raggio 5, cioè a distanza 6 — oltre la vista di chiunque — quindi
+ * `Ctx.Enemies` è vuoto; non c'è un secondo alleato, quindi `Ctx.Allies` è vuoto; e `Reaction.Cleanse` ha
+ * trigger `AboutToReceiveControl`, che vale zero per dichiarazione.
+ *
+ * ⚠️ **Spostare uno spawn di due celle, alzare il raggio o aggiungere un compagno cambia la premessa**, e
+ * questo test comincerebbe a misurare il punteggio credendo di misurare lo spareggio. La regola che rende
+ * la premessa vera — «tutti-zero riproduce il comportamento di prima» — la pinna
+ * `HexBot.ReactionAllZeroScoresKeepTodayBehaviour`, headless e senza geometria.
  *
  * 🔴 **Due righe, e servono entrambe.** Una sola pinnerebbe metà della regola:
  * - con il kit **pronto** si arma il kit — e senza questa riga, invertire la preferenza resterebbe verde;

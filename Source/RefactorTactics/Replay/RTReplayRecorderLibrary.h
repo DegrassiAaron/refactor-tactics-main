@@ -76,6 +76,15 @@ public:
 	 *  file coincide con quello dei turni — un elenco di cartella e' spesso il primo strumento di diagnosi. */
 	static FString TurnFileName(int32 TurnNumber);
 
+	/**
+	 * `turn-001.t0.rtlog`: la traccia di un turno **filtrata per osservatore** ([D-316], `#2098`).
+	 *
+	 * Stesso formato della canonica — la scrive lo stesso `SerializeTurnLog` e la rilegge lo stesso
+	 * `DeserializeTurnLog` — e contiene solo le voci che quella squadra era autorizzata a conoscere **quando
+	 * sono accadute**. Esiste soltanto per i `TeamId` che il manifest elenca in `ObserverTeamIds`.
+	 */
+	static FString TurnFileNameForObserver(int32 TurnNumber, int32 ObserverTeamId);
+
 	/** Cartella di una partita dentro la radice degli archivi. */
 	static FString MatchDirectory(const FString& ReplaysRoot, const FGuid& MatchId);
 

@@ -90,7 +90,7 @@ Aggiunto il **2026-08-17** con [D-153](../decisions/RT_PDR_00_Decision_Log.md). 
 |---|:--:|:--:|---|---|
 | Core map | v0.1 | **v0.1**, interamente | **E21** · **E47** · muri e porte su **E23**, anticipata alla v0.1 (`D-160`) | allineato |
 | Environment | v0.2 | **v0.1** ⬅️ | **E8** — **otto** feature, tutte `INTEGRATED` | il kit è **indietro** |
-| 3D map / verticalità | v0.3 | **`future`** ➡️ | nessuno — `RT-FEAT-MAP-VERTICALITY` è `IDEA` | `DEFER` |
+| 3D map / verticalità | v0.3 | **v0.1** ⬅️⬅️ | **#2388** (capability) · [`D-332`](../decisions/RT_PDR_00_Decision_Log.md) | il kit è **indietro di due release** |
 | Interactive map | v0.4 | **v0.1** ⬅️⬅️ | **E23** ([#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)), anticipata il 2026-08-17 (`D-160`) | il kit è **indietro di due release**, non di una |
 | Tactical devices | v0.5 | **fuori scope dichiarato** | — | `DEFER` |
 | Destruction / debris | v0.6 | **v0.2** ⬅️⬅⬅️ | **E51** ([#1848](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1848)), creata il 2026-08-30 | il kit è **indietro di quattro release** |
@@ -161,8 +161,15 @@ sapesse.
 > Interactive map era falso — contraddetto dalla tabella sopra e dalla riga «Core map» che questa stessa PR
 > aveva aggiunto per registrare che E23 è v0.2. Corretta la metà falsa, era rimasta l'altra.*
 
-➡️ **Due cluster non hanno una release che li possieda, e non per la stessa ragione.** La verticalità
-resta senza owner; i devices tattici **non sono `future` affatto** — sono **fuori
+➡️ **Un solo cluster non ha una release che lo possieda**, e non è più la verticalità. ✅ **La verticalità
+è entrata in v0.1 il 2026-09-05** con [`D-332`](../decisions/RT_PDR_00_Decision_Log.md), che chiude `REL-3`:
+owner di capability [#2388](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2388), owner
+semantico [`../gameplay/spec-caduta-e-bordi.md`](../gameplay/spec-caduta-e-bordi.md). ⚠️ *Questa frase ha
+detto due cose diverse in due giorni — «resta senza owner», poi «ha un owner ma non una casa» — ed entrambe
+erano vere quando furono scritte. Il kit proponeva `v0.3`: la release canonica è **v0.1**, cioè il kit era
+indietro di due release anche qui.* ⛔ **Entra la regola del bordo, non il cluster di asset**: il contenuto
+3D resta materia d'arte e non acquisisce una release da questa decisione.
+I devices tattici invece **non sono `future` affatto** — sono **fuori
 scope v0.1 dichiarato** da [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md)
 §11, che li rinvia a E13/E14 con motivazione registrata. Qui l'ordine del kit è giusto e la release non
 esiste: **si lasciano `future` invece di inventarne una**, ed è la parte di `D-136` che questa tabella
@@ -243,10 +250,11 @@ Le schede esistono già come `DATA_SPEC`/`DESIGN_SPEC`: [`../characters/v0.2/`](
 
 | CP | Obiettivo | DoD misurabile |
 |---|---|---|
-| **35.1** | Sentinel Directorate — Steel, Murdock | I due `URTHeroData` esistono con azioni a catalogo; affinità *Protection → Fire Sector* emerge da meccaniche generiche, nessun `FactionSetBonus` |
-| **35.2** | Resonance — Aurora, Kwang | Idem per *Terrain Shaping → Anchor Geometry* |
+| **35.1** | Sentinel Directorate — Ward, Vigil | I due `URTHeroData` esistono con azioni a catalogo; affinità *Protection → Fire Sector* emerge da meccaniche generiche, nessun `FactionSetBonus` |
+| **35.2** | Resonance — Rime, Tethra | Idem per *Terrain Shaping → Anchor Geometry* |
 | **35.3** | Bilanciamento a 8 | `Heroes.RosterIsBalanced` esteso a 8: nessun eroe domina, le coppie di affinità restano simmetriche |
 | **35.4** | Wiki e cataloghi allineati | `../wiki/fazioni/` e `../balance/RT_HeroCatalog_v0.1.md` descrivono 8 eroi con i valori realmente a runtime |
+| **35.5** | Paragon naming purge | Nessuna identità Paragon sopravvive nel namespace RT-owned, e un gate contestuale — sui campi `HeroId`, `DisplayName`, namespace dell'`ActionId`, Gameplay Tag e voci di catalogo — impedisce che rientri. Path e package vendor restano leciti. Issue [#2291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2291) |
 
 **Dipendenze**: E6 (roster 4) chiusa. **Rischi**: il roster raddoppia la matrice di interazioni da testare —
 il costo non è lineare.
@@ -291,6 +299,21 @@ fissarla (scenario 4 del sorgente).
 > cinque feature che dichiarano `epic: E23`, `RT-FEAT-MAP-INTERACTION-GRAPH` era già passata a `v0.1` col
 > giro di `#833`; `D-160` sposta le altre quattro. Dopo, **nessuna feature di E23 dichiara più v0.2**.
 
+> **Stato GitHub live — 2026-09-05.** Questa non è l'owner della release: lo snapshot corrente di E23 vive
+> in [`roadmap-v0.1.md`](roadmap-v0.1.md) § E23. [#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)
+> resta **aperta**; sono **chiuse** [#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832),
+> [#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833),
+> [#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826),
+> [#1827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1827),
+> [#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828),
+> [#1830](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1830) e
+> [#1832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1832); restano **aperte**
+> [#712](https://github.com/DegrassiAaron/refactor-tactics-main/issues/712),
+> [#834](https://github.com/DegrassiAaron/refactor-tactics-main/issues/834),
+> [#1829](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1829),
+> [#1831](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1831) e
+> [#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833).
+
 **Tracciata su GitHub**: epic [#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324).
 
 **Obiettivo**: muri e porte come **oggetti logici sugli archi**, non come mesh che il gameplay interroga.
@@ -313,6 +336,13 @@ scenari, golden replay e mappe salvate.
 > **due sorgenti indipendenti** l'avevano chiesto ([triage 2026-08-09](plans/map-editor-brief-spec-panel-2026-08-09.md) §4,
 > [conflict report 2026-08-10](plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md) §4).
 > Feature: `RT-FEAT-MAP-STANDABILITY`, `RT-FEAT-MAP-TRANSITION-CLEARANCE`, entrambe **DESIGNED**.
+>
+> 🔁 **Rimisurato il 2026-08-31: metà di questa riga è superata.** Il footprint standard **non è più**
+> il cerchio inscritto: [`D-303`](../decisions/RT_PDR_00_Decision_Log.md) ha superato `D-071` punto (1) e ha
+> reso il footprint un **conteggio di settori contigui** (`Small`/`Medium`/`Large` = tre valori di
+> `MinContiguousWedges`). ⚠️ La *swept clearance* di `23.7` — punto (2) — **resta**, ma senza un raggio
+> da traslare: è `MAP-4` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md). La riga sotto conserva ciò che
+> `MAP-1` chiuse allora.
 >
 > ✅ **`MAP-1` è chiusa — [D-071](../decisions/RT_PDR_00_Decision_Log.md), 2026-08-10.** Il footprint
 > standard è il **cerchio inscritto** nell'esagono (raggio = **apotema**), e la *swept clearance* di 23.7 usa
@@ -657,7 +687,7 @@ implementata e testata.
 | CP | Obiettivo | DoD misurabile |
 |---|---|---|
 | ~~**38.1**~~ | ~~La decisione: slot o capacità numerica~~ | ✅ **chiusa il 2026-08-12** da [D-114](../decisions/RT_PDR_00_Decision_Log.md). `RT-FEAT-ACTION-BUDGET` passa a `DEFERRED` con la motivazione, invece di sparire: il prossimo kit riproporrà l'`ActionCapacity`, e trovare la decisione scritta costa meno che ridiscuterla |
-| **38.2** | Validazione del piano in Planning | Esiste un punto solo che risponde `LEGALE` oppure `ILLEGALE + reason code` **prima** del commit, e il bot passa dallo stesso. I reason code **estendono le famiglie esistenti** (`ERTMoveOutcome`, `ERTCombatOutcome`, `ERTFallbackOutcome`) con valori **in coda**: un enum parallelo rifarebbe l'errore respinto in [`spec-tassonomia-movimento.md`](../gameplay/spec-tassonomia-movimento.md) §6. **Non dipende da 38.1** |
+| **38.2** ✔ **atterrato 2026-09-02** | Validazione del piano in Planning | Esiste un punto solo che risponde `LEGALE` oppure `ILLEGALE + reason code` **prima** del commit, e il bot passa dallo stesso — `URTPlanValidationLibrary::ValidatePlan`, chiamata da `RTTurnManager.cpp:2634` in un ciclo su **tutte** le unità vive, bot inclusi. I reason code **estendono una famiglia esistente** con valori **in coda**: un enum parallelo rifarebbe l'errore respinto in [`spec-tassonomia-movimento.md`](../gameplay/spec-tassonomia-movimento.md) §6. La famiglia è **`ERTActionInvalidReason`** — `SlotOccupied`, `InsufficientMovementPoints`, `OnCooldown` — e ogni valore porta scritto accanto perché sta in coda: *«il motivo viaggia in `Amount`, un `int32` serializzato, e inserirne uno in mezzo rinumera tutti quelli che seguono»*. 🔴 *la riga nominava `ERTMoveOutcome`, `ERTCombatOutcome` e `ERTFallbackOutcome`: esistono tutte e tre, ma nessuna delle tre porta questi valori. `#605` aveva già corretto lo stesso errore nel proprio corpo il 2026-08-12; qui era rimasto.* ⚠️ **`InsufficientMovementPoints` resta in coda senza produttore**: il ramo che lo emetteva è uscito con [D-190](../decisions/RT_PDR_00_Decision_Log.md) perché la legalità qui è **strutturale**, e `Plan.VerdictIgnoresMoveBudget` lo misura. **Non dipende da 38.1** |
 | **38.3** 🥇 | La compatibilità abilità↔movimento come dato — **primo lavoro dell'epic** | Un'abilità dichiara come si comporta sotto ciascun profilo (`NORMAL`/`IMPAIRED`/`ENHANCED`/`BLOCKED` o equivalente) e il validatore la legge. Criterio d'accettazione, nella forma di quello di E4: **aggiungere «Wraith spara in corsa» non deve toccare `ARTTurnManager`**. Se lo tocca, il modello non serve. ✅ **`AE-2` decisa sì** il 2026-08-12 ([D-116](../decisions/RT_PDR_00_Decision_Log.md)): categorie da negare allo `Sprint` = **precisione, preparazione, azioni pesanti**. 🔴 **Il checkpoint cresce**: D-116 porta con sé la **migrazione di fase dello `Sprint`** (da `FastMovement` a `NormalMovement`, superando `D-068`) e `Status.Exposed` a **2 turni** — e le tre voci **non sono separabili**, perché la migrazione da sola produce l'upgrade puro vietato da `D-015`. Costi misurati: `Actions.SprintIsAMoveProfileResolvedPreBlast` cade (è il gate), i **golden replay** vanno rebaseline, 4 file di test toccano `Exposed`. ⚠️ Il **bot** invece non è un costo: non nomina `Action.Sprint` — e non sceglierlo mai è un dato a sé — che dal 2026-08-12 ha un **modello davanti** invece di un'idea: [`../gameplay/spec-compatibilita-azioni-movimento.md`](../gameplay/spec-compatibilita-azioni-movimento.md) (`PROPOSED`). Una **soglia** invece della matrice del kit — 31 numeri + 4 contro 124 celle — e **tre stati invece di quattro**, perché `ENHANCED` dipende dai fatti del percorso (`AE-3`). ⚠️ Due costi che il kit non mostrava: i **profili di movimento non esistono come tipo** (`grep -rn MovementProfile Source/` → zero), quindi il primo lavoro non è assegnare soglie ma dargliene uno; e senza **38.2** il dato non è osservabile |
 | **38.4** | La preview dice **perché** | L'Action Dock mostra capacità/slot residui, MP usati, cooldown e stato dell'abilità sotto il profilo scelto, e il Ghost Timeline resta **per fase** (`PREP · DASH · BLAST · MOVE`) invece di diventare una coda generica. Mai il solo colore. Il motivo di un rifiuto è leggibile **prima** di confermare |
 | **38.5** | Scenari e determinismo | I cinque `Spec.ActionEconomy.*` dichiarati `planned` diventano eseguibili, più i test di permutazione. Nessun esito dipende da frame rate, ordine di `TMap` o rotazione visiva |
@@ -684,7 +714,7 @@ stesso checkpoint.
 > tentativo verificato vive su `feat/641-sprint-post-blast`: compila su entrambi i target, e i suoi **4 test
 > rossi** sono la misura del buco.
 
-**Non fa**: i valori (`AE-5` per lo `Sneak`, `AE-4` per la risorsa firma) · il costo del pivot (`FAC-12`, che
+**Non fa**: i valori (`AE-5` per lo `Sneak`; ~~`AE-4` per la risorsa firma~~ — chiusa da `D-265`/`D-324`, vedi #2357) · il costo del pivot (`FAC-12`, che
 si guarda alla revisione dei numeri di ADR-0008) · i fatti del percorso (`AE-3`) · il workbook di
 bilanciamento, che [`balance/README.md`](../balance/README.md) vieta di correggere cella per cella.
 
@@ -1055,7 +1085,15 @@ posti che restano owner e che questa sezione **cita** invece di ricopiare:
 FRTIntentView` esiste ed è testato da `RefactorTactics.Reactions.IntentNotVisibleToEnemy` e
 `RefactorTactics.Combat.IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed`. Ma il registry annota accanto la
 sola frase che conta: *«oggi la privacy è **banale perché il gioco è offline**»*. Un filtro che nessuno prova
-ad aggirare non è una difesa — è una convenzione. Il canary di `M10.3` è la prima riga di quel test che vale.
+ad aggirare non è una difesa — è una convenzione.
+
+➕ **Aggiornato il 2026-09-04** ([#589](https://github.com/DegrassiAaron/refactor-tactics-main/issues/589)):
+questa riga diceva *«il canary di `M10.3` è la **prima** riga di quel test che vale»*, e da oggi qualcosa lo
+precede. `Privacy.ServerOnlyTypesAreNotReplicated` presidia la **superficie di replica**: un tipo dichiarato
+`USTRUCT(meta = (RTServerOnly))` non è raggiungibile da nessuna `UPROPERTY(Replicated)` né da un parametro di
+RPC, nemmeno annidato dentro un `TArray`. ⚠️ **Non rende il canary meno necessario, e la distinzione è netta**:
+la guardia dice che non esiste una via **dichiarata** perché un intento parta, il canary che **nessun byte è
+partito**. La prima si dimostra sui tipi e gira offline; la seconda solo su una partita vera, e **packaged**.
 
 **Il vincolo che nessuno aveva quando M10 è stata scritta.**
 [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) introduce **N round-trip per turno** — una finestra
@@ -1073,7 +1111,15 @@ la preview è continua e perdibile, il commit è raro e non può perdersi.
 5. **Risoluzione autoritativa** — il resolver gira sul server e da nessun'altra parte.
 6. **Canary anti-leak** (`M10.3`) — fallisce se un client riceve **un solo byte** del piano avversario prima
    del reveal. Il KPI *Intent leak = 0* smette di essere vero per costruzione e comincia a essere verificato.
-7. **Scenario packaged a due squadre** — la prova che il percorso regge fuori dall'editor.
+   ⚠️ **Si esegue packaged, e non è il punto 7** ([#589](https://github.com/DegrassiAaron/refactor-tactics-main/issues/589)):
+   *packaged* è una proprietà **di questo passo**, non un passo successivo. In PIE server e client condividono
+   il processo, quindi un canary che passa lì è verde anche quando il difetto c'è — è la modalità di
+   fallimento che PDR-04 §9.5 nomina. Letta come sequenza, questa lista faceva concludere che il canary si
+   potesse validare prima del pacchetto. Procedura: [`../technical/systems/procedura-canary-anti-leak.md`](../technical/systems/procedura-canary-anti-leak.md).
+   ✅ **La parte offline è già chiusa** dal 2026-09-04 — `Privacy.ServerOnlyTypesAreNotReplicated` presidia la
+   *superficie* di replica; il canary resta l'unica prova sul **byte**.
+7. **Scenario packaged a due squadre** — la prova che il percorso regge fuori dall'editor. ⚠️ È una prova più
+   larga del canary, non il suo contenitore: qui si guarda che l'intero percorso di rete regga, non la privacy.
 
 **Fuori perimetro**, e non per fretta: matchmaking, ranked, dedicated server, riconnessione. Il dedicated è
 **E42** e non è un dettaglio d'infrastruttura — cambia chi possiede l'autorità.

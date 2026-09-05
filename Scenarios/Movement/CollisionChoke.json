@@ -1,0 +1,79 @@
+{
+  "scenarioId": "Movement.CollisionChoke",
+  "tags": ["movement", "core", "planning", "diagnostic", "gadget", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 3,
+
+  "_nota": "SCENARIO DIAGNOSTICO di CM-02 (#2277, epic #2276): il choke, non la singola contesa. `Movement.Collision` prova che due unita' che puntano la stessa cella si fermano ENTRAMBE; questo prova cosa succede quando quella cella e' l'UNICO passaggio e la contesa si ripete. Un muro chiude la colonna q=0 tranne (0,0,0): da ovest a est non esiste altra via, e l'A* non ha niente da aggirare.",
+
+  "_nota_perche_due_fasi_in_un_file": "Le due meta' di CM-02 sono la stessa domanda vista da due lati, e separarle in due file darebbe due misure che nessuno confronta. FASE 1 (T1-T2) misura lo STALLO: contesa simmetrica ripetuta, zero progresso, due turni spesi. FASE 2 (T3-T4) misura il DENIAL: chi entra per primo nega il varco standoci fermo, e non paga niente per farlo. Il conteggio degli eventi rende leggibile in una riga cio' che le sole posizioni non distinguono - 'fermo perche' conteso' e 'fermo perche' occupato' sono due esiti diversi con la stessa coordinata finale.",
+
+  "_nota_cosa_la_misura_ha_trovato": "Eseguito il 2026-09-04 (`RefactorTactics.Scenario.EveryShippedScenarioRuns`, HEAD `d5f37be4`): cinque assertion su sei tenevano alla prima stesura. L'unica caduta e' stata `BlockedByUnit`, attesa `1` e misurata `0` - vedi la sua riga. Le altre cinque confermano cio' che la regola dichiarava, incluso il conteggio `BlockedContested = 4`, che deriva dai due esiti per contesa gia' pinnati da `RefactorTactics.HexMove.ContestedCellStopsBoth`.",
+
+  "_nota_cosa_NON_prova": "Non prova che la policy sia sbagliata, e non e' una proposta di cambiarla. `MOV-4` (docs/OPEN_DECISIONS.md) e' la domanda aperta, e le sue uscite restano aperte: la variante 'stop all'ultima posizione sicura' NON e' fra quelle elencate e non si implementa qui. Questo file misura il costo del comportamento corrente cosi' che quella decisione si prenda con un numero invece che con un'intuizione. ⛔ Non prova nemmeno le metriche UMANE di CM-02 - previsione corretta dell'esito, denial usato di proposito da un giocatore: quelle vengono da una seduta PIE, non da un oracolo headless.",
+
+  "_nota_parita_di_precedenza": "Entrambe le unita' dichiarano un `move` semplice, quindi la precedenza di catalogo (`FRTActionDef::Priority`) e' PARI e l'esito atteso e' `BlockedContested`. Se un giorno una delle due usasse una mobilita' con priorita' migliore, l'esito diventerebbe `BlockedByPriority` e questo scenario lo direbbe cambiando conteggio invece di restare verde su un'altra regola.",
+
+  "cells": [
+    { "cell": [0, -3, 0], "blocksMovement": true },
+    { "cell": [0, -2, 0], "blocksMovement": true },
+    { "cell": [0, -1, 0], "blocksMovement": true },
+    { "cell": [0,  1, 0], "blocksMovement": true },
+    { "cell": [0,  2, 0], "blocksMovement": true },
+    { "cell": [0,  3, 0], "blocksMovement": true }
+  ],
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [ 1, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 - FASE 1. Entrambi puntano il varco. A parita' di precedenza la destinazione contesa li ferma tutti e due: nessuno entra, nessuno guadagna terreno.",
+      "intents": [
+        { "unit": "A1", "move": [[0, 0, 0]] },
+        { "unit": "B1", "move": [[0, 0, 0]] }
+      ]
+    },
+    {
+      "_turno": "T2 - FASE 1. La stessa mossa, di nuovo. E' il turno che rende la misura una misura: uno stallo di un turno e' un incidente, due consecutivi sono una proprieta' della board.",
+      "intents": [
+        { "unit": "A1", "move": [[0, 0, 0]] },
+        { "unit": "B1", "move": [[0, 0, 0]] }
+      ]
+    },
+    {
+      "_turno": "T3 - FASE 2. A1 non dichiara niente, B1 entra nel varco. La contesa finisce appena uno dei due smette di contendere: e' il modo in cui lo stallo si rompe, e costa un turno a chi cede.",
+      "intents": [
+        { "unit": "B1", "move": [[0, 0, 0]] }
+      ]
+    },
+    {
+      "_turno": "T4 - FASE 2. A1 prova il varco, B1 sta fermo. B1 non spende niente e nega il passaggio: la sua inazione vale quanto un'azione. E' il denial che CM-02 chiede di misurare.",
+      "intents": [
+        { "unit": "A1", "move": [[0, 0, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "_assertion": "A1 non ha mai attraversato: quattro turni, tre tentativi, zero celle guadagnate. La coordinata di partenza e quella d'arrivo coincidono.",
+      "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] },
+
+    { "_assertion": "B1 tiene il varco. Ci e' entrato al T3 e al T4 non ha fatto niente per restarci.",
+      "type": "UnitAtCell", "unit": "B1", "cell": [0, 0, 0] },
+
+    { "type": "TurnsCompleted", "value": 4 },
+
+    { "_assertion": "🔴 LA MISURA DELLO STALLO. Quattro voci `BlockedContested`: due unita' x due turni. Senza questa riga le posizioni del T1-T2 sarebbero indistinguibili da due unita' che hanno deciso di stare ferme. ⚠️ Il numero e' derivato dalla regola documentata (spec-tassonomia-movimento.md §19: la contesa a parita' di precedenza ferma entrambe), non dall'output: se il resolver ne producesse un numero diverso, la differenza e' una scoperta e non un valore da riallineare in silenzio.",
+      "type": "LogEventCount", "category": "Move", "outcome": "BlockedContested", "value": 4 },
+
+    { "_assertion": "🔴 LA MISURA DEL DENIAL, ED E' UNO ZERO. Al T4 il varco e' occupato da un'unita' FERMA e A1 non entra - ma il TurnLog non porta NIENTE: zero `BlockedByUnit`, zero voci di Move per A1. ⚠️ Questo valore e' MISURATO, e la prima stesura di questo file asseriva `1` derivandolo dalla regola: la misura del 2026-09-04 ha dato `0` e la ragione e' che il piano non arriva mai al resolver. `FindPathForUnit` restituisce `NoPath` quando il goal e' occupato, il percorso e' rifiutato IN PIANIFICAZIONE (`RTScenarioSession.cpp:1338`, nota «percorso rifiutato»), e cio' che non entra nel resolver non produce esito. E' lo stesso meccanismo che `PIE-HEXPLAY-5` dichiara per lo scambio diretto A<->B. 🔑 LA CONSEGUENZA, che e' il vero reperto di questo scenario: dal TurnLog «ho tentato il varco e me l'hanno negato» e' INDISTINGUIBILE da «non ho tentato». Il denial e' gratis per chi lo esercita e invisibile a chi lo subisce - un difetto di explainability (`CM-01`) misurato su un caso di `CM-02`. ⛔ Lo zero non e' un'assertion vacua: pinna il comportamento corrente, e diventa rosso il giorno in cui la pianificazione o il resolver cominciassero a lasciare una traccia.",
+      "type": "LogEventCount", "category": "Move", "outcome": "BlockedByUnit", "value": 0 },
+
+    { "_assertion": "IL DENOMINATORE. Un solo `Moved` in tutta la partita: sei intenti di movimento dichiarati, uno riuscito. E' la percentuale di Move senza variazione di posizione che CM-02 chiede, resa leggibile senza strumenti esterni.",
+      "type": "LogEventCount", "category": "Move", "outcome": "Moved", "value": 1 }
+  ]
+}

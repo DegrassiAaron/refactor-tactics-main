@@ -82,6 +82,33 @@ public:
 	static TArray<FRTStructureEdgeRef> FindDoorEdges(const URTHexMapAsset* Map, FName StableId);
 
 	/**
+	 * IL NOME DELLA PORTA CHE STA SU QUEL BORDO — la risoluzione INVERSA di `FindDoorEdges`.
+	 *
+	 * 🔑 **Esiste perche' il runtime e il grafo parlano due vocabolari diversi**, e fino a `#833` non c'era
+	 * nessun ponte fra loro. L'intento di gioco parla di BORDI — `FRTHexCombatIntent::DeclaredDoorEdge`,
+	 * `FirstDoorEdge`, `FRTDoorOp{From, To}` — mentre il grafo di interazione e `ApplyInteraction` parlano di
+	 * NOMI (`FName SourceId`). Chi punta una leva punta un bordo; chi la fa agire ha bisogno del suo nome.
+	 *
+	 * ⚠️ **Il bordo si guarda dai DUE lati**, come `CoverBetween` e per la stessa ragione: il dato sta su una
+	 * cella sola, ma la struttura e' fisica e la regola non deve dipendere da quale delle due l'ha ricevuta.
+	 *
+	 * `NAME_None` se le celle non sono adiacenti, se non c'e' porta sul bordo, o se la porta non ha nome —
+	 * e i tre casi non si distinguono, perche' per chi chiama sono la stessa cosa: **da qui non parte
+	 * un'interazione remota**.
+	 */
+	static FName FindDoorIdOnEdge(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To);
+
+	/**
+	 * QUEL NOME COMANDA QUALCOSA? Vero se compare come `SourceId` in un binding del grafo.
+	 *
+	 * ⛔ **Non dice se i bersagli risolvono**, e non e' una svista: quello lo sa `ResolveInteractionTargets`,
+	 * che ha anche i reason code per dirlo. Questo predicato risponde alla sola domanda che il percorso di
+	 * gioco deve fare **prima** di scegliere la strada — *«questa e' una leva o una porta?»* — e un binding
+	 * rotto resta un difetto d'asset da riportare, non una leva che sparisce.
+	 */
+	static bool IsInteractionSource(const URTHexMapAsset* Map, FName StableId);
+
+	/**
 	 * Archi che portano quel nome, nell'ordine in cui stanno in `Transitions`.
 	 *
 	 * Vuoto alle stesse condizioni di `FindDoorEdges`. Un ponte bidirezionale ne restituisce due: sono i

@@ -5,6 +5,7 @@
 #include "Replay/RTReplayViewModel.h"
 #include "Replay/RTMatchHistoryLibrary.h"
 #include "Replay/RTReplayManifest.h"
+#include "Replay/RTReplayPrivacyLibrary.h" // FRTPublicReplayEntry: il confine di D-276 sulla superficie spettatore
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnRules.h"
 #include "RTReplayViewerSubsystem.generated.h"
@@ -84,11 +85,91 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
 	void Close();
 
+	// --- La selezione che attraversa il PushScreen (`#472`) -----------------------------------------
+
+	/**
+	 * Dichiara **quale** partita il viewer aprira' quando comparira'.
+	 *
+	 * 🔴 **Esiste perche' `PushScreen` prende un `FName` e basta.** `MatchHistory` spinge `ReplayViewer`
+	 * portandosi dietro un dato — l'unica relazione del frontend che lo fa — e senza un posto dove
+	 * posarlo il viewer si aprirebbe senza sapere cosa mostrare. E' lo stesso schema di
+	 * `PendingMatchLevel`/`ConsumePendingMatchLevel` per l'avvio partita: si scrive **prima** di navigare,
+	 * si consuma all'arrivo.
+	 *
+	 * ⚠️ **Sta qui e non sul navigatore**, ed e' deliberato: il navigatore non conosce il replay — non lo
+	 * conosce nemmeno per chiudere l'archivio, che e' la schermata a fare uscendo. Un `PendingReplayMatchId`
+	 * la' dentro sarebbe il primo campo di dominio in un tipo che ne e' rimasto libero.
+	 *
+	 * ⛔ **Non apre niente**: dichiarare non e' aprire, e tenerli separati e' cio' che permette alla lista
+	 * di rispondere al click **prima** che il viewer esista.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
+	void SelectMatch(const FGuid& MatchId) { SelectedMatchId = MatchId; }
+
+	/** `true` se una partita e' stata selezionata e non ancora consumata. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
+	bool HasSelectedMatch() const { return SelectedMatchId.IsValid(); }
+
+	/**
+	 * Prende la selezione e la **azzera**: il viewer la consuma una volta sola.
+	 *
+	 * 🔴 **Consumare e non leggere**, per la ragione che `ConsumePendingMatchLevel` dichiara: una
+	 * selezione che sopravvive alla sua apertura verrebbe riusata da una comparsa successiva, e il viewer
+	 * riaprirebbe la partita di prima senza che nulla lo dica. Un `FGuid` invalido e' un difetto rumoroso —
+	 * `OpenMatchAsRecordedObserver` risponde `ManifestUnreadable` — mentre uno valido ma **vecchio** e' un
+	 * difetto muto.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
+	FGuid ConsumeSelectedMatch()
+	{
+		const FGuid Preso = SelectedMatchId;
+		SelectedMatchId.Invalidate();
+		return Preso;
+	}
+
 	// --- Apertura -----------------------------------------------------------------------------------
 
-	/** Apre una partita. I **quattro** esiti restano distinti: e' un criterio di `#472`. */
+	/** Apre una partita come spettatore **neutrale**. I **quattro** esiti restano distinti: criterio di `#472`. */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
 	ERTReplayOpenResult OpenMatch(const FGuid& MatchId);
+
+	/**
+	 * Apre una partita **con gli occhi di una squadra** ([D-316], `#2098`).
+	 *
+	 * Se l'archivio porta una traccia per `ObserverTeamId` — cioe' se il suo manifest lo elenca in
+	 * `ObserverTeamIds` — da qui in poi `GetCurrentPhaseEntries` consegna solo i fatti che quella squadra
+	 * era autorizzata a conoscere **quando sono accaduti**. Altrimenti apre la canonica, come `OpenMatch`.
+	 *
+	 * ⚠️ **Due porte e non un parametro con default**, ed e' deliberato: `UFUNCTION` non ammette
+	 * l'overloading, e un solo nodo con `ObserverTeamId = -1` predefinito avrebbe reso lo **spettatore
+	 * neutrale il comportamento che si ottiene dimenticandosi di scegliere**. Qui la scelta e' nel nome del
+	 * nodo, e un widget che apra il replay del proprio giocatore non ci arriva per omissione.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
+	ERTReplayOpenResult OpenMatchAsTeam(const FGuid& MatchId, int32 ObserverTeamId);
+
+	/**
+	 * Apre una partita **con gli occhi di chi l'ha giocata**: l'osservatore lo dichiara l'archivio
+	 * ([D-317], `#2156`).
+	 *
+	 * 🔑 **E' la porta che una schermata deve chiamare**, ed e' il motivo per cui esiste. `OpenMatchAsTeam`
+	 * chiede un `TeamId` che il chiamante non ha modo di conoscere — nessuna UI sa di chi fosse una partita
+	 * registrata la settimana scorsa — quindi in pratica si sarebbe finiti su `OpenMatch`, ottenendo la vista
+	 * neutrale **per omissione** invece che per scelta. Qui la cosa giusta e' anche la piu' semplice.
+	 *
+	 * ⚠️ **Ricade sul neutrale quando l'archivio non lo dichiara**, e non e' un ripiego: un manifest `v1` o
+	 * `v2`, o una partita registrata da un dedicated server, non hanno un osservatore locale — `INDEX_NONE`
+	 * significa *«non c'era»*, e la vista completa e' la lettura corretta di quelle registrazioni.
+	 *
+	 * ⛔ **Non e' un confine di privacy e non va usata come tale.** Non impedisce di chiamare
+	 * `OpenMatchAsTeam` con l'altra squadra: le tracce sono entrambe sul disco, e il confine che [D-316]
+	 * chiude e' quello della superficie pubblica — chi ha accesso alla cartella ha accesso a tutto.
+	 *
+	 * Gli esiti sono i **quattro** di `OpenMatch`, più nessuno: un manifest illeggibile risponde
+	 * `ManifestUnreadable` come sempre, invece di inventare un quinto stato per «non so chi guardava».
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
+	ERTReplayOpenResult OpenMatchAsRecordedObserver(const FGuid& MatchId);
 
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
 	bool IsOpen() const { return ViewModel.IsOpen(); }
@@ -201,14 +282,42 @@ public:
 	// --- Cosa c'e' da disegnare ---------------------------------------------------------------------
 
 	/**
-	 * Le voci della fase a schermo.
+	 * Le voci della fase a schermo, nella forma **pubblica**.
+	 *
+	 * 🔴 **Il tipo di ritorno e' il confine di [D-276], e non una preferenza di stile.** Questa e' la sola
+	 * superficie del replay che un widget puo' raggiungere — `BlueprintCallable` — ed e' cio' che quella
+	 * decisione chiama *«la riproduzione spettatore»*, uno dei tre posti in cui i campi di audit non devono
+	 * arrivare per errore. Finche' ha consegnato `FRTTurnLogEntry`, ogni widget legato a questo nodo
+	 * leggeva `Verdict`, `OpportunityId`, `ReactionInstanceId` e `ReactionResponse` di **entrambe** le
+	 * squadre. Il view model resta sulla voce completa perche' e' `USTRUCT()` e non `BlueprintType`: da li'
+	 * un widget non passa, e chi fa audit ha bisogno della voce intera.
+	 *
+	 * ✅ **E il filtro sulle VOCI esiste dal 2026-09-03** — [D-316], `#2098` — ma **non e' qui**, ed e' la
+	 * cosa da sapere prima di cercarlo in questa funzione. Le voci che questa consegna sono quelle della
+	 * traccia che `OpenMatchAsTeam` ha aperto: **gia' filtrate alla registrazione**, perche' il verdetto
+	 * congelato vive in memoria mentre la partita gira e non sopravvive alla serializzazione
+	 * (`FRTTurnLogEntry::Verdict` e' `Transient`). Chi apre con `OpenMatch` e' uno spettatore **neutrale** e
+	 * vede tutte le voci: [D-316] punto (5).
+	 *
+	 * 🔴 **Perche' non filtrare qui, che sembrava la sede ovvia.** A questo punto il verdetto e' azzerato
+	 * dalla deserializzazione: un filtro in lettura non avrebbe nascosto **troppo poco**, avrebbe nascosto
+	 * **tutto** — `AllowsTeam` e' fail-closed. Per farlo funzionare servirebbe il verdetto nel formato, che
+	 * e' il conto — versione, `EntryLess`, `MixEntryFields`, 11 golden — che [D-313] ha rifiutato di pagare.
+	 *
+	 * ⚠️ **Fino al 2026-09-02 questa riga citava `#1525`, e la citazione era sbagliata**: quella issue
+	 * riguarda il **playback della partita** — il modello che cammina nella nebbia — ed e' implementata.
+	 * Il filtro delle voci del replay e' un canale diverso, ed e' rimasto senza owner finche' qualcuno non
+	 * ha SEGUITO la citazione invece di crederle.
 	 *
 	 * ⚠️ `BlueprintCallable` per la stessa ragione di `GetManifest`: ogni chiamata rifa' un seek sulla
 	 * traccia e **alloca** l'array delle voci. Come nodo pure una list view lo rieseguirebbe a ogni tick,
 	 * per ogni punto d'uso. Si chiama **quando la posizione cambia**, non mentre si disegna.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
-	TArray<FRTTurnLogEntry> GetCurrentPhaseEntries() const { return ViewModel.CurrentPhaseEntries(); }
+	TArray<FRTPublicReplayEntry> GetCurrentPhaseEntries() const
+	{
+		return URTReplayPrivacyLibrary::ToPublicTrace(ViewModel.CurrentPhaseEntries());
+	}
 
 	/** Le fasi che il turno corrente contiene **davvero**: e' la barra dei salti, e non si costruisce dall'enum. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
@@ -291,4 +400,15 @@ private:
 	/** Vuoto = il default del recorder. Vedi `GetReplaysRoot`. */
 	UPROPERTY()
 	FString ReplaysRootOverride;
+
+	/**
+	 * La partita che il viewer aprira' quando comparira' (`#472`). Invalido = nessuna selezione.
+	 *
+	 * ⚠️ **Non e' l'archivio aperto**: quello vive in `ViewModel`, e i due non si inseguono. Questo campo e'
+	 * vuoto per quasi tutta la vita del subsystem — si riempie a un click e si svuota all'arrivo — mentre
+	 * l'archivio resta aperto finche' qualcuno non chiude. Confonderli darebbe una lista che «ricorda»
+	 * l'ultima partita guardata, che nessuno ha chiesto.
+	 */
+	UPROPERTY()
+	FGuid SelectedMatchId;
 };

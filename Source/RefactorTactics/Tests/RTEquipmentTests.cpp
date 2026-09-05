@@ -13,6 +13,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Terrain/RTTerrainLibrary.h" // FindTerrainDef: la regola di vista del fumo vive nel catalogo terreni
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 
@@ -527,7 +528,7 @@ bool FRTGadgetCooldownEnforcedTest::RunTest(const FString&)
 	// i gadget hanno cooldown 3» — quindi il test itera su tutti invece di controllarne uno: è una proprietà
 	// dell'insieme, e un gadget nuovo che se ne dimenticasse deve cadere qui.
 	const TArray<URTEquipmentData*> Gadgets = URTCatalogLibrary::MakeGadgets();
-	if (!TestEqual(TEXT("quattro gadget: gli altri quattro non sono esprimibili"), Gadgets.Num(), 4))
+	if (!TestEqual(TEXT("cinque gadget: gli altri tre non sono esprimibili"), Gadgets.Num(), 5))
 	{
 		return false;
 	}
@@ -719,18 +720,22 @@ bool FRTGadgetNumbersMatchCatalogTest::RunTest(const FString&)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGadgetsWithoutEngineSupportTest,
-	"RefactorTactics.Equipment.Gadget.FourAreNotExpressibleYet",
+	"RefactorTactics.Equipment.Gadget.ThreeAreNotExpressibleYet",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTGadgetsWithoutEngineSupportTest::RunTest(const FString&)
 {
 	// ⚠️ Test che **pinna limiti**, come `SplitHasNoConsumerYet`. (Il terzo era `EmergencyDashIsNotExpressibleYet`,
 	// diventato `EmergencyDashRepositionsTheReactor` quando D-093 ha fatto cadere il suo limite.)
-	// Quattro gadget del catalogo §2 non sono costruiti, per quattro ragioni diverse — e la differenza conta,
-	// perché porta a lavori diversi. Il test verifica che non compaiano, e per due di essi verifica **anche
-	// la ragione**, così non basta aggiungerli per farlo tornare verde.
+	// Tre gadget del catalogo §2 non sono costruiti, per tre ragioni diverse — e la differenza conta, perche'
+	// porta a lavori diversi. Il test verifica che non compaiano, e per uno di essi verifica **anche la
+	// ragione**, cosi' non basta aggiungerlo per farlo tornare verde.
+	//
+	// **Erano quattro.** `Gadget.SmokeEmitter` e' uscito con `#2087`: il suo blocco era un'azione core
+	// mancante, non un'epic assente — ed e' stato questo tripwire a chiederlo, con le sue stesse parole:
+	// «se un giorno esistesse, questo cade e chiede il gadget». Ora e' misurato da
+	// `SmokeEmitterRaisesTheSameSmokeAsMistVeil`, che ne pinna la CATENA invece della sua assenza.
 	const TArray<URTEquipmentData*> Gadgets = URTCatalogLibrary::MakeGadgets();
-	const TCHAR* Assenti[] = { TEXT("Gadget.SmokeEmitter"), TEXT("Gadget.Insulator"),
-		TEXT("Gadget.Sensor"), TEXT("Gadget.Anchor") };
+	const TCHAR* Assenti[] = { TEXT("Gadget.Insulator"), TEXT("Gadget.Sensor"), TEXT("Gadget.Anchor") };
 	for (const TCHAR* Id : Assenti)
 	{
 		bool bPresente = false;
@@ -741,18 +746,96 @@ bool FRTGadgetsWithoutEngineSupportTest::RunTest(const FString&)
 		TestFalse(*FString::Printf(TEXT("%s non e' costruito"), Id), bPresente);
 	}
 
-	// `SmokeEmitter`: nessuna azione CORE crea fumo. Se un giorno esistesse, questo cade e chiede il gadget.
-	bool bSmokeCore = false;
-	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
-	{
-		if (Def.bCreatesSurface && Def.SurfaceCreated == ERTHexSurface::Smoke) { bSmokeCore = true; }
-	}
-	TestFalse(TEXT("nessuna azione core crea fumo: e' per questo che SmokeEmitter non esiste"), bSmokeCore);
-
 	// `Anchor`: `PushResistance` è una soglia permanente, non un contatore per turno. Il roster è a zero dopo
 	// D-075, e un gadget che la alzasse renderebbe immune a OGNI spinta — tutte valgono 1.
 	TestEqual(TEXT("il roster non ha resistenza nativa (D-075), e il gadget non puo' introdurla come soglia"),
 		URTHeroCatalogLibrary::MakeRiktor()->PushResistance, 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSmokeEmitterChainTest,
+	"RefactorTactics.Equipment.Gadget.SmokeEmitterRaisesTheSameSmokeAsMistVeil",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSmokeEmitterChainTest::RunTest(const FString&)
+{
+	// `#2087`. La novita' non e' il gadget: e' che esiste un'azione CORE del fumo e che il gadget la
+	// EREDITA invece di riscriverla. Il test misura la catena intera — azione core -> gadget -> superficie
+	// -> regola di vista — perche' «il gadget compare nel catalogo» resterebbe vero anche se il suo fumo
+	// fosse un secondo fumo che nessuna regola di terreno conosce.
+
+	// 1. UNA sola azione core crea fumo. Il conteggio, non la presenza: due sorgenti core sarebbero due
+	//    fumi da tenere allineati a mano, ed e' esattamente il difetto che questa issue evita.
+	const TArray<FRTActionDef> Core = URTCatalogLibrary::GetCoreActionCatalog();
+	int32 SorgentiDiFumo = 0;
+	FRTActionDef Fumo;
+	FRTActionDef Acqua;
+	for (const FRTActionDef& Def : Core)
+	{
+		if (Def.bCreatesSurface && Def.SurfaceCreated == ERTHexSurface::Smoke) { ++SorgentiDiFumo; Fumo = Def; }
+		if (Def.ActionId == FName(TEXT("Action.CreateWater"))) { Acqua = Def; }
+	}
+	TestEqual(TEXT("una sola azione core crea fumo"), SorgentiDiFumo, 1);
+	TestEqual(TEXT("ed e' Action.CreateSmoke"), Fumo.ActionId, FName(TEXT("Action.CreateSmoke")));
+
+	// 2. I suoi numeri vengono dalle ambientali che gia' esistevano, non sono stati scelti qui. Confrontati
+	//    con `CreateWater` invece che con i letterali: se un domani le ambientali cambiassero portata, il
+	//    fumo deve seguirle — un letterale qui lo lascerebbe indietro in silenzio.
+	TestEqual(TEXT("stessa fase delle altre ambientali"), (int32)Fumo.ResolutionPhase, (int32)Acqua.ResolutionPhase);
+	TestEqual(TEXT("stessa priorita' di CreateWater"), Fumo.Priority, Acqua.Priority);
+	TestEqual(TEXT("stessa portata di CreateWater"), Fumo.RangeCells, Acqua.RangeCells);
+	TestEqual(TEXT("raggio 1, «fumo raggio 1» del catalogo"), Fumo.SurfaceRadius, 1);
+
+	// 3. Il gadget esiste e non riscrive nulla: eredita l'azione, come `Sprinkler` eredita `CreateWater`.
+	const TArray<URTEquipmentData*> Gadgets = URTCatalogLibrary::MakeGadgets();
+	const URTEquipmentData* Emitter = nullptr;
+	for (const URTEquipmentData* G : Gadgets)
+	{
+		if (G->EquipmentId == FName(TEXT("Gadget.SmokeEmitter"))) { Emitter = G; }
+	}
+	if (!TestNotNull(TEXT("Gadget.SmokeEmitter"), Emitter)) { return false; }
+	TestEqual(TEXT("concede l'azione core del fumo"), Emitter->GrantedActionId, FName(TEXT("Action.CreateSmoke")));
+	TestEqual(TEXT("cooldown 3 come ogni gadget"), Emitter->CooldownTurns, 3);
+	TestEqual(TEXT("nessun effetto proprio: una superficie non e' un FRTActionEffectSpec"),
+		Emitter->GrantedEffects.Num(), 0);
+
+	URTActionData* Azione = URTCatalogLibrary::MakeEquipmentAction(Emitter, nullptr);
+	if (!TestNotNull(TEXT("l'azione dell'emettitore"), Azione)) { return false; }
+	TestTrue(TEXT("l'azione del gadget crea una superficie"), Azione->Def.bCreatesSurface);
+	TestTrue(TEXT("e la superficie e' fumo"), Azione->Def.SurfaceCreated == ERTHexSurface::Smoke);
+	TestEqual(TEXT("raggio 1, ereditato dal core"), Azione->Def.SurfaceRadius, 1);
+
+	// 4. E' lo STESSO fumo di `Hero.Phase.MistVeil`, non un fumo del gadget. E' il punto della DoD: se
+	//    qualcuno introducesse una seconda superficie «fumo», le due righe qui sotto divergerebbero.
+	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	if (!TestNotNull(TEXT("Hero.Phase"), Phase)) { return false; }
+	const URTActionData* MistVeil = nullptr;
+	for (const URTActionData* A : Phase->Actions)
+	{
+		if (A && A->Def.ActionId == FName(TEXT("Hero.Phase.MistVeil"))) { MistVeil = A; }
+	}
+	if (!TestNotNull(TEXT("Hero.Phase.MistVeil"), MistVeil)) { return false; }
+	TestTrue(TEXT("gadget e MistVeil creano la STESSA superficie"),
+		Azione->Def.SurfaceCreated == MistVeil->Def.SurfaceCreated);
+	TestEqual(TEXT("e con lo stesso raggio"), Azione->Def.SurfaceRadius, MistVeil->Def.SurfaceRadius);
+	TestEqual(TEXT("entrambe risolvono nella stessa fase: il fumo si alza nel Cleanup"),
+		(int32)Azione->Def.ResolutionPhase, (int32)MistVeil->Def.ResolutionPhase);
+
+	// 5. La regola di vista, che e' cio' che «blocca la vista» significa DAVVERO qui. Vive nel catalogo
+	//    terreni e vale per ogni cella di fumo, da qualunque azione venga — quindi il gadget la ottiene per
+	//    COSTRUZIONE e non per disciplina.
+	//
+	// ⚠️ Il fumo NON azzera la linea di vista: la ACCORCIA. Il test pinna entrambe le meta', perche' «fumo»
+	//    suggerisce un muro opaco e il catalogo dice un'altra cosa.
+	const FRTTerrainDef Terreno = URTTerrainLibrary::FindTerrainDef(ERTHexSurface::Smoke);
+	TestTrue(TEXT("il catalogo terreni conosce il fumo"), Terreno.Surface == ERTHexSurface::Smoke);
+	TestFalse(TEXT("il fumo NON blocca la linea di vista"), Terreno.bBlocksLineOfSight);
+	TestEqual(TEXT("ma attraverso il fumo non si punta oltre 2 celle"), Terreno.MaxTargetingRangeThrough, 2);
+	bool bAcceca = false;
+	for (const FRTActionEffectSpec& S : Terreno.OnEnterEffects)
+	{
+		if (S.Effect == ERTActionEffect::Status && S.StatusTag == TAG_Status_Obscured) { bAcceca = true; }
+	}
+	TestTrue(TEXT("e chi ci entra e' Obscured"), bAcceca);
 	return true;
 }
 

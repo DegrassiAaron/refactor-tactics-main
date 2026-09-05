@@ -16,7 +16,8 @@ const TArray<ERTMatchPhase>& FRTReplayViewModel::ObservablePhases()
 	return Fasi;
 }
 
-ERTReplayOpenResult FRTReplayViewModel::Open(const FString& ReplaysRoot, const FGuid& MatchId)
+ERTReplayOpenResult FRTReplayViewModel::Open(const FString& ReplaysRoot, const FGuid& MatchId,
+	int32 ObserverTeamId)
 {
 	// Reset esplicito invece di `*this = FRTReplayViewModel()`: `SecondsPerPhase` e' configurazione di chi
 	// ci guarda dentro, non stato della partita aperta, e riaprire un archivio non deve resettargliela.
@@ -34,7 +35,7 @@ ERTReplayOpenResult FRTReplayViewModel::Open(const FString& ReplaysRoot, const F
 	// riassegnava lo stesso, con un commento che avvertiva di un pericolo — «una sessione parzialmente
 	// popolata» — che il Player ha gia' eliminato per costruzione. Trovato in code review: era codice
 	// morto, e il commento faceva credere il contrario di cio' che `RTReplayPlayerLibrary.cpp:11` fa.
-	OpenResult = URTReplayPlayerLibrary::OpenArchive(ReplaysRoot, MatchId, Session);
+	OpenResult = URTReplayPlayerLibrary::OpenArchive(ReplaysRoot, MatchId, Session, ObserverTeamId);
 	if (OpenResult != ERTReplayOpenResult::Opened)
 	{
 		return OpenResult;
@@ -43,6 +44,41 @@ ERTReplayOpenResult FRTReplayViewModel::Open(const FString& ReplaysRoot, const F
 	BuildPhaseCache();
 	bOpen = true;
 	return OpenResult;
+}
+
+bool FRTReplayViewModel::OpenFromTraces(TArray<TArray<FRTTurnLogEntry>> Traces)
+{
+	// Stesso reset di `Open`, e per la stessa ragione: `SecondsPerPhase` e' configurazione di chi guarda,
+	// non stato di cio' che si guarda, quindi riaprire non deve resettargliela.
+	Session = FRTReplaySession();
+	PhasesPerTrace.Reset();
+	Current = FRTReplayPosition();
+	CurrentTraceIndex = INDEX_NONE;
+	bPlaying = false;
+	PhaseElapsed = 0.f;
+	bOpen = false;
+	bOpenAttempted = true;
+
+	// ⛔ Il rifiuto sta PRIMA di adottare le tracce: un'apertura vuota lascerebbe `IsOpen()` vero su una
+	// sequenza che non ha nemmeno un turno, e ogni `CanStep*` risponderebbe «no» senza che nessuno sappia
+	// perche'. Meglio non aperto, che e' una risposta che il chiamante puo' mostrare.
+	if (Traces.Num() == 0)
+	{
+		// ⚠️ `TraceUnreadable` e non `Opened`: i quattro esiti descrivono APERTURE DI ARCHIVIO e nessuno di
+		// essi nomina questa via. Si sceglie quello che il chiamante interpreta gia' come «c'era qualcosa da
+		// leggere e non si e' potuto usare», invece di inventarne un quinto per un caso che `IsOpen()` gia'
+		// distingue.
+		OpenResult = ERTReplayOpenResult::TraceUnreadable;
+		return false;
+	}
+
+	Session.Traces = MoveTemp(Traces);
+	Session.bComplete = true;
+
+	BuildPhaseCache();
+	bOpen = true;
+	OpenResult = ERTReplayOpenResult::Opened;
+	return true;
 }
 
 void FRTReplayViewModel::Rewind()

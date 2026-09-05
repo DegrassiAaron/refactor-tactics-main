@@ -14,6 +14,13 @@ static constexpr int32 RT_OccupancySectorCount = 12;
  * questo dice QUANTO la cella e' stretta, ed e' la ragione per cui esiste un valore intermedio.
  * `Constrained` nasce con il suo consumatore (il costo): senza, sarebbe indistinguibile da `Free` per
  * chiunque legga, cioe' un campo che nessuno legge.
+ *
+ * 🔑 **E la frase sopra e' l'unica vera: questo enum misura la STRETTEZZA, e dal 2026-08-30 (`D-289`) non
+ * decide piu' la calpestabilita'.** Il paragrafo lo diceva gia' — *«quelli dicono SE si passa, questo dice
+ * QUANTO la cella e' stretta»* — mentre il valore `Blocked` qui sotto lo contraddiceva. Chi risponde a
+ * *«un'unita' ci sta?»* e' `URTHexCoverPlacementLibrary::HasLegalPlacement`, che cerca una regione di
+ * settori liberi CONTIGUI compatibile con il footprint. Owner:
+ * `docs/technical/systems/spec-cover-placement-intra-hex.md`.
  */
 UENUM(BlueprintType)
 enum class ERTCellOccupancy : uint8
@@ -24,7 +31,19 @@ enum class ERTCellOccupancy : uint8
 	/** Si attraversa, ma la cella e' stretta: costa di piu' (vedi `URTHexOccupancyLibrary::Surcharge`). */
 	Constrained,
 
-	/** Non si attraversa. */
+	/**
+	 * La cella e' MOLTO stretta.
+	 *
+	 * 🔴 **Questo commento diceva «Non si attraversa», e dal 2026-08-30 e' superato** (`D-289`). Il valore
+	 * non ha mai avuto un consumatore che negasse il passaggio — `Classify` e' chiamata solo dai test, e
+	 * `Surcharge` restituisce zero qui perche' *«chi la rende impassabile e' il bordo, non il costo»* — ma
+	 * il nome e la riga di prosa insieme dichiaravano una regola che il repository ora non ha piu'.
+	 *
+	 * ⚠️ **Il nome resta `Blocked` di proposito**: e' un valore d'enum e rinominarlo non aggiunge una
+	 * verita', mentre romperebbe i test e i pannelli che lo nominano. A dire cosa significa e' questo
+	 * commento, ed e' la stessa scelta fatta per `bGenerated` — il nome descrive la misura, non la
+	 * conseguenza.
+	 */
 	Blocked
 };
 
@@ -186,9 +205,20 @@ public:
 	 * Quanto costa IN PIU' attraversare una cella con questa classificazione — la META' COSTO della cottura,
 	 * che appartiene a #619. I BORDI (`FRTHexCover`, `bBlocksMovement`) sono di #621.
 	 *
-	 * `Blocked` non paga un sovrapprezzo perche' non si attraversa affatto: chi la rende impassabile e' il
-	 * bordo, non il costo. Restituire un numero alto qui sarebbe un secondo modo di dire «non si passa», e due
-	 * modi di dire la stessa cosa divergono.
+	 * `Blocked` non paga un sovrapprezzo, e chi rende impassabile una cella non e' il costo. Restituire un
+	 * numero alto qui sarebbe un secondo modo di dire «non si passa», e due modi di dire la stessa cosa
+	 * divergono.
+	 *
+	 * 🔴 **Ma `Blocked` non significa piu' «non si attraversa», ed e' un cambio di senso da `D-289`
+	 * (`E23.6`, `#1827`).** Questa classificazione e' rimasta un giudizio di **STRETTEZZA** — quanto la
+	 * geometria invade la cella — e alimenta il solo sovrapprezzo. La CALPESTABILITA' e' un'altra domanda,
+	 * e ha un'altra risposta: `bBlocksMovement`, che la cottura deriva dall'assenza di una **posa legale**
+	 * per il footprint (`URTHexCoverPlacementLibrary::HasLegalPlacement`).
+	 *
+	 * ⚠️ Le due possono divergere, e devono poterlo: una cella con `Blocked` per strettezza resta
+	 * calpestabile se un footprint ci sta — `RefactorTactics.Standability.OccupiedWedgeCountDoesNotDecide`
+	 * lo misura su otto settori occupati. La vecchia scorciatoia *«>= 6 settori => Blocked => non si
+	 * passa»* e' proprio cio' che `D-289` ha superato.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static int32 Surcharge(ERTCellOccupancy Occupancy, const FRTOccupancyThresholds& Thresholds);

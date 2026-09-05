@@ -162,10 +162,31 @@ Content/RT/UI/_Generated/
 !Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset
 !Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset
 !Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset
-!Content/RT/Characters/Gadget/Animation/ABP_Gadget.uasset
-!Content/RT/Characters/Phase/Animation/ABP_Phase.uasset
-!Content/RT/Characters/Riktor/Animation/ABP_Riktor.uasset
-!Content/RT/Characters/Wraith/Animation/ABP_Wraith.uasset
+# Gli ABP_* dei quattro eroi NON hanno una riga, e non e' una dimenticanza: D-248 (2026-08-30) ha
+# stabilito che il grafo di locomozione vive in C++ (URTUnitAnimInstance) e che quei quattro .uasset
+# non vanno creati. Le righe c'erano, e sono uscite il 2026-08-31: finche' restavano, il comando di
+# misura di docs/technical/tooling/asset-map.md le contava fra gli "attesi" e dichiarava 4 assenti —
+# quattro asset mancanti che nessuno deve produrre. L'oracolo di D-248 era `grep -rn "ABP_" docs/`,
+# e questo file non sta in docs/: e' il motivo per cui erano sopravvissute alla decisione.
+# I montaggi AM_<Pack>_{Attack,Hit,Death} sono un'altra cosa: sono lavoro aperto di #288 (U8), e le
+# loro righe sono qui sotto — scritte il 2026-08-31, PRIMA che il primo esista. E' l'ordine che il
+# §6 di asset-map.md prescrive e che ABP_Gadget aveva rispettato: la riga c'era, mancava il git add.
+# Per esteso e non con un glob perche' l'elenco e' CHIUSO e noto (3 montaggi x 4 pack, gli stessi
+# dodici path che editor-sessions.yaml elenca negli artifacts di U8): cosi' il comando di misura li
+# conta fra gli attesi e dice quanti ne mancano, che e' il mestiere dell'asset map. Un glob li
+# renderebbe una famiglia aperta e invisibile al conteggio.
+!Content/RT/Characters/Gadget/Animation/AM_Gadget_Attack.uasset
+!Content/RT/Characters/Gadget/Animation/AM_Gadget_Hit.uasset
+!Content/RT/Characters/Gadget/Animation/AM_Gadget_Death.uasset
+!Content/RT/Characters/Phase/Animation/AM_Phase_Attack.uasset
+!Content/RT/Characters/Phase/Animation/AM_Phase_Hit.uasset
+!Content/RT/Characters/Phase/Animation/AM_Phase_Death.uasset
+!Content/RT/Characters/Riktor/Animation/AM_Riktor_Attack.uasset
+!Content/RT/Characters/Riktor/Animation/AM_Riktor_Hit.uasset
+!Content/RT/Characters/Riktor/Animation/AM_Riktor_Death.uasset
+!Content/RT/Characters/Wraith/Animation/AM_Wraith_Attack.uasset
+!Content/RT/Characters/Wraith/Animation/AM_Wraith_Hit.uasset
+!Content/RT/Characters/Wraith/Animation/AM_Wraith_Death.uasset
 # I widget del frontend (E46). Stesso criterio degli altri: non sono arte, sono **logica di
 # presentazione da cui dipende una verifica** — `PIE-V01-FRONTEND-ERROR` e `-NAV` si eseguono su questi.
 # Le classi base vivono in C++ (`Source/RefactorTactics/Frontend/RTFrontendWidgets.h`) e questi `.uasset`
@@ -199,6 +220,41 @@ Content/RT/UI/_Generated/
 # deliberato — in UE la sorgente non si versiona, si versiona l'asset importato.
 # Oracolo: "git check-ignore -q <file>" -> exit 1 (NON ignorato). Con -v esce 0 in entrambi i casi.
 !Content/RT/World/Graybox/**/*.uasset
+
+# ---- Strumenti di authoring solo-Editor: /Game/RT/Editor/ (2026-08-31, D-304) ----
+# D-280 (2026-08-30) ha scelto `/Game/RT/Editor/...` come namespace degli strumenti di authoring
+# solo-Editor, e nessuna riga lo riammetteva: misurato con l'oracolo di §6 di
+# docs/technical/tooling/asset-map.md, `git check-ignore -q Content/RT/Editor/<qualunque>.uasset` usciva
+# 0 — cioe' ignorato, cioe' `git add` muto.
+#
+# 🔴 Due consumatori, e per uno dei due l'assenza era gia' un difetto latente:
+#   - #1804 deve SPOSTARE WBP_RT_ScenarioComposer da /Game/RT/UI/Scenario/ a /Game/RT/Editor/Scenario/.
+#     L'istruttoria di TD-COMP-2 in docs/OPEN_DECISIONS.md dichiara che «il costo di sbagliare e' basso»
+#     perche' «.gitignore:78 e' un glob e copre l'intera sottocartella, quindi uno spostamento non rende
+#     l'asset invisibile». Quel glob e' `!Content/RT/UI/**/*.uasset`: sotto RT/Editor/ non arriva, e senza
+#     questa riga lo spostamento avrebbe fatto sparire l'asset dal repository.
+#   - GKP-03 (Epic #1990) crea WBP_RT_GrayKitPlayground sotto /Game/RT/Editor/GrayKit/UI/.
+#
+# Scritta PRIMA che il primo asset esista, che e' l'ordine di §6: il precedente e' ABP_Gadget, dove la
+# riga c'era e mancava il gesto — qui manca il gesto e non deve mancare la riga.
+# Pattern di CARTELLA e non elenco di file, per la stessa ragione della riga qui sopra: e' una famiglia
+# aperta, gli strumenti di authoring futuri ci ricadono per costruzione. ⚠️ Essendo un glob NON conta fra
+# gli «attesi» del comando di misura di asset-map.md §6, e questo e' voluto: un elenco chiuso qui
+# dichiarerebbe assenti asset che nessuno ha ancora deciso di creare.
+# ⚠️ Il percorso NON garantisce l'esclusione dal cook — D-280 punto (2). `Config/DefaultGame.ini:95`
+# dichiara `+DirectoriesToAlwaysCook=(Path="/Game/RT")`, che coprirebbe anche questa cartella.
+# ✅ **Aggiornato il 2026-09-03 (#1804): la riga di esclusione ORA ESISTE** — `DefaultGame.ini:114`,
+# `+DirectoriesToNeverCook=(Path="/Game/RT/Editor")`. Queste righe dicevano *"nel repository
+# `DirectoriesToNeverCook` ha zero occorrenze"* e *"la configurazione e la validazione sono lavoro di
+# #1804"*: vero fino al 2026-09-02, falso adesso. Entrambe sono fatte, e validate su pacchetto vero.
+# 🔴 **Ma l'avvertenza in cima resta vera per una ragione DIVERSA da quella che sembra.** Misurato
+# cuocendo due pacchetti, uno con la riga e uno senza: sono identici. Gli strumenti di oggi sono
+# `EditorUtilityWidget`, esclusi **per classe** (`LogCook: SkipOnlyEditorOnly is enabled`), non per
+# percorso ne' per configurazione. La riga serve al primo asset NON editor-only che finira' qui sotto —
+# una texture, una mesh, un data asset — che `AlwaysCook` includerebbe. ⛔ Chi la togliesse vedendo che
+# "non cambia niente" starebbe misurando il caso in cui e' ridondante.
+# Oracolo: "git check-ignore -q Content/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground.uasset" -> exit 1.
+!Content/RT/Editor/**/*.uasset
 
 # Scratch dello sviluppo assistito (subagent-driven-development): mai versionato
 .superpowers/

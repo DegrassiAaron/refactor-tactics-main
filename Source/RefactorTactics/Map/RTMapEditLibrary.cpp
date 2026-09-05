@@ -2,8 +2,56 @@
 
 #include "Map/RTGeometryBake.h"
 #include "Map/RTGeometryGrammar.h"
+#include "Map/RTHexLibrary.h" // Neighbor: il vicino oltre il bordo, che decide se una porta nega qualcosa
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTMapDependencyLibrary.h"
+#include "Map/RTStructureIdentityLibrary.h"
+
+namespace
+{
+	/**
+	 * Applica la morte di un insieme di NOMI ai binding di interazione (#1864).
+	 *
+	 * 🔴 **Una implementazione sola, e non e' pignoleria**: prima ce n'erano due che sbagliavano in direzioni
+	 * opposte — la cancellazione della porta rimuoveva il binding intero anche quando il nome era **uno** dei
+	 * bersagli (perdita di dato silenziosa), e la cascata della cella guardava la sola sorgente lasciando
+	 * bersagli fantasma che `ValidateReferences` segnala. Trovate da una code review, non da un test.
+	 *
+	 * La regola e' quella che il contratto di `FRTMapDependencySet` gia' dichiarava: **si perde la sorgente,
+	 * oppure l'ultimo bersaglio**. Un bersaglio su tre esce dalla lista e il binding resta.
+	 */
+	void RTApplyOrphanedNames(URTHexMapAsset* Map, const TArray<FName>& DeadNames)
+	{
+		if (Map == nullptr || DeadNames.Num() == 0)
+		{
+			return;
+		}
+
+		// All'indietro: rimuovere in avanti sposta gli elementi successivi sotto l'indice corrente.
+		for (int32 Index = Map->InteractionBindings.Num() - 1; Index >= 0; --Index)
+		{
+			FRTInteractionBinding& Binding = Map->InteractionBindings[Index];
+
+			if (DeadNames.Contains(Binding.SourceId))
+			{
+				Map->InteractionBindings.RemoveAt(Index);
+				continue;
+			}
+
+			for (const FName& Dead : DeadNames)
+			{
+				Binding.TargetIds.Remove(Dead);
+			}
+
+			// Senza bersagli e' gia' un invalido dichiarato — «binding dichiarato senza bersagli» — quindi
+			// tenerlo non conserva un dato, produce un errore.
+			if (Binding.TargetIds.Num() == 0)
+			{
+				Map->InteractionBindings.RemoveAt(Index);
+			}
+		}
+	}
+}
 
 int32 URTMapEditLibrary::ResolveInteriorWall(const URTHexMapAsset* Map, const FRTMapElementHandle& Handle)
 {
@@ -105,9 +153,81 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 		return ERTMapEditOutcome::RefusedUnresolved;
 	}
 
+	// --- Muro interno: risolve per nome, o per chiave se anonimo ------------------------------------
+	if (Handle.Kind == ERTMapElementKind::InteriorWall)
+	{
+		const int32 Index = ResolveInteriorWall(Map, Handle);
+		if (Index == INDEX_NONE)
+		{
+			return ERTMapEditOutcome::RefusedUnresolved;
+		}
+		Map->InteriorWalls.RemoveAt(Index);
+		return ERTMapEditOutcome::Applied;
+	}
+
+	// --- Copertura e porta: vivono DENTRO la cella, quindi si riscrive la cella ---------------------
+	if (Handle.Kind == ERTMapElementKind::Cover || Handle.Kind == ERTMapElementKind::Door)
+	{
+		const FRTHexCellData* Existing = Map->FindCell(Handle.Cell);
+		if (Existing == nullptr)
+		{
+			return ERTMapEditOutcome::RefusedUnresolved;
+		}
+
+		FRTHexCellData Data = *Existing;
+		int32 Removed = 0;
+		TArray<FName> OrphanedNames;
+
+		if (Handle.Kind == ERTMapElementKind::Cover)
+		{
+			Removed = Data.Covers.RemoveAll([&Handle](const FRTHexCover& C) { return C.Edge == Handle.Edge; });
+		}
+		else
+		{
+			Removed = Data.Doors.RemoveAll([&Handle, &OrphanedNames](const FRTHexDoor& D)
+			{
+				if (D.Edge != Handle.Edge)
+				{
+					return false;
+				}
+				if (!D.StableId.IsNone())
+				{
+					OrphanedNames.AddUnique(D.StableId);
+				}
+				return true;
+			});
+		}
+
+		if (Removed == 0)
+		{
+			return ERTMapEditOutcome::RefusedUnresolved;
+		}
+
+		Map->AddOrUpdateCell(Data);
+
+		// 🔴 Lo stesso `C2` della cascata della cella: un binding che nomina una struttura sparita diventa
+		// «riferimento a una struttura inesistente». La regola non cambia perche' cambia il gesto.
+		//
+		// ⚠️ Il nome muore solo se NESSUN bordo sopravvive: un portone e' un gruppo, e togliergli un lato non
+		// lo cancella. `FindDoorEdges` interroga la mappa GIA' aggiornata, quindi risponde su cio' che resta.
+		TArray<FName> ActuallyDead;
+		for (const FName& Name : OrphanedNames)
+		{
+			// Il nome muore solo se NESSUN bordo gli sopravvive: un portone e' un gruppo. `FindDoorEdges`
+			// interroga la mappa gia' aggiornata, quindi risponde su cio' che resta.
+			if (URTStructureIdentityLibrary::FindDoorEdges(Map, Name).Num() == 0)
+			{
+				ActuallyDead.Add(Name);
+			}
+		}
+		RTApplyOrphanedNames(Map, ActuallyDead);
+
+		return ERTMapEditOutcome::Applied;
+	}
+
 	if (Handle.Kind != ERTMapElementKind::Cell)
 	{
-		// Gli altri tipi arrivano col tool che li seleziona. Un `Applied` a vuoto sarebbe peggio di un
+		// `Transition` non ha ancora un gesto che la selezioni. Un `Applied` a vuoto sarebbe peggio di un
 		// rifiuto: chi chiama crederebbe di aver cancellato qualcosa.
 		return ERTMapEditOutcome::RefusedUnresolved;
 	}
@@ -143,6 +263,10 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 	{
 		Map->InteractionBindings.RemoveAt(Index);
 	}
+
+	// I superstiti perdono i bersagli morti, e muoiono se restano senza: stessa regola del ramo porta,
+	// stessa funzione. Averne due significherebbe che divergono, ed e' gia' successo.
+	RTApplyOrphanedNames(Map, Set.OrphanedStructureNames);
 
 	// La cella per ultima: `CollectDependents` la legge per sapere quali nomi se ne vanno con lei, e
 	// toglierla prima renderebbe vuoto l'insieme dei nomi morenti.
@@ -206,4 +330,51 @@ TArray<FRTMapElementHandle> URTMapEditLibrary::ElementsAt(const URTHexMapAsset* 
 	Found.Add(FRTMapElementHandle::ForCell(Cell));
 
 	return Found;
+}
+
+ERTMapEditOutcome URTMapEditLibrary::AddDoor(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection Edge,
+	ERTHexDoorState State, int32 DoorId, FName StableId)
+{
+	if (Map == nullptr)
+	{
+		return ERTMapEditOutcome::RefusedNoSuchCell;
+	}
+
+	// --- si valida TUTTO prima di scrivere: «un'operazione o si applica intera o non lascia traccia» -----
+	const FRTHexCellData* Data = Map->FindCell(Cell);
+	if (Data == nullptr)
+	{
+		return ERTMapEditOutcome::RefusedNoSuchCell;
+	}
+
+	// 🔴 **Il vicino, ed e' il rifiuto che rende questa funzione non banale.** Una porta e' SOTTRATTIVA —
+	// nega un'adiacenza che esiste — quindi sul bordo esterno della mappa non nega niente: si salverebbe,
+	// cambierebbe l'hash, si vedrebbe pure, e nessun oracolo suonerebbe.
+	if (Map->FindCell(URTHexLibrary::Neighbor(Cell, Edge)) == nullptr)
+	{
+		return ERTMapEditOutcome::RefusedNoNeighbour;
+	}
+
+	for (const FRTHexDoor& Esistente : Data->Doors)
+	{
+		if (Esistente.Edge == Edge)
+		{
+			return ERTMapEditOutcome::RefusedDuplicate;
+		}
+	}
+
+	// --- la scrittura ------------------------------------------------------------------------------------
+	//
+	// 🔴 **Passa da `AddOrUpdateCell`, non da un `const_cast` sull'array della cella.** E' l'unico percorso
+	// che muove `Revision`, e la revisione e' cio' che invalida i percorsi gia' calcolati: scrivere in place
+	// lascerebbe valido un cammino che la porta ha appena chiuso. E' il difetto che `ClearAsset` ha gia'
+	// pagato, e che l'header dell'asset dichiara — *«la revisione e' responsabilita' del DATO, non di chi lo
+	// modifica»*.
+	FRTHexCellData Copia = *Data;
+	FRTHexDoor Porta(Edge, State, DoorId);
+	Porta.StableId = StableId;
+	Copia.Doors.Add(Porta);
+	Map->AddOrUpdateCell(Copia);
+
+	return ERTMapEditOutcome::Applied;
 }

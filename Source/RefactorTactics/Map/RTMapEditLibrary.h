@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Map/RTCellId.h"
+#include "Map/RTHexCellData.h" // ERTHexDoorState: entra nella firma di AddDoor (#2330)
 #include "Map/RTMapDependencyLibrary.h"
 #include "RTMapEditLibrary.generated.h"
 
@@ -41,7 +42,23 @@ enum class ERTMapEditOutcome : uint8
 	RefusedWouldCloseEdge,
 
 	/** Un muro identico esiste gia' nella cella di destinazione. */
-	RefusedDuplicate
+	RefusedDuplicate,
+
+	/**
+	 * Oltre quel bordo non c'e' nessuna cella: l'elemento non negherebbe **nessuna adiacenza**.
+	 *
+	 * 🔴 **Esiste per le porte, ed e' il loro modo di essere inerti senza sembrarlo** (`#2330`). Una porta e'
+	 * **sottrattiva** — `spec-porte-cp93.md`: *«nega un'adiacenza che esiste»* — quindi sul bordo esterno
+	 * della mappa non toglie niente. L'asset si salverebbe, l'hash cambierebbe, la porta si vedrebbe pure, e
+	 * **nessun oracolo suonerebbe**: e' la classe di difetto che `#170` ha pagato tre settimane, dove una
+	 * regola girava perfettamente su un contenuto che non poteva esercitarla.
+	 *
+	 * ⛔ **Non si riusa `RefusedNoSuchCell`**, benche' sia anch'esso «una cella che manca»: quello dice *«la
+	 * cella di DESTINAZIONE non esiste, ci finirebbe un orfano»*, cioe' parla del posto dove scrivi. Questo
+	 * parla del posto **dall'altra parte**, dove non scrivi niente. Due cause diverse sotto lo stesso esito
+	 * mandano a correggere la cosa sbagliata — il difetto di `#1921`.
+	 */
+	RefusedNoNeighbour
 };
 
 /**
@@ -112,4 +129,48 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexMap")
 	static TArray<FRTMapElementHandle> ElementsAt(const URTHexMapAsset* Map, const FRTCellId& Cell,
 		ERTHexDirection Edge);
+
+	/**
+	 * Posa una PORTA su un bordo di cella (`#2330`).
+	 *
+	 * 🔴 **E' l'anello che mancava, e mancava solo lui.** Misurato prima di scriverla: le mesh del kit sono
+	 * committate (`SM_Graybox_Door_Panel`, `SM_Graybox_Door_Locked`), `ARTHexMapActor` le disegna sul bordo,
+	 * `Action.Interact` le apre (CP 10.1) e il formato mappa le porta dalla **v4** — ma **niente sapeva
+	 * crearne una** su un asset: `RTSetObjectiveCell` timbra il solo `bIsObjective`, e questa libreria sapeva
+	 * cancellare, spostare ed enumerare. La conseguenza, misurata da `#2312`: nell'intero contenuto
+	 * versionato **non esiste una porta**.
+	 *
+	 * ⚠️ **Vive qui e non nel commandlet**, per la ragione che l'intestazione di questa classe dichiara gia':
+	 * *«la regola e' del dominio, l'editor e' solo il gesto che la invoca»*. E porta un secondo vantaggio
+	 * misurabile: qui la primitiva e' esercitabile dall'automation, dentro un commandlet sarebbe raggiungibile
+	 * solo aprendo un Editor.
+	 *
+	 * ⛔ **Scrive UNA faccia sola, ed e' voluto.** `spec-porte-cp93.md` §3: *«il bordo puo' essere dichiarato
+	 * dalla cella A verso B, da B verso A, o da entrambe … una porta disegnata da un lato solo vale
+	 * comunque»*, e la lettura passa da `URTHexDoorLibrary::DoorBetween`. Scriverne due sarebbe la divergenza
+	 * che quella regola esiste per evitare.
+	 *
+	 * ⛔ **Non inventa lo `StableId`.** Il nome pubblico (v9, `#832`) e' cio' che uno scenario cita e un
+	 * replay risolve: sceglierlo qui sarebbe decidere del contenuto, con la stessa disciplina per cui
+	 * `RTSetObjectiveCell` *«non decide DOVE va l'obiettivo»*. `NAME_None` e' legale, ed e' cio' che ogni
+	 * porta scritta prima della v9 e' diventata.
+	 *
+	 * ⚠️ **Non rifiuta su `bBlocksMovement`**, al contrario dell'obiettivo: una porta fra una cella libera e
+	 * un muro e' ridondante, non e' un errore di contenuto, e vietarla sarebbe una regola inventata qui.
+	 *
+	 * Rifiuta, **prima** di scrivere:
+	 *
+	 * | | |
+	 * |---|---|
+	 * | la cella non esiste | `RefusedNoSuchCell` |
+	 * | oltre il bordo non c'e' una cella | `RefusedNoNeighbour` |
+	 * | quel bordo ha gia' una porta | `RefusedDuplicate` |
+	 *
+	 * ⚠️ `DoorId` vale `-1` e non `INDEX_NONE` **solo perche' UHT non sa leggere quella costante** come
+	 * default di una `UFUNCTION` (*«C++ Default parameter not parsed»*). Sono lo stesso numero, e
+	 * `FRTHexDoor::DoorId` continua a dichiarare `INDEX_NONE` come «porta singola».
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HexMap")
+	static ERTMapEditOutcome AddDoor(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection Edge,
+		ERTHexDoorState State, int32 DoorId = -1, FName StableId = NAME_None);
 };

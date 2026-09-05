@@ -46,6 +46,7 @@ D-108 — la toolchain Node è un prerequisito del **bilanciamento**, non solo d
 | [`RT_HeroCatalog_v0.1.md`](RT_HeroCatalog_v0.1.md) | Gadget · Phase · Riktor · Wraith: statistiche, abilità, varianti, loadout | ✅ **sì** |
 | [`RT_TerrainCatalog_v0.1.md`](RT_TerrainCatalog_v0.1.md) | 8 terreni, stati ambientali, coperture e strutture | ✅ **sì** |
 | [`RT_EquipmentCatalog_v0.1.md`](RT_EquipmentCatalog_v0.1.md) | Varianti arma, gadget, moduli di reazione | ✅ **sì** |
+| [`RT_FootprintCatalog_v0.1.md`](RT_FootprintCatalog_v0.1.md) | I tre profili di posa: `Small` 2, `Medium` 3, `Large` 4 settori contigui | ✅ **sì** — ⚠️ **sorgente senza lettore**: nessuna unità dichiara ancora un footprint |
 | [`RT_TestMatrix_v0.1.md`](RT_TestMatrix_v0.1.md) | Requisito → test → criterio di accettazione | ✅ come **mappa dei test**, non come stato |
 | `RefactorTactics_Balance_Matrices_v0.1.xlsx` | Matrici di esplorazione | ❌ **no** — `RESEARCH`, vedi sotto |
 

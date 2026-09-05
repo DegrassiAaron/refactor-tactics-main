@@ -1,0 +1,56 @@
+{
+  "scenarioId": "Spec.Map.Interaction.SwitchOpensDoor",
+  "tags": ["spec", "map", "door", "interact", "graph", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "SPECIFICA ESEGUIBILE del controllo REMOTO sorgente -> bersaglio (#833, CP 23.4). Il nome non e' scelto qui: `docs/technical/tooling/scenario-map.md` lo dichiara atteso da agosto, insieme a `SwitchControlsMultipleDoors` e `OpenFailsDependentMoveBlocks`.",
+
+  "_nota_cosa_dimostra": "Un'unita' aziona una LEVA e si apre un'ALTRA porta, che l'unita' non tocca e che sta su una direttrice diversa. E' cio' che `Spec.Map.InteractOpensDoor` NON prova: li' la porta interagita e la porta aperta sono la stessa. Qui il bersaglio lo sceglie il grafo dell'asset, e il piano non lo nomina — `FRTInteractionOp` porta il solo `SourceId`.",
+
+  "_nota_perche_due_turni": "Il T1 aziona, il T2 attraversa, e i due non si fondono: il piano di movimento si compone in pianificazione, quando la porta e' ancora chiusa. Chiedere il passo nello stesso turno misurerebbe se il percorso viene rivalutato dopo il Blast, che e' un'altra domanda senza risposta dichiarata. E' la stessa struttura, con la stessa ragione, di `Spec.Map.InteractOpensDoor`.",
+
+  "_nota_geometria": "La leva `S1` sta sul bordo NE di (0,0): R1 la punta mirando (1,-1), che e' adiacente — la portata di `Action.Interact` e' 1 (D-149), e si punta la SORGENTE, mai il bersaglio remoto. La porta `D1` chiude il bordo fra (1,0) e (2,0), su una direttrice DIVERSA: e' cio' che rende il T2 una prova e non una tautologia.",
+
+  "_nota_perche_la_leva_non_sta_sul_percorso": "⚠️ La prima stesura metteva `S1` sul bordo E, cioe' proprio sul passo che R1 doveva percorrere: una porta chiusa avrebbe bloccato il movimento a prescindere dal grafo, e il T2 avrebbe misurato la leva invece del suo bersaglio. Separandole, l'unico modo in cui R1 arriva a (2,0) e' che `D1` si sia aperta — e `D1` la puo' aprire solo il binding.",
+
+  "_nota_avversario": "W1 sta all'estremita' opposta e non dichiara intenti: serve perche' la partita abbia due squadre. Le sue assertion sono la controprova che il turno non ha fatto altro.",
+
+  "doors": [
+    { "cell": [0, 0, 0], "edge": "NE", "doorId": 1, "stableId": "S1", "state": "Closed" },
+    { "cell": [1, 0, 0], "edge": "E", "doorId": 2, "stableId": "D1", "state": "Closed" }
+  ],
+
+  "interactionBindings": [
+    { "source": "S1", "targets": ["D1"] }
+  ],
+
+  "units": [
+    { "id": "R1", "hero": "Hero.Riktor", "team": 0, "cell": [0, 0, 0] },
+    { "id": "W1", "hero": "Hero.Wraith", "team": 1, "cell": [0, -4, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 - R1 aziona la leva adiacente. Nessun movimento: cio' che si misura e' che una porta LONTANA cambi stato.",
+      "intents": [
+        { "unit": "R1", "ability": "Action.Interact", "targetCell": [1, -1, 0] }
+      ]
+    },
+    {
+      "_turno": "T2 - R1 attraversa il varco che al turno prima non esisteva, su una direttrice che la leva non tocca. E' il passo che rende il T1 interpretabile: senza, «DoorOpened == 1» direbbe che un dato e' cambiato, non che il gioco se ne sia accorto.",
+      "intents": [
+        { "unit": "R1", "move": [[1, 0, 0], [2, 0, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "LogEventCount", "category": "Environment", "outcome": "DoorOpened", "value": 1 },
+    { "type": "LogEventCount", "category": "Environment", "outcome": "DoorClosed", "value": 0 },
+    { "type": "UnitAtCell", "unit": "R1", "cell": [2, 0, 0] },
+    { "type": "UnitAtCell", "unit": "W1", "cell": [0, -4, 0] },
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}

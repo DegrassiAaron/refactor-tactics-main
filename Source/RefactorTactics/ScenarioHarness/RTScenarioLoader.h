@@ -160,6 +160,15 @@ public:
 	/** Nome leggibile di un evento del TurnLog: `Environment.BridgeRemoved`. Sconosciuto -> il valore grezzo. */
 	static FString DescribeLogEvent(ERTLogCategory Category, uint8 Outcome);
 
+	/**
+	 * Come sopra, ma con il filtro per `ActionId` quando c'e': `Combat.Hit[Status.Burning]` (`#170`).
+	 *
+	 * ⚠️ **Il filtro entra nel NOME dell'evento e non solo nel confronto**, altrimenti due assertion che
+	 * differiscono soltanto per `ActionId` produrrebbero lo stesso messaggio di fallimento — e chi legge il
+	 * referto non saprebbe quale delle due e' caduta. `NAME_None` -> identica alla forma senza filtro.
+	 */
+	static FString DescribeLogEvent(ERTLogCategory Category, uint8 Outcome, FName ActionId);
+
 	// Il percorso di uno scenario NON si calcola più dal suo ID: dal momento che l'ID è dichiarato dal file
 	// e le cartelle sono libere, l'unico modo di sapere dove vive è chiederlo all'indice
 	// (`URTScenarioIndex::ResolvePath`). Vedi `RTScenarioIndex.h` per il perché.

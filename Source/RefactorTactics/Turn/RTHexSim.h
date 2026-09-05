@@ -43,6 +43,19 @@ struct FRTHexSimUnit
 	int32 MoveCostModifier = 0;
 
 	/**
+	 * Celle di scivolamento AGGIUNTIVE per questa unita', oltre a quelle che il terreno dichiara
+	 * (`FRTTerrainDef::SlideCells`). Oggi il solo produttore e' `Status.Unbalanced`, che vale `1`
+	 * ([D-319]): chi scivola mentre e' gia' sbilanciato percorre due celle invece di una.
+	 *
+	 * 🔑 **Un numero e non un `bool bUnbalanced`, e il precedente e' `MoveCostModifier` due righe sopra.**
+	 * Lo strato esagonale e' PURO: non conosce `ARTUnit`, non conosce i Gameplay Tag, e non deve
+	 * cominciare — `Action.Slow` entra qui come sovrapprezzo, non come nome di stato, ed e' la stessa
+	 * disciplina. Chi legge questo campo non ha bisogno di sapere *perche'* l'unita' scivoli di piu'.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
+	int32 ExtraSlideCells = 0;
+
+	/**
 	 * Orientamento AUTOREVOLE (CP 16.1): non lo yaw della mesh, ma il dato che decide da che lato si e'
 	 * scoperti e dove punta un cono. Entra nello snapshot perche' e' stato di gioco, quindi entra anche
 	 * nell'hash del replay attraverso le voci di TurnLog che lo registrano.
@@ -93,6 +106,66 @@ struct FRTHexReachableCell
 		: Cell(InCell), Cost(InCost), FromCell(InFrom) {}
 };
 
+/**
+ * Cosa il GIOCATORE aveva chiesto, separato da cio' che il TERRENO ha aggiunto al percorso (`#2314`).
+ *
+ * 🔑 **E' la distinzione che il resolver non poteva fare.** Riceve un `Paths[i]` gia' esteso dallo
+ * scivolamento e ne considera l'ultima cella la destinazione: se quell'ultima cella non viene raggiunta
+ * scrive un `BlockReason`, cioe' *«fermo: cella occupata»* a un'unita' arrivata **esattamente dove il
+ * giocatore l'aveva mandata**. I due campi qui sotto sono l'informazione mancante, e stanno insieme perche'
+ * rispondono insieme: separati sarebbero un intero e un booleano scollegati, e nessuno dei due basta.
+ *
+ * ⚠️ **Dato PER UNITA', come `Paths`.** `FinalizeHexMovementOutcomes` dichiara che l'esito non dipende
+ * dall'ordine di iterazione; un dato per-unita' nello stato non viola quel contratto, uno globale mutabile
+ * si'. Misurato da `HexSim.PlannedLengthOutcomesAreOrderIndependent`.
+ */
+struct FRTPlannedMovement
+{
+	/**
+	 * Quante celle INIZIALI di `Paths[i]` appartengono al piano del giocatore, cella di partenza inclusa.
+	 * Tutto cio' che sta oltre e' estensione ambientale.
+	 *
+	 * `0` significa «non dichiarato»: `BeginHexMovement` lo porta a `Paths[i].Num()`, cioe' «il percorso e'
+	 * tutto pianificato», che e' il comportamento di ogni chiamante che non conosce i terreni.
+	 */
+	int32 PlannedLength = 0;
+
+	/**
+	 * Il terreno imponeva uno spostamento di slide oltre la destinazione pianificata — **anche quando
+	 * nessuna cella e' finita nel percorso**.
+	 *
+	 * Lo produce `FRTIceSlideResult::bSlideRequested`, dove sta il perche' per esteso; qui viaggia come
+	 * dato dello stato. Il chiamante puo' spegnerlo — la topologia che taglia dentro al piano toglie allo
+	 * scivolamento la sua precedenza — quindi i due campi non sono sempre lo stesso valore.
+	 */
+	bool bSlideRequested = false;
+};
+
+/**
+ * Cosa `ApplyIceSliding` ha fatto al percorso, e cosa il terreno aveva CHIESTO (`#2314`).
+ *
+ * 🔴 **Esiste perche' le uscite negative erano indistinguibili.** La funzione restituiva il `Path` immutato
+ * in sei casi diversi, e dall'esterno erano lo stesso valore: chi chiamava non poteva sapere se il terreno
+ * non avesse chiesto nulla — nessun `SlideCells`, budget sotto soglia, nessuna direzione da cui scivolare —
+ * oppure avesse chiesto uno scivolamento **impedito da un muro**. I due fatti hanno esiti diversi nel
+ * TurnLog, e la differenza non e' ricostruibile a valle: `#2290` ci ha provato e ha raccolto tre difetti di
+ * correttezza dalla stessa radice.
+ */
+struct FRTIceSlideResult
+{
+	/** Il percorso: esteso di una cella se lo scivolamento e' avvenuto, altrimenti quello ricevuto. */
+	TArray<FRTCellId> Path;
+
+	/**
+	 * Il terreno imponeva uno scivolamento da quella cella d'arrivo — superficie scivolosa, budget residuo
+	 * sufficiente, e una direzione che esiste.
+	 *
+	 * ⚠️ **Non dice che sia avvenuto.** «E' stato accodato» si legge dalla lunghezza di `Path` contro quella
+	 * ricevuta; questo campo dice che la domanda era stata posta. Vero + percorso invariato = **impedito**.
+	 */
+	bool bSlideRequested = false;
+};
+
 /** Esito del movimento simultaneo di un'unita': cella finale, celle attraversate (partenza esclusa), reason code. */
 USTRUCT(BlueprintType)
 struct FRTHexMoveResult
@@ -129,6 +202,13 @@ struct FRTMovementResolutionState
 {
 	/** Percorsi pianificati, uno per unita'. Indice = identita' dell'unita' per tutta la risoluzione. */
 	TArray<TArray<FRTCellId>> Paths;
+
+	/**
+	 * Quanto di `Paths[i]` il giocatore ha davvero chiesto, e se il terreno voleva portare l'unita' oltre
+	 * (`#2314`). Sempre della stessa lunghezza di `Paths`: `BeginHexMovement` completa cio' che manca con
+	 * «tutto pianificato, nessuno scivolamento», che e' il caso di ogni chiamante che non tocca i terreni.
+	 */
+	TArray<FRTPlannedMovement> Planned;
 
 	/** Precedenza sulla cella contesa (CP 4.8). Vuoto = tutti a parita', com'era prima delle priorita'. */
 	TArray<int32> Priorities;
@@ -171,6 +251,32 @@ struct FRTMovementResolutionState
 };
 
 /**
+ * Due unita' VIVE trovate sulla stessa cella costruendo l'occupancy (`#1970`).
+ *
+ * 🔴 **E' un errore strutturale, e fino al 2026-08-31 accadeva in silenzio.** `MakeSnapshot` dichiarava
+ * *«le sovrapposizioni sono un errore strutturale, segnalato da `ValidateSnapshot`»* — e `ValidateSnapshot`
+ * in partita non lo chiama nessuno: cinque test e un report di debug su richiesta esplicita. L'invariante
+ * era dichiarata e non la guardava nessuno.
+ *
+ * ⚠️ **Il fatto sta nel DATO e non in un log, e la ragione e' misurata**: `MakeSnapshot` sta anche sotto
+ * `ARTPlayerController`, che ricostruisce lo snapshot a ogni interazione di pianificazione. Un `UE_LOG` qui
+ * dentro produrrebbe centinaia di righe identiche al secondo per un singolo difetto — rendendo piu'
+ * difficile la diagnosi che questo campo esiste per abilitare. Rilevare e segnalare sono due mestieri: qui
+ * si rileva, e chi e' autoritativo decide se dirlo.
+ */
+struct FRTHexOverlap
+{
+	/** La cella contesa. */
+	FRTCellId Cell;
+
+	/** L'unita' che NON entra in `Occupancy`: a parita' di cella vince l'`UnitId` minore. */
+	int32 DiscardedUnitId = INDEX_NONE;
+
+	/** L'unita' che la occupa, cioe' quella arrivata prima nell'ordine stabile. */
+	int32 KeptUnitId = INDEX_NONE;
+};
+
+/**
  * Stato CONGELATO a inizio fase per la risoluzione su griglia esagonale ("raccogli poi applica", invariante #3).
  *
  * NON e' una USTRUCT e NON va conservata oltre la fase che la produce: contiene un puntatore non-UPROPERTY
@@ -194,6 +300,20 @@ struct FRTHexSnapshot
 
 	/** Cella -> UnitId dell'occupante (solo unita' vive). */
 	TMap<FRTCellId, int32> Occupancy;
+
+	/**
+	 * Le sovrapposizioni fra unita' VIVE trovate costruendo `Occupancy`. Vuoto = snapshot sano (`#1970`).
+	 *
+	 * ⚠️ **Non entra in nessun hash e in nessuna serializzazione**, e non e' un'omissione: e' diagnostica
+	 * della COSTRUZIONE, non stato di gioco. Se entrasse, due partite identiche con e senza il difetto
+	 * darebbero hash diversi — e la sovrapposizione diventerebbe un fatto *di gioco*, che e' l'opposto
+	 * dell'intento. `FRTHexSnapshot` non e' serializzato (nessun `operator<<`), quindi il campo e' inerte
+	 * per replay e determinismo.
+	 *
+	 * ⛔ **L'esito NON cambia**: a parita' di cella vince l'`UnitId` minore, esattamente come prima. Questo
+	 * campo rende la condizione visibile, non la risolve diversamente.
+	 */
+	TArray<FRTHexOverlap> Overlaps;
 
 	/**
 	 * Cosa sa ogni squadra (CP 13.2), ordinata per `TeamId` — un array e non una `TMap` perche' i consumatori

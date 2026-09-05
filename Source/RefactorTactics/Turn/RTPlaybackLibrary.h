@@ -6,6 +6,55 @@
 #include "RTPlaybackLibrary.generated.h"
 
 /**
+ * Di che cosa e' fatto il tempo di UNA fase del playback: due termini, e la ragione per cui sono due.
+ *
+ * 🔑 **Il budget di presentazione puo' comprimere `Slack` e non puo' toccare `Shown`.** E' la decisione
+ * del product owner del 2026-08-30 (`#1878`) resa esprimibile: *«la durata target della Resolution non
+ * deve determinare la velocita' visuale base della locomozione»*. Finche' la fase aveva un numero solo,
+ * «comprimere un'attesa» e «accelerare un cilindro» erano la stessa moltiplicazione.
+ *
+ *  - `Shown` — **incomprimibile**: il tempo che serve a mostrare qualcosa. La locomozione (celle diviso
+ *    il rate base) e, nel `Blast`, anche il tempo di lettura dei colpi.
+ *  - `Slack` — **comprimibile**: il beat di una fase che non mostra nulla.
+ *
+ * 🔴 **Il tempo dei colpi sta in `Shown`, e la prima stesura lo metteva in `Slack`.** L'ordine di recupero
+ * di `#1878` autorizza a comprimere *«beat non informativi (`PhaseBeatSeconds` su fasi che non mostrano
+ * nulla)»* — i colpi mostrano, quindi non sono in quella lista. Classificarli comprimibili produceva due
+ * difetti misurati in review:
+ *  1. con lo slack a zero la fase `Blast` durava **zero**, e il blocco di finalizzazione scaricava tutti i
+ *     colpi rimasti **in un frame** — distruggendo il pavimento *«una fase che si vede non puo' durare
+ *     zero»* proprio nella fase che questa issue esiste per rendere leggibile;
+ *  2. la spinta del knockback usa `Alpha = Elapsed / PhaseDur`, quindi comprimere quello slack la faceva
+ *     scorrere **fino a 6,5x piu' in fretta** — cioe' esattamente *«la durata target determina la
+ *     velocita' visuale»*, l'invariante che questa issue nega.
+ *
+ * ⚠️ **Conseguenza da sapere: oggi il budget ha poco su cui agire** — solo i beat di `Prep` e `Cleanup`.
+ * E' poco ed e' onesto: gli altri sei livelli dell'ordine di recupero (idle gap, camera hold, transizioni,
+ * code VFX, eventi paralleli) **non esistono ancora nel codice**, e questa struttura non li anticipa. Quando
+ * arriveranno, ciascuno decidera' da se' in quale dei due termini cade.
+ *
+ * ⚠️ **`Total()` vale esattamente quanto valeva `PhaseDuration` prima di questa separazione**, fase per
+ * fase: la somma dei due termini non e' una formula nuova, e' la stessa scomposta. Chi cerca il totale
+ * continua a chiamare `PhaseDuration`.
+ */
+USTRUCT(BlueprintType)
+struct FRTPhaseTime
+{
+	GENERATED_BODY()
+
+	/** Tempo che serve a mostrare qualcosa: movimento, e i colpi del Blast. Il budget non lo tocca mai. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	float Shown = 0.f;
+
+	/** Il beat di una fase che non mostra nulla. E' su questo, e solo su questo, che il budget agisce. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	float Slack = 0.f;
+
+	/** La durata della fase senza compressione: e' cio' che `PhaseDuration` restituisce. */
+	float Total() const { return Shown + Slack; }
+};
+
+/**
  * Matematica pura del playback della risoluzione (posizione-nel-tempo + durata).
  * Non tocca Actor ne' World: e' testabile in automation. L'animazione degli Actor la usa
  * per interpolare i cilindri e stimare/limitare la durata del round (invariante #1: presentazione,
@@ -39,25 +88,14 @@ public:
 	static FVector InterpolateAlongPath(const TArray<FVector>& Waypoints, float Alpha);
 
 	/**
-	 * Durata stimata del playback (secondi): movimento in PARALLELO (il segmento piu' lungo domina),
-	 * attacchi in serie, piu' un beat per fase attiva.
-	 * = MaxMoveSegments/CellsPerSecond + NumAttacks*AttackShowSeconds + NumActivePhases*PhaseBeatSeconds.
-	 * CellsPerSecond <= 0 e' trattato come "istantaneo" per la parte movimento.
-	 */
-	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
-	static float EstimatePlaybackSeconds(int32 MaxMoveSegments, int32 NumAttacks, int32 NumActivePhases,
-		float CellsPerSecond, float PhaseBeatSeconds, float AttackShowSeconds);
-
-	/**
 	 * Quanti colpi devono essere GIA' MOSTRATI dopo PhaseElapsed secondi di fase Blast: il primo esce
 	 * subito, e ogni AttackShowSeconds successivi ne compare un altro, fino a NumAttacks.
 	 * = Min(NumAttacks, 1 + Floor(PhaseElapsed/AttackShowSeconds)).
 	 * AttackShowSeconds <= 0 significa "nessuno scaglionamento": escono tutti insieme.
 	 *
-	 * E' il contro-termine di EstimatePlaybackSeconds, che nella durata riserva gia'
-	 * NumAttacks*AttackShowSeconds: la stima mostrata a chi guarda e il ritmo con cui i colpi
-	 * compaiono devono venire dalla stessa formula, o la barra promette un tempo che la
-	 * riproduzione non usa (#911).
+	 * E' il contro-termine di `PhaseDuration`, che per il `Blast` riserva gia' il tempo dei colpi: la
+	 * durata mostrata a chi guarda e il ritmo con cui i colpi compaiono devono venire dalla stessa
+	 * formula, o la barra promette un tempo che la riproduzione non usa (#911).
 	 * ⚠️ Poiche' il primo colpo esce a t=0, N colpi occupano N-1 intervalli: l'ultimo compare a
 	 * (N-1)*AttackShowSeconds, un beat prima che la durata riservata alla fase finisca. Quel beat
 	 * e' il tempo di lettura dell'ultimo colpo, non un residuo da recuperare.
@@ -79,35 +117,151 @@ public:
 	 *
 	 * `CellsPerSecond <= 0` significa movimento istantaneo, non una divisione per zero.
 	 *
-	 * ⚠️ **Non e' `EstimatePlaybackSeconds`.** Quella e' una stima aggregata dell'intero round, questa e' la
-	 * durata di una singola fase e **e' la formula che il gioco usa davvero**: `ARTTurnManager::BeginPlayback`
-	 * somma questa su tutte le fasi attive per ottenere il totale grezzo. Le due non sono intercambiabili.
+	 * 🔑 **E' l'UNICA formula di durata del playback**, e il totale del round non ne ha una propria:
+	 * `ARTTurnManager::BeginPlayback` somma questa su tutte le fasi attive (`RawTotal`).
+	 *
+	 * ⛔ **Non aggiungerne una aggregata.** Ne e' esistita una — `EstimatePlaybackSeconds`, rimossa il
+	 * 2026-08-31 — che sommava movimento, colpi e beat sull'intero round: dava un numero **diverso** da
+	 * questo, perche' qui il `Blast` prende `Max(colpi, spinta)` e non la somma. Era coperta da quattro
+	 * asserzioni e chiamata da nessuno, cioe' una verita' verde e morta accanto a quella viva. Se serve il
+	 * totale, si somma questa.
+	 *
+	 * ✅ **`PhaseTime` non e' una seconda formula**: questa e' `PhaseTime(...).Total()`, una riga sola. La
+	 * scomposizione ha un solo owner, e non esiste modo di farne divergere le due letture.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static float PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
 		float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds);
 
 	/**
-	 * Fattore di accelerazione per rientrare nel tetto di durata: 1 se gia' entro il cap
-	 * (o se il cap non e' positivo), altrimenti EstimatedSeconds/MaxSeconds (>= 1).
+	 * La formula di durata, nei suoi due termini: quanto della fase e' movimento e quanto e' attesa.
+	 * Gli argomenti sono quelli di `PhaseDuration`, e la somma dei termini e' il suo risultato.
+	 *
+	 *  - `Dash` / `Move`  → tutto `Shown`. Non c'e' nulla da comprimere: la fase dura quanto il percorso
+	 *                       piu' lungo impiega, e comprimerla sarebbe accelerare i cilindri.
+	 *  - `Blast`          → tutto `Shown`, e vale `Max(colpi, spinta)`: i due si sovrappongono, non si
+	 *                       sommano. ⚠️ Zero slack **di proposito** — vedi `FRTPhaseTime`.
+	 *  - ogni altra fase  → tutto `Slack`: un beat non mostra nulla, ed e' l'unica attesa comprimibile.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
-	static float SpeedMultiplierForCap(float EstimatedSeconds, float MaxSeconds);
+	static FRTPhaseTime PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
+		float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds);
 
 	/**
-	 * Velocita' effettiva del playback: compone la velocita' SCELTA da chi guarda (x1/x2/x4) con il
-	 * fattore di accelerazione che il tetto di durata impone da se'.
-	 * = Max(ViewerSpeed, CapSpeed) — «almeno la velocita' che chiedi, almeno quella che serve a stare
-	 * nel tetto». Valori non positivi sono trattati come 1 (nessuna scelta / nessun limite).
+	 * Quanto comprimere lo `Slack` del round per stare nel budget di presentazione: `1` se ci si sta gia'
+	 * (o se il budget non e' positivo), altrimenti la frazione che serve, mai sotto `0`.
 	 *
-	 * Le altre tre composizioni sono state scartate su un caso concreto ciascuna (CP 47.2, #955):
-	 *  - PRODOTTO (Viewer*Cap): un round gia' accelerato 3x dal tetto, visto a x4, va a 12x — illeggibile
-	 *    proprio nei round che piu' avrebbero bisogno di essere letti;
-	 *  - SOSTITUZIONE (solo Viewer): il tetto smette di valere e MaxPlaybackSeconds diventa un campo morto;
-	 *  - TETTO RIDEFINITO (x2 -> Max/2): sotto il tetto il cap non si applica affatto, quindi su un round
-	 *    da 4 s premere x2 non farebbe NULLA. E' il difetto che la uccide, ed e' il caso comune.
-	 * Max e' monotona nei due argomenti e non produce mai il caso 12x.
+	 * = `Clamp((MaxSeconds - ShownSeconds) / SlackSeconds, 0, 1)`
+	 *
+	 * 🔑 **E' un budget SOFT, e il clamp a zero e' il punto in cui lo diventa**: quando la sola locomozione
+	 * eccede gia' il budget non resta slack da togliere, e la risposta e' `0` — cioe' *«ho compresso tutto
+	 * il comprimibile, e la durata sfora»*. Non e' un fallimento da correggere accelerando: e' la decisione
+	 * del PO applicata al caso peggiore (`#1878`).
+	 *
+	 * ⚠️ **Sostituisce `SpeedMultiplierForCap`, rimossa il 2026-09-02, e la sostituisce per un difetto
+	 * misurato**: quella restituiva un fattore `>= 1` che `TickPlayback` moltiplicava dentro `Dt`, cioe'
+	 * dentro l'unico orologio che governa anche l'interpolazione del movimento. Il tetto accelerava i
+	 * cilindri, ed era esattamente cio' che il PO ha escluso.
+	 *
+	 * ✅ **Non e' la SOSTITUZIONE scartata da CP 47.2** (`#955`, *«solo Viewer: il tetto smette di valere e
+	 * MaxPlaybackSeconds diventa un campo morto»*). Il tetto continua a valere e ha un consumatore vivo:
+	 * questa funzione. Cambia su COSA agisce — lo slack invece della velocita' — non SE agisce.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
-	static float EffectivePlaybackSpeed(float ViewerSpeed, float CapSpeed);
+	static float SlackScaleForBudget(float ShownSeconds, float SlackSeconds, float MaxSeconds);
+
+	/**
+	 * La velocita' con cui il playback scorre: quella SCELTA da chi guarda (x1/x2/x4), normalizzata.
+	 * Valori non positivi sono trattati come 1 — un campo azzerato (variabile Blueprint, `Memzero`) vale
+	 * «non scelto» e non ferma la riproduzione.
+	 *
+	 * ⚠️ **Aveva un secondo argomento — `CapSpeed` — e non ce l'ha piu' dal 2026-09-02** (`#1878`). Non e'
+	 * la SOSTITUZIONE che CP 47.2 (`#955`) aveva scartato: li' l'alternativa uccideva il tetto, qui il
+	 * tetto e' vivo e agisce su `SlackScaleForBudget`. Cade il secondo argomento perche' **non ha piu' un
+	 * produttore**: nessuno calcola piu' un fattore di velocita' dal tetto.
+	 *
+	 * Le altre due composizioni di `#955` restano scartate e restano registrate, perche' varrebbero di
+	 * nuovo se un secondo fattore di velocita' tornasse:
+	 *  - PRODOTTO (Viewer*Cap): un round gia' accelerato 3x, visto a x4, va a 12x — illeggibile proprio nei
+	 *    round che piu' avrebbero bisogno di essere letti;
+	 *  - TETTO RIDEFINITO (x2 -> Max/2): sotto il tetto non si applicherebbe affatto, quindi su un round da
+	 *    4 s premere x2 non farebbe NULLA — ed e' il caso comune.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static float EffectivePlaybackSpeed(float ViewerSpeed);
+
+	/**
+	 * `Alpha` del percorso di UNA unita': le **sue** celle al rate base, non la durata della fase (`#2370`).
+	 *
+	 * = `Clamp(PhaseElapsed * CellsPerSecond / RouteSegments, 0, 1)`
+	 *
+	 * 🔑 **E' l'inversa di `PhaseDuration` letta per-unita' invece che per-fase.** `PhaseDuration` dice
+	 * quanto dura la fase — `MaxSeg / CellsPerSecond`, il percorso piu' lungo — e questa dice a che punto
+	 * del proprio percorso si trova, allo stesso rate, chi ne ha uno piu' corto. Il percorso piu' lungo
+	 * arriva a `1` esattamente quando la fase finisce: le due formule non possono divergere.
+	 *
+	 * ⚠️ **Sostituisce l'`Alpha` unico condiviso da tutte le anim della fase**, e lo sostituisce per un
+	 * difetto misurato: `Clamp(PhaseElapsed / PhaseDur, 0, 1)` normalizzava ogni percorso sulla durata
+	 * decisa dal **piu' lungo**, e poiche' `InterpolateAlongPath` distribuisce `Alpha` sull'intero
+	 * percorso, 2 celle e 10 celle finivano nello **stesso istante**. La velocita' visuale effettiva di
+	 * chi ne aveva `S` in una fase da `M` era `CellsPerSecond * S/M` — con i default, 2 celle accanto a 10
+	 * si percorrevano a `0,288` celle/s invece di `1,44`.
+	 *
+	 * 🔑 **E' la stessa invariante di `#1878` applicata a un secondo canale.** Li' era il tetto di durata a
+	 * decidere la velocita' visuale, verso l'alto; qui e' la durata di fase — decisa da un percorso altrui —
+	 * a deciderla verso il basso. `SlackScaleForBudget` garantisce che il movimento non scenda mai sotto
+	 * `MaxSeg / CellsPerSecond`: vero per il percorso piu' lungo, e per nessun altro.
+	 *
+	 * ✅ **Allinea l'ingresso-cella al confine canonico.** `StepMicroStep` mette le barriere a
+	 * `k / CellsPerSecond` secondi (`AlphaTarget * Durata` con `Durata = MaxSeg / CellsPerSecond`): con
+	 * questa formula, al confine `k` ogni unita' e' esattamente sulla propria cella `k` — o e' arrivata.
+	 * Con l'`Alpha` condiviso era a `k/MaxSeg` del proprio percorso, cioe' in mezzo a un segmento.
+	 *
+	 * `RouteSegments <= 0` (percorso vuoto o di un solo waypoint) e `CellsPerSecond <= 0` (movimento
+	 * istantaneo) restituiscono `1`: non c'e' nulla da attraversare, e non e' una divisione per zero.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static float RouteAlpha(int32 RouteSegments, float PhaseElapsed, float CellsPerSecond);
+
+	/**
+	 * Quanti **micro-step** contiene un percorso di playback: `Waypoints.Num() - 1`, mai negativo (`#1879`).
+	 *
+	 * 🔑 **Non e' una granularita' nuova: e' quella che il playback gia' interpola.**
+	 * `InterpolateAlongPath` dichiara che *«1 passo logico = 1 segmento»* e assegna a ogni segmento la
+	 * stessa frazione di `Alpha`. Un micro-step del playback **e'** un segmento, e contarli e' contare i
+	 * waypoint meno l'origine.
+	 *
+	 * ⚠️ Un percorso vuoto o con un solo waypoint vale `0`: un'unita' che non si e' mossa non ha barriere
+	 * da attraversare, e chi divide per questo conteggio deve trattarlo prima di dividere.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static int32 MicroStepsInPath(const TArray<FVector>& Waypoints);
+
+	/**
+	 * L'`Alpha` al confine del micro-step `StepIndex`, su un percorso che ne ha `StepCount` (`#1879`).
+	 *
+	 * `StepIndex` 0 e' l'inizio, `StepCount` e' la fine: e' l'inversa esatta di `InterpolateAlongPath`, che
+	 * divide `[0,1]` in `StepCount` frazioni uguali.
+	 *
+	 * ⚠️ `StepCount <= 0` -> `1.f`, cioe' «fine»: una fase senza segmenti e' gia' conclusa, e restituire `0`
+	 * la lascerebbe in attesa di un avanzamento che non puo' avvenire.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static float AlphaAtMicroStep(int32 StepIndex, int32 StepCount);
+
+	/**
+	 * L'`Alpha` del **prossimo** confine di micro-step dopo `Alpha`, cioe' dove si ferma uno `Step` (`#1879`).
+	 *
+	 * 🔴 **Strettamente maggiore, e qui sta la regola**: da un `Alpha` che e' gia' esattamente su un confine
+	 * si avanza al successivo. Un `>=` lascerebbe `Step` fermo sul posto ogni volta che lo si preme due
+	 * volte di fila su un boundary — che e' precisamente l'uso per cui esiste.
+	 *
+	 * ⚠️ Non supera mai `1.f`: uno `Step` oltre l'ultimo segmento porta a fine fase e non oltre. Chi vuole
+	 * passare alla fase successiva lo decide altrove; questa funzione non conosce le fasi.
+	 *
+	 * ⛔ **Il valore restituito e' un confine, mai un punto intermedio.** E' cio' che rende
+	 * `StepExecutesWholeMicroStep` vero per costruzione: non esiste un ingresso che produca mezzo segmento.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static float NextMicroStepBoundary(float Alpha, int32 StepCount);
 };

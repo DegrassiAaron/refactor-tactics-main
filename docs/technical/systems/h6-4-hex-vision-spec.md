@@ -34,6 +34,9 @@ Questo slice colma il divario, resta **puro e headless** e non tocca nulla di es
 | D4 | Una cella **assente** dall'asset non blocca la vista | Il vuoto è un buco nella mappa, non un muro. Coerente con `GraphNeighbors`, dove l'assenza impedisce il passaggio ma non è un ostacolo solido. |
 | D5 | Cono **a 120°** = unione di due settori esagonali a 60° attorno alla direzione principale | Sull'esagono il settore a 60° è la primitiva naturale (`a·D1 + b·D2`, con `a,b ≥ 0` e distanza `a+b`); l'unione di due settori adiacenti dà un ventaglio simmetrico, tutto in aritmetica intera. Copertura: 3 celle a distanza 1, 5 a distanza 2 — confrontabile col cono a 45° del quadrato. |
 | D6 | LOS in una libreria **dedicata** `URTHexVisionLibrary`, geometria pura in `URTHexLibrary` | La visione ha bisogno dell'asset mappa (`bBlocksLineOfSight`), la geometria no. Stessa separazione già in uso fra `URTHexLibrary` (matematica) e `URTHexPathLibrary` (grafo con mappa). |
+| D7 | La LOS consulta anche la **geometria intra-cella** (`InteriorWalls`), tramite `URTHexOcclusionLibrary` — dal 2026-09-01, [`D-269`](../../decisions/RT_PDR_00_Decision_Log.md)/[`D-270`](../../decisions/RT_PDR_00_Decision_Log.md), [#1830](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1830) | Un muro che taglia l'esagono copriva **otticamente e non logicamente**. La stessa primitiva la consuma la linea d'attacco: risposte diverse renderebbero *«visibile un bersaglio che non si può colpire»*. ⚠️ **Non è la connettività di `ClassifyIntraCellTraversal`**: quella risponde *«ci si arriva girando attorno?»*, e la vista non gira attorno a niente. |
+| D8 | La **corda d'attraversamento** è dichiarata: `EdgeMid(ingresso) → EdgeMid(uscita)`, col **centro** agli estremi della linea | In una LOS cella-a-cella non esiste altrimenti un «in mezzo»: `HexLine` produce celle, non una retta. Gli estremi sono **anchor** (`ERTAnchorKind`), quindi la corda si dice nel vocabolario che `D-288` ha chiuso. ⚠️ È un'**approssimazione dichiarata**: la retta euclidea fra due centri non passa per i punti medi quando la linea «gira», questa sì — la stessa classe di approssimazione che la LOS cella-a-cella già accetta. |
+| D9 | L'occlusione intra-cella è **intera ed esatta**, senza virgola mobile | Ogni anchor vale `(a·r3, b)` in unità `R/4`; il prodotto vettoriale vale `r3·(A1·B2 − A2·B1)`, dove la radice è un fattore positivo comune che **si semplifica**. Nessun epsilon, nessuna dipendenza da `HexSize`, nessuna differenza fra piattaforme — e la LOS entra nell'hash di stato. |
 
 ## 3. API
 
@@ -51,6 +54,22 @@ Questo slice colma il divario, resta **puro e headless** e non tocca nulla di es
 - `static bool HasLineOfSight(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To)` — falso se
   una cella **intermedia** esiste sul layer di `From` e ha `bBlocksLineOfSight`. Estremi mai bloccanti (tiratore e
   bersaglio non si coprono da soli); mappa nulla → vero (nessun ostacolo noto); `From == To` → vero.
+  🔑 Il corpo **delega** a `DescribeLineOfSight` e ne butta via la ragione: la parità fra bool e ragione è
+  **strutturale**, non asserita, perché non esiste una seconda LOS da tenere allineata.
+- `static FRTLineOfSightResult DescribeLineOfSight(...)` — la stessa decisione con la **ragione** e il **punto**.
+  `ERTLineOfSightBlock` vale `None` · `EdgeBlocker` (il bordo attraversato nega il passaggio, `BlocksTraversal`)
+  · `CellBlocker` (`bBlocksLineOfSight`, estremi esclusi) · **`InteriorGeometry`** (un muro interno alto
+  incrociato dalla corda — estremi **inclusi**, perché un muro nella cella del tiratore sta *fra* lui e l'uscita).
+
+### `URTHexOcclusionLibrary` (geometria intra-cella, `D-269`/`D-270`)
+
+- `static bool BlocksSight(const URTHexMapAsset* Map, const FRTCellId& Prev, const FRTCellId& Cell, const FRTCellId& Next)`
+  — pura, headless, **intera**. `Prev == Cell` = la linea nasce qui, `Next == Cell` = finisce qui (in entrambi i
+  casi quel capo della corda è il **centro**). Blocca solo un muro `High` (`D-271`) sul layer della cella, e solo
+  su un incrocio **proprio**: tangenza e collinearità non bloccano (*fail-open*, come la cella assente).
+- 🔑 **La consumano in due**: `URTHexVisionLibrary::DescribeLineOfSight` e
+  `URTOffensiveActionLibrary::LineCells`. Una funzione sola, non due implementazioni con un test di parità
+  sopra — è ciò che `D-269` chiede quando dice *«una sola primitiva deterministica di occlusione»*.
 
 ## 4. Test — prefissi `RefactorTactics.Hex.*` / `RefactorTactics.HexVision.*`
 
@@ -66,6 +85,16 @@ Questo slice colma il divario, resta **puro e headless** e non tocca nulla di es
 | `HexVision.EndpointsNeverBlock` | muro **sul** tiratore o **sul** bersaglio → LOS libera; adiacenti sempre visibili |
 | `HexVision.EmptyCellDoesNotBlock` | cella assente dall'asset lungo la linea → non blocca |
 | `HexVision.ElevationRule` | muro su un layer diverso da quello del tiratore → non blocca (regola D3) |
+| `Occlusion.CrossingWallBlocksSight` | un muro interno alto ferma la vista, e la ragione nomina la cella |
+| `Occlusion.WallInShooterCellBlocks` | un muro nella cella del tiratore lo chiude dentro: `StepIndex` può valere `0` |
+| `Occlusion.SightAndProjectileAgree` | vista e linea d'attacco non divergono, e il log dice `BlockedByInteriorGeometry` |
+| `Occlusion.LowWallDoesNotOcclude` · `Occlusion.WallOnOtherLayerDoesNotOcclude` | `D-271` e regola D3 applicate al muro interno |
+| `Occlusion.TangentAndCollinearDoNotBlock` | sfiorare un muro non è attraversarlo; guardarci lungo nemmeno |
+| `Occlusion.SelectedCoverDoesNotDisarmGeometry` | la geometria **non scelta** continua a valere |
+| `Occlusion.CellWithoutInteriorGeometryIsUnchanged` | nessuna regressione sulla LOS cella-a-cella |
+| `Occlusion.BoundaryTableMatchesTheFloatOracle` | la tabella intera dice lo stesso di `SectorBoundaryPoints`, su due `HexSize` |
+| `Occlusion.EdgeMidMatchesTheWorldOracle` | la corrispondenza direzione↔lato è **chiesta**, non trascritta (l'errore di `#1920`) |
+| `HexMap.InteriorWallEntersHash` | spostare o abbassare un muro cambia `ComputeHash`; rinominarlo no |
 
 ## 5. Definition of Done (raggiunta)
 

@@ -71,7 +71,7 @@ ARTHexMapActor* FindTargetMapActor(UWorld* World)
 }
 
 bool ResolveClickedCell(UWorld* World, ARTHexMapActor* Actor, const FInputDeviceRay& ClickPos,
-	FRTCellId& OutCell, FVector& OutCenter)
+	FRTCellId& OutCell, FVector& OutCenter, FVector* OutClickedPoint)
 {
 	if (!Actor) { return false; }
 
@@ -112,6 +112,14 @@ bool ResolveClickedCell(UWorld* World, ARTHexMapActor* Actor, const FInputDevice
 	OutCell = URTHexLibrary::ResolveRayToCellOnLayer(ClickPos.WorldRay.Origin, ClickPos.WorldRay.Direction,
 		Origin, HexSize, LayerH, Layer, bHitTarget, Result.ImpactPoint);
 	OutCenter = URTHexLibrary::AxialToWorld(OutCell, Origin, HexSize, LayerH);
+
+	if (OutClickedPoint)
+	{
+		// Col colpo si sa dove ha mirato l'autore; senza, il centro cella — e allora il bordo e' arbitrario
+		// ma deterministico, che e' meglio di un lato che cambia a ogni click identico.
+		*OutClickedPoint = bHitTarget ? Result.ImpactPoint : OutCenter;
+	}
+
 	return true;
 }
 

@@ -81,7 +81,7 @@ esistenti). Motivo: l'occupazione è dinamica e non appartiene all'asset mappa.
 | `PathStopsAtBudget` | goal oltre il budget → `NoPath` |
 | `PathAvoidsOccupiedCell` | devia attorno a un'unità ferma; goal occupato → `NoPath` |
 | `ResolveContestedDestination` | due unità verso la stessa cella → entrambe ferme prima, `BlockedContested` |
-| `ResolveSwapAllowed` | scambio diretto A↔B consentito, `Moved` |
+| `ResolveSwapBlocked` | scambio diretto A↔B **bloccato**, `BlockedByCycle` — è il ciclo con `n = 2` (#1922) |
 | `ResolveBlockedByStationary` | destinazione di un'unità ferma → `BlockedByUnit` |
 | `ResolveOrderIndependent` | permutazione dell'input → stessi esiti per unità |
 

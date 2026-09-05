@@ -53,14 +53,57 @@ struct FRTUnitStateDigest
 	UPROPERTY() FRTCellId Cell;
 	UPROPERTY() int32 Health = 0;
 	UPROPERTY() int32 Shield = 0;
-	UPROPERTY() int32 Energy = 0;
 	UPROPERTY() bool bAlive = true;
 
 	/**
 	 * Stati attivi (tag). Arrivano da `TMap`/`TSet`, la cui iterazione non è deterministica: `HashMatchState`
 	 * li **ordina** prima di mescolarli, quindi il chiamante può passarli come li trova.
 	 */
+	/**
+	 * L'ORIENTAMENTO, che e' stato LOGICO e non presentazione — `D-261`, `#1800`.
+	 *
+	 * 🔴 **Senza, due stati che differiscono solo per dove guarda un'unita' davano lo stesso digest**,
+	 * pur potendo produrre esiti futuri diversi: `Combat/`, `Perception/` e le reazioni il facing lo
+	 * consumano. E' la stessa classe di difetto che `D-245` ha corretto per `ReactionResponse` — un hash
+	 * che non discrimina cio' che il gioco legge.
+	 *
+	 * ⚠️ **E' il facing REALE, non `PlannedFacing`.** Quello e' un intento, vive nella pianificazione
+	 * ed e' privato della squadra che lo dichiara: metterlo in un checksum di stato lo renderebbe
+	 * confrontabile da chi non deve conoscerlo.
+	 *
+	 * ⛔ Non introduce un secondo sistema di facing: `D-243` resta l'owner delle sei direzioni di gioco, e
+	 * i dodici spicchi restano presentazione e occupazione.
+	 */
+	UPROPERTY() ERTHexDirection Facing = ERTHexDirection::E;
+
 	UPROPERTY() TArray<FName> Statuses;
+
+	/**
+	 * I COOLDOWN delle abilita', per slot — `D-333`, `#2366`.
+	 *
+	 * 🔴 **Senza, due stati che differiscono solo per cosa un'unita' PUO' FARE davano lo stesso digest.**
+	 * Misurato sullo showcase: il turno del *whiff* — Wraith arma `Hero.Wraith.InterceptShot` su una cella
+	 * che nessuno attraversa — non muove nessuno, non fa danno e non cambia stato, quindi dei sette campi
+	 * precedenti non ne toccava **nessuno**; ma paga `Cooldown 2`, e il catalogo eroi scrive che e' *«la meta'
+	 * del costo che rende il whiff una scelta»*. T1 e T2 dello showcase avevano lo stesso `StateHash`.
+	 *
+	 * E' la stessa classe di difetto che `D-261` ha corretto per il `Facing` e `D-245` per `ReactionResponse`:
+	 * uno stato che le regole leggono e il checksum non vede.
+	 *
+	 * ⚠️ **Era mascherato da `Energy`**, che cresceva di `EnergyPerTurn` a ogni Cleanup di ogni unita' viva:
+	 * un contatore monotono rende ogni turno distinto **qualunque cosa accada nella partita**, cioe' faceva da
+	 * marca temporale e non da stato. `D-324` l'ha tolta e la lacuna e' diventata visibile (`#610`).
+	 *
+	 * ⚠️ **E' l'array intero, non un aggregato.** Un digest scalare distinguerebbe gli stessi casi, ma il diff
+	 * di `RTScenarioSession` smetterebbe di poter dire QUALE slot e' cambiato — e l'ordine e' gia'
+	 * deterministico, perche' `AbilityCooldowns` e' indicizzato per slot e `SyncAbilityCooldowns` lo tiene
+	 * allineato ad `Abilities`. Non serve l'ordinamento che `Statuses` richiede.
+	 *
+	 * ⛔ **Non e' il piano.** Qui c'e' il cooldown REALE, cioe' quanto manca; l'intento di usare un'abilita'
+	 * vive nella pianificazione ed e' privato della squadra che lo dichiara — la stessa distinzione che
+	 * `D-261` fa fra `Facing` e `PlannedFacing`.
+	 */
+	UPROPERTY() TArray<int32> AbilityCooldowns;
 };
 
 /**

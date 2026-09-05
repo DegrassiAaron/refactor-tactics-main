@@ -7,6 +7,7 @@
 #include "Map/RTGeometryGrammar.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
+#include "Map/RTHexDoorLibrary.h" // DoorBetween: la simmetria delle due facce si CHIEDE al gioco
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTMapDependencyLibrary.h"
 #include "Map/RTMapEditLibrary.h"
@@ -651,6 +652,496 @@ bool FRTMapEditAnonymousWallTest::RunTest(const FString&)
 	const int32 B = URTMapEditLibrary::ResolveInteriorWall(Map, At[1]);
 	TestTrue(TEXT("i due candidati sono due muri distinti"), A != B);
 
+	return true;
+}
+
+/**
+ * 🔑 Dal punto cliccato al BORDO, senza inventare una seconda convenzione angolare.
+ *
+ * Il ciclo di selezione ha bisogno di `(Cella, Bordo)`, ma il viewport da' un punto. La conversione e'
+ * geometria pura, quindi sta nel runtime e si prova headless — non nel tool, dove sarebbe verificabile solo
+ * a schermo.
+ *
+ * ⚠️ **Il bordo si trova confrontando le distanze dai sei `EdgeMidpointWorld`, non ricavando un angolo.**
+ * La convenzione dei sei lati esiste gia' li' dentro: riscriverla come `Atan2` diviso in spicchi
+ * significherebbe averne due, e il giorno in cui una delle due cambiasse mentirebbero in silenzio. E' lo
+ * stesso criterio per cui l'orientamento di uno `EdgeBound` viene da `EdgeRotation` e non da un angolo
+ * inciso a mano.
+ *
+ * Il test gira su **tutti e sei** i bordi: con uno solo passerebbe anche una funzione che ne restituisce
+ * sempre uno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditNearestEdgeTest,
+	"RefactorTactics.Map.Edit.AClickedPointResolvesToItsNearestEdge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditNearestEdgeTest::RunTest(const FString&)
+{
+	const FRTCellId Cell(0, 0, 0);
+	const FVector Origin = FVector::ZeroVector;
+	constexpr float LayerHeight = 300.f;
+
+	const ERTHexDirection AllSix[] = {
+		ERTHexDirection::E, ERTHexDirection::NE, ERTHexDirection::NW,
+		ERTHexDirection::W, ERTHexDirection::SW, ERTHexDirection::SE
+	};
+
+	const FVector Center = URTHexLibrary::AxialToWorld(Cell, Origin, MapEditHexSize, LayerHeight);
+
+	for (const ERTHexDirection Dir : AllSix)
+	{
+		const FVector Mid = URTHexLibrary::EdgeMidpointWorld(Cell, Dir, Origin, MapEditHexSize, LayerHeight);
+
+		// Un punto appena DENTRO la cella rispetto al centro del bordo: e' dove cade un click che mira a
+		// quel lato senza essere esattamente sul confine.
+		const FVector Inside = Mid + (Center - Mid) * 0.25;
+
+		TestEqual(*FString::Printf(TEXT("il punto vicino al bordo %d risolve a quel bordo"),
+			static_cast<int32>(Dir)),
+			URTHexLibrary::NearestEdgeDirection(Cell, Inside, Origin, MapEditHexSize, LayerHeight), Dir);
+	}
+
+	// ⚠️ Il centro esatto della cella non appartiene a nessun bordo piu' che a un altro. La funzione deve
+	// comunque rispondere in modo DETERMINISTICO: due chiamate identiche danno lo stesso lato, altrimenti un
+	// click al centro farebbe saltare la selezione fra bordi diversi a ogni tentativo.
+	const ERTHexDirection FromCentre =
+		URTHexLibrary::NearestEdgeDirection(Cell, Center, Origin, MapEditHexSize, LayerHeight);
+	TestEqual(TEXT("il centro cella da' sempre la stessa risposta"),
+		URTHexLibrary::NearestEdgeDirection(Cell, Center, Origin, MapEditHexSize, LayerHeight), FromCentre);
+
+	// E il bordo condiviso resta lo stesso fisico visto dalle due celle: il punto sul lato E di (0,0) e' il
+	// lato W del vicino. E' l'invariante che `EdgeMidpointWorld` gia' dichiara, e questa funzione non deve
+	// romperlo.
+	const FRTCellId EastNeighbour = URTHexLibrary::Neighbor(Cell, ERTHexDirection::E);
+	const FVector SharedMid =
+		URTHexLibrary::EdgeMidpointWorld(Cell, ERTHexDirection::E, Origin, MapEditHexSize, LayerHeight);
+	const FVector NeighbourCentre =
+		URTHexLibrary::AxialToWorld(EastNeighbour, Origin, MapEditHexSize, LayerHeight);
+
+	TestEqual(TEXT("lo stesso bordo, visto dal vicino, e' il suo lato opposto"),
+		URTHexLibrary::NearestEdgeDirection(EastNeighbour,
+			SharedMid + (NeighbourCentre - SharedMid) * 0.25, Origin, MapEditHexSize, LayerHeight),
+		ERTHexDirection::W);
+
+	return true;
+}
+
+/**
+ * `DeleteElement` cancella **ogni tipo**, non solo la cella — ed e' cio' che l'`Erase` del tool chiedera'.
+ *
+ * Un comportamento solo, quattro forme. Ogni caso riparte da una mappa pulita: concatenarli farebbe
+ * dipendere il quarto esito dall'esattezza dei primi tre.
+ *
+ * 🔴 **Cancellare una PORTA porta via i binding che la nominavano.** E' lo stesso `C2` che la cascata della
+ * cella aveva gia' incontrato: `ValidateReferences` segnala il riferimento a una struttura inesistente, e
+ * lasciare il binding renderebbe la mappa invalida. La regola non cambia perche' cambia il gesto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditDeleteEveryKindTest,
+	"RefactorTactics.Map.Edit.DeleteElementHandlesEveryKind",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditDeleteEveryKindTest::RunTest(const FString&)
+{
+	const FRTCellId Home(0, 0, 0);
+	const ERTHexDirection Edge = ERTHexDirection::E;
+
+	FRTGeometrySegment Chord;
+	if (!TestTrue(TEXT("la corda si aggancia"), MapEditMakeChord(0, Chord)))
+	{
+		return false;
+	}
+
+	// --- 1. Muro interno, per NOME --------------------------------------------------------------------
+	{
+		URTHexMapAsset* Map = MapEditMakeMap(2);
+		FRTHexInteriorWall Wall(Home, Chord);
+		Wall.StableId = TEXT("W1");
+		Map->InteriorWalls.Add(Wall);
+
+		TestEqual(TEXT("il muro nominato si cancella"),
+			URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForInteriorWall(TEXT("W1"))),
+			ERTMapEditOutcome::Applied);
+		TestEqual(TEXT("e non c'e' piu'"), Map->InteriorWalls.Num(), 0);
+		TestEqual(TEXT("la mappa resta valida"), Map->ValidateMap().Num(), 0);
+	}
+
+	// --- 2. Muro interno ANONIMO, per chiave ----------------------------------------------------------
+	{
+		URTHexMapAsset* Map = MapEditMakeMap(2);
+		Map->InteriorWalls.Add(FRTHexInteriorWall(Home, Chord));
+
+		TestEqual(TEXT("il muro anonimo si cancella per chiave"),
+			URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForInteriorWallAt(Home, Chord)),
+			ERTMapEditOutcome::Applied);
+		TestEqual(TEXT("e non c'e' piu'"), Map->InteriorWalls.Num(), 0);
+	}
+
+	// --- 3. Copertura, per chiave naturale ------------------------------------------------------------
+	{
+		URTHexMapAsset* Map = MapEditMakeMap(2);
+		FRTHexCellData Data = *Map->FindCell(Home);
+		FRTHexCover Cover;
+		Cover.Edge = Edge;
+		Cover.Type = ERTHexCoverType::Low;
+		Data.Covers.Add(Cover);
+		Map->AddOrUpdateCell(Data);
+
+		TestEqual(TEXT("la copertura si cancella"),
+			URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForCover(Home, Edge)),
+			ERTMapEditOutcome::Applied);
+		TestEqual(TEXT("e il bordo e' sgombro"),
+			Map->FindCell(Home)->Covers.Num(), 0);
+		TestEqual(TEXT("la mappa resta valida"), Map->ValidateMap().Num(), 0);
+	}
+
+	// --- 4. 🔴 Porta, e il binding che la nominava ----------------------------------------------------
+	{
+		URTHexMapAsset* Map = MapEditMakeMap(2);
+		const FRTCellId Other(2, 0, 0);
+		MapEditPutDoor(Map, Home, Edge, /*DoorId*/ 1, TEXT("S1"));
+		MapEditPutDoor(Map, Other, ERTHexDirection::W, /*DoorId*/ 2, TEXT("D1"));
+		Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+
+		if (!TestEqual(TEXT("l'allestimento parte valido"), Map->ValidateMap().Num(), 0))
+		{
+			return false;
+		}
+
+		TestEqual(TEXT("la porta si cancella"),
+			URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForDoor(Home, Edge, TEXT("S1"))),
+			ERTMapEditOutcome::Applied);
+		TestEqual(TEXT("il bordo e' sgombro"), Map->FindCell(Home)->Doors.Num(), 0);
+
+		const TArray<FString> Errors = Map->ValidateMap();
+		TestEqual(*FString::Printf(TEXT("e il binding se n'e' andato con lei (residui: %s)"),
+			Errors.Num() > 0 ? *FString::Join(Errors, TEXT(" | ")) : TEXT("nessuno")),
+			Errors.Num(), 0);
+	}
+
+	// --- 5. Un handle che non nomina niente resta un rifiuto ------------------------------------------
+	{
+		URTHexMapAsset* Map = MapEditMakeMap(2);
+		TestEqual(TEXT("una copertura che non c'e' e' un rifiuto"),
+			URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForCover(Home, Edge)),
+			ERTMapEditOutcome::RefusedUnresolved);
+	}
+
+	return true;
+}
+
+/**
+ * 🔴 Un binding perde il BERSAGLIO morto, non se stesso — e muore solo se resta senza.
+ *
+ * La regola era gia' scritta nel contratto di `FRTMapDependencySet`: *«un binding entra qui quando perde la
+ * **sorgente** oppure l'**ultimo** bersaglio»*. Nessuna delle due strade la applicava, e sbagliavano in
+ * direzioni OPPOSTE — trovato da una code review, non da un test:
+ *
+ * ```text
+ * DeleteElement(porta)   rimuoveva il binding se il nome era sorgente O bersaglio
+ *                        -> `S1 -> [D1, D2]`, cancelli D1, e S1 smette di comandare anche D2
+ * CollectDependents      guardava solo SourceId
+ *                        -> un bersaglio morto restava citato, e `ValidateReferences` lo segnala
+ * ```
+ *
+ * ⚠️ **Il primo e' perdita di dato SILENZIOSA**: nessun errore, nessun log, e un comando che l'autore
+ * aveva scritto sparisce. Il secondo lascia la mappa invalida, che almeno il validator dice.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditBindingTargetTest,
+	"RefactorTactics.Map.Edit.ABindingLosesOnlyTheDeadTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditBindingTargetTest::RunTest(const FString&)
+{
+	const FRTCellId Source(0, 0, 0);
+	const FRTCellId First(2, 0, 0);
+	const FRTCellId Second(0, 2, 0);
+
+	// `S1` comanda DUE porte. Con una sola il test non distinguerebbe «toglie il bersaglio» da «toglie il
+	// binding»: entrambi lascerebbero zero binding.
+	auto MakeMap = [&]()
+	{
+		URTHexMapAsset* M = MapEditMakeMap(2);
+		MapEditPutDoor(M, Source, ERTHexDirection::E, 1, TEXT("S1"));
+		MapEditPutDoor(M, First,  ERTHexDirection::W, 2, TEXT("D1"));
+		MapEditPutDoor(M, Second, ERTHexDirection::W, 3, TEXT("D2"));
+		M->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1"), TEXT("D2") }));
+		return M;
+	};
+
+	// --- 1. Cancellata UNA delle due porte comandate: il binding SOPRAVVIVE, con l'altro bersaglio ---
+	{
+		URTHexMapAsset* Map = MakeMap();
+		if (!TestEqual(TEXT("l'allestimento parte valido"), Map->ValidateMap().Num(), 0))
+		{
+			return false;
+		}
+
+		TestEqual(TEXT("la porta si cancella"),
+			URTMapEditLibrary::DeleteElement(Map,
+				FRTMapElementHandle::ForDoor(First, ERTHexDirection::W, TEXT("D1"))),
+			ERTMapEditOutcome::Applied);
+
+		if (!TestEqual(TEXT("il binding e' ancora li'"), Map->InteractionBindings.Num(), 1))
+		{
+			return false;
+		}
+		TestEqual(TEXT("ma comanda un bersaglio solo"),
+			Map->InteractionBindings[0].TargetIds.Num(), 1);
+		TestEqual(TEXT("e resta quello vivo"),
+			Map->InteractionBindings[0].TargetIds[0], FName(TEXT("D2")));
+
+		const TArray<FString> Errors = Map->ValidateMap();
+		TestEqual(*FString::Printf(TEXT("la mappa resta valida (residui: %s)"),
+			Errors.Num() > 0 ? *FString::Join(Errors, TEXT(" | ")) : TEXT("nessuno")),
+			Errors.Num(), 0);
+	}
+
+	// --- 2. Cancellato l'ULTIMO bersaglio: il binding muore, perche' senza bersagli e' gia' invalido ---
+	{
+		URTHexMapAsset* Map = MakeMap();
+		URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForDoor(First, ERTHexDirection::W, TEXT("D1")));
+		URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForDoor(Second, ERTHexDirection::W, TEXT("D2")));
+
+		TestEqual(TEXT("senza bersagli il binding se ne va"), Map->InteractionBindings.Num(), 0);
+		TestEqual(TEXT("e la mappa resta valida"), Map->ValidateMap().Num(), 0);
+	}
+
+	// --- 3. Cancellata la SORGENTE: il binding muore ---------------------------------------------------
+	{
+		URTHexMapAsset* Map = MakeMap();
+		URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForDoor(Source, ERTHexDirection::E, TEXT("S1")));
+
+		TestEqual(TEXT("senza sorgente il binding se ne va"), Map->InteractionBindings.Num(), 0);
+		TestEqual(TEXT("e la mappa resta valida"), Map->ValidateMap().Num(), 0);
+	}
+
+	// --- 4. 🔴 La stessa regola dalla CASCATA DELLA CELLA, che sbagliava all'opposto ------------------
+	{
+		URTHexMapAsset* Map = MakeMap();
+
+		// La cella di `D1` se ne va: `D1` era un BERSAGLIO, e la cascata guardava solo la sorgente.
+		TestEqual(TEXT("la cella si cancella"),
+			URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForCell(First)),
+			ERTMapEditOutcome::Applied);
+
+		const TArray<FString> Errors = Map->ValidateMap();
+		TestEqual(*FString::Printf(TEXT("nessun bersaglio fantasma resta citato (residui: %s)"),
+			Errors.Num() > 0 ? *FString::Join(Errors, TEXT(" | ")) : TEXT("nessuno")),
+			Errors.Num(), 0);
+
+		if (TestEqual(TEXT("e il binding sopravvive con l'altro bersaglio"),
+			Map->InteractionBindings.Num(), 1))
+		{
+			TestEqual(TEXT("che e' D2"), Map->InteractionBindings[0].TargetIds.Num(), 1);
+		}
+	}
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// AddDoor (#2330) — l'anello che mancava all'authoring delle porte.
+//
+// Misurato prima di scriverlo: mesh del kit committate, `ARTHexMapActor` che le disegna, `Interact` che le
+// apre e formato mappa dalla v4 — ma NIENTE sapeva crearne una su un asset. La conseguenza, misurata da
+// `#2312`: nell'intero contenuto versionato non esiste una porta.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Il primo bordo di `Cell` che porta FUORI dalla mappa, se esiste. Nome prefissato: unity build. */
+	bool MapEditFindFrontierEdge(const URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection& Out)
+	{
+		for (int32 D = 0; D < 6; ++D)
+		{
+			const ERTHexDirection Dir = static_cast<ERTHexDirection>(D);
+			if (Map->FindCell(URTHexLibrary::Neighbor(Cell, Dir)) == nullptr)
+			{
+				Out = Dir;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Il primo bordo di `Cell` che porta a una cella ESISTENTE. */
+	bool MapEditFindInteriorEdge(const URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection& Out)
+	{
+		for (int32 D = 0; D < 6; ++D)
+		{
+			const ERTHexDirection Dir = static_cast<ERTHexDirection>(D);
+			if (Map->FindCell(URTHexLibrary::Neighbor(Cell, Dir)) != nullptr)
+			{
+				Out = Dir;
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
+/**
+ * **La porta si posa, e la REVISIONE si muove.**
+ *
+ * 🔴 La seconda meta' non e' decorativa: `Revision` e' cio' che invalida i percorsi gia' calcolati, e una
+ * scrittura in place su `Cells[i].Doors` non la muoverebbe. Un cammino calcolato prima resterebbe valido
+ * dopo, attraverso una porta appena chiusa — il difetto che `ClearAsset` ha gia' pagato e che l'header
+ * dell'asset dichiara: *«la revisione e' responsabilita' del DATO, non di chi lo modifica»*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditAddDoorAppliesTest,
+	"RefactorTactics.MapEdit.AddDoorAppliesAndBumpsRevision",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditAddDoorAppliesTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MapEditMakeMap(2);
+	const FRTCellId Centro(0, 0, 0);
+
+	ERTHexDirection Bordo;
+	if (!TestTrue(TEXT("il centro ha almeno un vicino"), MapEditFindInteriorEdge(M, Centro, Bordo)))
+	{
+		return false;
+	}
+
+	const int32 RevisionePrima = M->Revision;
+	TestEqual(TEXT("la posa e' applicata"),
+		URTMapEditLibrary::AddDoor(M, Centro, Bordo, ERTHexDoorState::Closed),
+		ERTMapEditOutcome::Applied);
+
+	const FRTHexCellData* Data = M->FindCell(Centro);
+	if (!TestNotNull(TEXT("la cella esiste ancora"), Data))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("e porta esattamente una porta"), Data->Doors.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("sul bordo richiesto"), static_cast<int32>(Data->Doors[0].Edge), static_cast<int32>(Bordo));
+	TestEqual(TEXT("nello stato richiesto"),
+		static_cast<int32>(Data->Doors[0].State), static_cast<int32>(ERTHexDoorState::Closed));
+
+	// ⛔ **Non inventa un nome pubblico.** `NAME_None` e' legale ed e' cio' che ogni porta pre-v9 e' diventata
+	// rileggendosi; sceglierlo qui sarebbe decidere del contenuto.
+	TestTrue(TEXT("e senza StableId, che non si inventa"), Data->Doors[0].StableId.IsNone());
+
+	TestTrue(FString::Printf(TEXT("la revisione si e' mossa: %d -> %d"), RevisionePrima, M->Revision),
+		M->Revision > RevisionePrima);
+	return true;
+}
+
+/**
+ * **Sul bordo esterno la posa e' RIFIUTATA**, ed e' il rifiuto che rende `AddDoor` non banale.
+ *
+ * Una porta e' **sottrattiva** (`spec-porte-cp93.md`): nega un'adiacenza che esiste. Fuori dalla mappa non
+ * c'e' adiacenza da negare, quindi la porta si salverebbe, cambierebbe l'hash, si vedrebbe pure — e nessun
+ * oracolo suonerebbe. E' la classe di difetto che `#170` ha pagato tre settimane.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditAddDoorFrontierTest,
+	"RefactorTactics.MapEdit.AddDoorRefusesFrontierEdge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditAddDoorFrontierTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MapEditMakeMap(2);
+
+	// Una cella di bordo: su un'arena piatta di raggio 2, `(2,0)` sta sul perimetro.
+	const FRTCellId Bordo(2, 0, 0);
+	if (!TestNotNull(TEXT("la cella di perimetro esiste"), M->FindCell(Bordo)))
+	{
+		return false;
+	}
+
+	ERTHexDirection Fuori;
+	if (!TestTrue(TEXT("e ha almeno un bordo che porta fuori dalla mappa"),
+		MapEditFindFrontierEdge(M, Bordo, Fuori)))
+	{
+		return false;
+	}
+
+	const int32 RevisionePrima = M->Revision;
+	TestEqual(TEXT("la posa e' rifiutata, e con la ragione giusta"),
+		URTMapEditLibrary::AddDoor(M, Bordo, Fuori, ERTHexDoorState::Closed),
+		ERTMapEditOutcome::RefusedNoNeighbour);
+
+	// «O si applica intera o non lascia traccia»: il rifiuto non deve aver scritto niente.
+	TestEqual(TEXT("niente e' stato scritto"), M->FindCell(Bordo)->Doors.Num(), 0);
+	TestEqual(TEXT("e la revisione non si e' mossa"), M->Revision, RevisionePrima);
+
+	// E la cella inesistente e' un rifiuto DIVERSO: due cause con lo stesso esito manderebbero a correggere
+	// la cosa sbagliata.
+	TestEqual(TEXT("una cella che non esiste e' RefusedNoSuchCell, non RefusedNoNeighbour"),
+		URTMapEditLibrary::AddDoor(M, FRTCellId(99, 99, 0), ERTHexDirection::E, ERTHexDoorState::Closed),
+		ERTMapEditOutcome::RefusedNoSuchCell);
+	return true;
+}
+
+/** **Due porte sullo stesso bordo non si accumulano**: `ValidateMap` gia' pretende l'unicita' per bordo. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditAddDoorDuplicateTest,
+	"RefactorTactics.MapEdit.AddDoorRefusesDuplicateEdge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditAddDoorDuplicateTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MapEditMakeMap(2);
+	const FRTCellId Centro(0, 0, 0);
+
+	ERTHexDirection Bordo;
+	if (!TestTrue(TEXT("il centro ha almeno un vicino"), MapEditFindInteriorEdge(M, Centro, Bordo)))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("la prima passa"),
+		URTMapEditLibrary::AddDoor(M, Centro, Bordo, ERTHexDoorState::Closed), ERTMapEditOutcome::Applied);
+
+	const int32 RevisioneDopoLaPrima = M->Revision;
+	TestEqual(TEXT("la seconda sullo stesso bordo e' rifiutata"),
+		URTMapEditLibrary::AddDoor(M, Centro, Bordo, ERTHexDoorState::Locked),
+		ERTMapEditOutcome::RefusedDuplicate);
+	TestEqual(TEXT("e la porta resta UNA"), M->FindCell(Centro)->Doors.Num(), 1);
+	TestEqual(TEXT("lo stato non e' stato sovrascritto"),
+		static_cast<int32>(M->FindCell(Centro)->Doors[0].State), static_cast<int32>(ERTHexDoorState::Closed));
+	TestEqual(TEXT("e la revisione non si e' mossa una seconda volta"), M->Revision, RevisioneDopoLaPrima);
+	return true;
+}
+
+/**
+ * **Una faccia sola basta, e questo test lo chiede al GIOCO.**
+ *
+ * `spec-porte-cp93.md` §3: *«il bordo puo' essere dichiarato dalla cella A verso B, da B verso A, o da
+ * entrambe … una porta disegnata da un lato solo vale comunque»*, e `DoorBetween` vale *«il piu' RESTRITTIVO
+ * delle due facce»*. `AddDoor` scrive **una** faccia proprio per questo: scriverne due sarebbe la divergenza
+ * che quella regola evita.
+ *
+ * 🔑 **Se questo test cade, il difetto NON e' in `AddDoor`**: e' nella lettura, e la spec sta mentendo. E'
+ * l'unico dei quattro che misura il gioco invece del tool, ed e' la ragione per cui vale la pena scriverlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditAddDoorBothSidesTest,
+	"RefactorTactics.MapEdit.AddDoorIsVisibleFromBothSides",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditAddDoorBothSidesTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MapEditMakeMap(2);
+	const FRTCellId A(0, 0, 0);
+
+	ERTHexDirection Bordo;
+	if (!TestTrue(TEXT("il centro ha almeno un vicino"), MapEditFindInteriorEdge(M, A, Bordo)))
+	{
+		return false;
+	}
+	const FRTCellId B = URTHexLibrary::Neighbor(A, Bordo);
+
+	// La premessa, asserita: senza porta i due versi rispondono `Open`, altrimenti il verde sotto non
+	// distinguerebbe «la porta si vede da entrambi i lati» da «rispondono sempre la stessa cosa».
+	TestEqual(TEXT("premessa: senza porta il bordo e' Open da A"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(M, A, B)),
+		static_cast<int32>(ERTHexDoorState::Open));
+
+	TestEqual(TEXT("si scrive UNA sola faccia"),
+		URTMapEditLibrary::AddDoor(M, A, Bordo, ERTHexDoorState::Closed), ERTMapEditOutcome::Applied);
+	TestEqual(TEXT("e infatti l'altra cella non ne porta nessuna"), M->FindCell(B)->Doors.Num(), 0);
+
+	TestEqual(TEXT("ma la si vede da A verso B"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(M, A, B)),
+		static_cast<int32>(ERTHexDoorState::Closed));
+	TestEqual(TEXT("e anche da B verso A: la barriera e' fisica, non direzionale"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(M, B, A)),
+		static_cast<int32>(ERTHexDoorState::Closed));
 	return true;
 }
 

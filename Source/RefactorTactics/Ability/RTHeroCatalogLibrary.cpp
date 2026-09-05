@@ -95,7 +95,8 @@ namespace
 	URTActionData* MakeHeroAction(const FName& Id, ERTResolutionPhase Phase, int32 Priority, int32 Range,
 		int32 Cooldown, ERTActionFallback Fallback, const TArray<FRTActionEffectSpec>& Effects,
 		ERTAbilityShape Shape = ERTAbilityShape::Single, int32 AreaRadius = 0,
-		ERTActionSlot Slot = ERTActionSlot::Main, bool bInterruptible = true)
+		ERTActionSlot Slot = ERTActionSlot::Main,
+		ERTInterruptPolicy Interrupt = ERTInterruptPolicy::InterruptBeforeEffect)
 	{
 		URTActionData* Action = NewObject<URTActionData>();
 
@@ -107,7 +108,7 @@ namespace
 		Action->Def.Fallback = Fallback;
 		Action->Def.Effects = Effects;
 		Action->Def.Slot = Slot;
-		Action->Def.bCanBeInterrupted = bInterruptible;
+		Action->Def.InterruptPolicy = Interrupt;
 
 		Action->RangeCells = Range;
 		Action->CooldownTurns = Cooldown;
@@ -237,6 +238,20 @@ TArray<FString> URTHeroCatalogLibrary::ValidateHeroes(const TArray<const URTHero
 		{
 			Errors.Add(FString::Printf(TEXT("%s: soglia d'udito fuori scala 0-10 (%d)"), *Where, Hero->HearingThreshold));
 		}
+		// Budget di pivot sulla scala 0-3 di ADR-0008 §1: 0 = nessuna rotazione finale, 3 = qualsiasi facing
+		// esagonale. Fuori scala non e' «un valore estremo»: sotto 0 l'insieme legale si svuoterebbe e
+		// l'unita' resterebbe senza NESSUNA rotazione dichiarabile, sopra 3 si ripeterebbe il giro delle sei.
+		// `PivotStepsForStyle` clampa comunque a runtime — questa e' la segnalazione che dice CHI l'ha scritto.
+		if (Hero->MoveEndPivotMaxSteps < 0 || Hero->MoveEndPivotMaxSteps > 3)
+		{
+			Errors.Add(FString::Printf(TEXT("%s: budget di pivot Move fuori scala 0-3 (%d)"),
+				*Where, Hero->MoveEndPivotMaxSteps));
+		}
+		if (Hero->DashEndPivotMaxSteps < 0 || Hero->DashEndPivotMaxSteps > 3)
+		{
+			Errors.Add(FString::Printf(TEXT("%s: budget di pivot Dash fuori scala 0-3 (%d)"),
+				*Where, Hero->DashEndPivotMaxSteps));
+		}
 		if (Hero->Affinity.IsNone())
 		{
 			Errors.Add(FString::Printf(TEXT("%s: affinita' non dichiarata"), *Where));
@@ -283,8 +298,9 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	URTHeroData* Gadget = NewObject<URTHeroData>();
 	Gadget->HeroId = TEXT("Hero.Gadget");
 	// ⚠️ La variabile dice `Gadget` e il nome dice `Gadget`, e NON e' un refuso: D-120 separa i due piani.
-	// `Hero.Gadget` e' lo Stable ID — chiave di codice, scenari e replay, che non si rinomina finche' #716 non
-	// scioglie la collisione di namespace. `Gadget` e' il nome canonico/player-facing del personaggio.
+	// `Hero.Gadget` e' lo Stable ID — chiave di codice, scenari e replay. #716 ha gia' sciolto la collisione
+	// di namespace (D-130), e il rename e' deciso: `Hero.Gadget` -> `Hero.Nexis`, differito post-v0.1 (D-321,
+	// D-322), owner #2297. `Gadget` e' il nome canonico/player-facing di oggi, legacy temporaneo.
 	// Da qui il nome raggiunge l'unita' (`ConfigureFromHeroData`) e poi la HUD; il gate del confine e'
 	// `RefactorTactics.Unit.HeroDataCrossesTheBoundary`.
 	Gadget->DisplayName = FText::FromString(TEXT("Gadget"));
@@ -304,6 +320,11 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	Gadget->VisionRange = 7;
 	Gadget->HearingThreshold = 5;  // D-041: vede piu' lontano di tutti (7), quindi sente meno. L'udito COMPENSA la vista.
 	Gadget->PushResistance = 0;
+	// ADR-0008 §1 — «standard/tecnico» in entrambe le mobilita': 120 gradi a fine Move e a fine Dash.
+	// ⚠️ Ipotesi iniziale, non bilanciamento approvato: la fonte (handoff §23.1) la da' come «da
+	// scenario/playtest», e la taratura degli otto numeri e' lavoro separato (#1605 §Out of scope).
+	Gadget->MoveEndPivotMaxSteps = 2;
+	Gadget->DashEndPivotMaxSteps = 2;
 	Gadget->Affinity = TEXT("Affinity.Electricity");
 	// Debolezza acqua: stesso identificatore che Phase (CP 6.3) usera' come sua affinita', cosi' la combo
 	// "Gadget su bersaglio Wet" e "l'affinita' di Phase e' l'acqua" restano lo stesso concetto, non due nomi.
@@ -413,6 +434,10 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	Phase->VisionRange = 5;
 	Phase->HearingThreshold = 3;  // D-041: orecchio fine (soglia bassa) a compensare una vista corta.
 	Phase->PushResistance = 0;
+	// ADR-0008 §1 — Move «fluido» (120 gradi), Dash «molto manovrabile»: 3 step, cioe' qualsiasi facing.
+	// E' la coppia che dimostra da sola perche' i budget sono DUE e non uno.
+	Phase->MoveEndPivotMaxSteps = 2;
+	Phase->DashEndPivotMaxSteps = 3;
 	Phase->Affinity = TEXT("Affinity.Water");
 	// Simmetrica a Gadget (Affinity.Water e' gia' la sua debolezza): la rivalita' fra i due eroi legati dalla
 	// combo Wet e' un solo identificatore condiviso in entrambe le direzioni, non due nomi da sincronizzare.
@@ -551,7 +576,7 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// esito falso nel TurnLog e' peggio di un'abilita' dichiaratamente incompleta.
 	Phase->Actions.Add(MakeHeroAction(TEXT("Hero.Phase.FlowReaction"), ERTResolutionPhase::Preparation, /*Priority*/ 36,
 		/*Range*/ 0, /*Cooldown*/ 3, ERTActionFallback::Cancel, {}, ERTAbilityShape::Single, /*AreaRadius*/ 0,
-		ERTActionSlot::None, /*bInterruptible*/ false));
+		ERTActionSlot::None, ERTInterruptPolicy::None));
 
 	// `Hero.Phase.TideGuard` — lo scudo PROATTIVO, derivato da `Action.Shield`: Preparation, 25 punti di
 	// scudo temporaneo, cooldown 2. E' l'unico scudo del gioco che si sceglie PRIMA di sapere se sarai
@@ -563,7 +588,8 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	//
 	// ⚠️ **E' la SESTA azione di Phase, e prima non ci sarebbe stata**: fino a quando le generiche
 	// occupavano la fila dei numeri, un kit da undici voci ne lasciava una impremibile.
-	Phase->Actions.Add(MakeHeroActionFromCore(TEXT("Hero.Phase.TideGuard"), TEXT("Action.Shield"),
+	// Stessa ragione del gemello `Hero.Wraith.PhaseGuard`: un `nullptr` non entra nel kit.
+	AddAbility(Phase, MakeHeroActionFromCore(TEXT("Hero.Phase.TideGuard"), TEXT("Action.Shield"),
 		/*Cooldown*/ 2));
 
 	// Variante di CircularTide (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
@@ -611,6 +637,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// implementano, nessun contenuto la esercita. E' dichiarato, non dimenticato: si risveglia da sola il
 	// giorno in cui una v0.2 introduce una spinta >= 2 (rinviata con l'uscita (B) di #400, D-074).
 	Riktor->PushResistance = 0;
+	// ADR-0008 §1 — «pesante, forte stabilita'»: 60 gradi a fine Move, e **zero** in Dash.
+	//
+	// 🔑 Lo `0` non viene dalla fonte, che dava «0-60 gradi» — un intervallo, non un valore — ed e' una
+	// delle due scelte che l'ADR dichiara di aver preso da se'. E' l'estremo che CONSERVA il comportamento
+	// di ADR-0005 per i `Linear*`: una sola direzione, quella del movimento. Alzarlo a 1 e' un cambio di
+	// dato, non di modello.
+	Riktor->MoveEndPivotMaxSteps = 1;
+	Riktor->DashEndPivotMaxSteps = 0;
 	Riktor->Affinity = TEXT("Affinity.Structures");
 	// Simmetrica a Wraith (CP 6.5), come Gadget/Phase fra loro: il roster chiude in due coppie. Il piu' lento
 	// del roster e' vulnerabile a chi il movimento lo fa di mestiere.
@@ -766,6 +800,12 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	Wraith->VisionRange = 6;
 	Wraith->HearingThreshold = 5;  // D-041: mobilita' e vista si pagano sull'udito.
 	Wraith->PushResistance = 0;
+	// ADR-0008 §1 — «agile/predittivo» e «reposition rapido»: 3 e 3, l'unico del roster libero di finire
+	// qualunque movimento guardando dove vuole. E' l'estremo opposto di Riktor, e la scala esiste per
+	// questo: se il pivot alto risultasse sempre preferibile, la via di rientro dichiarata dall'ADR e'
+	// **comprimere la scala** (tutti a 1-2), non rimuovere il modello.
+	Wraith->MoveEndPivotMaxSteps = 3;
+	Wraith->DashEndPivotMaxSteps = 3;
 	Wraith->Affinity = TEXT("Affinity.Movement");
 	// Simmetrica a Riktor: chi si muove di mestiere e' neutralizzato da chi gli chiude le traiettorie.
 	// Il roster chiude in due coppie — Gadget↔Phase sull'acqua, Riktor↔Wraith sullo spazio.
@@ -794,7 +834,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	URTActionData* InterceptShot = MakeHeroAction(TEXT("Hero.Wraith.InterceptShot"), ERTResolutionPhase::Preparation,
 		/*Priority*/ 30, /*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) }, ERTAbilityShape::Single, /*AreaRadius*/ 0,
-		ERTActionSlot::Main, /*bInterruptible*/ false);
+		ERTActionSlot::Main, ERTInterruptPolicy::None);
 	// I due campi che la rendono predittiva stanno nei DATI e non in un ramo del resolver: `LockCell` dice che
 	// la cella non si rivaluta, `MovementEntry` quando si guarda chi ci e' passato.
 	InterceptShot->Def.PredictiveTargeting = ERTPredictiveTargeting::LockCell;
@@ -828,10 +868,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// fra fermarsi, fermarsi addosso, scavalcare e attraversare non e' un `if` sull'ActionId.
 	Wraith->Actions[2]->Def.MovementStyle = ERTMovementStyle::LinearPass;
 
-	// Indice 3 — Deflection (CP 6.7). REAZIONE cablata sulla semantica di `Action.Deflect`: -20 sul colpo
-	// diretto che l'ha innescata. La riduzione arriva dagli effetti del core (`ERTActionEffect::DamageReduction`,
-	// CP 5.5) e resta distinta dallo scudo: uno scudo ASSORBE e si consuma, questa toglie punti al colpo.
-	// Stessa famiglia di `Action.Guard` (-15 al primo colpo) ma con un trigger invece di una stance.
+	// Indice 3 — Deflection (CP 6.7). REAZIONE cablata sulla semantica di `Action.Deflect`: un POOL di 20
+	// danni assorbibili sui colpi diretti del boundary che l'ha innescata. La riduzione arriva dagli effetti
+	// del core (`ERTActionEffect::DamageReduction`, CP 5.5).
+	// Stessa famiglia di `Action.Guard` ma con un trigger invece di una stance, e da [D-309] anche la stessa
+	// FORMA: entrambe sono pool che consumano un budget, entrambe passano da `ApplyAbsorptionPool`. Cio' che
+	// resta diverso e' il gate — la Guardia e' uno stato di Prep eleggibile sui soli colpi frontali ([D-206]),
+	// il Deflect e' una reazione senza clausola d'arco — e l'ORDINE: `Deflect` assorbe per primo ([D-312]).
+	// ⚠️ La divergenza aperta da [D-292] il 2026-08-31 e' durata un giorno: [D-309] l'ha richiusa.
 	// Cooldown 2, uguale al core: il catalogo eroi non ne dichiara uno diverso.
 	AddAbility(Wraith, MakeHeroReactionFromCoreAction(TEXT("Hero.Wraith.Deflection"), TEXT("Action.Deflect"),
 		/*Cooldown*/ 2));
@@ -850,7 +894,11 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 
 	// `Hero.Wraith.PhaseGuard` — gemello di `Hero.Phase.TideGuard`, uno per squadra. Su Wraith costa una
 	// scelta vera: la Preparation spesa qui e' quella che non arma `InterceptShot`.
-	Wraith->Actions.Add(MakeHeroActionFromCore(TEXT("Hero.Wraith.PhaseGuard"), TEXT("Action.Shield"),
+	// 🔴 `AddAbility` e non `Actions.Add`: `MakeHeroActionFromCore` e' fail-closed e torna `nullptr` se
+	// `Action.Shield` sparisce o cambia nome. Con `Add` quel `nullptr` ENTRA nel kit — `Num()` conta 6,
+	// quindi ogni guardia che si fida del conteggio passa, e chi dereferenzia va giu'. E' l'invariante che
+	// `AddAbility` esiste per tenere, e qui era aggirata.
+	AddAbility(Wraith, MakeHeroActionFromCore(TEXT("Hero.Wraith.PhaseGuard"), TEXT("Action.Shield"),
 		/*Cooldown*/ 2));
 
 	// Variante di InterceptShot (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
@@ -907,6 +955,17 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroAc
 		Core.RangeCells, Cooldown, Core.Fallback, Core.Effects, Shape, AreaRadius);
 
 	Action->Def.DerivedFromActionId = CoreActionId;
+	// 🔑 `bSelfTarget` NON e' fra i campi che `MakeHeroAction` riceve, e va copiato qui: e' una
+	// **proprieta' dell'azione**, non una deduzione dalla fase o dalla portata (lo dice il suo docstring
+	// in `RTActionDef.h`). Senza, `Hero.Phase.TideGuard` eredita scudo e fase di `Action.Shield` ma non il
+	// fatto di applicarsi a chi la usa — e i tre consumatori del flag (puntatore del giocatore,
+	// valutazione del bot, harness degli scenari) chiedono un bersaglio per un'azione che non ne ha (#2283).
+	Action->Def.bSelfTarget = Core.bSelfTarget;
+	// ⚠️ E lo SPECCHIO su `URTActionData`, che il catalogo core allinea in due punti e questa funzione
+	// non allineava: `Actions.HeroKitsMatchTheirCatalogDef` confronta i due campi e cadeva su entrambe le
+	// abilita' nuove. Quel test PREVEDEVA questo giorno — «quando la prima arrivera', controllare che
+	// MakeHeroAction ne copi lo specchio prima di rendere verde questa riga» — ed e' cio' che ha fatto.
+	Action->bSelfTarget = Core.bSelfTarget;
 	return Action;
 }
 
@@ -929,7 +988,7 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroReactionFromCoreAction(const FName
 	URTActionData* Action = MakeHeroAction(HeroActionId, Core.ResolutionPhase, Core.Priority,
 		RangeCells >= 0 ? RangeCells : Core.RangeCells, CooldownTurns, Core.Fallback,
 		Effects.Num() > 0 ? Effects : Core.Effects, ERTAbilityShape::Single, /*AreaRadius*/ 0,
-		Core.Slot, Core.bCanBeInterrupted);
+		Core.Slot, Core.InterruptPolicy);
 
 	// Il trigger viene dalla semantica core: e' la domanda a cui la reazione risponde («sono stato colpito?»,
 	// «un alleato e' stato colpito?»), non un numero di bilanciamento dell'eroe.
@@ -939,5 +998,12 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroReactionFromCoreAction(const FName
 	// «questa reazione d'eroe e' `Action.Counter` con un nome proprio» viveva nel solo sorgente. Ora resta
 	// nel `Def`, dove il gate della raggiungibilita' la legge.
 	Action->Def.DerivedFromActionId = CoreActionId;
+	// Stessa ragione della gemella sopra: il flag e' una proprieta' dell'azione (#2283).
+	Action->Def.bSelfTarget = Core.bSelfTarget;
+	// ⚠️ E lo SPECCHIO su `URTActionData`, che il catalogo core allinea in due punti e questa funzione
+	// non allineava: `Actions.HeroKitsMatchTheirCatalogDef` confronta i due campi e cadeva su entrambe le
+	// abilita' nuove. Quel test PREVEDEVA questo giorno — «quando la prima arrivera', controllare che
+	// MakeHeroAction ne copi lo specchio prima di rendere verde questa riga» — ed e' cio' che ha fatto.
+	Action->bSelfTarget = Core.bSelfTarget;
 	return Action;
 }

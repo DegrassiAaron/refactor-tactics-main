@@ -3,6 +3,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapActor.h"          // GetCellPrismMesh: la mesh generata della cella (#712 / U22)
+#include "Map/RTHexMapAsset.h"          // HexSize dal CDO: la scala non si scrive in uu (#1992)
 #include "Map/RTGeometryGrammar.h"      // SnapToGrammar: il ghost parte da qui
 #include "Map/RTGeometryBake.h"         // EdgesTouchedBy: e finisce qui
 #include "Engine/StaticMesh.h"
@@ -638,6 +639,205 @@ bool FRTHexEdgeMidpointTest::RunTest(const FString&)
 
 
 /**
+ * **Il contratto geometrico del marker di facing** (#1992, Epic #1990, `D-304`): sei test, uno per voce
+ * `D007`, sulla trasformazione `Facing + BodyRadius + FaceHeight -> MarkerOrigin`.
+ *
+ * 🔑 **Perche' la funzione e' stata estratta.** Il fixture che la consuma e' un `.uasset`, e un Blueprint
+ * non si esercita headless: senza una funzione pura questa issue non avrebbe **nessun** oracolo.
+ *
+ * ⚠️ **Cio' che questi sei NON provano: che il Blueprint la chiami.** Un fixture che calcolasse l'origine
+ * per conto proprio — o che ignorasse `BodyRadius` — li lascerebbe tutti verdi. Quel legame e' verifica
+ * d'editor (`D008.2` della issue), ed e' dichiarato **li'** invece di essere lasciato credere qui.
+ *
+ * ⛔ **I raggi e le quote usati sotto sono INGRESSI, non default canonici.** `GBX-5` — l'ingombro
+ * dell'unita' rispetto alla cella — resta aperta e di #1094, e si chiude a `U25`. Le asserzioni sono
+ * **relazioni** fra ingresso e uscita: cadono se la formula cambia, non se cambia la scala.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexFacingMarkerOnSurfaceTest,
+	"RefactorTactics.Hex.FacingMarkerOriginSitsOnBodySurface",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexFacingMarkerOnSurfaceTest::RunTest(const FString&)
+{
+	// D007.1 — l'origine sta sulla SUPERFICIE del corpo: distanza IN PIANTA dal centro pari a BodyRadius.
+	// In pianta e non in 3D, altrimenti l'asserzione includerebbe FaceHeight e misurerebbe due cose insieme.
+	const FVector Center(1234.0, -567.0, 89.0); // centro non banale: uno a zero nasconderebbe un offset perso
+	const float BodyRadius = 60.f;
+	const float FaceHeight = 95.f;
+
+	for (int32 D = 0; D < 6; ++D)
+	{
+		const ERTHexDirection Dir = static_cast<ERTHexDirection>(D);
+		const FVector O = URTHexLibrary::FacingMarkerOrigin(Dir, Center, BodyRadius, FaceHeight);
+		const double PlanarDist = FVector::Dist2D(O, Center);
+		TestTrue(*FString::Printf(TEXT("direzione %d: l'origine e' sulla superficie (%.3f atteso %.3f)"),
+			D, PlanarDist, BodyRadius),
+			FMath::IsNearlyEqual(PlanarDist, static_cast<double>(BodyRadius), 0.01));
+	}
+	return true;
+}
+
+/**
+ * D007.2 — la direzione del marker e' quella VERSO IL VICINO, e il riferimento si ricava dal mondo.
+ *
+ * ⚠️ Il valore atteso NON viene da `EdgeRotation` (sarebbe tautologico) ne' da sei angoli in tabella: si
+ * costruisce con `AxialToWorld` + `Neighbor`, cioe' per un'altra strada. E' la stessa disciplina di
+ * `EdgeIndexMatchesNeighbourDirection`: se un giorno qualcuno riscrivesse `FacingRotation` come un `Atan2`
+ * diviso in spicchi, questo test lo direbbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexFacingMatchesNeighbourTest,
+	"RefactorTactics.Hex.FacingRotationMatchesNeighbourDirection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexFacingMatchesNeighbourTest::RunTest(const FString&)
+{
+	// Scala derivata dal CDO, non scritta in uu: un test che confrontasse 150 con 150 passerebbe anche
+	// dopo un cambio di HexSize, cioe' esattamente quando dovrebbe fallire.
+	const float HexSize = GetDefault<URTHexMapAsset>()->HexSize;
+	const FVector Origin(0.0, 0.0, 0.0);
+	constexpr float LayerHeight = 250.f;
+	const FRTCellId Cell(3, -2, 0);
+	const FVector Center = URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerHeight);
+
+	for (int32 D = 0; D < 6; ++D)
+	{
+		const ERTHexDirection Dir = static_cast<ERTHexDirection>(D);
+		const FVector NeighbourCenter =
+			URTHexLibrary::AxialToWorld(URTHexLibrary::Neighbor(Cell, Dir), Origin, HexSize, LayerHeight);
+		const FVector Expected = (NeighbourCenter - Center).GetSafeNormal();
+		const FVector Actual = URTHexLibrary::FacingRotation(Dir).Vector();
+		TestTrue(*FString::Printf(TEXT("direzione %d: il marker guarda il vicino"), D),
+			Actual.Equals(Expected, 1.e-3));
+	}
+	return true;
+}
+
+/**
+ * D007.3 — `Up` e' il verso del MONDO: le sei origini sono complanari, alla quota `Center.Z + FaceHeight`.
+ *
+ * 🔴 **Il bug che questo test esiste per prendere non fallisce oggi.** Un'implementazione che ruotasse in
+ * blocco l'offset `(BodyRadius, 0, FaceHeight)` darebbe lo **stesso** risultato finche' la rotazione e' di
+ * solo yaw, e passerebbe D007.1 e D007.5. Comincerebbe a mentire il giorno in cui `EdgeRotation`
+ * acquisisse pitch — terreno inclinato, multilivello — e il marker salirebbe di quota a seconda della
+ * direzione. Costa una riga e fissa la verticale adesso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexFacingMarkerWorldUpTest,
+	"RefactorTactics.Hex.FacingMarkerOriginKeepsWorldUp",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexFacingMarkerWorldUpTest::RunTest(const FString&)
+{
+	const FVector Center(-300.0, 720.0, 45.0);
+	const float BodyRadius = 60.f;
+	const float FaceHeight = 95.f;
+	const double ExpectedZ = Center.Z + static_cast<double>(FaceHeight);
+
+	for (int32 D = 0; D < 6; ++D)
+	{
+		const ERTHexDirection Dir = static_cast<ERTHexDirection>(D);
+		const FVector O = URTHexLibrary::FacingMarkerOrigin(Dir, Center, BodyRadius, FaceHeight);
+		TestTrue(*FString::Printf(TEXT("direzione %d: quota %.3f, attesa %.3f"), D, O.Z, ExpectedZ),
+			FMath::IsNearlyEqual(O.Z, ExpectedZ, 0.01));
+	}
+	return true;
+}
+
+/**
+ * D007.4 — `FacingRotation` scarta la cella, e **questo va misurato**.
+ *
+ * ⚠️ E' l'asserzione che rende `FacingRotation` un alias legittimo invece di una seconda risposta. E'
+ * lecito scartare la cella solo perche' `AxialToWorld` e' AFFINE in `(q,r)`: lo spostamento fra due centri
+ * dipende dal solo delta assiale. Se quella funzione smettesse di esserlo — un'origine per layer, una
+ * deformazione — la scorciatoia mentirebbe **in silenzio**, e nient'altro nel repository se ne accorgerebbe.
+ *
+ * Le celle sono sparse di proposito: origine, assi, diagonali, quadranti opposti e due layer diversi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexFacingCellIndependentTest,
+	"RefactorTactics.Hex.FacingRotationIsCellIndependent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexFacingCellIndependentTest::RunTest(const FString&)
+{
+	const TArray<FRTCellId> Sparse = {
+		FRTCellId(0, 0, 0), FRTCellId(7, 0, 0), FRTCellId(0, 7, 0), FRTCellId(-5, 3, 0),
+		FRTCellId(4, -9, 0), FRTCellId(-11, -2, 0), FRTCellId(2, 2, 1), FRTCellId(-3, 6, 2)
+	};
+
+	for (int32 D = 0; D < 6; ++D)
+	{
+		const ERTHexDirection Dir = static_cast<ERTHexDirection>(D);
+		const FRotator Reference = URTHexLibrary::FacingRotation(Dir);
+		for (const FRTCellId& Cell : Sparse)
+		{
+			TestTrue(*FString::Printf(TEXT("direzione %d da %s: stesso orientamento"), D, *Cell.ToString()),
+				URTHexLibrary::EdgeRotation(Cell, Dir).Equals(Reference, 0.01f));
+		}
+	}
+	return true;
+}
+
+/**
+ * D007.5 — le sei origini sono DISTINTE fra loro.
+ *
+ * ⚠️ **Senza questa asserzione un bug che ignora `Facing` passerebbe**: sei chiamate che tornano lo stesso
+ * punto soddisfano «sta sulla superficie» (D007.1) e «stessa quota» (D007.3) per tutte e sei.
+ *
+ * La soglia non e' un epsilon: due direzioni adiacenti distano 60 gradi, quindi su un raggio `R` i loro
+ * punti distano `R` esatti. Confrontare con `R/2` separa un bug vero da un errore numerico senza dipendere
+ * da quanto vale `R`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexFacingSixDistinctTest,
+	"RefactorTactics.Hex.FacingMarkerOriginsAreSixDistinctPoints",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexFacingSixDistinctTest::RunTest(const FString&)
+{
+	const FVector Center(10.0, -20.0, 30.0);
+	const float BodyRadius = 60.f;
+	const float FaceHeight = 95.f;
+
+	TArray<FVector> Origins;
+	for (int32 D = 0; D < 6; ++D)
+	{
+		Origins.Add(URTHexLibrary::FacingMarkerOrigin(
+			static_cast<ERTHexDirection>(D), Center, BodyRadius, FaceHeight));
+	}
+
+	const double MinSeparation = static_cast<double>(BodyRadius) * 0.5;
+	for (int32 I = 0; I < Origins.Num(); ++I)
+	{
+		for (int32 J = I + 1; J < Origins.Num(); ++J)
+		{
+			const double Dist = FVector::Dist(Origins[I], Origins[J]);
+			TestTrue(*FString::Printf(TEXT("direzioni %d e %d sono distinte (distano %.2f)"), I, J, Dist),
+				Dist > MinSeparation);
+		}
+	}
+	return true;
+}
+
+/**
+ * D007.6 — `BodyRadius = 0` degenera al centro.
+ *
+ * E' il caso limite che dice se la formula e' **quella** o una che le somiglia: un'implementazione che
+ * sommasse anche `MarkerLength`, o che partisse dall'apotema della cella invece che dal raggio del corpo,
+ * qui non tornerebbe al centro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexFacingZeroRadiusTest,
+	"RefactorTactics.Hex.FacingMarkerOriginDegeneratesAtZeroRadius",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexFacingZeroRadiusTest::RunTest(const FString&)
+{
+	const FVector Center(500.0, 500.0, 12.0);
+	const float FaceHeight = 95.f;
+	const FVector Expected = Center + FVector(0.0, 0.0, static_cast<double>(FaceHeight));
+
+	for (int32 D = 0; D < 6; ++D)
+	{
+		const ERTHexDirection Dir = static_cast<ERTHexDirection>(D);
+		const FVector O = URTHexLibrary::FacingMarkerOrigin(Dir, Center, /*BodyRadius=*/ 0.f, FaceHeight);
+		TestTrue(*FString::Printf(TEXT("direzione %d: raggio nullo -> centro"), D), O.Equals(Expected, 0.01));
+	}
+	return true;
+}
+
+
+/**
  * Leggibilita' tattica (pilastro di prodotto): l'overlay serve a far capire le regole della mappa, quindi due
  * superfici diverse NON possono avere lo stesso colore, e nessuna puo' somigliare al marcatore delle celle
  * bloccate. Sono le due condizioni che rendono l'overlay informativo invece di decorativo.
@@ -1142,4 +1342,47 @@ bool FRTSegmentSplitAcrossCellsIsContinuousTest::RunTest(const FString&)
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.
+/**
+ * 🔑 **L'ANCORA ASSOLUTA della bussola: `E` e' `+X`, e da li' `N` e' `-Y`.**
+ *
+ * 🔴 **Perche' non basta `FacingRotationMatchesNeighbourDirection`.** Quel test costruisce l'atteso con
+ * `AxialToWorld` + `Neighbor` — un'altra strada, ma la **stessa origine**. Se qualcuno scambiasse `Wx` e
+ * `Wy` dentro `AxialToWorld`, entrambi i lati ruoterebbero insieme e il test resterebbe **verde** mentre
+ * l'intera mappa gira di 90 gradi sotto i piedi. La convenzione va dichiarata, non derivata: qui gli
+ * angoli sono **letterali**, ed e' voluto — cambiarla deve costare la modifica di questa tabella.
+ *
+ * ⚠️ **Non e' un dettaglio da documento.** Nella seduta `U41` il verdetto sul facing e' stato
+ * *«non so se e' corretto perche' non so qual e' il nord»*: senza questa ancora la domanda non ha
+ * risposta nel repository. Owner in prosa: `spec-hex-geometry-authoring.md` §2.1.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexCompassAnchorTest,
+	"RefactorTactics.Hex.EastIsWorldPlusXAndTheSixYawsAreDeclared",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexCompassAnchorTest::RunTest(const FString&)
+{
+	// L'ancora, detta una volta e in chiaro.
+	TestTrue(TEXT("E guarda world +X"),
+		URTHexLibrary::FacingRotation(ERTHexDirection::E).Vector().Equals(FVector::XAxisVector, 1.e-3));
+
+	// La tabella E' la convenzione: enum order E, NE, NW, W, SW, SE.
+	const double DeclaredYaw[6] = { 0.0, -60.0, -120.0, 180.0, 120.0, 60.0 };
+	for (int32 D = 0; D < 6; ++D)
+	{
+		const FVector Expected = FRotator(0.0, DeclaredYaw[D], 0.0).Vector();
+		const FVector Actual = URTHexLibrary::FacingRotation(static_cast<ERTHexDirection>(D)).Vector();
+		TestTrue(*FString::Printf(TEXT("direzione %d: yaw dichiarato %.0f"), D, DeclaredYaw[D]),
+			Actual.Equals(Expected, 1.e-3));
+	}
+
+	// ⛔ E il corollario che la spec dichiara a parole: in un pointy-top **nessun lato guarda a nord**.
+	// Se un giorno una direzione ci finisse sopra, la §2.1 sarebbe diventata falsa senza che nulla lo dica.
+	const FVector North = -FVector::YAxisVector;
+	for (int32 D = 0; D < 6; ++D)
+	{
+		TestFalse(*FString::Printf(TEXT("direzione %d non e' il nord (-Y)"), D),
+			URTHexLibrary::FacingRotation(static_cast<ERTHexDirection>(D)).Vector().Equals(North, 1.e-3));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -57,6 +57,12 @@ namespace
 	 * container non ordinato — cioe' esattamente cio' che l'invariante #4 vieta, dentro lo strumento che
 	 * dovrebbe verificarlo.
 	 */
+	// ⛔ **SENZA CHIAMANTI, misurato il 2026-09-05.** `git grep HashFinalState -- Source/` da' questa
+	// definizione e una citazione in un commento di test: nient'altro. Lo `StateHash` che gli scenari
+	// pubblicano viene da `URTMatchStateHashLibrary::HashMatchState` via `RTScenarioSession.cpp`, e
+	// `RTScenarioRunner` lo propaga da `RunResult.StateHash`. ⚠️ `D-284` e `D-324` contano questo fra i **due
+	// siti di `Mix`** da tenere allineati: uno dei due e' questa funzione morta, e la nota va letta sapendolo.
+	// La rimozione non e' fatta qui — sarebbe una pulizia che le due voci non prevedono.
 	uint32 HashFinalState(const TMap<FString, ARTUnit*>& UnitsById)
 	{
 		TArray<FString> Ids;
@@ -88,7 +94,6 @@ namespace
 			Mix(static_cast<uint32>(Unit->Cell.Layer));
 			Mix(static_cast<uint32>(Unit->Health));
 			Mix(static_cast<uint32>(Unit->Shield));
-			Mix(static_cast<uint32>(Unit->Energy));
 			Mix(Unit->IsAlive() ? 1u : 0u);
 		}
 		return Hash;
@@ -300,6 +305,12 @@ namespace
 		}
 		Aggregate.TurnsPlayed = FMath::Max(Aggregate.TurnsPlayed, RunResult.TurnsPlayed);
 
+		// Le durate si SOMMANO dove i turni si massimizzano, ed e' voluto: `TurnsPlayed` risponde a «quanto e'
+		// andata avanti la partita piu' lunga», le durate a «quanto e' costato tutto questo». Un massimo qui
+		// direbbe che due varianti costano quanto la piu' lenta, che e' falso di ogni run ripetuta.
+		Aggregate.SimulationSeconds += RunResult.SimulationSeconds;
+		Aggregate.WallClockSeconds += RunResult.WallClockSeconds;
+
 		Aggregate.ScriptedDecisionsApplied += RunResult.ScriptedDecisionsApplied;
 		Aggregate.ScriptedDecisionsUnused += RunResult.ScriptedDecisionsUnused;
 		if (RunResult.DecisionSource != TEXT("none"))
@@ -436,16 +447,24 @@ namespace
 }
 
 FRTTestResult URTScenarioRunner::RunSingle(UWorld* World, const FRTTestScenario& Scenario,
-	bool bTearDownAfter)
+	bool bTearDownAfter, const FRTWorkbenchVariant& Variant)
 {
 	// Ciclo stretto sopra la STESSA sessione che il gioco fa avanzare un passo per frame. Non e' una seconda
 	// implementazione: se lo fosse, un test verde non direbbe piu' niente su quel che si vede a schermo.
 	FRTScenarioSession Session;
 	Session.TurnPauseSeconds = 0.f; // headless non c'e' nessuno a guardare: nessuna pausa da rispettare
+	// La variante prima di `Start`, che e' dove la sessione la applica: passarla dopo sarebbe un'ora tardi.
+	Session.WorkbenchVariant = Variant;
+
+	// Il tempo di parete parte da QUI e non dal primo step: `Start` allestisce mondo, unita' e mappa, e su
+	// uno scenario grande e' una fetta reale del costo. Escluderlo darebbe una durata che non corrisponde a
+	// nulla che si possa aspettare guardando la run.
+	const double WallClockStart = FPlatformTime::Seconds();
 
 	if (!Session.Start(World, Scenario))
 	{
-		const FRTTestResult Failed = Session.GetResult();
+		FRTTestResult Failed = Session.GetResult();
+		Failed.WallClockSeconds = static_cast<float>(FPlatformTime::Seconds() - WallClockStart);
 		if (bTearDownAfter) { Session.TearDown(); }
 		return Failed;
 	}
@@ -458,12 +477,23 @@ FRTTestResult URTScenarioRunner::RunSingle(UWorld* World, const FRTTestScenario&
 	// un `Fail` su «ancora in corso» che non parlerebbe del gioco ma di questa riga.
 	const int32 PlannedTurns = Scenario.bFreeRun ? Scenario.MaxTurns : Scenario.Turns.Num();
 	const int32 MaxSteps = MaxResolveTicks * (PlannedTurns + 2);
+
+	// Il passo del ciclo in una costante e non ripetuto due volte: e' il fattore che converte gli step in
+	// `SimulationSeconds`, e due letterali `0.05f` che devono restare uguali sono due letterali che prima o
+	// poi divergono — a quel punto la durata riportata sarebbe di una simulazione che non e' avvenuta.
+	constexpr float StepSeconds = 0.05f;
+	int32 StepsTaken = 0;
 	for (int32 I = 0; I < MaxSteps && !Session.IsFinished(); ++I)
 	{
-		Session.Step(0.05f, /*bPumpTurnManager=*/ true);
+		Session.Step(StepSeconds, /*bPumpTurnManager=*/ true);
+		++StepsTaken;
 	}
 
-	const FRTTestResult Result = Session.GetResult();
+	FRTTestResult Result = Session.GetResult();
+	// Le due durate si riempiono QUI e non dentro la sessione: la sessione avanza un passo per volta e non sa
+	// quanti gliene chiederanno: e' il runner a possedere il ciclo, quindi e' il runner a poterlo contare.
+	Result.SimulationSeconds = StepsTaken * StepSeconds;
+	Result.WallClockSeconds = static_cast<float>(FPlatformTime::Seconds() - WallClockStart);
 	if (bTearDownAfter)
 	{
 		Session.TearDown();

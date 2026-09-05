@@ -5,7 +5,7 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "Gadget colpisce Riktor con l'attacco base a distanza 2, dentro la portata 4 di Hero.Gadget.ArcPulse. Riktor parte da 120 HP e ne perde 22: e' il primo scenario che verifica un DANNO invece di una posizione, e usa i numeri del catalogo eroi v0.1 — se qualcuno li cambia senza aggiornare il catalogo, questo diventa rosso.",
+  "_nota": "Gadget colpisce Riktor con l'attacco base a distanza 2, dentro la portata 4 di Hero.Gadget.ArcPulse. Riktor parte da 120 HP: il colpo ne dichiara 22, il BaseShield di D-224 — che ferma solo il danno Direct — ne assorbe 5, e Riktor ne perde 17 — l'attesa e' quindi 103. E' il primo scenario che verifica un DANNO invece di una posizione, e usa i numeri del catalogo eroi v0.1 — se qualcuno li cambia senza aggiornare il catalogo, questo diventa rosso.",
 
   "units": [
     { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-1, 0, 0] },

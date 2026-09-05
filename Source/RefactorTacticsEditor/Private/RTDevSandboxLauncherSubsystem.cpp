@@ -3,6 +3,7 @@
 #include "EditorModeManager.h"
 #include "Editor.h"
 #include "Framework/Application/SlateApplication.h"
+#include "LevelEditor.h"
 #include "Framework/Docking/TabManager.h"
 #include "Misc/Paths.h"
 #include "RTLauncherWorkspace.h"
@@ -19,9 +20,39 @@
 // `REFACTORTACTICS_API`, quindi il simbolo non attraversa il confine di modulo: misurato, il link fallisce
 // con `LNK2001: LogRT non risolto`. E' anche la ragione — non detta finora — per cui `RTHexEditorMode.cpp`
 // si definisce `LogRTHexEditorMode` invece di riusare quella del progetto.
-DEFINE_LOG_CATEGORY_STATIC(LogRTDevSandboxLauncher, Log, All);
+DEFINE_LOG_CATEGORY(LogRTDevSandboxLauncher);
 
 const FName URTDevSandboxLauncherSubsystem::TabId(TEXT("RTDevSandboxLauncher"));
+
+bool URTDevSandboxLauncherSubsystem::InvokeTabInLayout(const FName InTabId)
+{
+	// ⛔ Il tab manager del **Level Editor** per primo, e il globale solo come uscita di sicurezza.
+	//
+	// La posizione del tab (#2168) e' dichiarata nel layout che il `LevelEditorTabManager` ripristina, e
+	// quel manager e' un SUB-manager (`LevelEditor.cpp:815`). `AttemptToOpenTab` cerca il tab chiuso nelle
+	// proprie `DockAreas`/`CollapsedDockAreas`: dal globale, la docking area del Level Editor non e'
+	// raggiungibile. Il motore ha un ramo che sale dal sub-manager al globale (`TabManager.cpp:1778`) e
+	// **nessuno** che scenda — quindi invocare dal globale un tab collocato nel layout del Level Editor
+	// significa non trovarlo, e aprire una finestra.
+	//
+	// ⚠️ `GetModulePtr` e non `LoadModulePtr`: qui siamo a runtime, non in startup. Se il Level Editor non
+	// e' caricato non c'e' nemmeno un layout in cui atterrare, e forzarne il caricamento per aprire un tab
+	// sarebbe un effetto collaterale sproporzionato.
+	if (const FLevelEditorModule* LevelEditor = FModuleManager::GetModulePtr<FLevelEditorModule>(TEXT("LevelEditor")))
+	{
+		if (const TSharedPtr<FTabManager> LevelEditorTabManager = LevelEditor->GetLevelEditorTabManager())
+		{
+			if (LevelEditorTabManager->TryInvokeTab(FTabId(InTabId)).IsValid())
+			{
+				return true;
+			}
+		}
+	}
+
+	// Il fallback non e' una resa: e' cio' che succede a chi ha il tab in una finestra salvata nell'ini, e
+	// a chi apre l'editor senza Level Editor. Un pannello fluttuante e' meglio di nessun pannello.
+	return FGlobalTabmanager::Get()->TryInvokeTab(FTabId(InTabId)).IsValid();
+}
 
 namespace
 {
@@ -203,7 +234,7 @@ bool URTDevSandboxLauncherSubsystem::ActivateSurface(FName SurfaceKey)
 		return GLevelEditorModeTools().IsModeActive(Surface->ActivationTarget);
 
 	case ERTLauncherActivationKind::Tab:
-		return FGlobalTabmanager::Get()->TryInvokeTab(Surface->ActivationTarget).IsValid();
+		return InvokeTabInLayout(Surface->ActivationTarget);
 
 	default:
 		return false;
@@ -249,7 +280,7 @@ void URTDevSandboxLauncherSubsystem::HandleMapOpened(const FString& Filename, bo
 
 	UE_LOG(LogRTDevSandboxLauncher, Log, TEXT("[TacticalDesigner] livello di bootstrap aperto (%s): presento il launcher."), *Filename);
 
-	FGlobalTabmanager::Get()->TryInvokeTab(TabId);
+	InvokeTabInLayout(TabId);
 }
 
 #undef LOCTEXT_NAMESPACE

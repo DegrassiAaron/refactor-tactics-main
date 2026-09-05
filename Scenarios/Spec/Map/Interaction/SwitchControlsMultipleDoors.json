@@ -1,0 +1,55 @@
+{
+  "scenarioId": "Spec.Map.Interaction.SwitchControlsMultipleDoors",
+  "tags": ["spec", "map", "door", "interact", "graph", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "Il caso `1 -> N` di #833 (CP 23.4): UNA leva comanda DUE porte, e le apre entrambe con una sola pressione. Il nome e' dichiarato da `docs/technical/tooling/scenario-map.md` da agosto, insieme a `SwitchOpensDoor` e `OpenFailsDependentMoveBlocks`.",
+
+  "_nota_cosa_aggiunge_al_primo": "`SwitchOpensDoor` prova che il bersaglio puo' essere ALTRO dalla sorgente. Questo prova che possono essere PIU' D'UNO, che e' la cardinalita' che lo Scope della issue dichiara — `1->1` e `1->N` — e che il piano non nomina: `FRTInteractionOp` porta il solo `SourceId`, e quanti bersagli esistano lo sa solo l'asset.",
+
+  "_nota_geometria": "La leva `S1` sta sul bordo NE di (0,0) e R1 la punta mirando (1,-1). Le due porte comandate chiudono bordi su direttrici che la leva non tocca: `D1` fra (1,0) e (2,0), `D2` fra (0,1) e (1,1). Nessuna delle due e' adiacente a R1, e nessuna sta sul percorso dell'altra.",
+
+  "_nota_perche_due_porte_e_non_tre": "Due bastano a distinguere `1->N` da `1->1`, e la terza misurerebbe la stessa proprieta' una volta in piu'. Cio' che due porte NON provano — che l'ordine di applicazione segua la lista dichiarata invece dell'iterazione di una `TMap` — non e' materia di scenario: lo prova `RefactorTactics.InteractionGraph.ApplicationFollowsDeclaredOrder`, che confronta la lista diretta con quella inversa. Qui si misura che siano DUE, non in quale ordine.",
+
+  "_nota_avversario": "W1 sta all'estremita' opposta e non dichiara intenti: serve perche' la partita abbia due squadre, e la sua posizione invariata e' la controprova che il turno non ha fatto altro.",
+
+  "doors": [
+    { "cell": [0, 0, 0], "edge": "NE", "doorId": 1, "stableId": "S1", "state": "Closed" },
+    { "cell": [1, 0, 0], "edge": "E", "doorId": 2, "stableId": "D1", "state": "Closed" },
+    { "cell": [0, 1, 0], "edge": "E", "doorId": 3, "stableId": "D2", "state": "Closed" }
+  ],
+
+  "interactionBindings": [
+    { "source": "S1", "targets": ["D1", "D2"] }
+  ],
+
+  "units": [
+    { "id": "R1", "hero": "Hero.Riktor", "team": 0, "cell": [0, 0, 0] },
+    { "id": "W1", "hero": "Hero.Wraith", "team": 1, "cell": [0, -4, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 - R1 aziona la leva. Una sola pressione, due porte che cambiano stato.",
+      "intents": [
+        { "unit": "R1", "ability": "Action.Interact", "targetCell": [1, -1, 0] }
+      ]
+    },
+    {
+      "_turno": "T2 - R1 attraversa il varco di `D1`. E' il passo che rende il conteggio interpretabile: senza, «DoorOpened == 2» direbbe che due dati sono cambiati, non che il gioco ne abbia usato uno.",
+      "intents": [
+        { "unit": "R1", "move": [[1, 0, 0], [2, 0, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "LogEventCount", "category": "Environment", "outcome": "DoorOpened", "value": 2 },
+    { "type": "LogEventCount", "category": "Environment", "outcome": "DoorClosed", "value": 0 },
+    { "type": "UnitAtCell", "unit": "R1", "cell": [2, 0, 0] },
+    { "type": "UnitAtCell", "unit": "W1", "cell": [0, -4, 0] },
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}

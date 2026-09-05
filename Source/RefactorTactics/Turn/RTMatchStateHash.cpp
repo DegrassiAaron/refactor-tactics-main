@@ -57,8 +57,21 @@ uint32 URTMatchStateHashLibrary::HashMatchState(const URTHexMapAsset* Map,
 		MixCell(U.Cell);
 		Mix(static_cast<uint32>(U.Health));
 		Mix(static_cast<uint32>(U.Shield));
-		Mix(static_cast<uint32>(U.Energy));
 		Mix(U.bAlive ? 1u : 0u);
+		// Il facing entra come intero dell'enum, nella stessa forma degli altri scalari — `D-261`.
+		Mix(static_cast<uint32>(U.Facing));
+
+		// I cooldown entrano IN ORDINE DI SLOT e senza ordinamento — `D-333`. `AbilityCooldowns` e' un
+		// `TArray<int32>` indicizzato per slot, non un container associativo: l'ordine e' gia' un dato del
+		// gioco, e ordinarlo cancellerebbe proprio l'informazione che serve — *quale* abilita' e' in ricarica.
+		//
+		// ⚠️ Anche la LUNGHEZZA entra: due unita' con kit di dimensione diversa e cooldown tutti a zero sono
+		// stati diversi, e senza questa riga `[0,0]` e `[0,0,0]` mescolerebbero la stessa sequenza.
+		Mix(static_cast<uint32>(U.AbilityCooldowns.Num()));
+		for (const int32 Cooldown : U.AbilityCooldowns)
+		{
+			Mix(static_cast<uint32>(Cooldown));
+		}
 
 		// Stati ORDINATI: arrivano da `TMap`/`TSet`, la cui iterazione non è deterministica. Senza l'ordine,
 		// due esecuzioni identiche darebbero hash diversi — il checksum diventerebbe la fonte del falso
@@ -154,6 +167,32 @@ uint32 URTMatchStateHashLibrary::HashMatchState(const URTHexMapAsset* Map,
 			// `FRTHexEdge`. Citare una issue alla lettera ne importa anche i nomi sbagliati.
 			MixName(Arc.StableId);
 		}
+
+		// GEOMETRIA INTRA-CELLA (`#1830`, `D-269`): un muro dentro una cella ferma vista e proiettili, quindi
+		// due partite che differiscono solo per lui hanno esiti futuri diversi. E' lo stesso criterio scritto
+		// due righe sopra per `bConductsElectricity`, e sarebbe lo stesso difetto ometterlo: `ComputeHash` lo
+		// mescola, e un campo mescolato da un hash e saltato dall'altro e' una divergenza che nessuno ha
+		// deciso.
+		//
+		// ⚠️ L'ordine e' quello canonico, chiesto a `URTHexMapAsset` invece di riscritto qui: un secondo
+		// ordinamento equivalente e' precisamente il modo in cui i due hash tornerebbero a divergere.
+		//
+		// 🟢 Una mappa senza muri interni non aggiunge nulla, quindi il suo hash resta quello di prima: i
+		// replay gia' registrati non cambiano valore. Nessun asset versionato ne ha — misurato.
+		TArray<FRTHexInteriorWall> Walls = Map->InteriorWalls;
+		URTHexMapAsset::SortInteriorWallsCanonically(Walls);
+		for (const FRTHexInteriorWall& Wall : Walls)
+		{
+			MixCell(Wall.Cell);
+			Mix(static_cast<uint32>(Wall.Segment.Axis));
+			Mix(static_cast<uint32>(Wall.Segment.Offset));
+			Mix(static_cast<uint32>(Wall.Segment.Layer));
+			Mix(static_cast<uint32>(FMath::Min(Wall.Segment.AlongStart, Wall.Segment.AlongEnd)));
+			Mix(static_cast<uint32>(FMath::Max(Wall.Segment.AlongStart, Wall.Segment.AlongEnd)));
+			Mix(static_cast<uint32>(Wall.Segment.WallType));
+			// ⛔ `StableId` NO, e la divergenza da `Door.StableId` due blocchi sopra e' voluta: quel nome lo
+			// risolve `FindDoorEdges` a runtime, questo lo usa solo l'editor. Vedi `RTHexMapAsset.h`.
+		}
 	}
 
 	// --- Progresso degli obiettivi ------------------------------------------------------------------------
@@ -185,11 +224,22 @@ TArray<FRTUnitStateDigest> URTMatchStateHashLibrary::BuildUnitDigests(const TArr
 		Digest.Cell = Unit->Cell;
 		Digest.Health = Unit->Health;
 		Digest.Shield = Unit->Shield;
-		Digest.Energy = Unit->Energy;
 		// NON si filtra sui vivi: una caduta entra con `bAlive = false`, ed e' il motivo per cui quel campo
 		// esiste. Senza, «tre vivi e un caduto» e «tre vivi e basta» darebbero lo stesso hash.
 		Digest.bAlive = Unit->IsAlive();
+		Digest.Facing = Unit->Facing;
 		Digest.Statuses = Unit->GetActiveStatusNames();
+		// `D-333`: quanto manca a ogni abilita', per slot.
+		//
+		// ⚠️ **Si passa dall'accessor, non dal campo.** `ARTUnit::AbilityCooldowns` e' `private` di proposito —
+		// a scriverlo sono `ConsumeAbility`, `TickCooldowns` e `SyncAbilityCooldowns`, e il digest e' un
+		// LETTORE. `GetAbilityCooldown` normalizza anche gli indici fuori kit, quindi la lunghezza del
+		// risultato e' sempre `NumAbilities()`: e' la stessa scala che l'HUD e il bot leggono.
+		Digest.AbilityCooldowns.Reset(Unit->NumAbilities());
+		for (int32 Slot = 0; Slot < Unit->NumAbilities(); ++Slot)
+		{
+			Digest.AbilityCooldowns.Add(Unit->GetAbilityCooldown(Slot));
+		}
 		Digests.Add(Digest);
 	}
 

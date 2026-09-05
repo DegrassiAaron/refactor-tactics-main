@@ -11,6 +11,9 @@
 #include "Debug/RTDebugReportLibrary.h"
 #include "HAL/IConsoleManager.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexCellData.h"
+#include "Map/RTHexCoverPlacementLibrary.h"
+#include "Map/RTHexOccupancyLibrary.h"
 #include "Misc/AutomationTest.h"
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "Turn/RTTurnLog.h"
@@ -261,6 +264,8 @@ bool FRTDebugNamespaceDeclaresAllCommandsTest::RunTest(const FString&)
 	// cancellando un comando buono.
 	TestTrue(TEXT("rt.Debug.Pacing resta, benche' fuori dagli otto del DoD"),
 		Registered.Contains(TEXT("rt.Debug.Pacing")));
+	TestTrue(TEXT("e rt.Debug.DumpCellPlacement pure, aggiunto da #1826"),
+		Registered.Contains(TEXT("rt.Debug.DumpCellPlacement")));
 	return true;
 }
 
@@ -403,6 +408,93 @@ bool FRTDebugActionReportCarriesEveryFieldTest::RunTest(const FString&)
 	TestTrue(TEXT("ValidationResult — l'esito tradotto, non il suo uint8"),
 		Line.Contains(TEXT("cella")) || Line.Contains(TEXT("bersaglio")));
 	TestTrue(TEXT("EventSequence — l'ordine, che nel modello e' l'indice"), Line.Contains(TEXT("#11")));
+	return true;
+}
+
+
+/**
+ * `rt.Debug.DumpCellPlacement` mostra davvero cio' che #1826 chiedeva: la maschera dei settori **e** le
+ * regioni libere con `FirstWedge` e `Size`.
+ *
+ * 🔑 **Perche' esiste questo test e non basta «il comando e' registrato».** La sezione *Debug / log
+ * evidence* di [#1826] chiedeva un comando che stampasse quei valori, e un test che verificasse solo la
+ * registrazione lascerebbe passare un comando che stampa una riga vuota. Qui si guarda il **contenuto**,
+ * che e' il motivo per cui la formattazione vive in una funzione pura e non dentro il
+ * `FAutoConsoleCommand`.
+ *
+ * ⚠️ **Le regioni si calcolano con `ComputeFreeRegions` invece di scriverle a mano**: cosi' il test
+ * esercita l'accoppiata vera fra maschera e regioni, che e' quella che il comando usa. Regioni scritte a
+ * mano proverebbero solo che `Printf` funziona.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDebugCellPlacementReportTest,
+	"RefactorTactics.Debug.CellPlacementReportShowsMaskAndRegions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDebugCellPlacementReportTest::RunTest(const FString&)
+{
+	const FRTCellId Cell(2, -1, 0);
+
+	// Due gruppi da tre occupati: {1,2,3} e {7,8,9}. E' l'esempio del Decision Record di `D-289` — sei
+	// settori liberi che la vecchia soglia dichiarava `Blocked` e in cui invece ci si sta benissimo.
+	FRTOccupancyMask Mask;
+	Mask.Sectors = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 7) | (1 << 8) | (1 << 9);
+	Mask.bCoreBlocked = false;
+
+	TArray<FRTPlacementRegion> Regions;
+	URTHexCoverPlacementLibrary::ComputeFreeRegions(Mask, Regions);
+	TestEqual(TEXT("la scena ha due regioni libere"), Regions.Num(), 2);
+
+		// Due coperture di bordo: la meta' di geometria che la maschera dei settori NON porta.
+	TArray<FRTHexCover> Covers;
+	{
+		FRTHexCover A; A.Edge = ERTHexDirection::E;  A.Type = ERTHexCoverType::Low;  A.bGenerated = true;
+		FRTHexCover B; B.Edge = ERTHexDirection::NW; B.Type = ERTHexCoverType::High; B.bGenerated = false;
+		Covers.Add(A); Covers.Add(B);
+	}
+
+	const TArray<FString> Lines = URTDebugReportLibrary::DescribeCellPlacement(Cell, Mask, Regions, Covers);
+	const FString Report = FString::Join(Lines, TEXT("\n"));
+
+	TestTrue(TEXT("nomina la cella"), Report.Contains(Cell.ToString()));
+	TestTrue(TEXT("conta i settori occupati"), Report.Contains(TEXT("6 settori su 12 occupati")));
+	TestTrue(TEXT("dichiara lo stato del centro"), Report.Contains(TEXT("centro libero")));
+
+	// L'anello disegnato: e' la FORMA, cioe' l'informazione che il solo conteggio non porta.
+	TestTrue(TEXT("disegna l'anello dei dodici settori"), Report.Contains(TEXT(".###...###..")));
+
+	// I due valori che #1826 nomina esplicitamente, per ciascuna regione.
+	for (const FRTPlacementRegion& Region : Regions)
+	{
+		TestTrue(FString::Printf(TEXT("stampa FirstWedge=%d"), Region.FirstWedge),
+			Report.Contains(FString::Printf(TEXT("FirstWedge=%2d"), Region.FirstWedge)));
+		TestTrue(FString::Printf(TEXT("stampa Size=%d per la regione %d"), Region.Size, Region.FirstWedge),
+			Report.Contains(FString::Printf(TEXT("Size=%2d"), Region.Size)));
+	}
+
+	// CONTROPROVA: una cella senza alcuna posa non stampa «zero regioni» in silenzio, lo dice.
+	FRTOccupancyMask Full;
+	Full.Sectors = 0xFFF;
+	TArray<FRTPlacementRegion> NoRegions;
+	URTHexCoverPlacementLibrary::ComputeFreeRegions(Full, NoRegions);
+	TestEqual(TEXT("dodici settori occupati non lasciano regioni"), NoRegions.Num(), 0);
+
+	const FString Blocked = FString::Join(
+		URTDebugReportLibrary::DescribeCellPlacement(Cell, Full, NoRegions, TArray<FRTHexCover>()), TEXT("\n"));
+	TestTrue(TEXT("dice che non esiste una posa"), Blocked.Contains(TEXT("non esiste una posa")));
+	TestTrue(TEXT("e l'anello e' tutto pieno"), Blocked.Contains(TEXT("############")));
+
+	// 🔴 LA META' CHE MANCAVA. Un raggio dal centro al punto medio di un lato viene scritto dal bake come
+	// copertura di BORDO, non come muro interno: senza queste righe il comando rispondeva «zero settori,
+	// zero muri» a una cella che porta geometria, e la seduta PIE del 2026-09-02 ci ha perso mezz'ora.
+	TestTrue(TEXT("nomina le coperture di bordo"), Report.Contains(TEXT("2 copertura/e di bordo")));
+	TestTrue(TEXT("col bordo di ciascuna"),
+		Report.Contains(TEXT("bordo E")) && Report.Contains(TEXT("bordo NW")));
+	TestTrue(TEXT("e distingue generata da a mano"),
+		Report.Contains(TEXT("generata")) && Report.Contains(TEXT("a mano")));
+
+	// CONTROPROVA: «nessuna copertura» si DICE, perche' tacere e' cio' che ha fuorviato.
+	TestTrue(TEXT("e a zero coperture lo dichiara invece di tacere"),
+		Blocked.Contains(TEXT("coperture di bordo: nessuna")));
+
 	return true;
 }
 

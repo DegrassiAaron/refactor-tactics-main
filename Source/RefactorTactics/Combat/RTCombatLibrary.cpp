@@ -3,6 +3,11 @@
 #include "Map/RTHexVisionLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
 
+// Le due provenienze dei pool d'assorbimento (`#2213`). La ragione per cui la seconda non nomina un
+// `ActionId` sta sulla dichiarazione, in `RTCombatLibrary.h`.
+const FName URTCombatLibrary::GuardPoolSource = FName(TEXT("D-292 · Status.Guarded"));
+const FName URTCombatLibrary::ReactionReductionPoolSource = FName(TEXT("D-309 · Reactions.DamageReduction"));
+
 FRTDamageResult URTCombatLibrary::ApplyDamage(int32 Damage, ERTDamageSource Source, int32 Shield,
 	int32 TemporaryShield, int32 Health)
 {
@@ -40,24 +45,14 @@ ERTCombatOutcome URTCombatLibrary::ClassifyCombatOutcome(int32 HealthBefore, int
 	return ERTCombatOutcome::Hit;
 }
 
-int32 URTCombatLibrary::GainEnergy(int32 Current, int32 Gain, int32 Max)
-{
-	return FMath::Clamp(Current + Gain, 0, Max);
-}
-
-bool URTCombatLibrary::IsUltimateReady(int32 Energy, int32 Max)
-{
-	return Max > 0 && Energy >= Max;
-}
-
 int32 URTCombatLibrary::EffectiveMoveRange(int32 BaseRange, bool bRooted)
 {
 	return bRooted ? 0 : BaseRange;
 }
 
-bool URTCombatLibrary::IsAbilityUsable(int32 CooldownRemaining, int32 Energy, int32 EnergyCost)
+bool URTCombatLibrary::IsAbilityUsable(int32 CooldownRemaining)
 {
-	return CooldownRemaining <= 0 && Energy >= EnergyCost;
+	return CooldownRemaining <= 0;
 }
 
 bool URTCombatLibrary::IsIntentVisibleTo(int32 ObserverTeamId, int32 OwnerTeamId, bool bOwnerRevealed)
@@ -72,6 +67,37 @@ bool URTCombatLibrary::CanPlayerControlUnit(int32 UnitTeamId, int32 PlayerTeamId
 	// E nemmeno un compagno che il bot sta gia' pianificando: sarebbe un piano scritto a due mani, e la mano
 	// che vince e' sempre quella di `PlanBots()`, che gira a inizio turno e azzera i campi del piano.
 	return UnitTeamId == PlayerTeamId && !bUnitIsBotControlled;
+}
+
+int32 URTCombatLibrary::ControlGroupForUnit(int32 IndexInTeam, int32 UnitsPerPlayer)
+{
+	// Fail-closed, e la scelta e' la stessa di `AssignSeats` un livello sopra: un formato che non dichiara
+	// quante unita' comanda una persona non produce un gruppo valido per inerzia. `INDEX_NONE` non coincide
+	// con nessun gruppo di giocatore, quindi il controllo si perde invece di essere regalato.
+	if (UnitsPerPlayer <= 0 || IndexInTeam < 0)
+	{
+		return INDEX_NONE;
+	}
+	return IndexInTeam / UnitsPerPlayer;
+}
+
+bool URTCombatLibrary::CanPlayerControlUnitInGroup(int32 UnitTeamId, int32 UnitControlGroup,
+	int32 PlayerTeamId, int32 PlayerControlGroup, bool bUnitIsBotControlled)
+{
+	// La regola di SQUADRA resta quella di sempre e non si riscrive: si aggiunge una condizione.
+	if (!CanPlayerControlUnit(UnitTeamId, PlayerTeamId, bUnitIsBotControlled))
+	{
+		return false;
+	}
+
+	// ⛔ `INDEX_NONE` da una delle due parti non comanda niente: e' il gruppo che `ControlGroupForUnit`
+	// restituisce quando il formato non dichiara `UnitsPerPlayer`, e due `INDEX_NONE` che si riconoscessero
+	// fra loro rimetterebbero in piedi proprio il caso che il fail-closed toglie.
+	if (UnitControlGroup == INDEX_NONE || PlayerControlGroup == INDEX_NONE)
+	{
+		return false;
+	}
+	return UnitControlGroup == PlayerControlGroup;
 }
 
 ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* Map, const FRTCellId& From,

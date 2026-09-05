@@ -168,15 +168,15 @@ progetto a usare una fixture invece di un'arena generata.
 | ID | Fixture | Allestimento | Cosa guardi | Assertion | Stato |
 |---|---|---|---|---|---|
 | `Movement.LongWalk` *(esiste)* | r5 | due unità attraversano l'arena, 3 celle per turno × 2 | passo, orientamento, velocità, camera che segue | *(già sue)* | già `animation` |
-| `Combat.BasicAttack` *(esiste)* | r4 | Gadget `ArcPulse` su Riktor a distanza 2 | partenza, volo, impatto, numero di danno | `UnitHpEquals B1 98` | già `animation` |
-| `Visual.Environment.FireOnEnter` | RelayLite | Wraith `(0,-3)` → move `(0,-2)` Fire | **due** momenti: 10 danni all'ingresso, 8 nel Cleanup per `Burning` | `UnitHpEquals V1 82` · `UnitAtCell (0,-2,0)` | scritto |
-| `Visual.Combat.Defeat` | r4 | Gadget `(-1,0)`; Riktor `ImpactShot` + Wraith `PulseShot` per **quattro turni** | l'unità che incassa, poi sparisce: 8+21=29 a turno, KO nel quarto (ADR-0007; con ImpactShot a 24 erano 45 e bastavano due) | `UnitAlive F1 false` · `TurnsCompleted 4` | scritto |
-| `Visual.Movement.Charge` | r4 | Riktor `(3,0)` usa `Ram` su Gadget `(1,0)` (distanza 2, portata 3) | la carica **si legge diversa** dal passo: accelerazione, impatto, arresto addosso | `UnitHpEquals F1 70` (90−20) | scritto |
+| `Combat.BasicAttack` *(esiste)* | r4 | Gadget `ArcPulse` su Riktor a distanza 2 | partenza, volo, impatto, numero di danno | `UnitHpEquals B1 103` — 120 − (22 − 5 di `BaseShield`, D-224) | già `animation` |
+| `Visual.Environment.FireOnEnter` | RelayLite | Wraith `(0,-3)` → move `(0,-2)` Fire | **due** momenti: 10 danni all'ingresso, 8 nel Cleanup per `Burning` | `UnitHpEquals V1 72` (i due danni della cella accanto: il danno da terreno e' `Environmental`, e il `BaseShield` non lo ferma — D-224) · `UnitAtCell V1 (0,-2,0)` | scritto |
+| `Visual.Combat.Defeat` | r4 | Gadget `(-1,0)`; Riktor `ImpactShot` + Wraith `PulseShot` per **sei turni** | l'unità che incassa, poi sparisce: KO al **sesto** (ADR-0007 lo aveva già portato da due a quattro; D-224 da quattro a sei, e il danno per turno **non** è costante — `Hero.Gadget.ReactiveCapacitor` ha cooldown 3) | `UnitAlive F1 false` · `UnitHpEquals R1 95` · `TurnsCompleted 6` | scritto |
+| `Visual.Movement.Charge` | r4 | Riktor `(3,0)` usa `Ram` su Gadget `(1,0)` (distanza 2, portata 3) | la carica **si legge diversa** dal passo: accelerazione, impatto, arresto addosso | `UnitHpEquals F1 75` — 90 − (20 − 5 di `BaseShield`, D-224) | scritto |
 | `Visual.Environment.IceSlide` | RelayLite | Gadget `(-2,4)` → move `(-2,3)` `(-2,2)` Ice, restano 3 MP | il passo extra deve leggersi come **scivolata**, non come un passo in più | `UnitAtCell F1 (-2,1,0)` | scritto |
 
 Tre cose emerse verificando i numeri prima di scrivere i file, e nessuna era ovvia:
 
-- **`Burning` costa 8 danni nel Cleanup**, per due turni. Wraith non finisce a 90 ma a **82**, e lo scenario
+- **`Burning` costa 8 danni nel Cleanup**, per due turni. Wraith non finisce a 90 ma a **72**, e lo scenario
   del fuoco ha quindi *due* momenti da guardare invece di uno. Un VFX che li copre con la stessa animazione
   sta nascondendo una regola.
 - **`Action.Charge` ha portata 3** (catalogo azioni), ereditata da `Ram`: la distanza 2 dell'allestimento
@@ -196,16 +196,20 @@ la spinta non si legge, non è un difetto del VFX — è la §8.1.
 
 | ID | Fixture | Cosa guardi | Stato |
 |---|---|---|---|
-| `Visual.Combat.WaterElectric` | r5 | Phase bagna (prio 50), Gadget scarica potenziato (prio 55): **due regole in un colpo** — la combo firma e la priorità intra-fase. 100−16−32 = 52 | scritto |
+| `Visual.Combat.WaterElectric` | r5 | Wraith scatta nella spina d'acqua in fase **Dash**, il terreno lo bagna, e la scarica di Gadget nel Blast trova un bersaglio già bagnato: **due regole in un colpo** — la combo firma e l'ordine fra le fasi. `90 − (32 − 5 di BaseShield) = 63`. ⚠️ Phase **non** è in questo scenario: la variante coordinata fra due eroi è `Visual.Combat.WaterElectricCoordinated`, nella tabella delle sorgenti del bagnato | scritto |
 | `Visual.Combat.FallbackTargetMoved` | r5 | Riktor lascia la cella nel Dash, la scarica arriva sulla cella **vuota**: il piano è rivalidato, non annullato | già nel corpus |
 | `Visual.Core.PhaseOrder` | r4 | tre azioni in tre fasi separate — carica, colpo, camminata: `Dash → Blast → Move` deve **vedersi** | scritto |
 | `Visual.Combat.PushResistance` | r4 | la stessa spinta su Riktor (assorbita, PushResist 1) e su Wraith (subìta): una statistica invisibile diventa visibile | scritto |
+| `Visual.Combat.UnbalancedAmplifiesPush` | r5 | due Wraith identici, la stessa `PressureJet`, una sola variabile: uno e' `Status.Unbalanced`. Chi e' in piedi arretra di **una** cella, chi e' sbilanciato di **due** e resta a terra. ⚠️ La domanda non e' la distanza — quella si conta — ma il **contraccolpo**: se si ripete due volte, una spinta amplificata si legge come due spinte. ➕ E nello stesso istante `Prone` nasce e `Unbalanced` muore: due fatti che il fotogramma puo' fondere in uno · **assertion**: `UnitAtCell B1 (-1,0,0)` · `UnitAtCell V1 (-2,-2,0)` · entrambi a **79** HP (lo stato non tocca il danno) | scritto |
+| `Visual.Movement.ProneStandUpCosts` | r6 | due Wraith identici, la stessa rotta di sei celle, lo stesso budget: uno arriva in fondo, l'altro si ferma **una cella prima**. Quella cella e' il punto movimento dello StandUp. ⚠️ Il rischio non e' il conto ma la **lettura**: senza un momento proprio per il rialzarsi, resta un movimento troncato senza motivo · **assertion**: `UnitAtCell C1 (3,0,0)` · `UnitAtCell P1 (2,2,0)` | scritto |
 | `Visual.Combat.SmokeCapsTargeting` | RelayLite | il bersaglio **si vede** e non si può colpire: il fumo accorcia, non acceca | scritto |
 | `Visual.Movement.RoughRefusesCharge` | RelayLite | il rifiuto in **pianificazione**: a schermo non deve accadere niente | scritto |
 | `Visual.Reaction.Interposition` | r4 | il proiettile **cambia destinatario** a mezz'aria: Riktor incassa al posto di Wraith. Il caso più difficile del corpus — se non si vede, si legge «Gadget ha sbagliato mira» | scritto |
-| `Visual.Reaction.Deflection` | r4 | l'opposto: il colpo arriva dove doveva e **quasi non fa niente** (22 → 2). Se la parata non si vede, si legge un attacco debole invece di una difesa riuscita | scritto |
-| `Visual.Combat.GuardReducesFirstHit` | r4 | `Guard` toglie 15 al **primo** colpo e finisce lì: 120 → 92 | scritto |
-| `Visual.Combat.BraceReducesEveryHit` | r4 | `Brace` toglie 10 a **ogni** colpo e non finisce mai: 120 → 97 | scritto |
+| `Visual.Reaction.Deflection` | r4 | l'opposto: il colpo arriva dove doveva e **non fa piu' niente**: 22 diventano 2, e lo scudo base ([D-224]) assorbe anche quei 2 — Wraith resta a **90 pieni**, la barra non si muove. Se la parata non si vede, si legge un attacco debole invece di una difesa riuscita | scritto |
+| `Visual.Combat.GuardReducesFirstHit` | r4 | `Guard` porta un **pool** di 15 assorbibili, e qui il primo colpo da 22 lo esaurisce da solo: 120 → 97 (il `BaseShield` di D-224 ne assorbe altri 5). 🔴 *La cella diceva «toglie 15 al primo colpo e finisce lì», la regola che [D-292] ha superato il 2026-08-31: il numero non cambia — con un colpo sopra la soglia le due regole coincidono — ma la descrizione sì* | scritto |
+| `Visual.Combat.BraceReducesEveryHit` | r4 | `Brace` toglie 10 a **ogni** colpo e non finisce mai: 120 → 102 (il `BaseShield` di D-224 ne assorbe altri 5) | scritto |
+| `Visual.Combat.GuardVsBraceUnderSmallHits` | r5 | **il confronto affiancato, sotto colpi PICCOLI**: tre difensori identici, tre `ImpactShot` da 8 a testa, tre risposte. Il `Brace` resta **illeso** (120), la Guardia perde 4 (116), chi non si difende perde 19 (101) — il capovolgimento rispetto alle due righe qui sopra, dove con colpi grandi è la Guardia a dominare. Voce ombrello `PIE-ACC-GUARDBRACE`, seduta **U42** | scritto, `PASS 7/7` il 2026-09-03 |
+| `Visual.Combat.AreaGuardFromImpactCenter` | r5 | due difensori **identici** in `Guard`, entrambi rivolti a ovest, presi dalla stessa area: la Guardia legge il **centro dell'esplosione** e non chi l'ha lanciata, quindi uno è coperto e l'altro no. Il contrasto è tutto ciò che si guarda (`COV-12`) | scritto, voce `PIE-VIS-AREAGUARD` |
 | `Movement.Collision` *(esiste)* | r3 | chi cede la cella contesa, e che si capisca **perché** | già nel corpus |
 | `Combat.CounterStrikesBack` *(esiste)* | r4 | la terza grammatica difensiva: lo scudo assorbe **e** restituisce danno | già nel corpus |
 
@@ -218,12 +222,14 @@ fare, lo scenario non lo sa dire. Vedi §8.2.
 
 | ID | Fixture | Cosa guardi | Stato |
 |---|---|---|---|
-| `Visual.Environment.WetExtinguishesFire` | RelayLite | CP 8.4: l'acqua spegne le fiamme. Ciò che si guarda è un'**assenza** — gli 8 danni del Cleanup che non arrivano. 66, non 58 | scritto |
-| `Visual.Map.LowCoverEdge` | RelayBasin | due colpi simultanei sullo stesso bersaglio, **entità diverse**: la copertura è di un bordo. 90−11−8 = 71. Da ADR-0007 è **Wraith** a tirare dal lato riparato: con ImpactShot a 8 contro una riduzione di 10 il danno si troncava a zero e lo scenario smetteva di misurare la grandezza della copertura | scritto |
+| `Visual.Environment.WetExtinguishesFire` | RelayLite | CP 8.4: l'acqua spegne le fiamme. Ciò che si guarda è un'**assenza** — gli 8 danni del Cleanup che non arrivano. **61**, non 53 | scritto |
+| `Visual.Map.LowCoverEdge` | RelayBasin | due colpi simultanei sullo stesso bersaglio, **entità diverse**: la copertura è di un bordo. `90 − (11 + 8 − 5 di BaseShield) = 76`. Da ADR-0007 è **Wraith** a tirare dal lato riparato: con ImpactShot a 8 contro una riduzione di 10 il danno si troncava a zero e lo scenario smetteva di misurare la grandezza della copertura | scritto |
 | `Visual.Map.ClosedDoor` | RelayBasin | Phase arriva **girando**: la porta è un bordo, e il percorso deve raccontare da sé perché è lungo | scritto |
 | `Visual.Map.HighGroundNoBonus` | RelayBasin | due Wraith identici, dalla cresta e dal piano: 21+21, nessun bonus (D-024) | scritto |
 | `Visual.Map.HighCoverBlocks` | **CoverYard** | la barriera **alta** nega vista *e* passo in un turno solo: il colpo non parte e il percorso gira | scritto |
 | `Visual.Map.MultiLevel` | TestArena | la salita attraverso l'unica transizione: i layer non hanno adiacenza implicita | scritto |
+| `Visual.Map.SightWallIsWalkable` | TestArena | il banco di `PIE-HEXPLAY-6`: la colonna `q=0` blocca la **vista** ma non il **passo**, e la domanda è una sola — *il muro si vede?* La doppia natura è ciò che un giocatore non può dedurre da solo | scritto |
+| `Visual.Map.TwoLayersSameColumn` | TestArena | due unità sulla **stessa colonna** e su piani diversi: l'unica configurazione in cui un viewport che perde il layer si smaschera. Non verifica una regola — costruisce la scena che rende visibile un difetto di presentazione | scritto |
 | `Combat.BlockedByWall` *(esiste)* | r4 | il muro ferma la **vista**, non il passaggio | già nel corpus |
 | `Visual.Water.Wet` | RelayLite | *niente*: `Wet` non emette nulla, si vede solo il terreno che c'era già | **MUTO** — non scritto |
 | `Visual.Conductive.Network` | RelayLite | *niente*: la rete conduttiva è un dato senza evento e senza consumatore | **MUTO** — non scritto |
@@ -278,6 +284,44 @@ diventa verde e *allora* ha senso una vetrina — se il tema ha qualcosa da **mo
 Le capability nuove (`CoverWindow`, `Interaction`, `Perception`) non vanno aggiunte a `IsCapabilityAvailable`
 finché il sistema non esiste: l'elenco sta nel codice apposta, perché dichiarare disponibile una capability
 inesistente non deve essere una modifica al JSON.
+
+### Fascia E — banchi e compositi: scenari che non mostrano un evento
+
+Le quattro fasce sopra descrivono **cosa accade** e chiedono se si veda. Questi quattro no: o non fanno
+accadere niente, o fanno accadere troppo perché un sì/no unico abbia senso. Restano scenari di classe **B** —
+l'oracolo è l'occhio — ma la domanda che pongono è diversa, e collassarli nelle fasce esistenti avrebbe
+richiesto di inventare per ciascuno un «evento da guardare» che non hanno.
+
+| ID | Fixture | Cosa guardi | Stato |
+|---|---|---|---|
+| `Visual.Input.PcGym` | TestArena | **allestisce e non gioca**: `turns` è vuoto, la partita resta al round 1 in pianificazione e il controllo è del giocatore. Il soggetto della seduta U37 è il **gesto**, e una partita che avanza da sola glielo toglierebbe | scritto |
+| `Visual.Map.GrayKitYard` | GrayKitYard | la **scena di posa** delle sedute U25 e U35: `CoverYard` con tre aggiunte, e la base identica è un requisito — `PIE-GBX-FIT` si decide provando valori di inset, e due letture su scene diverse non sono confrontabili | scritto |
+| `Visual.Perception.Acceptance` | VisionSplit | **composito 1↔N**: i tre stati del velo — osservato, ricordato, mai visto — in una scena sola. Voce ombrello `PIE-ACC-PERCEPTION`; i criteri restano nelle cinque `PIE-KNOW*` e in `PIE-VELO-VIEWER` | scritto |
+| `Visual.Map.Acceptance` | RelayBasin | **composito 1↔N**: le tre cose che la fixture sa dire sul terreno costruito — la porta e la copertura appartengono a un **bordo**, l'altura non dà bonus — in tre turni, un tema per turno perché la linea del colpo attraversa la cella di partenza del Phase. Voce ombrello `PIE-ACC-MAP`; i criteri restano in `PIE-VIS-COVER`, `-DOOR`, `-HIGH` | scritto, `PASS 7/7` il 2026-09-03 |
+| `Visual.Environment.Acceptance` | RelayLite | **composito 1↔N**: i cinque fenomeni di superficie della fixture in cinque turni — acqua+elettricità, ghiaccio, rough, fumo, fuoco e lo spegnimento — **un fenomeno per turno**, perché l'acqua conduce e due esperimenti nello stesso Blast potrebbero interferire. Voce ombrello `PIE-ACC-ENVIRONMENT`; i criteri restano nelle sei `PIE-VIS-*` che allestisce | scritto, `PASS 12/12` il 2026-09-03 |
+| `Visual.Hud.FirstPlayable` | TestArena | **composito 1↔N**: la partita in uno stato **ricco** — roster pieno, due squadre ferite, uno slot in cooldown, un combat log popolato — perché una persona giudichi se l'HUD lo racconta. Voce ombrello `PIE-ACC-HUD` | scritto |
+
+> 🔴 **Perché questa fascia esiste: i quattro erano nel corpus e in nessun catalogo.** Misurato il
+> 2026-09-03 incrociando ogni `scenarioId` sotto `Scenarios/Visual/` con questo documento — sette assenti, di
+> cui tre erano scenari-verifica classici e ora stanno nelle fasce B e C. È la stessa classe di buco che il
+> registro PIE ha dichiarato «la peggiore» il 2026-09-02 per `Visual.Combat.AreaGuardFromImpactCenter`: un
+> file che gira, passa, e che nessun documento nomina. Nessuno lo rivede quando la scena cambia, e chi cerca
+> una scena adatta non lo trova.
+>
+> ⚠️ **`Visual.Map.GrayKitYard` era dichiarato «l'unica assenza legittima» perché è una fixture, non uno
+> scenario-verifica.** La distinzione regge — non mostra un evento — ma non giustificava l'assenza: è
+> comunque un file che una persona apre in seduta, e la sua riga qui dice *quale* seduta e *perché* la base
+> dev'essere identica a `CoverYard`. Una fixture senza catalogo è una scena che si può cambiare senza
+> accorgersi di chi la stava usando.
+>
+> Il comando che li trova, da rieseguire quando nasce uno scenario visivo:
+>
+> ```bash
+> for s in $(grep -rhoE '"scenarioId": "Visual\.[A-Za-z0-9.]+"' Scenarios/Visual >            | grep -oE 'Visual\.[A-Za-z0-9.]+' | sort -u); do
+>   grep -q "$s" docs/technical/runbooks/scenari-validazione-visiva.md || echo "ASSENTE dal catalogo: $s"
+> done
+> # deve stampare NULLA
+> ```
 
 ## 6-bis. Il corpus come test automatico
 
@@ -404,8 +448,8 @@ Le due sorgenti di `Wet` hanno ora uno scenario ciascuna, e servono entrambe:
 
 | Scenario | Sorgente del bagnato | Cosa dimostra |
 |---|---|---|
-| `Visual.Combat.WaterElectricCoordinated` | `Hero.Phase.PressureJet`, priorità 50 | la **coordinazione fra due eroi** dentro lo stesso Blast: 100−16−32 = 52 |
-| `Visual.Combat.WaterElectric` | il **terreno**, attraversato in fase Dash | che il bonus non dipende da chi bagna (D-029): 100−32 = 68 |
+| `Visual.Combat.WaterElectricCoordinated` | `Hero.Phase.PressureJet`, priorità 50 | la **coordinazione fra due eroi** dentro lo stesso Blast: `90 − (16 + 32 − 5 di BaseShield) = 47` — Wraith ha 90 HP, non 100 |
+| `Visual.Combat.WaterElectric` | il **terreno**, attraversato in fase Dash | che il bonus non dipende da chi bagna (D-029): `90 − (32 − 5 di BaseShield) = 63` — Wraith ha 90 HP, non 100 |
 
 ### Lacune dichiarate
 

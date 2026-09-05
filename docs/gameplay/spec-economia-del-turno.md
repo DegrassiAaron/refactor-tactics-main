@@ -32,7 +32,7 @@ posto dove essere scritta come candidata senza essere scambiata per regola.
 > sceglie non è *quante* cose fare, ma **quando** muoversi: *schivo e sparo* (mobilità in fase `Dash`, poi
 > attacco nel `Blast`) oppure *sparo e muovo* (attacco nel `Blast`, poi `Move`). Il costo di un'azione non è
 > un numero da spendere: è **quale slot occupa**. Il movimento ha un budget proprio in Movement Point, il
-> pivot un budget proprio in step, e cooldown e risorsa firma dicono ogni quanto un'abilità è ripetibile.
+> pivot un budget proprio in step, e il cooldown dice ogni quanto un'abilità è ripetibile.
 
 Owner della regola: [D-028](../decisions/RT_PDR_00_Decision_Log.md) per gli slot,
 [D-015](../decisions/RT_PDR_00_Decision_Log.md) per i profili, [D-060](../decisions/RT_PDR_00_Decision_Log.md)
@@ -128,11 +128,21 @@ Tre conseguenze che si sbagliano spesso:
 | **Slot** | *cosa posso fare questo turno?* | 1 movimento · 1 principale · 1 reazione | `ERTActionSlot`, catalogo §«Slot per turno» |
 | **Movement Point** | *fin dove arrivo?* | interi, per cella e per profilo | `MoveBudget` sull'unità · il budget del profilo in `RangeCells` con `ERTMovementStyle::Budget` |
 | **Pivot** | *con quale orientamento arrivo?* | step esagonali (0–3), **per eroe** | `MoveEndPivotMaxSteps` / `DashEndPivotMaxSteps` |
-| **Cooldown + risorsa firma** | *ogni quanto posso ripeterlo?* | turni interi · punti risorsa | `CooldownTurns`, catalogo eroi §«Risorsa firma» |
+| **Cooldown** | *ogni quanto posso ripeterlo?* | turni interi | `CooldownTurns` · `ARTUnit::AbilityCooldowns` |
 
-Sono **quattro assi separati e non convertibili**: non si compra un pivot con dei Movement Point, non si paga
+Sono **tre assi separati e non convertibili**: non si compra un pivot con dei Movement Point, non si paga
 un cooldown con uno slot. È ciò che impedisce al sistema di collassare in un pool unico dove ogni scelta è
 una sottrazione.
+
+> ⚠️ **Erano QUATTRO, e il quarto era la risorsa firma.** L'asse si chiamava *«Cooldown + risorsa firma»*.
+> [`D-265`](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-30) ha deciso che **non esiste una risorsa firma
+> universale** — l'economia comune è slot, cooldown e drawback — e [`D-324`](../decisions/RT_PDR_00_Decision_Log.md)
+> ha tolto `Energy`, la sua unica implementazione, dal gameplay ([#610](https://github.com/DegrassiAaron/refactor-tactics-main/issues/610)).
+> Dei due termini resta il **cooldown**.
+>
+> ⛔ **Non è un asse perso, è un asse che non c'era**: il conteggio a quattro descriveva un sistema che il codice
+> non ha mai avuto nella forma dichiarata. ✅ Un kit che adotti una risorsa propria (`D-265` lascia la via aperta)
+> ne aggiunge uno **per sé**, non per tutti — ed è la differenza che rende il conteggio tre e non quattro.
 
 > 🔴 **Correzione del 2026-08-25 — questa tabella nominava `FRTActionDef::CostMP` come sede dei Movement
 > Point, e la riga ha prodotto un'ambiguità reale.** Il campo era letto in tre modi da tre fonti diverse: qui
@@ -347,7 +357,7 @@ Più `ECO-1`, che [D-114](../decisions/RT_PDR_00_Decision_Log.md) rende **più**
 slot confermati, è l'unica via rimasta perché *«mi preparo e agisco»* diventi un piano legale
 ([#617](https://github.com/DegrassiAaron/refactor-tactics-main/issues/617)).
 
-Il resto — valori dei profili, budget dello `Sneak`, taratura della risorsa firma — è taratura, e non si
+Il resto — valori dei profili, budget dello `Sneak` — è taratura, e non si
 decide a tavolino.
 
 ## Rapporto con gli altri documenti

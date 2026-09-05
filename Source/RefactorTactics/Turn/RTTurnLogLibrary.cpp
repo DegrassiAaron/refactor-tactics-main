@@ -2,6 +2,7 @@
 #include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo del fallback, leggibile nel log
 #include "Turn/RTReactionLibrary.h" // ERTReactionOutcome: l'esito di una reazione, leggibile nel log
 #include "Turn/RTReactionOpportunityTypes.h" // FireResponseTarget/HoldResponse: la risposta si INTERROGA, non si riscrive (#1118)
+#include "Turn/RTTurnRules.h" // ERTObjectiveOutcome: l'esito del controllo dell'obiettivo, leggibile nel log (#170)
 #include "Core/RTGameplayTags.h" // TAG_Status_Burning: la causa ambientale si CHIEDE al tag, non si riscrive
 #include "Misc/FileHelper.h"
 #include "Containers/ArrayView.h" // i campi discriminanti viaggiano come una vista, non come copie
@@ -254,7 +255,8 @@ namespace
 	}
 }
 
-TArray<FRTDescribedLine> URTTurnLogLibrary::DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries)
+TArray<FRTDescribedLine> URTTurnLogLibrary::DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries,
+	const TMap<int32, FString>& SubjectNames)
 {
 	// Per VALORE e ordinato qui dentro: la sequenza leggibile non deve dipendere dall'ordine in cui le voci
 	// sono arrivate, e ordinare la copia evita di riordinare il TurnLog del chiamante come effetto collaterale.
@@ -271,6 +273,26 @@ TArray<FRTDescribedLine> URTTurnLogLibrary::DescribeTurnLogWithSubjects(TArray<F
 		FRTDescribedLine& Line = Lines.AddDefaulted_GetRef();
 		Line.Text = DescribeEntry(Entry);
 		Line.SubjectStableUnitId = Entry.UnitId == 0 ? INDEX_NONE : Entry.UnitId;
+
+		// 🔴 **CHI si e' mosso, nel testo** (#1932). `DescribeEntry` rende il PREDICATO e non ha soggetto per
+		// costruzione — e' giusto che resti cosi': `DescribeReportLine` stampa gia' `unita=%d` accanto, e
+		// prefissare la' produrrebbe la stessa identita' due volte. Il soggetto entra QUI, dove nasce la riga
+		// che un giocatore legge.
+		//
+		// ⚠️ Solo `Move`: e' la categoria in cui `UnitId` e' anche il soggetto grammaticale. Per il danno
+		// porta chi SUBISCE (#1150) — *«Gadget: colpisce»* direbbe il falso — e le voci `Status` cominciano
+		// gia' con la cella.
+		if (Entry.Category == ERTLogCategory::Move && Entry.UnitId != 0)
+		{
+			// Il nome quando il chiamante l'ha risolto, l'id stabile quando no: `u12` non e' bello ma e'
+			// verificabile, e non c'e' un terzo caso in cui la riga esca senza soggetto.
+			const FString* Known = SubjectNames.Find(Entry.UnitId);
+			const FString Subject = (Known != nullptr && !Known->IsEmpty())
+				? *Known
+				: FString::Printf(TEXT("u%d"), Entry.UnitId);
+			Line.Text = FString::Printf(TEXT("%s: %s"), *Subject, *Line.Text);
+		}
+
 		// 🔴 Il verdetto si TRASPORTA. Ricalcolarlo qui sarebbe calcolarlo a fine turno, cioe' sulla
 		// conoscenza sbagliata: e' il difetto che [D-223] esiste per chiudere.
 		Line.Verdict = Entry.Verdict;
@@ -318,6 +340,7 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	case ERTActionInvalidReason::NoEffect:       return TEXT("nessun effetto da applicare");
 	// ⚠️ Diverso da «interrotta»: quella e' stata CANCELLATA, questa e' avvenuta senza ottenere niente.
 	case ERTActionInvalidReason::Neutralised:    return TEXT("neutralizzata da un'interruzione reciproca");
+	case ERTActionInvalidReason::Unbalanced:     return TEXT("sbilanciato: non puo' correre");
 	default:                                     return TEXT("non eseguibile");
 	}
 }
@@ -375,6 +398,17 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// che nessuno ha tradotto: dodici turni di autobattle producevano solo righe «resta», e non si poteva
 		// sapere se fosse una scelta o un esito ignoto (#79, misurato il 2026-08-23).
 		case ERTMoveOutcome::Stayed:            Reason = TEXT("resta"); break;
+		// Il terreno l'ha portata OLTRE la destinazione (#2253). «scivola» e non «si muove»: la coppia
+		// `SrcCell -> TgtCell` che il ramo lungo stampa e' la stessa di `Moved`, e senza una parola diversa la
+		// riga direbbe che l'unita' e' andata dove voleva — che e' precisamente cio' che non e' successo.
+		case ERTMoveOutcome::Slid:              Reason = TEXT("scivola"); break;
+		// Il movimento CHIESTO e' riuscito, e lo scivolamento che veniva dopo no (#2314). «arriva» e non
+		// «fermo»: e' l'unica riga del vocabolario dei blocchi in cui il piano del giocatore ha funzionato, e
+		// aprirla con «fermo» — come fanno `BlockedByUnit` e i suoi fratelli — manderebbe a cercare un errore
+		// nel piano invece che una lastra di ghiaccio contro un muro. La causa non si nomina di proposito: e'
+		// uniforme rispetto al motivo (unita', contesa, ciclo, muro), e nominarla richiederebbe di sapere CHI,
+		// che questa voce non porta e che [D-223] non autorizza a dedurre.
+		case ERTMoveOutcome::SlideBlocked:      Reason = TEXT("arriva: scivolamento impedito"); break;
 		// Un valore aggiunto in coda all'enum e non tradotto qui: si legge lo stesso e DICE di non essere
 		// tradotto, invece di travestirsi da «resta». Chi lo incontra sa dove guardare.
 		default:
@@ -390,8 +424,16 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// `SupersededByDash` sta QUI e non nel ramo breve: la sua ragione d'essere e' la destinazione mai
 		// raggiunta, e un rendering che stampa solo `SrcCell` la nasconde. La coppia descrive la rotta
 		// scartata, ed e' la stessa forma di `Moved` — cambia il motivo, non la geometria.
+		// `Slid` sta qui per la stessa ragione di `SupersededByDash`: cio' che la voce deve far vedere e' la
+		// DESTINAZIONE, che non e' quella pianificata. Stampare la sola `SrcCell` nasconderebbe l'unica cosa
+		// che distingue lo scivolamento da un movimento riuscito.
+		// `SlideBlocked` sta qui perche' e' un movimento RIUSCITO: la destinazione e' quella che il giocatore
+		// aveva chiesto, e nasconderla lo lascerebbe con «impedito» senza sapere che il suo piano ha
+		// funzionato — cioe' con la lettura opposta a quella che l'esito esiste per dare.
 		if (static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Moved
 			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Displaced
+			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Slid
+			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SlideBlocked
 			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SupersededByDash)
 		{
 			return FString::Printf(TEXT("%s %s -> %s (%d celle)%s"),
@@ -432,6 +474,10 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 			return FString::Printf(TEXT("%s: %s purificato"), *Dove, *Quale);
 		case ERTStatusOutcome::Spent:
 			return FString::Printf(TEXT("%s: %s incassato"), *Dove, *Quale);
+		// `Amount` qui e' il PREZZO, non una durata: e' l'unico esito di stato in cui la vittima paga
+		// (`#2253`), e la riga deve far vedere quanto — altrimenti «rialzato» e «scaduto» si somigliano.
+		case ERTStatusOutcome::ShakenOff:
+			return FString::Printf(TEXT("%s: %s scrollato via, %d MP spesi"), *Dove, *Quale, Entry.Amount);
 		default:
 			return FString::Printf(TEXT("%s: esito di stato non tradotto (%d) su %s"),
 				*Dove, Entry.Outcome, *Quale);
@@ -610,6 +656,36 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 			// usa. E' la ragione per cui i due esiti sono separati (`#1430`, [D-199]).
 			return FString::Printf(TEXT("%s -> %s: colpo alle spalle, la copertura non vale (%d punti scavalcati)"),
 				*CellText(Entry.TgtCell), *CellText(Entry.SrcCell), Entry.Amount);
+		case ERTFacingOutcome::HitCameFromSide:
+		{
+			// ⚠️ Qui `Amount` e' l'indice RELATIVO (`ERTRelativeDirection`), non una delle sei direzioni
+			// assolute: `DirectionNames` direbbe «NE» dove il lettore deve leggere un LATO. Due tabelle
+			// perche' sono due domande — quale orientamento HA l'unita', e da che parte e' stata COLPITA.
+			//
+			// 🔑 **Si nomina lo SPICCHIO e non un angolo**, e la differenza non e' stilistica. Lo spicchio
+			// semiaperto va da `D(i)` a `D(i+1)`, quindi e' centrato **fra** due raggi: scrivere «da davanti
+			// a sinistra» affermerebbe un settore centrato a −60 gradi mentre quello vero e' centrato a −90,
+			// e per meta' delle sue celle la frase sarebbe falsa. E' l'explainability che [D-147] mette in
+			// conto allo skew, e la si paga tacendo l'angolo invece di sbagliarlo: il nome del lato e' una
+			// convenzione dichiarata (`ERTRelativeDirection`), un angolo sarebbe una misura.
+			static const TCHAR* RelativeNames[6] = {
+				TEXT("Front"), TEXT("FrontLeft"), TEXT("RearLeft"),
+				TEXT("Rear"), TEXT("RearRight"), TEXT("FrontRight") };
+
+			// ⚠️ **Non si riusa `DirIndex`**, che e' clampato: un `Amount` fuori intervallo — traccia
+			// corrotta, o formato futuro — diventerebbe `Front`, cioe' una frase sicura e sbagliata. Le
+			// altre famiglie di questo file dichiarano «non tradotto» invece di indovinare, e questa fa lo
+			// stesso.
+			if (Entry.Amount < 0 || Entry.Amount > 5)
+			{
+				return FString::Printf(TEXT("%s: colpito da un lato non tradotto (%d)"),
+					*CellText(Entry.TgtCell), Entry.Amount);
+			}
+			// Una cella sola: `SrcCell` e `TgtCell` portano entrambi il DIFENSORE — la voce non contiene la
+			// posizione dell'attaccante, ed e' un requisito di privacy prima che una convenzione (`#726`).
+			return FString::Printf(TEXT("%s: colpito sul lato %s"),
+				*CellText(Entry.TgtCell), RelativeNames[Entry.Amount]);
+		}
 		default:
 			return FString::Printf(TEXT("%s: orientamento %s"), *CellText(Entry.SrcCell), Dir);
 		}
@@ -1047,7 +1123,7 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	// Il FormatId sta DOPO i flags e prima del conteggio: le posizioni dei campi precedenti non si spostano,
 	// cosi' un lettore che ispeziona magic/versione/flags continua a trovarli dove sono sempre stati.
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
-	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::ResponseAndReasonSplit));
+	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithMicroStep));
 	AppendU16LE(Out, static_cast<uint16>(Topology));
 	AppendStringUtf8(Out, FormatId.IsNone() ? FString() : FormatId.ToString());
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
@@ -1087,6 +1163,9 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 		// dell'Overwatch — la sua risposta si deduce, e una traccia scritta prima della v10 significa la
 		// stessa cosa di una scritta dopo.
 		AppendStringUtf8(Out, E.ReactionResponse);
+		// v12 (`#1880`): il micro-step, in coda — i campi precedenti non si spostano, come per ogni
+		// estensione dalla v7 in poi.
+		AppendI32LE(Out, E.MicroStepIndex);
 	}
 
 	// Checksum FNV di tutto cio' che precede (header + voci), in coda: rileva la corruzione del contenuto.
@@ -1183,8 +1262,12 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	if (!ReadU16LE(Bytes, Pos, Version)) { return false; }
 	// v11 (`#1118`): risposta e ragione separate. Non aggiunge byte — il campo c'era gia' dalla v10 — ma
 	// cambia il SIGNIFICATO dei valori di `Outcome` sulle voci `ReactionDecision`, quindi va distinta.
-	const bool bIsResponseAndReasonSplit =
-		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::ResponseAndReasonSplit));
+	// v12 (`#1880`): la voce porta il micro-step. Sta in cima alla catena perche' e' la piu' recente, e
+	// come ogni versione implica tutte quelle sotto.
+	const bool bHasMicroStep =
+		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithMicroStep));
+	const bool bIsResponseAndReasonSplit = bHasMicroStep
+		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::ResponseAndReasonSplit));
 	// v10 (E14.7, [D-047]): il token della risposta. Come per ogni estensione precedente, la versione nuova
 	// implica tutte quelle sotto — le versioni sono cumulative, non alternative.
 	const bool bHasReactionResponse = bIsResponseAndReasonSplit
@@ -1353,6 +1436,17 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 				return false;
 			}
 		}
+		// v12 (`#1880`): il micro-step. Sotto la v12 resta `0`, e **non** si deduce: `0` e' anche un
+		// micro-step legittimo, quindi il campo non puo' distinguere «prima barriera» da «traccia che non le
+		// portava». La differenza vive nella VERSIONE, ed e' l'unico posto in cui e' onesta.
+		if (bHasMicroStep)
+		{
+			if (!ReadI32LE(Bytes, Pos, E.MicroStepIndex))
+			{
+				OutEntries.Reset();
+				return false;
+			}
+		}
 		// 🔴 **Sotto la v11 la voce si MIGRA, e fino a ieri si lasciava com'era.** La riga che stava qui
 		// diceva che ricostruire il token *«sarebbe peggio che lasciarlo vuoto»*, e aveva ragione: finche'
 		// l'esito nominava la risposta, un campo vuoto significava «deducila», e la deduzione era possibile
@@ -1462,6 +1556,14 @@ const UEnum* URTTurnLogLibrary::OutcomeEnumForCategory(ERTLogCategory Category)
 	case ERTLogCategory::Predictive:       return StaticEnum<ERTPredictiveOutcome>();
 	case ERTLogCategory::ReactionDecision: return StaticEnum<ERTReactionDecisionOutcome>();
 	case ERTLogCategory::ReactionClash:    return StaticEnum<ERTClashLogEvent>();
+	// 🔴 **`Objective` mancava, e l'ha trovata il suo stesso messaggio d'errore** (`#170`). La categoria
+	// esiste nell'enum dal 2026-09-02 (`#75`) e `ARTTurnManager` ne scrive una voce a ogni Cleanup su una
+	// mappa con obiettivo — ma nessuno poteva ASSERIRLA: `ParseScenarioLogEvent` chiede l'enum degli esiti a
+	// questa funzione e, non trovandolo, rifiutava il CARICAMENTO dello scenario dicendo *«la categoria
+	// Objective non e' asseribile — non e' un errore dello scenario: manca un caso nel loader, e va aggiunto
+	// li'»*. Quella frase e' stata scritta per il caso di `Predictive` e ha indicato da sola il proprio
+	// secondo caso: un evento prodotto e non asseribile e' osservabilita' a meta'.
+	case ERTLogCategory::Objective:        return StaticEnum<ERTObjectiveOutcome>();
 	default:                               return nullptr;
 	}
 }
@@ -1473,6 +1575,93 @@ FString URTTurnLogLibrary::DescribeOutcome(ERTLogCategory Category, uint8 Outcom
 	// Un esito fuori dall'enum non e' impossibile — il campo e' un `uint8` e una traccia vecchia puo'
 	// portarne uno che questa build non conosce piu': mostrarlo GREZZO e' l'unica risposta onesta.
 	return Nome.IsEmpty() ? FString::FromInt(static_cast<int32>(Outcome)) : Nome;
+}
+
+bool URTTurnLogLibrary::IsStatusBirth(ERTStatusOutcome Outcome)
+{
+	switch (Outcome)
+	{
+	// NASCITE. `AppliedWhileOnCell` porta `Amount == 0` e non e' un conteggio: dura finche' l'unita' resta
+	// sulla cella. `AppliedInstantly` nasce e non muore mai — vedi la nota in `UndeclaredStatusOutcomes`.
+	case ERTStatusOutcome::AppliedByAction:
+	case ERTStatusOutcome::AppliedByTerrain:
+	case ERTStatusOutcome::AppliedWhileOnCell:
+	case ERTStatusOutcome::AppliedInstantly:
+		return true;
+
+	// MORTI, e sono CINQUE perche' la causa e' informazione: `#1077` separa `Revoked` da `Expired` (una
+	// mossa del giocatore contro il tempo che passa) e `#1314` separa `Spent` dalle altre (lo stato ha
+	// fatto il suo lavoro). Ridurle a «finito» butterebbe cio' che il TurnLog registra apposta.
+	case ERTStatusOutcome::Revoked:
+	case ERTStatusOutcome::Expired:
+	case ERTStatusOutcome::Extinguished:
+	case ERTStatusOutcome::Cleansed:
+	case ERTStatusOutcome::Spent:
+	// `ShakenOff` e' una MORTE come le altre quattro, e la sotto-causa che porta — «l'ha pagata la
+	// vittima» — vive nel valore, non nel verso: `IsStatusBirth` risponde alla sola domanda «l'icona si
+	// apre o si chiude?», e qui si chiude (`#2253`).
+	case ERTStatusOutcome::ShakenOff:
+		return false;
+	}
+
+	// ⚠️ Nessun `default:` nello switch, di proposito: cosi' il compilatore avvisa su un valore nuovo. Il
+	// ripiego sta QUI fuori ed e' fail-closed — «morte» — perche' un'icona che non si apre e' un difetto
+	// visibile, mentre una che non si chiude resta accesa per sempre.
+	return false;
+}
+
+TArray<FString> URTTurnLogLibrary::UndeclaredStatusOutcomes()
+{
+	TArray<FString> Missing;
+
+	const UEnum* Enum = StaticEnum<ERTStatusOutcome>();
+	if (Enum == nullptr)
+	{
+		// Senza reflection non esiste una risposta onesta, e «nessuna mancanza» sarebbe la piu' pericolosa:
+		// il gate passerebbe proprio nel caso in cui non ha potuto misurare niente.
+		Missing.Add(TEXT("reflection non disponibile per ERTStatusOutcome"));
+		return Missing;
+	}
+
+	// `NumEnums() - 1`: l'ultimo e' il `_MAX` sintetico che UHT aggiunge e non e' un valore scrivibile —
+	// stessa convenzione di `URTPresentationBindingLibrary::DeclaredEventTypeCount`.
+	const int32 Count = FMath::Max(0, Enum->NumEnums() - 1);
+	for (int32 i = 0; i < Count; ++i)
+	{
+		const ERTStatusOutcome Value = static_cast<ERTStatusOutcome>(Enum->GetValueByIndex(i));
+
+		// 🔴 **Come si riconosce un valore NON dichiarato, visto che la funzione risponde comunque.**
+		// `IsStatusBirth` ripiega su `false`, quindi un valore nuovo e' indistinguibile da una morte
+		// guardando il solo ritorno. Il criterio e' l'elenco esplicito qui sotto: e' la lista che
+		// `IsStatusBirth` copre con un `case`, e va tenuta allineata **in questo stesso file**, dove le due
+		// righe si vedono insieme. Un valore che non compare qui e' un valore che nessuno ha esaminato.
+		static const ERTStatusOutcome Dichiarati[] = {
+			ERTStatusOutcome::AppliedByAction,
+			ERTStatusOutcome::AppliedByTerrain,
+			ERTStatusOutcome::AppliedWhileOnCell,
+			ERTStatusOutcome::AppliedInstantly,
+			ERTStatusOutcome::Revoked,
+			ERTStatusOutcome::Expired,
+			ERTStatusOutcome::Extinguished,
+			ERTStatusOutcome::Cleansed,
+			ERTStatusOutcome::Spent,
+			ERTStatusOutcome::ShakenOff,
+		};
+
+		bool bDichiarato = false;
+		for (const ERTStatusOutcome& D : Dichiarati)
+		{
+			if (D == Value) { bDichiarato = true; break; }
+		}
+
+		if (!bDichiarato)
+		{
+			Missing.Add(FString::Printf(TEXT("%s: nessun verso dichiarato in IsStatusBirth"),
+				*Enum->GetNameStringByIndex(i)));
+		}
+	}
+
+	return Missing;
 }
 
 bool URTTurnLogLibrary::IsSubjectTheSufferer(const FRTTurnLogEntry& Entry)
@@ -1489,9 +1678,15 @@ bool URTTurnLogLibrary::IsSubjectTheSufferer(const FRTTurnLogEntry& Entry)
 	}
 	// La guardia (o la copertura) scavalcata da un colpo alle spalle: la voce descrive l'orientamento del
 	// DIFENSORE, quindi il soggetto e' chi ha subito il colpo. L'attaccante e' in `SrcCell` (`#1418`).
+	//
+	// ➕ `HitCameFromSide` (`#726`) e' della stessa famiglia e per la stessa ragione — racconta da che lato il
+	// difensore e' stato colpito — con una differenza: la cella dell'attaccante **non** e' nella voce, ne' in
+	// `SrcCell` ne' altrove. Quella voce si congela sulla percezione di chi subisce, e ci finisse la posizione
+	// di chi spara la pubblicherebbe a chi vede il bersaglio, su ogni colpo risolto invece che sui rari bypass.
 	if (Entry.Category == ERTLogCategory::Facing
 		&& (Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover)
-			|| Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedGuard)))
+			|| Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedGuard)
+			|| Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::HitCameFromSide)))
 	{
 		return true;
 	}

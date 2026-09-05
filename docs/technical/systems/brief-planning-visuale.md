@@ -99,6 +99,37 @@ esiste proprio come promessa di non impedirlo, e nessuna regola di cover o LOS l
 lo **stesso asse** dei CP qui sotto — celle colpite, alleato nell'area, pulizia su annullamento — e va esteso,
 non duplicato. *(La nota parlava di «working tree» e di un branch non ancora mergiato: mergiato.)*
 
+> ⚠️ **Aggiunto il 2026-08-31 — quei quattro verdi non coprivano il produttore.** Verificano che
+> `ARTHexMapActor` conservi le celle che gli si passano — un **setter** — e quelle celle gliele calcola il
+> test stesso. Il produttore reale (`RefreshPlanningPreview`) viveva in un namespace anonimo dentro
+> `RTPlayerController.cpp` e non era chiamabile, limite già dichiarato in `RTHexPerfTests.cpp:202`.
+> La derivazione sta ora in `URTHexCombatLibrary::MakeBlastPreview` — pura, headless — e la famiglia
+> `Preview.*` ha cinque verifiche che interrogano **quella**.
+
+**C7 — 🔴 L'origine dell'attacco non è la posizione di fine turno, ed è l'ordine delle fasi a dirlo.**
+
+Un kit d'autore consumato il 2026-08-31 chiedeva, come requisito v0.1, che l'anteprima d'attacco partisse
+dalla posizione **post-movimento** («Move → Attack»). Su questo progetto la premessa è **falsa**:
+
+```
+RTTurnManager.cpp:1574  ResolvePrep()
+RTTurnManager.cpp:1578  ResolveDash()      // «riposizionamento rapido PRIMA del Blast»
+RTTurnManager.cpp:1582  ResolveCombat()    // «gli attacchi usano la posizione PRIMA del movimento»
+RTTurnManager.cpp:1586  ResolveMovement()
+```
+
+Il `Move` arriva **dopo** il Blast e non sposta l'origine dell'attacco di quel turno. Lo **Dash sì**, e il
+Blast lo legge già così: `RTTurnManager_Blast.cpp:163` costruisce `FRTHexCombatUnit::Cell = Unit->Cell` a
+scatto applicato, con la nota a `:165` — *«la posizione autorevole per il Blast è quella post-Dash»*.
+
+∴ La forma corretta del requisito è **Dash → Attack**. L'origine dell'anteprima la deriva
+`URTHexCombatLibrary::BlastOriginCell`, e il predicato «lo scatto si applica» è `ARTUnit::PlannedDashApplies()`
+— **lo stesso** che `ResolveDash` valuta, non una seconda copia.
+
+⚠️ E resta un'origine **prevista**, non confermata: `ResolveDash` può accorciare lo scatto per collisione
+simultanea (CP 4.8). La grammatica della certezza di **11.2** si applica qui — la linea di mira è
+tratteggiata quando l'origine viene dallo scatto, cioè un canale **non cromatico**.
+
 ---
 
 ## 4. Checkpoint proposti — epic **E11** (HUD, log e debug)
@@ -108,7 +139,7 @@ Non serve un'epic nuova: è presentazione dell'HUD e vive accanto a intenti, cer
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
 | **11.2** *(esteso)* | Intenti alleati e certezza — **con grammatica visiva** | Alle tre classi già previste si aggiunge la resa: confermato = linea piena · previsto = tratteggiata + icona di squadra · incerto = dissolto + `?`. La classificazione arriva dal resolver, la UI **non** ricalcola il perché. Finché E13 non esiste, l'incertezza da visibilità **non** viene mostrata | `UI.IntentCertaintyClassification`; `PIE-V01-INTENT` |
-| **11.5** | **Ghost Timeline**: preview per fase | View model con una entry per fase (`Phase`, `UnitId`, `ActionId`, `PreviewOrigin`, `PreviewDestination`, `Facing`, `PoseId`, `TargetCells`, `AffectedCells`, `Certainty`) e **`ReactionPreview` separata**; ghost per Prep/Dash/Blast/Move sulla mappa; origine, destinazione, celle bersaglio e area coincidono con ciò che il resolver userebbe (**stesso A\***, stesso snapshot); pooling, nessun Actor persistente per preview, aggiornamento a frequenza limitata | `Preview.GhostMatchesResolverPath`, `Preview.HitCellsMatchCombatShape` *(esistente)*, `Preview.ReactionIsNotAPhaseEntry`, `Preview.ClearedWhenPlanIsCancelled` *(esistente)* |
+| **11.5** | **Ghost Timeline**: preview per fase | View model con una entry per fase (`Phase`, `UnitId`, `ActionId`, `PreviewOrigin`, `PreviewDestination`, `Facing`, `PoseId`, `TargetCells`, `AffectedCells`, `Certainty`) e **`ReactionPreview` separata**; ghost per Prep/Dash/Blast/Move sulla mappa; origine, destinazione, celle bersaglio e area coincidono con ciò che il resolver userebbe (**stesso A\***, stesso snapshot); pooling, nessun Actor persistente per preview, aggiornamento a frequenza limitata. ⚠️ `PreviewOrigin` è la cella **post-scatto**, non quella di fine turno — vedi **C7** | `Preview.GhostMatchesResolverPath`, `Preview.ReactionIsNotAPhaseEntry`; *già esistenti*: `Preview.HitCellsMatchCombatShape`, `Preview.ClearedWhenPlanIsCancelled`, `Preview.OriginIsPlannedDashCell`, `Preview.OriginIsCurrentCellWithoutDash`, `Preview.CellTargetProducesFootprint`, `Preview.AllyInCellTargetAreaIsFlagged`, `Preview.DeadTargetHasNoFootprint` |
 | **11.6** | **Scrubbing** e ramo condizionale della reaction | Selezionando una fase il suo ghost si evidenzia e gli altri si attenuano, con origine/target/linea/AoE/cover in evidenza; i **warning** (alleato nell'area, esposizione, collisione possibile) arrivano dallo stesso strato dei reason code e sono marcati *previsto*/*incerto*; la reaction armata compare come **ramo con `?`**, mai come quinta colonna della timeline | `Preview.AllyInAreaIsFlagged` *(esistente)*, `Preview.WarningsComeFromResolverReasons`, `Preview.ArmedReactionRendersAsBranch`; `PIE-V01-GHOSTS` |
 
 **Ordine consigliato** (dalla §22 della sorgente): PoC su **una** unità con i quattro slot — ghost di

@@ -19,10 +19,16 @@
 #include "Kismet/GameplayStatics.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexCellData.h"
+#include "Map/RTGeometryGrammar.h"
+#include "Map/RTHexCoverPlacementLibrary.h"
+#include "Map/RTHexOccupancyLibrary.h"
+#include "Map/RTHexMapAsset.h"
 #include "Misc/FileHelper.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary::VisibleTrailFor
 #include "UI/RTHudViewModel.h"
 #include "Unit/RTUnit.h"
 
@@ -220,7 +226,7 @@ static void RTDebugDrawPathsCommand(const TArray<FString>& Args, UWorld* World, 
 	// con cui il filtro si verifica.
 	//
 	// ➕ **E lo verifica davvero**: accanto alla rotta autoritativa il comando stampa il tratto che
-	// `ARTTurnManager::VisibleTrailFor` concede all'osservatore — la stessa funzione che disegna `DrawHUD`,
+	// `URTMoveRouteLibrary::VisibleTrailFor` concede all'osservatore — la stessa funzione che disegna `DrawHUD`,
 	// non una seconda lettura della regola. `celle` e `visto` che differiscono sono un troncamento avvenuto;
 	// uguali, una rotta osservata per intero; `visto 0` una rotta invisibile a quella squadra. E' cosi' che
 	// `PIE-KNOW4` si controlla senza fidarsi dell'occhio.
@@ -237,7 +243,7 @@ static void RTDebugDrawPathsCommand(const TArray<FString>& Args, UWorld* World, 
 			i, Routes[i].StableUnitId,
 			Routes[i].Cells.Num() > 0 ? *Routes[i].Cells[0].ToString() : TEXT("?"), *Path,
 			Routes[i].Cells.Num(), ObserverTeamId,
-			ARTTurnManager::VisibleTrailFor(Routes[i], ObserverTeamId).Num());
+			URTMoveRouteLibrary::VisibleTrailFor(Routes[i], ObserverTeamId).Num());
 	}
 	Ar.Logf(TEXT("[RT] Percorsi dell'ultima risoluzione: %d — solo le unita' che si sono MOSSE. "
 		"Il team osservatore e' %d (primo argomento); la colonna «visto» e' cio' che l'HUD ne disegnerebbe."),
@@ -282,9 +288,67 @@ static void RTDebugDrawResolutionCommand(const TArray<FString>& Args, UWorld* Wo
 	LogAll(Ar, URTDebugReportLibrary::DescribeTurnLogEntries(ThisRound));
 }
 
+
+static void RTDebugDumpCellPlacementCommand(const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+{
+	if (Args.Num() < 2)
+	{
+		Ar.Log(TEXT("[RT] Uso: rt.Debug.DumpCellPlacement <q> <r> [layer]"));
+		return;
+	}
+
+	ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(World);
+	if (!HexMap || !HexMap->MapAsset)
+	{
+		Ar.Log(TEXT("[RT] Nessuna mappa nel mondo: apri una scena con un ARTHexMapActor."));
+		return;
+	}
+	const URTHexMapAsset* Map = HexMap->MapAsset;
+
+	const FRTCellId Cell(FCString::Atoi(*Args[0]), FCString::Atoi(*Args[1]),
+		(Args.Num() > 2) ? FCString::Atoi(*Args[2]) : 0);
+
+	if (!Map->FindCell(Cell))
+	{
+		// Dire che la cella non c'e' e' diverso dal disegnare un anello vuoto: un anello vuoto significa
+		// «cella libera», che di questa non si sa.
+		Ar.Logf(TEXT("[RT] La cella %s non esiste in questa mappa."), *Cell.ToString());
+		return;
+	}
+
+	// La maschera NON e' un campo: si deriva dai muri interni della cella, come fa il bake. Ricavarla qui
+	// invece di leggerla e' cio' che rende il comando una vera osservazione della regola e non di una copia.
+	TArray<FRTOccupancyPolyline> Geometry;
+	for (const FRTHexInteriorWall& Wall : Map->InteriorWalls)
+	{
+		if (Wall.Cell == Cell)
+		{
+			Geometry.Add(URTGeometryGrammarLibrary::ToPolyline(Wall.Segment, Map->HexSize));
+		}
+	}
+
+	const FRTOccupancyMask Mask = URTHexOccupancyLibrary::ComputeMask(Geometry, Map->HexSize);
+
+	TArray<FRTPlacementRegion> Regions;
+	URTHexCoverPlacementLibrary::ComputeFreeRegions(Mask, Regions);
+
+	// Le coperture di BORDO non entrano nella maschera dei settori, e il bake ci manda un segmento che
+	// tocca un bordo. Ometterle faceva rispondere «niente» a una cella che invece porta geometria.
+	const FRTHexCellData* Data = Map->FindCell(Cell);
+	const TArray<FRTHexCover> Covers = Data ? Data->Covers : TArray<FRTHexCover>();
+
+	Ar.Logf(TEXT("[RT] %d muro/i interno/i in questa cella."), Geometry.Num());
+	LogAll(Ar, URTDebugReportLibrary::DescribeCellPlacement(Cell, Mask, Regions, Covers));
+}
+
 // ---------------------------------------------------------------------------------------------------
 // Registrazione
 // ---------------------------------------------------------------------------------------------------
+
+static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDumpCellPlacement(
+	TEXT("rt.Debug.DumpCellPlacement"),
+	TEXT("La maschera dei dodici settori di una cella e le sue regioni libere, con FirstWedge e Size. Sola lettura."),
+	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTDebugDumpCellPlacementCommand));
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDumpSnapshot(
 	TEXT("rt.Debug.DumpSnapshot"),

@@ -98,6 +98,77 @@ enum class ERTActionSlot : uint8
  * momento spetta a ciascuno e' `URTReactionLibrary::PassPointFor`, funzione pura: un trigger che non
  * dichiarasse il proprio punto non verrebbe valutato da nessuno e sarebbe un dato senza consumatore.
  */
+/**
+ * Quanto di un'azione sopravvive a un `Action.Interrupt` che la coglie ([D-298]).
+ *
+ * Nasce come apertura del `bool bCanBeInterrupted`, non come secondo meccanismo: il controllo resta dove
+ * era — `ARTTurnManager::ApplyInterrupts` per il piano, `URTActionEffectLibrary::ProduceEvents` per gli
+ * effetti — e questo enum dice soltanto *quanto* viene tolto. Un `Action.Interrupt` non porta con se' alcun
+ * flag: e' la VITTIMA a dichiarare cosa perde.
+ *
+ * ⚠️ **Descrive un PERMESSO**, come `bAllowsReaction` e `bFriendlyFire`: il default e' il valore piu'
+ * permissivo verso l'interruttore (`InterruptBeforeEffect`), non `None`. Un'azione che si dimenticasse il
+ * campo resta interrompibile, che e' il comportamento storico del `true` di default.
+ */
+UENUM(BlueprintType)
+enum class ERTInterruptPolicy : uint8
+{
+	/**
+	 * L'`Action.Interrupt` non ha effetto su questa azione (`Action.Guard`, `Action.Wait`,
+	 * `Action.SuppressiveLine`). E' l'ex `bCanBeInterrupted = false`.
+	 */
+	None,
+
+	/**
+	 * L'azione interrotta non produce NULLA: tutto o niente, non mezzo danno. E' l'ex `bCanBeInterrupted =
+	 * true` e il **default**, quindi la migrazione non sposta nessun comportamento — il catalogo §3 lo
+	 * dichiara gia' per `Action.HeavyAttack`: *«se un `Action.Interrupt` la coglie prima del Blast non
+	 * produce NULLA»*.
+	 */
+	InterruptBeforeEffect,
+
+	/**
+	 * Sopravvive il PRIMO effetto dichiarato, cadono gli altri: l'azione arriva monca invece di svanire.
+	 *
+	 * ⚠️ **Il criterio e' la lista `Effects`, non gli eventi prodotti**, e la differenza morde: un effetto
+	 * che `ProduceEvents` non traduce — `DamageStructure`, `SetDoorState`, raccolti dal Blast sul bordo —
+	 * non e' «il secondario» che questa policy toglie. Su `Action.HeavyAttack` (`Damage` +
+	 * `DamageStructure`) questa policy e `InterruptBeforeEffect` sarebbero **indistinguibili** da
+	 * `ProduceEvents`, perche' il secondo effetto non passa di li' comunque.
+	 *
+	 * 🔴 **E c'e' un limite piu' grande, che vale anche quando l'effetto E' tradotto: questa policy non
+	 * puo' sopprimere il DANNO di un colpo, in nessuna posizione della lista.** Nella pipeline del Blast il
+	 * danno non viaggia sugli eventi: nasce come `Intent.Power` (`AppendChargeImpactIntents` e la raccolta
+	 * dei piani), diventa `Hit.Power` e finisce in `FRTAttack` (`URTHexCombatLibrary::CollectHexAttacks`).
+	 * Il ciclo che consuma `ProduceEvents` in `ARTTurnManager` ha **tre** `case` — `Status`, `Push`, `Pull`
+	 * — e un `default` che ignora il resto. Un `Damage` dichiarato **secondo** verrebbe tagliato da questa
+	 * policy e arriverebbe **lo stesso**, per l'altro canale.
+	 *
+	 * ∴ il soggetto osservabile e' `Action.Charge` (`Damage` + `Push`) e la lettura giusta e' **«cade la
+	 * spinta»**, non «resta il primo effetto»: il colpo resta perche' non e' mai stato in questo canale.
+	 * Chi assegnera' la policy a un'azione nuova deve chiedersi non che POSTO ha l'effetto nella lista, ma
+	 * se `ProduceEvents` lo traduce e se il ciclo consumatore lo raccoglie.
+	 *
+	 * 🔵 Nessuna azione del catalogo la dichiara oggi: [D-298] apre il valore senza riprezzare niente
+	 * (*«zero numeri di bilanciamento»*). Il ramo pero' e' vivo e coperto da test — un valore dichiarato e
+	 * mai applicato sarebbe peggio di non averlo messo.
+	 */
+	SuppressSecondary,
+
+	/**
+	 * 🔴 **RISERVATO, e oggi non raggiungibile**: `URTCatalogLibrary::ValidateActions` lo RIFIUTA.
+	 *
+	 * Cancellare un canale presuppone un'azione che duri piu' di un boundary, e in v0.1 non ne esiste
+	 * nessuna — [D-298] lo misura: `Channel`/`Channeled`/`Sustain`/`MultiTurn` danno zero in
+	 * `Source/RefactorTactics`. Il valore sta qui per **nominare** il buco invece di lasciarlo aperto, e il
+	 * validator impedisce che passi in silenzio: un quarto ramo accettato senza soggetto sarebbe codice che
+	 * nessun test puo' falsificare.
+	 *
+	 * Si sblocca insieme alla prima azione channel, con la sua issue.
+	 */
+	CancelChannel
+};
+
 UENUM(BlueprintType)
 enum class ERTReactionTrigger : uint8
 {
@@ -184,7 +255,8 @@ enum class ERTStructureOp : uint8
 	/** Sposta una copertura gia' esistente su un altro bordo, conservandone integrita' e durata residua. */
 	MoveCover,
 	/**
-	 * Porta una PORTA allo stato dichiarato da `ERTActionEffect::SetDoorState` ([D-148]).
+	 * Porta una PORTA a uno stato nuovo: quello dichiarato da `ERTActionEffect::SetDoorState` ([D-148]),
+	 * oppure quello OPPOSTO a quello corrente con `ERTActionEffect::ToggleDoorState` ([`INT-7`], `#2380`).
 	 *
 	 * Non e' un'operazione di copertura e non passa dal loop delle strutture: l'esecuzione la raccoglie il
 	 * Blast su `FirstDoorEdge` (CP 9.3) e la applica `URTHexDoorLibrary::SetDoorState`, che resta l'unico
@@ -209,7 +281,13 @@ enum class ERTMovementStyle : uint8
 	Budget,
 	/** Linea retta su una delle sei direzioni: si ferma davanti a muri e unita' (`Dash`, `Reposition`). */
 	LinearDash,
-	/** Come `LinearDash`, ma si ferma SUL primo nemico incontrato e lo colpisce (`Charge`). */
+	/**
+	 * Come `LinearDash`, ma si ferma ADIACENTE al primo nemico incontrato e lo colpisce (`Charge`).
+	 *
+	 * ⚠️ **Adiacente, non «sul»**: la cella d'arrivo e' quella PRECEDENTE al bersaglio — `Result.Final`
+	 * resta a `Current`, che il ciclo non fa avanzare sull'occupante. Questa riga diceva «SUL» fino a
+	 * [D-296]. La regola e' pinnata da `HexMatch.ChargeStopsOnEnemyAndHits`.
+	 */
 	LinearCharge,
 	/** Salto: ignora unita' e celle intermedie, conta solo dove si atterra (`Leap`). */
 	LinearLeap,
@@ -218,12 +296,71 @@ enum class ERTMovementStyle : uint8
 	 *
 	 * La differenza con `LinearLeap` non e' il danno ma cosa si tocca: il salto **scavalca** e non incontra
 	 * nessuno, la lama passa **in mezzo** e applica a ognuno gli effetti dell'azione. Con `LinearCharge`
-	 * condivide il colpire, ma la carica si ferma sul primo bersaglio mentre questa tira dritto.
+	 * condivide il colpire, ma la carica si ferma AL primo bersaglio mentre questa tira dritto.
 	 *
 	 * Aggiunto IN CODA: i valori precedenti non cambiano numero, e gli asset che li hanno serializzati
 	 * continuano a rileggersi.
 	 */
 	LinearPass
+};
+
+/**
+ * A quale BUDGET DI PIVOT risponde uno stile di movimento (ADR-0008 §1).
+ *
+ * L'ADR dichiara due budget per personaggio — uno per la famiglia `Move`, uno per la famiglia `Dash` — ma
+ * `ERTMovementStyle` ha SEI valori, non due: senza questa mappa nessun chiamante sa quale dei due leggere.
+ * E' la lacuna che lo spec panel di `#1605` ha rilevato, e vive qui perche' la famiglia e' una proprieta'
+ * dello stile, non del personaggio.
+ *
+ * `Sprint = profilo Move` e `Sprint != Dash` sono pin di progetto: `Budget` e' lo stile di `Action.Sprint`,
+ * quindi cade in `Move`, e tutti i `Linear*` in `Dash`.
+ */
+UENUM(BlueprintType)
+enum class ERTMovementFamily : uint8
+{
+	/** L'unita' non si e' mossa: il pivot e' quello universale (`StationaryPivotMaxSteps` = 3). */
+	Stationary,
+	/** Movimento a budget di MP (`ERTMovementStyle::Budget`) -> `MoveEndPivotMaxSteps`. */
+	Move,
+	/** Mobilita' lineare (`LinearDash`, `LinearCharge`, `LinearLeap`, `LinearPass`) -> `DashEndPivotMaxSteps`. */
+	Dash
+};
+
+/**
+ * Quanti step esagonali di rotazione un personaggio puo' spendere a FINE movimento (ADR-0008 §1).
+ *
+ * ```text
+ * 0 step  = nessuna rotazione finale
+ * 1 step  = max 60 gradi
+ * 2 step  = max 120 gradi
+ * 3 step  = max 180 gradi (qualsiasi facing esagonale)
+ * ```
+ *
+ * 🔑 **I default NON sono zero, e non sono arbitrari**: sono ADR-0005 riscritto in questa unita' di misura.
+ * La tabella superata dava `D, D+-1` al movimento a budget — cioe' **1 step** — e una sola direzione ai
+ * lineari — cioe' **0**. Un'unita' mai configurata da un eroe (`ConfigureFromHeroData(nullptr)`, attore
+ * piazzato a mano) si comporta quindi **esattamente come prima** di ADR-0008: il cambio arriva solo con un
+ * eroe del catalogo, che e' dove l'ADR lo vuole.
+ *
+ * ⚠️ Non contiene lo stazionario: `StationaryPivotMaxSteps` resta **universale a 3** e ADR-0008 §1 scarta
+ * esplicitamente la variante per eroe — sarebbe un terzo numero a testa che nessun caso richiede.
+ */
+USTRUCT(BlueprintType)
+struct FRTPivotBudget
+{
+	GENERATED_BODY()
+
+	/** Rotazione a fine movimento a budget (famiglia `Move`). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Facing", meta = (ClampMin = "0", ClampMax = "3"))
+	int32 MoveEndMaxSteps = 1;
+
+	/** Rotazione a fine mobilita' lineare (famiglia `Dash`). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Facing", meta = (ClampMin = "0", ClampMax = "3"))
+	int32 DashEndMaxSteps = 0;
+
+	FRTPivotBudget() = default;
+	FRTPivotBudget(int32 InMove, int32 InDash)
+		: MoveEndMaxSteps(InMove), DashEndMaxSteps(InDash) {}
 };
 
 /**
@@ -445,9 +582,19 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	ERTReactionTrigger ReactionTrigger = ERTReactionTrigger::None;
 
-	/** Se falso, `Action.Interrupt` non ha effetto su questa azione. */
+	/**
+	 * Quanto di questa azione sopravvive a un `Action.Interrupt` ([D-298]). Default: interrompibile del
+	 * tutto, che e' il comportamento storico del `bool bCanBeInterrupted = true` che questo campo sostituisce.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
-	bool bCanBeInterrupted = true;
+	ERTInterruptPolicy InterruptPolicy = ERTInterruptPolicy::InterruptBeforeEffect;
+
+	/**
+	 * L'`Action.Interrupt` tocca questa azione? E' la domanda binaria che i consumatori facevano al vecchio
+	 * `bCanBeInterrupted`, e resta una funzione sola: chi deve sapere QUANTO viene tolto legge
+	 * `InterruptPolicy`, chi deve sapere SE legge questo.
+	 */
+	bool CanBeInterrupted() const { return InterruptPolicy != ERTInterruptPolicy::None; }
 
 	/**
 	 * L'azione si applica a CHI LA USA: nessun bersaglio da scegliere, nessuna portata da validare.
@@ -485,12 +632,12 @@ struct FRTActionDef
 
 	/**
 	 * L'azione si DICHIARA un'aggressione contro un'unita' ([`INT-8`], `#1491`). Un colpo e' un concetto
-	 * solo: danno, trigger `HitByDirectAttack`, `EnergyOnHit` e `Marked` viaggiano insieme, quindi chi non
-	 * si dichiara non ne produce nessuno e nessuno dei quattro consumatori lo vede. Il cancello e' unico,
+	 * solo: danno, trigger `HitByDirectAttack` e `Marked` viaggiano insieme, quindi chi non
+	 * si dichiara non ne produce nessuno e nessuno dei tre consumatori lo vede. Il cancello e' unico,
 	 * dove il colpo nasce (`URTHexCombatLibrary::CollectHexAttacks`).
 	 *
 	 * ⚠️ **`false` di default, ed e' il verso opposto ai flag qui sopra.** `bAllowsReaction`,
-	 * `bFriendlyFire` e `bCanBeInterrupted` sono `true` perche' descrivono PERMESSI; questo descrive
+	 * `bFriendlyFire` e `InterruptPolicy` partono dal valore permissivo perche' descrivono PERMESSI; questo descrive
 	 * un'IDENTITA'. Fail-closed: un attacco che si dimentica il campo non fa niente e lo prende il primo
 	 * test, mentre una non-aggressione che si dimentica non puo' diventare un attacco -- ed e' il modo in
 	 * cui `Action.Interact` e' arrivata a incassare un contrattacco per aver aperto una porta.

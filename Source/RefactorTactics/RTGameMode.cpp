@@ -6,6 +6,8 @@
 #include "UI/RTHUD.h"
 #include "Map/RTHexMapActor.h"
 #include "Unit/RTUnit.h" // FClassFinder<ARTUnit> nel costruttore, e il tipo di `HeroUnitClasses`
+#include "Combat/RTCombatLibrary.h" // ControlGroupForUnit: la partizione della squadra (`CP 19.3`, `#1124`)
+#include "Map/RTHexLibrary.h"        // StableLess: l'ordine deterministico delle unita'
 #include "Turn/RTTurnManager.h"
 #include "Frontend/RTFrontendNavigator.h"
 #include "Frontend/RTMatchFrontendBridge.h" // la POLITICA del confine col frontend: qui resta il cablaggio
@@ -113,6 +115,16 @@ TAutoConsoleVariable<int32> CVarRTBotAllies(
 	-1,
 	TEXT("Quanti compagni della squadra 0 pianifica il bot, dal fondo della formazione. -1 = non impostata "
 		 "(vale il resto), 0 = nessuno, N = gli ultimi N. Almeno un'unita' resta sempre al giocatore."),
+	ECVF_Default);
+
+TAutoConsoleVariable<int32> CVarRTDemoArenaRadius(
+	TEXT("rt.Match.DemoArenaRadius"),
+	-1,
+	TEXT("Raggio dell'arena generata. -1 = non impostata (vale la proprieta' del GameMode), "
+		 "N = esagono pieno di raggio N, tetto 100. Con MapSource=LevelAsset, 0 = nessun ripiego "
+		 "(si tiene la mappa del livello); con MapSource=GeneratedDemoArena, 0 lascia la partita SENZA "
+		 "mappa. Esiste perche' la proprieta' vive in un `.uasset`: senza questa, cambiare il raggio "
+		 "richiede di aprire l'editor."),
 	ECVF_Default);
 
 TAutoConsoleVariable<float> CVarRTPlanningSeconds(
@@ -419,9 +431,30 @@ void ARTGameMode::BeginPlay()
 	// quindi ritenta al primo `LockInAndResolve`; il rinfresco su zero unita' produce uno stato vuoto, che e'
 	// gia' il default. Se una di quelle due guardie venisse indebolita, la prima partita si romperebbe **qui**
 	// e in silenzio. Trovato in code review della PR #540 come commento diventato falso.
-	if (!UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()))
+	// 🔴 **La rivendicazione del turno 1 deve arrivare PRIMA del `BeginPlay` del TurnManager** — `#2102`,
+	// [D-314]. Da qui in poi il primo turno lo apre l'allestimento, quando la board esiste davvero: prima
+	// si apriva 348 ms troppo presto, su una board che nessuno aveva ancora allestito.
+	//
+	// ⚠️ **`SpawnActorDeferred` e non `SpawnActor`, ed e' l'unica ragione per cui cambia**: `SpawnActor`
+	// esegue `BeginPlay` prima di restituire, quindi la rivendicazione arriverebbe a turno gia' aperto —
+	// il caso che `ClaimFirstTurnForMatchSetup` sa solo *dichiarare*, non correggere.
+	ARTTurnManager* SpawningTurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+	if (SpawningTurnManager == nullptr)
 	{
-		World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass(), FTransform::Identity);
+		SpawningTurnManager = World->SpawnActorDeferred<ARTTurnManager>(
+			ARTTurnManager::StaticClass(), FTransform::Identity);
+		if (SpawningTurnManager != nullptr)
+		{
+			SpawningTurnManager->ClaimFirstTurnForMatchSetup();
+			UGameplayStatics::FinishSpawningActor(SpawningTurnManager, FTransform::Identity);
+		}
+	}
+	else
+	{
+		// Gia' nel mondo — piazzato nel livello, o spawnato da un test. La rivendicazione puo' arrivare
+		// tardi: in quel caso la funzione lo scrive nel log invece di fingere che l'ordine sia cambiato.
+		SpawningTurnManager->ClaimFirstTurnForMatchSetup();
 	}
 
 	// AUTO-RUN di uno scenario di test: se `rt.Test.Scenario` e' impostata, la partita normale NON viene
@@ -443,6 +476,11 @@ void ARTGameMode::BeginPlay()
 		// 🔴 **Fail-closed, e la riga vale quanto il resto della funzione**: chi ha chiesto uno scenario che
 		// non si carica non deve ritrovarsi a giocare una partita normale che non ha chiesto. Il motivo e'
 		// gia' nel log del coordinatore.
+		//
+		// ⚠️ Ma il turno rivendicato va **aperto lo stesso** prima di uscire (`#2102`): rivendicare e poi
+		// tornare lascerebbe un TurnManager che non apre mai il primo turno, cioe' una sessione morta —
+		// peggio del difetto d'ordine che la rivendicazione chiude.
+		OpenClaimedFirstTurn();
 		return;
 
 	case ERTScenarioStart::Started:
@@ -450,6 +488,9 @@ void ARTGameMode::BeginPlay()
 		// avanzare, e una partita normale non lo paga.
 		SetActorTickEnabled(true);
 		RecenterCameraOnScenario();
+		// Lo scenario allestisce da se' e pilota il TurnManager, ma il campione di pacing del primo turno
+		// lo apre `StartPlanningTimer`: senza questa riga, l'harness auto-run perderebbe cio' che aveva.
+		OpenClaimedFirstTurn();
 		return;
 	}
 
@@ -492,6 +533,16 @@ void ARTGameMode::BeginPlay()
 		// voce esplicita della DoD di `E13.8` (senza, il primo fotogramma rivela la mappa). Invertire
 		// le due righe lascerebbe la prima inquadratura con la conoscenza vuota, cioe' il difetto.
 		TurnManager->RefreshTeamKnowledgeNow();
+
+		// 🔑 **QUI si apre il turno 1** — `#2102`, [D-314]. E' il punto in cui l'allestimento ha finito:
+		// `FRTMatchBootstrapper::Bootstrap` ha scritto `ERTLoadPhase::Ready`, le unita' esistono, la board
+		// e' in campo. Prima il turno si apriva nel `BeginPlay` di questo attore, 348 ms troppo presto.
+		//
+		// ⚠️ **Dopo `RefreshTeamKnowledgeNow` e non prima**: `StartPlanningTimer` chiama `PlanBots()`, e il
+		// bot deve pianificare sulla conoscenza appena ricalcolata. Invertire le due righe farebbe decidere
+		// il bot sulla conoscenza vuota che il `BeginPlay` aveva lasciato — cioe' spostare il difetto invece
+		// di chiuderlo.
+		TurnManager->OpenFirstTurnAfterSetup();
 	}
 
 	// 🔴 **Il consumatore del velo (`E13.8`), che a `#1467` mancava**: il meccanismo esisteva, era coperto
@@ -539,6 +590,18 @@ void ARTGameMode::HookKnowledgeVeil()
 	if (URTKnowledgeVeilPresenter* Presenter = GetKnowledgeVeilPresenter())
 	{
 		Presenter->Hook(TurnManager);
+	}
+}
+
+void ARTGameMode::OpenClaimedFirstTurn()
+{
+	if (ARTTurnManager* TurnManager =
+			Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())))
+	{
+		// Idempotente e senza condizioni da ricordare: la guardia sta dentro `OpenFirstTurnAfterSetup`, che
+		// e' l'unico posto che sa se il turno e' stato rivendicato e se e' gia' aperto. Duplicarla qui
+		// significherebbe tenere la stessa regola in due posti — e uno dei due sarebbe sbagliato.
+		TurnManager->OpenFirstTurnAfterSetup();
 	}
 }
 
@@ -614,7 +677,7 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	FRTMatchBootstrapConfig Config;
 	Config.MapSource             = ResolveMapSource();
 	Config.MapFixtureId          = CVarRTMapFixture.GetValueOnGameThread().TrimStartAndEnd();
-	Config.DemoArenaRadius       = DemoArenaRadius;
+	Config.DemoArenaRadius       = ResolveDemoArenaRadius();
 	Config.MatchFormat           = MatchFormat;
 	Config.ShippedFormatId       = ShippedFormatId;
 	Config.Team0Heroes           = Team0Heroes;
@@ -698,7 +761,51 @@ void ARTGameMode::AssignSeats()
 		// prende la `1`, che e' il caso utile. Riempire prima la `0` metterebbe due persone dalla stessa
 		// parte lasciando l'altra vuota.
 		PS->AssignTeam(Arrival % 2);
+		// Il GRUPPO dentro la squadra (`CP 19.3`, `#1124`): i posti si assegnano alternati, quindi il primo
+		// arrivato di ciascuna squadra e' il gruppo `0`, il secondo il gruppo `1`. Con `SeatsPerTeam == 1` —
+		// la v0.1 — nessuno riceve un gruppo diverso da zero, ed e' il default del campo.
+		PS->AssignControlGroup(Arrival / 2);
 		++Arrival;
+	}
+
+	AssignUnitControlGroups();
+}
+
+void ARTGameMode::AssignUnitControlGroups()
+{
+	// Le unita' sono piazzate nel livello o allestite dal bootstrapper: qui si legge il mondo, non lo si
+	// costruisce. Se non ce ne sono ancora — `AssignSeats` gira anche su `OnPostLogin`, prima dell'allestimento
+	// — non c'e' niente da assegnare e la funzione e' un no-op idempotente.
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+	if (Actors.Num() == 0)
+	{
+		return;
+	}
+
+	TArray<ARTUnit*> Units;
+	Units.Reserve(Actors.Num());
+	for (AActor* Actor : Actors)
+	{
+		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
+		{
+			Units.Add(Unit);
+		}
+	}
+
+	// ⚠️ **L'ordine e' quello di `CollectLivingUnits`, non quello di `GetAllActorsOfClass`.** Quest'ultimo non
+	// promette nulla, e il gruppo di un'unita' decide CHI la comanda: farlo dipendere dall'ordine di
+	// registrazione degli Actor renderebbe la partizione diversa a ogni avvio, che e' l'invariante n. 4.
+	Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+
+	// L'indice riparte per SQUADRA: il gruppo dice quale persona *di quella squadra* comanda, e due squadre
+	// hanno entrambe un gruppo `0`.
+	TMap<int32, int32> NextIndexInTeam;
+	for (ARTUnit* Unit : Units)
+	{
+		int32& IndexInTeam = NextIndexInTeam.FindOrAdd(Unit->TeamId);
+		Unit->ControlGroup = URTCombatLibrary::ControlGroupForUnit(IndexInTeam, AssignedRules.UnitsPerPlayer);
+		++IndexInTeam;
 	}
 }
 
@@ -787,6 +894,53 @@ bool ARTGameMode::ResolveAutobattle() const
 	}
 
 	return bAutobattle;
+}
+
+int32 ARTGameMode::ResolveDemoArenaRadius() const
+{
+	// Stessa scala e stessa sentinella negativa di `ResolveBotAllies`, con una sorgente in meno: qui la
+	// riga di comando non serve, perche' il caso d'uso e' l'allestimento in EDITOR — un raggio scelto per
+	// guardare una mappa grande a schermo — e non il pacchetto. Aggiungerla senza un consumatore sarebbe
+	// la terza sorgente che nessuno usa.
+	//
+	// 🔑 **`0` e' un VALORE, non la sentinella**: e' l'opt-out dal ripiego, pinnato da
+	// `MatchSetup.GameModeNoFallbackWhenRadiusZero`. Per questo la soglia e' `>= 0` e non `> 0`:
+	// trattare lo zero come «non impostata» renderebbe quel comportamento irraggiungibile dalla console.
+	// Il caso pieno che questo repository documenta e' raggio 50 (7 651 celle). Il tetto lascia il doppio
+	// di margine e chiude un rischio che la proprieta' non aveva: un refuso alla console — `1000` invece
+	// di `100` — costruirebbe 3 003 001 celle, e `RebuildInstances` ne farebbe altrettante istanze,
+	// appendendo l'editor senza dire perche'. La proprieta' non e' clampata: la si cambia nel pannello,
+	// con il numero sotto gli occhi, mentre una console variable si digita al volo e dura tutto il processo.
+	static constexpr int32 MaxDemoArenaRadius = 100;
+
+	const int32 FromConsole = CVarRTDemoArenaRadius.GetValueOnGameThread();
+	if (FromConsole > MaxDemoArenaRadius)
+	{
+		// Ridotto e DICHIARATO, come `BotAllies` quando eccede la formazione: un valore silenziosamente
+		// diverso da quello chiesto e' peggio di un rifiuto.
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] rt.Match.DemoArenaRadius=%d supera il tetto di %d: ridotto a %d. Oltre, la mappa "
+				 "generata avrebbe piu' celle di quante l'editor ne disegni in tempo utile."),
+			FromConsole, MaxDemoArenaRadius, MaxDemoArenaRadius);
+		return MaxDemoArenaRadius;
+	}
+	if (FromConsole >= 0)
+	{
+		if (DemoArenaRadius != FromConsole)
+		{
+			// Non in silenzio, per la stessa ragione delle altre quattro: una console variable dura quanto
+			// il processo dell'editor, e continuerebbe a scavalcare la proprieta' a ogni Play successivo
+			// senza che nulla lo dica.
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] La console variable rt.Match.DemoArenaRadius=%d SCAVALCA la proprieta' "
+					 "DemoArenaRadius=%d del GameMode. Per tornare a usare la proprieta': "
+					 "`rt.Match.DemoArenaRadius -1`."),
+				FromConsole, DemoArenaRadius);
+		}
+		return FromConsole;
+	}
+
+	return DemoArenaRadius;
 }
 
 int32 ARTGameMode::ResolveBotAllies() const

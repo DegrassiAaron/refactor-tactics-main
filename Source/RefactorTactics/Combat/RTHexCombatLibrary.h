@@ -107,6 +107,24 @@ struct FRTHexAttackIntent
 	ERTHexDoorState DoorState = ERTHexDoorState::Closed;
 
 	/**
+	 * L'azione COMMUTA invece di dichiarare uno stato assoluto ([`INT-7`], `#2380`): la porta va allo stato
+	 * opposto a quello che ha, su `Open <-> Closed`.
+	 *
+	 * 🔑 **Non sostituisce `bChangesDoor`, lo qualifica.** `bChangesDoor` continua a dire *«questo intento
+	 * agisce su una porta»* — ed e' cio' che il ramo della raccolta interroga per decidere se cercare un
+	 * bordo; `bTogglesDoor` dice *come*. Tenerli separati e' cio' che permette di lasciare intatti tutti i
+	 * consumatori a valle: dopo la risoluzione `DoorState` porta di nuovo uno stato ASSOLUTO, e `FRTDoorOp`,
+	 * `ApplyDoorOps` e `SetDoorState` non sanno che qualcuno abbia commutato.
+	 *
+	 * ⚠️ `DoorState` e' IGNORATO quando questo flag e' alto: lo stato vero lo calcola `CollectHexAttacks` in
+	 * una locale, e l'intento resta `const` per tutta la fase (invariante #3). Chi volesse dire in anteprima
+	 * *«questo Interact chiudera' la porta»* deve percio' leggere lo STATO DELLA PORTA, non questo intento —
+	 * ed e' il costo dichiarato di `#2380`: con la commutazione l'intento non e' piu' auto-descrittivo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bTogglesDoor = false;
+
+	/**
 	 * Il bordo che il GIOCATORE ha dichiarato, quando l'ha dichiarato (CP 10.1, `#74`).
 	 *
 	 * 🔴 **Senza questo campo l'operazione agisce su un bordo che nessuno ha scelto.** `FirstDoorEdge` cammina
@@ -134,11 +152,11 @@ struct FRTHexAttackIntent
 
 	/**
 	 * L'azione si DICHIARA un'aggressione contro un'unita' ([`INT-8`], `#1491`). Un colpo e' un concetto
-	 * solo -- danno, trigger `HitByDirectAttack`, `EnergyOnHit` e `Marked` viaggiano insieme -- quindi chi
-	 * non si dichiara non ne produce nessuno, e nessuno dei quattro consumatori lo vede.
+	 * solo -- danno, trigger `HitByDirectAttack` e `Marked` viaggiano insieme -- quindi chi
+	 * non si dichiara non ne produce nessuno, e nessuno dei tre consumatori lo vede.
 	 *
 	 * ⚠️ **`false` di default, ed e' il verso opposto agli altri flag** (`bAllowsReaction`, `bFriendlyFire`,
-	 * `bCanBeInterrupted` sono `true`). La rottura di simmetria e' deliberata: quelli descrivono PERMESSI,
+	 * `InterruptPolicy` parte dal valore permissivo). La rottura di simmetria e' deliberata: quelli descrivono PERMESSI,
 	 * questo un'IDENTITA'. Un attacco che si dimentica il campo non fa niente e lo prende il primo test; una
 	 * non-aggressione che si dimentica non puo' diventare un attacco -- che e' il modo in cui
 	 * `Action.Interact` e' arrivata a incassare un contrattacco per aver aperto una porta.
@@ -203,9 +221,32 @@ struct FRTHexAttackHit
 	FRTHexAttackHit() = default;
 	FRTHexAttackHit(int32 InAttacker, int32 InTarget, int32 InPower, int32 InIntent)
 		: AttackerId(InAttacker), TargetId(InTarget), Power(InPower), IntentIndex(InIntent) {}
+	/**
+	 * QUANTO VALEVA IL COLPO PRIMA DELLA COPERTURA, e quanto la copertura ha tolto — `#1951`.
+	 *
+	 * 🔑 **Sono due valori che lo stadio 4 gia' calcola e scartava.** Il breakdown li LEGGE invece di
+	 * ricalcolarli: ricostruire la riduzione a valle significherebbe una seconda copia di
+	 * `EffectiveCoverReduction`, che diverge il giorno in cui quella cambia.
+	 *
+	 * ⚠️ `NominalPower` e' il potere dell'intent, cioe' il valore **dopo** i bonus di cella e
+	 * condizionali che vivono nel Blast (stadi 2 e 3): non e' il numero di catalogo. Quei due stadi non
+	 * sono registrati da questa slice, ed e' dichiarato invece che dedotto.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 NominalPower = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 CoverReduction = 0;
+
 	FRTHexAttackHit(int32 InAttacker, int32 InTarget, int32 InPower, int32 InIntent, int32 InCoverBypassed)
 		: AttackerId(InAttacker), TargetId(InTarget), Power(InPower), IntentIndex(InIntent)
 		, CoverBypassedByFacing(InCoverBypassed) {}
+
+	FRTHexAttackHit(int32 InAttacker, int32 InTarget, int32 InPower, int32 InIntent, int32 InCoverBypassed,
+		int32 InNominalPower, int32 InCoverReduction)
+		: AttackerId(InAttacker), TargetId(InTarget), Power(InPower), IntentIndex(InIntent)
+		, CoverBypassedByFacing(InCoverBypassed)
+		, NominalPower(InNominalPower), CoverReduction(InCoverReduction) {}
 };
 
 /**
@@ -213,6 +254,74 @@ struct FRTHexAttackHit
  * CANONICO (attaccante, bersaglio) e gli intenti scartati per linea di tiro. Non applica nulla:
  * l'applicazione e' di URTCombatResolver::ResolveAttacks, che somma per bersaglio sullo stato iniziale.
  */
+/**
+ * L'impronta a terra di un intento aggressivo: le celle che il colpo ha investito, e con quale forma.
+ *
+ * 🔑 **Una per INTENTO, non per vittima** — ed e' la differenza che questa struct esiste per tenere in piedi.
+ * `FRTHexAttackHit` racconta cosa e' successo a un BERSAGLIO; questa racconta cosa ha fatto l'AZIONE. Il
+ * resolver le distingue gia' internamente (`HitCells` e' calcolato una volta, `Plan.Hits` una per vittima):
+ * qui quella distinzione smette di morire dentro la funzione.
+ *
+ * ⚠️ **Nasce anche quando non colpisce nessuno.** Un'area su celle vuote produce zero `Hits` e un footprint:
+ * e' precisamente il caso che [D-301] esiste per rendere rappresentabile.
+ */
+USTRUCT(BlueprintType)
+struct FRTAttackFootprint
+{
+	GENERATED_BODY()
+
+	/** Indice dell'intento che l'ha prodotta: la chiave con cui si risale ad abilita', priorita' e attaccante. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	int32 IntentIndex = INDEX_NONE;
+
+	/** Chi ha colpito, come indice nello snapshot (stessa identita' di `FRTHexAttackHit::AttackerId`). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	int32 AttackerId = INDEX_NONE;
+
+	/** Cella da cui il colpo e' partito, al momento del calcolo. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	FRTCellId Origin;
+
+	/** Cella mirata: sopravvive anche quando nessuna unita' e' stata colpita. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	FRTCellId AimCell;
+
+	/** La forma dichiarata dal catalogo, non dedotta dal numero di celle. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	ERTAbilityShape Shape = ERTAbilityShape::Single;
+
+	/** Le celle investite, nell'ordine di `HexHitCells` (`StableLess`): copiate, mai ricalcolate a valle. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<FRTCellId> HitCells;
+
+	FRTAttackFootprint() = default;
+};
+
+/**
+ * Una commutazione RIFIUTATA perche' la porta non ha un opposto ([`INT-7`], `#2380`).
+ *
+ * Porta lo STATO oltre all'indice perche' il motivo che finisce nel TurnLog dipende da quale dei due era:
+ * `Locked` e `Destroyed` hanno reason code distinti, e senza questo campo il chiamante dovrebbe rileggere la
+ * mappa — cioe' rileggerla DOPO che il Blast l'ha mutata, che e' un'altra domanda e un'altra risposta.
+ */
+USTRUCT(BlueprintType)
+struct FRTDoorToggleRefusal
+{
+	GENERATED_BODY()
+
+	/** Indice nell'array degli intenti della fase. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	int32 IntentIndex = INDEX_NONE;
+
+	/** Lo stato PRE-BLAST che ha rifiutato la commutazione: `Locked` o `Destroyed`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	ERTHexDoorState State = ERTHexDoorState::Locked;
+
+	FRTDoorToggleRefusal() = default;
+	FRTDoorToggleRefusal(int32 InIntentIndex, ERTHexDoorState InState)
+		: IntentIndex(InIntentIndex), State(InState) {}
+};
+
 USTRUCT(BlueprintType)
 struct FRTHexBlastPlan
 {
@@ -251,6 +360,19 @@ struct FRTHexBlastPlan
 	TArray<int32> DoorlessIntents;
 
 	/**
+	 * Commutazioni rifiutate perche' la porta puntata era `Locked` o `Destroyed` ([`INT-7`], `#2380`), in
+	 * ordine canonico di indice.
+	 *
+	 * 🔑 **Quarto canale e non un riuso di `DoorlessIntents`**, per la stessa disciplina con cui quello e'
+	 * separato da `BlockedIntents`: *«non c'era niente su cui agire»* e *«c'era, e non si commuta»* sono due
+	 * fatti diversi, e il reason code che ne esce e' diverso. Fonderli scriverebbe `NoEffect` su una porta
+	 * che esiste — una causa falsa su una partita vera, che e' esattamente cio' che i tre canali separati
+	 * esistono per non fare.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<FRTDoorToggleRefusal> DoorToggleRefusals;
+
+	/**
 	 * Danno raccolto contro le STRUTTURE, sommato per bordo e in ordine canonico (CP 9.2). Sta nel piano e non
 	 * applicato subito per la stessa ragione dei colpi: due attaccanti sullo stesso muro devono dare lo stesso
 	 * esito in qualunque ordine. Lo applica `URTHexCoverLibrary::ApplyStructureDamage` a fase conclusa.
@@ -265,6 +387,137 @@ struct FRTHexBlastPlan
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
 	TArray<FRTDoorOp> DoorOps;
+
+	/**
+	 * Ordini raccolti verso una SORGENTE del grafo di interazione — `#833`, `CP 23.4`.
+	 *
+	 * 🔑 **Perche' un canale separato e non un `FRTDoorOp` in piu'.** I due si applicano con funzioni diverse
+	 * (`ApplyDoorOps` contro `ApplyInteraction`) e producono un numero diverso di cambi: uno per bordo il
+	 * primo, uno per **bersaglio risolto** il secondo. Fonderli avrebbe richiesto un flag e due rami dentro
+	 * l'applicazione, cioe' la seconda verita' sullo stesso ordine che `D-270` insegna a non costruire.
+	 *
+	 * Stesso criterio d'ordine degli altri canali: si raccolgono per `IntentIndex` e si applicano a fase
+	 * conclusa, cosi' due unita' che azionano la stessa leva danno lo stesso esito in qualunque ordine.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<FRTInteractionOp> InteractionOps;
+
+	/**
+	 * Un'impronta per intento aggressivo: dove il colpo e' arrivato, indipendentemente da chi ha preso.
+	 *
+	 * 🔴 **Esiste perche' il dato veniva BUTTATO.** `HexHitCells` era gia' calcolato una volta per intento,
+	 * usato per filtrare le unita' e poi lasciato uscire di scope: sopravvivevano solo gli `Hits`, che sono
+	 * per vittima. La presentazione dell'area non era quindi costruibile senza ricalcolare la primitiva —
+	 * cioe' senza violare [D-278]. Vedi [D-301].
+	 *
+	 * ⚠️ Ordinato per `IntentIndex` come gli altri canali, e per la stessa ragione scritta su
+	 * `DoorlessIntents`: un secondo produttore che raccogliesse fuori ordine renderebbe non deterministica
+	 * la sequenza a valle.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<FRTAttackFootprint> Footprints;
+};
+
+/**
+ * Il piano di un'unita' come lo legge l'ANTEPRIMA del Blast: da dove agira', su cosa, con quale forma.
+ *
+ * E' un ingresso di sola PRESENTAZIONE e non entra in nessuna risoluzione: chi lo compone traduce il piano
+ * autorevole (`ARTUnit`, oppure uno scenario) in una domanda che si puo' porre senza Actor e senza UWorld.
+ *
+ * ⚠️ **`bDashResolves` e' un ESITO gia' deciso dal chiamante, non una condizione da rivalutare qui.** Le
+ * regole che dicono se uno scatto parte davvero — mobilita' rapida dichiarata dal catalogo
+ * (`URTCatalogLibrary::IsFastMovement`), ricarica (`ARTUnit::CanUseAbility`), destinazione diversa
+ * dalla cella corrente — vivono in `ARTTurnManager::ResolveDash`, e riscriverle qui sarebbe la seconda
+ * autorita' che l'invariante #1 vieta. Questa libreria ne consuma la risposta.
+ */
+USTRUCT(BlueprintType)
+struct FRTBlastPreviewPlan
+{
+	GENERATED_BODY()
+
+	/** Indice dell'attaccante in `Units`: da li' vengono cella corrente e squadra. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	int32 AttackerId = INDEX_NONE;
+
+	/** Vero se lo scatto pianificato viene DAVVERO applicato prima del Blast (vedi nota della struct). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bDashResolves = false;
+
+	/** Cella d'arrivo dello scatto dichiarato; letta solo con `bDashResolves`. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	FRTCellId PlannedDashCell;
+
+	/**
+	 * Vero se il piano dichiara un'azione principale. Distinto da «bersaglio assente»: un'unita' che ha
+	 * pianificato solo uno scatto ha un'ORIGINE da mostrare e nessuna area, e le due cose non si deducono
+	 * l'una dall'altra.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bHasAction = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	ERTAbilityShape Shape = ERTAbilityShape::Single;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	int32 RangeCells = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	int32 AreaRadius = 0;
+
+	/**
+	 * L'azione mira a `TargetCell` invece che a un'unita'. Stessa distinzione di
+	 * `ARTUnit::bAttackTargetsCell`, e per la stessa ragione: `TargetId == INDEX_NONE` significa gia'
+	 * BERSAGLIO PERSO, che non e' «bersaglio a terra».
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bTargetsCell = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	FRTCellId TargetCell;
+
+	/** Indice del bersaglio in `Units`; letto solo senza `bTargetsCell`. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	int32 TargetId = INDEX_NONE;
+
+	/** Copiato da `FRTActionDef::bFriendlyFire`: decide se l'avviso ha senso, non se l'area esiste. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bFriendlyFire = false;
+
+	FRTBlastPreviewPlan() = default;
+};
+
+/** Cio' che l'anteprima del Blast deve mostrare: da dove, dove cade, e chi dei propri ci finisce dentro. */
+USTRUCT(BlueprintType)
+struct FRTBlastPreview
+{
+	GENERATED_BODY()
+
+	/**
+	 * Cella da cui l'azione parte nella fase Blast — la stessa che il resolver usera'. Vale anche senza
+	 * azione principale: e' un fatto del piano, non del bersaglio.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	FRTCellId Origin;
+
+	/**
+	 * Vero quando `Origin` viene dallo scatto pianificato invece che dalla cella corrente.
+	 *
+	 * E' l'informazione che separa un'origine CONFERMATA da una PREVISTA: `ResolveDash` puo' fermare lo
+	 * scatto prima della destinazione (collisione simultanea, CP 4.8), quindi la cella dichiarata e' un
+	 * intento e non un fatto. Chi disegna decide come dirlo; qui si dichiara solo che la distinzione esiste.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	bool bOriginFromPlannedDash = false;
+
+	/** Celle colpite secondo la forma canonica (`HexHitCells`). Vuoto se non c'e' un bersaglio valido. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<FRTCellId> HitCells;
+
+	/** Sottoinsieme di `HitCells` occupato da alleati VIVI: fuoco amico. Vuoto senza `bFriendlyFire`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<FRTCellId> AllyCells;
+
+	FRTBlastPreview() = default;
 };
 
 /**
@@ -383,6 +636,39 @@ public:
 	/** Converte il piano nella forma attesa da URTCombatResolver::ResolveAttacks (indice bersaglio + danno). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
 	static TArray<FRTAttack> ToAttacks(const FRTHexBlastPlan& Plan);
+
+	/**
+	 * Cella da cui l'unita' agisce nella fase **Blast**: quella dello scatto se lo scatto si applica,
+	 * altrimenti quella corrente.
+	 *
+	 * 🔴 **Non e' la posizione di fine turno, e la differenza e' l'ordine delle fasi.** Il ciclo risolve
+	 * `Prep -> Dash -> Blast -> Move` (`ARTTurnManager::ResolveTurn`): il movimento normale arriva DOPO gli
+	 * attacchi, quindi non sposta l'origine di questo turno — lo scatto si'. Un'anteprima che parte dalla
+	 * cella corrente mente esattamente a chi ha pianificato una carica prima di sparare, che e' il piano che
+	 * il gioco incoraggia.
+	 *
+	 * `Units[AttackerId]` porta la cella corrente: e' la stessa struct che il Blast riceve, cosi' l'origine
+	 * dell'anteprima e quella della risoluzione leggono lo stesso campo. `AttackerId` non valido -> cella di
+	 * riposo, e nessun chiamante deve dedurne una posizione.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
+	static FRTCellId BlastOriginCell(const FRTBlastPreviewPlan& Plan, const TArray<FRTHexCombatUnit>& Units);
+
+	/**
+	 * L'anteprima del Blast per un piano: origine, celle colpite e fuoco amico.
+	 *
+	 * Non decide niente e non applica niente. Le celle vengono da `HexHitCells` — la STESSA funzione che il
+	 * combat usa — perche' due insiemi diversi significherebbero che il giocatore vede una zona e ne subisce
+	 * un'altra (invariante #1: la presentazione riceve, non decide).
+	 *
+	 * ⚠️ **La legalita' NON e' qui.** Portata e linea di tiro le classifica
+	 * `URTCombatLibrary::ClassifyHexTargeting`, che ha bisogno della mappa: chi mostra l'anteprima la chiama
+	 * a parte e ne usa il reason code. Questa funzione risponde a «dove cadrebbe», non a «si puo'» — tenerle
+	 * insieme farebbe di una domanda di presentazione un secondo validatore.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
+	static FRTBlastPreview MakeBlastPreview(const FRTBlastPreviewPlan& Plan,
+		const TArray<FRTHexCombatUnit>& Units);
 
 	/**
 	 * Cella finale del bersaglio RESPINTO di `Distance` celle, su griglia esagonale.

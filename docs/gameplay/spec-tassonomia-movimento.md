@@ -44,6 +44,15 @@ Reaction     NON è una famiglia: è una causa, e usa la policy di una delle sop
 > era una regola preventiva per una famiglia che si credeva assente; era invece la descrizione di
 > `LinearLeap`, che il repository possiede da sempre.
 
+✅ **`Swap` è qui, e questo risponde a una domanda che il resolver del Move non deve porsi.**
+`AUTHOR-MOVE-001` ([D-295](../decisions/RT_PDR_00_Decision_Log.md)) decide che lo **scambio diretto e i cicli
+chiusi bloccano** nel Move *«salvo permesso esplicito»*. Quel permesso è **questa riga**: lo scambio lecito è
+un `Transfer`, `v0.2`/`E39`, e un Transfer non percorre celle intermedie — non passa dalle regole di
+traversal. ⛔ Ne segue che in **v0.1 non esiste alcuno scambio lecito** e la regola del Move è
+**incondizionata**: un flag di permesso dentro `StepHexMovement` sarebbe un secondo owner per una famiglia che
+ne ha già uno. L'implementazione della regola è
+[#1922](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1922).
+
 `Reaction Movement` **non è una famiglia**: è una delle altre con una causa diversa. Ciò che deve restare
 distinguibile è la *causa*, non il modo di muoversi — chi legge il TurnLog deve poter dire se quell'unità si è
 mossa perché l'ha deciso, perché è stata spinta o perché una reazione l'ha fatta scattare.
@@ -75,6 +84,123 @@ cosa vorremmo: una matrice che descrive un sistema immaginario è peggio di ness
 | auto-reroute | **mai** | mai | n/a | mai |
 | consuma l'azione della vittima | n/a | n/a | n/a | **mai** |
 | **stato nel codice** | implementato | implementato | **`LinearLeap`**, dentro il Dash · irraggiungibile dal roster ([#645](https://github.com/DegrassiAaron/refactor-tactics-main/issues/645)) | implementato |
+
+### 2.0 Un micro-step, un arco — la regola che il codice applica e che nessun documento diceva
+
+> ✅ **Aggiunta il 2026-08-31 da [`D-305`](../decisions/RT_PDR_00_Decision_Log.md).** Non cambia niente:
+> **registra** un invariante già implementato che nessuna sede dichiarava.
+
+La riga *micro-step* della matrice dice **se** una famiglia genera micro-step. Non diceva **quanti passi**
+ne attraversa uno, e la risposta è:
+
+```text
+MaxGraphTransitionsPerUnitPerMicroStep = 1
+```
+
+**Una unità avanza al massimo di un arco del grafo tattico per micro-step.** Vale per tutti i profili di
+`Move` — `Sneak`, `Move`, `Sprint` ([D-015](../decisions/RT_PDR_00_Decision_Log.md)) — e per il `Forced`.
+Lo `Sprint` **va più lontano** perché ha più budget (`8 MP` contro `5`, [`RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md) §2.1),
+**non** perché percorra due celle nello stesso micro-step.
+
+🔑 **«Arco del grafo», non «esagono adiacente»**, ed è la formulazione che conta. Il passo si legge da
+`Paths`, che il pathfinder produce sulle `URTHexMapAsset::Transitions` (`HexSim.ReachableUsesTransitions`) e
+non dall'adiacenza esagonale — quindi la regola vale senza riscritture per **rampe, scale, ponti, tunnel,
+porte e transizioni multilivello**, e `FRTCellId::operator==` confronta anche il `Layer`.
+
+È vero per costruzione, in una riga:
+
+```cpp
+// RTHexSimLibrary.cpp:654 — StepHexMovement
+Target[i] = Done[i] ? Pos[i] : Paths[i][Prog[i] + 1];
+```
+
+⛔ **Perché scriverlo se il codice lo fa già.** Un `Transfer` non genera micro-step intermedi **per
+decisione** ([D-118](../decisions/RT_PDR_00_Decision_Log.md)); questo invece lo faceva **per abitudine
+d'implementazione**. Un invariante non dichiarato è ciò che la prossima ottimizzazione rimuove senza che
+nulla protesti — e sotto c'è tutto quanto assume una sola transizione per volta: risoluzione delle
+collisioni, hazard attraversati, finestra di Overwatch, cambi di LOS, leggibilità del replay.
+
+⚠️ **Sotto il micro-step non esistono ulteriori istanti simulativi.** Possono esistere sotto-fasi
+deterministiche di elaborazione dello **stesso** micro-step, ma non devono creare un ordine temporale fra
+le unità: l'ordinamento stabile serve a processing, TurnLog, replay e hash, **mai** come precedenza di
+gioco — ed è pinnato da `HexSim.ResolveOrderIndependent`, `Actions.Collisions.NoPlayerIdBias` e
+`Movement.StepperIsDeterministicUnderPermutation`.
+
+⏳ **Cosa questa riga NON decide.** Se alcuni profili possano diventare eleggibili a micro-step *alternati*
+più rapidi è `MOV-3` in [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), **aperta** e da playtestare; anche
+in quel modello il tetto di **un arco per unità per micro-step** resterebbe. La precedenza fra due unità
+che contendono la stessa cella è `MOV-4`, e oggi è `FRTActionDef::Priority`.
+
+✅ **Due test la pinnano per nome**, scritti da [#2000](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2000)
+il 2026-09-01. Prima di allora la regola era vera **senza che nulla la asserisse**.
+
+| Test | Cosa asserisce |
+|---|---|
+| `Movement.OneTransitionMax_PerMicroStep` | dopo `k` micro-step la posizione è **esattamente** `Paths[k]`, su un percorso il cui terzo arco **cambia layer** — due nodi consecutivi che l'adiacenza esagonale non collega |
+| `Movement.BlockedPath_DoesNotAutoReroute` | un piano invalidato a metà **si ferma** e non raggiunge la destinazione per la deviazione — che il test dimostra esistere e stare nel budget, altrimenti asserirebbe il nulla |
+
+🔑 **Perché `Movement.StepperMatchesBatchResolver` non bastava, ed è misurato**: mutando il resolver ad
+avanzare **due** nodi per micro-step, i due test qui sopra diventano rossi e *quello* resta **verde**.
+Confronta i due percorsi di codice fra loro, quindi una regola che cambia in entrambi gli resta invisibile.
+
+⚠️ **Fino al 2026-09-01 questa nota dichiarava i due test come assenti**, ed era vero. Il difetto opposto —
+una tabella che elenca test **attesi** come se esistessero — è quello di
+[ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) §Verifica, con undici nomi di cui zero
+esistono, che ha già indotto in errore [D-295](../decisions/RT_PDR_00_Decision_Log.md).
+
+### 2.0-bis Dentro la risoluzione la posizione è `State.Pos`, e `Unit->Cell` è quella di partenza
+
+> ✅ **Aggiunta il 2026-09-03 da [#2142](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2142).**
+> Stessa forma della §2.0 e stessa ragione: **registra** una regola che il codice applicava e che nessuna
+> sede diceva. Con una differenza — qui il codice la applicava a **metà**, e tre consumatori la violavano.
+
+Dentro `ARTTurnManager::ResolveMovement` la posizione autorevole di un'unità è:
+
+```text
+State.Pos[i]                 durante il ciclo dei micro-step
+Resolved[i].Final            dopo FinishHexMovement, fino a PlaceOnCell
+```
+
+**`ARTUnit::Cell` è la cella di PARTENZA DEL TURNO** per tutto quel tratto: la scrive `PlaceOnCell`, che
+gira **dopo** il ciclo *e* dopo il boundary della Predictive Action. Chiunque legga l'Actor prima di quel
+punto sta leggendo dove l'unità **era**, non dove è.
+
+⚠️ **Il tratto è più lungo di quanto sembri, ed è la ragione per cui la regola serve scritta.** Non finisce
+con l'ultimo micro-step: fra `FinishHexMovement` e `PlaceOnCell` girano ancora il boundary predittivo, la
+costruzione del `MoveLog` e la cattura delle rotte. In quella coda `State` non esiste più — il ciclo è
+chiuso — e la posizione viva sta in `Resolved[i].Final`. Un consumatore che si limitasse a evitare
+`Unit->Cell` «dentro il ciclo» è ancora esposto.
+
+🔴 **Chi la violava, e cosa si vedeva** (`#2142`):
+
+| Consumatore | Leggeva | Conseguenza osservabile |
+|---|---|---|
+| copertura del colpo di Overwatch | `Target->Cell` e `Attacker->Cell` | chi usciva da un riparo incassava **ridotto** da una copertura che non aveva più; chi ci entrava non ne beneficiava |
+| verdetto di visibilità delle voci ([D-223](../decisions/RT_PDR_00_Decision_Log.md)) | `U->Cell` | chi usciva dalla nebbia si vedeva la voce **nascosta** a una squadra che lo vedeva benissimo |
+| soggetto d'audit ([D-313](../decisions/RT_PDR_00_Decision_Log.md)) | `Actor->Cell` | il ricalcolo confrontava **due copie dello stesso errore**, quindi coincideva |
+
+🔑 **La lezione non è l'errore, è la sua forma**: la regola viveva in **tre commenti locali** vicini al
+codice che la applicava, e **uno dei tre affermava il contrario del proprio codice** — *«L'Overwatch passa
+la cella corrente, che al suo micro-step è già quella giusta»*, scritto accanto a una chiamata che passava
+`Target->Cell`. Una regola ripetuta in tre punti diverge; una regola ripetuta in tre punti **e non
+dichiarata in nessuno** diverge senza che si possa dire quale copia sia quella buona.
+
+⛔ **Cosa questa riga NON decide.** Due celle di soggetto restano senza una regola, e sono aperte in
+[#2148](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2148): da dove parte il colpo di un
+**tiratore predittivo che si è mosso** — a ciclo chiuso quell'istante il resolver non lo conserva — e su
+quale cella si congeli il verdetto di una voce **`Move`**, dove la cella di partenza è difendibile perché è
+anche la `SrcCell` della voce. Questa sezione dice dove sta la posizione, non quale istante una voce debba
+raccontare.
+
+✅ **Quattro test la pinnano**, sul percorso reale e non sulla funzione pura:
+`Reactions.OverwatchCoverReadsTheMicroStepCell`, `Reactions.OverwatchLogLineAnnouncesDealtDamage`,
+`Reactions.OverwatchMovingWatcherFiresFromItsCurrentCell` e `Reactions.VerdictFreezesOnTheImpactCell`. La
+ragione della scelta è [D-312](../decisions/RT_PDR_00_Decision_Log.md): la decisione qui è *quale cella il
+chiamante passa*, e una prova sulla funzione chiamata resta verde mentre il chiamante sbaglia.
+
+⚠️ **Il terzo copre il lato ATTACCANTE, e senza di lui gli altri non lo coprono.** Con il watcher fermo le
+sue due celle coincidono per tutta la risoluzione, quindi la mutazione che rimette `WatchOwner->Cell` li
+lascia verdi: misurato in code review, dopo che due documenti dichiaravano già coperta quella metà.
 
 ### 2.1 Il `Transfer` esiste già, e vive dentro il Dash
 
@@ -259,7 +385,7 @@ succederà al prossimo kit.
 | §7 «Sprint non è Dash» | **già deciso** ([D-015](../decisions/RT_PDR_00_Decision_Log.md)); migrazione aperta nella issue `#199` | catalogo azioni |
 | §18 facing: derivazione **e** limite di pivot | **da distinguere**, e la prima stesura di questa riga sbagliava dandolo per «superato dai fatti». La *derivazione dal movimento* è canone (E16 chiusa, 13 test `Facing.*`, 5 scenari `Spec.Facing.*`). Il *limite di rotazione* **non lo era**: ADR-0005 lo dichiarava fuori perimetro e viveva come `FAC-1`, in attesa dell'autore. È stato **recepito** il 2026-08-10: la rotazione è una capacità del personaggio, misurata in step, con due valori per eroe — [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) §1, [D-060](../decisions/RT_PDR_00_Decision_Log.md) | [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md), che **supera** ADR-0005 §1 |
 | §2 e §11 «`Dash → Attack → Move` può essere legale» | ⚠️ **contraddice** [D-028](../decisions/RT_PDR_00_Decision_Log.md): lo scatto **occupa lo slot movimento**, quindi la sequenza non è legale come regola generale — si sceglie *schivo e sparo* **oppure** *sparo e muovo*. Un eroe può dichiararla come eccezione **nel proprio kit**; il ruleset no | [`spec-dash.md`](spec-dash.md) |
-| §19 collisioni (contesa e swap bloccano entrambi) | **già implementato** | `ERTMoveOutcome::BlockedContested` |
+| §19 collisioni (contesa e swap bloccano entrambi) | ✅ **implementato** dal 2026-08-31 ([#1922](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1922)): la **contesa** lo era già; lo **swap** e il **ciclo chiuso** bloccano ora con `ERTMoveOutcome::BlockedByCycle`, e il **convoy a coda libera** continua ad avanzare. 🔄 Questa riga diceva «già implementato» per entrambi, e la seconda metà è stata misurata falsa il 2026-08-31 ([D-295](../decisions/RT_PDR_00_Decision_Log.md)): allora `HexSim.ResolveSwapAllowed` era verde e asseriva che lo scambio riusciva. Ora è vera per misura, non per dichiarazione. | `ERTMoveOutcome::BlockedContested` (contesa) · `ERTMoveOutcome::BlockedByCycle` (scambio e ciclo) · `HexSim.ResolveSwapBlocked` |
 | §23 mai auto-reroute | **già implementato** | `TruncatePathToTopology` |
 | §6 micro-step | **già implementato** | `ResolveHexPaths` |
 | §36 dieci reason code nuovi | **duplicati**: sette esistono con altri nomi, in un enum **serializzato nei replay** | `ERTMoveOutcome` |

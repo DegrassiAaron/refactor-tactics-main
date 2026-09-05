@@ -19,6 +19,9 @@
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "Tests/RTWorldFixtures.h"
+// `#2359`: la sonda del commit, e il controller che vi si aggancia.
+#include "Player/RTPlayerController.h"
+#include "Tests/RTLockInCommittedProbeForTest.h"
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -630,7 +633,462 @@ bool FRTHexDashBlockedTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * `#1525` — l'evento di playback porta il VERDETTO, non solo la rotta.
+ *
+ * 🔴 **Copre la meta' del difetto che i test puri non vedono.** `ObservedPrefixLength` ha cinque test, e
+ * resterebbero tutti verdi anche se nessuno gli passasse i verdetti: il difetto non era la regola — era
+ * che `FRTResolvedEvent` portava le celle **senza** il verdetto che `FreezeRouteVerdicts` aveva gia'
+ * congelato due righe sopra, sulla stessa `Route`. La traccia lo aveva, il modello no, e da quello scarto
+ * nasceva la contraddizione che [D-223] nomina.
+ *
+ * ⚠️ **Verifica di mutazione**: togliendo `Ev.CellVerdicts = Tracked.CellVerdicts;` dal sito del Move
+ * questo test diventa rosso (il conteggio scende a zero) e i cinque test puri restano **verdi**. E' la
+ * ragione per cui esiste separatamente da loro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackEventCarriesVerdictsTest,
+	"RefactorTactics.HexMatch.PlaybackEventCarriesKnowledgeVerdicts",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackEventCarriesVerdictsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMatchMap(World, /*Radius=*/ 5);
+
+	ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
+	ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A || !B) { DestroyHexMatchWorld(World); return false; }
+
+	// I bot si avvicinano: a distanza sei celle il primo turno produce movimento per entrambi.
+	RTWorldFixtures::PlayOneTurn(TM);
+
+	// Almeno una delle due si e' mossa, altrimenti la prova sarebbe vuota e passerebbe per assenza.
+	const int32 VerdettiA = TM->ResolvedMoveVerdictCountForTest(A->StableUnitId);
+	const int32 VerdettiB = TM->ResolvedMoveVerdictCountForTest(B->StableUnitId);
+	const bool bQualcunoSiEMosso = (VerdettiA != INDEX_NONE) || (VerdettiB != INDEX_NONE);
+	TestTrue(TEXT("almeno un'unita' ha un evento di movimento: senza, il test sarebbe vacuo"),
+		bQualcunoSiEMosso);
+
+	// 🔴 Il cuore: ogni evento di movimento porta ALMENO un verdetto. Zero significa che la rotta viaggia
+	// senza la risposta a «chi puo' vederla», ed e' esattamente lo stato da cui `#1525` e' nata.
+	if (VerdettiA != INDEX_NONE)
+	{
+		TestTrue(TEXT("l'evento di movimento di A porta i verdetti per cella, non zero"), VerdettiA > 0);
+	}
+	if (VerdettiB != INDEX_NONE)
+	{
+		TestTrue(TEXT("l'evento di movimento di B porta i verdetti per cella, non zero"), VerdettiB > 0);
+	}
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.
+
+/**
+ * IL TURNO 1 NON SI CHIUDE DA SOLO: senza lock-in e senza timer scaduto, resta aperto.
+ *
+ * L'esperimento che discrimina per `#1957`. Il referto di playtest misura un turno 1 chiuso dopo `6,06 s`
+ * — trenta secondi prima del timer — e ne conclude che *«si e' chiuso da solo»*, perche' nella finestra non
+ * compare nessun evento fra `Selezionata`, `Piano:`, `lock-in` e `Timer scaduto`.
+ *
+ * Qui la partita viene lasciata **sola**: nessun input, nessun lock-in, e il tempo scorre. Se esistesse un
+ * secondo chiudi-turno, il turno cadrebbe qui e questo test lo direbbe.
+ *
+ * 🔑 **La sanita' che rende il test non-vacuo.** «Siamo ancora al turno 1» e' vero anche in un mondo dove il
+ * timer non e' mai stato armato — cioe' il modo piu' facile di scrivere un verde che non misura niente.
+ * Perche' l'attesa significhi qualcosa si verifica PRIMA che il timer sia armato, e DOPO che il residuo sia
+ * davvero **sceso**: un cronometro che scorre e non fa scattare nulla e' un'altra cosa da un cronometro fermo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFirstTurnDoesNotCloseItselfTest,
+	"RefactorTactics.HexMatch.FirstTurnDoesNotCloseItself",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFirstTurnDoesNotCloseItselfTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMatchMap(World, /*Radius=*/ 5);
+
+	// Team 0 UMANO: e' la configurazione del referto — un giocatore con due unita' proprie contro due bot.
+	// Con tutte e quattro a bot la prova sarebbe di un'altra partita.
+	ARTUnit* A1 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 2));
+	ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 3));
+	ARTUnit* B1 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(4, -2));
+	ARTUnit* B2 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -3));
+	if (!A1 || !A2 || !B1 || !B2) { DestroyHexMatchWorld(World); return false; }
+	A1->bIsBotControlled = false;
+	A2->bIsBotControlled = false;
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHexMatchWorld(World); return false; }
+
+	// E' `BeginPlay` ad aprire il turno 1: chiama `StartPlanningTimer`, che arma il timer e scrive
+	// `Turno 1 - pianificazione`. Senza, non c'e' nessun turno da guardare.
+	TM->DispatchBeginPlay();
+
+	TestEqual(TEXT("la partita normale pianifica per 30 s"), TM->GetPlanningSeconds(), 30.f);
+	TestEqual(TEXT("si parte dal turno 1"), TM->GetTurnNumber(), 1);
+	TestTrue(TEXT("in pianificazione"), TM->GetPhase() == ERTMatchPhase::Planning);
+
+	const float ArmedAt = TM->GetPlanningTimeRemaining();
+	if (!TestTrue(TEXT("il timer e' ARMATO: senza, l'attesa qui sotto non proverebbe niente"), ArmedAt > 0.f))
+	{
+		DestroyHexMatchWorld(World);
+		return false;
+	}
+
+	// Dieci secondi di partita lasciata sola — quasi il doppio dei 6,06 s del referto, e ancora venti sotto
+	// la scadenza. Nessun input, nessun lock-in: solo il tempo che passa.
+	constexpr float Step = 0.25f;
+	constexpr int32 Steps = 40;
+	for (int32 I = 0; I < Steps; ++I)
+	{
+		// 🔴 **`FTimerManager` ticka UNA VOLTA per frame**, e senza questa riga il tempo non passa affatto:
+		// `Tick()` esce subito su `HasBeenTickedThisFrame()`, quindi trentanove chiamate su quaranta non
+		// fanno niente — e la quarantesima nemmeno, perche' anche la prima trova il contatore gia' fermo su
+		// questo frame. Il timer resta `Pending`, e `GetTimerRemaining` di un timer `Pending` restituisce la
+		// **durata** invece del residuo: `30.000` prima dell'attesa e `30.000` dopo, misurato.
+		//
+		// ⚠️ Senza la riga di sanita' qui sotto la cosa sarebbe passata inosservata: il turno *sarebbe* stato
+		// ancora l'uno, e il test verde — su dieci secondi che non sono mai trascorsi.
+		++GFrameCounter;
+		World->GetTimerManager().Tick(Step);
+	}
+
+	// Il cronometro ha DAVVERO camminato: senza questo, un timer fermo darebbe lo stesso verde.
+	const float RemainingNow = TM->GetPlanningTimeRemaining();
+	TestTrue(TEXT("il tempo e' sceso: il cronometro cammina"), RemainingNow < ArmedAt);
+	TestTrue(TEXT("e non e' ancora scaduto"), RemainingNow > 0.f);
+
+	TestEqual(TEXT("dopo 10 s senza toccare niente: ancora il turno 1"), TM->GetTurnNumber(), 1);
+	TestTrue(TEXT("e ancora in pianificazione, non in risoluzione"),
+		TM->GetPhase() == ERTMatchPhase::Planning);
+	TestFalse(TEXT("nessuna risoluzione e' partita"), TM->IsResolving());
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+// =====================================================================================================
+// Ready countdown e Unready (`#2193`)
+//
+// Il countdown vive FRA il Ready e il commit, e quattro prove lo circondano: che ritardi, che si annulli
+// senza costo, che non allunghi il tetto, e che la via headless resti sincrona.
+//
+// 🔴 **Tutte e quattro devono far camminare il cronometro a mano.** `FTimerManager` ticka una volta per
+// frame: senza `++GFrameCounter` prima di ogni `Tick`, il tempo non passa e i test sarebbero verdi su
+// un'attesa mai avvenuta — lo stesso difetto che `FirstTurnDoesNotCloseItself` documenta piu' sopra.
+// =====================================================================================================
+
+namespace
+{
+	/** Fa scorrere `Seconds` di tempo di parete, un frame per passo. */
+	void AdvanceWallClock(UWorld* World, float Seconds, float Step = 0.1f)
+	{
+		const int32 Steps = FMath::CeilToInt(Seconds / Step);
+		for (int32 I = 0; I < Steps; ++I)
+		{
+			++GFrameCounter;
+			World->GetTimerManager().Tick(Step);
+		}
+	}
+
+	/**
+	 * Porta a termine il playback della risoluzione, come `RTWorldFixtures::PlayOneTurn`.
+	 *
+	 * 🔴 **Serve perche' il commit e la fine del turno sono DUE momenti.** `LockInAndResolve` fissa l'esito
+	 * logico e apre il playback; il numero di turno avanza solo quando il playback finisce, e senza questi
+	 * tick non finisce mai. La prima stesura di questi test asseriva il turno subito dopo il commit e
+	 * falliva su una risoluzione perfettamente riuscita — il difetto era l'oracolo.
+	 *
+	 * ⚠️ Il passo di 0,05 s non decide niente di competitivo: fa avanzare la sola presentazione. Le 400
+	 * iterazioni sono un tetto perche' un turno che non chiude debba far fallire il test, non appendere la
+	 * suite.
+	 */
+	void DrainPlayback(ARTTurnManager* TM)
+	{
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
+	}
+
+	/** Un mondo con quattro unita', il TurnManager avviato e il turno 1 aperto. `nullptr` se non si allestisce. */
+	ARTTurnManager* MakeCountdownMatch(UWorld* World)
+	{
+		SpawnHexMatchMap(World, /*Radius=*/ 4);
+		ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
+		ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -1));
+		if (!A || !B) { return nullptr; }
+		A->bIsBotControlled = false; // il Ready e' un gesto umano: con tutte a bot la prova sarebbe di un'altra partita
+
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (TM) { TM->DispatchBeginPlay(); } // apre il turno 1 e arma il tetto
+		return TM;
+	}
+}
+
+/**
+ * **Il Ready non committa: arma un countdown, e il commit arriva al suo scadere** (`#2193`).
+ *
+ * 🔑 La sanita' che rende il test non-vacuo e' la prima riga dopo il Ready: senza `IsReadyCountdownActive()`,
+ * un `RequestLockIn` che non avesse fatto NIENTE darebbe lo stesso «non ha ancora risolto».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReadyCountdownDelaysCommitTest,
+	"RefactorTactics.HexMatch.ReadyCountdownDelaysTheCommit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReadyCountdownDelaysCommitTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTTurnManager* TM = MakeCountdownMatch(World);
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHexMatchWorld(World); return false; }
+
+	TestEqual(TEXT("il countdown di default e' quello della spec §7.2"), TM->GetReadyCountdownSeconds(), 3.f);
+
+	// 🔴 **L'oracolo del commit e' il NUMERO DI TURNO, non la fase**, e la prima stesura di questi test ci si
+	// e' rotta sopra: `LockInAndResolve` risolve e RIAPRE la pianificazione per il turno dopo — l'header lo
+	// dichiara, *«il ciclo delle fasi esce quando `Phase == Planning`»*. `Phase == Planning` e' quindi vero sia
+	// prima del commit sia dopo, cioe' non distingue le due cose che questo test esiste per distinguere.
+	const int32 TurnoPrima = TM->GetTurnNumber();
+
+	TM->RequestLockIn();
+
+	TestTrue(TEXT("il Ready ha ARMATO il countdown"), TM->IsReadyCountdownActive());
+	TestEqual(TEXT("e NON ha committato: il turno non e' avanzato"), TM->GetTurnNumber(), TurnoPrima);
+
+	// A meta' countdown non e' ancora successo niente: e' la finestra in cui l'Unready deve poter entrare.
+	AdvanceWallClock(World, 1.5f);
+	TestEqual(TEXT("a meta' countdown il commit non e' avvenuto"), TM->GetTurnNumber(), TurnoPrima);
+	TestTrue(TEXT("e il countdown sta ancora scorrendo"), TM->IsReadyCountdownActive());
+	TestTrue(TEXT("il cronometro CAMMINA: ne resta meno di quanto ne e' stato armato"),
+		TM->GetReadyCountdownRemaining() < 3.f);
+
+	// Oltre la scadenza: il commit e' avvenuto.
+	AdvanceWallClock(World, 2.0f);
+	TestFalse(TEXT("il countdown si e' esaurito"), TM->IsReadyCountdownActive());
+	TestTrue(TEXT("e la RISOLUZIONE e' partita: il commit c'e' stato"), TM->IsResolving());
+
+	// Il turno avanza a fine playback, non al commit: sono due momenti, e l'oracolo deve aspettare il secondo.
+	DrainPlayback(TM);
+	TestTrue(TEXT("e a playback finito il turno e' avanzato"), TM->GetTurnNumber() > TurnoPrima);
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+/**
+ * **Unready torna alla pianificazione, e non regala tempo** (`#2193`).
+ *
+ * Le due meta' del criterio: il piano sopravvive, e il **tetto non si riarma**. La seconda e' quella che si
+ * dimentica — un Unready che rimettesse `PlanningSeconds` a nuovo renderebbe Ready+Unready il modo di
+ * pianificare senza limite.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnreadyKeepsThePlanTest,
+	"RefactorTactics.HexMatch.UnreadyReturnsToPlanningWithThePlanIntact",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnreadyKeepsThePlanTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTTurnManager* TM = MakeCountdownMatch(World);
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHexMatchWorld(World); return false; }
+
+	// Un piano vero da non perdere: senza, «il piano e' intatto» sarebbe vero su un piano vuoto.
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Actors);
+	ARTUnit* Umana = nullptr;
+	for (AActor* Actor : Actors)
+	{
+		ARTUnit* U = Cast<ARTUnit>(Actor);
+		if (U && !U->bIsBotControlled) { Umana = U; break; }
+	}
+	if (!TestNotNull(TEXT("l'unita' umana"), Umana)) { DestroyHexMatchWorld(World); return false; }
+	Umana->PlannedWaypoints.Add(FRTCellId(-2, 1));
+	const TArray<FRTCellId> PianoPrima = Umana->PlannedWaypoints;
+	if (!TestTrue(TEXT("il piano di partenza NON e' vuoto"), PianoPrima.Num() > 0))
+	{
+		DestroyHexMatchWorld(World);
+		return false;
+	}
+
+	AdvanceWallClock(World, 5.0f); // il giocatore pensa cinque secondi
+	const float TettoPrimaDelReady = TM->GetPlanningTimeRemaining();
+	const int32 TurnoPrima = TM->GetTurnNumber();
+
+	TM->RequestLockIn();
+	if (!TestTrue(TEXT("il countdown e' armato: senza, l'Unready non annullerebbe niente"),
+		TM->IsReadyCountdownActive()))
+	{
+		DestroyHexMatchWorld(World);
+		return false;
+	}
+
+	AdvanceWallClock(World, 1.0f);
+	TM->CancelLockIn();
+
+	TestFalse(TEXT("il countdown e' annullato"), TM->IsReadyCountdownActive());
+	TestTrue(TEXT("si e' in pianificazione"), TM->GetPhase() == ERTMatchPhase::Planning);
+	// ⚠️ La riga qui sopra da sola NON basta, ed e' la debolezza che ha fatto passare questo test mentre i
+	// suoi tre gemelli cadevano: dopo una risoluzione la fase torna `Planning`. Il turno invariato e' cio' che
+	// distingue «non e' successo niente» da «e' passato un turno intero».
+	TestEqual(TEXT("e NESSUN turno e' stato consumato"), TM->GetTurnNumber(), TurnoPrima);
+	TestFalse(TEXT("nessuna risoluzione e' partita"), TM->IsResolving());
+	TestTrue(TEXT("il piano e' identico a prima del Ready"), Umana->PlannedWaypoints == PianoPrima);
+
+	// 🔴 Il tetto e' SCESO durante il countdown, non e' stato riarmato: l'Unready non regala tempo.
+	const float TettoDopo = TM->GetPlanningTimeRemaining();
+	TestTrue(TEXT("il tetto non e' stato riarmato: ne resta MENO di prima del Ready"),
+		TettoDopo < TettoPrimaDelReady);
+	TestTrue(TEXT("e sta ancora scorrendo"), TettoDopo > 0.f);
+
+	// E dopo l'Unready si puo' dichiarare Ready di nuovo: la finestra non e' a uso singolo.
+	TM->RequestLockIn();
+	TestTrue(TEXT("un secondo Ready riarma il countdown"), TM->IsReadyCountdownActive());
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+/**
+ * **Il tetto vince sul countdown** (`#2193`).
+ *
+ * Se il timer massimo scade mentre il countdown scorre, il turno si chiude al **tetto**. E' la lettura che
+ * *«il countdown non sostituisce il timer massimo»* impone, ed e' l'unica che tiene il turno limitato
+ * superiormente: l'altra permetterebbe di sforare il tetto premendo Ready un istante prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningCapWinsOverCountdownTest,
+	"RefactorTactics.HexMatch.PlanningCapWinsOverTheReadyCountdown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanningCapWinsOverCountdownTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTTurnManager* TM = MakeCountdownMatch(World);
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHexMatchWorld(World); return false; }
+
+	// Un tetto piu' CORTO del countdown: e' la configurazione in cui i due orologi si contendono il turno.
+	TM->SetPlanningSeconds(1.0f);
+	TM->SetReadyCountdownSeconds(3.f);
+
+	const int32 TurnoPrima = TM->GetTurnNumber();
+
+	TM->RequestLockIn();
+	TestTrue(TEXT("il countdown e' armato"), TM->IsReadyCountdownActive());
+
+	// Oltre il tetto (1 s) ma DENTRO il countdown (3 s): se il countdown vincesse, qui non sarebbe successo
+	// niente.
+	AdvanceWallClock(World, 1.5f);
+
+	TestTrue(TEXT("il tetto ha chiuso il turno: il commit e' avvenuto prima dei 3 s del countdown"),
+		TM->IsResolving() || TM->GetTurnNumber() > TurnoPrima);
+	TestFalse(TEXT("e il countdown e' stato spento dal commit, non lasciato armato"),
+		TM->IsReadyCountdownActive());
+
+	DrainPlayback(TM);
+	TestTrue(TEXT("a playback finito il turno e' avanzato"), TM->GetTurnNumber() > TurnoPrima);
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+/**
+ * **Con `ReadyCountdownSeconds = 0` il commit e' sincrono** (`#2193`).
+ *
+ * 🔑 **E' la prova che questa feature non tocca il determinismo.** Lo Scenario Harness e i test headless
+ * chiamano `LockInAndResolve()` direttamente — non passano di qui — ma la via a zero e' quella che tiene
+ * `RequestLockIn` utilizzabile da un percorso senza tempo di parete. Senza questa prova, «l'harness non vede
+ * il countdown» resterebbe una promessa nel commento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTZeroCountdownCommitsSynchronouslyTest,
+	"RefactorTactics.HexMatch.ZeroReadyCountdownCommitsInTheSameFrame",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTZeroCountdownCommitsSynchronouslyTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTTurnManager* TM = MakeCountdownMatch(World);
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHexMatchWorld(World); return false; }
+
+	TM->SetReadyCountdownSeconds(0.f);
+	const int32 TurnoPrima = TM->GetTurnNumber();
+
+	TM->RequestLockIn();
+
+	TestFalse(TEXT("nessun countdown e' stato armato"), TM->IsReadyCountdownActive());
+	TestTrue(TEXT("il commit e' avvenuto NELLO STESSO frame, senza far scorrere un solo secondo"),
+		TM->IsResolving());
+
+	DrainPlayback(TM);
+	TestTrue(TEXT("e il turno si chiude senza che sia passato tempo di parete"),
+		TM->GetTurnNumber() > TurnoPrima);
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// #2359 — la riserva di #2193, messa alla prova
+//
+// #2193 ha introdotto `OnLockInCommitted` dentro `LockInAndResolve` e ne ha dichiarato in PR un effetto
+// collaterale: *«prima di questa PR solo `OnLockIn` spegneva l'anteprima, quindi un turno chiuso dal
+// timeout la lasciava accesa per tutta la risoluzione. `OnLockInCommitted` scatta su tutti i percorsi e
+// lo copre — ⚠️ effetto osservato, non testato in isolamento»*.
+//
+// Misurato prima di scrivere (`4d6964a4`): **zero** test nominavano `OnLockInCommitted`, e zero
+// `HandleLockInCommitted`. La riserva era ancora tutta da verificare.
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Il commit si annuncia anche quando a chiudere il turno e' il TETTO, non il giocatore.
+ *
+ * 🔑 **Il turno DEVE chiudersi dal timer, e non da `RequestLockIn()`.** Quella sarebbe la riga di comodo
+ * che rende il test cieco proprio al difetto che deve coprire: il broadcast riportato dentro
+ * `ARTPlayerController::OnLockIn` — cioe' la regressione storica — lascerebbe verde un test che passa
+ * dal Ready, perche' e' l'unico percorso che quel tasto attraversa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInCommittedFiresOnTimeoutTest,
+	"RefactorTactics.HexMatch.LockInCommittedFiresOnPlanningTimeout",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInCommittedFiresOnTimeoutTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTTurnManager* TM = MakeCountdownMatch(World);
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHexMatchWorld(World); return false; }
+
+	URTLockInCommittedProbeForTest* Probe = NewObject<URTLockInCommittedProbeForTest>(TM);
+	TM->OnLockInCommitted.AddDynamic(Probe, &URTLockInCommittedProbeForTest::OnLockInCommitted);
+
+	// Un tetto corto, e NESSUN Ready: e' il percorso che passa da `OnPlanningTimeout`.
+	TM->SetPlanningSeconds(1.0f);
+	const int32 TurnoPrima = TM->GetTurnNumber();
+
+	// ANTI-VACUITA' — senza questa riga «e' scattato» e «era gia' scattato» sono indistinguibili.
+	TestEqual(TEXT("prima del tetto il commit non e' stato annunciato"), Probe->Broadcasts, 0);
+	TestFalse(TEXT("e nessun countdown e' armato: non stiamo misurando la via del Ready"),
+		TM->IsReadyCountdownActive());
+
+	AdvanceWallClock(World, 1.5f);
+
+	// ANCORA — il turno si e' chiuso DAVVERO. Senza, un avanzamento che non avesse committato niente
+	// darebbe lo stesso «zero broadcast», e il test misurerebbe la propria fixture invece del delegate.
+	TestTrue(TEXT("il tetto ha chiuso il turno"), TM->IsResolving() || TM->GetTurnNumber() > TurnoPrima);
+
+	// Il cuore: il commit da timeout si annuncia, una volta sola.
+	TestEqual(TEXT("il commit da timeout annuncia se stesso"), Probe->Broadcasts, 1);
+
+	DrainPlayback(TM);
+	TestTrue(TEXT("a playback finito il turno e' avanzato"), TM->GetTurnNumber() > TurnoPrima);
+	TestEqual(TEXT("e la risoluzione non ha annunciato un secondo commit"), Probe->Broadcasts, 1);
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

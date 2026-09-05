@@ -67,12 +67,13 @@ canale deve aggiungere una riga, e chi ne chiude uno deve cambiarne lo stato.
 
 | Canale | Cosa rivelerebbe | Stato | Misura |
 |---|---|---|---|
-| `ARTHUD::DrawHUD` — overlay e modello | nome eroe, barra HP e scudo di ogni unità viva | ✅ **chiuso** | `ShouldDrawUnitOverlay` decide, e `if (!bIsKnownToObserver) { continue; }` salta l'unità |
+| `ARTHUD::DrawHUD` — overlay e modello | nome eroe, barra HP e scudo di ogni unità viva | ✅ **chiuso** | `ShouldDrawUnitOverlay` decide — interrogata da `ARTHUD::UpdateObserverVeil` (`Tick`) dal 2026-09-04, [#2246](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2246) — e `if (!Unit->IsKnownToObserver()) { continue; }` salta l'unità. Un produttore, due consumatori: il modello e la sovrapposizione |
 | Combat log | la cella esatta di ogni movimento, e i punteggi di utility del bot con cella e bersaglio | ✅ **chiuso** ([D-223]) | l'HUD chiama `GetRecentEventsForTeam(PlayerTeamId)`; `GetRecentEvents()` non ha **più alcun chiamante fuori dai test** |
 | Traccia post-lock | il percorso realmente eseguito da ogni unità, entrambe le squadre | ✅ **chiuso** (`#1497`) | `FRTMoveRoute::CellVerdicts` porta un verdetto **per cella**; `ARTTurnManager::VisibleTrailFor` tronca, e `DrawHUD` disegna solo il tratto che rende |
 | Sagoma dell'ultimo contatto | dove un nemico era l'ultima volta | ✅ **per costruzione** | `ContactGhostTargetForUnit` è complementare a `ShouldDrawUnitOverlay`: o l'uno o l'altra |
 | `rt.Debug.DrawPaths` | le rotte di entrambe le squadre, cella per cella, **in console** | ⚠️ **aperto e DICHIARATO** | **zero** `#if` nel file (`Debug/RTDebugConsole.cpp`), quindi non è un attrezzo da editor. Resta non filtrato per scelta: chi apre la console possiede già lo stato del client, e il comando stampa accanto il tratto che `VisibleTrailFor` concede — è così che il filtro si verifica |
-| **Playback** (`TickPlayback`) | il modello di ogni unità che cammina lungo il percorso eseguito | 🔴 **aperto**, vive in **#1525** | non censito da nessun documento fino al 2026-08-28. La rotta gli arriva da `ResolvedTimeline`, che `ResolveMovement` **non** azzera |
+| **Playback** (`TickPlayback`) | il modello di ogni unità che cammina lungo il percorso eseguito | ✅ **chiuso** (`#1525`) | `BeginPlayback` tronca la rotta al tratto osservato con `URTTeamKnowledgeLibrary::ObservedPrefixLength` — **la stessa funzione** che `VisibleTrailFor` usa per la traccia, non una seconda copia della regola. 🔴 **E con meno di due celle osservate non posiziona nemmeno il modello sulla partenza**: quel `SetVisualLocation` era esso stesso un canale, e rivelava da dove il nemico era uscito proprio quando la destinazione era visibile. ⚠️ **Il campione è quello di [D-223]** — verdetto congelato alla raccolta, osservatori alle celle di inizio fase: risponde bene quando a nascondere è il movimento del NEMICO, sbaglia quando è quello dell'OSSERVATORE |
+| **Camera** — pan e focus automatici (`CAM-12`, [#1781](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1781)) | **dove** è successo qualcosa che l'osservatore non conosce: a rivelarlo non è un pixel, è il **movimento** dell'inquadratura | ⏳ **inerte oggi, normato da ora** ([D-287](../../decisions/RT_PDR_00_Decision_Log.md)) | il Director **non esiste** — `ARTCameraPawn::FocusOn` ha oggi consumatori solo manuali, quindi nessun pan automatico può ancora tradire nulla. La regola è scritta **prima** del canale, ed è deliberato: un director costruito sopra `ResolvedTimeline` non filtrata erediterebbe **#1525** invece di evitarlo. ⚠️ **Filtrare in camera NON è il confine**: l'evento non autorizzato non deve arrivare al client, non essere ignorato dopo. ℹ️ Un secondo debito già dichiarato sulla stessa superficie: `ARTCameraPawn::FrameOwnTeam` itera **tutte** le unità e legge `TeamId`/`IsAlive()` anche degli avversari per scartarli ([D-143](../../decisions/RT_PDR_00_Decision_Log.md), owner [`spec-tactical-camera.md`](spec-tactical-camera.md) §1) |
 
 ⚠️ **E le due colonne cambiano fra Development e Shipping**, che è la seconda ragione per cui una cifra in
 prosa non regge: la riga `rt.Debug.DrawPaths` dipende da come il target tratta i comandi console, non da
@@ -232,7 +233,47 @@ mostrata**: due canali, lo stesso soggetto, due regole opposte.
 | Sagoma dell'ultimo contatto | **alla lettura** | risponde a *«adesso non lo conosco»*: è il canale del ricordo, e in lettura è dove deve stare |
 | Overlay e modello | **alla lettura** | descrivono il presente |
 | Fog of war ([D-225]) | **alla lettura** | è visibilità di **celle**, non di soggetti |
-| **Playback** (`TickPlayback`) | ⛔ **nessuno** | canale non censito da questa tabella fino al 2026-08-28: muove il modello lungo il percorso eseguito, per entrambe le squadre. Vive in **#1525** |
+| **Playback** (`TickPlayback`) | **alla scrittura, per cella** | come la traccia, e per la stessa ragione: un movimento non è un fatto puntuale. Il modello percorre il tratto **osservato** e si ferma dove l'osservatore ha perso il soggetto (`#1525`). 🔴 **Il verdetto è lo STESSO oggetto della traccia**, copiato in `FRTResolvedEvent::CellVerdicts` dal punto in cui `FreezeRouteVerdicts` lo congela — se i due divergessero, traccia e modello tornerebbero a raccontare frasi diverse sullo stesso movimento, che è la **contraddizione** che [D-223] nomina |
+| **Replay archiviato** (`GetCurrentPhaseEntries`) | **alla scrittura, alla registrazione** | è il combat log della prima riga, ma **differito**: chi lo guarda apre un file, e il verdetto in quel momento non esiste più — `FRTTurnLogEntry::Verdict` è `Transient`. Le voci si filtrano quindi mentre la partita gira, e l'archivio porta una traccia **per squadra** accanto alla canonica ([D-316], `#2098`) |
+
+#### 🔴 Il replay archiviato è il canale che ha dimostrato perché questa colonna esiste
+
+*(Aggiunto il 2026-09-03, [D-316].)*
+
+Le altre cinque righe «alla scrittura» hanno il verdetto a portata di mano nel momento in cui decidono. Il
+replay no: fra la scrittura e la lettura c'è un **file**, e il verdetto non lo attraversa.
+
+Per un anno questo ha prodotto una lettura sbagliata della tabella — *«filtrare il replay richiede il
+verdetto nella traccia»* — che è vera solo se si decide **alla lettura**. Decidendo alla scrittura il
+problema non si pone: il prodotto pubblico nasce già filtrato, e la traccia non ha mai bisogno di portare
+la maschera. ⚠️ Ed è meglio così anche se il costo fosse stato pari, perché una traccia che porta il
+verdetto **spedisce allo spettatore la maschera di chi poteva vedere cosa** — cioè fa esattamente ciò che
+§1.3 dichiara non essere un confine.
+
+⛔ **Il confine chiuso è quello della superficie pubblica, non del filesystem.** La traccia canonica resta
+sul disco accanto alle filtrate: chi ha accesso alla cartella ha accesso a tutto. Dove vivano gli archivi e
+chi possa aprirli è [D-276] §3, ancora aperta.
+
+**Lo spettatore neutrale vede tutte le voci**, ed è dichiarato ([D-316] punto 5): un replay pubblicato è già
+una rinuncia alla privacy competitiva, e i **campi** di audit restano tolti anche a lui.
+
+#### ⚠️ E «chi guarda» va DICHIARATO dall'archivio, o il neutrale si ottiene per omissione
+
+*(Aggiunto il 2026-09-03, [D-317].)*
+
+Per un giorno il filtro è esistito senza un produttore. La superficie era `OpenMatchAsTeam(MatchId, TeamId)`,
+e **nessun chiamante aveva modo di conoscere quel `TeamId`**: una schermata non sa di chi fosse una partita
+registrata la settimana scorsa. In pratica si sarebbe usato `OpenMatch`, ottenendo la vista neutrale — la
+risposta giusta per chi la **sceglie**, e quella sbagliata per chi ci finisce senza scegliere.
+
+Il manifest lo dichiara ora in `LocalObserverTeamId` (**v3**), e `OpenMatchAsRecordedObserver(MatchId)` è la
+porta che lo rilegge. 🔑 La regola generale, che vale oltre il replay: **quando una vista filtrata ha un
+soggetto, il soggetto è un dato — non un parametro che qualcuno si ricorderà di passare.**
+
+⚠️ `INDEX_NONE` significa **«non c'era»**, non «non lo so»: un dedicated server registra una partita che non
+è di nessuno in locale, e la vista completa è la sua lettura corretta. Per questo il valore non si ricava da
+`ARTPlayerState::TeamIdOf`, che risponde `0` anche senza controller — un ripiego corretto *in partita*, dove
+un giocatore c'è sempre, e che qui aprirebbe il replay con una vista parziale spacciata per la propria.
 
 #### 🔴 Per la traccia «quando il fatto è accaduto» non è definito, e la rotta si tronca
 
@@ -413,11 +454,19 @@ insegna, ed è la voce più economica dell'intera spec.
 
 ### A2 — I due leak si chiudono
 
-`ARTHUD::DrawHUD` continua a iterare gli attori, ma **salta** quelli che la vista non conosce
-(`ShouldDrawUnitOverlay`). *(Questa riga diceva «smette di iterare `GetAllActorsOfClass` e itera
-`FRTKnowledgeView`»: non è ciò che il Task 3 ha costruito, ed è una differenza che conta — il ciclo resta sugli
-attori, quindi ogni cosa che il ciclo legge dall'attore va filtrata a sua volta.)* Il combat log
-passa dallo stesso filtro prima di essere disegnato.
+`ARTHUD::DrawHUD` continua a iterare gli attori, ma **salta** quelli che la vista non conosce. *(Questa riga
+diceva «smette di iterare `GetAllActorsOfClass` e itera `FRTKnowledgeView`»: non è ciò che il Task 3 ha
+costruito, ed è una differenza che conta — il ciclo resta sugli attori, quindi ogni cosa che il ciclo legge
+dall'attore va filtrata a sua volta.)* Il combat log passa dallo stesso filtro prima di essere disegnato.
+
+> 🔄 **Aggiornato il 2026-09-04 ([#2246](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2246)): chi INTERROGA `ShouldDrawUnitOverlay` non è più `DrawHUD`.**
+> Il verdetto lo prende `ARTHUD::UpdateObserverVeil`, chiamato da `ARTHUD::Tick`; `DrawHUD` lo **legge** da
+> `ARTUnit::IsKnownToObserver()`. La regola e il suo esito non cambiano: cambia che il velo non dipende più
+> dall'essere in un percorso di disegno.
+>
+> 🔴 **Il difetto che lo ha imposto**: `DrawHUD` comincia con `if (!Canvas) { return; }` e `bKnownToObserver`
+> nasce `true`, quindi *«il driver non ha girato»* e *«tutto è noto»* producevano lo stesso schermo. La
+> coppia è ora distinta da `RefactorTactics.Veil.DriverRunsOnTick`.
 
 Senza questa voce tutte le altre sono cosmesi: si può nascondere il modello, ma il nome e la barra HP
 dell'unità nascosta resterebbero stampati a schermo, e il log ne stamperebbe la cella esatta.

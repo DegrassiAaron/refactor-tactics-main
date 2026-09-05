@@ -48,6 +48,56 @@ struct FRTTurnTrace
  * dire PASS/FAIL e diagnosticare la causa senza aprire migliaia di righe di log Unreal.
  */
 
+
+/**
+ * UN CAMPO CHE E' CAMBIATO fra l'ingresso e l'uscita di una run — `#1630`.
+ *
+ * 🔑 **Porta il valore prima e dopo, non la differenza**: per `Cell` e `Statuses` una sottrazione non
+ * esiste, e un diff che mostrasse solo «cambiato» costringerebbe a rileggere la traccia — cioè la cosa che
+ * questa slice esiste per evitare.
+ */
+struct FRTUnitFieldChange
+{
+	/** Il nome del campo, come si chiama in `FRTUnitStateDigest`: `Health`, `Cell`, `Facing`, … */
+	FName Field;
+
+	FString Before;
+
+	FString After;
+
+	FRTUnitFieldChange() = default;
+	FRTUnitFieldChange(FName InField, const FString& InBefore, const FString& InAfter)
+		: Field(InField), Before(InBefore), After(InAfter) {}
+};
+
+/** Come un'unita' compare nel diff: presente in entrambi gli stati, o solo in uno. */
+enum class ERTUnitDiffPresence : uint8
+{
+	/** C'era prima e c'e' dopo: i campi cambiati sono in `Changes`. */
+	Present,
+	/** Non c'era all'inizio ed e' comparsa. */
+	Appeared,
+	/** C'era all'inizio e non c'e' piu'. */
+	Disappeared
+};
+
+/**
+ * IL DIFF DI UN'UNITA': solo i campi cambiati, e nient'altro — `#1630`.
+ *
+ * ⚠️ **Una comparsa o una sparizione NON si rendono come campi cambiati.** Un'unita' che sparisce non e'
+ * un `Health` che va a zero: e' un'assenza, e dirla come un campo costringerebbe chi legge a distinguere
+ * due cose diverse dallo stesso segno.
+ */
+struct FRTUnitStateDiff
+{
+	int32 UnitId = 0;
+
+	ERTUnitDiffPresence Presence = ERTUnitDiffPresence::Present;
+
+	/** Vuoto se niente e' cambiato: un'unita' immobile e intatta non ha righe. */
+	TArray<FRTUnitFieldChange> Changes;
+};
+
 struct FRTTestResult
 {
 	FString ScenarioId;
@@ -71,11 +121,36 @@ struct FRTTestResult
 
 	int32 TurnsPlayed = 0;
 
+	/**
+	 * Tempo **simulato**: gli step di risoluzione eseguiti, moltiplicati per il passo fisso del runner.
+	 *
+	 * E' **deterministico** — stesso scenario, stesso numero di step, stesso valore — e questa e' l'unica
+	 * ragione per cui vale la pena scriverlo accanto a `WallClockSeconds`: da solo direbbe poco, in coppia
+	 * distingue due cause che oggi il referto confonde. Un `SimulationSeconds` fermo con un
+	 * `WallClockSeconds` che raddoppia dice «la macchina e' carica»; il contrario dice «il gioco ha cambiato
+	 * comportamento», ed e' l'unico dei due casi che riguardi il codice.
+	 *
+	 * 🔴 **Non entra in `StateHash`, nel TurnLog, ne' in alcuna decisione della simulazione.** E' misura, non
+	 * ingresso: il giorno in cui una durata decidesse un esito, la suite smetterebbe di essere riproducibile.
+	 */
+	float SimulationSeconds = 0.f;
+
+	/**
+	 * Tempo di **parete**, quello dell'orologio da muro. **Non e' deterministico e non lo diventera'**:
+	 * dipende dalla macchina, dal carico e da quante altre sessioni stanno compilando — su questo repository
+	 * piu' sessioni condividono la working directory ([D-222](../../../docs/decisions/RT_PDR_00_Decision_Log.md)).
+	 *
+	 * ⚠️ Percio' si **registra** ma non si asserisce per uguaglianza: un test che pretendesse due wall-clock
+	 * identici sarebbe rosso a giorni alterni per una ragione che non e' il gioco. L'unica delle due durate
+	 * su cui si possa scrivere un `TestEqual` e' `SimulationSeconds`.
+	 */
+	float WallClockSeconds = 0.f;
+
 	/** Seed dichiarato dallo scenario. Registrato nel report anche se oggi nessun RNG lo consuma. */
 	int32 Seed = 0;
 
 	/**
-	 * Digest dello stato finale: posizione, salute, scudo, energia e stati di ogni unità — **anche di quelle
+	 * Digest dello stato finale: posizione, salute, scudo e stati di ogni unità — **anche di quelle
 	 * cadute**, che entrano con `bAlive = false`. Non è un dettaglio: senza, «tre vivi e un caduto» e «tre
 	 * vivi e basta» darebbero lo stesso hash ([D-084](../../../docs/decisions/RT_PDR_00_Decision_Log.md)).
 	 *
@@ -133,6 +208,45 @@ struct FRTTestResult
 	FString DecisionSource = TEXT("none");
 
 	TArray<FRTAssertionResult> Assertions;
+
+	/**
+	 * COSA E' CAMBIATO fra l'ingresso e l'uscita, per unita' — `#1630`.
+	 *
+	 * 🔑 **Letto, non ricostruito.** I due stati arrivano da `URTMatchStateHashLibrary::BuildUnitDigests`,
+	 * la stessa funzione che alimenta il checksum: il diff NON somma gli eventi del TurnLog. La differenza
+	 * si vede in un caso preciso — uno stato che cambia senza che una voce di log lo nomini compare
+	 * comunque qui, ed e' l'esperimento che il criterio d'accettazione porta con se'.
+	 *
+	 * ⚠️ Ordinato per `UnitId`: gli stati nascono da una `TMap`, la cui iterazione non e' garantita.
+	 * L'hash se ne salva perche' ordina prima di mescolare; un elenco esposto no.
+	 *
+	 * ⛔ Non entra in `StateHash` ne' nel TurnLog: e' una lettura, e una lettura che cambiasse un esito
+	 * sarebbe un secondo calcolo.
+	 */
+	TArray<FRTUnitStateDiff> StateDiff;
+
+	/**
+	 * L'identita' d'**authoring** di ogni unita', per `StableUnitId` (`#1625`).
+	 *
+	 * 🔴 **Esiste perche' i due spazi di id non si parlavano, e ricostruire il ponte a mano sarebbe stato un
+	 * difetto muto.** Uno scenario nomina le unita' con una `FString` — *«cio' che intent, decisioni e
+	 * assertion nominano; non e' un indice»* — mentre il TurnLog porta un `int32 StableUnitId`, che
+	 * `ARTTurnManager::EnsureMatchRoster` assegna **dopo** aver ordinato il roster per
+	 * `TeamId`/`Cell`/nome-actor. La corrispondenza fra i due esisteva solo dentro
+	 * `URTScenarioSession::UnitsById`, viva durante l'esecuzione, e non usciva di li'.
+	 *
+	 * ⛔ **La via scartata, e perche'.** Le si poteva ricostruire dalla cella iniziale, che e' univoca:
+	 * sarebbe stata una **seconda copia** di `MatchRosterLess` — la duplicazione che questo repository
+	 * paga ogni volta che la fa, e che diverge al primo pareggio su `(TeamId, Cell)` o al primo cambio di
+	 * quella regola. Qui si **trasporta** la corrispondenza vera invece di riderivarla.
+	 *
+	 * ⚠️ **Non entra in `StateHash` ne' nel TurnLog**, come `StateDiff` e per la stessa ragione: e' una
+	 * lettura, e una lettura che cambiasse un esito sarebbe un secondo calcolo. Un `FString` per unita' non
+	 * ha nessun diritto di muovere un hash.
+	 *
+	 * Vuota se l'esecuzione non e' arrivata a comporla — un `Error`, non un `Fail`.
+	 */
+	TMap<int32, FString> ScenarioIdByUnitId;
 
 	int32 PassedCount() const
 	{

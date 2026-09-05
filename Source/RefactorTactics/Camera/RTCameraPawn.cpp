@@ -126,7 +126,10 @@ void ARTCameraPawn::ApplyViewSettings()
 	// sarebbe aperta all'inclinazione serializzata invece che a quella tarata. `ApplyViewSettings` e'
 	// chiamata da `BeginPlay` e da `PostEditChangeProperty`, cioe' esattamente nei due momenti in cui la
 	// taratura deve prendere effetto. Trovato in code review.
-	CameraPitch = FMath::Clamp(DefaultPitch, MinPitch, MaxPitch);
+	// L'input manuale accumulato si azzera insieme alla taratura: `ApplyViewSettings` e' il ritorno allo
+	// stato tarato, e conservare l'offset qui farebbe ripartire la partita inclinata come l'ultima orbita.
+	ManualPitchOffset = 0.f;
+	RecomputePitchFromZoom();
 	SpringArm->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
 
 	// La distanza e' appena cambiata: lo stato strategico e' una **lettura** di quella distanza, e va
@@ -304,9 +307,7 @@ void ARTCameraPawn::AddPlanarMovement(const FVector2D& Axis)
 	// Senza, allontanandosi la mappa scorre a passi che sullo schermo diventano impercettibili — e' il
 	// motivo per cui `PanSpeed` da solo non basta. Normalizzato su `DefaultArmLength`, cosi' alla distanza
 	// di default il comportamento e' quello storico.
-	const float DistanceScale = (SpringArm && DefaultArmLength > 0.f)
-		? SpringArm->TargetArmLength / DefaultArmLength
-		: 1.f;
+	const float DistanceScale = GetPanDistanceScale();
 	const FVector Delta = (Forward * Axis.Y + Right * Axis.X) * PanSpeed * DistanceScale;
 	// Dal **pivot**, non dalla posizione: con un peek attivo, sommare alla posizione farebbe entrare
 	// l'offset temporaneo nel movimento permanente — e lo scorrimento diventerebbe piu' veloce da un lato.
@@ -554,6 +555,9 @@ void ARTCameraPawn::ZoomTowards(float AxisValue, const FVector& WorldAnchor)
 	// aggiornarle dopo faceva usare al primo zoom della sessione — o al primo dopo un ridimensionamento
 	// della finestra — i valori precedenti. Con `ViewportAspectRatio` ancora a zero i limiti di `D-251`
 	// venivano saltati del tutto per quella scrittura. Trovato in code review.
+	// Come in `AddZoom`: il pitch derivato entra nei limiti, quindi si aggiorna prima della scrittura.
+	RecomputePitchFromZoom();
+	ApplyArmRotation();
 	RefreshViewportMetrics();
 	SetCameraPivot(FVector(Moved.X, Moved.Y, Pivot.Z));
 	UpdateStrategicState();
@@ -585,8 +589,11 @@ void ARTCameraPawn::AddPitch(float AxisValue)
 	// ⚠️ E la sensibilita' e' portata a zero se qualcuno la mettesse negativa: e' `BlueprintReadWrite`, e
 	// il suo `meta = (ClampMin)` vincola il Details **e non un `Set` da Blueprint** — la stessa lezione,
 	// applicata al campo che la enuncia invece che solo a quello che la subiva.
-	CameraPitch = FMath::Clamp(CameraPitch + AxisValue * FMath::Max(PitchSensitivity, 0.f),
-		MinPitch, MaxPitch);
+	// 🔴 **L'input scrive l'OFFSET, non l'inclinazione.** Da #1834 il pitch ha due contributi —
+	// quello derivato dallo zoom e quello dell'utente — e sommare direttamente su `CameraPitch` li
+	// renderebbe indistinguibili: il primo ricalcolo dopo uno scroll cancellerebbe l'orbita fatta a mano.
+	ManualPitchOffset += AxisValue * FMath::Max(PitchSensitivity, 0.f);
+	RecomputePitchFromZoom();
 	ApplyArmRotation();
 }
 
@@ -615,6 +622,11 @@ void ARTCameraPawn::AddZoom(float AxisValue)
 		return;
 	}
 	SpringArm->TargetArmLength = FMath::Clamp(SpringArm->TargetArmLength + AxisValue * ZoomStep, MinArmLength, MaxArmLength);
+	// ⚠️ **Prima di scrivere il pivot**: l'inclinazione e' un ingresso di `ComputeEffectivePivotBounds`
+	// (`D-251`), quindi derivarla dopo il clamp userebbe per i limiti il pitch della distanza precedente.
+	// E' lo stesso ordine che `RecenterView` documenta per yaw e braccio.
+	RecomputePitchFromZoom();
+	ApplyArmRotation();
 	RefreshViewportMetrics();
 
 	// 🔴 **Il pivot va RI-CLAMPATO, perche' i suoi limiti dipendono dalla distanza** (code review,
@@ -624,6 +636,68 @@ void ARTCameraPawn::AddZoom(float AxisValue)
 	// toccava solo il braccio.
 	SetCameraPivot(CameraPivot);
 	UpdateStrategicState();
+}
+
+float ARTCameraPawn::GetZoomAlpha() const
+{
+	if (!SpringArm)
+	{
+		return 0.f;
+	}
+	// Il denominatore si misura sui limiti REALI, non su `DefaultArmLength`: normalizzare sul default
+	// darebbe un valore che vale `1` a meta' corsa e supera `1` oltre, cioe' non una posizione ma un
+	// rapporto — ed e' esattamente la forma che questa funzione sostituisce.
+	const float Range = MaxArmLength - MinArmLength;
+	if (Range <= KINDA_SMALL_NUMBER)
+	{
+		// Limiti coincidenti: non c'e' corsa, e ogni distanza e' il fondo. Restituire `0` invece di
+		// dividere per zero tiene la funzione totale: un pawn tarato cosi' e' degenere, non invalido.
+		return 0.f;
+	}
+	return FMath::Clamp((SpringArm->TargetArmLength - MinArmLength) / Range, 0.f, 1.f);
+}
+
+void ARTCameraPawn::SetZoomAlpha(float InAlpha)
+{
+	if (!SpringArm)
+	{
+		return;
+	}
+	const float Clamped = FMath::Clamp(InAlpha, 0.f, 1.f);
+	SpringArm->TargetArmLength = FMath::Lerp(MinArmLength, MaxArmLength, Clamped);
+
+	// Gli stessi riallineamenti di `AddZoom`, e nello stesso ordine: il pitch prima del pivot, perche'
+	// entra nei limiti. Una scorciatoia qui farebbe divergere le due porte dello zoom.
+	RecomputePitchFromZoom();
+	ApplyArmRotation();
+	RefreshViewportMetrics();
+	SetCameraPivot(CameraPivot);
+	UpdateStrategicState();
+}
+
+float ARTCameraPawn::GetPanDistanceScale() const
+{
+	if (!SpringArm || DefaultArmLength <= 0.f)
+	{
+		return 1.f;
+	}
+	// ⚠️ **Identica al rapporto che sostituisce**, e deliberatamente: #1834 sposta la derivazione dentro
+	// una porta sola, non cambia il feel dello scorrimento. La distanza si ricostruisce dall'alpha invece
+	// di leggere il braccio, cosi' il giorno in cui la scala diventera' una curva tarabile ci sara' un
+	// solo punto da cambiare, ed e' questo.
+	return FMath::Lerp(MinArmLength, MaxArmLength, GetZoomAlpha()) / DefaultArmLength;
+}
+
+void ARTCameraPawn::RecomputePitchFromZoom()
+{
+	const float Derived = FMath::Clamp(DefaultPitch + PitchZoomDelta * GetZoomAlpha(), MinPitch, MaxPitch);
+
+	// 🔴 **L'offset si clampa PRIMA di sommarlo, contro il windup.** Clampare solo il risultato
+	// lascerebbe crescere `ManualPitchOffset` oltre il limite: la vista resterebbe ferma a fondo corsa e
+	// il primo trascinamento nel verso opposto non risponderebbe, perche' starebbe smaltendo un offset
+	// invisibile. E' la stessa classe di difetto che `AddPitch` gia' evitava clampando lo stato.
+	ManualPitchOffset = FMath::Clamp(ManualPitchOffset, MinPitch - Derived, MaxPitch - Derived);
+	CameraPitch = FMath::Clamp(Derived + ManualPitchOffset, MinPitch, MaxPitch);
 }
 
 void ARTCameraPawn::RecenterView()

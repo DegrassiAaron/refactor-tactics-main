@@ -172,8 +172,10 @@ bool FRTMultiEffectReactionTest::RunTest(const FString&)
 	RunCompTurn(TM);
 
 	TestNotNull(TEXT("la reazione risulta attivata nel TurnLog"), FindCompActivatedReaction(TM));
-	// Lo scudo vale sul colpo che ha innescato la reazione, come il -20 di Deflect: altrimenti scadrebbe nel
-	// Cleanup dello stesso turno senza aver protetto da nulla.
+	// Lo scudo vale sul colpo che ha innescato la reazione: altrimenti scadrebbe nel Cleanup dello stesso
+	// turno senza aver protetto da nulla. La simmetria con `Deflect` e' nel MOMENTO — anche la sua
+	// mitigazione entra nella risoluzione del boundary che l'ha innescata, non dopo — e non nella PORTATA:
+	// da [D-309] il `Deflect` e' un pool sui colpi diretti del boundary, non uno sconto sul solo innescante.
 	TestEqual(TEXT("lo scudo della reazione assorbe parte del colpo"),
 		ReactorBefore - Reactor->Health, CompBasicAttackDamage() - ShieldAmount);
 	TestEqual(TEXT("e il secondo effetto colpisce comunque l'attaccante"),

@@ -7,32 +7,55 @@
 
   "_nota": "SPECIFICA ESEGUIBILE di E10. La tesi da dimostrare e' che la partita non e' un deathmatch: Phase tiene il Relay a (0,0) mentre Gadget viene abbattuto, e il punto viene assegnato lo stesso. L'ordine conta ed e' la regola vera: il controllo si verifica nel **Cleanup, dopo ambiente e KO** (issue #75). Se il punto fosse assegnato prima dei KO, una squadra potrebbe segnare con un'unita' che in quel turno muore — e nessuno se ne accorgerebbe finche' non succede in una partita vera.",
 
-  "_nota_perche_esiste": "Esce BLOCKED su `Objective`: non esiste nulla da contendere. Quando E10 atterra, questo file chiede subito la domanda giusta — non «il punto viene assegnato» ma «viene assegnato nell'ordine giusto».",
+  "_nota_perche_esiste": "⏱️ **Girava BLOCCATO su `Objective` fino al 2026-09-03 (#170).** La nota diceva: *«non esiste nulla da contendere»*, ed era vero due volte — la capability non era disponibile, ma soprattutto **nessun costruttore di arena posava un obiettivo**, `RelayBasin` compresa. #170 ha marcato (0,0,0) nella fixture e sbloccato la capability, e questo file ha smesso di essere una domanda: ora chiede quella giusta — non «il punto viene assegnato» ma **«viene assegnato nell'ordine giusto»**.",
 
-  "_nota_da_completare": "Chi implementa E10 aggiunge l'assertion sul punteggio, che oggi non ha un tipo: `ERTAssertionKind` conosce solo posizione, turni, HP e vivo/morto. Serve un `TeamScoreEquals`, ed e' bene che la sua mancanza si veda qui invece di essere scoperta a implementazione finita.",
+  "_nota_da_completare": "✅ **Chiusa da #170, e la risposta non e' quella che questa nota prevedeva.** Diceva: *«chi implementa E10 aggiunge l'assertion sul punteggio, che oggi non ha un tipo... serve un `TeamScoreEquals`»*. Un `TeamScoreEquals` non serve, e sarebbe stato **piu' debole** di cio' che serviva: direbbe che il punto c'e', non che e' stato assegnato dopo il KO — cioe' esattamente la meta' che questo file esiste per misurare. Cio' che mancava non era un tipo di assertion sul punteggio: era che la categoria `Objective` fosse **asseribile**. `URTTurnLogLibrary::OutcomeEnumForCategory` non aveva il proprio caso, e uno scenario che la chiedesse falliva il CARICAMENTO. Aggiunto quello, l'ordine si scrive con il `LogEventOrder` che c'era gia'.",
+
+  "_nota_la_morte_e_ambientale": "⚠️ **Gadget muore di fuoco, non di spada, ed e' una scelta di precisione.** La tesi e' che il controllo dell'obiettivo si valuti *«dopo gli effetti ambientali E i KO»*: una morte in combattimento avviene nel **Blast**, cioe' in una fase precedente, e proverebbe solo che il Cleanup viene dopo il Blast — che nessuno mette in dubbio. Il `Burning` uccide **dentro** il Cleanup, poche righe prima che le presenze sull'obiettivo vengano contate: e' l'unico modo di mettere il KO e il conteggio nello stesso passaggio, che e' dove l'ordine puo' davvero sbagliarsi. ⚠️ La salute di F1 e' dichiarata perche' il turno in cui muore dev'essere il **secondo**: morendo al T1 il punto verrebbe assegnato con un'unita' gia' fuori da un turno, e la contemporaneita' — che e' il soggetto — si perderebbe.",
 
   "units": [
-    { "id": "R1", "hero": "Hero.Phase",    "team": 0, "cell": [-1,  1, 0] },
-    { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [-2,  0, 0] },
+    { "id": "R1", "hero": "Hero.Phase",  "team": 0, "cell": [-1,  1, 0] },
+    { "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [ 2, -2, 0], "health": 20, "shield": 0 },
     { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [ 3,  0, 0] }
   ],
 
   "turns": [
     {
-      "_turno": "T1 — Phase sale sul Relay. Gira sul gioco di oggi: (0,0) e' pavimento, e la lane d'acqua la porta li' in due passi.",
+      "_turno": "T1 — l'avvicinamento. Phase risale la lane d'acqua fino a (0,1), **adiacente** al Relay ma non ancora sopra. Gadget scende dalla cresta `HighGround` alla fascia `Fire` di (2,-1): prende il danno d'ingresso e lo stato `Burning`, che e' il conto alla rovescia del turno dopo. ⚠️ **Phase si ferma a un passo di proposito, e non e' coreografia**: salendo gia' qui segnerebbe in ENTRAMBI i Cleanup, e il `LogEventOrder` del T2 confronterebbe il KO con il punto del T1 — che lo precede per forza. `LogEventOrder` guarda le PRIME occorrenze sull'intero log accumulato, quindi l'unico modo di asserire un ordine *dentro* un turno e' che quel turno porti la prima occorrenza di entrambi. Misurato: con la salita al T1 questa specifica falliva dicendo «posizioni 14 e 10», e il difetto era nella scena, non nel gioco.",
       "intents": [
-        { "unit": "R1", "move": [[0, 1, 0], [0, 0, 0]] }
+        { "unit": "R1", "move": [[0, 1, 0]] },
+        { "unit": "F1", "move": [[2, -1, 0]] }
       ]
     },
     {
-      "_turno": "T2 — il punto. Gadget cade, Phase resta sull'obiettivo, il Cleanup assegna. Serve che un obiettivo esista.",
+      "_turno": "T2 — il punto. Phase fa l'ultimo passo e sale sul Relay; Gadget non fa niente, perche' e' il Cleanup a decidere per lui. Il `Burning` scatta e lo uccide; subito dopo, nello stesso passaggio, le presenze sull'obiettivo vengono contate fra le unita' **ancora vive** — e Phase c'e'. Il punto viene assegnato lo stesso, che e' la tesi.",
       "requires": ["Objective"],
-      "intents": []
+      "intents": [
+        { "unit": "R1", "move": [[0, 0, 0]] }
+      ]
     }
   ],
 
   "expect": [
-    { "type": "UnitAtCell",    "unit": "R1", "cell": [0, 0, 0] },
-    { "type": "TurnsCompleted", "value": 1 }
+    { "type": "UnitAtCell", "unit": "R1", "cell": [0, 0, 0] },
+    { "type": "TurnsCompleted", "value": 2,
+      "_assertion": "⏱️ Due, non uno: valeva 1 quando il T2 usciva BLOCCATO su `Objective`." },
+    { "type": "UnitAlive", "unit": "F1", "value": false,
+      "_assertion": "Gadget e' caduto. Senza questa riga il turno passerebbe anche se il `Burning` non lo uccidesse, e la tesi — «il punto sopravvive al KO» — non avrebbe un KO a cui sopravvivere." },
+    { "type": "UnitAlive", "unit": "R1", "value": true,
+      "_assertion": "E Phase e' viva: le presenze sull'obiettivo si contano fra i VIVI, quindi un Phase morto renderebbe vero il punteggio per la ragione sbagliata." },
+    { "type": "LogEventOrder",
+      "category": "Combat", "outcome": "Lethal", "actionId": "Status.Burning",
+      "thenCategory": "Objective", "thenOutcome": "Team0Scores", "thenActionId": "Objective.Control",
+      "_assertion": "🔴 **QUESTA RIGA E' LA SPECIFICA.** Il KO ambientale precede l'assegnazione del punto **dentro lo stesso Cleanup**. Se il controllo dell'obiettivo fosse valutato prima dei KO, i due eventi comparirebbero invertiti e questa riga cadrebbe — ed e' l'unico modo di falsificare quell'ordine dall'esterno. ⚠️ Il filtro `actionId` non e' decorativo: senza, `Combat/Lethal` sarebbe qualunque morte, e la specifica direbbe «un KO qualsiasi», non «il KO ambientale di questo Cleanup»." },
+    { "type": "LogEventCount",
+      "category": "Objective", "outcome": "Team0Scores", "actionId": "Objective.Control", "value": 1,
+      "_assertion": "**UNO**, ed e' quello del T2. Phase arriva sul Relay solo nel secondo turno, quindi il primo Cleanup non assegna niente: e' cio' che rende esatto il `LogEventOrder` qui sopra — con due punti, il confronto avrebbe pescato il primo, che precede il KO per forza." },
+    { "type": "LogEventCount",
+      "category": "Objective", "outcome": "Unclaimed", "actionId": "Objective.Control", "value": 1,
+      "_assertion": "E l'altra meta': al T1 l'obiettivo e' di nessuno. Senza questa riga, «un solo `Team0Scores`» sarebbe compatibile con un T1 che non ha valutato l'obiettivo affatto — due difetti diversi con lo stesso conteggio." },
+    { "type": "LogEventCount",
+      "category": "Objective", "outcome": "Contested", "actionId": "Objective.Control", "value": 0,
+      "_assertion": "E MAI conteso: Riktor non si muove da (3,0,0). ⚠️ Con un obiettivo su UNA cella la contesa e' irraggiungibile per costruzione — due unita' non stanno sulla stessa cella — quindi questo zero non e' una coincidenza di coreografia, e' una proprieta' del formato che vale la pena pinnare finche' dura (CP 31.1 la cambiera')." }
   ]
 }

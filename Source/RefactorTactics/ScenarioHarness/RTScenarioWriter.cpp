@@ -112,6 +112,54 @@ namespace
 			if (Cell.bBlocksLineOfSight) { W->WriteValue(TEXT("blocksLineOfSight"), true); }
 			if (Cell.MoveCost != 0) { W->WriteValue(TEXT("moveCost"), Cell.MoveCost); }
 			if (Cell.OccupancySurcharge != 0) { W->WriteValue(TEXT("occupancySurcharge"), Cell.OccupancySurcharge); }
+			if (Cell.bIsObjective) { W->WriteValue(TEXT("objective"), true); }
+			W->WriteObjectEnd();
+		}
+		W->WriteArrayEnd();
+	}
+
+	/**
+	 * I MURI INTERNI, che il writer fino a qui PERDEVA in silenzio — `#2031` sopra `#1830`.
+	 *
+	 * 🔑 **Il campo esisteva nel loader e non nel writer, e nessun test se ne accorgeva** perche'
+	 * `ScenariosEquivalent` non lo guardava: uno scenario con geometria interna, letto e riscritto, tornava
+	 * senza muri e il round-trip restava verde. Misurato su `main` il 2026-09-01: zero occorrenze di
+	 * `interiorWalls` qui dentro, zero di `InteriorWalls` nel confronto.
+	 *
+	 * ⚠️ Il vocabolario e' quello del loader e non un secondo dialetto: `axis` e `type` sono NOMI
+	 * d'enum, non indici, e `layer` si omette quando coincide con quello della cella — e' cio' che il
+	 * parser assume come default.
+	 */
+	void WriteScenarioInteriorWalls(const TSharedRef<FRTScenarioJsonWriter>& W, const FRTTestScenario& Scenario)
+	{
+		if (Scenario.InteriorWalls.Num() == 0)
+		{
+			return;
+		}
+
+		const UEnum* AxisEnum = StaticEnum<ERTTacticalAxis>();
+		const UEnum* TypeEnum = StaticEnum<ERTHexCoverType>();
+
+		W->WriteArrayStart(TEXT("interiorWalls"));
+		for (const FRTHexInteriorWall& Wall : Scenario.InteriorWalls)
+		{
+			W->WriteObjectStart();
+			WriteCellArray(W, TEXT("cell"), Wall.Cell);
+			if (AxisEnum)
+			{
+				W->WriteValue(TEXT("axis"),
+					AxisEnum->GetNameStringByValue(static_cast<int64>(Wall.Segment.Axis)));
+			}
+			if (Wall.Segment.Offset != 0) { W->WriteValue(TEXT("offset"), Wall.Segment.Offset); }
+			W->WriteValue(TEXT("alongStart"), Wall.Segment.AlongStart);
+			W->WriteValue(TEXT("alongEnd"), Wall.Segment.AlongEnd);
+			if (Wall.Segment.Layer != Wall.Cell.Layer) { W->WriteValue(TEXT("layer"), Wall.Segment.Layer); }
+			if (TypeEnum)
+			{
+				W->WriteValue(TEXT("type"),
+					TypeEnum->GetNameStringByValue(static_cast<int64>(Wall.Segment.WallType)));
+			}
+			if (!Wall.StableId.IsNone()) { W->WriteValue(TEXT("stableId"), Wall.StableId.ToString()); }
 			W->WriteObjectEnd();
 		}
 		W->WriteArrayEnd();
@@ -149,6 +197,23 @@ namespace
 			{
 				W->WriteArrayStart(TEXT("loadout"));
 				for (const FName& Piece : Unit.Loadout) { W->WriteValue(Piece.ToString()); }
+				W->WriteArrayEnd();
+			}
+
+			// Gli status si scrivono NELL'ORDINE DICHIARATO e non si riordinano: `ApplyStatus` li applica
+			// uno per uno, e un riordino cambierebbe cio' che il round-trip restituisce — `#1629`.
+			if (Unit.Statuses.Num() > 0)
+			{
+				W->WriteArrayStart(TEXT("statuses"));
+				for (const FRTScenarioStatus& Status : Unit.Statuses)
+				{
+					W->WriteObjectStart();
+					W->WriteValue(TEXT("tag"), Status.Tag.ToString());
+					// `turns` si scrive sempre: e' meta' del dato, e ometterlo al valore di default
+					// costringerebbe chi legge il file a sapere qual e' quel default.
+					W->WriteValue(TEXT("turns"), Status.Turns);
+					W->WriteObjectEnd();
+				}
 				W->WriteArrayEnd();
 			}
 			W->WriteObjectEnd();
@@ -250,6 +315,22 @@ namespace
 			static_cast<int64>(Outcome)));
 	}
 
+	/**
+	 * Il filtro per `ActionId`, **solo quando c'e'** (`#170`).
+	 *
+	 * ⚠️ **`NAME_None` non si scrive**, ed e' la stessa regola con cui il loader lo legge: una chiave assente
+	 * significa «nessun filtro», mentre un `"actionId": "None"` sul disco sarebbe un filtro su un'azione che
+	 * si chiama `None` — un round-trip che cambia il significato del file invece di preservarlo. E scriverlo
+	 * come stringa vuota sarebbe peggio: il loader lo RIFIUTA di proposito.
+	 */
+	void WriteLogActionId(const TSharedRef<FRTScenarioJsonWriter>& W, const TCHAR* Key, FName ActionId)
+	{
+		if (!ActionId.IsNone())
+		{
+			W->WriteValue(Key, ActionId.ToString());
+		}
+	}
+
 	void WriteScenarioExpectations(const TSharedRef<FRTScenarioJsonWriter>& W, const FRTTestScenario& Scenario)
 	{
 		const UEnum* KindEnum = StaticEnum<ERTAssertionKind>();
@@ -295,12 +376,15 @@ namespace
 			case ERTAssertionKind::LogEventCount:
 			case ERTAssertionKind::LogEventAmount:
 				WriteLogEvent(W, TEXT("category"), TEXT("outcome"), Exp.LogCategory, Exp.LogOutcome);
+				WriteLogActionId(W, TEXT("actionId"), Exp.LogActionId);
 				W->WriteValue(TEXT("value"), Exp.Value);
 				break;
 
 			case ERTAssertionKind::LogEventOrder:
 				WriteLogEvent(W, TEXT("category"), TEXT("outcome"), Exp.LogCategory, Exp.LogOutcome);
+				WriteLogActionId(W, TEXT("actionId"), Exp.LogActionId);
 				WriteLogEvent(W, TEXT("thenCategory"), TEXT("thenOutcome"), Exp.ThenCategory, Exp.ThenOutcome);
+				WriteLogActionId(W, TEXT("thenActionId"), Exp.ThenActionId);
 				break;
 
 			case ERTAssertionKind::OriginalTargetEquals:
@@ -392,6 +476,7 @@ bool URTScenarioLoader::SaveToString(const FRTTestScenario& Scenario, FString& O
 	Writer->WriteValue(TEXT("mapRadius"), Scenario.MapRadius);
 
 	WriteScenarioCells(Writer, Scenario);
+	WriteScenarioInteriorWalls(Writer, Scenario);
 	WriteScenarioUnits(Writer, Scenario);
 	WriteScenarioTurns(Writer, Scenario);
 	WriteScenarioExpectations(Writer, Scenario);

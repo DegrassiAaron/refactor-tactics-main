@@ -1,4 +1,8 @@
 {
+  "_numeri_letti": {
+    "_nota":
+      "90 sono gli HP di PARTENZA di Gadget, non un totale finale: la nota li cita per spiegare perche' la vecchia somma pre-ADR-0007 chiudeva in due turni esatti."
+  },
   "scenarioId": "Visual.Combat.Defeat",
   "tags": ["animation", "combat", "gadget", "riktor", "wraith"],
   "version": 1,

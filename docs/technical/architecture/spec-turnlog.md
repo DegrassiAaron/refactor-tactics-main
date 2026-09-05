@@ -197,9 +197,20 @@ UENUM(BlueprintType) enum class ERTFacingOutcome : uint8 {
     TurnedToDisplacementSource,       // spinta subita: girata verso la sorgente
     KeptOnEnvironmentalDisplacement,  // trascinamento senza sorgente: invariato
     UsedByBlast,                      // LETTURA: il colpo ha usato questo valore
-    UsedByOverwatch                   // LETTURA: l'overwatch ha usato questo valore (E14)
+    UsedByOverwatch,                  // LETTURA: l'overwatch ha usato questo valore (E14)
+    RearHitBypassedCover,             // la copertura non ha retto: Amount = punti scavalcati (D-199)
+    RearHitBypassedGuard,             // la Guard non ha retto: Amount = facing del difensore (D-199)
+    HitCameFromSide                   // da quale dei sei lati: Amount = ERTRelativeDirection (D-126, #726)
 };
 ```
+
+⚠️ **Le ultime tre righe sono state aggiunte a questo blocco il 2026-09-03**, mentre i valori esistono in
+`Source/` rispettivamente dal 2026-08-27 (`RearHitBypassed*`, [`#1430`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1430))
+e dal 2026-09-02 (`HitCameFromSide`, [`#726`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726)).
+Il blocco è rimasto fermo a **nove** valori su dodici mentre le sezioni sotto descrivevano già i due
+annullamenti: la deriva non stava in ciò che il documento affermava, ma in un elenco che nessuno rileggeva
+accanto all'enum vero. È lo stesso difetto che §4.1 nomina più sotto per i produttori — **dichiarato e non
+misurato da nessun gate**.
 
 **Perché scritture e letture stanno nello stesso enum.** [D-020](../../decisions/RT_PDR_00_Decision_Log.md)
 stabilisce che il facing cambia più volte per round e che ogni consumatore legge il valore autorevole più
@@ -258,6 +269,20 @@ Il costo è dichiarato in D-199 — nominarlo, come faceva il commento del 2026-
 
 ⚠️ **`UsedByBlast` e `UsedByOverwatch` non hanno produttori in gioco**: `ReadFacingForConsumer` è chiamata
 solo da due test. Le due letture che questa sezione motiva sopra sono dichiarate e non emesse.
+
+**`HitCameFromSide` ha QUATTRO produttori, e una sola sede** ([`#2128`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2128), 2026-09-03).
+
+I colpi del piano di Blast, i **contrattacchi**, il fuoco di **Overwatch** e il colpo al boundary della
+**Predictive Action** emettono tutti la voce; l'unico
+costruttore è `URTFacingLibrary::MakeHitCameFromSideEntry`, che restituisce `false` — e nessuna voce — quando
+origine e difensore coincidono in pianta. Il perimetro e le tre regole d'origine hanno il proprio owner in
+[ADR-0005 §4-quater](../../decisions/adr-0005-orientamento.md); qui interessa il **formato**: `Amount` porta un
+`ERTRelativeDirection` (`0..5`), non l'`ERTHexDirection` di `RearHitBypassedGuard` né i punti di riduzione di
+`RearHitBypassedCover` — **tre semantiche sotto la stessa categoria**, ed è la ragione per cui sono tre esiti
+e non uno.
+
+⚠️ La voce dell'Overwatch ha `Phase = Move`, non `Blast`: è l'unica voce `Facing` di quella fase prodotta da
+un colpo, e chi filtra per fase la perde se assume che i colpi vivano solo nel Blast.
 
 **`Neutralised`: un'azione che non ottiene niente lo dice** ([D-203](../../decisions/RT_PDR_00_Decision_Log.md), [`#1460`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1460), 2026-08-27).
 
@@ -530,6 +555,46 @@ stato del mondo.
 > **senza colpire** lascerebbe una voce `Displaced` senza sorgente ricostruibile. Il campo `ActionId` direbbe
 > comunque *con che cosa*, e sarebbe quello il momento per decidere se serve di più.
 
+### Lo scivolamento, e lo scivolamento impedito (`#2253` · [`#2314`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2314))
+
+Il terreno può portare un'unità **oltre** la destinazione che il giocatore ha scelto — oggi il solo `Ice`,
+`FRTTerrainDef::SlideCells`. Il fatto è di questa spec perché è un **esito**, e per un po' non ha avuto un
+nome: chi scivolava produceva `Moved`, cioè *«raggiunta la destinazione pianificata»*, che è falso di una
+cella. Gli esiti sono **tre**, e la regola del terreno vive in
+[`spec-terreni-e8.md` §5.2](../../gameplay/spec-terreni-e8.md), che resta il suo owner.
+
+| Esito | Il piano del giocatore | Lo scivolamento | La riga che il replay stampa |
+|---|---|---|---|
+| `Moved` | completato | il terreno non ne chiedeva | «si muove» |
+| `Slid` | completato | avvenuto, **almeno una** cella | «scivola» |
+| `SlideBlocked` | completato | richiesto, **zero** celle: impedito | «arriva: scivolamento impedito» |
+| il `BlockReason` reale | **non** completato | irrilevante | la riga del blocco — «fermo: …» |
+
+🔑 **`SlideBlocked` è uniforme rispetto alla causa, per costruzione.** Occupazione, contesa, ciclo,
+collisione, muro o bordo non attraversabile producono tutti questo esito, e la frase **non li nomina**: la
+domanda a cui il resolver risponde è *«quanto del piano del giocatore è stato percorso»*, vera o falsa
+indipendentemente dal motivo per cui il passo successivo non è avvenuto. Nominare la causa richiederebbe
+inoltre di dire **chi**, che una voce `Move` non porta e che [D-063] non autorizza a dedurre da una cella.
+
+⚠️ **La frase apre con «arriva» e non con «fermo»**, unica fra i vicini del vocabolario dei blocchi: il Move
+che il giocatore ha chiesto **è riuscito**. Aprire con «fermo» lo manderebbe a cercare un errore nel proprio
+piano invece di una lastra di ghiaccio contro un muro — ed è la stessa ragione per cui nel feed l'evento non
+è `MoveBlocked`.
+
+⚠️ **La precedenza dell'ultima riga è la regola più importante.** Chi si ferma **prima** della destinazione
+pianificata conserva il proprio esito reale. `SlideBlocked` non lo sostituisce mai.
+
+> 🔴 **Perché la classificazione sta nel resolver, e non in chi lo chiama.** Il percorso esteso dal terreno
+> entra in `ResolveHexPaths` con una destinazione che il giocatore non ha mai chiesto: correggerne l'esito a
+> valle richiede di sapere **quanto** del piano sia stato percorso, e chi chiama non lo sa. Il tentativo
+> caller-side ([#2290](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2290), chiusa) è uscito da
+> tre review con tre difetti dalla stessa radice: una guardia **posizionale** (`Final == PlannedLast`) che un
+> percorso capace di rivisitare una cella — `{A, B, C, B}`, che `BuildCompositeHexPath` produce concatenando
+> i segmenti A\* senza deduplicare — soddisfa anche a un terzo di strada; l'impossibilità di distinguere un
+> muro da «nessuno scivolamento richiesto»; e una whitelist di `BlockReason` scritta a mano, nata già
+> incompleta di uno. `FRTPlannedMovement` porta l'informazione **nello stato del resolver**, per unità come
+> `Paths`, e la classificazione diventa uniforme senza che nessuno enumeri nulla.
+
 ### 4.4 `Priority` — formato **v7** *(2026-08-10, CP 11.3 `#79`)*
 
 Il DoD di CP 11.3 chiede la **priorità** in ogni voce. Nella prima passata non c'era, e la ragione era di
@@ -605,6 +670,40 @@ un ordine di risoluzione mai avvenuto. Per la stessa ragione il combat log non s
 > **contigue** e le fasi ordinate come si sono giocate. Spostare `fase` più in basso non romperebbe nessun
 > hash e nessun test di serializzazione: romperebbe il seek, ed è per questo che il vincolo è scritto qui
 > e non solo là.
+
+### 6.1 La riga leggibile porta il proprio soggetto ([#1932](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1932))
+
+La forma *«Guardian: fermo (cella contesa)»* dell'esempio qui sopra è **la forma prodotta**, e fino al
+2026-08-31 non lo era: `URTTurnLogLibrary::DescribeTurnLogWithSubjects` portava il soggetto solo come
+**dato** (`SubjectStableUnitId`, che serve al filtro di conoscenza) e il testo usciva senza. Chi leggeva il
+log non poteva attribuire una riga.
+
+🔴 **Il costo è misurato.** [#1733](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1733) è
+stata aperta come bug di gameplay perché due righe della **stessa** unità — *«si muove (-1,-1) → (1,-1)»*
+nel Dash e *«resta (1,-1)»* nel Move — si leggevano come due unità sulla stessa cella. La sovrapposizione
+non era mai avvenuta: quelle celle erano libere, e a produrre la diagnosi è stata l'assenza del soggetto.
+
+| Dove | Cosa porta |
+|---|---|
+| `DescribeEntry` | il **predicato** soltanto — `si muove (q..) → (q..) (N celle) (azione, pN)` |
+| `DescribeTurnLogWithSubjects` | la **riga**: `<soggetto>: <predicato>` per le voci `Move` con `UnitId != 0` |
+| `ARTTurnManager::SubjectNamesForLog` | `StableUnitId` → nome leggibile (`ARTUnit::DisplayLabel`), dal roster |
+| `DescribeReportLine` (debug) | invariata: stampava già `unita=%d` accanto al predicato |
+
+⚠️ **Solo la categoria `Move`.** Il prefisso regge dove `UnitId` è anche il soggetto **grammaticale** del
+predicato. Per il danno porta chi **subisce** ([#1150](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1150))
+— *«Gadget: colpisce»* direbbe il falso — e le voci `Status` cominciano già con la cella. Estendere ad altre
+categorie vuole prima un predicato che regga il soggetto davanti.
+
+⚠️ **Il nome non è nel TurnLog e non ci entra.** La libreria resta pura: risolve i nomi il chiamante, che ha
+gli Actor. Senza mappa la riga esce con `u<StableUnitId>` — brutto da leggere e vero, che è l'ordine giusto
+delle due proprietà. **Nessun campo nuovo, nessun cambio di formato, nessun effetto sull'hash.**
+
+⏳ **Cosa resta.** Il «resta» di chi è appena arrivato con lo scatto non si distingue ancora, nel predicato,
+dal «resta» di chi non si è mosso affatto: `ERTMoveOutcome::SupersededByDash` copre solo chi *aveva* un
+movimento pianificato da scartare. Un esito dedicato sarebbe un valore nuovo in un enum **serializzato in
+v7** e riprodotto dal replay — modifica di formato, con la propria issue e il proprio costo. Con il soggetto
+in testa alle due righe il lettore le attribuisce comunque alla stessa unità, che era il difetto costoso.
 
 ---
 

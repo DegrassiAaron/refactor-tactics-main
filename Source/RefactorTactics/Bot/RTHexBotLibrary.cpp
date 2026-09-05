@@ -109,6 +109,21 @@ namespace
 			Cache.Revision = Map->Revision;
 			Cache.Inversa.Reset();
 			Cache.PerGoal.Reset();
+			// ⚠️ **QUESTA CACHE NON CONOSCE LA TRAVERSATA INTRA-CELLA, ed e' una scelta misurata** (#2100).
+			//
+			// Un muro interno divide lo spazio di posa di una cella in regioni sconnesse, e i tre siti che
+			// DECIDONO un movimento lo rispettano: l'A* (`FindPathAvoiding`), il set raggiungibile
+			// (`ReachableCells`) e la validazione del piano. Qui no, e il motivo e' che questa non decide.
+			//
+			// 🔑 **`ApproachSteps` e' un PUNTEGGIO, non un permesso**: misurato, non ha consumatori fuori da
+			// questa libreria e dai suoi test, e il bot muove passando da `ReachableCells` e
+			// `FindPathForUnit` — che la regola ce l'hanno. Una stima ottimistica qui fa scegliere al bot una
+			// destinazione che poi il percorso rifiuta: e' una mossa peggiore, non una mossa illegale.
+			//
+			// ⛔ **Renderla esatta costerebbe il doppio dello stato** — l'adiacenza inversa dovrebbe essere
+			// fra NODI `(cella, lato)` e non fra celle — per un caso che oggi nessuna mappa produce:
+			// `InteriorWall` compare in **zero** `.uasset` versionati. Il giorno in cui una mappa reale li usi,
+			// il sintomo e' un bot che sceglie male e non un bot che bara.
 			for (const FRTHexCellData& Cella : Map->Cells)
 			{
 				if (Cella.bBlocksMovement)
@@ -205,6 +220,38 @@ namespace
 	}
 }
 
+int32 URTHexBotLibrary::ScoreObjectiveTerm(const URTHexMapAsset* Map, const FRTCellId& DestCell,
+	const FRTHexBotContext& Context)
+{
+	// ⚠️ **La guardia sul peso non e' ridondante: e' cio' che rende GRATIS il termine spento.** Il `Max` in
+	// fondo restituirebbe zero comunque, ma solo dopo aver percorso il grafo — e con `WObjective = 0`, che e'
+	// la forma della verifica di mutazione, si pagherebbe una BFS per goal per turno per non cambiare niente.
+	if (Context.WObjective <= 0 || Context.ObjectiveCells.Num() == 0)
+	{
+		return 0;
+	}
+
+	// L'obiettivo PIU' VICINO in passi. Oggi il perimetro e' una cella sola e questo ciclo gira una volta;
+	// con CP 31.1 (`#1583`) ne girera' quante sono, e la regola «vale il piu' vicino» e' gia' quella giusta.
+	//
+	// ⚠️ **`ApproachSteps` e non `HexDistance`**: il campo di distanze e' cachato per goal (`#1436`), quindi
+	// l'obiettivo aggiunge UNA voce alla cache e una BFS per turno — non una per candidata. E' la stessa
+	// misura con cui si paga l'avvicinamento al nemico dal 2026-08-23, e usarne una diversa qui rimetterebbe
+	// in gioco la metrica che mente (`#1287`): dietro un muro, «vicino» e «raggiungibile» non coincidono.
+	//
+	// ⚠️ **Non c'e' un caso «nessun cammino», e non e' una svista.** `ApproachSteps` risponde SEMPRE: quando
+	// il grafo non collega le due celle ripiega sulla distanza esagonale, con la stessa scelta — dichiarata
+	// li' — con cui gia' misura l'avvicinamento ai nemici. Un ramo per il cammino inesistente sarebbe codice
+	// morto, e chi lo leggesse penserebbe che il caso e' gestito quando invece non si presenta.
+	int32 Passi = MAX_int32;
+	for (const FRTCellId& Objective : Context.ObjectiveCells)
+	{
+		Passi = FMath::Min(Passi, ApproachSteps(Map, DestCell, Objective));
+	}
+
+	return FMath::Max(0, Context.WObjective - Context.WObjectiveFalloff * Passi);
+}
+
 int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context)
 {
 	int32 Score = 0;
@@ -245,6 +292,29 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 			if (Plan.AttackDamage >= Health)
 			{
 				Score += Context.WKill;
+			}
+
+			// ABBATTERE: uno spostamento su un bersaglio gia' `Status.Unbalanced` lo fa cadere `Prone`
+			// ([D-319], `#2253`) — niente reazione per il turno, Overwatch disarmato con la charge persa,
+			// predictive persa, e un punto movimento per rialzarsi.
+			//
+			// 🔑 **Perche' esiste un termine MIRATO invece del canale generico.** Il bot e' cieco agli
+			// status: `Source/RefactorTactics/Bot/` non aveva una sola occorrenza di `HasStatus`, ne' di
+			// `Push`/`Pull`. Senza intervento la catena sarebbe stata **a senso unico** nella v0.1, che e'
+			// 2v2 offline contro il bot: uno strumento del giocatore invece di una minaccia. Il framework
+			// che fa leggere ogni stato dipende da `STA-4`, aperta; un singolo termine no.
+			//
+			// ⚠️ **Debito dichiarato con il successore gia' nominato**: la Fase 2 sostituisce queste righe e
+			// porta con se' `Exposed`, `Marked` e `Guarded`, oggi ugualmente ignorati.
+			//
+			// ⛔ **Solo il bersaglio MIRATO, non chi l'area prende in piu'.** Lo spostamento si applica a
+			// tutti i colpiti, ma `HexKnockbackDestination` allontana dall'ATTACCANTE e le geometrie di
+			// un'area divergono: contare qui anche i secondari significherebbe promettere una caduta che il
+			// resolver decide con altri dati. L'errore va nella direzione sicura.
+			if (I == Plan.TargetIndex && Plan.bAttackDisplaces
+				&& Context.EnemyUnbalanced.IsValidIndex(I) && Context.EnemyUnbalanced[I])
+			{
+				Score += Context.WUnbalancedFollowUp;
 			}
 
 			// ORIENTAMENTO, verso offensivo (CP 13.5, ADR-0005 §4a): un colpo che non arriva dall'arco frontale
@@ -422,6 +492,25 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 		}
 	}
 
+	// OBIETTIVO — la condizione di vittoria del formato spedito, che fino a `#2269` il punteggio non nominava.
+	//
+	// 🔴 **Non e' una rifinitura: senza, il bot gioca un gioco diverso da quello che vince.** Misurato il
+	// 2026-09-04, 2v2 bot contro bot su `L_HexArena` con `Format.Skirmish2v2`: partita chiusa allo scadere
+	// dei round con `obiettivo 0-3`, un KO per parte, e i tre punti presi da un Riktor che in dodici turni
+	// non ha inflitto un solo danno. Era finito sulla cella `(0,-3,L0)` tre volte come migliore candidata di
+	// solo movimento, a punteggio **negativo** — cioe' per avvicinamento, minaccia e quota. Il punto arrivava
+	// dopo, nel Cleanup, e nessuno dei due bot lo stava giocando.
+	//
+	// ⚠️ **Vale su OGNI piano, con o senza attacco**, al contrario del bonus di ingaggio qui sopra. La
+	// ragione e' che le due domande sono diverse: `WEngage` chiede «da qui potro' sparare», che un piano che
+	// gia' spara ha gia' risolto; l'obiettivo chiede «da qui segno», che resta vero anche mentre si spara —
+	// ed e' proprio la candidata «resto sull'obiettivo e colpisco» quella che si vuole far emergere.
+	//
+	// ⚠️ **Non c'e' un termine per la CONTESA**, e il perimetro lo dichiara: con un obiettivo su una cella
+	// sola due unita' non ci stanno insieme, quindi «prendo» e «tolgo a lui» oggi coincidono. Distinguerli
+	// e' CP 31.1 (`#1583`), dove piu' celle rendono la contesa raggiungibile in partita.
+	Score += ScoreObjectiveTerm(Map, Plan.DestCell, Context);
+
 	// Elevazione: premia la quota della cella di destinazione.
 	//
 	// 🔴 **QUI SI E' FORMATO LO STATO ASSORBENTE DI #1088, e la difesa e' UN NUMERO — non questa formula.**
@@ -557,6 +646,9 @@ TArray<FRTHexBotPlan> URTHexBotLibrary::BuildCandidates(const FRTHexSnapshot& Sn
 			Attack.AreaRadius = Context.AttackAreaRadius;
 			Attack.RangeCells = Context.AttackRange;
 			Attack.bFriendlyFire = Context.bAttackFriendlyFire;
+			// Lo spostamento viaggia col piano come la forma, e per la stessa ragione: `ChooseBestPlan`
+			// confronta candidate nate da abilita' diverse, e una non deve ereditare la proprieta' dell'altra.
+			Attack.bAttackDisplaces = Context.bAttackDisplaces;
 			Attack.FromCell = Cell.FromCell;
 			Out.Add(Attack);
 		}
@@ -712,4 +804,153 @@ FString URTHexBotLibrary::DecideReactionResponse(const FRTReactionOpportunity& O
 	// `ARTTurnManager::AskReactionDecision` e non era stata cercata qui, che e' il settimo produttore della
 	// stessa scelta. `grep` della forma corretta, non la memoria di dove si e' scritto.
 	return URTReactionOpportunityLibrary::SafeResponse(Opportunity);
+}
+
+int32 URTHexBotLibrary::ScoreReaction(const URTHexMapAsset* Map, const FRTActionDef& Def,
+	const FRTHexBotContext& Context)
+{
+	// Un nemico CONOSCIUTO minaccia una cella se la sua portata la copre **e** la vede. Le due condizioni
+	// insieme, come in `ScorePlan`: la copertura protegge, e un muro fra i due rende la minaccia inesistente
+	// per il resolver quanto per il punteggio. La portata e' quella che la raccolta del contesto ha gia'
+	// derivato, e la cella su un contatto incerto e' quella del RICORDO: qui non si guarda niente che la
+	// squadra non abbia.
+	auto Threatens = [Map, &Context](const FRTCellId& Cell, int32 EnemyIndex) -> bool
+	{
+		const int32 Reach = Context.EnemyRanges.IsValidIndex(EnemyIndex) ? Context.EnemyRanges[EnemyIndex] : 0;
+		return URTHexLibrary::HexDistance(Context.Enemies[EnemyIndex], Cell) <= Reach
+			&& URTHexVisionLibrary::HasLineOfSight(Map, Context.Enemies[EnemyIndex], Cell);
+	};
+
+	// 🔴 **Nessun `default:`, e non e' pedanteria.** `URTReactionLibrary::PassPointFor` lo vieta per lo
+	// stesso enum e dice perche': «con un `default` il trigger nuovo compilerebbe, non scatterebbe mai, e il
+	// suo test sul catalogo resterebbe verde — il modo esatto in cui i tre moduli di #505 sono rimasti
+	// fermi». Qui il costo sarebbe lo stesso a un livello diverso: un trigger nuovo varrebbe zero per
+	// sempre, in silenzio.
+	switch (Def.ReactionTrigger)
+	{
+	case ERTReactionTrigger::HitByDirectAttack:
+	{
+		// Una parata vale quanto vale la minaccia su di ME. Conta i nemici che possono colpirmi, non quelli
+		// che conosco: un nemico noto ma fuori portata, o dietro un muro, non e' un'occasione per una
+		// reazione difensiva.
+		int32 Threats = 0;
+		for (int32 i = 0; i < Context.Enemies.Num(); ++i)
+		{
+			if (Threatens(Context.Origin, i)) { ++Threats; }
+		}
+		return Context.WThreat * Threats;
+	}
+
+	case ERTReactionTrigger::AllyHitByDirectAttack:
+	{
+		// Un'interposizione vale se c'e' qualcuno da coprire: un alleato dentro la PORTATA DELL'AZIONE
+		// (fuori di li' non lo si raggiunge) e che almeno un nemico conosciuto puo' colpire.
+		//
+		// ⚠️ Si conta UNA volta per alleato e non una per coppia: il valore e' «quanti posso proteggere»,
+		// non «quante traiettorie esistono». Due nemici sullo stesso alleato restano un alleato solo.
+		//
+		// ⚠️ **Limite dichiarato**: `FindInterceptableHit` pretende anche che la traiettoria
+		// attaccante->intercettore sia libera, e quella qui non si misura — servirebbe sapere QUALE nemico
+		// sparera'. Il punteggio sovrastima, e sovrastimare e' la direzione sicura: arma una reazione che
+		// potrebbe non scattare, non ne perde una che sarebbe scattata.
+		int32 Coverable = 0;
+		for (const FRTCellId& Ally : Context.Allies)
+		{
+			if (URTHexLibrary::HexDistance(Context.Origin, Ally) > Def.RangeCells)
+			{
+				continue;
+			}
+			for (int32 i = 0; i < Context.Enemies.Num(); ++i)
+			{
+				if (Threatens(Ally, i)) { ++Coverable; break; }
+			}
+		}
+		return Context.WThreat * Coverable;
+	}
+
+	case ERTReactionTrigger::AboutToBeDisplaced:
+	case ERTReactionTrigger::AboutToReceiveControl:
+		// 🔴 Zero, e dichiarato invece che nascosto: questi due risponderebbero a una spinta o a un
+		// controllo, e la conoscenza autorizzata non porta le CAPACITA' nemiche — sa dove sono e quanto
+		// arrivano lontano, non che cosa sanno fare. Un termine inventato per loro sarebbe l'onniscienza
+		// rientrata dalla finestra, cioe' il difetto che il filtro di percezione esiste per togliere.
+		return 0;
+
+	case ERTReactionTrigger::CellBecameHazardous:
+		// Zero per una ragione DIVERSA, e vale la pena tenerle distinte: qui il soggetto non e' un nemico ma
+		// il TERRENO, che e' pubblico. Il termine sarebbe scrivibile — «la mia cella sta per diventare
+		// pericolosa» — ma il contesto del bot non porta gli hazard, e aggiungerceli e' un'altra issue.
+		// ⚠️ Finche' resta zero, `Reaction.HazardEscape` puo' vincere solo quando e' l'unica utilizzabile.
+		return 0;
+
+	case ERTReactionTrigger::None:
+		// Non e' una reazione, o non ha ancora un trigger: dato incompleto, nessun valore.
+		return 0;
+	}
+
+	return 0; // irraggiungibile: lo `switch` copre l'enum, e senza `default` un valore nuovo non compila
+}
+
+FRTReactionChoice URTHexBotLibrary::SelectReaction(const TArray<FRTReactionCandidate>& Candidates)
+{
+	// L'ordine e' TOTALE, e per questo permutare le candidate non cambia l'esito: punteggio decrescente,
+	// poi il kit prima del loadout ([D-268] retrocede [D-220] a spareggio), poi l'indice piu' basso.
+	// Senza l'ultima chiave due reazioni di kit a pari punteggio si scioglierebbero per ordine di
+	// enumerazione, che e' l'accidente che [D-220] aveva gia' smesso di usare.
+	const FRTReactionCandidate* Best = nullptr;
+	for (const FRTReactionCandidate& Candidate : Candidates)
+	{
+		if (Candidate.AbilityIndex == INDEX_NONE)
+		{
+			continue;
+		}
+		if (!Best)
+		{
+			Best = &Candidate;
+			continue;
+		}
+		if (Candidate.Score != Best->Score)
+		{
+			if (Candidate.Score > Best->Score) { Best = &Candidate; }
+			continue;
+		}
+		if (Candidate.bFromKit != Best->bFromKit)
+		{
+			if (Candidate.bFromKit) { Best = &Candidate; }
+			continue;
+		}
+		if (Candidate.AbilityIndex < Best->AbilityIndex)
+		{
+			Best = &Candidate;
+		}
+	}
+
+	FRTReactionChoice Choice;
+	if (!Best)
+	{
+		return Choice; // AbilityIndex = INDEX_NONE, DecidedBy = None
+	}
+
+	Choice.AbilityIndex = Best->AbilityIndex;
+	Choice.Score = Best->Score;
+
+	// 🔴 La ragione si calcola QUI, dove la regola vive. Dedurla dal chiamante — «se qualcuno pareggia,
+	// allora ha deciso il kit» — e' cio' che fa dire «spareggio di kit» a una scelta decisa dall'indice:
+	// due delle tre chiavi collassate in una sola etichetta, e [D-245] chiede l'opposto.
+	int32 TiedAtTheTop = 0;
+	bool bOtherOriginTied = false;
+	for (const FRTReactionCandidate& Candidate : Candidates)
+	{
+		if (Candidate.AbilityIndex == INDEX_NONE || Candidate.Score != Best->Score)
+		{
+			continue;
+		}
+		++TiedAtTheTop;
+		bOtherOriginTied = bOtherOriginTied || Candidate.bFromKit != Best->bFromKit;
+	}
+
+	Choice.DecidedBy = TiedAtTheTop <= 1
+		? ERTReactionTieBreak::Utility
+		: (bOtherOriginTied ? ERTReactionTieBreak::Kit : ERTReactionTieBreak::Index);
+	return Choice;
 }

@@ -263,6 +263,18 @@ TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& A
 				TEXT("%s: propagazione senza limite (usa 0 per 'non propaga', N>0 per fermarsi a N celle)"), *Where));
 		}
 
+		// `CancelChannel` e' RISERVATO ([D-298]): nessuna azione della v0.1 dura piu' di un boundary, quindi
+		// non c'e' alcun canale da cancellare e il valore non ha soggetto. Rifiutarlo qui e' cio' che
+		// impedisce a un quarto ramo di entrare in partita senza che nessun test possa falsificarlo; si
+		// sblocca insieme alla prima azione channel, con la sua issue.
+		if (Action.InterruptPolicy == ERTInterruptPolicy::CancelChannel)
+		{
+			Errors.Add(FString::Printf(
+				TEXT("%s: InterruptPolicy 'CancelChannel' e' riservata e non ha ancora un soggetto ")
+				TEXT("(nessuna azione v0.1 dura piu' di un boundary); usa 'InterruptBeforeEffect' o ")
+				TEXT("'SuppressSecondary'"), *Where));
+		}
+
 		if (Action.ResolutionPhase == ERTResolutionPhase::Snapshot)
 		{
 			Errors.Add(FString::Printf(
@@ -473,15 +485,29 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeGadgets()
 		TEXT("bagna anche i propri, e l'acqua resta dopo che il turno e' passato"),
 		{}));
 
+	// `Gadget.SmokeEmitter` — fumo raggio 1, che e' **esattamente** cio' che `Action.CreateSmoke` fa
+	// (`#2087`). Stessa forma di `Sprinkler`: nessun effetto proprio, perche' il suo esito e' una superficie
+	// e `FRTActionEffectSpec` si applica a bersagli, non a terreno.
+	//
+	// Lo svantaggio non e' decorativo ed e' lo stesso di `MistVeil`: l'azione risolve in `Environment`, cioe'
+	// nel Cleanup, quindi il fumo si alza a turno concluso e copre il turno SEGUENTE. Si prepara un
+	// attraversamento, non si rompe una linea nell'istante — e non distingue amici da nemici.
+	Gadgets.Add(Gadget(TEXT("Gadget.SmokeEmitter"), TEXT("Emettitore di fumo"), TEXT("Action.CreateSmoke"),
+		TEXT("alza una cortina di raggio 1: attraverso il fumo non si punta oltre 2 celle"),
+		TEXT("si alza a turno concluso e copre il turno dopo, e acceca anche i propri"),
+		{}));
+
 	// `Gadget.PortableCover` — gia' costruito in CP 9.5, non riscritto qui.
 	Gadgets.Add(MakePortableCoverGadget());
 
-	// ⛔ I QUATTRO ASSENTI, con la ragione ciascuno — sono quattro ragioni diverse, non «mancano».
+	// ⛔ I TRE ASSENTI, con la ragione ciascuno — sono tre ragioni diverse, non «mancano».
 	//
-	// - `Gadget.SmokeEmitter` (fumo raggio 1): **nessuna azione core crea `ERTHexSurface::Smoke`**. L'unica
-	//   che lo fa e' `Phase.MistVeil`, che e' d'eroe e risolve in `Preparation` — e la fase e' proprio il
-	//   difetto che `#353` ha documentato. Serve prima un'azione core del fumo, come `CreateWater` lo e'
-	//   dell'acqua.
+	// Erano QUATTRO. `Gadget.SmokeEmitter` e' uscito con `#2087`, che ha aggiunto `Action.CreateSmoke` al
+	// catalogo core: era l'unico dei quattro il cui blocco fosse un'azione mancante e non un'epic assente.
+	// ⚠️ La ragione scritta qui prima era per meta' STANTIA: diceva che `Phase.MistVeil` «risolve in
+	// `Preparation` — e la fase e' proprio il difetto che `#353` ha documentato». `#353` e' chiusa e MistVeil
+	// e' passata a `Environment` da allora. Restava vera una sola meta': l'azione era d'eroe e non core.
+	//
 	// - `Gadget.Insulator` (immunita' a una propagazione elettrica): e' un PASSIVO, e non concede un'azione.
 	//   Il motore non ha un modello di immunita' per categoria — `RT-FEAT-STATUS-FRAMEWORK` (E36) lo
 	//   costruira'. Oggi sarebbe un gadget che non fa niente.
@@ -1003,7 +1029,8 @@ namespace
 {
 	FRTActionDef ShippedAction(const FName& Id, ERTResolutionPhase Phase, int32 Priority, int32 Range,
 		int32 Cooldown, ERTActionFallback Fallback, const TArray<FRTActionEffectSpec>& Effects,
-		bool bInterruptible = true, ERTActionSlot Slot = ERTActionSlot::Main,
+		ERTInterruptPolicy Interrupt = ERTInterruptPolicy::InterruptBeforeEffect,
+		ERTActionSlot Slot = ERTActionSlot::Main,
 		ERTMovementStyle Movement = ERTMovementStyle::None)
 	{
 		FRTActionDef Def;
@@ -1014,7 +1041,7 @@ namespace
 		Def.RangeCells = Range;
 		Def.CooldownTurns = Cooldown;
 		Def.Fallback = Fallback;
-		Def.bCanBeInterrupted = bInterruptible;
+		Def.InterruptPolicy = Interrupt;
 		Def.Slot = Slot;
 		Def.MovementStyle = Movement;
 		// Chi corre a perdifiato non para: lo `Sprint` e' l'unica azione della v0.1 che nega la reazione.
@@ -1038,7 +1065,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Sprint"), ERTResolutionPhase::FastMovement, /*Priority*/ 60,
 		/*Range (MP)*/ 8, /*Cooldown*/ 0, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, /*Turni*/ 1) },
-		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::Budget));
+		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::Budget));
 
 	// `Action.Wait` (catalogo v0.1 §1) — non fa nulla e risolve per ultima (priorita' 100). Serve gia' ora
 	// perche' e' cio' in cui `Fallback.Wait` trasforma un'azione: senza, il fallback dovrebbe inventarsi in
@@ -1049,29 +1076,34 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// quello che il validator richiede alle azioni di fase Move — un'eccezione in meno, non una regola nuova.
 	Catalog.Add(ShippedAction(TEXT("Action.Wait"), ERTResolutionPhase::NormalMovement, /*Priority*/ 100,
 		/*Range*/ 0, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
-		/*bInterruptible*/ false, ERTActionSlot::None));
+		ERTInterruptPolicy::None, ERTActionSlot::None));
 
 	// `Action.Move` — il percorso normale, dopo il Blast (ADR-0003 §3). Nessun effetto dichiarato: a muovere
 	// l'unita' e' il resolver dei percorsi, che avanza a micro-step sullo snapshot. Un effetto "MoveTo" qui
 	// duplicherebbe quella decisione in un secondo posto.
 	Catalog.Add(ShippedAction(TEXT("Action.Move"), ERTResolutionPhase::NormalMovement, /*Priority*/ 50,
 		/*Range (MP)*/ 5, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
-		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::Budget));
+		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::Budget));
 
 	// `Action.BasicAttack` — identita', fase, priorita' e fallback stanno qui; DANNO e PORTATA no, perche'
 	// dipendono dall'eroe e dalla sua arma (catalogo §1, tabella delle fasce). Li applica MakeBasicAttack:
 	// mettere qui un numero significherebbe sceglierne uno arbitrario per tutti.
 	Catalog.Add(ShippedAction(TEXT("Action.BasicAttack"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 0, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
-		/*bInterruptible*/ true, ERTActionSlot::Main));
+		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Main));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
-	// `Action.Guard` — si prepara nel Prep e vale per il turno: -15 al primo danno diretto, resiste a una
-	// spinta di 1 cella, scade nel Cleanup. Non interrompibile (catalogo §1).
+	// `Action.Guard` — si prepara nel Prep e vale per il turno: **pool di 15 danni assorbibili** che i colpi
+	// dell'arco frontale consumano finche' dura ([D-292] + [D-206]), resiste a una spinta di 1 cella, scade
+	// nel Cleanup. Non interrompibile (catalogo §1).
+	//
+	// ⏱️ *La riga diceva «-15 al primo danno diretto» fino al 2026-09-03, cioe' la regola che D-292 ha
+	// sostituito il 2026-08-31. Il numero non cambia e il catalogo nemmeno: cambia cosa il numero E', e
+	// quindi cosa succede al secondo colpo.*
 	Catalog.Add(ShippedAction(TEXT("Action.Guard"), ERTResolutionPhase::Preparation, /*Priority*/ 40,
 		/*Range (self)*/ 0, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Guarded, /*Turni*/ 1) },
-		/*bInterruptible*/ false, ERTActionSlot::Main));
+		ERTInterruptPolicy::None, ERTActionSlot::Main));
 	Catalog.Last().bSelfTarget = true; // si va in guardia su se' stessi: nessun bersaglio da scegliere
 
 	// `Action.Interact` — portata 1: solo oggetti ADIACENTI.
@@ -1087,16 +1119,31 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// UNIVERSALE: chiunque la apre allo stesso modo. E' il confine di [D-033], che tiene invece fuori
 	// portata ed effetto di `BasicAttack` e `Overwatch`, dove dipendono dall'eroe.
 	//
-	// [D-151] — **`Open` e nient'altro.** Non commuta e non chiede `Closed`: `CanTransition` vieta
-	// `Locked -> Open` ma AMMETTE `Locked -> Closed`, che a una porta bloccata toglie il lock. Finche'
-	// nessuna azione dichiarava `SetDoorState` quel percorso era irraggiungibile; questa riga lo rende
-	// raggiungibile, e limitarla a `Open` e' cio' che lo tiene fuori portata senza toccare `CanTransition`.
-	// La commutazione resta la decisione aperta `INT-7`.
+	// ⏱️ *Questa riga diceva «`Open` e nient'altro» ed era [D-151], del 2026-08-17. Dal 2026-09-05
+	// `Action.Interact` **COMMUTA** ([`INT-7`] chiusa, `#2380`): porta la porta allo stato OPPOSTO, su
+	// `Open <-> Closed`.*
 	//
-	// ⚠️ Lo stato viaggia in `Amount` — interi soltanto, invariante #4 — e `Open` vale **zero**. A
-	// distinguere «dichiarato» da «campo di default» e' `bChangesDoor`, che `RTTurnManager` alza trovando la
-	// spec e non leggendone il valore: senza quel flag ogni azione del catalogo ordinerebbe di aprire ogni
-	// porta sulla propria linea di tiro.
+	// [D-151] limitava l'azione ad `Open` per un motivo tecnico preciso, e quel motivo non e' scaduto — e'
+	// stato soddisfatto per un'altra via. `CanTransition` vieta `Locked -> Open` ma AMMETTE
+	// `Locked -> Closed`, che a una porta bloccata toglie il lock; limitarsi ad `Open` teneva quel percorso
+	// fuori portata **senza toccare `CanTransition`**. La commutazione lo tiene fuori portata con la stessa
+	// tecnica: si definisce **solo** su `Open <-> Closed`, quindi `Locked` non e' mai una sorgente valida —
+	// e' un RIFIUTO con reason code (`ERTActionInvalidReason::DoorLocked`), come `Destroyed`.
+	//
+	// L'obiezione che sembrava piu' pesante — «commutare rende l'esito dipendente dall'ordine, vince
+	// l'ultimo» — era gia' risolta prima di essere sollevata: `URTHexDoorLibrary::ApplyDoorOps` fonde per
+	// bordo e a parita' vince lo stato piu' RESTRITTIVO. Cio' che la rende corretta e' **dove** si risolve
+	// il bersaglio: una volta sola, dallo stato pre-Blast, in `URTHexCombatLibrary::CollectHexAttacks`.
+	// Risolvendolo per-operazione due commutazioni si annullerebbero e l'ordine tornerebbe a decidere.
+	//
+	// ⚠️ **Effetto proprio, non un `Amount` sentinella.** `ToggleDoorState` non legge `Amount`: lo stato
+	// non c'e' piu' da dichiarare. A distinguere «dichiarato» da «campo di default» resta `bChangesDoor`,
+	// che `RTTurnManager` alza trovando la spec e non leggendone il valore — senza quel flag ogni azione
+	// del catalogo ordinerebbe di toccare ogni porta sulla propria linea di tiro.
+	//
+	// ⚠️ **Il ramo REMOTO non commuta** (`CP 23.4`, `#833`): una leva comanda N porte che possono divergere,
+	// e commutare «il gruppo» e' la sotto-domanda che `INT-7` aveva sollevato e che resta aperta. Il confine
+	// e' nel resolver, con il suo test.
 	//
 	// ⚠️ **Questo commento diceva che il meccanismo di CP 9.3 vale per `Interact` senza modifiche, e dal
 	// 2026-08-28 non e' piu' vero** (CP 10.1, `#74`). Diceva: «con portata 1 la prima porta sulla traiettoria
@@ -1125,9 +1172,8 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// contiene `Action.Activate` — il corpus golden porta solo `Action.Move`.
 	Catalog.Add(ShippedAction(TEXT("Action.Interact"), ERTResolutionPhase::Attack, /*Priority*/ 80,
 		/*Range*/ 1, /*Cooldown*/ 0, ERTActionFallback::Cancel,
-		{ FRTActionEffectSpec(ERTActionEffect::SetDoorState,
-			static_cast<int32>(ERTHexDoorState::Open)) },
-		/*bInterruptible*/ true, ERTActionSlot::Main));
+		{ FRTActionEffectSpec(ERTActionEffect::ToggleDoorState, /*Amount inutilizzato*/ 0) },
+		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Main));
 	// Il puntatore deriva la forma del bersaglio da QUESTO campo, non dagli effetti ne' dall'ActionId:
 	// `StructureOp != None` -> il giocatore punta un BORDO (`RTPointerInteraction.cpp`). Senza,
 	// `Action.Interact` chiederebbe una cella, e una porta non e' una cella. Lo stato che chiede vive
@@ -1150,7 +1196,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// dell'unita' (ADR-0005 §4c), quindi non c'e' una direzione da dichiarare qui.
 	Catalog.Add(ShippedAction(TEXT("Action.Overwatch"), ERTResolutionPhase::Preparation, /*Priority*/ 45,
 		/*Range*/ 0, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
-		/*bInterruptible*/ false, ERTActionSlot::Main));
+		ERTInterruptPolicy::None, ERTActionSlot::Main));
 	// Come `Guard` e `Brace`: in pianificazione non si sceglie un bersaglio — l'Overwatch arma una zona, e chi
 	// entrera' nel cono e' esattamente cio' che al momento di armare non si sa. Il bersaglio si sceglie al
 	// `FIRE`, dentro la finestra, e non e' un dato di catalogo.
@@ -1178,15 +1224,24 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `Evade` pronta nello stesso turno, e fonderle glielo toglierebbe.
 	Catalog.Add(ShippedAction(TEXT("Action.Dodge"), ERTResolutionPhase::FastMovement, /*Priority*/ 30,
 		/*Range*/ 3, /*Cooldown*/ 1, ERTActionFallback::Stop, {},
-		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::LinearDash));
+		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::LinearDash));
 
 	// `Charge` — 3 celle, si ferma ADDOSSO al primo nemico e lo colpisce: 20 danni piu' una spinta di 1.
 	// Gli effetti sono dichiarati qui, ma si applicano nel Blast (codice 20/30 del catalogo): il movimento e'
 	// fase 20, l'impatto e' controllo, e il controllo risolve per priorita' dentro il Blast.
+	//
+	// 🔴 **L'unica azione del catalogo che dichiara `SuppressSecondary`** ([D-300], `#1955`): interrotta,
+	// **colpisce ma non spinge**. E' la policy che ha reso attaccabile l'impatto della carica senza
+	// cancellarlo a posteriori — l'obiezione che lo teneva immune in `ApplyInterrupts`.
+	//
+	// ⚠️ **L'ORDINE degli effetti qui sotto e' significativo, non estetico**: `SuppressSecondary` taglia
+	// per POSIZIONE, e tiene il primo. Invertire `Damage` e `Push` cambierebbe cosa sopravvive agli EVENTI —
+	// e il danno arriverebbe comunque, perche' nella pipeline del Blast viaggia su `Intent.Power` e non su
+	// `ProduceEvents`. Il limite e' scritto sull'enum, dove si sceglie il valore.
 	Catalog.Add(ShippedAction(TEXT("Action.Charge"), ERTResolutionPhase::FastMovement, /*Priority*/ 35,
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20), FRTActionEffectSpec(ERTActionEffect::Push, 1) },
-		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::LinearCharge));
+		ERTInterruptPolicy::SuppressSecondary, ERTActionSlot::Movement, ERTMovementStyle::LinearCharge));
 	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
 	// Occupa il MOVIMENTO come ogni altra mobilita' rapida [D-191]: che una carica faccia danno a chi raggiunge
 	// non cambia CHE COSA ha speso. Fino al 2026-08-26 questo capoverso diceva l'opposto - «l'unica mobilita'
@@ -1199,13 +1254,13 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// invece la si subisce: dev'essere percorribile e libera.
 	Catalog.Add(ShippedAction(TEXT("Action.Leap"), ERTResolutionPhase::FastMovement, /*Priority*/ 25,
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop, {},
-		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::LinearLeap));
+		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::LinearLeap));
 
 	// `Reposition` — due celle e nient'altro: nessuno stato, nessuna traversata. E' lo scatto "tattico" che si
 	// paga poco, e la differenza con `Sprint` sta tutta nei dati (2 celle in linea contro 8 MP piu' Exposed).
 	Catalog.Add(ShippedAction(TEXT("Action.Reposition"), ERTResolutionPhase::FastMovement, /*Priority*/ 40,
 		/*Range*/ 2, /*Cooldown*/ 1, ERTActionFallback::Stop, {},
-		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::LinearDash));
+		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::LinearDash));
 
 	// --- Azioni OFFENSIVE (catalogo §3) ----------------------------------------------------------------
 	// Tutte nel Blast tranne la soppressione, che si PREPARA. La priorita' e' cio' che le distingue davvero:
@@ -1267,7 +1322,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.SuppressiveLine"), ERTResolutionPhase::Preparation, /*Priority*/ 30,
 		/*Range*/ 5, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) },
-		/*bInterruptible*/ false));
+		ERTInterruptPolicy::None));
 	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
 
 	// `MarkTarget` — nessun danno proprio: applica `Status.Marked` per un turno, e il prossimo attacco
@@ -1301,13 +1356,14 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	{
 		FRTActionDef Counter = ShippedAction(TEXT("Action.Counter"), ERTResolutionPhase::Control, /*Priority*/ 20,
 			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
-			{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) }, /*bInterruptible*/ true,
+			{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) }, ERTInterruptPolicy::InterruptBeforeEffect,
 			ERTActionSlot::Reaction);
 		Counter.ReactionTrigger = ERTReactionTrigger::HitByDirectAttack;
 		Catalog.Add(Counter);
 	}
 
-	// `Deflect` — riduce di 20 il danno diretto che l'ha innescata, DICHIARANDOLO come effetto
+	// `Deflect` — apre un pool di 20 danni assorbibili sui colpi diretti del boundary che l'ha innescata
+	// ([D-309]; prima di quella voce era uno sconto sul solo colpo innescante), DICHIARANDOLO come effetto
 	// (`ERTActionEffect::DamageReduction`, CP 5.5). Fino a CP 5.2 il numero viveva solo come
 	// `URTCombatLibrary::DeflectDamageReduction` letta da un `if (ActionId == "Action.Deflect")` nel
 	// `TurnManager`: la costante resta la fonte del valore, ma chi lo applica ora lo legge dai dati — cosi' una
@@ -1317,7 +1373,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		FRTActionDef Deflect = ShippedAction(TEXT("Action.Deflect"), ERTResolutionPhase::Control, /*Priority*/ 15,
 			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 			{ FRTActionEffectSpec(ERTActionEffect::DamageReduction, URTCombatLibrary::DeflectDamageReduction) },
-			/*bInterruptible*/ true, ERTActionSlot::Reaction);
+			ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Reaction);
 		Deflect.ReactionTrigger = ERTReactionTrigger::HitByDirectAttack;
 		Catalog.Add(Deflect);
 	}
@@ -1333,7 +1389,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// non ha piu' ricevuto.
 	{
 		FRTActionDef Intercept = ShippedAction(TEXT("Action.Intercept"), ERTResolutionPhase::Control, /*Priority*/ 10,
-			/*Range*/ 2, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}, /*bInterruptible*/ true,
+			/*Range*/ 2, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}, ERTInterruptPolicy::InterruptBeforeEffect,
 			ERTActionSlot::Reaction);
 		Intercept.ReactionTrigger = ERTReactionTrigger::AllyHitByDirectAttack;
 		Catalog.Add(Intercept);
@@ -1357,7 +1413,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	{
 		FRTActionDef Anchor = ShippedAction(TEXT("Action.Anchor"), ERTResolutionPhase::Control, /*Priority*/ 5,
 			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
-			{ FRTActionEffectSpec(ERTActionEffect::CancelDisplacement, 1) }, /*bInterruptible*/ true,
+			{ FRTActionEffectSpec(ERTActionEffect::CancelDisplacement, 1) }, ERTInterruptPolicy::InterruptBeforeEffect,
 			ERTActionSlot::Reaction);
 		Anchor.ReactionTrigger = ERTReactionTrigger::AboutToBeDisplaced;
 		Catalog.Add(Anchor);
@@ -1377,7 +1433,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	{
 		FRTActionDef Purge = ShippedAction(TEXT("Action.Purge"), ERTResolutionPhase::Control, /*Priority*/ 5,
 			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
-			{ FRTActionEffectSpec(ERTActionEffect::CancelStatus, 1) }, /*bInterruptible*/ true,
+			{ FRTActionEffectSpec(ERTActionEffect::CancelStatus, 1) }, ERTInterruptPolicy::InterruptBeforeEffect,
 			ERTActionSlot::Reaction);
 		Purge.ReactionTrigger = ERTReactionTrigger::AboutToReceiveControl;
 		Catalog.Add(Purge);
@@ -1396,7 +1452,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	{
 		FRTActionDef Evade = ShippedAction(TEXT("Action.Evade"), ERTResolutionPhase::Control, /*Priority*/ 5,
 			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
-			{ FRTActionEffectSpec(ERTActionEffect::SelfReposition, 1) }, /*bInterruptible*/ true,
+			{ FRTActionEffectSpec(ERTActionEffect::SelfReposition, 1) }, ERTInterruptPolicy::InterruptBeforeEffect,
 			ERTActionSlot::Reaction);
 		Evade.ReactionTrigger = ERTReactionTrigger::CellBecameHazardous;
 		Catalog.Add(Evade);
@@ -1410,7 +1466,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range (self)*/ 0, /*Cooldown*/ 1, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Braced, /*Turni*/ 1),
 		  FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Root, /*Turni*/ 1) },
-		/*bInterruptible*/ false, ERTActionSlot::Main));
+		ERTInterruptPolicy::None, ERTActionSlot::Main));
 	Catalog.Last().bSelfTarget = true; // come Guard: lo stato lo prende chi la pianifica
 
 	// `Shield` — azione PRINCIPALE di Prep: 25 punti di scudo TEMPORANEO, consumati prima della salute e
@@ -1420,7 +1476,9 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Shield"), ERTResolutionPhase::Preparation, /*Priority*/ 35,
 		/*Range (self)*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Shield, 25) },
-		/*bInterruptible*/ false, ERTActionSlot::Main));
+		ERTInterruptPolicy::None, ERTActionSlot::Main));
+	Catalog.Last().bSelfTarget = true; // come Guard e Brace: lo scudo lo prende chi la pianifica
+
 
 	// `Cleanse` — azione PRINCIPALE, codice 30 (controllo) quindi risolve nel Blast PRIMA del danno: purificarsi
 	// dopo aver incassato il colpo che lo stato ha aggravato non servirebbe a niente. Nessun effetto dichiarato:
@@ -1429,7 +1487,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// dell'azione.
 	Catalog.Add(ShippedAction(TEXT("Action.Cleanse"), ERTResolutionPhase::Control, /*Priority*/ 25,
 		/*Range (self)*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel, {},
-		/*bInterruptible*/ true, ERTActionSlot::Main));
+		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Main));
 
 	// --- Azioni di CONTROLLO (catalogo §5) -------------------------------------------------------------
 	// Tutte risolvono nel Blast (fase dichiarata `Control`, codice 30) PRIMA del danno: la priorita' le mette
@@ -1480,7 +1538,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Last().bCountsAsAttack = true; // controllo OSTILE: raggiunge il bersaglio come colpo, come `MarkTarget` [`INT-8`]
 
 	// `Interrupt` — nessun effetto dichiarabile: la sua conseguenza e' cancellare l'azione di un'altra unita',
-	// non modificarne le statistiche. Agisce solo su chi dichiara `bCanBeInterrupted = true` — il controllo
+	// non modificarne le statistiche. Agisce solo su chi NON dichiara `ERTInterruptPolicy::None` — il controllo
 	// e' fatto da `ARTTurnManager::ResolveCombat`, non da un flag che questa azione porterebbe con se'.
 	Catalog.Add(ShippedAction(TEXT("Action.Interrupt"), ERTResolutionPhase::Control, /*Priority*/ 20,
 		/*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
@@ -1532,6 +1590,27 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		CreateWater.SurfaceCreated = ERTHexSurface::ShallowWater;
 		CreateWater.SurfaceRadius = 1; // «acqua raggio 1» (catalogo azioni §6): era cablato nel resolver
 		Catalog.Add(CreateWater);
+	}
+
+	// `CreateSmoke` — la TERZA ambientale, e nasce da `#2087`. Il fumo era l'unica delle otto superfici che
+	// nessuna azione CORE sapeva creare: `Hero.Phase.MistVeil` lo crea, ma e' d'eroe, e un gadget non si
+	// costruisce su un'abilita' di Phase. `Gadget.SmokeEmitter` sta a questa azione come `Gadget.Sprinkler`
+	// sta a `CreateWater` — ed e' la ragione per cui l'azione esiste prima del gadget, non insieme.
+	//
+	// I numeri NON sono inventati qui: fase `Environment`, portata 4, priorita' 60 e cooldown 2 sono quelli
+	// di `Ignite` e `CreateWater`, le altre due ambientali. Il raggio 1 e' «fumo raggio 1», lo stesso che
+	// `MistVeil` gia' dichiara: le due azioni creano la STESSA superficie, quindi non c'e' un secondo fumo.
+	//
+	// ⚠️ Il fumo NON blocca la linea di vista, e chi legge «fumo» potrebbe aspettarselo: `GetTerrainCatalog`
+	// gli da' `bBlocksLineOfSight = false`, `MaxTargetingRangeThrough = 2` e `Status.Obscured` all'ingresso.
+	// Quella regola vive nel catalogo terreni e vale per OGNI cella di fumo, da qualunque azione venga.
+	{
+		FRTActionDef CreateSmoke = ShippedAction(TEXT("Action.CreateSmoke"), ERTResolutionPhase::Environment,
+			/*Priority*/ 60, /*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::Cancel, {});
+		CreateSmoke.bCreatesSurface = true;
+		CreateSmoke.SurfaceCreated = ERTHexSurface::Smoke;
+		CreateSmoke.SurfaceRadius = 1; // «fumo raggio 1»: catalogo equipaggiamento §2 e catalogo eroi concordano
+		Catalog.Add(CreateSmoke);
 	}
 
 	// `ModifyArc` — apre o chiude un COLLEGAMENTO fra celle. Non tocca le superfici: cambia la topologia, ed e'
@@ -1715,9 +1794,10 @@ TArray<FName> URTCatalogLibrary::GetGenericActionIds()
 	//
 	// ⚠️ `Action.Interact` entra IN CODA per la stessa ragione, e con la stessa storia: fino al 2026-08-26 era
 	// fuori perche' *«nessun codice risolve un'interazione»*, e quel motivo e' scaduto. Oggi l'azione dichiara
-	// `SetDoorState -> Open` [D-148/D-151], `ARTTurnManager` traduce l'effetto in `bChangesDoor`/`DoorState`
-	// per QUALUNQUE principale pianificata, `URTHexCombatLibrary` raccoglie l'op sulla prima porta della
-	// traiettoria e `URTHexDoorLibrary::SetDoorState` la applica. L'altra meta' esiste: e' il criterio con cui
+	// `ToggleDoorState` ([D-148]/[D-151], commutata da [`INT-7`]), `ARTTurnManager` traduce l'effetto in
+	// `bChangesDoor`/`bTogglesDoor` per QUALUNQUE principale pianificata, `URTHexCombatLibrary` raccoglie
+	// l'op sul bordo dichiarato risolvendo lo stato opposto **pre-Blast**, e `URTHexDoorLibrary::SetDoorState`
+	// la applica. L'altra meta' esiste: e' il criterio con cui
 	// erano entrate `Guard`, `Brace` e poi `Overwatch`.
 	//
 	// ⚠️ Entra con UN bersaglio funzionante — le porte. Consolle, ascensori, generatori, sprinkler, ponti e

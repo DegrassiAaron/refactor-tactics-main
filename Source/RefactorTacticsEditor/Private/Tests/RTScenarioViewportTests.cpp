@@ -1,5 +1,7 @@
 #include "Misc/AutomationTest.h"
 
+#include "GameFramework/Actor.h"
+#include "UObject/UnrealType.h"
 #include "RTScenarioPreviewSubsystem.h"
 #include "RTScenarioViewportModel.h"
 
@@ -398,6 +400,135 @@ bool FRTScenarioViewportEveryShippedScenarioMapsCleanlyTest::RunTest(const FStri
 
 	TestEqual(*FString::Printf(TEXT("nessun marcatore fuso (%s)"),
 		Fused.Num() ? *FString::Join(Fused, TEXT(" · ")) : TEXT("")), Fused.Num(), 0);
+	return true;
+}
+
+/**
+ * IL SOTTOSISTEMA NON POSSIEDE ATTORI DI LIVELLO — `#2115`.
+ *
+ * 🔴 **Il crash che questa regola previene è stato vero**: con un'anteprima a schermo, aprire un altro
+ * livello terminava l'editor con `World Memory Leaks`. La catena, dal log del 2026-09-02:
+ *
+ *     UnrealEdEngine::AddReferencedObjects( RTScenarioPreviewSubsystem )
+ *       -> URTScenarioPreviewSubsystem::PreviewUnits = RTScenarioPreviewActor
+ *        -> ARTScenarioPreviewActor:: = Level ...PersistentLevel
+ *         -> ULevel:: = World L_GrayKitPlayground
+ *             ^ This reference is preventing the old World from being GC'd ^
+ *
+ * 🔑 **Perché per riflessione e non «apri un livello e guarda».** `ShowScenario` sceglie il mondo da sé —
+ * `GEditor->GetEditorWorldContext().World()` — quindi un test non può fornirne uno usa-e-getta né
+ * distruggerlo, e distruggere quello dell'editor dentro una suite non è un'opzione. Ciò che si può
+ * misurare è la **regola** invece del suo sintomo: un `UEditorSubsystem` sopravvive a ogni mondo, quindi
+ * non può tenere forte un attore che vive nel livello.
+ *
+ * ⚠️ E vale anche per la proprietà che qualcuno aggiungerà domani: il test non nomina i due campi di oggi,
+ * itera su tutti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPreviewOwnsNoActorTest,
+	"RefactorTactics.Editor.PreviewSubsystemHoldsNoStrongActorReference",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPreviewOwnsNoActorTest::RunTest(const FString&)
+{
+	UClass* Subsystem = URTScenarioPreviewSubsystem::StaticClass();
+	if (!TestNotNull(TEXT("il sottosistema esiste come UClass"), Subsystem))
+	{
+		return false;
+	}
+
+	int32 Inspected = 0;
+	for (TFieldIterator<FObjectProperty> It(Subsystem); It; ++It)
+	{
+		const FObjectProperty* Prop = *It;
+		if (!Prop || !Prop->PropertyClass)
+		{
+			continue;
+		}
+		++Inspected;
+		const bool bIsActor = Prop->PropertyClass->IsChildOf(AActor::StaticClass());
+		TestFalse(*FString::Printf(
+			TEXT("'%s' e' un riferimento FORTE a %s: un UEditorSubsystem che possiede un attore di livello ")
+			TEXT("tiene in vita il mondo, e cambiare mappa fa crashare l'editor (#2115)"),
+			*Prop->GetName(), *Prop->PropertyClass->GetName()), bIsActor);
+	}
+
+	// ⚠️ Senza questa riga il test sarebbe verde anche se l'iterazione non vedesse niente — che e' il modo
+	// piu' silenzioso in cui un gate strutturale smette di guardare.
+	TestTrue(FString::Printf(TEXT("qualche UPROPERTY oggetto e' stata ispezionata (%d)"), Inspected),
+		Inspected > 0);
+	return true;
+}
+
+/**
+ * L'ANTEPRIMA SI TOGLIE PRIMA CHE IL MONDO MUOIA — `#2115`.
+ *
+ * 🔑 `FEditorDelegates::OnMapLoad` è trasmesso da `FEditorFileUtils::LoadMap` (`FileHelpers.cpp:3238`),
+ * **prima** che il comando di mappa avvii `Map_Load → EditorDestroyWorld`. È l'aggancio che arriva in
+ * tempo; ⚠️ `OnMapOpened` — quello che il launcher usa già — scatta a mondo nuovo pronto, cioè **dopo** il
+ * punto in cui si moriva.
+ *
+ * ⛔ **Questo non è ciò che impedisce il crash**, e confonderli sarebbe pericoloso: il crash lo impedisce
+ * il possesso debole, su ogni strada. `OnMapLoad` è trasmesso solo da `LoadMap`, quindi una mappa aperta
+ * da console lo salterebbe. Questo test copre la cortesia — non lasciare a schermo l'anteprima del livello
+ * che si sta abbandonando — e la sua assenza non sarebbe un crash, sarebbe una bugia a schermo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPreviewClearsOnMapLoadTest,
+	"RefactorTactics.Editor.PreviewClearsWhenTheMapIsAboutToChange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPreviewClearsOnMapLoadTest::RunTest(const FString&)
+{
+	if (!TestNotNull(TEXT("GEditor esiste nel contesto editor"), GEditor))
+	{
+		return false;
+	}
+	URTScenarioPreviewSubsystem* Preview = GEditor->GetEditorSubsystem<URTScenarioPreviewSubsystem>();
+	if (!TestNotNull(TEXT("il sottosistema d'anteprima e' registrato"), Preview))
+	{
+		return false;
+	}
+
+	URTScenarioAuthoring* Authoring = URTScenarioAuthoring::CreateScenarioDraft(GetTransientPackage());
+	FString Error;
+	if (!TestNotNull(TEXT("la facade si costruisce"), Authoring))
+	{
+		return false;
+	}
+	// Il primo scenario del corpus che si apre: nominarne uno a mano legherebbe il test a un file che
+	// domani puo' cambiare nome, ed e' la stessa scelta degli altri test di questo file.
+	bool bOpened = false;
+	for (const FString& Id : URTScenarioAuthoring::ListScenarioIds(FString(), FString()))
+	{
+		if (Authoring->OpenById(Id, Error) == ERTScenarioAuthoringResult::Success)
+		{
+			bOpened = true;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("uno scenario del corpus si apre"), bOpened))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	// ⚠️ Se l'anteprima non parte, il resto del test non misura niente: senza qualcosa a schermo, «tolta»
+	// e' vero per default. E' la stessa trappola del test di invarianza senza effetto.
+	if (!TestTrue(TEXT("l'anteprima e' a schermo prima del cambio mappa"), Preview->ShowScenario(Authoring)))
+	{
+		Preview->ClearPreview();
+		return false;
+	}
+	TestTrue(TEXT("e IsShowing lo conferma"), Preview->IsShowing());
+
+	// L'editor annuncia che sta per caricare un'altra mappa.
+	FCanLoadMap CanLoad;
+	FEditorDelegates::OnMapLoad.Broadcast(TEXT("/Game/RT/Maps/Dev/L_HexArena/L_HexArena"), CanLoad);
+
+	TestFalse(TEXT("l'anteprima si e' tolta da sola"), Preview->IsShowing());
+	TestEqual(TEXT("e non e' rimasto un marcatore"), Preview->NumUnitsShown(), 0);
+
+	// ⛔ E l'annuncio non e' stato usato per VIETARE il caricamento: farsi da parte, non mettersi di traverso.
+	TestTrue(TEXT("il caricamento resta permesso"), CanLoad.Get());
+
+	Preview->ClearPreview();
 	return true;
 }
 

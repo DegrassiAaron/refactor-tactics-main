@@ -283,7 +283,18 @@ già costruiti. Restano fuori, esplicitamente:
 
 - torrette, droni, trappole e ogni **Tactical Device** — sono produttori di reazioni, quindi dipendono da E14;
 - telecamere, sensori e radar — sono produttori di conoscenza, quindi dipendono da E13;
-- il controllo **remoto** sorgente → bersaglio, che richiede la privacy dei collegamenti (§8) e quindi la rete;
+- ~~il controllo **remoto** sorgente → bersaglio, che richiede la privacy dei collegamenti (§8) e quindi la rete;~~
+  🔄 **Rientrato in scope il 2026-09-01** — `E23` è stata anticipata alla v0.1 il 2026-08-17 da
+  [`D-160`](../decisions/RT_PDR_00_Decision_Log.md), e con lei `CP 23.4` / [#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833).
+  Questa riga è rimasta indietro di quindici giorni ed era **l'ultimo owner** a dire il contrario: milestone,
+  Feature Registry, `roadmap-v0.1.md`, `roadmap-post-v0.1.md` e `scenario-map.md` erano già allineati.
+  ⚠️ **La motivazione va letta al contrario di come suonava**: la privacy dei collegamenti serve quando esiste
+  **un client a cui tacere**, e la v0.1 è *2v2 offline vs bot*. È lo stesso argomento che
+  [#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833) porta già nel verso opposto —
+  *«uno scenario `NoHiddenRelationLeak` scritto in v0.2 non fallirebbe mai, perché passerebbe per assenza di
+  rete, non per correttezza»*. Se un leak non è **misurabile** senza rete, non è nemmeno **possibile**.
+  ⛔ Ciò che resta fuori scope non cambia: la privacy come **regola** è di `E27` (`INT-6`), e la semantica di
+  composizione `N→1` è `INT-5`. Qui entra il solo **meccanismo**: una sorgente comanda i propri bersagli;
 - valvole, pompe e fluidodinamica: l'acqua ha un produttore nel roster ([`D-046`](../decisions/RT_PDR_00_Decision_Log.md),
   `Hero.Phase.FluidTrail` **è** `Action.CreateWater`) e non serve un secondo modello per crearla;
 - ascensori e piattaforme mobili, che sono transizioni con stato temporale, non elementi con verbi.

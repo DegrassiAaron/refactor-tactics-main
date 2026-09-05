@@ -209,3 +209,79 @@ contava» — che non è un criterio.
 ⚠️ **E la 1 non bastava**, benché valida: era su `56849dac`, e il commit successivo aveva modificato i
 test. Fra le due c'è la differenza fra *«la suite è verde»* e *«la suite è verde su ciò che sto per
 mergiare»*.
+
+---
+
+## 10. Il secondo kit, lo stesso giorno — e la milestone che cambia
+
+> Aggiunto il **2026-08-30**, dopo il §9. Il consolidamento sopra ha consumato un kit camera; poche ore
+> dopo ne è arrivato un altro — *Tactical Camera Roadmap v0.1 → v1.0 · Claude Epic & Issue Plan*, su
+> Google Drive — con **contratti nuovi** e uno scope più largo. Questa sezione registra cosa ha aggiunto,
+> e la cosa più importante che ha prodotto non è una issue: è una **decisione di milestone**.
+
+### 10.1 Il conto
+
+| Oggetto | Quanti | Esito |
+|---|--:|---|
+| Work package proposti dal kit | 8 | **0 Epic creati** — §10.3 |
+| Issue candidate del kit | 10 | 5 già coperte, 5 → issue nuove |
+| Issue create | **5** | [#1834](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1834)–[#1838](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1838) |
+| Decisioni nuove | **1** | `D-286` — la promozione a v0.1 |
+| Affermazioni del kit smentite dalla misura | **3** | §10.4 |
+
+### 10.2 🔴 La decisione: `D-286`, e perché non poteva essere presa dall'audit
+
+Il kit chiama i suoi dieci ticket *«issue v0.1»*. Il Decision Log — `D-252`, `D-253` — e l'epic `E49` li
+davano **post-v0.1**, e lo facevano su una misura che nessuno ha smentito: **30** automation test camera,
+cinque voci `PIE-CAM-*` verdi, sei issue `[Camera]` chiuse.
+
+La gerarchia delle fonti mette il Decision Log (3) sopra un handoff Drive (5). Applicata alla lettera,
+l'audit ha riportato *post-v0.1* — ed è ciò che ha fatto.
+
+⚠️ **Ma la gerarchia risolve un conflitto fra documenti, non decide cosa una release debba consegnare.**
+L'autore ha promosso il lavoro a v0.1 il 2026-08-30, e `D-286` esiste per registrarlo: senza quella riga,
+il repository direbbe *post-v0.1* mentre GitHub mostra cinque issue in milestone `v0.1`. Due fonti che si
+contraddicono sono peggio della decisione meno comoda fra le due.
+
+`D-286` promuove **cinque lacune**, non l'epic: occlusione ([#1779](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1779)) e Camera Director
+([#1781](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1781)) restano fuori.
+
+### 10.3 Zero Epic, e il motivo
+
+Il kit proponeva `CAM-WP-01..08`: un work package per milestone, fino alla v1.0. Nessuno è diventato un
+Epic.
+
+**Perché sarebbe stata simmetria di roadmap** — vietata dal kit stesso (*«non creare una nuova Epic per
+simmetria»*) e da `CLAUDE.md` §7. Le milestone hanno già i loro Epic; la camera ne ha uno, `E49`, che ora
+porta la propria roadmap v0.2 → v1.0 come **tabella di ownership** invece che come otto contenitori vuoti.
+
+⚠️ **Una lacuna vera è emersa proprio da lì, e non è stata colmata di lato**: `CAM-WP-05` chiedeva un owner
+per *feel e accessibilità* della camera. **Non esiste alcun Epic di gamefeel o accessibilità nel
+repository.** Registrarlo come buco è più onesto che inventarne uno: le opzioni di sensibilità e riduzione
+del movimento restano senza sede finché qualcuno non decide dove vivono.
+
+### 10.4 Tre affermazioni del kit che la misura ha smentito
+
+Il kit nominava owner esistenti — il proposito giusto, i numeri sbagliati:
+
+1. **`E40` «Gamefeel» ed `E42` «Accessibility»**: in realtà *Il turno simultaneo in rete* (v0.5) e
+   *Dedicated server e loop online reale* (v0.7).
+2. **`E46` come owner del gate di lancio**: `E46` è `[EPIC v0.1]` *Frontend shell*. Il lancio è `E45`.
+3. **`E11`/`E21`/`E13` come owner candidati della camera**: il kit è stato scritto **senza conoscere
+   `E49`**, creata lo stesso giorno dal consolidamento di questo stesso documento.
+
+🔴 **E una collisione di identificatori**, che è la trappola vera per il prossimo che arriva: il kit usa
+`CAM-01..CAM-10` con significati **diversi** da quelli di `E49`. Il suo `CAM-05` è il dominio di
+conoscenza; il `CAM-05` del repository è la Strategic View. Due spazi di nomi che sembrano uno — e un
+`CAM-05` scritto in un commento sarebbe passato per l'issue sbagliata senza che nessun gate se ne
+accorgesse. Le nuove nascono da **`CAM-13`** in avanti, dentro l'unico namespace del repository.
+
+### 10.5 Cosa questa passata NON fa
+
+- **Non riapre** `CAM-B`. Il kit prescrive `MMB drag → Pan`; la risposta d'autore del 2026-08-30 ha
+  stabilito che `MMB` resta l'orbita. [#1838](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1838) possiede quindi `WASD` + edge pan, e lo dichiara nel
+  corpo invece di risolverlo di lato.
+- **Non crea child issue v0.2+**, come il §13.1 del kit richiede esplicitamente.
+- **Non tocca `test-manuali-pie.md`**: la ragione del §7 vale ancora — le voci `PIE-CAM-*` nuove sono nelle
+  DoD delle issue che le introducono.
+- **Non tara nulla**: i parametri che le cinque issue aprono sono registrati in [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780), non decisi qui.

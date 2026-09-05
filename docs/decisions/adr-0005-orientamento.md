@@ -49,11 +49,21 @@ Si aggiorna **al termine della fase Move**, che è l'ultima fase volontaria del 
 | `Budget` (`Action.Move`, `Sprint`) | **tre**: la direzione dell'ultimo passo e le due adiacenti (`D`, `D±1`) | dichiarato in planning fra le tre |
 | `None` (nessun movimento: `Wait`, sola azione principale) | **sei**: rotazione libera | dichiarato in planning |
 
-> ⛔ **Tabella superata da [ADR-0008](adr-0008-rotazione-e-policy-di-facing.md) §1 (2026-08-10).** Le direzioni
-> legali non dipendono più dallo **stile** ma dal **budget di pivot del personaggio**
+> ⛔ **Tabella superata da [ADR-0008](adr-0008-rotazione-e-policy-di-facing.md) §1 (2026-08-10), e a runtime
+> dal 2026-09-03** ([#1605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1605)).
+> Le direzioni legali non dipendono più dallo **stile** ma dal **budget di pivot del personaggio**
 > (`MoveEndPivotMaxSteps` / `DashEndPivotMaxSteps`, 0–3 step). Le tre righe qui sopra restano vere come
 > **casi particolari**: `Linear*` ≡ budget 0, `Budget` ≡ budget 1, `None` ≡ `StationaryPivotMaxSteps` = 3, che
 > ADR-0008 conferma universale.
+>
+> 🔑 **E i tre casi particolari sono ora i DEFAULT del codice**, non una nota storica: `FRTPivotBudget`
+> nasce a `Move = 1 / Dash = 0`, così un'unità mai configurata da un eroe applica ancora questa tabella.
+> Il comportamento cambia solo per gli eroi del catalogo, che dichiarano il proprio budget.
+>
+> ⚠️ **Per diciotto giorni questa tabella è stata superata sulla carta e applicata dal codice**: ADR-0008 era
+> `CANONICAL` dal 2026-08-10, e `MoveEndPivotMaxSteps` aveva **0** occorrenze in `Source/`. Nessun gate
+> confronta un ADR accettato con i simboli del codice — è la forma di difetto, non un incidente di questo
+> documento.
 
 La rotazione **non consuma slot**: `Action.Wait` ha slot `None` e resta tale. Restare fermi e girarsi verso
 un corridoio è una scelta tattica, non un turno sprecato.
@@ -190,7 +200,159 @@ o §4c sull'insieme dei lati sarebbe quindi un **buff difensivo netto**, non una
 avere due definizioni di «davanti» resta in vigore proprio perché nessun consumatore d'area si muove.
 
 Il lavoro runtime che la relazione a sei lati richiede è
-[#726](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726): oggi in `Source/` non esiste.
+[#726](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726).
+
+### 4-ter. La relazione esiste a runtime, e la mappatura nome↔indice è stata fissata (2026-09-02, `#726`)
+
+> ⌫ **La riga sopra diceva «oggi in `Source/` non esiste»**, ed era vera dal 2026-08-13 al 2026-09-02.
+
+| Livello | Sede |
+|---|---|
+| geometria pura — in quale dei sei spicchi cade una cella | `URTHexLibrary::DirectionWedgeTowards` |
+| semantica — da quale lato, *relativamente a un facing* | `URTFacingLibrary::RelativeDirectionFrom` |
+| traccia — il primo consumatore che `D-126` chiedeva | `ERTFacingOutcome::HitCameFromSide` nel TurnLog |
+
+🔴 **E la voce non contiene la cella dell'attaccante**: `SrcCell` e `TgtCell` portano entrambi il difensore,
+come ogni altra voce `Facing` che descrive l'orientamento di un'unità. Il verdetto di visibilità si congela su
+chi **subisce**, quindi una posizione dell'attaccante lì sarebbe pubblicata a chiunque percepisca il bersaglio
+— e su *ogni* colpo risolto, non sui rari bypass. L'informazione della voce è il **lato**, che sta in `Amount`
+e non rivela una posizione.
+
+Lo spicchio `i` è **semiaperto**: `cella − centro = a·D(i) + b·D(i+1)` con `a > 0, b >= 0`. È la stessa
+algebra di `HexCone` con una differenza deliberata — il cono somma settori **chiusi** perché deve coprire
+un'area contigua, qui i settori **partizionano** — e da quel semiaperto viene l'equipartizione: **36** celle
+per lato a raggio `1..8`, ed esattamente `r` a ogni anello `r`.
+
+🔑 **La mappatura fra i sei nomi e gli indici era indecisa, e `D-147` la assegnava esplicitamente a `#726`.**
+Le due fonti si contraddicevano: gli indici girano `E, NE, NW, W, SW, SE` e `AxialToWorld` manda `NE` a
+`−Y`, quindi con la convenzione UE (`+X` avanti, `+Y` a destra) l'indice `f+1` cade a **sinistra** di chi
+guarda, mentre l'elenco di `D-126` chiama `FrontRight` proprio quella posizione.
+
+**Si è scelta la fedeltà geometrica**, cioè l'elenco di `D-126` percorso in senso **inverso**:
+
+| `(spicchio − facing + 6) % 6` | `0` | `1` | `2` | `3` | `4` | `5` |
+|---|---|---|---|---|---|---|
+| nome | `Front` | `FrontLeft` | `RearLeft` | `Rear` | `RearRight` | `FrontRight` |
+
+`D-126` fissa i sei **nomi**, non il verso di enumerazione; e l'argomento residuo che `D-147` registra sullo
+skew è la **fedeltà dei nomi** — un `TurnLog` che dicesse `FrontRight` per una cella visibilmente a sinistra
+sarebbe il difetto di explainability (E16) che quell'argomento teme.
+
+⚠️ **Lo skew resta**, ed è dichiarato: `Front` è il raggio dritto davanti **più uno solo** dei due spicchi
+adiacenti, e **168 celle su 216** non ricevono la direzione speculare della propria immagine speculare. Uno
+`Shield = {Front}` proteggerebbe un fianco e non l'altro. Chi dichiarerà il primo insieme di lati lo sa
+prima di sceglierlo. La regola alternativa — lo spicchio **centrato**, con `24` celle asimmetriche invece di
+`168` — resta misurata e non adottata in `D-147`.
+
+⛔ **`IsInFrontalArc` non è cambiata e nessun suo chiamante si è mosso**, per la ragione misurata sopra.
+`RefactorTactics.Facing.RelativeDirectionDivergesFromCone` pinna le **45** divergenze e le **0** nel verso
+opposto, così che il contenimento stretto smetta di essere una nota e diventi un test.
+
+### 4-quater. Il perimetro della traccia copre anche le reazioni (2026-09-03, `#2128`)
+
+> ⌫ **La riga qui sotto diceva che contrattacchi e Overwatch «non la portano»**, ed era vera dal 2026-09-02 al
+> 2026-09-03.
+>
+> ⚠️ **Perimetro della traccia**: la voce è emessa per i colpi del **piano di Blast**. I **contrattacchi** e
+> il fuoco di **Overwatch** non la portano — non passano da `Plan.Hits`, e `FRTAttack` non trasporta
+> l'attaccante, quindi la geometria da cui la relazione si calcola lì non esiste.
+
+La voce è emessa da **quattro** produttori, e copre ogni colpo risolto:
+
+| Produttore | Origine del colpo | Cella e facing del difensore | Fase |
+|---|---|---|---|
+| piano di Blast — ciclo su `Plan.Hits` | `ResolveImpactOrigin` | `HexUnits[TargetId]` | `Blast` |
+| **contrattacchi** — coda di `Attacks` dopo l'`Append` | `Reactions.CounterAttackSrc` | `HexUnits[TargetIndex]` | `Blast` |
+| **Overwatch** — ramo `FIRE` di `ApplyReactionDecision` | cella del watcher | `State.Pos[TargetIdx]` · `Target->Facing` | `Move` |
+| **Predictive boundary** — `ResolvePredictiveBoundary` | `Shooter->Cell` | `Armed.LockedCell` · `Victim->Facing` | `Move` |
+
+> ⌫ **Questa tabella ne elencava TRE, e la riga sotto diceva «un'assenza significa una cosa sola» mentre non
+> era vero**, dal 2026-09-03 fino alla stessa giornata. Il colpo al boundary della Predictive Action —
+> `Hero.Wraith.InterceptShot`, il thin slice dichiarato della v0.1 — applica danno `ERTDamageSource::Direct` e
+> **non emetteva la voce**. Il difetto non è stato trovato da un test ma da una **code review dopo il merge**:
+> nessun oracolo copriva «predictive + voce direzionale», quindi l'affermazione era falsa e verde.
+>
+> 🔑 **La lezione non è l'omissione, è la forma dell'affermazione**: «copre ogni colpo risolto» è un
+> quantificatore universale scritto in un documento normativo, e nessun gate lo verifica. Chi ne aggiunge uno
+> deve **enumerare i produttori di danno**, non i propri.
+
+⚠️ **Le due famiglie della fase `Move` misurano la cella dell'IMPATTO, non quella dell'Actor.** Entrambe
+risolvono prima di `PlaceOnCell`, quindi `Unit->Cell` è ancora la cella di partenza del turno: l'Overwatch usa
+`State.Pos[TargetIdx]` (dove il movimento è stato troncato) e la Predictive usa `Armed.LockedCell` (la cella su
+cui si è scommesso).
+
+> ⌫ **La riga qui sopra proseguiva con «*Le rispettive `BoundaryCoverReduction` fanno già la stessa scelta*»,
+> ed era falsa per l'Overwatch**, dal 2026-09-03 alla stessa giornata
+> ([#2142](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2142)).
+>
+> La voce direzionale usava `State.Pos[TargetIdx]`; la **copertura** dello stesso colpo, trenta righe sopra,
+> riceveva `Target->Cell`. Due letture della stessa posizione nello stesso micro-step, con esiti diversi: chi
+> usciva da un riparo incassava ridotto da una copertura che non aveva più. Il difetto era simmetrico sul
+> watcher, che sparava dalla propria cella di partenza mentre la sua **zona** era già costruita da
+> `State.Pos[OwnerIdx]`.
+>
+> 🔑 **Non è stato un cambio di regola**: [ADR-0004](adr-0004-finestre-di-reazione.md) §*«Quale cella»*
+> prescrive *«Overwatch `FIRE` | la cella corrente»* da quando la tabella esiste, e il commento della
+> funzione **citava** quella riga mentre il codice faceva l'opposto. Ciò che è cambiato è il comportamento
+> osservato, non la decisione vigente.
+>
+> ⚠️ **E la riga `Shooter->Cell` della tabella qui sopra resta una cella di PARTENZA**, non quella da cui il
+> colpo parte davvero: `ResolvePredictiveBoundary` gira a ciclo dei micro-step già chiuso, e un tiratore che
+> si sia mosso nello stesso turno non è più lì. Non è correggibile senza scegliere una regola che nessun ADR
+> ha preso — la tabella di ADR-0004 copre il **bersaglio** e non la **sorgente** — ed è aperta in
+> [#2148](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2148).
+
+**Pinnata da tre test**, sul percorso reale e non sulla funzione pura: la decisione qui è *quale cella il
+chiamante passa*, e [D-312](RT_PDR_00_Decision_Log.md) ha misurato che una prova sulla funzione lascia il
+chiamante scoperto.
+
+| Test | Lato misurato |
+|---|---|
+| `Reactions.OverwatchCoverReadsTheMicroStepCell` | **bersaglio**: chi esce dal riparo incassa pieno |
+| `Reactions.OverwatchLogLineAnnouncesDealtDamage` | **bersaglio**, verso opposto: chi entra in copertura incassa ridotto, e il log annuncia il danno inflitto |
+| `Reactions.OverwatchMovingWatcherFiresFromItsCurrentCell` | **attaccante**: il watcher che si è spostato spara dalla cella in cui è |
+
+⚠️ **Il terzo non è un di più, ed è stato aggiunto dopo una code review.** Con il watcher fermo
+`State.Pos[OwnerIdx]` e `WatchOwner->Cell` coincidono a ogni micro-step: i primi due restano **verdi** con la
+metà attaccante della correzione disfatta. È quindi lui a chiudere la metà che
+[D-169](RT_PDR_00_Decision_Log.md) dichiarava non coperta — e che i primi due, da soli, non chiudevano.
+
+🔑 **Non è servita una regola d'origine nuova**: [D-302](RT_PDR_00_Decision_Log.md) punto 3 classifica già il
+colpo *diretto/mischia* come **sorgente→bersaglio**, e sia il contrattacco sia il fuoco di Overwatch — che è
+letteralmente `ERTDamageSource::Direct` — vi ricadono. Ciò che mancava a `FRTAttack` era l'attaccante, non la
+geometria: la sorgente vive accanto al colpo, registrata dal pass che l'ha prodotto.
+
+🔴 **Perché emettere invece di documentare il buco.** L'alternativa lasciava **due silenzi indistinguibili**:
+l'assenza legittima — origine coincidente in pianta col difensore, che `RelativeDirectionFrom` restituisce
+`false` — e l'assenza per famiglia non coperta. Un consumatore che conta una voce per colpo subito non aveva
+modo di separarli. Ora un'assenza significa una cosa sola.
+
+🔑 **La voce si costruisce in una sede unica**: `URTFacingLibrary::MakeHitCameFromSideEntry`. Con tre
+produttori la convenzione di privacy sotto sarebbe stata scritta tre volte, e tre copie di un invariante di
+sicurezza divergono — una code review ne corregge una e le altre due restano.
+
+⚠️ **Il facing dell'Overwatch è quello dell'ULTIMO PASSO COMPIUTO, non quello d'ingresso nella fase né
+quello finale.** È la formula di [ADR-0008](adr-0008-rotazione-e-policy-di-facing.md) §2 —
+`FacingAt(k) = FacingFromPath(Path[0..k], FacingAtMoveStart)` — e il pivot finale si applica **dopo**, senza
+rileggere i boundary già passati. `Spec.Facing.OverwatchHitCameFromSide` la rende osservabile facendo
+dichiarare al bersaglio una rotazione finale, così che il facing di fine turno **diverga** da quello con cui
+il lato è stato misurato.
+
+> 🔁 **Corretto il 2026-09-03 da [#2131](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2131).**
+> Questo capoverso diceva *«il facing dell'Overwatch è quello d'INGRESSO nella fase Move»* e aggiungeva
+> *«è anche la lettura giusta — si viene colpiti mentre ci si muove, con l'orientamento che si aveva»*. La
+> **premessa** era esatta e lo resta: `ResolveReactionBoundary` gira dentro il ciclo dei micro-step e la
+> `RecordFacingChange` che fissa `DerivedFromMove` scrive dopo l'uscita, quindi al momento del colpo
+> l'orientamento finale non esiste ancora. La **conclusione** no: da «il finale non c'è ancora» non segue
+> «vale quello d'ingresso», e ADR-0008 §2 — `CANONICAL` dal 2026-08-10 — dice che vale il passo appena
+> compiuto. Descriveva fedelmente il codice del 2026-09-03 mattina, cioè una §2 non ancora implementata.
+> *«L'orientamento che si aveva»* resta la frase giusta: camminando, è quello del passo appena fatto.
+
+⚠️ **In un duello frontale i due lati coincidono, e non è un difetto**:
+`FacingAfterPrepActionTargeting` gira l'attaccante verso il proprio bersaglio prima che il colpo risolva,
+quindi chi attacca incassa il contrattacco **di fronte**. Un test che attendesse `Rear` da entrambe le parti
+sarebbe sbagliato lui — è la trappola in cui è caduta la prima stesura di
+`RefactorTactics.Reactions.Counter.TracesTheSideItCameFrom`.
 
 ### 5. Determinismo e privacy
 
@@ -252,6 +414,8 @@ stabile, formato versionato) · **#6** rispettato (la rotazione **intesa** è fi
 | `Facing.VoluntaryMoveWinsOverForced` | se l'unità viene spinta e poi si muove, vale la regola del Move |
 | `Facing.PermutationInvariant` | permutare l'ordine degli input non cambia il facing risultante |
 | `Facing.IntentIsTeamFiltered` | la rotazione **dichiarata** non raggiunge il client avversario |
+| `UI.IntentViewFieldsAreClassified` | ogni campo di `FRTIntentView` ha una classe di privacy **dichiarata**: un campo nuovo non classificato fa rosso (#2331) |
+| `UI.EnemyViewCarriesNoAllyOnlyField` | la riga sopra vale per **ogni** campo ally-only, non per i quattro di oggi — e i campi pubblici arrivano comunque a un avversario rivelato (#2331) |
 | `Combat.BackAttackIgnoresCover` · `…IgnoresGuard` | un colpo fuori dall'arco frontale annulla −10 e −15 |
 | `Combat.FlankAttackKeepsCover` | dai fianchi la copertura vale: l'arco frontale è quello di `HexCone`, non solo la direzione esatta |
 | `Vision.ConeUsesHexConePrimitive` | la vista non ha una geometria propria |
@@ -270,7 +434,7 @@ stabile, formato versionato) · **#6** rispettato (la rotazione **intesa** è fi
 >
 > Resta scoperto **l'input**, che non è una regola: nessun comando permette al giocatore di dichiarare una
 > rotazione e il bot non ne dichiara. È lavoro di **E11**, e serve insieme al feedback visivo — senza
-> l'insieme legale mostrato, il giocatore non può sapere quali tre direzioni gli restano. Per la stessa
+> l'insieme legale mostrato, il giocatore non può sapere quali direzioni gli restano — e da ADR-0008 §1 non sono più «tre» per tutti, ma quante il budget di pivot del suo eroe gliene concede. Per la stessa
 > ragione l'harness **non** ha una chiave `facing`: gliela si darebbe solo per farlo diventare il primo
 > produttore del campo, cioè più capace del gioco. La capability `DeclaredRotation` è dichiarata **non
 > disponibile** in `RTScenarioSession.cpp`, accanto a `ReactionPlanning`, che ha la stessa forma.

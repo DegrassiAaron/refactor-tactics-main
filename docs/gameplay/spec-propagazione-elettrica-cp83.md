@@ -90,6 +90,20 @@ Il tag esiste, il catalogo lo dichiara «istantaneo (una sola volta per evento)�
 stato senza durata e senza consumatore — il difetto ricorrente di questo repository, già contato quattro volte
 al CP 8.2. **Non si applica**; l'unicità per evento è garantita dal BFS (ogni cella visitata una volta).
 
+> ✅ **Emendato il 2026-09-03 — [D-315](../decisions/RT_PDR_00_Decision_Log.md), [#1324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1324).**
+> Questa riga resta **vera per l'unità** e va letta come dice: il tag non entra in `StatusTurns`, non ha una
+> scadenza, e nessuno lo revoca. Ma «non si applica» era stato letto anche come *«non si registra»*, ed è la
+> ragione per cui il tag è rimasto **inerte** — dichiarato, con un'icona obbligatoria, e mai nominato da
+> nessuno — anche dopo che questo checkpoint è atterrato.
+>
+> Da oggi la propagazione scrive per ogni unità raggiunta una voce `ERTLogCategory::Status` con esito
+> `AppliedInstantly`, nel Cleanup e sulla cella in cui l'ha raggiunta. 🔴 **Il consumatore è il TurnLog, non
+> `ApplyStatus`** — e non poteva essere `ApplyStatus`, che rappresenta `N` turni oppure il legame alla cella e
+> per `Turns <= 0` ritorna in silenzio. Un evento istantaneo non è nessuna delle due forme.
+>
+> ⚠️ Il costo dichiarato: cambiano gli **hash** dei turni in cui una scarica si propaga. Il formato **non**
+> cambia versione (valore in coda a un enum che viaggia in un `uint8` già presente).
+
 ### D7 — `Gadget.Insulator` esce dalla DoD *(spostato a CP 7.2, deciso con l'autore)*
 
 La quinta riga della DoD della issue richiedeva l'immunità del gadget, che appartiene a **E7 CP 7.2** (`#61`,
@@ -108,9 +122,14 @@ sulla issue `#61` con il suo test (`Equipment.Insulator.ImmuneToOnePropagation`)
 | `Environment.Propagation.StopsAtNonConductive` *(aggiunto)* | la catena non si interrompe: il caso **negativo** che la DoD non copriva |
 | `Environment.Propagation.InitialAndPropagatedDamageDiffer` *(aggiunto)* | 20 e 12 diventano lo stesso numero |
 | `Environment.Propagation.NoMapFailsClosed` *(aggiunto)* | senza mappa si inventa una topologia |
+| `Environment.Propagation.ElectrifiedIsLoggedAsInstantLabel` *(aggiunto, [D-315](../decisions/RT_PDR_00_Decision_Log.md))* | **due difetti opposti insieme**: se cade la prima metà la scarica è tornata muta in un replay; se cade la seconda qualcuno ha inventato una durata al tag per farlo sembrare vivo |
 
 I tre aggiunti vengono dalla review di panel della specifica: la DoD originale non aveva nessun test sul caso
 negativo né sulla differenza fra i due danni.
+
+Il quarto viene da [#1324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1324) ed è l'unico che
+asserisce **due metà in tensione**: un test che verificasse solo l'esistenza della voce sarebbe passato anche
+davanti a un `ApplyStatus(Tag, 1)`, cioè davanti alla soluzione che §D6 esiste per vietare.
 
 ### 4.1 Verifiche di mutazione eseguite
 

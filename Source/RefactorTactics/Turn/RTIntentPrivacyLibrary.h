@@ -55,8 +55,18 @@ enum class ERTIntentCertainty : uint8
  * Piano COMPLETO di un'unita': il dato autorevole, che vive dove vive lo stato del turno (il server, quando
  * la rete arrivera' a M10). Non va mai spedito a un client cosi' com'e' — e' `FRTIntentView` cio' che si
  * spedisce, dopo il filtro per squadra.
+ *
+ * 🔑 **`RTServerOnly` rende quella frase MISURABILE** (`#589`, PDR-04 §9 passo 6). Fino al 2026-09-04 la
+ * regola viveva solo in questo commento: `git grep -riE "server.?only" Source/` dava **zero**, quindi
+ * nessuno strumento poteva accorgersi se questo tipo finiva dentro una `UPROPERTY(Replicated)` o dentro un
+ * parametro di RPC. Ora `RefactorTactics.Privacy.ServerOnlyTypesAreNotReplicated` lo verifica sulla
+ * reflection, e la classe di dato e' quella che PDR-04 §2 chiama **Server-only**.
+ *
+ * ⚠️ **Il marcatore NON e' il filtro.** `FilterForTeam` decide *cosa* un osservatore ha diritto di sapere;
+ * il marcatore difende dal caso in cui il dato parta **aggirando** il filtro. Toglierlo non rompe nessun
+ * comportamento in partita — spegne una guardia, in silenzio.
  */
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (RTServerOnly))
 struct FRTPlannedIntent
 {
 	GENERATED_BODY()
@@ -264,6 +274,21 @@ public:
 	 * - AVVERSARIO rivelato (`Status.Reveal`) -> vista dell'intento, ma **senza reazione**. `Reveal` mostra cosa
 	 *   l'unita' sta per FARE, non cosa e' pronta a PARARE: la DoD di CP 5.4 dice che la reazione non e' mai
 	 *   visibile ai nemici, e "mai" include il caso rivelato.
+	 *
+	 * 🔴 **IL TERZO RAMO NON E' RAGGIUNGIBILE IN PARTITA, e non e' un difetto di questa funzione**
+	 * — `#1635`. `Status.Reveal` e' **dichiarato** (`RTGameplayTags.cpp`) e **letto**
+	 * (`RTHudViewModel.cpp:216`), e non lo **concede nessuno**: zero occorrenze in `Ability/`, `Unit/`,
+	 * `Combat/` e nel catalogo. Nessuna azione dichiara il tag fra i propri effetti, quindi in gioco nessuna
+	 * unita' puo' diventare rivelata e questo ramo lo attraversano solo i test, che costruiscono `bRevealed`
+	 * a mano.
+	 *
+	 * ⚠️ **In v0.1 resta cosi', ed e' una scelta e non una dimenticanza.** `Status.Reveal` e' l'unica
+	 * deroga all'invariante #6: chi lo concede decide quando l'intento di un'unita' diventa **pubblico**, e
+	 * una deroga alla privacy si progetta — non si aggiunge per rendere allestibile una verifica. Nessun
+	 * design esiste: misurato il 2026-09-01, nessuna issue aperta lo progetta.
+	 *
+	 * ✅ **Il ramo NON si rimuove.** Il consumatore e' scritto e testato, e la deroga e' gia' decisa nella
+	 * sua forma; manca il produttore. Toglierlo significherebbe ridecidere la privacy per sottrazione.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Privacy")
 	static TArray<FRTIntentView> FilterForTeam(int32 ObserverTeamId, const TArray<FRTPlannedIntent>& Intents);

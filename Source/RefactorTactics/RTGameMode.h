@@ -193,6 +193,15 @@ public:
 	int32 ResolveBotAllies() const;
 
 	/**
+	 * Raggio dell'arena di ripiego, risolto fra console variable e proprieta'. Stessa scala e stessa
+	 * sentinella negativa di `ResolveBotAllies()`, senza la sorgente da riga di comando.
+	 *
+	 * ⚠️ `0` non e' la sentinella ma l'opt-out dal ripiego: la soglia e' `>= 0`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Match")
+	int32 ResolveDemoArenaRadius() const;
+
+	/**
 	 * La modalita' in vigore per QUESTA sessione, **decisa una volta** in `SetupHexMatch`.
 	 *
 	 * ⚠️ Non e' un doppione di `ResolveAutobattle()`, ed e' la differenza fra cio' che si puo' *chiedere* e
@@ -362,6 +371,14 @@ public:
 	 */
 	void AssignSeats();
 
+	/**
+	 * Assegna a ogni unita il proprio GRUPPO DI CONTROLLO dentro la squadra — `CP 19.3`, `#1124`.
+	 *
+	 * Idempotente e no-op finche non ci sono unita nel mondo: `AssignSeats` gira anche su `OnPostLogin`,
+	 * prima che il bootstrapper abbia allestito.
+	 */
+	void AssignUnitControlGroups();
+
 protected:
 	virtual void OnPostLogin(AController* NewPlayer) override;
 
@@ -398,6 +415,19 @@ public:
 	 * rende usabile da un test che non sa se `BeginPlay` sia gia' corso.
 	 */
 	void HookKnowledgeVeil();
+
+	/**
+	 * APRE il turno 1 sul TurnManager della sessione, se qualcuno l'ha rivendicato — `#2102`, [D-314].
+	 *
+	 * 🔴 **Esiste perche' `BeginPlay` ha piu' uscite, e ognuna deve poter aprire.** Rivendicare l'apertura
+	 * e poi tornare da un ramo che non la esegue lascerebbe una sessione con un TurnManager che non apre
+	 * mai il primo turno — cioe' una partita ferma, che e' peggio del difetto d'ordine che la
+	 * rivendicazione chiude. Nessuna rivendicazione, o turno gia' aperto: non fa nulla.
+	 *
+	 * ⚠️ **Pubblica per la stessa ragione di `HookKnowledgeVeil`**: i test allestiscono chiamando
+	 * `SetupHexMatch` direttamente, senza far correre `BeginPlay`, e devono poter osservare l'apertura.
+	 */
+	void OpenClaimedFirstTurn();
 
 	/**
 	 * Il presenter del velo di questa sessione: quello del `ARTPlayerController` se un client c'e', altrimenti
