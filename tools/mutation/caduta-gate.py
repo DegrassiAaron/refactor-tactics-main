@@ -152,48 +152,61 @@ MUTAZIONI = [
     },
     {
         "id": "1-passi-residui",
-        "titolo": "conservare i passi di spinta residui dopo la caduta",
-        "prova": "#2402 - i passi residui sono persi (spec §3.1)",
+        "titolo": "far cadere anche una spinta ESAURITA sul ciglio",
+        "prova": "#2402 - un bordo RAGGIUNTO non e' un bordo ATTRAVERSATO (spec §3.1)",
         "file": "Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp",
-        "cerca": r"(//[^\n]*passi residui[^\n]*\n(?:[^\n]*\n){0,6}?\s*)break;",
-        "sostituisci": r"\1continue;",
-        "bersagli": ["RefactorTactics.Fall.DisplacementEndsAtOpenEdge"],
+        "cerca": r"HexDistance\(T->Cell, Arresto\) >= Distanza",
+        "sostituisci": r"HexDistance(T->Cell, Arresto) >= 1000000",
+        "bersagli": ["RefactorTactics.ForcedMovement.ExhaustedPushAtEdgeDoesNotFall"],
     },
     {
+        # ⛔ Questa mutazione NON e' soddisfacibile da #2402, e non e' un difetto del gate.
+        # `FallEffects`/`ImpactEffects` hanno zero occorrenze in `Source/`: #2402 D001 divide lo scope e
+        # manda gli effetti a **#2430**. Finche' quella non e' implementata il pattern non si trova, il
+        # gate riporta NON APPLICABILE ed esce 2 — che e' la risposta vera, non un verde.
         "id": "2-effetti-saturo",
         "titolo": "sopprimere gli effetti di caduta nel fallback saturo",
-        "prova": "#2402 - gli effetti non sono la posizione: si applicano SEMPRE (spec §4.3, §5)",
+        "prova": "#2430 - gli effetti non sono la posizione: si applicano SEMPRE (spec §4.3, §5)",
         "file": "Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp",
         "cerca": r"(\w*ApplyFallEffects\w*\([^;]*\);)",
         "sostituisci": r"/* MUT2 */ ;",
-        "bersagli": ["RefactorTactics.Fall.EffectsApplyEvenWhenSaturated"],
+        "bersagli": ["RefactorTactics.Fall.SaturatedLandingAppliesFallEffects"],
     },
     {
         "id": "3-ordine-adiacente",
-        "titolo": "cambiare l'ordine adiacente canonico",
-        "prova": "#2402 - determinismo: l'anello e' E->NE->NW->W->SW->SE (spec §4.2)",
+        "titolo": "ignorare il Facing dell'occupante e usare il solo anello",
+        "prova": "#2402 - il Facing e' il tie-break dichiarato di §4.2, non una preferenza",
         "file": "Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp",
-        "cerca": r"for \(int32 (\w+) = 0; \1 < 6; \+\+\1\)",
-        "sostituisci": r"for (int32 \1 = 5; \1 >= 0; --\1)",
-        "bersagli": ["RefactorTactics.Fall.AlternativeFollowsCanonicalRing"],
+        "cerca": r"if \(Ammissibile\(Guardata\)\)",
+        "sostituisci": r"if (false)",
+        "bersagli": ["RefactorTactics.Fall.AlternativeFollowsCanonicalRingFromFacing"],
     },
     {
         "id": "4-sovrapposizione",
-        "titolo": "permettere la sovrapposizione",
+        "titolo": "permettere la sovrapposizione sul primario occupato",
         "prova": "#2402 - una unita' per cella, in tutti e tre gli esiti (spec §4.2.3, §4.3.7)",
         "file": "Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp",
-        "cerca": r"if \((\w*IsOccupied\w*|\w*Occupant\w*) *(\([^)]*\))?\)",
-        "sostituisci": r"if (false)",
-        "bersagli": ["RefactorTactics.Fall.NoCellSharingInAnyOutcome"],
+        "cerca": r"if \(!Occupate\.Contains\(Primario\)\)",
+        "sostituisci": r"if (true)",
+        "bersagli": [
+            "RefactorTactics.Fall.NeverOverlaps",
+            "RefactorTactics.Fall.OccupiedLandingUsesAdjacentAlternative",
+            "RefactorTactics.Fall.SaturatedLandingStaysOnLastStable",
+        ],
     },
     {
+        # ⛔ Come la 2: non soddisfacibile oggi, e per una ragione dichiarata invece che dimenticata.
+        # `spec` §3.2 vuole che il percorso volontario residuo sia annullato, ma il piano viaggia in uno
+        # SNAPSHOT preso al lock-in — non sull'unita' — e un test esistente (`Push.DoesNotSpendTheVictimMove`,
+        # #308) asserisce l'opposto per una spinta normale. Non c'e' codice da mutare perche' non c'e'
+        # ancora codice: la lacuna e' nel report finale di #2402, non nascosta qui.
         "id": "5-percorso-volontario",
         "titolo": "non annullare il percorso volontario",
         "prova": "#2402 - niente auto-reroute dalla nuova posizione (spec §3.2)",
         "file": "Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp",
-        "cerca": r"(\w+\.(?:Path|PlannedPath|Remaining\w*)\.(?:Empty|Reset)\(\);)",
+        "cerca": r"(\w+\.(?:Path|PlannedPath|Remaining\w*)\.(?:Empty|Reset)\(\);\s*// #2402 §3\.2)",
         "sostituisci": r"/* MUT5 */ ;",
-        "bersagli": ["RefactorTactics.Fall.VoluntaryPathIsCancelled"],
+        "bersagli": ["RefactorTactics.ForcedMovement.CancelsRemainingVoluntaryPath"],
     },
 ]
 

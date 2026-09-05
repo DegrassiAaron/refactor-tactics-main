@@ -541,6 +541,51 @@ bool FRTFallSaturatedLandingTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * L'alternativa si sceglie **dal Facing dell'occupante**, e questo test lo inchioda a una cella precisa.
+ *
+ * 🔑 Gli altri test dell'esito §4.2 asseriscono garanzie ORDINE-INDIPENDENTI — «non sul primario»,
+ * «l'occupante resta» — e restano verdi comunque si scandiscano i vicini. Quello e' un pregio li' e un buco
+ * qui: senza questo test, invertire l'anello canonico non farebbe cadere niente, e la regola piu' densa
+ * della spec sarebbe la meno protetta.
+ *
+ * L'occupante guarda a **NE**, quindi la prima candidata e' `Neighbor(primario, NE)` = `(2,-1,0)`. La cella
+ * `E` — `(2,0,0)`, che l'anello canonico offrirebbe per prima se il Facing NON contasse — esiste ed e'
+ * libera: e' li' apposta, ed e' la cella su cui il test cade se il tie-break viene ignorato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallAlternativeFromFacingTest,
+	"RefactorTactics.Fall.AlternativeFollowsCanonicalRingFromFacing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallAlternativeFromFacingTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnLedgeMap(World, {
+		FRTCellId(-1, 0, 1), FRTCellId(0, 0, 1), FRTCellId(1, 0, 1),
+		FRTCellId(1, 0, 0),                      // primario, occupato
+		FRTCellId(2, 0, 0),                      // E: la prima dell'anello se il Facing non contasse
+		FRTCellId(2, -1, 0)                      // NE: dove l'occupante guarda
+	});
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTUnit* Occupante = SpawnLedgeUnit(World, 1, FRTCellId(1, 0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio || !Occupante) { DestroyLedgeWorld(World); return false; }
+
+	Occupante->Facing = ERTHexDirection::NE;
+
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	TestEqual(TEXT("atterra dove l'occupante guarda, non sulla prima dell'anello"),
+		Bersaglio->Cell, FRTCellId(2, -1, 0));
+	TestEqual(TEXT("l'occupante non si e' mosso"), Occupante->Cell, FRTCellId(1, 0, 0));
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
 // =========================================================================================================
 // 7. L'invariante che non deve mai rompersi: una unita' per cella
 // =========================================================================================================
