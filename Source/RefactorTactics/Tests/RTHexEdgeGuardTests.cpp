@@ -10,16 +10,19 @@
 
 namespace
 {
-	FRTHexCellData Cell(int32 X, int32 Y, int32 Layer = 0)
+	// ⚠️ Nome UNICO e non `Cell`: sotto unity build le omonime in anonymous namespace collidono, ed e' il
+	// difetto di `#2397`. `RTHexMapTests.cpp:29` ne dichiara una identica. Non si vede finche' il file e'
+	// nel working set — l'adaptive build lo esclude dall'unity — e compare al primo commit.
+	FRTHexCellData GuardCell(int32 X, int32 Y, int32 Layer = 0)
 	{
 		return FRTHexCellData(FRTCellId(X, Y, Layer));
 	}
 
 	/** Una colonna isolata: una sola cella, quindi tutti e sei i bordi sono aperti. */
-	URTHexMapAsset* LoneCell(int32 Layer = 1)
+	URTHexMapAsset* LoneGuardCell(int32 Layer = 1)
 	{
 		URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-		Map->AddOrUpdateCell(Cell(0, 0, Layer));
+		Map->AddOrUpdateCell(GuardCell(0, 0, Layer));
 		return Map;
 	}
 
@@ -41,7 +44,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEdgeGuardRoundTripTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTEdgeGuardRoundTripTest::RunTest(const FString&)
 {
-	URTHexMapAsset* Map = LoneCell();
+	URTHexMapAsset* Map = LoneGuardCell();
 	AddGuard(Map, FRTCellId(0, 0, 1), ERTHexDirection::NE);
 
 	const FRTHexCellData* Read = Map->FindCell(FRTCellId(0, 0, 1));
@@ -58,8 +61,8 @@ bool FRTEdgeGuardEntersHashTest::RunTest(const FString&)
 {
 	// 🔑 Il test che giustifica la scelta di far entrare il guard nell'hash: due mappe che differiscono
 	// SOLO per un parapetto risolvono diversamente una spinta, quindi non possono avere lo stesso digest.
-	URTHexMapAsset* Senza = LoneCell();
-	URTHexMapAsset* Con = LoneCell();
+	URTHexMapAsset* Senza = LoneGuardCell();
+	URTHexMapAsset* Con = LoneGuardCell();
 	AddGuard(Con, FRTCellId(0, 0, 1), ERTHexDirection::E);
 
 	TestNotEqual(TEXT("un parapetto cambia l'hash della mappa"), Senza->ComputeHash(), Con->ComputeHash());
@@ -73,11 +76,11 @@ bool FRTEdgeGuardHashOrderTest::RunTest(const FString&)
 {
 	// L'ordine di dichiarazione nell'asset non e' informazione: due autori che scrivono gli stessi due
 	// parapetti in ordine diverso devono produrre lo stesso digest.
-	URTHexMapAsset* A = LoneCell();
+	URTHexMapAsset* A = LoneGuardCell();
 	AddGuard(A, FRTCellId(0, 0, 1), ERTHexDirection::E);
 	AddGuard(A, FRTCellId(0, 0, 1), ERTHexDirection::SW);
 
-	URTHexMapAsset* B = LoneCell();
+	URTHexMapAsset* B = LoneGuardCell();
 	AddGuard(B, FRTCellId(0, 0, 1), ERTHexDirection::SW);
 	AddGuard(B, FRTCellId(0, 0, 1), ERTHexDirection::E);
 
@@ -90,7 +93,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEdgeGuardDuplicateTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTEdgeGuardDuplicateTest::RunTest(const FString&)
 {
-	URTHexMapAsset* Map = LoneCell();
+	URTHexMapAsset* Map = LoneGuardCell();
 	AddGuard(Map, FRTCellId(0, 0, 1), ERTHexDirection::E);
 	AddGuard(Map, FRTCellId(0, 0, 1), ERTHexDirection::E);
 
@@ -112,8 +115,8 @@ bool FRTEdgeGuardInertTest::RunTest(const FString&)
 	// Warning e non errore: da un bordo connesso non si cade comunque, e una mappa puo' crescere intorno a
 	// un parapetto autorato senza diventare invalida.
 	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	Map->AddOrUpdateCell(Cell(0, 0, 1));
-	Map->AddOrUpdateCell(Cell(1, 0, 1)); // il vicino a E esiste
+	Map->AddOrUpdateCell(GuardCell(0, 0, 1));
+	Map->AddOrUpdateCell(GuardCell(1, 0, 1)); // il vicino a E esiste
 	AddGuard(Map, FRTCellId(0, 0, 1), ERTHexDirection::E);
 
 	const TArray<FString> Errors = Map->ValidateMap();
@@ -133,8 +136,8 @@ bool FRTEdgeGuardInertTest::RunTest(const FString&)
 	// prima stesura interrogava `Seen`, popolato DENTRO il ciclo di validazione, quindi il vicino
 	// esisteva solo se era stato scritto prima. Qui la cella col parapetto e' inserita per SECONDA.
 	URTHexMapAsset* Invertita = NewObject<URTHexMapAsset>();
-	Invertita->AddOrUpdateCell(Cell(1, 0, 1));
-	Invertita->AddOrUpdateCell(Cell(0, 0, 1));
+	Invertita->AddOrUpdateCell(GuardCell(1, 0, 1));
+	Invertita->AddOrUpdateCell(GuardCell(0, 0, 1));
 	AddGuard(Invertita, FRTCellId(0, 0, 1), ERTHexDirection::E);
 
 	const TArray<FString> AltriErrori = Invertita->ValidateMap();
@@ -159,7 +162,7 @@ bool FRTEdgeGuardFormatVersionTest::RunTest(const FString&)
 		URTHexMapAsset::CurrentFormatVersion);
 	TestEqual(TEXT("la versione corrente e' 16"), URTHexMapAsset::CurrentFormatVersion, 16);
 
-	URTHexMapAsset* Vecchia = LoneCell();
+	URTHexMapAsset* Vecchia = LoneGuardCell();
 	TestEqual(TEXT("una mappa senza parapetti nasce con l'array vuoto"),
 		Vecchia->FindCell(FRTCellId(0, 0, 1))->Guards.Num(), 0);
 	return true;
@@ -175,8 +178,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOpenEdgeDerivedTest,
 bool FRTOpenEdgeDerivedTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	Map->AddOrUpdateCell(Cell(0, 0, 1));
-	Map->AddOrUpdateCell(Cell(1, 0, 1)); // vicino a E
+	Map->AddOrUpdateCell(GuardCell(0, 0, 1));
+	Map->AddOrUpdateCell(GuardCell(1, 0, 1)); // vicino a E
 
 	const FRTCellId Origine(0, 0, 1);
 	TestFalse(TEXT("verso il vicino esistente il bordo NON e' aperto"),
@@ -191,7 +194,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOpenEdgeGuardSuppressesTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTOpenEdgeGuardSuppressesTest::RunTest(const FString&)
 {
-	URTHexMapAsset* Map = LoneCell();
+	URTHexMapAsset* Map = LoneGuardCell();
 	const FRTCellId Origine(0, 0, 1);
 
 	TestTrue(TEXT("senza parapetto il bordo e' aperto"),
@@ -214,8 +217,8 @@ bool FRTLandingSkipsMissingLayersTest::RunTest(const FString&)
 	// 🔴 Il test che protegge dal difetto piu' probabile: `Layer - 1`. La colonna salta il piano 2, e chi
 	// cade dal 3 deve arrivare all'1 — non finire nel vuoto perche' il piano immediatamente sotto non c'e'.
 	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	Map->AddOrUpdateCell(Cell(0, 0, 3));
-	Map->AddOrUpdateCell(Cell(0, 0, 1));
+	Map->AddOrUpdateCell(GuardCell(0, 0, 3));
+	Map->AddOrUpdateCell(GuardCell(0, 0, 1));
 
 	FRTCellId Landing;
 	TestTrue(TEXT("l'atterraggio esiste"),
@@ -236,16 +239,16 @@ bool FRTLandingIgnoresHeightTest::RunTest(const FString&)
 	// ordinasse per quota, l'atterraggio da 3 diventerebbe il layer 1; ordinando per Layer resta il 2.
 	// Le due mappe devono dare lo STESSO esito: e' la prova che la presentazione non decide.
 	URTHexMapAsset* Piatta = NewObject<URTHexMapAsset>();
-	Piatta->AddOrUpdateCell(Cell(0, 0, 3));
-	Piatta->AddOrUpdateCell(Cell(0, 0, 2));
-	Piatta->AddOrUpdateCell(Cell(0, 0, 1));
+	Piatta->AddOrUpdateCell(GuardCell(0, 0, 3));
+	Piatta->AddOrUpdateCell(GuardCell(0, 0, 2));
+	Piatta->AddOrUpdateCell(GuardCell(0, 0, 1));
 
 	URTHexMapAsset* Sfalsata = NewObject<URTHexMapAsset>();
-	Sfalsata->AddOrUpdateCell(Cell(0, 0, 3));
-	FRTHexCellData Media = Cell(0, 0, 2);
+	Sfalsata->AddOrUpdateCell(GuardCell(0, 0, 3));
+	FRTHexCellData Media = GuardCell(0, 0, 2);
 	Media.Height = -100000; // quota di rendering che la porterebbe sotto ogni altra
 	Sfalsata->AddOrUpdateCell(Media);
-	Sfalsata->AddOrUpdateCell(Cell(0, 0, 1));
+	Sfalsata->AddOrUpdateCell(GuardCell(0, 0, 1));
 
 	FRTCellId A, B;
 	URTHexLedgeLibrary::FindLandingCell(Piatta, FRTCellId(0, 0, 3), A);
@@ -264,14 +267,14 @@ bool FRTLandingDeterministicTest::RunTest(const FString&)
 	// L'ordine dell'array non e' informazione: due mappe con le stesse celle inserite in ordine diverso
 	// devono produrre lo stesso atterraggio.
 	URTHexMapAsset* A = NewObject<URTHexMapAsset>();
-	A->AddOrUpdateCell(Cell(0, 0, 5));
-	A->AddOrUpdateCell(Cell(0, 0, 2));
-	A->AddOrUpdateCell(Cell(0, 0, 4));
+	A->AddOrUpdateCell(GuardCell(0, 0, 5));
+	A->AddOrUpdateCell(GuardCell(0, 0, 2));
+	A->AddOrUpdateCell(GuardCell(0, 0, 4));
 
 	URTHexMapAsset* B = NewObject<URTHexMapAsset>();
-	B->AddOrUpdateCell(Cell(0, 0, 4));
-	B->AddOrUpdateCell(Cell(0, 0, 5));
-	B->AddOrUpdateCell(Cell(0, 0, 2));
+	B->AddOrUpdateCell(GuardCell(0, 0, 4));
+	B->AddOrUpdateCell(GuardCell(0, 0, 5));
+	B->AddOrUpdateCell(GuardCell(0, 0, 2));
 
 	FRTCellId LA, LB;
 	TestTrue(TEXT("A atterra"), URTHexLedgeLibrary::FindLandingCell(A, FRTCellId(0, 0, 5), LA));
@@ -281,8 +284,8 @@ bool FRTLandingDeterministicTest::RunTest(const FString&)
 
 	// Una colonna diversa non entra nel calcolo.
 	URTHexMapAsset* Altra = NewObject<URTHexMapAsset>();
-	Altra->AddOrUpdateCell(Cell(0, 0, 5));
-	Altra->AddOrUpdateCell(Cell(9, 9, 1));
+	Altra->AddOrUpdateCell(GuardCell(0, 0, 5));
+	Altra->AddOrUpdateCell(GuardCell(9, 9, 1));
 	FRTCellId Nessuna;
 	TestFalse(TEXT("sotto non c'e' niente nella stessa colonna"),
 		URTHexLedgeLibrary::FindLandingCell(Altra, FRTCellId(0, 0, 5), Nessuna));
