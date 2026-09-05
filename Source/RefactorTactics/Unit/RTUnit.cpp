@@ -680,6 +680,23 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 	if (ContactGhost->GetSkeletalMeshAsset() != HeroSkeletal->GetSkeletalMeshAsset())
 	{
 		ContactGhost->SetSkeletalMesh(HeroSkeletal->GetSkeletalMeshAsset());
+
+		// 🔴 **Il LOD della sagoma si inchioda QUI, e `ApplyUnitMeshLOD` non poteva farlo.** Quella gira una
+		// volta sola, in `BeginPlay`, e a quel punto `ContactGhost` non ha ancora nessuna mesh: il suo
+		// `continue` su `GetSkeletalMeshAsset() == nullptr` la salta, e la sagoma restava l'unica skeletal
+		// dell'unita' **non** inchiodata al LOD 0.
+		//
+		// ⛔ Non e' un dettaglio di qualita' visiva: `#1784` ha misurato che **le LOD dei pack rimuovono le
+		// ossa delle catene**, ed e' per quello che Riktor «si stende sullo schermo» da lontano. Una sagoma
+		// lasciata scendere di LOD riprodurrebbe il fotogramma che #1750 esiste per togliere — sullo stesso
+		// eroe, per la stessa causa, sul componente che nessuno aveva coperto.
+		//
+		// ⚠️ `SetForcedLOD` e' 1-BASED: `0` significa «scegli tu», `1` e' il LOD 0. Stessa nota di
+		// `ApplyUnitMeshLOD`, e stesso `+ 1`.
+		if (ForcedMeshLOD >= 0)
+		{
+			ContactGhost->SetForcedLOD(ForcedMeshLOD + 1);
+		}
 	}
 
 	// 🔴 **La posa di RIPIEGO (#1750).** Un `USkeletalMeshComponent` con una mesh e senza `AnimInstance`
