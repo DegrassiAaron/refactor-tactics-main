@@ -90,7 +90,7 @@ Aggiunto il **2026-08-17** con [D-153](../decisions/RT_PDR_00_Decision_Log.md). 
 |---|:--:|:--:|---|---|
 | Core map | v0.1 | **v0.1**, interamente | **E21** · **E47** · muri e porte su **E23**, anticipata alla v0.1 (`D-160`) | allineato |
 | Environment | v0.2 | **v0.1** ⬅️ | **E8** — **otto** feature, tutte `INTEGRATED` | il kit è **indietro** |
-| 3D map / verticalità | v0.3 | **`future`** ➡️ | nessuno — `RT-FEAT-MAP-VERTICALITY` è `IDEA` | `DEFER` |
+| 3D map / verticalità | v0.3 | **`future`** ➡️ | **#2388** (capability) — release aperta con `REL-3` | `DEFER` |
 | Interactive map | v0.4 | **v0.1** ⬅️⬅️ | **E23** ([#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)), anticipata il 2026-08-17 (`D-160`) | il kit è **indietro di due release**, non di una |
 | Tactical devices | v0.5 | **fuori scope dichiarato** | — | `DEFER` |
 | Destruction / debris | v0.6 | **v0.2** ⬅️⬅⬅️ | **E51** ([#1848](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1848)), creata il 2026-08-30 | il kit è **indietro di quattro release** |
@@ -162,7 +162,11 @@ sapesse.
 > aveva aggiunto per registrare che E23 è v0.2. Corretta la metà falsa, era rimasta l'altra.*
 
 ➡️ **Due cluster non hanno una release che li possieda, e non per la stessa ragione.** La verticalità
-resta senza owner; i devices tattici **non sono `future` affatto** — sono **fuori
+ha un **owner di capability** dal 2026-09-05 — [#2388](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2388) —
+ma **non una release**: quale sia è la domanda `REL-3` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), e
+finché resta aperta la riga sopra continua a dire `future`. ⚠️ *Questa frase diceva «resta senza owner»,
+ed era vera fino al 2026-09-05: l'owner ora esiste, la casa no — e le due cose non sono la stessa.*
+I devices tattici invece **non sono `future` affatto** — sono **fuori
 scope v0.1 dichiarato** da [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md)
 §11, che li rinvia a E13/E14 con motivazione registrata. Qui l'ordine del kit è giusto e la release non
 esiste: **si lasciano `future` invece di inventarne una**, ed è la parte di `D-136` che questa tabella
