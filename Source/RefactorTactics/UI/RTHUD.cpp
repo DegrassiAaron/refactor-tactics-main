@@ -1128,10 +1128,20 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 		// secondi**.
 		const bool bReadyCountdown = Header.ReadyCountdownSecondsRemaining >= 0.f;
 
+		// 🔑 **La finestra di preparazione ha la propria parola, per la stessa ragione del Ready** (`#2386`).
+		// Anche qui la fase e' ancora `Planning`, e anche qui i due stati devono distinguersi **senza contare
+		// i secondi**: in autobattle «Pianificazione» sarebbe falso — i bot hanno gia' pianificato, e cio'
+		// che scorre e' il tempo dato a chi guarda per leggere i piani.
+		const bool bPrepWindow = Header.PrepWindowSecondsRemaining >= 0.f;
+
 		const TCHAR* PhaseName = TEXT("");
 		switch (Header.Phase)
 		{
-		case ERTMatchPhase::Planning:   PhaseName = bReadyCountdown ? TEXT("Ready") : TEXT("Pianificazione"); break;
+		case ERTMatchPhase::Planning:
+			PhaseName = bPrepWindow ? (Header.bPrepWindowPaused ? TEXT("Preparazione (in pausa)") : TEXT("Preparazione"))
+			          : bReadyCountdown ? TEXT("Ready")
+			          : TEXT("Pianificazione");
+			break;
 		case ERTMatchPhase::MatchEnded: PhaseName = TEXT("Fine"); break;
 		default:                        PhaseName = TEXT("Risoluzione"); break;
 		}
@@ -1147,7 +1157,16 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 		//
 		// Arrotondamento per ECCESSO: a 3,2 secondi restano `4s`, perche' `3s` farebbe sparire dal conto
 		// l'ultimo secondo di chi lo sta guardando.
-		if (bReadyCountdown)
+		if (bPrepWindow)
+		{
+			// Il gesto si NOMINA, come `(Spazio: salta)` e `(RMB: annulla)`. ⚠️ **E cambia con lo stato**: un
+			// «P: pausa» stampato su una finestra gia' ferma direbbe al giocatore di fare cio' che ha appena
+			// fatto. Il residuo resta a schermo anche in pausa — e' quanto manca alla ripresa, non zero.
+			Status += FString::Printf(TEXT("  -  %.0fs  (P: %s)"),
+				FMath::CeilToFloat(Header.PrepWindowSecondsRemaining),
+				Header.bPrepWindowPaused ? TEXT("riprendi") : TEXT("pausa"));
+		}
+		else if (bReadyCountdown)
 		{
 			// 🔴 **Il MINORE dei due orologi, e non e' un dettaglio di stile.** Il tetto vince sul countdown
 			// (`#2193`): con 1,5 s di planning residuo e 3 s di countdown, il commit arriva fra 1,5 s.
