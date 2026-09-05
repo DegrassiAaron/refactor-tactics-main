@@ -595,6 +595,34 @@ bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 		return false;
 	}
 
+	// 🔴 **Anti-SOTTRAZIONE, e senza questo il resto del test si puo' rendere verde togliendo lavoro.**
+	//
+	// Le due anti-vacuita' classiche guardano lo zero. Ma un ciclo che smette presto — un `break` dopo il
+	// primo ruolo, un `continue` di troppo — produce un set piu' PICCOLO e non vuoto: ogni path che resta
+	// e' coperto, il conteggio degli scoperti e' zero, e il gate diventa **verde perche' chiede di meno**.
+	// E' il modo piu' facile di rompere questo oracolo senza che nessuno se ne accorga.
+	//
+	// Il presidio e' un conteggio INDIPENDENTE delle coppie (eroe, ruolo) che hanno una variante attiva,
+	// fatto in un ciclo separato: se il ciclo di sopra ne ha saltata anche una, i due numeri divergono.
+	int32 CoppieAttese = 0;
+	for (const TPair<FName, FRTHeroPresentationClips>& Voce : Cdo->ClipsPerHero)
+	{
+		for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Voce.Value.PerRole)
+		{
+			if (Ruolo.Value.FindActive() != nullptr)
+			{
+				++CoppieAttese;
+			}
+		}
+	}
+	if (!TestEqual(
+			TEXT("il set richiesto copre TUTTE le coppie (eroe, ruolo) con una variante attiva: ")
+			TEXT("un ciclo che ne salta una rende questo gate verde chiedendo di meno"),
+			Provenienza.Num(), CoppieAttese))
+	{
+		return false;
+	}
+
 	const FString ContentDir = FPaths::ProjectContentDir();
 	const TArray<FString> Versionati = RTPackageFilesUnder(FPaths::Combine(ContentDir, TEXT("RT")));
 
