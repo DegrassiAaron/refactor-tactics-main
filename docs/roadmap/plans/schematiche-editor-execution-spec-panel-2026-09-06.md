@@ -2,9 +2,9 @@
 
 > `CURRENT` · **Stato**: revisione chiusa. Il sorgente è **recensito, non applicato**: nessuna roadmap
 > nuova creata · **Data**: 2026-09-06
-> **HEAD della misura**: `2a08f4c2`, **rimisurato su `2eb32f34`** — `origin/main` si è mosso durante la
-> run, e §3 `R8` dice cosa è cambiato (worktree
-> `docs/schematiche-editor-execution-spec-panel`)
+> **HEAD della misura**: `2a08f4c2`, **rimisurato su `2eb32f34`**, **riallineato a `28c60b9e`** —
+> `origin/main` si è mosso **tre volte** durante la run; §3 `R8` dice cosa è cambiato e cosa no
+> (worktree `docs/schematiche-editor-execution-spec-panel`)
 > **Oggetto**: il work order esterno *«RefactorTactics — Roadmap Schematiche: Editor Execution»*, fornito
 > in chat **senza sha né data**, che chiede di eseguire e validare in Editor quindici schematiche `S01…S15`
 > attraverso otto fasi `ED0…ED8`, e rimanda a una `schematiche-code-only-roadmap-2026-09-05.md`.
@@ -31,9 +31,9 @@ sbagliato sul gioco spedito**.
 | **R2** | **la Roadmap Editor esiste già**: [`roadmap-esecuzione-pie-2026-09-03.md`](roadmap-esecuzione-pie-2026-09-03.md) è `CURRENT` e dichiara testualmente la stessa tripartizione — *«il registro degli esiti resta `test-manuali-pie.md`; quale voce e quando resta `editor-sessions.yaml`; questo file dice in che ordine e cosa manca»* | 🔴 |
 | **R3** | **l'oggetto non esiste**: zero file `*schemati*` e zero `*code-only*` in entrambi i checkout. §2 rimanda `BLOCKED-CODE` a un documento che nessuno può aprire | 🔴 |
 | **R4** | **il gate `S05` sbaglia sul gioco spedito**: `Action.Sprint` è profilo di `Move` per il canone e risolve **pre-Blast** nel codice — arretrato dichiarato `#641`/`D-116`. Il kit non dice mai **contro cosa** si misura una schematica | 🔴 |
-| **R5** | il vocabolario di stato **conferisce alle schematiche l'autorità che §2 nega all'Editor**: `CANONICAL` è per definizione *«la fonte che prevale in caso di conflitto»* | 🔴 |
+| **R5** | il vocabolario di stato **conferisce alle schematiche l'autorità che §2 nega all'Editor**: `CANONICAL` è per definizione *«la fonte che prevale in caso di conflitto»*, e *«il posto dove si cambia una regola»* | 🔴 |
 | **R6** | §3 **riclassifica l'oracolo dove `CLAUDE.md` §5 vieta di riclassificarlo**; le classi `A/B/C/D` esistono, sono misurate due volte, e la **D** — che al kit manca — è proprio quella di `S14` e `S15` | 🟠 |
-| **R7** | **quattro owner su quindici sono chiusi**, e `MOV-4` è dichiarata aperta mentre `D-325` la chiude dal 2026-09-04 | 🟠 |
+| **R7** | degli **owner nominati** dal kit, **quattro su cinque sono chiusi** — cioè **sei schematiche su quindici** poggiano su un owner chiuso — e `MOV-4` è dichiarata aperta mentre `D-325` la chiude dal 2026-09-04 | 🟠 |
 | **R8** | `S01…S15` è un **terzo spazio di identificatori** accanto alle sedute `U*` e alle voci `PIE-*`, senza una mappa fra i tre e senza dire quale voce del registro una `S` aggiorni | 🟠 |
 | **R9** | §5 definisce un bundle di evidenza **senza sede**, e il manifest non porta né lo stato del working tree né lo sha del binario | 🔵 |
 | **R10** | `BLOCKED-MCP` è **più debole** del contratto già scritto: `CLAUDE.md` §5 prescrive di ripetere la query fuori da PIE prima di dichiarare assente una capability | 🔵 |
@@ -71,17 +71,21 @@ Il testo resta buono; la sede è occupata.
 
 ## 3. I rilievi, con la misura che li produce
 
-Ogni comando è stato eseguito nel worktree su `2a08f4c2`, e i conteggi sono stati **riverificati su
-`2eb32f34`** dopo che `origin/main` si è mosso: reggono tutti — `R8`.
+Ogni comando è stato eseguito nel worktree su `2a08f4c2`, e rieseguito su `2eb32f34` dopo che
+`origin/main` si è mosso. ⚠️ **Non «reggono tutti»**, che è ciò che la prima stesura di questa riga
+affermava dopo aver ricontrollato due totali: i totali reggono, e una grandezza citata da `R2` — le voci
+schedulate contro le orfane — è **proprio** quella che l'evento intercorso ha spostato. Dettaglio in `R8`.
 
 ### R1 — Il settimo giro
 
 ```bash
-ls docs/roadmap/plans/ | grep -E "dual-roadmap|spec-panel" | grep -E "2026-09-0[3-6]"
+ls docs/roadmap/plans/*2026-09-0[3-6]*.md | wc -l   # -> 27 referti in quattro giorni, questo compreso
 ```
 
-Sei referti in tre giorni revisionano la stessa forma — *«due roadmap, una code, una Editor, più una
-matrice»*:
+⚠️ **Il comando conta il volume, non seleziona la tabella**: dei ventisette, i quattro qui sotto sono
+quelli **letti** e pertinenti — tre revisionano la stessa forma (*«due roadmap, una code, una Editor, più
+una matrice»*), il quarto è quello che ne ha ricavato il contratto. La selezione è a mano e si dichiara,
+perché nessun `grep` la produce: `gov4-…` non contiene né `dual-roadmap` né `spec-panel` nel nome.
 
 | Data | Referto | Esito |
 |---|---|---|
@@ -115,9 +119,15 @@ che nessuno esegue.
 ### R3 — L'oggetto non è nel repository
 
 ```bash
-find . -path ./.git -prune -o \( -iname "*schemati*" -o -iname "*code-only*" \) -print   # -> 0
-ls D:/Repositories/refactor-tactics-main/docs/src/                                       # -> non esiste
+find . -path ./.git -prune -o \( -iname "*schemati*" -o -iname "*code-only*" \) -print \
+  | grep -v spec-panel                                    # -> 0  (misurato su 2a08f4c2)
+ls D:/Repositories/refactor-tactics-main/docs/src/        # -> non esiste
 ```
+
+⚠️ **Il filtro `grep -v spec-panel` non c'era nella prima stesura, e serve dal commit che scrive questo
+referto**: `schematiche-editor-execution-spec-panel-2026-09-06.md` matcha `*schemati*`. Chi rieseguisse il
+comando nudo per controllare `R3` troverebbe **un** risultato — questo file — e dovrebbe dedurre da sé che
+non è una schematica.
 
 Zero in entrambi i checkout. `S01…S15` e la roadmap code-only sono materiale esterno. ⚠️ Sono quindi
 **input da rimisurare, non canone** — e il kit li tratta come artefatti con owner assegnato.
@@ -152,11 +162,15 @@ comportamento osservato? Le due cose divergono in almeno un punto noto, e le sch
 
 [`docs/README.md`](../../README.md) §*Tag* definisce:
 
-| Tag | Significato canonico |
-|---|---|
-| `CANONICAL` | **«la fonte che prevale in caso di conflitto — è il posto dove si cambia una regola»** |
-| `CURRENT` | «descrive com'è il progetto **oggi**, subordinato al canone» |
-| `OPEN` | «aspetta una decisione umana — **vive in `OPEN_DECISIONS.md`**» |
+| Tag | Significato *(col. 2)* | Si aggiorna? *(col. 3)* |
+|---|---|---|
+| `CANONICAL` | **«Decide: è la fonte che prevale in caso di conflitto»** | «Sì — **è il posto dove si cambia una regola**» |
+| `CURRENT` | «Descrive com'è il progetto **oggi**, subordinato al canone» | «Sì» |
+| `OPEN` | «Aspetta una decisione umana» | «**Vive in `OPEN_DECISIONS.md`**» |
+
+⚠️ **Le colonne sono tenute separate di proposito**: la sorgente è una tabella a tre colonne, e unirle in
+una citazione sola produrrebbe una stringa che non esiste nel file — chi la cercasse per verificare il
+rilievo non troverebbe nulla.
 
 Il kit §6 marca `CANONICAL` sei schematiche. Per la definizione del tag, una schematica `CANONICAL`
 **prevale su [`spec-sequenza-turno.md`](../../gameplay/spec-sequenza-turno.md)** — cioè esercita il potere
@@ -210,30 +224,52 @@ correggere una volta.
 
 ```bash
 grep -oE "^  - id: U[0-9]+" docs/roadmap/editor-sessions.yaml | sort -u | wc -l   # -> 48
-grep -oE "PIE-[A-Z0-9-]+" docs/technical/test-manuali-pie.md | sort -u | wc -l    # -> 228
+grep -c '^| \*\*PIE-' docs/technical/test-manuali-pie.md                          # -> 226  (comando canonico)
 ```
 
-`S01…S15` si aggiunge a **48** sedute e **228** voci, senza una mappa fra i tre. Il kit §16 chiede che
+🔴 **La seconda riga è stata corretta durante la review di questo stesso referto, e l'errore vale più del
+numero.** La prima stesura contava le voci con `grep -oE "PIE-[A-Z0-9-]+" | sort -u | wc -l` e pubblicava
+**228**. È il metodo che
+[`roadmap-esecuzione-pie-2026-09-03.md`](roadmap-esecuzione-pie-2026-09-03.md) §*Metodo* dichiara
+sbagliato **per nome** — *«stesso criterio del comando canonico del registro: le **righe di tabella**, non
+un `grep` sugli ID»* — e con la ragione già misurata: la classe `[A-Z0-9-]` perde le voci con una
+minuscola (`PIE-AS4a`, `PIE-BU2c`, `PIE-HEXPLAY-3b`), collassandole sulla sorella, e in cambio conta nove
+**prefissi di famiglia** che non sono voci (`PIE-VIS-`, `PIE-TD-`, `PIE-V01-`…). ⚠️ **I due errori si
+compensano quasi**, ed è ciò che rende `228` credibile: due sbagli che si annullano somigliano a una
+misura. 🔑 In un documento che si apre dichiarando *«nessun numero qui è ricordato»* — e che contesta al
+kit di non misurare — questo è il difetto peggiore possibile, e resta scritto qui invece di sparire nel
+diff.
+
+`S01…S15` si aggiunge a **48** sedute e **226** voci, senza una mappa fra i tre. Il kit §16 chiede che
 *«il registro PIE venga aggiornato solo dopo verifiche realmente eseguite»*, ma nessuna `S` dichiara
 **quale voce** aggiorna. Una `S` eseguita senza quella riga non tocca niente, e ricade nella condizione
 che il registro descrive già per `PIE-SCEN-COMPOSER`: *«nel registro e fuori da ogni sequenza»*.
 
 🔄 **Rimisurato su `2eb32f34`**, dove `origin/main` si è spostato mentre questo referto era in scrittura —
 e il commit che è arrivato è **il precedente che questo rilievo chiede**. La PR `#2520` aggancia
-`PIE-V01-PREPWINDOW` alla seduta `U23`: scrive `verifies: [… PIE-V01-PREPWINDOW]` nei dati della seduta,
-annota `📌 Seduta: U23` sulla voce del registro, e dichiara la classe — *«nessuno scenario può
-sostituirla… classe **C** in `scenario-map.md` §5»*. 🔑 **È esattamente il legame che `R8` dice mancare e
-la classificazione che `R6` dice esistere**, fatti a mano su una voce. Il difetto non è che non si sappia
-fare: è che non è un campo, e va rifatto a mano ogni volta. I conteggi non cambiano — `48` sedute e `228`
-voci anche dopo il merge, perché quella PR ha aggiunto un aggancio, non un identificatore nuovo.
+`PIE-V01-PREPWINDOW` alla seduta `U23`: aggiunge la voce sotto `verifies:` nei dati della seduta — **lista
+a blocchi**, non la forma inline `verifies: [...]`, e la distinzione conta perché
+[`roadmap-esecuzione-pie`](roadmap-esecuzione-pie-2026-09-03.md) registra che leggerne una sola *«perde
+metà delle sedute»* — annota `📌 Seduta: U23` sulla voce del registro, e dichiara la classe: *«nessuno
+scenario può sostituirla… classe **C** in `scenario-map.md` §5»*. 🔑 **È esattamente il legame che `R8`
+dice mancare e la classificazione che `R6` dice esistere**, fatti a mano su una voce. Il difetto non è che
+non si sappia fare: è che non è un campo, e va rifatto a mano ogni volta.
+
+⚠️ **E un conteggio del kit-report È cambiato, contro quanto la prima stesura di questa riga affermava.**
+Restano `48` sedute e `226` voci — un aggancio non conia identificatori — ma *«voci schedulate / orfane»*
+è **proprio** la grandezza che un aggancio sposta: `73/29` diventa `74/28`. La cifra citata in `R2` viene
+da [`roadmap-esecuzione-pie`](roadmap-esecuzione-pie-2026-09-03.md) e **non è stata rimisurata qui**: vale
+alla sua data. 🔑 La lezione è la stessa di `R8`: *«i conteggi reggono»* verificato su due totali che
+l'evento non poteva muovere non è una verifica dei conteggi.
 
 ### R9 / R10 — I due minori
 
 - Il bundle `Sxx/` non ha un path, e nessun owner lo possiede. Il manifest porta `Commit` ma non
   `WorkingTree` né lo **sha del binario**: in questo repository sorgenti e DLL possono raccontare due
   branch diversi, e un esito PIE su albero sporco si decide per sottosistema toccato dal diff.
-- `BLOCKED-MCP` omette la contro-misura che `CLAUDE.md` §5 prescrive: *«una risposta vuota non è un no —
-  ripeti la query fuori da PIE, con il ponte acceso»*.
+- `BLOCKED-MCP` omette la contro-misura che `CLAUDE.md` §5 prescrive in due frasi distinte, a quattro
+  righe di distanza: *«Una risposta vuota non è un no»* e, più sotto, *«ripeti la query fuori da PIE, con
+  il ponte acceso»*.
 
 ---
 
@@ -290,10 +326,47 @@ quel primo passo produrrebbe il verdetto sbagliato.
 
 Nessuno dei due viene dal kit: sono emersi misurando i suoi owner.
 
-### D1 — Il registro PIE rinvia a un owner rimosso, in tre punti
+### D1 — Otto rinvii vivi a un owner rimosso, in quattro file
 
 ```bash
-grep -n "EditorMap" docs/technical/test-manuali-pie.md   # -> 27, 29, 1393, 1622
+grep -rn -i "editormap" docs --include=*.md --include=*.yaml | grep -v archive | grep -v research
+```
+
+Le occorrenze sono molte; quasi tutte sono **sane** — referti datati che citano la EditorMap come
+provenienza, o documenti che ne dichiarano la rimozione (`CONTEXT_INDEX.md`, `roadmap-checkpoint.md`,
+`roadmap-v0.1.md`, `spec-tactical-designer.md`, e `roadmap-editor.md`, che porta la correzione dodici
+righe sotto la propria tabella). ⛔ **I rinvii ancora operativi, che presentano la EditorMap come owner
+corrente, erano cinque in tre file:**
+
+| File | Dove | Cosa affermava |
+|---|---|---|
+| `test-manuali-pie.md` | intestazione (×2) | *«quale voce affrontare e quando lo dice la EditorMap»* |
+| `test-manuali-pie.md` | §*La sequenza* | *«quella e' la EditorMap, generata da editor-sessions.yaml»* |
+| `test-manuali-pie.md` | §subset `RELEASE-V01` | *«le 55 voci orfane … sono contate in editormap.shortlist.md»* |
+| `test-manuali-pie.md` | voce `PIE-V01-ARENA` | *«Seduta U1 di editormap.shortlist.md»* |
+| `editor-sessions.yaml` | **riga 1**, il titolo | *«Sedute in editor — la sorgente della EditorMap»* |
+| `asset-map.md` | §*chi è l'owner* | *«editor-sessions.yaml, reso in editormap.shortlist.md»* |
+| `scenario-map.md` | §orfane | *«il conteggio … vive in editormap.shortlist.md»* |
+
+🔴 **Questa sezione ha sbagliato il proprio conteggio due volte, e le due correzioni sono il reperto.** La
+prima stesura ne dichiarava **tre**, tutti in un file — cioè ripeteva un piano più su il difetto che
+contesta: la correzione del 2026-08-28 aveva guardato **una voce** invece del file, questa guardava **un
+file** invece del repository. La seconda ne dichiarava **cinque**, e ne mancavano due nello stesso
+`test-manuali-pie.md`, trovati solo perché una review ha chiesto di rifare la misura. Sono **otto**, in
+quattro file. ⚠️ Il caso peggiore resta `editor-sessions.yaml`: **il titolo, tre righe sopra la nota che
+questo pass ha aggiunto** — corretto un numero stantio nel file, lasciando in testa il rinvio morto.
+
+⛔ **Due occorrenze NON sono state toccate, ed è deliberato**: `roadmap-editor.md:13`, una tabella dentro
+un blocco che il file stesso dichiara *«resta come provenienza»* e che porta la rimozione dodici righe
+sotto; e `editor-sessions.yaml:1795`, dentro le `notes:` di una seduta, che raccontano come la vista
+classificava `U24` quando esisteva. Riscriverle falsificherebbe la storia —
+[`docs/README.md`](../../README.md) §*Tag*: *«uno storico che descrive un mondo scomparso non è un difetto
+da correggere»*. Il comando che le isola, e che chiunque può rieseguire:
+
+```bash
+grep -rn -i "editormap" docs --include=*.md --include=*.yaml \
+  | grep -vE "docs/(archive|research|generated)/|docs/roadmap/plans/" \
+  | grep -viE "rimoss|uscit|non esiste|D-181|corretto il|diceva|viveva|aveva gia"   # -> 2
 ```
 
 La **EditorMap** (`editormap.shortlist.md`) e il generatore che la produceva sono usciti dal repository il
@@ -306,9 +379,16 @@ La **EditorMap** (`editormap.shortlist.md`) e il generatore che la produceva son
 — corretto il 2026-08-28.»* La correzione fu fatta **su una voce**, e i rinvii dell'intestazione e della
 sezione *«La sequenza»* — che è quella che possiede l'affermazione — sono rimasti.
 
-✅ **Corretti in questo pass**: i rinvii puntano ora a [`editor-sessions.yaml`](../editor-sessions.yaml) e
-alla roadmap di esecuzione. La nota dentro la voce `PIE-SCEN-COMPOSER` **non è stata toccata**: è
-provenienza, e riscriverla cancellerebbe la traccia di come il difetto è stato scoperto.
+✅ **Corretti in questo pass tutti e otto**: puntano ora a [`editor-sessions.yaml`](../editor-sessions.yaml)
+per i **dati**, a [`test-manuali-pie.md`](../../technical/test-manuali-pie.md) per l'**esito** e a
+[`roadmap-esecuzione-pie`](roadmap-esecuzione-pie-2026-09-03.md) per l'**ordine**. ⛔ **Non toccati, ed è
+deliberato**: la nota dentro la voce `PIE-SCEN-COMPOSER` e i documenti che dichiarano la rimozione — sono
+provenienza, e riscriverli cancellerebbe la traccia di come il difetto è stato scoperto.
+
+⚠️ **Cosa nessun gate vede.** `doc-links.ts` dichiara di non coprire *«i percorsi citati in prosa o dentro
+inline code»*, ed è la forma della maggior parte degli otto: un nome fra backtick in un commento `.yaml` o in
+una riga di prosa non è un link, quindi il gate esce `0` mentre l'affermazione è falsa. Il prossimo rinvio
+morto si troverà allo stesso modo — a mano, misurando un owner per un'altra ragione.
 
 ⚠️ **Nota di metodo, misurata su sé stessa**: la prima stesura di questo paragrafo citava quella nota per
 **numero di riga**. La correzione qui sopra l'ha spostata da `1393` a `1396` — un riferimento per riga
@@ -324,14 +404,23 @@ git show d671df47:docs/roadmap/editor-sessions.yaml | grep -cE "^  - id: U"     
 
 ⚠️ **Il numero era esatto il giorno in cui è stato scritto** ed è invecchiato: 21 sedute in 16 giorni. La
 somma per `block` concorda (`29+7+4+3+3+2 = 48`), e il parser YAML — `yaml.safe_load(...)['sessions']` —
-ne conta **48**: **tre metodi indipendenti**, come questo repository chiede quando un conteggio entra in
-un documento.
+ne conta **48**.
 
-🔑 **E rafforza `R2` invece di contraddirlo**: il file cresce di una seduta ogni 18 ore e non ha né vista
-né consumatore. Il problema dell'esecuzione Editor non è che manchi un piano — è che ne esistono tre e
-nessuno viene reso.
+🔴 **Ma non è una scoperta di questo pass, e la prima stesura lo presentava come tale.**
+[`primary-fix-…-2026-09-05.md`](primary-fix-dual-roadmap-spec-panel-2026-09-05.md) pubblica **48 sedute**
+già il 2026-09-05, in due punti — ed è un referto che questo documento cita **quattro volte**, `R1`
+compreso. ⚠️ Il valore corretto era quindi in casa da un giorno, e il file di dati continuava a dire `27`:
+il difetto non era che nessuno avesse misurato, ma che **la misura non era tornata all'owner**. È
+esattamente l'anti-duplicazione su cui `R1` è costruito, mancata da chi la contestava.
 
-✅ **Corretto in questo pass**, con la data della misura accanto al numero.
+🔑 **E rafforza `R2`**: il file cresce di una seduta ogni 18 ore e non ha né vista né consumatore. Il
+problema dell'esecuzione Editor non è che manchi un piano — è che ne esistono tre e nessuno viene reso.
+
+✅ **Corretto in questo pass**, con i tre comandi accanto al numero invece del solo numero. ⚠️ **La
+correzione ri-arma la trappola che disinnesca**, e va detto: `48` è un derivato scritto a mano in un file
+senza gate, quindi sarà stantio entro un giorno. La forma che non invecchia è il **comando**, ed è per
+questo che è stato scritto nel commento accanto al valore — chi lo rilegge può rifare la misura invece di
+crederle.
 
 ---
 

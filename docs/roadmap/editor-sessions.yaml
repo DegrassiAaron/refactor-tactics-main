@@ -1,4 +1,4 @@
-# Sedute in editor — la sorgente della EditorMap
+# Sedute in editor — i DATI delle sedute U*, senza piu' una vista che li renda
 #
 # Owner dei DATI delle sedute U*.
 #
@@ -18,6 +18,8 @@
 # 🔑 Il numero non contraddice l'avvertimento qui sopra, lo rafforza: il file cresce di una seduta ogni
 # 18 ore e continua a non avere ne' vista ne' consumatore. Referto:
 # `docs/roadmap/plans/schematiche-editor-execution-spec-panel-2026-09-06.md` §6.
+# ⚠️ Il comando qui sopra vale piu' del numero: senza un gate che lo verifichi, `48` sara' stantio entro
+# un giorno esattamente come lo era `27`. Chi lo rilegge lo RICALCOLA, non lo aggiorna a mente.
 #
 # Regola che questo file esiste per far rispettare (R-6 della spec):
 #   qui si citano gli **ID** delle voci PIE, mai il loro esito atteso.

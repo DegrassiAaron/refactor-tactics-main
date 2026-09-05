@@ -7,8 +7,10 @@
 > [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md), che è normativo e da cui questo file **deriva**
 > ogni path. Non è l'owner dei principi di pipeline (presentazione-only, riferimenti soft con fallback,
 > licenze): quello è [`spec-asset-pipeline.md`](../architecture/spec-asset-pipeline.md). Non è l'owner dello stato delle
-> sedute in editor: quello è [`../../roadmap/editor-sessions.yaml`](../../roadmap/editor-sessions.yaml), reso in
-> `../../roadmap/editormap.shortlist.md`.
+> sedute in editor: quello è [`../../roadmap/editor-sessions.yaml`](../../roadmap/editor-sessions.yaml) per i
+> **dati**, e [`../../technical/test-manuali-pie.md`](../test-manuali-pie.md) per l'**esito**.
+> ⛔ *Questa riga diceva «reso in `../../roadmap/editormap.shortlist.md`»: quella vista è uscita dal
+> repository il 2026-08-21 con `D-181` e nessuno script rende più quel file — corretto il 2026-09-06.*
 >
 > Nasce perché quelle tre fonti, insieme, **non rispondono a una domanda**: *quali asset servono e quanti ne
 > mancano*. `convenzioni-contenuti-ue.md` §4 lo dichiara esplicitamente — «questo documento non è un
