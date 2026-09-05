@@ -318,23 +318,28 @@ bool FRTPresentationHazardDamageIsDeclaredSilentTest::RunTest(const FString&)
 		return true;
 	}
 
-	// 🔴 **`PendingPresentation` dal 2026-09-05 (`#2455`), e il verso e' cambiato per una MISURA, non per un
-	// ripensamento.** Questa voce ha detto tre cose in cinque giorni: *«non ha un produttore»* (2026-08-31),
-	// *«il produttore esiste, ma non si disegna per scelta»* (`#2460`), e ora *«si disegnera', e manca
-	// l'istante in cui farlo»*. Il passaggio l'ha imposto `#2483`, che ha reso il verso dell'assenza un dato
-	// e ha lasciato scritta la contraddizione: la stessa stringa dichiarava sia una scelta di disegno sia
-	// un'attesa di `#2455`.
+	// 🔁 **Dal 2026-09-05 e' `PendingPresentation`, per decisione d'autore.** `#2460` l'aveva lasciata
+	// `NoPresentation` dichiarando la scelta deliberata, ma il suo stesso motivo diceva *«la cue e' lavoro
+	// di #2455»*: sotto la tassonomia di `#2483` le due clausole si contraddicono, e la contraddizione e'
+	// stata portata all'autore invece che risolta a intuito.
 	//
-	// ⚠️ **Il test PRECEDENTE sarebbe rimasto verde su questa contraddizione**, perche' guardava
+	// ⛔ **Il nome del test resta vero**: `PendingPresentation` dichiara comunque che l'evento NON si
+	// mostra. Cio' che aggiunge e' chi lo mostrera'.
+	//
+	// ⚠️ **Il test PRECEDENTE sarebbe rimasto verde sulla contraddizione**, perche' guardava
 	// `Kind == NoPresentation` e due sottostringhe che la voce nuova conserva. E' lo stesso difetto che
 	// questo file ha gia' documentato per il predicato `Rationale.Contains("produttore")`: un guardiano che
 	// passa su una stringa che afferma altro non e' un guardiano.
-	TestTrue(TEXT("HazardDamage e' PendingPresentation: l'assenza e' TEMPORANEA, non decisa"),
+	TestTrue(TEXT("HazardDamage non si mostra, ed e' un'attesa dichiarata"),
 		Hazard->Kind == ERTPresentationKind::PendingPresentation);
 
-	// 🔑 **L'owner e' un CAMPO, non una frase dentro il motivo** (`#2483`): e' cio' che permette di chiedere
-	// «questa attesa e' ancora aperta?» senza leggere la prosa.
-	TestEqual(TEXT("l'owner che sciogliera' l'attesa e' #2505"),
+	// 🔑 **L'owner e' `#2505` e non piu' `#2455`, e il cambio e' il meccanismo che funziona.** La decisione
+	// d'autore aveva nominato `#2455` perche' era la issue che stava per disegnare il feedback di
+	// combattimento; misurando, quella issue ha scoperto che questo evento **non ha un istante** in cui una
+	// cue possa essere giocata, ha consegnato il token per `Attack` — che un beat ce l'ha — e ha aperto
+	// `#2505` per costruire quello che manca. Il promemoria non e' vissuto in una frase: e' stato questo
+	// censimento a convocare la revisione.
+	TestEqual(TEXT("e la cue la deve #2505, non una issue che ha gia' chiuso"),
 		Hazard->PendingOwner, FString(TEXT("#2505")));
 
 	// Il motivo dichiara che il produttore ESISTE: il predicato di `#2460` resta valido e va conservato,
@@ -342,9 +347,13 @@ bool FRTPresentationHazardDamageIsDeclaredSilentTest::RunTest(const FString&)
 	TestTrue(TEXT("il motivo dichiara che il produttore esiste, non che manca"),
 		Hazard->Rationale.Contains(TEXT("produttore ESISTE")));
 
-	// 🔴 **E dichiara cosa manca DAVVERO**, che e' l'informazione nuova e la sola che spiega perche' la cue
-	// non e' stata scritta insieme a quella di `Attack`: non c'e' un istante in cui giocarla. `BeginPlayback`
-	// non consuma questo tipo, e `PlaybackPhases` non contiene mai `Cleanup`.
+	// ⚠️ **Non si cerca l'owner nel MOTIVO**: e' un campo, e cercarlo in una stringa libera tornerebbe a
+	// misurare la prosa — il difetto che questo file documenta due volte. L'assertion sull'owner sta sopra,
+	// sul campo. Qui resta cio' che solo il motivo puo' dire: **perche'** oggi non si disegna.
+	//
+	// 🔴 **E cio' che manca non e' il dato ma l'ISTANTE**, che e' l'informazione nuova e la sola che spiega
+	// perche' la cue non e' nata insieme a quella di `Attack`: `BeginPlayback` non consuma questo tipo, e
+	// `PlaybackPhases` non contiene mai `Cleanup`.
 	TestTrue(TEXT("il motivo dichiara che manca l'ISTANTE, non il dato"),
 		Hazard->Rationale.Contains(TEXT("ISTANTE")));
 
@@ -450,18 +459,17 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 		}
 	}
 
-	// 🔴 **Rimisurato il 2026-09-05 da `#2455`, e il censimento e' cambiato per una ragione dichiarata.**
-	// Prima: `HazardDamage` unica assenza **decisa**, tre in attesa. Ora: **zero decise, quattro in attesa**.
-	// `HazardDamage` e' passata a `PendingPresentation` perche' `#2483` aveva reso il verso un dato e aveva
-	// lasciato scritta la contraddizione della sua stringa — che dichiarava insieme una scelta di disegno e
-	// un'attesa di `#2455`. Sciolta qui: manca l'**istante** in cui giocare la cue, non la volonta' di
-	// disegnarla. Owner `#2505`.
+	// 🔴 **Rimisurato il 2026-09-05: zero decise, quattro in attesa** — `HazardDamage` e' passata a
+	// `PendingPresentation`, e con lei l'ultima assenza decisa e' sparita.
 	//
-	// ⚠️ **Zero decise non e' un vuoto da riempire.** Significa che oggi nessun evento risolto e' stato
-	// giudicato «non si mostra, e non deve»: sono tutti eventi che si mostreranno. Se un giorno una voce
-	// tornasse `NoPresentation`, questa riga deve diventare rossa e la decisione va scritta — che e' l'unico
-	// scopo del censimento.
-	TestEqual(TEXT("nessuna assenza e' DECISA: tutte e quattro si mostreranno"), Decise, 0);
+	// 🔑 **Il numero dice qualcosa di vero sulla v0.1.** Dei sette tipi, tre hanno cue e **quattro sono in
+	// attesa**: in questa release nulla e' invisibile *per scelta definitiva* — e' solo non ancora
+	// disegnato. ⛔ Il valore `NoPresentation` resta nel contratto ed e' esercitato dai test di questo file:
+	// serve al primo evento che si decidera' di non mostrare mai.
+	//
+	// ⚠️ **Se questa riga tornasse a 1, qualcuno avra' preso quella decisione: la si cerchi.** Non si
+	// aggiorna il numero — si cerca chi l'ha deciso e perche'.
+	TestEqual(TEXT("nessuna assenza e' DECISA in v0.1"), Decise, 0);
 	TestEqual(TEXT("quattro assenze sono IN ATTESA"), InAttesa, 4);
 	TestEqual(TEXT("nessuna voce in attesa e' senza owner"), InAttesaSenzaOwner, 0);
 

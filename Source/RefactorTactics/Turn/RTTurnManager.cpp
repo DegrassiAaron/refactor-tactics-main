@@ -1659,7 +1659,116 @@ void ARTTurnManager::OnPlanningTimeout()
 {
 	UE_LOG(LogRT, Log, TEXT("[RT] Timer scaduto -> lock-in automatico"));
 	Pacing.Current().LockInSource = ERTLockInSource::Timeout; // non l'ha chiusa il giocatore
+
+	// La finestra di preparazione dell'autobattle (`#2386`). Sta QUI e non dentro `LockInAndResolve` perche'
+	// quello e' il punto di confluenza che lo Scenario Harness chiama diretto: una finestra li' dentro
+	// metterebbe tre secondi di attesa in ogni run headless. Vedi `IsPrepWindowActive`.
+	//
+	// 🔑 `LockInSource` resta `Timeout` ed e' gia' scritto sopra: la finestra non e' un'altra origine del
+	// commit — e' lo stesso timeout, mostrato. Un valore nuovo direbbe che il turno si e' chiuso per una
+	// ragione diversa, e non e' vero.
+	UWorld* World = GetWorld();
+	if (bUnattendedSession && PrepWindowSeconds > 0.f && World)
+	{
+		bPrepWindowPaused = false;
+		PrepWindowRemainingOnPause = 0.f;
+
+		World->GetTimerManager().SetTimer(PrepWindowTimerHandle, this,
+			&ARTTurnManager::LockInAndResolve, PrepWindowSeconds, false);
+
+		// ⚠️ Diagnostica, non combat log: serve a chi legge `RefactorTactics.log` dopo una seduta e deve
+		// distinguere «l'autobattle ha aspettato la finestra» da «ha risolto subito». Stessa scelta di
+		// `#2193` per il countdown.
+		UE_LOG(LogRT, Log, TEXT("[RT] Autobattle -> finestra di preparazione %.1fs prima della risoluzione (turno %d)"),
+			PrepWindowSeconds, TurnNumber);
+		return;
+	}
+
 	LockInAndResolve();
+}
+
+bool ARTTurnManager::IsPrepWindowActive() const
+{
+	// In pausa il timer NON esiste — `PausePrepWindow` lo cancella, perche' `FTimerManager` non sa fermarsi.
+	// La finestra e' pero' ancora «attiva» nel senso che conta: c'e' una risoluzione trattenuta, e l'HUD deve
+	// continuare a dirlo. Senza il secondo termine, mettere in pausa farebbe sparire la riga di stato.
+	if (bPrepWindowPaused)
+	{
+		return true;
+	}
+
+	const UWorld* World = GetWorld();
+	return World && World->GetTimerManager().IsTimerActive(PrepWindowTimerHandle);
+}
+
+float ARTTurnManager::GetPrepWindowRemaining() const
+{
+	if (bPrepWindowPaused)
+	{
+		return PrepWindowRemainingOnPause;
+	}
+
+	if (const UWorld* World = GetWorld())
+	{
+		const float Remaining = World->GetTimerManager().GetTimerRemaining(PrepWindowTimerHandle);
+		return FMath::Max(0.f, Remaining);
+	}
+
+	return 0.f;
+}
+
+void ARTTurnManager::PausePrepWindow()
+{
+	UWorld* World = GetWorld();
+	if (!World || bPrepWindowPaused)
+	{
+		return;
+	}
+
+	// Non c'e' niente da fermare: la finestra non e' armata. Un no-op silenzioso, come `CancelLockIn` fuori
+	// dal countdown — chi preme pausa senza una finestra non deve trovarsi uno stato inventato.
+	if (!World->GetTimerManager().IsTimerActive(PrepWindowTimerHandle))
+	{
+		return;
+	}
+
+	// L'ordine conta: il residuo si legge PRIMA di cancellare, altrimenti `GetTimerRemaining` risponde su un
+	// handle spento e la ripresa ripartirebbe da zero, cioe' risolverebbe subito.
+	PrepWindowRemainingOnPause = FMath::Max(0.f, World->GetTimerManager().GetTimerRemaining(PrepWindowTimerHandle));
+	World->GetTimerManager().ClearTimer(PrepWindowTimerHandle);
+	bPrepWindowPaused = true;
+
+	UE_LOG(LogRT, Log, TEXT("[RT] Autobattle -> finestra in pausa a %.1fs dalla risoluzione (turno %d)"),
+		PrepWindowRemainingOnPause, TurnNumber);
+}
+
+void ARTTurnManager::ResumePrepWindow()
+{
+	UWorld* World = GetWorld();
+	if (!World || !bPrepWindowPaused)
+	{
+		return;
+	}
+
+	bPrepWindowPaused = false;
+
+	// ⚠️ Un residuo a zero non si riarma: `SetTimer` con `0.f` non scatterebbe mai, e la partita resterebbe
+	// ferma per sempre — lo stesso difetto che `MinUnattendedPlanningSeconds` esiste per impedire sul
+	// planning. Se il residuo e' esaurito la risoluzione e' dovuta adesso.
+	if (PrepWindowRemainingOnPause <= 0.f)
+	{
+		PrepWindowRemainingOnPause = 0.f;
+		LockInAndResolve();
+		return;
+	}
+
+	World->GetTimerManager().SetTimer(PrepWindowTimerHandle, this,
+		&ARTTurnManager::LockInAndResolve, PrepWindowRemainingOnPause, false);
+
+	UE_LOG(LogRT, Log, TEXT("[RT] Autobattle -> finestra ripresa, %.1fs alla risoluzione (turno %d)"),
+		PrepWindowRemainingOnPause, TurnNumber);
+
+	PrepWindowRemainingOnPause = 0.f;
 }
 
 void ARTTurnManager::RequestLockIn()
@@ -1785,7 +1894,19 @@ void ARTTurnManager::LockInAndResolve()
 		// mentre il countdown scorre, arriviamo qui dal tetto e il countdown muore senza aver committato due
 		// volte. Il primo che scatta vince, e la guardia in testa a questa funzione fa il resto.
 		World->GetTimerManager().ClearTimer(ReadyCountdownTimerHandle);
+
+		// 🔑 **E la finestra dell'autobattle** (`#2386`), per la stessa ragione e con lo stesso effetto: se il
+		// tetto del planning scade mentre la finestra scorre, arriviamo qui dal tetto e la finestra muore
+		// senza risolvere due volte. E' anche cio' che rende le due pause mutuamente esclusive senza un `if`:
+		// quando il playback comincia, la finestra non esiste piu'.
+		World->GetTimerManager().ClearTimer(PrepWindowTimerHandle);
 	}
+
+	// Lo stato della pausa segue il suo timer. Senza questa riga una finestra messa in pausa e poi superata
+	// dal tetto lascerebbe `bPrepWindowPaused` acceso, e `IsPrepWindowActive()` continuerebbe a dire vero per
+	// tutta la risoluzione — la riga di stato mostrerebbe una preparazione durante il playback.
+	bPrepWindowPaused = false;
+	PrepWindowRemainingOnPause = 0.f;
 
 	// Il commit e' avvenuto: chi disegna un'anteprima di pianificazione deve spegnerla adesso, e da qui in poi
 	// mostrerebbe una minaccia gia' decisa. Annuncio, non comando: uno scenario headless non ascolta.
@@ -2144,7 +2265,7 @@ void ARTTurnManager::LockInAndResolve()
 
 void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& NewCell,
 	const FRTCellId& FacingSource, const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget,
-	const TCHAR* LogVerb, const URTHexMapAsset* Map, ERTMatchPhase InPhase)
+	const TCHAR* LogVerb, const URTHexMapAsset* Map, ERTMatchPhase InPhase, ERTMoveOutcome Outcome)
 {
 	if (!IsValid(Unit))
 	{
@@ -2164,7 +2285,7 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 	// 3. La voce di TurnLog CON LA CAUSA (#307). Prima lo spostamento esisteva solo come riga di combat log:
 	// il replay registrava il danno e taceva il movimento, e chi rileggeva il file vedeva l'unita' altrove
 	// senza nulla che lo spiegasse.
-	AppendDisplacementEntry(Unit, OldCell, NewCell, Path.Num() - 1, CauseByTarget);
+	AppendDisplacementEntry(Unit, OldCell, NewCell, Path.Num() - 1, CauseByTarget, Outcome);
 
 	// 4. Evento per il playback: lo spostamento scivola OldCell -> NewCell nella fase Blast.
 	{
@@ -2220,14 +2341,14 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 }
 
 void ARTTurnManager::AppendDisplacementEntry(const ARTUnit* Target, const FRTCellId& From, const FRTCellId& To,
-	int32 Steps, const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget)
+	int32 Steps, const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget, ERTMoveOutcome Outcome)
 {
 	FRTTurnLogEntry Entry;
 	// Fase `Blast`: lo spostamento forzato avviene dove avviene il colpo che lo produce, non nella fase Move.
 	// E' quello che rende leggibile «sono stato spostato PRIMA di potermi muovere».
 	Entry.Phase = ERTMatchPhase::Blast;
 	Entry.Category = ERTLogCategory::Move;
-	Entry.Outcome = static_cast<uint8>(ERTMoveOutcome::Displaced);
+	Entry.Outcome = static_cast<uint8>(Outcome);
 	Entry.SrcCell = From;
 	Entry.TgtCell = To;
 	Entry.Amount = FMath::Max(0, Steps);
@@ -7781,18 +7902,18 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				// `FRTLogSubject::Unit` vuole l'Actor e non l'id, e lo dichiara: da un id soltanto il
 				// verdetto di [D-223] non si calcola — servono anche squadra e cella.
 				Atk.Amount), FRTLogSubject::Unit(AtkSrc));
-			if (AtkSrc) { AtkSrc->PlayAttackMontage(); }
+			if (AtkSrc) { AtkSrc->PlayPresentationRole(ERTPresentationRole::Attack); }
 			if (AtkTgt)
 			{
-				AtkTgt->PlayHitMontage();
-				// #2455 — il NUMERO del colpo, dallo stesso evento e nello stesso istante del montaggio.
+				AtkTgt->PlayPresentationRole(ERTPresentationRole::Hit);
+				// #2455 — il NUMERO del colpo, dallo stesso evento e nello stesso istante della cue.
 				//
 				// 🔑 **Il simulatore passa un intero, non una vista.** `Atk.Amount` e' lo stesso valore che
 				// il log scrive e che `OnAttackResolved` gia' trasporta: la composizione avviene in `ARTUnit`,
 				// e questo file continua a non includere **nessun** header di `UI/`.
 				//
-				// ⛔ Sul BERSAGLIO e mai sull'attaccante: e' chi subisce a portare il token, la stessa
-				// convenzione di `PlayHitMontage` e della categoria `Combat` del TurnLog (`#1150`).
+				// ⛔ Sul BERSAGLIO e mai sull'attaccante: e' chi subisce a portare il numero, la stessa
+				// convenzione della cue di impatto e della categoria `Combat` del TurnLog (`#1150`).
 				AtkTgt->ShowDamageToken(Atk.Amount);
 			}
 			OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Atk.Amount);
@@ -7820,18 +7941,18 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				const FRTResolvedEvent& Atk = PlaybackAttacks[AttacksShown];
 				ARTUnit* const AtkSrc = UnitByStableId(Atk.SourceStableUnitId);
 				ARTUnit* const AtkTgt = UnitByStableId(Atk.TargetStableUnitId);
-				if (AtkSrc) { AtkSrc->PlayAttackMontage(); }
+				if (AtkSrc) { AtkSrc->PlayPresentationRole(ERTPresentationRole::Attack); }
 				if (AtkTgt)
 				{
-					AtkTgt->PlayHitMontage();
-					// #2455 — il NUMERO del colpo, dallo stesso evento e nello stesso istante del montaggio.
+					AtkTgt->PlayPresentationRole(ERTPresentationRole::Hit);
+					// #2455 — il NUMERO del colpo, dallo stesso evento e nello stesso istante della cue.
 					//
 					// 🔑 **Il simulatore passa un intero, non una vista.** `Atk.Amount` e' lo stesso valore che
 					// il log scrive e che `OnAttackResolved` gia' trasporta: la composizione avviene in `ARTUnit`,
 					// e questo file continua a non includere **nessun** header di `UI/`.
 					//
-					// ⛔ Sul BERSAGLIO e mai sull'attaccante: e' chi subisce a portare il token, la stessa
-					// convenzione di `PlayHitMontage` e della categoria `Combat` del TurnLog (`#1150`).
+					// ⛔ Sul BERSAGLIO e mai sull'attaccante: e' chi subisce a portare il numero, la stessa
+					// convenzione della cue di impatto e della categoria `Combat` del TurnLog (`#1150`).
 					AtkTgt->ShowDamageToken(Atk.Amount);
 				}
 				OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Atk.Amount);
@@ -7870,7 +7991,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				PlaybackDefeatShown.Add(D.SourceStableUnitId);
 				bMorteAnnunciataInQuestaFase = true;
 				AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *DefU->GetName()), FRTLogSubject::World());
-				DefU->PlayDefeatMontage();
+				DefU->PlayPresentationRole(ERTPresentationRole::Death);
 				OnUnitDefeated.Broadcast(DefU);
 			}
 		}
@@ -7952,7 +8073,7 @@ void ARTTurnManager::FinishPlayback()
 		{
 			PlaybackDefeatShown.Add(D.SourceStableUnitId);
 			AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *DefU->GetName()), FRTLogSubject::World());
-			DefU->PlayDefeatMontage();
+			DefU->PlayPresentationRole(ERTPresentationRole::Death);
 			OnUnitDefeated.Broadcast(DefU);
 		}
 		if (!DefU->IsHidden())
