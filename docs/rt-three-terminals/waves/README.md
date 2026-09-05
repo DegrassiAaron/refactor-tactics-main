@@ -19,12 +19,30 @@ waves/<feature-slug>/
   RT3-DEVLEAD-<sha7>.md
   RT3-EDITOR-<sha7>.md
   RT3-VALIDATION-<sha7>.md
+  contrib/
   evidence/
 ```
 
 `<sha7>` sono i primi 7 caratteri del `PRODUCED_SHA` del ruolo che emette.
 
 `<feature-slug>` è stabile per l'intera wave e compare in `WAVE_ID` e in ogni `FINDING_ID`.
+
+## contrib/
+
+Contiene i **contributi** delle istanze DEV della wave che non sono DEV-LEAD:
+
+```text
+contrib/DEV-MAIN-<sha7>.md
+contrib/DEV-TEST-<sha7>.md
+```
+
+Un contributo non è un handoff. I tre punti fissi della catena restano DEV-LEAD, EDITOR e VALIDATION: DEV-LEAD legge i contributi e li consolida in un unico `RT3-DEVLEAD-<sha7>.md` con un solo `WRITE_SET` e un solo `PRODUCED_SHA`.
+
+Un contributo non porta verdetti di §7 del contratto: le istanze DEV non possiedono lo strumento che prova quei sistemi.
+
+Sono su disco per la stessa ragione degli handoff: DEV-LEAD non deve ricostruire dal contesto della chat ciò che un'altra sessione ha prodotto.
+
+Prompt: [`../prompts/WAVE_DEV_MAIN.md`](../prompts/WAVE_DEV_MAIN.md) · [`../prompts/WAVE_DEV_TEST.md`](../prompts/WAVE_DEV_TEST.md).
 
 ## evidence/
 

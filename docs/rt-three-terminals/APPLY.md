@@ -20,10 +20,13 @@ Questo bundle sostituisce/aggiunge file sotto `docs/rt-three-terminals/`.
 Separato dal livello ruolo. I prompt di ruolo dicono cosa un terminale può occupare; i prompt di wave dicono come si esegue e si consegna un lavoro attraverso i ruoli.
 
 - `prompts/RT3_CONTRACT.md` — contratto condiviso: preflight fail-closed, precondizioni repo, verdetti tipizzati, matrice canonica, scoping dal write-set, schema e persistenza handoff, propagazione `BLOCKED`, defect policy con terminazione.
+- `prompts/WAVE_DEV_LEAD.md` — prompt di wave DEV-LEAD: produce l'handoff di ingresso `RT3-DEVLEAD-<sha7>.md` che `WAVE_EDITOR.md` e `WAVE_VALIDATION.md` richiedono come input.
+- `prompts/WAVE_DEV_MAIN.md` — prompt di wave DEV-MAIN: implementazione dentro lo scope assegnato, contributo in `contrib/`.
+- `prompts/WAVE_DEV_TEST.md` — prompt di wave DEV-TEST: authoring di test, scenari e validator; l'esecuzione resta a VALIDATION.
 - `prompts/WAVE_EDITOR.md` — prompt di wave EDITOR.
 - `prompts/WAVE_VALIDATION.md` — prompt di wave VALIDATION.
 - `prompts/RT3_EXAMPLE.md` — handoff di esempio compilato, con `FAIL`, `BLOCKED` e `USER_REQUIRED`.
-- `waves/` — handoff persistiti e artefatti di evidenza.
+- `waves/` — handoff persistiti, contributi DEV in `contrib/` e artefatti di evidenza.
 
 Punti che cambiano il comportamento:
 
