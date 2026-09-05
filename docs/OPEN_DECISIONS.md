@@ -25,6 +25,19 @@
 
 ---
 
+## Aperta — la release che possiede la verticalità tattica, dall'handoff del 2026-09-04
+
+Origine: l'handoff esterno *Dual Roadmap — Verticality, Ledge, Fall, Forced Movement* (2026-09-04),
+consumato il 2026-09-05 e istruito contro `origin/main` `026850c0` dal referto
+[`verticalita-ledge-fall-dual-roadmap-2026-09-05.md`](roadmap/plans/verticalita-ledge-fall-dual-roadmap-2026-09-05.md).
+Owner di capability: [`#2388`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2388).
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `REL-3` | **La caduta da un bordo aperto entra nella v0.1, o resta dietro la release che oggi non esiste?** | Non si deduce perché **due sedi dicono cose diverse e nessuna delle due è sbagliata**. [`roadmap-post-v0.1.md`](roadmap/roadmap-post-v0.1.md) colloca il cluster *«3D map / verticalità»* su release canonica **`future`**, owner *«nessuno»*, azione **`DEFER`**, e lo registra fra i *«due cluster che non hanno una release che li possieda»*. Ma la v0.1 possiede già il **substrato**: `FRTCellId{X, Y, Layer}`, A\* multilivello, LOS che attraversa i layer, ponti `CP 9.4` e `ERTHexSurface::Void`. ∴ ciò che manca non è la verticalità — è **una regola per il bordo**. 🔑 **E il costo misurato è più basso di quanto la collocazione `future` suggerisca**: `StepUntilBlocked` (`RTHexCombatLibrary.cpp:540-554`) ferma già la spinta *«sulla cella libera precedente»* e lavora a `Target.Layer` costante, quindi il `LastStableCell` del mandato **è l'esito di oggi** e ciò che manca sono gli effetti e la traccia, non la posizione. ⚠️ **Il costo che non è basso sta a valle**: `ERTMoveOutcome` e `ERTDisplacementBlockReason` sono serializzati nel TurnLog **formato v7** — aggiungere valori in coda non è una migrazione, cambiare esiti già prodotti sì, con rigenerazione del corpus golden ([`D-245`](decisions/RT_PDR_00_Decision_Log.md)). ⛔ **Non si decide misurando**: la v0.1 è un perimetro d'autore, e `roadmap-v0.1.md` non nomina la caduta né per includerla né per escluderla — il silenzio non è un permesso. ⚠️ **Dipendenza da dichiarare insieme**: [`D-319`](decisions/RT_PDR_00_Decision_Log.md) ha introdotto il 2026-09-04 una regola omonima — chi subisce uno spostamento forzato mentre è `Unbalanced` finisce `Prone` — e le due «cadute» vanno conciliate in qualunque uscita. **Uscite**: *(a)* v0.1, con l'ampliamento di perimetro dichiarato · *(b)* una release post-v0.1 nominata, che toglie la verticalità dai cluster senza casa · *(c)* resta `future`, e `#2388` resta un contratto di capability senza lavoro figlio. **Innesco**: una decisione d'autore sul perimetro della v0.1, oppure la prima mappa che autori un bordo aperto |
+
+---
+
 ## Aperte — micro-step, anchor d'unità ed esposizione, dalla seduta d'autore del 2026-08-31
 
 Origine: il mandato di seduta *«Movement Resolver / micro-step / cover direzionale / exposure / Last Known /
