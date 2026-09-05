@@ -1,7 +1,9 @@
 # HUD v0.1 — audit `RT Three Terminals` (2026-09-05)
 
-> `EPHEMERAL` · **Non è owner di niente.** Fotografia datata, prodotta consumando un handoff esterno
-> (`CLAUDE_HUD_V01_RT_THREE_TERMINALS_HANDOFF.md`, ora consumato). Lo stato ufficiale resta negli owner
+> `EPHEMERAL` · **Non è owner di niente.** Fotografia datata, prodotta consumando un handoff esterno —
+> arrivato in radice come `CLAUDE_HUD_V01_RT_THREE_TERMINALS_HANDOFF.md` e archiviato in
+> [`../../archive/src/handoff/2026-09-05-hud-v01-rt-three-terminals.md`](../../archive/src/handoff/2026-09-05-hud-v01-rt-three-terminals.md).
+> Lo stato ufficiale resta negli owner
 > citati riga per riga: issue GitHub, [`roadmap-v0.1.md`](../roadmap-v0.1.md),
 > [`roadmap-checkpoint.md`](../roadmap-checkpoint.md),
 > [`test-manuali-pie.md`](../../technical/test-manuali-pie.md), [`editor-sessions.yaml`](../editor-sessions.yaml),
