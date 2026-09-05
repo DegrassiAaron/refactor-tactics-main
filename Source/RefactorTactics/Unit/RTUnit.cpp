@@ -546,7 +546,7 @@ TSoftObjectPtr<UAnimSequenceBase> ARTUnit::GhostFallbackClipPath() const
 	return GhostFallbackClipFor(Defaults, HeroId);
 }
 
-TSoftObjectPtr<UAnimSequenceBase> ARTUnit::ResolvePresentationClip(ERTPresentationRole Role) const
+TSoftObjectPtr<UAnimSequenceBase> ARTUnit::ResolvePresentationClip(ERTPresentationRole InRole) const
 {
 	// ⚠️ `FindHeroSkeletal`, non `GetComponents`: esclude `ContactGhost` **per identita'**, che e' il
 	// criterio robusto. L'esclusione per asset nullo che usano `ApplyUnitAnimClass` e `ApplyMeshYawOffset`
@@ -571,12 +571,12 @@ TSoftObjectPtr<UAnimSequenceBase> ARTUnit::ResolvePresentationClip(ERTPresentati
 
 	// `ActiveClipFor` copre da sola le tre vie che danno «nessuna clip» — eroe fuori catalogo, ruolo non
 	// popolato, nessuna variante attiva — e nessuna delle tre e' un errore. Non se ne scrive un secondo.
-	return Anim->ActiveClipFor(HeroId, Role);
+	return Anim->ActiveClipFor(HeroId, InRole);
 }
 
-void ARTUnit::PlayPresentationRole(ERTPresentationRole Role)
+void ARTUnit::PlayPresentationRole(ERTPresentationRole InRole)
 {
-	const TSoftObjectPtr<UAnimSequenceBase> Scelta = ResolvePresentationClip(Role);
+	const TSoftObjectPtr<UAnimSequenceBase> Scelta = ResolvePresentationClip(InRole);
 	if (Scelta.IsNull())
 	{
 		return;

@@ -968,8 +968,13 @@ public:
 	 * ⛔ **Non elegge una variante al posto dell'autore.** Se l'attiva manca, la risposta e' «nessuna»,
 	 * mai «la prima disponibile»: la scelta e' sua, e un ripiego automatico gliela toglierebbe in
 	 * silenzio.
+	 *
+	 * ⚠️ **Il parametro si chiama `InRole` e non `Role`**: `AActor` porta gia' un membro `Role`
+	 * (`TEnumAsByte<ENetRole>`, `Actor.h:864`), e ombreggiarlo e' `C4458` — che questo progetto promuove a
+	 * **errore**. Non capita in `URTUnitAnimInstance::ActiveClipFor`, che ha lo stesso parametro chiamato
+	 * `Role`: quella deriva da `UAnimInstance`, che quel membro non ce l'ha.
 	 */
-	TSoftObjectPtr<UAnimSequenceBase> ResolvePresentationClip(ERTPresentationRole Role) const;
+	TSoftObjectPtr<UAnimSequenceBase> ResolvePresentationClip(ERTPresentationRole InRole) const;
 
 	/**
 	 * Suona sul canale la clip attiva per questo ruolo, se ce n'e' una.
@@ -978,7 +983,7 @@ public:
 	 * della presentazione. Se non c'e' niente da suonare, non succede niente — e la simulazione non se
 	 * ne accorge.
 	 */
-	void PlayPresentationRole(ERTPresentationRole Role);
+	void PlayPresentationRole(ERTPresentationRole InRole);
 
 	// IRTSelectable
 	virtual void OnSelected() override;
