@@ -108,6 +108,7 @@ bloccata. **Ventinove** di esse non sono in nessuna sequenza, ed è la condizion
 | U19 · U22 | 4 ciascuna | — | varie | 🟡 |
 | **U45** | **3** | `[E12]` | — | 🟡 attende un checkpoint, non una seduta |
 | **U39** | **1** | `[U21]` — già soddisfatto | #1920 aperta | 🟢 **eseguibile**: `GenerateIntoAsset` allestisce la mappa in un gesto — vedi in coda alla §4 |
+| **U8** | **2** | `[]` | #2444 #2448 #2450 #2452 **tutte CLOSED** il 2026-09-05 | 🟢 **eseguibile ora, e non lo e' mai stata prima**: `PIE-AS4b` non aveva nulla da guardare. Due banchi in coppia — `Visual.Combat.Defeat` e `Visual.Combat.DefeatDuringMove` |
 | **U46** | **6** | `[]` | #1246 — non la blocca · #1873 **chiusa** il 2026-09-05 | 🟢 **eseguibile ora**: quattro sono le uniche voci non verdi del gate `G9`, due chiudono altrettanti scenari orfani |
 | altre 14 sedute | 1–2 ciascuna | — | varie | — |
 🔑 **`U46` non ordina per resa, e va letta a parte.** Sei voci sono meno di ventuno, ma quattro sono **le
@@ -321,7 +322,7 @@ HUD, VFX e playback no.
 - ⛔ **Non copre le 21 voci con ostacolo dichiarato** — ⚠️ numero **non rimisurato**, vedi la §1: quelle
   hanno cause proprie, scritte nelle loro righe,
   e vanno lette una per una.
-- ⛔ **Non tocca le sedute con `execution_lane: asset`** (U1, U8, U24, U28, U29, U30): producono `.uasset`, e
+- ⛔ **Non tocca le sedute con `execution_lane: asset`** (U1, ~~U8~~, U24, U28, U29, U30): producono `.uasset`, e
   sono un altro mestiere — Content Browser e Binary Asset Lease, non osservazione.
 
 ---
