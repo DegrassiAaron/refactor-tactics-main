@@ -266,7 +266,7 @@ lista resta progetto.
 |---|---|---|
 | Punteggio per squadra | `FRTMatchHeaderView::Team0Score` · `Team1Score` | ✅ nel ViewModel, misurato da `HudViewModel.ObjectiveProgressReachesTheHud` |
 | Soglia di vittoria | `FRTMatchHeaderView::ScoreToWin`, dal **formato** | ✅ stessa disciplina di `RoundLimit`: `0` = via per obiettivo **disattivata**, non «si vince a zero» |
-| Riga disegnata | `ARTHUD::DrawHUD`, barra di stato: `Obiettivo 2-1 (a 3)` | ✅ in Canvas, dietro `rt.HUD.CanvasPanels` |
+| Riga disegnata | `ARTHUD::ComposeMatchStatusLine`, barra di stato: `Obiettivo 2-1 (a 3)` | ✅ in Canvas, dietro `rt.HUD.CanvasPanels` |
 | Nome · stato · contestato · countdown · cambio recente | — | ⏳ progetto |
 
 ⚠️ **La riga si mostra solo se la mappa dichiara un obiettivo.** Su una mappa che non ne ha, `0-0` non

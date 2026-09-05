@@ -22,6 +22,23 @@ struct FRTSlotLine
 };
 
 /**
+ * Una riga del Canvas gia' decisa: cosa scrivere e di che colore.
+ *
+ * Tiene insieme testo e colore perche' nella barra abilita' le due cose sono decise dallo **stesso** stato
+ * e non sono separabili senza rileggerlo due volte: l'abilita' armata si distingue per il prefisso `> ` E
+ * per il bianco, e il fuoco amico cambia il colore della riga di zona senza cambiarne il testo.
+ *
+ * ⚠️ Testo VUOTO significa «non c'e' niente da mostrare», e non «mostra una riga vuota»: e' come la riga
+ * di zona dice che nessuna zona e' puntata.
+ */
+struct FRTHudTextLine
+{
+	FString Text;
+
+	FLinearColor Color = FLinearColor::White;
+};
+
+/**
  * Dove disegnare la sagoma dell'ultimo contatto, e a che turno risale — l'esito di
  * `ARTHUD::ContactGhostTargetForUnit` quando c'e' davvero qualcosa da mostrare.
  *
@@ -85,6 +102,22 @@ struct FRTContactGhostTarget
  * sarebbe un campo dichiarato, trasportato e mai letto. L'icona appartiene al layer widget (§4.1 di
  * `progettazione-hud.md`, che e' **#613**), e la si aggiunge quando esiste chi la rende.
  */
+/**
+ * La riga d'intento gia' decisa: se mostrarla, cosa scrivere, di che colore.
+ *
+ * ⚠️ `bShow` falso significa **nessuna riga**, e i campi accanto non vanno letti: non e' «una riga
+ * vuota». La distinzione conta perche' il caso piu' comune del gioco e' un'unita' propria senza ordini.
+ */
+struct FRTIntentPresentation
+{
+	bool bShow = false;
+
+	/** Completa, prefisso incluso. Vuota quando `bShow` e' falso. */
+	FString Label;
+
+	FLinearColor Color = FLinearColor::White;
+};
+
 struct FRTIntentCertaintyStyle
 {
 	/**
@@ -183,7 +216,42 @@ class REFACTORTACTICS_API ARTHUD : public AHUD
 	GENERATED_BODY()
 
 public:
+	ARTHUD();
+
 	virtual void DrawHUD() override;
+
+	/**
+	 * Esegue il driver del velo (`UpdateObserverVeil`) una volta per fotogramma.
+	 *
+	 * 🔴 **Esiste perche' l'applicazione del velo NON e' disegno.** Fino a `#2246` viveva dentro il ciclo di
+	 * `DrawHUD`, che comincia con `if (!Canvas) { return; }`: senza un canvas nessuno spegneva i nemici non
+	 * osservati, e `bKnownToObserver` nasce `true`. Cioe' *«il driver non ha girato»* e *«tutto e' noto»*
+	 * producevano lo stesso schermo, e nessun test li distingueva.
+	 */
+	virtual void Tick(float DeltaSeconds) override;
+
+	/**
+	 * Applica al mondo cio' che l'osservatore locale sa: accende e spegne i modelli
+	 * (`ARTUnit::SetKnownToObserver`) e pilota la sagoma dell'ultimo contatto (CP 13.5).
+	 *
+	 * 🔴 **Non disegna niente, ed e' il punto.** Nel ciclo di `DrawHUD` questi due gesti stavano accanto al
+	 * disegno delle barre e ne condividevano il destino: chi avesse spostato la sovrapposizione altrove — la
+	 * migrazione a `WidgetComponent` che `#613` prepara — se li sarebbe portati via in silenzio, e i nemici
+	 * non osservati sarebbero rimasti **visibili**. Un difetto di privacy (`AGENTS.md` §4), non estetico.
+	 *
+	 * 🔑 **Perche' sull'HUD e non su un attore condiviso.** Il velo e' relativo a UN osservatore: il team
+	 * si legge da `ARTPlayerState::TeamIdOf(GetOwningPlayerController())`, che senza controller ripiega su
+	 * `0`. Un `AGameState` o un subsystem di mondo non hanno un osservatore da cui derivarlo, e la risposta
+	 * dovrebbe comunque essere per-giocatore — oltre al fatto che `#1820` tiene fuori dal perimetro un
+	 * contenitore di stato pubblico. L'HUD e' gia' per-player e conosce gia' quel team.
+	 *
+	 * ⚠️ **CONSUMA i due giudizi, non li rifa'**: `ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit`
+	 * restano l'unica definizione delle due regole.
+	 *
+	 * ⚠️ **Pubblica per essere interrogabile senza aspettare un fotogramma**: `DrawHUD` non ha copertura
+	 * headless, ed e' esattamente il motivo per cui cio' che si puo' sbagliare esce di li'.
+	 */
+	void UpdateObserverVeil();
 
 	/**
 	 * Chi verrebbe colpito dai piani d'attacco **delle proprie unita'**: celle bersagliate e, fra queste,
@@ -260,7 +328,7 @@ public:
 	 * @param Anchor      punto desiderato: X centro del blocco, Y riga della barra HP.
 	 * @param HalfWidth   meta' larghezza del blocco piu' largo (barra o nome).
 	 * @param AboveAnchor quanto il blocco sale sopra `Anchor.Y` (nome e status).
-	 * @param BelowAnchor quanto scende sotto `Anchor.Y` (barra ed energia).
+	 * @param BelowAnchor quanto scende sotto `Anchor.Y` (la barra).
 	 * @param Viewport    dimensioni del canvas.
 	 * @param Margin      distanza minima dal bordo.
 	 *
@@ -287,6 +355,33 @@ public:
 	 * puo' dipenderne.
 	 */
 	static TArray<FRTSlotLine> ComposeSlotLines(const struct FRTUnitSlotsView& Slots);
+
+	/**
+	 * La riga di un'abilita' nella barra: numero, nome, il motivo per cui non si puo' usare, il colore.
+	 *
+	 * Statica e PURA sul modello di `ComposeSlotLines`: `DrawHUD` non ha copertura headless e non l'avra',
+	 * quindi cio' che si puo' sbagliare deve stare dove i test arrivano (#2184).
+	 *
+	 * 🔑 **Prende la VISTA, non l'unita'.** `FRTAbilityCooldownView` porta gia' `TurnsRemaining` e
+	 * `bUsableNow`, che questo Canvas rileggeva da `ARTUnit::GetAbilityCooldown` e `CanUseAbility` — e
+	 * `WBP_RT_ActionSlot` consuma gli stessi due campi. Con `rt.HUD.CanvasPanels` attivo le due vie rendono
+	 * nello stesso fotogramma: erano due sorgenti per un dato solo.
+	 *
+	 * @param bArmed  l'abilita' scelta adesso (`ARTUnit::SelectedAbilityIndex`). E' SELEZIONE, non stato
+	 *                dell'abilita', e per questo non sta nella vista.
+	 */
+	static FRTHudTextLine ComposeAbilityLine(const struct FRTAbilityCooldownView& Ability, bool bArmed);
+
+	/**
+	 * La riga di zona sopra la barra: quante celle il tiro sta per coprire, e se fra loro c'e' un alleato.
+	 *
+	 * ⚠️ **Testo vuoto quando non c'e' una zona puntata**, e non una riga vuota: dice la differenza fra
+	 * «sto scegliendo» e «sto per tirare», che dai soli contorni a terra non si legge.
+	 *
+	 * 🔴 L'avviso di fuoco amico e' la decisione con la conseguenza peggiore se sbagliata: chi la
+	 * legge sta per premere. Cambia al PRIMO alleato, non a una soglia.
+	 */
+	static FRTHudTextLine ComposePreviewZoneLine(int32 NumHitCells, int32 NumAllyHitCells);
 
 	/**
 	 * Come rendere un intento, dato il livello di certezza che la vista **porta gia' calcolato** (CP 11.2).
@@ -344,6 +439,25 @@ public:
 	 */
 	static FString ComposeIntentLabel(const struct FRTIntentView& View, const FRTIntentCertaintyStyle& Style);
 
+	/**
+	 * Chi ha una riga d'intento sopra la testa, con che etichetta completa e di che colore.
+	 *
+	 * Statica e PURA sul modello di `ComposeSlotLines`: `DrawHUD` non ha copertura headless e non l'avra',
+	 * quindi cio' che si puo' sbagliare deve stare dove i test arrivano (#2184).
+	 *
+	 * 🔑 **Non tocca la geometria, e non e' un caso.** Le tre decisioni dipendono dalla sola vista:
+	 * `bOwn` e' `View.bIsAlly`, e «ha un piano» e' un `||` di cinque suoi campi. Nel `DrawHUD` erano scritte
+	 * in mezzo alla proiezione, il che le faceva sembrare intrecciate con lei — non lo erano.
+	 *
+	 * 🔴 **L'asimmetria e' la regola, non una svista**: si salta l'unita' PROPRIA senza ordini, mai un
+	 * nemico rivelato. Per lui l'informazione non e' «cosa fara'», e' «lo sto vedendo».
+	 *
+	 * ⛔ Il CORPO dell'etichetta resta di `ComposeIntentLabel`, che questa chiama: qui si aggiunge solo il
+	 * prefisso, che prima era deciso in `DrawHUD` e quindi scoperto. L'etichetta completa ha ora una sede sola.
+	 */
+	static FRTIntentPresentation ComposeIntentPresentation(const struct FRTIntentView& View,
+		const FRTIntentCertaintyStyle& Style);
+
 	// 🔴 **Qui c'era `ApplyCertaintyTint`, RIMOSSA il 2026-08-19 con la funzione che la chiamava.**
 	// Sbiadiva il colore di squadra secondo la certezza, e la code review ha mostrato tre cose insieme:
 	// il colore in questa HUD e' **gia'** l'identita' di squadra (ciano contro giallo), quindi la certezza
@@ -387,6 +501,33 @@ public:
 	 * @param ViewerSpeed la scelta di chi guarda. Non positiva = «non scelta», letta come `x1`.
 	 */
 	static FString ComposePlaybackSpeedLabel(float ViewerSpeed);
+
+	/**
+	 * La barra di stato in alto: contatore del round, fase o riproduzione, timer, progresso sull'obiettivo.
+	 *
+	 * Statica e PURA sul modello di `ComposeSlotLines`: `DrawHUD` non ha copertura headless e non l'avra' —
+	 * e' un `AHUD::DrawHUD` che il motore chiama ogni fotogramma — quindi cio' che si puo' sbagliare deve
+	 * stare dove i test arrivano (#2184).
+	 *
+	 * ⚠️ **Tutte e quattro le decisioni sono RETICENZE**: tacere il limite senza formato, il timer senza
+	 * orologio, il punteggio senza obiettivo dichiarato e la **soglia** senza obiettivo dichiarato. Sono
+	 * quelle che una verifica a schermo non vede, perche' l'assenza di un pezzo di testo non somiglia a un
+	 * difetto — e la quarta era anche quella che il conteggio di questa riga aveva perso.
+	 *
+	 * ⚠️ **Prende la vista, non l'attore.** `FRTMatchHeaderView` la produce gia'
+	 * `URTHudViewModel::BuildMatchHeader` per lo Screen HUD: leggere i campi una seconda volta dal
+	 * `TurnManager` creava due sedi per lo stesso dato, che si scollegano al primo campo aggiunto a una sola.
+	 *
+	 * ⛔ **Non compone il controllo di velocita'**, che `DrawHUD` appende dopo: quello ha gia' la sua statica
+	 * (`ComposePlaybackSpeedLabel`) e i suoi test, e legge un campo — `ViewerPlaybackSpeed` — che #1821 tiene
+	 * esplicitamente fuori scope in quanto campo.
+	 *
+	 * @param PlaybackPhaseName   la fase che sta scorrendo. Letta solo se `Header.bResolving`.
+	 * @param PlaybackProgress01  avanzamento in `[0,1]`; mostrato in percento, arrotondato al piu' vicino.
+	 * @param bHasObjectiveCell   se la MAPPA dichiara un obiettivo. Falso = il punteggio non si scrive.
+	 */
+	static FString ComposeMatchStatusLine(const struct FRTMatchHeaderView& Header,
+		const FString& PlaybackPhaseName, float PlaybackProgress01, bool bHasObjectiveCell);
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HUD")

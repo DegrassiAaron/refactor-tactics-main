@@ -1,0 +1,48 @@
+{
+  "scenarioId": "Spec.Overwatch.PushSilencesTheWatcher",
+  "tags": ["spec", "reactions", "overwatch", "wraith", "phase"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "REGISTRO ESEGUIBILE di un comportamento che nessuno ha deciso — [#2367](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2367). `V1` arma l'Overwatch su un varco, viene spinto, e `M1` attraversa una cella **dentro la linea guardata** senza incassare niente. Non e' una questione di portata: la cella e' coperta, e la reazione non scatta.",
+
+  "_nota_cosa_e_misurato": "🔑 **Tre fatti, tutti misurati, e nient'altro.** ① Un guardiano **solo nella propria squadra**, armato e poi spinto, non fa scattare la reazione su chi attraversa la sua linea. ② Lo stesso guardiano **non spinto** spara — lo provano `Spec.Overwatch.HoldThenFire` e il test `RefactorTactics.Status.ProneDisarmsOverwatchAndSpendsCharge`, che confronta le due meta'. ③ Se un COMPAGNO vede la cella attraversata, la finestra **si apre lo stesso**: `Observers` sono tutte le unita' della squadra del guardiano, e `TeamAwarenessOfCell` risponde `Detected` se **uno qualsiasi** di loro vede — non i suoi occhi.",
+
+  "_nota_cosa_non_e_misurato": "⚠️ **Il MECCANISMO non e' isolato, e questa nota esiste per non spacciarlo per tale.** L'ipotesi e' che la percezione segua il facing VIVO (`URTPerceptionLibrary::VisibleCells` e' un `HexCone` lungo `Facing`) mentre la zona resta congelata all'armamento (`FRTArmedOverwatch::Facing`, letto in Prep), e che la spinta — che GIRA chi la subisce verso la sorgente — lasci il guardiano a sorvegliare un corridoio che non vede piu'. ⛔ Ma resta un fatto che quell'ipotesi **non spiega**: una stesura precedente metteva `M1` a UNA cella dal guardiano, dentro le due di `CloseAwarenessRange` che valgono in **ogni** direzione, e la reazione non scattava lo stesso. O il cono non e' l'unico gate, o quella soglia non arriva fin li'. **Chi decide `#2367` isoli questo prima di scegliere**: tre delle quattro uscite dipendono da quale sia la causa.",
+
+  "_nota_geometria": "La sorgente della spinta sta a EST del guardiano, cioe' dalla parte OPPOSTA al varco: la spinta lo allontana a ovest e la rotazione lo gira a est, lasciandogli il corridoio alle spalle. `V1` finisce a (1,-1) e la sua linea — congelata verso W — copre (0,-1) (-1,-1) (-2,-1) (-3,-1). `M1` entra in (-2,-1): **dentro la zona**, a tre celle. ⚠️ Il `facing` di `V1` sta fra le UNITA' e non fra gli intent, per la ragione che `HoldThenFire` documenta — una rotazione dichiarata arriva troppo tardi per il proprio cono.",
+
+  "_nota_una_sola_squadra": "🔴 **`V1` e' l'unica unita' della squadra 1, e non e' comodita': e' una PRECONDIZIONE.** Una stesura precedente aggiungeva un secondo guardiano come controllo interno, sulla stessa squadra, e lo scenario usciva `ERROR` — *«finestra aperta per `V1` senza una decisione che la nomini»*. Il compagno vedeva il corridoio per lui. ∴ il fenomeno vale quando **nessuno copre**, e in 2v2 o 3v3 spesso qualcuno copre: e' l'informazione che ne ridimensiona la gravita', ed e' arrivata da questo file, non dall'analisi che ha aperto la issue.",
+
+  "_nota_controllo": "⚠️ **Il controllo non puo' stare in questa scena**, per la ragione della nota qui sopra: qualunque compagno aggiunto per fare da controllo diventa un osservatore e cancella il fenomeno. Vive quindi altrove — `Spec.Overwatch.HoldThenFire` per «un guardiano non spinto spara», e `Status.ProneDisarmsOverwatchAndSpendsCharge`, che mette tre casi a confronto dentro lo stesso test. Se quelli cadessero, questo file smetterebbe di significare qualcosa.",
+
+  "_nota_loadout_vuoto": "`P1` entra SPOGLIO (`\"loadout\": []`), per la ragione di `Visual.Combat.PushResistance`: il default di Phase e' `Weapon.Impact`, che porta `PressureJet` da 1 a 2. Con 2 il guardiano finirebbe a (0,-1) — dentro il proprio corridoio — e la scena misurerebbe un'altra cosa.",
+
+  "_nota_cosa_asserisce_e_cosa_no": "🔴 **Le assertion sono di DUE classi.** Le celle sono una REGOLA: la spinta di 1 sposta di 1, e non e' in discussione. `UnitHpEquals M1 90` e' invece il **REGISTRO di un comportamento indeciso** — `#2367` elenca quattro uscite e tre lo cambiano. ⛔ **Non dice che sia giusto: dice che non deve cambiare per sbaglio.** Il giorno in cui si sceglie un'altra uscita questo file diventa rosso, e la modifica passa da qui invece di scivolare dentro inosservata: chi la sceglie aggiorna la riga **nello stesso commit** che cambia la regola. ➕ **E c'e' una seconda sentinella che non si vede fra le `expect`**: non dichiarare **nessuna** `decision`. Se la finestra tornasse ad aprirsi, l'harness uscirebbe `ERROR` — *«finestra aperta senza una decisione che la nomini»* — cioe' l'assenza stessa e' l'asserzione.",
+
+  "units": [
+    { "id": "M1", "hero": "Hero.Wraith", "team": 0, "cell": [-2,  0, 0] },
+    { "id": "P1", "hero": "Hero.Phase",  "team": 0, "cell": [ 3, -1, 0], "loadout": [] },
+
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 2, -1, 0], "facing": "W" }
+  ],
+
+  "turns": [
+    {
+      "_turno": "Un turno solo, e i tre momenti stanno tutti dentro. PREP: `V1` arma sul varco che gia' guarda, e la direzione si congela li'. BLAST: `P1` lo spinge da est — `V1` arretra a (1,-1) e si gira verso la sorgente, con il corridoio alle spalle. MOVE: `M1` entra in (-2,-1), dentro la linea guardata, e non succede niente.",
+      "intents": [
+        { "unit": "V1", "ability": "Action.Overwatch" },
+        { "unit": "P1", "ability": "Hero.Phase.PressureJet", "target": "V1" },
+        { "unit": "M1", "move": [[-2, -1, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell",     "unit": "V1", "cell": [ 1, -1, 0] },
+    { "type": "UnitAtCell",     "unit": "M1", "cell": [-2, -1, 0] },
+    { "type": "UnitHpEquals",   "unit": "M1", "value": 90 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

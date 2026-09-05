@@ -124,6 +124,30 @@ struct FRTHexMapCustomVersion
 		 */
 		AuthoredTraversal = 14,
 
+		/**
+		 * Il corpo strutturale sotto la superficie (`FRTHexCellData::BodyFill`), `#1865`.
+		 *
+		 * Dichiarativo: il campo nasce `None`, e ogni superficie elevata scritta prima era un disco sospeso
+		 * — il corpo non esisteva come dato, quindi «nessun corpo» e' cio' che quelle mappe gia' erano.
+		 *
+		 * ⛔ **La ricarica non lo deduce**, con la stessa ragione di `AuthoredTraversal`: un ponte e una
+		 * collina hanno entrambi il vuoto sotto di se', e dedurre il riempimento dal contesto trasformerebbe
+		 * il primo in un muro.
+		 */
+		StructuralBodyFill = 15,
+
+		/**
+		 * Il parapetto di bordo (`FRTHexCellData::Guards`), `#2401`/[D-332].
+		 *
+		 * Dichiarativo: l'array nasce vuoto, e «nessun parapetto» e' cio' che ogni mappa scritta prima gia'
+		 * era — da un bordo aperto non si cadeva perche' la caduta non esisteva, non perche' fosse protetto.
+		 *
+		 * ⛔ **La ricarica non lo deduce**, per la stessa ragione di `StructuralBodyFill`: un bordo che da'
+		 * sul vuoto e uno protetto da una ringhiera sono geometricamente identici nel dato di cella. Lo
+		 * dichiara chi disegna, e dedurlo trasformerebbe ogni terrazza in una gabbia.
+		 */
+		EdgeGuards = 16,
+
 		// -----<le versioni nuove si aggiungono SOPRA questa riga>------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

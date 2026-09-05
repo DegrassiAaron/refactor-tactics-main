@@ -14,8 +14,12 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/ArrowComponent.h"
+#include "Animation/AnimSequenceBase.h"
+#include "Animation/AnimSingleNodeInstance.h"
 #include "Unit/RTUnitAnimInstance.h"
 #include "Perception/RTTeamKnowledge.h" // ContactLifetimeTurns: la durata del ricordo ha un owner, non si ricopia
+#include "Components/WidgetComponent.h" // la sovrapposizione sopra la testa (#2288, D-320)
+#include "UI/RTUnitOverlayWidget.h"  // la classe base del widget: serve il tipo completo per SetWidgetClass
 
 ARTUnit::ARTUnit()
 {
@@ -121,6 +125,71 @@ ARTUnit::ARTUnit()
 	// normale erediterebbe il transform e la trascinerebbe con l'unita' vera, che nel frattempo puo' essersi
 	// mossa altrove. La aggiorna solo `UpdateContactGhost`, mai `RefreshComponentVisibility` (che nasconde il
 	// personaggio vero) ne' `ApplyTeamColor`/`ApplyFacingArrow` (che sono presentazione del vivo).
+	// Sovrapposizione sopra la testa (`#2288`, `D-320`): nome, vita, scudo, stati.
+	//
+	// ⚠️ `Screen` space e non `World`: e' cio' che sostituisce il disegno in canvas, che era in coordinate
+	// schermo. In `World` la sovrapposizione rimpicciolirebbe con la distanza — e a camera tattica, dove le
+	// unita' stanno a quote diverse, due barre della stessa lunghezza logica avrebbero due lunghezze
+	// diverse a schermo. Chi la vuole diegetica cambia QUESTA riga, e sa gia' cosa sta scambiando.
+	//
+	// 🔑 **`Screen` space risolve anche lo scarto «dietro la camera»** che il canvas otteneva con
+	// `Screen.Z <= 0`: un widget in screen space non viene proiettato a mano, e il motore non lo disegna
+	// quando il componente e' dietro il piano di vista.
+	OverlayWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("OverlayWidget"));
+	OverlayWidget->SetupAttachment(SceneRoot);
+	OverlayWidget->SetWidgetSpace(EWidgetSpace::Screen);
+	// 🔴 **L'ancora e' la SOMMITA' dell'unita', non un offset arbitrario sopra di lei** (`#2315`).
+	//
+	// L'attore sta al CENTRO del cilindro — `WorldForCell` somma gia' `VisualZOffset`, che vale
+	// `UnitHalfHeight` — quindi la testa e' esattamente una semi-altezza piu' su. Da li' in poi la distanza
+	// dalla testa la mette il **pivot**, che e' in frazioni del widget e quindi in **pixel**.
+	//
+	// ⚠️ **Perche' NON i 200 del canvas, che pure erano lo stesso punto.** `ARTHUD::WorldHeadOffset` sommava
+	// 200 unita' di MONDO e poi proiettava a mano; il commento di `ClampOverlayAnchor` dice cosa comporta:
+	// *«un offset fisso nel mondo produce uno spostamento VARIABILE sullo schermo, tanto piu' grande quanto
+	// l'unita' e' vicina alla camera»*. Il canvas lo correggeva a valle col clamp; qui non c'e' un clamp, e
+	// l'effetto si vedeva — misurato in PIE su `#2288`: la sovrapposizione di un'unita' lontana cadeva
+	// appena sopra la sua testa, quella di un'unita' vicina finiva a mezzo schermo piu' su.
+	//
+	// 🔑 Con l'ancora sulla testa e la distanza affidata al pivot, lo scostamento e' in **pixel** e non
+	// dipende piu' dalla distanza dalla camera.
+	OverlayWidget->SetRelativeLocation(FVector(0.f, 0.f, UnitHalfHeight));
+	// ⚠️ **`DrawSize` esplicito e `bDrawAtDesiredSize = false`.** Misurato in PIE: con la dimensione
+	// desiderata le sovrapposizioni finivano **tutte impilate in alto a sinistra** invece che sopra le
+	// rispettive unita' — un widget in Screen space senza una dimensione dichiarata non ha un centro da cui
+	// proiettarsi. E' il difetto che nessun test headless poteva vedere, ed e' la ragione per cui la DoD di
+	// `#2288` chiede il PIE.
+	OverlayWidget->SetDrawAtDesiredSize(false);
+	OverlayWidget->SetDrawSize(FVector2D(220.f, 90.f));
+	// Il fondo del widget poggia sull'ancora e il contenuto cresce verso l'alto: con l'ancora sulla testa,
+	// la sovrapposizione sta **subito sopra** l'unita', a una distanza che non cambia con la camera.
+	OverlayWidget->SetPivot(FVector2D(0.5f, 1.f));
+	OverlayWidget->SetCollisionEnabled(ECollisionEnabled::NoCollision); // mai un proxy di click
+	OverlayWidget->SetGenerateOverlapEvents(false);
+	OverlayWidget->SetVisibility(false); // il velo la accende: nasce spenta come gli anelli
+
+	// La classe di default del widget.
+	//
+	// 🔑 **In C++ e non sui quattro `BP_Unit_*`, e la ragione non e' la pigrizia.** La sovrapposizione e'
+	// **uguale per tutti** — lo era anche quando la disegnava il canvas, che non sapeva nemmeno quale eroe
+	// stesse disegnando. Metterla su ogni eroe sarebbe quattro binari da tenere allineati per un dato che
+	// non varia, e il primo dimenticato sarebbe un'unita' senza barra della vita che nessun test vede.
+	//
+	// ⚠️ Resta `EditDefaultsOnly`: un `BP_Unit_*` puo' **sovrascriverla** il giorno che un eroe voglia una
+	// sovrapposizione propria. Il C++ dichiara il default, il dato conserva l'ultima parola — che e' il
+	// confine di `AGENTS.md` §3.
+	//
+	// ⚠️ **Il suffisso `_C` non e' un dettaglio**: senza, il path punta all'ASSET e non alla sua classe
+	// generata, e il `FClassFinder` non risolve.
+	static ConstructorHelpers::FClassFinder<URTUnitOverlayWidget> OverlayBP(
+		TEXT("/Game/RT/UI/Match/WBP_RT_UnitOverlay.WBP_RT_UnitOverlay_C"));
+	if (OverlayBP.Succeeded())
+	{
+		OverlayWidgetClass = OverlayBP.Class;
+	}
+	// Se l'asset manca il campo resta nullo e non si vede niente: degrada, non crasha — la stessa forma con
+	// cui il cilindro segnaposto qui sopra e' condizionato a `CylinderMesh.Succeeded()`.
+
 	ContactGhost = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ContactGhost"));
 	ContactGhost->SetupAttachment(SceneRoot);
 	ContactGhost->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -141,6 +210,31 @@ void ARTUnit::BeginPlay()
 	ApplyUnitMeshLOD();
 	ApplyMeshYawOffset();
 	ApplyFacingArrow();
+	ApplyOverlayWidgetClass();
+}
+
+void ARTUnit::ApplyOverlayWidgetClass()
+{
+	if (OverlayWidget == nullptr || OverlayWidgetClass == nullptr)
+	{
+		// Senza una classe assegnata il componente resta vuoto e non si vede niente: degrada, non crasha.
+		// E' la stessa forma con cui `HeroMeshClass` e `ContactGhostMaterial` sono opzionali — l'assenza di
+		// un asset di presentazione non deve poter fermare una partita.
+		return;
+	}
+
+	// ⚠️ Conversione esplicita: `SetWidgetClass` vuole un `TSubclassOf<UUserWidget>` e il campo dichiara il
+	// tipo piu' STRETTO (`URTUnitOverlayWidget`), che e' cio' che impedisce di assegnare un widget
+	// qualunque dal Blueprint. La stretta sta nel dato, il cast e' solo il prezzo di averla.
+	OverlayWidget->SetWidgetClass(TSubclassOf<UUserWidget>(OverlayWidgetClass));
+}
+
+UUserWidget* ARTUnit::GetOverlayWidgetObject() const
+{
+	// ⚠️ Il widget vero nasce quando il componente lo istanzia, non nel costruttore: prima di allora — e in
+	// un mondo senza rendering, come quello dei test headless — questa risponde `nullptr`, ed e' il caso
+	// normale, non un errore. Chi la chiama deve poterlo attraversare senza dire niente.
+	return OverlayWidget ? OverlayWidget->GetUserWidgetObject() : nullptr;
 }
 
 void ARTUnit::ApplyUnitAnimClass()
@@ -359,6 +453,12 @@ void ARTUnit::RefreshComponentVisibility()
 	// La freccia di facing ha il proprio interruttore di presentazione.
 	if (FacingArrow)   { FacingArrow->SetVisibility(bRender && bShowFacingArrow, false); }
 
+	// La sovrapposizione segue il velo come mesh e anelli (`#2288`): su un nemico che la squadra non vede
+	// non deve esserci nome ne' barra della vita. ⚠️ **Al contrario di `ContactGhost`**, che e' escluso da
+	// questa funzione proprio perche' deve vedersi quando l'unita' non si vede — e mescolarli sarebbe il
+	// difetto opposto, un ricordo che sparisce insieme al suo soggetto.
+	if (OverlayWidget) { OverlayWidget->SetVisibility(bRender, false); }
+
 	if (HeroSkeletal)
 	{
 		HeroSkeletal->SetVisibility(bRender, false);
@@ -372,6 +472,75 @@ void ARTUnit::RefreshComponentVisibility()
 	// ⚠️ Resta su `bRender` e NON sul cilindro: il proxy di click deve rispondere anche su un eroe skeletal,
 	// dove il cilindro e' nascosto ma continua a fare da forma di collisione.
 	SetActorEnableCollision(bRender);
+}
+
+
+/**
+ * La clip che la **sagoma dell'ultimo contatto** usa come posa di ripiego (#1750): l'idle dell'eroe.
+ *
+ * 🔑 **Si legge dal CDO di `UnitAnimClass`, non da una seconda lista.** Le clip vivono in
+ * `URTUnitAnimInstance::ClipsPerHero` e i loro nomi **non si deducono** — la guida §AS.3b ha misurato che
+ * sei caselle su venti non si chiamano come ci si aspetta, e su Wraith l'idle e' `Idle_NonCombat`.
+ * Duplicare qui quei nomi creerebbe una seconda fonte che invecchia da sola.
+ *
+ * ⚠️ **Un eroe senza clip non e' un errore**: `FindClipsFor` restituisce `nullptr`, e la sagoma resta in
+ * posa di riferimento come faceva prima. E' il comportamento di `#287` — *«se una clip manca, l'unita' resta
+ * in posa di riferimento e la partita si gioca uguale»* — quindi il ripiego non introduce un modo nuovo di
+ * fallire, ne toglie uno.
+ *
+ * ⚠️ `LoadSynchronous` e non un caricamento asincrono: la clip e' la stessa che la skeletal viva usa e in
+ * pratica e' gia' in memoria. La sagoma si mostra su un cambio di conoscenza, non a ogni frame.
+ */
+/**
+ * La clip di ripiego della sagoma, come **funzione pura** delle clip e dell'eroe (#1750).
+ *
+ * 🔴 **Statica e non un ramo dentro il metodo d'istanza, e la ragione e' una verifica di mutazione fallita.**
+ * La prima stesura del test leggeva `ClipsPerHero` dal CDO e confrontava `Idle` con `Run`: verde, e
+ * **vacuo rispetto al fix** — scambiando `Idle` con `Run` qui dentro il test restava verde, perche' non
+ * passava da qui. Verificava una proprieta' del CATALOGO, non il comportamento del ripiego.
+ * ∴ la scelta vive in una funzione che il test puo' **chiamare**, e mutarla la fa cadere.
+ *
+ * ⛔ `Idle` e NON `Run`: la sagoma e' un ricordo, e un ricordo che corre sul posto e' peggio di una
+ * T-pose. Tre eroi su quattro condividono il nome `Idle`, quindi uno scambio fra i due campi passerebbe
+ * qualunque controllo scritto sul solo NOME della clip — va confrontato il campo con l'altro campo.
+ *
+ * ✅ **Validato per mutazione, e la PRIMA mutazione e' quella che ha insegnato qualcosa.** Scambiato
+ * `Idle` con `Run` nella versione precedente — dove la scelta viveva dentro il metodo d'istanza — la suite
+ * restava **verde**: `29/29, 0 fallimenti`. Il test non passava da quel codice. Estratta questa statica e
+ * fatta chiamare dal test, la stessa mutazione da' `29/29, 1 fallimenti` con il messaggio giusto su ogni
+ * eroe. ⚠️ Un test verde su un fix corretto non dice che li stia guardando.
+ */
+TSoftObjectPtr<UAnimSequenceBase> ARTUnit::GhostFallbackClipFor(
+	const URTUnitAnimInstance* Clips, const FName& HeroId)
+{
+	if (Clips == nullptr)
+	{
+		return nullptr;
+	}
+	const FRTLocomotionClips* Trovate = Clips->FindClipsFor(HeroId);
+	return Trovate ? Trovate->Idle : TSoftObjectPtr<UAnimSequenceBase>(nullptr);
+}
+
+TSoftObjectPtr<UAnimSequenceBase> ARTUnit::GhostFallbackClipPath() const
+{
+	// 🔑 **Risolve SENZA caricare, ed e' la ragione per cui questa funzione esiste separata dal suo uso.**
+	// I pack Paragon vivono in `Content/FabAsset/`, che **non e' versionato**: su un checkout che non li ha —
+	// e questo e' il caso di ogni clone appena creato — `LoadSynchronous` restituisce `nullptr` e un test che
+	// lo chiamasse non potrebbe distinguere «la clip giusta non si carica» da «punto alla clip sbagliata».
+	// Sul `TSoftObjectPtr` il PATH c'e' comunque, ed e' cio' che si puo' asserire headless: e' lo stesso
+	// motivo per cui `Unit.LocomotionClipsMatchThePacks` confronta `ToSoftObjectPath()` e non l'asset.
+	if (UnitAnimClass == nullptr)
+	{
+		return nullptr;
+	}
+
+	const URTUnitAnimInstance* Defaults = Cast<URTUnitAnimInstance>(UnitAnimClass->GetDefaultObject());
+	if (Defaults == nullptr)
+	{
+		return nullptr;
+	}
+
+	return GhostFallbackClipFor(Defaults, HeroId);
 }
 
 USkeletalMeshComponent* ARTUnit::FindHeroSkeletal() const
@@ -450,6 +619,45 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 	{
 		ContactGhost->SetSkeletalMesh(HeroSkeletal->GetSkeletalMeshAsset());
 	}
+
+	// 🔴 **La posa di RIPIEGO (#1750).** Un `USkeletalMeshComponent` con una mesh e senza `AnimInstance`
+	// disegna la **posa di riferimento** dello skeleton — la T-pose — e su Riktor quella posa stende le
+	// catene attraverso lo schermo. E' il difetto che questa riga chiude, confermato a schermo il 2026-09-03.
+	//
+	// ⚠️ **Il commento sei righe piu' su promette la POSA e il codice copiava solo la MESH.** Diceva «la
+	// mesh/posa arrivano dalla skeletal VIVA»: la mesh si', la posa no — e nessuno se ne era accorto perche'
+	// una T-pose somiglia a un personaggio, non a un errore.
+	//
+	// 🔑 **Perche' una clip congelata e non uno snapshot della posa viva.** Il referto di spec-panel §4
+	// (`sagoma-ultimo-contatto-posa-spec-panel-2026-08-30.md`) prescrive l'ordine e la ragione:
+	// *«prima il ripiego, che da solo toglie le catene dallo schermo e non introduce leak; poi lo snapshot,
+	// che lo sostituisce quando esiste»*. E il ripiego **non e' un'alternativa allo snapshot: ne e' il
+	// ripiego obbligatorio**, perche' un contatto puo' nascere da RUMORE (`CP 13.4`) — un'unita' sentita e
+	// mai vista non ha nessuna posa da ricordare, e qualcosa deve pur disegnare.
+	//
+	// ⛔ **Non si anima dal vivo, ed e' il vincolo che separa un ricordo da una vista.** `Stop()` dopo
+	// `SetPosition` valuta la clip una volta e non avanza mai: la sagoma resta ferma sul primo frame
+	// dell'idle. Una posa che avanzasse mentre l'unita' e' nascosta sarebbe il **terzo leak** in una issue
+	// che ne conta due nel titolo.
+	// ⛔ E `FindHeroSkeletal` continua a escludere `ContactGhost` per identita': la sagoma non e' la
+	// skeletal viva, e non deve diventarlo.
+	//
+	// ⚠️ **`AnimationSingleNode` invece della classe dedicata che il referto proponeva.** §3 raccomandava
+	// *«una classe dedicata — che applica una posa e non avanza»*, e per lo SNAPSHOT servira': applicare un
+	// `FPoseSnapshot` richiede un `AnimInstance` che lo consumi. Per il ripiego il motore ha gia' quel
+	// meccanismo, e una classe nostra sarebbe codice da mantenere per riscrivere `FAnimSingleNodeInstance`.
+	UAnimSequenceBase* const IdleClip = GhostFallbackClipPath().LoadSynchronous();
+	if (IdleClip != nullptr)
+	{
+		if (ContactGhost->AnimationData.AnimToPlay != IdleClip)
+		{
+			ContactGhost->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+			ContactGhost->SetAnimation(IdleClip);
+			ContactGhost->SetPosition(0.f, /*bFireNotifies=*/ false);
+			ContactGhost->Stop();
+		}
+	}
+
 
 	// Materiale OPZIONALE (Task 6): se `M_LastContactGhost` non risolve — non ancora creato, o rimosso — la
 	// sagoma resta visibile col materiale di DEFAULT della mesh: una sagoma non colorata, mai un crash.
@@ -708,9 +916,36 @@ bool ARTUnit::HasStatus(FGameplayTag Tag) const
 	return (Turns && *Turns > 0) || CellBoundStatuses.Contains(Tag);
 }
 
-TArray<FName> ARTUnit::GetActiveStatusNames() const
+namespace
 {
-	TArray<FName> Names;
+	/**
+	 * Ordina i tag per NOME, e non e' cosmesi (#1077).
+	 *
+	 * 🔴 I due contenitori da cui questi tag escono sono una `TSet` e una `TMap`: il loro ordine di
+	 * iterazione non e' una proprieta' del gioco. Consegnarlo cosi' com'e' al TurnLog farebbe dipendere
+	 * l'ORDINE DELLE VOCI dall'implementazione del contenitore, quindi l'hash del turno cambierebbe fra
+	 * due esecuzioni identiche — l'invariante «niente dipendenza dall'ordine di `TMap`/`TSet`» esiste per
+	 * questo, e `HashTurnLogOrdered` esiste per renderlo visibile quando succede.
+	 */
+	void OrdinaPerNome(TArray<FGameplayTag>& Tags)
+	{
+		// 🔴 **`FName::Compare` e NON `FString::operator<`**, ed e' una correzione di code review: la prima
+		// stesura rifaceva, in un'altra forma, il difetto che `RTTurnLogLibrary.cpp` documenta a proprie
+		// spese — `FString::UEOpLessThan` e' `FPlatformString::Stricmp(...) < 0`, quindi **non e' un ordine
+		// totale** sui byte. Due tag che differiscono solo per il caso pareggerebbero in entrambi i versi,
+		// resterebbero a pari merito, e `TArray::Sort` — che non e' stabile — deciderebbe secondo l'ordine
+		// di iterazione del contenitore: esattamente il non-determinismo che questa funzione esiste per
+		// togliere. In piu' `Compare` non alloca due `FString` per confronto.
+		Tags.Sort([](const FGameplayTag& A, const FGameplayTag& B)
+		{
+			return A.GetTagName().Compare(B.GetTagName()) < 0;
+		});
+	}
+}
+
+TArray<FGameplayTag> ARTUnit::GetActiveStatusTags() const
+{
+	TArray<FGameplayTag> ActiveTags;
 
 	// Solo gli status con durata RESIDUA: uno scaduto e' assente, non presente a zero — altrimenti il
 	// checksum distinguerebbe due stati che il gioco considera identici.
@@ -718,18 +953,63 @@ TArray<FName> ARTUnit::GetActiveStatusNames() const
 	{
 		if (Pair.Value > 0)
 		{
-			Names.AddUnique(Pair.Key.GetTagName());
+			ActiveTags.AddUnique(Pair.Key);
 		}
 	}
 	for (const FGameplayTag& Tag : CellBoundStatuses)
 	{
-		Names.AddUnique(Tag.GetTagName());
+		ActiveTags.AddUnique(Tag);
 	}
 
 	// `TMap`/`TSet` non hanno un ordine di iterazione stabile: senza questo sort il risultato dipenderebbe
 	// dall'ordine di inserimento, e due esecuzioni identiche darebbero digest diversi (invariante #4).
-	Names.Sort([](const FName& A, const FName& B) { return A.Compare(B) < 0; });
+	//
+	// 🔑 **La stessa `OrdinaPerNome` che usano revoca e scadenza**, e non una copia: la sua ragione — perche'
+	// `FName::Compare` e non `FString::operator<`, che non e' un ordine totale — e' gia' pagata una volta, e
+	// riscriverla qui avrebbe rifatto un difetto che quel commento documenta a proprie spese. Il blocco e'
+	// stato spostato sopra il primo consumatore per questo (`#2274`).
+	//
+	// ⚠️ E' l'ordine che `GetActiveStatusNames` produceva gia' prima di `#2274`: il checksum non cambia.
+	OrdinaPerNome(ActiveTags);
+	return ActiveTags;
+}
+
+TArray<FName> ARTUnit::GetActiveStatusNames() const
+{
+	// 🔑 Derivata, non parallela (`#2274`): l'ordine e' definito una volta sola in `GetActiveStatusTags`.
+	// Due enumerazioni che ordinano ciascuna per conto proprio sono due ordini che un giorno divergono — e
+	// qui uno dei due alimenta un checksum di fine partita.
+	TArray<FName> Names;
+	const TArray<FGameplayTag> ActiveTags = GetActiveStatusTags();
+	Names.Reserve(ActiveTags.Num());
+	for (const FGameplayTag& Tag : ActiveTags)
+	{
+		Names.Add(Tag.GetTagName());
+	}
 	return Names;
+}
+
+int32 ARTUnit::GetStatusRemainingTurns(FGameplayTag Tag) const
+{
+	// La durata a TERMINE vince su quella legata alla cella quando il tag e' entrambe le cose: e'
+	// l'informazione che scade, quindi l'unica che chi guarda puo' vedere scendere. Quando finisce, la
+	// riga sotto risponde `PersistentWhileOnCell` finche' la cella lo sostiene.
+	if (const int32* Turns = StatusTurns.Find(Tag))
+	{
+		if (*Turns > 0)
+		{
+			return *Turns;
+		}
+	}
+
+	if (CellBoundStatuses.Contains(Tag))
+	{
+		return PersistentWhileOnCell;
+	}
+
+	// ⚠️ `0` e' «non attivo», e non si confonde con una durata: `ApplyStatus` non registra mai uno stato a
+	// zero turni, e `GetActiveStatusTags` scarta i residui non positivi.
+	return 0;
 }
 
 void ARTUnit::ApplyMarkedBy(int32 MarkerTeamId, int32 Turns)
@@ -756,33 +1036,6 @@ bool ARTUnit::RemoveStatus(FGameplayTag Tag)
 	StatusTurns.Remove(Tag);
 	CellBoundStatuses.Remove(Tag);
 	return true;
-}
-
-namespace
-{
-	/**
-	 * Ordina i tag per NOME, e non e' cosmesi (#1077).
-	 *
-	 * 🔴 I due contenitori da cui questi tag escono sono una `TSet` e una `TMap`: il loro ordine di
-	 * iterazione non e' una proprieta' del gioco. Consegnarlo cosi' com'e' al TurnLog farebbe dipendere
-	 * l'ORDINE DELLE VOCI dall'implementazione del contenitore, quindi l'hash del turno cambierebbe fra
-	 * due esecuzioni identiche — l'invariante «niente dipendenza dall'ordine di `TMap`/`TSet`» esiste per
-	 * questo, e `HashTurnLogOrdered` esiste per renderlo visibile quando succede.
-	 */
-	void OrdinaPerNome(TArray<FGameplayTag>& Tags)
-	{
-		// 🔴 **`FName::Compare` e NON `FString::operator<`**, ed e' una correzione di code review: la prima
-		// stesura rifaceva, in un'altra forma, il difetto che `RTTurnLogLibrary.cpp` documenta a proprie
-		// spese — `FString::UEOpLessThan` e' `FPlatformString::Stricmp(...) < 0`, quindi **non e' un ordine
-		// totale** sui byte. Due tag che differiscono solo per il caso pareggerebbero in entrambi i versi,
-		// resterebbero a pari merito, e `TArray::Sort` — che non e' stabile — deciderebbe secondo l'ordine
-		// di iterazione del contenitore: esattamente il non-determinismo che questa funzione esiste per
-		// togliere. In piu' `Compare` non alloca due `FString` per confronto.
-		Tags.Sort([](const FGameplayTag& A, const FGameplayTag& B)
-		{
-			return A.GetTagName().Compare(B.GetTagName()) < 0;
-		});
-	}
 }
 
 TArray<FGameplayTag> ARTUnit::RevokeCellBoundStatusesNotIn(const TSet<FGameplayTag>& Sustained)
@@ -823,7 +1076,31 @@ int32 ARTUnit::GetEffectiveMoveRange() const
 {
 	// Root azzera. Slow (CP 4.7) non passa piu' da qui: e' un costo per cella nel pathfinding
 	// (ARTTurnManager::MakeCurrentSnapshot), non una riduzione flat del budget.
-	return URTCombatLibrary::EffectiveMoveRange(MoveRange, HasStatus(TAG_Status_Root));
+	const int32 Base = URTCombatLibrary::EffectiveMoveRange(MoveRange, HasStatus(TAG_Status_Root));
+
+	// 🔑 **Lo StandUp e' QUI, e questo e' l'unico sito che lo rende una proprieta' invece di
+	// un'aspettativa** ([D-319], `#2253`). Da questa funzione passano ENTRAMBI i consumatori del budget —
+	// lo snapshot del Move (`ARTTurnManager::MakeCurrentSnapshot`) e la validazione del piano
+	// (`ARTPlayerController`) — quindi il prezzo e' visibile a chi pianifica e a chi risolve, senza
+	// bisogno di tenerli d'accordo.
+	//
+	// ⛔ **Non e' un'azione di catalogo, e la ragione non e' il risparmio.** `Action.StandUp` porterebbe
+	// con se' una chiave icona obbligatoria (`URTIconLibrary::RequiredIconIds()` itera
+	// `GetCoreActionCatalog()`) e uno slot da prezzare contro [D-028]; ma soprattutto lascerebbe FALSA
+	// l'anti-ciclicita' che `brief-stati-unbalanced-prone.md` §6 dichiara — *«chi si e' appena rialzato
+	// scivola meno»* — perche' la condizione dello scivolamento legge `MoveBudget` **dallo snapshot**, e
+	// solo abbassandolo qui quella frase diventa vera.
+	//
+	// ⚠️ **`Max(0, ...)` e non una sottrazione nuda**: chi ha `Root` e' gia' a zero, e chi ha 1 solo punto
+	// finirebbe a `-1`. Un budget negativo attraverserebbe il pathfinding senza far rumore.
+	//
+	// ⛔ **Non tocca `GetEffectiveDashRange`**: `Prone` costa un turno di POSIZIONAMENTO, e lo slot rapido
+	// non e' nel perimetro di [D-319]. Dichiarato, non dimenticato.
+	if (HasStatus(TAG_Status_Prone))
+	{
+		return FMath::Max(0, Base - URTCombatLibrary::StandUpMovePointCost);
+	}
+	return Base;
 }
 
 int32 ARTUnit::GetEffectiveDashRange(int32 BaseRange) const
@@ -834,7 +1111,7 @@ int32 ARTUnit::GetEffectiveDashRange(int32 BaseRange) const
 }
 
 URTActionData* ARTUnit::MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area,
-	int32 Cooldown, int32 EnergyCost, FGameplayTag Status, int32 StatusDur)
+	int32 Cooldown)
 {
 	URTActionData* Ability = NewObject<URTActionData>(this);
 	Ability->DisplayName = FText::FromString(Name);
@@ -842,8 +1119,16 @@ URTActionData* ARTUnit::MakeAbility(const FString& Name, int32 Range, int32 Powe
 	Ability->Power = Power;
 	Ability->AreaRadius = Area;
 	Ability->Shape = (Area > 0) ? ERTAbilityShape::Area : ERTAbilityShape::Single;
+	// 🔴 **Il cooldown si scrive in TUTTI E DUE i posti, e la seconda riga e' una correzione.**
+	//
+	// `ConsumeAbility` legge lo specchio legacy `CooldownTurns`, ma l'HUD legge `Def.CooldownTurns` come
+	// DENOMINATORE della carica (`URTHudViewModel::BuildAbilityCooldowns`). Scrivendo solo il primo, un'abilita'
+	// in ricarica mostrava `TotalTurns = 0`, quindi `ChargeFraction = 1.f`: **barra piena su un'azione che non
+	// si puo' usare**. Ogni altro produttore del progetto tiene la coppia allineata di proposito
+	// (`RTCatalogLibrary`, `RTHeroCatalogLibrary`, `RTWorkbenchVariant`); questa era l'unica che non lo faceva,
+	// e il difetto era silente finche' l'unica abilita' legacy con ricarica era `Colpo pesante`.
 	Ability->CooldownTurns = Cooldown;
-	Ability->EnergyCost = EnergyCost;
+	Ability->Def.CooldownTurns = Cooldown;
 	return Ability;
 }
 
@@ -853,14 +1138,31 @@ void ARTUnit::EnsureDefaultAbilities()
 	{
 		return;
 	}
-	Abilities.Add(MakeAbility(TEXT("Attacco"), AttackRange, AttackPower, 0, 0, 0, FGameplayTag(), 0));
-	Abilities.Add(MakeAbility(TEXT("Colpo pesante"), FMath::Max(1, AttackRange - 1), AttackPower + 20, 0, 2, 0, FGameplayTag(), 0));
-	Abilities.Add(MakeAbility(TEXT("Ultimate"), AttackRange, AttackPower * UltimateMultiplier, UltimateRadius, 0, MaxEnergy, TAG_Status_Slow, 2));
+	Abilities.Add(MakeAbility(TEXT("Attacco"), AttackRange, AttackPower, 0, 0));
+	Abilities.Add(MakeAbility(TEXT("Colpo pesante"), FMath::Max(1, AttackRange - 1), AttackPower + 20, 0, 2));
+	// L'Ultimate legacy aveva `EnergyCost = MaxEnergy` e cooldown **0**: il costo ERA il suo unico gate, e
+	// con `EnergyPerTurn = 25` su un cap di 100 tornava disponibile ogni **quattro** turni.
+	//
+	// [D-324](../../../docs/decisions/RT_PDR_00_Decision_Log.md) toglie `Energy` dal gameplay. Lasciare qui
+	// lo `0` avrebbe reso l'Ultimate usabile OGNI turno — non la rimozione di un'economia, ma la sua
+	// sostituzione con nessuna. Il `4` traduce il gate nell'unico asse che
+	// [D-265](../../../docs/decisions/RT_PDR_00_Decision_Log.md) lascia in piedi: slot, cooldown, drawback.
+	//
+	// ⚠️ **Conserva il PERIODO, non l'APERTURA, e la differenza va dichiarata.** `Energy` partiva da zero,
+	// quindi il primo uso arrivava al turno **5**; `AbilityCooldowns` nasce `SetNumZeroed`, quindi il primo
+	// uso e' disponibile al turno **1**. Fra due usi restano quattro turni in entrambi i regimi, ma l'attesa
+	// iniziale non c'e' piu'.
+	//
+	// ⛔ **Non e' stata ricostruita, ed e' una scelta.** Servirebbe innescare il contatore allo spawn — cioe'
+	// uno stato iniziale che nessun'altra abilita' del progetto ha — per riprodurre la rampa di un
+	// sottosistema **scartato** da `D-265`. Questo e' il percorso degli **archetipi legacy**: il roster
+	// spedito prende `Abilities = Hero->Actions` e non passa mai di qui (`D-324` punto 1).
+	Abilities.Add(MakeAbility(TEXT("Ultimate"), AttackRange, AttackPower * UltimateMultiplier, UltimateRadius, 4));
 	// Scatto generico: portata, ricarica e identita' vengono da `Action.Dodge`, non da numeri inventati qui.
 	// E' anche cio' che lo rende riconoscibile come mobilita' rapida: il gate e' la FASE dichiarata dal
 	// catalogo (`URTCatalogLibrary::IsFastMovement`), non un flag booleano sull'asset.
 	const FRTActionDef DodgeDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
-	URTActionData* Scatto = MakeAbility(TEXT("Scatto"), DodgeDef.RangeCells, 0, 0, DodgeDef.CooldownTurns, 0, FGameplayTag(), 0);
+	URTActionData* Scatto = MakeAbility(TEXT("Scatto"), DodgeDef.RangeCells, 0, 0, DodgeDef.CooldownTurns);
 	Scatto->Def = DodgeDef;
 	Abilities.Add(Scatto);
 
@@ -1032,7 +1334,7 @@ bool ARTUnit::SetPlannedReactionCondition(const FRTDeclaredCondition& Condition)
 bool ARTUnit::CanUseAbility(int32 Index) const
 {
 	const URTActionData* Ability = GetAbility(Index);
-	return Ability && URTCombatLibrary::IsAbilityUsable(GetAbilityCooldown(Index), Energy, Ability->EnergyCost);
+	return Ability && URTCombatLibrary::IsAbilityUsable(GetAbilityCooldown(Index));
 }
 
 bool ARTUnit::PlannedDashApplies() const
@@ -1060,10 +1362,6 @@ void ARTUnit::ConsumeAbility(int32 Index)
 	if (!Ability)
 	{
 		return;
-	}
-	if (Ability->EnergyCost > 0)
-	{
-		Energy = FMath::Max(0, Energy - Ability->EnergyCost);
 	}
 	if (Ability->CooldownTurns > 0 && AbilityCooldowns.IsValidIndex(Index))
 	{

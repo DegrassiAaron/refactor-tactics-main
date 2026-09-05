@@ -1093,8 +1093,13 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Main));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
-	// `Action.Guard` — si prepara nel Prep e vale per il turno: -15 al primo danno diretto, resiste a una
-	// spinta di 1 cella, scade nel Cleanup. Non interrompibile (catalogo §1).
+	// `Action.Guard` — si prepara nel Prep e vale per il turno: **pool di 15 danni assorbibili** che i colpi
+	// dell'arco frontale consumano finche' dura ([D-292] + [D-206]), resiste a una spinta di 1 cella, scade
+	// nel Cleanup. Non interrompibile (catalogo §1).
+	//
+	// ⏱️ *La riga diceva «-15 al primo danno diretto» fino al 2026-09-03, cioe' la regola che D-292 ha
+	// sostituito il 2026-08-31. Il numero non cambia e il catalogo nemmeno: cambia cosa il numero E', e
+	// quindi cosa succede al secondo colpo.*
 	Catalog.Add(ShippedAction(TEXT("Action.Guard"), ERTResolutionPhase::Preparation, /*Priority*/ 40,
 		/*Range (self)*/ 0, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Guarded, /*Turni*/ 1) },
@@ -1114,16 +1119,31 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// UNIVERSALE: chiunque la apre allo stesso modo. E' il confine di [D-033], che tiene invece fuori
 	// portata ed effetto di `BasicAttack` e `Overwatch`, dove dipendono dall'eroe.
 	//
-	// [D-151] — **`Open` e nient'altro.** Non commuta e non chiede `Closed`: `CanTransition` vieta
-	// `Locked -> Open` ma AMMETTE `Locked -> Closed`, che a una porta bloccata toglie il lock. Finche'
-	// nessuna azione dichiarava `SetDoorState` quel percorso era irraggiungibile; questa riga lo rende
-	// raggiungibile, e limitarla a `Open` e' cio' che lo tiene fuori portata senza toccare `CanTransition`.
-	// La commutazione resta la decisione aperta `INT-7`.
+	// ⏱️ *Questa riga diceva «`Open` e nient'altro» ed era [D-151], del 2026-08-17. Dal 2026-09-05
+	// `Action.Interact` **COMMUTA** ([`INT-7`] chiusa, `#2380`): porta la porta allo stato OPPOSTO, su
+	// `Open <-> Closed`.*
 	//
-	// ⚠️ Lo stato viaggia in `Amount` — interi soltanto, invariante #4 — e `Open` vale **zero**. A
-	// distinguere «dichiarato» da «campo di default» e' `bChangesDoor`, che `RTTurnManager` alza trovando la
-	// spec e non leggendone il valore: senza quel flag ogni azione del catalogo ordinerebbe di aprire ogni
-	// porta sulla propria linea di tiro.
+	// [D-151] limitava l'azione ad `Open` per un motivo tecnico preciso, e quel motivo non e' scaduto — e'
+	// stato soddisfatto per un'altra via. `CanTransition` vieta `Locked -> Open` ma AMMETTE
+	// `Locked -> Closed`, che a una porta bloccata toglie il lock; limitarsi ad `Open` teneva quel percorso
+	// fuori portata **senza toccare `CanTransition`**. La commutazione lo tiene fuori portata con la stessa
+	// tecnica: si definisce **solo** su `Open <-> Closed`, quindi `Locked` non e' mai una sorgente valida —
+	// e' un RIFIUTO con reason code (`ERTActionInvalidReason::DoorLocked`), come `Destroyed`.
+	//
+	// L'obiezione che sembrava piu' pesante — «commutare rende l'esito dipendente dall'ordine, vince
+	// l'ultimo» — era gia' risolta prima di essere sollevata: `URTHexDoorLibrary::ApplyDoorOps` fonde per
+	// bordo e a parita' vince lo stato piu' RESTRITTIVO. Cio' che la rende corretta e' **dove** si risolve
+	// il bersaglio: una volta sola, dallo stato pre-Blast, in `URTHexCombatLibrary::CollectHexAttacks`.
+	// Risolvendolo per-operazione due commutazioni si annullerebbero e l'ordine tornerebbe a decidere.
+	//
+	// ⚠️ **Effetto proprio, non un `Amount` sentinella.** `ToggleDoorState` non legge `Amount`: lo stato
+	// non c'e' piu' da dichiarare. A distinguere «dichiarato» da «campo di default» resta `bChangesDoor`,
+	// che `RTTurnManager` alza trovando la spec e non leggendone il valore — senza quel flag ogni azione
+	// del catalogo ordinerebbe di toccare ogni porta sulla propria linea di tiro.
+	//
+	// ⚠️ **Il ramo REMOTO non commuta** (`CP 23.4`, `#833`): una leva comanda N porte che possono divergere,
+	// e commutare «il gruppo» e' la sotto-domanda che `INT-7` aveva sollevato e che resta aperta. Il confine
+	// e' nel resolver, con il suo test.
 	//
 	// ⚠️ **Questo commento diceva che il meccanismo di CP 9.3 vale per `Interact` senza modifiche, e dal
 	// 2026-08-28 non e' piu' vero** (CP 10.1, `#74`). Diceva: «con portata 1 la prima porta sulla traiettoria
@@ -1152,8 +1172,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// contiene `Action.Activate` — il corpus golden porta solo `Action.Move`.
 	Catalog.Add(ShippedAction(TEXT("Action.Interact"), ERTResolutionPhase::Attack, /*Priority*/ 80,
 		/*Range*/ 1, /*Cooldown*/ 0, ERTActionFallback::Cancel,
-		{ FRTActionEffectSpec(ERTActionEffect::SetDoorState,
-			static_cast<int32>(ERTHexDoorState::Open)) },
+		{ FRTActionEffectSpec(ERTActionEffect::ToggleDoorState, /*Amount inutilizzato*/ 0) },
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Main));
 	// Il puntatore deriva la forma del bersaglio da QUESTO campo, non dagli effetti ne' dall'ActionId:
 	// `StructureOp != None` -> il giocatore punta un BORDO (`RTPointerInteraction.cpp`). Senza,
@@ -1343,7 +1362,8 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		Catalog.Add(Counter);
 	}
 
-	// `Deflect` — riduce di 20 il danno diretto che l'ha innescata, DICHIARANDOLO come effetto
+	// `Deflect` — apre un pool di 20 danni assorbibili sui colpi diretti del boundary che l'ha innescata
+	// ([D-309]; prima di quella voce era uno sconto sul solo colpo innescante), DICHIARANDOLO come effetto
 	// (`ERTActionEffect::DamageReduction`, CP 5.5). Fino a CP 5.2 il numero viveva solo come
 	// `URTCombatLibrary::DeflectDamageReduction` letta da un `if (ActionId == "Action.Deflect")` nel
 	// `TurnManager`: la costante resta la fonte del valore, ma chi lo applica ora lo legge dai dati — cosi' una
@@ -1457,6 +1477,8 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range (self)*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Shield, 25) },
 		ERTInterruptPolicy::None, ERTActionSlot::Main));
+	Catalog.Last().bSelfTarget = true; // come Guard e Brace: lo scudo lo prende chi la pianifica
+
 
 	// `Cleanse` — azione PRINCIPALE, codice 30 (controllo) quindi risolve nel Blast PRIMA del danno: purificarsi
 	// dopo aver incassato il colpo che lo stato ha aggravato non servirebbe a niente. Nessun effetto dichiarato:
@@ -1772,9 +1794,10 @@ TArray<FName> URTCatalogLibrary::GetGenericActionIds()
 	//
 	// ⚠️ `Action.Interact` entra IN CODA per la stessa ragione, e con la stessa storia: fino al 2026-08-26 era
 	// fuori perche' *«nessun codice risolve un'interazione»*, e quel motivo e' scaduto. Oggi l'azione dichiara
-	// `SetDoorState -> Open` [D-148/D-151], `ARTTurnManager` traduce l'effetto in `bChangesDoor`/`DoorState`
-	// per QUALUNQUE principale pianificata, `URTHexCombatLibrary` raccoglie l'op sulla prima porta della
-	// traiettoria e `URTHexDoorLibrary::SetDoorState` la applica. L'altra meta' esiste: e' il criterio con cui
+	// `ToggleDoorState` ([D-148]/[D-151], commutata da [`INT-7`]), `ARTTurnManager` traduce l'effetto in
+	// `bChangesDoor`/`bTogglesDoor` per QUALUNQUE principale pianificata, `URTHexCombatLibrary` raccoglie
+	// l'op sul bordo dichiarato risolvendo lo stato opposto **pre-Blast**, e `URTHexDoorLibrary::SetDoorState`
+	// la applica. L'altra meta' esiste: e' il criterio con cui
 	// erano entrate `Guard`, `Brace` e poi `Overwatch`.
 	//
 	// ⚠️ Entra con UN bersaglio funzionante — le porte. Consolle, ascensori, generatori, sprinkler, ponti e

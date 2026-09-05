@@ -372,4 +372,289 @@ bool FRTPlaybackPhaseDurationDegenerateTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Il micro-step del playback e' un segmento, e il conteggio lo dice** (`#1879`).
+ *
+ * 🔑 Non e' una granularita' nuova: `InterpolateAlongPath` divide gia' `[0,1]` in frazioni uguali, una per
+ * segmento, e lo dichiara — *«1 passo logico = 1 segmento»*. Questo test pinna che il conteggio sia
+ * l'inverso esatto di quella divisione, invece di una seconda convenzione che le somiglia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackMicroStepCountTest,
+	"RefactorTactics.Playback.MicroStepCountMatchesSegments",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackMicroStepCountTest::RunTest(const FString&)
+{
+	TestEqual(TEXT("percorso vuoto: nessun micro-step"),
+		URTPlaybackLibrary::MicroStepsInPath({}), 0);
+
+	// ⚠️ Un'unita' ferma ha UN waypoint — la sua cella — e zero barriere da attraversare.
+	TestEqual(TEXT("un solo waypoint: nessun micro-step"),
+		URTPlaybackLibrary::MicroStepsInPath({ FVector::ZeroVector }), 0);
+
+	TestEqual(TEXT("due waypoint: un segmento"),
+		URTPlaybackLibrary::MicroStepsInPath({ FVector(0,0,0), FVector(100,0,0) }), 1);
+
+	TestEqual(TEXT("quattro waypoint: tre segmenti"),
+		URTPlaybackLibrary::MicroStepsInPath(
+			{ FVector(0,0,0), FVector(100,0,0), FVector(200,0,0), FVector(300,0,0) }), 3);
+
+	// --- l'alpha dei confini divide `[0,1]` in parti uguali --------------------------------------------
+	TestEqual(TEXT("il confine 0 e' l'inizio"), URTPlaybackLibrary::AlphaAtMicroStep(0, 4), 0.f);
+	TestEqual(TEXT("il confine 2 di 4 e' meta'"), URTPlaybackLibrary::AlphaAtMicroStep(2, 4), 0.5f);
+	TestEqual(TEXT("il confine 4 di 4 e' la fine"), URTPlaybackLibrary::AlphaAtMicroStep(4, 4), 1.f);
+
+	// ⚠️ Nessun segmento = fase gia' conclusa. `1.f` e non `0.f`, o resterebbe in attesa per sempre.
+	TestEqual(TEXT("senza segmenti l'alpha e' la fine, non l'inizio"),
+		URTPlaybackLibrary::AlphaAtMicroStep(0, 0), 1.f);
+
+	return true;
+}
+
+/**
+ * **Uno `Step` esegue un micro-step INTERO e si ferma su un confine** (`#1879`).
+ *
+ * 🔴 **Le due asserzioni che portano il peso sono la ripetizione e la tolleranza.**
+ *
+ * *Ripetizione*: da un `Alpha` gia' esattamente su un confine si deve avanzare al **successivo**. Un `>=`
+ * al posto del `>` lascerebbe `Step` fermo sul posto ogni volta che lo si preme due volte di fila — che e'
+ * esattamente l'uso per cui il comando esiste.
+ *
+ * *Tolleranza*: `Alpha` arriva da un'accumulazione in virgola mobile, e `1/3` vale `0.333333343`. Senza la
+ * tolleranza prima del floor, un confine raggiunto per accumulo cadrebbe nel segmento successivo e una
+ * pressione sola ne salterebbe **due**.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackStepWholeMicroStepTest,
+	"RefactorTactics.Playback.StepExecutesWholeMicroStep",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackStepWholeMicroStepTest::RunTest(const FString&)
+{
+	const int32 Passi = 4; // confini a 0, 0.25, 0.5, 0.75, 1
+
+	TestEqual(TEXT("da 0 si va al primo confine"),
+		URTPlaybackLibrary::NextMicroStepBoundary(0.f, Passi), 0.25f);
+
+	// --- 🔴 da un confine si va al SUCCESSIVO, non si resta fermi --------------------------------------
+	TestEqual(TEXT("da un confine esatto si avanza al successivo"),
+		URTPlaybackLibrary::NextMicroStepBoundary(0.25f, Passi), 0.5f);
+
+	// --- ⛔ mai un punto intermedio: da meta' segmento si arriva al confine, non oltre -----------------
+	TestEqual(TEXT("da meta' segmento si arriva al confine di quel segmento"),
+		URTPlaybackLibrary::NextMicroStepBoundary(0.3f, Passi), 0.5f);
+
+	// --- non si supera mai la fine ---------------------------------------------------------------------
+	TestEqual(TEXT("dall'ultimo confine si resta alla fine"),
+		URTPlaybackLibrary::NextMicroStepBoundary(1.f, Passi), 1.f);
+	TestEqual(TEXT("e oltre la fine non si va"),
+		URTPlaybackLibrary::NextMicroStepBoundary(0.99f, Passi), 1.f);
+
+	// --- 🔴 la catena completa: N pressioni portano ESATTAMENTE alla fine, non prima e non oltre --------
+	// E' l'asserzione che fallirebbe se la tolleranza mancasse: gli errori di accumulo si sommerebbero e
+	// la catena arriverebbe a fine fase in meno di N passi.
+	float Alpha = 0.f;
+	for (int32 i = 0; i < Passi; ++i)
+	{
+		Alpha = URTPlaybackLibrary::NextMicroStepBoundary(Alpha, Passi);
+	}
+	TestEqual(TEXT("quattro pressioni su quattro segmenti arrivano a fine fase"), Alpha, 1.f);
+
+	// ⚠️ E la penultima NON ci arriva: se ci arrivasse, la catena starebbe saltando un confine.
+	float Parziale = 0.f;
+	for (int32 i = 0; i < Passi - 1; ++i)
+	{
+		Parziale = URTPlaybackLibrary::NextMicroStepBoundary(Parziale, Passi);
+	}
+	TestTrue(TEXT("⛔ e tre pressioni su quattro segmenti NON arrivano alla fine"), Parziale < 1.f);
+
+	// --- una fase senza segmenti e' gia' conclusa ------------------------------------------------------
+	TestEqual(TEXT("senza segmenti si e' gia' alla fine"),
+		URTPlaybackLibrary::NextMicroStepBoundary(0.f, 0), 1.f);
+
+	return true;
+}
+
+/**
+ * **La velocita' visuale per cella non dipende dal percorso di nessun altro** (`#2370`).
+ *
+ * 🔑 E' `PhaseDuration` letta per-unita': la fase dura `MaxSeg / rate`, e a quello stesso rate ciascuno
+ * percorre le **proprie** celle. Il percorso piu' lungo arriva a `1` esattamente a fine fase — le due
+ * formule sono la stessa divisione, e non possono divergere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackRouteAlphaTest,
+	"RefactorTactics.Playback.RouteAlphaIsPerRouteNotPerPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackRouteAlphaTest::RunTest(const FString&)
+{
+	const float Rate = 2.f;
+
+	// --- il rate e' quello dichiarato: un secondo, due celle -------------------------------------------
+	TestEqual(TEXT("a t=0 si e' alla partenza"), URTPlaybackLibrary::RouteAlpha(10, 0.f, Rate), 0.f);
+	TestEqual(TEXT("dopo 1 s un percorso di 10 celle ne ha fatte 2"),
+		URTPlaybackLibrary::RouteAlpha(10, 1.f, Rate) * 10.f, 2.f);
+	TestEqual(TEXT("e uno di 2 celle e' arrivato"), URTPlaybackLibrary::RouteAlpha(2, 1.f, Rate), 1.f);
+
+	// --- 🔴 il caso di `#2370`: 2 celle e 10 celle nella stessa fase -----------------------------------
+	// La fase dura `10 / rate = 5 s`. A 1 s la corta e' arrivata e la lunga e' a un quinto.
+	const float DurataFase = 10.f / Rate;
+	TestEqual(TEXT("la fase dura quanto le 10 celle al rate base"),
+		URTPlaybackLibrary::PhaseDuration(ERTMatchPhase::Move, 10, 0, Rate, 0.f, 0.f), DurataFase);
+
+	TestEqual(TEXT("⛔ a 1 s la corta e' arrivata"), URTPlaybackLibrary::RouteAlpha(2, 1.f, Rate), 1.f);
+	TestTrue(TEXT("⛔ e la lunga NO"), URTPlaybackLibrary::RouteAlpha(10, 1.f, Rate) < 1.f);
+
+	// ⚠️ Il difetto misurato, scritto come numero: con l'`Alpha` di fase la corta avrebbe fatto
+	// `1/5` del suo percorso — cioe' 0,4 celle in un secondo invece di 2. Cinque volte piu' lento.
+	const float AlphaDiFaseA1s = 1.f / DurataFase;
+	TestTrue(TEXT("⛔ l'alpha di fase avrebbe tenuto indietro la corta"),
+		AlphaDiFaseA1s < URTPlaybackLibrary::RouteAlpha(2, 1.f, Rate) - RTTol);
+
+	// --- il percorso piu' lungo chiude ESATTAMENTE con la fase -----------------------------------------
+	TestEqual(TEXT("a fine fase la lunga e' arrivata, non oltre"),
+		URTPlaybackLibrary::RouteAlpha(10, DurataFase, Rate), 1.f);
+	TestTrue(TEXT("e un istante prima non lo era"),
+		URTPlaybackLibrary::RouteAlpha(10, DurataFase - 0.01f, Rate) < 1.f);
+
+	// --- degeneri: nessuna divisione per zero, e nessuna attesa infinita -------------------------------
+	// ⚠️ `1.f` e non `0.f`, come `AlphaAtMicroStep(0, 0)`: senza segmenti la fase e' gia' conclusa.
+	TestEqual(TEXT("senza segmenti si e' gia' alla fine"), URTPlaybackLibrary::RouteAlpha(0, 0.f, Rate), 1.f);
+	TestEqual(TEXT("segmenti negativi: idem"), URTPlaybackLibrary::RouteAlpha(-3, 0.f, Rate), 1.f);
+	TestEqual(TEXT("rate nullo = movimento istantaneo, non una divisione per zero"),
+		URTPlaybackLibrary::RouteAlpha(10, 0.f, 0.f), 1.f);
+	TestEqual(TEXT("rate negativo: idem"), URTPlaybackLibrary::RouteAlpha(10, 0.f, -1.f), 1.f);
+
+	// --- mai fuori da [0,1] ----------------------------------------------------------------------------
+	TestEqual(TEXT("oltre la fine si resta alla fine"), URTPlaybackLibrary::RouteAlpha(2, 999.f, Rate), 1.f);
+	TestEqual(TEXT("un elapsed negativo resta alla partenza"),
+		URTPlaybackLibrary::RouteAlpha(2, -5.f, Rate), 0.f);
+
+	// --- 🔑 invarianza rispetto alla velocita' del viewer ----------------------------------------------
+	// `ViewerPlaybackSpeed` moltiplica `Dt`, quindi entra in `PhaseElapsed` per TUTTI allo stesso modo:
+	// l'ordine di arrivo non cambia, cambia solo l'orologio.
+	const float Doppio = 2.f;
+	TestEqual(TEXT("a velocita' doppia si e' allo stesso punto in meta' tempo (corta)"),
+		URTPlaybackLibrary::RouteAlpha(2, 1.f * Doppio, Rate), URTPlaybackLibrary::RouteAlpha(2, 1.f, Rate * Doppio));
+	TestEqual(TEXT("e lo stesso vale per la lunga"),
+		URTPlaybackLibrary::RouteAlpha(10, 1.f * Doppio, Rate), URTPlaybackLibrary::RouteAlpha(10, 1.f, Rate * Doppio));
+
+	return true;
+}
+
+/**
+ * **Uno `Step` non puo' spezzare eventi simultanei** (`#1879`), e questo test misura *perche'* non puo'.
+ *
+ * 🔑 La garanzia non e' una regola applicata al momento giusto: e' che esista **un solo orologio di fase**.
+ * `PlaybackPhaseElapsed` avanza una volta per tick e il confine di `StepMicroStep` e' un istante in
+ * SECONDI (`PlaybackStepTargetElapsed`), non una frazione di percorso: quell'istante riguarda tutte le
+ * animazioni insieme, e non esiste un ingresso che faccia avanzare una sola unita'.
+ *
+ * ⚠️ **La garanzia NON era «un solo `Alpha` condiviso», ed e' importante saperlo**: fino al 2026-09-05 lo
+ * era anche, e questo test lo pinnava. `#2370` ha dato a ogni percorso il proprio `Alpha` — le sue celle al
+ * rate base — e la simultaneita' e' rimasta intatta, perche' non e' mai dipesa da quello. Cio' che l'ha
+ * sempre garantita e' l'orologio unico.
+ *
+ * ⚠️ Il caso che conta e' quello **asimmetrico**: percorsi di lunghezza diversa nella stessa fase. Il
+ * conteggio della fase e' il **massimo**, e a quel confine ogni unita' e' su una posizione definita del
+ * proprio percorso — l'unita' corta e' gia' arrivata, non «a meta' di un passo».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackStepKeepsSimultaneityTest,
+	"RefactorTactics.Playback.StepDoesNotSplitSimultaneousEvents",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackStepKeepsSimultaneityTest::RunTest(const FString&)
+{
+	// Due unita' nella stessa fase: una percorre tre segmenti, l'altra uno solo.
+	const TArray<FVector> Lunga = { FVector(0,0,0), FVector(100,0,0), FVector(200,0,0), FVector(300,0,0) };
+	const TArray<FVector> Corta = { FVector(0,500,0), FVector(100,500,0) };
+
+	const int32 PassiFase = FMath::Max(
+		URTPlaybackLibrary::MicroStepsInPath(Lunga),
+		URTPlaybackLibrary::MicroStepsInPath(Corta));
+	TestEqual(TEXT("la fase dura quanto il percorso PIU' LUNGO"), PassiFase, 3);
+
+	// L'orologio della fase, nei termini in cui il playback lo tiene: un rate base, e una durata che vale
+	// il percorso piu' lungo diviso quel rate. Sono gli stessi ingressi di `PhaseDuration`.
+	const float CellePerSecondo = 2.f;
+	const float Durata = static_cast<float>(PassiFase) / CellePerSecondo; // 1,5 s
+	TestEqual(TEXT("la durata di fase e' il percorso piu' lungo al rate base"),
+		URTPlaybackLibrary::PhaseDuration(ERTMatchPhase::Move, PassiFase, 0, CellePerSecondo, 0.f, 0.f), Durata);
+
+	// 🔴 **Ogni percorso ha il PROPRIO `Alpha`, e questo test lo pinna perche' e' il cuore di `#2370`.**
+	// `InterpolateAlongPath` distribuisce `[0,1]` sui segmenti **di quel percorso**: se gli si desse
+	// l'`Alpha` di fase, un'unita' con un solo segmento lo attraverserebbe lentamente per tutta la fase e
+	// arriverebbe insieme a quella da tre. Con `RouteAlpha` attraversa la sua cella al rate base, **arriva
+	// al primo confine e aspetta**.
+	//
+	// ⚠️ **Ed e' questo che rende un micro-step di fase «una cella per ciascuno»**: il confine `k` cade a
+	// `k / CellePerSecondo` secondi, quindi ogni unita' e' esattamente sulla propria cella `k` — o e' gia'
+	// arrivata. Con l'`Alpha` condiviso era a `k/PassiFase` del proprio percorso, cioe' in mezzo a un
+	// segmento, e l'ingresso-cella visibile non coincideva con nessun confine canonico.
+	FVector PrecedenteLunga = Lunga[0];
+	FVector PrecedenteCorta = Corta[0];
+
+	for (int32 Passo = 0; Passo <= PassiFase; ++Passo)
+	{
+		// Il confine, in secondi: e' UNO, ed e' lo stesso per entrambe. La simultaneita' sta qui.
+		const float Elapsed = URTPlaybackLibrary::AlphaAtMicroStep(Passo, PassiFase) * Durata;
+		TestEqual(FString::Printf(TEXT("passo %d: il confine cade a k/rate secondi"), Passo),
+			Elapsed, static_cast<float>(Passo) / CellePerSecondo);
+
+		const FVector PosLunga = URTPlaybackLibrary::InterpolateAlongPath(
+			Lunga, URTPlaybackLibrary::RouteAlpha(PassiFase, Elapsed, CellePerSecondo));
+		const FVector PosCorta = URTPlaybackLibrary::InterpolateAlongPath(
+			Corta, URTPlaybackLibrary::RouteAlpha(1, Elapsed, CellePerSecondo));
+
+		// La lunga e' su un waypoint esatto: e' lei a dettare il conteggio della fase, quindi i confini di
+		// fase e i suoi segmenti coincidono.
+		TestTrue(FString::Printf(TEXT("passo %d: l'unita' lunga e' su un waypoint"), Passo),
+			PosLunga.Equals(Lunga[Passo], 0.01f));
+
+		// 🔴 La corta e' sulla propria cella `Passo`, e il suo percorso ne ha una sola: al confine 0 e'
+		// alla partenza, da 1 in poi e' **arrivata**. Mai a meta' di un passo altrui.
+		const FVector AttesaCorta = Corta[FMath::Min(Passo, 1)];
+		TestTrue(FString::Printf(TEXT("passo %d: l'unita' corta e' sulla propria cella"), Passo),
+			PosCorta.Equals(AttesaCorta, 0.01f));
+
+		// ⛔ **Monotonia**: nessuna delle due torna indietro fra un confine e il successivo. E' cio' che
+		// rende `Step` un avanzamento e non un salto.
+		if (Passo > 0)
+		{
+			TestTrue(FString::Printf(TEXT("passo %d: la lunga non torna indietro"), Passo),
+				FVector::DistSquared(Lunga[0], PosLunga) >= FVector::DistSquared(Lunga[0], PrecedenteLunga) - 0.01f);
+			TestTrue(FString::Printf(TEXT("passo %d: la corta non torna indietro"), Passo),
+				FVector::DistSquared(Corta[0], PosCorta) >= FVector::DistSquared(Corta[0], PrecedenteCorta) - 0.01f);
+		}
+		PrecedenteLunga = PosLunga;
+		PrecedenteCorta = PosCorta;
+	}
+
+	// ⚠️ E alla fine della fase **entrambe** sono arrivate: e' il senso di «in parallelo». La corta ci era
+	// arrivata prima e ha aspettato; la fase finisce comunque quando finisce l'ultima.
+	const FVector FineLunga = URTPlaybackLibrary::InterpolateAlongPath(
+		Lunga, URTPlaybackLibrary::RouteAlpha(PassiFase, Durata, CellePerSecondo));
+	const FVector FineCorta = URTPlaybackLibrary::InterpolateAlongPath(
+		Corta, URTPlaybackLibrary::RouteAlpha(1, Durata, CellePerSecondo));
+	TestTrue(TEXT("a fine fase la lunga e' arrivata"), FineLunga.Equals(Lunga.Last(), 0.01f));
+	TestTrue(TEXT("e anche la corta"), FineCorta.Equals(Corta.Last(), 0.01f));
+
+	// --- ⛔ ANTI-VACUITA': la corta arriva PRIMA, e senza questa riga il test non lo direbbe -------------
+	// E' l'asserzione che l'`Alpha` condiviso faceva fallire: con `Elapsed / Durata` la corta sarebbe stata
+	// a un terzo del suo unico segmento — non alla fine — e le due sarebbero arrivate insieme.
+	const float MetaSecondi = Durata / static_cast<float>(PassiFase); // il primo confine: 0,5 s
+	const FVector CortaAlPrimoConfine = URTPlaybackLibrary::InterpolateAlongPath(
+		Corta, URTPlaybackLibrary::RouteAlpha(1, MetaSecondi, CellePerSecondo));
+	const FVector LungaAlPrimoConfine = URTPlaybackLibrary::InterpolateAlongPath(
+		Lunga, URTPlaybackLibrary::RouteAlpha(PassiFase, MetaSecondi, CellePerSecondo));
+	TestTrue(TEXT("⛔ al primo confine la corta e' GIA' arrivata"),
+		CortaAlPrimoConfine.Equals(Corta.Last(), 0.01f));
+	TestFalse(TEXT("⛔ mentre la lunga e' ancora per strada"),
+		LungaAlPrimoConfine.Equals(Lunga.Last(), 0.01f));
+
+	// ⛔ E la velocita' per cella e' la STESSA per entrambe: e' il difetto di `#2370` letto in positivo.
+	// Un terzo della fase percorre una cella, chiunque la percorra.
+	TestEqual(TEXT("la lunga ha percorso una cella nel primo confine"),
+		URTPlaybackLibrary::RouteAlpha(PassiFase, MetaSecondi, CellePerSecondo) * PassiFase, 1.f);
+	TestEqual(TEXT("e la corta ne ha percorsa una anch'essa (il suo percorso finisce li')"),
+		URTPlaybackLibrary::RouteAlpha(1, MetaSecondi, CellePerSecondo) * 1.f, 1.f);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

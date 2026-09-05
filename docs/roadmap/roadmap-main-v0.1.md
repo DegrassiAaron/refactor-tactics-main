@@ -389,7 +389,7 @@ chiude niente.
 | Objective | *(nessun gate lo nomina)* — è la riserva a punti di `G13` | 🟡 regola e contenuto atterrati il **2026-08-29** (#75); resta `ScoreToWin = 0` |
 | Bot / Autobattle | `G2` — suite automation completa verde | 🟡 metà **packaged** non eseguita |
 | Replay / Determinism | `G3` · `G4` — i dieci test nominati, 100 ripetizioni a checksum identico | ✅ ✅ |
-| PIE | `G9` — le **17** voci del subset `RELEASE-V01` | 🟡 10 verdi · 5 parziali · 2 aperte |
+| PIE | `G9` — le **17** voci del subset `RELEASE-V01` | 🟡 10 verdi · 5 parziali · 2 aperte — ⏱️ *rimisurate il 2026-09-03: **15 · 2 · 0**, e nessuna delle due che restano è aperta. La misura viva sta in [`roadmap-checkpoint.md`](roadmap-checkpoint.md) §*Il playtest come lavoro*, non qui* |
 | Packaged | `G12` ✅ · `G13` 🟡 | vedi **P7** |
 
 > ⚠️ **Tre spunte su nove non hanno un gate**, ed è un'informazione, non un difetto del diagramma: HUD,

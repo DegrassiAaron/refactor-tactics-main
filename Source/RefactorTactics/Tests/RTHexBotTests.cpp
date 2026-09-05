@@ -64,6 +64,28 @@ namespace
 		Map->SortCells();
 	}
 
+	/** Muro che non si attraversa: serve a distinguere i PASSI dalla distanza in linea d'aria (#1296). */
+	void BlockBotMove(URTHexMapAsset* Map, const FRTCellId& Id)
+	{
+		FRTHexCellData Data = Map->FindCell(Id) ? *Map->FindCell(Id) : FRTHexCellData(Id);
+		Data.Id = Id;
+		Data.bBlocksMovement = true;
+		Map->AddOrUpdateCell(Data);
+		Map->SortCells();
+	}
+
+	/** Come `MakeBotMap`, con una cella marcata OBIETTIVO (`bIsObjective`, formato mappa v11 — #75). */
+	URTHexMapAsset* MakeObjectiveBotMap(int32 Radius, const FRTCellId& Objective)
+	{
+		URTHexMapAsset* M = MakeBotMap(Radius);
+		FRTHexCellData Data = M->FindCell(Objective) ? *M->FindCell(Objective) : FRTHexCellData(Objective);
+		Data.Id = Objective;
+		Data.bIsObjective = true;
+		M->AddOrUpdateCell(Data);
+		M->SortCells();
+		return M;
+	}
+
 	/** Contesto minimo: un nemico con gittata e HP dati. */
 	FRTHexBotContext MakeCtx(const FRTCellId& Origin, const FRTCellId& Enemy, int32 EnemyRange, int32 EnemyHealth)
 	{
@@ -529,6 +551,245 @@ bool FRTHexBotElevationInvariantTest::RunTest(const FString&)
 	TestEqual(TEXT("WKiteViolation deriva dalla struct"), CDO->WKiteViolation, Defaults.WKiteViolation);
 	TestEqual(TEXT("WApproach deriva dalla struct"), CDO->WApproach, Defaults.WApproach);
 	TestEqual(TEXT("WElevation deriva dalla struct"), CDO->WElevation, Defaults.WElevation);
+	// I due dell'obiettivo (`#2269`) entrano nella stessa verifica: la sorgente e' una sola anche per loro,
+	// e tararli sulla struct senza toccare l'attore non muoverebbe nulla di cio' che il giocatore vede.
+	TestEqual(TEXT("WObjective deriva dalla struct"), CDO->WObjective, Defaults.WObjective);
+	TestEqual(TEXT("WObjectiveFalloff deriva dalla struct"), CDO->WObjectiveFalloff, Defaults.WObjectiveFalloff);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// OBIETTIVO (#2269) — la condizione di vittoria del formato spedito entra nel punteggio.
+//
+// Fino a qui `ScorePlan` aveva termini per danno, uccisione, minaccia, ingaggio, kite, avvicinamento, quota e
+// fuoco amico, e **nessuno** per l'obiettivo: misurato il 2026-09-04, una partita 2v2 bot contro bot su
+// `L_HexArena` si e' decisa `obiettivo 0-3` senza che nessuno dei due bot lo stesse giocando.
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * **La forma del termine**: bonus pieno sulla cella, decadimento per PASSO, mai una penalita'.
+ *
+ * ⚠️ **I passi sono quelli sul grafo, non la distanza in linea d'aria**, ed e' la meta' che un muro rivela.
+ * E' la stessa correzione di `#1296`: se qualcuno sostituisse `ApproachSteps` con `HexDistance` il punteggio
+ * resterebbe plausibile ovunque tranne dietro un ostacolo, cioe' proprio dove il bot deve decidere se vale la
+ * pena aggirarlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotObjectiveTermTest,
+	"RefactorTactics.HexBot.ScoreObjectiveTerm",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotObjectiveTermTest::RunTest(const FString&)
+{
+	const FRTCellId Objective(-6, 0);
+	URTHexMapAsset* M = MakeObjectiveBotMap(6, Objective);
+
+	FRTHexBotContext Ctx;
+	Ctx.Origin = FRTCellId(0, 0);
+	Ctx.ObjectiveCells.Add(Objective);
+
+	TestEqual(TEXT("controllare la cella vale WObjective per intero"),
+		URTHexBotLibrary::ScoreObjectiveTerm(M, Objective, Ctx), Ctx.WObjective);
+	TestEqual(TEXT("un passo di distanza costa esattamente WObjectiveFalloff"),
+		URTHexBotLibrary::ScoreObjectiveTerm(M, FRTCellId(-5, 0), Ctx),
+		Ctx.WObjective - Ctx.WObjectiveFalloff);
+
+	// Il RAGGIO d'attrazione e' dichiarato, non infinito: oltre `WObjective / WObjectiveFalloff` passi il
+	// termine e' spento, e la cella si giudica come su una mappa senza obiettivi.
+	const int32 Raggio = FMath::DivideAndRoundUp(Ctx.WObjective, Ctx.WObjectiveFalloff);
+	TestEqual(TEXT("al raggio dichiarato il termine e' spento"),
+		URTHexBotLibrary::ScoreObjectiveTerm(M, FRTCellId(-6 + Raggio, 0), Ctx), 0);
+
+	// 🔴 **E oltre il raggio NON diventa una penalita'.** Senza il floor, un'unita' lontana pagherebbe per
+	// non stare sull'obiettivo, e quella penalita' entrerebbe in OGNI confronto — comprese le scelte di
+	// combattimento dall'altra parte della mappa, dove l'obiettivo non c'entra niente.
+	TestEqual(TEXT("il termine non diventa mai negativo"),
+		URTHexBotLibrary::ScoreObjectiveTerm(M, FRTCellId(6, 0), Ctx), 0);
+
+	// Le due spegnature, e sono cose diverse: una mappa senza obiettivi, e un peso azzerato.
+	FRTHexBotContext SenzaCelle = Ctx;
+	SenzaCelle.ObjectiveCells.Reset();
+	TestEqual(TEXT("su una mappa senza obiettivi il termine e' zero"),
+		URTHexBotLibrary::ScoreObjectiveTerm(M, Objective, SenzaCelle), 0);
+
+	FRTHexBotContext SenzaPeso = Ctx;
+	SenzaPeso.WObjective = 0;
+	TestEqual(TEXT("a peso zero il termine e' zero"),
+		URTHexBotLibrary::ScoreObjectiveTerm(M, Objective, SenzaPeso), 0);
+
+	// --- I PASSI, non la linea d'aria ------------------------------------------------------------------
+	// Muro fra `(0,0)` e l'obiettivo a `(2,0)`: in linea d'aria sono due celle, sul grafo sono tre.
+	const FRTCellId Vicino(2, 0);
+	URTHexMapAsset* Murata = MakeObjectiveBotMap(3, Vicino);
+	BlockBotMove(Murata, FRTCellId(1, 0));
+
+	FRTHexBotContext CtxMuro;
+	CtxMuro.Origin = FRTCellId(0, 0);
+	CtxMuro.ObjectiveCells.Add(Vicino);
+
+	const int32 InLineaDAria = CtxMuro.WObjective - CtxMuro.WObjectiveFalloff * 2;
+	const int32 Misurato = URTHexBotLibrary::ScoreObjectiveTerm(Murata, FRTCellId(0, 0), CtxMuro);
+	TestEqual(TEXT("il muro allunga il cammino a tre passi"),
+		Misurato, CtxMuro.WObjective - CtxMuro.WObjectiveFalloff * 3);
+	TestTrue(TEXT("e vale MENO di quanto direbbe la distanza in linea d'aria"), Misurato < InLineaDAria);
+	return true;
+}
+
+/**
+ * **Il DoD: obiettivo raggiungibile, nessuno che possa colpire — il bot ci va.**
+ *
+ * Si misura sull'ESITO di `ChooseBestPlan`, non sul punteggio di una candidata isolata: fra due candidate
+ * conta la DIFFERENZA, e il tie-break «a parita' vince la mossa minima da `Origin`» e' parte del verdetto.
+ *
+ * 🔴 **La premessa e' ASSERITA, e senza di essa il test passerebbe per la ragione sbagliata.** L'obiettivo
+ * sta dalla parte OPPOSTA al nemico proprio perche' un obiettivo sulla strada del nemico verrebbe raggiunto
+ * anche da un bot che non sa che esista — e il verde direbbe soltanto che il bot si avvicina, cosa che
+ * faceva gia'. Le due righe qui sotto misurano che senza il termine vince la cella d'avvicinamento, e che il
+ * divario e' colmabile dal termine invece di essere travolto da un peso qualunque.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotSeeksObjectiveTest,
+	"RefactorTactics.HexBot.SeeksUncontestedObjective",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotSeeksObjectiveTest::RunTest(const FString&)
+{
+	const FRTCellId Objective(-1, 0);  // un passo, nella direzione OPPOSTA al nemico
+	const FRTCellId Start(0, 0);
+	const FRTCellId Closer(1, 0);      // un passo VERSO il nemico
+	const FRTCellId Enemy(4, 0);
+	URTHexMapAsset* M = MakeObjectiveBotMap(4, Objective);
+
+	// Gittata nemica 0: «nessun nemico in grado di colpire», che e' la condizione del DoD. Cosi' restano in
+	// campo avvicinamento, ingaggio e obiettivo, e la minaccia non decide al posto loro.
+	FRTHexBotContext Ctx = MakeCtx(Start, Enemy, /*EnemyRange*/ 0, /*EnemyHealth*/ 100);
+	Ctx.ObjectiveCells.Add(Objective);
+	Ctx.WElevation = 0;   // arena piatta: il termine vale gia' zero, azzerarlo lo DICHIARA
+
+	TArray<FRTHexBotPlan> Candidate;
+	Candidate.Add(MakePlanFrom(Start, Start));
+	Candidate.Add(MakePlanFrom(Start, Closer));
+	Candidate.Add(MakePlanFrom(Start, Objective));
+
+	// --- la premessa, asserita -------------------------------------------------------------------------
+	FRTHexBotContext Senza = Ctx;
+	Senza.WObjective = 0;
+	const int32 PuraObiettivo = URTHexBotLibrary::ScorePlan(M, MakePlanFrom(Start, Objective), Senza);
+	const int32 PuraVicino = URTHexBotLibrary::ScorePlan(M, MakePlanFrom(Start, Closer), Senza);
+	TestTrue(TEXT("senza il termine vincerebbe la cella che chiude la distanza"), PuraVicino > PuraObiettivo);
+	TestTrue(TEXT("e il divario e' colmabile dal termine"), PuraVicino - PuraObiettivo < Ctx.WObjective);
+	TestTrue(TEXT("senza il termine il bot NON va sull'obiettivo"),
+		URTHexBotLibrary::ChooseBestPlan(M, Candidate, Senza).DestCell == Closer);
+
+	// --- l'esito ---------------------------------------------------------------------------------------
+	const FRTHexBotPlan Best = URTHexBotLibrary::ChooseBestPlan(M, Candidate, Ctx);
+	TestTrue(FString::Printf(TEXT("il bot va sull'obiettivo: scelto (%d,%d,L%d)"),
+		Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer),
+		Best.DestCell == Objective);
+	return true;
+}
+
+/**
+ * **Il caso simmetrico: con un colpo letale disponibile, l'obiettivo NON vince.**
+ *
+ * 🔴 **Senza questo, `SeeksUncontestedObjective` passerebbe anche con un peso infinito** — ed e' lo stesso
+ * difetto che `HexBot.ElevationNeverOutweighsClosingOneCell` esiste per impedire sull'elevazione: un bonus
+ * di posizione abbastanza grande batte qualunque cosa, e un test che misura solo «ci va» non se ne accorge.
+ *
+ * ⚠️ **Il margine si misura, non si spera.** L'ultima riga non chiede che il colpo vinca — quello lo dice
+ * gia' `ChooseBestPlan` — ma che vinca di **piu' di `WObjective`**: cioe' che nemmeno regalando all'obiettivo
+ * il suo bonus massimo l'ordine si rovescerebbe. Un margine di un punto passerebbe il primo controllo e
+ * cadrebbe alla prima taratura.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotObjectiveVsKillTest,
+	"RefactorTactics.HexBot.ObjectiveNeverOutweighsAKill",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotObjectiveVsKillTest::RunTest(const FString&)
+{
+	const FRTCellId Objective(-1, 0);
+	const FRTCellId Start(0, 0);
+	const FRTCellId Enemy(2, 0);
+	URTHexMapAsset* M = MakeObjectiveBotMap(4, Objective);
+
+	// Il nemico ha 30 HP e il bot infligge 30: il colpo e' LETALE, che e' la meta' che deve dominare.
+	FRTHexBotContext Ctx = MakeCtx(Start, Enemy, /*EnemyRange*/ 0, /*EnemyHealth*/ 30);
+	Ctx.ObjectiveCells.Add(Objective);
+	Ctx.WElevation = 0;
+
+	const FRTHexBotPlan Colpo = MakePlan(Start, /*bAttack*/ true, /*Damage*/ 30, /*TargetHealth*/ 30);
+	const FRTHexBotPlan Corsa = MakePlanFrom(Start, Objective);
+
+	TArray<FRTHexBotPlan> Candidate;
+	Candidate.Add(Colpo);
+	Candidate.Add(Corsa);
+
+	const FRTHexBotPlan Best = URTHexBotLibrary::ChooseBestPlan(M, Candidate, Ctx);
+	TestTrue(TEXT("con un colpo letale disponibile il bot spara invece di correre sull'obiettivo"),
+		Best.bHasAttack);
+
+	const int32 PunteggioColpo = URTHexBotLibrary::ScorePlan(M, Colpo, Ctx);
+	const int32 PunteggioCorsa = URTHexBotLibrary::ScorePlan(M, Corsa, Ctx);
+	TestTrue(FString::Printf(TEXT("e il margine (%d) non e' colmabile dal termine al suo massimo (%d)"),
+		PunteggioColpo - PunteggioCorsa, Ctx.WObjective),
+		PunteggioColpo - PunteggioCorsa > Ctx.WObjective);
+
+	// L'invariante DICHIARATA, sulla sorgente che vince in partita. ⚠️ Non e' un gate: nessun valore sensato
+	// la viola, e un'asserzione che non puo' fallire non prova niente da sola. Sta qui accanto alla misura
+	// dell'esito perche' e' quella misura a darle un significato.
+	const ARTTurnManager* CDO = GetDefault<ARTTurnManager>();
+	TestTrue(TEXT("WObjective < WKill"), CDO->WObjective < CDO->WKill);
+	return true;
+}
+
+/**
+ * L'INVARIANTE che PUO' fallire: **`WObjectiveFalloff > WApproach`**.
+ *
+ * 🔴 **Sotto quella soglia il termine e' decorativo proprio nel caso per cui esiste.** Il termine tira verso
+ * l'obiettivo mentre `WApproach` tira verso il nemico: se i due gradienti si pareggiano, un passo che
+ * avvicina l'obiettivo e allontana il nemico vale esattamente **zero**, i punteggi si appiattiscono, e il
+ * tie-break «a parita' vince la mossa minima da `Origin`» fa restare fermo il bot.
+ *
+ * ⚠️ **E' l'analogo di `WElevation * MaxLayer < WApproach`**, con il segno rovesciato: li' un bonus di
+ * posizione troppo GRANDE batte l'avvicinamento e produce il parcheggio; qui un gradiente troppo PICCOLO si
+ * fa battere e produce l'indifferenza. In entrambi i casi la difesa e' un numero, e si misura dove il
+ * comportamento si decide.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotObjectivePullInvariantTest,
+	"RefactorTactics.HexBot.ObjectivePullBeatsClosingOneCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotObjectivePullInvariantTest::RunTest(const FString&)
+{
+	const FRTCellId Objective(-1, 0);
+	const FRTCellId Start(0, 0);
+	const FRTCellId Closer(1, 0);
+	const FRTCellId Enemy(4, 0);
+	URTHexMapAsset* M = MakeObjectiveBotMap(4, Objective);
+
+	FRTHexBotContext Ctx = MakeCtx(Start, Enemy, /*EnemyRange*/ 0, /*EnemyHealth*/ 100);
+	Ctx.ObjectiveCells.Add(Objective);
+	Ctx.WElevation = 0;
+	// I pesi che vincono in partita, non quelli della struct: `PlanBots` copia queste UPROPERTY nel contesto.
+	const ARTTurnManager* CDO = GetDefault<ARTTurnManager>();
+	Ctx.WApproach = CDO->WApproach;
+	Ctx.WObjective = CDO->WObjective;
+	Ctx.WObjectiveFalloff = CDO->WObjectiveFalloff;
+
+	TArray<FRTHexBotPlan> Candidate;
+	Candidate.Add(MakePlanFrom(Start, Start));
+	Candidate.Add(MakePlanFrom(Start, Closer));
+	Candidate.Add(MakePlanFrom(Start, Objective));
+
+	TestTrue(TEXT("con i pesi spediti il bot raggiunge l'obiettivo"),
+		URTHexBotLibrary::ChooseBestPlan(M, Candidate, Ctx).DestCell == Objective);
+
+	// 🔴 **E il vincolo MORDE**: a gradienti pari le tre candidate pareggiano e il tie-break chiude. Senza
+	// questa meta' l'invariante sarebbe una frase nell'header, e nessuno saprebbe che abbassare il falloff
+	// in editor spegne il termine senza spegnere il peso.
+	FRTHexBotContext Pari = Ctx;
+	Pari.WObjectiveFalloff = Pari.WApproach;
+	const FRTHexBotPlan Fermo = URTHexBotLibrary::ChooseBestPlan(M, Candidate, Pari);
+	TestFalse(FString::Printf(
+		TEXT("a WObjectiveFalloff == WApproach il bot NON ci va: scelto (%d,%d,L%d)"),
+		Fermo.DestCell.X, Fermo.DestCell.Y, Fermo.DestCell.Layer),
+		Fermo.DestCell == Objective);
+
+	TestTrue(TEXT("e la sorgente spedita rispetta il vincolo"), CDO->WObjectiveFalloff > CDO->WApproach);
 	return true;
 }
 

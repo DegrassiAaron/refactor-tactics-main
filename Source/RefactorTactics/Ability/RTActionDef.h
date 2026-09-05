@@ -255,7 +255,8 @@ enum class ERTStructureOp : uint8
 	/** Sposta una copertura gia' esistente su un altro bordo, conservandone integrita' e durata residua. */
 	MoveCover,
 	/**
-	 * Porta una PORTA allo stato dichiarato da `ERTActionEffect::SetDoorState` ([D-148]).
+	 * Porta una PORTA a uno stato nuovo: quello dichiarato da `ERTActionEffect::SetDoorState` ([D-148]),
+	 * oppure quello OPPOSTO a quello corrente con `ERTActionEffect::ToggleDoorState` ([`INT-7`], `#2380`).
 	 *
 	 * Non e' un'operazione di copertura e non passa dal loop delle strutture: l'esecuzione la raccoglie il
 	 * Blast su `FirstDoorEdge` (CP 9.3) e la applica `URTHexDoorLibrary::SetDoorState`, che resta l'unico
@@ -631,8 +632,8 @@ struct FRTActionDef
 
 	/**
 	 * L'azione si DICHIARA un'aggressione contro un'unita' ([`INT-8`], `#1491`). Un colpo e' un concetto
-	 * solo: danno, trigger `HitByDirectAttack`, `EnergyOnHit` e `Marked` viaggiano insieme, quindi chi non
-	 * si dichiara non ne produce nessuno e nessuno dei quattro consumatori lo vede. Il cancello e' unico,
+	 * solo: danno, trigger `HitByDirectAttack` e `Marked` viaggiano insieme, quindi chi non
+	 * si dichiara non ne produce nessuno e nessuno dei tre consumatori lo vede. Il cancello e' unico,
 	 * dove il colpo nasce (`URTHexCombatLibrary::CollectHexAttacks`).
 	 *
 	 * ⚠️ **`false` di default, ed e' il verso opposto ai flag qui sopra.** `bAllowsReaction`,

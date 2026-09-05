@@ -10,6 +10,7 @@
 #include "Map/RTMapVisuals.h" // #983: RTCellTopZ si include invece di ricopiarlo in un commento
 #include "RTUnit.generated.h"
 
+class UAnimSequenceBase;
 class UStaticMeshComponent;
 class UArrowComponent;
 class USkeletalMeshComponent;
@@ -205,28 +206,17 @@ public:
 	 * catalogo e trasportato qui da `ConfigureFromHeroData`. `FText` perché è testo mostrato all'utente e
 	 * deve restare localizzabile.
 	 *
-	 * ⚠️ **Non è lo Stable ID.** `HeroId` resta `Hero.Gadget` e non si rinomina: D-120 tiene i due piani
-	 * separati, e la migrazione degli identificatori ha un blocker proprio ancora aperto (#716).
+	 * ⚠️ **Non è lo Stable ID**, e i due piani restano separati — D-037, che D-321 ha ripristinato come
+	 * invariante. Ma `Hero.Gadget` **sarà rinominato**: D-321 dichiara che i quattro nomi del roster v0.1
+	 * sono identità legacy temporanee, D-322 fissa i sostituti (`Hero.Gadget` → `Hero.Nexis`), e la
+	 * migrazione è differita post-v0.1 con owner #2297. Il blocker di namespace che rendeva impossibile il
+	 * rename è sciolto da D-130, che ha chiuso #716 scegliendo `Hero.<Nome>.<Abilità>`.
 	 * Vuoto = nessun eroe l'ha dichiarato: la presentazione ricade su `ShortHeroName`, mai su stringa vuota.
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	FText HeroDisplayName;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
-	int32 MaxEnergy = 100;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
-	int32 Energy = 0;
-
-	/** Energia guadagnata a ogni turno. */
-	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Combat")
-	int32 EnergyPerTurn = 25;
-
-	/** Energia guadagnata quando si porta a segno un attacco (non ultimate). */
-	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Combat")
-	int32 EnergyOnHit = 15;
-
-	/** Moltiplicatore di danno dell'ultimate (attacco a energia piena). */
+	/** Moltiplicatore di danno dell'ultimate. */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Combat")
 	int32 UltimateMultiplier = 2;
 
@@ -525,14 +515,14 @@ public:
 	 */
 	bool HasPlannedNormalMove() const { return PlannedCell != Cell || PlannedPath.Num() > 1; }
 
-	/** Vero se l'abilita' e' pronta (non in ricarica) e c'e' energia sufficiente. */
+	/** Vero se l'abilita' e' pronta: non in ricarica. Il cooldown e' l'unico gate da `D-324`. */
 	bool CanUseAbility(int32 Index) const;
 
 	/**
 	 * Lo scatto pianificato si applichera' davvero all'inizio della risoluzione?
 	 *
 	 * Tre condizioni, ed e' la stessa congiunzione che `ARTTurnManager::ResolveDash` valuta per decidere se
-	 * muovere l'unita': mobilita' rapida dichiarata dal catalogo, azione utilizzabile (ricarica ed energia),
+	 * muovere l'unita': mobilita' rapida dichiarata dal catalogo, azione utilizzabile (ricarica),
 	 * destinazione diversa dalla cella corrente.
 	 *
 	 * 🔴 **Sta qui perche' ha due consumatori, e la seconda copia sarebbe divergibile.** Oltre al resolver la
@@ -551,7 +541,7 @@ public:
 	/** Seleziona l'abilita' attiva del giocatore (se l'indice e' valido). */
 	void SelectAbility(int32 Index);
 
-	/** Avvia la ricarica dell'abilita' e ne consuma l'energia. */
+	/** Avvia la ricarica dell'abilita'. Consumava anche energia: `D-324` l'ha tolta dal gameplay. */
 	void ConsumeAbility(int32 Index);
 
 	/** Decrementa i cooldown di tutte le abilita'. */
@@ -636,6 +626,35 @@ public:
 	 * `TSet`, la cui iterazione non e' deterministica (invariante #4), quindi enumerarle a valle non basta.
 	 */
 	TArray<FName> GetActiveStatusNames() const;
+
+	/**
+	 * Gli stessi stati attivi, come **tag** invece che come nomi, nello stesso ordine.
+	 *
+	 * 🔑 **`GetActiveStatusNames` e' implementata SU QUESTA**, e non viceversa: l'ordine — che e' parte del
+	 * contratto, perche' `TMap`/`TSet` non sono deterministiche (invariante #4) — vive in un posto solo.
+	 * Due enumerazioni parallele che ordinano ciascuna per conto proprio sono due ordini che un giorno
+	 * divergono.
+	 *
+	 * Serve a chi deve poi CHIEDERE qualcosa sul tag — la durata residua, l'icona — e con un `FName` dovrebbe
+	 * risolverlo indietro con `RequestGameplayTag`, che puo' fallire.
+	 */
+	TArray<FGameplayTag> GetActiveStatusTags() const;
+
+	/**
+	 * Quanto dura ancora questo stato su questa unita'.
+	 *
+	 * @return  turni residui (`> 0`) · `PersistentWhileOnCell` se e' legato alla cella · `0` se non e' attivo.
+	 *
+	 * 🔴 **`PersistentWhileOnCell` NON e' un numero di turni**, ed e' l'unico valore di ritorno che non si
+	 * puo' stampare come tale: significa *«finche' resti dove sei»*. Chi lo tratta come un conteggio scrive
+	 * «-1 turni» sopra la testa di un'unita'.
+	 *
+	 * ⚠️ **Lo stesso tag puo' essere ENTRAMBE le cose insieme** — bagnato dall'acqua bassa *e* da
+	 * `PressureJet` — e i due contenitori esistono apposta per farle coesistere. Qui vince la durata a
+	 * **termine**: e' l'informazione che scade, quindi quella che chi guarda deve poter vedere scendere.
+	 * Quando finisce, questa funzione risponde `PersistentWhileOnCell` finche' la cella lo sostiene.
+	 */
+	int32 GetStatusRemainingTurns(FGameplayTag Tag) const;
 
 	/**
 	 * Applica `Status.Marked` registrando la SQUADRA del marcatore (CP 8.2).
@@ -744,9 +763,15 @@ private:
 	/** Popola Abilities con un set di default (attacco, colpo pesante, ultimate) se vuota. */
 	void EnsureDefaultAbilities();
 
-	/** Crea un'abilita' data-driven in codice. */
-	URTActionData* MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area,
-		int32 Cooldown, int32 EnergyCost, FGameplayTag Status, int32 StatusDur);
+	/**
+	 * Crea un'abilita' data-driven in codice.
+	 *
+	 * ⚠️ Portava anche `EnergyCost` (tolto da `D-324`) e una coppia `Status`/`StatusDur` che **non e' mai
+	 * stata assegnata**: `URTActionData` non ha un campo per lo stato, quindi il `TAG_Status_Slow, 2` che
+	 * l'Ultimate legacy passava era inerte da sempre e faceva credere al lettore che l'abilita' applicasse
+	 * Slow. Rimossa insieme all'altro parametro morto invece di sopravvivergli.
+	 */
+	URTActionData* MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area, int32 Cooldown);
 
 public:
 
@@ -918,6 +943,14 @@ public:
 	 *
 	 * Pura e testabile: `RefactorTactics.Unit.ShortHeroNameFromStableId`.
 	 */
+	/**
+	 *  La clip di ripiego come **funzione pura** delle clip e dell'eroe: e' cio' che un test puo' chiamare.
+	 *  🔴 Statica perche' la prima stesura del test leggeva il CDO e non passava da qui: era verde e
+	 *  **vacua rispetto al fix**, e l'ha trovata una verifica di mutazione.
+	 */
+	static TSoftObjectPtr<UAnimSequenceBase> GhostFallbackClipFor(
+		const class URTUnitAnimInstance* Clips, const FName& HeroId);
+
 	static FString ShortHeroName(FName InHeroId, const FString& Fallback);
 
 	/**
@@ -1078,6 +1111,19 @@ public:
 	void SetKnownToObserver(bool bKnown);
 
 	/**
+	 * Cio' che l'osservatore locale sa di questa unita', come gliel'ha dichiarato `SetKnownToObserver`.
+	 *
+	 * 🔑 **Esiste perche' il velo abbia UN produttore e piu' consumatori.** Lo scrive `ARTHUD::UpdateObserverVeil`,
+	 * che interroga `ShouldDrawUnitOverlay`; chi disegna una sovrapposizione **legge qui** invece di
+	 * ricostruire la vista di conoscenza per conto proprio. Due ricostruzioni per fotogramma sarebbero due
+	 * risposte che possono divergere, ed e' la stessa ragione per cui quei predicati sono statici e puri.
+	 *
+	 * ⚠️ **Non e' «l'unita' si vede».** La visibilita' e' una FUNZIONE di questo flag e della vita
+	 * (`ShouldBeRendered`), e la morte vince sempre: un caduto non torna visibile perche' e' noto.
+	 */
+	bool IsKnownToObserver() const { return bKnownToObserver; }
+
+	/**
 	 * Opacita' della sagoma del ricordo. Pura: la dissolvenza e' PRESENTAZIONE e non ha effetti logici, ma
 	 * la sua REGOLA e' testabile e va tenuta fuori dal Tick.
 	 *
@@ -1158,6 +1204,12 @@ protected:
 	 * l'esclusione qui e' esplicita ed e' per QUESTO che `RefreshComponentVisibility` non spegne mai la sagoma
 	 * per sbaglio invece del personaggio vero (o viceversa).
 	 */
+	/** La clip di ripiego per la sagoma dell'ultimo contatto (#1750): l'idle dell'eroe, o `nullptr`.
+	 *  Letta dal CDO di `UnitAnimClass` e non da una seconda lista: i nomi delle clip non si deducono.
+	 *  ⚠️ Risolve senza CARICARE: i pack Paragon non sono versionati, e il path e' cio' che un test puo'
+	 *  asserire su un checkout che non li ha. */
+	TSoftObjectPtr<UAnimSequenceBase> GhostFallbackClipPath() const;
+
 	USkeletalMeshComponent* FindHeroSkeletal() const;
 
 	virtual void BeginPlay() override;
@@ -1167,6 +1219,21 @@ protected:
 	 * gia' una propria `Anim Class`. Un'unita' col solo cilindro segnaposto non ha niente da animare.
 	 */
 	void ApplyUnitAnimClass();
+
+	/** Cabla `OverlayWidgetClass` sul componente. Senza classe assegnata non fa nulla (`#2288`). */
+	void ApplyOverlayWidgetClass();
+
+public:
+	/**
+	 * Il widget della sovrapposizione, se il componente lo ha gia' istanziato (`#2288`).
+	 *
+	 * ⚠️ **`nullptr` e' un esito normale**, non un errore: senza `OverlayWidgetClass`, prima
+	 * dell'istanziazione, e in un mondo headless il widget non esiste. Chi lo aggiorna deve attraversare
+	 * quel caso in silenzio.
+	 */
+	UUserWidget* GetOverlayWidgetObject() const;
+
+protected:
 
 	/** Inchioda le skeletal dell'unita' a `ForcedMeshLOD` (vedi il perche' su quella proprieta'). */
 	void ApplyUnitMeshLOD();
@@ -1265,6 +1332,31 @@ protected:
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	TObjectPtr<USkeletalMeshComponent> ContactGhost;
+
+	/**
+	 * La sovrapposizione sopra la testa — nome, vita, scudo, stati (`#2288`, `D-320`).
+	 *
+	 * 🔴 **Segue il velo, al contrario di `ContactGhost`.** La sagoma del ricordo deve vedersi *proprio
+	 * quando* l'unita' non si vede, quindi e' esclusa da `RefreshComponentVisibility`; questa invece e' la
+	 * sovrapposizione dell'unita' **vera**, e su un nemico non osservato non deve esserci. Passa quindi
+	 * dallo stesso `bRender` di mesh e anelli, e il velo la spegne senza che nessuno scriva una seconda
+	 * regola.
+	 *
+	 * ⚠️ **La classe del widget non e' cablata qui**: la dichiara `OverlayWidgetClass`, che un `BP_Unit_*`
+	 * assegna. Senza, il componente resta vuoto e non si vede niente — degrada, non crasha, ed e' la stessa
+	 * forma con cui `HeroMeshClass` e `ContactGhostMaterial` sono opzionali.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TObjectPtr<class UWidgetComponent> OverlayWidget;
+
+	/**
+	 * Il `WBP_RT_UnitOverlay` da mostrare sopra questa unita'. Assegnato dal Blueprint dell'eroe.
+	 *
+	 * ⚠️ **Un `TSubclassOf` e non un asset diretto**: e' la stessa forma di `HeroMeshClass` ([D-037]), e per
+	 * la stessa ragione — il C++ dichiara *che ci vuole un widget*, il dato dice *quale*.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TSubclassOf<class URTUnitOverlayWidget> OverlayWidgetClass;
 
 	/**
 	 * Materiale della sagoma (M_LastContactGhost: Translucent, Unlit, emissivo grigio monocromo, parametro

@@ -268,6 +268,24 @@ Scenarios/Movement/Basic.json
 Il turn manager e il resolver **non sanno** di essere sotto test: non esiste nessun `if (IsTest)` nel
 gameplay. È la proprietà che rende un test verde significativo.
 
+### Lanciarne due di seguito in PIE — il campo si sgombera da solo
+
+Fuori dal PIE ogni corsa riceve un `UWorld` **temporaneo** e parte pulita per costruzione. In PIE il mondo è
+quello della sessione e non si può ricreare: fino al 2026-09-04 il secondo scenario si **sommava** al primo,
+e ciò che si misurava era il residuo ([#2223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2223)).
+
+Ora `FRTScenarioSession::Start` toglie dal mondo, **prima di posare qualunque cosa**, le unità marcate da una
+corsa precedente.
+
+- ⛔ **Si tolgono solo le unità che uno scenario ha messo**, mai tutte quelle in campo: in PIE lo scenario
+  gira *dentro* una partita, e sgomberarla sarebbe un rimedio peggiore del difetto. Il marchio è
+  `FRTScenarioSession::SpawnedByScenarioTag`, in `AActor::Tags`.
+- ⚠️ **Si sgombera all'ingresso, non alla fine**: uno scenario interrotto a metà non arriverebbe mai a un
+  teardown finale — ed è proprio quello a lasciare il campo sporco. Entrando, la corsa è pulita *qualunque
+  cosa* sia successa alla precedente.
+- La **board** non c'entra e non si duplicava: `BuildScenarioArena` riusa l'actor esistente e chiama
+  `RebuildInstances()`.
+
 ### 3-bis. Chi decide: un harness solo, e provider che restituiscono decisioni
 
 **[D-101](../../decisions/RT_PDR_00_Decision_Log.md)** (2026-08-11). L'harness sopra è **l'unico**, e ogni modo
@@ -483,6 +501,46 @@ il **TurnLog** serializzato turno per turno (`SameTurnLogAcrossRuns`) e lo **Sta
 Nessuna delle due basta da sola, ed è misurato: il log non registra tutto ciò che il digest copre, e lo
 `StateHash` da solo *«sarebbe rimasto verde su #990»*, dove la divergenza compariva al turno 2 e lo stato
 finale tornava lo stesso.
+
+➕ **E dal 2026-09-04 c'è una terza grandezza, che risponde alla domanda che le prime due non ponevano**
+([#2189](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2189)): il **checksum per boundary**.
+
+`URTBoundaryChecksumLibrary::ChecksumsAlongTrace` calcola un hash di stato a **ogni** boundary che la traccia
+attraversa, e `DescribeDivergence` nomina il primo in cui due esecuzioni si separano — *«divergono al
+boundary `T2|Blast`»*. 🔑 È esattamente il caso `#990` citato qui sopra: una divergenza al turno 2 che il
+solo stato finale non vedeva, e che ora ha un **luogo** invece di un sospetto.
+
+➕ **E dal 2026-09-04 il luogo è più stretto di una fase**
+([#2374](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2374)): la chiave del boundary è la
+**terna** `(TurnNumber, Phase, MicroStepIndex)`, quindi il verdetto sa dire *«divergono al boundary
+`T1|Move#1`»* — il **secondo** micro-step di quella fase, non la fase intera. Prima due esecuzioni che si
+separavano a metà di un movimento producevano lo stesso checksum di fase, e il messaggio nominava un
+intervallo che conteneva la causa insieme a due barriere innocenti.
+
+| Forma stampata | Significato |
+|---|---|
+| `T1\|Move#1` | il boundary del micro-step **1** — lo stato è **parziale per costruzione**: a metà movimento le unità non hanno ancora la cella finale |
+| `T2\|Blast` | la **fase intera**, cioè il boundary `INDEX_NONE`, che chiude la fase e sta **dopo** i suoi micro-step |
+
+⚠️ **Su un archivio antecedente alla `v12` (`WithMicroStep`) resta phase-only, e non è un degrado
+silenzioso**: `ChecksumsAlongTrace` vuole la versione della traccia come **parametro obbligatorio**. Quelle
+tracce il campo non lo portano, e la deserializzazione lascia `0` su ogni voce: chiavare su quello
+stamperebbe `T1|Move#0` dove nessun micro-step è mai stato scritto.
+
+⚠️ **Non sostituisce lo `StateHash` finale, e non può**: una traccia canonica ricostruisce **quattro** degli
+otto campi del digest — `UnitId`, `Cell`, `Facing` e la vita/morte. `Health`, `Shield`, `Energy` e `Statuses`
+restano al default e non discriminano, perché la traccia non li dichiara e dedurli dalle voci di danno
+sarebbe ricostruire uno stato che nessuno ha scritto. ∴ le tre grandezze rispondono a tre domande diverse:
+
+| Grandezza | Dice |
+|---|---|
+| `SameTurnLogAcrossRuns` | quale **voce** è diversa — il sintomo |
+| checksum per boundary | a quale **barriera** lo stato ha cominciato a differire — il luogo |
+| `SameStateHashAcrossRuns` | se il **risultato** è diverso, su tutti e otto i campi |
+
+⛔ **E il checksum per boundary non riesegue niente**: legge una traccia già prodotta e ricostruisce lo stato
+con `URTReplayStateLibrary`, la stessa strada del playback. È materia del **Verifier**, non del Player
+(ADR-0009 §3).
 
 > ⚠️ Le due chiavi **non si combinano**: il loader rifiuta `repeatCount` insieme a `variants`. Un ciclo
 > annidato produrrebbe N×M tracce di cui metà differiscono per costruzione, e un confronto che mescola le due

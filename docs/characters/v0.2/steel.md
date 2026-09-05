@@ -27,7 +27,7 @@ Difensore frontale e controller che protegge gli alleati attraverso interposizio
 | Tipo danno | Kinetic |
 | Complessità gameplay | Medium |
 | Complessità tecnica (1–5) | 3 |
-| Risorsa firma | Integrità Scudo |
+| Risorsa firma | Integrità Scudo ⛔ *(disegno — vedi §«Risorsa firma»)* |
 | Signature primaria | Guard Meter |
 | Signature secondaria | Interposition |
 | Framework principali | Resource, Reaction, Link |
@@ -135,6 +135,14 @@ Il controgioco previsto è separarlo dagli alleati, attaccare da più angoli, fo
 **Stato dati:** `SOURCE_VALUE` — Valori design v0.2 ereditati dalla matrice precedente.
 
 ## Risorsa firma
+
+> ⛔ **DISEGNATA, DELIBERATAMENTE NON IMPLEMENTATA** — [`D-265`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-30) e [`D-324`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-09-04).
+>
+> **Non esiste una risorsa firma universale**: l'economia comune del turno è **slot, cooldown e drawback**. `D-324` ha tolto `Energy` — l'unica implementazione viva di quel modello — dal gameplay, e [#610](https://github.com/DegrassiAaron/refactor-tactics-main/issues/610) l'ha rimossa dal codice. In `Source/` non c'è nessun sottosistema che legga questa tabella.
+>
+> ✅ **Resta perché la via è aperta, non per inerzia.** `D-265` ammette una risorsa **come meccanica specifica di un kit che la motivi**, con un proprio contratto di dati e validazione. Questo è il disegno di quel kit, in attesa di chi lo prenderà.
+>
+> ⚠️ **Chi lo prenderà** parta da `D-265`, non da questa tabella: il `Cap 4` e la ricarica `1` nascono dal modello universale che è stato **scartato**, e vanno rimotivati per questo eroe invece che ereditati. E risponda a `AE-6` — *«questa risorsa si ricarica con `Wait`?»* — che [`D-329`](../../decisions/RT_PDR_00_Decision_Log.md) ha chiuso per assorbimento lasciando la domanda in eredità al primo kit che la adotti.
 
 | Resource_ID | Nome | Cap | Start | Regen | Regen_Trigger | Spesa | Regola | Audience | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

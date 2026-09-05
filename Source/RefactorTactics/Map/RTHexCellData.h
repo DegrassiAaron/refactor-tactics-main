@@ -244,6 +244,65 @@ struct FRTHexDoor
 };
 
 /**
+ * Protezione di bordo: il lato da' sul vuoto ma NON ci si cade — parapetto, ringhiera, muretto basso
+ * (`#2401`, [D-332]).
+ *
+ * 🔑 **E' l'unico dato NUOVO del vocabolario del bordo, e la ragione e' che le altre tre qualifiche
+ * esistono gia'.** Un lato *percorribile* e' l'adiacenza planare normale; un lato *bloccante* ha gia' tre
+ * owner (`bBlocksMovement`, `FRTHexCover` alta, `FRTHexDoor`); un lato *aperto* e' **derivabile** — nessuna
+ * cella adiacente su quel lato, nello stesso layer. Solo la NEGAZIONE di una caduta altrimenti implicita
+ * non e' deducibile da niente: la dichiara chi disegna. E' lo stesso argomento di `ERTHexBodyFill`, dove
+ * un ponte e una collina hanno entrambi il vuoto sotto e nessun segnale geometrico li distingue.
+ *
+ * ⛔ **Non e' un `FRTHexEdge`**: quello e' un arco ADDITIVO fra celle di layer diversi, e il commento della
+ * sua struct spiega perche' le porte non stanno li'. Un guard non crea un'adiacenza, ne qualifica una
+ * assente — quindi vive sul bordo della cella, dove vivono `Covers` e `Doors`.
+ *
+ * ✅ **Entra in `ComputeHash`**, a differenza di `BodyFill`: un parapetto cambia dove finisce un'unita'
+ * spinta, quindi e' stato competitivo. Due mappe che differissero solo qui e hashassero uguale
+ * renderebbero invisibile una divergenza di replay.
+ */
+USTRUCT(BlueprintType)
+struct FRTHexEdgeGuard
+{
+	GENERATED_BODY()
+
+	/** Bordo protetto, visto DALLA cella: `W` impedisce di cadere uscendo verso ovest. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	ERTHexDirection Edge = ERTHexDirection::E;
+
+	FRTHexEdgeGuard() = default;
+	explicit FRTHexEdgeGuard(ERTHexDirection InEdge) : Edge(InEdge) {}
+};
+
+/**
+ * Quanto del volume-cella e' PIENO sotto la superficie, in terzi — `#1865`.
+ *
+ * 🔑 **E' un dato d'AUTORE e non una deduzione**, ed e' la ragione per cui e' un enum e non un `float`: la
+ * regola del corpo non e' derivabile dal contesto senza ambiguita'. Un ponte e una collina hanno entrambi
+ * il vuoto sotto di se' — il primo deve restare attraversabile, la seconda no — e nessun segnale
+ * geometrico li distingue. Lo dichiara chi disegna.
+ *
+ * ⛔ **Non entra in `ComputeHash`**: e' presentazione. Due mappe che differiscono solo qui si giocano
+ * identiche, ed e' il non-goal che `#1865` dichiara per prima cosa.
+ *
+ * ⚠️ `None` e' il default e significa «nessun corpo», che e' cio' che ogni mappa scritta prima del formato
+ * v15 gia' era: le superfici elevate erano dischi sospesi. Una ricarica non inventa un volume.
+ */
+UENUM(BlueprintType)
+enum class ERTHexBodyFill : uint8
+{
+	/** Nessun corpo: la superficie resta un disco. */
+	None = 0,
+	/** Un terzo del volume-cella. Il caso del ponte e del tunnel: sotto resta spazio. */
+	Third,
+	/** Due terzi. */
+	TwoThirds,
+	/** Volume pieno: il corpo occupa l'intero `LayerHeight` sotto la superficie. */
+	Full
+};
+
+/**
  * Dato compatto e AUTOREVOLE di una cella esagonale (serializzato nell'asset mappa). Nessun Actor per cella.
  * Estendibile in milestone successive (hazard, Gameplay Tags, interazioni) senza rompere il formato.
  */
@@ -261,6 +320,16 @@ struct FRTHexCellData
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	ERTHexSurface Surface = ERTHexSurface::Floor;
+
+	/**
+	 * Quanto volume si vede SOTTO questa superficie (`#1865`). Presentazione: non entra in `ComputeHash`.
+	 *
+	 * La quota della base la calcola `URTStructuralBodyLibrary::DeriveBodies`, che tronca il corpo sulla
+	 * faccia superiore della prima cella sottostante: la frazione dichiara l'INTENZIONE, il derivatore la
+	 * concilia con cio' che c'e' sotto.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	ERTHexBodyFill BodyFill = ERTHexBodyFill::None;
 
 	/** Costo di movimento base della cella (intero: no float nel pathfinding). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
@@ -340,6 +409,13 @@ struct FRTHexCellData
 	TArray<FRTHexDoor> Doors;
 
 	/**
+	 * Bordi protetti dalla caduta (`#2401`). Vuoto = nessun parapetto, che e' cio' che ogni mappa scritta
+	 * prima del formato v16 gia' era: da un bordo aperto si cade.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	TArray<FRTHexEdgeGuard> Guards;
+
+	/**
 	 * Costo TOTALE di entrare in questa cella: il terreno piu' il sovrapprezzo della geometria.
 	 *
 	 * Esiste come accessore, e non come somma ripetuta nei chiamanti, perche' i lettori del costo sono
@@ -382,6 +458,16 @@ struct FRTHexCellData
 			if (Door.Edge == Edge) { return &Door; }
 		}
 		return nullptr;
+	}
+
+	/** Vero se quel bordo porta un parapetto: da li' non si cade. */
+	bool HasGuardOn(ERTHexDirection Edge) const
+	{
+		for (const FRTHexEdgeGuard& Guard : Guards)
+		{
+			if (Guard.Edge == Edge) { return true; }
+		}
+		return false;
 	}
 
 	FRTHexCellData() = default;

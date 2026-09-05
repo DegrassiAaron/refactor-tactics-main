@@ -625,14 +625,20 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeVisionSplitArena(UObject* Outer)
 		Draft.Set(Cell);
 	}
 
-	// Piattaforma sul layer 1: nel grafo tattico e' una regione separata, perche' `Neighbors` non
-	// attraversa i layer. Serve al caso multilivello, che il suolo da solo non produce.
-	for (const FRTCellId& Id : { FRTCellId(-6, 3, 1), FRTCellId(-6, 4, 1), FRTCellId(-5, 3, 1) })
-	{
-		// Nessuna superficie esplicita: il costruttore ne da' gia' una, e la piattaforma serve alla
-		// TOPOLOGIA (una regione su un layer diverso), non a un terreno particolare.
-		Draft.Set(FRTHexCellData(Id));
-	}
+	// ⛔ **NIENTE piattaforma sul layer 1, e la sua rimozione e' una decisione** — 2026-09-04.
+	//
+	// Tre celle a `L1` c'erano, e servivano *«alla TOPOLOGIA: una regione su un layer diverso»*. Ma non
+	// avevano **nessuna** `Transition` verso il suolo: nel gioco nessuno poteva salirci, e `rt.Arena.Check`
+	// le contava — correttamente — fra le celle percorribili non raggiungibili dagli spawn.
+	//
+	// 🔑 **E non servivano a nessun test.** `Perception.VisionSplitYieldsDisconnectedRegions` conta le
+	// componenti del **solo suolo**, e ci e' arrivato per correzione: la sua prima stesura contava tutti i
+	// layer e *«la seconda componente era la piattaforma, non la camera sud — passava per la ragione
+	// sbagliata»*. Da allora la piattaforma era un residuo che nessuno interrogava.
+	//
+	// ➕ Cio' che questa fixture perde e' il caso MULTILIVELLO, e va detto invece di lasciarlo scoprire:
+	// per quello ci sono `MakeTestArena` e `MatchArenaPlatformClimb`, che una transizione ce l'hanno.
+	// `VisionSplit` resta il banco della percezione, e fa una cosa sola.
 
 	Draft.CommitTo(Arena);
 	return Arena;

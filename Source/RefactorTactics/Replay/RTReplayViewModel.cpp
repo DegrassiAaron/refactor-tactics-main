@@ -46,6 +46,41 @@ ERTReplayOpenResult FRTReplayViewModel::Open(const FString& ReplaysRoot, const F
 	return OpenResult;
 }
 
+bool FRTReplayViewModel::OpenFromTraces(TArray<TArray<FRTTurnLogEntry>> Traces)
+{
+	// Stesso reset di `Open`, e per la stessa ragione: `SecondsPerPhase` e' configurazione di chi guarda,
+	// non stato di cio' che si guarda, quindi riaprire non deve resettargliela.
+	Session = FRTReplaySession();
+	PhasesPerTrace.Reset();
+	Current = FRTReplayPosition();
+	CurrentTraceIndex = INDEX_NONE;
+	bPlaying = false;
+	PhaseElapsed = 0.f;
+	bOpen = false;
+	bOpenAttempted = true;
+
+	// ⛔ Il rifiuto sta PRIMA di adottare le tracce: un'apertura vuota lascerebbe `IsOpen()` vero su una
+	// sequenza che non ha nemmeno un turno, e ogni `CanStep*` risponderebbe «no» senza che nessuno sappia
+	// perche'. Meglio non aperto, che e' una risposta che il chiamante puo' mostrare.
+	if (Traces.Num() == 0)
+	{
+		// ⚠️ `TraceUnreadable` e non `Opened`: i quattro esiti descrivono APERTURE DI ARCHIVIO e nessuno di
+		// essi nomina questa via. Si sceglie quello che il chiamante interpreta gia' come «c'era qualcosa da
+		// leggere e non si e' potuto usare», invece di inventarne un quinto per un caso che `IsOpen()` gia'
+		// distingue.
+		OpenResult = ERTReplayOpenResult::TraceUnreadable;
+		return false;
+	}
+
+	Session.Traces = MoveTemp(Traces);
+	Session.bComplete = true;
+
+	BuildPhaseCache();
+	bOpen = true;
+	OpenResult = ERTReplayOpenResult::Opened;
+	return true;
+}
+
 void FRTReplayViewModel::Rewind()
 {
 	// ⚠️ **Non si tocca `Session.Cursor`**, e la prima stesura chiamava qui `URTReplayPlayerLibrary::Rewind`.

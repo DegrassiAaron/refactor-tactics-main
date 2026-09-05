@@ -298,8 +298,9 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	URTHeroData* Gadget = NewObject<URTHeroData>();
 	Gadget->HeroId = TEXT("Hero.Gadget");
 	// ⚠️ La variabile dice `Gadget` e il nome dice `Gadget`, e NON e' un refuso: D-120 separa i due piani.
-	// `Hero.Gadget` e' lo Stable ID — chiave di codice, scenari e replay, che non si rinomina finche' #716 non
-	// scioglie la collisione di namespace. `Gadget` e' il nome canonico/player-facing del personaggio.
+	// `Hero.Gadget` e' lo Stable ID — chiave di codice, scenari e replay. #716 ha gia' sciolto la collisione
+	// di namespace (D-130), e il rename e' deciso: `Hero.Gadget` -> `Hero.Nexis`, differito post-v0.1 (D-321,
+	// D-322), owner #2297. `Gadget` e' il nome canonico/player-facing di oggi, legacy temporaneo.
 	// Da qui il nome raggiunge l'unita' (`ConfigureFromHeroData`) e poi la HUD; il gate del confine e'
 	// `RefactorTactics.Unit.HeroDataCrossesTheBoundary`.
 	Gadget->DisplayName = FText::FromString(TEXT("Gadget"));
@@ -867,10 +868,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// fra fermarsi, fermarsi addosso, scavalcare e attraversare non e' un `if` sull'ActionId.
 	Wraith->Actions[2]->Def.MovementStyle = ERTMovementStyle::LinearPass;
 
-	// Indice 3 — Deflection (CP 6.7). REAZIONE cablata sulla semantica di `Action.Deflect`: -20 sul colpo
-	// diretto che l'ha innescata. La riduzione arriva dagli effetti del core (`ERTActionEffect::DamageReduction`,
-	// CP 5.5) e resta distinta dallo scudo: uno scudo ASSORBE e si consuma, questa toglie punti al colpo.
-	// Stessa famiglia di `Action.Guard` (-15 al primo colpo) ma con un trigger invece di una stance.
+	// Indice 3 — Deflection (CP 6.7). REAZIONE cablata sulla semantica di `Action.Deflect`: un POOL di 20
+	// danni assorbibili sui colpi diretti del boundary che l'ha innescata. La riduzione arriva dagli effetti
+	// del core (`ERTActionEffect::DamageReduction`, CP 5.5).
+	// Stessa famiglia di `Action.Guard` ma con un trigger invece di una stance, e da [D-309] anche la stessa
+	// FORMA: entrambe sono pool che consumano un budget, entrambe passano da `ApplyAbsorptionPool`. Cio' che
+	// resta diverso e' il gate — la Guardia e' uno stato di Prep eleggibile sui soli colpi frontali ([D-206]),
+	// il Deflect e' una reazione senza clausola d'arco — e l'ORDINE: `Deflect` assorbe per primo ([D-312]).
+	// ⚠️ La divergenza aperta da [D-292] il 2026-08-31 e' durata un giorno: [D-309] l'ha richiusa.
 	// Cooldown 2, uguale al core: il catalogo eroi non ne dichiara uno diverso.
 	AddAbility(Wraith, MakeHeroReactionFromCoreAction(TEXT("Hero.Wraith.Deflection"), TEXT("Action.Deflect"),
 		/*Cooldown*/ 2));
@@ -950,6 +955,17 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroAc
 		Core.RangeCells, Cooldown, Core.Fallback, Core.Effects, Shape, AreaRadius);
 
 	Action->Def.DerivedFromActionId = CoreActionId;
+	// 🔑 `bSelfTarget` NON e' fra i campi che `MakeHeroAction` riceve, e va copiato qui: e' una
+	// **proprieta' dell'azione**, non una deduzione dalla fase o dalla portata (lo dice il suo docstring
+	// in `RTActionDef.h`). Senza, `Hero.Phase.TideGuard` eredita scudo e fase di `Action.Shield` ma non il
+	// fatto di applicarsi a chi la usa — e i tre consumatori del flag (puntatore del giocatore,
+	// valutazione del bot, harness degli scenari) chiedono un bersaglio per un'azione che non ne ha (#2283).
+	Action->Def.bSelfTarget = Core.bSelfTarget;
+	// ⚠️ E lo SPECCHIO su `URTActionData`, che il catalogo core allinea in due punti e questa funzione
+	// non allineava: `Actions.HeroKitsMatchTheirCatalogDef` confronta i due campi e cadeva su entrambe le
+	// abilita' nuove. Quel test PREVEDEVA questo giorno — «quando la prima arrivera', controllare che
+	// MakeHeroAction ne copi lo specchio prima di rendere verde questa riga» — ed e' cio' che ha fatto.
+	Action->bSelfTarget = Core.bSelfTarget;
 	return Action;
 }
 
@@ -982,5 +998,12 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroReactionFromCoreAction(const FName
 	// «questa reazione d'eroe e' `Action.Counter` con un nome proprio» viveva nel solo sorgente. Ora resta
 	// nel `Def`, dove il gate della raggiungibilita' la legge.
 	Action->Def.DerivedFromActionId = CoreActionId;
+	// Stessa ragione della gemella sopra: il flag e' una proprieta' dell'azione (#2283).
+	Action->Def.bSelfTarget = Core.bSelfTarget;
+	// ⚠️ E lo SPECCHIO su `URTActionData`, che il catalogo core allinea in due punti e questa funzione
+	// non allineava: `Actions.HeroKitsMatchTheirCatalogDef` confronta i due campi e cadeva su entrambe le
+	// abilita' nuove. Quel test PREVEDEVA questo giorno — «quando la prima arrivera', controllare che
+	// MakeHeroAction ne copi lo specchio prima di rendere verde questa riga» — ed e' cio' che ha fatto.
+	Action->bSelfTarget = Core.bSelfTarget;
 	return Action;
 }

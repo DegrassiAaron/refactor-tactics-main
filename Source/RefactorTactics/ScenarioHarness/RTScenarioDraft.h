@@ -678,6 +678,16 @@ struct REFACTORTACTICS_API FRTScenarioDraft
 	/** Il TurnLog dell'ultima esecuzione, decodificato. Vuoto se non c'e' stata una corsa. */
 	TArray<FRTScenarioLogEntryView> GetLastRunLog() const;
 
+	/** Le tracce grezze dell'ultima corsa, in byte. Vuote se non si e' ancora corso (`#1625`). */
+	const TArray<FRTTurnTrace>& GetLastRunTraces() const { return LastTraces; }
+
+	/**
+	 * `StableUnitId` -> identita' d'authoring, per l'ultima corsa (`#1625`).
+	 *
+	 * ⚠️ Vale per QUELLA corsa e non oltre: vedi il campo. Vuota prima del primo `Run`.
+	 */
+	const TMap<int32, FString>& GetLastRunScenarioIds() const { return LastScenarioIdByUnitId; }
+
 	// --- preview (#1116) ---------------------------------------------------------------------------------
 
 	/**
@@ -724,6 +734,15 @@ private:
 	 */
 	FRTScenarioRunReport LastReport;
 	TArray<FRTTurnTrace> LastTraces;
+
+	/**
+	 * Il ponte fra i due spazi di id dell'ultima corsa: `StableUnitId` -> identita' d'authoring (`#1625`).
+	 *
+	 * ⚠️ **Vive accanto alle tracce e si dimentica con loro**, perche' vale solo per QUELLA corsa: gli id
+	 * nascono da un roster ordinato per `TeamId`/`Cell`, quindi spostare un'unita' nello scenario li
+	 * rimescola. Una mappa sopravvissuta a un `Run` successivo tradurrebbe con le identita' di prima.
+	 */
+	TMap<int32, FString> LastScenarioIdByUnitId;
 
 	/**
 	 * Il log decodificato, e se lo e' gia'.

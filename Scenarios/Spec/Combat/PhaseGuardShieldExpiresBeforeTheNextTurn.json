@@ -1,0 +1,52 @@
+{
+  "scenarioId": "Spec.Combat.PhaseGuardShieldExpiresBeforeTheNextTurn",
+  "tags": ["combat", "shield", "wraith", "d-224", "d-226", "preparation", "cleanup"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "Lo scudo proattivo protegge il turno in cui e' armato e NON quello dopo. Due Wraith identiche prendono DUE colpi ciascuna, uno per turno: `PROTETTA` arma `Hero.Wraith.PhaseGuard` al turno 1, `NUDA` non arma niente. Se lo scudo temporaneo scade come deve, `PROTETTA` incassa un colpo su due e `NUDA` tutti e due — un solo colpo di differenza, non due.",
+
+  "_nota_perche_non_e_un_doppione": "Il gemello `Spec.Combat.ProactiveShieldAbsorbsWhereBaseShieldDoesNot` mette a confronto DUE UNITA' nello STESSO turno e misura quanto lo scudo assorbe. Qui il confronto e' TEMPORALE e misura per quanto DURA: sono due proprieta' diverse dello stesso effetto, e nessun altro file copre la seconda. `Hero.Wraith.PhaseGuard` e' anche il portatore che nessuno esercitava — `Action.Shield` ne ha due dal 2026-08-28 (`D-226`) e fino al 2026-09-05 uno solo aveva uno scenario (#2381).",
+
+  "_nota_perche_il_controllo_serve": "Senza `NUDA` il file proverebbe meno di quel che sembra: un `PROTETTA` a 74 sarebbe compatibile sia con «un colpo assorbito e uno no» sia con «nessuno scudo, ma un colpo andato a vuoto per un'altra ragione». Affiancata al controllo la differenza diventa leggibile: `NUDA` incassa esattamente un colpo in piu', e quel colpo e' quello che lo scudo ha fermato.",
+
+  "_nota_geometria": "Due scene separate da quattro celle in `r`, come nel gemello, e per la stessa ragione: NON e' la distanza a tenerle separate — `PulseShot` ha portata 4 e ogni tiratore e' esattamente a 4 dal difensore dell'altra scena — ma la FORMA `Single`. In ciascuna il difensore sta a `x = 0` guardando a OVEST e il tiratore a `x = -2`: entrambi i colpi sono FRONTALI, quindi qualunque modificatore di facing vale per tutte e due e il delta resta lo scudo.",
+
+  "_nota_numeri": "Wraith ha 90 HP e 5 di scudo base che si RICARICA nel Cleanup (`D-224`) — e' il dettaglio che rende questo file possibile: al turno 2 `PROTETTA` non e' nuda, ha di nuovo i suoi 5, esattamente come `NUDA`. `PhaseGuard` deriva da `Action.Shield` e aggiunge 25 di scudo TEMPORANEO in Preparation (cooldown 2, quindi non e' riarmabile al turno 2 nemmeno volendo). `PulseShot` ha cooldown 0 e puo' sparare a ogni turno. I due valori attesi sono OSSERVAZIONI, misurate il 2026-09-05 (`026850c0`): cio' che rende valido il file non e' che siano calcolabili a mente, ma che il loro DELTA sia esattamente un colpo — `NUDA` ne incassa uno in piu', e quello e' il colpo che lo scudo ha fermato.",
+
+  "_nota_come_si_falsifica": "Mutazione dichiarata: far sopravvivere il temporaneo al Cleanup — in `ARTUnit::ExpireTemporaryShield()` COMMENTARE le due righe del corpo. ⚠️ **Non un `return` anticipato**: rende irraggiungibile il codice sotto e il progetto tratta quel warning come errore, quindi la ricetta non compilerebbe e chi la seguisse concluderebbe che la mutazione e' invalida — misurato il 2026-09-05. Allora `PROTETTA` arriva al secondo colpo con del temporaneo ancora addosso e la sua riga cade: **misurato, `78` invece di `74`**. 🔑 **Il segnale e' il RESIDUO, e vale 4 HP — non un colpo intero.** Il primo colpo consuma 21 dei 30 di scudo e ne lascia 4 di temporaneo; senza scadenza il Cleanup li somma alla base (`RechargeBaseShield` fa `BaseShield + TemporaryShield` = 9) e al secondo colpo ne passano 12 invece di 16. ⚠️ **Chi rinforzasse il colpo oltre i 30 di scudo renderebbe la mutazione invisibile**: il temporaneo finirebbe esaurito dal primo colpo, non avanzerebbe nulla da far sopravvivere, e questo file resterebbe verde sotto la sua stessa falsificazione. Se un domani `PulseShot` o `Action.Shield` cambiano numeri, ricontrollare che il temporaneo AVANZI dopo il primo colpo. ⚠️ La mutazione simmetrica NON e' togliere `PhaseGuard` dal kit: il file non si caricherebbe e nessuna assertion cadrebbe. La simmetrica giusta e' togliere `bSelfTarget` da `Action.Shield`: l'intento resta scrivibile, lo scudo non si arma mai e `PROTETTA` scende agli stessi HP di `NUDA`.",
+
+  "units": [
+    { "id": "PROTETTA", "hero": "Hero.Wraith", "team": 0, "cell": [0, 2, 0],  "facing": "W" },
+    { "id": "TIRAP",    "hero": "Hero.Wraith", "team": 1, "cell": [-2, 2, 0] },
+
+    { "id": "NUDA",  "hero": "Hero.Wraith", "team": 0, "cell": [0, -2, 0],  "facing": "W" },
+    { "id": "TIRAN", "hero": "Hero.Wraith", "team": 1, "cell": [-2, -2, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "Turno 1. `PhaseGuard` risolve in Preparation, i colpi nel Blast: quando arrivano, lo scudo temporaneo di `PROTETTA` c'e' gia'. `NUDA` non compare fra gli intenti — un'unita' senza intento e' la pratica normale del corpus, e lascia l'azione armata come unica differenza fra le due scene.",
+      "intents": [
+        { "unit": "PROTETTA", "ability": "Hero.Wraith.PhaseGuard" },
+        { "unit": "TIRAP",    "ability": "Hero.Wraith.PulseShot", "target": "PROTETTA" },
+        { "unit": "TIRAN",    "ability": "Hero.Wraith.PulseShot", "target": "NUDA" }
+      ]
+    },
+    {
+      "_turno": "Turno 2. Stessi due colpi, e NESSUNO scudo armato: `PhaseGuard` e' in ricarica (cooldown 2), quindi `PROTETTA` non potrebbe riarmarlo nemmeno se lo scenario glielo chiedesse. Da qui in poi le due scene sono identiche in tutto, e cio' che resta da misurare e' se il turno precedente ha lasciato qualcosa addosso a `PROTETTA`. Non deve.",
+      "intents": [
+        { "unit": "TIRAP", "ability": "Hero.Wraith.PulseShot", "target": "PROTETTA" },
+        { "unit": "TIRAN", "ability": "Hero.Wraith.PulseShot", "target": "NUDA" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals", "unit": "PROTETTA", "value": 74 },
+    { "type": "UnitHpEquals", "unit": "NUDA",     "value": 58 },
+    { "type": "UnitAlive",    "unit": "PROTETTA", "value": true },
+    { "type": "UnitAlive",    "unit": "NUDA",     "value": true }
+  ]
+}

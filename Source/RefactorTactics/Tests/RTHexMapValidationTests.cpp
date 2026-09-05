@@ -43,7 +43,12 @@ namespace
 	}
 
 	/** Il muro continuo: diametro sull'asse, passante per il centro. Stessa forma dei test di posa. */
-	FRTGeometrySegment Diameter(ERTTacticalAxis Axis)
+	// ⚠️ **Il prefisso non e' stile: e' cio' che tiene in piedi l'unity build** (`#2271`). Questa funzione e
+	// quella di `RTHexCoverPlacementTests.cpp` erano entrambe `Diameter` in un namespace ANONIMO, che protegge
+	// dal linker ma non dal compilatore: quando il raggruppamento le mette nella stessa unita' il build muore
+	// con `C2084 ha gia' un corpo`. Il difetto era latente e si e' visto aggiungendo righe a un TERZO file di
+	// test, che ha cambiato il raggruppamento — cioe' colpisce chi passa di qui, non chi lo ha introdotto.
+	FRTGeometrySegment ValidationDiameter(ERTTacticalAxis Axis)
 	{
 		FRTGeometrySegment S;
 		S.Axis = Axis;
@@ -90,7 +95,7 @@ namespace
 		for (const ERTTacticalAxis Axis : { ERTTacticalAxis::Deg0, ERTTacticalAxis::Deg60,
 											ERTTacticalAxis::Deg120 })
 		{
-			Map->InteriorWalls.Add(FRTHexInteriorWall(Cell, Diameter(Axis)));
+			Map->InteriorWalls.Add(FRTHexInteriorWall(Cell, ValidationDiameter(Axis)));
 		}
 	}
 }
@@ -261,7 +266,7 @@ bool FRTHexMapDuplicateCoverSourceTest::RunTest(const FString&)
 	// lo porta, quindi le due opzioni di copertura risultanti sono indistinguibili.
 	URTHexMapAsset* Map = MakeValidationMap();
 
-	FRTGeometrySegment First = Diameter(ERTTacticalAxis::Deg0);
+	FRTGeometrySegment First = ValidationDiameter(ERTTacticalAxis::Deg0);
 	FRTGeometrySegment Second = First;
 	Second.Layer = First.Layer + 1;
 
@@ -275,8 +280,8 @@ bool FRTHexMapDuplicateCoverSourceTest::RunTest(const FString&)
 
 	// CONTROPROVA 1 — due muri davvero diversi (assi diversi) non producono nulla.
 	URTHexMapAsset* Distinct = MakeValidationMap();
-	Distinct->InteriorWalls.Add(FRTHexInteriorWall(ValidationOrigin, Diameter(ERTTacticalAxis::Deg0)));
-	Distinct->InteriorWalls.Add(FRTHexInteriorWall(ValidationOrigin, Diameter(ERTTacticalAxis::Deg60)));
+	Distinct->InteriorWalls.Add(FRTHexInteriorWall(ValidationOrigin, ValidationDiameter(ERTTacticalAxis::Deg0)));
+	Distinct->InteriorWalls.Add(FRTHexInteriorWall(ValidationOrigin, ValidationDiameter(ERTTacticalAxis::Deg60)));
 	TestEqual(TEXT("due muri su assi diversi non sono un duplicato di sorgente"),
 		CountReason(Distinct, ERTMapValidationReason::DuplicateCoverSource), 0);
 

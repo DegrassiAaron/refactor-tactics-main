@@ -220,6 +220,38 @@ namespace
 	}
 }
 
+int32 URTHexBotLibrary::ScoreObjectiveTerm(const URTHexMapAsset* Map, const FRTCellId& DestCell,
+	const FRTHexBotContext& Context)
+{
+	// ⚠️ **La guardia sul peso non e' ridondante: e' cio' che rende GRATIS il termine spento.** Il `Max` in
+	// fondo restituirebbe zero comunque, ma solo dopo aver percorso il grafo — e con `WObjective = 0`, che e'
+	// la forma della verifica di mutazione, si pagherebbe una BFS per goal per turno per non cambiare niente.
+	if (Context.WObjective <= 0 || Context.ObjectiveCells.Num() == 0)
+	{
+		return 0;
+	}
+
+	// L'obiettivo PIU' VICINO in passi. Oggi il perimetro e' una cella sola e questo ciclo gira una volta;
+	// con CP 31.1 (`#1583`) ne girera' quante sono, e la regola «vale il piu' vicino» e' gia' quella giusta.
+	//
+	// ⚠️ **`ApproachSteps` e non `HexDistance`**: il campo di distanze e' cachato per goal (`#1436`), quindi
+	// l'obiettivo aggiunge UNA voce alla cache e una BFS per turno — non una per candidata. E' la stessa
+	// misura con cui si paga l'avvicinamento al nemico dal 2026-08-23, e usarne una diversa qui rimetterebbe
+	// in gioco la metrica che mente (`#1287`): dietro un muro, «vicino» e «raggiungibile» non coincidono.
+	//
+	// ⚠️ **Non c'e' un caso «nessun cammino», e non e' una svista.** `ApproachSteps` risponde SEMPRE: quando
+	// il grafo non collega le due celle ripiega sulla distanza esagonale, con la stessa scelta — dichiarata
+	// li' — con cui gia' misura l'avvicinamento ai nemici. Un ramo per il cammino inesistente sarebbe codice
+	// morto, e chi lo leggesse penserebbe che il caso e' gestito quando invece non si presenta.
+	int32 Passi = MAX_int32;
+	for (const FRTCellId& Objective : Context.ObjectiveCells)
+	{
+		Passi = FMath::Min(Passi, ApproachSteps(Map, DestCell, Objective));
+	}
+
+	return FMath::Max(0, Context.WObjective - Context.WObjectiveFalloff * Passi);
+}
+
 int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context)
 {
 	int32 Score = 0;
@@ -260,6 +292,29 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 			if (Plan.AttackDamage >= Health)
 			{
 				Score += Context.WKill;
+			}
+
+			// ABBATTERE: uno spostamento su un bersaglio gia' `Status.Unbalanced` lo fa cadere `Prone`
+			// ([D-319], `#2253`) — niente reazione per il turno, Overwatch disarmato con la charge persa,
+			// predictive persa, e un punto movimento per rialzarsi.
+			//
+			// 🔑 **Perche' esiste un termine MIRATO invece del canale generico.** Il bot e' cieco agli
+			// status: `Source/RefactorTactics/Bot/` non aveva una sola occorrenza di `HasStatus`, ne' di
+			// `Push`/`Pull`. Senza intervento la catena sarebbe stata **a senso unico** nella v0.1, che e'
+			// 2v2 offline contro il bot: uno strumento del giocatore invece di una minaccia. Il framework
+			// che fa leggere ogni stato dipende da `STA-4`, aperta; un singolo termine no.
+			//
+			// ⚠️ **Debito dichiarato con il successore gia' nominato**: la Fase 2 sostituisce queste righe e
+			// porta con se' `Exposed`, `Marked` e `Guarded`, oggi ugualmente ignorati.
+			//
+			// ⛔ **Solo il bersaglio MIRATO, non chi l'area prende in piu'.** Lo spostamento si applica a
+			// tutti i colpiti, ma `HexKnockbackDestination` allontana dall'ATTACCANTE e le geometrie di
+			// un'area divergono: contare qui anche i secondari significherebbe promettere una caduta che il
+			// resolver decide con altri dati. L'errore va nella direzione sicura.
+			if (I == Plan.TargetIndex && Plan.bAttackDisplaces
+				&& Context.EnemyUnbalanced.IsValidIndex(I) && Context.EnemyUnbalanced[I])
+			{
+				Score += Context.WUnbalancedFollowUp;
 			}
 
 			// ORIENTAMENTO, verso offensivo (CP 13.5, ADR-0005 §4a): un colpo che non arriva dall'arco frontale
@@ -437,6 +492,25 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 		}
 	}
 
+	// OBIETTIVO — la condizione di vittoria del formato spedito, che fino a `#2269` il punteggio non nominava.
+	//
+	// 🔴 **Non e' una rifinitura: senza, il bot gioca un gioco diverso da quello che vince.** Misurato il
+	// 2026-09-04, 2v2 bot contro bot su `L_HexArena` con `Format.Skirmish2v2`: partita chiusa allo scadere
+	// dei round con `obiettivo 0-3`, un KO per parte, e i tre punti presi da un Riktor che in dodici turni
+	// non ha inflitto un solo danno. Era finito sulla cella `(0,-3,L0)` tre volte come migliore candidata di
+	// solo movimento, a punteggio **negativo** — cioe' per avvicinamento, minaccia e quota. Il punto arrivava
+	// dopo, nel Cleanup, e nessuno dei due bot lo stava giocando.
+	//
+	// ⚠️ **Vale su OGNI piano, con o senza attacco**, al contrario del bonus di ingaggio qui sopra. La
+	// ragione e' che le due domande sono diverse: `WEngage` chiede «da qui potro' sparare», che un piano che
+	// gia' spara ha gia' risolto; l'obiettivo chiede «da qui segno», che resta vero anche mentre si spara —
+	// ed e' proprio la candidata «resto sull'obiettivo e colpisco» quella che si vuole far emergere.
+	//
+	// ⚠️ **Non c'e' un termine per la CONTESA**, e il perimetro lo dichiara: con un obiettivo su una cella
+	// sola due unita' non ci stanno insieme, quindi «prendo» e «tolgo a lui» oggi coincidono. Distinguerli
+	// e' CP 31.1 (`#1583`), dove piu' celle rendono la contesa raggiungibile in partita.
+	Score += ScoreObjectiveTerm(Map, Plan.DestCell, Context);
+
 	// Elevazione: premia la quota della cella di destinazione.
 	//
 	// 🔴 **QUI SI E' FORMATO LO STATO ASSORBENTE DI #1088, e la difesa e' UN NUMERO — non questa formula.**
@@ -572,6 +646,9 @@ TArray<FRTHexBotPlan> URTHexBotLibrary::BuildCandidates(const FRTHexSnapshot& Sn
 			Attack.AreaRadius = Context.AttackAreaRadius;
 			Attack.RangeCells = Context.AttackRange;
 			Attack.bFriendlyFire = Context.bAttackFriendlyFire;
+			// Lo spostamento viaggia col piano come la forma, e per la stessa ragione: `ChooseBestPlan`
+			// confronta candidate nate da abilita' diverse, e una non deve ereditare la proprieta' dell'altra.
+			Attack.bAttackDisplaces = Context.bAttackDisplaces;
 			Attack.FromCell = Cell.FromCell;
 			Out.Add(Attack);
 		}

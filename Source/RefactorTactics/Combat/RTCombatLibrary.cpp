@@ -3,6 +3,11 @@
 #include "Map/RTHexVisionLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
 
+// Le due provenienze dei pool d'assorbimento (`#2213`). La ragione per cui la seconda non nomina un
+// `ActionId` sta sulla dichiarazione, in `RTCombatLibrary.h`.
+const FName URTCombatLibrary::GuardPoolSource = FName(TEXT("D-292 · Status.Guarded"));
+const FName URTCombatLibrary::ReactionReductionPoolSource = FName(TEXT("D-309 · Reactions.DamageReduction"));
+
 FRTDamageResult URTCombatLibrary::ApplyDamage(int32 Damage, ERTDamageSource Source, int32 Shield,
 	int32 TemporaryShield, int32 Health)
 {
@@ -40,24 +45,14 @@ ERTCombatOutcome URTCombatLibrary::ClassifyCombatOutcome(int32 HealthBefore, int
 	return ERTCombatOutcome::Hit;
 }
 
-int32 URTCombatLibrary::GainEnergy(int32 Current, int32 Gain, int32 Max)
-{
-	return FMath::Clamp(Current + Gain, 0, Max);
-}
-
-bool URTCombatLibrary::IsUltimateReady(int32 Energy, int32 Max)
-{
-	return Max > 0 && Energy >= Max;
-}
-
 int32 URTCombatLibrary::EffectiveMoveRange(int32 BaseRange, bool bRooted)
 {
 	return bRooted ? 0 : BaseRange;
 }
 
-bool URTCombatLibrary::IsAbilityUsable(int32 CooldownRemaining, int32 Energy, int32 EnergyCost)
+bool URTCombatLibrary::IsAbilityUsable(int32 CooldownRemaining)
 {
-	return CooldownRemaining <= 0 && Energy >= EnergyCost;
+	return CooldownRemaining <= 0;
 }
 
 bool URTCombatLibrary::IsIntentVisibleTo(int32 ObserverTeamId, int32 OwnerTeamId, bool bOwnerRevealed)

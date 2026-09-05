@@ -5,6 +5,9 @@
 #include "Perception/RTTeamKnowledge.h" // FRTKnowledgeVerdict: il verdetto congelato di [D-223], come in `RTTurnLog.h`
 #include "Ability/RTActionData.h" // ERTAbilityShape: la forma e' quella del catalogo, non una copia
 #include "Turn/RTTurnRules.h"
+// ERTStatusOutcome: la causa di un cambiamento di stato ha gia' un owner, e questo evento la trasporta
+// invece di ridefinirla (`#2245`). L'inclusione non e' circolare: `RTTurnLog.h` non include questo file.
+#include "Turn/RTTurnLog.h"
 #include "RTResolvedEvent.generated.h"
 
 /** Tipo di evento risolto, per la riproduzione temporizzata (playback) del turno. */
@@ -28,7 +31,60 @@ enum class ERTResolvedEventType : uint8
 	 * ⚠️ **In CODA e non accanto ad `Attack`**: e' un `uint8` esposto a Blueprint, e inserirlo in mezzo
 	 * rinumererebbe `HazardDamage` e `Defeated`, cambiando in silenzio ogni default gia' serializzato.
 	 */
-	AttackFootprint
+	AttackFootprint,
+
+	/**
+	 * Una reazione dichiarata è **scattata e si è risolta** (#2191): il momento in cui la difesa ha agito.
+	 *
+	 * 🔴 **Il momento non esisteva, e senza di esso due voci PIE non erano osservabili.** `PIE-VIS-DEFLECT`
+	 * lo dice per intero: senza questo evento *«la parata non ha un momento proprio: resta la sola barra che
+	 * scende poco»* — cioè esattamente l'*«attacco debole invece di una difesa riuscita»* che quella voce
+	 * esiste per escludere. E `PIE-VIS-INTERPOSE` chiede che *«entrambe le metà si vedano»* — il colpo che
+	 * parte verso uno e finisce sull'altro — dove la seconda metà era *«precisamente il momento che non
+	 * esiste»*.
+	 *
+	 * ⚠️ **Non è un `Attack`, e la differenza è il soggetto.** `Attack` dice *«questo colpo ha tolto N a
+	 * quello»*; qui il fatto è *«questa unità ha reagito»*, e il colpo che ne consegue — contrattacco,
+	 * riduzione, scudo — resta un evento suo. Un solo `Attack` con un flag non basterebbe: una
+	 * `DamageReduction` non produce nessun `Attack`, e sarebbe il caso più importante a restare invisibile.
+	 *
+	 * 🔑 **`SourceStableUnitId` è CHI reagisce; `TargetStableUnitId` è chi ha innescato**, cioè il verso
+	 * naturale della frase «X reagisce a Y». ⛔ Non il bersaglio del contrattacco: quello lo porta l'`Attack`
+	 * che segue, e duplicarlo qui creerebbe due fonti per lo stesso fatto.
+	 *
+	 * ⚠️ **In CODA, come `AttackFootprint`, e per la stessa ragione dichiarata sopra**: è un `uint8` esposto
+	 * a Blueprint, e inserirlo in mezzo rinumererebbe i valori successivi cambiando in silenzio ogni default
+	 * già serializzato.
+	 *
+	 * ⛔ **Che ASPETTO abbia non è deciso qui**: questo valore consegna il **momento**, non il suo VFX. La
+	 * grammatica visiva della reazione si decide quando c'è qualcosa da animare — ed è fuori dallo scope di
+	 * #2191, che lo dichiara.
+	 */
+	ReactionResolved,
+
+	/**
+	 * Uno stato è **nato o morto** su un'unità (`#2245`): `StatusTag` dice quale, `StatusOutcome` dice per
+	 * quale causa, `Amount` per quanti turni.
+	 *
+	 * 🔴 **UN valore e non due (`StatusApplied`/`StatusEnded`), perché la causa lo dice già.**
+	 * `ERTStatusOutcome` distingue nascita e morte da prima di questo evento, e con due valori d'enum
+	 * esisterebbero coppie **rappresentabili e impossibili** — un `StatusApplied` che porta `Revoked`. Il
+	 * verso si chiede a `URTTurnLogLibrary::IsStatusBirth`, che è l'unico posto che lo sa.
+	 *
+	 * ⚠️ **Dieci cause, non due.** Nascite: `AppliedByAction`, `AppliedByTerrain`, `AppliedWhileOnCell`,
+	 * `AppliedInstantly`. Morti: `Revoked` (ha lasciato la cella), `Expired` (è finito il tempo),
+	 * `Extinguished` (l'acqua), `Cleansed` (un'azione), `Spent` (`Marked` incassato, `#1314`), `ShakenOff`
+	 * (la vittima ha pagato per rialzarsi, `#2253`). Il TurnLog le distingue già tutte, e questo evento le
+	 * **trasporta** invece di ridurle.
+	 *
+	 * 🔑 **Non è emesso dai nove siti che le producono, ma dall'unico punto in cui la voce di log viene
+	 * scritta** — `AppendLogEntry`, dove sta *«l'UNICO `TurnLog.Add` del file»*. Ne segue che uno stato
+	 * aggiunto domani è coperto **per costruzione**, e che i due canali non possono divergere: il secondo
+	 * deriva dal primo.
+	 *
+	 * ⚠️ **In CODA, come `AttackFootprint` e `ReactionResolved`**, e per la stessa ragione già scritta sopra.
+	 */
+	StatusChanged
 };
 
 /**
@@ -153,6 +209,38 @@ struct FRTResolvedEvent
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	FRTCellId AimCell;
+
+	// --- Solo per `StatusChanged` (`#2245`). Di default per ogni altro `Type`. ---
+
+	/**
+	 * QUALE stato, con il nome del tag (`Status.Burning`, `Status.Root`, …).
+	 *
+	 * ⚠️ **`FName` e non `FGameplayTag`, ed è deliberato**: questo campo è **copiato** da
+	 * `FRTTurnLogEntry::ActionId`, che è già un `FName`, nello stesso punto in cui la voce viene scritta.
+	 * Un `FGameplayTag` costringerebbe a un `RequestGameplayTag` per ogni evento — una risoluzione che può
+	 * **fallire** — per riottenere ciò che il produttore aveva già in mano e ha convertito una riga sopra.
+	 * Chi consuma e vuole il tag lo risolve una volta sola, non a ogni evento.
+	 *
+	 * `NAME_None` = nessuno stato dichiarato: è ciò che portano tutti gli eventi che non sono
+	 * `StatusChanged`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FName StatusTag;
+
+	/**
+	 * PERCHÉ lo stato è nato o morto, con la tassonomia che il TurnLog usa già.
+	 *
+	 * 🔴 **Nessun enum nuovo, e nessuna riduzione a «applicato/finito».** Le cause sono **nove** e il
+	 * simulatore le distingue tutte: ridurle qui butterebbe informazione già registrata, e sarebbe la
+	 * seconda definizione di una tassonomia che ha già un owner — lo stesso difetto che
+	 * `SourceStableUnitId` documenta poco sopra per gli identificatori.
+	 *
+	 * ⚠️ **Il verso — nascita o morte — NON si deduce leggendo questo valore a occhio**: si chiede a
+	 * `URTTurnLogLibrary::IsStatusBirth`, che è l'unico posto che conosce la tassonomia e l'unico che un
+	 * decimo valore renderebbe rosso.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	ERTStatusOutcome StatusOutcome = ERTStatusOutcome::AppliedByAction;
 
 	FRTResolvedEvent() = default;
 };

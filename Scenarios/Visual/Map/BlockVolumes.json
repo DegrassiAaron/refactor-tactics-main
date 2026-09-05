@@ -1,0 +1,30 @@
+{
+  "scenarioId": "Visual.Map.BlockVolumes",
+  "tags": ["map", "viewport", "blockers", "gadget", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "BlockYard",
+
+  "_nota": "I TRE casi di blocco in una scena sola, per la voce `PIE-HEX-VIZ-BLOCCHI`. Non verifica una regola di gioco — la regola e' gia' pinnata da `HexMapActor.BlockerVolumesComeFromCellFlags`, che asserisce quattro volumi su tre celle e due altezze distinte. Costruisce la **configurazione** in cui la domanda della voce e' ponibile: colonna stretta e alta dove non si passa, lastra larga e bassa dove non si vede attraverso, e due volumi concentrici dove valgono entrambe.",
+
+  "_nota_perche_esiste": "⌫ La voce diceva «Nessuna fixture contiene i tre casi» e si allestiva **a mano con Paint** su `CoverYard`. Non e' piu' vero: `MakeBlockYardArena` costruisce i tre casi in fila, e il suo commento dichiara perche' — *«il caso solo-movimento non esisteva in nessuna delle otto fixture, ed e' sempre stato lui a mancare»*. Ma nessuno scenario la convocava: la fixture c'era e restava irraggiungibile a comando. 🔴 E l'allestimento manuale non e' un dettaglio di comodita': la voce e' caduta il 2026-08-20 (`#1246`) dopo un allestimento a mano, e chi si fermava a due casi su tre lasciava il confronto incompleto.",
+
+  "_nota_geometria": "Le tre celle stanno sulla riga `r = 0`, e l'ordine non e' estetico: `entrambi` sta **in mezzo**, adiacente a ciascuno dei due singoli, perche' il criterio chiede «due volumi concentrici, non una terza forma ambigua» e un confronto si fa col vicino, non attraverso la mappa. `(-1,0)` solo-movimento · `(0,0)` entrambi · `(1,0)` solo-vista. Tutte a `MoveCost = 1` e superficie `Floor`: un costo diverso aggiungerebbe il rilievo, e una superficie diversa darebbe al colore una seconda spiegazione — la voce chiede se si legge la **forma**.",
+
+  "_nota_unita": "Due unita' fuori dalla riga dei blocchi, a `r = -1` e `r = 1`. Servono da **scala**: un volume alto 55 uu si giudica accanto a qualcosa di cui si conosce l'altezza, e senza un'unita' in campo la board e' una tavola astratta. Non agiscono — `turns` e' vuoto, come in `Visual.Map.TwoLayersSameColumn`, che e' l'altro scenario-configurazione del corpus.",
+
+  "_nota_come_si_guarda": "In editor: `rt.Test.Scenario Visual.Map.BlockVolumes`, poi Play. ⚠️ **La voce chiede la vista a PICCO**, che e' quella di lavoro, ed e' li' che il giudizio e' caduto: le due forme si distinguono per altezza (55 contro 10) piu' scala planare (0.40 contro 0.75), e dall'alto l'altezza si proietta a zero. Le tre concause misurate stanno in `#1246`. ⛔ E il **velo** fa parte della misura: `VeilInstances` porta a scala zero i volumi delle celle mai viste ([D-225]), quindi si giudicano celle **osservate** — le due unita' in campo servono anche a questo.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [0, -1, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [0, 1, 0] }
+  ],
+
+  "turns": [],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 0 },
+    { "type": "UnitAtCell", "unit": "F1", "cell": [0, -1, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [0, 1, 0] }
+  ]
+}

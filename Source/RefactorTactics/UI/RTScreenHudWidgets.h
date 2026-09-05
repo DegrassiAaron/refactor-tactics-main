@@ -57,8 +57,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	bool HasMatchContext() const;
 
-	/** Inietta il contesto senza un `PlayerController`: e' il modo in cui i test guidano un widget. */
-	void SetMatchContextForTest(ARTTurnManager* InTurnManager, int32 InPlayerTeamId);
+	/**
+	 * Inietta il contesto senza un `PlayerController`: e' il modo in cui i test guidano un widget.
+	 *
+	 * ⚠️ **Prende un `TWeakObjectPtr` e non un puntatore nudo**, per la stessa ragione per cui
+	 * `SetSelectedUnitForTest` e' definita nel `.cpp`: `TWeakObjectPtr::operator=` vuole il tipo completo, e
+	 * `ARTTurnManager` qui e' solo forward-declared. Chiamandola con un `ARTTurnManager*` la conversione
+	 * avviene **nel chiamante**, che essendo un test l'header ce l'ha gia'. Vedi `Turn/RTTurnManagerAccess.h`
+	 * per il difetto che questa forma chiude.
+	 */
+	void SetMatchContextForTest(TWeakObjectPtr<ARTTurnManager> InTurnManager, int32 InPlayerTeamId);
 
 	/**
 	 * Inietta la SELEZIONE senza un `PlayerController`, ed e' l'altra meta' di `SetMatchContextForTest`.

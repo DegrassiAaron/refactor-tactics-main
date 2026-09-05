@@ -24,8 +24,14 @@ namespace
 		return Out.Add(Nuova);
 	}
 
-	/** `true` se la voce e' a `(Turno, Fase)` o prima, nell'ordine in cui la partita le ha attraversate. */
-	bool NonOltre(const FRTTurnLogEntry& E, int32 TurnNumber, ERTMatchPhase Phase)
+	/**
+	 * `true` se la voce e' a `(Turno, Fase, MicroStep)` o prima, nell'ordine in cui la partita le ha
+	 * attraversate.
+	 *
+	 * `MicroStep == INDEX_NONE` significa **la fase intera**, che e' il comportamento storico e resta il
+	 * default: in quel caso la terza coordinata non filtra nulla e ogni voce della fase entra.
+	 */
+	bool NonOltre(const FRTTurnLogEntry& E, int32 TurnNumber, ERTMatchPhase Phase, int32 MicroStep)
 	{
 		if (E.TurnNumber != TurnNumber)
 		{
@@ -33,7 +39,35 @@ namespace
 		}
 		// ⚠️ **`ERTMatchPhase` e' CRONOLOGICO**, ed e' una proprieta' dichiarata del tipo — non un'ipotesi
 		// di questo file: `RTReplayPlayerLibrary` si appoggia alla stessa cosa per dire «la prossima fase».
-		return static_cast<uint8>(E.Phase) <= static_cast<uint8>(Phase);
+		if (static_cast<uint8>(E.Phase) != static_cast<uint8>(Phase))
+		{
+			// Le fasi PRECEDENTI entrano per intero, micro-step compreso: sono finite, e una fase conclusa
+			// non ha barriere ancora da attraversare. Il taglio fine vale solo dentro la fase richiesta.
+			return static_cast<uint8>(E.Phase) < static_cast<uint8>(Phase);
+		}
+
+		// Da qui in giu' si e' DENTRO la fase richiesta.
+		if (MicroStep == INDEX_NONE)
+		{
+			return true; // fase intera: nessun taglio fine
+		}
+
+		// 🔴 **Le voci `INDEX_NONE` stanno DOPO ogni boundary, e qui restano fuori** (`#2272`).
+		//
+		// Sono le voci che dichiarano di non appartenere a un ciclo di micro-step, e la piu' importante e'
+		// `Action.Move`: `BuildMoveLog` gira dopo `FinishHexMovement`, quindi l'arrivo di un'unita' e'
+		// posteriore a **ogni** barriera che ha attraversato per arrivarci.
+		//
+		// ⛔ Il numero direbbe il contrario — `-1 < 0` — e seguirlo applicherebbe l'arrivo prima delle
+		// barriere: uno stato che la partita non ha mai attraversato, che e' esattamente cio' che l'header
+		// di `UnitsAtPosition` vieta a proposito del riordino. Il segno qui non e' un ordine, e' una
+		// categoria.
+		if (E.MicroStepIndex == INDEX_NONE)
+		{
+			return false;
+		}
+
+		return E.MicroStepIndex <= MicroStep;
 	}
 }
 
@@ -65,11 +99,19 @@ bool URTReplayStateLibrary::EntryChangesUnitState(const FRTTurnLogEntry& Entry)
 TArray<FRTTracedUnitState> URTReplayStateLibrary::UnitsAtPosition(const TArray<FRTTurnLogEntry>& Entries,
 	const TArray<FRTTracedUnitState>& Initial, int32 TurnNumber, ERTMatchPhase Phase)
 {
+	// La fase intera: `INDEX_NONE` come terza coordinata dice «non tagliare fine». Delegare invece di
+	// duplicare il ciclo e' cio' che tiene le due letture d'accordo per costruzione.
+	return UnitsAtBoundary(Entries, Initial, TurnNumber, Phase, INDEX_NONE);
+}
+
+TArray<FRTTracedUnitState> URTReplayStateLibrary::UnitsAtBoundary(const TArray<FRTTurnLogEntry>& Entries,
+	const TArray<FRTTracedUnitState>& Initial, int32 TurnNumber, ERTMatchPhase Phase, int32 MicroStepIndex)
+{
 	TArray<FRTTracedUnitState> Out = Initial;
 
 	for (const FRTTurnLogEntry& E : Entries)
 	{
-		if (!NonOltre(E, TurnNumber, Phase) || !EntryChangesUnitState(E))
+		if (!NonOltre(E, TurnNumber, Phase, MicroStepIndex) || !EntryChangesUnitState(E))
 		{
 			continue;
 		}

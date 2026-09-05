@@ -19,7 +19,16 @@ enum class ERTReplaySeekResult : uint8
 	/** Nessuna traccia della sequenza dichiara quel turno. Il cursore in uscita NON e' stato toccato. */
 	TurnNotFound,
 	/** Il turno esiste, ma nella sua traccia quella fase non ha prodotto nessuna voce. */
-	PhaseNotFound
+	PhaseNotFound,
+
+	/**
+	 * La fase c'e', ma nessuna sua voce appartiene al micro-step chiesto (`#1880`).
+	 *
+	 * ⚠️ **E' un esito distinto da `PhaseNotFound` e deve esserlo**: la fase esiste, quindi il turno si e'
+	 * svolto: cio' che manca e' quella barriera. Confonderli direbbe «la fase non c'e'» di un turno in cui
+	 * la fase c'era, ed e' l'errore che manda a cercare nel posto sbagliato.
+	 */
+	BoundaryNotFound
 };
 
 /**
@@ -91,6 +100,39 @@ public:
 	 */
 	static ERTReplaySeekResult SeekToPhase(const TArray<FRTTurnLogEntry>& Trace, ERTMatchPhase Phase,
 		int32& OutEntryIndex);
+
+	/**
+	 * Indice della prima voce del **boundary** — `(Phase, MicroStepIndex)` — dentro una traccia canonica
+	 * (`#1880`).
+	 *
+	 * 🔑 **E' la terza coordinata, e chiude la terna**: `SeekToTurn` trova il turno, `SeekToPhase` la
+	 * fase, questa il micro-step dentro la fase. Il boundary e' `(TurnNumber, Phase, MicroStepIndex)`, la
+	 * stessa terna che `FRTReactionOpportunityKey` usa gia' come identita' di una finestra di reazione.
+	 *
+	 * ⛔ **Trova il GRUPPO, non un evento.** Le voci che condividono il boundary sono state decise insieme:
+	 * questa funzione restituisce l'indice della prima in ordine canonico, che e' il punto da cui il gruppo
+	 * comincia — non «la prima che e' accaduta», perche' quella domanda non ha risposta.
+	 *
+	 * ⚠️ **Su una traccia phase-only — cioe' ANTECEDENTE a `WithMicroStep` — ogni voce vale
+	 * `MicroStepIndex == 0`**, e il comportamento e' dichiarato invece che dedotto: chiedere il boundary `0`
+	 * trova la prima voce della fase — e' l'unico boundary che quella traccia conosce, e rispondere e'
+	 * corretto; chiedere un boundary diverso da `0` da' `BoundaryNotFound`, perche' quella traccia davvero
+	 * non lo porta. Nessuna inferenza dalla posizione, nessun fallback alla fase intera.
+	 *
+	 * 🔴 **La precisazione «antecedente» non era necessaria finche' TUTTE le tracce erano phase-only.** Lo
+	 * erano: `#1880` aveva consegnato il campo e questo lettore, ma nessuno lo scriveva, quindi anche una
+	 * traccia `WithMicroStep` nasceva con ogni voce a `0`. Da `#2260` il resolver lo popola, e le due
+	 * famiglie divergono: in una traccia nuova lo `0` e' il PRIMO boundary di un ciclo che ne ha altri.
+	 *
+	 * ⛔ **`MicroStepIndex < 0` e' rifiutato con `BoundaryNotFound`, senza scandire la traccia** (`#2260`).
+	 * `INDEX_NONE` e' cio' che una voce scrive per dire *«non appartengo a nessun ciclo di micro-step»* —
+	 * Blast, status, hazard, i rifiuti in Planning — e quelle voci **non sono un gruppo simultaneo**:
+	 * condividono un valore, non una barriera che le abbia decise insieme. Rispondere `Found` le
+	 * trasformerebbe in una posizione indirizzabile, che e' lo stesso errore che `SeekToTurn` rifiuta sullo
+	 * `0` dei turni non dichiarati.
+	 */
+	static ERTReplaySeekResult SeekToBoundary(const TArray<FRTTurnLogEntry>& Trace, ERTMatchPhase Phase,
+		int32 MicroStepIndex, int32& OutEntryIndex);
 
 	/**
 	 * Cursore all'inizio del turno DICHIARATO da una traccia della sequenza.

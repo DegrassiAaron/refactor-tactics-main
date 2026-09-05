@@ -464,15 +464,25 @@ bool FRTHexBotSupportTest::RunTest(const FString&)
 	// la SCELTA DEL BOT («se sono ferito e ho un supporto su di me, lo uso invece di attaccare»), non chi
 	// possiede quell'azione: senza darne una all'unita' il ramo non e' raggiungibile e resterebbe senza
 	// verifica — e' l'unica che ha. Vedi #425 per la decisione su chi debba dichiararlo nel roster.
-	// Deve CURARE o schermare, non solo essere su di se': il ramo del bot chiede un effetto `Heal`/`Shield`.
-	// Costruita su `Action.Guard` per fase e slot — quello che le manca, e che qui conta, e' lo scudo:
-	// `Guard` applica uno stato difensivo e non rimette in piedi nessuno, quindi da sola non basta piu'.
-	// E' la stessa forma di `Guardian.Barrier`, l'azione per cui questo ramo era stato scritto: +40 scudo.
+	// Deve CURARE, non solo essere su di se' ne' genericamente difendere: il ramo del bot chiede un effetto
+	// `Heal`. Costruita su `Action.Guard` per fase e slot — quello che le manca, e che qui conta, e' il
+	// ripristino: `Guard` applica uno stato difensivo e non rimette in piedi nessuno.
+	//
+	// 🔴 **Era +40 di SCUDO, come `Guardian.Barrier`, ed e' diventata cura il 2026-09-04** (`#2283`).
+	// Non e' il test adattato alla sua implementazione: e' la stessa proprieta' misurata su un effetto che
+	// la regge. La condizione d'ingresso del ramo e' `Health * 2 < MaxHealth`, e uno scudo temporaneo non
+	// la scioglie — scade nel Cleanup senza toccare `Health`. Questo test dura UN turno, quindi non
+	// poteva vederlo: in partita il bot rientrava nel ramo a ogni ricarica e si parcheggiava (Wraith ferma
+	// 5 turni contro un limite di 4, con quattro test di partita rossi a cascata).
+	//
+	// ⚠️ Chi volesse riaprire il ramo allo scudo — `#464`, v0.2 — non cambi solo questa riga: serve
+	// prima togliere al ramo il `continue` incondizionato, o dargli un criterio di ripetizione. Con lo
+	// scudo, questo test resta verde e la partita si pianta lo stesso.
 	URTActionData* SelfSupport = NewObject<URTActionData>(Hurt);
 	SelfSupport->DisplayName = FText::FromString(TEXT("Barriera di prova"));
 	SelfSupport->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Guard"));
 	SelfSupport->Def.ActionId = FName(TEXT("Test.SelfSupport"));
-	SelfSupport->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Shield, 40));
+	SelfSupport->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Heal, 40));
 	SelfSupport->bSelfTarget = true;
 	SelfSupport->RangeCells = 0;
 	SelfSupport->Power = 0;

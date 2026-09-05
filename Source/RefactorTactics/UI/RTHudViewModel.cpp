@@ -6,6 +6,8 @@
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h" // l'autorita' su quale slot consuma un'azione
 #include "Core/RTGameplayTags.h"      // TAG_Status_Reveal: cosa rende un piano visibile all'avversario
+#include "UI/RTIconLibrary.h"         // MakeIconId: la chiave dell'icona si deriva dal tag, non si compone
+#include "Turn/RTReactionLibrary.h"   // ControlSeverityRank: la gravita' dei controlli ha gia' un owner (#2274)
 #include "Turn/RTIntentPrivacyLibrary.h"
 
 FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnManager)
@@ -48,7 +50,41 @@ FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnM
 		View.PlanningSecondsRemaining = TurnManager->GetPlanningTimeRemaining();
 	}
 
+	// Il countdown del Ready (`#2193`, `#2358`). **Una guardia sola**, e non e' una svista rispetto alle tre
+	// qui sopra: `IsReadyCountdownActive()` risponde sulla presenza del timer, non sul suo residuo, e il
+	// countdown si arma solo su input esplicito — quindi il varco che affligge `PlanningSecondsRemaining`
+	// (fase gia' Planning, timer non ancora armato) qui non esiste. Aggiungere `Phase == Planning` sarebbe
+	// una condizione che non puo' essere falsa: `RequestLockIn()` non arma niente fuori dal Planning.
+	if (TurnManager->IsReadyCountdownActive())
+	{
+		View.ReadyCountdownSecondsRemaining = TurnManager->GetReadyCountdownRemaining();
+	}
+
+	// Il derivato si pubblica **dopo** i due orologi, ed e' l'unico ordine possibile: legge
+	// entrambi. Chi riceve la vista intera trova il numero gia' fatto; chi la costruisce a mano
+	// chiama la funzione.
+	View.SecondsUntilCommit = ComputeSecondsUntilCommit(View);
+
 	return View;
+}
+
+float URTHudViewModel::ComputeSecondsUntilCommit(const FRTMatchHeaderView& Header)
+{
+	// Il countdown del Ready, quando e' armato, non decide da solo: il tetto del Planning lo accorcia se
+	// scade prima (`#2193`). `>= 0.f` e non `> 0.f` — uno zero qui significa «commit adesso», che e' un
+	// numero da mostrare, non un caso da escludere.
+	if (Header.ReadyCountdownSecondsRemaining >= 0.f)
+	{
+		// ⚠️ Il tetto entra **solo se si applica**: nelle run headless `PlanningSecondsRemaining` e'
+		// negativo, e un `Min` cieco restituirebbe quel negativo spegnendo l'unico orologio in corsa.
+		return (Header.PlanningSecondsRemaining > 0.f)
+			? FMath::Min(Header.ReadyCountdownSecondsRemaining, Header.PlanningSecondsRemaining)
+			: Header.ReadyCountdownSecondsRemaining;
+	}
+
+	// Senza Ready il commit arriva alla scadenza del Planning — e se quel campo dice «non si applica», la
+	// risposta e' la stessa: non c'e' nessun conto alla rovescia da mostrare.
+	return Header.PlanningSecondsRemaining;
 }
 
 FRTUnitCardView URTHudViewModel::BuildUnitCard(const ARTUnit* Unit, int32 PlayerTeamId)
@@ -63,8 +99,6 @@ FRTUnitCardView URTHudViewModel::BuildUnitCard(const ARTUnit* Unit, int32 Player
 	Card.Health = Unit->Health;
 	Card.MaxHealth = Unit->MaxHealth;
 	Card.Shield = Unit->Shield;
-	Card.Energy = Unit->Energy;
-	Card.MaxEnergy = Unit->MaxEnergy;
 	Card.bIsAlly = (Unit->TeamId == PlayerTeamId);
 	Card.bAlive = Unit->IsAlive();
 
@@ -139,6 +173,110 @@ FRTUnitSlotsView URTHudViewModel::BuildUnitSlots(const ARTUnit* Unit)
 	return Slots;
 }
 
+FRTUnitOverlayView URTHudViewModel::BuildUnitOverlay(const ARTUnit* Unit, int32 PlayerTeamId,
+	const TSet<FRTCellId>& PlannedHitCells, const TSet<FRTCellId>& PlannedAllyHitCells)
+{
+	FRTUnitOverlayView View;
+	if (Unit == nullptr)
+	{
+		// Vista neutra e non «zero»: un widget costruito prima dell'unita' mostra un vuoto, non un morto a
+		// 0 HP. E' la stessa scelta di `BuildMatchHeader`.
+		return View;
+	}
+
+	View.Card = BuildUnitCard(Unit, PlayerTeamId);
+	View.Statuses = BuildStatusBadges(Unit);
+
+	// Il nome CANONICO del catalogo ([D-120]), non l'ID stabile: `Hero.Gadget` si legge `Gadget`. Il
+	// ripiego sull'ID resta dentro `DisplayLabel`, per le unita' che nessun eroe ha configurato.
+	View.DisplayName = ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName());
+
+	// Gli stessi due colori che il canvas usava, e presi dalla stessa porta: chi guarda vede i propri in
+	// azzurro e gli altri in rosso, **non** «team 0 azzurro» — la distinzione conta per lo spettatore.
+	View.TeamColor = ARTUnit::TeamColorFor(View.Card.bIsAlly ? 0 : 1,
+		FLinearColor(0.55f, 0.75f, 1.f, 1.f), FLinearColor(1.f, 0.62f, 0.55f, 1.f));
+
+	// 🔴 **Chi viene colpito, marcato sull'UNITA' e non solo sulla cella.** L'anteprima a terra dice quali
+	// CELLE entrano nella zona; la domanda che ci si fa guardando lo schermo e' un'altra — «questo cilindro
+	// lo prendo o no?». Finche' c'era solo la prima, l'anteprima si vedeva e non si capiva (osservato in PIE
+	// il 2026-08-08).
+	//
+	// ⚠️ **Il fuoco amico VINCE sul bersaglio**: e' l'unico caso in cui chi guarda potrebbe voler cambiare
+	// idea, e due avvisi sullo stesso nome si annullerebbero a vicenda.
+	View.bFriendlyFire = PlannedAllyHitCells.Contains(Unit->Cell);
+	View.bTargeted = !View.bFriendlyFire && PlannedHitCells.Contains(Unit->Cell);
+
+	return View;
+}
+
+TArray<FRTStatusBadgeView> URTHudViewModel::BuildStatusBadges(const ARTUnit* Unit)
+{
+	TArray<FRTStatusBadgeView> Badges;
+	if (Unit == nullptr)
+	{
+		return Badges;
+	}
+
+	// L'elenco arriva gia' ordinato e senza duplicati, e le due sorgenti (a termine e legata alla cella)
+	// sono gia' unite: qui non si enumera niente per conto proprio.
+	TArray<FGameplayTag> Tags = Unit->GetActiveStatusTags();
+	Badges.Reserve(Tags.Num());
+
+	// L'ordine di presentazione si decide QUI, sui tag, prima di costruire le viste.
+	//
+	// 🔑 **La gravita' si CHIEDE, non si ricopia.** `ARTHUD::DrawHUD` mostrava `ROOT` e poi `SLOW` in un
+	// `if`/`else if`: lo stesso ordine di `ControlStatusesBySeverity`, scritto una seconda volta. Se quella
+	// lista cambiasse — o nascesse un terzo controllo — l'HUD sarebbe rimasto fermo, e il guardiano
+	// `Reaction.ControlStatusesAreTwo` non se ne sarebbe accorto: sorveglia la lista, non chi la copia.
+	//
+	// 🔴 **Si ordina sui TAG e non sulle viste** perche' il rango si chiede a un `FGameplayTag`: ordinare
+	// dopo costringerebbe a risolvere ogni `FName` indietro con `RequestGameplayTag` — dentro un
+	// comparatore, e con una chiamata che puo' fallire — per riottenere cio' che qui si ha gia' in mano.
+	//
+	// ⚠️ **`StableSort` e non `Sort`**: i non-controlli hanno tutti lo stesso rango, e senza stabilita' il
+	// loro ordine relativo — che `GetActiveStatusTags` ha reso deterministico apposta — tornerebbe a
+	// dipendere dall'implementazione del sort (invariante #4).
+	Tags.StableSort([](const FGameplayTag& A, const FGameplayTag& B)
+	{
+		const int32 RankA = URTReactionLibrary::ControlSeverityRank(A);
+		const int32 RankB = URTReactionLibrary::ControlSeverityRank(B);
+		const bool bControlA = (RankA != INDEX_NONE);
+		const bool bControlB = (RankB != INDEX_NONE);
+
+		if (bControlA != bControlB)
+		{
+			return bControlA; // i controlli davanti
+		}
+		if (!bControlA)
+		{
+			return false; // fra non-controlli decide l'ordine gia' stabilito: `StableSort` lo preserva
+		}
+		return RankA < RankB; // fra due controlli, `0` e' il piu' grave
+	});
+
+	for (const FGameplayTag& Tag : Tags)
+	{
+		FRTStatusBadgeView Badge;
+		Badge.Tag = Tag.GetTagName();
+		// La chiave dell'icona si DERIVA dall'identificatore stabile, non si compone accanto a lui.
+		Badge.IconId = URTIconLibrary::MakeIconId(Tag.GetTagName());
+
+		const int32 Remaining = Unit->GetStatusRemainingTurns(Tag);
+		Badge.bCellBound = (Remaining == ARTUnit::PersistentWhileOnCell);
+		// 🔴 `PersistentWhileOnCell` non attraversa questo confine: e' `-1`, e sopra la testa di un'unita' si
+		// leggerebbe «meno un turno». Chi disegna guarda `bCellBound`, che dice la stessa cosa senza fingere
+		// di essere un conteggio.
+		Badge.RemainingTurns = Badge.bCellBound ? 0 : FMath::Max(0, Remaining);
+
+		// L'appartenenza alla famiglia dei controlli la dichiara chi la possiede, non un elenco locale.
+		Badge.bIsControl = (URTReactionLibrary::ControlSeverityRank(Tag) != INDEX_NONE);
+
+		Badges.Add(Badge);
+	}
+
+	return Badges;
+}
+
 TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTUnit* Unit)
 {
 	TArray<FRTAbilityCooldownView> Cooldowns;
@@ -183,7 +321,8 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 			? FMath::Clamp(1.f - static_cast<float>(View.TurnsRemaining) / static_cast<float>(View.TotalTurns), 0.f, 1.f)
 			: 1.f;
 
-		// Usabile ADESSO e' un'altra domanda: `CanUseAbility` guarda ricarica **ed** energia.
+		// Usabile ADESSO: `CanUseAbility` guardava ricarica **ed** energia, e da `D-324` guarda la sola
+		// ricarica — quindi oggi risponde come `TurnsRemaining == 0`, per una ragione e non per caso.
 		View.bUsableNow = Unit->CanUseAbility(Index);
 
 		Cooldowns.Add(View);
@@ -244,4 +383,14 @@ TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray
 		Authoritative.Add(Intent);
 	}
 	return Authoritative;
+}
+
+FString URTHudViewModel::ComposeRoundCounter(const FRTMatchHeaderView& Header)
+{
+	// Il limite si nomina solo se il formato ne dichiara uno: `0` = «nessun limite», e stamparlo direbbe
+	// che la partita e' gia' scaduta. Vedi il commento della dichiarazione per perche' sta qui e non nei
+	// due chiamanti.
+	return Header.RoundLimit > 0
+		? FString::Printf(TEXT("Round %d/%d"), Header.Round, Header.RoundLimit)
+		: FString::Printf(TEXT("Round %d"), Header.Round);
 }

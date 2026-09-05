@@ -272,6 +272,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
 	TArray<FRTScenarioLogEntryView> GetLastRunLog() const { return Draft.GetLastRunLog(); }
 
+	/** Le tracce grezze dell'ultima corsa. Vuote se non si e' ancora corso (`#1625`). */
+	const TArray<FRTTurnTrace>& GetLastRunTraces() const { return Draft.GetLastRunTraces(); }
+
+	/**
+	 * `StableUnitId` -> identita' d'authoring, per l'ultima corsa (`#1625`).
+	 *
+	 * ⚠️ Vale per QUELLA corsa: gli id nascono da un roster ordinato per `TeamId`/`Cell`, quindi spostare
+	 * un'unita' li rimescola. Si dimentica insieme alle tracce.
+	 */
+	const TMap<int32, FString>& GetLastRunScenarioIds() const { return Draft.GetLastRunScenarioIds(); }
+
 	/**
 	 * Gli `HeroId` del roster, per popolare un menu senza scrivere i nomi a mano.
 	 *

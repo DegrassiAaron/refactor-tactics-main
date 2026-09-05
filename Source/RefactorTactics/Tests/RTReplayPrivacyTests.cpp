@@ -63,6 +63,10 @@ namespace
 		E.TurnNumber = 7;
 		E.GraphRevision = 9;
 		E.Priority = 55;
+		// `#1880`: la terza coordinata del boundary. Un valore diverso dal default, come ogni altro campo
+		// qui — la voce e' satura proprio perche' un campo lasciato al default non distinguerebbe
+		// «trasportato» da «dimenticato».
+		E.MicroStepIndex = 6;
 		E.OpportunityId = TEXT("OPP-1");
 		E.ReactionInstanceId = 11;
 		E.SelectedTargetUnitId = 43;

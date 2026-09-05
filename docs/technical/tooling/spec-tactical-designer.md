@@ -132,6 +132,14 @@ l'headless produce. Da questo discendono tre conseguenze verificabili:
    velocità non dipendono da quale sia attiva. `Instant` si riconosce **per nome** e non per un
    moltiplicatore vicino a zero — un consumatore che confrontasse il numero smetterebbe di riconoscerlo il
    giorno che quel valore cambia, e senza un errore.
+   ✅ **E dal 2026-09-03 anche sul playback vero** —
+   `RefactorTactics.DevSandboxLauncher.PlaybackTransportDelegatesAndDoesNotRerun` misura che, riprodotta
+   una corsa intera, `Instant` e `1x` finiscano **nello stesso turno, nella stessa fase, nello stesso
+   stato**. Sono due misure diverse dello stesso principio: la prima interroga la libreria delle
+   velocità, la seconda il trasporto che la usa. ⚠️ `Instant` non significa *«avanza a delta zero»*: un
+   frame di durata nulla non è tempo trascorso e viene rifiutato. Significa **nessuna attesa fra i
+   passi** — e il test misura quella differenza prima di usarla, perché altrimenti l'uguaglianza sarebbe
+   vera anche se scegliere la velocità non facesse nulla.
 3. **Un evento che il playback non sa rendere resta invisibile, non inventato.** Meglio una lacuna
    dichiarata di una ricostruzione plausibile: la seconda è indistinguibile da un dato, e nessuno la
    verifica.
@@ -139,6 +147,36 @@ l'headless produce. Da questo discendono tre conseguenze verificabili:
 Il trasporto per farlo esiste già e non va riscritto: `URTReplaySeekLibrary` (`SeekToPhase`, `SeekToTurn`,
 `SeekToTurnPhase`), l'esito tipizzato `ERTReplaySeekResult`, e `FRTReplayViewModel` — la logica in una
 `USTRUCT` non-`BlueprintType` con test propri, che è la stessa forma che il §5.2 descrive per l'authoring.
+
+✅ **Cablato dal 2026-09-03** ([#1625](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1625)).
+La catena è di tre strati, e nessuno dei tre calcola una fase o un turno:
+
+| Strato | Cosa fa | Cosa **non** fa |
+|---|---|---|
+| `SRTLauncherScenarioPanel` | pulsanti, etichette, e il delta al `Tick` | nessuna posizione propria: interroga il subsystem |
+| `URTScenarioPreviewSubsystem` | applica la posizione dichiarata e ridisegna | non decide quale sia la prossima |
+| `FRTReplayViewModel` | naviga, con i bordi e le fasi realmente presenti | non legge il campo, non disegna |
+
+🔑 **`FRTReplayViewModel::OpenFromTraces` è la porta che mancava.** Il view model si apriva solo da un
+archivio su disco, e l'esecuzione di uno scenario non è mai stata scritta su disco: senza questo secondo
+ingresso l'unico modo di riusare la navigazione sarebbe stato riscriverla nell'editor, cioè avere due
+implementazioni di *«fase successiva»* libere di divergere. Un test misura l'**equivalenza** — le stesse
+tracce, aperte per le due vie, si percorrono passo per passo identiche, bordi compresi.
+
+⚠️ **«Fase successiva» non è `Fase + 1`**, ed è la ragione tecnica per cui l'aritmetica è vietata e non
+solo sconsigliata: le fasi presenti in un turno dipendono da ciò che vi è successo — un turno senza
+reazioni non ha voci di `Blast` — e la lista vera è quella che il view model ricava dalla traccia con il
+seek. Un `+ 1` si fermerebbe su fasi vuote, mostrando il campo fermo su un istante che la partita non ha
+attraversato.
+
+⛔ **Il playback non riesegue**, e la misura non è una dichiarazione: il test **chiude il draft** prima di
+navigare. Chiuso quello non esiste più una sessione da cui ripartire, quindi se i marcatori continuano a
+muoversi lungo la traccia, la sorgente è la traccia. È anche il flusso reale — il pulsante «Esegui» chiude
+il draft subito dopo aver aperto il playback.
+
+🔴 **Il pulsante «Esegui» è il soggetto che mancava.** Prima del 2026-09-03 `URTScenarioAuthoring::Run`
+era chiamato **solo** dagli automation test: nessuna via umana eseguiva uno scenario dall'editor, quindi
+nessun playback avrebbe mai avuto una corsa da mostrare. I controlli senza di esso sarebbero stati inerti.
 
 ### 3.2 Due playback, due attori, e cosa si rompe se si fondono
 

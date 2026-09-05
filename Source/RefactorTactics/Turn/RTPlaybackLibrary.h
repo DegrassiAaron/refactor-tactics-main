@@ -189,4 +189,79 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static float EffectivePlaybackSpeed(float ViewerSpeed);
+
+	/**
+	 * `Alpha` del percorso di UNA unita': le **sue** celle al rate base, non la durata della fase (`#2370`).
+	 *
+	 * = `Clamp(PhaseElapsed * CellsPerSecond / RouteSegments, 0, 1)`
+	 *
+	 * 🔑 **E' l'inversa di `PhaseDuration` letta per-unita' invece che per-fase.** `PhaseDuration` dice
+	 * quanto dura la fase — `MaxSeg / CellsPerSecond`, il percorso piu' lungo — e questa dice a che punto
+	 * del proprio percorso si trova, allo stesso rate, chi ne ha uno piu' corto. Il percorso piu' lungo
+	 * arriva a `1` esattamente quando la fase finisce: le due formule non possono divergere.
+	 *
+	 * ⚠️ **Sostituisce l'`Alpha` unico condiviso da tutte le anim della fase**, e lo sostituisce per un
+	 * difetto misurato: `Clamp(PhaseElapsed / PhaseDur, 0, 1)` normalizzava ogni percorso sulla durata
+	 * decisa dal **piu' lungo**, e poiche' `InterpolateAlongPath` distribuisce `Alpha` sull'intero
+	 * percorso, 2 celle e 10 celle finivano nello **stesso istante**. La velocita' visuale effettiva di
+	 * chi ne aveva `S` in una fase da `M` era `CellsPerSecond * S/M` — con i default, 2 celle accanto a 10
+	 * si percorrevano a `0,288` celle/s invece di `1,44`.
+	 *
+	 * 🔑 **E' la stessa invariante di `#1878` applicata a un secondo canale.** Li' era il tetto di durata a
+	 * decidere la velocita' visuale, verso l'alto; qui e' la durata di fase — decisa da un percorso altrui —
+	 * a deciderla verso il basso. `SlackScaleForBudget` garantisce che il movimento non scenda mai sotto
+	 * `MaxSeg / CellsPerSecond`: vero per il percorso piu' lungo, e per nessun altro.
+	 *
+	 * ✅ **Allinea l'ingresso-cella al confine canonico.** `StepMicroStep` mette le barriere a
+	 * `k / CellsPerSecond` secondi (`AlphaTarget * Durata` con `Durata = MaxSeg / CellsPerSecond`): con
+	 * questa formula, al confine `k` ogni unita' e' esattamente sulla propria cella `k` — o e' arrivata.
+	 * Con l'`Alpha` condiviso era a `k/MaxSeg` del proprio percorso, cioe' in mezzo a un segmento.
+	 *
+	 * `RouteSegments <= 0` (percorso vuoto o di un solo waypoint) e `CellsPerSecond <= 0` (movimento
+	 * istantaneo) restituiscono `1`: non c'e' nulla da attraversare, e non e' una divisione per zero.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static float RouteAlpha(int32 RouteSegments, float PhaseElapsed, float CellsPerSecond);
+
+	/**
+	 * Quanti **micro-step** contiene un percorso di playback: `Waypoints.Num() - 1`, mai negativo (`#1879`).
+	 *
+	 * 🔑 **Non e' una granularita' nuova: e' quella che il playback gia' interpola.**
+	 * `InterpolateAlongPath` dichiara che *«1 passo logico = 1 segmento»* e assegna a ogni segmento la
+	 * stessa frazione di `Alpha`. Un micro-step del playback **e'** un segmento, e contarli e' contare i
+	 * waypoint meno l'origine.
+	 *
+	 * ⚠️ Un percorso vuoto o con un solo waypoint vale `0`: un'unita' che non si e' mossa non ha barriere
+	 * da attraversare, e chi divide per questo conteggio deve trattarlo prima di dividere.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static int32 MicroStepsInPath(const TArray<FVector>& Waypoints);
+
+	/**
+	 * L'`Alpha` al confine del micro-step `StepIndex`, su un percorso che ne ha `StepCount` (`#1879`).
+	 *
+	 * `StepIndex` 0 e' l'inizio, `StepCount` e' la fine: e' l'inversa esatta di `InterpolateAlongPath`, che
+	 * divide `[0,1]` in `StepCount` frazioni uguali.
+	 *
+	 * ⚠️ `StepCount <= 0` -> `1.f`, cioe' «fine»: una fase senza segmenti e' gia' conclusa, e restituire `0`
+	 * la lascerebbe in attesa di un avanzamento che non puo' avvenire.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static float AlphaAtMicroStep(int32 StepIndex, int32 StepCount);
+
+	/**
+	 * L'`Alpha` del **prossimo** confine di micro-step dopo `Alpha`, cioe' dove si ferma uno `Step` (`#1879`).
+	 *
+	 * 🔴 **Strettamente maggiore, e qui sta la regola**: da un `Alpha` che e' gia' esattamente su un confine
+	 * si avanza al successivo. Un `>=` lascerebbe `Step` fermo sul posto ogni volta che lo si preme due
+	 * volte di fila su un boundary — che e' precisamente l'uso per cui esiste.
+	 *
+	 * ⚠️ Non supera mai `1.f`: uno `Step` oltre l'ultimo segmento porta a fine fase e non oltre. Chi vuole
+	 * passare alla fase successiva lo decide altrove; questa funzione non conosce le fasi.
+	 *
+	 * ⛔ **Il valore restituito e' un confine, mai un punto intermedio.** E' cio' che rende
+	 * `StepExecutesWholeMicroStep` vero per costruzione: non esiste un ingresso che produca mezzo segmento.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static float NextMicroStepBoundary(float Alpha, int32 StepCount);
 };

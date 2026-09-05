@@ -700,14 +700,21 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// a uno stato che non esiste.
 		for (const FRTActionEffectSpec& Spec : Ability->Def.Effects)
 		{
-			if (Spec.Effect != ERTActionEffect::SetDoorState)
+			const bool bToggles = Spec.Effect == ERTActionEffect::ToggleDoorState;
+			if (Spec.Effect != ERTActionEffect::SetDoorState && !bToggles)
 			{
 				continue;
 			}
-			if (Spec.Amount >= 0 && Spec.Amount <= static_cast<int32>(ERTHexDoorState::Destroyed))
+			// ⚠️ `ToggleDoorState` NON legge `Amount`: non c'e' nessuno stato da dichiarare, quindi non c'e'
+			// nessun intervallo da validare. Lo stato lo calcola il resolver leggendo la porta pre-Blast
+			// ([`INT-7`], `#2380`) — e' l'unica differenza fra i due rami, e sta tutta qui.
+			if (bToggles || (Spec.Amount >= 0 && Spec.Amount <= static_cast<int32>(ERTHexDoorState::Destroyed)))
 			{
 				Intent.bChangesDoor = true;
-				Intent.DoorState = static_cast<ERTHexDoorState>(Spec.Amount);
+				Intent.bTogglesDoor = bToggles;
+				Intent.DoorState = bToggles
+					? ERTHexDoorState::Closed // ignorato: `CollectHexAttacks` risolve in una locale
+					: static_cast<ERTHexDoorState>(Spec.Amount);
 
 				// Il bordo che il giocatore ha CLICCATO, se l'ha dichiarato (CP 10.1, `#74`). Lo stesso campo
 				// del piano che il ramo delle coperture legge da sempre: qui non arrivava, e l'operazione
@@ -1131,6 +1138,16 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		return InterruptedIntents.Contains(IntentIdx);
 	});
 
+	// 🔴 **E lo stesso per i rifiuti di commutazione** ([`INT-7`], `#2380`): un `Interact` su una porta
+	// `Locked`, interrotto nello stesso Blast, lascerebbe nel TurnLog sia `Interrupted` sia
+	// `Fallback/Cancelled` con `DoorLocked`. Vale la ragione scritta qui sopra parola per parola — quando due
+	// motivi sono veri vince quello che ha fermato l'azione per primo — e si filtra QUI perche' la coerenza
+	// e' una proprieta' del punto in cui si cancella, non una disciplina da ricordare in tre posti.
+	Plan.DoorToggleRefusals.RemoveAll([&InterruptedIntents](const FRTDoorToggleRefusal& Refusal)
+	{
+		return InterruptedIntents.Contains(Refusal.IntentIndex);
+	});
+
 	// 🔴 **E l'impronta dell'area sparisce con l'azione che l'avrebbe prodotta** ([D-301]). Un colpo
 	// interrotto non ha investito nessuna cella: lasciarne il footprint mostrerebbe a schermo un'area che
 	// il resolver ha annullato — cioe' una presentazione che contraddice l'esito, che e' il difetto
@@ -1216,6 +1233,32 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 			Unit->ConsumeAbility(ReactionIdx);
 			++Unit->ReactionActivationsThisTurn; // [D-092]: anche l'interposizione spende l'attivazione
 			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
+
+			// IL MOMENTO DELL'INTERPOSIZIONE (`#2191`), e questo file e' l'ALTRO punto in cui una reazione
+			// si risolve.
+			//
+			// 🔴 **Senza questa riga `PIE-VIS-INTERPOSE` resta senza il suo momento, e la sua voce dice il
+			// contrario.** L'evento e' nato in `RTTurnManager.cpp`, dove passano le reazioni generiche —
+			// `Deflect`, `Counter` — e il registro ne ha dedotto che entrambe le voci fossero coperte. Ma
+			// l'interposizione NON passa di li': ha il proprio ramo, questo, e da qui non usciva niente.
+			// Misurato: `ResolvedTimeline` compariva **zero** volte in questo file.
+			//
+			// ⚠️ **I due soggetti sono quelli del TRASFERIMENTO, non quelli del colpo**: `Source` e' chi si
+			// interpone, `Target` chi era il bersaglio. E' la stessa coppia che la voce di TurnLog scrive qui
+			// sotto con `SrcCell`/`TgtCell`, detta per identita' invece che per cella — risolvere una cella
+			// in un'unita' e' l'inferenza che [D-063] vieta.
+			//
+			// 🔑 E' la **seconda meta'** che quella voce chiede di vedere: la prima — il colpo che parte
+			// verso il bersaglio originale — arriva gia' come `Attack`. Il runbook la chiama «il caso piu'
+			// difficile del corpus» proprio perche' il trasferimento non aveva un momento proprio.
+			{
+				FRTResolvedEvent Ev;
+				Ev.Phase = ERTMatchPhase::Blast;
+				Ev.Type = ERTResolvedEventType::ReactionResolved;
+				Ev.SourceStableUnitId = Unit->StableUnitId;                  // chi si interpone
+				Ev.TargetStableUnitId = Units[OriginalTarget]->StableUnitId;  // chi era il bersaglio
+				ResolvedTimeline.Add(Ev);
+			}
 			// Bersaglio ORIGINALE -> bersaglio FINALE: il TurnLog deve dire da chi a chi e' passato il colpo,
 			// altrimenti un danno comparso su un'unita' mai bersagliata risulterebbe inspiegabile nel replay.
 			Entry.SrcCell = Units[OriginalTarget]->Cell;
@@ -1390,6 +1433,56 @@ void ARTTurnManager::LogBlockedIntents(const FRTBlastContext& Ctx)
 			Doorless.bHasDeclaredDoorEdge
 				? TEXT("nessuna porta sul bordo dichiarato")
 				: TEXT("nessuna porta sulla traiettoria")),
+			FRTLogSubject::Unit(Actor));
+	}
+
+	// COMMUTAZIONI RIFIUTATE ([`INT-7`], `#2380`): la porta c'era, e non ha un opposto.
+	//
+	// 🔑 **Motivo PROPRIO e non `NoEffect`.** Il pass qui sopra dice «non avevo niente su cui agire»; questo
+	// dice «avevo esattamente qualcosa, e la regola lo vieta». Sono due situazioni con rimedi diversi — la
+	// prima si corregge cliccando un altro bordo, la seconda no — e un motivo solo per entrambe manderebbe
+	// il giocatore a cercare la causa dove non e'.
+	//
+	// ⚠️ **E i due stati portano motivi DISTINTI.** `Locked` e' uno stato da cui l'apertura autorizzata di
+	// CP 10.1 fara' uscire chi ne ha diritto; `Destroyed` e' TERMINALE e non ci sara' nessuna chiave. Dirlo
+	// con un motivo solo affermerebbe che le due hanno lo stesso rimedio.
+	for (const FRTDoorToggleRefusal& Refusal : Plan.DoorToggleRefusals)
+	{
+		if (!Intents.IsValidIndex(Refusal.IntentIndex)) { continue; }
+		const FRTHexAttackIntent& Refused = Intents[Refusal.IntentIndex];
+		if (!HexUnits.IsValidIndex(Refused.AttackerId)) { continue; }
+
+		// La coppia di celle E' IL BORDO, con la stessa convenzione del pass qui sopra e per la stessa
+		// ragione ([D-196]): due rifiuti della stessa unita' verso la stessa cella ma su bordi DIVERSI non
+		// devono produrre righe identiche byte a byte.
+		const FRTCellId RefusedCell = HexUnits.IsValidIndex(Refused.TargetId)
+			? HexUnits[Refused.TargetId].Cell : Refused.TargetCell;
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Blast;
+		Entry.Category = ERTLogCategory::Fallback;
+		Entry.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		Entry.SrcCell = RefusedCell;
+		Entry.TgtCell = Refused.bHasDeclaredDoorEdge
+			? URTHexLibrary::Neighbor(RefusedCell, Refused.DeclaredDoorEdge)
+			: RefusedCell;
+		Entry.Amount = static_cast<int32>(Refusal.State == ERTHexDoorState::Destroyed
+			? ERTActionInvalidReason::DoorDestroyed
+			: ERTActionInvalidReason::DoorLocked);
+		if (IntentDefs.IsValidIndex(Refusal.IntentIndex))
+		{
+			Entry.ActionId = IntentDefs[Refusal.IntentIndex].ActionId;
+			Entry.BaseActionId = IntentDefs[Refusal.IntentIndex].BaseActionId;
+			Entry.Priority = IntentDefs[Refusal.IntentIndex].Priority;
+		}
+
+		ARTUnit* Actor = Units.IsValidIndex(Refused.AttackerId) ? Units[Refused.AttackerId] : nullptr;
+		AppendLogEntry(Entry, Actor);
+		AddLogEvent(FString::Printf(TEXT("%s: %s"),
+			Actor ? *Actor->GetName() : TEXT("unita'"),
+			Refusal.State == ERTHexDoorState::Destroyed
+				? TEXT("la porta e' distrutta: non c'e' piu' niente da commutare")
+				: TEXT("la porta e' bloccata: serve un'apertura autorizzata")),
 			FRTLogSubject::Unit(Actor));
 	}
 }
@@ -1677,6 +1770,63 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 	TMap<ARTUnit*, FRTDisplacementCause>& PushCause = Ctx.PushCause;
 	TMap<ARTUnit*, FRTDisplacementCause>& PullCause = Ctx.PullCause;
 
+	// LA CADUTA ([D-319], `#2253`): chi subisce uno spostamento forzato mentre e' `Unbalanced` finisce
+	// `Prone`, e `Unbalanced` si consuma.
+	//
+	// 🔑 **Chiamata DOPO `ApplyForcedDisplacement`, e non prima**, perche' la regola e' *«niente movimento,
+	// niente caduta»*: ogni ramo che resiste — ancoraggio, guardia, irrigidimento, forze contraddittorie,
+	// destinazione impossibile o contesa — esce con un `continue` prima di arrivare qui, e la sede in cui
+	// quell'esito si legge nel replay resta `ERTMoveOutcome::DisplacementResisted` (`#420`).
+	//
+	// 🔑 **`Unbalanced` si CONSUMA, ed e' un tetto naturale**: chi si rialza e' stabile e non puo' essere
+	// riabbattuto subito, quindi due avversari che spingono a turno non producono una catena di `Prone`
+	// senza fine. L'esito e' `Spent` — lo stato ha fatto il suo lavoro, come `Status.Marked` incassato — e
+	// non `Cleansed`, che direbbe che qualcuno ha speso un'azione per toglierlo.
+	//
+	// ⚠️ **Fase `Blast`, non `Cleanup`**: e' qui che accade. Il default di `MakeStatusDeathEntry` resta
+	// `Cleanup` per non muovere le voci gia' serializzate, e i siti nuovi passano la fase vera.
+	auto CadeSeSbilanciato = [this](ARTUnit* T)
+	{
+		if (!IsValid(T) || !T->IsAlive() || !T->HasStatus(TAG_Status_Unbalanced))
+		{
+			return;
+		}
+		T->RemoveStatus(TAG_Status_Unbalanced);
+		FRTTurnLogEntry Consumato = MakeStatusDeathEntry(TAG_Status_Unbalanced, T->Cell,
+			ERTStatusOutcome::Spent, ERTMatchPhase::Blast);
+		AppendLogEntry(Consumato, T);
+
+		FRTTurnLogEntry Caduto = MakeStatusBirthEntry(ERTMatchPhase::Blast, TAG_Status_Prone, T->Cell,
+			URTCombatLibrary::ProneDurationTurns, /*bFromTerrain=*/ false);
+		ApplyStatusLogged(T, TAG_Status_Prone, URTCombatLibrary::ProneDurationTurns);
+		AppendLogEntry(Caduto, T);
+
+		// (1) NIENTE REAZIONE per il resto del turno. Si riusa `ReactionBlockedThisTurn`, che e' il
+		// meccanismo con cui `Action.Sprint` gia' fa la stessa cosa (CP 5.1): entrambi i punti che
+		// producono `ERTReactionOutcome::Unavailable` — quello generico e quello dell'interposizione — lo
+		// leggono gia'. Un terzo controllo scritto a mano in due `if` sarebbe una seconda regola da tenere
+		// d'accordo con la prima.
+		// ⚠️ **Copre il resto di QUESTO turno**; il turno successivo lo copre `ResolveDash`, che al reset
+		// rimette dentro chi e' ancora a terra — `Prone` dura 2 apposta.
+		ReactionBlockedThisTurn.Add(T);
+
+		// (2) OVERWATCH DISARMATO, con la CHARGE SPESA. `bCharged = false` e' esattamente il
+		// `ReactionStillArmed` di ADR-0004 §6 che il ciclo dei watcher legge per primo: l'armamento resta
+		// nella lista — quindi il replay lo vede — e non spara piu'. Perdere la charge e' il punto: apre la
+		// linea di gioco «spingo per disarmare», che e' cio' per cui [D-319] mette il blocco su `Prone` e
+		// non su `Unbalanced`.
+		for (FRTArmedOverwatch& Armed : ArmedOverwatches)
+		{
+			if (Armed.Owner.Get() == T) { Armed.bCharged = false; }
+		}
+
+		// (3) PREDICTIVE ARMATA PERSA. `FRTArmedPrediction` non ha una charge da spegnere — la lista **e'**
+		// lo stato — quindi si rimuove. ⚠️ Tocca il thin slice v0.1 `Hero.Wraith.InterceptShot`: una scelta
+		// dichiarata e pagata un turno prima viene cancellata da una spinta, ed e' il punto che il brief §8.4
+		// lascia da confermare con E18 davanti. Implementato come [D-319] lo descrive, non oltre.
+		ArmedPredictions.RemoveAll([T](const FRTArmedPrediction& A) { return A.Shooter.Get() == T; });
+	};
+
 	// --- Ancoraggio (CP 7.5, `#505`): il punto di valutazione degli SPOSTAMENTI ----------------------
 	// Spinte e trazioni sono decise — raccolte in `KnockCount`/`PullCount` — e non ancora applicate. E' il
 	// solo momento in cui `Reaction.Anchor` puo' annullarle: dopo, annullare vorrebbe dire rimettere indietro
@@ -1686,8 +1836,9 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 	// deve reagire una volta sola, e «una attivazione per turno» e' una garanzia del pass — chiamandolo due
 	// volte la si perderebbe qui invece che nel catalogo.
 	//
-	// Risultato in una struct PROPRIA: `Reactions` e' gia' stata consumata piu' sopra (deflect nei delta del
-	// primo danno, contrattacchi negli attacchi), e riusarla farebbe ripartire `DeflectDelta` da zero.
+	// Risultato in una struct PROPRIA: `Reactions` e' gia' stata consumata piu' sopra (il `Deflect` come POOL
+	// d'assorbimento — [D-309] —, i contrattacchi negli attacchi), e riusarla farebbe ripartire
+	// `DeflectDelta` da zero.
 	// Di questo punto si consuma `CancelledDisplacements` e basta: un contrattacco dichiarato da una reazione
 	// allo spostamento arriverebbe a colpi gia' risolti, quindi il catalogo non lo prevede (`Reaction.Anchor`
 	// dichiara solo `CancelDisplacement`).
@@ -1762,6 +1913,22 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 
 			if (!Pushes || *Pushes != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
 
+			// `Status.Unbalanced` amplifica di UNA cella la spinta subita ([D-319], `#2253`).
+			//
+			// 🔑 **Una volta per BERSAGLIO, e per questo sta qui e non dove `KnockDist` accumula.** Quel
+			// punto vede un EVENTO per volta: `Weapon.Impact` accoda un secondo `Push 1` all'attacco base di
+			// Phase (D-085), quindi amplificare la' darebbe `+2` a chi porta quel loadout e `+1` a tutti gli
+			// altri — un numero che dipende da quante volte la stessa spinta e' stata scritta invece che
+			// dallo stato di chi la subisce. Qui il bersaglio e' uno e la somma e' gia' fatta.
+			//
+			// ⚠️ **Prima di `Guarded`, e l'ordine e' la meta' della regola**: quel ramo confronta
+			// `KnockDist[T]` con `GuardResistedPushDistance`. Amplificare dopo lo lascerebbe misurare la
+			// spinta che il bersaglio *avrebbe* subito se fosse stato in piedi.
+			if (T->HasStatus(TAG_Status_Unbalanced))
+			{
+				KnockDist.FindOrAdd(T) += URTCombatLibrary::UnbalancedExtraDisplacement;
+			}
+
 			// `Reaction.Anchor` (CP 7.5, `#505`) annulla lo spostamento a QUALUNQUE distanza: «impedisce una
 			// spinta» e' un conteggio, non una soglia (D-094), e «una» la garantisce l'attivazione unica del
 			// pass.
@@ -1786,7 +1953,16 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// DEFAULT di Phase (D-089). Fino a CP 7.1 questo ramo assorbiva ogni spinta del gioco e il commento
 			// diceva cosi'; ora cede, e il ramo `Braced` sotto **aggiunge copertura davvero**.
 			// Pinnato da `Equipment.PushTwoSeparatesGuardFromBrace`.
-			if (T->HasStatus(TAG_Status_Guarded) && KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
+			//
+			// ⚠️ **`Unbalanced` rende la guardia inerte QUI, e solo qui** ([D-319]): chi ha perso
+			// l'equilibrio non puo' piantarsi per non cadere. ⛔ **L'inerzia si ferma allo spostamento**, e
+			// non e' una mezza misura: il pool da 15 sull'arco frontale ([D-292]) resta intatto, perche'
+			// l'argomento di design parla di equilibrio e non di protezione, e cancellarlo sposterebbe il
+			// bilanciamento di due eroi — tre pin lo misurano (`Spec.Brace.GuardAndBraceOnMixedHit`,
+			// `Spec.Brace.BraceWinsOnSecondHit`, `Visual.Combat.GuardVsBraceUnderSmallHits`). Il prezzo
+			// dello strato di danno resta una decisione aperta, non un effetto collaterale.
+			if (T->HasStatus(TAG_Status_Guarded) && !T->HasStatus(TAG_Status_Unbalanced)
+				&& KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: in guardia, resiste alla spinta"), *T->GetName()), FRTLogSubject::Unit(T));
 				// La stringa sopra e' per l'HUD e non finisce nel file (#420): la voce di TurnLog e' questa, ed
@@ -1810,14 +1986,22 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// ramo regge. La distanza torna a essere un asse che separa le due difese, e non per una v0.2:
 			// oggi, con il loadout di default di Phase.
 			//
-			// Resta vero che le due differiscono anche nel danno (-15 sul primo colpo contro -10 su ogni
-			// colpo), pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit`.
+			// Resta vero che le due differiscono anche nel danno (un POOL di 15 sull'arco frontale, [D-292],
+			// contro -10 su OGNI colpo da ogni lato), pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e
+			// `Spec.Brace.BraceWinsOnSecondHit`. ⏱️ *Questa riga diceva «-15 sul primo colpo» fino al
+			// 2026-09-03: sotto la soglia del pool il confronto si CAPOVOLGE — con colpi da 8 il `Brace`
+			// azzera tutto e la Guardia no — e lo mostra `Visual.Combat.GuardVsBraceUnderSmallHits`.*
 			// Il caso della spinta di 2 e' pinnato da `Equipment.PushTwoSeparatesGuardFromBrace`.
 			//
 			// ⚠️ Ha una conseguenza su `BAL-1` ([#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403)):
 			// l'opzione «`Guard` solo danno, `Brace` solo spostamento» era stata **preclusa** perche' senza
 			// una spinta >= 2 avrebbe lasciato `Brace` senza mestiere. Quel mestiere ora esiste.
-			if (T->HasStatus(TAG_Status_Braced))
+			// ⚠️ Stessa clausola della guardia, e per la stessa ragione ([D-319], `#2253`): chi e'
+			// `Unbalanced` non regge la spinta. ⛔ E anche qui **solo lo spostamento**: il −10 su ogni colpo
+			// resta. ⏱️ Nota sul `+1` di poco sopra — con entrambe le difese inerti sullo spostamento, il
+			// valore non serve piu' a *battere* una difesa: compra distanza contro chi non ne ha, ed e' cio'
+			// che porta il bersaglio a `Prone` invece che a un passo indietro.
+			if (T->HasStatus(TAG_Status_Braced) && !T->HasStatus(TAG_Status_Unbalanced))
 			{
 				// ➕ **[D-047], fetta 3 di E14.7: da qui il `Brace` non decide piu' da solo.** Le risposte
 				// legali vengono dal Reaction Profile che l'unita' porta, e la loro CARDINALITA' dice se si
@@ -2024,8 +2208,20 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			}
 
 			ARTUnit* T = KTargets[a];
+			const bool bScartato = Sidestepped.Contains(T);
 			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause,
-				Sidestepped.Contains(T) ? TEXT("Scarto") : TEXT("Spinta"), Map, ERTMatchPhase::Blast);
+				bScartato ? TEXT("Scarto") : TEXT("Spinta"), Map, ERTMatchPhase::Blast);
+
+			// ⛔ **Lo SCARTO non fa cadere, ed e' una scelta dichiarata.** `Sidestep` e' una risposta di
+			// reazione riuscita — il bersaglio esce dalla linea *invece* di arretrare — e la spinta non ha
+			// ottenuto quello per cui era stata pagata. Farlo cadere punirebbe la reazione, che e' l'opposto
+			// di cio' che [D-319] costruisce: `Prone` e' il premio di una giocata in due tempi, non una
+			// conseguenza di ogni cella percorsa. ⚠️ Il bersaglio si e' comunque mosso, quindi la lettura
+			// alternativa esiste: e' registrata qui, non risolta di nascosto.
+			if (!bScartato)
+			{
+				CadeSeSbilanciato(T);
+			}
 		}
 	}
 
@@ -2043,6 +2239,23 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		{
 			const int32* Pulls = PullCount.Find(T);
 			if (!Pulls || *Pulls != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
+
+			// Trazione amplificata di UNA cella per chi e' `Unbalanced` ([D-319], `#2253`).
+			//
+			// ⚠️ **Qui l'asse e' NUOVO, e va detto invece che dedotto.** [D-038] dichiara che *«la trazione
+			// non e' resistita: il catalogo v0.1 §1 riserva la resistenza di `Guard` alla spinta»*, quindi
+			// non esiste un antonimo da rovesciare: amplificare il `Pull` **crea** la scala, non ne aggiunge
+			// un valore. La simmetria e' voluta — `Prone` nasce da *«subire `Push` o `Pull`»*, e lasciare
+			// fuori la trazione avrebbe reso la caduta un effetto della sola spinta.
+			//
+			// ⚠️ **`PullDist` SOVRASCRIVE dove `KnockDist` accumula** (D-085 vale per la sola spinta): qui
+			// il valore e' quello dell'ultimo evento, non una somma. L'amplificazione resta comunque una
+			// sola — il ciclo e' per bersaglio — ma chi legge non deve dedurre dalla forma della riga che le
+			// due grandezze abbiano la stessa semantica.
+			if (T->HasStatus(TAG_Status_Unbalanced))
+			{
+				PullDist.FindOrAdd(T) += URTCombatLibrary::UnbalancedExtraDisplacement;
+			}
 
 			// `Reaction.Anchor` vale anche qui: il catalogo dice «ricevi `Push`/`Pull`», e l'ancora e' l'unica
 			// delle tre difese che la trazione incontra — `Guard` il testo lo riserva alla spinta, e la riga
@@ -2071,6 +2284,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			ARTUnit* T = PTargets[a];
 			ApplyForcedDisplacement(T, PFinal[a], PullToward[T], PullCause, TEXT("Trazione"), Map,
 				ERTMatchPhase::Blast);
+			CadeSeSbilanciato(T);
 		}
 	}
 }
@@ -2080,8 +2294,15 @@ void ARTTurnManager::MarkAttackerAbilitiesSpent(FRTBlastContext& Ctx)
 	TArray<ARTUnit*>& Attackers = Ctx.Attackers;
 	TArray<int32>& UsedAbilityIndex = Ctx.UsedAbilityIndex;
 
-	// Attaccanti SOPRAVVISSUTI: qui si decide CHI paga e si assegna l'energia — due cose, e il nome dice
-	// la prima. A scrivere il cooldown e' `SpendStartedAbilities`, l'unico punto che lo fa (`#1451`).
+	// Attaccanti SOPRAVVISSUTI: qui si decide CHI paga. A scrivere il cooldown e' `SpendStartedAbilities`,
+	// l'unico punto che lo fa (`#1451`).
+	//
+	// Assegnava anche l'energia: un `if (EnergyCost > 0)` che logga `Ultimate!` **oppure** accredita
+	// `EnergyOnHit`. [D-324](../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy` dal
+	// gameplay, e con essa il criterio che sceglieva fra i due rami — quindi sono spariti entrambi, non uno.
+	// ⚠️ **Con l'accredito se n'e' andata anche la voce `Ultimate!`**: era emessa sul solo percorso degli
+	// archetipi legacy, non aveva consumatori (nessuno scenario, nessuna asserzione, nessun documento la
+	// legge) ed era l'unica traccia della seconda economia che `D-324` punto (3) rimuove.
 	//
 	// ⚠️ **La guardia `IsAlive()` resta QUI e non si sposta**: per un attaccante «spesa» significa
 	// *sopravvissuto alla fase*, non *partita* — e' l'unico dei cinque punti in cui il criterio si conosce
@@ -2094,16 +2315,7 @@ void ARTTurnManager::MarkAttackerAbilitiesSpent(FRTBlastContext& Ctx)
 		{
 			continue;
 		}
-		const URTActionData* Ability = Attacker->GetAbility(UsedAbilityIndex[i]);
 		Ctx.MarkAbilitySpent(Attacker, UsedAbilityIndex[i]);
-		if (Ability && Ability->EnergyCost > 0)
-		{
-			AddLogEvent(FString::Printf(TEXT("Ultimate! %s"), *Attacker->GetName()), FRTLogSubject::Unit(Attacker));
-		}
-		else
-		{
-			Attacker->Energy = URTCombatLibrary::GainEnergy(Attacker->Energy, Attacker->EnergyOnHit, Attacker->MaxEnergy);
-		}
 	}
 }
 
@@ -2231,23 +2443,23 @@ void ARTTurnManager::SpendStartedAbilities(const FRTBlastContext& Ctx)
 	//
 	// ⚠️ **Un accoppiamento latente, dichiarato perche' oggi e' irraggiungibile e domani forse no.**
 	//
-	// `CanUseAbility` e' `IsAbilityUsable(GetAbilityCooldown(Index), Energy, EnergyCost)`: legge **il
-	// cooldown E l'energia**, cioe' entrambe le cose che questa passata ha differito. Quattro punti la
-	// chiamano dopo che qualcuno ha annotato — `ResolveInterceptions`, `RunReactionPass(BlastHits)`,
+	// `CanUseAbility` e' `IsAbilityUsable(GetAbilityCooldown(Index))`: legge **il cooldown**, cioe' la cosa
+	// che questa passata ha differito. Quattro punti la chiamano dopo che qualcuno ha annotato — `ResolveInterceptions`, `RunReactionPass(BlastHits)`,
 	// `RunReactionPass(BlastDisplacement)` e `RunReactionPass(BlastStatus)`, quest'ultimo anche dopo
 	// `MarkAttackerAbilitiesSpent`.
 	//
-	// MISURATO il 2026-08-27, e sono due condizioni indipendenti che oggi non si verificano:
-	// - **energia**: nessuna delle sei reazioni spedite dichiara `EnergyCost` (default 0), quindi
-	//   l'ultimate differita non puo' rendere attivabile una reazione che prima non lo era;
+	// MISURATO il 2026-08-27 su DUE condizioni indipendenti; oggi ne resta **una**, perche' `D-324` ha tolto
+	// `Energy` dal gameplay e con essa il ramo energia di `CanUseAbility` — la condizione non e' stata
+	// risolta, e' stata rimossa insieme al proprio soggetto:
 	// - **cooldown**: perche' si vedesse, un'unita' dovrebbe avere lo STESSO indice come azione principale
 	//   e come reazione. `CollectAttackIntents` non filtra su `Def.Slot`, quindi il caso e' costruibile —
 	//   ma i due percorsi di produzione che armano una reazione (`ARTPlayerController` e il bot) scrivono
 	//   `PlannedReactionAbility` e RITORNANO, senza mai toccare `PlannedAbilityIndex`. Ci arriva solo chi
 	//   scrive il piano a mano: test e scenari.
 	//
-	// Chi spedira' una reazione con un costo, o rendera' pianificabile come principale un'abilita' di slot
-	// reazione, guardi qui prima.
+	// Chi rendera' pianificabile come principale un'abilita' di slot reazione guardi qui prima. Lo stesso
+	// vale per chi introdurra' un secondo gate sull'uso di un'abilita': la prima versione di questa nota ne
+	// contava due, e il secondo era l'energia.
 	//
 	// L'ordine e' quello di annotazione, che e' l'ordine dei pass: `ConsumeAbility` scrive su unita' diverse,
 	// quindi non c'e' esito che dipenda dall'ordine — ma un array, e non una `TMap`, perche' la regola del

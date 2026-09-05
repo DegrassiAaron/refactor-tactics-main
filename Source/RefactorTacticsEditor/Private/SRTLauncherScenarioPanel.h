@@ -6,6 +6,7 @@
 // da `UObject`, e su un tipo incompleto quel controllo non si puo' fare — misurato, `C2027` piu' due
 // asserzioni fallite. E' la stessa ragione per cui un membro `TStrongObjectPtr` costa un include e un
 // puntatore nudo no.
+#include "Replay/RTPlaybackSpeed.h" // ERTPlaybackSpeed
 #include "ScenarioHarness/RTScenarioAuthoring.h"
 #include "UObject/StrongObjectPtr.h"
 #include "Widgets/SCompoundWidget.h"
@@ -81,6 +82,31 @@ private:
 
 	/** Crea uno scenario NUOVO dalla facade e ci apre la sessione. L'id arriva da `NewScenarioId`. */
 	FReply OnNewScenarioClicked();
+
+	/**
+	 * Esegue lo scenario selezionato e **apre il playback** sulla corsa appena fatta (`#1625`).
+	 *
+	 * 🔑 E' il soggetto che ai controlli di trasporto mancava: prima di questo pulsante nessuna via
+	 * umana eseguiva uno scenario dall'editor — `Run()` viveva solo negli automation test — e un playback
+	 * senza una corsa da mostrare non si apre mai.
+	 *
+	 * ⚠️ **Il draft si riapre e si richiude qui**, come fa gia' la selezione: `OpenPlayback` copia cio' che
+	 * gli serve — tracce decodificate e ponte degli id — e non tiene un riferimento alla facade. Il pannello
+	 * continua a non possedere una sessione.
+	 */
+	FReply OnRunScenarioClicked();
+
+	/** La riga di trasporto: esecuzione, passi, riavvolgimento e velocita'. Solo disposizione e chiamate. */
+	TSharedRef<SWidget> BuildTransportRow();
+
+	/**
+	 * Fa scorrere la riproduzione automatica.
+	 *
+	 * ⛔ **E' l'unico punto in cui il tempo entra**, e non decide niente: passa il delta al sottosistema, che
+	 * lo passa al view model. Nessun esito dipende da quanti frame sono passati — il che e' il guardrail
+	 * di sempre, qui reso vero per costruzione invece che per disciplina.
+	 */
+	virtual void Tick(const FGeometry& AllottedGeometry, const double CurrentTime, const float DeltaTime) override;
 
 	/** Attiva una superficie del registro. Se non ci riesce, lo scrive invece di non fare niente. */
 	FReply OnSurfaceClicked(FName SurfaceKey);
@@ -173,6 +199,11 @@ private:
 	TArray<TSharedPtr<int32>> PerspectiveOptions;
 
 	TSharedPtr<SComboBox<TSharedPtr<int32>>> PerspectiveCombo;
+
+	/** Le sei velocita' di `#2095`, nell'ordine che `URTPlaybackSpeedLibrary::AllSpeeds` dichiara. */
+	TArray<TSharedPtr<ERTPlaybackSpeed>> SpeedOptions;
+
+	TSharedPtr<SComboBox<TSharedPtr<ERTPlaybackSpeed>>> SpeedCombo;
 
 	TSharedPtr<SListView<TSharedPtr<FString>>> ListView;
 };

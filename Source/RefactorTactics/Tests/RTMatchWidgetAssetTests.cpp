@@ -23,6 +23,7 @@
 #include "Components/PanelSlot.h"
 #include "Components/Widget.h"
 #include "UI/RTScreenHudWidgets.h"
+#include "Engine/Texture2D.h" // UTexture2D: il tipo che il gate rifiuta, esplicito e non ereditato
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -40,6 +41,44 @@ namespace
 	{
 		return Cast<UWidgetBlueprintGeneratedClass>(
 			StaticLoadObject(UWidgetBlueprintGeneratedClass::StaticClass(), nullptr, Path));
+	}
+
+	/**
+	 * Vero se la proprieta' e' — o contiene — una `UTexture2D`.
+	 *
+	 * ⚠️ **Il nome non e' `HudWidgetCarriesTexture` di proposito, ed e' una precauzione di build.** Quella
+	 * gemella vive nel namespace anonimo di `RTScreenHudWidgetTests.cpp`: sotto **unity build** i due file
+	 * finiscono nella stessa unita' di traduzione e i due namespace anonimi si fondono, quindi due funzioni
+	 * omonime sono una ridefinizione — un errore che compare a chi aggiunge il file DOPO, non a chi lo
+	 * scrive. Duplicare quattro righe costa meno che esportare un helper di test in un header condiviso.
+	 */
+	bool BlueprintPropertyCarriesTexture(const FProperty* Prop)
+	{
+		if (!Prop)
+		{
+			return false;
+		}
+		// `FObjectPropertyBase` e non `FObjectProperty`: copre anche `TSoftObjectPtr<UTexture2D>`, che nel
+		// designer si sceglie con lo stesso menu e ha lo stesso effetto sulla regola.
+		if (const FObjectPropertyBase* AsObject = CastField<FObjectPropertyBase>(Prop))
+		{
+			return AsObject->PropertyClass
+				&& AsObject->PropertyClass->IsChildOf(UTexture2D::StaticClass());
+		}
+		if (const FArrayProperty* AsArray = CastField<FArrayProperty>(Prop))
+		{
+			return BlueprintPropertyCarriesTexture(AsArray->Inner);
+		}
+		if (const FSetProperty* AsSet = CastField<FSetProperty>(Prop))
+		{
+			return BlueprintPropertyCarriesTexture(AsSet->ElementProp);
+		}
+		if (const FMapProperty* AsMap = CastField<FMapProperty>(Prop))
+		{
+			return BlueprintPropertyCarriesTexture(AsMap->KeyProp)
+				|| BlueprintPropertyCarriesTexture(AsMap->ValueProp);
+		}
+		return false;
 	}
 
 	/** I nomi delle funzioni consumate dai binding dell'asset. */
@@ -314,6 +353,93 @@ bool FRTMatchWidgetsDeriveFromCppBaseTest::RunTest(const FString&)
 			FString::Printf(TEXT("%s deriva da %s"), E.Label, *E.Base->GetName()),
 			Class->IsChildOf(E.Base));
 	}
+
+	return true;
+}
+
+/**
+ * 🔴 **La meta' Blueprint della regola D-031, che nessun gate vedeva.**
+ *
+ * `RefactorTactics.ScreenHud.WidgetApiExposesNoTexture` itera per reflection le proprieta' dichiarate dalle
+ * **classi C++** dei widget e fallisce se una e' — o contiene — una `UTexture2D`. Il corpo di `#220` lo
+ * dichiara da se':
+ *
+ * > 🔴 **Non vede i Blueprint.** Una variabile `Texture2D` aggiunta dentro un `WBP_RT_*` — la scorciatoia
+ * > «per comodita'» che D-031 vieta e che il runbook §4.1 nomina — passerebbe questo gate.
+ *
+ * ⚠️ **E la scorciatoia non e' teorica**: e' esattamente il gesto che un autore fa quando l'icona «non si
+ * vede» e vuole chiudere la questione in trenta secondi. Il costo non e' il pixel — e' che da quel momento
+ * il Blueprint decide quale file grafico rappresenta un'azione, e il catalogo smette di essere l'unica
+ * fonte. Una regola che vale solo dove il codice guarda e' una raccomandazione.
+ *
+ * Qui si guarda l'altra meta': le proprieta' **dichiarate dalla `UWidgetBlueprintGeneratedClass`**, cioe' le
+ * variabili aggiunte dentro il `.uasset`. L'infrastruttura c'era gia' tutta in questo file — le sette classi
+ * si caricano per `PIE-ICON-01` e per `ActionSlotHasIconSurface` — e mancava soltanto l'asserzione.
+ *
+ * ⛔ **Cosa NON copre, e va detto perche' il verde non prometta piu' di quanto misura:**
+ *
+ *  1. una texture nascosta **dentro una struct** — `FSlateBrush::ResourceObject` e' un `UObject*`, non un
+ *     `UTexture2D*`, quindi un `Brush` impostato a mano nel designer passa di qui. Il difetto che questo
+ *     test chiude e' la **variabile** dichiarata, non il valore di default di un widget dell'albero;
+ *  2. i widget del **Framework** (`WBP_RT_ErrorModal` e compagni): li presidia
+ *     `RTFrontendWidgetAssetTests.cpp`, e questa asserzione non ci e' stata estesa perche' D-031 parla
+ *     dell'iconografia di partita;
+ *  3. che l'icona **si veda**. Resta `PIE-ICON-01`, e nessun test la sostituisce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchWidgetsDeclareNoTextureTest,
+	"RefactorTactics.ScreenHud.BlueprintPropertiesExposeNoTexture",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTMatchWidgetsDeclareNoTextureTest::RunTest(const FString&)
+{
+	const TCHAR* const Paths[] = {
+		TacticalHudPath, TurnHeaderPath, TeamRosterPath, SelectedUnitPath,
+		ActionDockPath, ActionSlotPath, UnitCardPath
+	};
+	const TCHAR* const Labels[] = {
+		TEXT("TacticalHUD"), TEXT("TurnHeader"), TEXT("TeamRoster"), TEXT("SelectedUnitPanel"),
+		TEXT("ActionDock"), TEXT("ActionSlot"), TEXT("UnitCard")
+	};
+
+	int32 Caricate = 0;
+	int32 Ispezionate = 0;
+
+	for (int32 i = 0; i < UE_ARRAY_COUNT(Paths); ++i)
+	{
+		UWidgetBlueprintGeneratedClass* Class = LoadWidgetClass(Paths[i]);
+		if (!Class)
+		{
+			AddError(FString::Printf(TEXT("%s: l'asset non si carica — %s"), Labels[i], Paths[i]));
+			continue;
+		}
+		++Caricate;
+
+		// `EFieldIterationFlags::None` e non `IncludeSuper`: la base C++ e' gia' presidiata da
+		// `WidgetApiExposesNoTexture`, e includerla qui farebbe fallire **due** test per lo stesso difetto
+		// senza aggiungere copertura. Qui interessa solo cio' che il **Blueprint** dichiara.
+		for (TFieldIterator<FProperty> It(Class, EFieldIterationFlags::None); It; ++It)
+		{
+			++Ispezionate;
+			if (BlueprintPropertyCarriesTexture(*It))
+			{
+				AddError(FString::Printf(
+					TEXT("%s dichiara `%s`, che e' — o contiene — una `UTexture2D`: nel Blueprint l'icona ")
+					TEXT("deve restare una CHIAVE (`UI.Icon.*`) risolta dal catalogo (D-031, #220). Una ")
+					TEXT("variabile texture nel `WBP_` sposta nel `.uasset` la decisione su quale file ")
+					TEXT("grafico rappresenta l'azione."),
+					Labels[i], *It->GetName()));
+			}
+		}
+	}
+
+	// Le due controprove della premessa. Senza, questo test sarebbe verde anche se gli asset non si
+	// caricassero affatto o se l'iterazione non guardasse niente — cioe' passerebbe **misurando zero**, che
+	// e' il modo in cui un gate diventa decorativo.
+	TestEqual(TEXT("i sette widget di Match si caricano"), Caricate, static_cast<int32>(UE_ARRAY_COUNT(Paths)));
+	TestTrue(
+		FString::Printf(TEXT("l'iterazione ha guardato delle proprieta' dichiarate dai Blueprint (ne ha viste %d)"),
+			Ispezionate),
+		Ispezionate > 0);
 
 	return true;
 }

@@ -3,7 +3,7 @@
 #include "Perception/RTKnowledgeView.h"
 #include "Perception/RTTeamKnowledge.h"
 #include "UI/RTHUD.h"
-#include "Turn/RTTurnManager.h" // ARTTurnManager::VisibleTrailFor — l'ULTIMA ragione per cui questo test tira l'Actor
+#include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary::VisibleTrailFor
 #include "Turn/RTCombatLog.h" // URTCombatLogLibrary: il filtro, che non vive piu' nell'Actor
 #include "Unit/RTUnit.h"
 
@@ -572,7 +572,7 @@ bool FRTKnowledgeVisibleTrailTruncatesTest::RunTest(const FString&)
 	// Il soggetto e' della squadra 1 e la 0 lo perde dopo due celle: e' il caso che PIE-KNOW4 osserva.
 	const FRTMoveRoute Persa = KvRoute(Cells, { {0, 1}, {0, 1}, {1}, {1} });
 
-	const TArray<FRTCellId> PerZero = ARTTurnManager::VisibleTrailFor(Persa, /*ObserverTeamId*/ 0);
+	const TArray<FRTCellId> PerZero = URTMoveRouteLibrary::VisibleTrailFor(Persa, /*ObserverTeamId*/ 0);
 	TestEqual(TEXT("l'osservatore vede il tratto che ha osservato, e finisce li'"), PerZero.Num(), 2);
 	if (PerZero.Num() == 2)
 	{
@@ -585,29 +585,29 @@ bool FRTKnowledgeVisibleTrailTruncatesTest::RunTest(const FString&)
 	// Anti-vacuita': il troncamento non e' «la traccia sparisce sempre». Chi ha percorso la rotta la vede
 	// intera, e senza questa riga un `VisibleTrailFor` che rendesse sempre un array vuoto passerebbe.
 	TestEqual(TEXT("la squadra del soggetto vede la propria rotta intera"),
-		ARTTurnManager::VisibleTrailFor(Persa, /*ObserverTeamId*/ 1).Num(), Cells.Num());
+		URTMoveRouteLibrary::VisibleTrailFor(Persa, /*ObserverTeamId*/ 1).Num(), Cells.Num());
 
 	// 🔴 Il buco in MEZZO: partenza e arrivo osservati, il tratto centrale no. E' il caso comune —
 	// `VisibleCells` e' un insieme bucato (LOS + cono + close range), non un raggio.
 	const FRTMoveRoute Bucata = KvRoute(Cells, { {0}, {}, {}, {0} });
-	const TArray<FRTCellId> Troncata = ARTTurnManager::VisibleTrailFor(Bucata, 0);
+	const TArray<FRTCellId> Troncata = URTMoveRouteLibrary::VisibleTrailFor(Bucata, 0);
 	TestEqual(TEXT("il tratto si ferma al buco: UNA cella, non tre"), Troncata.Num(), 1);
 	TestFalse(TEXT("l'arrivo osservato NON viene ricucito alla partenza"), Troncata.Contains(Cells[3]));
 
 	// Perso subito: niente da disegnare, nemmeno la partenza.
 	TestEqual(TEXT("chi non ha mai visto il soggetto non vede nulla della sua rotta"),
-		ARTTurnManager::VisibleTrailFor(KvRoute(Cells, { {1}, {1}, {1}, {1} }), 0).Num(), 0);
+		URTMoveRouteLibrary::VisibleTrailFor(KvRoute(Cells, { {1}, {1}, {1}, {1} }), 0).Num(), 0);
 
 	// Fail-closed sul disallineamento: senza il controllo, questa chiamata leggerebbe fuori array.
 	FRTMoveRoute Malformata = KvRoute(Cells, { {0}, {0} });
 	TestEqual(TEXT("una rotta con meno verdetti che celle non si disegna affatto"),
-		ARTTurnManager::VisibleTrailFor(Malformata, 0).Num(), 0);
+		URTMoveRouteLibrary::VisibleTrailFor(Malformata, 0).Num(), 0);
 
 	// E il default nasconde: una rotta raccolta senza verdetti e' silenziosa, non pubblica.
 	FRTMoveRoute SenzaVerdetti;
 	SenzaVerdetti.Cells = Cells;
 	TestEqual(TEXT("nessun verdetto significa nessuno, non tutti"),
-		ARTTurnManager::VisibleTrailFor(SenzaVerdetti, 0).Num(), 0);
+		URTMoveRouteLibrary::VisibleTrailFor(SenzaVerdetti, 0).Num(), 0);
 	return true;
 }
 

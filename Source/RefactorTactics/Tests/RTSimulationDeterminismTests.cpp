@@ -21,6 +21,7 @@
 // scritta apposta per passare.
 
 #include "Misc/AutomationTest.h"
+#include "Replay/RTBoundaryChecksum.h"
 #include "RTWorldFixtures.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
@@ -31,6 +32,12 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Algo/Reverse.h"
+#include "Replay/RTReplayRecorderLibrary.h"   // `#2196`: l'archivio su disco, non la traccia in memoria
+#include "Turn/RTTurnRules.h"                 // `FRTMatchRules`: senza formato la registrazione si rifiuta
+#include "Turn/RTMatchFormatLibrary.h"
+#include "HAL/PlatformFileManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -136,8 +143,73 @@ namespace
 	 * (`GetActorOfClass`) invece di crearne un secondo, ed e' l'unico punto in cui il test puo' configurarlo.
 	 * Le divergenze si leggono prima di distruggere il mondo, per la stessa ragione.
 	 */
+	/**
+	 * L'ARCHIVIO su disco di una corsa, letto turno per turno (`#2196`).
+	 *
+	 * ⚠️ **I byte, non le voci.** `GoldenEntriesMatch` confronta per HASH, e `UnitId`, `TurnNumber`,
+	 * `Priority`, `ReactionInstanceId`, `OriginalTargetUnitId` nell'hash non entrano ([D-063]) ma
+	 * `SerializeTurnLog` li scrive. Confrontare gli hash direbbe «identici» su archivi diversi su disco.
+	 */
+	struct FRTArchivioSuDisco
+	{
+		TArray<TArray<uint8>> Byte;
+		TArray<TArray<FRTTurnLogEntry>> Voci;
+		bool bCompleto = false;   // ogni turno atteso ha il suo file, e si e' letto
+	};
+
+	FString RadiceArchivio(const TCHAR* Nome)
+	{
+		return FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("VerifierArchivio"), Nome);
+	}
+
+	void PulisciRadice(const FString& Root)
+	{
+		IPlatformFile& PF = FPlatformFileManager::Get().GetPlatformFile();
+		if (PF.DirectoryExists(*Root)) { PF.DeleteDirectoryRecursively(*Root); }
+	}
+
+	/** Rilegge da disco i turni `1..TurniAttesi` di un archivio. Una lettura fallita si DICHIARA, non si salta. */
+	FRTArchivioSuDisco LeggiArchivio(const FString& Root, const FGuid& MatchId, int32 TurniAttesi)
+	{
+		FRTArchivioSuDisco Out;
+		Out.bCompleto = (MatchId.IsValid() && TurniAttesi > 0);
+
+		for (int32 Turno = 1; Turno <= TurniAttesi && Out.bCompleto; ++Turno)
+		{
+			const FString Path = FPaths::Combine(
+				URTReplayRecorderLibrary::MatchDirectory(Root, MatchId),
+				URTReplayRecorderLibrary::TurnFileName(Turno));
+
+			TArray<uint8> Byte;
+			TArray<FRTTurnLogEntry> Voci;
+			// ⚠️ Saltare una lettura fallita compatterebbe gli array, e da li' in poi `Voci[i]` non sarebbe
+			// piu' il turno `i+1`: un archivio rotto diventerebbe indistinguibile da una divergenza vera.
+			if (!FFileHelper::LoadFileToArray(Byte, *Path)
+				|| !URTTurnLogLibrary::LoadTurnLogFromFile(Path, Voci))
+			{
+				Out.bCompleto = false;
+				break;
+			}
+			Out.Byte.Add(MoveTemp(Byte));
+			Out.Voci.Add(MoveTemp(Voci));
+		}
+		return Out;
+	}
+
+	/** Il primo turno in cui due archivi divergono sui byte, o `INDEX_NONE`. Indice a base 0. */
+	int32 PrimoTurnoDiverso(const FRTArchivioSuDisco& A, const FRTArchivioSuDisco& B)
+	{
+		const int32 Comuni = FMath::Min(A.Byte.Num(), B.Byte.Num());
+		for (int32 i = 0; i < Comuni; ++i)
+		{
+			if (A.Byte[i] != B.Byte[i]) { return i; }
+		}
+		return INDEX_NONE;
+	}
+
 	FRTTestResult RunAsVerifier(const FRTTestScenario& Scenario, const TArray<FRTTurnLogEntry>& Trace,
-		TFunction<FString(const FRTReactionOpportunity&, int32)> Decider, TArray<FString>& OutDivergences)
+		TFunction<FString(const FRTReactionOpportunity&, int32)> Decider, TArray<FString>& OutDivergences,
+		const FString* RadiceRegistrazione = nullptr, FRTArchivioSuDisco* OutArchivio = nullptr)
 	{
 		OutDivergences.Reset();
 
@@ -155,6 +227,28 @@ namespace
 		{
 			TM->ArmRecordedReactionDecisions(Trace);
 		}
+
+		// 🔑 **La registrazione su DISCO** (`#2196`): senza, questo helper produce una traccia in memoria, e
+		// «ri-simulare da un archivio» resterebbe indistinguibile da «ri-simulare da un array».
+		FGuid MatchId;
+		if (RadiceRegistrazione != nullptr)
+		{
+			// ⚠️ **Il formato va risolto PRIMA di registrare, o `BeginReplayRecording` esce in silenzio.**
+			// Si rifiuta con `MatchRules.FormatId.IsNone()`, perche' un archivio con formato assente non e'
+			// confrontabile con niente. Il percorso di PARTITA lo riceve dal GameMode (`ApplyMatchFormat`);
+			// quello dello SCENARIO no, e senza questa riga l'archivio resta vuoto — *misurato: la prima
+			// stesura falliva su «l'archivio di riferimento e' completo su disco»*.
+			FRTMatchRules Rules = TM->GetMatchRules();
+			if (Rules.FormatId.IsNone())
+			{
+				Rules.FormatId = URTMatchFormatLibrary::Skirmish2v2FormatId;
+				TM->SetMatchRules(Rules);
+			}
+
+			TM->ReplaysRootOverride = *RadiceRegistrazione;
+			TM->BeginReplayRecording();
+			MatchId = TM->GetReplayMatchId();
+		}
 		if (Decider)
 		{
 			TM->ReactionDecider.BindLambda(Decider);
@@ -166,6 +260,12 @@ namespace
 		// una chiave orfana diventa dichiarabile.
 		TM->ReportOrphanRecordedDecisions();
 		OutDivergences = TM->GetVerificationDivergences();
+
+		// L'archivio si rilegge PRIMA di distruggere il mondo, come le divergenze e per la stessa ragione.
+		if (OutArchivio != nullptr && RadiceRegistrazione != nullptr)
+		{
+			*OutArchivio = LeggiArchivio(*RadiceRegistrazione, MatchId, Result.TurnTraces.Num());
+		}
 
 		RTWorldFixtures::DestroyWorld(World);
 		return Result;
@@ -843,6 +943,453 @@ bool FRTSimulationSeedDeclaredUnconsumedTest::RunTest(const FString&)
 			A.TurnsPlayed, B.TurnsPlayed));
 		return false;
 	}
+
+	return true;
+}
+
+/**
+ * L'ANELLO CHE MANCAVA: si apre un ARCHIVIO SU DISCO, lo si rigioca col resolver, e si confronta — `#2196`.
+ *
+ * 🔴 **Il buco era dichiarato in `RTReplayProducerTests.cpp`**, nell'intestazione di
+ * `TwoIdenticalMatchesLeaveIdenticalArchives`: *«`Replay.Verifier.ReportsFirstDivergence` esiste […] ma il
+ * suo stesso commento dichiara il confine: "Chi produce la seconda ri-simulando e' il chiamante". **Nessuno
+ * era quel chiamante.** E il corpus golden non copre questo: le sue referenze sono `.rttl` COMMITTATI, non
+ * archivi PRODOTTI da una corsa»*. Da qui in poi qualcuno lo e'.
+ *
+ * 🔑 **Le altre TRE gambe restano, e questa non le sostituisce.**
+ *   · `Replay.Verifier.ResimulationIsDeterministic` — scenario → resolver → confronto di hash, in memoria;
+ *   · `Replay.Producer.TwoIdenticalMatchesLeaveIdenticalArchives` — due archivi **entrambi prodotti** nella
+ *     stessa run;
+ *   · `Simulation.GoldenCorpusMatches` — un `.rttl` **committato** contro una ri-esecuzione con la build di
+ *     oggi (`RTGoldenCorpusTests.cpp`, CP 12.6): e' la riproduzione **cross-build**, e c'e' dal 2026-08-10.
+ *
+ * 🔴 **Cio' che questa aggiunge NON e' la proprieta' cross-build: e' il PRODUTTORE.** Il corpus golden
+ * confronta le `TurnTraces` in memoria del runner di scenario; qui si passa dal **registratore di replay**
+ * — `BeginReplayRecording` → file su disco → `LoadTurnLogFromFile`. Sono due percorsi di SCRITTURA diversi,
+ * e finche' non li si esercita entrambi *«formato implementato, produttore assente»* resta possibile su
+ * quello non coperto: la classe di difetto che l'intestazione di `RTReplayProducerTests.cpp` dichiara di
+ * aver gia' pagato tre volte (`UnitId` [D-063], `GraphRevision` [D-067], il checksum di fine partita).
+ *
+ * ⚠️ *Una stesura precedente di questo paragrafo affermava che la riproduzione cross-build non era coperta
+ * da nessuno e serviva un archivio committato in una issue propria. Era falso: il corpus golden la copre.
+ * Misurato applicando SEARCH -> REUSE prima di aprire quella issue, che infatti non si e' aperta.*
+ *
+ * ⚠️ **La fixture e' `Spec.Overwatch.HoldThenFire`, e la scelta e' stata MISURATA, non preferita.** La prima
+ * stesura di questo test prendeva l'archivio da una partita 2v2 bot-contro-bot: quell'allestimento non apre
+ * **nessuna** finestra di reazione, quindi `ArmRecordedReactionDecisions` costruiva una mappa VUOTA,
+ * `AskReactionDecision` tornava al decisore vivo, e la «ri-simulazione» era una terza partita decisa dal
+ * vivo — byte identici perche' deterministica, test verde, anello mai percorso. Il difetto e' stato preso
+ * dalla guardia `DecisioniArmate > 0` qui sotto, che l'ha reso rosso: `«e ne ha 0»`. *Trovato da una code
+ * review, e misurato.*
+ *
+ * 🔑 **Percio' la guardia viene PRIMA del confronto**: un test che confronta byte senza aver verificato di
+ * aver consumato la traccia misura il determinismo, non il replay — e il determinismo ha gia' due test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayArchiveResimulationTest,
+	"RefactorTactics.Replay.Verifier.ArchiveReplaysThroughTheResolver",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayArchiveResimulationTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadDeterminismScenario(*this, TEXT("Spec.Overwatch.HoldThenFire"), Scenario)) { return false; }
+
+	const FString RadiceRif = RadiceArchivio(TEXT("Rif"));
+	const FString RadiceRig = RadiceArchivio(TEXT("Rig"));
+	PulisciRadice(RadiceRif);
+	PulisciRadice(RadiceRig);
+
+	// 1. La corsa di riferimento: decide dal vivo (lo scenario porta le proprie risposte) e si ARCHIVIA.
+	TArray<FString> Divergenze;
+	FRTArchivioSuDisco Archivio;
+	const FRTTestResult Rif = RunAsVerifier(Scenario, {}, nullptr, Divergenze, &RadiceRif, &Archivio);
+	if (Rif.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("la corsa di riferimento e' fallita: %s"), *Rif.ErrorMessage));
+		PulisciRadice(RadiceRif); PulisciRadice(RadiceRig);
+		return false;
+	}
+	if (!TestTrue(TEXT("l'archivio di riferimento e' completo su disco"), Archivio.bCompleto))
+	{
+		PulisciRadice(RadiceRif); PulisciRadice(RadiceRig);
+		return false;
+	}
+
+	// 2. 🔴 LA GUARDIA: la traccia porta decisioni ARMABILI. Senza, tutto il resto misura un'altra cosa.
+	const TArray<FRTTurnLogEntry> Traccia = AllEntries(Rif);
+	int32 Decisioni = 0, Fuochi = 0;
+	CountDecisionEntries(Traccia, Decisioni, Fuochi);
+	if (!TestTrue(FString::Printf(TEXT("l'archivio porta decisioni da rigiocare, e ne ha %d"), Decisioni),
+		Decisioni > 0))
+	{
+		PulisciRadice(RadiceRif); PulisciRadice(RadiceRig);
+		return false;
+	}
+	// ⚠️ **Il numero si STAMPA anche quando passa.** `TestTrue` parla solo fallendo, e un verde muto su
+	// questa riga e' precisamente cio' che ha lasciato passare la prima stesura: l'anello non percorso era
+	// indistinguibile da quello percorso. Ora il referto porta la misura, non la sua assenza.
+	AddInfo(FString::Printf(TEXT("l'archivio porta %d decisioni (%d FIRE) su %d turni: l'anello e' percorso"),
+		Decisioni, Fuochi, Archivio.Byte.Num()));
+
+	// 3. La stessa corsa, rigiocata dal resolver consumando le decisioni dell'ARCHIVIO — non dello scenario:
+	//    `WithoutScriptedDecisions` toglie le risposte scritte, quindi se la traccia non fosse consumata non
+	//    risponderebbe nessuno e la divergenza sarebbe immediata.
+	const FRTTestScenario Muto = WithoutScriptedDecisions(Scenario);
+	TArray<FString> DivergenzeRig;
+	FRTArchivioSuDisco Rigiocata;
+	const FRTTestResult Rig = RunAsVerifier(Muto, Traccia, nullptr, DivergenzeRig, &RadiceRig, &Rigiocata);
+	if (Rig.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("la ri-simulazione e' fallita: %s"), *Rig.ErrorMessage));
+		PulisciRadice(RadiceRif); PulisciRadice(RadiceRig);
+		return false;
+	}
+
+	TestTrue(TEXT("anche l'archivio della ri-simulazione e' completo"), Rigiocata.bCompleto);
+
+	// 4. Il Verifier non protesta: nessuna finestra scoperta dalla traccia, nessuna risposta diventata
+	//    illegale. Un archivio che si rigioca «identico» mentre il Verifier ha da ridire e' identico per caso.
+	TestEqual(FString::Printf(TEXT("nessun disaccordo del Verifier (%s)"),
+		DivergenzeRig.Num() > 0 ? *DivergenzeRig[0] : TEXT("nessuno")), DivergenzeRig.Num(), 0);
+
+	// 5. E i due archivi coincidono sui BYTE, turno per turno.
+	const int32 TurnoDiverso = PrimoTurnoDiverso(Archivio, Rigiocata);
+	if (TurnoDiverso != INDEX_NONE)
+	{
+		AddError(FString::Printf(TEXT("la ri-simulazione diverge dall'archivio al turno %d: %s"),
+			TurnoDiverso + 1,
+			*URTTurnLogLibrary::DescribeFirstDivergence(
+				TurnoDiverso + 1, Archivio.Voci[TurnoDiverso], Rigiocata.Voci[TurnoDiverso])));
+	}
+	TestEqual(TEXT("e i due archivi hanno lo stesso numero di turni"),
+		Rigiocata.Byte.Num(), Archivio.Byte.Num());
+
+	PulisciRadice(RadiceRif);
+	PulisciRadice(RadiceRig);
+	return true;
+}
+
+
+/**
+ * **Il checksum per boundary dice DOVE, e sa fallire a meta' corsa** (`#2189`).
+ *
+ * 🔴 **L'anti-vacuita' e' nello stesso test, ed e' il criterio della issue**: un gate che sa solo dire
+ * «uguali» non misura niente. Qui la stessa traccia viene confrontata con una sua copia **alterata a un
+ * boundary intermedio**, e il gate deve nominare quel boundary — non l'ultimo, non «la partita».
+ *
+ * ⚠️ **La divergenza si inietta in un turno di mezzo, non nell'ultimo.** E' la differenza fra questo gate
+ * e `FinalStateHash`: quello vedrebbe comunque un finale diverso, e non saprebbe dire da dove. Iniettarla
+ * all'ultimo turno renderebbe i due indistinguibili, cioe' misurerebbe una proprieta' che gia' esisteva.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBoundaryChecksumNamesTheDivergenceTest,
+	"RefactorTactics.Replay.Verifier.BoundaryChecksumNamesWhereTheyDiverge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBoundaryChecksumNamesTheDivergenceTest::RunTest(const FString&)
+{
+	// --- una traccia con quattro boundary in tre turni ------------------------------------------------
+	auto Voce = [](int32 Turno, ERTMatchPhase Fase, int32 UnitId, const FRTCellId& Da, const FRTCellId& A)
+	{
+		FRTTurnLogEntry E;
+		E.TurnNumber = Turno;
+		E.Phase = Fase;
+		E.Category = ERTLogCategory::Move;
+		E.UnitId = UnitId;
+		E.SrcCell = Da;
+		E.TgtCell = A;
+		E.ActionId = FName(TEXT("Action.Move"));
+		// ⚠️ **Esplicito, e non ridondante** (`#2374`): `FRTTurnLogEntry::MicroStepIndex` vale `0` di
+		// default, che dentro una traccia `WithMicroStep` significa *«il PRIMO micro-step»*. Lasciarlo al
+		// default farebbe misurare a questo test dei boundary di ciclo, mentre cio' che esiste per
+		// misurare e' la localizzazione fra TURNI. `Action.Move` porta `INDEX_NONE` nella partita vera,
+		// e qui deve portarlo per la stessa ragione.
+		E.MicroStepIndex = INDEX_NONE;
+		return E;
+	};
+
+	TArray<FRTTurnLogEntry> Traccia;
+	Traccia.Add(Voce(1, ERTMatchPhase::Move, 1, FRTCellId(0, 0), FRTCellId(1, 0)));
+	Traccia.Add(Voce(2, ERTMatchPhase::Move, 1, FRTCellId(1, 0), FRTCellId(2, 0)));
+	Traccia.Add(Voce(3, ERTMatchPhase::Move, 1, FRTCellId(2, 0), FRTCellId(3, 0)));
+
+	TArray<FRTTracedUnitState> Iniziale;
+	{
+		FRTTracedUnitState S;
+		S.UnitId = 1;
+		S.Cell = FRTCellId(0, 0);
+		Iniziale.Add(S);
+	}
+
+	const TArray<FRTBoundaryChecksum> A =
+		URTBoundaryChecksumLibrary::ChecksumsAlongTrace(nullptr, Traccia, Iniziale, ERTTurnLogFormatVersion::WithMicroStep);
+
+	// ⛔ ANTI-VACUITA' 1: senza piu' di un boundary il test non potrebbe distinguere «a meta'» da «alla
+	// fine», che e' la proprieta' che esiste per misurare.
+	if (!TestTrue(TEXT("la traccia attraversa piu' di un boundary"), A.Num() >= 3)) { return false; }
+
+	// ⛔ ANTI-VACUITA' 2: i checksum non devono essere tutti uguali, o il confronto sarebbe cieco.
+	TestNotEqual(TEXT("boundary diversi hanno checksum diversi"), A[0].Hash, A[1].Hash);
+
+	// ⛔ ANTI-VACUITA' 3 — il SOGGETTO (`#2387`): questi boundary sono di **fase intera**, e questo test
+	// misura la localizzazione fra TURNI.
+	//
+	// 🔴 **Senza queste due righe la premessa non e' verificata da nessuno.** `MicroStepIndex` vale `0` di
+	// default: se le voci sopra tornassero al default, dentro una traccia `WithMicroStep` quello `0`
+	// significherebbe *«il primo micro-step»*, i boundary diventerebbero di ciclo — `T1|Move#0` — e ogni
+	// assertion qui sotto resterebbe **vera lo stesso**, misurando un'altra cosa. E' successo davvero, ed
+	// e' il difetto che `#2387` ha chiuso: il verde era preservato e il soggetto era cambiato in silenzio.
+	TestEqual(TEXT("i boundary sono di fase intera, non di ciclo"),
+		A[0].MicroStepIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("e l'etichetta non porta un micro-step che la traccia non dichiara"),
+		A[0].ToString(), FString(TEXT("T1|Move")));
+
+	// --- il verso VERDE: la stessa traccia con se' stessa ---------------------------------------------
+	const TArray<FRTBoundaryChecksum> Uguale =
+		URTBoundaryChecksumLibrary::ChecksumsAlongTrace(nullptr, Traccia, Iniziale, ERTTurnLogFormatVersion::WithMicroStep);
+
+	TestEqual(TEXT("due esecuzioni identiche non divergono"),
+		URTBoundaryChecksumLibrary::FirstDivergence(A, Uguale), INDEX_NONE);
+	TestEqual(TEXT("e il messaggio e' vuoto"),
+		URTBoundaryChecksumLibrary::DescribeDivergence(A, Uguale), FString());
+
+	// --- 🔴 il verso ROSSO: una divergenza al SECONDO boundary di tre -------------------------------
+	TArray<FRTTurnLogEntry> Alterata = Traccia;
+	Alterata[1].TgtCell = FRTCellId(9, 9); // il turno 2 finisce altrove
+
+	const TArray<FRTBoundaryChecksum> B =
+		URTBoundaryChecksumLibrary::ChecksumsAlongTrace(nullptr, Alterata, Iniziale, ERTTurnLogFormatVersion::WithMicroStep);
+
+	const int32 Dove = URTBoundaryChecksumLibrary::FirstDivergence(A, B);
+
+	// ⚠️ **Il primo boundary resta uguale**: e' il fatto che rende utile questa misura. Un gate che
+	// segnalasse la divergenza dall'inizio non aiuterebbe a cercare.
+	TestEqual(TEXT("il primo boundary NON diverge"), A[0].Hash, B[0].Hash);
+	TestEqual(TEXT("la divergenza e' al secondo boundary, non all'ultimo"), Dove, 1);
+
+	const FString Messaggio = URTBoundaryChecksumLibrary::DescribeDivergence(A, B);
+	TestTrue(TEXT("il messaggio nomina il boundary"), Messaggio.Contains(A[1].ToString()));
+	TestTrue(TEXT("e non e' vuoto"), !Messaggio.IsEmpty());
+
+	// --- lunghezze diverse: si dice, invece di confrontare fin dove entrambe arrivano -----------------
+	TArray<FRTBoundaryChecksum> Corta = A;
+	Corta.Pop();
+	TestEqual(TEXT("una sequenza piu' corta diverge dove finisce"),
+		URTBoundaryChecksumLibrary::FirstDivergence(A, Corta), Corta.Num());
+	TestTrue(TEXT("e il messaggio lo dice"),
+		URTBoundaryChecksumLibrary::DescribeDivergence(A, Corta).Contains(TEXT("numero diverso")));
+
+	return true;
+}
+
+namespace
+{
+	/**
+	 * Una fase `T1|Move` con **tre** micro-step e l'arrivo che li segue — la forma che la partita produce.
+	 *
+	 * 🔑 **Non e' una traccia inventata per comodita' del test.** Gli eventi di ciclo (qui `Facing`) portano
+	 * un `MicroStepIndex` `>= 0`; `Action.Move` porta `INDEX_NONE` perche' `BuildMoveLog` gira dopo
+	 * `FinishHexMovement`, quindi l'arrivo e' posteriore a ogni barriera attraversata. Se il test usasse
+	 * solo voci `Move` non eserciterebbe la terza coordinata affatto: sarebbero tutte `INDEX_NONE`.
+	 */
+	TArray<FRTTurnLogEntry> TracciaConTreMicroStep(int32 FacingAlSecondoMicroStep)
+	{
+		auto Rotazione = [](int32 MicroStep, int32 Direzione)
+		{
+			FRTTurnLogEntry E;
+			E.TurnNumber = 1;
+			E.Phase = ERTMatchPhase::Move;
+			E.Category = ERTLogCategory::Facing;
+			E.UnitId = 1;
+			E.SrcCell = FRTCellId(0, 0);
+			E.Amount = Direzione;                 // la direzione viaggia in `Amount`
+			E.MicroStepIndex = MicroStep;
+			E.ActionId = FName(TEXT("Action.Move"));
+			return E;
+		};
+
+		TArray<FRTTurnLogEntry> T;
+		T.Add(Rotazione(0, 0));
+		T.Add(Rotazione(1, FacingAlSecondoMicroStep));
+		T.Add(Rotazione(2, 2));
+
+		// L'arrivo: fuori dal ciclo, quindi `INDEX_NONE`, e il suo boundary chiude la fase.
+		FRTTurnLogEntry Arrivo;
+		Arrivo.TurnNumber = 1;
+		Arrivo.Phase = ERTMatchPhase::Move;
+		Arrivo.Category = ERTLogCategory::Move;
+		Arrivo.UnitId = 1;
+		Arrivo.SrcCell = FRTCellId(0, 0);
+		Arrivo.TgtCell = FRTCellId(3, 0);
+		Arrivo.MicroStepIndex = INDEX_NONE;
+		Arrivo.ActionId = FName(TEXT("Action.Move"));
+		T.Add(Arrivo);
+
+		return T;
+	}
+
+	TArray<FRTTracedUnitState> SchieramentoDiUno()
+	{
+		FRTTracedUnitState S;
+		S.UnitId = 1;
+		S.Cell = FRTCellId(0, 0);
+		TArray<FRTTracedUnitState> Iniziale;
+		Iniziale.Add(S);
+		return Iniziale;
+	}
+}
+
+/**
+ * `#2374` — il checksum di boundary distingue due micro-step della STESSA fase.
+ *
+ * 🔴 **E' l'anti-vacuita' della terza coordinata, e senza di essa il gate mente.** Prima di `#2374` la
+ * chiave era `(Turno, Fase)`: due esecuzioni che divergevano al secondo di tre micro-step producevano lo
+ * **stesso** identico checksum di fase, e il verdetto diceva «divergono a `T1|Move`» — cioe' nominava un
+ * intervallo che contiene la causa insieme a due barriere innocenti.
+ *
+ * ⛔ **Sotto mutazione questo test DEVE diventare rosso**: togliendo `MicroStepIndex` dalla chiave di
+ * `ChecksumsAlongTrace` i quattro boundary collassano in uno e `FirstDivergence` non ha piu' un `1` da
+ * restituire. E' il criterio della issue, non un'aspirazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBoundaryChecksumDistinguishesMicroStepsTest,
+	"RefactorTactics.Replay.Verifier.BoundaryChecksumDistinguishesMicroSteps",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBoundaryChecksumDistinguishesMicroStepsTest::RunTest(const FString&)
+{
+	const TArray<FRTTracedUnitState> Iniziale = SchieramentoDiUno();
+
+	const TArray<FRTBoundaryChecksum> A = URTBoundaryChecksumLibrary::ChecksumsAlongTrace(
+		nullptr, TracciaConTreMicroStep(/*FacingAlSecondoMicroStep*/ 1), Iniziale,
+		ERTTurnLogFormatVersion::WithMicroStep);
+
+	// ⛔ ANTI-VACUITA' 1: quattro boundary in UNA fase. Con la vecchia chiave ce ne sarebbe stato uno, e
+	// tutto il resto del test sarebbe stato vero per costruzione invece che per misura.
+	if (!TestEqual(TEXT("una fase con tre micro-step produce quattro boundary"), A.Num(), 4))
+	{
+		return false;
+	}
+
+	// ⛔ L'ordine: i micro-step in ordine, e la fase intera ULTIMA malgrado `-1 < 0`.
+	TestEqual(TEXT("il primo boundary e' il micro-step 0"), A[0].MicroStepIndex, 0);
+	TestEqual(TEXT("poi il micro-step 1"), A[1].MicroStepIndex, 1);
+	TestEqual(TEXT("poi il micro-step 2"), A[2].MicroStepIndex, 2);
+	TestEqual(TEXT("e la fase intera chiude"), A[3].MicroStepIndex, (int32)INDEX_NONE);
+
+	// ⛔ ANTI-VACUITA' 2: boundary diversi devono avere hash diversi, o il confronto sarebbe cieco.
+	TestNotEqual(TEXT("micro-step diversi hanno checksum diversi"), A[0].Hash, A[1].Hash);
+
+	// --- il verso VERDE ------------------------------------------------------------------------------
+	const TArray<FRTBoundaryChecksum> Uguale = URTBoundaryChecksumLibrary::ChecksumsAlongTrace(
+		nullptr, TracciaConTreMicroStep(1), Iniziale, ERTTurnLogFormatVersion::WithMicroStep);
+
+	TestEqual(TEXT("due esecuzioni identiche non divergono"),
+		URTBoundaryChecksumLibrary::FirstDivergence(A, Uguale), (int32)INDEX_NONE);
+
+	// --- 🔴 il verso ROSSO: divergenza al SECONDO di tre micro-step, dentro la stessa fase ------------
+	const TArray<FRTBoundaryChecksum> B = URTBoundaryChecksumLibrary::ChecksumsAlongTrace(
+		nullptr, TracciaConTreMicroStep(/*FacingAlSecondoMicroStep*/ 3), Iniziale,
+		ERTTurnLogFormatVersion::WithMicroStep);
+
+	// Il primo micro-step e' identico: e' cio' che rende utile la misura. Un gate che segnalasse la
+	// divergenza dall'inizio della fase non aiuterebbe a cercare piu' di quanto facesse `FinalStateHash`.
+	TestEqual(TEXT("il micro-step 0 NON diverge"), A[0].Hash, B[0].Hash);
+
+	const int32 Dove = URTBoundaryChecksumLibrary::FirstDivergence(A, B);
+	TestEqual(TEXT("la divergenza e' al micro-step 1, non alla fase"), Dove, 1);
+
+	// 🔑 Il messaggio nomina la TERNA. Con la vecchia chiave avrebbe potuto dire al massimo `T1|Move`.
+	const FString Messaggio = URTBoundaryChecksumLibrary::DescribeDivergence(A, B);
+	TestTrue(TEXT("il messaggio nomina il micro-step esatto"), Messaggio.Contains(TEXT("T1|Move#1")));
+
+	return true;
+}
+
+/**
+ * `#2374` — sotto `WithMicroStep` il checksum resta phase-only, e lo DICE.
+ *
+ * ⚠️ **Il difetto che questo test impedisce non e' un crash: e' una misura inventata.** Una traccia
+ * antecedente alla `v12` non porta il campo, e la deserializzazione lascia `0` su ogni voce. Chiavare su
+ * quello produrrebbe un boundary etichettato `T1|Move#0` in un archivio dove nessun micro-step e' mai
+ * stato scritto — un'etichetta piu' precisa del dato che la sostiene.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBoundaryChecksumIsPhaseOnlyBeforeTheMicroStepVersionTest,
+	"RefactorTactics.Replay.Verifier.BoundaryChecksumIsPhaseOnlyBeforeTheMicroStepVersion",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBoundaryChecksumIsPhaseOnlyBeforeTheMicroStepVersionTest::RunTest(const FString&)
+{
+	const TArray<FRTTracedUnitState> Iniziale = SchieramentoDiUno();
+	const TArray<FRTTurnLogEntry> Traccia = TracciaConTreMicroStep(1);
+
+	// La stessa identica traccia, letta come se venisse da un archivio che il campo non lo porta.
+	const TArray<FRTBoundaryChecksum> Vecchia = URTBoundaryChecksumLibrary::ChecksumsAlongTrace(
+		nullptr, Traccia, Iniziale, ERTTurnLogFormatVersion::WithReactionResponse);
+
+	TestEqual(TEXT("sotto la v12 la fase produce UN solo boundary"), Vecchia.Num(), 1);
+	TestEqual(TEXT("e quel boundary e' la fase intera"), Vecchia[0].MicroStepIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("l'etichetta non inventa un micro-step"), Vecchia[0].ToString(), FString(TEXT("T1|Move")));
+
+	// 🔑 E il contrasto e' la misura: la stessa traccia, dichiarata `WithMicroStep`, ne produce quattro.
+	const TArray<FRTBoundaryChecksum> Nuova = URTBoundaryChecksumLibrary::ChecksumsAlongTrace(
+		nullptr, Traccia, Iniziale, ERTTurnLogFormatVersion::WithMicroStep);
+	TestEqual(TEXT("la stessa traccia alla v12 ne produce quattro"), Nuova.Num(), 4);
+	TestEqual(TEXT("e li' l'etichetta porta la terza coordinata"),
+		Nuova[1].ToString(), FString(TEXT("T1|Move#1")));
+
+	// ⚠️ Lo stato a fine fase e' lo STESSO nelle due letture: cambia la granularita' del taglio, non il
+	// mondo. Il boundary di chiusura deve avere l'hash del boundary phase-only.
+	TestEqual(TEXT("la fase intera vale lo stesso stato nelle due letture"),
+		Vecchia[0].Hash, Nuova[3].Hash);
+
+	return true;
+}
+
+/**
+ * `#2374` — il confronto guarda il LUOGO, non solo l'hash: due micro-step diversi con lo stesso stato
+ * restano una divergenza.
+ *
+ * 🔴 **E' il caso che pareggia sui numeri, ed e' frequente.** Un micro-step in cui nessuno si muove lascia
+ * lo stato identico al precedente, quindi il suo hash coincide. Se `FirstDivergence` guardasse solo turno,
+ * fase e hash — com'era prima di `#2374` — due esecuzioni che attraversano un numero **diverso** di
+ * barriere dentro la stessa fase si direbbero uguali fin li'. La chiave si e' allargata alla terza
+ * coordinata: il confronto doveva allargarsi con lei, e questo test lo pinna.
+ *
+ * ⚠️ Le sequenze si costruiscono a mano invece che da una traccia: serve **esattamente** il caso in cui gli
+ * hash coincidono e il luogo no, e derivarlo da una traccia lo renderebbe dipendente da quali celle
+ * l'hash mescola — cioe' da un'altra proprieta'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBoundaryChecksumComparesThePlaceNotOnlyTheHashTest,
+	"RefactorTactics.Replay.Verifier.BoundaryChecksumComparesThePlaceNotOnlyTheHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBoundaryChecksumComparesThePlaceNotOnlyTheHashTest::RunTest(const FString&)
+{
+	auto Boundary = [](int32 MicroStep, int64 Hash)
+	{
+		FRTBoundaryChecksum C;
+		C.TurnNumber = 1;
+		C.Phase = ERTMatchPhase::Move;
+		C.MicroStepIndex = MicroStep;
+		C.Hash = Hash;
+		return C;
+	};
+
+	// Stesso turno, stessa fase, **stesso hash**: differiscono solo per la barriera che nominano.
+	TArray<FRTBoundaryChecksum> A;
+	A.Add(Boundary(/*MicroStep*/ 0, /*Hash*/ 0x1234));
+
+	TArray<FRTBoundaryChecksum> B;
+	B.Add(Boundary(/*MicroStep*/ 1, /*Hash*/ 0x1234));
+
+	TestEqual(TEXT("l'hash non li distingue"), A[0].Hash, B[0].Hash);
+
+	TestEqual(TEXT("ma il luogo si', e la divergenza e' alla posizione 0"),
+		URTBoundaryChecksumLibrary::FirstDivergence(A, B), 0);
+
+	const FString Messaggio = URTBoundaryChecksumLibrary::DescribeDivergence(A, B);
+	TestTrue(TEXT("e il messaggio nomina entrambi i boundary"),
+		Messaggio.Contains(TEXT("T1|Move#0")) && Messaggio.Contains(TEXT("T1|Move#1")));
+
+	// Il verso verde: due boundary identici in tutto non divergono.
+	TArray<FRTBoundaryChecksum> Uguale;
+	Uguale.Add(Boundary(0, 0x1234));
+	TestEqual(TEXT("due boundary identici non divergono"),
+		URTBoundaryChecksumLibrary::FirstDivergence(A, Uguale), (int32)INDEX_NONE);
 
 	return true;
 }

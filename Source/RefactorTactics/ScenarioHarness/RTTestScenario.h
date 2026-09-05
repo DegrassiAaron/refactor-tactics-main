@@ -191,6 +191,26 @@ struct FRTScenarioCell
 	UPROPERTY()
 	int32 OccupancySurcharge = 0;
 
+	/**
+	 * Obiettivo contendibile su questa cella (`FRTHexCellData::bIsObjective`, formato mappa v11 — `#75`).
+	 *
+	 * 🔴 **Esiste perche' senza di lui l'obiettivo era esprimibile SOLO da una fixture** (`#2269`), e l'unica
+	 * che ne posi uno e' `RelayBasin`. Misurato prima di aggiungerlo: su quella board — 45 celle, distanza
+	 * massima 8, obiettivo al centro — non esiste una posa in cui il nemico sia insieme **visibile** e
+	 * **fuori portata**, perche' con `MoveRange 4` e `AttackRange` fino a 5 il bot arriva a tiro da
+	 * qualunque parte. E senza quella condizione uno scenario sull'obiettivo misura il focus-fire: il colpo
+	 * vale due ordini di grandezza piu' dell'obiettivo, e vince — correttamente, ma non e' la domanda.
+	 *
+	 * ⚠️ **Entra nell'hash della mappa** (`URTHexMapAsset::ComputeHash`), come per ogni altra proprieta' di
+	 * cella: due arene identiche in tutto tranne dove sta l'obiettivo non si giocano allo stesso modo. Uno
+	 * scenario che lo dichiara ha quindi un hash diverso da uno che non lo dichiara — e un golden registrato
+	 * prima non e' confrontabile con uno registrato dopo.
+	 *
+	 * `false` = cella normale, che e' anche il default di una cella non elencata.
+	 */
+	UPROPERTY()
+	bool bIsObjective = false;
+
 };
 
 /**

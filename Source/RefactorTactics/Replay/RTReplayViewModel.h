@@ -154,6 +154,27 @@ struct REFACTORTACTICS_API FRTReplayViewModel
 	ERTReplayOpenResult Open(const FString& ReplaysRoot, const FGuid& MatchId,
 		int32 ObserverTeamId = INDEX_NONE);
 
+	/**
+	 * Apre su tracce **gia' in memoria**, senza archivio da leggere.
+	 *
+	 * 🔑 E' il secondo ingresso previsto da `#1625`: lo Scenario Playback riproduce l'ultima esecuzione di
+	 * uno scenario, che vive nel draft d'authoring e **non e' mai stata scritta su disco**. Senza questa porta
+	 * l'unico modo di riusare la navigazione sarebbe riscriverla nell'editor — cioe' avere due
+	 * implementazioni di *«fase successiva»* che possono divergere, che e' precisamente cio' che il secondo
+	 * consumatore doveva evitare.
+	 *
+	 * ⚠️ **Nessun manifest, e non e' una dimenticanza.** Un'esecuzione di scenario non ha `MatchId`, ne'
+	 * topologia dichiarata, ne' osservatore: il manifest resta al suo default e chi apre di qui non deve
+	 * leggerlo. Cio' che la navigazione usa davvero — `Traces` e la cache delle fasi — e' tutto qui.
+	 *
+	 * ⛔ **Tracce vuote sono un RIFIUTO**, non un'apertura su una partita in cui non e' successo niente. A
+	 * schermo le due si vedono uguali — un campo fermo — e sono affermazioni diverse.
+	 *
+	 * `bComplete` resta `true`: chi passa tracce in memoria ha per costruzione l'esecuzione intera, e
+	 * l'incompletezza che `Open` sa riconoscere e' una proprieta' dell'**archivio**, non di questa via.
+	 */
+	bool OpenFromTraces(TArray<TArray<FRTTurnLogEntry>> Traces);
+
 	/** `true` solo dopo un `Open` riuscito. */
 	bool IsOpen() const { return bOpen; }
 

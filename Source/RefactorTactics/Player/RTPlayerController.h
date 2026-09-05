@@ -444,6 +444,17 @@ private:
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);
 	void OnRestart(const FInputActionValue& Value);
+
+	/**
+	 * Il piano e' stato committato: spegne l'anteprima di pianificazione (`#2193`).
+	 *
+	 * 🔴 **`UFUNCTION` perche' e' il bersaglio di un delegate DINAMICO**, e senza la macro `AddUniqueDynamic`
+	 * non compila. Reagisce a `ARTTurnManager::OnLockInCommitted` invece di spegnere l'anteprima dentro
+	 * `OnLockIn`: fra il Ready e il commit c'e' un countdown annullabile, e durante quei tre secondi il piano
+	 * deve **restare visibile** — e' cio' che il giocatore sta per confermare.
+	 */
+	UFUNCTION()
+	void HandleLockInCommitted();
 	// Uno per posizione del kit, e sono one-liner che passano tutti da `SelectAbilityForCurrent`. Uno per
 	// posizione e non un handler solo perche' l'indice deve arrivare dalla BINDATURA: `FInputActionValue`
 	// porta il valore, non l'azione che l'ha prodotto, quindi un handler unico non saprebbe quale tasto e'

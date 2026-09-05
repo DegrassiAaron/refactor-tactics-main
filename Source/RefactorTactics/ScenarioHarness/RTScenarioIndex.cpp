@@ -206,6 +206,27 @@ FString URTScenarioIndex::ApplyRedirects(const TMap<FString, FString>& Redirects
 	return Current;
 }
 
+bool URTScenarioIndex::IsSegmentSuffix(const FString& Full, const FString& Abbrev)
+{
+	TArray<FString> A, B;
+	Full.ParseIntoArray(A, TEXT("."));
+	Abbrev.ParseIntoArray(B, TEXT("."));
+	if (B.Num() == 0 || B.Num() > A.Num())
+	{
+		return false;
+	}
+	// Dal FONDO: e' il verso in cui un ID gerarchico si abbrevia. Confrontare dall'inizio farebbe
+	// risolvere `Visual` a uno qualunque dei suoi quaranta scenari.
+	for (int32 i = 0; i < B.Num(); ++i)
+	{
+		if (!A[A.Num() - 1 - i].Equals(B[B.Num() - 1 - i], ESearchCase::IgnoreCase))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 FString URTScenarioIndex::ResolvePath(const FString& ScenarioId, FString& OutError)
 {
 	OutError.Reset();
@@ -243,6 +264,53 @@ FString URTScenarioIndex::ResolvePath(const FString& ScenarioId, FString& OutErr
 		{
 			Effective = Redirected;
 			Matches = MatchesOf(Effective);
+		}
+	}
+
+	// 🔑 **Terzo tentativo: l'ABBREVIAZIONE, e solo dopo che gli altri due hanno fallito** (#2257).
+	//
+	// `Visual.Environment.IceSlide` si scrive `IceSlide`, o `Environment.IceSlide` se il solo nome finale
+	// non basta. Sui 118 scenari del corpus l'ultimo segmento e' univoco per **115**: l'unico ambiguo e'
+	// `Acceptance`, che tre scenari dichiarano.
+	//
+	// 🔴 **L'ordine dei tre tentativi e' la garanzia, non una comodita'.** Un ID **vivo** vince su tutto, e
+	// un redirect vince su un'abbreviazione: cosi' riusare un nome liberato porta al file giusto, e nessuna
+	// scorciatoia puo' dirottare un ID che esiste davvero. Invertire l'ordine sarebbe il difetto che questa
+	// funzione evitava gia' per i redirect.
+	//
+	// ⛔ **Il confine e' il SEGMENTO, non il carattere.** `ceSlide` non risolve, e non e' pignoleria: un
+	// match per sottostringa sembra comodo finche' non nasce `IceBridge`, e da quel giorno `Ice` sceglie in
+	// silenzio. Qui si confrontano segmenti interi dal fondo, che e' il modo in cui un ID gerarchico si
+	// abbrevia davvero.
+	if (Matches.Num() == 0)
+	{
+		TArray<FString> Candidati;
+		for (const FRTScenarioEntry& Entry : Entries)
+		{
+			if (IsSegmentSuffix(Entry.ScenarioId, ScenarioId))
+			{
+				Candidati.AddUnique(Entry.ScenarioId);
+			}
+		}
+
+		if (Candidati.Num() == 1)
+		{
+			Effective = Candidati[0];
+			Matches = MatchesOf(Effective);
+		}
+		else if (Candidati.Num() > 1)
+		{
+			// ✅ **Validato per mutazione**: fatto scegliere «il primo che trova»,
+			// `ScenarioIndex.AbbreviationResolvesOrRefuses` cade con *«un'abbreviazione ambigua NON risolve»*.
+			// ⛔ **Ambiguo = NON parte, e il messaggio elenca i candidati.** Sceglierne uno «il primo che
+			// trova» farebbe girare lo scenario sbagliato **senza dirlo** — peggio del typo che questa
+			// funzione chiude, perche' quello almeno non fa nulla. Chi legge deve poter disambiguare
+			// aggiungendo un segmento, e per farlo deve vedere fra cosa sta scegliendo.
+			Candidati.Sort();
+			OutError = FString::Printf(
+				TEXT("abbreviazione '%s' ambigua, %d scenari la soddisfano: %s · aggiungi un segmento"),
+				*ScenarioId, Candidati.Num(), *FString::Join(Candidati, TEXT(", ")));
+			return FString();
 		}
 	}
 

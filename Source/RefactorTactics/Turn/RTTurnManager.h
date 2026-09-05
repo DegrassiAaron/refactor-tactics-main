@@ -8,11 +8,14 @@
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTResolvedEvent.h"
 #include "Replay/RTReplayAuditLibrary.h" // FRTAuditBotDecision: il quarto record di D-313
+#include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary: la rotta e il suo filtro
 #include "Turn/RTCombatLog.h" // FRTLogSubject, FRTCombatLogLine: i tipi del combat log
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTReplayRecording.h" // FRTReplayRecording: l'archivio in scrittura vive fuori (#2286)
 #include "Replay/RTReplayManifest.h"
 #include "Ability/RTActionDef.h" // FRTActionDef: l'impatto della carica porta con se' la definizione
 #include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
+#include "Turn/RTPacingRecorder.h" // FRTPacingRecorder: la telemetria vive fuori (#1818)
 #include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
 #include "Turn/RTPlaybackLibrary.h" // FRTPhaseTime: la fase ha due termini, e il budget ne tocca uno solo
 #include "Map/RTHexCellData.h" // ERTHexSurface: il terreno dinamico ricorda la superficie originale (CP 8.4)
@@ -179,57 +182,25 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRTTeamKnowledgeRefreshedSignature, 
  */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FRTOnMatchEndedSignature, const FRTMatchResult&, Result, const FRTMatchState&, State);
 
+/**
+ * Il piano e' stato committato: la pianificazione e' chiusa e la risoluzione sta per cominciare (`#2193`).
+ *
+ * ⚠️ **E' un annuncio, non un comando**, come `FRTOnMatchEndedSignature` otto righe sopra: la simulazione non
+ * conosce la presentazione, e chi ascolta decide cosa farne. Serve a chi disegna un'anteprima di
+ * pianificazione, che dopo il commit mostrerebbe una minaccia gia' decisa.
+ *
+ * 🔴 **Scatta su TUTTI i percorsi di commit**, ed e' la ragione per cui e' un delegate invece di una riga in
+ * piu' nel controller. Prima di `#2193` solo `ARTPlayerController::OnLockIn` spegneva l'anteprima: un turno
+ * chiuso dal **timeout** la lasciava accesa per tutta la risoluzione, perche' `OnPlanningTimeout` chiama
+ * `LockInAndResolve` senza passare dal controller. Col countdown i percorsi diventano tre, e tre copie della
+ * stessa riga sarebbero state due occasioni di dimenticarne una.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRTLockInCommittedSignature);
+
 // `FRTLogSubject` e `FRTCombatLogLine` vivono in `Turn/RTCombatLog.h` da `#1818`: chiunque volesse una
 // riga di log doveva includere QUESTO header per una struct di tre campi.
 
-/**
- * Una rotta percorsa nell'ultima risoluzione, col SOGGETTO accanto alle celle.
- *
- * Stessa forma di `FRTCombatLogLine` e per la stessa ragione: un dato destinato alla presentazione porta
- * l'identita' di CHI lo ha prodotto, perche' a valle non c'e' modo di ricostruirla.
- *
- * 🔴 **L'indice dell'array non e' mai stato un'identita', e non puo' diventarlo** (`#1497`): la raccolta e'
- * COMPATTATA — aggiunge una voce solo per chi si e' davvero mosso — quindi con le unita' 1 e 3 in movimento
- * e la 2 ferma le due rotte stanno agli indici `0` e `1`. Una stesura precedente di `rt.Debug.DrawPaths`
- * stampava «unita %d» su quell'indice e nominava un'unita' che non si era mossa.
- *
- * Senza questo campo la traccia non e' filtrabile contro la conoscenza di squadra, e il percorso di un
- * nemico che non si vede resta disegnato a schermo.
- */
-USTRUCT()
-struct FRTMoveRoute
-{
-	GENERATED_BODY()
-
-	/** Chi ha percorso questa rotta. `ARTUnit::StableUnitId`, mai un indice di array. */
-	UPROPERTY()
-	int32 StableUnitId = INDEX_NONE;
-
-	/** Cella di partenza seguita dalle celle attraversate, nell'ordine in cui sono state percorse. */
-	UPROPERTY()
-	TArray<FRTCellId> Cells;
-
-	/**
-	 * Chi puo' vedere disegnata CIASCUNA cella di `Cells`, deciso quando la rotta e' stata raccolta
-	 * ([D-223], emendamento del 2026-08-28). Parallelo a `Cells`, stesso indice.
-	 *
-	 * 🔴 **Un verdetto per cella e non uno per rotta, perche' una rotta non e' un fatto puntuale.** Una riga
-	 * di log ha un istante; una rotta e' una traiettoria che ne attraversa due — partenza e arrivo — e un
-	 * verdetto congelato sulla partenza autorizzerebbe a disegnare l'arrivo. Sono i due errori speculari che
-	 * [D-223] esiste per chiudere: il **leak** (la polilinea entra nella nebbia) e la **contraddizione** (la
-	 * traccia nascosta mentre il modello e' disegnato).
-	 *
-	 * ⚠️ **E il caso piu' comune non e' agli estremi**: `VisibleCells` e' un insieme *bucato* — LOS, cono
-	 * frontale e close range — non un raggio, quindi il mezzo di un percorso puo' sparire mentre partenza e
-	 * arrivo si vedono. Un verdetto per rotta non lo copre in nessuna delle sue forme.
-	 *
-	 * 🔴 **Non si consuma leggendo questo array**: la regola vive in `VisibleTrailFor`, che tronca. Chi
-	 * ciclasse qui saltando le celle non ammesse disegnerebbe un segmento fra due celle non adiacenti, cioe'
-	 * una linea che attraversa proprio il tratto da nascondere.
-	 */
-	UPROPERTY()
-	TArray<FRTKnowledgeVerdict> CellVerdicts;
-};
+// `FRTMoveRoute` vive in `Turn/RTMoveRoute.h` da `#1818`, col filtro `URTMoveRouteLibrary`.
 
 /**
  * Orchestratore del turno: tiene fase e numero di turno e, al lock-in, risolve il turno (logica sincrona,
@@ -246,9 +217,94 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 
-	/** Chiude la pianificazione e risolve il turno; il movimento si applica nella fase Move. */
+	/**
+	 * Chiude la pianificazione e risolve il turno; il movimento si applica nella fase Move.
+	 *
+	 * ⚠️ **Chiamarla DUE volte senza pompare `Tick` in mezzo NON gioca due turni: la seconda chiamata
+	 * e' un no-op silenzioso.** Le fasi si risolvono qui, in modo sincrono — ma se c'e' qualcosa da
+	 * mostrare la risoluzione entra nel **playback**, che accende `bIsResolving` e rimanda `ConcludeTurn`
+	 * a `FinishPlayback`, raggiungibile **solo da `Tick`**. Finche' resta acceso, la guardia in testa a
+	 * questa funzione (`Phase != Planning || bIsResolving`) fa rientrare ogni chiamata successiva senza
+	 * dire niente.
+	 *
+	 * 🔑 **E cio' che si perde non e' solo il secondo turno: e' il refresh della conoscenza a valle
+	 * del MOVIMENTO.** `ConcludeTurn` riapre la pianificazione con `PlanBots()`, che e' l'unico punto a
+	 * chiamare `RefreshTeamKnowledgeForPlanning` dopo che le unita' si sono spostate; l'altro refresh
+	 * — quello di `ResolveCombat` — gira in fase **Blast**, cioe' PRIMA di Move, sulle posizioni di
+	 * partenza. ∴ un test che legge la conoscenza (o il velo) senza pompare rilegge lo stato
+	 * **pre-movimento** e lo scambia per una misura: nel caso che ha prodotto questa nota, tre conteggi
+	 * identici a due `LockInAndResolve` di distanza, delta `+0 +0 +0`, e il test **verde**.
+	 *
+	 * ∴ chi gioca dei turni ha due strade, e una la deve prendere:
+	 * ```cpp
+	 * TM->LockInAndResolve();
+	 * for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); } // la partita vera
+	 * ```
+	 * oppure `bEnablePlayback = false` prima di cominciare — la strada di `RTHexPerfTests` e
+	 * `RTStress4v4Tests`, che misurano il resolver e non la sua riproduzione: senza playback
+	 * `ConcludeTurn` viene chiamata subito, in linea.
+	 *
+	 * ⚠️ `Phase == Planning` DOPO la chiamata non dice che il turno non e' avanzato: Planning e' la fase
+	 * di **riposo**, e il ciclo delle fasi esce proprio quando ci torna. Il segnale vero e' `IsResolving()`
+	 * ancora acceso, oppure `GetTurnNumber()` fermo.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
 	void LockInAndResolve();
+
+	/**
+	 * Il **Ready del giocatore**: arma il countdown annullabile, e solo al suo scadere committa (`#2193`,
+	 * [`spec-durata-partita-e-scala-mappe.md`](../../../docs/gameplay/spec-durata-partita-e-scala-mappe.md) §7.2).
+	 *
+	 * 🔴 **Non e' un secondo `LockInAndResolve`, ed e' il punto dell'intera issue.** `LockInAndResolve` e' il
+	 * punto di CONFLUENZA di tre percorsi — questo, il timeout, e lo Scenario Harness che lo chiama diretto —
+	 * e mettere tre secondi di attesa li' dentro li avrebbe fatti aspettare tutti, cioe' avrebbe messo tempo
+	 * di parete in un percorso headless che oggi non ne ha. Il countdown sta **a monte**, e il punto comune
+	 * resta sincrono.
+	 *
+	 * ⛔ **Non tocca lo snapshot.** Lo snapshot nasce dentro `LockInAndResolve`, cioe' DOPO che il countdown e'
+	 * finito: durante l'attesa l'autorita' non ha accettato niente, ed e' il vincolo che `#2193` pone. E' anche
+	 * la classificazione che la spec dava gia' a questo parametro — `ReadyCountdownSeconds` sta fra i **Tempi
+	 * UX**, *«tempo di parete: non devono mai raggiungere il TurnLog»*.
+	 *
+	 * ⚠️ **Con `ReadyCountdownSeconds <= 0` committa SUBITO**, come faceva il lock-in prima di questa issue:
+	 * e' la via che tiene i test headless e l'harness sul comportamento di sempre.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void RequestLockIn();
+
+	/**
+	 * **Unready**: annulla il countdown e torna alla pianificazione. No-op se non e' armato (`#2193`).
+	 *
+	 * 🔴 **Il tetto NON si riarma**, e non e' una dimenticanza: `PlanningTimerHandle` non e' mai stato fermato
+	 * — continua da dov'era. Riarmarlo regalerebbe tempo a ogni Unready, e il criterio dice che il countdown
+	 * *«non sostituisce il timer massimo»*: se lo sostituisse in questo verso, premere Ready e disdire sarebbe
+	 * il modo di pianificare all'infinito.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void CancelLockIn();
+
+	/** Il countdown fra Ready e commit e' in corso. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	bool IsReadyCountdownActive() const;
+
+	/** Secondi che mancano al commit; `0` se il countdown non e' armato. Per l'HUD e per i test. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	float GetReadyCountdownRemaining() const;
+
+	/**
+	 * Cambia la durata del countdown, clampando a zero. Stessa forma di `SetPlanningSeconds`, e per la stessa
+	 * ragione: e' ritmo di presentazione, non una regola di gioco.
+	 *
+	 * ⚠️ **Non rifa' un countdown gia' armato**, a differenza di `SetPlanningSeconds` col suo timer: cambiare
+	 * la durata a meta' attesa sposterebbe il commit sotto le dita di chi ha appena premuto Ready. Il valore
+	 * nuovo vale dal Ready successivo.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void SetReadyCountdownSeconds(float NewSeconds) { ReadyCountdownSeconds = FMath::Max(0.f, NewSeconds); }
+
+	/** Durata corrente del countdown (diagnostica e test). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	float GetReadyCountdownSeconds() const { return ReadyCountdownSeconds; }
 
 	/** Hook per i test d'integrazione headless: invoca la pianificazione dei bot senza timer/playback. */
 	void PlanBotsForTest() { PlanBots(); }
@@ -265,6 +321,37 @@ public:
 	 * @return il numero di verdetti, o `INDEX_NONE` se l'unita' non ha un evento di movimento.
 	 */
 	int32 ResolvedMoveVerdictCountForTest(int32 StableUnitId) const;
+
+	/**
+	 * Hook per i test: quante reazioni RISOLTE ha emesso l'unita' data in questo turno (#2191).
+	 *
+	 * 🔴 Esiste perche' `ResolvedTimeline` e' privato e la presentazione e' l'unico consumatore: senza
+	 * questo accessore l'emissione sarebbe verificabile solo a schermo, cioe' proprio la meta' che le voci
+	 * `PIE-VIS-DEFLECT` e `PIE-VIS-INTERPOSE` esistono per giudicare — e un test che non puo' vedere il
+	 * fatto non lo sorveglia.
+	 *
+	 * ⚠️ Conta gli eventi, non gli effetti: una reazione che apre uno scudo e una che contrattacca
+	 * valgono **uno** ciascuna. Quanti danni siano passati lo dicono gli `Attack`, che restano loro.
+	 *
+	 * @return il numero di eventi `ReactionResolved` con quel soggetto; `0` se non ha reagito.
+	 */
+	int32 ResolvedReactionCountForTest(int32 ReactorStableUnitId) const;
+
+	/**
+	 * Hook per i test: gli eventi `StatusChanged` emessi in questo turno (`#2245`).
+	 *
+	 * 🔴 Stessa ragione dell'accessore qui sopra — `ResolvedTimeline` e' privato e la presentazione e'
+	 * l'unico consumatore — con una in piu': l'emissione avviene in `AppendLogEntry`, cioe' in un punto
+	 * che **ogni** voce di log attraversa. Senza poter leggere la timeline, la differenza fra «emesso per
+	 * gli stati» ed «emesso per tutto» non sarebbe osservabile da un test.
+	 *
+	 * ⚠️ Restituisce gli eventi INTERI e non un conteggio: cio' che va sorvegliato qui e' il **contenuto** —
+	 * quale tag, quale causa, quanti turni — e un numero non lo direbbe. Il precedente conta perche' li'
+	 * la domanda era *«ha reagito?»*; qui e' *«che cosa e' successo a quale stato, e perche'»*.
+	 *
+	 * @return copia degli eventi `StatusChanged` nell'ordine di emissione, che e' quello delle voci di log.
+	 */
+	TArray<FRTResolvedEvent> ResolvedStatusEventsForTest() const;
 
 	/**
 	 * Hook per i test: applica una modifica temporanea di superficie dichiarandone l'autore.
@@ -317,6 +404,73 @@ public:
 	/** Durata corrente della pianificazione (diagnostica e test). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	float GetPlanningSeconds() const { return PlanningSeconds; }
+
+	/**
+	 * Abilita Pause e Step del playback — **Vs Bot e Debug**, dove osservare una risoluzione e' lo scopo
+	 * (`#1879`).
+	 *
+	 * ⛔ **Chi non chiama questo non ha i controlli**, e non e' una svista di ergonomia: e' il fail-closed
+	 * del criterio sul PvP live competitivo, dove fermare la riproduzione localmente non e' lecito. Vedi
+	 * `bPlaybackControlsEnabled` per la ragione per cui il divieto e' un default e non un controllo di
+	 * modalita'.
+	 *
+	 * Disabilitare mentre il playback e' fermo lo fa **ripartire**: lasciarlo in pausa senza il comando per
+	 * riprenderlo sarebbe una partita bloccata da un flag.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playback")
+	void SetPlaybackControlsEnabled(bool bEnabled);
+
+	/** `true` se Pause/Step sono disponibili in questa sessione. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	bool ArePlaybackControlsEnabled() const { return bPlaybackControlsEnabled; }
+
+	/**
+	 * Ferma la riproduzione **al prossimo confine di micro-step**, mai a meta' (`#1879`).
+	 *
+	 * ⚠️ Ferma cio' che si VEDE. La risoluzione e' gia' avvenuta per intero quando il playback comincia:
+	 * non esiste uno stato logico a meta' barriera da proteggere, ed e' giusto dirlo invece di difendersi
+	 * da un pericolo che non c'e'. Cio' che la regola protegge e' l'immagine — nessun mondo mostrato a
+	 * meta' di una barriera che il resolver ha deciso in blocco.
+	 *
+	 * Senza controlli abilitati non fa nulla. Idempotente.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playback")
+	void PausePlayback();
+
+	/** Riprende dopo una pausa. Senza controlli abilitati non fa nulla. Idempotente. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playback")
+	void ResumePlayback();
+
+	/**
+	 * Esegue **un intero** micro-step e torna in pausa (`#1879`).
+	 *
+	 * 🔑 **Non spezza gli eventi simultanei, e non per disciplina**: tutte le animazioni di una fase
+	 * condividono lo stesso `Alpha`, quindi avanzano insieme per costruzione. Non esiste un ingresso che
+	 * faccia avanzare una sola unita'.
+	 *
+	 * Il confine si calcola **alla pressione** e in secondi, non in tick: un «avanza per N frame»
+	 * dipenderebbe dal frame rate, e la stessa pressione fermerebbe il playback in punti diversi su
+	 * macchine diverse.
+	 *
+	 * Senza controlli abilitati non fa nulla. A fase conclusa non avanza oltre la fine.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playback")
+	void StepMicroStep();
+
+	/** `true` se la riproduzione e' ferma (diagnostica, UI e test). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	bool IsPlaybackPaused() const { return bPlaybackPaused; }
+
+	/**
+	 * Quanti micro-step contiene la fase di playback in corso: il **massimo** fra i percorsi delle unita'
+	 * che si muovono in questa fase.
+	 *
+	 * ⚠️ Il massimo e non la somma, ne' il minimo: le unita' avanzano **in parallelo** sullo stesso
+	 * `Alpha`, quindi la fase dura quanto il percorso piu' lungo. La somma conterebbe piu' volte barriere
+	 * che sono la stessa; il minimo fermerebbe la fase mentre qualcuno e' ancora in cammino.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	int32 MicroStepsInCurrentPlaybackPhase() const;
 
 	/**
 	 * Durata della finestra Fast Reaction (ADR-0004 §8). E' cio' che alimenta il countdown del DTO di
@@ -395,28 +549,6 @@ public:
 	TArray<FString> GetRecentEvents() const;
 
 
-	/**
-	 * Il tratto di una rotta che un osservatore puo' vedere disegnato: il PREFISSO che il verdetto ammette.
-	 *
-	 * E' il gemello di `URTCombatLogLibrary::ComposeVisibleLogLines` — che da `#1818` vive in
-	 * `Turn/RTCombatLog.h` — per il secondo canale che [D-223] congela, ed e' statica e
-	 * PURA per la stessa ragione di `ARTHUD::ShouldDrawUnitOverlay`: `DrawHUD` non ha copertura headless,
-	 * quindi la regola vive dove la si puo' interrogare senza montare un HUD ne' una partita.
-	 *
-	 * 🔴 **Tronca, non salta.** La rotta porta il tratto OSSERVATO e si interrompe dove l'osservatore ha
-	 * perso il soggetto: *«ho visto questa parte del suo movimento»* e' l'unica frase vera in ogni caso.
-	 * Saltare le celle non ammesse e riprendere piu' avanti disegnerebbe un segmento fra due celle non
-	 * adiacenti — una linea tesa attraverso il tratto che si voleva nascondere, cioe' il leak in forma
-	 * peggiore.
-	 *
-	 * ⚠️ **Fail-closed due volte**: un verdetto assente non ammette nessuno (`FRTKnowledgeVerdict` nasce a
-	 * maschera vuota), e una rotta i cui verdetti non siano allineati alle celle non si disegna affatto —
-	 * senza quel controllo, un `Cells.Add` futuro senza il verdetto corrispondente leggerebbe fuori array.
-	 *
-	 * ⚠️ Un tratto di UNA cella non produce nessun segmento a schermo, ed e' corretto: la cella di partenza
-	 * era gia' osservata: disegnarne il punto non aggiunge nulla che l'osservatore non sapesse.
-	 */
-	static TArray<FRTCellId> VisibleTrailFor(const FRTMoveRoute& Route, int32 ObserverTeamId);
 
 	/** Le righe recenti gia' filtrate per una squadra. E' cio' che l'HUD deve chiamare. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
@@ -526,7 +658,7 @@ public:
 	void RefreshTeamKnowledgeNow();
 
 	/** Identita' della registrazione in corso. Non valida finche' `BeginReplayRecording` non e' stata chiamata. */
-	FGuid GetReplayMatchId() const { return ReplayManifest.MatchId; }
+	FGuid GetReplayMatchId() const { return ReplayRecording.GetMatchId(); }
 
 	/** Ultimo checksum di stato catturato. `0` = mai calcolato (registrazione spenta, o nessun turno risolto). */
 	int64 GetPendingFinalStateHash() const { return PendingFinalStateHash; }
@@ -570,7 +702,7 @@ public:
 	FRTTeamKnowledgeRefreshedSignature OnTeamKnowledgeRefreshed;
 
 	/** Campioni di pacing della sessione corrente (sola lettura; telemetria, non stato di gioco). */
-	const TArray<FRTPacingSample>& GetPacingSamples() const { return PacingSamples; }
+	const TArray<FRTPacingSample>& GetPacingSamples() const { return Pacing.GetSamples(); }
 
 	/** Se vero, ogni turno appende una riga in Saved/RT/pacing_<sessione>.csv. L'accumulo in memoria e' sempre attivo. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Pacing")
@@ -611,6 +743,10 @@ public:
 	 */
 	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Match")
 	FRTOnMatchEndedSignature OnMatchEnded;
+
+	/** Il piano e' committato e la risoluzione comincia (`#2193`). Vedi `FRTLockInCommittedSignature`. */
+	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Turn")
+	FRTLockInCommittedSignature OnLockInCommitted;
 
 	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Playback")
 	FRTUnitPlaybackSignature OnUnitMoveStarted;
@@ -790,6 +926,32 @@ public:
 	int32 WEngageDecay = FRTHexBotContext{}.WEngageDecay;
 
 	/**
+	 * Quanto vale CONTROLLARE la cella obiettivo, cioe' terminare il piano sopra di essa (`#2269`).
+	 *
+	 * E' la categoria `Objective` di `spec-bot-tattico.md` §5, e prima di questa riga il punteggio del bot
+	 * non la nominava affatto: su `L_HexArena` — che un obiettivo ce l'ha, a `(0,-3,L0)` — una partita 2v2
+	 * si e' decisa `obiettivo 0-3` senza che nessuno dei due bot lo stesse giocando.
+	 *
+	 * ⚠️ **Zero spegne il termine**, e sul roster spedito non c'e' nessun'altra manopola che lo faccia: e'
+	 * l'interruttore con cui la verifica di mutazione misura che il termine stia davvero decidendo qualcosa.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
+	int32 WObjective = FRTHexBotContext{}.WObjective;
+
+	/**
+	 * Quanto `WObjective` cala per ogni passo che manca all'obiettivo piu' vicino.
+	 *
+	 * 🔴 **INVARIANTE: `WObjectiveFalloff > WApproach`.** Sotto quella soglia il gradiente verso l'obiettivo
+	 * pareggia quello verso il nemico, il tie-break «a parita' vince la mossa minima» fa restare, e il bot
+	 * non raggiunge l'obiettivo nemmeno quando gli e' accanto. Pinnata da
+	 * `HexBot.ObjectivePullBeatsClosingOneCell` sull'ESITO di `ChooseBestPlan`.
+	 * ⛔ Abbassarlo da qui in editor riapre quel difetto, esattamente come alzare `WElevation` riapre `#1088`:
+	 * questa e' la sorgente che vince in partita, perche' `PlanBots` copia queste UPROPERTY nel contesto.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
+	int32 WObjectiveFalloff = FRTHexBotContext{}.WObjectiveFalloff;
+
+	/**
 	 * Snapshot dello stato corrente della partita (unita' VIVE del livello + mappa autorevole).
 	 * `OutUnits[i]` e' l'unita' con `UnitId == i`: e' la chiave con cui rileggere gli esiti.
 	 *
@@ -939,7 +1101,11 @@ protected:
 	void ApplyDisplacements(FRTBlastContext& Ctx);
 
 	/**
-	 * Decide QUALI attaccanti pagano — i sopravvissuti — e assegna energia o la voce `Ultimate!`.
+	 * Decide QUALI attaccanti pagano — i sopravvissuti.
+	 *
+	 * Assegnava anche energia, o in alternativa la voce di log `Ultimate!` quando l'abilita' aveva un costo.
+	 * [D-324](../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy` dal gameplay, e con essa
+	 * il criterio che sceglieva fra i due rami: qui resta la sola annotazione.
 	 *
 	 * ⚠️ Il cooldown NON lo scrive: annota con `MarkAbilitySpent`, e a pagare e' `SpendStartedAbilities`
 	 * (`#1451` punto 3). Si chiamava `ConsumeAttackerAbilities`, e il nome e' stato cambiato perche' dopo
@@ -1383,27 +1549,25 @@ protected:
 	 */
 	TArray<FRTPacingUnitFacts> CollectPacingUnitFacts() const;
 
-	void BeginPacingSample();
-	void ClosePacingSample();
-	void AppendPacingRow(const FRTPacingSample& Sample);
-
-	TArray<FRTPacingSample> PacingSamples;
-	/** Vedi `SetUnattendedSession`. Spinto dall'allestimento, mai dedotto qui. */
-	bool bUnattendedSession = false;
-	FRTPacingSample PacingCurrent;
 	/**
-	 * Vero fra `BeginPacingSample()` e `ClosePacingSample()`.
+	 * La telemetria di pacing, uscita da questa classe con l'ottava fetta di `#1818`.
 	 *
-	 * ⚠️ Non e' ridondante con `PacingPlanningStart != 0.0`: quel confronto risponde «l'origine e' stata
-	 * scritta almeno una volta», che dopo il primo turno resta vero per sempre — e il campione di un turno
-	 * successivo aperto da un percorso che non passa dal timer si misurerebbe da un'origine di due turni
-	 * fa. Lo stato si chiede a un flag, non lo si deduce da un valore.
+	 * 🔑 Qui restava **stato** — dieci membri — per una cosa che nessuna regola legge. Ora l'orchestratore
+	 * possiede il registratore e gli passa i fatti; la sequenza e i tempi vivono in `FRTPacingRecorder`, che
+	 * si esercita **senza un mondo**.
 	 */
-	bool bPacingSampleOpen = false;
-	double PacingPlanningStart = 0.0;  // FPlatformTime::Seconds() all'apertura della pianificazione
-	double PacingLastInput = 0.0;
-	bool bPacingHadInput = false;
-	FString PacingFilePath;            // vuoto finche' non si scrive la prima riga
+	FRTPacingRecorder Pacing;
+
+	/**
+	 * Vero quando nessun umano sta pianificando: lo dichiara chi allestisce la sessione.
+	 *
+	 * ⚠️ **Non e' stato di pacing**, benche' il pacing sia l'unico a leggerlo: e' un fatto della SESSIONE, e i
+	 * due accessori pubblici qui sopra lo espongono. E' rimasto qui quando il registratore e' uscito, e la
+	 * prima stesura di quella fetta se l'era portato via — il compilatore l'ha detto subito, ed e' la ragione
+	 * per cui un taglio si verifica compilando invece che rileggendo.
+	 */
+	bool bUnattendedSession = false;
+
 
 	/**
 	 * Registra un evento: lo scrive nel log LogRT (completo, diagnosi per sviluppatore) e lo accoda al
@@ -1497,7 +1661,14 @@ protected:
 	TArray<FRTTurnLogEntry> TurnLog;
 
 	/** Stato della registrazione in corso: id, hash per turno, chiusura. Lo tiene il manifest stesso. */
-	FRTReplayManifest ReplayManifest;
+	/**
+	 * L'archivio replay in scrittura, uscito da questa classe con la nona fetta di `#2286`.
+	 *
+	 * 🔑 Qui restavano il manifest e due timestamp per un carico **inerte all'esito**: registra cio' che
+	 * il resolver ha gia' deciso, e nessuna regola lo rilegge. L'orchestratore raccoglie i fatti e li passa;
+	 * la sequenza e lo stato vivono in `FRTReplayRecording`, che non conosce ne' il mondo ne' il TurnLog.
+	 */
+	FRTReplayRecording ReplayRecording;
 
 	/** Scrive la traccia del turno appena risolto. Silenziosa se la registrazione e' spenta. */
 	void RecordTurnToReplay();
@@ -1517,16 +1688,13 @@ protected:
 	int64 PendingFinalStateHash = 0;
 
 	/** La radice effettiva: l'override se c'e', altrimenti `Saved/Replays`. */
-	FString ResolveReplaysRoot() const;
 
 	/**
 	 * Istante reale d'inizio registrazione, per la durata nel manifest. E' l'UNICO tempo reale che tocca
 	 * l'archivio, e finisce in un campo che non entra in nessun hash.
 	 */
-	double ReplayStartRealSeconds = 0.0;
 
 	/** Istante d'inizio in UTC, per la riga dell'indice (`#416`). Il manifest porta una durata, non un inizio. */
-	FDateTime ReplayStartedUtc = FDateTime(0);
 
 	/** Rotte percorse da ogni unita' che si e' mossa nell'ultima risoluzione, ciascuna col proprio soggetto. */
 	TArray<FRTMoveRoute> LastMoveRoutes;
@@ -1550,6 +1718,20 @@ protected:
 	/** Durata della fase di pianificazione; allo scadere scatta il lock-in automatico. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
 	float PlanningSeconds = 30.f;
+
+	/**
+	 * Durata del countdown fra il Ready del giocatore e il commit, in secondi: **3,0 s** (`D-010`,
+	 * [`spec-durata-partita-e-scala-mappe.md`](../../../docs/gameplay/spec-durata-partita-e-scala-mappe.md) §7.2).
+	 *
+	 * Sta qui accanto a `PlanningSeconds` per la ragione che la spec dichiara di entrambi: sono **Tempi UX**,
+	 * tempo di PARETE, e non devono mai raggiungere il TurnLog. Un tempo di parete nel log lo renderebbe non
+	 * deterministico ([`spec-pacing-turno.md`](../../../docs/gameplay/spec-pacing-turno.md) **D3**).
+	 *
+	 * ⚠️ **`0` non e' «countdown istantaneo»: e' «nessun countdown».** `RequestLockIn()` committa nello stesso
+	 * frame, che e' il comportamento di prima di `#2193` ed e' quello su cui girano l'harness e i test.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
+	float ReadyCountdownSeconds = 3.f;
 
 	/**
 	 * Durata della finestra Fast Reaction, in secondi (ADR-0004 §8, CP 14.6): **3,0 s**.
@@ -1610,6 +1792,26 @@ protected:
 	 * freschi, quindi chiamarla due volte nello stesso turno non allunga la memoria di nessuno.
 	 */
 	void RefreshTeamKnowledgeForPlanning(const TArray<ARTUnit*>& Live);
+
+	/**
+	 * Il boundary IN CORSO, che `AppendLogEntry` stampa su ogni voce come terza coordinata dopo turno e fase
+	 * (`#2260`). Vive qui, e non come variabile locale del ciclo, per una ragione sola: il punto che CONTA i
+	 * micro-step e il punto che SCRIVE la traccia sono funzioni diverse, e l'unico modo di tenerli d'accordo
+	 * senza duplicare il contatore e' che ne leggano uno solo.
+	 *
+	 * ⚠️ **`INDEX_NONE` non e' «non inizializzato»: e' un valore con un significato**, ed e' quello che vale
+	 * per la maggior parte della partita. Una voce nasce fuori da un ciclo di micro-step ogni volta che la
+	 * sua fase non ne ha — Blast, status, hazard, objective, i rifiuti in Planning — e li' `INDEX_NONE` dice
+	 * esattamente questo: *nessun ciclo qui*. Cosi' `0` dentro una traccia `WithMicroStep` torna a
+	 * significare **una cosa sola**, il PRIMO boundary, invece di due.
+	 *
+	 * 🔑 **Lo ripristina chi lo alza, e per costruzione**: il ciclo di movimento lo porta a `0` quando
+	 * comincia e un `ON_SCOPE_EXIT` lo rimette a `INDEX_NONE` quando esce. Senza quel ripristino ogni voce
+	 * emessa DOPO il movimento erediterebbe in silenzio l'indice dell'ultima barriera, e direbbe di
+	 * appartenere a un ciclo gia' finito. Affidarlo a un `return` che non dimentichi sarebbe affidarlo alla
+	 * disciplina, che e' precisamente cio' che questo campo esiste per non dover chiedere.
+	 */
+	int32 CurrentMicroStepIndex = INDEX_NONE;
 
 	/**
 	 * Aggiunge una voce al TurnLog stampandoci i campi di CONTESTO della v6 (#405): turno, revisione del grafo
@@ -1695,8 +1897,21 @@ protected:
 	 */
 	static FRTTurnLogEntry MakeStatusBirthEntry(ERTMatchPhase InPhase, FGameplayTag Tag, const FRTCellId& Cell,
 		int32 RequestedTurns, bool bFromTerrain);
+	/**
+	 * ⚠️ **`InPhase` ha un default e non e' pigrizia: e' il minimo diff su un campo serializzato.** Fino a
+	 * `#2253` la fase era scritta `Cleanup` **costante** dentro la funzione, con il commento *«sempre nel
+	 * Cleanup»*. Vero per revoca e scadenza, che il tick produce; **falso** per le morti causate da un
+	 * effetto, che accadono dove l'effetto accade — e infatti la voce `Spent` di `Status.Marked`
+	 * (`RTTurnManager.cpp`, Blast) e quella `Cleansed` di `Action.Cleanse` (`RTTurnManager_Blast.cpp`)
+	 * dichiarano `Cleanup` stando nel **Blast**.
+	 *
+	 * ⛔ **Le due voci sbagliate NON sono corrette qui**, e la ragione e' che la fase e' un campo
+	 * serializzato: raddrizzarle cambia l'hash di ogni turno in cui uno stato viene incassato o purificato,
+	 * cioe' impone una rigenerazione del corpus golden per un difetto che questa issue non ha introdotto.
+	 * Registrato come tale, non sanato di straforo. I siti **nuovi** passano la fase vera.
+	 */
 	static FRTTurnLogEntry MakeStatusDeathEntry(FGameplayTag Tag, const FRTCellId& Cell,
-		ERTStatusOutcome Outcome);
+		ERTStatusOutcome Outcome, ERTMatchPhase InPhase = ERTMatchPhase::Cleanup, int32 Amount = 0);
 
 	/**
 	 * La voce di uno stato ISTANTANEO: `Status.Electrified`, che e' l'etichetta di un evento e non uno
@@ -1816,6 +2031,18 @@ protected:
 	FTimerHandle PlanningTimerHandle;
 
 	/**
+	 * Il countdown fra Ready e commit (`#2193`). Vive accanto a `PlanningTimerHandle` perche' i due orologi
+	 * hanno una precedenza, e una precedenza con due proprietari sarebbe due regole.
+	 *
+	 * 🔑 **La precedenza non e' scritta da nessuna parte, ed e' voluto**: i due timer chiamano entrambi
+	 * `LockInAndResolve`, che li spegne tutti e due appena entra. Il primo che scatta vince, e siccome il
+	 * countdown non allunga mai il tetto, il primo che scatta e' il tetto quando manca meno di
+	 * `ReadyCountdownSeconds` alla sua scadenza. *«Il countdown non sostituisce il timer massimo»* diventa cosi'
+	 * una proprieta' della struttura invece di un `if` da ricordare.
+	 */
+	FTimerHandle ReadyCountdownTimerHandle;
+
+	/**
 	 * L'allestimento ha rivendicato l'apertura del turno 1 (`#2102`, [D-314]).
 	 *
 	 * ⚠️ **Stato di AVVIO, non stato di partita**: non entra in snapshot, TurnLog o hash. Dice chi apre il
@@ -1866,6 +2093,34 @@ private:
 	// Stato runtime del playback.
 	bool bIsResolving = false;
 	bool bPrepActiveThisTurn = false;
+
+	/**
+	 * 🔴 **Pause/Step sono NEGATI finche' qualcuno non li abilita, e il default e' la regola** (`#1879`).
+	 *
+	 * La matrice delle modalita' di `#1879` vieta Pause e Step nel **PvP live competitivo**: l'autorita' non
+	 * puo' essere fermata localmente da un client, e la deducibilita' del ritmo ha gia' un proprietario
+	 * (`#759`).
+	 *
+	 * ⚠️ **Quella modalita' non esiste ancora nel codice** — `ERTMatchMode`, `bCompetitive`, `bIsPvP`:
+	 * zero occorrenze su `origin/main`, coerente con l'assenza di replica di rete misurata su `#1805`.
+	 * ⛔ Inventarla per poterla negare sarebbe fabbricare una dipendenza. Il divieto si ottiene invece
+	 * **per costruzione**: chi non abilita esplicitamente questi controlli non li ha. Il giorno in cui il
+	 * PvP live esistera' sara' gia' fuori, senza che nessuno debba ricordarsi di escluderlo — che e' la
+	 * differenza fra un fail-closed e una convenzione.
+	 */
+	bool bPlaybackControlsEnabled = false;
+
+	/** Il playback e' fermo. ⚠️ Ferma la PRESENTAZIONE: la risoluzione e' gia' avvenuta per intero. */
+	bool bPlaybackPaused = false;
+
+	/**
+	 * Se `>= 0`, il playback avanza fino a questo `PlaybackPhaseElapsed` e poi si ferma: e' lo `Step`.
+	 *
+	 * 🔑 **Un tempo e non un contatore di frame**: il confine si calcola una volta, alla pressione, e il
+	 * tick ci arriva senza sapere quanti frame servono. Un «avanza per N tick» dipenderebbe dal frame rate,
+	 * e la stessa pressione fermerebbe il playback in punti diversi su macchine diverse.
+	 */
+	float PlaybackStepTargetElapsed = -1.f;
 
 	/** Esito + via calcolati nel Cleanup e consumati da ConcludeTurn (che chiude o apre il round dopo). */
 	FRTMatchResult PendingResult;

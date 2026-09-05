@@ -112,6 +112,7 @@ namespace
 			if (Cell.bBlocksLineOfSight) { W->WriteValue(TEXT("blocksLineOfSight"), true); }
 			if (Cell.MoveCost != 0) { W->WriteValue(TEXT("moveCost"), Cell.MoveCost); }
 			if (Cell.OccupancySurcharge != 0) { W->WriteValue(TEXT("occupancySurcharge"), Cell.OccupancySurcharge); }
+			if (Cell.bIsObjective) { W->WriteValue(TEXT("objective"), true); }
 			W->WriteObjectEnd();
 		}
 		W->WriteArrayEnd();

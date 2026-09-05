@@ -66,8 +66,10 @@
       0  VALIDA, nessun fallimento
       1  VALIDA, ma dei test falliscono   -> difetto del gioco
       3  NON VALIDA                       -> esito non registrabile, non e' rosso
-      2  NON AVVIATA                      -> un processo del motore era VIVO
-         (con `-WaitMinutes N` aspetta che si liberi invece di uscire subito)
+      2  NON AVVIATA                      -> un processo del motore era VIVO, oppure
+                                          un'altra rt-suite teneva il lock condiviso
+         (con `-WaitMinutes N` aspetta ENTRAMBI invece di uscire subito; il referto
+          dice quale dei due l'ha fermata, perche' l'azione utile e' diversa)
 
     ⚠️ Una VOCE RESIDUALE non e' un motore occupato (#2130): un processo puo'
     lasciare dietro di se' una voce che sopravvive alla sua morte, e che nessuno
@@ -94,11 +96,20 @@
     Nome del file di log sotto Saved/Logs. Default `rt-suite.log`.
 
 .PARAMETER WaitMinutes
-    Minuti di attesa se il motore e' occupato da un'altra sessione; `0` (default)
-    esce subito con `2`. Al risveglio lo snapshot si rifa' per intero e il
-    preambolo si RIDICHIARA, quindi la run parte da cio' che c'e' quando il motore
-    si libera — non da cio' che c'era mezz'ora prima. Non termina mai nessun
-    processo: se e' di un altro checkout e' lavoro di qualcun altro.
+    Minuti di attesa se la run non puo' partire subito; `0` (default) esce subito
+    con `2`. Al risveglio lo snapshot si rifa' per intero e il preambolo si
+    RIDICHIARA, quindi la run parte da cio' che c'e' quando si libera — non da cio'
+    che c'era mezz'ora prima. Non termina mai nessun processo: se e' di un altro
+    checkout e' lavoro di qualcun altro.
+
+    🔑 **Copre DUE gate, e da #2346 in quest'ordine**: prima il lock condiviso
+    (`Global\RTSuiteEngineRun`, cioe' un'altra rt-suite), poi il motore. Il budget
+    e' UNO: i minuti spesi sul primo non sono disponibili per il secondo, quindi
+    `-WaitMinutes 60` resta al massimo un'ora prima di partire.
+
+    Prima di #2346 il flag copriva il solo motore e il lock si tentava con timeout
+    zero: si aspettava il rilascio del motore e poi si perdeva la corsa, uscendo `2`
+    col budget gia' speso. Misurato tre volte in un giorno.
 
     ⛔ **Attendere AMPLIFICA il punto cieco dichiarato sopra sul binario.**
     Aspettare il rilascio significa partire nell'istante in cui un'ALTRA sessione
@@ -793,6 +804,28 @@ function Say-Preamble {
 # uproject e percorso del motore — che sono saltati apposta per `-SelfTest`: un test
 # di funzioni pure non si fa cadere da un'installazione mancante. Gira su un clone
 # fresco, o sulla macchina di chi rilegge la PR.
+# 🔑 **Il budget del lock, isolato in una funzione PURA** (#2346). Non legge orologi e non
+# tocca mutex: e' la meta' provabile del fix, e `-SelfTest` la copre con una tabella. La
+# contesa vera vuole due processi e resta una verifica manuale, dichiarata come tale.
+#
+# La regola e' una sola e vale per ENTRAMBE le attese: quanto e' gia' stato speso non si
+# spende una seconda volta. Senza, `-WaitMinutes 60` varrebbe fino a due ore — un'ora per
+# il lock e un'altra per il motore.
+function Get-LockWaitMs {
+    param(
+        [double] $BudgetSeconds,
+        [double] $SpentSeconds = 0.0
+    )
+    if ($BudgetSeconds -le 0) { return 0 }
+    # Uno speso negativo non capita, ma se capitasse non deve REGALARE budget.
+    if ($SpentSeconds -lt 0) { $SpentSeconds = 0.0 }
+    $rest = $BudgetSeconds - $SpentSeconds
+    if ($rest -le 0) { return 0 }
+    $ms = $rest * 1000.0
+    if ($ms -gt [int]::MaxValue) { return [int]::MaxValue }
+    return [int][math]::Round($ms)
+}
+
 if ($SelfTest) {
     $failures = 0
     $total = 0
@@ -891,6 +924,37 @@ if ($SelfTest) {
     Assert-Origin 'cmdline vuota'    '   ' $mio 'provenienza ignota'
     Assert-Origin 'proprio ignoto'   $riga '' 'provenienza ignota'
 
+    # --- Regola 3: il budget delle DUE attese (#2346) -------------------------------------
+    # ⚠️ **Questa tabella non prova che il lock si aspetti: prova l'aritmetica del budget.**
+    # La contesa vera vuole due processi, e `-SelfTest` ne ha uno solo — detto qui perche'
+    # una tabella verde non venga letta come «la coda funziona». Cio' che copre e' la regola
+    # per cui il tempo speso su un gate non torna disponibile per l'altro, che e' il difetto
+    # che si introdurrebbe piu' facilmente riscrivendo questo pezzo.
+    function Assert-LockMs {
+        param([string] $Name, [double] $Budget, [double] $Spent, [int] $Expect)
+        $script:total++
+        $got = Get-LockWaitMs -BudgetSeconds $Budget -SpentSeconds $Spent
+        $ok = ($got -eq $Expect)
+        if (-not $ok) { $script:failures++ }
+        Say ("{0}  {1,-18} budget={2,-7} speso={3,-7} -> {4}ms (atteso {5}ms)" -f `
+            $(if ($ok) { 'ok  ' } else { 'ROTTO' }), $Name, $Budget, $Spent, $got, $Expect)
+    }
+
+    Say 'self-test del budget delle due attese (#2346)'
+    # `-WaitMinutes 0`: nessuna attesa, ne' sul lock ne' sul motore. E' il default, ed e'
+    # il caso che NON deve cambiare comportamento rispetto a prima della issue.
+    Assert-LockMs 'nessun budget'      0     0     0
+    Assert-LockMs 'budget intero'      3600  0     3600000
+    Assert-LockMs 'meta speso'         3600  1800  1800000
+    # 🔑 Il caso che rende falso il difetto: speso tutto sul lock, al motore non resta
+    # niente. Senza questa regola `-WaitMinutes 60` varrebbe fino a due ore.
+    Assert-LockMs 'esaurito'           3600  3600  0
+    Assert-LockMs 'sforato'            3600  4000  0
+    # Difensivi: un budget negativo non deve diventare un'attesa, e uno speso negativo non
+    # deve REGALARE tempo (senza il clamp tornerebbe 70000 invece di 60000).
+    Assert-LockMs 'budget negativo'    -60   0     0
+    Assert-LockMs 'speso negativo'     60    -10   60000
+
     if ($failures -gt 0) {
         Say ("self-test ROSSO: {0} caso/i non conforme/i su {1}" -f $failures, $total)
         exit 1
@@ -912,7 +976,86 @@ Say-Preamble $before
 # falliscono». Per una run che il motore occupato non ha nemmeno avviato.
 $script:WaitElapsed = $null
 
-if ($before.LiveCount -gt 0 -and $WaitMinutes -gt 0) {
+# ------------------------------------------------------- ACQUIRE ATOMICO
+# 🔴 **Vedere il motore libero non basta a esserne il proprietario.** Due sessioni
+# che aspettano la stessa run si svegliano nella stessa finestra, leggono entrambe zero
+# processi, e lanciano prima che l'`UnrealEditor-Cmd` dell'altra sia visibile a WMI: il
+# mutex Live Coding e' globale sull'eseguibile, quindi si uccidono a vicenda e dopo
+# mezz'ora l'esito e' NON VALIDA per entrambe.
+#
+# Il mutex chiude la corsa fra istanze di QUESTO script — non fra rt-suite e un editor
+# aperto a mano, che nessun lock puo' coordinare: quel caso resta coperto dal controllo
+# sui processi. Named `Global\` per attraversare le sessioni, e rilasciato dall'OS se il
+# processo muore, quindi non lascia lucchetti orfani.
+#
+# 🔑 **E sta PRIMA dell'attesa del motore — spostato qui il 2026-09-04 (#2346).**
+# L'ordine inverso ERA il difetto: si aspettava il motore e POI si correva per il lock,
+# quindi tutte le sessioni in attesa convergevano sullo stesso istante di rilascio e tutte
+# tranne una uscivano `2` DOPO aver speso il budget intero. Tre volte in un giorno, per
+# 69s + 366s + 487s di attesa buttata. ⚠️ **Il guardiano funzionava** — nessuna run si e'
+# mai uccisa, ed e' cio' che il mutex esiste per impedire; quello che mancava al perdente
+# era un modo di mettersi in coda.
+#
+# ∴ ora si prende il lock PRIMA e si aspetta il motore TENENDOLO. Non costa niente:
+# finche' il motore e' occupato nessuna rt-suite potrebbe partire comunque, quindi
+# serializzare gli attendenti non toglie a nessuno un turno che avrebbe avuto. La corsa
+# diventa una coda.
+#
+# ⚠️ **Non e' FIFO, e va saputo invece che scoperto.** `WaitOne` su un mutex nominato non
+# garantisce l'ordine d'arrivo: con molte sessioni una puo' restare indietro oltre il suo
+# turno. Con due a sei checkout e run da minuti e' accettabile.
+$Mutex = New-Object System.Threading.Mutex($false, 'Global\RTSuiteEngineRun')
+$holdsMutex = $false
+$lockWatch = [System.Diagnostics.Stopwatch]::StartNew()
+try {
+    $holdsMutex = $Mutex.WaitOne((Get-LockWaitMs -BudgetSeconds ([double]$WaitMinutes * 60.0)))
+} catch [System.Threading.AbandonedMutexException] {
+    # Una sessione morta senza rilasciare: il lucchetto e' nostro, ed e' proprio il
+    # caso che l'eccezione segnala invece di lasciare tutti bloccati per sempre.
+    $holdsMutex = $true
+}
+$script:LockElapsed = $lockWatch.Elapsed.TotalSeconds
+
+if (-not $holdsMutex) {
+    if ($WaitMinutes -gt 0) {
+        # ⚠️ **Diagnosi DIVERSA da la nota del motore, e dirla come tale e' meta' del valore
+        # di questa issue.** Qui la suite non e' stata fermata da un motore ma da un'altra
+        # rt-suite, e l'azione utile e' aspettare che la SUA run finisca — non cercare un
+        # processo da chiudere.
+        Say ('NON AVVIATA: il lock condiviso non si e'' liberato entro il budget ' +
+             ('({0:N0}s attesi di {1:N0}s).' -f $script:LockElapsed, ([double]$WaitMinutes * 60.0)))
+        Say 'Lo tiene un''altra rt-suite: sta misurando, oppure sta a sua volta aspettando'
+        Say 'il motore tenendolo. Non e'' una collisione: e'' la coda.'
+    } else {
+        Say 'NON AVVIATA: un''altra rt-suite sta per lanciare il motore (lock condiviso).'
+        # ⚠️ **Il consiglio vale solo QUI, e fino al 2026-09-04 non era vero.** Questo ramo
+        # diceva di riprovare o usare -WaitMinutes anche a chi il flag lo stava gia' usando:
+        # consigliava l'unica cosa che non poteva aiutare, perche' l'attesa copriva il
+        # motore e non il lock. Ora con `-WaitMinutes` si aspetta davvero il lock, quindi
+        # qui ci arriva soltanto chi non l'ha passato.
+        Say 'Non e'' una collisione: e'' la corsa evitata. Per aspettare il tuo turno: -WaitMinutes 40'
+    }
+    $Mutex.Dispose()
+    exit 2
+}
+
+# 🔴 **Lo snapshot di prima e' vecchio quanto l'attesa del lock.** Se si e' aspettato,
+# `$before` descrive una macchina di venti minuti fa — e il preambolo gia' stampato pure.
+# Rileggere non e' prudenza: e' la stessa regola che il ciclo del motore applica gia' due
+# blocchi piu' sotto quando dichiara lo stato ridichiarato.
+if ($script:LockElapsed -ge 1.0) {
+    Say ('lock ottenuto dopo {0:N0}s: stato ridichiarato' -f $script:LockElapsed)
+    $before = Get-Snapshot
+    Say-Preamble $before
+}
+
+# UN budget per DUE attese: i secondi andati nel lock non tornano disponibili per il
+# motore. E' la stessa funzione pura, chiamata con cio' che e' gia' stato speso.
+$budgetSeconds = (Get-LockWaitMs -BudgetSeconds ([double]$WaitMinutes * 60.0) -SpentSeconds $script:LockElapsed) / 1000.0
+
+try {
+
+if ($before.LiveCount -gt 0 -and $budgetSeconds -gt 0) {
     $waited = [System.Diagnostics.Stopwatch]::StartNew()
     Say ("in attesa: il motore e' occupato, ricontrollo ogni {0}s per al massimo {1} min" -f $PollSeconds, $WaitMinutes)
     # Le righe di comando si chiedono a WMI QUI, una volta, perche' qui si stampano:
@@ -927,8 +1070,9 @@ if ($before.LiveCount -gt 0 -and $WaitMinutes -gt 0) {
     # ritirato a ogni ingresso: due sessioni bloccate dalla stessa terza run partono con
     # fasi quasi identiche, si svegliano nella stessa finestra, vedono entrambe zero
     # processi e lanciano — e il mutex Live Coding e' globale sull'eseguibile, quindi si
-    # uccidono a vicenda. Il jitter le sfasa; l'acquire piu' sotto e' cio' che chiude
-    # davvero la corsa.
+    # uccidono a vicenda. Il jitter le sfasa; l'acquire — che da #2346 sta SOPRA questo
+    # ciclo, non sotto — e' cio' che chiude davvero la corsa: chi arriva qui il lock ce
+    # l'ha gia' in mano, e sta aspettando il motore tenendolo.
 
     # 🔴 **Perdere la finestra DURANTE lo snapshot non e' un'attesa scaduta, e per un giro
     # intero questo script ha detto il contrario.** Misurato il 2026-08-29: uscita `2` con
@@ -950,7 +1094,9 @@ if ($before.LiveCount -gt 0 -and $WaitMinutes -gt 0) {
     # dedicato: l'errore lo decide lo snapshot, che e' l'unica lettura su cui questo script
     # dichiara qualcosa. Transitorio → lo snapshot risponde e si torna ad aspettare;
     # persistente → anche lo snapshot porta `EngineError`, e si esce dicendo quello.
-    $budgetSeconds = [double]$WaitMinutes * 60.0
+    # ⚠️ `$budgetSeconds` e' gia' stato calcolato sopra, al netto dell'attesa del lock
+    # (#2346): ricalcolarlo qui da `-WaitMinutes` restituirebbe alla seconda attesa il
+    # tempo che la prima ha gia' consumato.
 
     while ($true) {
         $null = Wait-EngineWindow -BudgetSeconds $budgetSeconds -PollSeconds $PollSeconds -Waited $waited
@@ -1088,37 +1234,6 @@ if ($before.LiveCount -gt 0) {
     }
     exit 2
 }
-
-# ------------------------------------------------------- ACQUIRE ATOMICO
-# 🔴 **Vedere il motore libero non basta a esserne il proprietario.** Due sessioni
-# che aspettano la stessa run si svegliano nella stessa finestra, leggono
-# entrambe zero processi, e lanciano prima che l'`UnrealEditor-Cmd` dell'altra sia
-# visibile a WMI: il mutex Live Coding e' globale sull'eseguibile, quindi si
-# uccidono a vicenda e dopo mezz'ora l'esito e' NON VALIDA per entrambe — peggio
-# del `2` immediato che `-WaitMinutes` sostituisce. Il numero di sessioni in
-# attesa e' esattamente cio' che quel flag aumenta.
-#
-# Il mutex chiude la corsa fra istanze di QUESTO script — non fra rt-suite e un
-# editor aperto a mano, che nessun lock puo' coordinare: quel caso resta coperto
-# dal controllo sui processi. Named `Global\` per attraversare le sessioni, e
-# rilasciato dall'OS se il processo muore, quindi non lascia lucchetti orfani.
-$Mutex = New-Object System.Threading.Mutex($false, 'Global\RTSuiteEngineRun')
-$holdsMutex = $false
-try {
-    $holdsMutex = $Mutex.WaitOne(0)
-} catch [System.Threading.AbandonedMutexException] {
-    # Una sessione morta senza rilasciare: il lucchetto e' nostro, ed e' proprio il
-    # caso che l'eccezione segnala invece di lasciare tutti bloccati per sempre.
-    $holdsMutex = $true
-}
-
-if (-not $holdsMutex) {
-    Say 'NON AVVIATA: un''altra rt-suite sta per lanciare il motore (lock condiviso).'
-    Say 'Non e'' una collisione: e'' la corsa evitata. Riprova, o usa -WaitMinutes.'
-    exit 2
-}
-
-try {
 
 # ---------------------------------------------------------------- LA RUN
 # 🔴 Il log si rimuove PRIMA. Se il motore muore senza arrivare a inizializzare il

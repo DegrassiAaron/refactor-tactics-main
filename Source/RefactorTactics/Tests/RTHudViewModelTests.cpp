@@ -7,6 +7,9 @@
 
 #include "Misc/AutomationTest.h"
 #include "UI/RTHudViewModel.h"
+#include "UI/RTIconLibrary.h"      // MakeIconId: la chiave che la vista porta gia' derivata (#2274)
+#include "UI/RTUnitOverlayWidget.h" // ComposeStatusDurationLabel: la regola di formato di uno stato (#2336)
+#include "Core/RTGameplayTags.h"   // i tag di stato usati dai test dei badge (#2274)
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
@@ -125,12 +128,10 @@ bool FRTHudVmCardMirrorsUnitTest::RunTest(const FString&)
 
 	Riktor->Health = 42;
 	Riktor->Shield = 7;
-	Riktor->Energy = 13;
 
 	const FRTUnitCardView Card = URTHudViewModel::BuildUnitCard(Riktor, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("salute"), Card.Health, 42);
 	TestEqual(TEXT("scudo"), Card.Shield, 7);
-	TestEqual(TEXT("energia"), Card.Energy, 13);
 	TestEqual(TEXT("salute massima dal catalogo eroi"), Card.MaxHealth, Riktor->MaxHealth);
 	TestEqual(TEXT("identita'"), Card.HeroId, Riktor->HeroId);
 	TestTrue(TEXT("alleato"), Card.bIsAlly);
@@ -606,6 +607,492 @@ bool FRTHudVmObjectiveScoreTest::RunTest(const FString&)
 		TestEqual(TEXT("senza manager, squadra 1 a zero"), View.Team1Score, 0);
 		TestEqual(TEXT("senza manager, nessuna soglia"), View.ScoreToWin, 0);
 	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Quali stati mostrare, in che ordine, con quale durata (`#2274`, `D-320`).
+//
+// Il giudizio sta qui e non nel widget perche' un `UserWidget` in Blueprint ha copertura headless zero.
+// ---------------------------------------------------------------------------------------------------
+
+/**
+ * 🔴 **I controlli vengono per primi, e la gravita' NON e' ricopiata: si chiede a chi la possiede.**
+ *
+ * `ARTHUD::DrawHUD` mostrava `ROOT` e poi `SLOW` in un `if`/`else if` — lo stesso ordine che
+ * `URTReactionLibrary::ControlStatusesBySeverity` dichiara, scritto una seconda volta. Questo test cade se
+ * l'ordine torna a essere una copia: e' costruito **al contrario** della gravita' attesa (`Slow` applicato
+ * prima di `Root`, e `Burning` prima di entrambi in ordine alfabetico), quindi solo un riordino vero lo
+ * soddisfa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusBadgesControlsComeFirstTest,
+	"RefactorTactics.HudViewModel.StatusBadgesControlsComeFirst",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStatusBadgesControlsComeFirstTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	// Applicati DELIBERATAMENTE nell'ordine sbagliato: `Burning` precede entrambi in alfabetico, e `Slow`
+	// e' meno grave di `Root`. Se la funzione non riordinasse, uscirebbero cosi' come sono entrati.
+	Unit->ApplyStatus(TAG_Status_Burning, /*Turni*/ 2);
+	Unit->ApplyStatus(TAG_Status_Slow,    /*Turni*/ 3);
+	Unit->ApplyStatus(TAG_Status_Root,    /*Turni*/ 1);
+
+	const TArray<FRTStatusBadgeView> Badges = URTHudViewModel::BuildStatusBadges(Unit);
+
+	if (!TestEqual(TEXT("tre stati attivi, tre badge"), Badges.Num(), 3))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// 🔴 Il cuore: `Root` (rango 0) prima di `Slow` (rango 1), ed entrambi prima di cio' che non e' controllo.
+	TestEqual(TEXT("primo: Root, il controllo piu' grave"),
+		Badges[0].Tag, TAG_Status_Root.GetTag().GetTagName());
+	TestEqual(TEXT("secondo: Slow, il controllo meno grave"),
+		Badges[1].Tag, TAG_Status_Slow.GetTag().GetTagName());
+	TestEqual(TEXT("terzo: Burning, che controllo non e'"),
+		Badges[2].Tag, TAG_Status_Burning.GetTag().GetTagName());
+
+	TestTrue(TEXT("Root e' marcato come controllo"),  Badges[0].bIsControl);
+	TestTrue(TEXT("Slow e' marcato come controllo"),  Badges[1].bIsControl);
+	TestFalse(TEXT("Burning NON e' un controllo"),    Badges[2].bIsControl);
+
+	// La durata e' quella vera, non un numero qualsiasi.
+	TestEqual(TEXT("Root: un turno residuo"),    Badges[0].RemainingTurns, 1);
+	TestEqual(TEXT("Slow: tre turni residui"),   Badges[1].RemainingTurns, 3);
+	TestEqual(TEXT("Burning: due turni residui"), Badges[2].RemainingTurns, 2);
+
+	// L'icona arriva gia' derivata: chi disegna non compone chiavi.
+	TestEqual(TEXT("l'IconId e' derivato dal tag"),
+		Badges[0].IconId, URTIconLibrary::MakeIconId(TAG_Status_Root.GetTag().GetTagName()));
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **Uno stato legato alla cella non porta un conteggio, e il `-1` non attraversa il confine.**
+ *
+ * `ARTUnit::PersistentWhileOnCell` vale `-1`: stampato sopra la testa di un'unita' si leggerebbe «meno un
+ * turno». La vista lo traduce in `bCellBound`, che dice la stessa cosa senza fingere di essere un numero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusBadgesCellBoundHasNoCountTest,
+	"RefactorTactics.HudViewModel.StatusBadgesCellBoundHasNoCount",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStatusBadgesCellBoundHasNoCountTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	Unit->ApplyStatus(TAG_Status_Wet, ARTUnit::PersistentWhileOnCell);
+
+	const TArray<FRTStatusBadgeView> Badges = URTHudViewModel::BuildStatusBadges(Unit);
+	if (!TestEqual(TEXT("un solo stato attivo"), Badges.Num(), 1))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	TestTrue(TEXT("Wet dall'acqua e' legato alla cella"), Badges[0].bCellBound);
+	// 🔴 Il cuore: `0`, non `-1`. Il valore sentinella resta dentro `ARTUnit`.
+	TestEqual(TEXT("legato alla cella: nessun conteggio da mostrare"), Badges[0].RemainingTurns, 0);
+	TestNotEqual(TEXT("il -1 non attraversa il confine"),
+		Badges[0].RemainingTurns, ARTUnit::PersistentWhileOnCell);
+
+	// L'altra meta': lo stesso tag puo' essere ANCHE a termine, e allora vince la durata che scade — perche'
+	// e' l'unica che chi guarda puo' vedere scendere.
+	Unit->ApplyStatus(TAG_Status_Wet, /*Turni*/ 2);
+	const TArray<FRTStatusBadgeView> Dopo = URTHudViewModel::BuildStatusBadges(Unit);
+	if (TestEqual(TEXT("resta un solo badge: le due nature non lo duplicano"), Dopo.Num(), 1))
+	{
+		TestFalse(TEXT("con una durata a termine non e' piu' 'finche' resti li''"), Dopo[0].bCellBound);
+		TestEqual(TEXT("e il conteggio e' quello a termine"), Dopo[0].RemainingTurns, 2);
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **La vista mostra ESATTAMENTE cio' che l'unita' porta: uno stato non attivo non compare.**
+ *
+ * ⚠️ **Questo test e' stato riscritto perche' la prima stesura affermava una cosa falsa**, e il rosso l'ha
+ * mostrato. Diceva *«`Status.Electrified` non compare mai»* e lo applicava con `ApplyStatus(Tag, 1)`
+ * aspettandosi che venisse rifiutato. Non lo e': `ApplyStatus` ritorna in silenzio per `Turns <= 0`, ma con
+ * una durata **positiva** applica qualunque tag — l'inerzia di `Electrified` (`#1324`) sta nel fatto che
+ * **nessun produttore lo chiama con una durata**, non in un rifiuto di questa API.
+ *
+ * 🔑 Ne segue dove vive davvero la garanzia, e vale saperlo prima di cercarla qui: **a monte**, nel
+ * produttore — che per la scarica emette `AppliedInstantly` e non tocca `StatusTurns` — ed e' coperta da
+ * `RTElectricPropagationTests`. `BuildStatusBadges` non ha un filtro su `Electrified` e non deve averlo:
+ * mostra cio' che l'unita' porta, e l'unita' non lo porta.
+ *
+ * ⚠️ **Anti-vacuita'**: si applica anche uno stato vero, altrimenti «non compare» sarebbe verde in un mondo
+ * dove la funzione non restituisce mai niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusBadgesShowOnlyWhatTheUnitCarriesTest,
+	"RefactorTactics.HudViewModel.StatusBadgesShowOnlyWhatTheUnitCarries",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStatusBadgesShowOnlyWhatTheUnitCarriesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	Unit->ApplyStatus(TAG_Status_Burning, /*Turni*/ 2);
+
+	const TArray<FRTStatusBadgeView> Badges = URTHudViewModel::BuildStatusBadges(Unit);
+
+	// Anti-vacuita': lo stato applicato esce davvero.
+	TestEqual(TEXT("anti-vacuita': lo stato attivo c'e'"), Badges.Num(), 1);
+
+	// 🔴 Il cuore: uno stato che l'unita' NON porta non compare — nemmeno uno che esiste nel registro dei
+	// tag e ha la sua icona nel catalogo, come `Electrified`.
+	const bool bHaNonApplicato = Badges.ContainsByPredicate([](const FRTStatusBadgeView& B)
+	{
+		return B.Tag == TAG_Status_Electrified.GetTag().GetTagName()
+			|| B.Tag == TAG_Status_Root.GetTag().GetTagName();
+	});
+	TestFalse(TEXT("uno stato non attivo non compare"), bHaNonApplicato);
+
+	// E la porta che lo dice, interrogata direttamente: `0` significa «non attivo», e non e' una durata.
+	TestEqual(TEXT("un tag non attivo ha durata residua 0"),
+		Unit->GetStatusRemainingTurns(TAG_Status_Root), 0);
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **La vista della sovrapposizione unisce i due produttori, e il colore dipende da CHI GUARDA.**
+ *
+ * `BuildUnitOverlay` non calcola nulla di nuovo: e' il collante fra `BuildUnitCard` e `BuildStatusBadges`.
+ * Cio' che vale testare e' proprio il collante — che i due arrivino davvero, e che il nome e il colore
+ * (le sole due cose che nessuno dei due possiede) siano quelli giusti **per l'osservatore**.
+ *
+ * ⚠️ **Il colore e' l'asserzione che conta**: la stessa unita' vista da due osservatori deve dare due
+ * viste diverse. Un'implementazione che leggesse `TeamId` invece di `bIsAlly` passerebbe ogni test scritto
+ * da un solo punto di vista, e a schermo colorerebbe i nemici come i propri per lo spettatore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitOverlayViewIsObserverRelativeTest,
+	"RefactorTactics.HudViewModel.UnitOverlayViewIsObserverRelative",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitOverlayViewIsObserverRelativeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	Unit->Health = 60;
+	Unit->ApplyStatus(TAG_Status_Burning, /*Turni*/ 2);
+
+	// Visto da un compagno di squadra...
+	const FRTUnitOverlayView Alleata = URTHudViewModel::BuildUnitOverlay(Unit, /*PlayerTeamId*/ 0, {}, {});
+	// ...e dall'avversario.
+	const FRTUnitOverlayView Nemica  = URTHudViewModel::BuildUnitOverlay(Unit, /*PlayerTeamId*/ 1, {}, {});
+
+	// I due produttori sono arrivati entrambi.
+	TestEqual(TEXT("la card porta la vita vera"), Alleata.Card.Health, 60);
+	TestEqual(TEXT("gli stati sono quelli attivi"), Alleata.Statuses.Num(), 1);
+	TestEqual(TEXT("e sono quelli giusti"),
+		Alleata.Statuses[0].Tag, TAG_Status_Burning.GetTag().GetTagName());
+
+	// Il nome e' quello canonico del catalogo, non l'ID: `Hero.Gadget` si legge `Gadget`.
+	TestFalse(TEXT("il nome non e' vuoto"), Alleata.DisplayName.IsEmpty());
+	TestFalse(TEXT("il nome non e' l'ID grezzo"), Alleata.DisplayName.Equals(TEXT("Hero.Gadget")));
+
+	// 🔴 Il cuore: stessa unita', due osservatori, due viste.
+	TestTrue(TEXT("per il compagno e' un'alleata"),  Alleata.Card.bIsAlly);
+	TestFalse(TEXT("per l'avversario non lo e'"),    Nemica.Card.bIsAlly);
+	TestNotEqual(TEXT("e il colore cambia con chi guarda"), Alleata.TeamColor, Nemica.TeamColor);
+
+	// Anti-vacuita': cio' che NON dipende dall'osservatore resta identico.
+	TestEqual(TEXT("la vita non dipende da chi guarda"), Alleata.Card.Health, Nemica.Card.Health);
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * Una vista neutra per un'unita' che non c'e': un widget costruito prima dell'unita' mostra un vuoto, non
+ * un morto a 0 HP. E' la stessa scelta gia' presa da `BuildMatchHeader`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitOverlayViewIsNeutralWithoutUnitTest,
+	"RefactorTactics.HudViewModel.UnitOverlayViewIsNeutralWithoutUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitOverlayViewIsNeutralWithoutUnitTest::RunTest(const FString&)
+{
+	const FRTUnitOverlayView Vuota = URTHudViewModel::BuildUnitOverlay(nullptr, /*PlayerTeamId*/ 0, {}, {});
+
+	TestTrue(TEXT("nessun nome"), Vuota.DisplayName.IsEmpty());
+	TestEqual(TEXT("nessuno stato"), Vuota.Statuses.Num(), 0);
+	// ⚠️ `MaxHealth` a zero e' cio' che distingue «non c'e' unita'» da «unita' morta»: un morto ha
+	// `MaxHealth > 0` e `Health == 0`. Chi disegna una barra deve poterli separare.
+	TestEqual(TEXT("nessuna vita massima: non e' un morto, e' un'assenza"), Vuota.Card.MaxHealth, 0);
+
+	return true;
+}
+
+/**
+ * 🔴 **L'avviso di fuoco amico sopravvive al cambio di supporto, e il fuoco amico VINCE sul bersaglio.**
+ *
+ * ⚠️ **Questo test esiste perche' la prima stesura di `#2288` aveva PERSO l'avviso.** Rimuovendo il blocco
+ * di disegno dal canvas e' andato via anche l'unico consumatore di `ComputePlannedHitMarks`: i due `TSet`
+ * restavano calcolati e mai letti, e a schermo spariva un avviso che nasce da un'osservazione in PIE del
+ * 2026-08-08 — *«non capisco se sto facendo un tiro e se nel tiro si interseca con un cilindro»*.
+ *
+ * Nessun test lo ha visto, perche' nessun test lo copriva: il canvas non ne aveva. Ora ce l'ha.
+ *
+ * 🔑 **Perche' il fuoco amico deve vincere**: e' l'unico caso in cui chi guarda potrebbe voler **cambiare
+ * idea** prima del lock-in. Due avvisi sullo stesso nome si annullerebbero a vicenda.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitOverlayFriendlyFireWinsOverTargetedTest,
+	"RefactorTactics.HudViewModel.UnitOverlayFriendlyFireWinsOverTargeted",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitOverlayFriendlyFireWinsOverTargetedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+	Unit->Cell = FRTCellId(3, 1, 0);
+
+	const TSet<FRTCellId> Vuoto;
+	const TSet<FRTCellId> SullaCella = { FRTCellId(3, 1, 0) };
+	const TSet<FRTCellId> Altrove = { FRTCellId(9, 9, 0) };
+
+	// Nessun piano la tocca: nessun avviso.
+	{
+		const FRTUnitOverlayView V = URTHudViewModel::BuildUnitOverlay(Unit, 0, Vuoto, Vuoto);
+		TestFalse(TEXT("nessun piano: niente fuoco amico"), V.bFriendlyFire);
+		TestFalse(TEXT("nessun piano: non e' bersaglio"), V.bTargeted);
+	}
+
+	// Dentro l'area di un attacco: e' un bersaglio.
+	{
+		const FRTUnitOverlayView V = URTHudViewModel::BuildUnitOverlay(Unit, 0, SullaCella, Vuoto);
+		TestTrue(TEXT("nell'area: e' bersaglio"), V.bTargeted);
+		TestFalse(TEXT("ma non e' fuoco amico"), V.bFriendlyFire);
+	}
+
+	// 🔴 Il cuore: dentro l'area E alleato -> **fuoco amico**, e il bersaglio si spegne.
+	{
+		const FRTUnitOverlayView V = URTHudViewModel::BuildUnitOverlay(Unit, 0, SullaCella, SullaCella);
+		TestTrue(TEXT("alleato nell'area: fuoco amico"), V.bFriendlyFire);
+		TestFalse(TEXT("e il bersaglio NON si accende insieme"), V.bTargeted);
+	}
+
+	// Anti-vacuita': un piano su un'altra cella non riguarda questa unita'.
+	{
+		const FRTUnitOverlayView V = URTHudViewModel::BuildUnitOverlay(Unit, 0, Altrove, Altrove);
+		TestFalse(TEXT("piano altrove: niente fuoco amico"), V.bFriendlyFire);
+		TestFalse(TEXT("piano altrove: non e' bersaglio"), V.bTargeted);
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **L'etichetta della durata: un numero quando c'è un conteggio, NIENTE quando non c'è.**
+ *
+ * È l'unica regola di formato della riga di uno stato, ed è pura apposta: sta qui invece che dentro
+ * `SetOverlayView`, dove verificarla richiederebbe di costruire un widget.
+ *
+ * ⚠️ **Il caso che conta è il legato-alla-cella.** `Wet` dall'acqua bassa dura *finché resti dov'è*, e
+ * `FRTStatusBadgeView` gli mette `RemainingTurns = 0` proprio perché il `-1` di `PersistentWhileOnCell` non
+ * attraversi il confine. Un formato che stampasse quel `0` scriverebbe «zero turni» su uno stato che non sta
+ * per finire — l'opposto del vero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusDurationLabelTest,
+	"RefactorTactics.HudViewModel.StatusDurationLabelIsEmptyWhenThereIsNoCount",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStatusDurationLabelTest::RunTest(const FString&)
+{
+	// Con un conteggio: il numero, e nient'altro — l'icona dice già quale stato è.
+	TestEqual(TEXT("due turni residui"),
+		URTUnitOverlayWidget::ComposeStatusDurationLabel(2, /*bCellBound*/ false), FString(TEXT("2")));
+	TestEqual(TEXT("un turno residuo"),
+		URTUnitOverlayWidget::ComposeStatusDurationLabel(1, /*bCellBound*/ false), FString(TEXT("1")));
+
+	// 🔴 Legato alla cella: nessun conteggio, **anche se il numero fosse diverso da zero**. È il verso che
+	// conta: `bCellBound` decide, non `RemainingTurns`.
+	TestTrue(TEXT("legato alla cella: nessuna etichetta"),
+		URTUnitOverlayWidget::ComposeStatusDurationLabel(0, /*bCellBound*/ true).IsEmpty());
+	TestTrue(TEXT("legato alla cella: nessuna etichetta nemmeno con un numero"),
+		URTUnitOverlayWidget::ComposeStatusDurationLabel(3, /*bCellBound*/ true).IsEmpty());
+
+	// Una durata non positiva non è un tempo da mostrare: uno stato scaduto non arriva nemmeno alla vista.
+	TestTrue(TEXT("zero turni: nessuna etichetta"),
+		URTUnitOverlayWidget::ComposeStatusDurationLabel(0, /*bCellBound*/ false).IsEmpty());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Il countdown del Ready arriva alla vista (`#2358`)
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * **IL COUNTDOWN ARMATO DIVENTA UN NUMERO NELLA VISTA, E DA SPENTO RESTA «NON SI APPLICA»**.
+ *
+ * ⚠️ **La prima meta' e' il controllo, e senza di lei la seconda non proverebbe niente**: `-1.f` e' il
+ * DEFAULT del campo, quindi «non armato → negativo» e' vero anche in una vista che non avesse mai letto il
+ * `TurnManager`. E' la stessa forma di `UntimedPlanningIsNotExpired` qui sopra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmReadyCountdownTest,
+	"RefactorTactics.HudViewModel.ReadyCountdownReachesTheView",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmReadyCountdownTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHudVmWorld(World); return false; }
+
+	// CONTROLLO: senza Ready dichiarato la domanda non si applica.
+	const FRTMatchHeaderView Spento = URTHudViewModel::BuildMatchHeader(TM);
+	TestTrue(TEXT("countdown non armato: il campo dice «non si applica»"),
+		Spento.ReadyCountdownSecondsRemaining < 0.f);
+
+	// LA MISURA: dopo il Ready il countdown e' un numero utilizzabile.
+	TM->SetPlanningSeconds(30.f);
+	TM->RequestLockIn();
+	if (!TestTrue(TEXT("il countdown e' armato: senza, la misura non proverebbe niente"),
+		TM->IsReadyCountdownActive()))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	const FRTMatchHeaderView Armato = URTHudViewModel::BuildMatchHeader(TM);
+	TestTrue(TEXT("countdown armato: il campo porta un numero"),
+		Armato.ReadyCountdownSecondsRemaining >= 0.f);
+	TestTrue(TEXT("e non supera la durata dichiarata"),
+		Armato.ReadyCountdownSecondsRemaining <= TM->GetReadyCountdownSeconds());
+
+	// E dopo l'Unready torna a tacere: il campo segue lo stato, non lo ricorda.
+	TM->CancelLockIn();
+	const FRTMatchHeaderView Annullato = URTHudViewModel::BuildMatchHeader(TM);
+	TestTrue(TEXT("dopo l'Unready il campo torna a «non si applica»"),
+		Annullato.ReadyCountdownSecondsRemaining < 0.f);
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// I due orologi e la regola che li combina (`#2193`, `#2358`, `#613`)
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * **IL NUMERO DA MOSTRARE E' IL PIU' VICINO DEI DUE, E LA REGOLA STA IN UN POSTO SOLO.**
+ *
+ * 🔴 **Perche' questo test esiste adesso.** La regola c'era gia' — dentro `ARTHUD::ComposeMatchStatusLine`,
+ * e `HUD.MatchStatusShowsTheReadyCountdown` la copre **attraverso la riga di testo del Canvas**. Con lo
+ * Screen HUD in UMG (`#613`) arriva un secondo consumatore che quella riga non la attraversa: un
+ * `WBP_RT_TurnHeader` che stampasse `ReadyCountdownSecondsRemaining` sarebbe corretto secondo il tipo e
+ * sbagliato secondo il gioco, e **nessun test lo direbbe**. Qui la regola e' misurata da sola, cosi' che
+ * ogni consumatore possa consumarla invece di riscriverla.
+ *
+ * ⚠️ Il caso che discrimina e' il secondo: se qualcuno «semplificasse» la funzione restituendo il countdown,
+ * tutti gli altri casi resterebbero verdi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmSecondsUntilCommitTest,
+	"RefactorTactics.HudViewModel.SecondsUntilCommitIsTheNearerClock",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmSecondsUntilCommitTest::RunTest(const FString&)
+{
+	FRTMatchHeaderView View;
+
+	// CONTROLLO della premessa: sulla vista neutra non c'e' nessun conto alla rovescia da mostrare, e la
+	// risposta e' un negativo — non uno zero, che si leggerebbe «commit adesso».
+	TestTrue(TEXT("vista neutra: nessun orologio, risposta negativa"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View) < 0.f);
+
+	// Solo il tetto del Planning: e' lui il momento del commit.
+	View.PlanningSecondsRemaining = 25.f;
+	View.ReadyCountdownSecondsRemaining = -1.f;
+	TestEqual(TEXT("senza Ready: il commit arriva alla scadenza del Planning"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View), 25.f);
+
+	// 🔴 IL CASO CHE DISCRIMINA: il tetto e' piu' corto del countdown e vince lui (`#2193`).
+	View.PlanningSecondsRemaining = 1.5f;
+	View.ReadyCountdownSecondsRemaining = 3.f;
+	TestEqual(TEXT("tetto piu' corto del countdown: vince il tetto"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View), 1.5f);
+
+	// Il verso opposto, che da solo non proverebbe niente ma serve a escludere un `Min` invertito.
+	View.PlanningSecondsRemaining = 25.f;
+	View.ReadyCountdownSecondsRemaining = 3.f;
+	TestEqual(TEXT("countdown piu' corto del tetto: vince il countdown"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View), 3.f);
+
+	// Run headless: il Planning non ha orologio, e un `Min` cieco avrebbe restituito il negativo spegnendo
+	// l'unico conto in corsa.
+	View.PlanningSecondsRemaining = -1.f;
+	View.ReadyCountdownSecondsRemaining = 3.f;
+	TestEqual(TEXT("senza tetto: il countdown resta l'unico orologio"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View), 3.f);
+
+	// Zero non e' «non si applica»: e' un numero da mostrare, ed e' l'ultimo istante prima del commit.
+	View.PlanningSecondsRemaining = 25.f;
+	View.ReadyCountdownSecondsRemaining = 0.f;
+	TestEqual(TEXT("countdown a zero: commit adesso, non «non si applica»"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View), 0.f);
+
+	return true;
+}
+
+/**
+ * **E il campo pubblicato dice la stessa cosa della funzione.**
+ *
+ * ⚠️ `FRTMatchHeaderView::SecondsUntilCommit` e' una **comodita' derivata**: chi costruisce la vista a mano
+ * lo trova al default. Questo test copre l'unico produttore che deve popolarlo — `BuildMatchHeader` — e lo
+ * fa confrontandolo con la funzione invece che con un numero scritto qui: un valore atteso costante
+ * pinnerebbe l'orologio, non la coerenza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmSecondsUntilCommitIsPublishedTest,
+	"RefactorTactics.HudViewModel.SecondsUntilCommitIsPublishedByTheProducer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmSecondsUntilCommitIsPublishedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHudVmWorld(World); return false; }
+
+	TM->SetPlanningSeconds(30.f);
+	TM->RequestLockIn();
+	if (!TestTrue(TEXT("il countdown e' armato: senza, la misura non proverebbe niente"),
+		TM->IsReadyCountdownActive()))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	const FRTMatchHeaderView Vista = URTHudViewModel::BuildMatchHeader(TM);
+	TestEqual(TEXT("il campo pubblicato coincide con la funzione"),
+		Vista.SecondsUntilCommit, URTHudViewModel::ComputeSecondsUntilCommit(Vista));
+	TestTrue(TEXT("e con un countdown armato porta un numero, non «non si applica»"),
+		Vista.SecondsUntilCommit >= 0.f);
 
 	DestroyHudVmWorld(World);
 	return true;

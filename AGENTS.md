@@ -176,6 +176,12 @@ Mappa dettagliata:
 - Non modificare `.uasset`/`.umap` a mano.
 - Non spostare asset Unreal da Explorer/filesystem.
 - Usare Content Browser.
+- Quando serve creare, modificare, analizzare o validare asset, mappe, Blueprint o stato Editor-only, usare preferibilmente l'Unreal/Epic MCP disponibile invece di manipolare i binari dal filesystem.
+- Avviare Unreal Editor solo quando il task lo richiede realmente.
+- Il workflow che avvia l'Editor ne possiede il lifecycle: al termine deve salvare solo le modifiche intenzionali, terminare eventuale PIE/scenario attivo e chiudere l'Editor.
+- Su errore o validazione fallita, l'Editor aperto dal workflow va comunque chiuso dopo aver preservato log e diagnostica utili.
+- Non lasciare istanze Editor aperte "per comodità" tra task indipendenti.
+- Non chiudere o terminare un'istanza preesistente posseduta da un altro utente/processo salvo che il workflow attivo abbia una policy esplicita di ownership esclusiva.
 - Dopo rename/spostamenti: Fix Up Redirectors.
 - I binari Unreal non sono mergeabili.
 - Un asset binario viene modificato da un solo lavoro per volta.
@@ -323,6 +329,72 @@ assenza. Le tre cose che non vede sono nel suo docstring.
 
 Un verde dimostra soltanto ciò che quel tool misura.
 
+### Editor / PIE tramite MCP
+
+Quando il comportamento modificato è osservabile o verificabile in Unreal Editor e l'ambiente lo consente, usare l'Unreal/Epic MCP per eseguire la verifica più piccola e pertinente.
+
+Usi tipici:
+
+- avvio del progetto/editor quando necessario;
+- apertura e ispezione di mappe e asset;
+- creazione/modifica di asset supportati dal MCP;
+- verifica Blueprint/editor-facing;
+- PIE e scenari quando aggiungono evidenza rispetto ai soli Automation Test;
+- raccolta di log/evidenze;
+- chiusura dell'Editor al termine.
+
+PIE non sostituisce build, Automation Test o Scenario Harness quando questi sono richiesti.
+
+Se PIE/MCP non può essere eseguito per limiti dell'ambiente o per ownership concorrente, riportare `NOT RUN` con il motivo invece di simulare il risultato.
+
+Per ogni uso Editor/MCP:
+
+1. verificare se l'Editor serve davvero;
+2. verificare ownership/processi concorrenti;
+3. avviare o connettersi tramite tooling supportato;
+4. eseguire il test/asset operation più piccolo utile;
+5. salvare solo le modifiche intenzionali;
+6. fermare PIE/scenari;
+7. chiudere l'Editor avviato dal workflow;
+8. confermare che il processo sia terminato.
+
+### Authoring e acceptance
+
+Non sono la stessa apertura, e la seconda non vale dentro la prima.
+
+**Authoring**: creare o modificare `.uasset`, `.umap`, Data Asset, Blueprint, montage, posa in mappa. Può
+precedere l'implementazione — un asset è spesso un prerequisito, non una verifica.
+
+**Acceptance**: giudicare la feature sul risultato consolidato.
+
+Se la sessione ha scritto asset binari, il giudizio non vale nel processo che li ha scritti:
+
+**salva → chiudi l'Editor → *(build/suite se il write-set tocca `Source/`)* → riapri → giudica**
+
+Il build sta nella catena solo quando il work item ha toccato codice: per un write-set di soli asset non
+cambia ciò che si sta giudicando, e costa un'ora.
+
+La riapertura è parte dell'oracolo quando si verifica persistenza, serializzazione, riferimenti, startup
+map, layout, errori di load, inizializzazione da zero, asset registry o cook. Fuori da questi casi non
+serve, e chiedere un restart che nessuna di queste domande richiede costa un'apertura per niente.
+
+Una nuova apertura si giustifica solo se cambia una **precondizione**: asset da salvare, restart pulito
+richiesto, processo o configurazione incompatibili. Cambiare mappa, fermare e riavviare PIE, o eseguire un
+altro scenario **non** lo sono: si fanno nella stessa apertura. Quali sedute condividano un allestimento è
+già dichiarato in `docs/roadmap/editor-sessions.yaml`, campo `shares_setup_with`.
+
+Il verdetto va scritto dove il suo owner lo cerca:
+
+- una voce `PIE-*` in `docs/technical/test-manuali-pie.md`, quando il comportamento è **in gioco**;
+- la **issue owner**, quando la verifica sta nell'editor prima del Play;
+- un **artifact** versionato, quando la seduta produce un file.
+
+L'assenza in uno dei tre non è un buco se un altro porta il verdetto. Se non lo porta nessuno: `NOT RUN`
+con il motivo.
+
+⛔ La scelta non è libera: se la verifica **ha** una voce `PIE-*`, il verdetto va nel registro, che ne
+resta l'owner — una issue non lo sostituisce.
+
 ### `issue-refs.ts` — l'unico che guarda fuori dal repository
 
 Confronta i percorsi e i comandi citati dalle **issue aperte** con l'albero: chiude il difetto che
@@ -378,6 +450,8 @@ Quando applicabile:
 - Nessun output locale indesiderato.
 - PIE verificato quando richiesto.
 - Packaged verificato quando richiesto.
+- Per modifiche editor-facing/asset-facing, MCP/Editor usato quando disponibile e pertinente.
+- Nessun Unreal Editor avviato dal workflow resta aperto a fine task.
 
 ## 11. Lavoro parallelo
 

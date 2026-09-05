@@ -23,6 +23,10 @@ namespace
 		static const TArray<FRTFieldVisibilityRow> Rows = {
 			// --- Pubblico: COSA e' successo ------------------------------------------------------------
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, Phase),                ERTReplayFieldVisibility::Public },
+			// `MicroStepIndex` e' una COORDINATA, come `Phase` e `TurnNumber`, e sta con loro (`#1880`): dice
+			// *quando* dentro il turno, non *cosa* e' stato deciso. Non rivela un'intenzione ne' un bersaglio —
+			// e' il momento in cui una voce gia' pubblica e' nata.
+			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, MicroStepIndex),       ERTReplayFieldVisibility::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, Category),             ERTReplayFieldVisibility::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, Outcome),              ERTReplayFieldVisibility::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, SrcCell),              ERTReplayFieldVisibility::Public },

@@ -262,4 +262,100 @@ bool FRTScenarioIndexShippedCorpusTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * **Un ID si abbrevia dal fondo, per segmenti interi** (#2257).
+ *
+ * 🔴 Il difetto che chiude: `rt.Test.Run` voleva l'ID completo, e un errore di battitura **non produceva
+ * nessun errore visibile**. Il 2026-09-03 un `Visual.Enviorment.IceSlide` per `Environment` non ha trovato
+ * nulla, non ha protestato, e la partita normale è andata avanti col timer — chi guardava ha visto delle
+ * unità muoversi e ha creduto che lo scenario fosse partito.
+ *
+ * 🔑 **Perché il segmento e non la sottostringa, misurato sui 118 scenari del corpus**: l'ultimo segmento è
+ * univoco per **115**, e l'unico ambiguo è `Acceptance` (tre scenari). Una sigla auto-derivata dava invece
+ * **10 collisioni**, e una tabella di codici a mano sarebbe una seconda fonte che invecchia — la ragione è
+ * già scritta in `ARTGameMode::GetScenarioOptions`: *«un elenco che invecchia non può esistere»*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexSegmentSuffixTest,
+	"RefactorTactics.ScenarioIndex.AbbreviationIsASegmentSuffix",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexSegmentSuffixTest::RunTest(const FString&)
+{
+	const FString Full = TEXT("Visual.Environment.IceSlide");
+
+	// Il caso d'uso: l'ultimo segmento basta, e i segmenti intermedi si aggiungono per disambiguare.
+	TestTrue(TEXT("l'ultimo segmento basta"), URTScenarioIndex::IsSegmentSuffix(Full, TEXT("IceSlide")));
+	TestTrue(TEXT("due segmenti dal fondo bastano"),
+		URTScenarioIndex::IsSegmentSuffix(Full, TEXT("Environment.IceSlide")));
+	TestTrue(TEXT("l'ID intero resta valido"), URTScenarioIndex::IsSegmentSuffix(Full, Full));
+
+	// ⛔ **Il confine è il SEGMENTO.** Senza queste righe la regola degenererebbe in una sottostringa, e
+	// `Ice` sceglierebbe in silenzio il giorno in cui nasce `IceBridge`.
+	TestFalse(TEXT("mezzo segmento non basta"), URTScenarioIndex::IsSegmentSuffix(Full, TEXT("ceSlide")));
+	TestFalse(TEXT("un segmento che non e' l'ultimo non basta"),
+		URTScenarioIndex::IsSegmentSuffix(Full, TEXT("Environment")));
+
+	// ⛔ **Si abbrevia dal FONDO, non dall'inizio.** Se si confrontasse dall'inizio, `Visual` risolverebbe
+	// uno qualunque dei quaranta scenari che cominciano così — cioè il difetto opposto a quello chiuso.
+	TestFalse(TEXT("il prefisso non e' un'abbreviazione"),
+		URTScenarioIndex::IsSegmentSuffix(Full, TEXT("Visual")));
+	TestFalse(TEXT("due segmenti dall'inizio non bastano"),
+		URTScenarioIndex::IsSegmentSuffix(Full, TEXT("Visual.Environment")));
+
+	// Un'abbreviazione più lunga dell'ID non può corrispondere: guardia sull'indice, non solo sul senso.
+	TestFalse(TEXT("un'abbreviazione piu' lunga dell'ID non corrisponde"),
+		URTScenarioIndex::IsSegmentSuffix(Full, TEXT("Extra.Visual.Environment.IceSlide")));
+	TestFalse(TEXT("vuota non corrisponde"), URTScenarioIndex::IsSegmentSuffix(Full, FString()));
+
+	// Maiuscole/minuscole: chi digita in console non deve indovinare il caso.
+	TestTrue(TEXT("il confronto ignora maiuscole e minuscole"),
+		URTScenarioIndex::IsSegmentSuffix(Full, TEXT("iceslide")));
+	return true;
+}
+
+/**
+ * **Sul corpus VERO: un suffisso univoco risolve, uno ambiguo NON risolve e dice fra cosa scegliere.**
+ *
+ * ⚠️ Questo test legge gli scenari **dal disco**, ed è deliberato: la regola di confronto è già pinnata
+ * dal test qui sopra senza toccare il filesystem, e ciò che resta da provare è proprio l'innesto sul corpus
+ * reale — che `IceSlide` risolva *un solo* file, e che `Acceptance` ne trovi più d'uno.
+ *
+ * ⛔ **L'ambiguità dev'essere un ERRORE, non una scelta.** Un match che prendesse «il primo che trova»
+ * farebbe girare lo scenario sbagliato **senza dirlo**: peggio del typo che questa issue chiude, perché
+ * quello almeno non faceva nulla.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexAbbreviationOnCorpusTest,
+	"RefactorTactics.ScenarioIndex.AbbreviationResolvesOrRefuses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexAbbreviationOnCorpusTest::RunTest(const FString&)
+{
+	// ⛔ Anti-vacuità: senza il corpus, ogni asserzione sotto misurerebbe un indice vuoto e passerebbe per
+	// la ragione sbagliata.
+	FString Errore;
+	const FString PerEsteso = URTScenarioIndex::ResolvePath(TEXT("Visual.Environment.IceSlide"), Errore);
+	if (!TestFalse(TEXT("il corpus contiene lo scenario di riferimento"), PerEsteso.IsEmpty()))
+	{
+		AddError(FString::Printf(TEXT("indice non disponibile: %s"), *Errore));
+		return false;
+	}
+
+	// (1) Un suffisso univoco risolve **allo stesso file** dell'ID completo.
+	const FString PerAbbrev = URTScenarioIndex::ResolvePath(TEXT("IceSlide"), Errore);
+	TestEqual(TEXT("l'abbreviazione risolve allo stesso file dell'ID completo"), PerAbbrev, PerEsteso);
+
+	// (2) 🔑 Un suffisso **ambiguo** non risolve, e il messaggio nomina i candidati. `Acceptance` è
+	// ambiguo sul corpus vero — tre scenari lo dichiarano — quindi il caso non è fabbricato.
+	Errore.Reset();
+	const FString Ambigua = URTScenarioIndex::ResolvePath(TEXT("Acceptance"), Errore);
+	TestTrue(TEXT("un'abbreviazione ambigua NON risolve"), Ambigua.IsEmpty());
+	TestTrue(TEXT("e l'errore dice che e' ambigua"), Errore.Contains(TEXT("ambigu")));
+	TestTrue(TEXT("e nomina i candidati fra cui scegliere"), Errore.Contains(TEXT("Acceptance")));
+
+	// (3) ⛔ **L'ID esatto vince sempre.** È la garanzia che l'abbreviazione non dirotti un ID vivo, ed è la
+	// stessa regola che questa funzione applicava già ai redirect.
+	Errore.Reset();
+	const FString Esatto = URTScenarioIndex::ResolvePath(TEXT("Visual.Map.Acceptance"), Errore);
+	TestFalse(TEXT("un ID esatto risolve anche se il suo ultimo segmento e' ambiguo"), Esatto.IsEmpty());
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS

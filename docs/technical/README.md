@@ -6,10 +6,12 @@
 | Cartella | Risponde a | n |
 |---|---|--:|
 | [`architecture/`](architecture/) | *com'è fatto il sistema* — classi, mappa, pathfinding, TurnLog, pipeline degli asset, navigazione frontend | 8 |
-| [`systems/`](systems/) | *come si comporta un sottosistema* — hex sim, vision, bot, geometria, HUD, puntatore | 10 |
+| [`systems/`](systems/) | *come si comporta un sottosistema* — hex sim, vision, bot, geometria, HUD, puntatore, privacy di rete | **17** |
 | [`tooling/`](tooling/) | *con cosa si lavora* — tactical designer, scenari, test automatici, workflow, convenzioni, tracking delle issue | 10 |
 | [`runbooks/`](runbooks/) | *cosa si esegue a mano* — verifiche in editor, mandati QA, guide di seduta, diagnosi | 10 |
 | *primo livello* | **tre piani e due documenti bloccati** — vedi sotto | 5 |
+
+> ⚠️ **Solo la riga `systems/` è stata rimisurata, ed è corretta al 2026-09-04** ([#589](https://github.com/DegrassiAaron/refactor-tactics-main/issues/589), che vi aggiunge `procedura-canary-anti-leak.md`). Le altre **erano già stantie prima** di quell'aggiunta, e il conto vero misurato lo stesso giorno con `ls docs/technical/<cartella>/*.md | wc -l` è: `architecture` **8** ✅ · `systems` **16 → 17** · `tooling` **10** ✅ · `runbooks` **10 → 12** · primo livello **5 → 7**. 🔑 **Non sono state riscritte qui di proposito**: correggerle dentro una PR di privacy di rete attribuirebbe a quella issue una deriva che non ha causato, e questo file è lavorato in parallelo. Chi passa di qui con un mandato documentale le allinei — il numero si **ricalcola**, non si aggiorna a mente. ⚠️ Anche il titolo dice *«diciassette documenti che aspettano»*: quella cifra **non è stata verificata**, e non si sa quale grandezza conti.
 
 ## Perché cinque documenti sono ancora al primo livello
 

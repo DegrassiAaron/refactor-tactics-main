@@ -84,6 +84,40 @@ public:
 		const TArray<FRTTracedUnitState>& Initial, int32 TurnNumber, ERTMatchPhase Phase);
 
 	/**
+	 * Lo stato delle unita' al **boundary** `(TurnNumber, Phase, MicroStepIndex)` — la stessa terna che
+	 * `URTReplaySeekLibrary::SeekToBoundary` indirizza nella traccia (`#2272`).
+	 *
+	 * 🔑 **Chiude una asimmetria**: il seek indirizzava tre coordinate, la ricostruzione ne accettava due.
+	 * Si poteva chiedere *dove* comincia un micro-step, non *com'era il mondo* a quel micro-step — ed e' la
+	 * ragione per cui il criterio `playback ≡ seek` di `#1880` era rimasto aperto anche dopo che `#2260`
+	 * aveva popolato il campo.
+	 *
+	 * `MicroStepIndex == INDEX_NONE` significa **la fase intera**, ed e' esattamente cio' che
+	 * `UnitsAtPosition` chiede: quella funzione delega qui, e il comportamento storico e' preservato per
+	 * costruzione invece che per somiglianza.
+	 *
+	 * ⚠️ **LO STATO A UN BOUNDARY E' PARZIALE, E LO E' DI PROPOSITO.** Le voci che non appartengono a un
+	 * ciclo di micro-step — `INDEX_NONE`, e fra queste **tutte** le `Action.Move` — stanno **dopo** ogni
+	 * boundary e **non** entrano in un taglio fine. ∴ a metà movimento le unita' non hanno ancora la loro
+	 * cella finale: e' il mondo com'era a quella barriera, non il mondo a fine fase.
+	 *
+	 * ⛔ **Un consumer che si aspetta posizioni definitive deve chiedere la fase intera.** Leggere un
+	 * boundary e disegnarlo come stato finale mostrerebbe unita' ferme dove non sono mai state, ed e' il
+	 * motivo per cui questa nota sta qui e non in un commit.
+	 *
+	 * 🔴 La ragione per cui `INDEX_NONE` sta **dopo** e non prima, malgrado `-1 < 0`: `BuildMoveLog` gira
+	 * dopo `FinishHexMovement`, quindi l'arrivo di un'unita' e' posteriore a ogni barriera che ha
+	 * attraversato per arrivarci. Il segno del campo e' una **categoria**, non un ordine.
+	 *
+	 * ⚠️ Un `MicroStepIndex` che la fase non contiene non e' un errore qui: restituisce lo stato ai
+	 * boundary che esistono e sono `<=`. Chi vuole sapere se quel boundary **esiste** lo chiede a
+	 * `SeekToBoundary`, che risponde `BoundaryNotFound` — le due domande sono diverse e restano separate.
+	 */
+	static TArray<FRTTracedUnitState> UnitsAtBoundary(const TArray<FRTTurnLogEntry>& Entries,
+		const TArray<FRTTracedUnitState>& Initial, int32 TurnNumber, ERTMatchPhase Phase,
+		int32 MicroStepIndex);
+
+	/**
 	 * Lo stato dopo aver applicato **l'intera** traccia. E' `UnitsAtPosition` all'ultima voce, e serve a chi
 	 * vuole il risultato senza dover conoscere l'ultimo turno.
 	 *

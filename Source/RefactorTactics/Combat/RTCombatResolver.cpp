@@ -129,7 +129,7 @@ TArray<FRTAttack> URTCombatResolver::ApplyDamageDelta(const TArray<FRTAttack>& A
 }
 
 TArray<FRTAttack> URTCombatResolver::ApplyAbsorptionPool(const TArray<FRTAttack>& Attacks,
-	const TArray<int32>& PoolByTarget, const TArray<bool>& bEligible)
+	const TArray<int32>& PoolByTarget, const TArray<bool>& bEligible, FName SourceId)
 {
 	TArray<FRTAttack> Result = Attacks;
 
@@ -157,8 +157,11 @@ TArray<FRTAttack> URTCombatResolver::ApplyAbsorptionPool(const TArray<FRTAttack>
 		{
 			// ⚠️ Solo se ha morso: uno stadio che non si applica NON compare, perche' un elenco che
 			// contiene tutto non spiega niente (`#1951`).
+			//
+			// 🔑 La provenienza arriva dal CHIAMANTE e non e' piu' un letterale qui: i pool di produzione
+			// sono due, e questa funzione non sa quale la stia usando (`#2213`).
 			Attack.Breakdown.Emplace(ERTDamageStage::AbsorptionPool,
-				FName(TEXT("D-292 · Status.Guarded")), ERTDamageOp::Pool,
+				SourceId, ERTDamageOp::Pool,
 				Absorbed, Attack.Power, Attack.Power - Absorbed);
 		}
 		Attack.Power -= Absorbed;

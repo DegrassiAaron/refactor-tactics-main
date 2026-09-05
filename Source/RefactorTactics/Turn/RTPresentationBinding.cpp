@@ -62,6 +62,52 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Defeated,
 		{ FName(TEXT("HideForDefeat")), FName(TEXT("PlayDefeatMontage")) }));
 
+	// ReactionResolved — NoPresentation, e l'assenza e' TEMPORANEA come quella di `AttackFootprint`.
+	//
+	// 🔴 **Questo evento nasce proprio perche' un giorno si mostri**, ed e' il caso piu' netto della
+	// tabella: due voci PIE — `PIE-VIS-DEFLECT` e `PIE-VIS-INTERPOSE` — esistono per giudicare a schermo
+	// cio' che senza una cue non si vede. `PIE-VIS-DEFLECT` lo dice per intero: senza il momento della
+	// reazione *«resta la sola barra che scende poco»*, cioe' un attacco debole invece di una difesa
+	// riuscita.
+	//
+	// ⚠️ **Il dato viene prima del disegno, deliberatamente** (#2191): la grammatica visiva della
+	// reazione e' fuori dallo scope di quella issue, che lo dichiara. Dichiarare qui una cue inventata
+	// renderebbe questa tabella una lista di intenzioni — la stessa ragione scritta per `AttackFootprint`.
+	//
+	// ✅ **A differenza di `HazardDamage`, questo valore un PRODUTTORE ce l'ha**: `RunReactionPass` lo
+	// emette dove la reazione scatta, e `Reactions.Counter.DealsDamageToAttacker` lo presidia — validato
+	// per mutazione. Quindi il gate non e' verde su un evento muto: e' verde su un evento che accade e che
+	// nessuno disegna ancora.
+	//
+	// ⚠️ Voce da RIVEDERE, non da ereditare: appena la cue nasce, le due voci PIE diventano giudicabili.
+	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::ReactionResolved,
+		TEXT("Il momento della reazione esiste perche' la cue POSSA essere costruita: #2191 lo emette dove la ")
+		TEXT("reazione scatta, e la grammatica visiva e' fuori dal suo scope. Nessuna cue oggi lo consuma. ")
+		TEXT("ATTENZIONE: assenza TEMPORANEA e attesa - due voci PIE (VIS-DEFLECT, VIS-INTERPOSE) restano non ")
+		TEXT("giudicabili finche' non nasce, e la voce va rivista allora, non ereditata.")));
+
+	// StatusChanged — NoPresentation, e l'assenza e' TEMPORANEA come quella di `AttackFootprint` e
+	// `ReactionResolved`.
+	//
+	// 🔴 **Il dato esiste perche' la cue POSSA essere costruita, ed e' il caso piu' documentato dei tre**:
+	// [D-320] ha gia' deciso COME si mostrera' — un `UWidgetComponent` per unita', con le undici icone
+	// `RT_UI_Icon_Status_*` gia' versionate — e questa voce va rivista quando quel widget nasce. Oggi
+	// l'unico canale a schermo e' il ripiego testuale di `RTHUD.cpp`, che mostra **due** stati su undici.
+	//
+	// ⚠️ **Chi scrivera' la cue deve sapere due cose che il tipo dell'evento non dice da solo**:
+	//  - il verso (nascita o morte) si chiede a `URTTurnLogLibrary::IsStatusBirth`, mai deducendolo a
+	//    occhio dai dieci valori di `ERTStatusOutcome`;
+	//  - `Status.Electrified` produce una nascita (`AppliedInstantly`) e **mai** una morte — e' inerte
+	//    (`#1324`): un'icona persistente aperta su di lui resterebbe accesa per sempre.
+	//
+	// ⚠️ Voce da RIVEDERE, non da ereditare.
+	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::StatusChanged,
+		TEXT("Gli stati arrivano al playback perche' la cue POSSA essere costruita: #2245 li emette dove la ")
+		TEXT("voce di TurnLog viene scritta, e il disegno e' D-320 (WidgetComponent + le undici icone gia' ")
+		TEXT("versionate), che non esiste ancora. Nessuna cue oggi lo consuma. ATTENZIONE: assenza ")
+		TEXT("TEMPORANEA e attesa - la voce va rivista quando il widget nasce, non ereditata. Chi la scrive ")
+		TEXT("chieda il verso a IsStatusBirth, e sappia che Status.Electrified nasce e non muore mai.")));
+
 	return Out;
 }
 

@@ -950,4 +950,155 @@ bool FRTGoldenCorpusOrphanTurnsTest::RunTest(const FString&)
 
 	return true;
 }
+
+namespace
+{
+	/**
+	 * La versione dichiarata nell'header di una traccia serializzata: `magic`(4) poi `versione`(2), LE.
+	 *
+	 * `false` se il buffer e' troppo corto per contenerla — un file troncato non ha una versione «sbagliata»,
+	 * non ne ha nessuna, e i due casi vanno distinti da chi legge.
+	 */
+	bool GoldenVersioneDichiarata(const TArray<uint8>& Bytes, uint16& Out)
+	{
+		if (Bytes.Num() < 6)
+		{
+			return false;
+		}
+		Out = static_cast<uint16>(Bytes[4]) | (static_cast<uint16>(Bytes[5]) << 8);
+		return true;
+	}
+
+	/**
+	 * La versione che il writer scrive OGGI, chiesta al writer invece che scritta qui.
+	 *
+	 * 🔑 **E' la riga che impedisce a questo gate di invecchiare.** Una costante — `WithMicroStep` — avrebbe
+	 * fatto del gate il secondo posto da aggiornare a ogni bump, e il primo che qualcuno dimentica: proprio
+	 * il difetto che il gate esiste per intercettare. Serializzando una traccia vuota si legge cio' che
+	 * `SerializeTurnLog` mette nell'header, che e' la definizione operativa di «versione corrente».
+	 */
+	uint16 GoldenVersioneCheIlWriterScrive()
+	{
+		const TArray<uint8> Vuota = URTTurnLogLibrary::SerializeTurnLog(
+			TArray<FRTTurnLogEntry>(), ERTLogTopology::Hex, NAME_None);
+		uint16 V = 0;
+		GoldenVersioneDichiarata(Vuota, V);
+		return V;
+	}
+}
+
+/**
+ * ⚠️ **Ogni golden e' alla versione che il writer scrive** — e fino al 2026-09-04 nessuno lo era.
+ *
+ * 🔴 **Il difetto che questo gate intercetta non e' la divergenza: e' che fosse invisibile.** Il confronto
+ * del corpus e' `HashTurnLogOrdered({A}) == HashTurnLogOrdered({B})`, e l'elenco dei campi che l'hash
+ * mescola — `VisitDiscriminatingFields` — **non contiene la versione del formato**, ne' i campi aggiunti
+ * dopo. ∴ un bump non rende rossi i golden, e `GoldenCorpusMatches` puo' restare verde su un corpus scritto
+ * mesi prima: dice che le voci sono semanticamente equivalenti, che e' un'altra affermazione.
+ *
+ * La misura che ha aperto `#2271`: **8 file alla `v10`, 11 alla `v11`, zero alla `v12`**, con la `v11`
+ * introdotta il 2026-08-29 e i file toccati anche dopo — restando indietro.
+ *
+ * 🔑 **Non introduce una regola nuova: rende esecutiva quella gia' scritta** poche righe piu' su, sulla
+ * rigenerazione — *«si rigenerano nello stesso commit che cambia la regola»*. Era una convenzione che
+ * nessuno controllava.
+ *
+ * ⚠️ **Il costo e' dichiarato**: ogni bump di formato obbliga a rigenerare il corpus nello stesso commit,
+ * cioe' ~20 file binari nella PR che bumpa. Non e' lavoro nuovo — e' lo stesso lavoro, pagato da chi
+ * cambia il formato invece che accumulato a carico di chi passa di li' mesi dopo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGoldenCorpusIsAtCurrentFormatTest,
+	"RefactorTactics.Simulation.GoldenCorpusIsAtCurrentFormat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGoldenCorpusIsAtCurrentFormatTest::RunTest(const FString&)
+{
+	const uint16 Corrente = GoldenVersioneCheIlWriterScrive();
+
+	// La premessa: se il writer non dichiarasse una versione, tutto il resto sarebbe vero a vuoto.
+	if (!TestTrue(TEXT("premessa: il writer dichiara una versione"), Corrente > 0))
+	{
+		return false;
+	}
+
+	int32 Letti = 0;
+	for (const TCHAR* ScenarioId : GoldenScenarioIds)
+	{
+		// Stessa scansione dei turni degli altri test del corpus: si sale finche' il file esiste, cosi' uno
+		// scenario che ne aggiunge uno entra qui senza che nessuno aggiorni un conteggio.
+		for (int32 Turno = 1; ; ++Turno)
+		{
+			const FString Path = GoldenTurnPath(ScenarioId, Turno);
+			TArray<uint8> Bytes;
+			if (!FFileHelper::LoadFileToArray(Bytes, *Path))
+			{
+				break;
+			}
+			++Letti;
+
+			uint16 Dichiarata = 0;
+			if (!TestTrue(FString::Printf(TEXT("%s/turn-%02d: l'header contiene una versione"), ScenarioId, Turno),
+				GoldenVersioneDichiarata(Bytes, Dichiarata)))
+			{
+				continue;
+			}
+
+			// ⚠️ La diagnosi nomina il file E i due valori: «non e' alla versione corrente» manderebbe a
+			// cercare quale, su venti file, e con quale scarto.
+			TestEqual(FString::Printf(TEXT("%s/turn-%02d e' alla versione corrente"), ScenarioId, Turno),
+				static_cast<int32>(Dichiarata), static_cast<int32>(Corrente));
+		}
+	}
+
+	// ⛔ Senza questa riga il test passerebbe su un corpus **vuoto**, cioe' anche il giorno in cui la radice
+	// cambiasse nome e `LoadFileToArray` fallisse su tutto: zero file letti, zero asserzioni fallite, verde.
+	TestTrue(FString::Printf(TEXT("premessa: il corpus e' stato letto (%d file)"), Letti), Letti > 0);
+
+	return true;
+}
+
+/**
+ * 🔴 **Il gate qui sopra visto ROSSO**, che e' l'unico modo di sapere che non passa per costruzione.
+ *
+ * Un gate sulla versione ha una modalita' di fallimento silenziosa e specifica: se `GoldenVersioneDichiarata`
+ * leggesse l'offset sbagliato, o se il confronto fosse fra due letture della stessa fonte, passerebbe su
+ * **qualunque** corpus — compreso quello disallineato che ha aperto `#2271`. Qui il disallineamento e'
+ * costruito apposta, e il gate deve accorgersene.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGoldenFormatGateCatchesStaleVersionTest,
+	"RefactorTactics.Simulation.GoldenFormatGateCatchesStaleVersion",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGoldenFormatGateCatchesStaleVersionTest::RunTest(const FString&)
+{
+	const uint16 Corrente = GoldenVersioneCheIlWriterScrive();
+
+	TArray<uint8> Traccia = URTTurnLogLibrary::SerializeTurnLog(
+		TArray<FRTTurnLogEntry>(), ERTLogTopology::Hex, NAME_None);
+
+	uint16 Letta = 0;
+	TestTrue(TEXT("una traccia appena scritta ha una versione"), GoldenVersioneDichiarata(Traccia, Letta));
+	TestEqual(TEXT("ed e' quella corrente: il gate accetta cio' che il writer produce"),
+		static_cast<int32>(Letta), static_cast<int32>(Corrente));
+
+	// --- 🔴 ora la si invecchia di una versione, come se fosse un golden mai rigenerato ------------------
+	if (TestTrue(TEXT("premessa: c'e' una versione precedente da simulare"), Corrente >= 2))
+	{
+		const uint16 Vecchia = static_cast<uint16>(Corrente - 1);
+		Traccia[4] = static_cast<uint8>(Vecchia & 0xFF);
+		Traccia[5] = static_cast<uint8>((Vecchia >> 8) & 0xFF);
+
+		uint16 Riletta = 0;
+		TestTrue(TEXT("la traccia invecchiata resta leggibile"), GoldenVersioneDichiarata(Traccia, Riletta));
+		TestEqual(TEXT("e dichiara la versione vecchia"), static_cast<int32>(Riletta), static_cast<int32>(Vecchia));
+		TestNotEqual(TEXT("⛔ che NON e' la corrente: il gate la rifiuterebbe"),
+			static_cast<int32>(Riletta), static_cast<int32>(Corrente));
+	}
+
+	// --- ⚠️ e un file troncato non ha una versione «sbagliata»: non ne ha nessuna ------------------------
+	TArray<uint8> Troncata;
+	Troncata.Append(Traccia.GetData(), 5); // meno dei 6 byte di magic+versione
+	uint16 Nessuna = 0;
+	TestFalse(TEXT("un header troncato non dichiara una versione"), GoldenVersioneDichiarata(Troncata, Nessuna));
+
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -250,8 +250,9 @@ public:
 	 *   in camere diverse e la loro vista di squadra e' **disgiunta dal turno 1**, senza dipendere da come
 	 *   si muovono;
 	 * - due **nicchie** che rendono il perimetro visibile **concavo** invece che a ventaglio;
-	 * - una **piattaforma sul layer 1**, che nel grafo tattico e' una regione a se': `Neighbors` non
-	 *   attraversa i layer, quindi le sue celle visibili non confinano con quelle del suolo.
+	 * - ⛔ **nessuna piattaforma**: ce n'era una a `L1` senza transizioni, quindi irraggiungibile in gioco e
+	 *   contata da `rt.Arena.Check` fra le celle non raggiungibili. Rimossa il 2026-09-04; per il caso
+	 *   multilivello ci sono `MakeTestArena` e `MatchArenaPlatformClimb`, che una transizione ce l'hanno.
 	 *
 	 * ⚠️ **Non sostituisce `MakeTestArena` ne' `MakeArenaV01`**, e non ne cambia una riga: quelle sono
 	 * tarate su criteri di movimento e copertura (`URTArenaCriteriaLibrary`, `done_when` di `U1`) e allargarle

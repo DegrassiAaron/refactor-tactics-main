@@ -1,3 +1,4 @@
+#include "Tools/RTHexPaintTool.h"
 #include "Misc/AutomationTest.h"
 
 // `UInteractiveToolPropertySet` vive in `InteractiveTool.h`, non in un header col proprio nome: quello non
@@ -160,6 +161,53 @@ bool FRTHexReadoutDoesNotAutoUpdateTest::RunTest(const FString&)
 	TestTrue(TEXT("Surface del readout e' di sola lettura"), SurfaceProp->HasAnyPropertyFlags(CPF_EditConst));
 	TestTrue(TEXT("MoveCost del readout e' di sola lettura"), MoveCostProp->HasAnyPropertyFlags(CPF_EditConst));
 	TestFalse(TEXT("il readout non e' un pennello"), EditabileDavvero(SurfaceProp));
+	return true;
+}
+
+/**
+ * 🔑 **La maschera del pennello esclude cio' che il pennello non scrive, e l'erase non la usa** — `#1865`.
+ *
+ * Il pennello scrive quattro campi: `Surface`, `MoveCost`, `bBlocksMovement`, `bBlocksLineOfSight`. La
+ * matrice campo→famiglia dice che toccano `Cells`, `Glyphs`, `Relief`, `Blockers` — piu' `Borders`, perche'
+ * una pennellata puo' creare una cella e ogni cella nuova porta il suo contorno.
+ *
+ * ⛔ **`EdgeFeatures` e `StructuralBodies` restano fuori**, e questa e' la meta' che fa risparmiare:
+ * dipendono da `Covers`/`Doors` e `BodyFill`, che il pennello non scrive mai.
+ *
+ * 🔴 **E l'erase ricostruisce TUTTO**, che e' la riga capace di cadere: cancellare una cella la toglie da
+ * ogni famiglia, comprese quelle escluse. Con la maschera ridotta, una cella con coperture lascerebbe
+ * pannelli orfani su un pavimento che non c'e' piu'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexPaintToolRebuildMaskTest,
+	"RefactorTactics.HexTools.BrushRebuildMaskExcludesWhatTheBrushNeverWrites",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexPaintToolRebuildMaskTest::RunTest(const FString&)
+{
+	const ERTRebuildFamily Paint = URTHexPaintTool::BrushRebuildMask(/*bPaint=*/ true);
+
+	// Cio' che il pennello scrive, ci deve essere.
+	TestTrue(TEXT("il pavimento e' nella maschera"), EnumHasAnyFlags(Paint, ERTRebuildFamily::Cells));
+	TestTrue(TEXT("i glifi anche: la superficie decide quanti anelli"),
+		EnumHasAnyFlags(Paint, ERTRebuildFamily::Glyphs));
+	TestTrue(TEXT("il rilievo anche: il costo decide se esiste"),
+		EnumHasAnyFlags(Paint, ERTRebuildFamily::Relief));
+	TestTrue(TEXT("i blocchi anche"), EnumHasAnyFlags(Paint, ERTRebuildFamily::Blockers));
+	TestTrue(TEXT("e i contorni, perche' una pennellata puo' creare una cella"),
+		EnumHasAnyFlags(Paint, ERTRebuildFamily::Borders));
+
+	// 🔑 Cio' che NON scrive, non ci deve essere: e' il risparmio, e senza queste due righe la maschera
+	// potrebbe essere `All` e il test passerebbe lo stesso.
+	TestFalse(TEXT("i pannelli di bordo NO: il pennello non scrive Covers ne' Doors"),
+		EnumHasAnyFlags(Paint, ERTRebuildFamily::EdgeFeatures));
+	TestFalse(TEXT("i corpi strutturali NO: il pennello non scrive BodyFill"),
+		EnumHasAnyFlags(Paint, ERTRebuildFamily::Bodies));
+
+	// 🔴 L'erase e' l'eccezione, e ricostruisce tutto.
+	const ERTRebuildFamily Erase = URTHexPaintTool::BrushRebuildMask(/*bPaint=*/ false);
+	TestTrue(TEXT("cancellare ricostruisce anche i pannelli di bordo"),
+		EnumHasAnyFlags(Erase, ERTRebuildFamily::EdgeFeatures));
+	TestTrue(TEXT("e anche i corpi: la cella sparisce da ogni famiglia"),
+		EnumHasAnyFlags(Erase, ERTRebuildFamily::Bodies));
 	return true;
 }
 

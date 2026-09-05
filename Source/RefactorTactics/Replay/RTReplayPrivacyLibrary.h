@@ -87,6 +87,14 @@ struct FRTPublicReplayEntry
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
 	int32 OriginalTargetUnitId = INDEX_NONE;
+
+	/**
+	 * Il micro-step in cui la voce e' nata (`#1880`): la terza coordinata del boundary, e come le altre due
+	 * — `Phase` e `TurnNumber` — dice *quando*, non *cosa e' stato deciso*. Pubblico per la stessa ragione
+	 * per cui lo sono quelle: e' il momento di un fatto gia' pubblico, non un'intenzione.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
+	int32 MicroStepIndex = 0;
 };
 
 /**

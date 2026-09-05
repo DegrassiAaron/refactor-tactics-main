@@ -226,6 +226,24 @@ bool FRTCounterDealsDamageTest::RunTest(const FString&)
 	TestEqual(TEXT("chi ha colpito incassa i 16 del contrattacco"), AttackerHealth - Attacker->Health, 16);
 	TestEqual(TEXT("chi non ha colpito non viene contrattaccato"), Bystander->Health, BystanderHealth);
 
+	// 🔴 **La reazione ha un MOMENTO nel playback, non solo un esito nel log** (#2191).
+	//
+	// Prima di questo evento una difesa riuscita non era distinguibile a schermo da un attacco debole:
+	// restava la sola barra che scende poco. `PIE-VIS-DEFLECT` esiste per escludere proprio quella
+	// lettura, e senza un istante proprio nella timeline non era osservabile.
+	//
+	// ⚠️ **Asserisce il SOGGETTO, non solo il conteggio**: l'evento nasce con chi reagisce nel
+	// soggetto e chi ha innescato nel bersaglio. Contare senza guardare di chi sia darebbe verde anche
+	// se i due fossero invertiti — ed e' l'errore piu' facile da fare in un'emissione con due id.
+	TestEqual(TEXT("chi reagisce ha un evento di reazione risolta"),
+		TM->ResolvedReactionCountForTest(Reactor->StableUnitId), 1);
+	TestEqual(TEXT("chi ha innescato NON ne ha uno: il soggetto e' chi reagisce"),
+		TM->ResolvedReactionCountForTest(Attacker->StableUnitId), 0);
+	// ⛔ E chi non c'entra non ne ha: senza questa riga, un'emissione che sparasse un evento per ogni
+	// unita' in campo passerebbe le due asserzioni qui sopra.
+	TestEqual(TEXT("chi non e' coinvolto non ne ha nessuno"),
+		TM->ResolvedReactionCountForTest(Bystander->StableUnitId), 0);
+
 	DestroyDefWorld(World);
 	return true;
 }

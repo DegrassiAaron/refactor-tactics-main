@@ -385,22 +385,89 @@ FRTHexPathResult URTHexSimLibrary::FindPathForUnit(const FRTHexSnapshot& Snapsho
 		/*MaxNodes*/ 100000, FMath::Max(0, Unit->MoveCostModifier));
 }
 
-TArray<FRTCellId> URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapshot, int32 UnitId, const TArray<FRTCellId>& Path)
+namespace
 {
+/**
+ * Il passo `From -> To` e' percorribile? Due domande, e vanno fatte entrambe (#2284):
+ *
+ * 1. il GRAFO offre ancora quell'arco — copre la cella assente, `bBlocksMovement` e la copertura alta o la
+ *    porta chiusa sul BORDO (`URTHexCoverLibrary::BlocksTraversal`, che `GraphNeighbors` gia' interroga);
+ * 2. la cella `From` si ATTRAVERSA da dove si e' arrivati a dove si va — la geometria interna di `#2100`,
+ *    che il grafo non vede perche' guarda i bordi e non l'interno.
+ *
+ * ⚠️ **DUE LIMITI, entrambi ereditati da `GraphNeighbors` e non chiusi qui.** Il suo ramo degli ARCHI
+ * espliciti controlla `FindCell` e `bBlocksMovement` ma **non** `BlocksTraversal`: una mappa che dichiara
+ * un arco attivo sopra un bordo con copertura alta lo rende comunque percorribile, e lo scivolamento
+ * passerebbe. E `CameFrom` non valido fa cadere la sola verifica intra-cella, cioe' fallisce APERTO: oggi
+ * il solo chiamante lo passa sempre valido — `ApplyIceSliding` ha gia' verificato layer e adiacenza — ma
+ * un secondo chiamante che scrivesse `FRTCellId()` non se ne accorgerebbe. Entrambi sono di
+ * `GraphNeighbors` e del suo contratto, non di questa funzione.
+ *
+ * Esiste come funzione e non come due copie perche' la seconda era gia' stata dimenticata una volta: la
+ * prima stesura di `#2284` chiedeva solo al grafo, e uno scivolamento attraversava i muri INTERNI dopo
+ * averne appena chiuso il caso sui bordi.
+ */
+bool StepIsWalkable(const URTHexMapAsset* Map, const FRTCellId& CameFrom, const FRTCellId& From,
+	const FRTCellId& To)
+{
+	bool bOnGraph = false;
+	for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Map, From))
+	{
+		if (Step.Key == To)
+		{
+			bOnGraph = true;
+			break;
+		}
+	}
+	if (!bOnGraph)
+	{
+		return false;
+	}
+
+	// `CameFrom` invalido significa «nessun predecessore»: non c'e' una traversata da validare.
+	ERTHexDirection EntryDir = ERTHexDirection::E;
+	ERTHexDirection ExitDir = ERTHexDirection::E;
+	if (URTHexLibrary::DirectionBetween(From, CameFrom, EntryDir)
+		&& URTHexLibrary::DirectionBetween(From, To, ExitDir))
+	{
+		return URTHexPathLibrary::CanTransitCell(Map, From, EntryDir, ExitDir);
+	}
+	return true;
+}
+} // namespace
+
+FRTIceSlideResult URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapshot, int32 UnitId, const TArray<FRTCellId>& Path)
+{
+	// Il percorso invariato e' la risposta di ogni uscita negativa; cio' che le distingue e'
+	// `bSlideRequested`, che si alza SOLO quando il terreno ha davvero chiesto lo scivolamento (`#2314`).
+	FRTIceSlideResult Result;
+	Result.Path = Path;
+
 	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
 	if (!Snapshot.Map || !Unit || Path.Num() < 2)
 	{
-		return Path;
+		return Result;
 	}
 
 	// Regola dal CATALOGO, non dall'enum: e' un dato del terreno come il costo e il blocco allo scatto. Con
-	// `SlideCells <= 0` non si scivola. Oggi si estende comunque di UNA sola cella (vedi FRTTerrainDef::SlideCells).
+	// `SlideCells <= 0` non si scivola.
+	//
+	// ✅ **Da `#2253` il campo e' un CONTATORE**, e il limite che il suo commento dichiarava al CP 8.1 —
+	// *«letto come un booleano»* — e' caduto: si srotolano `SlideCells` passi, piu' quelli che l'unita'
+	// porta con se' (`ExtraSlideCells`, oggi `Status.Unbalanced`).
 	const FRTCellId LastCell = Path.Last();
 	const FRTHexCellData* LastData = Snapshot.Map->FindCell(LastCell);
-	if (!LastData || URTTerrainLibrary::FindTerrainDef(LastData->Surface).SlideCells <= 0)
+	const int32 TerrainSlide = LastData
+		? URTTerrainLibrary::FindTerrainDef(LastData->Surface).SlideCells : 0;
+	if (TerrainSlide <= 0)
 	{
-		return Path;
+		return Result; // il terreno non chiede nessuno scivolamento: non c'e' niente da impedire
 	}
+	// ⚠️ **L'extra si somma solo dove il terreno gia' fa scivolare.** Uno sbilanciato che finisce su una
+	// cella normale non scivola affatto: `ExtraSlideCells` amplifica un effetto, non lo crea — altrimenti
+	// `Unbalanced` diventerebbe una sorgente di scivolamento e la catena si autoalimenterebbe fuori dal
+	// ghiaccio, che non e' cio' che [D-319] descrive.
+	const int32 TotalSlide = TerrainSlide + FMath::Max(0, Unit->ExtraSlideCells);
 
 	// Stessa formula di TruncatePathToBudget: costo della cella PIU' il modificatore dell'unita' (`Slow` lo
 	// alza, CP 4.7). Sommare il solo MoveCost sottostimerebbe la spesa di chi e' rallentato, e lo si vedrebbe
@@ -414,13 +481,15 @@ TArray<FRTCellId> URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapsh
 	}
 	if (Unit->MoveBudget - PathCost < 2)
 	{
-		return Path;
+		// La soglia fa parte della REGOLA, non e' un ostacolo: sotto i 2 MP residui il terreno non chiede
+		// nulla. Alzare `bSlideRequested` qui direbbe «scivolamento impedito» a chi ha solo finito il budget.
+		return Result;
 	}
 
 	const FRTCellId PrevCell = Path[Path.Num() - 2];
 	if (PrevCell.Layer != LastCell.Layer)
 	{
-		return Path; // arrivo via transizione: nessuna "direzione" da cui scivolare
+		return Result; // arrivo via transizione: nessuna "direzione" da cui scivolare
 	}
 
 	const int32 StepQ = LastCell.X - PrevCell.X;
@@ -439,19 +508,51 @@ TArray<FRTCellId> URTHexSimLibrary::ApplyIceSliding(const FRTHexSnapshot& Snapsh
 	}
 	if (!bValidDirection)
 	{
-		return Path; // ultimo passo non e' un vicino diretto
+		return Result; // ultimo passo non e' un vicino diretto: la regola non ha una direzione su cui applicarsi
 	}
 
-	const FRTCellId SlideCell(LastCell.X + Dir.X, LastCell.Y + Dir.Y, LastCell.Layer);
-	const FRTHexCellData* SlideData = Snapshot.Map->FindCell(SlideCell);
-	if (!SlideData || SlideData->bBlocksMovement)
+	// Da qui in poi il terreno HA chiesto lo scivolamento: superficie scivolosa, budget residuo sufficiente,
+	// direzione esistente. Cio' che resta da stabilire e' soltanto QUANTE celle vengano percorse — zero
+	// compreso, ed e' la distinzione per cui questo campo esiste (`#2314`): con zero celle accodate il
+	// percorso torna identico a quello ricevuto, cioe' alla risposta di ogni altra uscita negativa.
+	Result.bSlideRequested = true;
+
+	// Si srotola una cella per volta nella STESSA direzione, e ogni passo risponde alla stessa domanda del
+	// primo. Un ciclo e non una moltiplicazione: la seconda cella puo' essere un muro mentre la prima e'
+	// libera, e in quel caso lo scivolamento e' PARZIALE — l'unita' percorre quella che c'e' e si ferma.
+	//
+	// Il PASSO, non solo la cella (#2284). `StepIsWalkable` copre in una domanda sola cio' che prima erano
+	// due controlli separati e incompleti: la cella assente e `bBlocksMovement` — che `GraphNeighbors` gia'
+	// implica — piu' i muri sul BORDO e la geometria INTERNA della cella d'arrivo, che nessuno guardava.
+	//
+	// ⚠️ **Non e' il controllo che `spec-terreni-e8.md` §5.2 dichiara di NON fare.** Quella riga rinuncia
+	// all'OCCUPAZIONE — chi sta nella cella — ed e' corretta: il microstep di `ResolveHexPaths` la gestisce
+	// come per qualunque altro passo. La percorribilita' e' un'altra domanda, e la spec non la nominava:
+	// dentro `ResolveMovement` il taglio a valle la mascherava, ma questa funzione e' pura e pubblica, e chi
+	// la chiama direttamente riceveva il muro attraversato.
+	//
+	// ⚠️ **La DIREZIONE non si ricalcola a ogni passo**, e non e' una semplificazione: uno scivolamento e'
+	// un solo evento con una sola inerzia. Ricalcolarla dall'ultimo passo darebbe lo stesso risultato —
+	// `Dir` e' costante per costruzione — ma inviterebbe il prossimo lettore a credere che una curva sia
+	// possibile.
+	FRTCellId FromCell = PrevCell;
+	FRTCellId AtCell = LastCell;
+	for (int32 Step = 0; Step < TotalSlide; ++Step)
 	{
-		return Path;
+		const FRTCellId SlideCell(AtCell.X + Dir.X, AtCell.Y + Dir.Y, AtCell.Layer);
+		if (!StepIsWalkable(Snapshot.Map, FromCell, AtCell, SlideCell))
+		{
+			// Un muro fra la cella corrente e la successiva: si ferma qui, e cio' che ha gia' fatto vale.
+			// Se si ferma al PRIMO passo il percorso resta quello ricevuto, e `bSlideRequested` diventa
+			// l'unica traccia che lo scivolamento sia stato IMPEDITO invece che non richiesto — perderla
+			// e' la mutazione che `Terrain.Ice.WallBlockingSlideIsReportedAsSlideBlocked` rileva (`#2314`).
+			break;
+		}
+		Result.Path.Add(SlideCell);
+		FromCell = AtCell;
+		AtCell = SlideCell;
 	}
-
-	TArray<FRTCellId> Extended = Path;
-	Extended.Add(SlideCell);
-	return Extended;
+	return Result;
 }
 
 ERTHexWaypointReason URTHexSimLibrary::ClassifyWaypointCell(const FRTHexSnapshot& Snapshot, int32 UnitId,
@@ -646,36 +747,13 @@ TArray<FRTCellId> URTHexSimLibrary::TruncatePathToTopology(const FRTHexSnapshot&
 	Walkable.Add(Path[0]);
 	for (int32 k = 1; k < Path.Num(); ++k)
 	{
-		// Si CHIEDE AL GRAFO invece di rileggere i bordi: la regola su cosa separa due celle vive in un posto
-		// solo (`URTHexCoverLibrary::BlocksTraversal`, che `GraphNeighbors` gia' interroga), e riscriverla qui
-		// significherebbe due risposte alla stessa domanda, destinate a divergere.
-		bool bStepStillExists = false;
-		for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Snapshot.Map, Path[k - 1]))
+		// Stessa domanda dello scivolamento, stessa funzione (#2284): `StepIsWalkable` fa il controllo sul
+		// grafo e quello sulla traversata intra-cella, che qui erano due blocchi separati. Il predecessore
+		// esiste solo da `k >= 2`; al primo passo non c'e' traversata da validare, e la funzione lo gestisce.
+		const FRTCellId CameFrom = (k >= 2) ? Path[k - 2] : Path[k - 1];
+		if (!StepIsWalkable(Snapshot.Map, CameFrom, Path[k - 1], Path[k]))
 		{
-			if (Step.Key == Path[k])
-			{
-				bStepStillExists = true;
-				break;
-			}
-		}
-		if (!bStepStillExists)
-		{
-			break; // la topologia e' cambiata da quando il piano e' stato scritto: si ferma QUI
-		}
-
-		// 🔴 **La traversata intra-cella** (#2100). Qui il predecessore e il successore sono ENTRAMBI
-		// noti — si sta validando un percorso intero, non esplorando — quindi non serve nessuno stato:
-		// si chiede direttamente se `Path[k - 1]` si attraversa da dove si e' arrivati a dove si va.
-		if (k >= 2)
-		{
-			ERTHexDirection EntryDir = ERTHexDirection::E;
-			ERTHexDirection ExitDir = ERTHexDirection::E;
-			if (URTHexLibrary::DirectionBetween(Path[k - 1], Path[k - 2], EntryDir)
-				&& URTHexLibrary::DirectionBetween(Path[k - 1], Path[k], ExitDir)
-				&& !URTHexPathLibrary::CanTransitCell(Snapshot.Map, Path[k - 1], EntryDir, ExitDir))
-			{
-				break; // geometria interna: il piano attraversava un muro, e si ferma PRIMA di entrarci
-			}
+			break; // la topologia e' cambiata da quando il piano e' stato scritto, o il piano attraversava un muro
 		}
 
 		Walkable.Add(Path[k]);
@@ -882,8 +960,19 @@ namespace
 		}
 	}
 
-	// Reason code finale: dipende solo da Final/Paths -> indipendente dall'ordine, e quindi anche da QUANTI
-	// microstep sono serviti e da dove il chiamante li ha interrotti.
+	// Reason code finale: dipende solo dai dati PER-UNITA' dello stato — `Paths`, `Planned`, il progresso e
+	// `BlockReason` — quindi e' indipendente dall'ordine di iterazione, e anche da QUANTI microstep sono
+	// serviti e da dove il chiamante li ha interrotti.
+	//
+	// 🔑 **Il criterio e' il PROGRESSO, non la coordinata finale** (`#2314`). Prima era
+	// `Final == Paths.Last()`, ed e' sbagliato due volte: verso il basso perche' il percorso esteso dal
+	// terreno ha un'ultima cella che il giocatore non ha mai chiesto — chi non riesce a scivolare risultava
+	// «fermato» pur essendo arrivato; e verso l'alto perche' un percorso puo' RIVISITARE una cella
+	// (`{A, B, C, B}`, che `BuildCompositeHexPath` produce concatenando i segmenti A* senza deduplicare):
+	// un'unita' bloccata a un terzo di strada, ferma su `B`, soddisfaceva l'uguaglianza e veniva registrata
+	// come arrivata. `Prog[i]` e' l'indice raggiunto DENTRO `Paths[i]`, quindi non ha nessuna delle due
+	// ambiguita'. Vale `Prog[i] == Results[i].Entered.Num()` per costruzione — i microstep li incrementano
+	// insieme — e si usa `Prog` perche' e' il cursore sul percorso, che e' cio' di cui si parla qui.
 	void FinalizeHexMovementOutcomes(FRTMovementResolutionState& State)
 	{
 		for (int32 i = 0; i < State.Num(); ++i)
@@ -891,21 +980,54 @@ namespace
 			if (State.Paths[i].Num() <= 1)
 			{
 				State.Results[i].Outcome = ERTMoveOutcome::Stayed;
+				continue;
 			}
-			else if (State.Results[i].Final == State.Paths[i].Last())
+
+			const FRTPlannedMovement& Plan = State.Planned[i];
+
+			// Passi che il giocatore aveva chiesto. `PlannedLength` conta le celle, partenza inclusa.
+			const int32 PlannedSteps = Plan.PlannedLength - 1;
+
+			if (State.Prog[i] < PlannedSteps)
 			{
-				State.Results[i].Outcome = ERTMoveOutcome::Moved;
+				// ⚠️ PRECEDENZA: non ha completato cio' che aveva chiesto. Qualunque cosa il terreno volesse
+				// fare dopo e' irrilevante — cio' che il giocatore ha visto e' l'arresto, e il suo motivo e'
+				// la spiegazione piu' vicina.
+				State.Results[i].Outcome = State.BlockReason[i];
+				continue;
+			}
+
+			// Celle di scivolamento davvero percorse: quanto il progresso eccede il piano del giocatore.
+			const int32 SlideCellsWalked = State.Prog[i] - PlannedSteps;
+			if (SlideCellsWalked > 0)
+			{
+				// Lo scivolamento e' AVVENUTO, anche se poi qualcosa ha fermato l'unita' prima di esaurire
+				// l'estensione. Non e' `SlideBlocked`: `D-319` fa dipendere `Status.Unbalanced` dall'essere
+				// stati spostati dall'ambiente, e uno spostamento parziale e' comunque uno spostamento.
+				State.Results[i].Outcome = ERTMoveOutcome::Slid;
+			}
+			else if (Plan.bSlideRequested)
+			{
+				// Arrivata dove voleva, e il terreno voleva portarla oltre senza riuscirci — che il percorso
+				// sia stato esteso o no. `bSlideRequested` copre ENTRAMBI i modi in cui lo scivolamento puo'
+				// mancare, ed e' l'unica condizione che serve: il muro davanti alla prima cella (percorso
+				// invariato) e la cella accodata che nessun passo ha raggiunto (percorso esteso, `Prog`
+				// fermo al piano). Una seconda guardia su `Paths.Num() > PlannedLength` sarebbe morta —
+				// `ApplyIceSliding` alza il flag PRIMA di accodare, quindi una cella di scivolamento nel
+				// percorso implica il flag — e un lettore la crederebbe necessaria.
+				State.Results[i].Outcome = ERTMoveOutcome::SlideBlocked;
 			}
 			else
 			{
-				State.Results[i].Outcome = State.BlockReason[i];
+				State.Results[i].Outcome = ERTMoveOutcome::Moved;
 			}
 		}
 	}
 }
 
 FRTMovementResolutionState URTHexSimLibrary::BeginHexMovement(const TArray<TArray<FRTCellId>>& Paths,
-	const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers, const TArray<bool>& bPassThrough)
+	const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers, const TArray<bool>& bPassThrough,
+	const TArray<FRTPlannedMovement>& Planned)
 {
 	FRTMovementResolutionState State;
 	State.Paths = Paths;
@@ -914,6 +1036,25 @@ FRTMovementResolutionState URTHexSimLibrary::BeginHexMovement(const TArray<TArra
 	State.bPassThrough = bPassThrough;
 
 	const int32 N = Paths.Num();
+
+	// Chi non dichiara nulla ha chiesto TUTTO il percorso e nessuno scivolamento: e' il caso di ogni
+	// chiamante che non passa dai terreni, e con quel riempimento la classificazione e' identica a com'era
+	// prima di `#2314`. Un `PlannedLength` fuori intervallo si riporta dentro invece di essere creduto: un
+	// valore piu' lungo del percorso renderebbe irraggiungibile la destinazione pianificata, e uno < 1
+	// farebbe conteggiare come scivolamento la partenza.
+	State.Planned = Planned;
+	State.Planned.SetNum(N);
+	for (int32 i = 0; i < N; ++i)
+	{
+		FRTPlannedMovement& Plan = State.Planned[i];
+		// `Min` e non `Clamp`: con un percorso vuoto `Clamp(X, 1, 0)` restituirebbe **0** — minimo maggiore
+		// del massimo — cioe' un piano di lunghezza negativa in passi, innocuo oggi solo perche' la guardia
+		// `Paths.Num() <= 1 -> Stayed` gira prima. Un valore piu' lungo del percorso resta da riportare
+		// dentro: renderebbe la destinazione pianificata irraggiungibile, e ogni arrivo un blocco.
+		Plan.PlannedLength = Plan.PlannedLength <= 0
+			? Paths[i].Num()
+			: FMath::Min(Plan.PlannedLength, Paths[i].Num());
+	}
 	State.Results.SetNum(N);
 	State.Pos.SetNum(N);
 	State.Prog.SetNum(N);
