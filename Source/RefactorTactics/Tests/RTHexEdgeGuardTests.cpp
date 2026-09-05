@@ -128,6 +128,21 @@ bool FRTEdgeGuardInertTest::RunTest(const FString&)
 	});
 	TestTrue(TEXT("il parapetto inerte e' segnalato"), bWarning);
 	TestFalse(TEXT("ma NON come errore"), bErrore);
+
+	// 🔴 **L'ordine di inserimento non deve contare**, ed e' il difetto che questo test ha trovato: la
+	// prima stesura interrogava `Seen`, popolato DENTRO il ciclo di validazione, quindi il vicino
+	// esisteva solo se era stato scritto prima. Qui la cella col parapetto e' inserita per SECONDA.
+	URTHexMapAsset* Invertita = NewObject<URTHexMapAsset>();
+	Invertita->AddOrUpdateCell(Cell(1, 0, 1));
+	Invertita->AddOrUpdateCell(Cell(0, 0, 1));
+	AddGuard(Invertita, FRTCellId(0, 0, 1), ERTHexDirection::E);
+
+	const TArray<FString> AltriErrori = Invertita->ValidateMap();
+	const bool bWarningInvertito = AltriErrori.ContainsByPredicate([](const FString& E)
+	{
+		return E.Contains(TEXT("parapetto inerte"));
+	});
+	TestTrue(TEXT("segnalato anche con l'ordine di inserimento invertito"), bWarningInvertito);
 	return true;
 }
 

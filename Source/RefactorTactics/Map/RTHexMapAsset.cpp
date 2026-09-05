@@ -661,7 +661,11 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 				}
 			}
 
-			if (Seen.Contains(URTHexLibrary::Neighbor(C.Id, Guard.Edge)))
+			// ⚠️ `FindCell` e NON `Seen`: quel set si popola DENTRO questo stesso ciclo, quindi per la prima
+			// cella non contiene ancora i vicini che verranno. Con `Seen` la segnalazione dipendeva
+			// dall'ordine dell'array — un parapetto inerte veniva visto o no a seconda di chi era stato
+			// scritto prima. Lo ha trovato `EdgeGuard.OnConnectedEdgeIsInert`, non una rilettura.
+			if (FindCell(URTHexLibrary::Neighbor(C.Id, Guard.Edge)) != nullptr)
 			{
 				Errors.Add(FString::Printf(
 					TEXT("Warning: parapetto inerte sul bordo %d di %s: il vicino esiste, da li' non si cade"),
