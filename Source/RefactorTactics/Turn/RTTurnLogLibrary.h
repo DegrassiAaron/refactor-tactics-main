@@ -120,9 +120,9 @@ public:
 	/**
 	 * Se questa causa fa NASCERE uno stato (`true`) o lo fa MORIRE (`false`).
 	 *
-	 * 🔴 **Esiste perché il verso non si deduca a occhio da nove valori.** Nascite: `AppliedByAction`,
+	 * 🔴 **Esiste perché il verso non si deduca a occhio da dieci valori.** Nascite: `AppliedByAction`,
 	 * `AppliedByTerrain`, `AppliedWhileOnCell`, `AppliedInstantly`. Morti: `Revoked`, `Expired`,
-	 * `Extinguished`, `Cleansed`, `Spent`. Chi consuma `ERTResolvedEventType::StatusChanged` chiede qui
+	 * `Extinguished`, `Cleansed`, `Spent`, `ShakenOff`. Chi consuma `ERTResolvedEventType::StatusChanged` chiede qui
 	 * invece di scriversi il proprio `switch` — che sarebbe una seconda tassonomia da tenere allineata.
 	 *
 	 * ⚠️ **Un valore non dichiarato è una MORTE, e fail-closed è la scelta giusta qui**: un'icona che non

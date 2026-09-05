@@ -251,10 +251,30 @@ Player B READY @ 28 s
 
 Il countdown **non sostituisce** il timer massimo del planning: è la scorciatoia quando tutti hanno finito prima.
 
-> ⚠️ **Stato di implementazione (verificato 2026-08-07)**: oggi il lock-in è **immediato** — Spazio chiude il
-> planning senza countdown e senza possibilità di annullare (`RTPlayerController.cpp`, `LockInAndResolve`).
-> Il countdown annullabile **non esiste**. `RT_PDR_10 §2` riga 8 lo dichiarava ✅ ed è stato corretto a 🟡.
-> In 2v2 offline la differenza è nulla (un solo umano); diventa reale con il 3v3 e con **M10**.
+> ~~⚠️ **Stato di implementazione (verificato 2026-08-07)**: oggi il lock-in è **immediato** — Spazio chiude il~~
+> ~~planning senza countdown e senza possibilità di annullare (`RTPlayerController.cpp`, `LockInAndResolve`).~~
+> ~~Il countdown annullabile **non esiste**. `RT_PDR_10 §2` riga 8 lo dichiarava ✅ ed è stato corretto a 🟡.~~
+>
+> ✅ **Il countdown ESISTE dal 2026-09-04** ([#2193](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2193)).
+> `ARTTurnManager::RequestLockIn()` arma `ReadyCountdownSeconds` (**3 s**) e solo al suo scadere chiama
+> `LockInAndResolve()`; `CancelLockIn()` è l'Unready. Il gesto è **RMB / Backspace** — `UndoAction`, che
+> durante il countdown non ha waypoint da annullare — e non un toggle su Spazio: chi preme due volte per
+> abitudine annullerebbe senza volerlo, cioè l'opposto del difetto che il countdown previene.
+>
+> 🔴 **Il tetto vince, ed è una proprietà della struttura.** I due orologi chiamano entrambi
+> `LockInAndResolve`, che li spegne tutti e due appena entra: il primo che scatta vince, e il countdown non
+> allunga mai `PlanningSeconds`. *«Non sostituisce il timer massimo»* non è un `if` da ricordare.
+> ⚠️ E l'**Unready non riarma il tetto**: sarebbe l'altro modo di sostituirlo, in un verso che permetterebbe
+> di pianificare senza limite.
+>
+> Il perché di questa forma — e il motivo per cui il countdown **non** è uno stato di simulazione — sta nel
+> referto [`../roadmap/plans/ready-countdown-spec-panel-2026-09-04.md`](../roadmap/plans/ready-countdown-spec-panel-2026-09-04.md):
+> la risposta era già in §11 di questo documento, dove `ReadyCountdownSeconds` è classificato fra i **Tempi UX**.
+>
+> ⚠️ **In 2v2 offline la differenza resta quella dichiarata** (un solo umano): il valore che il countdown porta
+> *oggi* non è l'attesa reciproca, è **annullare una chiusura involontaria**. La forma «tutti Ready» diventa
+> osservabile con il 3v3 e con **M10**, e `RequestLockIn` è un punto solo perché aggiungerci il quorum non
+> richieda di spostare il countdown.
 
 ---
 

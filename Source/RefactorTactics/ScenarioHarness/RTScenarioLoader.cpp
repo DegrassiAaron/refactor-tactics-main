@@ -175,6 +175,67 @@ namespace
 		return true;
 	}
 
+	/**
+	 * Il core da cui un'azione d'EROE deriva, o `NAME_None` se l'id non e' di un'azione d'eroe.
+	 *
+	 * 🔑 Serve a rispondere «questa abilita' risolve su chi la usa?» per le azioni d'eroe, che nel
+	 * catalogo core non ci sono: la fase e' quella del core da cui derivano (`DerivedFromActionId`), ed e'
+	 * gia' il modo in cui il resolver le riconduce al proprio comportamento (`RTTurnManager_Blast.cpp`).
+	 * ⚠️ Nessun elenco scritto a mano, per la stessa ragione di `KnownHeroIds`: un'abilita' aggiunta
+	 * domani non deve ricordarsi di questa riga.
+	 */
+	/**
+	 * Questa abilita' si applica a chi la usa? — `#2283`.
+	 *
+	 * 🔑 **Si legge il FLAG, non si deduce.** `bSelfTarget` e' una proprieta' dichiarata dal catalogo, e
+	 * il suo docstring in `RTActionDef.h` avverte esplicitamente contro il dedurla: *«Dedurlo da
+	 * `RangeCells == 0` sarebbe stato sbagliato»*. La fase non e' un criterio migliore della portata:
+	 * `Action.CreateCover` e' `Preparation` con portata 3 e uno `StructureOp`, quindi bersaglia una cella
+	 * lontana — e `Hero.Riktor.KineticPanel`, che ne deriva, deve continuare a pretendere un bersaglio.
+	 *
+	 * ⚠️ **Il roster si legge UNA volta**, per la ragione gia' scritta accanto a `KnownHeroIds`:
+	 * `GetHeroRoster()` istanzia quattro `URTHeroData` con tutte le loro abilita' a ogni chiamata, e questo
+	 * predicato viene interrogato per ogni intent senza bersaglio, in due punti del file.
+	 */
+	bool AbilityResolvesOnSelf(const FName& AbilityId)
+	{
+		if (AbilityId.IsNone())
+		{
+			return false;
+		}
+
+		const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(AbilityId);
+		if (!Core.ActionId.IsNone())
+		{
+			return Core.bSelfTarget;
+		}
+
+		// Azione d'EROE: non sta nel catalogo core, e porta il flag sul proprio `Def` — lo eredita da
+		// `MakeHeroActionFromCore`, che dal 2026-09-04 lo copia (#2283).
+		static const TMap<FName, bool> SelfByHeroAction = []()
+		{
+			TMap<FName, bool> Map;
+			for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+			{
+				if (!Hero)
+				{
+					continue;
+				}
+				for (const URTActionData* Action : Hero->Actions)
+				{
+					if (Action && !Action->Def.ActionId.IsNone())
+					{
+						Map.Add(Action->Def.ActionId, Action->Def.bSelfTarget);
+					}
+				}
+			}
+			return Map;
+		}();
+
+		const bool* Found = SelfByHeroAction.Find(AbilityId);
+		return Found != nullptr && *Found;
+	}
+
 	/** Gli HeroId che il catalogo conosce davvero. Nessun elenco scritto a mano: se il roster cambia, questa segue. */
 	TSet<FName> KnownHeroIds()
 	{
@@ -921,9 +982,9 @@ namespace
 								// Se l'ID non e' nel catalogo core la Def torna vuota e la fase e' quella di default:
 								// non e' Prep, quindi il bersaglio resta obbligatorio. Le azioni d'eroe passano di
 								// qui, ed e' il comportamento che avevano prima.
-								const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(Intent.Ability);
-								const bool bResolvesOnSelf = !Def.ActionId.IsNone()
-									&& URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) == ERTMatchPhase::Prep;
+								// 🔑 Il FLAG, non la fase: `Action.CreateCover` e' `Preparation` e bersaglia una cella
+								// a portata 3, quindi `Hero.Riktor.KineticPanel` deve restare senza scorciatoie (#2283).
+								const bool bResolvesOnSelf = AbilityResolvesOnSelf(Intent.Ability);
 								if (!bResolvesOnSelf)
 								{
 									// Per tutte le altre, un'abilita' senza bersaglio non e' un'omissione innocua: lo
@@ -1761,9 +1822,10 @@ namespace
 					// respinga cercando un'unita' di nome "".
 					if (Intent.Target.IsEmpty())
 					{
-						const FRTActionDef SelfDef = URTCatalogLibrary::FindCoreAction(Intent.Ability);
-						if (!SelfDef.ActionId.IsNone()
-							&& URTCatalogLibrary::MapResolutionPhase(SelfDef.ResolutionPhase) == ERTMatchPhase::Prep)
+						// ⚠️ Lo STESSO predicato della lettura piu' sopra, non una sua copia: correggerne una
+						// sola spostava l'errore senza toglierlo — misurato, da «non dichiara un bersaglio» a
+						// «bersaglio '' non schierato» (#2283).
+						if (AbilityResolvesOnSelf(Intent.Ability))
 						{
 							continue;
 						}

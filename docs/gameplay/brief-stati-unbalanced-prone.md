@@ -65,11 +65,13 @@ La distinzione fra le due cause **ha già un tipo**: `ERTDisplacementCause`
 `Environmental`, con il commento che li motiva — *«una spinta ha una sorgente verso cui girarsi, uno
 scivolamento no»*.
 
-> ⚠️ **Ma il tipo non è ancora un canale.** Misurato: `ERTDisplacementCause::Environmental` compare **solo nei
-> test** (`RTFacingTests.cpp`), l'unico sito di produzione vivo (`RTTurnManager.cpp:2037`) scrive
-> `Forced` costante, e `ApplyIceSliding` non nomina l'enum. L'enum è oggi un **parametro** di
-> `URTFacingLibrary::FacingAfterDisplacement` con un solo produttore reale, non una causa che lo scivolamento
-> già trasporta. Il produttore `Environmental` va **scritto**: è costo, non riuso.
+> ✅ **Il canale ORA esiste** ([#2253](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2253)).
+> *Questa riga diceva, e al 2026-09-04 mattina era vero*: «`ERTDisplacementCause::Environmental` compare
+> **solo nei test** (`RTFacingTests.cpp`), l'unico sito di produzione vivo scrive `Forced` costante, e
+> `ApplyIceSliding` non nomina l'enum». Il produttore è stato scritto dove il fatto accade — alla
+> derivazione dell'orientamento di fine Move: chi è arrivato **scivolando** non deriva il facing
+> dall'ultimo passo, perché quel passo non è stato scelto. Con lui è entrato in vita anche
+> `ERTFacingOutcome::KeptOnEnvironmentalDisplacement`, che era dichiarato e senza produttore.
 
 ## 2. `Unbalanced` — hai perso l'equilibrio, sei in piedi
 
@@ -159,17 +161,17 @@ Riferimenti misurati al 2026-09-04 su `origin/main`.
 
 | Elemento | Sede | Costo |
 |---|---|---|
-| Causa `Environmental` | il **tipo** esiste; il **produttore** no (§1) | **da scrivere**, non zero |
-| `Unbalanced` applicato | ⚠️ **non `ApplyIceSliding`**: è `static` su un `const FRTHexSnapshot&` e restituisce un percorso — non ha l'`ARTUnit` su cui chiamare `ApplyStatus`. E il chiamante non può dedurlo: cinque uscite diverse (niente ghiaccio, budget insufficiente, arrivo per transizione di layer, ultimo passo non adiacente, cella di slide bloccata) restituiscono **tutte** il `Path` immutato. Serve rendere lo slide **osservabile** — un flag come `bStoppedByTopology`, che due righe più sotto fa già esattamente questo | **medio** |
+| Causa `Environmental` | ✅ **Scritto**, e con lui il suo gemello nel log: chi arriva scivolando **non deriva** l'orientamento dall'ultimo passo — quel passo non è stato scelto — e la voce dice `ERTFacingOutcome::KeptOnEnvironmentalDisplacement`, che era dichiarato e senza un solo produttore | ✅ **fatto** |
+| `Unbalanced` applicato | ⏱️ **Il costo è caduto: era «medio», è stato zero.** Questa riga chiedeva un flag in uscita da `ApplyIceSliding`. Non serve: [#2258](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2258) ha reso lo slide osservabile **senza toccare la firma**, confrontando la lunghezza attorno alla chiamata (`RTTurnManager.cpp`: `LengthBeforeSlide`, `bSlideRequested`, `SlideTarget`). Le cinque uscite negative restituiscono il `Path` immutato, quindi «è cresciuto» **è** il predicato. Un `bool&` sarebbe oggi una seconda sorgente per lo stesso fatto. 🔑 E lo stato si applica sull'**esito** — nel ramo che scrive `ERTMoveOutcome::Slid` — non sulla richiesta: fra le due ci sono microstep, Overwatch e predizioni | ✅ **fatto** |
 | Spinta +1 | il punto in cui `KnockDist` accumula la distanza | piccolo |
 | Trazione +1 | il punto in cui `PullDist` registra la distanza | piccolo, ma è un **asse nuovo** (§2) |
-| `Prone` → niente reazione | le due condizioni che già producono `ERTReactionOutcome::Unavailable`, una in `RTTurnManager.cpp` e una in `RTTurnManager_Blast.cpp` | 2 righe |
-| `Guard`/`Brace` inerti | contro `Status.Guarded` / `Status.Braced` — cancella un pool da 15 e un −10, da prezzare (§2) | medio |
-| Niente `Sprint` | ⚠️ **punto di applicazione non deciso**: rifiuto in validazione del piano (con un `ERTActionInvalidReason` e una voce `Fallback`) **oppure** scarto al momento della risoluzione (un evento nuovo). Due costi diversi e due tracce di replay diverse | **da decidere** |
+| `Prone` → niente reazione | ✅ Non due righe ma **una**, e in un terzo posto: si riusa `ReactionBlockedThisTurn`, cioè il meccanismo con cui `Action.Sprint` già nega la reazione (CP 5.1) e che **entrambi** quei punti leggono. Chi cade ci entra nel Blast; chi è ancora a terra ci rientra al reset di `ResolveDash`, così la perdita copre il turno intero | ✅ **fatto** |
+| `Guard`/`Brace` inerti | ✅ **Deciso**: l'inerzia si ferma alla **componente di spostamento** (`RTTurnManager_Blast.cpp`, i due rami che leggono `KnockDist`). Il pool da 15 di [D-292] e il −10 su ogni colpo **restano intatti**: l'argomento di design di §6 parla di equilibrio, non di protezione, e tre pin misurano lo strato di danno (`Spec.Brace.GuardAndBraceOnMixedHit`, `Spec.Brace.BraceWinsOnSecondHit`, `Visual.Combat.GuardVsBraceUnderSmallHits`). Il prezzo dello strato di danno resta **aperto** (§8.5) | ✅ **fatto, per metà dichiarata** |
+| Niente `Sprint` | ✅ **Deciso** (§8.7): **rifiuto in validazione**, con `ERTActionInvalidReason::Unbalanced` in coda all'enum e la voce `Fallback`/`Cancelled` che già esiste. Il criterio è lo **stile** dichiarato dal catalogo — mobilità rapida a `Budget`, oggi il solo `Action.Sprint` — e non l'`ActionId`: un confronto sul nome lascerebbe fuori la prossima azione a budget senza che nulla diventi rosso | ✅ **fatto** |
 | Disarmo + charge persa | `ArmedOverwatches`, `ArmedPredictions` | medio |
-| StandUp 1 MP | budget di movimento | medio |
-| Ri-scivolamento a 2 celle | `FRTTerrainDef::SlideCells` è oggi letto come **booleano** — limite dichiarato nel suo stesso commento | medio |
-| Tag e icone | 🔴 **il costo è invertito rispetto all'intuizione**: `RTIconCatalogTests` **non** legge `Content/Icons/manifest.json` (zero occorrenze in `Source/`). Asserisce che `FindMissingRequiredIcons` sia vuoto su `RequiredIconIds()`, che enumera **ogni tag registrato sotto `Status.`** e pretende una voce che punti a `/Game/RT/UI/Icons/T_<Foglia>`. `RTIconLibrary.cpp` lo dice: *«un tag nuovo senza icona fa cadere la copertura il giorno in cui viene definito»*. Definire i due tag **rompe la suite** finché non esistono due `Texture2D` reali — e `CLAUDE.md` §5 vieta di scrivere `.uasset` a mano | **medio, e bloccante** |
+| StandUp 1 MP | ✅ **Un solo sito**: `ARTUnit::GetEffectiveMoveRange()`, da cui passano sia lo snapshot del Move sia la validazione del piano. **Non** un'azione di catalogo — sarebbe una chiave icona obbligatoria in più, e soprattutto lascerebbe l'anti-ciclicità di §6 un'aspettativa invece che una proprietà: la condizione dello scivolamento legge `MoveBudget` **dallo snapshot** | ✅ **fatto** |
+| Ri-scivolamento a 2 celle | ✅ **Il limite del CP 8.1 è caduto**: `FRTTerrainDef::SlideCells` è un contatore vero, e `ApplyIceSliding` srotola `SlideCells + FRTHexSimUnit::ExtraSlideCells` passi verificando ognuno come il primo. ⚠️ L'estensione può essere **parziale** — muro alla seconda cella, la prima vale comunque — e `ExtraSlideCells` **amplifica** senza creare: fuori dal ghiaccio non si scivola | ✅ **fatto** |
+| Tag e icone | 🔴 **Questa riga era FALSA, ed è stata misurata tale** ([#2253](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2253)). Nessuno dei sei test `IconCatalog.*` legge il catalogo reale: costruiscono il proprio con `MakeCoveringIconCatalog()`, che *itera `RequiredIconIds()`* — la stessa funzione che i tag alimentano — quindi restano verdi **per costruzione** qualunque tag si aggiunga. E `T_<Foglia>` non è la convenzione del progetto: è la soft reference *volutamente non risolvibile* che l'helper del test fabbrica; le texture vere si chiamano `RT_UI_Icon_Status_<Foglia>` (`RTBuildIconCatalogCommandlet.cpp`). ⚠️ **Il difetto vero è l'opposto e più silenzioso**: `FindMissingRequiredIcons` esiste apposta e **nessun test lo chiamava sul catalogo che il gioco spedisce**. Misurato: `DA_IconCatalog` era già indietro di **due** chiavi — `Action.Dodge` e `Action.CreateSmoke`, quest'ultima richiesta da [#2087](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2087) e mai disegnata — e nessun gate lo diceva | **non bloccante**; il costo vero era il gate assente |
 
 > 🔑 **Il punto giusto per la regola sulla spinta è dichiarato dal codice stesso.** Il commento che accompagna
 > `PushResistance` — il gemello di questa regola — dice: *«La regola sta QUI, nel punto in cui la distanza
@@ -218,6 +220,12 @@ la parola *«Moved»*.
 > attaccante che non c'è — cioè produrrebbe, per un evento reale, il sospetto di un difetto del resolver che
 > `#307` esiste proprio per rimuovere.
 
+> ✅ **PAGATO il 2026-09-04 da [#2258](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2258)**:
+> il valore si chiama `Slid`, sta in coda all'enum, e si scrive **sull'esito** — `bSlideRequested[i]` **e**
+> `Resolved[i].Final == SlideTarget[i]` — sovrascrivendo solo `Moved`. Il costo reale è stato **un file del
+> corpus golden rigenerato** (`RT_Showcase_Relay_v01` scivola al turno 7), non zero come la prima stesura
+> della spec affermava. Ciò che segue resta come istruttoria.
+>
 > 📌 **Nessun effetto di questo brief va implementato prima di un valore proprio per lo scivolamento.**
 > Aggiunto **in coda** all'enum, dove stanno già `BlockedByTopology`, `StoppedByPrediction`, `Displaced`,
 > `DisplacementResisted`, `StoppedByOverwatch`, `SupersededByDash` e `BlockedByCycle`: l'esito viaggia come
@@ -239,19 +247,29 @@ la parola *«Moved»*.
 4. **Le Predictive Actions.** `Prone` le disarma, e l'unica della v0.1 è `Hero.Wraith.InterceptShot`: una
    scelta dichiarata e pagata un turno prima verrebbe cancellata da una spinta. Va confermato con E18 davanti,
    non ora.
-5. **Il prezzo di «`Guard`/`Brace` inerti».** Cancellare un pool da 15 e un −10 su ogni colpo è molto più che
-   togliere la resistenza alla spinta. Va misurato prima di implementare, e potrebbe voler dire limitare
-   l'inerzia alla sola componente di spostamento.
+5. **Il prezzo di «`Guard`/`Brace` inerti».** ⏱️ **Ristretta, non chiusa** ([#2253](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2253)):
+   la Fase 1 ha implementato l'inerzia sulla **sola componente di spostamento**, che è ciò che l'argomento
+   di §6 chiede. Resta aperto se lo strato di **danno** — il pool da 15 di [D-292], il −10 su ogni colpo —
+   debba cadere anch'esso su un'unità sbilanciata. Ciò che cambia rispetto a prima è che ora la domanda ha
+   una sede in cui si misura: `RefactorTactics.Status.UnbalancedIgnoresGuardOnDisplacementOnly` **deve**
+   cadere il giorno in cui si decide di cancellarlo.
 6. ➕ **Il framework di lettura degli status nel bot** (Fase 2). [D-319](../decisions/RT_PDR_00_Decision_Log.md)
    porta in Fase 1 un termine **mirato** in `ScorePlan` — bonus a `Push`/`Pull` se il bersaglio è
    `Unbalanced` — e lascia a dopo il canale generico, che dipende da `STA-4`. Quel canale **sostituirà** il
    termine e porterà con sé `Exposed`, `Marked` e `Guarded`, oggi ugualmente ignorati:
    `Source/RefactorTactics/Bot/` ha **0** occorrenze di `HasStatus` e **0** di `Push`/`Pull`. Il termine nasce
    quindi come **debito dichiarato, con il successore già nominato**.
-7. **Dove si nega lo `Sprint`** — in validazione del piano o alla risoluzione. Cambia il costo e cambia ciò
-   che il replay racconta.
-8. **`Status.Prone` o `Status.Movement.Prone`?** I tag esistenti sono a due livelli; il documento sorgente
-   propone tre. Scegliere il primo e restare coerenti, o aprire il sottolivello per l'intera famiglia.
+7. ~~**Dove si nega lo `Sprint`**~~ ✅ **Chiusa in sessione il 2026-09-04** ([#2253](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2253)):
+   **in validazione**, con un valore in coda a `ERTActionInvalidReason` e la voce `Fallback`/`Cancelled`
+   che già esiste. Riusa `RTActionFallbackLibrary` per intero, e la traccia **nomina la causa** invece di
+   mostrare un buco dove c'era un'azione. Il criterio è lo stile `Budget` dentro `FastMovement`, non
+   l'`ActionId`.
+8. ~~**`Status.Prone` o `Status.Movement.Prone`?**~~ ✅ **Chiusa il 2026-09-04, e la risposta è nel motore
+   invece che nel gusto**: `UGameplayTagsManager::RequestGameplayTagChildren` chiama
+   `AddChildrenTags(..., RecurseAll=true, OnlyIncludeDictionaryTags=false)`, quindi restituisce **tutti i
+   discendenti** e include i nodi impliciti. Un terzo livello farebbe entrare in `RequiredIconIds()` anche
+   `UI.Icon.Status.Movement` — una chiave che pretende un'icona per un nodo dietro cui non c'è nessuno
+   stato. **Due livelli**: `Status.Unbalanced`, `Status.Prone`, come gli undici che già ci sono.
 9. **Il ramo «sbatti contro qualcosa».** `ApplyIceSliding` esce senza estendere il percorso quando la cella di
    destinazione è bloccata — ma ⚠️ **quel ramo non distingue niente**: restituisce lo stesso `Path` immutato
    delle altre quattro uscite, e per giunta accorpa «ho sbattuto contro un ostacolo» e «la cella non esiste»
@@ -280,7 +298,7 @@ scale da tarare e non chiede il motore.
 
 | Fase | Contenuto | Dipendenze |
 |---|---|---|
-| **1** — [#2253](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2253) | i due stati, più un termine **mirato** in `ScorePlan` che li fa capitalizzare al bot | ⛔ **bloccata** dal valore proprio in `ERTMoveOutcome` per lo scivolamento (§7). Nessuna *decisione* aperta: il prerequisito è lavoro, non una scelta |
+| **1** — [#2253](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2253) | i due stati, più un termine **mirato** in `ScorePlan` che li fa capitalizzare al bot | ✅ **sbloccata il 2026-09-04**: [#2258](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2258) ha portato `ERTMoveOutcome::Slid` (§7) ed è mergiata |
 | **2** | il **framework** che fa leggere al bot ogni status, e che sostituisce il termine mirato | `STA-4`, aperta |
 
 La Fase 1 non aspetta `STA-4`: quella è prerequisito del **canale generico**, non di un singolo termine. È la

@@ -17,7 +17,7 @@
 
   "_nota_perche_tre_turni": "Uno non distingue un punto da una regola: tre Cleanup consecutivi con lo stesso esito dicono che il progresso e' CONTINUO e non un caso del primo turno. E' la stessa ragione per cui `Movement.CollisionChoke` spende due turni sullo stallo invece di uno.",
 
-  "_nota_la_partita_non_finisce": "`FRTMatchRules::ScoreToWin` e' ZERO - via disattivata (`RTTurnManager.cpp:1943`) - quindi tre punti non chiudono la partita e i tre turni si giocano tutti. ⚠️ Se un giorno la soglia diventasse positiva e minore o uguale a 3, questo scenario finirebbe prima e `TurnsCompleted` cadrebbe: sarebbe il segnale giusto, non un difetto del file.",
+  "_nota_la_partita_non_finisce": "\ud83d\udd34 CORRETTA il 2026-09-04. Questa nota diceva che `ScoreToWin` e' ZERO citando il commento a `RTTurnManager.cpp:1943`: quel commento e' STANTIO, e il formato spedito `Format.Skirmish2v2` dichiara `ScoreToWin = 5` dal 2026-08-30 (`RTMatchFormatLibrary.cpp:232`, D-247). La conclusione regge, ma per un altro motivo: lo `ScenarioHarness` NON imposta `FRTMatchRules` - zero riferimenti in `Source/RefactorTactics/ScenarioHarness/` - quindi negli scenari vale il default della struct, che e' 0. \u26a0\ufe0f La differenza non e' accademica: se un giorno il harness caricasse il formato spedito, questi tre punti resterebbero sotto la soglia di 5 e lo scenario continuerebbe a passare - ma per la terza ragione ancora, e chi legge deve sapere quale delle tre sta misurando. ⚠️ Se un giorno la soglia diventasse positiva e minore o uguale a 3, questo scenario finirebbe prima e `TurnsCompleted` cadrebbe: sarebbe il segnale giusto, non un difetto del file.",
 
   "units": [
     { "id": "R1", "hero": "Hero.Phase",  "team": 0, "cell": [0, 0, 0] },

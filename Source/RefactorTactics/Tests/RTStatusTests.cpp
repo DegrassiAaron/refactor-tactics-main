@@ -633,7 +633,7 @@ bool FRTStatusExpiresInCleanupTest::RunTest(const FString&)
 //
 // ## Perche' l'emissione sta in `AppendLogEntry` e non nei siti che producono le voci
 //
-// Le cause sono **nove** (quattro nascite, cinque morti) e stanno su **due** file. Una emissione per sito
+// Le cause sono **dieci** (quattro nascite, sei morti) e stanno su **due** file. Una emissione per sito
 // sarebbe una copertura da mantenere a mano, e il primo a dimenticarla sarebbe il decimo outcome. Dal punto
 // unico invece la copertura e' **per costruzione** — e i due canali non possono divergere, perche' il
 // secondo deriva dal primo.
@@ -803,8 +803,10 @@ bool FRTStatusOutcomeDirectionIsExhaustiveTest::RunTest(const FString&)
 	// su nulla — lo stesso difetto che `FindMissingRequiredIcons` dichiara per un catalogo vuoto.
 	const UEnum* Enum = StaticEnum<ERTStatusOutcome>();
 	if (!TestNotNull(TEXT("reflection di ERTStatusOutcome"), Enum)) { return false; }
-	TestTrue(TEXT("anti-vacuita': l'enum dichiara almeno le nove cause note"),
-		FMath::Max(0, Enum->NumEnums() - 1) >= 9);
+	// ⏱️ **Nove fino a `#2253`, dieci da li'** (`ShakenOff`). La soglia si alza insieme all'enum: lasciarla
+	// a nove la renderebbe vera anche se qualcuno rimuovesse il valore nuovo, cioe' anti-vacua a meta'.
+	TestTrue(TEXT("anti-vacuita': l'enum dichiara almeno le dieci cause note"),
+		FMath::Max(0, Enum->NumEnums() - 1) >= 10);
 
 	// Le due estremita' della tassonomia, per nome: se qualcuno invertisse il verso di una delle due, il
 	// gate sopra resterebbe verde (sono entrambe dichiarate) e solo queste due righe cadrebbero.

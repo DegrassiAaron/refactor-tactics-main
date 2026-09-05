@@ -48,6 +48,26 @@ struct FRTMatchHeaderView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	float PlanningSecondsRemaining = -1.f;
 
+	/**
+	 * Secondi che restano al **commit** dopo un Ready anticipato (`#2193`). **Negativo** quando il countdown
+	 * non e' armato — cioe' quasi sempre.
+	 *
+	 * ⚠️ **Eredita la convenzione di `PlanningSecondsRemaining`, ma con un caso in MENO.** Quel campo ha una
+	 * tripla guardia perche' `GetPlanningTimeRemaining()` risponde `0.f` in due situazioni diverse — scaduto
+	 * e **mai armato** — e c'e' un varco reale di ~350 ms a inizio partita in cui pubblicherebbe uno zero.
+	 * Il countdown non ha quel varco: si arma **solo** su input esplicito, e `IsReadyCountdownActive()`
+	 * risponde sulla presenza del timer invece che sul suo residuo. ⛔ Copiare qui la tripla guardia
+	 * aggiungerebbe due condizioni che non possono essere false.
+	 *
+	 * 🔴 **Questo campo NON e' «quanto manca al commit», ed e' la distinzione che vale la riga di stato.**
+	 * Il tetto vince sul countdown (`#2193`): con 1,5 s di `PlanningSecondsRemaining` e 3 s qui, il commit
+	 * arriva fra 1,5 s. Chi MOSTRA un numero mostri il **minore dei due** — `ARTHUD::ComposeMatchStatusLine`
+	 * lo fa, e ha entrambi sotto mano. Un countdown che annuncia 3 e committa a 1,5 insegna una durata
+	 * sbagliata proprio mentre il giocatore decide se annullare.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	float ReadyCountdownSecondsRemaining = -1.f;
+
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bResolving = false;
 
@@ -98,7 +118,7 @@ struct FRTMatchHeaderView
 };
 
 /**
- * Una unita' come la vede il pannello: salute, scudo, energia, identita'.
+ * Una unita' come la vede il pannello: salute, scudo, identita'.
  *
  * Non contiene intenti ne' piani: quelli hanno gia' `FRTIntentView` e la loro privacy e' verificata la'
  * (invariante #6). Duplicarli qui significherebbe due filtri da tenere allineati.
@@ -119,12 +139,6 @@ struct FRTUnitCardView
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 Shield = 0;
-
-	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
-	int32 Energy = 0;
-
-	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
-	int32 MaxEnergy = 0;
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bIsAlly = false;
@@ -242,7 +256,7 @@ struct FRTUnitOverlayView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FString DisplayName;
 
-	/** Vita, scudo ed energia: la stessa vista che il pannello di squadra usa gia'. */
+	/** Vita e scudo: la stessa vista che il pannello di squadra usa gia'. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FRTUnitCardView Card;
 
@@ -331,11 +345,16 @@ struct FRTAbilityCooldownView
 	float ChargeFraction = 1.f;
 
 	/**
-	 * Usabile **adesso**, che non e' `TurnsRemaining == 0`: serve anche l'energia.
+	 * Usabile **adesso**.
 	 *
-	 * I due dati restano separati perche' rispondono a domande diverse e il giocatore le pone entrambe —
-	 * «quanto manca?» e «posso adesso?». Un widget che mostrasse solo il primo direbbe «pronta» di
-	 * un'ultimate senza energia.
+	 * ⚠️ Non era `TurnsRemaining == 0`: serviva anche l'energia. Da
+	 * [D-324](../../../docs/decisions/RT_PDR_00_Decision_Log.md) le due condizioni **coincidono**, perche' il
+	 * cooldown e' rimasto l'unico gate. Il campo resta perche' dichiara l'intenzione — *usabile* — invece di
+	 * far dedurre a ogni lettore che uno zero in un contatore significhi permesso.
+	 *
+	 * I due dati restano separati perche' rispondono a domande diverse — «quanto manca?» e «posso adesso?»
+	 * — anche ora che una implica l'altra: e' il contratto della vista a doverle distinguere, cosi' una
+	 * seconda clausola futura entra in un campo che gia' esiste invece di doverne creare uno.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bUsableNow = false;
@@ -464,7 +483,7 @@ public:
 	 * Tutto cio' che la sovrapposizione sopra un'unita' mostra, in **una** vista (`#2288`, `D-320`).
 	 *
 	 * 🔑 **Non calcola niente di nuovo: unisce due produttori che esistono gia'** — `BuildUnitCard` per vita,
-	 * scudo ed energia, `BuildStatusBadges` per gli stati — e aggiunge le sole due cose che nessuno dei due
+	 * e scudo, `BuildStatusBadges` per gli stati — e aggiunge le sole due cose che nessuno dei due
 	 * possiede: il **nome** da mostrare e il **colore di squadra**, che dipendono da chi guarda.
 	 *
 	 * ⚠️ **`PlayerTeamId` non e' un parametro decorativo**: decide `bIsAlly`, quindi il colore. La stessa

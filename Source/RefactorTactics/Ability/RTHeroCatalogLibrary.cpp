@@ -955,6 +955,17 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroAc
 		Core.RangeCells, Cooldown, Core.Fallback, Core.Effects, Shape, AreaRadius);
 
 	Action->Def.DerivedFromActionId = CoreActionId;
+	// 🔑 `bSelfTarget` NON e' fra i campi che `MakeHeroAction` riceve, e va copiato qui: e' una
+	// **proprieta' dell'azione**, non una deduzione dalla fase o dalla portata (lo dice il suo docstring
+	// in `RTActionDef.h`). Senza, `Hero.Phase.TideGuard` eredita scudo e fase di `Action.Shield` ma non il
+	// fatto di applicarsi a chi la usa — e i tre consumatori del flag (puntatore del giocatore,
+	// valutazione del bot, harness degli scenari) chiedono un bersaglio per un'azione che non ne ha (#2283).
+	Action->Def.bSelfTarget = Core.bSelfTarget;
+	// ⚠️ E lo SPECCHIO su `URTActionData`, che il catalogo core allinea in due punti e questa funzione
+	// non allineava: `Actions.HeroKitsMatchTheirCatalogDef` confronta i due campi e cadeva su entrambe le
+	// abilita' nuove. Quel test PREVEDEVA questo giorno — «quando la prima arrivera', controllare che
+	// MakeHeroAction ne copi lo specchio prima di rendere verde questa riga» — ed e' cio' che ha fatto.
+	Action->bSelfTarget = Core.bSelfTarget;
 	return Action;
 }
 
@@ -987,5 +998,12 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroReactionFromCoreAction(const FName
 	// «questa reazione d'eroe e' `Action.Counter` con un nome proprio» viveva nel solo sorgente. Ora resta
 	// nel `Def`, dove il gate della raggiungibilita' la legge.
 	Action->Def.DerivedFromActionId = CoreActionId;
+	// Stessa ragione della gemella sopra: il flag e' una proprieta' dell'azione (#2283).
+	Action->Def.bSelfTarget = Core.bSelfTarget;
+	// ⚠️ E lo SPECCHIO su `URTActionData`, che il catalogo core allinea in due punti e questa funzione
+	// non allineava: `Actions.HeroKitsMatchTheirCatalogDef` confronta i due campi e cadeva su entrambe le
+	// abilita' nuove. Quel test PREVEDEVA questo giorno — «quando la prima arrivera', controllare che
+	// MakeHeroAction ne copi lo specchio prima di rendere verde questa riga» — ed e' cio' che ha fatto.
+	Action->bSelfTarget = Core.bSelfTarget;
 	return Action;
 }

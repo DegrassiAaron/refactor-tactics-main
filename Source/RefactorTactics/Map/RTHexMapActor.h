@@ -415,6 +415,16 @@ public:
 	 * cosi' il conteggio resta vero anche se la quota fra i piani cambia.
 	 */
 	void GetKnowledgeDebugCounts(int32& OutHidden, int32& OutRemembered, int32& OutLit) const;
+
+	/**
+	 * Quante istanze l'overlay ha DAVVERO posato — diagnostica, e serve a una domanda che i tre conteggi non
+	 * possono piu' rispondere (`#2250`).
+	 *
+	 * 🔑 `GetKnowledgeDebugCounts` risponde `Hidden > 0` per **complemento**, quindi resta vero anche se
+	 * l'overlay disegnasse tutto: un test scritto sui suoi numeri non potrebbe accorgersi della regressione.
+	 * Questo conta gli oggetti in scena, ed e' l'unico modo di provare che le mai viste non si disegnano.
+	 */
+	int32 KnowledgeVolumeInstanceCount() const;
 #endif
 
 	/** Quante istanze il velo ha lasciato accese, ricordate e nascoste. Diagnostica e test. */
@@ -694,6 +704,22 @@ protected:
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TObjectPtr<UInstancedStaticMeshComponent> Blockers;
+
+	/**
+	 * Il CORPO sotto una superficie: il volume che `URTStructuralBodyLibrary::DeriveBodies` calcola da
+	 * `FRTHexCellData::BodyFill` (`#1865`).
+	 *
+	 * 🔑 **Una famiglia sua e non un riuso di `Cells`**, perche' risponde a una domanda diversa: `Cells` e' il
+	 * pavimento su cui si gioca — ha collisione, e' il proxy di click della selezione, e porta il colore della
+	 * superficie — mentre questo e' cio' che si vede **sotto** e non si calpesta. Metterli insieme darebbe al
+	 * corpo la collisione della cella, e un click sul fianco di una collina selezionerebbe una cella che il
+	 * giocatore non sta guardando.
+	 *
+	 * ⛔ **Nessuna collisione, nessun custom data**: non e' terreno, non entra nel velo, non e' selezionabile.
+	 * E' geometria che riempie un vuoto visivo.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> StructuralBodies;
 
 	/**
 	 * Pannelli su BORDO: coperture e porte. Sono l'unica cosa della mappa che non appartiene a una cella ma a

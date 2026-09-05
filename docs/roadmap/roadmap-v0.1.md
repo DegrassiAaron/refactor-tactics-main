@@ -427,7 +427,11 @@ e [`../archive/src/design/2026-08-08-hud-faction-icons.md`](../archive/src/desig
 > [`brief-ghiaccio.md`](../gameplay/brief-ghiaccio.md).
 > ✅ **`Unbalanced/Prone` sono usciti da questo elenco il 2026-09-04** con
 > [D-319](../decisions/RT_PDR_00_Decision_Log.md), che chiude [`STA-5`](../OPEN_DECISIONS.md) e ne porta
-> l'istruttoria. ⛔ **Il resto dell'elenco non è toccato**, e in particolare lo **slide a catena** resta
+> l'istruttoria. ➕ **E sono stati IMPLEMENTATI lo stesso giorno**: il prerequisito
+> ([#2258](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2258), `ERTMoveOutcome::Slid`) e la
+> Fase 1 ([#2253](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2253), perimetro in
+> [D-323](../decisions/RT_PDR_00_Decision_Log.md)). La **Fase 2** — il framework che fa leggere al bot ogni
+> status — resta dietro `STA-4`. ⛔ **Il resto dell'elenco non è toccato**, e in particolare lo **slide a catena** resta
 > fuori: è quello, non i due stati, che tiene scartato il fuzzing deterministico di CP 12.6.
 > Lo **scivolamento base** resta in v0.1 perché è **già implementato**
 > (§2.1). I livelli di percezione oltre l'incerto (identificazione, firma, sensori) restano in

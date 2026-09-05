@@ -123,7 +123,28 @@ enum class ERTActionInvalidReason : uint8
 	 * serializzato, e inserirne uno in mezzo rinumera tutti quelli che seguono riscrivendo il significato di
 	 * ogni traccia archiviata. Lezione gia' pagata inserendo `Interrupted` a meta' di questo stesso enum.
 	 */
-	Neutralised
+	Neutralised,
+
+	/**
+	 * Chi ha perso l'equilibrio non corre: `Status.Unbalanced` rifiuta la mobilita' rapida a BUDGET
+	 * ([D-319], `#2253`) — oggi il solo `Action.Sprint`.
+	 *
+	 * 🔑 **Il criterio e' `ERTMovementStyle::Budget` dentro `FastMovement`, non l'`ActionId`.** Una
+	 * mobilita' a budget attraversa celle scelte una per una nel momento in cui si corre; una LINEARE
+	 * (`Dash`, `Charge`, `Leap`, `Reposition`) e' uno slancio in una direzione, deciso prima e pagato tutto
+	 * insieme. E' la seconda che uno sbilanciato puo' ancora fare, ed e' anche il modo in cui il divieto
+	 * resta vero per la prossima azione a budget che qualcuno aggiungera' — un `if` sull'`ActionId` la
+	 * lascerebbe fuori senza che nulla diventi rosso.
+	 *
+	 * ⚠️ **Rifiuto in VALIDAZIONE, non scarto muto alla risoluzione**: l'azione lascia una voce
+	 * `Fallback`/`Cancelled` che nomina questa causa, e chi rilegge il turno vede *perche'* la corsa non
+	 * c'e' stata invece di un buco. Il costo e' il valore qui sotto; l'alternativa chiedeva un evento nuovo.
+	 *
+	 * ⚠️ **In coda**, come `Interrupted`, `NoEffect` e `Neutralised` prima: il motivo viaggia come intero
+	 * grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo riscrive il significato di ogni traccia
+	 * gia' archiviata che ne porti uno successivo.
+	 */
+	Unbalanced
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */

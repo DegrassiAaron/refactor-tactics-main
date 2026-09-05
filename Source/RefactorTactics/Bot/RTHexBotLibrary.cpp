@@ -294,6 +294,29 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 				Score += Context.WKill;
 			}
 
+			// ABBATTERE: uno spostamento su un bersaglio gia' `Status.Unbalanced` lo fa cadere `Prone`
+			// ([D-319], `#2253`) — niente reazione per il turno, Overwatch disarmato con la charge persa,
+			// predictive persa, e un punto movimento per rialzarsi.
+			//
+			// 🔑 **Perche' esiste un termine MIRATO invece del canale generico.** Il bot e' cieco agli
+			// status: `Source/RefactorTactics/Bot/` non aveva una sola occorrenza di `HasStatus`, ne' di
+			// `Push`/`Pull`. Senza intervento la catena sarebbe stata **a senso unico** nella v0.1, che e'
+			// 2v2 offline contro il bot: uno strumento del giocatore invece di una minaccia. Il framework
+			// che fa leggere ogni stato dipende da `STA-4`, aperta; un singolo termine no.
+			//
+			// ⚠️ **Debito dichiarato con il successore gia' nominato**: la Fase 2 sostituisce queste righe e
+			// porta con se' `Exposed`, `Marked` e `Guarded`, oggi ugualmente ignorati.
+			//
+			// ⛔ **Solo il bersaglio MIRATO, non chi l'area prende in piu'.** Lo spostamento si applica a
+			// tutti i colpiti, ma `HexKnockbackDestination` allontana dall'ATTACCANTE e le geometrie di
+			// un'area divergono: contare qui anche i secondari significherebbe promettere una caduta che il
+			// resolver decide con altri dati. L'errore va nella direzione sicura.
+			if (I == Plan.TargetIndex && Plan.bAttackDisplaces
+				&& Context.EnemyUnbalanced.IsValidIndex(I) && Context.EnemyUnbalanced[I])
+			{
+				Score += Context.WUnbalancedFollowUp;
+			}
+
 			// ORIENTAMENTO, verso offensivo (CP 13.5, ADR-0005 §4a): un colpo che non arriva dall'arco frontale
 			// ANNULLA la copertura del bersaglio (`EffectiveCoverReduction`, CP 16.2). Il bot preferisce quindi
 			// il lato scoperto — e lo fa senza un peso proprio: il termine vale il danno che la direzione
@@ -623,6 +646,9 @@ TArray<FRTHexBotPlan> URTHexBotLibrary::BuildCandidates(const FRTHexSnapshot& Sn
 			Attack.AreaRadius = Context.AttackAreaRadius;
 			Attack.RangeCells = Context.AttackRange;
 			Attack.bFriendlyFire = Context.bAttackFriendlyFire;
+			// Lo spostamento viaggia col piano come la forma, e per la stessa ragione: `ChooseBestPlan`
+			// confronta candidate nate da abilita' diverse, e una non deve ereditare la proprieta' dell'altra.
+			Attack.bAttackDisplaces = Context.bAttackDisplaces;
 			Attack.FromCell = Cell.FromCell;
 			Out.Add(Attack);
 		}

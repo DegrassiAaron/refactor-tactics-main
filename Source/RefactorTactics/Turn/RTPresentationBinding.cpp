@@ -96,7 +96,7 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	//
 	// ⚠️ **Chi scrivera' la cue deve sapere due cose che il tipo dell'evento non dice da solo**:
 	//  - il verso (nascita o morte) si chiede a `URTTurnLogLibrary::IsStatusBirth`, mai deducendolo a
-	//    occhio dai nove valori di `ERTStatusOutcome`;
+	//    occhio dai dieci valori di `ERTStatusOutcome`;
 	//  - `Status.Electrified` produce una nascita (`AppliedInstantly`) e **mai** una morte — e' inerte
 	//    (`#1324`): un'icona persistente aperta su di lui resterebbe accesa per sempre.
 	//

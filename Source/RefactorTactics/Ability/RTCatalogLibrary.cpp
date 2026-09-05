@@ -1463,6 +1463,8 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range (self)*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Shield, 25) },
 		ERTInterruptPolicy::None, ERTActionSlot::Main));
+	Catalog.Last().bSelfTarget = true; // come Guard e Brace: lo scudo lo prende chi la pianifica
+
 
 	// `Cleanse` — azione PRINCIPALE, codice 30 (controllo) quindi risolve nel Blast PRIMA del danno: purificarsi
 	// dopo aver incassato il colpo che lo stato ha aggravato non servirebbe a niente. Nessun effetto dichiarato:

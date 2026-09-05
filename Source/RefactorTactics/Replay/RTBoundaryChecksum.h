@@ -53,8 +53,8 @@ struct FRTBoundaryChecksum
  *
  * ## 🔴 Cosa questo checksum guarda, e cosa no
  *
- * `FRTUnitStateDigest` ha otto campi; una traccia canonica ne puo' ricostruire **quattro**: `UnitId`,
- * `Cell`, `Facing` e la vita/morte. `Health`, `Shield`, `Energy` e `Statuses` restano al loro default,
+ * `FRTUnitStateDigest` ha sette campi; una traccia canonica ne puo' ricostruire **quattro**: `UnitId`,
+ * `Cell`, `Facing` e la vita/morte. `Health`, `Shield` e `Statuses` restano al loro default,
  * **uguali per tutte le unita' e per tutte le esecuzioni**, quindi non discriminano: due stati che
  * differissero solo per gli HP produrrebbero lo stesso checksum di boundary.
  *

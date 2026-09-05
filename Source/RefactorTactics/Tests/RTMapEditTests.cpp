@@ -7,6 +7,7 @@
 #include "Map/RTGeometryGrammar.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
+#include "Map/RTHexDoorLibrary.h" // DoorBetween: la simmetria delle due facce si CHIEDE al gioco
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTMapDependencyLibrary.h"
 #include "Map/RTMapEditLibrary.h"
@@ -932,6 +933,215 @@ bool FRTMapEditBindingTargetTest::RunTest(const FString&)
 		}
 	}
 
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// AddDoor (#2330) — l'anello che mancava all'authoring delle porte.
+//
+// Misurato prima di scriverlo: mesh del kit committate, `ARTHexMapActor` che le disegna, `Interact` che le
+// apre e formato mappa dalla v4 — ma NIENTE sapeva crearne una su un asset. La conseguenza, misurata da
+// `#2312`: nell'intero contenuto versionato non esiste una porta.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Il primo bordo di `Cell` che porta FUORI dalla mappa, se esiste. Nome prefissato: unity build. */
+	bool MapEditFindFrontierEdge(const URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection& Out)
+	{
+		for (int32 D = 0; D < 6; ++D)
+		{
+			const ERTHexDirection Dir = static_cast<ERTHexDirection>(D);
+			if (Map->FindCell(URTHexLibrary::Neighbor(Cell, Dir)) == nullptr)
+			{
+				Out = Dir;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Il primo bordo di `Cell` che porta a una cella ESISTENTE. */
+	bool MapEditFindInteriorEdge(const URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection& Out)
+	{
+		for (int32 D = 0; D < 6; ++D)
+		{
+			const ERTHexDirection Dir = static_cast<ERTHexDirection>(D);
+			if (Map->FindCell(URTHexLibrary::Neighbor(Cell, Dir)) != nullptr)
+			{
+				Out = Dir;
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
+/**
+ * **La porta si posa, e la REVISIONE si muove.**
+ *
+ * 🔴 La seconda meta' non e' decorativa: `Revision` e' cio' che invalida i percorsi gia' calcolati, e una
+ * scrittura in place su `Cells[i].Doors` non la muoverebbe. Un cammino calcolato prima resterebbe valido
+ * dopo, attraverso una porta appena chiusa — il difetto che `ClearAsset` ha gia' pagato e che l'header
+ * dell'asset dichiara: *«la revisione e' responsabilita' del DATO, non di chi lo modifica»*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditAddDoorAppliesTest,
+	"RefactorTactics.MapEdit.AddDoorAppliesAndBumpsRevision",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditAddDoorAppliesTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MapEditMakeMap(2);
+	const FRTCellId Centro(0, 0, 0);
+
+	ERTHexDirection Bordo;
+	if (!TestTrue(TEXT("il centro ha almeno un vicino"), MapEditFindInteriorEdge(M, Centro, Bordo)))
+	{
+		return false;
+	}
+
+	const int32 RevisionePrima = M->Revision;
+	TestEqual(TEXT("la posa e' applicata"),
+		URTMapEditLibrary::AddDoor(M, Centro, Bordo, ERTHexDoorState::Closed),
+		ERTMapEditOutcome::Applied);
+
+	const FRTHexCellData* Data = M->FindCell(Centro);
+	if (!TestNotNull(TEXT("la cella esiste ancora"), Data))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("e porta esattamente una porta"), Data->Doors.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("sul bordo richiesto"), static_cast<int32>(Data->Doors[0].Edge), static_cast<int32>(Bordo));
+	TestEqual(TEXT("nello stato richiesto"),
+		static_cast<int32>(Data->Doors[0].State), static_cast<int32>(ERTHexDoorState::Closed));
+
+	// ⛔ **Non inventa un nome pubblico.** `NAME_None` e' legale ed e' cio' che ogni porta pre-v9 e' diventata
+	// rileggendosi; sceglierlo qui sarebbe decidere del contenuto.
+	TestTrue(TEXT("e senza StableId, che non si inventa"), Data->Doors[0].StableId.IsNone());
+
+	TestTrue(FString::Printf(TEXT("la revisione si e' mossa: %d -> %d"), RevisionePrima, M->Revision),
+		M->Revision > RevisionePrima);
+	return true;
+}
+
+/**
+ * **Sul bordo esterno la posa e' RIFIUTATA**, ed e' il rifiuto che rende `AddDoor` non banale.
+ *
+ * Una porta e' **sottrattiva** (`spec-porte-cp93.md`): nega un'adiacenza che esiste. Fuori dalla mappa non
+ * c'e' adiacenza da negare, quindi la porta si salverebbe, cambierebbe l'hash, si vedrebbe pure — e nessun
+ * oracolo suonerebbe. E' la classe di difetto che `#170` ha pagato tre settimane.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditAddDoorFrontierTest,
+	"RefactorTactics.MapEdit.AddDoorRefusesFrontierEdge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditAddDoorFrontierTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MapEditMakeMap(2);
+
+	// Una cella di bordo: su un'arena piatta di raggio 2, `(2,0)` sta sul perimetro.
+	const FRTCellId Bordo(2, 0, 0);
+	if (!TestNotNull(TEXT("la cella di perimetro esiste"), M->FindCell(Bordo)))
+	{
+		return false;
+	}
+
+	ERTHexDirection Fuori;
+	if (!TestTrue(TEXT("e ha almeno un bordo che porta fuori dalla mappa"),
+		MapEditFindFrontierEdge(M, Bordo, Fuori)))
+	{
+		return false;
+	}
+
+	const int32 RevisionePrima = M->Revision;
+	TestEqual(TEXT("la posa e' rifiutata, e con la ragione giusta"),
+		URTMapEditLibrary::AddDoor(M, Bordo, Fuori, ERTHexDoorState::Closed),
+		ERTMapEditOutcome::RefusedNoNeighbour);
+
+	// «O si applica intera o non lascia traccia»: il rifiuto non deve aver scritto niente.
+	TestEqual(TEXT("niente e' stato scritto"), M->FindCell(Bordo)->Doors.Num(), 0);
+	TestEqual(TEXT("e la revisione non si e' mossa"), M->Revision, RevisionePrima);
+
+	// E la cella inesistente e' un rifiuto DIVERSO: due cause con lo stesso esito manderebbero a correggere
+	// la cosa sbagliata.
+	TestEqual(TEXT("una cella che non esiste e' RefusedNoSuchCell, non RefusedNoNeighbour"),
+		URTMapEditLibrary::AddDoor(M, FRTCellId(99, 99, 0), ERTHexDirection::E, ERTHexDoorState::Closed),
+		ERTMapEditOutcome::RefusedNoSuchCell);
+	return true;
+}
+
+/** **Due porte sullo stesso bordo non si accumulano**: `ValidateMap` gia' pretende l'unicita' per bordo. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditAddDoorDuplicateTest,
+	"RefactorTactics.MapEdit.AddDoorRefusesDuplicateEdge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditAddDoorDuplicateTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MapEditMakeMap(2);
+	const FRTCellId Centro(0, 0, 0);
+
+	ERTHexDirection Bordo;
+	if (!TestTrue(TEXT("il centro ha almeno un vicino"), MapEditFindInteriorEdge(M, Centro, Bordo)))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("la prima passa"),
+		URTMapEditLibrary::AddDoor(M, Centro, Bordo, ERTHexDoorState::Closed), ERTMapEditOutcome::Applied);
+
+	const int32 RevisioneDopoLaPrima = M->Revision;
+	TestEqual(TEXT("la seconda sullo stesso bordo e' rifiutata"),
+		URTMapEditLibrary::AddDoor(M, Centro, Bordo, ERTHexDoorState::Locked),
+		ERTMapEditOutcome::RefusedDuplicate);
+	TestEqual(TEXT("e la porta resta UNA"), M->FindCell(Centro)->Doors.Num(), 1);
+	TestEqual(TEXT("lo stato non e' stato sovrascritto"),
+		static_cast<int32>(M->FindCell(Centro)->Doors[0].State), static_cast<int32>(ERTHexDoorState::Closed));
+	TestEqual(TEXT("e la revisione non si e' mossa una seconda volta"), M->Revision, RevisioneDopoLaPrima);
+	return true;
+}
+
+/**
+ * **Una faccia sola basta, e questo test lo chiede al GIOCO.**
+ *
+ * `spec-porte-cp93.md` §3: *«il bordo puo' essere dichiarato dalla cella A verso B, da B verso A, o da
+ * entrambe … una porta disegnata da un lato solo vale comunque»*, e `DoorBetween` vale *«il piu' RESTRITTIVO
+ * delle due facce»*. `AddDoor` scrive **una** faccia proprio per questo: scriverne due sarebbe la divergenza
+ * che quella regola evita.
+ *
+ * 🔑 **Se questo test cade, il difetto NON e' in `AddDoor`**: e' nella lettura, e la spec sta mentendo. E'
+ * l'unico dei quattro che misura il gioco invece del tool, ed e' la ragione per cui vale la pena scriverlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditAddDoorBothSidesTest,
+	"RefactorTactics.MapEdit.AddDoorIsVisibleFromBothSides",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditAddDoorBothSidesTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MapEditMakeMap(2);
+	const FRTCellId A(0, 0, 0);
+
+	ERTHexDirection Bordo;
+	if (!TestTrue(TEXT("il centro ha almeno un vicino"), MapEditFindInteriorEdge(M, A, Bordo)))
+	{
+		return false;
+	}
+	const FRTCellId B = URTHexLibrary::Neighbor(A, Bordo);
+
+	// La premessa, asserita: senza porta i due versi rispondono `Open`, altrimenti il verde sotto non
+	// distinguerebbe «la porta si vede da entrambi i lati» da «rispondono sempre la stessa cosa».
+	TestEqual(TEXT("premessa: senza porta il bordo e' Open da A"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(M, A, B)),
+		static_cast<int32>(ERTHexDoorState::Open));
+
+	TestEqual(TEXT("si scrive UNA sola faccia"),
+		URTMapEditLibrary::AddDoor(M, A, Bordo, ERTHexDoorState::Closed), ERTMapEditOutcome::Applied);
+	TestEqual(TEXT("e infatti l'altra cella non ne porta nessuna"), M->FindCell(B)->Doors.Num(), 0);
+
+	TestEqual(TEXT("ma la si vede da A verso B"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(M, A, B)),
+		static_cast<int32>(ERTHexDoorState::Closed));
+	TestEqual(TEXT("e anche da B verso A: la barriera e' fisica, non direzionale"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(M, B, A)),
+		static_cast<int32>(ERTHexDoorState::Closed));
 	return true;
 }
 

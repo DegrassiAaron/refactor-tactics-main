@@ -8,6 +8,7 @@
 #include "Misc/AutomationTest.h"
 #include "UI/RTHudViewModel.h"
 #include "UI/RTIconLibrary.h"      // MakeIconId: la chiave che la vista porta gia' derivata (#2274)
+#include "UI/RTUnitOverlayWidget.h" // ComposeStatusDurationLabel: la regola di formato di uno stato (#2336)
 #include "Core/RTGameplayTags.h"   // i tag di stato usati dai test dei badge (#2274)
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
@@ -127,12 +128,10 @@ bool FRTHudVmCardMirrorsUnitTest::RunTest(const FString&)
 
 	Riktor->Health = 42;
 	Riktor->Shield = 7;
-	Riktor->Energy = 13;
 
 	const FRTUnitCardView Card = URTHudViewModel::BuildUnitCard(Riktor, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("salute"), Card.Health, 42);
 	TestEqual(TEXT("scudo"), Card.Shield, 7);
-	TestEqual(TEXT("energia"), Card.Energy, 13);
 	TestEqual(TEXT("salute massima dal catalogo eroi"), Card.MaxHealth, Riktor->MaxHealth);
 	TestEqual(TEXT("identita'"), Card.HeroId, Riktor->HeroId);
 	TestTrue(TEXT("alleato"), Card.bIsAlly);
@@ -904,6 +903,95 @@ bool FRTUnitOverlayFriendlyFireWinsOverTargetedTest::RunTest(const FString&)
 		TestFalse(TEXT("piano altrove: niente fuoco amico"), V.bFriendlyFire);
 		TestFalse(TEXT("piano altrove: non e' bersaglio"), V.bTargeted);
 	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **L'etichetta della durata: un numero quando c'è un conteggio, NIENTE quando non c'è.**
+ *
+ * È l'unica regola di formato della riga di uno stato, ed è pura apposta: sta qui invece che dentro
+ * `SetOverlayView`, dove verificarla richiederebbe di costruire un widget.
+ *
+ * ⚠️ **Il caso che conta è il legato-alla-cella.** `Wet` dall'acqua bassa dura *finché resti dov'è*, e
+ * `FRTStatusBadgeView` gli mette `RemainingTurns = 0` proprio perché il `-1` di `PersistentWhileOnCell` non
+ * attraversi il confine. Un formato che stampasse quel `0` scriverebbe «zero turni» su uno stato che non sta
+ * per finire — l'opposto del vero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusDurationLabelTest,
+	"RefactorTactics.HudViewModel.StatusDurationLabelIsEmptyWhenThereIsNoCount",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStatusDurationLabelTest::RunTest(const FString&)
+{
+	// Con un conteggio: il numero, e nient'altro — l'icona dice già quale stato è.
+	TestEqual(TEXT("due turni residui"),
+		URTUnitOverlayWidget::ComposeStatusDurationLabel(2, /*bCellBound*/ false), FString(TEXT("2")));
+	TestEqual(TEXT("un turno residuo"),
+		URTUnitOverlayWidget::ComposeStatusDurationLabel(1, /*bCellBound*/ false), FString(TEXT("1")));
+
+	// 🔴 Legato alla cella: nessun conteggio, **anche se il numero fosse diverso da zero**. È il verso che
+	// conta: `bCellBound` decide, non `RemainingTurns`.
+	TestTrue(TEXT("legato alla cella: nessuna etichetta"),
+		URTUnitOverlayWidget::ComposeStatusDurationLabel(0, /*bCellBound*/ true).IsEmpty());
+	TestTrue(TEXT("legato alla cella: nessuna etichetta nemmeno con un numero"),
+		URTUnitOverlayWidget::ComposeStatusDurationLabel(3, /*bCellBound*/ true).IsEmpty());
+
+	// Una durata non positiva non è un tempo da mostrare: uno stato scaduto non arriva nemmeno alla vista.
+	TestTrue(TEXT("zero turni: nessuna etichetta"),
+		URTUnitOverlayWidget::ComposeStatusDurationLabel(0, /*bCellBound*/ false).IsEmpty());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Il countdown del Ready arriva alla vista (`#2358`)
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * **IL COUNTDOWN ARMATO DIVENTA UN NUMERO NELLA VISTA, E DA SPENTO RESTA «NON SI APPLICA»**.
+ *
+ * ⚠️ **La prima meta' e' il controllo, e senza di lei la seconda non proverebbe niente**: `-1.f` e' il
+ * DEFAULT del campo, quindi «non armato → negativo» e' vero anche in una vista che non avesse mai letto il
+ * `TurnManager`. E' la stessa forma di `UntimedPlanningIsNotExpired` qui sopra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmReadyCountdownTest,
+	"RefactorTactics.HudViewModel.ReadyCountdownReachesTheView",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmReadyCountdownTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHudVmWorld(World); return false; }
+
+	// CONTROLLO: senza Ready dichiarato la domanda non si applica.
+	const FRTMatchHeaderView Spento = URTHudViewModel::BuildMatchHeader(TM);
+	TestTrue(TEXT("countdown non armato: il campo dice «non si applica»"),
+		Spento.ReadyCountdownSecondsRemaining < 0.f);
+
+	// LA MISURA: dopo il Ready il countdown e' un numero utilizzabile.
+	TM->SetPlanningSeconds(30.f);
+	TM->RequestLockIn();
+	if (!TestTrue(TEXT("il countdown e' armato: senza, la misura non proverebbe niente"),
+		TM->IsReadyCountdownActive()))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	const FRTMatchHeaderView Armato = URTHudViewModel::BuildMatchHeader(TM);
+	TestTrue(TEXT("countdown armato: il campo porta un numero"),
+		Armato.ReadyCountdownSecondsRemaining >= 0.f);
+	TestTrue(TEXT("e non supera la durata dichiarata"),
+		Armato.ReadyCountdownSecondsRemaining <= TM->GetReadyCountdownSeconds());
+
+	// E dopo l'Unready torna a tacere: il campo segue lo stato, non lo ricorda.
+	TM->CancelLockIn();
+	const FRTMatchHeaderView Annullato = URTHudViewModel::BuildMatchHeader(TM);
+	TestTrue(TEXT("dopo l'Unready il campo torna a «non si applica»"),
+		Annullato.ReadyCountdownSecondsRemaining < 0.f);
 
 	DestroyHudVmWorld(World);
 	return true;
