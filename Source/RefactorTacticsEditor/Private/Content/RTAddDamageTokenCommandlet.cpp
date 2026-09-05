@@ -23,12 +23,44 @@ namespace
 	const TCHAR* RootBoxName = TEXT("RootBox");
 
 	/**
-	 * 🔴 **Piu' grande della vita, e non e' vezzo grafico.** `HealthText` mostra `60/100` e si legge
-	 * *appoggiandocisi*; il token deve farsi notare **senza** che l'occhio lo cerchi, perche' dura meno di
-	 * un secondo e non torna. La gerarchia la fa la differenza fra le dimensioni, non la dimensione in se'
-	 * — e' la stessa ragione scritta in `RTBuildPlaygroundPanel`.
+	 * 🔴 **Piu' grande della vita, e la misura viene da una seduta PIE, non da un gusto.**
+	 *
+	 * La prima stesura usava `18`, e la verifica del 2026-09-06 l'ha trovato **leggibile ma piu' debole del
+	 * testo intorno**: a schermo `-24` risultava piu' piccolo di `60/90` e senza contorno, quindi opaco su
+	 * un fondo chiaro. Il token e' l'unico elemento della sovrapposizione che dura **meno di un secondo e
+	 * non torna**: deve farsi notare senza che l'occhio lo cerchi, mentre gli altri si leggono
+	 * appoggiandocisi.
+	 *
+	 * ⚠️ La gerarchia la fa la **differenza** fra le dimensioni, non la dimensione in se' — e' la stessa
+	 * ragione gia' scritta in `RTBuildPlaygroundPanel`.
 	 */
-	constexpr int32 TokenFontSize = 18;
+	constexpr int32 TokenFontSize = 26;
+
+	/**
+	 * Il contorno, che e' cio' che rende il token leggibile su **qualunque** fondo.
+	 *
+	 * 🔴 **Senza, il canale fallisce proprio dove serve.** La board e' grigio chiaro e le celle in fiamme
+	 * sono arancioni: un testo chiaro senza contorno sparisce sulla prima e si confonde sulla seconda. E'
+	 * la stessa regola del secondo canale che [D-146] fissa per le celle — se l'unico canale fallisce, la
+	 * lettura non degrada, **sparisce**.
+	 */
+	constexpr int32 TokenOutlineSize = 2;
+
+	/** Stile del token: applicato sia quando nasce sia quando esiste gia', cosi' il comando e' RIPETIBILE. */
+	void ApplyTokenStyle(UTextBlock* Token)
+	{
+		FSlateFontInfo Font = Token->GetFont();
+		Font.Size = TokenFontSize;
+		Font.OutlineSettings.OutlineSize = TokenOutlineSize;
+		Font.OutlineSettings.OutlineColor = FLinearColor(0.f, 0.f, 0.f, 1.f);
+		Token->SetFont(Font);
+		Token->SetJustification(ETextJustify::Center);
+
+		// ⛔ **Il colore non e' il canale, e non deve diventarlo.** `#2453` vieta il colore come UNICO
+		// canale: qui il senso lo portano gia' la cifra e il segno. Il bianco caldo serve solo a staccare
+		// dal fondo, e chi non lo distingue legge comunque `-24`.
+		Token->SetColorAndOpacity(FSlateColor(FLinearColor(1.f, 0.92f, 0.85f, 1.f)));
+	}
 
 	/** Il salvataggio, nella stessa forma di `RTRemoveEnergyBar` e `RTBuildPlaygroundPanel`. */
 	bool SaveWidgetPackage(UPackage* Package, UBlueprint* Blueprint)
@@ -80,9 +112,25 @@ int32 URTAddDamageTokenCommandlet::Main(const FString& Params)
 			return 1;
 		}
 
-		// Non e' un errore: il commandlet e' ripetibile, e la seconda volta non c'e' niente da fare.
+		// Non e' un errore: il commandlet e' ripetibile. ⚠️ **Ma «ripetibile» non e' «inerte»**: lo stile si
+		// RI-APPLICA, o una taratura decisa dopo una seduta PIE non raggiungerebbe mai un asset in cui
+		// l'elemento e' gia' presente — e il comando direbbe «niente da fare» su un token illeggibile.
+		UTextBlock* Presente = Cast<UTextBlock>(Existing);
+		ApplyTokenStyle(Presente);
+		Presente->SetVisibility(ESlateVisibility::Collapsed);
 		UE_LOG(LogRTDamageToken, Display,
-			TEXT("'%s' e' gia' nell'albero — niente da fare"), TokenName);
+			TEXT("'%s' e' gia' nell'albero: stile riapplicato (corpo %d, contorno %d)"),
+			TokenName, TokenFontSize, TokenOutlineSize);
+
+		FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Overlay);
+		FKismetEditorUtilities::CompileBlueprint(Overlay);
+		Overlay->MarkPackageDirty();
+		if (!SaveWidgetPackage(Overlay->GetOutermost(), Overlay))
+		{
+			UE_LOG(LogRTDamageToken, Error, TEXT("overlay NON salvato"));
+			return 1;
+		}
+		UE_LOG(LogRTDamageToken, Display, TEXT("=== fatto ==="));
 		return 0;
 	}
 
@@ -117,10 +165,7 @@ int32 URTAddDamageTokenCommandlet::Main(const FString& Params)
 		return 1;
 	}
 
-	FSlateFontInfo Font = Token->GetFont();
-	Font.Size = TokenFontSize;
-	Token->SetFont(Font);
-	Token->SetJustification(ETextJustify::Center);
+	ApplyTokenStyle(Token);
 
 	// 🔴 **Nasce NASCOSTO, e il default dell'asset conta quanto il codice.** `SetOverlayView` riafferma il
 	// riposo a ogni fotogramma, ma il primo disegno avviene **prima** di quel giro: un elemento che nasce
