@@ -110,7 +110,7 @@ Misurata sul disco il **2026-08-13**, cartella
 
 > 📇 **Da qui in poi questo lavoro lascia un dato, non solo prosa.** La tabella qui sopra è stata misurata
 > una volta, a occhio, e non ha prodotto nulla che una macchina possa rileggere — mentre
-> `.../Gadget/Animations/` da sola contiene **85** voci. Il catalogo versionato
+> `.../Gadget/Animations/` da sola contiene **103 `UAnimSequence`**. Il catalogo versionato
 > [`Data/Anim/AnimCatalog.json`](../../../Data/Anim/AnimCatalog.json) è l'owner di **quale clip è stata
 > guardata, promossa o scartata**, con un `AV_ID` stabile per voce; il formato è descritto in
 > [`architettura-codice.md`](../architecture/architettura-codice.md) alla riga `Unit/RTAnimCatalogTypes.h`
@@ -119,6 +119,30 @@ Misurata sul disco il **2026-08-13**, cartella
 > ⚠️ **Questa sezione resta l'owner del *perché* un nome diverge; il catalogo è l'owner del *giudizio*.**
 > Le due cose non si duplicano: qui si spiega che Gadget non ha `Jog_Fwd`, lì si registra che una persona
 > ha scelto `Run_Fwd` — e nessuna automazione può scrivere quella scelta al posto sua.
+>
+> 🔢 **I tre numeri, misurati il 2026-09-05 (#2442) e non più deducibili l'uno dall'altro.** La cartella
+> di Gadget porta **113 `.uasset`** in tutto, di cui **103 `UAnimSequence`** e **10 scartati per classe**
+> (`AimOffsets/` e `Blendspaces/`). Prima di questa misura circolavano **113** — il conteggio ricorsivo
+> dei file — e **85**, che è il conteggio *non* ricorsivo del solo livello superiore: entrambi conteggi di
+> file, nessuno dei due il numero di sequenze. La classe si legge dal registry, mai dal nome: sotto quella
+> cartella `AM_` e `BS_` danno **zero** risultati.
+>
+> ⚠️ **Il verso del flusso, che i due dati NON condividono.**
+>
+> ```text
+> Data/Anim/AnimCatalog.json        memoria del giudizio umano — authoring
+>         │                          chi esiste, chi è stata guardata, cosa si è deciso
+>         │  bind di una Promoted    (#2443)
+>         ▼
+> URTUnitAnimInstance::ClipsPerHero  ciò che il gioco suona — runtime
+>         │
+>         ▼
+> gate di cook                       legge SOLO il CDO
+> ```
+>
+> ⛔ **Il runtime non legge mai il catalogo.** Un JSON sotto `Data/` non è un asset versionato sotto
+> `/Game/RT`, quindi non è un referente che il cook sappia seguire (`D-262`): farlo leggere a runtime
+> metterebbe la presentazione su una via che il pacchetto non porta.
 
 Le quattro caselle che fanno perdere più tempo, e perché:
 

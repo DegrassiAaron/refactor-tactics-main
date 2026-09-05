@@ -15,6 +15,25 @@
  * ⚠️ **Il validator e' diviso in due meta', e la divisione non e' estetica.** `ValidateCatalog` gira ovunque
  * perche' non tocca il disco; `ValidateReferents` richiede i pack Paragon (`.gitignore:105`, ~48 GB) e su una
  * macchina che non li ha deve dire `NOT RUN`, non restituire un array vuoto che sembra un successo.
+ *
+ * 🔴 **IL VERSO DEL FLUSSO, e perche' due dati nominano le stesse clip senza essere in conflitto** (#2442).
+ *
+ *     Data/Anim/AnimCatalog.json        memoria del GIUDIZIO umano — authoring
+ *             |                          chi esiste, chi e' stata guardata, cosa si e' deciso
+ *             |  bind di una Promoted    (#2443)
+ *             v
+ *     URTUnitAnimInstance::ClipsPerHero  cio' che il gioco SUONA — runtime
+ *             |
+ *             v
+ *     gate di cook                       legge SOLO il CDO
+ *
+ * ⛔ **Il runtime non legge mai questo catalogo, e non e' una preferenza di stile.** Un JSON sotto `Data/`
+ * non e' un asset versionato sotto `/Game/RT`, quindi non e' un referente che il cook sappia seguire
+ * (`D-262`): farlo leggere a runtime metterebbe la presentazione su una via che il pacchetto non porta, e
+ * il difetto si vedrebbe solo su packaged, come posa di riferimento.
+ *
+ * ⛔ Per la stessa ragione il gate `RefactorTactics.Packaging.RequiredAnimationClipsAreCooked` interroga il
+ * **CDO** e non questo file: cio' che va cotto e' cio' che suona, non cio' che e' stato catalogato.
  */
 UCLASS()
 class REFACTORTACTICS_API URTAnimCatalogLibrary : public UBlueprintFunctionLibrary
