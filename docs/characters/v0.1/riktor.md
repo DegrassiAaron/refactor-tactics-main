@@ -180,7 +180,7 @@ Il controgioco è geometrico: aggirare le coperture, distruggere o rendere irril
 | --- | --- |
 | Il payload è nel dato | `RefactorTactics.Heroes.Hero.Riktor.MatchesCatalog` — asserisce 8, range 3 e la presenza di `Status.Slow` |
 | Il danno si vede in partita | `Combat.CounterStrikesBack` · `Combat.NoCounterWhenUnarmed` |
-| **Lo `Slow` si vede in partita** | `Combat.RiktorImpactShotSlows`, in coppia con `Combat.MoveIsFullWithoutSlow` — lo stato non è osservabile (non esiste `UnitHasStatus`), quindi si prova con la **cella** in cui il bersaglio si ferma: due invece di quattro |
+| **Lo `Slow` si vede in partita** | `Combat.BranthImpactShotSlows`, in coppia con `Combat.MoveIsFullWithoutSlow` — lo stato non è osservabile (non esiste `UnitHasStatus`), quindi si prova con la **cella** in cui il bersaglio si ferma: due invece di quattro |
 
 ## Abilità
 

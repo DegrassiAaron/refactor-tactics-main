@@ -169,7 +169,7 @@ Totale corpus versionato: **117** scenari (`A 78 + B 31 + D-bloccati 8`). Totale
 > - i **pianificati erano ventuno**, non tredici: §6.2 ne elencava ventuno sotto un totale di tredici.
 >   Nessuno li aveva contati, perché contarli a mano è esattamente ciò che nessuno fa due volte.
 >
-> Nel frattempo `#346` ne ha aggiunti **due** in `Scenarios/Combat/` (`RiktorImpactShotSlows` e il suo
+> Nel frattempo `#346` ne ha aggiunti **due** in `Scenarios/Combat/` (`BranthImpactShotSlows` e il suo
 > gemello di controllo `MoveIsFullWithoutSlow`): la classe A arriva a **26** e il corpus a **56**. Le due
 > correzioni sono state calcolate su rami diversi nello stesso pomeriggio e riconciliate al merge — che è
 > il motivo per cui il totale ora si misura invece di sommarlo.
@@ -253,7 +253,7 @@ Il verdetto è l'assertion. Nessuna di queste righe compare nel registro PIE, ed
 | `Combat.FriendlyFire` | r3 | 5 | l'AoE colpisce anche l'alleato — e porta `previewUnit` per il banco dell'anteprima |
 | `Combat.LineHitsThrough` | r4 | 4 | la linea prende chi sta sulla traiettoria prima del bersaglio |
 | `Combat.NoCounterWhenUnarmed` | r4 | 3 | il contrattacco richiede un'arma: niente reazione implicita |
-| `Combat.RiktorImpactShotSlows` | r4 | 4 | lo `Slow` applicato nel **Blast** agisce sul **Move** dello stesso turno: il bersaglio si ferma due celle prima |
+| `Combat.BranthImpactShotSlows` | r4 | 4 | lo `Slow` applicato nel **Blast** agisce sul **Move** dello stesso turno: il bersaglio si ferma due celle prima |
 | `Combat.MoveIsFullWithoutSlow` | r4 | 3 | il gemello di controllo: senza il colpo, le stesse quattro celle si percorrono tutte |
 | `Combat.SplashHitsAlliesNotSelf` | r4 | 5 | l'area prende gli alleati ma **non** chi la lancia |
 | `Movement.Basic` | r3 | 2 | il passo singolo arriva sulla cella pianificata |
@@ -852,7 +852,7 @@ resta visibile invece di sparire.
 > ✅ **I `BAL-1` non sono più in questa lista: chiusi il 2026-08-10** (`#401`, `#402`). Tre scritti e verdi
 > al primo run — `Spec.Brace.GuardAndBraceOnMixedHit`, `Spec.Brace.BraceWinsOnSecondHit` e
 <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
-> `Spec.Combat.RiktorIsPushedLikeAnyone`, quest'ultimo **rinominato** da `…BastionIgnoresAllPushes` perché
+> `Spec.Combat.BranthIsPushedLikeAnyone`, quest'ultimo **rinominato** da `…BastionIgnoresAllPushes` perché
 > [D-075](../../decisions/RT_PDR_00_Decision_Log.md) ha deciso dall'altra parte e il nome previsto avrebbe
 > significato il contrario del file. Il quarto, `Spec.Brace.PushBeyondGuardThreshold`, **non nasce**: chiedeva
 > una spinta di 2 che [D-074](../../decisions/RT_PDR_00_Decision_Log.md) ha deciso di non introdurre, riscrivendo

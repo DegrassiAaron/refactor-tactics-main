@@ -456,6 +456,19 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 		{ FName(TEXT("Hero.Wraith")), { TEXT("Idle_NonCombat"), TEXT("Jog_Fwd") } },
 	};
 
+	// 🔴 **Il pack NON si deriva dall'HeroId, e da [D-334] non potrebbe piu'.** Fino al rename di `Riktor`
+	// bastava `Chi.RightChop(5)` — `Hero.Gadget` -> `Gadget` — perche' identita' RT e nome dello slot asset
+	// **coincidevano**. E' esattamente la coincidenza che [D-321] ha dichiarato un difetto (*«lo slot non e'
+	// l'identita'»*): `Hero.Branth` vive nel pack `ParagonRiktor` finche' la fetta E di #2297 non rinomina
+	// l'asset. Una derivazione che oggi da' il nome giusto per tre eroi su quattro non e' una regola: e' un
+	// residuo dell'invariante rotta, e va scritta a mano finche' i due piani non tornano allineati.
+	const TMap<FName, FString> PackDiEroe = {
+		{ FName(TEXT("Hero.Gadget")), TEXT("Gadget") },
+		{ FName(TEXT("Hero.Phase")),  TEXT("Phase")  },
+		{ FName(TEXT("Hero.Branth")), TEXT("Riktor") },
+		{ FName(TEXT("Hero.Wraith")), TEXT("Wraith") },
+	};
+
 	TestEqual(TEXT("il default copre i quattro eroi del roster"), Cdo->ClipsPerHero.Num(), Attese.Num());
 
 	for (const TPair<FName, TPair<FString, FString>>& Attesa : Attese)
@@ -477,7 +490,9 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 		// Il PACK e' parte dell'asserto quanto la clip: lo scambio fra due eroi — l'errore facile in una
 		// tabella di quattro righe simili — passerebbe un controllo scritto sul solo nome della clip,
 		// perche' tre eroi su quattro condividono `Idle` e `Jog_Fwd`.
-		const FString Pack = Chi.RightChop(5);   // `Hero.Gadget` -> `Gadget`
+		const FString* PackTrovato = PackDiEroe.Find(FName(*Chi));
+		if (!TestNotNull(*FString::Printf(TEXT("%s: pack dichiarato"), *Chi), (const void*)PackTrovato)) { continue; }
+		const FString Pack = *PackTrovato;
 		const FString Radice = FString::Printf(
 			TEXT("/Game/FabAsset/Paragon/Paragon%s/Characters/Heroes/%s/Animations/"), *Pack, *Pack);
 

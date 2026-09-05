@@ -744,7 +744,7 @@ turno**, senza attese nel resolver (invariante #3).
 > resistenza nativa, che con quella premessa era immunità totale e gratuita.
 > Il trade-off vero — *primo colpo pesante* contro *colpi ripetuti* — ora è **pinnato** invece che descritto:
 > `Spec.Brace.GuardAndBraceOnMixedHit` (su un colpo `Guard` domina) e `Spec.Brace.BraceWinsOnSecondHit`
-> (su due colpi si rovescia: 12 contro 17), più `Spec.Combat.RiktorIsPushedLikeAnyone`.
+> (su due colpi si rovescia: 12 contro 17), più `Spec.Combat.BranthIsPushedLikeAnyone`.
 > ⏳ **Resta aperta `BAL-1`** in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — quale debba *essere* il
 > confine è una scelta di bilanciamento che si chiude con una partita (seduta **U20**, voce `PIE-BAL1`,
 > issue `#403`), non con questi scenari: loro dicono cosa succede, non cosa è divertente. Roadmap e numeri in
@@ -800,7 +800,7 @@ in ogni parametro (vincolo del catalogo, verificato dal validator di CP 1.4).
 > `FlowReaction`, rinviata per la ragione originale: produce **movimento** dentro un boundary di risoluzione.
 >
 > **CP 6.7 riapre l'epic** e ha una premessa scomoda: oggi esistono **test verdi che documentano il debito**
-> — per esempio `RTHeroRiktorTests.cpp:133` verifica che `Interposition` **non abbia** effetti. Diventeranno
+> — per esempio `RTHeroBranthTests.cpp:133` verifica che `Interposition` **non abbia** effetti. Diventeranno
 > rossi il giorno del cablaggio: è il comportamento atteso, non una regressione. Vanno **sostituiti** da test
 > di comportamento nella stessa PR, mai cancellati e basta. **Dipende da CP 5.5**: senza reazioni a più
 > effetti, `ReactiveCapacitor` finirebbe come `if (Gadget…)` nel resolver.

@@ -172,7 +172,7 @@ bool FRTAnimRosterMigrationKeepsPathsTest::RunTest(const FString&)
 	const FAtteso Attesi[] = {
 		{ TEXT("Hero.Gadget"), TEXT("Gadget"), TEXT("Idle"),           TEXT("Run_Fwd") },
 		{ TEXT("Hero.Phase"),  TEXT("Phase"),  TEXT("Idle"),           TEXT("Jog_Fwd") },
-		{ TEXT("Hero.Branth"), TEXT("Branth"), TEXT("Idle"),           TEXT("Jog_Fwd") },
+		{ TEXT("Hero.Branth"), TEXT("Riktor"), TEXT("Idle"),           TEXT("Jog_Fwd") },
 		{ TEXT("Hero.Wraith"), TEXT("Wraith"), TEXT("Idle_NonCombat"), TEXT("Jog_Fwd") },
 	};
 
