@@ -357,6 +357,30 @@ public:
 	static TArray<FRTSlotLine> ComposeSlotLines(const struct FRTUnitSlotsView& Slots);
 
 	/**
+	 * Il colore di una riga della terna: bianco per lo slot speso, grigio per quello libero.
+	 *
+	 * ⚠️ **Il colore e' l'unico canale.** Il testo di uno slot libero («Reazione: libero») e di uno speso
+	 * («Reazione: Contrattacco») sono entrambi frasi compiute, quindi scambiare i colori non rompe niente di
+	 * visibile: inverte la lettura, che e' peggio.
+	 *
+	 * ⛔ Decide il COLORE e non riscrive l'etichetta: quella e' di `ComposeSlotLines`, che ha i suoi test.
+	 */
+	static FRTHudTextLine ComposeSlotLineStyle(const FRTSlotLine& SlotLine);
+
+	/**
+	 * La headline di fine partita: l'esito e la VIA che l'ha determinato, in quest'ordine (CP 10.3).
+	 *
+	 * 🔴 La regola non e' che i due pezzi esistano — `URTTurnRules::DescribeOutcome` e
+	 * `DescribeEndReason` esistono da sempre — e' che compaiano **entrambi, in quest'ordine e separati**:
+	 * «Vince il team 0» da solo non distingue un'eliminazione da un vantaggio allo scadere dei round.
+	 *
+	 * ⚠️ **Con un esito `InProgress` rende una frase senza senso** («Partita in corso - nessuna via»), ed
+	 * e' stato di fatto e non regola: `DrawHUD` la chiama solo dentro `GetPhase() == MatchEnded`, quindi il
+	 * caso e' irraggiungibile — ma il gate e la composizione stanno in due posti. Vedi il test omonimo.
+	 */
+	static FString ComposeMatchEndHeadline(const struct FRTMatchResult& Result);
+
+	/**
 	 * La riga di un'abilita' nella barra: numero, nome, il motivo per cui non si puo' usare, il colore.
 	 *
 	 * Statica e PURA sul modello di `ComposeSlotLines`: `DrawHUD` non ha copertura headless e non l'avra',

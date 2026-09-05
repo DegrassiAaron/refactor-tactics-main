@@ -1021,11 +1021,9 @@ void ARTHUD::DrawHUD()
 				float SW = 0.f, SH = 0.f;
 				GetTextSize(SlotLine.Text, SW, SH, nullptr, 1.f);
 
-				// Grigio per lo slot libero, bianco per quello speso: la stessa scala che la barra abilita'
-				// usa gia' per «c'e' ma non e' attivo», cosi' le due letture non chiedono due convenzioni.
-				DrawText(SlotLine.Text,
-					SlotLine.bOccupied ? FLinearColor::White : FLinearColor(0.55f, 0.55f, 0.55f, 1.f),
-					Canvas->SizeX - SW - 24.f, SlotY, nullptr, 1.f);
+				// Testo e colore li decide una statica pura (#2184); qui resta il tracciamento.
+				const FRTHudTextLine Riga = ComposeSlotLineStyle(SlotLine);
+				DrawText(Riga.Text, Riga.Color, Canvas->SizeX - SW - 24.f, SlotY, nullptr, 1.f);
 				SlotY += LineH;
 			}
 		}
@@ -1036,9 +1034,7 @@ void ARTHUD::DrawHUD()
 	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::MatchEnded)
 	{
 		const FRTMatchResult Result = TurnManager->GetMatchResult();
-		const FString Headline = FString::Printf(TEXT("%s - %s"),
-			*URTTurnRules::DescribeOutcome(Result.Outcome),
-			*URTTurnRules::DescribeEndReason(Result.Reason));
+		const FString Headline = ComposeMatchEndHeadline(Result);
 
 		float TW = 0.f, TH = 0.f;
 		GetTextSize(Headline, TW, TH, nullptr, 2.f);
@@ -1258,4 +1254,46 @@ FRTIntentPresentation ARTHUD::ComposeIntentPresentation(const FRTIntentView& Vie
 		: FLinearColor(1.f, 0.9f, 0.2f, 1.f);  // giallo: nemico rivelato
 
 	return Out;
+}
+
+FRTHudTextLine ARTHUD::ComposeSlotLineStyle(const FRTSlotLine& SlotLine)
+{
+	FRTHudTextLine Riga;
+
+	// Il testo passa intatto: lo compone `ComposeSlotLines`, che ne e' l'owner e ha i suoi test.
+	Riga.Text = SlotLine.Text;
+
+	// Grigio per lo slot libero, bianco per quello speso.
+	//
+	// ⚠️ **Il colore e' l'UNICO canale**, e per questo scambiarlo e' peggio che sbagliare un testo:
+	// «Reazione: libero» e «Reazione: Contrattacco» sono entrambe frasi compiute, quindi un'inversione non
+	// rompe niente di visibile — inverte la lettura, e nessuno se ne accorge guardando.
+	//
+	// ⚠️ **La scala NON coincide con quella della barra abilita', anche se il commento precedente lo
+	// lasciava intendere**: la barra usa bianco / `0.8` / `0.45` per «armata / pronta / inutilizzabile», qui
+	// ci sono due soli livelli e il grigio e' `0.55`. La convenzione condivisa e' «bianco = attivo», non il
+	// valore. Il numero e' ora pinnato da un test proprio perche' quell'affermazione avesse un soggetto.
+	Riga.Color = SlotLine.bOccupied
+		? FLinearColor::White
+		: FLinearColor(0.55f, 0.55f, 0.55f, 1.f);
+
+	return Riga;
+}
+
+FString ARTHUD::ComposeMatchEndHeadline(const FRTMatchResult& Result)
+{
+	// 🔴 **L'esito PRIMA, la via DOPO, e separati** (CP 10.3). La regola non e' che i due pezzi
+	// esistano — `URTTurnRules` li rende da sempre — e' che compaiano entrambi e in quest'ordine: «Vince il
+	// team 0» da solo non distingue un'eliminazione da un vantaggio allo scadere dei round, e sono due
+	// partite che si raccontano in modo diverso.
+	//
+	// ⚠️ **Con `InProgress` rende «Partita in corso - nessuna via», ed e' stato di fatto.** Il caso e'
+	// irraggiungibile perche' `DrawHUD` chiama questa funzione solo dentro `GetPhase() == MatchEnded` — ma
+	// il gate e la composizione stanno in DUE posti, e questa funzione e' pubblica. ⛔ Non e' stato
+	// corretto rendendo stringa vuota: sarebbe aggiungere una reticenza che oggi non esiste, e #2184 mette
+	// fuori scope «cambiare cio' che si vede». Se arriva un secondo chiamante, quella diventa una decisione
+	// da prendere, e il posto dove accorgersene e' `MatchEndHeadlineNamesOutcomeThenReason`.
+	return FString::Printf(TEXT("%s - %s"),
+		*URTTurnRules::DescribeOutcome(Result.Outcome),
+		*URTTurnRules::DescribeEndReason(Result.Reason));
 }
