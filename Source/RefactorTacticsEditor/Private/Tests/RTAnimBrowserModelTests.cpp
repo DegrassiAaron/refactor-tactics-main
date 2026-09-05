@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 
 #include "RTAnimBrowserModel.h"
+#include "Content/RTBuildAnimBindingsCommandlet.h"
 #include "Unit/RTAnimCatalogLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -264,6 +265,94 @@ bool FRTAnimCatalogRejectsTwoActivePerRoleTest::RunTest(const FString&)
 	}
 	// Il messaggio deve dire QUALI due: «catalogo non valido» non si aziona.
 	TestTrue(TEXT("la riga nomina entrambe le clip in conflitto"), bNominaEntrambe);
+	return true;
+}
+
+// ─── La traduzione catalogo → CDO ───────────────────────────────────────────────────────────────────
+//
+// 🔑 **E' l'unica parte del commandlet che si puo' provare headless, ed e' l'unica che decide qualcosa.**
+// Il resto — aprire un file, creare un package, salvarlo — non ha alternative da sbagliare. Provare il
+// commandlet per intero richiederebbe un catalogo con dei legami, e un legame richiede una clip
+// `Promoted`, che **solo una persona puo' scrivere**: il test sarebbe rimasto impossibile per costruzione.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimBindingsMapToCdoTest,
+	"RefactorTactics.Anim.Bindings.MapToCdo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimBindingsMapToCdoTest::RunTest(const FString&)
+{
+	FRTAnimCatalog Catalog;
+	Catalog.NextId = 4;
+
+	auto Aggiungi = [&Catalog](const TCHAR* Id, const TCHAR* Clip, const TCHAR* Hero,
+		ERTPresentationRole Role, bool bActive, const TCHAR* Label)
+	{
+		FRTAnimCatalogEntry E;
+		E.Id = FName(Id);
+		E.Derived.AssetPath = PathDi(TEXT("Gadget"), Clip);
+		E.Derived.AssetName = Clip;
+		E.Authored.Status = ERTAnimClipStatus::Promoted;
+		E.Authored.Label = Label;
+		FRTAnimBinding B;
+		B.HeroId = FName(Hero);
+		B.Role = Role;
+		B.bActive = bActive;
+		E.Authored.Bindings.Add(B);
+		Catalog.Entries.Add(MoveTemp(E));
+	};
+
+	Aggiungi(TEXT("AV_0001"), TEXT("Run_Fwd"), TEXT("Hero.Gadget"), ERTPresentationRole::Move, true,  TEXT("A"));
+	Aggiungi(TEXT("AV_0002"), TEXT("Run_Bwd"), TEXT("Hero.Gadget"), ERTPresentationRole::Move, false, TEXT("B"));
+	Aggiungi(TEXT("AV_0003"), TEXT("Idle"),    TEXT("Hero.Wraith"), ERTPresentationRole::Idle, true,  TEXT("A"));
+
+	int32 Legami = 0;
+	const TMap<FName, FRTHeroPresentationClips> PerEroe =
+		URTBuildAnimBindingsCommandlet::BuildClipsPerHero(Catalog, Legami);
+
+	// Anti-vacuita': senza legami tradotti ogni asserzione sotto guarderebbe mappe vuote.
+	if (!TestEqual(TEXT("tre legami tradotti"), Legami, 3)) { return false; }
+	if (!TestEqual(TEXT("due eroi"), PerEroe.Num(), 2)) { return false; }
+
+	const FRTHeroPresentationClips* Gadget = PerEroe.Find(FName(TEXT("Hero.Gadget")));
+	if (!TestNotNull(TEXT("Gadget c'e'"), (const void*)Gadget)) { return false; }
+	const FRTAnimRoleClips* Move = Gadget->FindRole(ERTPresentationRole::Move);
+	if (!TestNotNull(TEXT("il ruolo Move c'e'"), (const void*)Move)) { return false; }
+
+	TestEqual(TEXT("due varianti sullo stesso ruolo"), Move->Variants.Num(), 2);
+
+	// 🔑 L'attiva e' quella che il catalogo dichiarava, e le altre restano inattive.
+	const FRTAnimVariant* Attiva = Move->FindActive();
+	if (!TestNotNull(TEXT("c'e' un'attiva"), (const void*)Attiva)) { return false; }
+	TestEqual(TEXT("l'attiva e' AV_0001"), Attiva->VariantId, FName(TEXT("AV_0001")));
+
+	// L'`AV_ID` diventa il `VariantId`: non si conia una seconda identita'.
+	TestNotNull(TEXT("AV_0002 e' fra le varianti"), (const void*)Move->FindVariant(FName(TEXT("AV_0002"))));
+
+	// E il path della clip attraversa intatto: e' il dato che il cook dovra' seguire.
+	TestEqual(TEXT("il path arriva al CDO"),
+		Attiva->Clip.ToSoftObjectPath().ToString(), PathDi(TEXT("Gadget"), TEXT("Run_Fwd")));
+
+	// Un eroe diverso non finisce nella stessa voce: la mappa e' per eroe, non globale.
+	const FRTHeroPresentationClips* Wraith = PerEroe.Find(FName(TEXT("Hero.Wraith")));
+	if (TestNotNull(TEXT("Wraith c'e'"), (const void*)Wraith))
+	{
+		TestNull(TEXT("Wraith non ha il ruolo Move"), (const void*)Wraith->FindRole(ERTPresentationRole::Move));
+		TestNotNull(TEXT("Wraith ha il ruolo Idle"), (const void*)Wraith->FindRole(ERTPresentationRole::Idle));
+	}
+
+	// ⛔ Un binding senza eroe non produce una voce fantasma.
+	FRTAnimCatalog Sporco;
+	Sporco.NextId = 2;
+	FRTAnimCatalogEntry Orfana;
+	Orfana.Id = FName(TEXT("AV_0001"));
+	Orfana.Derived.AssetPath = PathDi(TEXT("Gadget"), TEXT("Idle"));
+	FRTAnimBinding SenzaEroe;   // HeroId resta NAME_None
+	Orfana.Authored.Bindings.Add(SenzaEroe);
+	Sporco.Entries.Add(MoveTemp(Orfana));
+
+	int32 LegamiSporchi = 0;
+	const TMap<FName, FRTHeroPresentationClips> Vuota =
+		URTBuildAnimBindingsCommandlet::BuildClipsPerHero(Sporco, LegamiSporchi);
+	TestEqual(TEXT("un binding senza eroe non si traduce"), LegamiSporchi, 0);
+	TestEqual(TEXT("e non crea eroi"), Vuota.Num(), 0);
 	return true;
 }
 

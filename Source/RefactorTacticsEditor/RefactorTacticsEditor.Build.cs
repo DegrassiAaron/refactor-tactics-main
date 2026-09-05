@@ -49,6 +49,13 @@ public class RefactorTacticsEditor : ModuleRules
 			// invece di autorarlo a mano — cioe' di farlo sopravvivere alla rigenerazione delle mesh.
 			"MaterialEditor",
 			"AssetRegistry",
+			// Il commandlet `RTBuildAnimBindings` (#2443) costruisce `FRTHeroPresentationClips` per il CDO
+			// del Blueprint generato, e quel tipo vive in `RTUnitAnimInstance.h`, che include
+			// `AnimNodes/AnimNode_Slot.h`.
+			// ⚠️ **Serve al COMMANDLET, non al catalogo.** `RTAnimCatalogTypes.h` include solo
+			// `RTPresentationRole.h` proprio per non trascinare questo modulo: chi nomina un ruolo non deve
+			// pagare il grafo d'animazione. Qui invece il tipo vero serve davvero.
+			"AnimGraphRuntime",
 			// Il launcher (#1680, slice L1): la categoria del menu Window in cui il tab si registra,
 			// `UEditorSubsystem` come classe base, e `UGameMapsSettings` per leggere la EditorStartupMap nel test.
 			// ⚠️ Nessuno dei tre arriva per transitivita': misurato, senza dichiararli il link non risolve.
