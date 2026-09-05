@@ -538,9 +538,11 @@ public:
 	 * 🔴 **Erano quattro fino al 2026-08-26**, e la terza esclusa era `Interact` con questa ragione: *«non ha
 	 * un **consumatore**: nessun codice risolve un'interazione. Aggiungerla darebbe a ogni unita' un comando
 	 * che non fa niente»*. Il motivo e' **scaduto**, non era sbagliato: da [D-148]/[D-151] l'azione dichiara
-	 * `SetDoorState`, e il consumatore esiste per intero — `ARTTurnManager` alza `bChangesDoor` dagli Effects
-	 * di qualunque principale pianificata, `URTHexCombatLibrary` raccoglie l'op sulla prima porta della
-	 * traiettoria, `URTHexDoorLibrary::SetDoorState` la applica e il TurnLog scrive `DoorOpened`.
+	 * un effetto sulle porte, e il consumatore esiste per intero — `ARTTurnManager` alza `bChangesDoor` dagli
+	 * Effects di qualunque principale pianificata, `URTHexCombatLibrary` raccoglie l'op sul bordo dichiarato,
+	 * `URTHexDoorLibrary::SetDoorState` la applica e il TurnLog scrive `DoorOpened` o `DoorClosed`.
+	 * ⏱️ *Dal 2026-09-05 l'effetto e' `ToggleDoorState` e non piu' `SetDoorState -> Open`: [`INT-7`] chiusa,
+	 * `#2380`.*
 	 * ⚠️ Con **un** bersaglio funzionante: le porte. Consolle, ascensori, generatori, sprinkler, ponti e
 	 * obiettivi che il catalogo §1 elenca non esistono, e la generica non li promette.
 	 *

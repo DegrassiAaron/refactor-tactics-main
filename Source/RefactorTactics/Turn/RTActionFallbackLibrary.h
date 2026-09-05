@@ -144,7 +144,39 @@ enum class ERTActionInvalidReason : uint8
 	 * grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo riscrive il significato di ogni traccia
 	 * gia' archiviata che ne porti uno successivo.
 	 */
-	Unbalanced
+	Unbalanced,
+
+	/**
+	 * La porta puntata e' `Locked`: la commutazione di [`INT-7`] (`#2380`) la RIFIUTA invece di toccarla.
+	 *
+	 * 🔑 **E' cio' che tiene chiuso il buco `Locked -> Closed` senza toccare `CanTransition`.** Quella
+	 * transizione e' AMMESSA un livello sotto — a una porta bloccata toglierebbe il lock, e da `Closed` si
+	 * apre — e [D-151] la teneva fuori portata limitando `Action.Interact` ad `Open`. La commutazione si
+	 * definisce solo su `Open <-> Closed`, quindi `Locked` non e' mai una sorgente valida: il guard sta
+	 * nell'azione, come allora.
+	 *
+	 * ⚠️ Motivo PROPRIO e non `NoEffect`: li' l'azione non aveva niente su cui agire, qui aveva esattamente
+	 * qualcosa e la regola lo vieta. Il giocatore che legge il turno deve poter distinguere «non c'era
+	 * nessuna porta» da «c'era, ed e' bloccata»: e' l'apertura autorizzata di CP 10.1 che gli serve, non un
+	 * bordo diverso.
+	 *
+	 * ⚠️ **In coda**, come `Interrupted`, `NoEffect` e `Neutralised` prima: il motivo viaggia come intero
+	 * grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo riscrive il significato di ogni traccia
+	 * gia' archiviata.
+	 */
+	DoorLocked,
+
+	/**
+	 * La porta puntata e' `Destroyed`: non c'e' piu' niente da commutare (`#2380`).
+	 *
+	 * ⚠️ **Distinto da `DoorLocked`, e la distinzione e' misurabile**: `Destroyed` e' TERMINALE — nessuna
+	 * transizione ne esce, mai, e nessuna apertura autorizzata la riporta indietro — mentre `Locked` e' uno
+	 * stato da cui CP 10.1 fara' uscire chi ha l'autorizzazione. Un solo motivo per i due direbbe al
+	 * giocatore che le due situazioni hanno lo stesso rimedio.
+	 *
+	 * ⚠️ In coda, per la ragione scritta su `DoorLocked`.
+	 */
+	DoorDestroyed
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */

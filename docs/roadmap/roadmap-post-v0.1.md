@@ -90,7 +90,7 @@ Aggiunto il **2026-08-17** con [D-153](../decisions/RT_PDR_00_Decision_Log.md). 
 |---|:--:|:--:|---|---|
 | Core map | v0.1 | **v0.1**, interamente | **E21** · **E47** · muri e porte su **E23**, anticipata alla v0.1 (`D-160`) | allineato |
 | Environment | v0.2 | **v0.1** ⬅️ | **E8** — **otto** feature, tutte `INTEGRATED` | il kit è **indietro** |
-| 3D map / verticalità | v0.3 | **`future`** ➡️ | nessuno — `RT-FEAT-MAP-VERTICALITY` è `IDEA` | `DEFER` |
+| 3D map / verticalità | v0.3 | **v0.1** ⬅️⬅️ | **#2388** (capability) · [`D-332`](../decisions/RT_PDR_00_Decision_Log.md) | il kit è **indietro di due release** |
 | Interactive map | v0.4 | **v0.1** ⬅️⬅️ | **E23** ([#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)), anticipata il 2026-08-17 (`D-160`) | il kit è **indietro di due release**, non di una |
 | Tactical devices | v0.5 | **fuori scope dichiarato** | — | `DEFER` |
 | Destruction / debris | v0.6 | **v0.2** ⬅️⬅⬅️ | **E51** ([#1848](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1848)), creata il 2026-08-30 | il kit è **indietro di quattro release** |
@@ -161,8 +161,15 @@ sapesse.
 > Interactive map era falso — contraddetto dalla tabella sopra e dalla riga «Core map» che questa stessa PR
 > aveva aggiunto per registrare che E23 è v0.2. Corretta la metà falsa, era rimasta l'altra.*
 
-➡️ **Due cluster non hanno una release che li possieda, e non per la stessa ragione.** La verticalità
-resta senza owner; i devices tattici **non sono `future` affatto** — sono **fuori
+➡️ **Un solo cluster non ha una release che lo possieda**, e non è più la verticalità. ✅ **La verticalità
+è entrata in v0.1 il 2026-09-05** con [`D-332`](../decisions/RT_PDR_00_Decision_Log.md), che chiude `REL-3`:
+owner di capability [#2388](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2388), owner
+semantico [`../gameplay/spec-caduta-e-bordi.md`](../gameplay/spec-caduta-e-bordi.md). ⚠️ *Questa frase ha
+detto due cose diverse in due giorni — «resta senza owner», poi «ha un owner ma non una casa» — ed entrambe
+erano vere quando furono scritte. Il kit proponeva `v0.3`: la release canonica è **v0.1**, cioè il kit era
+indietro di due release anche qui.* ⛔ **Entra la regola del bordo, non il cluster di asset**: il contenuto
+3D resta materia d'arte e non acquisisce una release da questa decisione.
+I devices tattici invece **non sono `future` affatto** — sono **fuori
 scope v0.1 dichiarato** da [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md)
 §11, che li rinvia a E13/E14 con motivazione registrata. Qui l'ordine del kit è giusto e la release non
 esiste: **si lasciano `future` invece di inventarne una**, ed è la parte di `D-136` che questa tabella
@@ -291,6 +298,21 @@ fissarla (scenario 4 del sorgente).
 > tabella *«Dove sta il lavoro»* più sotto lo dice già con le sue parole, *«già consegnato in v0.1»*. Delle
 > cinque feature che dichiarano `epic: E23`, `RT-FEAT-MAP-INTERACTION-GRAPH` era già passata a `v0.1` col
 > giro di `#833`; `D-160` sposta le altre quattro. Dopo, **nessuna feature di E23 dichiara più v0.2**.
+
+> **Stato GitHub live — 2026-09-05.** Questa non è l'owner della release: lo snapshot corrente di E23 vive
+> in [`roadmap-v0.1.md`](roadmap-v0.1.md) § E23. [#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)
+> resta **aperta**; sono **chiuse** [#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832),
+> [#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833),
+> [#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826),
+> [#1827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1827),
+> [#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828),
+> [#1830](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1830) e
+> [#1832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1832); restano **aperte**
+> [#712](https://github.com/DegrassiAaron/refactor-tactics-main/issues/712),
+> [#834](https://github.com/DegrassiAaron/refactor-tactics-main/issues/834),
+> [#1829](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1829),
+> [#1831](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1831) e
+> [#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833).
 
 **Tracciata su GitHub**: epic [#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324).
 
