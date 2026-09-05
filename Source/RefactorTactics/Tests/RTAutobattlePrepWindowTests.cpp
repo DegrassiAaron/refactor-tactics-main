@@ -121,6 +121,12 @@ bool FRTPrepWindowArmsInUnattendedSessionTest::RunTest(const FString&)
 		TestTrue(TEXT("il timeout ha armato la finestra"), B.TurnManager->IsPrepWindowActive());
 		TestEqual(TEXT("con la durata dichiarata"), B.TurnManager->GetPrepWindowRemaining(), 3.f, 0.01f);
 
+		// Il contrasto con `PrepWindowZeroResolvesSynchronously`: finche' la finestra e' armata il turno
+		// NON e' committato, ed e' la proprieta' per cui la pausa non ferma nessuna simulazione.
+		TestEqual(TEXT("durante la finestra il turno resta in Planning"),
+			B.TurnManager->GetPhase(), ERTMatchPhase::Planning);
+		TestFalse(TEXT("e non sta risolvendo"), B.TurnManager->IsResolving());
+
 		RTWorldFixtures::DestroyWorld(B.World);
 	}
 
@@ -147,7 +153,14 @@ bool FRTPrepWindowArmsInUnattendedSessionTest::RunTest(const FString&)
  * per cui `#2193` non ha cambiato un solo TurnLog. Un difetto qui non si vedrebbe come un errore: si
  * vedrebbe come tre secondi di attesa in ogni run dello Scenario Harness.
  *
- * Verifica di mutazione: cambiare `PrepWindowSeconds > 0.f` in `>= 0.f` fa cadere questo test, e solo questo.
+ * 🔴 **L'oracolo e' la FASE, e la prima stesura sbagliava bersaglio.** Asseriva soltanto
+ * `!IsPrepWindowActive()`, e quel criterio e' **incapace di fallire**: `FTimerManager::SetTimer` non arma
+ * niente con `InRate <= 0` (`TimerManager.cpp:673`, `if (InRate > 0.f)`), quindi anche mutando la guardia in
+ * `>= 0.f` la finestra resta assente e il test passava lo stesso — verde per una ragione che non e' la sua.
+ * Misurato eseguendo la mutazione, non dedotto. Cio' che discrimina e' che la risoluzione sia **avvenuta**:
+ * `LockInAndResolve` porta la fase fuori da `Planning`, e una finestra armata la lascerebbe li'.
+ *
+ * Verifica di mutazione: cambiare `PrepWindowSeconds > 0.f` in `>= 0.f` fa cadere l'assertion sulla fase.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrepWindowZeroResolvesSynchronouslyTest,
 	"RefactorTactics.Match.Autobattle.PrepWindowZeroResolvesSynchronously",
@@ -160,6 +173,11 @@ bool FRTPrepWindowZeroResolvesSynchronouslyTest::RunTest(const FString&)
 	B.TurnManager->OnPlanningTimeoutForTest();
 
 	TestFalse(TEXT("nessuna finestra armata con durata zero"), B.TurnManager->IsPrepWindowActive());
+
+	// 🔴 L'assertion che DISCRIMINA: la risoluzione e' avvenuta nello stesso frame. Senza, il criterio
+	// sopra passerebbe anche con la guardia mutata, perche' UE non arma timer a rate zero.
+	TestTrue(TEXT("il turno e' stato risolto subito: la fase ha lasciato Planning"),
+		B.TurnManager->GetPhase() != ERTMatchPhase::Planning || B.TurnManager->IsResolving());
 
 	RTWorldFixtures::DestroyWorld(B.World);
 	return true;
