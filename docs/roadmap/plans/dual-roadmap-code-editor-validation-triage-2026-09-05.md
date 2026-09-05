@@ -172,7 +172,7 @@ alternative scartate c'è per nome *«comporre le formulazioni in una scala unic
 ⚠️ **Ed è la stessa forma del rilievo `R2` di ieri**, su un testo diverso: la lista in sé è innocua come
 *ordine di lettura*, il titolo dice altro, e chi la applica in conflitto fa ciò che `D-282` vieta.
 
-### R4 — 🟠 Quattordici dei venti check esistono già, verdi
+### R4 — 🟠 Tredici dei venti check esistono già e sono verdi, un quattordicesimo a metà
 
 La §B6 chiede una «matrice minima» `PACE-01…PACE-20`. Mappata sul corpus di test di `origin/main`:
 
