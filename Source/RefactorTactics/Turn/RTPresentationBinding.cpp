@@ -68,8 +68,18 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 		TEXT("la cue nasce, non ereditata.")));
 
 	// Defeated — la morte visiva e' DIFFERITA: l'unita' sparisce dopo che il colpo o l'attraversamento e'
-	// stato mostrato (`RTTurnManager.cpp:6293-6300`). La presentazione non decide quando si muore: lo decide
-	// il resolver, e questa cue lo mostra dopo.
+	// stato mostrato. La presentazione non decide quando si muore: lo decide il resolver, e questa cue lo
+	// mostra dopo.
+	//
+	// ⚠️ **Le due funzioni non sono piu' chiamate insieme, e l'ordine e' il punto** (#2452, 2026-09-05).
+	// `PlayDefeatMontage` parte a fine della fase in cui l'unita' e' caduta; `HideForDefeat` avviene una
+	// volta sola, in `FinishPlayback`. Erano adiacenti, e l'hide precedeva il montaggio: `HideForDefeat`
+	// chiama `SetActorHiddenInGame(true)`, che propaga alla skeletal, quindi `Death` partiva su un attore
+	// gia' nascosto e non veniva mai disegnato.
+	//
+	// 🔑 La coppia resta dichiarata QUI perche' questa tabella nomina **cio' che l'evento mostra**, non il
+	// punto del codice che lo chiama: entrambe le funzioni fanno ancora parte della presentazione di
+	// `Defeated`. Separarle avrebbe reso l'evento parzialmente muto per il gate.
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Defeated,
 		{ FName(TEXT("HideForDefeat")), FName(TEXT("PlayDefeatMontage")) }));
 

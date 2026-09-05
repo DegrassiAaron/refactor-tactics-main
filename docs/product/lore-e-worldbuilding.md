@@ -134,8 +134,8 @@ Le otto identità retail del roster sono decise:
 
 | Fazione | Identità RefactorTactics | Release |
 |---|---|---|
-| Conflux | **Nexis** · **Slake** | v0.1 ⏳ |
-| Constrine | **Kern** · **Scryer** | v0.1 ⏳ |
+| Conflux | **Aevik** · **Muiren** | v0.1 ⏳ |
+| Constrine | **Branth** · **Ivrin** | v0.1 ⏳ |
 | Sentinel Directorate | **Ward** · **Vigil** | v0.2 |
 | Resonance | **Rime** · **Tethra** | v0.2 |
 
@@ -173,7 +173,7 @@ Una squadra può contenere liberamente membri di fazioni diverse e non esistono 
 ## Conflux
 
 **FactionId:** `Faction.Conflux`  
-**Membri iniziali:** **Nexis** · **Slake** — **v0.1** ⏳ · schede: [`v0.1/gadget.md`](../characters/v0.1/gadget.md) · [`v0.1/phase.md`](../characters/v0.1/phase.md)
+**Membri iniziali:** **Aevik** · **Muiren** — **v0.1** ⏳ · schede: [`v0.1/gadget.md`](../characters/v0.1/gadget.md) · [`v0.1/phase.md`](../characters/v0.1/phase.md)
 
 > **Tutto è collegato.**
 
@@ -222,7 +222,7 @@ Alcuni archivi Conflux contengono log di connessioni e percorsi emergenti che no
 ## Constrine
 
 **FactionId:** `Faction.Constrine`  
-**Membri iniziali:** **Kern** · **Scryer** — **v0.1** ⏳ · schede: [`v0.1/riktor.md`](../characters/v0.1/riktor.md) · [`v0.1/wraith.md`](../characters/v0.1/wraith.md)
+**Membri iniziali:** **Branth** · **Ivrin** — **v0.1** ⏳ · schede: [`v0.1/riktor.md`](../characters/v0.1/riktor.md) · [`v0.1/wraith.md`](../characters/v0.1/wraith.md)
 
 > **Ciò che è delimitato può essere controllato.**
 

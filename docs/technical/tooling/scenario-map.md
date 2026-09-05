@@ -53,8 +53,8 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 |---|---:|---|
 | **A** — automatico | **78** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `Spec.Predictive.WhiffOnEmptyCell` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **32** scenari ↔ **24** voci `PIE-VIS-*` **+1** fuori prefisso | `Scenarios/Visual/` |
-| **C** — solo umano | **179** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima, **meno** le `PIE-MUT-*` *(⏱️ **rimisurate il 2026-08-25**, ed erano **112**: lo scarto è di **29** e si scompone tutto — **tre sezioni intere mancavano** dalla ripartizione di §5 (E47 `2` · E46 `6` · tool Geometry `4` = **12**), **tre erano indietro** (Checklist `43→48` · M6 `16→21` · Durata `5→6` = **11**), e **sei** sono le voci del contratto graybox che questo giro aggiunge ([#1096](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1096)). `12 + 11 + 6 = 29`, e il totale torna col conteggio diretto `164 − 21 PIE-VIS − 2 PIE-MUT`: **due metodi indipendenti che concordano**, come questo documento chiede da sé)* |
-| **D** — dichiarato | **8** scenari `Spec.*` ancora `BLOCKED` · **66** dichiarati `planned` nel registry e senza file *(⏱️ **rimisurati il 2026-08-17**, ed erano `12 · 56`: la riga era già stantia prima di questo giro e questo giro l'ha resa più stantia, aggiungendo tre `planned` al registry. Riletti da `scenariomap.shortlist.md`, che è **generato** — «78 scenari versionati · 67 eseguibili · 11 `BLOCKED` · 66 dichiarati `planned`» — e la scomposizione A/B/D è stata rifatta **classificando ogni file** con la regola dichiarata, non incrementata: `A 46 + B 21 + D 11 = 78`, che è il totale del generato. **Due metodi indipendenti che concordano**, come la volta precedente chiedeva. ⚠️ E la lezione è ancora quella: `feature-registry.yaml` è una **terza sorgente** di questa vista accanto a `Scenarios/` e `RTScenarioSession.cpp` — chi tocca solo il registry sposta questo numero senza toccare un solo file di scenario, ed è il motivo per cui `parallel-batch.yaml` l'ha aggiunta al `derives_from` nello stesso commit)* *(letti dal generato il 2026-08-13; questa riga diceva «**50** pianificati · **4** mai scritti», due sottoinsiemi che il generato **non distingue** — somma 54 contro 56, quindi la ripartizione era già inconciliabile con la sua fonte e si è tenuto il numero generato)* *(i pianificati rimisurati il 2026-08-12 **sull'albero mergiato**, su `scenariomap.shortlist.md`, che è generato; questa riga diceva **38** e §6.2 diceva **47** — due numeri vecchi in modi diversi nello stesso documento. ⚠️ Rimisurati **tre volte** il 2026-08-12, e ogni volta il numero era gia' cambiato sotto: **52** con `Spec.Map.ConstrainedCellCostsMore` ancora `planned`, **51** quando quel piano è diventato un file, **50** sull'albero unito perché `#659` ne ha acceso un altro nel frattempo. È il meccanismo del corpus che funziona — un `planned` che si accende esce da qui — ma dice anche che questo numero non si incrementa a mano: si rilegge da `scenariomap.shortlist.md` **dopo** il merge. ✅ **Le righe A/B e il totale sono state rimisurate il 2026-08-13, voce per voce come questa nota chiedeva.** Dicevano `A 27 + B 21 + D 12 = 60` e non si riconciliavano col generato: la scomposizione era ferma al **2026-08-09** e sbagliava di **13** scenari, tutti in classe **A**. Rifatta classificando **ogni file** con la regola dichiarata — `BLOCKED` se un `requires` chiede una capability fuori dall'allowlist di `RTScenarioSession.cpp`, altrimenti **B** se sta in `Scenarios/Visual/`, altrimenti **A** — il conto è `A 40 + B 21 + D 12 = 73`. ⚠️ **Misurato con due metodi indipendenti che concordano**: la classificazione voce per voce e il generato di `scenariomap.shortlist.md`, che conta **73** versionati e **61** non bloccati (= `A 40 + B 21`). La regola resta quella scritta qui — questo numero **non si incrementa a mano** quando nasce uno scenario: si rilegge dal generato dopo il merge)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
+| **C** — solo umano | **169** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima, **meno** le `PIE-MUT-*` **e meno le `PIE-STATE-*`** *(⏱️ **da `179` a `169` il 2026-09-05**: le dieci `PIE-STATE-*` di E34 sono passate alla classe **D** — §6.4 — perché verificano un sistema che non esiste. La somma di §5 è stata aggiornata nello stesso passaggio, ed è la sede del totale)* *(⏱️ **rimisurate il 2026-08-25**, ed erano **112**: lo scarto è di **29** e si scompone tutto — **tre sezioni intere mancavano** dalla ripartizione di §5 (E47 `2` · E46 `6` · tool Geometry `4` = **12**), **tre erano indietro** (Checklist `43→48` · M6 `16→21` · Durata `5→6` = **11**), e **sei** sono le voci del contratto graybox che questo giro aggiunge ([#1096](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1096)). `12 + 11 + 6 = 29`, e il totale torna col conteggio diretto `164 − 21 PIE-VIS − 2 PIE-MUT`: **due metodi indipendenti che concordano**, come questo documento chiede da sé)* |
+| **D** — dichiarato | **8** scenari `Spec.*` ancora `BLOCKED` · **66** dichiarati `planned` nel registry e senza file · **10** voci `PIE-STATE-*` *(⏱️ **le dieci sono entrate il 2026-09-05**, dalla classe C — §6.4. 🔑 **La classe D conta da oggi due popolazioni diverse**: scenari e voci di registro. Non si sommano, e chi le somma ottiene un numero che non significa niente)* *(⏱️ **rimisurati il 2026-08-17**, ed erano `12 · 56`: la riga era già stantia prima di questo giro e questo giro l'ha resa più stantia, aggiungendo tre `planned` al registry. Riletti da `scenariomap.shortlist.md`, che è **generato** — «78 scenari versionati · 67 eseguibili · 11 `BLOCKED` · 66 dichiarati `planned`» — e la scomposizione A/B/D è stata rifatta **classificando ogni file** con la regola dichiarata, non incrementata: `A 46 + B 21 + D 11 = 78`, che è il totale del generato. **Due metodi indipendenti che concordano**, come la volta precedente chiedeva. ⚠️ E la lezione è ancora quella: `feature-registry.yaml` è una **terza sorgente** di questa vista accanto a `Scenarios/` e `RTScenarioSession.cpp` — chi tocca solo il registry sposta questo numero senza toccare un solo file di scenario, ed è il motivo per cui `parallel-batch.yaml` l'ha aggiunta al `derives_from` nello stesso commit)* *(letti dal generato il 2026-08-13; questa riga diceva «**50** pianificati · **4** mai scritti», due sottoinsiemi che il generato **non distingue** — somma 54 contro 56, quindi la ripartizione era già inconciliabile con la sua fonte e si è tenuto il numero generato)* *(i pianificati rimisurati il 2026-08-12 **sull'albero mergiato**, su `scenariomap.shortlist.md`, che è generato; questa riga diceva **38** e §6.2 diceva **47** — due numeri vecchi in modi diversi nello stesso documento. ⚠️ Rimisurati **tre volte** il 2026-08-12, e ogni volta il numero era gia' cambiato sotto: **52** con `Spec.Map.ConstrainedCellCostsMore` ancora `planned`, **51** quando quel piano è diventato un file, **50** sull'albero unito perché `#659` ne ha acceso un altro nel frattempo. È il meccanismo del corpus che funziona — un `planned` che si accende esce da qui — ma dice anche che questo numero non si incrementa a mano: si rilegge da `scenariomap.shortlist.md` **dopo** il merge. ✅ **Le righe A/B e il totale sono state rimisurate il 2026-08-13, voce per voce come questa nota chiedeva.** Dicevano `A 27 + B 21 + D 12 = 60` e non si riconciliavano col generato: la scomposizione era ferma al **2026-08-09** e sbagliava di **13** scenari, tutti in classe **A**. Rifatta classificando **ogni file** con la regola dichiarata — `BLOCKED` se un `requires` chiede una capability fuori dall'allowlist di `RTScenarioSession.cpp`, altrimenti **B** se sta in `Scenarios/Visual/`, altrimenti **A** — il conto è `A 40 + B 21 + D 12 = 73`. ⚠️ **Misurato con due metodi indipendenti che concordano**: la classificazione voce per voce e il generato di `scenariomap.shortlist.md`, che conta **73** versionati e **61** non bloccati (= `A 40 + B 21`). La regola resta quella scritta qui — questo numero **non si incrementa a mano** quando nasce uno scenario: si rilegge dal generato dopo il merge)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
 > ⛔ **SUPERATO dalla rimisura del 2026-09-03** (vedi il totale sotto la tabella): resta come registro di
 > come i quattro `AutoBattle.*` si distribuirono fra le classi, non come conteggio corrente.
@@ -392,8 +392,16 @@ regge con loro dentro — **98 su 98** — e il comando di §7 non li segnala pi
 
 ## 5. Classe C — solo input umano
 
-141 voci del registro PIE che **nessuno scenario può sostituire**. La ripartizione qui sotto è per sezione del
-registro — che è verificabile — con la ragione per cui serve una persona. Il dettaglio di ogni voce (esito
+Le voci del registro PIE che **nessuno scenario può sostituire**. La ripartizione qui sotto è per sezione del
+registro — che è verificabile — con la ragione per cui serve una persona.
+
+> 🔑 **Il totale non si scrive qui.** Vive **sotto la tabella**, alla riga «Somma», ed è l'unico posto in cui
+> va aggiornato. ⚠️ Questa frase ne portava uno — *«141 voci del registro PIE»* — ed era **la somma parziale
+> delle prime dieci righe**: il totale progressivo della tabella tocca `141` dopo la decima riga e `175` dopo
+> la diciassettesima, cioè i due stati che la nota di rimisura qui sotto documenta. Non era una misura
+> rivale, era un **fossile**, sopravvissuto perché la rimisura del 2026-09-03 aggiornò la tabella e non
+> l'intestazione. Rimosso il 2026-09-05: un numero derivato mantenuto in **due** sedi è andato alla deriva
+> quattro volte in tre settimane, e questa era la sede senza gate. Il dettaglio di ogni voce (esito
 atteso, stato, copertura headless già esistente) resta in [`test-manuali-pie.md`](../test-manuali-pie.md), che
 ne è l'owner: qui non se ne ricopia nessuno, perché è esattamente la duplicazione che questo repository ha già
 pagato quattro volte.
@@ -413,7 +421,7 @@ pagato quattro volte.
 | Durata, ritmo e scala | 7 | **Cronometro**: producono numeri di playtest, non superano gate. Si misura il **2v2** e lo si registra come tale |
 | Bot — leggibilità delle decisioni | 5 | **Il perché, non il cosa**: un test può dire che lo score era il più alto, non che la scelta sembrasse sensata a chi guarda |
 | Formato e icone | 2 | **Riconoscibilità alla dimensione reale** dell'HUD, e il caso di **errore** del formato |
-| Stati del personaggio (E34) | 10 | Nessuna: **verificano un sistema che non esiste**. Sono classe D travestita da C — vedi §6 |
+| ~~Stati del personaggio (E34)~~ | ~~10~~ | ⛔ **Uscite dalla classe C il 2026-09-05** — erano *«classe D travestita da C»* per ammissione di questa riga, e sono state spostate dove il loro nome dice: **§6.4**. La sezione del registro le dichiara *«tutte dipendenti da un sistema che non esiste… non perché siano eseguibili oggi»*, quindi la riclassificazione non è un giudizio nuovo ma la conseguenza di uno già scritto in due sedi |
 | La sonda di movimento — tool Probe (#711) | 3 | **Il colore e il perché**: la sonda dice *`Reachable`* o *`NoRoute`* nel log, ma che il designer distingua i quattro motivi guardando la griglia è un'altra domanda |
 | La sonda: le coordinate sul pavimento (#1920) | 2 | **Leggibilità a schermo**: che `(q,r,L)` si legga alla distanza di lavoro, e che il costo non copra la coordinata |
 | Velo e obiettivo in partita (`E13.8`, `D-241`) | 2 | **Ciò che il giocatore deve poter dedurre**: che l'obiettivo si veda contendere, e che il velo non lo nasconda a chi lo tiene |
@@ -421,9 +429,24 @@ pagato quattro volte.
 | PC Gym — la palestra del PlayerController (#1859) | 1 | **Il gesto**: la palestra esiste per provare l'input, e l'input non si prova senza mouse |
 | Gate visivo end-to-end della slice | 1 | **La catena intera vista da una persona**, che nessuna assertion attraversa da capo a fondo |
 
-**Somma: 179** — e la somma è il punto.
-`56 + 22 + 28 + 3 + 3 + 6 + 6 + 9 + 7 + 1 + 7 + 5 + 2 + 10 + 3 + 2 + 5 + 2 + 1 + 1` va confrontata con la
+**Somma: 169** — e la somma è il punto.
+`56 + 22 + 28 + 3 + 3 + 6 + 6 + 9 + 7 + 1 + 7 + 5 + 2 + 3 + 2 + 5 + 2 + 1 + 1` va confrontata con la
 riga `C` della §2 **prima** di toccare l'una o l'altra.
+
+> ⏱️ **Rimisurata il 2026-09-05: da `179` a `169`, e lo scarto è di `10` — tutto da una riga sola.** Le
+> `PIE-STATE-01`…`-10` (E34) sono uscite dalla classe C verso **§6.4**: nessuna voce è nata o morta, e
+> nessuna delle altre diciannove righe si è mossa. `179 − 10 = 169`, e la riga `C` della §2 è stata
+> aggiornata nello stesso passaggio.
+>
+> ⚠️ **E il secondo metodo di §7 non torna, e va detto invece che sistemato in silenzio.** Il conteggio
+> diretto `totale − PIE-VIS − PIE-MUT` dà oggi `223 − 28 − 2 = 193`, contro le `169` di questa tabella:
+> **24** di scarto. Non è un errore di somma — è che i due metodi hanno smesso di misurare la stessa
+> popolazione: il diretto assume che *ogni* voce non-`VIS` non-`MUT` sia di classe C, e da oggi non è più
+> vero, perché **10** sono di classe D. Restano **14** non spiegati, che sono le voci entrate nel registro
+> dopo il 2026-09-03 (il totale è passato da `216` a `223` in un giorno) più le sezioni che la
+> ripartizione non ha ancora. 🔑 **Il metodo diretto va corretto o ritirato**, e finché non lo è la
+> tabella è l'unica misura di classe C: due metodi che divergono non sono *«due metodi indipendenti che
+> concordano»*, che è ciò che questo documento chiede da sé.
 
 > 🔴 **Rimisurata il 2026-09-03, e il difetto del 2026-08-13 e del 2026-08-25 si è ripetuto una terza volta,
 > identico: mancavano sei sezioni intere.** La tabella dichiarava **141** su quattordici righe; il registro ha
@@ -918,6 +941,30 @@ oggi promette file che non ci sono. Registrato in §8.
 > uno scenario: sono automation test puri, aperti come
 > [#865](https://github.com/DegrassiAaron/refactor-tactics-main/issues/865). La camera entra in questo
 > documento quando avrà qualcosa che un occhio deve guardare — non prima. Registrato in §9.
+
+---
+
+### 6.4 Voci del registro che descrivono un sistema che non esiste · **10**
+
+Le prime tre fasce di classe D sono **scenari**. Questa è la quarta, ed è fatta di **voci del registro
+PIE** — stessa proprietà, popolazione diversa: *dichiarate, non eseguibili*.
+
+| Sezione del registro | Voci | Perché non è classe C |
+|---|---:|---|
+| Stati del personaggio (**E34**, `post-v0.1`) — `PIE-STATE-01` … `PIE-STATE-10` | 10 | Non aspettano **una persona**: aspettano **un sistema**. Nessun operatore può eseguirle oggi, per quanto tempo abbia — e una voce che nessun operatore può eseguire non appartiene alla classe che misura il lavoro umano. Epic [#244](https://github.com/DegrassiAaron/refactor-tactics-main/issues/244) · owner [`brief-stati-personaggio-e-trasformazioni.md`](../../gameplay/brief-stati-personaggio-e-trasformazioni.md) |
+
+> ⏱️ **Spostate qui dalla classe C il 2026-09-05.** ⚠️ **Non è una scoperta**: la riga di §5 che le contava
+> le dichiarava già *«classe D travestita da C»*, e l'intestazione della loro sezione nel registro dice
+> *«tutte dipendenti da un sistema che non esiste… non perché siano eseguibili oggi»*. La contraddizione
+> era **scritta in due sedi e conservata in una terza** — la somma di classe C — per il tempo che serve a
+> nessuno. 🔑 **Il difetto non era il numero: era che una classificazione poteva restare smentita dalla
+> propria didascalia senza che niente lo impedisse.**
+>
+> **Conseguenza sui conteggi**, e va letta prima di rimisurare: classe C passa da `179` a `169` (§5);
+> la riga `D` della §2 porta ora **due popolazioni che non si sommano** — 8 scenari `BLOCKED`,
+> 66 `planned`, 10 voci di registro. ⛔ **Il metodo diretto di §7** (`totale − PIE-VIS − PIE-MUT`)
+> **non vale più** per la classe C: assumeva che ogni voce non-`VIS` non-`MUT` fosse umana, e da oggi
+> dieci non lo sono.
 
 ---
 
