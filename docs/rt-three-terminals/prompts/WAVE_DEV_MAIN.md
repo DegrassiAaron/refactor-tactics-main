@@ -89,7 +89,7 @@ Compila i campi della tabella in [`WAVE_DEV_LEAD.md`](WAVE_DEV_LEAD.md) per la p
 
 `Editor-visible expectation` è un'attesa che EDITOR verificherà. Marcala sempre `PREDICTED — NOT VERIFIED`: non apri l'Editor e non puoi osservarla.
 
-`Seed source` è obbligatorio se introduci RNG. `unseeded` non è un valore accettabile, e `generated` manda `DETERMINISM` in `BLOCKED` a valle.
+`SEED_SOURCE` è obbligatorio se introduci RNG, ed è lo stesso campo che `WAVE_VALIDATION.md` legge a valle: dichiararlo qui evita di scoprire dopo una sessione PIE che `DETERMINISM` non era dimostrabile. `unseeded` non è un valore accettabile; `generated` manda `DETERMINISM` in `BLOCKED`.
 
 ## 3. Architettura
 
@@ -120,9 +120,10 @@ Se l'integrazione richiede di scrivere fuori da `ASSIGNED_SCOPE`:
 ```text
 1. non scrivere fuori scope;
 2. registra la modifica richiesta come diff proposto, testo, non applicato;
-3. chiudi il contributo con STATUS: INTEGRATION PENDING;
-4. prosegui solo con lavoro indipendente dentro lo scope;
-5. se non resta lavoro indipendente, chiudi con STATUS: BLOCKED.
+3. se resta lavoro indipendente, completalo e chiudi STATUS: PARTIAL con la
+   richiesta in ## INTEGRATION REQUIRED;
+4. se non resta lavoro indipendente, chiudi STATUS: BLOCKED con REASON e UNBLOCK,
+   come impone il contratto §6.
 ```
 
 Non attendere in loop: DEV-LEAD ha obbligo di risposta, e la risposta è un artefatto.
@@ -142,10 +143,15 @@ Se `BRANCH` è detached, dichiaralo e non committare senza istruzione di DEV-LEA
 Scrivi il contributo su file. Un contributo che vive solo nella conversazione non esiste per DEV-LEAD.
 
 ```text
-docs/rt-three-terminals/waves/<feature-slug>/contrib/DEV-MAIN-<sha7>.md
+docs/rt-three-terminals/waves/<feature-slug>/contrib/DEV-MAIN-<PID>-<nn>.md
 ```
 
-`<sha7>` sono i primi 7 caratteri del commit che hai prodotto, oppure `nocommit` se non hai committato.
+L'identità del file non deriva dallo SHA. Nel caso nominale non committi: è DEV-LEAD che consolida. Due istanze DEV-MAIN sulla stessa wave produrrebbero lo stesso nome e la seconda sovrascriverebbe la prima, che è ciò che [`../waves/README.md`](../waves/README.md) vieta.
+
+- `<PID>` è il PID di questa istanza, lo stesso mostrato dal prompt `[DEV:PID]`;
+- `<nn>` è un contatore a due cifre **per istanza**, monotono crescente;
+- i contributi sono append-only: non modificare né cancellare quello di un'altra istanza;
+- una correzione è un contributo **nuovo** con `SUPERSEDES:`, non un edit.
 
 ```text
 === RT3 CONTRIB ===
@@ -154,8 +160,12 @@ FROM:            DEV-MAIN:<PID>
 TO:              DEV-LEAD
 FEATURE:
 WAVE_ID:         <feature-slug>/<n>
+CREATED:         <YYYY-MM-DD HH:MM>
+SUPERSEDES:      <contrib precedente | none>
 BASE_SHA:
 PRODUCED_SHA:    = BASE_SHA se non hai committato
+WORKTREE:        committed | uncommitted
+SEED_SOURCE:     canonical <sorgente> | none | generated
 ASSIGNED_SCOPE:
 WRITE_SET:       path effettivamente toccati, sottoinsieme di ASSIGNED_SCOPE
 
@@ -172,7 +182,13 @@ WRITE_SET:       path effettivamente toccati, sottoinsieme di ASSIGNED_SCOPE
 ## RISKS
 ## NOT RUN                    (con motivo)
 
-STATUS: COMPLETE | PARTIAL | INTEGRATION PENDING | BLOCKED
+STATUS:   READY | PARTIAL | BLOCKED
+REASON:   <obbligatorio se BLOCKED>
+UNBLOCK:  <obbligatorio se BLOCKED>
 ```
+
+`STATUS` usa il vocabolario del contratto §9, non uno parallelo, e `BLOCKED` porta `REASON` e `UNBLOCK` come impone §6.
+
+`BLOCKED` su un contributo blocca **te**, non la wave. Il contratto §11 propaga il blocco fra i tre punti fissi della catena, e un contributo non è uno di quelli: DEV-LEAD lo risolve o lo escala, non lo eredita.
 
 Nessun campo di questo contributo è un verdetto di §7. `WRITE_SET` è il campo che a valle determina lo scoping (§8): un write-set incompleto produce sistemi non verificati che nessuno sa di dover verificare.

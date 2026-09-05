@@ -71,7 +71,7 @@ Se contratto e codice divergono, il test segue il **contratto**.
 
 Non indebolire un risultato atteso perché il codice attuale fallisce. Un test che fallisce contro una spec corretta è informazione, non un difetto del test.
 
-Se il contratto è ambiguo, non scegliere l'interpretazione che fa passare il codice: chiudi con `STATUS: INTEGRATION PENDING` e la domanda esplicita a DEV-LEAD.
+Se il contratto è ambiguo, non scegliere l'interpretazione che fa passare il codice: chiudi `BLOCKED` con `REASON` (l'ambiguità) e `UNBLOCK` (la decisione che serve), e porta la domanda a DEV-LEAD.
 
 ## Dimensioni da coprire
 
@@ -97,15 +97,13 @@ Le dimensioni in scope si derivano dal write-set con il contratto §8, incluso i
 
 L'assenza in UI non è una prova: il dato può essere presente sul client. La prova è un canary sulla connessione, ed è per questo che `PRIVACY` ha tetto `OBSERVED` per EDITOR e `PASS` solo per VALIDATION (§7).
 
-Il tuo test asserisce l'**assenza** del canary nel payload del client non autorizzato, non la presenza nel log del server.
+Il tuo test asserisce l'**assenza** del marcatore nel payload del client non autorizzato, non la presenza nel log del server.
 
-Convenzione del marcatore, riconoscibile in un dump e non collidente con dati reali:
+Il marcatore deve essere riconoscibile in un dump e non collidere con dati reali. Non inventare qui una convenzione di stringa: il repository usa già canary con semantica precisa e ci sono precedenti da seguire — `Source/RefactorTactics/Tests/RTHexBotIntegrationTests.cpp` (canary dell'onniscienza, gate `RT-FEAT-BOT-FAIRNESS`), `Source/RefactorTactics/ScenarioHarness/RTScenarioRunner.cpp`, `RTScenarioSession.h`.
 
-```text
-RT_CANARY_<FEATURE>_<N>
-```
+Se nessun precedente copre il tuo caso, la scelta del formato è una decisione documentale: chiedila a DEV-LEAD invece di fissarla in un test.
 
-Owner della regola di privacy: [`CLAUDE.md`](../../../CLAUDE.md) §4.
+Owner della regola di privacy: [`CLAUDE.md`](../../../CLAUDE.md) §4. `docs/archive/` non è autorità.
 
 ## Scenario
 
@@ -142,8 +140,10 @@ Staging per path espliciti dentro lo scope. Vietati `git add -A`, `git commit -a
 ## Contributo
 
 ```text
-docs/rt-three-terminals/waves/<feature-slug>/contrib/DEV-TEST-<sha7>.md
+docs/rt-three-terminals/waves/<feature-slug>/contrib/DEV-TEST-<PID>-<nn>.md
 ```
+
+L'identità del file non deriva dallo SHA: nel caso nominale non committi, e due istanze DEV-TEST sulla stessa wave si sovrascriverebbero. `<PID>` è il PID di questa istanza, `<nn>` un contatore per istanza. I contributi sono append-only: una correzione è un file nuovo con `SUPERSEDES:`.
 
 ```text
 === RT3 CONTRIB ===
@@ -152,8 +152,11 @@ FROM:            DEV-TEST:<PID>
 TO:              DEV-LEAD
 FEATURE:
 WAVE_ID:         <feature-slug>/<n>
+CREATED:         <YYYY-MM-DD HH:MM>
+SUPERSEDES:      <contrib precedente | none>
 BASE_SHA:
 PRODUCED_SHA:    = BASE_SHA se non hai committato
+WORKTREE:        committed | uncommitted
 ASSIGNED_SCOPE:
 WRITE_SET:
 
@@ -166,7 +169,13 @@ WRITE_SET:
 ## RISKS
 ## NOT RUN                    (ogni gruppo: authoring — esecuzione a VALIDATION)
 
-STATUS: COMPLETE | PARTIAL | INTEGRATION PENDING | BLOCKED
+STATUS:   READY | PARTIAL | BLOCKED
+REASON:   <obbligatorio se BLOCKED>
+UNBLOCK:  <obbligatorio se BLOCKED>
 ```
+
+`STATUS` usa il vocabolario del contratto §9, non uno parallelo, e `BLOCKED` porta `REASON` e `UNBLOCK` come impone §6.
+
+`BLOCKED` su un contributo blocca **te**, non la wave: §11 propaga fra i tre punti fissi della catena, e un contributo non è uno di quelli.
 
 `## EXPECTED FAILURES` esiste perché un test derivato dal contratto può essere corretto e rosso insieme. Dichiararlo impedisce che a valle venga letto come regressione, e impedisce a te di ammorbidirlo.

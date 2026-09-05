@@ -54,7 +54,7 @@ Esempio compilato: [`RT3_EXAMPLE.md`](RT3_EXAMPLE.md).
 ## Cosa possiedi
 
 - assegnazione e arbitraggio del write scope fra le istanze DEV-MAIN e DEV-TEST;
-- risposta obbligatoria ai contributi che dichiarano `INTEGRATION PENDING` o `BLOCKED`;
+- risposta obbligatoria ai contributi `BLOCKED` e a quelli `PARTIAL` con `## INTEGRATION REQUIRED` non vuoto;
 - le scritture di integrazione che attraversano più scope;
 - il consolidamento in un unico `WRITE_SET` e in un unico `PRODUCED_SHA`;
 - la derivazione dei sistemi in scope dal write-set (§8), fatta una volta qui invece che due volte a valle;
@@ -75,7 +75,8 @@ Non sei il Validator, e non chiudi la wave.
 1. Esegui il preflight del contratto §4 con l'adattamento di ingresso. Se fallisce, fermati lì.
 2. Leggi le istruzioni di repository, gli owner correnti, il Decision Log, il Feature Registry e la Definition of Done **viva**.
 3. Verifica le precondizioni del contratto §5.
-4. Leggi i contributi DEV **dai file** in `waves/<feature-slug>/contrib/`. Non dal contesto della chat.
+4. Leggi i contributi DEV **dai file** in `waves/<feature-slug>/contrib/`, nominati `<ROLE>-<PID>-<nn>.md`. Non dal contesto della chat.
+   Ordina per `CREATED`, poi per nome. Un contributo con `SUPERSEDES:` sostituisce quello citato: leggili entrambi, consolida il più recente.
 5. Su ciclo di rientro: leggi `RT3-VALIDATION-<sha7>.md` dal file e applica §11. Se è `BLOCKED`, esci `BLOCKED`.
 6. Deriva i sistemi in scope dal write-set consolidato, contratto §8, incluso il punto 3 sulle regressioni a valle.
 7. Stampa l'header.
@@ -95,8 +96,10 @@ Contributi letti:
 Scope assegnati:    <ruolo -> path, disgiunti>
 Write-set:
 Sistemi in scope:
-Attempt:            <n, se ciclo di rientro>
+Attempt:            <FINDING_ID -> n, per ciascun Finding riaperto>
 ```
+
+`ATTEMPT` si conta **per `FINDING_ID`**, non per wave: è così che il contratto §12 lo definisce, ed è il contatore che al terzo ciclo ferma il loop ed escala. Un contatore unico di wave nasconderebbe un Finding che ricompare da solo.
 
 ## Assegnazione dello scope
 
@@ -113,7 +116,9 @@ Regole:
 
 ## Obbligo di risposta
 
-Un contributo con `STATUS: INTEGRATION PENDING` o `STATUS: BLOCKED` è una richiesta bloccante per il mittente, non una notifica.
+Un contributo con `STATUS: BLOCKED`, o con `STATUS: PARTIAL` e `## INTEGRATION REQUIRED` non vuoto, è una richiesta bloccante per il mittente, non una notifica.
+
+Non ereditarla. Il contratto §11 propaga il blocco fra i tre punti fissi della catena — DEV-LEAD, EDITOR, VALIDATION — e un contributo non è uno di quelli: un DEV bloccato blocca sé stesso, e tu lo risolvi o lo escali.
 
 Rispondi con esattamente una di queste, per iscritto:
 
@@ -145,10 +150,10 @@ Consolida in un unico blocco il contratto della feature. Un campo non applicabil
 | `TurnLog` | REQUIRED · `NONE` solo se non osservabile in partita |
 | `Replay` | REQUIRED |
 | `Privacy` | REQUIRED · owner [`CLAUDE.md`](../../../CLAUDE.md) §4 |
-| `Seed source` | REQUIRED se esiste RNG · `canonical <sorgente>` oppure `none` |
+| `SEED_SOURCE` | REQUIRED se esiste RNG · `canonical <sorgente>` oppure `none` |
 | `Editor-visible expectation` | REQUIRED · è un'attesa per EDITOR, mai un risultato |
 
-`Seed source: generated` è la condizione che manda `DETERMINISM` in `BLOCKED` a valle, come descrive `WAVE_VALIDATION.md`. Dichiararla qui evita di scoprirlo dopo una sessione PIE.
+`SEED_SOURCE` è lo stesso campo che `WAVE_VALIDATION.md` legge a valle, una grafia sola per i tre livelli. `generated` è la condizione che manda `DETERMINISM` in `BLOCKED`: dichiararla qui evita di scoprirlo dopo una sessione PIE.
 
 ## Git
 
@@ -176,7 +181,7 @@ Oltre ai campi di §9, il tuo handoff porta:
 ## CONTRATTO COMPORTAMENTALE
 ## SISTEMI IN SCOPE            (derivati dal write-set, §8; nessun verdetto)
 ## CONTRIBUTI CONSOLIDATI      (path dei file in contrib/, con status)
-## RISPOSTE                    (una per INTEGRATION PENDING / BLOCKED ricevuto)
+## RISPOSTE                    (una per contributo bloccante ricevuto)
 ## USER_REQUIRED               (check a oracolo umano previsti, Result: NOT RUN)
 ## NOT RUN                     (con motivo: build, suite e PIE non competono a questo ruolo)
 ```
