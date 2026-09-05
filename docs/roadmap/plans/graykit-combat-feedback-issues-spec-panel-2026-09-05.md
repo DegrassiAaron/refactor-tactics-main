@@ -80,6 +80,10 @@ Nulla, per assenza di gap. Un dato **più fresco del kit** vive già nella check
 - Il kit resta un documento **non autorevole** in archivio: descrive una gerarchia da creare che oggi
   esiste. Chi lo legge senza la riga d'indice può rieseguirlo. È esattamente il difetto che questo consumo
   chiude.
-- `#2457` è `P3` mentre gli altri tre leaf sono `P2`. Non è una deviazione dal mandato (che non fissa la
-  priorità dei leaf), ma se la diagnostica è prerequisito di debug per gli altri tre, la priorità più bassa
-  la mette in coda: **decisione dell'autore delle issue**, non di questo referto.
+- ✅ **Chiuso il 2026-09-05, poche ore dopo questo referto**: `#2457` era `P3` mentre gli altri tre leaf
+  erano `P2`, ed è stata **promossa a `P2`** — i quattro leaf sono ora allineati. Il rilievo era che la
+  diagnostica non è un lavoro parallelo agli altri tre ma lo **strumento con cui si diagnosticano**:
+  distingue evento gameplay assente, evento presente con consumer mai chiamato, cue sbagliata e timing/seek
+  di playback sbagliato. A `P3` sarebbe arrivata **dopo** i suoi consumatori. Non era una deviazione dal
+  mandato, che fissa `P2` per la sola Epic e tace sui leaf: era una scelta implicita, ora esplicita e
+  motivata in un commento su `#2457`. Scope, milestone e dipendenze invariati.
