@@ -1,5 +1,7 @@
 # Thin local guard around the repository's existing scripts/rt-suite.ps1.
 # It does NOT replace rt-suite and does not change its measurement-validity semantics.
+# Multiple VALIDATION terminals may exist, but engine-job serialization remains owned by
+# the canonical rt-suite mutex/path.
 
 $ErrorActionPreference = "Stop"
 
@@ -38,6 +40,12 @@ if (-not (Test-Path $suite)) {
     exit 2
 }
 
-Write-Host "VALIDATION WINDOW attiva. Avvio rt-suite con gli argomenti richiesti..." -ForegroundColor Yellow
+$instance = $env:RT_TERMINAL_INSTANCE
+if ([string]::IsNullOrWhiteSpace($instance)) {
+    $instance = "unknown"
+}
+
+Write-Host "VALIDATION WINDOW attiva da VALIDATION:$instance." -ForegroundColor Yellow
+Write-Host "La serializzazione dei job Unreal resta affidata al mutex canonico di rt-suite." -ForegroundColor DarkYellow
 & $suite @args
 exit $LASTEXITCODE

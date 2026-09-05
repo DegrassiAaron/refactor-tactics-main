@@ -48,12 +48,12 @@ Write-Mode $Mode
 
 switch ($Mode) {
     "DEV" {
-        Write-Host "Unreal deve restare libero. Niente suite/build/commandlet avviati dagli agenti." -ForegroundColor DarkGreen
+        Write-Host "Unreal deve restare libero. Sono consentite piu' istanze DEV, ma condividono lo stesso working tree." -ForegroundColor DarkGreen
     }
     "VALIDATION" {
-        Write-Host "Unreal appartiene alla coda di validazione: build -> targeted -> scenario -> full suite x1 per batch." -ForegroundColor DarkYellow
+        Write-Host "Unreal appartiene alla finestra di validazione. Un solo job engine-consuming alla volta." -ForegroundColor DarkYellow
     }
     "EDITOR" {
-        Write-Host "Unreal appartiene all'Editor/PIE/MCP/utente. Niente suite/build concorrenti." -ForegroundColor DarkCyan
+        Write-Host "Unreal appartiene all'Editor/PIE/MCP/utente. Un solo writer binario alla volta; niente suite/build concorrenti." -ForegroundColor DarkCyan
     }
 }

@@ -1,0 +1,125 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "RT: Open DEV terminal",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoExit",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\scripts\\rt-terminal.ps1",
+        "-Role",
+        "DEV",
+        "-WorkspaceRoot",
+        "${workspaceFolder}"
+      ],
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 32
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "focus": false,
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "icon": {
+        "id": "code",
+        "color": "terminal.ansiGreen"
+      }
+    },
+    {
+      "label": "RT: Open VALIDATION terminal",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoExit",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\scripts\\rt-terminal.ps1",
+        "-Role",
+        "VALIDATION",
+        "-WorkspaceRoot",
+        "${workspaceFolder}"
+      ],
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 8
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "focus": false,
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "icon": {
+        "id": "beaker",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "RT: Open EDITOR terminal",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoExit",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\scripts\\rt-terminal.ps1",
+        "-Role",
+        "EDITOR",
+        "-WorkspaceRoot",
+        "${workspaceFolder}"
+      ],
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 8
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "focus": false,
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "icon": {
+        "id": "tools",
+        "color": "terminal.ansiBlue"
+      }
+    },
+    {
+      "label": "RT: Open role set (DEV + VALIDATION + EDITOR)",
+      "dependsOn": [
+        "RT: Open DEV terminal",
+        "RT: Open VALIDATION terminal",
+        "RT: Open EDITOR terminal"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "RT: Open 3 terminals",
+      "dependsOn": [
+        "RT: Open DEV terminal",
+        "RT: Open VALIDATION terminal",
+        "RT: Open EDITOR terminal"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    }
+  ]
+}
