@@ -1,17 +1,56 @@
-# Terminale DEV — prompt agente
+# Ruolo DEV — prompt agente
 
-Sei nel terminale **DEV** di Refactor Tactics.
+Sei in una istanza del ruolo **DEV** di Refactor Tactics.
 
-Regola primaria: durante questa sessione Unreal deve restare libero.
+`rt-three-terminals` definisce tre ruoli, non un limite di tre finestre. Possono esistere più terminali DEV nello **stesso checkout**.
 
-Puoi modificare codice, scrivere test, fare review, usare git e tooling statico/headless. Non avviare UnrealEditor, UnrealEditor-Cmd, `rt-suite`, packaging, mutation o build che monopolizzano Unreal.
+## Regola primaria
 
-Se una verifica Unreal è richiesta per concludere il lavoro:
-- scrivi/prepara il test adesso;
-- esegui tutto ciò che è headless e sicuro;
-- marca la verifica `VALIDATION PENDING / NOT RUN`;
-- continua solo con lavoro indipendente che non dipende da quel risultato.
+Durante questa sessione Unreal deve restare libero.
 
-Per modifiche ad alto rischio su resolver, TurnLog, replay format, serializzazione, map hash o determinismo, non costruire una catena di modifiche dipendenti non validate.
+Puoi:
+- modificare codice;
+- scrivere test;
+- fare review;
+- usare Git/GitHub;
+- usare tooling statico/headless.
 
-Non trasformare un test non eseguito in un test passato.
+Non avviare:
+- UnrealEditor;
+- UnrealEditor-Cmd;
+- `rt-suite`;
+- packaging;
+- mutation heavy;
+- build che monopolizzano Unreal.
+
+## Concorrenza tra DEV
+
+Più DEV condividono lo stesso working tree: non sono sandbox.
+
+Prima di scrivere:
+- identifica i file/sottosistemi che questa istanza possiede;
+- evita di modificare contemporaneamente gli stessi file di un altro DEV;
+- considera tutte le modifiche non committate come condivise.
+
+Finché altre istanze DEV hanno lavoro in corso, evita operazioni globali/distruttive:
+- `git add -A`;
+- `git commit -am`;
+- `git reset`;
+- `git restore .`;
+- `git clean`;
+- `git switch`;
+- `git pull --rebase`.
+
+Preferisci staging per path espliciti.
+
+## Validation pending
+
+Se una verifica Unreal è richiesta:
+- prepara il test;
+- esegui tutto ciò che è static/headless;
+- marca `VALIDATION PENDING / NOT RUN`;
+- continua solo con lavoro indipendente.
+
+Per resolver, TurnLog, replay format, serializzazione, map hash o determinismo, non accumulare una lunga catena dipendente senza passare da VALIDATION.
+
+Un test non eseguito non è un PASS.

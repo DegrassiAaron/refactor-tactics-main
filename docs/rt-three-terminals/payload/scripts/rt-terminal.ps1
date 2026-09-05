@@ -3,14 +3,24 @@ param(
     [ValidateSet("DEV", "VALIDATION", "EDITOR")]
     [string]$Role,
 
-    [string]$WorkspaceRoot = (Get-Location).Path
+    [string]$WorkspaceRoot = (Get-Location).Path,
+
+    # Solo identificativo visuale. Non crea isolamento o un worktree.
+    [string]$InstanceId = ""
 )
 
 $WorkspaceRoot = [System.IO.Path]::GetFullPath($WorkspaceRoot)
 
+if ([string]::IsNullOrWhiteSpace($InstanceId)) {
+    $InstanceId = "$PID"
+}
+
 $global:RTTerminalRole = $Role
+$global:RTTerminalInstance = $InstanceId
 $global:RTWorkspaceRoot = $WorkspaceRoot
+
 $env:RT_TERMINAL_ROLE = $Role
+$env:RT_TERMINAL_INSTANCE = $InstanceId
 $env:RT_WORKSPACE_ROOT = $WorkspaceRoot
 
 Set-Location $WorkspaceRoot
@@ -41,26 +51,36 @@ function global:rtmode {
 
 function global:rtstatus {
     $mode = Get-RTEngineMode
-    Write-Host "Terminal role : " -NoNewline
+
     $roleColor = switch ($global:RTTerminalRole) {
         "DEV"        { "Green" }
         "VALIDATION" { "Yellow" }
         "EDITOR"     { "Blue" }
     }
-    Write-Host $global:RTTerminalRole -ForegroundColor $roleColor
 
-    Write-Host "Engine mode   : " -NoNewline
     $modeColor = switch ($mode) {
         "DEV"        { "Green" }
         "VALIDATION" { "Yellow" }
         "EDITOR"     { "Blue" }
+        default      { "Gray" }
     }
+
+    Write-Host "Terminal role : " -NoNewline
+    Write-Host $global:RTTerminalRole -ForegroundColor $roleColor
+
+    Write-Host "Terminal id   : " -NoNewline
+    Write-Host "$($global:RTTerminalRole):$($global:RTTerminalInstance)" -ForegroundColor $roleColor
+
+    Write-Host "Engine mode   : " -NoNewline
     Write-Host $mode -ForegroundColor $modeColor
+
+    Write-Host "Workspace     : " -NoNewline
+    Write-Host $global:RTWorkspaceRoot -ForegroundColor DarkGray
 }
 
 function global:rtsuite {
     if ($global:RTTerminalRole -ne "VALIDATION") {
-        Write-Host "BLOCKED: rtsuite si esegue solo dal terminale VALIDATION." -ForegroundColor Red
+        Write-Host "BLOCKED: rtsuite si esegue solo da un terminale con ruolo VALIDATION." -ForegroundColor Red
         return
     }
 
@@ -85,7 +105,7 @@ function global:prompt {
     }
 
     Write-Host "[" -NoNewline -ForegroundColor DarkGray
-    Write-Host $global:RTTerminalRole -NoNewline -ForegroundColor $roleColor
+    Write-Host "$($global:RTTerminalRole):$($global:RTTerminalInstance)" -NoNewline -ForegroundColor $roleColor
     Write-Host "] " -NoNewline -ForegroundColor DarkGray
 
     Write-Host "[ENGINE:" -NoNewline -ForegroundColor DarkGray
@@ -99,25 +119,28 @@ function global:prompt {
 }
 
 Clear-Host
-Write-Host "Refactor Tactics terminal" -ForegroundColor White
-Write-Host "ROLE: " -NoNewline
+Write-Host "Refactor Tactics terminal role" -ForegroundColor White
+Write-Host "ROLE INSTANCE: " -NoNewline
 
 switch ($Role) {
     "DEV" {
-        Write-Host "DEV" -ForegroundColor Green
-        Write-Host "Consentito: codice, test authoring, review, git, tooling statico/headless." -ForegroundColor Green
-        Write-Host "Non avviare UnrealEditor, UnrealEditor-Cmd, rt-suite, packaging o build che richiedono Unreal libero." -ForegroundColor DarkGreen
+        Write-Host "DEV:$InstanceId" -ForegroundColor Green
+        Write-Host "Sono consentite piu' istanze DEV nello stesso checkout." -ForegroundColor Green
+        Write-Host "Coordina ownership dei file. Evita git add -A/reset/restore/clean/switch/rebase mentre altri DEV hanno modifiche." -ForegroundColor DarkGreen
+        Write-Host "Non avviare UnrealEditor, UnrealEditor-Cmd, rt-suite, packaging o build che monopolizzano Unreal." -ForegroundColor DarkGreen
     }
     "VALIDATION" {
-        Write-Host "VALIDATION" -ForegroundColor Yellow
+        Write-Host "VALIDATION:$InstanceId" -ForegroundColor Yellow
+        Write-Host "Possono esistere piu' terminali VALIDATION, ma un solo job Unreal deve essere attivo alla volta." -ForegroundColor Yellow
         Write-Host "Usa rtmode VALIDATION prima delle validazioni Unreal." -ForegroundColor Yellow
         Write-Host "Ordine: static -> build -> targeted -> scenario -> full suite x1 per batch." -ForegroundColor DarkYellow
         Write-Host "Comando protetto: rtsuite <argomenti di rt-suite.ps1>" -ForegroundColor DarkYellow
     }
     "EDITOR" {
-        Write-Host "EDITOR" -ForegroundColor Blue
-        Write-Host "Usa rtmode EDITOR quando Editor/PIE/MCP appartengono all'utente o alla sessione editor." -ForegroundColor Blue
-        Write-Host "Non avviare suite/build/commandlet concorrenti. Save -> Stop PIE -> Close Editor -> VALIDATION." -ForegroundColor DarkCyan
+        Write-Host "EDITOR:$InstanceId" -ForegroundColor Blue
+        Write-Host "Normalmente una sola sessione Editor attiva e un solo writer .uasset/.umap per checkout." -ForegroundColor Blue
+        Write-Host "Usa rtmode EDITOR quando Editor/PIE/MCP appartengono alla sessione editor." -ForegroundColor Blue
+        Write-Host "Non avviare suite/build/commandlet concorrenti. Save -> Stop PIE -> Close Editor -> VALIDATION se serve." -ForegroundColor DarkCyan
     }
 }
 
