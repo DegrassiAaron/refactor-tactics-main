@@ -318,8 +318,16 @@ bool FRTPresentationHazardDamageIsDeclaredSilentTest::RunTest(const FString&)
 		return true;
 	}
 
-	TestTrue(TEXT("HazardDamage e' NoPresentation, non una voce dimenticata"),
-		Hazard->Kind == ERTPresentationKind::NoPresentation);
+	// 🔁 **Dal 2026-09-05 e' `PendingPresentation`, per decisione d'autore.** `#2460` l'aveva lasciata
+	// `NoPresentation` dichiarando la scelta deliberata, ma il suo stesso motivo diceva *«la cue e' lavoro
+	// di #2455»*: sotto la tassonomia di `#2483` le due clausole si contraddicono, e la contraddizione e'
+	// stata portata all'autore invece che risolta a intuito.
+	//
+	// ⛔ **Il nome del test resta vero**: `PendingPresentation` dichiara comunque che l'evento NON si
+	// mostra. Cio' che aggiunge e' chi lo mostrera'.
+	TestTrue(TEXT("HazardDamage non si mostra, ed e' un'attesa dichiarata"),
+		Hazard->Kind == ERTPresentationKind::PendingPresentation);
+	TestEqual(TEXT("e la cue la deve #2455"), Hazard->PendingOwner, FString(TEXT("#2455")));
 
 	// 🔴 **La clausola, e da `#2460` sorveglia il fatto OPPOSTO.** Fino a quel giorno chiedeva che la voce
 	// dichiarasse di non avere un produttore; il produttore e' arrivato, e la voce e' stata riscritta.
@@ -334,8 +342,10 @@ bool FRTPresentationHazardDamageIsDeclaredSilentTest::RunTest(const FString&)
 	// farlo, o il giorno in cui `#2455` scrivera' la cue nessuno sapra' che questa riga andava rivista.
 	TestTrue(TEXT("il motivo dichiara che il produttore esiste, non che manca"),
 		Hazard->Rationale.Contains(TEXT("produttore ESISTE")));
-	TestTrue(TEXT("il motivo indirizza alla issue che possiede la cue"),
-		Hazard->Rationale.Contains(TEXT("#2455")));
+	// ⚠️ **Questa riga chiedeva che il MOTIVO nominasse `#2455`, e ora sarebbe un doppione peggiore
+	// dell'originale**: l'owner e' un campo, e cercarlo in una stringa libera tornerebbe a misurare la
+	// prosa. L'assertion sull'owner e' salita sopra, sul campo; qui resta cio' che solo il motivo puo'
+	// dire — perche' oggi non si disegna.
 
 	// ⚠️ **E che la morte da hazard non ha un beat proprio.** Misurato in `#2460`: `Defeated` lo emette solo
 	// `ResolveCombatPasses`, sul Blast. La voce lo dichiara perche' chi costruira' la cue non dia per
@@ -441,8 +451,13 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 
 	// Misurato il 2026-09-05: `HazardDamage` e' l'unica assenza DECISA; `AttackFootprint`,
 	// `ReactionResolved` e `StatusChanged` sono in attesa, e ognuna nomina chi la sciogliera'.
-	TestEqual(TEXT("una sola assenza e' DECISA"), Decise, 1);
-	TestEqual(TEXT("tre assenze sono IN ATTESA"), InAttesa, 3);
+	// 🔴 **Zero, e il numero dice qualcosa di vero sulla v0.1.** Dal 2026-09-05 `NoPresentation` non ha
+	// nessuna voce reale: dei sette tipi, tre hanno cue e **quattro sono in attesa**. In questa release
+	// nulla e' invisibile *per scelta definitiva* — e' solo non ancora disegnato. ⛔ Il valore resta nel
+	// contratto, ed e' esercitato dai test di questo file: serve al primo evento che si decidera' di non
+	// mostrare mai. Se questa riga tornasse a 1, qualcuno avra' preso quella decisione: la si cerchi.
+	TestEqual(TEXT("nessuna assenza e' DECISA in v0.1"), Decise, 0);
+	TestEqual(TEXT("quattro assenze sono IN ATTESA"), InAttesa, 4);
 	TestEqual(TEXT("nessuna voce in attesa e' senza owner"), InAttesaSenzaOwner, 0);
 
 	// Gli owner per nome: senza questa riga il conteggio starebbe in piedi anche con owner scambiati fra
@@ -459,6 +474,8 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 		OwnerDi(ERTResolvedEventType::ReactionResolved), FString(TEXT("#2454")));
 	TestEqual(TEXT("StatusChanged attende #2456"),
 		OwnerDi(ERTResolvedEventType::StatusChanged), FString(TEXT("#2456")));
+	TestEqual(TEXT("HazardDamage attende #2455"),
+		OwnerDi(ERTResolvedEventType::HazardDamage), FString(TEXT("#2455")));
 
 	return true;
 }
