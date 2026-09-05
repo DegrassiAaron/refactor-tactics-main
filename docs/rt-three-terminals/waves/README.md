@@ -32,11 +32,18 @@ waves/<feature-slug>/
 Contiene i **contributi** delle istanze DEV della wave che non sono DEV-LEAD:
 
 ```text
-contrib/DEV-MAIN-<sha7>.md
-contrib/DEV-TEST-<sha7>.md
+contrib/DEV-MAIN-<PID>-<nn>.md
+contrib/DEV-TEST-<PID>-<nn>.md
 ```
 
-Un contributo non è un handoff. I tre punti fissi della catena restano DEV-LEAD, EDITOR e VALIDATION: DEV-LEAD legge i contributi e li consolida in un unico `RT3-DEVLEAD-<sha7>.md` con un solo `WRITE_SET` e un solo `PRODUCED_SHA`.
+L'identità di un contributo **non** deriva dallo SHA, a differenza di quella di un handoff. Nel caso nominale un'istanza DEV non committa: `PRODUCED_SHA` resta uguale a `BASE_SHA` per tutte, e due istanze dello stesso ruolo scriverebbero lo stesso nome, con la seconda che sovrascrive la prima.
+
+- `<PID>` è il PID dell'istanza, lo stesso mostrato dal prompt `[DEV:PID]`;
+- `<nn>` è un contatore a due cifre **per istanza**, monotono crescente.
+
+I contributi sono append-only. Non modificare né cancellare quello di un'altra istanza: una correzione è un contributo nuovo con `SUPERSEDES:`.
+
+Un contributo non è un handoff. I tre punti fissi della catena restano DEV-LEAD, EDITOR e VALIDATION: DEV-LEAD legge i contributi, li ordina per `CREATED` e li consolida in un unico `RT3-DEVLEAD-<sha7>.md` con un solo `WRITE_SET` e un solo `PRODUCED_SHA`.
 
 Un contributo non porta verdetti di §7 del contratto: le istanze DEV non possiedono lo strumento che prova quei sistemi.
 

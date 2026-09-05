@@ -240,10 +240,13 @@ docs/rt-three-terminals/waves/<feature-slug>/
   RT3-DEVLEAD-<sha7>.md
   RT3-EDITOR-<sha7>.md
   RT3-VALIDATION-<sha7>.md
+  contrib/
   evidence/
 ```
 
 `<sha7>` è il `PRODUCED_SHA` del ruolo che emette.
+
+I tre file `RT3-*` sono gli handoff dei tre punti fissi della catena. `contrib/` raccoglie i **contributi** delle istanze DEV che non sono DEV-LEAD: non sono handoff, non portano verdetti di §7, e la loro identità non deriva dallo SHA — vedi [`../waves/README.md`](../waves/README.md).
 
 Il ruolo che riceve legge il file. Non ricostruisce l'handoff dal contesto della chat.
 
