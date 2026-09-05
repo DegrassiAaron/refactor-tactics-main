@@ -1,28 +1,34 @@
-// Due invarianti del Decision Boundary che oggi sono veri PER COSTRUZIONE, e che nessun gate osservava (`#2461`).
+// Due proprieta' del Decision Boundary che oggi sono vere PER COSTRUZIONE, e che nessun gate osservava (`#2461`).
 //
-// 🔑 **Perche' esistono, ed e' diverso dal solito.** Gli altri invarianti di `ADR-0004` hanno test che
-// descrivono un comportamento. Questi due no: descrivono cio' che il codice **non puo' fare**, e lo descrivono
-// perche' oggi non puo' farlo per come e' costruito — non perche' qualcuno lo impedisca esplicitamente.
+// 🔑 **Perche' esistono, ed e' diverso dal solito.** Gli altri gate delle reazioni descrivono un comportamento.
+// Questi due no: descrivono cio' che il codice **non puo' fare**, e lo descrivono perche' oggi non puo' farlo
+// per come e' costruito — non perche' qualcuno lo impedisca esplicitamente.
 //
-//   · invariante 8 — nessun boundary annidato: i `Triggers` si costruiscono UNA volta **prima** del ciclo
+//   · **nessun boundary annidato** — i `Triggers` si costruiscono UNA volta **prima** del ciclo
 //     per-opportunity, il ciclo e' sequenziale e sincrono, e `ApplyReactionDecision` non rientra;
-//   · invariante 3 — nessuna riscrittura retroattiva: `TurnLog.Add(Entry)` e' l'UNICO punto di inserimento
-//     del suo file, e nessun percorso muta una voce gia' inserita.
+//   · **nessuna riscrittura retroattiva** — `TurnLog.Add(Entry)` e' l'UNICO punto di inserimento del suo
+//     file, e nessun percorso muta una voce gia' inserita.
 //
-// ⚠️ **Una costruzione non e' una garanzia finche' nessuno la sorveglia.** Entrambe le proprieta' sparirebbero
-// in silenzio se un domani i trigger si ricalcolassero dopo l'apply, o se comparisse un secondo sito di
-// inserimento nel log. Questi due test sono la sveglia: non aggiungono comportamento, rendono **falsificabile**
-// cio' che oggi e' vero senza che nulla lo dica.
+// ⚠️ **Una costruzione non e' una garanzia finche' nessuno la sorveglia.** Entrambe sparirebbero in silenzio
+// se un domani i trigger si ricalcolassero dopo l'apply, o se comparisse un secondo sito di inserimento nel
+// log. Questi test non aggiungono comportamento: rendono **falsificabile** cio' che oggi e' vero senza che
+// nulla lo dica.
 //
-// 🔴 **Il primo test e' DIFFERENZIALE, e la forma non e' un vezzo.** Provare «un boundary non ne annida un
-// altro» chiedendo al codice di annidarne uno e' impossibile: il flusso non lo consente, e un test che non puo'
-// fallire non e' un gate. Si prova invece l'osservabile equivalente — *cio' che un responder ha gia'
-// committato non cambia quando un altro responder agisce nello stesso boundary* — confrontando lo
-// stesso scenario eseguito con un watcher solo e con entrambi.
+// 🔴 **Provenienza delle due proprieta', e non e' un ADR numerato.** Una prima stesura le citava come
+// «invariante 3» e «invariante 8 di ADR-0004»: **falso**, ed e' stato corretto in code review. ADR-0004 §2 e'
+// «Modello unificato: opportunity -> commit» e §8 e' «Parametri iniziali»; la numerazione veniva da
+// `RefactorTactics_Claude_Reaction_Hardening_Roadmap_P0_2026-09-04.md`, che e' un handoff e **non e'
+// autorita' corrente** (`CLAUDE.md §1`).
+//
+//   · l'annidamento lo scarta ADR-0004 davvero, ma a parole e non a numero: «limitatamente alla finestra
+//     singola **non annidata**; lo stack LIFO resta scartato», e «interrupt annidati» fra gli scartati;
+//   · la retroattivita' non ha oggi un owner documentale: la sua sede viva e' il tracker `#2462`.
+//
+// L'elenco canonico degli invarianti architetturali vive in `docs/product/piano-canonico-mvp.md §5`.
 //
 // ⚠️ Cio' che questi test NON coprono, e va detto: non dimostrano che il boundary sia atomico rispetto al
-// resto della resolution, ne' che la revalidation sia mirata. Coprono due proprieta' del ciclo per-opportunity,
-// non il boundary come concetto.
+// resto della resolution, ne' che la revalidation sia mirata. Coprono due proprieta' del ciclo
+// per-opportunity, non il boundary come concetto.
 //
 // ➕ Adiacente e **non** duplicato: `RefactorTactics.Overwatch.SecondFireOnDownedTargetLogsNoDamage` (`#1158`)
 // sorveglia una **voce nuova falsa** — un `FIRE` che dichiara un danno mai inflitto. Qui si sorveglia una
@@ -32,12 +38,14 @@
 
 #include "EngineUtils.h"
 #include "Map/RTCellId.h"
+#include "Misc/ScopeExit.h"                  // ON_SCOPE_EXIT: il mondo si distrugge anche sui `return false`
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestResult.h"
 #include "ScenarioHarness/RTTestScenario.h"
 #include "Tests/RTWorldFixtures.h"
-#include "Turn/RTReactionOpportunityTypes.h"
+#include "Turn/RTReactionOpportunityTypes.h" // FireResponseTarget: distingue un `FIRE` vero da un `HOLD`
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTTurnLogLibrary.h"           // GoldenEntriesMatch: l'elenco dei campi discriminanti sta li'
 #include "Turn/RTTurnManager.h"
 
 namespace RTBoundaryInvariants
@@ -51,23 +59,17 @@ namespace RTBoundaryInvariants
 	 * due bersagli nello stesso passo, che ne darebbero una sola
 	 * (`Overwatch.SimultaneousTargetsSingleOpportunity`).
 	 *
-	 * 🔑 **Chi ARMA e' l'unica variabile fra le esecuzioni**, ed e' cio' che rende il confronto del
-	 * primo test una misura invece di una coincidenza: unita', indici, posizioni, percorso e seed restano
-	 * identici, quindi `FRTReactionOpportunityKey` di ciascun watcher — e con essa il suo `OpportunityId` —
-	 * si ricalcola uguale. Cambiare anche solo l'ordine di `Scenario.Units` invaliderebbe il confronto senza
-	 * che nulla lo segnali.
+	 * 🔑 **Chi ARMA e' l'unica variabile fra le esecuzioni**, ed e' cio' che rende il confronto una misura
+	 * invece di una coincidenza: unita', indici, posizioni, percorso e seed restano identici, quindi
+	 * `FRTReactionOpportunityKey` di ciascun watcher — e con essa il suo `OpportunityId` — si ricalcola uguale.
 	 *
-	 * ⚠️ Entrambi i watcher restano nell'elenco anche quando non armano: `OwnerId` e' un INDICE di
-	 * unita', e toglierne uno sposterebbe gli indici degli altri.
-	 *
-	 * ⚠️ **`M1` usa la salute di roster e non un valore basso**, al contrario di `#1158` che ne aveva bisogno
-	 * per abbattere il bersaglio al primo colpo. Qui serve l'opposto: il mover deve **sopravvivere a entrambi**
-	 * i colpi, altrimenti il secondo `FIRE` troverebbe un bersaglio a terra e la guardia di `#1158` gli
-	 * azzererebbe il danno — e la differenza fra le due esecuzioni sarebbe legittima invece che un difetto,
-	 * cioe' il test fallirebbe dicendo il falso.
+	 * ⚠️ Entrambi i watcher restano nell'elenco anche quando non armano: `OwnerId` e' un INDICE di unita', e
+	 * toglierne uno sposterebbe gli indici degli altri.
 	 */
 	static FRTTestScenario MakeScenario(bool bArmW1, bool bArmW2)
 	{
+		const FRTCellId MoverDestination(-1, -1, 0);
+
 		FRTTestScenario Scenario;
 		Scenario.ScenarioId = FString::Printf(TEXT("Unit.Reactions.BoundaryInvariants.%s%s"),
 			bArmW1 ? TEXT("W1") : TEXT(""), bArmW2 ? TEXT("W2") : TEXT(""));
@@ -85,8 +87,6 @@ namespace RTBoundaryInvariants
 		W1.Facing = ERTHexDirection::W;
 		Scenario.Units.Add(W1);
 
-		// W2 entra nell'elenco in ENTRAMBE le esecuzioni anche quando non arma: gli indici di unita' devono
-		// restare gli stessi, perche' `OwnerId` di `FRTReactionOpportunityKey` e' un indice.
 		FRTScenarioUnit W2;
 		W2.Id = TEXT("W2");
 		W2.HeroId = TEXT("Hero.Wraith");
@@ -95,6 +95,10 @@ namespace RTBoundaryInvariants
 		W2.Facing = ERTHexDirection::E;
 		Scenario.Units.Add(W2);
 
+		// ⚠️ **Salute di roster e non un valore basso**, al contrario di `#1158` che ne aveva bisogno per
+		// abbattere il bersaglio al primo colpo. Qui serve l'opposto: il mover deve **sopravvivere a
+		// entrambi** i colpi, altrimenti la guardia di `#1158` azzererebbe il danno del secondo. La
+		// sopravvivenza non e' assunta: e' un `Expect` qui sotto.
 		FRTScenarioUnit M1;
 		M1.Id = TEXT("M1");
 		M1.HeroId = TEXT("Hero.Gadget");
@@ -127,7 +131,7 @@ namespace RTBoundaryInvariants
 		// conteggio del secondo test smetterebbe di misurare l'annidamento.
 		FRTScenarioIntent MoveM1;
 		MoveM1.UnitId = TEXT("M1");
-		MoveM1.Move.Add(FRTCellId(-1, -1, 0));
+		MoveM1.Move.Add(MoverDestination);
 		Turn.Intents.Add(MoveM1);
 
 		if (bArmW1)
@@ -153,8 +157,10 @@ namespace RTBoundaryInvariants
 
 		Scenario.Turns.Add(Turn);
 
-		// L'harness RIFIUTA uno scenario senza `expect`. Le due qui dicono qualcosa di vero e non banale: chi
-		// arma un Overwatch spende l'azione principale e non si muove.
+		// L'harness RIFIUTA uno scenario senza `expect`, ed e' la stessa disciplina che vieta i test vacui.
+		// Queste quattro pinnano le PREMESSE del caso, non il suo esito: chi arma un Overwatch non si muove,
+		// il mover arriva davvero dove deve, e sopravvive. Se una cade, il test lo dice con la sua causa vera
+		// invece di travestirla da violazione dell'invariante.
 		FRTTestExpectation W1Stays;
 		W1Stays.Kind = ERTAssertionKind::UnitAtCell;
 		W1Stays.UnitId = TEXT("W1");
@@ -167,23 +173,67 @@ namespace RTBoundaryInvariants
 		W2Stays.Cell = FRTCellId(-3, -1, 0);
 		Scenario.Expect.Add(W2Stays);
 
+		FRTTestExpectation MoverArrives;
+		MoverArrives.Kind = ERTAssertionKind::UnitAtCell;
+		MoverArrives.UnitId = TEXT("M1");
+		MoverArrives.Cell = MoverDestination;
+		Scenario.Expect.Add(MoverArrives);
+
+		// ⚠️ Se due Overwatch bastassero ad abbattere il mover, la guardia di `#1158` azzererebbe il danno del
+		// secondo e la differenza fra le esecuzioni sarebbe LEGITTIMA. Senza questa riga quel giorno
+		// arriverebbe travestito da «riscrittura retroattiva», che e' la diagnosi sbagliata.
+		FRTTestExpectation MoverSurvives;
+		MoverSurvives.Kind = ERTAssertionKind::UnitAlive;
+		MoverSurvives.UnitId = TEXT("M1");
+		// ⚠️ **`Value` NON e' opzionale qui**: `UnitAlive` lo legge come `bWantAlive = (Value != 0)`, quindi
+		// lasciarlo al default `0` chiederebbe che il mover sia **abbattuto** — l'opposto della premessa.
+		// Scoperto perche' l'aspettativa e' caduta alla prima esecuzione, che e' il motivo per cui c'e'.
+		MoverSurvives.Value = 1;
+		Scenario.Expect.Add(MoverSurvives);
+
 		return Scenario;
 	}
 
-	/** Le voci `ReactionDecision` del TurnLog, nell'ordine in cui sono state committate. */
-	static TArray<FRTTurnLogEntry> ReactionEntriesOf(UWorld* World)
+	/**
+	 * Le aspettative CADUTE, con atteso e trovato.
+	 *
+	 * ⚠️ Senza questo, un `Outcome` di `Fail` arriva come un numero: la prima esecuzione di questo file
+	 * riportava «esito 1» e nient'altro, e quale delle quattro `Expect` fosse caduta si e' dovuto cercarlo
+	 * nel sorgente dell'harness. Un messaggio che non nomina la sua causa costa un giro a chiunque lo legga.
+	 */
+	static FString DescribeFailedExpectations(const FRTTestResult& Result)
 	{
-		TArray<FRTTurnLogEntry> Out;
+		TArray<FString> Failed;
+		for (const FRTAssertionResult& A : Result.Assertions)
+		{
+			if (!A.bPassed)
+			{
+				Failed.Add(FString::Printf(TEXT("%s atteso '%s' trovato '%s'"),
+					*A.Description, *A.Expected, *A.Actual));
+			}
+		}
+		return Failed.Num() > 0 ? FString::Join(Failed, TEXT(" · ")) : TEXT("nessuna");
+	}
+
+	/** Le voci `ReactionDecision` del TurnLog di questo mondo, nell'ordine in cui sono state committate. */
+	static bool CollectReactionEntries(FAutomationTestBase& Test, UWorld* World, const TCHAR* Label,
+		TArray<FRTTurnLogEntry>& Out)
+	{
 		ARTTurnManager* Manager = nullptr;
 		for (TActorIterator<ARTTurnManager> It(World); It; ++It)
 		{
 			Manager = *It;
 			break;
 		}
-		if (!Manager)
+		// Senza questo guard un mondo senza TurnManager darebbe zero voci, e i test fallirebbero piu' avanti
+		// dicendo «una sola voce ReactionDecision» — cioe' una regressione del sistema di reazione al posto
+		// di una fixture rotta.
+		if (!Test.TestNotNull(FString::Printf(TEXT("%s: il TurnManager e' nel mondo"), Label), Manager))
 		{
-			return Out;
+			return false;
 		}
+
+		Out.Reset();
 		for (const FRTTurnLogEntry& Entry : Manager->GetTurnLog())
 		{
 			if (Entry.Category == ERTLogCategory::ReactionDecision)
@@ -191,21 +241,21 @@ namespace RTBoundaryInvariants
 				Out.Add(Entry);
 			}
 		}
-		return Out;
+		return true;
 	}
 }
 
 /**
- * Invariante 3 di `ADR-0004` — *«una reaction non modifica retroattivamente un evento gia' committed»*.
+ * *«Una reaction non modifica retroattivamente un evento gia' committed.»*
  *
- * 🔴 **Si confrontano TUTTE le voci del boundary, non una scelta a priori.** Solo le voci non-ultime sono
- * esposte a una riscrittura retroattiva: dopo l'ultima non viene committato piu' nulla che possa toccarla.
- * Quale watcher finisca in quale posizione lo decidono i cinque tie-break di `ADR-0004 §4`, e un test che
- * ne fissasse uno diventerebbe vacuo il giorno in cui l'ordine cambia — senza che nulla lo segnali.
+ * 🔴 **Si confrontano le voci NON-ULTIME, non tutte.** Solo quelle hanno qualcosa dopo di se' che potrebbe
+ * riscriverle. L'ultima osserva legittimamente un mondo che le precedenti hanno gia' cambiato: il giorno in
+ * cui il danno diventasse dipendente dallo stato — uno scudo da consumare, un bonus all'esecuzione — una
+ * differenza lecita verrebbe segnalata come violazione, mandando chi indaga a cercare una riscrittura che
+ * non c'e'.
  *
- * ⚠️ **La prima stesura confrontava la sola voce di W1**, ed e' stata sostituita dopo che la prova
- * anti-vacuity l'ha trovata insufficiente. Confrontarle tutte toglie la dipendenza dall'ordine invece di
- * assumerlo: e' cio' che rende questo gate indipendente da una decisione che non gli appartiene.
+ * ⚠️ Quale watcher finisca in quale posizione lo decidono i cinque tie-break di ADR-0004 §4. Il test non ne
+ * fissa nessuno: confronta per `OpportunityId`, quindi resta valido se l'ordine cambia.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionCommittedEntryNotRewrittenTest,
 	"RefactorTactics.Reactions.CommittedEntriesAreNotRewrittenByALaterResponse",
@@ -214,7 +264,11 @@ bool FRTReactionCommittedEntryNotRewrittenTest::RunTest(const FString&)
 {
 	using namespace RTBoundaryInvariants;
 
-	// Una esecuzione dello scenario, con il guard che impedisce di leggere `BLOCKED` come un successo.
+	// Una esecuzione completa: mondo, run, raccolta delle voci, DISTRUZIONE del mondo.
+	//
+	// ⚠️ `DestroyWorld` va chiamata su OGNI uscita, e la fixture lo scrive: «un mondo lasciato in piedi tiene
+	// vivi gli actor della prova precedente, e due esecuzioni identiche lo sarebbero per il motivo sbagliato».
+	// Per un differenziale a tre esecuzioni e' esattamente il confondente che non ci si puo' permettere.
 	auto RunAndCollect = [this](bool bArmW1, bool bArmW2, const TCHAR* Label, TArray<FRTTurnLogEntry>& Out) -> bool
 	{
 		UWorld* World = RTWorldFixtures::MakeWorld();
@@ -222,18 +276,46 @@ bool FRTReactionCommittedEntryNotRewrittenTest::RunTest(const FString&)
 		{
 			return false;
 		}
+		ON_SCOPE_EXIT { RTWorldFixtures::DestroyWorld(World); };
+
 		const FRTTestResult Result = URTScenarioRunner::Run(World, MakeScenario(bArmW1, bArmW2));
 
 		// ⚠️ `BLOCKED` non e' un successo: uno scenario che dichiara una capability indisponibile esce senza
 		// eseguire nulla, e ogni conteggio darebbe zero — cioe' «invariante rispettato» sarebbe
 		// indistinguibile da «niente e' successo».
-		if (!TestEqual(FString::Printf(TEXT("%s: PASS (esito %d · error '%s' · blocked '%s')"), Label,
-				static_cast<int32>(Result.Outcome), *Result.ErrorMessage, *Result.BlockedReason),
+		if (!TestEqual(FString::Printf(
+				TEXT("%s: PASS (esito %d · error '%s' · blocked '%s' · cadute: %s)"), Label,
+				static_cast<int32>(Result.Outcome), *Result.ErrorMessage, *Result.BlockedReason,
+				*DescribeFailedExpectations(Result)),
 			static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass)))
 		{
 			return false;
 		}
-		Out = ReactionEntriesOf(World);
+
+		if (!CollectReactionEntries(*this, World, Label, Out))
+		{
+			return false;
+		}
+
+		// 🔴 **Le decisioni devono essere `FIRE` VERI, e va verificato invece che assunto.** Se la traduzione
+		// del bersaglio degradasse, la response diventerebbe un `HOLD` con `Amount` a zero: le voci ci
+		// sarebbero comunque, gli `Expect` reggerebbero, e ogni confronto sotto tornerebbe per BANALITA' —
+		// due `HOLD` identici. Il gate resterebbe verde misurando nulla, che e' la vacuita' che questo file
+		// esiste per evitare. `#1158` fa la stessa verifica per la stessa ragione.
+		for (int32 I = 0; I < Out.Num(); ++I)
+		{
+			if (!TestTrue(FString::Printf(TEXT("%s: la voce #%d e' un FIRE con un bersaglio, non un HOLD"),
+					Label, I),
+				URTReactionOpportunityLibrary::FireResponseTarget(Out[I].ReactionResponse) != INDEX_NONE))
+			{
+				return false;
+			}
+			if (!TestTrue(FString::Printf(TEXT("%s: la voce #%d dichiara danno (Amount %d)"),
+					Label, I, Out[I].Amount), Out[I].Amount > 0))
+			{
+				return false;
+			}
+		}
 		return true;
 	};
 
@@ -250,6 +332,12 @@ bool FRTReactionCommittedEntryNotRewrittenTest::RunTest(const FString&)
 	Baseline.Add(SoloW1[0].OpportunityId, SoloW1[0]);
 	Baseline.Add(SoloW2[0].OpportunityId, SoloW2[0]);
 
+	// ⚠️ Senza questa riga una collisione di `OpportunityId` farebbe collassare la mappa a un elemento, ed
+	// entrambe le voci verrebbero confrontate con la baseline dello STESSO watcher — un falso verde o un
+	// falso rosso, entrambi attribuiti all'invariante sbagliato. E' lo stesso difetto di identita' che il
+	// secondo test considera portante.
+	if (!TestEqual(TEXT("i due watcher hanno OpportunityId distinti"), Baseline.Num(), 2)) { return false; }
+
 	// --- L'esecuzione a due responder nello stesso boundary ---------------------------------------------
 	TArray<FRTTurnLogEntry> Both;
 	if (!RunAndCollect(true, true, TEXT("W1+W2"), Both)) { return false; }
@@ -261,47 +349,51 @@ bool FRTReactionCommittedEntryNotRewrittenTest::RunTest(const FString&)
 		return false;
 	}
 
-	// 🔴 IL PUNTO: **ogni** voce, non solo l'ultima. La prima committata e' quella che una response
-	// successiva potrebbe riscrivere, e includerla e' cio' che distingue questo test dalla sua prima
-	// stesura vacua.
+	// 🔴 IL PUNTO. Il confronto passa da `GoldenEntriesMatch` invece di elencare i campi a mano: l'elenco dei
+	// campi discriminanti vive in `MixEntryFields` e comprende anche `TgtCell`, `Phase` e `GraphRevision`,
+	// che una lista scritta qui dimenticherebbe. Ed esclude `ReactionInstanceId`, che e' l'`ArmedIndex` e
+	// diverge LEGITTIMAMENTE fra solitaria e boundary a due — cioe' esattamente il campo che un confronto
+	// ingenuo avrebbe segnalato a torto.
 	for (int32 I = 0; I < Both.Num(); ++I)
 	{
 		const FRTTurnLogEntry& Committed = Both[I];
 		const FRTTurnLogEntry* Solo = Baseline.Find(Committed.OpportunityId);
 
-		// Che l'`OpportunityId` si ritrovi identico e' gia' meta' della misura: e' l'identita' della finestra,
-		// funzione dello stato, e la presenza di un secondo responder non deve spostarla.
+		// L'identita' della finestra e' funzione dello stato: la presenza di un secondo responder non deve
+		// spostarla. Vale per OGNI voce, anche l'ultima.
 		if (!TestNotNull(*FString::Printf(TEXT("voce #%d: la finestra %s ha una baseline in solitaria"),
 				I, *Committed.OpportunityId), Solo))
 		{
 			continue;
 		}
 
-		const FString Where = FString::Printf(TEXT("voce #%d (%s)"), I, *Committed.OpportunityId);
-		TestEqual(*(Where + TEXT(": l'esito committato non cambia")),
-			static_cast<int32>(Committed.Outcome), static_cast<int32>(Solo->Outcome));
-		TestEqual(*(Where + TEXT(": la risposta committata non cambia")),
-			Committed.ReactionResponse, Solo->ReactionResponse);
-		TestEqual(*(Where + TEXT(": il bersaglio committato non cambia")),
-			Committed.SelectedTargetUnitId, Solo->SelectedTargetUnitId);
-		TestEqual(*(Where + TEXT(": l'azione committata non cambia")),
-			Committed.ActionId, Solo->ActionId);
-		TestTrue(*(Where + TEXT(": la cella sorgente committata non cambia")),
-			Committed.SrcCell == Solo->SrcCell);
+		// L'ULTIMA voce non ha nulla dopo di se' che possa riscriverla, e osserva un mondo che le precedenti
+		// hanno gia' cambiato: pretendere che sia identica alla sua solitaria vieterebbe un effetto
+		// dipendente dallo stato, che nessuno ha vietato.
+		if (I == Both.Num() - 1)
+		{
+			continue;
+		}
 
-		// ⚠️ `Amount` e' il campo che `#1158` ha dimostrato scrivibile a sproposito, ed e' quindi quello su cui
-		// la riscrittura retroattiva farebbe piu' danno: un danno alterato dopo il commit e' un TurnLog che
-		// mente.
-		TestEqual(*(Where + TEXT(": il danno committato non cambia")), Committed.Amount, Solo->Amount);
+		TestTrue(*FString::Printf(
+				TEXT("voce #%d (%s): cio' che era gia' committato non e' stato riscritto ")
+				TEXT("[solitaria: %s · boundary: %s]"),
+				I, *Committed.OpportunityId,
+				*URTTurnLogLibrary::DescribeEntry(*Solo), *URTTurnLogLibrary::DescribeEntry(Committed)),
+			URTTurnLogLibrary::GoldenEntriesMatch(*Solo, Committed));
 	}
 
 	return true;
 }
 
 /**
- * Invariante 8 di `ADR-0004` — *«nessun nested Decision Boundary nell'MVP»*.
+ * *«Nessun Decision Boundary annidato»* — ADR-0004 scarta gli «interrupt annidati» e lo stack LIFO.
  *
  * Osservabile: due watcher armati su un solo micro-step producono ESATTAMENTE due decisioni. Mai tre.
+ *
+ * ⚠️ Il test rifa' la propria esecuzione invece di riusare quella del primo, ed e' deliberato: due Automation
+ * Test che condividono stato falliscono insieme per cause diverse, e il costo di uno scenario in memoria e'
+ * irrilevante rispetto al valore di sapere QUALE proprieta' si e' rotta.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionNoNestedBoundaryTest,
 	"RefactorTactics.Reactions.NoNestedDecisionBoundary",
@@ -315,31 +407,44 @@ bool FRTReactionNoNestedBoundaryTest::RunTest(const FString&)
 	{
 		return false;
 	}
+	ON_SCOPE_EXIT { RTWorldFixtures::DestroyWorld(World); };
+
 	const FRTTestResult Result = URTScenarioRunner::Run(World, MakeScenario(true, true));
 
-	TestEqual(FString::Printf(TEXT("lo scenario e' PASS (esito %d · error '%s' · blocked '%s')"),
-			static_cast<int32>(Result.Outcome), *Result.ErrorMessage, *Result.BlockedReason),
-		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass));
+	// Early return e non una semplice assertion: su uno scenario `Blocked` le voci sarebbero zero, e il
+	// conteggio sotto riporterebbe una regressione del sistema di reazione che non e' avvenuta.
+	if (!TestEqual(FString::Printf(
+			TEXT("lo scenario e' PASS (esito %d · error '%s' · blocked '%s' · cadute: %s)"),
+			static_cast<int32>(Result.Outcome), *Result.ErrorMessage, *Result.BlockedReason,
+			*DescribeFailedExpectations(Result)),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass)))
+	{
+		return false;
+	}
 
-	const TArray<FRTTurnLogEntry> Entries = ReactionEntriesOf(World);
+	TArray<FRTTurnLogEntry> Entries;
+	if (!CollectReactionEntries(*this, World, TEXT("W1+W2"), Entries))
+	{
+		return false;
+	}
 
 	// 🔴 IL PUNTO: i trigger si costruiscono una volta prima del ciclo, quindi due watcher armati danno due
 	// decisioni. Una terza voce significherebbe che una response applicata ha generato una nuova opportunity
 	// **dentro** il boundary in cui e' stata applicata — cioe' un boundary annidato.
-	TestEqual(TEXT("due watcher su un micro-step producono due decisioni, mai tre"), Entries.Num(), 2);
+	if (!TestEqual(TEXT("due watcher su un micro-step producono due decisioni, mai tre"), Entries.Num(), 2))
+	{
+		return false;
+	}
 
 	// Le due appartengono a finestre DISTINTE: due voci con lo stesso `OpportunityId` non sarebbero un
 	// annidamento ma una collisione di identita', e il test direbbe verde su un difetto diverso.
-	if (Entries.Num() == 2)
-	{
-		TestNotEqual(TEXT("le due decisioni appartengono a due finestre distinte"),
-			Entries[0].OpportunityId, Entries[1].OpportunityId);
+	TestNotEqual(TEXT("le due decisioni appartengono a due finestre distinte"),
+		Entries[0].OpportunityId, Entries[1].OpportunityId);
 
-		// Tutte nello stesso micro-step: se il conteggio tornasse perche' le due decisioni cadono in passi
-		// diversi, lo scenario non descriverebbe piu' un boundary solo.
-		TestEqual(TEXT("le due decisioni cadono nello stesso micro-step"),
-			Entries[0].MicroStepIndex, Entries[1].MicroStepIndex);
-	}
+	// Tutte nello stesso micro-step: se il conteggio tornasse perche' le due decisioni cadono in passi
+	// diversi, lo scenario non descriverebbe piu' un boundary solo.
+	TestEqual(TEXT("le due decisioni cadono nello stesso micro-step"),
+		Entries[0].MicroStepIndex, Entries[1].MicroStepIndex);
 
 	return true;
 }
