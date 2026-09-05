@@ -10,42 +10,64 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Move,
 		{ FName(TEXT("bIsMovingVisually")), FName(TEXT("SetVisualLocation")) }));
 
-	// Attack — due cue e due soggetti diversi: l'attaccante gioca il colpo, il bersaglio lo incassa
-	// (`RTTurnManager.cpp:6257-6258`). Sono `BlueprintImplementableEvent` su `ARTUnit`: se un BP non le
-	// implementa non succede nulla, e la logica resta invariata (invariante #1).
+	// Attack — quattro cue e tre soggetti: l'attaccante gioca il colpo, il bersaglio lo incassa
+	// (`RTTurnManager.cpp`), e dal 2026-09-05 (`#2455`) il bersaglio mostra anche **quanto**.
+	//
+	// 🔑 **`PlayAttackMontage` e `PlayHitMontage` sono `BlueprintImplementableEvent` su `ARTUnit`**: se un
+	// BP non le implementa non succede nulla, e la logica resta invariata (invariante #1).
+	//
+	// 🔴 **`ShowDamageToken` e `PulseHealthBar` invece sono C++, e la differenza e' il punto di `#2455`.**
+	// Cio' che decidono — la cifra, il segno, il caso `Amount <= 0`, quando la barra pulsa — vive in
+	// funzioni pure che un test chiama senza costruire un widget (`URTHudViewModel::BuildDamageToken`,
+	// `URTUnitOverlayWidget::FadeAlpha`). Un grafo Blueprint avrebbe avuto copertura headless **zero**, ed
+	// e' la ragione che [D-320] punto (5) scrive per esteso.
+	//
+	// ⚠️ **Il numero mostrato e' `Amount`, che e' il danno NOMINALE e non gli HP persi**: per un `Attack`
+	// vale `Hit.Power`, cioe' la potenza dell'intento meno la sola **copertura** — Deflect, Guard, Brace e
+	// lo scudo agiscono a valle, su un altro array. Un colpo da 30 su un bersaglio in Brace con scudo mostra
+	// `-30` mentre la barra scende di meno: e' la convenzione di `#2460`, scelta perche' i due canali
+	// raccontino lo stesso colpo con lo stesso numero.
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Attack,
-		{ FName(TEXT("PlayAttackMontage")), FName(TEXT("PlayHitMontage")) }));
+		{ FName(TEXT("PlayAttackMontage")), FName(TEXT("PlayHitMontage")),
+		  FName(TEXT("ShowDamageToken")), FName(TEXT("PulseHealthBar")) }));
 
-	// HazardDamage — NoPresentation, deciso il 2026-08-31.
+	// HazardDamage — PendingPresentation dal 2026-09-05 (`#2455`), e il cambio di verso ha una storia che
+	// conviene conoscere prima di toccarlo.
 	//
-	// 🔴 **La clausola fa parte della dichiarazione, e non e' pedanteria.** Il danno da terreno ACCADE ed e'
-	// tutt'altro che marginale — `Fire` fa 10 danni all'ingresso contro gli 8 del Cleanup, passa da
-	// `ApplyDamage(..., Environmental, ...)`, puo' uccidere, e ha la voce canonica nel TurnLog dal 2026-08-16
-	// (`#1067`). Non si mostra perche' ha gia' due canali visibili: la barra vita, e il combat log.
+	// 🔴 **Questa voce ha dichiarato tre cose diverse in cinque giorni, e ogni passaggio e' stato una
+	// misura.** Il 2026-08-31 era `NoPresentation` con la clausola *«oggi il valore non ha un produttore …
+	// va rivista appena ne acquista uno»*. Il 2026-09-05 `#2460` gliene ha dato uno — l'evento nasce in
+	// `ARTTurnManager::AppendLogEntry`, per entrambe le cause che `URTTurnLogLibrary::IsEnvironmentalDamage`
+	// riconosce — e la voce e' rimasta `NoPresentation` con un motivo riscritto: *«la cue e' lavoro di
+	// #2455»*. `#2483` ha poi reso il verso dell'assenza un **dato**, e ha lasciato scritta la
+	// contraddizione che ne risultava: la stessa stringa diceva sia *«e' una scelta sul disegno»* (decisa)
+	// sia *«la cue e' lavoro di #2455»* (in attesa).
 	//
-	// ✅ **Il PRODUTTORE ora esiste** (`#2460`, 2026-09-05). Fino a quel giorno questa voce portava la
-	// clausola *«oggi il valore non ha un produttore … va rivista appena ne acquista uno»*: e' quel giorno,
-	// e questa e' la revisione. L'evento nasce in `ARTTurnManager::AppendLogEntry`, dallo stesso punto e
-	// nello stesso istante della voce di TurnLog, per entrambe le cause che
-	// `URTTurnLogLibrary::IsEnvironmentalDamage` riconosce — `Terrain.<Surface>` all'ingresso e
-	// `Status.Burning` nel Cleanup.
+	// ✅ **`#2455` e' l'owner di quella revisione, e la scioglie cosi': l'assenza e' IN ATTESA.** Non e' una
+	// scelta di design contro il disegno — e' che **non c'e' un istante in cui giocare la cue**. Misurato:
+	// `BeginPlayback` consuma `Move`, `Attack` e `Defeated` e nient'altro; `PlaybackPhases` si compone di
+	// `Prep · Dash · Blast · Move` e **non contiene mai `Cleanup`**, che e' dove nasce meta' del danno da
+	// fuoco (`Status.Burning`, 8, contro i 10 di `Terrain.Fire` all'ingresso); e un turno di solo danno
+	// ambientale ha `PlaybackPhases.Num() == 0` e conclude subito.
 	//
-	// 🔴 **La voce resta `NoPresentation`, e la scelta e' deliberata.** Il produttore consegna il **dato**;
-	// la cue e' lavoro di `#2455`. Promuoverla adesso a una presentazione dichiarerebbe disegnato un evento
-	// che nessuno disegna — cioe' il difetto opposto e peggiore, ed e' precisamente quello che questa
-	// tabella esiste per impedire.
+	// ⚠️ **La vecchia motivazione — «si legge dalla barra vita e dal combat log» — non regge piu' da sola**,
+	// ed e' giusto saperlo: `#2455` costruisce esattamente quel token per `Attack`, quindi «una cifra sopra
+	// la testa non aggiunge leggibilita'» non e' piu' una posizione del progetto. Cio' che resta vero e'
+	// [D-124], che tiene il sistema VFX degli status fuori dal perimetro — ma un testo fluttuante non e' un
+	// VFX di status, e l'epic `#2453` lo elenca fra le primitive ammesse in v0.1.
 	//
-	// ⚠️ **Corretta insieme una frase che era falsa**: diceva *«quando uccide, l'evento emesso e' `Defeated`,
-	// che una presentazione ce l'ha»*. Misurato: `Defeated` lo emette **solo** `ResolveCombatPasses`, da
-	// `NewlyDefeated` calcolato sul Blast. Chi muore bruciato nel Cleanup, o entrando nel fuoco, **non lo
-	// produce**: resta coperto dal catch-all di `ConcludeTurn` (`DestroyDefeatedUnits`). Chi costruira' la
-	// cue non deve credere che la morte da hazard abbia gia' un beat proprio — non ce l'ha.
-	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::HazardDamage,
-		TEXT("Il danno da terreno si legge dalla barra vita e dal combat log: una cue dedicata non aggiunge ")
-		TEXT("leggibilita' in v0.1, e D-124 tiene il sistema VFX degli status fuori dal perimetro. Il ")
-		TEXT("produttore ESISTE da #2460 (AppendLogEntry, per ogni causa che IsEnvironmentalDamage riconosce): ")
-		TEXT("l'assenza e' una scelta sul disegno, non un evento muto. La cue e' lavoro di #2455. ATTENZIONE: ")
-		TEXT("la morte da hazard non emette Defeated - la nasconde il catch-all di ConcludeTurn.")));
+	// ⚠️ **La morte da hazard non emette `Defeated`**, e chi costruira' la cue non deve ereditare il
+	// contrario: `Defeated` lo emette **solo** `ResolveCombatPasses` sul Blast, e chi muore bruciato nel
+	// Cleanup sparisce col catch-all di `ConcludeTurn`.
+	//
+	// 🔑 L'owner che la sciogliera' e' un CAMPO e non una frase: `#2505`.
+	Out.Add(FRTPresentationBinding::MakePendingPresentation(ERTResolvedEventType::HazardDamage,
+		TEXT("Il produttore ESISTE da #2460 (AppendLogEntry, per ogni causa che IsEnvironmentalDamage ")
+		TEXT("riconosce), ma l'evento non ha un ISTANTE in cui giocare una cue: BeginPlayback non lo ")
+		TEXT("consuma, e PlaybackPhases non contiene mai Cleanup, dove nasce meta' del danno da fuoco. ")
+		TEXT("Costruire quel beat e' #2505; il token per Attack, che un beat ce l'ha, e' gia' di #2455. ")
+		TEXT("ATTENZIONE: la morte da hazard non emette Defeated - la nasconde il catch-all di ConcludeTurn."),
+		TEXT("#2505")));
 
 	// AttackFootprint — PendingPresentation, e per una ragione OPPOSTA a quella di HazardDamage.
 	//

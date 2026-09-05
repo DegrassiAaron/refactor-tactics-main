@@ -85,6 +85,55 @@ public:
 	 */
 	static FString ComposeStatusDurationLabel(int32 RemainingTurns, bool bCellBound);
 
+	/**
+	 * Mostra il token di un colpo appena rivelato dal playback, e — se c'e' danno — enfatizza la barra
+	 * (`#2455`).
+	 *
+	 * 🔴 **Il token vive QUI, dentro questo widget, ed e' un requisito di PRIVACY prima che di layout.**
+	 * Il velo di conoscenza spegne l'intero componente che ospita questa sovrapposizione:
+	 * `ARTHUD::UpdateObserverVeil` -> `ARTUnit::SetKnownToObserver` -> `RefreshComponentVisibility` ->
+	 * `OverlayWidget->SetVisibility(bRender, false)`. Un token disegnato altrove — un widget world-space
+	 * nuovo, un Actor di testo fluttuante — **non erediterebbe quel filtro**, e una cifra sopra un nemico
+	 * mai osservato rivelerebbe insieme che esiste, dove sta e che ha incassato (`AGENTS.md` §4, [D-223]).
+	 * ⚠️ E nessun test diventerebbe rosso: e' la stessa firma del difetto gia' misurato su `DrawHUD`.
+	 *
+	 * ⛔ **Non applica niente e non tocca `View`.** Il colpo e' gia' stato risolto e la vita che la barra
+	 * mostra continua ad arrivare da `SetOverlayView`: questa chiamata aggiunge il **cambiamento**, sopra il
+	 * canale che mostra lo **stato**.
+	 *
+	 * ⚠️ **La barra pulsa solo se c'e' danno.** Con `bHasDamage == false` non e' cambiato niente, e
+	 * un'enfasi direbbe il contrario di cio' che e' successo.
+	 */
+	void PushDamageToken(const FRTDamageTokenView& Token);
+
+	/**
+	 * Avvia l'enfasi breve della barra della vita.
+	 *
+	 * ⚠️ **Enfasi, non sostituzione**: la percentuale resta quella che `SetOverlayView` ha posato. Questa
+	 * funzione tocca soltanto la scala di render, che a riposo vale esattamente `(1,1)`.
+	 */
+	void PulseHealthBar();
+
+	/**
+	 * La frazione residua di un'animazione a tempo, sempre in `[0,1]` e **esattamente `0`** a scadenza.
+	 *
+	 * 🔑 **Statica e pura: e' l'unica regola temporale che questa classe possiede**, ed e' qui invece che
+	 * dentro `NativeTick` perche' un test non debba montare un widget — la stessa disciplina di
+	 * `ComposeHealthLabel` e `SafeFraction`.
+	 *
+	 * 🔴 **Lo zero esatto e' il contenuto della funzione, non un dettaglio.** L'AC di `#2455` chiede che la
+	 * barra *«torni a riposo senza restare in uno stato transitorio»*: con un ritorno approssimato la scala
+	 * si fermerebbe a `1.0001` e la sovrapposizione resterebbe per sempre appena piu' grande, in un punto
+	 * dove nessuno guarderebbe piu'.
+	 *
+	 * ⚠️ `Duration <= 0` risponde `0` — «gia' finita» — e non divide per zero: un'animazione di durata nulla
+	 * non e' un errore da segnalare, e' una che non si vede.
+	 */
+	static float FadeAlpha(float Elapsed, float Duration);
+
+	/** Vedi `FadeAlpha`: il tempo lo fa scorrere qui, e non decide **nessun** esito (invariante #1). */
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
 protected:
 	/**
 	 * Il catalogo iconografico da cui risolvere le icone di stato.
@@ -141,4 +190,48 @@ protected:
 	 */
 	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|HUD")
 	void OnOverlayUpdated();
+
+	/**
+	 * Il testo del token di danno. **Opzionale come tutti gli altri**: un `WBP` che non lo porta mostra il
+	 * resto invece di non compilare.
+	 *
+	 * ⚠️ **E il degrado e' silenzioso, ed e' dichiarato**: senza questo elemento il colpo non ha una cifra a
+	 * schermo e nessun test lo nota, perche' il giudizio sta nella funzione pura e non nel disegno. E' il
+	 * motivo per cui la verifica a occhio di `#2455` non e' opzionale.
+	 */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> DamageTokenText;
+
+	/** Quanto a lungo il token resta visibile prima di svanire. `0` lo spegne. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	float DamageTokenSeconds = 0.9f;
+
+	/** Quanto dura l'enfasi della barra. `0` la spegne. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	float HealthPulseSeconds = 0.35f;
+
+	/**
+	 * Di quanto la barra si ingrandisce al culmine dell'enfasi.
+	 *
+	 * ⚠️ Piccolo apposta: sopra un cilindro la barra e' larga poche decine di pixel, e un'enfasi vistosa
+	 * uscirebbe dalla `DrawSize` di `220x90` che `ARTUnit` assegna al componente.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	float HealthPulseScale = 0.18f;
+
+private:
+	/**
+	 * Il tempo trascorso da quando il token e' comparso, e da quando l'enfasi e' cominciata.
+	 *
+	 * ⚠️ **Stato di sola presentazione**, `Transient` per costruzione (non sono `UPROPERTY` serializzate):
+	 * non entra in `MapState`, in nessuno snapshot, nel TurnLog ne' in `StateHash`. Un colpo mostrato due
+	 * volte disegna due volte e **non cambia nessun esito** — e' l'invariante #1 letta dal lato della
+	 * presentazione.
+	 */
+	float TokenElapsed = 0.f;
+	float PulseElapsed = 0.f;
+
+	/** Se un'animazione e' in corso. Spente entrambe, `NativeTick` non tocca nulla. */
+	bool bTokenActive = false;
+	bool bPulseActive = false;
 };

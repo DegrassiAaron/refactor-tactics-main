@@ -7782,7 +7782,19 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				// verdetto di [D-223] non si calcola — servono anche squadra e cella.
 				Atk.Amount), FRTLogSubject::Unit(AtkSrc));
 			if (AtkSrc) { AtkSrc->PlayAttackMontage(); }
-			if (AtkTgt) { AtkTgt->PlayHitMontage(); }
+			if (AtkTgt)
+			{
+				AtkTgt->PlayHitMontage();
+				// #2455 — il NUMERO del colpo, dallo stesso evento e nello stesso istante del montaggio.
+				//
+				// 🔑 **Il simulatore passa un intero, non una vista.** `Atk.Amount` e' lo stesso valore che
+				// il log scrive e che `OnAttackResolved` gia' trasporta: la composizione avviene in `ARTUnit`,
+				// e questo file continua a non includere **nessun** header di `UI/`.
+				//
+				// ⛔ Sul BERSAGLIO e mai sull'attaccante: e' chi subisce a portare il token, la stessa
+				// convenzione di `PlayHitMontage` e della categoria `Combat` del TurnLog (`#1150`).
+				AtkTgt->ShowDamageToken(Atk.Amount);
+			}
 			OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Atk.Amount);
 			++AttacksShown;
 		}
@@ -7809,7 +7821,19 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				ARTUnit* const AtkSrc = UnitByStableId(Atk.SourceStableUnitId);
 				ARTUnit* const AtkTgt = UnitByStableId(Atk.TargetStableUnitId);
 				if (AtkSrc) { AtkSrc->PlayAttackMontage(); }
-				if (AtkTgt) { AtkTgt->PlayHitMontage(); }
+				if (AtkTgt)
+				{
+					AtkTgt->PlayHitMontage();
+					// #2455 — il NUMERO del colpo, dallo stesso evento e nello stesso istante del montaggio.
+					//
+					// 🔑 **Il simulatore passa un intero, non una vista.** `Atk.Amount` e' lo stesso valore che
+					// il log scrive e che `OnAttackResolved` gia' trasporta: la composizione avviene in `ARTUnit`,
+					// e questo file continua a non includere **nessun** header di `UI/`.
+					//
+					// ⛔ Sul BERSAGLIO e mai sull'attaccante: e' chi subisce a portare il token, la stessa
+					// convenzione di `PlayHitMontage` e della categoria `Combat` del TurnLog (`#1150`).
+					AtkTgt->ShowDamageToken(Atk.Amount);
+				}
 				OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Atk.Amount);
 				++AttacksShown;
 			}
