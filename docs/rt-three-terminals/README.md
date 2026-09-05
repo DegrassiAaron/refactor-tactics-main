@@ -153,3 +153,15 @@ L’installer:
 - copia i template VS Code locali e gli script.
 
 I template versionati stanno sotto `payload/vscode/`, non `payload/.vscode/`: `.vscode/` è ignorata dal repository e quindi non è una sorgente versionata affidabile del bundle.
+
+## Verifiche dopo l'installazione
+
+Smoke test senza occupare Unreal:
+
+1. apri due volte `RT: Open DEV terminal`;
+2. verifica che i due prompt mostrino ID diversi (`[DEV:18452]`, `[DEV:27104]`);
+3. esegui `rtstatus` in entrambi;
+4. apri `RT: Open VALIDATION terminal` e `RT: Open EDITOR terminal`;
+5. verifica che `rtsuite` sia rifiutato da DEV e da EDITOR;
+6. esegui `rtmode VALIDATION` e verifica che il gate passi solo dal terminale VALIDATION;
+7. non avviare Unreal durante questi passi.

@@ -461,8 +461,18 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 	for (const TPair<FName, TPair<FString, FString>>& Attesa : Attese)
 	{
 		const FString Chi = Attesa.Key.ToString();
-		const FRTLocomotionClips* Clips = Cdo->FindClipsFor(Attesa.Key);
+		const FRTHeroPresentationClips* Clips = Cdo->FindClipsFor(Attesa.Key);
 		if (!TestNotNull(*FString::Printf(TEXT("clip per %s"), *Chi), (const void*)Clips)) { continue; }
+
+		// ⛔ **Anti-vacuita' del livello nuovo, ed e' l'unica che morde dopo la migrazione a ruoli.**
+		// `ClipsPerHero.Num()` continuerebbe a dire 4 con le mappe dei ruoli VUOTE, e allora i due path
+		// letti sotto sarebbero due stringhe vuote uguali fra loro: i `TestEqual` cadrebbero, ma il
+		// messaggio parlerebbe di nomi sbagliati invece che di ruoli assenti.
+		if (!TestEqual(*FString::Printf(TEXT("%s: i due ruoli di locomozione sono popolati"), *Chi),
+				Clips->PerRole.Num(), 2))
+		{
+			continue;
+		}
 
 		// Il PACK e' parte dell'asserto quanto la clip: lo scambio fra due eroi — l'errore facile in una
 		// tabella di quattro righe simili — passerebbe un controllo scritto sul solo nome della clip,
@@ -471,8 +481,11 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 		const FString Radice = FString::Printf(
 			TEXT("/Game/FabAsset/Paragon/Paragon%s/Characters/Heroes/%s/Animations/"), *Pack, *Pack);
 
-		const FString VistoIdle = Clips->Idle.ToSoftObjectPath().ToString();
-		const FString VistoRun = Clips->Run.ToSoftObjectPath().ToString();
+		// Si legge la variante ATTIVA del ruolo, che e' cio' che il grafo suona davvero.
+		const FString VistoIdle =
+			Cdo->ActiveClipFor(Attesa.Key, ERTPresentationRole::Idle).ToSoftObjectPath().ToString();
+		const FString VistoRun =
+			Cdo->ActiveClipFor(Attesa.Key, ERTPresentationRole::Move).ToSoftObjectPath().ToString();
 
 		TestEqual(*FString::Printf(TEXT("%s: idle"), *Chi),
 			VistoIdle, FString::Printf(TEXT("%s%s.%s"), *Radice, *Attesa.Value.Key, *Attesa.Value.Key));
@@ -642,7 +655,7 @@ bool FRTUnitGhostFallbackClipTest::RunTest(const FString&)
 
 	for (const FName& Eroe : Eroi)
 	{
-		const FRTLocomotionClips* Clips = Cdo->FindClipsFor(Eroe);
+		const FRTHeroPresentationClips* Clips = Cdo->FindClipsFor(Eroe);
 		if (!TestNotNull(*FString::Printf(TEXT("clip di %s"), *Eroe.ToString()), (const void*)Clips))
 		{
 			continue;
@@ -653,7 +666,12 @@ bool FRTUnitGhostFallbackClipTest::RunTest(const FString&)
 		// scambiare i due campi dentro `GhostFallbackClipFor` lo lasciava verde, perche' non ci passava.
 		// L'ha trovata una verifica di mutazione, non una rilettura del codice.
 		const FString Idle = ARTUnit::GhostFallbackClipFor(Cdo, Eroe).ToSoftObjectPath().ToString();
-		const FString Run = Clips->Run.ToSoftObjectPath().ToString();
+
+		// 🔴 **`Move`, e la migrazione a ruoli poteva farlo degenerare proprio qui.** Il ripiego risolve
+		// ora la variante attiva del ruolo `Idle`; se il termine di confronto qui sotto leggesse anche
+		// lui `ERTPresentationRole::Idle`, il `TestNotEqual` in fondo confronterebbe una stringa con SE'
+		// STESSA — sempre verde, e cieco allo scambio che questo test esiste per trovare.
+		const FString Run = Cdo->ActiveClipFor(Eroe, ERTPresentationRole::Move).ToSoftObjectPath().ToString();
 
 		// (1) Il ripiego ha un bersaglio. Un path vuoto lascerebbe la T-pose, che è il difetto di partenza.
 		TestFalse(*FString::Printf(TEXT("%s: l'idle del ripiego non e' vuoto"), *Eroe.ToString()),
