@@ -100,7 +100,20 @@ namespace
 		return U;
 	}
 
-	void StandStill(ARTUnit* Unit)
+	/**
+	 * Il turno successivo senza muoversi, **azzerando anche il Dash**.
+	 *
+	 * 🔴 **Si chiamava `StandStill`, e il nome ha rotto la build il 2026-09-05.** `RTStatusTests.cpp` ne ha
+	 * uno omonimo nel proprio namespace anonimo, e i namespace anonimi NON isolano dentro una **unity blob**:
+	 * finche' UBT ha impacchettato i due file separatamente il conflitto e' rimasto latente, e il giorno che
+	 * un delta altrove (`#2380`) ha cambiato le dimensioni dei file — quindi il raggruppamento — i due corpi
+	 * sono finiti nella stessa unita' di traduzione e sono usciti nove `C2084`/`C2264` in un file che nessuno
+	 * aveva toccato.
+	 *
+	 * ⚠️ **I due NON si fondono**: questo azzera `PlannedDashAbility` e guarda dal `nullptr`, l'altro no. Il
+	 * nome qualificato dice quale dei due e', invece di far scegliere al caso.
+	 */
+	void StandStillClearingDash(ARTUnit* Unit)
 	{
 		if (!Unit) { return; }
 		Unit->PlannedAbilityIndex = INDEX_NONE;
@@ -188,7 +201,7 @@ bool FRTUnbalancedOnSlideTest::RunTest(const FString&)
 	Mover->PlannedAbilityIndex = INDEX_NONE;
 	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
 	Mover->PlannedCell = FRTCellId(1, 0);
-	StandStill(Foe);
+	StandStillClearingDash(Foe);
 
 	RunFallTurn(TM);
 
@@ -231,7 +244,7 @@ bool FRTNoUnbalancedWithoutSlideTest::RunTest(const FString&)
 	Mover->PlannedAbilityIndex = INDEX_NONE;
 	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
 	Mover->PlannedCell = FRTCellId(1, 0);
-	StandStill(Foe);
+	StandStillClearingDash(Foe);
 
 	RunFallTurn(TM);
 
@@ -270,7 +283,7 @@ bool FRTPushOnUnbalancedFallsTest::RunTest(const FString&)
 	if (!TM || !Pusher || !Victim) { DestroyFallWorld(World); return false; }
 
 	Victim->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
-	StandStill(Victim);
+	StandStillClearingDash(Victim);
 
 	if (PlanCoreAttack(Pusher, TEXT("Action.Push"), Victim) == INDEX_NONE)
 	{
@@ -316,7 +329,7 @@ bool FRTResistedPushDoesNotFallTest::RunTest(const FString&)
 	if (!TM || !Pusher || !Victim) { DestroyFallWorld(World); return false; }
 
 	Victim->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
-	StandStill(Victim);
+	StandStillClearingDash(Victim);
 
 	if (PlanCoreAttack(Pusher, TEXT("Action.Push"), Victim) == INDEX_NONE)
 	{
@@ -360,7 +373,7 @@ bool FRTUnbalancedIgnoresGuardOnDisplacementOnlyTest::RunTest(const FString&)
 
 	Victim->ApplyStatus(TAG_Status_Guarded, 2);
 	Victim->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
-	StandStill(Victim);
+	StandStillClearingDash(Victim);
 	const int32 HealthBefore = Victim->Health;
 
 	if (PlanCoreAttack(Pusher, TEXT("Action.Push"), Victim) == INDEX_NONE)
@@ -449,8 +462,8 @@ bool FRTStandUpOnlyWhenMovingTest::RunTest(const FString&)
 
 	Fermo->ApplyStatus(TAG_Status_Prone, URTCombatLibrary::ProneDurationTurns);
 	Mosso->ApplyStatus(TAG_Status_Prone, URTCombatLibrary::ProneDurationTurns);
-	StandStill(Fermo);
-	StandStill(Foe);
+	StandStillClearingDash(Fermo);
+	StandStillClearingDash(Foe);
 
 	Mosso->PlannedAbilityIndex = INDEX_NONE;
 	Mosso->PlannedPath = { FRTCellId(0, 1), FRTCellId(1, 1) };
@@ -499,7 +512,7 @@ bool FRTProneHasNoReactionTest::RunTest(const FString&)
 	}
 	Defender->PlannedReactionAbility = ReactionIdx;
 	Defender->ApplyStatus(TAG_Status_Prone, URTCombatLibrary::ProneDurationTurns);
-	StandStill(Defender);
+	StandStillClearingDash(Defender);
 
 	Attacker->PlannedAbilityIndex = 0; // attacco base
 	Attacker->PlannedAttackTarget = Defender;
@@ -552,7 +565,7 @@ bool FRTProneSurvivesToNextTurnTest::RunTest(const FString&)
 	if (!TM || !Pusher || !Victim) { DestroyFallWorld(World); return false; }
 
 	Victim->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
-	StandStill(Victim);
+	StandStillClearingDash(Victim);
 	if (PlanCoreAttack(Pusher, TEXT("Action.Push"), Victim) == INDEX_NONE)
 	{
 		AddError(TEXT("`Action.Push` non e' nel catalogo core: la premessa del test non regge"));
@@ -575,8 +588,8 @@ bool FRTProneSurvivesToNextTurnTest::RunTest(const FString&)
 	TestEqual(TEXT("all'inizio del turno successivo il prezzo si paga ancora"),
 		Victim->GetEffectiveMoveRange(), BudgetIntero - URTCombatLibrary::StandUpMovePointCost);
 
-	StandStill(Pusher);
-	StandStill(Victim);
+	StandStillClearingDash(Pusher);
+	StandStillClearingDash(Victim);
 	RunFallTurn(TM); // turno N+1: fermo, non paga -> il Cleanup di N+1 lo spegne
 	TestFalse(TEXT("e dopo il Cleanup di quel turno lo stato e' scaduto"),
 		Victim->HasStatus(TAG_Status_Prone));
@@ -679,7 +692,7 @@ bool FRTProneDisarmsOverwatchTest::RunTest(const FString&)
 		}
 		else
 		{
-			StandStill(Pusher);
+			StandStillClearingDash(Pusher);
 		}
 
 		Mover->PlannedAbilityIndex = INDEX_NONE;
@@ -793,7 +806,7 @@ bool FRTSprintRefusedWhileUnbalancedTest::RunTest(const FString&)
 	Runner->PlannedDashAbility = SprintIdx;
 	Runner->PlannedDashCell = FRTCellId(3, 0);
 	Runner->PlannedCell = Runner->Cell;
-	StandStill(Foe);
+	StandStillClearingDash(Foe);
 
 	RunFallTurn(TM);
 
