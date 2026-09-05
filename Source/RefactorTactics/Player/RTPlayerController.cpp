@@ -319,6 +319,9 @@ void ARTPlayerController::BuildInputMappings()
 	FocusAction->ValueType = EInputActionValueType::Boolean;
 
 	PlaybackSpeedAction = NewObject<UInputAction>(this, TEXT("IA_CyclePlaybackSpeed"));
+
+	PrepWindowPauseAction = NewObject<UInputAction>(this, TEXT("IA_PausePrepWindow"));
+	PrepWindowPauseAction->ValueType = EInputActionValueType::Boolean;
 	PlaybackSpeedAction->ValueType = EInputActionValueType::Boolean;
 
 	// CP 46.6 (#941): il menu di pausa.
@@ -423,6 +426,11 @@ void ARTPlayerController::BuildInputMappings()
 	// ovunque.
 	// `V` e' libero: verificato sull'elenco completo dei `MapKey` di questa funzione.
 	MappingContext->MapKey(PlaybackSpeedAction, EKeys::V);
+
+	// `P` come "pausa". ⚠️ **Non `ESC`** — quello apre il menu modale di CP 46.6 — e non `Spazio`, che e' il
+	// lock-in. Il tasto e' libero: `PlayerInput.HotkeysDoNotCollide` lo verifica su tutto il mapping context
+	// invece che su una lista scritta a mano, quindi questa riga non ha bisogno di essere ricordata altrove.
+	MappingContext->MapKey(PrepWindowPauseAction, EKeys::P);
 
 	// `ESC`: la pausa (CP 46.6).
 	//
@@ -560,6 +568,7 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(SelectAction, ETriggerEvent::Canceled, this,
 			&ARTPlayerController::OnSelectReleased);
 		EIC->BindAction(PlaybackSpeedAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCyclePlaybackSpeed);
+		EIC->BindAction(PrepWindowPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePrepWindowPause);
 		EIC->BindAction(FocusAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFocusSelected);
 		EIC->BindAction(FacingAction, ETriggerEvent::Started, this, &ARTPlayerController::CycleDeclaredFacing);
 		EIC->BindAction(PauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePause);
@@ -1659,6 +1668,36 @@ void ARTPlayerController::OnCyclePlaybackSpeed(const FInputActionValue& Value)
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())));
 }
 
+void ARTPlayerController::OnTogglePrepWindowPause(const FInputActionValue& Value)
+{
+	// Una schermata bloccante copre la partita: questo input non le arriva, come per ogni altro gesto di
+	// gioco. E' l'unica guardia che serve — vedi la dichiarazione per cui `IsPlanningInputInert()` NON va
+	// messa qui.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
+	ARTTurnManager* TurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+	if (!TurnManager)
+	{
+		return;
+	}
+
+	// ⚠️ **Il toggle interroga lo stato, non lo ricorda.** Un `bool` locale qui sarebbe una seconda sede
+	// della stessa verita' — e divergerebbe il giorno in cui la finestra si chiude da sola perche' il tetto
+	// del planning e' scaduto, che e' un percorso che questo controller non vede passare.
+	if (TurnManager->IsPrepWindowPaused())
+	{
+		TurnManager->ResumePrepWindow();
+	}
+	else
+	{
+		TurnManager->PausePrepWindow();
+	}
+}
+
 void ARTPlayerController::OnRestart(const FInputActionValue& Value)
 {
 	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
@@ -1961,6 +2000,11 @@ bool ARTPlayerController::IsGameplayInputBlocked() const
 void ARTPlayerController::OnLockInForTest()
 {
 	OnLockIn(FInputActionValue());
+}
+
+void ARTPlayerController::OnTogglePrepWindowPauseForTest()
+{
+	OnTogglePrepWindowPause(FInputActionValue());
 }
 
 bool ARTPlayerController::IsPlanningInputInert() const
