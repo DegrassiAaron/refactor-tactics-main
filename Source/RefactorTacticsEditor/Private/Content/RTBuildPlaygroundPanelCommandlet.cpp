@@ -78,15 +78,40 @@ namespace
 	 * `Variables|WBP_RT_GrayKitPlayground|GetTxt_MapState` semplicemente non esiste, e cablare un testo
 	 * e' impossibile. Misurato il 2026-09-02: il pannello generato aveva variabili solo per bottoni e
 	 * combo, e i cinque `Txt_*` che il grafo scrive hanno dovuto essere convertiti a mano.
+	 *
+	 * ➕ **E ogni variabile si porta il proprio GUID.** Prende il `UWidgetBlueprint` e non il solo albero
+	 * proprio per questo: la mappa dei GUID vive sul Blueprint, e senza di essa la compilazione ensure.
+	 * Il perche' sta nel commento dentro il ciclo.
 	 */
-	void MakeEveryWidgetAVariable(UWidgetTree* Tree)
+	void MakeEveryWidgetAVariable(UWidgetBlueprint* Blueprint)
 	{
-		Tree->ForEachWidget([](UWidget* Widget)
+		UWidgetTree* Tree = Blueprint ? Blueprint->WidgetTree : nullptr;
+		if (!Tree)
 		{
-			if (Widget)
+			return;
+		}
+
+		Tree->ForEachWidget([Blueprint](UWidget* Widget)
+		{
+			if (!Widget)
 			{
-				Widget->bIsVariable = true;
+				return;
 			}
+			Widget->bIsVariable = true;
+
+			// 🔴 **Un widget-variabile AGGIUNTO deve portarsi il proprio GUID, o la compilazione ensure.**
+			// Misurato il 2026-09-05: aggiungendo i controlli a un asset gia' esistente il commandlet e'
+			// uscito `1` con *«Widget [Txt_BodyRadiusLabel] was added but did not get a GUID»*
+			// (`WidgetBlueprintCompiler.cpp:781`, `ValidateAndFixUpVariableGuids`).
+			//
+			// ⚠️ **E' lo SPECCHIO del difetto gia' documentato in `ReconcilePresentation`**: li' togliere
+			// il widget senza togliere il GUID faceva asserire *«was deleted but still has a GUID»*. Le due
+			// meta' della stessa regola — la mappa e l'albero si muovono insieme — e il codice ne
+			// conosceva una sola perche' finora nessuno aveva mai AGGIUNTO un widget a un asset esistente.
+			//
+			// ⛔ `FindOrAdd` e non `Add`: sovrascrivere il GUID di un widget che ce l'ha gia' romperebbe i
+			// riferimenti esterni che quel GUID esiste per riparare dopo un rename.
+			Blueprint->WidgetVariableNameToGuidMap.FindOrAdd(Widget->GetFName(), FGuid::NewGuid());
 		});
 	}
 
@@ -428,7 +453,7 @@ int32 URTBuildPlaygroundPanelCommandlet::Main(const FString& Params)
 		}
 		EnsureFixtureAndViewControls(Existing);
 		ReconcilePresentation(Existing);
-		MakeEveryWidgetAVariable(ExistingTree);
+		MakeEveryWidgetAVariable(Existing);
 
 		FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Existing);
 		FKismetEditorUtilities::CompileBlueprint(Existing);
@@ -533,7 +558,7 @@ int32 URTBuildPlaygroundPanelCommandlet::Main(const FString& Params)
 	}
 	EnsureFixtureAndViewControls(PanelBP);
 	ReconcilePresentation(PanelBP);
-	MakeEveryWidgetAVariable(Tree);
+	MakeEveryWidgetAVariable(PanelBP);
 
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(PanelBP);
 	FKismetEditorUtilities::CompileBlueprint(PanelBP);

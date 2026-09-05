@@ -125,7 +125,7 @@
           (Variables|WBP_RT_GrayKitPlayground|GetSpn_BodyRadius)
           (Variables|WBP_RT_GrayKitPlayground|GetSpn_BodyHeight)
           (Variables|WBP_RT_GrayKitPlayground|GetSpn_FaceHeight)
-          (Variables|WBP_RT_GrayKitPlayground|GetSpn_MarkerLength))
+          (Variables|WBP_RT_GrayKitPlayground|GetSpn_MarkerLength)))
       (:CastFailed))
     (else
       (Widget|SetText(Text) :self txtName :InText "nessun fixture nella mappa aperta"))))
@@ -145,7 +145,7 @@
           (Variables|WBP_RT_GrayKitPlayground|GetSpn_BodyRadius)
           (Variables|WBP_RT_GrayKitPlayground|GetSpn_BodyHeight)
           (Variables|WBP_RT_GrayKitPlayground|GetSpn_FaceHeight)
-          (Variables|WBP_RT_GrayKitPlayground|GetSpn_MarkerLength))
+          (Variables|WBP_RT_GrayKitPlayground|GetSpn_MarkerLength)))
       (:CastFailed))))
 
 (event OnSelectionChanged(Cmb_Station) (SelectedItem SelectionType)

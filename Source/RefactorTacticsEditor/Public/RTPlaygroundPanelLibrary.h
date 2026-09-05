@@ -245,13 +245,47 @@ public:
 	 *
 	 * ⚠️ Tollera i puntatori nulli **uno per uno**: un campo non ancora costruito non deve impedire agli
 	 * altri tre di aggiornarsi. Restituisce quanti ne ha scritti.
+	 *
+	 * 🔴 **`DisplayName` esplicito, e non e' cosmesi.** Il `type_id` che il DSL usa per creare il nodo
+	 * deriva dal **DisplayName**, che UHT genera "prettificando" il nome C++ — e nel farlo
+	 * **minuscolizza le preposizioni**: senza questa meta il nodo si chiama
+	 * `RefactorTactics|Playground|PushFixtureParameterstoSpinBoxes`, con la `t` minuscola. Misurato il
+	 * 2026-09-05 con `find_node_types`, dopo che `write_graph_dsl` aveva rifiutato il nome ovvio.
+	 * ⚠️ Vale per **qualunque** funzione che il grafo chiami e il cui nome contenga `To`, `From`, `In`,
+	 * `Of`: fissare il `DisplayName` rende il `.dsl` stabile invece di dipendere da una regola di
+	 * formattazione del motore.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playground")
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playground",
+		meta = (DisplayName = "PushFixtureParametersToSpinBoxes"))
 	static int32 PushFixtureParametersToSpinBoxes(const ARTGrayboxUnitFacingFixture* Fixture,
 		class USpinBox* BodyRadiusBox, class USpinBox* BodyHeightBox,
 		class USpinBox* FaceHeightBox, class USpinBox* MarkerLengthBox);
 
-		static int32 SetStationLabelsVisible(const UObject* WorldContextObject, bool bVisible);
+	/**
+	 * Accende o spegne le **etichette** della scena, e restituisce quante ne ha toccate.
+	 *
+	 * 🔑 **Per CLASSE, non per nome.** Le etichette del laboratorio sono `ATextRenderActor`, e questo e'
+	 * l'unico aggancio che la mappa offre: misurato il 2026-09-05, `L_GrayKitPlayground` non dichiara
+	 * **nessun** `Tags`, `ComponentTags` o `Layers` — i suoi 25 attori si distinguono solo per
+	 * `ActorLabel`, che e' una stringa d'editor, e `grep -rn "GKP_" Source/ tools/` da' **zero**.
+	 * Elencare qui `GKP_Num_01`..`GKP_Name_08` sarebbe la prima copia in codice di nomi che vivono solo
+	 * nel `.umap`: il giorno che #1991 ne rinomina uno, il toggle smette di vederlo **in silenzio**. E'
+	 * esattamente `#1459`.
+	 *
+	 * ⛔ **Per la stessa ragione qui non c'e' un toggle della guida da 1 m ne' dei bounds.** La guida e'
+	 * uno `AStaticMeshActor` fra quattro e non si distingue per classe; i bounds non hanno **nessun**
+	 * attore. Entrambi richiedono che l'owner della mappa dia un aggancio stabile — integration request
+	 * verso #1991, non un elenco di nomi da questo lato.
+	 *
+	 * ⚠️ **Presentation-only, e in Editor.** Usa `SetIsTemporarilyHiddenInEditor`: non tocca lo stato
+	 * salvato dell'attore, non sporca la mappa, e un riavvio dell'Editor le rimette visibili.
+	 *
+	 * Restituisce `-1` se non c'e' un mondo da cui partire — cosi' il pannello puo' distinguere
+	 * *«nessuna etichetta»* da *«non ho potuto guardare»*.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playground",
+		meta = (WorldContext = "WorldContextObject", DisplayName = "SetStationLabelsVisible"))
+	static int32 SetStationLabelsVisible(const UObject* WorldContextObject, bool bVisible);
 
 	/**
 	 * Rimette i **default dichiarati**.
