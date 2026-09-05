@@ -2931,12 +2931,16 @@ sessions:
     # ⛔ Nessuna delle quattro e' orfana — hanno gia' una seduta, e questa NON la sostituisce: la coda
     # esiste finche' i residui sono sparsi, e sparisce quando sono chiusi.
     unblocked_by: []
-    # `unblocked_by` vuoto e non e' una svista: il codice c'e' tutto. Le quattro voci non aspettano un
-    # checkpoint, aspettano un occhio — e per `PIE-HEXPLAY-6` aspettano anche `#1873`, vedi sotto.
+    # `unblocked_by` vuoto e non e' una svista: il codice c'e' tutto. Le voci non aspettano un
+    # checkpoint, aspettano un occhio.
+    # ⌫ Questa riga aggiungeva «e per `PIE-HEXPLAY-6` aspettano anche `#1873`»: quella issue e' **chiusa**
+    # dal 2026-09-05, perche' la sua premessa era falsa — la resa persistente esisteva dal 2026-08-12. Il
+    # residuo e' passato a `PIE-VIS-SIGHTWALL`, che questa seduta convoca; il difetto misurato, che sta a
+    # picco e non nella vista di gioco, resta di `#1246`.
     shares_setup_with: []
     verifies: [PIE-HEXPLAY-6, PIE-HEXPLAY-8, PIE-V01-ROSTER, PIE-V01-LOG, PIE-VIS-SIGHTWALL,
                PIE-VIS-TWOLAYERS]
-    issues: [1873]
+    issues: [1246]
     done_when: le sei voci hanno un esito reale nel registro, in un verso o nell'altro — le quattro del
       gate `G9` e le due che il 2026-09-04 hanno chiuso i due scenari `Visual.*` orfani
     unblocks: []
@@ -3008,9 +3012,11 @@ sessions:
       su quel punto mostra la cella e **non l'unita'**. Via MCP si giudicano mappa, celle e quote; non
       unita', HUD, VFX ne' playback. Le quattro voci di questa seduta chiedono precisamente cio' che il
       ponte non vede, e per questo restano di una persona a schermo.
-      ⚠️ E la stessa misura spiega perche' `#1873` va letta prima di ②: chi cattura dall'editor vede gli
-      anelli di `DrawCellOverlay` e crede che il muro si veda, mentre nella vista del giocatore quegli
-      anelli non ci sono.
+      ⚠️ E la stessa misura spiega la trappola del ②: chi cattura **dall'editor** vede gli anelli di
+      `DrawCellOverlay` — che pero' nascono spenti (`bCellOverlay = false`) — e crede di aver giudicato
+      la vista del giocatore. Il ② si giudica in PIE, alla camera del giocatore, non nel viewport di
+      lavoro. ⌫ Questa riga rimandava a `#1873`, chiusa il 2026-09-05: cio' che resta da leggere prima
+      di guardare e' `#1246`, che porta le tre concause della vista **a picco**.
 
   - id: U47
     title: La catena Unbalanced -> Prone, guardata mentre accade
