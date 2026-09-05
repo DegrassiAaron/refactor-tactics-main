@@ -17,6 +17,7 @@
 #include "Animation/AnimSequenceBase.h"
 #include "Animation/AnimSingleNodeInstance.h"
 #include "Unit/RTUnitAnimInstance.h"
+#include "Unit/RTContactGhostAnimInstance.h" // #1750: il grafo a un nodo che applica la posa ricordata
 #include "Perception/RTTeamKnowledge.h" // ContactLifetimeTurns: la durata del ricordo ha un owner, non si ricopia
 #include "Components/WidgetComponent.h" // la sovrapposizione sopra la testa (#2288, D-320)
 #include "UI/RTUnitOverlayWidget.h"  // la classe base del widget: serve il tipo completo per SetWidgetClass
@@ -109,6 +110,10 @@ ARTUnit::ARTUnit()
 	// Il grafo di locomozione vive in C++ (`#288`): nessun `.uasset` da duplicare, e le clip per eroe sono
 	// dati versionati invece che grafi dentro quattro binari da ~700 KB.
 	UnitAnimClass = URTUnitAnimInstance::StaticClass();
+
+	// Il grafo della SAGOMA (#1750, secondo criterio): un solo nodo, la posa ricordata, nessun tempo.
+	// ⛔ Non e' `UnitAnimClass`: quello **puo'** animarsi, e su una sagoma sarebbe una telecamera sul nemico.
+	ContactGhostAnimClass = URTContactGhostAnimInstance::StaticClass();
 
 	// Freccia di orientamento: figlia del ROOT, quindi segue l'attore e non la mesh. E' la differenza fra
 	// le due che dice se `MeshYawOffset` e' giusto.
@@ -399,6 +404,40 @@ bool ARTUnit::ShouldShowTeamRing(bool bRender, bool bHasTeamRingMaterial)
 	return bRender && bHasTeamRingMaterial;
 }
 
+bool ARTUnit::ShouldCaptureContactPose(bool bWasRendered, bool bWillBeRendered)
+{
+	// Un solo verso: si perde di vista. Il ritorno in vista non cattura niente — non c'e' nessun ricordo da
+	// aggiornare mentre l'unita' si vede, perche' finche' si vede la sagoma non si disegna affatto.
+	return bWasRendered && !bWillBeRendered;
+}
+
+bool ARTUnit::NotifyRenderStateForPoseCapture(bool bWillBeRendered)
+{
+	const bool bCapture = ShouldCaptureContactPose(bLastRenderApplied, bWillBeRendered);
+	bLastRenderApplied = bWillBeRendered;
+	return bCapture;
+}
+
+ERTGhostPoseSource ARTUnit::GhostPoseSourceFor(const FPoseSnapshot& Snapshot, bool bHasFallbackClip)
+{
+	// ⚠️ Tre condizioni e non solo `bIsValid`: `FAnimNode_PoseSnapshot::ApplyPose` indicizza
+	// `LocalTransforms` con l'indice del nome corrispondente, e due array di lunghezza diversa sarebbero
+	// una lettura fuori dai limiti su un dato che nessuno rilegge fino al frame in cui si disegna.
+	const bool bUsable = Snapshot.bIsValid
+		&& Snapshot.LocalTransforms.Num() > 0
+		&& Snapshot.BoneNames.Num() == Snapshot.LocalTransforms.Num();
+
+	if (bUsable)
+	{
+		return ERTGhostPoseSource::Snapshot;
+	}
+
+	// ⛔ **Il ripiego resta, e non e' una cortesia**: un contatto puo' nascere da RUMORE (`CP 13.4`), e
+	// un'unita' sentita e mai vista non ha nessuna posa da ricordare. E' la riga per cui il referto del
+	// 2026-08-30 ha rifiutato di dividere #1750 in due issue.
+	return bHasFallbackClip ? ERTGhostPoseSource::Fallback : ERTGhostPoseSource::None;
+}
+
 void ARTUnit::RefreshComponentVisibility()
 {
 	const bool bRender = ShouldBeRendered(IsAlive(), bKnownToObserver);
@@ -458,6 +497,29 @@ void ARTUnit::RefreshComponentVisibility()
 	// questa funzione proprio perche' deve vedersi quando l'unita' non si vede — e mescolarli sarebbe il
 	// difetto opposto, un ricordo che sparisce insieme al suo soggetto.
 	if (OverlayWidget) { OverlayWidget->SetVisibility(bRender, false); }
+
+	// 🔴 **La cattura della posa ricordata (#1750), e sta PRIMA di `SetVisibility(false)` per costruzione.**
+	//
+	// Il momento e' l'unica cosa che rende questo un ricordo invece di una vista:
+	//
+	//  - **prima**, perche' cio' che si vuole e' la posa dell'ultimo istante in cui l'osservatore la vedeva.
+	//    ⚠️ Il referto del 2026-08-30 §3 lo motivava con *«UE puo' aver smesso di aggiornare la posa»*, e
+	//    **misurato sull'engine 5.8 quel motivo e' falso**: il default e' `AlwaysTickPoseAndRefreshBones`
+	//    (`SkeletalMeshComponent.cpp:446`), la posa continua ad avanzare anche da nascosta. La regola regge
+	//    per una ragione piu' stretta — catturare prima non dipende da un'opzione di componente che
+	//    qualunque `BP_Unit_*` puo' cambiare senza toccare questo file;
+	//  - **una volta sola**, e proprio perche' la posa continua ad avanzare: una cattura ripetuta darebbe la
+	//    posa CORRENTE del nemico frame per frame. Non un ricordo sbiadito: una telecamera. Il one-shot lo
+	//    impone `NotifyRenderStateForPoseCapture`, che guarda la TRANSIZIONE e non la condizione — tre dei
+	//    quattro chiamanti di questa funzione la invocano a visibilita' invariata.
+	//
+	// ⚠️ `SnapshotPose` scrive la posa di RIFERIMENTO per le ossa fuori dalle *required bones* del LOD
+	// corrente, e quelle che le LOD dei pack rimuovono sono le catene di Riktor: vedi `LastSeenPose`, e
+	// `#1784` per la ragione per cui oggi non morde.
+	if (NotifyRenderStateForPoseCapture(bRender) && bHasHeroMesh)
+	{
+		HeroSkeletal->SnapshotPose(LastSeenPose);
+	}
 
 	if (HeroSkeletal)
 	{
@@ -605,7 +667,7 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 		return;
 	}
 
-	// La mesh/posa arrivano dalla skeletal VIVA del Blueprint (Step 6.1), mai dal C++: un'unita' col solo
+	// La mesh arriva dalla skeletal VIVA del Blueprint (Step 6.1), mai dal C++: un'unita' col solo
 	// cilindro segnaposto (#287) non ha nulla da copiare, e la sagoma resta nascosta invece di mostrare
 	// un vuoto.
 	USkeletalMeshComponent* HeroSkeletal = FindHeroSkeletal();
@@ -624,9 +686,12 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 	// disegna la **posa di riferimento** dello skeleton — la T-pose — e su Riktor quella posa stende le
 	// catene attraverso lo schermo. E' il difetto che questa riga chiude, confermato a schermo il 2026-09-03.
 	//
-	// ⚠️ **Il commento sei righe piu' su promette la POSA e il codice copiava solo la MESH.** Diceva «la
-	// mesh/posa arrivano dalla skeletal VIVA»: la mesh si', la posa no — e nessuno se ne era accorto perche'
-	// una T-pose somiglia a un personaggio, non a un errore.
+	// ⚠️ **Il commento sopra prometteva la POSA e il codice copiava solo la MESH**: diceva «la mesh/posa
+	// arrivano dalla skeletal VIVA», la mesh si' e la posa no, e nessuno se ne era accorto perche' una
+	// T-pose somiglia a un personaggio, non a un errore. Dal secondo criterio la posa arriva **davvero**,
+	// ma per un'altra strada — non copiata insieme alla mesh: catturata al momento del contatto e applicata
+	// dal ramo `Snapshot` qui sotto. Il commento e' stato ristretto alla sola mesh, che e' cio' che quella
+	// riga fa.
 	//
 	// 🔑 **Perche' una clip congelata e non uno snapshot della posa viva.** Il referto di spec-panel §4
 	// (`sagoma-ultimo-contatto-posa-spec-panel-2026-08-30.md`) prescrive l'ordine e la ragione:
@@ -643,19 +708,66 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 	// skeletal viva, e non deve diventarlo.
 	//
 	// ⚠️ **`AnimationSingleNode` invece della classe dedicata che il referto proponeva.** §3 raccomandava
-	// *«una classe dedicata — che applica una posa e non avanza»*, e per lo SNAPSHOT servira': applicare un
-	// `FPoseSnapshot` richiede un `AnimInstance` che lo consumi. Per il ripiego il motore ha gia' quel
+	// *«una classe dedicata — che applica una posa e non avanza»*. Per il RIPIEGO il motore ha gia' quel
 	// meccanismo, e una classe nostra sarebbe codice da mantenere per riscrivere `FAnimSingleNodeInstance`.
+	// La classe dedicata e' arrivata col secondo criterio — `URTContactGhostAnimInstance` — perche' li'
+	// serve davvero: un `FPoseSnapshot` vuole un `AnimInstance` che lo consumi.
+	// ⚠️ **E quella frase, scritta qui col primo criterio, si legge naturalmente come «serve un
+	// AnimBlueprint»: e' falsa.** Il grafo della sagoma e' C++ puro come `URTUnitAnimInstance`, e nessun
+	// `.uasset` e' stato aggiunto.
+	//
+	// 🔴 **E dal secondo criterio di #1750 il ripiego non e' piu' l'unica sorgente**: quando la squadra ha
+	// davvero VISTO l'unita', `RefreshComponentVisibility` ne ha catturato la posa e la sagoma mostra
+	// quella. Chi sceglie e' `GhostPoseSourceFor`, che e' pura perche' il test la possa chiamare.
 	UAnimSequenceBase* const IdleClip = GhostFallbackClipPath().LoadSynchronous();
-	if (IdleClip != nullptr)
+
+	switch (GhostPoseSourceFor(LastSeenPose, /*bHasFallbackClip*/ IdleClip != nullptr))
 	{
-		if (ContactGhost->AnimationData.AnimToPlay != IdleClip)
+	case ERTGhostPoseSource::Snapshot:
+	{
+		// ⛔ **Il grafo della sagoma, assegnato QUI e non da `ApplyUnitAnimClass`** — che continua a non
+		// raggiungere `ContactGhost` perche' `FindHeroSkeletal` lo esclude per identita'. Se ci arrivasse
+		// da li' prenderebbe `URTUnitAnimInstance` e si animerebbe dal vivo.
+		if (ContactGhostAnimClass != nullptr && ContactGhost->GetAnimClass() != ContactGhostAnimClass)
+		{
+			ContactGhost->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+			ContactGhost->SetAnimInstanceClass(ContactGhostAnimClass);
+		}
+
+		// La posa si scrive sull'istanza a ogni aggiornamento, non solo alla prima: il ricordo si
+		// sovrascrive quando l'unita' viene rivista e poi persa di nuovo, ed e' il comportamento voluto —
+		// la sagoma e' l'ULTIMO contatto, non il primo.
+		//
+		// ⚠️ Il proxy copia nel nodo in `PreUpdate`, cioe' sul game thread: da qui non si tocca mai il dato
+		// che il motore sta valutando.
+		if (URTContactGhostAnimInstance* GhostAnim =
+			Cast<URTContactGhostAnimInstance>(ContactGhost->GetAnimInstance()))
+		{
+			GhostAnim->Snapshot = LastSeenPose;
+		}
+		break;
+	}
+	case ERTGhostPoseSource::Fallback:
+	{
+		// ⚠️ **Si torna a `AnimationSingleNode` esplicitamente**, e non e' ridondante: la stessa sagoma puo'
+		// aver mostrato uno snapshot in un turno precedente — un'unita' vista, persa, e poi solo SENTITA
+		// non porta piu' una posa valida da mostrare. Senza il cambio di modo resterebbe agganciata al
+		// grafo dello snapshot, che a quel punto valuterebbe una posa vuota.
+		if (ContactGhost->GetAnimationMode() != EAnimationMode::AnimationSingleNode
+			|| ContactGhost->AnimationData.AnimToPlay != IdleClip)
 		{
 			ContactGhost->SetAnimationMode(EAnimationMode::AnimationSingleNode);
 			ContactGhost->SetAnimation(IdleClip);
 			ContactGhost->SetPosition(0.f, /*bFireNotifies=*/ false);
 			ContactGhost->Stop();
 		}
+		break;
+	}
+	case ERTGhostPoseSource::None:
+	default:
+		// Nessuna posa da mostrare: resta com'e'. E' il caso di `#287` — *«se una clip manca, l'unita' resta
+		// in posa di riferimento e la partita si gioca uguale»* — e non un modo nuovo di fallire.
+		break;
 	}
 
 

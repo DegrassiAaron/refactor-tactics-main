@@ -7,6 +7,7 @@
 #include "Unit/RTUnit.h"
 #include "Combat/RTCombatLibrary.h" // BaseShield: il valore lo dichiara il combattimento, non il test
 #include "Map/RTMapVisuals.h"
+#include "Unit/RTContactGhostAnimInstance.h" // #1750: il grafo della sagoma, distinto da quello vivo
 #include "Unit/RTUnitAnimInstance.h" // #288: il grafo di locomozione vive in C++ // #983: si include invece di fidarsi della transitivita' di RTUnit.h
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -676,4 +677,173 @@ bool FRTUnitGhostFallbackClipTest::RunTest(const FString&)
 		ARTUnit::GhostFallbackClipFor(nullptr, FName(TEXT("Hero.Riktor"))).IsNull());
 	return true;
 }
+
+/**
+ * 🔴 **Il one-shot della cattura di posa (#1750, secondo criterio): la sagoma e' un RICORDO, non una
+ * telecamera.**
+ *
+ * Il difetto che questo test rende impossibile e' il **terzo leak** di una issue che ne conta due nel
+ * titolo: se la posa venisse catturata ogni volta che l'unita' risulta nascosta — invece che una sola volta,
+ * quando smette di vedersi — la sagoma mostrerebbe cio' che il nemico **sta facendo adesso**.
+ *
+ * ⚠️ **E non e' un timore teorico, e' il default dell'engine.** `VisibilityBasedAnimTickOption` vale
+ * `AlwaysTickPoseAndRefreshBones` (`SkeletalMeshComponent.cpp:446`): la posa di un'unita' nascosta continua
+ * ad avanzare, quindi due catture successive **non** darebbero lo stesso valore.
+ *
+ * 🔑 **Perche' il test chiama `NotifyRenderStateForPoseCapture` e non la sola funzione pura.** La mutazione
+ * da temere — «condizione `!bRender` invece della transizione» — vivrebbe nel CHIAMANTE, e un test scritto
+ * sulla sola `ShouldCaptureContactPose` resterebbe verde. E' la lezione che la PR #2180 ha pagato su questa
+ * stessa issue con un primo test vacuo. Qui la sequenza morde: la seconda chiamata a visibilita' invariata
+ * **deve** dare `false`.
+ *
+ * ⚠️ Non serve nessuna mesh: la transizione e' stato dell'attore, e `NewObject<ARTUnit>()` basta. La cattura
+ * vera resta subordinata a `bHasHeroMesh` nel chiamante, ed e' verifica PIE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitContactPoseCaptureIsOneShotTest,
+	"RefactorTactics.Unit.ContactPoseCaptureIsOneShot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitContactPoseCaptureIsOneShotTest::RunTest(const FString&)
+{
+	// (C1) La funzione pura: un solo verso.
+	TestTrue(TEXT("C1: visibile -> nascosta arma la cattura"),
+		ARTUnit::ShouldCaptureContactPose(/*bWasRendered*/ true, /*bWillBeRendered*/ false));
+	TestFalse(TEXT("C3: nascosta -> visibile NON arma la cattura"),
+		ARTUnit::ShouldCaptureContactPose(false, true));
+	TestFalse(TEXT("C2: nascosta -> nascosta NON arma la cattura"),
+		ARTUnit::ShouldCaptureContactPose(false, false));
+	TestFalse(TEXT("visibile -> visibile non arma la cattura"),
+		ARTUnit::ShouldCaptureContactPose(true, true));
+
+	// E ora la SEQUENZA sull'unita', che e' cio' che la funzione pura da sola non puo' dire.
+	ARTUnit* Unit = NewObject<ARTUnit>();
+	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+
+	// ⚠️ **Un'unita' appena nata non ha niente da ricordare.** La memoria parte da `false`, quindi il primo
+	// refresh su un nemico gia' ignoto non cattura la posa dell'istante zero — che sarebbe la posa di
+	// riferimento, cioe' uno snapshot valido e inutile capace di scavalcare il ripiego.
+	TestFalse(TEXT("il primo refresh su un'unita' gia' nascosta non cattura"),
+		Unit->NotifyRenderStateForPoseCapture(false));
+
+	TestFalse(TEXT("tornare visibile non cattura"), Unit->NotifyRenderStateForPoseCapture(true));
+
+	// La perdita di vista: qui e solo qui.
+	TestTrue(TEXT("perdere di vista l'unita' cattura la posa"),
+		Unit->NotifyRenderStateForPoseCapture(false));
+
+	// 🔴 **Il cuore del test.** `RefreshComponentVisibility` ha quattro chiamanti e TRE la invocano a
+	// visibilita' invariata (`ApplyTeamColor`, `OnSelected`, `OnDeselected`): selezionare un nemico gia'
+	// nascosto non deve ricatturare niente.
+	for (int32 Refresh = 0; Refresh < 3; ++Refresh)
+	{
+		TestFalse(*FString::Printf(
+			TEXT("C2: refresh #%d a visibilita' invariata NON ricattura (sarebbe una telecamera)"), Refresh),
+			Unit->NotifyRenderStateForPoseCapture(false));
+	}
+
+	// Riavvistata e riperduta: il ricordo si sovrascrive, perche' la sagoma e' l'ULTIMO contatto.
+	Unit->NotifyRenderStateForPoseCapture(true);
+	TestTrue(TEXT("riperdere di vista l'unita' cattura di nuovo"),
+		Unit->NotifyRenderStateForPoseCapture(false));
+	return true;
+}
+
+/**
+ * 🔴 **Da dove la sagoma prende la posa (#1750, secondo criterio), e il caso che il referto aveva trovato
+ * senza copertura.**
+ *
+ * I due criteri della issue sono in SEQUENZA e non in alternativa: lo snapshot sostituisce il ripiego
+ * *quando esiste*, e il ripiego resta obbligatorio perche' un contatto puo' nascere da **rumore**
+ * (`CP 13.4`) — un'unita' sentita e mai vista non ha nessuna posa da ricordare.
+ *
+ * 🔑 **`FPoseSnapshot` e' una struttura di dati puri** (`TArray<FTransform>`, `TArray<FName>`, due `FName`,
+ * un `bool`): si costruisce a mano, senza mesh, senza pack Paragon e senza Blueprint. E' la ragione per cui
+ * questo criterio si chiude headless mentre quello del primo criterio — «almeno un osso differisce dalla
+ * posa di riferimento» — non poteva.
+ *
+ * ⛔ **Cio' che questo test NON dimostra**: che la posa a schermo sia quella giusta. Quella resta la verifica
+ * PIE su Riktor, ed e' registrata come tale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitGhostPoseSourceTest,
+	"RefactorTactics.Unit.ContactGhostPrefersTheRememberedPose",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitGhostPoseSourceTest::RunTest(const FString&)
+{
+	// Uno snapshot come quello che `SnapshotPose` produce: due ossa, nomi e transform in parallelo.
+	FPoseSnapshot Ricordo;
+	Ricordo.SkeletalMeshName = FName(TEXT("SK_Riktor"));
+	Ricordo.BoneNames = { FName(TEXT("root")), FName(TEXT("arm_chain_long_r_01")) };
+	Ricordo.LocalTransforms = { FTransform::Identity, FTransform(FRotator(0.f, 30.f, 0.f)) };
+	Ricordo.bIsValid = true;
+
+	// (C4) Il ricordo vince sul ripiego: e' il punto dell'intero secondo criterio.
+	TestEqual(TEXT("C4: con un ricordo valido la sagoma usa lo SNAPSHOT, non il ripiego"),
+		ARTUnit::GhostPoseSourceFor(Ricordo, /*bHasFallbackClip*/ true), ERTGhostPoseSource::Snapshot);
+
+	// ⚠️ E vince anche quando il ripiego non c'e' affatto: sono due sorgenti indipendenti.
+	TestEqual(TEXT("un ricordo valido basta da solo, senza clip di ripiego"),
+		ARTUnit::GhostPoseSourceFor(Ricordo, /*bHasFallbackClip*/ false), ERTGhostPoseSource::Snapshot);
+
+	// (C5) 🔑 **Il contatto da RUMORE**: nessuno snapshot, mai vista. E' il caso che il referto del
+	// 2026-08-30 aveva individuato e per cui ha rifiutato di dividere #1750 in due issue.
+	const FPoseSnapshot MaiVista; // nasce `bIsValid == false`
+	TestEqual(TEXT("C5: un contatto da rumore (mai vista) usa il RIPIEGO"),
+		ARTUnit::GhostPoseSourceFor(MaiVista, /*bHasFallbackClip*/ true), ERTGhostPoseSource::Fallback);
+
+	// (C6) Uno snapshot marcato invalido non e' uno snapshot: stessa risposta di «mai catturato».
+	FPoseSnapshot Invalido = Ricordo;
+	Invalido.bIsValid = false;
+	TestEqual(TEXT("C6: uno snapshot con bIsValid == false ripiega, non si applica vuoto"),
+		ARTUnit::GhostPoseSourceFor(Invalido, /*bHasFallbackClip*/ true), ERTGhostPoseSource::Fallback);
+
+	// ⛔ Array disallineati: `FAnimNode_PoseSnapshot::ApplyPose` indicizza `LocalTransforms` con l'indice
+	// del nome, e due lunghezze diverse sarebbero una lettura fuori dai limiti al primo frame disegnato.
+	FPoseSnapshot Disallineato = Ricordo;
+	Disallineato.LocalTransforms.Pop();
+	TestEqual(TEXT("nomi e transform disallineati ripiegano invece di indicizzare fuori dai limiti"),
+		ARTUnit::GhostPoseSourceFor(Disallineato, /*bHasFallbackClip*/ true), ERTGhostPoseSource::Fallback);
+
+	FPoseSnapshot Vuoto;
+	Vuoto.bIsValid = true; // valido ma senza ossa: non c'e' niente da mostrare
+	TestEqual(TEXT("uno snapshot valido ma senza ossa ripiega"),
+		ARTUnit::GhostPoseSourceFor(Vuoto, /*bHasFallbackClip*/ true), ERTGhostPoseSource::Fallback);
+
+	// Senza ricordo E senza clip non resta niente: la posa di riferimento, che e' il comportamento
+	// dichiarato da #287 e non un modo nuovo di fallire.
+	TestEqual(TEXT("senza ricordo e senza clip non c'e' nessuna sorgente"),
+		ARTUnit::GhostPoseSourceFor(MaiVista, /*bHasFallbackClip*/ false), ERTGhostPoseSource::None);
+	return true;
+}
+
+/**
+ * ⛔ **La sagoma non prende il grafo dell'unita' VIVA** (#1750): sono due classi distinte, e confonderle
+ * sarebbe il leak per cui `FindHeroSkeletal` esclude `ContactGhost` per identita'.
+ *
+ * ⚠️ Il test guarda i DEFAULT del costruttore, non il comportamento a schermo: e' l'unica meta' che si puo'
+ * asserire senza una skeletal, ed e' quella che una svista di copia-incolla romperebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitGhostAnimClassIsNotTheLiveOneTest,
+	"RefactorTactics.Unit.ContactGhostAnimClassIsNotTheLiveOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitGhostAnimClassIsNotTheLiveOneTest::RunTest(const FString&)
+{
+	const ARTUnit* Cdo = GetDefault<ARTUnit>();
+	if (!TestNotNull(TEXT("CDO dell'unita'"), Cdo)) { return false; }
+
+	TestEqual(TEXT("la sagoma ha il proprio grafo"),
+		Cdo->ContactGhostAnimClass.Get(), URTContactGhostAnimInstance::StaticClass());
+	TestEqual(TEXT("l'unita' viva ha il suo"),
+		Cdo->UnitAnimClass.Get(), URTUnitAnimInstance::StaticClass());
+
+	// 🔴 L'asserzione per cui il test esiste: **non sono la stessa classe**. Un `ContactGhostAnimClass`
+	// uguale a `UnitAnimClass` farebbe animare la sagoma dal vivo su un'unita' che l'osservatore non vede.
+	TestNotEqual(TEXT("la sagoma NON usa il grafo dell'unita' viva"),
+		Cdo->ContactGhostAnimClass.Get(), Cdo->UnitAnimClass.Get());
+
+	// ⛔ E il grafo della sagoma non deriva da quello vivo: derivarne erediterebbe i sequence player, cioe'
+	// la capacita' di animarsi, che questa classe esiste per NON avere.
+	TestFalse(TEXT("il grafo della sagoma non deriva da quello dell'unita' viva"),
+		URTContactGhostAnimInstance::StaticClass()->IsChildOf(URTUnitAnimInstance::StaticClass()));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
