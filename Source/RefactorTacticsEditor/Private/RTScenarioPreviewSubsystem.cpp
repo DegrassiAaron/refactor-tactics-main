@@ -146,12 +146,13 @@ void URTScenarioPreviewSubsystem::ClearPreview()
 	PlaybackInitial.Reset();
 	PlaybackScenarioIds.Reset();
 
-	// ⛔ **Anche il termine di paragone, e qui SI CANCELLA invece di ruotare.** Due corse di scenari
-	// DIVERSI non sono confrontabili: un paragone sopravvissuto alla chiusura dello scenario farebbe
-	// divergere la prima corsa del prossimo per costruzione, e il verdetto direbbe una cosa falsa
-	// nominando un boundary vero — che e' il modo peggiore di sbagliare.
+	// 🔴 **Il termine di paragone NON si azzera qui, e la prima stesura lo faceva.** Il pulsante Run del
+	// pannello chiama `ShowScenario()` — che comincia proprio con questa funzione — e subito dopo
+	// `OpenPlayback()`: azzerare il paragone qui lo azzerava a OGNI corsa, e il verdetto di divergenza non
+	// partiva mai. La protezione contro il confronto fra scenari diversi ora sta nell'identita'
+	// (`PreviousRunScenarioId`), non nel fatto che qualcuno passi di qua.
 	PlaybackBoundaries.Reset();
-	PreviousRunBoundaries.Reset();
+	PlaybackScenarioId.Reset();
 }
 
 TArray<int32> URTScenarioPreviewSubsystem::GetSelectableTeams() const
@@ -232,6 +233,13 @@ void URTScenarioPreviewSubsystem::ApplyPerspective()
 
 bool URTScenarioPreviewSubsystem::OpenPlayback(const URTScenarioAuthoring* Authoring)
 {
+	// 🔑 La corsa uscente si cattura PRIMA di `ClosePlayback()`, che la azzera, e si promuove a termine di
+	// paragone solo se la nuova apertura riesce: promuoverla in chiusura perderebbe l'ultima corsa buona
+	// ogni volta che l'apertura successiva fallisce.
+	TArray<FRTBoundaryChecksum> Uscenti = MoveTemp(PlaybackBoundaries);
+	const FString ScenarioUscente = PlaybackScenarioId;
+	const bool bCeraUnaCorsa = bPlaybackOpen;
+
 	ClosePlayback();
 
 	// Serve uno scenario GIA' mostrato: il playback muove i marcatori di quello, non ne apre un altro.
@@ -292,6 +300,16 @@ bool URTScenarioPreviewSubsystem::OpenPlayback(const URTScenarioAuthoring* Autho
 	// antecedente degraderebbe a un boundary per fase, che e' il comportamento dichiarato e non un errore.
 	PlaybackBoundaries = URTBoundaryChecksumLibrary::ChecksumsAlongTrace(
 		PreviewArena, PlaybackTrace, PlaybackInitial, ERTTurnLogFormatVersion::WithMicroStep);
+	PlaybackScenarioId = Authoring->GetDraft().GetScenario().ScenarioId;
+
+	// La corsa precedente diventa il paragone, con la propria identita' accanto: il confronto avverra' solo
+	// se i due scenari coincidono.
+	if (bCeraUnaCorsa)
+	{
+		PreviousRunBoundaries = MoveTemp(Uscenti);
+		PreviousRunScenarioId = ScenarioUscente;
+		bHasPreviousRun = true;
+	}
 
 	bPlaybackOpen = true;
 
@@ -311,16 +329,11 @@ void URTScenarioPreviewSubsystem::ClosePlayback()
 	PlaybackInitial.Reset();
 	PlaybackScenarioIds.Reset();
 
-	// La corsa che si chiude diventa il TERMINE DI PARAGONE della prossima: la domanda del designer dopo
-	// una modifica non e' «qual e' l'hash?» ma «dove e' cambiata la risoluzione?».
-	//
-	// ⚠️ Solo se una corsa c'era davvero. `ClosePlayback` e' chiamata anche da `OpenPlayback` prima di
-	// aprire: ruotare su un playback mai aperto sostituirebbe il paragone con il vuoto.
-	if (bEra)
-	{
-		PreviousRunBoundaries = MoveTemp(PlaybackBoundaries);
-	}
+	// ⛔ Qui NON si ruota il paragone. La rotazione vive in `OpenPlayback`, che e' il solo punto in cui si
+	// sa se una corsa NUOVA e' davvero riuscita: ruotare in chiusura significherebbe sostituire il paragone
+	// anche quando l'apertura successiva fallisce, perdendo l'ultima corsa buona.
 	PlaybackBoundaries.Reset();
+	PlaybackScenarioId.Reset();
 
 	// Il view model torna non-aperto: `IsPlaybackPlaying()` deve essere falso e i `CanStep*` devono
 	// rispondere «no» a playback chiuso, invece di conservare i bordi dell'ultima corsa.
@@ -549,17 +562,42 @@ TArray<FString> URTScenarioPreviewSubsystem::DescribePlaybackBoundaries() const
 		return { TEXT("[RT] Nessun playback aperto: non c'e' nessuna corsa da misurare.") };
 	}
 
-	TArray<FString> Righe = URTDebugReportLibrary::DescribeBoundaryChecksums(PlaybackBoundaries);
+	TArray<FString> Righe;
+
+	// ⚠️ **Uno schieramento iniziale vuoto non e' un dettaglio: rende la misura muta.**
+	// `InitialStatesFromViews` scarta in silenzio le viste che `PlaybackScenarioIds` non traduce, quindi
+	// puo' tornare vuoto. `ChecksumsAlongTrace` ricostruirebbe allora un roster vuoto a OGNI boundary,
+	// producendo lo stesso hash dappertutto: un elenco plausibile in cui nessun boundary discrimina, e un
+	// «coincidono» falso fra due corse diverse. Si dice, invece di lasciarlo sembrare una misura.
+	if (PlaybackInitial.Num() == 0 && PlaybackTrace.Num() > 0)
+	{
+		Righe.Add(TEXT("[RT] ⚠ Schieramento iniziale vuoto: i checksum sotto NON discriminano i boundary."));
+		Righe.Add(TEXT("[RT]   (nessuna vista d'authoring e' stata tradotta in uno StableUnitId)"));
+	}
+
+	Righe.Append(URTDebugReportLibrary::DescribeBoundaryChecksums(PlaybackBoundaries));
 
 	// 🔴 La domanda del designer dopo una modifica non e' «qual e' l'hash?» ma «DOVE e' cambiata la
-	// risoluzione?». Senza un termine di paragone quella domanda non ha risposta — ed e' la chiamata che
-	// toglie `DescribeDivergence` dalla condizione di funzione senza chiamanti di produzione (`#2486`).
-	if (PreviousRunBoundaries.Num() > 0)
+	// risoluzione?». E' la chiamata che toglie `DescribeDivergence` dalla condizione di funzione senza
+	// chiamanti di produzione (`#2486`).
+	if (!bHasPreviousRun)
 	{
-		Righe.Add(TEXT("[RT] --- rispetto alla corsa precedente ---"));
-		Righe.Append(URTDebugReportLibrary::DescribeBoundaryDivergence(
-			PreviousRunBoundaries, PlaybackBoundaries));
+		return Righe;
 	}
+
+	// ⛔ Si confronta SOLO dentro lo stesso scenario. Due corse di scenari diversi non sono confrontabili, e
+	// un verdetto che le confrontasse nominerebbe un boundary vero dentro un'affermazione falsa.
+	if (PreviousRunScenarioId != PlaybackScenarioId)
+	{
+		Righe.Add(FString::Printf(
+			TEXT("[RT] La corsa precedente e' di un altro scenario (%s): non confrontabile."),
+			*PreviousRunScenarioId));
+		return Righe;
+	}
+
+	Righe.Add(TEXT("[RT] --- prima (corsa precedente) contro adesso (corsa corrente) ---"));
+	Righe.Append(URTDebugReportLibrary::DescribeBoundaryDivergence(
+		PreviousRunBoundaries, PlaybackBoundaries));
 
 	return Righe;
 }

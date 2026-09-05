@@ -5,7 +5,13 @@
 // `RefactorTactics.Debug.BoundaryChecksumReportNamesEveryBoundary` e
 // `BoundaryDivergenceReportNamesTheTriple` — e questo file e' il wrapper sottile che le stampa.
 //
-// ⚠️ **Sta nel modulo EDITOR e non accanto agli altri otto, e non e' una dimenticanza.** La sola via che
+// ⚠️ **Sta nel modulo EDITOR ma resta nel namespace `rt.Debug.`, ed e' deliberato in entrambe le meta'.**
+// Il modulo non e' mai stato una ragione per cambiare prefisso: `rt.Debug.Los` vive in `Map/` e
+// `rt.Debug.Pacing` in `Turn/`. Il prefisso e' la superficie con cui un designer SCOPRE i comandi — digita
+// `rt.Debug.` e vede cosa c'e' — ed e' quella che `Debug.NamespaceDeclaresAllCommands` enumera. Un
+// `rt.Scenario.` avrebbe reso l'unico ingresso di questa feature invisibile a entrambi.
+//
+// Quello che invece dipende davvero dal modulo e' il DATO: La sola via che
 // possiede lo schieramento iniziale e' lo Scenario Preview, che e' editor-only: `ChecksumsAlongTrace` vuole
 // `Initial`, la traccia dichiara i CAMBIAMENTI e non le partenze, e `ARTTurnManager` espone lo stato
 // CORRENTE. Un `rt.Debug.*` nel runtime non potrebbe raggiungere nessuno dei tre ingressi — ed e' la ragione
@@ -47,6 +53,6 @@ namespace
 }
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTScenarioDumpBoundaries(
-	TEXT("rt.Scenario.DumpBoundaries"),
+	TEXT("rt.Debug.DumpBoundaries"),
 	TEXT("I boundary checksum della corsa in playback, e dove diverge dalla corsa precedente. Sola lettura."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTScenarioDumpBoundariesCommand));

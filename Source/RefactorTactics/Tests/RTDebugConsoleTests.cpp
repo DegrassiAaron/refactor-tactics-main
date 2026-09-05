@@ -16,7 +16,6 @@
 #include "Map/RTHexOccupancyLibrary.h"
 #include "Misc/AutomationTest.h"
 #include "Replay/RTBoundaryChecksum.h"
-#include "Turn/RTTurnRules.h"
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
@@ -560,7 +559,7 @@ bool FRTBoundaryChecksumReportNamesEveryBoundaryTest::RunTest(const FString&)
 	TestFalse(TEXT("e mai come micro-step negativo"), Tutto.Contains(TEXT("#-1")));
 
 	// ⛔ ANTI-VACUITA': gli hash devono comparire davvero, o il report nominerebbe i luoghi senza le misure.
-	TestTrue(TEXT("l'hash del primo boundary compare"), Tutto.Contains(TEXT("0x0000000000001111")));
+	TestTrue(TEXT("l'hash del primo boundary compare"), Tutto.Contains(TEXT("0x00001111")));
 
 	return true;
 }

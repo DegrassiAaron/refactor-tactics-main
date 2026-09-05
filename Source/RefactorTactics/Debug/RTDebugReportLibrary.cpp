@@ -369,8 +369,12 @@ TArray<FString> URTDebugReportLibrary::DescribeBoundaryChecksums(const TArray<FR
 	{
 		// `ToString()` porta gia' la terna e sa che `INDEX_NONE` e' la fase intera — stampare qui il `#%d`
 		// a mano rifarebbe quella decisione, e la rifarebbe peggio.
-		Lines.Add(FString::Printf(TEXT("[RT]   %s  0x%016llx"),
-			*C.ToString(), static_cast<uint64>(C.Hash)));
+		// ⚠️ `%08x` e non `%016llx`: `HashMatchState` restituisce **uint32**, quindi otto cifre bastano e
+		// sedici aggiungerebbero otto zeri privi di significato. Conta perche' `DescribeDivergence` stampa
+		// lo stesso numero come `0x%08X`: due grafie per lo stesso valore, nello stesso dump, costringono a
+		// confrontare a occhio due stringhe di forma diversa.
+		Lines.Add(FString::Printf(TEXT("[RT]   %s  0x%08x"),
+			*C.ToString(), static_cast<uint32>(C.Hash)));
 	}
 	return Lines;
 }
@@ -389,13 +393,13 @@ TArray<FString> URTDebugReportLibrary::DescribeBoundaryDivergence(const TArray<F
 		return Lines;
 	}
 
+	// ⛔ Qui NON si richiama `FirstDivergence`. `DescribeDivergence` lo ha gia' chiamato al proprio
+	// interno e restituisce vuoto esattamente quando vale `INDEX_NONE`: arrivati a questa riga non puo'
+	// piu' esserlo, quindi una guardia sarebbe un ramo che nessun test puo' coprire e una seconda
+	// passata O(n) su entrambe le serie.
+	//
+	// ⛔ E non si ristampano i conteggi: sulla via delle lunghezze diverse `DescribeDivergence` scrive
+	// gia' «(%d contro %d)», e ripeterli sotto direbbe due volte la stessa cosa con due nomi diversi.
 	Lines.Add(FString::Printf(TEXT("[RT] %s"), *Messaggio));
-
-	const int32 Dove = URTBoundaryChecksumLibrary::FirstDivergence(A, B);
-	if (Dove != INDEX_NONE)
-	{
-		Lines.Add(FString::Printf(TEXT("[RT]   primo boundary divergente: indice %d (A ne ha %d, B %d)"),
-			Dove, A.Num(), B.Num()));
-	}
 	return Lines;
 }

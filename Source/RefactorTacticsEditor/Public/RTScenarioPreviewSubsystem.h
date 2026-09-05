@@ -290,13 +290,39 @@ private:
 	/** I boundary della corsa in playback, calcolati una volta all'apertura. */
 	TArray<FRTBoundaryChecksum> PlaybackBoundaries;
 
+	/** Lo scenario a cui appartiene la corsa in playback. Vuoto se non c'e' playback. */
+	FString PlaybackScenarioId;
+
 	/**
 	 * I boundary della corsa PRECEDENTE: il termine di paragone.
 	 *
-	 * ⚠️ Sopravvive a `ClosePlayback` **di proposito** — e' cio' che rende possibile la domanda «dove e'
-	 * cambiato rispetto a prima?» attraverso una riapertura, che e' esattamente il giro che il designer fa.
+	 * 🔴 **Sopravvive a `ClearPreview`, e la prima stesura sbagliava proprio qui.** Il pulsante Run del
+	 * pannello fa `ShowScenario()` e poi `OpenPlayback()`, e `ShowScenario` comincia con `ClearPreview()`:
+	 * azzerare il paragone li' lo azzerava a **ogni** corsa, e il verdetto di divergenza non partiva mai.
+	 * Era la stessa catena morta che questa issue esiste per chiudere, un anello piu' in fuori.
+	 *
+	 * ⛔ La sicurezza contro il confronto fra scenari diversi NON viene piu' dall'azzeramento: viene
+	 * dall'identita', qui sotto. Affidarla a «chi chiama cosa» significava dipendere da un percorso che
+	 * nessun test attraversava.
 	 */
 	TArray<FRTBoundaryChecksum> PreviousRunBoundaries;
+
+	/**
+	 * Lo scenario della corsa precedente. Il confronto avviene **solo** se coincide con quello corrente.
+	 *
+	 * Due corse di scenari diversi non sono confrontabili: un verdetto che le confrontasse nominerebbe un
+	 * boundary vero dentro un'affermazione falsa, che e' il modo peggiore di sbagliare.
+	 */
+	FString PreviousRunScenarioId;
+
+	/**
+	 * `true` quando una corsa precedente esiste davvero.
+	 *
+	 * ⚠️ Distingue «nessuna corsa precedente» da «corsa precedente con zero boundary», che un array vuoto
+	 * confonderebbe — la stessa distinzione che `DescribeBoundaryChecksums` fa stampando «nessuno» invece
+	 * di non stampare niente.
+	 */
+	bool bHasPreviousRun = false;
 
 	/** `StableUnitId` -> identita' d'authoring, per la corsa che il playback sta mostrando. */
 	TMap<int32, FString> PlaybackScenarioIds;
