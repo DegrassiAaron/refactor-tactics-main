@@ -103,6 +103,18 @@ namespace
 			HexMap->SetPreviewReachableCells(TArray<FRTCellId>());
 			HexMap->SetPreviewHitCells(TArray<FRTCellId>(), TArray<FRTCellId>());
 			HexMap->SetPreviewAttack(FRTCellId(), FRTCellId(), /*bValid=*/ false, /*bOriginPredicted=*/ false);
+
+			// 🔴 **Anche la ROTTA, e fino al 2026-09-06 non era cosi'** (`#2390`, trovato in code review).
+			// Le tre righe qui sopra spegnevano il ventaglio e l'area, non il percorso: `PreviewPath` entra
+			// in `HasAnythingToDraw` (`RTHexMapActor.cpp:988`) e viene disegnato in ciano
+			// (`RTHexMapActor.cpp:1160`), quindi il piano di chi aveva tracciato waypoint — il caso normale
+			// — restava a schermo per tutta la risoluzione. Spegnere l'anteprima a meta' e' un difetto piu'
+			// difficile da vedere che non spegnerla affatto.
+			//
+			// ⚠️ **`LastMoveRoutes` non la sostituisce**: `ARTHUD::DrawHUD` disegna la scia grigia dei
+			// percorsi DAVVERO avvenuti (`RTHUD.cpp:667`) su un canale diverso, quindi le due tracce
+			// convivevano invece di darsi il cambio.
+			HexMap->SetPreviewPath(TArray<FRTCellId>());
 			return;
 		}
 
@@ -1280,21 +1292,20 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 
 	// La telemetria di ritmo misura quanto impiega un GIOCATORE a decidere: una selezione fatta da uno
 	// scenario non e' una decisione, e contarla falserebbe i numeri di `PIE-V01-MATCHLEN`.
-	if (bRecordAsPlayerInput)
+	// Risolto UNA volta e riusato due: la telemetria e l'iscrizione al commit vogliono lo stesso attore, e
+	// `GetActorOfClass` e' un `TActorIterator` su tutto il livello.
+	ARTTurnManager* TurnManagerForSelection = PacingTurnManager(this);
+	if (bRecordAsPlayerInput && TurnManagerForSelection)
 	{
-		if (ARTTurnManager* TM = PacingTurnManager(this))
-		{
-			TM->RecordPlanningInput(ERTPlanningInput::Selection);
-		}
+		TurnManagerForSelection->RecordPlanningInput(ERTPlanningInput::Selection);
 	}
 	SelectedActor = Actor;
 	UE_LOG(LogRT, Log, TEXT("[RT] Selezionata: %s"), *Actor->GetName());
 
 	// 🔑 **Chi puo' ACCENDERE l'anteprima garantisce che qualcuno la spenga** (`#2390`). Da qui in poi
 	// esiste uno stato di presentazione che il commit deve spegnere, e il commit puo' arrivare dal tetto
-	// senza che il Ready sia mai stato premuto. Il `TurnManager` qui esiste per forza: c'e' una partita in
-	// cui selezionare.
-	EnsureLockInCommittedSubscription();
+	// senza che il Ready sia mai stato premuto.
+	EnsureLockInCommittedSubscription(TurnManagerForSelection);
 
 	// L'anteprima segue la selezione: mostra il piano dell'unita' scelta (vuoto se non ne ha).
 	FVector SOrigin; float SHexSize; float SLayerH; const URTHexMapAsset* SMap = nullptr;
@@ -1641,7 +1652,7 @@ void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 			// (`#2390`), ma un Ready puo' arrivare senza che si sia selezionato niente — e il turno si chiude
 			// lo stesso. Le due chiamate sono idempotenti: la sede della regola e' una,
 			// `EnsureLockInCommittedSubscription`, e `AddUniqueDynamic` le rende innocue a ripetersi.
-			EnsureLockInCommittedSubscription();
+			EnsureLockInCommittedSubscription(TurnManager);
 			TurnManager->RequestLockIn();
 		}
 	}
@@ -1649,25 +1660,26 @@ void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 
 void ARTPlayerController::HandleLockInCommitted()
 {
-	// L'anteprima muore col COMMIT, non col Ready: da qui in poi mostrerebbe una minaccia gia' risolta, e la
-	// traccia del percorso la sostituisce `LastMoveRoutes` (cio' che e' DAVVERO successo, non cio' che si
-	// voleva). E' la riga che stava in `OnLockIn` fino a `#2193`.
+	// L'anteprima muore col COMMIT, non col Ready: da qui in poi mostrerebbe una minaccia gia' risolta.
+	// E' la riga che stava in `OnLockIn` fino a `#2193`.
+	//
+	// ⚠️ **Questo commento diceva che «la traccia del percorso la sostituisce `LastMoveRoutes`», ed era
+	// falso**: `ARTHUD` disegna quella scia su un canale diverso e IN AGGIUNTA, non al posto. La rotta la
+	// spegne il ramo `!Unit` di `RefreshPlanningPreview`, che fino al 2026-09-06 non lo faceva.
 	RefreshPlanningPreview(GetWorld(), nullptr);
 }
 
-void ARTPlayerController::EnsureLockInCommittedSubscription()
+void ARTPlayerController::EnsureLockInCommittedSubscription(ARTTurnManager* TurnManager)
 {
-	// ⚠️ **Non in `BeginPlay`**: `ARTGameMode` spawna il `TurnManager` quando non lo trova gia' nel livello
-	// (`RTGameMode.cpp:446`), e l'ordine rispetto al `BeginPlay` del controller non e' garantito. Un
-	// aggancio che dipendesse da quell'ordine sarebbe verde sulla mappa di oggi e muto sulla prossima.
-	//
-	// ⛔ **E non in `PlayerTick`**: una patch cosi' e' gia' stata scritta e ritirata (`#2359`), perche' i
-	// test headless non chiamano `PlayerTick` — non sarebbe ne' verificabile ne' protetta da regressioni,
-	// su codice eseguito a ogni frame.
-	if (ARTTurnManager* TurnManager = PacingTurnManager(this))
+	// Il `TurnManager` arriva dal chiamante e non si ricerca qui: entrambi i siti ce l'hanno gia' risolto,
+	// e una seconda `GetActorOfClass` sarebbe un secondo `TActorIterator` su tutti gli attori del livello
+	// per lo stesso oggetto. Passarlo garantisce anche, strutturalmente, che l'iscrizione vada sull'ISTANZA
+	// su cui il chiamante sta per agire.
+	if (!TurnManager)
 	{
-		TurnManager->OnLockInCommitted.AddUniqueDynamic(this, &ARTPlayerController::HandleLockInCommitted);
+		return;
 	}
+	TurnManager->OnLockInCommitted.AddUniqueDynamic(this, &ARTPlayerController::HandleLockInCommitted);
 }
 
 void ARTPlayerController::ApplyNextPlaybackSpeed(ARTTurnManager* TurnManager)

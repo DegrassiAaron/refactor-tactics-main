@@ -483,7 +483,7 @@ private:
 	 * ⚠️ **Si vede solo prima del PRIMO Ready**: `AddUniqueDynamic` punta al `TurnManager`, che e' lo
 	 * stesso oggetto per tutto il match, quindi dal primo Ready in poi l'iscrizione persiste da se'.
 	 */
-	void EnsureLockInCommittedSubscription();
+	void EnsureLockInCommittedSubscription(class ARTTurnManager* TurnManager);
 	// Uno per posizione del kit, e sono one-liner che passano tutti da `SelectAbilityForCurrent`. Uno per
 	// posizione e non un handler solo perche' l'indice deve arrivare dalla BINDATURA: `FInputActionValue`
 	// porta il valore, non l'azione che l'ha prodotto, quindi un handler unico non saprebbe quale tasto e'
