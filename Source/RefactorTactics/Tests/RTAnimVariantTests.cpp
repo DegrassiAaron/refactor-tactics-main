@@ -208,7 +208,15 @@ bool FRTAnimRosterMigrationKeepsPathsTest::RunTest(const FString&)
 	{
 		const FRTHeroPresentationClips* Eroe = Cdo->FindClipsFor(FName(A.Eroe));
 		if (!TestNotNull(*FString::Printf(TEXT("voce di %s"), A.Eroe), (const void*)Eroe)) { continue; }
-		TestEqual(*FString::Printf(TEXT("%s: due ruoli popolati"), A.Eroe), Eroe->PerRole.Num(), 2);
+		// ⚠️ **Presenza e non CONTEGGIO** (#2450): questa riga chiedeva `== 2` ed è diventata falsa il
+		// giorno in cui `Attack`/`Hit`/`Death` sono entrati nel CDO — cinque ruoli, non due. Un conteggio
+		// qui faceva fallire un test sulla MIGRAZIONE per una ragione che non è la sua, e il messaggio
+		// parlava di ruoli mancanti mentre ne erano arrivati di nuovi. È la gemella della guardia di
+		// `Unit.LocomotionClipsMatchThePacks`, corretta nello stesso commit.
+		TestNotNull(*FString::Printf(TEXT("%s: il ruolo Idle e' popolato"), A.Eroe),
+			(const void*)Eroe->FindRole(ERTPresentationRole::Idle));
+		TestNotNull(*FString::Printf(TEXT("%s: il ruolo Move e' popolato"), A.Eroe),
+			(const void*)Eroe->FindRole(ERTPresentationRole::Move));
 
 		for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Eroe->PerRole)
 		{
