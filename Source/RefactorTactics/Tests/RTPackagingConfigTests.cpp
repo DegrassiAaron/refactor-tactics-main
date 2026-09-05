@@ -543,15 +543,28 @@ bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Il set RICHIESTO, derivato dal roster e non trascritto. Due clip per eroe oggi; il giorno che una
-	// terza entra in `ClipsPerHero`, entra anche qui senza che nessuno tocchi questo file.
+	// Il set RICHIESTO, derivato dal roster e non trascritto.
+	//
+	// 🔴 **Questo ciclo cresce con gli EROI, non con i RUOLI, e il commento che stava qui prometteva il
+	// contrario.** Diceva: «il giorno che una terza clip entra in `ClipsPerHero`, entra anche qui senza
+	// che nessuno tocchi questo file». Vero per un eroe nuovo — il ciclo esterno lo prende da solo.
+	// Falso per un ruolo nuovo: l'elenco dei ruoli qui sotto e' **letterale**, e un ruolo che non e'
+	// nominato qui resta fuori dal set richiesto. Nel pacchetto la sua clip non c'e', in Editor tutto
+	// sembra a posto, e il difetto si vede solo su packaged come posa di riferimento.
+	//
+	// ⚠️ **Adeguamento MECCANICO del 2026-09-05 (#2441)**: `ClipsPerHero` e' passata da
+	// `eroe -> {Idle, Run}` a `eroe -> ruolo -> varianti`. Qui e' cambiata solo la FORMA del ciclo —
+	// stessi due ruoli, stessi otto path di prima. **L'estensione a tutti i ruoli e la prova di
+	// mutazione che la difende sono di #2442**, e finche' quella non atterra questo oracolo resta cieco
+	// esattamente quanto lo era.
 	TArray<FString> Richieste;
-	for (const TPair<FName, FRTLocomotionClips>& Voce : Cdo->ClipsPerHero)
+	for (const TPair<FName, FRTHeroPresentationClips>& Voce : Cdo->ClipsPerHero)
 	{
-		const TSoftObjectPtr<UAnimSequenceBase>* Due[] = { &Voce.Value.Idle, &Voce.Value.Run };
-		for (const TSoftObjectPtr<UAnimSequenceBase>* Clip : Due)
+		const ERTPresentationRole Due[] = { ERTPresentationRole::Idle, ERTPresentationRole::Move };
+		for (const ERTPresentationRole Ruolo : Due)
 		{
-			const FSoftObjectPath Path = Clip->ToSoftObjectPath();
+			// La variante ATTIVA: e' l'unica che il grafo suona, quindi l'unica che il cook deve trovare.
+			const FSoftObjectPath Path = Cdo->ActiveClipFor(Voce.Key, Ruolo).ToSoftObjectPath();
 			if (Path.IsNull())
 			{
 				continue;
