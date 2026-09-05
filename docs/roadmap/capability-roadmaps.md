@@ -208,10 +208,10 @@ Result ── Play Again · Main Menu
 
 **Ancora**: **#2388** *«Verticalità tattica — Ledge, Fall e Forced Movement»* (cross-release)
 
-⚠️ **È l'unica capability di questa vista che non ha ancora una release.** `roadmap-post-v0.1.md` colloca il
-cluster *«3D map / verticalità»* su `future` con owner *«nessuno»*, e la domanda è aperta come `REL-3` in
-[`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md). Finché resta aperta, l'ancora è un **contratto senza lavoro
-figlio**: compare qui perché la capability esiste come dipendenza, non perché sia schedulata.
+✅ **Release: v0.1**, da [`D-332`](../decisions/RT_PDR_00_Decision_Log.md) (2026-09-05), che chiude `REL-3`.
+⚠️ *Questa nota diceva «è l'unica capability di questa vista che non ha ancora una release», ed era vera per
+un giorno.* L'owner semantico delle regole è [`../gameplay/spec-caduta-e-bordi.md`](../gameplay/spec-caduta-e-bordi.md);
+questa vista **linka e non forka**, come le altre otto.
 
 La catena che questa capability non negozia:
 
@@ -236,6 +236,7 @@ che un difetto.
 | leggibilità dell'esito | **CR-PRESENT** · #1937 |
 
 Maturità di capability: `Contratto → Runtime → Traccia → Authoring validato → Leggibilità`.
+⚠️ Sono maturità di **capability**, non versioni di prodotto: non si confrontano con `v0.2`.
 
 ---
 
