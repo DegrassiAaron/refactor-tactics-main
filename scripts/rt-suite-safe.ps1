@@ -104,6 +104,7 @@ try {
 $identity = Resolve-SessionIdentity
 if (-not $identity.Ok) {
     Write-Host ("BLOCKED: {0} - la suite si esegue da un terminale RT, non da un processo effimero." -f $identity.ErrorCode) -ForegroundColor Red
+    Write-Host "Servono RT_TERMINAL_OWNER_PID e RT_TERMINAL_OWNER_STARTED_AT, che rt-terminal.ps1 esporta." -ForegroundColor DarkGray
     exit 2
 }
 

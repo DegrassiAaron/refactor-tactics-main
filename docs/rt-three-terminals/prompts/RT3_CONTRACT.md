@@ -401,10 +401,17 @@ Chi tiene il motore e' la **sessione**, che sopravvive ai comandi lanciati al su
 interno. L'identita' arriva ai processi figli per variabile d'ambiente:
 
 ```text
-RT_TERMINAL_INSTANCE    PID del terminale RT
-RT_TERMINAL_STARTED_AT  istante di avvio di quel processo, UTC ISO-8601
-RT_TERMINAL_ROLE        ruolo della sessione
+RT_TERMINAL_INSTANCE          id LOGICO del terminale - etichetta, prompt, log
+RT_TERMINAL_OWNER_PID         id OS del processo terminale persistente
+RT_TERMINAL_OWNER_STARTED_AT  istante di avvio di quel processo, UTC ISO-8601
+RT_TERMINAL_ROLE              ruolo della sessione
 ```
+
+⚠️ **Le due identita' sono distinte, e non vanno confuse.** L'ownership si decide
+sull'identita' **OS**; l'id logico non ci entra mai. Due terminali possono portare
+etichette qualunque e restano sessioni diverse perche' hanno processi diversi -
+ed e' cio' che consente piu' terminali DEV, EDITOR o VALIDATION nello stesso
+workspace.
 
 `acquire` e `release` senza queste variabili falliscono **fail-closed**
 (`RT_SESSION_REQUIRED`): un processo effimero non puo' possedere una risorsa che
@@ -425,6 +432,21 @@ il recupero e' esplicito — mai automatico, e comunque negato se un processo mo
 vivo non e' attribuibile.
 
 ### Un solo predicato di ownership
+
+⛔ **La verifica dell'identita' del workspace e' fail-closed.**
+
+`acquire` distingue tre esiti, e due bloccano:
+
+| Esito | Comportamento |
+|---|---|
+| contratto disponibile, verdetto positivo | si procede |
+| contratto disponibile, verdetto negativo | `BLOCKED` col codice del verdetto |
+| contratto **non disponibile** | `BLOCKED`, `WORKSPACE_CONTRACT_UNAVAILABLE` |
+
+Il terzo caso e' quello che una prima stesura sbagliava: restituiva «nessun
+verdetto» e il chiamante proseguiva. Bastava cancellare o corrompere
+`rt-workspace.ps1` per aggirare la validazione. **Non aver potuto verificare non e'
+aver verificato.**
 
 ⛔ La domanda «questo lease e' mio?» ha **una sola sede**.
 

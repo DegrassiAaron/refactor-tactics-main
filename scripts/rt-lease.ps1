@@ -194,32 +194,47 @@ function Get-SessionContext {
 # che sopravvive ai comandi che ci si lanciano dentro. Il processo che scrive il
 # file e' solo il messaggero.
 #
-# L'identita' arriva per variabile d'ambiente, che i child ereditano:
+# (!) DUE identita' distinte, e non vanno confuse:
 #
-#   RT_TERMINAL_INSTANCE    PID del terminale RT
-#   RT_TERMINAL_STARTED_AT  istante di avvio di quel processo, UTC ISO-8601
-#   RT_TERMINAL_ROLE        ruolo della sessione
+#   RT_TERMINAL_INSTANCE          id LOGICO del terminale - etichetta, prompt, log.
+#                                 Lo sceglie chi apre il terminale (-InstanceId).
+#   RT_TERMINAL_OWNER_PID         id OS del processo terminale persistente.
+#   RT_TERMINAL_OWNER_STARTED_AT  istante di avvio di quel processo, UTC ISO-8601.
+#   RT_TERMINAL_ROLE              ruolo della sessione.
+#
+# La vitalita' e la proprieta' del lease si decidono sull'identita' OS. L'id logico
+# non ci entra: due terminali possono avere etichette qualunque, e restano sessioni
+# diverse perche' hanno processi diversi.
+#
+# Tenerle nello stesso campo aveva un costo concreto: sovrascrivere
+# RT_TERMINAL_INSTANCE col PID rendeva -InstanceId inutile, e il prompt mostrava un
+# numero di processo al posto del nome scelto.
 #
 # Lo start time non e' decorativo: un PID si ricicla, e senza di esso un processo
 # nuovo che riusa il numero verrebbe scambiato per l'owner.
 function Resolve-SessionIdentity {
-    $instance = $env:RT_TERMINAL_INSTANCE
-    $started  = $env:RT_TERMINAL_STARTED_AT
-    $role     = $env:RT_TERMINAL_ROLE
+    $instance  = $env:RT_TERMINAL_INSTANCE
+    $ownerText = $env:RT_TERMINAL_OWNER_PID
+    $started   = $env:RT_TERMINAL_OWNER_STARTED_AT
+    $role      = $env:RT_TERMINAL_ROLE
 
     $ok = $true
     $code = ''
 
-    if ([string]::IsNullOrWhiteSpace($instance)) {
+    if ([string]::IsNullOrWhiteSpace($ownerText)) {
         $ok = $false; $code = 'RT_SESSION_REQUIRED'
-    } elseif (-not ($instance -match '^[0-9]+$')) {
+    } elseif (-not ($ownerText -match '^[0-9]+$')) {
         $ok = $false; $code = 'RT_SESSION_MALFORMED'
     } elseif ([string]::IsNullOrWhiteSpace($started)) {
         $ok = $false; $code = 'RT_SESSION_STARTED_AT_MISSING'
     }
 
     $ownerPid = 0
-    if ($ok) { $ownerPid = [int]$instance }
+    if ($ok) { $ownerPid = [int]$ownerText }
+
+    # L'id logico e' informativo: se manca, si ripiega sul PID solo per avere
+    # un'etichetta. Non partecipa mai alla decisione di ownership.
+    if ([string]::IsNullOrWhiteSpace($instance)) { $instance = $ownerText }
 
     return [pscustomobject]@{
         Ok        = $ok
@@ -277,6 +292,8 @@ function Test-LeaseOwnedBy {
     if ($null -eq $Lease -or $null -eq $Identity) { return $false }
     if (-not $Identity.Ok) { return $false }
 
+    # (!) Si confronta l'identita' OS, MAI `terminal_instance`: quello e' un'etichetta
+    # scelta da chi apre il terminale, e due sessioni potrebbero portare la stessa.
     $leasePid = 0
     if ($Lease.PSObject.Properties.Name -contains 'owner_pid') { $leasePid = [int]$Lease.owner_pid }
     if ($leasePid -le 0 -or $leasePid -ne [int]$Identity.OwnerPid) { return $false }
@@ -531,6 +548,9 @@ function Show-Lease {
     Write-Host ("  lease_id       : {0}" -f $Lease.lease_id)
     Write-Host ("  operation      : {0}" -f $Lease.operation)
     Write-Host ("  role           : {0}" -f $Lease.role)
+    # L'id logico serve proprio qui: quando due terminali si contendono il motore,
+    # "owner_pid 52060" non dice a chi chiedere, "term-validation-3" si'.
+    Write-Host ("  terminal       : {0}" -f $Lease.terminal_instance)
     Write-Host ("  workspace_id   : {0}" -f $Lease.workspace_id)
     Write-Host ("  workspace_root : {0}" -f $Lease.workspace_root)
     Write-Host ("  task_id        : {0}" -f $Lease.task_id)
@@ -539,7 +559,9 @@ function Show-Lease {
     Write-Host ("  owner_pid      : {0}" -f $Lease.owner_pid)
     Write-Host ("  editor_pid     : {0}" -f $Lease.editor_pid)
     Write-Host ("  mcp_endpoint   : {0}" -f $Lease.mcp_endpoint)
-    Write-Host ("  acquired_at_utc: {0}" -f $Lease.acquired_at_utc)
+    # normalizzato anche in stampa: riletto da JSON e' un [datetime], e verrebbe
+    # mostrato nel formato locale accanto a campi che sono UTC ISO.
+    Write-Host ("  acquired_at_utc: {0}" -f (ConvertTo-CanonicalUtc $Lease.acquired_at_utc))
 }
 
 function Show-Engine {
@@ -598,11 +620,18 @@ function Invoke-Acquire {
     # L'identita' del workspace si valida contro il REGISTRO di macchina, non
     # contro la variabile d'ambiente: quella e' un promemoria, e un lease che
     # dichiara un workspace non registrato non e' attribuibile a nessun checkout.
-    $wsVerdict = Get-WorkspaceVerdictSafe -Root $Context.WorkspaceRoot
-    if ($null -ne $wsVerdict -and -not $wsVerdict.Ok) {
-        Write-Host ("BLOCKED: {0} - identita' del workspace non verificabile." -f $wsVerdict.ErrorCode) -ForegroundColor Red
+    $ws = Get-WorkspaceVerdictOrNull -Root $Context.WorkspaceRoot
+    if (-not $ws.Available) {
+        Write-Host "BLOCKED: WORKSPACE_CONTRACT_UNAVAILABLE - l'identita' del workspace non e' verificabile." -ForegroundColor Red
+        Write-Host ("  motivo: {0}" -f $ws.Reason) -ForegroundColor DarkGray
+        Write-Host "Non aver potuto verificare non e' aver verificato: l'acquire si ferma qui." -ForegroundColor Yellow
+        Write-LeaseEvent -Event 'lease_acquire' -Context $Context -Operation $Operation -Result 'DENIED' -ErrorCode 'WORKSPACE_CONTRACT_UNAVAILABLE'
+        return 2
+    }
+    if (-not $ws.Verdict.Ok) {
+        Write-Host ("BLOCKED: {0} - identita' del workspace non verificabile." -f $ws.Verdict.ErrorCode) -ForegroundColor Red
         Write-Host "Registra il checkout: scripts\rt-workspace.ps1 -Action register -WorkspaceId <MAIN|DEV|TECHNICAL_DESIGNER>" -ForegroundColor Yellow
-        Write-LeaseEvent -Event 'lease_acquire' -Context $Context -Operation $Operation -Result 'DENIED' -ErrorCode ([string]$wsVerdict.ErrorCode)
+        Write-LeaseEvent -Event 'lease_acquire' -Context $Context -Operation $Operation -Result 'DENIED' -ErrorCode ([string]$ws.Verdict.ErrorCode)
         return 2
     }
 
@@ -678,7 +707,7 @@ function Invoke-Acquire {
             schema_version       = $SchemaVersion
             lease_id             = $leaseId
             role                 = [string]$Context.Role
-            terminal_instance    = [string]$Context.TerminalInstance
+            terminal_instance    = [string]$Context.TerminalInstance   # id LOGICO, non decide l'ownership
             workspace_id         = [string]$Context.WorkspaceId
             workspace_root       = [string]$Context.WorkspaceRoot
             project_path         = [string]$Context.ProjectPath
@@ -763,20 +792,37 @@ function Invoke-Release {
 # Identita' del workspace: si chiede al suo owner, non si reimplementa
 # ---------------------------------------------------------------------------
 
-# Restituisce $null se `rt-workspace.ps1` non e' disponibile: in quel caso la
-# validazione non e' possibile e non viene finta. Un verdetto assente non blocca;
-# un verdetto NEGATIVO si'.
-function Get-WorkspaceVerdictSafe {
+# (!!) FAIL-CLOSED, e la versione precedente non lo era.
+#
+# Restituiva $null quando il contratto workspace non era disponibile, e il
+# chiamante bloccava solo su un verdetto NEGATIVO: contratto assente o rotto
+# significava quindi "acquire consentito". Bastava cancellare o corrompere
+# `rt-workspace.ps1` per aggirare la validazione dell'identita' del workspace.
+#
+# Ora l'esito e' sempre tipizzato, e i tre casi sono distinti:
+#
+#   Available = $true,  Verdict.Ok = $true    -> si procede
+#   Available = $true,  Verdict.Ok = $false   -> BLOCKED col codice del verdetto
+#   Available = $false                        -> BLOCKED, WORKSPACE_CONTRACT_UNAVAILABLE
+#
+# "Non ho potuto verificare" non e' "ho verificato e va bene".
+function Get-WorkspaceVerdictOrNull {
     param([Parameter(Mandatory)] [string] $Root)
 
+    function New-Unavailable([string] $Why) {
+        return [pscustomobject]@{ Available = $false; Reason = $Why; Verdict = $null }
+    }
+
     $wsScript = Join-Path (Join-Path $Root 'scripts') 'rt-workspace.ps1'
-    if (-not (Test-Path $wsScript)) { return $null }
+    if (-not (Test-Path $wsScript)) { return (New-Unavailable "$wsScript non trovato") }
 
     try {
         $tokens = $null
         $errors = $null
         $ast = [System.Management.Automation.Language.Parser]::ParseFile($wsScript, [ref]$tokens, [ref]$errors)
-        if ($errors -and $errors.Count -gt 0) { return $null }
+        if ($errors -and $errors.Count -gt 0) {
+            return (New-Unavailable "$wsScript non e' parsabile ($($errors.Count) errori)")
+        }
 
         $wanted = @('Get-StoreDir', 'Get-RegistryPath', 'Get-MarkerPath', 'Read-Marker',
                     'Read-Registry', 'Get-Entries', 'Find-EntryByRoot', 'Get-WorkspaceVerdict')
@@ -784,15 +830,20 @@ function Get-WorkspaceVerdictSafe {
         foreach ($fn in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
             if ($wanted -contains $fn.Name) { $found[$fn.Name] = $fn.Extent.Text }
         }
-        foreach ($n in $wanted) { if (-not $found.ContainsKey($n)) { return $null } }
+        $missing = @($wanted | Where-Object { -not $found.ContainsKey($_) })
+        if ($missing.Count -gt 0) {
+            return (New-Unavailable "$wsScript non espone piu' $($missing -join ', ')")
+        }
 
         $sb = New-Object System.Text.StringBuilder
         foreach ($n in $wanted) { [void]$sb.AppendLine($found[$n]) }
         . ([scriptblock]::Create($sb.ToString()))
 
-        return (Get-WorkspaceVerdict -Root $Root)
+        $v = Get-WorkspaceVerdict -Root $Root
+        if ($null -eq $v) { return (New-Unavailable 'Get-WorkspaceVerdict non ha prodotto un verdetto') }
+        return [pscustomobject]@{ Available = $true; Reason = ''; Verdict = $v }
     } catch {
-        return $null
+        return (New-Unavailable $_.Exception.Message)
     }
 }
 
@@ -834,6 +885,18 @@ function Invoke-SelfTest {
     Check 'identita assente'                        (Test-LeaseOwnedBy -Lease $mine     -Identity $idNone)  $false
     Check 'lease assente'                           (Test-LeaseOwnedBy -Lease $null     -Identity $idOk)    $false
     Check 'identita di un altro terminale'          (Test-LeaseOwnedBy -Lease $mine     -Identity $idOther) $false
+
+    Write-Host "identita' OS separata dall'id logico (puro)" -ForegroundColor White
+    # stesso processo, etichette logiche diverse: resta la stessa sessione
+    $idLabelA = [pscustomobject]@{ Ok = $true; ErrorCode = ''; Instance = 'dev-1'; OwnerPid = 1234; StartedAt = 'T0'; Role = 'DEV' }
+    $idLabelB = [pscustomobject]@{ Ok = $true; ErrorCode = ''; Instance = 'altro-nome'; OwnerPid = 1234; StartedAt = 'T0'; Role = 'DEV' }
+    # processi diversi con la STESSA etichetta: sessioni diverse
+    $idSameLabel = [pscustomobject]@{ Ok = $true; ErrorCode = ''; Instance = 'dev-1'; OwnerPid = 5678; StartedAt = 'T5'; Role = 'DEV' }
+    $leaseLabelled = [pscustomobject]@{ owner_pid = 1234; owner_started_at_utc = 'T0'; terminal_instance = 'dev-1' }
+
+    Check 'id logico diverso, stesso processo: e mio'   (Test-LeaseOwnedBy -Lease $leaseLabelled -Identity $idLabelB)    $true
+    Check 'id logico uguale, processo diverso: NON mio' (Test-LeaseOwnedBy -Lease $leaseLabelled -Identity $idSameLabel) $false
+    Check 'id logico uguale e stesso processo: e mio'   (Test-LeaseOwnedBy -Lease $leaseLabelled -Identity $idLabelA)    $true
 
     Write-Host "ConvertTo-CanonicalUtc + round-trip JSON (puro)" -ForegroundColor White
     $isoText = '2026-09-06T11:27:38.3809232Z'
