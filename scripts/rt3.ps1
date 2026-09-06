@@ -115,5 +115,24 @@ if (-not $Rt3Args -or $Rt3Args.Count -eq 0) {
     $Rt3Args = @('status')
 }
 
+# ⚠️ I metadati Git li legge la CLI dalla DIRECTORY CORRENTE, non da dove sta questo
+# script - ed e' giusto cosi': un terminale RT3 sta dentro il proprio workspace, e la cwd
+# e' cio' che lo dice. Ma rende possibile un errore silenzioso: invocare
+# `D:\...\refactor-tactics-main\scripts\rt3.ps1` mentre la shell sta in un altro checkout
+# registra il branch e lo sha di QUEL checkout sotto il nome dell'altro.
+#
+# Misurato durante la verifica incrociata dei tre workspace: tre sessioni registrate da
+# tre script diversi hanno riportato tutte lo stesso `feat/rt3-task-router @ e4080925`,
+# perche' la shell non si era mai spostata. Nessun comando era sbagliato, e il referto lo
+# era.
+#
+# L'avviso non blocca: `--worktree <path>` e' un uso legittimo, e il ruolo dichiarato non
+# e' un confine di sicurezza. Rende solo visibile la discrepanza nel momento in cui nasce.
+$currentDir = (Get-Location).Path
+if (-not $currentDir.StartsWith($RepoRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    Write-Host "⚠️  rt3 gira da $RepoRoot ma la directory corrente e' $currentDir." -ForegroundColor DarkYellow
+    Write-Host "    I metadati Git verranno letti dalla DIRECTORY CORRENTE. Usare --worktree per indicarne un'altra." -ForegroundColor DarkYellow
+}
+
 & $python.Exe @($python.Args + @('-m', 'rt3') + $Rt3Args)
 exit $LASTEXITCODE
