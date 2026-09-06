@@ -421,6 +421,52 @@ Le due uscite del follow-up sono già poste, e sono alternative: **creare `scrip
 
 ➡️ **Follow-up aperto: [#2602](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2602)** — `documentation` · `P3`. Porta le quattro misure, le due uscite, l'avvertenza sull'omonimia e una DoD che chiede l'applicazione **in tutte e quattro le sedi**: una prescrizione tolta a metà è peggio di una intera. Nessun'altra issue apre lo stesso reperto: verificato prima di crearla.
 
+## Risposte ai Finding della run EDITOR su `8dcd3a76`
+
+La seconda run EDITOR — quella convocata **dopo** il consolidamento, come la sequenza impone — ha chiuso `PARTIAL`: nessun sistema `FAIL`, tre check umani `NOT RUN`. Handoff: `RT3-EDITOR-8dcd3a76.md`.
+
+🔑 **Il fatto che chiude il difetto originale**, misurato headless sul binario ricompilato:
+
+```text
+T3   Gadget: resta (q=-1,r=0,L=0) (Action.Move, p50)                     <- non aveva dichiarato
+T4   Gadget: fermo: cella occupata (q=-1,r=0,L=0) (Action.Move, p50)     <- ha tentato, negato
+```
+
+Prima del fix erano **la stessa identica stringa**. `Movement.CollisionChoke`: `PASS` 6/6, con `BlockedByUnit = 1` dove il 2026-09-04 dava `0`.
+
+⚠️ EDITOR ha tenuto `COMBAT LOG` a `OBSERVED` invece del `PASS` che il tetto §7 gli permetterebbe, «perché ho visto il formatter in un log headless, non il widget in partita». È la lettura giusta, e vale la pena dirlo: un ruolo che si tiene **sotto** il proprio tetto quando l'evidenza non arriva fin lì è ciò che rende leggibile il resto della matrice.
+
+| Finding | Severità | Risposta |
+|---|---|---|
+| `…/1-F8` — `HEAD ≠ BASE_SHA` per un commit estraneo | `P3` | **RATIFICATO — la lettura di EDITOR è quella corretta** |
+| `…/1-F9` — la riga non mostra la destinazione negata | `P3` | **ACCOLTO — fuori wave, follow-up [#2627](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2627)** |
+| `…/1-F10` — la prima run si è invalidata da sola | `P3` | **REGISTRATO — errore auto-diagnosticato, nessuna azione** |
+
+**F8 — RATIFICATO.** `HEAD` era `b5badb79` («maps») contro un `BASE_SHA` di `8dcd3a76`. EDITOR ha applicato la lettura *«nessun delta sui path che la misura tocca»* **dichiarandola**, e ha chiesto se §5 vada invece letto come uguaglianza stretta. Verificato in proprio: `git diff --name-only 8dcd3a76..b5badb79` restituisce **tre PNG in `docs/research/maps/`**, zero file di `Source/`, `Scenarios/` o `Content/`.
+
+La lettura è ratificata per questa wave, e la ragione è strutturale: il working tree è **condiviso**, e in questa sola wave `HEAD` si è mosso sette volte per commit documentali. Un'uguaglianza stretta renderebbe impossibile qualunque misura ogni volta che un'altra sessione committa un file di documentazione — cioè trasformerebbe §5 da guardia della validità in un divieto di misurare.
+
+⚠️ **Ciò che §5 protegge è la stabilità del soggetto misurato, non l'immobilità del repository.** `CLAUDE.md` §6 lo dice per esteso: se `HEAD`, working tree, binari o processi cambiano **durante** una finestra di misura, quella misura è `NON VALIDA`. Il criterio è il **delta sui path osservati**, e va dichiarato ogni volta invece di essere assunto.
+
+➡️ La sede per renderlo normativo è `RT3_CONTRACT.md` §5, non questo file: **non l'ho modificato** — è fuori dal write-set della wave, ed è un emendamento di contratto che appartiene al suo owner. Registrato qui perché la prossima wave non debba riscoprirlo.
+
+**F9 — ACCOLTO, e fuori da questa wave.** La riga mostra `SrcCell`, dove l'unità si trova; la destinazione negata è nel TurnLog ma non nel testo. L'argomento di EDITOR è esatto e sta nel codice: il commento che mette `SupersededByDash` nel ramo lungo dice *«un rendering che stampa solo `SrcCell` la nasconde»*, e dopo questa wave vale identico per il diniego.
+
+⛔ **Misurato prima di decidere, e la misura ha cambiato la risposta: `BlockedByUnit` ha ora DUE semantiche di `TgtCell`.**
+
+| Produttore | `TgtCell` | Il ramo lungo stamperebbe |
+|---|---|---|
+| diniego in pianificazione (#79) | destinazione richiesta e negata | ✅ `(-1,0,0) -> (0,0,0)` — informativo |
+| resolver, blocco durante il percorso | `Results[i].Final`, dove si è fermata | ⚠️ se bloccata al primo passo, `Src == Tgt`: una **rotta lunga zero** |
+
+Il secondo caso non è ipotetico: `RefactorTactics.UI.LogOmitsRememberedEnemyBlockedMove` (`RTCombatLogTests.cpp:834`) lo costruisce apposta e lo documenta. Aggiungere l'outcome al ramo lungo *così com'è* — la correzione che sembra di una riga — produrrebbe quella riga. La condizione giusta è `TgtCell != SrcCell`, ed è scritta nel follow-up perché chi lo implementerà non ci ricada.
+
+Perché fuori: il difetto per cui la #79 esiste è chiuso e **misurato**. Questo è il secondo grado della stessa leggibilità — non «il blocco è muto», ma «il blocco non dice quale passaggio» — e richiede una condizione nuova **più** un test che copra entrambi i rami: è lavoro DEV-MAIN e DEV-TEST, non un'integrazione. Rifarlo qui invaliderebbe una misura EDITOR valida e costerebbe una run completa. EDITOR aveva già proposto la stessa uscita e non ha toccato produzione per allineare il testo a un'aspettativa: la disciplina è corretta.
+
+**F10 — REGISTRATO.** Errore di EDITOR, auto-diagnosticato e corretto: il log della suite veniva scritto con `Tee-Object` **dentro** la working directory che `rt-suite` stava misurando, e la misura si è invalidata da sola (`albero 3353f578 -> 88c9afdc`). `174/174, 0 fail` — e **non registrabile**. Rilanciata con il log fuori dal repository; le tre misure riportate sono `VALIDA`.
+
+🔑 Vale la pena conservarlo, perché è un caso particolare di una regola nota che qui morde in modo controintuitivo: **raccogliere l'evidenza dentro il repository invalida la misura che l'evidenza documenta**. La cartella `evidence/` è la destinazione giusta per l'artefatto, ma non mentre la suite gira. Nessuna azione: EDITOR ha applicato `NON VALIDA` invece di registrare il verde, che è esattamente ciò che il contratto chiede.
+
 ## `NOT RUN`
 
 | Elemento | Motivo |
