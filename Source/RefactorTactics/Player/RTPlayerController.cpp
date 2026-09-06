@@ -1121,19 +1121,6 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		return;
 	}
 
-	// 🔑 **Durante la risoluzione il mondo e' in sola lettura** (`#2518`; `spec-pointer-interaction.md`
-	// §5.3). Sta DOPO il ramo camera, perche' §5.3 la camera la consente, e PRIMA del campione di ritmo,
-	// perche' un clic che non puo' cambiare niente non e' «il giocatore che sta decidendo»: contarlo
-	// gonfierebbe `PIE-V01-MATCHLEN` con tempo in cui nessuna decisione era possibile.
-	//
-	// ⚠️ **E' il CANCELLO, non l'unica guardia.** I tre ingressi che mutano il piano la ripetono ciascuno
-	// al proprio punto di mutazione: `OnSelect` non e' raggiungibile da un test headless (chiede un
-	// raycast sul viewport), quindi una regola che vivesse solo qui non sarebbe verificabile.
-	if (IsWorldReadOnly())
-	{
-		return;
-	}
-
 	// #971 — sessione non presidiata: il click non seleziona e non registra. La guardia sta PRIMA del
 	// campione apposta: un click che non aggancia niente non e' «il giocatore che sta lavorando».
 	if (IsPlanningInputInert())
@@ -1143,9 +1130,18 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 
 	// Attivita' generica: aggiorna i tempi anche quando il click non produce nulla. Un click a vuoto
 	// e' comunque il giocatore che sta lavorando, e serve a non scambiarlo per un giocatore assente.
-	if (ARTTurnManager* TM = PacingTurnManager(this))
+	//
+	// ⛔ **Ma NON durante la risoluzione** (`#2518`): un clic che non puo' cambiare niente non e' «il
+	// giocatore che sta decidendo», e contarlo gonfierebbe `PIE-V01-MATCHLEN` con tempo in cui nessuna
+	// decisione era possibile. ⚠️ **Il clic prosegue lo stesso**, e dal 2026-09-06 e' il punto (`#2555`):
+	// §5.3 consente `Inspect` durante il playback, quindi fermarlo qui lo negherebbe a tutti. A rifiutare
+	// sono i tre ingressi che MUTANO il piano, ciascuno al proprio punto di mutazione.
+	if (!IsWorldReadOnly())
 	{
-		TM->RecordPlanningInput(ERTPlanningInput::Click);
+		if (ARTTurnManager* TM = PacingTurnManager(this))
+		{
+			TM->RecordPlanningInput(ERTPlanningInput::Click);
+		}
 	}
 
 	FHitResult Hit;
@@ -1297,16 +1293,6 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 		return;
 	}
 
-	// 🔴 **Sta PRIMA di toccare `SelectedActor`, e l'ordine e' la correzione di un difetto mio** (`#2518`,
-	// code review). La prima stesura tornava DOPO aver riassegnato la selezione e prima di accendere
-	// l'anteprima: l'unita' risultava selezionata con il ventaglio vuoto, e a playback finito nessuno
-	// rinfrescava — la guardia `Actor == SelectedActor` qui sopra rendeva pure inerte un secondo clic.
-	// Una selezione a meta' e' peggio di nessuna selezione.
-	if (IsWorldReadOnly())
-	{
-		return;
-	}
-
 	if (IRTSelectable* Previous = Cast<IRTSelectable>(SelectedActor))
 	{
 		Previous->OnDeselected();
@@ -1318,7 +1304,21 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 	// Risolto UNA volta e riusato due: la telemetria e l'iscrizione al commit vogliono lo stesso attore, e
 	// `GetActorOfClass` e' un `TActorIterator` su tutto il livello.
 	ARTTurnManager* TurnManagerForSelection = PacingTurnManager(this);
-	if (bRecordAsPlayerInput && TurnManagerForSelection)
+
+	// 🔴 **Il playback si decide QUI, sopra la telemetria, e l'ordine e' la correzione di un difetto mio**
+	// (`#2555`, code review). La guardia stava sotto: un clic di ispezione durante la risoluzione
+	// registrava un campione di pianificazione — esattamente cio' che la guardia gemella in `OnSelect`
+	// esiste per impedire. Avevo protetto il percorso `Click` e lasciato scoperto quello `Selection`.
+	//
+	// ⚠️ **`IsResolving()` e non `IsWorldReadOnly()`, e la differenza e' sostanziale.** Quel predicato e'
+	// vero anche per `Modal` e `ReactionWindow`, ma il contrappeso che ripristina l'anteprima —
+	// `OnResolvePlaybackFinished` — copre il SOLO playback. Usarlo qui lascerebbe, con la pausa aperta,
+	// una selezione senza anteprima che nessuno rinfresca mai: il difetto che questa funzione dichiara
+	// impossibile poche righe sotto. Si guarda il contesto che ha un restauratore, non tutti quelli in
+	// sola lettura.
+	const bool bResolutionPlayback = TurnManagerForSelection && TurnManagerForSelection->IsResolving();
+
+	if (bRecordAsPlayerInput && TurnManagerForSelection && !bResolutionPlayback)
 	{
 		TurnManagerForSelection->RecordPlanningInput(ERTPlanningInput::Selection);
 	}
@@ -1328,7 +1328,20 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 	// 🔑 **Chi puo' ACCENDERE l'anteprima garantisce che qualcuno la spenga** (`#2390`). Da qui in poi
 	// esiste uno stato di presentazione che il commit deve spegnere, e il commit puo' arrivare dal tetto
 	// senza che il Ready sia mai stato premuto.
-	EnsureLockInCommittedSubscription(TurnManagerForSelection);
+	EnsureTurnPresentationSubscriptions(TurnManagerForSelection);
+
+	// 🔑 **La SELEZIONE si sposta, il PIANO no** (`#2555`; §5.3: *«`Inspect` e camera consentiti»*).
+	// Guardare un'altra unita' mentre la risoluzione scorre e' `Inspect`, ed e' legittimo: la card e l'HUD
+	// seguono. Cio' che non deve tornare a schermo e' il piano, che il commit ha spento apposta.
+	//
+	// 🔴 **Questa guardia e' concedibile solo perche' esiste il contrappeso.** Fino al 2026-09-06 fermava
+	// l'intera funzione (`#2518`), e la ragione era che una selezione senza anteprima restava a meta' per
+	// sempre: nessuno rinfrescava a risoluzione finita. Ora lo fa `HandlePlaybackFinished`, agganciato a
+	// `OnResolvePlaybackFinished`. Togliere quello e lasciare questa riporterebbe il difetto.
+	if (bResolutionPlayback)
+	{
+		return;
+	}
 
 	// L'anteprima segue la selezione: mostra il piano dell'unita' scelta (vuoto se non ne ha).
 	FVector SOrigin; float SHexSize; float SLayerH; const URTHexMapAsset* SMap = nullptr;
@@ -1690,8 +1703,8 @@ void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 			// ⚠️ **Resta anche qui, e non e' ridondanza.** Dal 2026-09-05 l'iscrizione la fa gia' `SelectUnit`
 			// (`#2390`), ma un Ready puo' arrivare senza che si sia selezionato niente — e il turno si chiude
 			// lo stesso. Le due chiamate sono idempotenti: la sede della regola e' una,
-			// `EnsureLockInCommittedSubscription`, e `AddUniqueDynamic` le rende innocue a ripetersi.
-			EnsureLockInCommittedSubscription(TurnManager);
+			// `EnsureTurnPresentationSubscriptions`, e `AddUniqueDynamic` le rende innocue a ripetersi.
+			EnsureTurnPresentationSubscriptions(TurnManager);
 			TurnManager->RequestLockIn();
 		}
 	}
@@ -1708,7 +1721,24 @@ void ARTPlayerController::HandleLockInCommitted()
 	RefreshPlanningPreview(GetWorld(), nullptr);
 }
 
-void ARTPlayerController::EnsureLockInCommittedSubscription(ARTTurnManager* TurnManager)
+void ARTPlayerController::HandlePlaybackFinished()
+{
+	// Ricalcola dallo stato di ADESSO: `RefreshPlanningPreview` deriva tutto dal piano corrente, che la
+	// risoluzione ha appena consumato. Con nessuna selezione l'argomento e' `nullptr` e l'anteprima resta
+	// spenta, che e' la risposta giusta.
+	RefreshPlanningPreview(GetWorld(), GetSelectedUnit());
+}
+
+void ARTPlayerController::HandleMatchEndedPresentation(const FRTMatchResult& Result, const FRTMatchState& State)
+{
+	// 🔴 **L'ultimo turno riaccendeva e nessuno spegneva piu'** (`#2555`, code review):
+	// `OnResolvePlaybackFinished` scatta prima che `ConcludeTurn` imposti `MatchEnded`, quindi
+	// `HandlePlaybackFinished` ridipingeva il ventaglio dietro la schermata dei risultati. Qui si chiude,
+	// e da qui in poi non arriva piu' nessun evento che possa riaccendere.
+	RefreshPlanningPreview(GetWorld(), nullptr);
+}
+
+void ARTPlayerController::EnsureTurnPresentationSubscriptions(ARTTurnManager* TurnManager)
 {
 	// Il `TurnManager` arriva dal chiamante e non si ricerca qui: entrambi i siti ce l'hanno gia' risolto,
 	// e una seconda `GetActorOfClass` sarebbe un secondo `TActorIterator` su tutti gli attori del livello
@@ -1719,6 +1749,16 @@ void ARTPlayerController::EnsureLockInCommittedSubscription(ARTTurnManager* Turn
 		return;
 	}
 	TurnManager->OnLockInCommitted.AddUniqueDynamic(this, &ARTPlayerController::HandleLockInCommitted);
+
+	// 🔑 **La coppia, non la singola.** `OnLockInCommitted` spegne l'anteprima al commit;
+	// `OnResolvePlaybackFinished` la riaccende a risoluzione finita (`#2555`). Iscriverne una sola lascia
+	// uno stato a meta': era il motivo per cui `Inspect` non si poteva concedere durante il playback.
+	TurnManager->OnResolvePlaybackFinished.AddUniqueDynamic(this, &ARTPlayerController::HandlePlaybackFinished);
+
+	// 🔑 **E il terzo, che chiude la coppia invece di lasciarla aperta in fondo.** A partita finita non
+	// arrivera' nessun altro commit: senza questa riga l'ultima riaccensione resterebbe a schermo per il
+	// resto della sessione.
+	TurnManager->OnMatchEnded.AddUniqueDynamic(this, &ARTPlayerController::HandleMatchEndedPresentation);
 }
 
 void ARTPlayerController::ApplyNextPlaybackSpeed(ARTTurnManager* TurnManager)

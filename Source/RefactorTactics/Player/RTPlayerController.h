@@ -472,7 +472,13 @@ private:
 	void HandleLockInCommitted();
 
 	/**
-	 * Garantisce che `HandleLockInCommitted` sia iscritto al commit, una volta sola (`#2390`).
+	 * Garantisce che il controller sia iscritto ai TRE momenti che decidono l'anteprima, una volta sola.
+	 *
+	 * 🔑 **Sono una terna, e toglierne una lascia uno stato a meta'**: `OnLockInCommitted` la spegne al
+	 * commit (`#2390`), `OnResolvePlaybackFinished` la ricalcola a risoluzione finita (`#2555`),
+	 * `OnMatchEnded` la spegne per sempre quando non ci sara' nessun altro turno. Il nome plurale e'
+	 * deliberato: chi vedesse una sola `AddUniqueDynamic` di troppo, e la togliesse, riaprirebbe uno dei
+	 * tre difetti.
 	 *
 	 * 🔴 **Iscriversi dentro `OnLockIn` non basta, ed e' il difetto che questa funzione chiude.** Li'
 	 * l'iscrizione avviene al primo **Ready**: un primo turno chiuso dal TETTO trova il delegate senza
@@ -483,7 +489,33 @@ private:
 	 * ⚠️ **Si vede solo prima del PRIMO Ready**: `AddUniqueDynamic` punta al `TurnManager`, che e' lo
 	 * stesso oggetto per tutto il match, quindi dal primo Ready in poi l'iscrizione persiste da se'.
 	 */
-	void EnsureLockInCommittedSubscription(class ARTTurnManager* TurnManager);
+	void EnsureTurnPresentationSubscriptions(class ARTTurnManager* TurnManager);
+
+	/**
+	 * La risoluzione e' finita: l'anteprima torna, coerente con la selezione corrente (`#2555`).
+	 *
+	 * 🔑 **E' il contrappeso di `HandleLockInCommitted`**, e senza di lui `Inspect` non e' concedibile: se
+	 * durante il playback il clic puo' spostare la selezione ma nessuno riaccende, si resta con l'unita'
+	 * scelta e il ventaglio vuoto — e la guardia `Actor == SelectedActor` rende inerte anche un secondo
+	 * clic. Uno spegne al commit, l'altro riapre alla fine: e' la coppia che rende lo stato sempre intero.
+	 *
+	 * ⚠️ **Ricalcola, non ripristina.** A risoluzione finita le unita' si sono mosse e i waypoint sono
+	 * stati consumati: cio' che deve tornare e' un'anteprima coerente con **adesso**, non la fotografia
+	 * del turno passato.
+	 */
+	UFUNCTION()
+	void HandlePlaybackFinished();
+
+	/**
+	 * La partita e' finita: l'anteprima si spegne, e nessuno la riaccendera' piu' (`#2555`, code review).
+	 *
+	 * 🔴 **Senza questa, l'ultimo turno lasciava il ventaglio acceso dietro la schermata dei risultati.**
+	 * `OnResolvePlaybackFinished` scatta PRIMA che `ConcludeTurn` imposti `MatchEnded`, quindi al momento
+	 * del broadcast la partita risulta ancora in corso e `HandlePlaybackFinished` ridipinge. Poi non arriva
+	 * piu' niente: nessun turno nuovo, nessun commit, nessuno che spenga.
+	 */
+	UFUNCTION()
+	void HandleMatchEndedPresentation(const struct FRTMatchResult& Result, const struct FRTMatchState& State);
 	// Uno per posizione del kit, e sono one-liner che passano tutti da `SelectAbilityForCurrent`. Uno per
 	// posizione e non un handler solo perche' l'indice deve arrivare dalla BINDATURA: `FInputActionValue`
 	// porta il valore, non l'azione che l'ha prodotto, quindi un handler unico non saprebbe quale tasto e'
