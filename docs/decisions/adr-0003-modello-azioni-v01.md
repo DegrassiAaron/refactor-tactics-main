@@ -93,7 +93,7 @@ Il modello a 7 fasi del catalogo **non sostituisce** le macro-fasi: i suoi codic
 |---|---|---|---|
 | **0** Snapshot | congelamento stato, intenti, seed | fine di `Planning` | esiste già (`FRTHexSnapshot`) |
 | **10** Preparazione | Guard, Brace, Shield, stance, trappole, `SuppressiveLine`, prep reazioni | **Prep** | 1:1 |
-| **20** Movimento *rapido* | Dash, Charge, Leap, Reposition, Sprint | **Dash** | la mobilità rapida precede il Blast |
+| **20** Movimento *rapido* | Dash, Charge, Leap, Reposition, Sprint | **Dash** | la mobilità rapida precede il Blast. ⚠️ **Per `Sprint` questa riga è SUPERATA dal blocco emendamenti in testa**, che lo dichiara **profilo del `Move`**, fase `Move` **dopo il Blast** ([D-015](RT_PDR_00_Decision_Log.md), poi [D-116](RT_PDR_00_Decision_Log.md)). 🔑 La riga resta com'era perché registra ciò che fu deciso il 2026-08-05, e **il codice la segue ancora**: arretrato dichiarato, migrazione in **E38**, [#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641). Rimando aggiunto il 2026-09-06 — voce **41** di [`DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) |
 | **30** Controllo | Push, Pull, Root, Interrupt, Slow, reazioni (Counter/Intercept/Deflect/Cleanse) | **Blast** (sotto-ordinamento per priorità, prima del danno) | il controllo non è una macro-fase separata |
 | **40** Attacco | attacchi, abilità offensive, cure, `Activate`, `Interact` | **Blast** | 1:1 |
 | **20** Movimento *normale* | `Action.Move` | **Move** | ⚠️ **qui il catalogo divergeva**: lo metteva prima dell'attacco |
