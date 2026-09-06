@@ -13,6 +13,10 @@ class REFACTORTACTICS_API URTPacingLibrary : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 public:
+	/** Il rapporto che non esiste: nessun turno da cui dividere. Negativo apposta — un rate vero non lo e'. */
+	static constexpr float UnmeasuredRate = -1.f;
+
+public:
 	/**
 	 * Percentile con metodo NEAREST-RANK su un array GIA' ORDINATO in modo crescente: nessuna
 	 * interpolazione, quindi il risultato e' sempre un valore realmente osservato e il test si scrive a mano.
@@ -57,6 +61,34 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pacing")
 	static int32 CountOpenedReactionWindows(const TArray<FRTTurnLogEntry>& Entries,
 		const TSet<int32>& ResponderUnitIds);
+
+	/**
+	 * Le opportunity di reazione di quei responder: **tutte** le voci `ReactionDecision`, senza filtro
+	 * sull'esito.
+	 *
+	 * 🔑 **E' il denominatore di `CountOpenedReactionWindows`, e per questo NON filtra per esito.** Quella
+	 * funzione ha un elenco positivo perche' misura il tempo occupato, e un esito che non occupa nessuno
+	 * gonfierebbe la baseline. Qui la domanda e' un'altra — «quante opportunity ha prodotto il sistema» —
+	 * e un'auto-risolta e' una opportunity a tutti gli effetti: e' proprio il caso che il rapporto fra i
+	 * due numeri esiste per rendere visibile.
+	 *
+	 * ⚠️ **Il filtro per responder e' lo stesso, e non e' un dettaglio**: senza, il sottoinsieme non
+	 * sarebbe piu' tale e `Windows <= Opportunities` potrebbe cadere confrontando popolazioni diverse.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pacing")
+	static int32 CountReactionOpportunities(const TArray<FRTTurnLogEntry>& Entries,
+		const TSet<int32>& ResponderUnitIds);
+
+	/**
+	 * Un totale diviso per i turni che l'hanno prodotto, o `UnmeasuredRate` se non ce n'e' nessuno.
+	 *
+	 * 🔴 **Zero turni NON da' zero.** «Zero opportunity per turno» e' un'affermazione sul gioco; «non ho
+	 * turni da cui dividere» e' l'assenza di una misura. Confonderle e' lo stesso difetto che
+	 * `UnmeasuredSamples` esiste per evitare sui tempi, e la sentinella e' negativa per la stessa ragione:
+	 * un rapporto vero non lo e' mai.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pacing")
+	static float PerTurnRate(int32 Total, int32 TurnCount);
 
 	/**
 	 * Il tempo che quelle finestre possono occupare al giocatore, in secondi: `Windows × WindowSeconds`.
