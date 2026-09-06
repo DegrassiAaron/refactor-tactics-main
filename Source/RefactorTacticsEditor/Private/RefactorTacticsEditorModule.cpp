@@ -6,6 +6,7 @@
 #include "RTDevSandboxLauncherSubsystem.h"
 #include "RTHexEditorModeCommands.h"
 #include "SRTAnimBrowserPanel.h"
+#include "SRTLabPanel.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
@@ -76,6 +77,26 @@ void FRefactorTacticsEditorModule::StartupModule()
 			"Guarda le clip di un pack, promuovile o scartale, e legale a un ruolo."))
 		.SetGroup(WorkspaceMenu::GetMenuStructure().GetToolsCategory());
 
+	// Il Lab (#2599 Fetta B, #2600). Stessa guardia e stessa forma del browser qui sopra: un tab non lo
+	// guarda nessun commandlet.
+	//
+	// ⛔ Un pannello SOLO per due issue, e non e' un'economia: `ListHeroKit` **e'** un filtro su
+	// `ListCanonicalAbilities`, e `BuildHeroFixture` verifica l'appartenenza e delega a `BuildFixture`.
+	// Due tab distinti ripeterebbero selettore, readout, Run, before/after e vista del TurnLog — e i due
+	// divergerebbero al primo campo aggiunto a uno solo.
+	FGlobalTabmanager::Get()
+		->RegisterNomadTabSpawner(SRTLabPanel::TabId, FOnSpawnTab::CreateLambda(
+			[](const FSpawnTabArgs&)
+			{
+				return SNew(SDockTab)
+					.TabRole(ETabRole::NomadTab)
+					[ SNew(SRTLabPanel) ];
+			}))
+		.SetDisplayName(LOCTEXT("LabTitle", "Ability / Hero Lab"))
+		.SetTooltipText(LOCTEXT("LabTooltip",
+			"Esegui una ability canonica in una fixture deterministica. Filtra per eroe per vederne il kit."))
+		.SetGroup(WorkspaceMenu::GetMenuStructure().GetToolsCategory());
+
 	if (FLevelEditorModule* LevelEditor = FModuleManager::LoadModulePtr<FLevelEditorModule>(TEXT("LevelEditor")))
 	{
 		// ⛔ `OnRegisterLayoutExtensions` e' un broadcast **singolo**, dentro la costruzione del Level
@@ -101,6 +122,7 @@ void FRefactorTacticsEditorModule::ShutdownModule()
 	if (FSlateApplication::IsInitialized())
 	{
 		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(SRTAnimBrowserPanel::TabId);
+		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(SRTLabPanel::TabId);
 	}
 
 	// Un handle che sopravvive allo scarico del modulo fa chiamare una funzione che non c'e' piu'.
