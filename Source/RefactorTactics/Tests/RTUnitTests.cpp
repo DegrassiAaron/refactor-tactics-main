@@ -552,19 +552,24 @@ bool FRTUnitDiscreteRoleClipsTest::RunTest(const FString&)
 	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
 	if (!TestNotNull(TEXT("CDO dell'AnimInstance"), Cdo)) { return false; }
 
-	struct FAttesa { const TCHAR* Hero; const TCHAR* Attack; const TCHAR* Hit; const TCHAR* Death; };
+	// 🔴 **Il `Pack` e' un campo, non una derivazione dall'HeroId** — stessa ragione scritta per esteso
+	// sopra `PackDiEroe` in `DefaultClipsPerHero`: da [D-334] identita' RT e nome dello slot asset non
+	// coincidono piu', e `Hero.Branth` vive nel pack `ParagonRiktor` finche' la fetta E di #2297 non
+	// rinomina l'asset. `Chi.RightChop(5)` dava il nome giusto per tre eroi su quattro, che e' il modo in
+	// cui un residuo sopravvive a una migrazione.
+	struct FAttesa { const TCHAR* Hero; const TCHAR* Pack; const TCHAR* Attack; const TCHAR* Hit; const TCHAR* Death; };
 	static const FAttesa Attese[] = {
-		{ TEXT("Hero.Gadget"), TEXT("Cast"), TEXT("Hitreact_Fwd"),   TEXT("Death_Fwd") },
-		{ TEXT("Hero.Phase"),  TEXT("Cast"), TEXT("HitReact_Fwd"),   TEXT("Death") },
-		{ TEXT("Hero.Branth"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd") },
-		{ TEXT("Hero.Wraith"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward") },
+		{ TEXT("Hero.Gadget"), TEXT("Gadget"), TEXT("Cast"), TEXT("Hitreact_Fwd"),   TEXT("Death_Fwd") },
+		{ TEXT("Hero.Phase"),  TEXT("Phase"),  TEXT("Cast"), TEXT("HitReact_Fwd"),   TEXT("Death") },
+		{ TEXT("Hero.Branth"), TEXT("Riktor"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd") },
+		{ TEXT("Hero.Wraith"), TEXT("Wraith"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward") },
 	};
 
 	for (const FAttesa& A : Attese)
 	{
 		const FName Chiave(A.Hero);
 		const FString Chi = Chiave.ToString();
-		const FString Pack = Chi.RightChop(5);   // `Hero.Gadget` -> `Gadget`
+		const FString Pack = A.Pack;   // dichiarato, non derivato: vedi il blocco sopra
 		const FString Radice = FString::Printf(
 			TEXT("/Game/FabAsset/Paragon/Paragon%s/Characters/Heroes/%s/Animations/"), *Pack, *Pack);
 
