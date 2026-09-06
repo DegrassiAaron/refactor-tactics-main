@@ -21,6 +21,10 @@ class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class URTActionData;
 class URTHeroData;
+// Snapshot autorevole di inizio fase: entra SOLO nella firma di `NoteMovePlanRejection`, per valore di
+// riferimento e senza UPROPERTY. E' una struct C++ pura di `Turn/RTHexSim.h`, quindi la dichiarazione avanti
+// basta e non tira lo strato di simulazione dentro l'header dell'Actor.
+struct FRTHexSnapshot;
 
 /**
  * Da dove la **sagoma dell'ultimo contatto** prende la propria posa (#1750).
@@ -348,6 +352,67 @@ public:
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
 	TArray<FRTCellId> PlannedWaypoints;
+
+	/**
+	 * L'ULTIMO waypoint dichiarato e' stato rifiutato in pianificazione perche' la cella richiesta era
+	 * OCCUPATA da un'altra unita' (#79).
+	 *
+	 * 🔑 **Esiste perche' fra il rifiuto e la fase Move non sopravviveva nulla.** Il rifiuto avviene nel
+	 * pianificatore (`PlannedWaypoints.Pop()`), il percorso torna a `{ Cell }` e `FinalizeHexMovementOutcomes`
+	 * classifica `Stayed`, che e' dichiarato «non pianificava movimento»: su chi ha dichiarato ed e' stato
+	 * negato quella voce dice il FALSO, e nel combat log «ho provato e me l'hanno negato» e «non ho provato»
+	 * diventano la stessa riga. Il dato qui sotto e' cio' che il resolver non puo' ricostruire, ed e' la
+	 * stessa forma con cui `BlockedByTopology` risolve un taglio che avviene prima che il resolver veda il
+	 * percorso.
+	 *
+	 * ⚠️ **Flag separato dal valore**, per la ragione di `bDeclaresPlannedFacing` e `bAttackTargetsCell`: la
+	 * propria cella di partenza e' una destinazione legittima, quindi nessun valore di `FRTCellId` puo' fare
+	 * da «non dichiarato».
+	 *
+	 * ⚠️ **Solo l'occupazione.** Budget, cella non percorribile e fuori mappa restano `Stayed`: e' scope
+	 * dichiarato di #79, non una svista. Il motivo si legge da `ERTHexWaypointReason` tramite
+	 * `ClassifyWaypointCell` — nessun secondo vocabolario.
+	 *
+	 * `Transient` e NON replicato: e' intento di pianificazione, e la sua destinazione racconta cosa l'unita'
+	 * stava per fare. Replicarlo esporrebbe il piano a chi non lo possiede.
+	 */
+	UPROPERTY(Transient)
+	bool bMovePlanRejectedByOccupant = false;
+
+	/**
+	 * La destinazione RICHIESTA e negata: diventa `TgtCell` della voce `Move/BlockedByUnit`.
+	 *
+	 * Non e' la cella d'arrivo — l'unita' non si muove — ed e' proprio per questo che serve: la coppia
+	 * `SrcCell -> TgtCell` descrive la rotta che NON e' stata percorsa, come in `SupersededByDash`. Valida
+	 * solo con `bMovePlanRejectedByOccupant` a `true`.
+	 */
+	UPROPERTY(Transient)
+	FRTCellId RejectedMoveDestination;
+
+	/**
+	 * Registra l'esito dell'ULTIMO tentativo di waypoint rifiutato. Delega la classificazione a
+	 * `URTHexSimLibrary::ClassifyWaypointCell`: qui non si decide cosa renda una cella inutilizzabile.
+	 *
+	 * 🔑 **Una sola funzione per i due pianificatori.** Il controller e il runner degli scenari rifiutano il
+	 * piano nello stesso modo e devono registrarlo nello stesso modo: due copie divergerebbero alla prima
+	 * modifica, e la divergenza sarebbe visibile solo in PIE.
+	 *
+	 * ⚠️ **L'ultimo tentativo governa**: un rifiuto per un motivo diverso dall'occupazione AZZERA il flag
+	 * invece di lasciarlo acceso. Senza, un tentativo verso una cella occupata seguito da un tentativo fuori
+	 * mappa scriverebbe «fermo: cella occupata» su un piano il cui ultimo rifiuto era un altro.
+	 *
+	 * @param Snapshot      snapshot autorevole su cui la pianificazione ha appena validato
+	 * @param UnitId        indice dell'unita' NELLO SNAPSHOT (non lo StableUnitId: sono entrambi int32)
+	 * @param RequestedCell la cella che il giocatore ha chiesto e che e' stata rifiutata
+	 */
+	void NoteMovePlanRejection(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& RequestedCell);
+
+	/** Il piano non porta piu' un rifiuto: un piano valido lo ha sostituito, o il turno lo ha consumato. */
+	void ClearMovePlanRejection()
+	{
+		bMovePlanRejectedByOccupant = false;
+		RejectedMoveDestination = FRTCellId();
+	}
 
 	/**
 	 * Rotazione DICHIARATA in pianificazione (D-020, #291): «finito il movimento, guarda di la'».
