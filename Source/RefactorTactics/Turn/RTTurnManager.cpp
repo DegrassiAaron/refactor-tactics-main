@@ -2332,12 +2332,36 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 	// SCEGLIERE di passare, la geometria e' cio' che c'e'.
 	ApplyTerrainOnEnterEffects(Map, Unit, CellsEnteredAlong(Path), InPhase);
 
-	// 9-10. Il piano segue l'unita' invece di riportarla indietro: la path composita dalla vecchia cella non
-	// e' piu' valida, e se non c'era un Move pianificato la destinazione diventa quella nuova — altrimenti
-	// l'unita' tornerebbe sui suoi passi nella fase Move, annullando lo spostamento.
+	// 9-10. IL MOVE DECADE ([D-045] `Model A`, #2501).
+	//
+	// *«Un Move pianificato non sopravvive a uno spostamento subito prima della fase Move: si annulla.»*
+	//
+	// 🔴 **Prima questa riga faceva meta' del lavoro**, e la meta' mancante era il modello che `D-045`
+	// esclude per nome. La path composita decadeva — corretto — ma una destinazione dichiarata
+	// sopravviveva, e `ResolveMovement` le ricalcolava un percorso dalla nuova origine: cioe' `Model B`,
+	// *«contraddice la regola gia' in vigore "mai auto-reroute durante la risoluzione"»*. Lo stesso intento
+	// produceva due esiti a seconda che il giocatore avesse posato waypoint o cliccato una destinazione.
+	//
+	// 🔑 **Solo se lo spostamento PRECEDE il Move**, ed e' la lettera di `D-045`: *«subito prima della fase
+	// Move»*. La fuga da hazard risolve in `Cleanup` — a Move gia' avvenuto — e li' annullare la
+	// destinazione non toglie il movimento di questo turno: toglie quello del **turno dopo**, che nessuna
+	// decisione chiede. ⚠️ Misurato: senza questa distinzione l'arena generata si ferma per 11 turni su 12.
+	//
+	// 🔑 **Il budget NON si consuma, ed e' cio' che `#308` chiede davvero**: la sua regola dice *«non
+	// consuma il `MoveBudget` della vittima, ne' la sua azione, ne' il suo Dash»*. Qui non si spende nulla —
+	// si toglie il piano, non la risorsa.
+	//
+	// ⚠️ `D-045` e' **baseline esplicitamente rivedibile**: se in playtest un Move viene annullato piu' di
+	// una volta ogni due round si prova `Model C`, la riesecuzione delle direzioni dalla nuova origine. Il
+	// punto in cui `C` andra' scritto e' questo.
+	const bool bPrimaDelMove = InPhase < ERTMatchPhase::Move;
+
 	Unit->PlannedPath.Reset();
 	Unit->PlannedWaypoints.Reset();
-	if (Unit->PlannedCell == OldCell) { Unit->PlannedCell = NewCell; }
+	if (bPrimaDelMove || Unit->PlannedCell == OldCell)
+	{
+		Unit->PlannedCell = NewCell;
+	}
 }
 
 void ARTTurnManager::AppendDisplacementEntry(const ARTUnit* Target, const FRTCellId& From, const FRTCellId& To,

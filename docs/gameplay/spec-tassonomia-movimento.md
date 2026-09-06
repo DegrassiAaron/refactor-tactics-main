@@ -415,12 +415,29 @@ misura un rumore.
   sta ferma per scelta (l'autobattle riporta Gadget fermo 11 turni, *«di cui 8 armati»*). La baseline della
   coppia controllata gira sullo stesso `main` e resta a **4**: non è `#2459`.
 
-⛔ **La modifica è stata ritirata**: il codice resta su `B`. Non perché `B` sia giusto — resta il modello che
-`D-045` esclude — ma perché sostituirlo con un `A` che ferma il gioco non è ciò che quella decisione voleva,
-e la scelta fra `C` e una revisione di `D-045` **è dell'autore**.
+### 5.2 `Model A` è stato ADOTTATO, con il suo costo aperto — 2026-09-06, decisione dell'autore
 
-⚠️ Cosa questa misura **non** dice: non dice che `C` funzioni. Dice che `A`, applicato alla lettera, supera
-il proprio criterio di uscita al primo tentativo.
+Il codice ora implementa `A`: il canone e l'implementazione dicono la stessa cosa, e l'asimmetria
+waypoint/destinazione non esiste più.
+
+🔴 **Il costo misurato in §5.1 non è stato pagato da nessuno, ed è entrato con la modifica.** Due test
+restano **rossi su `main`**, deliberatamente:
+
+- `RefactorTactics.Bot.StallDefinitionsOnTheGeneratedTestArena`
+- `RefactorTactics.Match.Autobattle.EngagesOnTheGeneratedTestArena`
+
+⛔ **Non sono stati indeboliti, e non vanno indeboliti.** Misurano che nessuna unità si parcheggia, e sono
+l'unica cosa che ha reso visibile il prezzo di `A`: alzarne la soglia per far tornare il verde cancellerebbe
+la prova e lascerebbe il difetto. Restano rossi finché il comportamento del bot non è sistemato — owner
+[#2556](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2556).
+
+⚠️ **Conseguenza operativa per chiunque misuri**: la suite su `main` riporta **2 fallimenti attesi**. Una
+corsa con quei due rossi e nessun altro è il verde di oggi; un terzo rosso è una regressione vera.
+
+⚠️ Cosa la misura di §5.1 **non** dice: non dice che `C` funzioni. Dice che `A`, applicato alla lettera,
+supera il proprio criterio di uscita al primo tentativo — quindi `C` resta l'alternativa dichiarata, e
+[#2556](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2556) è il posto in cui si decide se
+sistemare il bot sotto `A` oppure passare a `C`.
 
 ## 6. Riconciliazione col kit d'autore
 
