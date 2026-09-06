@@ -156,6 +156,130 @@ serva.
 ⚠️ E l'esito dei comandi si legge nell'**Output Log**: è il medium legittimo, deciso dall'autore il
 2026-08-16. L'overlay della console in PIE scorre via.
 
+## 🔑 Contro cosa si giudica ciò che vedi — `Oracle: CANON | OBSERVED`
+
+> ➕ **Aggiunta il 2026-09-06, misurata su `7c986014` e riallineata a `61e4f914`.** Viene da
+> [`schematiche-editor-execution-spec-panel-2026-09-06.md`](schematiche-editor-execution-spec-panel-2026-09-06.md)
+> §5 `C1`: era l'unico contributo di un work order esterno che nessun owner possedesse, e quel referto lo
+> lasciò non scritto perché *«aggiungerlo è una modifica al **suo** contratto, e appartiene a chi lo possiede»*. Portato qui su decisione dell'autore.
+
+La §3 dice come **eseguire**. Questa dice contro cosa si **giudica**, ed è una trappola diversa: non ti
+fa perdere il verdetto, te lo fa scrivere sbagliato.
+
+**La regola, in una riga**: un verdetto PIE si giudica contro il **canone**, non contro ciò che il gioco
+fa. `Oracle: CANON` è il default e non va scritto. Ciò che si scrive è la **divergenza**, quando la scena
+ne incontra una:
+
+```text
+Divergence: riga 41 della matrice dei conflitti   ← il numero nella colonna `#`, non la riga del file
+```
+
+🔑 **`CANON` + `Divergence` è il caso normale, e resta `CANON`**: la verifica passa **e** registra il
+debito. È il meccanismo che il referto sorgente descrive, ed è il verso che conta — il contrario
+(«osservo, quindi la regola è questa») è la ratifica per inerzia che questa sezione esiste per impedire.
+
+⛔ **`Oracle: OBSERVED` si scrive solo quando la scena serve a documentare il comportamento spedito**
+— una registrazione, una demo, la prova che un arretrato esiste — e **non produce un verdetto sul
+canone**: non spunta una voce, non chiude un criterio. Nel dubbio è `CANON`.
+
+🔑 **Non è una preferenza: è l'ordine di precedenza già scritto** in
+[`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) — *«decisioni esplicite → ADR → codice → gameplay
+attivo → roadmap → materiale storico»*. Il codice viene **dopo** l'ADR, quindi una scena che diverge dal
+canone è un difetto o un arretrato, mai la nuova regola.
+
+⚠️ **Dove si scrive, e chi lo possiede.** Questo file dice *in che ordine* si esegue; l'**esito** di una
+verifica resta di [`test-manuali-pie.md`](../../technical/test-manuali-pie.md), che ne è l'owner
+dichiarato. La riga `Divergence:` è quindi parte del **verdetto** e si scrive **là**, nella colonna di
+stato della voce. Qui vive la **regola di giudizio**, perché è parte di come si esegue — non il registro
+che la applica.
+
+### Perché la regola serve: il caso misurato
+
+`Action.Sprint`. Il canone dice che è un **profilo di `Move`** e risolve **dopo** il Blast
+([`adr-0003`](../../decisions/adr-0003-modello-azioni-v01.md) §emendamenti, `D-015`/`D-116`); il codice
+lo risolve **prima**:
+
+```bash
+grep -n 'Action.Sprint"), ERTResolutionPhase' Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
+#   -> ERTResolutionPhase::FastMovement                                    (riga 1065)
+grep -n 'FastMovement:   return ERTMatchPhase' Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
+#   -> ERTMatchPhase::Dash — «la mobilita' rapida precede il Blast»        (riga 177)
+```
+
+È un **arretrato dichiarato**, non una svista: `Actions.SprintIsAMoveProfileResolvedPreBlast` lo pinna
+con un'assertion, e il suo commento lo scrive — *«il verde qui sotto misura quanto il codice è indietro, non che abbia
+ragione»* — con la migrazione in **E38 (v0.2)**, issue [`#641`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641), **aperta**.
+
+∴ Chi pianifica uno Sprint in PIE **vede il movimento risolversi prima del Blast**. Senza questa sezione
+ha due uscite, entrambe sbagliate: dichiarare `FAIL` una scena che il canone approva, oppure — peggio —
+prendere l'osservazione per la regola e allineare a essa la propria attesa, cioè **ratificare un arretrato
+per inerzia**.
+
+⛔ **E `CANON` da solo non basta su questo caso**, ed è la ragione per cui il campo nomina la sede.
+L'`ADR-0003` si contraddice al proprio interno: il blocco emendamenti in testa dice *«`Sneak · Move ·
+Sprint` … risolvono nella fase `Move`, dopo il Blast»*, mentre la sua **tabella §3** elenca ancora `Sprint`
+fra i «Movimento *rapido*» con macro-fase **`Dash`**. Il codice è allineato alla tabella, il canone
+corrente al blocco. ✅ **Da questo commit la tabella porta il rimando**, quindi chi la legge non conclude
+più che il codice abbia ragione — ma il difetto è vissuto un mese, ed è la ragione per cui il campo
+nomina la sede invece di dire «il canone».
+
+> 🔎 **Dove il canone diceva ancora la versione superata — misurato il 2026-09-06**, col comando che
+> chiunque può rieseguire:
+>
+> ```bash
+> grep -rn "Sprint" docs --include=*.md >   | grep -vE "docs/(archive|research)/" | grep -v "roadmap-esecuzione-pie" >   | grep -iE "rapid|FastMovement|→ Dash|in fase .?Dash"
+> ```
+>
+> ⚠️ **Il numero si rimisura, non si cita** — come la §3 dice già di `rt.Test.List`. La prima stesura
+> scriveva `26`, e le correzioni di questo stesso pass lo hanno portato a `25` prima che il commit
+> atterrasse: un conteggio di righe che nominano un token cambia a ogni riscrittura di quelle righe.
+>
+> 🔴 **La prima stesura pubblicava un comando che NON trovava la riga dell'ADR** — cioè il più importante
+> dei punti per cui era offerto come prova. Cercava `movimento rapido`, e il testo è `Movimento *rapido*`,
+> con gli asterischi in mezzo. ⚠️ È **lo stesso difetto della voce 28** che questa sezione contesta,
+> rifatto due paragrafi più sotto: un'affermazione di verificabilità che nessuno aveva verificato.
+>
+> ⛔ **Le righe che rende NON sono state classificate una per una, e non si dichiara che le altre siano vere.**
+> La maggior parte è legittima — il Decision Log che racconta la storia, i brief che descrivono il codice —
+> ma **almeno due dicono una cosa falsa**: `D-027` scrive che `Sprint` *«è ancora `MovementAndMain`»* e
+> `CHANGELOG_DOCUMENTATION.md` che *«consuma due slot»*, mentre il codice ha `ERTActionSlot::Movement`
+> (`RTCatalogLibrary.cpp:1068`), come `D-028` ha deciso. Un quantificatore su un elenco che nessuno ha letto riga per riga è precisamente ciò
+> che questa sezione condanna: chi ne trova un'altra la registra nella matrice, non qui.
+>
+> **Annotati in questo pass — tre**, tutti senza riscrivere nessuna decisione: la tabella §3 dell'`ADR-0003`,
+> e le righe **27** e **28** di [`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) — la 28 affermava
+> *«nessun documento insegna più “Sprint = Dash”»*, falso, e lo falsificava l'ADR citato due colonne più a
+> sinistra. La riga **41** ha ricevuto la propria correzione sullo **slot**, perché è quella che il campo
+> qui sopra rende normativa.
+>
+> **Non annotati, e la ragione**: `technical/piano-migrazione-stable-id.md` è `HISTORICAL`, ritirato il
+> 2026-08-13, e riscriverlo falsificherebbe la storia ([`docs/README.md`](../../README.md) §*Tag*);
+> [`action-phases-economy-handoff-2026-08-26.md`](action-phases-economy-handoff-2026-08-26.md) è un referto
+> datato che dichiara la propria base (`c2bbfb7`) — ⚠️ **ma è `CURRENT` e insegna sia la fase superata sia
+> lo slot sbagliato**, quindi l'annotazione gli serve e appartiene a chi lo possiede.
+
+### Dove vive la lista — e perché non è qui
+
+⛔ **Questa sezione non tiene un elenco di divergenze**, e non deve: sarebbe una seconda source of truth su
+un fatto che ha già un owner. Le divergenze fra ciò che il canone dice e ciò che il codice fa vivono in
+[`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md), che le numera e le tiene con la fonte che
+prevale. Quella dello Sprint è la **riga 41** — il numero nella colonna `#` — `SUPERSEDED`, con la storia intera — `D-015`, rovesciata da
+`D-068`, rovesciata di nuovo da `D-116` — e la ragione per cui non si migra da sola.
+
+**Come si aggiunge una voce**: non si aggiunge qui. Si registra il conflitto nella matrice, come la sua
+intestazione prescrive (*«un conflitto non si risolve in silenzio»*), e un verdetto PIE che vi inciampa
+scrive `Divergence:` con il numero di quella riga.
+
+### Cosa la regola NON fa
+
+- ⛔ **Non decide** nessuna delle divergenze che nomina: `#641` resta aperta, e questa sezione non la
+  anticipa né la rinvia.
+- ⛔ **Non chiede di rieseguire** le voci già verdi: una verifica passata contro il canone resta passata.
+- ⚠️ **Non è un gate**: nessuno strumento controlla che un verdetto dichiari il proprio oracolo. È una
+  riga che chi esegue scrive, e il suo valore è che *esiste un posto dove scriverla*.
+
+---
+
 ## 4. L'ordine consigliato
 
 ### Passo 1 — U42, ventuno voci in **undici Play**, nessun prerequisito

@@ -985,6 +985,40 @@ sessions:
          scelta *senza avere un'animazione da guardare*. E' il numero che decide se la morte si legge
          o si trascina, e si tara qui.
 
+      ### Il protocollo di taratura, passo per passo
+
+      ⚠️ **I pack Paragon sono GITIGNORATI**: la seduta va aperta su un albero che li ha. Sul clone
+      principale ci sono; su un worktree no, e senza di essi le unita' restano in posa di riferimento
+      e non c'e' niente da tarare. Se apri un worktree, collega i pack con una junction
+      (`mklink /J <worktree>\Content\FabAsset <clone>\Content\FabAsset`) e ⛔ **rimuovila con
+      `rmdir`, MAI con una cancellazione ricorsiva**: quella la attraversa e cancella i pack veri.
+
+      1. **PIE**, poi console: `rt.Test.Run Visual.Combat.DefeatDuringMove`.
+         Qui Phase cammina all'ultimo turno, quindi la fase `Move` segue il `Blast` e il montaggio di
+         `Death` ha una finestra **naturale**. Guarda la morte di Gadget.
+      2. 🔴 **RIAVVIA la partita con `R` prima del secondo banco.** `rt.Test.Run` **sostituisce la
+         mappa e AGGIUNGE unita' alla partita in corso** (è la ragione per cui `PIE-TEST-CONSOLE` va per
+         ultima nella sua seduta): due scenari di fila si contaminano, e il secondo verrebbe giudicato
+         su un campo che non e' il suo. Poi console: `rt.Test.Run Visual.Combat.Defeat`.
+         Qui non si muove nessuno: la morte cade nell'ULTIMA fase, e la finestra esiste **solo** grazie
+         alla coda.
+      3. **Confronta**, e la diagnosi e' gia' scritta:
+         - si legge nel primo e **non** nel secondo → `DefeatBeatSeconds` e' **troppo corto**;
+         - si **trascina** anche nel primo → e' l'animazione a essere lunga, la coda non c'entra;
+         - si legge in entrambi → il valore va bene, e si registra **quello**.
+      4. **Cambia il valore SENZA ricompilare**: `DefeatBeatSeconds` e' `EditAnywhere` su
+         `ARTTurnManager` — si edita nel pannello Details dell'attore, a PIE avviato, e il turno
+         successivo lo usa gia'.
+      5. ⛔ **Controprova obbligatoria: metti `0`, riavvia con `R`, e rifai il passo 2.** Se la morte
+         si vede lo stesso, la coda non sta facendo niente e il numero che stai per registrare non e'
+         il suo: e' un controllo positivo, e senza di esso la taratura conferma solo la tua aspettativa.
+
+      🔑 **Cosa registrare**: il valore scelto, e **perche'** — quale dei tre esiti del passo 3 hai
+      visto. Un numero senza l'osservazione che lo motiva invecchia come quello che sostituisce.
+
+      ✅ **Le venti clip esistono sul disco**, verificato il 2026-09-06 contro i pack veri (0 mancanti su
+      20, con controllo di calibrazione). Se qualcosa non si vede, la causa **non e' un nome sbagliato**.
+
       ⚠️ **In QUESTA seduta nessun `.uasset` va creato o toccato**: si giudica.
       `find Content -iname "AM_*"` deve restare **0**.
 
