@@ -147,7 +147,7 @@
     },
     {
       "label": "RT: Engine lease status",
-      "detail": "Chi possiede il motore, e quali processi Unreal sono vivi. Non acquisisce niente.",
+      "detail": "Chi possiede il motore, e quali processi Unreal sono vivi. Sola lettura: non acquisisce niente. acquire/release vivono nel terminale RT (rtlease), perche' il lease appartiene alla sessione, non a un processo effimero.",
       "type": "process",
       "command": "pwsh",
       "args": [
@@ -168,115 +168,6 @@
         "panel": "dedicated",
         "clear": true
       }
-    },
-    {
-      "label": "RT: Engine lease acquire",
-      "detail": "Prende il motore just-in-time. Chiede operazione e task id.",
-      "type": "process",
-      "command": "pwsh",
-      "args": [
-        "-NoLogo",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\scripts\\rt-lease.ps1",
-        "-Action",
-        "acquire",
-        "-Operation",
-        "${input:rtOperation}",
-        "-TaskId",
-        "${input:rtTaskId}",
-        "-WorkspaceRoot",
-        "${workspaceFolder}"
-      ],
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "clear": true
-      }
-    },
-    {
-      "label": "RT: Engine lease release",
-      "detail": "Rilascia il motore. Fallisce se un processo Unreal posseduto e' ancora vivo.",
-      "type": "process",
-      "command": "pwsh",
-      "args": [
-        "-NoLogo",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\scripts\\rt-lease.ps1",
-        "-Action",
-        "release",
-        "-WorkspaceRoot",
-        "${workspaceFolder}"
-      ],
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "clear": true
-      }
-    },
-    {
-      "label": "RT: MCP asset-write preflight",
-      "detail": "Verifica la policy MAIN-only prima di mutare asset via MCP. Non intercetta la chiamata.",
-      "type": "process",
-      "command": "pwsh",
-      "args": [
-        "-NoLogo",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\scripts\\rt-mcp-guard.ps1",
-        "-Action",
-        "check",
-        "-Operation",
-        "MCP_ASSET_WRITE",
-        "-TaskId",
-        "${input:rtTaskId}",
-        "-AssetWriteSet",
-        "${input:rtAssetWriteSet}",
-        "-WorkspaceRoot",
-        "${workspaceFolder}"
-      ],
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "clear": true
-      }
-    }
-  ],
-  "inputs": [
-    {
-      "id": "rtOperation",
-      "type": "pickString",
-      "description": "Operazione per cui serve il motore",
-      "options": [
-        "BUILD",
-        "SUITE",
-        "EDITOR",
-        "PIE",
-        "COMMANDLET",
-        "MCP_EDITOR_QUERY",
-        "MCP_ASSET_WRITE"
-      ],
-      "default": "SUITE"
-    },
-    {
-      "id": "rtTaskId",
-      "type": "promptString",
-      "description": "Task/issue id (obbligatorio per le operazioni mutanti)"
-    },
-    {
-      "id": "rtAssetWriteSet",
-      "type": "promptString",
-      "description": "Asset che intendi toccare, separati da virgola"
     }
   ]
 }

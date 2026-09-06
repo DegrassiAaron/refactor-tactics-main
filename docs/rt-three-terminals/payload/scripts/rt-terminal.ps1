@@ -27,6 +27,27 @@ $env:RT_TERMINAL_ROLE = $Role
 $env:RT_TERMINAL_INSTANCE = $InstanceId
 $env:RT_WORKSPACE_ROOT = $WorkspaceRoot
 
+# (!!) Identita' OS della sessione RT, ereditata dai child.
+#
+# Il lease appartiene a QUESTO terminale, che sopravvive ai comandi lanciati al suo
+# interno. Prima, `rt-lease.ps1` scriveva come owner il PID del proprio processo:
+# effimero, morto un istante dopo l'acquire, e il lease nasceva STALE.
+#
+# (!) Queste variabili sono SEPARATE da RT_TERMINAL_INSTANCE, che resta l'id logico
+# scelto con -InstanceId. Confonderle rendeva -InstanceId inutile e faceva comparire
+# un numero di processo nel prompt al posto del nome scelto.
+#
+# Lo start time non e' ridondante: un PID si ricicla, e senza di esso un processo
+# nuovo che ne riusa il numero verrebbe scambiato per questa sessione.
+$env:RT_TERMINAL_OWNER_PID = "$PID"
+try {
+    $env:RT_TERMINAL_OWNER_STARTED_AT = (Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o')
+} catch {
+    # Senza start time l'identita' e' incompleta e acquire/release falliscono
+    # closed: e' il comportamento voluto, non una svista.
+    $env:RT_TERMINAL_OWNER_STARTED_AT = ''
+}
+
 if (-not [string]::IsNullOrWhiteSpace($TaskId)) {
     $env:RT_TASK_ID = $TaskId
 }
