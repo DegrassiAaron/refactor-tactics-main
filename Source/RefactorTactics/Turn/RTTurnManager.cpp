@@ -7147,6 +7147,17 @@ void ARTTurnManager::ResolveMovement()
 	// aveva pianificato. Lo sa questo ciclo, e lo scrive lui nel log.
 	TArray<bool> bStoppedByTopology;
 	bStoppedByTopology.Init(false, Units.Num());
+	// Chi ha DICHIARATO una destinazione e se l'e' vista negare perche' occupata (#79). Come la topologia
+	// qui sopra, e' un fatto che il resolver non puo' vedere, con una differenza: la topologia taglia un
+	// percorso che esiste, questa lo azzera, e il resolver riceve `{ Cell }` — indistinguibile da chi non ha
+	// mai pianificato. Si popola nel ramo di collasso qui sotto, che e' il punto in cui i tre produttori
+	// (player, Scenario Harness, bot) diventano lo stesso caso, e si scrive nel log piu' in basso.
+	TArray<bool> bDeniedByOccupant;
+	bDeniedByOccupant.Init(false, Units.Num());
+	// La destinazione richiesta e negata, per indice. Viaggia accanto al flag e non dentro `Paths`: in
+	// `Paths` sarebbe una cella che qualcuno potrebbe percorrere, e nessuno l'ha percorsa.
+	TArray<FRTCellId> DeniedDestination;
+	DeniedDestination.Init(FRTCellId(), Units.Num());
 	// Quanto di ogni percorso il GIOCATORE ha chiesto, e se il terreno voleva portare l'unita' oltre
 	// (`#2314`). E' l'informazione che il resolver non puo' ricostruire — riceve un percorso gia' esteso e
 	// non sa che l'ultima cella non era pianificata — e che solo questo ciclo possiede, perche' e' qui che
@@ -7182,6 +7193,36 @@ void ARTTurnManager::ResolveMovement()
 
 		if (Path.Num() < 2)
 		{
+			// 🔑 **Il punto UNICO in cui i tre produttori collassano, ed e' per questo che la domanda di #79
+			// si pone qui e in nessun altro posto.** Player, Scenario Harness e bot arrivano a questa riga
+			// con lo stesso stato — nessun percorso percorribile — e da qui in giu' sono indistinguibili;
+			// `FinalizeHexMovementOutcomes` li chiamera' tutti `Stayed`, cioe' «non pianificava movimento».
+			// Su chi aveva dichiarato una destinazione occupata quella parola e' falsa.
+			//
+			// ⚠️ **Le due fonti non sono simmetriche, e nessuna delle due copre l'altra.**
+			// - Player e harness rifiutano il piano IN PIANIFICAZIONE: il `Pop()` cancella la destinazione,
+			//   `PlannedCell` torna a `Cell` e qui non resterebbe niente da leggere. Serve il dato che
+			//   l'unita' ha portato fin qui.
+			// - Il bot non ha un ramo di rifiuto: dichiara solo `PlannedCell` e il suo percorso fallisce
+			//   QUI, dentro la fase Move. La sua destinazione richiesta e' ancora leggibile, e non serve
+			//   nessuno stato che sopravviva.
+			//
+			// «Aveva dichiarato?» ha gia' una sede unica — `HasPlannedNormalMove()` — e non se ne scrive una
+			// seconda. Il motivo lo classifica `ClassifyWaypointCell`: nessun secondo vocabolario, e budget,
+			// cella bloccata e fuori mappa restano `Stayed` per scope dichiarato della #79.
+			if (Unit->bMovePlanRejectedByOccupant)
+			{
+				bDeniedByOccupant[i] = true;
+				DeniedDestination[i] = Unit->RejectedMoveDestination;
+			}
+			else if (Unit->HasPlannedNormalMove()
+				&& URTHexSimLibrary::ClassifyWaypointCell(Snapshot, /*UnitId=*/ i, Unit->PlannedCell)
+					== ERTHexWaypointReason::Occupied)
+			{
+				bDeniedByOccupant[i] = true;
+				DeniedDestination[i] = Unit->PlannedCell;
+			}
+
 			Path = { Unit->Cell }; // fermo
 		}
 		// Ghiaccio: chi finisce il Move su Ice con budget residuo scivola di una cella oltre. La cella extra
@@ -7318,6 +7359,35 @@ void ARTTurnManager::ResolveMovement()
 			&& Resolved[i].Outcome == ERTMoveOutcome::Moved)
 		{
 			MoveLog[i].Outcome = static_cast<uint8>(ERTMoveOutcome::BlockedByTopology);
+		}
+
+		// 🔑 **Il movimento negato in PIANIFICAZIONE, che senza questo ramo non lascia traccia** (#79).
+		// `Stayed` e' dichiarato «non pianificava movimento (path < 2 celle)»: su chi aveva dichiarato una
+		// destinazione e se l'e' vista negare, quella voce non e' incompleta, e' FALSA — ed e' la stessa
+		// stringa che legge chi non ha dichiarato niente. La voce SOSTITUISCE `Stayed`, non si aggiunge:
+		// `BuildMoveLog` emette una voce per unita' per la fase Move, e due voci `Move` per la stessa unita'
+		// nella stessa fase non hanno precedente nel formato.
+		//
+		// ⚠️ **La guardia e' `Stayed`, e non e' cosmetica.** Un'unita' che si e' mossa (`Moved`), o che e'
+		// stata fermata dal resolver per una cella contesa (`BlockedContested`) o dalla topologia, ha un
+		// esito avvenuto DOPO la pianificazione, ed e' la spiegazione piu' vicina a cio' che il giocatore ha
+		// visto — la stessa precedenza che il ramo qui sopra applica alla topologia. Il rifiuto di
+		// pianificazione parla solo quando il turno non ha nient'altro da dire.
+		// Ramo indipendente e non un `else`: la guardia `Stayed` lo rende gia' disgiunto da quello della
+		// topologia, che chiede `Moved`, e i due si leggono uno per volta invece che come una catena.
+		if (bDeniedByOccupant.IsValidIndex(i) && bDeniedByOccupant[i]
+			&& Resolved[i].Outcome == ERTMoveOutcome::Stayed)
+		{
+			MoveLog[i].Outcome = static_cast<uint8>(ERTMoveOutcome::BlockedByUnit);
+			// La destinazione RICHIESTA, non `Results[i].Final`: quella e' la cella di partenza, e con essa
+			// la coppia `SrcCell -> TgtCell` descriverebbe una rotta lunga zero invece di quella negata. E'
+			// la stessa scelta di `SupersededByDash`, «la destinazione dichiarata e mai raggiunta».
+			MoveLog[i].TgtCell = DeniedDestination[i];
+			// `Amount` resta quello che `BuildMoveLog` ha scritto: `Entered.Num()`, cioe' `0` per costruzione
+			// su chi non si e' mosso. Non si riassegna a mano — un `0` scritto due volte da due posti e' un
+			// `0` che qualcuno dovra' tenere d'accordo — ma va detto che qui vale `0` PERCHE' nessuna cella e'
+			// stata percorsa, non perche' il campo non si applichi. `ActionId` e `Priority` sono gia' quelli
+			// del catalogo, letti da `BuildMoveLog`: nessun valore cablato entra in questo ramo.
 		}
 		// ⛔ **Il GHIACCIO non ha piu' un ramo qui, ed e' il punto di `#2314`.** C'era, e riscriveva `Moved`
 		// in `Slid` confrontando `Resolved[i].Final` con la cella di scivolamento: una guardia POSIZIONALE,
@@ -7536,6 +7606,14 @@ void ARTTurnManager::ResolveMovement()
 	{
 		ARTUnit* Unit = Units[i];
 		if (!IsValid(Unit)) { continue; }
+		// #79: il rifiuto di pianificazione e' stato letto e scritto nel log piu' sopra, e qui si CONSUMA —
+		// «una dichiarazione vale per il turno in cui e' stata fatta», la stessa regola della rotazione
+		// dichiarata che questo ciclo applica sotto. Sta prima dei due rami perche' vale per tutti: chi si e'
+		// mosso (dove `PlaceOnCell` lo ha gia' azzerato), chi e' rimasto fermo, e chi e' MORTO in questo
+		// turno — senza, un'unita' negata e poi uccisa porterebbe il rifiuto oltre il proprio turno, e una
+		// rianimata lo troverebbe ancora acceso. `IsValid` sopra esclude solo chi e' gia' stato distrutto,
+		// che non ha stato da azzerare.
+		Unit->ClearMovePlanRejection();
 		if (!Unit->bDeclaresPlannedFacing || !Unit->IsAlive())
 		{
 			Unit->ClearDeclaredFacing();
