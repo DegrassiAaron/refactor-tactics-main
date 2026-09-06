@@ -37,7 +37,7 @@
 | **R4** | **Il §20 chiede sette branch paralleli** e non nomina mai `scripts/rt-suite.ps1` né la validità della misura: [`AGENTS.md`](../../../AGENTS.md) §11 dice che *«un worktree separato non elimina il mutex globale Unreal/Live Coding»* | 🟠 |
 | **R5** | **Il §15 ha una riga che contraddice la propria intestazione** — sotto *«Deve cadere»*, `ordine input movement` → `nessuna divergenza` — e lascia il commit `test(determinism)` **senza artefatto di prova** | 🟠 |
 | **R6** | **Il DoD è auto-verificante in due punti**: *«S01–S13 e S15 hanno test dove il contratto è deciso»* si soddisfa dichiarando non deciso ciò che non ha test; `C0` chiede di *«misurare test dichiarati/eseguiti»* senza soglia | 🟠 |
-| **R7** | **`S05` ha il suo test, e quel test pinna l'arretrato.** `Action.Sprint` risolve **pre-Blast** per debito dichiarato — la divergenza che il gemello ha misurato in `R4` e per cui propone `Oracle: CANON \| OBSERVED` | 🟠 |
+| **R7** | **`S05` ha il suo test, e quel test pinna l'arretrato.** `Action.Sprint` risolve **pre-Blast** per debito dichiarato — la divergenza che il gemello ha misurato in `R4`. ✅ Il campo `Oracle: CANON \| OBSERVED` che quel referto proponeva **è stato adottato** — §2 | 🟠 |
 | **R8** | Il contratto di fase del §6 elenca **`Blink`**, che nel codice non esiste | 🔵 |
 | **R9** | Il §1 vieta i `.uasset` e il §18 dice *«nessun `.uasset`»*: ambiguo fra *non modificarli* e *non dipenderne*, mentre test headless esistenti li **leggono** | 🔵 |
 
@@ -58,13 +58,43 @@ Quattro dei suoi rilievi valgono per entrambe le metà e **non si rimisurano qui
 | `R3` | l'oggetto non esiste: zero file `*schemati*` e zero `*code-only*` in entrambi i checkout | il §4 e il §18 di questo kit non sono verificabili da nessuno |
 | `R7` | **gli owner delle `S` sono issue**, e quattro su cinque sono chiuse — `#2277` (`S01`,`S05`) · `#1918` (`S08`) · `#589` (`S15`) · `MOV-4` (`S03`,`S09`), contro il solo [#2148](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2148) ancora `OPEN` | `R2` di questo referto è la stessa misura vista dal lato codice |
 | `R8` | `S01…S15` è un **terzo spazio di identificatori** accanto a 48 sedute `U*` e 226 voci `PIE-*`, senza una mappa fra i tre | qui il difetto è più stretto: nessuna `S` dichiara quale **test** pinni |
-| `R4` | `Action.Sprint` è profilo di `Move` per il canone e risolve **pre-Blast** nel codice — arretrato `#641`/`D-116` | è `R7` di questo referto |
+| `R4` | `Action.Sprint` è profilo di `Move` per il canone e risolve **pre-Blast** nel codice — arretrato `#641`/`D-116` | è `R7` di questo referto, e il suo rimedio è già in vigore — vedi sotto |
 
 🔑 **La coppia si conferma da sola.** Due kit della stessa forma, consegnati insieme, misurati sullo stesso
 sha da due run indipendenti, producono la stessa lista di premesse decadute. Il difetto non è di una
 stesura: è del **canale**, che è precisamente ciò che
 [`gov4-contratto-work-order-esterni-2026-09-05.md`](gov4-contratto-work-order-esterni-2026-09-05.md) ha
 deciso il giorno prima con `D-336`.
+
+---
+
+### Il contributo `Oracle: CANON | OBSERVED` è già stato adottato
+
+➕ **Aggiunto il 2026-09-06 dopo la prima stesura di questo referto, ed è una correzione a esso.** Il
+contributo `C1` del gemello — dichiarare contro cosa si giudica un verdetto PIE — non è più una proposta
+senza sede: [`roadmap-esecuzione-pie-2026-09-03.md`](roadmap-esecuzione-pie-2026-09-03.md) lo possiede da
+`a1e32d26` ([#2531](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2531)), nella sezione
+*«Contro cosa si giudica ciò che vedi»*.
+
+⚠️ **Quel commit era già in `main` quando questo referto è stato scritto**, e la prima stesura lo ha
+mancato: `2a08f4c2` non lo conteneva, `1b4ff858` sì, e il riallineamento ha aggiornato lo sha senza
+rileggere che cosa quello sha avesse cambiato. 🔑 È lo stesso difetto che questo referto contesta al kit —
+una premessa riallineata a parole e non a fatti — commesso qui, e resta scritto invece di sparire nel diff.
+
+La forma adottata è **più forte** della proposta, e le due differenze contano:
+
+| Proposta `C1` del gemello | Forma in vigore |
+|---|---|
+| `KnownDivergence:` elencato accanto al campo | ⛔ **nessun elenco**: sarebbe una seconda source of truth. Le divergenze vivono in [`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) — quella dello `Sprint` è la **riga 41** — e il verdetto scrive `Divergence:` col numero di quella riga |
+| campo del verdetto, sede non detta | la **regola di giudizio** sta nella roadmap, il campo `Divergence:` nel verdetto, che è di [`test-manuali-pie.md`](../../technical/test-manuali-pie.md): la tripartizione resta |
+
+✅ **I due puntatori della sezione sono stati verificati qui**, perché un rimando citato come prova è
+esattamente ciò che questo referto misura altrove: la riga `41` della matrice **esiste** ed è quella dello
+`Sprint` (`SUPERSEDED`, `D-015` → `D-068` → `D-116`), e il commento di
+`Actions.SprintIsAMoveProfileResolvedPreBlast` (`RTCoreActionTests.cpp:339`) porta testualmente la frase
+citata — *«Il verde qui sotto misura quanto il codice e' indietro, non che abbia ragione»*.
+
+∴ **Dei due kit non resta alcun contributo senza sede.**
 
 ---
 
