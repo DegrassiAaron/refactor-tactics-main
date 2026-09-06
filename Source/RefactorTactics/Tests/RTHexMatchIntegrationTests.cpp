@@ -21,6 +21,7 @@
 #include "Tests/RTWorldFixtures.h"
 // `#2359`: la sonda del commit, e il controller che vi si aggancia.
 #include "Player/RTPlayerController.h"
+#include "Player/RTPointerInteraction.h"
 #include "Tests/RTLockInCommittedProbeForTest.h"
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
@@ -1305,6 +1306,75 @@ bool FRTPlanningPreviewClearsOnReadyCommitTest::RunTest(const FString&)
 
 	DrainPlayback(B.TM);
 	TestEqual(TEXT("e resta spenta per tutta la risoluzione"), PreviewCellsLit(B.HexMap), 0);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+
+/**
+ * **#2518 — durante il playback il mondo e' in SOLA LETTURA, e nessuno lo faceva rispettare.**
+ *
+ * Il nome non e' scelto qui: lo aveva gia' scelto il documento owner. `spec-pointer-interaction.md:545`
+ * elencava `PlaybackRejectsPlanningInput` fra i test mancanti e lo classificava *«feature travestita da
+ * test — nessuno consuma `ResolutionPlayback` per rifiutare l'input»*.
+ *
+ * 🔑 **La regola e' §5.3 di quel documento, non una scelta di questa PR**: durante `ResolutionPlayback`
+ * *«`Inspect` e camera consentiti»*, e *«ogni input che cambierebbe il piano e' `Blocked(reason)`»*.
+ * `URTPointerLibrary::ResolveTarget` e `ResolveBack` la onorano gia' (`RTPointerInteraction.cpp:142` e
+ * `:186`); il percorso di SELEZIONE no, e riaccendeva l'anteprima sopra la risoluzione.
+ *
+ * ⚠️ **Il controllo positivo sta dentro questo stesso test**, prima del commit: senza, un fix che
+ * spegnesse l'anteprima sempre — o un banco che non la accende mai — sarebbe verde su nulla.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackRejectsPlanningInputTest,
+	"RefactorTactics.HexMatch.PlaybackRejectsPlanningInput",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackRejectsPlanningInputTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// Un secondo attore selezionabile: `SelectUnit` rientra subito se gli si ripassa quello gia' scelto,
+	// quindi il clic da simulare deve cadere su qualcun altro.
+	ARTUnit* Altra = RTWorldFixtures::FirstUnitOfTeam(B.World, /*TeamId=*/ 1);
+	if (!TestNotNull(TEXT("una seconda unita' da cliccare"), Altra))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// CONTROLLO POSITIVO — fuori dal playback lo stesso identico gesto ACCENDE l'anteprima. E' la riga che
+	// rende il rosso qui sotto attribuibile alla FASE e non al gesto.
+	B.PC->SelectUnit(Altra, /*bRecordAsPlayerInput=*/ false);
+	TestTrue(TEXT("controllo: in pianificazione il clic accende l'anteprima"),
+		PreviewCellsLit(B.HexMap) > 0);
+	B.PC->SelectUnit(B.Mine, /*bRecordAsPlayerInput=*/ false);
+
+	// Il turno si chiude dal tetto e la risoluzione comincia.
+	B.TM->SetPlanningSeconds(1.0f);
+	AdvanceWallClock(B.World, 1.5f);
+
+	// ANTI-VACUITA' — la fase e' davvero quella, e il commit ha davvero spento (e' #2390, gia' verde).
+	TestTrue(TEXT("la risoluzione e' in corso"), B.TM->IsResolving());
+	TestEqual(TEXT("e il puntatore lo sa: il contesto e' ResolutionPlayback"),
+		static_cast<int32>(B.PC->GetPointerContext()),
+		static_cast<int32>(ERTPointerContext::ResolutionPlayback));
+	TestEqual(TEXT("il commit ha spento l'anteprima"), PreviewCellsLit(B.HexMap), 0);
+
+	// IL CUORE — lo stesso gesto che poco fa accendeva, adesso non deve accendere piu' niente.
+	B.PC->SelectUnit(Altra, /*bRecordAsPlayerInput=*/ false);
+	TestEqual(TEXT("un clic durante il playback non riaccende l'anteprima"),
+		PreviewCellsLit(B.HexMap), 0);
+
+	// E resta cosi' fino alla fine della risoluzione, non solo per un frame.
+	DrainPlayback(B.TM);
+	TestEqual(TEXT("e non la riaccende nemmeno a risoluzione finita per quel turno"),
+		PreviewCellsLit(B.HexMap), 0);
 
 	DestroyHexMatchWorld(B.World);
 	return true;
