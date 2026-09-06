@@ -111,6 +111,23 @@ Il gioco non si rompe, ed è già provato altrove:
 ⛔ Questa seduta **non** verifica che il diniego funzioni: verifica che il giocatore **se ne accorga**. Se ti
 trovi a controllare che l'unità resti ferma, stai rifacendo un test che è già verde.
 
+## 🔴 Due vie, e provano cose diverse — leggi questo prima di scegliere
+
+`RT3-EDITOR-8dcd3a76.md` porta i tre check nella forma canonica `=== USER EDITOR CHECK ===`, e prescrive una **partita giocata**: *«Player: umano su team 0»*, *«dichiara come piano FINALE una destinazione occupata da un'altra unità»*. Questa guida descrive invece l'**auto-run** dello scenario. Le due procedure **non sono equivalenti**, e la differenza non è di comodità:
+
+| Via | Cosa prova | Rischio |
+|---|---|---|
+| **A — auto-run** `Movement.CollisionChoke` | che la riga **arrivi al widget** che il giocatore guarda | nessuno: gli intent sono nello scenario, il diniego avviene per costruzione |
+| **B — partita giocata**, i passi di EDITOR | anche che il giocatore **possa arrivarci**: l'affordance | ⚠️ il passo di dichiarazione potrebbe non essere eseguibile — vedi sotto |
+
+⚠️ **Perché B può bloccarsi.** Misurato sul codice: un click che colpisce la **mesh** di un'unità va a `ARTPlayerController::OnClickUnit` — carica, attacco, o niente — e **non** produce un waypoint di movimento. Solo un click che prende il **terreno** della cella occupata arriva a `HandleClickOnCell` e genera il diniego. Su una cella dove sta un'unità, quale dei due colpisca dipende dalla geometria e dalla precisione del click.
+
+⛔ **Se al passo «dichiara una destinazione occupata» non riesci a dichiarare niente, NON è il difetto di #79 e non si registra come ❌ di (c).** È la porta d'ingresso che non passa di lì: registralo come **osservazione separata sull'affordance**, e giudica (c) sulla via A.
+
+🔑 **La raccomandazione: fai A, e prova B.** A dà l'esito registrabile in ogni caso — è la stessa sequenza `T1-T4` che EDITOR ha già osservato headless, quindi il confronto con la sua evidenza è diretto. B aggiunge l'unica cosa che A non può dare, e se si blocca hai comunque scoperto qualcosa che vale la pena scrivere.
+
+⚠️ **`PIE-V01-LOG` ha comunque il suo banco proprio** (`Visual.Environment.Acceptance`, sezione qui sotto): né A né B lo sostituiscono, perché la voce chiede la leggibilità del log **in generale** e non su un fallback solo.
+
 ## Se vuoi provare «al click»
 
 Non è richiesto da nessuna delle due voci, ed è la parte che nessuno ha ancora guardato: la clausola (c)
