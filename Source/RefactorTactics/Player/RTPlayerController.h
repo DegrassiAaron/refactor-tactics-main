@@ -483,7 +483,22 @@ private:
 	 * ⚠️ **Si vede solo prima del PRIMO Ready**: `AddUniqueDynamic` punta al `TurnManager`, che e' lo
 	 * stesso oggetto per tutto il match, quindi dal primo Ready in poi l'iscrizione persiste da se'.
 	 */
-	void EnsureLockInCommittedSubscription(class ARTTurnManager* TurnManager);
+	void EnsureTurnPresentationSubscriptions(class ARTTurnManager* TurnManager);
+
+	/**
+	 * La risoluzione e' finita: l'anteprima torna, coerente con la selezione corrente (`#2555`).
+	 *
+	 * 🔑 **E' il contrappeso di `HandleLockInCommitted`**, e senza di lui `Inspect` non e' concedibile: se
+	 * durante il playback il clic puo' spostare la selezione ma nessuno riaccende, si resta con l'unita'
+	 * scelta e il ventaglio vuoto — e la guardia `Actor == SelectedActor` rende inerte anche un secondo
+	 * clic. Uno spegne al commit, l'altro riapre alla fine: e' la coppia che rende lo stato sempre intero.
+	 *
+	 * ⚠️ **Ricalcola, non ripristina.** A risoluzione finita le unita' si sono mosse e i waypoint sono
+	 * stati consumati: cio' che deve tornare e' un'anteprima coerente con **adesso**, non la fotografia
+	 * del turno passato.
+	 */
+	UFUNCTION()
+	void HandlePlaybackFinished();
 	// Uno per posizione del kit, e sono one-liner che passano tutti da `SelectAbilityForCurrent`. Uno per
 	// posizione e non un handler solo perche' l'indice deve arrivare dalla BINDATURA: `FInputActionValue`
 	// porta il valore, non l'azione che l'ha prodotto, quindi un handler unico non saprebbe quale tasto e'
