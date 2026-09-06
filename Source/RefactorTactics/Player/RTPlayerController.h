@@ -576,6 +576,16 @@ public:
 	void HandleClickOnUnitForTest(class ARTUnit* ClickedUnit) { HandleClickOnUnit(ClickedUnit); }
 
 	/**
+	 * Il clic su una CELLA senza passare dal raycast, per i test (`#2518`).
+	 *
+	 * Stessa disciplina di `HandleClickOnUnitForTest`: cio' che va verificato e' la **decisione** — il
+	 * waypoint si posa, o non si posa — non il trasporto dell'input, che chiede un viewport e headless non
+	 * esiste. E' l'ingresso che scrive `PlannedWaypoints`, cioe' la mutazione di piano piu' grande
+	 * raggiungibile da un clic.
+	 */
+	void HandleClickOnCellForTest(const FRTCellId& Cell) { HandleClickOnCell(Cell); }
+
+	/**
 	 * Arma l'azione in posizione `Index` come farebbe il tasto corrispondente (per i test).
 	 *
 	 * `SelectAbilityForCurrent` e' il punto comune dei dieci tasti abilita' ed e' privata: senza questo, il
@@ -639,6 +649,23 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	ERTPointerContext GetPointerContext() const;
+
+	/**
+	 * Il mondo e' in SOLA LETTURA: nessun input puo' cambiare il piano (`#2518`).
+	 *
+	 * 🔑 **E' un INSIEME di contesti, non un valore.** `spec-pointer-interaction.md` §5.3 li elenca insieme
+	 * — `ResolutionPlayback`, `ReactionWindow`, `Modal` — e `URTPointerLibrary::ResolveTarget` li tratta
+	 * gia' come un caso solo (`RTPointerInteraction.cpp:142`). Scriverlo come uguaglianza a un valore
+	 * smetterebbe di guardare appena un contesto a precedenza piu' alta ne prende il posto: `Modal` precede
+	 * gia' il playback in `GetPointerContext()`, e `ReactionWindow` fara' lo stesso quando E14 lo produrra'.
+	 *
+	 * ⚠️ **§5.3 vorrebbe `Inspect` consentito durante il playback, e qui invece il clic sul mondo viene
+	 * fermato del tutto.** Non e' una svista: `Inspect` oggi non esiste — `ResolveTarget` calcola un
+	 * bersaglio che nessuno consuma (nessun chiamante di produzione) — e l'unica cosa che la selezione fa
+	 * davvero e' accendere il piano. Fermare il clic e' una deviazione piu' piccola dal contratto che
+	 * lasciare una selezione a meta'. La riga di §5.3 resta aperta finche' `Inspect` non ha un produttore.
+	 */
+	bool IsWorldReadOnly() const;
 
 	/** Che forma di bersaglio chiede l'azione armata. `None` se non c'e' targeting in corso. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")

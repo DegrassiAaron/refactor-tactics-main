@@ -1121,6 +1121,19 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		return;
 	}
 
+	// 🔑 **Durante la risoluzione il mondo e' in sola lettura** (`#2518`; `spec-pointer-interaction.md`
+	// §5.3). Sta DOPO il ramo camera, perche' §5.3 la camera la consente, e PRIMA del campione di ritmo,
+	// perche' un clic che non puo' cambiare niente non e' «il giocatore che sta decidendo»: contarlo
+	// gonfierebbe `PIE-V01-MATCHLEN` con tempo in cui nessuna decisione era possibile.
+	//
+	// ⚠️ **E' il CANCELLO, non l'unica guardia.** I tre ingressi che mutano il piano la ripetono ciascuno
+	// al proprio punto di mutazione: `OnSelect` non e' raggiungibile da un test headless (chiede un
+	// raycast sul viewport), quindi una regola che vivesse solo qui non sarebbe verificabile.
+	if (IsWorldReadOnly())
+	{
+		return;
+	}
+
 	// #971 — sessione non presidiata: il click non seleziona e non registra. La guardia sta PRIMA del
 	// campione apposta: un click che non aggancia niente non e' «il giocatore che sta lavorando».
 	if (IsPlanningInputInert())
@@ -1284,6 +1297,16 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 		return;
 	}
 
+	// 🔴 **Sta PRIMA di toccare `SelectedActor`, e l'ordine e' la correzione di un difetto mio** (`#2518`,
+	// code review). La prima stesura tornava DOPO aver riassegnato la selezione e prima di accendere
+	// l'anteprima: l'unita' risultava selezionata con il ventaglio vuoto, e a playback finito nessuno
+	// rinfrescava — la guardia `Actor == SelectedActor` qui sopra rendeva pure inerte un secondo clic.
+	// Una selezione a meta' e' peggio di nessuna selezione.
+	if (IsWorldReadOnly())
+	{
+		return;
+	}
+
 	if (IRTSelectable* Previous = Cast<IRTSelectable>(SelectedActor))
 	{
 		Previous->OnDeselected();
@@ -1307,21 +1330,6 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 	// senza che il Ready sia mai stato premuto.
 	EnsureLockInCommittedSubscription(TurnManagerForSelection);
 
-	// 🔑 **Durante il playback il mondo e' in SOLA LETTURA** (`#2518`; `spec-pointer-interaction.md` §5.3:
-	// *«`Inspect` e camera consentiti — ogni input che cambierebbe il piano e' `Blocked(reason)`»*).
-	// La selezione resta libera di cambiare, perche' guardare un'altra unita' mentre la risoluzione scorre
-	// e' `Inspect` ed e' legittimo; cio' che non deve succedere e' che il PIANO torni a schermo, dopo che
-	// il commit lo ha spento apposta — altrimenti il difetto di `#2390` rientra da un'altra porta, e basta
-	// un clic.
-	//
-	// ⛔ **Non si richiede qui `IsResolving()`.** La domanda «in che fase siamo» ha una sola sede, ed e'
-	// `GetPointerContext()`: chiederla una seconda volta qui creerebbe la copia che quella funzione
-	// documenta di voler evitare. Qui si LEGGE il contesto.
-	if (GetPointerContext() == ERTPointerContext::ResolutionPlayback)
-	{
-		return;
-	}
-
 	// L'anteprima segue la selezione: mostra il piano dell'unita' scelta (vuoto se non ne ha).
 	FVector SOrigin; float SHexSize; float SLayerH; const URTHexMapAsset* SMap = nullptr;
 	if (ARTHexMapActor* SHexMap = HexMapWithContext(GetWorld(), SOrigin, SHexSize, SLayerH, SMap))
@@ -1335,6 +1343,14 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 
 void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 {
+	// `#2518` — scrive `PlannedAbilityIndex` e `PlannedAttackTarget`: e' mutazione del piano, e durante la
+	// risoluzione non deve avvenire. La regola sta in `IsWorldReadOnly()`; qui si applica al proprio punto
+	// di mutazione, che e' anche l'unico raggiungibile da un test headless.
+	if (IsWorldReadOnly())
+	{
+		return;
+	}
+
 	// #971 — primo dei cinque siti `Order`. La guardia sta QUI e non solo su `OnSelect`: questa funzione e'
 	// pubblica (`HandleClickOnUnitForTest` la espone), quindi «non si arriva a selezionare» non e' una
 	// prova che non si arriva a pianificare.
@@ -1467,6 +1483,14 @@ FString ARTPlayerController::DescribeWaypointRejection(const FRTHexSnapshot& Sna
 
 void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 {
+	// `#2518` — scrive `PlannedWaypoints`/`PlannedPath` e riaccende l'anteprima. Era la porta piu' grande
+	// rimasta aperta dopo la prima stesura del fix: un clic sulla mappa durante il playback non solo
+	// riportava il piano a schermo, ma piantava waypoint che sopravvivevano al turno successivo.
+	if (IsWorldReadOnly())
+	{
+		return;
+	}
+
 	ARTUnit* SelectedUnit = GetSelectedUnit();
 	if (!SelectedUnit)
 	{
@@ -2038,6 +2062,16 @@ void ARTPlayerController::OnTogglePause()
 		UE_LOG(LogRT, Warning, TEXT("[RT] ESC: la pausa non ha cambiato stato (%s)."),
 			*UEnum::GetValueAsString(Result));
 	}
+}
+
+bool ARTPlayerController::IsWorldReadOnly() const
+{
+	// Si legge il contesto, come `IsGameplayInputBlocked`: il puntatore e' l'autorita' su cosa un input
+	// possa raggiungere, e un secondo interrogante darebbe due risposte da tenere allineate.
+	const ERTPointerContext Context = GetPointerContext();
+	return Context == ERTPointerContext::ResolutionPlayback
+		|| Context == ERTPointerContext::ReactionWindow
+		|| Context == ERTPointerContext::Modal;
 }
 
 bool ARTPlayerController::IsGameplayInputBlocked() const

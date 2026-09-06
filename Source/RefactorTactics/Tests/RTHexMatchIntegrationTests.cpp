@@ -21,7 +21,6 @@
 #include "Tests/RTWorldFixtures.h"
 // `#2359`: la sonda del commit, e il controller che vi si aggancia.
 #include "Player/RTPlayerController.h"
-#include "Player/RTPointerInteraction.h"
 #include "Tests/RTLockInCommittedProbeForTest.h"
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
@@ -1315,17 +1314,24 @@ bool FRTPlanningPreviewClearsOnReadyCommitTest::RunTest(const FString&)
 /**
  * **#2518 — durante il playback il mondo e' in SOLA LETTURA, e nessuno lo faceva rispettare.**
  *
- * Il nome non e' scelto qui: lo aveva gia' scelto il documento owner. `spec-pointer-interaction.md:545`
- * elencava `PlaybackRejectsPlanningInput` fra i test mancanti e lo classificava *«feature travestita da
- * test — nessuno consuma `ResolutionPlayback` per rifiutare l'input»*.
+ * Il nome non e' scelto qui: lo aveva gia' scelto il documento owner.
+ * `spec-pointer-interaction.md:545` elencava `PlaybackRejectsPlanningInput` fra i test mancanti e lo
+ * classificava *«feature travestita da test — nessuno consuma `ResolutionPlayback` per rifiutare
+ * l'input»*. Misurato: nessuno lo **produceva** nemmeno.
  *
- * 🔑 **La regola e' §5.3 di quel documento, non una scelta di questa PR**: durante `ResolutionPlayback`
- * *«`Inspect` e camera consentiti»*, e *«ogni input che cambierebbe il piano e' `Blocked(reason)`»*.
- * `URTPointerLibrary::ResolveTarget` e `ResolveBack` la onorano gia' (`RTPointerInteraction.cpp:142` e
- * `:186`); il percorso di SELEZIONE no, e riaccendeva l'anteprima sopra la risoluzione.
+ * 🔑 **Il soggetto e' `HandleClickOnCell`, e ci sono voluti due tentativi** (code review, poi misura).
+ * La prima stesura chiamava `SelectUnit` su un'unita' **avversaria**: in partita quel gesto non arriva
+ * mai li' — `OnSelect` lo ferma prima con *«e' avversaria: seleziona prima una tua unita'»* — quindi
+ * guidava un percorso che il gioco non puo' produrre, e per giunta asseriva come corretto mostrare il
+ * ventaglio di un avversario. La seconda usava il gesto d'ATTACCO, ma qui le due unita' distano sei
+ * celle: nessun attacco e' legale, e il controllo positivo non poteva diventare verde. Il clic sulla
+ * **mappa** e' il gesto piu' comune del gioco, e' l'unico che scriva `PlannedWaypoints` — la mutazione
+ * che sopravvivrebbe al turno — ed e' quello che la code review indicava come la porta piu' grande.
  *
- * ⚠️ **Il controllo positivo sta dentro questo stesso test**, prima del commit: senza, un fix che
- * spegnesse l'anteprima sempre — o un banco che non la accende mai — sarebbe verde su nulla.
+ * ⚠️ **Il controllo positivo misura un DELTA, non uno stato.** La prima stesura asseriva
+ * `PreviewCellsLit > 0` dopo il gesto — ma il banco lascia gia' l'anteprima accesa, quindi sarebbe
+ * passato anche se il gesto non avesse fatto nulla. Qui il controllo pretende che il gesto **cambi**
+ * qualcosa: il bersaglio d'attacco, che prima non c'era.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackRejectsPlanningInputTest,
 	"RefactorTactics.HexMatch.PlaybackRejectsPlanningInput",
@@ -1339,21 +1345,29 @@ bool FRTPlaybackRejectsPlanningInputTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Un secondo attore selezionabile: `SelectUnit` rientra subito se gli si ripassa quello gia' scelto,
-	// quindi il clic da simulare deve cadere su qualcun altro.
-	ARTUnit* Altra = RTWorldFixtures::FirstUnitOfTeam(B.World, /*TeamId=*/ 1);
-	if (!TestNotNull(TEXT("una seconda unita' da cliccare"), Altra))
+	// ANTI-VACUITA' — il banco ha davvero acceso l'anteprima, rotta compresa.
+	TestTrue(TEXT("l'anteprima e' ACCESA in pianificazione"), PreviewCellsLit(B.HexMap) > 0);
+	TestTrue(TEXT("e la ROTTA e' tracciata: il piano esiste davvero"), B.HexMap->NumPreviewPathCells() > 0);
+
+	// La cella che il banco ha gia' dimostrato percorribile: e' il gesto piu' comune del gioco, e l'unico
+	// che scriva `PlannedWaypoints`. ⚠️ Il gesto d'ATTACCO non serviva allo scopo — in questo allestimento
+	// le due unita' distano sei celle, quindi nessun attacco e' legale e il gesto sarebbe un no-op anche
+	// in pianificazione: un controllo positivo che non puo' diventare verde non controlla niente.
+	if (!TestTrue(TEXT("il banco ha lasciato un waypoint da riusare"), B.Mine->PlannedWaypoints.Num() > 0))
 	{
 		DestroyHexMatchWorld(B.World);
 		return false;
 	}
+	const FRTCellId CellaPercorribile = B.Mine->PlannedWaypoints[0];
 
-	// CONTROLLO POSITIVO — fuori dal playback lo stesso identico gesto ACCENDE l'anteprima. E' la riga che
-	// rende il rosso qui sotto attribuibile alla FASE e non al gesto.
-	B.PC->SelectUnit(Altra, /*bRecordAsPlayerInput=*/ false);
-	TestTrue(TEXT("controllo: in pianificazione il clic accende l'anteprima"),
-		PreviewCellsLit(B.HexMap) > 0);
-	B.PC->SelectUnit(B.Mine, /*bRecordAsPlayerInput=*/ false);
+	// CONTROLLO POSITIVO, come DELTA — in pianificazione il clic sulla mappa POSA un waypoint.
+	B.Mine->PlannedWaypoints.Reset();
+	B.PC->RebuildPlannedPathForTest();
+	TestEqual(TEXT("controllo: si riparte da un piano vuoto"), B.Mine->PlannedWaypoints.Num(), 0);
+	B.PC->HandleClickOnCellForTest(CellaPercorribile);
+	TestTrue(TEXT("controllo: in pianificazione il clic sulla mappa posa un waypoint"),
+		B.Mine->PlannedWaypoints.Num() > 0);
+	TestTrue(TEXT("e riaccende la rotta"), B.HexMap->NumPreviewPathCells() > 0);
 
 	// Il turno si chiude dal tetto e la risoluzione comincia.
 	B.TM->SetPlanningSeconds(1.0f);
@@ -1361,20 +1375,32 @@ bool FRTPlaybackRejectsPlanningInputTest::RunTest(const FString&)
 
 	// ANTI-VACUITA' — la fase e' davvero quella, e il commit ha davvero spento (e' #2390, gia' verde).
 	TestTrue(TEXT("la risoluzione e' in corso"), B.TM->IsResolving());
-	TestEqual(TEXT("e il puntatore lo sa: il contesto e' ResolutionPlayback"),
-		static_cast<int32>(B.PC->GetPointerContext()),
-		static_cast<int32>(ERTPointerContext::ResolutionPlayback));
+	TestTrue(TEXT("e il puntatore lo sa: il mondo risulta in sola lettura"), B.PC->IsWorldReadOnly());
+	TestEqual(TEXT("il contesto e' ResolutionPlayback"),
+		B.PC->GetPointerContext(), ERTPointerContext::ResolutionPlayback);
 	TestEqual(TEXT("il commit ha spento l'anteprima"), PreviewCellsLit(B.HexMap), 0);
 
-	// IL CUORE — lo stesso gesto che poco fa accendeva, adesso non deve accendere piu' niente.
-	B.PC->SelectUnit(Altra, /*bRecordAsPlayerInput=*/ false);
-	TestEqual(TEXT("un clic durante il playback non riaccende l'anteprima"),
-		PreviewCellsLit(B.HexMap), 0);
+	// IL CUORE — lo stesso gesto che poco fa posava un waypoint, adesso non deve posare niente.
+	const int32 WaypointPrima = B.Mine->PlannedWaypoints.Num();
+	B.PC->HandleClickOnCellForTest(CellaPercorribile);
+	TestEqual(TEXT("il clic sulla mappa durante il playback non posa waypoint"),
+		B.Mine->PlannedWaypoints.Num(), WaypointPrima);
+	TestEqual(TEXT("e non riaccende l'anteprima"), PreviewCellsLit(B.HexMap), 0);
 
-	// E resta cosi' fino alla fine della risoluzione, non solo per un frame.
+	// E la SELEZIONE non si sposta a meta': o cambia tutto, o niente. E' il difetto che la prima stesura
+	// di questo fix aveva introdotto — guardia messa DOPO l'assegnazione — e che la code review ha visto.
+	ARTUnit* Altra = RTWorldFixtures::FirstUnitOfTeam(B.World, /*TeamId=*/ 1);
+	if (Altra)
+	{
+		B.PC->SelectUnit(Altra, /*bRecordAsPlayerInput=*/ false);
+		TestEqual(TEXT("la selezione non cambia durante il playback"),
+			static_cast<const AActor*>(B.PC->GetSelectedUnit()), static_cast<const AActor*>(B.Mine));
+		TestEqual(TEXT("e l'anteprima resta spenta"), PreviewCellsLit(B.HexMap), 0);
+	}
+
+	// Fino alla fine della risoluzione, non solo per un frame.
 	DrainPlayback(B.TM);
-	TestEqual(TEXT("e non la riaccende nemmeno a risoluzione finita per quel turno"),
-		PreviewCellsLit(B.HexMap), 0);
+	TestEqual(TEXT("e resta spenta per tutta la risoluzione"), PreviewCellsLit(B.HexMap), 0);
 
 	DestroyHexMatchWorld(B.World);
 	return true;
