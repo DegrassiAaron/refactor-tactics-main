@@ -108,7 +108,7 @@ bloccata. **Ventinove** di esse non sono in nessuna sequenza, ed è la condizion
 | U19 · U22 | 4 ciascuna | — | varie | 🟡 |
 | **U45** | **3** | `[E12]` | — | 🟡 attende un checkpoint, non una seduta |
 | **U39** | **1** | `[U21]` — già soddisfatto | #1920 aperta | 🟢 **eseguibile**: `GenerateIntoAsset` allestisce la mappa in un gesto — vedi in coda alla §4 |
-| **U8** | **2** | `[]` | #2444 #2448 #2450 #2452 **tutte CLOSED** il 2026-09-05 | 🟢 **eseguibile ora, e non lo e' mai stata prima**: `PIE-AS4b` non aveva nulla da guardare. Due banchi in coppia — `Visual.Combat.Defeat` e `Visual.Combat.DefeatDuringMove` |
+| **U8** | **2** | `[]` | #2444 #2448 #2450 #2452 **tutte CLOSED** il 2026-09-05 | 🟢 **eseguibile, e non lo e' mai stata prima**: `PIE-AS4b` non aveva nulla da guardare. 🔴 **Ma NON con `rt.Test.Run`, e questa cella lo diceva fino al 2026-09-06**: nominava `Visual.Combat.Defeat` e `Visual.Combat.DefeatDuringMove` come banchi, e **nessuno scenario del corpus puo' esserlo** — `RTScenarioSession.cpp:807` spawna `ARTUnit::StaticClass()`, cioe' cilindri senza Skeletal Mesh: nessun `AnimInstance`, nemmeno in PIE. **Misurato su un tentativo reale il 2026-09-06** (le unita' entravano come `RTUnit_0`, e il log non porta nessun `Morte mostrata`). Serve una **partita 2v2 normale** — protocollo in `editor-sessions.yaml` § U8 |
 | **U46** | **6** | `[]` | #1246 — non la blocca · #1873 **chiusa** il 2026-09-05 | 🟢 **eseguibile ora**: quattro sono le uniche voci non verdi del gate `G9`, due chiudono altrettanti scenari orfani |
 | altre 14 sedute | 1–2 ciascuna | — | varie | — |
 🔑 **`U46` non ordina per resa, e va letta a parte.** Sei voci sono meno di ventuno, ma quattro sono **le
