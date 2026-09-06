@@ -69,12 +69,21 @@ Ricostruita su `a59671c8`, read-only. Ogni riga è verificabile.
 | 12 | formatter | `Turn/RTTurnLogLibrary.cpp:348`, `:400` | `Stayed` → «resta» |
 | 13 | replay | — | la voce è nel TurnLog serializzato: «resta» è ciò che il replay porta, per entrambi i casi |
 
-Percorso equivalente del Scenario Harness — **stessa funzione, stesso esito**:
+## I produttori sono TRE, e non si comportano allo stesso modo
 
-| Stadio | Sede | Cosa succede |
-|---|---|---|
-| planning | `ScenarioHarness/RTScenarioSession.cpp:1339` | `BuildCompositeHexPath`, la stessa di (4) |
-| rifiuto | `ScenarioHarness/RTScenarioSession.cpp:1348-1350` | `Notes` + `UE_LOG(Warning)` del runner. Il piano **non viene scritto**, e nessun dato di gioco lo registra |
+Corretto il 2026-09-06 dopo il Finding `…/1-F3` di VALIDATION, che ne aveva contati tre contro i due di questa stessa sezione. **Aveva ragione sul numero**, e la misura di verifica mostra che i tre si dividono in **due famiglie**, non in tre casi.
+
+| Produttore | Cosa dichiara | Dove il piano viene validato | Sopravvive la destinazione richiesta? |
+|---|---|---|---|
+| Player | waypoint → `PlannedWaypoints` + `PlannedPath` | **in pianificazione**, `Player/RTPlayerController.cpp:1625` | 🔴 **no** — `Pop()` a `:1629` la cancella |
+| Scenario Harness | `move` dello scenario → gli stessi due campi | **in pianificazione**, `ScenarioHarness/RTScenarioSession.cpp:1339` | 🔴 **no** — il ramo `else` a `:1348` non scrive il piano |
+| Bot | **solo** `PlannedCell` (`Turn/RTTurnManager.cpp:1240`, `:1342`, `:1565`, `:1586`) | ⚠️ **nella fase Move**, `Turn/RTTurnManager.cpp:7172` | ✅ **sì** — `PlannedCell` è ancora leggibile al collasso |
+
+Il bot *«pianifica destinazioni, non percorsi a waypoint»* (`Turn/RTTurnManager.cpp:775`): non ha nessun ramo di rifiuto in pianificazione — nessun `Pop()`, nessun piano scartato — e la sua destinazione arriva intatta a `ResolveMovement`, dove `FindPathForUnit` fallisce e si cade sullo stesso `Path = { Unit->Cell }` di `:7185`.
+
+⚠️ `URTHexBotLibrary::ReservePlannedRoute` (`Bot/RTHexBotLibrary.cpp:685-713`) **non è un quarto sito di validazione**: prenota celle nello snapshot *di squadra* per non far scegliere la stessa destinazione a due compagne (`#1088`), ed è chiamata durante il planning dei bot (`Turn/RTTurnManager.cpp:700`). Il suo ramo `Found.Path.Num() < 2` logga e prenota la destinazione; **non tocca il piano dell'unità**.
+
+🔑 **La conseguenza semplifica il contratto invece di allargarlo.** Tutti e tre i produttori collassano nello **stesso punto** — `Turn/RTTurnManager.cpp:7183-7186` — e in quel punto la domanda «aveva dichiarato un movimento?» ha già una sede unica: `ARTUnit::HasPlannedNormalMove()` (`Unit/RTUnit.h:541`), che esiste proprio perché quella domanda non abbia due risposte diverse in due file.
 
 `ERTMoveOutcome::Stayed` è dichiarato *«non pianificava movimento (path < 2 celle)»* (`Turn/RTTurnLog.h:450`). Su un'unità che ha dichiarato ed è stata negata, quella voce **dice il falso**, non solo «troppo poco».
 
@@ -83,6 +92,8 @@ Percorso equivalente del Scenario Harness — **stessa funzione, stesso esito**:
 > Fra lo stadio 5 e lo stadio 9 non esiste alcun dato che porti «ho dichiarato una destinazione e mi è stata negata».
 
 Misurato: nessun campo di rejection esiste. Una ricerca su `Reject*` / `Pending*` / `Requested*` in `Unit/`, `Turn/` e `Player/` non restituisce **nessun campo di stato** — solo commenti, il testo diagnostico `DescribeWaypointRejection` (`Player/RTPlayerController.h:405`) e gli esiti di **altri** domini (`ERTFacingOutcome::DeclarationRejected`, `CoverRejected`, `SurfaceRejected`).
+
+⚠️ **Il gap non è uniforme fra i tre produttori, e questo cambia la dimensione del lavoro.** Per il **bot** non serve alcuno stato nuovo: `PlannedCell` è ancora lì quando il percorso fallisce, ed è già la destinazione richiesta. Lo stato serve al **player** e all'**harness**, e serve per portare la `TgtCell` che il `Pop()` ha cancellato — non per sapere *che* l'unità ha tentato, cosa che `HasPlannedNormalMove()` sa già dire.
 
 ## ⛔ Falsi punti di partenza
 
@@ -188,7 +199,8 @@ Lavoro previsto:
 2. la scrittura in `HandleClickOnCell` al ramo di rifiuto (`RTPlayerController.cpp:1629`) e il suo azzeramento al ramo di successo (`:1644`) e all'annullamento waypoint (`:2029`, `:2272`) — è il caso **C**;
 3. il consumo in `ResolveMovement` e la riscrittura dell'outcome dopo `BuildMoveLog`, sulla forma di `bStoppedByTopology` (`RTTurnManager.cpp:7147` · `:7209` · `:7320`);
 4. `TgtCell` = destinazione richiesta, `Amount = 0`, `ActionId`/`Priority` dal catalogo — mai cablati;
-5. `RTTurnLogLibrary.cpp` è in scope **solo** se il testo esistente non basta: nel percorso preferito è un no-op, e va detto.
+5. `RTTurnLogLibrary.cpp` è in scope **solo** se il testo esistente non basta: nel percorso preferito è un no-op, e va detto;
+6. ➕ **il caso del bot, che non costa un file in più** (Finding `…/1-F3`). Il bot dichiara `PlannedCell` e non viene mai rifiutato in pianificazione: al punto (3) la sua destinazione è ancora leggibile. Il predicato di «ha dichiarato» è `ARTUnit::HasPlannedNormalMove()` (`Unit/RTUnit.h:541`), che è già il punto unico di quella domanda — **non scriverne un secondo**. Lo stato nuovo serve al player e all'harness per portare la `TgtCell` che il `Pop()` cancella, non per rispondere a quella domanda.
 
 ### DEV-MAIN — `OUT_OF_SCOPE`
 
@@ -215,7 +227,8 @@ Lavoro previsto:
 2. **caso B** — dichiarazione verso cella occupata da unità ferma ⇒ una voce `Move/BlockedByUnit` con `TgtCell` = destinazione richiesta e `SrcCell` = partenza. L'asserzione guarda **i campi**, non il conteggio: contare le voci non distingue una `TgtCell` giusta da una sbagliata;
 3. **caso C** — tentativo rifiutato, poi replan valido ⇒ **nessuna** voce di blocco, e l'esito del movimento eseguito. È il test che discrimina «esito del piano finale» da «ogni click esplorativo», ed è quello che il vincolo 4 dei falsi punti di partenza esige;
 4. `CollisionChoke.json` — aggiornare l'assertion `LogEventCount(Move/BlockedByUnit)` da `0` al valore che il contratto produce, **riscrivendo la nota**: il file dichiara in chiaro di misurare un buco, e la nota va sostituita con la ragione nuova. ⚠️ Il turno 4 è l'unico tentativo negato da unità ferma; i turni 1-2 sono contesa simultanea e restano `BlockedContested = 4`. Se la misura desse un numero diverso, **è una scoperta**, non un valore da riallineare;
-5. **anti-vacuità**: per ciascun test, la mutazione che lo rende rosso, dichiarata. Il caso B senza mutazione non prova niente — `Stayed` e `BlockedByUnit` sono entrambi «l'unità non si è mossa».
+5. **anti-vacuità**: per ciascun test, la mutazione che lo rende rosso, dichiarata. Il caso B senza mutazione non prova niente — `Stayed` e `BlockedByUnit` sono entrambi «l'unità non si è mossa»;
+6. ➕ **almeno un caso sul percorso NON-harness** (regressione richiesta dal Finding `…/1-F3`). `CollisionChoke` da solo esercita il Scenario Harness: se restasse l'unica copertura, un evento emesso lì renderebbe il verde e lascerebbe la partita muta. Il caso B del punto 2 vive già in `RTPlayerInteractionTests.cpp` e soddisfa il requisito; un caso **bot** — destinazione dichiarata, poi occupata da un'unità ferma — è il complemento naturale in `RTHexMovementIntegrationTests.cpp`, e se risulta non costruibile va detto con la ragione invece di essere omesso.
 
 ### DEV-TEST — `OUT_OF_SCOPE`
 
@@ -247,7 +260,7 @@ Perché ciascuno:
 1. In una partita normale — **senza** `RTScenarioSession` nel percorso — un movimento dichiarato verso una destinazione occupata da un'unità ferma produce una voce `Move/BlockedByUnit` nel TurnLog, con `TgtCell` = destinazione richiesta.
 2. Un'unità che non ha dichiarato nulla continua a produrre `Move/Stayed`. I due casi sono distinguibili **leggendo la sola voce**, senza log di runner.
 3. Un tentativo rifiutato seguito da una pianificazione valida non lascia rejection: prevale il piano finale.
-4. Il percorso del Scenario Harness produce lo **stesso** esito del percorso del controller per lo stesso stato — una sola regola, due chiamanti.
+4. **Tutti e tre i produttori** — player, Scenario Harness, bot — producono lo **stesso** esito per lo stesso stato. Una sola regola, tre chiamanti, un solo punto di decisione (`Turn/RTTurnManager.cpp:7183`). ⚠️ Un `CollisionChoke` verde ottenuto emettendo l'evento dentro `RTScenarioSession` **non** soddisfa questo criterio: sarebbe il difetto di oggi spostato di un livello.
 5. Nessun campo nuovo, nessun enumeratore nuovo, **nessun bump di versione del TurnLog**; oppure la necessità è dimostrata e arbitrata da DEV-LEAD prima di essere implementata.
 6. Nessuna `UPROPERTY(Replicated)` aggiunta: `git grep -c 'UPROPERTY(.*Replicated' Source/` resta a `2` (le sole fixture di `RTServerOnlyGuardTests`).
 7. Anti-vacuità: per ogni test nuovo, la mutazione che lo rende rosso è dichiarata **e** verificata sul file prima del fix.
@@ -297,6 +310,62 @@ Fuori write-set, `N/A` con motivo: `ASSETS` · `BLUEPRINT` · `MAP` · `CAMERA` 
 Entrambe le istanze ripartono dallo step 1 con un contributo nuovo — `DEV-MAIN-39180-02.md` e `DEV-TEST-60316-02.md`, ciascuno con `SUPERSEDES:` sul proprio `-01` — come impone la regola append-only.
 
 ⚠️ La directory `contrib/` che i due contributi hanno aperto **non era orfana**: il feature-slug che avevano usato è quello di questa wave. Nessun file va rimosso.
+
+## Risposte ai Finding di VALIDATION e di EDITOR
+
+Alle 15:33 `VALIDATION` ha consegnato `RT3-VALIDATION-a59671c.md`, alle 15:49 `EDITOR` ha consegnato `RT3-EDITOR-a59671c.md`. Entrambi `STATUS: BLOCKED`, sette Finding in tutto, tutti con `OWNER: DEV-LEAD`. Entrambe le sessioni erano state avviate **prima** che esistesse un handoff di consegna da consumare. La sessione era stata avviata **prima** che esistesse un handoff di consegna da validare, e la sua `MATRICE` è `NOT RUN` su tutti i sistemi in scope: nessun sistema della matrice canonica è stato verificato, e §6 lo dice — `NOT RUN` non conta come `PASS`.
+
+Il `BLOCKED` di VALIDATION è **corretto e non si contesta**: `RT3-DEVLEAD-<sha7>.md` è l'handoff di **uscita**, nasce a implementazione fatta, e oggi non esiste. Questo work order è l'**ingresso** e non lo sostituisce — lo dice la propria riga di apertura.
+
+| Finding | Severità | Risposta |
+|---|---|---|
+| `…/1-F1` — i quattro ruoli avviati in parallelo all'ingresso | `P2` | **ACCETTATO** |
+| `…/1-F2` — l'oracolo `BlockedByUnit = 1` è un obiettivo, non un contratto | `P3` | **ACCETTATO — già normato** |
+| `…/1-F3` — i produttori sono tre, il terzo non è in nessuno scope | `P2` | **ACCETTATO — APPLIED BY LEAD** |
+| `…/1-F4` — i wrapper `rt*` non sono risolvibili | `P3` | **ACCETTATO in parte — corretto da `F4R`** |
+| `…/1-F4R` — alias non caricati (falso sintomo) vs `rtstatus` non versionato (reale) | `P3` | **ACCETTATO** |
+| `…/1-F5` — la reason di blocco va misurata, non prescritta | `P3` | **ACCETTATO** |
+| `…/1-F6` — il fix vive solo nel working tree, nessun commit lo contiene | `P2` | **ACCETTATO — al consolidamento** |
+
+**F1 — ACCETTATO.** La causa è di processo e appartiene a questo ruolo: l'ingresso va emesso **prima** dei DEV, e i due handoff di consegna **prima** di VALIDATION. Non c'è fix di codice e non c'è test di regressione: il controllo è il preflight §4, che ha funzionato — tre istanze su tre si sono fermate senza inventare input. La sequenza per il resto di questa wave è: contributi `-02` dei due DEV → consolidamento e `RT3-DEVLEAD-<sha7>` → EDITOR → VALIDATION.
+
+**F2 — ACCETTATO, già normato a monte.** Il criterio 8 e la sezione `CONTRACT SOURCE` prescrivono già che il numero si derivi dal contratto e che una divergenza sia una scoperta. Resta come voce di verifica **a valle**, sul file finale: è la lettura giusta, e non richiede modifiche qui.
+
+**F3 — ACCETTATO, ed è il finding che ha cambiato il documento.** Il numero era sbagliato: i produttori sono tre. La verifica indipendente ha aggiunto il pezzo che il Finding non conteneva — le tre famiglie **non** sono simmetriche:
+
+- il bot non viene mai rifiutato in pianificazione, perché dichiara `PlannedCell` e non un percorso (`Turn/RTTurnManager.cpp:775`, `:1240`, `:1342`, `:1565`, `:1586`); il suo percorso si calcola **nella fase Move** (`:7172`) e fallisce **dentro** `ResolveMovement`;
+- quindi per il bot la destinazione richiesta **è ancora leggibile** al collasso, e non serve nessuno stato che sopravviva;
+- `ReservePlannedRoute` non è un sito di validazione del piano: prenota celle nello snapshot di squadra (`Bot/RTHexBotLibrary.cpp:685-713`, chiamata da `Turn/RTTurnManager.cpp:700`) e non tocca il piano dell'unità.
+
+Risposta alla domanda posta per iscritto — *«se un bot dichiara una destinazione che a risoluzione risulta occupata da un'unità ferma, quale voce produce?»*: **oggi `Stayed`, e con questa wave `BlockedByUnit`, come per gli altri due.** Non è un'estensione di scope: i tre collassano nello stesso punto (`Turn/RTTurnManager.cpp:7183`), che è già assegnato a DEV-MAIN. `Bot/RTHexBotLibrary.cpp` resta **fuori scope, con la ragione misurata**: non contiene il ramo da correggere.
+
+Applicato: nuova sezione *I produttori sono TRE*, criterio 4 riscritto (tre chiamanti, un punto di decisione, e il divieto esplicito del verde ottenuto dentro l'harness), DEV-MAIN punto 6, DEV-TEST punto 6 con la regressione sul percorso non-harness che il Finding chiedeva.
+
+**F4 — ACCETTATO sul sintomo, e il Finding `…/1-F4R` di EDITOR ne corregge la portata.** Verificato in modo indipendente **in `pwsh`**: `rtstatus`, `rtws`, `rtlease`, `rtsuite`, `rtmcp` non sono risolvibili, e `$PROFILE.CurrentUserAllHosts` — `C:\Users\Utente\OneDrive\Documents\PowerShell\profile.ps1` — **non esiste**.
+
+🔴 **Ma la conclusione che ne avevo tratto era sbagliata, e la correggo qui.** Avevo scritto che senza quei wrapper `EDITOR` non può fare il proprio preflight né prendere il lease. **È falso**, e `RT3-EDITOR-a59671c.md` lo misura: invocati **per path**, `scripts/rt-workspace.ps1 -Action verify` risponde `OK: workspace MAIN` e `scripts/rt-lease.ps1 -Action status` risponde `ENGINE LEASE: LIBERO`. L'ambiente EDITOR è pronto; ciò che manca è l'handoff a monte.
+
+I due casi vanno separati, come `F4R` chiede:
+
+- **falso sintomo** — gli alias di profilo non sono caricati in una shell non interattiva. Gli script ci sono e rispondono. ⚠️ Nessuna misura RT3 deve dedurre l'assenza di tooling da un alias non risolto: è la stessa forma di errore che questo work order rimprovera altrove — un'assenza letta al posto di una misura;
+- **difetto reale** — `rtstatus` è prescritto da `CLAUDE.md` §2 (*«esegui `rtstatus` quando disponibile»*) e **nessuno script con quel nome è versionato**: `git ls-files scripts/` non ne contiene. O lo script si crea, o la prescrizione si toglie. È tooling RT3, non `#79`: **fuori da questa wave**, e va deciso da chi possiede `CLAUDE.md`.
+
+**F5 (EDITOR) — ACCETTATO.** Il mandato di EDITOR prescriveva `REASON: Unreal/Editor capability unavailable` come esito di blocco. EDITOR ha rifiutato di scriverla perché **misurata falsa**, e ha ragione: avrebbe mandato questo ruolo a riparare una macchina che funziona. La regola che ne discende vale per tutti i mandati di questa wave: **la reason si misura, non si prescrive**.
+
+**F6 (EDITOR) — ACCETTATO, e la sua esecuzione è il prossimo passo di questo ruolo, non di adesso.** `git diff a59671c8..HEAD -- Source/` è vuoto mentre `git status` mostra il fix: il codice della #79 vive **solo nel working tree condiviso**, e nessun commit lo contiene. È esatto. Ma al momento di questa risposta il working tree è **in crescita**: committare ora catturerebbe due contributi a metà, e produrrebbe uno SHA che non descrive ciò che dichiara. Il commit e il `PRODUCED_SHA` arrivano al **consolidamento**, con i contributi `-02` dei due DEV, ed entrano in `RT3-DEVLEAD-<sha7>.md`. ✅ Il gate d'ingresso che `F6` propone — *«`git diff BASE..HEAD -- Source/` non vuoto quando la wave dichiara un fix di codice»* — è adottato come **precondizione di convocazione** di EDITOR e VALIDATION per questa wave.
+
+⚠️ Nessuna di queste risposte trasforma un `NOT RUN` in un `PASS`. I `BLOCKED` di VALIDATION e di EDITOR restano validi fino a quando la catena non produce l'handoff di consegna che a entrambi manca.
+
+### Stato reale della catena, misurato alle 15:49
+
+| Ruolo | Stato | Evidenza |
+|---|---|---|
+| DEV-MAIN | 🔄 **in scrittura** | `RTUnit.{h,cpp}`, `RTPlayerController.cpp`, `RTTurnManager.cpp` modificati; `NoteMovePlanRejection` presente in `Source/` |
+| DEV-TEST | 🔄 **in scrittura** | `RTPlayerInteractionTests.cpp`, `RTHexMovementIntegrationTests.cpp` modificati; `CollisionChoke.json` porta `BlockedByUnit = 1` con la nota riscritta |
+| EDITOR | ⛔ `BLOCKED` | manca `RT3-DEVLEAD-<sha7>.md`; ambiente pronto (workspace `MAIN`, lease `LIBERO`) |
+| VALIDATION | ⛔ `BLOCKED` | manca l'handoff di EDITOR; `MATRICE` tutta `NOT RUN` |
+
+⛔ **Nessuno committa `Source/` o `Scenarios/` se non DEV-LEAD al consolidamento.** Un `git add -A` in questo working tree assorbe il lavoro non finito di due istanze e i tre handoff untracked — è il caso che `RT3-EDITOR-a59671c.md` segnala nel proprio corollario.
 
 ## `NOT RUN`
 
