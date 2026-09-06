@@ -150,9 +150,9 @@ bool FRTHexResolverPerfTest::RunTest(const FString&)
 		return U;
 	};
 	Spawn(0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(-5, 2));
-	Spawn(0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-5, 3));
+	Spawn(0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-5, 3));
 	Spawn(1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(5, -2));
-	Spawn(1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(5, -3));
+	Spawn(1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(5, -3));
 
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM) { DestroyPerfWorld(World); return false; }

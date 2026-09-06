@@ -25,7 +25,7 @@ bool FRTUnitShortHeroNameTest::RunTest(const FString&)
 	// Il caso reale: gli HeroId del catalogo sono namespaced.
 	TestEqual(TEXT("Hero.Gadget -> Gadget"), ARTUnit::ShortHeroName(TEXT("Hero.Gadget"), Fallback), TEXT("Gadget"));
 	TestEqual(TEXT("Hero.Phase -> Phase"), ARTUnit::ShortHeroName(TEXT("Hero.Phase"), Fallback), TEXT("Phase"));
-	TestEqual(TEXT("Hero.Riktor -> Riktor"), ARTUnit::ShortHeroName(TEXT("Hero.Riktor"), Fallback), TEXT("Riktor"));
+	TestEqual(TEXT("Hero.Branth -> Branth"), ARTUnit::ShortHeroName(TEXT("Hero.Branth"), Fallback), TEXT("Branth"));
 	TestEqual(TEXT("Hero.Wraith -> Wraith"), ARTUnit::ShortHeroName(TEXT("Hero.Wraith"), Fallback), TEXT("Wraith"));
 
 	// Unita' legacy (archetipo, nessun eroe): l'etichetta non deve sparire.
@@ -64,14 +64,19 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCanonicalHeroIdTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTCanonicalHeroIdTest::RunTest(const FString&)
 {
-	// I quattro nomi che D-130 ritira. Scritti qui e non altrove: se un giorno la lista cambiasse, deve
+	// I nomi ritirati. Scritti qui e non altrove: se un giorno la lista cambiasse, deve
 	// cambiare in un punto che il test rilegge, non in un commento.
+	//
+	// Quattro vengono da D-130; `Riktor` da [D-334], che ha superseduto D-322 e portato il roster v0.1 a
+	// `Aevik`/`Muiren`/`Branth`/`Ivrin`. ⚠️ **La lista cresce con la migrazione, non prima**: aggiungere
+	// qui un nome ancora in uso — `Gadget`, `Phase`, `Wraith` finche' non sono migrati — fa rosso il test
+	// contro un roster sano. Ogni fetta aggiunge il proprio nome quando lo ritira davvero.
 	// 🔴 **NON RINOMINARE QUESTA RIGA** — vale la stessa avvertenza di
 	// `Heroes.AbilityIdsAreNamespacedUnderTheirHero`, e per lo stesso incidente, capitato DUE volte:
 	// la prima quando il passaggio finale di #754 ha cercato i nomi ritirati senza confini di parola,
 	// la seconda quando lo stesso script e' stato rilanciato *per misurare i residui* — uno script che
 	// sostituisce non e' una misura, e rieseguirlo ha disfatto la riparazione appena scritta.
-	const TArray<FString> Legacy = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor") };
+	const TArray<FString> Legacy = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor"), TEXT("Riktor") };
 
 	const TArray<FName> Ids = URTHeroCatalogLibrary::GetHeroIds();
 	if (!TestEqual(TEXT("il roster v0.1 dichiara quattro id"), Ids.Num(), 4)) { return false; }
@@ -150,7 +155,7 @@ bool FRTRosterCanonicalNamesTest::RunTest(const FString&)
 	const TMap<FName, FString> Attesi = {
 		{ TEXT("Hero.Gadget"),    TEXT("Gadget") },
 		{ TEXT("Hero.Phase"),    TEXT("Phase")  },
-		{ TEXT("Hero.Riktor"), TEXT("Riktor") },
+		{ TEXT("Hero.Branth"), TEXT("Branth") },
 		{ TEXT("Hero.Wraith"),  TEXT("Wraith") },
 	};
 

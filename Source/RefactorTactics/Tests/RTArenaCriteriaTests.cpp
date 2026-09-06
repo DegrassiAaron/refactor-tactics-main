@@ -539,7 +539,7 @@ bool FRTArenaUnreachableSharedTest::RunTest(const FString&)
  * Togliere `bBlocksLineOfSight` dal muro fa convergere i due numeri e fa cadere questa riga — che e' la
  * mutazione che la prima stesura non aveva.
  *
- * ⚠️ **`VisionRange` 7, il piu' LUNGO del roster** (Gadget; Phase e Riktor 5, Wraith 6): e' il verso
+ * ⚠️ **`VisionRange` 7, il piu' LUNGO del roster** (Gadget; Phase e Branth 5, Wraith 6): e' il verso
  * difficile. Con una vista corta la frazione vista sarebbe piccola anche su una mappa inadeguata.
  *
  * ➕ **Il controllo positivo non e' decorativo**: senza `Seen.Num() > 0` un difetto che AZZERASSE la vista

@@ -34,7 +34,30 @@ void SRTAnimPreviewViewport::Construct(const FArguments&)
 	SEditorViewport::Construct(SEditorViewport::FArguments());
 }
 
-SRTAnimPreviewViewport::~SRTAnimPreviewViewport() = default;
+SRTAnimPreviewViewport::~SRTAnimPreviewViewport()
+{
+	// ⛔ **`= default` non bastava, e il crash lo dimostrava.** I membri muoiono in ordine inverso di
+	// dichiarazione: `Mesh` per primo — e' un `TObjectPtr`, la sua distruzione non fa nulla — e
+	// `PreviewScene` per ultima, che nel proprio distruttore deregistra i componenti che ha in lista.
+	// Senza questa riga quella lista contiene componenti gia' distrutti da `SetClip`.
+	ClearMesh();
+}
+
+void SRTAnimPreviewViewport::ClearMesh()
+{
+	if (Mesh == nullptr)
+	{
+		return;
+	}
+
+	// Prima si stacca dalla scena, poi si distrugge. L'inverso e' il difetto.
+	if (PreviewScene.IsValid())
+	{
+		PreviewScene->RemoveComponent(Mesh);
+	}
+	Mesh->DestroyComponent();
+	Mesh = nullptr;
+}
 
 TSharedRef<FEditorViewportClient> SRTAnimPreviewViewport::MakeEditorViewportClient()
 {
@@ -50,11 +73,8 @@ void SRTAnimPreviewViewport::SetClip(UAnimSequence* Clip)
 {
 	LastError.Reset();
 
-	if (Mesh != nullptr)
-	{
-		Mesh->DestroyComponent();
-		Mesh = nullptr;
-	}
+	ClearMesh();
+
 	if (Clip == nullptr || !PreviewScene.IsValid())
 	{
 		return;

@@ -80,7 +80,7 @@ public:
 	static URTHeroData* MakePhase();
 
 	/**
-	 * Costruisce **Riktor**, architetto del campo (catalogo eroi v0.1 §3): 120 HP, 4 MP, vista 5,
+	 * Costruisce **Branth**, architetto del campo (catalogo eroi v0.1 §3): 120 HP, 4 MP, vista 5,
 	 * **resistenza push 1** (l'unico del roster), affinita' strutture, debolezza movimento — simmetrica a
 	 * Wraith (CP 6.5), come Gadget/Phase lo sono fra loro.
 	 *
@@ -90,12 +90,12 @@ public:
 	 * (`Structure.KineticPanel`: integrita' 30, protezione 10) vivono nei `Parameters` della variante finche'
 	 * qualcuno non li consuma. `Interposition` e' **cablata** (CP 6.7) sulla semantica di `Action.Intercept`.
 	 */
-	static URTHeroData* MakeRiktor();
+	static URTHeroData* MakeBranth();
 
 	/**
 	 * Costruisce **Wraith**, duellante predittivo (catalogo eroi v0.1 §4): 100 HP, **6 MP** (il piu' mobile),
-	 * vista 6, resistenza push 0, affinita' movimento, debolezza strutture — simmetrica a Riktor, che chiude
-	 * il roster in due coppie (Gadget↔Phase, Riktor↔Wraith).
+	 * vista 6, resistenza push 0, affinita' movimento, debolezza strutture — simmetrica a Branth, che chiude
+	 * il roster in due coppie (Gadget↔Phase, Branth↔Wraith).
 	 *
 	 * `Deflection` e' cablata (CP 6.7, semantica di `Action.Deflect`). `InterceptShot` **non e' piu' una
 	 * reazione**: dal 2026-08-10 (E18 CP 18.2, D-016) e' una **Predictive Action** — cella dichiarata in
@@ -108,13 +108,13 @@ public:
 	static URTHeroData* MakeWraith();
 
 	/**
-	 * Il roster completo della v0.1, nell'ordine del catalogo eroi: Gadget, Phase, Riktor, Wraith.
+	 * Il roster completo della v0.1, nell'ordine del catalogo eroi: Gadget, Phase, Branth, Wraith.
 	 * Nuove istanze a ogni chiamata (stesso idioma di `URTCatalogLibrary::GetCoreActionCatalog`).
 	 */
 	static TArray<URTHeroData*> GetHeroRoster();
 
 	/**
-	 * Solo gli `HeroId` del roster (`Hero.Gadget`, `Hero.Phase`, `Hero.Riktor`, `Hero.Wraith`), senza costruire
+	 * Solo gli `HeroId` del roster (`Hero.Gadget`, `Hero.Phase`, `Hero.Branth`, `Hero.Wraith`), senza costruire
 	 * gli eroi.
 	 *
 	 * Esiste perche' `GetHeroRoster()` istanzia quattro `URTHeroData` **con tutte le loro abilita'** a ogni
@@ -132,7 +132,7 @@ public:
 	 * priorita', slot, trigger, fallback e interrompibilita' — cioe' *come* la reazione si comporta nel turno;
 	 * dall'eroe l'identita' (`HeroActionId`), il cooldown e gli effetti — cioe' *cosa* fa e quanto.
 	 *
-	 * Esiste perche' l'alternativa e' peggiore: senza, `Riktor.Interposition` dovrebbe riscrivere la
+	 * Esiste perche' l'alternativa e' peggiore: senza, `Branth.Interposition` dovrebbe riscrivere la
 	 * semantica di `Action.Intercept` (o il resolver riconoscerla per ActionId), e ogni eroe con una reazione
 	 * aggiungerebbe un ramo al motore. Con questo helper la semantica si dichiara UNA volta nel catalogo core.
 	 *

@@ -275,7 +275,7 @@ struct FRTScenarioLogEntryView
 	int32 Amount = 0;
 
 	/**
-	 * Quale azione ha prodotto l'evento. Senza, `Riktor.Interposition` e `Action.Intercept` comparirebbero
+	 * Quale azione ha prodotto l'evento. Senza, `Branth.Interposition` e `Action.Intercept` comparirebbero
 	 * identici — ed e' esattamente il caso che `RTTurnLog.h` dice essere la ragione per cui questo campo
 	 * esiste.
 	 */

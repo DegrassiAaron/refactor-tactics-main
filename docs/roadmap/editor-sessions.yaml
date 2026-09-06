@@ -985,6 +985,41 @@ sessions:
          scelta *senza avere un'animazione da guardare*. E' il numero che decide se la morte si legge
          o si trascina, e si tara qui.
 
+      ### Il protocollo di taratura, passo per passo
+
+      🔴 **NON usare `rt.Test.Run`, e la prima stesura di questo protocollo lo faceva.** Lo scenario
+      harness spawna `ARTUnit::StaticClass()` (`RTScenarioSession.cpp:807`), cioe' il **cilindro**:
+      scavalca `HeroUnitClasses`, quindi niente Skeletal Mesh, quindi `ApplyUnitAnimClass()` esce senza
+      fare nulla e **nessun `AnimInstance` viene creato**. Nessuno scenario del corpus puo' essere un
+      banco di animazione, nemmeno in PIE. Misurato il 2026-09-06 su un tentativo reale: i quattro
+      personaggi entravano in campo come `RTUnit_0`, `RTUnit_5`, ...
+
+      ✅ **Serve una PARTITA NORMALE**, dove `ARTGameMode` riempie `HeroUnitClasses` e
+      `RTMatchBootstrapper::SpawnHero` mette in campo i quattro `BP_Unit_*` con le loro mesh — e' la
+      stessa configurazione su cui `PIE-AS4a` e' stato giudicato ✅ il 2026-09-03.
+
+      ⚠️ **`L_DevSandbox` non va bene**: ha un allestimento piazzato a mano (una sola unita', e il
+      `TurnManager` nel livello invece che spawnato — il log lo avvisa). Usa la mappa d'arena.
+
+      1. **PIE su una partita 2v2 normale.** Controlla nel log che entrino i quattro `BP_Unit_*_C_0`:
+         se leggi `RTUnit_N` sei sui cilindri e non c'e' niente da guardare.
+      2. **Aspetta un'eliminazione** e guardala. Il `Blast` in cui l'unita' cade e' l'ultima fase
+         riprodotta solo se dopo non muove nessuno: e' li' che la coda serve.
+      3. **Confronta due morti**: una seguita da una fase `Move` (finestra naturale) e una no.
+         - si legge nella prima e **non** nella seconda → `DefeatBeatSeconds` e' **troppo corto**;
+         - si **trascina** anche nella prima → e' l'animazione a essere lunga, la coda non c'entra;
+         - si legge in entrambe → il valore va bene, e si registra **quello**.
+      4. **Cambia il valore SENZA ricompilare**: `DefeatBeatSeconds` e' `EditAnywhere` su
+         `ARTTurnManager` — pannello Details, a PIE avviato.
+      5. ⛔ **Controprova obbligatoria: metti `0` e riguarda una morte in ultima fase.** Se si vede lo
+         stesso, la coda non sta facendo niente e il numero che stai per registrare non e' il suo.
+
+      🔑 **Cosa registrare**: il valore scelto, e **perche'** — quale dei tre esiti del passo 3 hai
+      visto. Un numero senza l'osservazione che lo motiva invecchia come quello che sostituisce.
+
+      ✅ **Le venti clip esistono sul disco**, verificato il 2026-09-06 contro i pack veri (0 mancanti su
+      20, con controllo di calibrazione). Se qualcosa non si vede, la causa **non e' un nome sbagliato**.
+
       ⚠️ **In QUESTA seduta nessun `.uasset` va creato o toccato**: si giudica.
       `find Content -iname "AM_*"` deve restare **0**.
 

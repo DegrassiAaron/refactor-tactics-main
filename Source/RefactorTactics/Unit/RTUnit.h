@@ -9,6 +9,7 @@
 #include "Selection/RTSelectable.h"
 #include "Map/RTMapVisuals.h" // #983: RTCellTopZ si include invece di ricopiarlo in un commento
 #include "Animation/PoseSnapshot.h" // #1750: il ricordo di posa e' un membro per valore, non un puntatore
+#include "UI/RTDamageTokenView.h" // #2455: il token e' un membro per valore, quindi serve il tipo completo
 #include "Unit/RTUnitAnimInstance.h" // #2448: ERTPresentationRole entra nella firma del canale discreto
 #include "RTUnit.generated.h"
 
@@ -226,7 +227,7 @@ public:
 	FName HeroId;
 
 	/**
-	 * Nome canonico/player-facing dell'eroe (D-120: Gadget · Phase · Riktor · Wraith), dichiarato dal
+	 * Nome canonico/player-facing dell'eroe (D-120: Gadget · Phase · Branth · Wraith), dichiarato dal
 	 * catalogo e trasportato qui da `ConfigureFromHeroData`. `FText` perché è testo mostrato all'utente e
 	 * deve restare localizzabile.
 	 *
@@ -290,7 +291,7 @@ public:
 	FRTCellId PlannedAttackCell;
 
 	/**
-	 * Variante di abilita' attiva su questa unita' (es. `Riktor.KineticPanel.Reinforced`). `None` = i numeri
+	 * Variante di abilita' attiva su questa unita' (es. `Branth.KineticPanel.Reinforced`). `None` = i numeri
 	 * del catalogo base.
 	 *
 	 * E' il **minimo** che rende consumabili i `Parameters` delle varianti, che fino a CP 9.5 nessuno leggeva:
@@ -306,7 +307,7 @@ public:
 
 	/**
 	 * Bordo bersagliato dalle azioni che agiscono su una STRUTTURA di bordo (CP 9.5: `Action.CreateCover`,
-	 * `Riktor.Reconfigure`). Valido solo con `bHasPlannedCoverEdge`.
+	 * `Branth.Reconfigure`). Valido solo con `bHasPlannedCoverEdge`.
 	 *
 	 * Serve un dato in piu' perche' una copertura sta su un BORDO, e una cella ne ha sei: con portata 3 la
 	 * coppia (chi la erige, cella bersaglio) non basta a determinarlo — a portata 1 sarebbe bastata, ma il
@@ -892,7 +893,7 @@ public:
 	 * | Gadget | **0** | nessuno |
 	 * | Wraith | **0** | nessuno |
 	 * | Phase | **6** (`hip_chain_l/r_01..03`) | catenine ai fianchi, poco visibile |
-	 * | Riktor | **13** (`l_hand_chain_01..04`, `chain_tip_r`, ...) | **le catene si stendono sullo schermo** |
+	 * | Branth | **13** (`l_hand_chain_01..04`, `chain_tip_r`, ...) | **le catene si stendono sullo schermo** |
 	 *
 	 * Quando il LOD cala quelle ossa spariscono dalle *required bones*, e i vertici che vi sono pesati si
 	 * stirano. ⚠️ **Si vede solo da lontano** — a zoom massimo indietro e nella panoramica di inizio
@@ -1192,8 +1193,20 @@ public:
 	 *
 	 * ⚠️ Nascosto NON significa scollegato: `Mesh` resta il proxy di click (QueryOnly + `ECR_Block`), e la
 	 * collisione la decide `bRender`, non questo predicato.
+	 * ⚠️ **`bHasPose` e' la terza condizione, aggiunta il 2026-09-05 (#2545).** Una mesh SENZA una clip
+	 * da suonare non e' un corpo: e' una posa di riferimento, cioe' una T-pose — e una T-pose si legge
+	 * come «questa animazione e' rotta» invece che come «nessuno ha legato una clip a questo ruolo».
 	 */
-	static bool ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh);
+	static bool ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh, bool bHasPose);
+
+	/**
+	 * Se lo SKELETAL dell'eroe va mostrato: serve che l'unita' si veda **e** che ci sia una posa da
+	 * mostrare.
+	 *
+	 * 🔑 Esiste accanto a `ShouldShowPlaceholderMesh` perche' sono **la stessa decisione**: senza questo,
+	 * il cilindro comparirebbe SOPRA la T-pose invece che al suo posto, e si vedrebbero entrambi.
+	 */
+	static bool ShouldShowHeroSkeletal(bool bRender, bool bHasPose);
 
 	/**
 	 * Se l'ANELLO DI SELEZIONE va mostrato: serve che l'unita' si veda, che sia selezionata, e che un
@@ -1335,7 +1348,7 @@ protected:
 	 * 🔴 **Eredita il difetto di `#1784`, sullo stesso eroe.** `USkeletalMeshComponent::SnapshotPose` scrive
 	 * la posa di **riferimento** per ogni osso fuori dalle *required bones* del LOD corrente
 	 * (`bBoneHasEvaluated ? ... : RefPoseSpaceBaseTMs[i]`), e le ossa che le LOD dei pack Paragon rimuovono
-	 * sono **le catene di Riktor**. Su un'unita' non a LOD 0 questo snapshot rimetterebbe a schermo le
+	 * sono **le catene di Branth**. Su un'unita' non a LOD 0 questo snapshot rimetterebbe a schermo le
 	 * catene distese — lo stesso fotogramma che ha aperto #1750, arrivato per un'altra strada. Oggi non
 	 * morde perche' `#1784` tiene le unita' a LOD 0; chi un giorno riabilitasse le LOD deve trovare
 	 * scritto **dove** guardare.
@@ -1396,6 +1409,42 @@ public:
 	 * quel caso in silenzio.
 	 */
 	UUserWidget* GetOverlayWidgetObject() const;
+
+	/**
+	 * Mostra sopra questa unita' il token di un colpo appena rivelato dal playback (`#2455`).
+	 *
+	 * 🔑 **Sta accanto a `PlayHitMontage` e ha la sua stessa forma**, perche' e' la stessa cosa: una cue sul
+	 * BERSAGLIO, chiamata dal `TurnManager` nel punto in cui il colpo viene rivelato. La differenza e' che
+	 * questa e' C++ e non un `BlueprintImplementableEvent`: cio' che decide — la cifra, il segno, il caso
+	 * zero — vive in una funzione pura che i test chiamano, invece che in un grafo che nessun test vede.
+	 *
+	 * 🔴 **Prende un intero e non l'evento, e il confine e' misurato.** `RTTurnManager.cpp` non include
+	 * **nessun** header di `UI/`: il simulatore passa il numero che ha gia' in mano — lo stesso che
+	 * `OnAttackResolved` gia' trasporta — e la composizione della vista avviene qui, dalla parte della
+	 * presentazione.
+	 *
+	 * ⚠️ **`Amount` e' il danno NOMINALE, non gli HP persi**: vedi `FRTDamageTokenView` per la convenzione
+	 * e per la sua conseguenza visibile.
+	 *
+	 * ⛔ **Non applica niente.** Il colpo e' gia' stato risolto; questa chiamata disegna un fatto.
+	 */
+	void ShowDamageToken(int32 Amount);
+
+	/**
+	 * L'ultimo token composto per questa unita', **di sola presentazione**.
+	 *
+	 * 🔑 **Esiste per rendere il cablaggio osservabile senza rendering.** `URTUnitOverlayWidget` e' un
+	 * `UUserWidget`: in un mondo headless `GetOverlayWidgetObject()` risponde `nullptr` e nessun test
+	 * potrebbe dire se il colpo e' arrivato alla presentazione o si e' perso per strada. Con questo campo un
+	 * test di partita legge cosa la vittima ha ricevuto — ed e' la stessa disciplina di
+	 * `ContactGhostTargetForUnit`, che ha reso testabile una decisione altrimenti solo visibile.
+	 *
+	 * ⛔ **`Transient`**: non entra in `MapState`, in nessuno snapshot, nel TurnLog ne' in `StateHash`.
+	 * Riprodurre lo stesso turno due volte lo riscrive due volte con lo stesso valore e **non cambia nessun
+	 * esito**.
+	 */
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FRTDamageTokenView LastDamageToken;
 
 protected:
 

@@ -21,6 +21,7 @@
 #include "Perception/RTTeamKnowledge.h" // ContactLifetimeTurns: la durata del ricordo ha un owner, non si ricopia
 #include "Components/WidgetComponent.h" // la sovrapposizione sopra la testa (#2288, D-320)
 #include "UI/RTUnitOverlayWidget.h"  // la classe base del widget: serve il tipo completo per SetWidgetClass
+#include "UI/RTHudViewModel.h"      // BuildDamageToken: la composizione del token e' del view-model (#2455)
 
 ARTUnit::ARTUnit()
 {
@@ -242,6 +243,30 @@ UUserWidget* ARTUnit::GetOverlayWidgetObject() const
 	return OverlayWidget ? OverlayWidget->GetUserWidgetObject() : nullptr;
 }
 
+void ARTUnit::ShowDamageToken(int32 Amount)
+{
+	// Il giudizio sta nella funzione pura, non qui: `#2455` mette la regola del caso zero e la composizione
+	// dell'etichetta in `URTHudViewModel::BuildDamageToken`, che un test chiama senza costruire un widget.
+	LastDamageToken = URTHudViewModel::BuildDamageToken(Amount, StableUnitId);
+
+	// ⚠️ **Il campo si scrive SEMPRE, il widget si aggiorna se c'e'.** In un mondo headless — e prima che il
+	// componente abbia istanziato il widget — `GetOverlayWidgetObject()` risponde `nullptr`, ed e' il caso
+	// normale che il suo doc-comment dichiara. Scrivere prima di quel controllo e' cio' che rende il
+	// cablaggio verificabile senza rendering.
+	if (UUserWidget* Raw = GetOverlayWidgetObject())
+	{
+		if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(Raw))
+		{
+			Overlay->PushDamageToken(LastDamageToken);
+		}
+	}
+
+	// ⛔ **Nessun controllo sul velo QUI, ed e' deliberato.** Chi puo' vedere questa unita' lo decide
+	// `ARTHUD::UpdateObserverVeil`, che spegne l'intero `OverlayWidget` (`RefreshComponentVisibility`): un
+	// secondo giudizio in questo punto sarebbe la divergenza che `#2246` ha appena tolto, e la prima volta
+	// che i due non fossero d'accordo nessun test lo direbbe.
+}
+
 void ARTUnit::ApplyUnitAnimClass()
 {
 	if (UnitAnimClass == nullptr)
@@ -389,9 +414,30 @@ void ARTUnit::SetKnownToObserver(bool bKnown)
 	RefreshComponentVisibility();
 }
 
-bool ARTUnit::ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh)
+bool ARTUnit::ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh, bool bHasPose)
 {
-	return bRender && !bHasHeroMesh;
+	// 🔴 **Due condizioni diverse che fino al 2026-09-05 coincidevano per caso** (#2545).
+	//
+	// Il segnaposto spariva appena esisteva una MESH. Ma una mesh senza una clip da suonare non e' un
+	// corpo: e' una **posa di riferimento**, cioe' una T-pose — e una T-pose non dice «nessuno ha legato
+	// una clip a questo ruolo», dice «questa animazione e' rotta». Sul PACK `Riktor` — l'eroe
+	// `Hero.Branth` dopo la migrazione d'identita' di #2297 — le catene si stendono sullo schermo, ed e'
+	// lo stesso sintomo che #1750 nomina. ⚠️ Il pack Paragon conserva il nome `Riktor` perche' e' di terze
+	// parti: e' l'IDENTITA' RT ad essere cambiata, non la cartella.
+	//
+	// Coincidevano perche' il roster ha sempre avuto le clip nel default C++. Da #2441 `ActiveClipVariant`
+	// puo' valere `NAME_None`, e rimuovere la variante attiva e' un'operazione **prevista**.
+	return bRender && !(bHasHeroMesh && bHasPose);
+}
+
+bool ARTUnit::ShouldShowHeroSkeletal(bool bRender, bool bHasPose)
+{
+	// L'altra meta' della stessa decisione, e va scritta accanto: senza, il cilindro comparirebbe SOPRA la
+	// T-pose invece che al suo posto, e si vedrebbero entrambi.
+	//
+	// ⚠️ Non serve `bHasHeroMesh`: questo predicato lo chiama solo chi ha gia' trovato lo skeletal, e
+	// aggiungerlo darebbe un terzo argomento sempre vero — un ingresso che nessun test puo' falsificare.
+	return bRender && bHasPose;
 }
 
 bool ARTUnit::ShouldShowSelectionRing(bool bRender, bool bSelected, bool bHasSelectionMaterial)
@@ -448,6 +494,18 @@ void ARTUnit::RefreshComponentVisibility()
 	USkeletalMeshComponent* HeroSkeletal = FindHeroSkeletal();
 	const bool bHasHeroMesh = HeroSkeletal != nullptr && HeroSkeletal->GetSkeletalMeshAsset() != nullptr;
 
+	// 🔴 **C'e' una POSA da mostrare?** (#2545) Una mesh senza clip e' una T-pose, e una T-pose si legge
+	// come un difetto dell'animazione invece che come un ruolo non legato.
+	//
+	// Il segnale e' la variante ATTIVA del ruolo `Idle`, risolta **senza caricare**: i pack Paragon vivono
+	// in `Content/FabAsset/`, gitignorato, e un `LoadSynchronous` qui direbbe «nessuna posa» su ogni clone
+	// che non li ha — che e' vero a schermo, ma lo direbbe anche mentre il gioco gira con i pack montati,
+	// perche' la risoluzione non e' garantita a questo punto del frame.
+	//
+	// ⚠️ Legge dal CDO di `UnitAnimClass`, quindi vede anche l'override del Blueprint che
+	// `RTBuildAnimBindings` genera dai binding autorati (#2443).
+	const bool bHasPose = !GhostFallbackClipPath().IsNull();
+
 	// 🔴 Si nascondono i COMPONENTI, non l'actor. `SetActorHiddenInGame` propaga a tutti i componenti,
 	// sagoma dell'ultimo contatto compresa (Task 6) — che deve vedersi proprio quando l'unita' non si vede.
 	//
@@ -470,7 +528,7 @@ void ARTUnit::RefreshComponentVisibility()
 		// e' vero e il cilindro va nascosto comunque — le due forme coincidono per VERSO. Su un'unita'
 		// senza skeletal il cui `BP_Unit_*` usasse `bHiddenInGame = true`, questa riga chiederebbe di
 		// mostrare il cilindro e il cilindro resterebbe invisibile. Vedi `ShouldShowPlaceholderMesh`.
-		Mesh->SetVisibility(ShouldShowPlaceholderMesh(bRender, bHasHeroMesh), /*bPropagateToChildren*/ false);
+		Mesh->SetVisibility(ShouldShowPlaceholderMesh(bRender, bHasHeroMesh, bHasPose), /*bPropagateToChildren*/ false);
 	}
 
 	// L'anello di squadra esiste solo se `ApplyTeamColor` ha trovato il materiale: senza, il ripiego e' il
@@ -514,7 +572,7 @@ void ARTUnit::RefreshComponentVisibility()
 	//    quattro chiamanti di questa funzione la invocano a visibilita' invariata.
 	//
 	// ⚠️ `SnapshotPose` scrive la posa di RIFERIMENTO per le ossa fuori dalle *required bones* del LOD
-	// corrente, e quelle che le LOD dei pack rimuovono sono le catene di Riktor: vedi `LastSeenPose`, e
+	// corrente, e quelle che le LOD dei pack rimuovono sono le catene di Branth: vedi `LastSeenPose`, e
 	// `#1784` per la ragione per cui oggi non morde.
 	if (NotifyRenderStateForPoseCapture(bRender) && bHasHeroMesh)
 	{
@@ -523,7 +581,9 @@ void ARTUnit::RefreshComponentVisibility()
 
 	if (HeroSkeletal)
 	{
-		HeroSkeletal->SetVisibility(bRender, false);
+		// #2545: si mostra solo se c'e' una posa. Senza, resterebbe a schermo in T-pose SOTTO il cilindro
+		// che il predicato di sopra ha appena acceso — due corpi invece di un segnaposto.
+		HeroSkeletal->SetVisibility(ShouldShowHeroSkeletal(bRender, bHasPose), false);
 	}
 
 	// La collisione si spegne sull'ACTOR: `SetVisibility` non la tocca, e l'unico proxy di click e' `Mesh`
@@ -746,7 +806,7 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 		// dell'unita' **non** inchiodata al LOD 0.
 		//
 		// ⛔ Non e' un dettaglio di qualita' visiva: `#1784` ha misurato che **le LOD dei pack rimuovono le
-		// ossa delle catene**, ed e' per quello che Riktor «si stende sullo schermo» da lontano. Una sagoma
+		// ossa delle catene**, ed e' per quello che Branth «si stende sullo schermo» da lontano. Una sagoma
 		// lasciata scendere di LOD riprodurrebbe il fotogramma che #1750 esiste per togliere — sullo stesso
 		// eroe, per la stessa causa, sul componente che nessuno aveva coperto.
 		//
@@ -759,7 +819,7 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 	}
 
 	// 🔴 **La posa di RIPIEGO (#1750).** Un `USkeletalMeshComponent` con una mesh e senza `AnimInstance`
-	// disegna la **posa di riferimento** dello skeleton — la T-pose — e su Riktor quella posa stende le
+	// disegna la **posa di riferimento** dello skeleton — la T-pose — e su Branth quella posa stende le
 	// catene attraverso lo schermo. E' il difetto che questa riga chiude, confermato a schermo il 2026-09-03.
 	//
 	// ⚠️ **Il commento sopra prometteva la POSA e il codice copiava solo la MESH**: diceva «la mesh/posa
@@ -1413,7 +1473,7 @@ void ARTUnit::ConfigureFromHeroData(const URTHeroData* Hero)
 	DashEndPivotMaxSteps = Hero->DashEndPivotMaxSteps;
 	Affinity = Hero->Affinity;
 	Weakness = Hero->Weakness;
-	// E14.7 [D-047]: il profilo che il `Brace` armera'. `NAME_None` per chi non ne dichiara uno (Riktor), ed
+	// E14.7 [D-047]: il profilo che il `Brace` armera'. `NAME_None` per chi non ne dichiara uno (Branth), ed
 	// e' un valore legittimo — non un campo dimenticato: significa profilo base, cardinalita' 1.
 	ReactionProfileId = Hero->ReactionProfileId;
 

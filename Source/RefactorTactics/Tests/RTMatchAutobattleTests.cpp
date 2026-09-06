@@ -1005,7 +1005,7 @@ namespace
 			const FRTAutobattleSlot& Slot = AutobattleStandardSlots()[Index];
 			const URTHeroData* Hero = Slot.bIsWraith
 				? URTHeroCatalogLibrary::MakeWraith()
-				: URTHeroCatalogLibrary::MakeRiktor();
+				: URTHeroCatalogLibrary::MakeBranth();
 			Spawned.Add(SpawnAutobattleUnit(World, Slot.TeamId, Hero, Slot.Cell));
 		}
 		return Spawned;
@@ -1263,7 +1263,7 @@ bool FRTAutobattleNoPathTest::RunTest(const FString&)
 	}
 	Map->SortCells();
 
-	ARTUnit* Trapped = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), Walled);
+	ARTUnit* Trapped = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), Walled);
 	ARTUnit* Free    = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(4, -2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Trapped || !Free)
@@ -1342,8 +1342,8 @@ bool FRTAutobattleAllWaitTest::RunTest(const FString&)
 	SpawnAutobattleMap(World);
 
 	// Fuori dal bot e lontane: nessun piano viene scritto da nessuno.
-	ARTUnit* A = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 2), false);
-	ARTUnit* B = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -2), false);
+	ARTUnit* A = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 2), false);
+	ARTUnit* B = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -2), false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B)
 	{
@@ -1535,8 +1535,8 @@ bool FRTAutobattleRoundLimitTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 	SpawnAutobattleMap(World);
 
-	ARTUnit* A = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 2), false);
-	ARTUnit* B = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -2), false);
+	ARTUnit* A = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 2), false);
+	ARTUnit* B = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -2), false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B)
 	{
@@ -1707,7 +1707,7 @@ bool FRTAutobattleSameSeedTest::RunTest(const FString&)
  * Quindi lo stallo di #1088 non era spiegato dalla board.
  *
  * ✅ **La causa vera, trovata dopo**: il bonus di quota di `URTHexBotLibrary::ScorePlan` compete con
- * l'avvicinamento, e con `WElevation` 20 restare in alto batteva muoversi — Riktor saliva sulla piattaforma
+ * l'avvicinamento, e con `WElevation` 20 restare in alto batteva muoversi — Branth saliva sulla piattaforma
  * al turno 3 e non scendeva fino al 12.
  *
  * ⛔ **La difesa e' un NUMERO, non una forma.** Rendere il termine relativo all'origine e' stato provato ed
@@ -1996,13 +1996,13 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// difetto presente ne cadeva una lo stesso, quindi `3 < 4` passava. Il conteggio dei caduti non
 	// distingue una partita che avanza da una in orbita — a distinguerle e' se qualcuno smette di muoversi.
 	//
-	// Misurato: col bonus di quota assoluto, Riktor saliva sulla piattaforma al turno 3 e restava sulla
+	// Misurato: col bonus di quota assoluto, Branth saliva sulla piattaforma al turno 3 e restava sulla
 	// stessa cella fino al 12, cioe' **dieci turni consecutivi**.
 	//
 	// 🔴 **LIMITE DICHIARATO, e non e' correggibile senza accecare l'oracolo.** Una code review ha osservato
 	// che restare fermi per SPARARE e' condotta legittima, e che un duello a distanza tenuto oltre la soglia
 	// darebbe un falso rosso. E' vero. Ma l'esenzione e' stata scritta, misurata e tolta il 2026-08-23: il
-	// difetto di #1088 **e' esattamente «sta ferma e spara»** — Riktor parcheggiata dieci turni mentre il
+	// difetto di #1088 **e' esattamente «sta ferma e spara»** — Branth parcheggiata dieci turni mentre il
 	// campo produceva 19 voci `Combat` — quindi qualunque esenzione per combattimento lo rende invisibile.
 	//
 	//     senza esenzione:        sequenza 9 turni col difetto -> Fail   (falsifica)
@@ -2306,7 +2306,7 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	//     nessuna voce di catalogo runtime, nessun codice che riservi lo slot movimento. `D-070` e' decisa e
 	//     **non implementata**.
 	//   · Nessun punto del runtime porta `MoveBudget` a 2: viene da `MovePoints` dell'eroe.
-	//   · Il roster spedito non scende sotto **4** (`Gadget` 5, `Phase` 5, `Riktor` 4, `Wraith` 6), e a 4 MP
+	//   · Il roster spedito non scende sotto **4** (`Gadget` 5, `Phase` 5, `Branth` 4, `Wraith` 6), e a 4 MP
 	//     quella board arretra in **zero** coppie.
 	//
 	// ∴ Un Overwatch sostenuto non tiene il budget a 2 MP **perche' non lo tocca affatto**.
@@ -2325,7 +2325,7 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// budget ridotto.
 	//
 	// ⚠️ **E il grilletto c'e'**: `Bot.ShippedRosterStaysAboveTheBackstepBudget` diventa rosso se un eroe
-	// scende sotto 4 MP (verificato per mutazione: `Riktor` a 3 lo fa cadere). Se `#149` ritara la mobilita',
+	// scende sotto 4 MP (verificato per mutazione: `Branth` a 3 lo fa cadere). Se `#149` ritara la mobilita',
 	// o se `D-070` atterra davvero, questa riga torna viva e qualcuno lo viene a sapere.
 	const int32 WorstOrbit = Orbite.WorstReturns();
 	const int32 OrbitLimit = FRTOrbitProbe::LimitForTurns(TurnsPlayed);
@@ -2572,4 +2572,74 @@ bool FRTPlaybackResolvesSubjectsTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * 🔴 **Ogni colpo rivelato lascia il proprio token sul bersaglio, con il proprio importo** (`#2455`).
+ *
+ * È il test del **cablaggio**, e non della composizione: che `-17` si scriva così è materia della funzione
+ * pura, e ha già il suo test in `RTHudViewModelTests.cpp`. Qui si misura che il numero *arrivi*, sulla
+ * testa giusta, nell'istante in cui il colpo viene mostrato.
+ *
+ * 🔑 **Perché serve un test di partita e non basta la funzione pura.** `URTUnitOverlayWidget` è un
+ * `UUserWidget`: in un mondo headless non esiste, e `GetOverlayWidgetObject()` risponde `nullptr`. Senza
+ * `ARTUnit::LastDamageToken` non ci sarebbe **nessun** modo di sapere se la cue è stata chiamata o se il
+ * numero si è perso fra il playback e la presentazione — un difetto che a schermo si vedrebbe subito e in
+ * automazione mai.
+ *
+ * ⚠️ **La lettura avviene DENTRO il broadcast**, non a fine partita: vedi il commento su
+ * `URTAttackPlaybackProbeForTest::TokensMatched`. A fine partita sopravviverebbe solo l'ultimo colpo, e un
+ * cablaggio che scrivesse sempre lo stesso valore resterebbe verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAttackLeavesDamageTokenTest,
+	"RefactorTactics.Match.Autobattle.EveryRevealedAttackLeavesItsDamageTokenOnTheTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAttackLeavesDamageTokenTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	SpawnAutobattleMap(World);
+
+	const TArray<ARTUnit*> Units = DeployAutobattleRoster(World, { 0, 1, 2, 3 });
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || Units.Contains(nullptr))
+	{
+		AddError(TEXT("allestimento fallito: turn manager o unita' mancanti"));
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	TM->bEnablePlayback = true;
+	TM->MaxPlaybackSeconds = 120.f; // il tetto comprime la presentazione: alzato, cosi' i colpi si mostrano tutti
+
+	URTAttackPlaybackProbeForTest* Probe = NewObject<URTAttackPlaybackProbeForTest>();
+	Probe->AddToRoot();
+	TM->OnAttackResolved.AddDynamic(Probe, &URTAttackPlaybackProbeForTest::OnAttackResolved);
+
+	const FRTAutobattleTrace Trace = PlayAutobattleMatch(TM, /*MaxTurns=*/ 40);
+	TestFalse(TEXT("nessuna risoluzione appesa"), Trace.bResolveStalled);
+
+	const int32 Revealed = Probe->AttackTicks.Num();
+	const int32 Matched = Probe->TokensMatched;
+	const int32 Mismatched = Probe->TokensMismatched;
+	const int32 TargetsOk = Probe->TargetsResolved;
+
+	Probe->RemoveFromRoot();
+	RTWorldFixtures::DestroyWorld(World);
+
+	AddInfo(FString::Printf(TEXT("colpi rivelati: %d · token coincidenti %d · discordanti %d"),
+		Revealed, Matched, Mismatched));
+
+	// PREMESSA: senza colpi non c'e' niente da mostrare, e il verde non significherebbe nulla.
+	if (!TestTrue(FString::Printf(TEXT("premessa: la partita rivela almeno un colpo (rivelati %d)"), Revealed),
+		Revealed > 0))
+	{
+		return false;
+	}
+
+	// LA PROPRIETA': ogni colpo con un bersaglio vivo ha lasciato il suo token, e nessuno discorda.
+	TestEqual(TEXT("nessun token discordante"), Mismatched, 0);
+	TestEqual(TEXT("ogni bersaglio risolto ha ricevuto il proprio token"), Matched, TargetsOk);
+
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS

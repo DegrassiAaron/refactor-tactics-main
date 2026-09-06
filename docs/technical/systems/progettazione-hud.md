@@ -154,6 +154,47 @@ Contiene elementi proiettati o ancorati nel mondo 3D:
 
 Questi elementi **non devono essere realizzati come grandi widget HUD statici**.
 
+### 4.2.1 Feedback di combattimento — il cambiamento, non lo stato
+
+La sovrapposizione sopra l'unità (`URTUnitOverlayWidget`, [D-320](../../decisions/RT_PDR_00_Decision_Log.md) · [#2288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2288)) mostra **lo stato**: nome, vita,
+scudo, stati temporanei. Il feedback di combattimento aggiunge il **cambiamento** sopra quello stesso canale
+— [#2455](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2455), epic [#2453](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2453).
+
+| Cosa | Dove | Quando |
+|---|---|---|
+| token di danno (`-17`) | `DamageTokenText`, dentro la sovrapposizione | quando il playback rivela un `Attack` |
+| enfasi della barra HP | scala di render di `HealthBar` | insieme al token, **solo se c'è danno** |
+
+🔴 **Il token vive dentro la sovrapposizione, ed è un requisito di privacy prima che di layout.** Il velo di
+conoscenza spegne l'intero componente — `ARTHUD::UpdateObserverVeil` → `ARTUnit::SetKnownToObserver` →
+`RefreshComponentVisibility` → `OverlayWidget->SetVisibility(bRender, false)` — quindi una cifra ospitata lì
+eredita il filtro **per costruzione**. Un widget world-space separato non lo erediterebbe, e un numero sopra
+un nemico mai osservato ne rivelerebbe insieme esistenza, posizione e stato ([D-223](../../decisions/RT_PDR_00_Decision_Log.md), `AGENTS.md` §4).
+⚠️ E nessun test diventerebbe rosso.
+
+⛔ **La presentazione non applica il danno e non lo deduce.** Il numero è `FRTResolvedEvent::Amount`, mai un
+delta osservato sulla barra: dedurre un attacco guardando la vita scendere è uno dei quattro modi in cui
+questo sistema fallirebbe in silenzio, elencati in [#2453](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2453).
+
+⚠️ **`Amount` è il danno NOMINALE, non gli HP persi.** Per un `Attack` vale `Hit.Power` — potenza
+dell'intento **meno la sola copertura**; Deflect, Guard e Brace agiscono a valle, e lo scudo più a valle
+ancora. Un colpo da 30 su un bersaglio in Brace con scudo mostra `-30` mentre la barra scende di meno: è la
+convenzione fissata da [#2460](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2460) per `HazardDamage`, tenuta uguale perché i due canali raccontino lo stesso
+colpo con lo stesso numero.
+
+🔑 **Il caso `Amount <= 0` ha un comportamento scelto**, non ereditato dal ramo `else` di un `if`. Un colpo
+che toglie zero è comunque avvenuto — `URTHexCombatLibrary::CollectHexAttacks` lo dichiara e lo registra — e
+si mostra con un'etichetta neutra, distinta dalla cifra. ⛔ La **causa** dello zero non si indovina: può
+essere la copertura che assorbe tutto o un'azione senza effetto `Damage`, e l'evento non porta quale delle
+due.
+
+**Dove vive il giudizio.** `URTHudViewModel::BuildDamageToken` e `URTUnitOverlayWidget::FadeAlpha` sono
+statiche e pure: un `UUserWidget` ha copertura headless zero ([D-320](../../decisions/RT_PDR_00_Decision_Log.md) punto 5), quindi ciò che decide sta
+dove un test lo chiama senza costruire un widget. Il widget **posa** il risultato.
+
+**Fuori perimetro in v0.1**: aggregazione dei colpi ravvicinati (v0.3, [#2453](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2453)); il token per
+`ERTResolvedEventType::HazardDamage`, che non ha un istante di playback in cui essere giocato — è [#2505](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2505).
+
 ## 4.3 Decision Windows
 
 Finestre temporanee per:

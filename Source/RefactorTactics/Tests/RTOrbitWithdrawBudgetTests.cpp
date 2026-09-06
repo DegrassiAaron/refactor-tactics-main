@@ -19,7 +19,7 @@
 //   · Nessun punto del runtime porta `MoveBudget` a 2: viene da `MovePoints` dell'eroe
 //     (`RTScenarioDraft.cpp`), e le uniche riscritture sono `0` per lo `StaySnapshot`, il budget del Dash e
 //     `EffectiveRange` della carica.
-//   · Il roster spedito non ha nessuno sotto **4**: `Gadget` 5, `Phase` 5, `Riktor` **4**, `Wraith` 6 — e a
+//   · Il roster spedito non ha nessuno sotto **4**: `Gadget` 5, `Phase` 5, `Branth` **4**, `Wraith` 6 — e a
 //     4 MP quella board arretra in **zero** coppie.
 //
 // ∴ **Un Overwatch sostenuto non tiene il budget a 2 MP perche' non lo tocca affatto.** La pista, come era
@@ -33,7 +33,7 @@
 // §5). Un'unita' rallentata conserva il proprio budget e paga di piu' ogni passo — e su terreno a costo
 // unitario questo produce lo stesso insieme raggiungibile di un budget dimezzato.
 //
-// E' il pezzo che l'ipotesi di partenza non conteneva: se l'insieme raggiungibile di **Riktor rallentato**
+// E' il pezzo che l'ipotesi di partenza non conteneva: se l'insieme raggiungibile di **Branth rallentato**
 // (4 MP, +1 per cella) coincide con quello di un'unita' a **2 MP**, allora le 48 coppie che arretrano a 2 MP
 // sono raggiungibili in partita — e la pista si riapre con un meccanismo diverso, `Slow` invece di
 // `Overwatch`, che a differenza di `Withdraw` **e' implementato e il bot lo puo' subire**.
@@ -159,7 +159,7 @@ namespace RTWithdrawBudget
  *
  * Confronta, cella per cella, l'insieme raggiungibile di un'unita' a **2 MP** con quello di un'unita' a
  * **4 MP rallentata** (`+1` per cella). Se coincidono, le 48 coppie che arretrano a 2 MP su `MakeTestArena`
- * sono raggiungibili in partita da **Riktor rallentato** — il piu' lento del roster spedito — e la pista
+ * sono raggiungibili in partita da **Branth rallentato** — il piu' lento del roster spedito — e la pista
  * dell'orbita si riapre con un meccanismo implementato.
  *
  * ⛔ **Non e' un oracolo del bot e non tocca nessuna soglia**: e' una proprieta' della board e del modello
@@ -175,7 +175,7 @@ bool FRTSlowReachesWithdrawBudgetTest::RunTest(const FString&)
 	URTHexMapAsset* Authored = RTAuthoredArena::Load();
 	if (!TestNotNull(TEXT("la mappa d'autore si carica"), Authored)) { return false; }
 
-	// 4 MP e' il minimo del roster spedito (Riktor); 2 MP e' il budget del `Withdraw` di `D-070`.
+	// 4 MP e' il minimo del roster spedito (Branth); 2 MP e' il budget del `Withdraw` di `D-070`.
 	const RTWithdrawBudget::FConfronto CA = RTWithdrawBudget::ConfrontaRallentato(Arena, 4, 2);
 	const RTWithdrawBudget::FConfronto CM = RTWithdrawBudget::ConfrontaRallentato(Authored, 4, 2);
 	RTWithdrawBudget::Riporta(*this, TEXT("MakeTestArena"), CA);
@@ -189,7 +189,7 @@ bool FRTSlowReachesWithdrawBudgetTest::RunTest(const FString&)
 	//
 	// Misurato il 2026-08-29: sulla mappa d'autore i due insiemi sono identici su **tutte** le 55 origini;
 	// su `MakeTestArena` sono identici su 49 di 62 e altrove il rallentato raggiunge di PIU', mai di meno.
-	// ∴ ogni cella che un'unita' a 2 MP puo' toccare, un `Riktor` rallentato la tocca — e con lei le 48
+	// ∴ ogni cella che un'unita' a 2 MP puo' toccare, un `Branth` rallentato la tocca — e con lei le 48
 	// coppie che arretrano a 2 MP su quella board. E' cio' che rende la pista dell'orbita raggiungibile in
 	// partita, per una via che non e' quella dell'`Overwatch`.
 	//
@@ -219,7 +219,7 @@ bool FRTSlowReachesWithdrawBudgetTest::RunTest(const FString&)
  * la pista (`#1550`).
  *
  * `RTBotStalemateProbeTests.cpp` misura che su `MakeTestArena` il filtro di `#1287` arretra a **2** e **3**
- * MP e **non arretra da 4 in su**. Il roster v0.1 ha minimo **4** (`Riktor`). Finche' e' cosi', nessuna
+ * MP e **non arretra da 4 in su**. Il roster v0.1 ha minimo **4** (`Branth`). Finche' e' cosi', nessuna
  * unita' puo' trovarsi, per solo budget, nella regione dove l'orbita si chiude.
  *
  * 🔴 **Questo test esiste per diventare rosso.** Se `#149` ritara un eroe a 3 MP, o se `D-070` atterra

@@ -11,7 +11,7 @@
 
   "units": [
     { "id": "R1", "hero": "Hero.Phase",    "team": 0, "cell": [0, 1, 0] },
-    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [4, 0, 0] }
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [4, 0, 0] }
   ],
 
   "turns": [

@@ -412,7 +412,7 @@ bool FRTPointerTargetEdgeProducerTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Builder = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0, 0));
+	ARTUnit* Builder = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Builder) { DestroyPointerWorld(World); return false; }
 
@@ -504,12 +504,12 @@ bool FRTPointerIllegalFacingRejectedTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	// 🔴 **Riktor e non Wraith, e la sostituzione e' il punto del test** — ADR-0008 §1 (#1605). Questo test
+	// 🔴 **Branth e non Wraith, e la sostituzione e' il punto del test** — ADR-0008 §1 (#1605). Questo test
 	// ha bisogno che esista almeno una direzione ILLEGALE da rifiutare, e con Wraith non esiste piu':
-	// `MoveEndPivotMaxSteps = 3` gli concede tutte e sei le direzioni a fine Move. Riktor, con budget 1, ne
+	// `MoveEndPivotMaxSteps = 3` gli concede tutte e sei le direzioni a fine Move. Branth, con budget 1, ne
 	// concede tre e ne lascia tre da rifiutare. Il soggetto del test — «una rotazione illegale e'
 	// rifiutata» — resta lo stesso; cambia l'eroe che ne ha ancora una.
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -2, 0));
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 

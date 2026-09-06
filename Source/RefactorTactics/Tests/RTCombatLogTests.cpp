@@ -512,9 +512,9 @@ bool FRTLogFallbackNamesTheActionTest::RunTest(const FString&)
 	// E il profilo, quando c'e', si legge come nelle altre categorie. Token canonico `Hero.<Nome>.<Abilita>`
 	// (D-130): i nomi legacy sono usciti dal repository, e il gate che li cercava e' uscito con D-182.
 	Altra.BaseActionId = FName(TEXT("Action.BasicAttack"));
-	Altra.ActionId = FName(TEXT("Hero.Riktor.ImpactShot"));
+	Altra.ActionId = FName(TEXT("Hero.Branth.ImpactShot"));
 	TestTrue(TEXT("azione base e profilo, come altrove"),
-		URTTurnLogLibrary::DescribeEntry(Altra).Contains(TEXT("Action.BasicAttack · Hero.Riktor.ImpactShot")));
+		URTTurnLogLibrary::DescribeEntry(Altra).Contains(TEXT("Action.BasicAttack · Hero.Branth.ImpactShot")));
 
 	// Solo il PROFILO, senza l'azione: si legge il profilo, non `Action.BasicAttack · None`.
 	{
@@ -1389,7 +1389,7 @@ bool FRTTwoLinesSameUnitSameSubjectTest::RunTest(const FString&)
 
 	TMap<int32, FString> Nomi;
 	Nomi.Add(3, TEXT("Wraith"));
-	Nomi.Add(5, TEXT("Riktor"));
+	Nomi.Add(5, TEXT("Branth"));
 
 	const TArray<FRTTurnLogEntry> Log = {
 		Movimento(3, ERTMoveOutcome::Moved,  ERTMatchPhase::Dash),

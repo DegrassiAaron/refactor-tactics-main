@@ -19,7 +19,7 @@
 
   "units": [
     { "id": "BOT",  "hero": "Hero.Wraith",  "team": 1, "cell": [0, 0, 0], "bot": true, "visionRange": 1 },
-    { "id": "SEEN", "hero": "Hero.Riktor", "team": 0, "cell": [1, 0, 0] },
+    { "id": "SEEN", "hero": "Hero.Branth", "team": 0, "cell": [1, 0, 0] },
     { "id": "BAIT", "hero": "Hero.Phase",    "team": 0, "cell": [3, 0, 0], "health": 1, "shield": 0 }
   ],
 

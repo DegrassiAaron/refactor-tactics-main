@@ -97,9 +97,9 @@ namespace
 	{
 		SpawnReplayProducerMap(World, /*Radius=*/ 5);
 		SpawnReplayProducerUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),  FRTCellId(-4, 2));
-		SpawnReplayProducerUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 3));
+		SpawnReplayProducerUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 3));
 		SpawnReplayProducerUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),  FRTCellId(4, -2));
-		SpawnReplayProducerUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -3));
+		SpawnReplayProducerUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -3));
 
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
@@ -553,8 +553,8 @@ bool FRTReplayAuditChargeIsAChoiceTest::RunTest(const FString&)
 	SpawnReplayProducerMap(World, /*Radius=*/ 5);
 
 	// Stessa geometria di `HexBotPlay.ChargeItPlannedActuallyLands`, dove la carica e' gia' misurata come
-	// la mossa che l'utility preferisce: Riktor ha `Ram` (20 + spinta) contro `ImpactShot` (8).
-	ARTUnit* Bot = SpawnReplayProducerUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
+	// la mossa che l'utility preferisce: Branth ha `Ram` (20 + spinta) contro `ImpactShot` (8).
+	ARTUnit* Bot = SpawnReplayProducerUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnReplayProducerUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyReplayProducerWorld(World); PuliscIProducer(Root); return false; }

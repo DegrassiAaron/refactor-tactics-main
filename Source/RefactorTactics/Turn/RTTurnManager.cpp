@@ -1041,7 +1041,7 @@ void ARTTurnManager::PlanBots()
 		//
 		// [D-220] aveva DICHIARATO la regola che c'era gia' — prima il kit, il modulo come riserva — invece di
 		// sceglierne una. E' deterministica ma non tattica: la reazione d'identita' vince sempre, quale che sia
-		// il suo valore in quella situazione, e il valore del loadout si perde. Il caso concreto: un Riktor con
+		// il suo valore in quella situazione, e il valore del loadout si perde. Il caso concreto: un Branth con
 		// `Interposition` nel kit e un modulo di contrattacco, in un turno in cui nessun alleato e' minacciato
 		// e un nemico conosciuto puo' colpirlo, armava l'interposizione — cioe' una reazione che non sarebbe
 		// scattata.
@@ -2917,7 +2917,7 @@ void ARTTurnManager::ReportSnapshotOverlaps(const FRTHexSnapshot& Snapshot)
 		{
 			const ARTUnit* U = Vive.IsValidIndex(Indice) ? Vive[Indice] : nullptr;
 			// ⚠️ Il nome NON basta da solo: due unita' dello stesso eroe danno la stessa etichetta, e la riga
-			// direbbe «Riktor la occupa, Riktor e' stata scartata» — misurato la prima volta che questo log
+			// direbbe «Branth la occupa, Branth e' stata scartata» — misurato la prima volta che questo log
 			// e' scattato. L'id stabile la rende discriminante, che e' il punto di #1932.
 			return U != nullptr
 				? FString::Printf(TEXT("%s (id %d)"),
@@ -3864,7 +3864,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 	};
 	TArray<FRTPendingCoverOp> Pending;
 
-	// Gli SPOSTAMENTI (`Riktor.Reconfigure`). Portano con se' chi li ha chiesti, perche' il cooldown si decide
+	// Gli SPOSTAMENTI (`Branth.Reconfigure`). Portano con se' chi li ha chiesti, perche' il cooldown si decide
 	// solo in applicazione: una rotazione gratuita non lo spende, e quale copertura si sposta — quindi se una
 	// rotazione gratuita c'e' — si sa solo guardando il campo.
 	struct FRTPendingMoveOp
@@ -6124,7 +6124,7 @@ void ARTTurnManager::CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const
 	// indipendenti non si nota niente; appena due bot interagiscono, chi decide per primo cambia l'esito.
 	//
 	// MISURATO, non temuto (CP 47.5): la stessa partita 2v2 bot-contro-bot, con le stesse unita' sulle stesse
-	// celle e inserite in ordine diverso, divergeva al **turno 2** — in un ordine `Riktor.Interposition` si
+	// celle e inserite in ordine diverso, divergeva al **turno 2** — in un ordine `Branth.Interposition` si
 	// attivava, nell'altro non trovava trigger. Il turno 1 era identico byte per byte, che e' il modo in cui
 	// questa classe di difetto passa inosservata: si manifesta quando gli agenti cominciano a interagire.
 	//
@@ -7927,7 +7927,19 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				// verdetto di [D-223] non si calcola — servono anche squadra e cella.
 				Atk.Amount), FRTLogSubject::Unit(AtkSrc));
 			if (AtkSrc) { AtkSrc->PlayPresentationRole(ERTPresentationRole::Attack); }
-			if (AtkTgt) { AtkTgt->PlayPresentationRole(ERTPresentationRole::Hit); }
+			if (AtkTgt)
+			{
+				AtkTgt->PlayPresentationRole(ERTPresentationRole::Hit);
+				// #2455 — il NUMERO del colpo, dallo stesso evento e nello stesso istante della cue.
+				//
+				// 🔑 **Il simulatore passa un intero, non una vista.** `Atk.Amount` e' lo stesso valore che
+				// il log scrive e che `OnAttackResolved` gia' trasporta: la composizione avviene in `ARTUnit`,
+				// e questo file continua a non includere **nessun** header di `UI/`.
+				//
+				// ⛔ Sul BERSAGLIO e mai sull'attaccante: e' chi subisce a portare il numero, la stessa
+				// convenzione della cue di impatto e della categoria `Combat` del TurnLog (`#1150`).
+				AtkTgt->ShowDamageToken(Atk.Amount);
+			}
 			OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Atk.Amount);
 			++AttacksShown;
 		}
@@ -7954,7 +7966,19 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				ARTUnit* const AtkSrc = UnitByStableId(Atk.SourceStableUnitId);
 				ARTUnit* const AtkTgt = UnitByStableId(Atk.TargetStableUnitId);
 				if (AtkSrc) { AtkSrc->PlayPresentationRole(ERTPresentationRole::Attack); }
-				if (AtkTgt) { AtkTgt->PlayPresentationRole(ERTPresentationRole::Hit); }
+				if (AtkTgt)
+				{
+					AtkTgt->PlayPresentationRole(ERTPresentationRole::Hit);
+					// #2455 — il NUMERO del colpo, dallo stesso evento e nello stesso istante della cue.
+					//
+					// 🔑 **Il simulatore passa un intero, non una vista.** `Atk.Amount` e' lo stesso valore che
+					// il log scrive e che `OnAttackResolved` gia' trasporta: la composizione avviene in `ARTUnit`,
+					// e questo file continua a non includere **nessun** header di `UI/`.
+					//
+					// ⛔ Sul BERSAGLIO e mai sull'attaccante: e' chi subisce a portare il numero, la stessa
+					// convenzione della cue di impatto e della categoria `Combat` del TurnLog (`#1150`).
+					AtkTgt->ShowDamageToken(Atk.Amount);
+				}
 				OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Atk.Amount);
 				++AttacksShown;
 			}

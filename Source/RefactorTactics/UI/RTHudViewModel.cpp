@@ -364,6 +364,41 @@ TArray<FRTUnitCardView> URTHudViewModel::BuildTeamRoster(const TArray<ARTUnit*>&
 	return Roster;
 }
 
+FRTDamageTokenView URTHudViewModel::BuildDamageToken(int32 Amount, int32 TargetStableUnitId)
+{
+	FRTDamageTokenView View;
+
+	// ⚠️ `0` e' «nessuno» ([D-063]), non l'unita' numero zero: si conserva com'e' invece di normalizzarlo a
+	// `INDEX_NONE`, perche' e' la sentinella che `FRTResolvedEvent` gia' usa e tradurla creerebbe due
+	// vocabolari per lo stesso fatto. Chi disegna confronta con lo `StableUnitId` della propria unita': uno
+	// zero non combacia con nessuno, ed e' esattamente l'effetto voluto.
+	View.TargetStableUnitId = TargetStableUnitId;
+	View.Amount = Amount;
+
+	// 🔴 **La soglia e' `<= 0`, non `== 0`.** Un valore negativo non e' atteso — `Hit.Power` passa da
+	// `FMath::Max(0, ...)` — ma se arrivasse sarebbe un difetto del simulatore, e `-(-3)` stamperebbe `+3`
+	// sopra la testa di chi ha appena incassato: una cifra plausibile e falsa. Il ramo dello zero e' il
+	// posto giusto dove farlo cadere, perche' dice «nessuna quantita' da mostrare» senza inventarne una.
+	View.bHasDamage = (Amount > 0);
+
+	if (View.bHasDamage)
+	{
+		// Il segno fa parte del canale: `#2453` vieta il colore come UNICO canale, e una cifra nuda si
+		// leggerebbe come una cura tanto quanto come un danno. Il meno lo disambigua senza dipendere dalla
+		// tinta.
+		View.Label = FString::Printf(TEXT("-%d"), Amount);
+	}
+	else
+	{
+		// L'uscita (a) di `#2455`. Dice **quanto** — zero — e tace sul **perche'**, che il dato non porta.
+		// ⛔ Non e' la cifra nuda `0`: quella si legge come una quantita' di danno inflitta, ed e' cio' che
+		// l'AC esclude. La parola accanto la rende una dichiarazione invece di un numero.
+		View.Label = TEXT("0 danni");
+	}
+
+	return View;
+}
+
 TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray<AActor*>& Actors)
 {
 	TArray<FRTPlannedIntent> Authoritative;

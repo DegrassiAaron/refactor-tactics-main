@@ -498,8 +498,8 @@ bool FRTProneHasNoReactionTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnFallMap(World, /*Radius=*/ 5);
 
-	ARTUnit* Attacker = SpawnFallUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeRiktor());
-	ARTUnit* Defender = SpawnFallUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeRiktor());
+	ARTUnit* Attacker = SpawnFallUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeBranth());
+	ARTUnit* Defender = SpawnFallUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeBranth());
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Attacker || !Defender) { DestroyFallWorld(World); return false; }
 

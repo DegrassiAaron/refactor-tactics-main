@@ -61,6 +61,16 @@ protected:
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;
 
 private:
+	/**
+	 * Stacca la mesh corrente dalla scena e la distrugge, in quest'ordine.
+	 *
+	 * 🔑 **L'ordine e' il punto, non un dettaglio**: `DestroyComponent` non toglie il componente dalla
+	 * lista di `FPreviewScene`, che continua a puntarlo. Invertirlo — o ometterlo — lascia nella scena un
+	 * puntatore a un oggetto morto, e alla distruzione della scena `Uninitialize` ci chiama sopra
+	 * `UnregisterComponent`. E' il crash di #2540.
+	 */
+	void ClearMesh();
+
 	TSharedPtr<FPreviewScene> PreviewScene;
 	TObjectPtr<USkeletalMeshComponent> Mesh = nullptr;
 

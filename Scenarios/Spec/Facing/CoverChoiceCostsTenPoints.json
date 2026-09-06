@@ -9,7 +9,7 @@
 
   "_nota_il_gap_che_copre": "Che il facing conti e' gia' provato dalla coppia `Spec.Facing.FrontHitOnCoverIsSilent` / `RearHitOnCoverIsTraced` - stessa scena, stesso colpo, cambia solo la direzione. ⚠️ Ma quelle due asseriscono il LOG (`LogEventCount` a 0 e a 1): dicono CHE la copertura e' stata annullata, non QUANTO e' costato. CM-03 chiede l'altra meta' - «quanto spesso quel cambio altera davvero l'esito» - e senza un numero quella domanda non ha risposta. Qui i due esiti stanno nello stesso file, quindi il confronto e' una sottrazione e non una collazione fra due run.",
 
-  "_nota_aritmetica": "Riktor parte da 120. `Hero.Wraith.PulseShot` dichiara 21. Il pannello di `Hero.Riktor.KineticPanel` toglie 10 al danno che attraversa il bordo riparato, e il BaseShield di [D-224] ne ferma altri 5. B1, che guarda il tiratore: 120 - (21 - 10 - 5) = 114. B2, che gli da' le spalle: la copertura e' interposta e non vale niente (CP 16.2), quindi 120 - (21 - 5) = 104. Sono gli stessi numeri di `Spec.Cover.TemporaryCoverExpires`, dove lo stesso pannello porta un colpo da 21 a 11 e il colpo pieno costa 16.",
+  "_nota_aritmetica": "Branth parte da 120. `Hero.Wraith.PulseShot` dichiara 21. Il pannello di `Hero.Branth.KineticPanel` toglie 10 al danno che attraversa il bordo riparato, e il BaseShield di [D-224] ne ferma altri 5. B1, che guarda il tiratore: 120 - (21 - 10 - 5) = 114. B2, che gli da' le spalle: la copertura e' interposta e non vale niente (CP 16.2), quindi 120 - (21 - 5) = 104. Sono gli stessi numeri di `Spec.Cover.TemporaryCoverExpires`, dove lo stesso pannello porta un colpo da 21 a 11 e il colpo pieno costa 16.",
 
   "_nota_la_misura_e_la_differenza": "🔑 114 - 104 = 10. La postura vale DIECI PUNTI su un colpo da 21, cioe' il 48% del danno nominale e l'intero valore della copertura. Non e' un margine: e' la copertura stessa che si accende o si spegne a seconda di dove guardi. ⛔ Questo NON dice che la scelta sia profonda: dice che contro UNA minaccia esiste una postura dominante e prevedibile - guardare chi spara - e che sceglierla non richiede giudizio. E' la meta' della risposta a CM-03, e la meta' che il file puo' dare da solo.",
 
@@ -19,23 +19,23 @@
 
   "_nota_due_turni": "Il pannello si erige al T1 e il colpo arriva al T2, come in `Spec.Facing.RearHitOnCoverIsTraced` e per la stessa ragione: cosi' il facing al momento del colpo e' quello dichiarato allo schieramento e non dipende da come `KineticPanel` orienta chi la usa. ✅ La durata regge: `Action.CreateCover` risolve in fase Prep, quindi il turno dell'erezione e' gia' un turno in cui il pannello protegge, e al T2 e' al secondo dei suoi due - `Spec.Cover.TemporaryCoverExpires` lo dichiara e lo misura.",
 
-  "_nota_loadout": "I due tiratori restano equipaggiati: il default di Wraith non tocca `PulseShot` nei numeri che contano qui, ed e' cosi' che `Visual.Core.PhaseOrder` misura gli stessi 21. ⚠️ I due Riktor NON attaccano, quindi il loro `Weapon.Impact` di default - che aggiunge `Push 1` all'attacco base e toglie una cella di portata - non ha nessuno da spingere. Il posto dove quella spinta parassita morde e' `Visual/Map/LowCoverEdge.json`, che infatti dichiara `loadout: []`.",
+  "_nota_loadout": "I due tiratori restano equipaggiati: il default di Wraith non tocca `PulseShot` nei numeri che contano qui, ed e' cosi' che `Visual.Core.PhaseOrder` misura gli stessi 21. ⚠️ I due Branth NON attaccano, quindi il loro `Weapon.Impact` di default - che aggiunge `Push 1` all'attacco base e toglie una cella di portata - non ha nessuno da spingere. Il posto dove quella spinta parassita morde e' `Visual/Map/LowCoverEdge.json`, che infatti dichiara `loadout: []`.",
 
   "units": [
-    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [-1, 0, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Branth", "team": 0, "cell": [-1, 0, 0], "facing": "E" },
     { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 2, 0, 0], "facing": "W" },
 
-    { "id": "B2", "hero": "Hero.Riktor", "team": 0, "cell": [-1, 3, 0], "facing": "W" },
+    { "id": "B2", "hero": "Hero.Branth", "team": 0, "cell": [-1, 3, 0], "facing": "W" },
     { "id": "V2", "hero": "Hero.Wraith", "team": 1, "cell": [ 2, 3, 0], "facing": "W" }
   ],
 
   "turns": [
     {
-      "_turno": "T1 - entrambi i Riktor erigono il pannello sul proprio bordo EST, quello da cui arrivera' il colpo. Le due scene sono identiche fin qui: stesso bordo, stessa abilita', stesso turno.",
+      "_turno": "T1 - entrambi i Branth erigono il pannello sul proprio bordo EST, quello da cui arrivera' il colpo. Le due scene sono identiche fin qui: stesso bordo, stessa abilita', stesso turno.",
       "requires": ["CreateCover"],
       "intents": [
-        { "unit": "B1", "ability": "Hero.Riktor.KineticPanel", "targetCell": [-1, 0, 0], "edge": "E" },
-        { "unit": "B2", "ability": "Hero.Riktor.KineticPanel", "targetCell": [-1, 3, 0], "edge": "E" }
+        { "unit": "B1", "ability": "Hero.Branth.KineticPanel", "targetCell": [-1, 0, 0], "edge": "E" },
+        { "unit": "B2", "ability": "Hero.Branth.KineticPanel", "targetCell": [-1, 3, 0], "edge": "E" }
       ]
     },
     {

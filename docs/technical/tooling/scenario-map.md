@@ -169,7 +169,7 @@ Totale corpus versionato: **117** scenari (`A 78 + B 31 + D-bloccati 8`). Totale
 > - i **pianificati erano ventuno**, non tredici: §6.2 ne elencava ventuno sotto un totale di tredici.
 >   Nessuno li aveva contati, perché contarli a mano è esattamente ciò che nessuno fa due volte.
 >
-> Nel frattempo `#346` ne ha aggiunti **due** in `Scenarios/Combat/` (`RiktorImpactShotSlows` e il suo
+> Nel frattempo `#346` ne ha aggiunti **due** in `Scenarios/Combat/` (`BranthImpactShotSlows` e il suo
 > gemello di controllo `MoveIsFullWithoutSlow`): la classe A arriva a **26** e il corpus a **56**. Le due
 > correzioni sono state calcolate su rami diversi nello stesso pomeriggio e riconciliate al merge — che è
 > il motivo per cui il totale ora si misura invece di sommarlo.
@@ -253,7 +253,7 @@ Il verdetto è l'assertion. Nessuna di queste righe compare nel registro PIE, ed
 | `Combat.FriendlyFire` | r3 | 5 | l'AoE colpisce anche l'alleato — e porta `previewUnit` per il banco dell'anteprima |
 | `Combat.LineHitsThrough` | r4 | 4 | la linea prende chi sta sulla traiettoria prima del bersaglio |
 | `Combat.NoCounterWhenUnarmed` | r4 | 3 | il contrattacco richiede un'arma: niente reazione implicita |
-| `Combat.RiktorImpactShotSlows` | r4 | 4 | lo `Slow` applicato nel **Blast** agisce sul **Move** dello stesso turno: il bersaglio si ferma due celle prima |
+| `Combat.BranthImpactShotSlows` | r4 | 4 | lo `Slow` applicato nel **Blast** agisce sul **Move** dello stesso turno: il bersaglio si ferma due celle prima |
 | `Combat.MoveIsFullWithoutSlow` | r4 | 3 | il gemello di controllo: senza il colpo, le stesse quattro celle si percorrono tutte |
 | `Combat.SplashHitsAlliesNotSelf` | r4 | 5 | l'area prende gli alleati ma **non** chi la lancia |
 | `Movement.Basic` | r3 | 2 | il passo singolo arriva sulla cella pianificata |
@@ -307,8 +307,8 @@ Oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari portano a
 | ScenarioId | Fixture | Voce PIE | Cosa deve vedersi |
 |---|---|---|---|
 | `Visual.Combat.BraceReducesEveryHit` | r4 | `PIE-VIS-BRACE` | `Brace` toglie 10 a **ogni** colpo e non finisce mai |
-| `Visual.Combat.Defeat` | r4 | `PIE-VIS-KO` · **`PIE-AS4b`** · **`PIE-AS4c`** | barra che scende due volte, poi la rimozione — mai prima del colpo. ➕ **Dal 2026-09-06 e' anche il banco delle animazioni discrete**: `Cast` / `Hit` / `Death`, e la **taratura di `DefeatBeatSeconds`**. 🔑 Qui **nessuno si muove**, quindi la morte cade nell'ULTIMA fase riprodotta e senza la coda il montaggio avrebbe finestra **zero**: e' il caso peggiore, ed e' il motivo per cui serve il gemello |
-| `Visual.Combat.DefeatDuringMove` | r4 | **`PIE-AS4c`** | 🆕 **Il gemello, e si guardano in COPPIA.** Identico al precedente tranne una cosa: all'ultimo turno Phase **muove**, quindi la fase `Move` segue il `Blast` e il montaggio di `Death` ha una finestra **naturale**. Se la morte si legge qui e non nell'altro, `DefeatBeatSeconds` e' troppo corto; se si trascina qui, e' l'animazione a essere lunga e la coda non c'entra |
+| `Visual.Combat.Defeat` | r4 | `PIE-VIS-KO` | barra che scende due volte, poi la rimozione — mai prima del colpo. 🔴 **NON e' un banco di animazione, e lo e' stato scritto per errore il 2026-09-06**: lo scenario harness spawna `ARTUnit::StaticClass()` (`RTScenarioSession.cpp:807`), cioe' il **cilindro**, scavalcando `HeroUnitClasses`. Senza Skeletal Mesh `ApplyUnitAnimClass()` esce senza fare nulla: nessun `AnimInstance`, nessuna animazione, **nemmeno in PIE**. `PIE-AS4b` e `PIE-AS4c` erano stati associati qui e sono stati tolti |
+| `Visual.Combat.DefeatDuringMove` | r4 | — | Il gemello di `Visual.Combat.Defeat`: identico tranne che all'ultimo turno Phase **muove**, quindi la fase `Move` segue il `Blast`. ⚠️ **Nato come banco per `PIE-AS4c` e non puo' esserlo** (stessa ragione della riga sopra: cilindri). ✅ **Resta valido come regressione LOGICA** della composizione delle fasi — `UnitAtCell` prova che il `Move` avviene davvero, ed e' la premessa su cui la coda di `DefeatBeatSeconds` ha senso |
 | `Visual.Combat.FallbackTargetMoved` | r5 | `PIE-VIS-FALLBACK` | il piano rivalidato, non un colpo a caso |
 | `Visual.Combat.GuardReducesFirstHit` | r4 | `PIE-VIS-GUARD` | `Guard` toglie 15 al **primo** colpo e finisce lì |
 | `Visual.Combat.PushResistance` | r4 | `PIE-VIS-PUSH` | Riktor incassa e **non arretra**, Wraith arretra |
@@ -853,7 +853,7 @@ resta visibile invece di sparire.
 > ✅ **I `BAL-1` non sono più in questa lista: chiusi il 2026-08-10** (`#401`, `#402`). Tre scritti e verdi
 > al primo run — `Spec.Brace.GuardAndBraceOnMixedHit`, `Spec.Brace.BraceWinsOnSecondHit` e
 <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
-> `Spec.Combat.RiktorIsPushedLikeAnyone`, quest'ultimo **rinominato** da `…BastionIgnoresAllPushes` perché
+> `Spec.Combat.BranthIsPushedLikeAnyone`, quest'ultimo **rinominato** da `…BastionIgnoresAllPushes` perché
 > [D-075](../../decisions/RT_PDR_00_Decision_Log.md) ha deciso dall'altra parte e il nome previsto avrebbe
 > significato il contrario del file. Il quarto, `Spec.Brace.PushBeyondGuardThreshold`, **non nasce**: chiedeva
 > una spinta di 2 che [D-074](../../decisions/RT_PDR_00_Decision_Log.md) ha deciso di non introdurre, riscrivendo

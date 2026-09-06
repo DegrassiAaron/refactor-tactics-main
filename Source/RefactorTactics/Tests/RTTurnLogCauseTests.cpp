@@ -831,7 +831,7 @@ bool FRTPushedUnitFacesPusherInPlayTest::RunTest(const FString&)
 
 	// ⚠️ Il facing di partenza è scelto perché DEBBA cambiare: la vittima guarda a est, cioè dalla parte
 	// opposta a chi la spinge. Senza questa riga il test passerebbe anche con il passo mutato — è lo stesso
-	// motivo per cui `Combat.RiktorImpactShotSlows` ha un gemello di controllo.
+	// motivo per cui `Combat.BranthImpactShotSlows` ha un gemello di controllo.
 	Victim->Facing = ERTHexDirection::E;
 
 	PlanPushOn(Pusher, Victim);

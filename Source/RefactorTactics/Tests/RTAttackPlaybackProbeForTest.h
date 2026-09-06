@@ -2,6 +2,9 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
+// #2455: la sonda legge `ARTUnit::LastDamageToken` al momento del broadcast, quindi le serve il tipo
+// completo — non basta piu' la forward declaration qui sotto, che resta per chiarezza di firma.
+#include "Unit/RTUnit.h"
 #include "RTAttackPlaybackProbeForTest.generated.h"
 
 class ARTUnit;
@@ -46,12 +49,33 @@ public:
 	int32 TargetsResolved = 0;
 	int32 TargetsUnresolved = 0;
 
+	/**
+	 * Quanti colpi hanno trovato sul BERSAGLIO il token gia' composto per il loro stesso importo (`#2455`).
+	 *
+	 * 🔴 **Si legge QUI e non a fine partita, ed e' la differenza fra misurare e sperare.** A fine partita
+	 * `LastDamageToken` porterebbe soltanto l'ultimo colpo incassato da quell'unita', e un cablaggio che
+	 * scrivesse il token una volta sola — o sempre lo stesso valore — resterebbe verde. Letto nell'istante
+	 * del broadcast, il confronto e' su OGNI colpo: la cue e' arrivata prima, e con l'importo giusto.
+	 *
+	 * ⚠️ **Il confronto e' su `Amount`, non sull'etichetta**: come si scriva `-17` e' materia della funzione
+	 * pura e ha gia' il suo test. Qui si misura il CABLAGGIO.
+	 */
+	int32 TokensMatched = 0;
+	int32 TokensMismatched = 0;
+
 	UFUNCTION()
 	void OnAttackResolved(ARTUnit* Source, ARTUnit* Target, int32 Amount)
 	{
 		AttackTicks.Add(CurrentTick);
 		(Source ? SourcesResolved : SourcesUnresolved)++;
 		(Target ? TargetsResolved : TargetsUnresolved)++;
+
+		if (Target)
+		{
+			const bool bOk = (Target->LastDamageToken.TargetStableUnitId == Target->StableUnitId)
+				&& (Target->LastDamageToken.Amount == Amount);
+			(bOk ? TokensMatched : TokensMismatched)++;
+		}
 	}
 
 	/**
