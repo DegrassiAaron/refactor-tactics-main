@@ -818,14 +818,20 @@ namespace
 		}
 	}
 
-	/** Un mondo con quattro unita', il TurnManager avviato e il turno 1 aperto. `nullptr` se non si allestisce. */
+	/** Un mondo con TRE unita' (due proprie, una avversaria), il TurnManager avviato e il turno 1 aperto. */
 	ARTTurnManager* MakeCountdownMatch(UWorld* World)
 	{
 		SpawnHexMatchMap(World, /*Radius=*/ 4);
 		ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
+		// 🔑 **Una SECONDA unita' propria** (`#2555`): senza, «il clic durante il playback cambia la
+		// selezione» non e' esprimibile — l'unica alternativa sarebbe selezionare l'AVVERSARIA, che
+		// `OnSelect` rifiuta (*«e' avversaria: seleziona prima una tua unita'»*) e che un test non deve
+		// chiedere passando dall'API diretta: sarebbe un percorso che il gioco non produce.
+		ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-3, 0));
 		ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
-		if (!A || !B) { return nullptr; }
+		if (!A || !A2 || !B) { return nullptr; }
 		A->bIsBotControlled = false; // il Ready e' un gesto umano: con tutte a bot la prova sarebbe di un'altra partita
+		A2->bIsBotControlled = false;
 
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (TM) { TM->DispatchBeginPlay(); } // apre il turno 1 e arma il tetto
@@ -1245,10 +1251,28 @@ bool FRTPlanningPreviewClearsOnTimeoutWithoutReadyTest::RunTest(const FString&)
 
 	// ⚠️ **E resta spenta per TUTTA la risoluzione**, che e' cio' che la issue afferma: spegnerla
 	// all'istante del commit e riaccenderla un frame dopo lascerebbe verde l'asserzione qui sopra.
+
+	// 🔴 **DENTRO la risoluzione, non solo al suo istante iniziale** (`#2555`, code review). Il commento
+	// che stava qui affermava che la garanzia «non riaccendersi durante la risoluzione» restasse asserita
+	// piu' sopra: era falso. L'asserzione superstite campionava l'ISTANTE del commit, e un'implementazione
+	// che spegnesse li' e riaccendesse un tick dopo sarebbe passata. Questi tick stanno strettamente
+	// dentro il playback.
+	for (int32 Passo = 0; Passo < 5 && B.TM->IsResolving(); ++Passo)
+	{
+		B.TM->Tick(0.05f);
+		TestEqual(TEXT("e resta spenta MENTRE la risoluzione scorre"), PreviewCellsLit(B.HexMap), 0);
+	}
+
 	DrainPlayback(B.TM);
 	TestTrue(TEXT("a playback finito il turno e' avanzato"), B.TM->GetTurnNumber() > TurnoPrima);
-	TestEqual(TEXT("e l'anteprima e' rimasta spenta per tutta la risoluzione"),
-		PreviewCellsLit(B.HexMap), 0);
+	// ⚠️ **E a risoluzione finita l'anteprima TORNA, e non e' un allentamento** (`#2555`): la garanzia che
+	// questa riga proteggeva — non riaccendersi durante la risoluzione — e' asserita dal ciclo di tick qui
+	// sopra, che sta strettamente DENTRO il playback. Cio' che cambia e' il dopo:
+	// `OnResolvePlaybackFinished` ricalcola per la selezione corrente, ed e' il contrappeso che rende
+	// `Inspect` concedibile. Pretendere ancora zero qui significherebbe pretendere che il giocatore entri
+	// nel turno nuovo senza ventaglio.
+	TestTrue(TEXT("e a risoluzione finita l'anteprima torna per la selezione corrente"),
+		PreviewCellsLit(B.HexMap) > 0);
 
 	DestroyHexMatchWorld(B.World);
 	return true;
@@ -1303,8 +1327,26 @@ bool FRTPlanningPreviewClearsOnReadyCommitTest::RunTest(const FString&)
 	TestEqual(TEXT("e il commit ha raggiunto i suoi iscritti"), Probe->Broadcasts, 1);
 	TestEqual(TEXT("il commit dal Ready spegne l'anteprima"), PreviewCellsLit(B.HexMap), 0);
 
+	// 🔴 **DENTRO la risoluzione, non solo al suo istante iniziale** (`#2555`, code review). Il commento
+	// che stava qui affermava che la garanzia «non riaccendersi durante la risoluzione» restasse asserita
+	// piu' sopra: era falso. L'asserzione superstite campionava l'ISTANTE del commit, e un'implementazione
+	// che spegnesse li' e riaccendesse un tick dopo sarebbe passata. Questi tick stanno strettamente
+	// dentro il playback.
+	for (int32 Passo = 0; Passo < 5 && B.TM->IsResolving(); ++Passo)
+	{
+		B.TM->Tick(0.05f);
+		TestEqual(TEXT("e resta spenta MENTRE la risoluzione scorre"), PreviewCellsLit(B.HexMap), 0);
+	}
+
 	DrainPlayback(B.TM);
-	TestEqual(TEXT("e resta spenta per tutta la risoluzione"), PreviewCellsLit(B.HexMap), 0);
+	// ⚠️ **E a risoluzione finita l'anteprima TORNA, e non e' un allentamento** (`#2555`): la garanzia che
+	// questa riga proteggeva — non riaccendersi durante la risoluzione — e' asserita dal ciclo di tick qui
+	// sopra, che sta strettamente DENTRO il playback. Cio' che cambia e' il dopo:
+	// `OnResolvePlaybackFinished` ricalcola per la selezione corrente, ed e' il contrappeso che rende
+	// `Inspect` concedibile. Pretendere ancora zero qui significherebbe pretendere che il giocatore entri
+	// nel turno nuovo senza ventaglio.
+	TestTrue(TEXT("e a risoluzione finita l'anteprima torna per la selezione corrente"),
+		PreviewCellsLit(B.HexMap) > 0);
 
 	DestroyHexMatchWorld(B.World);
 	return true;
@@ -1387,20 +1429,124 @@ bool FRTPlaybackRejectsPlanningInputTest::RunTest(const FString&)
 		B.Mine->PlannedWaypoints.Num(), WaypointPrima);
 	TestEqual(TEXT("e non riaccende l'anteprima"), PreviewCellsLit(B.HexMap), 0);
 
-	// E la SELEZIONE non si sposta a meta': o cambia tutto, o niente. E' il difetto che la prima stesura
-	// di questo fix aveva introdotto — guardia messa DOPO l'assegnazione — e che la code review ha visto.
-	ARTUnit* Altra = RTWorldFixtures::FirstUnitOfTeam(B.World, /*TeamId=*/ 1);
-	if (Altra)
+	// ⚠️ **La SELEZIONE invece si sposta, ed e' voluto** (`#2555`): guardare un'altra unita' mentre la
+	// risoluzione scorre e' `Inspect`, che §5.3 consente. Questa riga fino al 2026-09-06 pretendeva il
+	// contrario, perche' allora mancava il contrappeso che ripristina l'anteprima. Cio' che deve restare
+	// fermo e' il PIANO, non lo sguardo — e la copertura dell'altro caso sta in
+	// `PlaybackAllowsInspectAndRestoresPreview`.
+	ARTUnit* Seconda = nullptr;
 	{
-		B.PC->SelectUnit(Altra, /*bRecordAsPlayerInput=*/ false);
-		TestEqual(TEXT("la selezione non cambia durante il playback"),
-			static_cast<const AActor*>(B.PC->GetSelectedUnit()), static_cast<const AActor*>(B.Mine));
-		TestEqual(TEXT("e l'anteprima resta spenta"), PreviewCellsLit(B.HexMap), 0);
+		TArray<AActor*> Trovate;
+		UGameplayStatics::GetAllActorsOfClass(B.World, ARTUnit::StaticClass(), Trovate);
+		for (AActor* Attore : Trovate)
+		{
+			ARTUnit* U = Cast<ARTUnit>(Attore);
+			if (U && U->TeamId == 0 && U != B.Mine) { Seconda = U; break; }
+		}
+	}
+	// ⚠️ **Un `if` silenzioso qui renderebbe il test verde senza aver asserito niente** (code review): il
+	// banco garantisce la seconda unita', quindi la sua assenza e' una fixture rotta, non un caso da
+	// saltare.
+	if (TestNotNull(TEXT("una seconda unita' propria da ispezionare"), Seconda))
+	{
+		B.PC->SelectUnit(Seconda, /*bRecordAsPlayerInput=*/ false);
+		TestEqual(TEXT("l'anteprima resta spenta anche dopo aver ispezionato un'altra unita'"),
+			PreviewCellsLit(B.HexMap), 0);
 	}
 
-	// Fino alla fine della risoluzione, non solo per un frame.
 	DrainPlayback(B.TM);
-	TestEqual(TEXT("e resta spenta per tutta la risoluzione"), PreviewCellsLit(B.HexMap), 0);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+
+/**
+ * **#2555 — durante il playback `Inspect` e' consentito, e l'anteprima torna quando la risoluzione finisce.**
+ *
+ * §5.3 dice *«`Inspect` e camera consentiti»* durante `ResolutionPlayback`, e blocca solo *«ogni input che
+ * cambierebbe il piano»*. #2518 ha fermato il clic sul mondo **del tutto**, `Inspect` compreso: era la
+ * deviazione piu' piccola disponibile allora, perche' lasciar cambiare la sola selezione lasciava l'unita'
+ * scelta col ventaglio vuoto e nessuno la ripristinava.
+ *
+ * 🔑 **Il contrappeso mancante esisteva gia' e non lo usava nessuno**: `OnResolvePlaybackFinished`
+ * (`RTTurnManager.h:884`, trasmesso a `.cpp:8102`) — la stessa forma che aveva `OnLockInCommitted` prima
+ * di `#2390`. Uno spegne l'anteprima al commit, l'altro la riaccende a risoluzione finita: con la coppia,
+ * `Inspect` puo' tornare consentito senza lasciare uno stato a meta'.
+ *
+ * ⚠️ **Il piano NON deve tornare quello di prima**: a risoluzione finita le unita' si sono mosse e i
+ * waypoint sono stati consumati. Cio' che deve tornare e' *un'anteprima coerente con la selezione
+ * corrente*, non la fotografia del turno passato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackAllowsInspectAndRestoresPreviewTest,
+	"RefactorTactics.HexMatch.PlaybackAllowsInspectAndRestoresPreview",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackAllowsInspectAndRestoresPreviewTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// La seconda unita' PROPRIA: e' il bersaglio legittimo di un `Inspect`, e l'unico gesto che il gioco
+	// possa davvero produrre — cliccare l'avversaria `OnSelect` la rifiuta.
+	ARTUnit* Seconda = nullptr;
+	{
+		TArray<AActor*> Trovate;
+		UGameplayStatics::GetAllActorsOfClass(B.World, ARTUnit::StaticClass(), Trovate);
+		for (AActor* Attore : Trovate)
+		{
+			ARTUnit* U = Cast<ARTUnit>(Attore);
+			if (U && U->TeamId == 0 && U != B.Mine)
+			{
+				Seconda = U;
+				break;
+			}
+		}
+	}
+	if (!TestNotNull(TEXT("una seconda unita' propria da ispezionare"), Seconda))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// ANTI-VACUITA' — il banco ha acceso l'anteprima, e la selezione parte dalla prima unita'.
+	TestTrue(TEXT("l'anteprima e' ACCESA in pianificazione"), PreviewCellsLit(B.HexMap) > 0);
+	TestEqual(TEXT("e la selezione e' l'unita' del banco"),
+		static_cast<const AActor*>(B.PC->GetSelectedUnit()), static_cast<const AActor*>(B.Mine));
+
+	// Il turno si chiude dal tetto e la risoluzione comincia.
+	B.TM->SetPlanningSeconds(1.0f);
+	AdvanceWallClock(B.World, 1.5f);
+
+	TestTrue(TEXT("la risoluzione e' in corso"), B.TM->IsResolving());
+	TestTrue(TEXT("e il mondo risulta in sola lettura"), B.PC->IsWorldReadOnly());
+	TestEqual(TEXT("il commit ha spento l'anteprima"), PreviewCellsLit(B.HexMap), 0);
+
+	// IL CUORE — `Inspect` e' CONSENTITO: la selezione si sposta...
+	B.PC->SelectUnit(Seconda, /*bRecordAsPlayerInput=*/ false);
+	TestEqual(TEXT("durante il playback il clic ISPEZIONA: la selezione si sposta"),
+		static_cast<const AActor*>(B.PC->GetSelectedUnit()), static_cast<const AActor*>(Seconda));
+
+	// ...ma NON accende il piano, che il commit ha spento apposta.
+	TestEqual(TEXT("e non riaccende l'anteprima"), PreviewCellsLit(B.HexMap), 0);
+
+	// E a risoluzione finita l'anteprima TORNA, coerente con la selezione corrente: e' il contrappeso di
+	// `OnLockInCommitted`, ed e' cio' che rende `Inspect` consentibile senza lasciare uno stato a meta'.
+	DrainPlayback(B.TM);
+	TestFalse(TEXT("finita la risoluzione il mondo non e' piu' in sola lettura"), B.PC->IsWorldReadOnly());
+	TestTrue(TEXT("e l'anteprima e' tornata"), PreviewCellsLit(B.HexMap) > 0);
+
+	// 🔑 **PER QUALE unita', non solo «qualcosa e' acceso»** (code review). Contare le celle non distingue
+	// «ricalcolata per la selezione corrente» da «ripristinata la fotografia del turno passato»: entrambe
+	// darebbero un numero maggiore di zero, e la seconda e' proprio cio' che l'header dichiara di NON fare.
+	TestEqual(TEXT("e la selezione e' rimasta quella ispezionata"),
+		static_cast<const AActor*>(B.PC->GetSelectedUnit()), static_cast<const AActor*>(Seconda));
+	TestTrue(TEXT("e il ventaglio contiene una cella adiacente ALL'UNITA' ISPEZIONATA"),
+		B.HexMap->IsPreviewReachableCell(URTHexLibrary::Neighbors(Seconda->Cell)[0])
+		|| B.HexMap->IsPreviewReachableCell(URTHexLibrary::Neighbors(Seconda->Cell)[1]));
 
 	DestroyHexMatchWorld(B.World);
 	return true;

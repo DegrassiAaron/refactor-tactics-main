@@ -4,7 +4,7 @@
     {
       "label": "RT: Open DEV terminal",
       "type": "process",
-      "command": "powershell.exe",
+      "command": "pwsh",
       "args": [
         "-NoLogo",
         "-NoExit",
@@ -36,7 +36,7 @@
     {
       "label": "RT: Open VALIDATION terminal",
       "type": "process",
-      "command": "powershell.exe",
+      "command": "pwsh",
       "args": [
         "-NoLogo",
         "-NoExit",
@@ -68,7 +68,7 @@
     {
       "label": "RT: Open EDITOR terminal",
       "type": "process",
-      "command": "powershell.exe",
+      "command": "pwsh",
       "args": [
         "-NoLogo",
         "-NoExit",
@@ -120,6 +120,54 @@
       ],
       "dependsOrder": "parallel",
       "problemMatcher": []
+    },
+    {
+      "label": "RT: Workspace status",
+      "detail": "Identita' del workspace e registro per macchina. Non acquisisce Unreal.",
+      "type": "process",
+      "command": "pwsh",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\scripts\\rt-workspace.ps1",
+        "-Action",
+        "status",
+        "-WorkspaceRoot",
+        "${workspaceFolder}"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "RT: Engine lease status",
+      "detail": "Chi possiede il motore, e quali processi Unreal sono vivi. Sola lettura: non acquisisce niente. acquire/release vivono nel terminale RT (rtlease), perche' il lease appartiene alla sessione, non a un processo effimero.",
+      "type": "process",
+      "command": "pwsh",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\scripts\\rt-lease.ps1",
+        "-Action",
+        "status",
+        "-WorkspaceRoot",
+        "${workspaceFolder}"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
     }
   ]
 }

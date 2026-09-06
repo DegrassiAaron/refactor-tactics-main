@@ -592,6 +592,48 @@ public:
 		const FRTHexCombatUnit& Target, ERTAbilityShape Shape);
 
 	/**
+	 * La stessa riduzione, piu' **se il facing del bersaglio e' stato letto** per calcolarla (`#2341`).
+	 *
+	 * 🔑 **Esiste perche' la lettura e' CONDIZIONALE e il chiamante non puo' dedurla.** Il corpo valuta
+	 * `Reduction > 0 && !IsInFrontalArc(...)`: senza copertura la seconda condizione non viene raggiunta e
+	 * il facing **non viene guardato**. Il chiamante conosce il valore — l'ha passato lui in
+	 * `Target.Facing` — ma non sa se sia stato usato, e `D-020` chiede di registrare **quale** facing ha
+	 * usato ciascun consumatore: registrarlo quando non e' stato letto sarebbe un'invenzione.
+	 *
+	 * ⛔ **Riporta un `bool`, non il facing**, e non e' un'economia: restituire il valore inviterebbe il
+	 * chiamante a credere che possa essere *diverso* da quello che ha passato. Non puo' esserlo. Cio' che
+	 * la funzione sa in piu' e' **se** l'ha guardato.
+	 *
+	 * ⚠️ **Il confine resta dov'era**: nessun `TArray<FRTTurnLogEntry>` entra in questa libreria. Il
+	 * resolver riporta cio' che ha letto, il chiamante — che ha il contesto della voce — registra. E' la
+	 * decisione d'autore `(b1)` di `#2341`, presa contro il passare un log qui dentro.
+	 *
+	 * La forma senza out-param delega a questa: una sola implementazione, quindi non possono divergere.
+	 */
+	static int32 EffectiveCoverReduction(const URTHexMapAsset* Map, const FRTHexCombatUnit& Attacker,
+		const FRTHexCombatUnit& Target, ERTAbilityShape Shape, bool& bOutFacingWasRead);
+
+	/**
+	 * `true` se il calcolo della copertura di questo colpo ha **letto il facing** del bersaglio (`#2341`).
+	 *
+	 * 🔑 **Non serve un campo nuovo: l'informazione e' gia' nel colpo.** `EffectiveCoverReduction` guarda
+	 * il facing se e solo se esiste una copertura nominale da valutare, e quella nominale e' la somma dei
+	 * due termini che `FRTHexAttackHit` gia' porta — la copertura rimasta (`CoverReduction`) piu' quella
+	 * che la direzione ha annullato (`CoverBypassedByFacing`).
+	 *
+	 * ⛔ **La relazione sta QUI e in nessun altro posto.** Dedurla al sito d'uso — `if (Hit.CoverReduction
+	 * + Hit.CoverBypassedByFacing > 0)` scritto a mano — sarebbe una seconda copia di una regola che puo'
+	 * cambiare: e' lo stesso motivo per cui `EffectiveCoverReduction` esiste invece di lasciare che ogni
+	 * consumatore ricomponga copertura e facing per conto proprio, come dichiara il commento di quella.
+	 *
+	 * ⚠️ **Perche' non basta `CoverReduction > 0`**: quel campo vale `0` **anche** quando la copertura
+	 * c'era e la direzione l'ha annullata — cioe' nel caso in cui il facing e' stato letto **e ha deciso**.
+	 * Guardare il solo termine rimasto perderebbe esattamente le letture piu' significative.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
+	static bool CoverReadTargetFacing(const FRTHexAttackHit& Hit);
+
+	/**
 	 * Il colpo `Hit` riassegnato a `NewTargetId`, con la geometria TARGET-DEPENDENT rivalidata su chi lo
 	 * incassa davvero (**D-017**). La usa `Action.Intercept`, l'unica reazione che cambia il bersaglio di un
 	 * attacco altrui: senza rivalidazione il colpo arriva all'intercettore portandosi dietro il muretto del

@@ -353,6 +353,46 @@ bool FRTPushExhaustedAtEdgeDoesNotFallTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Chi cade **perde il piano di movimento residuo** ([D-045] `Model A`, `spec` §3.2).
+ *
+ * 🔑 E' il caso in cui il divieto di auto-reroute si vede a occhio nudo: la destinazione pianificata sta su
+ * un altro **layer**, e un percorso ricalcolato dalla nuova origine manderebbe l'unita' a **risalire** —
+ * cioe' ad annullare da sola lo spostamento che l'ha appena buttata giu'.
+ *
+ * ⚠️ Il piano e' una **destinazione**, non un percorso a waypoint, ed e' deliberato: la path composita
+ * decadeva gia' prima di `#2501` perche' non parte piu' dalla cella attuale. Il ramo che sopravviveva — e
+ * che questo test inchioda — e' proprio quello della destinazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallCancelsVoluntaryPathTest,
+	"RefactorTactics.ForcedMovement.CancelsRemainingVoluntaryPath",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallCancelsVoluntaryPathTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnLedgeMap(World, PasserellaConAtterraggio());
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio) { DestroyLedgeWorld(World); return false; }
+
+	// Il bersaglio aveva deciso di restare sulla passerella, all'estremita' est.
+	const FRTCellId Pianificata(1, 0, 1);
+	Bersaglio->PlannedCell = Pianificata;
+
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	TestEqual(TEXT("e' caduto sul piano di sotto"), Bersaglio->Cell, FRTCellId(1, 0, 0));
+	TestNotEqual(TEXT("e NON e' risalito verso la cella che aveva pianificato"),
+		Bersaglio->Cell, Pianificata);
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
 // =========================================================================================================
 // 3. Il bordo adiacente: il ramo che la formulazione dell'issue mancava
 // =========================================================================================================

@@ -41,6 +41,27 @@ Punti che cambiano il comportamento:
 - reintegrate le regole perse: oracolo positivo MCP, risposta vuota ≠ capability assente, `performed = 0` ≠ `PASS`;
 - defect loop con `ATTEMPT`: al terzo ciclo sullo stesso `FINDING_ID` si escala.
 
+## Revisione 2026-09-06 — workspace, lease e policy MCP
+
+- identità di workspace `MAIN | DEV | TECHNICAL_DESIGNER`, registrata per macchina e **non** dedotta
+  dal nome della cartella; `-WorkspaceId` è obbligatorio nell'installer;
+- `MAIN` è un workspace, non il branch `main`: l'authoring asset resta su un branch di task;
+- lease del motore unico per macchina sotto `%LOCALAPPDATA%\RefactorTactics\RT3\`, acquisito **just-in-time**: aprire un
+  terminale non occupa Unreal;
+- `rtmode` declassato a informativo. Il suo file era per-checkout mentre il motore è per-macchina
+  (finding `parsecell-arity/1-F13`);
+- `rt-suite-safe.ps1` chiede un lease vivo e posseduto, non più il mode locale;
+- `rt-mcp-guard.ps1`: preflight della policy «asset MCP solo da MAIN», con codici di rifiuto stabili;
+- log JSONL di lease e side effect accanto al lease, senza segreti;
+- `.mcp.json` **esce dal versionamento** e lo genera l'installer: era un blob identico nei tre
+  checkout e non poteva descrivere una configurazione di macchina;
+- task VS Code per stato/acquisizione/rilascio del lease e per il preflight MCP;
+- profili e task passano a `pwsh`: `scripts/rt-suite.ps1` è UTF-8 senza BOM e Windows PowerShell 5.1
+  lo legge come Windows-1252 — 26 errori di parsing, misurati.
+
+⛔ **Il preflight autorizza, non intercetta.** Il trasporto MCP è HTTP diretto: chi lo salta
+raggiunge il bridge lo stesso. Vedi «Enforcement reale» nel README.
+
 ## Applicazione manuale
 
 Copia la cartella `docs/rt-three-terminals/` sopra quella del repository.

@@ -149,7 +149,7 @@ Consolida in un unico blocco il contratto della feature. Un campo non applicabil
 | `Ordering` | REQUIRED · `N/A` se al massimo un esito |
 | `TurnLog` | REQUIRED · `NONE` solo se non osservabile in partita |
 | `Replay` | REQUIRED |
-| `Privacy` | REQUIRED · owner [`CLAUDE.md`](../../../CLAUDE.md) §4 |
+| `Privacy` | REQUIRED · owner [`CLAUDE.md`](../../../CLAUDE.md) §7 |
 | `SEED_SOURCE` | REQUIRED se esiste RNG · `canonical <sorgente>` oppure `none` |
 | `Editor-visible expectation` | REQUIRED · è un'attesa per EDITOR, mai un risultato |
 
@@ -159,7 +159,7 @@ Consolida in un unico blocco il contratto della feature. Un campo non applicabil
 
 Sei l'unica istanza DEV autorizzata alle operazioni di integrazione sul working tree condiviso, e solo quando nessun contributo è aperto.
 
-Restano vietate le operazioni distruttive senza autorizzazione esplicita ([`CLAUDE.md`](../../../CLAUDE.md) §8).
+Restano vietate le operazioni distruttive senza autorizzazione esplicita ([`CLAUDE.md`](../../../CLAUDE.md) §9).
 
 Staging per path espliciti. Un `git add` largo su un checkout condiviso ingloba il lavoro non finito di un'altra istanza, e il commit risultante non descrive più ciò che dichiara.
 

@@ -317,6 +317,180 @@ Rileggila alla chiusura. Se è cambiata durante la wave, vale quella corrente.
 
 Nessun verdetto verde senza il campo che lo prova.
 
+## 14. Capability matrix
+
+Ogni operazione appartiene a una classe. La classe dice **cosa serve prima**, e un tool
+non classificato non ha una risposta di default permissiva.
+
+| Capability | Requisiti |
+|---|---|
+| `MCP_READ_ONLY` | figura compatibile; nessun side effect; non richiede lease |
+| `WORKTREE_WRITE` | task/issue e write-set dichiarati |
+| `EXTERNAL_WRITE` | task, target remoto, ownership, log; idempotenza dove applicabile |
+| `UNREAL_USE` | lease vivo e posseduto; contesto Unreal verificato |
+| `MCP_ASSET_READ` | contesto progetto verificato; lease se richiede l'Editor vivo |
+| `MCP_ASSET_WRITE` | `EDITOR` + workspace `MAIN` + branch di task + task id + write-set asset + lease + binding MCP verificato |
+| `VALIDATION_SIGNOFF` | sessione `VALIDATION` indipendente; input immutato; evidenza sufficiente |
+
+⛔ **Un tool MCP sconosciuto o non classificato che potrebbe avere side effect e'
+`DENIED_UNCLASSIFIED`.** Il default permissivo e' esattamente il modo in cui una
+superficie nuova entra senza che nessuno la valuti.
+
+🔴 **La superficie mutante non e' quella di RefactorTactics, ed e' enorme.**
+Misurata sul bridge vivo il **2026-09-06**, parlando al server in JSON-RPC senza
+passare da nessuno script:
+
+```text
+tools/list      ->  3 meta-tool   (list_toolsets, describe_toolset, call_tool)
+list_toolsets   -> 56 toolset     di cui 1 di RefactorTactics e 55 no
+```
+
+I cinque tool `RTDeveloperTools` sono tutti read-only per costruzione, e il loro
+brief vieta la scrittura asset arbitraria. Gli altri 55 toolset non hanno quel
+vincolo. Tre esempi, coi nomi reali dei loro tool:
+
+| Toolset | Tool | Cosa consente |
+|---|---|---|
+| `editor_toolset.toolsets.asset.AssetTools` | `write_file` `delete` `move` `duplicate` `save_assets` | mutazione asset completa, **e scrittura di file su disco** |
+| `AutomationTestToolset` | `RunTests` `RunTestsByFilter` `StopTests` | avviare **e fermare** Automation Test |
+| `editor_toolset.toolsets.programmatic.ProgrammaticToolset` | `execute_tool_script` | eseguire **Python** che orchestra tutti i tool sopra in una sola chiamata |
+
+⛔ **`RunTests` e `StopTests` sono il caso peggiore per questo repository**, e non
+erano stati nominati da nessuno. Una chiamata MCP puo' far partire una suite senza
+passare da `rt-suite.ps1`, dal suo mutex, dal lease e dall'invariante di validita'
+della misura - oppure **fermare** i test che un'altra sessione sta eseguendo. E' lo
+stesso difetto del finding `parsecell-arity/1-F13`, su un canale che nessun guard
+vede.
+
+Con `bEnableToolSearch = true` questi toolset non compaiono in `tools/list`: chi
+guarda solo li' conclude che la superficie sia di tre tool. Classificare significa
+guardare dietro `call_tool`, non nel plugin di casa.
+
+Codici di rifiuto stabili, gli stessi che gli script stampano:
+
+```text
+ASSET_WRITE_WRONG_WORKSPACE    ASSET_WRITE_ROLE_DENIED
+TASK_CONTEXT_MISSING           PROTECTED_BRANCH_DENIED
+ENGINE_LEASE_REQUIRED          MCP_CONTEXT_MISMATCH
+ASSET_WRITESET_CONFLICT        DENIED_UNCLASSIFIED
+```
+
+## 15. Lease del motore, e cosa il lease non e'
+
+Il lease e' della **risorsa**, non del ruolo, ed e' unico per macchina. Vive sotto
+`%LOCALAPPDATA%\RefactorTactics\RT3\` perche' il motore e' uno e i checkout sono molti.
+
+Metadata:
+
+```text
+schema_version · lease_id · role · terminal_instance
+workspace_id · workspace_root · project_path
+task_id · operation
+owner_pid · owner_started_at_utc · editor_pid · mcp_endpoint
+branch · head_sha · acquired_at_utc
+```
+
+🔴 **`owner_pid` e' il PID del TERMINALE RT, non del processo che scrive il file.**
+
+Il comando che acquisisce il lease e' effimero: termina un istante dopo. Un lease
+che dichiarasse quel PID nascerebbe gia' `STALE` — misurato il 2026-09-06 su
+`d062ccf0`, con `ACQUIRED` e lo `status` immediatamente successivo che diceva
+`STALE (owner non piu' vivo)`.
+
+Chi tiene il motore e' la **sessione**, che sopravvive ai comandi lanciati al suo
+interno. L'identita' arriva ai processi figli per variabile d'ambiente:
+
+```text
+RT_TERMINAL_INSTANCE          id LOGICO del terminale - etichetta, prompt, log
+RT_TERMINAL_OWNER_PID         id OS del processo terminale persistente
+RT_TERMINAL_OWNER_STARTED_AT  istante di avvio di quel processo, UTC ISO-8601
+RT_TERMINAL_ROLE              ruolo della sessione
+```
+
+⚠️ **Le due identita' sono distinte, e non vanno confuse.** L'ownership si decide
+sull'identita' **OS**; l'id logico non ci entra mai. Due terminali possono portare
+etichette qualunque e restano sessioni diverse perche' hanno processi diversi -
+ed e' cio' che consente piu' terminali DEV, EDITOR o VALIDATION nello stesso
+workspace.
+
+`acquire` e `release` senza queste variabili falliscono **fail-closed**
+(`RT_SESSION_REQUIRED`): un processo effimero non puo' possedere una risorsa che
+gli sopravvive. `status` resta invocabile ovunque, perche' e' sola lettura.
+
+`owner_started_at_utc` esiste perche' un PID si ricicla: da solo non prova che
+l'owner sia ancora lo stesso processo.
+
+⚠️ Gli istanti si confrontano **normalizzati**. `ConvertFrom-Json` non
+restituisce le stringhe ISO-8601 come stringhe: le converte in `[datetime]`, e un
+confronto testuale con l'istante ricalcolato falliva sempre dopo la rilettura. Il
+difetto sopravvive a chi lo corregge una volta sola: e' coperto da un caso di
+`-SelfTest`.
+
+**Nessun heartbeat**: non e' implementato, e descriverne uno sarebbe dichiarare una
+proprieta' che nessuno misura. Un lease il cui owner non e' piu' vivo e' `STALE`, e
+il recupero e' esplicito — mai automatico, e comunque negato se un processo motore
+vivo non e' attribuibile.
+
+### Un solo predicato di ownership
+
+⛔ **La verifica dell'identita' del workspace e' fail-closed.**
+
+`acquire` distingue tre esiti, e due bloccano:
+
+| Esito | Comportamento |
+|---|---|
+| contratto disponibile, verdetto positivo | si procede |
+| contratto disponibile, verdetto negativo | `BLOCKED` col codice del verdetto |
+| contratto **non disponibile** | `BLOCKED`, `WORKSPACE_CONTRACT_UNAVAILABLE` |
+
+Il terzo caso e' quello che una prima stesura sbagliava: restituiva «nessun
+verdetto» e il chiamante proseguiva. Bastava cancellare o corrompere
+`rt-workspace.ps1` per aggirare la validazione. **Non aver potuto verificare non e'
+aver verificato.**
+
+⛔ La domanda «questo lease e' mio?» ha **una sola sede**.
+
+Prima ne aveva tre, in due varianti: `rt-lease.ps1` confrontava solo il PID,
+mentre `rt-suite-safe.ps1` e `rt-mcp-guard.ps1` accettavano anche
+`terminal_instance`. Due script riconoscevano un proprietario che il terzo
+rifiutava — e la divergenza non era visibile finche' qualcuno non provava a
+rilasciare un lease che la suite aveva appena accettato.
+
+`Test-LeaseOwnedBy` vive in `rt-lease.ps1` ed e' importata dagli altri due
+dall'AST. Un rename a monte produce `OWNERSHIP_CONTRACT_UNAVAILABLE`, non un
+permesso concesso per sbaglio.
+
+La funzione e' **pura**: `(lease, identita') -> bool`. E' cio' che la rende
+verificabile senza occupare il motore, con `rt-lease.ps1 -SelfTest`.
+
+### Log
+
+Ogni acquisizione, rilascio e chiamata con side effect produce una riga JSONL in
+`events.jsonl` accanto al lease:
+
+```text
+timestamp_utc · event · task_id · role · terminal_instance
+workspace_id · workspace_root · branch · head_sha
+lease_id · operation_class · target_summary · result · error_code
+```
+
+Niente token, credenziali, URL firmati, header, prompt o payload asset. La scrittura
+e' in append con retry, e un log che non riesce a scrivere **non** trasforma un
+fallimento in successo: stampa un avviso e lascia l'esito dov'era.
+
+Il file cresce e nessuno lo ruota: la pulizia e' manuale, e appartiene a chi possiede
+la macchina.
+
+### 🔴 Cosa questo contratto NON puo' garantire
+
+Il trasporto MCP e' HTTP diretto. Un client che salta il preflight raggiunge il
+bridge lo stesso: **nessuno script PowerShell sta su quel percorso**.
+
+Il preflight autorizza, non intercetta. L'enforcement che regge davvero e' di
+configurazione — `.mcp.json` non versionato, generato solo dove il bridge serve — e
+di disciplina. Chiamarla barriera sarebbe un falso verde, e un falso verde fa
+smettere di cercare la barriera vera.
+
 ---
 
 ## Aperti

@@ -1,7 +1,7 @@
 {
   "terminal.integrated.profiles.windows": {
     "RT DEV": {
-      "path": "powershell.exe",
+      "path": "pwsh",
       "args": [
         "-NoLogo",
         "-NoExit",
@@ -18,7 +18,7 @@
       "color": "terminal.ansiGreen"
     },
     "RT VALIDATION": {
-      "path": "powershell.exe",
+      "path": "pwsh",
       "args": [
         "-NoLogo",
         "-NoExit",
@@ -35,7 +35,7 @@
       "color": "terminal.ansiYellow"
     },
     "RT EDITOR": {
-      "path": "powershell.exe",
+      "path": "pwsh",
       "args": [
         "-NoLogo",
         "-NoExit",

@@ -5,6 +5,12 @@ desktop.ini
 
 # ---- Editor / IDE ----
 .vscode/
+
+# Configurazione MCP: e' di MACCHINA, non di repository.
+# Era un blob git identico nei tre checkout e non poteva descrivere cio' che
+# per definizione varia per macchina: presenza del bridge, porta, esposizione
+# per workspace. Lo genera l'installer - vedi docs/rt-three-terminals/APPLY.md.
+.mcp.json
 .idea/
 .vs/
 *.swp
@@ -277,3 +283,9 @@ __pycache__/
 
 # ---- Artefatti generati dai tool del repo ----
 /build/
+
+# Backup che install-rt-terminals.ps1 scrive accanto a ogni file che sostituisce
+# (`"$Target.$Stamp.bak"`, riga 81). Tre sono finiti in `main` col commit `218716e5`,
+# byte-identici alla versione degli script gia' versionata in `ec48f06b`: la history
+# li conserva, l'albero no.
+*.bak

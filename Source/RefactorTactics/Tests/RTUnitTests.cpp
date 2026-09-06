@@ -592,6 +592,21 @@ bool FRTUnitDiscreteRoleClipsTest::RunTest(const FString&)
 		// La clip d'attacco si CHIAMA `Cast`, e l'enum ha ANCHE un ruolo `Cast`. Se qualcuno la scrivesse
 		// li', `ActiveClipFor(Attack)` tornerebbe vuoto e l'unita' resterebbe in posa di riferimento senza
 		// errore, senza warning e senza log — mentre il dato sembrerebbe corretto a chi legge il CDO.
+		//
+		// ⚠️ **`Cast` e' vuoto per DUE ragioni, e solo la prima e' permanente** (#2535):
+		//
+		//  1. la clip che si chiama `Cast` appartiene ad `Attack` — **permanente**, ed e' cio' che questo
+		//     asserto difende;
+		//  2. il ruolo `Cast` non ha ancora un **consumatore** — **temporanea**, e non e' cio' che questo
+		//     asserto difende.
+		//
+		// 🔑 Quindi: **il giorno in cui `Cast` acquista un consumatore, questa riga va RIVISTA, non
+		// ereditata.** Chi la trovera' rossa allora leggera' «la clip `Cast` sta in Attack» e pensera' a
+		// una regressione, rimettendo a posto un dato che era giusto — mentre la verita' sara' che
+		// l'invariante e' scaduta. E' la stessa disciplina con cui `RTPresentationBinding.cpp` marca le
+		// proprie assenze *«da RIVEDERE, non da ereditare»* (righe 128 e 149), nata perche' `HazardDamage`
+		// era entrato nell'enum ed era rimasto muto senza che nulla diventasse rosso ([D-278], #1801).
+		// Li' il difetto era un gate che TACE; qui sarebbe un gate che PARLA quando non deve piu'.
 		TestTrue(*FString::Printf(TEXT("%s: il ruolo Cast resta VUOTO (la clip `Cast` sta in Attack)"), *Chi),
 			Cdo->ActiveClipFor(Chiave, ERTPresentationRole::Cast).IsNull());
 	}
