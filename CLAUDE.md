@@ -4,13 +4,64 @@ Overlay operativo per **Claude Code / SuperClaude**.
 
 > **Prima regola:** leggere [`AGENTS.md`](AGENTS.md).
 >
-> `CLAUDE.md` non duplica il contratto condiviso. Contiene solo il protocollo Claude-specifico e i pin ad alto rischio.
+> `CLAUDE.md` non duplica il contratto condiviso. Contiene solo il protocollo Claude-specifico e i rinvii ai suoi owner.
+
+Le sezioni 2–10 conservano la propria numerazione perché altri documenti vi puntano. Dove il contenuto ha un owner altrove, la sezione resta e porta il rinvio.
 
 ## 1. Context protocol
 
 Non lavorare dalla memoria del progetto.
 
-Prima di modificare:
+### Figura della sessione
+
+Prima di qualunque altra cosa, stabilisci **quale figura** sei fra DEV, EDITOR e VALIDATION. Le tre figure, i loro limiti e le regole di concorrenza sono in [`AGENTS.md`](AGENTS.md) §11.
+
+Il ruolo si **misura**, in quest'ordine:
+
+1. le variabili d'ambiente del terminale, se presenti:
+
+   ```text
+   RT_TERMINAL_ROLE       DEV | VALIDATION | EDITOR
+   RT_TERMINAL_INSTANCE   identificativo dell'istanza
+   RT_WORKSPACE_ROOT      checkout su cui la sessione lavora
+   ```
+
+2. `rtstatus`, quando il comando è disponibile: stampa ruolo del terminale, id, engine mode e workspace. Non è definito in ogni shell — se manca, non è un errore, è un dato in meno;
+3. la dichiarazione esplicita di chi ha aperto la sessione.
+
+Il ruolo **non si deduce dal nome della directory**: `Main`, `Dev` e `Technical Designer` sono luoghi, non figure.
+
+### Prompt da caricare
+
+Una sessione carica:
+
+- [`docs/rt-three-terminals/prompts/RT3_CONTRACT.md`](docs/rt-three-terminals/prompts/RT3_CONTRACT.md) — il contratto di wave, sempre;
+- **un solo** `TERMINAL_*.md`, quello della propria figura;
+- **al più un** `WAVE_*.md`, e solo se compatibile con quella figura.
+
+Compatibilità:
+
+| Figura | `TERMINAL_*` | `WAVE_*` ammessi |
+|---|---|---|
+| DEV | `TERMINAL_DEV.md` | `WAVE_DEV_LEAD.md` · `WAVE_DEV_MAIN.md` · `WAVE_DEV_TEST.md` — uno solo |
+| EDITOR | `TERMINAL_EDITOR.md` | `WAVE_EDITOR.md` |
+| VALIDATION | `TERMINAL_VALIDATION.md` | `WAVE_VALIDATION.md` |
+
+Due prompt di wave nella stessa sessione danno due identità contraddittorie. Non si sommano.
+
+### Fail-closed
+
+```text
+ROLE_MISSING    nessuna delle tre fonti dà un ruolo
+ROLE_CONFLICT   le fonti danno ruoli diversi, oppure il prompt caricato
+                non appartiene alla figura misurata
+```
+
+In entrambi i casi: **fermati e dichiaralo**. Non leggere il repository per indovinare, non avviare Unreal, non scrivere.
+
+Un ruolo dedotto dal contesto è un ruolo inventato, e la figura sbagliata occupa il motore di qualcun altro.
+
+### Prima di modificare
 
 1. misura `git status`;
 2. identifica branch;
@@ -54,111 +105,56 @@ Trova l'owner corrente.
 
 ## 2. Pin correnti
 
-- Unreal Engine **5.8.1**.
-- v0.1 = **2v2 offline vs bot**.
-- Standard = **3v3** — D-256.
-- 3v3 non cambia lo scope v0.1.
-- 4v4+ = stress/scala.
-- Roster = **Gadget · Phase · Riktor · Wraith**.
-- Niente compatibilità implicita con nomi legacy rimossi.
-- Nessun redirect legacy reintrodotto senza decisione.
-- Mappa = **hex multilivello**.
-- Coordinate = `FRTCellId`.
-- Niente seconda griglia.
-- Loop = `Planning → Prep → Dash → Blast → Move → Cleanup`.
-- Azioni = `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`.
-- Traversal percorre celle.
-- Transfer non percorre celle intermedie.
-- Sprint = profilo Move.
-- Sprint ≠ Dash.
-- Reazioni = `Opportunity → Commit`.
-- Fast Reaction baseline = **3,0 s**.
-- Timeout = **HOLD**.
-- Thin slice Predictive v0.1 = `Hero.Wraith.InterceptShot`.
-- **No GAS nella v0.1**.
-- High Ground non applica bonus numerici globali automatici a vista/danno.
+I pin **non vivono qui**. Copiarli produce due elenchi che divergono in silenzio.
+
+| Cosa | Owner |
+|---|---|
+| Engine, scope v0.1 e standard, roster, mappa, coordinate, loop, azioni universali, ability system, GAS | [`AGENTS.md`](AGENTS.md) §1 |
+| Traversal/Transfer, Sprint, Overwatch, reazioni, Fast Reaction, timeout, thin slice Predictive, High Ground | [`AGENTS.md`](AGENTS.md) §5 |
+| Decisioni che hanno fissato un pin | [`docs/decisions/RT_PDR_00_Decision_Log.md`](docs/decisions/RT_PDR_00_Decision_Log.md) |
 
 Il dettaglio vive negli owner gameplay.
 
+Due regole restano Claude-specifiche perché descrivono un errore che un agente commette da solo:
+
+- niente compatibilità implicita con nomi legacy rimossi;
+- nessun redirect legacy reintrodotto senza decisione.
+
 ## 3. Guardrail architetturali
 
-### Simulazione
+Gli invarianti sono in [`AGENTS.md`](AGENTS.md) §3, numerati: determinismo e confine simulazione/presentazione (1–6), substrato spaziale unico (7–11), ownership del gameplay (12–17).
 
-La simulazione decide.
+Qui resta solo il modo in cui un agente li viola.
 
-UI, VFX e animazioni mostrano.
+Non si rompono per una scelta di architettura. Si rompono in un punto **locale**, dove la scorciatoia è più corta della regola: un tempo reale letto «solo per questo caso», una seconda conversione fra mondo ed esagoni scritta per far funzionare una feature, un ramo su due eroi al posto di uno stato condiviso.
 
-Non usare per decidere l'esito:
+Una scorciatoia che funziona resta un secondo owner.
 
-- `DeltaTime`;
-- timer real-time;
-- timeline;
-- animation callback;
-- packet arrival order;
-- ordine non deterministico di container.
-
-### Spatial
-
-Gameplay position:
-
-`FRTCellId`
-
-Presentation:
-
-`FVector` / world transform.
-
-Non:
-
-- creare Actor per ogni esagono;
-- duplicare world↔hex;
-- duplicare pathfinding;
-- duplicare LOS;
-- duplicare targeting;
-- creare un secondo modello spaziale.
-
-### Gameplay ownership
-
-C++ definisce cosa è possibile.
-
-Data Asset/Blueprint configurano varianti e presentation.
-
-Un'abilità ha un solo owner.
-
-Non introdurre:
-
-```text
-PairBonus
-ComboAbility
-if (HeroA && HeroB)
-```
-
-quando l'interazione può emergere da uno stato o sistema condiviso.
+Prima di introdurre una struttura nuova nel dominio spaziale, nella risoluzione o nelle abilità, verifica quale invariante numerato la copre già. Se la copre, non serve la struttura. Se non la copre, la sede della decisione è la spec dell'owner, non il resolver.
 
 ## 4. Privacy
 
-Client propone.
+Owner della regola: [`AGENTS.md`](AGENTS.md) §4, che dichiara dove il planning avversario non può stare e quali informazioni UI e warning possono leggere.
 
-Authority valida e applica.
+Qui resta l'errore che un agente commette da solo: replicare l'informazione e poi **nasconderla in presentazione**.
 
-Non inviare il planning avversario ai client per poi nasconderlo graficamente.
+Un dato che ha raggiunto il client è arrivato. Nessun filtro di UI lo fa tornare indietro, e l'assenza dalla schermata avversaria non è una prova della sua assenza.
 
-UI e warning possono usare:
+Da cui:
 
-- stato pubblico;
-- Team Knowledge;
-- intenti della propria squadra.
-
-Non possono usare:
-
-- intenti privati avversari;
-- trigger futuri;
-- informazioni che il client non dovrebbe conoscere.
+- se una feature ha bisogno di un'informazione che il client non deve conoscere, si sposta il calcolo sull'autorità: non si filtra il rendering;
+- un warning costruito su un intento privato avversario è un difetto di autorità, non un dettaglio di presentazione;
+- il confine si verifica su ciò che viaggia, non su ciò che si vede — ed è per questo che il verdetto su privacy e autorità di rete appartiene a VALIDATION, [`AGENTS.md`](AGENTS.md) §11.
 
 ## 5. Unreal asset safety
 
 Asset proprietari:
 
 `/Game/RT/`
+
+Le convenzioni di contenuto, i prefissi, i redirector e il write-set binario sono in [`AGENTS.md`](AGENTS.md) §7. Owner documentale:
+
+[`docs/technical/tooling/convenzioni-contenuti-ue.md`](docs/technical/tooling/convenzioni-contenuti-ue.md)
 
 Non:
 
@@ -178,10 +174,6 @@ Usare:
 - write-set esplicito.
 
 Il repository non usa Git LFS.
-
-Owner:
-
-[`docs/technical/tooling/convenzioni-contenuti-ue.md`](docs/technical/tooling/convenzioni-contenuti-ue.md)
 
 ### Lifecycle Editor / MCP
 
@@ -216,6 +208,8 @@ Una sessione non deve lasciare un Editor da lei avviato disponibile indefinitame
 
 Non terminare un Editor preesistente posseduto da un altro workflow/persona salvo che il comando corrente dichiari esplicitamente ownership esclusiva (per esempio una skill dedicata che lo prevede).
 
+⛔ Occupare il motore è una decisione di figura, non di comodità: mentre l'Editor è aperto nessuna suite gira, e viceversa — [`AGENTS.md`](AGENTS.md) §11.
+
 ## 6. Test
 
 Entry point:
@@ -224,7 +218,7 @@ Entry point:
 ./scripts/rt-suite.ps1
 ```
 
-Per build, filtri, attesa e tool Node usa [`AGENTS.md`](AGENTS.md).
+Per build, filtri, attesa e tool Node usa [`AGENTS.md`](AGENTS.md) §9.
 
 Non duplicare qui la lista operativa.
 
@@ -246,6 +240,8 @@ Una suite che vede cambiare:
 durante la misura è:
 
 **NON VALIDA**.
+
+Non equivale a rosso, e non equivale a verde: è una misura da rifare.
 
 Dopo un'attesa lunga:
 
@@ -270,9 +266,15 @@ Prima del merge:
 
 verifica che il gate sia stato eseguito sul commit che stai realmente mergiando.
 
+### Chi misura
+
+Occupare il motore appartiene alla figura VALIDATION — [`AGENTS.md`](AGENTS.md) §11. Una sessione DEV prepara il test, esegue ciò che è statico o headless e marca il resto `NOT RUN`.
+
+Una Validation Window aperta prima che la catena sia completa misura una base precedente: è utile, e non è il sign-off finale.
+
 ## 7. Lavoro parallelo
 
-Il repository viene lavorato in parallelo.
+Il repository viene lavorato in parallelo. Figure, isolamento e coordinamento sono in [`AGENTS.md`](AGENTS.md) §11.
 
 Non assumere che rimangano stabili:
 
@@ -296,6 +298,8 @@ Non assegnare dalla memoria:
 
 Fetch e riverifica prima del merge.
 
+Nella stessa directory il working tree è condiviso: preferisci `git add` per path espliciti e non assumere che una modifica visibile in `git status` appartenga a questa sessione.
+
 ## 8. Git
 
 Branch focalizzati:
@@ -311,6 +315,8 @@ test/
 Usare Conventional Commits.
 
 Non fare operazioni remote distruttive senza autorizzazione esplicita.
+
+La PR va aperta sul **branch padre reale**, non su `main` per assunzione. Chiusura delle issue, forma di `Closes #N` e ID condivisi: [`AGENTS.md`](AGENTS.md) §12.
 
 Non confondere:
 
@@ -366,19 +372,50 @@ Non dichiarare:
 
 senza evidenza.
 
+Quando la sessione consegna a un'altra figura, l'output di cui sopra non basta da solo: serve l'handoff persistito su file, nella forma di [`docs/rt-three-terminals/prompts/RT3_CONTRACT.md`](docs/rt-three-terminals/prompts/RT3_CONTRACT.md).
+
 ## 10. Mappa rapida
 
-| Percorso | Contenuto |
-|---|---|
-| `Source/RefactorTactics/` | Runtime C++ + Automation Tests |
-| `Source/RefactorTacticsEditor/` | Tooling Editor |
-| `Plugins/RTDeveloperTools/` | Developer tooling |
-| `Content/RT/` | Asset proprietari |
-| `Scenarios/` | Scenario Harness |
-| `docs/` | Canone e documentazione |
-| `tools/` | Validator/generator |
-| `scripts/rt-suite.ps1` | Suite locale |
+La tabella dei percorsi è in [`AGENTS.md`](AGENTS.md) §6.
 
 Mappa dettagliata:
 
 [`docs/technical/architecture/architettura-codice.md`](docs/technical/architecture/architettura-codice.md)
+
+Prompt e contratto delle tre figure:
+
+[`docs/rt-three-terminals/README.md`](docs/rt-three-terminals/README.md)
+
+## 11. Routing rapido
+
+Cosa fa una sessione Claude una volta misurata la propria figura.
+
+### DEV
+
+Codice, test, review, Git/GitHub, tooling statico e headless.
+
+- non avviare UnrealEditor, UnrealEditor-Cmd, `rt-suite`, packaging o build che monopolizzano il motore;
+- ciò che richiede Unreal si prepara e si marca `NOT RUN`, con il comando che VALIDATION dovrà eseguire;
+- più istanze DEV condividono il working tree: §7.
+
+Se la sessione è il `DEV-LEAD` di una wave, emette l'handoff di ingresso e non emette verdetti: non possiede lo strumento che li prova.
+
+### EDITOR
+
+Editor, PIE, MCP, `.uasset`/`.umap`, Blueprint, authoring, acceptance visuale.
+
+- lifecycle e cleanup obbligatori, anche su errore: §5;
+- `MCP command sent` non è `verified`: serve un oracolo positivo — rilettura della property, riapertura dell'asset, compile esplicito, PIE, test, packaged;
+- una risposta vuota non è né un `PASS` né una capability assente: §5;
+- privacy, determinismo, autorità di rete, replay e performance restano osservazioni, non verdetti — [`AGENTS.md`](AGENTS.md) §11;
+- niente suite o build concorrenti nella stessa finestra.
+
+### VALIDATION
+
+Build, Automation Test mirati, Scenario Harness, suite, packaged.
+
+- ordine: controlli statici → build → test mirati → scenari → suite completa una volta per batch integrato;
+- validità della misura: §6;
+- ricompila invece di fidarti di un binario che non hai prodotto;
+- `performed = 0` non è un `PASS`;
+- un difetto torna al suo owner: non riparare il codice di produzione e poi approvare sé stessi.
