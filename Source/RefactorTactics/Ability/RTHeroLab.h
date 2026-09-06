@@ -1,4 +1,4 @@
-// Hero Lab 0.1 (#2600) — caricare un eroe canonico e provare il suo kit reale.
+// Hero Lab (#2600) — caricare un eroe canonico e provare il suo kit reale.
 //
 // ## Il rapporto con #2599, che e' l'unica cosa che questa libreria non negozia
 //

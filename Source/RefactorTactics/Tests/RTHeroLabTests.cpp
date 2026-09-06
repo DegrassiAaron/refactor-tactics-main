@@ -1,4 +1,4 @@
-// Hero Lab 0.1 (#2600).
+// Hero Lab (#2600).
 //
 // Il test che conta davvero e' `ReusesAbilityLabRunner`: e' l'unico che prova il non-goal
 // *«nessun secondo Ability Runner»*. Lo fa per CONFRONTO — la fixture che Hero Lab produce deve essere
