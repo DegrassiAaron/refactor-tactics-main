@@ -45,16 +45,27 @@ WAVE_ID:              counter-attack-record/1
 BRANCH:               refactor/2587-counter-attack-record
 PARENT_BRANCH:        main
 BASE_SHA:             ee71f3e3
-EXPECTED_SHA:         <<PRODUCED_SHA dichiarato dall'handoff EDITOR>>
+EXPECTED_SHA:         0eeb5c10
 
 INPUT_HANDOFF_DEV:    docs/rt-three-terminals/waves/counter-attack-record/RT3-DEVLEAD-0eeb5c1.md
-INPUT_HANDOFF_EDITOR: docs/rt-three-terminals/waves/counter-attack-record/RT3-EDITOR-<sha7>.md
+INPUT_HANDOFF_EDITOR: docs/rt-three-terminals/waves/counter-attack-record/RT3-EDITOR-0eeb5c1.md
 
 ISSUE:                2587   (wave 1 di 2586)
 PR:                   2594
 ```
 
-⚠️ `EXPECTED_SHA` è **l'unico campo lasciato aperto**, e va compilato dalla busta dell'handoff EDITOR. Lasciarlo `<<...>>` è `MISSING_INPUT`: non sostituirlo per inferenza e non assumere che valga `0eeb5c10`.
+✅ **`EXPECTED_SHA` è risolto dal 2026-09-06.** Vale `0eeb5c10`, letto dalla busta di
+`RT3-EDITOR-0eeb5c1.md`: EDITOR non ha scritto codice né binari, quindi `PRODUCED_SHA = BASE_SHA`.
+L'handoff EDITOR esiste, è committato in `4cbfdfd7`, e porta `STATUS: READY`.
+
+🔴 **Questo campo è stato un placeholder, e VALIDATION ci si è fermata DUE volte** — correttamente,
+fail-closed, con `BLOCKED — MISSING_INPUT` su `0c06a891` e su `12342a91`. I due handoff di rimbalzo
+sono nella cartella della wave. Non era pignoleria: `RT3_CONTRACT.md` §4 vuole che un
+`INPUT_HANDOFF` sia il path di un file **esistente**, e `RT3-EDITOR-<sha7>.md` non lo era.
+
+⚠️ La lezione vale per chi riusa questo file: **un mandato VALIDATION non si emette prima
+dell'handoff EDITOR.** Se `INPUT_HANDOFF_EDITOR` contiene ancora un `<sha7>`, il mandato non è
+pronto — non è VALIDATION che deve indovinarlo.
 
 Il codice della wave è `0eeb5c10`. I commit di documentazione sopra non toccano il write-set — il controllo giusto è il punto 2 del predicato, non un confronto con `HEAD`.
 
