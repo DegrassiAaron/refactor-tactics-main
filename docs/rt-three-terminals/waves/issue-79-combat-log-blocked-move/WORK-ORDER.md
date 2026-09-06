@@ -282,6 +282,17 @@ Fuori write-set, `N/A` con motivo: `ASSETS` · `BLUEPRINT` · `MAP` · `CAMERA` 
 |---|---|
 | `PIE-V01-LOG` — la verifica PIE che tiene aperta la issue #79 | `NOT RUN` |
 | `PIE-V01-COLL` clausola **(c)** — registrata `❌`, la voce resta 🟡 apposta; va **rimisurata** quando questa wave chiude | `NOT RUN` |
+| lettura **in partita** del turno 4 — il widget, non l'Output Log | `NOT RUN` |
+
+📘 **La seduta ha una guida**: [`guida-seduta-chiusura-79-denial-e-log.md`](../../../technical/runbooks/guida-seduta-chiusura-79-denial-e-log.md). Non riscrive l'allestimento — quello sta in [`guida-seduta-u14…`](../../../technical/runbooks/guida-seduta-u14-collisione-stallo-e-denial.md) e resta valido — dice cosa è cambiato sotto e convoca una **rimisura**.
+
+Tre fatti che la guida mette in cima, perché ciascuno può far misurare la cosa sbagliata:
+
+1. 🔴 **Ricompilare prima.** Misurato: la `DLL` era delle `09:48`, i sorgenti del fix delle `15:47`. Aprire PIE senza build misura il codice **precedente** al fix — cioè riproduce il difetto, leggibile come «il fix non funziona». Il fix vive da `3fff65a6`, e su `main` non c'è ancora.
+2. **Due voci, un solo Play.** La clausola (c) e la lettura del turno 4 sono la stessa osservazione: `Movement.CollisionChoke`, guardare i turni **3** e **4**, che sono controllo e caso. Erano la stessa stringa; devono essere diverse.
+3. ⛔ **`PIE-V01-LOG` ha un banco diverso**, ed è dichiarato: su `L_HexArena` dodici turni non hanno prodotto un solo fallback — *«è un fatto sulla mappa, non sul codice»*. Il suo banco è `Visual.Environment.Acceptance`. Usare `CollisionChoke` per chiuderla darebbe un `✅` su un campione di uno.
+
+⚠️ La guida porta anche ciò che ho misurato sull'affordance: un click sulla **mesh** di un'unità va a `OnClickUnit` — carica, attacco o niente — e non produce un waypoint. Solo un click sul **terreno** della cella occupata arriva a `HandleClickOnCell`. Un «non succede niente» cliccando il nemico **non è** il difetto di #79: è la porta d'ingresso che non passa di lì. Va registrato come osservazione separata, mai come esito di (c) — che si giudica sul log.
 
 ## Rischi dichiarati
 
