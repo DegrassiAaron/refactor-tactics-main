@@ -53,14 +53,30 @@ if ($null -eq $Pwsh) {
 # Chi tocca adesso
 # ---------------------------------------------------------------------------
 
-$NextActor = (& $Pwsh.Source -NoLogo -NoProfile -File $Router -Action next -TaskId $TaskId -WorkspaceRoot $WorkspaceRoot)
+# (!!) Lo stdout del router va in $RouterSays, diagnosi COMPRESA: e' un processo
+# figlio, quindi anche cio' che scrive con Write-Host finisce catturato invece che a
+# schermo. Misurato il 2026-09-06 provando gli argv del task VS Code: su un task
+# inesistente l'utente leggeva "nessun actor" e non `TASK_NOT_FOUND`, cioe' perdeva
+# il codice che la tabella di recupero gli dice di guardare.
+$RouterSays = (& $Pwsh.Source -NoLogo -NoProfile -File $Router -Action next -TaskId $TaskId -WorkspaceRoot $WorkspaceRoot 2>&1)
 $RouterExit = $LASTEXITCODE
 
 if ($RouterExit -ne 0) {
     Write-Host ""
+    foreach ($line in @($RouterSays)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$line)) { Write-Host ([string]$line) -ForegroundColor Red }
+    }
+    Write-Host ""
     Write-Host "Nessun terminale aperto: il router non ha un actor per questo task." -ForegroundColor Yellow
     Write-Host "Torna al RT Coordinator." -ForegroundColor Yellow
     return
+}
+
+# L'ultima riga non vuota e' l'actor: il router lo scrive da solo, ma un warning di
+# PowerShell potrebbe precederlo.
+$NextActor = ''
+foreach ($line in @($RouterSays)) {
+    if (-not [string]::IsNullOrWhiteSpace([string]$line)) { $NextActor = [string]$line }
 }
 
 $NextActor = ([string]$NextActor).Trim().ToUpperInvariant()

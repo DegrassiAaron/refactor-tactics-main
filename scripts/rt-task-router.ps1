@@ -655,7 +655,7 @@ function Invoke-Assign {
             if (@($script:Do | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count -eq 0) { $missing += '-Do' }
             if (@($script:ExpectedOutput | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count -eq 0) { $missing += '-ExpectedOutput' }
             if ($missing.Count -gt 0) {
-                return (Write-Refusal 'TASK_ASSIGNMENT_BODY_MISSING' ("Mancano: {0}. Un assignment senza obiettivo e senza output atteso non e'' una consegna." -f ($missing -join ', ')))
+                return (Write-Refusal 'TASK_ASSIGNMENT_BODY_MISSING' ("Mancano: {0}. Un assignment senza obiettivo e senza output atteso non e' una consegna." -f ($missing -join ', ')))
             }
         }
 
@@ -968,7 +968,7 @@ function Invoke-ShowAssignment {
     }
     $path = Join-Path $dir ($relative -replace '/', '\')
     if (-not (Test-Path $path)) {
-        return (Write-Refusal 'TASK_ASSIGNMENT_MISSING' ("{0} non esiste: lo stato lo cita ma il file non c'e''." -f $path))
+        return (Write-Refusal 'TASK_ASSIGNMENT_MISSING' ("{0} non esiste: lo stato lo cita ma il file non c'e'." -f $path))
     }
     Write-Host (Get-Content $path -Raw)
     return 0
