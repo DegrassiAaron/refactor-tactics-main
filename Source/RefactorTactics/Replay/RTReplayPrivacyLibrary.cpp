@@ -31,6 +31,14 @@ namespace
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, Outcome),              ERTReplayFieldVisibility::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, SrcCell),              ERTReplayFieldVisibility::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, TgtCell),              ERTReplayFieldVisibility::Public },
+			// `SightBlockerCell` e' **`Public`**, e la ragione va detta perche' la risposta prudente sarebbe
+			// stata l'opposta (`#2534`). Il campo nomina una cella di TERRENO, e a quel punto della catena la
+			// domanda di privacy e' gia' stata posta e risolta: `SightBlockerForLog` lo riempie **solo** se la
+			// squadra dell'attaccante conosceva quella cella, e altrimenti ci lascia `NoSightBlocker()`.
+			// Cio' che arriva qui e' quindi gia' filtrato — marcarlo `AuditOnly` non aggiungerebbe privacy,
+			// toglierebbe al prodotto pubblico l'unica riga che spiega perche' il colpo non e' partito, che e'
+			// tutto il punto della modifica.
+			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, SightBlockerCell),     ERTReplayFieldVisibility::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, Amount),               ERTReplayFieldVisibility::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, ActionId),             ERTReplayFieldVisibility::Public },
 			{ GET_MEMBER_NAME_CHECKED(FRTTurnLogEntry, BaseActionId),         ERTReplayFieldVisibility::Public },

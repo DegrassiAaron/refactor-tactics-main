@@ -1593,3 +1593,66 @@ bool FRTTurnLogMicroStepRoundTripTest::RunTest(const FString&)
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogSightBlockerRoundTripTest,
+	"RefactorTactics.TurnLog.SightBlockerSurvivesTheFormat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogSightBlockerRoundTripTest::RunTest(const FString&)
+{
+	// v13 (`#2534`): la cella che ha fermato il tiro viaggia con la voce. Se non sopravvivesse al formato,
+	// il replay tornerebbe a mostrare «nessuna linea di tiro» senza causa — cioe' il difetto che questa
+	// versione chiude — e nessun altro test se ne accorgerebbe, perche' il campo non entra nell'hash.
+	TArray<FRTTurnLogEntry> Voci;
+	{
+		FRTTurnLogEntry Muro = MakeSerEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat,
+			static_cast<uint8>(ERTCombatOutcome::NoLineOfSight), FRTCellId(-1, 0), FRTCellId(1, 0), 0);
+		Muro.SightBlockerCell = FRTCellId(0, 0, 0);
+		Voci.Add(Muro);
+
+		// ⛔ ANTI-VACUITA': una SECONDA cella diversa, e su un layer diverso. Con un solo muro a `(0,0,0)`
+		// il test passerebbe anche su un formato che scrivesse tre zeri fissi; e senza il layer a 1
+		// passerebbe su uno che serializza i soli assiali.
+		FRTTurnLogEntry Altrove = MakeSerEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat,
+			static_cast<uint8>(ERTCombatOutcome::NoLineOfSight), FRTCellId(4, 0), FRTCellId(6, 0), 0);
+		Altrove.SightBlockerCell = FRTCellId(5, -1, 1);
+		Voci.Add(Altrove);
+
+		// Una voce SENZA muro nominabile: la sentinella deve sopravvivere come tale, e non diventare
+		// `(0,0,0)` — che e' una cella legittima, e nominarla direbbe al giocatore una cosa falsa.
+		FRTTurnLogEntry Velato = MakeSerEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat,
+			static_cast<uint8>(ERTCombatOutcome::NoLineOfSight), FRTCellId(9, 0), FRTCellId(11, 0), 0);
+		Velato.SightBlockerCell = FRTTurnLogEntry::NoSightBlocker();
+		Voci.Add(Velato);
+	}
+
+	const TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog(Voci);
+
+	TArray<FRTTurnLogEntry> Rilette;
+	if (!TestTrue(TEXT("la traccia si rilegge"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Rilette)))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("tre voci"), Rilette.Num(), 3)) { return false; }
+
+	int32 Nominate = 0;
+	int32 Velate = 0;
+	bool bTrovatoPrimoPiano = false;
+	for (const FRTTurnLogEntry& E : Rilette)
+	{
+		if (E.HasSightBlocker())
+		{
+			++Nominate;
+			if (E.SightBlockerCell == FRTCellId(5, -1, 1)) { bTrovatoPrimoPiano = true; }
+		}
+		else
+		{
+			++Velate;
+		}
+	}
+
+	TestEqual(TEXT("due muri nominati sopravvivono"), Nominate, 2);
+	TestEqual(TEXT("e la voce velata resta velata"), Velate, 1);
+	TestTrue(TEXT("il layer sopravvive: (5,-1,L1) si rilegge intero"), bTrovatoPrimoPiano);
+
+	return true;
+}

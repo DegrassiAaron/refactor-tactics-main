@@ -8,6 +8,8 @@
 #include "Containers/ArrayView.h" // i campi discriminanti viaggiano come una vista, non come copie
 #include "Templates/Function.h"   // TFunctionRef: il visitor dei campi non alloca
 #include "Core/RTEnumName.h" // RTReflection::EnumName: i nomi degli enum si CHIEDONO, non si ricopiano
+#include "Map/RTHexVisionLibrary.h"     // FRTLineOfSightResult: la LOS la decide chi chiama, qui si legge (#2534)
+#include "Perception/RTTeamKnowledge.h" // FRTTeamKnowledge: il velo che decide se il muro si puo' nominare
 
 bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
 {
@@ -343,6 +345,35 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	case ERTActionInvalidReason::Unbalanced:     return TEXT("sbilanciato: non puo' correre");
 	default:                                     return TEXT("non eseguibile");
 	}
+}
+
+FRTCellId URTTurnLogLibrary::SightBlockerForLog(const FRTLineOfSightResult& Los,
+	const FRTTeamKnowledge& Knowledge)
+{
+	// Linea libera: non c'e' niente da nominare. Non e' un caso di privacy — e' che il fatto non esiste.
+	if (Los.IsClear())
+	{
+		return FRTTurnLogEntry::NoSightBlocker();
+	}
+
+	const FRTCellId& Candidate = Los.BlockedAt;
+
+	// 🔑 **Si guarda ENTRAMBI gli insiemi, e non solo `ExploredCells` benche' sia dichiarato un
+	// sovrainsieme di `VisibleCells`.** Quel sovrainsieme vale DOPO il refresh di conoscenza, non in ogni
+	// istante: una cella entrata nel campo visivo in questo turno e' in `VisibleCells` e puo' non essere
+	// ancora stata versata in `ExploredCells`. Leggere il solo `ExploredCells` tacerebbe un muro che la
+	// squadra sta guardando adesso, cioe' il caso piu' comune di tutti.
+	//
+	// ⚠️ Il confronto e' sulla cella INTERA. `FRTCellId::operator==` comprende il `Layer`, e deve: due celle
+	// con gli stessi assiali su layer diversi sono celle diverse, e conoscere il piano terra non autorizza a
+	// nominare cio' che sta al primo piano.
+	const bool bKnown = Knowledge.VisibleCells.Contains(Candidate)
+		|| Knowledge.ExploredCells.Contains(Candidate);
+
+	// FAIL-CLOSED: se la squadra non la conosce, il log tace. Il silenzio e' indistinguibile dall'assenza —
+	// vedi la nota su `SightBlockerCell` — e questo e' voluto: dire «c'e' un muro ma non te lo dico» sarebbe
+	// gia' informazione sulla geometria che [D-225] nasconde.
+	return bKnown ? Candidate : FRTTurnLogEntry::NoSightBlocker();
 }
 
 FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
@@ -705,6 +736,28 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 	switch (static_cast<ERTCombatOutcome>(Entry.Outcome))
 	{
 	case ERTCombatOutcome::NoLineOfSight:
+		// CIO' CHE FERMA IL TIRO, quando la squadra dell'attaccante lo conosceva (`#2534`).
+		//
+		// 🔴 **Senza, questa riga era l'unica traccia di un colpo che non parte, e non nominava la causa.**
+		// Nomina origine, destinazione, azione e le due unita' — non il muro. E il bersaglio e' VELATO
+		// proprio perche' il muro blocca la vista: il giocatore vede la propria unita' sparare verso il
+		// nulla, senza vedere ne' il nemico ne' l'ostacolo, e conclude che l'attacco e' rotto. La
+		// comprensibilita' dipendeva INTERAMENTE dal fatto che il muro si vedesse a schermo, e la seduta
+		// `U46` ha misurato che alla camera del giocatore non si vede.
+		//
+		// ⚠️ **Il dettaglio si ACCODA alla frase e precede `Tail`**: la causa appartiene alla proposizione
+		// che parla di linea di tiro, mentre `Tail` e' l'identita' dell'azione e resta l'ultima cosa —
+		// invertirli spezzerebbe la lettura «cosa e' successo, perche', con che cosa».
+		//
+		// ⛔ **Non si ricalcola nulla qui.** La cella arriva dalla voce; il rendering non chiama la LOS, non
+		// legge la mappa e non sa che aspetto abbia il muro. Una presentazione che ricalcolasse la
+		// traiettoria sarebbe la seconda autorita' che `DescribeLineOfSight` esiste per non avere.
+		if (Entry.HasSightBlocker())
+		{
+			return FString::Printf(TEXT("%s -> %s: nessuna linea di tiro (muro in %s)%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell),
+				*CellText(Entry.SightBlockerCell), *Tail);
+		}
 		return FString::Printf(TEXT("%s -> %s: nessuna linea di tiro%s"),
 			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Tail);
 
@@ -1123,7 +1176,7 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	// Il FormatId sta DOPO i flags e prima del conteggio: le posizioni dei campi precedenti non si spostano,
 	// cosi' un lettore che ispeziona magic/versione/flags continua a trovarli dove sono sempre stati.
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
-	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithMicroStep));
+	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithSightBlocker));
 	AppendU16LE(Out, static_cast<uint16>(Topology));
 	AppendStringUtf8(Out, FormatId.IsNone() ? FString() : FormatId.ToString());
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
@@ -1166,6 +1219,15 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 		// v12 (`#1880`): il micro-step, in coda — i campi precedenti non si spostano, come per ogni
 		// estensione dalla v7 in poi.
 		AppendI32LE(Out, E.MicroStepIndex);
+		// v13 (`#2534`): la cella che ha fermato il tiro, in coda come ogni estensione dalla v7 in poi.
+		//
+		// ⚠️ **Si scrivono tre interi sempre, anche quando non c'e' muro**: il formato resta a passo fisso,
+		// e l'assenza si legge dal `Layer` a `INDEX_NONE`. Un campo a lunghezza variabile risparmierebbe 12
+		// byte per voce e costerebbe la proprieta' per cui `EntryLess` e il lettore possono saltare una voce
+		// senza interpretarla.
+		AppendI32LE(Out, E.SightBlockerCell.X);
+		AppendI32LE(Out, E.SightBlockerCell.Y);
+		AppendI32LE(Out, E.SightBlockerCell.Layer);
 	}
 
 	// Checksum FNV di tutto cio' che precede (header + voci), in coda: rileva la corruzione del contenuto.
@@ -1264,8 +1326,12 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// cambia il SIGNIFICATO dei valori di `Outcome` sulle voci `ReactionDecision`, quindi va distinta.
 	// v12 (`#1880`): la voce porta il micro-step. Sta in cima alla catena perche' e' la piu' recente, e
 	// come ogni versione implica tutte quelle sotto.
-	const bool bHasMicroStep =
-		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithMicroStep));
+	// v13 (`#2534`): la voce `NoLineOfSight` porta la cella che ha fermato il tiro. Sta in cima perche' e'
+	// la piu' recente; da qui in giu' la catena e' invariata.
+	const bool bHasSightBlocker =
+		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithSightBlocker));
+	const bool bHasMicroStep = bHasSightBlocker
+		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithMicroStep));
 	const bool bIsResponseAndReasonSplit = bHasMicroStep
 		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::ResponseAndReasonSplit));
 	// v10 (E14.7, [D-047]): il token della risposta. Come per ogni estensione precedente, la versione nuova
@@ -1442,6 +1508,20 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 		if (bHasMicroStep)
 		{
 			if (!ReadI32LE(Bytes, Pos, E.MicroStepIndex))
+			{
+				OutEntries.Reset();
+				return false;
+			}
+		}
+		// v13 (`#2534`): la cella che ha fermato il tiro. Sotto la v13 resta `NoSightBlocker()`, che e' il
+		// default del campo, e **non** si deduce: una traccia v12 non porta l'informazione, e ricalcolarla
+		// dalla mappa di adesso spiegherebbe un tiro di allora con una geometria che nel frattempo puo'
+		// essere cambiata. E' lo stesso divieto che [D-310] pone al micro-step.
+		if (bHasSightBlocker)
+		{
+			if (!ReadI32LE(Bytes, Pos, E.SightBlockerCell.X)
+				|| !ReadI32LE(Bytes, Pos, E.SightBlockerCell.Y)
+				|| !ReadI32LE(Bytes, Pos, E.SightBlockerCell.Layer))
 			{
 				OutEntries.Reset();
 				return false;
