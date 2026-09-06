@@ -17,10 +17,33 @@ namespace
 			: FEditorViewportClient(nullptr, InScene, InViewport)
 		{
 			SetViewMode(VMI_Lit);
-			SetRealtime(true);   // senza, l'animazione non avanza e la preview sembra rotta
+			SetRealtime(true);
 			bDisableInput = false;
-			SetViewLocation(FVector(0.f, -260.f, 110.f));
-			SetLookAtLocation(FVector(0.f, 0.f, 90.f));
+		}
+
+		/**
+		 * 🔴 **Senza questo override l'animazione non parte, e `Play` sembra un pulsante rotto.**
+		 *
+		 * `FEditorViewportClient::Tick` **non fa avanzare il mondo della preview scene** — verificato nel
+		 * sorgente del motore (`EditorViewportClient.cpp`): calcola i bounds e ticka i mode tools, e basta.
+		 * Il mondo di una `FPreviewScene` lo ticka chi la possiede, ed e' l'idioma che usano tutti i
+		 * viewport d'anteprima dell'engine (`SMaterialEditorViewport`, `StaticMeshEditorViewportClient`,
+		 * `SCSEditorViewportClient`).
+		 *
+		 * ⚠️ `SetRealtime(true)` da solo NON basta: dice che il viewport ridisegna ogni frame, non che il
+		 * mondo avanzi. Con quello e senza questo si vede la prima posa della clip, ferma per sempre — che
+		 * e' esattamente il sintomo riportato.
+		 */
+		virtual void Tick(float DeltaSeconds) override
+		{
+			FEditorViewportClient::Tick(DeltaSeconds);
+			if (PreviewScene != nullptr)
+			{
+				if (UWorld* World = PreviewScene->GetWorld())
+				{
+					World->Tick(IsRealtime() ? LEVELTICK_All : LEVELTICK_TimeOnly, DeltaSeconds);
+				}
+			}
 		}
 
 		// ⛔ Nessun override che tocchi lo stato del gioco: questa e' una scena d'anteprima e non ha un
@@ -34,30 +57,7 @@ void SRTAnimPreviewViewport::Construct(const FArguments&)
 	SEditorViewport::Construct(SEditorViewport::FArguments());
 }
 
-SRTAnimPreviewViewport::~SRTAnimPreviewViewport()
-{
-	// ⛔ **`= default` non bastava, e il crash lo dimostrava.** I membri muoiono in ordine inverso di
-	// dichiarazione: `Mesh` per primo — e' un `TObjectPtr`, la sua distruzione non fa nulla — e
-	// `PreviewScene` per ultima, che nel proprio distruttore deregistra i componenti che ha in lista.
-	// Senza questa riga quella lista contiene componenti gia' distrutti da `SetClip`.
-	ClearMesh();
-}
-
-void SRTAnimPreviewViewport::ClearMesh()
-{
-	if (Mesh == nullptr)
-	{
-		return;
-	}
-
-	// Prima si stacca dalla scena, poi si distrugge. L'inverso e' il difetto.
-	if (PreviewScene.IsValid())
-	{
-		PreviewScene->RemoveComponent(Mesh);
-	}
-	Mesh->DestroyComponent();
-	Mesh = nullptr;
-}
+SRTAnimPreviewViewport::~SRTAnimPreviewViewport() = default;
 
 TSharedRef<FEditorViewportClient> SRTAnimPreviewViewport::MakeEditorViewportClient()
 {
@@ -73,8 +73,11 @@ void SRTAnimPreviewViewport::SetClip(UAnimSequence* Clip)
 {
 	LastError.Reset();
 
-	ClearMesh();
-
+	if (Mesh != nullptr)
+	{
+		Mesh->DestroyComponent();
+		Mesh = nullptr;
+	}
 	if (Clip == nullptr || !PreviewScene.IsValid())
 	{
 		return;
@@ -113,6 +116,22 @@ void SRTAnimPreviewViewport::SetClip(UAnimSequence* Clip)
 	Mesh->SetPlayRate(PlayRate);
 	Mesh->OverrideAnimationData(Clip, bLooping, /*bIsPlaying*/ true, /*Position*/ 0.f, PlayRate);
 	Mesh->Play(bLooping);
+
+	// 🔴 **L'inquadratura si CALCOLA dai bounds, e non si indovina.** La stesura precedente metteva la
+	// camera a `(0, -260, 110)` guardando `(0, 0, 90)`: tre numeri scelti a mano, giusti per nessuno.
+	// I quattro eroi hanno taglie diverse — Riktor e' molto piu' alto di Gadget — quindi un personaggio
+	// nasceva fuori centro e toccava all'autore trascinare la camera prima di poter giudicare.
+	//
+	// ⚠️ Si usano i bounds della MESH e non della clip: la clip puo' spostare l'attore (root motion), ma
+	// cio' che si deve inquadrare e' il corpo.
+	if (Client.IsValid())
+	{
+		Mesh->UpdateBounds();
+		const FBoxSphereBounds B = Mesh->Bounds;
+		// `ExpandBy` lascia un margine perche' la silhouette non tocchi i bordi: si giudica anche il
+		// profilo, e un personaggio incollato al bordo non lo si legge.
+		Client->FocusViewportOnBox(B.GetBox().ExpandBy(B.SphereRadius * 0.25f), /*bInstant*/ true);
+	}
 }
 
 void SRTAnimPreviewViewport::Play()
