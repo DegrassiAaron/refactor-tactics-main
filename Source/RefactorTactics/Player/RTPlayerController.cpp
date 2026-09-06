@@ -1307,6 +1307,21 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 	// senza che il Ready sia mai stato premuto.
 	EnsureLockInCommittedSubscription(TurnManagerForSelection);
 
+	// 🔑 **Durante il playback il mondo e' in SOLA LETTURA** (`#2518`; `spec-pointer-interaction.md` §5.3:
+	// *«`Inspect` e camera consentiti — ogni input che cambierebbe il piano e' `Blocked(reason)`»*).
+	// La selezione resta libera di cambiare, perche' guardare un'altra unita' mentre la risoluzione scorre
+	// e' `Inspect` ed e' legittimo; cio' che non deve succedere e' che il PIANO torni a schermo, dopo che
+	// il commit lo ha spento apposta — altrimenti il difetto di `#2390` rientra da un'altra porta, e basta
+	// un clic.
+	//
+	// ⛔ **Non si richiede qui `IsResolving()`.** La domanda «in che fase siamo» ha una sola sede, ed e'
+	// `GetPointerContext()`: chiederla una seconda volta qui creerebbe la copia che quella funzione
+	// documenta di voler evitare. Qui si LEGGE il contesto.
+	if (GetPointerContext() == ERTPointerContext::ResolutionPlayback)
+	{
+		return;
+	}
+
 	// L'anteprima segue la selezione: mostra il piano dell'unita' scelta (vuoto se non ne ha).
 	FVector SOrigin; float SHexSize; float SLayerH; const URTHexMapAsset* SMap = nullptr;
 	if (ARTHexMapActor* SHexMap = HexMapWithContext(GetWorld(), SOrigin, SHexSize, SLayerH, SMap))
@@ -2085,8 +2100,21 @@ ERTPointerContext ARTPlayerController::GetPointerContext() const
 	// di §3. Aggiungere qui un ramo significherebbe far decidere al puntatore quando il gioco e' finito.
 	if (const ARTTurnManager* TM = PacingTurnManager(this))
 	{
-		const ERTMatchPhase Phase = TM->GetPhase();
-		if (Phase != ERTMatchPhase::Planning && Phase != ERTMatchPhase::MatchEnded)
+		// 🔴 **Questa riga chiedeva la FASE, e la fase non si muove mai** (`#2518`). `ARTTurnManager::Phase`
+		// nasce `Planning` (`RTTurnManager.h:1929`) e in tutto `Source/` viene assegnato **una volta sola**,
+		// a `MatchEnded` (`RTTurnManager.cpp:3577`). Il predicato era `Phase != Planning && Phase !=
+		// MatchEnded`, cioe' **irraggiungibile**: `ResolutionPlayback` non veniva mai prodotto, e i due
+		// consumatori gia' scritti — `URTPointerLibrary::ResolveTarget` e `ResolveBack` — erano codice morto.
+		//
+		// 🔑 **Lo stato del playback e' `bIsResolving`, non la fase.** Sono due cose diverse: la risoluzione
+		// logica finisce dentro `LockInAndResolve`, mentre il playback continua a scorrere finche'
+		// `IsResolving()` e' vero — ed e' *quello* l'intervallo in cui §5.3 dice che il mondo e' in sola
+		// lettura.
+		//
+		// ⚠️ `MatchEnded` resta escluso senza doverlo nominare: a partita finita `bIsResolving` e' falso, e
+		// si cade nei rami sotto. La ragione per cui non diventa un contesto suo e' invariata, ed e' scritta
+		// nel commento qui sopra.
+		if (TM->IsResolving())
 		{
 			return ERTPointerContext::ResolutionPlayback;
 		}

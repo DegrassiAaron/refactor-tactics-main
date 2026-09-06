@@ -96,7 +96,7 @@ d'origine, non come stato.
 | Delta | Stato |
 |---|---|
 | 1. Nessuno stato esplicito | ✅ **chiuso** — `ARTPlayerController::GetPointerContext()`, derivato e non memorizzato |
-| 2. Nessuna consapevolezza di fase nell'input | ✅ **chiuso** — `ResolutionPlayback` esce dalla fase del `TurnManager` |
+| 2. Nessuna consapevolezza di fase nell'input | ✅ **chiuso il 2026-09-06** — `ResolutionPlayback` esce da `ARTTurnManager::IsResolving()` ([#2518](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2518)). 🔴 **Questa riga ha dichiarato «chiuso» per tre settimane una cosa che non funzionava**: diceva «esce dalla *fase* del `TurnManager`», e il predicato era `Phase != Planning && Phase != MatchEnded` — ma quel membro nasce `Planning` (`RTTurnManager.h:1929`) e in tutto `Source/` viene assegnato **una volta sola**, a `MatchEnded` (`RTTurnManager.cpp:3577`). Il ramo era **irraggiungibile**: il contesto non veniva mai prodotto, e i due consumatori scritti per onorarlo — `ResolveTarget` e `ResolveBack` — erano codice morto. ⚠️ **Il produttore esisteva, ed e' questo che ha ingannato**: si legge il codice, si trova il ramo, e non si verifica che la condizione possa diventare vera |
 | 3. Nessuna precedenza HUD → mondo | ⏳ **aperto** — dipende dai widget UMG di [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613): senza hitbox non c'è nulla che consumi il puntatore |
 | 4. Nessuno stato neutro | ✅ **chiuso** — [D-128](../../decisions/RT_PDR_00_Decision_Log.md): `SelectedAbilityIndex` nasce a `INDEX_NONE` |
 | 5. Nessun produttore UI | ✅ **chiuso** — i tre produttori esistono e sono coperti |
@@ -533,7 +533,7 @@ tempo.)*
 - `HUDConsumesPointerBeforeWorld`
 - `HiddenEnemyCannotBecomeHoverTarget`
 - `AllyGhostIsReadOnly`
-- `PlaybackRejectsPlanningInput`
+- ~~`PlaybackRejectsPlanningInput`~~ — ✅ **esiste dal 2026-09-06** ([#2518](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2518)), come `RefactorTactics.HexMatch.PlaybackRejectsPlanningInput`
 - `ReactionWindowOwnsInputPriority`
 - `LogicalMapObjectResolvedFromStableId`
 
@@ -541,10 +541,17 @@ tempo.)*
 test e la vicinanza inganna. Restano il perimetro DA SCRIVERE — lo dice gia' il `⏳` in fondo alla sezione,
 ma **dopo una tabella intera**, e chi legge in diagonale prende il `✅` per una spunta su questi.
 
-⚠️ **Ognuno dei sei porta chi lo blocca, e non e' mancanza di tempo**: due sono **feature travestite da
-test** — `PlaybackRejectsPlanningInput` (nessuno consuma `ResolutionPlayback` per rifiutare l'input) e
-`HiddenEnemyCannotBecomeHoverTarget` (l'hover non passa da nessun filtro di percezione, ed e' la privacy di
-§6.1) — e quattro attendono un owner: `#613`, CP 11.5/11.6, `E14`, `#74`. ⛔ Scriverne uno adesso darebbe un
+⚠️ **Ognuno dei sei porta chi lo blocca, e non e' mancanza di tempo**: due erano **feature travestite da
+test** — `PlaybackRejectsPlanningInput` e `HiddenEnemyCannotBecomeHoverTarget` (l'hover non passa da nessun
+filtro di percezione, ed e' la privacy di §6.1) — e quattro attendono un owner: `#613`, CP 11.5/11.6, `E14`,
+`#74`.
+
+✅ **`PlaybackRejectsPlanningInput` non e' piu' fra i mancanti** ([#2518](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2518),
+2026-09-06). 🔑 **E la diagnosi scritta qui era per meta' sbagliata**: diceva *«nessuno consuma
+`ResolutionPlayback` per rifiutare l'input»*, ed era vero ma minore del vero — **nessuno lo produceva**, per il
+difetto registrato nella riga 2 della tabella di §2.2. La feature che il test aspettava erano quindi DUE, e la
+piu' piccola stava a monte: far derivare il contesto da `IsResolving()` invece che da una fase che non si
+muove. Con quella riga i due consumatori gia' scritti hanno ricominciato a funzionare da soli. ⛔ Scriverne uno adesso darebbe un
 test **verde su un percorso che nessuno esercita**, che e' esattamente la classe di difetto gia' registrata
 qui sopra.
 
