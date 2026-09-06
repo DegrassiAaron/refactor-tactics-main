@@ -82,6 +82,10 @@ def _ops(store, server):
         roadmap = Roadmap.from_dict(document)
         return row, roadmap, build(roadmap), store.progress_map(row["roadmap_id"])
 
+    def _modes(roadmap_id):
+        row = store.get_roadmap(roadmap_id, required=True)
+        return store.mode_map(row["roadmap_id"])
+
     def roadmap_ready(a):
         from .planner import readiness
 
@@ -110,7 +114,7 @@ def _ops(store, server):
         from .planner import plan
 
         row, roadmap, graph, progress = _roadmap_view(a.get("roadmapId"))
-        result = plan(roadmap, graph, progress)
+        result = plan(roadmap, graph, progress, store.mode_map(row["roadmap_id"]))
         result["contentHash"] = row["content_hash"]
         return result
 
@@ -176,6 +180,7 @@ def _ops(store, server):
             session_id=a.get("sessionId"),
             candidate_id=a.get("candidateId"),
             note=a.get("note"),
+            mode=a.get("mode"),
         )
 
     def roadmap_states(a):

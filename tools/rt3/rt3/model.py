@@ -53,6 +53,19 @@ ITEM_PROGRESS_STATES = ("PENDING", "IN_PROGRESS", "VALIDATED", "DONE")
 #: renderebbe indistinguibile «non ancora provato» da «provato e rotto».
 CANDIDATE_STATUSES = ("PENDING", "PASSED", "FAILED")
 
+#: DOVE una issue viene lavorata, quando e' in corso. Non e' una preferenza: e' la
+#: risorsa che sta consumando adesso.
+#:
+#: 🔴 Esiste perche' il planner non puo' ricordare la propria decisione. Il piano e'
+#: DERIVATO e non viene salvato: suggerisce `TEMPORARY_WORKTREE_SUGGESTED`, e al giro
+#: successivo rilegge soltanto `IN_PROGRESS`. Senza questo campo contava quell'item come
+#: writer PERMANENTE, e la capacita' risultava `used 2 / capacity 1` - uno stato che il
+#: modello dichiara impossibile, raggiunto in silenzio eseguendo il piano stesso.
+#:
+#: `SUGGESTED` non compare qui apposta: il planner PROPONE, questo registra cio' che e'
+#: stato FATTO. Conflaterli renderebbe indistinguibile un consiglio da un fatto.
+ITEM_MODES = ("PERMANENT_WRITER", "TEMPORARY_WORKTREE")
+
 #: I tipi di evento che il control plane sa validare, salvare, instradare e mostrare.
 #: NON tutti hanno una regola di routing automatico (vedi `routing.py`): un tipo senza
 #: regola resta pubblicabile, e viaggia con un destinatario esplicito.
@@ -168,6 +181,18 @@ def check_item_progress(value):
 
 def check_candidate_status(value):
     return _check_enum(value, CANDIDATE_STATUSES, "candidateStatus")
+
+
+def check_item_mode(value):
+    """`None` e' ammesso: significa «non dichiarato».
+
+    Il planner lo tratta come `PERMANENT_WRITER`, che e' la lettura conservativa -
+    occupa la risorsa piu' scarsa. Assumere il temporaneo libererebbe un writer che
+    magari e' occupato davvero.
+    """
+    if value is None:
+        return None
+    return _check_enum(value, ITEM_MODES, "itemMode")
 
 
 def check_session_id(value):
