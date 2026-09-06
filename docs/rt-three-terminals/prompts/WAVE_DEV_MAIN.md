@@ -54,7 +54,7 @@ Niente TODO, stub o mock sul comportamento core.
 ## Avvio
 
 1. Preflight §4.
-2. Protocollo di contesto di [`CLAUDE.md`](../../../CLAUDE.md) §1 per intero.
+2. Protocollo di contesto di [`CLAUDE.md`](../../../CLAUDE.md) §2 per intero.
 3. Precondizioni §5.
 4. Leggi l'assegnazione **dal file**.
 5. Stampa l'header.

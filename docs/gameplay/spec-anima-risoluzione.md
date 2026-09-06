@@ -229,7 +229,7 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 > comportamento voluto — e diventa **atteso** appena la velocità base scenderà, perché a rate più bassi la
 > stessa risoluzione dura di più.
 >
-> ⚠️ Il riferimento «(PDF p.4)» nella tabella non è un'autorità: `CLAUDE.md` §1 esclude i PDF. Resta come
+> ⚠️ Il riferimento «(PDF p.4)» nella tabella non è un'autorità: [`AGENTS.md`](../../AGENTS.md) §2 esclude i PDF. Resta come
 > traccia di provenienza, non come fonte.
 >
 > ### 📌 Taratura del 2026-09-03 — `PlaybackCellsPerSecond` da `6.5` a `1.44`

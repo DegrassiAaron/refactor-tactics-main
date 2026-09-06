@@ -45,7 +45,7 @@ Non modificare codice di produzione non correlato. Non toccare `.uasset` / `.uma
 ## Avvio
 
 1. Preflight §4.
-2. Protocollo di contesto di [`CLAUDE.md`](../../../CLAUDE.md) §1 per intero.
+2. Protocollo di contesto di [`CLAUDE.md`](../../../CLAUDE.md) §2 per intero.
 3. Precondizioni §5.
 4. Leggi **dai file**: assegnazione, contributo DEV-MAIN se esiste, test esistenti, Scenario Harness, spec degli owner.
 5. Stampa l'header.
@@ -103,7 +103,7 @@ Il marcatore deve essere riconoscibile in un dump e non collidere con dati reali
 
 Se nessun precedente copre il tuo caso, la scelta del formato è una decisione documentale: chiedila a DEV-LEAD invece di fissarla in un test.
 
-Owner della regola di privacy: [`CLAUDE.md`](../../../CLAUDE.md) §4. `docs/archive/` non è autorità.
+Owner della regola di privacy: [`CLAUDE.md`](../../../CLAUDE.md) §7. `docs/archive/` non è autorità.
 
 ## Scenario
 
