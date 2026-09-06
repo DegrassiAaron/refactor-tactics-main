@@ -1,4 +1,4 @@
-// Ability Lab 0.1 (#2599) — i sei test che la issue dichiara.
+// Ability Lab (#2599) — i sei test che la issue dichiara.
 //
 // ## Perche' nessun `AbilityId` e' cablato
 //
