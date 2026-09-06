@@ -208,6 +208,21 @@ protected:
 	TObjectPtr<UInputAction> PlaybackSpeedAction;
 
 	/**
+	 * `P`: ferma e riprende la **finestra di preparazione** dell'autobattle (`#2386`).
+	 *
+	 * 🔑 **Sta accanto a `PlaybackSpeedAction` e non fra i comandi di pianificazione**, perche' e' lo stesso
+	 * attore: chi **guarda** una partita non presidiata. La velocita' di riproduzione ha gia' quella natura
+	 * — *«chi guarda una partita non presidiata sceglie il ritmo in anticipo»* — e questo e' il secondo
+	 * comando dello spettatore, non l'undicesimo del giocatore.
+	 *
+	 * ⛔ **Non e' `IA_Pause` (`ESC`)**, che apre il menu modale di CP 46.6, e non e' la pausa del playback di
+	 * `#1879`: quella ferma una risoluzione **gia' decisa** che si sta mostrando. Qui il turno non e' ancora
+	 * committato, e cio' che si ferma e' l'attesa.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> PrepWindowPauseAction;
+
+	/**
 	 * `ESC`: apre e chiude il menu di pausa (CP 46.6, `#941`).
 	 *
 	 * ⚠️ **Nessun `.uasset`, come tutti i fratelli**: gli `UInputAction` di questo controller nascono da
@@ -444,6 +459,31 @@ private:
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);
 	void OnRestart(const FInputActionValue& Value);
+
+	/**
+	 * Il piano e' stato committato: spegne l'anteprima di pianificazione (`#2193`).
+	 *
+	 * 🔴 **`UFUNCTION` perche' e' il bersaglio di un delegate DINAMICO**, e senza la macro `AddUniqueDynamic`
+	 * non compila. Reagisce a `ARTTurnManager::OnLockInCommitted` invece di spegnere l'anteprima dentro
+	 * `OnLockIn`: fra il Ready e il commit c'e' un countdown annullabile, e durante quei tre secondi il piano
+	 * deve **restare visibile** — e' cio' che il giocatore sta per confermare.
+	 */
+	UFUNCTION()
+	void HandleLockInCommitted();
+
+	/**
+	 * Garantisce che `HandleLockInCommitted` sia iscritto al commit, una volta sola (`#2390`).
+	 *
+	 * 🔴 **Iscriversi dentro `OnLockIn` non basta, ed e' il difetto che questa funzione chiude.** Li'
+	 * l'iscrizione avviene al primo **Ready**: un primo turno chiuso dal TETTO trova il delegate senza
+	 * ascoltatori, e l'anteprima resta accesa per tutta la risoluzione mostrando una minaccia gia' decisa.
+	 * Il broadcast parte lo stesso — `HexMatch.LockInCommittedFiresOnPlanningTimeout` lo prova — ma un
+	 * annuncio raggiunge solo chi si e' iscritto.
+	 *
+	 * ⚠️ **Si vede solo prima del PRIMO Ready**: `AddUniqueDynamic` punta al `TurnManager`, che e' lo
+	 * stesso oggetto per tutto il match, quindi dal primo Ready in poi l'iscrizione persiste da se'.
+	 */
+	void EnsureLockInCommittedSubscription(class ARTTurnManager* TurnManager);
 	// Uno per posizione del kit, e sono one-liner che passano tutti da `SelectAbilityForCurrent`. Uno per
 	// posizione e non un handler solo perche' l'indice deve arrivare dalla BINDATURA: `FInputActionValue`
 	// porta il valore, non l'azione che l'ha prodotto, quindi un handler unico non saprebbe quale tasto e'
@@ -468,6 +508,16 @@ private:
 	void OnGeneric5(const FInputActionValue& Value);
 	void OnUndoWaypoint(const FInputActionValue& Value);
 	void OnCyclePlaybackSpeed(const FInputActionValue& Value);
+
+	/**
+	 * Ferma e riprende la finestra di preparazione dell'autobattle (`#2386`).
+	 *
+	 * ⚠️ **Nessuna guardia di `IsPlanningInputInert()`, e non e' una dimenticanza**: quel predicato spegne
+	 * l'input che PIANIFICA quando la partita e' non presidiata (`#971`), e questo comando esiste
+	 * esattamente li'. Spegnerlo con gli altri lo renderebbe inerte proprio nella sola modalita' in cui ha
+	 * un senso. E' la stessa scelta gia' fatta per `OnCyclePlaybackSpeed`, che pure non ne ha.
+	 */
+	void OnTogglePrepWindowPause(const FInputActionValue& Value);
 	void OnRecenter(const FInputActionValue& Value);
 	void OnFocusSelected(const FInputActionValue& Value);
 
@@ -526,6 +576,16 @@ public:
 	void HandleClickOnUnitForTest(class ARTUnit* ClickedUnit) { HandleClickOnUnit(ClickedUnit); }
 
 	/**
+	 * Il clic su una CELLA senza passare dal raycast, per i test (`#2518`).
+	 *
+	 * Stessa disciplina di `HandleClickOnUnitForTest`: cio' che va verificato e' la **decisione** — il
+	 * waypoint si posa, o non si posa — non il trasporto dell'input, che chiede un viewport e headless non
+	 * esiste. E' l'ingresso che scrive `PlannedWaypoints`, cioe' la mutazione di piano piu' grande
+	 * raggiungibile da un clic.
+	 */
+	void HandleClickOnCellForTest(const FRTCellId& Cell) { HandleClickOnCell(Cell); }
+
+	/**
 	 * Arma l'azione in posizione `Index` come farebbe il tasto corrispondente (per i test).
 	 *
 	 * `SelectAbilityForCurrent` e' il punto comune dei dieci tasti abilita' ed e' privata: senza questo, il
@@ -547,6 +607,9 @@ public:
 	 * e costruirne uno inline non compilerebbe.
 	 */
 	void OnLockInForTest();
+
+	/** Hook per i test: percorre il gesto `P` senza Enhanced Input (`#2386`). Gemello di `OnLockInForTest`. */
+	void OnTogglePrepWindowPauseForTest();
 
 	/**
 	 * Inquadra un'unita' con la camera: quello che fa il tasto `F` una volta stabilito CHI inquadrare.
@@ -586,6 +649,23 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	ERTPointerContext GetPointerContext() const;
+
+	/**
+	 * Il mondo e' in SOLA LETTURA: nessun input puo' cambiare il piano (`#2518`).
+	 *
+	 * 🔑 **E' un INSIEME di contesti, non un valore.** `spec-pointer-interaction.md` §5.3 li elenca insieme
+	 * — `ResolutionPlayback`, `ReactionWindow`, `Modal` — e `URTPointerLibrary::ResolveTarget` li tratta
+	 * gia' come un caso solo (`RTPointerInteraction.cpp:142`). Scriverlo come uguaglianza a un valore
+	 * smetterebbe di guardare appena un contesto a precedenza piu' alta ne prende il posto: `Modal` precede
+	 * gia' il playback in `GetPointerContext()`, e `ReactionWindow` fara' lo stesso quando E14 lo produrra'.
+	 *
+	 * ⚠️ **§5.3 vorrebbe `Inspect` consentito durante il playback, e qui invece il clic sul mondo viene
+	 * fermato del tutto.** Non e' una svista: `Inspect` oggi non esiste — `ResolveTarget` calcola un
+	 * bersaglio che nessuno consuma (nessun chiamante di produzione) — e l'unica cosa che la selezione fa
+	 * davvero e' accendere il piano. Fermare il clic e' una deviazione piu' piccola dal contratto che
+	 * lasciare una selezione a meta'. La riga di §5.3 resta aperta finche' `Inspect` non ha un produttore.
+	 */
+	bool IsWorldReadOnly() const;
 
 	/** Che forma di bersaglio chiede l'azione armata. `None` se non c'e' targeting in corso. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")

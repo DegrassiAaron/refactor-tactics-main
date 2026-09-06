@@ -148,12 +148,12 @@ namespace
 		ARTTurnManager* TurnManager = nullptr;
 		ARTPlayerController* PC = nullptr;
 		ARTUnit* Gadget = nullptr;   // team 0, azione base + area
-		ARTUnit* Riktor = nullptr;   // team 0, azione su struttura
+		ARTUnit* Branth = nullptr;   // team 0, azione su struttura
 		ARTUnit* Enemy = nullptr;    // team 1
 
 		bool IsComplete() const
 		{
-			return World && Map && GameMode && TurnManager && PC && Gadget && Riktor && Enemy;
+			return World && Map && GameMode && TurnManager && PC && Gadget && Branth && Enemy;
 		}
 
 		/** Rilatcha la modalita' passando dalla porta vera. */
@@ -184,7 +184,7 @@ namespace
 		}
 
 		B.Gadget = SpawnInertUnit(B.World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
-		B.Riktor = SpawnInertUnit(B.World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-1, 0, 0));
+		B.Branth = SpawnInertUnit(B.World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-1, 0, 0));
 		B.Enemy  = SpawnInertUnit(B.World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, 0, 0));
 
 		B.GameMode = B.World->SpawnActor<ARTGameMode>();
@@ -228,9 +228,9 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 	}
 
 	const int32 AreaIdx = FindInertAreaAbility(B.Gadget);
-	const int32 StructIdx = FindInertStructureAbility(B.Riktor);
+	const int32 StructIdx = FindInertStructureAbility(B.Branth);
 	if (!TestTrue(TEXT("premessa: Gadget ha un'azione ad AREA"), AreaIdx != INDEX_NONE)
-		|| !TestTrue(TEXT("premessa: Riktor ha un'azione su STRUTTURA"), StructIdx != INDEX_NONE))
+		|| !TestTrue(TEXT("premessa: Branth ha un'azione su STRUTTURA"), StructIdx != INDEX_NONE))
 	{
 		RTWorldFixtures::DestroyWorld(B.World);
 		return false;
@@ -265,13 +265,13 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 
 	// (4) bersaglio a bordo
 	ClearInertPlan(B.Gadget);
-	B.PC->SelectActorForTest(B.Riktor);
-	B.Riktor->SelectAbility(StructIdx);
+	B.PC->SelectActorForTest(B.Branth);
+	B.Branth->SelectAbility(StructIdx);
 	TestTrue(TEXT("controllo (4): il bersaglio a bordo e' accettato"),
 		B.PC->HandleTargetEdge(FRTCellId(-2, 0, 0), ERTHexDirection::NE));
 
 	// (5) rotazione dichiarata
-	ClearInertPlan(B.Riktor);
+	ClearInertPlan(B.Branth);
 	B.PC->SelectActorForTest(B.Gadget);
 	B.PC->BeginFacingDeclaration();
 	TestTrue(TEXT("controllo (5): la rotazione dichiarata e' accettata"),
@@ -281,7 +281,7 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 	// PASSO 2 — LA MISURA: autobattle in vigore, gli stessi cinque siti non agganciano piu' niente.
 	// ---------------------------------------------------------------------------------------------
 	ClearInertPlan(B.Gadget);
-	ClearInertPlan(B.Riktor);
+	ClearInertPlan(B.Branth);
 	B.Setup(/*bAutobattle=*/ true);
 	if (!TestTrue(TEXT("la misura: l'input e' inerte"), B.PC->IsPlanningInputInert()))
 	{
@@ -309,11 +309,11 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 		B.PC->HandleTargetCell(FRTCellId(0, -1, 0)));
 	TestFalse(TEXT("(3) e non ha sporcato il piano"), B.Gadget->bAttackTargetsCell);
 
-	B.PC->SelectActorForTest(B.Riktor);
-	B.Riktor->SelectAbility(StructIdx);
+	B.PC->SelectActorForTest(B.Branth);
+	B.Branth->SelectAbility(StructIdx);
 	TestFalse(TEXT("(4) il bersaglio a bordo e' rifiutato"),
 		B.PC->HandleTargetEdge(FRTCellId(-2, 0, 0), ERTHexDirection::NE));
-	TestFalse(TEXT("(4) e nessun lato e' stato registrato"), B.Riktor->bHasPlannedCoverEdge);
+	TestFalse(TEXT("(4) e nessun lato e' stato registrato"), B.Branth->bHasPlannedCoverEdge);
 
 	B.PC->SelectActorForTest(B.Gadget);
 	B.PC->BeginFacingDeclaration();
@@ -334,10 +334,23 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
  *
  * 🔴 **Il difetto che nessun criterio scritto sui siti `Order` avrebbe raggiunto.** `OnLockIn` — il tasto
  * Spazio — non chiama `RecordPlanningInput` affatto: durante il playback **salta la risoluzione**,
- * altrimenti **chiude la pianificazione e risolve il turno**. Per una modalita' che esiste per essere
- * registrata in video e' peggio del piano che evapora: non rende il filmato confuso, lo taglia.
+ * altrimenti **chiude la pianificazione**. Per una modalita' che esiste per essere registrata in video e'
+ * peggio del piano che evapora: non rende il filmato confuso, lo taglia.
  *
- * Il controllo e la misura usano due banchi separati perche' il turno, una volta risolto, non si annulla.
+ * Il controllo e la misura usano banchi separati perche' il turno, una volta risolto, non si annulla.
+ *
+ * ---
+ *
+ * 🔵 **Riscritto il 2026-09-04 dopo `#2193`** (`#2356`), che ha cambiato *cosa* fa il tasto: non chiude piu'
+ * il turno subito, **arma un countdown di 3 s** e committa al suo scadere. Il canary del controllo e' caduto
+ * su `main`, e ha fatto il suo mestiere — senza di lui la misura sarebbe diventata **vacua in silenzio**:
+ * *«il lock-in non chiude il turno»* aveva smesso di distinguere l'autobattle da qualunque altra modalita',
+ * perche' il lock-in non chiudeva piu' niente da nessuna parte.
+ *
+ * ⚠️ **La correzione non rilassa il controllo: lo raddoppia.** `A` prova che il tasto arriva al
+ * `TurnManager` (il countdown si arma), `B` che con la via sincrona chiude davvero un turno. E la misura
+ * gira con `ReadyCountdownSeconds = 0`, cioe' nella configurazione in cui un input non inerte chiuderebbe il
+ * turno **nello stesso frame**: e' piu' severa di prima, non meno.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleLockInInertTest,
 	"RefactorTactics.Match.Autobattle.LockInDoesNotCloseTheTurn",
@@ -346,8 +359,9 @@ bool FRTAutobattleLockInInertTest::RunTest(const FString&)
 {
 	FRTScopedInertSessionState StateGuard;
 
-	// CONTROLLO: senza la modalita', lo stesso tasto chiude il turno. Senza questo passo «il turno non e'
-	// avanzato» non distinguerebbe la guardia da un banco che non sapeva avanzare.
+	// CONTROLLO A: senza la modalita', il tasto ARMA il countdown. E' l'osservabile che separa le due
+	// modalita' sulla semantica nuova, ed e' piu' vicino al difetto di quello vecchio: prova che l'input e'
+	// arrivato al `TurnManager`, non che il turno sia avanzato.
 	{
 		FRTInertBench B = MakeInertBench(/*bWithTurnManagerBeginPlay=*/ true);
 		if (!TestTrue(TEXT("banco di controllo completo"), B.IsComplete()))
@@ -357,15 +371,41 @@ bool FRTAutobattleLockInInertTest::RunTest(const FString&)
 		}
 		B.Setup(/*bAutobattle=*/ false);
 
+		B.PC->OnLockInForTest();
+		TestTrue(TEXT("controllo: il lock-in ha ARMATO il countdown"),
+			B.TurnManager->IsReadyCountdownActive());
+
+		RTWorldFixtures::DestroyWorld(B.World);
+	}
+
+	// CONTROLLO B: e con il countdown a zero lo stesso tasto chiude un turno, come prima di `#2193`.
+	//
+	// 🔴 **Serve, e non e' ridondante col controllo A.** Il countdown si arma anche se il commit poi non
+	// arrivasse mai: senza questo passo, «il tasto fa qualcosa» non sarebbe «il tasto chiude il turno», e la
+	// misura qui sotto tornerebbe a non distinguere la guardia da un banco che non sapeva avanzare — che e'
+	// la ragione per cui il controllo esiste dal 2026-08 (`#971`).
+	{
+		FRTInertBench B = MakeInertBench(/*bWithTurnManagerBeginPlay=*/ true);
+		if (!TestTrue(TEXT("banco di controllo completo"), B.IsComplete()))
+		{
+			RTWorldFixtures::DestroyWorld(B.World);
+			return false;
+		}
+		B.Setup(/*bAutobattle=*/ false);
+		B.TurnManager->SetReadyCountdownSeconds(0.f); // la via sincrona, senza tempo di parete nel test
+
 		const int32 Before = B.TurnManager->GetPacingSamples().Num();
 		B.PC->OnLockInForTest();
-		TestEqual(TEXT("controllo: il lock-in ha chiuso un turno"),
+		TestEqual(TEXT("controllo: senza countdown il lock-in chiude un turno"),
 			B.TurnManager->GetPacingSamples().Num(), Before + 1);
 
 		RTWorldFixtures::DestroyWorld(B.World);
 	}
 
-	// LA MISURA.
+	// LA MISURA — con il countdown a ZERO, cioe' nella configurazione in cui un input NON inerte chiuderebbe
+	// il turno **nello stesso frame**. E' piu' severa della stesura precedente: prima il countdown non
+	// esisteva e questa scelta non c'era; adesso lasciarlo a 3 s renderebbe «non ha chiuso il turno» vero
+	// anche per un input arrivato e semplicemente in attesa.
 	{
 		FRTInertBench B = MakeInertBench(/*bWithTurnManagerBeginPlay=*/ true);
 		if (!TestTrue(TEXT("banco della misura completo"), B.IsComplete()))
@@ -374,11 +414,14 @@ bool FRTAutobattleLockInInertTest::RunTest(const FString&)
 			return false;
 		}
 		B.Setup(/*bAutobattle=*/ true);
+		B.TurnManager->SetReadyCountdownSeconds(0.f);
 
 		const int32 Before = B.TurnManager->GetPacingSamples().Num();
 		B.PC->OnLockInForTest();
 		TestEqual(TEXT("il lock-in non chiude il turno"),
 			B.TurnManager->GetPacingSamples().Num(), Before);
+		TestFalse(TEXT("e non ha nemmeno armato un countdown: l'input non e' arrivato affatto"),
+			B.TurnManager->IsReadyCountdownActive());
 
 		RTWorldFixtures::DestroyWorld(B.World);
 	}

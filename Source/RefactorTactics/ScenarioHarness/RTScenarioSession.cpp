@@ -58,14 +58,24 @@ namespace RTScenarioStateDiff
 		{
 			Out.Emplace(TEXT("Shield"), FString::FromInt(Before.Shield), FString::FromInt(After.Shield));
 		}
-		if (Before.Energy != After.Energy)
-		{
-			Out.Emplace(TEXT("Energy"), FString::FromInt(Before.Energy), FString::FromInt(After.Energy));
-		}
 		if (Before.bAlive != After.bAlive)
 		{
 			Out.Emplace(TEXT("bAlive"), Before.bAlive ? TEXT("true") : TEXT("false"),
 				After.bAlive ? TEXT("true") : TEXT("false"));
+		}
+		if (Before.AbilityCooldowns != After.AbilityCooldowns)
+		{
+			// Slot per slot, perche' «i cooldown sono cambiati» non dice quale azione e' tornata disponibile.
+			auto Descrivi = [](const TArray<int32>& Cooldowns)
+			{
+				TArray<FString> Pezzi;
+				for (int32 I = 0; I < Cooldowns.Num(); ++I)
+				{
+					Pezzi.Add(FString::Printf(TEXT("%d:%d"), I, Cooldowns[I]));
+				}
+				return Pezzi.Num() > 0 ? FString::Join(Pezzi, TEXT(" ")) : FString(TEXT("(nessuna abilita')"));
+			};
+			Out.Emplace(TEXT("AbilityCooldowns"), Descrivi(Before.AbilityCooldowns), Descrivi(After.AbilityCooldowns));
 		}
 		if (Before.Facing != After.Facing)
 		{
@@ -287,7 +297,7 @@ namespace
 			//   · il **contenuto** del T6 atterra nello STESSO commit di questa riga, che e' la condizione che
 			//     la vecchia nota poneva: scoprirla da sola farebbe passare un turno con `intents: []`.
 			// ⚠️ E la fixture e' **discriminante**, che e' la quarta condizione e non era scritta: la copertura
-			// sul bordo `(1,0)->(2,0)` ripara Riktor e non Wraith, quindi un resolver che conservasse la
+			// sul bordo `(1,0)->(2,0)` ripara Branth e non Wraith, quindi un resolver che conservasse la
 			// copertura del bersaglio ORIGINALE darebbe 98 invece di 108 — e il turno cadrebbe. Senza quella
 			// copertura, i due comportamenti sarebbero indistinguibili e il verde non direbbe niente.
 			TEXT("InterceptRevalidation"),
@@ -1158,7 +1168,7 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 
 		// --- abilita' -------------------------------------------------------------------------------------
 		// Stessa strada del controller: si scrivono `PlannedAbilityIndex` e `PlannedAttackTarget`, esattamente
-		// come dopo un click sul nemico. Portata, LOS, cooldown ed energia li valuta il turn manager al momento
+		// come dopo un click sul nemico. Portata, LOS e cooldown li valuta il turn manager al momento
 		// della risoluzione — la sessione non li anticipa, altrimenti verificherebbe le proprie regole invece
 		// di quelle del gioco.
 		// Bersaglio a UNITA': il caso a cella e' il ramo dopo. La condizione porta `!bTargetsCell` perche'
@@ -1195,7 +1205,7 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 				// Azione che risolve su CHI LA USA (`Action.Guard`, `Action.Brace`, e ogni azione di Prep del
 				// vertical slice): il `TurnManager` si bersaglia da solo — `Instance.TargetUnitId = i`, e il
 				// `PlannedAttackTarget` non lo guarda nemmeno. Pretendere un bersaglio qui sarebbe una regola
-				// dell'HARNESS che il gioco non ha, e costringerebbe a scrivere «Riktor si mette in guardia
+				// dell'HARNESS che il gioco non ha, e costringerebbe a scrivere «Branth si mette in guardia
 				// bersagliando se stesso» per ottenere quel che il gioco chiama semplicemente mettersi in guardia.
 				Unit->PlannedAbilityIndex = AbilityIndex;
 			}
@@ -1716,7 +1726,7 @@ FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity&
 		//
 		// ⚠️ **Si verifica che la risposta sia legale in QUESTA finestra, e non basta che il catalogo la
 		// conosca**: il loader ha gia' rifiutato i refusi, ma un profilo sbagliato — `SIDESTEP` chiesto a
-		// Riktor, che non ce l'ha — supererebbe il loader e arriverebbe qui. Senza questo controllo
+		// Branth, che non ce l'ha — supererebbe il loader e arriverebbe qui. Senza questo controllo
 		// `IsResponseAllowed` la rifiuterebbe nel resolver producendo un `HoldRejected`, che nel referto
 		// somiglia a un HOLD voluto: il difetto che la traduzione fallita di `FIRE` ha gia' pagato una volta,
 		// dieci righe piu' su.

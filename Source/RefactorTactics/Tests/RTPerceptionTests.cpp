@@ -383,7 +383,8 @@ bool FRTPerceptionSeesAcrossLayersTest::RunTest(const FString&)
  * 🔑 **L'oracolo e' il numero di COMPONENTI CONNESSE**, non un conteggio di celle: e' la proprieta'
  * che rende il caso interessante, ed e' invariante a mappa, roster e `VisionRange` finche' la geometria
  * regge. La connessione si calcola su `URTHexLibrary::Neighbors`, che **non attraversa i layer** — quindi
- * la piattaforma del layer 1, se vista, e' una componente sua per costruzione del grafo.
+ * un layer diverso sarebbe una componente a se' per costruzione del grafo — ed e' la ragione per cui
+ * questo test conta il SOLO suolo, anche ora che `VisionSplit` non ha piu' celle fuori dal layer 0.
  *
  * ⚠️ Gli osservatori non sono inventati: si chiedono a `PickStartCells`, la **stessa** funzione che
  * allestisce la partita vera. Se un giorno cambiasse l'ordine delle celle di partenza, i due compagni
@@ -405,7 +406,7 @@ bool FRTPerceptionVisionSplitYieldsDisconnectedRegionsTest::RunTest(const FStrin
 	AddInfo(FString::Printf(TEXT("team 0 parte da (%d,%d,L%d) e (%d,%d,L%d)"),
 		Start[0].X, Start[0].Y, Start[0].Layer, Start[1].X, Start[1].Y, Start[1].Layer));
 
-	// ⚠️ `VisionRange` 5: il PIU' CORTO del roster (Phase, Riktor). Se le regioni restano disgiunte col
+	// ⚠️ `VisionRange` 5: il PIU' CORTO del roster (Phase, Branth). Se le regioni restano disgiunte col
 	// piu' corto non e' una prova per gli altri; e' il contrario — con una vista piu' lunga si toccherebbero
 	// piu' facilmente, quindi il caso difficile per questo test e' il **7** di Gadget, provato sotto.
 	auto Osservatori = [&](int32 Range)

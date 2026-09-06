@@ -103,6 +103,18 @@ namespace
 			HexMap->SetPreviewReachableCells(TArray<FRTCellId>());
 			HexMap->SetPreviewHitCells(TArray<FRTCellId>(), TArray<FRTCellId>());
 			HexMap->SetPreviewAttack(FRTCellId(), FRTCellId(), /*bValid=*/ false, /*bOriginPredicted=*/ false);
+
+			// 🔴 **Anche la ROTTA, e fino al 2026-09-06 non era cosi'** (`#2390`, trovato in code review).
+			// Le tre righe qui sopra spegnevano il ventaglio e l'area, non il percorso: `PreviewPath` entra
+			// in `HasAnythingToDraw` (`RTHexMapActor.cpp:988`) e viene disegnato in ciano
+			// (`RTHexMapActor.cpp:1160`), quindi il piano di chi aveva tracciato waypoint — il caso normale
+			// — restava a schermo per tutta la risoluzione. Spegnere l'anteprima a meta' e' un difetto piu'
+			// difficile da vedere che non spegnerla affatto.
+			//
+			// ⚠️ **`LastMoveRoutes` non la sostituisce**: `ARTHUD::DrawHUD` disegna la scia grigia dei
+			// percorsi DAVVERO avvenuti (`RTHUD.cpp:667`) su un canale diverso, quindi le due tracce
+			// convivevano invece di darsi il cambio.
+			HexMap->SetPreviewPath(TArray<FRTCellId>());
 			return;
 		}
 
@@ -319,6 +331,9 @@ void ARTPlayerController::BuildInputMappings()
 	FocusAction->ValueType = EInputActionValueType::Boolean;
 
 	PlaybackSpeedAction = NewObject<UInputAction>(this, TEXT("IA_CyclePlaybackSpeed"));
+
+	PrepWindowPauseAction = NewObject<UInputAction>(this, TEXT("IA_PausePrepWindow"));
+	PrepWindowPauseAction->ValueType = EInputActionValueType::Boolean;
 	PlaybackSpeedAction->ValueType = EInputActionValueType::Boolean;
 
 	// CP 46.6 (#941): il menu di pausa.
@@ -423,6 +438,11 @@ void ARTPlayerController::BuildInputMappings()
 	// ovunque.
 	// `V` e' libero: verificato sull'elenco completo dei `MapKey` di questa funzione.
 	MappingContext->MapKey(PlaybackSpeedAction, EKeys::V);
+
+	// `P` come "pausa". ⚠️ **Non `ESC`** — quello apre il menu modale di CP 46.6 — e non `Spazio`, che e' il
+	// lock-in. Il tasto e' libero: `PlayerInput.HotkeysDoNotCollide` lo verifica su tutto il mapping context
+	// invece che su una lista scritta a mano, quindi questa riga non ha bisogno di essere ricordata altrove.
+	MappingContext->MapKey(PrepWindowPauseAction, EKeys::P);
 
 	// `ESC`: la pausa (CP 46.6).
 	//
@@ -560,6 +580,7 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(SelectAction, ETriggerEvent::Canceled, this,
 			&ARTPlayerController::OnSelectReleased);
 		EIC->BindAction(PlaybackSpeedAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCyclePlaybackSpeed);
+		EIC->BindAction(PrepWindowPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePrepWindowPause);
 		EIC->BindAction(FocusAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFocusSelected);
 		EIC->BindAction(FacingAction, ETriggerEvent::Started, this, &ARTPlayerController::CycleDeclaredFacing);
 		EIC->BindAction(PauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePause);
@@ -1100,6 +1121,19 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		return;
 	}
 
+	// 🔑 **Durante la risoluzione il mondo e' in sola lettura** (`#2518`; `spec-pointer-interaction.md`
+	// §5.3). Sta DOPO il ramo camera, perche' §5.3 la camera la consente, e PRIMA del campione di ritmo,
+	// perche' un clic che non puo' cambiare niente non e' «il giocatore che sta decidendo»: contarlo
+	// gonfierebbe `PIE-V01-MATCHLEN` con tempo in cui nessuna decisione era possibile.
+	//
+	// ⚠️ **E' il CANCELLO, non l'unica guardia.** I tre ingressi che mutano il piano la ripetono ciascuno
+	// al proprio punto di mutazione: `OnSelect` non e' raggiungibile da un test headless (chiede un
+	// raycast sul viewport), quindi una regola che vivesse solo qui non sarebbe verificabile.
+	if (IsWorldReadOnly())
+	{
+		return;
+	}
+
 	// #971 — sessione non presidiata: il click non seleziona e non registra. La guardia sta PRIMA del
 	// campione apposta: un click che non aggancia niente non e' «il giocatore che sta lavorando».
 	if (IsPlanningInputInert())
@@ -1263,6 +1297,16 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 		return;
 	}
 
+	// 🔴 **Sta PRIMA di toccare `SelectedActor`, e l'ordine e' la correzione di un difetto mio** (`#2518`,
+	// code review). La prima stesura tornava DOPO aver riassegnato la selezione e prima di accendere
+	// l'anteprima: l'unita' risultava selezionata con il ventaglio vuoto, e a playback finito nessuno
+	// rinfrescava — la guardia `Actor == SelectedActor` qui sopra rendeva pure inerte un secondo clic.
+	// Una selezione a meta' e' peggio di nessuna selezione.
+	if (IsWorldReadOnly())
+	{
+		return;
+	}
+
 	if (IRTSelectable* Previous = Cast<IRTSelectable>(SelectedActor))
 	{
 		Previous->OnDeselected();
@@ -1271,15 +1315,20 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 
 	// La telemetria di ritmo misura quanto impiega un GIOCATORE a decidere: una selezione fatta da uno
 	// scenario non e' una decisione, e contarla falserebbe i numeri di `PIE-V01-MATCHLEN`.
-	if (bRecordAsPlayerInput)
+	// Risolto UNA volta e riusato due: la telemetria e l'iscrizione al commit vogliono lo stesso attore, e
+	// `GetActorOfClass` e' un `TActorIterator` su tutto il livello.
+	ARTTurnManager* TurnManagerForSelection = PacingTurnManager(this);
+	if (bRecordAsPlayerInput && TurnManagerForSelection)
 	{
-		if (ARTTurnManager* TM = PacingTurnManager(this))
-		{
-			TM->RecordPlanningInput(ERTPlanningInput::Selection);
-		}
+		TurnManagerForSelection->RecordPlanningInput(ERTPlanningInput::Selection);
 	}
 	SelectedActor = Actor;
 	UE_LOG(LogRT, Log, TEXT("[RT] Selezionata: %s"), *Actor->GetName());
+
+	// 🔑 **Chi puo' ACCENDERE l'anteprima garantisce che qualcuno la spenga** (`#2390`). Da qui in poi
+	// esiste uno stato di presentazione che il commit deve spegnere, e il commit puo' arrivare dal tetto
+	// senza che il Ready sia mai stato premuto.
+	EnsureLockInCommittedSubscription(TurnManagerForSelection);
 
 	// L'anteprima segue la selezione: mostra il piano dell'unita' scelta (vuoto se non ne ha).
 	FVector SOrigin; float SHexSize; float SLayerH; const URTHexMapAsset* SMap = nullptr;
@@ -1294,6 +1343,14 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 
 void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 {
+	// `#2518` — scrive `PlannedAbilityIndex` e `PlannedAttackTarget`: e' mutazione del piano, e durante la
+	// risoluzione non deve avvenire. La regola sta in `IsWorldReadOnly()`; qui si applica al proprio punto
+	// di mutazione, che e' anche l'unico raggiungibile da un test headless.
+	if (IsWorldReadOnly())
+	{
+		return;
+	}
+
 	// #971 — primo dei cinque siti `Order`. La guardia sta QUI e non solo su `OnSelect`: questa funzione e'
 	// pubblica (`HandleClickOnUnitForTest` la espone), quindi «non si arriva a selezionare» non e' una
 	// prova che non si arriva a pianificare.
@@ -1354,7 +1411,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		}
 		else if (!bReady)
 		{
-			UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica/energia)"), *Ability->DisplayName.ToString());
+			UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica)"), *Ability->DisplayName.ToString());
 		}
 		else
 		{
@@ -1426,6 +1483,14 @@ FString ARTPlayerController::DescribeWaypointRejection(const FRTHexSnapshot& Sna
 
 void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 {
+	// `#2518` — scrive `PlannedWaypoints`/`PlannedPath` e riaccende l'anteprima. Era la porta piu' grande
+	// rimasta aperta dopo la prima stesura del fix: un clic sulla mappa durante il playback non solo
+	// riportava il piano a schermo, ma piantava waypoint che sopravvivevano al turno successivo.
+	if (IsWorldReadOnly())
+	{
+		return;
+	}
+
 	ARTUnit* SelectedUnit = GetSelectedUnit();
 	if (!SelectedUnit)
 	{
@@ -1614,12 +1679,46 @@ void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 			UE_LOG(LogRT, Log, TEXT("[RT] Lock-in del giocatore -> risoluzione anticipata (turno %d)"),
 				TurnManager->GetTurnNumber());
 
-			// L'anteprima muore col lock-in: da qui in poi mostrerebbe una minaccia gia' risolta, e la traccia
-			// del percorso la sostituisce `LastMoveRoutes` (cio' che e' DAVVERO successo, non cio' che si voleva).
-			RefreshPlanningPreview(GetWorld(), nullptr);
-			TurnManager->LockInAndResolve();
+			// 🔴 **L'anteprima NON muore qui, e dal 2026-09-04 e' il punto** (`#2193`). Fra il Ready e il commit
+			// c'e' un countdown annullabile: spegnere il piano al Ready renderebbe falso il criterio che dice
+			// *«premendo Unready si torna alla pianificazione senza aver perso il piano»* — i dati ci sarebbero,
+			// e per chi gioca un piano invisibile e' un piano perso.
+			//
+			// Muore al **commit**, che e' un fatto del `TurnManager` e non di questo tasto: `OnLockInCommitted`
+			// scatta dentro `LockInAndResolve`, quindi da qualunque dei percorsi ci si arrivi.
+			//
+			// ⚠️ **Resta anche qui, e non e' ridondanza.** Dal 2026-09-05 l'iscrizione la fa gia' `SelectUnit`
+			// (`#2390`), ma un Ready puo' arrivare senza che si sia selezionato niente — e il turno si chiude
+			// lo stesso. Le due chiamate sono idempotenti: la sede della regola e' una,
+			// `EnsureLockInCommittedSubscription`, e `AddUniqueDynamic` le rende innocue a ripetersi.
+			EnsureLockInCommittedSubscription(TurnManager);
+			TurnManager->RequestLockIn();
 		}
 	}
+}
+
+void ARTPlayerController::HandleLockInCommitted()
+{
+	// L'anteprima muore col COMMIT, non col Ready: da qui in poi mostrerebbe una minaccia gia' risolta.
+	// E' la riga che stava in `OnLockIn` fino a `#2193`.
+	//
+	// ⚠️ **Questo commento diceva che «la traccia del percorso la sostituisce `LastMoveRoutes`», ed era
+	// falso**: `ARTHUD` disegna quella scia su un canale diverso e IN AGGIUNTA, non al posto. La rotta la
+	// spegne il ramo `!Unit` di `RefreshPlanningPreview`, che fino al 2026-09-06 non lo faceva.
+	RefreshPlanningPreview(GetWorld(), nullptr);
+}
+
+void ARTPlayerController::EnsureLockInCommittedSubscription(ARTTurnManager* TurnManager)
+{
+	// Il `TurnManager` arriva dal chiamante e non si ricerca qui: entrambi i siti ce l'hanno gia' risolto,
+	// e una seconda `GetActorOfClass` sarebbe un secondo `TActorIterator` su tutti gli attori del livello
+	// per lo stesso oggetto. Passarlo garantisce anche, strutturalmente, che l'iscrizione vada sull'ISTANZA
+	// su cui il chiamante sta per agire.
+	if (!TurnManager)
+	{
+		return;
+	}
+	TurnManager->OnLockInCommitted.AddUniqueDynamic(this, &ARTPlayerController::HandleLockInCommitted);
 }
 
 void ARTPlayerController::ApplyNextPlaybackSpeed(ARTTurnManager* TurnManager)
@@ -1641,6 +1740,36 @@ void ARTPlayerController::OnCyclePlaybackSpeed(const FInputActionValue& Value)
 	// prima che parta, perche' chi guarda una partita non presidiata sceglie il ritmo in anticipo.
 	ApplyNextPlaybackSpeed(
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())));
+}
+
+void ARTPlayerController::OnTogglePrepWindowPause(const FInputActionValue& Value)
+{
+	// Una schermata bloccante copre la partita: questo input non le arriva, come per ogni altro gesto di
+	// gioco. E' l'unica guardia che serve — vedi la dichiarazione per cui `IsPlanningInputInert()` NON va
+	// messa qui.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
+	ARTTurnManager* TurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+	if (!TurnManager)
+	{
+		return;
+	}
+
+	// ⚠️ **Il toggle interroga lo stato, non lo ricorda.** Un `bool` locale qui sarebbe una seconda sede
+	// della stessa verita' — e divergerebbe il giorno in cui la finestra si chiude da sola perche' il tetto
+	// del planning e' scaduto, che e' un percorso che questo controller non vede passare.
+	if (TurnManager->IsPrepWindowPaused())
+	{
+		TurnManager->ResumePrepWindow();
+	}
+	else
+	{
+		TurnManager->PausePrepWindow();
+	}
 }
 
 void ARTPlayerController::OnRestart(const FInputActionValue& Value)
@@ -1830,6 +1959,28 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 		return;
 	}
 
+	// 🔑 **Durante il countdown questo tasto e' l'Unready** (`#2193`, deciso il 2026-09-04).
+	//
+	// Non e' un secondo significato contemporaneo: gli stati sono **mutuamente esclusivi**. Con il countdown
+	// armato la pianificazione e' chiusa, quindi non c'e' nessun waypoint da annullare, e il tasto Annulla
+	// annulla cio' che e' annullabile adesso. E' anche il motivo per cui l'Unready non e' un tasto nuovo: il
+	// kit v0.1 ha gia' nove voci piu' quattro generiche (`E48` #1408), e un gesto attivo tre secondi a turno
+	// era il candidato peggiore per allungarlo.
+	//
+	// ⛔ **E non e' un toggle su Spazio**: chi preme due volte per abitudine annullerebbe senza volerlo, cioe'
+	// l'opposto esatto del difetto che il countdown esiste per prevenire.
+	//
+	// ⚠️ Sta DOPO le tre guardie qui sopra, e ognuna serve: una schermata bloccante copre la partita,
+	// `Alt`+destro e' un dolly, e in una sessione non presidiata non c'e' un umano che possa disdire.
+	if (ARTTurnManager* TM = PacingTurnManager(this))
+	{
+		if (TM->IsReadyCountdownActive())
+		{
+			TM->CancelLockIn();
+			return;
+		}
+	}
+
 	ARTUnit* Unit = GetSelectedUnit();
 	if (!Unit || Unit->PlannedWaypoints.Num() == 0)
 	{
@@ -1913,6 +2064,16 @@ void ARTPlayerController::OnTogglePause()
 	}
 }
 
+bool ARTPlayerController::IsWorldReadOnly() const
+{
+	// Si legge il contesto, come `IsGameplayInputBlocked`: il puntatore e' l'autorita' su cosa un input
+	// possa raggiungere, e un secondo interrogante darebbe due risposte da tenere allineate.
+	const ERTPointerContext Context = GetPointerContext();
+	return Context == ERTPointerContext::ResolutionPlayback
+		|| Context == ERTPointerContext::ReactionWindow
+		|| Context == ERTPointerContext::Modal;
+}
+
 bool ARTPlayerController::IsGameplayInputBlocked() const
 {
 	// Si legge il contesto invece di ri-chiedere al navigatore: il contratto del puntatore e' l'autorita'
@@ -1923,6 +2084,11 @@ bool ARTPlayerController::IsGameplayInputBlocked() const
 void ARTPlayerController::OnLockInForTest()
 {
 	OnLockIn(FInputActionValue());
+}
+
+void ARTPlayerController::OnTogglePrepWindowPauseForTest()
+{
+	OnTogglePrepWindowPause(FInputActionValue());
 }
 
 bool ARTPlayerController::IsPlanningInputInert() const
@@ -1968,8 +2134,21 @@ ERTPointerContext ARTPlayerController::GetPointerContext() const
 	// di §3. Aggiungere qui un ramo significherebbe far decidere al puntatore quando il gioco e' finito.
 	if (const ARTTurnManager* TM = PacingTurnManager(this))
 	{
-		const ERTMatchPhase Phase = TM->GetPhase();
-		if (Phase != ERTMatchPhase::Planning && Phase != ERTMatchPhase::MatchEnded)
+		// 🔴 **Questa riga chiedeva la FASE, e la fase non si muove mai** (`#2518`). `ARTTurnManager::Phase`
+		// nasce `Planning` (`RTTurnManager.h:1929`) e in tutto `Source/` viene assegnato **una volta sola**,
+		// a `MatchEnded` (`RTTurnManager.cpp:3577`). Il predicato era `Phase != Planning && Phase !=
+		// MatchEnded`, cioe' **irraggiungibile**: `ResolutionPlayback` non veniva mai prodotto, e i due
+		// consumatori gia' scritti — `URTPointerLibrary::ResolveTarget` e `ResolveBack` — erano codice morto.
+		//
+		// 🔑 **Lo stato del playback e' `bIsResolving`, non la fase.** Sono due cose diverse: la risoluzione
+		// logica finisce dentro `LockInAndResolve`, mentre il playback continua a scorrere finche'
+		// `IsResolving()` e' vero — ed e' *quello* l'intervallo in cui §5.3 dice che il mondo e' in sola
+		// lettura.
+		//
+		// ⚠️ `MatchEnded` resta escluso senza doverlo nominare: a partita finita `bIsResolving` e' falso, e
+		// si cade nei rami sotto. La ragione per cui non diventa un contesto suo e' invariata, ed e' scritta
+		// nel commento qui sopra.
+		if (TM->IsResolving())
 		{
 			return ERTPointerContext::ResolutionPlayback;
 		}
@@ -2133,7 +2312,7 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 
 	if (!Unit->CanUseAbility(Armed))
 	{
-		UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica/energia)"), *Ability->DisplayName.ToString());
+		UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica)"), *Ability->DisplayName.ToString());
 		return false;
 	}
 
@@ -2198,7 +2377,7 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 
 	if (!Unit->CanUseAbility(Armed))
 	{
-		UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica/energia)"), *Ability->DisplayName.ToString());
+		UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica)"), *Ability->DisplayName.ToString());
 		return false;
 	}
 

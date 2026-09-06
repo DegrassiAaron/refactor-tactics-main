@@ -87,6 +87,11 @@ void FRTPacingRecorder::Close(float PlaybackSeconds, const TArray<FRTPacingUnitF
 
 		CurrentSample.ReactionWindowsOpened =
 			URTPacingLibrary::CountOpenedReactionWindows(TurnLog, Responders);
+
+		// Stesso `Responders`, deliberatamente: e' cio' che rende le finestre un SOTTOINSIEME delle
+		// opportunity invece di due conteggi su popolazioni diverse.
+		CurrentSample.ReactionOpportunities =
+			URTPacingLibrary::CountReactionOpportunities(TurnLog, Responders);
 	}
 
 	Samples.Add(CurrentSample);

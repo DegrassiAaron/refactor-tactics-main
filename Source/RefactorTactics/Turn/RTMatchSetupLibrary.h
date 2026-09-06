@@ -16,7 +16,7 @@ struct FRTShowcaseSpawn
 {
 	GENERATED_BODY()
 
-	/** `HeroId` del catalogo eroi (`Hero.Gadget`, `Hero.Phase`, `Hero.Riktor`, `Hero.Wraith`), non un archetipo legacy. */
+	/** `HeroId` del catalogo eroi (`Hero.Gadget`, `Hero.Phase`, `Hero.Branth`, `Hero.Wraith`), non un archetipo legacy. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Showcase")
 	FName HeroId;
 
@@ -117,7 +117,7 @@ public:
 	 */
 	static URTHexMapAsset* MakeShowcaseRelayLiteArena(UObject* Outer);
 
-	/** Posizioni di partenza canoniche della showcase: Gadget + Phase (team 0) contro Riktor + Wraith (team 1). */
+	/** Posizioni di partenza canoniche della showcase: Gadget + Phase (team 0) contro Branth + Wraith (team 1). */
 	static TArray<FRTShowcaseSpawn> GetShowcaseRelayLiteSpawns();
 
 	/**
@@ -143,7 +143,7 @@ public:
 	 */
 	static URTHexMapAsset* MakeShowcaseRelayBasinArena(UObject* Outer);
 
-	/** Spawn canonici del Relay Basin: Gadget `(-4,0)` + Phase `(-4,1)` contro Riktor `(4,0)` + Wraith `(4,1)`. */
+	/** Spawn canonici del Relay Basin: Gadget `(-4,0)` + Phase `(-4,1)` contro Branth `(4,0)` + Wraith `(4,1)`. */
 	static TArray<FRTShowcaseSpawn> GetShowcaseRelayBasinSpawns();
 
 	/**
@@ -237,7 +237,7 @@ public:
 	 *
 	 * 🔴 **Esiste per due difetti misurati, non per completezza** ([#1738]). Le arene di raggio **4**
 	 * (`MakeTestArena`, `MakeArenaV01`) hanno un raggio piu' corto del `VisionRange` piu' corto del roster
-	 * (**5**, Phase e Riktor; Wraith 6, Gadget 7): una squadra vede quasi tutto al primo turno. E poiche'
+	 * (**5**, Phase e Branth; Wraith 6, Gadget 7): una squadra vede quasi tutto al primo turno. E poiche'
 	 * `ExploredCells` **non scade** ([D-227]), cio' che resta si esaurisce comunque: misurato, le celle mai
 	 * viste vanno a **zero al turno 2**. ∴ su quelle arene i tre stati del velo non si distinguono a schermo,
 	 * e un confine della visibilita' coincide col bordo della mappa.
@@ -250,8 +250,9 @@ public:
 	 *   in camere diverse e la loro vista di squadra e' **disgiunta dal turno 1**, senza dipendere da come
 	 *   si muovono;
 	 * - due **nicchie** che rendono il perimetro visibile **concavo** invece che a ventaglio;
-	 * - una **piattaforma sul layer 1**, che nel grafo tattico e' una regione a se': `Neighbors` non
-	 *   attraversa i layer, quindi le sue celle visibili non confinano con quelle del suolo.
+	 * - ⛔ **nessuna piattaforma**: ce n'era una a `L1` senza transizioni, quindi irraggiungibile in gioco e
+	 *   contata da `rt.Arena.Check` fra le celle non raggiungibili. Rimossa il 2026-09-04; per il caso
+	 *   multilivello ci sono `MakeTestArena` e `MatchArenaPlatformClimb`, che una transizione ce l'hanno.
 	 *
 	 * ⚠️ **Non sostituisce `MakeTestArena` ne' `MakeArenaV01`**, e non ne cambia una riga: quelle sono
 	 * tarate su criteri di movimento e copertura (`URTArenaCriteriaLibrary`, `done_when` di `U1`) e allargarle

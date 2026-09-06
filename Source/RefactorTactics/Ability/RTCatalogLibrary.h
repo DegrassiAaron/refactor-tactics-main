@@ -71,7 +71,7 @@ struct FRTReactionProfileDef
 
 	/**
 	 * Le risposte oltre `Hold Ground`. **Vuoto per il profilo base**, e in quel caso la cardinalita' resta 1
-	 * — nessuna finestra si apre, che e' il caso di Riktor ([D-047], §2.5).
+	 * — nessuna finestra si apre, che e' il caso di Branth ([D-047], §2.5).
 	 *
 	 * ⚠️ Da `TArray<FString>` a `TArray<FRTReactionResponseDef>` il 2026-08-19: una risposta porta ora con se'
 	 * gli effetti con cui si applica. Il **contenuto** non cambia — i token e la cardinalita' di [D-132] sono
@@ -112,7 +112,7 @@ public:
 	 * I Reaction Profile del roster v0.1 (E14.7, [D-047] · `spec-reaction-clash-e14.md` §2.5).
 	 *
 	 * **Tre, non quattro**: `Profile.Grounding` (Gadget), `Profile.Sidestep` (Phase), `Profile.Glance`
-	 * (Wraith). Riktor **non ne ha uno**, e non e' un taglio di contenuto — la risposta proposta era
+	 * (Wraith). Branth **non ne ha uno**, e non e' un taglio di contenuto — la risposta proposta era
 	 * `ANCHOR`, «annulla lo spostamento», ma `Hold Ground` lo fa gia' con la stessa ampiezza: il ramo
 	 * `Braced` del resolver non controlla `KnockDist`. Una seconda risposta che coincide con la prima
 	 * lascerebbe la cardinalita' a **1** senza aprire nulla, e sarebbe stata la terza scrittura della stessa
@@ -234,14 +234,14 @@ public:
 	 * `Gadget.PortableCover` del catalogo equipaggiamento (CP 9.5). E' l'**unico** gadget costruito in v0.1, e
 	 * non e' l'inizio del catalogo completo: quello, con slot, loadout e validazione dell'insieme, e' l'epic E7
 	 * (`#61`, `#63`). Sta qui perche' il DoD di questo checkpoint lo nomina, e perche' e' il secondo
-	 * consumatore di `Action.CreateCover` — cioe' la prova che la semantica e' condivisa e non e' di Riktor.
+	 * consumatore di `Action.CreateCover` — cioe' la prova che la semantica e' condivisa e non e' di Branth.
 	 */
 	static URTEquipmentData* MakePortableCoverGadget();
 
 	/**
 	 * Le **sei varianti d'arma** del catalogo equipaggiamento §1 (CP 7.1, `#60`).
 	 *
-	 * Costruite in C++ come il roster (`MakeRiktor`) e non come asset di `Content/`: sono dati di catalogo che
+	 * Costruite in C++ come il roster (`MakeBranth`) e non come asset di `Content/`: sono dati di catalogo che
 	 * il gioco spedisce sempre, e un asset li renderebbe modificabili senza passare da una review del diff —
 	 * oltre a richiedere l'editor per una regola che non ne ha bisogno.
 	 *
@@ -392,7 +392,7 @@ public:
 	 *
 	 * Oggi ne produce due, ed entrambe nascono da D-089:
 	 * - la variante **duplica uno status** che l'attacco base gia' applica (`Suppressive` su
-	 *   `Riktor.ImpactShot`, che rallenta di suo): si paga il costo pieno per un effetto che si ha;
+	 *   `Branth.ImpactShot`, che rallenta di suo): si paga il costo pieno per un effetto che si ha;
 	 * - la variante porta il danno diretto **a zero o sotto**: un pulsante finto, che ADR-0007 esiste per
 	 *   evitare.
 	 *
@@ -538,9 +538,11 @@ public:
 	 * 🔴 **Erano quattro fino al 2026-08-26**, e la terza esclusa era `Interact` con questa ragione: *«non ha
 	 * un **consumatore**: nessun codice risolve un'interazione. Aggiungerla darebbe a ogni unita' un comando
 	 * che non fa niente»*. Il motivo e' **scaduto**, non era sbagliato: da [D-148]/[D-151] l'azione dichiara
-	 * `SetDoorState`, e il consumatore esiste per intero — `ARTTurnManager` alza `bChangesDoor` dagli Effects
-	 * di qualunque principale pianificata, `URTHexCombatLibrary` raccoglie l'op sulla prima porta della
-	 * traiettoria, `URTHexDoorLibrary::SetDoorState` la applica e il TurnLog scrive `DoorOpened`.
+	 * un effetto sulle porte, e il consumatore esiste per intero — `ARTTurnManager` alza `bChangesDoor` dagli
+	 * Effects di qualunque principale pianificata, `URTHexCombatLibrary` raccoglie l'op sul bordo dichiarato,
+	 * `URTHexDoorLibrary::SetDoorState` la applica e il TurnLog scrive `DoorOpened` o `DoorClosed`.
+	 * ⏱️ *Dal 2026-09-05 l'effetto e' `ToggleDoorState` e non piu' `SetDoorState -> Open`: [`INT-7`] chiusa,
+	 * `#2380`.*
 	 * ⚠️ Con **un** bersaglio funzionante: le porte. Consolle, ascensori, generatori, sprinkler, ponti e
 	 * obiettivi che il catalogo §1 elenca non esistono, e la generica non li promette.
 	 *

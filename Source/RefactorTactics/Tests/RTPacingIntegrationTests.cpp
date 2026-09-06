@@ -87,9 +87,9 @@ bool FRTPacingSamplePerTurnTest::RunTest(const FString&)
 	SpawnHexPacingMap(World, /*Radius=*/ 5);
 
 	ARTUnit* A1 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(-4, 2));
-	ARTUnit* A2 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 3));
+	ARTUnit* A2 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 3));
 	ARTUnit* B1 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(4, -2));
-	ARTUnit* B2 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -3));
+	ARTUnit* B2 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -3));
 	ARTTurnManager* TM = SpawnHexPacingTurnManager(World);
 	if (!TM || !A1 || !A2 || !B1 || !B2) { DestroyHexPacingWorld(World); return false; }
 
@@ -144,7 +144,7 @@ bool FRTPacingUnopenedSampleTest::RunTest(const FString&)
 	SpawnHexPacingMap(World, /*Radius=*/ 3);
 
 	ARTUnit* A1 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-2, 1));
-	ARTUnit* B1 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -1));
+	ARTUnit* B1 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -1));
 
 	// ⚠️ NIENTE `DispatchBeginPlay`, ed e' il punto del test: senza, `StartPlanningTimer` non gira e il
 	// campione del primo turno non viene mai aperto. E' come ci arrivano i test headless e lo Scenario
@@ -200,7 +200,7 @@ bool FRTPacingCompositionTest::RunTest(const FString&)
 	SpawnHexPacingMap(World, /*Radius=*/ 3);
 
 	ARTUnit* A1 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(-2, 1));
-	ARTUnit* B1 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -1));
+	ARTUnit* B1 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -1));
 	ARTTurnManager* TM = SpawnHexPacingTurnManager(World);
 	if (!TM || !A1 || !B1) { DestroyHexPacingWorld(World); return false; }
 
@@ -245,9 +245,9 @@ bool FRTPacingHashInvarianceTest::RunTest(const FString&)
 		SpawnHexPacingMap(World, /*Radius=*/ 5);
 
 		ARTUnit* A1 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(-4, 2));
-		ARTUnit* A2 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 3));
+		ARTUnit* A2 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 3));
 		ARTUnit* B1 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(4, -2));
-		ARTUnit* B2 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -3));
+		ARTUnit* B2 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -3));
 		ARTTurnManager* TM = SpawnHexPacingTurnManager(World);
 		if (!TM || !A1 || !A2 || !B1 || !B2) { DestroyHexPacingWorld(World); return false; }
 

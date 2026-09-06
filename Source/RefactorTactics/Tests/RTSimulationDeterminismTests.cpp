@@ -1096,6 +1096,12 @@ bool FRTBoundaryChecksumNamesTheDivergenceTest::RunTest(const FString&)
 		E.SrcCell = Da;
 		E.TgtCell = A;
 		E.ActionId = FName(TEXT("Action.Move"));
+		// ⚠️ **Esplicito, e non ridondante** (`#2374`): `FRTTurnLogEntry::MicroStepIndex` vale `0` di
+		// default, che dentro una traccia `WithMicroStep` significa *«il PRIMO micro-step»*. Lasciarlo al
+		// default farebbe misurare a questo test dei boundary di ciclo, mentre cio' che esiste per
+		// misurare e' la localizzazione fra TURNI. `Action.Move` porta `INDEX_NONE` nella partita vera,
+		// e qui deve portarlo per la stessa ragione.
+		E.MicroStepIndex = INDEX_NONE;
 		return E;
 	};
 
@@ -1113,7 +1119,7 @@ bool FRTBoundaryChecksumNamesTheDivergenceTest::RunTest(const FString&)
 	}
 
 	const TArray<FRTBoundaryChecksum> A =
-		URTBoundaryChecksumLibrary::ChecksumsAlongTrace(nullptr, Traccia, Iniziale);
+		URTBoundaryChecksumLibrary::ChecksumsAlongTrace(nullptr, Traccia, Iniziale, ERTTurnLogFormatVersion::WithMicroStep);
 
 	// ⛔ ANTI-VACUITA' 1: senza piu' di un boundary il test non potrebbe distinguere «a meta'» da «alla
 	// fine», che e' la proprieta' che esiste per misurare.
@@ -1122,9 +1128,22 @@ bool FRTBoundaryChecksumNamesTheDivergenceTest::RunTest(const FString&)
 	// ⛔ ANTI-VACUITA' 2: i checksum non devono essere tutti uguali, o il confronto sarebbe cieco.
 	TestNotEqual(TEXT("boundary diversi hanno checksum diversi"), A[0].Hash, A[1].Hash);
 
+	// ⛔ ANTI-VACUITA' 3 — il SOGGETTO (`#2387`): questi boundary sono di **fase intera**, e questo test
+	// misura la localizzazione fra TURNI.
+	//
+	// 🔴 **Senza queste due righe la premessa non e' verificata da nessuno.** `MicroStepIndex` vale `0` di
+	// default: se le voci sopra tornassero al default, dentro una traccia `WithMicroStep` quello `0`
+	// significherebbe *«il primo micro-step»*, i boundary diventerebbero di ciclo — `T1|Move#0` — e ogni
+	// assertion qui sotto resterebbe **vera lo stesso**, misurando un'altra cosa. E' successo davvero, ed
+	// e' il difetto che `#2387` ha chiuso: il verde era preservato e il soggetto era cambiato in silenzio.
+	TestEqual(TEXT("i boundary sono di fase intera, non di ciclo"),
+		A[0].MicroStepIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("e l'etichetta non porta un micro-step che la traccia non dichiara"),
+		A[0].ToString(), FString(TEXT("T1|Move")));
+
 	// --- il verso VERDE: la stessa traccia con se' stessa ---------------------------------------------
 	const TArray<FRTBoundaryChecksum> Uguale =
-		URTBoundaryChecksumLibrary::ChecksumsAlongTrace(nullptr, Traccia, Iniziale);
+		URTBoundaryChecksumLibrary::ChecksumsAlongTrace(nullptr, Traccia, Iniziale, ERTTurnLogFormatVersion::WithMicroStep);
 
 	TestEqual(TEXT("due esecuzioni identiche non divergono"),
 		URTBoundaryChecksumLibrary::FirstDivergence(A, Uguale), INDEX_NONE);
@@ -1136,7 +1155,7 @@ bool FRTBoundaryChecksumNamesTheDivergenceTest::RunTest(const FString&)
 	Alterata[1].TgtCell = FRTCellId(9, 9); // il turno 2 finisce altrove
 
 	const TArray<FRTBoundaryChecksum> B =
-		URTBoundaryChecksumLibrary::ChecksumsAlongTrace(nullptr, Alterata, Iniziale);
+		URTBoundaryChecksumLibrary::ChecksumsAlongTrace(nullptr, Alterata, Iniziale, ERTTurnLogFormatVersion::WithMicroStep);
 
 	const int32 Dove = URTBoundaryChecksumLibrary::FirstDivergence(A, B);
 
@@ -1156,6 +1175,221 @@ bool FRTBoundaryChecksumNamesTheDivergenceTest::RunTest(const FString&)
 		URTBoundaryChecksumLibrary::FirstDivergence(A, Corta), Corta.Num());
 	TestTrue(TEXT("e il messaggio lo dice"),
 		URTBoundaryChecksumLibrary::DescribeDivergence(A, Corta).Contains(TEXT("numero diverso")));
+
+	return true;
+}
+
+namespace
+{
+	/**
+	 * Una fase `T1|Move` con **tre** micro-step e l'arrivo che li segue — la forma che la partita produce.
+	 *
+	 * 🔑 **Non e' una traccia inventata per comodita' del test.** Gli eventi di ciclo (qui `Facing`) portano
+	 * un `MicroStepIndex` `>= 0`; `Action.Move` porta `INDEX_NONE` perche' `BuildMoveLog` gira dopo
+	 * `FinishHexMovement`, quindi l'arrivo e' posteriore a ogni barriera attraversata. Se il test usasse
+	 * solo voci `Move` non eserciterebbe la terza coordinata affatto: sarebbero tutte `INDEX_NONE`.
+	 */
+	TArray<FRTTurnLogEntry> TracciaConTreMicroStep(int32 FacingAlSecondoMicroStep)
+	{
+		auto Rotazione = [](int32 MicroStep, int32 Direzione)
+		{
+			FRTTurnLogEntry E;
+			E.TurnNumber = 1;
+			E.Phase = ERTMatchPhase::Move;
+			E.Category = ERTLogCategory::Facing;
+			E.UnitId = 1;
+			E.SrcCell = FRTCellId(0, 0);
+			E.Amount = Direzione;                 // la direzione viaggia in `Amount`
+			E.MicroStepIndex = MicroStep;
+			E.ActionId = FName(TEXT("Action.Move"));
+			return E;
+		};
+
+		TArray<FRTTurnLogEntry> T;
+		T.Add(Rotazione(0, 0));
+		T.Add(Rotazione(1, FacingAlSecondoMicroStep));
+		T.Add(Rotazione(2, 2));
+
+		// L'arrivo: fuori dal ciclo, quindi `INDEX_NONE`, e il suo boundary chiude la fase.
+		FRTTurnLogEntry Arrivo;
+		Arrivo.TurnNumber = 1;
+		Arrivo.Phase = ERTMatchPhase::Move;
+		Arrivo.Category = ERTLogCategory::Move;
+		Arrivo.UnitId = 1;
+		Arrivo.SrcCell = FRTCellId(0, 0);
+		Arrivo.TgtCell = FRTCellId(3, 0);
+		Arrivo.MicroStepIndex = INDEX_NONE;
+		Arrivo.ActionId = FName(TEXT("Action.Move"));
+		T.Add(Arrivo);
+
+		return T;
+	}
+
+	TArray<FRTTracedUnitState> SchieramentoDiUno()
+	{
+		FRTTracedUnitState S;
+		S.UnitId = 1;
+		S.Cell = FRTCellId(0, 0);
+		TArray<FRTTracedUnitState> Iniziale;
+		Iniziale.Add(S);
+		return Iniziale;
+	}
+}
+
+/**
+ * `#2374` — il checksum di boundary distingue due micro-step della STESSA fase.
+ *
+ * 🔴 **E' l'anti-vacuita' della terza coordinata, e senza di essa il gate mente.** Prima di `#2374` la
+ * chiave era `(Turno, Fase)`: due esecuzioni che divergevano al secondo di tre micro-step producevano lo
+ * **stesso** identico checksum di fase, e il verdetto diceva «divergono a `T1|Move`» — cioe' nominava un
+ * intervallo che contiene la causa insieme a due barriere innocenti.
+ *
+ * ⛔ **Sotto mutazione questo test DEVE diventare rosso**: togliendo `MicroStepIndex` dalla chiave di
+ * `ChecksumsAlongTrace` i quattro boundary collassano in uno e `FirstDivergence` non ha piu' un `1` da
+ * restituire. E' il criterio della issue, non un'aspirazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBoundaryChecksumDistinguishesMicroStepsTest,
+	"RefactorTactics.Replay.Verifier.BoundaryChecksumDistinguishesMicroSteps",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBoundaryChecksumDistinguishesMicroStepsTest::RunTest(const FString&)
+{
+	const TArray<FRTTracedUnitState> Iniziale = SchieramentoDiUno();
+
+	const TArray<FRTBoundaryChecksum> A = URTBoundaryChecksumLibrary::ChecksumsAlongTrace(
+		nullptr, TracciaConTreMicroStep(/*FacingAlSecondoMicroStep*/ 1), Iniziale,
+		ERTTurnLogFormatVersion::WithMicroStep);
+
+	// ⛔ ANTI-VACUITA' 1: quattro boundary in UNA fase. Con la vecchia chiave ce ne sarebbe stato uno, e
+	// tutto il resto del test sarebbe stato vero per costruzione invece che per misura.
+	if (!TestEqual(TEXT("una fase con tre micro-step produce quattro boundary"), A.Num(), 4))
+	{
+		return false;
+	}
+
+	// ⛔ L'ordine: i micro-step in ordine, e la fase intera ULTIMA malgrado `-1 < 0`.
+	TestEqual(TEXT("il primo boundary e' il micro-step 0"), A[0].MicroStepIndex, 0);
+	TestEqual(TEXT("poi il micro-step 1"), A[1].MicroStepIndex, 1);
+	TestEqual(TEXT("poi il micro-step 2"), A[2].MicroStepIndex, 2);
+	TestEqual(TEXT("e la fase intera chiude"), A[3].MicroStepIndex, (int32)INDEX_NONE);
+
+	// ⛔ ANTI-VACUITA' 2: boundary diversi devono avere hash diversi, o il confronto sarebbe cieco.
+	TestNotEqual(TEXT("micro-step diversi hanno checksum diversi"), A[0].Hash, A[1].Hash);
+
+	// --- il verso VERDE ------------------------------------------------------------------------------
+	const TArray<FRTBoundaryChecksum> Uguale = URTBoundaryChecksumLibrary::ChecksumsAlongTrace(
+		nullptr, TracciaConTreMicroStep(1), Iniziale, ERTTurnLogFormatVersion::WithMicroStep);
+
+	TestEqual(TEXT("due esecuzioni identiche non divergono"),
+		URTBoundaryChecksumLibrary::FirstDivergence(A, Uguale), (int32)INDEX_NONE);
+
+	// --- 🔴 il verso ROSSO: divergenza al SECONDO di tre micro-step, dentro la stessa fase ------------
+	const TArray<FRTBoundaryChecksum> B = URTBoundaryChecksumLibrary::ChecksumsAlongTrace(
+		nullptr, TracciaConTreMicroStep(/*FacingAlSecondoMicroStep*/ 3), Iniziale,
+		ERTTurnLogFormatVersion::WithMicroStep);
+
+	// Il primo micro-step e' identico: e' cio' che rende utile la misura. Un gate che segnalasse la
+	// divergenza dall'inizio della fase non aiuterebbe a cercare piu' di quanto facesse `FinalStateHash`.
+	TestEqual(TEXT("il micro-step 0 NON diverge"), A[0].Hash, B[0].Hash);
+
+	const int32 Dove = URTBoundaryChecksumLibrary::FirstDivergence(A, B);
+	TestEqual(TEXT("la divergenza e' al micro-step 1, non alla fase"), Dove, 1);
+
+	// 🔑 Il messaggio nomina la TERNA. Con la vecchia chiave avrebbe potuto dire al massimo `T1|Move`.
+	const FString Messaggio = URTBoundaryChecksumLibrary::DescribeDivergence(A, B);
+	TestTrue(TEXT("il messaggio nomina il micro-step esatto"), Messaggio.Contains(TEXT("T1|Move#1")));
+
+	return true;
+}
+
+/**
+ * `#2374` — sotto `WithMicroStep` il checksum resta phase-only, e lo DICE.
+ *
+ * ⚠️ **Il difetto che questo test impedisce non e' un crash: e' una misura inventata.** Una traccia
+ * antecedente alla `v12` non porta il campo, e la deserializzazione lascia `0` su ogni voce. Chiavare su
+ * quello produrrebbe un boundary etichettato `T1|Move#0` in un archivio dove nessun micro-step e' mai
+ * stato scritto — un'etichetta piu' precisa del dato che la sostiene.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBoundaryChecksumIsPhaseOnlyBeforeTheMicroStepVersionTest,
+	"RefactorTactics.Replay.Verifier.BoundaryChecksumIsPhaseOnlyBeforeTheMicroStepVersion",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBoundaryChecksumIsPhaseOnlyBeforeTheMicroStepVersionTest::RunTest(const FString&)
+{
+	const TArray<FRTTracedUnitState> Iniziale = SchieramentoDiUno();
+	const TArray<FRTTurnLogEntry> Traccia = TracciaConTreMicroStep(1);
+
+	// La stessa identica traccia, letta come se venisse da un archivio che il campo non lo porta.
+	const TArray<FRTBoundaryChecksum> Vecchia = URTBoundaryChecksumLibrary::ChecksumsAlongTrace(
+		nullptr, Traccia, Iniziale, ERTTurnLogFormatVersion::WithReactionResponse);
+
+	TestEqual(TEXT("sotto la v12 la fase produce UN solo boundary"), Vecchia.Num(), 1);
+	TestEqual(TEXT("e quel boundary e' la fase intera"), Vecchia[0].MicroStepIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("l'etichetta non inventa un micro-step"), Vecchia[0].ToString(), FString(TEXT("T1|Move")));
+
+	// 🔑 E il contrasto e' la misura: la stessa traccia, dichiarata `WithMicroStep`, ne produce quattro.
+	const TArray<FRTBoundaryChecksum> Nuova = URTBoundaryChecksumLibrary::ChecksumsAlongTrace(
+		nullptr, Traccia, Iniziale, ERTTurnLogFormatVersion::WithMicroStep);
+	TestEqual(TEXT("la stessa traccia alla v12 ne produce quattro"), Nuova.Num(), 4);
+	TestEqual(TEXT("e li' l'etichetta porta la terza coordinata"),
+		Nuova[1].ToString(), FString(TEXT("T1|Move#1")));
+
+	// ⚠️ Lo stato a fine fase e' lo STESSO nelle due letture: cambia la granularita' del taglio, non il
+	// mondo. Il boundary di chiusura deve avere l'hash del boundary phase-only.
+	TestEqual(TEXT("la fase intera vale lo stesso stato nelle due letture"),
+		Vecchia[0].Hash, Nuova[3].Hash);
+
+	return true;
+}
+
+/**
+ * `#2374` — il confronto guarda il LUOGO, non solo l'hash: due micro-step diversi con lo stesso stato
+ * restano una divergenza.
+ *
+ * 🔴 **E' il caso che pareggia sui numeri, ed e' frequente.** Un micro-step in cui nessuno si muove lascia
+ * lo stato identico al precedente, quindi il suo hash coincide. Se `FirstDivergence` guardasse solo turno,
+ * fase e hash — com'era prima di `#2374` — due esecuzioni che attraversano un numero **diverso** di
+ * barriere dentro la stessa fase si direbbero uguali fin li'. La chiave si e' allargata alla terza
+ * coordinata: il confronto doveva allargarsi con lei, e questo test lo pinna.
+ *
+ * ⚠️ Le sequenze si costruiscono a mano invece che da una traccia: serve **esattamente** il caso in cui gli
+ * hash coincidono e il luogo no, e derivarlo da una traccia lo renderebbe dipendente da quali celle
+ * l'hash mescola — cioe' da un'altra proprieta'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBoundaryChecksumComparesThePlaceNotOnlyTheHashTest,
+	"RefactorTactics.Replay.Verifier.BoundaryChecksumComparesThePlaceNotOnlyTheHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBoundaryChecksumComparesThePlaceNotOnlyTheHashTest::RunTest(const FString&)
+{
+	auto Boundary = [](int32 MicroStep, int64 Hash)
+	{
+		FRTBoundaryChecksum C;
+		C.TurnNumber = 1;
+		C.Phase = ERTMatchPhase::Move;
+		C.MicroStepIndex = MicroStep;
+		C.Hash = Hash;
+		return C;
+	};
+
+	// Stesso turno, stessa fase, **stesso hash**: differiscono solo per la barriera che nominano.
+	TArray<FRTBoundaryChecksum> A;
+	A.Add(Boundary(/*MicroStep*/ 0, /*Hash*/ 0x1234));
+
+	TArray<FRTBoundaryChecksum> B;
+	B.Add(Boundary(/*MicroStep*/ 1, /*Hash*/ 0x1234));
+
+	TestEqual(TEXT("l'hash non li distingue"), A[0].Hash, B[0].Hash);
+
+	TestEqual(TEXT("ma il luogo si', e la divergenza e' alla posizione 0"),
+		URTBoundaryChecksumLibrary::FirstDivergence(A, B), 0);
+
+	const FString Messaggio = URTBoundaryChecksumLibrary::DescribeDivergence(A, B);
+	TestTrue(TEXT("e il messaggio nomina entrambi i boundary"),
+		Messaggio.Contains(TEXT("T1|Move#0")) && Messaggio.Contains(TEXT("T1|Move#1")));
+
+	// Il verso verde: due boundary identici in tutto non divergono.
+	TArray<FRTBoundaryChecksum> Uguale;
+	Uguale.Add(Boundary(0, 0x1234));
+	TestEqual(TEXT("due boundary identici non divergono"),
+		URTBoundaryChecksumLibrary::FirstDivergence(A, Uguale), (int32)INDEX_NONE);
 
 	return true;
 }

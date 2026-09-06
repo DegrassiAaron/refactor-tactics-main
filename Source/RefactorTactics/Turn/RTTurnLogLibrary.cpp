@@ -195,7 +195,7 @@ bool URTTurnLogLibrary::IsDamageInflictedByActor(const FRTTurnLogEntry& Entry)
 FString URTTurnLogLibrary::DescribeActionIdentity(const FRTTurnLogEntry& Entry)
 {
 	// «azione base + profilo» quando la voce sa dirlo (D-033), altrimenti il solo ActionId. La forma con la
-	// barretta si legge in un colpo — `Action.BasicAttack · Riktor.ImpactShot` — e non richiede di sapere a
+	// barretta si legge in un colpo — `Action.BasicAttack · Branth.ImpactShot` — e non richiede di sapere a
 	// memoria che ImpactShot e' un attacco base.
 	//
 	// Il caso `BaseActionId == ActionId` non produce «X · X»: un'azione generica usata direttamente e' il
@@ -340,6 +340,7 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	case ERTActionInvalidReason::NoEffect:       return TEXT("nessun effetto da applicare");
 	// ⚠️ Diverso da «interrotta»: quella e' stata CANCELLATA, questa e' avvenuta senza ottenere niente.
 	case ERTActionInvalidReason::Neutralised:    return TEXT("neutralizzata da un'interruzione reciproca");
+	case ERTActionInvalidReason::Unbalanced:     return TEXT("sbilanciato: non puo' correre");
 	default:                                     return TEXT("non eseguibile");
 	}
 }
@@ -401,6 +402,13 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// `SrcCell -> TgtCell` che il ramo lungo stampa e' la stessa di `Moved`, e senza una parola diversa la
 		// riga direbbe che l'unita' e' andata dove voleva — che e' precisamente cio' che non e' successo.
 		case ERTMoveOutcome::Slid:              Reason = TEXT("scivola"); break;
+		// Il movimento CHIESTO e' riuscito, e lo scivolamento che veniva dopo no (#2314). «arriva» e non
+		// «fermo»: e' l'unica riga del vocabolario dei blocchi in cui il piano del giocatore ha funzionato, e
+		// aprirla con «fermo» — come fanno `BlockedByUnit` e i suoi fratelli — manderebbe a cercare un errore
+		// nel piano invece che una lastra di ghiaccio contro un muro. La causa non si nomina di proposito: e'
+		// uniforme rispetto al motivo (unita', contesa, ciclo, muro), e nominarla richiederebbe di sapere CHI,
+		// che questa voce non porta e che [D-223] non autorizza a dedurre.
+		case ERTMoveOutcome::SlideBlocked:      Reason = TEXT("arriva: scivolamento impedito"); break;
 		// Un valore aggiunto in coda all'enum e non tradotto qui: si legge lo stesso e DICE di non essere
 		// tradotto, invece di travestirsi da «resta». Chi lo incontra sa dove guardare.
 		default:
@@ -419,9 +427,13 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// `Slid` sta qui per la stessa ragione di `SupersededByDash`: cio' che la voce deve far vedere e' la
 		// DESTINAZIONE, che non e' quella pianificata. Stampare la sola `SrcCell` nasconderebbe l'unica cosa
 		// che distingue lo scivolamento da un movimento riuscito.
+		// `SlideBlocked` sta qui perche' e' un movimento RIUSCITO: la destinazione e' quella che il giocatore
+		// aveva chiesto, e nasconderla lo lascerebbe con «impedito» senza sapere che il suo piano ha
+		// funzionato — cioe' con la lettura opposta a quella che l'esito esiste per dare.
 		if (static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Moved
 			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Displaced
 			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Slid
+			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SlideBlocked
 			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SupersededByDash)
 		{
 			return FString::Printf(TEXT("%s %s -> %s (%d celle)%s"),
@@ -462,6 +474,10 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 			return FString::Printf(TEXT("%s: %s purificato"), *Dove, *Quale);
 		case ERTStatusOutcome::Spent:
 			return FString::Printf(TEXT("%s: %s incassato"), *Dove, *Quale);
+		// `Amount` qui e' il PREZZO, non una durata: e' l'unico esito di stato in cui la vittima paga
+		// (`#2253`), e la riga deve far vedere quanto — altrimenti «rialzato» e «scaduto» si somigliano.
+		case ERTStatusOutcome::ShakenOff:
+			return FString::Printf(TEXT("%s: %s scrollato via, %d MP spesi"), *Dove, *Quale, Entry.Amount);
 		default:
 			return FString::Printf(TEXT("%s: esito di stato non tradotto (%d) su %s"),
 				*Dove, Entry.Outcome, *Quale);
@@ -507,7 +523,7 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		case ERTReactionOutcome::NotTriggered: What = TEXT("reazione pronta, nessun trigger"); break;
 		default:                               What = TEXT("reazione non disponibile"); break;
 		}
-		// QUALE reazione, quando l'identita' c'e': fra `Riktor.Interposition` e `Action.Intercept` cambia
+		// QUALE reazione, quando l'identita' c'e': fra `Branth.Interposition` e `Action.Intercept` cambia
 		// l'abilita' spesa e il cooldown, non solo l'esito (CP 5.5).
 		if (HasDeclaredAction(Entry))
 		{
@@ -815,7 +831,7 @@ namespace
 		Number(TEXT("amount"), E.Amount);
 		// L'identita' dell'azione entra byte per byte: due reazioni con la stessa geometria e lo stesso esito,
 		// ma abilita' diverse, devono produrre hash diversi — altrimenti il replay di CP 12.6 non
-		// distinguerebbe `Riktor.Interposition` da `Action.Intercept`.
+		// distinguerebbe `Branth.Interposition` da `Action.Intercept`.
 		const FString ActionIdText = E.ActionId.ToString();
 		Text(TEXT("actionId"), ActionIdText);
 		// `GraphRevision` ENTRA (D-067): due tracce possono differire SOLO per lei — stessi eventi, ma grafo
@@ -1020,7 +1036,7 @@ namespace
 	 * azioni dal prefisso comune indistinguibili.
 	 *
 	 * Oltre 65535 byte la stringa viene troncata: e' il limite del campo di lunghezza. Nessun ActionId del
-	 * catalogo si avvicina a quella soglia (sono nomi come `Riktor.Interposition`), quindi il caso non e'
+	 * catalogo si avvicina a quella soglia (sono nomi come `Branth.Interposition`), quindi il caso non e'
 	 * raggiungibile da dati validi — se lo diventasse, il posto dove rifiutarlo e' il validator del catalogo,
 	 * non il serializzatore.
 	 */
@@ -1581,6 +1597,10 @@ bool URTTurnLogLibrary::IsStatusBirth(ERTStatusOutcome Outcome)
 	case ERTStatusOutcome::Extinguished:
 	case ERTStatusOutcome::Cleansed:
 	case ERTStatusOutcome::Spent:
+	// `ShakenOff` e' una MORTE come le altre quattro, e la sotto-causa che porta — «l'ha pagata la
+	// vittima» — vive nel valore, non nel verso: `IsStatusBirth` risponde alla sola domanda «l'icona si
+	// apre o si chiude?», e qui si chiude (`#2253`).
+	case ERTStatusOutcome::ShakenOff:
 		return false;
 	}
 
@@ -1625,6 +1645,7 @@ TArray<FString> URTTurnLogLibrary::UndeclaredStatusOutcomes()
 			ERTStatusOutcome::Extinguished,
 			ERTStatusOutcome::Cleansed,
 			ERTStatusOutcome::Spent,
+			ERTStatusOutcome::ShakenOff,
 		};
 
 		bool bDichiarato = false;

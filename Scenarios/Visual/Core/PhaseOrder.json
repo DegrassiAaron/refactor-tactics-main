@@ -5,22 +5,22 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "Un turno, tre fasi, tre unita' che si muovono in momenti diversi: Riktor carica nel **Dash**, Wraith spara nel **Blast**, Phase cammina nel **Move**. La sequenza `Prep -> Dash -> Blast -> Move` e' la spina dorsale del gioco e questo e' il solo scenario del corpus che la mette tutta in un'inquadratura. Se a schermo le tre cose accadono insieme, la regola per cui il movimento normale arriva DOPO i colpi — che e' il motivo per cui si puo' sfuggire a un attacco solo con la mobilita' rapida — resta invisibile.",
+  "_nota": "Un turno, tre fasi, tre unita' che si muovono in momenti diversi: Branth carica nel **Dash**, Wraith spara nel **Blast**, Phase cammina nel **Move**. La sequenza `Prep -> Dash -> Blast -> Move` e' la spina dorsale del gioco e questo e' il solo scenario del corpus che la mette tutta in un'inquadratura. Se a schermo le tre cose accadono insieme, la regola per cui il movimento normale arriva DOPO i colpi — che e' il motivo per cui si puo' sfuggire a un attacco solo con la mobilita' rapida — resta invisibile.",
 
-  "_nota_aritmetica": "Gadget 90 - [20 (Hero.Riktor.Ram, Dash) + 21 (Hero.Wraith.PulseShot, Blast) - 5 di scudo base, [D-224]] = 54. Phase arriva a (-1,1) camminando due celle, e parte DOPO che i colpi sono gia' risolti.",
+  "_nota_aritmetica": "Gadget 90 - [20 (Hero.Branth.Ram, Dash) + 21 (Hero.Wraith.PulseShot, Blast) - 5 di scudo base, [D-224]] = 54. Phase arriva a (-1,1) camminando due celle, e parte DOPO che i colpi sono gia' risolti.",
   "_nota_scudo_base": "Ogni conto in prosa di questo file sottrae gia' lo SCUDO BASE. Causa: `URTCombatLibrary::BaseShield = 5` ([D-224]) esiste dal COSTRUTTORE di `ARTUnit`, quindi ogni unita' assorbe 5 danni prima degli HP, e ogni nota scritta prima di [D-224] sbagliava di 5 per bersaglio colpito. \u26a0\ufe0f **Fino al 2026-09-02 questo campo era un'ERRATA** (2026-08-30): dichiarava che la prosa sopra era rimasta indietro e che NON sarebbe stata riscritta, *«dice ancora cosa faceva il gioco quando fu scritto»*. `#2049` ha ribaltato quella scelta, e la ragione e' misurata: un `_nota` descrive il file di **oggi**, non e' un registro storico, e due testi che si contraddicono nello stesso file sono il difetto \u2014 non la sua documentazione. La versione precedente dei conti e' in git.",
 
   "units": [
     { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [-1,  0, 0] },
     { "id": "R1", "hero": "Hero.Phase",    "team": 0, "cell": [-3,  1, 0] },
-    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [ 1,  0, 0] },
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 1,  0, 0] },
     { "id": "V1", "hero": "Hero.Wraith",  "team": 1, "cell": [ 1, -1, 0] }
   ],
 
   "turns": [
     {
       "intents": [
-        { "unit": "B1", "dash": "Hero.Riktor.Ram", "dashTo": [-1, 0, 0] },
+        { "unit": "B1", "dash": "Hero.Branth.Ram", "dashTo": [-1, 0, 0] },
         { "unit": "V1", "ability": "Hero.Wraith.PulseShot", "target": "F1" },
         { "unit": "R1", "move": [[-2, 1, 0], [-1, 1, 0]] }
       ]

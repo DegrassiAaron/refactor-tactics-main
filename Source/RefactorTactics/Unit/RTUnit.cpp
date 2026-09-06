@@ -17,9 +17,11 @@
 #include "Animation/AnimSequenceBase.h"
 #include "Animation/AnimSingleNodeInstance.h"
 #include "Unit/RTUnitAnimInstance.h"
+#include "Unit/RTContactGhostAnimInstance.h" // #1750: il grafo a un nodo che applica la posa ricordata
 #include "Perception/RTTeamKnowledge.h" // ContactLifetimeTurns: la durata del ricordo ha un owner, non si ricopia
 #include "Components/WidgetComponent.h" // la sovrapposizione sopra la testa (#2288, D-320)
 #include "UI/RTUnitOverlayWidget.h"  // la classe base del widget: serve il tipo completo per SetWidgetClass
+#include "UI/RTHudViewModel.h"      // BuildDamageToken: la composizione del token e' del view-model (#2455)
 
 ARTUnit::ARTUnit()
 {
@@ -110,6 +112,10 @@ ARTUnit::ARTUnit()
 	// dati versionati invece che grafi dentro quattro binari da ~700 KB.
 	UnitAnimClass = URTUnitAnimInstance::StaticClass();
 
+	// Il grafo della SAGOMA (#1750, secondo criterio): un solo nodo, la posa ricordata, nessun tempo.
+	// ⛔ Non e' `UnitAnimClass`: quello **puo'** animarsi, e su una sagoma sarebbe una telecamera sul nemico.
+	ContactGhostAnimClass = URTContactGhostAnimInstance::StaticClass();
+
 	// Freccia di orientamento: figlia del ROOT, quindi segue l'attore e non la mesh. E' la differenza fra
 	// le due che dice se `MeshYawOffset` e' giusto.
 	FacingArrow = CreateDefaultSubobject<UArrowComponent>(TEXT("FacingArrow"));
@@ -125,7 +131,7 @@ ARTUnit::ARTUnit()
 	// normale erediterebbe il transform e la trascinerebbe con l'unita' vera, che nel frattempo puo' essersi
 	// mossa altrove. La aggiorna solo `UpdateContactGhost`, mai `RefreshComponentVisibility` (che nasconde il
 	// personaggio vero) ne' `ApplyTeamColor`/`ApplyFacingArrow` (che sono presentazione del vivo).
-	// Sovrapposizione sopra la testa (`#2288`, `D-320`): nome, vita, scudo, energia, stati.
+	// Sovrapposizione sopra la testa (`#2288`, `D-320`): nome, vita, scudo, stati.
 	//
 	// ⚠️ `Screen` space e non `World`: e' cio' che sostituisce il disegno in canvas, che era in coordinate
 	// schermo. In `World` la sovrapposizione rimpicciolirebbe con la distanza — e a camera tattica, dove le
@@ -235,6 +241,30 @@ UUserWidget* ARTUnit::GetOverlayWidgetObject() const
 	// un mondo senza rendering, come quello dei test headless — questa risponde `nullptr`, ed e' il caso
 	// normale, non un errore. Chi la chiama deve poterlo attraversare senza dire niente.
 	return OverlayWidget ? OverlayWidget->GetUserWidgetObject() : nullptr;
+}
+
+void ARTUnit::ShowDamageToken(int32 Amount)
+{
+	// Il giudizio sta nella funzione pura, non qui: `#2455` mette la regola del caso zero e la composizione
+	// dell'etichetta in `URTHudViewModel::BuildDamageToken`, che un test chiama senza costruire un widget.
+	LastDamageToken = URTHudViewModel::BuildDamageToken(Amount, StableUnitId);
+
+	// ⚠️ **Il campo si scrive SEMPRE, il widget si aggiorna se c'e'.** In un mondo headless — e prima che il
+	// componente abbia istanziato il widget — `GetOverlayWidgetObject()` risponde `nullptr`, ed e' il caso
+	// normale che il suo doc-comment dichiara. Scrivere prima di quel controllo e' cio' che rende il
+	// cablaggio verificabile senza rendering.
+	if (UUserWidget* Raw = GetOverlayWidgetObject())
+	{
+		if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(Raw))
+		{
+			Overlay->PushDamageToken(LastDamageToken);
+		}
+	}
+
+	// ⛔ **Nessun controllo sul velo QUI, ed e' deliberato.** Chi puo' vedere questa unita' lo decide
+	// `ARTHUD::UpdateObserverVeil`, che spegne l'intero `OverlayWidget` (`RefreshComponentVisibility`): un
+	// secondo giudizio in questo punto sarebbe la divergenza che `#2246` ha appena tolto, e la prima volta
+	// che i due non fossero d'accordo nessun test lo direbbe.
 }
 
 void ARTUnit::ApplyUnitAnimClass()
@@ -384,9 +414,30 @@ void ARTUnit::SetKnownToObserver(bool bKnown)
 	RefreshComponentVisibility();
 }
 
-bool ARTUnit::ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh)
+bool ARTUnit::ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh, bool bHasPose)
 {
-	return bRender && !bHasHeroMesh;
+	// 🔴 **Due condizioni diverse che fino al 2026-09-05 coincidevano per caso** (#2545).
+	//
+	// Il segnaposto spariva appena esisteva una MESH. Ma una mesh senza una clip da suonare non e' un
+	// corpo: e' una **posa di riferimento**, cioe' una T-pose — e una T-pose non dice «nessuno ha legato
+	// una clip a questo ruolo», dice «questa animazione e' rotta». Sul PACK `Riktor` — l'eroe
+	// `Hero.Branth` dopo la migrazione d'identita' di #2297 — le catene si stendono sullo schermo, ed e'
+	// lo stesso sintomo che #1750 nomina. ⚠️ Il pack Paragon conserva il nome `Riktor` perche' e' di terze
+	// parti: e' l'IDENTITA' RT ad essere cambiata, non la cartella.
+	//
+	// Coincidevano perche' il roster ha sempre avuto le clip nel default C++. Da #2441 `ActiveClipVariant`
+	// puo' valere `NAME_None`, e rimuovere la variante attiva e' un'operazione **prevista**.
+	return bRender && !(bHasHeroMesh && bHasPose);
+}
+
+bool ARTUnit::ShouldShowHeroSkeletal(bool bRender, bool bHasPose)
+{
+	// L'altra meta' della stessa decisione, e va scritta accanto: senza, il cilindro comparirebbe SOPRA la
+	// T-pose invece che al suo posto, e si vedrebbero entrambi.
+	//
+	// ⚠️ Non serve `bHasHeroMesh`: questo predicato lo chiama solo chi ha gia' trovato lo skeletal, e
+	// aggiungerlo darebbe un terzo argomento sempre vero — un ingresso che nessun test puo' falsificare.
+	return bRender && bHasPose;
 }
 
 bool ARTUnit::ShouldShowSelectionRing(bool bRender, bool bSelected, bool bHasSelectionMaterial)
@@ -399,6 +450,40 @@ bool ARTUnit::ShouldShowTeamRing(bool bRender, bool bHasTeamRingMaterial)
 	return bRender && bHasTeamRingMaterial;
 }
 
+bool ARTUnit::ShouldCaptureContactPose(bool bWasRendered, bool bWillBeRendered)
+{
+	// Un solo verso: si perde di vista. Il ritorno in vista non cattura niente — non c'e' nessun ricordo da
+	// aggiornare mentre l'unita' si vede, perche' finche' si vede la sagoma non si disegna affatto.
+	return bWasRendered && !bWillBeRendered;
+}
+
+bool ARTUnit::NotifyRenderStateForPoseCapture(bool bWillBeRendered)
+{
+	const bool bCapture = ShouldCaptureContactPose(bLastRenderApplied, bWillBeRendered);
+	bLastRenderApplied = bWillBeRendered;
+	return bCapture;
+}
+
+ERTGhostPoseSource ARTUnit::GhostPoseSourceFor(const FPoseSnapshot& Snapshot, bool bHasFallbackClip)
+{
+	// ⚠️ Tre condizioni e non solo `bIsValid`: `FAnimNode_PoseSnapshot::ApplyPose` indicizza
+	// `LocalTransforms` con l'indice del nome corrispondente, e due array di lunghezza diversa sarebbero
+	// una lettura fuori dai limiti su un dato che nessuno rilegge fino al frame in cui si disegna.
+	const bool bUsable = Snapshot.bIsValid
+		&& Snapshot.LocalTransforms.Num() > 0
+		&& Snapshot.BoneNames.Num() == Snapshot.LocalTransforms.Num();
+
+	if (bUsable)
+	{
+		return ERTGhostPoseSource::Snapshot;
+	}
+
+	// ⛔ **Il ripiego resta, e non e' una cortesia**: un contatto puo' nascere da RUMORE (`CP 13.4`), e
+	// un'unita' sentita e mai vista non ha nessuna posa da ricordare. E' la riga per cui il referto del
+	// 2026-08-30 ha rifiutato di dividere #1750 in due issue.
+	return bHasFallbackClip ? ERTGhostPoseSource::Fallback : ERTGhostPoseSource::None;
+}
+
 void ARTUnit::RefreshComponentVisibility()
 {
 	const bool bRender = ShouldBeRendered(IsAlive(), bKnownToObserver);
@@ -408,6 +493,18 @@ void ARTUnit::RefreshComponentVisibility()
 	// a mostrarla sia a decidere del cilindro segnaposto qui sotto.
 	USkeletalMeshComponent* HeroSkeletal = FindHeroSkeletal();
 	const bool bHasHeroMesh = HeroSkeletal != nullptr && HeroSkeletal->GetSkeletalMeshAsset() != nullptr;
+
+	// 🔴 **C'e' una POSA da mostrare?** (#2545) Una mesh senza clip e' una T-pose, e una T-pose si legge
+	// come un difetto dell'animazione invece che come un ruolo non legato.
+	//
+	// Il segnale e' la variante ATTIVA del ruolo `Idle`, risolta **senza caricare**: i pack Paragon vivono
+	// in `Content/FabAsset/`, gitignorato, e un `LoadSynchronous` qui direbbe «nessuna posa» su ogni clone
+	// che non li ha — che e' vero a schermo, ma lo direbbe anche mentre il gioco gira con i pack montati,
+	// perche' la risoluzione non e' garantita a questo punto del frame.
+	//
+	// ⚠️ Legge dal CDO di `UnitAnimClass`, quindi vede anche l'override del Blueprint che
+	// `RTBuildAnimBindings` genera dai binding autorati (#2443).
+	const bool bHasPose = !GhostFallbackClipPath().IsNull();
 
 	// 🔴 Si nascondono i COMPONENTI, non l'actor. `SetActorHiddenInGame` propaga a tutti i componenti,
 	// sagoma dell'ultimo contatto compresa (Task 6) — che deve vedersi proprio quando l'unita' non si vede.
@@ -431,7 +528,7 @@ void ARTUnit::RefreshComponentVisibility()
 		// e' vero e il cilindro va nascosto comunque — le due forme coincidono per VERSO. Su un'unita'
 		// senza skeletal il cui `BP_Unit_*` usasse `bHiddenInGame = true`, questa riga chiederebbe di
 		// mostrare il cilindro e il cilindro resterebbe invisibile. Vedi `ShouldShowPlaceholderMesh`.
-		Mesh->SetVisibility(ShouldShowPlaceholderMesh(bRender, bHasHeroMesh), /*bPropagateToChildren*/ false);
+		Mesh->SetVisibility(ShouldShowPlaceholderMesh(bRender, bHasHeroMesh, bHasPose), /*bPropagateToChildren*/ false);
 	}
 
 	// L'anello di squadra esiste solo se `ApplyTeamColor` ha trovato il materiale: senza, il ripiego e' il
@@ -459,9 +556,34 @@ void ARTUnit::RefreshComponentVisibility()
 	// difetto opposto, un ricordo che sparisce insieme al suo soggetto.
 	if (OverlayWidget) { OverlayWidget->SetVisibility(bRender, false); }
 
+	// 🔴 **La cattura della posa ricordata (#1750), e sta PRIMA di `SetVisibility(false)` per costruzione.**
+	//
+	// Il momento e' l'unica cosa che rende questo un ricordo invece di una vista:
+	//
+	//  - **prima**, perche' cio' che si vuole e' la posa dell'ultimo istante in cui l'osservatore la vedeva.
+	//    ⚠️ Il referto del 2026-08-30 §3 lo motivava con *«UE puo' aver smesso di aggiornare la posa»*, e
+	//    **misurato sull'engine 5.8 quel motivo e' falso**: il default e' `AlwaysTickPoseAndRefreshBones`
+	//    (`SkeletalMeshComponent.cpp:446`), la posa continua ad avanzare anche da nascosta. La regola regge
+	//    per una ragione piu' stretta — catturare prima non dipende da un'opzione di componente che
+	//    qualunque `BP_Unit_*` puo' cambiare senza toccare questo file;
+	//  - **una volta sola**, e proprio perche' la posa continua ad avanzare: una cattura ripetuta darebbe la
+	//    posa CORRENTE del nemico frame per frame. Non un ricordo sbiadito: una telecamera. Il one-shot lo
+	//    impone `NotifyRenderStateForPoseCapture`, che guarda la TRANSIZIONE e non la condizione — tre dei
+	//    quattro chiamanti di questa funzione la invocano a visibilita' invariata.
+	//
+	// ⚠️ `SnapshotPose` scrive la posa di RIFERIMENTO per le ossa fuori dalle *required bones* del LOD
+	// corrente, e quelle che le LOD dei pack rimuovono sono le catene di Branth: vedi `LastSeenPose`, e
+	// `#1784` per la ragione per cui oggi non morde.
+	if (NotifyRenderStateForPoseCapture(bRender) && bHasHeroMesh)
+	{
+		HeroSkeletal->SnapshotPose(LastSeenPose);
+	}
+
 	if (HeroSkeletal)
 	{
-		HeroSkeletal->SetVisibility(bRender, false);
+		// #2545: si mostra solo se c'e' una posa. Senza, resterebbe a schermo in T-pose SOTTO il cilindro
+		// che il predicato di sopra ha appena acceso — due corpi invece di un segnaposto.
+		HeroSkeletal->SetVisibility(ShouldShowHeroSkeletal(bRender, bHasPose), false);
 	}
 
 	// La collisione si spegne sull'ACTOR: `SetVisibility` non la tocca, e l'unico proxy di click e' `Mesh`
@@ -517,8 +639,10 @@ TSoftObjectPtr<UAnimSequenceBase> ARTUnit::GhostFallbackClipFor(
 	{
 		return nullptr;
 	}
-	const FRTLocomotionClips* Trovate = Clips->FindClipsFor(HeroId);
-	return Trovate ? Trovate->Idle : TSoftObjectPtr<UAnimSequenceBase>(nullptr);
+	// ⚠️ **La variante ATTIVA del ruolo `Idle`**, non «il campo Idle»: dal 2026-09-05 un ruolo puo' avere
+	// piu' varianti e nessuna attiva. `ActiveClipFor` restituisce vuoto in tutte e tre le vie che danno
+	// «niente» — eroe fuori catalogo, ruolo non popolato, nessuna attiva — e nessuna e' un errore.
+	return Clips->ActiveClipFor(HeroId, ERTPresentationRole::Idle);
 }
 
 TSoftObjectPtr<UAnimSequenceBase> ARTUnit::GhostFallbackClipPath() const
@@ -541,6 +665,63 @@ TSoftObjectPtr<UAnimSequenceBase> ARTUnit::GhostFallbackClipPath() const
 	}
 
 	return GhostFallbackClipFor(Defaults, HeroId);
+}
+
+TSoftObjectPtr<UAnimSequenceBase> ARTUnit::ResolvedClipPathFor(ERTPresentationRole Ruolo) const
+{
+	// Stessa porta di `GhostFallbackClipPath`, e per la stessa ragione: il CDO di `UnitAnimClass` e' l'unica
+	// lista dei nomi delle clip. Una seconda lista qui divergerebbe alla prima modifica.
+	if (UnitAnimClass == nullptr)
+	{
+		return nullptr;
+	}
+
+	const URTUnitAnimInstance* Defaults = Cast<URTUnitAnimInstance>(UnitAnimClass->GetDefaultObject());
+	if (Defaults == nullptr)
+	{
+		return nullptr;
+	}
+
+	// 🔑 Risolve SENZA caricare: headless i pack non ci sono, e il PATH e' cio' che un test puo' asserire.
+	return Defaults->ActiveClipFor(HeroId, Ruolo);
+}
+
+void ARTUnit::PlayPresentationRole(ERTPresentationRole Ruolo)
+{
+	// ⛔ Ogni uscita anticipata di questa funzione e' un DEGRADO previsto, non un errore: l'unita' resta in
+	// posa di riferimento e la partita si gioca uguale (invariante #1, come D-248 per la locomozione).
+	const TSoftObjectPtr<UAnimSequenceBase> Path = ResolvedClipPathFor(Ruolo);
+	UAnimSequenceBase* const Sequenza = Path.IsNull() ? nullptr : Path.LoadSynchronous();
+
+	if (Sequenza != nullptr)
+	{
+		// La skeletal dell'EROE, mai `ContactGhost`: quella ha un grafo suo, e animarla dal vivo
+		// contraddirebbe cio' che la sagoma e' (#1750).
+		if (USkeletalMeshComponent* const Skeletal = FindHeroSkeletal())
+		{
+			if (UAnimInstance* const Anim = Skeletal->GetAnimInstance())
+			{
+				// 🔑 **Nessun montaggio-asset**: `PlaySlotAnimationAsDynamicMontage` costruisce il montaggio
+				// a runtime attorno alla sequenza, sullo slot che `FRTUnitAnimProxy` espone gia' come radice
+				// (`FAnimSlotGroup::DefaultSlotName`, D-248). E' la ragione per cui i dodici `AM_*` non
+				// servono (#2450).
+				Anim->PlaySlotAnimationAsDynamicMontage(Sequenza, FAnimSlotGroup::DefaultSlotName);
+			}
+		}
+	}
+
+	// Il Blueprint viene notificato SEMPRE, anche quando non si e' suonato niente: riceve `nullptr` e sa
+	// che il ruolo e' scattato senza una clip. Un BP che non implementa l'evento non fa nulla.
+	switch (Ruolo)
+	{
+	case ERTPresentationRole::Attack: PlayAttackMontage(Sequenza); break;
+	case ERTPresentationRole::Hit:    PlayHitMontage(Sequenza);    break;
+	case ERTPresentationRole::Death:  PlayDefeatMontage(Sequenza); break;
+	default:
+		// Gli altri ruoli non hanno un evento discreto: `Idle` e `Move` li suona il grafo, e i restanti non
+		// hanno ancora un consumatore. Suonare la clip resta corretto; notificare non avrebbe chi ascolta.
+		break;
+	}
 }
 
 USkeletalMeshComponent* ARTUnit::FindHeroSkeletal() const
@@ -605,7 +786,7 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 		return;
 	}
 
-	// La mesh/posa arrivano dalla skeletal VIVA del Blueprint (Step 6.1), mai dal C++: un'unita' col solo
+	// La mesh arriva dalla skeletal VIVA del Blueprint (Step 6.1), mai dal C++: un'unita' col solo
 	// cilindro segnaposto (#287) non ha nulla da copiare, e la sagoma resta nascosta invece di mostrare
 	// un vuoto.
 	USkeletalMeshComponent* HeroSkeletal = FindHeroSkeletal();
@@ -618,15 +799,35 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 	if (ContactGhost->GetSkeletalMeshAsset() != HeroSkeletal->GetSkeletalMeshAsset())
 	{
 		ContactGhost->SetSkeletalMesh(HeroSkeletal->GetSkeletalMeshAsset());
+
+		// 🔴 **Il LOD della sagoma si inchioda QUI, e `ApplyUnitMeshLOD` non poteva farlo.** Quella gira una
+		// volta sola, in `BeginPlay`, e a quel punto `ContactGhost` non ha ancora nessuna mesh: il suo
+		// `continue` su `GetSkeletalMeshAsset() == nullptr` la salta, e la sagoma restava l'unica skeletal
+		// dell'unita' **non** inchiodata al LOD 0.
+		//
+		// ⛔ Non e' un dettaglio di qualita' visiva: `#1784` ha misurato che **le LOD dei pack rimuovono le
+		// ossa delle catene**, ed e' per quello che Branth «si stende sullo schermo» da lontano. Una sagoma
+		// lasciata scendere di LOD riprodurrebbe il fotogramma che #1750 esiste per togliere — sullo stesso
+		// eroe, per la stessa causa, sul componente che nessuno aveva coperto.
+		//
+		// ⚠️ `SetForcedLOD` e' 1-BASED: `0` significa «scegli tu», `1` e' il LOD 0. Stessa nota di
+		// `ApplyUnitMeshLOD`, e stesso `+ 1`.
+		if (ForcedMeshLOD >= 0)
+		{
+			ContactGhost->SetForcedLOD(ForcedMeshLOD + 1);
+		}
 	}
 
 	// 🔴 **La posa di RIPIEGO (#1750).** Un `USkeletalMeshComponent` con una mesh e senza `AnimInstance`
-	// disegna la **posa di riferimento** dello skeleton — la T-pose — e su Riktor quella posa stende le
+	// disegna la **posa di riferimento** dello skeleton — la T-pose — e su Branth quella posa stende le
 	// catene attraverso lo schermo. E' il difetto che questa riga chiude, confermato a schermo il 2026-09-03.
 	//
-	// ⚠️ **Il commento sei righe piu' su promette la POSA e il codice copiava solo la MESH.** Diceva «la
-	// mesh/posa arrivano dalla skeletal VIVA»: la mesh si', la posa no — e nessuno se ne era accorto perche'
-	// una T-pose somiglia a un personaggio, non a un errore.
+	// ⚠️ **Il commento sopra prometteva la POSA e il codice copiava solo la MESH**: diceva «la mesh/posa
+	// arrivano dalla skeletal VIVA», la mesh si' e la posa no, e nessuno se ne era accorto perche' una
+	// T-pose somiglia a un personaggio, non a un errore. Dal secondo criterio la posa arriva **davvero**,
+	// ma per un'altra strada — non copiata insieme alla mesh: catturata al momento del contatto e applicata
+	// dal ramo `Snapshot` qui sotto. Il commento e' stato ristretto alla sola mesh, che e' cio' che quella
+	// riga fa.
 	//
 	// 🔑 **Perche' una clip congelata e non uno snapshot della posa viva.** Il referto di spec-panel §4
 	// (`sagoma-ultimo-contatto-posa-spec-panel-2026-08-30.md`) prescrive l'ordine e la ragione:
@@ -643,19 +844,83 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 	// skeletal viva, e non deve diventarlo.
 	//
 	// ⚠️ **`AnimationSingleNode` invece della classe dedicata che il referto proponeva.** §3 raccomandava
-	// *«una classe dedicata — che applica una posa e non avanza»*, e per lo SNAPSHOT servira': applicare un
-	// `FPoseSnapshot` richiede un `AnimInstance` che lo consumi. Per il ripiego il motore ha gia' quel
+	// *«una classe dedicata — che applica una posa e non avanza»*. Per il RIPIEGO il motore ha gia' quel
 	// meccanismo, e una classe nostra sarebbe codice da mantenere per riscrivere `FAnimSingleNodeInstance`.
+	// La classe dedicata e' arrivata col secondo criterio — `URTContactGhostAnimInstance` — perche' li'
+	// serve davvero: un `FPoseSnapshot` vuole un `AnimInstance` che lo consumi.
+	// ⚠️ **E quella frase, scritta qui col primo criterio, si legge naturalmente come «serve un
+	// AnimBlueprint»: e' falsa.** Il grafo della sagoma e' C++ puro come `URTUnitAnimInstance`, e nessun
+	// `.uasset` e' stato aggiunto.
+	//
+	// 🔴 **E dal secondo criterio di #1750 il ripiego non e' piu' l'unica sorgente**: quando la squadra ha
+	// davvero VISTO l'unita', `RefreshComponentVisibility` ne ha catturato la posa e la sagoma mostra
+	// quella. Chi sceglie e' `GhostPoseSourceFor`, che e' pura perche' il test la possa chiamare.
 	UAnimSequenceBase* const IdleClip = GhostFallbackClipPath().LoadSynchronous();
-	if (IdleClip != nullptr)
+
+	switch (GhostPoseSourceFor(LastSeenPose, /*bHasFallbackClip*/ IdleClip != nullptr))
 	{
-		if (ContactGhost->AnimationData.AnimToPlay != IdleClip)
+	case ERTGhostPoseSource::Snapshot:
+	{
+		// ⛔ **Il grafo della sagoma, assegnato QUI e non da `ApplyUnitAnimClass`** — che continua a non
+		// raggiungere `ContactGhost` perche' `FindHeroSkeletal` lo esclude per identita'. Se ci arrivasse
+		// da li' prenderebbe `URTUnitAnimInstance` e si animerebbe dal vivo.
+		//
+		// ⚠️ **La guardia controlla il MODO e non solo la classe**, e la differenza morde su un cammino
+		// preciso: `SetAnimationMode(AnimationSingleNode)` — che il ramo del ripiego chiama — **non azzera**
+		// `AnimClass`. Guardando la sola classe, una sagoma passata per il ripiego resterebbe in
+		// `AnimationSingleNode` con `GetAnimClass()` gia' uguale a questa: la posa ricordata non tornerebbe
+		// mai piu', e a schermo si vedrebbe un idle al posto del ricordo. Oggi quel cammino non e'
+		// raggiungibile (vedi il ramo `Fallback`), e la guardia non ci si appoggia.
+		if (ContactGhostAnimClass != nullptr
+			&& (ContactGhost->GetAnimationMode() != EAnimationMode::AnimationBlueprint
+				|| ContactGhost->GetAnimClass() != ContactGhostAnimClass))
+		{
+			ContactGhost->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+			ContactGhost->SetAnimInstanceClass(ContactGhostAnimClass);
+		}
+
+		// La posa si scrive sull'istanza a ogni aggiornamento, non solo alla prima: il ricordo si
+		// sovrascrive quando l'unita' viene rivista e poi persa di nuovo, ed e' il comportamento voluto —
+		// la sagoma e' l'ULTIMO contatto, non il primo.
+		//
+		// ⚠️ Il proxy copia nel nodo in `PreUpdate`, cioe' sul game thread: da qui non si tocca mai il dato
+		// che il motore sta valutando.
+		if (URTContactGhostAnimInstance* GhostAnim =
+			Cast<URTContactGhostAnimInstance>(ContactGhost->GetAnimInstance()))
+		{
+			GhostAnim->Snapshot = LastSeenPose;
+		}
+		break;
+	}
+	case ERTGhostPoseSource::Fallback:
+	{
+		// ⚠️ **Si torna a `AnimationSingleNode` esplicitamente**, e la guardia include il MODO perche' una
+		// sagoma passata per il ramo dello snapshot resterebbe altrimenti agganciata a quel grafo.
+		//
+		// 🔴 **Il cammino snapshot → ripiego NON e' raggiungibile oggi, e va detto invece che lasciato
+		// dedurre.** `LastSeenPose` non viene mai invalidato: una volta che l'unita' e' stata vista, il
+		// ricordo resta valido per tutta la partita, quindi `GhostPoseSourceFor` non torna piu' al ripiego su
+		// quell'unita'. Il caso *«vista, persa, e poi solo SENTITA»* mostra la posa dell'ultimo avvistamento
+		// sulla cella del rumore — ed e' **voluto**: la posa e' memoria come la cella, e il referto del
+		// 2026-09-05 §7 lo dichiara *«da dichiarare, non da correggere»*.
+		// ∴ questa guardia e' una difesa contro un futuro invalidamento, non la copertura di un caso vivo.
+		// Una stesura precedente di questo commento affermava il contrario, e sarebbe stata la prima cosa a
+		// ingannare chi venisse a cercare quando il ripiego torna.
+		if (ContactGhost->GetAnimationMode() != EAnimationMode::AnimationSingleNode
+			|| ContactGhost->AnimationData.AnimToPlay != IdleClip)
 		{
 			ContactGhost->SetAnimationMode(EAnimationMode::AnimationSingleNode);
 			ContactGhost->SetAnimation(IdleClip);
 			ContactGhost->SetPosition(0.f, /*bFireNotifies=*/ false);
 			ContactGhost->Stop();
 		}
+		break;
+	}
+	case ERTGhostPoseSource::None:
+	default:
+		// Nessuna posa da mostrare: resta com'e'. E' il caso di `#287` — *«se una clip manca, l'unita' resta
+		// in posa di riferimento e la partita si gioca uguale»* — e non un modo nuovo di fallire.
+		break;
 	}
 
 
@@ -1076,7 +1341,31 @@ int32 ARTUnit::GetEffectiveMoveRange() const
 {
 	// Root azzera. Slow (CP 4.7) non passa piu' da qui: e' un costo per cella nel pathfinding
 	// (ARTTurnManager::MakeCurrentSnapshot), non una riduzione flat del budget.
-	return URTCombatLibrary::EffectiveMoveRange(MoveRange, HasStatus(TAG_Status_Root));
+	const int32 Base = URTCombatLibrary::EffectiveMoveRange(MoveRange, HasStatus(TAG_Status_Root));
+
+	// 🔑 **Lo StandUp e' QUI, e questo e' l'unico sito che lo rende una proprieta' invece di
+	// un'aspettativa** ([D-319], `#2253`). Da questa funzione passano ENTRAMBI i consumatori del budget —
+	// lo snapshot del Move (`ARTTurnManager::MakeCurrentSnapshot`) e la validazione del piano
+	// (`ARTPlayerController`) — quindi il prezzo e' visibile a chi pianifica e a chi risolve, senza
+	// bisogno di tenerli d'accordo.
+	//
+	// ⛔ **Non e' un'azione di catalogo, e la ragione non e' il risparmio.** `Action.StandUp` porterebbe
+	// con se' una chiave icona obbligatoria (`URTIconLibrary::RequiredIconIds()` itera
+	// `GetCoreActionCatalog()`) e uno slot da prezzare contro [D-028]; ma soprattutto lascerebbe FALSA
+	// l'anti-ciclicita' che `brief-stati-unbalanced-prone.md` §6 dichiara — *«chi si e' appena rialzato
+	// scivola meno»* — perche' la condizione dello scivolamento legge `MoveBudget` **dallo snapshot**, e
+	// solo abbassandolo qui quella frase diventa vera.
+	//
+	// ⚠️ **`Max(0, ...)` e non una sottrazione nuda**: chi ha `Root` e' gia' a zero, e chi ha 1 solo punto
+	// finirebbe a `-1`. Un budget negativo attraverserebbe il pathfinding senza far rumore.
+	//
+	// ⛔ **Non tocca `GetEffectiveDashRange`**: `Prone` costa un turno di POSIZIONAMENTO, e lo slot rapido
+	// non e' nel perimetro di [D-319]. Dichiarato, non dimenticato.
+	if (HasStatus(TAG_Status_Prone))
+	{
+		return FMath::Max(0, Base - URTCombatLibrary::StandUpMovePointCost);
+	}
+	return Base;
 }
 
 int32 ARTUnit::GetEffectiveDashRange(int32 BaseRange) const
@@ -1087,7 +1376,7 @@ int32 ARTUnit::GetEffectiveDashRange(int32 BaseRange) const
 }
 
 URTActionData* ARTUnit::MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area,
-	int32 Cooldown, int32 EnergyCost, FGameplayTag Status, int32 StatusDur)
+	int32 Cooldown)
 {
 	URTActionData* Ability = NewObject<URTActionData>(this);
 	Ability->DisplayName = FText::FromString(Name);
@@ -1095,8 +1384,16 @@ URTActionData* ARTUnit::MakeAbility(const FString& Name, int32 Range, int32 Powe
 	Ability->Power = Power;
 	Ability->AreaRadius = Area;
 	Ability->Shape = (Area > 0) ? ERTAbilityShape::Area : ERTAbilityShape::Single;
+	// 🔴 **Il cooldown si scrive in TUTTI E DUE i posti, e la seconda riga e' una correzione.**
+	//
+	// `ConsumeAbility` legge lo specchio legacy `CooldownTurns`, ma l'HUD legge `Def.CooldownTurns` come
+	// DENOMINATORE della carica (`URTHudViewModel::BuildAbilityCooldowns`). Scrivendo solo il primo, un'abilita'
+	// in ricarica mostrava `TotalTurns = 0`, quindi `ChargeFraction = 1.f`: **barra piena su un'azione che non
+	// si puo' usare**. Ogni altro produttore del progetto tiene la coppia allineata di proposito
+	// (`RTCatalogLibrary`, `RTHeroCatalogLibrary`, `RTWorkbenchVariant`); questa era l'unica che non lo faceva,
+	// e il difetto era silente finche' l'unica abilita' legacy con ricarica era `Colpo pesante`.
 	Ability->CooldownTurns = Cooldown;
-	Ability->EnergyCost = EnergyCost;
+	Ability->Def.CooldownTurns = Cooldown;
 	return Ability;
 }
 
@@ -1106,14 +1403,31 @@ void ARTUnit::EnsureDefaultAbilities()
 	{
 		return;
 	}
-	Abilities.Add(MakeAbility(TEXT("Attacco"), AttackRange, AttackPower, 0, 0, 0, FGameplayTag(), 0));
-	Abilities.Add(MakeAbility(TEXT("Colpo pesante"), FMath::Max(1, AttackRange - 1), AttackPower + 20, 0, 2, 0, FGameplayTag(), 0));
-	Abilities.Add(MakeAbility(TEXT("Ultimate"), AttackRange, AttackPower * UltimateMultiplier, UltimateRadius, 0, MaxEnergy, TAG_Status_Slow, 2));
+	Abilities.Add(MakeAbility(TEXT("Attacco"), AttackRange, AttackPower, 0, 0));
+	Abilities.Add(MakeAbility(TEXT("Colpo pesante"), FMath::Max(1, AttackRange - 1), AttackPower + 20, 0, 2));
+	// L'Ultimate legacy aveva `EnergyCost = MaxEnergy` e cooldown **0**: il costo ERA il suo unico gate, e
+	// con `EnergyPerTurn = 25` su un cap di 100 tornava disponibile ogni **quattro** turni.
+	//
+	// [D-324](../../../docs/decisions/RT_PDR_00_Decision_Log.md) toglie `Energy` dal gameplay. Lasciare qui
+	// lo `0` avrebbe reso l'Ultimate usabile OGNI turno — non la rimozione di un'economia, ma la sua
+	// sostituzione con nessuna. Il `4` traduce il gate nell'unico asse che
+	// [D-265](../../../docs/decisions/RT_PDR_00_Decision_Log.md) lascia in piedi: slot, cooldown, drawback.
+	//
+	// ⚠️ **Conserva il PERIODO, non l'APERTURA, e la differenza va dichiarata.** `Energy` partiva da zero,
+	// quindi il primo uso arrivava al turno **5**; `AbilityCooldowns` nasce `SetNumZeroed`, quindi il primo
+	// uso e' disponibile al turno **1**. Fra due usi restano quattro turni in entrambi i regimi, ma l'attesa
+	// iniziale non c'e' piu'.
+	//
+	// ⛔ **Non e' stata ricostruita, ed e' una scelta.** Servirebbe innescare il contatore allo spawn — cioe'
+	// uno stato iniziale che nessun'altra abilita' del progetto ha — per riprodurre la rampa di un
+	// sottosistema **scartato** da `D-265`. Questo e' il percorso degli **archetipi legacy**: il roster
+	// spedito prende `Abilities = Hero->Actions` e non passa mai di qui (`D-324` punto 1).
+	Abilities.Add(MakeAbility(TEXT("Ultimate"), AttackRange, AttackPower * UltimateMultiplier, UltimateRadius, 4));
 	// Scatto generico: portata, ricarica e identita' vengono da `Action.Dodge`, non da numeri inventati qui.
 	// E' anche cio' che lo rende riconoscibile come mobilita' rapida: il gate e' la FASE dichiarata dal
 	// catalogo (`URTCatalogLibrary::IsFastMovement`), non un flag booleano sull'asset.
 	const FRTActionDef DodgeDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
-	URTActionData* Scatto = MakeAbility(TEXT("Scatto"), DodgeDef.RangeCells, 0, 0, DodgeDef.CooldownTurns, 0, FGameplayTag(), 0);
+	URTActionData* Scatto = MakeAbility(TEXT("Scatto"), DodgeDef.RangeCells, 0, 0, DodgeDef.CooldownTurns);
 	Scatto->Def = DodgeDef;
 	Abilities.Add(Scatto);
 
@@ -1159,7 +1473,7 @@ void ARTUnit::ConfigureFromHeroData(const URTHeroData* Hero)
 	DashEndPivotMaxSteps = Hero->DashEndPivotMaxSteps;
 	Affinity = Hero->Affinity;
 	Weakness = Hero->Weakness;
-	// E14.7 [D-047]: il profilo che il `Brace` armera'. `NAME_None` per chi non ne dichiara uno (Riktor), ed
+	// E14.7 [D-047]: il profilo che il `Brace` armera'. `NAME_None` per chi non ne dichiara uno (Branth), ed
 	// e' un valore legittimo — non un campo dimenticato: significa profilo base, cardinalita' 1.
 	ReactionProfileId = Hero->ReactionProfileId;
 
@@ -1285,7 +1599,7 @@ bool ARTUnit::SetPlannedReactionCondition(const FRTDeclaredCondition& Condition)
 bool ARTUnit::CanUseAbility(int32 Index) const
 {
 	const URTActionData* Ability = GetAbility(Index);
-	return Ability && URTCombatLibrary::IsAbilityUsable(GetAbilityCooldown(Index), Energy, Ability->EnergyCost);
+	return Ability && URTCombatLibrary::IsAbilityUsable(GetAbilityCooldown(Index));
 }
 
 bool ARTUnit::PlannedDashApplies() const
@@ -1313,10 +1627,6 @@ void ARTUnit::ConsumeAbility(int32 Index)
 	if (!Ability)
 	{
 		return;
-	}
-	if (Ability->EnergyCost > 0)
-	{
-		Energy = FMath::Max(0, Energy - Ability->EnergyCost);
 	}
 	if (Ability->CooldownTurns > 0 && AbilityCooldowns.IsValidIndex(Index))
 	{

@@ -11,13 +11,13 @@
 
   "_nota_perche_la_barriera_e_di_sola_vista": "`blocksLineOfSight` senza `blocksMovement`: la carica ATTRAVERSA e la linea di tiro NO. E' la scelta che isola la variabile - se la barriera fermasse anche il movimento, un T1 illeso avrebbe due spiegazioni («lo scatto non e' arrivato» oppure «l'origine e' quella sbagliata») e lo scenario non discriminerebbe piu' nulla. Stessa barriera di `Combat.BlockedByWall`, che e' il controllo negativo di questo file e vive gia' nel corpus: stessa arena, stesso muro, nessuno scatto, bersaglio a HP pieni.",
 
-  "_nota_aritmetica": "T1 (Gadget) parte da 90 HP. `Hero.Riktor.ImpactShot` dichiara 8 danni - il piu' basso del roster - e il BaseShield di [D-224] ne ferma 5, quindi ne restano 3: l'attesa e' 87. Sono gli stessi numeri di `Combat.RiktorImpactShotSlows`, dove Gadget passa da 90 a 87 con lo stesso colpo.",
+  "_nota_aritmetica": "T1 (Gadget) parte da 90 HP. `Hero.Branth.ImpactShot` dichiara 8 danni - il piu' basso del roster - e il BaseShield di [D-224] ne ferma 5, quindi ne restano 3: l'attesa e' 87. Sono gli stessi numeri di `Combat.BranthImpactShotSlows`, dove Gadget passa da 90 a 87 con lo stesso colpo.",
 
-  "_nota_portata": "La distanza fra la cella dello scatto (1,0,0) e T1 (3,0,0) e' di DUE celle. `Hero.Riktor.ImpactShot` dichiara portata 3, ma l'equipaggiamento di default (`Weapon.Impact`) ne toglie una: con il loadout montato la portata scende a 2 e il colpo passerebbe per un pelo. ENTRAMBE le unita' entrano SPOGLIE (`loadout: []`), come in `Combat.RiktorImpactShotSlows` e per la stessa ragione: su B1 l'equipaggiamento cambierebbe portata e aggiungerebbe una spinta, su T1 introdurrebbe una variabile in piu'. Senza, la portata di `ImpactShot` resta 3 e la distanza 2 e' comoda.",
+  "_nota_portata": "La distanza fra la cella dello scatto (1,0,0) e T1 (3,0,0) e' di DUE celle. `Hero.Branth.ImpactShot` dichiara portata 3, ma l'equipaggiamento di default (`Weapon.Impact`) ne toglie una: con il loadout montato la portata scende a 2 e il colpo passerebbe per un pelo. ENTRAMBE le unita' entrano SPOGLIE (`loadout: []`), come in `Combat.BranthImpactShotSlows` e per la stessa ragione: su B1 l'equipaggiamento cambierebbe portata e aggiungerebbe una spinta, su T1 introdurrebbe una variabile in piu'. Senza, la portata di `ImpactShot` resta 3 e la distanza 2 e' comoda.",
 
-  "_nota_la_spinta_e_dell_equipaggiamento_non_della_carica": "🔴 CORREZIONE del 2026-09-04, e la prima stesura di questo file aveva attribuito il fatto alla causa sbagliata. Con B1 equipaggiato, T1 veniva SPINTO di una cella: misurato due volte, a distanza 1 e a distanza 2 dalla cella d'arrivo. La nota di allora ne accusava `Action.Charge` - che porta `{ Damage 20, Push 1 }` - e trovava misterioso che il push arrivasse e i 20 danni no. ⛔ NON ERA LA CARICA. `Weapon.Impact` e' l'equipaggiamento di DEFAULT di Riktor (`RTCatalogLibrary.cpp:753`) e aggiunge `Push 1` all'attacco base (`:394`), oltre a togliere una cella di portata (`:388`). Era `ImpactShot` a spingere, non `Ram`: nessun mistero, e nessun effetto della carica che passa mentre l'altro no - la carica non ha mai colpito nessuno, come il file dichiarava fin dall'inizio. ✅ La causa vera era gia' scritta nel corpus: `Visual/Map/LowCoverEdge.json` dichiara la stessa spinta parassita nella propria `_nota_loadout_vuoto`, misurata il 2026-08-16 (#1054). Cercarla li' avrebbe risparmiato due misure. 🔑 Ora B1 entra SPOGLIO (`loadout: []`) e la spinta sparisce: lo scenario misura una cosa sola, che e' da dove parte il colpo.",
+  "_nota_la_spinta_e_dell_equipaggiamento_non_della_carica": "🔴 CORREZIONE del 2026-09-04, e la prima stesura di questo file aveva attribuito il fatto alla causa sbagliata. Con B1 equipaggiato, T1 veniva SPINTO di una cella: misurato due volte, a distanza 1 e a distanza 2 dalla cella d'arrivo. La nota di allora ne accusava `Action.Charge` - che porta `{ Damage 20, Push 1 }` - e trovava misterioso che il push arrivasse e i 20 danni no. ⛔ NON ERA LA CARICA. `Weapon.Impact` e' l'equipaggiamento di DEFAULT di Branth (`RTCatalogLibrary.cpp:753`) e aggiunge `Push 1` all'attacco base (`:394`), oltre a togliere una cella di portata (`:388`). Era `ImpactShot` a spingere, non `Ram`: nessun mistero, e nessun effetto della carica che passa mentre l'altro no - la carica non ha mai colpito nessuno, come il file dichiarava fin dall'inizio. ✅ La causa vera era gia' scritta nel corpus: `Visual/Map/LowCoverEdge.json` dichiara la stessa spinta parassita nella propria `_nota_loadout_vuoto`, misurata il 2026-08-16 (#1054). Cercarla li' avrebbe risparmiato due misure. 🔑 Ora B1 entra SPOGLIO (`loadout: []`) e la spinta sparisce: lo scenario misura una cosa sola, che e' da dove parte il colpo.",
 
-  "_nota_la_terza_posizione_non_esiste": "🔴 La review parlava di TRE posizioni - Dash, Blast, Move - e la terza non e' esprimibile. [D-028] da' al turno UN movimento e UNA azione principale: si sceglie *schivo e sparo* (`Dash` + attacco) oppure *sparo e muovo* (attacco + `Move`), e `Hero.Riktor.Ram` occupa lo slot Movement ([D-191]). Chi dichiara entrambi vede vincere lo scatto, ed e' cio' che `Spec.Movement.DashDiscardsPlannedMove` misura. Questo file percorre quindi la sola meta' che esiste, e la sua assenza di `move` non e' una semplificazione: e' la regola.",
+  "_nota_la_terza_posizione_non_esiste": "🔴 La review parlava di TRE posizioni - Dash, Blast, Move - e la terza non e' esprimibile. [D-028] da' al turno UN movimento e UNA azione principale: si sceglie *schivo e sparo* (`Dash` + attacco) oppure *sparo e muovo* (attacco + `Move`), e `Hero.Branth.Ram` occupa lo slot Movement ([D-191]). Chi dichiara entrambi vede vincere lo scatto, ed e' cio' che `Spec.Movement.DashDiscardsPlannedMove` misura. Questo file percorre quindi la sola meta' che esiste, e la sua assenza di `move` non e' una semplificazione: e' la regola.",
 
   "_nota_facing": "Non si dichiara un `facing` iniziale: la carica va verso `+q`, lo scatto riorienta (`Spec.Facing.DashReorients`) e T1 sta a est della cella d'arrivo, cioe' nell'arco frontale. Se un giorno il riorientamento cadesse, questo scenario diventerebbe rosso sul danno - il che e' corretto, perche' `RefactorTactics.Facing.DashThenBlastUsesLatestValue` dichiara che il Blast legge il valore piu' recente.",
 
@@ -28,7 +28,7 @@
   ],
 
   "units": [
-    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0], "loadout": [] },
+    { "id": "B1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0], "loadout": [] },
     { "id": "T1", "hero": "Hero.Gadget", "team": 1, "cell": [ 3, 0, 0], "loadout": [] }
   ],
 
@@ -36,7 +36,7 @@
     {
       "_turno": "T1 - un turno solo, due dichiarazioni della STESSA unita': la carica nello slot Movimento e l'attacco base nella principale. La carica arriva a (1,0,0) - tre celle in linea da (-2,0,0), dentro la portata 3 - attraversando la barriera, che ferma la vista e non i corpi. Nessuno sta sulla traiettoria, quindi la carica non consegna il proprio danno e l'unico colpo del turno e' quello del Blast.",
       "intents": [
-        { "unit": "B1", "dash": "Hero.Riktor.Ram", "dashTo": [1, 0, 0], "ability": "Hero.Riktor.ImpactShot", "target": "T1" }
+        { "unit": "B1", "dash": "Hero.Branth.Ram", "dashTo": [1, 0, 0], "ability": "Hero.Branth.ImpactShot", "target": "T1" }
       ]
     }
   ],
@@ -48,7 +48,7 @@
     { "_assertion": "Lo scatto e' avvenuto, e si e' fermato dove dichiarato. Senza questa riga un T1 a 87 non distinguerebbe «il colpo parte dalla cella post-Dash» da «la barriera non ha mai bloccato niente».",
       "type": "UnitAtCell", "unit": "B1", "cell": [1, 0, 0] },
 
-    { "_assertion": "🔴 IL BERSAGLIO E' SPINTO DI UNA CELLA, E QUESTO VALORE E' REGISTRATO, NON DEDOTTO. T1 parte da (3,0,0) e finisce a (4,0,0): la carica lo spinge di una cella nella propria direzione. Vedi `_nota_la_spinta_che_nessuno_aveva_previsto` per la misura e per il motivo per cui non intacca l'oracolo. ⚠️ `ImpactShot` lascia anche `Status.Slow` addosso a T1 ([ADR-0007]), che qui non ha effetti perche' T1 non pianifica movimento - il posto dove quello Slow si vede AGIRE resta `Combat.RiktorImpactShotSlows`.",
+    { "_assertion": "🔴 IL BERSAGLIO E' SPINTO DI UNA CELLA, E QUESTO VALORE E' REGISTRATO, NON DEDOTTO. T1 parte da (3,0,0) e finisce a (4,0,0): la carica lo spinge di una cella nella propria direzione. Vedi `_nota_la_spinta_che_nessuno_aveva_previsto` per la misura e per il motivo per cui non intacca l'oracolo. ⚠️ `ImpactShot` lascia anche `Status.Slow` addosso a T1 ([ADR-0007]), che qui non ha effetti perche' T1 non pianifica movimento - il posto dove quello Slow si vede AGIRE resta `Combat.BranthImpactShotSlows`.",
       "type": "UnitAtCell", "unit": "T1", "cell": [3, 0, 0] },
 
     { "_assertion": "Nessuno e' caduto: 3 danni su 90 HP non abbattono, e un T1 morto renderebbe l'assertion sugli HP vera per la ragione sbagliata.",

@@ -41,7 +41,13 @@ from color_metrics import check_palette
 
 try:
     import cairosvg
-except ImportError:  # pragma: no cover - dipendenza opzionale
+# 🔴 **`OSError` e non il solo `ImportError`, e la differenza non e' teorica** (`#2253`). Su Windows
+# `cairosvg` si importa benissimo: e' `cairocffi` che, dentro l'import, cerca la libreria NATIVA
+# (`libcairo-2.dll`) e solleva `OSError` quando non la trova. Con la guardia sul solo `ImportError` il
+# generatore MORIVA in cima invece di cadere nel ripiego che dichiara tre righe sotto — *«cairosvg
+# assente: scritti solo gli SVG»* — cioe' il ripiego esisteva e non era raggiungibile dall'ambiente per
+# cui era stato scritto. Misurato su una macchina senza GTK runtime.
+except (ImportError, OSError):  # pragma: no cover - dipendenza opzionale, e la sua libreria nativa
     cairosvg = None
 
 
@@ -909,6 +915,29 @@ def g_create_water() -> str:
     ])
 
 
+def g_create_smoke() -> str:
+    """`CreateSmoke`: la nuvola che `Environment.Smoke` mostra, piu' il segno di creazione.
+
+    🔴 **Questa chiave era RICHIESTA e non disegnata**, e nessun gate lo diceva. `Action.CreateSmoke`
+    entra nel catalogo core con `#2087` — «il fumo era l'unica delle otto superfici senza un'azione» — e
+    `URTIconLibrary::RequiredIconIds()` la pretende da quel giorno, ma `DA_IconCatalog` non e' mai stato
+    ricostruito: la chiave cadeva sul `MissingIcon` a schermo, in silenzio. Trovata da `#2253` mentre
+    aggiungeva le due dei nuovi stati, e il gate che la fa vedere e'
+    `RefactorTactics.IconCatalog.RealCatalogCoversRequiredIds`.
+
+    ⛔ **Non riusa `g_env_smoke`**: quello porta `cell_hex()`, cioe' dice «questa CELLA e' fumo». Qui il
+    soggetto e' l'azione che la crea, e la famiglia delle tre ambientali (`CreateCover`, `CreateWater`)
+    la marca con il `+` in alto a destra — senza esagono, che appartiene alla superficie e non all'atto.
+    """
+    return "\n".join([
+        path("M7.4 14.4 Q5.2 12.6 6.8 10.8 Q7 7.8 10 8.2 Q12 6.6 13.8 8.6 Q16.4 9 15.8 11.6 "
+             "Q16.4 14.2 13.8 14.6 Q10.6 15.8 8.6 14.6 Z",
+             stroke_dasharray="2.6 2", stroke_width=1.6),
+        path("M4.4 18.6 L15.4 18.6", stroke_width=1.5),
+        path("M19 5.4 L19 11.4 M16 8.4 L22 8.4", stroke_width=1.6),
+    ])
+
+
 def g_electrify() -> str:
     """`Electrify`: payload `Electric` su una superficie. Contro `Status.Electrified`: qui c'e' la
     superficie sotto, la' c'e' l'unita'."""
@@ -1013,6 +1042,36 @@ def g_status_root() -> str:
     ]))
 
 
+def g_status_unbalanced() -> str:
+    """`Status.Unbalanced`: in piedi, ma non piu' in asse.
+
+    Le due meta' della famiglia restano leggibili: il punto unita' in basso (base condivisa) dice «e' uno
+    stato», e il corpo INCLINATO sopra di lui dice quale. L'inclinazione e' la marca, e a 16 px e'
+    l'unica cosa che serve distinguere — contro `Status.Prone`, dove il corpo e' ORIZZONTALE. Le due si
+    leggono in coppia: sbandare e cadere sono la stessa storia in due momenti.
+
+    ⛔ Nessuna freccia e nessun cue di bersaglio: chi ha fatto scivolare l'unita' e' il terreno, e non e'
+    parte dello stato — stessa regola con cui `Status.Root` rinuncia al cue che `Action.Root` ha.
+    """
+    return _status("\n".join([
+        path("M9.6 16.4 L14.4 6.4", stroke_width=2.0),
+        arc_deg(12, 16.4, 4.6, -150, -108, stroke_width=1.3),
+    ]))
+
+
+def g_status_prone() -> str:
+    """`Status.Prone`: a terra.
+
+    Il corpo e' orizzontale e POGGIA sulla linea di suolo, che e' il secondo elemento e non un vezzo:
+    senza, un tratto orizzontale a mezz'altezza si legge come una barra qualunque. L'asse orizzontale
+    contro quello inclinato di `Status.Unbalanced` e' cio' che separa le due a 16 px.
+    """
+    return _status("\n".join([
+        path("M6.8 13.4 L17.2 13.4", stroke_width=2.0),
+        path("M5.4 16.4 L18.6 16.4", stroke_width=1.3),
+    ]))
+
+
 def g_status_slow() -> str:
     return _status("\n".join([
         chevron(6.4, 10.4, 2.6, 3.0),
@@ -1052,8 +1111,8 @@ def g_identity_phase() -> str:
     ]))
 
 
-def g_identity_riktor() -> str:
-    """Riktor: massa e pannello cinetico. La base larga e' il punto: e' l'eroe che non si sposta."""
+def g_identity_branth() -> str:
+    """Branth: massa e pannello cinetico. La base larga e' il punto: e' l'eroe che non si sposta."""
     return _identity("\n".join([
         path("M7.6 15.6 L7.6 8.6 L16.4 8.6 L16.4 15.6", stroke_width=1.6),
         path("M6 15.6 L18 15.6", stroke_width=1.8),
@@ -1112,7 +1171,7 @@ def g_missing_icon() -> str:
 # Ogni eroe ha una MATERIA, ed e' il primo canale di riconoscimento della sua riga di skill bar:
 #   Gadget  elettricita' — nodi, archi, contenimento che cede
 #   Phase   acqua        — superfici, onde, spinta
-#   Riktor  massa        — piastre, ancoraggi, basi larghe
+#   Branth  massa        — piastre, ancoraggi, basi larghe
 #   Wraith  lama         — tratti netti, transito, tratteggio di passaggio
 
 
@@ -1176,7 +1235,7 @@ def g_phase_flow_reaction() -> str:
     ])
 
 
-def g_riktor_impact_shot() -> str:
+def g_branth_impact_shot() -> str:
     """`ImpactShot` (Attack — Damage + Slow): colpo che pesa e frena."""
     return "\n".join([
         dot(6.4, 12, 2.4),
@@ -1186,7 +1245,7 @@ def g_riktor_impact_shot() -> str:
     ])
 
 
-def g_riktor_kinetic_panel() -> str:
+def g_branth_kinetic_panel() -> str:
     """`KineticPanel` (Preparation, da `Action.CreateCover`): una piastra piantata a terra.
 
     Non e' `CreateCover` con un altro nome: quella crea copertura generica, questa e' una piastra
@@ -1199,7 +1258,7 @@ def g_riktor_kinetic_panel() -> str:
     ])
 
 
-def g_riktor_reconfigure() -> str:
+def g_branth_reconfigure() -> str:
     """`Reconfigure` (Preparation): si riassetta — due blocchi che si scambiano."""
     return "\n".join([
         path("M3.6 6.4 L10.4 6.4 L10.4 11.6 L3.6 11.6 Z", stroke_width=1.5),
@@ -1211,7 +1270,7 @@ def g_riktor_reconfigure() -> str:
     ])
 
 
-def g_riktor_ram() -> str:
+def g_branth_ram() -> str:
     """`Ram` (FastMovement, LinearCharge — Damage + Push): massa che arriva addosso.
 
     Contro `Action.Charge`, che e' la carica generica: qui il corpo che carica e' una faccia piena,
@@ -1224,7 +1283,7 @@ def g_riktor_ram() -> str:
     ])
 
 
-def g_riktor_interposition() -> str:
+def g_branth_interposition() -> str:
     """`Interposition` (Control, da `Action.Intercept`): mettersi IN MEZZO.
 
     Contro `Intercept`, che incrocia una traiettoria: qui il corpo si sposta a coprire un alleato, e
@@ -1697,7 +1756,7 @@ def g_reaction_hazard_escape() -> str:
 
 
 def g_reaction_ally_intercept() -> str:
-    """Modulo di Riktor: ti interponi e prendi al posto di un alleato entro 2 celle.
+    """Modulo di Branth: ti interponi e prendi al posto di un alleato entro 2 celle.
 
     ⚠️ La confusione piu' insidiosa e' con `Hero.Wraith.InterceptShot`, che e' la thin slice
     Predictive: due nomi quasi identici per un'interposizione e una previsione."""
@@ -2084,6 +2143,8 @@ ICONS = [
      "assente dal mock"),
     ("Action.CreateWater", g_create_water, "Utility",
      "assente dal mock"),
+    ("Action.CreateSmoke", g_create_smoke, "Disabled",
+     "assente dal mock — chiave richiesta da #2087 e mai disegnata, trovata da #2253"),
     ("Action.Electrify", g_electrify, "Electric",
      "assente dal mock"),
     ("Action.Ignite", g_ignite, "Attack",
@@ -2112,15 +2173,15 @@ ICONS = [
     ("Action.Hero.Phase.FlowReaction", g_phase_flow_reaction, "Reaction",
      "roster — Preparation, si arma e risponde"),
 
-    ("Action.Hero.Riktor.ImpactShot", g_riktor_impact_shot, "Attack",
+    ("Action.Hero.Branth.ImpactShot", g_branth_impact_shot, "Attack",
      "roster — Attack, Damage + Slow"),
-    ("Action.Hero.Riktor.KineticPanel", g_riktor_kinetic_panel, "Defense",
+    ("Action.Hero.Branth.KineticPanel", g_branth_kinetic_panel, "Defense",
      "roster — Preparation, deriva da Action.CreateCover"),
-    ("Action.Hero.Riktor.Reconfigure", g_riktor_reconfigure, "Defense",
+    ("Action.Hero.Branth.Reconfigure", g_branth_reconfigure, "Defense",
      "roster — Preparation"),
-    ("Action.Hero.Riktor.Ram", g_riktor_ram, "Attack",
+    ("Action.Hero.Branth.Ram", g_branth_ram, "Attack",
      "roster — FastMovement/LinearCharge, Damage + Push"),
-    ("Action.Hero.Riktor.Interposition", g_riktor_interposition, "Reaction",
+    ("Action.Hero.Branth.Interposition", g_branth_interposition, "Reaction",
      "roster — Control, deriva da Action.Intercept"),
 
     ("Action.Hero.Wraith.PulseShot", g_wraith_pulse_shot, "Attack",
@@ -2161,19 +2222,23 @@ ICONS = [
      "assente dal mock"),
     ("Status.Obscured", g_status_obscured, "Utility",
      "assente dal mock"),
+    ("Status.Prone", g_status_prone, "Hazard",
+     "assente dal mock — [D-319]/#2253, coppia con Status.Unbalanced"),
     ("Status.Reveal", g_status_reveal, "Utility",
      "assente dal mock"),
     ("Status.Root", g_status_root, "Hazard",
      "assente dal mock"),
     ("Status.Slow", g_status_slow, "Hazard",
      "assente dal mock"),
+    ("Status.Unbalanced", g_status_unbalanced, "Hazard",
+     "assente dal mock — [D-319]/#2253, coppia con Status.Prone"),
     ("Status.Wet", g_status_wet, "Utility",
      "assente dal mock"),
     ("Identity.Gadget", g_identity_gadget, "Electric",
      "assente dal mock"),
     ("Identity.Phase", g_identity_phase, "Utility",
      "assente dal mock"),
-    ("Identity.Riktor", g_identity_riktor, "Defense",
+    ("Identity.Branth", g_identity_branth, "Defense",
      "assente dal mock"),
     ("Identity.Wraith", g_identity_wraith, "Reaction",
      "assente dal mock"),
@@ -2226,7 +2291,7 @@ ICONS = [
     ("Reaction.ReactiveShield", g_reaction_reactive_shield, "Defense", "E25 — modulo di Gadget"),
     ("Reaction.HazardEscape", g_reaction_hazard_escape, "Movement",
      "E25 — modulo di Phase, vive nel Cleanup"),
-    ("Reaction.AllyIntercept", g_reaction_ally_intercept, "Defense", "E25 — modulo di Riktor"),
+    ("Reaction.AllyIntercept", g_reaction_ally_intercept, "Defense", "E25 — modulo di Branth"),
     ("Reaction.EmergencyDash", g_reaction_emergency_dash, "Movement",
      "E25 — modulo di Wraith, facing conservato"),
 
@@ -2726,7 +2791,7 @@ def rail(y: float, slot: int, slots: int, *, width: float = 2.2, guide: bool = T
 # La marca di materia. E' l'asse Identity riusato come MODIFICATORE invece che come icona a se':
 # le quattro identita' esistono gia' nel catalogo, e un'ability d'eroe appartiene a un eroe.
 #
-# Perche' serve, misurato: senza, `Wraith.PulseShot`, `Phase.PressureJet`, `Riktor.ImpactShot`,
+# Perche' serve, misurato: senza, `Wraith.PulseShot`, `Phase.PressureJet`, `Branth.ImpactShot`,
 # `Action.LineAttack` e `Action.Dash` stanno tutte entro 0.11 l'una dall'altra — cinque glifi che
 # rivendicano la stessa silhouette «linea orizzontale con una punta». Non e' un difetto dei singoli
 # disegni: e' che molte abilita' a distanza SONO una linea con una punta, e a un certo punto il
@@ -2747,7 +2812,7 @@ def hero_sigil(hero: str) -> str:
         ])
     if hero == "Phase":        # acqua: la superficie
         return waves(HERO_SIGIL_Y, x0=x - 1.6, span=5.6, amp=1.1, stroke_width=1.4)
-    if hero == "Riktor":       # massa: la base larga
+    if hero == "Branth":       # massa: la base larga
         return "\n".join([
             path(f"M{_n(x - 1.6)} {_n(HERO_SIGIL_Y + 1)} L{_n(x + 4)} {_n(HERO_SIGIL_Y + 1)}",
                  stroke_width=2.0),
@@ -2849,7 +2914,7 @@ COLOR_DEBT = {
     "Action.Hero.Gadget.Overload", "Action.Hero.Gadget.ReactiveCapacitor",
     "Action.Hero.Phase.CircularTide", "Action.Hero.Phase.FlowReaction",
     "Action.Hero.Phase.FluidTrail", "Action.Hero.Phase.PressureJet",
-    "Action.Hero.Riktor.Interposition", "Action.Hero.Riktor.Ram",
+    "Action.Hero.Branth.Interposition", "Action.Hero.Branth.Ram",
     "Action.Hero.Wraith.Deflection", "Action.Hero.Wraith.Feint",
     "Action.Hero.Wraith.InterceptShot", "Action.Hero.Wraith.PassingBlade",
 }

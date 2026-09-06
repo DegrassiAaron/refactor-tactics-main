@@ -27,6 +27,7 @@
 #include "Components/PanelSlot.h"
 #include "Components/Widget.h"
 #include "Frontend/RTFrontendNavigator.h"
+#include "Tests/RTWidgetAssetTestHelpers.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -36,26 +37,6 @@ namespace
 	const TCHAR* const FallbackBannerPath = TEXT("/Game/RT/UI/Framework/WBP_RT_FallbackBanner.WBP_RT_FallbackBanner_C");
 	const TCHAR* const LoadingScreenPath = TEXT("/Game/RT/UI/Framework/WBP_RT_LoadingScreen.WBP_RT_LoadingScreen_C");
 	const TCHAR* const MainMenuPath = TEXT("/Game/RT/UI/Framework/WBP_RT_MainMenu.WBP_RT_MainMenu_C");
-
-	/**
-	 * Carica la generated class di un `WBP_*`. `nullptr` se l'asset non c'e': il chiamante lo dichiara
-	 * fallimento con un messaggio che nomina il path, perche' «cast fallito» non direbbe quale asset.
-	 */
-	UWidgetBlueprintGeneratedClass* LoadWidgetClass(const TCHAR* Path)
-	{
-		return Cast<UWidgetBlueprintGeneratedClass>(
-			StaticLoadObject(UWidgetBlueprintGeneratedClass::StaticClass(), nullptr, Path));
-	}
-
-	/** Il testo di un binding, nella forma in cui serve leggerlo in un log di automation. */
-	FString DescribeBinding(const FDelegateRuntimeBinding& Binding)
-	{
-		return FString::Printf(TEXT("  %s.%s <- %s()  [Kind=%s]"),
-			*Binding.ObjectName,
-			*Binding.PropertyName.ToString(),
-			*Binding.FunctionName.ToString(),
-			Binding.Kind == EBindingKind::Function ? TEXT("Function") : TEXT("Property"));
-	}
 
 	/**
 	 * Una riga per widget: nome, classe, visibilita' di design e — se il widget vive in un Canvas — il
@@ -143,7 +124,7 @@ namespace
 		Test.AddInfo(FString::Printf(TEXT("=== %s: %d binding ==="), Label, Class->Bindings.Num()));
 		for (const FDelegateRuntimeBinding& Binding : Class->Bindings)
 		{
-			Test.AddInfo(DescribeBinding(Binding));
+			Test.AddInfo(RTWidgetAssetTest::DescribeBinding(Binding));
 		}
 
 		const UWidgetTree* Tree = Class->GetWidgetTreeArchetype();
@@ -177,7 +158,7 @@ namespace
 	bool VisibilityGovernsWholeWidget(
 		FAutomationTestBase& Test, const TCHAR* AssetPath, const TCHAR* Label, const TCHAR* VisibilityFunction)
 	{
-		UWidgetBlueprintGeneratedClass* Class = LoadWidgetClass(AssetPath);
+		UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(AssetPath);
 		if (!Class)
 		{
 			Test.AddError(FString::Printf(TEXT("%s non si carica da %s"), Label, AssetPath));
@@ -255,7 +236,7 @@ bool FRTErrorModalVisibilityGovernsWholeModalTest::RunTest(const FString&)
 
 	// I due controlli qui sotto sono **specifici del modale** e continuano anche se l'invariante e' caduta:
 	// un asset rotto in due modi deve dirli entrambi in una run, non uno per volta.
-	UWidgetBlueprintGeneratedClass* ModalClass = LoadWidgetClass(ErrorModalPath);
+	UWidgetBlueprintGeneratedClass* ModalClass = RTWidgetAssetTest::LoadWidgetClass(ErrorModalPath);
 	if (!ModalClass)
 	{
 		return false;
@@ -359,7 +340,7 @@ bool FRTLoadingScreenVisibilityGovernsWholeScreenTest::RunTest(const FString&)
 		return false;
 	}
 
-	UWidgetBlueprintGeneratedClass* LoadingClass = LoadWidgetClass(LoadingScreenPath);
+	UWidgetBlueprintGeneratedClass* LoadingClass = RTWidgetAssetTest::LoadWidgetClass(LoadingScreenPath);
 	if (!LoadingClass)
 	{
 		return false;
@@ -492,7 +473,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMainMenuGraphAsksTheNavigatorToStartTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTMainMenuGraphAsksTheNavigatorToStartTest::RunTest(const FString&)
 {
-	UWidgetBlueprintGeneratedClass* Class = LoadWidgetClass(MainMenuPath);
+	UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(MainMenuPath);
 	if (!TestNotNull(TEXT("WBP_RT_MainMenu si carica"), Class))
 	{
 		return false;
@@ -702,7 +683,7 @@ bool FRTButtonStatesAreNotColorOnlyTest::RunTest(const FString&)
 
 	for (const FSubject& Subject : Subjects)
 	{
-		UWidgetBlueprintGeneratedClass* Class = LoadWidgetClass(Subject.Path);
+		UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(Subject.Path);
 		if (!Class)
 		{
 			AddError(FString::Printf(TEXT("%s: asset non caricabile (%s)"), Subject.Label, Subject.Path));

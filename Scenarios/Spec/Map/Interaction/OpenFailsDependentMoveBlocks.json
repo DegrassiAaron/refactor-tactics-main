@@ -13,7 +13,7 @@
 
   "_nota_geometria": "La leva `S1` sta sul bordo NE di (0,0). `D1` chiude il bordo fra (1,0) e (2,0) ed e' `Closed`: si apre. `D2` chiude il bordo fra (0,1) e (1,1) ed e' `Locked`: `CanTransition` non la porta ad `Open` da sola, ed e' la ragione per cui [D-151] limita `Action.Interact` ad `Open` — il percorso `Locked -> Closed` toglierebbe il lock a una porta che la regola dichiara non apribile.",
 
-  "_nota_il_movimento_bloccato": "R1 chiede (0,1) e poi (1,1). Il primo passo e' libero; il secondo attraversa `D2`, che resta chiusa a chiave. ⚠️ **L'unita' non si ferma a meta': non parte affatto** — misurato il 2026-09-02, il log dice `Riktor: resta (q=0,r=0,L=0)`. Un percorso che contiene un passo non percorribile viene rifiutato IN BLOCCO, non troncato all'ultimo passo legale, e l'attesa di questo scenario diceva il contrario prima di essere misurata. ⛔ Non e' un rifiuto dell'INTERAZIONE: quella e' avvenuta, ha aperto cio' che poteva e ha riportato il resto — il log porta entrambe le voci, `Refused: il bersaglio D2 ... e' Locked e non transita a Open` e `1 bersagli comandati`.",
+  "_nota_il_movimento_bloccato": "R1 chiede (0,1) e poi (1,1). Il primo passo e' libero; il secondo attraversa `D2`, che resta chiusa a chiave. ⚠️ **L'unita' non si ferma a meta': non parte affatto** — misurato il 2026-09-02, il log dice `Branth: resta (q=0,r=0,L=0)`. Un percorso che contiene un passo non percorribile viene rifiutato IN BLOCCO, non troncato all'ultimo passo legale, e l'attesa di questo scenario diceva il contrario prima di essere misurata. ⛔ Non e' un rifiuto dell'INTERAZIONE: quella e' avvenuta, ha aperto cio' che poteva e ha riportato il resto — il log porta entrambe le voci, `Refused: il bersaglio D2 ... e' Locked e non transita a Open` e `1 bersagli comandati`.",
 
   "cells": [
     { "cell": [1, 0, 0], "blocksMovement": true },
@@ -38,7 +38,7 @@
   ],
 
   "units": [
-    { "id": "R1", "hero": "Hero.Riktor", "team": 0, "cell": [0, 0, 0] },
+    { "id": "R1", "hero": "Hero.Branth", "team": 0, "cell": [0, 0, 0] },
     { "id": "W1", "hero": "Hero.Wraith", "team": 1, "cell": [0, -4, 0] }
   ],
 

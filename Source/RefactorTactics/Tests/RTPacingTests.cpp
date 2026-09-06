@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTPacing.h"
 #include "Turn/RTPacingLibrary.h"
+#include "Turn/RTTurnLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -206,21 +207,26 @@ bool FRTPacingCsvTest::RunTest(const FString&)
 	S.MsPlayback = 5300;
 	S.bPlaybackSkipped = false;
 	S.ReactionWindowsOpened = 6; // due unita' armate dello stesso giocatore, tre passi in zona (CP 14.6)
+	// Nove opportunity per sei finestre: tre si sono auto-risolte senza occupare nessuno. Il valore e'
+	// deliberatamente > delle finestre, perche' il fixture non deve poter descrivere uno stato che il
+	// sistema non produce (`#2459`).
+	S.ReactionOpportunities = 9;
 
 	TArray<FString> HeaderCols;
 	TArray<FString> RowCols;
 	URTPacingLibrary::CsvHeader().ParseIntoArray(HeaderCols, TEXT(","), /*InCullEmpty=*/ false);
 	URTPacingLibrary::CsvRow(S).ParseIntoArray(RowCols, TEXT(","), /*InCullEmpty=*/ false);
 
-	// ⚠️ **Quattordici dal 2026-08-28**, con `ReactionWindows` aggiunta in CODA (CP 14.6, `#166`). Il numero
+	// ⚠️ **Quindici dal 2026-09-06**, con `ReactionOpportunities` aggiunta in CODA (`#2459`); erano
+	// quattordici dal 2026-08-28, quando `ReactionWindows` era entrata allo stesso modo. Il numero
 	// e' pinnato apposta: le colonne di questo CSV si leggono per POSIZIONE da fogli e script gia' scritti, e
 	// una colonna inserita in mezzo sposterebbe ogni colonna a valle senza che nessun errore lo dica. Questo
 	// test e' l'unico posto in cui quel movimento diventa visibile — ed e' cosi' che ha preso l'aggiunta.
-	TestEqual(TEXT("quattordici colonne nell'intestazione"), HeaderCols.Num(), 14);
+	TestEqual(TEXT("quindici colonne nell'intestazione"), HeaderCols.Num(), 15);
 	TestEqual(TEXT("la riga ha le stesse colonne dell'intestazione"), RowCols.Num(), HeaderCols.Num());
 
 	// Ogni colonna e' un intero: se un float si intrufolasse, con locale italiano stamperebbe una virgola
-	// e spezzerebbe la riga in **quindici** colonne. Il controllo qui sopra lo prende; questo dice PERCHE'.
+	// e spezzerebbe la riga in **sedici** colonne. Il controllo qui sopra lo prende; questo dice PERCHE'.
 	// ⚠️ Il numero in questa frase segue il conteggio delle colonne: diceva «14» quando l'intestazione ne
 	// aveva 13, ed e' rimasto indietro all'aggiunta della quattordicesima — cioe' spiegava il caso ROTTO
 	// nominando quello sano. Se aggiungi una colonna, questa riga si aggiorna con l'assert sopra.
@@ -377,6 +383,144 @@ bool FRTPacingRespondersFilterAndOrderTest::RunTest(const FString&)
 	TestEqual(TEXT("solo la squadra misurata"), Responders.Num(), 2);
 	TestEqual(TEXT("ordinati: il 2 prima del 9, non nell'ordine di raccolta"), Responders[0], 2);
 	TestEqual(TEXT("poi il 9"), Responders[1], 9);
+	return true;
+}
+
+
+/**
+ * `CountReactionOpportunities` conta OGNI voce `ReactionDecision`; il suo gemello conta solo quelle che
+ * hanno occupato qualcuno. La differenza fra i due numeri e' il dato che #2459 esiste per rendere leggibile.
+ *
+ * 🔴 **Il fixture e' lo stesso di `Reactions.OpenedWindowsAreCountedFromTheLog`, ed e' deliberato**: se un
+ * domani i due conteggi divergessero per una ragione diversa dall'esito, un fixture proprio lo avrebbe
+ * nascosto dietro dati diversi. Qui le stesse voci danno 8 e 5, e la differenza e' spiegata riga per riga.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingOpportunitiesCountEveryDecisionTest,
+	"RefactorTactics.Pacing.OpportunitiesCountEveryReactionDecision",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingOpportunitiesCountEveryDecisionTest::RunTest(const FString&)
+{
+	auto Decision = [](int32 UnitId, ERTReactionDecisionOutcome Outcome)
+	{
+		FRTTurnLogEntry E;
+		E.Category = ERTLogCategory::ReactionDecision;
+		E.UnitId = UnitId;
+		E.Outcome = static_cast<uint8>(Outcome);
+		return E;
+	};
+
+	TArray<FRTTurnLogEntry> Entries;
+	// Le CINQUE che occupano qualcuno: la domanda e' arrivata, e c'e' stata risposta o scadenza.
+	Entries.Add(Decision(1, ERTReactionDecisionOutcome::Chosen));
+	Entries.Add(Decision(1, ERTReactionDecisionOutcome::Chosen));
+	Entries.Add(Decision(2, ERTReactionDecisionOutcome::Timeout));
+	Entries.Add(Decision(2, ERTReactionDecisionOutcome::Rejected));
+	Entries.Add(Decision(1, ERTReactionDecisionOutcome::Chosen));
+	// E le TRE che non occupano nessuno — ma sono opportunity a tutti gli effetti: il sistema le ha prodotte.
+	Entries.Add(Decision(1, ERTReactionDecisionOutcome::Immediate));
+	Entries.Add(Decision(2, ERTReactionDecisionOutcome::CollapsedByCondition));
+	Entries.Add(Decision(2, ERTReactionDecisionOutcome::NoDecider));
+	// Una voce di un'altra categoria: non e' una opportunity, e nessuno dei due conteggi la vede.
+	FRTTurnLogEntry Move;
+	Move.Category = ERTLogCategory::Move;
+	Move.UnitId = 1;
+	Entries.Add(Move);
+	// E una del responder avversario: esiste, ma non appartiene alla popolazione misurata.
+	Entries.Add(Decision(7, ERTReactionDecisionOutcome::Chosen));
+
+	const TSet<int32> MyTeam{ 1, 2 };
+
+	TestEqual(TEXT("otto opportunity: le cinque che occupano PIU' le tre auto-risolte"),
+		URTPacingLibrary::CountReactionOpportunities(Entries, MyTeam), 8);
+	TestEqual(TEXT("cinque finestre: solo quelle che hanno preso il tempo di qualcuno"),
+		URTPacingLibrary::CountOpenedReactionWindows(Entries, MyTeam), 5);
+
+	// La voce `Move` non e' una opportunity, e il responder avversario non e' nella popolazione: se il
+	// filtro di categoria o quello di responder cadessero, il primo numero salirebbe.
+	TestEqual(TEXT("il responder avversario ha la sua opportunity, contata solo per lui"),
+		URTPacingLibrary::CountReactionOpportunities(Entries, TSet<int32>{ 7 }), 1);
+	TestEqual(TEXT("nessun responder, nessuna opportunity"),
+		URTPacingLibrary::CountReactionOpportunities(Entries, TSet<int32>()), 0);
+
+	return true;
+}
+
+/**
+ * Le finestre sono un SOTTOINSIEME delle opportunity, e non per convenzione: contano le stesse voci con un
+ * filtro in piu'. Se questa relazione cadesse, i due numeri non sarebbero piu' leggibili insieme e il
+ * rapporto stampato da `rt.Debug.Pacing` direbbe qualcosa di falso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingBoundariesSubsetTest,
+	"RefactorTactics.Pacing.BoundariesAreASubsetOfOpportunities",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingBoundariesSubsetTest::RunTest(const FString&)
+{
+	auto Decision = [](int32 UnitId, ERTReactionDecisionOutcome Outcome)
+	{
+		FRTTurnLogEntry E;
+		E.Category = ERTLogCategory::ReactionDecision;
+		E.UnitId = UnitId;
+		E.Outcome = static_cast<uint8>(Outcome);
+		return E;
+	};
+
+	// OGNI esito dell'enum, uno per volta: la relazione deve reggere per ciascuno, non in media. Un esito
+	// nuovo aggiunto in coda entra nelle opportunity e non nelle finestre finche' qualcuno non lo dichiara —
+	// che e' la direzione sicura, e questo test la pinna.
+	const ERTReactionDecisionOutcome All[] = {
+		ERTReactionDecisionOutcome::Chosen,
+		ERTReactionDecisionOutcome::Timeout,
+		ERTReactionDecisionOutcome::Rejected,
+		ERTReactionDecisionOutcome::Immediate,
+		ERTReactionDecisionOutcome::CollapsedByCondition,
+		ERTReactionDecisionOutcome::NoDecider,
+	};
+
+	const TSet<int32> MyTeam{ 1 };
+	for (const ERTReactionDecisionOutcome Outcome : All)
+	{
+		TArray<FRTTurnLogEntry> Entries;
+		Entries.Add(Decision(1, Outcome));
+
+		const int32 Opportunities = URTPacingLibrary::CountReactionOpportunities(Entries, MyTeam);
+		const int32 Windows = URTPacingLibrary::CountOpenedReactionWindows(Entries, MyTeam);
+
+		TestEqual(FString::Printf(TEXT("esito %d: una voce, una opportunity"),
+			static_cast<int32>(Outcome)), Opportunities, 1);
+		TestTrue(FString::Printf(TEXT("esito %d: finestre (%d) <= opportunity (%d)"),
+			static_cast<int32>(Outcome), Windows, Opportunities), Windows <= Opportunities);
+	}
+	return true;
+}
+
+/**
+ * Zero turni non da' zero: da' `UnmeasuredRate`.
+ *
+ * 🔴 «Zero opportunity per turno» e' un'affermazione sul gioco; «non ho turni da cui dividere» e' l'assenza
+ * di una misura. E' la stessa distinzione che `UnmeasuredSamples` fa sui tempi, e vale per lo stesso motivo:
+ * una sessione headless senza campioni non deve poter dichiarare che il gioco non apre reazioni.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingPerTurnUnmeasuredTest,
+	"RefactorTactics.Pacing.PerTurnIsUnmeasuredWithoutTurns",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingPerTurnUnmeasuredTest::RunTest(const FString&)
+{
+	TestEqual(TEXT("sei opportunity su tre turni: due per turno"),
+		URTPacingLibrary::PerTurnRate(6, 3), 2.f);
+	TestEqual(TEXT("zero opportunity su tre turni: zero per turno, ed e' una misura"),
+		URTPacingLibrary::PerTurnRate(0, 3), 0.f);
+
+	// 🔴 IL PUNTO: senza turni non c'e' rapporto, e zero direbbe il falso.
+	TestEqual(TEXT("nessun turno: NON MISURATO, non zero"),
+		URTPacingLibrary::PerTurnRate(6, 0), URTPacingLibrary::UnmeasuredRate);
+	TestEqual(TEXT("turni negativi: NON MISURATO"),
+		URTPacingLibrary::PerTurnRate(6, -1), URTPacingLibrary::UnmeasuredRate);
+
+	// Un totale negativo non puo' venire da un conteggio: se arriva e' un difetto del chiamante, e si dice
+	// con la stessa sentinella invece di propagare un rapporto inventato.
+	TestEqual(TEXT("totale negativo: NON MISURATO"),
+		URTPacingLibrary::PerTurnRate(-1, 3), URTPacingLibrary::UnmeasuredRate);
+
 	return true;
 }
 

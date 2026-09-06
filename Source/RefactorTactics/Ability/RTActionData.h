@@ -41,7 +41,7 @@ struct FRTAbilityVariant
 
 	/**
 	 * Numeri di catalogo della variante che **non sono effetti** e che nessun sistema consuma ancora:
-	 * l'integrita' di una struttura (`Riktor.KineticPanel`: 45 rinforzato / 25 adattivo), la durata di una
+	 * l'integrita' di una struttura (`Branth.KineticPanel`: 45 rinforzato / 25 adattivo), la durata di una
 	 * marcatura, il numero di celle controllate.
 	 *
 	 * Esistono perche' il catalogo li DICHIARA e il compromesso fra due varianti va reso verificabile — non
@@ -131,10 +131,6 @@ public:
 	/** Turni di ricarica dopo l'uso (0 = nessuna ricarica). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	int32 CooldownTurns = 0;
-
-	/** Energia richiesta e consumata dall'uso (0 = nessun costo; >0 = abilita' "ultimate"). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
-	int32 EnergyCost = 0;
 
 	/** Se vero, incendia le celle infiammabili nell'area colpita (terreno dinamico). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")

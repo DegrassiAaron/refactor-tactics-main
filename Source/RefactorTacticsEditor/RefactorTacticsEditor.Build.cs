@@ -23,6 +23,12 @@ public class RefactorTacticsEditor : ModuleRules
 			"LevelEditor",
 			"InteractiveToolsFramework",
 			"EditorInteractiveToolsFramework",
+			// #2326: seguire i pin di un Blueprint dal nodo evento alla chiamata di funzione. Serve alle
+			// classi `UK2Node_*`, ed e' la ragione per cui questo test vive nel modulo EDITOR e non in
+			// quello Runtime: `RTFrontendWidgetAssetTests.cpp` dichiara di NON poter attribuire una
+			// chiamata al pulsante che la origina, perche' UMG compila ogni evento del widget in un unico
+			// ubergraph e un modulo Runtime non puo' dipendere da `BlueprintGraph` senza rompere Shipping.
+			"BlueprintGraph",
 			// Import delle texture e creazione del DA_IconCatalog dal commandlet RTBuildIconCatalog.
 			"AssetTools",
 			// Il Playground Panel (#1993): l'EditorUtilityWidget e il suo albero di widget si costruiscono
@@ -43,6 +49,13 @@ public class RefactorTacticsEditor : ModuleRules
 			// invece di autorarlo a mano — cioe' di farlo sopravvivere alla rigenerazione delle mesh.
 			"MaterialEditor",
 			"AssetRegistry",
+			// Il commandlet `RTBuildAnimBindings` (#2443) costruisce `FRTHeroPresentationClips` per il CDO
+			// del Blueprint generato, e quel tipo vive in `RTUnitAnimInstance.h`, che include
+			// `AnimNodes/AnimNode_Slot.h`.
+			// ⚠️ **Serve al COMMANDLET, non al catalogo.** `RTAnimCatalogTypes.h` include solo
+			// `RTPresentationRole.h` proprio per non trascinare questo modulo: chi nomina un ruolo non deve
+			// pagare il grafo d'animazione. Qui invece il tipo vero serve davvero.
+			"AnimGraphRuntime",
 			// Il launcher (#1680, slice L1): la categoria del menu Window in cui il tab si registra,
 			// `UEditorSubsystem` come classe base, e `UGameMapsSettings` per leggere la EditorStartupMap nel test.
 			// ⚠️ Nessuno dei tre arriva per transitivita': misurato, senza dichiararli il link non risolve.

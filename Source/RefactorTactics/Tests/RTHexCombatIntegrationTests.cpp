@@ -102,12 +102,49 @@ namespace
 	}
 
 	/** Una porta CHIUSA su un bordo di `Cell`. Le tre chiamate di seguito sono un rito, non una scelta. */
-	void AddClosedDoor(ARTHexMapActor* MapActor, const FRTCellId& Cell, ERTHexDirection Edge)
+	/** Una porta in uno stato QUALUNQUE: la commutazione di `#2380` ha quattro sorgenti da provare. */
+	void AddDoor(ARTHexMapActor* MapActor, const FRTCellId& Cell, ERTHexDirection Edge, ERTHexDoorState State)
 	{
 		FRTHexCellData Data = *MapActor->MapAsset->FindCell(Cell);
-		Data.Doors.Add(FRTHexDoor(Edge, ERTHexDoorState::Closed));
+		Data.Doors.Add(FRTHexDoor(Edge, State));
 		MapActor->MapAsset->AddOrUpdateCell(Data);
 		MapActor->MapAsset->SortCells();
+	}
+
+	void AddClosedDoor(ARTHexMapActor* MapActor, const FRTCellId& Cell, ERTHexDirection Edge)
+	{
+		AddDoor(MapActor, Cell, Edge, ERTHexDoorState::Closed);
+	}
+
+	/** Quante voci di ambiente di un certo esito porta il log: le tre assertion di `#2380` contano queste. */
+	int32 CountEnvironmentOutcome(const ARTTurnManager* TM, ERTEnvironmentOutcome Outcome)
+	{
+		int32 Count = 0;
+		for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+		{
+			if (Entry.Category == ERTLogCategory::Environment
+				&& Entry.Outcome == static_cast<uint8>(Outcome))
+			{
+				++Count;
+			}
+		}
+		return Count;
+	}
+
+	/** Quanti rifiuti `Fallback/Cancelled` con un dato reason code. */
+	int32 CountRefusals(const ARTTurnManager* TM, ERTActionInvalidReason Reason)
+	{
+		int32 Count = 0;
+		for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+		{
+			if (Entry.Category == ERTLogCategory::Fallback
+				&& Entry.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& Entry.Amount == static_cast<int32>(Reason))
+			{
+				++Count;
+			}
+		}
+		return Count;
 	}
 
 	/**
@@ -162,7 +199,7 @@ bool FRTHexBlastDealsDamageTest::RunTest(const FString&)
 
 	// Attacco base dell'eroe (indice 0). Bersaglio a distanza esagonale 3, vista libera.
 	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
 
@@ -204,7 +241,7 @@ bool FRTHexBlastBlockedBySightTest::RunTest(const FString&)
 	SpawnHexBlastMap(World, /*Radius=*/ 6, Walls);
 
 	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
 
@@ -239,7 +276,7 @@ bool FRTHexBlastOutOfRangeTest::RunTest(const FString&)
 
 	// Distanza ESAGONALE 8 > portata 6 del "Tiro": la portata si misura in celle esagonali, non in Manhattan.
 	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(8, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(8, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
 
@@ -269,7 +306,7 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 9);
 
-	ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0)); // Spazzata, portata 3
+	ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0)); // Spazzata, portata 3
 	ARTUnit* Runner = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Attacker || !Runner) { DestroyHexBlastWorld(World); return false; }
@@ -427,7 +464,7 @@ bool FRTGuardResistsPushTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Defender = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
+	ARTUnit* Defender = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
 	ARTUnit* Pusher = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Defender || !Pusher) { DestroyHexBlastWorld(World); return false; }
@@ -474,7 +511,7 @@ bool FRTChargeImpactInBlastTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Charger = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
+	ARTUnit* Charger = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
 	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Charger || !Victim) { DestroyHexBlastWorld(World); return false; }
@@ -520,7 +557,7 @@ bool FRTChargeImpactSurvivesInterruptTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Charger = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
+	ARTUnit* Charger = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
 	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0));
 	// L'interruttore parte adiacente a dove la carica FERMA il caricatore — (1,0) — perche'
 	// `Action.Interrupt` ha portata 1 e il colpo si valida sulle posizioni del Blast, dopo il Dash.
@@ -586,8 +623,8 @@ bool FRTChargeHeadOnStopsTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
-	ARTUnit* A = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
-	ARTUnit* B = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0));
+	ARTUnit* A = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTUnit* B = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexBlastWorld(World); return false; }
 
@@ -632,7 +669,7 @@ bool FRTActionsAoEFriendlyFireInMatchTest::RunTest(const FString&)
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
 	ARTUnit* Thrower = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
 	ARTUnit* Ally = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0)); // adiacente al centro
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Thrower || !Foe || !Ally) { DestroyHexBlastWorld(World); return false; }
@@ -689,7 +726,7 @@ bool FRTActionsMarkTargetReachesTargetTest::RunTest(const FString&)
 
 	ARTUnit* Marker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
 	ARTUnit* Ally = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 1));
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0)); // a 3 celle dal marcatore
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0)); // a 3 celle dal marcatore
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Marker || !Ally || !Foe) { DestroyHexBlastWorld(World); return false; }
 
@@ -757,7 +794,7 @@ bool FRTHexCoverDestructionLoggedTest::RunTest(const FString&)
 	MapActor->MapAsset->SortCells();
 
 	ARTUnit* Breacher = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Breacher || !Foe) { DestroyHexBlastWorld(World); return false; }
 
@@ -822,7 +859,7 @@ bool FRTHexDoorClosingStopsMovementTest::RunTest(const FString&)
 	MapActor->MapAsset->AddOrUpdateCell(WithDoor);
 	MapActor->MapAsset->SortCells();
 
-	ARTUnit* Mover = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
 	ARTUnit* Closer = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(3, 0));
 	if (Closer) { Closer->Facing = ERTHexDirection::W; } // vedi CP 13.2: guarda chi vuole bloccare
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -1150,7 +1187,7 @@ bool FRTInterruptStillCancelsWholeActionTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
+	ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
 	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, 0));
 	ARTUnit* Interrupter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -1198,6 +1235,322 @@ bool FRTInterruptStillCancelsWholeActionTest::RunTest(const FString&)
 			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
 	});
 	TestTrue(TEXT("e il TurnLog registra l'interruzione, al contrario del caso degradato"), bAnnullata);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+
+/**
+ * `Action.Interact` su una porta APERTA la CHIUDE ([`INT-7`] chiusa, `#2380`).
+ *
+ * E' il verso che fino al 2026-09-05 non esisteva: [D-151] limitava l'azione a chiedere `Open`, quindi una
+ * porta gia' aperta era un no-op silenzioso — `CanTransition` restituisce `false` quando `Current == Wanted`.
+ *
+ * ⚠️ Il gemello `InteractFromKitOpensDoor` (verso opposto) resta e non e' ridondante: insieme provano che la
+ * commutazione e' una commutazione, e non un `Closed` assoluto travestito.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexInteractTogglesOpenDoorClosedTest,
+	"RefactorTactics.Structures.Door.InteractTogglesOpenDoorClosed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexInteractTogglesOpenDoorClosedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	const FRTCellId Standing(0, 0);
+	const FRTCellId Target(1, 0);
+	AddDoor(MapActor, Target, ERTHexDirection::W, ERTHexDoorState::Open);
+
+	ARTUnit* Closer = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Closer || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	TestFalse(TEXT("premessa: la porta e' APERTA e il bordo si attraversa"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Standing, Target));
+
+	const int32 InteractIdx = FindAbilityByActionId(Closer, TEXT("Action.Interact"));
+	if (!TestTrue(TEXT("`Action.Interact` e' nel kit"), InteractIdx != INDEX_NONE))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	PlanEdgeAction(Closer, InteractIdx, Target, ERTHexDirection::W);
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("la porta si e' CHIUSA: il bordo non si attraversa piu'"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Standing, Target));
+	// Le due meta' insieme: senza il conteggio, «bloccato» non distinguerebbe una porta chiusa da una
+	// porta rimasta aperta con un muro comparso altrove.
+	TestEqual(TEXT("una voce di porta chiusa"),
+		CountEnvironmentOutcome(TM, ERTEnvironmentOutcome::DoorClosed), 1);
+	TestEqual(TEXT("e nessuna di porta aperta"),
+		CountEnvironmentOutcome(TM, ERTEnvironmentOutcome::DoorOpened), 0);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **IL BERSAGLIO DELLA COMMUTAZIONE SI RISOLVE UNA VOLTA SOLA, DALLO STATO PRE-BLAST** ([`INT-7`],
+ * `#2380`). E' il test che rende corretta l'implementazione, e la sua FORMA e' costata due errori.
+ *
+ * ⛔ **Primo errore — quello che la DoD della issue chiedeva.** Diceva: *«due unita' che commutano la stessa
+ * porta nello stesso turno producono lo stesso esito qualunque sia il loro ordine»*. L'ordine-indipendenza
+ * **non discrimina**: due commutatori identici sono simmetrici, quindi scambiarli non cambia niente
+ * nemmeno per un'implementazione sbagliata. Serve asserire il VALORE.
+ *
+ * ⛔ **Secondo errore — asserire il valore sulla porta sbagliata, e l'ha trovato la verifica di mutazione.**
+ * La prima stesura partiva da una porta `Open`, e il mutante «risolvi per-operazione» le passava **verde**:
+ *
+ *   partenza `Open`   corretto: entrambi vogliono `Closed`      -> fusione `Closed`  -> porta CHIUSA
+ *                     mutante:  il secondo vede `Closed`, vuole `Open` -> fusione **`Closed`** -> porta CHIUSA
+ *
+ * Identici. **La fusione per restrittivita' di `ApplyDoorOps` MASCHERA il difetto in quella direzione**,
+ * perche' a parita' di bordo vince lo stato piu' restrittivo e `Closed` e' proprio quello che il mutante
+ * produce per sbaglio. Misurato il 2026-09-05: mutante applicato, `Structures.Door` **17/17 verdi**.
+ *
+ * 🔑 **A discriminare e' la partenza `Closed`**, dove la restrittivita' lavora nel verso opposto:
+ *
+ *   partenza `Closed` corretto: entrambi vogliono `Open`        -> fusione `Open`    -> porta APERTA
+ *                     mutante:  il secondo vede `Open`, vuole `Closed` -> fusione **`Closed`** -> NON CAMBIA NULLA
+ *
+ * Il mutante non solo sbaglia: non produce **nessuna** voce di ambiente, perche' `CanTransition` rifiuta
+ * `Closed -> Closed`. `DoorOpened == 1` contro `0` e' lo scarto piu' largo che questo sottosistema possa
+ * dare.
+ *
+ * ∴ il test misura **entrambe** le direzioni — la seconda perche' e' il comportamento, la prima perche' e'
+ * la prova — e in ciascuna anche l'ordine, che resta una proprieta' vera benche' non discriminante.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexToggleResolvesOncePreBlastTest,
+	"RefactorTactics.Structures.Door.ToggleTargetResolvesOncePreBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexToggleResolvesOncePreBlastTest::RunTest(const FString&)
+{
+	// Due unita' della stessa squadra, entrambe adiacenti alla cella bersaglio, che dichiarano lo STESSO
+	// bordo. `bSwapped` inverte l'ordine di spawn, che e' l'ordine con cui gli intenti entrano nell'array.
+	auto RunWithOrder = [this](ERTHexDoorState Initial, bool bSwapped, bool& bOutBlocked,
+		int32& OutClosedEntries, int32& OutOpenedEntries) -> bool
+	{
+		UWorld* World = MakeHexBlastWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+		const FRTCellId West(0, 0);
+		const FRTCellId Target(1, 0);
+		const FRTCellId East(2, 0);
+		AddDoor(MapActor, Target, ERTHexDirection::W, Initial);
+
+		ARTUnit* First = nullptr;
+		ARTUnit* Second = nullptr;
+		if (bSwapped)
+		{
+			First = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), East);
+			Second = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), West);
+		}
+		else
+		{
+			First = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), West);
+			Second = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), East);
+		}
+		ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !First || !Second || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+		if (!TestEqual(TEXT("premessa: la porta parte dallo stato dichiarato"),
+			static_cast<int32>(URTHexDoorLibrary::DoorBetween(MapActor->MapAsset, West, Target)),
+			static_cast<int32>(Initial)))
+		{
+			DestroyHexBlastWorld(World);
+			return false;
+		}
+
+		const int32 FirstIdx = FindAbilityByActionId(First, TEXT("Action.Interact"));
+		const int32 SecondIdx = FindAbilityByActionId(Second, TEXT("Action.Interact"));
+		if (!TestTrue(TEXT("entrambe portano `Action.Interact`"),
+			FirstIdx != INDEX_NONE && SecondIdx != INDEX_NONE))
+		{
+			DestroyHexBlastWorld(World);
+			return false;
+		}
+
+		// Lo STESSO bordo, dichiarato da tutte e due: `(1,0)` verso `W`, cioe' il bordo `(1,0)-(0,0)`.
+		PlanEdgeAction(First, FirstIdx, Target, ERTHexDirection::W);
+		PlanEdgeAction(Second, SecondIdx, Target, ERTHexDirection::W);
+
+		RunBlastTurn(TM);
+
+		bOutBlocked = URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, West, Target);
+		OutClosedEntries = CountEnvironmentOutcome(TM, ERTEnvironmentOutcome::DoorClosed);
+		OutOpenedEntries = CountEnvironmentOutcome(TM, ERTEnvironmentOutcome::DoorOpened);
+
+		DestroyHexBlastWorld(World);
+		return true;
+	};
+
+	// ───────────────────────────────────────────────────────────────────────────────────────────────
+	// 🔴 IL DISCRIMINANTE: si parte da `Closed`. Per-operazione la fusione sceglierebbe `Closed` e la porta
+	// non si aprirebbe affatto — zero voci, non una voce sbagliata.
+	bool bBlockedA = false, bBlockedB = false;
+	int32 ClosedA = 0, OpenedA = 0, ClosedB = 0, OpenedB = 0;
+	if (!RunWithOrder(ERTHexDoorState::Closed, /*bSwapped*/ false, bBlockedA, ClosedA, OpenedA))
+	{
+		return false;
+	}
+	if (!RunWithOrder(ERTHexDoorState::Closed, /*bSwapped*/ true, bBlockedB, ClosedB, OpenedB))
+	{
+		return false;
+	}
+
+	TestFalse(TEXT("due commutatori su una porta CHIUSA la APRONO"), bBlockedA);
+	TestEqual(TEXT("e il cambio e' UNO SOLO: la fusione per bordo di ApplyDoorOps"), OpenedA, 1);
+	TestEqual(TEXT("e nessuno la richiude nello stesso turno"), ClosedA, 0);
+
+	TestEqual(TEXT("l'ordine non cambia lo stato finale (partenza Closed)"), bBlockedB, bBlockedA);
+	TestEqual(TEXT("l'ordine non cambia le voci di apertura"), OpenedB, OpenedA);
+	TestEqual(TEXT("l'ordine non cambia le voci di chiusura"), ClosedB, ClosedA);
+
+	// ───────────────────────────────────────────────────────────────────────────────────────────────
+	// Il verso opposto: e' il COMPORTAMENTO, e resta misurato. Non discrimina il mutante — la fusione lo
+	// maschera — ed e' scritto qui sopra perche' nessuno lo riscopra a caro prezzo una seconda volta.
+	bool bBlockedC = false, bBlockedD = false;
+	int32 ClosedC = 0, OpenedC = 0, ClosedD = 0, OpenedD = 0;
+	if (!RunWithOrder(ERTHexDoorState::Open, /*bSwapped*/ false, bBlockedC, ClosedC, OpenedC))
+	{
+		return false;
+	}
+	if (!RunWithOrder(ERTHexDoorState::Open, /*bSwapped*/ true, bBlockedD, ClosedD, OpenedD))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("due commutatori su una porta APERTA la CHIUDONO"), bBlockedC);
+	TestEqual(TEXT("un solo cambio"), ClosedC, 1);
+	TestEqual(TEXT("e nessuna riapertura"), OpenedC, 0);
+
+	TestEqual(TEXT("l'ordine non cambia lo stato finale (partenza Open)"), bBlockedD, bBlockedC);
+	TestEqual(TEXT("l'ordine non cambia le voci di chiusura"), ClosedD, ClosedC);
+	TestEqual(TEXT("l'ordine non cambia le voci di apertura"), OpenedD, OpenedC);
+
+	return true;
+}
+
+/**
+ * `Interact` su una porta `Locked` RIFIUTA, con un reason code proprio ([`INT-7`], `#2380`).
+ *
+ * 🔑 **E' cio' che tiene chiuso il buco `Locked -> Closed` senza toccare `CanTransition`.** Quella
+ * transizione e' AMMESSA un livello sotto — toglierebbe il lock, e da `Closed` la porta si apre — e [D-151]
+ * la teneva fuori portata limitando l'azione ad `Open`. La commutazione si definisce solo su
+ * `Open <-> Closed`, quindi `Locked` non e' mai una sorgente valida: stessa tecnica, verso nuovo.
+ *
+ * ⚠️ Senza l'assertion sullo STATO il test sarebbe verde anche se il lock fosse stato tolto e la porta
+ * lasciata `Closed`: da fuori bloccherebbe lo stesso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexInteractOnLockedDoorRefusedTest,
+	"RefactorTactics.Structures.Door.InteractOnLockedDoorIsRefused",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexInteractOnLockedDoorRefusedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	const FRTCellId Standing(0, 0);
+	const FRTCellId Target(1, 0);
+	AddDoor(MapActor, Target, ERTHexDirection::W, ERTHexDoorState::Locked);
+
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 InteractIdx = FindAbilityByActionId(Opener, TEXT("Action.Interact"));
+	if (!TestTrue(TEXT("`Action.Interact` e' nel kit"), InteractIdx != INDEX_NONE))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	PlanEdgeAction(Opener, InteractIdx, Target, ERTHexDirection::W);
+	RunBlastTurn(TM);
+
+	// 🔴 Lo STATO, non solo il blocco: il percorso `Locked -> Closed` bloccherebbe uguale, e avrebbe tolto
+	// il lock. E' il difetto che [D-151] esisteva per impedire.
+	TestEqual(TEXT("la porta e' ancora BLOCCATA, non solo chiusa"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(MapActor->MapAsset, Standing, Target)),
+		static_cast<int32>(ERTHexDoorState::Locked));
+	TestEqual(TEXT("nessuna porta aperta"),
+		CountEnvironmentOutcome(TM, ERTEnvironmentOutcome::DoorOpened), 0);
+	TestEqual(TEXT("nessuna porta chiusa"),
+		CountEnvironmentOutcome(TM, ERTEnvironmentOutcome::DoorClosed), 0);
+	// E il rifiuto e' OSSERVABILE, col motivo giusto: senza, «non e' successo niente» sarebbe
+	// indistinguibile da «l'azione e' sparita».
+	TestEqual(TEXT("un rifiuto con reason code DoorLocked"),
+		CountRefusals(TM, ERTActionInvalidReason::DoorLocked), 1);
+	// E NON quello del bordo vuoto: la porta c'era.
+	TestEqual(TEXT("e non e' NoEffect: la porta c'era"),
+		CountRefusals(TM, ERTActionInvalidReason::NoEffect), 0);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * `Interact` su una porta `Destroyed` RIFIUTA, con un reason code **diverso** da quello di `Locked`
+ * ([`INT-7`], `#2380`).
+ *
+ * 🔴 **E' il caso che un'implementazione ragionevole perde in silenzio.** La via naturale per leggere lo
+ * stato di un bordo e' `URTHexDoorLibrary::DoorBetween`, che pero' risponde alla domanda della TRAVERSATA:
+ * `Restriction(Destroyed)` vale **zero come `Open`**, perche' per chi ci deve passare una porta sfondata e
+ * un varco libero sono la stessa cosa. Leggendo di li', la commutazione vedrebbe `Open`, chiederebbe
+ * `Closed`, e `CanTransition` — per cui `Destroyed` e' terminale — la scarterebbe **senza nessuna voce**:
+ * il giocatore ha premuto e il TurnLog non ha niente da dire. Il resolver legge percio' la porta
+ * DICHIARATA (`FindDoorOnEdge`), non lo stato di traversata.
+ *
+ * ⚠️ Il reason code e' distinto da `DoorLocked` perche' i due rimedi sono diversi: `Locked` ha l'apertura
+ * autorizzata di CP 10.1 davanti a se', `Destroyed` non ha piu' niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexInteractOnDestroyedDoorRefusedTest,
+	"RefactorTactics.Structures.Door.InteractOnDestroyedDoorIsRefused",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexInteractOnDestroyedDoorRefusedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	const FRTCellId Standing(0, 0);
+	const FRTCellId Target(1, 0);
+	AddDoor(MapActor, Target, ERTHexDirection::W, ERTHexDoorState::Destroyed);
+
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 InteractIdx = FindAbilityByActionId(Opener, TEXT("Action.Interact"));
+	if (!TestTrue(TEXT("`Action.Interact` e' nel kit"), InteractIdx != INDEX_NONE))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	PlanEdgeAction(Opener, InteractIdx, Target, ERTHexDirection::W);
+	RunBlastTurn(TM);
+
+	TestFalse(TEXT("una porta sfondata non torna a bloccare"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Standing, Target));
+	TestEqual(TEXT("nessuna voce di porta chiusa"),
+		CountEnvironmentOutcome(TM, ERTEnvironmentOutcome::DoorClosed), 0);
+	// 🔴 La riga che cadrebbe leggendo `DoorBetween`: il rifiuto sarebbe SILENZIOSO.
+	TestEqual(TEXT("un rifiuto con reason code DoorDestroyed"),
+		CountRefusals(TM, ERTActionInvalidReason::DoorDestroyed), 1);
+	// E DISTINTO da quello di `Locked`: e' cio' che rende «reason code distinti» una cosa misurabile.
+	TestEqual(TEXT("e non quello di Locked"),
+		CountRefusals(TM, ERTActionInvalidReason::DoorLocked), 0);
 
 	DestroyHexBlastWorld(World);
 	return true;

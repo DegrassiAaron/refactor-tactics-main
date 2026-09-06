@@ -269,7 +269,7 @@ bool FRTShowcaseFixtureLayoutTest::RunTest(const FString&)
 
 	// Il roster canonico della v0.1, con gli ID del catalogo eroi: non gli archetipi legacy ne' i nomi
 	// storici (Aegis/Nyx/Drift/Vex). Sono gli stessi ID che `URTHeroCatalogLibrary` usa come chiave stabile.
-	for (const FName HeroId : { FName("Hero.Gadget"), FName("Hero.Phase"), FName("Hero.Riktor"), FName("Hero.Wraith") })
+	for (const FName HeroId : { FName("Hero.Gadget"), FName("Hero.Phase"), FName("Hero.Branth"), FName("Hero.Wraith") })
 	{
 		TestTrue(*FString::Printf(TEXT("%s e' in campo"), *HeroId.ToString()), Heroes.Contains(HeroId));
 	}
@@ -511,8 +511,8 @@ bool FRTShowcaseBasinLayoutTest::RunTest(const FString&)
 		static_cast<int32>(ERTHexCoverType::Low));
 
 	// --- Copertura del T6: quella che rende DISCRIMINANTE l'interposizione (#1060) -------------------
-	// La copertura sta sulla VITTIMA (Wraith) e non sull'intercettore (Riktor), ed e' cio' che rende il T6
-	// discriminante: quando Riktor si interpone, la geometria si rivaluta su di LUI, che non ha riparo.
+	// La copertura sta sulla VITTIMA (Wraith) e non sull'intercettore (Branth), ed e' cio' che rende il T6
+	// discriminante: quando Branth si interpone, la geometria si rivaluta su di LUI, che non ha riparo.
 	// Un resolver che conservasse la copertura del bersaglio ORIGINALE gli farebbe 12 danni invece di 22 —
 	// 113 punti vita invece di 103 — ed e' l'errore che D-017 vieta.
 	TestEqual(TEXT("copertura bassa davanti a Wraith, sul bordo da cui il colpo lo raggiunge"),
@@ -546,7 +546,7 @@ bool FRTShowcaseBasinLayoutTest::RunTest(const FString&)
 
 	TestEqual(TEXT("Gadget allo spawn dichiarato"),    ById.FindRef(TEXT("Hero.Gadget")),    FRTCellId(-4, 0, 0));
 	TestEqual(TEXT("Phase allo spawn dichiarato"),    ById.FindRef(TEXT("Hero.Phase")),    FRTCellId(-4, 1, 0));
-	TestEqual(TEXT("Riktor allo spawn dichiarato"), ById.FindRef(TEXT("Hero.Riktor")), FRTCellId( 4, 0, 0));
+	TestEqual(TEXT("Branth allo spawn dichiarato"), ById.FindRef(TEXT("Hero.Branth")), FRTCellId( 4, 0, 0));
 	TestEqual(TEXT("Wraith allo spawn dichiarato"),  ById.FindRef(TEXT("Hero.Wraith")),  FRTCellId( 4, 1, 0));
 
 	return true;
@@ -950,7 +950,7 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 	};
 	Scenario.Units.Add(Unita(TEXT("Gadget"),    TEXT("Hero.Gadget"),    0, FRTCellId(-4, 0, 0)));
 	Scenario.Units.Add(Unita(TEXT("Phase"),    TEXT("Hero.Phase"),    0, FRTCellId(-4, 1, 0)));
-	Scenario.Units.Add(Unita(TEXT("Riktor"), TEXT("Hero.Riktor"), 1, FRTCellId( 4, 0, 0)));
+	Scenario.Units.Add(Unita(TEXT("Branth"), TEXT("Hero.Branth"), 1, FRTCellId( 4, 0, 0)));
 	Scenario.Units.Add(Unita(TEXT("Wraith"),  TEXT("Hero.Wraith"),  1, FRTCellId( 4, 1, 0)));
 
 	auto Movimento = [](const TCHAR* Id, const FRTCellId& Dove)
@@ -966,12 +966,12 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 		FRTScenarioTurn T;
 		T.Intents.Add(Movimento(TEXT("Gadget"),    FRTCellId(-3, 0, 0)));
 		T.Intents.Add(Movimento(TEXT("Phase"),    FRTCellId(-3, 1, 0)));
-		T.Intents.Add(Movimento(TEXT("Riktor"), FRTCellId( 3, 0, 0)));
+		T.Intents.Add(Movimento(TEXT("Branth"), FRTCellId( 3, 0, 0)));
 		T.Intents.Add(Movimento(TEXT("Wraith"),  FRTCellId( 3, 1, 0)));
 		Scenario.Turns.Add(T);
 	}
 
-	// T2 — AZIONE PRINCIPALE e movimento nello stesso turno, su unità diverse. Riktor erige un pannello
+	// T2 — AZIONE PRINCIPALE e movimento nello stesso turno, su unità diverse. Branth erige un pannello
 	// (slot principale) mentre gli altri continuano ad avvicinarsi (slot movimento): è la coesistenza dei due
 	// slot che l'intent deve saper esprimere, e senza la quale «alimentare gli intenti» significherebbe solo
 	// «muovere».
@@ -980,8 +980,8 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 		T.Requires.Add(TEXT("CreateCover"));
 
 		FRTScenarioIntent Pannello;
-		Pannello.UnitId = TEXT("Riktor");
-		Pannello.Ability = FName(TEXT("Hero.Riktor.KineticPanel"));
+		Pannello.UnitId = TEXT("Branth");
+		Pannello.Ability = FName(TEXT("Hero.Branth.KineticPanel"));
 		Pannello.TargetCell = FRTCellId(3, 0, 0);
 		Pannello.bTargetsCell = true;
 		Pannello.CoverEdge = ERTHexDirection::W; // verso chi arriva, che è l'unico verso che ha senso
@@ -1015,7 +1015,7 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 	};
 	Scenario.Expect.Add(Dove(TEXT("Gadget"),    FRTCellId(-2, 0, 0)));
 	Scenario.Expect.Add(Dove(TEXT("Phase"),    FRTCellId(-1, 1, 0)));
-	Scenario.Expect.Add(Dove(TEXT("Riktor"), FRTCellId( 3, 0, 0))); // ha eretto, non si è mosso
+	Scenario.Expect.Add(Dove(TEXT("Branth"), FRTCellId( 3, 0, 0))); // ha eretto, non si è mosso
 	Scenario.Expect.Add(Dove(TEXT("Wraith"),  FRTCellId( 3, 1, 0)));
 	Scenario.Expect.Add([]{ FRTTestExpectation E; E.Kind = ERTAssertionKind::TurnsCompleted; E.Value = 3; return E; }());
 
@@ -1050,7 +1050,7 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 				URTTurnLogLibrary::DeserializeTurnLog(Result.TurnTraces[1].Bytes, Voci)))
 		{
 			const bool bPannelloNelLog = Voci.ContainsByPredicate([](const FRTTurnLogEntry& E)
-				{ return E.ActionId == FName(TEXT("Hero.Riktor.KineticPanel")); });
+				{ return E.ActionId == FName(TEXT("Hero.Branth.KineticPanel")); });
 			TestTrue(TEXT("l'azione principale dichiarata compare nel TurnLog"), bPannelloNelLog);
 		}
 	}
@@ -1183,7 +1183,7 @@ bool FRTShowcaseDecisionResidueTest::RunTest(const FString&)
 	Scenario.MapRadius = 4;
 
 	FRTScenarioUnit Sola;
-	Sola.Id = TEXT("Sola"); Sola.HeroId = FName(TEXT("Hero.Riktor")); Sola.TeamId = 0;
+	Sola.Id = TEXT("Sola"); Sola.HeroId = FName(TEXT("Hero.Branth")); Sola.TeamId = 0;
 	Sola.Cell = FRTCellId(0, 0, 0);
 	Scenario.Units.Add(Sola);
 
@@ -1557,7 +1557,7 @@ bool FRTShowcaseDecisionRejectedTest::RunTest(const FString&)
 		return X;
 	};
 	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Wraith"),  1, FRTCellId( 2,  0, 0), ERTHexDirection::W));
-	Scenario.Units.Add(U(TEXT("Alleato"), TEXT("Hero.Riktor"), 1, FRTCellId( 3, -1, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Alleato"), TEXT("Hero.Branth"), 1, FRTCellId( 3, -1, 0), ERTHexDirection::W));
 	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Gadget"),    0, FRTCellId(-3,  0, 0), ERTHexDirection::E));
 
 	FRTScenarioTurn T;
@@ -2118,6 +2118,7 @@ bool FRTShowcaseStateHashPerTurnTest::RunTest(const FString&)
 	// confronto qui sotto sarebbe verde e non direbbe niente. Si raccolgono e si conta quanti valori
 	// DISTINTI producono.
 	TSet<uint32> Distinti;
+	TArray<uint32> PerTurno;
 
 	for (int32 K = 1; K <= Scenario.Turns.Num(); ++K)
 	{
@@ -2151,13 +2152,44 @@ bool FRTShowcaseStateHashPerTurnTest::RunTest(const FString&)
 		TestEqual(FString::Printf(TEXT("turno %d: stesso StateHash (%08x vs %08x)"),
 			K, Rovescio.StateHash, Diritto.StateHash), Rovescio.StateHash, Diritto.StateHash);
 
+		AddInfo(FString::Printf(TEXT("turno %d: StateHash %08x"), K, Diritto.StateHash));
 		Distinti.Add(Diritto.StateHash);
+		PerTurno.Add(Diritto.StateHash);
 	}
 
-	// Otto turni che cambiano lo stato producono otto hash diversi. Se ne producessero uno solo, gli otto
-	// confronti sopra sarebbero l'uguaglianza di una costante con se' stessa.
+	// ✅ **OTTO valori distinti su otto turni, e il `7` che stava qui e' caduto come previsto** — `D-333`,
+	// `#2366`.
+	//
+	// Questa riga ha avuto tre stati, e vale la pena leggerli in fila perche' due erano verdi per motivi
+	// diversi. Asseriva **otto** e passava, ma per il motivo sbagliato: nel digest c'era `Energy`, che
+	// cresceva a ogni Cleanup e faceva da marca temporale — ogni turno distinto **qualunque cosa accadesse**.
+	// `D-324` l'ha rimossa e il conteggio e' sceso a **sette**: T1 e T2 collidevano, perche' il T2 e' il
+	// *whiff* — Wraith arma `InterceptShot` su una cella che nessuno attraversa — e nessuno dei sette campi
+	// di allora cambiava. `#610` ha pinnato quel `7` come **segnalibro**, dichiarando che sarebbe caduto.
+	//
+	// ✅ Ora il digest porta i cooldown: il `Cooldown 2` che il whiff paga — *«la meta' del costo che rende
+	// il whiff una scelta»*, dice il catalogo eroi — e' finalmente stato che il checksum vede, e i due turni
+	// si separano.
+	//
+	// ⚠️ **Otto e' di nuovo il valore atteso, ma non e' lo stesso otto di prima.** Il primo lo produceva un
+	// contatore che cresceva da solo; questo lo producono otto turni che cambiano davvero.
 	TestEqual(TEXT("e gli otto stati sono DISTINTI: l'hash non e' una costante travestita"),
 		Distinti.Num(), Scenario.Turns.Num());
+
+	// 🔴 **T1 e T2 SEPARATI, ed e' il caso che pinna la correzione di `#2366`.**
+	//
+	// Era l'assertion opposta: `TestEqual(PerTurno[0], PerTurno[1])`, che pinnava la collisione nota. Il
+	// conteggio a otto qui sopra non basterebbe da solo a dire che sono proprio QUESTI due a essersi
+	// separati, e sono l'unica coppia che il difetto faceva coincidere.
+	//
+	// ⚠️ Nessuna guardia `if (PerTurno.Num() >= 2)`: un salto silenzioso toglierebbe di mezzo l'assertion
+	// piu' stretta senza dirlo.
+	if (!TestEqual(TEXT("premessa: un hash per turno"), PerTurno.Num(), Scenario.Turns.Num()))
+	{
+		return false;
+	}
+	TestNotEqual(TEXT("T1 e T2 non collidono piu': il cooldown del whiff entra nel digest"),
+		PerTurno[0], PerTurno[1]);
 
 	return true;
 }

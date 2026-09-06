@@ -114,11 +114,6 @@ void URTUnitOverlayWidget::SetOverlayView(const FRTUnitOverlayView& InView)
 		ShieldBar->SetPercent(SafeFraction(View.Card.Shield, View.Card.MaxHealth));
 	}
 
-	if (EnergyBar)
-	{
-		EnergyBar->SetPercent(SafeFraction(View.Card.Energy, View.Card.MaxEnergy));
-	}
-
 	if (StatusBox)
 	{
 		// Svuotato e riempito: gli stati cambiano di numero e di ordine, e un pool da riciclare sarebbe una
@@ -194,6 +189,130 @@ void URTUnitOverlayWidget::SetOverlayView(const FRTUnitOverlayView& InView)
 		}
 	}
 
+	// Lo stato di RIPOSO del token, riaffermato a ogni aggiornamento.
+	//
+	// 🔑 **Serve perche' il riposo non sia una cosa che accade solo se qualcosa e' successo prima.** Senza
+	// questa riga un `WBP` che porta l'elemento lo mostrerebbe **vuoto ma presente** dal primo fotogramma,
+	// fino al primo colpo — e un'unita' che non ha mai incassato avrebbe comunque una riga di testo sopra la
+	// testa. E' la stessa ragione per cui `OverlayWidget` nasce spento in `ARTUnit`: si accende chi ha
+	// qualcosa da dire.
+	//
+	// ⚠️ Non spegne un token in corso: `bTokenActive` lo protegge, e questa funzione gira **ogni**
+	// fotogramma (`ARTHUD::UpdateObserverVeil`).
+	if (DamageTokenText && !bTokenActive)
+	{
+		DamageTokenText->SetVisibility(ESlateVisibility::Collapsed);
+	}
+
 	// Il layout puo' aggiungere il suo; non e' piu' il canale del disegno.
 	OnOverlayUpdated();
+}
+
+
+float URTUnitOverlayWidget::FadeAlpha(float Elapsed, float Duration)
+{
+	if (Duration <= 0.f)
+	{
+		// Durata nulla o negativa: gia' finita. ⚠️ Non e' un errore da segnalare — `DamageTokenSeconds = 0`
+		// e' il modo dichiarato per spegnere l'effetto senza ricompilare.
+		return 0.f;
+	}
+
+	// 🔴 **`1 - t` e non un `Lerp`, e il clamp sta sul TEMPO e non sul risultato**: cosi' a `Elapsed` esatto
+	// come `Duration` la sottrazione da' `0.f` esatto, e la barra torna a `(1,1)` invece di fermarsi a un
+	// millesimo di scala in piu' per sempre.
+	const float T = FMath::Clamp(Elapsed / Duration, 0.f, 1.f);
+	return 1.f - T;
+}
+
+void URTUnitOverlayWidget::PushDamageToken(const FRTDamageTokenView& Token)
+{
+	// ⛔ **Non si tocca `View`.** La vita che la barra mostra continua ad arrivare da `SetOverlayView`:
+	// questo canale aggiunge il CAMBIAMENTO sopra quello che mostra lo STATO, e scrivere qui renderebbe
+	// questo widget una seconda fonte di cio' che l'unita' e'.
+
+	if (DamageTokenText)
+	{
+		// Il testo e' gia' composto da `URTHudViewModel::BuildDamageToken`: qui non si decide niente, si
+		// posa. Il caso zero ha la sua etichetta, e non arriva qui come stringa vuota.
+		DamageTokenText->SetText(FText::FromString(Token.Label));
+		DamageTokenText->SetRenderOpacity(1.f);
+		DamageTokenText->SetVisibility(ESlateVisibility::HitTestInvisible);
+	}
+
+	// Riparte da zero anche se il token precedente non era finito: `#2455` fissa `un evento -> un token`, e
+	// in v0.1 non c'e' aggregazione. Due colpi ravvicinati mostrano il secondo, che e' il piu' recente —
+	// ⚠️ **ed e' un limite dichiarato**, non una svista: la leggibilita' dell'affollamento e' lavoro v0.3,
+	// e l'epic `#2453` la tiene fuori finche' il problema non e' stato misurato.
+	TokenElapsed = 0.f;
+	bTokenActive = true;
+
+	if (Token.bHasDamage)
+	{
+		PulseHealthBar();
+	}
+	// ⚠️ Nessun `else` che spenga l'enfasi: con `bHasDamage == false` non e' cambiato niente sulla vita, e
+	// un'enfasi direbbe il contrario di cio' che e' successo. Il token compare lo stesso — il colpo e'
+	// avvenuto — ma la barra tace, perche' la barra non ha nulla da raccontare.
+}
+
+void URTUnitOverlayWidget::PulseHealthBar()
+{
+	PulseElapsed = 0.f;
+	bPulseActive = true;
+}
+
+void URTUnitOverlayWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+
+	// 🔴 **Il tempo scorre QUI e non decide nessun esito** (invariante #1, `AGENTS.md` §3). `DeltaTime` e'
+	// vietato al resolver competitivo; questa e' presentazione pura, e cio' che misura e' per quanti
+	// fotogrammi una cifra resta a schermo. Un fotogramma perso allunga o accorcia un'animazione e **non
+	// cambia una virgola** di cio' che e' successo nel turno.
+
+	if (bTokenActive)
+	{
+		TokenElapsed += InDeltaTime;
+		const float Alpha = FadeAlpha(TokenElapsed, DamageTokenSeconds);
+		if (DamageTokenText)
+		{
+			DamageTokenText->SetRenderOpacity(Alpha);
+		}
+		if (Alpha <= 0.f)
+		{
+			// Riposo, e riposo COMPLETO: nascosto, non lasciato trasparente. Un widget invisibile ma
+			// presente e' ancora un elemento nel layout, e sopra un cilindro lo spazio e' la risorsa scarsa.
+			bTokenActive = false;
+			if (DamageTokenText)
+			{
+				DamageTokenText->SetVisibility(ESlateVisibility::Collapsed);
+			}
+		}
+	}
+
+	if (bPulseActive)
+	{
+		PulseElapsed += InDeltaTime;
+		const float Alpha = FadeAlpha(PulseElapsed, HealthPulseSeconds);
+		if (HealthBar)
+		{
+			// ⚠️ **Scala di render, non colore.** Il colore della barra e' dell'asset, e per modularlo
+			// bisognerebbe conoscerne il valore a riposo — cioe' duplicarlo qui, con la divergenza che ne
+			// segue. La scala ha un riposo che non va letto da nessuna parte: e' `(1,1)`.
+			const float S = 1.f + (HealthPulseScale * Alpha);
+			HealthBar->SetRenderScale(FVector2D(S, S));
+		}
+		if (Alpha <= 0.f)
+		{
+			bPulseActive = false;
+			if (HealthBar)
+			{
+				// Il valore di riposo si RIASSEGNA esplicitamente invece di fidarsi che `1 + 0.18*0` sia
+				// esattamente `1`: e' la stessa riga che l'AC di `#2455` chiede — *«torna a riposo senza
+				// restare in uno stato transitorio»* — e costa una moltiplicazione risparmiata.
+				HealthBar->SetRenderScale(FVector2D(1.f, 1.f));
+			}
+		}
+	}
 }

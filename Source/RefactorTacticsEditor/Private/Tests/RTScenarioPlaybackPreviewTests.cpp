@@ -1,3 +1,4 @@
+#include "HAL/IConsoleManager.h"
 #include "Misc/AutomationTest.h"
 #include "RTScenarioPreviewSubsystem.h"
 #include "Editor.h"
@@ -324,6 +325,112 @@ bool FRTScenarioPlaybackTransportTest::RunTest(const FString&)
 	TestFalse(TEXT("un tick non fa niente"), Preview->PlaybackTick(1.f));
 
 	Preview->ClearPreview();
+	return true;
+}
+
+
+// =====================================================================================================
+// #2486 — il paragone con la corsa precedente, e il percorso che lo uccideva
+//
+// 🔴 **Questo test esiste per un difetto che una code review ha trovato e i test no.** La prima stesura
+// azzerava il termine di paragone dentro `ClearPreview()`. Sembrava corretto — due scenari diversi non
+// sono confrontabili — ma il pulsante Run del pannello fa `ShowScenario()` e poi `OpenPlayback()`, e
+// `ShowScenario` COMINCIA con `ClearPreview()`. Il paragone spariva a ogni corsa e il verdetto di
+// divergenza non partiva mai: la stessa catena morta che `#2486` esiste per chiudere, un anello piu' in
+// fuori. Nessun test la vedeva perche' nessuno percorreva la via del pannello.
+//
+// ⚠️ Percio' qui si chiama `ShowScenario()` FRA le due aperture, invece di aprire due volte di fila: e' la
+// via vera, ed e' la sola in cui il difetto si manifesta.
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPlaybackComparesWithPreviousRunTest,
+	"RefactorTactics.DevSandboxLauncher.PlaybackComparesWithThePreviousRun",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPlaybackComparesWithPreviousRunTest::RunTest(const FString&)
+{
+	URTScenarioPreviewSubsystem* Preview = PlaybackPreview();
+	if (!TestNotNull(TEXT("il subsystem d'anteprima esiste"), Preview)) { return false; }
+
+	Preview->ClearPreview();
+	URTScenarioAuthoring* Authoring = ShowAndKeep(Preview);
+	if (!TestNotNull(TEXT("uno scenario a due squadre si mostra"), Authoring))
+	{
+		Preview->ClearPreview();
+		return false;
+	}
+
+	FRTScenarioRunReport Report;
+	FString Error;
+	if (Authoring->Run(Report, Error) != ERTScenarioAuthoringResult::Success
+		|| !Preview->OpenPlayback(Authoring))
+	{
+		AddError(Error.IsEmpty() ? TEXT("la prima corsa non si e' aperta in playback") : Error);
+		Authoring->Close();
+		Preview->ClearPreview();
+		return false;
+	}
+
+	// --- ⛔ ANTI-VACUITA' 1: alla PRIMA corsa il paragone non c'e', e non deve esserci ----------------
+	const FString Prima = FString::Join(Preview->DescribePlaybackBoundaries(), TEXT("\n"));
+	TestTrue(TEXT("la prima corsa elenca i propri boundary"), Prima.Contains(TEXT("Boundary:")));
+	TestFalse(TEXT("e non inventa un confronto che non ha"),
+		Prima.Contains(TEXT("corsa precedente")));
+
+	// --- 🔴 SECONDA corsa PER LA VIA DEL PANNELLO ----------------------------------------------------
+	if (Authoring->Run(Report, Error) != ERTScenarioAuthoringResult::Success)
+	{
+		AddError(Error);
+		Authoring->Close();
+		Preview->ClearPreview();
+		return false;
+	}
+	Preview->ShowScenario(Authoring);   // <- comincia con ClearPreview(): il passo che uccideva il paragone
+	if (!TestTrue(TEXT("la seconda corsa si apre in playback"), Preview->OpenPlayback(Authoring)))
+	{
+		Authoring->Close();
+		Preview->ClearPreview();
+		return false;
+	}
+
+	const FString Dopo = FString::Join(Preview->DescribePlaybackBoundaries(), TEXT("\n"));
+
+	// 🔑 Il cuore: il confronto DEVE partire. Con la stesura precedente questa riga era rossa.
+	TestTrue(TEXT("la seconda corsa si confronta con la prima"),
+		Dopo.Contains(TEXT("prima (corsa precedente)")));
+
+	// ⛔ ANTI-VACUITA' 2: il confronto dice qualcosa. Due corse dello STESSO scenario devono coincidere —
+	// se non coincidessero il deterministico sarebbe rotto, e questo test lo direbbe.
+	TestTrue(TEXT("e due corse identiche risultano coincidenti"), Dopo.Contains(TEXT("coincidono")));
+
+	Authoring->Close();
+	Preview->ClearPreview();
+	return true;
+}
+
+/**
+ * Il comando esiste ed e' nel namespace in cui un designer lo cerca.
+ *
+ * Senza, cancellare `RTScenarioBoundaryConsole.cpp` lascerebbe ogni test verde: e' la stessa guardia che
+ * `RefactorTactics.Debug.LosConsoleIsRegistered` mette su `rt.Debug.Los`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBoundaryConsoleIsRegisteredTest,
+	"RefactorTactics.DevSandboxLauncher.BoundaryConsoleIsRegistered",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBoundaryConsoleIsRegisteredTest::RunTest(const FString&)
+{
+	TSet<FString> Registrati;
+	IConsoleManager::Get().ForEachConsoleObjectThatStartsWith(
+		FConsoleObjectVisitor::CreateLambda([&Registrati](const TCHAR* Nome, IConsoleObject*)
+		{
+			Registrati.Add(FString(Nome));
+		}),
+		TEXT("rt.Debug."));
+
+	// CONTROPROVA: il visitor trova davvero qualcosa, e non trova cio' che non esiste.
+	TestTrue(TEXT("il namespace rt.Debug. non e' vuoto"), Registrati.Num() > 0);
+	TestFalse(TEXT("e non contiene un nome inventato"), Registrati.Contains(TEXT("rt.Debug.NonEsiste")));
+
+	TestTrue(TEXT("rt.Debug.DumpBoundaries e' registrato"),
+		Registrati.Contains(TEXT("rt.Debug.DumpBoundaries")));
 	return true;
 }
 

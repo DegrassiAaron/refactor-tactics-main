@@ -560,7 +560,7 @@ void ARTHUD::UpdateObserverVeil()
 			Unit->HideContactGhost();
 		}
 
-		// La sovrapposizione (`#2288`, `D-320`): nome, vita, scudo, energia, stati.
+		// La sovrapposizione (`#2288`, `D-320`): nome, vita, scudo, stati.
 		//
 		// 🔑 **Qui e non in `DrawHUD`, e per la stessa ragione del velo**: e' un aggiornamento di stato, non
 		// un disegno. Il widget si disegna da se' quando il motore lo compone; questo giro gli consegna
@@ -637,7 +637,7 @@ void ARTHUD::DrawHUD()
 	}
 
 	// 🔴 **Il ciclo che disegnava la sovrapposizione dell'unita' e' stato RIMOSSO** (`#2288`, `D-320`):
-	// nome, barra HP, scudo, energia e il marker di stato ora vivono in un `UWidgetComponent` per unita'
+	// nome, barra HP, scudo e il marker di stato ora vivono in un `UWidgetComponent` per unita'
 	// (`URTUnitOverlayWidget`), aggiornato da `UpdateObserverVeil` con una vista gia' composta.
 	//
 	// ⚠️ **Rimosso NELLO STESSO pass che introduce il widget**, come `D-320` prescrive: lasciarli entrambi
@@ -701,7 +701,49 @@ void ARTHUD::DrawHUD()
 		const TArray<FRTPlannedIntent> Authoritative = URTHudViewModel::BuildAuthoritativeIntents(Actors);
 
 		// 2. FILTRA per l'osservatore. Da qui in giu' lo stato completo non si tocca piu'.
-		const TArray<FRTIntentView> Views = URTIntentPrivacyLibrary::FilterForTeam(PlayerTeamId, Authoritative);
+		//
+		// 🔴 **In autobattle l'osservatore non e' una squadra, ed e' la decisione di `#2386`.** Entrambe le
+		// squadre sono bot: chi guarda non gioca in nessuna delle due, e con l'osservatore di sempre vedrebbe
+		// i piani di una squadra sola — meta' della partita che e' venuto a guardare.
+		//
+		// 🔑 **`FilterForTeam` non si tocca, e viene chiamata DUE VOLTE.** La regola resta quella di sempre —
+		// intenti alleati sempre, avversari solo se `bRevealed` — e ciascuna delle due chiamate e' legittima
+		// presa da sola. Lo spettatore vede tutto perche' ha fatto due domande a cui il filtro risponde di
+		// si', non perche' una guardia si sia ammorbidita: `AGENTS.md` §4 vuole che l'autorizzazione sia un
+		// DATO, e il dato e' `IsUnattendedSession()`, che il `RTMatchBootstrapper` scrive da `bAutobattle`.
+		//
+		// ⛔ **E `ARTPlayerState::TeamIdOf` resta l'UNICA porta** per la domanda «di chi e' la vista?». Un
+		// `bIsSpectator` che `FilterForTeam` onorasse avrebbe aggiunto una seconda risposta a quella domanda,
+		// cioe' il debito che [D-242] punto (5) ha chiuso centralizzandola — prima c'erano copie divergenti,
+		// e una era un letterale `PlayerTeamId = 0` che alimentava quattro filtri di privacy.
+		//
+		// ⚠️ **Vale finche' il client e' locale.** In rete (`M10`) uno spettatore che riceve i piani di
+		// entrambe le squadre e' un client che li POSSIEDE, ed e' la stessa avvertenza gia' scritta per
+		// `rt.Debug.DrawIntent`: la' dovra' essere lato server, o non esistere.
+		TArray<FRTIntentView> Views;
+		if (TurnManager->IsUnattendedSession())
+		{
+			// ⚠️ **Una domanda per UNITA', non due per squadra**, e la differenza non e' stilistica: due
+			// `FilterForTeam` sull'insieme intero produrrebbero DOPPIONI. Il filtro concede all'osservatore
+			// gli alleati *e* gli avversari `bRevealed` — lo dice il suo test
+			// `IntentViewSkipsDeadAndKeepsOrder`, dove l'osservatore `0` riceve **tre** viste su due alleate
+			// e un nemico rivelato — quindi un'unita' rivelata comparirebbe in entrambe le risposte e
+			// verrebbe disegnata due volte.
+			//
+			// 🔑 Chiedendo la vista dalla prospettiva della squadra CHE POSSIEDE l'unita', ogni unita'
+			// compare **una volta sola** e nella sua forma piena: e' la vista alleata, quella che porta anche
+			// la reazione e i waypoint, cioe' cio' che uno spettatore autorizzato deve vedere. L'ordine
+			// d'ingresso si conserva, che e' la proprieta' che quel test protegge.
+			Views.Reserve(Authoritative.Num());
+			for (const FRTPlannedIntent& Intent : Authoritative)
+			{
+				Views.Append(URTIntentPrivacyLibrary::FilterForTeam(Intent.TeamId, { Intent }));
+			}
+		}
+		else
+		{
+			Views = URTIntentPrivacyLibrary::FilterForTeam(PlayerTeamId, Authoritative);
+		}
 
 		// Disegna cio' che `ComposeDashSegments` ha gia' deciso. Qui non resta nessuna scelta: il conteggio
 		// dei tratti, il rapporto acceso/spento e il tetto vivono nella statica, dove un test li raggiunge.
@@ -723,34 +765,29 @@ void ARTHUD::DrawHUD()
 		// 3. DISEGNA le sole viste ricevute.
 		for (const FRTIntentView& View : Views)
 		{
-			const bool bOwn = View.bIsAlly;
-			const bool bHasPlan = View.bMoving || View.bHasTarget || !View.ActionName.IsEmpty()
-				|| View.bDashing || !View.ReactionName.IsEmpty();
-			if (bOwn && !bHasPlan)
-			{
-				continue; // unita' propria senza ordine: niente da mostrare
-			}
-
-			const FLinearColor Color = bOwn
-				? FLinearColor(0.2f, 0.9f, 1.f, 1.f)   // ciano: le tue unita'
-				: FLinearColor(1.f, 0.9f, 0.2f, 1.f);  // giallo: nemico rivelato
-
 			// CP 11.2 — la resa arriva dal livello che la vista PORTA gia' calcolato. Nessun `View.bMoving`
 			// da qui in giu' per decidere lo stile: quella e' la regola, e vive in `ClassifyPlan`.
 			const FRTIntentCertaintyStyle Style = ComposeIntentCertaintyStyle(View);
 
-			// Descrizione testuale dell'intento, dalla sola vista. Composta da una statica pura: il `?` del
-			// livello e quello della reazione armata sono grammatica visiva, e in una format string qui
-			// dentro nessun test headless li raggiungerebbe.
-			const FString Intent = ComposeIntentLabel(View, Style);
+			// ⚠️ **Tre decisioni che dipendono dalla SOLA vista**, e che stavano scritte qui in mezzo alla
+			// proiezione: chi ha una riga, con che etichetta completa, di che colore. Sembravano intrecciate
+			// con la geometria e non lo erano — `bOwn` era `View.bIsAlly` e nient'altro. Ora vivono in una
+			// statica pura coi suoi test (#2184), **prefisso compreso**: quello era deciso venti righe piu'
+			// sotto, fuori da `ComposeIntentLabel`, e quindi l'etichetta completa non aveva una sede sola.
+			const FRTIntentPresentation Intento = ComposeIntentPresentation(View, Style);
+			if (!Intento.bShow)
+			{
+				continue;
+			}
+
+			const FLinearColor Color = Intento.Color;
 
 			// Etichetta sopra la testa, posizionata dalla CELLA (identita' stabile), non da un pointer all'Actor.
 			const FVector Head = HexCellWorld(View.OwnerCell, Origin, HexSize, LayerH) + FVector(0.f, 0.f, WorldHeadOffset);
 			const FVector HeadScreen = Project(Head);
 			if (HeadScreen.Z > 0.f)
 			{
-				const TCHAR* Prefix = bOwn ? TEXT("[PIANO] ") : TEXT("[REVEAL] ");
-				const FString Label = FString(Prefix) + Intent;
+				const FString Label = Intento.Label;
 
 				// Stesso vincolo della sovrapposizione dell'unita' (#729): l'ancora nasce dallo stesso offset
 				// world space, quindi soffriva dello stesso difetto — l'intento di un'unita' vicina alla
@@ -1085,10 +1122,26 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 	}
 	else
 	{
+		// 🔴 **Il countdown cambia la PAROLA, non solo il numero** (`#2358`). Durante l'attesa la fase e'
+		// ancora `Planning`: una riga che si limitasse a scambiare i secondi direbbe «Pianificazione» mentre
+		// il piano sta per partire, e il criterio chiede che i due stati si distinguano **senza contare i
+		// secondi**.
+		const bool bReadyCountdown = Header.ReadyCountdownSecondsRemaining >= 0.f;
+
+		// 🔑 **La finestra di preparazione ha la propria parola, per la stessa ragione del Ready** (`#2386`).
+		// Anche qui la fase e' ancora `Planning`, e anche qui i due stati devono distinguersi **senza contare
+		// i secondi**: in autobattle «Pianificazione» sarebbe falso — i bot hanno gia' pianificato, e cio'
+		// che scorre e' il tempo dato a chi guarda per leggere i piani.
+		const bool bPrepWindow = Header.PrepWindowSecondsRemaining >= 0.f;
+
 		const TCHAR* PhaseName = TEXT("");
 		switch (Header.Phase)
 		{
-		case ERTMatchPhase::Planning:   PhaseName = TEXT("Pianificazione"); break;
+		case ERTMatchPhase::Planning:
+			PhaseName = bPrepWindow ? (Header.bPrepWindowPaused ? TEXT("Preparazione (in pausa)") : TEXT("Preparazione"))
+			          : bReadyCountdown ? TEXT("Ready")
+			          : TEXT("Pianificazione");
+			break;
 		case ERTMatchPhase::MatchEnded: PhaseName = TEXT("Fine"); break;
 		default:                        PhaseName = TEXT("Risoluzione"); break;
 		}
@@ -1104,7 +1157,36 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 		//
 		// Arrotondamento per ECCESSO: a 3,2 secondi restano `4s`, perche' `3s` farebbe sparire dal conto
 		// l'ultimo secondo di chi lo sta guardando.
-		if (Header.Phase == ERTMatchPhase::Planning && Header.PlanningSecondsRemaining > 0.f)
+		if (bPrepWindow)
+		{
+			// Il gesto si NOMINA, come `(Spazio: salta)` e `(RMB: annulla)`. ⚠️ **E cambia con lo stato**: un
+			// «P: pausa» stampato su una finestra gia' ferma direbbe al giocatore di fare cio' che ha appena
+			// fatto. Il residuo resta a schermo anche in pausa — e' quanto manca alla ripresa, non zero.
+			Status += FString::Printf(TEXT("  -  %.0fs  (P: %s)"),
+				FMath::CeilToFloat(Header.PrepWindowSecondsRemaining),
+				Header.bPrepWindowPaused ? TEXT("riprendi") : TEXT("pausa"));
+		}
+		else if (bReadyCountdown)
+		{
+			// 🔴 **Il MINORE dei due orologi, e non e' un dettaglio di stile.** Il tetto vince sul countdown
+			// (`#2193`): con 1,5 s di planning residuo e 3 s di countdown, il commit arriva fra 1,5 s.
+			// Stampare `3s` sarebbe una durata FALSA detta proprio mentre il giocatore decide se annullare —
+			// e imparerebbe che il countdown dura meno di quanto dice, invece che il contrario.
+			//
+			// ⚠️ Il tetto entra nel confronto **solo se si applica**: `PlanningSecondsRemaining` e' negativo
+			// nelle run senza timer, e un `Min` cieco stamperebbe un numero negativo.
+			// 🔑 **La regola non si riscrive qui.** Con lo Screen HUD in UMG (`#613`) arriva un secondo
+			// consumatore che questa riga non la attraversa: due copie sarebbero due occasioni di
+			// scriverne una sbagliata, e la sbagliata non fallisce nessun test — mostra un numero
+			// plausibile. La sede unica e' `URTHudViewModel::ComputeSecondsUntilCommit`, che porta con se'
+			// entrambe le trappole (il tetto vince; il tetto entra solo se si applica).
+			const float ToCommit = URTHudViewModel::ComputeSecondsUntilCommit(Header);
+
+			// Il gesto si NOMINA, come fa gia' la riga della risoluzione con `(Spazio: salta)`: sapere di
+			// avere tre secondi senza sapere cosa farne non e' informazione.
+			Status += FString::Printf(TEXT("  -  %.0fs  (RMB: annulla)"), FMath::CeilToFloat(ToCommit));
+		}
+		else if (Header.Phase == ERTMatchPhase::Planning && Header.PlanningSecondsRemaining > 0.f)
 		{
 			Status += FString::Printf(TEXT("  -  %.0fs"), FMath::CeilToFloat(Header.PlanningSecondsRemaining));
 		}
@@ -1139,23 +1221,19 @@ FRTHudTextLine ARTHUD::ComposeAbilityLine(const FRTAbilityCooldownView& Ability,
 	// Il numero e' 1-based: e' la scorciatoia che il giocatore preme, non l'indice del kit.
 	Line.Text = FString::Printf(TEXT("%d. %s"), Ability.AbilityIndex + 1, *Ability.DisplayName.ToString());
 
-	// 🔴 **La ricarica VINCE sull'energia, ed e' una precedenza dichiarata.** Un'abilita' puo' essere
-	// entrambe le cose insieme; mostrarne una sola e' una scelta, e la scelta e' la ricarica perche' e'
-	// quella che passa da sola col tempo — l'energia dipende da cosa fara' il giocatore.
+	// 🔴 **La ricarica e' l'UNICO motivo mostrabile, e non e' piu' una precedenza.**
 	//
-	// ⚠️ **Il motivo «energia» si INFERISCE, e oggi l'inferenza e' completa.**
-	// `URTCombatLibrary::IsAbilityUsable` e' `CooldownRemaining <= 0 && Energy >= EnergyCost`: due clausole
-	// sole, quindi «non usabile pur essendo fuori ricarica» non puo' che essere energia. La stesura
-	// precedente rileggeva `EnergyCost` e `Energy` dall'attore per dirlo; la vista lo porta gia' dentro
-	// `bUsableNow`. ⛔ Se un giorno comparisse una TERZA clausola, questa riga nominerebbe un motivo
-	// sbagliato: il posto dove accorgersene e' `AbilityLineShowsCooldownBeforeEnergy`.
+	// Questa riga sceglieva fra due motivi — ricarica ed energia — e la scelta era dichiarata: vince la
+	// ricarica, perche' passa da sola col tempo. [D-324](../../../docs/decisions/RT_PDR_00_Decision_Log.md)
+	// ha tolto `Energy` dal gameplay: `IsAbilityUsable` e' rimasta la sola `CooldownRemaining <= 0`, quindi
+	// `bUsableNow` **coincide** con `TurnsRemaining == 0` e il ramo «energia» era diventato irraggiungibile.
+	//
+	// ⛔ Non e' stato lasciato «per sicurezza»: un ramo morto che nomina un sottosistema rimosso e' peggio di
+	// nessun ramo — dice al lettore che esiste un secondo motivo, e non c'e'. Se un giorno comparisse una
+	// SECONDA clausola, il motivo va aggiunto qui **insieme** al test che lo pinna.
 	if (Ability.TurnsRemaining > 0)
 	{
 		Line.Text += FString::Printf(TEXT("  (ricarica %d)"), Ability.TurnsRemaining);
-	}
-	else if (!Ability.bUsableNow)
-	{
-		Line.Text += TEXT("  (energia)");
 	}
 
 	// L'abilita' armata si distingue DUE volte, dal prefisso e dal colore: i tre livelli di grigio sono
@@ -1166,8 +1244,8 @@ FRTHudTextLine ARTHUD::ComposeAbilityLine(const FRTAbilityCooldownView& Ability,
 	}
 
 	// ⚠️ **Armata batte inutilizzabile.** «Cosa sto per fare» e «posso farlo» sono due domande, e il
-	// bianco risponde alla prima: un'ultimate armata e senza energia resta riconoscibile come quella scelta,
-	// e il motivo lo dice il testo.
+	// bianco risponde alla prima: un'ultimate armata e ancora in ricarica resta riconoscibile come quella
+	// scelta, e il motivo lo dice il testo.
 	Line.Color = bArmed
 		? FLinearColor::White
 		: (Ability.bUsableNow ? FLinearColor(0.8f, 0.8f, 0.8f, 1.f) : FLinearColor(0.45f, 0.45f, 0.45f, 1.f));
@@ -1206,4 +1284,42 @@ FRTHudTextLine ARTHUD::ComposePreviewZoneLine(int32 NumHitCells, int32 NumAllyHi
 		: FLinearColor(1.f, 0.35f, 0.3f, 1.f);
 
 	return Line;
+}
+
+FRTIntentPresentation ARTHUD::ComposeIntentPresentation(const FRTIntentView& View,
+	const FRTIntentCertaintyStyle& Style)
+{
+	FRTIntentPresentation Out;
+
+	const bool bOwn = View.bIsAlly;
+
+	// I cinque segnali di piano. ⚠️ La reazione armata e' l'unico che non si vede muovere sulla mappa,
+	// ed e' quindi il termine piu' facile da perdere riscrivendo questo `||`.
+	const bool bHasPlan = View.bMoving || View.bHasTarget || !View.ActionName.IsEmpty()
+		|| View.bDashing || !View.ReactionName.IsEmpty();
+
+	// 🔴 **L'asimmetria e' la regola, non una svista.** Si salta l'unita' PROPRIA senza ordini —
+	// altrimenti una riga vuota sovrasterebbe ogni unita' inattiva, che e' il caso piu' comune del gioco —
+	// ma MAI un nemico rivelato: per lui l'informazione non e' «cosa fara'», e' «lo sto vedendo». Togliere
+	// `bOwn` da questa guardia rende la regola simmetrica, che e' la lettura ingenua e sbagliata.
+	if (bOwn && !bHasPlan)
+	{
+		return Out;
+	}
+
+	Out.bShow = true;
+
+	// Il prefisso dice DI CHI e' il piano; il corpo lo compone `ComposeIntentLabel`, che ha i suoi test in
+	// `RTIntentPrivacyTests` e resta l'owner della grammatica dell'etichetta. Qui si aggiunge solo il
+	// prefisso, che prima viveva in `DrawHUD` e quindi non era coperto da niente.
+	Out.Label = FString(bOwn ? TEXT("[PIANO] ") : TEXT("[REVEAL] ")) + ComposeIntentLabel(View, Style);
+
+	// Lo stesso confine detto una seconda volta, col colore: l'etichetta e' piccola e sta sopra una mappa,
+	// e il colore regge dove il testo non si legge. ⚠️ Sbagliarne uno solo e' peggio che sbagliarli
+	// entrambi, perche' produce due segnali che dissentono.
+	Out.Color = bOwn
+		? FLinearColor(0.2f, 0.9f, 1.f, 1.f)   // ciano: le tue unita'
+		: FLinearColor(1.f, 0.9f, 0.2f, 1.f);  // giallo: nemico rivelato
+
+	return Out;
 }

@@ -137,6 +137,45 @@ Il catalogo terreni §4 lascia aperta la durata di `Wet` applicato lontano dall'
 dichiara già **1 turno** per `Hero.Phase.PressureJet` e `Hero.Phase.CircularTide`: si adotta quel valore e si aggiorna il
 catalogo terreni, invece di tenere aperta una domanda a cui il repository ha già risposto.
 
+### D7 — Uno stato che finisce **quando paghi**: durata più `RemoveStatus`, non una terza forma *(2026-09-04)*
+
+➕ Aggiunta da [D-319](../decisions/RT_PDR_00_Decision_Log.md) e implementata da
+[#2253](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2253), che portano in vita
+`Status.Unbalanced` e `Status.Prone`.
+
+Il contratto che questa spec dichiara — *«`ARTUnit::ApplyStatus` sa rappresentare `N` turni **oppure** il
+legame alla cella»* — resta **intatto**, e la ragione va scritta perché è la stessa che D3 usa per
+`Electrified`: uno stato che dura *finché non paghi per uscirne* non è nessuna delle due forme, e inventarne
+una terza sarebbe il secondo meccanismo che [D-279](../decisions/RT_PDR_00_Decision_Log.md) vieta.
+
+**La forma adottata**: `Prone` ha una durata come tutti gli altri (`2`), e chi vuole uscirne prima paga
+`1 MP` — che `ARTUnit::RemoveStatus` toglie, l'API **pubblica**, non il membro privato `StatusTurns`. Il
+pagamento compra **il turno**, non l'uscita: la durata solleva comunque, ed è ciò che impedisce a chi ha
+`Root` o budget esaurito di restare a terra per sempre.
+
+| Stato | Durata | Chi lo applica | Uscita anticipata | Esito nel TurnLog |
+|---|---|---|---|---|
+| `Unbalanced` | `2` | lo scivolamento, nella fase Move — **sse** l'esito è `ERTMoveOutcome::Slid` | nessuna: si **consuma** quando la caduta avviene | nascita `AppliedByTerrain` · consumo `Spent` |
+| `Prone` | `2` | `Push`/`Pull` subito mentre si è `Unbalanced`, nella fase Blast, **dopo** lo spostamento | `1 MP`, sottratto in `ARTUnit::GetEffectiveMoveRange()` | nascita `AppliedByAction` · uscita `ShakenOff` |
+
+> 🔑 **`2` e non `1`, e il numero discende da questa spec.** `TickStatuses()` decrementa nel **Cleanup**:
+> uno stato applicato nel **Move** con durata `1` nascerebbe e morirebbe nello stesso Cleanup, senza che
+> nessuna fase interposta possa leggerlo. Il confronto che lo dimostra è `Status.Exposed` — durata `1` da
+> `Action.Sprint`, che però risolve nel **Dash** e ha Blast e Move davanti a sé.
+
+> ➕ **Un decimo `ERTStatusOutcome`: `ShakenOff`.** Nessuno dei nove sapeva dire «l'ha pagata la vittima»:
+> `Cleansed` è *«un'azione deliberata l'ha tolto (`Action.Cleanse`)»* e manderebbe chi legge un replay a
+> cercare un'azione che non è mai stata pianificata; `Spent` è *«lo stato ha fatto il suo lavoro»*, e qui lo
+> stato è stato **subito**. `Amount` porta il **prezzo**, non una durata residua — è l'unico esito di stato
+> in cui la vittima paga. Valore in coda: il formato non cambia versione.
+
+> ⚠️ **`MakeStatusDeathEntry` scriveva `Cleanup` costante**, e per revoca e scadenza è vero. È **falso** per
+> le morti causate da un effetto, che accadono dove l'effetto accade: le voci `Spent` di `Status.Marked` e
+> `Cleansed` di `Action.Cleanse` dichiarano `Cleanup` stando nel **Blast**. Le due non sono state corrette —
+> la fase è un campo serializzato, e raddrizzarle impone una rigenerazione del corpus golden per un difetto
+> che `#2253` non ha introdotto. La funzione ora **accetta** la fase, con default `Cleanup`, e i siti nuovi
+> passano quella vera.
+
 ## 4. Ordine del Cleanup (nuovo)
 
 Oggi (`RTTurnManager.cpp:558-578`): energia → scadenza scudo temporaneo → tick stati → tick cooldown → conteggio

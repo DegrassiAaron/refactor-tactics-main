@@ -14,7 +14,7 @@ class ARTUnit;
  *
  * Il cooldown residuo e' un PARAMETRO e non un campo dello snapshot perche' oggi vive altrove:
  * `ARTUnit::AbilityCooldowns` e' privato e parallelo ad `Abilities`, sull'Actor. Passarlo qui e' lo stesso
- * pattern gia' in uso in `URTCombatLibrary::IsAbilityUsable(CooldownRemaining, Energy, EnergyCost)`, e
+ * pattern gia' in uso in `URTCombatLibrary::IsAbilityUsable(CooldownRemaining)`, e
  * mantiene la validazione una funzione pura: stessa coppia (snapshot, piano) => stesso verdetto.
  */
 USTRUCT(BlueprintType)
@@ -61,7 +61,7 @@ struct FRTPlanValidation
 	 *
 	 * 🔴 **Esiste perche' `OffendingActionId` da solo accusa l'azione sbagliata.** L'ordine canonico di
 	 * `ValidatePlan` — per larghezza di slot, poi per `ActionId` — incontra `Action.Move` prima di
-	 * `Hero.Riktor.Ram`, quindi nomina Ram; ma in risoluzione e' lo scatto a vincere ed e' Move a essere
+	 * `Hero.Branth.Ram`, quindi nomina Ram; ma in risoluzione e' lo scatto a vincere ed e' Move a essere
 	 * scartato. Chi comunica il rifiuto nomina ENTRAMBE e non deve indovinare il perdente.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Actions")

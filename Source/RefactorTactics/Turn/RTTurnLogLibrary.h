@@ -120,9 +120,9 @@ public:
 	/**
 	 * Se questa causa fa NASCERE uno stato (`true`) o lo fa MORIRE (`false`).
 	 *
-	 * 🔴 **Esiste perché il verso non si deduca a occhio da nove valori.** Nascite: `AppliedByAction`,
+	 * 🔴 **Esiste perché il verso non si deduca a occhio da dieci valori.** Nascite: `AppliedByAction`,
 	 * `AppliedByTerrain`, `AppliedWhileOnCell`, `AppliedInstantly`. Morti: `Revoked`, `Expired`,
-	 * `Extinguished`, `Cleansed`, `Spent`. Chi consuma `ERTResolvedEventType::StatusChanged` chiede qui
+	 * `Extinguished`, `Cleansed`, `Spent`, `ShakenOff`. Chi consuma `ERTResolvedEventType::StatusChanged` chiede qui
 	 * invece di scriversi il proprio `switch` — che sarebbe una seconda tassonomia da tenere allineata.
 	 *
 	 * ⚠️ **Un valore non dichiarato è una MORTE, e fail-closed è la scelta giusta qui**: un'icona che non
@@ -296,9 +296,9 @@ public:
 
 	/**
 	 * L'identita' dell'azione di una voce, come **azione base + profilo** quando la voce sa dirlo:
-	 * `Action.BasicAttack · Riktor.ImpactShot`. E' la forma che [D-033](../../../docs/decisions/RT_PDR_00_Decision_Log.md)
+	 * `Action.BasicAttack · Branth.ImpactShot`. E' la forma che [D-033](../../../docs/decisions/RT_PDR_00_Decision_Log.md)
 	 * chiede — «spiegabile nel TurnLog come azione base + profilo» — e senza di essa una traccia dice solo
-	 * `Riktor.ImpactShot`, che e' un'azione d'EROE e non si risolve col catalogo core.
+	 * `Branth.ImpactShot`, che e' un'azione d'EROE e non si risolve col catalogo core.
 	 *
 	 * Ricade sul solo `ActionId` quando `BaseActionId` e' vuoto (traccia di formato < 5, o azione che non e'
 	 * profilo di niente) o quando i due coincidono. Pura: legge solo la voce.

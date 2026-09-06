@@ -414,6 +414,8 @@ stabile, formato versionato) · **#6** rispettato (la rotazione **intesa** è fi
 | `Facing.VoluntaryMoveWinsOverForced` | se l'unità viene spinta e poi si muove, vale la regola del Move |
 | `Facing.PermutationInvariant` | permutare l'ordine degli input non cambia il facing risultante |
 | `Facing.IntentIsTeamFiltered` | la rotazione **dichiarata** non raggiunge il client avversario |
+| `UI.IntentViewFieldsAreClassified` | ogni campo di `FRTIntentView` ha una classe di privacy **dichiarata**: un campo nuovo non classificato fa rosso (#2331) |
+| `UI.EnemyViewCarriesNoAllyOnlyField` | la riga sopra vale per **ogni** campo ally-only, non per i quattro di oggi — e i campi pubblici arrivano comunque a un avversario rivelato (#2331) |
 | `Combat.BackAttackIgnoresCover` · `…IgnoresGuard` | un colpo fuori dall'arco frontale annulla −10 e −15 |
 | `Combat.FlankAttackKeepsCover` | dai fianchi la copertura vale: l'arco frontale è quello di `HexCone`, non solo la direzione esatta |
 | `Vision.ConeUsesHexConePrimitive` | la vista non ha una geometria propria |

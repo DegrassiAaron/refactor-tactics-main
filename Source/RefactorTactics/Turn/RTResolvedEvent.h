@@ -71,10 +71,11 @@ enum class ERTResolvedEventType : uint8
 	 * esisterebbero coppie **rappresentabili e impossibili** — un `StatusApplied` che porta `Revoked`. Il
 	 * verso si chiede a `URTTurnLogLibrary::IsStatusBirth`, che è l'unico posto che lo sa.
 	 *
-	 * ⚠️ **Nove cause, non due.** Nascite: `AppliedByAction`, `AppliedByTerrain`, `AppliedWhileOnCell`,
+	 * ⚠️ **Dieci cause, non due.** Nascite: `AppliedByAction`, `AppliedByTerrain`, `AppliedWhileOnCell`,
 	 * `AppliedInstantly`. Morti: `Revoked` (ha lasciato la cella), `Expired` (è finito il tempo),
-	 * `Extinguished` (l'acqua), `Cleansed` (un'azione), `Spent` (`Marked` incassato, `#1314`). Il TurnLog le
-	 * distingue già tutte, e questo evento le **trasporta** invece di ridurle.
+	 * `Extinguished` (l'acqua), `Cleansed` (un'azione), `Spent` (`Marked` incassato, `#1314`), `ShakenOff`
+	 * (la vittima ha pagato per rialzarsi, `#2253`). Il TurnLog le distingue già tutte, e questo evento le
+	 * **trasporta** invece di ridurle.
 	 *
 	 * 🔑 **Non è emesso dai nove siti che le producono, ma dall'unico punto in cui la voce di log viene
 	 * scritta** — `AppendLogEntry`, dove sta *«l'UNICO `TurnLog.Add` del file»*. Ne segue che uno stato
@@ -130,7 +131,15 @@ struct FRTResolvedEvent
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	int32 SourceStableUnitId = 0;
 
-	/** Chi ha subito, come `ARTUnit::StableUnitId`. `0` = nessuno. Solo `Attack` lo valorizza. */
+	/**
+	 * Chi ha subito, come `ARTUnit::StableUnitId`. `0` = nessuno.
+	 *
+	 * Lo valorizzano `Attack` e — da `#2460` — `HazardDamage`. ⚠️ **Sul secondo e' l'UNICO campo che porta un
+	 * soggetto**: in un danno da terreno non c'e' un attaccante, quindi `SourceStableUnitId` resta `0`, ed e'
+	 * la convenzione gia' scelta da `#625`/`#1150` sul canale della traccia. Chi consuma deve leggere quello
+	 * `0` come «nessuno» ([D-063]) e non come «l'unita' numero zero» — un evento di danno ambientale letto
+	 * dal verso sbagliato accrediterebbe il colpo a chi l'ha subito.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	int32 TargetStableUnitId = 0;
 

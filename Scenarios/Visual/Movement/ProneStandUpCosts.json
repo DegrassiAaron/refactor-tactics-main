@@ -1,0 +1,44 @@
+{
+  "scenarioId": "Visual.Movement.ProneStandUpCosts",
+  "tags": ["animation", "movement", "status", "wraith"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 6,
+
+  "_nota": "BANCO VFX per il prezzo dello StandUp ([D-319], #2253). Due Wraith identici percorrono la stessa rotta su terreno piatto, ognuno spendendo tutto il proprio budget: chi e' in piedi arriva a sei celle, chi deve rialzarsi si ferma a **cinque**. L'unica differenza e' `Status.Prone`, e quella colonna e' il punto movimento speso per rimettersi in piedi.",
+
+  "_nota_leggibilita": "La domanda di questo banco e' se il prezzo si VEDE. Il rischio non e' che il gioco sbagli il conto — quello lo dice `Status.StandUpCostsOneMovePoint`, headless — ma che a schermo si legga come un movimento troncato senza motivo, cioe' come un difetto. Chi guarda deve poter dire *«si e' rialzato, e quel gesto e' costato una cella»*, non *«perche' si e' fermato li'?»*. Se il rialzarsi non ha un momento proprio prima del primo passo, quella lettura non e' disponibile.",
+
+  "_nota_seconda_domanda": "E il rialzarsi va distinto dal NON essere mai caduti. A fine turno le due unita' sono entrambe in piedi: se lo stato `Prone` sparisce senza che nessuno veda il gesto, l'unica traccia rimasta e' la cella mancante — e quella, da sola, non spiega niente.",
+
+  "_nota_conto": "Wraith ha 6 MP e il terreno e' tutto piatto (costo 1). `C1` ne dichiara **sei** e arriva a (3,0). `P1` ha `Status.Prone`, quindi `ARTUnit::GetEffectiveMoveRange()` gli sottrae `StandUpMovePointCost` e ne restano **5**: il piu' lungo percorso che puo' dichiarare arriva a (2,2), una colonna prima. A schermo la differenza e' quella colonna.",
+
+  "_nota_perche_cinque_waypoint_e_non_sei": "🔴 **La prima stesura ne dichiarava sei anche per `P1`, aspettandosi un troncamento. Non e' cosi', ed e' stato misurato**: l'harness costruisce il piano con `URTHexSimLibrary::BuildCompositeHexPath` **contro il budget dello snapshot**, e un percorso che eccede non viene tagliato — viene **rifiutato per intero**. `P1` restava sulla cella di partenza, con un solo warning nel log (`percorso rifiutato ... l'unita' resta ferma`) e nessun movimento da guardare. E' la stessa disciplina del bot: qui dentro non si propongono mosse illegali. ⚠️ Chi scrive uno scenario e dichiara una cella di troppo non ottiene un movimento piu' corto: ne ottiene **zero**, e la differenza si vede solo leggendo il log.",
+
+  "_nota_stato_dopo": "`P1` finisce il turno **in piedi**: si e' mosso, quindi ha pagato, quindi `Prone` gli e' stato tolto. Chi non paga resta a terra, ed e' l'altra meta' della regola — ma non si guarda qui: senza movimento non ci sarebbe niente da vedere, che e' precisamente il punto.",
+
+  "units": [
+    { "id": "C1", "hero": "Hero.Wraith", "team": 0, "cell": [-3, 0, 0] },
+
+    { "id": "P1", "hero": "Hero.Wraith", "team": 0, "cell": [-3, 2, 0],
+      "statuses": [ { "tag": "Status.Prone", "turns": 2 } ] },
+
+    { "id": "E1", "hero": "Hero.Branth", "team": 1, "cell": [0, -5, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "Stessa rotta, stesso eroe, stesso terreno. Ognuno dichiara il piu' lungo percorso che il proprio budget consente: sei celle per chi e' in piedi, cinque per chi deve prima rialzarsi.",
+      "intents": [
+        { "unit": "C1", "move": [[-2, 0, 0], [-1, 0, 0], [0, 0, 0], [1, 0, 0], [2, 0, 0], [3, 0, 0]] },
+        { "unit": "P1", "move": [[-2, 2, 0], [-1, 2, 0], [0, 2, 0], [1, 2, 0], [2, 2, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell",     "unit": "C1", "cell": [3, 0, 0] },
+    { "type": "UnitAtCell",     "unit": "P1", "cell": [2, 2, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

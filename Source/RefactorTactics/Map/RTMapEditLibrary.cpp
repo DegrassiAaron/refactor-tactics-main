@@ -2,6 +2,7 @@
 
 #include "Map/RTGeometryBake.h"
 #include "Map/RTGeometryGrammar.h"
+#include "Map/RTHexLibrary.h" // Neighbor: il vicino oltre il bordo, che decide se una porta nega qualcosa
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTMapDependencyLibrary.h"
 #include "Map/RTStructureIdentityLibrary.h"
@@ -329,4 +330,51 @@ TArray<FRTMapElementHandle> URTMapEditLibrary::ElementsAt(const URTHexMapAsset* 
 	Found.Add(FRTMapElementHandle::ForCell(Cell));
 
 	return Found;
+}
+
+ERTMapEditOutcome URTMapEditLibrary::AddDoor(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection Edge,
+	ERTHexDoorState State, int32 DoorId, FName StableId)
+{
+	if (Map == nullptr)
+	{
+		return ERTMapEditOutcome::RefusedNoSuchCell;
+	}
+
+	// --- si valida TUTTO prima di scrivere: «un'operazione o si applica intera o non lascia traccia» -----
+	const FRTHexCellData* Data = Map->FindCell(Cell);
+	if (Data == nullptr)
+	{
+		return ERTMapEditOutcome::RefusedNoSuchCell;
+	}
+
+	// 🔴 **Il vicino, ed e' il rifiuto che rende questa funzione non banale.** Una porta e' SOTTRATTIVA —
+	// nega un'adiacenza che esiste — quindi sul bordo esterno della mappa non nega niente: si salverebbe,
+	// cambierebbe l'hash, si vedrebbe pure, e nessun oracolo suonerebbe.
+	if (Map->FindCell(URTHexLibrary::Neighbor(Cell, Edge)) == nullptr)
+	{
+		return ERTMapEditOutcome::RefusedNoNeighbour;
+	}
+
+	for (const FRTHexDoor& Esistente : Data->Doors)
+	{
+		if (Esistente.Edge == Edge)
+		{
+			return ERTMapEditOutcome::RefusedDuplicate;
+		}
+	}
+
+	// --- la scrittura ------------------------------------------------------------------------------------
+	//
+	// 🔴 **Passa da `AddOrUpdateCell`, non da un `const_cast` sull'array della cella.** E' l'unico percorso
+	// che muove `Revision`, e la revisione e' cio' che invalida i percorsi gia' calcolati: scrivere in place
+	// lascerebbe valido un cammino che la porta ha appena chiuso. E' il difetto che `ClearAsset` ha gia'
+	// pagato, e che l'header dell'asset dichiara — *«la revisione e' responsabilita' del DATO, non di chi lo
+	// modifica»*.
+	FRTHexCellData Copia = *Data;
+	FRTHexDoor Porta(Edge, State, DoorId);
+	Porta.StableId = StableId;
+	Copia.Doors.Add(Porta);
+	Map->AddOrUpdateCell(Copia);
+
+	return ERTMapEditOutcome::Applied;
 }

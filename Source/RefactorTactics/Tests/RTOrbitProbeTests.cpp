@@ -49,7 +49,7 @@ namespace RTOrbitProbeSpec
  * L'ALTERNANZA si conta, ed e' il caso per cui la sonda esiste.
  *
  * `A B A B A B` — sei campioni, quattro ritorni: il primo e' osservabile al terzo campione, e da li' ognuno
- * ne aggiunge uno. E' la firma misurata su `L_HexArena` (#1287), dove Riktor alternava fra `(1,-1,L0)` e la
+ * ne aggiunge uno. E' la firma misurata su `L_HexArena` (#1287), dove Branth alternava fra `(1,-1,L0)` e la
  * piattaforma `(3,-3,L1)`.
  *
  * ⚠️ **Il numero esatto conta, non solo che sia `> 0`.** La soglia degli oracoli e' `TurnsPlayed / 3`:

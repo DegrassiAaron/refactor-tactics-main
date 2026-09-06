@@ -186,7 +186,7 @@ bool FRTHeroBasicAttackIsIndexZeroTest::RunTest(const FString&)
 			Basic->Def.Slot, ERTActionSlot::Main);
 
 		// Almeno un effetto di danno: un attacco base che non fa male non e' un attacco. NON asserisce
-		// QUANTO — 8 (Riktor) e 22 (Gadget) sono entrambi legittimi, ed e' il punto di ADR-0007.
+		// QUANTO — 8 (Branth) e 22 (Gadget) sono entrambi legittimi, ed e' il punto di ADR-0007.
 		bool bDealsDamage = false;
 		for (const FRTActionEffectSpec& Spec : Basic->Def.Effects)
 		{
@@ -210,7 +210,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroBasicAttackDeclaresBaseTest,
 bool FRTHeroBasicAttackDeclaresBaseTest::RunTest(const FString&)
 {
 	// D-033 chiede che un'azione generica con profilo sia spiegabile nel TurnLog come *azione base + profilo*.
-	// Perche' lo sia, il DATO deve dichiarare la relazione: `Riktor.ImpactShot` e' un'azione d'eroe, e chi
+	// Perche' lo sia, il DATO deve dichiarare la relazione: `Branth.ImpactShot` e' un'azione d'eroe, e chi
 	// legge una traccia non la risolve col catalogo core.
 	//
 	// Senza questo test, dimenticare `BaseActionId` su un eroe nuovo non romperebbe NIENTE — l'azione
@@ -371,7 +371,7 @@ bool FRTHeroValidateStructureTest::RunTest(const FString&)
 //
 // ⚠️ **La prima correzione, lo stesso giorno, ne teneva ancora una di clausole**: distingueva per STILE e
 // si aspettava `Main` dalle cariche. Bastava a rendere il test non-vacuo, non a renderlo semplice — e la
-// misura su `Hero.Riktor.Ram` ha mostrato che quel caso speciale era esso stesso il difetto successivo.
+// misura su `Hero.Branth.Ram` ha mostrato che quel caso speciale era esso stesso il difetto successivo.
 // Ora non c'e' nessun caso speciale: chi risolve nel Dash dichiara il movimento, e basta.
 // =====================================================================================================
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroMobilitySlotTest,
@@ -548,7 +548,7 @@ bool FRTHeroAbilityIdNamespaceTest::RunTest(const FString&)
 	//   2. Poi lo stesso script e' stato rilanciato **per misurare quanti residui restassero**, e ha
 	//      disfatto la riparazione appena scritta. Uno script che sostituisce non e' una misura, per quanto
 	//      il suo ultimo `print` somigli a una.
-	const TArray<FString> Ritirati = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor") };
+	const TArray<FString> Ritirati = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor"), TEXT("Riktor") };
 
 	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
 	if (!TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
@@ -582,7 +582,7 @@ bool FRTHeroAbilityIdNamespaceTest::RunTest(const FString&)
 	// soggetti — la stessa forma di falso verde contro cui `EveryActionHasADisplayName` si difende.
 	TestTrue(TEXT("almeno un'azione controllata"), Checked > 0);
 	// Anti-vacuita': se il ciclo non avesse esaminato nulla, i controlli sopra sarebbero verdi su zero.
-	// **22** da [D-226]: cinque per Gadget e Riktor, sei per Phase e Wraith che portano lo scudo proattivo.
+	// **22** da [D-226]: cinque per Gadget e Branth, sei per Phase e Wraith che portano lo scudo proattivo.
 	TestEqual(TEXT("il roster v0.1 dichiara ventidue abilita'"), Checked, 22);
 	return true;
 }
@@ -603,10 +603,10 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 		{ TEXT("Hero.Gadget.ConductiveNode"),     TEXT("Action.Electrify")    },
 		{ TEXT("Hero.Phase.FluidTrail"),          TEXT("Action.Dodge")         },
 		{ TEXT("Hero.Phase.MistVeil"),            TEXT("Action.Ignite")       },
-		{ TEXT("Hero.Riktor.KineticPanel"),       TEXT("Action.CreateCover")  },
-		{ TEXT("Hero.Riktor.Ram"),                TEXT("Action.Charge")       },
+		{ TEXT("Hero.Branth.KineticPanel"),       TEXT("Action.CreateCover")  },
+		{ TEXT("Hero.Branth.Ram"),                TEXT("Action.Charge")       },
 		{ TEXT("Hero.Gadget.ReactiveCapacitor"),  TEXT("Action.Counter")      },
-		{ TEXT("Hero.Riktor.Interposition"),      TEXT("Action.Intercept")    },
+		{ TEXT("Hero.Branth.Interposition"),      TEXT("Action.Intercept")    },
 		{ TEXT("Hero.Wraith.Deflection"),         TEXT("Action.Deflect")      },
 		// [D-226]: le due che chiudono la meta' `Shield` di `#1403`, uno scudo proattivo per squadra.
 		{ TEXT("Hero.Phase.TideGuard"),           TEXT("Action.Shield")       },
@@ -639,7 +639,7 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 				// profilo (`BaseActionId`) e non questo.
 				//
 				// Dieci derivate + otto proprie + quattro base = **22**: cinque abilita' per Gadget e
-				// Riktor, **sei** per Phase e Wraith, che da [D-226] portano anche lo scudo proattivo.
+				// Branth, **sei** per Phase e Wraith, che da [D-226] portano anche lo scudo proattivo.
 				TestTrue(*FString::Printf(TEXT("%s non deriva da nulla e non lo dichiara"),
 					*A->Def.ActionId.ToString()), A->Def.DerivedFromActionId.IsNone());
 			}

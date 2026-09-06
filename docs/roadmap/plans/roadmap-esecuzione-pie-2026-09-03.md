@@ -28,9 +28,9 @@ dice da sé — *«Il corpus Visual, diciotto scenari che nessuna seduta convoca
 
 | | |
 |---|---|
-| voci totali · aperte | **204** · **102** |
-| aperte **schedulate** in una seduta | **73** |
-| aperte **fuori da ogni seduta** | **29** |
+| voci totali · aperte | **225** · **118** |
+| aperte **schedulate** in una seduta | **80** |
+| aperte **fuori da ogni seduta** | **38** |
 | aperte che dichiarano un ostacolo | 21 — ⚠️ **non rimisurato**, vedi la nota |
 
 > 🔄 **Rimisurato il 2026-09-04 su `main`, dopo #2228.** Dicevano `203 · 101 · 69 · 32`; il comando
@@ -108,11 +108,16 @@ bloccata. **Ventinove** di esse non sono in nessuna sequenza, ed è la condizion
 | U19 · U22 | 4 ciascuna | — | varie | 🟡 |
 | **U45** | **3** | `[E12]` | — | 🟡 attende un checkpoint, non una seduta |
 | **U39** | **1** | `[U21]` — già soddisfatto | #1920 aperta | 🟢 **eseguibile**: `GenerateIntoAsset` allestisce la mappa in un gesto — vedi in coda alla §4 |
-| **U46** | **4** | `[]` | #1873 aperta, e blocca una delle quattro | 🟢 **eseguibile ora, e sono le uniche quattro voci non verdi del gate `G9`** |
+| **U8** | **2** | `[]` | #2444 #2448 #2450 #2452 **tutte CLOSED** il 2026-09-05 | 🟢 **eseguibile, e non lo e' mai stata prima**: `PIE-AS4b` non aveva nulla da guardare. 🔴 **Ma NON con `rt.Test.Run`, e questa cella lo diceva fino al 2026-09-06**: nominava `Visual.Combat.Defeat` e `Visual.Combat.DefeatDuringMove` come banchi, e **nessuno scenario del corpus puo' esserlo** — `RTScenarioSession.cpp:807` spawna `ARTUnit::StaticClass()`, cioe' cilindri senza Skeletal Mesh: nessun `AnimInstance`, nemmeno in PIE. **Misurato su un tentativo reale il 2026-09-06** (le unita' entravano come `RTUnit_0`, e il log non porta nessun `Morte mostrata`). Serve una **partita 2v2 normale** — protocollo in `editor-sessions.yaml` § U8 |
+| **U46** | **6** | `[]` | #1246 — non la blocca · #1873 **chiusa** il 2026-09-05 | 🟢 **eseguibile ora**: quattro sono le uniche voci non verdi del gate `G9`, due chiudono altrettanti scenari orfani |
 | altre 14 sedute | 1–2 ciascuna | — | varie | — |
-🔑 **`U46` non ordina per resa, e va letta a parte.** Quattro voci sono meno di ventuno, ma sono **le
-uniche quattro non verdi del subset `RELEASE-V01`**: finché restano gialle, `G9` non è verde e la v0.1 non
-è consegnabile. Le altre sedute di questa tabella producono verdetti; questa produce **il gate**.
+🔑 **`U46` non ordina per resa, e va letta a parte.** Sei voci sono meno di ventuno, ma quattro sono **le
+uniche non verdi del subset `RELEASE-V01`**: finché restano gialle, `G9` non è verde e la v0.1 non è
+consegnabile. Le altre sedute di questa tabella producono verdetti; questa produce **il gate**.
+➕ **Dal 2026-09-04 ne porta due in più, e non sono lavoro aggiunto**: `PIE-VIS-SIGHTWALL` si giudica nello
+**stesso Play** del punto ② — è la voce che guarda lo scenario che quel punto usa già — e `PIE-VIS-TWOLAYERS`
+costa un Play a zero turni. Chiudono i due scenari `Visual.*` che il registro dichiarava *«eseguiti, verdi, e
+mai guardati da nessuno»*.
 ⚠️ **E le sue quattro voci compaiono due volte in `editor-sessions.yaml`**, qui e nelle sedute d'origine
 (`U4`, `U6`, `U11`, `U15`): è deliberato e temporaneo — `U46` è una **coda**, non un trasferimento, e
 sparisce quando i residui sono chiusi. Chi conta le voci schedulate non le conti due volte.
@@ -150,6 +155,130 @@ serva.
 
 ⚠️ E l'esito dei comandi si legge nell'**Output Log**: è il medium legittimo, deciso dall'autore il
 2026-08-16. L'overlay della console in PIE scorre via.
+
+## 🔑 Contro cosa si giudica ciò che vedi — `Oracle: CANON | OBSERVED`
+
+> ➕ **Aggiunta il 2026-09-06, misurata su `7c986014` e riallineata a `61e4f914`.** Viene da
+> [`schematiche-editor-execution-spec-panel-2026-09-06.md`](schematiche-editor-execution-spec-panel-2026-09-06.md)
+> §5 `C1`: era l'unico contributo di un work order esterno che nessun owner possedesse, e quel referto lo
+> lasciò non scritto perché *«aggiungerlo è una modifica al **suo** contratto, e appartiene a chi lo possiede»*. Portato qui su decisione dell'autore.
+
+La §3 dice come **eseguire**. Questa dice contro cosa si **giudica**, ed è una trappola diversa: non ti
+fa perdere il verdetto, te lo fa scrivere sbagliato.
+
+**La regola, in una riga**: un verdetto PIE si giudica contro il **canone**, non contro ciò che il gioco
+fa. `Oracle: CANON` è il default e non va scritto. Ciò che si scrive è la **divergenza**, quando la scena
+ne incontra una:
+
+```text
+Divergence: riga 41 della matrice dei conflitti   ← il numero nella colonna `#`, non la riga del file
+```
+
+🔑 **`CANON` + `Divergence` è il caso normale, e resta `CANON`**: la verifica passa **e** registra il
+debito. È il meccanismo che il referto sorgente descrive, ed è il verso che conta — il contrario
+(«osservo, quindi la regola è questa») è la ratifica per inerzia che questa sezione esiste per impedire.
+
+⛔ **`Oracle: OBSERVED` si scrive solo quando la scena serve a documentare il comportamento spedito**
+— una registrazione, una demo, la prova che un arretrato esiste — e **non produce un verdetto sul
+canone**: non spunta una voce, non chiude un criterio. Nel dubbio è `CANON`.
+
+🔑 **Non è una preferenza: è l'ordine di precedenza già scritto** in
+[`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) — *«decisioni esplicite → ADR → codice → gameplay
+attivo → roadmap → materiale storico»*. Il codice viene **dopo** l'ADR, quindi una scena che diverge dal
+canone è un difetto o un arretrato, mai la nuova regola.
+
+⚠️ **Dove si scrive, e chi lo possiede.** Questo file dice *in che ordine* si esegue; l'**esito** di una
+verifica resta di [`test-manuali-pie.md`](../../technical/test-manuali-pie.md), che ne è l'owner
+dichiarato. La riga `Divergence:` è quindi parte del **verdetto** e si scrive **là**, nella colonna di
+stato della voce. Qui vive la **regola di giudizio**, perché è parte di come si esegue — non il registro
+che la applica.
+
+### Perché la regola serve: il caso misurato
+
+`Action.Sprint`. Il canone dice che è un **profilo di `Move`** e risolve **dopo** il Blast
+([`adr-0003`](../../decisions/adr-0003-modello-azioni-v01.md) §emendamenti, `D-015`/`D-116`); il codice
+lo risolve **prima**:
+
+```bash
+grep -n 'Action.Sprint"), ERTResolutionPhase' Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
+#   -> ERTResolutionPhase::FastMovement                                    (riga 1065)
+grep -n 'FastMovement:   return ERTMatchPhase' Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
+#   -> ERTMatchPhase::Dash — «la mobilita' rapida precede il Blast»        (riga 177)
+```
+
+È un **arretrato dichiarato**, non una svista: `Actions.SprintIsAMoveProfileResolvedPreBlast` lo pinna
+con un'assertion, e il suo commento lo scrive — *«il verde qui sotto misura quanto il codice è indietro, non che abbia
+ragione»* — con la migrazione in **E38 (v0.2)**, issue [`#641`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641), **aperta**.
+
+∴ Chi pianifica uno Sprint in PIE **vede il movimento risolversi prima del Blast**. Senza questa sezione
+ha due uscite, entrambe sbagliate: dichiarare `FAIL` una scena che il canone approva, oppure — peggio —
+prendere l'osservazione per la regola e allineare a essa la propria attesa, cioè **ratificare un arretrato
+per inerzia**.
+
+⛔ **E `CANON` da solo non basta su questo caso**, ed è la ragione per cui il campo nomina la sede.
+L'`ADR-0003` si contraddice al proprio interno: il blocco emendamenti in testa dice *«`Sneak · Move ·
+Sprint` … risolvono nella fase `Move`, dopo il Blast»*, mentre la sua **tabella §3** elenca ancora `Sprint`
+fra i «Movimento *rapido*» con macro-fase **`Dash`**. Il codice è allineato alla tabella, il canone
+corrente al blocco. ✅ **Da questo commit la tabella porta il rimando**, quindi chi la legge non conclude
+più che il codice abbia ragione — ma il difetto è vissuto un mese, ed è la ragione per cui il campo
+nomina la sede invece di dire «il canone».
+
+> 🔎 **Dove il canone diceva ancora la versione superata — misurato il 2026-09-06**, col comando che
+> chiunque può rieseguire:
+>
+> ```bash
+> grep -rn "Sprint" docs --include=*.md >   | grep -vE "docs/(archive|research)/" | grep -v "roadmap-esecuzione-pie" >   | grep -iE "rapid|FastMovement|→ Dash|in fase .?Dash"
+> ```
+>
+> ⚠️ **Il numero si rimisura, non si cita** — come la §3 dice già di `rt.Test.List`. La prima stesura
+> scriveva `26`, e le correzioni di questo stesso pass lo hanno portato a `25` prima che il commit
+> atterrasse: un conteggio di righe che nominano un token cambia a ogni riscrittura di quelle righe.
+>
+> 🔴 **La prima stesura pubblicava un comando che NON trovava la riga dell'ADR** — cioè il più importante
+> dei punti per cui era offerto come prova. Cercava `movimento rapido`, e il testo è `Movimento *rapido*`,
+> con gli asterischi in mezzo. ⚠️ È **lo stesso difetto della voce 28** che questa sezione contesta,
+> rifatto due paragrafi più sotto: un'affermazione di verificabilità che nessuno aveva verificato.
+>
+> ⛔ **Le righe che rende NON sono state classificate una per una, e non si dichiara che le altre siano vere.**
+> La maggior parte è legittima — il Decision Log che racconta la storia, i brief che descrivono il codice —
+> ma **almeno due dicono una cosa falsa**: `D-027` scrive che `Sprint` *«è ancora `MovementAndMain`»* e
+> `CHANGELOG_DOCUMENTATION.md` che *«consuma due slot»*, mentre il codice ha `ERTActionSlot::Movement`
+> (`RTCatalogLibrary.cpp:1068`), come `D-028` ha deciso. Un quantificatore su un elenco che nessuno ha letto riga per riga è precisamente ciò
+> che questa sezione condanna: chi ne trova un'altra la registra nella matrice, non qui.
+>
+> **Annotati in questo pass — tre**, tutti senza riscrivere nessuna decisione: la tabella §3 dell'`ADR-0003`,
+> e le righe **27** e **28** di [`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) — la 28 affermava
+> *«nessun documento insegna più “Sprint = Dash”»*, falso, e lo falsificava l'ADR citato due colonne più a
+> sinistra. La riga **41** ha ricevuto la propria correzione sullo **slot**, perché è quella che il campo
+> qui sopra rende normativa.
+>
+> **Non annotati, e la ragione**: `technical/piano-migrazione-stable-id.md` è `HISTORICAL`, ritirato il
+> 2026-08-13, e riscriverlo falsificherebbe la storia ([`docs/README.md`](../../README.md) §*Tag*);
+> [`action-phases-economy-handoff-2026-08-26.md`](action-phases-economy-handoff-2026-08-26.md) è un referto
+> datato che dichiara la propria base (`c2bbfb7`) — ⚠️ **ma è `CURRENT` e insegna sia la fase superata sia
+> lo slot sbagliato**, quindi l'annotazione gli serve e appartiene a chi lo possiede.
+
+### Dove vive la lista — e perché non è qui
+
+⛔ **Questa sezione non tiene un elenco di divergenze**, e non deve: sarebbe una seconda source of truth su
+un fatto che ha già un owner. Le divergenze fra ciò che il canone dice e ciò che il codice fa vivono in
+[`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md), che le numera e le tiene con la fonte che
+prevale. Quella dello Sprint è la **riga 41** — il numero nella colonna `#` — `SUPERSEDED`, con la storia intera — `D-015`, rovesciata da
+`D-068`, rovesciata di nuovo da `D-116` — e la ragione per cui non si migra da sola.
+
+**Come si aggiunge una voce**: non si aggiunge qui. Si registra il conflitto nella matrice, come la sua
+intestazione prescrive (*«un conflitto non si risolve in silenzio»*), e un verdetto PIE che vi inciampa
+scrive `Divergence:` con il numero di quella riga.
+
+### Cosa la regola NON fa
+
+- ⛔ **Non decide** nessuna delle divergenze che nomina: `#641` resta aperta, e questa sezione non la
+  anticipa né la rinvia.
+- ⛔ **Non chiede di rieseguire** le voci già verdi: una verifica passata contro il canone resta passata.
+- ⚠️ **Non è un gate**: nessuno strumento controlla che un verdetto dichiari il proprio oracolo. È una
+  riga che chi esegue scrive, e il suo valore è che *esiste un posto dove scriverla*.
+
+---
 
 ## 4. L'ordine consigliato
 
@@ -317,5 +446,54 @@ HUD, VFX e playback no.
 - ⛔ **Non copre le 21 voci con ostacolo dichiarato** — ⚠️ numero **non rimisurato**, vedi la §1: quelle
   hanno cause proprie, scritte nelle loro righe,
   e vanno lette una per una.
-- ⛔ **Non tocca le sedute con `execution_lane: asset`** (U1, U8, U24, U28, U29, U30): producono `.uasset`, e
+- ⛔ **Non tocca le sedute con `execution_lane: asset`** (U1, ~~U8~~, U24, U28, U29, U30): producono `.uasset`, e
   sono un altro mestiere — Content Browser e Binary Asset Lease, non osservazione.
+
+---
+
+## 🆕 2026-09-05 — U8 è diventata eseguibile, e la lista cresce di una voce
+
+🔑 **La notizia non è il numero: è che una seduta è passata da «non convocabile» a «eseguibile».**
+`U8` verifica `PIE-AS4b` — *«l'attaccante gioca `Cast`, il bersaglio `Hit`, l'eliminazione `Death`»* — e per
+tutta la sua vita non ha avuto **nulla da guardare**. Oggi ce l'ha:
+
+- **#2448** ha aperto il canale: la clip la sceglie il C++ e la suona con `PlaySlotAnimationAsDynamicMontage`
+  sullo slot che il grafo già espone;
+- **#2450** ha popolato i tre ruoli come **dati** nel CDO — i dodici montaggi `.uasset` non si faranno;
+- **#2444** ha aggiunto i dodici **riferimenti duri** che portano le clip nel cook;
+- **#2452** aveva tolto il blocco che nessuno aveva visto: `HideForDefeat()` nascondeva l'attore la riga
+  **prima** di far partire il montaggio, quindi `Death` non sarebbe stato visibile comunque.
+
+Tutte e quattro **CLOSED**.
+
+### La voce nuova: `PIE-AS4c`
+
+➕ **Taratura di `DefeatBeatSeconds`**, e non è rifinitura. È la coda che tiene il corpo in campo dopo il
+colpo mortale: senza, chi cade nell'**ultima fase riprodotta** ha una finestra di durata **zero**
+(`PlaybackPhases` è `Prep → Dash → Blast → Move` e mai `Cleanup`) — ed è il caso del banco che la seduta
+usa, `Visual.Combat.Defeat`, dove nessuno si muove.
+
+⚠️ **Il valore corrente, 0,80 s, è stato scelto senza avere un'animazione da guardare.** Questa voce esiste
+per sostituirlo con un numero **visto**. Si giudica nella **stessa seduta** di `PIE-AS4b`, sulla stessa
+sequenza, e `DefeatBeatSeconds` è `EditAnywhere`: si cambia **a PIE avviato**, senza ricompilare.
+
+### I numeri, misurati e con due metodi che concordano
+
+|  | prima | dopo |
+|---|---|---|
+| voci totali | 224 | **225** |
+| aperte | 117 | **118** |
+| aperte schedulate | — | **80** |
+| aperte orfane | — | **38** |
+
+Comando canonico di `test-manuali-pie.md` § *«il numero di voci è `grep -c` sulle righe, sempre»*, più
+l'incrocio con i campi `verifies:` di `editor-sessions.yaml`.
+
+> 🔴 **E i due numeri di schedulate/orfane della §1 erano fermi al 2026-09-04**, quando dicevano
+> `73` e `29`. Non sono cresciuti di una voce sola: sono **80** e **38**. Lo scarto non l'ho indagato — lo
+> dichiaro invece di lasciarlo sembrare un aggiornamento di +1.
+
+> ⚠️ **Un secondo metodo ha dato 224 · 101 ed era SBAGLIATO**, vale la pena scriverlo: prendeva il primo
+> marcatore **dell'alfabeto** invece del primo **in posizione**, e in questo file moltissime celle portano
+> un ✅ storico prima del ⏳ corrente. Due metodi che divergono non si scelgono a occhio: si trova quale
+> dei due mente.

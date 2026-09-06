@@ -40,6 +40,45 @@ enum class ERTLayerViewMode : uint8
  * autorita' sui dati: legge le celle da URTHexMapAsset (o genera un graybox demo se l'asset e' assente).
  * La logica (coordinate/pathfinding) resta separata dal rendering.
  */
+/**
+ * Quali famiglie di istanze una ricostruzione deve rifare — `#1865`, punto 3.
+ *
+ * 🔑 **La granularita' e' la FAMIGLIA e non la cella, ed e' una decisione** (2026-09-05). Per cella
+ * soddisferebbe l'AC alla lettera e costerebbe il rischio piu' alto del rendering: `RemoveInstance`
+ * rimescola gli indici, e su quelli poggiano dodici array paralleli — `InstanceCells`, `GlyphCells[4]`,
+ * `Relief`/`Blocker`/`Border`/`EdgeFeature` per `Cells`/`BaseScale`/`LastVeilState` — con
+ * `ApplyKnowledgeVeil` che ha un `ensure` proprio sugli indici stantii.
+ *
+ * Per famiglia gli indici restano coerenti: una famiglia si azzera e si riempie tutta, quindi nessun array
+ * parallelo va risistemato. Cio' che NON e' nella maschera non viene ne' pulito ne' riempito, e resta
+ * esattamente com'era.
+ *
+ * ⚠️ **Non promette la proporzionalita' alla modifica**: il costo resta lineare nella mappa, su meno
+ * famiglie. `HexMapActor.RebuildCostScalesWithTheMapNotTheEdit` continua a misurarlo, e non cade.
+ */
+UENUM(meta = (Bitflags))
+enum class ERTRebuildFamily : uint8
+{
+	None         = 0,
+	/** Il pavimento: transform e colore della superficie. */
+	Cells        = 1 << 0,
+	/** I glifi di superficie: `SurfaceRingCount` decide quante e quale dei quattro ISM. */
+	Glyphs       = 1 << 1,
+	/** Il rilievo del costo di movimento: `ReliefHeightForCost` decide se esiste. */
+	Relief       = 1 << 2,
+	/** Le colonne di blocco a vista e a passo. */
+	Blockers     = 1 << 3,
+	/** Pannelli di bordo: coperture, porte e muri interni. */
+	EdgeFeatures = 1 << 4,
+	/** La griglia di contorno delle celle. */
+	Borders      = 1 << 5,
+	/** Il corpo strutturale sotto le superfici. */
+	Bodies       = 1 << 6,
+	/** Tutto: il comportamento di sempre, ed e' il default di `RebuildInstances`. */
+	All          = 0x7F
+};
+ENUM_CLASS_FLAGS(ERTRebuildFamily);
+
 UCLASS()
 class REFACTORTACTICS_API ARTHexMapActor : public AActor
 {
@@ -302,7 +341,27 @@ public:
 
 	/** Ricostruisce tutte le istanze dalle celle (asset o demo). */
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "RefactorTactics|HexMap")
-	void RebuildInstances();
+	/**
+	 * Ricostruisce le istanze delle famiglie richieste. Il default `All` e' il comportamento di sempre:
+	 * ogni chiamante esistente — bootstrapper, scenari, `OnConstruction`, `OnMapChanged` — resta invariato.
+	 *
+	 * ⚠️ Passare una maschera parziale e' sicuro solo se il cambio non tocca le altre famiglie: la matrice
+	 * campo→famiglia e' scritta su `#1865`. `OnMapChanged` non sa cosa e' cambiato (undo/redo), quindi resta
+	 * il fallback totale.
+	 */
+	void RebuildInstances(ERTRebuildFamily Families = ERTRebuildFamily::All);
+
+	/**
+	 * Il punto d'ingresso di `OnMapChanged`: ricostruisce **tutto**.
+	 *
+	 * 🔑 **Esiste perche' quel delegate non sa cosa e' cambiato, e non e' un limite da aggirare**: nasce per
+	 * *«undo/redo, editing dal suo editor»* — vie non mediate dalle API — dove l'informazione non c'e'
+	 * proprio. Un fallback totale li' e' la risposta giusta, non una rinuncia.
+	 *
+	 * ⚠️ E serve anche tecnicamente: un `TMulticastDelegate<void()>` non lega una funzione con parametro,
+	 * nemmeno con un default. Il default di `RebuildInstances` vale per i chiamanti C++, non per i delegate.
+	 */
+	void RebuildAllForAssetChange() { RebuildInstances(ERTRebuildFamily::All); }
 
 	/**
 	 * Cella corrispondente a un'istanza.
@@ -415,6 +474,31 @@ public:
 	 * cosi' il conteggio resta vero anche se la quota fra i piani cambia.
 	 */
 	void GetKnowledgeDebugCounts(int32& OutHidden, int32& OutRemembered, int32& OutLit) const;
+
+	/**
+	 * Quante istanze l'overlay ha DAVVERO posato — diagnostica, e serve a una domanda che i tre conteggi non
+	 * possono piu' rispondere (`#2250`).
+	 *
+	 * 🔑 `GetKnowledgeDebugCounts` risponde `Hidden > 0` per **complemento**, quindi resta vero anche se
+	 * l'overlay disegnasse tutto: un test scritto sui suoi numeri non potrebbe accorgersi della regressione.
+	 * Questo conta gli oggetti in scena, ed e' l'unico modo di provare che le mai viste non si disegnano.
+	 */
+	int32 KnowledgeVolumeInstanceCount() const;
+
+	/**
+	 * Quante istanze l'ultima ricostruzione ha CREATO, su tutte le famiglie — `#1865`, punto 3.
+	 *
+	 * 🔑 **Esiste perche' senza di lui l'AC non e' falsificabile.** L'issue chiede che *«il numero di istanze
+	 * ricreate sia proporzionale alla modifica, non alla mappa»*, e oggi quel numero non si puo' leggere: un
+	 * rebuild totale e uno parziale sono indistinguibili da fuori, quindi nessun test puo' dire se
+	 * l'ottimizzazione e' avvenuta — ne' accorgersi che e' regredita.
+	 *
+	 * ⚠️ **E' un contatore di EVENTO, non uno stato**, ed e' il motivo per cui qui non vale la regola di
+	 * `GetKnowledgeDebugCounts` (*«leggi le istanze, non un contatore»*). Li' la domanda e' «cosa c'e' in
+	 * scena», e la scena e' la fonte; qui e' «quante ne ho create l'ultima volta», che la scena non ricorda:
+	 * mille istanze ricreate e mille istanze aggiornate lasciano la stessa board.
+	 */
+	int32 LastRebuildCreatedInstances() const { return LastRebuildCreated; }
 #endif
 
 	/** Quante istanze il velo ha lasciato accese, ricordate e nascoste. Diagnostica e test. */
@@ -696,6 +780,22 @@ protected:
 	TObjectPtr<UInstancedStaticMeshComponent> Blockers;
 
 	/**
+	 * Il CORPO sotto una superficie: il volume che `URTStructuralBodyLibrary::DeriveBodies` calcola da
+	 * `FRTHexCellData::BodyFill` (`#1865`).
+	 *
+	 * 🔑 **Una famiglia sua e non un riuso di `Cells`**, perche' risponde a una domanda diversa: `Cells` e' il
+	 * pavimento su cui si gioca — ha collisione, e' il proxy di click della selezione, e porta il colore della
+	 * superficie — mentre questo e' cio' che si vede **sotto** e non si calpesta. Metterli insieme darebbe al
+	 * corpo la collisione della cella, e un click sul fianco di una collina selezionerebbe una cella che il
+	 * giocatore non sta guardando.
+	 *
+	 * ⛔ **Nessuna collisione, nessun custom data**: non e' terreno, non entra nel velo, non e' selezionabile.
+	 * E' geometria che riempie un vuoto visivo.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> StructuralBodies;
+
+	/**
 	 * Pannelli su BORDO: coperture e porte. Sono l'unica cosa della mappa che non appartiene a una cella ma a
 	 * un **lato**, e l'overlay a cerchi centrati non poteva dirle — da che lato si e' riparati e' cio' che
 	 * decide se una posizione e' buona.
@@ -833,6 +933,9 @@ protected:
 	 * Mapping instance index -> FRTCellId (per selezione/debug). Stato DERIVATO, non serializzato:
 	 * viene rigenerato da RebuildInstances a ogni costruzione dell'actor.
 	 */
+	/** Contatore dell'ultima ricostruzione (`#1865`): quante istanze sono state create, non aggiornate. */
+	int32 LastRebuildCreated = 0;
+
 	TArray<FRTCellId> InstanceCells;
 
 	/**

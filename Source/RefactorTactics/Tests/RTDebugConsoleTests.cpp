@@ -15,6 +15,7 @@
 #include "Map/RTHexCoverPlacementLibrary.h"
 #include "Map/RTHexOccupancyLibrary.h"
 #include "Misc/AutomationTest.h"
+#include "Replay/RTBoundaryChecksum.h"
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
@@ -494,6 +495,112 @@ bool FRTDebugCellPlacementReportTest::RunTest(const FString&)
 	// CONTROPROVA: «nessuna copertura» si DICE, perche' tacere e' cio' che ha fuorviato.
 	TestTrue(TEXT("e a zero coperture lo dichiara invece di tacere"),
 		Blocked.Contains(TEXT("coperture di bordo: nessuna")));
+
+	return true;
+}
+
+
+// =====================================================================================================
+// #2486 — il consumer che mancava ai boundary checksum
+//
+// `#2189` -> `#2272` -> `#2374` hanno portato il checksum alla terna `(TurnNumber, Phase, MicroStepIndex)`.
+// Poi nessuno l'ha collegato: misurato su `39f3ec95`, `URTBoundaryChecksumLibrary::DescribeDivergence` non
+// aveva **nessun chiamante di produzione** — solo cinque in `RTSimulationDeterminismTests.cpp`. La capacita'
+// di dire *«divergono a `T1|Move#1`»* era costruita, testata e irraggiungibile.
+//
+// ⚠️ Questi test misurano il COMPOSITORE, non l'aritmetica dell'hash: i checksum si costruiscono a mano.
+// Chi verifica che `ChecksumsAlongTrace` produca la terna giusta e' gia'
+// `Replay.Verifier.BoundaryChecksumDistinguishesMicroSteps`, e riscriverlo qui sarebbe una seconda misura
+// della stessa cosa — che si scollega dalla prima appena una delle due cambia.
+
+namespace
+{
+	/** Un boundary costruito a mano. `MicroStep == INDEX_NONE` = la fase intera. */
+	FRTBoundaryChecksum Barriera(int32 Turno, ERTMatchPhase Fase, int32 MicroStep, int64 Hash)
+	{
+		FRTBoundaryChecksum C;
+		C.TurnNumber = Turno;
+		C.Phase = Fase;
+		C.MicroStepIndex = MicroStep;
+		C.Hash = Hash;
+		return C;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBoundaryChecksumReportNamesEveryBoundaryTest,
+	"RefactorTactics.Debug.BoundaryChecksumReportNamesEveryBoundary",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBoundaryChecksumReportNamesEveryBoundaryTest::RunTest(const FString&)
+{
+	// ⛔ Il vuoto si DICE: zero righe sarebbe indistinguibile da un comando che non e' partito.
+	const TArray<FString> Vuoto = URTDebugReportLibrary::DescribeBoundaryChecksums({});
+	TestEqual(TEXT("una serie vuota produce comunque una riga"), Vuoto.Num(), 1);
+	TestTrue(TEXT("e dichiara che non ci sono boundary"), Vuoto[0].Contains(TEXT("nessuno")));
+
+	const TArray<FRTBoundaryChecksum> Serie = {
+		Barriera(1, ERTMatchPhase::Move, 0, 0x1111),
+		Barriera(1, ERTMatchPhase::Move, 1, 0x2222),
+		Barriera(1, ERTMatchPhase::Move, INDEX_NONE, 0x3333),
+	};
+
+	const TArray<FString> Righe = URTDebugReportLibrary::DescribeBoundaryChecksums(Serie);
+
+	// Una riga di intestazione piu' una per boundary.
+	TestEqual(TEXT("una riga per boundary, piu' l'intestazione"), Righe.Num(), 4);
+
+	const FString Tutto = FString::Join(Righe, TEXT("\n"));
+	TestTrue(TEXT("nomina il micro-step 0"), Tutto.Contains(TEXT("T1|Move#0")));
+	TestTrue(TEXT("nomina il micro-step 1"), Tutto.Contains(TEXT("T1|Move#1")));
+
+	// 🔴 `INDEX_NONE` e' LA FASE INTERA, e si rende senza `#`. Stampare `#-1` direbbe che esiste un
+	// micro-step negativo; stampare `#0` lo confonderebbe con il primo boundary di ciclo, che qui c'e'
+	// gia' ed e' un altro hash.
+	TestTrue(TEXT("la fase intera si rende senza cancelletto"), Tutto.Contains(TEXT("T1|Move ")));
+	TestFalse(TEXT("e mai come micro-step negativo"), Tutto.Contains(TEXT("#-1")));
+
+	// ⛔ ANTI-VACUITA': gli hash devono comparire davvero, o il report nominerebbe i luoghi senza le misure.
+	TestTrue(TEXT("l'hash del primo boundary compare"), Tutto.Contains(TEXT("0x00001111")));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBoundaryDivergenceReportNamesTheTripleTest,
+	"RefactorTactics.Debug.BoundaryDivergenceReportNamesTheTriple",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBoundaryDivergenceReportNamesTheTripleTest::RunTest(const FString&)
+{
+	const TArray<FRTBoundaryChecksum> A = {
+		Barriera(1, ERTMatchPhase::Move, 0, 0x1111),
+		Barriera(1, ERTMatchPhase::Move, 1, 0x2222),
+		Barriera(1, ERTMatchPhase::Move, INDEX_NONE, 0x3333),
+	};
+
+	// --- il verso VERDE ------------------------------------------------------------------------------
+	const TArray<FString> Uguali = URTDebugReportLibrary::DescribeBoundaryDivergence(A, A);
+	TestTrue(TEXT("due corse identiche lo dichiarano"),
+		FString::Join(Uguali, TEXT("\n")).Contains(TEXT("coincidono")));
+
+	// --- 🔴 il verso ROSSO: divergenza al SECONDO micro-step, dentro la stessa fase -------------------
+	TArray<FRTBoundaryChecksum> B = A;
+	B[1].Hash = 0x9999;
+
+	const FString Verdetto = FString::Join(URTDebugReportLibrary::DescribeBoundaryDivergence(A, B), TEXT("\n"));
+
+	// 🔑 Il cuore di #2486: il verdetto nomina la TERNA, non la sola fase. Un messaggio che dicesse
+	// `T1|Move` non localizzerebbe niente — la fase e' dove il gate si fermava PRIMA di #2374.
+	TestTrue(TEXT("il verdetto nomina il micro-step esatto"), Verdetto.Contains(TEXT("T1|Move#1")));
+
+	// ⛔ ANTI-VACUITA': il primo boundary e' identico, quindi un verdetto che segnalasse l'inizio della
+	// fase sarebbe vero per costruzione e inutile per cercare.
+	TestFalse(TEXT("non segnala il micro-step 0, che non diverge"), Verdetto.Contains(TEXT("T1|Move#0")));
+
+	// --- lunghezze diverse: non e' un caso limite, e' un'esecuzione che si e' fermata prima -----------
+	TArray<FRTBoundaryChecksum> Corta = A;
+	Corta.Pop();
+	const TArray<FString> DiversaLunghezza = URTDebugReportLibrary::DescribeBoundaryDivergence(A, Corta);
+	TestTrue(TEXT("due serie di lunghezza diversa producono un verdetto"), DiversaLunghezza.Num() > 0);
+	TestFalse(TEXT("e non lo dichiarano coincidente"),
+		FString::Join(DiversaLunghezza, TEXT("\n")).Contains(TEXT("coincidono")));
 
 	return true;
 }

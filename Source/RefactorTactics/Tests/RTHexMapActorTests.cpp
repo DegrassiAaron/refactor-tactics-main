@@ -8,6 +8,8 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTMapVisuals.h"          // RTCellPrismRadius: la scala Z del corpo si legge contro la mesh
+#include "Map/RTStructuralBodyLibrary.h" // il corpo lo calcola il derivatore, il test non lo ricalcola
 #include "Perception/RTTeamKnowledge.h" // il velo: la griglia deve seguirlo, non ignorarlo
 #include "Map/RTMapVisuals.h"          // le quote condivise: qui si LEGGONO, non si ricopiano
 #include "Terrain/RTTerrainLibrary.h" // il costo di Rough arriva dal catalogo, non da un numero scritto qui
@@ -1121,6 +1123,268 @@ bool FRTHexMapGridFollowsTheVeilTest::RunTest(const FString&)
 	TestEqual(TEXT("il velo e' reversibile: la griglia torna su tutte e sette"), NascosteDopo, 0);
 
 	DestroyMapActorWorld(World);
+	return true;
+}
+
+
+/**
+ * 🔴 **Il corpo dichiarato dall'autore diventa geometria, e quello non dichiarato non esiste** — `#1865`.
+ *
+ * Il derivatore era gia' provato headless (`RefactorTactics.StructuralBody.*`); questo prova l'altra meta':
+ * che `RebuildInstances` lo **posi**, e che le quote arrivino da `DeriveBodies` invece di essere ricalcolate
+ * qui — una seconda formula del confine sarebbe la verita' duplicata che #1865 vieta.
+ *
+ * ➕ **Il controllo negativo e' nello stesso test**: la stessa board con `BodyFill = None` non produce nulla.
+ * Senza, «una istanza» sarebbe compatibile con un rendering che disegna un corpo per ogni cella.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorStructuralBodyTest,
+	"RefactorTactics.HexMapActor.StructuralBodyIsPosedOnlyWhereDeclared",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorStructuralBodyTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>(GetTransientPackage());
+	// Due superfici nella stessa colonna: una a Layer 1 che dichiara un corpo pieno, una a Layer 0 che non
+	// dichiara niente. Il corpo atteso e' UNO, e sta sotto quella di sopra.
+	{
+		FRTHexCellData Sotto(FRTCellId(0, 0, 0));
+		Asset->AddOrUpdateCell(Sotto);
+		FRTHexCellData Sopra(FRTCellId(0, 0, 1));
+		Sopra.BodyFill = ERTHexBodyFill::Full;
+		Asset->AddOrUpdateCell(Sopra);
+		Asset->SortCells();
+	}
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { return false; }
+
+	const TArray<FTransform> Corpi = InstancesOf(Actor, TEXT("StructuralBodies"));
+	if (!TestEqual(TEXT("un corpo, solo per la cella che lo dichiara"), Corpi.Num(), 1)) { return false; }
+
+	// 🔑 Le quote vengono dal derivatore: si confrontano con quelle, non con una formula riscritta qui.
+	const TArray<FRTStructuralBody> Attesi = URTStructuralBodyLibrary::DeriveBodies(Asset);
+	if (!TestEqual(TEXT("il derivatore ne calcola uno"), Attesi.Num(), 1)) { return false; }
+
+	const float AltezzaAttesa = Attesi[0].Height();
+	const float CentroAtteso = (Attesi[0].TopZ + Attesi[0].BottomZ) * 0.5f;
+	AddInfo(FString::Printf(TEXT("corpo: top %.1f · bottom %.1f · alto %.1f · centro %.1f"),
+		Attesi[0].TopZ, Attesi[0].BottomZ, AltezzaAttesa, CentroAtteso));
+
+	TestTrue(TEXT("l'istanza sta alla quota che il derivatore ha calcolato"),
+		FMath::IsNearlyEqual(static_cast<float>(Corpi[0].GetLocation().Z), CentroAtteso, 0.5f));
+	// La mesh nasce alta `2 * RTCellPrismRadius`: la scala Z e' quel rapporto, e senza questa riga un corpo
+	// alto la meta' starebbe comunque nel posto giusto.
+	TestTrue(TEXT("ed e' alta quanto il derivatore ha chiesto"),
+		FMath::IsNearlyEqual(static_cast<float>(Corpi[0].GetScale3D().Z) * 2.f * RTCellPrismRadius,
+			AltezzaAttesa, 0.5f));
+
+	// ➕ CONTROLLO NEGATIVO: senza dichiarazione non nasce nessun corpo.
+	{
+		FRTHexCellData Sopra(FRTCellId(0, 0, 1));
+		Sopra.BodyFill = ERTHexBodyFill::None;
+		Asset->AddOrUpdateCell(Sopra);
+		Asset->SortCells();
+		Actor->RebuildInstances();
+		TestEqual(TEXT("senza BodyFill non si posa niente"),
+			InstancesOf(Actor, TEXT("StructuralBodies")).Num(), 0);
+	}
+	return true;
+}
+
+/**
+ * 🔑 **Il corpo rispetta il filtro dei piani, e non si accumula.**
+ *
+ * Due proprieta' in un test perche' sono lo stesso rischio visto da due lati: un componente che non
+ * partecipa alle viste mostra il volume di un piano nascosto, e uno che non si azzera mostra il volume di
+ * una board che non esiste piu' — il difetto che `KnowledgeVolumes` ha gia' avuto (`#2222`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorStructuralBodyLayerViewTest,
+	"RefactorTactics.HexMapActor.StructuralBodyFollowsTheLayerFilter",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorStructuralBodyLayerViewTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>(GetTransientPackage());
+	{
+		FRTHexCellData Sopra(FRTCellId(0, 0, 1));
+		Sopra.BodyFill = ERTHexBodyFill::Full;
+		Asset->AddOrUpdateCell(Sopra);
+		Asset->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 0)));
+		Asset->SortCells();
+	}
+
+	// `AllLayers`: il corpo del piano 1 si vede. E' il controllo positivo del test.
+	ARTHexMapActor* Tutti = SpawnMapActor(World, Asset, /*ActiveLayer=*/ 0, ERTLayerViewMode::AllLayers);
+	if (!TestNotNull(TEXT("actor AllLayers"), Tutti)) { return false; }
+	if (!TestEqual(TEXT("con tutti i piani il corpo si vede"),
+			InstancesOf(Tutti, TEXT("StructuralBodies")).Num(), 1))
+	{
+		return false;
+	}
+
+	// `ActiveOnly` sul piano 0: il corpo appartiene al piano 1, quindi sparisce con la sua superficie.
+	ARTHexMapActor* SoloAttivo = SpawnMapActor(World, Asset, /*ActiveLayer=*/ 0, ERTLayerViewMode::ActiveOnly);
+	if (!TestNotNull(TEXT("actor ActiveOnly"), SoloAttivo)) { return false; }
+	TestEqual(TEXT("col solo piano attivo il corpo di un altro piano non si disegna"),
+		InstancesOf(SoloAttivo, TEXT("StructuralBodies")).Num(), 0);
+
+	// 🔑 E non si accumula: due ricostruzioni di seguito lasciano una istanza, non due.
+	Tutti->RebuildInstances();
+	Tutti->RebuildInstances();
+	TestEqual(TEXT("due ricostruzioni non raddoppiano i corpi"),
+		InstancesOf(Tutti, TEXT("StructuralBodies")).Num(), 1);
+	return true;
+}
+
+
+/**
+ * 🔴 **Il costo di una modifica è quello dell'INTERA board, e questo test lo dice con un numero** —
+ * `#1865`, punto 3.
+ *
+ * L'AC chiede che *«modificare una cella ricostruisca solo la regione toccata: il numero di istanze
+ * ricreate è proporzionale alla modifica, non alla mappa»*. Fino a oggi non era falsificabile: un rebuild
+ * totale e uno parziale sono indistinguibili da fuori, quindi nessuno poteva dire se l'ottimizzazione
+ * fosse avvenuta — né accorgersi che era regredita.
+ *
+ * 🔑 **Questo test è scritto per essere ROSSO il giorno in cui il difetto viene corretto**, ed è
+ * deliberato: pinna la baseline. Chi renderà incrementale la ricostruzione lo vedrà cadere, e quella
+ * caduta è il criterio di successo — non un fastidio da aggiornare in silenzio. Il commento accanto
+ * all'asserzione dice cosa scrivere al suo posto.
+ *
+ * ⚠️ **Si confrontano due board di DIMENSIONE DIVERSA**, non due modifiche: è l'unico modo di distinguere
+ * «proporzionale alla modifica» da «proporzionale alla mappa». Con una board sola, qualunque numero
+ * sarebbe compatibile con entrambe le ipotesi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorRebuildCostTest,
+	"RefactorTactics.HexMapActor.RebuildCostScalesWithTheMapNotTheEdit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorRebuildCostTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// La stessa modifica — una cella sola — su due board di taglia diversa.
+	auto CostoDiUnaPennellata = [&](int32 Radius) -> int32
+	{
+		URTHexMapAsset* Asset = MakeActorTestAsset(Radius);
+		ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+		if (!Actor) { return -1; }
+
+		// Una cella sola cambia superficie: e' la pennellata minima che l'autore possa dare.
+		const FRTCellId Toccata = Asset->Cells[0].Id;
+		FRTHexCellData Dipinta = Asset->Cells[0];
+		Dipinta.Surface = Dipinta.Surface == ERTHexSurface::Floor ? ERTHexSurface::Rough : ERTHexSurface::Floor;
+		Asset->AddOrUpdateCell(Dipinta);
+
+		Actor->RebuildInstances();
+		return Actor->LastRebuildCreatedInstances();
+	};
+
+	const int32 Piccola = CostoDiUnaPennellata(/*Radius=*/ 1);   // 7 celle
+	const int32 Grande  = CostoDiUnaPennellata(/*Radius=*/ 4);   // 61 celle
+	if (!TestTrue(TEXT("entrambe le board si sono costruite"), Piccola > 0 && Grande > 0)) { return false; }
+
+	AddInfo(FString::Printf(
+		TEXT("una pennellata su UNA cella costa %d istanze su board r=1 (7 celle) e %d su board r=4 (61 celle)"),
+		Piccola, Grande));
+
+	// 🔴 LA BASELINE, e il difetto: la stessa modifica costa molto di piu' sulla board grande, cioe' il
+	// costo segue la MAPPA e non la modifica.
+	//
+	// ⚠️ **Quando il punto 3 di #1865 sara' implementato questa riga DEVE cadere**, e va sostituita con il
+	// suo opposto: `Grande` vicino a `Piccola`, perche' entrambe hanno dipinto una cella sola. Non
+	// riallineare il numero: e' la caduta a dire che l'ottimizzazione e' arrivata.
+	TestTrue(*FString::Printf(
+			TEXT("BASELINE (difetto noto): il costo segue la mappa — %d contro %d, oltre il triplo"),
+			Grande, Piccola),
+		Grande > Piccola * 3);
+
+	return true;
+}
+
+
+/**
+ * 🔑 **Una ricostruzione parziale costa meno, e non tocca le famiglie fuori dalla maschera** — `#1865`,
+ * punto 3, decisione del 2026-09-05.
+ *
+ * Due proprietà in un test perché sono le due metà della stessa promessa: se il costo scendesse ma le
+ * famiglie escluse venissero svuotate, avremmo un numero più basso e una board rotta.
+ *
+ * ⚠️ **La seconda metà è quella che può fallire in silenzio.** Un `ClearInstances` dimenticato fuori dalla
+ * sua condizione non cambia il conteggio della maschera — conta solo le famiglie richieste — quindi
+ * sarebbe invisibile a un test scritto sul solo costo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorPartialRebuildTest,
+	"RefactorTactics.HexMapActor.PartialRebuildCostsLessAndSparesTheOthers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorPartialRebuildTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius=*/ 3);
+	// Una cella con rilievo e una che blocca: senza, `Relief` e `Blockers` sarebbero vuote e «risparmiate»
+	// sarebbe vero per la ragione sbagliata.
+	{
+		FRTHexCellData Costosa = Asset->Cells[1];
+		Costosa.MoveCost = 3;
+		Asset->AddOrUpdateCell(Costosa);
+		FRTHexCellData Muro = Asset->Cells[2];
+		Muro.bBlocksMovement = true;
+		Asset->AddOrUpdateCell(Muro);
+		Asset->SortCells();
+	}
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor"), Actor)) { return false; }
+
+	Actor->RebuildInstances(ERTRebuildFamily::All);
+	const int32 CostoTotale = Actor->LastRebuildCreatedInstances();
+	const int32 ReliefPrima  = InstancesOf(Actor, TEXT("Relief")).Num();
+	const int32 BlockerPrima = InstancesOf(Actor, TEXT("Blockers")).Num();
+	const int32 CellePrima   = InstancesOf(Actor, TEXT("Cells")).Num();
+
+	// ➕ CONTROLLO POSITIVO: le famiglie che devono sopravvivere non sono vuote in partenza.
+	if (!TestTrue(TEXT("il rilievo esiste"), ReliefPrima > 0)
+		|| !TestTrue(TEXT("i blocchi esistono"), BlockerPrima > 0)
+		|| !TestTrue(TEXT("le celle esistono"), CellePrima > 0))
+	{
+		return false;
+	}
+
+	// Il caso di un cambio di `Height`: tocca i transform del pavimento e nient'altro.
+	//
+	// ⚠️ **Si sceglie una famiglia NON vuota apposta.** Con `Bodies` il costo parziale sarebbe `0` — la board
+	// di prova non dichiara `BodyFill` — e `0 < totale` sarebbe vero senza dire quanto si guadagna: un test
+	// che passa perche' non c'era niente da fare non misura un'ottimizzazione.
+	Actor->RebuildInstances(ERTRebuildFamily::Cells);
+	const int32 CostoParziale = Actor->LastRebuildCreatedInstances();
+
+	AddInfo(FString::Printf(TEXT("board r=3: rebuild totale %d istanze, rebuild del solo pavimento %d"),
+		CostoTotale, CostoParziale));
+
+	// 🔑 Metà uno: costa meno.
+	TestTrue(*FString::Printf(TEXT("il rebuild parziale costa meno del totale (%d < %d)"),
+			CostoParziale, CostoTotale),
+		CostoParziale < CostoTotale);
+
+	// 🔑 Metà due: le altre famiglie sono INTATTE, non svuotate. È la riga che coglie un `ClearInstances`
+	// lasciato fuori dalla sua condizione — invisibile al conteggio, perché quello guarda solo la maschera.
+	TestEqual(TEXT("il rilievo è intatto"), InstancesOf(Actor, TEXT("Relief")).Num(), ReliefPrima);
+	TestEqual(TEXT("i blocchi sono intatti"), InstancesOf(Actor, TEXT("Blockers")).Num(), BlockerPrima);
+	// Le celle SONO state ricostruite — erano nella maschera — e devono essere tornate tutte: una
+	// ricostruzione parziale che ne perdesse per strada sarebbe peggio di nessuna ottimizzazione.
+	TestEqual(TEXT("le celle ricostruite sono tutte quelle di prima"),
+		InstancesOf(Actor, TEXT("Cells")).Num(), CellePrima);
+
+	// E il default resta il comportamento di sempre: ogni chiamante esistente non cambia.
+	Actor->RebuildInstances();
+	TestEqual(TEXT("senza maschera si ricostruisce tutto, come prima"),
+		Actor->LastRebuildCreatedInstances(), CostoTotale);
 	return true;
 }
 

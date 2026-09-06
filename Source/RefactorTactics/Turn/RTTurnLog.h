@@ -275,7 +275,7 @@ enum class ERTEnvironmentOutcome : uint8
 	CoverCreated,
 	/** Una copertura temporanea e' scaduta: da qui in poi quel bordo non ripara piu' nessuno. */
 	CoverExpired,
-	/** Una copertura e' stata SPOSTATA su un altro bordo (`Riktor.Reconfigure`): non ne nasce una seconda. */
+	/** Una copertura e' stata SPOSTATA su un altro bordo (`Branth.Reconfigure`): non ne nasce una seconda. */
 	CoverMoved,
 	/**
 	 * La copertura non e' nata: bersaglio fuori portata, bordo non dichiarato o gia' riparato. E' il `Cancel`
@@ -395,7 +395,33 @@ enum class ERTStatusOutcome : uint8
 	 * darebbero a `Amount` un secondo significato sotto la stessa categoria, che e' precisamente cio' che
 	 * [D-162] vieta. I passi restano nel log testuale, dove gia' sono.
 	 */
-	AppliedInstantly
+	AppliedInstantly,
+
+	// ---- Una rimozione PAGATA dalla vittima stessa (`#2253`) ----------------------------------------
+	//
+	// 🔴 **Nessuno dei nove sopra sa dirla, ed e' il motivo per cui questo esiste.** `Cleansed` e'
+	// *«un'azione deliberata l'ha tolto (`Action.Cleanse`)»* — c'e' un'azione, e spesso non e' dell'unita'
+	// che porta lo stato; riusarlo manderebbe chi legge un replay a cercare un `Action.Cleanse` che non e'
+	// mai stato pianificato, che e' lo stesso difetto di attribuzione per cui `Displaced` e' stato scartato
+	// al prerequisito di questa issue (`#2258`). `Spent` e' *«lo stato ha fatto il suo lavoro»*, il caso
+	// `Marked` incassato: qui lo stato non ha lavorato per nessuno, e' stato **subito**.
+	//
+	// ⚠️ **Il formato NON cambia versione**: valore aggiunto in coda a un enum che viaggia nel `uint8` gia'
+	// presente, come `Extinguished`/`Cleansed`/`Spent` (`#1314`) e `AppliedInstantly` (`#1324`) prima.
+	// Cambiano gli hash dei turni in cui qualcuno si rialza — turni che prima non potevano esistere.
+
+	/**
+	 * SCROLLATO VIA: chi lo portava ha speso una risorsa propria per liberarsene prima della scadenza.
+	 * `Amount` porta il **prezzo pagato** (per `Status.Prone`: `1`, il punto movimento dello StandUp) —
+	 * e' un conteggio, come nelle nascite, e non una durata residua: la durata sarebbe l'informazione che
+	 * il replay puo' gia' derivare dalla voce di nascita.
+	 *
+	 * ⚠️ Si distingue da `Cleansed` perche' **non c'e' un'azione pianificata dietro**, e da `Spent` perche'
+	 * lo stato non era una risorsa di chi lo portava. Il soggetto che paga e' la **vittima**, ed e' cio'
+	 * che questo valore rende leggibile: senza di lui un replay vedrebbe uno stato di durata 2 sparire
+	 * dopo uno, senza sapere se qualcuno ha pagato o se il conteggio ha mentito.
+	 */
+	ShakenOff
 };
 
 /**
@@ -517,7 +543,7 @@ enum class ERTMoveOutcome : uint8
 	 * al lock-in. La differenza non e' di comodo: al commit il piano si contraddice e basta — CHI verra'
 	 * scartato lo decide il resolver, che fa vincere lo scatto sempre. Una voce scritta prima dovrebbe
 	 * indovinarlo, e l'ordine canonico di `ValidatePlan` (per larghezza di slot, poi per `ActionId`) darebbe
-	 * la risposta sbagliata: davanti a `Action.Move` + `Hero.Riktor.Ram` nomina **Ram**, che invece esegue.
+	 * la risposta sbagliata: davanti a `Action.Move` + `Hero.Branth.Ram` nomina **Ram**, che invece esegue.
 	 *
 	 * `SrcCell` e' la cella di PARTENZA dello scatto, non l'arrivo — e' la chiave stabile dell'unita' nel
 	 * turno su cui `FilterTracesByEmitter` filtra (`ExcludedSources.Contains(Entry.SrcCell)`) per confrontare
@@ -576,12 +602,72 @@ enum class ERTMoveOutcome : uint8
 	 *
 	 * ⚠️ **Si scrive sull'ESITO, non sull'intenzione.** Fra il momento in cui `ApplyIceSliding` allunga il
 	 * percorso e la fine del turno l'unita' puo' non arrivarci mai: collisione simultanea nel microstep, cella
-	 * contesa persa per priorita', `StoppedByOverwatch`, `StoppedByPrediction`. In tutti quei casi non e'
-	 * scivolata — si e' fermata prima — e il motivo giusto e' quello del resolver, che e' la spiegazione piu'
-	 * vicina a cio' che il giocatore ha visto. E' la stessa disciplina del commento di `BlockedByTopology`,
-	 * e per questo la condizione di scrittura confronta la cella FINALE con quella di scivolamento.
+	 * contesa persa per priorita', `StoppedByOverwatch`, `StoppedByPrediction`. Se si e' fermata **prima** di
+	 * completare cio' che il giocatore aveva chiesto, il motivo giusto e' quello del resolver — la spiegazione
+	 * piu' vicina a cio' che il giocatore ha visto; se ha completato il piano e lo scivolamento e' stato
+	 * impedito, il motivo e' `SlideBlocked`. E' la stessa disciplina del commento di `BlockedByTopology`.
+	 *
+	 * ⚠️ **La condizione di scrittura non e' piu' un confronto di CELLE** (`#2314`). Lo era — la cella finale
+	 * contro quella di scivolamento, nel chiamante — e non reggeva: un percorso puo' rivisitare la stessa
+	 * cella (`{A, B, C, B}`, che `BuildCompositeHexPath` produce concatenando segmenti senza deduplicare),
+	 * quindi «sono nella cella giusta» e «ho percorso il piano» sono due cose diverse. Ora lo scrive
+	 * `FinalizeHexMovementOutcomes` sul PROGRESSO dentro `FRTPlannedMovement::PlannedLength`.
 	 */
-	Slid
+	Slid,
+	/**
+	 * Il movimento pianificato dal giocatore e' RIUSCITO, e lo scivolamento che il terreno imponeva subito
+	 * dopo **non e' avvenuto**: zero celle di scivolamento percorse (`#2314`). Aggiunto in CODA, come gli
+	 * OTTO valori sopra: l'esito viaggia come `uint8` nel formato serializzato, quindi le tracce gia' scritte
+	 * non cambiano significato.
+	 *
+	 * **Perche' non e' un `BlockedBy*`, ed e' il difetto che questo valore chiude.** Prima di `#2314` il
+	 * percorso esteso entrava nel resolver, che ne considerava l'ultima cella la destinazione: un'unita'
+	 * arrivata **esattamente dove il giocatore l'aveva mandata** ma non scivolata risultava *«fermo: cella
+	 * occupata»*, con un `MoveBlocked`/`Important` nel feed. Il Move chiesto era riuscito: dire il contrario
+	 * manda il giocatore a cercare un errore nel proprio piano.
+	 *
+	 * **Perche' non riusa `Moved`.** Quello significa «arrivata, e il terreno non aveva altro da dire». Qui
+	 * il terreno aveva qualcosa da dire e qualcosa gliel'ha impedito — e la differenza ha conseguenze:
+	 * `D-319` fa dipendere `Status.Unbalanced` dall'essere scivolati davvero.
+	 *
+	 * 🔑 **E' uniforme rispetto alla CAUSA, per costruzione.** Occupazione, contesa, ciclo, collisione,
+	 * muro o bordo non attraversabile producono tutti questo esito, e non perche' qualcuno li abbia
+	 * elencati: la domanda a cui il resolver risponde e' *«quanto del piano del giocatore e' stato
+	 * percorso»*, che e' vera o falsa indipendentemente dal motivo per cui il passo dopo non e' avvenuto.
+	 * Un valore nuovo di questo enum non richiede una riga in piu' da nessuna parte — la whitelist scritta a
+	 * mano di `#2290` era nata gia' incompleta di uno (`BlockedByCycle`).
+	 *
+	 * ⚠️ **Precedenza: chi si ferma PRIMA della destinazione pianificata non prende questo esito**, mai.
+	 * Conserva il proprio `BlockReason` reale, che e' cio' che il giocatore ha visto.
+	 *
+	 * ⚠️ **Uno scivolamento avvenuto anche solo IN PARTE e' `Slid`, non questo.** Il confine conta a valle:
+	 * classificare come «non scivolata» un'unita' spostata di almeno una cella le toglierebbe `Unbalanced`.
+	 */
+	SlideBlocked,
+	/**
+	 * CADUTA GRAVITAZIONALE (#2402, `spec-caduta-e-bordi.md` §3–§4): uno spostamento forzato ha attraversato
+	 * un **bordo aperto**, lo spostamento orizzontale e' terminato — i passi residui sono persi — e l'unita'
+	 * e' scesa. Aggiunto in CODA, come tutti i valori sopra: l'esito viaggia come `uint8` nel formato
+	 * serializzato (`WithMicroStep` = 12), quindi le tracce gia' scritte non cambiano significato e non c'e'
+	 * migrazione (`D-245`).
+	 *
+	 * **Perche' non riusa `Displaced`.** Quello dice «una spinta l'ha portata altrove», che qui e' vero e
+	 * insufficiente: `Displaced` porta con se' *«raggiunta la destinazione della spinta»*, e la destinazione
+	 * della spinta non e' dove l'unita' e' finita. E' lo stesso difetto che `D-319` ha dovuto correggere per
+	 * lo scivolamento — un esito che dice «arrivata dove doveva» su un'unita' finita altrove manda a cercare
+	 * un difetto del resolver.
+	 *
+	 * ⚠️ **Non e' `Prone`.** Nel repository *«la caduta»* e' gia' una cosa — `D-319`, chi e' spostato mentre
+	 * e' `Unbalanced` finisce a terra — e le due regole **non si fondono**: la caduta gravitazionale non
+	 * applica `Prone` per se'. Un'unita' `Unbalanced` spinta oltre un bordo aperto le attraversa entrambe
+	 * (`spec` §5.1).
+	 *
+	 * 🔑 **`TgtCell` e' dove l'unita' e' FINITA**, che e' uno dei tre esiti di atterraggio di `spec` §4:
+	 * primario libero, alternativa adiacente, oppure `LastStableCell` nel caso saturo. La cella da cui e'
+	 * caduta resta in `SrcCell`. Distinguere QUALE dei tre e' avvenuto e' materia di **#2403**, che aggiunge
+	 * la catena causale: questo valore dice *che* e' caduta, non *come* e' atterrata.
+	 */
+	Fell
 };
 
 /**
@@ -729,7 +815,7 @@ struct FRTTurnLogEntry
 	 * IDENTITA' dell'azione che ha prodotto la voce, quando ne ha una (CP 5.5). `NAME_None` = non dichiarata.
 	 *
 	 * Serve perche' le reazioni degli eroi riusano la semantica delle azioni core: senza questo campo
-	 * `Riktor.Interposition` e `Action.Intercept` produrrebbero voci IDENTICHE, e un replay non potrebbe piu'
+	 * `Branth.Interposition` e `Action.Intercept` produrrebbero voci IDENTICHE, e un replay non potrebbe piu'
 	 * dire quale abilita' e' scattata. E' l'ActionId del catalogo, cioe' la chiave stabile: non cambia mai.
 	 *
 	 * Dal 2026-08-10 (CP 11.3, `#79`) lo popolano **anche le voci di combattimento** — colpi pianificati,
@@ -745,10 +831,10 @@ struct FRTTurnLogEntry
 	FName ActionId;
 
 	/**
-	 * L'azione GENERICA di cui `ActionId` e' un profilo (es. `Action.BasicAttack` per `Riktor.ImpactShot`).
+	 * L'azione GENERICA di cui `ActionId` e' un profilo (es. `Action.BasicAttack` per `Branth.ImpactShot`).
 	 * `NAME_None` quando l'azione non e' profilo di niente, o quando chi ha scritto la voce non lo sapeva.
 	 *
-	 * Sta QUI e non solo nel catalogo perche' `Riktor.ImpactShot` e' un'azione d'EROE: chi legge una traccia
+	 * Sta QUI e non solo nel catalogo perche' `Branth.ImpactShot` e' un'azione d'EROE: chi legge una traccia
 	 * non la risolve consultando il catalogo core, gli servirebbero i data asset del roster. Senza questo
 	 * campo la traccia non e' spiegabile da sola, e [D-033](../../../docs/decisions/RT_PDR_00_Decision_Log.md)
 	 * chiede esattamente questo.
@@ -1008,8 +1094,8 @@ struct FRTTurnLogEntry
 	 * CHI era il bersaglio ORIGINALE, quando un colpo e' stato **redirezionato** (`#1060`). `INDEX_NONE` su
 	 * ogni voce che non redirige — che e' la verita': non c'e' stato nessun trasferimento.
 	 *
-	 * Oggi lo produce la sola interposizione (`ERTReactionTrigger::AllyHitByDirectAttack`): Riktor si mette
-	 * davanti a Wraith, e il colpo che era per Wraith lo incassa Riktor. `UnitId` dice **chi lo incassa** —
+	 * Oggi lo produce la sola interposizione (`ERTReactionTrigger::AllyHitByDirectAttack`): Branth si mette
+	 * davanti a Wraith, e il colpo che era per Wraith lo incassa Branth. `UnitId` dice **chi lo incassa** —
 	 * e' l'unita' che reagisce — quindi con questo campo la voce nomina entrambi i capi del trasferimento.
 	 *
 	 * 🔴 **Porta uno `StableUnitId`, come `UnitId` e a differenza di `SelectedTargetUnitId`**, che invece porta

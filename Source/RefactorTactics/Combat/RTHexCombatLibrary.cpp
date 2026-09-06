@@ -91,7 +91,24 @@ namespace
 	 * Esiste come funzione perche' la regola era scritta due volte: dentro `FirstDoorEdge` e nel ramo del
 	 * bordo dichiarato di CP 10.1. Due copie della stessa lettura divergono alla prima modifica di una sola.
 	 */
-	bool HasDoorOnEdge(const URTHexMapAsset* Map, const FRTCellId& A, const FRTCellId& B)
+	/**
+	 * La porta DICHIARATA sul bordo, con il suo stato: faccia vicina per prima, poi quella oltre.
+	 *
+	 * 🔴 **Non e' `URTHexDoorLibrary::DoorBetween`, e la differenza costa un rifiuto silenzioso.** Quella
+	 * risponde alla domanda della TRAVERSATA — «questo bordo si attraversa?» — e per rispondervi usa
+	 * `Restriction`, dove `Destroyed` vale **zero come `Open`**: una porta sfondata e un varco libero sono
+	 * indistinguibili per chi ci deve passare, ed e' giusto cosi'. Ma la commutazione ha bisogno di sapere
+	 * **cosa c'e'**, non se si passa: leggendo `DoorBetween`, una porta `Destroyed` tornerebbe `Open`, la
+	 * commutazione chiederebbe `Closed`, e `CanTransition` — per cui `Destroyed` e' terminale — la
+	 * scarterebbe **senza nessuna voce**. Il giocatore avrebbe premuto, e il TurnLog non avrebbe niente da
+	 * dire. E' esattamente il difetto che [D-149] ha gia' pagato una volta.
+	 *
+	 * ⚠️ Faccia vicina per prima e non «la piu' restrittiva»: e' la stessa scansione con cui il bordo e'
+	 * stato TROVATO, quindi una sola regola invece di due. `SetDoorState` scrive **entrambe** le facce a ogni
+	 * mutazione, quindi una divergenza puo' venire solo dall'autoraggio — e la prima commutazione la sana.
+	 */
+	bool FindDoorOnEdge(const URTHexMapAsset* Map, const FRTCellId& A, const FRTCellId& B,
+		ERTHexDoorState& OutState)
 	{
 		if (Map == nullptr) { return false; }
 
@@ -103,10 +120,29 @@ namespace
 			return false; // non adiacenti: non c'e' un bordo da guardare
 		}
 
-		const FRTHexCellData* Near = Map->FindCell(A);
-		const FRTHexCellData* Far = Map->FindCell(B);
-		return (Near != nullptr && Near->DoorOn(Forward) != nullptr)
-			|| (Far != nullptr && Far->DoorOn(Backward) != nullptr);
+		if (const FRTHexCellData* Near = Map->FindCell(A))
+		{
+			if (const FRTHexDoor* Door = Near->DoorOn(Forward))
+			{
+				OutState = Door->State;
+				return true;
+			}
+		}
+		if (const FRTHexCellData* Far = Map->FindCell(B))
+		{
+			if (const FRTHexDoor* Door = Far->DoorOn(Backward))
+			{
+				OutState = Door->State;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool HasDoorOnEdge(const URTHexMapAsset* Map, const FRTCellId& A, const FRTCellId& B)
+	{
+		ERTHexDoorState Ignored = ERTHexDoorState::Open;
+		return FindDoorOnEdge(Map, A, B, Ignored);
 	}
 
 	/**
@@ -403,6 +439,61 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 				bFoundDoor = FirstDoorEdge(Map, Attacker.Cell, AimCell, DoorFrom, DoorTo);
 			}
 
+			// 🔴 **LA COMMUTAZIONE SI RISOLVE QUI, UNA VOLTA SOLA E PRIMA DELLA FUSIONE** ([`INT-7`],
+			// `#2380`).
+			//
+			// 🔑 **Questo punto E' il pre-Blast, per costruzione e non per convenzione**: ogni mutazione di
+			// porta del turno avviene in `ARTTurnManager::ApplyEnvironmentChanges`, a colpi risolti, quindi
+			// la mappa che si legge da qui e' quella con cui il turno e' cominciato. Tutti i commutatori
+			// dello stesso Blast leggono percio' lo STESSO stato e producono lo STESSO bersaglio assoluto.
+			//
+			// 🔴 **Risolverlo per-operazione durante l'applicazione romperebbe l'invariante #3, e la fusione
+			// per restrittivita' non basterebbe a salvarlo.** Due unita' che commutano la stessa porta
+			// `Open`: risolvendo qui, entrambe vogliono `Closed`, `ApplyDoorOps` fonde due ordini identici e
+			// la porta si CHIUDE. Risolvendo a valle, la prima chiude e la seconda — che ora legge `Closed` —
+			// riapre: la porta finisce `Open`, cioe' l'ultimo arrivato ha deciso. ⚠️ E l'ordine dei due
+			// **non** discrimina il difetto, perche' due commutazioni identiche si annullano in qualunque
+			// ordine: a discriminare e' il VALORE finale, ed e' cio' che asserisce
+			// `Structures.Door.ToggleTargetResolvesOncePreBlast`.
+			//
+			// Dopo queste righe `Intent.DoorState` porta di nuovo uno stato ASSOLUTO: nulla a valle —
+			// `FRTDoorOp`, `ApplyDoorOps`, `SetDoorState`, `CanTransition`, il TurnLog — sa che qualcuno
+			// abbia commutato, ed e' cio' che rende la modifica piccola.
+			//
+			// ⚠️ Si risolve in una LOCALE e non riscrivendo l'intento: `Intents` arriva `const` di
+			// proposito — la raccolta LEGGE la fase congelata — e mutarlo qui aprirebbe la porta a un
+			// secondo scrittore su uno stato che l'invariante #3 vuole immutabile per tutta la fase.
+			ERTHexDoorState ResolvedDoorState = Intent.DoorState;
+			if (bFoundDoor && Intent.bTogglesDoor)
+			{
+				ERTHexDoorState Current = ERTHexDoorState::Open;
+				FindDoorOnEdge(Map, DoorFrom, DoorTo, Current); // il bordo esiste: `bFoundDoor` lo garantisce
+				if (Current == ERTHexDoorState::Open)
+				{
+					ResolvedDoorState = ERTHexDoorState::Closed;
+				}
+				else if (Current == ERTHexDoorState::Closed)
+				{
+					ResolvedDoorState = ERTHexDoorState::Open;
+				}
+				else
+				{
+					// ⛔ `Locked` e `Destroyed` non hanno un opposto, e il rifiuto e' ESPLICITO.
+					//
+					// 🔑 **E' qui che il buco `Locked -> Closed` resta chiuso senza toccare
+					// `CanTransition`**: quella transizione e' ammessa un livello sotto — a una porta
+					// bloccata toglierebbe il lock — e [D-151] la teneva fuori portata limitando l'azione ad
+					// `Open`. La commutazione si definisce solo su `Open <-> Closed`, quindi `Locked` non
+					// diventa mai una sorgente valida. Stessa tecnica, verso nuovo.
+					Plan.DoorToggleRefusals.Add(FRTDoorToggleRefusal(IntentIdx, Current));
+
+					// 🔴 **E si FERMA qui**, per la ragione scritta poco sotto sul ramo senza porta: senza il
+					// `continue` lo stesso intento proseguirebbe e potrebbe finire anche in `BlockedIntents`,
+					// e il TurnLog riceverebbe DUE voci con motivi incompatibili per una sola azione.
+					continue;
+				}
+			}
+
 			if (bFoundDoor)
 			{
 				// ➕ **LA STRUTTURA PUNTATA PUO' COMANDARNE ALTRE** (`#833`, `CP 23.4`).
@@ -420,12 +511,26 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 				const FName SourceId = URTStructureIdentityLibrary::FindDoorIdOnEdge(Map, DoorFrom, DoorTo);
 				if (URTStructureIdentityLibrary::IsInteractionSource(Map, SourceId))
 				{
-					Plan.InteractionOps.Add(FRTInteractionOp(SourceId, Intent.DoorState, Intent.AttackerId));
+					// ⛔ **E QUI LA COMMUTAZIONE NON ARRIVA, di proposito** ([`INT-7`], `#2380`, `D006`).
+					//
+					// `ResolvedDoorState` vale `Intent.DoorState` per un'azione che NON commuta, e per una
+					// che commuta e' gia' risolto sul bordo puntato — cioe' sulla SORGENTE. Ma la sorgente
+					// e' una leva, e i bersagli sono N porte che possono divergere: `OpenFailsDependentMoveBlocks`
+					// ne ha gia' due, `Closed` e `Locked`. Leggere lo stato della LEVA per decidere cosa
+					// diventano le PORTE e' una regola che nessuno ha scelto, e che una leva autorata `Open`
+					// invertirebbe in silenzio su ogni binding esistente.
+					//
+					// 🔑 **Quindi il ramo remoto continua a chiedere `Open`**, ed e' la sotto-domanda con cui
+					// `INT-7` era nata — *«commutare cosa, se due facce divergono?»* — lasciata a `CP 23.4`
+					// invece che risolta di straforo. Il confine e' pinnato da
+					// `Interaction.RemoteBindingDoesNotToggle`.
+					Plan.InteractionOps.Add(FRTInteractionOp(SourceId,
+						Intent.bTogglesDoor ? ERTHexDoorState::Open : Intent.DoorState, Intent.AttackerId));
 				}
 				else
 				{
 					// Nessun binding: la porta puntata e' il bersaglio, ed e' il caso di sempre.
-					Plan.DoorOps.Add(FRTDoorOp(DoorFrom, DoorTo, Intent.DoorState, Intent.AttackerId));
+					Plan.DoorOps.Add(FRTDoorOp(DoorFrom, DoorTo, ResolvedDoorState, Intent.AttackerId));
 				}
 			}
 			else
@@ -449,11 +554,14 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 		}
 
 		// Un colpo nasce solo da cio' che si DICHIARA aggressione ([`INT-8`], `#1491`). Il cancello sta QUI e
-		// non nel trigger delle reazioni ne' nel guadagno d'energia: il colpo e' un concetto SOLO, quindi i suoi
-		// quattro consumatori -- danno, `HitByDirectAttack`, `EnergyOnHit` e `Marked` -- lo ereditano da un punto
-		// unico invece di ricontrollarlo ciascuno a modo proprio. Prima il danno a 0 li lasciava passare tutti:
-		// `Action.Interact` puntata su un'unita' incassava un contrattacco e caricava 15 di energia per aver
-		// aperto una porta.
+		// non nel trigger delle reazioni: il colpo e' un concetto SOLO, quindi i suoi tre consumatori -- danno,
+		// `HitByDirectAttack` e `Marked` -- lo ereditano da un punto unico invece di ricontrollarlo ciascuno a
+		// modo proprio. Prima il danno a 0 li lasciava passare tutti: `Action.Interact` puntata su un'unita'
+		// incassava un contrattacco per aver aperto una porta.
+		//
+		// I consumatori erano QUATTRO: il quarto era `EnergyOnHit`, l'accredito di energia a chi colpisce, e
+		// `D-324` l'ha tolto dal gameplay. Il cancello unico non cambia: e' cio' che ha impedito al quarto
+		// consumatore di divergere finche' e' esistito.
 		//
 		// ⚠️ DOPO la raccolta dell'op sulla porta, e non prima: `Action.Interact` non colpisce nessuno, ma il suo
 		// lavoro vero e' gia' in `Plan.DoorOps` qui sopra. Spegnerla piu' in alto la renderebbe inerte.
@@ -532,6 +640,12 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 	// ciclo chiamante e non per una garanzia. Un secondo produttore che raccogliesse fuori ordine renderebbe
 	// non deterministica la sequenza delle voci nella traccia archiviata.
 	Plan.DoorlessIntents.Sort();
+	// Stesso ordine canonico e per la stessa ragione: le voci di rifiuto finiscono nel TurnLog, e un ordine
+	// che dipendesse dalla raccolta renderebbe il replay non riproducibile.
+	Plan.DoorToggleRefusals.Sort([](const FRTDoorToggleRefusal& A, const FRTDoorToggleRefusal& B)
+	{
+		return A.IntentIndex < B.IntentIndex;
+	});
 	// Stessa rete degli altri canali: oggi l'ordine verrebbe da `IntentIdx` che cresce, cioe' da un dettaglio
 	// del ciclo chiamante e non da una garanzia. `IntentIndex` e' gia' un ordine TOTALE (uno per intento).
 	Plan.Footprints.Sort([](const FRTAttackFootprint& A, const FRTAttackFootprint& B)

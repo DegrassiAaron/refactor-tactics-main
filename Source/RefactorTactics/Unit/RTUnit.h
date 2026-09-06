@@ -8,6 +8,9 @@
 #include "Turn/RTDeclaredCondition.h" // la condizione dichiarata vive nel piano dell'unita'
 #include "Selection/RTSelectable.h"
 #include "Map/RTMapVisuals.h" // #983: RTCellTopZ si include invece di ricopiarlo in un commento
+#include "Animation/PoseSnapshot.h" // #1750: il ricordo di posa e' un membro per valore, non un puntatore
+#include "UI/RTDamageTokenView.h" // #2455: il token e' un membro per valore, quindi serve il tipo completo
+#include "Unit/RTUnitAnimInstance.h" // #2448: ERTPresentationRole entra nella firma del canale discreto
 #include "RTUnit.generated.h"
 
 class UAnimSequenceBase;
@@ -18,6 +21,28 @@ class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class URTActionData;
 class URTHeroData;
+
+/**
+ * Da dove la **sagoma dell'ultimo contatto** prende la propria posa (#1750).
+ *
+ * I due criteri della issue, in ordine, piu' il caso in cui non c'e' niente da mostrare:
+ *
+ *  - `Snapshot` — la posa **ricordata**, catturata dalla skeletal viva quando la squadra ha perso di vista
+ *    l'unita'. E' il ricordo vero: *«com'era quando l'hai vista l'ultima volta»*;
+ *  - `Fallback` — il **ripiego**, il primo frame dell'idle dell'eroe. ⛔ **Non e' un'alternativa allo
+ *    snapshot: ne e' il ripiego obbligatorio**, perche' un contatto puo' nascere da RUMORE (`CP 13.4`) e
+ *    un'unita' sentita e mai vista non ha nessuna posa da ricordare;
+ *  - `None` — nessuna delle due (eroe senza clip, checkout senza i pack Paragon). La sagoma resta in posa
+ *    di riferimento, che e' il comportamento dichiarato da `#287`: se una clip manca, la partita si gioca
+ *    uguale.
+ */
+UENUM()
+enum class ERTGhostPoseSource : uint8
+{
+	None,
+	Fallback,
+	Snapshot,
+};
 
 /**
  * Unita' segnaposto per il demo: una mesh su una cella, colorata per team e selezionabile.
@@ -202,13 +227,13 @@ public:
 	FName HeroId;
 
 	/**
-	 * Nome canonico/player-facing dell'eroe (D-120: Gadget · Phase · Riktor · Wraith), dichiarato dal
+	 * Nome canonico/player-facing dell'eroe (D-120: Gadget · Phase · Branth · Wraith), dichiarato dal
 	 * catalogo e trasportato qui da `ConfigureFromHeroData`. `FText` perché è testo mostrato all'utente e
 	 * deve restare localizzabile.
 	 *
 	 * ⚠️ **Non è lo Stable ID**, e i due piani restano separati — D-037, che D-321 ha ripristinato come
 	 * invariante. Ma `Hero.Gadget` **sarà rinominato**: D-321 dichiara che i quattro nomi del roster v0.1
-	 * sono identità legacy temporanee, D-322 fissa i sostituti (`Hero.Gadget` → `Hero.Nexis`), e la
+	 * sono identità legacy temporanee, D-334 fissa i sostituti (`Hero.Gadget` → `Hero.Aevik`), e la
 	 * migrazione è differita post-v0.1 con owner #2297. Il blocker di namespace che rendeva impossibile il
 	 * rename è sciolto da D-130, che ha chiuso #716 scegliendo `Hero.<Nome>.<Abilità>`.
 	 * Vuoto = nessun eroe l'ha dichiarato: la presentazione ricade su `ShortHeroName`, mai su stringa vuota.
@@ -216,21 +241,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	FText HeroDisplayName;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
-	int32 MaxEnergy = 100;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
-	int32 Energy = 0;
-
-	/** Energia guadagnata a ogni turno. */
-	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Combat")
-	int32 EnergyPerTurn = 25;
-
-	/** Energia guadagnata quando si porta a segno un attacco (non ultimate). */
-	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Combat")
-	int32 EnergyOnHit = 15;
-
-	/** Moltiplicatore di danno dell'ultimate (attacco a energia piena). */
+	/** Moltiplicatore di danno dell'ultimate. */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Combat")
 	int32 UltimateMultiplier = 2;
 
@@ -280,7 +291,7 @@ public:
 	FRTCellId PlannedAttackCell;
 
 	/**
-	 * Variante di abilita' attiva su questa unita' (es. `Riktor.KineticPanel.Reinforced`). `None` = i numeri
+	 * Variante di abilita' attiva su questa unita' (es. `Branth.KineticPanel.Reinforced`). `None` = i numeri
 	 * del catalogo base.
 	 *
 	 * E' il **minimo** che rende consumabili i `Parameters` delle varianti, che fino a CP 9.5 nessuno leggeva:
@@ -296,7 +307,7 @@ public:
 
 	/**
 	 * Bordo bersagliato dalle azioni che agiscono su una STRUTTURA di bordo (CP 9.5: `Action.CreateCover`,
-	 * `Riktor.Reconfigure`). Valido solo con `bHasPlannedCoverEdge`.
+	 * `Branth.Reconfigure`). Valido solo con `bHasPlannedCoverEdge`.
 	 *
 	 * Serve un dato in piu' perche' una copertura sta su un BORDO, e una cella ne ha sei: con portata 3 la
 	 * coppia (chi la erige, cella bersaglio) non basta a determinarlo — a portata 1 sarebbe bastata, ma il
@@ -529,14 +540,14 @@ public:
 	 */
 	bool HasPlannedNormalMove() const { return PlannedCell != Cell || PlannedPath.Num() > 1; }
 
-	/** Vero se l'abilita' e' pronta (non in ricarica) e c'e' energia sufficiente. */
+	/** Vero se l'abilita' e' pronta: non in ricarica. Il cooldown e' l'unico gate da `D-324`. */
 	bool CanUseAbility(int32 Index) const;
 
 	/**
 	 * Lo scatto pianificato si applichera' davvero all'inizio della risoluzione?
 	 *
 	 * Tre condizioni, ed e' la stessa congiunzione che `ARTTurnManager::ResolveDash` valuta per decidere se
-	 * muovere l'unita': mobilita' rapida dichiarata dal catalogo, azione utilizzabile (ricarica ed energia),
+	 * muovere l'unita': mobilita' rapida dichiarata dal catalogo, azione utilizzabile (ricarica),
 	 * destinazione diversa dalla cella corrente.
 	 *
 	 * 🔴 **Sta qui perche' ha due consumatori, e la seconda copia sarebbe divergibile.** Oltre al resolver la
@@ -555,7 +566,7 @@ public:
 	/** Seleziona l'abilita' attiva del giocatore (se l'indice e' valido). */
 	void SelectAbility(int32 Index);
 
-	/** Avvia la ricarica dell'abilita' e ne consuma l'energia. */
+	/** Avvia la ricarica dell'abilita'. Consumava anche energia: `D-324` l'ha tolta dal gameplay. */
 	void ConsumeAbility(int32 Index);
 
 	/** Decrementa i cooldown di tutte le abilita'. */
@@ -777,9 +788,15 @@ private:
 	/** Popola Abilities con un set di default (attacco, colpo pesante, ultimate) se vuota. */
 	void EnsureDefaultAbilities();
 
-	/** Crea un'abilita' data-driven in codice. */
-	URTActionData* MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area,
-		int32 Cooldown, int32 EnergyCost, FGameplayTag Status, int32 StatusDur);
+	/**
+	 * Crea un'abilita' data-driven in codice.
+	 *
+	 * ⚠️ Portava anche `EnergyCost` (tolto da `D-324`) e una coppia `Status`/`StatusDur` che **non e' mai
+	 * stata assegnata**: `URTActionData` non ha un campo per lo stato, quindi il `TAG_Status_Slow, 2` che
+	 * l'Ultimate legacy passava era inerte da sempre e faceva credere al lettore che l'abilita' applicasse
+	 * Slow. Rimossa insieme all'altro parametro morto invece di sopravvivergli.
+	 */
+	URTActionData* MakeAbility(const FString& Name, int32 Range, int32 Power, int32 Area, int32 Cooldown);
 
 public:
 
@@ -835,6 +852,21 @@ public:
 	TSubclassOf<UAnimInstance> UnitAnimClass;
 
 	/**
+	 * Classe di animazione della **sagoma** dell'ultimo contatto (#1750, secondo criterio): applica la posa
+	 * ricordata e non avanza mai.
+	 *
+	 * ⛔ **Assegnata esplicitamente da `UpdateContactGhost`, MAI da `ApplyUnitAnimClass`.** Se la sagoma
+	 * ricevesse `UnitAnimClass` prenderebbe `URTUnitAnimInstance` e si animerebbe **dal vivo** su un'unita'
+	 * che l'osservatore non vede: e' precisamente il leak per cui `FindHeroSkeletal` esclude `ContactGhost`
+	 * per identita', e quell'esclusione **resta**.
+	 *
+	 * ⚠️ Separata da `UnitAnimClass` e non dedotta: sono due grafi con due garanzie diverse — quello vivo
+	 * **puo'** animarsi, questo no.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TSubclassOf<UAnimInstance> ContactGhostAnimClass;
+
+	/**
 	 * 🔴 **Rotazione della MESH rispetto al forward dell'attore, in gradi di yaw.**
 	 *
 	 * Le skeletal di personaggio si modellano quasi sempre rivolte lungo **+Y**, mentre il forward di un
@@ -861,7 +893,7 @@ public:
 	 * | Gadget | **0** | nessuno |
 	 * | Wraith | **0** | nessuno |
 	 * | Phase | **6** (`hip_chain_l/r_01..03`) | catenine ai fianchi, poco visibile |
-	 * | Riktor | **13** (`l_hand_chain_01..04`, `chain_tip_r`, ...) | **le catene si stendono sullo schermo** |
+	 * | Branth | **13** (`l_hand_chain_01..04`, `chain_tip_r`, ...) | **le catene si stendono sullo schermo** |
 	 *
 	 * Quando il LOD cala quelle ossa spariscono dalle *required bones*, e i vertici che vi sono pesati si
 	 * stirano. ⚠️ **Si vede solo da lontano** — a zoom massimo indietro e nella panoramica di inizio
@@ -915,19 +947,49 @@ public:
 	 */
 	virtual FVector GetVelocity() const override;
 
-	// --- Eventi di presentazione del combattimento (montaggi): implementati nei BP_Unit, chiamati dal TurnManager.
-	//     Se un BP non li implementa non succede nulla (nessun crash): la logica resta invariata (invariante #1).
-	/** L'attaccante esegue il montaggio d'attacco (fase Blast). */
-	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
-	void PlayAttackMontage();
+	// --- Presentazione discreta del combattimento (#2448).
+	//
+	// 🔑 **La clip NON la sceglie piu' il Blueprint: la sceglie il C++**, leggendola dal CDO di
+	// `UnitAnimClass` per `(HeroId, ruolo)`. Il `TurnManager` chiama `PlayPresentationRole`, che risolve,
+	// suona sullo slot e POI notifica il Blueprint passandogli **cio' che ha suonato**.
+	//
+	// ⚠️ **I tre eventi ora portano un parametro**, ed e' una rottura del contratto C++/Blueprint che si e'
+	// potuta scegliere perche' misurata innocua: al 2026-09-05 **nessuno dei quattro `BP_Unit_*` li
+	// implementa** (verificato sulla name table dei binari, con token di controllo). Non c'e' nessun
+	// Blueprint da ricablare.
+	//
+	// Se un BP non li implementa non succede nulla (nessun crash): la logica resta invariata (invariante #1).
 
-	/** Il bersaglio reagisce al colpo subito. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
-	void PlayHitMontage();
+	/**
+	 * Risolve il ruolo dal CDO, lo suona sullo slot `DefaultSlot` e notifica il Blueprint.
+	 *
+	 * ⛔ **Degrada in silenzio, sempre**: senza skeletal, senza `AnimInstance`, senza voce nel CDO o con un
+	 * `TSoftObjectPtr` che non risolve, non fa nulla e non rompe niente. La partita si gioca uguale.
+	 * ⚠️ Solo presentazione: non tocca stato logico, TurnLog ne' ordinamento (invariante #1).
+	 */
+	void PlayPresentationRole(ERTPresentationRole Ruolo);
 
-	/** L'unita' eliminata esegue il montaggio di morte, prima della rimozione visiva. */
+	/**
+	 * Il PATH della clip che `PlayPresentationRole` suonerebbe per questo ruolo, senza caricarla.
+	 *
+	 * 🔑 **Separata dal suo uso per la stessa ragione di `GhostFallbackClipPath`**: i pack Paragon non sono
+	 * versionati, quindi headless `LoadSynchronous` da' `nullptr` e un test non distinguerebbe «la clip
+	 * giusta non si carica» da «punto alla clip sbagliata». Il path invece c'e' sempre, ed e' cio' che il
+	 * controllo positivo di `SimulationOutcomeIsUnchangedAcrossVariants` puo' asserire.
+	 */
+	TSoftObjectPtr<UAnimSequenceBase> ResolvedClipPathFor(ERTPresentationRole Ruolo) const;
+
+	/** L'attaccante esegue la presentazione d'attacco (fase Blast), con la clip gia' risolta. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
-	void PlayDefeatMontage();
+	void PlayAttackMontage(UAnimSequenceBase* Resolved);
+
+	/** Il bersaglio reagisce al colpo subito, con la clip gia' risolta. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
+	void PlayHitMontage(UAnimSequenceBase* Resolved);
+
+	/** L'unita' eliminata esegue la morte, con la clip gia' risolta, prima della rimozione visiva. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
+	void PlayDefeatMontage(UAnimSequenceBase* Resolved);
 
 	// IRTSelectable
 	virtual void OnSelected() override;
@@ -958,6 +1020,41 @@ public:
 	 */
 	static TSoftObjectPtr<UAnimSequenceBase> GhostFallbackClipFor(
 		const class URTUnitAnimInstance* Clips, const FName& HeroId);
+
+	/**
+	 * 🔴 **La cattura della posa si arma su una TRANSIZIONE, non su una condizione** (#1750, secondo
+	 * criterio). Vero solo quando l'unita' passa da renderizzata a non renderizzata.
+	 *
+	 * ⛔ **Perche' non basta `!bRender`, misurato sui chiamanti.** `RefreshComponentVisibility` ha quattro
+	 * chiamanti, e **tre** la invocano a visibilita' invariata: `ApplyTeamColor`, `OnSelected`,
+	 * `OnDeselected`. Un `if (!bRender) SnapshotPose(...)` catturerebbe a ogni selezione e a ogni cambio
+	 * colore di un'unita' gia' nascosta.
+	 *
+	 * 🔴 **E la cattura ripetuta non e' innocua, misurato sull'engine.** Il default di
+	 * `VisibilityBasedAnimTickOption` e' `AlwaysTickPoseAndRefreshBones`
+	 * (`SkeletalMeshComponent.cpp:446`): la posa di un'unita' nascosta **continua ad avanzare**. Ricatturare
+	 * non darebbe «sempre lo stesso valore», darebbe la posa **corrente** del nemico frame per frame — non
+	 * un ricordo, una telecamera. E' il terzo leak che #1750 conta due volte nel titolo.
+	 *
+	 * ⚠️ Il referto del 2026-08-30 §3 motivava la cattura anticipata con l'opposto — *«UE puo' aver smesso
+	 * di aggiornare la posa»*. La raccomandazione regge, la ragione no: catturare **prima** e' giusto
+	 * perche' non dipende da un'opzione di componente che qualunque `BP_Unit_*` puo' cambiare.
+	 */
+	static bool ShouldCaptureContactPose(bool bWasRendered, bool bWillBeRendered);
+
+	/**
+	 * Da dove la sagoma prende la posa, come **funzione pura** dello stato (#1750).
+	 *
+	 * 🔴 **Statica e non un ramo dentro `UpdateContactGhost`, e la ragione e' una verifica di mutazione
+	 * gia' fallita una volta su questa stessa issue**: il primo test del ripiego leggeva il CDO invece di
+	 * chiamare il codice del fix, ed era verde su un'implementazione mutata. La scelta vive dove un test la
+	 * puo' **chiamare**.
+	 *
+	 * ⚠️ **Uno snapshot con `bIsValid == false` non e' uno snapshot**: `FPoseSnapshot` nasce invalido
+	 * (`bIsValid(false)` nel costruttore), quindi il caso «mai catturato» e il caso «catturato male» hanno
+	 * la stessa risposta — il ripiego.
+	 */
+	static ERTGhostPoseSource GhostPoseSourceFor(const FPoseSnapshot& Snapshot, bool bHasFallbackClip);
 
 	static FString ShortHeroName(FName InHeroId, const FString& Fallback);
 
@@ -1096,8 +1193,20 @@ public:
 	 *
 	 * ⚠️ Nascosto NON significa scollegato: `Mesh` resta il proxy di click (QueryOnly + `ECR_Block`), e la
 	 * collisione la decide `bRender`, non questo predicato.
+	 * ⚠️ **`bHasPose` e' la terza condizione, aggiunta il 2026-09-05 (#2545).** Una mesh SENZA una clip
+	 * da suonare non e' un corpo: e' una posa di riferimento, cioe' una T-pose — e una T-pose si legge
+	 * come «questa animazione e' rotta» invece che come «nessuno ha legato una clip a questo ruolo».
 	 */
-	static bool ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh);
+	static bool ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh, bool bHasPose);
+
+	/**
+	 * Se lo SKELETAL dell'eroe va mostrato: serve che l'unita' si veda **e** che ci sia una posa da
+	 * mostrare.
+	 *
+	 * 🔑 Esiste accanto a `ShouldShowPlaceholderMesh` perche' sono **la stessa decisione**: senza questo,
+	 * il cilindro comparirebbe SOPRA la T-pose invece che al suo posto, e si vedrebbero entrambi.
+	 */
+	static bool ShouldShowHeroSkeletal(bool bRender, bool bHasPose);
 
 	/**
 	 * Se l'ANELLO DI SELEZIONE va mostrato: serve che l'unita' si veda, che sia selezionata, e che un
@@ -1174,6 +1283,26 @@ public:
 	 */
 	void HideContactGhost();
 
+	/**
+	 * 🔴 **Il one-shot, con lo stato che lo rende tale** (#1750). Le si passa la visibilita' che
+	 * `RefreshComponentVisibility` sta per applicare; aggiorna la memoria della visibilita' precedente e
+	 * restituisce vero **solo** sulla transizione renderizzata → nascosta.
+	 *
+	 * ⚠️ **Pubblica di proposito: e' l'oracolo del test.** `ShouldCaptureContactPose` da sola non prova il
+	 * one-shot — una mutazione che sostituisse la transizione con `!bRender` vivrebbe nel CHIAMANTE e
+	 * lascerebbe verde un test scritto sulla sola funzione pura. Chiamando questa in **sequenza**
+	 * (`true, false, false`) il difetto cade: la seconda chiamata deve dare `false`.
+	 *
+	 * ⚠️ La memoria parte da `false` — «non ancora renderizzata» — e non da `true`. Con `true` la prima
+	 * `SetKnownToObserver(false)` su un nemico mai visto catturerebbe la posa dell'istante zero, che e' la
+	 * posa di riferimento: uno snapshot **valido e inutile**, che scavalcherebbe il ripiego rimettendo a
+	 * schermo la T-pose dentro la sua correzione.
+	 */
+	bool NotifyRenderStateForPoseCapture(bool bWillBeRendered);
+
+	/** Il ricordo di posa attualmente conservato: e' cio' che un test puo' leggere senza una mesh. */
+	const FPoseSnapshot& GetLastSeenPose() const { return LastSeenPose; }
+
 protected:
 	/** Vero finche' l'osservatore locale non dichiara il contrario: un'unita' nasce nota. */
 	UPROPERTY()
@@ -1186,6 +1315,46 @@ protected:
 	 */
 	UPROPERTY()
 	bool bSelected = false;
+
+	/**
+	 * L'ultima visibilita' applicata da `RefreshComponentVisibility`. Esiste **solo** per rendere one-shot
+	 * la cattura della posa (#1750): senza, «catturare quando l'unita' e' nascosta» diventerebbe «catturare
+	 * a ogni refresh finche' resta nascosta», che e' una vista e non un ricordo.
+	 *
+	 * ⚠️ Parte da `false`, non da `true`: vedi `NotifyRenderStateForPoseCapture`.
+	 */
+	UPROPERTY(Transient)
+	bool bLastRenderApplied = false;
+
+	/**
+	 * 🔴 **La posa dell'ultimo contatto: presentazione, e SOLO presentazione** (#1750, secondo criterio).
+	 *
+	 * ⛔ **Non e' in `FRTLastKnownContact`, e il posto "naturale" era proprio quello sbagliato.** Accanto a
+	 * `Cell` e `TurnNumber` questo dato entrerebbe in `FRTTeamKnowledge` → `FRTHexSim`, cioe' nello
+	 * **snapshot di simulazione che un replay rilegge**: bump di versione del formato, corpus golden da
+	 * rigenerare, e soprattutto un dato **non deterministico** (dipende dal tempo di animazione) dentro la
+	 * struttura che il TurnLog esiste per tenere deterministica. Referto del 2026-08-30, §2.
+	 *
+	 * ⚠️ **Un ricordo per ATTORE, mentre la conoscenza e' per SQUADRA (D-043).** Due incoerenze latenti,
+	 * che sono la stessa e scadono insieme — al secondo osservatore locale:
+	 *   1. questa casella e' una sola: due squadre che avessero perso di vista la stessa unita' in momenti
+	 *      diversi condividerebbero un ricordo solo;
+	 *   2. la cattura si arma su `bKnownToObserver`, cioe' sulla conoscenza dell'osservatore **locale**:
+	 *      con due visori la posa verrebbe catturata sulla transizione del primo e mostrata anche al
+	 *      secondo.
+	 * In v0.1 il visore e' uno e non si vede. E' dichiarato qui perche' si possa **cercare**, invece che
+	 * scoprirlo fra sei mesi.
+	 *
+	 * 🔴 **Eredita il difetto di `#1784`, sullo stesso eroe.** `USkeletalMeshComponent::SnapshotPose` scrive
+	 * la posa di **riferimento** per ogni osso fuori dalle *required bones* del LOD corrente
+	 * (`bBoneHasEvaluated ? ... : RefPoseSpaceBaseTMs[i]`), e le ossa che le LOD dei pack Paragon rimuovono
+	 * sono **le catene di Branth**. Su un'unita' non a LOD 0 questo snapshot rimetterebbe a schermo le
+	 * catene distese — lo stesso fotogramma che ha aperto #1750, arrivato per un'altra strada. Oggi non
+	 * morde perche' `#1784` tiene le unita' a LOD 0; chi un giorno riabilitasse le LOD deve trovare
+	 * scritto **dove** guardare.
+	 */
+	UPROPERTY(Transient)
+	FPoseSnapshot LastSeenPose;
 
 	/**
 	 * Ricalcola la visibilita' di TUTTI i componenti visivi dallo stato dell'unita'
@@ -1240,6 +1409,42 @@ public:
 	 * quel caso in silenzio.
 	 */
 	UUserWidget* GetOverlayWidgetObject() const;
+
+	/**
+	 * Mostra sopra questa unita' il token di un colpo appena rivelato dal playback (`#2455`).
+	 *
+	 * 🔑 **Sta accanto a `PlayHitMontage` e ha la sua stessa forma**, perche' e' la stessa cosa: una cue sul
+	 * BERSAGLIO, chiamata dal `TurnManager` nel punto in cui il colpo viene rivelato. La differenza e' che
+	 * questa e' C++ e non un `BlueprintImplementableEvent`: cio' che decide — la cifra, il segno, il caso
+	 * zero — vive in una funzione pura che i test chiamano, invece che in un grafo che nessun test vede.
+	 *
+	 * 🔴 **Prende un intero e non l'evento, e il confine e' misurato.** `RTTurnManager.cpp` non include
+	 * **nessun** header di `UI/`: il simulatore passa il numero che ha gia' in mano — lo stesso che
+	 * `OnAttackResolved` gia' trasporta — e la composizione della vista avviene qui, dalla parte della
+	 * presentazione.
+	 *
+	 * ⚠️ **`Amount` e' il danno NOMINALE, non gli HP persi**: vedi `FRTDamageTokenView` per la convenzione
+	 * e per la sua conseguenza visibile.
+	 *
+	 * ⛔ **Non applica niente.** Il colpo e' gia' stato risolto; questa chiamata disegna un fatto.
+	 */
+	void ShowDamageToken(int32 Amount);
+
+	/**
+	 * L'ultimo token composto per questa unita', **di sola presentazione**.
+	 *
+	 * 🔑 **Esiste per rendere il cablaggio osservabile senza rendering.** `URTUnitOverlayWidget` e' un
+	 * `UUserWidget`: in un mondo headless `GetOverlayWidgetObject()` risponde `nullptr` e nessun test
+	 * potrebbe dire se il colpo e' arrivato alla presentazione o si e' perso per strada. Con questo campo un
+	 * test di partita legge cosa la vittima ha ricevuto — ed e' la stessa disciplina di
+	 * `ContactGhostTargetForUnit`, che ha reso testabile una decisione altrimenti solo visibile.
+	 *
+	 * ⛔ **`Transient`**: non entra in `MapState`, in nessuno snapshot, nel TurnLog ne' in `StateHash`.
+	 * Riprodurre lo stesso turno due volte lo riscrive due volte con lo stesso valore e **non cambia nessun
+	 * esito**.
+	 */
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FRTDamageTokenView LastDamageToken;
 
 protected:
 
@@ -1342,7 +1547,7 @@ protected:
 	TObjectPtr<USkeletalMeshComponent> ContactGhost;
 
 	/**
-	 * La sovrapposizione sopra la testa — nome, vita, scudo, energia, stati (`#2288`, `D-320`).
+	 * La sovrapposizione sopra la testa — nome, vita, scudo, stati (`#2288`, `D-320`).
 	 *
 	 * 🔴 **Segue il velo, al contrario di `ContactGhost`.** La sagoma del ricordo deve vedersi *proprio
 	 * quando* l'unita' non si vede, quindi e' esclusa da `RefreshComponentVisibility`; questa invece e' la

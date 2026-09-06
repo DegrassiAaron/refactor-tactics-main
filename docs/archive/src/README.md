@@ -2,6 +2,85 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
+> 📏 **Rimisura del 2026-09-05 — kit *Create GrayKit Combat Feedback Issues*, consumato via `/eat-doc`.**
+> Criterio invariato: **solo `.md`**, `README.md` escluso **per basename**. Comando canonico
+> `find docs/archive/src -name '*.md' ! -name README.md | wc -l`, riletto dal disco.
+>
+> - **Albero di questo lavoro** (worktree `D:/rt-wt-eatdoc`, branch `docs/consumo-kit-graykit-combat-feedback`,
+>   `a254da94`, **0 commit di scarto** da `origin/main`), che aggiunge il solo
+>   `handoff/2026-09-05-graykit-combat-feedback-issues.md`: **`123`** = `17` `design/` + **`75`** `handoff/`
+>   + `2` `audit/` + `4` `graytoolkit/` + `25` in radice. La somma torna.
+> - `git rev-list --count HEAD..origin/main` risponde **0** e
+>   `git diff --name-only HEAD origin/main -- docs/archive/src` risponde **vuoto**: verificato adesso.
+>
+> ⚠️ **Scarto dichiarato: `123` file contro `121` righe d'indice dopo questa aggiunta.** Tre handoff del
+> **2026-08-31** sono nell'albero **senza riga** — `chatgpt-governance-handoff`,
+> `player-event-log-issue-epic-docs`, `roadmap-1.0-v01-execution-prompt` — archiviati da sessioni che non
+> hanno lasciato l'indice. Non li supplisco: la riga la scrive chi ha revisionato il kit. Il totale va letto
+> come **file archiviati**, non come «file indicizzati».
+>
+> 🔁 **Rimisura POST-MERGE del 2026-09-05 — e i due blocchi qui sotto sono entrambi stantii, per il
+> meccanismo che questa pagina descrive.** Il merge di `origin/main` `6c597f10` nel ramo
+> `fix/1793-2167-posa-e-offset` ha unito **due archiviazioni dello stesso giorno**, fatte da sessioni che
+> non si vedevano: *Bot Analysis & Consolidation* e *GreyKit Background Geometry & Camera Boundary*.
+>
+> - Il blocco *Bot Analysis* dichiara **`121`**, corretto sul suo albero.
+> - Il blocco *GreyKit* dichiara **`120`**, corretto sul suo.
+> - **Sull'albero mergiato sono `122`**: `17` `design/` + **`74`** `handoff/` + `2` `audit/` +
+>   `4` `graytoolkit/` + `25` in radice. La somma torna.
+>
+> 🔑 **Nessuno dei due numeri era sbagliato, e nessuno dei due sopravvive al merge** — ed è il caso che i
+> blocchi precedenti avevano registrato in astratto (*«due rami avevano ognuno il proprio numero giusto,
+> il merge li ha uniti e nessuno ha rieseguito il comando»*). Qui è successo con **due file** invece che
+> uno, quindi lo scarto è `2`. Il conflitto git ha toccato solo la testa del file e la riga d'indice: il
+> **totale** non era in conflitto, e senza rieseguire il comando sarebbe passato intatto e falso.
+>
+> ✅ **Le due righe d'indice sono state tenute entrambe**, non fuse: sono due kit distinti con due referti
+> distinti. E l'originale in radice che il blocco *Bot Analysis* chiedeva di rimuovere *«dopo il merge, non
+> prima»* è stato rimosso da `55a5599a`, ora che PR #2371 è atterrata.
+>
+> 📏 **Rimisura del 2026-09-05 — kit *Bot Analysis & Consolidation*, e il totale vale su un albero solo
+> perché è `origin/main`.** Criterio invariato: **solo `.md`**, `README.md` escluso **per basename**.
+> Comando canonico `find docs/archive/src -name '*.md' ! -name README.md | wc -l`.
+>
+> - **Albero `origin/main`** (`4d6964a4`), senza il file di oggi: **`120`**.
+> - **Albero di questo lavoro** (worktree `.claude/worktrees/bot-consolidation-handoff`, `4d6964a4`,
+>   **0 commit di scarto**), che aggiunge il solo `handoff/2026-09-05-bot-analysis-consolidation.md`:
+>   **`121`** = `17` `design/` + **`73`** `handoff/` + `2` `audit/` + `4` `graytoolkit/` + `25` in radice.
+>   La somma torna, e `120 + 1 = 121` **senza riserve**.
+>
+> ✅ **Le due condizioni che i blocchi precedenti hanno dovuto dichiarare qui non si pongono**:
+> `git rev-list --count HEAD..origin/main` risponde **0**, e
+> `git diff --name-only HEAD origin/main -- docs/archive/src` risponde **vuoto**. ⚠️ Verificato adesso, non
+> ereditato dal blocco del 2026-08-31: è la stessa verifica che il 2026-08-30 valeva un file cancellato e
+> nove link rotti.
+>
+> ⚠️ **Il sorgente di oggi è archiviato da un worktree, e l'originale è ancora in radice nel checkout
+> condiviso** (`D:\Repositories\refactor-tactict-dev\RefactorTactics_Bot_Analysis_Claude_Consolidation.md`).
+> La copia è verificata `diff -q` **verbatim**; l'originale va rimosso **dopo** il merge, non prima — finché
+> il ramo non atterra, quella è l'unica copia sul ramo principale.
+>
+>
+> 📏 **Rimisura del 2026-09-05 — kit *GreyKit Background Geometry & Camera Boundary*, e il totale va
+> dichiarato DUE volte perché l'albero di lavoro è indietro di **409 commit**.** Criterio invariato:
+> **solo `.md`**, `README.md` escluso **per basename**, comando canonico
+> `find docs/archive/src -name '*.md' ! -name README.md | wc -l`.
+>
+> - **Albero di questo lavoro** (`b063a60f`, `fix/1793-2167-posa-e-offset`), che aggiunge il solo
+>   `handoff/2026-09-05-greykit-background-camera-dual-roadmap.md`: **`120`** (era `119`).
+> - **Albero `origin/main`** (`215b23d2`), che questo file **non** ha ancora: **`120`** già senza il mio
+>   file, perché porta `handoff/2026-09-03-claudia-handoff-v01-refresh.md` che qui manca. Una volta
+>   mergiato, là saranno **`121`**.
+>
+> 🔴 **I due totali coincidono per compensazione, non per allineamento — ed è la trappola contro cui è
+> scritto tutto il resto di questa pagina.** `120 = 119 + 1` (il mio) e `120 = 119 + 1` (il loro): stesso
+> numero, due alberi diversi, **un file di differenza in ciascuna direzione**. Misurato:
+> `git diff --name-only HEAD origin/main -- docs/archive/src` restituisce **1** file, non zero. Chi
+> ereditasse questo `120` dopo il merge leggerebbe un totale giusto su un albero sbagliato.
+>
+> ✅ **Il sorgente è verificabile con `diff`**: arrivato come file in radice, archiviato verbatim,
+> `md5 4820a59b26cf7b21ec0510319a24443d` identico su entrambe le copie prima della rimozione
+> dell'originale.
 > 📏 **Rimisura del 2026-08-31 — kit *GitHub Epic / Issue reconciliation*, e per una volta il totale vale
 > su entrambi gli alberi.** Criterio invariato: **solo `.md`**, `README.md` escluso **per basename** — e la
 > seconda esclusione conta davvero, perché `graytoolkit/` ha un README proprio. Comando canonico
@@ -785,6 +864,9 @@ leggono insieme. L'istruttoria del consumo, con cosa è entrato e cosa no, sta i
 | [`RefactorTactics_FeatureRegistry_Roadmap_Wiki_Claude_2026-08-08.md`](RefactorTactics_FeatureRegistry_Roadmap_Wiki_Claude_2026-08-08.md) | Feature Registry canonico, tassonomia `RT-FEAT-*`, gate per feature, viste derivate su roadmap e Wiki, validator e migrazione — 22 sezioni | ✅ **Recepito per intero**, e poi **ritirato** da [D-181](../../decisions/RT_PDR_00_Decision_Log.md) il 2026-08-21 col resto del sistema di tracciamento; il §17 è caduto con [D-182](../../decisions/RT_PDR_00_Decision_Log.md). 🔴 Le §2, §4, §12–§14, §16, §17 e §19–§21 descrivono cose che non esistono più: **non vanno rieseguite**. ✅ Sopravvive il vocabolario — `RT-FEAT-<AREA>-<NOME>`, **482** occorrenze in **64** documenti vivi e **10** in **7** file fra `Source/` e `Scenarios/` (2026-08-30, `fff33020`) — senza più un registro che lo definisca. Banner in testa al file |
 | [`CLAUDE_FIX_PROJECT_CONTENT_STRUCTURE.md`](CLAUDE_FIX_PROJECT_CONTENT_STRUCTURE.md) | Allineamento della struttura `Content/` di Unreal e governance documentale: namespace `/Game/RT/`, bonifica del kit UI prototipo, `SourceAssets/`, asset map, workbook, registry — 17 sezioni (`§0`–`§16`) | 🔄 **Assorbita dagli owner, non eseguita come scritta.** `Content/RT/` feature-first e le quattro cartelle personaggio erano già vere; §2 e §9 sono **superate** da [`convenzioni-contenuti-ue.md`](../../technical/tooling/convenzioni-contenuti-ue.md) §230–235 (`SourceAssets/` si crea alla prima necessità, non in anticipo); §12 è morta con [D-181](../../decisions/RT_PDR_00_Decision_Log.md); §3 collide con [`asset-map.md`](../../technical/tooling/asset-map.md) e perde. ✅ Il solo rilievo nuovo è del §8 ed è stato applicato: i file non-`.uasset` tracciati sotto `Content/` sono **140**, non `145` |
 | [`2026-08-31-github-epic-issue-reconciliation.md`](handoff/2026-08-31-github-epic-issue-reconciliation.md) | Riconciliazione live del tracker GitHub: root epic #14, gate G1–G14 dopo D-181, E49 come camera owner e traduzione dei CAM-ID Drive, D-256 su #333, D-259 su #777, sei owner cross-release, stale sweep a 24 termini, parent/child graph e DRIVE_SYNC_PAYLOAD — 18 sezioni, arrivato **inline** e non come file | [referto](../../roadmap/plans/github-epic-issue-reconciliation-spec-panel-2026-08-31.md) · ✅ **Accurato sui fatti**: 29 ancore GitHub su 29 esistono, e D-181/D-256/D-259/D-286 sono confermate parola per parola sul Decision Log live. ⚠️ **Ma è il quarto giro sullo stesso terreno e non cita i tre precedenti**: 4 dei suoi 5 capitoli erano già chiusi — la checklist di #14 è esatta (9 caselle = 9 epic CLOSED), le tre correzioni CAM-WP vivono già dentro #1769, #333 era stata corretta **sei ore prima** e #777 dal 2026-08-28. 🔴 **Il suo §12 è falso e distruttivo**: cerca le «v0.1 issue fuori milestone #6», ma la v0.1 ha **sette** milestone — applicarlo sposterebbe ~92 issue aperte. **Non applicato**. ✅ Il suo valore è un difetto che non nomina: «**15 gate**» come precondizione **viva** in 12 epic (#322–#333, 24 occorrenze) mentre i gate sono 14 — riprodotto lo stesso giorno. **Corretto con nota additiva su tutte e 12**, e su decisione d’autore anche **nel corpo di #14** — col pattern `~~barrato~~` + valore giusto, esteso poi alle due righe che citavano `feature-registry.yaml` come fonte autorevole e come regola. ✅ In #14 restano **10** menzioni di `G15`/Feature Registry e **zero** sono istruzioni correnti: 4 barrate, 1 al passato, 5 in note datate. ⚠️ Ogni correzione ne ha richiesta una **a monte**, sulla nota che denunciava il difetto e che dopo la correzione direbbe il falso: due volte. ⛔ Non eseguiti: rename di #333 (decisione bilaterale Drive+GitHub), #1881/#1937 in #14, la milestone di #1604 (AMBIGUOUS) e le due righe di #14 che citano ancora `feature-registry.yaml` come fonte autorevole |
+| [`2026-09-05-bot-analysis-consolidation.md`](handoff/2026-09-05-bot-analysis-consolidation.md) | Analisi del sistema bot e mandato di consolidamento delle issue: nove debolezze verificate (nessun piano di squadra, utility greedy a un turno, obiettivo, kiter panic, reazioni, ricerca senza contatto, threat grossolana, limiti del tuning scalare), mappatura su E26 #326 e CP 26.1–26.4, sedici scenari comportamentali, dieci nomi di test proposti e una procedura di mutazione GitHub — 28 sezioni, 1087 righe | [referto](../../roadmap/plans/bot-analysis-consolidation-handoff-2026-09-05.md) — `GIÀ COPERTO 7 · OBSOLETO 1 · PARZIALE 2 · GAP REALE 2`. ✅ **L'ipotesi centrale regge**: `TeamPlan\|TopK\|Overkill\|MarginalUtility` dà **zero** occorrenze in `Source/RefactorTactics/Bot/` — il planner di squadra non c'è, e `#531` `CP 26.1` lo possiede già. ✅ Esatte anche le citazioni di `D-095`…`D-098` (Decision Log rr. 112-115, Accettate 2026-08-11) e lo stato di `#326` `#531`–`#534` `#149`. 🔴 **Ma il suo §7 «objective blindness» era falso 3h32m dopo la scrittura**: il kit porta `mtime` 2026-09-04 09:57 locali e `CP 26.5` [#2269](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2269) — *«l'obiettivo entra nel punteggio del bot»* — è **CLOSED** dalle `11:29Z` dello stesso giorno; il codice ha `WObjective = 120`, `WObjectiveFalloff = 30` e due invarianti pinnate da test nominati. **Non riaprire.** 🔴 **`#328` non è «E28 predictive»**: è *Expert Bot v2*, e il predictive è `#329` E29 — la mappatura del §8 e del §19 va tradotta. ⚠️ **Non cita nessuno dei due referti bot precedenti** ([`bot-stall`](../../roadmap/plans/bot-stall-spec-panel-2026-08-29.md), [`dir-c-qa`](../../roadmap/plans/dir-c-qa-scenario-bot-autobattle-handoff-2026-08-28.md)) pur aprendo chiedendo di verificare lo stato live. ⚠️ Dei **dieci** nomi di test che propone, **zero** esistono: i prefissi vivi sono `RefactorTactics.HexBot.` (**37**) e `RefactorTactics.Bot.` (**29**), e `Spec.Bot.` non compare mai. ⚠️ **E un nome è già occupato senza essere la misura**: `RefactorTactics.HexBot.ScoreFocusFire` confronta quattro punteggi di **una sola unità** con un nemico solo — utility locale, non focus fire di squadra. ✅ **Il suo valore reale sono due difetti che classifica come minori e che nessuna issue aperta copre**: la guardia del kiter a `RTTurnManager.cpp:1325`, che il commento dichiara *«non passa dalla utility»*, e `DecideReactionResponse` a `RTHexBotLibrary.cpp:779`, che restituisce il primo `FIRE:` legale mentre `ScoreReaction` sa già misurare `WThreat` venti righe più in basso — entrambi **v0.1**, mentre E26 è v0.2. ⛔ **Nessun atto GitHub eseguito**: i sei raccomandati sono elencati nel §7 del referto e restano una decisione d'autore |
+| [`2026-09-05-greykit-background-camera-dual-roadmap.md`](handoff/2026-09-05-greykit-background-camera-dual-roadmap.md) | *GreyKit Background Geometry & Camera Boundary* — masse geometriche giganti non raggiungibili attorno alla mappa GreyKit come sfondo e occluder, camera vincolata a non esporre spazio non valido; separazione fra geometria di sfondo, bounds giocabili e bounds camera; doppia roadmap **A** (`A0`–`A9`, architettura/implementazione) + **B** (`B0`–`B21`, validazione Unreal Editor/MCP) — 1048 righe, 10 sezioni | [referto](../../roadmap/plans/greykit-background-camera-boundary-spec-panel-2026-09-05.md) · **`origin/main` `215b23d2`, 2026-09-05 09:05** · 🔴 **È il TERZO kit camera, e ripete per la terza volta la stessa premessa falsa**: teme la penetrazione della SpringArm (§1.4, `A2`, `B11`) mentre `bDoCollisionTest = false` è nel costruttore da [#864](https://github.com/DegrassiAaron/refactor-tactics-main/issues/864) — il triage del [2026-08-14](../../roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md) l'aveva già misurata falsa e il consolidamento del [2026-08-30](../../roadmap/plans/tactical-camera-consolidamento-spec-panel-2026-08-30.md) l'ha chiusa promuovendola a **`D-253`**. ⚖️ **Il suo modello a tre livelli è più grossolano del canone**: `D-250` ne dichiara **quattro**, e fondere `ScenicBufferArea` con `VisualBackgroundBounds` unisce due domini con budget opposti — il primo è vicino, guardato e attraversabile dal pivot, il secondo lontano e mai guardato. Adottarlo sarebbe una **regressione**. ⛔ **Senza oggetto**: `A2`/`B11` (zero canali di collisione custom, zero `ECC_GameTraceChannel` in `Source/`), `B12` (zero NavMesh — esenzione prevista dal kit stesso), `B15`/`B16` (zero `GetLifetimeReplicatedProps` nel runtime, v0.1 è offline). ✅ **Ciò che indovina esisteva già**: §1.2 ≡ `D-250`(2), §1.3 ≡ *Boundary Language*, §1.5 ≡ il vincolo del buffer, §10 ≡ la DoD di [#1777](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1777). ✅ **Il gap reale è uno e ha già un owner aperto**: `#1777` (`CAM-08`, `P2`/`post-v0.1`), e il punto d'innesto è **già marcato in codice** a `RTCameraPawn.cpp:499`. ➕ Il solo rilievo che il canone non aveva: **nessuna CVar disegna i bounds** — `rt.Debug.Draw{Cells,Cover,Intent,Paths,Resolution}` esistono, i limiti no, e senza quelli `B2`/`B13` non sono eseguibili nemmeno a mano. ⛔ **Zero codice, zero issue, zero `D-nnn`**: tre blocchi indipendenti — `origin/main` non compila ([#2397](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2397), PR [#2398](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2398) in volo), nessun MCP Unreal in sessione (endpoint `HTTP 000`), motore occupato da un'altra sessione — più uno di scope: `D-286` promuove in v0.1 cinque lacune camera e **`CAM-08` non è fra quelle**. **`MCP VERIFIED` 0 · `AUTOMATION VERIFIED` 0 · `USER VERIFIED` 0 · `NOT VERIFIED` 19** |
+| [`2026-09-05-graykit-combat-feedback-issues.md`](handoff/2026-09-05-graykit-combat-feedback-issues.md) | *Create GrayKit Combat Feedback Issues* — mandato di **sola apertura issue** (vieta esplicitamente di implementare codice): una Epic cross-release piu' quattro leaf v0.1 per il feedback di combattimento guidato da `FRTResolvedEvent` — evento->cue, numeri di danno e risposta HP, ciclo di vita degli stati, diagnostica animazione/playback; scala di maturita' v0.2->v1.0 come **gate documentati**, non come issue aperte; `one event -> one signal` in v0.1, nessuna aggregazione, nessun Niagara, mai il solo colore come canale — 748 righe, 17 sezioni | [referto](../../roadmap/plans/graykit-combat-feedback-issues-spec-panel-2026-09-05.md) · **`origin/main` `a254da94`, 2026-09-05** · 🔑 **Era GIA' ESEGUITO quando e' entrato in `docs/`, e per intero**: Epic [#2453](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2453) alle **15:39:28**, i quattro leaf [#2454](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2454)-[#2457](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2457) alle **15:41:58-15:42:02**, i commenti additivi su [#1990](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1990) e [#286](https://github.com/DegrassiAaron/refactor-tactics-main/issues/286) alle **15:43:55/56** — mentre il commit che lo archiviava fra i piani e' delle **15:58:16**. ✅ **Copertura verificata voce per voce**: §4 (Epic senza milestone di release, cinque link), §7 (esattamente 4 leaf), §12 (label esistenti, milestone `v0.1 · Leggibilita'` sui soli leaf), §13 (checklist nei due versi), §14 (commenti additivi, nessun corpo riscritto), piu' i requisiti tecnici puntuali: `AttackFootprint` sulle celle congelate e Stable ID `0`=NONE in `#2454`, `Amount == 0` **deciso** in `#2455`, `IsStatusBirth`+`BuildStatusBadges` in `#2456`, nessun contatore di playback locale in `#2457`. ⛔ **Zero creazioni oggi**: la STOP condition del §1 e' scattata su tutte e cinque le voci, e per §15 duplicarle sarebbe stato issue spam. 🔴 **La premessa falsa e' del consumatore, non del kit**: il commit `6f6a9997` e la PR [#2464](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2464) dichiarano *«nessuna issue GrayKit / Combat Feedback esiste, ne' aperta ne' chiusa»* — falso da sedici minuti quando e' stato scritto. Causa misurata: **`gh issue list --search` legge l'indice asincrono di GitHub**, che su issue appena create risponde vuoto; il controllo senza lag e' `gh issue list` **senza** `--search` (REST). ➕ Dato piu' fresco del kit, gia' nell'Epic: la meta' `HazardDamage` di `#2455` e' bloccata da [#2460](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2460). **`CREATED` 0 · `REUSED` 5 · `LINKED` 2 (gia' presenti) · `NOT CREATED` v0.2+ per progetto** |
 
 > ~~⚠️ **Il conteggio in testa è alla deriva**: la riga 5 dichiara **40** documenti, ma la cartella ne
 > contiene **47**.~~ 🔴 **Questa nota era falsa in entrambi i termini, ed è stata trovata in code review il

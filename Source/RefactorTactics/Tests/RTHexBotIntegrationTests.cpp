@@ -81,10 +81,10 @@ bool FRTHexBotLegalMovesTest::RunTest(const FString&)
 
 	// 2v2: due bot contro due unita' del giocatore, in posizioni oblique (dove Manhattan e distanza
 	// esagonale divergono e il pathfinding quadrato proporrebbe celle fuori dalla mappa).
-	ARTUnit* BotA = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -3), /*bBot*/ true);
+	ARTUnit* BotA = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -3), /*bBot*/ true);
 	ARTUnit* BotB = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(3, -3), /*bBot*/ true);
 	ARTUnit* FoeA = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-2, 3), /*bBot*/ false);
-	ARTUnit* FoeB = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-3, 3), /*bBot*/ false);
+	ARTUnit* FoeB = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-3, 3), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !BotA || !BotB || !FoeA || !FoeB) { DestroyHexBotWorld(World); return false; }
 
@@ -157,8 +157,8 @@ bool FRTHexBotTuningTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBotMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0), /*bBot*/ true);
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, 0), /*bBot*/ false);
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -192,8 +192,8 @@ bool FRTHexBotDashThreatTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBotMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0), /*bBot*/ true); // con Carica
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(5, 0), /*bBot*/ false);
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true); // con Carica
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(5, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -259,7 +259,7 @@ bool FRTHexBotSparesAllyTest::RunTest(const FString&)
 		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 		SpawnHexBotMap(World, /*Radius=*/ 5);
 
-		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0), /*bBot*/ true);
+		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true);
 		ARTUnit* Ally = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, 0), /*bBot*/ false);
 		ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0), /*bBot*/ false);
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -284,7 +284,7 @@ bool FRTHexBotSparesAllyTest::RunTest(const FString&)
 		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 		SpawnHexBotMap(World, /*Radius=*/ 5);
 
-		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0), /*bBot*/ true);
+		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true);
 		ARTUnit* Ally = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, -4), /*bBot*/ false);
 		ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0), /*bBot*/ false);
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -298,7 +298,7 @@ bool FRTHexBotSparesAllyTest::RunTest(const FString&)
 		// Se qui il bot non offendesse, il caso 1 non proverebbe nulla: passerebbe perche' il bot non attacca
 		// mai, non perche' risparmia il compagno.
 		//
-		// «Offende» comprende la CARICA, e non e' un dettaglio: Riktor ha `Ram` (20 danni piu' spinta) oltre
+		// «Offende» comprende la CARICA, e non e' un dettaglio: Branth ha `Ram` (20 danni piu' spinta) oltre
 		// a `ImpactShot` (8), quindi caricare vale di piu' e l'utility la sceglie — `score=90` contro `80`.
 		// La carica pero' passa da `PlannedDashAbility`, non da `PlannedAttackTarget`, e guardare solo il
 		// secondo faceva sembrare passivo un bot che stava scegliendo la mossa piu' aggressiva che aveva.
@@ -364,7 +364,7 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 	// (soglia: meta' standoff). Stava a 2, che con lo standoff 4 del Ranger legacy era dentro la soglia;
 	// con i 3 di Phase non lo e' piu', e il bot si sarebbe limitato a riguadagnare UNA cella — comportamento
 	// corretto, ma non lo scenario che questo test deve coprire.
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0), /*bBot*/ false);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -454,7 +454,7 @@ bool FRTHexBotSupportTest::RunTest(const FString&)
 	SpawnHexBotMap(World, /*Radius=*/ 5);
 
 	// Unita' ferita sotto meta' HP: usa un'abilita' self-target invece di attaccare.
-	ARTUnit* Hurt = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Hurt = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true);
 	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Hurt || !Foe) { DestroyHexBotWorld(World); return false; }
@@ -464,15 +464,25 @@ bool FRTHexBotSupportTest::RunTest(const FString&)
 	// la SCELTA DEL BOT («se sono ferito e ho un supporto su di me, lo uso invece di attaccare»), non chi
 	// possiede quell'azione: senza darne una all'unita' il ramo non e' raggiungibile e resterebbe senza
 	// verifica — e' l'unica che ha. Vedi #425 per la decisione su chi debba dichiararlo nel roster.
-	// Deve CURARE o schermare, non solo essere su di se': il ramo del bot chiede un effetto `Heal`/`Shield`.
-	// Costruita su `Action.Guard` per fase e slot — quello che le manca, e che qui conta, e' lo scudo:
-	// `Guard` applica uno stato difensivo e non rimette in piedi nessuno, quindi da sola non basta piu'.
-	// E' la stessa forma di `Guardian.Barrier`, l'azione per cui questo ramo era stato scritto: +40 scudo.
+	// Deve CURARE, non solo essere su di se' ne' genericamente difendere: il ramo del bot chiede un effetto
+	// `Heal`. Costruita su `Action.Guard` per fase e slot — quello che le manca, e che qui conta, e' il
+	// ripristino: `Guard` applica uno stato difensivo e non rimette in piedi nessuno.
+	//
+	// 🔴 **Era +40 di SCUDO, come `Guardian.Barrier`, ed e' diventata cura il 2026-09-04** (`#2283`).
+	// Non e' il test adattato alla sua implementazione: e' la stessa proprieta' misurata su un effetto che
+	// la regge. La condizione d'ingresso del ramo e' `Health * 2 < MaxHealth`, e uno scudo temporaneo non
+	// la scioglie — scade nel Cleanup senza toccare `Health`. Questo test dura UN turno, quindi non
+	// poteva vederlo: in partita il bot rientrava nel ramo a ogni ricarica e si parcheggiava (Wraith ferma
+	// 5 turni contro un limite di 4, con quattro test di partita rossi a cascata).
+	//
+	// ⚠️ Chi volesse riaprire il ramo allo scudo — `#464`, v0.2 — non cambi solo questa riga: serve
+	// prima togliere al ramo il `continue` incondizionato, o dargli un criterio di ripetizione. Con lo
+	// scudo, questo test resta verde e la partita si pianta lo stesso.
 	URTActionData* SelfSupport = NewObject<URTActionData>(Hurt);
 	SelfSupport->DisplayName = FText::FromString(TEXT("Barriera di prova"));
 	SelfSupport->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Guard"));
 	SelfSupport->Def.ActionId = FName(TEXT("Test.SelfSupport"));
-	SelfSupport->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Shield, 40));
+	SelfSupport->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Heal, 40));
 	SelfSupport->bSelfTarget = true;
 	SelfSupport->RangeCells = 0;
 	SelfSupport->Power = 0;
@@ -520,7 +530,7 @@ bool FRTHexBotPanicTest::RunTest(const FString&)
 		DestroyHexBotWorld(World);
 		return false;
 	}
-	ARTUnit* Melee = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(),
+	ARTUnit* Melee = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(),
 		FRTCellId(FMath::Max(1, Standoff / 2), 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Melee) { DestroyHexBotWorld(World); return false; }
@@ -638,7 +648,7 @@ bool FRTHexBotHiddenEnemyFairnessTest::RunTest(const FString&)
 		SpawnHexBotMap(World, /*Radius=*/ 6);
 
 		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0), /*bBot*/ true);
-		ARTUnit* Seen = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0), /*bBot*/ false);
+		ARTUnit* Seen = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0), /*bBot*/ false);
 		ARTUnit* Hidden = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakePhase(), HiddenCell, /*bBot*/ false);
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Bot || !Seen || !Hidden) { DestroyHexBotWorld(World); return Empty; }
@@ -702,7 +712,7 @@ bool FRTHexBotPartialKnowledgeTest::RunTest(const FString&)
 	SpawnHexBotMap(World, /*Radius=*/ 6);
 
 	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0), /*bBot*/ true);
-	ARTUnit* Seen = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 0), /*bBot*/ false);
+	ARTUnit* Seen = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0), /*bBot*/ false);
 	ARTUnit* Unknown = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakePhase(), FRTCellId(3, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Seen || !Unknown) { DestroyHexBotWorld(World); return false; }
@@ -755,7 +765,7 @@ bool FRTHexBotSeeksContactTest::RunTest(const FString&)
 	// Qui il nemico sta su un lato e il centro dall'altro rispetto al bot: le due direzioni DIVERGONO, e
 	// avvicinarsi al centro e' incompatibile con l'avvicinarsi al nemico.
 	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(4, -2), /*bBot*/ true);
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(6, 0), /*bBot*/ false);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(6, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -812,7 +822,7 @@ bool FRTHexBotRemembersLastKnownTest::RunTest(const FString&)
 	SpawnHexBotMap(World, /*Radius=*/ 6);
 
 	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0), /*bBot*/ true);
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0), /*bBot*/ false);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -880,8 +890,8 @@ bool FRTBotArmsItsReactionTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBotMap(World, /*Radius=*/ 5);
 
-	// Riktor porta una reazione nel kit: una del roster vero, non costruita qui.
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -3), /*bBot*/ true);
+	// Branth porta una reazione nel kit: una del roster vero, non costruita qui.
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -3), /*bBot*/ true);
 	ARTUnit* Nemico = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-2, 3), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!Bot || !Nemico || !TM) { DestroyHexBotWorld(World); return false; }
@@ -953,10 +963,10 @@ bool FRTHexBotChargeLandsTest::RunTest(const FString&)
 	SpawnHexBotMap(World, /*Radius=*/ 5);
 
 	// Stessa geometria di `PlanDoesNotBlastDyingAlly` caso 2, dove la carica e' gia' misurata come la mossa
-	// che l'utility preferisce: Riktor ha `Ram` (20 + spinta 1) contro `ImpactShot` (8).
+	// che l'utility preferisce: Branth ha `Ram` (20 + spinta 1) contro `ImpactShot` (8).
 	// Nessun alleato in scena: qui non si misura il collaterale, e un terzo attore aggiungerebbe solo un
 	// modo per cui il piano potrebbe cambiare senza che il test lo dica.
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true);
 	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
@@ -1000,7 +1010,7 @@ bool FRTHexBotChargeLandsTest::RunTest(const FString&)
 	int32 ChargeEntries = 0;
 	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 	{
-		if (E.ActionId == FName(TEXT("Hero.Riktor.Ram"))) { ++ChargeEntries; }
+		if (E.ActionId == FName(TEXT("Hero.Branth.Ram"))) { ++ChargeEntries; }
 	}
 	TestTrue(TEXT("il TurnLog registra la carica col suo ActionId"), ChargeEntries > 0);
 
@@ -1102,10 +1112,10 @@ bool FRTHexBotPlansAreLegalTest::RunTest(const FString&)
 
 	// 2v2 interamente sotto bot: si misura il pianificatore, non la reazione del bot a un umano.
 	TArray<ARTUnit*> Bots;
-	Bots.Add(SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 1), /*bBot*/ true));
+	Bots.Add(SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 1), /*bBot*/ true));
 	Bots.Add(SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 2), /*bBot*/ true));
 	Bots.Add(SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(4, -2), /*bBot*/ true));
-	Bots.Add(SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -1), /*bBot*/ true));
+	Bots.Add(SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -1), /*bBot*/ true));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || Bots.Contains(nullptr)) { DestroyHexBotWorld(World); return false; }
 
@@ -1197,11 +1207,11 @@ bool FRTHexBotPlansAreLegalTest::RunTest(const FString&)
  *
  * È il comportamento che c'era già: cambia che ora è una **regola dichiarata** invece del risultato
  * dell'ordine degli indici ([D-220], `#1403`). Prima di [D-218] ogni eroe portava una reazione sola e la
- * domanda non si poneva; oggi Riktor porta `Interposition` (kit) **e** `Reaction.Cleanse` (modulo).
+ * domanda non si poneva; oggi Branth porta `Interposition` (kit) **e** `Reaction.Cleanse` (modulo).
  *
  * 🔴 **Da [D-268] (`#1802`) questo test misura lo SPAREGGIO, non la politica, e la differenza va detta.**
  * La regola non è più «prima il kit»: è «punteggio più alto, e a parità esatta il kit». Qui i due candidati
- * pareggiano **a zero**, e la premessa è la geometria di questa scena, non un'invariante del gioco: Riktor
+ * pareggiano **a zero**, e la premessa è la geometria di questa scena, non un'invariante del gioco: Branth
  * sta a `(2,-3)` e Wraith a `(-2,3)` su un raggio 5, cioè a distanza 6 — oltre la vista di chiunque — quindi
  * `Ctx.Enemies` è vuoto; non c'è un secondo alleato, quindi `Ctx.Allies` è vuoto; e `Reaction.Cleanse` ha
  * trigger `AboutToReceiveControl`, che vale zero per dichiarazione.
@@ -1233,7 +1243,7 @@ bool FRTBotPrefersTheKitReactionTest::RunTest(const FString&)
 	// delle reazioni gira lo stesso, quindi il test sarebbe **verde in un mondo degenere**.
 	SpawnHexBotMap(World, 5);
 
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -3), /*bBot*/ true);
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -3), /*bBot*/ true);
 	ARTUnit* Nemico = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-2, 3), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("Bot"), Bot) || !TestNotNull(TEXT("Nemico"), Nemico) || !TestNotNull(TEXT("TM"), TM))
@@ -1242,8 +1252,8 @@ bool FRTBotPrefersTheKitReactionTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Il loadout di default di Riktor: da [D-218] il modulo è `Reaction.Cleanse`.
-	Bot->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(FName(TEXT("Hero.Riktor"))));
+	// Il loadout di default di Branth: da [D-218] il modulo è `Reaction.Cleanse`.
+	Bot->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(FName(TEXT("Hero.Branth"))));
 
 	// Si individuano le due reazioni per ORIGINE, come fa il resolver: chiedendo al catalogo, non all'indice.
 	int32 IdxKit = INDEX_NONE;

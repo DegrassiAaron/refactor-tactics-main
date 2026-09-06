@@ -62,12 +62,12 @@ namespace
 			{ TEXT("Hero.Phase.FlowReaction"),       TEXT("Reazione di flusso") },
 			{ TEXT("Hero.Phase.TideGuard"),          TEXT("Guardia di marea") },
 
-			// Riktor (`Hero.Riktor`)
-			{ TEXT("Hero.Riktor.ImpactShot"),      TEXT("Colpo d'impatto") },
-			{ TEXT("Hero.Riktor.KineticPanel"),    TEXT("Pannello cinetico") },
-			{ TEXT("Hero.Riktor.Reconfigure"),     TEXT("Riconfigurazione") },
-			{ TEXT("Hero.Riktor.Ram"),             TEXT("Carica d'ariete") },
-			{ TEXT("Hero.Riktor.Interposition"),   TEXT("Interposizione") },
+			// Branth (`Hero.Branth`)
+			{ TEXT("Hero.Branth.ImpactShot"),      TEXT("Colpo d'impatto") },
+			{ TEXT("Hero.Branth.KineticPanel"),    TEXT("Pannello cinetico") },
+			{ TEXT("Hero.Branth.Reconfigure"),     TEXT("Riconfigurazione") },
+			{ TEXT("Hero.Branth.Ram"),             TEXT("Carica d'ariete") },
+			{ TEXT("Hero.Branth.Interposition"),   TEXT("Interposizione") },
 
 			// Wraith (`Hero.Wraith`)
 			{ TEXT("Hero.Wraith.PulseShot"),        TEXT("Colpo a impulsi") },
@@ -179,7 +179,7 @@ TArray<FString> URTHeroCatalogLibrary::ValidateHeroes(const TArray<const URTHero
 	// ⚠️ **Era `== 5` esatte, ed e' diventato un intervallo con un costo dichiarato**: il validatore non dice
 	// piu' *«questo eroe e' completo»* ma *«e' nell'intervallo»*. Un eroe a cui mancasse una fondamentale e
 	// che ne portasse una generica passerebbe. Si accetta perche' l'alternativa — alzare il minimo a 6 —
-	// renderebbe **invalidi** Gadget e Riktor, che di azioni ne hanno cinque: sposterebbe il rosso invece di
+	// renderebbe **invalidi** Gadget e Branth, che di azioni ne hanno cinque: sposterebbe il rosso invece di
 	// toglierlo.
 	//
 	// ⛔ **Il tetto e' 6 e non "quante ne vuoi"**: oltre, il kit supera le posizioni che l'input raggiunge.
@@ -299,8 +299,8 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	Gadget->HeroId = TEXT("Hero.Gadget");
 	// ⚠️ La variabile dice `Gadget` e il nome dice `Gadget`, e NON e' un refuso: D-120 separa i due piani.
 	// `Hero.Gadget` e' lo Stable ID — chiave di codice, scenari e replay. #716 ha gia' sciolto la collisione
-	// di namespace (D-130), e il rename e' deciso: `Hero.Gadget` -> `Hero.Nexis`, differito post-v0.1 (D-321,
-	// D-322), owner #2297. `Gadget` e' il nome canonico/player-facing di oggi, legacy temporaneo.
+	// di namespace (D-130), e il rename e' deciso: `Hero.Gadget` -> `Hero.Aevik`, differito post-v0.1 (D-321,
+	// D-334, che supersede D-322 sui quattro nomi), owner #2297. `Gadget` e' il nome canonico/player-facing di oggi, legacy temporaneo.
 	// Da qui il nome raggiunge l'unita' (`ConfigureFromHeroData`) e poi la HUD; il gate del confine e'
 	// `RefactorTactics.Unit.HeroDataCrossesTheBoundary`.
 	Gadget->DisplayName = FText::FromString(TEXT("Gadget"));
@@ -350,7 +350,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 
 	// Indice 2 — ConductiveNode. Cablata su `Action.Electrify` da D-046 (issue #282): numeri dal CORE, non
 	// nuovi — portata 4, propagazione 3, fase Environment. Il cooldown resta quello dell'eroe (2), come per
-	// `Riktor.Ram`.
+	// `Branth.Ram`.
 	//
 	// Fino al 2026-08-10 qui c'era scritto che «nessun modello di conduttivita' di cella esiste» e che
 	// `Effects` vuoto era la dichiarazione onesta. Era vero quando fu scritto e ha smesso di esserlo con E8
@@ -537,7 +537,7 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 
 	// Indice 3 — MistVeil. Issue #353: dichiarava «crea fumo raggio 1» e non lo faceva. `Smoke` era l'unica
 	// delle otto superfici che nessuna azione sapeva creare, e il meccanismo esisteva gia' — mancava il
-	// collegamento, esattamente come per `MovementStyle` su `Riktor.Ram`.
+	// collegamento, esattamente come per `MovementStyle` su `Branth.Ram`.
 	//
 	// **Passa a `Environment`**, e non e' un dettaglio di implementazione: `ResolveEnvironment` — l'unico posto
 	// che crea superfici — processa solo le azioni la cui fase mappa su `Cleanup`, e in `Preparation` MistVeil
@@ -615,19 +615,19 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	return Phase;
 }
 
-URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
+URTHeroData* URTHeroCatalogLibrary::MakeBranth()
 {
-	URTHeroData* Riktor = NewObject<URTHeroData>();
-	Riktor->HeroId = TEXT("Hero.Riktor");
-	Riktor->DisplayName = FText::FromString(TEXT("Riktor")); // D-120: nome canonico; `Hero.Riktor` resta lo Stable ID
-	Riktor->MaxHealth = 120;
-	Riktor->MovePoints = 4;
-	Riktor->VisionRange = 5;
-	Riktor->HearingThreshold = 3;  // D-041: come Phase — il piu' lento del roster sente arrivare.
+	URTHeroData* Branth = NewObject<URTHeroData>();
+	Branth->HeroId = TEXT("Hero.Branth");
+	Branth->DisplayName = FText::FromString(TEXT("Branth")); // D-120: nome canonico; `Hero.Branth` resta lo Stable ID
+	Branth->MaxHealth = 120;
+	Branth->MovePoints = 4;
+	Branth->VisionRange = 5;
+	Branth->HearingThreshold = 3;  // D-041: come Phase — il piu' lento del roster sente arrivare.
 	// Era `1`, l'unico del roster, fino al 2026-08-10. Portato a `0` da D-075 (#402): siccome ogni spinta
 	// del gioco vale 1 e `PushResistance` e' una SOGLIA (D-038), il valore `1` non comprava "stabilita'" ma
 	// **immunita' totale a ogni spostamento, sempre, senza spendere un'azione** — e quella nessuno l'aveva
-	// decisa: era una conseguenza del catalogo, non una scelta. Per Riktor svuotava meta' di `Guard` e
+	// decisa: era una conseguenza del catalogo, non una scelta. Per Branth svuotava meta' di `Guard` e
 	// `Brace` (l'asse dello spostamento era gia' coperto dalla statistica) proprio sull'eroe su cui la
 	// scelta difensiva dovrebbe pesare di piu'.
 	// Cio' che il commento vecchio motivava — "compra HP e stabilita' con movimento e vista" — resta vero
@@ -636,20 +636,20 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// meccanica DORMIENTE — modello e resolver (`RTTurnManager.cpp`, ramo `ERTActionEffect::Push`) la
 	// implementano, nessun contenuto la esercita. E' dichiarato, non dimenticato: si risveglia da sola il
 	// giorno in cui una v0.2 introduce una spinta >= 2 (rinviata con l'uscita (B) di #400, D-074).
-	Riktor->PushResistance = 0;
+	Branth->PushResistance = 0;
 	// ADR-0008 §1 — «pesante, forte stabilita'»: 60 gradi a fine Move, e **zero** in Dash.
 	//
 	// 🔑 Lo `0` non viene dalla fonte, che dava «0-60 gradi» — un intervallo, non un valore — ed e' una
 	// delle due scelte che l'ADR dichiara di aver preso da se'. E' l'estremo che CONSERVA il comportamento
 	// di ADR-0005 per i `Linear*`: una sola direzione, quella del movimento. Alzarlo a 1 e' un cambio di
 	// dato, non di modello.
-	Riktor->MoveEndPivotMaxSteps = 1;
-	Riktor->DashEndPivotMaxSteps = 0;
-	Riktor->Affinity = TEXT("Affinity.Structures");
+	Branth->MoveEndPivotMaxSteps = 1;
+	Branth->DashEndPivotMaxSteps = 0;
+	Branth->Affinity = TEXT("Affinity.Structures");
 	// Simmetrica a Wraith (CP 6.5), come Gadget/Phase fra loro: il roster chiude in due coppie. Il piu' lento
 	// del roster e' vulnerabile a chi il movimento lo fa di mestiere.
-	Riktor->Weakness = TEXT("Affinity.Movement");
-	// ⛔ **Riktor NON ha un profilo, e il campo resta `None` di proposito** ([D-047], §2.5). La proposta gli
+	Branth->Weakness = TEXT("Affinity.Movement");
+	// ⛔ **Branth NON ha un profilo, e il campo resta `None` di proposito** ([D-047], §2.5). La proposta gli
 	// assegnava `ANCHOR` — «annulla lo spostamento» — ma `Hold Ground` lo fa gia' e con la stessa ampiezza:
 	// il ramo `Braced` del resolver non controlla `KnockDist`, a differenza di `Guarded`. Una seconda
 	// risposta identica alla prima lascerebbe la cardinalita' a 1 senza aprire nulla, e sarebbe la terza
@@ -662,7 +662,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	//
 	// Fino al 2026-08-09 erano 24, ed era un numero motivato — la fascia corto raggio da' 25, e il catalogo
 	// ne toglieva uno «in cambio della stazza». Il problema non era il numero in se': era che rendeva
-	// `ImpactShot` l'attacco base PIU' FORTE del roster mentre il ruolo dichiarato di Riktor e'
+	// `ImpactShot` l'attacco base PIU' FORTE del roster mentre il ruolo dichiarato di Branth e'
 	// Utility/Emergency. 8 e' ancorato a `Phase.PressureJet` (16), che sta un gradino sopra: ne e' la meta'
 	// esatta. Basso, ma non finto: deve restare corretto premerlo per finire un bersaglio a pochi HP.
 	//
@@ -670,9 +670,9 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// coerente: `ERTStructureOp` non sa danneggiare una copertura, e uno `Status` si applica al BERSAGLIO,
 	// quindi «genera Guard su di se'» non e' rappresentabile. Durata 1 basta perche' il modificatore e'
 	// letto FRESCO a ogni snapshot (CP 4.7): applicato nel Blast si riflette gia' sulla fase Move dello
-	// STESSO turno, poi scade nel Cleanup. E' la risposta di Riktor a chi si muove di mestiere — cioe' alla
+	// STESSO turno, poi scade nel Cleanup. E' la risposta di Branth a chi si muove di mestiere — cioe' alla
 	// sua stessa debolezza dichiarata, `Affinity.Movement`.
-	Riktor->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Riktor.ImpactShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+	Branth->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Branth.ImpactShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 3, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{
 			FRTActionEffectSpec(ERTActionEffect::Damage, 8),
@@ -692,12 +692,12 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// ed e' `PlannedCoverEdge`.
 	{
 		const FRTActionDef CoverDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.CreateCover"));
-		URTActionData* Panel = MakeHeroActionFromCore(TEXT("Hero.Riktor.KineticPanel"),
+		URTActionData* Panel = MakeHeroActionFromCore(TEXT("Hero.Branth.KineticPanel"),
 			TEXT("Action.CreateCover"), /*Cooldown*/ 2);
 		if (Panel)
 		{
 			Panel->Def.StructureOp = CoverDef.StructureOp; // erige: e' il dato che il resolver legge
-			Riktor->Actions.Add(Panel);
+			Branth->Actions.Add(Panel);
 		}
 	}
 
@@ -711,10 +711,10 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// il catalogo non dichiara una portata diversa fra le due. Fase Preparation per lo stesso motivo del
 	// pannello: il campo si sistema PRIMA che i colpi partano.
 	{
-		URTActionData* Reconfigure = MakeHeroAction(TEXT("Hero.Riktor.Reconfigure"), ERTResolutionPhase::Preparation,
+		URTActionData* Reconfigure = MakeHeroAction(TEXT("Hero.Branth.Reconfigure"), ERTResolutionPhase::Preparation,
 			/*Priority*/ 76, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {});
 		Reconfigure->Def.StructureOp = ERTStructureOp::MoveCover;
-		Riktor->Actions.Add(Reconfigure);
+		Branth->Actions.Add(Reconfigure);
 	}
 
 	// Indice 3 — Ram. E' una CARICA: 20 danni + Push 1, gli stessi numeri di `Action.Charge` del catalogo
@@ -725,23 +725,23 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// d'eroe, e scriverne uno a mano qui creerebbe la seconda verita' che il commento sopra nega. Senza
 	// questo argomento prendeva il `Main` di default di `MakeHeroAction` — che era anche lo slot del core
 	// fino al 2026-08-25, quindi il difetto non si vedeva: coincidevano per caso, non per costruzione.
-	URTActionData* Ram = MakeHeroActionFromCore(TEXT("Hero.Riktor.Ram"), TEXT("Action.Charge"),
+	URTActionData* Ram = MakeHeroActionFromCore(TEXT("Hero.Branth.Ram"), TEXT("Action.Charge"),
 		/*Cooldown*/ 2);
 	if (Ram)
 	{
 		Ram->Def.Slot = ChargeDef.Slot; // lo slot si eredita dal core come tutto il resto ([D-191])
 		Ram->Def.MovementStyle = ChargeDef.MovementStyle; // LinearCharge: si ferma ADDOSSO al primo nemico
-		Riktor->Actions.Add(Ram);
+		Branth->Actions.Add(Ram);
 	}
 
-	// Indice 4 — Interposition (CP 6.7). REAZIONE cablata sulla semantica di `Action.Intercept`: Riktor
+	// Indice 4 — Interposition (CP 6.7). REAZIONE cablata sulla semantica di `Action.Intercept`: Branth
 	// DIVENTA il bersaglio di un colpo diretto a un alleato entro 2 celle. Nessun effetto proprio, ed e'
 	// corretto: interporsi non aggiunge danno ne' stati, cambia CHI subisce un colpo altrui — cosa che
 	// `FRTActionEffectSpec` non sa esprimere e che il pass delle reazioni fa gia' per l'azione core.
 	// La portata (2) e la priorita' (la piu' bassa fra le reazioni, cosi' la redirezione precede le altre)
 	// vengono dal core; il cooldown 3 dal catalogo eroi. L'eroe piu' resistente del roster e' quello che si
 	// mette in mezzo: e' la sua identita', non un numero in piu'.
-	AddAbility(Riktor, MakeHeroReactionFromCoreAction(TEXT("Hero.Riktor.Interposition"), TEXT("Action.Intercept"),
+	AddAbility(Branth, MakeHeroReactionFromCoreAction(TEXT("Hero.Branth.Interposition"), TEXT("Action.Intercept"),
 		/*Cooldown*/ 3));
 
 	// Variante di KineticPanel (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
@@ -750,7 +750,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// attiva dell'unita' (`ARTUnit::ActiveVariantId`) invece che dai valori base. Erano stati scritti qui
 	// dichiarando che sarebbero serviti a E9: e' successo.
 	FRTAbilityVariant Reinforced;
-	Reinforced.VariantId = TEXT("Hero.Riktor.KineticPanel.Reinforced");
+	Reinforced.VariantId = TEXT("Hero.Branth.KineticPanel.Reinforced");
 	Reinforced.DisplayName = FText::FromString(TEXT("Pannello rinforzato"));
 	Reinforced.Tradeoff = FText::FromString(TEXT("integrita' 45 invece di 30, ma dura un solo turno"));
 	Reinforced.Parameters.Add(TEXT("Integrity"), 45);
@@ -758,7 +758,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	Reinforced.Parameters.Add(TEXT("FreeRotations"), 0);
 
 	FRTAbilityVariant Adaptive;
-	Adaptive.VariantId = TEXT("Hero.Riktor.KineticPanel.Adaptive");
+	Adaptive.VariantId = TEXT("Hero.Branth.KineticPanel.Adaptive");
 	Adaptive.DisplayName = FText::FromString(TEXT("Pannello adattivo"));
 	Adaptive.Tradeoff = FText::FromString(TEXT("integrita' 25 invece di 30, ma una rotazione gratuita"));
 	Adaptive.Parameters.Add(TEXT("Integrity"), 25);
@@ -772,15 +772,15 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// `nullptr` su un'azione core assente — l'indice 1 diventerebbe `Reconfigure`, e le due varianti si
 	// attaccherebbero all'abilita' sbagliata senza che niente lo dica: `ValidateHeroes` conta le azioni,
 	// non guarda a chi appartengono le varianti.
-	if (TObjectPtr<URTActionData>* Panel = Riktor->Actions.FindByPredicate(
+	if (TObjectPtr<URTActionData>* Panel = Branth->Actions.FindByPredicate(
 			[](const TObjectPtr<URTActionData>& A)
-			{ return A && A->Def.ActionId == FName(TEXT("Hero.Riktor.KineticPanel")); }))
+			{ return A && A->Def.ActionId == FName(TEXT("Hero.Branth.KineticPanel")); }))
 	{
 		(*Panel)->Variants.Add(Reinforced);
 		(*Panel)->Variants.Add(Adaptive);
 	}
 
-	return Riktor;
+	return Branth;
 }
 
 URTHeroData* URTHeroCatalogLibrary::MakeWraith()
@@ -801,19 +801,19 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	Wraith->HearingThreshold = 5;  // D-041: mobilita' e vista si pagano sull'udito.
 	Wraith->PushResistance = 0;
 	// ADR-0008 §1 — «agile/predittivo» e «reposition rapido»: 3 e 3, l'unico del roster libero di finire
-	// qualunque movimento guardando dove vuole. E' l'estremo opposto di Riktor, e la scala esiste per
+	// qualunque movimento guardando dove vuole. E' l'estremo opposto di Branth, e la scala esiste per
 	// questo: se il pivot alto risultasse sempre preferibile, la via di rientro dichiarata dall'ADR e'
 	// **comprimere la scala** (tutti a 1-2), non rimuovere il modello.
 	Wraith->MoveEndPivotMaxSteps = 3;
 	Wraith->DashEndPivotMaxSteps = 3;
 	Wraith->Affinity = TEXT("Affinity.Movement");
-	// Simmetrica a Riktor: chi si muove di mestiere e' neutralizzato da chi gli chiude le traiettorie.
-	// Il roster chiude in due coppie — Gadget↔Phase sull'acqua, Riktor↔Wraith sullo spazio.
+	// Simmetrica a Branth: chi si muove di mestiere e' neutralizzato da chi gli chiude le traiettorie.
+	// Il roster chiude in due coppie — Gadget↔Phase sull'acqua, Branth↔Wraith sullo spazio.
 	Wraith->Weakness = TEXT("Affinity.Structures");
 	// E14.7 [D-047]: `Profile.Glance` porta DUE risposte extra, quindi cardinalita' 3 — l'unico del roster.
 	Wraith->ReactionProfileId = TEXT("Profile.Glance");
 
-	// Indice 0 — PulseShot, attacco base. 21 danni / range 4: come per Phase e Riktor, non e' la fascia
+	// Indice 0 — PulseShot, attacco base. 21 danni / range 4: come per Phase e Branth, non e' la fascia
 	// generica (a range 4 darebbe 22). Un punto in meno del medio raggio, pagato in mobilita'.
 	Wraith->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Wraith.PulseShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 4, /*Cooldown*/ 0, ERTActionFallback::Cancel,
@@ -852,7 +852,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// solo impreciso, manda il prossimo kit dalla parte sbagliata.
 	// 🔴 Lo SLOT e' `Movement` e va DICHIARATO ([D-191]): una mobilita' rapida occupa il movimento, e il
 	// danno non cambia che cosa ha speso. Vale per tutte e tre quelle del roster — questa, `Phase.FluidTrail`
-	// e `Riktor.Ram`, carica compresa.
+	// e `Branth.Ram`, carica compresa.
 	//
 	// ⚠️ Senza la dichiarazione prendeva il `Main` di default di `MakeHeroAction`, e la conseguenza era
 	// misurabile: il bot pianificava lama + attacco base e il resolver eseguiva ENTRAMBE — due azioni
@@ -905,7 +905,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// Preciso: 20 danni ma controlla UNA cella. Esteso: 14 danni ma una LINEA di 3 celle. Il danno e' un
 	// effetto; il numero di celle controllate non lo e' (non esiste il concetto di "zona di controllo" fuori
 	// da `FRTSuppressiveZone`, che nessuno collega ancora a un eroe): sta nei `Parameters`, come l'integrita'
-	// del pannello di Riktor.
+	// del pannello di Branth.
 	FRTAbilityVariant Precise;
 	Precise.VariantId = TEXT("Hero.Wraith.InterceptShot.Precise");
 	Precise.DisplayName = FText::FromString(TEXT("Intercetto preciso"));
@@ -928,14 +928,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 
 TArray<URTHeroData*> URTHeroCatalogLibrary::GetHeroRoster()
 {
-	return { MakeGadget(), MakePhase(), MakeRiktor(), MakeWraith() };
+	return { MakeGadget(), MakePhase(), MakeBranth(), MakeWraith() };
 }
 
 TArray<FName> URTHeroCatalogLibrary::GetHeroIds()
 {
 	// Stesso ordine di `GetHeroRoster()`: `Heroes.HeroIdsMatchRoster` confronta le due liste posizione per
 	// posizione, quindi riordinare qui senza riordinare la' e' un rosso, non una svista che passa.
-	return { TEXT("Hero.Gadget"), TEXT("Hero.Phase"), TEXT("Hero.Riktor"), TEXT("Hero.Wraith") };
+	return { TEXT("Hero.Gadget"), TEXT("Hero.Phase"), TEXT("Hero.Branth"), TEXT("Hero.Wraith") };
 }
 
 URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroActionId,
@@ -955,6 +955,17 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroAc
 		Core.RangeCells, Cooldown, Core.Fallback, Core.Effects, Shape, AreaRadius);
 
 	Action->Def.DerivedFromActionId = CoreActionId;
+	// 🔑 `bSelfTarget` NON e' fra i campi che `MakeHeroAction` riceve, e va copiato qui: e' una
+	// **proprieta' dell'azione**, non una deduzione dalla fase o dalla portata (lo dice il suo docstring
+	// in `RTActionDef.h`). Senza, `Hero.Phase.TideGuard` eredita scudo e fase di `Action.Shield` ma non il
+	// fatto di applicarsi a chi la usa — e i tre consumatori del flag (puntatore del giocatore,
+	// valutazione del bot, harness degli scenari) chiedono un bersaglio per un'azione che non ne ha (#2283).
+	Action->Def.bSelfTarget = Core.bSelfTarget;
+	// ⚠️ E lo SPECCHIO su `URTActionData`, che il catalogo core allinea in due punti e questa funzione
+	// non allineava: `Actions.HeroKitsMatchTheirCatalogDef` confronta i due campi e cadeva su entrambe le
+	// abilita' nuove. Quel test PREVEDEVA questo giorno — «quando la prima arrivera', controllare che
+	// MakeHeroAction ne copi lo specchio prima di rendere verde questa riga» — ed e' cio' che ha fatto.
+	Action->bSelfTarget = Core.bSelfTarget;
 	return Action;
 }
 
@@ -987,5 +998,12 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroReactionFromCoreAction(const FName
 	// «questa reazione d'eroe e' `Action.Counter` con un nome proprio» viveva nel solo sorgente. Ora resta
 	// nel `Def`, dove il gate della raggiungibilita' la legge.
 	Action->Def.DerivedFromActionId = CoreActionId;
+	// Stessa ragione della gemella sopra: il flag e' una proprieta' dell'azione (#2283).
+	Action->Def.bSelfTarget = Core.bSelfTarget;
+	// ⚠️ E lo SPECCHIO su `URTActionData`, che il catalogo core allinea in due punti e questa funzione
+	// non allineava: `Actions.HeroKitsMatchTheirCatalogDef` confronta i due campi e cadeva su entrambe le
+	// abilita' nuove. Quel test PREVEDEVA questo giorno — «quando la prima arrivera', controllare che
+	// MakeHeroAction ne copi lo specchio prima di rendere verde questa riga» — ed e' cio' che ha fatto.
+	Action->bSelfTarget = Core.bSelfTarget;
 	return Action;
 }

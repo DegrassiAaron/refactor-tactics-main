@@ -249,6 +249,34 @@ Non dichiarare:
 
 senza evidenza.
 
+### Un work order esterno
+
+Un kit, brief, mandato o «roadmap» che arriva da fuori è un **ingresso**, non un owner.
+
+Entra il **contenuto**: candidate tecniche, difetti nominati, domande aperte.
+
+Non entra il **preambolo di processo**. Ricognizione, anti-duplicazione, priorità, label, milestone e
+formato del report sono già scritti qui e in [`CLAUDE.md`](CLAUDE.md). Un kit che li riscrive non li
+sostituisce, e non li emenda.
+
+Se il kit e il contratto divergono, vince il contratto.
+
+Prima di eseguirlo:
+
+- misura le sue premesse: decadono in ore, e la più vistosa è spesso già chiusa;
+- cerca l'owner di ogni voce prima di crearne una;
+- non assegnare `D-nnn`, `Enn` o altri contatori condivisi dal kit;
+- non creare le milestone, le label o le epic che nomina senza verificare la tassonomia esistente.
+
+Un kit senza sha e senza data non porta una misura: porta un'opinione datata ignoto.
+
+Dopo:
+
+- il referto va in `docs/roadmap/plans/`, e cita lo sha su cui ha misurato;
+- ciò che il kit chiedeva e non è stato fatto si dichiara, col motivo;
+- il kit stesso non si versiona: è una consegna effimera, e il referto è l'unico posto in cui resta
+  citabile.
+
 ## 9. Build e test
 
 Non esiste CI automatica per scelta corrente.
@@ -310,13 +338,24 @@ node tools/radar/doc-tables.ts --check
 node tools/radar/issue-refs.ts --check
 node tools/radar/scenario-notes.ts --check
 node tools/asset-refs/check.ts
+node tools/asset-provenance/check.ts
 python tools/architettura/misure-strutturali.py --check   # solo se la PR tocca Turn/RTTurnManager.*
 
 cd tools/radar
 node --test
+
+cd ../asset-provenance
+node --test
 ```
 
 Ogni tool dichiara nel docstring **cosa non copre**.
+
+⛔ `tools/asset-provenance/check.ts` verifica che ogni asset abbia una **riga** nel registro di
+provenienza ([`docs/technical/asset-licenze.md`](docs/technical/asset-licenze.md)), non che la licenza
+sia rispettata. Un verde significa **«registrato»**, mai «consentito»: nessun controllo automatico puo'
+leggere un EULA. Guarda due popolazioni — cio' che e' versionato sotto `Content/` e `tools/`, e cio' che
+i package versionati **referenziano** senza che il repository lo contenga — perche' la prima da sola
+sarebbe cieca sui ~15,8 GB di pack che stanno fuori dal repository per scelta.
 
 ⛔ `tools/mutation/costanti-combattimento.py` **non e' fra i controlli noti**, e di proposito. Modifica un sorgente e occupa il motore per **un build completo piu' una suite intera per ogni costante**, piu' una baseline: con le 11 di `RTCombatLibrary.h` sono **ore**, e le direzioni di mutazione da misurare sono **due** (`+3` e `-3` danno risposte diverse — vedi il docstring). Mentre gira, ogni altra misura in parallelo e' NON VALIDA. Si lancia per rispondere alla domanda che `#2118` ha posto — *quali costanti si possono cambiare senza che niente diventi rosso* — non a ogni PR.
 
@@ -357,6 +396,43 @@ Per ogni uso Editor/MCP:
 6. fermare PIE/scenari;
 7. chiudere l'Editor avviato dal workflow;
 8. confermare che il processo sia terminato.
+
+### Authoring e acceptance
+
+Non sono la stessa apertura, e la seconda non vale dentro la prima.
+
+**Authoring**: creare o modificare `.uasset`, `.umap`, Data Asset, Blueprint, montage, posa in mappa. Può
+precedere l'implementazione — un asset è spesso un prerequisito, non una verifica.
+
+**Acceptance**: giudicare la feature sul risultato consolidato.
+
+Se la sessione ha scritto asset binari, il giudizio non vale nel processo che li ha scritti:
+
+**salva → chiudi l'Editor → *(build/suite se il write-set tocca `Source/`)* → riapri → giudica**
+
+Il build sta nella catena solo quando il work item ha toccato codice: per un write-set di soli asset non
+cambia ciò che si sta giudicando, e costa un'ora.
+
+La riapertura è parte dell'oracolo quando si verifica persistenza, serializzazione, riferimenti, startup
+map, layout, errori di load, inizializzazione da zero, asset registry o cook. Fuori da questi casi non
+serve, e chiedere un restart che nessuna di queste domande richiede costa un'apertura per niente.
+
+Una nuova apertura si giustifica solo se cambia una **precondizione**: asset da salvare, restart pulito
+richiesto, processo o configurazione incompatibili. Cambiare mappa, fermare e riavviare PIE, o eseguire un
+altro scenario **non** lo sono: si fanno nella stessa apertura. Quali sedute condividano un allestimento è
+già dichiarato in `docs/roadmap/editor-sessions.yaml`, campo `shares_setup_with`.
+
+Il verdetto va scritto dove il suo owner lo cerca:
+
+- una voce `PIE-*` in `docs/technical/test-manuali-pie.md`, quando il comportamento è **in gioco**;
+- la **issue owner**, quando la verifica sta nell'editor prima del Play;
+- un **artifact** versionato, quando la seduta produce un file.
+
+L'assenza in uno dei tre non è un buco se un altro porta il verdetto. Se non lo porta nessuno: `NOT RUN`
+con il motivo.
+
+⛔ La scelta non è libera: se la verifica **ha** una voce `PIE-*`, il verdetto va nel registro, che ne
+resta l'owner — una issue non lo sostituisce.
 
 ### `issue-refs.ts` — l'unico che guarda fuori dal repository
 
