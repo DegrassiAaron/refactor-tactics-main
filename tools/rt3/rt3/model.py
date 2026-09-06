@@ -37,6 +37,22 @@ DELIVERY_STATES = ("PENDING", "ACKED")
 
 TASK_STATUSES = ("ACTIVE", "BLOCKED", "DONE")
 
+#: Avanzamento di una issue di roadmap. Questi quattro sono gli UNICI stati PERSISTITI:
+#: sono dichiarazioni di fatto («questa issue e' stata validata»), e nessuno di essi si
+#: puo' dedurre dal grafo.
+#:
+#: 🔴 `READY` e `BLOCKED` NON sono qui, e l'assenza e' deliberata. Sono DERIVATI dalle
+#: dipendenze piu' questi stati, e salvarli creerebbe una seconda autorita': due fonti
+#: per la stessa domanda, che divergono al primo `requires` modificato e non tornano
+#: piu' d'accordo. Chi vuole sapere se una issue e' pronta lo chiede al planner, che lo
+#: calcola; non lo legge da una colonna che qualcuno ha aggiornato a mano.
+ITEM_PROGRESS_STATES = ("PENDING", "IN_PROGRESS", "VALIDATED", "DONE")
+
+#: Esito della validazione di un candidate. `PENDING` e' lo stato d'ingresso: un
+#: candidate appena creato non e' ne' passato ne' fallito, e conflaterlo con FAILED
+#: renderebbe indistinguibile «non ancora provato» da «provato e rotto».
+CANDIDATE_STATUSES = ("PENDING", "PASSED", "FAILED")
+
 #: I tipi di evento che il control plane sa validare, salvare, instradare e mostrare.
 #: NON tutti hanno una regola di routing automatico (vedi `routing.py`): un tipo senza
 #: regola resta pubblicabile, e viaggia con un destinatario esplicito.
@@ -144,6 +160,14 @@ def check_event_type(value):
 
 def check_task_status(value):
     return _check_enum(value, TASK_STATUSES, "taskStatus")
+
+
+def check_item_progress(value):
+    return _check_enum(value, ITEM_PROGRESS_STATES, "itemProgress")
+
+
+def check_candidate_status(value):
+    return _check_enum(value, CANDIDATE_STATUSES, "candidateStatus")
 
 
 def check_session_id(value):

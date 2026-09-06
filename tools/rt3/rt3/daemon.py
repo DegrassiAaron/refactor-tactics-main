@@ -24,7 +24,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import PROTOCOL_VERSION, SCHEMA_VERSION
+from . import PROTOCOL_VERSION, ROADMAP_SCHEMA_VERSION, SCHEMA_VERSION
 from .errors import Rt3Error
 from .model import now_iso
 from .paths import daemon_file, db_path, ensure_store_root
@@ -65,6 +65,125 @@ def _ops(store, server):
             client_pid=a.get("clientPid"),
             replace=bool(a.get("replace")),
         )
+
+    def _roadmap_view(roadmap_id=None):
+        """Ricostruisce (Roadmap, Graph, progress) dal documento salvato.
+
+        ⛔ Legge il DATABASE, non il file. Il file vive in un checkout, e i tre
+        workspace ne hanno tre copie che possono divergere: se il daemon rileggesse il
+        disco, la risposta dipenderebbe da quale checkout ha avviato il daemon. Cio'
+        che e' stato caricato e' cio' che vale, per tutti e tre.
+        """
+        from .graph import build
+        from .roadmap import Roadmap
+
+        row = store.get_roadmap(roadmap_id, required=True)
+        document = json.loads(row["document"])
+        roadmap = Roadmap.from_dict(document)
+        return row, roadmap, build(roadmap), store.progress_map(row["roadmap_id"])
+
+    def roadmap_ready(a):
+        from .planner import readiness
+
+        row, roadmap, graph, progress = _roadmap_view(a.get("roadmapId"))
+        result = readiness(roadmap, graph, progress)
+        return {
+            "roadmapId": row["roadmap_id"],
+            "contentHash": row["content_hash"],
+            "items": [
+                {
+                    "key": r.key,
+                    "state": r.state,
+                    "progress": r.progress,
+                    "blockedBy": r.blocked_by,
+                    "unmet": r.unmet,
+                    "epicId": roadmap.items[r.key].epic_id,
+                    "executionWork": roadmap.items[r.key].execution_work,
+                    "estimate": roadmap.items[r.key].estimate,
+                    "resources": roadmap.items[r.key].resources,
+                }
+                for r in result.values()
+            ],
+        }
+
+    def roadmap_plan(a):
+        from .planner import plan
+
+        row, roadmap, graph, progress = _roadmap_view(a.get("roadmapId"))
+        result = plan(roadmap, graph, progress)
+        result["contentHash"] = row["content_hash"]
+        return result
+
+    def roadmap_graph(a):
+        row, roadmap, graph, _progress = _roadmap_view(a.get("roadmapId"))
+        payload = graph.as_dict()
+        payload["roadmapId"] = row["roadmap_id"]
+        payload["contentHash"] = row["content_hash"]
+        return payload
+
+    def roadmap_critical_path(a):
+        from .graph import critical_path, schedule
+
+        row, roadmap, graph, _progress = _roadmap_view(a.get("roadmapId"))
+        path, duration = critical_path(graph)
+        rows, _ = schedule(graph)
+        return {
+            "roadmapId": row["roadmap_id"],
+            "contentHash": row["content_hash"],
+            "duration": duration,
+            "path": path,
+            "rows": [r._asdict() for r in rows.values()],
+        }
+
+    def roadmap_summary(a):
+        from .planner import summary
+
+        row, roadmap, graph, progress = _roadmap_view(a.get("roadmapId"))
+        payload = summary(roadmap, graph, progress)
+        payload["contentHash"] = row["content_hash"]
+        payload["name"] = row["name"]
+        return payload
+
+    def roadmap_set_state(a):
+        """Avanza una issue. Rifiuta una chiave che la roadmap non contiene.
+
+        Senza il controllo, un refuso (`B22` invece di `B2`) verrebbe salvato e non
+        avrebbe alcun effetto sul planner: la issue vera resterebbe PENDING, e chi ha
+        scritto il comando lo vedrebbe riuscire.
+        """
+        from .errors import ItemNotFound
+
+        row, roadmap, _graph, _progress = _roadmap_view(a.get("roadmapId"))
+        key = a["itemKey"]
+        if key not in roadmap.items:
+            short = [k for k in roadmap.items if k.rsplit("/", 1)[-1] == key]
+            if len(short) == 1:
+                key = short[0]
+            else:
+                raise ItemNotFound(
+                    "la roadmap {} non contiene la issue {!r}{}.".format(
+                        row["roadmap_id"],
+                        a["itemKey"],
+                        " (candidate: {})".format(", ".join(sorted(short)))
+                        if short
+                        else "",
+                    )
+                )
+        return store.set_item_state(
+            row["roadmap_id"],
+            key,
+            a["progress"],
+            session_id=a.get("sessionId"),
+            candidate_id=a.get("candidateId"),
+            note=a.get("note"),
+        )
+
+    def roadmap_states(a):
+        row = store.get_roadmap(a.get("roadmapId"), required=True)
+        return {
+            "roadmapId": row["roadmap_id"],
+            "states": store.item_states(row["roadmap_id"]),
+        }
 
     return {
         "health": lambda a: health_payload(store),
@@ -111,8 +230,37 @@ def _ops(store, server):
             branch=a.get("branch"),
             head=a.get("head"),
             note=a.get("note"),
+            roadmap_id=a.get("roadmapId"),
+            item_key=a.get("itemKey"),
+        ),
+        "candidate.get": lambda a: store.get_candidate(a["candidateId"]),
+        "candidate.setStatus": lambda a: store.set_candidate_status(
+            a["candidateId"],
+            a["status"],
+            session_id=a.get("sessionId"),
+            note=a.get("note"),
         ),
         "candidates.list": lambda a: store.list_candidates(task_id=a.get("taskId")),
+        # -- roadmap orchestration
+        "roadmap.save": lambda a: store.save_roadmap(
+            roadmap_id=a["roadmapId"],
+            name=a.get("name"),
+            source_path=a.get("sourcePath"),
+            content_hash=a["contentHash"],
+            roadmap_schema_version=a["roadmapSchemaVersion"],
+            document=a["document"],
+            session_id=a.get("sessionId"),
+            reset_state=bool(a.get("resetState")),
+        ),
+        "roadmap.get": lambda a: store.get_roadmap(a.get("roadmapId"), required=True),
+        "roadmaps.list": lambda a: store.list_roadmaps(),
+        "roadmap.states": roadmap_states,
+        "roadmap.setState": roadmap_set_state,
+        "roadmap.ready": roadmap_ready,
+        "roadmap.plan": roadmap_plan,
+        "roadmap.graph": roadmap_graph,
+        "roadmap.criticalPath": roadmap_critical_path,
+        "roadmap.summary": roadmap_summary,
         "leases.list": lambda a: store.list_leases(),
         "stats": lambda a: store.stats(),
         "daemon.stop": lambda a: server.request_stop(),
@@ -124,6 +272,10 @@ def health_payload(store):
         "ok": True,
         "protocolVersion": PROTOCOL_VERSION,
         "schemaVersion": SCHEMA_VERSION,
+        # La terza versione viaggia nell'health perche' la domanda «i tre workspace
+        # sono compatibili?» si pone su tutte e tre insieme, e un client che dovesse
+        # chiederla con una chiamata separata potrebbe leggerne due di momenti diversi.
+        "roadmapSchemaVersion": ROADMAP_SCHEMA_VERSION,
         "dbSchemaVersion": store.schema_version(),
         "db": store.path,
         "pid": os.getpid(),

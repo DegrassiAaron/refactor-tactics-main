@@ -343,15 +343,30 @@ solo per un imprevisto vero**, che è esattamente l'informazione che serve quand
 
 ## 9. Versioni, e i tre workspace allineati
 
-Due versioni esplicite, che **non** sono la stessa cosa:
+**Tre** versioni esplicite, che **non** sono la stessa cosa:
 
 - **`PROTOCOL_VERSION`** — il contratto client ↔ daemon. Si alza quando un client vecchio
   non può più essere servito correttamente da un daemon nuovo, o viceversa.
 - **`SCHEMA_VERSION`** — la forma del database. Si alza a ogni migrazione.
+- **`ROADMAP_SCHEMA_VERSION`** — la forma del documento roadmap versionato. Si alza quando
+  un file scritto per una versione precedente non si legge più allo stesso modo.
 
 Separarle conta: una migrazione che aggiunge una colonna con default non rompe nessun
 client, e alzare il protocollo in quel caso costringerebbe tre workspace ad aggiornare per
-niente.
+niente. Allo stesso modo una roadmap non diventa illeggibile perché il database ha una
+tabella in più.
+
+⚠️ Il numero identico che portano oggi è una coincidenza di calendario, non un vincolo: si
+muovono per ragioni diverse e divergeranno. Non scrivere codice che assuma
+`PROTOCOL_VERSION == SCHEMA_VERSION`.
+
+Un checkout non aggiornato si riconosce dalla **terza** versione mancante:
+
+```text
+WORKSPACE BRANCH                            HEAD      PROT SCHE ROAD
+MAIN      feat/rt3-roadmap-orchestration    77233ea3     2    2    1
+DEV       feat/rt3-task-router              0cdebf34     1    1    -     <-- da aggiornare
+```
 
 ```powershell
 scripts\rt3.ps1 version
@@ -408,8 +423,9 @@ pubblicato in uno compare nella mailbox dell'altro senza che nessuno ricopi null
 ## 11. Verificare l'installazione
 
 ```powershell
-scripts\rt3.ps1 -SelfTest              # 74 test automatici
+scripts\rt3.ps1 -SelfTest              # i test automatici del pacchetto
 python tools\rt3\smoke.py              # smoke end-to-end su RT3_HOME temporanea
+python tools\rt3\smoke_multi.py        # smoke sui TRE checkout reali
 ```
 
 Lo smoke avvia un `rt3d` vero e invoca la CLI vera con tre `RT3_SESSION_ID` diversi — cioè
@@ -417,9 +433,89 @@ ciò che accade con tre finestre aperte. Gira su una `RT3_HOME` usa e getta: toc
 control plane reale lo renderebbe non ripetibile e lascerebbe sessioni finte nell'elenco
 che le sessioni vere consultano.
 
+`smoke_multi.py` fa un passo in più: i tre terminali stanno in tre **cloni distinti**, e
+ognuno invoca il `rt3` del proprio checkout. È la sola prova che il control plane resti
+uno mentre i checkout sono tre — proprietà che nessun test unitario può dare, perché in un
+processo «un solo control plane» è vero per costruzione.
+
 ---
 
-## 12. Limiti della v1
+## 12. Roadmap Orchestration
+
+Il control plane sa **chi sta lavorando**; la roadmap gli dice **cosa c'è da fare**.
+
+### Quattro piani distinti
+
+```text
+PLAN        cosa c'è da fare e cosa dipende da cosa   roadmap.yaml, versionato
+SCHEDULE    cosa è eseguibile adesso                  derivato, mai salvato
+ASSIGNMENT  chi lo prende                             derivato, mai salvato
+RUNTIME     cosa è stato fatto davvero                database per macchina
+```
+
+🔴 **Nel file versionato non c'è stato.** `state`, `progress`, `assignee` e `candidate`
+sono chiavi **rifiutate** dal parser. Se lo stato vivesse nel file, avanzare una issue
+sarebbe un commit, due sessioni che avanzano due issue sarebbero un conflitto di merge, e
+il control plane diventerebbe una seconda autorità accanto a Git.
+
+Per la stessa ragione **`READY` e `BLOCKED` non sono stati persistiti**: sono derivati dal
+grafo più l'avanzamento, e li calcola il planner a ogni richiesta. Gli unici stati salvati
+sono i quattro che nessuno può dedurre — `PENDING`, `IN_PROGRESS`, `VALIDATED`, `DONE`.
+
+### Comandi
+
+```powershell
+scripts\rt3.ps1 roadmap validate --file docs\rt-three-terminals\roadmaps\rt3-smoke-multi-epic.yaml
+scripts\rt3.ps1 roadmap load     --file <path>     # valida e carica nel control plane
+scripts\rt3.ps1 roadmap graph                      # dipendenze, con i gate sugli archi
+scripts\rt3.ps1 roadmap critical-path              # cammino critico e slack
+scripts\rt3.ps1 roadmap ready                      # READY/BLOCKED, e chi si aspetta
+scripts\rt3.ps1 roadmap plan                       # assegnazioni, rimandi, capacità
+scripts\rt3.ps1 roadmap state set EPIC-B/B2 --progress VALIDATED --candidate cand_...
+```
+
+`roadmap validate` è l'unico che **non richiede `rt3d`**: è la cosa che si vuole poter fare
+mentre si scrive il file, prima che esista un control plane a cui darlo.
+
+### Capacità, e la differenza fra BLOCKED e rimandato
+
+Una issue `READY` può non essere pianificata. Non è la stessa cosa di `BLOCKED`, e la
+correzione è diversa:
+
+| Esito | Significa | Si corregge |
+|---|---|---|
+| `BLOCKED` | una dipendenza non ha passato il gate | validando la dipendenza |
+| rimandato `WRITER_CAPACITY` | il writer permanente del workspace è occupato | liberandolo, o alzando la capacità |
+| rimandato `TEMPORARY_WORKTREE_CAPACITY` | anche i worktree temporanei sono finiti | chiudendone uno |
+| rimandato `UNREAL_LEASE_CAPACITY` | l'Editor è già impegnato | rilasciando il lease |
+| rimandato `WIP_PER_WORKSPACE` / `WIP_GLOBAL` | limite di lavoro in corso | chiudendo qualcosa |
+
+⛔ Il planner **suggerisce** il worktree temporaneo, non lo crea: la creazione è data plane,
+e questo pacchetto non tocca il data plane.
+
+### Il parser YAML
+
+`tools/rt3/rt3/yamlmini.py` legge **un sottoinsieme** di YAML e rifiuta tutto il resto —
+anchor, alias, tag, block scalar, documenti multipli, chiavi duplicate — nominando la riga.
+Non è una limitazione da aggirare: un'anchor ignorata in silenzio produrrebbe una roadmap
+valida e con dipendenze mancanti, che nessun gate vedrebbe.
+
+È scritto in casa perché il pacchetto non ha dipendenze (§*Vincoli* di
+[`tools/rt3/README.md`](../../tools/rt3/README.md)). Dove PyYAML è installato, i test
+confrontano i due risultati sugli stessi documenti — inclusa la roadmap vera.
+
+### Determinismo del piano
+
+Due workspace che chiedono un piano sullo stesso stato ottengono lo **stesso** piano.
+L'ordine è totale e non ha tie-break casuali:
+
+1. **slack crescente** — il cammino critico per primo;
+2. **earliest start crescente** — ciò che può partire prima;
+3. **ordine di dichiarazione** — l'unica priorità che qualcuno ha scritto.
+
+---
+
+## 13. Limiti della v1
 
 Reali, misurati, non ipotetici:
 
@@ -445,6 +541,20 @@ Reali, misurati, non ipotetici:
   enforcement del write-set, automazione Unreal o MCP: sono esplicitamente fuori dalla
   milestone.
 - **Nessuna TUI, nessuna dashboard, nessun server remoto.**
+
+Della Roadmap Orchestration in particolare:
+
+- **Il worktree temporaneo è un suggerimento.** Il planner dice che serve; nessuno lo crea.
+- **L'assignment non nomina una sessione.** Dice *quale workspace* e *con che modalità*, non
+  *quale SessionId*: legare un item a una sessione richiederebbe di sapere quando quella
+  sessione muore, e non c'è heartbeat.
+- **Il gate `requires` non è verificato contro la realtà.** `VALIDATED` significa «qualcuno
+  ha dichiarato VALIDATED», non «la suite è passata». Il legame con l'evidenza passa dal
+  `candidate`, ed è una convenzione, non un vincolo.
+- **Le capacità sono dichiarate nella roadmap, non misurate.** `writerCapacity: 1` non
+  impedisce a due sessioni di scrivere nello stesso checkout: lo dice il piano, non il
+  filesystem. Stesso limite del `WriteMode` qui sopra.
+- **`estimate` è adimensionale.** Il cammino critico è in unità di stima, non in ore.
 
 ---
 
