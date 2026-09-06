@@ -1,0 +1,339 @@
+==============================================================================
+RT3 MULTI-WORKSPACE SMOKE TEST
+RT3_HOME: C:\Users\Utente\AppData\Local\Temp\rt3-smoke-multi-04u_pw0p
+==============================================================================
+
+--- 9. workspace e versioni ------------------------------------------
+    ok  MAIN: tools/rt3 presente in D:\Repositories\refactor-tactics-main
+    ok  DEV: tools/rt3 presente in D:\Repositories\refactor-tactict-dev
+    ok  DESIGNER: tools/rt3 presente in D:\Repositories\refactor-tactics-technical-designer\refactor-tactics-main
+
+    WORKSPACE BRANCH                                 HEAD      PROT SCHE ROAD
+    MAIN      fix/79-blocked-move-turnlog            77233ea3     2    2    1
+    DEV       feat/rt3-task-router                   4d14d489     2    2    1
+    DESIGNER  issue/2596-enemy-tactical-query        6111ad00     2    2    1
+
+    ok  i tre workspace dichiarano le stesse tre versioni: [(2, 2, 1)]
+
+--- 10. un solo coordinator -------------------------------------------
+[admin@MAIN] rt3 daemon start
+        rt3d avviato: 127.0.0.1:63820 (pid 28040)
+        database: C:\Users\Utente\AppData\Local\Temp\rt3-smoke-multi-04u_pw0p\runtime.db
+        protocollo v2, schema v2
+
+    ok  rt3d risponde
+    ok  MAIN raggiunge rt3d
+    ok  DEV raggiunge rt3d
+    ok  DESIGNER raggiunge rt3d
+    ok  i tre workspace vedono lo STESSO processo e lo STESSO database: [(28040, 'C:\\Users\\Utente\\AppData\\Local\\Temp\\rt3-smoke-multi-04u_pw0p\\runtime.db')]
+
+--- 11. sette sessioni reali dai tre workspace ------------------------
+[admin@MAIN] rt3 sessions list
+        SESSION             ROLE        LANE      WSGROUP   STATUS  TASK  BRANCH                           HEAD      WRITE      LAST SEEN           
+        ------------------  ----------  --------  --------  ------  ----  -------------------------------  --------  ---------  --------------------
+        DESIGN-DEV-1        DEV         DESIGNER  DESIGNER  ACTIVE  -     issue/2596-enemy-tactical-query  6111ad00  WRITER     2026-09-06T17:01:04Z
+        EDITOR-DESIGNER     EDITOR      DESIGNER  DESIGNER  ACTIVE  -     issue/2596-enemy-tactical-query  6111ad00  READ_ONLY  2026-09-06T17:01:03Z
+        VALIDATOR-DESIGNER  VALIDATION  DESIGNER  DESIGNER  ACTIVE  -     issue/2596-enemy-tactical-query  6111ad00  READ_ONLY  2026-09-06T17:01:04Z
+        DEV-1               DEV         DEV       DEV       ACTIVE  -     feat/rt3-task-router             4d14d489  WRITER     2026-09-06T17:01:03Z
+        EDITOR-DEV          EDITOR      DEV       DEV       ACTIVE  -     feat/rt3-task-router             4d14d489  READ_ONLY  2026-09-06T17:01:02Z
+        VALIDATOR-DEV       VALIDATION  DEV       DEV       ACTIVE  -     feat/rt3-task-router             4d14d489  READ_ONLY  2026-09-06T17:01:03Z
+        EDITOR-MAIN         EDITOR      MAIN      MAIN      ACTIVE  -     fix/79-blocked-move-turnlog      77233ea3  READ_ONLY  2026-09-06T17:01:02Z
+
+    ok  sette sessioni registrate
+    ok  EDITOR-MAIN: worktreePath e' quello vero (D:\Repositories\refactor-tactics-main)
+    ok  EDITOR-MAIN: branch e HEAD letti da Git (fix/79-blocked-move-turnlog @ 77233ea3)
+    ok  EDITOR-DEV: worktreePath e' quello vero (D:\Repositories\refactor-tactict-dev)
+    ok  EDITOR-DEV: branch e HEAD letti da Git (feat/rt3-task-router @ 4d14d489)
+    ok  DEV-1: worktreePath e' quello vero (D:\Repositories\refactor-tactict-dev)
+    ok  DEV-1: branch e HEAD letti da Git (feat/rt3-task-router @ 4d14d489)
+    ok  VALIDATOR-DEV: worktreePath e' quello vero (D:\Repositories\refactor-tactict-dev)
+    ok  VALIDATOR-DEV: branch e HEAD letti da Git (feat/rt3-task-router @ 4d14d489)
+    ok  EDITOR-DESIGNER: worktreePath e' quello vero (D:\Repositories\refactor-tactics-technical-designer\refactor-tactics-main)
+    ok  EDITOR-DESIGNER: branch e HEAD letti da Git (issue/2596-enemy-tactical-query @ 6111ad00)
+    ok  DESIGN-DEV-1: worktreePath e' quello vero (D:\Repositories\refactor-tactics-technical-designer\refactor-tactics-main)
+    ok  DESIGN-DEV-1: branch e HEAD letti da Git (issue/2596-enemy-tactical-query @ 6111ad00)
+    ok  VALIDATOR-DESIGNER: worktreePath e' quello vero (D:\Repositories\refactor-tactics-technical-designer\refactor-tactics-main)
+    ok  VALIDATOR-DESIGNER: branch e HEAD letti da Git (issue/2596-enemy-tactical-query @ 6111ad00)
+    ok  i workspace NON sono allo stesso HEAD: il control plane ne tiene 3 distinti
+
+--- 12. messaging: chi riceve e chi NON riceve ------------------------
+    EventId TASK_READY           : ev_8f3639c4f463
+    ok  regola applicata: DEV -> EDITOR stessa lane
+    ok  EDITOR-DEV ha in mailbox esattamente quell'evento
+    ok  EDITOR-DESIGNER non ha ricevuto nulla: la lane DESIGNER e' un'altra corsia
+    EventId VALIDATION_REQUESTED : ev_47aec292aa31
+    ok  regola applicata: EDITOR -> VALIDATION stessa lane
+    ok  VALIDATOR-DEV l'ha ricevuto
+    ok  VALIDATOR-DESIGNER no: e' la validazione di un'altra lane
+    EventId VALIDATION_PASSED    : ev_c6335809c438
+    ok  regola applicata: il verdetto torna all'EDITOR della lane
+    ok  EDITOR-DEV ha ricevuto il verdetto: giro DEV-1 -> EDITOR -> VALIDATION -> EDITOR chiuso
+
+--- 13. mailbox offline: l'evento aspetta un RUOLO, non un processo ---
+    ok  EDITOR-DESIGNER e' stato fermato
+    EventId verso EDITOR/DESIGNER: ev_64c3d4e37a5f
+    ok  la consegna e' stata creata comunque (1): e' indirizzata al RUOLO, e un ruolo esiste anche quando nessun processo lo occupa
+[admin@MAIN] rt3 daemon restart
+        rt3d fermato (pid 28040).
+        rt3d avviato: 127.0.0.1:53072 (pid 8164)
+        database: C:\Users\Utente\AppData\Local\Temp\rt3-smoke-multi-04u_pw0p\runtime.db
+        protocollo v2, schema v2
+
+    ..  rt3d riavviato mentre il destinatario era assente
+    ok  riaperta la sessione, l'evento e' li' ad aspettarla
+    ok  dopo l'ack sparisce dai pendenti
+
+--- 14. load della roadmap versionata ---------------------------------
+    ok  la roadmap esiste: docs\rt-three-terminals\roadmaps\rt3-smoke-multi-epic.yaml
+[admin@MAIN] rt3 roadmap validate --file D:\Repositories\refactor-tactics-main\docs\rt-three-terminals\roadmaps\rt3-smoke-multi-epic.yaml
+        roadmap valida: D:\Repositories\refactor-tactics-main\docs\rt-three-terminals\roadmaps\rt3-smoke-multi-epic.yaml
+          id       : rt3-smoke-multi-epic
+          nome     : RT3 smoke multi-Epic
+          schema   : v1
+          hash     : sha256:ce5946b6971cff11
+          epic     : 3
+          issue    : 10
+
+[admin@MAIN] rt3 roadmap load --file D:\Repositories\refactor-tactics-main\docs\rt-three-terminals\roadmaps\rt3-smoke-multi-epic.yaml
+        roadmap rt3-smoke-multi-epic caricata: 3 epic, 10 issue, hash sha256:ce5946b6971cff11.
+
+    ok  una roadmap caricata
+    ..  roadmap rt3-smoke-multi-epic hash sha256:ce5946b6971cff11
+[admin@MAIN] rt3 roadmap graph
+        grafo di rt3-smoke-multi-epic - 10 nodi, 7 archi
+        
+        ITEM       EST  REQUIRES              UNLOCKS                        
+        ---------  ---  --------------------  -------------------------------
+        EPIC-A/A1  2    -                     EPIC-A/A2                      
+        EPIC-A/A2  3    EPIC-A/A1(VALIDATED)  EPIC-A/A3                      
+        EPIC-A/A3  2    EPIC-A/A2(VALIDATED)  -                              
+        EPIC-B/B1  2    -                     EPIC-B/B2                      
+        EPIC-B/B2  5    EPIC-B/B1(VALIDATED)  EPIC-B/B3, EPIC-B/B4, EPIC-C/C2
+        EPIC-B/B3  3    EPIC-B/B2(VALIDATED)  -                              
+        EPIC-B/B4  1    EPIC-B/B2(VALIDATED)  -                              
+        EPIC-C/C1  2    -                     -                              
+        EPIC-C/C2  3    EPIC-B/B2(VALIDATED)  EPIC-C/C3                      
+        EPIC-C/C3  4    EPIC-C/C2(VALIDATED)  -
+
+[admin@MAIN] rt3 roadmap critical-path
+        critical path di rt3-smoke-multi-epic - durata 14 (limite imposto dalle DIPENDENZE, non dalle risorse)
+          EPIC-B/B1 -> EPIC-B/B2 -> EPIC-C/C2 -> EPIC-C/C3
+        
+        ITEM       EST  ES  EF  LS  SLACK  CRIT
+        ---------  ---  --  --  --  -----  ----
+        EPIC-A/A1  2    0   2   7   7          
+        EPIC-A/A2  3    2   5   9   7          
+        EPIC-A/A3  2    5   7   12  7          
+        EPIC-B/B1  2    0   2   0   0      SI  
+        EPIC-B/B2  5    2   7   2   0      SI  
+        EPIC-B/B3  3    7   10  11  4          
+        EPIC-B/B4  1    7   8   13  6          
+        EPIC-C/C1  2    0   2   12  12         
+        EPIC-C/C2  3    7   10  7   0      SI  
+        EPIC-C/C3  4    10  14  10  0      SI
+
+    ok  il cammino critico attraversa due Epic: EPIC-B/B1 -> EPIC-B/B2 -> EPIC-C/C2 -> EPIC-C/C3
+    ok  durata del cammino critico: 14
+
+--- 15. readiness derivata e sblocco cross-Epic -----------------------
+[admin@MAIN] rt3 roadmap ready
+        readiness di rt3-smoke-multi-epic (10 item)
+        
+        ITEM       STATE    PROGRESS  WORKSPACE  RES            ATTENDE           
+        ---------  -------  --------  ---------  -------------  ------------------
+        EPIC-A/A1  READY    PENDING   MAIN       -              -                 
+        EPIC-A/A2  BLOCKED  PENDING   MAIN       -              EPIC-A/A1<PENDING>
+        EPIC-A/A3  BLOCKED  PENDING   MAIN       UNREAL_EDITOR  EPIC-A/A2<PENDING>
+        EPIC-B/B1  READY    PENDING   DEV        -              -                 
+        EPIC-B/B2  BLOCKED  PENDING   DEV        -              EPIC-B/B1<PENDING>
+        EPIC-B/B3  BLOCKED  PENDING   DEV        -              EPIC-B/B2<PENDING>
+        EPIC-B/B4  BLOCKED  PENDING   DEV        -              EPIC-B/B2<PENDING>
+        EPIC-C/C1  READY    PENDING   DESIGNER   -              -                 
+        EPIC-C/C2  BLOCKED  PENDING   DESIGNER   -              EPIC-B/B2<PENDING>
+        EPIC-C/C3  BLOCKED  PENDING   DESIGNER   UNREAL_EDITOR  EPIC-C/C2<PENDING>
+
+    ok  EPIC-A/A1 e' READY all'inizio
+    ok  EPIC-B/B1 e' READY all'inizio
+    ok  EPIC-C/C1 e' READY all'inizio
+    ok  EPIC-A/A2 e' BLOCKED all'inizio
+    ok  EPIC-A/A3 e' BLOCKED all'inizio
+    ok  EPIC-B/B2 e' BLOCKED all'inizio
+    ok  EPIC-B/B3 e' BLOCKED all'inizio
+    ok  EPIC-B/B4 e' BLOCKED all'inizio
+    ok  EPIC-C/C2 e' BLOCKED all'inizio
+    ok  EPIC-C/C3 e' BLOCKED all'inizio
+    ok  validato B1, B2 diventa READY
+    ok  C2 aspetta ancora B2, non B1
+    ok  validato B2, B3 diventa READY
+    ok  validato B2, B4 diventa READY
+    ok  validato B2, C2 diventa READY: la dipendenza ATTRAVERSA gli Epic
+    ok  C3 aspetta C2, e resta BLOCKED
+    ok  EPIC-A non e' stato toccato da nulla di tutto cio'
+
+--- 16. capacita' di scrittura e worktree temporaneo ------------------
+[admin@MAIN] rt3 roadmap plan
+        piano di rt3-smoke-multi-epic
+        
+        ASSEGNAZIONI
+        ITEM       WORKSPACE  MODE                          RES
+        ---------  ---------  ----------------------------  ---
+        EPIC-C/C2  DESIGNER   PERMANENT_WRITER              -  
+        EPIC-B/B3  DEV        PERMANENT_WRITER              -  
+        EPIC-B/B4  DEV        TEMPORARY_WORKTREE_SUGGESTED  -  
+        EPIC-A/A1  MAIN       PERMANENT_WRITER              -  
+          ! EPIC-B/B4: il writer permanente di DEV e' occupato e la issue e' parallelizzabile: serve un worktree temporaneo. NON creato da qui.
+        
+        RIMANDATE
+        ITEM       WORKSPACE  REASON      DETTAGLIO                        
+        ---------  ---------  ----------  ---------------------------------
+        EPIC-C/C1  DESIGNER   WIP_GLOBAL  limite WIP globale raggiunto (4).
+        
+        CAPACITA'
+        RISORSA             USO
+        ------------------  ---
+        writer:DESIGNER     1/1
+        writer:DEV          1/1
+        writer:MAIN         1/1
+        temporaryWorktrees  1/1
+        unrealEditor        0/1
+        wip globale         4
+
+    ok  B3 prende il writer permanente di DEV
+    ok  B4 e' parallelizzabile e il writer di DEV e' occupato: worktree temporaneo SUGGERITO
+    ok  la capacita' di scrittura di DEV risulta satura
+    ..  nessun worktree e' stato creato: il planner decide, non esegue
+
+--- 17. lease Unreal: due attivita' esclusive non insieme -------------
+    ok  A3 (richiede UNREAL_EDITOR) e' READY
+    ok  C3 (richiede UNREAL_EDITOR) e' READY
+[admin@MAIN] rt3 roadmap plan
+        piano di rt3-smoke-multi-epic
+        
+        ASSEGNAZIONI
+        ITEM       WORKSPACE  MODE              RES          
+        ---------  ---------  ----------------  -------------
+        EPIC-C/C3  DESIGNER   PERMANENT_WRITER  UNREAL_EDITOR
+        
+        RIMANDATE
+        ITEM       WORKSPACE  REASON                 DETTAGLIO                                                                                                                   
+        ---------  ---------  ---------------------  ----------------------------------------------------------------------------------------------------------------------------
+        EPIC-A/A3  MAIN       UNREAL_LEASE_CAPACITY  richiede UNREAL_EDITOR, e i lease disponibili (1) sono gia' impegnati. L'Editor e' esclusivo per macchina, non per checkout.
+        
+        CAPACITA'
+        RISORSA             USO
+        ------------------  ---
+        writer:DESIGNER     1/1
+        writer:DEV          0/1
+        writer:MAIN         0/1
+        temporaryWorktrees  0/1
+        unrealEditor        1/1
+        wip globale         1
+
+    ok  una sola attivita' Unreal schedulata, non due: ['EPIC-C/C3']
+    ok  l'altra e' rimandata per UNREAL_LEASE_CAPACITY: ['EPIC-A/A3']
+    ok  il lease Unreal risulta impegnato una volta sola
+    ..  l'Editor non e' stato avviato: si prova lo scheduler, non Unreal
+
+--- 18. candidate: due commit sullo stesso branch, esiti opposti ------
+    ok  due candidate distinti: cand_c20e1c85c4a5 e cand_229a47d4be2b
+    ok  un candidate nasce PENDING, non FAILED
+[DEV:VALIDATOR-DEV] rt3 candidates list --task rt3-smoke
+        CANDIDATE          STATUS  ITEM       BRANCH             HEAD      BY   
+        -----------------  ------  ---------  -----------------  --------  -----
+        cand_c20e1c85c4a5  FAILED  EPIC-B/B1  feat/rt3-smoke-b1  4d14d489  DEV-1
+        cand_229a47d4be2b  PASSED  EPIC-B/B1  feat/rt3-smoke-b1  77233ea3  DEV-1
+
+    ok  stesso branch, esiti opposti: il verdetto sta sul CANDIDATE
+    ok  e i due candidate stanno davvero sullo stesso branch
+    ok  la issue registra QUALE candidate l'ha portata a VALIDATED
+    ok  il candidate fallito resta fallito anche dopo l'avanzamento della issue
+
+--- 19. restart completo del coordinator ------------------------------
+[admin@MAIN] rt3 daemon stop
+        rt3d fermato (pid 8164).
+
+[admin@MAIN] rt3 daemon start
+        rt3d avviato: 127.0.0.1:60603 (pid 40984)
+        database: C:\Users\Utente\AppData\Local\Temp\rt3-smoke-multi-04u_pw0p\runtime.db
+        protocollo v2, schema v2
+
+    ok  rt3d e' tornato su
+    ok  ed e' un processo NUOVO (pid 28040 -> 40984): il restart e' vero
+    ok  dopo il restart events e' identico
+    ok  dopo il restart roadmaps e' identico
+    ok  dopo il restart states e' identico
+    ok  dopo il restart candidates e' identico
+    ok  dopo il restart plan e' identico
+    ok  e la mailbox storica di EDITOR-DEV e' intatta
+
+--- 20. gli stessi dati dai tre checkout ------------------------------
+[view@MAIN] rt3 status
+        RT3 control plane
+          coordinator    : ATTIVO su 127.0.0.1:60603 (pid 40984)
+          versioni       : client protocollo v2 / schema v2  |  daemon protocollo v2 / db schema v2
+          store          : C:\Users\Utente\AppData\Local\Temp\rt3-smoke-multi-04u_pw0p\runtime.db
+        
+          sessione       : EDITOR-DESIGNER [ACTIVE]
+          origine id     : binding console pid=44612
+          role / lane    : EDITOR / DESIGNER
+          workspaceGroup : DESIGNER
+          task           : rt3-smoke-c
+          worktree       : D:\Repositories\refactor-tactics-technical-designer\refactor-tactics-main
+          branch @ HEAD  : issue/2596-enemy-tactical-query @ 6111ad00
+          writeMode      : READ_ONLY
+          eventi pending : 0
+        
+          git qui        : fix/79-blocked-move-turnlog @ 6110d593
+          worktree qui   : D:\Repositories\refactor-tactics-main
+
+[view@DEV] rt3 status
+        RT3 control plane
+          coordinator    : ATTIVO su 127.0.0.1:60603 (pid 40984)
+          versioni       : client protocollo v2 / schema v2  |  daemon protocollo v2 / db schema v2
+          store          : C:\Users\Utente\AppData\Local\Temp\rt3-smoke-multi-04u_pw0p\runtime.db
+        
+          sessione       : EDITOR-DESIGNER [ACTIVE]
+          origine id     : binding console pid=44612
+          role / lane    : EDITOR / DESIGNER
+          workspaceGroup : DESIGNER
+          task           : rt3-smoke-c
+          worktree       : D:\Repositories\refactor-tactics-technical-designer\refactor-tactics-main
+          branch @ HEAD  : issue/2596-enemy-tactical-query @ 6111ad00
+          writeMode      : READ_ONLY
+          eventi pending : 0
+        
+          git qui        : feat/rt3-task-router @ 4d14d489
+          worktree qui   : D:\Repositories\refactor-tactict-dev
+
+[view@DESIGNER] rt3 status
+        RT3 control plane
+          coordinator    : ATTIVO su 127.0.0.1:60603 (pid 40984)
+          versioni       : client protocollo v2 / schema v2  |  daemon protocollo v2 / db schema v2
+          store          : C:\Users\Utente\AppData\Local\Temp\rt3-smoke-multi-04u_pw0p\runtime.db
+        
+          sessione       : EDITOR-DESIGNER [ACTIVE]
+          origine id     : binding console pid=44612
+          role / lane    : EDITOR / DESIGNER
+          workspaceGroup : DESIGNER
+          task           : rt3-smoke-c
+          worktree       : D:\Repositories\refactor-tactics-technical-designer\refactor-tactics-main
+          branch @ HEAD  : issue/2596-enemy-tactical-query @ 6111ad00
+          writeMode      : READ_ONLY
+          eventi pending : 0
+        
+          git qui        : issue/2596-enemy-tactical-query @ 6111ad00
+          worktree qui   : D:\Repositories\refactor-tactics-technical-designer\refactor-tactics-main
+
+    ok  DEV vede lo stesso roadmaps di MAIN
+    ok  DEV vede lo stesso plan di MAIN
+    ok  DEV vede lo stesso ready di MAIN
+    ok  DEV vede lo stesso sessions di MAIN
+    ok  DESIGNER vede lo stesso roadmaps di MAIN
+    ok  DESIGNER vede lo stesso plan di MAIN
+    ok  DESIGNER vede lo stesso ready di MAIN
+    ok  DESIGNER vede lo stesso sessions di MAIN
+    ok  e le stesse sessioni, pur avendo path, branch e HEAD diversi
+
+==============================================================================
+RT3 MULTI-WORKSPACE SMOKE TEST: PASS
+==============================================================================
