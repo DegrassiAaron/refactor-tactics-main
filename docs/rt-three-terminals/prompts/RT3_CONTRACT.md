@@ -128,6 +128,31 @@ shot:    docs/rt-three-terminals/waves/<feature>/evidence/<file>.png
 
 Una frase descrittiva non è un `EVIDENCE_REF`.
 
+### `SEED_SOURCE` — vocabolario unico
+
+`SEED_SOURCE` attraversa i ruoli: DEV lo dichiara, EDITOR lo riporta dalla sessione PIE,
+VALIDATION lo legge per decidere `DETERMINISM`. Governa un verdetto, quindi la sua
+grafia è materia di contratto e vive qui.
+
+| Valore | Significato | Effetto su `DETERMINISM` |
+|---|---|---|
+| `canonical <sorgente>` | il seed viene da uno stato canonico nominato | può essere `PASS` |
+| `none` | non esiste RNG in questo scope | `N/A` giustificato dal write-set |
+| `generated` | il seed è prodotto a runtime e non è ricostruibile | `BLOCKED` — la ripetizione non è dimostrata |
+
+- `unseeded` **non** è un valore: un RNG senza sorgente dichiarata è `generated`;
+- ⛔ `fixed` è **ritirato**. Compariva nel solo `WAVE_EDITOR.md` e nominava ciò che DEV
+  chiama `canonical`: un valore che un ruolo produce e un altro non riconosce non è un
+  campo di handoff, è due campi con lo stesso nome;
+- `SEED_SOURCE` è `REQUIRED` ovunque esista RNG. Assente con RNG presente si legge
+  `BLOCKED`, come ogni voce malformata di §6.
+
+⚠️ **Qui c'è il vocabolario, non la forma del contratto comportamentale.** La tabella
+`Given`/`When`/`Then`/`Authority`/… resta materia dei prompt di wave DEV
+([`WAVE_DEV_LEAD.md`](WAVE_DEV_LEAD.md) §«Contratto comportamentale»): è materiale di
+authoring, e questo contratto parla di processo, verdetti ed evidenza. Sale solo ciò che
+un verdetto legge. Decisione `D-342`, che chiude `GOV-6`.
+
 ## 7. Matrice canonica
 
 Una sola tabella per entrambi i ruoli. EDITOR e VALIDATION compilano la stessa lista, ciascuno la propria colonna.
@@ -504,13 +529,11 @@ niente: chi lo leggesse come confine leggerebbe un file uguale ovunque.
 
 ## Aperti
 
-Due domande sul contratto stesso, **non normative**: registrate perché l'owner le decida, non risolte qui.
-
-Non modificano nessuna regola sopra. Finché restano aperte, vale il testo delle sezioni §1–§13.
+Due domande sul contratto stesso, **non normative**: registrate perché l'owner le decidesse. **Entrambe sono chiuse.**
 
 | ID | Domanda | Registro |
 |---|---|---|
 | ~~`GOV-5`~~ | ✅ **Chiusa il 2026-09-05 da [`D-335`](../../decisions/RT_PDR_00_Decision_Log.md).** §9 separa la **busta**, che portano tutti, dal **payload di verdetti**, che si porta se e solo se §7 assegna una colonna. La regola è recepita sopra e non è più aperta. | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) · riga **97** di [`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) |
-| `GOV-6` | La forma del contratto comportamentale (`Given`/`When`/`Then`/`Authority`/`SEED_SOURCE`/…) sale qui, o resta nei prompt di wave DEV? Oggi vive in `WAVE_DEV_LEAD.md` e la usa `WAVE_DEV_MAIN.md`. | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) |
+| ~~`GOV-6`~~ | ✅ **Chiusa il 2026-09-06 da [`D-342`](../../decisions/RT_PDR_00_Decision_Log.md).** Si separa il **vocabolario** dalla **forma**: `SEED_SOURCE` sale in §6 perché governa `DETERMINISM`; la tabella `Given`/`When`/`Then`/… resta in [`WAVE_DEV_LEAD.md`](WAVE_DEV_LEAD.md), che [`WAVE_DEV_MAIN.md`](WAVE_DEV_MAIN.md) già referenzia esplicitamente. | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) |
 
-`GOV-6` resta aperta e non blocca: è una questione di sede, non di correttezza. Un prompt che apre un altro prompt per leggere una tabella funziona; è fragile, non rotto.
+⚠️ **La domanda di `GOV-6` era posta su una premessa incompleta**, e la misura l'ha spostata. Diceva *«oggi vive in `WAVE_DEV_LEAD.md` e la usa `WAVE_DEV_MAIN.md`»* — due prompt. Misurato il 2026-09-06: `SEED_SOURCE` era usato da **quattro** prompt con **tre vocabolari** — `canonical`/`none` in DEV-LEAD, più `generated` in DEV-MAIN, e `fixed`/`generated` in EDITOR. L'uscita *(c)*, la duplicazione parziale che la domanda elencava come ⛔, era già avvenuta per inerzia.

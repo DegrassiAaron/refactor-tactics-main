@@ -150,10 +150,14 @@ Consolida in un unico blocco il contratto della feature. Un campo non applicabil
 | `TurnLog` | REQUIRED · `NONE` solo se non osservabile in partita |
 | `Replay` | REQUIRED |
 | `Privacy` | REQUIRED · owner [`CLAUDE.md`](../../../CLAUDE.md) §7 |
-| `SEED_SOURCE` | REQUIRED se esiste RNG · `canonical <sorgente>` oppure `none` |
+| `SEED_SOURCE` | REQUIRED se esiste RNG · vocabolario in [`RT3_CONTRACT.md`](RT3_CONTRACT.md) §6 |
 | `Editor-visible expectation` | REQUIRED · è un'attesa per EDITOR, mai un risultato |
 
-`SEED_SOURCE` è lo stesso campo che `WAVE_VALIDATION.md` legge a valle, una grafia sola per i tre livelli. `generated` è la condizione che manda `DETERMINISM` in `BLOCKED`: dichiararla qui evita di scoprirlo dopo una sessione PIE.
+`SEED_SOURCE` è lo stesso campo che `WAVE_EDITOR.md` riporta e `WAVE_VALIDATION.md` legge a valle. La grafia è **una sola**, e sta in [`RT3_CONTRACT.md`](RT3_CONTRACT.md) §6 — `canonical <sorgente>` · `none` · `generated`.
+
+⚠️ Fino al 2026-09-06 questa riga dichiarava «una grafia sola per i tre livelli» mentre `WAVE_EDITOR.md` usava `fixed`, un valore che DEV non produce mai: la frase era vera come intenzione e falsa come misura. `D-342` ha ritirato `fixed` e ha dato al vocabolario una sede.
+
+`generated` è la condizione che manda `DETERMINISM` in `BLOCKED`: dichiararla qui evita di scoprirlo dopo una sessione PIE.
 
 ## Git
 
