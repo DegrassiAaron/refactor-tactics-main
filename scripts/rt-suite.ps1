@@ -44,7 +44,17 @@
                   intera perde regolarmente la riga di conclusione nel flush di
                   shutdown (`clean-baseline.log`: 1232 avviati, 1231 conclusi, run
                   sana), quindi invalidare sui conclusi renderebbe NON VALIDA ogni
-                  suite completa. La ragione per esteso sta sul controllo stesso
+                  suite completa. La ragione per esteso sta sul controllo stesso.
+                  ⛔ **Con `Found 1` la tolleranza NON si applica** (#2530): su un
+                  test solo «avviato e non concluso» e' il 100% della misura, non
+                  una coda, e «l'ultimo» e' anche «l'unico». E' il caso della
+                  verifica per mutazione, che richiede filtri stretti per costruzione
+      crash       un `appError called`, un `=== Critical error: ===`, un
+                  `Assertion failed:` o un `Fatal error:` nel log invalidano la run
+                  QUALUNQUE sia il conteggio (#2530). ⚠️ Copre cio' che nessun
+                  conteggio vede: una suite intera che crashi sull'ULTIMO test ha
+                  `started == found` e un solo dangling, cioe' la firma esatta della
+                  coda di shutdown sana — e prima di questo controllo usciva VALIDA
 
     Se una qualsiasi cade, l'esito NON e' registrabile: non e' rosso e non e'
     verde, e' NON VALIDA. Lo script non impedisce niente e non uccide nessuno —
@@ -826,6 +836,117 @@ function Get-LockWaitMs {
     return [int][math]::Round($ms)
 }
 
+# ----------------------------------------------------- REFERTO (PURO)
+function Resolve-LogFindings {
+    <#
+    .SYNOPSIS
+        Legge il log di una run e dice cosa NON torna. Nessun I/O, nessun orologio.
+
+    .DESCRIPTION
+        (!!) Pura per lo stesso motivo di `Resolve-EngineState`: un motore che muore
+        a meta' non si fabbrica a comando, e finche' questa regola vive dentro il
+        flusso che avvia l'Editor la voce di DoD «un crash non esce VALIDA» si chiude
+        su un aneddoto. Qui le si passa un log scritto a mano e si controlla il
+        verdetto - vedi `-SelfTest`.
+
+        (!!) Non ha una seconda sede: il flusso principale CHIAMA questa funzione, non
+        ne tiene una copia. Due copie di una regola divergono.
+    #>
+    param(
+        [string] $Log,
+        [string] $Filter
+    )
+
+    $found = $null; $completed = 0; $started = 0; $failed = 0
+    $problems = New-Object System.Collections.Generic.List[string]
+
+    if ($log -match 'Found (\d+) automation tests') { $found = [int]$Matches[1] }
+    $completed = ([regex]::Matches($log, 'Test Completed\.')).Count
+    $started   = ([regex]::Matches($log, 'Test Started\.')).Count
+    $failed    = ([regex]::Matches($log, 'Result=\{Fail\}')).Count
+
+    # 🔴 **Un crash del motore invalida la run QUALUNQUE sia il conteggio, e la
+    # domanda si fa PRIMA di contare.** Misurato il 2026-09-06 (#2530): una
+    # mutazione mandava `(*Arr)[2]` fuori dai limiti, il motore e' morto su
+    # `appError`, e la run e' uscita `VALIDA` con `exit 0` e ZERO test conclusi —
+    # `performed = 0` restituito come successo, cioe' la non-equivalenza che
+    # `RT3_CONTRACT.md` §3 enuncia per prima, prodotta dallo strumento che esiste
+    # per dichiararla.
+    #
+    # ⚠️ **Questo controllo copre un caso che nessun conteggio vede**: una suite
+    # INTERA che crashi sull'ULTIMO test ha `started == found` e un solo dangling,
+    # cioe' esattamente la firma della coda di shutdown sana. Senza guardare il
+    # log, quel crash passa per rumore.
+    #
+    # ⚠️ **`IndexOf` ordinale e non una regex con alternanza**, per due motivi: due
+    # dei marcatori contengono `===` e `.`, che in una regex andrebbero escapati; e
+    # un'alternanza che colpisce non dice QUALE ramo abbia colpito, mentre qui il
+    # marcatore e' meta' della diagnosi. Si nomina il marcatore e si riporta la sua
+    # riga.
+    $fatalMarkers = @('appError called', '=== Critical error: ===', 'Assertion failed:', 'Fatal error:')
+    foreach ($marker in $fatalMarkers) {
+        $idx = $log.IndexOf($marker, [System.StringComparison]::Ordinal)
+        if ($idx -lt 0) { continue }
+
+        $lineStart = $log.LastIndexOf("`n", $idx) + 1
+        $lineEnd = $log.IndexOf("`n", $idx)
+        if ($lineEnd -lt 0) { $lineEnd = $log.Length }
+        # `.Trim()` e non un `^.*$` multiline: in .NET `.` matcha anche `\r`, e su un
+        # log CRLF la riga catturata si porterebbe dietro il ritorno a capo.
+        $riga = $log.Substring($lineStart, $lineEnd - $lineStart).Trim()
+        if ($riga.Length -gt 160) { $riga = $riga.Substring(0, 157) + '...' }
+
+        $problems.Add("motore    crash nel log: «$marker»")
+        $problems.Add("          $riga")
+        break
+    }
+
+    if ($null -eq $found) {
+        # ⚠️ Misurato: con un filtro che non corrisponde a nessun test UE **non
+        # scrive affatto** la riga `Found N` — non scrive `Found 0`. Quindi questo
+        # ramo copre due casi diversi, e vanno nominati entrambi: chi ha sbagliato
+        # il filtro non deve cercare un difetto della run.
+        $problems.Add("copertura il log non dichiara «Found N automation tests»: filtro '$Filter' senza corrispondenze, o run mai partita")
+    } elseif ($completed -lt $found) {
+        # 🔴 La troncatura e' la meta' silenziosa del difetto, e non si vede dai
+        # fallimenti: due run sono morte a 641/1175 e 662/1191 con ZERO rossi.
+        #
+        # ⚠️ **La soglia e' `$started`, non `$found`, e la differenza e' misurata**:
+        # su una suite intera l'ULTIMO test perde regolarmente la riga di
+        # conclusione nel flush di shutdown — `clean-baseline.log` riporta 1232
+        # avviati e 1231 conclusi, run perfettamente sana. Invalidare su `$found`
+        # avrebbe dichiarato NON VALIDA ogni suite completa con quella coda, cioe'
+        # avrebbe reso lo script inutile proprio nel caso per cui esiste.
+        # Cio' che conta e' quanti test sono PARTITI: se non sono partiti tutti, la
+        # run e' stata troncata.
+        if ($started -lt $found) {
+            $problems.Add(("copertura {0}/{1} avviati: la run e' stata troncata ({2} non partiti, {3} fallimenti)" -f $started, $found, ($found - $started), $failed))
+        }
+        elseif ($found -eq 1) {
+            # 🔴 **La tolleranza vale solo se c'e' una coda da tollerare.** La sua
+            # giustificazione e' che l'ULTIMO test di una suite perde la riga di
+            # conclusione nel flush di shutdown: su 1232 test, `avviati - conclusi = 1`
+            # e' rumore. Su un filtro che seleziona ESATTAMENTE un test, lo stesso `1`
+            # e' il 100% della misura, e «l'ultimo» e' anche «l'unico».
+            #
+            # ⚠️ E' il caso che conta di piu', non un caso limite: la verifica per
+            # mutazione RICHIEDE filtri stretti — si muta una riga e si esegue il test
+            # che deve cadere. `found` vale 1 o 2 per costruzione, ed e' li' che la
+            # tolleranza smette di essere rumore.
+            $problems.Add(("copertura {0}/1 completati: un test solo avviato e mai concluso non ha una lettura benigna" -f $completed))
+            $problems.Add("          (la coda di shutdown copre l'ULTIMO test di una suite, non l'UNICO)")
+        }
+    }
+
+    return [pscustomobject]@{
+        Found     = $found
+        Started   = $started
+        Completed = $completed
+        Failed    = $failed
+        Problems  = $problems
+    }
+}
+
 if ($SelfTest) {
     $failures = 0
     $total = 0
@@ -954,6 +1075,63 @@ if ($SelfTest) {
     # deve REGALARE tempo (senza il clamp tornerebbe 70000 invece di 60000).
     Assert-LockMs 'budget negativo'    -60   0     0
     Assert-LockMs 'speso negativo'     60    -10   60000
+
+
+    # ------------------------------------------------- REFERTO SUL LOG (#2530)
+    # 🔴 **La coppia che conta e' `coda-sana` / `crash-ultimo-test`**: stessi identici
+    # conteggi - 1232 trovati, 1232 avviati, 1231 conclusi - e verdetti opposti. E' la
+    # dimostrazione che il controllo sul log vede cio' che nessun conteggio vede: un
+    # crash sull'ULTIMO test di una suite intera ha la firma esatta della coda di
+    # shutdown sana, e prima di questo controllo usciva VALIDA.
+    function New-FakeLog {
+        param(
+            [int] $Found = -1,
+            [int] $Started = 0,
+            [int] $Completed = 0,
+            [int] $Failed = 0,
+            [string] $Extra = ''
+        )
+        $sb = New-Object System.Text.StringBuilder
+        if ($Found -ge 0) { $null = $sb.AppendLine("LogAutomationController: Found $Found automation tests") }
+        for ($i = 0; $i -lt $Started; $i++)   { $null = $sb.AppendLine('LogAutomationController: Test Started. Name={Finto}') }
+        for ($i = 0; $i -lt $Completed; $i++) { $null = $sb.AppendLine('LogAutomationController: Test Completed. Result={Success}') }
+        for ($i = 0; $i -lt $Failed; $i++)    { $null = $sb.AppendLine('LogAutomationController: Result={Fail}') }
+        if ($Extra) { $null = $sb.AppendLine($Extra) }
+        return $sb.ToString()
+    }
+
+    function Assert-Log {
+        param([string] $Name, [string] $Log, [bool] $ExpectValida, [string] $ExpectContains = '')
+        $script:total++
+        $r = Resolve-LogFindings -Log $Log -Filter 'Finto'
+        $valida = ($r.Problems.Count -eq 0)
+        $ok = ($valida -eq $ExpectValida)
+        if ($ok -and $ExpectContains) {
+            $ok = [bool]($r.Problems | Where-Object { $_ -like "*$ExpectContains*" })
+        }
+        if (-not $ok) { $script:failures++ }
+        Say ("{0}  {1,-22} {2}/{3} conclusi, {4} problemi (atteso valida={5})" -f `
+            $(if ($ok) { 'ok  ' } else { 'ROTTO' }), $Name, $r.Completed, $r.Found, $r.Problems.Count, $ExpectValida)
+        if (-not $ok) { foreach ($pb in $r.Problems) { Say "        > $pb" } }
+    }
+
+    $crashAppError = '[2026.09.05-23.19.29:255][595]LogWindows: Error: appError called: Assertion failed: (Index >= 0) & (Index < ArrayNum)'
+
+    Say 'self-test del referto sul log (#2530)'
+    # La coda di shutdown su una suite intera resta SANA: e' la tolleranza che il
+    # docstring giustifica con `clean-baseline.log`, e non deve cadere.
+    Assert-Log 'coda-sana'          (New-FakeLog -Found 1232 -Started 1232 -Completed 1231) $true
+    Assert-Log 'suite-completa'     (New-FakeLog -Found 174 -Started 174 -Completed 174 -Failed 2) $true
+    Assert-Log 'un-test-concluso'   (New-FakeLog -Found 1 -Started 1 -Completed 1) $true
+    # 🔑 Il caso di #2530, alla lettera: un test solo, avviato, mai concluso, motore morto.
+    Assert-Log 'crash-un-test'      (New-FakeLog -Found 1 -Started 1 -Completed 0 -Extra $crashAppError) $false 'crash nel log'
+    # Lo stesso conteggio SENZA crash: cade lo stesso, per la regola della tolleranza.
+    Assert-Log 'un-test-appeso'     (New-FakeLog -Found 1 -Started 1 -Completed 0) $false 'lettura benigna'
+    # 🔑 Il gemello di `coda-sana`: conteggi identici, una riga di crash in piu'.
+    Assert-Log 'crash-ultimo-test'  (New-FakeLog -Found 1232 -Started 1232 -Completed 1231 -Extra 'LogWindows: Error: === Critical error: ===') $false 'crash nel log'
+    Assert-Log 'crash-assertion'    (New-FakeLog -Found 4 -Started 4 -Completed 4 -Extra 'LogCore: Error: Assertion failed: Check(bValid) [Line: 12]') $false 'Assertion failed'
+    Assert-Log 'troncata'           (New-FakeLog -Found 100 -Started 60 -Completed 60) $false 'troncata'
+    Assert-Log 'filtro-a-vuoto'     (New-FakeLog -Found -1) $false 'Found N'
 
     if ($failures -gt 0) {
         Say ("self-test ROSSO: {0} caso/i non conforme/i su {1}" -f $failures, $total)
@@ -1322,33 +1500,12 @@ if (-not (Test-Path $LogPath)) {
         $problems.Add(("log       stantio: scritto alle {0:HH:mm:ss}, la run e' partita alle {1:HH:mm:ss}" -f $logFile.LastWriteTime, $startedAt))
     }
     $log = Get-Content $LogPath -Raw
-    if ($log -match 'Found (\d+) automation tests') { $found = [int]$Matches[1] }
-    $completed = ([regex]::Matches($log, 'Test Completed\.')).Count
-    $started   = ([regex]::Matches($log, 'Test Started\.')).Count
-    $failed    = ([regex]::Matches($log, 'Result=\{Fail\}')).Count
-
-    if ($null -eq $found) {
-        # ⚠️ Misurato: con un filtro che non corrisponde a nessun test UE **non
-        # scrive affatto** la riga `Found N` — non scrive `Found 0`. Quindi questo
-        # ramo copre due casi diversi, e vanno nominati entrambi: chi ha sbagliato
-        # il filtro non deve cercare un difetto della run.
-        $problems.Add("copertura il log non dichiara «Found N automation tests»: filtro '$Filter' senza corrispondenze, o run mai partita")
-    } elseif ($completed -lt $found) {
-        # 🔴 La troncatura e' la meta' silenziosa del difetto, e non si vede dai
-        # fallimenti: due run sono morte a 641/1175 e 662/1191 con ZERO rossi.
-        #
-        # ⚠️ **La soglia e' `$started`, non `$found`, e la differenza e' misurata**:
-        # su una suite intera l'ULTIMO test perde regolarmente la riga di
-        # conclusione nel flush di shutdown — `clean-baseline.log` riporta 1232
-        # avviati e 1231 conclusi, run perfettamente sana. Invalidare su `$found`
-        # avrebbe dichiarato NON VALIDA ogni suite completa con quella coda, cioe'
-        # avrebbe reso lo script inutile proprio nel caso per cui esiste.
-        # Cio' che conta e' quanti test sono PARTITI: se non sono partiti tutti, la
-        # run e' stata troncata.
-        if ($started -lt $found) {
-            $problems.Add(("copertura {0}/{1} avviati: la run e' stata troncata ({2} non partiti, {3} fallimenti)" -f $started, $found, ($found - $started), $failed))
-        }
-    }
+    $referto = Resolve-LogFindings -Log $log -Filter $Filter
+    $found     = $referto.Found
+    $completed = $referto.Completed
+    $started   = $referto.Started
+    $failed    = $referto.Failed
+    foreach ($p in $referto.Problems) { $problems.Add($p) }
 }
 
 $dangling = $started - $completed
