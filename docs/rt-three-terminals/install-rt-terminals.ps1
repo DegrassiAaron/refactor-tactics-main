@@ -55,6 +55,7 @@ $Targets = @(
     @("scripts\rt-mode.ps1", "scripts\rt-mode.ps1"),
     @("scripts\rt-suite-safe.ps1", "scripts\rt-suite-safe.ps1"),
     @("scripts\rt-lease.ps1", "scripts\rt-lease.ps1"),
+    @("scripts\rt-build.ps1", "scripts\rt-build.ps1"),
     @("scripts\rt-workspace.ps1", "scripts\rt-workspace.ps1"),
     @("scripts\rt-mcp-guard.ps1", "scripts\rt-mcp-guard.ps1"),
     @("scripts\rt-mcp-server.ps1", "scripts\rt-mcp-server.ps1")

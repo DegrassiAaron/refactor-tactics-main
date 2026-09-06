@@ -144,6 +144,25 @@ falliscono con `RT_SESSION_REQUIRED`.
 - un processo motore vivo che nessun lease rivendica **blocca** l'acquisizione;
 - il rilascio fallisce finché un processo avviato dalla sessione è ancora vivo.
 
+### La build passa dal lease
+
+```powershell
+rtbuild -TaskId 2529
+rtbuild -Target RefactorTactics -Configuration Shipping -TaskId 2395
+```
+
+⛔ **Non invocare `Build.bat` a mano.** Era il solo passo del gate che tocca il motore senza passare
+da nessun guard: nel gate di una wave la build **precede** la suite, e ricompilare le DLL sotto la
+full suite di un altro checkout ne rende `NON VALIDA` la misura — per l'invariante «binario» che
+`rt-suite.ps1` legge prima e dopo la run. Misurato il 2026-09-06, [#2529](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2529).
+
+`rt-build.ps1` non ha un guard proprio e non deve averlo: chiede il lease per `BUILD`, e la regola
+su «il motore è libero?» resta in una sede sola. Esce `2` se non lo ottiene, propaga il codice di
+`Build.bat` altrimenti, e rilascia il lease **anche quando la build fallisce**.
+
+⚠️ **Non attende**, per decisione: la richiesta di #2529 è che una build in condizione di contesa sia
+**fermata**, non sconsigliata. Chi vuole aspettare guarda `rtlease -Action status`.
+
 ⚠️ `rtmode` esiste ancora, ed è **solo informativo**. Il suo file vive per-checkout mentre il motore
 è per-macchina: il finding `parsecell-arity/1-F13` ha misurato che la sua lettura era *anticorrelata
 con la verità* — con sei checkout attivi, l'unico che dichiarava `VALIDATION` era quello che non

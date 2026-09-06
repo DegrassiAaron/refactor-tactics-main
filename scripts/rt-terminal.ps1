@@ -131,6 +131,26 @@ function global:rtlease {
     Invoke-RTScript -Script "rt-lease.ps1" @args2
 }
 
+function global:rtbuild {
+    <#
+        Compila DENTRO il lease (#2529). `Build.bat` era il solo passo del gate che
+        tocca il motore senza passare da nessun guard: ricompilare sotto la suite di
+        un altro checkout rende NON VALIDA la sua misura.
+
+        Non attende: se il motore e' occupato la build e' FERMATA, non sconsigliata.
+    #>
+    param(
+        [ValidateSet("RefactorTacticsEditor", "RefactorTactics")] [string] $Target = "RefactorTacticsEditor",
+        [ValidateSet("Development", "DebugGame", "Shipping")] [string] $Configuration = "Development",
+        [string] $TaskId = "",
+        [string[]] $ExtraArgs = @()
+    )
+    $args2 = @("-Target", $Target, "-Configuration", $Configuration)
+    if (-not [string]::IsNullOrWhiteSpace($TaskId)) { $args2 += @("-TaskId", $TaskId) }
+    if ($ExtraArgs.Count -gt 0) { $args2 += @("-ExtraArgs"); $args2 += $ExtraArgs }
+    Invoke-RTScript -Script "rt-build.ps1" @args2
+}
+
 function global:rtmcp {
     param(
         [ValidateSet("MCP_EDITOR_QUERY", "MCP_ASSET_WRITE")] [string] $Operation = "MCP_ASSET_WRITE",
@@ -231,4 +251,4 @@ Write-Host "(!) Aprire questo terminale NON acquisisce Unreal. Il lease si prend
 Write-Host ""
 rtstatus
 Write-Host ""
-Write-Host "Comandi: rtstatus | rtws | rtlease | rtmcp | rtsuite ..." -ForegroundColor Gray
+Write-Host "Comandi: rtstatus | rtws | rtlease | rtmcp | rtbuild | rtsuite ..." -ForegroundColor Gray
