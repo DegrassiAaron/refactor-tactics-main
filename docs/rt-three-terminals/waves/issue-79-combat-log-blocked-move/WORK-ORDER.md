@@ -478,6 +478,60 @@ Perché fuori: il difetto per cui la #79 esiste è chiuso e **misurato**. Questo
 
 🔑 Vale la pena conservarlo, perché è un caso particolare di una regola nota che qui morde in modo controintuitivo: **raccogliere l'evidenza dentro il repository invalida la misura che l'evidenza documenta**. La cartella `evidence/` è la destinazione giusta per l'artefatto, ma non mentre la suite gira. Nessuna azione: EDITOR ha applicato `NON VALIDA` invece di registrare il verde, che è esattamente ciò che il contratto chiede.
 
+## Risposte ai Finding di VALIDATION su `fa9e3ed2`
+
+VALIDATION ha chiuso `PARTIAL`: **tutti i gate eseguibili verdi**, gli oracoli della #79 verificati **sul TurnLog e non sul conteggio**, e tre check umani che restano `NOT RUN` perché nessuno strumento li dà.
+
+Il criterio che ha aperto la issue, letto sulla run di VALIDATION:
+
+```text
+T3   Gadget: resta (q=-1,r=0,L=0) (Action.Move, p50)                    ← Stayed: non dichiarò
+T4   Gadget: fermo: cella occupata (q=-1,r=0,L=0) (Action.Move, p50)    ← BlockedByUnit = 1
+```
+
+⚠️ Vale la pena notare **come** l'ha verificato: `Movement.CollisionChoke` passa `6/6`, ma *«un `6/6` è un conteggio»* — ha riletto il TurnLog della propria run voce per voce. `BlockedContested = 4`, `BlockedByUnit = 1`, `Moved = 1`, tutti e tre confermati sul dato.
+
+| Finding | Severità | Risposta |
+|---|---|---|
+| `…/1-F11` — tre `ERTMoveOutcome` senza testo | `P2` | **ACCOLTO — fuori wave, [#2628](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2628)** |
+| `…/1-F12` — tre rossi ereditati da `main` | `P2` | **ACCOLTO — misurata l'ereditarietà; uno già in #2551, due in [#2629](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2629)** |
+| `…/1-F13` — il branch si muove sotto chi misura | `P3` | **DECISO — vedi sotto, insieme a `1-F8`** |
+
+**F11 — ACCOLTO, fuori wave.** Il formatter traduce 13 dei 16 `ERTMoveOutcome`: `BlockedByTopology` (6), `BlockedByCycle` (12) e `Fell` (15) cadono nel ramo di fallback, e il giocatore legge «esito di movimento non tradotto (15)». **Preesistente e misurato tale**: lo stesso messaggio è in `rt-suite.log` delle 08:32, sette ore prima che il fix fosse scritto — fuori dal write-set, non una regressione di questa wave.
+
+È lo stesso difetto che #79 chiude, su un altro esito, e va nella stessa direzione di `1-F9`/#2627: **stessa famiglia, canale diverso**. La DoD che entrambi toccano — *«ogni esito spiegabile leggendo il log»* — non giustifica di riaprire una wave consolidata e misurata per un difetto che le preesiste.
+
+⚠️ Il ramo di fallback **non va tolto**: è la rete che ha reso il reperto visibile, e il suo commento lo dice già. Ciò che manca è un test di **esaustività dell'enum** — oggi nessuno copre quel confine, ed è la ragione per cui tre valori sono rimasti indietro senza che nulla diventasse rosso. È nella DoD di #2628.
+
+**F12 — ACCOLTO, e l'ereditarietà è misurata.** VALIDATION dichiarava l'ipotesi senza la prova, e nominava la misura mancante. Ne ho fatta una che non richiede il motore:
+
+```text
+git merge-base --is-ancestor 748fc090 a59671c8    -> vero
+git merge-base --is-ancestor 748fc090 origin/main  -> vero
+```
+
+`748fc090` — il rename `Hero.Riktor` → `Hero.Branth`, 2026-09-05 19:32 — è **antenato del `BASE_SHA` della wave**, e nessuno dei tre test è toccato dal write-set. I rossi esistevano **alla biforcazione**.
+
+➕ E per uno dei tre la prova è già scritta da qualcun altro: **[#2551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2551)** documenta `UI.Icon.Identity.Branth` dicendo *«il gate è rosso su main»*. Gli altri due non erano tracciati: ora sono in **#2629**.
+
+⚠️ **Questo prova l'ereditarietà, non la causa.** Che il rename *sia* la causa resta l'ipotesi di VALIDATION; confermarla richiede la full suite su `origin/main`, che nessuno ha eseguito. Non la do per fatta, ed è scritta come primo punto della DoD di #2629.
+
+🔴 Un reperto che ho trovato rispondendo, e che vale più del finding: il test prescrive per il proprio rosso di *«rimisurare `BOT-STALL-1` e aggiornare `OPEN_DECISIONS`»* — ma **`BOT-STALL-1` è chiusa** dal 2026-08-29 (`D-244`). La prescrizione punta a una decisione già presa: chi raccoglie quel rosso non ha una sede dove scrivere l'esito. È nella DoD di #2629.
+
+**F13 + F8 — DECISI insieme, perché sono la stessa domanda.**
+
+`1-F13` misura che il branch di wave si è mosso sotto una sessione di misura **tre volte, in tre ruoli diversi**, e osserva che nessuna delle tre ha invalidato una misura *«ma è coincidenza favorevole, non una protezione»*. `1-F8` chiede di decidere se §5 vada letto come uguaglianza stretta. Due ruoli hanno applicato la stessa lettura; nessuno dei due poteva ratificarla.
+
+**Decisione, valida per questa wave:**
+
+> Una misura è valida se il delta fra `BASE_SHA` e `HEAD` **non tocca i path che la misura osserva**, e la sessione lo **dichiara** con il comando che l'ha verificato.
+
+Non è un allentamento di §5: è ciò che §5 protegge, cioè la stabilità del **soggetto** misurato. `CLAUDE.md` §6 già norma il caso peggiore — se il soggetto cambia *durante* la finestra, la misura è `NON VALIDA`, non `FAIL` — e `rt-suite` ha il rilevatore, il marker `[RT-MEASURE]`, che ha segnalato il movimento **senza che nessuno glielo chiedesse**.
+
+⛔ **Ciò che la decisione NON copre**, e che `1-F13` ha ragione a chiamare coincidenza: non esiste nulla che *impedisca* a un commit di codice di arrivare durante una misura. Tre volte su tre erano documenti e PNG. Alla quarta potrebbe non esserlo, e nessuno se ne accorgerebbe se non guardando il marker.
+
+➡️ **La finestra di misura è la protezione mancante**, e la propongo come emendamento a `RT3_CONTRACT.md` §5: *mentre un ruolo misura, il branch di wave non riceve commit*. **Non ho modificato il contratto**: è fuori dal write-set di questa wave e appartiene al suo owner. Registrato qui, con la misura che lo motiva, perché la prossima wave non riparta da zero.
+
 ## `NOT RUN`
 
 | Elemento | Motivo |
