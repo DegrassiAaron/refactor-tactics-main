@@ -4,7 +4,7 @@ description: Initialize the current Claude Code session with one Refactor Tactic
 argument-hint: "[dev|test|validation|editor]"
 arguments: [role]
 disable-model-invocation: true
-allowed-tools: Read
+allowed-tools: Read, Bash, PowerShell
 ---
 
 # Refactor Tactics session role
@@ -44,7 +44,51 @@ Treat the selected role prompt as the active operational contract for the rest o
 
 Repository-level and higher-priority instructions remain authoritative, including `AGENTS.md`, `CLAUDE.md`, applicable ADRs, issue requirements, and explicit user instructions.
 
+## Task routing
+
+`Bash`/`PowerShell` are available to this skill for exactly one purpose: calling the task router **read-only**. Use them for nothing else.
+
+If `RT_TASK_ID` is set, after loading the role contract run:
+
+```powershell
+pwsh -NoLogo -NoProfile -File scripts/rt-task-router.ps1 -Action status -TaskId <RT_TASK_ID>
+pwsh -NoLogo -NoProfile -File scripts/rt-task-router.ps1 -Action assignment -TaskId <RT_TASK_ID>
+```
+
+Then report:
+
+- the task id, title and status;
+- `next_actor`;
+- the current assignment sequence and its objective.
+
+Compare `RT_TERMINAL_ROLE` with `next_actor`. If they differ, report the mismatch and stop:
+
+```text
+TASK_ROUTE_MISMATCH — this terminal is <role>, the task expects <next_actor>.
+```
+
+Do not fix it. Routing mutations (`init`, `assign`, `close`) belong to the RT Coordinator, and the router refuses them from a session that declares a role.
+
+If `RT_TASK_ID` is not set, say so in one line and continue: a terminal without a task is a supported, normal case.
+
+Invoking this skill:
+
+- does not change routing;
+- does not create, assign or close a task;
+- does not deposit a result.
+
+Semantics: `docs/rt-three-terminals/TASK_ROUTING.md`.
+
 ## Separation of concerns
+
+Four concepts, not one. Keep them apart:
+
+```text
+session role        DEV | EDITOR | VALIDATION       RT_TERMINAL_ROLE
+workspace identity  MAIN | DEV | TECHNICAL_DESIGNER rtws -Action verify
+engine lease        who occupies Unreal now         rtlease -Action status
+task routing        who must work now               rttask status
+```
 
 The Claude session role and the machine-wide Unreal engine mode are separate.
 

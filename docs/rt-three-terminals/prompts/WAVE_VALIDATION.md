@@ -123,6 +123,8 @@ Verifica: evento tipizzato; ID stabili; turno/fase/micro-step; reason code; bers
 
 Se l'handoff EDITOR dichiara `SEED_SOURCE: generated`, `DETERMINISM` non è dimostrabile da quella sessione PIE: rieseguilo con seed fisso o marca `BLOCKED`.
 
+Il vocabolario è unico — `canonical <sorgente>` · `none` · `generated` — e sta in [`RT3_CONTRACT.md`](RT3_CONTRACT.md) §6. Un valore fuori da quei tre è una voce malformata, e per §6 si legge `BLOCKED`.
+
 ### F. Performance e robustezza
 
 Ispeziona: allocazioni calde; loop; query di path; costo della preview; costo del resolver; caricamenti ripetuti; spam di log.

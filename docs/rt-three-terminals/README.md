@@ -144,6 +144,25 @@ falliscono con `RT_SESSION_REQUIRED`.
 - un processo motore vivo che nessun lease rivendica **blocca** l'acquisizione;
 - il rilascio fallisce finché un processo avviato dalla sessione è ancora vivo.
 
+### La build passa dal lease
+
+```powershell
+rtbuild -TaskId 2529
+rtbuild -Target RefactorTactics -Configuration Shipping -TaskId 2395
+```
+
+⛔ **Non invocare `Build.bat` a mano.** Era il solo passo del gate che tocca il motore senza passare
+da nessun guard: nel gate di una wave la build **precede** la suite, e ricompilare le DLL sotto la
+full suite di un altro checkout ne rende `NON VALIDA` la misura — per l'invariante «binario» che
+`rt-suite.ps1` legge prima e dopo la run. Misurato il 2026-09-06, [#2529](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2529).
+
+`rt-build.ps1` non ha un guard proprio e non deve averlo: chiede il lease per `BUILD`, e la regola
+su «il motore è libero?» resta in una sede sola. Esce `2` se non lo ottiene, propaga il codice di
+`Build.bat` altrimenti, e rilascia il lease **anche quando la build fallisce**.
+
+⚠️ **Non attende**, per decisione: la richiesta di #2529 è che una build in condizione di contesa sia
+**fermata**, non sconsigliata. Chi vuole aspettare guarda `rtlease -Action status`.
+
 ⚠️ `rtmode` esiste ancora, ed è **solo informativo**. Il suo file vive per-checkout mentre il motore
 è per-macchina: il finding `parsecell-arity/1-F13` ha misurato che la sua lettura era *anticorrelata
 con la verità* — con sei checkout attivi, l'unico che dichiarava `VALIDATION` era quello che non
@@ -167,6 +186,42 @@ Dopo l’installazione:
 Resta disponibile `RT: Open 3 terminals` come alias di compatibilità per aprire una istanza per ruolo.
 
 I task usano `panel: new` e `instanceLimit > 1`, quindi lo stesso ruolo può essere aperto più volte.
+
+## Task routing
+
+Chi lavora su un task attraverso più ruoli non deve ricordare a chi l'ha già passato.
+
+```text
+Terminal -> Run Task -> RT: Open next task terminal
+TaskId: 2330
+```
+
+Il router legge chi tocca adesso e apre **quel** ruolo. Se tocca a te — un giudizio
+visivo, il feel, una decisione di design — non apre un ruolo falso: te lo dice.
+
+```powershell
+rttask list                     # tutti i task, con stato e prossimo actor
+rttask status -TaskId 2330      # chi ha fatto cosa, e chi tocca
+```
+
+Le decisioni di routing le scrive il **RT Coordinator** (`claude --agent rt-coordinator`,
+oppure `RT: Open COORDINATOR`), che non è una quarta figura RT3: non imposta
+`RT_TERMINAL_ROLE`, non acquisisce Unreal, non esegue suite, non emette verdetti.
+
+Un worker deposita un risultato e basta:
+
+```powershell
+rttask report -TaskId 2330 -Status DONE -Summary "..." -NextActorRecommended VALIDATION
+```
+
+⛔ `NEXT_ACTOR_RECOMMENDED` è una **raccomandazione**. `next_actor` lo imposta solo
+il Coordinator.
+
+Semantica completa — schema, comandi, lifecycle, mismatch, `USER_REQUIRED`, rapporto
+con le wave RT3 e cosa **non** è source of truth: [`TASK_ROUTING.md`](TASK_ROUTING.md).
+
+Un terminale aperto senza `TaskId` si comporta esattamente come prima: il router è
+un'estensione, non un passaggio obbligato.
 
 ## Suite protetta
 

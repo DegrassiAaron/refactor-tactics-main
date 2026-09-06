@@ -319,8 +319,24 @@ Prima del merge verifica che il gate appartenga al commit che stai mergiando.
 Con Unreal Editor chiuso:
 
 ```powershell
+.\scripts\rt-build.ps1 -TaskId <issue>
+```
+
+⛔ **Non invocare `Build.bat` a mano.** Era il solo passo del gate che tocca il motore
+senza passare da nessun guard, e nel gate della wave `parsecell-arity/1` la build
+precede la suite: ricompilare le DLL sotto la full suite di un altro checkout rende
+`NON VALIDA` la sua misura, per l'invariante «binario» che `rt-suite.ps1` legge prima
+e dopo la run. Misurato il 2026-09-06 — [#2529](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2529).
+
+`rt-build.ps1` chiede il lease per `BUILD`, esce `2` se il motore è occupato o non
+attribuibile, e lo rilascia anche quando la build fallisce. Non attende: una build in
+condizione di contesa va **fermata**, non sconsigliata.
+
+Il comando che esegue, se serve leggerlo:
+
+```powershell
 & "<engine>/Engine/Build/BatchFiles/Build.bat" RefactorTacticsEditor Win64 Development `
-    -project="<repo>/RefactorTactics.uproject" -waitmutex
+    -Project="<repo>/RefactorTactics.uproject" -WaitMutex
 ```
 
 ### Tooling locale

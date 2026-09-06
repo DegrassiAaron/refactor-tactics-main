@@ -1,6 +1,6 @@
 ---
 name: implement-feature
-description: Critically analyzes a RefactorTactics objective, reconciles it with live GitHub issues and repository contracts, creates or updates the minimum set of independent work-unit issues, and generates 3-6 Claude Code terminal prompts that execute those issues through /issue-run in parallel. Exactly one terminal owns final Validation + Unreal Editor/PIE validation.
+description: Critically analyzes a RefactorTactics objective, reconciles it with live GitHub issues and repository contracts, creates or updates the minimum set of independent work-unit issues, and routes them through the RT3 figures (DEV, EDITOR, VALIDATION) using the task router. Creates no more work units than the objective needs.
 argument-hint: "<feature or objective description>"
 disable-model-invocation: true
 ---
@@ -15,7 +15,7 @@ Invocation example:
 
 `/implement-feature Replay scenario`
 
-This skill is an **orchestrator of issues and Claude Code terminals**.
+This skill is an **orchestrator of issues and RT3 routing**.
 
 It MUST NOT implement the requested feature itself.
 
@@ -25,26 +25,26 @@ Its job is:
 2. inspect the repository and live GitHub state;
 3. **criticize the proposed direction before producing a plan**;
 4. find, create, or update the minimum useful set of GitHub issues;
-5. make those issues independently claimable by `/issue-run`;
-6. generate prompts for 3-6 Claude Code terminals;
-7. reserve **exactly one** terminal for combined `VALIDATION_EDITOR`;
-8. leave a dependency graph that can actually be executed without two terminals owning the same issue or binary Editor asset.
+5. make those issues independently executable;
+6. decide, for each of them, which RT3 figure is the **minimum** one that can do the work;
+7. hand the routing to the task router when it is available, instead of producing a stack of prompts the user has to remember and paste;
+8. leave a dependency graph that can actually be executed without two workers owning the same issue or the same binary Editor asset.
 
 ---
 
 # Non-negotiable invariants
 
-## I1 — Every execution terminal uses `/issue-run`
+## I1 — Work starts from an issue, and the worker stays inside its role
 
-Every terminal that performs work MUST execute exactly one GitHub issue through:
+Every worker that performs work executes exactly one GitHub issue through:
 
 `/issue-run <issue-number>`
 
 Do not replace `/issue-run` with an ad-hoc implementation prompt.
 
-The issue is the operational source of truth.
+The issue is the operational source of truth for **what** must be done.
 
-The terminal prompt may add context and guardrails, but the actual work starts from `/issue-run`.
+`/issue-run` is role-aware: run inside a DEV terminal it does not open Unreal, and run inside EDITOR or VALIDATION it does not do DEV's job. Assigning an issue therefore means assigning it **to a figure**, not to an anonymous terminal.
 
 ## I2 — One terminal, one issue, one owner
 
@@ -58,22 +58,33 @@ Therefore:
 - the parent remains the capability/scope owner when that is already the repository model;
 - child issues are execution units, not duplicate primary owners.
 
-## I3 — Exactly one Validation + Editor terminal
+## I3 — EDITOR and VALIDATION are two figures, never one
 
-There MUST be exactly one terminal of type:
+⛔ **`VALIDATION_EDITOR` non esiste.** Una versione precedente di questa skill lo imponeva come terminale combinato: è incompatibile con le fonti accettate, e produceva esattamente il difetto che RT3 esiste per impedire.
 
-`VALIDATION_EDITOR`
+Le fonti, tutte e tre concordi:
 
-Do not create:
-- a separate `VALIDATION` terminal;
-- a separate `EDITOR` terminal;
-- multiple PIE/Editor owners.
+- `CLAUDE.md` §6 — «VALIDATION non deve: modificare un problema; validare autonomamente il proprio fix; dichiararlo approvato»;
+- `RT3_CONTRACT.md` §7 — EDITOR ha tetto `OBSERVED` su `DETERMINISM`, `PRIVACY`, `TURNLOG/REPLAY`, `NETWORK AUTHORITY`, `PERFORMANCE`, `AUTOMATION/SCENARIO`, `BUILD`, `ARCHITECTURE`, e `N/A` su `PACKAGED`. Non ha lo strumento, non è un tetto disciplinare;
+- `RT3_CONTRACT.md` §12 — chi trova un `P0`/`P1` non ripara e poi approva sé stesso.
 
-This terminal owns the final integration validation and all required Unreal Editor / PIE / visual MCP validation for the feature.
+Un terminale che authora l'asset **e** firma la validazione è entrambe le parti del difetto in una sola sessione.
 
-Implementation terminals should use headless automation whenever possible.
+Quindi:
 
-If a worker issue needs visual/Editor evidence to be considered complete, define that evidence as delegated to the `VALIDATION_EDITOR` issue and link the dependency explicitly.
+| Figura | Possiede |
+|---|---|
+| `DEV` | C++, test, tooling headless, Git/GitHub. Non occupa Unreal |
+| `EDITOR` | `.uasset`/`.umap`, Blueprint, UMG, PIE, acceptance visuale. Unico writer binario |
+| `VALIDATION` | Automation, scenario, determinismo, privacy, replay, packaged, performance. Verificatore **indipendente** |
+
+Regole che ne derivano:
+
+- un solo writer binario per wave: `EDITOR`;
+- `VALIDATION` verifica un commit che non ha prodotto;
+- se `VALIDATION` trova un difetto che richiede una modifica, produce un finding per `DEV` o `EDITOR` e **rivalida** un commit nuovo. Non lo ripara.
+
+I worker di implementazione usano automazione headless quando possibile. Se una issue richiede evidenza visiva/Editor, quella parte appartiene a `EDITOR` e la dipendenza va dichiarata.
 
 ## I4 — Critique before plan
 
@@ -105,7 +116,7 @@ Create a new issue only when:
 - no existing issue owns the work;
 - a large existing issue needs independently executable child work;
 - a follow-up is genuinely outside the current issue scope;
-- final integration/Editor validation needs its own single owner.
+- authoring o verifica hanno bisogno di un owner distinto perche' appartengono a un'altra figura.
 
 Do not create duplicate issues for symmetry.
 
@@ -129,14 +140,14 @@ Prefer:
 
 ## I7 — One owner for binary Unreal assets
 
-No two parallel terminals may edit the same:
+No two parallel workers may edit the same:
 - `.uasset`
 - `.umap`
 - other binary Unreal artifact.
 
-All Editor-created or Editor-modified binary assets required by this orchestration belong to `VALIDATION_EDITOR`, unless a dedicated content issue is absolutely necessary.
+Every Editor-created or Editor-modified binary asset belongs to the `EDITOR` figure. `VALIDATION` may read and verify them; it must not rewrite them.
 
-If a dedicated content issue owns binary assets, `VALIDATION_EDITOR` may inspect/use them but MUST NOT independently recreate or rewrite them unless fixing an integration defect.
+⚠️ L'authoring asset via MCP è consentito **solo** dal workspace `MAIN`, che ospita l'unico bridge della macchina. Il ruolo EDITOR esiste in ogni checkout; l'authoring no. Preflight: `rtmcp -Operation MCP_ASSET_WRITE -TaskId <id> -AssetWriteSet <path>`.
 
 ## I8 — Preserve RefactorTactics authority boundaries
 
@@ -289,29 +300,30 @@ If `BLOCKED` because of an unresolved author/design decision or missing prerequi
 
 Only after the Critical Review Gate passes, create/update the execution graph.
 
-Target: **3-6 terminal issues total**, including `VALIDATION_EDITOR`.
+⛔ **Non esiste un numero di work unit da raggiungere.** Una versione precedente chiedeva «3-6 terminali»: è un quorum, e un quorum si riempie inventando lavoro. Il numero corretto è quello che l'obiettivo richiede, e a volte è **uno**.
 
-Default shapes:
+Per ogni work unit decidi la figura RT3 **minima** che può eseguirla:
 
-### Small
-- Worker 1
-- Worker 2
-- VALIDATION_EDITOR
+| Se il lavoro è | Figura |
+|---|---|
+| C++, test, tooling headless, dati testuali, docs | `DEV` |
+| `.uasset`/`.umap`, Blueprint, UMG, wiring visivo, PIE | `EDITOR` |
+| Automation, scenario, determinismo, privacy, replay, packaged, performance | `VALIDATION` |
+| un giudizio che nessuno strumento produce (leggibilità, feel, approvazione) | `USER` |
 
-### Medium
-- Worker 1
-- Worker 2
-- Worker 3
-- VALIDATION_EDITOR
+Non coinvolgere una figura perché «di solito c'è». `EDITOR` senza asset da toccare non ha lavoro; `VALIDATION` esiste quando c'è un gate da eseguire, non come timbro finale d'ufficio.
 
-### Large
-- Worker 1
-- Worker 2
-- Worker 3
-- Worker 4
-- VALIDATION_EDITOR
+Forme tutte legittime, e la scelta dipende dal task:
 
-Do not exceed 6 unless the user explicitly asks.
+```text
+DEV -> VALIDATION                           bug C++ puro
+EDITOR -> VALIDATION                        authoring di contenuto
+DEV -> VALIDATION -> EDITOR -> VALIDATION   gate headless, poi PIE, poi sign-off
+EDITOR -> USER                              check percettivo
+VALIDATION -> DEV                           finding di codice emerso validando
+```
+
+⛔ `DEV -> EDITOR -> VALIDATION` non è cablato da nessuna parte. Non trattarlo come default.
 
 ## Allowed worker types
 
@@ -390,11 +402,15 @@ One of:
 - `N/A` with reason.
 
 ## Editor / PIE
-For every non-validation worker, normally write:
+For a `DEV` work unit, normally write:
 
-`Delegated to #<VALIDATION_EDITOR_ISSUE>. Do not own or modify Editor/PIE binary validation assets in this issue.`
+`Delegated to the EDITOR figure (#<issue> if a dedicated one exists). Do not open Unreal, do not touch binary assets in this issue.`
 
-Use `N/A` only when Editor validation is genuinely irrelevant to the whole feature.
+For a `VALIDATION` work unit:
+
+`Automation/scenario/packaged only. Editor authoring belongs to EDITOR.`
+
+Use `N/A` only when no Editor work exists anywhere in the objective.
 
 ## TurnLog / Replay impact
 Required when relevant.
@@ -407,58 +423,50 @@ What `/issue-run` must be able to prove before this worker hands off.
 
 ---
 
-# Phase 5 — Create the single VALIDATION_EDITOR issue
+# Phase 5 — Chiudere la catena: chi authora, e chi verifica
 
-There must be exactly one issue dedicated to final integration + Editor validation.
+Non esiste una issue combinata. Se il lavoro richiede sia authoring che verifica, sono due responsabilita' distinte, ed e' un requisito che le eseguano due figure diverse.
 
-Recommended title pattern:
+## Se serve authoring Editor
 
-`[VALIDATION/EDITOR] <objective> — integrazione, PIE e acceptance finale`
+Owner: `EDITOR`. Possiede:
 
-It depends on all implementation issues.
+1. `.uasset` / `.umap` / Blueprint / UMG / Material;
+2. il wiring visivo e l'acceptance percettiva;
+3. la PIE evidence;
+4. la persistenza: `Save -> Stop PIE -> Close Editor -> riapertura -> giudizio`.
 
-Its scope is NOT to reimplement the feature.
+Non possiede: determinismo, privacy, replay, packaged, performance. Su quei sistemi il suo verdetto massimo e' `OBSERVED` (`RT3_CONTRACT.md` §7), e un `OBSERVED` non e' un `PASS`.
 
-It owns:
+⚠️ L'authoring via MCP avviene solo dal workspace `MAIN`, che ospita l'unico bridge della macchina. Preflight `rtmcp` obbligatorio.
 
-1. integration acceptance;
-2. regression gate;
-3. cross-worker contract validation;
-4. Unreal Editor / PIE / visual MCP evidence when applicable;
-5. binary Editor validation assets not owned elsewhere;
-6. final scenario pass when Editor/PIE is required;
-7. issue/roadmap coherence after all children land;
-8. minimal integration fixes only.
+## Se serve un gate
 
-It must not:
-- create a second gameplay authority;
-- silently redesign worker implementations;
-- duplicate headless tests already owned elsewhere;
-- close a worker whose evidence is missing;
-- mark an Editor check passed when it was not run.
+Owner: `VALIDATION`. Possiede:
 
-## Preflight responsibility
+1. build e Automation mirata;
+2. regression e Scenario Harness;
+3. determinismo, replay, privacy, packaged, performance;
+4. l'evidenza rileggibile di ognuno.
 
-The issue may be started before the other workers finish only for:
-- reading acceptance criteria;
-- preparing the validation matrix;
-- checking MCP/editor availability;
-- identifying existing reusable scenarios/assets;
-- detecting contract collisions.
+Vincoli non negoziabili:
 
-It must not perform final validation against partial code and call it complete.
+- verifica un commit che **non ha prodotto**;
+- non ripara e poi approva se stesso. Un difetto produce un finding per `DEV` o `EDITOR`, e poi si rivalida un commit nuovo (`RT3_CONTRACT.md` §12);
+- `performed = 0` non e' una validazione riuscita;
+- se `HEAD`, working tree o binari cambiano durante la misura, l'esito e' `NON VALIDA`, non `FAIL`.
 
-## Final gate
+## Preflight
 
-After all worker commits/PRs are available:
-- integrate in dependency order;
-- run required builds;
-- run targeted + regression automation;
-- run Scenario Harness suites;
-- use Unreal/Epic MCP and PIE where applicable;
-- capture exact evidence;
-- reconcile GitHub issues/docs/roadmap;
-- report PASS / BLOCKED with reasons.
+Prima che i worker finiscano, `VALIDATION` puo' soltanto: leggere gli acceptance criteria, preparare la matrice, individuare scenari riusabili, rilevare collisioni di contratto.
+
+Non puo' validare codice parziale e chiamarlo completo.
+
+## Se serve un giudizio umano
+
+Owner: `USER`. Un check percettivo, una decisione di design, un'approvazione.
+
+⛔ `USER_REQUIRED` non diventa `PASS` per silenzio.
 
 ---
 
@@ -473,7 +481,8 @@ Example:
 | #A | CORE_ARCHITECTURE | `Source/.../Core/*` | `RTTurnLog.h` | — |
 | #B | SCENARIOS | `Scenarios/...` | APIs from #A | #A contract |
 | #C | AUTOMATION_TESTS | `Source/.../Tests/...` | API contract | #A |
-| #D | VALIDATION_EDITOR | Editor assets + integration docs | outputs A/B/C | #A #B #C |
+| #D | EDITOR | `Content/...` (`.uasset`/`.umap`) | outputs A/B/C | #A #B #C |
+| #E | VALIDATION | referto ed evidenza, nessun sorgente | tutti gli output | #A #B #C #D |
 
 Rules:
 - same writable file in two issues => redesign;
@@ -486,7 +495,8 @@ Parallel does NOT mean all issues must start at the exact same second.
 A valid graph may be:
 - A and B parallel;
 - C starts after A;
-- VALIDATION_EDITOR preflight parallel, final gate after A+B+C.
+- EDITOR authora quando il contratto di #A e' stabile;
+- VALIDATION prepara la matrice in parallelo, ma il gate misura solo commit completi.
 
 ---
 
@@ -531,117 +541,95 @@ Use for:
 
 ---
 
-# Phase 8 — Generate terminal prompts
+# Phase 8 — Instrada, non impilare prompt
 
-Create one self-contained prompt file per issue.
+⛔ **Non generare una pila di prompt che l'utente deve ricordare e incollare a mano.** Era il difetto centrale della versione precedente: il percorso viveva nella testa di chi apriva le finestre, ed e' esattamente cio' che il task router toglie di mezzo.
 
-Write generated prompt files under the ignored working area:
+## Se il task router e' disponibile
+
+Verifica:
+
+```powershell
+pwsh -NoLogo -NoProfile -File scripts/rt-task-router.ps1 -Action list
+```
+
+Se risponde, questa e' la strada. Per ogni work unit:
+
+1. crea il task, una volta:
+
+```powershell
+pwsh -NoLogo -NoProfile -File scripts/rt-task-router.ps1 -Action init -TaskId <issue> -Title "<titolo>"
+```
+
+2. emetti l'assignment per la figura minima:
+
+```powershell
+pwsh -NoLogo -NoProfile -File scripts/rt-task-router.ps1 -Action assign -TaskId <issue> `
+    -Actor <DEV|EDITOR|VALIDATION|USER> -ExpectedSequence <sequence letta ora> `
+    -Objective "..." -Context "..." -Inputs "..." `
+    -Do "/issue-run <issue>", "..." -DoNot "..." `
+    -ExpectedOutput "..." -NextIfPass <actor>
+```
+
+`-Do` porta `/issue-run <issue>` come primo passo: la issue resta la source of truth del **cosa**, l'assignment dice **chi** e **con quale confine**.
+
+`-DoNot` deve nominare cio' che appartiene a un'altra figura. E' il campo che impedisce a un DEV di aprire l'Editor «tanto ci vuole un attimo».
+
+3. all'utente consegna una riga, non un prompt:
+
+```text
+Terminal -> Run Task -> RT: Open next task terminal   ->  TaskId: <issue>
+```
+
+⛔ **Le mutazioni del routing appartengono al RT Coordinator.** Se stai girando dentro un terminale con ruolo, il router le rifiutera' con `TASK_MUTATION_ROLE_DENIED`, e ha ragione: in quel caso produci il piano e dillo all'utente, che lo esegue dal Coordinator (`RT: Open COORDINATOR`).
+
+Semantica completa: `docs/rt-three-terminals/TASK_ROUTING.md`.
+
+## Se il router non e' disponibile
+
+Fallback, non default. Scrivi un prompt per work unit sotto l'area ignorata:
 
 `Saved/Claude/ImplementFeature/<objective-slug>/`
 
-Suggested names:
-
-- `terminal-01-core.md`
-- `terminal-02-tests.md`
-- `terminal-03-scenarios.md`
-- `terminal-04-validation-editor.md`
-
-Do not version these generated prompt files unless the user explicitly asks.
-
-Also print the prompts/paths in the command result.
-
-## Implementation terminal prompt template
-
-Each implementation prompt MUST contain:
+Un prompt per figura, con il nome che la dichiara:
 
 ```md
-# Terminal N — <WORKER_TYPE>
+# <DEV|EDITOR|VALIDATION> — issue #<number>
 
-Issue: #<number>
-Parent/owner: #<number if applicable>
 Objective: <slice>
 
 ## Execute
 
 /issue-run <number>
 
-## Parallel contract
+## Confine di ruolo
 
-You own only issue #<number>.
+Sei <figura>. Vale `docs/rt-three-terminals/prompts/TERMINAL_<figura>.md`.
 
-Do not claim or execute sibling issues:
-- #...
-- #...
+Non fai il lavoro delle altre due:
+- <cosa appartiene a DEV>
+- <cosa appartiene a EDITOR>
+- <cosa appartiene a VALIDATION>
 
-Expected writable area:
-- ...
+## Write set
 
-Treat these as read-only shared contracts unless /issue-run proves a necessary change:
-- ...
-
-Editor/PIE ownership:
-- delegated to #<VALIDATION_EDITOR issue>
-- do not launch/change shared Editor binary assets unless the issue definition explicitly proves it is required
+Possiedi: ...
+Sola lettura: ...
 
 ## Dependencies
 
 - ...
 
-## Handoff required
+## Handoff
 
-When /issue-run finishes, report:
-- final issue state;
-- branch/worktree;
-- commit/PR;
-- exact tests run;
-- scenario evidence if this issue owns a headless scenario;
-- changed files;
-- contract changes that affect siblings;
-- blocker/follow-up issue numbers.
+Al termine riporta: stato issue, branch, commit/PR, comandi eseguiti con il loro
+esito, evidenza rileggibile, file cambiati, contract change che toccano altri,
+blocker. Dichiara esplicitamente cio' che e' `NOT RUN`.
 ```
 
-The line `/issue-run <number>` is mandatory.
+Non versionare questi file salvo richiesta esplicita.
 
-## VALIDATION_EDITOR terminal prompt template
-
-```md
-# Terminal N — VALIDATION_EDITOR
-
-Issue: #<number>
-Objective: final integration + single Editor/PIE validation owner
-
-## Execute
-
-/issue-run <number>
-
-## Special role
-
-This is the ONLY Validation + Editor terminal for this /implement-feature run.
-
-Do not duplicate worker implementation.
-
-### Preflight
-You may immediately:
-- inspect all child issues;
-- prepare acceptance matrix;
-- inspect reusable scenarios;
-- inspect Editor/MCP availability;
-- detect contract/write-set conflicts.
-
-### Final validation
-Do not declare completion until all required worker outputs are available.
-
-Integrate/validate in dependency order and prove:
-- build;
-- targeted tests;
-- regression tests;
-- scenario results;
-- replay/determinism/privacy gates when applicable;
-- Editor/PIE/MCP evidence when applicable;
-- documentation/roadmap/issue coherence.
-
-If a semantic integration conflict exists, set/report BLOCKED rather than silently choosing a design.
-```
+⚠️ Nel fallback il percorso torna a vivere nella testa dell'utente. Dillo, invece di lasciarglielo scoprire.
 
 ---
 
@@ -664,10 +652,12 @@ For every issue:
 # PARALLEL WAVES
 Example:
 
-`Wave 0: VALIDATION_EDITOR preflight`
-`Wave 1: #A + #B + #C`
-`Wave 2: #D if it depends on #A`
-`Wave 3: VALIDATION_EDITOR final gate`
+`Wave 0: VALIDATION preflight (sola lettura: matrice, scenari riusabili, collisioni)`
+`Wave 1: #A + #B + #C   (DEV)`
+`Wave 2: #D            (EDITOR, dopo il contratto di #A)`
+`Wave 3: #E            (VALIDATION, gate su un commit che non ha prodotto)`
+
+Una wave puo' anche essere una sola: `DEV -> VALIDATION` e' un grafo valido.
 
 # COLLISION CHECK
 Writable overlaps and how they were removed.
@@ -681,11 +671,18 @@ What will use:
 - PIE;
 and why.
 
-# TERMINALS
-List the generated prompt files in execution order.
+# ROUTING
+Per ogni work unit: issue, figura RT3 scelta, e **perche' quella e non un'altra**.
+
+Se il task router e' stato usato, riporta i TaskId creati e la sequence corrente.
+Se e' stato usato il fallback, riporta i file di prompt generati e dichiaralo come
+fallback.
 
 # START NOW
-Explicitly state which terminals may start immediately.
+Dichiara cosa puo' partire subito, e con quale comando esatto. Se il router e'
+disponibile, e' una riga sola per work unit:
+
+`RT: Open next task terminal  ->  TaskId: <id>`
 
 ---
 
@@ -699,7 +696,8 @@ A healthy decomposition might become:
 - issue A — scenario format/fixture or replay-source contract;
 - issue B — deterministic replay/scenario automation;
 - issue C — scenario corpus/golden evidence if independently writable;
-- issue D — `VALIDATION_EDITOR`, depending on A/B/C.
+- issue D — `EDITOR`, se e solo se ci sono asset da authorare;
+- issue E — `VALIDATION`, il gate, dipendente da tutte.
 
 Possible waves:
 
@@ -713,23 +711,31 @@ But if live evidence shows an existing issue already owns the complete replay sc
 
 # Anti-patterns — reject these
 
-## Three terminals on one issue
+## Tre worker sulla stessa issue nello stesso momento
 
-Wrong:
+Sbagliato:
 
-`Terminal 1 -> /issue-run 123`
-`Terminal 2 -> /issue-run 123`
-`Terminal 3 -> /issue-run 123`
+`DEV-1 -> /issue-run 123`
+`DEV-2 -> /issue-run 123`
+`DEV-3 -> /issue-run 123`
 
-This violates exclusive claim ownership.
+Viola l'ownership esclusiva.
 
-## Separate Validation and Editor
+⚠️ Non e' lo stesso caso della **catena**: `DEV -> EDITOR -> VALIDATION` sulla stessa issue, uno dopo l'altro, e' il flusso normale. Cio' che e' vietato e' la concorrenza, non la successione.
 
-Wrong:
-- Terminal 4 Validation
-- Terminal 5 Editor
+## Riempire un quorum di worker
 
-Use one `VALIDATION_EDITOR`.
+Creare una work unit perche' «ne servono tre» e' lavoro inventato. Se l'obiettivo ne richiede una, ne crei una.
+
+## Un terminale che authora e poi valida se stesso
+
+Sbagliato:
+
+`Terminal 4 -> authora l'asset, apre il PIE, e firma il gate`
+
+E' il difetto che `CLAUDE.md` §6 e `RT3_CONTRACT.md` §12 vietano per nome. `EDITOR` e `VALIDATION` restano due figure, e chi ripara non approva.
+
+⚠️ Una versione precedente di questa skill prescriveva l'opposto, sotto il nome `VALIDATION_EDITOR`. Se lo trovi citato altrove, e' quel testo.
 
 ## Create issue for every technical layer
 

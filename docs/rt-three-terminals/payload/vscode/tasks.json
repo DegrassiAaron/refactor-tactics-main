@@ -168,6 +168,103 @@
         "panel": "dedicated",
         "clear": true
       }
+    },
+    {
+      "label": "RT: Open next task terminal",
+      "detail": "Chiede il TaskId, legge il task router e apre il ruolo che tocca ADESSO. Se tocca allo USER o non c'e' un actor, non apre un ruolo falso: dice perche'.",
+      "type": "process",
+      "command": "pwsh",
+      "args": [
+        "-NoLogo",
+        "-NoExit",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\scripts\\rt-open-task.ps1",
+        "-TaskId",
+        "${input:rtTaskId}",
+        "-WorkspaceRoot",
+        "${workspaceFolder}"
+      ],
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 32
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "focus": true,
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "icon": {
+        "id": "arrow-right",
+        "color": "terminal.ansiMagenta"
+      }
+    },
+    {
+      "label": "RT: Task status",
+      "detail": "Elenco dei task del router con stato e prossimo actor. Sola lettura: non muta il routing, non tocca il lease e non avvia Unreal.",
+      "type": "process",
+      "command": "pwsh",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\scripts\\rt-task-router.ps1",
+        "-Action",
+        "list",
+        "-WorkspaceRoot",
+        "${workspaceFolder}"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "RT: Open COORDINATOR",
+      "detail": "Sessione Claude Code con l'agent rt-coordinator. NON e' un ruolo RT3: non imposta RT_TERMINAL_ROLE, non acquisisce Unreal, non esegue suite.",
+      "type": "process",
+      "command": "pwsh",
+      "args": [
+        "-NoLogo",
+        "-NoExit",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "Remove-Item Env:\\RT_TERMINAL_ROLE -ErrorAction SilentlyContinue; claude --agent rt-coordinator"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 4
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "focus": true,
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "icon": {
+        "id": "compass",
+        "color": "terminal.ansiMagenta"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "rtTaskId",
+      "type": "promptString",
+      "description": "TaskId: issue o slug. Lettera o cifra iniziale, poi lettere, cifre, . _ -",
+      "default": ""
     }
   ]
 }

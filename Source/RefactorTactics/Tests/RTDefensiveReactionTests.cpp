@@ -460,25 +460,22 @@ bool FRTTwoCountersKeepOwnOriginTest::RunTest(const FString&)
 	const FRTCellId CellaReactorB = ReactorB->Cell;
 	const FRTCellId CellaAttackerA = AttackerA->Cell;
 	const FRTCellId CellaAttackerB = AttackerB->Cell;
+
 	RunDefTurn(TM);
 
-	// 🔴 **Gli id si leggono DOPO il turno, e la prima stesura li leggeva prima.** `StableUnitId` vale `0`
-	// finche' `ARTTurnManager::EnsureMatchRoster()` non lo assegna, e quella gira **alla prima risoluzione**
-	// (`RTUnit.h`: *«La assegna EnsureMatchRoster() una volta sola, alla prima risoluzione»*). Catturarli
-	// prima faceva attendere `0` per entrambi, e il test falliva con *«Expected ... to be 0, but it was 1»*
-	// mentre l'associazione era CORRETTA — misurato sulla suite del 2026-09-06.
-	//
-	// ⚠️ Non e' una lettura tardiva per comodita': e' la sola in cui l'identita' esiste. Le CELLE invece si
-	// catturano prima, perche' quelle esistono allo spawn e il turno potrebbe muoverle.
+	// ⚠️ E gli ID DOPO, che e' l'opposto delle celle e non una svista (`#2612`): `StableUnitId` nasce a
+	// **0** per tutti (`RTUnit.h`, `int32 StableUnitId = 0`) e lo assegna `EnsureMatchRoster()` dentro il
+	// turno — `RTTurnManager.cpp` lo dice gia': «al primo turno ogni `StableUnitId` valeva ancora 0».
+	// Leggerli prima catturava due zeri e li confrontava con gli autori veri, `1` e `2`: il test nasceva
+	// rosso, e la simmetria con le celle qui sopra e' precisamente cio' che lo ha fatto sembrare giusto.
+	// Le celle vanno lette prima perche' il turno le CAMBIA; gli id dopo perche' il turno li CREA.
 	const int32 IdReactorA = ReactorA->StableUnitId;
 	const int32 IdReactorB = ReactorB->StableUnitId;
 
-	// L'ordine del roster non e' quello di spawn: `MatchRosterLess` ordina per TeamId e poi per cella,
-	// quindi i due reattori (team 0) prendono `1` e `2` e gli attaccanti `3` e `4`. Il test non ci fa
-	// affidamento — legge gli id invece di scriverli — ma senza questa riga il prossimo lettore lo dedurrebbe
-	// sbagliato dall'ordine delle `SpawnDefUnit`.
-	if (!TestNotEqual(TEXT("premessa: il roster ha assegnato un'identita' ad A"), IdReactorA, static_cast<int32>(0))
-		|| !TestNotEqual(TEXT("premessa: il roster ha assegnato un'identita' a B"), IdReactorB, static_cast<int32>(0)))
+	// GUARDIA, non decorazione: se il roster tornasse ad assegnare gli id piu' tardi, questi due sarebbero
+	// di nuovo `0` — uguali fra loro — e i confronti sull'autore piu' sotto diventerebbero «zero contro
+	// zero», cioe' verdi senza provare niente. Fallire QUI dice che e' la premessa a essere caduta.
+	if (!TestNotEqual(TEXT("premessa: il roster ha assegnato gli id"), IdReactorA, IdReactorB))
 	{
 		DestroyDefWorld(World);
 		return false;
