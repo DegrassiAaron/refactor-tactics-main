@@ -307,7 +307,8 @@ Oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari portano a
 | ScenarioId | Fixture | Voce PIE | Cosa deve vedersi |
 |---|---|---|---|
 | `Visual.Combat.BraceReducesEveryHit` | r4 | `PIE-VIS-BRACE` | `Brace` toglie 10 a **ogni** colpo e non finisce mai |
-| `Visual.Combat.Defeat` | r4 | `PIE-VIS-KO` | barra che scende due volte, poi la rimozione — mai prima del colpo |
+| `Visual.Combat.Defeat` | r4 | `PIE-VIS-KO` · **`PIE-AS4b`** · **`PIE-AS4c`** | barra che scende due volte, poi la rimozione — mai prima del colpo. ➕ **Dal 2026-09-06 e' anche il banco delle animazioni discrete**: `Cast` / `Hit` / `Death`, e la **taratura di `DefeatBeatSeconds`**. 🔑 Qui **nessuno si muove**, quindi la morte cade nell'ULTIMA fase riprodotta e senza la coda il montaggio avrebbe finestra **zero**: e' il caso peggiore, ed e' il motivo per cui serve il gemello |
+| `Visual.Combat.DefeatDuringMove` | r4 | **`PIE-AS4c`** | 🆕 **Il gemello, e si guardano in COPPIA.** Identico al precedente tranne una cosa: all'ultimo turno Phase **muove**, quindi la fase `Move` segue il `Blast` e il montaggio di `Death` ha una finestra **naturale**. Se la morte si legge qui e non nell'altro, `DefeatBeatSeconds` e' troppo corto; se si trascina qui, e' l'animazione a essere lunga e la coda non c'entra |
 | `Visual.Combat.FallbackTargetMoved` | r5 | `PIE-VIS-FALLBACK` | il piano rivalidato, non un colpo a caso |
 | `Visual.Combat.GuardReducesFirstHit` | r4 | `PIE-VIS-GUARD` | `Guard` toglie 15 al **primo** colpo e finisce lì |
 | `Visual.Combat.PushResistance` | r4 | `PIE-VIS-PUSH` | Riktor incassa e **non arretra**, Wraith arretra |
@@ -1119,8 +1120,11 @@ del criterio, non una svista.
 > «assegnarle a una seduta è il prossimo passo naturale di G9». Misurando i campi `verifies:` di
 > `editor-sessions.yaml`, l'assegnazione **c'è per tutte e nove**: l'affermazione era vera quando è stata
 > scritta e nessuno l'ha rimisurata dopo che U11 e U15 sono nate. Il prossimo passo di G9 è **eseguirle**.
-> Il conteggio delle voci davvero orfane — 55, nessuna nel subset — vive in
-> `../../roadmap/editormap.shortlist.md`, che è coerente con questa misura.
+> Il conteggio delle voci davvero orfane — 55, nessuna nel subset — viveva in
+> `../../roadmap/editormap.shortlist.md`. ⛔ *Quella vista è uscita col Feature Registry il 2026-08-21
+> (`D-181`) e nessuno script la rigenera: il conteggio corrente vive in
+> [`../../roadmap/plans/roadmap-esecuzione-pie-2026-09-03.md`](../../roadmap/plans/roadmap-esecuzione-pie-2026-09-03.md),
+> che lo rimisura col comando canonico — corretto il 2026-09-06.*
 
 `PIE-FACING-1` è entrata col merge di E16, e non per completezza: dal CP 16.2 l'emisfero posteriore è
 **scoperto**, quindi il facing decide il danno. Un orientamento visibile diverso da quello che il resolver ha

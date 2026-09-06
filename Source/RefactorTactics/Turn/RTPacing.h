@@ -168,6 +168,21 @@ struct FRTPacingSample
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 ReactionWindowsOpened = 0;
+
+	/**
+	 * Opportunity di reazione del turno: **tutte**, comprese quelle che non hanno occupato nessuno.
+	 *
+	 * 🔑 **Non e' un doppione di `ReactionWindowsOpened`, e la differenza e' il dato.** Quello conta le
+	 * finestre che hanno preso il tempo di una persona; questo conta quante volte il sistema ha prodotto
+	 * una opportunity, incluse le auto-risolte a cardinalita' `<= 1` che si committano da sole. Il
+	 * rapporto fra i due dice quanta parte delle reazioni interrompe davvero qualcuno: con un solo
+	 * numero, «poche interruzioni» e «poche reazioni» sarebbero indistinguibili.
+	 *
+	 * Derivato dal TurnLog come il suo gemello, e per la stessa ragione: un secondo contatore nel resolver
+	 * sarebbe una seconda verita' che diverge al primo esito nuovo.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	int32 ReactionOpportunities = 0;
 };
 
 /** Sommario di una sessione di campioni. Prodotto da URTPacingLibrary::SummarizeSamples. */
@@ -222,4 +237,15 @@ struct FRTPacingSummary
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 TotalReactionWindows = 0;
+
+	/**
+	 * Opportunity totali della sessione, comprese le auto-risolte.
+	 *
+	 * ⚠️ **Vale sempre `>= TotalReactionWindows`**, per costruzione: le finestre aperte sono un
+	 * sottoinsieme delle opportunity. Se il sommario mostrasse il contrario il dato sarebbe incoerente, e
+	 * va segnalato invece che normalizzato — un rapporto «aggiustato» nasconderebbe proprio il difetto che
+	 * lo produce.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	int32 TotalReactionOpportunities = 0;
 };

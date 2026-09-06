@@ -1,6 +1,6 @@
 # Test manuali (PIE) — verifiche interattive da eseguire
 
-> `CURRENT` · **Ultimo aggiornamento**: 2026-08-09 · **Owner**: questo file — è il **registro** delle verifiche interattive.
+> `CURRENT` · **Ultimo aggiornamento**: 2026-09-06 · **Owner**: questo file — è il **registro** delle verifiche interattive.
 > Verifiche che richiedono l'editor UE (PIE, mouse, asset) e **non** sono automatizzabili headless.
 > **Complementari** ai test Automation (suite integrata **bot + hex** su `main`, tutti verdi). Parte del DoD «playtest ogni incremento» (roadmap §QA).
 > Regola: una voce è ✅ **solo dopo** verifica reale in PIE — non «dovrebbe funzionare».
@@ -23,11 +23,14 @@
 > 🔑 **E una delle cinque nasce ✅**: non è lavoro nuovo, è un verdetto del **2026-08-30** che era rimasto
 > illeggibile perché la seduta che l'aveva pronunciato non nominava nessuna voce.
 >
-> ⚠️ **Non è una regola nuova**: l'intestazione qui sopra dice già «questo file è il **registro**» e rimanda
-> alla EditorMap per la sequenza. Mancava la parte che rende leggibile il numero — *quale sottoinsieme ha
+> ⚠️ **Non è una regola nuova**: l'intestazione qui sopra dice già «questo file è il **registro**», e la
+> sequenza vive nei due owner nominati qui sotto. Mancava la parte che rende leggibile il numero — *quale sottoinsieme ha
 > una scadenza* — e senza quella ogni conteggio di voci aperte si legge come un debito.
-> **Quale voce affrontare e quando** lo dice la **EditorMap**: questo file
-> resta il **registro** (esito atteso e stato), quella è la **sequenza** — sedute, preparazione condivisa,
+> **Quale voce affrontare e quando** lo dicono [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml),
+> che possiede i **dati** delle sedute, e
+> [`roadmap-esecuzione-pie-2026-09-03.md`](../roadmap/plans/roadmap-esecuzione-pie-2026-09-03.md), che dice
+> **in che ordine e cosa manca**: questo file
+> resta il **registro** (esito atteso e stato), quelli sono la **sequenza** — sedute, preparazione condivisa,
 > artefatti da creare, dipendenze verso i checkpoint di codice. Le voci aperte sono raggruppate lì per
 > preparazione, così l'editor si apre una volta per gruppo invece che una per voce.
 > **Chi esegue cosa** — quali verifiche una macchina fa da sola e quali richiedono per forza una persona — lo dice
@@ -781,9 +784,11 @@ quello che manca è l'esecuzione, non l'assegnazione.
 
 > ⚠️ **Corretto il 2026-08-12**, misurando `verifies:` in `editor-sessions.yaml`. Questa riga diceva il
 > contrario — «nove delle diciassette **non** stanno in nessuna seduta» — e ne traeva la priorità
-> sbagliata. Le 55 voci del registro davvero orfane esistono e sono contate in
-> `../roadmap/editormap.shortlist.md`, ma **nessuna** di esse è nel
-> subset `RELEASE-V01`.
+> sbagliata. Le voci del registro davvero orfane esistono — **55** alla data di questa nota — ma
+> **nessuna** di esse è nel subset `RELEASE-V01`. ⛔ *Erano contate in
+> `../roadmap/editormap.shortlist.md`, uscita col Feature Registry il 2026-08-21 (`D-181`); il conteggio
+> corrente vive in [`../roadmap/plans/roadmap-esecuzione-pie-2026-09-03.md`](../roadmap/plans/roadmap-esecuzione-pie-2026-09-03.md)
+> — corretto il 2026-09-06.*
 
 `PIE-FACING-1` è entrata nel subset il 2026-08-09, con la chiusura di **E16**, e non per completezza: dal
 CP 16.2 l'emisfero posteriore è **scoperto**, quindi il facing decide il danno. Se l'orientamento che si vede
@@ -1449,7 +1454,7 @@ Se una tappa fallisce per **semantica** dell'input e non per leggibilità, il di
 
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |----|-----------------|---------------|--------------|-------|
-| **PIE-V01-ARENA** | La v0.1 gira su una **mappa d'autore**, non sull'arena generata | Seduta **U1** di `../roadmap/editormap.shortlist.md`: produce `DA_HexMap_Arena` + `L_HexArena`. Sbloccata da CP 6.0 ✅ | Disegnare l'arena con gli strumenti hex. **Il Blueprint non va piu' toccato**: dal 2026-08-10 `rt.Map.Source` scavalca la proprieta' da riga di comando, quindi la verifica si fa con `RefactorTactics.exe -dpcvars=rt.Map.Source=LevelAsset` (⚠️ `-dpcvars`, **non** `-ExecCmds`, che gira troppo tardi e fallisce in silenzio). Resta una scelta di progetto se cambiare anche il default del Blueprint. Verifica: il pacchettizzato deve loggare la mappa d'autore invece di `MapSource=GeneratedTestArena: uso la mappa di PROVA` | ⏳ **aperta il 2026-08-10** — e' l'**ultimo** ostacolo a CP 12.5, che per il resto e' verificato: Development e Shipping pacchettizzano, e una partita gira dall'avvio alla fine sul formato `Format.Skirmish2v2`. Non e' automatizzabile: disegnare una mappa richiede l'editor e il giudizio di una persona |
+| **PIE-V01-ARENA** | La v0.1 gira su una **mappa d'autore**, non sull'arena generata | Seduta **U1** di [`../roadmap/editor-sessions.yaml`](../roadmap/editor-sessions.yaml): produce `DA_HexMap_Arena` + `L_HexArena`. Sbloccata da CP 6.0 ✅ | Disegnare l'arena con gli strumenti hex. **Il Blueprint non va piu' toccato**: dal 2026-08-10 `rt.Map.Source` scavalca la proprieta' da riga di comando, quindi la verifica si fa con `RefactorTactics.exe -dpcvars=rt.Map.Source=LevelAsset` (⚠️ `-dpcvars`, **non** `-ExecCmds`, che gira troppo tardi e fallisce in silenzio). Resta una scelta di progetto se cambiare anche il default del Blueprint. Verifica: il pacchettizzato deve loggare la mappa d'autore invece di `MapSource=GeneratedTestArena: uso la mappa di PROVA` | ⏳ **aperta il 2026-08-10** — e' l'**ultimo** ostacolo a CP 12.5, che per il resto e' verificato: Development e Shipping pacchettizzano, e una partita gira dall'avvio alla fine sul formato `Format.Skirmish2v2`. Non e' automatizzabile: disegnare una mappa richiede l'editor e il giudizio di una persona |
 | **PIE-MUT-BASTION-SLOW** | L'assert su `Status.Slow` di `Hero.Riktor.ImpactShot` **sa diventare rosso** | Nessun `UnrealEditor`/`UnrealEditor-Cmd` in esecuzione (`Get-Process UnrealEditor-Cmd`): finché uno tiene `Binaries/Win64/UnrealEditor-RefactorTactics.dll`, il link fallisce con `LNK1104` e il test gira contro il binario vecchio. ⚠️ **Il processo che blocca non è l'Editor**: è il runner headless delle automation, visibile solo in Task Manager — «ho chiuso l'editor» non basta | Togliere la riga `FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Slow, 1)` da `RTHeroCatalogLibrary.cpp` (indice 0 di Riktor) · ricostruire · **verificare che `LastWriteTime` della DLL sia più recente del sorgente** — è questo il passo che rende la prova valida, non la scritta `Result: Succeeded` · eseguire `Automation RunTests RefactorTactics.Heroes`. Deve cadere **esattamente** `RefactorTactics.Heroes.Riktor.MatchesCatalog`, sull'assert «ImpactShot: applica Status.Slow», e **nient'altro**. Poi ripristinare la riga e ricostruire | ✅ **2026-08-09** — eseguita. DLL `20:35:57` contro sorgente `20:35:38` (mutazione **nel binario**, non solo su disco), poi `29 tests performed` con **un solo** rosso: `Heroes.Riktor.MatchesCatalog`, `Expected 'ImpactShot: applica Status.Slow' to be true`. Nient'altro è caduto: l'assert non è vacuo. Ripristinata e ricostruita, albero identico al commit. **Ripetuta il 2026-08-10 sulla suite INTERA** (`#315`), e ha dimostrato una cosa in piu': cadono **due** test, non uno — `Heroes.Riktor.MatchesCatalog` *e* lo scenario `Combat.RiktorImpactShotSlows`, su `UnitAtCell(F1) — atteso (0,0,0), ottenuto (2,0,0)`. Cioe' senza `Slow` l'unita' **arriva due celle piu' in la'**: lo scenario osserva l'effetto *in partita*, non a catalogo. E' la voce che `#315` dichiarava mancante — «lo Slow e' nel dato e nel test di catalogo, ma nessuno l'ha visto agire». Ora si', ed e' misurato: 596 test, 2 rossi, nessun altro (la suite e' poi salita a **606** col merge di `main`, sempre verde). **Storia utile a chi ripete la prova**: due tentativi precedenti erano risultati «verdi» ed erano falsi negativi — nel primo la DLL era più vecchia del sorgente (`LNK1104`, file tenuto da un runner headless), nel secondo l'automation non partiva affatto (vedi la nota sotto) |
 | **PIE-MUT-ACTIONS-ZERO** | La convenzione `Actions[0] = attacco base` **sa diventare rossa** | Come sopra: nessun processo UE che tenga la DLL, e runner lanciato **in diretta** | Aggiungere `Riktor->Actions.Swap(0, 3);` in coda a `MakeRiktor` — cosi' l'indice 0 non e' piu' l'attacco base — - ricostruire, **verificando il timestamp della DLL** - `Automation RunTests RefactorTactics.Heroes`. Deve cadere `RefactorTactics.Heroes.BasicAttackIsIndexZeroForEveryHero`. ⚠️ **Cadono anche altri due test** (`Riktor.MatchesCatalog`, `RiktorInterpositionUsesReactionSlot`) ed e' **corretto**: uno scambio di indici rompe tutto cio' che dipende dalla posizione, non solo la convenzione. Non e' rumore da sopprimere: e' la misura di quanto il roster dipenda da quegli indici — cioe' l'argomento a favore di un campo di ruolo, il giorno in cui un consumer runtime lo giustifichera' | ✅ **2026-08-09** — eseguita. DLL `21:58:37` contro sorgente `21:58:07`; `30 tests performed`, 3 rossi fra cui quello atteso, con `Expected 'ImpactShot: 8 danni' to be 8, but it was 20`. Ripristinata: sorgente identico a `origin/main` |
 
@@ -1626,9 +1631,19 @@ docs → epic → scenario → PIE resti chiuso, non perché siano eseguibili og
 ## La sequenza: quale voce affrontare, e quando
 
 Questo file e' il **registro**: dice cosa verificare e com'e' andata. **Non** dice in che ordine, con quale
-preparazione condivisa, ne' quali asset creare prima — quella e' la
-**EditorMap**, generata da
-[`editor-sessions.yaml`](../roadmap/editor-sessions.yaml).
+preparazione condivisa, ne' quali asset creare prima — quelli stanno in
+[`editor-sessions.yaml`](../roadmap/editor-sessions.yaml), che possiede i **dati** delle sedute `U*`, e in
+[`roadmap-esecuzione-pie-2026-09-03.md`](../roadmap/plans/roadmap-esecuzione-pie-2026-09-03.md), che dice
+**in che ordine e cosa manca**.
+
+> 🔴 **Questa frase rimandava alla EditorMap, e la EditorMap non esiste dal 2026-08-21** — `D-181` ha
+> rimosso `editormap.shortlist.md` e il generatore che la produceva, e `editor-sessions.yaml` lo dichiara
+> di se': *«questo file non ha piu' una vista, e non ha piu' un consumatore»*. ⚠️ **E' lo stesso difetto
+> gia' corretto il 2026-08-28 sulla voce `PIE-SCEN-COMPOSER`**, dove la nota e' rimasta: la correzione
+> tocco' **una voce**, non l'intestazione ne' questa sezione, che e' quella che possiede l'affermazione.
+> Rinviare a un owner rimosso significa che nessuna voce viene schedulata da nessuno — corretto il
+> **2026-09-06**, referto
+> [`schematiche-editor-execution-spec-panel-2026-09-06.md`](../roadmap/plans/schematiche-editor-execution-spec-panel-2026-09-06.md) §6.
 
 > **Le sessioni A-G stavano qui, e sono state spostate** il 2026-08-10 (issue
 > [#371](https://github.com/DegrassiAaron/refactor-tactics-main/issues/371)). Raggruppavano le voci per
