@@ -61,7 +61,7 @@ struct FRTPlanValidation
 	 *
 	 * 🔴 **Esiste perche' `OffendingActionId` da solo accusa l'azione sbagliata.** L'ordine canonico di
 	 * `ValidatePlan` — per larghezza di slot, poi per `ActionId` — incontra `Action.Move` prima di
-	 * `Hero.Riktor.Ram`, quindi nomina Ram; ma in risoluzione e' lo scatto a vincere ed e' Move a essere
+	 * `Hero.Branth.Ram`, quindi nomina Ram; ma in risoluzione e' lo scatto a vincere ed e' Move a essere
 	 * scartato. Chi comunica il rifiuto nomina ENTRAMBE e non deve indovinare il perdente.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Actions")

@@ -136,6 +136,18 @@ struct FRTHexMapCustomVersion
 		 */
 		StructuralBodyFill = 15,
 
+		/**
+		 * Il parapetto di bordo (`FRTHexCellData::Guards`), `#2401`/[D-332].
+		 *
+		 * Dichiarativo: l'array nasce vuoto, e «nessun parapetto» e' cio' che ogni mappa scritta prima gia'
+		 * era — da un bordo aperto non si cadeva perche' la caduta non esisteva, non perche' fosse protetto.
+		 *
+		 * ⛔ **La ricarica non lo deduce**, per la stessa ragione di `StructuralBodyFill`: un bordo che da'
+		 * sul vuoto e uno protetto da una ringhiera sono geometricamente identici nel dato di cella. Lo
+		 * dichiara chi disegna, e dedurlo trasformerebbe ogni terrazza in una gabbia.
+		 */
+		EdgeGuards = 16,
+
 		// -----<le versioni nuove si aggiungono SOPRA questa riga>------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

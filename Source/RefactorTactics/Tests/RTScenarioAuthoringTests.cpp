@@ -36,7 +36,7 @@ namespace
 	  "mapRadius": 3,
 	  "units": [
 	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0], "facing": "SW" },
-	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] }
 	  ],
 	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
 	  "expect": [ { "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] } ]

@@ -1,0 +1,199 @@
+# Estratto di rt-2482-M1b.log
+
+Artefatto citato da `RT3-VALIDATION-cdcf1da.md`. Il log originale viveva in
+`<worktree>/Saved/Logs/`, che non e' tracciato: e' stato estratto qui perche' un
+`EVIDENCE_REF` che punta a un file assente e' malformato (`RT3_CONTRACT.md` §6).
+
+```text
+originale   rt-2482-M1b.log   14479 righe, 1579340 byte
+estratto    181 righe conservate
+criterio    righe di esito, fallimento, crash e chiusura sessione
+rossi       EveryCellFieldRejectsWrongArity, LoaderRejectsCellArityOtherThanThree
+```
+
+I numeri di riga fra parentesi sono quelli **dell'originale**, cosi' un
+riferimento come `#L2403` resta risolvibile.
+
+---
+
+  2367  [2026.09.05-23.15.04:984][  2]LogAutomationCommandLine: Display: Ready to start automation
+  2388  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: Found 174 automation tests based on 'RefactorTactics.Scenario'
+  2389  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.FreeRun.ArenaV01ReachesAWinner
+  2390  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.FreeRun.CapReachedIsFailNotPass
+  2391  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.FreeRun.RepeatedRunsAreIdentical
+  2392  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.FreeRun.ScenarioRequiresBlocksWithoutPlaying
+  2393  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.FreeRun.ShippedOpenFieldReachesAWinner
+  2394  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.FreeRun.UnknownScenarioCapabilityIsError
+  2395  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.FreeRun.ValidatorRejectsIncoherentForms
+  2396  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.Playback.InitialStatesCarryTheAuthoredPose
+  2397  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.Playback.UntracedStaysAndFallenLeaves
+  2398  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.Playback.ViewsMoveWhereTheTraceSays
+  2399  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.Runner.ConsecutiveRunsLeaveOnlyTheLastUnits
+  2400  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ActionNotInHeroKitIsError
+  2401  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ARefusedRunNeverShowsThePreviousResult
+  2402  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ARejectedIntentLeavesNoTrace
+  2403  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ArmingIsWhatFiresTheReaction
+  2404  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ARunReportDoesNotSurviveIntoAnotherScenario
+  2405  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.AuthoringContractIsReachableFromBlueprint
+  2406  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.AuthoringDraftDistinguishesItsFailures
+  2407  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.AuthoringDraftOpensSavesAndCloses
+  2408  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.AuthoringFacadeDelegatesToTheDraft
+  2409  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.AuthoringOpensShippedScenariosById
+  2410  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.AuthoringRefusesALogOutcomeItCannotWrite
+  2411  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.AutoRunBannerDeclaresItIsNotAMatch
+  2412  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.AutoRunConsoleOverridesProperty
+  2413  [2026.09.05-23.15.10:267][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.AutoRunOptionsAreFilteredByTags
+  2414  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.AutoRunOptionsComeFromFiles
+  2415  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.AutoRunOverrideIsNotSilent
+  2416  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.AutoRunPacingHasShortDefault
+  2417  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.BlockedFirstTurnStaysBlocked
+  2418  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.BlockedTurnIsNotAFailure
+  2419  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.BlockYardCarriesAllThreeBlockCases
+  2420  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.BlockYardIsAdvertisedByName
+  2421  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.CellOverridesReachTheArena
+  2422  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.CellTargetedAbilityAppliesToCell
+  2423  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.CombatIntentAuthoringFillsBothSlots
+  2424  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.CommandLineEntryOverridesProperty
+  2425  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ConsoleOverridesCommandLineEntry
+  2426  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.CoordinatorEmptyRequestIsIgnored
+  2427  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.CoordinatorMissingScenarioFailsClosed
+  2428  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.CoordinatorStartsAShippedScenario
+  2429  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.CoverYardHasBothCoverTypes
+  2430  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.DashIntentResolvesInDashPhase
+  2431  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.DeadTargetIsReported
+  2432  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.DeclaredReactionScenarioPasses
+  2433  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.DeclaredRotationScenariosPass
+  2434  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.DeflectionValueScenarioPasses
+  2435  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.DuplicatedTurnIsIndependentInBothDirections
+  2436  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.DuplicateUnitIdIsRejectedAtBothDoors
+  2437  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.DurationsAreReportedSeparately
+  2438  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.EditingAddsMovesAndRemovesUnits
+  2439  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.EditingIsReachableFromBlueprint
+  2440  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.EditingNamesWhatItRefuses
+  2441  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.EditingRefusesExactlyWhatValidateRefuses
+  2442  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.EditingReportsWhatARemovalLeavesBehind
+  2443  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.EditingSurvivesSaveAndReload
+  2444  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.EveryCellFieldRejectsWrongArity
+  2445  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.EveryD025ActionIsExpressible
+  2446  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.EveryShippedScenarioRuns
+  2447  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ExpectedFailScenariosReallyFail
+  2448  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.FixtureFactoryResolvesKnownNames
+  2449  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.GrayKitYardCarriesEverySubject
+  2450  [2026.09.05-23.15.10:268][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.GrayKitYardHasSameSurfaceNeighbours
+  2451  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.GrayKitYardIsAdvertisedByName
+  2452  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.HarnessHasNoParallelActionEnum
+  2453  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.HeroActionOnSelfIsExpressible
+  2454  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.InitialStatusIsActiveFromTurnOne
+  2455  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.InteriorWallIsWhatStopsTheShot
+  2456  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.KnowledgeIsTeamUnion
+  2457  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.KnowledgeLeavesScenarioUntouched
+  2458  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.KnowledgeMatchesCanonicalPerception
+  2459  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.KnowledgeOmniscientIsNamedPosition
+  2460  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.KnowledgeTeamsComeFromData
+  2461  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.KnowledgeVisionComesFromHero
+  2462  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LatestRunIsTheMostRecentNotTheLastByName
+  2463  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ListIdsFromFiles
+  2464  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderAcceptsDecisions
+  2465  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderAcceptsValidScenario
+  2466  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderParsesRedirectExpectations
+  2467  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderReadsBotUnitsAndCondition
+  2468  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderReadsDeclaredCondition
+  2469  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderReadsDeclaredFacing
+  2470  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderReadsLogAssertionsByName
+  2471  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderRejectsCellArityOtherThanThree
+  2472  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderRejectsDecisionsBelowVersionTwo
+  2473  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderRejectsEmptyVariantComparisons
+  2474  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderRejectsLayerOutsideFlatArena
+  2475  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderRejectsMalformedCondition
+  2476  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderRejectsMalformedDecisions
+  2477  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderRejectsUnknownTurnKey
+  2478  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderRejectsWithClearReason
+  2479  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderSupportsVersionTwo
+  2480  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoaderTreatsUnderscoreKeysAsCommentsInExpect
+  2481  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LoadoutHasThreeForms
+  2482  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.LogFiltersDoNotAlterTheData
+  2483  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.NonReactionCannotBeArmed
+  2484  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.OverwatchHoldThenFireConsumesBothDecisions
+  2485  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.PassingBladeHitsWhoItCrosses
+  2486  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.PreviewUnitActuallyLightsTheAreaAndTheAlly
+  2487  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.PreviewUnitDoesNotChangeTheOutcome
+  2488  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ReachabilityPreviewComesFromTheRuntimeService
+  2489  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ReactionAndConditionLeaveTogether
+  2490  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ReactionAndDecisionBoundaryAreDistinct
+  2491  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RedirectVocabularyNamesBothEnds
+  2492  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ReportIsSelfSufficient
+  2493  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ResetReturnsToTheInitialStateNotToThePreviousOne
+  2494  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ResetWorksForAScenarioCreatedInTheEditor
+  2495  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ResultCarriesTheAuthoringIdOfEachUnit
+  2496  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunAndResetAreReachableFromBlueprint
+  2497  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunByIdWritesReport
+  2498  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunExposesAReadableTurnLog
+  2499  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunFromTheEditorMatchesTheHeadlessRun
+  2500  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunKeepsPassFailErrorAndBlockedApart
+  2501  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunnerCombatBasicAttack
+  2502  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunnerCombatBlockedByInteriorWall
+  2503  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunnerCombatBlockedByWall
+  2504  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunnerCombatFriendlyFire
+  2505  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunnerCounterStrikesBack
+  2506  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunnerDiagnosesFailure
+  2507  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunnerInvalidScenarioIsError
+  2508  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunnerLineHitsThrough
+  2509  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunnerLongWalk
+  2510  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunnerMovementBasicPasses
+  2511  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunnerMovementBlocked
+  2512  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunnerMovementCollision
+  2513  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunnerNoCounterWhenUnarmed
+  2514  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunnerSplashHitsAlliesNotSelf
+  2515  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunnerSwapRejectedByPlanning
+  2516  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunReportsBlockedWithItsReason
+  2517  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.RunTurnsPassIntoFailWhenTheExpectationMoves
+  2518  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.SettingAMoveDoesNotEraseTheRestOfTheIntent
+  2519  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ShapesHitMoreThanOneUnit
+  2520  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ShippedScenariosAreValid
+  2521  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ShippedScenariosRequireKnownCapabilities
+  2522  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ShowcaseRelayV01PlaysEveryTurn
+  2523  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ShowcaseT1IsDeterministic
+  2524  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.SimulationTimeIsDeterministic
+  2525  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.SimulationTimeIsDeterministicWallClockIsNot
+  2526  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.SlotsComposeAndClearOnlyThemselves
+  2527  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.StateDiffOrderIsDeterministic
+  2528  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.StateDiffReadsStateNotEvents
+  2529  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.StateDiffShowsOnlyChangedFields
+  2530  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.StatusVocabularyHasNoSecondTable
+  2531  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.TargetAndTargetCellIsError
+  2532  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.TargetFormsNeverCoexistInTheAuthoredFile
+  2533  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.TargetIsUnitOrCellButNeverBoth
+  2534  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.TeamConstraintComesFromTheRuntime
+  2535  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.ThreeAuthoredTurnsRunInTheDeclaredOrder
+  2536  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.TurnAuthoringCanShowAndUndoWhatItWrote
+  2537  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.TurnAuthoringIsReachableFromBlueprint
+  2538  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.TurnAuthoringNamesWhatItRefuses
+  2539  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.TurnAuthoringSurvivesSaveAndDetectsMutation
+  2540  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.TurnAuthoringWritesMoveAndWait
+  2541  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.TurnOrderSurvivesSaveAndLoad
+  2542  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.UnknownCapabilityIsErrorNotBlocked
+  2543  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.UnknownFixtureIsError
+  2544  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.UnknownStatusTagIsRefused
+  2545  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.VariantCannotPlaceAUnitInsideAnObstacle
+  2546  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.WallIsWhatStopsTheShot
+  2547  [2026.09.05-23.15.10:269][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.WriterIsIdempotent
+  2548  [2026.09.05-23.15.10:271][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.WriterKeepsIdentityAcrossPaths
+  2549  [2026.09.05-23.15.10:271][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.WriterRefusesToWriteInvalidScenario
+  2550  [2026.09.05-23.15.10:271][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.WriterRoundTripDetectsMutation
+  2551  [2026.09.05-23.15.10:271][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.WriterRoundTripPreservesEveryField
+  2552  [2026.09.05-23.15.10:271][586]LogAutomationCommandLine: Display: 	RefactorTactics.Scenario.WriterRoundTripsShippedScenarios
+  2553  [2026.09.05-23.15.10:271][586]LogAutomationCommandLine: Display: 	RefactorTactics.ScenarioIndex.AbbreviationIsASegmentSuffix
+  2554  [2026.09.05-23.15.10:271][586]LogAutomationCommandLine: Display: 	RefactorTactics.ScenarioIndex.AbbreviationResolvesOrRefuses
+  2555  [2026.09.05-23.15.10:271][586]LogAutomationCommandLine: Display: 	RefactorTactics.ScenarioIndex.BrokenFileDoesNotHideTheOthers
+  2556  [2026.09.05-23.15.10:271][586]LogAutomationCommandLine: Display: 	RefactorTactics.ScenarioIndex.DuplicateIdIsRejected
+  2557  [2026.09.05-23.15.10:271][586]LogAutomationCommandLine: Display: 	RefactorTactics.ScenarioIndex.FilteredListIsTotallyOrdered
+  2558  [2026.09.05-23.15.10:271][586]LogAutomationCommandLine: Display: 	RefactorTactics.ScenarioIndex.IdIsIndependentOfPath
+  2559  [2026.09.05-23.15.10:271][586]LogAutomationCommandLine: Display: 	RefactorTactics.ScenarioIndex.RedirectsFollowTheChain
+  2560  [2026.09.05-23.15.10:271][586]LogAutomationCommandLine: Display: 	RefactorTactics.ScenarioIndex.ShippedScenariosAreTagged
+  2561  [2026.09.05-23.15.10:271][586]LogAutomationCommandLine: Display: 	RefactorTactics.ScenarioIndex.TwoFiltersIntersect
+  2562  [2026.09.05-23.15.10:271][586]LogAutomationCommandLine: Display: 	RefactorTactics.ScenarioIndex.UnknownIdFailsWithReason
+  5385  [2026.09.05-23.15.15:198][724]LogAutomationController: Error: Test Completed. Result={Fail} Name={EveryCellFieldRejectsWrongArity} Path={RefactorTactics.Scenario.EveryCellFieldRejectsWrongArity}
+ 11469  [2026.09.05-23.15.20:713][793]LogAutomationController: Error: Test Completed. Result={Fail} Name={LoaderRejectsCellArityOtherThanThree} Path={RefactorTactics.Scenario.LoaderRejectsCellArityOtherThanThree}
+ 14475  [2026.09.05-23.15.28:882][ 23]LogAutomationCommandLine: Display: Setting GIsCriticalError due to test failures (will cause non-zero exit code).
+ 14476  [2026.09.05-23.15.28:882][ 23]LogAutomationCommandLine: Shutting down. GIsCriticalError=1
+ 14477  [2026.09.05-23.15.28:882][ 23]LogAutomationCommandLine: Display: **** TEST COMPLETE. EXIT CODE: -1 ****

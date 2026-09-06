@@ -7,6 +7,9 @@
 // `FRTPlannedIntent` serve COMPLETO, non in forward declaration: `BuildAuthoritativeIntents` lo
 // restituisce dentro un `TArray` per valore, e il distruttore del container pretende il tipo definito.
 #include "Turn/RTIntentPrivacyLibrary.h"
+// FRTDamageTokenView: vive in un header PROPRIO perche' `RTUnit.h` possa includerlo senza tirarsi
+// dietro il view-model — e' incluso quasi ovunque, e ogni dipendenza aggiunta li' si paga in tutto il modulo.
+#include "UI/RTDamageTokenView.h"
 #include "RTHudViewModel.generated.h"
 
 class AActor;
@@ -61,12 +64,52 @@ struct FRTMatchHeaderView
 	 *
 	 * 🔴 **Questo campo NON e' «quanto manca al commit», ed e' la distinzione che vale la riga di stato.**
 	 * Il tetto vince sul countdown (`#2193`): con 1,5 s di `PlanningSecondsRemaining` e 3 s qui, il commit
-	 * arriva fra 1,5 s. Chi MOSTRA un numero mostri il **minore dei due** — `ARTHUD::ComposeMatchStatusLine`
-	 * lo fa, e ha entrambi sotto mano. Un countdown che annuncia 3 e committa a 1,5 insegna una durata
-	 * sbagliata proprio mentre il giocatore decide se annullare.
+	 * arriva fra 1,5 s. Un countdown che annuncia 3 e committa a 1,5 insegna una durata sbagliata proprio
+	 * mentre il giocatore decide se annullare.
+	 *
+	 * ∴ chi MOSTRA un numero non lo calcola qui: lo chiede a `ComputeSecondsUntilCommit`, che e' la sede
+	 * unica della regola, o legge `SecondsUntilCommit` che il produttore ha gia' riempito.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	float ReadyCountdownSecondsRemaining = -1.f;
+
+	/**
+	 * La finestra di preparazione dell'autobattle (`#2386`). Negativo quando non e' armata.
+	 *
+	 * 🔑 **E' il terzo orologio, e non compete con gli altri due**: vive DOPO la scadenza del Planning —
+	 * `OnPlanningTimeout` la arma — quindi quando questo e' positivo `PlanningSecondsRemaining` e'
+	 * gia' esaurito e `ReadyCountdownSecondsRemaining` non e' mai stato armato (in autobattle nessuno
+	 * preme Ready). I tre sono mutuamente esclusivi **per costruzione**, non per convenzione.
+	 *
+	 * ⚠️ **In pausa resta positivo e fermo.** Chi mostra questo numero deve leggere anche
+	 * `bPrepWindowPaused`: un residuo che non scende senza un'etichetta che dica perche' sembra un HUD
+	 * bloccato.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	float PrepWindowSecondsRemaining = -1.f;
+
+	/** La finestra di preparazione e' armata ma ferma (`#2386`). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bPrepWindowPaused = false;
+
+	/**
+	 * 🔑 **Il numero da MOSTRARE: quanti secondi mancano al commit del piano.** Negativo quando la domanda
+	 * non si applica — nessun orologio in corsa.
+	 *
+	 * Esiste perche' i due campi qui sopra sono **due orologi e una regola**, e la regola non stava nel
+	 * tipo: viveva dentro `ARTHUD::ComposeMatchStatusLine`, cioe' dentro **un** consumatore. Finche' il
+	 * consumatore era uno solo la cosa reggeva; con lo Screen HUD in UMG (`#613`) i consumatori diventano
+	 * due, e il secondo non passa da quella riga. Un `WBP_RT_TurnHeader` che leggesse
+	 * `ReadyCountdownSecondsRemaining` e lo stampasse sarebbe **corretto secondo il tipo e sbagliato
+	 * secondo il gioco**, e nessun test lo direbbe.
+	 *
+	 * ⚠️ **E' un valore DERIVATO, non un terzo orologio**: lo calcola `ComputeSecondsUntilCommit` dai due
+	 * campi sopra, e chi costruisce una `FRTMatchHeaderView` a mano — i test, il viewer di replay — lo
+	 * trova a `-1.f` finche' non chiama quella funzione. Per questo l'autorita' resta la **funzione**, e
+	 * questo campo e' cio' che il produttore ha gia' calcolato per chi riceve la vista intera.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	float SecondsUntilCommit = -1.f;
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bResolving = false;
@@ -292,6 +335,7 @@ struct FRTUnitOverlayView
 	bool bTargeted = false;
 };
 
+
 /** La ricarica residua di una singola azione del kit, in TURNI INTERI. */
 USTRUCT(BlueprintType)
 struct FRTAbilityCooldownView
@@ -401,6 +445,28 @@ public:
 	 */
 	static FString ComposeRoundCounter(const FRTMatchHeaderView& Header);
 
+	/**
+	 * 🔴 **La sede UNICA della regola dei due orologi.** Quanti secondi mancano al commit del piano, o un
+	 * negativo quando nessun orologio e' in corsa.
+	 *
+	 * La regola e' una sola riga e due trappole:
+	 *
+	 *  1. **Il tetto vince sul countdown** (`#2193`). Con 1,5 s di `PlanningSecondsRemaining` e 3 s di
+	 *     `ReadyCountdownSecondsRemaining` il commit arriva fra **1,5 s**: mostrare `3s` insegnerebbe una
+	 *     durata falsa proprio mentre il giocatore decide se annullare.
+	 *  2. **Il tetto entra nel confronto solo se si applica.** `PlanningSecondsRemaining` e' negativo nelle
+	 *     run headless (`SetPlanningSeconds(0)`), e un `Min` cieco restituirebbe quel negativo — cioe'
+	 *     spegnerebbe il countdown proprio dove il countdown e' l'unico orologio.
+	 *
+	 * ⚠️ **Sta qui e non in un consumatore**, ed e' il punto: `ARTHUD::ComposeMatchStatusLine` la applicava
+	 * per il Canvas, e un widget UMG che non passa da quella riga avrebbe dovuto riscriverla. Due copie
+	 * della stessa regola sono due occasioni di scriverne una sbagliata, e la sbagliata non fallisce nessun
+	 * test — mostra solo un numero plausibile.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	static float ComputeSecondsUntilCommit(const FRTMatchHeaderView& Header);
+
+
 	/** La carta di una singola unita', vista da `PlayerTeamId`. Unita' nulla da' una carta vuota e non viva. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static FRTUnitCardView BuildUnitCard(const ARTUnit* Unit, int32 PlayerTeamId);
@@ -495,6 +561,42 @@ public:
 	 */
 	static FRTUnitOverlayView BuildUnitOverlay(const ARTUnit* Unit, int32 PlayerTeamId,
 		const TSet<FRTCellId>& PlannedHitCells, const TSet<FRTCellId>& PlannedAllyHitCells);
+
+
+	/**
+	 * Il token di danno per un colpo appena rivelato dal playback (`#2455`).
+	 *
+	 * 🔴 **E' qui l'owner del giudizio, e non nel widget.** `URTUnitOverlayWidget` e' un `UUserWidget`:
+	 * copertura headless **zero**, come [D-320] punto (5) dichiara. Ogni `if` scritto la' dentro e' un `if`
+	 * che nessun test vede. Questa funzione e' statica e pura per la stessa ragione per cui lo sono
+	 * `ComposeHealthLabel` e `ComposeStatusDurationLabel`: un test la chiama senza costruire un widget.
+	 *
+	 * 🔑 **Riceve due interi e non l'evento intero, ed e' deliberato.** `ARTTurnManager.cpp` non include
+	 * **nessun** header di `UI/` — misurato: zero occorrenze su 48 include — e questa firma tiene quel
+	 * confine dov'e'. Il chiamante e' `ARTUnit::ShowDamageToken`, che gia' vive dalla parte della
+	 * presentazione. Il simulatore passa un numero, come gia' fa con `OnAttackResolved`.
+	 *
+	 * 🔴 **Il caso `Amount <= 0` e' una DECISIONE, non il ramo `else` di un `if`.** Un colpo che toglie zero
+	 * non e' un colpo che non e' successo: `URTHexCombatLibrary::CollectHexAttacks` lo dichiara per esteso —
+	 * *«Il danno si ferma a 0: il colpo resta avvenuto (trigger e marchi contano lo stesso)»* — e lo aggiunge
+	 * comunque a `Plan.Hits`. Mostrarlo come «niente» sarebbe la stessa perdita di informazione che
+	 * `PIE-VIS-DEFLECT` descrive: *«resta la sola barra che scende poco»*, cioe' un attacco debole al posto
+	 * di una difesa riuscita. Si sceglie quindi l'uscita **(a)** di `#2455`: una cue neutra, distinta dalla
+	 * cifra.
+	 *
+	 * ⛔ **E la CAUSA dello zero non si indovina.** Ne esistono almeno due, e l'evento non porta quale sia:
+	 *  - la copertura ha assorbito tutto — `FMath::Max(0, Intent.Power - Reduction)` con
+	 *    `URTCombatLibrary::LowCoverDamageReduction` a 10;
+	 *  - l'azione non dichiara nessun effetto `Damage`, e il catalogo la lascia a `Power = 0`
+	 *    (`URTCatalogLibrary::MakeGenericActions`, `MakeEquipmentAction`, `URTHeroCatalogLibrary`).
+	 *
+	 * Scrivere «parato» o «coperto» attribuirebbe una causa che il dato non contiene: e' la seconda verita'
+	 * nella presentazione che [D-278] vieta. L'etichetta dice **quanto**, e tace sul **perche'**.
+	 *
+	 * @param Amount               il valore dell'evento, cosi' com'e'. Vedi `FRTDamageTokenView`.
+	 * @param TargetStableUnitId   chi subisce. `0` = nessuno ([D-063]), e il token non nomina nessuno.
+	 */
+	static FRTDamageTokenView BuildDamageToken(int32 Amount, int32 TargetStableUnitId);
 
 	/**
 	 * I piani **autorevoli** di tutte le unita' vive, non filtrati per nessun osservatore.

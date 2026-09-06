@@ -5,7 +5,7 @@
 // di design: **il risultato cambia?**
 //
 // Lo scenario e' quello di `Scenarios/Combat/BasicAttack.json`, costruito in memoria con gli stessi numeri:
-// Gadget colpisce Riktor a distanza 2 con `Hero.Gadget.ArcPulse` (22 danni), Riktor parte da 120 e finisce
+// Gadget colpisce Branth a distanza 2 con `Hero.Gadget.ArcPulse` (22 danni), Branth parte da 120 e finisce
 // a 103 — i 5 che mancano sono lo scudo BASE di [D-224], che ferma solo il danno diretto.
 //
 // ⚠️ E' l'unico scenario del corpus che asserisce un DANNO invece di una posizione, cioe' esattamente cio'
@@ -48,7 +48,7 @@ namespace RTWorkbenchRun
 		}
 	}
 
-	/** `Combat.BasicAttack` in memoria: Gadget colpisce Riktor, e si asserisce la SALUTE attesa. */
+	/** `Combat.BasicAttack` in memoria: Gadget colpisce Branth, e si asserisce la SALUTE attesa. */
 	FRTTestScenario BasicAttack(int32 SaluteAttesaDiB1)
 	{
 		FRTTestScenario S;
@@ -62,12 +62,12 @@ namespace RTWorkbenchRun
 		Gadget.Cell = FRTCellId(-1, 0);
 		S.Units.Add(Gadget);
 
-		FRTScenarioUnit Riktor;
-		Riktor.Id = TEXT("B1");
-		Riktor.HeroId = FName(TEXT("Hero.Riktor"));
-		Riktor.TeamId = 1;
-		Riktor.Cell = FRTCellId(1, 0);
-		S.Units.Add(Riktor);
+		FRTScenarioUnit Branth;
+		Branth.Id = TEXT("B1");
+		Branth.HeroId = FName(TEXT("Hero.Branth"));
+		Branth.TeamId = 1;
+		Branth.Cell = FRTCellId(1, 0);
+		S.Units.Add(Branth);
 
 		FRTScenarioTurn Turn;
 		FRTScenarioIntent Colpo;
@@ -115,7 +115,7 @@ bool FRTWorkbenchNoVariantEqualsBaselineTest::RunTest(const FString&)
 	UWorld* World = RTWorkbenchRun::MakeWorld();
 	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
 
-	// 103 e' il numero del corpus: 120 di Riktor, 22 dichiarati da ArcPulse, 5 fermati dallo scudo base.
+	// 103 e' il numero del corpus: 120 di Branth, 22 dichiarati da ArcPulse, 5 fermati dallo scudo base.
 	const FRTTestResult Esito = URTScenarioRunner::RunSingle(World,
 		RTWorkbenchRun::BasicAttack(103), /*bTearDownAfter=*/ true);
 

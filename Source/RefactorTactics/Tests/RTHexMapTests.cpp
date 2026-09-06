@@ -372,7 +372,11 @@ bool FRTHexMapFormatMigrationTest::RunTest(const FString&)
 	// dichiarativo: il default `None` e' cio' che ogni superficie elevata gia' era — un disco sospeso — e
 	// la ricarica non deduce il riempimento dal contesto, perche' un ponte e una collina hanno entrambi il
 	// vuoto sotto e dedurre trasformerebbe il primo in un muro.
-	TestEqual(TEXT("la versione corrente e' la 15"), URTHexMapAsset::CurrentFormatVersion, 15);
+	// v16 (#2401): il bordo guadagna i PARAPETTI (`EdgeGuards`). Passo dichiarativo: l'array nasce vuoto, e
+	// «nessun parapetto» e' cio' che ogni mappa scritta prima gia' era. La ricarica non lo deduce — un bordo
+	// sul vuoto e uno protetto sono identici nel dato di cella, e dedurre trasformerebbe ogni terrazza in
+	// una gabbia.
+	TestEqual(TEXT("la versione corrente e' la 16"), URTHexMapAsset::CurrentFormatVersion, 16);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 3);
 	TestEqual(TEXT("nessuna transizione persa"), Legacy->Transitions.Num(), 2); // bidirezionale
 	// v11: una mappa vecchia non guadagna OBIETTIVI ricaricandosi. E' la promessa del passo dichiarativo, e
@@ -1044,6 +1048,16 @@ bool FRTHexSerializedAssetMigrationTest::RunTest(const FString&)
 	{
 		if (!Arc.StableId.IsNone()) { ++NamedStructures; }
 	}
+	//
+	// ⚠️ **Il conteggio e' un PROXY, e vale finche' l'arena non porta nomi d'autore.** Non distingue un nome
+	// inventato dalla migrazione da uno scritto da chi ha autorato: conta i nomi, non la loro origine. Ha
+	// funzionato finche' l'arena aveva zero porte, perche' li' un nome poteva venire solo dalla migrazione.
+	// ⏱️ Misurato il 2026-09-06 (`#2330`): posando la porta con `-StableId=Door.WestYard` questa riga e'
+	// caduta — su un nome che nessuna migrazione aveva inventato. La porta e' stata quindi posata **anonima**,
+	// che e' cio' che `#2330` chiedeva: l'`Interact` adiacente risolve per `(From, To)` e non per nome.
+	// 🔴 **Chi autorera' la prima porta NOMINATA — la catena remota e' `#833` — trova qui la sua decisione**:
+	// non togliere l'asserzione, ma pinnare l'insieme dei nomi ATTESI, cosi' un nome inventato resta visibile
+	// come nome inatteso invece di sparire in un conteggio che cresce.
 	TestEqual(TEXT("nessuna struttura ha guadagnato un nome migrando"), NamedStructures, 0);
 	return true;
 }
@@ -1511,7 +1525,7 @@ bool FRTAuthoredCoversNotBelowCatalogTest::RunTest(const FString&)
 }
 
 /**
- * **Quante porte ha la mappa che la partita carica, e la risposta e' ZERO** (`#2312`).
+ * **Quante porte ha la mappa che la partita carica, e la risposta e' UNA** (`#2312` → `#2330`).
  *
  * 🔴 **Questo test e' nato per asserire il contrario, e la misura l'ha falsificato.** `#2312` chiedeva un
  * oracolo che dicesse *«la mappa d'autore contiene almeno una porta apribile»*, perche'
@@ -1530,24 +1544,31 @@ bool FRTAuthoredCoversNotBelowCatalogTest::RunTest(const FString&)
  *
  * ---
  *
- * 🔑 **Che cosa questo oracolo fa ORA: e' un filo teso fra un asset e un documento.** La riga di `§2` deve
- * dire il vero sulla mappa che il giocatore carica, e nessun altro meccanismo lo garantisce. Il giorno in
- * cui qualcuno autorera' una porta su `DA_HexMap_Arena` questo test diventera' **rosso**, e quel rosso e'
- * il promemoria di aggiornare la riga — non un difetto da riparare togliendo l'asserzione.
+ * 🔑 **Che cosa questo oracolo fa: e' un filo teso fra un asset e un documento.** La riga di `§2` deve
+ * dire il vero sulla mappa che il giocatore carica, e nessun altro meccanismo lo garantisce.
+ *
+ * ⏱️ **E il rosso che questo test prometteva e' arrivato il 2026-09-06, con `#2330`.** `RTSetCellDoor` ha
+ * posato una porta `Closed` su `(q=-3,r=2,L=0)` bordo `SE` — porte `0 -> 1`, hash `2839750933 -> 2786630622`,
+ * revisione `1974 -> 1975` — e le tre asserzioni sono cadute insieme, come dovevano. Sono state **aggiornate**,
+ * non tolte, e con loro la riga di `§2`: e' esattamente il gesto che questo oracolo esiste per imporre.
  *
  * ⚠️ **La capability NON e' in discussione, e confonderle e' l'errore che questo test esiste per impedire.**
  * `Action.Interact` apre una porta: `CP 10.1` (`#74`) e' chiusa con `Structures.Door.InteractFromKitOpensDoor`
  * e `Spec/Map/InteractOpensDoor.json`. Ma quegli scenari girano su mappe che **si costruiscono da sole**, e
  * le porte esistono nelle fixture (`MakeShowcaseRelayBasinArena` ne posa una, `MakeGrayKitYardArena` quattro
  * in quattro stati). «`Interact` funziona» e «la mappa spedita ha qualcosa su cui usarlo» sono proposizioni
- * diverse: la prima e' vera, la seconda e' falsa, e §2.1 le aveva gia' confuse una volta dichiarando
- * *«#833 ha portato porte e interruttori»* — vero per il codice, non per `DA_HexMap_Arena`.
+ * diverse, e §2.1 le aveva gia' confuse una volta dichiarando *«#833 ha portato porte e interruttori»* —
+ * vero per il codice, non per `DA_HexMap_Arena`.
+ * ⏱️ **Dal 2026-09-06 sono vere entrambe**, e restano comunque due proposizioni distinte: la mappa spedita
+ * porta UNA porta, non la capability. Se un giorno quella porta venisse rimossa, la prima resterebbe vera e
+ * la seconda tornerebbe falsa senza che nulla nel codice cambi — che e' la ragione per cui il conteggio si
+ * misura sull'ASSET e non si deduce dai test dell'`Interact`.
  *
  * ⚠️ **Si asserisce SOLO sulla mappa d'autore**, e le altre due si limitano a un `AddInfo`. E' la lezione
  * del vicino `AuthoredCoversAreNotBelowCatalog`: `_Scratch` e' una fixture che **si rigenera** — misurata a
- * 45 celle e 1 copertura, poi a 65 e 4 in dieci giorni — quindi un'asserzione su di lei misurerebbe la
- * rigenerazione, non un invariante. `DA_HexMap_Arena` e' autorata a mano e stabile: e' l'unica delle tre su
- * cui un conteggio significhi qualcosa.
+ * 45 celle e 1 copertura, poi a 65 e 4 in dieci giorni, e a **331 celle** il 2026-09-06 — quindi
+ * un'asserzione su di lei misurerebbe la rigenerazione, non un invariante. `DA_HexMap_Arena` e' autorata
+ * a mano e stabile: e' l'unica delle tre su cui un conteggio significhi qualcosa.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAuthoredArenaDoorCountTest,
 	"RefactorTactics.HexMap.AuthoredArenaDoorCountMatchesTheRoadmap",
@@ -1626,9 +1647,9 @@ bool FRTAuthoredArenaDoorCountTest::RunTest(const FString&)
 	int32 PerStatoAutorata[4] = { 0, 0, 0, 0 };
 	const int32 PorteAutorate = ContaPorte(Autorata, PerStatoAutorata, nullptr);
 	TestEqual(
-		TEXT("la mappa d'autore non porta nessuna porta, e `roadmap-v0.1.md` §2 lo dice — se questo numero ")
+		TEXT("la mappa d'autore porta UNA porta, e `roadmap-v0.1.md` §2 lo dice — se questo numero ")
 		TEXT("cambia, la riga va aggiornata invece di togliere l'asserzione"),
-		PorteAutorate, 0);
+		PorteAutorate, 1);
 
 	// 🔴 **La guardia di mutazione si fa su un DUPLICATO, e non e' pedanteria.** `LoadObject` restituisce la
 	// STESSA istanza a ogni chiamante del processo: scrivere `Doors` sull'originale lo lascerebbe scritto per
@@ -1636,8 +1657,11 @@ bool FRTAuthoredArenaDoorCountTest::RunTest(const FString&)
 	// nella stessa run. E' la ragione per cui anche la partita lavora su una copia (`CP 8`,
 	// `RTMatchBootstrapperMapViewTests`).
 	//
-	// ⚠️ **Con un'asserzione a ZERO la mutazione e' l'unica cosa che rende il test non vacuo**: senza,
-	// resterebbe verde anche se `ContaPorte` non contasse niente.
+	// ⚠️ **La mutazione e' cio' che rende il test non vacuo, e serve ANCORA ora che l'asserzione non e'
+	// piu' a ZERO.** Un conteggio inchiodato a `1` passerebbe anche se `ContaPorte` guardasse la cella
+	// sbagliata; sommare una porta e pretendere `PorteAutorate + 1` chiede al contatore di REAGIRE.
+	// ⚠️ Le due attese sono scritte in forma RELATIVA apposta: la prossima porta autorata muove una riga
+	// sola — l'asserzione — e non tre. Il 2026-09-06 ne mosse tre, ed era `#2330`.
 	URTHexMapAsset* Copia = DuplicateObject<URTHexMapAsset>(Autorata, GetTransientPackage());
 	if (TestNotNull(TEXT("la copia di lavoro esiste"), Copia) && Copia->Cells.Num() > 0)
 	{
@@ -1645,9 +1669,10 @@ bool FRTAuthoredArenaDoorCountTest::RunTest(const FString&)
 
 		int32 PerStatoCopia[4] = { 0, 0, 0, 0 };
 		TestEqual(TEXT("aggiungendo una porta il conteggio la vede: non sta contando qualcos'altro"),
-			ContaPorte(Copia, PerStatoCopia, nullptr), 1);
+			ContaPorte(Copia, PerStatoCopia, nullptr), PorteAutorate + 1);
 		TestEqual(TEXT("e la vede come Closed"),
-			PerStatoCopia[static_cast<int32>(ERTHexDoorState::Closed)], 1);
+			PerStatoCopia[static_cast<int32>(ERTHexDoorState::Closed)],
+			PerStatoAutorata[static_cast<int32>(ERTHexDoorState::Closed)] + 1);
 
 		int32 PerStatoDopo[4] = { 0, 0, 0, 0 };
 		TestEqual(TEXT("e l'originale non e' stato toccato: la mutazione non esce da questo test"),

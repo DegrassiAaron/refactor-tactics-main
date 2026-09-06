@@ -306,8 +306,96 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	float GetReadyCountdownSeconds() const { return ReadyCountdownSeconds; }
 
+	// --- Finestra di preparazione dell'autobattle (`#2386`) -------------------------------------------
+
+	/**
+	 * 🔴 **La finestra fra il piano dei bot e la sua risoluzione, e serve solo a farlo VEDERE.**
+	 *
+	 * `E47` esiste perche' la partita si possa guardare, e in autobattle la parte in cui si capisce *cosa
+	 * sta per succedere* passava in un decimo di secondo (`MinUnattendedPlanningSeconds`): si vedeva solo
+	 * l'esito, mai l'intenzione. Un tattico a turni simultanei senza la lettura dell'intenzione e' un
+	 * risultato, non una partita.
+	 *
+	 * 🔑 **Sta su `OnPlanningTimeout` e non dentro `LockInAndResolve`**, per la stessa ragione scritta per
+	 * `RequestLockIn`: `LockInAndResolve` e' il punto di CONFLUENZA di tre percorsi, e lo Scenario Harness
+	 * lo chiama **diretto** (`RTScenarioRunner.cpp`, `RTScenarioSession.cpp`). Una finestra li' dentro
+	 * metterebbe tre secondi di attesa in ogni run headless. Qui l'harness non passa: non la vede **per
+	 * costruzione**, non per disciplina.
+	 *
+	 * ⛔ **Non tocca lo snapshot ne' il TurnLog.** Lo snapshot nasce dentro `LockInAndResolve`, cioe' DOPO;
+	 * durante l'attesa l'autorita' non ha accettato niente. E' la stessa classificazione di
+	 * `ReadyCountdownSeconds` fra i **Tempi UX** di `spec-durata-partita-e-scala-mappe.md` §11: *«tempo di
+	 * parete: non devono mai raggiungere il TurnLog»*.
+	 *
+	 * ⚠️ **Con `PrepWindowSeconds <= 0` risolve SUBITO**, come faceva il timeout prima di questa issue: e'
+	 * la via che tiene i test headless sul comportamento di sempre, e la ragione per cui `#2386` non cambia
+	 * un solo TurnLog esistente.
+	 *
+	 * ⚠️ **Solo in sessione non presidiata** (`bUnattendedSession`): in una partita con una mano umana il
+	 * ritmo e' quello del giocatore, e non si tocca.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	bool IsPrepWindowActive() const;
+
+	/**
+	 * Secondi che mancano alla risoluzione; `0` se la finestra non e' armata. Per l'HUD e per i test.
+	 *
+	 * ⚠️ **In pausa restituisce il residuo congelato**, non zero: il timer e' stato fermato, ma cio' che la
+	 * riga di stato deve dire e' *quanto manca quando riparte*. Un `0` qui farebbe lampeggiare un commit
+	 * imminente che nessuno sta per fare.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	float GetPrepWindowRemaining() const;
+
+	/**
+	 * Ferma l'attesa. No-op se la finestra non e' armata o e' gia' in pausa.
+	 *
+	 * 🔴 **Ferma l'ATTESA, mai la simulazione**, ed e' la proprieta' che rende questa pausa diversa da
+	 * `PausePlayback` (`#1879`): li' si ferma una risoluzione **gia' decisa** che si sta mostrando; qui il
+	 * turno non e' ancora committato, e fermarsi non congela nessuno stato — semplicemente il commit non
+	 * arriva finche' non si riprende.
+	 *
+	 * 🔑 **Le due pause non possono coesistere, e non per convenzione**: questa vive in `Planning` prima del
+	 * commit, quella del playback durante la risoluzione. `LockInAndResolve` cancella questo timer, quindi
+	 * quando il playback comincia la finestra non esiste piu'. Il test
+	 * `PrepWindowAndPlaybackPauseAreMutuallyExclusive` lo tiene vero.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void PausePrepWindow();
+
+	/** Riprende **dal residuo**, non da `PrepWindowSeconds`. No-op se non e' in pausa. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void ResumePrepWindow();
+
+	/** La finestra e' armata ma ferma. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	bool IsPrepWindowPaused() const { return bPrepWindowPaused; }
+
+	/**
+	 * Cambia la durata della finestra, clampando a zero. Stessa forma — e stessa ragione — di
+	 * `SetReadyCountdownSeconds`: e' ritmo di presentazione, non una regola di gioco.
+	 *
+	 * ⚠️ **Non rifa' una finestra gia' armata**: cambiare la durata a meta' attesa sposterebbe la
+	 * risoluzione sotto gli occhi di chi sta guardando. Il valore nuovo vale dal turno successivo.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void SetPrepWindowSeconds(float NewSeconds) { PrepWindowSeconds = FMath::Max(0.f, NewSeconds); }
+
+	/** Durata corrente della finestra (diagnostica e test). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	float GetPrepWindowSeconds() const { return PrepWindowSeconds; }
+
 	/** Hook per i test d'integrazione headless: invoca la pianificazione dei bot senza timer/playback. */
 	void PlanBotsForTest() { PlanBots(); }
+
+	/**
+	 * Hook per i test: percorre il timeout del planning senza aspettare il tetto.
+	 *
+	 * 🔑 **Serve perche' e' il timeout, non `LockInAndResolve`, a decidere se aprire la finestra** (`#2386`):
+	 * un test che chiamasse `LockInAndResolve()` diretto — come fa l'harness — non passerebbe mai dal ramo
+	 * sotto misura, e sarebbe verde senza aver provato niente.
+	 */
+	void OnPlanningTimeoutForTest() { OnPlanningTimeout(); }
 
 	/**
 	 * Hook per i test: quanti verdetti porta l'evento di movimento di questa unita' nella timeline risolta.
@@ -352,6 +440,40 @@ public:
 	 * @return copia degli eventi `StatusChanged` nell'ordine di emissione, che e' quello delle voci di log.
 	 */
 	TArray<FRTResolvedEvent> ResolvedStatusEventsForTest() const;
+
+	/**
+	 * Hook per i test: gli eventi `HazardDamage` emessi in questo turno (`#2460`).
+	 *
+	 * 🔴 Stessa ragione dell'accessore qui sopra, e lo stesso rischio: l'emissione avviene in
+	 * `AppendLogEntry`, il punto che **ogni** voce di log attraversa. Senza poter leggere la timeline, la
+	 * differenza fra «emesso per il danno ambientale» ed «emesso per ogni colpo» non sarebbe osservabile.
+	 *
+	 * ⚠️ **E qui non c'e' un secondo canale che possa supplire.** `HazardDamage` e' dichiarato
+	 * `NoPresentation` finche' la cue di `#2455` non esiste: nessuna verifica a schermo puo' vederlo, quindi
+	 * questo accessore e' l'**unico** modo di sorvegliarlo. Un evento sbagliato resterebbe altrimenti
+	 * invisibile a entrambe le reti.
+	 *
+	 * ⚠️ Restituisce gli eventi INTERI: cio' che va sorvegliato e' il **contenuto** — quale fase, chi
+	 * subisce, quanto danno — e un conteggio non lo direbbe. Un'emissione che scrivesse sempre `Move` come
+	 * fase passerebbe un test che conta soltanto.
+	 *
+	 * @return copia degli eventi `HazardDamage` nell'ordine di emissione, che e' quello delle voci di log.
+	 */
+	TArray<FRTResolvedEvent> ResolvedHazardEventsForTest() const;
+
+	/**
+	 * Hook per i test: quanti eventi di quel tipo ci sono sulla timeline di questo turno.
+	 *
+	 * 🔴 Esiste per le asserzioni di **assenza**, che gli accessori filtrati qui sopra non possono reggere:
+	 * cercare un `Defeated` fra gli eventi gia' filtrati su `HazardDamage` risponde zero **per costruzione**,
+	 * ed e' un asserto vacuo travestito da verifica. Serve la timeline intera, e questa e' la porta.
+	 *
+	 * ⚠️ Un CONTEGGIO e non gli eventi: la domanda che questa funzione esiste per rispondere e' *«ce n'e'
+	 * qualcuno?»*. Chi deve guardare il contenuto usa l'accessore tipizzato, che porta i campi.
+	 *
+	 * @return il numero di eventi con quel `Type`; `0` se il tipo non e' stato emesso in questo turno.
+	 */
+	int32 ResolvedEventCountOfTypeForTest(ERTResolvedEventType Type) const;
 
 	/**
 	 * Hook per i test: applica una modifica temporanea di superficie dichiarandone l'autore.
@@ -807,6 +929,26 @@ public:
 	/** Durata di visualizzazione di ogni colpo nel Blast (secondi). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	float AttackShowSeconds = 0.50f;
+
+	/**
+	 * Coda finale quando l'ULTIMA fase riprodotta si chiude su un'eliminazione (secondi).
+	 *
+	 * 🔴 **Esiste perche' altrimenti il montaggio `Death` avrebbe finestra ZERO** (#2452). L'eliminazione si
+	 * annuncia a fine della fase in cui e' avvenuta e il montaggio gioca durante le fasi che restano — ma
+	 * `PlaybackPhases` e' `Prep -> Dash -> Blast -> Move` e mai `Cleanup`, quindi chi cade nell'ultima fase
+	 * vedrebbe `FinishPlayback` subito dopo l'annuncio. E' il caso del banco `Visual.Combat.Defeat`, dove
+	 * nessuno si muove e la morte cade nel `Blast` finale.
+	 *
+	 * ⚠️ **E' tempo `Shown`, non `Slack`**: mostra qualcosa, quindi il budget non puo' toglierlo (#1878).
+	 * Scala invece con la velocita' scelta da chi guarda, come tutto il resto del playback.
+	 *
+	 * ⛔ **Non e' una callback di animazione e non aspetta il montaggio**: e' una durata dichiarata, quindi
+	 * la risoluzione resta deterministica e un montaggio assente non blocca nulla. Il valore e' da tarare a
+	 * schermo (`PIE-AS4b` / `PIE-VIS-KO`); a `0` la coda e' disattivata e si torna al comportamento
+	 * precedente.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
+	float DefeatBeatSeconds = 0.80f;
 
 	/**
 	 * Budget SOFT di durata del playback: oltre, si comprimono le ATTESE (0 = nessun budget).
@@ -1359,9 +1501,14 @@ protected:
 	 *
 	 * `Steps` e' quante celle sono state attraversate — la lunghezza della linea meno la partenza — e finisce
 	 * in `Amount`, dove le voci di movimento portano gia' quel numero.
+	 *
+	 * `Outcome` ha un default perche' i chiamanti storici scrivono tutti `Displaced`: lo passa esplicito
+	 * solo la CADUTA (#2402), dove `Displaced` direbbe *«raggiunta la destinazione della spinta»* su
+	 * un'unita' finita altrove.
 	 */
 	void AppendDisplacementEntry(const ARTUnit* Target, const FRTCellId& From, const FRTCellId& To, int32 Steps,
-		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget);
+		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget,
+		ERTMoveOutcome Outcome = ERTMoveOutcome::Displaced);
 
 	/**
 	 * Applica uno spostamento FORZATO gia' deciso: i dieci passi che devono avvenire tutti, in un posto solo
@@ -1386,10 +1533,14 @@ protected:
 	 * ⚠️ `InPhase` viaggia fino agli hazard attraversati (passo 8): uno spostamento forzato nasce in fasi
 	 * diverse — spinta e trazione nel `Blast`, fuga in `Dash` o in `Cleanup` — e il danno da terreno che ne
 	 * consegue deve dichiarare **quella**, non una fissa (`#1067`).
+	 *
+	 * `Outcome` esiste per la CADUTA (#2402) e ha il default storico: chi cade percorre gli stessi dieci
+	 * passi — traccia, playback, cella, facing, hazard — ma la sua voce non puo' dire `Displaced`.
 	 */
 	void ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& NewCell, const FRTCellId& FacingSource,
 		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget, const TCHAR* LogVerb,
-		const URTHexMapAsset* Map, ERTMatchPhase InPhase);
+		const URTHexMapAsset* Map, ERTMatchPhase InPhase,
+		ERTMoveOutcome Outcome = ERTMoveOutcome::Displaced);
 
 	/**
 	 * Voce di TurnLog per uno spostamento forzato ANNULLATO (#420): la spinta e' stata registrata, risolta, e
@@ -1734,6 +1885,22 @@ protected:
 	float ReadyCountdownSeconds = 3.f;
 
 	/**
+	 * La finestra di preparazione dell'autobattle (`#2386`). **Terzo Tempo UX**, accanto agli altri due e
+	 * per la stessa ragione: tempo di PARETE, mai nel TurnLog.
+	 *
+	 * ⚠️ **Non sostituisce `MinUnattendedPlanningSeconds`, si aggiunge dopo.** Il pavimento di 0,1 s del
+	 * `RTMatchBootstrapper` esiste per impedire il «fermo per sempre» di `PlanningSeconds == 0` e resta
+	 * dov'e'; questa finestra si apre **allo scadere** di quel planning, cioe' quando `PlanBots` ha gia'
+	 * prodotto i piani. L'ordine e' obbligato: estendere il planning invece di aggiungere la finestra
+	 * mostrerebbe tre secondi di schermata **vuota**, perche' i piani non esistono ancora.
+	 *
+	 * ⚠️ **`0` non e' «finestra istantanea»: e' «nessuna finestra»**, e il timeout risolve nello stesso
+	 * frame come prima di questa issue.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
+	float PrepWindowSeconds = 3.f;
+
+	/**
 	 * Durata della finestra Fast Reaction, in secondi (ADR-0004 §8, CP 14.6): **3,0 s**.
 	 *
 	 * Sta qui e non in `FRTMatchRules` per la ragione che quel file dichiara di se': e' un tempo di PARETE,
@@ -2043,6 +2210,25 @@ protected:
 	FTimerHandle ReadyCountdownTimerHandle;
 
 	/**
+	 * La finestra di preparazione dell'autobattle (`#2386`). Terzo orologio accanto agli altri due, e con la
+	 * stessa precedenza gia' scritta sopra: chiama `LockInAndResolve`, che lo spegne insieme agli altri
+	 * appena entra. Nessun `if` nuovo da ricordare.
+	 */
+	FTimerHandle PrepWindowTimerHandle;
+
+	/** La finestra e' armata ma ferma. Vedi `PausePrepWindow`. */
+	bool bPrepWindowPaused = false;
+
+	/**
+	 * Il residuo congelato dalla pausa, in secondi.
+	 *
+	 * 🔴 **Serve perche' `FTimerManager` non ha un «pausa»**: fermarsi significa cancellare il timer, e
+	 * riprendere significa riarmarlo. Senza questo campo la ripresa ripartirebbe da `PrepWindowSeconds`, e
+	 * chi mette in pausa a mezzo secondo dalla risoluzione si regalerebbe tre secondi ogni volta.
+	 */
+	float PrepWindowRemainingOnPause = 0.f;
+
+	/**
 	 * L'allestimento ha rivendicato l'apertura del turno 1 (`#2102`, [D-314]).
 	 *
 	 * ⚠️ **Stato di AVVIO, non stato di partita**: non entra in snapshot, TurnLog o hash. Dice chi apre il
@@ -2164,6 +2350,31 @@ private:
 	TArray<FRTMoveAnim> MoveAnims;          // derivati dagli eventi Move
 	TArray<FRTResolvedEvent> PlaybackAttacks; // eventi Attack, mostrati in serie nel Blast
 	TArray<FRTResolvedEvent> PlaybackDefeated; // eventi Defeated, mostrati a fine della loro fase
+
+	/**
+	 * Chi ha gia' ricevuto l'annuncio di morte in questo playback, per `StableUnitId`.
+	 *
+	 * 🔴 **Esiste perche' `IsHidden()` non puo' piu' fare da guardia** (#2452). Fino al 2026-09-05
+	 * l'idempotenza dell'annuncio veniva dall'hide stesso: si nascondeva l'unita' e la si riconosceva
+	 * «gia' mostrata» perche' era nascosta. Ma nascondere PRIMA di `PlayDefeatMontage()` rendeva il
+	 * montaggio `Death` invisibile, quindi l'hide si e' spostato a `FinishPlayback` — e senza un
+	 * marcatore proprio il catch-all rifarebbe partire il montaggio e ribroadcasterebbe
+	 * `OnUnitDefeated` sulla stessa unita'.
+	 *
+	 * ⚠️ **Non se ne itera mai l'ordine** (solo `Contains`/`Add`): l'invariante «niente dipendenza
+	 * dall'ordine di un container hash» resta intatta.
+	 */
+	TSet<int32> PlaybackDefeatShown;
+
+	/**
+	 * Secondi che restano alla coda finale della morte, `0` quando non e' in corso (#2452).
+	 *
+	 * Quando l'ultima fase si chiude su un'eliminazione il playback NON finisce: entra qui, e
+	 * `FinishPlayback` arriva allo scadere. ⚠️ `SkipPlayback` la scavalca — chiama `FinishPlayback`
+	 * direttamente — ed e' voluto: chi salta la risoluzione non vuole aspettare una coda.
+	 */
+	float PlaybackDefeatBeatRemaining = 0.f;
+
 	TArray<ERTMatchPhase> PlaybackPhases;   // fasi attive, in ordine
 	int32 PlaybackPhaseIdx = 0;
 	float PlaybackPhaseElapsed = 0.f;

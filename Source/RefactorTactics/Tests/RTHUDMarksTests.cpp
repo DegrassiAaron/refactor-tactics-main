@@ -88,8 +88,8 @@ bool FRTHUDAllyMarkFromPlanTest::RunTest(const FString&)
 	// Stessa geometria di `Combat.FriendlyFire`: Phase adiacente al bersaglio, dentro l'area r1.
 	ARTUnit* Gadget    = SpawnMarksUnit(World, TEXT("Hero.Gadget"),    0, FRTCellId(-1, 0, 0));
 	ARTUnit* Phase    = SpawnMarksUnit(World, TEXT("Hero.Phase"),    0, FRTCellId( 1, 0, 0));
-	ARTUnit* Riktor = SpawnMarksUnit(World, TEXT("Hero.Riktor"), 1, FRTCellId( 2, 0, 0));
-	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Phase"), Phase) || !TestNotNull(TEXT("Riktor"), Riktor))
+	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 2, 0, 0));
+	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Phase"), Phase) || !TestNotNull(TEXT("Branth"), Branth))
 	{
 		DestroyMarksWorld(World);
 		return false;
@@ -98,16 +98,16 @@ bool FRTHUDAllyMarkFromPlanTest::RunTest(const FString&)
 	const int32 Overload = MarksAbilityIndex(Gadget, TEXT("Hero.Gadget.Overload"));
 	if (!TestTrue(TEXT("Gadget ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
 	Gadget->PlannedAbilityIndex = Overload;
-	Gadget->PlannedAttackTarget = Riktor;
+	Gadget->PlannedAttackTarget = Branth;
 
 	TSet<FRTCellId> Hit, Ally;
-	ARTHUD::ComputePlannedHitMarks({ Gadget, Phase, Riktor }, /*PlayerTeamId=*/ 0, Hit, Ally);
+	ARTHUD::ComputePlannedHitMarks({ Gadget, Phase, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
 	DestroyMarksWorld(World);
 
 	// L'area di raggio 1 accende il bersaglio piu' i suoi vicini: piu' di una cella distingue «area» da
 	// «bersaglio singolo».
 	TestTrue(FString::Printf(TEXT("l'area e' accesa (celle: %d)"), Hit.Num()), Hit.Num() > 1);
-	TestTrue(TEXT("il bersaglio e' nella zona"), Hit.Contains(Riktor->Cell));
+	TestTrue(TEXT("il bersaglio e' nella zona"), Hit.Contains(Branth->Cell));
 	TestTrue(TEXT("anche la cella di Phase e' nella zona"), Hit.Contains(Phase->Cell));
 
 	// Il punto del test: l'ALLEATA e' segnalata come fuoco amico.
@@ -136,18 +136,18 @@ bool FRTHUDEnemyPlansAreNotReadTest::RunTest(const FString&)
 	// Stavolta e' l'avversario a pianificare, su un bersaglio del giocatore.
 	ARTUnit* NemicoGadget = SpawnMarksUnit(World, TEXT("Hero.Gadget"),    1, FRTCellId(-1, 0, 0));
 	ARTUnit* MioPhase    = SpawnMarksUnit(World, TEXT("Hero.Phase"),    0, FRTCellId( 1, 0, 0));
-	ARTUnit* MioRiktor = SpawnMarksUnit(World, TEXT("Hero.Riktor"), 0, FRTCellId( 2, 0, 0));
-	if (!TestNotNull(TEXT("unita'"), NemicoGadget) || !MioPhase || !MioRiktor)
+	ARTUnit* MioBranth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 0, FRTCellId( 2, 0, 0));
+	if (!TestNotNull(TEXT("unita'"), NemicoGadget) || !MioPhase || !MioBranth)
 	{
 		DestroyMarksWorld(World);
 		return false;
 	}
 
 	NemicoGadget->PlannedAbilityIndex = MarksAbilityIndex(NemicoGadget, TEXT("Hero.Gadget.Overload"));
-	NemicoGadget->PlannedAttackTarget = MioRiktor;
+	NemicoGadget->PlannedAttackTarget = MioBranth;
 
 	TSet<FRTCellId> Hit, Ally;
-	ARTHUD::ComputePlannedHitMarks({ NemicoGadget, MioPhase, MioRiktor }, /*PlayerTeamId=*/ 0, Hit, Ally);
+	ARTHUD::ComputePlannedHitMarks({ NemicoGadget, MioPhase, MioBranth }, /*PlayerTeamId=*/ 0, Hit, Ally);
 	DestroyMarksWorld(World);
 
 	TestEqual(TEXT("nessuna cella dal piano avversario"), Hit.Num(), 0);
@@ -171,13 +171,13 @@ bool FRTHUDNoFriendlyFireNoMarkTest::RunTest(const FString&)
 
 	ARTUnit* Gadget    = SpawnMarksUnit(World, TEXT("Hero.Gadget"),    0, FRTCellId(-1, 0, 0));
 	ARTUnit* Phase    = SpawnMarksUnit(World, TEXT("Hero.Phase"),    0, FRTCellId( 1, 0, 0));
-	ARTUnit* Riktor = SpawnMarksUnit(World, TEXT("Hero.Riktor"), 1, FRTCellId( 2, 0, 0));
-	if (!Gadget || !Phase || !Riktor) { DestroyMarksWorld(World); return false; }
+	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 2, 0, 0));
+	if (!Gadget || !Phase || !Branth) { DestroyMarksWorld(World); return false; }
 
 	const int32 Overload = MarksAbilityIndex(Gadget, TEXT("Hero.Gadget.Overload"));
 	if (!TestTrue(TEXT("Gadget ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
 	Gadget->PlannedAbilityIndex = Overload;
-	Gadget->PlannedAttackTarget = Riktor;
+	Gadget->PlannedAttackTarget = Branth;
 
 	// Si spegne il flag sulla COPIA dell'unita', non nel catalogo: il test non deve lasciare il roster sporco
 	// per chi gira dopo di lui.
@@ -187,7 +187,7 @@ bool FRTHUDNoFriendlyFireNoMarkTest::RunTest(const FString&)
 	Ability->Def.bFriendlyFire = false;
 
 	TSet<FRTCellId> Hit, Ally;
-	ARTHUD::ComputePlannedHitMarks({ Gadget, Phase, Riktor }, /*PlayerTeamId=*/ 0, Hit, Ally);
+	ARTHUD::ComputePlannedHitMarks({ Gadget, Phase, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
 
 	Ability->Def.bFriendlyFire = bSaved;
 	DestroyMarksWorld(World);

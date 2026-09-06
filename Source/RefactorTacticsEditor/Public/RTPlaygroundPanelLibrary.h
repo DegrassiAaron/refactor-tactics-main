@@ -62,6 +62,25 @@ struct FRTPlaygroundStationInfo
 	bool bLive = false;
 };
 
+/**
+ * I quattro parametri **numerici** del fixture, come vocabolario invece che come posizione.
+ *
+ * 🔑 Esiste perche' il grafo possa dire *quale* campo e' cambiato senza passare quattro `float` in un
+ * ordine che nessun compilatore verifica: quattro parametri dello stesso tipo si scambiano in silenzio,
+ * ed e' il difetto che `PanelReadFixtureParametersRoundTrips` prova con quattro valori diversi.
+ *
+ * ⛔ Non comprende `Facing`, che ha gia' `ApplyFixtureFacing`: e' un enum, non una misura, e mescolarlo
+ * qui vorrebbe dire passarlo come `float`.
+ */
+UENUM(BlueprintType)
+enum class ERTPlaygroundFixtureParam : uint8
+{
+	BodyRadius,
+	BodyHeight,
+	FaceHeight,
+	MarkerLength
+};
+
 /** Lo stato che l'`HEADER` mostra. Due valori: o si lavora, o si dice perche' no. */
 UENUM(BlueprintType)
 enum class ERTPlaygroundReadiness : uint8
@@ -192,6 +211,81 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playground")
 	static bool ApplyFixtureParameters(ARTGrayboxUnitFacingFixture* Fixture,
 		float BodyRadius, float BodyHeight, float FaceHeight, float MarkerLength);
+
+	/**
+	 * Scrive **un solo** parametro, e ricostruisce.
+	 *
+	 * 🔑 **Perche' uno alla volta, quando esiste gia' la versione che li scrive tutti e quattro.** Il
+	 * grafo riceve da `OnValueChanged` il valore del campo che l'utente ha appena mosso, e **basta
+	 * quello**: per usare `ApplyFixtureParameters` dovrebbe rileggere gli altri tre dai rispettivi
+	 * `USpinBox`, e `SpinBox|GetValue` e' un nodo **ambiguo** — `USlider` e `USpinBox` dichiarano
+	 * entrambi `GetValue(float)` con `Category="Behavior"`, e il DSL prende la prima. E' esattamente la
+	 * trappola gia' pagata su `ComboBox|GetSelectedOption`.
+	 *
+	 * ⚠️ **E c'e' una ragione che vale anche senza il DSL**: gli altri tre valori vengono cosi' dal
+	 * **fixture**, che e' la fonte di verita', invece che dai widget. Se un campo e il fixture
+	 * divergessero, rileggere dai widget propagherebbe la divergenza sull'attore.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playground")
+	static bool ApplyFixtureParameter(ARTGrayboxUnitFacingFixture* Fixture,
+		ERTPlaygroundFixtureParam Parameter, float Value);
+
+	/**
+	 * Riempie i quattro campi del pannello con i valori **veri** del fixture.
+	 *
+	 * 🔴 **Senza questa chiamata il pannello mentirebbe al primo tocco.** Un `USpinBox` nasce a `0`: se
+	 * `Select Fixture` non li riempisse, la prima rotellata scriverebbe `0` su un corpo che vale `60` —
+	 * il pannello *sembrerebbe* funzionare mentre cancella il fixture. Serve anche dopo `Reset`, dove i
+	 * campi resterebbero sui valori sporchi mentre l'attore e' gia' tornato ai default.
+	 *
+	 * 🔑 **Prende i widget come parametri invece di leggerli**, e non e' un giro largo: `SpinBox|SetValue`
+	 * e' ambiguo fra `USlider` e `USpinBox` (stessa `Category`, stessa firma) e il DSL prende la prima.
+	 * Passando i quattro widget la scrittura avviene in C++, dove il tipo e' esatto, e il grafo fa **una**
+	 * chiamata invece di quattro nodi ambigui.
+	 *
+	 * ⚠️ Tollera i puntatori nulli **uno per uno**: un campo non ancora costruito non deve impedire agli
+	 * altri tre di aggiornarsi. Restituisce quanti ne ha scritti.
+	 *
+	 * 🔴 **`DisplayName` esplicito, e non e' cosmesi.** Il `type_id` che il DSL usa per creare il nodo
+	 * deriva dal **DisplayName**, che UHT genera "prettificando" il nome C++ — e nel farlo
+	 * **minuscolizza le preposizioni**: senza questa meta il nodo si chiama
+	 * `RefactorTactics|Playground|PushFixtureParameterstoSpinBoxes`, con la `t` minuscola. Misurato il
+	 * 2026-09-05 con `find_node_types`, dopo che `write_graph_dsl` aveva rifiutato il nome ovvio.
+	 * ⚠️ Vale per **qualunque** funzione che il grafo chiami e il cui nome contenga `To`, `From`, `In`,
+	 * `Of`: fissare il `DisplayName` rende il `.dsl` stabile invece di dipendere da una regola di
+	 * formattazione del motore.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playground",
+		meta = (DisplayName = "PushFixtureParametersToSpinBoxes"))
+	static int32 PushFixtureParametersToSpinBoxes(const ARTGrayboxUnitFacingFixture* Fixture,
+		class USpinBox* BodyRadiusBox, class USpinBox* BodyHeightBox,
+		class USpinBox* FaceHeightBox, class USpinBox* MarkerLengthBox);
+
+	/**
+	 * Accende o spegne le **etichette** della scena, e restituisce quante ne ha toccate.
+	 *
+	 * 🔑 **Per CLASSE, non per nome.** Le etichette del laboratorio sono `ATextRenderActor`, e questo e'
+	 * l'unico aggancio che la mappa offre: misurato il 2026-09-05, `L_GrayKitPlayground` non dichiara
+	 * **nessun** `Tags`, `ComponentTags` o `Layers` — i suoi 25 attori si distinguono solo per
+	 * `ActorLabel`, che e' una stringa d'editor, e `grep -rn "GKP_" Source/ tools/` da' **zero**.
+	 * Elencare qui `GKP_Num_01`..`GKP_Name_08` sarebbe la prima copia in codice di nomi che vivono solo
+	 * nel `.umap`: il giorno che #1991 ne rinomina uno, il toggle smette di vederlo **in silenzio**. E'
+	 * esattamente `#1459`.
+	 *
+	 * ⛔ **Per la stessa ragione qui non c'e' un toggle della guida da 1 m ne' dei bounds.** La guida e'
+	 * uno `AStaticMeshActor` fra quattro e non si distingue per classe; i bounds non hanno **nessun**
+	 * attore. Entrambi richiedono che l'owner della mappa dia un aggancio stabile — integration request
+	 * verso #1991, non un elenco di nomi da questo lato.
+	 *
+	 * ⚠️ **Presentation-only, e in Editor.** Usa `SetIsTemporarilyHiddenInEditor`: non tocca lo stato
+	 * salvato dell'attore, non sporca la mappa, e un riavvio dell'Editor le rimette visibili.
+	 *
+	 * Restituisce `-1` se non c'e' un mondo da cui partire — cosi' il pannello puo' distinguere
+	 * *«nessuna etichetta»* da *«non ho potuto guardare»*.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playground",
+		meta = (WorldContext = "WorldContextObject", DisplayName = "SetStationLabelsVisible"))
+	static int32 SetStationLabelsVisible(const UObject* WorldContextObject, bool bVisible);
 
 	/**
 	 * Rimette i **default dichiarati**.

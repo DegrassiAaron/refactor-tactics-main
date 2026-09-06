@@ -44,6 +44,32 @@ static void RTDebugPacingCommand(const TArray<FString>& Args, UWorld* World, FOu
 			URTPacingLibrary::ReactionDecisionSecondsUpperBound(S.TotalReactionWindows, WindowSeconds),
 			S.TotalReactionWindows, WindowSeconds);
 	}
+	// Le opportunity accanto alle finestre, e non al posto loro: il RAPPORTO fra i due e' il dato.
+	// Con il solo conteggio delle finestre, «poche interruzioni» e «poche reazioni» sarebbero
+	// indistinguibili — e sono due letture opposte della stessa sessione.
+	{
+		const float OpportunitiesPerTurn = URTPacingLibrary::PerTurnRate(S.TotalReactionOpportunities, S.SampleCount);
+		const float BoundariesPerTurn = URTPacingLibrary::PerTurnRate(S.TotalReactionWindows, S.SampleCount);
+		if (OpportunitiesPerTurn < 0.f)
+		{
+			// ⚠️ Non «0,0 per turno»: senza turni non c'e' denominatore, e stampare zero direbbe che il
+			// gioco non apre opportunity — un'affermazione che questa sessione non ha misurato.
+			Ar.Logf(TEXT("[RT]   opportunity: %d in sessione, per turno NON MISURATO (nessun campione)"),
+				S.TotalReactionOpportunities);
+		}
+		else
+		{
+			Ar.Logf(TEXT("[RT]   opportunity: %d in sessione, %.2f per turno | boundary %.2f per turno"),
+				S.TotalReactionOpportunities, OpportunitiesPerTurn, BoundariesPerTurn);
+		}
+		if (S.TotalReactionWindows > S.TotalReactionOpportunities)
+		{
+			// Incoerente per costruzione: le finestre sono un sottoinsieme. Si segnala invece di
+			// normalizzare — un rapporto aggiustato nasconderebbe il difetto che lo produce.
+			Ar.Logf(TEXT("[RT]   ⚠ INCOERENTE: finestre (%d) > opportunity (%d)"),
+				S.TotalReactionWindows, S.TotalReactionOpportunities);
+		}
+	}
 	Ar.Logf(TEXT("[RT]   lettura: tagli > 0 -> alza PlanningSeconds; tagli 0 e attese alte -> e' l'interfaccia, non il timer."));
 }
 

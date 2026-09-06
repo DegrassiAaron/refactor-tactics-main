@@ -249,6 +249,34 @@ Non dichiarare:
 
 senza evidenza.
 
+### Un work order esterno
+
+Un kit, brief, mandato o «roadmap» che arriva da fuori è un **ingresso**, non un owner.
+
+Entra il **contenuto**: candidate tecniche, difetti nominati, domande aperte.
+
+Non entra il **preambolo di processo**. Ricognizione, anti-duplicazione, priorità, label, milestone e
+formato del report sono già scritti qui e in [`CLAUDE.md`](CLAUDE.md). Un kit che li riscrive non li
+sostituisce, e non li emenda.
+
+Se il kit e il contratto divergono, vince il contratto.
+
+Prima di eseguirlo:
+
+- misura le sue premesse: decadono in ore, e la più vistosa è spesso già chiusa;
+- cerca l'owner di ogni voce prima di crearne una;
+- non assegnare `D-nnn`, `Enn` o altri contatori condivisi dal kit;
+- non creare le milestone, le label o le epic che nomina senza verificare la tassonomia esistente.
+
+Un kit senza sha e senza data non porta una misura: porta un'opinione datata ignoto.
+
+Dopo:
+
+- il referto va in `docs/roadmap/plans/`, e cita lo sha su cui ha misurato;
+- ciò che il kit chiedeva e non è stato fatto si dichiara, col motivo;
+- il kit stesso non si versiona: è una consegna effimera, e il referto è l'unico posto in cui resta
+  citabile.
+
 ## 9. Build e test
 
 Non esiste CI automatica per scelta corrente.
@@ -310,13 +338,24 @@ node tools/radar/doc-tables.ts --check
 node tools/radar/issue-refs.ts --check
 node tools/radar/scenario-notes.ts --check
 node tools/asset-refs/check.ts
+node tools/asset-provenance/check.ts
 python tools/architettura/misure-strutturali.py --check   # solo se la PR tocca Turn/RTTurnManager.*
 
 cd tools/radar
 node --test
+
+cd ../asset-provenance
+node --test
 ```
 
 Ogni tool dichiara nel docstring **cosa non copre**.
+
+⛔ `tools/asset-provenance/check.ts` verifica che ogni asset abbia una **riga** nel registro di
+provenienza ([`docs/technical/asset-licenze.md`](docs/technical/asset-licenze.md)), non che la licenza
+sia rispettata. Un verde significa **«registrato»**, mai «consentito»: nessun controllo automatico puo'
+leggere un EULA. Guarda due popolazioni — cio' che e' versionato sotto `Content/` e `tools/`, e cio' che
+i package versionati **referenziano** senza che il repository lo contenga — perche' la prima da sola
+sarebbe cieca sui ~15,8 GB di pack che stanno fuori dal repository per scelta.
 
 ⛔ `tools/mutation/costanti-combattimento.py` **non e' fra i controlli noti**, e di proposito. Modifica un sorgente e occupa il motore per **un build completo piu' una suite intera per ogni costante**, piu' una baseline: con le 11 di `RTCombatLibrary.h` sono **ore**, e le direzioni di mutazione da misurare sono **due** (`+3` e `-3` danno risposte diverse — vedi il docstring). Mentre gira, ogni altra misura in parallelo e' NON VALIDA. Si lancia per rispondere alla domanda che `#2118` ha posto — *quali costanti si possono cambiare senza che niente diventi rosso* — non a ogni PR.
 
@@ -453,7 +492,7 @@ Quando applicabile:
 - Per modifiche editor-facing/asset-facing, MCP/Editor usato quando disponibile e pertinente.
 - Nessun Unreal Editor avviato dal workflow resta aperto a fine task.
 
-## 11. Lavoro parallelo
+## 11. Lavoro parallelo e figure operative
 
 Il repository viene modificato da più sessioni.
 
@@ -469,6 +508,159 @@ Non assumere stabili:
 Un worktree separato non elimina il mutex globale Unreal/Live Coding.
 
 Prima del merge rimisura.
+
+### Le tre figure
+
+Il lavoro concorrente si organizza in **tre figure**. Sono tre le figure, non i terminali: le istanze DEV possono essere N, e nulla obbliga ad aprirne esattamente tre.
+
+| Figura | Possiede | Non possiede |
+|---|---|---|
+| **DEV** | codice, authoring dei test, review, Git/GitHub, tooling statico e headless | Unreal: non avvia Editor, `rt-suite`, packaging o build che monopolizzano il motore |
+| **EDITOR** | Unreal Editor, PIE, MCP/editor automation, `.uasset`/`.umap`, Blueprint, authoring asset, acceptance visuale | suite e build concorrenti; il verdetto sui sistemi che può soltanto osservare |
+| **VALIDATION** | build, Automation Test mirati, Scenario Harness, suite completa, packaged | i binari; l'approvazione del proprio fix |
+
+`DEV-LEAD`, `DEV-MAIN` e `DEV-TEST` sono **funzioni DEV dentro una wave**, non figure aggiuntive: valgono per intero i limiti DEV, incluso il divieto di occupare il motore.
+
+- `DEV-LEAD` — la singola istanza che per una wave possiede l'integrazione ed emette l'handoff di ingresso;
+- `DEV-MAIN` — implementa dentro lo scope assegnato;
+- `DEV-TEST` — scrive test, scenari e validator, e dichiara i comandi che VALIDATION eseguirà.
+
+### Workspace, figura e branch sono tre cose diverse
+
+Si confondono facilmente, e ogni confusione ha gia' prodotto un difetto.
+
+| Cosa | Valori | Dove vive |
+|---|---|---|
+| **Figura** della sessione | `DEV` · `EDITOR` · `VALIDATION` | `RT_TERMINAL_ROLE` |
+| **Identita'** del workspace | `MAIN` · `DEV` · `TECHNICAL_DESIGNER` | registro per macchina, non il nome della cartella |
+| **Branch** git | qualunque | `git rev-parse` |
+
+`MAIN` **non** e' il branch `main`. E' il checkout che ospita l'unico bridge MCP della macchina. L'authoring asset avviene la', e su un **branch di task** — mai su `main`.
+
+Ogni directory apre tutte e tre le figure. Nessun checkout e' vincolato a un ruolo operativo.
+
+### Il motore e' una risorsa di macchina
+
+Unreal e' **uno** e lo condividono tutti i checkout. Da cui:
+
+- il permesso di occuparlo non puo' vivere dentro un checkout. Uno stato per-root non descrive una risorsa per-macchina, e il finding `parsecell-arity/1-F13` lo ha misurato: con sei checkout attivi, l'unico che dichiarava `VALIDATION` era quello che **non** stava usando il motore;
+- il lease si acquisisce **just-in-time**, immediatamente prima di Editor, PIE, build, commandlet o di una chiamata MCP che richieda l'Editor vivo. Aprire un terminale o avviare un agente non lo acquisisce;
+- il lease **non e' preemptive**: chi trova la risorsa presa attende, e nessuna sessione termina quella attiva;
+- un processo motore vivo che nessun lease rivendica **blocca**: concedere sarebbe promettere un'esclusivita' che non c'e';
+- il rilascio e' una **dichiarazione** che la risorsa e' libera. Se un processo avviato dalla sessione e' ancora vivo, non si rilascia.
+
+### Authoring asset: solo dal workspace MAIN
+
+Una chiamata che crea, modifica, rinomina, sposta, cancella, importa o salva un asset Unreal via MCP e' autorizzata solo se valgono **tutte** queste condizioni:
+
+```text
+figura            = EDITOR
+workspace         = MAIN, verificato sul registro di macchina
+branch            = branch di task, diverso da main
+task id           presente
+write-set asset   dichiarato
+lease             vivo, posseduto, per l'operazione giusta
+contesto          progetto, Editor ed endpoint coincidono col lease
+```
+
+Una figura EDITOR in un workspace `DEV` o `TECHNICAL_DESIGNER` resta legittima: prepara, ispeziona, usa capacita' realmente read-only. **Non muta asset.**
+
+La ragione e' misurabile, non formale: il bridge e' uno solo e vive in MAIN, quindi una sessione che lo usa da un altro checkout **muta gli asset di MAIN** mentre legge il `git status` del proprio.
+
+VALIDATION puo' usare il motore per misurare. Non ripara asset durante il sign-off: un difetto torna a EDITOR, e la nuova evidenza si produce su input rimisurato.
+
+### Una figura per sessione
+
+
+Una sessione assume **una sola figura**, e la dichiara all'avvio.
+
+Il ruolo **non si deduce dal nome della directory**. `Main`, `Dev`, `Technical Designer` e ogni altro checkout sono luoghi, non figure: la stessa directory ospita figure diverse in momenti diversi, e una cartella chiamata `Dev` non rende DEV la sessione che ci lavora.
+
+Se il ruolo non è dichiarato, non indovinarlo.
+
+### Cosa isola una directory, e cosa no
+
+| Configurazione | Isola | Non isola |
+|---|---|---|
+| Più sessioni nella **stessa directory** | niente | working tree, index e `HEAD` sono condivisi: il parallelismo è operativo, non Git |
+| Sessioni in **directory separate** | working tree, index, `HEAD` | Unreal, Live Coding, DDC, CPU e disco: le risorse macchina restano una sola |
+
+Da cui due conseguenze:
+
+- nella stessa directory `git add -A`, `git commit -am`, `reset`, `restore`, `clean`, `switch` e `pull --rebase` inglobano o distruggono il lavoro non integrato di un'altra istanza. Staging per path espliciti;
+- in directory separate due misure Unreal non diventano parallele: diventano una coda.
+
+`git status` non risponde alla domanda «questo file è mio».
+
+### Coordinamento
+
+Le figure si coordinano su **artefatti**, non su copie locali né sul contesto di una conversazione:
+
+- il **branch** e il **parent branch** reali;
+- gli **SHA**: il commit ereditato in ingresso e quello prodotto in uscita;
+- gli **handoff persistiti** su file.
+
+Un handoff che vive solo in chat non esiste per la figura successiva, e un'evidenza descritta a parole non è riverificabile.
+
+### Esclusione reciproca su Unreal
+
+EDITOR e VALIDATION si escludono a vicenda **quando occupano il motore**.
+
+Un Editor aperto e una suite non convivono: mentre uno dei due tiene Unreal, l'altro attende. Aprire un secondo terminale non produce una seconda istanza del motore.
+
+Le sessioni DEV continuano a lavorare, purché non lo occupino.
+
+### Catena canonica
+
+```text
+DEV-LEAD → EDITOR → VALIDATION
+```
+
+Tre punti fissi. Le altre istanze DEV contribuiscono a monte di `DEV-LEAD` e non sono punti della catena.
+
+Nessuna figura firma il proprio lavoro:
+
+- EDITOR **non** emette il verdetto sui sistemi che può soltanto osservare — privacy, determinismo, autorità di rete, replay, performance, e gli altri che il contratto elenca. Constatare che un dato non compare nella UI avversaria non prova che non sia sul client: quella prova appartiene a VALIDATION;
+- VALIDATION **non** ripara il codice di produzione e poi approva sé stesso. Un difetto torna al suo owner con la correzione richiesta e con la regressione che deve esistere prima della richiusura.
+
+### Validation Window preliminare
+
+Una figura VALIDATION può aprire una finestra **prima** che la catena sia completa, per misurare presto ciò che è già misurabile.
+
+È consentito e utile. **Non è il sign-off finale**: misura un commit che non è quello consegnato, e un verde su una base precedente non copre ciò che è stato scritto dopo. Il sign-off resta il passaggio VALIDATION a valle di EDITOR, sul commit realmente consegnato.
+
+È questa la finestra che compare come passata anticipata nel flusso operativo di [`docs/rt-three-terminals/README.md`](docs/rt-three-terminals/README.md). Non contraddice la catena: la anticipa in un punto, e non la chiude.
+
+### Handoff minimo
+
+Un passaggio di consegne porta almeno:
+
+```text
+FEATURE · BRANCH · PARENT_BRANCH
+BASE_SHA · PRODUCED_SHA
+WRITE_SET · BINARY_ASSETS
+STATUS
+```
+
+Fail-closed, non best-effort:
+
+- campo vuoto, placeholder non risolto o input non risolvibile ⇒ handoff bloccato, **prima** di leggere il repository e prima di aprire l'Editor. Un placeholder risolto per inferenza è un input inventato;
+- `PARENT_BRANCH` non ha default: non è `main` per assunzione;
+- un handoff in ingresso bloccato blocca la figura successiva. Non si valida sopra una base che il ruolo a monte ha dichiarato inaffidabile;
+- un verdetto senza il campo che lo prova non è un verdetto;
+- ciò che non è stato eseguito resta `NOT RUN`, col motivo.
+
+### Dove vive il dettaglio
+
+Verdetti tipizzati, matrice dei sistemi per ruolo, scoping dal write-set, schema completo dell'handoff, persistenza e defect policy hanno un owner unico:
+
+[`docs/rt-three-terminals/prompts/RT3_CONTRACT.md`](docs/rt-three-terminals/prompts/RT3_CONTRACT.md)
+
+Non riscriverli qui. Se una regola di quel contratto contraddice questo file o [`CLAUDE.md`](CLAUDE.md), vince il documento di repository.
+
+Prompt di figura, prompt di wave, installazione e regole di concorrenza operative:
+
+[`docs/rt-three-terminals/README.md`](docs/rt-three-terminals/README.md)
 
 ## 12. Git
 

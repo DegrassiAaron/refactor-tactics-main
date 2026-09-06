@@ -512,9 +512,9 @@ bool FRTLogFallbackNamesTheActionTest::RunTest(const FString&)
 	// E il profilo, quando c'e', si legge come nelle altre categorie. Token canonico `Hero.<Nome>.<Abilita>`
 	// (D-130): i nomi legacy sono usciti dal repository, e il gate che li cercava e' uscito con D-182.
 	Altra.BaseActionId = FName(TEXT("Action.BasicAttack"));
-	Altra.ActionId = FName(TEXT("Hero.Riktor.ImpactShot"));
+	Altra.ActionId = FName(TEXT("Hero.Branth.ImpactShot"));
 	TestTrue(TEXT("azione base e profilo, come altrove"),
-		URTTurnLogLibrary::DescribeEntry(Altra).Contains(TEXT("Action.BasicAttack · Hero.Riktor.ImpactShot")));
+		URTTurnLogLibrary::DescribeEntry(Altra).Contains(TEXT("Action.BasicAttack · Hero.Branth.ImpactShot")));
 
 	// Solo il PROFILO, senza l'azione: si legge il profilo, non `Action.BasicAttack · None`.
 	{
@@ -1389,7 +1389,7 @@ bool FRTTwoLinesSameUnitSameSubjectTest::RunTest(const FString&)
 
 	TMap<int32, FString> Nomi;
 	Nomi.Add(3, TEXT("Wraith"));
-	Nomi.Add(5, TEXT("Riktor"));
+	Nomi.Add(5, TEXT("Branth"));
 
 	const TArray<FRTTurnLogEntry> Log = {
 		Movimento(3, ERTMoveOutcome::Moved,  ERTMatchPhase::Dash),
@@ -1606,6 +1606,96 @@ bool FRTCombatLogBlastRecordsFacingReadTest::RunTest(const FString&)
 			return E.Category == ERTLogCategory::Facing
 				&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::UsedByOverwatch);
 		}).Num(), 0);
+
+	RTCombatLogFixture::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * ✅ **La COPERTURA registra il facing che legge, anche senza Guardia** (`#2341`).
+ *
+ * 🔴 **È l'asserzione anti-vacuità della issue, e senza di essa il lavoro potrebbe non aver fatto nulla.**
+ * `#1933` aveva dato un produttore a `UsedByBlast` per il solo ramo della Guardia: un difensore **senza**
+ * `Status.Guarded` non produceva alcuna voce, e una traccia muta non distingueva *«il facing non è stato
+ * letto»* da *«nessuno era in Guardia»*. Questo test pretende la voce proprio in quel caso.
+ *
+ * ⚠️ La copertura deve esserci **davvero**: `EffectiveCoverReduction` guarda il facing solo se c'è una
+ * copertura nominale da valutare — il `&&` è a corto circuito. Su un'arena piatta non ci sarebbe nulla da
+ * leggere, e il test misurerebbe l'assenza di un produttore che invece funziona.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCombatLogCoverRecordsFacingReadTest,
+	"RefactorTactics.Facing.CoverRecordsTheFacingItRead",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCombatLogCoverRecordsFacingReadTest::RunTest(const FString&)
+{
+	UWorld* World = RTCombatLogFixture::MakeWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTHexMapActor* Map = RTCombatLogFixture::SpawnMap(World);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Difensore = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 1, FRTCellId(0, 0, 0));
+	ARTUnit* Attaccante = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 0, FRTCellId(-1, 0, 0));
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("mappa"), Map)
+		|| !TestNotNull(TEXT("difensore"), Difensore) || !TestNotNull(TEXT("attaccante"), Attaccante))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	// ⛔ **NESSUNA Guardia**: è il punto del test. Se la voce comparisse solo con `Status.Guarded`, il
+	// perimetro non si sarebbe allargato e `#2341` non avrebbe fatto niente.
+	TestFalse(TEXT("premessa: il difensore NON è in Guardia"),
+		Difensore->HasStatus(TAG_Status_Guarded));
+
+	// Una copertura fra i due, così `EffectiveCoverReduction` abbia qualcosa da valutare e raggiunga
+	// `IsInFrontalArc`.
+	// ⚠️ Si parte dalla cella ESISTENTE e le si aggiunge la faccia: costruirne una nuova con lo stesso `Id`
+	// sostituirebbe quella che la fixture ha posato, perdendone terreno e proprieta'.
+	if (URTHexMapAsset* Asset = Map->MapAsset)
+	{
+		if (const FRTHexCellData* Esistente = Asset->FindCell(FRTCellId(0, 0, 0)))
+		{
+			FRTHexCellData Riparo = *Esistente;
+			// 🔴 **`Low` e non `High`, ed e' la riga che decide se il test misura qualcosa.**
+			// `HexCoverDamageReduction` riduce il danno **solo** per la copertura bassa:
+			// `CoverOn(D) == ERTHexCoverType::Low ? LowCoverDamageReduction : 0`. La copertura alta blocca
+			// la linea di tiro, non attenua il colpo — con `High` la riduzione nominale sarebbe `0`, il
+			// corto circuito non raggiungerebbe `IsInFrontalArc`, e il test fallirebbe misurando l'assenza
+			// di un produttore che invece funziona. Misurato: la prima stesura usava `High`.
+			Riparo.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::Low, 50));
+			Asset->AddOrUpdateCell(Riparo);
+		}
+	}
+
+	Difensore->Facing = ERTHexDirection::E;
+	Attaccante->PlannedAbilityIndex = 0;
+	Attaccante->PlannedAttackTarget = Difensore;
+
+	RTCombatLogFixture::RunTurn(TM);
+
+	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
+	const TArray<FRTTurnLogEntry> Letture = Log.FilterByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Facing
+			&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::UsedByBlast);
+	});
+
+	TestTrue(TEXT("✅ la copertura ha registrato il facing anche senza Guardia"), Letture.Num() > 0);
+
+	// --- ⛔ UNA voce per unità, non due -----------------------------------------------------------------
+	// Guardia e copertura leggono lo stesso facing nella stessa fase: due voci direbbero due volte lo
+	// stesso fatto, ed è la ragione per cui la raccolta passa da un set.
+	TestEqual(TEXT("e ne ha scritta UNA sola per il difensore"),
+		Letture.FilterByPredicate([Difensore](const FRTTurnLogEntry& E)
+		{
+			return E.UnitId == Difensore->StableUnitId;
+		}).Num(), 1);
+
+	if (Letture.Num() > 0)
+	{
+		TestEqual(TEXT("col facing del difensore, non uno zero"),
+			Letture[0].Amount, static_cast<int32>(ERTHexDirection::E));
+	}
 
 	RTCombatLogFixture::DestroyWorld(World);
 	return true;

@@ -275,7 +275,7 @@ enum class ERTEnvironmentOutcome : uint8
 	CoverCreated,
 	/** Una copertura temporanea e' scaduta: da qui in poi quel bordo non ripara piu' nessuno. */
 	CoverExpired,
-	/** Una copertura e' stata SPOSTATA su un altro bordo (`Riktor.Reconfigure`): non ne nasce una seconda. */
+	/** Una copertura e' stata SPOSTATA su un altro bordo (`Branth.Reconfigure`): non ne nasce una seconda. */
 	CoverMoved,
 	/**
 	 * La copertura non e' nata: bersaglio fuori portata, bordo non dichiarato o gia' riparato. E' il `Cancel`
@@ -543,7 +543,7 @@ enum class ERTMoveOutcome : uint8
 	 * al lock-in. La differenza non e' di comodo: al commit il piano si contraddice e basta — CHI verra'
 	 * scartato lo decide il resolver, che fa vincere lo scatto sempre. Una voce scritta prima dovrebbe
 	 * indovinarlo, e l'ordine canonico di `ValidatePlan` (per larghezza di slot, poi per `ActionId`) darebbe
-	 * la risposta sbagliata: davanti a `Action.Move` + `Hero.Riktor.Ram` nomina **Ram**, che invece esegue.
+	 * la risposta sbagliata: davanti a `Action.Move` + `Hero.Branth.Ram` nomina **Ram**, che invece esegue.
 	 *
 	 * `SrcCell` e' la cella di PARTENZA dello scatto, non l'arrivo — e' la chiave stabile dell'unita' nel
 	 * turno su cui `FilterTracesByEmitter` filtra (`ExcludedSources.Contains(Entry.SrcCell)`) per confrontare
@@ -643,7 +643,31 @@ enum class ERTMoveOutcome : uint8
 	 * ⚠️ **Uno scivolamento avvenuto anche solo IN PARTE e' `Slid`, non questo.** Il confine conta a valle:
 	 * classificare come «non scivolata» un'unita' spostata di almeno una cella le toglierebbe `Unbalanced`.
 	 */
-	SlideBlocked
+	SlideBlocked,
+	/**
+	 * CADUTA GRAVITAZIONALE (#2402, `spec-caduta-e-bordi.md` §3–§4): uno spostamento forzato ha attraversato
+	 * un **bordo aperto**, lo spostamento orizzontale e' terminato — i passi residui sono persi — e l'unita'
+	 * e' scesa. Aggiunto in CODA, come tutti i valori sopra: l'esito viaggia come `uint8` nel formato
+	 * serializzato (`WithMicroStep` = 12), quindi le tracce gia' scritte non cambiano significato e non c'e'
+	 * migrazione (`D-245`).
+	 *
+	 * **Perche' non riusa `Displaced`.** Quello dice «una spinta l'ha portata altrove», che qui e' vero e
+	 * insufficiente: `Displaced` porta con se' *«raggiunta la destinazione della spinta»*, e la destinazione
+	 * della spinta non e' dove l'unita' e' finita. E' lo stesso difetto che `D-319` ha dovuto correggere per
+	 * lo scivolamento — un esito che dice «arrivata dove doveva» su un'unita' finita altrove manda a cercare
+	 * un difetto del resolver.
+	 *
+	 * ⚠️ **Non e' `Prone`.** Nel repository *«la caduta»* e' gia' una cosa — `D-319`, chi e' spostato mentre
+	 * e' `Unbalanced` finisce a terra — e le due regole **non si fondono**: la caduta gravitazionale non
+	 * applica `Prone` per se'. Un'unita' `Unbalanced` spinta oltre un bordo aperto le attraversa entrambe
+	 * (`spec` §5.1).
+	 *
+	 * 🔑 **`TgtCell` e' dove l'unita' e' FINITA**, che e' uno dei tre esiti di atterraggio di `spec` §4:
+	 * primario libero, alternativa adiacente, oppure `LastStableCell` nel caso saturo. La cella da cui e'
+	 * caduta resta in `SrcCell`. Distinguere QUALE dei tre e' avvenuto e' materia di **#2403**, che aggiunge
+	 * la catena causale: questo valore dice *che* e' caduta, non *come* e' atterrata.
+	 */
+	Fell
 };
 
 /**
@@ -791,7 +815,7 @@ struct FRTTurnLogEntry
 	 * IDENTITA' dell'azione che ha prodotto la voce, quando ne ha una (CP 5.5). `NAME_None` = non dichiarata.
 	 *
 	 * Serve perche' le reazioni degli eroi riusano la semantica delle azioni core: senza questo campo
-	 * `Riktor.Interposition` e `Action.Intercept` produrrebbero voci IDENTICHE, e un replay non potrebbe piu'
+	 * `Branth.Interposition` e `Action.Intercept` produrrebbero voci IDENTICHE, e un replay non potrebbe piu'
 	 * dire quale abilita' e' scattata. E' l'ActionId del catalogo, cioe' la chiave stabile: non cambia mai.
 	 *
 	 * Dal 2026-08-10 (CP 11.3, `#79`) lo popolano **anche le voci di combattimento** — colpi pianificati,
@@ -807,10 +831,10 @@ struct FRTTurnLogEntry
 	FName ActionId;
 
 	/**
-	 * L'azione GENERICA di cui `ActionId` e' un profilo (es. `Action.BasicAttack` per `Riktor.ImpactShot`).
+	 * L'azione GENERICA di cui `ActionId` e' un profilo (es. `Action.BasicAttack` per `Branth.ImpactShot`).
 	 * `NAME_None` quando l'azione non e' profilo di niente, o quando chi ha scritto la voce non lo sapeva.
 	 *
-	 * Sta QUI e non solo nel catalogo perche' `Riktor.ImpactShot` e' un'azione d'EROE: chi legge una traccia
+	 * Sta QUI e non solo nel catalogo perche' `Branth.ImpactShot` e' un'azione d'EROE: chi legge una traccia
 	 * non la risolve consultando il catalogo core, gli servirebbero i data asset del roster. Senza questo
 	 * campo la traccia non e' spiegabile da sola, e [D-033](../../../docs/decisions/RT_PDR_00_Decision_Log.md)
 	 * chiede esattamente questo.
@@ -1070,8 +1094,8 @@ struct FRTTurnLogEntry
 	 * CHI era il bersaglio ORIGINALE, quando un colpo e' stato **redirezionato** (`#1060`). `INDEX_NONE` su
 	 * ogni voce che non redirige — che e' la verita': non c'e' stato nessun trasferimento.
 	 *
-	 * Oggi lo produce la sola interposizione (`ERTReactionTrigger::AllyHitByDirectAttack`): Riktor si mette
-	 * davanti a Wraith, e il colpo che era per Wraith lo incassa Riktor. `UnitId` dice **chi lo incassa** —
+	 * Oggi lo produce la sola interposizione (`ERTReactionTrigger::AllyHitByDirectAttack`): Branth si mette
+	 * davanti a Wraith, e il colpo che era per Wraith lo incassa Branth. `UnitId` dice **chi lo incassa** —
 	 * e' l'unita' che reagisce — quindi con questo campo la voce nomina entrambi i capi del trasferimento.
 	 *
 	 * 🔴 **Porta uno `StableUnitId`, come `UnitId` e a differenza di `SelectedTargetUnitId`**, che invece porta

@@ -7,6 +7,8 @@
 #include "Player/RTPlayerState.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "Turn/RTTurnManager.h"
+#include "Unit/RTUnit.h"
+#include "EngineUtils.h"
 
 /**
  * IL MONDO DI PROVA DEI TEST, dichiarato una volta invece che quarantatre'.
@@ -113,6 +115,30 @@ namespace RTWorldFixtures
 	 * ⛔ Non registra `PlayerStateClass` sul GameMode: in questi mondi il nostro GameMode non e' l'autorita'
 	 * che decide la classe, quindi non servirebbe a niente.
 	 */
+	/**
+	 * La prima unita' della squadra indicata, o `nullptr`.
+	 *
+	 * ⚠️ **Sale qui perche' era gia' scritta due volte.** Viveva in `RTHudScenarioTests.cpp` e ne e' stata
+	 * ricopiata una seconda con un altro nome per schivare la collisione di unity build — che e' la difesa
+	 * locale corretta e non toglie una riga di duplicazione, esattamente il caso che questo file esiste per
+	 * chiudere (`#1548`).
+	 */
+	inline ARTUnit* FirstUnitOfTeam(UWorld* World, int32 TeamId)
+	{
+		if (!World)
+		{
+			return nullptr;
+		}
+		for (TActorIterator<ARTUnit> It(World); It; ++It)
+		{
+			if (It->TeamId == TeamId)
+			{
+				return *It;
+			}
+		}
+		return nullptr;
+	}
+
 	inline ARTPlayerController* MakePlayerOnTeam(UWorld* World, int32 TeamId)
 	{
 		if (!World)

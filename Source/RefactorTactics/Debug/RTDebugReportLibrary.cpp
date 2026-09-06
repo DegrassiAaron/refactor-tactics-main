@@ -6,6 +6,7 @@
 #include "Map/RTHexCoverPlacementLibrary.h"
 #include "Map/RTHexOccupancyLibrary.h"
 #include "Map/RTHexMapAsset.h"
+#include "Replay/RTBoundaryChecksum.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
@@ -347,5 +348,58 @@ TArray<FString> URTDebugReportLibrary::DescribeCellPlacement(const FRTCellId& Ce
 	}
 
 	AppendCoverLines(Lines, Covers);
+	return Lines;
+}
+
+
+TArray<FString> URTDebugReportLibrary::DescribeBoundaryChecksums(const TArray<FRTBoundaryChecksum>& Checksums)
+{
+	TArray<FString> Lines;
+
+	// ⚠️ Il vuoto si DICE. Una serie vuota che producesse zero righe sarebbe indistinguibile da un comando
+	// che non e' partito, ed e' la differenza fra «la traccia non attraversa barriere» e «non lo so».
+	if (Checksums.Num() == 0)
+	{
+		Lines.Add(TEXT("[RT] Boundary: nessuno (traccia vuota o senza barriere)."));
+		return Lines;
+	}
+
+	Lines.Add(FString::Printf(TEXT("[RT] Boundary: %d"), Checksums.Num()));
+	for (const FRTBoundaryChecksum& C : Checksums)
+	{
+		// `ToString()` porta gia' la terna e sa che `INDEX_NONE` e' la fase intera — stampare qui il `#%d`
+		// a mano rifarebbe quella decisione, e la rifarebbe peggio.
+		// ⚠️ `%08x` e non `%016llx`: `HashMatchState` restituisce **uint32**, quindi otto cifre bastano e
+		// sedici aggiungerebbero otto zeri privi di significato. Conta perche' `DescribeDivergence` stampa
+		// lo stesso numero come `0x%08X`: due grafie per lo stesso valore, nello stesso dump, costringono a
+		// confrontare a occhio due stringhe di forma diversa.
+		Lines.Add(FString::Printf(TEXT("[RT]   %s  0x%08x"),
+			*C.ToString(), static_cast<uint32>(C.Hash)));
+	}
+	return Lines;
+}
+
+TArray<FString> URTDebugReportLibrary::DescribeBoundaryDivergence(const TArray<FRTBoundaryChecksum>& A,
+	const TArray<FRTBoundaryChecksum>& B)
+{
+	TArray<FString> Lines;
+
+	// 🔑 Il criterio NON si riscrive: `DescribeDivergence` decide come si dice, `FirstDivergence` dove.
+	// Confrontare gli hash qui risponderebbe a una domanda diversa da quella del gate di determinismo.
+	const FString Messaggio = URTBoundaryChecksumLibrary::DescribeDivergence(A, B);
+	if (Messaggio.IsEmpty())
+	{
+		Lines.Add(FString::Printf(TEXT("[RT] Le due corse coincidono su tutti i %d boundary."), A.Num()));
+		return Lines;
+	}
+
+	// ⛔ Qui NON si richiama `FirstDivergence`. `DescribeDivergence` lo ha gia' chiamato al proprio
+	// interno e restituisce vuoto esattamente quando vale `INDEX_NONE`: arrivati a questa riga non puo'
+	// piu' esserlo, quindi una guardia sarebbe un ramo che nessun test puo' coprire e una seconda
+	// passata O(n) su entrambe le serie.
+	//
+	// ⛔ E non si ristampano i conteggi: sulla via delle lunghezze diverse `DescribeDivergence` scrive
+	// gia' «(%d contro %d)», e ripeterli sotto direbbe due volte la stessa cosa con due nomi diversi.
+	Lines.Add(FString::Printf(TEXT("[RT] %s"), *Messaggio));
 	return Lines;
 }

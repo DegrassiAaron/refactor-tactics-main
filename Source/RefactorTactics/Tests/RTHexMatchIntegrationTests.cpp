@@ -19,6 +19,9 @@
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "Tests/RTWorldFixtures.h"
+// `#2359`: la sonda del commit, e il controller che vi si aggancia.
+#include "Player/RTPlayerController.h"
+#include "Tests/RTLockInCommittedProbeForTest.h"
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -97,9 +100,9 @@ bool FRTHexFullMatchTest::RunTest(const FString&)
 
 	// 2v2 su lati opposti dell'arena, in diagonale (dove la distanza esagonale conta davvero).
 	ARTUnit* A1 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(-4, 2));
-	ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 3));
+	ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 3));
 	ARTUnit* B1 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(4, -2));
-	ARTUnit* B2 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -3));
+	ARTUnit* B2 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -3));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A1 || !A2 || !B1 || !B2) { DestroyHexMatchWorld(World); return false; }
 
@@ -156,7 +159,7 @@ bool FRTHexMatchLogTest::RunTest(const FString&)
 	SpawnHexMatchMap(World, /*Radius=*/ 4);
 
 	ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
-	ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -1));
+	ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexMatchWorld(World); return false; }
 
@@ -206,9 +209,9 @@ bool FRTHexBothTeamsActTest::RunTest(const FString&)
 	// Tutti e quattro sullo stesso lato dei muri centrali, a portata reciproca: qui si vuole che gli attacchi
 	// siano LEGALI, non provare la copertura (quella e' HexVision/PIE-HEXPLAY-6).
 	ARTUnit* A_Shooter = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(1, 1));
-	ARTUnit* A_Mover   = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 2));
+	ARTUnit* A_Mover   = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 2));
 	ARTUnit* B_Shooter = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(3, 0));
-	ARTUnit* B_Mover   = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, 0));
+	ARTUnit* B_Mover   = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A_Shooter || !A_Mover || !B_Shooter || !B_Mover)
 	{
@@ -308,9 +311,9 @@ bool FRTHexArenaAnomalyTest::RunTest(const FString&)
 
 	TArray<ARTUnit*> Units;
 	Units.Add(SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   Start[0]));
-	Units.Add(SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), Start[1]));
+	Units.Add(SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), Start[1]));
 	Units.Add(SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   Start[2]));
-	Units.Add(SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), Start[3]));
+	Units.Add(SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Start[3]));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || Units.Contains(nullptr)) { DestroyHexMatchWorld(World); return false; }
 
@@ -386,7 +389,7 @@ bool FRTHexClimbViaTransitionTest::RunTest(const FString&)
 
 	// Uno scalatore e un avversario lontano (serve solo a non far finire la partita al primo turno).
 	ARTUnit* Climber = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Ground);
-	ARTUnit* Idle    = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 0));
+	ARTUnit* Idle    = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Climber || !Idle) { DestroyHexMatchWorld(World); return false; }
 	Climber->bIsBotControlled = false;
@@ -502,7 +505,7 @@ bool FRTHexHeroDashIsLinearTest::RunTest(const FString&)
 }
 
 /**
- * `Riktor.Ram` e' una CARICA, non uno scatto qualsiasi: percorre una linea retta, si ferma addosso al primo
+ * `Branth.Ram` e' una CARICA, non uno scatto qualsiasi: percorre una linea retta, si ferma addosso al primo
  * nemico che incontra e lo colpisce nel Blast (20 danni piu' una spinta di 1, gli stessi di `Action.Charge`).
  *
  * Fino a #142 la carica non dichiarava lo stile di movimento, quindi la fase Dash la instradava sul
@@ -510,7 +513,7 @@ bool FRTHexHeroDashIsLinearTest::RunTest(const FString&)
  * test guarda l'esito di un turno vero — posizione finale, danno, spinta — non il contenuto del catalogo.
  *
  * Girava su `Guardian.Charge`, sparita con gli archetipi legacy il 2026-08-10. La carica non e' sparita con
- * lei: e' nel kit di Riktor, ed e' la stessa azione con un nome d'eroe.
+ * lei: e' nel kit di Branth, ed e' la stessa azione con un nome d'eroe.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexChargeImpactTest,
 	"RefactorTactics.HexMatch.ChargeStopsOnEnemyAndHits",
@@ -522,7 +525,7 @@ bool FRTHexChargeImpactTest::RunTest(const FString&)
 	SpawnHexMatchMap(World, /*Radius=*/ 5);
 
 	// Chi carica e il bersaglio allineati sull'asse q: fra loro due celle libere, poi il nemico.
-	ARTUnit* Charger = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
+	ARTUnit* Charger = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
 	ARTUnit* Target  = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Charger || !Target) { DestroyHexMatchWorld(World); return false; }
@@ -535,10 +538,10 @@ bool FRTHexChargeImpactTest::RunTest(const FString&)
 	for (int32 i = 0; i < Charger->NumAbilities(); ++i)
 	{
 		const URTActionData* A = Charger->GetAbility(i);
-		if (A && A->Def.ActionId == FName(TEXT("Hero.Riktor.Ram"))) { ChargeIdx = i; break; }
+		if (A && A->Def.ActionId == FName(TEXT("Hero.Branth.Ram"))) { ChargeIdx = i; break; }
 	}
 	const URTActionData* Charge = Charger->GetAbility(ChargeIdx);
-	if (!TestNotNull(TEXT("premessa: Riktor ha la carica nel kit"), (void*)Charge))
+	if (!TestNotNull(TEXT("premessa: Branth ha la carica nel kit"), (void*)Charge))
 	{
 		DestroyHexMatchWorld(World); return false;
 	}
@@ -598,7 +601,7 @@ bool FRTHexDashBlockedTest::RunTest(const FString&)
 		FreeData != nullptr && !FreeData->bBlocksMovement);
 
 	ARTUnit* Dasher = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), From);
-	ARTUnit* Idle   = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 0));
+	ARTUnit* Idle   = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Dasher || !Idle) { DestroyHexMatchWorld(World); return false; }
 	Dasher->bIsBotControlled = false;
@@ -654,7 +657,7 @@ bool FRTPlaybackEventCarriesVerdictsTest::RunTest(const FString&)
 	SpawnHexMatchMap(World, /*Radius=*/ 5);
 
 	ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
-	ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -1));
+	ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexMatchWorld(World); return false; }
 
@@ -714,9 +717,9 @@ bool FRTFirstTurnDoesNotCloseItselfTest::RunTest(const FString&)
 	// Team 0 UMANO: e' la configurazione del referto — un giocatore con due unita' proprie contro due bot.
 	// Con tutte e quattro a bot la prova sarebbe di un'altra partita.
 	ARTUnit* A1 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 2));
-	ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 3));
+	ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 3));
 	ARTUnit* B1 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(4, -2));
-	ARTUnit* B2 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -3));
+	ARTUnit* B2 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -3));
 	if (!A1 || !A2 || !B1 || !B2) { DestroyHexMatchWorld(World); return false; }
 	A1->bIsBotControlled = false;
 	A2->bIsBotControlled = false;
@@ -815,14 +818,20 @@ namespace
 		}
 	}
 
-	/** Un mondo con quattro unita', il TurnManager avviato e il turno 1 aperto. `nullptr` se non si allestisce. */
+	/** Un mondo con TRE unita' (due proprie, una avversaria), il TurnManager avviato e il turno 1 aperto. */
 	ARTTurnManager* MakeCountdownMatch(UWorld* World)
 	{
 		SpawnHexMatchMap(World, /*Radius=*/ 4);
 		ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
-		ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -1));
-		if (!A || !B) { return nullptr; }
+		// 🔑 **Una SECONDA unita' propria** (`#2555`): senza, «il clic durante il playback cambia la
+		// selezione» non e' esprimibile — l'unica alternativa sarebbe selezionare l'AVVERSARIA, che
+		// `OnSelect` rifiuta (*«e' avversaria: seleziona prima una tua unita'»*) e che un test non deve
+		// chiedere passando dall'API diretta: sarebbe un percorso che il gioco non produce.
+		ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-3, 0));
+		ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
+		if (!A || !A2 || !B) { return nullptr; }
 		A->bIsBotControlled = false; // il Ready e' un gesto umano: con tutte a bot la prova sarebbe di un'altra partita
+		A2->bIsBotControlled = false;
 
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (TM) { TM->DispatchBeginPlay(); } // apre il turno 1 e arma il tetto
@@ -1026,6 +1035,520 @@ bool FRTZeroCountdownCommitsSynchronouslyTest::RunTest(const FString&)
 		TM->GetTurnNumber() > TurnoPrima);
 
 	DestroyHexMatchWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// #2359 — la riserva di #2193, messa alla prova
+//
+// #2193 ha introdotto `OnLockInCommitted` dentro `LockInAndResolve` e ne ha dichiarato in PR un effetto
+// collaterale: *«prima di questa PR solo `OnLockIn` spegneva l'anteprima, quindi un turno chiuso dal
+// timeout la lasciava accesa per tutta la risoluzione. `OnLockInCommitted` scatta su tutti i percorsi e
+// lo copre — ⚠️ effetto osservato, non testato in isolamento»*.
+//
+// Misurato prima di scrivere (`4d6964a4`): **zero** test nominavano `OnLockInCommitted`, e zero
+// `HandleLockInCommitted`. La riserva era ancora tutta da verificare.
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Il commit si annuncia anche quando a chiudere il turno e' il TETTO, non il giocatore.
+ *
+ * 🔑 **Il turno DEVE chiudersi dal timer, e non da `RequestLockIn()`.** Quella sarebbe la riga di comodo
+ * che rende il test cieco proprio al difetto che deve coprire: il broadcast riportato dentro
+ * `ARTPlayerController::OnLockIn` — cioe' la regressione storica — lascerebbe verde un test che passa
+ * dal Ready, perche' e' l'unico percorso che quel tasto attraversa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInCommittedFiresOnTimeoutTest,
+	"RefactorTactics.HexMatch.LockInCommittedFiresOnPlanningTimeout",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInCommittedFiresOnTimeoutTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTTurnManager* TM = MakeCountdownMatch(World);
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHexMatchWorld(World); return false; }
+
+	URTLockInCommittedProbeForTest* Probe = NewObject<URTLockInCommittedProbeForTest>(TM);
+	TM->OnLockInCommitted.AddDynamic(Probe, &URTLockInCommittedProbeForTest::OnLockInCommitted);
+
+	// Un tetto corto, e NESSUN Ready: e' il percorso che passa da `OnPlanningTimeout`.
+	TM->SetPlanningSeconds(1.0f);
+	const int32 TurnoPrima = TM->GetTurnNumber();
+
+	// ANTI-VACUITA' — senza questa riga «e' scattato» e «era gia' scattato» sono indistinguibili.
+	TestEqual(TEXT("prima del tetto il commit non e' stato annunciato"), Probe->Broadcasts, 0);
+	TestFalse(TEXT("e nessun countdown e' armato: non stiamo misurando la via del Ready"),
+		TM->IsReadyCountdownActive());
+
+	AdvanceWallClock(World, 1.5f);
+
+	// ANCORA — il turno si e' chiuso DAVVERO. Senza, un avanzamento che non avesse committato niente
+	// darebbe lo stesso «zero broadcast», e il test misurerebbe la propria fixture invece del delegate.
+	TestTrue(TEXT("il tetto ha chiuso il turno"), TM->IsResolving() || TM->GetTurnNumber() > TurnoPrima);
+
+	// Il cuore: il commit da timeout si annuncia, una volta sola.
+	TestEqual(TEXT("il commit da timeout annuncia se stesso"), Probe->Broadcasts, 1);
+
+	DrainPlayback(TM);
+	TestTrue(TEXT("a playback finito il turno e' avanzato"), TM->GetTurnNumber() > TurnoPrima);
+	TestEqual(TEXT("e la risoluzione non ha annunciato un secondo commit"), Probe->Broadcasts, 1);
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+// =====================================================================================================
+// #2390 — chi ASCOLTA il commit, non chi lo annuncia
+//
+// `FRTLockInCommittedFiresOnTimeoutTest` qui sopra prova che `OnLockInCommitted` scatta anche quando a
+// chiudere il turno e' il tetto, e resta VERDE mentre il difetto di #2390 esiste: attacca la propria sonda
+// direttamente al `TurnManager`, quindi scavalca l'unico iscritto che conta a schermo. Le due domande sono
+// diverse — *il commit si annuncia?* e *qualcuno lo sta ascoltando?* — e il verde della prima non dice
+// niente della seconda.
+//
+// `ARTPlayerController` iscriveva `HandleLockInCommitted` **dentro il ramo del Ready** di `OnLockIn`.
+// Nessun Ready, nessun iscritto: il broadcast parte, non lo raccoglie nessuno, e l'anteprima di
+// pianificazione resta accesa per tutta la risoluzione mostrando una minaccia gia' decisa.
+//
+// 🔑 **Il soggetto qui e' `ARTPlayerController` insieme ad `ARTHexMapActor`, non il delegate.** Lo stato
+// osservabile sono i contatori dell'anteprima, perche' il produttore reale (`RefreshPlanningPreview`) vive
+// in un namespace anonimo dentro `RTPlayerController.cpp` e non e' chiamabile da un test — limite gia'
+// dichiarato in `RTBlastPreviewTests.cpp:6`. Si osserva l'EFFETTO sui setter della mappa.
+//
+// ⚠️ **Le superfici dell'anteprima sono TRE e vanno guardate tutte**: il ventaglio raggiungibile, l'area
+// colpita e la **rotta**. Un test che guardasse solo la prima resterebbe verde con la traccia ciano del
+// piano ancora a schermo per tutta la risoluzione — ed e' meta' del sintomo che #2390 descrive.
+// =====================================================================================================
+
+namespace
+{
+	/** Il banco di #2390: partita col tetto armato, controller collegato alla presentazione, piano tracciato. */
+	struct FRTLockInPreviewBench
+	{
+		UWorld* World = nullptr;
+		ARTTurnManager* TM = nullptr;
+		ARTHexMapActor* HexMap = nullptr;
+		ARTUnit* Mine = nullptr;
+		ARTPlayerController* PC = nullptr;
+	};
+
+	/** Quante celle l'anteprima sta disegnando, su TUTTE le sue superfici. Zero = spenta davvero. */
+	int32 PreviewCellsLit(const ARTHexMapActor* HexMap)
+	{
+		return HexMap->NumPreviewReachableCells() + HexMap->NumPreviewPathCells()
+			+ HexMap->NumPreviewHitCells();
+	}
+
+	/**
+	 * Allestisce il banco e ACCENDE l'anteprima con un piano vero. `false` se qualcosa manca.
+	 *
+	 * 🔴 **`InitializeActorsForPlay` non e' cerimoniale: senza, il broadcast NON raggiunge il
+	 * `PlayerController`, e non lo dice.** `AActor::ProcessEvent` scarta ogni evento se
+	 * `GetWorld()->AreActorsInitialized()` e' falso (`Actor.cpp:1513`), e un delegate DINAMICO invoca
+	 * proprio da li'. Misurato il 2026-09-05: con il PC iscritto per nome, il broadcast recapitato e la
+	 * mappa raggiungibile dal suo mondo, l'anteprima restava accesa — mentre lo stesso handler chiamato
+	 * direttamente in C++ la spegneva. Una sonda `UObject` legata allo STESSO delegate riceveva, perche'
+	 * passa da `UObject::ProcessEvent`, che quella guardia non ce l'ha: e' cio' che rendeva il difetto
+	 * indistinguibile da un guasto di produzione, ed e' il motivo per cui il tentativo di #2359 fu ritirato
+	 * come «misura la fixture, non il gioco».
+	 *
+	 * ⚠️ **Non basta `DispatchBeginPlay()` sull'actor.** Il flag e' del MONDO, non dell'actor, e le due
+	 * domande si somigliano abbastanza da far cercare dalla parte sbagliata — lo stesso avvertimento sta
+	 * gia' in `RTFrontendNavigationTests.cpp:1070`, scritto da chi ci era passato prima.
+	 */
+	bool MakeLockInPreviewBench(FAutomationTestBase& Test, FRTLockInPreviewBench& B)
+	{
+		B.World = MakeHexMatchWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), B.World)) { return false; }
+
+		B.World->InitializeActorsForPlay(FURL());
+
+		B.TM = MakeCountdownMatch(B.World);
+		if (!Test.TestNotNull(TEXT("turn manager"), B.TM)) { return false; }
+
+		B.HexMap = ARTHexMapActor::FindInWorld(B.World);
+		B.Mine = RTWorldFixtures::FirstUnitOfTeam(B.World, /*TeamId=*/ 0);
+		B.PC = RTWorldFixtures::MakePlayerOnTeam(B.World, /*TeamId=*/ 0);
+		if (!Test.TestNotNull(TEXT("mappa esagonale"), B.HexMap)
+			|| !Test.TestNotNull(TEXT("unita' del giocatore"), B.Mine)
+			|| !Test.TestNotNull(TEXT("player controller"), B.PC))
+		{
+			return false;
+		}
+
+		// L'anteprima si accende come si accende in partita: selezionando. `bRecordAsPlayerInput=false`
+		// perche' a selezionare qui non e' una persona, e la telemetria di ritmo non deve contare la riga.
+		B.PC->SelectUnit(B.Mine, /*bRecordAsPlayerInput=*/ false);
+
+		// 🔑 **E con un PIANO, non a mani vuote.** Un'unita' appena spawnata ha `PlannedWaypoints` vuoto,
+		// quindi `PreviewPath` resterebbe vuoto PER COSTRUZIONE e la rotta — meta' del sintomo di #2390 —
+		// non sarebbe osservabile: il test sarebbe verde con la traccia ancora a schermo. Si prova un
+		// vicino per volta perche' quale sia percorribile dipende dall'arena, e il primo che produce una
+		// rotta e' quello buono; se nessuno la produce, l'anti-vacuita' del chiamante lo dichiara.
+		for (const FRTCellId& Step : URTHexLibrary::Neighbors(B.Mine->Cell))
+		{
+			B.Mine->PlannedWaypoints.Reset();
+			B.Mine->PlannedWaypoints.Add(Step);
+			B.PC->RebuildPlannedPathForTest();
+			if (B.HexMap->NumPreviewPathCells() > 0)
+			{
+				break;
+			}
+		}
+		return true;
+	}
+}
+
+/**
+ * **CASO BUG (#2390).** Il tetto chiude il primo turno e l'anteprima si spegne — su tutte le sue
+ * superfici — benche' nessun Ready sia mai stato premuto in questa partita.
+ *
+ * 🔑 **Il turno DEVE chiudersi dal tetto, e il Ready non va premuto nemmeno una volta.** Premerlo — anche
+ * in un turno precedente — iscriverebbe il controller e renderebbe il test cieco proprio al difetto:
+ * `AddUniqueDynamic` e' permanente, quindi dal primo Ready in poi il comportamento e' corretto per sempre.
+ * E' il motivo per cui il difetto si vede **solo** prima del primo Ready.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningPreviewClearsOnTimeoutWithoutReadyTest,
+	"RefactorTactics.HexMatch.PlanningPreviewClearsOnTimeoutWithoutReady",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanningPreviewClearsOnTimeoutWithoutReadyTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// ANTI-VACUITA' — senza queste due righe «zero celle alla fine» e «zero celle da sempre» sono
+	// indistinguibili, e il test misurerebbe la propria fixture invece del difetto. La seconda e' la piu'
+	// importante: e' la rotta, cioe' la meta' che un banco senza piano non puo' vedere.
+	TestTrue(TEXT("l'anteprima e' ACCESA prima del tetto"), PreviewCellsLit(B.HexMap) > 0);
+	TestTrue(TEXT("e la ROTTA e' tracciata: il piano esiste davvero"), B.HexMap->NumPreviewPathCells() > 0);
+
+	// ANCORA — la via del Ready non e' stata percorsa. E' la condizione stessa di #2390.
+	TestFalse(TEXT("e nessun Ready e' stato premuto: non stiamo misurando la via del countdown"),
+		B.TM->IsReadyCountdownActive());
+
+	// 🔑 **LA TESI DI #2390, misurata direttamente e col SOGGETTO NOMINATO.** `IsBound()` da solo sarebbe
+	// vero per qualunque iscritto — un HUD, il GameMode — e resterebbe verde con il controller staccato.
+	TestTrue(TEXT("il controller ascolta il commit gia' prima del primo Ready"),
+		B.TM->OnLockInCommitted.Contains(B.PC, FName(TEXT("HandleLockInCommitted"))));
+
+	B.TM->SetPlanningSeconds(1.0f);
+	const int32 TurnoPrima = B.TM->GetTurnNumber();
+
+	AdvanceWallClock(B.World, 1.5f);
+
+	// ANCORA — il turno si e' chiuso DAVVERO. Senza, un avanzamento che non avesse committato niente
+	// darebbe lo stesso «anteprima spenta» solo perche' non e' successo nulla.
+	TestTrue(TEXT("il tetto ha chiuso il turno"),
+		B.TM->IsResolving() || B.TM->GetTurnNumber() > TurnoPrima);
+
+	// IL CUORE — e' la riga che #2390 dice essere rossa.
+	TestEqual(TEXT("il commit da tetto spegne l'anteprima anche senza un Ready precedente"),
+		PreviewCellsLit(B.HexMap), 0);
+
+	// ⚠️ **E resta spenta per TUTTA la risoluzione**, che e' cio' che la issue afferma: spegnerla
+	// all'istante del commit e riaccenderla un frame dopo lascerebbe verde l'asserzione qui sopra.
+
+	// 🔴 **DENTRO la risoluzione, non solo al suo istante iniziale** (`#2555`, code review). Il commento
+	// che stava qui affermava che la garanzia «non riaccendersi durante la risoluzione» restasse asserita
+	// piu' sopra: era falso. L'asserzione superstite campionava l'ISTANTE del commit, e un'implementazione
+	// che spegnesse li' e riaccendesse un tick dopo sarebbe passata. Questi tick stanno strettamente
+	// dentro il playback.
+	for (int32 Passo = 0; Passo < 5 && B.TM->IsResolving(); ++Passo)
+	{
+		B.TM->Tick(0.05f);
+		TestEqual(TEXT("e resta spenta MENTRE la risoluzione scorre"), PreviewCellsLit(B.HexMap), 0);
+	}
+
+	DrainPlayback(B.TM);
+	TestTrue(TEXT("a playback finito il turno e' avanzato"), B.TM->GetTurnNumber() > TurnoPrima);
+	// ⚠️ **E a risoluzione finita l'anteprima TORNA, e non e' un allentamento** (`#2555`): la garanzia che
+	// questa riga proteggeva — non riaccendersi durante la risoluzione — e' asserita dal ciclo di tick qui
+	// sopra, che sta strettamente DENTRO il playback. Cio' che cambia e' il dopo:
+	// `OnResolvePlaybackFinished` ricalcola per la selezione corrente, ed e' il contrappeso che rende
+	// `Inspect` concedibile. Pretendere ancora zero qui significherebbe pretendere che il giocatore entri
+	// nel turno nuovo senza ventaglio.
+	TestTrue(TEXT("e a risoluzione finita l'anteprima torna per la selezione corrente"),
+		PreviewCellsLit(B.HexMap) > 0);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **CONTROLLO POSITIVO.** La stessa anteprima, spenta dal percorso che gia' funziona: Ready -> countdown
+ * -> commit.
+ *
+ * Non duplica il test qui sopra: serve a distinguere *«il fix ha acceso l'iscrizione»* da *«il banco
+ * spegne l'anteprima comunque»*. Se questo diventasse rosso dopo un fix di #2390, quel fix avrebbe rotto
+ * la via del Ready invece di aggiungerne una seconda.
+ *
+ * ⚠️ Il tetto e' messo a 60 s **apposta**: senza, il turno potrebbe chiudersi da solo prima del countdown
+ * e questo test misurerebbe di nuovo il timeout, cioe' l'altro caso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningPreviewClearsOnReadyCommitTest,
+	"RefactorTactics.HexMatch.PlanningPreviewClearsOnReadyCommit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanningPreviewClearsOnReadyCommitTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	TestTrue(TEXT("l'anteprima e' ACCESA prima del Ready"), PreviewCellsLit(B.HexMap) > 0);
+	TestTrue(TEXT("e la ROTTA e' tracciata: il piano esiste davvero"), B.HexMap->NumPreviewPathCells() > 0);
+
+	// La sonda misura che il commit sia stato ANNUNCIATO: senza, «l'anteprima e' spenta» non distingue
+	// «il commit l'ha spenta» da «il commit non e' mai avvenuto».
+	URTLockInCommittedProbeForTest* Probe = NewObject<URTLockInCommittedProbeForTest>(B.TM);
+	B.TM->OnLockInCommitted.AddDynamic(Probe, &URTLockInCommittedProbeForTest::OnLockInCommitted);
+
+	// Il tetto lontano isola la via del Ready: a chiudere il turno sara' il countdown, non il timeout.
+	B.TM->SetPlanningSeconds(60.0f);
+	B.TM->SetReadyCountdownSeconds(0.5f);
+	const int32 TurnoPrima = B.TM->GetTurnNumber();
+
+	B.PC->OnLockInForTest();
+
+	// ANTI-VACUITA' — senza, un `OnLockInForTest` che non avesse fatto NIENTE darebbe lo stesso
+	// «non ha ancora risolto», ed e' la stessa sanita' di `FRTReadyCountdownDelaysCommitTest`.
+	TestTrue(TEXT("il Ready ha armato il countdown"), B.TM->IsReadyCountdownActive());
+
+	AdvanceWallClock(B.World, 1.0f);
+
+	TestTrue(TEXT("il countdown ha chiuso il turno"),
+		B.TM->IsResolving() || B.TM->GetTurnNumber() > TurnoPrima);
+	TestEqual(TEXT("e il commit ha raggiunto i suoi iscritti"), Probe->Broadcasts, 1);
+	TestEqual(TEXT("il commit dal Ready spegne l'anteprima"), PreviewCellsLit(B.HexMap), 0);
+
+	// 🔴 **DENTRO la risoluzione, non solo al suo istante iniziale** (`#2555`, code review). Il commento
+	// che stava qui affermava che la garanzia «non riaccendersi durante la risoluzione» restasse asserita
+	// piu' sopra: era falso. L'asserzione superstite campionava l'ISTANTE del commit, e un'implementazione
+	// che spegnesse li' e riaccendesse un tick dopo sarebbe passata. Questi tick stanno strettamente
+	// dentro il playback.
+	for (int32 Passo = 0; Passo < 5 && B.TM->IsResolving(); ++Passo)
+	{
+		B.TM->Tick(0.05f);
+		TestEqual(TEXT("e resta spenta MENTRE la risoluzione scorre"), PreviewCellsLit(B.HexMap), 0);
+	}
+
+	DrainPlayback(B.TM);
+	// ⚠️ **E a risoluzione finita l'anteprima TORNA, e non e' un allentamento** (`#2555`): la garanzia che
+	// questa riga proteggeva — non riaccendersi durante la risoluzione — e' asserita dal ciclo di tick qui
+	// sopra, che sta strettamente DENTRO il playback. Cio' che cambia e' il dopo:
+	// `OnResolvePlaybackFinished` ricalcola per la selezione corrente, ed e' il contrappeso che rende
+	// `Inspect` concedibile. Pretendere ancora zero qui significherebbe pretendere che il giocatore entri
+	// nel turno nuovo senza ventaglio.
+	TestTrue(TEXT("e a risoluzione finita l'anteprima torna per la selezione corrente"),
+		PreviewCellsLit(B.HexMap) > 0);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+
+/**
+ * **#2518 — durante il playback il mondo e' in SOLA LETTURA, e nessuno lo faceva rispettare.**
+ *
+ * Il nome non e' scelto qui: lo aveva gia' scelto il documento owner.
+ * `spec-pointer-interaction.md:545` elencava `PlaybackRejectsPlanningInput` fra i test mancanti e lo
+ * classificava *«feature travestita da test — nessuno consuma `ResolutionPlayback` per rifiutare
+ * l'input»*. Misurato: nessuno lo **produceva** nemmeno.
+ *
+ * 🔑 **Il soggetto e' `HandleClickOnCell`, e ci sono voluti due tentativi** (code review, poi misura).
+ * La prima stesura chiamava `SelectUnit` su un'unita' **avversaria**: in partita quel gesto non arriva
+ * mai li' — `OnSelect` lo ferma prima con *«e' avversaria: seleziona prima una tua unita'»* — quindi
+ * guidava un percorso che il gioco non puo' produrre, e per giunta asseriva come corretto mostrare il
+ * ventaglio di un avversario. La seconda usava il gesto d'ATTACCO, ma qui le due unita' distano sei
+ * celle: nessun attacco e' legale, e il controllo positivo non poteva diventare verde. Il clic sulla
+ * **mappa** e' il gesto piu' comune del gioco, e' l'unico che scriva `PlannedWaypoints` — la mutazione
+ * che sopravvivrebbe al turno — ed e' quello che la code review indicava come la porta piu' grande.
+ *
+ * ⚠️ **Il controllo positivo misura un DELTA, non uno stato.** La prima stesura asseriva
+ * `PreviewCellsLit > 0` dopo il gesto — ma il banco lascia gia' l'anteprima accesa, quindi sarebbe
+ * passato anche se il gesto non avesse fatto nulla. Qui il controllo pretende che il gesto **cambi**
+ * qualcosa: il bersaglio d'attacco, che prima non c'era.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackRejectsPlanningInputTest,
+	"RefactorTactics.HexMatch.PlaybackRejectsPlanningInput",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackRejectsPlanningInputTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// ANTI-VACUITA' — il banco ha davvero acceso l'anteprima, rotta compresa.
+	TestTrue(TEXT("l'anteprima e' ACCESA in pianificazione"), PreviewCellsLit(B.HexMap) > 0);
+	TestTrue(TEXT("e la ROTTA e' tracciata: il piano esiste davvero"), B.HexMap->NumPreviewPathCells() > 0);
+
+	// La cella che il banco ha gia' dimostrato percorribile: e' il gesto piu' comune del gioco, e l'unico
+	// che scriva `PlannedWaypoints`. ⚠️ Il gesto d'ATTACCO non serviva allo scopo — in questo allestimento
+	// le due unita' distano sei celle, quindi nessun attacco e' legale e il gesto sarebbe un no-op anche
+	// in pianificazione: un controllo positivo che non puo' diventare verde non controlla niente.
+	if (!TestTrue(TEXT("il banco ha lasciato un waypoint da riusare"), B.Mine->PlannedWaypoints.Num() > 0))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	const FRTCellId CellaPercorribile = B.Mine->PlannedWaypoints[0];
+
+	// CONTROLLO POSITIVO, come DELTA — in pianificazione il clic sulla mappa POSA un waypoint.
+	B.Mine->PlannedWaypoints.Reset();
+	B.PC->RebuildPlannedPathForTest();
+	TestEqual(TEXT("controllo: si riparte da un piano vuoto"), B.Mine->PlannedWaypoints.Num(), 0);
+	B.PC->HandleClickOnCellForTest(CellaPercorribile);
+	TestTrue(TEXT("controllo: in pianificazione il clic sulla mappa posa un waypoint"),
+		B.Mine->PlannedWaypoints.Num() > 0);
+	TestTrue(TEXT("e riaccende la rotta"), B.HexMap->NumPreviewPathCells() > 0);
+
+	// Il turno si chiude dal tetto e la risoluzione comincia.
+	B.TM->SetPlanningSeconds(1.0f);
+	AdvanceWallClock(B.World, 1.5f);
+
+	// ANTI-VACUITA' — la fase e' davvero quella, e il commit ha davvero spento (e' #2390, gia' verde).
+	TestTrue(TEXT("la risoluzione e' in corso"), B.TM->IsResolving());
+	TestTrue(TEXT("e il puntatore lo sa: il mondo risulta in sola lettura"), B.PC->IsWorldReadOnly());
+	TestEqual(TEXT("il contesto e' ResolutionPlayback"),
+		B.PC->GetPointerContext(), ERTPointerContext::ResolutionPlayback);
+	TestEqual(TEXT("il commit ha spento l'anteprima"), PreviewCellsLit(B.HexMap), 0);
+
+	// IL CUORE — lo stesso gesto che poco fa posava un waypoint, adesso non deve posare niente.
+	const int32 WaypointPrima = B.Mine->PlannedWaypoints.Num();
+	B.PC->HandleClickOnCellForTest(CellaPercorribile);
+	TestEqual(TEXT("il clic sulla mappa durante il playback non posa waypoint"),
+		B.Mine->PlannedWaypoints.Num(), WaypointPrima);
+	TestEqual(TEXT("e non riaccende l'anteprima"), PreviewCellsLit(B.HexMap), 0);
+
+	// ⚠️ **La SELEZIONE invece si sposta, ed e' voluto** (`#2555`): guardare un'altra unita' mentre la
+	// risoluzione scorre e' `Inspect`, che §5.3 consente. Questa riga fino al 2026-09-06 pretendeva il
+	// contrario, perche' allora mancava il contrappeso che ripristina l'anteprima. Cio' che deve restare
+	// fermo e' il PIANO, non lo sguardo — e la copertura dell'altro caso sta in
+	// `PlaybackAllowsInspectAndRestoresPreview`.
+	ARTUnit* Seconda = nullptr;
+	{
+		TArray<AActor*> Trovate;
+		UGameplayStatics::GetAllActorsOfClass(B.World, ARTUnit::StaticClass(), Trovate);
+		for (AActor* Attore : Trovate)
+		{
+			ARTUnit* U = Cast<ARTUnit>(Attore);
+			if (U && U->TeamId == 0 && U != B.Mine) { Seconda = U; break; }
+		}
+	}
+	// ⚠️ **Un `if` silenzioso qui renderebbe il test verde senza aver asserito niente** (code review): il
+	// banco garantisce la seconda unita', quindi la sua assenza e' una fixture rotta, non un caso da
+	// saltare.
+	if (TestNotNull(TEXT("una seconda unita' propria da ispezionare"), Seconda))
+	{
+		B.PC->SelectUnit(Seconda, /*bRecordAsPlayerInput=*/ false);
+		TestEqual(TEXT("l'anteprima resta spenta anche dopo aver ispezionato un'altra unita'"),
+			PreviewCellsLit(B.HexMap), 0);
+	}
+
+	DrainPlayback(B.TM);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+
+/**
+ * **#2555 — durante il playback `Inspect` e' consentito, e l'anteprima torna quando la risoluzione finisce.**
+ *
+ * §5.3 dice *«`Inspect` e camera consentiti»* durante `ResolutionPlayback`, e blocca solo *«ogni input che
+ * cambierebbe il piano»*. #2518 ha fermato il clic sul mondo **del tutto**, `Inspect` compreso: era la
+ * deviazione piu' piccola disponibile allora, perche' lasciar cambiare la sola selezione lasciava l'unita'
+ * scelta col ventaglio vuoto e nessuno la ripristinava.
+ *
+ * 🔑 **Il contrappeso mancante esisteva gia' e non lo usava nessuno**: `OnResolvePlaybackFinished`
+ * (`RTTurnManager.h:884`, trasmesso a `.cpp:8102`) — la stessa forma che aveva `OnLockInCommitted` prima
+ * di `#2390`. Uno spegne l'anteprima al commit, l'altro la riaccende a risoluzione finita: con la coppia,
+ * `Inspect` puo' tornare consentito senza lasciare uno stato a meta'.
+ *
+ * ⚠️ **Il piano NON deve tornare quello di prima**: a risoluzione finita le unita' si sono mosse e i
+ * waypoint sono stati consumati. Cio' che deve tornare e' *un'anteprima coerente con la selezione
+ * corrente*, non la fotografia del turno passato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackAllowsInspectAndRestoresPreviewTest,
+	"RefactorTactics.HexMatch.PlaybackAllowsInspectAndRestoresPreview",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackAllowsInspectAndRestoresPreviewTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// La seconda unita' PROPRIA: e' il bersaglio legittimo di un `Inspect`, e l'unico gesto che il gioco
+	// possa davvero produrre — cliccare l'avversaria `OnSelect` la rifiuta.
+	ARTUnit* Seconda = nullptr;
+	{
+		TArray<AActor*> Trovate;
+		UGameplayStatics::GetAllActorsOfClass(B.World, ARTUnit::StaticClass(), Trovate);
+		for (AActor* Attore : Trovate)
+		{
+			ARTUnit* U = Cast<ARTUnit>(Attore);
+			if (U && U->TeamId == 0 && U != B.Mine)
+			{
+				Seconda = U;
+				break;
+			}
+		}
+	}
+	if (!TestNotNull(TEXT("una seconda unita' propria da ispezionare"), Seconda))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// ANTI-VACUITA' — il banco ha acceso l'anteprima, e la selezione parte dalla prima unita'.
+	TestTrue(TEXT("l'anteprima e' ACCESA in pianificazione"), PreviewCellsLit(B.HexMap) > 0);
+	TestEqual(TEXT("e la selezione e' l'unita' del banco"),
+		static_cast<const AActor*>(B.PC->GetSelectedUnit()), static_cast<const AActor*>(B.Mine));
+
+	// Il turno si chiude dal tetto e la risoluzione comincia.
+	B.TM->SetPlanningSeconds(1.0f);
+	AdvanceWallClock(B.World, 1.5f);
+
+	TestTrue(TEXT("la risoluzione e' in corso"), B.TM->IsResolving());
+	TestTrue(TEXT("e il mondo risulta in sola lettura"), B.PC->IsWorldReadOnly());
+	TestEqual(TEXT("il commit ha spento l'anteprima"), PreviewCellsLit(B.HexMap), 0);
+
+	// IL CUORE — `Inspect` e' CONSENTITO: la selezione si sposta...
+	B.PC->SelectUnit(Seconda, /*bRecordAsPlayerInput=*/ false);
+	TestEqual(TEXT("durante il playback il clic ISPEZIONA: la selezione si sposta"),
+		static_cast<const AActor*>(B.PC->GetSelectedUnit()), static_cast<const AActor*>(Seconda));
+
+	// ...ma NON accende il piano, che il commit ha spento apposta.
+	TestEqual(TEXT("e non riaccende l'anteprima"), PreviewCellsLit(B.HexMap), 0);
+
+	// E a risoluzione finita l'anteprima TORNA, coerente con la selezione corrente: e' il contrappeso di
+	// `OnLockInCommitted`, ed e' cio' che rende `Inspect` consentibile senza lasciare uno stato a meta'.
+	DrainPlayback(B.TM);
+	TestFalse(TEXT("finita la risoluzione il mondo non e' piu' in sola lettura"), B.PC->IsWorldReadOnly());
+	TestTrue(TEXT("e l'anteprima e' tornata"), PreviewCellsLit(B.HexMap) > 0);
+
+	// 🔑 **PER QUALE unita', non solo «qualcosa e' acceso»** (code review). Contare le celle non distingue
+	// «ricalcolata per la selezione corrente» da «ripristinata la fotografia del turno passato»: entrambe
+	// darebbero un numero maggiore di zero, e la seconda e' proprio cio' che l'header dichiara di NON fare.
+	TestEqual(TEXT("e la selezione e' rimasta quella ispezionata"),
+		static_cast<const AActor*>(B.PC->GetSelectedUnit()), static_cast<const AActor*>(Seconda));
+	TestTrue(TEXT("e il ventaglio contiene una cella adiacente ALL'UNITA' ISPEZIONATA"),
+		B.HexMap->IsPreviewReachableCell(URTHexLibrary::Neighbors(Seconda->Cell)[0])
+		|| B.HexMap->IsPreviewReachableCell(URTHexLibrary::Neighbors(Seconda->Cell)[1]));
+
+	DestroyHexMatchWorld(B.World);
 	return true;
 }
 

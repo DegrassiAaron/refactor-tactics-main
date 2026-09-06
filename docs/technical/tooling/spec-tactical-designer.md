@@ -178,6 +178,33 @@ il draft subito dopo aver aperto il playback.
 era chiamato **solo** dagli automation test: nessuna via umana eseguiva uno scenario dall'editor, quindi
 nessun playback avrebbe mai avuto una corsa da mostrare. I controlli senza di esso sarebbero stati inerti.
 
+#### 3.1.1 Leggere i boundary della corsa: `rt.Debug.DumpBoundaries`
+
+Il playback sa **dove** si è arrivati; questo comando dice **con quale stato**, barriera per barriera, e dove
+la risoluzione è cambiata rispetto alla corsa precedente.
+
+```
+rt.Debug.DumpBoundaries
+```
+
+Stampa un `FRTBoundaryChecksum` per boundary nella forma `T1|Move#0  0x1a2b3c4d` — la terna
+`(TurnNumber, Phase, MicroStepIndex)`, dove `MicroStepIndex` assente significa **la fase intera** e si rende
+senza `#`. Se esiste una corsa precedente **dello stesso scenario**, aggiunge il verdetto di divergenza:
+`divergono al boundary T1|Move#1: 0x… contro 0x…`.
+
+⛔ **Il confronto avviene solo dentro lo stesso scenario.** Due corse di scenari diversi non sono
+confrontabili, e il comando lo dichiara invece di produrre un verdetto falso su un boundary vero.
+
+⚠️ **Non calcola niente di nuovo.** Consuma `URTBoundaryChecksumLibrary::ChecksumsAlongTrace` e
+`DescribeDivergence`: è la stessa misura del gate di determinismo, non una seconda.
+
+⚠️ **Vive nel modulo Editor** perché è la sola via che possiede lo schieramento iniziale — la traccia
+dichiara i *cambiamenti*, non le partenze, e `ARTTurnManager` espone lo stato *corrente*. Resta nel
+namespace `rt.Debug.`, che è la superficie con cui i comandi si scoprono.
+
+Owner del contenuto: `URTDebugReportLibrary::DescribeBoundaryChecksums` / `DescribeBoundaryDivergence`
+(`#2486`).
+
 ### 3.2 Due playback, due attori, e cosa si rompe se si fondono
 
 Esistono **due** superfici che riproducono una risoluzione, e la differenza non è tecnica: è di **attore**.

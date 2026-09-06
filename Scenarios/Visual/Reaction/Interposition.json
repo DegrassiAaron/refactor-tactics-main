@@ -5,23 +5,23 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "La reazione che cambia CHI subisce un colpo altrui. Gadget spara a Wraith; Riktor, che sta a una cella da lui, ha armato `Hero.Riktor.Interposition` e diventa lui il bersaglio. Wraith resta a 90 pieni senza aver fatto nulla, Riktor scende a 103 — 22 meno i 5 dello scudo base ([D-224]) — senza che nessun intent lo avesse messo sulla linea di tiro.",
+  "_nota": "La reazione che cambia CHI subisce un colpo altrui. Gadget spara a Wraith; Branth, che sta a una cella da lui, ha armato `Hero.Branth.Interposition` e diventa lui il bersaglio. Wraith resta a 90 pieni senza aver fatto nulla, Branth scende a 103 — 22 meno i 5 dello scudo base ([D-224]) — senza che nessun intent lo avesse messo sulla linea di tiro.",
 
-  "_nota_presentazione": "E' il caso piu' difficile da rendere leggibile di tutto il corpus: a schermo il proiettile deve **cambiare destinatario** a mezz'aria, o la scena si legge come «Gadget ha sbagliato mira». Il colpo parte verso Wraith perche' quello era il piano, e finisce su Riktor perche' una reazione e' scattata: entrambe le meta' devono vedersi, altrimenti la reazione sembra un bug di targeting.",
+  "_nota_presentazione": "E' il caso piu' difficile da rendere leggibile di tutto il corpus: a schermo il proiettile deve **cambiare destinatario** a mezz'aria, o la scena si legge come «Gadget ha sbagliato mira». Il colpo parte verso Wraith perche' quello era il piano, e finisce su Branth perche' una reazione e' scattata: entrambe le meta' devono vedersi, altrimenti la reazione sembra un bug di targeting.",
 
   "_nota_semantica": "`Interposition` non ha effetti propri, ed e' corretto: interporsi non aggiunge danno ne' stati, cambia il bersaglio. La portata 2 e la priorita' (la piu' bassa fra le reazioni, cosi' la redirezione precede le altre) vengono da `Action.Intercept`; l'identita' resta dell'eroe.",
 
   "units": [
     { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [0, 0, 0] },
     { "id": "V1", "hero": "Hero.Wraith",  "team": 1, "cell": [2, 0, 0] },
-    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 1, 0] }
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 1, 0] }
   ],
 
   "turns": [
     {
       "requires": ["Reaction"],
       "intents": [
-        { "unit": "B1", "reaction": "Hero.Riktor.Interposition" },
+        { "unit": "B1", "reaction": "Hero.Branth.Interposition" },
         { "unit": "F1", "ability": "Hero.Gadget.ArcPulse", "target": "V1" }
       ]
     }

@@ -20,6 +20,8 @@
 #include "Map/RTHexArcLibrary.h"
 #include "Map/RTHexDoorLibrary.h"
 #include "Map/RTHexLibrary.h"
+#include "Map/RTHexLedgeLibrary.h" // IsEdgeOpen/FindLandingCell: il vocabolario del bordo (#2401), consumato qui
+#include "Pathfinding/RTHexPathLibrary.h" // GraphNeighbors: le celle RAGGIUNGIBILI, non i sei vicini geometrici
 #include "Ability/RTActionData.h"
 #include "Bot/RTHexBotLibrary.h"
 #include "Core/RTGameplayTags.h"
@@ -59,6 +61,113 @@
 
 namespace
 {
+	/**
+	 * LA DIREZIONE dello spostamento forzato (#2402), ricostruita a valle.
+	 *
+	 * 🔴 **Non e' nel valore di ritorno di `HexKnockbackDestination`**, che da' solo la cella d'arresto — ed
+	 * e' il motivo per cui questa funzione esiste invece di allargare quella firma, che ha molti chiamanti.
+	 *
+	 * Si calcola **come la calcola lei**: l'ULTIMO passo della linea sorgente->bersaglio, non il primo. Su
+	 * celle non allineate assialmente `HexLine` zigzaga fra due direzioni, quindi `DirectionTowards` — che
+	 * da' il PRIMO passo — risponderebbe un'altra cosa. Invertita per la trazione, che percorre la stessa
+	 * linea nel verso opposto.
+	 */
+	bool DirezioneSpostamentoForzato(const FRTCellId& Sorgente, const FRTCellId& Bersaglio,
+		bool bAllontana, ERTHexDirection& OutDir)
+	{
+		const FRTCellId From(Sorgente.X, Sorgente.Y, Bersaglio.Layer);
+		if (From.X == Bersaglio.X && From.Y == Bersaglio.Y)
+		{
+			return false; // stessa cella assiale: nessuna linea, come in `HexKnockbackDestination`
+		}
+		const TArray<FRTCellId> Linea = URTHexLibrary::HexLine(From, Bersaglio);
+		if (Linea.Num() < 2)
+		{
+			return false;
+		}
+		ERTHexDirection Dir;
+		if (!URTHexLibrary::DirectionBetween(Linea[Linea.Num() - 2], Bersaglio, Dir))
+		{
+			return false;
+		}
+		OutDir = bAllontana ? Dir : URTHexLibrary::OppositeDirection(Dir);
+		return true;
+	}
+
+	/**
+	 * DOVE FINISCE CHI CADE da `Arresto` (`spec-caduta-e-bordi.md` §4). I tre esiti, in ordine.
+	 *
+	 * 🔑 **`Arresto` E' `LastStableCell`** — la cella stabile immediatamente prima del bordo aperto, cioe'
+	 * quella su cui `StepUntilBlocked` si e' fermato. Non e' codice nuovo: e' gia' cio' che quella funzione
+	 * produce, e resta il ripiego di ogni esito che non trova di meglio.
+	 *
+	 * ⚠️ **L'ordine delle domande e' la regola, non un dettaglio d'implementazione.** Prima *dove sarebbe*
+	 * l'atterraggio, poi *se e' libero*: mai il contrario. La spec lo vieta esplicitamente perche' e' cio'
+	 * che rende il caso saturo del §4.3 un esito leggibile invece che un difetto.
+	 */
+	FRTCellId RisolviAtterraggio(const URTHexMapAsset* Map, const FRTCellId& Arresto,
+		const TArray<FRTCellId>& Occupate,
+		TFunctionRef<bool(const FRTCellId&, ERTHexDirection&)> FacingSuCella)
+	{
+		FRTCellId Primario;
+		if (!URTHexLedgeLibrary::FindLandingCell(Map, Arresto, Primario))
+		{
+			// Nessuna cella sotto nella colonna. ⚠️ Caso che `spec` §4 non copre — presuppone che un primario
+			// esista — e che il corpo di `#2402` invece nomina: si resta su `LastStableCell`, non si sparisce.
+			return Arresto;
+		}
+		if (!Occupate.Contains(Primario))
+		{
+			return Primario; // §4.1 primario libero
+		}
+
+		// §4.2 primario occupato, alternativa adiacente. Le celle RAGGIUNGIBILI, non i sei vicini geometrici:
+		// un dislivello senza arco o un muro non sono un atterraggio solo perche' la cella e' adiacente sulla
+		// griglia. E' la stessa disciplina di `FindSidestepCell` e `FindEscapeCell`, e per la stessa ragione.
+		TArray<FRTCellId> Raggiungibili;
+		for (const TPair<FRTCellId, int32>& Passo : URTHexPathLibrary::GraphNeighbors(Map, Primario))
+		{
+			Raggiungibili.Add(Passo.Key);
+		}
+		auto Ammissibile = [&](const FRTCellId& Candidata)
+		{
+			if (Candidata == Arresto || !Raggiungibili.Contains(Candidata) || Occupate.Contains(Candidata))
+			{
+				return false; // risalire da dove si e' caduti non e' un atterraggio
+			}
+			const FRTHexCellData* Data = Map->FindCell(Candidata);
+			return Data != nullptr && Data->Surface != ERTHexSurface::Void;
+		};
+
+		// 1) Dal Facing dell'OCCUPANTE: e' il tie-break che la spec dichiara, ed e' locale — non una fonte
+		//    d'ordine. Stessa forma di `FindSidestepCell`, che guarda prima dove l'unita' guarda.
+		ERTHexDirection FacingOccupante;
+		if (FacingSuCella(Primario, FacingOccupante))
+		{
+			const FRTCellId Guardata = URTHexLibrary::Neighbor(Primario, FacingOccupante);
+			if (Ammissibile(Guardata))
+			{
+				return Guardata;
+			}
+		}
+
+		// 2) L'anello canonico `E -> NE -> NW -> W -> SW -> SE`, che `URTHexLibrary::Neighbors` gia' produce.
+		//    ⛔ Non va ri-derivato e non va riordinato: un secondo ordinamento scritto qui sarebbe una
+		//    seconda regola da tenere d'accordo con la prima.
+		for (const FRTCellId& Candidata : URTHexLibrary::Neighbors(Primario))
+		{
+			if (Ammissibile(Candidata))
+			{
+				return Candidata;
+			}
+		}
+
+		// 3) §4.3 il caso SATURO: primario occupato e nessuna alternativa. La caduta E' avvenuta — gli
+		//    effetti non dipendono dalla disponibilita' della cella finale (`spec` §5) — e chi cade termina
+		//    su `LastStableCell`. L'occupante resta dov'e'.
+		return Arresto;
+	}
+
 	/**
 	 * L'azione E' quella core indicata, direttamente o per derivazione?
 	 *
@@ -700,14 +809,21 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// a uno stato che non esiste.
 		for (const FRTActionEffectSpec& Spec : Ability->Def.Effects)
 		{
-			if (Spec.Effect != ERTActionEffect::SetDoorState)
+			const bool bToggles = Spec.Effect == ERTActionEffect::ToggleDoorState;
+			if (Spec.Effect != ERTActionEffect::SetDoorState && !bToggles)
 			{
 				continue;
 			}
-			if (Spec.Amount >= 0 && Spec.Amount <= static_cast<int32>(ERTHexDoorState::Destroyed))
+			// ⚠️ `ToggleDoorState` NON legge `Amount`: non c'e' nessuno stato da dichiarare, quindi non c'e'
+			// nessun intervallo da validare. Lo stato lo calcola il resolver leggendo la porta pre-Blast
+			// ([`INT-7`], `#2380`) — e' l'unica differenza fra i due rami, e sta tutta qui.
+			if (bToggles || (Spec.Amount >= 0 && Spec.Amount <= static_cast<int32>(ERTHexDoorState::Destroyed)))
 			{
 				Intent.bChangesDoor = true;
-				Intent.DoorState = static_cast<ERTHexDoorState>(Spec.Amount);
+				Intent.bTogglesDoor = bToggles;
+				Intent.DoorState = bToggles
+					? ERTHexDoorState::Closed // ignorato: `CollectHexAttacks` risolve in una locale
+					: static_cast<ERTHexDoorState>(Spec.Amount);
 
 				// Il bordo che il giocatore ha CLICCATO, se l'ha dichiarato (CP 10.1, `#74`). Lo stesso campo
 				// del piano che il ramo delle coperture legge da sempre: qui non arrivava, e l'operazione
@@ -1131,6 +1247,16 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		return InterruptedIntents.Contains(IntentIdx);
 	});
 
+	// 🔴 **E lo stesso per i rifiuti di commutazione** ([`INT-7`], `#2380`): un `Interact` su una porta
+	// `Locked`, interrotto nello stesso Blast, lascerebbe nel TurnLog sia `Interrupted` sia
+	// `Fallback/Cancelled` con `DoorLocked`. Vale la ragione scritta qui sopra parola per parola — quando due
+	// motivi sono veri vince quello che ha fermato l'azione per primo — e si filtra QUI perche' la coerenza
+	// e' una proprieta' del punto in cui si cancella, non una disciplina da ricordare in tre posti.
+	Plan.DoorToggleRefusals.RemoveAll([&InterruptedIntents](const FRTDoorToggleRefusal& Refusal)
+	{
+		return InterruptedIntents.Contains(Refusal.IntentIndex);
+	});
+
 	// 🔴 **E l'impronta dell'area sparisce con l'azione che l'avrebbe prodotta** ([D-301]). Un colpo
 	// interrotto non ha investito nessuna cella: lasciarne il footprint mostrerebbe a schermo un'area che
 	// il resolver ha annullato — cioe' una presentazione che contraddice l'esito, che e' il difetto
@@ -1189,7 +1315,7 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 		Entry.Category = ERTLogCategory::Reaction;
 		Entry.SrcCell = Unit->Cell;
 		Entry.TgtCell = Unit->Cell;
-		Entry.ActionId = Reaction->Def.ActionId; // `Riktor.Interposition` non e' `Action.Intercept` (CP 5.5)
+		Entry.ActionId = Reaction->Def.ActionId; // `Branth.Interposition` non e' `Action.Intercept` (CP 5.5)
 		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
 
 		// Il contatore di [D-092] vale anche qui: l'interposizione E' un'attivazione, e lasciarla fuori
@@ -1418,6 +1544,56 @@ void ARTTurnManager::LogBlockedIntents(const FRTBlastContext& Ctx)
 				: TEXT("nessuna porta sulla traiettoria")),
 			FRTLogSubject::Unit(Actor));
 	}
+
+	// COMMUTAZIONI RIFIUTATE ([`INT-7`], `#2380`): la porta c'era, e non ha un opposto.
+	//
+	// 🔑 **Motivo PROPRIO e non `NoEffect`.** Il pass qui sopra dice «non avevo niente su cui agire»; questo
+	// dice «avevo esattamente qualcosa, e la regola lo vieta». Sono due situazioni con rimedi diversi — la
+	// prima si corregge cliccando un altro bordo, la seconda no — e un motivo solo per entrambe manderebbe
+	// il giocatore a cercare la causa dove non e'.
+	//
+	// ⚠️ **E i due stati portano motivi DISTINTI.** `Locked` e' uno stato da cui l'apertura autorizzata di
+	// CP 10.1 fara' uscire chi ne ha diritto; `Destroyed` e' TERMINALE e non ci sara' nessuna chiave. Dirlo
+	// con un motivo solo affermerebbe che le due hanno lo stesso rimedio.
+	for (const FRTDoorToggleRefusal& Refusal : Plan.DoorToggleRefusals)
+	{
+		if (!Intents.IsValidIndex(Refusal.IntentIndex)) { continue; }
+		const FRTHexAttackIntent& Refused = Intents[Refusal.IntentIndex];
+		if (!HexUnits.IsValidIndex(Refused.AttackerId)) { continue; }
+
+		// La coppia di celle E' IL BORDO, con la stessa convenzione del pass qui sopra e per la stessa
+		// ragione ([D-196]): due rifiuti della stessa unita' verso la stessa cella ma su bordi DIVERSI non
+		// devono produrre righe identiche byte a byte.
+		const FRTCellId RefusedCell = HexUnits.IsValidIndex(Refused.TargetId)
+			? HexUnits[Refused.TargetId].Cell : Refused.TargetCell;
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Blast;
+		Entry.Category = ERTLogCategory::Fallback;
+		Entry.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		Entry.SrcCell = RefusedCell;
+		Entry.TgtCell = Refused.bHasDeclaredDoorEdge
+			? URTHexLibrary::Neighbor(RefusedCell, Refused.DeclaredDoorEdge)
+			: RefusedCell;
+		Entry.Amount = static_cast<int32>(Refusal.State == ERTHexDoorState::Destroyed
+			? ERTActionInvalidReason::DoorDestroyed
+			: ERTActionInvalidReason::DoorLocked);
+		if (IntentDefs.IsValidIndex(Refusal.IntentIndex))
+		{
+			Entry.ActionId = IntentDefs[Refusal.IntentIndex].ActionId;
+			Entry.BaseActionId = IntentDefs[Refusal.IntentIndex].BaseActionId;
+			Entry.Priority = IntentDefs[Refusal.IntentIndex].Priority;
+		}
+
+		ARTUnit* Actor = Units.IsValidIndex(Refused.AttackerId) ? Units[Refused.AttackerId] : nullptr;
+		AppendLogEntry(Entry, Actor);
+		AddLogEvent(FString::Printf(TEXT("%s: %s"),
+			Actor ? *Actor->GetName() : TEXT("unita'"),
+			Refusal.State == ERTHexDoorState::Destroyed
+				? TEXT("la porta e' distrutta: non c'e' piu' niente da commutare")
+				: TEXT("la porta e' bloccata: serve un'apertura autorizzata")),
+			FRTLogSubject::Unit(Actor));
+	}
 }
 
 void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
@@ -1462,7 +1638,7 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 		// riga l'entry sopravvive al proprio riparo, e siccome identifica la barriera con la sola coppia
 		// (cella, bordo), alla scadenza del suo timer porterebbe via **quello che trova su quel bordo**: se
 		// nel frattempo qualcuno ha riparato lo stesso varco, gli distrugge il pannello in anticipo e scrive
-		// nel TurnLog una scadenza mai avvenuta. Due Riktor sullo stesso choke point bastano — i cooldown
+		// nel TurnLog una scadenza mai avvenuta. Due Branth sullo stesso choke point bastano — i cooldown
 		// sono per unita', quindi il secondo non aspetta il primo.
 		if (Change.bDestroyed)
 		{
@@ -1760,6 +1936,62 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		ArmedPredictions.RemoveAll([T](const FRTArmedPrediction& A) { return A.Shooter.Get() == T; });
 	};
 
+	// LA CADUTA GRAVITAZIONALE (#2402, `spec-caduta-e-bordi.md` §3–§4). Una sola regola, due chiamanti:
+	// spinta e trazione sono entrambe **spostamento forzato**, ed entrambe passano da `StepUntilBlocked`,
+	// che si ferma su `Data == nullptr` — cioe' esattamente sul bordo aperto. Scriverla una volta sola e'
+	// cio' che impedisce l'asimmetria *«spinto oltre un bordo cade, tirato oltre un bordo no»*, che nessuna
+	// regola dichiara.
+	//
+	// ⛔ **Non applica `Prone`.** Nel repository *«la caduta»* e' gia' `D-319`, ed e' un'altra cosa: le due
+	// regole non si fondono (`spec` §5.1). Chi e' `Unbalanced` e cade le attraversa entrambe, e l'ordine e'
+	// quello del resolver — `CadeSeSbilanciato` agisce sullo spostamento, questa su cio' che accade dopo.
+	auto Cade = [Map, &Units](ARTUnit* T, const FRTCellId& Arresto, const FRTCellId& Sorgente,
+		int32 Distanza, bool bAllontana, const TArray<FRTCellId>& Occupate, FRTCellId& OutFinale) -> bool
+	{
+		if (Map == nullptr || !IsValid(T))
+		{
+			return false; // FAIL-CLOSED: senza mappa autorevole non si fa cadere nessuno
+		}
+
+		// 1. PASSI RESIDUI. Un bordo aperto RAGGIUNTO a spinta esaurita non e' un bordo ATTRAVERSATO: chi
+		//    si ferma sul ciglio perche' la spinta e' finita resta sul ciglio. Senza questo controllo una
+		//    spinta da 1 che deposita esattamente sul bordo di una piattaforma farebbe cadere, e la spec
+		//    dice *«bordo aperto ATTRAVERSATO»* — attraversare richiede movimento residuo.
+		if (URTHexLibrary::HexDistance(T->Cell, Arresto) >= Distanza)
+		{
+			return false;
+		}
+
+		// 2. LA DIREZIONE, ricostruita a valle come la calcola `HexKnockbackDestination`.
+		ERTHexDirection Dir;
+		if (!DirezioneSpostamentoForzato(Sorgente, T->Cell, bAllontana, Dir))
+		{
+			return false;
+		}
+
+		// 3. IL BORDO E' APERTO? Muro, unita' e parapetto rispondono `false`, ed e' la distinzione che
+		//    `StepUntilBlocked` da solo non puo' dare: il suo valore di ritorno e' identico nei tre casi.
+		if (!URTHexLedgeLibrary::IsEdgeOpen(Map, Arresto, Dir))
+		{
+			return false;
+		}
+
+		OutFinale = RisolviAtterraggio(Map, Arresto, Occupate,
+			[&Units](const FRTCellId& Cella, ERTHexDirection& OutFacing)
+			{
+				for (ARTUnit* U : Units)
+				{
+					if (IsValid(U) && U->IsAlive() && U->Cell == Cella)
+					{
+						OutFacing = U->Facing;
+						return true;
+					}
+				}
+				return false;
+			});
+		return true;
+	};
+
 	// --- Ancoraggio (CP 7.5, `#505`): il punto di valutazione degli SPOSTAMENTI ----------------------
 	// Spinte e trazioni sono decise — raccolte in `KnockCount`/`PullCount` — e non ancora applicate. E' il
 	// solo momento in cui `Reaction.Anchor` puo' annullarle: dopo, annullare vorrebbe dire rimettere indietro
@@ -1815,6 +2047,11 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		TArray<ARTUnit*> KTargets;
 		TArray<FRTCellId> KFinal;
 
+		// Chi e' CADUTO (#2402): serve al solo esito della voce di TurnLog, che per una caduta non puo'
+		// dire `Displaced` — quello significa «raggiunta la destinazione della spinta», e chi cade e' finito
+		// altrove. La cella e' gia' in `KFinal`: questo insieme non la duplica.
+		TSet<ARTUnit*> KFell;
+
 		// Chi si e' spostato per SCELTA e non per la spinta ([D-047]): serve al solo verbo del log, che
 		// altrimenti racconterebbe «spinto» un'unita' che ha deciso di scartare. Il TurnLog esiste per dire
 		// QUALE difesa ha retto e quale no — un verbo sbagliato e' la stessa lacuna di `#420`, un livello sopra.
@@ -1826,7 +2063,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		// 🔴 **Prima stava DENTRO il ciclo**, e una code review ha misurato il costo: `MakeCurrentSnapshot`
 		// fa un `GetAllActorsOfClass` sul livello, costruisce un `FRTHexSnapshot` che qui viene **buttato
 		// via**, e ordina — tutto questo per **ogni** unita' in `Brace`. Il caso di gran lunga piu' comune e'
-		// il profilo base (Riktor), dove `AskReactionDecision` risponde `HoldImmediate` senza mai leggere
+		// il profilo base (Branth), dove `AskReactionDecision` risponde `HoldImmediate` senza mai leggere
 		// `OwnerId`: si pagava un giro completo per un valore che nessuno guardava.
 		TArray<ARTUnit*> BlastAliveUnits;
 
@@ -2114,12 +2351,27 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 
 			const FRTCellId Dest = URTHexCombatLibrary::HexKnockbackDestination(
 				KnockFrom[T], T->Cell, KnockDist[T], Map, KOccupied);
-			if (Dest != T->Cell) { KTargets.Add(T); KFinal.Add(Dest); }
+
+			// LA CADUTA (#2402): lo spostamento si e' fermato su un BORDO APERTO con passi ancora da
+			// percorrere. Va valutata in ENTRAMBI i rami — con un bordo aperto ADIACENTE `StepUntilBlocked`
+			// non avanza, `Dest == T->Cell`, e il flusso finirebbe in `NoDestination` senza mai cadere.
+			FRTCellId Atterraggio;
+			if (Cade(T, Dest, KnockFrom[T], KnockDist[T], /*bAllontana=*/ true, KOccupied, Atterraggio)
+				&& Atterraggio != T->Cell)
+			{
+				KTargets.Add(T); KFinal.Add(Atterraggio); KFell.Add(T);
+			}
+			else if (Dest != T->Cell) { KTargets.Add(T); KFinal.Add(Dest); }
 			else
 			{
 				// DESTINAZIONE IMPOSSIBILE (#420): bordo mappa, ostacolo o unita' subito dietro. La spinta e'
 				// stata risolta e non ha dove andare — non e' una difesa, e finora era muta come le altre due
 				// cause geometriche.
+				//
+				// ⚠️ Ci arriva anche chi cade in una colonna SENZA fondo: `RisolviAtterraggio` ripiega su
+				// `LastStableCell`, che li' e' la cella di partenza, e senza spostamento non c'e' una voce di
+				// movimento da scrivere. La posizione — *«resta dov'e', non sparisce»* — e' cio' che
+				// `#2402` D006 chiede, ed e' esattamente quello che accade.
 				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::NoDestination, &PushCause);
 			}
 		}
@@ -2142,8 +2394,11 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 
 			ARTUnit* T = KTargets[a];
 			const bool bScartato = Sidestepped.Contains(T);
+			const bool bCaduto = KFell.Contains(T);
 			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause,
-				bScartato ? TEXT("Scarto") : TEXT("Spinta"), Map, ERTMatchPhase::Blast);
+				bCaduto ? TEXT("Caduta") : (bScartato ? TEXT("Scarto") : TEXT("Spinta")),
+				Map, ERTMatchPhase::Blast,
+				bCaduto ? ERTMoveOutcome::Fell : ERTMoveOutcome::Displaced);
 
 			// ⛔ **Lo SCARTO non fa cadere, ed e' una scelta dichiarata.** `Sidestep` e' una risposta di
 			// reazione riuscita — il bersaglio esce dalla linea *invece* di arretrare — e la spinta non ha
@@ -2168,6 +2423,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 
 		TArray<ARTUnit*> PTargets;
 		TArray<FRTCellId> PFinal;
+		TSet<ARTUnit*> PFell;   // #2402: la trazione e' spostamento forzato, e cade come la spinta
 		for (ARTUnit* T : Units)
 		{
 			const int32* Pulls = PullCount.Find(T);
@@ -2203,7 +2459,17 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 
 			const FRTCellId Dest = URTHexCombatLibrary::HexPullDestination(
 				PullToward[T], T->Cell, PullDist[T], Map, POccupied);
-			if (Dest != T->Cell) { PTargets.Add(T); PFinal.Add(Dest); }
+
+			// #2402: `spec` §3 dice **spostamento forzato**, non «spinta». Una trazione che attraversa un
+			// bordo aperto fa cadere come la spinta — `bAllontana = false` perche' percorre la stessa linea
+			// nel verso opposto.
+			FRTCellId Atterraggio;
+			if (Cade(T, Dest, PullToward[T], PullDist[T], /*bAllontana=*/ false, POccupied, Atterraggio)
+				&& Atterraggio != T->Cell)
+			{
+				PTargets.Add(T); PFinal.Add(Atterraggio); PFell.Add(T);
+			}
+			else if (Dest != T->Cell) { PTargets.Add(T); PFinal.Add(Dest); }
 		}
 		for (int32 a = 0; a < PTargets.Num(); ++a)
 		{
@@ -2215,8 +2481,10 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			if (bContested) { continue; }
 
 			ARTUnit* T = PTargets[a];
-			ApplyForcedDisplacement(T, PFinal[a], PullToward[T], PullCause, TEXT("Trazione"), Map,
-				ERTMatchPhase::Blast);
+			const bool bCaduto = PFell.Contains(T);
+			ApplyForcedDisplacement(T, PFinal[a], PullToward[T], PullCause,
+				bCaduto ? TEXT("Caduta") : TEXT("Trazione"), Map, ERTMatchPhase::Blast,
+				bCaduto ? ERTMoveOutcome::Fell : ERTMoveOutcome::Displaced);
 			CadeSeSbilanciato(T);
 		}
 	}

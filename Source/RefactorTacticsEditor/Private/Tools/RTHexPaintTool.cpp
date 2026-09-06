@@ -71,6 +71,30 @@ FInputRayHit URTHexPaintTool::CanBeginClickDragSequence(const FInputDeviceRay& P
 	return FInputRayHit(TNumericLimits<double>::Max());
 }
 
+/**
+ * Le famiglie di istanze che una pennellata puo' cambiare — `#1865`, punto 3.
+ *
+ * 🔑 **Il pennello scrive quattro campi e nessun altro**: `Surface`, `MoveCost`, `bBlocksMovement`,
+ * `bBlocksLineOfSight`. La matrice campo→famiglia dice quali toccano — `Cells` (colore), `Glyphs`
+ * (`SurfaceRingCount`), `Relief` (`ReliefHeightForCost`), `Blockers` — piu' `Borders`, perche' una
+ * pennellata puo' CREARE una cella e ogni cella nuova porta il suo contorno.
+ *
+ * ⛔ **`EdgeFeatures` e `StructuralBodies` restano fuori**: dipendono da `Covers`/`Doors` e da
+ * `BodyFill`, che il pennello non scrive mai — e una cella appena creata li ha ai valori di default,
+ * quindi non c'e' niente da posare.
+ *
+ * ⛔ **L'ERASE non usa questa maschera, ed e' la ragione per cui la funzione prende `bPaint`**:
+ * cancellare una cella la toglie da OGNI famiglia, comprese quelle che il pennello non scrive. Una cella
+ * con coperture lascerebbe pannelli orfani su un pavimento che non c'e' piu'.
+ */
+ERTRebuildFamily URTHexPaintTool::BrushRebuildMask(bool bPaint)
+{
+	return bPaint
+		? (ERTRebuildFamily::Cells | ERTRebuildFamily::Glyphs | ERTRebuildFamily::Relief
+			| ERTRebuildFamily::Blockers | ERTRebuildFamily::Borders)
+		: ERTRebuildFamily::All;
+}
+
 bool URTHexPaintTool::ApplyBrushAt(ARTHexMapActor* Actor, const FRTCellId& CenterCell, const FVector& CenterWorld)
 {
 	URTHexMapAsset* Map = Actor->MapAsset; // il caller garantisce Actor && Map non nulli
@@ -134,7 +158,7 @@ void URTHexPaintTool::OnClickPress(const FInputDeviceRay& PressPos)
 
 	if (ApplyBrushAt(Actor, Cell, Center))
 	{
-		Actor->RebuildInstances();
+		Actor->RebuildInstances(BrushRebuildMask(Properties->Operation == ERTHexPaintOp::Paint));
 	}
 }
 
@@ -148,7 +172,8 @@ void URTHexPaintTool::OnClickDrag(const FInputDeviceRay& DragPos)
 
 	if (ApplyBrushAt(TargetActor, Cell, Center))
 	{
-		TargetActor->RebuildInstances();
+		// Il punto piu' caldo del percorso di authoring: gira a OGNI cella attraversata dal trascinamento.
+		TargetActor->RebuildInstances(BrushRebuildMask(Properties->Operation == ERTHexPaintOp::Paint));
 	}
 }
 

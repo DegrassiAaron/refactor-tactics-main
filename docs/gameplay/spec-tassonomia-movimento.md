@@ -373,6 +373,72 @@ Criterio di uscita — perché una domanda aperta senza criterio non si chiude m
   sopra una volta ogni due round, si prova C;
 - chi decide è l'autore, e la decisione diventa una `D-0xx`.
 
+### 5.1 La misura che il criterio chiedeva — 2026-09-06, [#2501](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2501)
+
+🔴 **Il criterio di uscita è superato, e non di poco.**
+
+Prima di misurare, due fatti che nessuno aveva messo insieme:
+
+- il codice **non** implementa `A`. `ApplyForcedDisplacement` azzera la path composita — quello sì è `A` —
+  ma una **destinazione** dichiarata sopravvive, e `ResolveMovement` le ricalcola un percorso dalla nuova
+  origine (`FindPathForUnit`). Cioè `B`, il modello che [`D-045`](../decisions/RT_PDR_00_Decision_Log.md)
+  esclude per nome;
+- ne segue un'asimmetria che nessuna regola dichiara: chi posa **waypoint** perde il turno, chi clicca una
+  **destinazione** no. Lo stesso intento, due esiti.
+
+`A` è stato quindi implementato e misurato sulla suite intera, in **coppia controllata**: i due bracci
+differiscono per la sola modifica — stesso albero, stessa suite, entrambe le corse `VALIDA` e con il binario
+verificato posteriore al commit.
+
+| Misura | Baseline (`B`, il codice di oggi) | `A` implementato |
+|---|---|---|
+| `Bot.StallDefinitionsOnTheGeneratedTestArena` | ✅ | ❌ |
+| `Match.Autobattle.EngagesOnTheGeneratedTestArena` | ✅ | ❌ |
+| **sequenza ferma più lunga** (arena generata, 12 turni, 4 unità) | **4** | **11** |
+| `Actions.Push.DoesNotSpendTheVictimMove`, riscritto sulla regola del budget | ❌ | ✅ |
+
+Il limite in uso del gate anti-stallo è **4**: la baseline ci sta esattamente dentro, `A` lo sfonda quasi
+triplicandola. Il criterio parla di *«più di una volta ogni due round»* — qui il Move decade quasi a ogni
+turno, perché in mischia lo spostamento forzato è la norma, e i bot pianificano **destinazioni**, non
+waypoint (`RTTurnManager.cpp:775`): sono esattamente la popolazione che `A` colpisce.
+
+🔑 **L'ultima riga della tabella è ciò che rende la coppia una prova.** Il test di `#308` riscritto è rosso
+sulla baseline e verde con `A`: discrimina i due modelli **in entrambe le direzioni**, quindi la coppia non
+misura un rumore.
+
+⚠️ **Due ipotesi alternative sono state escluse, non assunte.**
+
+- *«è la fuga da hazard»* — `ApplyForcedDisplacement` risolve anche in `Cleanup`, a Move già avvenuto, dove
+  annullare la destinazione toglierebbe il movimento del turno **dopo**. La versione misurata ha già la
+  guardia `InPhase < ERTMatchPhase::Move`, e i numeri sopra sono con quella guardia: non è la fuga;
+- *«è `#2459`»* — le metriche di opportunity erano entrate su `main` fra le due misure, e un'unità *armata*
+  sta ferma per scelta (l'autobattle riporta Gadget fermo 11 turni, *«di cui 8 armati»*). La baseline della
+  coppia controllata gira sullo stesso `main` e resta a **4**: non è `#2459`.
+
+### 5.2 `Model A` è stato ADOTTATO, con il suo costo aperto — 2026-09-06, decisione dell'autore
+
+Il codice ora implementa `A`: il canone e l'implementazione dicono la stessa cosa, e l'asimmetria
+waypoint/destinazione non esiste più.
+
+🔴 **Il costo misurato in §5.1 non è stato pagato da nessuno, ed è entrato con la modifica.** Due test
+restano **rossi su `main`**, deliberatamente:
+
+- `RefactorTactics.Bot.StallDefinitionsOnTheGeneratedTestArena`
+- `RefactorTactics.Match.Autobattle.EngagesOnTheGeneratedTestArena`
+
+⛔ **Non sono stati indeboliti, e non vanno indeboliti.** Misurano che nessuna unità si parcheggia, e sono
+l'unica cosa che ha reso visibile il prezzo di `A`: alzarne la soglia per far tornare il verde cancellerebbe
+la prova e lascerebbe il difetto. Restano rossi finché il comportamento del bot non è sistemato — owner
+[#2556](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2556).
+
+⚠️ **Conseguenza operativa per chiunque misuri**: la suite su `main` riporta **2 fallimenti attesi**. Una
+corsa con quei due rossi e nessun altro è il verde di oggi; un terzo rosso è una regressione vera.
+
+⚠️ Cosa la misura di §5.1 **non** dice: non dice che `C` funzioni. Dice che `A`, applicato alla lettera,
+supera il proprio criterio di uscita al primo tentativo — quindi `C` resta l'alternativa dichiarata, e
+[#2556](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2556) è il posto in cui si decide se
+sistemare il bot sotto `A` oppure passare a `C`.
+
 ## 6. Riconciliazione col kit d'autore
 
 Il kit `RefactorTactics_Move_Consolidation_Claude.md` propone 59 sezioni. Non tutte erano nuove; **due erano

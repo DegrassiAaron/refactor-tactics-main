@@ -20,21 +20,165 @@ namespace
 			Pack, Pack, Clip, Clip);
 	}
 
-	FRTLocomotionClips MakeClips(const TCHAR* Pack, const TCHAR* Idle, const TCHAR* Run)
+	/**
+	 * Un ruolo con una sola variante, gia' attiva.
+	 *
+	 * `RTVarianteRoster` e' l'id riservato ai default del C++. E' lo stesso su ogni eroe e su ogni ruolo,
+	 * e va bene: l'unicita' richiesta e' dentro `(eroe, ruolo)`, e qui dentro ce n'e' una sola.
+	 */
+	FRTAnimRoleClips MakeRuolo(const TCHAR* Pack, const TCHAR* Clip)
 	{
-		FRTLocomotionClips Clips;
-		Clips.Idle = TSoftObjectPtr<UAnimSequenceBase>(FSoftObjectPath(ClipPath(Pack, Idle)));
-		Clips.Run = TSoftObjectPtr<UAnimSequenceBase>(FSoftObjectPath(ClipPath(Pack, Run)));
+		FRTAnimRoleClips Ruolo;
+		Ruolo.AddVariant(
+			RTVarianteRoster(),
+			FName(FString::Chr(RTPrimaEtichettaNeutra)),
+			TSoftObjectPtr<UAnimSequenceBase>(FSoftObjectPath(ClipPath(Pack, Clip))));
+		Ruolo.MakeActive(RTVarianteRoster());
+		return Ruolo;
+	}
+
+	/**
+	 * I cinque ruoli di un eroe del roster, ciascuno con la sua clip attiva.
+	 *
+	 * 🔴 **`Attack` e non `Cast`, ed e' l'errore che non fa rumore** (#2450). La clip che riempie il
+	 * ruolo d'attacco si CHIAMA `Cast` su tutti e quattro i pack, ma `ERTPresentationRole::Cast` e' un
+	 * ruolo DIVERSO e senza consumatore: scriverci dentro la clip darebbe un dato corretto che non suona
+	 * mai, senza errore, senza warning e senza log. Due tassonomie omonime, come `Role` di rete e il ruolo
+	 * di presentazione.
+	 *
+	 * ⚠️ I nomi si MISURANO: §AS.3b li ha letti sul disco, e **quattro caselle su dodici** fra i tre
+	 * ruoli discreti non si chiamano come ci si aspetta.
+	 */
+	FRTHeroPresentationClips MakeClips(const TCHAR* Pack, const TCHAR* Idle, const TCHAR* Move,
+		const TCHAR* Attack, const TCHAR* Hit, const TCHAR* Death)
+	{
+		FRTHeroPresentationClips Clips;
+		Clips.PerRole.Add(ERTPresentationRole::Idle, MakeRuolo(Pack, Idle));
+		Clips.PerRole.Add(ERTPresentationRole::Move, MakeRuolo(Pack, Move));
+		Clips.PerRole.Add(ERTPresentationRole::Attack, MakeRuolo(Pack, Attack));
+		Clips.PerRole.Add(ERTPresentationRole::Hit, MakeRuolo(Pack, Hit));
+		Clips.PerRole.Add(ERTPresentationRole::Death, MakeRuolo(Pack, Death));
 		return Clips;
 	}
 }
 
+const FRTAnimVariant* FRTAnimRoleClips::FindVariant(const FName& VariantId) const
+{
+	if (VariantId.IsNone())
+	{
+		return nullptr;
+	}
+	return Variants.FindByPredicate(
+		[&VariantId](const FRTAnimVariant& V) { return V.VariantId == VariantId; });
+}
+
+const FRTAnimVariant* FRTAnimRoleClips::FindActive() const
+{
+	// Passa da `FindVariant`, e non da un indice memorizzato, perche' un `ActiveClipVariant` che nomina
+	// una variante rimossa deve leggersi come «nessuna attiva» invece che come un accesso fuori range.
+	return FindVariant(ActiveClipVariant);
+}
+
+FName FRTAnimRoleClips::AddVariant(
+	const FName& VariantId, const FName& Label, const TSoftObjectPtr<UAnimSequenceBase>& Clip)
+{
+	FRTAnimVariant Nuova;
+	Nuova.VariantId = VariantId;
+	Nuova.Label = Label.IsNone() ? PrimaEtichettaNeutraLibera() : Label;
+	Nuova.Clip = Clip;
+	Variants.Add(MoveTemp(Nuova));
+
+	// ⛔ Nessun tocco a `ActiveClipVariant`. La variante nuova entra INATTIVA anche quando e' la prima:
+	// «e' l'unica, quindi sara' lei» e' esattamente la deduzione che l'autore non ha chiesto.
+	return VariantId;
+}
+
+bool FRTAnimRoleClips::MakeActive(const FName& VariantId)
+{
+	if (FindVariant(VariantId) == nullptr)
+	{
+		// 🔑 Si esce PRIMA di scrivere. Un `Make Active` su un id inesistente che azzerasse
+		// `ActiveClipVariant` sarebbe una disattivazione travestita da errore.
+		return false;
+	}
+
+	// L'atomicita' e' qui, ed e' banale solo perche' lo stato e' UNO: assegnare la nuova attiva
+	// disattiva la precedente nello stesso passo. Due booleani per variante avrebbero avuto uno stato
+	// intermedio con due attive, e qualcuno lo avrebbe letto.
+	ActiveClipVariant = VariantId;
+	return true;
+}
+
+bool FRTAnimRoleClips::RemoveVariant(const FName& VariantId)
+{
+	const int32 Indice = Variants.IndexOfByPredicate(
+		[&VariantId](const FRTAnimVariant& V) { return V.VariantId == VariantId; });
+	if (Indice == INDEX_NONE)
+	{
+		return false;
+	}
+
+	const bool EraAttiva = (ActiveClipVariant == VariantId);
+	Variants.RemoveAt(Indice);
+
+	if (EraAttiva)
+	{
+		// ⚠️ `NAME_None`, e NON la prima rimasta. Eleggere una sostituta toglierebbe all'autore una
+		// scelta che e' sua, senza dirglielo: il ruolo torna in posa di riferimento e si vede.
+		ActiveClipVariant = NAME_None;
+	}
+	return true;
+}
+
+FName FRTAnimRoleClips::PrimaEtichettaNeutraLibera() const
+{
+	for (int32 i = 0; i < RTNumEtichetteNeutre; ++i)
+	{
+		const FName Candidata(FString::Chr(static_cast<TCHAR>(RTPrimaEtichettaNeutra + i)));
+		// Si cerca il primo LIBERO, non il primo dopo l'ultimo: con `A` e `C` presenti la risposta e'
+		// `B`. Contare le varianti darebbe `C`, che e' gia' presa.
+		const bool Presa = Variants.ContainsByPredicate(
+			[&Candidata](const FRTAnimVariant& V) { return V.Label == Candidata; });
+		if (!Presa)
+		{
+			return Candidata;
+		}
+	}
+	return NAME_None;
+}
+
+const FRTAnimRoleClips* FRTHeroPresentationClips::FindRole(ERTPresentationRole Role) const
+{
+	return PerRole.Find(Role);
+}
+
 URTUnitAnimInstance::URTUnitAnimInstance()
 {
-	ClipsPerHero.Add(FName(TEXT("Hero.Gadget")), MakeClips(TEXT("Gadget"), TEXT("Idle"), TEXT("Run_Fwd")));
-	ClipsPerHero.Add(FName(TEXT("Hero.Phase")), MakeClips(TEXT("Phase"), TEXT("Idle"), TEXT("Jog_Fwd")));
-	ClipsPerHero.Add(FName(TEXT("Hero.Riktor")), MakeClips(TEXT("Riktor"), TEXT("Idle"), TEXT("Jog_Fwd")));
-	ClipsPerHero.Add(FName(TEXT("Hero.Wraith")), MakeClips(TEXT("Wraith"), TEXT("Idle_NonCombat"), TEXT("Jog_Fwd")));
+	ClipsPerHero.Add(FName(TEXT("Hero.Gadget")), MakeClips(TEXT("Gadget"), TEXT("Idle"), TEXT("Run_Fwd"),
+		TEXT("Cast"), TEXT("Hitreact_Fwd"), TEXT("Death_Fwd")));
+	ClipsPerHero.Add(FName(TEXT("Hero.Phase")), MakeClips(TEXT("Phase"), TEXT("Idle"), TEXT("Jog_Fwd"),
+		TEXT("Cast"), TEXT("HitReact_Fwd"), TEXT("Death")));
+	ClipsPerHero.Add(FName(TEXT("Hero.Branth")), MakeClips(TEXT("Riktor"), TEXT("Idle"), TEXT("Jog_Fwd"),
+		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd")));
+	ClipsPerHero.Add(FName(TEXT("Hero.Wraith")), MakeClips(TEXT("Wraith"), TEXT("Idle_NonCombat"), TEXT("Jog_Fwd"),
+		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward")));
+}
+
+TSoftObjectPtr<UAnimSequenceBase> URTUnitAnimInstance::ActiveClipFor(
+	const FName& HeroId, ERTPresentationRole Role) const
+{
+	const FRTHeroPresentationClips* Eroe = FindClipsFor(HeroId);
+	if (Eroe == nullptr)
+	{
+		return nullptr;
+	}
+	const FRTAnimRoleClips* Ruolo = Eroe->FindRole(Role);
+	if (Ruolo == nullptr)
+	{
+		return nullptr;
+	}
+	const FRTAnimVariant* Attiva = Ruolo->FindActive();
+	return Attiva ? Attiva->Clip : TSoftObjectPtr<UAnimSequenceBase>(nullptr);
 }
 
 FAnimInstanceProxy* URTUnitAnimInstance::CreateAnimInstanceProxy()
@@ -80,16 +224,19 @@ void FRTUnitAnimProxy::Initialize(UAnimInstance* InAnimInstance)
 		return;
 	}
 
-	const FRTLocomotionClips* Clips = Owner->FindClipsFor(Unit->HeroId);
-	if (Clips == nullptr)
-	{
-		return; // eroe senza voce: resta in posa di riferimento, e la partita si gioca uguale
-	}
-
+	// ⚠️ **DUE ruoli, non nove.** `ERTPresentationRole` ne nomina nove perche' servono all'authoring, ma
+	// questo grafo ha due sequence player e legge solo `Idle` e `Move`. Gli altri sette non hanno ancora
+	// un consumatore a runtime: `Attack`/`Hit`/`Death` passano dai `BlueprintImplementableEvent` di
+	// `ARTUnit`, gli altri quattro da niente.
+	//
+	// `ActiveClipFor` copre da solo le tre vie che danno «nessuna clip» — eroe fuori catalogo, ruolo non
+	// popolato, nessuna variante attiva — e nessuna delle tre e' un errore.
+	//
 	// `LoadSynchronous` su un soft pointer che non risolve restituisce `nullptr` senza rumore: e' il
-	// caso di chi ha clonato il repository senza i pack Paragon, che sono gitignorati.
-	IdleNode.SetSequence(Clips->Idle.LoadSynchronous());
-	RunNode.SetSequence(Clips->Run.LoadSynchronous());
+	// caso di chi ha clonato il repository senza i pack Paragon, che sono gitignorati. In tutti questi
+	// casi il nodo resta senza sequenza e l'unita' in posa di riferimento: la partita si gioca uguale.
+	IdleNode.SetSequence(Owner->ActiveClipFor(Unit->HeroId, ERTPresentationRole::Idle).LoadSynchronous());
+	RunNode.SetSequence(Owner->ActiveClipFor(Unit->HeroId, ERTPresentationRole::Move).LoadSynchronous());
 }
 
 void FRTUnitAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds)

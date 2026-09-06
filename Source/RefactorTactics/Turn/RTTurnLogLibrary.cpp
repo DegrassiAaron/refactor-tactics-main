@@ -195,7 +195,7 @@ bool URTTurnLogLibrary::IsDamageInflictedByActor(const FRTTurnLogEntry& Entry)
 FString URTTurnLogLibrary::DescribeActionIdentity(const FRTTurnLogEntry& Entry)
 {
 	// «azione base + profilo» quando la voce sa dirlo (D-033), altrimenti il solo ActionId. La forma con la
-	// barretta si legge in un colpo — `Action.BasicAttack · Riktor.ImpactShot` — e non richiede di sapere a
+	// barretta si legge in un colpo — `Action.BasicAttack · Branth.ImpactShot` — e non richiede di sapere a
 	// memoria che ImpactShot e' un attacco base.
 	//
 	// Il caso `BaseActionId == ActionId` non produce «X · X»: un'azione generica usata direttamente e' il
@@ -523,7 +523,7 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		case ERTReactionOutcome::NotTriggered: What = TEXT("reazione pronta, nessun trigger"); break;
 		default:                               What = TEXT("reazione non disponibile"); break;
 		}
-		// QUALE reazione, quando l'identita' c'e': fra `Riktor.Interposition` e `Action.Intercept` cambia
+		// QUALE reazione, quando l'identita' c'e': fra `Branth.Interposition` e `Action.Intercept` cambia
 		// l'abilita' spesa e il cooldown, non solo l'esito (CP 5.5).
 		if (HasDeclaredAction(Entry))
 		{
@@ -831,7 +831,7 @@ namespace
 		Number(TEXT("amount"), E.Amount);
 		// L'identita' dell'azione entra byte per byte: due reazioni con la stessa geometria e lo stesso esito,
 		// ma abilita' diverse, devono produrre hash diversi — altrimenti il replay di CP 12.6 non
-		// distinguerebbe `Riktor.Interposition` da `Action.Intercept`.
+		// distinguerebbe `Branth.Interposition` da `Action.Intercept`.
 		const FString ActionIdText = E.ActionId.ToString();
 		Text(TEXT("actionId"), ActionIdText);
 		// `GraphRevision` ENTRA (D-067): due tracce possono differire SOLO per lei — stessi eventi, ma grafo
@@ -1036,7 +1036,7 @@ namespace
 	 * azioni dal prefisso comune indistinguibili.
 	 *
 	 * Oltre 65535 byte la stringa viene troncata: e' il limite del campo di lunghezza. Nessun ActionId del
-	 * catalogo si avvicina a quella soglia (sono nomi come `Riktor.Interposition`), quindi il caso non e'
+	 * catalogo si avvicina a quella soglia (sono nomi come `Branth.Interposition`), quindi il caso non e'
 	 * raggiungibile da dati validi — se lo diventasse, il posto dove rifiutarlo e' il validator del catalogo,
 	 * non il serializzatore.
 	 */

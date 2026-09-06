@@ -1,0 +1,56 @@
+{
+  "terminal.integrated.profiles.windows": {
+    "RT DEV": {
+      "path": "pwsh",
+      "args": [
+        "-NoLogo",
+        "-NoExit",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\scripts\\rt-terminal.ps1",
+        "-Role",
+        "DEV",
+        "-WorkspaceRoot",
+        "${workspaceFolder}"
+      ],
+      "icon": "code",
+      "color": "terminal.ansiGreen"
+    },
+    "RT VALIDATION": {
+      "path": "pwsh",
+      "args": [
+        "-NoLogo",
+        "-NoExit",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\scripts\\rt-terminal.ps1",
+        "-Role",
+        "VALIDATION",
+        "-WorkspaceRoot",
+        "${workspaceFolder}"
+      ],
+      "icon": "beaker",
+      "color": "terminal.ansiYellow"
+    },
+    "RT EDITOR": {
+      "path": "pwsh",
+      "args": [
+        "-NoLogo",
+        "-NoExit",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\scripts\\rt-terminal.ps1",
+        "-Role",
+        "EDITOR",
+        "-WorkspaceRoot",
+        "${workspaceFolder}"
+      ],
+      "icon": "tools",
+      "color": "terminal.ansiBlue"
+    }
+  },
+  "terminal.integrated.tabs.enabled": true
+}

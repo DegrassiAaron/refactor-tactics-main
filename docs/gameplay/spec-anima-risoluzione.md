@@ -108,7 +108,9 @@ UENUM(BlueprintType)
 enum class ERTResolvedEventType : uint8
 {
     Move, Attack, HazardDamage, Defeated,
-    AttackFootprint                          // l'impronta a terra di un attacco — D-301
+    AttackFootprint,                         // l'impronta a terra di un attacco — D-301
+    ReactionResolved,                        // una reazione dichiarata e' scattata — #2191
+    StatusChanged                            // uno stato e' nato o morto — #2245
 };
 
 USTRUCT(BlueprintType)
@@ -117,7 +119,8 @@ struct FRTResolvedEvent
     ERTMatchPhase        Phase;              // fase in cui l'evento è stato risolto
     ERTResolvedEventType Type;
     int32                SourceStableUnitId; // ID, non puntatore (#1800). 0 = nessuno (D-063)
-    int32                TargetStableUnitId; // solo Attack
+    int32                TargetStableUnitId; // Attack e HazardDamage (#2460). Su HazardDamage e' l'unico
+                                             // soggetto: Source resta 0, non c'e' un attaccante
     TArray<FRTCellId>    Path;               // per Move: start + celle attraversate, in ordine
     TArray<FRTKnowledgeVerdict> CellVerdicts;// parallelo a Path per indice — D-223 / #1525
     int32                Amount;             // danno / scudo / durata, secondo Type
@@ -226,7 +229,7 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 > comportamento voluto — e diventa **atteso** appena la velocità base scenderà, perché a rate più bassi la
 > stessa risoluzione dura di più.
 >
-> ⚠️ Il riferimento «(PDF p.4)» nella tabella non è un'autorità: `CLAUDE.md` §1 esclude i PDF. Resta come
+> ⚠️ Il riferimento «(PDF p.4)» nella tabella non è un'autorità: [`AGENTS.md`](../../AGENTS.md) §2 esclude i PDF. Resta come
 > traccia di provenienza, non come fonte.
 >
 > ### 📌 Taratura del 2026-09-03 — `PlaybackCellsPerSecond` da `6.5` a `1.44`

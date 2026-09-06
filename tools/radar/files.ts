@@ -2,7 +2,7 @@
  *
  *  Esisteva gia' **tre volte** in `tools/radar/` — `doc-links.ts`, `doc-tables.ts`, `wiki-alt.ts` —
  *  identico a meno dell'estensione cercata. `scenario-notes.ts` sarebbe stata la quarta copia, e
- *  CLAUDE.md §7 dice `SEARCH -> REUSE / UPDATE -> CREATE solo per gap reale`.
+ *  CLAUDE.md §4 dice `SEARCH -> REUSE / UPDATE -> CREATE solo per gap reale`.
  *
  *  ⚠️ **Le tre copie preesistenti NON sono state migrate qui**, ed e' una scelta dichiarata: hanno i
  *  propri test e migrarle e' un refactor, non la correzione di note che questo commit sta facendo.

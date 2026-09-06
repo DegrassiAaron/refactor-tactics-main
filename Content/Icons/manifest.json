@@ -14,7 +14,7 @@
         "cooldown": 0,
         "fallback": "Stop",
         "effects": [],
-        "interruptible": true,
+        "interruptible": false,
         "slot": "Movement",
         "movement": "Budget"
       },
@@ -57,7 +57,7 @@
             "status": "Status.Exposed"
           }
         ],
-        "interruptible": true,
+        "interruptible": false,
         "slot": "Movement",
         "movement": "Budget"
       },
@@ -85,8 +85,8 @@
       "MockOrigin": "mock 05/12 — endpoint che chiude: Sprint nega la reazione"
     },
     {
-      "AssetName": "RT_UI_Icon_Action_Dash",
-      "IconId": "UI.Icon.Action.Dash",
+      "AssetName": "RT_UI_Icon_Action_Dodge",
+      "IconId": "UI.Icon.Action.Dodge",
       "Category": "Action",
       "Axes": {
         "phase": "FastMovement",
@@ -95,7 +95,7 @@
         "cooldown": 1,
         "fallback": "Stop",
         "effects": [],
-        "interruptible": true,
+        "interruptible": false,
         "slot": "Movement",
         "movement": "LinearDash"
       },
@@ -120,7 +120,7 @@
       "AlphaMode": "straight RGBA, nessun matte",
       "EmbeddedText": false,
       "CVDSafe": "verificare sulla contact sheet in scala di grigi",
-      "MockOrigin": "mock 05/13 — invariato"
+      "MockOrigin": "mock 05/13 — glifo invariato, chiave rinominata da Action.Dash (D-230)"
     },
     {
       "AssetName": "RT_UI_Icon_Action_Charge",
@@ -142,7 +142,7 @@
             "status": null
           }
         ],
-        "interruptible": true,
+        "interruptible": false,
         "slot": "Movement",
         "movement": "LinearCharge"
       },
@@ -180,7 +180,7 @@
         "cooldown": 2,
         "fallback": "Stop",
         "effects": [],
-        "interruptible": true,
+        "interruptible": false,
         "slot": "Movement",
         "movement": "LinearLeap"
       },
@@ -218,7 +218,7 @@
         "cooldown": 1,
         "fallback": "Stop",
         "effects": [],
-        "interruptible": true,
+        "interruptible": false,
         "slot": "Movement",
         "movement": "LinearDash"
       },
@@ -261,7 +261,7 @@
             "status": null
           }
         ],
-        "interruptible": true,
+        "interruptible": false,
         "slot": "Reaction",
         "movement": "None"
       },
@@ -299,7 +299,7 @@
         "cooldown": 0,
         "fallback": "Cancel",
         "effects": [],
-        "interruptible": true,
+        "interruptible": false,
         "slot": "Main",
         "movement": "None"
       },
@@ -737,7 +737,7 @@
             "status": null
           }
         ],
-        "interruptible": true,
+        "interruptible": false,
         "slot": "Reaction",
         "movement": "None"
       },
@@ -780,7 +780,7 @@
             "status": null
           }
         ],
-        "interruptible": true,
+        "interruptible": false,
         "slot": "Reaction",
         "movement": "None"
       },
@@ -823,7 +823,7 @@
             "status": null
           }
         ],
-        "interruptible": true,
+        "interruptible": false,
         "slot": "Reaction",
         "movement": "None"
       },
@@ -861,7 +861,7 @@
         "cooldown": 2,
         "fallback": "Cancel",
         "effects": [],
-        "interruptible": true,
+        "interruptible": false,
         "slot": "Reaction",
         "movement": "None"
       },
@@ -1152,7 +1152,7 @@
             "status": null
           }
         ],
-        "interruptible": true,
+        "interruptible": false,
         "slot": "Reaction",
         "movement": "None"
       },
@@ -1271,7 +1271,7 @@
         "cooldown": 2,
         "fallback": "Cancel",
         "effects": [],
-        "interruptible": true,
+        "interruptible": false,
         "slot": "Main",
         "movement": "None"
       },
@@ -1310,11 +1310,11 @@
         "fallback": "Cancel",
         "effects": [
           {
-            "kind": "SetDoorState",
+            "kind": "ToggleDoorState",
             "status": null
           }
         ],
-        "interruptible": true,
+        "interruptible": false,
         "slot": "Main",
         "movement": "None"
       },
@@ -1454,6 +1454,44 @@
       "EmbeddedText": false,
       "CVDSafe": "verificare sulla contact sheet in scala di grigi",
       "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_CreateSmoke",
+      "IconId": "UI.Icon.Action.CreateSmoke",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Environment",
+        "priority": 60,
+        "range": 4,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 19.6,
+        "SurfaceCreated": "Smoke"
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#6B7280",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock — chiave richiesta da #2087 e mai disegnata, trovata da #2253"
     },
     {
       "AssetName": "RT_UI_Icon_Action_Electrify",
@@ -1831,7 +1869,7 @@
         "phase": "FastMovement",
         "shape": null,
         "effects": [],
-        "derived_from": "Action.Dash",
+        "derived_from": "Action.Dodge",
         "display": "Scia fluida",
         "hero": "Phase"
       },
@@ -1929,8 +1967,8 @@
       "MockOrigin": "roster — Preparation, si arma e risponde"
     },
     {
-      "AssetName": "RT_UI_Icon_Action_Hero_Riktor_ImpactShot",
-      "IconId": "UI.Icon.Action.Hero.Riktor.ImpactShot",
+      "AssetName": "RT_UI_Icon_Action_Hero_Branth_ImpactShot",
+      "IconId": "UI.Icon.Action.Hero.Branth.ImpactShot",
       "Category": "Action",
       "Axes": {
         "phase": "Attack",
@@ -1947,7 +1985,7 @@
         ],
         "derived_from": null,
         "display": "Colpo d'impatto",
-        "hero": "Riktor"
+        "hero": "Branth"
       },
       "Alphabet": {
         "PhaseStation": 14.8,
@@ -1973,8 +2011,8 @@
       "MockOrigin": "roster — Attack, Damage + Slow"
     },
     {
-      "AssetName": "RT_UI_Icon_Action_Hero_Riktor_KineticPanel",
-      "IconId": "UI.Icon.Action.Hero.Riktor.KineticPanel",
+      "AssetName": "RT_UI_Icon_Action_Hero_Branth_KineticPanel",
+      "IconId": "UI.Icon.Action.Hero.Branth.KineticPanel",
       "Category": "Action",
       "Axes": {
         "phase": "Preparation",
@@ -1982,7 +2020,7 @@
         "effects": [],
         "derived_from": "Action.CreateCover",
         "display": "Pannello cinetico",
-        "hero": "Riktor"
+        "hero": "Branth"
       },
       "Alphabet": {
         "PhaseStation": 4.4,
@@ -2008,8 +2046,8 @@
       "MockOrigin": "roster — Preparation, deriva da Action.CreateCover"
     },
     {
-      "AssetName": "RT_UI_Icon_Action_Hero_Riktor_Reconfigure",
-      "IconId": "UI.Icon.Action.Hero.Riktor.Reconfigure",
+      "AssetName": "RT_UI_Icon_Action_Hero_Branth_Reconfigure",
+      "IconId": "UI.Icon.Action.Hero.Branth.Reconfigure",
       "Category": "Action",
       "Axes": {
         "phase": "Preparation",
@@ -2017,7 +2055,7 @@
         "effects": [],
         "derived_from": null,
         "display": "Riconfigurazione",
-        "hero": "Riktor"
+        "hero": "Branth"
       },
       "Alphabet": {
         "PhaseStation": 4.4,
@@ -2043,8 +2081,8 @@
       "MockOrigin": "roster — Preparation"
     },
     {
-      "AssetName": "RT_UI_Icon_Action_Hero_Riktor_Ram",
-      "IconId": "UI.Icon.Action.Hero.Riktor.Ram",
+      "AssetName": "RT_UI_Icon_Action_Hero_Branth_Ram",
+      "IconId": "UI.Icon.Action.Hero.Branth.Ram",
       "Category": "Action",
       "Axes": {
         "phase": "FastMovement",
@@ -2061,7 +2099,7 @@
         ],
         "derived_from": "Action.Charge",
         "display": "Carica d'ariete",
-        "hero": "Riktor"
+        "hero": "Branth"
       },
       "Alphabet": {
         "PhaseStation": 6.8,
@@ -2087,8 +2125,8 @@
       "MockOrigin": "roster — FastMovement/LinearCharge, Damage + Push"
     },
     {
-      "AssetName": "RT_UI_Icon_Action_Hero_Riktor_Interposition",
-      "IconId": "UI.Icon.Action.Hero.Riktor.Interposition",
+      "AssetName": "RT_UI_Icon_Action_Hero_Branth_Interposition",
+      "IconId": "UI.Icon.Action.Hero.Branth.Interposition",
       "Category": "Action",
       "Axes": {
         "phase": "Control",
@@ -2096,7 +2134,7 @@
         "effects": [],
         "derived_from": "Action.Intercept",
         "display": "Interposizione",
-        "hero": "Riktor"
+        "hero": "Branth"
       },
       "Alphabet": {
         "PhaseStation": 9.2,
@@ -2315,31 +2353,6 @@
       "EmbeddedText": false,
       "CVDSafe": "verificare sulla contact sheet in scala di grigi",
       "MockOrigin": "roster — Control, il tratteggio qui significa «falso», non «previsto»"
-    },
-    {
-      "AssetName": "RT_UI_Icon_Action_Dodge",
-      "IconId": "UI.Icon.Action.Dodge",
-      "Category": "Action",
-      "Axes": null,
-      "Alphabet": null,
-      "NativeSize": [
-        24,
-        24
-      ],
-      "PngSizes": [
-        16,
-        20,
-        24,
-        32,
-        48
-      ],
-      "MinReadableSize": 16,
-      "SuggestedTint": "#009E73",
-      "Tintable": true,
-      "AlphaMode": "straight RGBA, nessun matte",
-      "EmbeddedText": false,
-      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
-      "MockOrigin": "handoff 2026-08-26 §4.1 — NON nel catalogo generico"
     },
     {
       "AssetName": "RT_UI_Icon_Phase_Prep",
@@ -2681,6 +2694,31 @@
       "MockOrigin": "assente dal mock"
     },
     {
+      "AssetName": "RT_UI_Icon_Status_Prone",
+      "IconId": "UI.Icon.Status.Prone",
+      "Category": "Status",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock — [D-319]/#2253, coppia con Status.Unbalanced"
+    },
+    {
       "AssetName": "RT_UI_Icon_Status_Reveal",
       "IconId": "UI.Icon.Status.Reveal",
       "Category": "Status",
@@ -2754,6 +2792,31 @@
       "EmbeddedText": false,
       "CVDSafe": "verificare sulla contact sheet in scala di grigi",
       "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Status_Unbalanced",
+      "IconId": "UI.Icon.Status.Unbalanced",
+      "Category": "Status",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock — [D-319]/#2253, coppia con Status.Prone"
     },
     {
       "AssetName": "RT_UI_Icon_Status_Wet",
@@ -2831,8 +2894,8 @@
       "MockOrigin": "assente dal mock"
     },
     {
-      "AssetName": "RT_UI_Icon_Identity_Riktor",
-      "IconId": "UI.Icon.Identity.Riktor",
+      "AssetName": "RT_UI_Icon_Identity_Branth",
+      "IconId": "UI.Icon.Identity.Branth",
       "Category": "Identity",
       "Axes": null,
       "Alphabet": null,
@@ -3578,7 +3641,7 @@
       "AlphaMode": "straight RGBA, nessun matte",
       "EmbeddedText": false,
       "CVDSafe": "verificare sulla contact sheet in scala di grigi",
-      "MockOrigin": "E25 — modulo di Riktor"
+      "MockOrigin": "E25 — modulo di Branth"
     },
     {
       "AssetName": "RT_UI_Icon_Reaction_EmergencyDash",

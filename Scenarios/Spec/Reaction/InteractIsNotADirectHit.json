@@ -21,7 +21,7 @@
 
   "units": [
     { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [0, 0, 0] },
-    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0] }
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] }
   ],
 
   "turns": [
@@ -40,7 +40,7 @@
       "type": "LogEventCount", "category": "Reaction", "outcome": "NotTriggered", "value": 1 },
     { "_assertion": "LA REGOLA: nessuna attivazione, perche' l'interazione non e' un colpo.",
       "type": "LogEventCount", "category": "Reaction", "outcome": "Activated", "value": 0 },
-    { "_assertion": "Corroborazione: nessun contrattacco, quindi Riktor resta pieno.",
+    { "_assertion": "Corroborazione: nessun contrattacco, quindi Branth resta pieno.",
       "type": "UnitHpEquals", "unit": "B1", "value": 120 },
     { "type": "TurnsCompleted", "value": 1 }
   ]

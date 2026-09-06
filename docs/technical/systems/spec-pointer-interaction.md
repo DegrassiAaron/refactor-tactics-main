@@ -96,7 +96,7 @@ d'origine, non come stato.
 | Delta | Stato |
 |---|---|
 | 1. Nessuno stato esplicito | ✅ **chiuso** — `ARTPlayerController::GetPointerContext()`, derivato e non memorizzato |
-| 2. Nessuna consapevolezza di fase nell'input | ✅ **chiuso** — `ResolutionPlayback` esce dalla fase del `TurnManager` |
+| 2. Nessuna consapevolezza di fase nell'input | 🟡 **parziale dal 2026-09-06** ([#2518](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2518) + [#2555](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2555)) — il **produttore** esce da `ARTTurnManager::IsResolving()`, e `Inspect` e' consentito perche' `OnResolvePlaybackFinished` ricalcola l'anteprima a risoluzione finita. **Coperti**: `SelectUnit`, `HandleClickOnUnit`, `HandleClickOnCell`, e il cancello `OnSelect`. ⛔ **SCOPERTI, e vanno nominati invece che nascosti sotto una spunta**: `HandleTargetCell`, `HandleTargetEdge`, `SelectAbilityForCurrent`, `BeginFacingDeclaration` — tutti scrivono il piano e nessuno consulta il contesto. 🔴 **Questa riga e' stata dichiarata chiusa TRE volte, e tre volte non lo era**: la prima su un ramo irraggiungibile (`Phase` non lascia mai `Planning`), la seconda con due ingressi su tre ancora ciechi, la terza con tre su almeno sette. ⚠️ **Ogni volta il difetto e' stato trovato da una code review, mai da chi scriveva** — ed e' la ragione per cui questa volta la riga porta l'elenco degli scoperti: cosi' il prossimo `✅` costa una misura invece di una convinzione |
 | 3. Nessuna precedenza HUD → mondo | ⏳ **aperto** — dipende dai widget UMG di [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613): senza hitbox non c'è nulla che consumi il puntatore |
 | 4. Nessuno stato neutro | ✅ **chiuso** — [D-128](../../decisions/RT_PDR_00_Decision_Log.md): `SelectedAbilityIndex` nasce a `INDEX_NONE` |
 | 5. Nessun produttore UI | ✅ **chiuso** — i tre produttori esistono e sono coperti |
@@ -533,18 +533,29 @@ tempo.)*
 - `HUDConsumesPointerBeforeWorld`
 - `HiddenEnemyCannotBecomeHoverTarget`
 - `AllyGhostIsReadOnly`
-- `PlaybackRejectsPlanningInput`
+- ~~`PlaybackRejectsPlanningInput`~~ — ✅ **esiste dal 2026-09-06** ([#2518](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2518)), come `RefactorTactics.HexMatch.PlaybackRejectsPlanningInput`
 - `ReactionWindowOwnsInputPriority`
 - `LogicalMapObjectResolvedFromStableId`
 
-⛔ **Nessuno dei sei qui sopra esiste**, ed e' scritto qui perche' il `✅` che segue riguarda **altri**
+⛔ **Nessuno dei CINQUE ancora barrati qui sopra esiste** (erano sei fino al 2026-09-06), ed e' scritto qui perche' il `✅` che segue riguarda **altri**
 test e la vicinanza inganna. Restano il perimetro DA SCRIVERE — lo dice gia' il `⏳` in fondo alla sezione,
 ma **dopo una tabella intera**, e chi legge in diagonale prende il `✅` per una spunta su questi.
 
-⚠️ **Ognuno dei sei porta chi lo blocca, e non e' mancanza di tempo**: due sono **feature travestite da
-test** — `PlaybackRejectsPlanningInput` (nessuno consuma `ResolutionPlayback` per rifiutare l'input) e
-`HiddenEnemyCannotBecomeHoverTarget` (l'hover non passa da nessun filtro di percezione, ed e' la privacy di
-§6.1) — e quattro attendono un owner: `#613`, CP 11.5/11.6, `E14`, `#74`. ⛔ Scriverne uno adesso darebbe un
+⚠️ **Ognuno porta chi lo blocca, e non e' mancanza di tempo**: `HiddenEnemyCannotBecomeHoverTarget` e'
+una **feature travestita da test** (l'hover non passa da nessun filtro di percezione, ed e' la privacy di
+§6.1), e quattro attendono un owner: `#613`, CP 11.5/11.6, `E14`, `#74`.
+
+✅ **`PlaybackRejectsPlanningInput` non e' piu' fra i mancanti** ([#2518](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2518),
+2026-09-06), come `RefactorTactics.HexMatch.PlaybackRejectsPlanningInput`. 🔑 **E la diagnosi scritta qui era
+per meta' sbagliata**: diceva *«nessuno consuma `ResolutionPlayback` per rifiutare l'input»*, ed era vero ma
+minore del vero — **nessuno lo produceva**, per il difetto registrato nella riga 2 della tabella di §2.2. La
+feature che il test aspettava erano quindi DUE, e la piu' piccola stava a monte: far derivare il contesto da
+`IsResolving()` invece che da una fase che non si muove.
+
+⚠️ **Riparare il produttore NON ha «risvegliato» i consumatori, e dirlo sarebbe stato falso** (code review):
+`ResolveBack` ha un chiamante di produzione (`ApplyBack`) e ora lo esercita davvero, ma `ResolveTarget` non ne
+ha **nessuno** — solo dichiarazione, definizione e test — quindi resta codice morto anche adesso. Chi lo
+collega e' un lavoro suo, non un effetto di questa correzione. ⛔ Scriverne uno adesso darebbe un
 test **verde su un percorso che nessuno esercita**, che e' esattamente la classe di difetto gia' registrata
 qui sopra.
 

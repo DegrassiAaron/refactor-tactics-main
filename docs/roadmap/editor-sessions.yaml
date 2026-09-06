@@ -1,4 +1,4 @@
-# Sedute in editor — la sorgente della EditorMap
+# Sedute in editor — i DATI delle sedute U*, senza piu' una vista che li renda
 #
 # Owner dei DATI delle sedute U*.
 #
@@ -8,8 +8,18 @@
 # c'e' piu' nemmeno uno script che lo cammini come testo generico: `scripts/` e' stata rimossa.
 #
 # ⚠️ Chi aggiunge una seduta oggi scrive in un file che nessuno rende. Resta perche' il CONTENUTO vale
-# — 27 sedute con passi, prerequisiti e artefatti, scritti a mano — non perche' qualcosa lo consumi.
+# — 48 sedute con passi, prerequisiti e artefatti, scritti a mano — non perche' qualcosa lo consumi.
 # L'esito delle voci `PIE-*` vive in `docs/technical/test-manuali-pie.md`, che lo rende leggibile.
+#
+# ⏱️ **48 misurate il 2026-09-06**, e la riga qui sopra diceva `27`: era esatta il 2026-08-21 quando fu
+# scritta (`d671df47`), e sono 21 sedute in 16 giorni. Tre metodi indipendenti concordano —
+# `grep -oE "^  - id: U[0-9]+" | sort -u | wc -l` (zero duplicati), la somma per `block`
+# (29+7+4+3+3+2) e `yaml.safe_load(...)['sessions']`.
+# 🔑 Il numero non contraddice l'avvertimento qui sopra, lo rafforza: il file cresce di una seduta ogni
+# 18 ore e continua a non avere ne' vista ne' consumatore. Referto:
+# `docs/roadmap/plans/schematiche-editor-execution-spec-panel-2026-09-06.md` §6.
+# ⚠️ Il comando qui sopra vale piu' del numero: senza un gate che lo verifichi, `48` sara' stantio entro
+# un giorno esattamente come lo era `27`. Chi lo rilegge lo RICALCOLA, non lo aggiorna a mente.
 #
 # Regola che questo file esiste per far rispettare (R-6 della spec):
 #   qui si citano gli **ID** delle voci PIE, mai il loro esito atteso.
@@ -651,9 +661,23 @@ sessions:
     shares_setup_with: []
     verifies:
       - PIE-V01-PACKAGED
-    issues: [959, 1088, 1069, 79, 1296]
+      - PIE-V01-PREPWINDOW
+    issues: [959, 1088, 1069, 79, 1296, 2386]
     done_when: esiste una registrazione di una partita 2v2 conclusa senza un solo input, eseguita due volte — PIE e pacchetto Development
     notes: |
+      ➕ **`PIE-V01-PREPWINDOW` si aggiunge qui il 2026-09-06 (#2386) e NON chiede una seduta propria**,
+      perche' condivide l'allestimento per intero: la modalita' non presidiata attiva, che e' gia'
+      `unblocked_by: E47.1`. Chi registra la partita di `PIE-V01-PACKAGED` **vede gia' la finestra** — sono
+      i tre secondi fra la fine della pianificazione e la risoluzione, a ogni turno. ⚠️ **Ma le due voci
+      chiedono cose diverse e non si spuntano insieme**: quella chiede una partita che arriva alla vittoria
+      *senza input*, questa chiede di **premere `P`** e guardare cosa succede. Chi esegue la prima senza mai
+      toccare la tastiera lascia questa aperta, ed e' corretto.
+
+      ⛔ **Nessuno scenario puo' sostituirla, e non per una capability mancante.** `RTScenarioSession`
+      chiama `LockInAndResolve()` diretto dopo `SetPlanningSeconds(0.f)`: non attraversa
+      `OnPlanningTimeout`, che e' dove la finestra si arma. E' la proprieta' che le impedisce di mettere tre
+      secondi d'attesa in ogni run headless — dichiarata in `scenario-map.md` §5.
+
       🔴 **Da sapere PRIMA di aprire l'editor: il bot NON cerca l'obiettivo.** Misurato —
       `grep Objective Source/RefactorTactics/Bot/` dà **zero**, e il suo scoring pesa danno, uccisioni e
       copertura; i goal veri (`SecureObjective`) sono E26. Nella partita d'autore i punti del team 1 sono
@@ -910,49 +934,102 @@ sessions:
     title: Animazioni
     block: 3
     critical: true
-    execution_lane: asset
-    produces: i dodici montaggi Cast/Hit/Death dei quattro personaggi
-    artifacts:
-      - Content/RT/Characters/Gadget/Animation/AM_Gadget_Attack.uasset
-      - Content/RT/Characters/Gadget/Animation/AM_Gadget_Hit.uasset
-      - Content/RT/Characters/Gadget/Animation/AM_Gadget_Death.uasset
-      - Content/RT/Characters/Phase/Animation/AM_Phase_Attack.uasset
-      - Content/RT/Characters/Phase/Animation/AM_Phase_Hit.uasset
-      - Content/RT/Characters/Phase/Animation/AM_Phase_Death.uasset
-      - Content/RT/Characters/Riktor/Animation/AM_Riktor_Attack.uasset
-      - Content/RT/Characters/Riktor/Animation/AM_Riktor_Hit.uasset
-      - Content/RT/Characters/Riktor/Animation/AM_Riktor_Death.uasset
-      - Content/RT/Characters/Wraith/Animation/AM_Wraith_Attack.uasset
-      - Content/RT/Characters/Wraith/Animation/AM_Wraith_Hit.uasset
-      - Content/RT/Characters/Wraith/Animation/AM_Wraith_Death.uasset
+    execution_lane: pie   # NON piu' `asset`: dal 2026-09-05 questa seduta non produce binari, giudica
+    produces: il giudizio `PIE-AS4b` su Cast/Hit/Death dei quattro personaggi
+    # 🔴 **Questa seduta non produce piu' asset, e il campo `artifacts` e' VUOTO di proposito.**
+    # Fino al 2026-09-05 elencava i dodici montaggi `AM_<Pack>_{Attack,Hit,Death}.uasset`. #2450 ha
+    # cambiato via: i tre ruoli si popolano come DATI nel CDO di `URTUnitAnimInstance`, non come
+    # `.uasset`, perche' `PlaySlotAnimationAsDynamicMontage(UAnimSequenceBase*, FName)`
+    # (`AnimInstance.h:591`) suona una clip sullo slot che il grafo gia' espone. Le dodici righe
+    # d'allowlist sono uscite dal `.gitignore`, e le dodici righe da `asset-map.md`, nello stesso commit.
+    #
+    # ⚠️ Un `artifacts` vuoto qui NON e' una dimenticanza: e' la dichiarazione che la seduta
+    # e' di giudizio e non di produzione. Chi lo ripopola sta reintroducendo la via scartata.
+    artifacts: []
     unblocked_by: []
     shares_setup_with: [U7, U9]
-    verifies: [PIE-AS4b]
-    issues: [288]
-    done_when: i dodici montaggi sono tracciati da git e PIE-AS4b ha esito reale
+    verifies: [PIE-AS4b, PIE-AS4c]
+    # ⚠️ 2521 e' la issue che CONVOCA questa seduta; le altre cinque sono cio' che l'ha resa
+    # eseguibile. Fino al 2026-09-05 mancava, e la mancanza non era innocua: #2444 e' stata chiusa
+    # `COMPLETED` con sei caselle di DoD vuote — fra cui i sei giudizi umani — perche' lo scope si era
+    # ristretto ai riferimenti duri e nessuno possedeva piu' il giudizio a schermo.
+    issues: [288, 2444, 2448, 2450, 2452, 2521]
+    done_when: PIE-AS4b e PIE-AS4c hanno esito reale sui quattro eroi
     unblocks: [U9, U19]
     steps: |
-      🔴 **Questa seduta NON produce piu' anim BP: il grafo di locomozione vive in C++.**
-      `URTUnitAnimInstance` monta Idle/Run in un blend e lo slot `DefaultSlot` come radice, e
-      `ARTUnit::ApplyUnitAnimClass()` assegna la classe allo spawn — vedi **D-248**. Restano solo i
-      **montaggi**, che sono lavoro reale: lo slot che li ospita esiste gia'.
+      🔴 **Questa seduta non produce piu' NIENTE: giudica.** Dal 2026-09-05 (#2450) i tre ruoli
+      `Attack`, `Hit` e `Death` si popolano come **dati** nel CDO di `URTUnitAnimInstance`, non come
+      `.uasset`: `PlaySlotAnimationAsDynamicMontage(UAnimSequenceBase*, FName)` (`AnimInstance.h:591`)
+      suona una clip sullo slot `DefaultSlot`, che il grafo espone gia' come radice (**D-248**).
 
-      Procedura in `guida-animazioni-paragon.md` §AS.4b. Per ogni pack, tre montaggi dalle clip
-      *Attacco*, *Colpito* e *Morte* di §AS.3b, poi i tre eventi `PlayAttackMontage`,
-      `PlayHitMontage` e `PlayDefeatMontage` sul `BP_Unit_<Pack>`, ciascuno collegato a un
-      `Play Anim Montage` col target sullo Skeletal Mesh Component. Niente bind, niente branch,
-      niente cast: li chiama il `TurnManager` da solo.
+      **L'ordine e' obbligato, e questa seduta viene per ULTIMA:**
 
-      **Il nome segue il PACK** (deciso 2026-08-11, come U7): `AM_Gadget_Attack`, `AM_Gadget_Hit`,
-      `AM_Gadget_Death`, e cosi' per Phase, Riktor e Wraith. La collocazione e'
-      `/Game/RT/Characters/<Pack>/Animation/` — non `Blueprints/`, che ospita i `BP_Unit_*`.
+          #2448 (il canale: gli eventi ricevono l'animazione risolta)
+                └─► #2450 (i dati: tre ruoli x quattro eroi nel CDO)
+                          └─► QUESTA seduta · PIE-AS4b + PIE-AS4c (il giudizio a schermo)
 
-      ⚠️ **Le clip di partenza si MISURANO, non si deducono**: §AS.3b conta **sei caselle su venti**
-      che non si chiamano come ci si aspetta — `Hitreact_Fwd` con la `r` minuscola per Gadget,
-      `Death` nudo per Phase, `Death_Forward` per Wraith.
+      ✅ **Le tre issue a monte sono CHIUSE dal 2026-09-05**: #2448 (il canale), #2450 (i dati) e
+      #2444 (i riferimenti duri che portano le clip nel cook). La seduta e' **eseguibile**, e per la
+      prima volta: fino a quel giorno non c'era nulla da guardare.
 
-      ⚠️ **Un `.uasset` per volta**: due non si fondono. I quattro pack sono file distinti, quindi il
-      lavoro e' parallelizzabile — ma non sullo stesso.
+      Aprirla prima che i dati esistano significa guardare quattro unita' che restano in posa di
+      riferimento, senza errore e senza log.
+
+      **Cosa si giudica, e sono due cose:**
+
+      1. `PIE-AS4b` — nel Blast l'attaccante gioca `Cast`, il bersaglio `Hit`; l'eliminazione gioca
+         `Death`. Banco: `Visual.Combat.Defeat` (`PIE-VIS-KO`).
+      2. **`PIE-AS4c` — taratura di `DefeatBeatSeconds`** (`ARTTurnManager`, oggi **0,80 s**). E' la
+         coda che #2452 ha
+         introdotto perche' il montaggio di morte avesse una finestra invece di zero, ed e' stata
+         scelta *senza avere un'animazione da guardare*. E' il numero che decide se la morte si legge
+         o si trascina, e si tara qui.
+
+      ### Il protocollo di taratura, passo per passo
+
+      🔴 **NON usare `rt.Test.Run`, e la prima stesura di questo protocollo lo faceva.** Lo scenario
+      harness spawna `ARTUnit::StaticClass()` (`RTScenarioSession.cpp:807`), cioe' il **cilindro**:
+      scavalca `HeroUnitClasses`, quindi niente Skeletal Mesh, quindi `ApplyUnitAnimClass()` esce senza
+      fare nulla e **nessun `AnimInstance` viene creato**. Nessuno scenario del corpus puo' essere un
+      banco di animazione, nemmeno in PIE. Misurato il 2026-09-06 su un tentativo reale: i quattro
+      personaggi entravano in campo come `RTUnit_0`, `RTUnit_5`, ...
+
+      ✅ **Serve una PARTITA NORMALE**, dove `ARTGameMode` riempie `HeroUnitClasses` e
+      `RTMatchBootstrapper::SpawnHero` mette in campo i quattro `BP_Unit_*` con le loro mesh — e' la
+      stessa configurazione su cui `PIE-AS4a` e' stato giudicato ✅ il 2026-09-03.
+
+      ⚠️ **`L_DevSandbox` non va bene**: ha un allestimento piazzato a mano (una sola unita', e il
+      `TurnManager` nel livello invece che spawnato — il log lo avvisa). Usa la mappa d'arena.
+
+      1. **PIE su una partita 2v2 normale.** Controlla nel log che entrino i quattro `BP_Unit_*_C_0`:
+         se leggi `RTUnit_N` sei sui cilindri e non c'e' niente da guardare.
+      2. **Aspetta un'eliminazione** e guardala. Il `Blast` in cui l'unita' cade e' l'ultima fase
+         riprodotta solo se dopo non muove nessuno: e' li' che la coda serve.
+      3. **Confronta due morti**: una seguita da una fase `Move` (finestra naturale) e una no.
+         - si legge nella prima e **non** nella seconda → `DefeatBeatSeconds` e' **troppo corto**;
+         - si **trascina** anche nella prima → e' l'animazione a essere lunga, la coda non c'entra;
+         - si legge in entrambe → il valore va bene, e si registra **quello**.
+      4. **Cambia il valore SENZA ricompilare**: `DefeatBeatSeconds` e' `EditAnywhere` su
+         `ARTTurnManager` — pannello Details, a PIE avviato.
+      5. ⛔ **Controprova obbligatoria: metti `0` e riguarda una morte in ultima fase.** Se si vede lo
+         stesso, la coda non sta facendo niente e il numero che stai per registrare non e' il suo.
+
+      🔑 **Cosa registrare**: il valore scelto, e **perche'** — quale dei tre esiti del passo 3 hai
+      visto. Un numero senza l'osservazione che lo motiva invecchia come quello che sostituisce.
+
+      ✅ **Le venti clip esistono sul disco**, verificato il 2026-09-06 contro i pack veri (0 mancanti su
+      20, con controllo di calibrazione). Se qualcosa non si vede, la causa **non e' un nome sbagliato**.
+
+      ⚠️ **In QUESTA seduta nessun `.uasset` va creato o toccato**: si giudica.
+      `find Content -iname "AM_*"` deve restare **0**.
+
+      ⚠️ I tre `BlueprintImplementableEvent` non vanno implementati — misurato il 2026-09-05 sulla
+      name table dei quattro binari, oggi non li implementa nessuno, e con la via dati non serve.
+
+      🔴 **Ma i quattro `BP_Unit_*` NON restano intatti**, e questa riga lo diceva fino al
+      2026-09-05: prima di questa seduta **#2444** deve aggiungerci il **riferimento duro** alle
+      dodici clip, o il cook non le porta nel pacchetto (`D-262`). E' un gesto diverso dal wiring
+      degli eventi, sugli stessi file: confonderli costa un gate rosso.
 
       > ⚠️ **Riscritta tre volte.** Il 2026-08-10 chiedeva `ABP_Gideon` e `ABP_Sparrow` in
       > `Blueprints/`: due anim BP intitolati a pack fuori dal roster, nella cartella sbagliata. Il
@@ -2931,12 +3008,16 @@ sessions:
     # ⛔ Nessuna delle quattro e' orfana — hanno gia' una seduta, e questa NON la sostituisce: la coda
     # esiste finche' i residui sono sparsi, e sparisce quando sono chiusi.
     unblocked_by: []
-    # `unblocked_by` vuoto e non e' una svista: il codice c'e' tutto. Le quattro voci non aspettano un
-    # checkpoint, aspettano un occhio — e per `PIE-HEXPLAY-6` aspettano anche `#1873`, vedi sotto.
+    # `unblocked_by` vuoto e non e' una svista: il codice c'e' tutto. Le voci non aspettano un
+    # checkpoint, aspettano un occhio.
+    # ⌫ Questa riga aggiungeva «e per `PIE-HEXPLAY-6` aspettano anche `#1873`»: quella issue e' **chiusa**
+    # dal 2026-09-05, perche' la sua premessa era falsa — la resa persistente esisteva dal 2026-08-12. Il
+    # residuo e' passato a `PIE-VIS-SIGHTWALL`, che questa seduta convoca; il difetto misurato, che sta a
+    # picco e non nella vista di gioco, resta di `#1246`.
     shares_setup_with: []
     verifies: [PIE-HEXPLAY-6, PIE-HEXPLAY-8, PIE-V01-ROSTER, PIE-V01-LOG, PIE-VIS-SIGHTWALL,
                PIE-VIS-TWOLAYERS]
-    issues: [1873]
+    issues: [1246]
     done_when: le sei voci hanno un esito reale nel registro, in un verso o nell'altro — le quattro del
       gate `G9` e le due che il 2026-09-04 hanno chiuso i due scenari `Visual.*` orfani
     unblocks: []
@@ -3008,6 +3089,86 @@ sessions:
       su quel punto mostra la cella e **non l'unita'**. Via MCP si giudicano mappa, celle e quote; non
       unita', HUD, VFX ne' playback. Le quattro voci di questa seduta chiedono precisamente cio' che il
       ponte non vede, e per questo restano di una persona a schermo.
-      ⚠️ E la stessa misura spiega perche' `#1873` va letta prima di ②: chi cattura dall'editor vede gli
-      anelli di `DrawCellOverlay` e crede che il muro si veda, mentre nella vista del giocatore quegli
-      anelli non ci sono.
+      ⚠️ E la stessa misura spiega la trappola del ②: chi cattura **dall'editor** vede gli anelli di
+      `DrawCellOverlay` — che pero' nascono spenti (`bCellOverlay = false`) — e crede di aver giudicato
+      la vista del giocatore. Il ② si giudica in PIE, alla camera del giocatore, non nel viewport di
+      lavoro. ⌫ Questa riga rimandava a `#1873`, chiusa il 2026-09-05: cio' che resta da leggere prima
+      di guardare e' `#1246`, che porta le tre concause della vista **a picco**.
+
+  - id: U47
+    title: La catena Unbalanced -> Prone, guardata mentre accade
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto su leggibilita' della spinta amplificata, della caduta e del prezzo per rialzarsi
+    artifacts: []
+    # 🔑 **Perche' e' una seduta e non tre voci sparse.** Le tre domande sono la stessa storia in tre
+    # momenti — ci si sbilancia, si cade, si paga per rialzarsi — e [D-319] la costruisce come CATENA.
+    # Giudicarne un anello per volta, in tre aperture diverse, e' il modo di non accorgersi che i tre
+    # momenti a schermo si somigliano: e' proprio la somiglianza il difetto da cercare.
+    #
+    # ⚠️ **Due dei tre banchi seminano lo stato invece di produrlo**, ed e' dichiarato nei file: la catena
+    # naturale e' INTER-TURNO per costruzione — il Blast precede il Move ([ADR-0003] §1), quindi «scivolo e
+    # poi mi spingono» non puo' accadere nello stesso turno. Come ci si sbilancia lo mostra il terzo banco,
+    # che e' lo scivolamento vero.
+    unblocked_by: [E8]
+    shares_setup_with: []
+    verifies: [PIE-VIS-UNBAL, PIE-VIS-PRONE, PIE-VIS-SLIDESTATE]
+    issues: [2378, 2253]
+    done_when: le tre voci hanno esito reale nel registro
+    unblocks: []
+    steps: |
+      Tre scenari, nell'ordine in cui il gioco li produce. `Scenario Filter A = animation` nel
+      `BP_GameMode`, poi `Scenario To Run = <id>` e Play — oppure `rt.Test.Scenario <Id>`.
+
+      ① `Visual.Environment.IceSlide` — **`PIE-VIS-SLIDESTATE`**. E' lo stesso banco di `PIE-VIS-ICE`,
+      guardato per un'altra domanda: la cella extra si vedeva gia', lo **stato** che ne segue e' nuovo.
+      Guardalo sapendo che arriva nell'**ultima** fase del turno, quando l'attenzione e' gia' altrove: se
+      non si vede li', non si vedra' mai.
+
+      ② `Visual.Combat.UnbalancedAmplifiesPush` — **`PIE-VIS-UNBAL`**. Due bersagli identici, la stessa
+      spinta, una sola variabile. Guarda **il contraccolpo**, non la distanza: la distanza si conta, il
+      contraccolpo si legge. Se si ripete due volte, la spinta amplificata sembrera' due spinte.
+      ⚠️ E nello stesso istante nascono `Prone` e muore `Unbalanced`. Sono due fatti: contali.
+
+      ③ `Visual.Movement.ProneStandUpCosts` — **`PIE-VIS-PRONE`**. Due rotte identiche, una si ferma prima.
+      La domanda non e' se il conto torni — lo dice `Status.StandUpCostsOneMovePoint`, headless — ma se
+      la cella mancante si legga come un **prezzo pagato** invece che come un movimento rotto.
+
+      ⛔ **Cio' che questa seduta NON deve fare e' verificare che gli scenari passino.** Sono verdi
+      headless prima che tu prema Play: se uno e' rosso, il gioco e' deviato e la seduta non e' il posto
+      dove scoprirlo.
+
+  - id: U48
+    title: Le due icone di movimento, alla dimensione in cui si giocano
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto sulla distinguibilita' di `Status.Unbalanced` e `Status.Prone` a schermo
+    artifacts: []
+    # 🔴 **Le due icone sono entrate nel catalogo senza che nessuno le guardasse**, ed e' la lacuna che
+    # questa seduta chiude. Il gate `IconCatalog.RealCatalogCoversRequiredIds` dimostra che la chiave
+    # RISOLVE — cioe' che a schermo non compare un ripiego testuale — non che il glifo si LEGGA.
+    #
+    # ⚠️ **Separata da U47 di proposito.** Li' si giudica un'animazione, qui un glifo di ~10 px: due
+    # distanze di camera diverse, e chi le mescola finisce per non fare bene nessuna delle due. La
+    # precondizione e' pero' la stessa scena, quindi si aprono di seguito.
+    unblocked_by: [E20]
+    shares_setup_with: [U47]
+    verifies: [PIE-ICON-02]
+    issues: [2378, 2253]
+    done_when: la voce ha esito reale nel registro
+    unblocks: []
+    steps: |
+      Apri `Visual.Combat.UnbalancedAmplifiesPush`: a spinta risolta la scena porta un'unita' `Unbalanced`
+      e una `Prone` **nello stesso fotogramma**, che e' la sola condizione in cui la domanda ha senso.
+
+      **Avvicina la camera a mano.** In cattura automatica il glifo occupa una decina di pixel sopra
+      un'unita' inquadrata a picco, e la differenza fra corpo inclinato e corpo orizzontale non e'
+      giudicabile: e' la scommessa che il generatore dichiara e che nessuno ha ancora misurato.
+
+      Poi allontanala fino alla distanza di gioco e **rifai la domanda**. Il verdetto e' quello a
+      distanza di gioco, non quello ravvicinato: se si distinguono solo da vicino, non si distinguono.
+
+      ⛔ Se compare una warning di `ResolveIcon` — nomina chiave e consumer — stai guardando il ripiego
+      testuale e non la texture: la voce **non e' eseguibile** finche' quella riga c'e'.

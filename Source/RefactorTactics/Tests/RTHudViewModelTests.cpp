@@ -73,17 +73,17 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 
 	ARTUnit* Gadget = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
 	ARTUnit* Phase = SpawnHudVmUnit(World, TEXT("Hero.Phase"), /*TeamId*/ 0);
-	ARTUnit* Riktor = SpawnHudVmUnit(World, TEXT("Hero.Riktor"), /*TeamId*/ 1);
+	ARTUnit* Branth = SpawnHudVmUnit(World, TEXT("Hero.Branth"), /*TeamId*/ 1);
 	ARTUnit* Wraith = SpawnHudVmUnit(World, TEXT("Hero.Wraith"), /*TeamId*/ 1);
 
 	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Phase"), Phase)
-		|| !TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("Wraith"), Wraith))
+		|| !TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Wraith"), Wraith))
 	{
 		DestroyHudVmWorld(World);
 		return false;
 	}
 
-	const TArray<ARTUnit*> All = { Gadget, Phase, Riktor, Wraith };
+	const TArray<ARTUnit*> All = { Gadget, Phase, Branth, Wraith };
 
 	const TArray<FRTUnitCardView> Mine = URTHudViewModel::BuildTeamRoster(All, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("il roster ha le due unita' della mia squadra"), Mine.Num(), 2);
@@ -91,7 +91,7 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 	{
 		TestTrue(*FString::Printf(TEXT("%s e' un alleato"), *Card.HeroId.ToString()), Card.bIsAlly);
 		TestFalse(TEXT("nessun avversario nel roster"),
-			Card.HeroId == TEXT("Hero.Riktor") || Card.HeroId == TEXT("Hero.Wraith"));
+			Card.HeroId == TEXT("Hero.Branth") || Card.HeroId == TEXT("Hero.Wraith"));
 	}
 
 	// Simmetrico: cambiando squadra cambia il roster, e la funzione non ha altri parametri con cui sbagliare.
@@ -123,22 +123,22 @@ bool FRTHudVmCardMirrorsUnitTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-	ARTUnit* Riktor = SpawnHudVmUnit(World, TEXT("Hero.Riktor"), /*TeamId*/ 0);
-	if (!TestNotNull(TEXT("Riktor"), Riktor)) { DestroyHudVmWorld(World); return false; }
+	ARTUnit* Branth = SpawnHudVmUnit(World, TEXT("Hero.Branth"), /*TeamId*/ 0);
+	if (!TestNotNull(TEXT("Branth"), Branth)) { DestroyHudVmWorld(World); return false; }
 
-	Riktor->Health = 42;
-	Riktor->Shield = 7;
+	Branth->Health = 42;
+	Branth->Shield = 7;
 
-	const FRTUnitCardView Card = URTHudViewModel::BuildUnitCard(Riktor, /*PlayerTeamId*/ 0);
+	const FRTUnitCardView Card = URTHudViewModel::BuildUnitCard(Branth, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("salute"), Card.Health, 42);
 	TestEqual(TEXT("scudo"), Card.Shield, 7);
-	TestEqual(TEXT("salute massima dal catalogo eroi"), Card.MaxHealth, Riktor->MaxHealth);
-	TestEqual(TEXT("identita'"), Card.HeroId, Riktor->HeroId);
+	TestEqual(TEXT("salute massima dal catalogo eroi"), Card.MaxHealth, Branth->MaxHealth);
+	TestEqual(TEXT("identita'"), Card.HeroId, Branth->HeroId);
 	TestTrue(TEXT("alleato"), Card.bIsAlly);
 	TestTrue(TEXT("vivo"), Card.bAlive);
 
 	// La stessa unita' vista dall'altra squadra e' la stessa unita': cambia la RELAZIONE, non i numeri.
-	const FRTUnitCardView Enemy = URTHudViewModel::BuildUnitCard(Riktor, /*PlayerTeamId*/ 1);
+	const FRTUnitCardView Enemy = URTHudViewModel::BuildUnitCard(Branth, /*PlayerTeamId*/ 1);
 	TestFalse(TEXT("vista da squadra 1 non e' alleata"), Enemy.bIsAlly);
 	TestEqual(TEXT("ma la salute e' la stessa"), Enemy.Health, 42);
 
@@ -997,4 +997,217 @@ bool FRTHudVmReadyCountdownTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// I due orologi e la regola che li combina (`#2193`, `#2358`, `#613`)
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * **IL NUMERO DA MOSTRARE E' IL PIU' VICINO DEI DUE, E LA REGOLA STA IN UN POSTO SOLO.**
+ *
+ * 🔴 **Perche' questo test esiste adesso.** La regola c'era gia' — dentro `ARTHUD::ComposeMatchStatusLine`,
+ * e `HUD.MatchStatusShowsTheReadyCountdown` la copre **attraverso la riga di testo del Canvas**. Con lo
+ * Screen HUD in UMG (`#613`) arriva un secondo consumatore che quella riga non la attraversa: un
+ * `WBP_RT_TurnHeader` che stampasse `ReadyCountdownSecondsRemaining` sarebbe corretto secondo il tipo e
+ * sbagliato secondo il gioco, e **nessun test lo direbbe**. Qui la regola e' misurata da sola, cosi' che
+ * ogni consumatore possa consumarla invece di riscriverla.
+ *
+ * ⚠️ Il caso che discrimina e' il secondo: se qualcuno «semplificasse» la funzione restituendo il countdown,
+ * tutti gli altri casi resterebbero verdi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmSecondsUntilCommitTest,
+	"RefactorTactics.HudViewModel.SecondsUntilCommitIsTheNearerClock",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmSecondsUntilCommitTest::RunTest(const FString&)
+{
+	FRTMatchHeaderView View;
+
+	// CONTROLLO della premessa: sulla vista neutra non c'e' nessun conto alla rovescia da mostrare, e la
+	// risposta e' un negativo — non uno zero, che si leggerebbe «commit adesso».
+	TestTrue(TEXT("vista neutra: nessun orologio, risposta negativa"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View) < 0.f);
+
+	// Solo il tetto del Planning: e' lui il momento del commit.
+	View.PlanningSecondsRemaining = 25.f;
+	View.ReadyCountdownSecondsRemaining = -1.f;
+	TestEqual(TEXT("senza Ready: il commit arriva alla scadenza del Planning"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View), 25.f);
+
+	// 🔴 IL CASO CHE DISCRIMINA: il tetto e' piu' corto del countdown e vince lui (`#2193`).
+	View.PlanningSecondsRemaining = 1.5f;
+	View.ReadyCountdownSecondsRemaining = 3.f;
+	TestEqual(TEXT("tetto piu' corto del countdown: vince il tetto"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View), 1.5f);
+
+	// Il verso opposto, che da solo non proverebbe niente ma serve a escludere un `Min` invertito.
+	View.PlanningSecondsRemaining = 25.f;
+	View.ReadyCountdownSecondsRemaining = 3.f;
+	TestEqual(TEXT("countdown piu' corto del tetto: vince il countdown"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View), 3.f);
+
+	// Run headless: il Planning non ha orologio, e un `Min` cieco avrebbe restituito il negativo spegnendo
+	// l'unico conto in corsa.
+	View.PlanningSecondsRemaining = -1.f;
+	View.ReadyCountdownSecondsRemaining = 3.f;
+	TestEqual(TEXT("senza tetto: il countdown resta l'unico orologio"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View), 3.f);
+
+	// Zero non e' «non si applica»: e' un numero da mostrare, ed e' l'ultimo istante prima del commit.
+	View.PlanningSecondsRemaining = 25.f;
+	View.ReadyCountdownSecondsRemaining = 0.f;
+	TestEqual(TEXT("countdown a zero: commit adesso, non «non si applica»"),
+		URTHudViewModel::ComputeSecondsUntilCommit(View), 0.f);
+
+	return true;
+}
+
+/**
+ * **E il campo pubblicato dice la stessa cosa della funzione.**
+ *
+ * ⚠️ `FRTMatchHeaderView::SecondsUntilCommit` e' una **comodita' derivata**: chi costruisce la vista a mano
+ * lo trova al default. Questo test copre l'unico produttore che deve popolarlo — `BuildMatchHeader` — e lo
+ * fa confrontandolo con la funzione invece che con un numero scritto qui: un valore atteso costante
+ * pinnerebbe l'orologio, non la coerenza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmSecondsUntilCommitIsPublishedTest,
+	"RefactorTactics.HudViewModel.SecondsUntilCommitIsPublishedByTheProducer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmSecondsUntilCommitIsPublishedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHudVmWorld(World); return false; }
+
+	TM->SetPlanningSeconds(30.f);
+	TM->RequestLockIn();
+	if (!TestTrue(TEXT("il countdown e' armato: senza, la misura non proverebbe niente"),
+		TM->IsReadyCountdownActive()))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	const FRTMatchHeaderView Vista = URTHudViewModel::BuildMatchHeader(TM);
+	TestEqual(TEXT("il campo pubblicato coincide con la funzione"),
+		Vista.SecondsUntilCommit, URTHudViewModel::ComputeSecondsUntilCommit(Vista));
+	TestTrue(TEXT("e con un countdown armato porta un numero, non «non si applica»"),
+		Vista.SecondsUntilCommit >= 0.f);
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+
+// ---------------------------------------------------------------------------------------------------------
+// Il token di danno: la cifra viene dall'evento, e il caso zero e' una decisione (`#2455`)
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * 🔴 **Il numero mostrato e' quello dell'evento, e il caso `Amount <= 0` ha un comportamento SCELTO.**
+ *
+ * È l'unica regola di giudizio che il token possiede, ed è pura apposta: `URTUnitOverlayWidget` è un
+ * `UUserWidget` con copertura headless **zero** ([D-320] punto 5), quindi tutto ciò che decide deve vivere
+ * qui, dove un test lo chiama senza costruire un widget.
+ *
+ * ⚠️ **Il caso zero non è di frontiera.** `URTHexCombatLibrary::CollectHexAttacks` dichiara *«Il danno si
+ * ferma a 0: il colpo resta avvenuto»* e aggiunge comunque il colpo a `Plan.Hits`: con
+ * `LowCoverDamageReduction = 10`, un intento di potenza ≤ 10 dietro copertura bassa arriva qui a zero. Un
+ * ramo `else` non deciso lo mostrerebbe come «niente» — cioè un attacco che non è successo, quando invece
+ * è successo e non ha tolto nulla.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamageTokenCarriesEventAmountTest,
+	"RefactorTactics.HudViewModel.DamageTokenCarriesTheEventAmountAndDecidesTheZeroCase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDamageTokenCarriesEventAmountTest::RunTest(const FString&)
+{
+	// (a) Il caso ordinario: la cifra dell'evento, col segno. Il segno è un canale, non decorazione — `#2453`
+	// vieta il colore come UNICO canale, e una cifra nuda si leggerebbe come una cura.
+	{
+		const FRTDamageTokenView T = URTHudViewModel::BuildDamageToken(17, /*Target*/ 3);
+		TestTrue(TEXT("(a) c'e' danno"), T.bHasDamage);
+		TestEqual(TEXT("(a) l'importo e' quello dell'evento"), T.Amount, 17);
+		TestEqual(TEXT("(a) l'etichetta porta cifra e segno"), T.Label, FString(TEXT("-17")));
+		TestEqual(TEXT("(a) il soggetto e' chi subisce"), T.TargetStableUnitId, 3);
+	}
+
+	// (b) 🔴 Il caso zero: NON la cifra nuda, e NON il vuoto.
+	{
+		const FRTDamageTokenView T = URTHudViewModel::BuildDamageToken(0, /*Target*/ 3);
+		TestFalse(TEXT("(b) nessun danno da mostrare come cifra"), T.bHasDamage);
+		TestFalse(TEXT("(b) ma un'etichetta c'e': il colpo e' avvenuto"), T.Label.IsEmpty());
+		TestNotEqual(TEXT("(b) e non e' la cifra nuda 0"), T.Label, FString(TEXT("0")));
+		TestNotEqual(TEXT("(b) ne' un meno seguito da zero"), T.Label, FString(TEXT("-0")));
+	}
+
+	// (c) Difesa: un valore negativo non è atteso — `Hit.Power` passa da `FMath::Max(0, ...)` — ma se
+	// arrivasse, `-(-3)` stamperebbe `+3` sopra la testa di chi ha appena incassato. Cade nel ramo dello
+	// zero, che dice «nessuna quantità da mostrare» senza inventarne una.
+	{
+		const FRTDamageTokenView T = URTHudViewModel::BuildDamageToken(-3, /*Target*/ 3);
+		TestFalse(TEXT("(c) un negativo non e' danno da mostrare"), T.bHasDamage);
+		TestEqual(TEXT("(c) e cade nella stessa etichetta dello zero"),
+			T.Label, URTHudViewModel::BuildDamageToken(0, 3).Label);
+		TestFalse(TEXT("(c) e non stampa un segno piu'"), T.Label.Contains(TEXT("+")));
+	}
+
+	// (d) `0` non è l'unità numero zero: è «nessuno» ([D-063]). Si conserva com'è, così chi disegna
+	// confronta con il proprio `StableUnitId` e non trova nessuna corrispondenza.
+	{
+		const FRTDamageTokenView T = URTHudViewModel::BuildDamageToken(17, /*Target*/ 0);
+		TestEqual(TEXT("(d) lo zero del soggetto attraversa intatto"), T.TargetStableUnitId, 0);
+		TestTrue(TEXT("(d) e non impedisce di comporre la cifra"), T.bHasDamage);
+	}
+
+	// (e) ⛔ Anti-vacuità: l'etichetta **dipende** dall'importo. Senza questa riga tutte le sopra
+	// starebbero in piedi anche con una costante al posto della composizione.
+	TestNotEqual(TEXT("(e) importi diversi, etichette diverse"),
+		URTHudViewModel::BuildDamageToken(17, 3).Label,
+		URTHudViewModel::BuildDamageToken(18, 3).Label);
+
+	return true;
+}
+
+/**
+ * 🔴 **A scadenza l'animazione vale esattamente `0`, e lo zero esatto è il contenuto del test.**
+ *
+ * L'AC di `#2455` chiede che la barra *«torni a riposo senza restare in uno stato transitorio»*. Con un
+ * ritorno approssimato la scala si fermerebbe a `1.0001` e la sovrapposizione resterebbe per sempre appena
+ * più grande, in un punto dove nessuno guarderebbe più — un difetto che non fa rumore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverlayFadeAlphaTest,
+	"RefactorTactics.HudViewModel.FadeAlphaReachesRestExactly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverlayFadeAlphaTest::RunTest(const FString&)
+{
+	// All'inizio: pieno.
+	TestEqual(TEXT("a tempo zero l'animazione e' piena"),
+		URTUnitOverlayWidget::FadeAlpha(0.f, 1.f), 1.f);
+
+	// A metà: metà. Non è una proprietà del riposo, ma senza di essa «0 all'inizio e 0 alla fine» sarebbe
+	// soddisfatto anche da una funzione costante a zero.
+	TestEqual(TEXT("a meta' durata vale meta'"),
+		URTUnitOverlayWidget::FadeAlpha(0.5f, 1.f), 0.5f);
+
+	// 🔴 A scadenza: **esattamente** zero, non «circa».
+	TestEqual(TEXT("a scadenza e' esattamente zero"),
+		URTUnitOverlayWidget::FadeAlpha(1.f, 1.f), 0.f);
+
+	// Oltre la scadenza: resta zero, non diventa negativa — una scala negativa specchierebbe il widget.
+	TestEqual(TEXT("oltre la scadenza resta zero"),
+		URTUnitOverlayWidget::FadeAlpha(5.f, 1.f), 0.f);
+
+	// Durata non positiva: «già finita», e nessuna divisione per zero. `DamageTokenSeconds = 0` è il modo
+	// dichiarato per spegnere l'effetto senza ricompilare.
+	TestEqual(TEXT("durata zero: gia' finita"),
+		URTUnitOverlayWidget::FadeAlpha(0.f, 0.f), 0.f);
+	TestEqual(TEXT("durata negativa: gia' finita, non un errore"),
+		URTUnitOverlayWidget::FadeAlpha(1.f, -1.f), 0.f);
+
+	// Un tempo negativo non risale sopra il pieno: il clamp sta sul tempo, e vale in entrambi i versi.
+	TestEqual(TEXT("un tempo negativo non supera il pieno"),
+		URTUnitOverlayWidget::FadeAlpha(-2.f, 1.f), 1.f);
+
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS

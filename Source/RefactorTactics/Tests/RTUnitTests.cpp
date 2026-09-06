@@ -7,6 +7,7 @@
 #include "Unit/RTUnit.h"
 #include "Combat/RTCombatLibrary.h" // BaseShield: il valore lo dichiara il combattimento, non il test
 #include "Map/RTMapVisuals.h"
+#include "Unit/RTContactGhostAnimInstance.h" // #1750: il grafo della sagoma, distinto da quello vivo
 #include "Unit/RTUnitAnimInstance.h" // #288: il grafo di locomozione vive in C++ // #983: si include invece di fidarsi della transitivita' di RTUnit.h
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -30,7 +31,7 @@ bool FRTUnitArchetypeCooldownTest::RunTest(const FString&)
 {
 	ARTUnit* Unit = NewObject<ARTUnit>();
 	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
-	Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeRiktor());
+	Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeBranth());
 
 	// L'abilita' la sceglie il KIT, non un indice scritto a mano: se i numeri dell'archetipo cambiano, il
 	// test resta valido invece di verificare la cosa sbagliata in silenzio.
@@ -367,19 +368,19 @@ bool FRTCatalogFastMovementIsFoundAsDashTest::RunTest(const FString&)
 {
 	// Le azioni degli eroi arrivano dal catalogo e dichiarano la FASE, non un flag: fino a #142 nessuna di
 	// loro veniva riconosciuta come scatto, quindi il bot non ne pianificava mai uno per i quattro eroi.
-	URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
-	if (!TestNotNull(TEXT("Riktor dal catalogo"), Riktor)) { return false; }
+	URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
+	if (!TestNotNull(TEXT("Branth dal catalogo"), Branth)) { return false; }
 
 	ARTUnit* Unit = NewObject<ARTUnit>();
 	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
-	Unit->ConfigureFromHeroData(Riktor);
+	Unit->ConfigureFromHeroData(Branth);
 
 	const int32 DashIdx = Unit->FindDashAbilityIndex();
 	if (!TestTrue(TEXT("l'unita' riconosce la sua mobilita' rapida"), DashIdx != INDEX_NONE)) { return false; }
 
 	const URTActionData* Dash = Unit->GetAbility(DashIdx);
 	if (!TestNotNull(TEXT("l'abilita' trovata esiste"), (void*)Dash)) { return false; }
-	TestTrue(TEXT("ed e' proprio la carica di Riktor"), Dash->Def.ActionId == FName(TEXT("Hero.Riktor.Ram")));
+	TestTrue(TEXT("ed e' proprio la carica di Branth"), Dash->Def.ActionId == FName(TEXT("Hero.Branth.Ram")));
 
 	// La verifica ha senso solo se il riconoscimento NON passa da un campo dell'asset: e' la fase del
 	// catalogo a dirlo. Se un giorno tornasse un flag, questa asserzione cadrebbe insieme al motivo del test.
@@ -451,8 +452,21 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 	const TMap<FName, TPair<FString, FString>> Attese = {
 		{ FName(TEXT("Hero.Gadget")), { TEXT("Idle"),           TEXT("Run_Fwd") } },
 		{ FName(TEXT("Hero.Phase")),  { TEXT("Idle"),           TEXT("Jog_Fwd") } },
-		{ FName(TEXT("Hero.Riktor")), { TEXT("Idle"),           TEXT("Jog_Fwd") } },
+		{ FName(TEXT("Hero.Branth")), { TEXT("Idle"),           TEXT("Jog_Fwd") } },
 		{ FName(TEXT("Hero.Wraith")), { TEXT("Idle_NonCombat"), TEXT("Jog_Fwd") } },
+	};
+
+	// 🔴 **Il pack NON si deriva dall'HeroId, e da [D-334] non potrebbe piu'.** Fino al rename di `Riktor`
+	// bastava `Chi.RightChop(5)` — `Hero.Gadget` -> `Gadget` — perche' identita' RT e nome dello slot asset
+	// **coincidevano**. E' esattamente la coincidenza che [D-321] ha dichiarato un difetto (*«lo slot non e'
+	// l'identita'»*): `Hero.Branth` vive nel pack `ParagonRiktor` finche' la fetta E di #2297 non rinomina
+	// l'asset. Una derivazione che oggi da' il nome giusto per tre eroi su quattro non e' una regola: e' un
+	// residuo dell'invariante rotta, e va scritta a mano finche' i due piani non tornano allineati.
+	const TMap<FName, FString> PackDiEroe = {
+		{ FName(TEXT("Hero.Gadget")), TEXT("Gadget") },
+		{ FName(TEXT("Hero.Phase")),  TEXT("Phase")  },
+		{ FName(TEXT("Hero.Branth")), TEXT("Riktor") },
+		{ FName(TEXT("Hero.Wraith")), TEXT("Wraith") },
 	};
 
 	TestEqual(TEXT("il default copre i quattro eroi del roster"), Cdo->ClipsPerHero.Num(), Attese.Num());
@@ -460,18 +474,40 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 	for (const TPair<FName, TPair<FString, FString>>& Attesa : Attese)
 	{
 		const FString Chi = Attesa.Key.ToString();
-		const FRTLocomotionClips* Clips = Cdo->FindClipsFor(Attesa.Key);
+		const FRTHeroPresentationClips* Clips = Cdo->FindClipsFor(Attesa.Key);
 		if (!TestNotNull(*FString::Printf(TEXT("clip per %s"), *Chi), (const void*)Clips)) { continue; }
+
+		// ⛔ **Anti-vacuita' del livello nuovo, ed e' l'unica che morde dopo la migrazione a ruoli.**
+		// `ClipsPerHero.Num()` continuerebbe a dire 4 con le mappe dei ruoli VUOTE, e allora i due path
+		// letti sotto sarebbero due stringhe vuote uguali fra loro: i `TestEqual` cadrebbero, ma il
+		// messaggio parlerebbe di nomi sbagliati invece che di ruoli assenti.
+		//
+		// ⚠️ **Si chiede la PRESENZA dei due ruoli, non il loro NUMERO** (#2450): contare diceva `2` ed
+		// e' diventato `5` il giorno in cui `Attack`/`Hit`/`Death` sono entrati nel CDO. Un conteggio qui
+		// avrebbe fatto fallire questo test per una ragione che non e' la sua — e il messaggio avrebbe
+		// parlato di locomozione mentre il cambiamento era altrove.
+		if (!TestNotNull(*FString::Printf(TEXT("%s: il ruolo Idle e' popolato"), *Chi),
+				(const void*)Clips->FindRole(ERTPresentationRole::Idle))
+			|| !TestNotNull(*FString::Printf(TEXT("%s: il ruolo Move e' popolato"), *Chi),
+				(const void*)Clips->FindRole(ERTPresentationRole::Move)))
+		{
+			continue;
+		}
 
 		// Il PACK e' parte dell'asserto quanto la clip: lo scambio fra due eroi — l'errore facile in una
 		// tabella di quattro righe simili — passerebbe un controllo scritto sul solo nome della clip,
 		// perche' tre eroi su quattro condividono `Idle` e `Jog_Fwd`.
-		const FString Pack = Chi.RightChop(5);   // `Hero.Gadget` -> `Gadget`
+		const FString* PackTrovato = PackDiEroe.Find(FName(*Chi));
+		if (!TestNotNull(*FString::Printf(TEXT("%s: pack dichiarato"), *Chi), (const void*)PackTrovato)) { continue; }
+		const FString Pack = *PackTrovato;
 		const FString Radice = FString::Printf(
 			TEXT("/Game/FabAsset/Paragon/Paragon%s/Characters/Heroes/%s/Animations/"), *Pack, *Pack);
 
-		const FString VistoIdle = Clips->Idle.ToSoftObjectPath().ToString();
-		const FString VistoRun = Clips->Run.ToSoftObjectPath().ToString();
+		// Si legge la variante ATTIVA del ruolo, che e' cio' che il grafo suona davvero.
+		const FString VistoIdle =
+			Cdo->ActiveClipFor(Attesa.Key, ERTPresentationRole::Idle).ToSoftObjectPath().ToString();
+		const FString VistoRun =
+			Cdo->ActiveClipFor(Attesa.Key, ERTPresentationRole::Move).ToSoftObjectPath().ToString();
 
 		TestEqual(*FString::Printf(TEXT("%s: idle"), *Chi),
 			VistoIdle, FString::Printf(TEXT("%s%s.%s"), *Radice, *Attesa.Value.Key, *Attesa.Value.Key));
@@ -490,6 +526,89 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 	{
 		TestEqual(TEXT("l'unita' usa il grafo C++ per default"),
 			UnitCdo->UnitAnimClass.Get(), URTUnitAnimInstance::StaticClass());
+	}
+	return true;
+}
+
+
+/**
+ * **I tre ruoli discreti — `Attack`, `Hit`, `Death` — puntano alle clip misurate sul disco** (#2450).
+ *
+ * 🔴 **Il gemello di `LocomotionClipsMatchThePacks`, e la ragione per cui e' un test SEPARATO**: quello
+ * presidia cio' che il GRAFO suona di continuo (due sequence player), questo cio' che il CANALE discreto
+ * suona a evento (#2448, sullo slot). Sono due consumatori diversi, e un giorno uno dei due potrebbe
+ * cambiare senza l'altro.
+ *
+ * ⚠️ **Quattro caselle su dodici** non si chiamano come ci si aspetta — contate sulla tabella di §AS.3b,
+ * non a memoria: `Hitreact_Fwd` con la `r` minuscola per Gadget, `HitReact_Fwd` per Phase, `Death` nudo per
+ * Phase, `Death_Forward` per Wraith. `Cast` regge **4 volte su 4**, ed e' l'unico ruolo che si trasferisce
+ * sempre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitDiscreteRoleClipsTest,
+	"RefactorTactics.Unit.DiscreteRoleClipsMatchThePacks",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitDiscreteRoleClipsTest::RunTest(const FString&)
+{
+	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
+	if (!TestNotNull(TEXT("CDO dell'AnimInstance"), Cdo)) { return false; }
+
+	// 🔴 **Il `Pack` e' un campo, non una derivazione dall'HeroId** — stessa ragione scritta per esteso
+	// sopra `PackDiEroe` in `DefaultClipsPerHero`: da [D-334] identita' RT e nome dello slot asset non
+	// coincidono piu', e `Hero.Branth` vive nel pack `ParagonRiktor` finche' la fetta E di #2297 non
+	// rinomina l'asset. `Chi.RightChop(5)` dava il nome giusto per tre eroi su quattro, che e' il modo in
+	// cui un residuo sopravvive a una migrazione.
+	struct FAttesa { const TCHAR* Hero; const TCHAR* Pack; const TCHAR* Attack; const TCHAR* Hit; const TCHAR* Death; };
+	static const FAttesa Attese[] = {
+		{ TEXT("Hero.Gadget"), TEXT("Gadget"), TEXT("Cast"), TEXT("Hitreact_Fwd"),   TEXT("Death_Fwd") },
+		{ TEXT("Hero.Phase"),  TEXT("Phase"),  TEXT("Cast"), TEXT("HitReact_Fwd"),   TEXT("Death") },
+		{ TEXT("Hero.Branth"), TEXT("Riktor"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd") },
+		{ TEXT("Hero.Wraith"), TEXT("Wraith"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward") },
+	};
+
+	for (const FAttesa& A : Attese)
+	{
+		const FName Chiave(A.Hero);
+		const FString Chi = Chiave.ToString();
+		const FString Pack = A.Pack;   // dichiarato, non derivato: vedi il blocco sopra
+		const FString Radice = FString::Printf(
+			TEXT("/Game/FabAsset/Paragon/Paragon%s/Characters/Heroes/%s/Animations/"), *Pack, *Pack);
+
+		const TCHAR* const Nomi[] = { A.Attack, A.Hit, A.Death };
+		const ERTPresentationRole Ruoli[] = {
+			ERTPresentationRole::Attack, ERTPresentationRole::Hit, ERTPresentationRole::Death };
+		const TCHAR* const Etichette[] = { TEXT("Attack"), TEXT("Hit"), TEXT("Death") };
+
+		for (int32 I = 0; I < 3; ++I)
+		{
+			const FString Visto = Cdo->ActiveClipFor(Chiave, Ruoli[I]).ToSoftObjectPath().ToString();
+			// Il PACK e' parte dell'asserto quanto la clip: lo scambio fra due eroi passerebbe un controllo
+			// scritto sul solo nome, perche' `Cast` e' identico su tutti e quattro e due condividono
+			// `HitReact_Front`.
+			TestEqual(*FString::Printf(TEXT("%s: %s"), *Chi, Etichette[I]),
+				Visto, FString::Printf(TEXT("%s%s.%s"), *Radice, Nomi[I], Nomi[I]));
+		}
+
+		// 🔴 **L'errore che non fa rumore, asserito e non solo scritto in un commento.**
+		// La clip d'attacco si CHIAMA `Cast`, e l'enum ha ANCHE un ruolo `Cast`. Se qualcuno la scrivesse
+		// li', `ActiveClipFor(Attack)` tornerebbe vuoto e l'unita' resterebbe in posa di riferimento senza
+		// errore, senza warning e senza log — mentre il dato sembrerebbe corretto a chi legge il CDO.
+		//
+		// ⚠️ **`Cast` e' vuoto per DUE ragioni, e solo la prima e' permanente** (#2535):
+		//
+		//  1. la clip che si chiama `Cast` appartiene ad `Attack` — **permanente**, ed e' cio' che questo
+		//     asserto difende;
+		//  2. il ruolo `Cast` non ha ancora un **consumatore** — **temporanea**, e non e' cio' che questo
+		//     asserto difende.
+		//
+		// 🔑 Quindi: **il giorno in cui `Cast` acquista un consumatore, questa riga va RIVISTA, non
+		// ereditata.** Chi la trovera' rossa allora leggera' «la clip `Cast` sta in Attack» e pensera' a
+		// una regressione, rimettendo a posto un dato che era giusto — mentre la verita' sara' che
+		// l'invariante e' scaduta. E' la stessa disciplina con cui `RTPresentationBinding.cpp` marca le
+		// proprie assenze *«da RIVEDERE, non da ereditare»* (righe 128 e 149), nata perche' `HazardDamage`
+		// era entrato nell'enum ed era rimasto muto senza che nulla diventasse rosso ([D-278], #1801).
+		// Li' il difetto era un gate che TACE; qui sarebbe un gate che PARLA quando non deve piu'.
+		TestTrue(*FString::Printf(TEXT("%s: il ruolo Cast resta VUOTO (la clip `Cast` sta in Attack)"), *Chi),
+			Cdo->ActiveClipFor(Chiave, ERTPresentationRole::Cast).IsNull());
 	}
 	return true;
 }
@@ -594,7 +713,7 @@ bool FRTUnitBaseShieldSurvivesTemporaryExpiryTest::RunTest(const FString&)
  * **La sagoma dell'ultimo contatto punta all'IDLE dell'eroe, non alla corsa e non al nulla** (#1750).
  *
  * 🔴 Il difetto che chiude: un `USkeletalMeshComponent` con una mesh e senza `AnimInstance` disegna la
- * **posa di riferimento** dello skeleton — la T-pose — e su Riktor quella posa stende le catene attraverso
+ * **posa di riferimento** dello skeleton — la T-pose — e su Branth quella posa stende le catene attraverso
  * lo schermo. Osservato a schermo il 2026-09-03, dopo che le altre due cause dello stesso sintomo erano
  * state chiuse (#1719 la scala, #1784 le ossa a LOD basso): è l'unica delle tre rimasta.
  *
@@ -636,12 +755,12 @@ bool FRTUnitGhostFallbackClipTest::RunTest(const FString&)
 
 	const FName Eroi[] = {
 		FName(TEXT("Hero.Gadget")), FName(TEXT("Hero.Phase")),
-		FName(TEXT("Hero.Riktor")), FName(TEXT("Hero.Wraith")),
+		FName(TEXT("Hero.Branth")), FName(TEXT("Hero.Wraith")),
 	};
 
 	for (const FName& Eroe : Eroi)
 	{
-		const FRTLocomotionClips* Clips = Cdo->FindClipsFor(Eroe);
+		const FRTHeroPresentationClips* Clips = Cdo->FindClipsFor(Eroe);
 		if (!TestNotNull(*FString::Printf(TEXT("clip di %s"), *Eroe.ToString()), (const void*)Clips))
 		{
 			continue;
@@ -652,7 +771,12 @@ bool FRTUnitGhostFallbackClipTest::RunTest(const FString&)
 		// scambiare i due campi dentro `GhostFallbackClipFor` lo lasciava verde, perche' non ci passava.
 		// L'ha trovata una verifica di mutazione, non una rilettura del codice.
 		const FString Idle = ARTUnit::GhostFallbackClipFor(Cdo, Eroe).ToSoftObjectPath().ToString();
-		const FString Run = Clips->Run.ToSoftObjectPath().ToString();
+
+		// 🔴 **`Move`, e la migrazione a ruoli poteva farlo degenerare proprio qui.** Il ripiego risolve
+		// ora la variante attiva del ruolo `Idle`; se il termine di confronto qui sotto leggesse anche
+		// lui `ERTPresentationRole::Idle`, il `TestNotEqual` in fondo confronterebbe una stringa con SE'
+		// STESSA — sempre verde, e cieco allo scambio che questo test esiste per trovare.
+		const FString Run = Cdo->ActiveClipFor(Eroe, ERTPresentationRole::Move).ToSoftObjectPath().ToString();
 
 		// (1) Il ripiego ha un bersaglio. Un path vuoto lascerebbe la T-pose, che è il difetto di partenza.
 		TestFalse(*FString::Printf(TEXT("%s: l'idle del ripiego non e' vuoto"), *Eroe.ToString()),
@@ -673,7 +797,176 @@ bool FRTUnitGhostFallbackClipTest::RunTest(const FString&)
 		ARTUnit::GhostFallbackClipFor(Cdo, FName(TEXT("Hero.NonEsiste"))).IsNull());
 	// ⛔ E senza clip del tutto: `nullptr` non deve crashare, deve dare un ripiego vuoto.
 	TestTrue(TEXT("senza AnimInstance il ripiego e' vuoto invece di crashare"),
-		ARTUnit::GhostFallbackClipFor(nullptr, FName(TEXT("Hero.Riktor"))).IsNull());
+		ARTUnit::GhostFallbackClipFor(nullptr, FName(TEXT("Hero.Branth"))).IsNull());
 	return true;
 }
+
+/**
+ * 🔴 **Il one-shot della cattura di posa (#1750, secondo criterio): la sagoma e' un RICORDO, non una
+ * telecamera.**
+ *
+ * Il difetto che questo test rende impossibile e' il **terzo leak** di una issue che ne conta due nel
+ * titolo: se la posa venisse catturata ogni volta che l'unita' risulta nascosta — invece che una sola volta,
+ * quando smette di vedersi — la sagoma mostrerebbe cio' che il nemico **sta facendo adesso**.
+ *
+ * ⚠️ **E non e' un timore teorico, e' il default dell'engine.** `VisibilityBasedAnimTickOption` vale
+ * `AlwaysTickPoseAndRefreshBones` (`SkeletalMeshComponent.cpp:446`): la posa di un'unita' nascosta continua
+ * ad avanzare, quindi due catture successive **non** darebbero lo stesso valore.
+ *
+ * 🔑 **Perche' il test chiama `NotifyRenderStateForPoseCapture` e non la sola funzione pura.** La mutazione
+ * da temere — «condizione `!bRender` invece della transizione» — vivrebbe nel CHIAMANTE, e un test scritto
+ * sulla sola `ShouldCaptureContactPose` resterebbe verde. E' la lezione che la PR #2180 ha pagato su questa
+ * stessa issue con un primo test vacuo. Qui la sequenza morde: la seconda chiamata a visibilita' invariata
+ * **deve** dare `false`.
+ *
+ * ⚠️ Non serve nessuna mesh: la transizione e' stato dell'attore, e `NewObject<ARTUnit>()` basta. La cattura
+ * vera resta subordinata a `bHasHeroMesh` nel chiamante, ed e' verifica PIE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitContactPoseCaptureIsOneShotTest,
+	"RefactorTactics.Unit.ContactPoseCaptureIsOneShot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitContactPoseCaptureIsOneShotTest::RunTest(const FString&)
+{
+	// (C1) La funzione pura: un solo verso.
+	TestTrue(TEXT("C1: visibile -> nascosta arma la cattura"),
+		ARTUnit::ShouldCaptureContactPose(/*bWasRendered*/ true, /*bWillBeRendered*/ false));
+	TestFalse(TEXT("C3: nascosta -> visibile NON arma la cattura"),
+		ARTUnit::ShouldCaptureContactPose(false, true));
+	TestFalse(TEXT("C2: nascosta -> nascosta NON arma la cattura"),
+		ARTUnit::ShouldCaptureContactPose(false, false));
+	TestFalse(TEXT("visibile -> visibile non arma la cattura"),
+		ARTUnit::ShouldCaptureContactPose(true, true));
+
+	// E ora la SEQUENZA sull'unita', che e' cio' che la funzione pura da sola non puo' dire.
+	ARTUnit* Unit = NewObject<ARTUnit>();
+	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+
+	// ⚠️ **Un'unita' appena nata non ha niente da ricordare.** La memoria parte da `false`, quindi il primo
+	// refresh su un nemico gia' ignoto non cattura la posa dell'istante zero — che sarebbe la posa di
+	// riferimento, cioe' uno snapshot valido e inutile capace di scavalcare il ripiego.
+	TestFalse(TEXT("il primo refresh su un'unita' gia' nascosta non cattura"),
+		Unit->NotifyRenderStateForPoseCapture(false));
+
+	TestFalse(TEXT("tornare visibile non cattura"), Unit->NotifyRenderStateForPoseCapture(true));
+
+	// La perdita di vista: qui e solo qui.
+	TestTrue(TEXT("perdere di vista l'unita' cattura la posa"),
+		Unit->NotifyRenderStateForPoseCapture(false));
+
+	// 🔴 **Il cuore del test.** `RefreshComponentVisibility` ha quattro chiamanti e TRE la invocano a
+	// visibilita' invariata (`ApplyTeamColor`, `OnSelected`, `OnDeselected`): selezionare un nemico gia'
+	// nascosto non deve ricatturare niente.
+	for (int32 Refresh = 0; Refresh < 3; ++Refresh)
+	{
+		TestFalse(*FString::Printf(
+			TEXT("C2: refresh #%d a visibilita' invariata NON ricattura (sarebbe una telecamera)"), Refresh),
+			Unit->NotifyRenderStateForPoseCapture(false));
+	}
+
+	// Riavvistata e riperduta: il ricordo si sovrascrive, perche' la sagoma e' l'ULTIMO contatto.
+	Unit->NotifyRenderStateForPoseCapture(true);
+	TestTrue(TEXT("riperdere di vista l'unita' cattura di nuovo"),
+		Unit->NotifyRenderStateForPoseCapture(false));
+	return true;
+}
+
+/**
+ * 🔴 **Da dove la sagoma prende la posa (#1750, secondo criterio), e il caso che il referto aveva trovato
+ * senza copertura.**
+ *
+ * I due criteri della issue sono in SEQUENZA e non in alternativa: lo snapshot sostituisce il ripiego
+ * *quando esiste*, e il ripiego resta obbligatorio perche' un contatto puo' nascere da **rumore**
+ * (`CP 13.4`) — un'unita' sentita e mai vista non ha nessuna posa da ricordare.
+ *
+ * 🔑 **`FPoseSnapshot` e' una struttura di dati puri** (`TArray<FTransform>`, `TArray<FName>`, due `FName`,
+ * un `bool`): si costruisce a mano, senza mesh, senza pack Paragon e senza Blueprint. E' la ragione per cui
+ * questo criterio si chiude headless mentre quello del primo criterio — «almeno un osso differisce dalla
+ * posa di riferimento» — non poteva.
+ *
+ * ⛔ **Cio' che questo test NON dimostra**: che la posa a schermo sia quella giusta. Quella resta la verifica
+ * PIE su Branth, ed e' registrata come tale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitGhostPoseSourceTest,
+	"RefactorTactics.Unit.ContactGhostPrefersTheRememberedPose",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitGhostPoseSourceTest::RunTest(const FString&)
+{
+	// Uno snapshot come quello che `SnapshotPose` produce: due ossa, nomi e transform in parallelo.
+	FPoseSnapshot Ricordo;
+	Ricordo.SkeletalMeshName = FName(TEXT("SK_Riktor"));
+	Ricordo.BoneNames = { FName(TEXT("root")), FName(TEXT("arm_chain_long_r_01")) };
+	Ricordo.LocalTransforms = { FTransform::Identity, FTransform(FRotator(0.f, 30.f, 0.f)) };
+	Ricordo.bIsValid = true;
+
+	// (C4) Il ricordo vince sul ripiego: e' il punto dell'intero secondo criterio.
+	TestEqual(TEXT("C4: con un ricordo valido la sagoma usa lo SNAPSHOT, non il ripiego"),
+		ARTUnit::GhostPoseSourceFor(Ricordo, /*bHasFallbackClip*/ true), ERTGhostPoseSource::Snapshot);
+
+	// ⚠️ E vince anche quando il ripiego non c'e' affatto: sono due sorgenti indipendenti.
+	TestEqual(TEXT("un ricordo valido basta da solo, senza clip di ripiego"),
+		ARTUnit::GhostPoseSourceFor(Ricordo, /*bHasFallbackClip*/ false), ERTGhostPoseSource::Snapshot);
+
+	// (C5) 🔑 **Il contatto da RUMORE**: nessuno snapshot, mai vista. E' il caso che il referto del
+	// 2026-08-30 aveva individuato e per cui ha rifiutato di dividere #1750 in due issue.
+	const FPoseSnapshot MaiVista; // nasce `bIsValid == false`
+	TestEqual(TEXT("C5: un contatto da rumore (mai vista) usa il RIPIEGO"),
+		ARTUnit::GhostPoseSourceFor(MaiVista, /*bHasFallbackClip*/ true), ERTGhostPoseSource::Fallback);
+
+	// (C6) Uno snapshot marcato invalido non e' uno snapshot: stessa risposta di «mai catturato».
+	FPoseSnapshot Invalido = Ricordo;
+	Invalido.bIsValid = false;
+	TestEqual(TEXT("C6: uno snapshot con bIsValid == false ripiega, non si applica vuoto"),
+		ARTUnit::GhostPoseSourceFor(Invalido, /*bHasFallbackClip*/ true), ERTGhostPoseSource::Fallback);
+
+	// ⛔ Array disallineati: `FAnimNode_PoseSnapshot::ApplyPose` indicizza `LocalTransforms` con l'indice
+	// del nome, e due lunghezze diverse sarebbero una lettura fuori dai limiti al primo frame disegnato.
+	FPoseSnapshot Disallineato = Ricordo;
+	Disallineato.LocalTransforms.Pop();
+	TestEqual(TEXT("nomi e transform disallineati ripiegano invece di indicizzare fuori dai limiti"),
+		ARTUnit::GhostPoseSourceFor(Disallineato, /*bHasFallbackClip*/ true), ERTGhostPoseSource::Fallback);
+
+	FPoseSnapshot Vuoto;
+	Vuoto.bIsValid = true; // valido ma senza ossa: non c'e' niente da mostrare
+	TestEqual(TEXT("uno snapshot valido ma senza ossa ripiega"),
+		ARTUnit::GhostPoseSourceFor(Vuoto, /*bHasFallbackClip*/ true), ERTGhostPoseSource::Fallback);
+
+	// Senza ricordo E senza clip non resta niente: la posa di riferimento, che e' il comportamento
+	// dichiarato da #287 e non un modo nuovo di fallire.
+	TestEqual(TEXT("senza ricordo e senza clip non c'e' nessuna sorgente"),
+		ARTUnit::GhostPoseSourceFor(MaiVista, /*bHasFallbackClip*/ false), ERTGhostPoseSource::None);
+	return true;
+}
+
+/**
+ * ⛔ **La sagoma non prende il grafo dell'unita' VIVA** (#1750): sono due classi distinte, e confonderle
+ * sarebbe il leak per cui `FindHeroSkeletal` esclude `ContactGhost` per identita'.
+ *
+ * ⚠️ Il test guarda i DEFAULT del costruttore, non il comportamento a schermo: e' l'unica meta' che si puo'
+ * asserire senza una skeletal, ed e' quella che una svista di copia-incolla romperebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitGhostAnimClassIsNotTheLiveOneTest,
+	"RefactorTactics.Unit.ContactGhostAnimClassIsNotTheLiveOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitGhostAnimClassIsNotTheLiveOneTest::RunTest(const FString&)
+{
+	const ARTUnit* Cdo = GetDefault<ARTUnit>();
+	if (!TestNotNull(TEXT("CDO dell'unita'"), Cdo)) { return false; }
+
+	TestEqual(TEXT("la sagoma ha il proprio grafo"),
+		Cdo->ContactGhostAnimClass.Get(), URTContactGhostAnimInstance::StaticClass());
+	TestEqual(TEXT("l'unita' viva ha il suo"),
+		Cdo->UnitAnimClass.Get(), URTUnitAnimInstance::StaticClass());
+
+	// 🔴 L'asserzione per cui il test esiste: **non sono la stessa classe**. Un `ContactGhostAnimClass`
+	// uguale a `UnitAnimClass` farebbe animare la sagoma dal vivo su un'unita' che l'osservatore non vede.
+	TestNotEqual(TEXT("la sagoma NON usa il grafo dell'unita' viva"),
+		Cdo->ContactGhostAnimClass.Get(), Cdo->UnitAnimClass.Get());
+
+	// ⛔ E il grafo della sagoma non deriva da quello vivo: derivarne erediterebbe i sequence player, cioe'
+	// la capacita' di animarsi, che questa classe esiste per NON avere.
+	TestFalse(TEXT("il grafo della sagoma non deriva da quello dell'unita' viva"),
+		URTContactGhostAnimInstance::StaticClass()->IsChildOf(URTUnitAnimInstance::StaticClass()));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

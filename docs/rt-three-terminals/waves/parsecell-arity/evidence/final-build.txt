@@ -1,0 +1,48 @@
+# Estratto di rt-2482-final-build.log
+
+Artefatto citato da `RT3-VALIDATION-cdcf1da.md`. Il log originale viveva in
+`<worktree>/Saved/Logs/`, che non e' tracciato: e' stato estratto qui perche' un
+`EVIDENCE_REF` che punta a un file assente e' malformato (`RT3_CONTRACT.md` §6).
+
+```text
+originale   rt-2482-final-build.log   30 righe, 2216 byte
+estratto    30 righe conservate
+criterio    log di build, conservato integrale
+rossi       nessuno
+```
+
+I numeri di riga fra parentesi sono quelli **dell'originale**, cosi' un
+riferimento come `#L2403` resta risolvibile.
+
+---
+
+     1  Using bundled DotNet SDK version: 10.0 win-x64
+     2  Running UnrealBuildTool: dotnet "..\..\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.dll" RefactorTacticsEditor Win64 Development -project=D:\Repositories\rt-wt-2482\RefactorTactics.uproject -waitmutex
+     3  Log file: C:\Users\Utente\AppData\Local\UnrealBuildTool\Log.txt
+     4  Determining max actions to execute in parallel (12 physical cores, 20 logical cores)
+     5    Executing up to 12 processes, one per physical core
+     6  Using 'git status' to determine working set for adaptive non-unity build (D:\Repositories\rt-wt-2482).
+     7  UbaServer - Listening on 0.0.0.0:1345
+     8  Invalidating makefile for RefactorTacticsEditor (working set of source files changed)
+     9  Building RefactorTacticsEditor...
+    10  ===== Toolchain Information =====
+    11  Using ISPC compiler (D:\EpicGames\UE_5.8\Engine\Source\ThirdParty\Intel\ISPC\bin\Windows\ispc.exe)
+    12    Intel(r) Implicit SPMD Program Compiler (Intel(r) ISPC), 1.24.0 (build commit  @ 20250404, LLVM 18.1.2) 
+    13  Using Visual Studio 14.50.35737 toolchain (C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717) and Windows 10.0.22621.0 SDK (C:\Program Files (x86)\Windows Kits\10).
+    14  =================================
+    15  Using Unreal Build Accelerator local executor to run 4 action(s)
+    16    CPU 12 physical cores, 20 logical cores
+    17    Memory 63.78 GB physical, 64.71 GB/105.78 GB committed
+    18    UBA Storage capacity 40 GB
+    19  [1/4] Compile [x64] Module.RefactorTactics.5.cpp
+    20  [2/4] Link [x64] UnrealEditor-RefactorTactics.lib
+    21     Creazione della libreria D:/Repositories/rt-wt-2482/Intermediate/Build/Win64/x64/UnrealEditor/Development/RefactorTactics/UnrealEditor-RefactorTactics.lib e dell'oggetto D:/Repositories/rt-wt-2482/Intermediate/Build/Win64/x64/UnrealEditor/Development/RefactorTactics/UnrealEditor-RefactorTactics.exp
+    22  [3/4] Link [x64] UnrealEditor-RefactorTactics.dll
+    23  [4/4] WriteMetadata RefactorTacticsEditor.target [NoUba]
+    24  
+    25  Total time in Unreal Build Accelerator local executor: 17.00 seconds
+    26  Output binary: D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe
+    27  
+    28  Result: Succeeded
+    29  Total execution time: 19.49 seconds
+    30  Trace written to file C:\Users\Utente\AppData\Local\UnrealBuildTool\Trace.uba with size 7.2kb

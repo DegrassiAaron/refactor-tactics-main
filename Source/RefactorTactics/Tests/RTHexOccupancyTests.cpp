@@ -538,7 +538,7 @@ bool FRTOccupancyMigrationTest::RunTest(const FString&)
 	// Il pin e' su 12 dal 2026-08-31 (#1864, nome stabile del muro interno). Il test resta di v7: quello che
 	// verifica e' che il sovrapprezzo nasca a zero, e continua a valere — il pin serve a far rileggere questo
 	// test a chi bumpa, non a legarlo a un numero.
-	TestEqual(TEXT("la versione corrente e' la 15"), URTHexMapAsset::CurrentFormatVersion, 15);
+	TestEqual(TEXT("la versione corrente e' la 16"), URTHexMapAsset::CurrentFormatVersion, 16);
 	TestEqual(TEXT("versione portata alla corrente"), Legacy->FormatVersion,
 		URTHexMapAsset::CurrentFormatVersion);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 2);
@@ -643,7 +643,7 @@ bool FRTOccupancySurvivesSurfaceCycleTest::RunTest(const FString&)
 	MapActor->MapAsset = Map;
 
 	ARTUnit* A = SpawnOccupancyUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
-	SpawnOccupancyUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -1));
+	SpawnOccupancyUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A) { DestroyOccupancyWorld(World); return false; }
 

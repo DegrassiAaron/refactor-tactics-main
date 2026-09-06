@@ -1693,12 +1693,26 @@ bool FRTPushThroughFireTest::RunTest(const FString&)
 }
 
 /**
- * Essere spinti non consuma il movimento della vittima (#308, terzo bullet).
+ * Essere spinti non consuma il movimento della vittima (#308, terzo bullet) — **e non lo regala**.
  *
- * La regola sta nella stessa §3: lo spostamento forzato «non consuma il `MoveBudget` della vittima, ne' la
- * sua azione, ne' il suo Dash». Non e' osservabile su un campo — il budget vive nello snapshot del turno, non
- * sull'unita' — ma lo e' sul risultato: una vittima spinta nel Blast **si muove comunque** nel Move dello
- * stesso turno, che risolve dopo.
+ * La regola di `#308` e' sul BUDGET: lo spostamento forzato *«non consuma il `MoveBudget` della vittima, ne'
+ * la sua azione, ne' il suo Dash»*. La regola su cosa accade al PIANO e' un'altra, ed e' [D-045] `Model A`:
+ * *«se l'origine effettiva e' diversa da quella su cui il percorso era stato pianificato, il Move decade»*.
+ *
+ * 🔴 **La prima stesura di questo test asseriva `Victim->Cell == Goal`**, cioe' che la vittima raggiungesse
+ * comunque la destinazione. Quello e' `Model B` — ricalcolare il percorso verso la stessa destinazione
+ * dalla nuova origine — che [D-045] **esclude per nome**, perche' contraddice *«mai auto-reroute durante la
+ * risoluzione»*: un percorso inventato dal computer cambia esposizione all'Overwatch, rumore, hazard e linea
+ * di tiro che il giocatore aveva scelto.
+ *
+ * ⚠️ Il test asseriva **piu'** della regola che diceva di proteggere, e per un mese ha inchiodato
+ * l'implementazione invece del requisito (`#2501`). Ora misura le due cose separatamente:
+ *
+ *   1. il piano DECADE — la vittima resta dove la spinta l'ha lasciata, non prosegue verso `Goal`;
+ *   2. il budget NON e' stato speso — il turno dopo, senza nessuna spinta, ci arriva.
+ *
+ * La seconda meta' e' quella che rende il test una prova invece di un'osservazione: senza di lei, «il Move
+ * decade» sarebbe indistinguibile da «la spinta ha consumato il movimento», che e' cio' che `#308` vieta.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPushDoesNotSpendVictimMoveTest,
 	"RefactorTactics.Actions.Push.DoesNotSpendTheVictimMove",
@@ -1724,15 +1738,30 @@ bool FRTPushDoesNotSpendVictimMoveTest::RunTest(const FString&)
 	Mover->PlannedAbilityIndex = Mover->Abilities.Num() - 1;
 	Mover->PlannedAttackTarget = Victim;
 
-	// La vittima pianifica di andare a NORD-EST. Verra' spinta a est nel Blast, e il Move — che risolve dopo —
-	// deve comunque portarla dove aveva deciso.
+	// La vittima pianifica di andare a NORD-EST. Verra' spinta a EST nel Blast, e il Move risolve dopo.
 	const FRTCellId Goal(3, -2);
 	Victim->PlannedAbilityIndex = INDEX_NONE;
 	Victim->PlannedCell = Goal;
 
 	RunControlTurn(TM);
 
-	TestTrue(TEXT("la vittima e' stata spinta E si e' comunque mossa dove voleva"), Victim->Cell == Goal);
+	// 1. [D-045] `Model A`: il piano e' decaduto. La vittima e' dove la spinta l'ha lasciata.
+	TestNotEqual(TEXT("il Move pianificato NON sopravvive alla spinta"), Victim->Cell, Goal);
+	const FRTCellId DopoLaSpinta = Victim->Cell;
+	TestNotEqual(TEXT("premessa: la spinta l'ha davvero spostata"), DopoLaSpinta, FRTCellId(1, 0));
+
+	// 2. `#308`: il budget non e' stato speso. Senza spinta, il turno dopo ci arriva.
+	Mover->PlannedAbilityIndex = INDEX_NONE;
+	Mover->PlannedAttackTarget = nullptr;
+	Mover->PlannedCell = Mover->Cell;
+	Victim->PlannedAbilityIndex = INDEX_NONE;
+	Victim->PlannedPath.Reset();
+	Victim->PlannedCell = Goal;
+
+	RunControlTurn(TM);
+
+	TestEqual(TEXT("e il turno dopo ci arriva: la spinta non aveva consumato il movimento"),
+		Victim->Cell, Goal);
 
 	DestroyControlWorld(World);
 	return true;

@@ -701,7 +701,49 @@ void ARTHUD::DrawHUD()
 		const TArray<FRTPlannedIntent> Authoritative = URTHudViewModel::BuildAuthoritativeIntents(Actors);
 
 		// 2. FILTRA per l'osservatore. Da qui in giu' lo stato completo non si tocca piu'.
-		const TArray<FRTIntentView> Views = URTIntentPrivacyLibrary::FilterForTeam(PlayerTeamId, Authoritative);
+		//
+		// 🔴 **In autobattle l'osservatore non e' una squadra, ed e' la decisione di `#2386`.** Entrambe le
+		// squadre sono bot: chi guarda non gioca in nessuna delle due, e con l'osservatore di sempre vedrebbe
+		// i piani di una squadra sola — meta' della partita che e' venuto a guardare.
+		//
+		// 🔑 **`FilterForTeam` non si tocca, e viene chiamata DUE VOLTE.** La regola resta quella di sempre —
+		// intenti alleati sempre, avversari solo se `bRevealed` — e ciascuna delle due chiamate e' legittima
+		// presa da sola. Lo spettatore vede tutto perche' ha fatto due domande a cui il filtro risponde di
+		// si', non perche' una guardia si sia ammorbidita: `AGENTS.md` §4 vuole che l'autorizzazione sia un
+		// DATO, e il dato e' `IsUnattendedSession()`, che il `RTMatchBootstrapper` scrive da `bAutobattle`.
+		//
+		// ⛔ **E `ARTPlayerState::TeamIdOf` resta l'UNICA porta** per la domanda «di chi e' la vista?». Un
+		// `bIsSpectator` che `FilterForTeam` onorasse avrebbe aggiunto una seconda risposta a quella domanda,
+		// cioe' il debito che [D-242] punto (5) ha chiuso centralizzandola — prima c'erano copie divergenti,
+		// e una era un letterale `PlayerTeamId = 0` che alimentava quattro filtri di privacy.
+		//
+		// ⚠️ **Vale finche' il client e' locale.** In rete (`M10`) uno spettatore che riceve i piani di
+		// entrambe le squadre e' un client che li POSSIEDE, ed e' la stessa avvertenza gia' scritta per
+		// `rt.Debug.DrawIntent`: la' dovra' essere lato server, o non esistere.
+		TArray<FRTIntentView> Views;
+		if (TurnManager->IsUnattendedSession())
+		{
+			// ⚠️ **Una domanda per UNITA', non due per squadra**, e la differenza non e' stilistica: due
+			// `FilterForTeam` sull'insieme intero produrrebbero DOPPIONI. Il filtro concede all'osservatore
+			// gli alleati *e* gli avversari `bRevealed` — lo dice il suo test
+			// `IntentViewSkipsDeadAndKeepsOrder`, dove l'osservatore `0` riceve **tre** viste su due alleate
+			// e un nemico rivelato — quindi un'unita' rivelata comparirebbe in entrambe le risposte e
+			// verrebbe disegnata due volte.
+			//
+			// 🔑 Chiedendo la vista dalla prospettiva della squadra CHE POSSIEDE l'unita', ogni unita'
+			// compare **una volta sola** e nella sua forma piena: e' la vista alleata, quella che porta anche
+			// la reazione e i waypoint, cioe' cio' che uno spettatore autorizzato deve vedere. L'ordine
+			// d'ingresso si conserva, che e' la proprieta' che quel test protegge.
+			Views.Reserve(Authoritative.Num());
+			for (const FRTPlannedIntent& Intent : Authoritative)
+			{
+				Views.Append(URTIntentPrivacyLibrary::FilterForTeam(Intent.TeamId, { Intent }));
+			}
+		}
+		else
+		{
+			Views = URTIntentPrivacyLibrary::FilterForTeam(PlayerTeamId, Authoritative);
+		}
 
 		// Disegna cio' che `ComposeDashSegments` ha gia' deciso. Qui non resta nessuna scelta: il conteggio
 		// dei tratti, il rapporto acceso/spento e il tetto vivono nella statica, dove un test li raggiunge.
@@ -1082,10 +1124,20 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 		// secondi**.
 		const bool bReadyCountdown = Header.ReadyCountdownSecondsRemaining >= 0.f;
 
+		// 🔑 **La finestra di preparazione ha la propria parola, per la stessa ragione del Ready** (`#2386`).
+		// Anche qui la fase e' ancora `Planning`, e anche qui i due stati devono distinguersi **senza contare
+		// i secondi**: in autobattle «Pianificazione» sarebbe falso — i bot hanno gia' pianificato, e cio'
+		// che scorre e' il tempo dato a chi guarda per leggere i piani.
+		const bool bPrepWindow = Header.PrepWindowSecondsRemaining >= 0.f;
+
 		const TCHAR* PhaseName = TEXT("");
 		switch (Header.Phase)
 		{
-		case ERTMatchPhase::Planning:   PhaseName = bReadyCountdown ? TEXT("Ready") : TEXT("Pianificazione"); break;
+		case ERTMatchPhase::Planning:
+			PhaseName = bPrepWindow ? (Header.bPrepWindowPaused ? TEXT("Preparazione (in pausa)") : TEXT("Preparazione"))
+			          : bReadyCountdown ? TEXT("Ready")
+			          : TEXT("Pianificazione");
+			break;
 		case ERTMatchPhase::MatchEnded: PhaseName = TEXT("Fine"); break;
 		default:                        PhaseName = TEXT("Risoluzione"); break;
 		}
@@ -1101,7 +1153,16 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 		//
 		// Arrotondamento per ECCESSO: a 3,2 secondi restano `4s`, perche' `3s` farebbe sparire dal conto
 		// l'ultimo secondo di chi lo sta guardando.
-		if (bReadyCountdown)
+		if (bPrepWindow)
+		{
+			// Il gesto si NOMINA, come `(Spazio: salta)` e `(RMB: annulla)`. ⚠️ **E cambia con lo stato**: un
+			// «P: pausa» stampato su una finestra gia' ferma direbbe al giocatore di fare cio' che ha appena
+			// fatto. Il residuo resta a schermo anche in pausa — e' quanto manca alla ripresa, non zero.
+			Status += FString::Printf(TEXT("  -  %.0fs  (P: %s)"),
+				FMath::CeilToFloat(Header.PrepWindowSecondsRemaining),
+				Header.bPrepWindowPaused ? TEXT("riprendi") : TEXT("pausa"));
+		}
+		else if (bReadyCountdown)
 		{
 			// 🔴 **Il MINORE dei due orologi, e non e' un dettaglio di stile.** Il tetto vince sul countdown
 			// (`#2193`): con 1,5 s di planning residuo e 3 s di countdown, il commit arriva fra 1,5 s.
@@ -1110,9 +1171,12 @@ FString ARTHUD::ComposeMatchStatusLine(const FRTMatchHeaderView& Header,
 			//
 			// ⚠️ Il tetto entra nel confronto **solo se si applica**: `PlanningSecondsRemaining` e' negativo
 			// nelle run senza timer, e un `Min` cieco stamperebbe un numero negativo.
-			const float ToCommit = (Header.PlanningSecondsRemaining > 0.f)
-				? FMath::Min(Header.ReadyCountdownSecondsRemaining, Header.PlanningSecondsRemaining)
-				: Header.ReadyCountdownSecondsRemaining;
+			// 🔑 **La regola non si riscrive qui.** Con lo Screen HUD in UMG (`#613`) arriva un secondo
+			// consumatore che questa riga non la attraversa: due copie sarebbero due occasioni di
+			// scriverne una sbagliata, e la sbagliata non fallisce nessun test — mostra un numero
+			// plausibile. La sede unica e' `URTHudViewModel::ComputeSecondsUntilCommit`, che porta con se'
+			// entrambe le trappole (il tetto vince; il tetto entra solo se si applica).
+			const float ToCommit = URTHudViewModel::ComputeSecondsUntilCommit(Header);
 
 			// Il gesto si NOMINA, come fa gia' la riga della risoluzione con `(Spazio: salta)`: sapere di
 			// avere tre secondi senza sapere cosa farne non e' informazione.

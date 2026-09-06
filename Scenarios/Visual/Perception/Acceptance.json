@@ -15,20 +15,20 @@
 
   "_nota_tre_turni": "Serve un turno SOLO per muoversi, per l'ordine delle macro-fasi `Prep -> Dash -> Blast -> Move`: il Move normale risolve DOPO il Blast, quindi passo e colpo nello stesso turno farebbero sparare l'unita' prima di essersi mossa, col facing di partenza. La ragione e' scritta per esteso in `Spec.Perception.MovingBreaksContact`.",
 
-  "_nota_never_seen": "B2 sta a (6,0,0) e non e' un riempitivo: e' l'unita' `Never Seen`, e le due distanze che lo rendono tale sono state contate. Da A1 (-4,0,0) dista 10, oltre il `VisionRange` 7 di Gadget; da A2 (-3,5,0) dista 9, oltre il 5 di Riktor. La conoscenza e' di SQUADRA, quindi non basta che uno dei due non lo veda: devono non vederlo entrambi. B2 non si muove mai, ed e' cio' che rende falsificabile la sua assertion di posizione.",
+  "_nota_never_seen": "B2 sta a (6,0,0) e non e' un riempitivo: e' l'unita' `Never Seen`, e le due distanze che lo rendono tale sono state contate. Da A1 (-4,0,0) dista 10, oltre il `VisionRange` 7 di Gadget; da A2 (-3,5,0) dista 9, oltre il 5 di Branth. La conoscenza e' di SQUADRA, quindi non basta che uno dei due non lo veda: devono non vederlo entrambi. B2 non si muove mai, ed e' cio' che rende falsificabile la sua assertion di posizione.",
 
   "_nota_camere_disgiunte": "A2 sta nella camera SUD, oltre il muro. Serve a `PIE-VELO-VIEWER`: la vista di squadra e' l'unione di due regioni non contigue, quindi il velo non puo' essere reso come un ventaglio attorno a un solo osservatore. Non partecipa ai turni.",
 
   "_nota_assertion": "L'anti-vacuita' e' `UnitHpEquals B1 103`, e dice una cosa sola: dei DUE colpi dichiarati ne e' andato a segno UNO. Il primo trova B1 osservato; il terzo parte a memoria e va sulla cella RICORDATA (-1,0,0), che B1 ha lasciato. Se la conoscenza smettesse di essere consultata — onniscienza, o un rinfresco che non avviene — il terzo colpo andrebbe a segno e il valore sarebbe 86. Se invece non risolvesse NESSUN colpo, sarebbe 120. Il numero distingue i tre casi, ed e' la ragione per cui non basta asserire che B1 sia vivo.",
 
-  "_nota_numeri": "22 di `Hero.Gadget.ArcPulse` meno i 5 punti di scudo BASE di [D-224] fanno 17; Riktor parte da 120 e finisce a 103. Sono gli stessi numeri di `Spec.Perception.MovingBreaksContact`, che li ha gia' misurati sulla stessa meccanica.",
+  "_nota_numeri": "22 di `Hero.Gadget.ArcPulse` meno i 5 punti di scudo BASE di [D-224] fanno 17; Branth parte da 120 e finisce a 103. Sono gli stessi numeri di `Spec.Perception.MovingBreaksContact`, che li ha gia' misurati sulla stessa meccanica.",
 
   "_nota_udito_escluso": "Nessun turno dichiara `requires`, ed e' deliberato. La capability `Perception` copre l'UDITO — la chiede solo `Spec.Perception.HeardNotSeen` — e non e' disponibile (owner #151, aperta): dichiararla renderebbe questo scenario `BLOCKED`, cioe' inerte. Vista, contatto e ricordo non la richiedono, come mostrano i quattro scenari fratelli che girano senza.",
 
   "units": [
     { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-4, 0, 0], "facing": "E" },
-    { "id": "A2", "hero": "Hero.Riktor", "team": 0, "cell": [-3, 5, 0] },
-    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [-1, 0, 0] },
+    { "id": "A2", "hero": "Hero.Branth", "team": 0, "cell": [-3, 5, 0] },
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [-1, 0, 0] },
     { "id": "B2", "hero": "Hero.Wraith", "team": 1, "cell": [6, 0, 0] }
   ],
 

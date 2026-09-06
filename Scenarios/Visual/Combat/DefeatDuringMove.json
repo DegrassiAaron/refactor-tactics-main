@@ -1,0 +1,73 @@
+{
+  "scenarioId": "Visual.Combat.DefeatDuringMove",
+  "tags": ["animation", "combat", "gadget", "phase", "riktor", "wraith"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "BANCO DI CONFRONTO per PIE-AS4c, e il gemello di Visual.Combat.Defeat. Stessi quattro eroi, stesse posizioni, stessi sei turni e gli stessi due colpi su Gadget: cambia UNA cosa, ed e' quella che si vuole isolare. All'ultimo turno Phase MUOVE, quindi PlaybackPhases contiene un Move DOPO il Blast in cui Gadget cade, e il montaggio di Death ha una finestra naturale in cui giocare.",
+
+  "_nota_perche": "PlaybackPhases e' 'Prep -> Dash -> Blast -> Move' e non contiene MAI Cleanup (RTTurnManager: 'Cleanup: gia' applicato, nessun beat'). Chi cade nell'ULTIMA fase riprodotta vedrebbe FinishPlayback subito dopo l'annuncio, e il montaggio avrebbe finestra ZERO: e' esattamente il caso di Visual.Combat.Defeat, dove nessuno si muove. DefeatBeatSeconds (#2452) esiste per quel caso. Qui la finestra c'e' senza la coda, e il confronto fra i due banchi e' cio' che rende PIE-AS4c tarabile invece che indovinabile.",
+
+  "_nota_uso": "Si guardano in COPPIA, nella stessa seduta U8: prima questo, dove Death gioca dentro il Move; poi Visual.Combat.Defeat, dove gioca solo grazie alla coda. Se la morte si legge qui e non li', DefeatBeatSeconds e' troppo corto; se qui si trascina, e' l'animazione a essere lunga e la coda non c'entra. ⚠️ DefeatBeatSeconds e' EditAnywhere su ARTTurnManager: si cambia a PIE avviato, senza ricompilare.",
+
+  "_nota_riva": "Phase e' l'unica che si muove, e non e' decorazione: e' il suo movimento a creare la fase Move. Senza, questo scenario sarebbe identico a Visual.Combat.Defeat e non misurerebbe niente.",
+
+  "_nota_numeri": "I sei turni e i due colpi vengono da Visual.Combat.Defeat, dove sono MISURATI: lo scudo base assorbe 5 punti per turno e si ricarica nel Cleanup, quindi con quattro turni Gadget chiudeva a 18 HP invece che abbattuto (D-224). Non sono stati ricalcolati qui: sono la stessa aritmetica, e cambiarli scollegherebbe i due banchi proprio nel punto in cui devono restare confrontabili.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,  0, 0] },
+    { "id": "R1", "hero": "Hero.Phase",  "team": 0, "cell": [-4,  1, 0] },
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 1,  0, 0] },
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 1, -1, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1-T5 — identici a Visual.Combat.Defeat: si accumula il danno. Qui non si guarda niente.",
+      "intents": [
+        { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "F1" },
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" }
+      ]
+    },
+    {
+      "intents": [
+        { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "F1" },
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" }
+      ]
+    },
+    {
+      "intents": [
+        { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "F1" },
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" }
+      ]
+    },
+    {
+      "intents": [
+        { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "F1" },
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" }
+      ]
+    },
+    {
+      "intents": [
+        { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "F1" },
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" }
+      ]
+    },
+    {
+      "_turno": "T6 — QUI si guarda. Gadget cade nel Blast, e Phase cammina: la fase Move segue, e il montaggio di Death gioca dentro quella finestra invece di essere troncato da FinishPlayback.",
+      "intents": [
+        { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "F1" },
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" },
+        { "unit": "R1", "move": [[-3, 1, 0], [-2, 1, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAlive", "unit": "F1", "value": false },
+    { "type": "UnitAlive", "unit": "R1", "value": true },
+    { "type": "UnitAtCell", "unit": "R1", "cell": [-2, 1, 0] },
+    { "type": "TurnsCompleted", "value": 6 }
+  ]
+}

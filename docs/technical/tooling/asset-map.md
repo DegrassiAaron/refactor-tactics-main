@@ -7,8 +7,10 @@
 > [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md), che è normativo e da cui questo file **deriva**
 > ogni path. Non è l'owner dei principi di pipeline (presentazione-only, riferimenti soft con fallback,
 > licenze): quello è [`spec-asset-pipeline.md`](../architecture/spec-asset-pipeline.md). Non è l'owner dello stato delle
-> sedute in editor: quello è [`../../roadmap/editor-sessions.yaml`](../../roadmap/editor-sessions.yaml), reso in
-> `../../roadmap/editormap.shortlist.md`.
+> sedute in editor: quello è [`../../roadmap/editor-sessions.yaml`](../../roadmap/editor-sessions.yaml) per i
+> **dati**, e [`../../technical/test-manuali-pie.md`](../test-manuali-pie.md) per l'**esito**.
+> ⛔ *Questa riga diceva «reso in `../../roadmap/editormap.shortlist.md`»: quella vista è uscita dal
+> repository il 2026-08-21 con `D-181` e nessuno script rende più quel file — corretto il 2026-09-06.*
 >
 > Nasce perché quelle tre fonti, insieme, **non rispondono a una domanda**: *quali asset servono e quanti ne
 > mancano*. `convenzioni-contenuti-ue.md` §4 lo dichiara esplicitamente — «questo documento non è un
@@ -124,6 +126,27 @@ dirlo, perché una regola successiva può ri-ignorarla e l'ordine conta. **Con l
 fuori elenco (`AM_Gadget_Taunt.uasset`) resta **ignorato**, che è il modo di accorgersi se la regola fosse
 troppo larga — un permesso che ammette anche ciò che non deve non è un permesso, è un buco.
 
+🔴 **E il 2026-09-05 il perimetro è tornato a 20, perché i dodici montaggi non si faranno.**
+[#2450](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2450) ha cambiato via: i ruoli
+`Attack`, `Hit` e `Death` si popolano come **dati** nel CDO di `URTUnitAnimInstance`, non come `.uasset` —
+`PlaySlotAnimationAsDynamicMontage(UAnimSequenceBase*, FName)` (`AnimInstance.h:591`, verificato
+nell'header) suona una clip sullo slot che il grafo già espone, quindi nessun montaggio-asset serve. Le
+dodici righe d'allowlist sono uscite dal `.gitignore` nello stesso commit.
+
+**Misura vera, non ri-derivata**, eseguita col comando di §1 dopo la modifica:
+**20 attesi · 20 committati · 0 su disco · 0 assenti**, più **5 righe glob** e **0 binari tracciati fuori
+allowlist**.
+
+⚠️ **È la stessa lezione degli `ABP_*`, e questa volta è stata applicata subito**: una decisione che toglie
+un asset atteso tocca **anche** la riga d'allowlist che lo riammetteva. Lasciarla avrebbe fatto dire al
+comando *«12 assenti»* — dodici asset mancanti che nessuno deve più produrre — che è esattamente il difetto
+raccontato tre paragrafi più su. La differenza è che lì la riga era sopravvissuta cinque giorni alla
+decisione, perché l'oracolo di D-248 era `grep -rn "ABP_" docs/` e `.gitignore` non sta in `docs/`.
+
+➕ **Le righe glob sono 5, non 4.** Il numero compare come «4» nelle misure storiche qui sopra ed era vero
+allora; `Content/RT/Editor/**/*.uasset` si è aggiunta dopo. Le misure vecchie non si riscrivono — questa
+nota esiste perché il lettore non legga «4» come il valore di oggi.
+
 *(Misura precedente, 2026-08-17 su `a4a393b6`: 21 attesi · 16 committati · 0 su disco · 5 assenti. Prima
 ancora, 2026-08-13 su `515c5c88`: 17 attesi · 13 committati · 4 mancanti.)*
 
@@ -189,18 +212,7 @@ fossero un dato).
 | `Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset` | Unità giocabile | **U7** | ✅ committato |
 | `Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset` | Unità giocabile | **U7** | ✅ committato |
 | ~~`Characters/<Pack>/Animation/ABP_<Pack>.uasset`~~ ×4 | Animazione | ~~**U8**~~ | ⛔ **non più attesi dal 2026-08-30** ([D-248](../../decisions/RT_PDR_00_Decision_Log.md)): il grafo di locomozione vive in C++ (`URTUnitAnimInstance`) e nessun `.uasset` di animazione va creato. *Erano «⏳ assente», e `ABP_Gadget` era «su disco» il 13-08, cancellato senza essere mai committato (§1)* |
-| `Characters/Gadget/Animation/AM_Gadget_Attack.uasset` | Animazione | **U8** | ⏳ assente |
-| `Characters/Gadget/Animation/AM_Gadget_Hit.uasset` | Animazione | **U8** | ⏳ assente |
-| `Characters/Gadget/Animation/AM_Gadget_Death.uasset` | Animazione | **U8** | ⏳ assente |
-| `Characters/Phase/Animation/AM_Phase_Attack.uasset` | Animazione | **U8** | ⏳ assente |
-| `Characters/Phase/Animation/AM_Phase_Hit.uasset` | Animazione | **U8** | ⏳ assente |
-| `Characters/Phase/Animation/AM_Phase_Death.uasset` | Animazione | **U8** | ⏳ assente |
-| `Characters/Riktor/Animation/AM_Riktor_Attack.uasset` | Animazione | **U8** | ⏳ assente |
-| `Characters/Riktor/Animation/AM_Riktor_Hit.uasset` | Animazione | **U8** | ⏳ assente |
-| `Characters/Riktor/Animation/AM_Riktor_Death.uasset` | Animazione | **U8** | ⏳ assente |
-| `Characters/Wraith/Animation/AM_Wraith_Attack.uasset` | Animazione | **U8** | ⏳ assente |
-| `Characters/Wraith/Animation/AM_Wraith_Hit.uasset` | Animazione | **U8** | ⏳ assente |
-| `Characters/Wraith/Animation/AM_Wraith_Death.uasset` | Animazione | **U8** | ⏳ assente |
+| ~~`Characters/<Pack>/Animation/AM_<Pack>_{Attack,Hit,Death}.uasset`~~ ×12 | Animazione | ~~**U8**~~ | ⛔ **non più attesi dal 2026-09-05** ([#2450](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2450)): i tre ruoli si popolano come **dati** nel CDO di `URTUnitAnimInstance`, non come `.uasset`. `PlaySlotAnimationAsDynamicMontage` (`AnimInstance.h:591`) suona una clip sullo slot che il grafo già espone. *Erano «⏳ assente» dal 2026-08-31, e la loro riga d'allowlist è stata tolta dal `.gitignore` nello stesso commit — come per gli `ABP_*`, una decisione che toglie un asset atteso tocca anche la riga che lo riammetteva* |
 | `Characters/Shared/Materials/M_SelectionRing.uasset` | Condiviso | — | ✅ committato |
 | `Characters/Shared/Materials/M_TeamRing.uasset` | Condiviso | — | ✅ committato |
 | `Maps/Dev/L_HexArena/L_HexArena.umap` | Mappa | **U1** | ✅ committato |
@@ -218,14 +230,22 @@ fossero un dato).
 | `UI/Framework/WBP_RT_ModalLayer.uasset` | Frontend | **U24** | ✅ committato |
 | `Maps/Dev/L_DevSandbox/Data/DA_Format_Scratch.uasset` | Mappa | — | ✅ committato |
 
-**Quel che resta della v0.1 è una famiglia sola, e dal 2026-08-31 è in questa tabella: i dodici montaggi
-`AM_*`.** Tutto il resto è committato. Il **frontend** di U24 si è chiuso — tutti e cinque i `WBP_RT_*`
-sono nel repository, `LoadingScreen`, `FrontendRoot` e `ModalLayer` compresi — e i quattro `ABP_*` sono
-usciti dagli attesi con [D-248](../../decisions/RT_PDR_00_Decision_Log.md). Restano `Cast`, `Hit` e
-`Death` per quattro eroi: lavoro reale di
-[#288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288) (`PIE-AS4b`), che ora ha una riga
-d'allowlist **scritta prima del primo asset** — la riga 1 di §6 nell'ordine giusto, per una volta senza che
-sia costato prima un file perso.
+🔴 **Dal 2026-09-05 la v0.1 non ha più nessuna famiglia attesa e mancante: 20 attesi, 20 committati.**
+Il **frontend** di U24 si è chiuso — tutti e cinque i `WBP_RT_*` sono nel repository — i quattro `ABP_*`
+sono usciti dagli attesi con [D-248](../../decisions/RT_PDR_00_Decision_Log.md), e i dodici montaggi `AM_*`
+con [#2450](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2450).
+
+⚠️ **Zero assenti non vuol dire che `PIE-AS4b` sia verde.** `Cast`, `Hit` e `Death` restano da fare per
+quattro eroi — è lavoro reale di [#288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288) —
+ma **non è più lavoro di questo file**: sono righe di dati nel CDO, che questa mappa non traccia perché non
+sono asset. Un asset map a zero assenti dice *«nessun binario atteso manca»*, non *«non resta niente da
+fare»*, e la differenza va letta.
+
+> ~~**Quel che resta della v0.1 è una famiglia sola, e dal 2026-08-31 è in questa tabella: i dodici montaggi
+> `AM_*`.** […] che ora ha una riga d'allowlist **scritta prima del primo asset** — la riga 1 di §6
+> nell'ordine giusto, per una volta senza che sia costato prima un file perso.~~
+> *(Vero dal 2026-08-31 al 2026-09-05. La riga d'allowlist era stata scritta nell'ordine giusto; è caduta la
+> **via**, non l'ordine.)*
 
 ⚠️ **`M_HexCell.uasset` non è rivendicato da nessuna seduta.** È in allowlist e committato, ma
 `editor-sessions.yaml` non lo nomina: come i cinque path storici marcati `—`, esiste senza che una
@@ -303,7 +323,7 @@ committare niente.
 | Famiglia | Epic | Quanti | Percorso previsto (§5 delle convenzioni) |
 |---|:--:|--:|---|
 | Unità giocabili dei 4 eroi nuovi | **E35** | 4 | `Characters/<Pack>/Blueprints/BP_Unit_<Pack>.uasset` |
-| Animazioni dei 4 eroi nuovi | **E35** | 12 | `Characters/<Pack>/Animation/AM_<Pack>_*.uasset` — ⚠️ *diceva «4 · `ABP_<Pack>.uasset`»: un eroe nuovo non porta un anim BP, porta una **riga di dati** in `ClipsPerHero` più i suoi tre montaggi ([D-248](../../decisions/RT_PDR_00_Decision_Log.md))* |
+| Animazioni dei 4 eroi nuovi | **E35** | **0** | ⛔ **nessun asset**: un eroe nuovo porta **righe di dati** in `ClipsPerHero` — un `PerRole` per ruolo, con la sua variante attiva — e nient'altro. ⚠️ *Questa cella ha detto due cose sbagliate, e la seconda per sei giorni: «4 · `ABP_<Pack>.uasset`» fino al 2026-08-30 ([D-248](../../decisions/RT_PDR_00_Decision_Log.md)), poi «12 · `AM_<Pack>_*.uasset`» fino al 2026-09-05 ([#2450](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2450)). Entrambe le volte l'errore era lo stesso: contare come **asset** ciò che è **dato*** |
 | Mappa di classe Standard 3v3 | **E24** | 1 + dati | `Maps/<Categoria>/<Nome>/` con il suo `DA_HexMap_*` |
 | Icone: catalogo completo | **E25** | derivato | ancora senza path — vedi §2.1 |
 | Muri e porte come oggetti | **E23** | ignoto | l'epic definisce il **modello logico**; se servano mesh dedicate non è deciso |
@@ -378,6 +398,13 @@ dipendere da un percorso esterno. Non va riproposto.
 I pack scaricati vivono in `Content/FabAsset/` e `Content/Paragon*/`, **fuori dal repository per scelta**:
 sono decine di GB e chi clona se li riscarica.
 
+🔴 **Fuori dal repository non vuol dire fuori dal registro.** Le 28 root Paragon hanno una riga in
+[`docs/technical/asset-licenze.md`](../asset-licenze.md) — fonte, licenza, data, consumer — perché la
+riga copre un **prefisso di path**, non un file: `/Game/FabAsset/Paragon/ParagonGadget/` si registra
+anche se nessuno dei suoi 1.229 `.uasset` è versionato. È la metà del difetto che
+[#1767](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1767) chiama *«un registro che
+esiste fuori dal versionamento non è un registro, è un file»*.
+
 🔴 **`git clean -fdx` li cancella, e l'esclusione a una sola cartella non basta.** Il comando che gira
 nel progetto — `git clean -fdx -e Content/FabAsset` — protegge la prima e **non** la seconda, mentre
 `.gitignore` le dichiara entrambe ignorate (`/Content/FabAsset/`, `/Content/Paragon*/`). Servono
@@ -397,7 +424,8 @@ lo stesso comando.)*
 
 ## 6. Come si aggiunge un asset
 
-Tre righe, in quest'ordine. Saltarne una produce un difetto silenzioso, e per ognuna è già successo:
+Quattro righe, in quest'ordine. Saltarne una produce un difetto silenzioso, e per le prime tre è già
+successo:
 
 1. **`.gitignore`** — la riga `!Content/RT/…` con il path esatto. Senza, `git add` tace e l'asset resta
    locale. **I casi aperti stanno in §2.1**, e questa riga non ne nomina più nessuno: è la regola, non
@@ -420,13 +448,26 @@ Tre righe, in quest'ordine. Saltarne una produce un difetto silenzioso, e per og
    contro stringhe dentro `tracked_artifacts()` e `session_state()`: l'artefatto non risulta mai
    `done`, la seduta resta bloccata, **e nessun gate fallisce**.
 3. **questo file** — la riga nella tabella della sua release.
+4. **[`docs/technical/asset-licenze.md`](../asset-licenze.md)** — la riga di **provenienza**, se
+   l'asset viene da fuori. Nome, fonte, URL, licenza, versione, data, versione UE, attribuzione,
+   consumer: è `FR-ASSET-LIC-01`, e vale anche per ciò che resta **fuori** dal repository, perché il
+   registro copre un prefisso di path e non un file. Verifica: `node tools/asset-provenance/check.ts`.
+   🔴 **Nello stesso commit dell'asset.** Non il commit dopo: fra i due momenti l'asset è materiale di
+   terze parti senza titolo dichiarato, e non c'è niente che lo dica. Se la licenza non è accertata la
+   riga si scrive lo stesso, con `NON VERIFICATA` — **omettere la riga è sempre peggio che scrivere
+   che non si sa**, perché la prima forma è invisibile e la seconda è cercabile.
+   *(Questa riga è nata il 2026-09-05 con
+   [#1767](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1767): il requisito la
+   prescriveva dal 2026-08-30, ma il file che nominava non esisteva, quindi la sua verifica non poteva
+   fallire.)*
 
-⚠️ **Un rename tocca tutte e tre.** Le convenzioni lo dichiarano già per il caso `<CharacterId>`: gli otto
+⚠️ **Un rename tocca le prime tre.** Le convenzioni lo dichiarano già per il caso `<CharacterId>`: gli otto
 path degli artefatti sono elencati **per esteso** nell'allowlist, quindi un rename li rende muti senza che
-niente fallisca.
+niente fallisca. La quarta la tocca **solo** quando sposta l'asset fuori dal prefisso che lo copre — e
+quello è il caso in cui il gate lo dichiara scoperto, cioè l'unico in cui serve toccarla.
 
-🔴 **E poi c'è il gesto che nessuna delle tre righe copre: `git add` alla prima salvata.** Le tre righe
-rendono l'asset *committabile*; non lo committano. Fra il momento in cui l'editor scrive il `.uasset` e
+🔴 **E poi c'è il gesto che nessuna delle quattro righe copre: `git add` alla prima salvata.** Le quattro
+righe rendono l'asset *committabile*; non lo committano. Fra il momento in cui l'editor scrive il `.uasset` e
 il momento in cui qualcuno lo aggiunge all'indice, quel file è **untracked** — e un `git clean -fd`, che
 in questo progetto si esegue di routine per non toccare i pack, lo cancella senza traccia recuperabile.
 Non aspettare che l'asset sia finito: un lavoro a metà committato è un lavoro a metà, un lavoro a metà

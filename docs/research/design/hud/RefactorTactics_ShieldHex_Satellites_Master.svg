@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+width="1200" height="1200" viewBox="0 0 1200 1200">
+<title>RefactorTactics Shield Hex with Satellite Icons</title>
+<desc>Single master hex with center construction lines and six satellite shapes anchored around it. Satellite group origins coincide with their anchor points.</desc>
+<rect width="1200" height="1200" fill="white"/>
+
+<g inkscape:groupmode="layer" inkscape:label="GUIDES_ANCHORS" id="GUIDES_ANCHORS"
+fill="none" stroke="#999999" stroke-width="1.5" stroke-dasharray="10 8" opacity="0.55">
+<polygon points="600.000,245.000 907.439,422.500 907.439,777.500 600.000,955.000 292.561,777.500 292.561,422.500"/>
+<circle cx="600.000" cy="245.000" r="5"/>
+<line x1="590.000" y1="245.000" x2="610.000" y2="245.000"/>
+<line x1="600.000" y1="235.000" x2="600.000" y2="255.000"/>
+<circle cx="907.439" cy="422.500" r="5"/>
+<line x1="897.439" y1="422.500" x2="917.439" y2="422.500"/>
+<line x1="907.439" y1="412.500" x2="907.439" y2="432.500"/>
+<circle cx="907.439" cy="777.500" r="5"/>
+<line x1="897.439" y1="777.500" x2="917.439" y2="777.500"/>
+<line x1="907.439" y1="767.500" x2="907.439" y2="787.500"/>
+<circle cx="600.000" cy="955.000" r="5"/>
+<line x1="590.000" y1="955.000" x2="610.000" y2="955.000"/>
+<line x1="600.000" y1="945.000" x2="600.000" y2="965.000"/>
+<circle cx="292.561" cy="777.500" r="5"/>
+<line x1="282.561" y1="777.500" x2="302.561" y2="777.500"/>
+<line x1="292.561" y1="767.500" x2="292.561" y2="787.500"/>
+<circle cx="292.561" cy="422.500" r="5"/>
+<line x1="282.561" y1="422.500" x2="302.561" y2="422.500"/>
+<line x1="292.561" y1="412.500" x2="292.561" y2="432.500"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="SHIELD_HEX_LINES" id="SHIELD_HEX_LINES"
+fill="none" stroke="black">
+<line x1="435.000" y1="504.737" x2="765.000" y2="695.263" stroke-width="2.2" stroke-dasharray="9 7"/>
+<line x1="490.000" y1="409.474" x2="710.000" y2="790.526" stroke-width="2.2" stroke-dasharray="9 7"/>
+<line x1="710.000" y1="409.474" x2="490.000" y2="790.526" stroke-width="2.2" stroke-dasharray="9 7"/>
+<line x1="765.000" y1="504.737" x2="435.000" y2="695.263" stroke-width="2.2" stroke-dasharray="9 7"/>
+<line x1="380.000" y1="600.000" x2="820.000" y2="600.000" stroke-width="2.2"/>
+<line x1="600.000" y1="409.474" x2="600.000" y2="790.526" stroke-width="2.2"/>
+<polygon points="820.000,600.000 710.000,790.526 490.000,790.526 380.000,600.000 490.000,409.474 710.000,409.474" stroke-width="8" fill="none"/>
+<circle cx="600" cy="600" r="5" fill="black" stroke="none"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="SATELLITE_SHAPES" id="SATELLITE_SHAPES"
+stroke="black" fill="#f2f2f2">
+<g id="sat_n_triangle" transform="translate(600.000,245.000)">
+<polygon points="0.000,-56.000 48.497,28.000 -48.497,28.000" stroke-width="4"/>
+</g>
+<g id="sat_ne_square" transform="translate(907.439,422.500)">
+<polygon points="-46.000,-46.000 46.000,-46.000 46.000,46.000 -46.000,46.000" stroke-width="4"/>
+</g>
+<g id="sat_se_pentagon" transform="translate(907.439,777.500)">
+<polygon points="0.000,-54.000 51.357,-16.687 31.740,43.687 -31.740,43.687 -51.357,-16.687" stroke-width="4"/>
+</g>
+<g id="sat_s_diamond" transform="translate(600.000,955.000)">
+<polygon points="0.000,-54.000 54.000,0.000 0.000,54.000 -54.000,0.000" stroke-width="4"/>
+</g>
+<g id="sat_sw_hexagon" transform="translate(292.561,777.500)">
+<polygon points="52.000,0.000 26.000,45.033 -26.000,45.033 -52.000,0.000 -26.000,-45.033 26.000,-45.033" stroke-width="4"/>
+</g>
+<g id="sat_nw_circle" transform="translate(292.561,422.500)">
+<circle cx="0" cy="0" r="52" stroke-width="4"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="LABELS" id="LABELS"
+fill="#444444" stroke="none" font-family="Arial, sans-serif" font-size="20" text-anchor="middle" opacity="0.85">
+<text x="600.000" y="167.000">N TRIANGLE</text>
+<text x="907.439" y="350.500">NE SQUARE</text>
+<text x="907.439" y="863.500">SE PENTAGON</text>
+<text x="600.000" y="1041.000">S DIAMOND</text>
+<text x="292.561" y="863.500">SW HEX</text>
+<text x="292.561" y="350.500">NW CIRCLE</text>
+</g>
+</svg>

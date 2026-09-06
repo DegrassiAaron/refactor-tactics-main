@@ -61,8 +61,12 @@ struct FRTInteractionOp
 	/**
 	 * Lo stato richiesto ai bersagli.
 	 *
-	 * ⚠️ `Action.Interact` puo' chiedere solo `Open` ([D-151]) e la commutazione e' `INT-7`: il campo esiste
-	 * perche' `ApplyInteraction` lo prende, non perche' qui ci sia una scelta.
+	 * ⚠️ **Sul ramo REMOTO `Action.Interact` chiede ancora e solo `Open`**, anche da quando commuta su quello
+	 * locale ([`INT-7`] chiusa, `#2380`). Non e' una dimenticanza: una sorgente comanda N bersagli che possono
+	 * divergere — `OpenFailsDependentMoveBlocks` ne ha due, `Closed` e `Locked` — e «commutare il gruppo» e'
+	 * la sotto-domanda con cui `INT-7` era nata, lasciata a `CP 23.4`. Leggere lo stato della LEVA per
+	 * decidere quello delle PORTE sarebbe una regola che nessuno ha scelto, e una leva autorata `Open` la
+	 * invertirebbe in silenzio su ogni binding.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
 	ERTHexDoorState State = ERTHexDoorState::Open;

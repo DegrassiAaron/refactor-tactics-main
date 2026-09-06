@@ -107,6 +107,24 @@ struct FRTHexAttackIntent
 	ERTHexDoorState DoorState = ERTHexDoorState::Closed;
 
 	/**
+	 * L'azione COMMUTA invece di dichiarare uno stato assoluto ([`INT-7`], `#2380`): la porta va allo stato
+	 * opposto a quello che ha, su `Open <-> Closed`.
+	 *
+	 * 🔑 **Non sostituisce `bChangesDoor`, lo qualifica.** `bChangesDoor` continua a dire *«questo intento
+	 * agisce su una porta»* — ed e' cio' che il ramo della raccolta interroga per decidere se cercare un
+	 * bordo; `bTogglesDoor` dice *come*. Tenerli separati e' cio' che permette di lasciare intatti tutti i
+	 * consumatori a valle: dopo la risoluzione `DoorState` porta di nuovo uno stato ASSOLUTO, e `FRTDoorOp`,
+	 * `ApplyDoorOps` e `SetDoorState` non sanno che qualcuno abbia commutato.
+	 *
+	 * ⚠️ `DoorState` e' IGNORATO quando questo flag e' alto: lo stato vero lo calcola `CollectHexAttacks` in
+	 * una locale, e l'intento resta `const` per tutta la fase (invariante #3). Chi volesse dire in anteprima
+	 * *«questo Interact chiudera' la porta»* deve percio' leggere lo STATO DELLA PORTA, non questo intento —
+	 * ed e' il costo dichiarato di `#2380`: con la commutazione l'intento non e' piu' auto-descrittivo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bTogglesDoor = false;
+
+	/**
 	 * Il bordo che il GIOCATORE ha dichiarato, quando l'ha dichiarato (CP 10.1, `#74`).
 	 *
 	 * 🔴 **Senza questo campo l'operazione agisce su un bordo che nessuno ha scelto.** `FirstDoorEdge` cammina
@@ -279,6 +297,31 @@ struct FRTAttackFootprint
 	FRTAttackFootprint() = default;
 };
 
+/**
+ * Una commutazione RIFIUTATA perche' la porta non ha un opposto ([`INT-7`], `#2380`).
+ *
+ * Porta lo STATO oltre all'indice perche' il motivo che finisce nel TurnLog dipende da quale dei due era:
+ * `Locked` e `Destroyed` hanno reason code distinti, e senza questo campo il chiamante dovrebbe rileggere la
+ * mappa — cioe' rileggerla DOPO che il Blast l'ha mutata, che e' un'altra domanda e un'altra risposta.
+ */
+USTRUCT(BlueprintType)
+struct FRTDoorToggleRefusal
+{
+	GENERATED_BODY()
+
+	/** Indice nell'array degli intenti della fase. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	int32 IntentIndex = INDEX_NONE;
+
+	/** Lo stato PRE-BLAST che ha rifiutato la commutazione: `Locked` o `Destroyed`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	ERTHexDoorState State = ERTHexDoorState::Locked;
+
+	FRTDoorToggleRefusal() = default;
+	FRTDoorToggleRefusal(int32 InIntentIndex, ERTHexDoorState InState)
+		: IntentIndex(InIntentIndex), State(InState) {}
+};
+
 USTRUCT(BlueprintType)
 struct FRTHexBlastPlan
 {
@@ -315,6 +358,19 @@ struct FRTHexBlastPlan
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
 	TArray<int32> DoorlessIntents;
+
+	/**
+	 * Commutazioni rifiutate perche' la porta puntata era `Locked` o `Destroyed` ([`INT-7`], `#2380`), in
+	 * ordine canonico di indice.
+	 *
+	 * 🔑 **Quarto canale e non un riuso di `DoorlessIntents`**, per la stessa disciplina con cui quello e'
+	 * separato da `BlockedIntents`: *«non c'era niente su cui agire»* e *«c'era, e non si commuta»* sono due
+	 * fatti diversi, e il reason code che ne esce e' diverso. Fonderli scriverebbe `NoEffect` su una porta
+	 * che esiste — una causa falsa su una partita vera, che e' esattamente cio' che i tre canali separati
+	 * esistono per non fare.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<FRTDoorToggleRefusal> DoorToggleRefusals;
 
 	/**
 	 * Danno raccolto contro le STRUTTURE, sommato per bordo e in ordine canonico (CP 9.2). Sta nel piano e non
@@ -534,6 +590,48 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
 	static int32 EffectiveCoverReduction(const URTHexMapAsset* Map, const FRTHexCombatUnit& Attacker,
 		const FRTHexCombatUnit& Target, ERTAbilityShape Shape);
+
+	/**
+	 * La stessa riduzione, piu' **se il facing del bersaglio e' stato letto** per calcolarla (`#2341`).
+	 *
+	 * 🔑 **Esiste perche' la lettura e' CONDIZIONALE e il chiamante non puo' dedurla.** Il corpo valuta
+	 * `Reduction > 0 && !IsInFrontalArc(...)`: senza copertura la seconda condizione non viene raggiunta e
+	 * il facing **non viene guardato**. Il chiamante conosce il valore — l'ha passato lui in
+	 * `Target.Facing` — ma non sa se sia stato usato, e `D-020` chiede di registrare **quale** facing ha
+	 * usato ciascun consumatore: registrarlo quando non e' stato letto sarebbe un'invenzione.
+	 *
+	 * ⛔ **Riporta un `bool`, non il facing**, e non e' un'economia: restituire il valore inviterebbe il
+	 * chiamante a credere che possa essere *diverso* da quello che ha passato. Non puo' esserlo. Cio' che
+	 * la funzione sa in piu' e' **se** l'ha guardato.
+	 *
+	 * ⚠️ **Il confine resta dov'era**: nessun `TArray<FRTTurnLogEntry>` entra in questa libreria. Il
+	 * resolver riporta cio' che ha letto, il chiamante — che ha il contesto della voce — registra. E' la
+	 * decisione d'autore `(b1)` di `#2341`, presa contro il passare un log qui dentro.
+	 *
+	 * La forma senza out-param delega a questa: una sola implementazione, quindi non possono divergere.
+	 */
+	static int32 EffectiveCoverReduction(const URTHexMapAsset* Map, const FRTHexCombatUnit& Attacker,
+		const FRTHexCombatUnit& Target, ERTAbilityShape Shape, bool& bOutFacingWasRead);
+
+	/**
+	 * `true` se il calcolo della copertura di questo colpo ha **letto il facing** del bersaglio (`#2341`).
+	 *
+	 * 🔑 **Non serve un campo nuovo: l'informazione e' gia' nel colpo.** `EffectiveCoverReduction` guarda
+	 * il facing se e solo se esiste una copertura nominale da valutare, e quella nominale e' la somma dei
+	 * due termini che `FRTHexAttackHit` gia' porta — la copertura rimasta (`CoverReduction`) piu' quella
+	 * che la direzione ha annullato (`CoverBypassedByFacing`).
+	 *
+	 * ⛔ **La relazione sta QUI e in nessun altro posto.** Dedurla al sito d'uso — `if (Hit.CoverReduction
+	 * + Hit.CoverBypassedByFacing > 0)` scritto a mano — sarebbe una seconda copia di una regola che puo'
+	 * cambiare: e' lo stesso motivo per cui `EffectiveCoverReduction` esiste invece di lasciare che ogni
+	 * consumatore ricomponga copertura e facing per conto proprio, come dichiara il commento di quella.
+	 *
+	 * ⚠️ **Perche' non basta `CoverReduction > 0`**: quel campo vale `0` **anche** quando la copertura
+	 * c'era e la direzione l'ha annullata — cioe' nel caso in cui il facing e' stato letto **e ha deciso**.
+	 * Guardare il solo termine rimasto perderebbe esattamente le letture piu' significative.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
+	static bool CoverReadTargetFacing(const FRTHexAttackHit& Hit);
 
 	/**
 	 * Il colpo `Hit` riassegnato a `NewTargetId`, con la geometria TARGET-DEPENDENT rivalidata su chi lo
