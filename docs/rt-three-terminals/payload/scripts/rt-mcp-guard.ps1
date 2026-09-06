@@ -50,6 +50,47 @@ Set-StrictMode -Version 2.0
 # branch, e la policy chiede esplicitamente un branch di task.
 $ProtectedBranches = @('main', 'master', 'HEAD')
 
+# ---------------------------------------------------------------------------
+# Contratto di ownership: importato, non riscritto
+# ---------------------------------------------------------------------------
+
+# (!!) Il predicato "questo lease e' mio" viveva in TRE posti e in DUE varianti:
+# `rt-lease.ps1` confrontava solo il PID, mentre questo script e `rt-mcp-guard.ps1`
+# accettavano anche `terminal_instance`. Due script riconoscevano un proprietario
+# che il terzo rifiutava.
+#
+# Ora la regola ha una sede sola e viene importata dall'AST di `rt-lease.ps1`,
+# come gia' si fa per il guard del motore. Un rename a monte da' un errore
+# esplicito, non un permesso concesso per sbaglio.
+function Import-OwnershipContract {
+    param([Parameter(Mandatory)] [string] $LeaseScript)
+
+    if (-not (Test-Path $LeaseScript)) {
+        throw "OWNERSHIP_CONTRACT_UNAVAILABLE: $LeaseScript non trovato."
+    }
+    $tokens = $null
+    $errors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile($LeaseScript, [ref]$tokens, [ref]$errors)
+    if ($errors -and $errors.Count -gt 0) {
+        throw "OWNERSHIP_CONTRACT_UNAVAILABLE: $LeaseScript non e' parsabile ($($errors.Count) errori)."
+    }
+
+    $wanted = @('Resolve-SessionIdentity', 'Test-LeaseOwnedBy')
+    $found = @{}
+    foreach ($fn in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
+        if ($wanted -contains $fn.Name) { $found[$fn.Name] = $fn.Extent.Text }
+    }
+    $missing = @($wanted | Where-Object { -not $found.ContainsKey($_) })
+    if ($missing.Count -gt 0) {
+        throw "OWNERSHIP_CONTRACT_UNAVAILABLE: $LeaseScript non espone piu' $($missing -join ', ')."
+    }
+
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($n in $wanted) { [void]$sb.AppendLine($found[$n]) }
+    return $sb.ToString()
+}
+
+
 function Resolve-Root {
     param([string] $Explicit)
     $root = $Explicit
@@ -159,7 +200,10 @@ function Test-Policy {
     if ($null -eq $lease) {
         $failures += [pscustomobject]@{ Code = 'ENGINE_LEASE_REQUIRED'; Detail = 'nessun lease attivo. Acquisiscilo con rt-lease.ps1.' }
     } else {
-        if ([int]$lease.owner_pid -ne $PID -and [string]$lease.terminal_instance -ne [string]$env:RT_TERMINAL_INSTANCE) {
+        $identity = Resolve-SessionIdentity
+        if (-not $identity.Ok) {
+            $failures += [pscustomobject]@{ Code = [string]$identity.ErrorCode; Detail = 'nessuna sessione RT persistente: un processo effimero non possiede il motore.' }
+        } elseif (-not (Test-LeaseOwnedBy -Lease $lease -Identity $identity)) {
             $failures += [pscustomobject]@{ Code = 'ENGINE_LEASE_REQUIRED'; Detail = "il lease appartiene a owner_pid $($lease.owner_pid), non a questa sessione." }
         }
         if ([string]$lease.operation -ne $Operation) {
@@ -178,6 +222,8 @@ function Test-Policy {
 }
 
 $root = Resolve-Root -Explicit $WorkspaceRoot
+. ([scriptblock]::Create((Import-OwnershipContract -LeaseScript (Join-Path $root (Join-Path 'scripts' 'rt-lease.ps1')))))
+
 $SchemaVersion = 1
 . ([scriptblock]::Create((Get-ScriptFunctionSource -Path (Join-Path $root (Join-Path 'scripts' 'rt-workspace.ps1')) `
     -Names @('Get-StoreDir', 'Get-RegistryPath', 'Get-MarkerPath', 'Read-Marker', 'Read-Registry', 'Find-EntryByRoot', 'Get-Entries', 'Get-WorkspaceVerdict'))))
