@@ -57,6 +57,30 @@ All'avvio della sessione:
 5. carica **un solo** `TERMINAL_*.md` coerente con il ruolo;
 6. carica al massimo **un solo** `WAVE_*.md` compatibile con la sessione corrente.
 
+Le variabili sono:
+
+```text
+RT_TERMINAL_ROLE       DEV | EDITOR | VALIDATION
+RT_TERMINAL_INSTANCE   identificativo dell'istanza
+RT_WORKSPACE_ROOT      checkout su cui la sessione lavora
+RT_WORKSPACE_ID        MAIN | DEV | TECHNICAL_DESIGNER
+RT_TASK_ID             task/issue, quando dichiarato
+```
+
+`RT_WORKSPACE_ID` non è il ruolo della sessione e non è il branch.
+
+È l'identità del **workspace**: `MAIN` è il checkout che ospita l'unico bridge MCP della macchina.
+
+`MAIN` non è il branch `main`.
+
+Il valore autorevole vive nel registro per macchina, non nella variabile e non nel marker locale.
+
+Per verificarlo:
+
+```powershell
+rtws -Action verify
+```
+
 Le figure canoniche sono:
 
 * `DEV`;
@@ -533,6 +557,52 @@ Non sostituisce VALIDATION per:
 * privacy;
 * replay correctness;
 * authoritative logic.
+
+### Authoring asset via MCP
+
+Il ruolo EDITOR esiste in ogni workspace.
+
+L'authoring asset via MCP no: è consentito **solo** dal workspace `MAIN`.
+
+Il bridge MCP è uno solo e vive in MAIN. Usarlo da un altro checkout muta gli asset di MAIN mentre si legge il `git status` del proprio.
+
+Condizioni, tutte necessarie:
+
+```text
+RT_TERMINAL_ROLE == EDITOR
+RT_WORKSPACE_ID  == MAIN, verificato sul registro di macchina
+branch           == branch di task, diverso da main
+RT_TASK_ID       presente
+write-set asset  dichiarato
+lease Unreal     vivo, posseduto, per l'operazione giusta
+```
+
+Preflight:
+
+```powershell
+rtmcp -Operation MCP_ASSET_WRITE -TaskId <id> -AssetWriteSet <path>
+```
+
+Fuori da MAIN restano consentite preparazione, ispezione e query read-only.
+
+Il motore si prende just-in-time:
+
+```powershell
+rtlease -Action acquire -Operation EDITOR -TaskId <id>
+rtlease -Action release
+```
+
+Aprire un terminale non acquisisce Unreal.
+
+⛔ Il preflight **autorizza, non intercetta**.
+
+Il trasporto MCP è HTTP diretto: chi lo salta raggiunge il bridge lo stesso, e nessuno script può impedirlo.
+
+Misurato il 2026-09-06: dietro `call_tool` ci sono **56 toolset**, di cui 55 non sono di RefactorTactics. Fra questi `AssetTools` (`write_file`, `delete`, `move`), `AutomationTestToolset` (`RunTests`, `StopTests`) e `ProgrammaticToolset` (esegue Python).
+
+Conseguenza: una chiamata MCP può avviare o fermare una suite senza passare da `rt-suite.ps1`, dal lease e dal mutex — cioè può rendere `NON VALIDA` la misura di un'altra sessione.
+
+Dettaglio: `docs/rt-three-terminals/prompts/RT3_CONTRACT.md` §14.
 
 ---
 

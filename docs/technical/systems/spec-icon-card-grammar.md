@@ -249,7 +249,7 @@ documentazione e la UI devono distinguere **tre** stati, che non sono sinonimi:
 
 ### 6.4 `Hero.Wraith.InterceptShot` — l'esempio reale
 
-È la thin slice Predictive della v0.1 (`CLAUDE.md` §3) ed è l'unico dei quattro che attraversa il roster
+È la thin slice Predictive della v0.1 ([`AGENTS.md`](../../../AGENTS.md) §5) ed è l'unico dei quattro che attraversa il roster
 spedito. Va composto con la grammatica di §5 e usato come caso di prova quando la prima card viene autorata:
 un esempio che non esiste nel gioco non può falsificare nulla.
 

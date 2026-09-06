@@ -16,6 +16,33 @@ Questo ruolo serve per:
 - authoring asset;
 - acceptance visuale/manuale.
 
+## Preparazione e authoring non sono la stessa cosa
+
+Il ruolo EDITOR esiste in **ogni** workspace. L'authoring asset via MCP no.
+
+| Cosa fai | Dove puoi farlo |
+|---|---|
+| leggere, ispezionare, preparare specifiche e handoff, query read-only | qualunque workspace |
+| creare/modificare/salvare `.uasset`, `.umap`, Blueprint, Data Asset, Widget, Material | **solo** dal workspace `MAIN` |
+
+Il motivo non è gerarchico: il bridge MCP è **uno** e vive in MAIN. Usarlo da un
+altro checkout significa mutare gli asset di MAIN mentre si legge il `git status`
+del proprio. La divergenza non produce un errore: produce un asset nel posto
+sbagliato e un verdetto su un albero diverso.
+
+Prima di mutare, il preflight:
+
+```powershell
+rtmcp -Operation MCP_ASSET_WRITE -TaskId <id> -AssetWriteSet <path>
+```
+
+Verifica figura, workspace registrato, branch di task, task id, write-set e lease.
+`MAIN` è un'identità di workspace: il branch resta quello della task, mai `main`.
+
+⚠️ Il preflight **autorizza, non intercetta**: il trasporto MCP è HTTP e nessuno
+script sta sul percorso della chiamata. Saltarlo non è una scorciatoia tecnica, è
+una mutazione non attribuibile.
+
 ## Concorrenza
 
 Più terminali con ruolo EDITOR possono tecnicamente essere aperti, ma nello stesso checkout la policy normale è:
@@ -33,7 +60,14 @@ Prima di iniziare:
 rtstatus
 ```
 
-La modalità globale deve essere EDITOR.
+Occupare il motore richiede il lease, e si prende **just-in-time**:
+
+```powershell
+rtlease -Action acquire -Operation EDITOR -TaskId <id>
+```
+
+Aprire il terminale non lo acquisisce. Al termine, `rtlease -Action release`: il
+rilascio fallisce finché un processo Unreal avviato da questa sessione è vivo.
 
 Durante questa finestra:
 - non avviare suite Unreal concorrenti;
