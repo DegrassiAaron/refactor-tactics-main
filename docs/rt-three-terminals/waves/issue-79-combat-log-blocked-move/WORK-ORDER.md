@@ -4,6 +4,10 @@ Ingresso della wave `issue-79-combat-log-blocked-move/1`. È il file che `RT3_CO
 
 Emesso da DEV-LEAD. Non è un handoff §9: non porta verdetti, e non li porterà — DEV-LEAD non compare in nessuna colonna della matrice §7.
 
+> **Consegna**: [PR #2631](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2631) → `main`, aperta in **draft** il 2026-09-06.
+> ⛔ Draft e non pronta: il branch di wave ha ricevuto **tre commit da altre sessioni** — `b5badb79` (3 PNG), `6c6bfddc` e `f44196e7` (`tools/rt3/`) — che portano la PR da 856 a **10.488 righe**. Non li ho estratti perché riscrivere la storia cambierebbe gli SHA su cui EDITOR e VALIDATION hanno misurato, e ogni `EVIDENCE_REF` della wave smetterebbe di essere raggiungibile dalla PR.
+> ⚠️ **La PR non chiude #79**: i tre check a oracolo umano restano `NOT RUN`.
+
 ## Busta
 
 ```text
