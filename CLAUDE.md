@@ -1,421 +1,828 @@
-# CLAUDE.md — RefactorTactics
+# RefactorTactics — CLAUDE.md
 
-Overlay operativo per **Claude Code / SuperClaude**.
+Overlay operativo **Claude Code** per RefactorTactics.
 
-> **Prima regola:** leggere [`AGENTS.md`](AGENTS.md).
->
-> `CLAUDE.md` non duplica il contratto condiviso. Contiene solo il protocollo Claude-specifico e i rinvii ai suoi owner.
+Questo file non sostituisce:
 
-Le sezioni 2–10 conservano la propria numerazione perché altri documenti vi puntano. Dove il contenuto ha un owner altrove, la sezione resta e porta il rinvio.
+* `AGENTS.md`;
+* `docs/rt-three-terminals/prompts/RT3_CONTRACT.md`;
+* Decision Log / ADR;
+* owner specification;
+* GitHub issue e milestone;
+* test eseguibili.
 
-## 1. Context protocol
+`AGENTS.md` possiede i guardrail tool-agnostic.
 
-Non lavorare dalla memoria del progetto.
+`RT3_CONTRACT.md` possiede il contratto operativo RT3.
 
-### Figura della sessione
+Questo file definisce esclusivamente come **Claude Code** applica tali regole durante una sessione.
 
-Prima di qualunque altra cosa, stabilisci **quale figura** sei fra DEV, EDITOR e VALIDATION. Le tre figure, i loro limiti e le regole di concorrenza sono in [`AGENTS.md`](AGENTS.md) §11.
+---
 
-Il ruolo si **misura**, in quest'ordine:
+# 1. Principio operativo
 
-1. le variabili d'ambiente del terminale, se presenti:
+RefactorTactics è un tactical game competitivo Unreal Engine 5 basato su:
 
-   ```text
-   RT_TERMINAL_ROLE       DEV | VALIDATION | EDITOR
-   RT_TERMINAL_INSTANCE   identificativo dell'istanza
-   RT_WORKSPACE_ROOT      checkout su cui la sessione lavora
-   ```
+* turni simultanei;
+* simulazione autoritativa;
+* determinismo;
+* tactical graph multilivello;
+* planning nemico privato;
+* coordinazione alleata;
+* contenuti data-driven;
+* separazione fra simulazione e presentazione.
 
-2. `rtstatus`, quando il comando è disponibile: stampa ruolo del terminale, id, engine mode e workspace. Non è definito in ogni shell — se manca, non è un errore, è un dato in meno;
-3. la dichiarazione esplicita di chi ha aperto la sessione.
+Non ricostruire l'architettura da zero a ogni task.
 
-Il ruolo **non si deduce dal nome della directory**: `Main`, `Dev` e `Technical Designer` sono luoghi, non figure.
+Prima di lavoro sostanziale determina sempre dal repository e da GitHub:
 
-### Prompt da caricare
+* release corrente;
+* milestone corrente;
+* issue / Epic coinvolti;
+* Domain owner;
+* stato reale dell'implementazione.
 
-Una sessione carica:
+Non dedurre il current scope da questo file.
 
-- [`docs/rt-three-terminals/prompts/RT3_CONTRACT.md`](docs/rt-three-terminals/prompts/RT3_CONTRACT.md) — il contratto di wave, sempre;
-- **un solo** `TERMINAL_*.md`, quello della propria figura;
-- **al più un** `WAVE_*.md`, e solo se compatibile con quella figura.
+---
 
-Compatibilità:
+# 2. Avvio sessione e ruolo RT3
 
-| Figura | `TERMINAL_*` | `WAVE_*` ammessi |
-|---|---|---|
-| DEV | `TERMINAL_DEV.md` | `WAVE_DEV_LEAD.md` · `WAVE_DEV_MAIN.md` · `WAVE_DEV_TEST.md` — uno solo |
-| EDITOR | `TERMINAL_EDITOR.md` | `WAVE_EDITOR.md` |
-| VALIDATION | `TERMINAL_VALIDATION.md` | `WAVE_VALIDATION.md` |
+All'avvio della sessione:
 
-Due prompt di wave nella stessa sessione danno due identità contraddittorie. Non si sommano.
+1. leggi `AGENTS.md`;
+2. individua le variabili `RT_TERMINAL_*` e `RT_WORKSPACE_*`, se presenti;
+3. esegui `rtstatus` quando disponibile;
+4. leggi `docs/rt-three-terminals/prompts/RT3_CONTRACT.md`;
+5. carica **un solo** `TERMINAL_*.md` coerente con il ruolo;
+6. carica al massimo **un solo** `WAVE_*.md` compatibile con la sessione corrente.
 
-### Fail-closed
+Le figure canoniche sono:
 
-```text
-ROLE_MISSING    nessuna delle tre fonti dà un ruolo
-ROLE_CONFLICT   le fonti danno ruoli diversi, oppure il prompt caricato
-                non appartiene alla figura misurata
-```
+* `DEV`;
+* `EDITOR`;
+* `VALIDATION`.
 
-In entrambi i casi: **fermati e dichiaralo**. Non leggere il repository per indovinare, non avviare Unreal, non scrivere.
+`DEV-LEAD`, `DEV-MAIN` e `DEV-TEST` sono funzioni DEV di una wave, non nuove figure.
 
-Un ruolo dedotto dal contesto è un ruolo inventato, e la figura sbagliata occupa il motore di qualcun altro.
+Non dedurre il ruolo da:
 
-### Prima di modificare
+* nome della directory;
+* branch;
+* terminal title;
+* repository clone.
 
-1. misura `git status`;
-2. identifica branch;
-3. misura `HEAD`;
-4. misura `origin/main`;
-5. leggi `AGENTS.md`;
-6. individua issue/task;
-7. individua l'owner documentale;
-8. cerca implementazione e test esistenti;
-9. dichiara write-set;
-10. dichiara rischi e verifiche previste.
+Se il ruolo non è determinabile:
 
-Quando pertinenti controlla:
+`ROLE_MISSING`
 
-- `docs/product/piano-canonico-mvp.md`
-- `docs/decisions/RT_PDR_00_Decision_Log.md`
-- ADR applicabili
-- `docs/DOC_CONFLICT_MATRIX.md`
-- `docs/OPEN_DECISIONS.md`
-- roadmap/checkpoint
-- spec owner
-- codice
-- test
+Se più fonti assegnano ruoli incompatibili:
 
-Usa search/grep per restringere il contesto prima di aprire documenti lunghi.
+`ROLE_CONFLICT`
 
-### Non usare come autorità implicita
+In entrambi i casi opera **fail-closed**: non iniziare lavoro mutante finché il ruolo non è risolto.
 
-- `docs/research/`
-- `docs/archive/`
-- PDF
-- export
-- handoff
-- audit
-- vecchi snapshot
-- numeri copiati
+Una sessione Claude occupa una sola figura RT3.
 
-Se due regole sono in conflitto, non riconciliarle a intuito.
+---
 
-Trova l'owner corrente.
+# 3. Autorità e source of truth
 
-## 2. Pin correnti
+Mantieni distinti tre tipi di autorità.
 
-I pin **non vivono qui**. Copiarli produce due elenchi che divergono in silenzio.
+## Stato live
 
-| Cosa | Owner |
-|---|---|
-| Engine, scope v0.1 e standard, roster, mappa, coordinate, loop, azioni universali, ability system, GAS | [`AGENTS.md`](AGENTS.md) §1 |
-| Traversal/Transfer, Sprint, Overwatch, reazioni, Fast Reaction, timeout, thin slice Predictive, High Ground | [`AGENTS.md`](AGENTS.md) §5 |
-| Decisioni che hanno fissato un pin | [`docs/decisions/RT_PDR_00_Decision_Log.md`](docs/decisions/RT_PDR_00_Decision_Log.md) |
+Per sapere cosa esiste, cosa è aperto, chiuso o merged:
 
-Il dettaglio vive negli owner gameplay.
+1. repository corrente;
+2. GitHub milestone;
+3. GitHub issue / PR;
+4. build e test eseguibili.
 
-Due regole restano Claude-specifiche perché descrivono un errore che un agente commette da solo:
+Drive non possiede lo stato live delle issue.
 
-- niente compatibilità implicita con nomi legacy rimossi;
-- nessun redirect legacy reintrodotto senza decisione.
+## Contratto
 
-## 3. Guardrail architetturali
+Per sapere quale comportamento è corretto:
 
-Gli invarianti sono in [`AGENTS.md`](AGENTS.md) §3, numerati: determinismo e confine simulazione/presentazione (1–6), substrato spaziale unico (7–11), ownership del gameplay (12–17).
+1. Decision Log accettato;
+2. ADR accettato;
+3. owner specification;
+4. contract test intenzionale;
+5. Domain Roadmap corrente;
+6. documentazione storica.
 
-Qui resta solo il modo in cui un agente li viola.
+Il codice corrente è evidenza dell'implementazione, non automaticamente del contratto corretto.
 
-Non si rompono per una scelta di architettura. Si rompono in un punto **locale**, dove la scorciatoia è più corta della regola: un tempo reale letto «solo per questo caso», una seconda conversione fra mondo ed esagoni scritta per far funzionare una feature, un ramo su due eroi al posto di uno stato condiviso.
+## Ownership
 
-Una scorciatoia che funziona resta un secondo owner.
+Per sapere chi possiede una responsabilità:
 
-Prima di introdurre una struttura nuova nel dominio spaziale, nella risoluzione o nelle abilità, verifica quale invariante numerato la copre già. Se la copre, non serve la struttura. Se non la copre, la sede della decisione è la spec dell'owner, non il resolver.
+1. owner GitHub / Epic corrente;
+2. Domain Roadmap canonica;
+3. decisione cross-domain accettata.
 
-## 4. Privacy
+Una issue ha un solo primary owner.
 
-Owner della regola: [`AGENTS.md`](AGENTS.md) §4, che dichiara dove il planning avversario non può stare e quali informazioni UI e warning possono leggere.
+Le altre relazioni sono dipendenze.
 
-Qui resta l'errore che un agente commette da solo: replicare l'informazione e poi **nasconderla in presentazione**.
+Quando le fonti divergono non riconciliarle silenziosamente.
 
-Un dato che ha raggiunto il client è arrivato. Nessun filtro di UI lo fa tornare indietro, e l'assenza dalla schermata avversaria non è una prova della sua assenza.
+Usa:
 
-Da cui:
+* `STALE ROADMAP`;
+* `IMPLEMENTATION DRIFT`;
+* `CONTRACT CONFLICT`.
 
-- se una feature ha bisogno di un'informazione che il client non deve conoscere, si sposta il calcolo sull'autorità: non si filtra il rendering;
-- un warning costruito su un intento privato avversario è un difetto di autorità, non un dettaglio di presentazione;
-- il confine si verifica su ciò che viaggia, non su ciò che si vede — ed è per questo che il verdetto su privacy e autorità di rete appartiene a VALIDATION, [`AGENTS.md`](AGENTS.md) §11.
+Descrivi sempre quale fonte governa la decisione corrente.
 
-## 5. Unreal asset safety
+---
 
-Asset proprietari:
+# 4. Search → Reuse → Create
 
-`/Game/RT/`
+Prima di creare una nuova responsabilità cerca ciò che esiste già.
 
-Le convenzioni di contenuto, i prefissi, i redirector e il write-set binario sono in [`AGENTS.md`](AGENTS.md) §7. Owner documentale:
+Vale in particolare per:
 
-[`docs/technical/tooling/convenzioni-contenuti-ue.md`](docs/technical/tooling/convenzioni-contenuti-ue.md)
+* classi;
+* subsystem;
+* Actor;
+* componenti;
+* USTRUCT;
+* enum;
+* Data Asset;
+* Gameplay Tag;
+* resolver;
+* validator;
+* test;
+* utility;
+* debug command;
+* Editor tool.
+
+Ordine:
+
+`SEARCH → REUSE → EXTEND → REFACTOR → CREATE`
+
+Non creare architetture parallele.
+
+Non introdurre placeholder per roadmap lontane.
+
+Non fare refactor opportunistici.
+
+I miglioramenti non necessari al task corrente vanno in:
+
+`FOLLOW-UP CANDIDATES`
+
+---
+
+# 5. Comportamento Claude per Unreal e asset
+
+Usa la versione Unreal Engine fissata dal repository.
+
+Non aggiornare senza richiesta esplicita:
+
+* Unreal Engine;
+* plugin;
+* toolchain;
+* dipendenze principali.
+
+Non inventare API Unreal.
+
+Quando un'API è incerta, verificarla tramite:
+
+* header disponibili;
+* versione Engine;
+* uso già presente nel repository.
+
+Per file binari Unreal:
+
+* non modificarli come testo;
+* non simulare modifiche `.uasset` / `.umap`;
+* usa EDITOR quando il cambiamento richiede realmente Unreal Editor;
+* non dichiarare una verifica visiva senza averla eseguita.
+
+C++ possiede normalmente:
+
+* simulazione;
+* networking;
+* validazione;
+* serialization;
+* snapshot;
+* resolver;
+* pathfinding;
+* replay;
+* TurnLog;
+* regole competitive.
+
+Blueprint / UMG / asset possiedono principalmente:
+
+* configurazione;
+* UI;
+* presentation;
+* animation;
+* VFX;
+* content variation.
+
+Regola:
+
+**C++ definisce ciò che è permesso.
+Data e Blueprint configurano una variante permessa.**
+
+GAS non deve diventare una seconda autorità della simultaneous resolution.
+
+---
+
+# 6. Validità dei test e delle evidenze
+
+Un risultato è valido solo se il gate corrispondente è stato realmente eseguito sul codice / asset / commit dichiarato.
+
+Usa questi stati:
+
+* `PASS`
+* `FAIL`
+* `NOT RUN`
+* `N/A`
+
+`NOT RUN` non equivale a `PASS`.
+
+Non dichiarare mai:
+
+* compile PASS;
+* Automation PASS;
+* determinism PASS;
+* replay PASS;
+* privacy PASS;
+* PIE PASS;
+* packaged PASS;
+* performance PASS;
+
+senza evidenza reale.
+
+Regola generale:
+
+**Automation** verifica regole e contratti.
+
+**PIE** verifica interaction e presentation.
+
+**Packaged** verifica ciò che viene realmente distribuito.
+
+Uno non sostituisce automaticamente gli altri.
+
+Una Validation Window preliminare può produrre evidenza utile, ma non equivale al sign-off finale previsto dal contratto RT3.
+
+VALIDATION non deve:
+
+1. modificare un problema;
+2. validare autonomamente il proprio fix;
+3. dichiararlo approvato.
+
+Se VALIDATION trova un difetto che richiede modifica, produce handoff al ruolo appropriato e poi rivalida una build/commit indipendente.
+
+---
+
+# 7. Determinismo, autorità e privacy
+
+Questi sono invarianti competitivi.
+
+## Determinismo
+
+A parità di:
+
+* initial canonical state;
+* snapshot;
+* rules/config version;
+* resolver version;
+* seed, quando previsto;
+
+devono risultare uguali:
+
+* final state;
+* ordered gameplay events;
+* TurnLog;
+* digest/hash quando definito.
+
+Non dipendere da:
+
+* frame rate;
+* Actor iteration order;
+* `TMap` / `TSet` order;
+* pointer address;
+* animation timing;
+* wall-clock;
+* async completion order non normalizzato.
+
+Usa Stable ID e ordering esplicito.
+
+Quando cambia lo stato canonico, considera sempre:
+
+* snapshot schema;
+* serialization;
+* replay;
+* TurnLog;
+* hash/digest;
+* versioning.
+
+## Autorità
+
+Invariante:
+
+`CLIENT PROPOSES → SERVER VALIDATES → SERVER APPLIES`
+
+Il client non decide esiti competitivi.
+
+## Privacy
+
+Gli intenti completi appartengono all'autorità.
+
+Un client avversario non deve ricevere dati sufficienti per ricostruire hidden enemy planning.
+
+Non collocare planning privato su Actor globalmente replicati.
+
+Qualunque modifica a:
+
+* planning;
+* replication;
+* networking;
+* event projection;
+* ally/enemy UI;
+
+richiede revisione esplicita del boundary privacy.
+
+---
+
+# 8. Scope, task e milestone
+
+La dimensione del task determina il processo.
+
+## Local task
+
+Esempi:
+
+* compile fix;
+* bug locale;
+* test ristretto;
+* config/documentation fix.
+
+Flusso:
+
+`inspect → change → relevant verification → report`
+
+## Feature task
+
+Flusso:
+
+`preflight → search → plan → implement → compile → tests → relevant gates → report`
+
+## Milestone task
+
+Flusso:
+
+`reconnaissance → dependency check → scoped implementation → verification → milestone report`
+
+Non trasformare silenziosamente un local task in una milestone.
+
+Non implementare automaticamente lavoro futuro emerso durante l'analisi.
+
+Classifica il lavoro non corrente come:
+
+* `CURRENT REQUIRED`;
+* `CURRENT OPTIONAL`;
+* `DEFERRED`.
+
+---
+
+## Milestone design
+
+I 14 Domain Roadmaps definiscono ownership, non ordine di implementazione.
+
+Non assumere:
+
+`M1 = Domain 01`
+`M2 = Domain 02`
+ecc.
+
+Preferisci milestone verticali verificabili.
+
+Esempio concettuale:
+
+`Intent → Validation → Snapshot → Resolution → Result → Test`
+
+Una milestone può attraversare più domini, ma mantiene:
+
+* un goal;
+* un primary owner;
+* acceptance criteria binari;
+* scope delimitato.
+
+Completa e verifica la milestone richiesta.
+
+**Non iniziare automaticamente la milestone successiva**, salvo istruzione esplicita della sessione/wave.
+
+---
+
+# 9. Lavoro parallelo, Git e handoff
+
+Più terminali nella stessa directory condividono lo stesso working tree.
+
+Non considerarli isolamento.
+
+Working tree separati possono avere filesystem Git distinti, ma condividono comunque risorse macchina e tool esterni.
+
+Prima di lavoro sostanziale registra:
+
+* ruolo RT3;
+* workspace;
+* branch;
+* HEAD;
+* `git status`;
+* modifiche preesistenti;
+* issue / milestone corrente.
+
+Le modifiche preesistenti dell'utente o di altre sessioni sono protette.
 
 Non:
 
-- editare `.uasset` a mano;
-- editare `.umap` a mano;
-- spostare asset Unreal da filesystem;
-- modificare binari posseduti da un'altra sessione;
-- sovrascrivere un working tree sporco;
-- editare viste generate.
+* reset;
+* discard;
+* checkout distruttivo;
+* stash non necessario;
+* rebase di history condivisa;
+* force-push;
+* sovrascrittura di lavoro altrui.
 
-Usare:
+Il coordinamento avviene tramite:
 
-- Content Browser;
-- Unreal/Epic MCP come prima scelta quando serve creare, modificare, analizzare o validare asset, mappe, Blueprint o altro stato Editor-only;
-- Fix Up Redirectors;
-- Binary Asset Lease;
-- write-set esplicito.
+* branch;
+* commit SHA;
+* handoff persistiti;
+* issue / PR;
+* artifact/evidence condivisi secondo RT3.
 
-Il repository non usa Git LFS.
+Non coordinare tramite copie locali non tracciate come source of truth.
 
-### Lifecycle Editor / MCP
+Preferisci commit logicamente isolati:
 
-Non tenere Unreal Editor aperto per default.
+`<type>(<scope>): <description>`
 
-Quando il task richiede asset, mappe, Blueprint, PIE o altra verifica Editor-only:
+Non fare push o modifiche GitHub distruttive salvo autorizzazione della sessione.
 
-1. scopri gli strumenti Unreal/Epic MCP realmente disponibili;
-2. verifica se esiste già un'istanza Editor per RefactorTactics e chi la possiede;
-3. avvia l'Editor solo se necessario;
-4. preferisci MCP alle manipolazioni filesystem dei binari Unreal;
-5. esegui l'operazione o il test minimo che produce evidenza utile;
-6. salva solo le modifiche intenzionali;
-7. termina PIE/scenari;
-8. chiudi l'Editor avviato da questo workflow;
-9. verifica che il processo sia terminato.
+---
 
-Il passo 1 è una misura, non una presunzione: la superficie MCP cambia con la sessione e con lo stato del ponte.
+## Handoff minimo
 
-⚠️ **Una risposta vuota non è un no.** Con l'Editor in play mode alcune query rispondono `[]` o `False`
-**senza errore**, e un elenco vuoto sembra una misura. Prima di dichiarare una capability assente — e di
-spostare il lavoro su una persona — ripeti la query fuori da PIE, con il ponte acceso. Se resta assente:
-`NOT RUN` con il motivo.
+Ogni handoff significativo deve identificare almeno:
 
-Se un passo è eseguibile via MCP ma il suo oracolo resta umano, restano due cose distinte: MCP esegue, la
-persona giudica. Averlo eseguito non promuove il verdetto — la ripartizione è in
-[`docs/technical/tooling/scenario-map.md`](docs/technical/tooling/scenario-map.md), e non si riclassifica qui.
+* ruolo sorgente;
+* ruolo destinazione;
+* branch;
+* commit SHA / build;
+* scope;
+* issue / milestone;
+* file o asset rilevanti;
+* gate già eseguiti;
+* gate `NOT RUN`;
+* failure note;
+* istruzione successiva.
 
-Il cleanup vale anche su errore.
+Usa le forme complete definite da `RT3_CONTRACT.md`; non duplicarne qui lo schema.
 
-Una sessione non deve lasciare un Editor da lei avviato disponibile indefinitamente: dopo l'uso lo rilascia chiudendolo, così la risorsa torna disponibile agli altri processi.
+---
 
-Non terminare un Editor preesistente posseduto da un altro workflow/persona salvo che il comando corrente dichiari esplicitamente ownership esclusiva (per esempio una skill dedicata che lo prevede).
+# 10. Routing rapido Claude
 
-⛔ Occupare il motore è una decisione di figura, non di comodità: mentre l'Editor è aperto nessuna suite gira, e viceversa — [`AGENTS.md`](AGENTS.md) §11.
+## DEV
 
-## 6. Test
+Usa DEV per:
 
-Entry point:
+* C++;
+* simulator;
+* resolver;
+* networking;
+* pathfinding;
+* serialization;
+* replay;
+* TurnLog;
+* Automation;
+* script/tooling non Editor-bound;
+* documentazione tecnica quando non richiede asset verification.
 
-```powershell
-./scripts/rt-suite.ps1
-```
+DEV non deve dichiarare verifiche Editor-only che non ha realmente eseguito.
 
-Per build, filtri, attesa e tool Node usa [`AGENTS.md`](AGENTS.md) §9.
+---
 
-Non duplicare qui la lista operativa.
+## EDITOR
 
-### Regole
+Usa EDITOR per:
 
-Se il motore è occupato:
+* `.umap`;
+* `.uasset`;
+* Blueprint;
+* UMG;
+* animation;
+* visual setup;
+* asset integration;
+* Editor authoring;
+* PIE;
+* visual evidence.
 
-usa il comportamento dello script.
+EDITOR consuma i contratti gameplay.
 
-Non inventare watcher paralleli.
+Non sostituisce VALIDATION per:
 
-Una suite che vede cambiare:
+* determinismo;
+* privacy;
+* replay correctness;
+* authoritative logic.
 
-- `HEAD`;
-- working tree;
-- binario;
-- processi Unreal;
+---
 
-durante la misura è:
+## VALIDATION
 
-**NON VALIDA**.
+Usa VALIDATION per verifiche indipendenti come:
 
-Non equivale a rosso, e non equivale a verde: è una misura da rifare.
+* Automation gate;
+* replay regression;
+* determinism;
+* privacy;
+* packaged build;
+* scenario/golden test;
+* performance;
+* release evidence.
 
-Dopo un'attesa lunga:
+VALIDATION non implementa e approva autonomamente la stessa correzione.
 
-**ricompila prima di registrare il verde.**
+Quando Unreal è una risorsa esclusiva, EDITOR e VALIDATION rispettano la mutua esclusione definita da RT3.
 
-Se PIE/Editor/packaged non sono stati eseguiti:
+La catena canonica resta:
 
-**NOT RUN**.
+`DEV-LEAD → EDITOR → VALIDATION`
 
-Quando il cambiamento è verificabile in Editor e l'ambiente lo consente, usa Unreal/Epic MCP anche per PIE o scenario validation. Preferiscilo soprattutto per:
+salvo Validation Window o routing esplicitamente consentiti da `RT3_CONTRACT.md`.
 
-- selezione/input/camera e comportamento editor-facing;
-- mappe, Blueprint e asset;
-- interazioni visuali che richiedono il runtime Editor;
-- regressioni che Automation Test da solo non dimostra.
+---
 
-PIE/MCP aggiunge evidenza, non sostituisce build, Automation Test o Scenario Harness richiesti.
+# 11. Regole permanenti di gameplay engineering
 
-Se non è possibile eseguirlo, dichiarare `NOT RUN` con il motivo.
+Queste regole sono abbastanza stabili da guidare Claude, ma i dettagli appartengono alle owner specification.
 
-Prima del merge:
+## Logical vs Presentation
 
-verifica che il gate sia stato eseguito sul commit che stai realmente mergiando.
+Mantieni separati:
 
-### Chi misura
+`CANONICAL / LOGICAL STATE`
 
-Occupare il motore appartiene alla figura VALIDATION — [`AGENTS.md`](AGENTS.md) §11. Una sessione DEV prepara il test, esegue ciò che è statico o headless e marca il resto `NOT RUN`.
+e:
 
-Una Validation Window aperta prima che la catena sia completa misura una base precedente: è utile, e non è il sign-off finale.
+`PRESENTATION STATE`.
 
-## 7. Lavoro parallelo
+Animation, VFX, UI e audio consumano eventi della simulazione.
 
-Il repository viene lavorato in parallelo. Figure, isolamento e coordinamento sono in [`AGENTS.md`](AGENTS.md) §11.
+Non decidono:
 
-Non assumere che rimangano stabili:
+* movement;
+* hit;
+* damage;
+* reaction;
+* KO;
+* objective outcome.
 
-- branch;
-- `HEAD`;
-- `origin/main`;
-- issue;
-- PR;
-- binari;
-- shared ID.
+---
 
-Prima di creare qualcosa:
+## Turn architecture
 
-**SEARCH → REUSE / UPDATE → CREATE solo per gap reale.**
+Target:
 
-Non assegnare dalla memoria:
+`Planning`
+→ `Ready`
+→ `Commit`
+→ `Validation`
+→ `Immutable Snapshot`
+→ `Deterministic Resolution`
+→ `Cleanup`
+→ `TurnLog / Result`
 
-- `D-nnn`;
-- Epic `Enn`;
-- altri contatori condivisi.
+Non creare shortcut incompatibili con questo modello.
 
-Fetch e riverifica prima del merge.
+---
 
-Nella stessa directory il working tree è condiviso: preferisci `git add` per path espliciti e non assumere che una modifica visibile in `git status` appartenga a questa sessione.
+## Tactical map
 
-## 8. Git
+`FRTCellId` identifica la cella logica tramite:
 
-Branch focalizzati:
+* `X`;
+* `Y`;
+* `Layer`.
 
-```text
-feat/
-fix/
-refactor/
-docs/
-test/
-```
+Il tactical graph è l'autorità per movimento competitivo.
 
-Usare Conventional Commits.
+NavMesh/Recast non lo è.
 
-Non fare operazioni remote distruttive senza autorizzazione esplicita.
+Separare:
 
-La PR va aperta sul **branch padre reale**, non su `main` per assunzione. Chiusura delle issue, forma di `Closes #N` e ID condivisi: [`AGENTS.md`](AGENTS.md) §12.
+* pathfinding;
+* LOS;
+* targeting;
+* projectile trajectory.
 
-Non confondere:
+Le celle logiche sono dati compatti centralizzati, non migliaia di Actor.
 
-```text
-file modificato
-```
+---
 
-con:
+## Cover / intra-hex
 
-```text
-build/test/PIE/packaged verificato
-```
+Salvo decisione successiva accettata:
 
-## 9. Output dopo ogni pass
+* wedge = tactical geometry, non subcell;
+* `CoverOption` non crea occupancy aggiuntiva;
+* ogni `FRTCellId` ha un solo authoritative occupancy slot;
+* wall side non implica automaticamente traversal;
+* same-cell contest resta deterministico;
+* cover selection non ridefinisce canonical occupancy.
+
+Un conflitto con queste regole richiede contract investigation.
+
+---
+
+## Bots
+
+I bot generano intent.
+
+Usano gli stessi:
+
+* legal-action rules;
+* canonical state;
+* simulator;
+* resolution rules;
+
+dei player.
+
+Non duplicare gameplay competitivo nei bot.
+
+---
+
+## Editor tooling
+
+Editor tooling produce o consuma gli stessi canonical data contract del runtime.
+
+Non duplicare gameplay authority dentro tool Editor.
+
+---
+
+# 12. Domain e capability routing
+
+Canonical Domain ownership:
+
+1. Gameplay & Match Flow
+2. Tactical Map, Graybox & Level Kit
+3. Technical Design & Editor Tooling
+4. Characters, Abilities & Combat
+5. Environment Systems & Gameplay Effects
+6. Graphics, Rendering, Materials & VFX
+7. Animation & Presentation
+8. UI, UX & Coordination
+9. Assets & Content Pipeline
+10. Audio & Feedback
+11. AI, Bots & Autobattle
+12. Networking, Privacy & Multiplayer
+13. Data, Balance & Progression
+14. QA, Automation, Packaging & Performance
+
+Le capability trasversali non sono owner alternativi.
+
+Fra esse:
+
+* Core Simulation & Turn System;
+* Tactical Map & Navigation;
+* Combat & Abilities;
+* Environment & Elemental Systems;
+* Multiplayer & Networking;
+* Planning UX & HUD;
+* Camera & Map Presentation;
+* Animation, VFX & Presentation;
+* Tools, QA & Production.
+
+Linka le dipendenze.
+
+Non duplicare issue o responsabilità.
+
+---
+
+# 13. Decision conflict
+
+Se due implementazioni possibili cambiano semanticamente il gameplay, non scegliere arbitrariamente.
+
+Cerca:
+
+1. Decision Log;
+2. ADR;
+3. owner specification;
+4. contract test;
+5. issue / PR discussion;
+6. current implementation.
+
+Se il conflitto resta reale:
+
+`BLOCKED — DECISION REQUIRED`
 
 Riporta:
 
-### Risultato
+* interpretazioni;
+* conseguenze;
+* sistemi coinvolti;
+* decisione minima richiesta.
 
-Cosa è cambiato realmente.
+Continua solo lavoro indipendente.
 
-### File
+---
 
-File creati/modificati.
+# 14. Definition of Done
 
-### Decisioni
+Non assumere:
 
-Owner, ADR o Decision Log coinvolti.
+`COMPILES = DONE`
 
-### Verifiche
+né:
 
-Build, test e tool effettivamente eseguiti.
+`ISSUE CLOSED = DONE`
 
-### NOT RUN
+né:
 
-Verifiche non eseguite.
+`PR MERGED = DONE`.
 
-### Rischi / aperti
+Dove rilevante, una feature richiede:
 
-Conflitti, limiti, decisioni o follow-up.
+* comportamento corretto;
+* corretta authority;
+* determinismo;
+* privacy;
+* eventi/TurnLog coerenti;
+* replay/serialization compatibility;
+* version/hash correctness;
+* test automatici;
+* PIE evidence;
+* packaged evidence;
+* performance appropriata.
 
-### Prossimo passo
+Applica solo i gate rilevanti al task e alla release corrente.
 
-Una sola azione consigliata.
+---
 
-Non dichiarare:
+# 15. Reporting Claude
 
-- funziona;
-- completo;
-- production ready;
-- sicuro;
-- deterministico;
+Per un normale feature task riporta almeno:
 
-senza evidenza.
+## Implemented
 
-Quando la sessione consegna a un'altra figura, l'output di cui sopra non basta da solo: serve l'handoff persistito su file, nella forma di [`docs/rt-three-terminals/prompts/RT3_CONTRACT.md`](docs/rt-three-terminals/prompts/RT3_CONTRACT.md).
+* ...
 
-## 10. Mappa rapida
+## Files
 
-La tabella dei percorsi è in [`AGENTS.md`](AGENTS.md) §6.
+* ...
 
-Mappa dettagliata:
+## Verification
 
-[`docs/technical/architecture/architettura-codice.md`](docs/technical/architecture/architettura-codice.md)
+* Compile: `PASS / FAIL / NOT RUN / N/A`
+* Tests: `PASS / FAIL / NOT RUN / N/A`
+* Determinism: `PASS / FAIL / NOT RUN / N/A`
+* Replay: `PASS / FAIL / NOT RUN / N/A`
+* Privacy: `PASS / FAIL / NOT RUN / N/A`
+* PIE: `PASS / FAIL / NOT RUN / N/A`
+* Packaged: `PASS / FAIL / NOT RUN / N/A`
 
-Prompt e contratto delle tre figure:
+## Known limitations
 
-[`docs/rt-three-terminals/README.md`](docs/rt-three-terminals/README.md)
+* ...
 
-## 11. Routing rapido
+## Follow-up candidates
 
-Cosa fa una sessione Claude una volta misurata la propria figura.
+* ...
 
-### DEV
+Per una milestone aggiungi:
 
-Codice, test, review, Git/GitHub, tooling statico e headless.
+* goal;
+* primary Domain;
+* supporting Domains;
+* issue;
+* acceptance criteria;
+* blocker;
+* recommended commit.
 
-- non avviare UnrealEditor, UnrealEditor-Cmd, `rt-suite`, packaging o build che monopolizzano il motore;
-- ciò che richiede Unreal si prepara e si marca `NOT RUN`, con il comando che VALIDATION dovrà eseguire;
-- più istanze DEV condividono il working tree: §7.
+Non fabbricare evidenza.
 
-Se la sessione è il `DEV-LEAD` di una wave, emette l'handoff di ingresso e non emette verdetti: non possiede lo strumento che li prova.
+---
 
-### EDITOR
+# 16. Priorità
 
-Editor, PIE, MCP, `.uasset`/`.umap`, Blueprint, authoring, acceptance visuale.
+Quando devi scegliere fra compromessi, usa questo ordine:
 
-- lifecycle e cleanup obbligatori, anche su errore: §5;
-- `MCP command sent` non è `verified`: serve un oracolo positivo — rilettura della property, riapertura dell'asset, compile esplicito, PIE, test, packaged;
-- una risposta vuota non è né un `PASS` né una capability assente: §5;
-- privacy, determinismo, autorità di rete, replay e performance restano osservazioni, non verdetti — [`AGENTS.md`](AGENTS.md) §11;
-- niente suite o build concorrenti nella stessa finestra.
+1. correctness;
+2. determinism;
+3. authority / privacy;
+4. testability;
+5. maintainability;
+6. player-facing clarity;
+7. implementation speed.
 
-### VALIDATION
+L'obiettivo non è produrre più codice.
 
-Build, Automation Test mirati, Scenario Harness, suite, packaged.
-
-- ordine: controlli statici → build → test mirati → scenari → suite completa una volta per batch integrato;
-- validità della misura: §6;
-- ricompila invece di fidarti di un binario che non hai prodotto;
-- `performed = 0` non è un `PASS`;
-- un difetto torna al suo owner: non riparare il codice di produzione e poi approvare sé stessi.
+L'obiettivo è chiudere lavoro verificabile senza introdurre una seconda authority, scope creep o debito nascosto.
