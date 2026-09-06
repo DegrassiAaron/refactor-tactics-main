@@ -420,10 +420,26 @@ bool FRTTwoCountersKeepOwnOriginTest::RunTest(const FString&)
 	const FRTCellId CellaReactorB = ReactorB->Cell;
 	const FRTCellId CellaAttackerA = AttackerA->Cell;
 	const FRTCellId CellaAttackerB = AttackerB->Cell;
+
+	RunDefTurn(TM);
+
+	// ⚠️ E gli ID DOPO, che e' l'opposto delle celle e non una svista (`#2612`): `StableUnitId` nasce a
+	// **0** per tutti (`RTUnit.h`, `int32 StableUnitId = 0`) e lo assegna `EnsureMatchRoster()` dentro il
+	// turno — `RTTurnManager.cpp` lo dice gia': «al primo turno ogni `StableUnitId` valeva ancora 0».
+	// Leggerli prima catturava due zeri e li confrontava con gli autori veri, `1` e `2`: il test nasceva
+	// rosso, e la simmetria con le celle qui sopra e' precisamente cio' che lo ha fatto sembrare giusto.
+	// Le celle vanno lette prima perche' il turno le CAMBIA; gli id dopo perche' il turno li CREA.
 	const int32 IdReactorA = ReactorA->StableUnitId;
 	const int32 IdReactorB = ReactorB->StableUnitId;
 
-	RunDefTurn(TM);
+	// GUARDIA, non decorazione: se il roster tornasse ad assegnare gli id piu' tardi, questi due sarebbero
+	// di nuovo `0` — uguali fra loro — e i confronti sull'autore piu' sotto diventerebbero «zero contro
+	// zero», cioe' verdi senza provare niente. Fallire QUI dice che e' la premessa a essere caduta.
+	if (!TestNotEqual(TEXT("premessa: il roster ha assegnato gli id"), IdReactorA, IdReactorB))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
 
 	// PREMESSA, non conclusione: con zero contrattacchi «ogni origine e' quella giusta» e' vero e vuoto.
 	if (!TestEqual(TEXT("premessa: entrambe le reazioni si sono attivate"),
