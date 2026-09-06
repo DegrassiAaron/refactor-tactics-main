@@ -24,7 +24,7 @@
  * resolver, massimo un'attivazione per turno. `Action.Counter` e' il veicolo reale del checkpoint.
  *
  * ⚠️ **Il contrattacco da 16 danni E' applicato**, e questa riga diceva il contrario. `RTTurnManager.cpp`
- * riempie `Out.CounterAttacks` quando il trigger scatta e poi fa `Attacks.Append(Reactions.CounterAttacks)`:
+ * riempie `Out.CounterAttacks` quando il trigger scatta e poi accoda ogni `FRTCounterAttack` ad `Attacks`:
  * il danno entra nella pipeline degli attacchi come ogni altro colpo. *(`Reaction.CounterShot`, la variante
  * d'equipaggiamento, ne fa **14** — «invece dei 16 di `Action.Counter`», e il catalogo lo dichiara.)*
  *

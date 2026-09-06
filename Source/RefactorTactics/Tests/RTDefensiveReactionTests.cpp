@@ -357,6 +357,113 @@ bool FRTCounterTracesIncomingSideTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Due contrattacchi nello stesso Blast tengono ciascuno la PROPRIA origine e il PROPRIO autore** (`#2587`).
+ *
+ * Fino al 2026-09-06 il pass usciva con SEI array paralleli — colpo, cella, `ActionId`, `BaseActionId`,
+ * priorita', autore — e il commento della struct dichiarava il rischio invece di toglierlo:
+ * *«disallinearli attribuirebbe un contrattacco all'unita' sbagliata»*. Nessun test lo copriva, perche' con
+ * UN solo contrattacco in scena ogni permutazione dei sei array da' lo stesso risultato: servono DUE record
+ * perche' uno scambio sia osservabile.
+ *
+ * 🔑 **L'oracolo evita la geometria di proposito.** La voce `Combat` del TurnLog porta gia' quattro dei
+ * cinque satelliti — `SrcCell`, `ActionId`, `BaseActionId`, `Priority` — e come SOGGETTO l'autore del colpo
+ * (`RTTurnManager.cpp`, il ciclo che emette le voci d'attacco). Confrontare la coppia *origine → bersaglio*
+ * e il soggetto non richiede di ragionare sugli spicchi dell'esagono, ed e' esattamente cio' che un
+ * disallineamento romperebbe: il colpo di A verrebbe registrato con l'origine di B.
+ *
+ * ⚠️ **Le due scene sono duelli INDIPENDENTI e non un 2v2.** Ogni attaccante ha il proprio bersaglio: senza
+ * questo i due contrattacchi potrebbero puntare la stessa unita' e le due coppie diventerebbero
+ * indistinguibili — il test resterebbe verde su uno scambio.
+ *
+ * 🔴 **Anti-vacuita', per chi lo modifica**: scambiando fra loro i campi `SourceCell` dei due record —
+ * o costruendo i record da due indici diversi — `CoppiaA` e `CoppiaB` vanno entrambe a zero mentre
+ * `VociContrattacco` resta 2. E' il fallimento che questo test esiste per produrre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTwoCountersKeepOwnOriginTest,
+	"RefactorTactics.Reactions.Counter.TwoCountersKeepTheirOwnOrigin",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTwoCountersKeepOwnOriginTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World);
+
+	// Due duelli lontani fra loro: stessa geometria del duello singolo, traslata di tre celle.
+	ARTUnit* ReactorA = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* AttackerA = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTUnit* ReactorB = SpawnDefUnit(World, 0, FRTCellId(0, 3));
+	ARTUnit* AttackerB = SpawnDefUnit(World, 1, FRTCellId(1, 3));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("ReactorA"), ReactorA) || !TestNotNull(TEXT("AttackerA"), AttackerA)
+		|| !TestNotNull(TEXT("ReactorB"), ReactorB) || !TestNotNull(TEXT("AttackerB"), AttackerB)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	ReactorA->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(ReactorA, TEXT("Action.Counter"), 3);
+	ReactorA->PlannedAbilityIndex = INDEX_NONE;
+	ReactorB->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(ReactorB, TEXT("Action.Counter"), 3);
+	ReactorB->PlannedAbilityIndex = INDEX_NONE;
+
+	// Ogni attaccante il PROPRIO bersaglio: e' cio' che rende le due coppie distinguibili.
+	AttackerA->PlannedAbilityIndex = 0; // attacco base, colpo singolo
+	AttackerA->PlannedAttackTarget = ReactorA;
+	AttackerB->PlannedAbilityIndex = 0;
+	AttackerB->PlannedAttackTarget = ReactorB;
+
+	// Catturate PRIMA del turno: nessuno si muove qui, ma leggerle dopo confonderebbe «dov'era quando ha
+	// contrattaccato» con «dov'e' adesso», che e' la stessa distinzione per cui il record porta la cella.
+	const FRTCellId CellaReactorA = ReactorA->Cell;
+	const FRTCellId CellaReactorB = ReactorB->Cell;
+	const FRTCellId CellaAttackerA = AttackerA->Cell;
+	const FRTCellId CellaAttackerB = AttackerB->Cell;
+	const int32 IdReactorA = ReactorA->StableUnitId;
+	const int32 IdReactorB = ReactorB->StableUnitId;
+
+	RunDefTurn(TM);
+
+	// PREMESSA, non conclusione: con zero contrattacchi «ogni origine e' quella giusta» e' vero e vuoto.
+	if (!TestEqual(TEXT("premessa: entrambe le reazioni si sono attivate"),
+		CountDefensiveReactionOutcome(TM, ERTReactionOutcome::Activated), 2))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// `ActionId` separa i contrattacchi dai due colpi di partenza, che nella stessa fase lasciano voci
+	// speculari: stesse celle, verso opposto.
+	const FName IdContrattacco(TEXT("Action.Counter"));
+	int32 VociContrattacco = 0;
+	int32 CoppiaA = 0;
+	int32 CoppiaB = 0;
+	int32 SoggettoA = 0;
+	int32 SoggettoB = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category != ERTLogCategory::Combat || E.ActionId != IdContrattacco) { continue; }
+		++VociContrattacco;
+		if (E.SrcCell == CellaReactorA && E.TgtCell == CellaAttackerA) { ++CoppiaA; SoggettoA = E.UnitId; }
+		if (E.SrcCell == CellaReactorB && E.TgtCell == CellaAttackerB) { ++CoppiaB; SoggettoB = E.UnitId; }
+	}
+
+	TestEqual(TEXT("due contrattacchi, due voci di danno"), VociContrattacco, 2);
+	TestEqual(TEXT("il contrattacco di A parte dalla cella di A e arriva su chi ha colpito A"), CoppiaA, 1);
+	TestEqual(TEXT("il contrattacco di B parte dalla cella di B e arriva su chi ha colpito B"), CoppiaB, 1);
+	// E l'AUTORE segue il colpo: e' il sesto campo del record, quello che un disallineamento farebbe
+	// registrare come «il contrattacco di A l'ha tirato B».
+	TestEqual(TEXT("l'autore del contrattacco di A e' A"), SoggettoA, IdReactorA);
+	TestEqual(TEXT("l'autore del contrattacco di B e' B"), SoggettoB, IdReactorB);
+	// I due soggetti DIVERGONO: senza questa riga il test passerebbe anche con le due voci attribuite alla
+	// stessa unita' e contate come due.
+	TestNotEqual(TEXT("i due autori sono unita' diverse"), SoggettoA, SoggettoB);
+
+	DestroyDefWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCounterIgnoresEnvironmentalTest,
 	"RefactorTactics.Reactions.Counter.IgnoresEnvironmentalDamage",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
