@@ -570,7 +570,7 @@ void ARTUnit::RefreshComponentVisibility()
 	//    quattro chiamanti di questa funzione la invocano a visibilita' invariata.
 	//
 	// ⚠️ `SnapshotPose` scrive la posa di RIFERIMENTO per le ossa fuori dalle *required bones* del LOD
-	// corrente, e quelle che le LOD dei pack rimuovono sono le catene di Riktor: vedi `LastSeenPose`, e
+	// corrente, e quelle che le LOD dei pack rimuovono sono le catene di Branth: vedi `LastSeenPose`, e
 	// `#1784` per la ragione per cui oggi non morde.
 	if (NotifyRenderStateForPoseCapture(bRender) && bHasHeroMesh)
 	{
@@ -804,7 +804,7 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 		// dell'unita' **non** inchiodata al LOD 0.
 		//
 		// ⛔ Non e' un dettaglio di qualita' visiva: `#1784` ha misurato che **le LOD dei pack rimuovono le
-		// ossa delle catene**, ed e' per quello che Riktor «si stende sullo schermo» da lontano. Una sagoma
+		// ossa delle catene**, ed e' per quello che Branth «si stende sullo schermo» da lontano. Una sagoma
 		// lasciata scendere di LOD riprodurrebbe il fotogramma che #1750 esiste per togliere — sullo stesso
 		// eroe, per la stessa causa, sul componente che nessuno aveva coperto.
 		//
@@ -817,7 +817,7 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 	}
 
 	// 🔴 **La posa di RIPIEGO (#1750).** Un `USkeletalMeshComponent` con una mesh e senza `AnimInstance`
-	// disegna la **posa di riferimento** dello skeleton — la T-pose — e su Riktor quella posa stende le
+	// disegna la **posa di riferimento** dello skeleton — la T-pose — e su Branth quella posa stende le
 	// catene attraverso lo schermo. E' il difetto che questa riga chiude, confermato a schermo il 2026-09-03.
 	//
 	// ⚠️ **Il commento sopra prometteva la POSA e il codice copiava solo la MESH**: diceva «la mesh/posa
@@ -1471,7 +1471,7 @@ void ARTUnit::ConfigureFromHeroData(const URTHeroData* Hero)
 	DashEndPivotMaxSteps = Hero->DashEndPivotMaxSteps;
 	Affinity = Hero->Affinity;
 	Weakness = Hero->Weakness;
-	// E14.7 [D-047]: il profilo che il `Brace` armera'. `NAME_None` per chi non ne dichiara uno (Riktor), ed
+	// E14.7 [D-047]: il profilo che il `Brace` armera'. `NAME_None` per chi non ne dichiara uno (Branth), ed
 	// e' un valore legittimo — non un campo dimenticato: significa profilo base, cardinalita' 1.
 	ReactionProfileId = Hero->ReactionProfileId;
 

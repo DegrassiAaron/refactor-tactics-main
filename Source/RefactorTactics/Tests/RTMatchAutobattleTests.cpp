@@ -1005,7 +1005,7 @@ namespace
 			const FRTAutobattleSlot& Slot = AutobattleStandardSlots()[Index];
 			const URTHeroData* Hero = Slot.bIsWraith
 				? URTHeroCatalogLibrary::MakeWraith()
-				: URTHeroCatalogLibrary::MakeRiktor();
+				: URTHeroCatalogLibrary::MakeBranth();
 			Spawned.Add(SpawnAutobattleUnit(World, Slot.TeamId, Hero, Slot.Cell));
 		}
 		return Spawned;
@@ -1263,7 +1263,7 @@ bool FRTAutobattleNoPathTest::RunTest(const FString&)
 	}
 	Map->SortCells();
 
-	ARTUnit* Trapped = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), Walled);
+	ARTUnit* Trapped = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), Walled);
 	ARTUnit* Free    = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(4, -2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Trapped || !Free)
@@ -1342,8 +1342,8 @@ bool FRTAutobattleAllWaitTest::RunTest(const FString&)
 	SpawnAutobattleMap(World);
 
 	// Fuori dal bot e lontane: nessun piano viene scritto da nessuno.
-	ARTUnit* A = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 2), false);
-	ARTUnit* B = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -2), false);
+	ARTUnit* A = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 2), false);
+	ARTUnit* B = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -2), false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B)
 	{
@@ -1535,8 +1535,8 @@ bool FRTAutobattleRoundLimitTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 	SpawnAutobattleMap(World);
 
-	ARTUnit* A = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 2), false);
-	ARTUnit* B = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -2), false);
+	ARTUnit* A = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 2), false);
+	ARTUnit* B = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -2), false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B)
 	{
@@ -1707,7 +1707,7 @@ bool FRTAutobattleSameSeedTest::RunTest(const FString&)
  * Quindi lo stallo di #1088 non era spiegato dalla board.
  *
  * ✅ **La causa vera, trovata dopo**: il bonus di quota di `URTHexBotLibrary::ScorePlan` compete con
- * l'avvicinamento, e con `WElevation` 20 restare in alto batteva muoversi — Riktor saliva sulla piattaforma
+ * l'avvicinamento, e con `WElevation` 20 restare in alto batteva muoversi — Branth saliva sulla piattaforma
  * al turno 3 e non scendeva fino al 12.
  *
  * ⛔ **La difesa e' un NUMERO, non una forma.** Rendere il termine relativo all'origine e' stato provato ed
@@ -1996,13 +1996,13 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// difetto presente ne cadeva una lo stesso, quindi `3 < 4` passava. Il conteggio dei caduti non
 	// distingue una partita che avanza da una in orbita — a distinguerle e' se qualcuno smette di muoversi.
 	//
-	// Misurato: col bonus di quota assoluto, Riktor saliva sulla piattaforma al turno 3 e restava sulla
+	// Misurato: col bonus di quota assoluto, Branth saliva sulla piattaforma al turno 3 e restava sulla
 	// stessa cella fino al 12, cioe' **dieci turni consecutivi**.
 	//
 	// 🔴 **LIMITE DICHIARATO, e non e' correggibile senza accecare l'oracolo.** Una code review ha osservato
 	// che restare fermi per SPARARE e' condotta legittima, e che un duello a distanza tenuto oltre la soglia
 	// darebbe un falso rosso. E' vero. Ma l'esenzione e' stata scritta, misurata e tolta il 2026-08-23: il
-	// difetto di #1088 **e' esattamente «sta ferma e spara»** — Riktor parcheggiata dieci turni mentre il
+	// difetto di #1088 **e' esattamente «sta ferma e spara»** — Branth parcheggiata dieci turni mentre il
 	// campo produceva 19 voci `Combat` — quindi qualunque esenzione per combattimento lo rende invisibile.
 	//
 	//     senza esenzione:        sequenza 9 turni col difetto -> Fail   (falsifica)
@@ -2306,7 +2306,7 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	//     nessuna voce di catalogo runtime, nessun codice che riservi lo slot movimento. `D-070` e' decisa e
 	//     **non implementata**.
 	//   · Nessun punto del runtime porta `MoveBudget` a 2: viene da `MovePoints` dell'eroe.
-	//   · Il roster spedito non scende sotto **4** (`Gadget` 5, `Phase` 5, `Riktor` 4, `Wraith` 6), e a 4 MP
+	//   · Il roster spedito non scende sotto **4** (`Gadget` 5, `Phase` 5, `Branth` 4, `Wraith` 6), e a 4 MP
 	//     quella board arretra in **zero** coppie.
 	//
 	// ∴ Un Overwatch sostenuto non tiene il budget a 2 MP **perche' non lo tocca affatto**.
@@ -2325,7 +2325,7 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// budget ridotto.
 	//
 	// ⚠️ **E il grilletto c'e'**: `Bot.ShippedRosterStaysAboveTheBackstepBudget` diventa rosso se un eroe
-	// scende sotto 4 MP (verificato per mutazione: `Riktor` a 3 lo fa cadere). Se `#149` ritara la mobilita',
+	// scende sotto 4 MP (verificato per mutazione: `Branth` a 3 lo fa cadere). Se `#149` ritara la mobilita',
 	// o se `D-070` atterra davvero, questa riga torna viva e qualcuno lo viene a sapere.
 	const int32 WorstOrbit = Orbite.WorstReturns();
 	const int32 OrbitLimit = FRTOrbitProbe::LimitForTurns(TurnsPlayed);

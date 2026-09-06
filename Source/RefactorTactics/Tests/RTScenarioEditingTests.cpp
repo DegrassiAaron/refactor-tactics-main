@@ -31,7 +31,7 @@ namespace
 	  "cells": [ { "cell": [0, 1, 0], "blocksMovement": true } ],
 	  "units": [
 	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
-	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] }
 	  ],
 	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
 	  "expect": [ { "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] } ]
@@ -465,7 +465,7 @@ bool FRTScenarioVariantRespectsBlockingCellsTest::RunTest(const FString&)
 	  "cells": [ { "cell": [0, 1, 0], "blocksMovement": true } ],
 	  "units": [
 	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
-	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] }
 	  ],
 	  "turns": [ { "intents": [] } ],
 	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ],

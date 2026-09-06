@@ -16,7 +16,7 @@
   "units": [
     { "id": "R1", "hero": "Hero.Phase",  "team": 0, "cell": [-1,  1, 0] },
     { "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [ 2, -2, 0], "health": 20, "shield": 0 },
-    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [ 3,  0, 0] }
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 3,  0, 0] }
   ],
 
   "turns": [
@@ -56,6 +56,6 @@
       "_assertion": "E l'altra meta': al T1 l'obiettivo e' di nessuno. Senza questa riga, «un solo `Team0Scores`» sarebbe compatibile con un T1 che non ha valutato l'obiettivo affatto — due difetti diversi con lo stesso conteggio." },
     { "type": "LogEventCount",
       "category": "Objective", "outcome": "Contested", "actionId": "Objective.Control", "value": 0,
-      "_assertion": "E MAI conteso: Riktor non si muove da (3,0,0). ⚠️ Con un obiettivo su UNA cella la contesa e' irraggiungibile per costruzione — due unita' non stanno sulla stessa cella — quindi questo zero non e' una coincidenza di coreografia, e' una proprieta' del formato che vale la pena pinnare finche' dura (CP 31.1 la cambiera')." }
+      "_assertion": "E MAI conteso: Branth non si muove da (3,0,0). ⚠️ Con un obiettivo su UNA cella la contesa e' irraggiungibile per costruzione — due unita' non stanno sulla stessa cella — quindi questo zero non e' una coincidenza di coreografia, e' una proprieta' del formato che vale la pena pinnare finche' dura (CP 31.1 la cambiera')." }
   ]
 }

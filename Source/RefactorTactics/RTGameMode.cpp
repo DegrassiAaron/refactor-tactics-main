@@ -351,14 +351,21 @@ ARTGameMode::ARTGameMode()
 			}
 		};
 
+		// ⚠️ **`BranthBP` punta a un path che dice ancora `Riktor`, e NON e' un refuso.** [D-334] ha rinominato
+		// l'IDENTITA' (`Hero.Riktor` -> `Hero.Branth`), non gli asset: `/Game/RT/Characters/Riktor/` e
+		// `BP_Unit_Riktor` sono `.uasset`, e il loro rename e' la fetta E di #2297 — fuori dallo scope di
+		// #2491, che tocca solo codice e scenari. Allineare il path prima che l'asset esista farebbe fallire
+		// il `FClassFinder` **nel costruttore**, e i quattro eroi ricadrebbero sul cilindro di fallback.
+		// ∴ quando la fetta E rinomina l'asset, questa riga e la tabella di `RTHeroSpawnTests` si muovono
+		// insieme — sono le due meta' dello stesso pin.
 		static ConstructorHelpers::FClassFinder<ARTUnit> GadgetBP(TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget"));
 		static ConstructorHelpers::FClassFinder<ARTUnit> PhaseBP(TEXT("/Game/RT/Characters/Phase/Blueprints/BP_Unit_Phase"));
-		static ConstructorHelpers::FClassFinder<ARTUnit> RiktorBP(TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> BranthBP(TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor"));
 		static ConstructorHelpers::FClassFinder<ARTUnit> WraithBP(TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith"));
 
 		Assegna(TEXT("Hero.Gadget"), GadgetBP);
 		Assegna(TEXT("Hero.Phase"),  PhaseBP);
-		Assegna(TEXT("Hero.Riktor"), RiktorBP);
+		Assegna(TEXT("Hero.Branth"), BranthBP);
 		Assegna(TEXT("Hero.Wraith"), WraithBP);
 	}
 }

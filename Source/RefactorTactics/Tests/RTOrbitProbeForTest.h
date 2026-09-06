@@ -9,7 +9,7 @@
  * E' la firma dello stato assorbente che i contatori di immobilita' NON vedono. Un'unita' che alterna
  * `A -> B -> A -> B` cambia cella a ogni turno, quindi ogni «turni consecutivi fermo» resta a zero e
  * l'oracolo passa verde su una partita che non decide nulla. Misurato su `L_HexArena` il 2026-08-23:
- * Riktor alterna fra `(1,-1,L0)` e la piattaforma `(3,-3,L1)` otto volte in dodici turni in partita, e
+ * Branth alterna fra `(1,-1,L0)` e la piattaforma `(3,-3,L1)` otto volte in dodici turni in partita, e
  * trentasette in quaranta nello scenario `AutoBattle.ArenaV01`.
  *
  * ⚠️ **E' la forma MINIMA che distingue un'alternanza da un percorso che ripassa.** Contare le celle

@@ -192,7 +192,7 @@ bool FRTFirstTurnOrderTest::RunTest(const FString&)
 
 	// (2) L'allestimento mette in campo le unita' — e' il `Board 2v2 esagonale avviata` della misura.
 	SpawnFirstTurnUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-2, 0));
-	SpawnFirstTurnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0));
+	SpawnFirstTurnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
 
 	TArray<AActor*> UnitsAfter;
 	UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), UnitsAfter);

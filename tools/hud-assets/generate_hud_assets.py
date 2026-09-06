@@ -1111,8 +1111,8 @@ def g_identity_phase() -> str:
     ]))
 
 
-def g_identity_riktor() -> str:
-    """Riktor: massa e pannello cinetico. La base larga e' il punto: e' l'eroe che non si sposta."""
+def g_identity_branth() -> str:
+    """Branth: massa e pannello cinetico. La base larga e' il punto: e' l'eroe che non si sposta."""
     return _identity("\n".join([
         path("M7.6 15.6 L7.6 8.6 L16.4 8.6 L16.4 15.6", stroke_width=1.6),
         path("M6 15.6 L18 15.6", stroke_width=1.8),
@@ -1171,7 +1171,7 @@ def g_missing_icon() -> str:
 # Ogni eroe ha una MATERIA, ed e' il primo canale di riconoscimento della sua riga di skill bar:
 #   Gadget  elettricita' — nodi, archi, contenimento che cede
 #   Phase   acqua        — superfici, onde, spinta
-#   Riktor  massa        — piastre, ancoraggi, basi larghe
+#   Branth  massa        — piastre, ancoraggi, basi larghe
 #   Wraith  lama         — tratti netti, transito, tratteggio di passaggio
 
 
@@ -1235,7 +1235,7 @@ def g_phase_flow_reaction() -> str:
     ])
 
 
-def g_riktor_impact_shot() -> str:
+def g_branth_impact_shot() -> str:
     """`ImpactShot` (Attack — Damage + Slow): colpo che pesa e frena."""
     return "\n".join([
         dot(6.4, 12, 2.4),
@@ -1245,7 +1245,7 @@ def g_riktor_impact_shot() -> str:
     ])
 
 
-def g_riktor_kinetic_panel() -> str:
+def g_branth_kinetic_panel() -> str:
     """`KineticPanel` (Preparation, da `Action.CreateCover`): una piastra piantata a terra.
 
     Non e' `CreateCover` con un altro nome: quella crea copertura generica, questa e' una piastra
@@ -1258,7 +1258,7 @@ def g_riktor_kinetic_panel() -> str:
     ])
 
 
-def g_riktor_reconfigure() -> str:
+def g_branth_reconfigure() -> str:
     """`Reconfigure` (Preparation): si riassetta — due blocchi che si scambiano."""
     return "\n".join([
         path("M3.6 6.4 L10.4 6.4 L10.4 11.6 L3.6 11.6 Z", stroke_width=1.5),
@@ -1270,7 +1270,7 @@ def g_riktor_reconfigure() -> str:
     ])
 
 
-def g_riktor_ram() -> str:
+def g_branth_ram() -> str:
     """`Ram` (FastMovement, LinearCharge — Damage + Push): massa che arriva addosso.
 
     Contro `Action.Charge`, che e' la carica generica: qui il corpo che carica e' una faccia piena,
@@ -1283,7 +1283,7 @@ def g_riktor_ram() -> str:
     ])
 
 
-def g_riktor_interposition() -> str:
+def g_branth_interposition() -> str:
     """`Interposition` (Control, da `Action.Intercept`): mettersi IN MEZZO.
 
     Contro `Intercept`, che incrocia una traiettoria: qui il corpo si sposta a coprire un alleato, e
@@ -1756,7 +1756,7 @@ def g_reaction_hazard_escape() -> str:
 
 
 def g_reaction_ally_intercept() -> str:
-    """Modulo di Riktor: ti interponi e prendi al posto di un alleato entro 2 celle.
+    """Modulo di Branth: ti interponi e prendi al posto di un alleato entro 2 celle.
 
     ⚠️ La confusione piu' insidiosa e' con `Hero.Wraith.InterceptShot`, che e' la thin slice
     Predictive: due nomi quasi identici per un'interposizione e una previsione."""
@@ -2173,15 +2173,15 @@ ICONS = [
     ("Action.Hero.Phase.FlowReaction", g_phase_flow_reaction, "Reaction",
      "roster — Preparation, si arma e risponde"),
 
-    ("Action.Hero.Riktor.ImpactShot", g_riktor_impact_shot, "Attack",
+    ("Action.Hero.Branth.ImpactShot", g_branth_impact_shot, "Attack",
      "roster — Attack, Damage + Slow"),
-    ("Action.Hero.Riktor.KineticPanel", g_riktor_kinetic_panel, "Defense",
+    ("Action.Hero.Branth.KineticPanel", g_branth_kinetic_panel, "Defense",
      "roster — Preparation, deriva da Action.CreateCover"),
-    ("Action.Hero.Riktor.Reconfigure", g_riktor_reconfigure, "Defense",
+    ("Action.Hero.Branth.Reconfigure", g_branth_reconfigure, "Defense",
      "roster — Preparation"),
-    ("Action.Hero.Riktor.Ram", g_riktor_ram, "Attack",
+    ("Action.Hero.Branth.Ram", g_branth_ram, "Attack",
      "roster — FastMovement/LinearCharge, Damage + Push"),
-    ("Action.Hero.Riktor.Interposition", g_riktor_interposition, "Reaction",
+    ("Action.Hero.Branth.Interposition", g_branth_interposition, "Reaction",
      "roster — Control, deriva da Action.Intercept"),
 
     ("Action.Hero.Wraith.PulseShot", g_wraith_pulse_shot, "Attack",
@@ -2238,7 +2238,7 @@ ICONS = [
      "assente dal mock"),
     ("Identity.Phase", g_identity_phase, "Utility",
      "assente dal mock"),
-    ("Identity.Riktor", g_identity_riktor, "Defense",
+    ("Identity.Branth", g_identity_branth, "Defense",
      "assente dal mock"),
     ("Identity.Wraith", g_identity_wraith, "Reaction",
      "assente dal mock"),
@@ -2291,7 +2291,7 @@ ICONS = [
     ("Reaction.ReactiveShield", g_reaction_reactive_shield, "Defense", "E25 — modulo di Gadget"),
     ("Reaction.HazardEscape", g_reaction_hazard_escape, "Movement",
      "E25 — modulo di Phase, vive nel Cleanup"),
-    ("Reaction.AllyIntercept", g_reaction_ally_intercept, "Defense", "E25 — modulo di Riktor"),
+    ("Reaction.AllyIntercept", g_reaction_ally_intercept, "Defense", "E25 — modulo di Branth"),
     ("Reaction.EmergencyDash", g_reaction_emergency_dash, "Movement",
      "E25 — modulo di Wraith, facing conservato"),
 
@@ -2791,7 +2791,7 @@ def rail(y: float, slot: int, slots: int, *, width: float = 2.2, guide: bool = T
 # La marca di materia. E' l'asse Identity riusato come MODIFICATORE invece che come icona a se':
 # le quattro identita' esistono gia' nel catalogo, e un'ability d'eroe appartiene a un eroe.
 #
-# Perche' serve, misurato: senza, `Wraith.PulseShot`, `Phase.PressureJet`, `Riktor.ImpactShot`,
+# Perche' serve, misurato: senza, `Wraith.PulseShot`, `Phase.PressureJet`, `Branth.ImpactShot`,
 # `Action.LineAttack` e `Action.Dash` stanno tutte entro 0.11 l'una dall'altra — cinque glifi che
 # rivendicano la stessa silhouette «linea orizzontale con una punta». Non e' un difetto dei singoli
 # disegni: e' che molte abilita' a distanza SONO una linea con una punta, e a un certo punto il
@@ -2812,7 +2812,7 @@ def hero_sigil(hero: str) -> str:
         ])
     if hero == "Phase":        # acqua: la superficie
         return waves(HERO_SIGIL_Y, x0=x - 1.6, span=5.6, amp=1.1, stroke_width=1.4)
-    if hero == "Riktor":       # massa: la base larga
+    if hero == "Branth":       # massa: la base larga
         return "\n".join([
             path(f"M{_n(x - 1.6)} {_n(HERO_SIGIL_Y + 1)} L{_n(x + 4)} {_n(HERO_SIGIL_Y + 1)}",
                  stroke_width=2.0),
@@ -2914,7 +2914,7 @@ COLOR_DEBT = {
     "Action.Hero.Gadget.Overload", "Action.Hero.Gadget.ReactiveCapacitor",
     "Action.Hero.Phase.CircularTide", "Action.Hero.Phase.FlowReaction",
     "Action.Hero.Phase.FluidTrail", "Action.Hero.Phase.PressureJet",
-    "Action.Hero.Riktor.Interposition", "Action.Hero.Riktor.Ram",
+    "Action.Hero.Branth.Interposition", "Action.Hero.Branth.Ram",
     "Action.Hero.Wraith.Deflection", "Action.Hero.Wraith.Feint",
     "Action.Hero.Wraith.InterceptShot", "Action.Hero.Wraith.PassingBlade",
 }

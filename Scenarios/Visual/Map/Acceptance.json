@@ -17,9 +17,9 @@
 
   "_nota_geometria": "Ogni gruppo riusa la geometria del proprio scenario singolo **senza traslare nulla**: le sette celle non collidono fra loro, verificato una per una. E' il caso fortunato che l'ambiente non aveva — li' il Gadget e il Phase si contendevano (-2,0,0) e uno dei due ha dovuto spostarsi.",
 
-  "_nota_loadout_vuoto": "🔴 **R_COV entra SPOGLIA (`\"loadout\": []`), ed e' la riga che tiene in vita il gruppo della copertura.** Il default di Riktor e' `Weapon.Impact`, che aggiunge `Push 1` all'attacco base: `ImpactShot` comincia a spostare il bersaglio, e G_COV finisce a (0,-1,0) invece che sulla cella protetta. ⚠️ **La prima stesura di questo composito l'aveva dimenticata, e il primo run l'ha misurato** — `UnitAtCell(G_COV) atteso (0,0,0), ottenuto (0,-1,0)`, lo STESSO numero che `Visual.Map.LowCoverEdge` documenta nella propria nota da quando `#1054` accese i default. Copiare un allestimento significa copiarne anche le righe che sembrano dettagli: quella dichiara una variabile tenuta ferma, non una preferenza.",
+  "_nota_loadout_vuoto": "🔴 **R_COV entra SPOGLIA (`\"loadout\": []`), ed e' la riga che tiene in vita il gruppo della copertura.** Il default di Branth e' `Weapon.Impact`, che aggiunge `Push 1` all'attacco base: `ImpactShot` comincia a spostare il bersaglio, e G_COV finisce a (0,-1,0) invece che sulla cella protetta. ⚠️ **La prima stesura di questo composito l'aveva dimenticata, e il primo run l'ha misurato** — `UnitAtCell(G_COV) atteso (0,0,0), ottenuto (0,-1,0)`, lo STESSO numero che `Visual.Map.LowCoverEdge` documenta nella propria nota da quando `#1054` accese i default. Copiare un allestimento significa copiarne anche le righe che sembrano dettagli: quella dichiara una variabile tenuta ferma, non una preferenza.",
 
-  "_nota_via_l_avversario_inerte": "`Visual.Map.ClosedDoor` schiera un Riktor a (4,0,0) che non fa niente: serve a quello scenario per avere due squadre in campo. Qui non serve — la squadra 1 ha gia' quattro unita' — e portarlo dentro avrebbe aggiunto una figura ferma di cui nessuno sa dire perche' e' li'. Una scena di acceptance si legge anche da cio' che NON contiene.",
+  "_nota_via_l_avversario_inerte": "`Visual.Map.ClosedDoor` schiera un Branth a (4,0,0) che non fa niente: serve a quello scenario per avere due squadre in campo. Qui non serve — la squadra 1 ha gia' quattro unita' — e portarlo dentro avrebbe aggiunto una figura ferma di cui nessuno sa dire perche' e' li'. Una scena di acceptance si legge anche da cio' che NON contiene.",
 
   "_nota_anti_vacuita": "Ogni gruppo porta un'assertion che cade se il suo fenomeno non avviene: `UnitAtCell P_DOOR (1,1,0)` per la deviazione attorno alla porta, `UnitHpEquals G_COV 76` per i due colpi che la copertura tratta in modo diverso, e `UnitHpEquals G_HIGH 53` per i due colpi identici che l'altura NON differenzia. 🔑 **Il 53 e' il numero piu' importante della scena**: e' la prova che il bonus non c'e', e sarebbe piu' basso se ci fosse.",
 
@@ -28,7 +28,7 @@
 
     { "id": "G_COV", "hero": "Hero.Gadget", "team": 0, "cell": [0, 0, 0] },
     { "id": "W_COV", "hero": "Hero.Wraith", "team": 1, "cell": [0, -2, 0] },
-    { "id": "R_COV", "hero": "Hero.Riktor", "team": 1, "cell": [0, 2, 0], "loadout": [] },
+    { "id": "R_COV", "hero": "Hero.Branth", "team": 1, "cell": [0, 2, 0], "loadout": [] },
 
     { "id": "G_HIGH", "hero": "Hero.Gadget", "team": 0, "cell": [1, 0, 0] },
     { "id": "W_HI", "hero": "Hero.Wraith", "team": 1, "cell": [2, -2, 0] },
@@ -47,7 +47,7 @@
       "intents": [
         { "unit": "G_COV", "ability": "Hero.Gadget.ArcPulse", "target": "W_COV" },
         { "unit": "W_COV", "ability": "Hero.Wraith.PulseShot", "target": "G_COV" },
-        { "unit": "R_COV", "ability": "Hero.Riktor.ImpactShot", "target": "G_COV" }
+        { "unit": "R_COV", "ability": "Hero.Branth.ImpactShot", "target": "G_COV" }
       ]
     },
     {

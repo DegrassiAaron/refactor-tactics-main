@@ -57,7 +57,7 @@ namespace
 	  "units": [
 	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0], "facing": "SW", "health": 12,
 	      "statuses": [ { "tag": "Status.Guarded", "turns": 3 }, { "tag": "Status.Wet", "turns": 1 } ] },
-	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0], "shield": 4, "visionRange": 6, "bot": true },
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0], "shield": 4, "visionRange": 6, "bot": true },
 	    { "id": "C1", "hero": "Hero.Wraith", "team": 0, "cell": [-2, 1, 0] }
 	  ],
 	  "turns": [

@@ -16,7 +16,7 @@
   "_nota_niente_guard_ne_copertura": "B1 non e' in guardia e non ha riparo, deliberatamente: `RearHitBypassedGuard` e `RearHitBypassedCover` sono voci `Facing` di altri esiti, gia' coperte da `Spec.Facing.BackAttackIgnoresGuard` e `Spec.Facing.RearHitOnCoverIsTraced`. Isolarle qui tiene la scena su una domanda sola — da che lato — invece di due.",
 
   "units": [
-    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [0, 0, 0],   "facing": "E" },
+    { "id": "B1", "hero": "Hero.Branth", "team": 0, "cell": [0, 0, 0],   "facing": "E" },
     { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [-1, -1, 0], "facing": "E" }
   ],
 

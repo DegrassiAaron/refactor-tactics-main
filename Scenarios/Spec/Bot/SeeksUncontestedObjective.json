@@ -16,8 +16,8 @@
   "_nota_mutazione": "⚠️ Verifica di mutazione: azzerando `WObjective` il bot chiude la distanza invece di salire sull'obiettivo, e questo file torna rosso su ENTRAMBE le assertion — la posizione e il punto. Il controllo diretto sul punteggio resta `RefactorTactics.HexBot.SeeksUncontestedObjective`, che asserisce anche la premessa: senza il termine vincerebbe la cella d'avvicinamento.",
 
   "units": [
-    { "id": "BOT", "hero": "Hero.Riktor", "team": 1, "cell": [0, 0, 0], "bot": true, "visionRange": 20 },
-    { "id": "FOE", "hero": "Hero.Riktor", "team": 0, "cell": [12, 0, 0] }
+    { "id": "BOT", "hero": "Hero.Branth", "team": 1, "cell": [0, 0, 0], "bot": true, "visionRange": 20 },
+    { "id": "FOE", "hero": "Hero.Branth", "team": 0, "cell": [12, 0, 0] }
   ],
 
   "cells": [

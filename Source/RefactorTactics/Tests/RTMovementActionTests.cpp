@@ -316,23 +316,23 @@ bool FRTFastMovementDeclaresStyleTest::RunTest(const FString&)
 			CoreCharge.Effects[1].Effect == ERTActionEffect::Push && CoreCharge.Effects[1].Amount == 1);
 	}
 
-	// L'eroe che quella carica la porta in partita: `Riktor.Ram` riusa `Action.Charge` per intero, ed e'
+	// L'eroe che quella carica la porta in partita: `Branth.Ram` riusa `Action.Charge` per intero, ed e'
 	// il motivo per cui lo stile e' un dato e non un `if` sull'ActionId.
-	const URTHeroData* Riktor = nullptr;
+	const URTHeroData* Branth = nullptr;
 	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
 	{
-		if (Hero && Hero->HeroId == TEXT("Hero.Riktor")) { Riktor = Hero; break; }
+		if (Hero && Hero->HeroId == TEXT("Hero.Branth")) { Branth = Hero; break; }
 	}
-	if (TestNotNull(TEXT("Riktor e' nel roster"), Riktor))
+	if (TestNotNull(TEXT("Branth e' nel roster"), Branth))
 	{
 		const URTActionData* Ram = nullptr;
-		for (const URTActionData* A : Riktor->Actions)
+		for (const URTActionData* A : Branth->Actions)
 		{
-			if (A && A->Def.ActionId == TEXT("Hero.Riktor.Ram")) { Ram = A; break; }
+			if (A && A->Def.ActionId == TEXT("Hero.Branth.Ram")) { Ram = A; break; }
 		}
-		if (TestNotNull(TEXT("Hero.Riktor.Ram e' nel kit"), Ram))
+		if (TestNotNull(TEXT("Hero.Branth.Ram e' nel kit"), Ram))
 		{
-			TestTrue(TEXT("Hero.Riktor.Ram e' una carica"), Ram->Def.MovementStyle == ERTMovementStyle::LinearCharge);
+			TestTrue(TEXT("Hero.Branth.Ram e' una carica"), Ram->Def.MovementStyle == ERTMovementStyle::LinearCharge);
 		}
 	}
 	return true;

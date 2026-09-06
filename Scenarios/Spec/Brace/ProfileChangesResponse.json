@@ -5,7 +5,7 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "SPECIFICA ESEGUIBILE di D-047. Due eroi dichiarano la STESSA azione — `Action.Brace` — e reagiscono in modo diverso allo STESSO colpo, perche' la risposta viene dal loro Reaction Profile e non dall'azione. Riktor resta sulla cella (`Hold Ground`, la risposta universale, che e' il comportamento del gioco da CP 5.2); Phase, il cui profilo dichiara `SIDESTEP`, non ci resta. Nessun `if CharacterId` nel resolver puo' produrre questo risultato: e' il dato a decidere.",
+  "_nota": "SPECIFICA ESEGUIBILE di D-047. Due eroi dichiarano la STESSA azione — `Action.Brace` — e reagiscono in modo diverso allo STESSO colpo, perche' la risposta viene dal loro Reaction Profile e non dall'azione. Branth resta sulla cella (`Hold Ground`, la risposta universale, che e' il comportamento del gioco da CP 5.2); Phase, il cui profilo dichiara `SIDESTEP`, non ci resta. Nessun `if CharacterId` nel resolver puo' produrre questo risultato: e' il dato a decidere.",
 
   "_nota_perche_esiste": "E' la prova che D-047 non e' un rename. Se `Brace` restasse un buff fisso, i due difensori resterebbero ENTRAMBI fermi — il ramo `Status.Braced` regge la spinta a qualunque distanza — e questo file sarebbe verde per il motivo sbagliato. Quindi l'assertion che conta e' la DIFFERENZA fra i due, non il valore di uno solo: B1 fermo E R1 spostato, insieme.",
 
@@ -22,7 +22,7 @@
   "_nota_il_facing_e_dichiarato": "R1 dichiara `facing: \"NE\"` al piazzamento, e non e' un dettaglio di fixture: `FindSidestepCell` preferisce la cella che l'unita' ha DAVANTI — stessa regola di `Reaction.HazardEscape` (D-104), perche' la fuga sia prevedibile guardando il campo invece che dall'ordine interno delle direzioni. Senza il facing dichiarato lo scarto cadrebbe sull'ordine canonico e questo file passerebbe per un motivo che nessuno ha scelto.",
 
   "units": [
-    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [ 0, 0, 0] },
+    { "id": "B1", "hero": "Hero.Branth", "team": 0, "cell": [ 0, 0, 0] },
     { "id": "R1", "hero": "Hero.Phase",  "team": 0, "cell": [ 0, 3, 0], "facing": "NE" },
     { "id": "V1", "hero": "Hero.Phase",  "team": 1, "cell": [-1, 0, 0], "loadout": [] },
     { "id": "V2", "hero": "Hero.Phase",  "team": 1, "cell": [-1, 3, 0], "loadout": [] }
@@ -30,7 +30,7 @@
 
   "turns": [
     {
-      "_turno": "T1 — la differenza, in un turno solo. Nel `Prep` B1 e R1 dichiarano `Action.Brace`: identica azione, identico costo, identico `Status.Braced`. Nell'`Attack` V1 colpisce B1 e V2 colpisce R1 con lo stesso `Hero.Phase.PressureJet`. Il ramo `Status.Braced` costruisce per ciascuno l'opportunity dalle risposte del PROPRIO profilo: B1 (Riktor) non ne ha uno, quindi una sola risposta e nessuna finestra — commit immediato, il comportamento di sempre. R1 (Phase) porta `Profile.Sidestep`, quindi due risposte e la finestra si apre; la `decisions` qui sotto risponde `SIDESTEP` e R1 lascia la cella.",
+      "_turno": "T1 — la differenza, in un turno solo. Nel `Prep` B1 e R1 dichiarano `Action.Brace`: identica azione, identico costo, identico `Status.Braced`. Nell'`Attack` V1 colpisce B1 e V2 colpisce R1 con lo stesso `Hero.Phase.PressureJet`. Il ramo `Status.Braced` costruisce per ciascuno l'opportunity dalle risposte del PROPRIO profilo: B1 (Branth) non ne ha uno, quindi una sola risposta e nessuna finestra — commit immediato, il comportamento di sempre. R1 (Phase) porta `Profile.Sidestep`, quindi due risposte e la finestra si apre; la `decisions` qui sotto risponde `SIDESTEP` e R1 lascia la cella.",
       "requires": ["ReactionProfile"],
       "intents": [
         { "unit": "B1", "ability": "Action.Brace" },
@@ -55,7 +55,7 @@
       "type": "UnitAtCell", "unit": "V1", "cell": [-1, 0, 0] },
     { "type": "UnitAtCell", "unit": "V2", "cell": [-1, 3, 0] },
 
-    { "_assertion": "IL DANNO E' IDENTICO PER I DUE, e questa riga e' il controllo dell'altra meta': `Brace` toglie **10** a ogni danno diretto (`RTCombatLibrary.h:112`), quindi 16 - 10 = 6 per entrambi — 120-6 per Riktor, 95-6 per Phase. Se scartare riducesse anche il danno, la differenza fra i due difensori avrebbe due cause invece di una e questo scenario non direbbe piu' quale. `SIDESTEP` sposta e basta.",
+    { "_assertion": "IL DANNO E' IDENTICO PER I DUE, e questa riga e' il controllo dell'altra meta': `Brace` toglie **10** a ogni danno diretto (`RTCombatLibrary.h:112`), quindi 16 - 10 = 6 per entrambi — 120-6 per Branth, 95-6 per Phase. Se scartare riducesse anche il danno, la differenza fra i due difensori avrebbe due cause invece di una e questo scenario non direbbe piu' quale. `SIDESTEP` sposta e basta.",
       "type": "UnitHpEquals", "unit": "B1", "value": 119 },
     { "type": "UnitHpEquals", "unit": "R1", "value": 94 },
 

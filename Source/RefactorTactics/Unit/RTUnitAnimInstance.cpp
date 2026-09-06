@@ -158,7 +158,7 @@ URTUnitAnimInstance::URTUnitAnimInstance()
 		TEXT("Cast"), TEXT("Hitreact_Fwd"), TEXT("Death_Fwd")));
 	ClipsPerHero.Add(FName(TEXT("Hero.Phase")), MakeClips(TEXT("Phase"), TEXT("Idle"), TEXT("Jog_Fwd"),
 		TEXT("Cast"), TEXT("HitReact_Fwd"), TEXT("Death")));
-	ClipsPerHero.Add(FName(TEXT("Hero.Riktor")), MakeClips(TEXT("Riktor"), TEXT("Idle"), TEXT("Jog_Fwd"),
+	ClipsPerHero.Add(FName(TEXT("Hero.Branth")), MakeClips(TEXT("Riktor"), TEXT("Idle"), TEXT("Jog_Fwd"),
 		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd")));
 	ClipsPerHero.Add(FName(TEXT("Hero.Wraith")), MakeClips(TEXT("Wraith"), TEXT("Idle_NonCombat"), TEXT("Jog_Fwd"),
 		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward")));

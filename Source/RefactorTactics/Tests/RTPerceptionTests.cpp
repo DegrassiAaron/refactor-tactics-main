@@ -406,7 +406,7 @@ bool FRTPerceptionVisionSplitYieldsDisconnectedRegionsTest::RunTest(const FStrin
 	AddInfo(FString::Printf(TEXT("team 0 parte da (%d,%d,L%d) e (%d,%d,L%d)"),
 		Start[0].X, Start[0].Y, Start[0].Layer, Start[1].X, Start[1].Y, Start[1].Layer));
 
-	// ⚠️ `VisionRange` 5: il PIU' CORTO del roster (Phase, Riktor). Se le regioni restano disgiunte col
+	// ⚠️ `VisionRange` 5: il PIU' CORTO del roster (Phase, Branth). Se le regioni restano disgiunte col
 	// piu' corto non e' una prova per gli altri; e' il contrario — con una vista piu' lunga si toccherebbero
 	// piu' facilmente, quindi il caso difficile per questo test e' il **7** di Gadget, provato sotto.
 	auto Osservatori = [&](int32 Range)

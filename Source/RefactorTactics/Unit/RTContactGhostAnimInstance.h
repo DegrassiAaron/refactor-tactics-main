@@ -62,7 +62,7 @@ protected:
  *
  *  1. `InitializeRootNode` prende la radice **solo** da `GetCustomRootNode`. Senza, `RootNode` resta
  *     `nullptr` e i nodi non ricevono mai `Initialize_AnyThread` ne' `CacheBones` — e' il difetto di
- *     `#1763`, che su Riktor si vedeva come catene distese **dopo un cambio di LOD**;
+ *     `#1763`, che su Branth si vedeva come catene distese **dopo un cambio di LOD**;
  *  2. `GetCustomNodes` e' cio' che porta questo nodo in `GameThreadPreUpdateNodes`
  *     (`FAnimInstanceProxy::InitializeNode`, che ce lo aggiunge quando `HasPreUpdate()` e' vero).
  *     ⚠️ **`FAnimNode_PoseSnapshot::PreUpdate` e' dove il nodo cachea i nomi delle ossa del target**:

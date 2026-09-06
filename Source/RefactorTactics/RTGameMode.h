@@ -75,8 +75,8 @@ public:
 	/**
 	 * Eroi della squadra 0 (giocatore) e della squadra 1 (bot), per `HeroId` del catalogo eroi v0.1.
 	 *
-	 * Default: **Gadget + Phase** contro **Riktor + Wraith**. Le due coppie non sono casuali — Phase bagna e
-	 * Gadget fulmina (`+8` su `Status.Wet`), Riktor costruisce e Wraith sfrutta lo spazio: ogni squadra ha una
+	 * Default: **Gadget + Phase** contro **Branth + Wraith**. Le due coppie non sono casuali — Phase bagna e
+	 * Gadget fulmina (`+8` su `Status.Wet`), Branth costruisce e Wraith sfrutta lo spazio: ogni squadra ha una
 	 * combo interna giocabile, che e' l'unico modo di vedere in partita cio' che CP 6.2/6.3 hanno costruito.
 	 *
 	 * E' un DATO e non una scelta scritta nel codice: cambiare formazione non richiede ricompilare, e quando
@@ -86,7 +86,7 @@ public:
 	TArray<FName> Team0Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Phase") };
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
-	TArray<FName> Team1Heroes = { TEXT("Hero.Riktor"), TEXT("Hero.Wraith") };
+	TArray<FName> Team1Heroes = { TEXT("Hero.Branth"), TEXT("Hero.Wraith") };
 
 	/**
 	 * Classe visiva per `HeroId` (es. `BP_Unit_Gadget` con skeletal mesh). Un eroe assente da questa mappa
