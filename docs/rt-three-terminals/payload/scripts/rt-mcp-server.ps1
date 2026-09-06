@@ -35,6 +35,7 @@ $ErrorActionPreference = 'Stop'
 
 $RepoRoot = [System.IO.Path]::GetFullPath($RepoRoot)
 $Ini = Join-Path $RepoRoot 'Saved\Config\WindowsEditor\EditorPerProjectUserSettings.ini'
+$DefaultIni = Join-Path $RepoRoot 'Config\DefaultEditorPerProjectUserSettings.ini'
 $Section = '[/Script/ModelContextProtocolEngine.ModelContextProtocolSettings]'
 $Key = 'bAutoStartServer'
 
@@ -43,16 +44,20 @@ if (-not (Test-Path (Join-Path $RepoRoot 'RefactorTactics.uproject'))) {
     exit 2
 }
 
-if (-not (Test-Path $Ini)) {
+if ($AutoStart -ne 'Status' -and -not (Test-Path $Ini)) {
     Write-Host "NOT RUN: $Ini non esiste." -ForegroundColor Yellow
     Write-Host "Il file nasce alla prima apertura dell'Editor su questo checkout." -ForegroundColor DarkGray
+    Write-Host "Fino ad allora vale il default versionato in Config/." -ForegroundColor DarkGray
     exit 3
 }
 
-# Legge il valore corrente dentro la sezione giusta: la stessa chiave puo'
-# comparire in altre sezioni, e cercarla ovunque leggerebbe quella sbagliata.
-function Get-CurrentValue {
-    $lines = [System.IO.File]::ReadAllLines($Ini)
+# Legge il valore dentro la sezione giusta: la stessa chiave puo' comparire in
+# altre sezioni, e cercarla ovunque leggerebbe quella sbagliata.
+function Get-ValueFrom {
+    param([Parameter(Mandatory)] [string] $Path)
+
+    if (-not (Test-Path $Path)) { return $null }
+    $lines = [System.IO.File]::ReadAllLines($Path)
     $inSection = $false
     foreach ($l in $lines) {
         $t = $l.Trim()
@@ -62,12 +67,33 @@ function Get-CurrentValue {
     return $null
 }
 
+function Get-CurrentValue { return (Get-ValueFrom -Path $Ini) }
+
+# (!) Il valore che conta e' quello EFFETTIVO, e non e' sempre in Saved/.
+#
+# Unreal legge `Config/DefaultEditorPerProjectUserSettings.ini` come base e lascia
+# che `Saved/` lo sovrascriva. Se la chiave manca in Saved, vale il default
+# versionato - e dire "<non impostato>" nasconderebbe il valore che l'Editor usera'
+# davvero.
+function Get-EffectiveValue {
+    $local = Get-ValueFrom -Path $Ini
+    if ($null -ne $local) {
+        return [pscustomobject]@{ Value = $local; Source = 'Saved (locale)' }
+    }
+    $fromDefault = Get-ValueFrom -Path $DefaultIni
+    if ($null -ne $fromDefault) {
+        return [pscustomobject]@{ Value = $fromDefault; Source = 'Config/Default (versionato)' }
+    }
+    return [pscustomobject]@{ Value = $null; Source = 'nessuno' }
+}
+
 $current = Get-CurrentValue
 
 if ($AutoStart -eq 'Status') {
-    $shown = $current
+    $eff = Get-EffectiveValue
+    $shown = $eff.Value
     if ($null -eq $shown) { $shown = '<non impostato>' }
-    Write-Host ("{0,-22} {1}" -f (Split-Path $RepoRoot -Leaf), $shown)
+    Write-Host ("{0,-22} {1,-6} da {2}" -f (Split-Path $RepoRoot -Leaf), $shown, $eff.Source)
     exit 0
 }
 
