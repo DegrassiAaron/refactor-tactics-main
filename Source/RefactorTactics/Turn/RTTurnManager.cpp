@@ -4963,12 +4963,18 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 					// come tutti gli altri: chi cade in questo stesso Blast contrattacca comunque, che e' la
 					// regola gia' dichiarata da URTCombatResolver ("un'unita' colpita a morte infligge
 					// comunque il proprio danno").
-					Out.CounterAttacks.Add(FRTAttack(Event.TargetUnitId, Event.Amount));
-					Out.CounterAttackSrc.Add(Unit->Cell);
-					Out.CounterActionId.Add(Reaction->Def.ActionId);
-					Out.CounterBaseActionId.Add(Reaction->Def.BaseActionId);
-					Out.CounterPriority.Add(Reaction->Def.Priority);
-					Out.CounterAttackActors.Add(Unit);
+					//
+					// 🔑 **Un `Add` solo e non sei** (`#2587`): colpo, origine, identita' della reazione e
+					// autore entrano insieme o non entrano. Sei `Add` in fila erano sei occasioni di
+					// scriverne cinque, e un `continue` infilato in mezzo avrebbe attribuito il
+					// contrattacco all'unita' sbagliata senza che niente diventasse rosso.
+					Out.CounterAttacks.Add(FRTCounterAttack{
+						FRTAttack(Event.TargetUnitId, Event.Amount),
+						Unit->Cell,
+						Reaction->Def.ActionId,
+						Reaction->Def.BaseActionId,
+						Reaction->Def.Priority,
+						Unit });
 					AddLogEvent(FString::Printf(TEXT("%s: contrattacco su %s (%d)"),
 						*Unit->GetName(), *EffectTarget->GetName(), Event.Amount), FRTLogSubject::Unit(Unit));
 					break;
@@ -5704,15 +5710,15 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		// `runtime: partial` che il registry punisce.
 		//
 		// ⚠️ **PERIMETRO: questo ciclo copre i colpi del piano di Blast, e non ogni colpo della partita.**
-		// `Plan.Hits` non contiene i CONTRATTACCHI — entrano in `Attacks` con
-		// `Attacks.Append(Reactions.CounterAttacks)`, dopo la fine di questo ciclo — ne' il fuoco di
+		// `Plan.Hits` non contiene i CONTRATTACCHI — entrano in `Attacks` dal ciclo su
+		// `Reactions.CounterAttacks`, dopo la fine di questo ciclo — ne' il fuoco di
 		// OVERWATCH, che applica danno in `ApplyReactionDecision` senza mai passare da un `FRTHexAttackHit`.
 		//
 		// ✅ **Dal 2026-09-03 quelle due famiglie portano comunque la voce** (`#2128`), emessa dai rispettivi
-		// produttori: la coda dei contrattacchi qui sotto, dopo l'`Append`, e il ramo `FIRE` di
+		// produttori: la coda dei contrattacchi qui sotto, dopo che il ciclo li ha accodati, e il ramo `FIRE` di
 		// `ApplyReactionDecision`. La riga che diceva *«per quei due la voce NON viene emessa»* descriveva il
 		// periodo 2026-09-02 → 2026-09-03. Cio' che mancava non era la geometria ma il fatto che `FRTAttack`
-		// non porta l'attaccante: la sorgente vive accanto, in `Reactions.CounterAttackSrc` per il
+		// non porta l'attaccante: la sorgente vive nel record, in `FRTCounterAttack::SourceCell` per il
 		// contrattacco e nella cella del watcher per l'Overwatch, e [D-302] punto 3 la classifica gia' —
 		// *diretto/mischia = sorgente→bersaglio*.
 		//
@@ -5940,7 +5946,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// ricevuto". `ResolveAttacks` somma comunque per bersaglio sullo stato iniziale, quindi la posizione non
 	// cambia il totale; cambia quale colpo conta come "primo" per Guard/Exposed/Deflect, ed e' giusto che sia
 	// l'attacco pianificato a consumare quei delta, non un contrattacco arrivato di rimbalzo.
-	// Dove comincia la coda dei contrattacchi, catturato PRIMA dell'`Append` (`#2128`).
+	// Dove comincia la coda dei contrattacchi, catturato PRIMA che il ciclo li accodi (`#2128`).
 	//
 	// 🔴 **Contarlo qui NON basta da solo, e la prima stesura diceva il contrario.** `Attacks` e `AttackSrc`
 	// hanno due sorgenti di cardinalita' DIVERSE: `AttackSrc` si riempie una volta per voce di `Plan.Hits`,
@@ -5956,20 +5962,26 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	checkf(AttackSrc.Num() == FirstCounter,
 		TEXT("AttackSrc (%d) e Attacks (%d) hanno smesso di essere paralleli: le voci direzionali dei ")
 		TEXT("contrattacchi leggerebbero l'origine di un altro colpo"), AttackSrc.Num(), FirstCounter);
-	Attacks.Append(Reactions.CounterAttacks);
-	AttackSrc.Append(Reactions.CounterAttackSrc);
-	AttackActionId.Append(Reactions.CounterActionId);
-	AttackBaseActionId.Append(Reactions.CounterBaseActionId);
-	AttackPriority.Append(Reactions.CounterPriority);
-	AttackActors.Append(Reactions.CounterAttackActors);
+	// Sei `Append` paralleli erano sei liste che dovevano avere la stessa lunghezza per fede (`#2587`). Un
+	// ciclo su un record le riempie a coppie fisse: la parallelita' delle sei destinazioni non e' piu'
+	// un'invariante da mantenere qui, e' una conseguenza del corpo del ciclo.
+	for (const FRTCounterAttack& Counter : Reactions.CounterAttacks)
+	{
+		Attacks.Add(Counter.Attack);
+		AttackSrc.Add(Counter.SourceCell);
+		AttackActionId.Add(Counter.ActionId);
+		AttackBaseActionId.Add(Counter.BaseActionId);
+		AttackPriority.Add(Counter.Priority);
+		AttackActors.Add(Counter.Actor);
+	}
 
 	// `#2128` — DA QUALE LATO e' arrivato ogni CONTRATTACCO. Il ciclo su `Plan.Hits` qui sopra non li vede: al
 	// momento in cui gira, questi colpi non sono ancora in `Attacks`.
 	//
 	// 🔑 **L'origine non va inventata**: [D-302] punto 3 classifica il contrattacco come colpo
 	// *diretto/mischia*, la cui origine e' **sorgente→bersaglio**, e la sorgente e' gia' registrata —
-	// `Reactions.CounterAttackSrc`, cioe' la cella di chi reagisce, scritta accanto al colpo nel pass delle
-	// reazioni. Cio' che manca a `FRTAttack` e' l'attaccante, non la geometria.
+	// `FRTCounterAttack::SourceCell`, cioe' la cella di chi reagisce, scritta NEL RECORD del colpo nel pass
+	// delle reazioni (`#2587`). Cio' che manca a `FRTAttack` e' l'attaccante, non la geometria.
 	//
 	// ⚠️ **Si itera la CODA, non tutto `Attacks`.** I colpi di indice minore di `FirstCounter` hanno gia'
 	// avuto la loro voce dal ciclo su `Plan.Hits`, e riemetterla qui la duplicherebbe — cambiando l'hash di
