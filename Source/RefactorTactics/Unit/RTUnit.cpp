@@ -420,8 +420,10 @@ bool ARTUnit::ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh, bool bH
 	//
 	// Il segnaposto spariva appena esisteva una MESH. Ma una mesh senza una clip da suonare non e' un
 	// corpo: e' una **posa di riferimento**, cioe' una T-pose — e una T-pose non dice «nessuno ha legato
-	// una clip a questo ruolo», dice «questa animazione e' rotta». Su Riktor le catene si stendono sullo
-	// schermo, ed e' lo stesso sintomo che #1750 nomina.
+	// una clip a questo ruolo», dice «questa animazione e' rotta». Sul PACK `Riktor` — l'eroe
+	// `Hero.Branth` dopo la migrazione d'identita' di #2297 — le catene si stendono sullo schermo, ed e'
+	// lo stesso sintomo che #1750 nomina. ⚠️ Il pack Paragon conserva il nome `Riktor` perche' e' di terze
+	// parti: e' l'IDENTITA' RT ad essere cambiata, non la cartella.
 	//
 	// Coincidevano perche' il roster ha sempre avuto le clip nel default C++. Da #2441 `ActiveClipVariant`
 	// puo' valere `NAME_None`, e rimuovere la variante attiva e' un'operazione **prevista**.
