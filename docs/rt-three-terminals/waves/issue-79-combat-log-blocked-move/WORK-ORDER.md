@@ -367,6 +367,60 @@ I due casi vanno separati, come `F4R` chiede:
 
 ⛔ **Nessuno committa `Source/` o `Scenarios/` se non DEV-LEAD al consolidamento.** Un `git add -A` in questo working tree assorbe il lavoro non finito di due istanze e i tre handoff untracked — è il caso che `RT3-EDITOR-a59671c.md` segnala nel proprio corollario.
 
+## Sequenza di consolidamento — vincolante
+
+Confermata dall'owner della wave dopo la run EDITOR anticipata. Non è una raccomandazione: è la condizione perché un ruolo a valle abbia qualcosa da misurare.
+
+```text
+1. contributi -02 di DEV-MAIN e DEV-TEST        ← stato al 2026-09-06 16:0x: NON PERVENUTI
+2. integrazione SERIALE dei file INTEGRATION-OWNED
+3. working tree pulito, verificato
+4. commit di produzione + test + documentazione
+5. RT3-DEVLEAD-<sha7>.md riferito al PRODUCED_SHA REALE
+6. solo allora: NUOVA run EDITOR
+```
+
+⛔ **Nessuna via libera a EDITOR prima del punto 5.** La run del 2026-09-06 15:49 è chiusa e non si riapre: il suo `BASE_SHA` non conterrà mai il fix. Una seconda convocazione è una **run nuova**, su un `PRODUCED_SHA` che oggi non esiste.
+
+### Il gate d'ingresso, adottato da `1-F6`
+
+Prima di convocare EDITOR o VALIDATION, questo comando deve produrre output **non vuoto**:
+
+```powershell
+git diff --name-only <BASE_SHA>..<PRODUCED_SHA> -- Source/ Scenarios/
+```
+
+Misurato ora, su `HEAD = bcde0be9`: **vuoto**. Il fix vive solo nel working tree condiviso — i simboli `bMovePlanRejectedByOccupant`, `RejectedMoveDestination` e `NoteMovePlanRejection` sono in `Source/`, in `RTUnit.h`, `RTUnit.cpp` e `RTPlayerController.cpp`, e **nessuno SHA li contiene**.
+
+🔑 **Il difetto che il gate previene non è «manca un commit», è che il target è mobile.** EDITOR ha misurato file che comparivano *durante* la misura: qualunque verdetto avrebbe descritto uno stato che non esiste più un minuto dopo. `CLAUDE.md` §6 lo chiama per nome — se HEAD, working tree o binari cambiano durante una finestra di misura, la misura è `NON VALIDA`, non `FAIL`.
+
+⚠️ **`NON VALIDA` non è `FAIL`, e la distinzione va conservata nel referto.** Un `FAIL` manderebbe DEV a cercare un difetto nel fix; qui non c'è nessun difetto misurato — c'è una misura che non poteva essere presa.
+
+## Decisione di defect policy — il wrapper `rtstatus`
+
+Reperto di tooling emerso da `1-F4R`, misurato in modo indipendente e **preservato qui perché questo file è versionato**, mentre le shell delle sessioni non lo sono.
+
+| Misura | Comando | Esito |
+|---|---|---|
+| script versionato | `git ls-files \| grep -iE 'rtstatus\|rt-status'` | **nessuno** |
+| script `rt-*` esistenti | `git ls-files scripts/` | 8: `rt-lease` · `rt-mcp-guard` · `rt-mcp-server` · `rt-mode` · `rt-suite` · `rt-suite-safe` · `rt-terminal` · `rt-workspace` |
+| sedi che lo prescrivono | `grep -n rtstatus` | `CLAUDE.md:55` · `CLAUDE_INSTALL_AND_INTEGRATE.md:156` · `TERMINAL_EDITOR.md:60` · `TERMINAL_VALIDATION.md:13` |
+| script invocabili per path | `scripts/rt-workspace.ps1 -Action verify` · `scripts/rt-lease.ps1 -Action status` | `OK: workspace MAIN` · `ENGINE LEASE: LIBERO` |
+
+⚠️ **`RTStatusTests.cpp` è un omonimo, e conta dirlo.** È l'unico file che una ricerca per `rtstatus` restituisce, ma i suoi test sono `RefactorTactics.Status.Burning.*`, `Status.WetRemovesBurning`, `Status.PersistsWhileOnCell`: sono gli **status effect di gameplay**, non il wrapper. Letto come copertura del wrapper darebbe per verificata una cosa che nessuno verifica — e `rtstatus` oggi non ha né script né test.
+
+**Decisione: FUORI da questa wave, follow-up tooling.** Severità `P3`, confermata.
+
+Perché fuori:
+
+- il write-set di questa wave è il combat log del movimento negato. `rtstatus` tocca `CLAUDE.md` §2 e **due prompt di ruolo**: è il contratto operativo RT3, non `#79`. Sono due contratti diversi, e mescolarli renderebbe il `WRITE_SET` di `RT3-DEVLEAD-<sha7>` illeggibile per lo scoping §8 a valle;
+- ⛔ **non blocca**: gli script esistono e rispondono se invocati per path. È una prescrizione falsa, non una capability assente — la distinzione è esattamente ciò che `1-F4R` ha corretto in questo file;
+- la wave è già in esecuzione con quattro ruoli. Allargarne lo scope adesso è la definizione di scope creep, e §12 non lo richiede: un `P3` di processo non impone una correzione dentro il ciclo in corso.
+
+Le due uscite del follow-up sono già poste, e sono alternative: **creare `scripts/rt-status.ps1`**, oppure **togliere la prescrizione dalle quattro sedi**. Non si decide qui: appartiene a chi possiede `CLAUDE.md`.
+
+➡️ **Follow-up aperto: [#2602](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2602)** — `documentation` · `P3`. Porta le quattro misure, le due uscite, l'avvertenza sull'omonimia e una DoD che chiede l'applicazione **in tutte e quattro le sedi**: una prescrizione tolta a metà è peggio di una intera. Nessun'altra issue apre lo stesso reperto: verificato prima di crearla.
+
 ## `NOT RUN`
 
 | Elemento | Motivo |
