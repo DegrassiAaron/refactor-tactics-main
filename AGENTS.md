@@ -525,7 +525,52 @@ Il lavoro concorrente si organizza in **tre figure**. Sono tre le figure, non i 
 - `DEV-MAIN` — implementa dentro lo scope assegnato;
 - `DEV-TEST` — scrive test, scenari e validator, e dichiara i comandi che VALIDATION eseguirà.
 
+### Workspace, figura e branch sono tre cose diverse
+
+Si confondono facilmente, e ogni confusione ha gia' prodotto un difetto.
+
+| Cosa | Valori | Dove vive |
+|---|---|---|
+| **Figura** della sessione | `DEV` · `EDITOR` · `VALIDATION` | `RT_TERMINAL_ROLE` |
+| **Identita'** del workspace | `MAIN` · `DEV` · `TECHNICAL_DESIGNER` | registro per macchina, non il nome della cartella |
+| **Branch** git | qualunque | `git rev-parse` |
+
+`MAIN` **non** e' il branch `main`. E' il checkout che ospita l'unico bridge MCP della macchina. L'authoring asset avviene la', e su un **branch di task** — mai su `main`.
+
+Ogni directory apre tutte e tre le figure. Nessun checkout e' vincolato a un ruolo operativo.
+
+### Il motore e' una risorsa di macchina
+
+Unreal e' **uno** e lo condividono tutti i checkout. Da cui:
+
+- il permesso di occuparlo non puo' vivere dentro un checkout. Uno stato per-root non descrive una risorsa per-macchina, e il finding `parsecell-arity/1-F13` lo ha misurato: con sei checkout attivi, l'unico che dichiarava `VALIDATION` era quello che **non** stava usando il motore;
+- il lease si acquisisce **just-in-time**, immediatamente prima di Editor, PIE, build, commandlet o di una chiamata MCP che richieda l'Editor vivo. Aprire un terminale o avviare un agente non lo acquisisce;
+- il lease **non e' preemptive**: chi trova la risorsa presa attende, e nessuna sessione termina quella attiva;
+- un processo motore vivo che nessun lease rivendica **blocca**: concedere sarebbe promettere un'esclusivita' che non c'e';
+- il rilascio e' una **dichiarazione** che la risorsa e' libera. Se un processo avviato dalla sessione e' ancora vivo, non si rilascia.
+
+### Authoring asset: solo dal workspace MAIN
+
+Una chiamata che crea, modifica, rinomina, sposta, cancella, importa o salva un asset Unreal via MCP e' autorizzata solo se valgono **tutte** queste condizioni:
+
+```text
+figura            = EDITOR
+workspace         = MAIN, verificato sul registro di macchina
+branch            = branch di task, diverso da main
+task id           presente
+write-set asset   dichiarato
+lease             vivo, posseduto, per l'operazione giusta
+contesto          progetto, Editor ed endpoint coincidono col lease
+```
+
+Una figura EDITOR in un workspace `DEV` o `TECHNICAL_DESIGNER` resta legittima: prepara, ispeziona, usa capacita' realmente read-only. **Non muta asset.**
+
+La ragione e' misurabile, non formale: il bridge e' uno solo e vive in MAIN, quindi una sessione che lo usa da un altro checkout **muta gli asset di MAIN** mentre legge il `git status` del proprio.
+
+VALIDATION puo' usare il motore per misurare. Non ripara asset durante il sign-off: un difetto torna a EDITOR, e la nuova evidenza si produce su input rimisurato.
+
 ### Una figura per sessione
+
 
 Una sessione assume **una sola figura**, e la dichiara all'avvio.
 

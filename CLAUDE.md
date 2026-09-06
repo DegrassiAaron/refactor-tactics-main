@@ -24,7 +24,13 @@ Il ruolo si **misura**, in quest'ordine:
    RT_TERMINAL_ROLE       DEV | VALIDATION | EDITOR
    RT_TERMINAL_INSTANCE   identificativo dell'istanza
    RT_WORKSPACE_ROOT      checkout su cui la sessione lavora
+   RT_WORKSPACE_ID        MAIN | DEV | TECHNICAL_DESIGNER
+   RT_TASK_ID             task/issue, quando dichiarato
    ```
+
+   `RT_WORKSPACE_ID` è l'identità del **workspace**, non la figura della sessione e
+   non il branch. Il valore autorevole sta nel registro di macchina: variabile e
+   marker locale sono promemoria, e `rtws -Action verify` dice se concordano.
 
 2. `rtstatus`, quando il comando è disponibile: stampa ruolo del terminale, id, engine mode e workspace. Non è definito in ogni shell — se manca, non è un errore, è un dato in meno;
 3. la dichiarazione esplicita di chi ha aperto la sessione.
@@ -404,6 +410,7 @@ Se la sessione è il `DEV-LEAD` di una wave, emette l'handoff di ingresso e non 
 
 Editor, PIE, MCP, `.uasset`/`.umap`, Blueprint, authoring, acceptance visuale.
 
+- il ruolo EDITOR esiste in ogni workspace; **l'authoring asset via MCP solo da `MAIN`**, su un branch di task. Preflight: `rtmcp -Operation MCP_ASSET_WRITE -TaskId <id> -AssetWriteSet <path>`;
 - lifecycle e cleanup obbligatori, anche su errore: §5;
 - `MCP command sent` non è `verified`: serve un oracolo positivo — rilettura della property, riapertura dell'asset, compile esplicito, PIE, test, packaged;
 - una risposta vuota non è né un `PASS` né una capability assente: §5;
@@ -414,6 +421,7 @@ Editor, PIE, MCP, `.uasset`/`.umap`, Blueprint, authoring, acceptance visuale.
 
 Build, Automation Test mirati, Scenario Harness, suite, packaged.
 
+- il motore si prende just-in-time — `rtlease -Action acquire -Operation SUITE -TaskId <id>` — e si rilascia dopo;
 - ordine: controlli statici → build → test mirati → scenari → suite completa una volta per batch integrato;
 - validità della misura: §6;
 - ricompila invece di fidarti di un binario che non hai prodotto;

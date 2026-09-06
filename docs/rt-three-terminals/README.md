@@ -93,18 +93,54 @@ Ogni istanza riceve un ID locale derivato dal processo, per esempio:
 
 L’ID serve a distinguere le finestre; non crea worktree o sandbox separate.
 
-## Stato globale
+## Identità del workspace
 
-Comandi disponibili in ogni terminale:
+Il ruolo appartiene alla **sessione**. L'identità appartiene alla **directory**, ed è un'altra cosa:
 
-```powershell
-rtstatus
-rtmode DEV
-rtmode VALIDATION
-rtmode EDITOR
+```text
+MAIN                 ospita l'unico bridge MCP della macchina
+DEV                  sviluppo
+TECHNICAL_DESIGNER   design tecnico
 ```
 
-Lo stato è salvato localmente in `.vscode/rt-engine-mode.txt`. Nel repository `.vscode/` è ignorata da Git.
+⛔ `MAIN` **non** è il branch `main`. È il checkout che ospita il bridge; l'authoring avviene lì, e
+su un **branch di task**.
+
+L'identità non si deduce dal nome della cartella: la registra l'installer nel registro per macchina
+sotto `%LOCALAPPDATA%\RefactorTactics\RT3\`, e `.vscode/rt-workspace-id.txt` è un promemoria locale.
+
+```powershell
+rtws -Action status     # identità di questo checkout + registro macchina
+rtws -Action verify     # marker e registro concordano?
+```
+
+Due workspace `MAIN` per lo stesso progetto vengono rifiutati: sarebbero due bridge che si
+contendono un Editor. Spostare `MAIN` richiede `-Force` esplicito, e una directory spostata non
+promuove automaticamente nessun'altra.
+
+## Lease del motore
+
+Unreal è **uno** e lo condividono tutti i checkout. Il permesso di occuparlo vive quindi fuori dal
+checkout, accanto al registro.
+
+```powershell
+rtlease -Action status
+rtlease -Action acquire -Operation SUITE -TaskId 1234
+rtlease -Action release
+```
+
+- **aprire un terminale non acquisisce niente**: il lease si prende just-in-time, prima di Editor,
+  PIE, build, commandlet o di una chiamata MCP che richieda l'Editor vivo;
+- non è preemptive: chi trova la risorsa presa vede `BUSY` con owner, task e workspace, e attende;
+- un processo motore vivo che nessun lease rivendica **blocca** l'acquisizione;
+- il rilascio fallisce finché un processo avviato dalla sessione è ancora vivo.
+
+⚠️ `rtmode` esiste ancora, ed è **solo informativo**. Il suo file vive per-checkout mentre il motore
+è per-macchina: il finding `parsecell-arity/1-F13` ha misurato che la sua lettura era *anticorrelata
+con la verità* — con sei checkout attivi, l'unico che dichiarava `VALIDATION` era quello che non
+stava usando il motore.
+
+Lo stato locale resta in `.vscode/rt-engine-mode.txt`; `.vscode/` è ignorata da Git.
 
 ## Avvio
 
@@ -128,14 +164,19 @@ I task usano `panel: new` e `instanceLimit > 1`, quindi lo stesso ruolo può ess
 Da un terminale con ruolo VALIDATION:
 
 ```powershell
-rtmode VALIDATION
+rtlease -Action acquire -Operation SUITE -TaskId 1234
 rtsuite
+rtlease -Action release
 ```
 
 `rtsuite` passa da `scripts/rt-suite-safe.ps1`, che rifiuta l’avvio se:
 
 - il terminale non ha ruolo VALIDATION;
-- la modalità globale non è VALIDATION.
+- non esiste un lease vivo;
+- il lease appartiene a un'altra sessione;
+- il lease è per un'operazione diversa da `SUITE` o `BUILD` — un lease preso per aprire l'Editor non
+  autorizza una suite, e usarlo così invaliderebbe la misura che il primo stava proteggendo;
+- il lease è su un altro checkout.
 
 Il wrapper non modifica `scripts/rt-suite.ps1` e non altera i suoi codici/verdetti. La serializzazione effettiva dei job Unreal resta responsabilità del mutex/percorso canonico già esistente.
 
@@ -175,13 +216,60 @@ un checkout
 
 Prima di modificare un binario: verificare `git status --short`. Dopo il Save: rileggere dirty state e `git status` prima che DEV esegua operazioni sullo stesso path.
 
+## Enforcement reale
+
+Vale la pena dirlo con precisione, perché la differenza conta.
+
+| Livello | Cosa fa | Cosa non fa |
+|---|---|---|
+| `.mcp.json` non versionato, generato dall'installer | decide **se** questo checkout vede il bridge | non distingue le chiamate |
+| `rtmcp` (preflight) | verifica ruolo, workspace, branch, task, write-set e lease **prima** di agire | **non intercetta**: il trasporto è HTTP diretto |
+| Lease + attribuzione di processo | impedisce che due sessioni occupino il motore insieme | non impedisce a chi salta il preflight di chiamare il bridge |
+
+⛔ Nessuno di questi è una barriera contro chi la voglia aggirare: ruolo e workspace arrivano da
+variabili che il chiamante può scrivere. Impediscono l'**errore**, non l'abuso — e chiamarli
+sicurezza farebbe smettere di cercare la barriera vera.
+
 ## Installazione
 
-Da PowerShell:
+Serve **pwsh 7**: `scripts/rt-suite.ps1` è UTF-8 senza BOM e Windows PowerShell 5.1 lo legge come
+Windows-1252, producendo 26 errori di parsing. Misurato il 2026-09-06.
+
+Una volta per directory, con l'identità esplicita:
 
 ```powershell
-.\install-rt-terminals.ps1 -RepoRoot "C:\percorso\a\refactor-tactics-main"
+# Refactor Tactics Main
+.\docs\rt-three-terminals\install-rt-terminals.ps1 -RepoRoot (Get-Location).Path -WorkspaceId MAIN
+
+# Refactor Tactic Dev
+.\docs\rt-three-terminals\install-rt-terminals.ps1 -RepoRoot (Get-Location).Path -WorkspaceId DEV
+
+# Refactor Tactics Technical Designer
+.\docs\rt-three-terminals\install-rt-terminals.ps1 -RepoRoot (Get-Location).Path -WorkspaceId TECHNICAL_DESIGNER
 ```
+
+`-WorkspaceId` è obbligatorio: non esiste un default, e il nome della cartella non lo sostituisce.
+
+Opzioni: `-McpEndpoint <url>` per un bridge su porta diversa, `-NoMcp` per non generare `.mcp.json`
+in questo checkout, `-Force` per spostare `MAIN`.
+
+### Migrazione da un'installazione precedente
+
+Le versioni precedenti non avevano identità di workspace né lease, e `.mcp.json` era versionato.
+
+1. `git pull` sul checkout;
+2. rieseguire l'installer con `-WorkspaceId`, una volta per directory;
+3. verificare con `rtws -Action status` che il registro elenchi **un solo** `MAIN`;
+4. `rtlease -Action status` deve dire `LIBERO` con nessun processo motore vivo.
+
+L'installer fa il backup con timestamp di ogni file che sovrascrive, `.mcp.json` incluso. Ripeterlo
+è idempotente.
+
+### Rollback
+
+1. ripristinare i `.bak` con il timestamp scelto (`settings.json`, `tasks.json`, gli script, `.mcp.json`);
+2. rimuovere `%LOCALAPPDATA%\RefactorTactics\RT3\` se si vuole azzerare registro e lease;
+3. `.mcp.json` non è più versionato: dopo un rollback va ricreato a mano o rigenerato dall'installer.
 
 L’installer:
 - verifica prima che tutto il payload richiesto esista;

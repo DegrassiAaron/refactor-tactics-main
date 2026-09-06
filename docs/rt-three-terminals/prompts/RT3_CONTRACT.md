@@ -317,6 +317,93 @@ Rileggila alla chiusura. Se è cambiata durante la wave, vale quella corrente.
 
 Nessun verdetto verde senza il campo che lo prova.
 
+## 14. Capability matrix
+
+Ogni operazione appartiene a una classe. La classe dice **cosa serve prima**, e un tool
+non classificato non ha una risposta di default permissiva.
+
+| Capability | Requisiti |
+|---|---|
+| `MCP_READ_ONLY` | figura compatibile; nessun side effect; non richiede lease |
+| `WORKTREE_WRITE` | task/issue e write-set dichiarati |
+| `EXTERNAL_WRITE` | task, target remoto, ownership, log; idempotenza dove applicabile |
+| `UNREAL_USE` | lease vivo e posseduto; contesto Unreal verificato |
+| `MCP_ASSET_READ` | contesto progetto verificato; lease se richiede l'Editor vivo |
+| `MCP_ASSET_WRITE` | `EDITOR` + workspace `MAIN` + branch di task + task id + write-set asset + lease + binding MCP verificato |
+| `VALIDATION_SIGNOFF` | sessione `VALIDATION` indipendente; input immutato; evidenza sufficiente |
+
+⛔ **Un tool MCP sconosciuto o non classificato che potrebbe avere side effect e'
+`DENIED_UNCLASSIFIED`.** Il default permissivo e' esattamente il modo in cui una
+superficie nuova entra senza che nessuno la valuti.
+
+⚠️ **La superficie mutante non e' quella di RefactorTactics.** I cinque tool
+`RTDeveloperTools` sono tutti read-only per costruzione — `ProjectStatus`,
+`GetCurrentMap`, `DumpCell`, `FindPath`, `ValidateTacticalMap` — e il loro brief
+vieta esplicitamente la scrittura asset arbitraria. Cio' che puo' mutare arriva dai
+**toolset Epic** raggiungibili via `call_tool`, e con `bEnableToolSearch = true`
+quei toolset non compaiono nemmeno in `tools/list`. Classificare significa guardare
+li', non nel plugin di casa.
+
+Codici di rifiuto stabili, gli stessi che gli script stampano:
+
+```text
+ASSET_WRITE_WRONG_WORKSPACE    ASSET_WRITE_ROLE_DENIED
+TASK_CONTEXT_MISSING           PROTECTED_BRANCH_DENIED
+ENGINE_LEASE_REQUIRED          MCP_CONTEXT_MISMATCH
+ASSET_WRITESET_CONFLICT        DENIED_UNCLASSIFIED
+```
+
+## 15. Lease del motore, e cosa il lease non e'
+
+Il lease e' della **risorsa**, non del ruolo, ed e' unico per macchina. Vive sotto
+`%LOCALAPPDATA%\RefactorTactics\RT3\` perche' il motore e' uno e i checkout sono molti.
+
+Metadata:
+
+```text
+schema_version · lease_id · role · terminal_instance
+workspace_id · workspace_root · project_path
+task_id · operation
+owner_pid · owner_started_at_utc · editor_pid · mcp_endpoint
+branch · head_sha · acquired_at_utc
+```
+
+`owner_started_at_utc` esiste perche' un PID si ricicla: da solo non prova che
+l'owner sia ancora lo stesso processo.
+
+**Nessun heartbeat**: non e' implementato, e descriverne uno sarebbe dichiarare una
+proprieta' che nessuno misura. Un lease il cui owner non e' piu' vivo e' `STALE`, e
+il recupero e' esplicito — mai automatico, e comunque negato se un processo motore
+vivo non e' attribuibile.
+
+### Log
+
+Ogni acquisizione, rilascio e chiamata con side effect produce una riga JSONL in
+`events.jsonl` accanto al lease:
+
+```text
+timestamp_utc · event · task_id · role · terminal_instance
+workspace_id · workspace_root · branch · head_sha
+lease_id · operation_class · target_summary · result · error_code
+```
+
+Niente token, credenziali, URL firmati, header, prompt o payload asset. La scrittura
+e' in append con retry, e un log che non riesce a scrivere **non** trasforma un
+fallimento in successo: stampa un avviso e lascia l'esito dov'era.
+
+Il file cresce e nessuno lo ruota: la pulizia e' manuale, e appartiene a chi possiede
+la macchina.
+
+### 🔴 Cosa questo contratto NON puo' garantire
+
+Il trasporto MCP e' HTTP diretto. Un client che salta il preflight raggiunge il
+bridge lo stesso: **nessuno script PowerShell sta su quel percorso**.
+
+Il preflight autorizza, non intercetta. L'enforcement che regge davvero e' di
+configurazione — `.mcp.json` non versionato, generato solo dove il bridge serve — e
+di disciplina. Chiamarla barriera sarebbe un falso verde, e un falso verde fa
+smettere di cercare la barriera vera.
+
 ---
 
 ## Aperti
