@@ -390,13 +390,56 @@ owner_pid · owner_started_at_utc · editor_pid · mcp_endpoint
 branch · head_sha · acquired_at_utc
 ```
 
+🔴 **`owner_pid` e' il PID del TERMINALE RT, non del processo che scrive il file.**
+
+Il comando che acquisisce il lease e' effimero: termina un istante dopo. Un lease
+che dichiarasse quel PID nascerebbe gia' `STALE` — misurato il 2026-09-06 su
+`d062ccf0`, con `ACQUIRED` e lo `status` immediatamente successivo che diceva
+`STALE (owner non piu' vivo)`.
+
+Chi tiene il motore e' la **sessione**, che sopravvive ai comandi lanciati al suo
+interno. L'identita' arriva ai processi figli per variabile d'ambiente:
+
+```text
+RT_TERMINAL_INSTANCE    PID del terminale RT
+RT_TERMINAL_STARTED_AT  istante di avvio di quel processo, UTC ISO-8601
+RT_TERMINAL_ROLE        ruolo della sessione
+```
+
+`acquire` e `release` senza queste variabili falliscono **fail-closed**
+(`RT_SESSION_REQUIRED`): un processo effimero non puo' possedere una risorsa che
+gli sopravvive. `status` resta invocabile ovunque, perche' e' sola lettura.
+
 `owner_started_at_utc` esiste perche' un PID si ricicla: da solo non prova che
 l'owner sia ancora lo stesso processo.
+
+⚠️ Gli istanti si confrontano **normalizzati**. `ConvertFrom-Json` non
+restituisce le stringhe ISO-8601 come stringhe: le converte in `[datetime]`, e un
+confronto testuale con l'istante ricalcolato falliva sempre dopo la rilettura. Il
+difetto sopravvive a chi lo corregge una volta sola: e' coperto da un caso di
+`-SelfTest`.
 
 **Nessun heartbeat**: non e' implementato, e descriverne uno sarebbe dichiarare una
 proprieta' che nessuno misura. Un lease il cui owner non e' piu' vivo e' `STALE`, e
 il recupero e' esplicito — mai automatico, e comunque negato se un processo motore
 vivo non e' attribuibile.
+
+### Un solo predicato di ownership
+
+⛔ La domanda «questo lease e' mio?» ha **una sola sede**.
+
+Prima ne aveva tre, in due varianti: `rt-lease.ps1` confrontava solo il PID,
+mentre `rt-suite-safe.ps1` e `rt-mcp-guard.ps1` accettavano anche
+`terminal_instance`. Due script riconoscevano un proprietario che il terzo
+rifiutava — e la divergenza non era visibile finche' qualcuno non provava a
+rilasciare un lease che la suite aveva appena accettato.
+
+`Test-LeaseOwnedBy` vive in `rt-lease.ps1` ed e' importata dagli altri due
+dall'AST. Un rename a monte produce `OWNERSHIP_CONTRACT_UNAVAILABLE`, non un
+permesso concesso per sbaglio.
+
+La funzione e' **pura**: `(lease, identita') -> bool`. E' cio' che la rende
+verificabile senza occupare il motore, con `rt-lease.ps1 -SelfTest`.
 
 ### Log
 

@@ -129,6 +129,15 @@ rtlease -Action acquire -Operation SUITE -TaskId 1234
 rtlease -Action release
 ```
 
+⛔ **`acquire` e `release` si eseguono dal terminale RT**, non da un task o da una
+shell qualunque. L'owner del lease e' la **sessione**, che sopravvive ai comandi:
+un processo effimero che lo acquisisse morirebbe un istante dopo, lasciando un
+lease immediatamente `STALE`. Senza l'identita' della sessione i due comandi
+falliscono con `RT_SESSION_REQUIRED`.
+
+`status` resta invocabile ovunque: e' sola lettura. Per questo il task VS Code
+«RT: Engine lease status» esiste, e i task acquire/release **no**.
+
 - **aprire un terminale non acquisisce niente**: il lease si prende just-in-time, prima di Editor,
   PIE, build, commandlet o di una chiamata MCP che richieda l'Editor vivo;
 - non è preemptive: chi trova la risorsa presa vede `BUSY` con owner, task e workspace, e attende;

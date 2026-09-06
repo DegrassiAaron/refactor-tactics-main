@@ -12,7 +12,56 @@
     anticorrelata con la verita'. Ora serve un lease vivo e posseduto.
 #>
 
+# -CheckOnly interroga il guard e riporta il verdetto SENZA eseguire la suite.
+# Serve a chi deve sapere se puo' misurare - e ai test, che altrimenti per
+# verificare il guard dovrebbero occupare il motore per quaranta minuti.
+$CheckOnly = $false
+$Forward = @()
+foreach ($a in $args) {
+    if ("$a" -eq '-CheckOnly') { $CheckOnly = $true } else { $Forward += $a }
+}
+
 $ErrorActionPreference = "Stop"
+
+# ---------------------------------------------------------------------------
+# Contratto di ownership: importato, non riscritto
+# ---------------------------------------------------------------------------
+
+# (!!) Il predicato "questo lease e' mio" viveva in TRE posti e in DUE varianti:
+# `rt-lease.ps1` confrontava solo il PID, mentre questo script e `rt-mcp-guard.ps1`
+# accettavano anche `terminal_instance`. Due script riconoscevano un proprietario
+# che il terzo rifiutava.
+#
+# Ora la regola ha una sede sola e viene importata dall'AST di `rt-lease.ps1`,
+# come gia' si fa per il guard del motore. Un rename a monte da' un errore
+# esplicito, non un permesso concesso per sbaglio.
+function Import-OwnershipContract {
+    param([Parameter(Mandatory)] [string] $LeaseScript)
+
+    if (-not (Test-Path $LeaseScript)) {
+        throw "OWNERSHIP_CONTRACT_UNAVAILABLE: $LeaseScript non trovato."
+    }
+    $tokens = $null
+    $errors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile($LeaseScript, [ref]$tokens, [ref]$errors)
+    if ($errors -and $errors.Count -gt 0) {
+        throw "OWNERSHIP_CONTRACT_UNAVAILABLE: $LeaseScript non e' parsabile ($($errors.Count) errori)."
+    }
+
+    $wanted = @('Resolve-SessionIdentity', 'Test-LeaseOwnedBy')
+    $found = @{}
+    foreach ($fn in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
+        if ($wanted -contains $fn.Name) { $found[$fn.Name] = $fn.Extent.Text }
+    }
+    $missing = @($wanted | Where-Object { -not $found.ContainsKey($_) })
+    if ($missing.Count -gt 0) {
+        throw "OWNERSHIP_CONTRACT_UNAVAILABLE: $LeaseScript non espone piu' $($missing -join ', ')."
+    }
+
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($n in $wanted) { [void]$sb.AppendLine($found[$n]) }
+    return $sb.ToString()
+}
 
 $workspaceRoot = $env:RT_WORKSPACE_ROOT
 if ([string]::IsNullOrWhiteSpace($workspaceRoot)) {
@@ -50,8 +99,15 @@ try {
 # Il lease deve essere di QUESTA sessione: un lease altrui vivo significa che il
 # motore e' di qualcun altro, ed e' esattamente il caso che questo guard esiste per
 # fermare.
-$ownerPid = [int]$lease.owner_pid
-$owned = ($ownerPid -eq $PID) -or ([string]$lease.terminal_instance -eq [string]$env:RT_TERMINAL_INSTANCE)
+. ([scriptblock]::Create((Import-OwnershipContract -LeaseScript (Join-Path (Join-Path $workspaceRoot "scripts") "rt-lease.ps1"))))
+
+$identity = Resolve-SessionIdentity
+if (-not $identity.Ok) {
+    Write-Host ("BLOCKED: {0} - la suite si esegue da un terminale RT, non da un processo effimero." -f $identity.ErrorCode) -ForegroundColor Red
+    exit 2
+}
+
+$owned = Test-LeaseOwnedBy -Lease $lease -Identity $identity
 if (-not $owned) {
     Write-Host "BLOCKED: il lease appartiene a un'altra sessione." -ForegroundColor Red
     Write-Host ("  owner_pid    : {0}" -f $lease.owner_pid)
@@ -89,7 +145,12 @@ if (-not (Test-Path $suite)) {
 $instance = $env:RT_TERMINAL_INSTANCE
 if ([string]::IsNullOrWhiteSpace($instance)) { $instance = "unknown" }
 
+if ($CheckOnly) {
+    Write-Host ("OK: la sessione possiede il lease {0} (task {1}). Suite NON eseguita: -CheckOnly." -f $lease.lease_id, $lease.task_id) -ForegroundColor Green
+    exit 0
+}
+
 Write-Host ("VALIDATION WINDOW attiva da VALIDATION:{0} (lease {1}, task {2})." -f $instance, $lease.lease_id, $lease.task_id) -ForegroundColor Yellow
 Write-Host "La serializzazione dei job Unreal resta affidata al mutex canonico di rt-suite." -ForegroundColor DarkYellow
-& $suite @args
+& $suite @Forward
 exit $LASTEXITCODE
