@@ -113,7 +113,7 @@ test('il contesto stampato viene dal testo VERO e resta allineato al numero', ()
 /** Uno scenario senza attese di HP non ha un metro: non si inventa. */
 test('senza UnitHpEquals non si segnala niente', () => {
   assert.deepEqual(
-    segnala('X.json', { _nota: 'Riktor scende a 110.', turns: [{ expect: [{ type: 'TurnsCompleted', value: 3 }] }] }),
+    segnala('X.json', { _nota: 'Branth scende a 110.', turns: [{ expect: [{ type: 'TurnsCompleted', value: 3 }] }] }),
     [],
   );
 });
@@ -138,7 +138,7 @@ test('la raccolta scende nell albero invece di fermarsi al primo livello', () =>
 /** Il caso base: un numero dichiarato già letto porta il motivo con sé e smette di essere «da leggere». */
 test('un numero assolto con motivo resta segnalato ma marcato, non sparisce', () => {
   const righe = segnala('X.json', {
-    ...conAttesa('Riktor scende a 115 nello scenario gemello.', 120),
+    ...conAttesa('Branth scende a 115 nello scenario gemello.', 120),
     [CAMPO_LETTI]: { _nota: '115 è del gemello, non di questo file' },
   });
 
@@ -156,7 +156,7 @@ test('un numero assolto con motivo resta segnalato ma marcato, non sparisce', ()
  */
 test('il motivo di un assoluzione non genera segnalazioni proprie', () => {
   const righe = segnala('X.json', {
-    ...conAttesa('Riktor scende a 115 nello scenario gemello.', 120),
+    ...conAttesa('Branth scende a 115 nello scenario gemello.', 120),
     [CAMPO_LETTI]: { _nota: 'il gemello asserisce 115, e anche 110 e 105 sono suoi' },
   });
 
@@ -168,7 +168,7 @@ test('il motivo di un assoluzione non genera segnalazioni proprie', () => {
 /** ⛔ Un'assoluzione MUTA non assolve: senza il motivo obbligatorio il meccanismo sarebbe un interruttore. */
 test('un assoluzione senza motivo non assolve e si dichiara', () => {
   const righe = segnala('X.json', {
-    ...conAttesa('Riktor scende a 115 nello scenario gemello.', 120),
+    ...conAttesa('Branth scende a 115 nello scenario gemello.', 120),
     [CAMPO_LETTI]: { _nota: '   ' },
   });
 
@@ -180,7 +180,7 @@ test('un assoluzione senza motivo non assolve e si dichiara', () => {
 /** Lo stesso vale per un motivo che non è nemmeno una stringa: `null`, un numero, un oggetto. */
 test('un motivo che non e una stringa vale come muto', () => {
   const righe = segnala('X.json', {
-    ...conAttesa('Riktor scende a 115 nello scenario gemello.', 120),
+    ...conAttesa('Branth scende a 115 nello scenario gemello.', 120),
     [CAMPO_LETTI]: { _nota: 42 },
   });
 
@@ -193,7 +193,7 @@ test('un motivo che non e una stringa vale come muto', () => {
  */
 test('assolvere un campo non assolve gli altri campi dello stesso file', () => {
   const righe = segnala('X.json', {
-    _nota: 'Riktor scende a 115 nello scenario gemello.',
+    _nota: 'Branth scende a 115 nello scenario gemello.',
     _nota_coppia: 'e nel confronto si legge 110.',
     turns: [{ expect: [{ type: 'UnitHpEquals', unit: 'B1', value: 120 }] }],
     [CAMPO_LETTI]: { _nota: '115 è del gemello' },
@@ -206,7 +206,7 @@ test('assolvere un campo non assolve gli altri campi dello stesso file', () => {
 
 /** Anti-vacuità: senza il campo di assoluzione nulla cambia rispetto al comportamento storico. */
 test('senza il campo di assoluzione la segnalazione resta nuda', () => {
-  const righe = segnala('X.json', conAttesa('Riktor scende a 115 nello scenario gemello.', 120));
+  const righe = segnala('X.json', conAttesa('Branth scende a 115 nello scenario gemello.', 120));
 
   assert.equal(righe.length, 1);
   assert.equal(righe[0]!.assolto, undefined);

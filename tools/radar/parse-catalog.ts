@@ -39,7 +39,9 @@ export interface ReactionInput {
 export interface HeroInput {
   /**
    * Nome MOSTRATO, dall'intestazione del catalogo. Cambia: D-120 ha rinominato il roster
-   * (`Flux` -> `Gadget`, `Riva` -> `Phase`, `Bastion` -> `Riktor`, `Vektor` -> `Wraith`).
+   * (`Flux` -> `Gadget`, `Riva` -> `Phase`, `Bastion` -> `Riktor`, `Vektor` -> `Wraith`),
+   * e D-334 ha poi portato `Riktor` -> `Branth`. I due passi restano scritti perche' la riga
+   * documenta cosa fece D-120: comprimerli in `Bastion` -> `Branth` la renderebbe falsa.
    * Va nel titolo del radar, mai in un nome di file o in una URL.
    */
   name: string;

@@ -9,8 +9,8 @@
 ## Stato dell'implementazione (2026-08-06)
 
 **Aggiornato al 2026-08-06 (epic E6 completata)**: i quattro eroi esistono come dati
-(`URTHeroCatalogLibrary::MakeGadget/MakePhase/MakeRiktor/MakeWraith`) e `ARTGameMode` allestisce il 2v2 con loro
-— formazione di default **Gadget + Phase** contro **Riktor + Wraith**. I due archetipi (`ERTArchetype`) non
+(`URTHeroCatalogLibrary::MakeGadget/MakePhase/MakeBranth/MakeWraith`) e `ARTGameMode` allestisce il 2v2 con loro
+— formazione di default **Gadget + Phase** contro **Branth + Wraith**. I due archetipi (`ERTArchetype`) non
 partecipano più allo spawn di partita; restano come helper nei test d'integrazione.
 
 **Aggiornamento 2026-08-08.** Di quel «non ancora costruito» resta solo una voce: **E8** (terreni dinamici,
@@ -43,7 +43,7 @@ sono cablate e verificate in partita.
 | Reazione | Semantica core riusata | Stato |
 |---|---|---|
 | `Hero.Gadget.ReactiveCapacitor` | `Action.Counter` | ✅ scudo 15 **e** 10 danni all'attaccante |
-| `Hero.Riktor.Interposition` | `Action.Intercept` | ✅ incassa il colpo diretto a un alleato entro 2 celle |
+| `Hero.Branth.Interposition` | `Action.Intercept` | ✅ incassa il colpo diretto a un alleato entro 2 celle |
 | `Hero.Wraith.Deflection` | `Action.Deflect` | ✅ pool da 20 danni assorbibili dentro il boundary ([D-309](../decisions/RT_PDR_00_Decision_Log.md)) |
 | `Hero.Phase.FlowReaction` | — | ⏳ **E14**: produce movimento dentro un boundary di risoluzione |
 
@@ -132,7 +132,7 @@ nel vertical slice).
 
 ---
 
-## 3. Riktor — architetto del campo
+## 3. Branth — architetto del campo
 
 **Ruolo**: difesa · controllo dello spazio · modifica degli archi · protezione degli alleati.
 
@@ -147,11 +147,11 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Hero.Riktor.ImpactShot` | Colpo cinetico | attacco base | 8 danni, range 3, applica `Slow` | 0 |
-| `Hero.Riktor.KineticPanel` | Pannello cinetico | arco | crea una copertura da 30 HP | 2 |
-| `Hero.Riktor.Reconfigure` | Riconfigurazione | arco | sposta o ruota una copertura | 2 |
-| `Hero.Riktor.Ram` | Ariete | charge | 20 danni e `Push 1` | 2 |
-| `Hero.Riktor.Interposition` | Interposizione | reazione | intercetta un attacco diretto a un alleato | 3 |
+| `Hero.Branth.ImpactShot` | Colpo cinetico | attacco base | 8 danni, range 3, applica `Slow` | 0 |
+| `Hero.Branth.KineticPanel` | Pannello cinetico | arco | crea una copertura da 30 HP | 2 |
+| `Hero.Branth.Reconfigure` | Riconfigurazione | arco | sposta o ruota una copertura | 2 |
+| `Hero.Branth.Ram` | Ariete | charge | 20 danni e `Push 1` | 2 |
+| `Hero.Branth.Interposition` | Interposizione | reazione | intercetta un attacco diretto a un alleato | 3 |
 
 **Variante di `KineticPanel`**
 - *Pannello rinforzato*: integrità **45**, ma durata **1 turno**.
@@ -170,7 +170,7 @@ nel vertical slice).
 | Range visivo | 6 |
 | Resistenza Push | 0 |
 | Affinità | movimento |
-| Debolezza | strutture (`Affinity.Structures`) — decisa in CP 6.5, non nel PDF: simmetrica a Riktor |
+| Debolezza | strutture (`Affinity.Structures`) — decisa in CP 6.5, non nel PDF: simmetrica a Branth |
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
@@ -204,7 +204,7 @@ nel vertical slice).
 |---|---:|---:|---:|---:|---|---|
 | Gadget | 90 | 5 | 7 | 0 | elettricità | fragile, trasforma l'acqua altrui in danno, e **vede più lontano di tutti** |
 | Phase | 95 | 5 | 5 | 0 | acqua | prepara il terreno agli altri e cura |
-| Riktor | 120 | 4 | 5 | 0 | strutture | cambia la forma della mappa, lento |
+| Branth | 120 | 4 | 5 | 0 | strutture | cambia la forma della mappa, lento |
 | Wraith | 90 | 6 | 6 | 0 | movimento | punisce chi si muove, il più mobile |
 
 ### 5.1 Percezione e risorsa firma — consolidato il 2026-08-07
@@ -230,7 +230,7 @@ non riduce la gittata di nessuno: la vista lunga vale **anticipo d'informazione*
 |---|---:|---:|---|---|---|---:|
 | Gadget | 7 | 5 | Controller | Carica Conduttiva | interazione elettrica | 4 |
 | Phase | 5 | 3 | Support | Riserva Idrica | interazione con acqua | 4 |
-| Riktor | 5 | 3 | Guardian | Integrità Strutturale | Cleanup | 4 |
+| Branth | 5 | 3 | Guardian | Integrità Strutturale | Cleanup | 4 |
 | Wraith | 6 | 5 | Striker | Slancio | movimento eseguito | 4 |
 
 > 🔊 **La `Soglia d'udito` si legge al contrario delle altre colonne: più bassa, meglio si sente.** È la
@@ -240,7 +240,7 @@ non riduce la gittata di nessuno: la vista lunga vale **anticipo d'informazione*
 >
 > ⚠️ **L'udito COMPENSA la vista, non la segue** ([D-041](../decisions/RT_PDR_00_Decision_Log.md)): chi vede
 > lontano sente meno, chi vede poco sente bene — così è una seconda via all'informazione e non un secondo
-> `Range visivo`. Le due colonne sono anti-monotone di proposito, e sul roster v0.1 Phase e Riktor
+> `Range visivo`. Le due colonne sono anti-monotone di proposito, e sul roster v0.1 Phase e Branth
 > condividono entrambi i valori.
 >
 > *(Entrata in catalogo il 2026-08-25 con [#686](https://github.com/DegrassiAaron/refactor-tactics-main/issues/686):
@@ -265,7 +265,7 @@ Stealth 2, Tracking 1): si parte piatti e si differenzia col playtest.
 > Quali di questi parametri diventino statistiche per eroe, e con quali valori, si decide in **E13**: qui non
 > si scrive un numero che nessun sistema legge.
 
-Riktor compra HP con **movimento** e vista; Wraith compra mobilità con **salute**; Phase sta in
+Branth compra HP con **movimento** e vista; Wraith compra mobilità con **salute**; Phase sta in
 mezzo; Gadget ha il danno combo più alto.
 
 > ✅ **Aggiornato il 2026-08-10 ([D-069](../decisions/RT_PDR_00_Decision_Log.md), `#131`): Wraith 100 → 90.**
@@ -291,7 +291,7 @@ mezzo; Gadget ha il danno combo più alto.
 > La compensazione nelle **abilità** resta com'era e non era in discussione: Gadget ha il bonus combo più alto
 > del roster (+8 su `Wet`), Phase la cura ad area.
 
-> ✅ **Allineato il 2026-08-12 ([D-075](../decisions/RT_PDR_00_Decision_Log.md), `#402`): Riktor 1 → 0 di
+> ✅ **Allineato il 2026-08-12 ([D-075](../decisions/RT_PDR_00_Decision_Log.md), `#402`): Branth 1 → 0 di
 > resistenza alla spinta.** La decisione è del **2026-08-10** e `RTHeroCatalogLibrary.cpp` scrive `0` da
 > allora: questo documento era rimasto indietro, e la frase qui sopra vendeva come prezzo pagato — «compra HP
 > **e resistenza**» — una statistica che l'eroe non ha.
@@ -320,7 +320,7 @@ mezzo; Gadget ha il danno combo più alto.
 > esattamente come prima, che è la prova di quanto sopra.
 >
 > L'esito è pinnato dallo scenario
-> `Spec.Combat.BranthIsPushedLikeAnyone`, che manda Riktor e Wraith a incassare lo stesso `Hero.Phase.PressureJet`
+> `Spec.Combat.BranthIsPushedLikeAnyone`, che manda Branth e Wraith a incassare lo stesso `Hero.Phase.PressureJet`
 > e li fa arretrare **entrambi**; la regola della soglia resta pinnata da
 > `RefactorTactics.Actions.PushResistanceIsAThreshold`, che il valore se lo costruisce da solo.
 >
@@ -331,10 +331,10 @@ mezzo; Gadget ha il danno combo più alto.
 **Debolezza dichiarata**: il PDF elenca «debolezza» fra gli elementi fissi di ogni eroe ma **non la esplicita**
 per nessuno dei quattro. Va fissata in E6 e scritta qui: senza, l'identità resta metà. **Gadget**: fissata in
 CP 6.2, acqua (`Affinity.Water`) — vedi §1. **Phase**: fissata in CP 6.3, elettricità (`Affinity.Electricity`),
-simmetrica a Gadget — vedi §2. **Riktor**: fissata in CP 6.4, movimento (`Affinity.Movement`), simmetrica a
+simmetrica a Gadget — vedi §2. **Branth**: fissata in CP 6.4, movimento (`Affinity.Movement`), simmetrica a
 Wraith — vedi §3. **Wraith**: fissata in CP 6.5, strutture (`Affinity.Structures`) — vedi §4.
 
-Il roster chiude in **due coppie simmetriche**: Gadget↔Phase sull'acqua/elettricità, Riktor↔Wraith sullo
+Il roster chiude in **due coppie simmetriche**: Gadget↔Phase sull'acqua/elettricità, Branth↔Wraith sullo
 spazio/movimento. La debolezza di ogni eroe è l'affinità di un altro — verificato da
 `RefactorTactics.Heroes.RosterIsBalanced`.
 
@@ -346,7 +346,7 @@ spazio/movimento. La debolezza di ogni eroe è l'affinità di un altro — verif
 |---|---|---|---|
 | Gadget | Scarica ramificata | `Gadget.Insulator` | `Reaction.ReactiveShield` |
 | Phase | Marea curativa | `Gadget.Sprinkler` | `Reaction.HazardEscape` |
-| Riktor | Pannello adattivo | `Gadget.PortableCover` | `Reaction.AllyIntercept` |
+| Branth | Pannello adattivo | `Gadget.PortableCover` | `Reaction.AllyIntercept` |
 | Wraith | Intercetto esteso | `Gadget.Sensor` | `Reaction.EmergencyDash` |
 
 ---
@@ -362,7 +362,7 @@ spazio/movimento. La debolezza di ogni eroe è l'affinità di un altro — verif
 | 5 | `Bastion.ImpactShot`: 24 danni | **8 danni + `Slow` 1 turno**, range 3 invariato ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md), 2026-08-09) | A 24 era l'attacco base **più forte del roster**, mentre il ruolo dichiarato di Riktor è Utility/Emergency: la contraddizione stava nei numeri, non nel ruolo. 8 è la metà esatta di `Riva.PressureJet` (16), che sta un gradino sopra. Lo `Slow` è l'unica delle utility candidate insieme esprimibile e coerente — `ERTStructureOp` non danneggia coperture, e uno `Status` si applica al bersaglio, quindi «genera Guard su di sé» non è rappresentabile | <!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 
 **Non specificato nel PDF** (da fissare in E6): debolezza di ciascun eroe (**tutte fissate**: Gadget CP 6.2, Phase
-CP 6.3, Riktor CP 6.4, Wraith CP 6.5) ·
+CP 6.3, Branth CP 6.4, Wraith CP 6.5) ·
 range di `Hero.Gadget.Overload` (fissato in CP 6.2: **3**, coerente con `ConductiveNode`) e `Hero.Phase.CircularTide`
 (fissato in CP 6.3: **4**, come `Hero.Gadget.Overload`) · durata di `Status.Wet` (fissata in CP 6.3: **1 turno**, come
 `Guard`/`Exposed`/`Marked` — finestra di combo stretta) · durata di `Hero.Wraith.Feint` (fissata in CP 6.5: **1 turno**, come `Wet`/`Marked`) · se le reazioni

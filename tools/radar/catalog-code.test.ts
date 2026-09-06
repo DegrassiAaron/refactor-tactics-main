@@ -61,7 +61,7 @@ test('la tabella di confronto §5 e una terza fonte, e puo divergere dalle sched
     '| Eroe | HP | MP | Vista | Push res. | Affinità | Identità in una riga |',
     '|---|---:|---:|---:|---:|---|---|',
     '| Gadget | 90 | 5 | 7 | 0 | elettricità | fragile, vede lontano |',
-    '| Riktor | 120 | 4 | 5 | 0 | strutture | cambia la mappa, lento |',
+    '| Branth | 120 | 4 | 5 | 0 | strutture | cambia la mappa, lento |',
   ].join('\n');
 
   const rows = parseSummaryTable(md);
@@ -73,7 +73,7 @@ test('la tabella di confronto §5 e una terza fonte, e puo divergere dalle sched
     pushResistance: 0,
     affinity: 'Affinity.Electricity',
   });
-  assert.equal(rows.get('Riktor')!.health, 120);
+  assert.equal(rows.get('Branth')!.health, 120);
 });
 
 const SEI = (over = {}) => ({
@@ -98,9 +98,9 @@ test('una divergenza nomina eroe, campo e i valori di ogni fonte che lo dichiara
 test('il gate NON dice quale lato correggere: riporta i valori e si ferma', () => {
   // D-075 e' il precedente: il 2026-08-10 il codice aveva ragione e il catalogo era indietro. Un gate
   // che avesse indicato il codice come lato da riparare avrebbe annullato la decisione.
-  const sections = new Map([['Riktor', SEI({ pushResistance: 1 })]]);
-  const summary = new Map([['Riktor', SEI({ pushResistance: 1 })]]);
-  const cpp = new Map([['Riktor', SEI({ pushResistance: 0 })]]);
+  const sections = new Map([['Branth', SEI({ pushResistance: 1 })]]);
+  const summary = new Map([['Branth', SEI({ pushResistance: 1 })]]);
+  const cpp = new Map([['Branth', SEI({ pushResistance: 0 })]]);
 
   const { divergences } = compare(sections, summary, cpp);
   const testo = JSON.stringify(divergences);

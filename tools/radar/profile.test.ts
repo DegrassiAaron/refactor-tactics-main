@@ -14,7 +14,7 @@ test('i sei assi del Profile per i quattro eroi', () => {
   assert.deepEqual(got, {
     Gadget:    { offense: 5, durability: 7, mobility: 7, control: 2, support: 1, information: 7 },
     Wraith:  { offense: 4, durability: 7, mobility: 9, control: 4, support: 1, information: 6 },
-    Riktor: { offense: 3, durability: 8, mobility: 6, control: 9, support: 2, information: 5 },
+    Branth: { offense: 3, durability: 8, mobility: 6, control: 9, support: 2, information: 5 },
     Phase:    { offense: 1, durability: 7, mobility: 8, control: 7, support: 8, information: 5 },
   });
 });
@@ -37,17 +37,17 @@ test('ogni coppia differisce su almeno tre assi (DoD #558)', () => {
 });
 
 test('la mitigazione su di se alza durability, quella sugli alleati no', () => {
-  const [flux, bastion] = ['Gadget', 'Riktor'].map((n) => roster().find((h) => h.name === n)!);
+  const [flux, bastion] = ['Gadget', 'Branth'].map((n) => roster().find((h) => h.name === n)!);
   // Gadget 90 HP + scudo 15 -> supera Phase, che ne ha 95 e nessuna mitigazione.
   assert.equal(profileAxes(flux).durability, 7);
-  // `Hero.Riktor.Interposition` incassa per un ALLEATO: va in support, non in durability.
+  // `Hero.Branth.Interposition` incassa per un ALLEATO: va in support, non in durability.
   assert.ok(profileAxes(bastion).support > 1);
 });
 
 test('uno scudo dato a un ALLEATO non alza la durability di chi lo lancia', () => {
   // Sul roster di oggi nessuna abilita' dichiara un numero di mitigazione verso un alleato —
   // `Interposition` intercetta senza cifra — quindi la regola non e' esercitata dai dati reali.
-  // Questo caso la mette alla prova: senza la divisione per bersaglio, Riktor diventerebbe il piu'
+  // Questo caso la mette alla prova: senza la divisione per bersaglio, Branth diventerebbe il piu'
   // resistente due volte.
   const conScudoAlleato = readFileSync(HERO, 'utf8').replace(
     'intercetta un attacco diretto a un alleato',
@@ -57,7 +57,7 @@ test('uno scudo dato a un ALLEATO non alza la durability di chi lo lancia', () =
   writeFileSync(tmp, conScudoAlleato);
 
   try {
-    const bastion = parseHeroCatalog(tmp, ACTION).find((h) => h.name === 'Riktor')!;
+    const bastion = parseHeroCatalog(tmp, ACTION).find((h) => h.name === 'Branth')!;
     assert.equal(profileAxes(bastion).durability, 8, 'lo scudo altrui non deve entrare');
   } finally {
     rmSync(tmp);

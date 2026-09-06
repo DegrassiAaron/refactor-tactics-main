@@ -74,7 +74,7 @@ test('gli otto SVG committati producono otto alt distinti', () => {
   // Chiavi dei file REALI in `docs/characters/radar/`, non nomi mostrati: D-130 li ha rinominati
   // insieme agli SVG. Le fixture qui sopra restano `flux-…` di proposito — sono URL inventati
   // (`github.com/x/y`) che nessuno legge dal disco, e cambiarli non proverebbe niente di più.
-  for (const hero of ['gadget', 'phase', 'riktor', 'wraith']) {
+  for (const hero of ['gadget', 'phase', 'branth', 'wraith']) {
     for (const view of ['profile', 'balance']) {
       alts.add(expectedAlt(readFileSync(`${RADAR}${hero}-${view}.svg`, 'utf8')));
     }
