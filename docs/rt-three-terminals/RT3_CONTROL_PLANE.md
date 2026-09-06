@@ -122,6 +122,16 @@ Un **detached HEAD** è uno stato legittimo: `branch` resta vuoto e la CLI stamp
 `(detached)`. Una directory che non è un repository Git è altrettanto legittima: i quattro
 campi restano vuoti e la registrazione riesce comunque.
 
+⚠️ **I metadati vengono dalla directory corrente, non da dove sta lo script.** È giusto
+così — un terminale RT3 sta dentro il proprio workspace — ma rende possibile un errore
+silenzioso: invocare `D:\...\refactor-tactics-main\scripts\rt3.ps1` mentre la shell sta in
+un altro checkout registra il branch e lo sha di *quel* checkout sotto il nome dell'altro.
+È successo durante la verifica incrociata dei tre workspace: tre sessioni registrate da
+tre script diversi hanno riportato tutte lo stesso branch, perché la shell non si era mai
+spostata. Nessun comando era sbagliato, e il referto lo era. `rt3.ps1` ora avvisa quando la
+cwd è fuori dal proprio repository; `--worktree <path>` indica esplicitamente un'altra
+directory.
+
 ### Quale sessione rappresenta questo terminale
 
 La CLI risolve l'identità in questo ordine:
