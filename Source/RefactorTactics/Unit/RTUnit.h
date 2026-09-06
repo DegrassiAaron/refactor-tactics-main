@@ -9,6 +9,7 @@
 #include "Selection/RTSelectable.h"
 #include "Map/RTMapVisuals.h" // #983: RTCellTopZ si include invece di ricopiarlo in un commento
 #include "Animation/PoseSnapshot.h" // #1750: il ricordo di posa e' un membro per valore, non un puntatore
+#include "UI/RTDamageTokenView.h" // #2455: il token e' un membro per valore, quindi serve il tipo completo
 #include "Unit/RTUnitAnimInstance.h" // #2448: ERTPresentationRole entra nella firma del canale discreto
 #include "RTUnit.generated.h"
 
@@ -1396,6 +1397,42 @@ public:
 	 * quel caso in silenzio.
 	 */
 	UUserWidget* GetOverlayWidgetObject() const;
+
+	/**
+	 * Mostra sopra questa unita' il token di un colpo appena rivelato dal playback (`#2455`).
+	 *
+	 * 🔑 **Sta accanto a `PlayHitMontage` e ha la sua stessa forma**, perche' e' la stessa cosa: una cue sul
+	 * BERSAGLIO, chiamata dal `TurnManager` nel punto in cui il colpo viene rivelato. La differenza e' che
+	 * questa e' C++ e non un `BlueprintImplementableEvent`: cio' che decide — la cifra, il segno, il caso
+	 * zero — vive in una funzione pura che i test chiamano, invece che in un grafo che nessun test vede.
+	 *
+	 * 🔴 **Prende un intero e non l'evento, e il confine e' misurato.** `RTTurnManager.cpp` non include
+	 * **nessun** header di `UI/`: il simulatore passa il numero che ha gia' in mano — lo stesso che
+	 * `OnAttackResolved` gia' trasporta — e la composizione della vista avviene qui, dalla parte della
+	 * presentazione.
+	 *
+	 * ⚠️ **`Amount` e' il danno NOMINALE, non gli HP persi**: vedi `FRTDamageTokenView` per la convenzione
+	 * e per la sua conseguenza visibile.
+	 *
+	 * ⛔ **Non applica niente.** Il colpo e' gia' stato risolto; questa chiamata disegna un fatto.
+	 */
+	void ShowDamageToken(int32 Amount);
+
+	/**
+	 * L'ultimo token composto per questa unita', **di sola presentazione**.
+	 *
+	 * 🔑 **Esiste per rendere il cablaggio osservabile senza rendering.** `URTUnitOverlayWidget` e' un
+	 * `UUserWidget`: in un mondo headless `GetOverlayWidgetObject()` risponde `nullptr` e nessun test
+	 * potrebbe dire se il colpo e' arrivato alla presentazione o si e' perso per strada. Con questo campo un
+	 * test di partita legge cosa la vittima ha ricevuto — ed e' la stessa disciplina di
+	 * `ContactGhostTargetForUnit`, che ha reso testabile una decisione altrimenti solo visibile.
+	 *
+	 * ⛔ **`Transient`**: non entra in `MapState`, in nessuno snapshot, nel TurnLog ne' in `StateHash`.
+	 * Riprodurre lo stesso turno due volte lo riscrive due volte con lo stesso valore e **non cambia nessun
+	 * esito**.
+	 */
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FRTDamageTokenView LastDamageToken;
 
 protected:
 

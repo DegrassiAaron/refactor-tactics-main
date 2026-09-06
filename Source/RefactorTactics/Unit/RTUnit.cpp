@@ -21,6 +21,7 @@
 #include "Perception/RTTeamKnowledge.h" // ContactLifetimeTurns: la durata del ricordo ha un owner, non si ricopia
 #include "Components/WidgetComponent.h" // la sovrapposizione sopra la testa (#2288, D-320)
 #include "UI/RTUnitOverlayWidget.h"  // la classe base del widget: serve il tipo completo per SetWidgetClass
+#include "UI/RTHudViewModel.h"      // BuildDamageToken: la composizione del token e' del view-model (#2455)
 
 ARTUnit::ARTUnit()
 {
@@ -240,6 +241,30 @@ UUserWidget* ARTUnit::GetOverlayWidgetObject() const
 	// un mondo senza rendering, come quello dei test headless — questa risponde `nullptr`, ed e' il caso
 	// normale, non un errore. Chi la chiama deve poterlo attraversare senza dire niente.
 	return OverlayWidget ? OverlayWidget->GetUserWidgetObject() : nullptr;
+}
+
+void ARTUnit::ShowDamageToken(int32 Amount)
+{
+	// Il giudizio sta nella funzione pura, non qui: `#2455` mette la regola del caso zero e la composizione
+	// dell'etichetta in `URTHudViewModel::BuildDamageToken`, che un test chiama senza costruire un widget.
+	LastDamageToken = URTHudViewModel::BuildDamageToken(Amount, StableUnitId);
+
+	// ⚠️ **Il campo si scrive SEMPRE, il widget si aggiorna se c'e'.** In un mondo headless — e prima che il
+	// componente abbia istanziato il widget — `GetOverlayWidgetObject()` risponde `nullptr`, ed e' il caso
+	// normale che il suo doc-comment dichiara. Scrivere prima di quel controllo e' cio' che rende il
+	// cablaggio verificabile senza rendering.
+	if (UUserWidget* Raw = GetOverlayWidgetObject())
+	{
+		if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(Raw))
+		{
+			Overlay->PushDamageToken(LastDamageToken);
+		}
+	}
+
+	// ⛔ **Nessun controllo sul velo QUI, ed e' deliberato.** Chi puo' vedere questa unita' lo decide
+	// `ARTHUD::UpdateObserverVeil`, che spegne l'intero `OverlayWidget` (`RefreshComponentVisibility`): un
+	// secondo giudizio in questo punto sarebbe la divergenza che `#2246` ha appena tolto, e la prima volta
+	// che i due non fossero d'accordo nessun test lo direbbe.
 }
 
 void ARTUnit::ApplyUnitAnimClass()
