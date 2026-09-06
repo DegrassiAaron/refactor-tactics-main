@@ -506,6 +506,125 @@ epics:
         self.assertEqual(c.wip_global, 1)
 
 
+class StarvationIsExplainedTest(unittest.TestCase):
+    """D-345: la precedenza del cammino critico e' assoluta, e va DETTA.
+
+    Il comportamento e' accettato: chi ha slack minore prende il budget globale, e una
+    lane con le proprie risorse libere puo' restare ferma. Accettarlo non basta - senza
+    una spiegazione si legge «limite raggiunto» accanto a un writer a 0/1 e non si capisce
+    quale delle due informazioni sia sbagliata.
+    """
+
+    SOURCE = """
+roadmapSchemaVersion: 1
+id: fame
+resources:
+  workspaces:
+    DEV:
+      writerCapacity: 2
+    DESIGNER:
+      writerCapacity: 1
+  temporaryWorktrees:
+    capacity: 0
+wip:
+  global: 2
+epics:
+  - id: VELOCE
+    homeWork: DEV
+    issues:
+      - id: A
+        estimate: 5
+      - id: B
+        estimate: 5
+        requires: [A]
+      - id: C
+        estimate: 1
+  - id: LENTA
+    homeWork: DESIGNER
+    issues:
+      - id: Z
+        estimate: 1
+"""
+
+    def setUp(self):
+        roadmap, problems = normalize(parse(self.SOURCE))
+        self.assertIsNotNone(roadmap, [p.code for p in problems])
+        self.roadmap = roadmap
+        self.graph = build(roadmap)
+        self.result = plan(roadmap, self.graph, {})
+
+    def _deferred(self, key):
+        for d in self.result["deferred"]:
+            if d["key"] == key:
+                return d
+        return None
+
+    def test_la_lane_lenta_resta_ferma_col_proprio_writer_libero(self):
+        """Il caso, riprodotto in piccolo: e' quello che la wave vera ha mostrato."""
+        assegnate = {a["workspace"] for a in self.result["assignments"]}
+        self.assertNotIn("DESIGNER", assegnate)
+        self.assertEqual(self.result["capacity"]["writers"]["DESIGNER"]["used"], 0)
+        self.assertEqual(self.result["capacity"]["writers"]["DESIGNER"]["capacity"], 1)
+
+    def test_il_motivo_nomina_CHI_ha_consumato_il_budget(self):
+        """«Limite raggiunto» senza il nome di chi lo ha raggiunto lascia a indovinare."""
+        d = self._deferred("LENTA/Z")
+        self.assertIsNotNone(d)
+        self.assertEqual(d["reason"], "WIP_GLOBAL")
+        for consumatore in ("VELOCE/A", "VELOCE/C"):
+            self.assertIn(consumatore, d["detail"])
+
+    def test_il_motivo_dichiara_che_la_lane_ha_risorse_libere(self):
+        d = self._deferred("LENTA/Z")
+        self.assertIn("LIBERE", d["detail"])
+        self.assertIn("writer DESIGNER (0/1)", d["detail"])
+        self.assertIn("wip.global", d["detail"], "deve dire quale leva libera la lane")
+
+    def test_controllo_negativo_niente_avviso_se_non_ci_sono_risorse_libere(self):
+        """Se l'avviso comparisse sempre, il test precedente sarebbe verde per la
+        ragione sbagliata: qui il writer della lane e' occupato davvero."""
+        roadmap, _ = normalize(
+            parse(
+                """
+roadmapSchemaVersion: 1
+id: pieno
+resources:
+  workspaces:
+    DEV:
+      writerCapacity: 1
+  temporaryWorktrees:
+    capacity: 0
+wip:
+  global: 1
+epics:
+  - id: E
+    homeWork: DEV
+    issues:
+      - id: A
+      - id: B
+"""
+            )
+        )
+        result = plan(roadmap, build(roadmap), {})
+        d = [x for x in result["deferred"] if x["key"] == "E/B"][0]
+        self.assertNotIn("LIBERE", d["detail"])
+        self.assertIn("Nessuna risorsa", d["detail"])
+
+    def test_alzare_il_wip_globale_libera_la_lane(self):
+        """La leva che il messaggio indica deve funzionare davvero."""
+        import copy
+
+        r = copy.deepcopy(self.roadmap)
+        r.wip["global"] = 4
+        assegnate = {a["workspace"] for a in plan(r, self.graph, {})["assignments"]}
+        self.assertIn("DESIGNER", assegnate)
+
+    def test_la_precedenza_e_del_cammino_critico(self):
+        """Il fondamento della decisione: chi ha slack 0 va per primo."""
+        primi = [a["key"] for a in self.result["assignments"]]
+        self.assertEqual(primi[0], "VELOCE/A", "A sta sul cammino critico")
+
+
 class DeterminismTest(unittest.TestCase):
     def setUp(self):
         self.roadmap, self.graph = load_smoke_roadmap()

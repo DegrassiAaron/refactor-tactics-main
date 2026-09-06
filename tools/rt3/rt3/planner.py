@@ -282,6 +282,50 @@ class _Capacity(object):
         return limit == 0 or self.wip_global < limit
 
 
+def _consumers(assignments):
+    """Chi ha consumato il budget prima di questa issue. Dice CHI, non solo QUANTO.
+
+    Un «limite raggiunto» senza il nome di chi lo ha raggiunto lascia il lettore a
+    indovinare, e la domanda che si pone davanti a una lane ferma non e' «quanto vale il
+    limite» ma «chi me lo ha preso».
+    """
+    return ", ".join(a.key for a in assignments)
+
+
+def _starvation_note(capacity, roadmap, group):
+    """Quando una lane resta ferma con le PROPRIE risorse libere, dillo.
+
+    🔴 E' il caso che la prima wave su Epic vere ha prodotto: DESIGNER rimandato per WIP
+    globale mentre il suo writer era a 0/1. Il comportamento e' voluto - la precedenza e'
+    del cammino critico, ed e' una decisione accettata (D-345) - ma senza questa riga
+    sembra un difetto: si legge «limite raggiunto» accanto a una risorsa libera e non si
+    capisce quale delle due informazioni sia sbagliata.
+    """
+    libere = []
+    if capacity.writers[group] < roadmap.writer_capacity(group):
+        libere.append(
+            "writer {} ({}/{})".format(
+                group, capacity.writers[group], roadmap.writer_capacity(group)
+            )
+        )
+    if capacity.temporary < roadmap.temporary_worktree_capacity:
+        libere.append(
+            "worktree temporanei ({}/{})".format(
+                capacity.temporary, roadmap.temporary_worktree_capacity
+            )
+        )
+    if not libere:
+        return "Nessuna risorsa di {} e' libera comunque.".format(group)
+    return (
+        "⚠️ {} ha risorse LIBERE - {} - e resta fermo lo stesso: il budget globale e' "
+        "gia' stato speso da item con priorita' maggiore. La precedenza del cammino "
+        "critico e' assoluta per decisione accettata, non un difetto di questo piano; "
+        "alzare `wip.global` e' la leva che libera questa lane.".format(
+            group, " e ".join(libere)
+        )
+    )
+
+
 def plan(roadmap, graph, states=None, modes=None):
     """Costruisce lo SCHEDULE e gli ASSIGNMENT a partire dallo stato corrente.
 
@@ -326,8 +370,10 @@ def plan(roadmap, graph, states=None, modes=None):
                     key=key,
                     workspace=group,
                     reason="WIP_GLOBAL",
-                    detail="limite WIP globale raggiunto ({}).".format(
-                        roadmap.wip.get("global")
+                    detail="limite WIP globale raggiunto ({}), consumato da {}. {}".format(
+                        roadmap.wip.get("global"),
+                        _consumers(assignments) or "lavoro gia' in corso",
+                        _starvation_note(capacity, roadmap, group),
                     ),
                 )
             )
