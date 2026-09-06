@@ -56,7 +56,8 @@ $Targets = @(
     @("scripts\rt-suite-safe.ps1", "scripts\rt-suite-safe.ps1"),
     @("scripts\rt-lease.ps1", "scripts\rt-lease.ps1"),
     @("scripts\rt-workspace.ps1", "scripts\rt-workspace.ps1"),
-    @("scripts\rt-mcp-guard.ps1", "scripts\rt-mcp-guard.ps1")
+    @("scripts\rt-mcp-guard.ps1", "scripts\rt-mcp-guard.ps1"),
+    @("scripts\rt-mcp-server.ps1", "scripts\rt-mcp-server.ps1")
 )
 
 # Preflight atomico: non iniziare una installazione parziale se il bundle e' incompleto.
@@ -114,6 +115,31 @@ if ($null -eq $Shell) {
 & $Shell.Source -NoLogo -NoProfile -File $WsScript @WsArgs
 if ($LASTEXITCODE -ne 0) {
     throw "Registrazione del workspace fallita (exit $LASTEXITCODE). L'installazione dei file e' avvenuta; l'identita' no."
+}
+
+# ---------------------------------------------------------------------------
+# Avvio automatico del bridge: acceso solo in MAIN
+# ---------------------------------------------------------------------------
+
+# (!!) Il bridge e' UNO per macchina. Un Editor aperto in un altro checkout, con
+# `bAutoStartServer=True`, ne fa partire un SECONDO: nessuno lo usa - i client
+# puntano tutti all'endpoint di MAIN - ma e' raggiungibile, e dietro `call_tool`
+# espone 56 toolset fra cui `AutomationTestToolset` (`RunTests`, `StopTests`).
+#
+# Una chiamata a `RunTests` avvia una suite senza passare da `rt-suite.ps1`, dal suo
+# mutex e dal lease; `StopTests` ferma quella di un altro. Spegnere l'avvio
+# automatico fuori da MAIN chiude quel canale.
+#
+# Il setting vive in Saved/, che e' per utente e non versionato: e' una leva di
+# MACCHINA, e va riapplicata su ogni checkout - non la porta un `git pull`.
+$McpServerScript = Join-Path (Join-Path $RepoRoot "scripts") "rt-mcp-server.ps1"
+$DesiredAutoStart = if ($WorkspaceId -eq "MAIN") { "On" } else { "Off" }
+
+Write-Host ""
+& $Shell.Source -NoLogo -NoProfile -File $McpServerScript -RepoRoot $RepoRoot -AutoStart $DesiredAutoStart
+if ($LASTEXITCODE -eq 2) {
+    Write-Host "(!) bAutoStartServer NON e' stato applicato. Chiudi l'Editor e riesegui:" -ForegroundColor Yellow
+    Write-Host ("    .\scripts\rt-mcp-server.ps1 -RepoRoot `"{0}`" -AutoStart {1}" -f $RepoRoot, $DesiredAutoStart) -ForegroundColor DarkGray
 }
 
 # ---------------------------------------------------------------------------
