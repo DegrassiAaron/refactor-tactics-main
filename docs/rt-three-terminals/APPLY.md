@@ -53,8 +53,10 @@ Punti che cambiano il comportamento:
 - `rt-suite-safe.ps1` chiede un lease vivo e posseduto, non più il mode locale;
 - `rt-mcp-guard.ps1`: preflight della policy «asset MCP solo da MAIN», con codici di rifiuto stabili;
 - log JSONL di lease e side effect accanto al lease, senza segreti;
-- `.mcp.json` **esce dal versionamento** e lo genera l'installer: era un blob identico nei tre
-  checkout e non poteva descrivere una configurazione di macchina;
+- `.mcp.json` **resta versionato**. Era stato tolto dal repository sul presupposto che variasse per
+  macchina; misurato il 2026-09-06 sui tre checkout, gli endpoint erano byte identici, perche' il
+  bridge e' uno solo. De-versionarlo faceva sparire il file a ogni `git pull`, rompendo il bridge
+  finche' non veniva ripristinato a mano. L'installer lo riscrive solo se cambia davvero;
 - task VS Code per stato/acquisizione/rilascio del lease e per il preflight MCP;
 - profili e task passano a `pwsh`: `scripts/rt-suite.ps1` è UTF-8 senza BOM e Windows PowerShell 5.1
   lo legge come Windows-1252 — 26 errori di parsing, misurati.
