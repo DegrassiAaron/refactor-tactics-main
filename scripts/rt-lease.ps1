@@ -169,6 +169,8 @@ function Get-SessionContext {
     return [pscustomobject]@{
         Role             = [string]$identity.Role
         TerminalInstance = [string]$identity.Instance
+        # Provvisorio: e' il promemoria letto dall'ambiente. `Invoke-Acquire` lo
+        # sostituisce col valore del REGISTRO prima di scrivere il lease.
         WorkspaceId      = $env:RT_WORKSPACE_ID
         WorkspaceRoot    = $Root
         ProjectPath      = [System.IO.Path]::GetFullPath($projectPath)
@@ -635,6 +637,20 @@ function Invoke-Acquire {
         return 2
     }
 
+    # (!) Il lease dichiara il workspace che il REGISTRO conferma, non quello che
+    # l'ambiente afferma.
+    #
+    # `RT_WORKSPACE_ID` e' un promemoria - lo dice `rt-workspace.ps1`, che tratta il
+    # registro come unica autorita' - e puo' essere assente o divergente. Un lease
+    # che copiasse la variabile registrerebbe un workspace che nessuno ha verificato,
+    # e nel caso peggiore uno diverso da quello appena validato: il campo diventa
+    # inutile proprio per la cosa a cui serve, attribuire il motore a un checkout.
+    #
+    # Misurato sullo smoke reale: con la variabile non impostata il lease usciva con
+    # `workspace_id` VUOTO mentre il verdetto, nella riga sopra, aveva gia' confermato
+    # MAIN dal registro.
+    $Context.WorkspaceId = [string]$ws.Verdict.WorkspaceId
+
     if ([string]::IsNullOrWhiteSpace($Operation)) {
         Write-Host "BLOCKED: -Operation e' obbligatorio per acquire." -ForegroundColor Red
         Write-LeaseEvent -Event 'lease_acquire' -Context $Context -Result 'DENIED' -ErrorCode 'OPERATION_MISSING'
@@ -758,6 +774,13 @@ function Invoke-Release {
         if ($null -eq $existing) {
             Write-Host "Nessun lease da rilasciare." -ForegroundColor DarkGray
             return 0
+        }
+
+        # Il lease porta il workspace verificato all'acquire: per il log vale quello,
+        # non il promemoria d'ambiente di questa invocazione.
+        if ($existing.PSObject.Properties.Name -contains 'workspace_id' -and
+            -not [string]::IsNullOrWhiteSpace([string]$existing.workspace_id)) {
+            $Context.WorkspaceId = [string]$existing.workspace_id
         }
 
         if (-not (Test-LeaseOwnedBy -Lease $existing -Identity $Context.Identity)) {
