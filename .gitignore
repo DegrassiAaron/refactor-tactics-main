@@ -5,12 +5,6 @@ desktop.ini
 
 # ---- Editor / IDE ----
 .vscode/
-
-# Configurazione MCP: e' di MACCHINA, non di repository.
-# Era un blob git identico nei tre checkout e non poteva descrivere cio' che
-# per definizione varia per macchina: presenza del bridge, porta, esposizione
-# per workspace. Lo genera l'installer - vedi docs/rt-three-terminals/APPLY.md.
-.mcp.json
 .idea/
 .vs/
 *.swp

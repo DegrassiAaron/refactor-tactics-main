@@ -231,7 +231,7 @@ Vale la pena dirlo con precisione, perché la differenza conta.
 
 | Livello | Cosa fa | Cosa non fa |
 |---|---|---|
-| `.mcp.json` non versionato, generato dall'installer | decide **se** questo checkout vede il bridge | non distingue le chiamate |
+| `.mcp.json`, versionato e installato | decide **se** questo checkout vede il bridge | non distingue le chiamate |
 | `rtmcp` (preflight) | verifica ruolo, workspace, branch, task, write-set e lease **prima** di agire | **non intercetta**: il trasporto è HTTP diretto |
 | Lease + attribuzione di processo | impedisce che due sessioni occupino il motore insieme | non impedisce a chi salta il preflight di chiamare il bridge |
 
@@ -297,7 +297,7 @@ L'installer fa il backup con timestamp di ogni file che sovrascrive, `.mcp.json`
 
 1. ripristinare i `.bak` con il timestamp scelto (`settings.json`, `tasks.json`, gli script, `.mcp.json`);
 2. rimuovere `%LOCALAPPDATA%\RefactorTactics\RT3\` se si vuole azzerare registro e lease;
-3. `.mcp.json` non è più versionato: dopo un rollback va ricreato a mano o rigenerato dall'installer.
+3. `.mcp.json` è versionato: un rollback lo riporta alla versione del commit, e l'installer lo riscrive solo se il contenuto cambia davvero.
 
 L’installer:
 - verifica prima che tutto il payload richiesto esista;

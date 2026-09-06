@@ -120,16 +120,23 @@ if ($LASTEXITCODE -ne 0) {
 # Configurazione MCP: locale, non versionata
 # ---------------------------------------------------------------------------
 
-# (!!) `.mcp.json` NON e' versionato. Era un blob git identico nei tre checkout, e
-# quindi non poteva descrivere una configurazione che per definizione e' di
-# macchina: porta, presenza del bridge, esposizione per workspace.
+# (!) `.mcp.json` E' VERSIONATO, ed e' una scelta rivista.
 #
-# Il bridge e' UNO, ospitato da MAIN. Un checkout non-MAIN che lo usa sta parlando
-# all'Editor di MAIN: le query read-only sono legittime, la mutazione asset no, e a
-# fermarla e' `rt-mcp-guard.ps1` PIU' la disciplina - non questo file.
+# Era stato tolto dal repository sul presupposto che la configurazione MCP variasse
+# per macchina. Misurato il 2026-09-06 sui tre checkout: gli endpoint erano BYTE
+# IDENTICI, perche' il bridge e' UNO ed e' ospitato da MAIN. Un file che non varia
+# non e' una configurazione di macchina, e de-versionarlo aveva un costo concreto:
+# ogni `git pull` lo cancellava dal working tree, rompendo il bridge finche' non
+# veniva ripristinato a mano.
+#
+# L'installer lo riscrive solo se il contenuto cambia davvero: cosi' non lascia
+# modifiche non committate in un checkout che era gia' allineato.
+#
+# Un endpoint diverso resta possibile con -McpEndpoint, e in quel caso il file
+# risultera' modificato: e' corretto, perche' quella e' una divergenza reale che
+# qualcuno deve decidere se committare.
 if (-not $NoMcp) {
     $McpTarget = Join-Path $RepoRoot ".mcp.json"
-    Backup-IfPresent -Target $McpTarget | Out-Null
 
     $McpConfig = [ordered]@{
         mcpServers = [ordered]@{
@@ -140,10 +147,20 @@ if (-not $NoMcp) {
         }
     }
 
-    $Tmp = "$McpTarget.tmp"
-    Set-Content -Path $Tmp -Value (ConvertTo-Json $McpConfig -Depth 5) -Encoding UTF8
-    Move-Item -Path $Tmp -Destination $McpTarget -Force
-    Write-Host "Installed: $McpTarget (endpoint $McpEndpoint)" -ForegroundColor Green
+    $McpText = ConvertTo-Json $McpConfig -Depth 5
+
+    $Existing = $null
+    if (Test-Path $McpTarget) { $Existing = (Get-Content $McpTarget -Raw) }
+
+    if ($null -ne $Existing -and $Existing.Trim() -eq $McpText.Trim()) {
+        Write-Host "Unchanged: $McpTarget (endpoint $McpEndpoint)" -ForegroundColor DarkGray
+    } else {
+        Backup-IfPresent -Target $McpTarget | Out-Null
+        $Tmp = "$McpTarget.tmp"
+        Set-Content -Path $Tmp -Value $McpText -Encoding UTF8
+        Move-Item -Path $Tmp -Destination $McpTarget -Force
+        Write-Host "Installed: $McpTarget (endpoint $McpEndpoint)" -ForegroundColor Green
+    }
 } else {
     Write-Host "MCP: nessun .mcp.json generato (-NoMcp)." -ForegroundColor DarkGray
 }
