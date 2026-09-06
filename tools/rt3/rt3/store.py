@@ -42,6 +42,7 @@ from .model import (
     DELIVERY_STATES,
     check_candidate_status,
     check_event_type,
+    check_item_mode,
     check_item_progress,
     check_lane,
     check_role,
@@ -295,6 +296,32 @@ def _v2(conn):
         existing = {r["name"] for r in conn.execute("PRAGMA table_info(candidates)")}
         if column not in existing:
             conn.execute(ddl)
+
+
+@_migration(3)
+def _v3(conn):
+    """La modalita' con cui una issue e' stata presa in carico.
+
+    🔴 Chiude un difetto misurato: il planner suggeriva un worktree temporaneo, e al
+    giro successivo contava quell'item come writer PERMANENTE - perche' rileggeva solo
+    `IN_PROGRESS` e la modalita' non era scritta da nessuna parte. Risultato:
+    `used 2 / capacity 1`, cioe' il vincolo sforato eseguendo il piano che quel vincolo
+    doveva rispettare.
+
+    ⚠️ Sta sullo STATO e non sul piano: il piano resta derivato e non salvato. Questo
+    campo non e' una decisione del planner, e' un fatto che qualcuno dichiara - dove sta
+    lavorando adesso.
+
+    NULL e' legittimo e significa «non dichiarato»: gli stati scritti prima di questa
+    migrazione non diventano falsi, restano privi dell'informazione. Il planner li legge
+    come PERMANENT_WRITER, che e' la lettura conservativa.
+    """
+    _exec_ddl(
+        conn,
+        """
+        ALTER TABLE roadmap_item_state ADD COLUMN mode TEXT;
+        """
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1170,7 +1197,7 @@ class Store:
         al load, cioe' fabbricare uno stato che nessuno ha dichiarato."""
         conn = self.connect()
         rows = conn.execute(
-            "SELECT item_key, progress, candidate_id, note, updated_at, updated_by "
+            "SELECT item_key, progress, mode, candidate_id, note, updated_at, updated_by "
             "FROM roadmap_item_state WHERE roadmap_id=? ORDER BY item_key",
             (roadmap_id,),
         ).fetchall()
@@ -1178,6 +1205,15 @@ class Store:
 
     def progress_map(self, roadmap_id):
         return {r["item_key"]: r["progress"] for r in self.item_states(roadmap_id)}
+
+    def mode_map(self, roadmap_id):
+        """Dove ogni issue e' lavorata. Le chiavi senza modalita' dichiarata non
+        compaiono: il planner distingue «non dichiarato» da «permanente»."""
+        return {
+            r["item_key"]: r["mode"]
+            for r in self.item_states(roadmap_id)
+            if r.get("mode")
+        }
 
     def set_item_state(
         self,
@@ -1187,16 +1223,24 @@ class Store:
         session_id=None,
         candidate_id=None,
         note=None,
+        mode=None,
     ):
         check_item_progress(progress)
+        check_item_mode(mode)
         if self.get_roadmap(roadmap_id, required=True) is None:  # pragma: no cover
             raise RoadmapNotFound("roadmap {} inesistente.".format(roadmap_id))
         conn = self.connect()
+        # ⚠️ `mode` NON usa COALESCE come gli altri campi opzionali, ed e' deliberato:
+        # la modalita' appartiene alla presa in carico CORRENTE. Conservare quella
+        # vecchia quando una issue esce da IN_PROGRESS e ci rientra altrove terrebbe in
+        # vita un fatto che non e' piu' vero - e il planner conterebbe la risorsa
+        # sbagliata. Chi non la dichiara la azzera, ed e' la lettura onesta.
         conn.execute(
-            "INSERT INTO roadmap_item_state(roadmap_id, item_key, progress, "
-            "candidate_id, note, updated_at, updated_by) VALUES(?,?,?,?,?,?,?) "
+            "INSERT INTO roadmap_item_state(roadmap_id, item_key, progress, mode, "
+            "candidate_id, note, updated_at, updated_by) VALUES(?,?,?,?,?,?,?,?) "
             "ON CONFLICT(roadmap_id, item_key) DO UPDATE SET "
             "  progress=excluded.progress, "
+            "  mode=excluded.mode, "
             "  candidate_id=COALESCE(excluded.candidate_id, roadmap_item_state.candidate_id), "
             "  note=COALESCE(excluded.note, roadmap_item_state.note), "
             "  updated_at=excluded.updated_at, updated_by=excluded.updated_by",
@@ -1204,6 +1248,7 @@ class Store:
                 roadmap_id,
                 item_key,
                 progress,
+                mode,
                 candidate_id,
                 note,
                 now_iso(),

@@ -26,8 +26,12 @@ rt3/planner.py    readiness derivata, capacità, assegnazioni — PURO
 
 smoke.py          smoke end-to-end con tre terminali reali
 smoke_multi.py    smoke sui TRE checkout reali, un solo control plane
+distribute.py     propaga un commit fra workspace scegliendo la strada dai fatti
 tests/            test automatici (unittest, libreria standard)
 ```
+
+⛔ `distribute.py` sta **accanto** al pacchetto e non dentro, ed è la ragione per cui la
+frase «Git è letto, mai scritto» resta vera: quel modulo Git lo scrive.
 
 I quattro moduli della roadmap sono **puri**: prendono dati, ritornano dati. Non aprono il
 database, non parlano in rete, non toccano Git. È la ragione per cui il cammino critico e

@@ -154,6 +154,98 @@ class ItemStateTest(Rt3TestCase):
             self.assertTrue(all(i["progress"] == "PENDING" for i in ready))
 
 
+class ItemModeTest(Rt3TestCase):
+    """D-8: dove una issue viene lavorata sopravvive fra un piano e il successivo."""
+
+    def test_la_modalita_e_persistita_e_arriva_al_planner(self):
+        with LocalDaemon():
+            cli = client()
+            _load_into(cli)
+            cli.call("roadmap.setState", itemKey=B1, progress="VALIDATED")
+            cli.call("roadmap.setState", itemKey=B2, progress="VALIDATED")
+            # B3 sul writer permanente, B4 su un worktree temporaneo.
+            cli.call("roadmap.setState", itemKey=B3, progress="IN_PROGRESS")
+            cli.call(
+                "roadmap.setState",
+                itemKey=B4,
+                progress="IN_PROGRESS",
+                mode="TEMPORARY_WORKTREE",
+            )
+            states = {s["item_key"]: s for s in cli.call("roadmap.states")["states"]}
+            self.assertIsNone(states[B3]["mode"])
+            self.assertEqual(states[B4]["mode"], "TEMPORARY_WORKTREE")
+
+            plan = cli.call("roadmap.plan")
+            self.assertEqual(plan["capacity"]["writers"]["DEV"]["used"], 1)
+            self.assertEqual(plan["capacity"]["temporaryWorktrees"]["used"], 1)
+            self.assertEqual(
+                plan["overCommitted"],
+                [],
+                "con la modalita' dichiarata la capacita' non risulta sforata",
+            )
+
+    def test_senza_modalita_il_piano_dichiara_lo_sforamento(self):
+        """Lo stesso stato, senza dichiarare dove sta B4: 2 writer su 1."""
+        with LocalDaemon():
+            cli = client()
+            _load_into(cli)
+            for key in (B1, B2):
+                cli.call("roadmap.setState", itemKey=key, progress="VALIDATED")
+            for key in (B3, B4):
+                cli.call("roadmap.setState", itemKey=key, progress="IN_PROGRESS")
+            plan = cli.call("roadmap.plan")
+            over = [o for o in plan["overCommitted"] if o["resource"] == "writer:DEV"]
+            self.assertEqual(len(over), 1, plan["overCommitted"])
+            self.assertEqual((over[0]["used"], over[0]["capacity"]), (2, 1))
+
+    def test_la_modalita_si_azzera_se_non_viene_ridichiarata(self):
+        """⚠️ `mode` non usa COALESCE: appartiene alla presa in carico CORRENTE.
+
+        Conservarla quando una issue esce da IN_PROGRESS e ci rientra altrove terrebbe
+        in vita un fatto che non e' piu' vero, e il planner conterebbe la risorsa
+        sbagliata.
+        """
+        with LocalDaemon():
+            cli = client()
+            _load_into(cli)
+            cli.call(
+                "roadmap.setState",
+                itemKey=B1,
+                progress="IN_PROGRESS",
+                mode="TEMPORARY_WORKTREE",
+            )
+            cli.call("roadmap.setState", itemKey=B1, progress="IN_PROGRESS")
+            states = {s["item_key"]: s for s in cli.call("roadmap.states")["states"]}
+            self.assertIsNone(states[B1]["mode"])
+
+    def test_modalita_non_valida_e_rifiutata(self):
+        with LocalDaemon():
+            cli = client()
+            _load_into(cli)
+            with self.assertRaises(Exception) as ctx:
+                cli.call(
+                    "roadmap.setState",
+                    itemKey=B1,
+                    progress="IN_PROGRESS",
+                    mode="ALTROVE",
+                )
+            self.assertIn("ALTROVE", str(ctx.exception))
+
+    def test_la_modalita_sopravvive_al_riavvio(self):
+        with LocalDaemon():
+            cli = client()
+            _load_into(cli)
+            cli.call(
+                "roadmap.setState",
+                itemKey=B1,
+                progress="IN_PROGRESS",
+                mode="TEMPORARY_WORKTREE",
+            )
+            prima = cli.call("roadmap.plan")
+        with LocalDaemon():
+            self.assertEqual(client().call("roadmap.plan"), prima)
+
+
 class PlanOverHttpTest(Rt3TestCase):
     def test_piano_calcolato_dal_daemon(self):
         with LocalDaemon():
