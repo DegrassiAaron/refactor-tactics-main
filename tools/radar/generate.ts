@@ -33,7 +33,7 @@ const OUT = fileURLToPath(new URL('../../docs/characters/radar/', import.meta.ur
 const ROLES: Record<string, string> = {
   gadget: 'Controller',
   phase: 'Support',
-  riktor: 'Guardian',
+  branth: 'Guardian',
   wraith: 'Striker',
 };
 

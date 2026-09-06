@@ -15,8 +15,8 @@ test('l ordine dei cinque assi Balance e normativo (owner §2.2)', () => {
 });
 
 test('i cinque assi Balance riusano i valori gia calcolati, senza ricalcolarli', () => {
-  const b = balanceAxes(hero('Riktor'));
-  const p = profileAxes(hero('Riktor'));
+  const b = balanceAxes(hero('Branth'));
+  const p = profileAxes(hero('Branth'));
   // I tre condivisi devono coincidere: due viste, un solo calcolo.
   assert.equal(b.control, p.control);
   assert.equal(b.support, p.support);
@@ -36,13 +36,13 @@ test('il Balance SVG si genera per i quattro eroi', () => {
 test('il radar di confronto sovrappone due eroi e li distingue', () => {
   const svg = renderCompare(
     { name: 'Gadget', values: profileAxes(hero('Gadget')) },
-    { name: 'Riktor', values: profileAxes(hero('Riktor')) },
+    { name: 'Branth', values: profileAxes(hero('Branth')) },
     PROFILE_AXES,
   );
-  assert.match(svg, /<title id="t">Gadget vs Riktor/);
+  assert.match(svg, /<title id="t">Gadget vs Branth/);
   assert.equal((svg.match(/class="shape/g) ?? []).length, 2, 'due poligoni');
   // Una legenda, o due forme sovrapposte non si leggono.
-  assert.ok(svg.includes('>Gadget<') && svg.includes('>Riktor<'));
+  assert.ok(svg.includes('>Gadget<') && svg.includes('>Branth<'));
 });
 
 test('anche il confronto ha decimali fissi', () => {

@@ -36,7 +36,9 @@ test('legge i quattro eroi del roster e le loro venti abilita', () => {
     // Ordinata: il confronto e' su `.sort()`. La lista era alfabetica sui nomi VECCHI
     // (`Bastion, Flux, Riva, Vektor`) e la rinomina di D-120 non la riordina — e' il caso in cui una
     // sostituzione meccanica produce un letterale corretto nei nomi e sbagliato nell'ordine.
-    ['Gadget', 'Phase', 'Riktor', 'Wraith'],
+    // ⚠️ D-334 (`Riktor` -> `Branth`) invece la RIORDINA, ed e' la prima rinomina che lo fa: `Branth`
+    // precede `Gadget`. L'avvertenza qui sopra ha colto il difetto al primo tentativo.
+    ['Branth', 'Gadget', 'Phase', 'Wraith'],
   );
   assert.equal(
     heroes.reduce((n, h) => n + h.abilities.length, 0),
@@ -50,7 +52,7 @@ test('una statistica rinominata fa fallire il parser nominando il campo', () => 
   writeFileSync(tmp, rotto);
 
   try {
-    assert.throws(() => parseHeroCatalog(tmp, ACTION_CATALOG), /Riktor.*"Salute" assente/);
+    assert.throws(() => parseHeroCatalog(tmp, ACTION_CATALOG), /Branth.*"Salute" assente/);
   } finally {
     rmSync(tmp);
   }
@@ -72,14 +74,14 @@ test('la copertura e dichiarata, e un eroe in meno la fa fallire', () => {
 
   // Un eroe che sparisce non deve produrre un risultato piu' corto in silenzio. Il filtro delle
   // sezioni eroe guarda l'intestazione della tabella, non il titolo: e' quella che va rotta perche'
-  // Riktor diventi invisibile al parser.
+  // Branth diventi invisibile al parser.
   // Il catalogo e' salvato con CRLF: la sostituzione non puo' assumere `\n`.
-  const senzaRiktor = readFileSync(HERO_CATALOG, 'utf8').replace(
+  const senzaBranth = readFileSync(HERO_CATALOG, 'utf8').replace(
     /\| Statistica \| Valore \|(\r?\n\|---\|---:\|\r?\n\| Salute \| 120 \|)/,
     '| Attributo | Valore |$1',
   );
   const tmp = new URL('./catalogo-corto.tmp.md', import.meta.url);
-  writeFileSync(tmp, senzaRiktor);
+  writeFileSync(tmp, senzaBranth);
 
   try {
     assert.throws(
