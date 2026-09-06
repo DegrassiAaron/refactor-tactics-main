@@ -56,7 +56,7 @@ sarebbero la stessa stringa in un log, e D-031 li vuole concetti distinti.
 > ✅ **La clausola «la sorgente non è versionata» è scaduta.** Diceva che `docs/src/design/icon/` risultava
 > untracked e che ogni recepimento restava una fotografia «finché quel materiale non entra nel repository».
 > Quel materiale **è** nel repository — misurato: `git ls-files docs/research/design/icon` elenca i
-> documenti, e i master iconografici stanno in `docs/generated/icons/` — **755 dal 2026-09-06**, rigenerati da `tools/hud-assets/generate_hud_assets.py` (#2537) — con il loro generatore
+> documenti, e i master iconografici stanno in `docs/generated/icons/` — **635 dal 2026-09-06**, rigenerati da `tools/hud-assets/generate_hud_assets.py` (#2537) — con il loro generatore
 > (`scripts/build-icon-assets.py`, ⛔ rimosso con **D-182** il 2026-08-21). Riscritta il 2026-08-19 con la fase 2 di
 > [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165): una condizione d'innesco già
 > scattata, che continuava a prescrivere un'attesa finita.

@@ -213,7 +213,7 @@ docs/
 │   ├── design/     icone, showcase, griglie stampabili
 │   └── handoff/    prompt e consegne di sessione, non ancora consumati
 ├── generated/   **output**, non ricerca: ha un generatore committato e non si edita
-│   └── icons/      755 file rigenerati da tools/hud-assets/ — ⚠️ produttore sì, oracolo no (#2537)
+│   └── icons/      635 file rigenerati da tools/hud-assets/ — ⚠️ produttore sì, oracolo no (#2537)
 └── archive/     materiale superato
     ├── src/        i sorgenti già recepiti: design, handoff, audit
     └── pdr-v0.1/   il corpus PDR v0.1, consolidato in un Markdown
@@ -350,7 +350,7 @@ controlli sui dati di gioco e i due generatori.
 | **nomi** | un identificatore legacy che ricompare — il gate che chiudeva **D-130** |
 | **inventario** | un'immagine incorporata e assente, un duplicato esatto non dichiarato, un'orfana fuori area grezza |
 | **dati di gioco** | equipaggiamento e capability che non combaciano più con `Source/` |
-| **provenienza** | ✅ **risolta il 2026-09-06** (#2537): `generated/icons/` è stata rigenerata da `tools/hud-assets/generate_hud_assets.py` e passa da **296** a **755** file. ⚠️ Resta senza **oracolo**: quel generatore espone solo `--out`, nessun `--check` |
+| **provenienza** | ✅ **risolta il 2026-09-06** (#2537): `generated/icons/` è stata rigenerata da `tools/hud-assets/generate_hud_assets.py` e passa da **296** a **635** file. ⛔ **Le icone d'eroe restano fuori**, come sono sempre state: il generatore ne produce 120, ma portano i nomi legacy che la fetta E di [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297) deve migrare, e introdurle qui allargherebbe quel perimetro invece di chiuderlo. ⚠️ Resta senza **oracolo**: quel generatore espone solo `--out`, nessun `--check` |
 
 ### Le discipline che i gate portavano con sé
 
