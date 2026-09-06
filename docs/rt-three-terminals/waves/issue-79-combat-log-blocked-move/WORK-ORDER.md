@@ -32,7 +32,7 @@ Issue [#79](https://github.com/DegrassiAaron/refactor-tactics-main/issues/79) �
 
 Il DoD di codice della issue è dichiarato completo da [#419](https://github.com/DegrassiAaron/refactor-tactics-main/pull/419) (`Priority` per voce, formato v7). Questa wave chiude il **residuo** aperto dai due commenti del 2026-09-04, che riguardano la seconda riga del DoD:
 
-> *«I **fallback applicati** sono espliciti (\"percorso bloccato → fermo\", \"bersaglio non valido → annullato\")»*
+> *«I **fallback applicati** sono espliciti ("percorso bloccato → fermo", "bersaglio non valido → annullato")»*
 
 Il primo dei due esempi che il DoD nomina è quello che manca, e manca nel modo meno visibile: non è un reason code scritto male, è un reason code che **non viene generato**.
 
@@ -113,7 +113,7 @@ Il repository **non** possiede un rejection pending. Possiede però, già scritt
 
 Il contratto di questa wave **non** si deriva dal codice corrente. Fonti, in ordine di autorità:
 
-1. **DoD della issue #79**, seconda riga — *«i fallback applicati sono espliciti (\"percorso bloccato → fermo\"…)»*. È l'obbligo.
+1. **DoD della issue #79**, seconda riga — *«i fallback applicati sono espliciti ("percorso bloccato → fermo"…)»*. È l'obbligo.
 2. **I due commenti dell'owner del 2026-09-04** sulla issue #79 (misura headless e conferma PIE `U14`): fissano il caso, e fissano che la policy **non** cambia.
 3. `Turn/RTTurnManager.cpp:3212-3218` — decisione viva su **dove** una traccia di scarto si scrive: nella fase in cui lo scarto avviene, mai al lock-in.
 4. `Turn/RTTurnLog.h:456-465` — precedente normativo di un esito prodotto dal chiamante perché il resolver non può conoscerlo.
