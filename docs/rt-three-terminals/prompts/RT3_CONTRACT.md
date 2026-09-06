@@ -487,9 +487,18 @@ Il trasporto MCP e' HTTP diretto. Un client che salta il preflight raggiunge il
 bridge lo stesso: **nessuno script PowerShell sta su quel percorso**.
 
 Il preflight autorizza, non intercetta. L'enforcement che regge davvero e' di
-configurazione — `.mcp.json` non versionato, generato solo dove il bridge serve — e
-di disciplina. Chiamarla barriera sarebbe un falso verde, e un falso verde fa
-smettere di cercare la barriera vera.
+configurazione — il bridge **parte solo in MAIN**, quindi dove non gira non c'e' una
+porta da raggiungere — e di disciplina. Chiamarla barriera sarebbe un falso verde, e
+un falso verde fa smettere di cercare la barriera vera.
+
+⚠️ **La leva e' `bAutoStartServer`**, per utente in
+`Saved/Config/WindowsEditor/EditorPerProjectUserSettings.ini`: `On` in MAIN, `Off`
+altrove, applicato dall'installer. Vive fuori dal versionamento, quindi un `git pull`
+non la porta e va riapplicata su ogni checkout.
+
+⛔ **`.mcp.json` non e' quella leva.** E' versionato e byte-identico nei tre checkout
+— misurato il 2026-09-06, `E20761402582` in tutti e tre — quindi non discrimina
+niente: chi lo leggesse come confine leggerebbe un file uguale ovunque.
 
 ---
 
