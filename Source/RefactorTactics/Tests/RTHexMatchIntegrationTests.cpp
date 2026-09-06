@@ -818,7 +818,7 @@ namespace
 		}
 	}
 
-	/** Un mondo con quattro unita', il TurnManager avviato e il turno 1 aperto. `nullptr` se non si allestisce. */
+	/** Un mondo con TRE unita' (due proprie, una avversaria), il TurnManager avviato e il turno 1 aperto. */
 	ARTTurnManager* MakeCountdownMatch(UWorld* World)
 	{
 		SpawnHexMatchMap(World, /*Radius=*/ 4);
@@ -1251,13 +1251,26 @@ bool FRTPlanningPreviewClearsOnTimeoutWithoutReadyTest::RunTest(const FString&)
 
 	// ⚠️ **E resta spenta per TUTTA la risoluzione**, che e' cio' che la issue afferma: spegnerla
 	// all'istante del commit e riaccenderla un frame dopo lascerebbe verde l'asserzione qui sopra.
+
+	// 🔴 **DENTRO la risoluzione, non solo al suo istante iniziale** (`#2555`, code review). Il commento
+	// che stava qui affermava che la garanzia «non riaccendersi durante la risoluzione» restasse asserita
+	// piu' sopra: era falso. L'asserzione superstite campionava l'ISTANTE del commit, e un'implementazione
+	// che spegnesse li' e riaccendesse un tick dopo sarebbe passata. Questi tick stanno strettamente
+	// dentro il playback.
+	for (int32 Passo = 0; Passo < 5 && B.TM->IsResolving(); ++Passo)
+	{
+		B.TM->Tick(0.05f);
+		TestEqual(TEXT("e resta spenta MENTRE la risoluzione scorre"), PreviewCellsLit(B.HexMap), 0);
+	}
+
 	DrainPlayback(B.TM);
 	TestTrue(TEXT("a playback finito il turno e' avanzato"), B.TM->GetTurnNumber() > TurnoPrima);
 	// ⚠️ **E a risoluzione finita l'anteprima TORNA, e non e' un allentamento** (`#2555`): la garanzia che
-	// questa riga proteggeva — non riaccendersi DURANTE la risoluzione — resta asserita qui sopra, prima
-	// del drain. Cio' che cambia e' il dopo: `OnResolvePlaybackFinished` la ricalcola per la selezione
-	// corrente, ed e' il contrappeso che rende `Inspect` concedibile. Pretendere ancora zero qui
-	// significherebbe pretendere che il giocatore resti senza ventaglio nel turno nuovo.
+	// questa riga proteggeva — non riaccendersi durante la risoluzione — e' asserita dal ciclo di tick qui
+	// sopra, che sta strettamente DENTRO il playback. Cio' che cambia e' il dopo:
+	// `OnResolvePlaybackFinished` ricalcola per la selezione corrente, ed e' il contrappeso che rende
+	// `Inspect` concedibile. Pretendere ancora zero qui significherebbe pretendere che il giocatore entri
+	// nel turno nuovo senza ventaglio.
 	TestTrue(TEXT("e a risoluzione finita l'anteprima torna per la selezione corrente"),
 		PreviewCellsLit(B.HexMap) > 0);
 
@@ -1314,12 +1327,24 @@ bool FRTPlanningPreviewClearsOnReadyCommitTest::RunTest(const FString&)
 	TestEqual(TEXT("e il commit ha raggiunto i suoi iscritti"), Probe->Broadcasts, 1);
 	TestEqual(TEXT("il commit dal Ready spegne l'anteprima"), PreviewCellsLit(B.HexMap), 0);
 
+	// 🔴 **DENTRO la risoluzione, non solo al suo istante iniziale** (`#2555`, code review). Il commento
+	// che stava qui affermava che la garanzia «non riaccendersi durante la risoluzione» restasse asserita
+	// piu' sopra: era falso. L'asserzione superstite campionava l'ISTANTE del commit, e un'implementazione
+	// che spegnesse li' e riaccendesse un tick dopo sarebbe passata. Questi tick stanno strettamente
+	// dentro il playback.
+	for (int32 Passo = 0; Passo < 5 && B.TM->IsResolving(); ++Passo)
+	{
+		B.TM->Tick(0.05f);
+		TestEqual(TEXT("e resta spenta MENTRE la risoluzione scorre"), PreviewCellsLit(B.HexMap), 0);
+	}
+
 	DrainPlayback(B.TM);
 	// ⚠️ **E a risoluzione finita l'anteprima TORNA, e non e' un allentamento** (`#2555`): la garanzia che
-	// questa riga proteggeva — non riaccendersi DURANTE la risoluzione — resta asserita qui sopra, prima
-	// del drain. Cio' che cambia e' il dopo: `OnResolvePlaybackFinished` la ricalcola per la selezione
-	// corrente, ed e' il contrappeso che rende `Inspect` concedibile. Pretendere ancora zero qui
-	// significherebbe pretendere che il giocatore resti senza ventaglio nel turno nuovo.
+	// questa riga proteggeva — non riaccendersi durante la risoluzione — e' asserita dal ciclo di tick qui
+	// sopra, che sta strettamente DENTRO il playback. Cio' che cambia e' il dopo:
+	// `OnResolvePlaybackFinished` ricalcola per la selezione corrente, ed e' il contrappeso che rende
+	// `Inspect` concedibile. Pretendere ancora zero qui significherebbe pretendere che il giocatore entri
+	// nel turno nuovo senza ventaglio.
 	TestTrue(TEXT("e a risoluzione finita l'anteprima torna per la selezione corrente"),
 		PreviewCellsLit(B.HexMap) > 0);
 
@@ -1419,7 +1444,10 @@ bool FRTPlaybackRejectsPlanningInputTest::RunTest(const FString&)
 			if (U && U->TeamId == 0 && U != B.Mine) { Seconda = U; break; }
 		}
 	}
-	if (Seconda)
+	// ⚠️ **Un `if` silenzioso qui renderebbe il test verde senza aver asserito niente** (code review): il
+	// banco garantisce la seconda unita', quindi la sua assenza e' una fixture rotta, non un caso da
+	// saltare.
+	if (TestNotNull(TEXT("una seconda unita' propria da ispezionare"), Seconda))
 	{
 		B.PC->SelectUnit(Seconda, /*bRecordAsPlayerInput=*/ false);
 		TestEqual(TEXT("l'anteprima resta spenta anche dopo aver ispezionato un'altra unita'"),
@@ -1509,7 +1537,16 @@ bool FRTPlaybackAllowsInspectAndRestoresPreviewTest::RunTest(const FString&)
 	// `OnLockInCommitted`, ed e' cio' che rende `Inspect` consentibile senza lasciare uno stato a meta'.
 	DrainPlayback(B.TM);
 	TestFalse(TEXT("finita la risoluzione il mondo non e' piu' in sola lettura"), B.PC->IsWorldReadOnly());
-	TestTrue(TEXT("e l'anteprima e' tornata per l'unita' ispezionata"), PreviewCellsLit(B.HexMap) > 0);
+	TestTrue(TEXT("e l'anteprima e' tornata"), PreviewCellsLit(B.HexMap) > 0);
+
+	// 🔑 **PER QUALE unita', non solo «qualcosa e' acceso»** (code review). Contare le celle non distingue
+	// «ricalcolata per la selezione corrente» da «ripristinata la fotografia del turno passato»: entrambe
+	// darebbero un numero maggiore di zero, e la seconda e' proprio cio' che l'header dichiara di NON fare.
+	TestEqual(TEXT("e la selezione e' rimasta quella ispezionata"),
+		static_cast<const AActor*>(B.PC->GetSelectedUnit()), static_cast<const AActor*>(Seconda));
+	TestTrue(TEXT("e il ventaglio contiene una cella adiacente ALL'UNITA' ISPEZIONATA"),
+		B.HexMap->IsPreviewReachableCell(URTHexLibrary::Neighbors(Seconda->Cell)[0])
+		|| B.HexMap->IsPreviewReachableCell(URTHexLibrary::Neighbors(Seconda->Cell)[1]));
 
 	DestroyHexMatchWorld(B.World);
 	return true;
