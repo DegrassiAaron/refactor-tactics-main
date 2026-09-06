@@ -44,7 +44,7 @@
     la registra a doverlo sapere. Misurato: due attese della stessa sessione, una con
     albero stabile e una in cui la mutazione e' sparita, davano referti IDENTICI.
 
-    Piu' due controlli sul referto:
+    Piu' quattro controlli sul referto:
 
       freschezza  il log e' stato scritto DOPO l'avvio? Un log stantio di una run
                   precedente, letto come se fosse di questa, e' verde su nulla
@@ -59,6 +59,14 @@
                   test solo «avviato e non concluso» e' il 100% della misura, non
                   una coda, e «l'ultimo» e' anche «l'unico». E' il caso della
                   verifica per mutazione, che richiede filtri stretti per costruzione
+      avvio       l'Editor e' arrivato alla fase di automation? Se `LogAutomationController`
+                  non compare mai, la run NON e' mai partita — e non e' un filtro
+                  sbagliato (#2393). ⚠️ Prima le due diagnosi condividevano una riga
+                  sola, e danno entrambe `0/?, 0 fail` con rimedi OPPOSTI: correggere
+                  il filtro, oppure aspettare e rimisurare. Il referto ora nomina
+                  l'ultima riga scritta, e riconosce il bootstrap di
+                  `Intermediate/PipInstall` — 4,8 GB di dipendenze Python al PRIMO
+                  avvio di un checkout nuovo, che e' un costo, non un difetto
       crash       un `appError called`, un `=== Critical error: ===`, un
                   `Assertion failed:` o un `Fatal error:` nel log invalidano la run
                   QUALUNQUE sia il conteggio (#2530). ⚠️ Copre cio' che nessun
@@ -1020,10 +1028,51 @@ function Resolve-LogFindings {
 
     if ($null -eq $found) {
         # ⚠️ Misurato: con un filtro che non corrisponde a nessun test UE **non
-        # scrive affatto** la riga `Found N` — non scrive `Found 0`. Quindi questo
-        # ramo copre due casi diversi, e vanno nominati entrambi: chi ha sbagliato
-        # il filtro non deve cercare un difetto della run.
-        $problems.Add("copertura il log non dichiara «Found N automation tests»: filtro '$Filter' senza corrispondenze, o run mai partita")
+        # scrive affatto** la riga `Found N` — non scrive `Found 0`.
+        #
+        # 🔴 **«Found N assente» copriva DUE diagnosi opposte in una riga sola**
+        # (#2393). L'Editor che muore in avvio e il filtro senza corrispondenze
+        # danno entrambi `0/?, 0 fail`, ma il rimedio e' opposto: nel primo caso si
+        # aspetta e si rimisura, nel secondo si corregge il filtro. Chi legge una
+        # riga che li nomina insieme non sa quale dei due sta guardando.
+        #
+        # Il discriminante e' se l'Editor sia MAI arrivato alla fase di automation:
+        # `LogAutomationController` compare appena il controller si registra, prima
+        # ancora di sapere quanti test esistano.
+        $automationRaggiunta = $Log.IndexOf('LogAutomationController', [System.StringComparison]::Ordinal) -ge 0
+
+        if ($automationRaggiunta) {
+            $problems.Add("copertura il log non dichiara «Found N automation tests», ma la fase di automation e' stata")
+            $problems.Add("          raggiunta: il filtro '$Filter' non corrisponde a nessun test")
+        }
+        else {
+            $problems.Add("avvio     l'Editor non ha raggiunto la fase di automation: il log si ferma prima.")
+            $problems.Add("          Non e' un filtro sbagliato e non e' una suite rossa: la run non e' mai partita.")
+
+            # L'ultima riga scritta e' la sola cosa che dice DOVE si e' fermato, e
+            # nel caso misurato viveva in un log che sparisce col worktree.
+            $righe = $Log -split "`n"
+            for ($i = $righe.Count - 1; $i -ge 0; $i--) {
+                $ultima = $righe[$i].Trim()
+                if ($ultima) {
+                    if ($ultima.Length -gt 160) { $ultima = $ultima.Substring(0, 157) + '...' }
+                    $problems.Add("          ultima riga: $ultima")
+                    break
+                }
+            }
+
+            # 🔑 **La causa misurata su worktree nuovo, con il suo rimedio** (#2393).
+            # Il primo avvio scarica e installa 4,8 GB di dipendenze Python — torch,
+            # torchvision, tensorboard — e la run scade durante quella fase. Non e' un
+            # difetto permanente: e' un costo di primo avvio, e la seconda run dello
+            # stesso checkout ha fatto 35/35 in 22 secondi.
+            if ($Log.IndexOf('Installing collected packages', [System.StringComparison]::Ordinal) -ge 0 -or
+                $Log.IndexOf('PipInstall', [System.StringComparison]::Ordinal) -ge 0) {
+                $problems.Add("          ^ e' il bootstrap di Intermediate/PipInstall: 4,8 GB di dipendenze Python al")
+                $problems.Add("            PRIMO avvio di un checkout nuovo. Scaldare il worktree con un avvio dedicato")
+                $problems.Add("            e rimisurare — misurato il 2026-09-05: la seconda run 35/35 in 22 secondi.")
+            }
+        }
     } elseif ($completed -lt $found) {
         # 🔴 La troncatura e' la meta' silenziosa del difetto, e non si vede dai
         # fallimenti: due run sono morte a 641/1175 e 662/1191 con ZERO rossi.
@@ -1206,9 +1255,14 @@ if ($SelfTest) {
             [int] $Started = 0,
             [int] $Completed = 0,
             [int] $Failed = 0,
-            [string] $Extra = ''
+            [string] $Extra = '',
+            # ⚠️ **L'assenza di questa riga E' il discriminante di #2393**: se
+            # `LogAutomationController` non compare mai, l'Editor non e' arrivato alla
+            # fase di automation e il verdetto e' «non partito», non «filtro a vuoto».
+            [switch] $NoAutomationPhase
         )
         $sb = New-Object System.Text.StringBuilder
+        if (-not $NoAutomationPhase) { $null = $sb.AppendLine('LogAutomationController: Display: Test Filter: Finto') }
         if ($Found -ge 0) { $null = $sb.AppendLine("LogAutomationController: Found $Found automation tests") }
         for ($i = 0; $i -lt $Started; $i++)   { $null = $sb.AppendLine('LogAutomationController: Test Started. Name={Finto}') }
         for ($i = 0; $i -lt $Completed; $i++) { $null = $sb.AppendLine('LogAutomationController: Test Completed. Result={Success}') }
@@ -1248,7 +1302,25 @@ if ($SelfTest) {
     Assert-Log 'crash-ultimo-test'  (New-FakeLog -Found 1232 -Started 1232 -Completed 1231 -Extra 'LogWindows: Error: === Critical error: ===') $false 'crash nel log'
     Assert-Log 'crash-assertion'    (New-FakeLog -Found 4 -Started 4 -Completed 4 -Extra 'LogCore: Error: Assertion failed: Check(bValid) [Line: 12]') $false 'Assertion failed'
     Assert-Log 'troncata'           (New-FakeLog -Found 100 -Started 60 -Completed 60) $false 'troncata'
-    Assert-Log 'filtro-a-vuoto'     (New-FakeLog -Found -1) $false 'Found N'
+    Assert-Log 'filtro-a-vuoto'     (New-FakeLog -Found -1) $false 'non corrisponde a nessun test'
+
+    # --------------------------------------- AVVIO CONTRO RACCOLTA (#2393)
+    # 🔴 **La coppia `filtro-a-vuoto` / `editor-morto-in-avvio`**: prima davano
+    # entrambe `0/?, 0 fail` e la STESSA riga di diagnosi, mentre i rimedi sono
+    # opposti — correggere il filtro, oppure aspettare e rimisurare. Il
+    # discriminante e' se `LogAutomationController` sia mai comparso.
+    $logPip = @(
+        'LogInit: Display: Engine is initialized.',
+        'LogPython: Installing collected packages: mpmath, chardet, urllib3, numpy, torch,',
+        '  torchvision, torchaudio, tensorboard, boto3'
+    ) -join "`n"
+    $logZen = 'LogZenServiceInstance: Display: Launching executable ''.../Zen/Install/zenserver'''
+
+    Assert-Log 'editor-morto-in-avvio' (New-FakeLog -Found -1 -NoAutomationPhase -Extra $logPip) $false 'PipInstall'
+    Assert-Log 'avvio-troncato-zen'    (New-FakeLog -Found -1 -NoAutomationPhase -Extra $logZen) $false 'non ha raggiunto la fase di automation'
+    # L'ultima riga scritta e' la sola cosa che dice DOVE si e' fermato, e nel caso
+    # misurato viveva in un log che sparisce col worktree.
+    Assert-Log 'avvio-nomina-la-riga'  (New-FakeLog -Found -1 -NoAutomationPhase -Extra $logZen) $false 'zenserver'
 
 
     # ------------------------------------------- DERIVA DURANTE L'ATTESA (#2532)
