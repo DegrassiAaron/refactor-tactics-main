@@ -230,6 +230,25 @@ Vale la pena dirlo con precisione, perché la differenza conta.
 variabili che il chiamante può scrivere. Impediscono l'**errore**, non l'abuso — e chiamarli
 sicurezza farebbe smettere di cercare la barriera vera.
 
+### Misurato, non ipotizzato
+
+Il **2026-09-06**, con il bridge vivo, un `initialize` JSON-RPC su `127.0.0.1:8765` da un checkout
+qualunque ha risposto **HTTP 200** con una sessione valida: nessuna autenticazione, nessun preflight,
+nessuna nozione di quale directory stia chiamando.
+
+Dietro `call_tool` ci sono **56 toolset**, di cui **55 non sono nostri**: fra questi `AssetTools`
+(`write_file`, `delete`, `move`, `save_assets`), `AutomationTestToolset` (`RunTests`, `StopTests`) e
+`ProgrammaticToolset` (`execute_tool_script`, che esegue Python).
+
+🔴 Conseguenza pratica per chi lavora qui: **una chiamata MCP puo' avviare o fermare una suite**
+senza passare da `rt-suite.ps1`, dal lease e dal mutex - cioe' puo' rendere `NON VALIDA` la misura di
+un'altra sessione. Finche' il bridge e' acceso, questo canale esiste.
+
+La mitigazione realmente efficace non e' il preflight: e' **non far partire il server** dove non serve
+(`bAutoStartServer` e' `EditorPerProjectUserSettings`, per utente), oppure non caricare i toolset
+mutanti, oppure interporre un proxy che occupi la porta. Le prime due sono disponibili oggi; la terza
+e' codice da scrivere.
+
 ## Installazione
 
 Serve **pwsh 7**: `scripts/rt-suite.ps1` è UTF-8 senza BOM e Windows PowerShell 5.1 lo legge come

@@ -336,13 +336,35 @@ non classificato non ha una risposta di default permissiva.
 `DENIED_UNCLASSIFIED`.** Il default permissivo e' esattamente il modo in cui una
 superficie nuova entra senza che nessuno la valuti.
 
-⚠️ **La superficie mutante non e' quella di RefactorTactics.** I cinque tool
-`RTDeveloperTools` sono tutti read-only per costruzione — `ProjectStatus`,
-`GetCurrentMap`, `DumpCell`, `FindPath`, `ValidateTacticalMap` — e il loro brief
-vieta esplicitamente la scrittura asset arbitraria. Cio' che puo' mutare arriva dai
-**toolset Epic** raggiungibili via `call_tool`, e con `bEnableToolSearch = true`
-quei toolset non compaiono nemmeno in `tools/list`. Classificare significa guardare
-li', non nel plugin di casa.
+🔴 **La superficie mutante non e' quella di RefactorTactics, ed e' enorme.**
+Misurata sul bridge vivo il **2026-09-06**, parlando al server in JSON-RPC senza
+passare da nessuno script:
+
+```text
+tools/list      ->  3 meta-tool   (list_toolsets, describe_toolset, call_tool)
+list_toolsets   -> 56 toolset     di cui 1 di RefactorTactics e 55 no
+```
+
+I cinque tool `RTDeveloperTools` sono tutti read-only per costruzione, e il loro
+brief vieta la scrittura asset arbitraria. Gli altri 55 toolset non hanno quel
+vincolo. Tre esempi, coi nomi reali dei loro tool:
+
+| Toolset | Tool | Cosa consente |
+|---|---|---|
+| `editor_toolset.toolsets.asset.AssetTools` | `write_file` `delete` `move` `duplicate` `save_assets` | mutazione asset completa, **e scrittura di file su disco** |
+| `AutomationTestToolset` | `RunTests` `RunTestsByFilter` `StopTests` | avviare **e fermare** Automation Test |
+| `editor_toolset.toolsets.programmatic.ProgrammaticToolset` | `execute_tool_script` | eseguire **Python** che orchestra tutti i tool sopra in una sola chiamata |
+
+⛔ **`RunTests` e `StopTests` sono il caso peggiore per questo repository**, e non
+erano stati nominati da nessuno. Una chiamata MCP puo' far partire una suite senza
+passare da `rt-suite.ps1`, dal suo mutex, dal lease e dall'invariante di validita'
+della misura - oppure **fermare** i test che un'altra sessione sta eseguendo. E' lo
+stesso difetto del finding `parsecell-arity/1-F13`, su un canale che nessun guard
+vede.
+
+Con `bEnableToolSearch = true` questi toolset non compaiono in `tools/list`: chi
+guarda solo li' conclude che la superficie sia di tre tool. Classificare significa
+guardare dietro `call_tool`, non nel plugin di casa.
 
 Codici di rifiuto stabili, gli stessi che gli script stampano:
 
