@@ -1,6 +1,6 @@
 # Chiusura della v0.1 — quattro decisioni d'autore, e la rotta di milestone che ne deriva
 
-> `CURRENT` · **Stato**: decisioni **prese in sessione, non ancora registrate** · **Data**: 2026-09-06
+> `CURRENT` · **Stato**: decisioni prese e **registrate** (`D-338`…`D-341`) · **Data**: 2026-09-06
 > **HEAD della ricognizione**: `main` = `d062ccf0`, albero pulito e allineato a `origin/main`.
 > **HEAD della misura dei numeri `D-nnn`**: `origin/main` = `9da33c59`. ⚠️ Durante la sessione `origin/main`
 > si è mosso (`d062ccf0` → `9da33c59`) e le PR aperte sono passate da **0** a **2**: i numeri sono stati
@@ -10,8 +10,9 @@
 > **Innesco**: sessione di spec panel richiesta dall'autore, seguita da una sessione di decisione sulle voci
 > che ne erano emerse come bloccanti.
 > 🔑 **Nessun numero qui è ricordato.** Ogni conteggio porta il selettore che l'ha prodotto, e §2 li elenca.
-> ⛔ **Questo referto non è un owner.** Le decisioni diventano vere quando le quattro voci di §5 entrano nel
-> [Decision Log](../../decisions/RT_PDR_00_Decision_Log.md) e le celle di §6 sono riscritte dai loro owner.
+> ⛔ **Questo referto non è un owner.** Le quattro voci sono entrate nel
+> [Decision Log](../../decisions/RT_PDR_00_Decision_Log.md) **nello stesso commit**; ciò che resta agli altri
+> owner — la cella `G13` del DoD, i corpi delle issue, le label — è in §6 e **non è stato fatto qui**.
 
 ---
 
@@ -24,7 +25,7 @@
 | `DEC-3` | [#2534](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2534) si chiude per la via **(b)**: il log **nomina** ciò che ferma il tiro | *(b)* delle quattro |
 | `DEC-4` | Il rename degli ID d'eroe **si completa dentro la v0.1** | *(b)* delle tre |
 
-Da registrare come [`D-338`](../../decisions/RT_PDR_00_Decision_Log.md)…[`D-341`](../../decisions/RT_PDR_00_Decision_Log.md) — testo pronto in §5.
+Registrate come [`D-338`](../../decisions/RT_PDR_00_Decision_Log.md)…[`D-341`](../../decisions/RT_PDR_00_Decision_Log.md). Il testo di ciascuna è riprodotto in §5.
 
 ---
 
@@ -226,7 +227,7 @@ aperte erano **zero**: è la finestra, e non si ripresenta da sola.
 
 ---
 
-## 5. Le quattro voci, pronte da registrare
+## 5. Le quattro voci, come sono state registrate
 
 **Numerazione, verificata nei tre posti che la nota su `D-304` prescrive**, su `origin/main` = `9da33c59`:
 
@@ -240,12 +241,19 @@ numeri erano *liberi* alla stessa misura. Solo `D-337` è stato poi speso. La di
 che la nota su `D-322` impone — *«una citazione in prosa non è una rivendicazione»* — e senza guardarla si
 sarebbe saltato a `D-341`.
 
-🔴 **Va riverificato di nuovo prima del push**, e non è prudenza: `D-336` registra una collisione avvenuta in
-una finestra di **ottanta secondi** fra il controllo a tre posti e il merge, con un branch che al momento del
-controllo **non esisteva ancora**. La riverifica è l'unico momento in cui quella finestra si chiude.
+✅ **La misura è stata rifatta subito prima di scrivere**, e non era una formalità: `D-336` registra una
+collisione avvenuta in una finestra di **ottanta secondi** fra il controllo a tre posti e il merge, con un
+branch che al momento del controllo **non esisteva ancora**. Alla rimisura `origin/main` era **fermo** su
+`9da33c59` e il registro invariato, ma le PR aperte erano passate da **2** a **3**: la nuova,
+[#2582](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2582), tocca proprio
+[#2491](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2491) — il lavoro che `D-341` porta
+dentro la v0.1 — e **non rivendica** alcun `D-3nn`, verificato sul suo diff e non sul titolo.
+⚠️ **Resta vero per chiunque riapra questo branch**: fra una misura e un merge la finestra si riapre.
 
-Le quattro righe seguono, nel formato della tabella `| ID | Decisione | Stato | Impatto |`. Un `|` letterale
-dentro una cella va scritto `\|`.
+Le quattro righe seguono nella forma esatta in cui sono state inserite, dopo `D-337` e prima di `## Note`,
+nella tabella `| ID | Decisione | Stato | Impatto |` — quattro colonne ciascuna, verificate contandole con i
+`|` letterali (`\|`) neutralizzati, e poi da `doc-tables --check`. Restano recintate perché i loro link sono
+relativi al **registro**, non a questo file.
 
 ---
 
@@ -368,8 +376,8 @@ cifra di questo referto porti accanto il comando che l'ha prodotta.
 
 ## 10. Cosa questo referto NON fa
 
-- ⛔ **Non registra le decisioni**: le quattro voci di §5 sono testo pronto, non righe del registro.
-- ⛔ **Non tocca nessun owner**: né il DoD, né una issue, né una label, né una milestone. §6 elenca cosa resta.
+- ⛔ **Non tocca nessun owner oltre al registro**: né il DoD, né una issue, né una label, né una milestone.
+  §6 elenca cosa resta, e resta tutto.
 - ⛔ **Non implementa nessuna milestone.** La sequenza di §7 è architettura, non lavoro iniziato.
 - ⛔ **Non esegue il rename** di `D-341`, né rigenera alcun golden.
 - ⚠️ **Non ha eseguito nessun gate.** Ogni verdetto qui è `NOT RUN` per costruzione: la sessione ha misurato
