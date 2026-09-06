@@ -34,6 +34,16 @@
                   Il limite e' dichiarato, non risolto
       motore      i processi `UnrealEditor*`, con il checkout da cui vengono
 
+    ⚠️ **Le invarianti coprono la RUN, non l'attesa che la precede** (#2532). Se si
+    aspetta il lock o il motore, al rilascio lo stato viene RI-dichiarato: e' la
+    scelta giusta, perche' fra ingresso e rilascio possono passare venti minuti e
+    pretendere che nulla sia cambiato renderebbe l'attesa inutile. Cio' che il
+    referto ora DICE, e prima taceva, e' se in quella finestra qualcosa e' cambiato
+    e che cosa — albero, `HEAD`, binari. Non cambia l'esito: una misura su uno stato
+    diverso da quello richiesto resta valida per lo stato su cui e' girata, ed e' chi
+    la registra a doverlo sapere. Misurato: due attese della stessa sessione, una con
+    albero stabile e una in cui la mutazione e' sparita, davano referti IDENTICI.
+
     Piu' due controlli sul referto:
 
       freschezza  il log e' stato scritto DOPO l'avvio? Un log stantio di una run
@@ -669,6 +679,113 @@ function Get-Snapshot {
     }
 }
 
+function Compare-Snapshot {
+    <#
+    .SYNOPSIS
+        Dice cosa e' cambiato fra due snapshot. Nessun I/O: confronta due oggetti.
+
+    .DESCRIPTION
+        (!!) Pura, e per lo stesso motivo delle altre due (#2130, #2530): la finestra
+        che deve descrivere dura minuti e dipende da cosa fanno le ALTRE sessioni
+        della macchina, quindi non si riproduce a comando. Qui le si passano due
+        snapshot costruiti a mano - vedi `-SelfTest`.
+
+        (!!) Restituisce un oggetto e non la lista: PowerShell SROTOLA una collezione
+        restituita da una funzione, e `$d.Count` su una lista di un elemento
+        risponderebbe con la lunghezza della STRINGA. Il difetto sarebbe silenzioso e
+        proprio nel caso a un elemento, che qui e' quello comune.
+    #>
+    param($Entry, $Current)
+
+    $diffs = New-Object System.Collections.Generic.List[string]
+
+    if ($null -ne $Entry -and $null -ne $Current) {
+        if ($Entry.Head -ne $Current.Head) {
+            $diffs.Add(("HEAD      {0} -> {1}" -f $Entry.Head.Substring(0, 8), $Current.Head.Substring(0, 8)))
+        }
+        if ($Entry.TreeHash -ne $Current.TreeHash) {
+            $diffs.Add(("albero    {0} ({1} file) -> {2} ({3} file)" -f `
+                $Entry.TreeHash, $Entry.PathCount, $Current.TreeHash, $Current.PathCount))
+            # Gli stessi due rami del confronto di fine run: i path che sono comparsi o
+            # spariti sono cio' che serve per ATTRIBUIRE, e sono gia' in memoria.
+            $cmp = Compare-Object -ReferenceObject @($Entry.Paths) -DifferenceObject @($Current.Paths) -ErrorAction SilentlyContinue
+            if ($cmp) {
+                foreach ($d in $cmp) {
+                    $segno = if ($d.SideIndicator -eq '=>') { 'comparso' } else { 'sparito ' }
+                    $diffs.Add(("          {0}  {1}" -f $segno, $d.InputObject.Trim()))
+                }
+            } else {
+                $diffs.Add("          gli stessi path, contenuto diverso: qualcuno ha riscritto un file gia' modificato")
+            }
+        }
+        if ($Entry.Dlls -ne $Current.Dlls) {
+            $diffs.Add(("binario   {0}" -f $Entry.Dlls))
+            $diffs.Add(("       -> {0}" -f $Current.Dlls))
+        }
+    }
+
+    return [pscustomobject]@{
+        Changed = ($diffs.Count -gt 0)
+        Lines   = $diffs
+    }
+}
+
+function Say-Drift {
+    <#
+    .SYNOPSIS
+        Stampa se lo stato e' cambiato rispetto all'ingresso, e registra la differenza.
+
+    .DESCRIPTION
+        (!!) **Dice qualcosa ANCHE quando nulla e' cambiato**, ed e' il punto di #2532:
+        prima, `stato ridichiarato` compariva identico nei due casi, e le due righe di
+        digest erano stampate ma nessuno le confrontava. Il silenzio sull'invarianza e'
+        cio' che rendeva i due referti indistinguibili.
+    #>
+    param($Entry, $Current)
+
+    $d = Compare-Snapshot -Entry $Entry -Current $Current
+    if (-not $d.Changed) {
+        Say '  (invariato rispetto all''ingresso)'
+        return
+    }
+
+    # Si ACCUMULA, non si sovrascrive: fra lock e motore le attese sono due, e la
+    # seconda non deve cancellare cio' che la prima ha visto.
+    if ($null -eq $script:WaitDrift) {
+        $script:WaitDrift = New-Object System.Collections.Generic.List[string]
+    }
+    Say '  CAMBIATO rispetto all''ingresso:'
+    foreach ($l in $d.Lines) {
+        Say "     $l"
+        $script:WaitDrift.Add($l)
+    }
+}
+
+function Say-WaitVerdict {
+    <#
+    .SYNOPSIS
+        Porta nel REFERTO cio' che e' cambiato durante l'attesa. Vale per entrambi i verdetti.
+
+    .DESCRIPTION
+        (!!) **Non cambia l'esito, e la scelta e' deliberata** (#2532). Ri-baselinare
+        dopo l'attesa ha senso: fra l'ingresso e il rilascio possono passare venti
+        minuti, e chi aspetta lavora su altro nel frattempo — invalidare renderebbe
+        l'attesa inutile, cioe' toglierebbe la funzione che #2346 ha aggiunto.
+
+        Cio' che mancava non era un verdetto: era che il referto lo DICESSE. Una
+        misura su uno stato diverso da quello richiesto resta una misura valida di
+        quello stato; e' chi la registra che deve poter decidere, e per `RT3_CONTRACT.md`
+        §5 senza questa riga non puo'.
+
+        (!!) Sta in ENTRAMBI i rami del verdetto: una run che cade per altro e una che
+        passa hanno lo stesso bisogno di dichiarare su cosa sono girate.
+    #>
+    if ($null -eq $script:WaitDrift -or $script:WaitDrift.Count -eq 0) { return }
+    Say '  attesa    lo stato e'' CAMBIATO durante l''attesa: la misura e'' su quello NUOVO,'
+    Say '            non su quello per cui e'' stata chiesta.'
+    foreach ($l in $script:WaitDrift) { Say "            $l" }
+}
+
 function Wait-EngineWindow {
     <#
     .SYNOPSIS
@@ -1133,6 +1250,92 @@ if ($SelfTest) {
     Assert-Log 'troncata'           (New-FakeLog -Found 100 -Started 60 -Completed 60) $false 'troncata'
     Assert-Log 'filtro-a-vuoto'     (New-FakeLog -Found -1) $false 'Found N'
 
+
+    # ------------------------------------------- DERIVA DURANTE L'ATTESA (#2532)
+    # 🔴 **La coppia che porta la prova e' `attesa-stabile` / `mutazione-sparita`**, ed
+    # e' la trascrizione dei due casi misurati nella stessa sessione: M2 ha atteso 352s
+    # con l'albero STABILE, M1 ha atteso 791s con l'albero CAMBIATO, e i due referti
+    # erano indistinguibili. Qui non lo sono piu'.
+    function New-FakeSnapshot {
+        param(
+            [string] $Head = 'cdcf1dad0000000000000000000000000000dead',
+            [string] $TreeHash = 'cfe70ce5',
+            [string[]] $Paths = @(),
+            [string] $Dlls = 'RefactorTactics=2026-09-06 10:00:00/1024'
+        )
+        return [pscustomobject]@{
+            Head = $Head; TreeHash = $TreeHash
+            Paths = @($Paths); PathCount = @($Paths).Count; Dlls = $Dlls
+        }
+    }
+
+    function Assert-Drift {
+        param([string] $Name, $Entry, $Current, [bool] $ExpectChanged, [string] $ExpectContains = '')
+        $script:total++
+        $d = Compare-Snapshot -Entry $Entry -Current $Current
+        $ok = ($d.Changed -eq $ExpectChanged)
+        if ($ok -and $ExpectContains) {
+            $ok = [bool]($d.Lines | Where-Object { $_ -like "*$ExpectContains*" })
+        }
+        if (-not $ok) { $script:failures++ }
+        Say ("{0}  {1,-22} cambiato={2,-5} righe={3} (atteso cambiato={4})" -f `
+            $(if ($ok) { 'ok  ' } else { 'ROTTO' }), $Name, $d.Changed, $d.Lines.Count, $ExpectChanged)
+        if (-not $ok) { foreach ($l in $d.Lines) { Say "        > $l" } }
+    }
+
+    $mutato = New-FakeSnapshot -TreeHash 'cfe70ce5' -Paths @(' M Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp', ' M Scenarios/Movement/Choke.json')
+    $pulito = New-FakeSnapshot -TreeHash 'd2ffac9c' -Paths @(' M Scenarios/Movement/Choke.json')
+
+    Say 'self-test della deriva durante l''attesa (#2532)'
+    # M2: 352s di attesa, albero stabile. Deve dire INVARIATO, non tacere.
+    Assert-Drift 'attesa-stabile'     $mutato $mutato $false
+    # 🔑 M1: 791s di attesa, e la mutazione sparisce dal working tree. E' il caso della
+    # issue, e il referto deve NOMINARE il file sparito.
+    Assert-Drift 'mutazione-sparita'  $mutato $pulito $true 'RTScenarioLoader.cpp'
+    # Stessi path, contenuto diverso: il ramo che non ha nulla da elencare deve dirlo.
+    Assert-Drift 'stesso-path-altro'  $mutato (New-FakeSnapshot -TreeHash '9999aaaa' -Paths @(' M Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp', ' M Scenarios/Movement/Choke.json')) $true 'contenuto diverso'
+    Assert-Drift 'head-cambiato'      $mutato (New-FakeSnapshot -Head '4d79e8050000000000000000000000000000beef' -Paths @(' M Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp', ' M Scenarios/Movement/Choke.json')) $true 'HEAD'
+    # Il binario ricompilato durante l'attesa e' il secondo meta' del caso M1: sorgente
+    # pulito e binario mutato e' la coppia incoerente su cui la suite e' girata.
+    Assert-Drift 'binario-cambiato'   $mutato (New-FakeSnapshot -Paths @(' M Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp', ' M Scenarios/Movement/Choke.json') -Dlls 'RefactorTactics=2026-09-06 11:30:00/2048') $true 'binario'
+    # Difensivo: senza attesa non c'e' ingresso da confrontare, e non deve esplodere.
+    Assert-Drift 'snapshot-nullo'     $null   $pulito $false
+
+    # 🔴 **La funzione pura NON prova il cablaggio.** `Compare-Snapshot` puo' essere
+    # giusta e non chiamata da nessuno: sarebbe una regola inerte, e il referto
+    # tornerebbe muto esattamente come prima. Questo caso esercita la catena vera —
+    # `Say-Drift` accumula in `$script:WaitDrift`, `Say-WaitVerdict` la porta nel
+    # referto — e copre anche il fatto che le attese sono DUE (lock e motore): la
+    # seconda non deve cancellare cio' che la prima ha visto.
+    $script:WaitDrift = $null
+    $null = Say-Drift -Entry $mutato -Current $mutato          # invariata: non accumula
+    $null = Say-Drift -Entry $mutato -Current $pulito          # prima attesa
+    $null = Say-Drift -Entry $pulito -Current (New-FakeSnapshot -Head 'aaaaaaaa0000000000000000000000000000beef' -TreeHash 'd2ffac9c' -Paths @(' M Scenarios/Movement/Choke.json'))
+    $righe = @(Say-WaitVerdict)
+    $testo = ($righe -join ' | ')
+    $script:total++
+    # 5 = 2 di intestazione + 2 della prima attesa (albero, e il file sparito) + 1
+    # della seconda (HEAD). Il numero e' CONTATO su un esito osservato, non dedotto:
+    # la prima stesura ne aveva scritte 4 e il caso e' uscito ROTTO, che e' esattamente
+    # cio' che un'asserzione deve saper fare.
+    $okCablaggio = ($righe.Count -eq 5) -and
+                   ($testo -match 'CAMBIATO') -and
+                   ($testo -match 'RTScenarioLoader\.cpp') -and
+                   ($testo -match 'HEAD')
+    if (-not $okCablaggio) { $script:failures++ }
+    Say ("{0}  {1,-22} righe nel referto={2} (attese 5: 2 intestazione + albero e file sparito + HEAD)" -f `
+        $(if ($okCablaggio) { 'ok  ' } else { 'ROTTO' }), 'cablaggio-referto', $righe.Count)
+    if (-not $okCablaggio) { foreach ($r in $righe) { Say "        > $r" } }
+
+    # Il referto di una run senza attesa non deve portare la sezione.
+    $script:WaitDrift = $null
+    $script:total++
+    $vuoto = @(Say-WaitVerdict)
+    $okMuto = ($vuoto.Count -eq 0)
+    if (-not $okMuto) { $script:failures++ }
+    Say ("{0}  {1,-22} righe nel referto={2} (attese 0: senza attesa la sezione non esiste)" -f `
+        $(if ($okMuto) { 'ok  ' } else { 'ROTTO' }), 'senza-attesa', $vuoto.Count)
+
     if ($failures -gt 0) {
         Say ("self-test ROSSO: {0} caso/i non conforme/i su {1}" -f $failures, $total)
         exit 1
@@ -1146,6 +1349,24 @@ if ($SelfTest) {
 
 $before = Get-Snapshot
 Say-Preamble $before
+
+# 🔴 **Lo stato d'INGRESSO, che non si sovrascrive mai** (#2532). `$before` viene
+# ridichiarato dopo il lock e dopo l'attesa del motore — ed e' giusto che lo sia:
+# fra l'ingresso e il rilascio possono passare venti minuti, e pretendere che nulla
+# sia cambiato renderebbe l'attesa inutile. Cio' che mancava e' che chi ha lanciato
+# lo SAPPIA: `stato ridichiarato` si stampava identico sia che nulla fosse cambiato,
+# sia che fosse cambiato tutto.
+#
+# Misurato il 2026-09-06: durante un'attesa di 791s una mutazione e' sparita dal
+# working tree, la suite e' girata su un sorgente pulito con un binario mutato, e il
+# referto ha dichiarato `albero d2ffac9c` - l'albero PULITO - senza una riga che
+# dicesse che era cambiato. Nella stessa sessione un'altra attesa di 352s con albero
+# stabile ha prodotto un referto INDISTINGUIBILE.
+$entry = $before
+
+# La lista delle differenze fra ingresso e ri-dichiarazione, se ce ne sono. Nulla
+# finche' nessuno aspetta, che e' il caso di `-WaitMinutes 0` (il default).
+$script:WaitDrift = $null
 
 # 🔴 **Inizializzata, e non e' pedanteria.** Un `Set-StrictMode -Version Latest`
 # nel profilo di chi lancia si propaga nello scope dello script, e leggere una
@@ -1225,6 +1446,7 @@ if ($script:LockElapsed -ge 1.0) {
     Say ('lock ottenuto dopo {0:N0}s: stato ridichiarato' -f $script:LockElapsed)
     $before = Get-Snapshot
     Say-Preamble $before
+    Say-Drift -Entry $entry -Current $before
 }
 
 # UN budget per DUE attese: i secondi andati nel lock non tornano disponibili per il
@@ -1340,6 +1562,7 @@ if ($before.LiveCount -gt 0 -and $budgetSeconds -gt 0) {
     if (Test-EngineFree $before) {
         Say ("motore libero dopo {0:N0}s: stato ridichiarato" -f $script:WaitElapsed)
         Say-Preamble $before
+        Say-Drift -Entry $entry -Current $before
     }
     elseif ($before.EngineError) {
         Say ("attesa interrotta dopo {0:N0}s: la query sui processi e' fallita" -f $script:WaitElapsed)
@@ -1515,6 +1738,7 @@ Write-Output ''
 if ($problems.Count -gt 0) {
     Say 'NON VALIDA'
     foreach ($p in $problems) { Say "  $p" }
+    Say-WaitVerdict
     Say ("  esito     {0}/{1}, {2} fail  -> NON REGISTRABILE" -f $completed, $(if ($null -eq $found) { '?' } else { $found }), $failed)
     Say '  Non e'' rosso e non e'' verde: la misura non vale, e si rifa''. Il regime di piu'''
     Say '  sessioni sulla stessa working directory e'' dichiarato in D-222.'
@@ -1524,6 +1748,7 @@ if ($problems.Count -gt 0) {
 
 Say 'VALIDA'
 Say ("  HEAD      {0}  albero {1}" -f $after.Head.Substring(0,8), $after.TreeHash)
+Say-WaitVerdict
 Say ("  esito     {0}/{1} completati, {2} fallimenti" -f $completed, $found, $failed)
 if ($dangling -gt 0) {
     Say ("  nota      {0} test avviati senza riga di conclusione (coda di shutdown, non una troncatura)" -f $dangling)
