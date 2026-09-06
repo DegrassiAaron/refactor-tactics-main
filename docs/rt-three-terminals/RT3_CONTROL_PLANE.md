@@ -549,6 +549,31 @@ L'ordine è totale e non ha tie-break casuali:
 2. **earliest start crescente** — ciò che può partire prima;
 3. **ordine di dichiarazione** — l'unica priorità che qualcuno ha scritto.
 
+### La precedenza del cammino critico è assoluta (D-345)
+
+Conseguenza diretta di quell'ordine, e **decisione accettata**, non un difetto: le risorse
+globali — `wip.global` e `temporaryWorktrees` — vanno a chi ha slack minore, fino a
+esaurirsi. Una lane può quindi restare **ferma con le proprie risorse libere**.
+
+È il caso che la prima wave su Epic reali ha prodotto: con `wip.global: 4`, DEV e MAIN
+consumano il budget e DESIGNER non parte, pur avendo il writer a `0/1`.
+
+Il piano lo **dice**, invece di lasciarlo dedurre:
+
+```text
+EPIC-1990/1993  DESIGNER  WIP_GLOBAL
+  limite WIP globale raggiunto (4), consumato da EPIC-2388/2402, EPIC-2388/2404, ...
+  ⚠️ DESIGNER ha risorse LIBERE - writer DESIGNER (0/1) - e resta fermo lo stesso:
+     il budget globale e' gia' stato speso da item con priorita' maggiore.
+     La precedenza del cammino critico e' assoluta per decisione accettata;
+     alzare `wip.global` e' la leva che libera questa lane.
+```
+
+⚠️ **La leva è `wip.global`**, non una modifica al planner. Chi vuole che una lane parta
+comunque alza il budget nella roadmap: è una scelta di quanto lavoro tenere aperto, e sta
+nel PLAN dove si può leggere e discutere, non in una regola di allocazione nascosta nel
+codice.
+
 ---
 
 ## 13. Propagare una modifica fra i workspace

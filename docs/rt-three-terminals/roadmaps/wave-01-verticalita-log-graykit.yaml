@@ -60,6 +60,10 @@ resources:
   unrealEditor:
     leaseCapacity: 1
 
+# ⚠️ Con `global: 4`, DEV e MAIN consumano il budget e DESIGNER resta fermo pur avendo il
+# writer libero. Non e' un difetto: la precedenza del cammino critico e' assoluta per
+# decisione accettata (D-345), e `wip.global` e' la leva che libera la lane. Il valore 4
+# e' tenuto basso apposta, perche' questa wave serve anche a far vedere il vincolo mordere.
 wip:
   perWorkspace: 2
   global: 4
