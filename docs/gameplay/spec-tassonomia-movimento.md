@@ -386,19 +386,34 @@ Prima di misurare, due fatti che nessuno aveva messo insieme:
 - ne segue un'asimmetria che nessuna regola dichiara: chi posa **waypoint** perde il turno, chi clicca una
   **destinazione** no. Lo stesso intento, due esiti.
 
-`A` è stato quindi implementato in via sperimentale — `PlannedCell = NewCell` incondizionato — e misurato
-sulla suite intera, con baseline sullo stesso commit per non attribuire alla modifica un rosso preesistente:
+`A` è stato quindi implementato e misurato sulla suite intera, in **coppia controllata**: i due bracci
+differiscono per la sola modifica — stesso albero, stessa suite, entrambe le corse `VALIDA` e con il binario
+verificato posteriore al commit.
 
 | Misura | Baseline (`B`, il codice di oggi) | `A` implementato |
 |---|---|---|
 | `Bot.StallDefinitionsOnTheGeneratedTestArena` | ✅ | ❌ |
 | `Match.Autobattle.EngagesOnTheGeneratedTestArena` | ✅ | ❌ |
-| sequenza ferma più lunga (arena generata, 12 turni, 4 unità) | — | **11** (limite in uso: **4**) |
+| **sequenza ferma più lunga** (arena generata, 12 turni, 4 unità) | **4** | **11** |
+| `Actions.Push.DoesNotSpendTheVictimMove`, riscritto sulla regola del budget | ❌ | ✅ |
 
-**Undici turni fermi su dodici.** Il criterio parla di *«più di una volta ogni due round»*: qui il Move
-decade praticamente a ogni turno, perché in mischia lo spostamento forzato è la norma e non l'eccezione — e
-i bot pianificano **destinazioni**, non waypoint (`RTTurnManager.cpp:775`), quindi sono esattamente la
-popolazione che `A` colpisce.
+Il limite in uso del gate anti-stallo è **4**: la baseline ci sta esattamente dentro, `A` lo sfonda quasi
+triplicandola. Il criterio parla di *«più di una volta ogni due round»* — qui il Move decade quasi a ogni
+turno, perché in mischia lo spostamento forzato è la norma, e i bot pianificano **destinazioni**, non
+waypoint (`RTTurnManager.cpp:775`): sono esattamente la popolazione che `A` colpisce.
+
+🔑 **L'ultima riga della tabella è ciò che rende la coppia una prova.** Il test di `#308` riscritto è rosso
+sulla baseline e verde con `A`: discrimina i due modelli **in entrambe le direzioni**, quindi la coppia non
+misura un rumore.
+
+⚠️ **Due ipotesi alternative sono state escluse, non assunte.**
+
+- *«è la fuga da hazard»* — `ApplyForcedDisplacement` risolve anche in `Cleanup`, a Move già avvenuto, dove
+  annullare la destinazione toglierebbe il movimento del turno **dopo**. La versione misurata ha già la
+  guardia `InPhase < ERTMatchPhase::Move`, e i numeri sopra sono con quella guardia: non è la fuga;
+- *«è `#2459`»* — le metriche di opportunity erano entrate su `main` fra le due misure, e un'unità *armata*
+  sta ferma per scelta (l'autobattle riporta Gadget fermo 11 turni, *«di cui 8 armati»*). La baseline della
+  coppia controllata gira sullo stesso `main` e resta a **4**: non è `#2459`.
 
 ⛔ **La modifica è stata ritirata**: il codice resta su `B`. Non perché `B` sia giusto — resta il modello che
 `D-045` esclude — ma perché sostituirlo con un `A` che ferma il gioco non è ciò che quella decisione voleva,
