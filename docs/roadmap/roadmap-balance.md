@@ -447,6 +447,12 @@ Owner: [#2491](https://github.com/DegrassiAaron/refactor-tactics-main/issues/249
 [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297)). La misura è stata registrata lì
 invece di aprire una issue nuova.
 
+✅ **Riparazione aperta come [PR #2582](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2582)**: il
+catalogo passa a *Branth* sui 21 riferimenti non esenti, i radar seguono la chiave — che è il prefisso degli
+`AbilityId`, non il nome mostrato — e sono rigenerati nello stesso commit (`D-108`). Il gate torna **28/28**.
+⚠️ Richiede il push della **Wiki**, che incorpora i radar per URL `raw.githubusercontent.com`: 5 riferimenti in
+4 pagine, pronti nel clone e **non pubblicati**.
+
 ⚠️ **Conseguenza per questa capability, dichiarata**: finché quel gate è rosso, le sei stat base di **un eroe
 su quattro** non sono protette da nulla — ed è il verso peggiore, perché il gate esiste proprio per la deriva
 catalogo↔codice che `D-075` pagò con due giorni di divergenza silenziosa. E
