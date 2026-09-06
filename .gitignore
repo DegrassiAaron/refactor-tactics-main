@@ -283,3 +283,23 @@ __pycache__/
 # byte-identici alla versione degli script gia' versionata in `ec48f06b`: la history
 # li conserva, l'albero no.
 *.bak
+
+# ---- Runtime del control plane RT3 (2026-09-06) ----
+# `tools/rt3` tiene sessioni, eventi e mailbox in SQLite. Il database NON vive qui: sta in
+# `%LOCALAPPDATA%\RefactorTactics\RT3\runtime.db`, per macchina, come il registro dei
+# workspace di `rt-workspace.ps1` e i task di `rt-task-router.ps1`. E' l'unica posizione che
+# funzioni: i tre workspace permanenti sono tre CLONI distinti dello stesso remote, e un
+# database dentro il checkout ne produrrebbe tre che non si vedono - cioe' tre control plane
+# ciechi l'uno all'altro, che e' il contrario di cio' che serve.
+#
+# Questa riga e' quindi una RETE DI SICUREZZA, non la regola: copre il caso in cui qualcuno
+# punti `RT3_HOME` dentro il repository per una diagnosi e se ne dimentichi. Cio' che
+# finirebbe qui - runtime.db, daemon.json col pid e la porta, i binding di sessione,
+# rt3d.log - e' lo stato di UNA macchina in UN momento, e non ha significato in un altro
+# checkout.
+#
+# Oracolo: `git check-ignore -q .rt3/runtime.db` dalla RADICE -> exit 0 (ignorato).
+# ⚠️ Da una sottodirectory l'oracolo risponde sul `.gitignore` piu' vicino, non su questo:
+# e' l'errore con cui questa riga e' nata, scritta in `tools/rt3/.gitignore` perche' la
+# shell si trovava li'.
+.rt3/
