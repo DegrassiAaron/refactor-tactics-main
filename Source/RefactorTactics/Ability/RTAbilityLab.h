@@ -1,4 +1,4 @@
-// Ability Lab 0.1 (#2599) — eseguire UNA ability canonica in una fixture deterministica.
+// Ability Lab (#2599) — eseguire UNA ability canonica in una fixture deterministica.
 //
 // ## Perche' e' una facade e non un motore
 //
