@@ -143,7 +143,11 @@ public:
 	 * perche' passerebbe sempre. L'assertion di default e' `TurnsCompleted == 1` — dice che il turno e'
 	 * stato giocato, e non pretende un esito di gameplay che il Lab non ha il compito di decidere.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|AbilityLab")
+	// ⛔ **Deliberatamente NON una `UFUNCTION`.** `FRTTestScenario` e' `USTRUCT()` e **non**
+	// `BlueprintType`: ADR-0010 tiene le nove struct del formato fuori dalla portata di Blueprint, e il
+	// gate `RefactorTactics.Scenario.AuthoringContractIsReachableFromBlueprint` verifica **entrambi i
+	// versi**. Esporre questa firma renderebbe rosso quel gate — cioe' il Lab comprerebbe una comodita'
+	// d'editor al prezzo dell'invariante che lo Scenario Harness esiste per difendere.
 	static bool BuildFixture(const FName& AbilityId, const FRTAbilityLabFixtureSpec& Spec,
 		FRTTestScenario& OutScenario, FString& OutError);
 
@@ -154,6 +158,9 @@ public:
 	 * `DescribeTurnLog`. Nessuna riga viene composta qui: le stringhe sono quelle che il TurnLog produce
 	 * per chiunque altro.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|AbilityLab")
+	// ⛔ **Deliberatamente NON una `UFUNCTION`.** `RTTestResult.h` non dichiara **nessuna** `USTRUCT`:
+	// `FRTTestResult` e `FRTTurnTrace` sono struct C++ nude, invisibili alla riflessione. UHT lo dice in
+	// otto secondi — *«Unable to find 'class', 'delegate', 'enum', or 'struct' with name
+	// 'FRTTestResult'»* — e ha ragione: il risultato di una run e' un oggetto di dominio, non un DTO.
 	static TArray<FString> DescribeRunTurnLog(const FRTTestResult& Result);
 };
