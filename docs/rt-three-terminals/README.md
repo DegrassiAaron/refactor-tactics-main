@@ -308,12 +308,14 @@ in questo checkout, `-Force` per spostare `MAIN`.
 
 ### Migrazione da un'installazione precedente
 
-Le versioni precedenti non avevano identità di workspace né lease, e `.mcp.json` era versionato.
+Le versioni precedenti non avevano identità di workspace né lease, e il bridge MCP partiva su **ogni**
+checkout. `.mcp.json` era versionato allora ed è versionato oggi: non è cambiato, e non è la leva.
 
 1. `git pull` sul checkout;
 2. rieseguire l'installer con `-WorkspaceId`, una volta per directory;
 3. verificare con `rtws -Action status` che il registro elenchi **un solo** `MAIN`;
-4. `rtlease -Action status` deve dire `LIBERO` con nessun processo motore vivo.
+4. `rtlease -Action status` deve dire `LIBERO` con nessun processo motore vivo;
+5. `rt-mcp-server.ps1 -AutoStart Status` deve dire `True` **solo** in `MAIN`.
 
 L'installer fa il backup con timestamp di ogni file che sovrascrive, `.mcp.json` incluso. Ripeterlo
 è idempotente.
