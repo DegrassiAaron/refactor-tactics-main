@@ -208,6 +208,21 @@ protected:
 	TObjectPtr<UInputAction> PlaybackSpeedAction;
 
 	/**
+	 * `P`: ferma e riprende la **finestra di preparazione** dell'autobattle (`#2386`).
+	 *
+	 * 🔑 **Sta accanto a `PlaybackSpeedAction` e non fra i comandi di pianificazione**, perche' e' lo stesso
+	 * attore: chi **guarda** una partita non presidiata. La velocita' di riproduzione ha gia' quella natura
+	 * — *«chi guarda una partita non presidiata sceglie il ritmo in anticipo»* — e questo e' il secondo
+	 * comando dello spettatore, non l'undicesimo del giocatore.
+	 *
+	 * ⛔ **Non e' `IA_Pause` (`ESC`)**, che apre il menu modale di CP 46.6, e non e' la pausa del playback di
+	 * `#1879`: quella ferma una risoluzione **gia' decisa** che si sta mostrando. Qui il turno non e' ancora
+	 * committato, e cio' che si ferma e' l'attesa.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> PrepWindowPauseAction;
+
+	/**
 	 * `ESC`: apre e chiude il menu di pausa (CP 46.6, `#941`).
 	 *
 	 * ⚠️ **Nessun `.uasset`, come tutti i fratelli**: gli `UInputAction` di questo controller nascono da
@@ -455,6 +470,20 @@ private:
 	 */
 	UFUNCTION()
 	void HandleLockInCommitted();
+
+	/**
+	 * Garantisce che `HandleLockInCommitted` sia iscritto al commit, una volta sola (`#2390`).
+	 *
+	 * 🔴 **Iscriversi dentro `OnLockIn` non basta, ed e' il difetto che questa funzione chiude.** Li'
+	 * l'iscrizione avviene al primo **Ready**: un primo turno chiuso dal TETTO trova il delegate senza
+	 * ascoltatori, e l'anteprima resta accesa per tutta la risoluzione mostrando una minaccia gia' decisa.
+	 * Il broadcast parte lo stesso — `HexMatch.LockInCommittedFiresOnPlanningTimeout` lo prova — ma un
+	 * annuncio raggiunge solo chi si e' iscritto.
+	 *
+	 * ⚠️ **Si vede solo prima del PRIMO Ready**: `AddUniqueDynamic` punta al `TurnManager`, che e' lo
+	 * stesso oggetto per tutto il match, quindi dal primo Ready in poi l'iscrizione persiste da se'.
+	 */
+	void EnsureLockInCommittedSubscription(class ARTTurnManager* TurnManager);
 	// Uno per posizione del kit, e sono one-liner che passano tutti da `SelectAbilityForCurrent`. Uno per
 	// posizione e non un handler solo perche' l'indice deve arrivare dalla BINDATURA: `FInputActionValue`
 	// porta il valore, non l'azione che l'ha prodotto, quindi un handler unico non saprebbe quale tasto e'
@@ -479,6 +508,16 @@ private:
 	void OnGeneric5(const FInputActionValue& Value);
 	void OnUndoWaypoint(const FInputActionValue& Value);
 	void OnCyclePlaybackSpeed(const FInputActionValue& Value);
+
+	/**
+	 * Ferma e riprende la finestra di preparazione dell'autobattle (`#2386`).
+	 *
+	 * ⚠️ **Nessuna guardia di `IsPlanningInputInert()`, e non e' una dimenticanza**: quel predicato spegne
+	 * l'input che PIANIFICA quando la partita e' non presidiata (`#971`), e questo comando esiste
+	 * esattamente li'. Spegnerlo con gli altri lo renderebbe inerte proprio nella sola modalita' in cui ha
+	 * un senso. E' la stessa scelta gia' fatta per `OnCyclePlaybackSpeed`, che pure non ne ha.
+	 */
+	void OnTogglePrepWindowPause(const FInputActionValue& Value);
 	void OnRecenter(const FInputActionValue& Value);
 	void OnFocusSelected(const FInputActionValue& Value);
 
@@ -558,6 +597,9 @@ public:
 	 * e costruirne uno inline non compilerebbe.
 	 */
 	void OnLockInForTest();
+
+	/** Hook per i test: percorre il gesto `P` senza Enhanced Input (`#2386`). Gemello di `OnLockInForTest`. */
+	void OnTogglePrepWindowPauseForTest();
 
 	/**
 	 * Inquadra un'unita' con la camera: quello che fa il tasto `F` una volta stabilito CHI inquadrare.

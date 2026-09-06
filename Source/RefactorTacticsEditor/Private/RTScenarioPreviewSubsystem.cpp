@@ -1,5 +1,7 @@
 #include "RTScenarioPreviewSubsystem.h"
 
+#include "Debug/RTDebugReportLibrary.h"
+
 #include "RTScenarioPreviewActor.h"
 #include "RTScenarioViewportModel.h"
 
@@ -138,11 +140,20 @@ void URTScenarioPreviewSubsystem::ClearPreview()
 	// `AllUnits` gia' svuotato, quindi uno stato di playback sopravvissuto tradurrebbe una traccia contro
 	// uno scenario che non c'e' piu'. Si azzera **dopo** aver tolto tutto, e senza ridisegnare — non c'e'
 	// piu' niente su cui.
+	const bool bCeraUnaCorsa = bPlaybackOpen;
+
 	bPlaybackOpen = false;
 	PlaybackUnits.Reset();
 	PlaybackTrace.Reset();
 	PlaybackInitial.Reset();
 	PlaybackScenarioIds.Reset();
+
+	// 🔴 **Qui la corsa uscente si PROMUOVE, non si butta.** Il pulsante Run del pannello chiama
+	// `ShowScenario()` — che comincia proprio con questa funzione — e subito dopo `OpenPlayback()`. Una
+	// stesura che azzerasse qui perderebbe il paragone a OGNI corsa, e il verdetto di divergenza non
+	// partirebbe mai: e' il difetto trovato in review, e il test
+	// `DevSandboxLauncher.PlaybackComparesWithThePreviousRun` percorre esattamente questa via.
+	PromoteRunToComparison(bCeraUnaCorsa);
 }
 
 TArray<int32> URTScenarioPreviewSubsystem::GetSelectableTeams() const
@@ -273,6 +284,18 @@ bool URTScenarioPreviewSubsystem::OpenPlayback(const URTScenarioAuthoring* Autho
 	PlaybackTrace = MoveTemp(Voci);
 	PlaybackScenarioIds = Authoring->GetLastRunScenarioIds();
 	PlaybackInitial = RTScenarioPlayback::InitialStatesFromViews(AllUnits, PlaybackScenarioIds);
+
+	// 🔑 I boundary si calcolano UNA volta, all'apertura: la serie dipende dalla traccia e dallo
+	// schieramento, che da qui in poi non cambiano piu'. Ricalcolarla a ogni richiesta darebbe la stessa
+	// risposta pagandola ogni volta.
+	//
+	// ⚠️ `WithMicroStep` non e' un'assunzione: e' la versione che `SerializeTurnLog` scrive oggi
+	// (`RTTurnLogLibrary.cpp:1126`), e questa traccia l'ha appena prodotta il runner. Una traccia
+	// antecedente degraderebbe a un boundary per fase, che e' il comportamento dichiarato e non un errore.
+	PlaybackBoundaries = URTBoundaryChecksumLibrary::ChecksumsAlongTrace(
+		PreviewArena, PlaybackTrace, PlaybackInitial, ERTTurnLogFormatVersion::WithMicroStep);
+	PlaybackScenarioId = Authoring->GetDraft().GetScenario().ScenarioId;
+
 	bPlaybackOpen = true;
 
 	// All'inizio: turno 0, cioe' prima che qualunque voce sia stata applicata. E' la posa d'authoring, ma
@@ -290,6 +313,9 @@ void URTScenarioPreviewSubsystem::ClosePlayback()
 	PlaybackTrace.Reset();
 	PlaybackInitial.Reset();
 	PlaybackScenarioIds.Reset();
+
+	// Anche qui: chi smonta un playback aperto lo promuove. Il flag arriva da `bEra`, catturato in testa.
+	PromoteRunToComparison(bEra);
 
 	// Il view model torna non-aperto: `IsPlaybackPlaying()` deve essere falso e i `CanStep*` devono
 	// rispondere «no» a playback chiuso, invece di conservare i bordi dell'ultima corsa.
@@ -508,4 +534,67 @@ bool URTScenarioPreviewSubsystem::ShowScenario(const URTScenarioAuthoring* Autho
 	// l'unico punto da cui passano le conversioni cella<->mondo.
 	ApplyPerspective();
 	return true;
+}
+
+TArray<FString> URTScenarioPreviewSubsystem::DescribePlaybackBoundaries() const
+{
+	// ⚠️ «Nessun playback» si DICE. Un array vuoto sarebbe indistinguibile da una corsa senza boundary.
+	if (!bPlaybackOpen)
+	{
+		return { TEXT("[RT] Nessun playback aperto: non c'e' nessuna corsa da misurare.") };
+	}
+
+	TArray<FString> Righe;
+
+	// ⚠️ **Uno schieramento iniziale vuoto non e' un dettaglio: rende la misura muta.**
+	// `InitialStatesFromViews` scarta in silenzio le viste che `PlaybackScenarioIds` non traduce, quindi
+	// puo' tornare vuoto. `ChecksumsAlongTrace` ricostruirebbe allora un roster vuoto a OGNI boundary,
+	// producendo lo stesso hash dappertutto: un elenco plausibile in cui nessun boundary discrimina, e un
+	// «coincidono» falso fra due corse diverse. Si dice, invece di lasciarlo sembrare una misura.
+	if (PlaybackInitial.Num() == 0 && PlaybackTrace.Num() > 0)
+	{
+		Righe.Add(TEXT("[RT] ⚠ Schieramento iniziale vuoto: i checksum sotto NON discriminano i boundary."));
+		Righe.Add(TEXT("[RT]   (nessuna vista d'authoring e' stata tradotta in uno StableUnitId)"));
+	}
+
+	Righe.Append(URTDebugReportLibrary::DescribeBoundaryChecksums(PlaybackBoundaries));
+
+	// 🔴 La domanda del designer dopo una modifica non e' «qual e' l'hash?» ma «DOVE e' cambiata la
+	// risoluzione?». E' la chiamata che toglie `DescribeDivergence` dalla condizione di funzione senza
+	// chiamanti di produzione (`#2486`).
+	if (!bHasPreviousRun)
+	{
+		return Righe;
+	}
+
+	// ⛔ Si confronta SOLO dentro lo stesso scenario. Due corse di scenari diversi non sono confrontabili, e
+	// un verdetto che le confrontasse nominerebbe un boundary vero dentro un'affermazione falsa.
+	if (PreviousRunScenarioId != PlaybackScenarioId)
+	{
+		Righe.Add(FString::Printf(
+			TEXT("[RT] La corsa precedente e' di un altro scenario (%s): non confrontabile."),
+			*PreviousRunScenarioId));
+		return Righe;
+	}
+
+	Righe.Add(TEXT("[RT] --- prima (corsa precedente) contro adesso (corsa corrente) ---"));
+	Righe.Append(URTDebugReportLibrary::DescribeBoundaryDivergence(
+		PreviousRunBoundaries, PlaybackBoundaries));
+
+	return Righe;
+}
+
+void URTScenarioPreviewSubsystem::PromoteRunToComparison(bool bWasOpen)
+{
+	// ⚠️ Il flag, e non «l'array e' pieno»: una corsa che ha prodotto ZERO boundary e' comunque una corsa,
+	// e distinguerla da «non ce n'e' mai stata una» e' il lavoro di `bHasPreviousRun`.
+	if (bWasOpen)
+	{
+		PreviousRunBoundaries = MoveTemp(PlaybackBoundaries);
+		PreviousRunScenarioId = PlaybackScenarioId;
+		bHasPreviousRun = true;
+	}
+
+	PlaybackBoundaries.Reset();
+	PlaybackScenarioId.Reset();
 }

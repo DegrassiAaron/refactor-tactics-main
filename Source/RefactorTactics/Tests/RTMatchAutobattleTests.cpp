@@ -2572,4 +2572,74 @@ bool FRTPlaybackResolvesSubjectsTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * 🔴 **Ogni colpo rivelato lascia il proprio token sul bersaglio, con il proprio importo** (`#2455`).
+ *
+ * È il test del **cablaggio**, e non della composizione: che `-17` si scriva così è materia della funzione
+ * pura, e ha già il suo test in `RTHudViewModelTests.cpp`. Qui si misura che il numero *arrivi*, sulla
+ * testa giusta, nell'istante in cui il colpo viene mostrato.
+ *
+ * 🔑 **Perché serve un test di partita e non basta la funzione pura.** `URTUnitOverlayWidget` è un
+ * `UUserWidget`: in un mondo headless non esiste, e `GetOverlayWidgetObject()` risponde `nullptr`. Senza
+ * `ARTUnit::LastDamageToken` non ci sarebbe **nessun** modo di sapere se la cue è stata chiamata o se il
+ * numero si è perso fra il playback e la presentazione — un difetto che a schermo si vedrebbe subito e in
+ * automazione mai.
+ *
+ * ⚠️ **La lettura avviene DENTRO il broadcast**, non a fine partita: vedi il commento su
+ * `URTAttackPlaybackProbeForTest::TokensMatched`. A fine partita sopravviverebbe solo l'ultimo colpo, e un
+ * cablaggio che scrivesse sempre lo stesso valore resterebbe verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAttackLeavesDamageTokenTest,
+	"RefactorTactics.Match.Autobattle.EveryRevealedAttackLeavesItsDamageTokenOnTheTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAttackLeavesDamageTokenTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	SpawnAutobattleMap(World);
+
+	const TArray<ARTUnit*> Units = DeployAutobattleRoster(World, { 0, 1, 2, 3 });
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || Units.Contains(nullptr))
+	{
+		AddError(TEXT("allestimento fallito: turn manager o unita' mancanti"));
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	TM->bEnablePlayback = true;
+	TM->MaxPlaybackSeconds = 120.f; // il tetto comprime la presentazione: alzato, cosi' i colpi si mostrano tutti
+
+	URTAttackPlaybackProbeForTest* Probe = NewObject<URTAttackPlaybackProbeForTest>();
+	Probe->AddToRoot();
+	TM->OnAttackResolved.AddDynamic(Probe, &URTAttackPlaybackProbeForTest::OnAttackResolved);
+
+	const FRTAutobattleTrace Trace = PlayAutobattleMatch(TM, /*MaxTurns=*/ 40);
+	TestFalse(TEXT("nessuna risoluzione appesa"), Trace.bResolveStalled);
+
+	const int32 Revealed = Probe->AttackTicks.Num();
+	const int32 Matched = Probe->TokensMatched;
+	const int32 Mismatched = Probe->TokensMismatched;
+	const int32 TargetsOk = Probe->TargetsResolved;
+
+	Probe->RemoveFromRoot();
+	RTWorldFixtures::DestroyWorld(World);
+
+	AddInfo(FString::Printf(TEXT("colpi rivelati: %d · token coincidenti %d · discordanti %d"),
+		Revealed, Matched, Mismatched));
+
+	// PREMESSA: senza colpi non c'e' niente da mostrare, e il verde non significherebbe nulla.
+	if (!TestTrue(FString::Printf(TEXT("premessa: la partita rivela almeno un colpo (rivelati %d)"), Revealed),
+		Revealed > 0))
+	{
+		return false;
+	}
+
+	// LA PROPRIETA': ogni colpo con un bersaglio vivo ha lasciato il suo token, e nessuno discorda.
+	TestEqual(TEXT("nessun token discordante"), Mismatched, 0);
+	TestEqual(TEXT("ogni bersaglio risolto ha ricevuto il proprio token"), Matched, TargetsOk);
+
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS

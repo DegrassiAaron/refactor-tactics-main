@@ -27,6 +27,9 @@ bool URTStartupReportLibrary::IsFatal(ERTStartupOutcome Outcome)
 	case ERTStartupOutcome::UsingTestArena:
 	case ERTStartupOutcome::UsingDemoArena:
 	case ERTStartupOutcome::LevelMapMissing:
+	// Gemello del precedente e degradato per la stessa ragione: l'arena demo sostituisce anche la mappa
+	// vuota. Cambia cio' che si dice, non cio' che si fa.
+	case ERTStartupOutcome::LevelMapEmpty:
 	case ERTStartupOutcome::UsingFallbackFormat:
 	case ERTStartupOutcome::NoTurnManager:
 		return false;
@@ -97,6 +100,10 @@ FText URTStartupReportLibrary::DescribeOutcome(ERTStartupOutcome Outcome)
 		return LOCTEXT("UsingDemoArena", "Arena di ripiego generata.");
 	case ERTStartupOutcome::LevelMapMissing:
 		return LOCTEXT("LevelMapMissing", "Il livello non porta una mappa esagonale: arena di ripiego.");
+	// La correzione e' l'opposto di quella del fratello: li' manca l'actor, qui c'e' e la sua mappa e'
+	// vuota. Mandare a posare un actor gia' posato e' il difetto che #1921 chiude.
+	case ERTStartupOutcome::LevelMapEmpty:
+		return LOCTEXT("LevelMapEmpty", "La mappa del livello e' VUOTA (zero celle): arena di ripiego.");
 	case ERTStartupOutcome::UsingFallbackFormat:
 		return LOCTEXT("UsingFallbackFormat", "Formato di RIPIEGO: nessun formato dichiarato in vigore.");
 	case ERTStartupOutcome::NoTurnManager:

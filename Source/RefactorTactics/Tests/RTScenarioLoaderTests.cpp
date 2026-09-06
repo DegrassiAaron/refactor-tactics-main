@@ -21,6 +21,18 @@
 namespace
 {
 	// Nomi distinti da ogni altro file di test: la unity build condivide la translation unit.
+	//
+	// 🔴 **`B1` portava `"cell": [2, 0]`, ed e' stata cambiata il 2026-09-05 (`#2482`).** Era li' per
+	// esercitare il layer OPZIONALE — due elementi valevano `layer = 0` — e quella forma non esiste piu':
+	// `ParseCell` accetta un array di coordinate se e solo se ha esattamente tre elementi. La fixture non
+	// e' stata «riparata» aggiungendo uno zero per far tornare il verde: la forma che dimostrava e' stata
+	// DECISA fuori di qui — nell'arbitrato dell'issue, che sceglie il rifiuto perche' `[q, r]` con il layer
+	// dedotto e' la stessa classe di difetto dell'arita' non limitata, cioe' un input sotto-specificato che
+	// diventa una cella valida e forse sbagliata. Il caso a due elementi vive ora dove appartiene, fra i
+	// RIFIUTI: `FRTScenarioLoaderCellArityTest`.
+	//
+	// ⚠️ Era l'UNICA occorrenza a due elementi in tutto `Source/`, e il corpus non ne ha nessuna: la
+	// migrazione e' questa riga e nient'altro.
 	const TCHAR* ScenarioLoaderValidJson = TEXT(R"JSON(
 	{
 	  "scenarioId": "Movement.Probe",
@@ -28,7 +40,7 @@ namespace
 	  "mapRadius": 3,
 	  "units": [
 	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
-	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0] }
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] }
 	  ],
 	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
 	  "expect": [ { "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] } ]
@@ -62,7 +74,7 @@ namespace
 	)JSON");
 }
 
-/** Il caso felice: uno scenario ben formato produce i dati attesi, layer opzionale incluso. */
+/** Il caso felice: uno scenario ben formato produce i dati attesi, tutte e tre le componenti della cella incluse. */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderValidTest,
 	"RefactorTactics.Scenario.LoaderAcceptsValidScenario",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -86,10 +98,16 @@ bool FRTScenarioLoaderValidTest::RunTest(const FString&)
 	TestEqual(TEXT("A1 e' Gadget"), A1->HeroId, FName(TEXT("Hero.Gadget")));
 	TestEqual(TEXT("A1 parte da (-2,0,0)"), A1->Cell, FRTCellId(-2, 0, 0));
 
-	// Il layer e' opzionale: `[2, 0]` deve valere `[2, 0, 0]`, non essere rifiutato.
+	// 🔴 **Qui c'era «cella a due componenti -> layer 0», e non e' stata riscritta: e' stata SPOSTATA**
+	// (`#2482`). Cio' che quella riga garantiva — che `[2, 0]` si caricasse — e' precisamente cio' che il
+	// contratto ora vieta, quindi tenerla qui con uno zero in piu' avrebbe conservato la forma dell'assertion
+	// perdendone il mestiere: non dimostrerebbe piu' niente sul layer, perche' su una cella `[2, 0, 0]` un
+	// parser che ignorasse del tutto il terzo elemento darebbe lo stesso risultato. La coppia che il layer la
+	// misura davvero — tre elementi con `layer != 0` che arriva intatto, e due elementi rifiutati — sta in
+	// `FRTScenarioLoaderCellArityTest`.
 	const FRTScenarioUnit* B1 = Scenario.FindUnit(TEXT("B1"));
 	if (!TestNotNull(TEXT("B1 trovata"), B1)) { return false; }
-	TestEqual(TEXT("cella a due componenti -> layer 0"), B1->Cell, FRTCellId(2, 0, 0));
+	TestEqual(TEXT("B1 parte da (2,0,0)"), B1->Cell, FRTCellId(2, 0, 0));
 
 	// Il seed non dichiarato resta 0: il campo esiste ma oggi NON viene consumato (nessun RNG nel progetto).
 	TestEqual(TEXT("seed assente -> 0"), Scenario.Seed, 0);
@@ -1392,6 +1410,297 @@ bool FRTScenarioLoaderRejectsLayerOutsideFlatArenaTest::RunTest(const FString&)
 	// decide — la cella la verifica `FRTScenarioSession` sulla mappa vera.
 	Accepts(TEXT(R"({"scenarioId":"X","fixture":"TestArena","units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,1]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("fixture multilivello: il layer 1 non e' del loader"));
+
+	return true;
+}
+
+/**
+ * #2482 — UN ARRAY DI COORDINATE E' UNA CELLA **SE E SOLO SE** HA TRE ELEMENTI, E IL MESSAGGIO DICE QUANTI
+ * NE HA TROVATI.
+ *
+ * 🔑 **E' l'altra meta' del test qui sopra.** Quello chiede se la cella e' LEGALE sulla mappa — layer che
+ * l'arena non ha, raggio superato. Questo chiede se l'array e' una CELLA: il primo presuppone il secondo, e
+ * finche' il secondo non era una domanda il primo la riceveva gia' risposta male.
+ *
+ * 🔴 **Il difetto che chiude, e perche' non ha sintomi.** La guardia era solo sul basso (`Num() < 2`), con
+ * il terzo elemento letto `Num() >= 3 ? ... : 0`. Due forme passavano senza che nessuno le avesse decise:
+ * `[q, r]` diventava `layer = 0`, e `[q, r, layer, 7]` — una coordinata cubica scritta per abitudine, o un
+ * refuso — perdeva la coda in silenzio. Entrambe producono la stessa cosa: una cella **valida e sbagliata**.
+ * E uno scenario e' AUTOREVOLE per il gate, quindi quella cella non produce un rosso — produce un **verde su
+ * un'altra partita**, che e' il modo di fallire contro cui questo intero file esiste.
+ *
+ * ⛔ **La forma a due elementi e' rifiutata, e non e' una svista di questo test**: e' l'arbitrato scritto
+ * nell'handoff della wave. `[q, r]` col layer dedotto e' la STESSA classe di difetto dell'arita' non
+ * limitata, e il corpus non la usa mai (548 array di coordinate, tutti a tre elementi), quindi non c'e' un
+ * ramo utile da preservare. Se l'owner del formato la volesse ammessa, la sede e' l'issue: questa riga
+ * cadrebbe, e cadrebbe RUMOROSAMENTE, che e' il punto.
+ *
+ * ⚠️ **Perche' `mapRadius: 6` e gli id senza cifre.** L'assertion non legge un bool, legge il NUMERO dentro
+ * il messaggio, e quel numero deve poter arrivare da un posto solo. Sei non e' nessuna delle arita' provate
+ * (0, 1, 2, 3, 4, 5) e `ALFA` non porta cifre che un messaggio possa echeggiare: con `mapRadius: 3` un
+ * errore che nominasse il raggio farebbe passare «nomina la lunghezza attesa» senza che la nomini.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderCellArityTest,
+	"RefactorTactics.Scenario.LoaderRejectsCellArityOtherThanThree",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderCellArityTest::RunTest(const FString&)
+{
+	// Il campo `cell` e' un frammento, non un valore: serve poterlo OMETTERE del tutto per il caso «array
+	// assente», che e' un difetto diverso da «array di lunghezza sbagliata» e va misurato a parte.
+	auto Carica = [](const TCHAR* CampoCella, FRTTestScenario& Out, FString& Error)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Cell.Arity", "version": 1, "mapRadius": 6,
+		  "units": [ { "id": "ALFA", "hero": "Hero.Gadget", "team": 0%s } ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), CampoCella);
+		return URTScenarioLoader::LoadFromString(*Json, Out, Error);
+	};
+
+	// --- 1. TRE elementi: il caso che da' senso a tutti i rifiuti sotto ----------------------------------
+	// ✅ Senza questa controprova le righe seguenti sarebbero compatibili con un loader che rifiuta sempre,
+	// e un `ParseCell` che tornasse `false` a ogni chiamata le farebbe passare tutte.
+	{
+		FRTTestScenario S;
+		FString E;
+		const bool bOk = Carica(TEXT(", \"cell\": [0, 0, 0]"), S, E);
+		if (TestTrue(FString::Printf(TEXT("tre elementi: accettato (errore: '%s')"), *E), bOk)
+			&& TestEqual(TEXT("una unita' schierata"), S.Units.Num(), 1))
+		{
+			TestEqual(TEXT("e la cella e' quella scritta"), S.Units[0].Cell, FRTCellId(0, 0, 0));
+		}
+	}
+
+	// --- 2. BOUNDARY: 0, 1, 2, 4, 5 elementi -------------------------------------------------------------
+	// Le due arita' che mordono davvero sono agli estremi del vecchio comportamento: `2` era ACCETTATA con il
+	// layer dedotto, `4` era ACCETTATA con la coda scartata. `0`, `1` e `5` chiudono il resto del dominio —
+	// una guardia scritta come `Num() < 2 || Num() > 4` lascerebbe passare il quattro, e solo un intervallo
+	// esplorato da entrambi i lati lo dice.
+	//
+	// ⚠️ **Il messaggio, non il bool.** `TestFalse` da solo sarebbe soddisfatto da qualunque altro rifiuto —
+	// un eroe sconosciuto, un raggio superato — e un giorno in cui la cella smettesse di essere controllata
+	// resterebbe verde per il motivo sbagliato. Il numero TROVATO e' cio' che rende il rifiuto attribuibile a
+	// QUESTA guardia, ed e' anche il dato che a chi legge il log distingue un layer dimenticato da una
+	// coordinata cubica copiata: senza, il log dice che l'array e' sbagliato ma non di quanto.
+	struct FCasoArita
+	{
+		int32 Elementi;
+		const TCHAR* Campo;
+	};
+	const FCasoArita Rifiutate[] = {
+		{ 0, TEXT(", \"cell\": []") },
+		{ 1, TEXT(", \"cell\": [0]") },
+		{ 2, TEXT(", \"cell\": [0, 0]") },
+		// 🔑 Il caso che l'issue nomina alla lettera: `[0, 0, 0, 0]`.
+		{ 4, TEXT(", \"cell\": [0, 0, 0, 0]") },
+		{ 5, TEXT(", \"cell\": [0, 0, 0, 0, 0]") }
+	};
+
+	for (const FCasoArita& Caso : Rifiutate)
+	{
+		FRTTestScenario S;
+		FString E;
+		const bool bOk = Carica(Caso.Campo, S, E);
+		TestFalse(FString::Printf(TEXT("%d elementi: rifiutato"), Caso.Elementi), bOk);
+		TestTrue(FString::Printf(TEXT("%d elementi: il motivo nomina la lunghezza TROVATA (era: '%s')"),
+			Caso.Elementi, *E), E.Contains(FString::FromInt(Caso.Elementi)));
+		TestTrue(FString::Printf(TEXT("%d elementi: e quella ATTESA (era: '%s')"),
+			Caso.Elementi, *E), E.Contains(TEXT("3")));
+	}
+
+	// --- 3. ARRAY ASSENTE: un difetto diverso, con un messaggio diverso ----------------------------------
+	// ⛔ Non si asserisce «trovati 0» qui: un campo che manca del tutto non ha lunghezza, e dirgli zero
+	// direbbe una cosa falsa su un array che non c'e'. Cio' che il contratto pretende e' che il rifiuto sia
+	// ATTRIBUIBILE — che dica DOVE — ed e' la stessa convenzione con cui questo file chiede altrove che «il
+	// motivo nomini l'unita'».
+	{
+		FRTTestScenario S;
+		FString E;
+		const bool bOk = Carica(TEXT(""), S, E);
+		TestFalse(TEXT("cella assente: rifiutata"), bOk);
+		TestTrue(FString::Printf(TEXT("e il motivo dice dove (era: '%s')"), *E), E.Contains(TEXT("ALFA")));
+	}
+
+	// --- 4. NESSUN RIPIEGO: la terza componente si LEGGE, non si deduce ----------------------------------
+	// 🔑 **E' l'anti-vacuita' del caso felice.** Il punto 1 usa `[0, 0, 0]`, e su quella cella un parser che
+	// ignorasse del tutto il terzo elemento — scrivendo sempre `layer = 0` — darebbe esattamente lo stesso
+	// risultato: il test sarebbe verde senza che nessuno legga l'elemento che l'intera issue riguarda. Serve
+	// un `layer != 0` che arrivi intatto, e serve una FIXTURE perche' su un'arena a raggio il layer 1 non
+	// esiste (`#1796`, il test qui sopra).
+	{
+		FRTTestScenario S;
+		FString E;
+		const bool bOk = URTScenarioLoader::LoadFromString(
+			TEXT(R"({"scenarioId":"Spec.Cell.Arity.Layer","fixture":"TestArena","units":[{"id":"ALFA","hero":"Hero.Gadget","team":0,"cell":[0,0,1]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+			S, E);
+		if (TestTrue(FString::Printf(TEXT("tre elementi su una fixture multilivello (errore: '%s')"), *E), bOk)
+			&& TestEqual(TEXT("una unita' schierata"), S.Units.Num(), 1))
+		{
+			TestEqual(TEXT("il layer arriva DAL FILE, non da un default"), S.Units[0].Cell, FRTCellId(0, 0, 1));
+		}
+	}
+
+	// ⛔ **E il ripiego non c'e' nemmeno nell'altro verso**: la prova che `[0, 0, 0, 0]` non diventa
+	// `(0, 0, 0)` scartando la coda e' il rifiuto stesso del punto 2 — un ripiego avrebbe prodotto un
+	// caricamento RIUSCITO, e li' si asserisce che non riesce. Non si guarda `Scenario.Units` dopo un
+	// caricamento fallito: cio' che il loader lascia nell'uscita in caso di errore non e' promesso da
+	// nessuna parte, e un test che lo leggesse pinnerebbe un dettaglio invece del contratto.
+
+	return true;
+}
+
+/**
+ * #2482 — LA REGOLA VALE PER **OGNI** CAMPO CHE DICHIARA UNA CELLA, NON SOLO PER `units`.
+ *
+ * 🔑 **E' il criterio di copertura scritto come misura invece che come dichiarazione.** `ParseCell` ha SETTE
+ * punti di chiamata in `RTScenarioLoader.cpp` — `cells`, `interiorWalls`, `doors`, `units`, i passi di
+ * `move`, la cella di `expect UnitAtCell` e le unita' delle `variants` — e questo test li esercita **tutti e
+ * sette**, uno per blocco, con la stessa arita' rotta iniettata in un campo diverso ogni volta.
+ *
+ * ⚠️ **Sono sette, non otto.** L'ottava occorrenza che un `grep -c ParseCell` conta e' la DEFINIZIONE della
+ * funzione. Vale la pena scriverlo qui invece di lasciare che il prossimo lo riconti: «otto chiamanti» era
+ * una misura di grep, non di chiamate.
+ *
+ * 🔴 **E ci sono due campi di coordinate che NON passano da `ParseCell`: `targetCell` e `dashTo`**, letti
+ * inline nell'intent con la stessa vecchia guardia (`Num() >= 2`, terzo elemento opzionale). `targetCell`
+ * ha anche un difetto in piu': con meno di due elementi non e' un errore, e' un campo che SPARISCE — il
+ * ramo fallisce e `bTargetsCell` resta falso senza che nessuno lo dica. **Questo test non li copre di
+ * proposito**: stanno fuori dal contratto di questa wave, che nomina `ParseCell` e i suoi chiamanti, e un
+ * test rosso su un ramo che nessuno ha deciso di cambiare verrebbe letto come regressione invece che come
+ * Finding. Sono un Finding aperto, non una lacuna dimenticata: unificarli e' una restrizione di formato su
+ * due chiavi diverse, e la sede della decisione e' l'issue.
+ *
+ * ⛔ **Ogni blocco porta la propria CONTROPROVA, e non e' cerimonia.** Le fixture di `interiorWalls` e
+ * `doors` sono costruite a mano qui dentro: senza un caricamento riuscito con `[0, 0, 0]`, un rifiuto
+ * potrebbe arrivare da un mio refuso in un campo vicino, e il test direbbe «l'arita' e' controllata» avendo
+ * misurato che ho scritto male un muro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderCellArityEveryCallSiteTest,
+	"RefactorTactics.Scenario.EveryCellFieldRejectsWrongArity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderCellArityEveryCallSiteTest::RunTest(const FString&)
+{
+	// Uno scenario con quattro fessure — le sezioni facoltative, la cella dell'unita', il passo di `move`,
+	// la cella dell'assertion — cosi' che ogni chiamante si eserciti cambiando UNA cosa sola. Nessuna cifra
+	// `3` o `4` compare nel modello: e' cio' che rende leggibile un numero trovato nel messaggio.
+	auto Base = [](const FString& Sezioni, const TCHAR* CellaUnita, const TCHAR* PassoMove, const TCHAR* CellaExpect)
+	{
+		return FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Cell.Arity.CallSites", "version": 1, "mapRadius": 6,
+		  %s
+		  "units": [
+		    { "id": "ALFA", "hero": "Hero.Gadget", "team": 0, "cell": %s },
+		    { "id": "BETA", "hero": "Hero.Branth", "team": 1, "cell": [0, -6, 0] }
+		  ],
+		  "turns": [ { "intents": [ { "unit": "ALFA", "move": [ %s ] } ] } ],
+		  "expect": [ { "type": "UnitAtCell", "unit": "ALFA", "cell": %s },
+		              { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), *Sezioni, CellaUnita, PassoMove, CellaExpect);
+	};
+
+	auto Esercita = [this](const TCHAR* Chiamante, const FString& JsonBuono, const FString& JsonRotto)
+	{
+		// La controprova viene PRIMA, e per una ragione: se cade lei, il rifiuto sotto non dimostra niente.
+		//
+		// ⚠️ Il caricamento si esegue su una riga PROPRIA invece che dentro la `Printf`: l'ordine di
+		// valutazione degli argomenti non e' garantito, e il motivo del rifiuto verrebbe letto quando la
+		// stringa e' ancora vuota — cioe' proprio nel caso in cui serve.
+		{
+			FRTTestScenario S;
+			FString E;
+			const bool bOk = URTScenarioLoader::LoadFromString(*JsonBuono, S, E);
+			TestTrue(FString::Printf(TEXT("%s: con tre elementi lo scenario si carica (errore: '%s')"), Chiamante, *E), bOk);
+		}
+		{
+			FRTTestScenario S;
+			FString E;
+			const bool bOk = URTScenarioLoader::LoadFromString(*JsonRotto, S, E);
+			TestFalse(FString::Printf(TEXT("%s: con quattro elementi e' rifiutato"), Chiamante), bOk);
+			TestTrue(FString::Printf(TEXT("%s: il motivo nomina la lunghezza trovata (era: '%s')"), Chiamante, *E),
+				E.Contains(TEXT("4")));
+			TestTrue(FString::Printf(TEXT("%s: e quella attesa (era: '%s')"), Chiamante, *E),
+				E.Contains(TEXT("3")));
+		}
+	};
+
+	const TCHAR* Buona = TEXT("[0, 0, 0]");
+	const TCHAR* Rotta = TEXT("[0, 0, 0, 0]");
+	const FString NessunaSezione;
+
+	// --- 1. `cells` — la cella MODIFICATA. Un ostacolo posato su una cella dedotta non blocca cio' che lo
+	//        scenario crede di aver bloccato.
+	{
+		auto Sezione = [](const TCHAR* Cella)
+		{
+			return FString::Printf(TEXT(R"("cells": [ { "cell": %s, "blocksLineOfSight": true } ],)"), Cella);
+		};
+		Esercita(TEXT("cells"),
+			Base(Sezione(TEXT("[1, 0, 0]")), Buona, Buona, Buona),
+			Base(Sezione(TEXT("[1, 0, 0, 0]")), Buona, Buona, Buona));
+	}
+
+	// --- 2. `interiorWalls` — la geometria intra-cella. Forma copiata da `Combat.BlockedByInteriorWall`,
+	//        che il test sul corpus tiene valido: una fixture inventata qui rischierebbe di far cadere la
+	//        controprova per un campo vicino invece che per l'arita'.
+	{
+		auto Sezione = [](const TCHAR* Cella)
+		{
+			return FString::Printf(TEXT(R"("interiorWalls": [ { "cell": %s, "axis": "Deg90", "offset": 0, "alongStart": -12, "alongEnd": 12, "type": "High", "stableId": "Muro_Prova" } ],)"), Cella);
+		};
+		Esercita(TEXT("interiorWalls"),
+			Base(Sezione(TEXT("[1, 0, 0]")), Buona, Buona, Buona),
+			Base(Sezione(TEXT("[1, 0, 0, 0]")), Buona, Buona, Buona));
+	}
+
+	// --- 3. `doors` — forma copiata da `Spec.Map.InteractClosesOpenDoor`, che e' l'unica del corpus a
+	//        dichiarare una porta SENZA binding: e' la piu' piccola che si carichi.
+	{
+		auto Sezione = [](const TCHAR* Cella)
+		{
+			return FString::Printf(TEXT(R"("doors": [ { "cell": %s, "edge": "NE", "doorId": 1, "state": "Closed" } ],)"), Cella);
+		};
+		Esercita(TEXT("doors"),
+			Base(Sezione(TEXT("[1, 0, 0]")), Buona, Buona, Buona),
+			Base(Sezione(TEXT("[1, 0, 0, 0]")), Buona, Buona, Buona));
+	}
+
+	// --- 4. `units` — lo schieramento, cioe' il chiamante che il corpus percorre 548 volte.
+	Esercita(TEXT("units"),
+		Base(NessunaSezione, Buona, Buona, Buona),
+		Base(NessunaSezione, Rotta, Buona, Buona));
+
+	// --- 5. I passi di `move` — ⚠️ il chiamante piu' esposto al refuso che l'issue descrive: un percorso e'
+	//        una LISTA di coordinate, ed e' scrivendone una in fila all'altra che si perde un elemento o se
+	//        ne aggiunge uno.
+	Esercita(TEXT("move"),
+		Base(NessunaSezione, Buona, Buona, Buona),
+		Base(NessunaSezione, Buona, Rotta, Buona));
+
+	// --- 6. `expect UnitAtCell` — 🔴 il chiamante che, sbagliato, mente nel verso peggiore: e' l'ASSERTION.
+	//        Una cella dedotta qui non rompe la partita, cambia cio' che le si chiede di dimostrare — e uno
+	//        scenario verde su un'altra domanda e' esattamente il difetto che l'issue nomina.
+	Esercita(TEXT("expect UnitAtCell"),
+		Base(NessunaSezione, Buona, Buona, Buona),
+		Base(NessunaSezione, Buona, Buona, Rotta));
+
+	// --- 7. Le unita' delle `variants` — il canary differenziale. ⚠️ Qui la cella buona NON puo' essere
+	//        `[0, 0, 0]`: una variante che non sposta nulla e' rifiutata a monte (e giustamente, e' un
+	//        confronto verde per costruzione), e la controprova cadrebbe per quel motivo invece che per
+	//        l'arita'. Si sposta ALFA su una cella libera, e la seconda variante su un'altra ancora.
+	{
+		auto Sezione = [](const TCHAR* Cella)
+		{
+			return FString::Printf(TEXT(R"("expectSameAcrossVariants": true, "variants": [ { "name": "a", "units": [ { "id": "ALFA", "cell": %s } ] }, { "name": "b", "units": [ { "id": "ALFA", "cell": [0, 1, 0] } ] } ],)"), Cella);
+		};
+		Esercita(TEXT("variants"),
+			Base(Sezione(TEXT("[1, 0, 0]")), Buona, Buona, Buona),
+			Base(Sezione(TEXT("[1, 0, 0, 0]")), Buona, Buona, Buona));
+	}
 
 	return true;
 }

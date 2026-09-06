@@ -60,6 +60,15 @@ FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnM
 		View.ReadyCountdownSecondsRemaining = TurnManager->GetReadyCountdownRemaining();
 	}
 
+	// La finestra di preparazione dell'autobattle (`#2386`). Stessa forma del countdown e per la stessa
+	// ragione: `IsPrepWindowActive()` risponde sulla presenza, non sul residuo — e in pausa risponde vero
+	// con il timer spento, che e' precisamente il caso in cui la riga di stato deve continuare a parlare.
+	if (TurnManager->IsPrepWindowActive())
+	{
+		View.PrepWindowSecondsRemaining = TurnManager->GetPrepWindowRemaining();
+		View.bPrepWindowPaused = TurnManager->IsPrepWindowPaused();
+	}
+
 	// Il derivato si pubblica **dopo** i due orologi, ed e' l'unico ordine possibile: legge
 	// entrambi. Chi riceve la vista intera trova il numero gia' fatto; chi la costruisce a mano
 	// chiama la funzione.
@@ -70,6 +79,16 @@ FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnM
 
 float URTHudViewModel::ComputeSecondsUntilCommit(const FRTMatchHeaderView& Header)
 {
+	// La finestra dell'autobattle (`#2386`) ha la precedenza su tutto, e non e' una priorita' arbitraria: e'
+	// l'ULTIMO orologio della catena. Quando e' armata il Planning e' gia' scaduto — la arma proprio la sua
+	// scadenza — quindi non c'e' nessun tetto che possa accorciarla, e in autobattle nessuno preme Ready.
+	// ⚠️ In pausa il numero e' fermo, e resta quello giusto da mostrare: il commit arrivera' fra tanti
+	// secondi quanti ne restano, appena si riprende.
+	if (Header.PrepWindowSecondsRemaining >= 0.f)
+	{
+		return Header.PrepWindowSecondsRemaining;
+	}
+
 	// Il countdown del Ready, quando e' armato, non decide da solo: il tetto del Planning lo accorcia se
 	// scade prima (`#2193`). `>= 0.f` e non `> 0.f` — uno zero qui significa «commit adesso», che e' un
 	// numero da mostrare, non un caso da escludere.
@@ -343,6 +362,41 @@ TArray<FRTUnitCardView> URTHudViewModel::BuildTeamRoster(const TArray<ARTUnit*>&
 		}
 	}
 	return Roster;
+}
+
+FRTDamageTokenView URTHudViewModel::BuildDamageToken(int32 Amount, int32 TargetStableUnitId)
+{
+	FRTDamageTokenView View;
+
+	// ⚠️ `0` e' «nessuno» ([D-063]), non l'unita' numero zero: si conserva com'e' invece di normalizzarlo a
+	// `INDEX_NONE`, perche' e' la sentinella che `FRTResolvedEvent` gia' usa e tradurla creerebbe due
+	// vocabolari per lo stesso fatto. Chi disegna confronta con lo `StableUnitId` della propria unita': uno
+	// zero non combacia con nessuno, ed e' esattamente l'effetto voluto.
+	View.TargetStableUnitId = TargetStableUnitId;
+	View.Amount = Amount;
+
+	// 🔴 **La soglia e' `<= 0`, non `== 0`.** Un valore negativo non e' atteso — `Hit.Power` passa da
+	// `FMath::Max(0, ...)` — ma se arrivasse sarebbe un difetto del simulatore, e `-(-3)` stamperebbe `+3`
+	// sopra la testa di chi ha appena incassato: una cifra plausibile e falsa. Il ramo dello zero e' il
+	// posto giusto dove farlo cadere, perche' dice «nessuna quantita' da mostrare» senza inventarne una.
+	View.bHasDamage = (Amount > 0);
+
+	if (View.bHasDamage)
+	{
+		// Il segno fa parte del canale: `#2453` vieta il colore come UNICO canale, e una cifra nuda si
+		// leggerebbe come una cura tanto quanto come un danno. Il meno lo disambigua senza dipendere dalla
+		// tinta.
+		View.Label = FString::Printf(TEXT("-%d"), Amount);
+	}
+	else
+	{
+		// L'uscita (a) di `#2455`. Dice **quanto** — zero — e tace sul **perche'**, che il dato non porta.
+		// ⛔ Non e' la cifra nuda `0`: quella si legge come una quantita' di danno inflitta, ed e' cio' che
+		// l'AC esclude. La parola accanto la rende una dichiarazione invece di un numero.
+		View.Label = TEXT("0 danni");
+	}
+
+	return View;
 }
 
 TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray<AActor*>& Actors)

@@ -21,6 +21,7 @@
 #include "Perception/RTTeamKnowledge.h" // ContactLifetimeTurns: la durata del ricordo ha un owner, non si ricopia
 #include "Components/WidgetComponent.h" // la sovrapposizione sopra la testa (#2288, D-320)
 #include "UI/RTUnitOverlayWidget.h"  // la classe base del widget: serve il tipo completo per SetWidgetClass
+#include "UI/RTHudViewModel.h"      // BuildDamageToken: la composizione del token e' del view-model (#2455)
 
 ARTUnit::ARTUnit()
 {
@@ -240,6 +241,30 @@ UUserWidget* ARTUnit::GetOverlayWidgetObject() const
 	// un mondo senza rendering, come quello dei test headless — questa risponde `nullptr`, ed e' il caso
 	// normale, non un errore. Chi la chiama deve poterlo attraversare senza dire niente.
 	return OverlayWidget ? OverlayWidget->GetUserWidgetObject() : nullptr;
+}
+
+void ARTUnit::ShowDamageToken(int32 Amount)
+{
+	// Il giudizio sta nella funzione pura, non qui: `#2455` mette la regola del caso zero e la composizione
+	// dell'etichetta in `URTHudViewModel::BuildDamageToken`, che un test chiama senza costruire un widget.
+	LastDamageToken = URTHudViewModel::BuildDamageToken(Amount, StableUnitId);
+
+	// ⚠️ **Il campo si scrive SEMPRE, il widget si aggiorna se c'e'.** In un mondo headless — e prima che il
+	// componente abbia istanziato il widget — `GetOverlayWidgetObject()` risponde `nullptr`, ed e' il caso
+	// normale che il suo doc-comment dichiara. Scrivere prima di quel controllo e' cio' che rende il
+	// cablaggio verificabile senza rendering.
+	if (UUserWidget* Raw = GetOverlayWidgetObject())
+	{
+		if (URTUnitOverlayWidget* Overlay = Cast<URTUnitOverlayWidget>(Raw))
+		{
+			Overlay->PushDamageToken(LastDamageToken);
+		}
+	}
+
+	// ⛔ **Nessun controllo sul velo QUI, ed e' deliberato.** Chi puo' vedere questa unita' lo decide
+	// `ARTHUD::UpdateObserverVeil`, che spegne l'intero `OverlayWidget` (`RefreshComponentVisibility`): un
+	// secondo giudizio in questo punto sarebbe la divergenza che `#2246` ha appena tolto, e la prima volta
+	// che i due non fossero d'accordo nessun test lo direbbe.
 }
 
 void ARTUnit::ApplyUnitAnimClass()
@@ -605,6 +630,63 @@ TSoftObjectPtr<UAnimSequenceBase> ARTUnit::GhostFallbackClipPath() const
 	}
 
 	return GhostFallbackClipFor(Defaults, HeroId);
+}
+
+TSoftObjectPtr<UAnimSequenceBase> ARTUnit::ResolvedClipPathFor(ERTPresentationRole Ruolo) const
+{
+	// Stessa porta di `GhostFallbackClipPath`, e per la stessa ragione: il CDO di `UnitAnimClass` e' l'unica
+	// lista dei nomi delle clip. Una seconda lista qui divergerebbe alla prima modifica.
+	if (UnitAnimClass == nullptr)
+	{
+		return nullptr;
+	}
+
+	const URTUnitAnimInstance* Defaults = Cast<URTUnitAnimInstance>(UnitAnimClass->GetDefaultObject());
+	if (Defaults == nullptr)
+	{
+		return nullptr;
+	}
+
+	// 🔑 Risolve SENZA caricare: headless i pack non ci sono, e il PATH e' cio' che un test puo' asserire.
+	return Defaults->ActiveClipFor(HeroId, Ruolo);
+}
+
+void ARTUnit::PlayPresentationRole(ERTPresentationRole Ruolo)
+{
+	// ⛔ Ogni uscita anticipata di questa funzione e' un DEGRADO previsto, non un errore: l'unita' resta in
+	// posa di riferimento e la partita si gioca uguale (invariante #1, come D-248 per la locomozione).
+	const TSoftObjectPtr<UAnimSequenceBase> Path = ResolvedClipPathFor(Ruolo);
+	UAnimSequenceBase* const Sequenza = Path.IsNull() ? nullptr : Path.LoadSynchronous();
+
+	if (Sequenza != nullptr)
+	{
+		// La skeletal dell'EROE, mai `ContactGhost`: quella ha un grafo suo, e animarla dal vivo
+		// contraddirebbe cio' che la sagoma e' (#1750).
+		if (USkeletalMeshComponent* const Skeletal = FindHeroSkeletal())
+		{
+			if (UAnimInstance* const Anim = Skeletal->GetAnimInstance())
+			{
+				// 🔑 **Nessun montaggio-asset**: `PlaySlotAnimationAsDynamicMontage` costruisce il montaggio
+				// a runtime attorno alla sequenza, sullo slot che `FRTUnitAnimProxy` espone gia' come radice
+				// (`FAnimSlotGroup::DefaultSlotName`, D-248). E' la ragione per cui i dodici `AM_*` non
+				// servono (#2450).
+				Anim->PlaySlotAnimationAsDynamicMontage(Sequenza, FAnimSlotGroup::DefaultSlotName);
+			}
+		}
+	}
+
+	// Il Blueprint viene notificato SEMPRE, anche quando non si e' suonato niente: riceve `nullptr` e sa
+	// che il ruolo e' scattato senza una clip. Un BP che non implementa l'evento non fa nulla.
+	switch (Ruolo)
+	{
+	case ERTPresentationRole::Attack: PlayAttackMontage(Sequenza); break;
+	case ERTPresentationRole::Hit:    PlayHitMontage(Sequenza);    break;
+	case ERTPresentationRole::Death:  PlayDefeatMontage(Sequenza); break;
+	default:
+		// Gli altri ruoli non hanno un evento discreto: `Idle` e `Move` li suona il grafo, e i restanti non
+		// hanno ancora un consumatore. Suonare la clip resta corretto; notificare non avrebbe chi ascolta.
+		break;
+	}
 }
 
 USkeletalMeshComponent* ARTUnit::FindHeroSkeletal() const

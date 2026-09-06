@@ -643,7 +643,31 @@ enum class ERTMoveOutcome : uint8
 	 * ⚠️ **Uno scivolamento avvenuto anche solo IN PARTE e' `Slid`, non questo.** Il confine conta a valle:
 	 * classificare come «non scivolata» un'unita' spostata di almeno una cella le toglierebbe `Unbalanced`.
 	 */
-	SlideBlocked
+	SlideBlocked,
+	/**
+	 * CADUTA GRAVITAZIONALE (#2402, `spec-caduta-e-bordi.md` §3–§4): uno spostamento forzato ha attraversato
+	 * un **bordo aperto**, lo spostamento orizzontale e' terminato — i passi residui sono persi — e l'unita'
+	 * e' scesa. Aggiunto in CODA, come tutti i valori sopra: l'esito viaggia come `uint8` nel formato
+	 * serializzato (`WithMicroStep` = 12), quindi le tracce gia' scritte non cambiano significato e non c'e'
+	 * migrazione (`D-245`).
+	 *
+	 * **Perche' non riusa `Displaced`.** Quello dice «una spinta l'ha portata altrove», che qui e' vero e
+	 * insufficiente: `Displaced` porta con se' *«raggiunta la destinazione della spinta»*, e la destinazione
+	 * della spinta non e' dove l'unita' e' finita. E' lo stesso difetto che `D-319` ha dovuto correggere per
+	 * lo scivolamento — un esito che dice «arrivata dove doveva» su un'unita' finita altrove manda a cercare
+	 * un difetto del resolver.
+	 *
+	 * ⚠️ **Non e' `Prone`.** Nel repository *«la caduta»* e' gia' una cosa — `D-319`, chi e' spostato mentre
+	 * e' `Unbalanced` finisce a terra — e le due regole **non si fondono**: la caduta gravitazionale non
+	 * applica `Prone` per se'. Un'unita' `Unbalanced` spinta oltre un bordo aperto le attraversa entrambe
+	 * (`spec` §5.1).
+	 *
+	 * 🔑 **`TgtCell` e' dove l'unita' e' FINITA**, che e' uno dei tre esiti di atterraggio di `spec` §4:
+	 * primario libero, alternativa adiacente, oppure `LastStableCell` nel caso saturo. La cella da cui e'
+	 * caduta resta in `SrcCell`. Distinguere QUALE dei tre e' avvenuto e' materia di **#2403**, che aggiunge
+	 * la catena causale: questo valore dice *che* e' caduta, non *come* e' atterrata.
+	 */
+	Fell
 };
 
 /**

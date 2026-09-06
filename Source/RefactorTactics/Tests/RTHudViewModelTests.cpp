@@ -1098,4 +1098,116 @@ bool FRTHudVmSecondsUntilCommitIsPublishedTest::RunTest(const FString&)
 	return true;
 }
 
+
+// ---------------------------------------------------------------------------------------------------------
+// Il token di danno: la cifra viene dall'evento, e il caso zero e' una decisione (`#2455`)
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * 🔴 **Il numero mostrato e' quello dell'evento, e il caso `Amount <= 0` ha un comportamento SCELTO.**
+ *
+ * È l'unica regola di giudizio che il token possiede, ed è pura apposta: `URTUnitOverlayWidget` è un
+ * `UUserWidget` con copertura headless **zero** ([D-320] punto 5), quindi tutto ciò che decide deve vivere
+ * qui, dove un test lo chiama senza costruire un widget.
+ *
+ * ⚠️ **Il caso zero non è di frontiera.** `URTHexCombatLibrary::CollectHexAttacks` dichiara *«Il danno si
+ * ferma a 0: il colpo resta avvenuto»* e aggiunge comunque il colpo a `Plan.Hits`: con
+ * `LowCoverDamageReduction = 10`, un intento di potenza ≤ 10 dietro copertura bassa arriva qui a zero. Un
+ * ramo `else` non deciso lo mostrerebbe come «niente» — cioè un attacco che non è successo, quando invece
+ * è successo e non ha tolto nulla.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamageTokenCarriesEventAmountTest,
+	"RefactorTactics.HudViewModel.DamageTokenCarriesTheEventAmountAndDecidesTheZeroCase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDamageTokenCarriesEventAmountTest::RunTest(const FString&)
+{
+	// (a) Il caso ordinario: la cifra dell'evento, col segno. Il segno è un canale, non decorazione — `#2453`
+	// vieta il colore come UNICO canale, e una cifra nuda si leggerebbe come una cura.
+	{
+		const FRTDamageTokenView T = URTHudViewModel::BuildDamageToken(17, /*Target*/ 3);
+		TestTrue(TEXT("(a) c'e' danno"), T.bHasDamage);
+		TestEqual(TEXT("(a) l'importo e' quello dell'evento"), T.Amount, 17);
+		TestEqual(TEXT("(a) l'etichetta porta cifra e segno"), T.Label, FString(TEXT("-17")));
+		TestEqual(TEXT("(a) il soggetto e' chi subisce"), T.TargetStableUnitId, 3);
+	}
+
+	// (b) 🔴 Il caso zero: NON la cifra nuda, e NON il vuoto.
+	{
+		const FRTDamageTokenView T = URTHudViewModel::BuildDamageToken(0, /*Target*/ 3);
+		TestFalse(TEXT("(b) nessun danno da mostrare come cifra"), T.bHasDamage);
+		TestFalse(TEXT("(b) ma un'etichetta c'e': il colpo e' avvenuto"), T.Label.IsEmpty());
+		TestNotEqual(TEXT("(b) e non e' la cifra nuda 0"), T.Label, FString(TEXT("0")));
+		TestNotEqual(TEXT("(b) ne' un meno seguito da zero"), T.Label, FString(TEXT("-0")));
+	}
+
+	// (c) Difesa: un valore negativo non è atteso — `Hit.Power` passa da `FMath::Max(0, ...)` — ma se
+	// arrivasse, `-(-3)` stamperebbe `+3` sopra la testa di chi ha appena incassato. Cade nel ramo dello
+	// zero, che dice «nessuna quantità da mostrare» senza inventarne una.
+	{
+		const FRTDamageTokenView T = URTHudViewModel::BuildDamageToken(-3, /*Target*/ 3);
+		TestFalse(TEXT("(c) un negativo non e' danno da mostrare"), T.bHasDamage);
+		TestEqual(TEXT("(c) e cade nella stessa etichetta dello zero"),
+			T.Label, URTHudViewModel::BuildDamageToken(0, 3).Label);
+		TestFalse(TEXT("(c) e non stampa un segno piu'"), T.Label.Contains(TEXT("+")));
+	}
+
+	// (d) `0` non è l'unità numero zero: è «nessuno» ([D-063]). Si conserva com'è, così chi disegna
+	// confronta con il proprio `StableUnitId` e non trova nessuna corrispondenza.
+	{
+		const FRTDamageTokenView T = URTHudViewModel::BuildDamageToken(17, /*Target*/ 0);
+		TestEqual(TEXT("(d) lo zero del soggetto attraversa intatto"), T.TargetStableUnitId, 0);
+		TestTrue(TEXT("(d) e non impedisce di comporre la cifra"), T.bHasDamage);
+	}
+
+	// (e) ⛔ Anti-vacuità: l'etichetta **dipende** dall'importo. Senza questa riga tutte le sopra
+	// starebbero in piedi anche con una costante al posto della composizione.
+	TestNotEqual(TEXT("(e) importi diversi, etichette diverse"),
+		URTHudViewModel::BuildDamageToken(17, 3).Label,
+		URTHudViewModel::BuildDamageToken(18, 3).Label);
+
+	return true;
+}
+
+/**
+ * 🔴 **A scadenza l'animazione vale esattamente `0`, e lo zero esatto è il contenuto del test.**
+ *
+ * L'AC di `#2455` chiede che la barra *«torni a riposo senza restare in uno stato transitorio»*. Con un
+ * ritorno approssimato la scala si fermerebbe a `1.0001` e la sovrapposizione resterebbe per sempre appena
+ * più grande, in un punto dove nessuno guarderebbe più — un difetto che non fa rumore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverlayFadeAlphaTest,
+	"RefactorTactics.HudViewModel.FadeAlphaReachesRestExactly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverlayFadeAlphaTest::RunTest(const FString&)
+{
+	// All'inizio: pieno.
+	TestEqual(TEXT("a tempo zero l'animazione e' piena"),
+		URTUnitOverlayWidget::FadeAlpha(0.f, 1.f), 1.f);
+
+	// A metà: metà. Non è una proprietà del riposo, ma senza di essa «0 all'inizio e 0 alla fine» sarebbe
+	// soddisfatto anche da una funzione costante a zero.
+	TestEqual(TEXT("a meta' durata vale meta'"),
+		URTUnitOverlayWidget::FadeAlpha(0.5f, 1.f), 0.5f);
+
+	// 🔴 A scadenza: **esattamente** zero, non «circa».
+	TestEqual(TEXT("a scadenza e' esattamente zero"),
+		URTUnitOverlayWidget::FadeAlpha(1.f, 1.f), 0.f);
+
+	// Oltre la scadenza: resta zero, non diventa negativa — una scala negativa specchierebbe il widget.
+	TestEqual(TEXT("oltre la scadenza resta zero"),
+		URTUnitOverlayWidget::FadeAlpha(5.f, 1.f), 0.f);
+
+	// Durata non positiva: «già finita», e nessuna divisione per zero. `DamageTokenSeconds = 0` è il modo
+	// dichiarato per spegnere l'effetto senza ricompilare.
+	TestEqual(TEXT("durata zero: gia' finita"),
+		URTUnitOverlayWidget::FadeAlpha(0.f, 0.f), 0.f);
+	TestEqual(TEXT("durata negativa: gia' finita, non un errore"),
+		URTUnitOverlayWidget::FadeAlpha(1.f, -1.f), 0.f);
+
+	// Un tempo negativo non risale sopra il pieno: il clamp sta sul tempo, e vale in entrambi i versi.
+	TestEqual(TEXT("un tempo negativo non supera il pieno"),
+		URTUnitOverlayWidget::FadeAlpha(-2.f, 1.f), 1.f);
+
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS

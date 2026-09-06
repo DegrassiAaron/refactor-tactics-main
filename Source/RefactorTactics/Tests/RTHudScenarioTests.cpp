@@ -25,6 +25,7 @@
 //   3. il test aggancia il **Blueprint** — non la classe base — agli actor rimasti vivi, e legge cosa mostra.
 
 #include "Misc/AutomationTest.h"
+#include "Tests/RTWorldFixtures.h"
 #include "Misc/ScopeExit.h" // ON_SCOPE_EXIT: il mondo si distrugge anche sui `return false` intermedi
 #include "RTWorldFixtures.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
@@ -64,18 +65,6 @@ namespace
 	}
 
 	/** La prima unita' della squadra indicata, fra quelle che lo scenario ha lasciato in campo. */
-	ARTUnit* FirstUnitOfTeam(UWorld* World, int32 TeamId)
-	{
-		for (TActorIterator<ARTUnit> It(World); It; ++It)
-		{
-			if (It->TeamId == TeamId)
-			{
-				return *It;
-			}
-		}
-		return nullptr;
-	}
-
 	/**
 	 * Gli slot che il dock ha davvero costruito, nell'ordine in cui stanno nel pannello.
 	 *
@@ -151,7 +140,7 @@ bool FRTHudDockArmedFromScenarioTest::RunTest(const FString&)
 		return false;
 	}
 
-	ARTUnit* Mine = FirstUnitOfTeam(World, 0);
+	ARTUnit* Mine = RTWorldFixtures::FirstUnitOfTeam(World, 0);
 	if (!TestNotNull(TEXT("lo scenario ha lasciato in campo un'unita' del team 0"), Mine)) { return false; }
 
 	// --- 2. Il BLUEPRINT, non la classe base ---------------------------------------------------------
@@ -323,7 +312,7 @@ bool FRTHudSlotsFromScenarioTest::RunTest(const FString&)
 		return false;
 	}
 
-	ARTUnit* Mine = FirstUnitOfTeam(World, 0);
+	ARTUnit* Mine = RTWorldFixtures::FirstUnitOfTeam(World, 0);
 	if (!TestNotNull(TEXT("un'unita' del team 0"), Mine)) { return false; }
 
 	UClass* PanelClass = LoadClass<URTSelectedUnitPanelWidget>(nullptr, PanelBlueprintPath);

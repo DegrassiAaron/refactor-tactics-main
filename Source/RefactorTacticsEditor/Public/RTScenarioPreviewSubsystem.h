@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "EditorSubsystem.h"
 #include "Replay/RTReplayStateLibrary.h"    // FRTTracedUnitState
+#include "Replay/RTBoundaryChecksum.h"
 #include "Replay/RTReplayViewModel.h"      // FRTReplayViewModel, FRTReplayPosition
 #include "Replay/RTPlaybackSpeed.h"        // ERTPlaybackSpeed
 #include "ScenarioHarness/RTScenarioDraft.h" // FRTScenarioUnitView
@@ -93,6 +94,23 @@ public:
 
 	/** `true` fra `OpenPlayback` e `ClosePlayback`. */
 	bool IsPlaybackOpen() const { return bPlaybackOpen; }
+
+	/**
+	 * Le righe dei **boundary checksum** della corsa in playback, e dove diverge dalla corsa precedente.
+	 *
+	 * 🔴 **E' il consumer che `#2374` non aveva.** `URTBoundaryChecksumLibrary::DescribeDivergence` esisteva,
+	 * era testata e nessuno la chiamava fuori dai test: la capacita' di dire *«la risoluzione e' cambiata a
+	 * `T1|Move#1`»* era costruita e irraggiungibile. Qui diventa raggiungibile, e da un attore che ha una
+	 * ragione per chiederlo — il designer che ha appena modificato lo scenario.
+	 *
+	 * ⚠️ **Questa e' la sola via che possiede `Initial`.** `ChecksumsAlongTrace` ha bisogno dello schieramento
+	 * di partenza e la traccia non lo porta: `ARTTurnManager` espone lo stato CORRENTE, non quello iniziale,
+	 * quindi un comando `rt.Debug.*` sulla partita viva non potrebbe costruirlo. Qui c'e' gia'
+	 * (`PlaybackInitial`, da `RTScenarioPlayback::InitialStatesFromViews`).
+	 *
+	 * Sola lettura: non calcola hash e non riordina boundary, delega.
+	 */
+	TArray<FString> DescribePlaybackBoundaries() const;
 
 	/**
 	 * Sposta i marcatori a **quel punto** della traccia, e ridisegna.
@@ -268,6 +286,57 @@ private:
 
 	/** Lo schieramento da cui la ricostruzione parte: la traccia dichiara i CAMBIAMENTI, non le partenze. */
 	TArray<FRTTracedUnitState> PlaybackInitial;
+
+	/**
+	 * Promuove la corsa in playback a **termine di paragone** e azzera quella corrente.
+	 *
+	 * 🔴 **Esiste perche' lo smontaggio avviene in DUE posti** — `ClearPreview` e `ClosePlayback` — e la
+	 * promozione deve avvenire in entrambi, mentre la corsa uscente e' ancora intatta. La prima stesura
+	 * provava a catturarla in `OpenPlayback`: troppo tardi, perche' il pulsante Run passa da
+	 * `ShowScenario()` → `ClearPreview()`, che l'aveva gia' azzerata.
+	 *
+	 * ⚠️ `bWasOpen` arriva dal CHIAMANTE e non si legge da `bPlaybackOpen`: entrambi gli smontaggi azzerano
+	 * quel flag fra le prime righe, quindi leggerlo qui dentro renderebbe la promozione dipendente
+	 * dall'ordine delle istruzioni sopra — una rottura silenziosa al primo riordino.
+	 */
+	void PromoteRunToComparison(bool bWasOpen);
+
+	/** I boundary della corsa in playback, calcolati una volta all'apertura. */
+	TArray<FRTBoundaryChecksum> PlaybackBoundaries;
+
+	/** Lo scenario a cui appartiene la corsa in playback. Vuoto se non c'e' playback. */
+	FString PlaybackScenarioId;
+
+	/**
+	 * I boundary della corsa PRECEDENTE: il termine di paragone.
+	 *
+	 * 🔴 **Sopravvive a `ClearPreview`, e la prima stesura sbagliava proprio qui.** Il pulsante Run del
+	 * pannello fa `ShowScenario()` e poi `OpenPlayback()`, e `ShowScenario` comincia con `ClearPreview()`:
+	 * azzerare il paragone li' lo azzerava a **ogni** corsa, e il verdetto di divergenza non partiva mai.
+	 * Era la stessa catena morta che questa issue esiste per chiudere, un anello piu' in fuori.
+	 *
+	 * ⛔ La sicurezza contro il confronto fra scenari diversi NON viene piu' dall'azzeramento: viene
+	 * dall'identita', qui sotto. Affidarla a «chi chiama cosa» significava dipendere da un percorso che
+	 * nessun test attraversava.
+	 */
+	TArray<FRTBoundaryChecksum> PreviousRunBoundaries;
+
+	/**
+	 * Lo scenario della corsa precedente. Il confronto avviene **solo** se coincide con quello corrente.
+	 *
+	 * Due corse di scenari diversi non sono confrontabili: un verdetto che le confrontasse nominerebbe un
+	 * boundary vero dentro un'affermazione falsa, che e' il modo peggiore di sbagliare.
+	 */
+	FString PreviousRunScenarioId;
+
+	/**
+	 * `true` quando una corsa precedente esiste davvero.
+	 *
+	 * ⚠️ Distingue «nessuna corsa precedente» da «corsa precedente con zero boundary», che un array vuoto
+	 * confonderebbe — la stessa distinzione che `DescribeBoundaryChecksums` fa stampando «nessuno» invece
+	 * di non stampare niente.
+	 */
+	bool bHasPreviousRun = false;
 
 	/** `StableUnitId` -> identita' d'authoring, per la corsa che il playback sta mostrando. */
 	TMap<int32, FString> PlaybackScenarioIds;

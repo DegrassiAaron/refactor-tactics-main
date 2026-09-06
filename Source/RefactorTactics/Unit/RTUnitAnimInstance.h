@@ -6,35 +6,11 @@
 #include "Animation/AnimNode_SequencePlayer.h"
 #include "AnimNodes/AnimNode_Slot.h"
 #include "AnimNodes/AnimNode_TwoWayBlend.h"
+#include "Unit/RTPresentationRole.h"
 #include "RTUnitAnimInstance.generated.h"
 
 class UAnimSequenceBase;
 
-/**
- * Il ruolo che una clip copre nella presentazione.
- *
- * ⚠️ **E' vocabolario, non un elenco di cose che il runtime gia' suona.** Il grafo qui sotto ha DUE
- * sequence player, e consuma `Idle` e `Move` e nient'altro. `Attack`, `Hit` e `Death` passano oggi dai
- * tre `BlueprintImplementableEvent` di `ARTUnit` (`PlayAttackMontage`, `PlayHitMontage`,
- * `PlayDefeatMontage`); `Cast`, `Dash`, `Defend` e `Fall` non hanno ancora nessun consumatore.
- *
- * L'enum li nomina lo stesso perche' servono all'authoring — il pannello di #2443 li elenca, e
- * l'Action possiede il proprio `PresentationRole`. Il DATO pero' non nasce inerte: `PerRole` e' una
- * `TMap`, e un ruolo che nessuno popola semplicemente **non esiste** e non costa niente.
- */
-UENUM(BlueprintType)
-enum class ERTPresentationRole : uint8
-{
-	Idle,
-	Move,
-	Attack,
-	Cast,
-	Dash,
-	Defend,
-	Hit,
-	Death,
-	Fall
-};
 
 /**
  * Una clip candidata per un ruolo, con la sua identita' e la sua etichetta.

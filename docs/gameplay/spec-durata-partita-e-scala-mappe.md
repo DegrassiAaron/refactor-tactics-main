@@ -502,7 +502,7 @@ Elenco **concettuale** dei parametri, non una firma di struct:
 
 ```text
 MatchFormatId · TeamSize
-PlanningMaxSeconds · ReadyCountdownSeconds · FastReactionDefaultSeconds
+PlanningMaxSeconds · ReadyCountdownSeconds · FastReactionDefaultSeconds · PrepWindowSeconds
 ExpectedRoundCount · RoundLimit
 VictoryPolicy · ScoreThreshold · OvertimePolicy
 ExpectedMatchDurationMinutes · SoftMaxMatchDurationMinutes
@@ -559,7 +559,7 @@ ripiegare e lo logga in Warning.
 | Classe | Parametri | Regime |
 |---|---|---|
 | **Regole** | `RoundLimit` · `VictoryPolicy` · `ScoreThreshold` · `OvertimePolicy` | Input **deterministici**: la simulazione li legge, l'esito ne dipende |
-| **Tempi UX** | `PlanningMaxSeconds` · `ReadyCountdownSeconds` · `FastReactionDefaultSeconds` | Tempo di **parete**: non devono **mai** raggiungere il TurnLog — [`spec-pacing-turno.md`](spec-pacing-turno.md) **D3**, «un tempo di parete lì dentro lo renderebbe non deterministico» |
+| **Tempi UX** | `PlanningMaxSeconds` · `ReadyCountdownSeconds` · `FastReactionDefaultSeconds` · `PrepWindowSeconds` | Tempo di **parete**: non devono **mai** raggiungere il TurnLog — [`spec-pacing-turno.md`](spec-pacing-turno.md) **D3**, «un tempo di parete lì dentro lo renderebbe non deterministico» |
 | **Target di design** | `ExpectedMatchDurationMinutes` · `SoftMaxMatchDurationMinutes` | **Documentazione**: non li legge nessun codice |
 
 Conseguenza diretta: nel TurnLog entra l'**identità** del formato (un `FormatId` stabile, come `ActionId`),

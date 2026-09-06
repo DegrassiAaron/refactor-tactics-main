@@ -307,7 +307,8 @@ Oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari portano a
 | ScenarioId | Fixture | Voce PIE | Cosa deve vedersi |
 |---|---|---|---|
 | `Visual.Combat.BraceReducesEveryHit` | r4 | `PIE-VIS-BRACE` | `Brace` toglie 10 a **ogni** colpo e non finisce mai |
-| `Visual.Combat.Defeat` | r4 | `PIE-VIS-KO` | barra che scende due volte, poi la rimozione — mai prima del colpo |
+| `Visual.Combat.Defeat` | r4 | `PIE-VIS-KO` | barra che scende due volte, poi la rimozione — mai prima del colpo. 🔴 **NON e' un banco di animazione, e lo e' stato scritto per errore il 2026-09-06**: lo scenario harness spawna `ARTUnit::StaticClass()` (`RTScenarioSession.cpp:807`), cioe' il **cilindro**, scavalcando `HeroUnitClasses`. Senza Skeletal Mesh `ApplyUnitAnimClass()` esce senza fare nulla: nessun `AnimInstance`, nessuna animazione, **nemmeno in PIE**. `PIE-AS4b` e `PIE-AS4c` erano stati associati qui e sono stati tolti |
+| `Visual.Combat.DefeatDuringMove` | r4 | — | Il gemello di `Visual.Combat.Defeat`: identico tranne che all'ultimo turno Phase **muove**, quindi la fase `Move` segue il `Blast`. ⚠️ **Nato come banco per `PIE-AS4c` e non puo' esserlo** (stessa ragione della riga sopra: cilindri). ✅ **Resta valido come regressione LOGICA** della composizione delle fasi — `UnitAtCell` prova che il `Move` avviene davvero, ed e' la premessa su cui la coda di `DefeatBeatSeconds` ha senso |
 | `Visual.Combat.FallbackTargetMoved` | r5 | `PIE-VIS-FALLBACK` | il piano rivalidato, non un colpo a caso |
 | `Visual.Combat.GuardReducesFirstHit` | r4 | `PIE-VIS-GUARD` | `Guard` toglie 15 al **primo** colpo e finisce lì |
 | `Visual.Combat.PushResistance` | r4 | `PIE-VIS-PUSH` | Riktor incassa e **non arretra**, Wraith arretra |
@@ -412,7 +413,7 @@ pagato quattro volte.
 | Partita su griglia esagonale (M6) | 22 | **Ciò che solo l'occhio vede**: unità centrate sui centri-cella, fluidità del playback, nessun residuo di griglia quadrata. ⚠️ *«La logica è coperta headless per 5 voci su 15»* era la misura del 2026-08-09 e il denominatore è cambiato due volte da allora: la copertura headless **non è stata rimisurata**, quindi resta citata alla sua data invece di essere adattata al nuovo totale |
 | Contenuto della v0.1 | 28 | **Leggibilità e asset**: che il giocatore *capisca* dal log, che l'arancione del fuoco amico si **noti**, che l'asset mappa si editi a mano |
 | Strumenti di leggibilità | 3 | **Giudizio a schermo puro**: `PIE-PREVIEW-AREA` ha già trovato due difetti che nessun test poteva vedere — un contorno disegnato sotto il cilindro, e un linguaggio che parlava di celle mentre la domanda era sulle unità |
-| Mini v0.1 Autobattle (E47) | 3 | **Ciò che si guarda mentre gira da solo**: la board che si legge da due canali, e la partita non presidiata *registrata* invece che dichiarata |
+| Mini v0.1 Autobattle (E47) | 4 | **Ciò che si guarda mentre gira da solo**: la board che si legge da due canali, e la partita non presidiata *registrata* invece che dichiarata. ➕ **La quarta è `PIE-V01-PREPWINDOW` (2026-09-06, [#2386](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2386)), e nessuno scenario può sostituirla — non per una capability mancante, ma **per costruzione**: la finestra di preparazione si arma in `OnPlanningTimeout`, e `RTScenarioSession` chiama `LockInAndResolve()` **diretto** (`:1477`) dopo `SetPlanningSeconds(0.f)` (`:946`). L'harness non attraversa quel ramo, ed è la proprietà per cui la finestra non mette tre secondi d'attesa in ogni run headless. ⛔ Uno scenario scritto per questa voce sarebbe **verde senza aver provato niente** |
 | Frontend shell e ciclo di partita (E46) | 6 | **Il layout dentro il binario**: la navigazione è un `USTRUCT` puro e si prova headless — che una schermata si legga, che il focus si veda, che il modale copra, no |
 | **Kit graybox degli oggetti di mappa** (`D-152`) | 6 | **L'oracolo di «è leggibile» non esiste nell'harness**, e §10 del contratto lo dichiara invece di sottintenderlo: silhouette in scala di grigi, a tre distanze di camera |
 | Il gesto dell'autore — tool Geometry (#712) | 9 | **Ciò che vive solo nell'occhio di chi disegna**: ghost, snap, Undo e residui. La parte verificabile — legalità e cottura — sta nel runtime, con i suoi test |
@@ -429,7 +430,7 @@ pagato quattro volte.
 | PC Gym — la palestra del PlayerController (#1859) | 1 | **Il gesto**: la palestra esiste per provare l'input, e l'input non si prova senza mouse |
 | Gate visivo end-to-end della slice | 1 | **La catena intera vista da una persona**, che nessuna assertion attraversa da capo a fondo |
 
-**Somma: 169** — e la somma è il punto.
+**Somma: 170** — e la somma è il punto.
 `56 + 22 + 28 + 3 + 3 + 6 + 6 + 9 + 7 + 1 + 7 + 5 + 2 + 3 + 2 + 5 + 2 + 1 + 1` va confrontata con la
 riga `C` della §2 **prima** di toccare l'una o l'altra.
 
@@ -1119,8 +1120,11 @@ del criterio, non una svista.
 > «assegnarle a una seduta è il prossimo passo naturale di G9». Misurando i campi `verifies:` di
 > `editor-sessions.yaml`, l'assegnazione **c'è per tutte e nove**: l'affermazione era vera quando è stata
 > scritta e nessuno l'ha rimisurata dopo che U11 e U15 sono nate. Il prossimo passo di G9 è **eseguirle**.
-> Il conteggio delle voci davvero orfane — 55, nessuna nel subset — vive in
-> `../../roadmap/editormap.shortlist.md`, che è coerente con questa misura.
+> Il conteggio delle voci davvero orfane — 55, nessuna nel subset — viveva in
+> `../../roadmap/editormap.shortlist.md`. ⛔ *Quella vista è uscita col Feature Registry il 2026-08-21
+> (`D-181`) e nessuno script la rigenera: il conteggio corrente vive in
+> [`../../roadmap/plans/roadmap-esecuzione-pie-2026-09-03.md`](../../roadmap/plans/roadmap-esecuzione-pie-2026-09-03.md),
+> che lo rimisura col comando canonico — corretto il 2026-09-06.*
 
 `PIE-FACING-1` è entrata col merge di E16, e non per completezza: dal CP 16.2 l'emisfero posteriore è
 **scoperto**, quindi il facing decide il danno. Un orientamento visibile diverso da quello che il resolver ha

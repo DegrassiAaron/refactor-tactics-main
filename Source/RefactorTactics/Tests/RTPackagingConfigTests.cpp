@@ -552,26 +552,38 @@ bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 	// nominato qui resta fuori dal set richiesto. Nel pacchetto la sua clip non c'e', in Editor tutto
 	// sembra a posto, e il difetto si vede solo su packaged come posa di riferimento.
 	//
-	// ⚠️ **Adeguamento MECCANICO del 2026-09-05 (#2441)**: `ClipsPerHero` e' passata da
-	// `eroe -> {Idle, Run}` a `eroe -> ruolo -> varianti`. Qui e' cambiata solo la FORMA del ciclo —
-	// stessi due ruoli, stessi otto path di prima. **L'estensione a tutti i ruoli e la prova di
-	// mutazione che la difende sono di #2442**, e finche' quella non atterra questo oracolo resta cieco
-	// esattamente quanto lo era.
+	// ✅ **Estensione del 2026-09-05 (#2442): il ciclo interno ora attraversa i RUOLI POPOLATI, non un
+	// elenco letterale.** L'adeguamento meccanico di #2441 aveva lasciato `{ Idle, Move }` scritti a mano;
+	// da qui in poi un ruolo nuovo entra nel set richiesto **senza che nessuno tocchi questo file**, che
+	// e' cio' che il commento di prima prometteva senza mantenerlo.
+	//
+	// ⚠️ Si itera `PerRole` e non i nove valori dell'enum: un ruolo che nessuno ha popolato non esiste
+	// nella mappa, e chiedere il suo cook sarebbe chiedere il cook del nulla.
+	//
+	// 🔑 **La variante ATTIVA, non tutte.** Una variante legata ma non attiva e' materiale d'authoring:
+	// non gioca, e pretenderne il riferimento duro gonfierebbe il pacchetto con clip che nessuno vede.
+	// E' la lettura fedele di `D-262`, che ordina un set minimo ESPLICITO e non l'albero.
+	//
+	// ⚠️ Conseguenza voluta e da conoscere: **rendere attiva una variante la porta nel set del cook**, e
+	// questo test diventa rosso finche' un asset versionato sotto `/Game/RT` non la referenzia duro.
+	// `Make Active` in Editor non e' gratis su packaged, e questo e' il posto in cui quel costo si vede.
 	TArray<FString> Richieste;
+	TMap<FString, FString> Provenienza;   // package path -> «Hero.X / Ruolo», per un errore azionabile
 	for (const TPair<FName, FRTHeroPresentationClips>& Voce : Cdo->ClipsPerHero)
 	{
-		const ERTPresentationRole Due[] = { ERTPresentationRole::Idle, ERTPresentationRole::Move };
-		for (const ERTPresentationRole Ruolo : Due)
+		for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Voce.Value.PerRole)
 		{
-			// La variante ATTIVA: e' l'unica che il grafo suona, quindi l'unica che il cook deve trovare.
-			const FSoftObjectPath Path = Cdo->ActiveClipFor(Voce.Key, Ruolo).ToSoftObjectPath();
+			const FSoftObjectPath Path = Cdo->ActiveClipFor(Voce.Key, Ruolo.Key).ToSoftObjectPath();
 			if (Path.IsNull())
 			{
-				continue;
+				continue;   // nessuna variante attiva: il ruolo resta in posa di riferimento, e va bene
 			}
 			// Il PACKAGE path, non l'object path: `/.../Idle.Idle` non compare nella tabella di import di
 			// chi lo referenzia — la chiave e' `/.../Idle`, la stessa lezione di `RTPackagePathOf`.
-			Richieste.AddUnique(Path.GetLongPackageName());
+			const FString Package = Path.GetLongPackageName();
+			Richieste.AddUnique(Package);
+			Provenienza.Add(Package, FString::Printf(TEXT("%s / %s"),
+				*Voce.Key.ToString(), *UEnum::GetValueAsString(Ruolo.Key)));
 		}
 	}
 
@@ -579,6 +591,34 @@ bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 	// niente. Sono otto oggi, e l'asserzione e' «almeno una» per non impuntarsi su un numero che #288
 	// fara' crescere.
 	if (!TestTrue(TEXT("il roster dichiara almeno una clip richiesta"), Richieste.Num() > 0))
+	{
+		return false;
+	}
+
+	// 🔴 **Anti-SOTTRAZIONE, e senza questo il resto del test si puo' rendere verde togliendo lavoro.**
+	//
+	// Le due anti-vacuita' classiche guardano lo zero. Ma un ciclo che smette presto — un `break` dopo il
+	// primo ruolo, un `continue` di troppo — produce un set piu' PICCOLO e non vuoto: ogni path che resta
+	// e' coperto, il conteggio degli scoperti e' zero, e il gate diventa **verde perche' chiede di meno**.
+	// E' il modo piu' facile di rompere questo oracolo senza che nessuno se ne accorga.
+	//
+	// Il presidio e' un conteggio INDIPENDENTE delle coppie (eroe, ruolo) che hanno una variante attiva,
+	// fatto in un ciclo separato: se il ciclo di sopra ne ha saltata anche una, i due numeri divergono.
+	int32 CoppieAttese = 0;
+	for (const TPair<FName, FRTHeroPresentationClips>& Voce : Cdo->ClipsPerHero)
+	{
+		for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Voce.Value.PerRole)
+		{
+			if (Ruolo.Value.FindActive() != nullptr)
+			{
+				++CoppieAttese;
+			}
+		}
+	}
+	if (!TestEqual(
+			TEXT("il set richiesto copre TUTTE le coppie (eroe, ruolo) con una variante attiva: ")
+			TEXT("un ciclo che ne salta una rende questo gate verde chiedendo di meno"),
+			Provenienza.Num(), CoppieAttese))
 	{
 		return false;
 	}
@@ -644,10 +684,18 @@ bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 
 	for (const FString& Scoperta : Scoperte)
 	{
+		// 🔑 **Il messaggio dice COSA FARE, e non solo cosa manca.** Chi incontra questo rosso la prima
+		// volta lo legge come un guasto dello strumento se non gli si spiega che il cook segue solo i
+		// riferimenti duri, e che scriverlo e' lavoro di #2444 (proprietario dei `BP_Unit_*`, che sono
+		// binari e non si mergiano).
+		const FString* Chi = Provenienza.Find(Scoperta);
 		AddError(FString::Printf(
-			TEXT("%s e' richiesta dal roster e nessun asset versionato sotto Content/RT la referenzia: ")
-			TEXT("il cook non ha nessuna dipendenza da seguire, e nel pacchetto l'unita' resta in posa ")
-			TEXT("di riferimento (D-262)"), *Scoperta));
+			TEXT("%s e' la variante ATTIVA di [%s] e nessun asset versionato sotto Content/RT la ")
+			TEXT("referenzia duro: il cook non ha nessuna dipendenza da seguire, e nel pacchetto ")
+			TEXT("l'unita' resta in posa di riferimento (D-262). ")
+			TEXT("Per chiudere: aggiungi il riferimento duro nel BP_Unit_ dell'eroe (#2444), oppure ")
+			TEXT("disattiva la variante se non deve entrare nel pacchetto."),
+			*Scoperta, Chi ? **Chi : TEXT("ruolo ignoto")));
 	}
 
 	TestEqual(

@@ -37,12 +37,27 @@ namespace
 		return Ruolo;
 	}
 
-	/** Le due clip di locomozione di un eroe del roster, ciascuna attiva nel proprio ruolo. */
-	FRTHeroPresentationClips MakeClips(const TCHAR* Pack, const TCHAR* Idle, const TCHAR* Move)
+	/**
+	 * I cinque ruoli di un eroe del roster, ciascuno con la sua clip attiva.
+	 *
+	 * 🔴 **`Attack` e non `Cast`, ed e' l'errore che non fa rumore** (#2450). La clip che riempie il
+	 * ruolo d'attacco si CHIAMA `Cast` su tutti e quattro i pack, ma `ERTPresentationRole::Cast` e' un
+	 * ruolo DIVERSO e senza consumatore: scriverci dentro la clip darebbe un dato corretto che non suona
+	 * mai, senza errore, senza warning e senza log. Due tassonomie omonime, come `Role` di rete e il ruolo
+	 * di presentazione.
+	 *
+	 * ⚠️ I nomi si MISURANO: §AS.3b li ha letti sul disco, e **quattro caselle su dodici** fra i tre
+	 * ruoli discreti non si chiamano come ci si aspetta.
+	 */
+	FRTHeroPresentationClips MakeClips(const TCHAR* Pack, const TCHAR* Idle, const TCHAR* Move,
+		const TCHAR* Attack, const TCHAR* Hit, const TCHAR* Death)
 	{
 		FRTHeroPresentationClips Clips;
 		Clips.PerRole.Add(ERTPresentationRole::Idle, MakeRuolo(Pack, Idle));
 		Clips.PerRole.Add(ERTPresentationRole::Move, MakeRuolo(Pack, Move));
+		Clips.PerRole.Add(ERTPresentationRole::Attack, MakeRuolo(Pack, Attack));
+		Clips.PerRole.Add(ERTPresentationRole::Hit, MakeRuolo(Pack, Hit));
+		Clips.PerRole.Add(ERTPresentationRole::Death, MakeRuolo(Pack, Death));
 		return Clips;
 	}
 }
@@ -139,10 +154,14 @@ const FRTAnimRoleClips* FRTHeroPresentationClips::FindRole(ERTPresentationRole R
 
 URTUnitAnimInstance::URTUnitAnimInstance()
 {
-	ClipsPerHero.Add(FName(TEXT("Hero.Gadget")), MakeClips(TEXT("Gadget"), TEXT("Idle"), TEXT("Run_Fwd")));
-	ClipsPerHero.Add(FName(TEXT("Hero.Phase")), MakeClips(TEXT("Phase"), TEXT("Idle"), TEXT("Jog_Fwd")));
-	ClipsPerHero.Add(FName(TEXT("Hero.Branth")), MakeClips(TEXT("Riktor"), TEXT("Idle"), TEXT("Jog_Fwd")));
-	ClipsPerHero.Add(FName(TEXT("Hero.Wraith")), MakeClips(TEXT("Wraith"), TEXT("Idle_NonCombat"), TEXT("Jog_Fwd")));
+	ClipsPerHero.Add(FName(TEXT("Hero.Gadget")), MakeClips(TEXT("Gadget"), TEXT("Idle"), TEXT("Run_Fwd"),
+		TEXT("Cast"), TEXT("Hitreact_Fwd"), TEXT("Death_Fwd")));
+	ClipsPerHero.Add(FName(TEXT("Hero.Phase")), MakeClips(TEXT("Phase"), TEXT("Idle"), TEXT("Jog_Fwd"),
+		TEXT("Cast"), TEXT("HitReact_Fwd"), TEXT("Death")));
+	ClipsPerHero.Add(FName(TEXT("Hero.Branth")), MakeClips(TEXT("Riktor"), TEXT("Idle"), TEXT("Jog_Fwd"),
+		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd")));
+	ClipsPerHero.Add(FName(TEXT("Hero.Wraith")), MakeClips(TEXT("Wraith"), TEXT("Idle_NonCombat"), TEXT("Jog_Fwd"),
+		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward")));
 }
 
 TSoftObjectPtr<UAnimSequenceBase> URTUnitAnimInstance::ActiveClipFor(
