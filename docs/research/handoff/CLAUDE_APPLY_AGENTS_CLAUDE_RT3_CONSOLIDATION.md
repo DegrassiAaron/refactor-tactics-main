@@ -1,3 +1,27 @@
+> ⛔ **NOTA DEL REPOSITORY — NON RIESEGUIRE.** Aggiunta il 2026-09-06 spostando il file dalla radice;
+> il testo sotto è quello ricevuto, invariato.
+>
+> **Questo mandato è già stato applicato**, su entrambi i lati:
+>
+> | Metà | Applicata da | Evidenza |
+> |---|---|---|
+> | `AGENTS.md` | `0a343a12`, PR [#2558](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2558) *(+110 righe)* | contiene le tre figure `DEV · EDITOR · VALIDATION` con responsabilità e limiti, e `DEV-LEAD`/`DEV-MAIN`/`DEV-TEST` dichiarati **funzioni DEV dentro una wave, non figure aggiuntive** |
+> | `CLAUDE.md` | lo stesso `0a343a12` *(±239)*, poi `8897d94e` *(±956)* e `4fb86ea5` (PR [#2560](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2560)) | porta `RT_TERMINAL_*`, `RT_WORKSPACE_*`, `rtstatus`, il caricamento di `RT3_CONTRACT.md` e di un solo `TERMINAL_*.md`, `ROLE_MISSING`/`ROLE_CONFLICT` fail-closed e le sezioni `DEV`/`EDITOR`/`VALIDATION` |
+>
+> I due blob di partenza del Preflight **non sono più quelli correnti**: `AGENTS.md` era `8ee70da0` a
+> `f80cf57f` (2026-09-05 18:26), oggi è `142a13c6`; `CLAUDE.md` era `f2a45527`, oggi è `b9946993`.
+> Il passo 3 del Preflight, eseguito oggi, **fallisce per costruzione**.
+>
+> 📌 **Perché è qui e non in `docs/archive/src/`**: l'archivio è un registro, e ogni sua riga porta il link
+> a un **referto** che dichiara cosa il kit ha prodotto e cosa aveva sbagliato. Per questo mandato nessun
+> referto esiste — cercato in `docs/roadmap/plans/`, e nessun documento del repository lo cita. Archiviarlo
+> senza referto lo farebbe figurare come revisionato quando non lo è.
+>
+> ⚠️ Il mandato **fratello** `CLAUDE_CONSOLIDATE_RT3_MCP_MAIN_ASSET_POLICY.md` è stato **cancellato** da
+> `8897d94e` dopo l'applicazione, non archiviato. Questo è l'ultimo superstite della famiglia, ed è rimasto
+> in radice perché entrato con `218716e5` — un commit intitolato *«docs»* che portava anche i tre `.bak`
+> dell'installer, rimossi da PR [#2562](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2562).
+
 # Claude Code — consolida AGENTS.md e CLAUDE.md sul modello RT3
 
 Lavora dalla root di `refactor-tactics-main` in un terminale DEV.
