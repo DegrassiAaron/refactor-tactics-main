@@ -3,7 +3,7 @@
 > **Statuto**: sorgente di design, non canone. Le regole di gioco restano negli owner documentali e nel
 > codice; qui c'è cosa il mock sbaglia, cosa si tiene, e quali asset ne sono usciti.
 >
-> **Sorgente**: [`source/mock-elementi-hud-2026-08-26.png`](source/mock-elementi-hud-2026-08-26.png) —
+> **Sorgente**: [`mock-elementi-hud-2026-08-26.png`](mock-elementi-hud-2026-08-26.png) —
 > 23 riquadri già ritagliati ed etichettati (`01_character_status_panel` … `23_wait_button`).
 >
 > **Stato misurato**: 2026-08-26, branch `claude/mock-elementi-huf-9aug0o`, HEAD `f71f81c`.
@@ -12,7 +12,7 @@
 
 Lo **stile** regge quasi per intero: taglio d'angolo invece del raggio, squadrette agli angoli, testa
 esagonale sui bottoni, fondo profondo e tratto luminoso. È la stessa lingua di
-[`progettazione-hud.md` §32](../../../technical/systems/progettazione-hud.md) — cyan per il focus, violet
+[`progettazione-hud.md` §32](../../../../technical/systems/progettazione-hud.md) — cyan per il focus, violet
 per la reazione, amber per l'impegno, red per il critico. Non c'è niente da rifare lì.
 
 A essere sbagliata è la **semantica**: nomi di eroi e abilità che non esistono, un modello di turno che il
@@ -190,7 +190,7 @@ non esporta i PNG sotto soglia — un asset illeggibile in cartella è un invito
   `FindMissingRequiredIcons(nullptr)` restituisce l'intera lista. Il passo è ora **scriptato**:
   `URTBuildIconCatalogCommandlet` (modulo Editor) importa i PNG e costruisce il data asset derivando ogni
   chiave da `RequiredIconIds()`. La procedura è in
-  [`guida-catalogo-icone.md`](../../../technical/runbooks/guida-catalogo-icone.md).
+  [`guida-catalogo-icone.md`](../../../../technical/runbooks/guida-catalogo-icone.md).
   ⚠️ **Non è stato eseguito**: richiede Unreal, e il commandlet **non è mai stato compilato**.
 - **I ritratti.** Le sei chiavi `Identity.*` sono coperte da marche astratte — badge esagonale, sigillo
   per eroe, rounded contro angular per `Ally`/`Enemy`. I **ritratti** veri restano lavoro d'autore.
@@ -204,7 +204,7 @@ non esporta i PNG sotto soglia — un asset illeggibile in cartella è un invito
 
 ## 6. Conflitti aperti dall'handoff Action Phases del 2026-08-26
 
-[`RefactorTactics_ActionPhases_Dodge_Guard_Brace_Overwatch_Epics_v1.0_2026-08-26.md`](../../../archive/src/handoff/2026-08-26-action-phases-dodge-guard-brace-overwatch.md) — *da `docs/research/handoff/`, archiviato col proprio verdetto e rimosso dall'inbox il 2026-08-27; il link è stato ripuntato il 2026-08-28* —
+[`RefactorTactics_ActionPhases_Dodge_Guard_Brace_Overwatch_Epics_v1.0_2026-08-26.md`](../../../../archive/src/handoff/2026-08-26-action-phases-dodge-guard-brace-overwatch.md) — *da `docs/research/handoff/`, archiviato col proprio verdetto e rimosso dall'inbox il 2026-08-27; il link è stato ripuntato il 2026-08-28* —
 è entrato nel repository come **input**, non come autorità: lo dice `CLAUDE.md` («un handoff non è
 autorità») e lo dice il documento stesso, che impone di auditare `main` prima e di aprire una Decision
 Issue sui conflitti invece di sovrascrivere.
