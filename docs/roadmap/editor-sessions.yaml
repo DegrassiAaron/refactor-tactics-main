@@ -987,31 +987,32 @@ sessions:
 
       ### Il protocollo di taratura, passo per passo
 
-      ⚠️ **I pack Paragon sono GITIGNORATI**: la seduta va aperta su un albero che li ha. Sul clone
-      principale ci sono; su un worktree no, e senza di essi le unita' restano in posa di riferimento
-      e non c'e' niente da tarare. Se apri un worktree, collega i pack con una junction
-      (`mklink /J <worktree>\Content\FabAsset <clone>\Content\FabAsset`) e ⛔ **rimuovila con
-      `rmdir`, MAI con una cancellazione ricorsiva**: quella la attraversa e cancella i pack veri.
+      🔴 **NON usare `rt.Test.Run`, e la prima stesura di questo protocollo lo faceva.** Lo scenario
+      harness spawna `ARTUnit::StaticClass()` (`RTScenarioSession.cpp:807`), cioe' il **cilindro**:
+      scavalca `HeroUnitClasses`, quindi niente Skeletal Mesh, quindi `ApplyUnitAnimClass()` esce senza
+      fare nulla e **nessun `AnimInstance` viene creato**. Nessuno scenario del corpus puo' essere un
+      banco di animazione, nemmeno in PIE. Misurato il 2026-09-06 su un tentativo reale: i quattro
+      personaggi entravano in campo come `RTUnit_0`, `RTUnit_5`, ...
 
-      1. **PIE**, poi console: `rt.Test.Run Visual.Combat.DefeatDuringMove`.
-         Qui Phase cammina all'ultimo turno, quindi la fase `Move` segue il `Blast` e il montaggio di
-         `Death` ha una finestra **naturale**. Guarda la morte di Gadget.
-      2. 🔴 **RIAVVIA la partita con `R` prima del secondo banco.** `rt.Test.Run` **sostituisce la
-         mappa e AGGIUNGE unita' alla partita in corso** (è la ragione per cui `PIE-TEST-CONSOLE` va per
-         ultima nella sua seduta): due scenari di fila si contaminano, e il secondo verrebbe giudicato
-         su un campo che non e' il suo. Poi console: `rt.Test.Run Visual.Combat.Defeat`.
-         Qui non si muove nessuno: la morte cade nell'ULTIMA fase, e la finestra esiste **solo** grazie
-         alla coda.
-      3. **Confronta**, e la diagnosi e' gia' scritta:
-         - si legge nel primo e **non** nel secondo → `DefeatBeatSeconds` e' **troppo corto**;
-         - si **trascina** anche nel primo → e' l'animazione a essere lunga, la coda non c'entra;
-         - si legge in entrambi → il valore va bene, e si registra **quello**.
+      ✅ **Serve una PARTITA NORMALE**, dove `ARTGameMode` riempie `HeroUnitClasses` e
+      `RTMatchBootstrapper::SpawnHero` mette in campo i quattro `BP_Unit_*` con le loro mesh — e' la
+      stessa configurazione su cui `PIE-AS4a` e' stato giudicato ✅ il 2026-09-03.
+
+      ⚠️ **`L_DevSandbox` non va bene**: ha un allestimento piazzato a mano (una sola unita', e il
+      `TurnManager` nel livello invece che spawnato — il log lo avvisa). Usa la mappa d'arena.
+
+      1. **PIE su una partita 2v2 normale.** Controlla nel log che entrino i quattro `BP_Unit_*_C_0`:
+         se leggi `RTUnit_N` sei sui cilindri e non c'e' niente da guardare.
+      2. **Aspetta un'eliminazione** e guardala. Il `Blast` in cui l'unita' cade e' l'ultima fase
+         riprodotta solo se dopo non muove nessuno: e' li' che la coda serve.
+      3. **Confronta due morti**: una seguita da una fase `Move` (finestra naturale) e una no.
+         - si legge nella prima e **non** nella seconda → `DefeatBeatSeconds` e' **troppo corto**;
+         - si **trascina** anche nella prima → e' l'animazione a essere lunga, la coda non c'entra;
+         - si legge in entrambe → il valore va bene, e si registra **quello**.
       4. **Cambia il valore SENZA ricompilare**: `DefeatBeatSeconds` e' `EditAnywhere` su
-         `ARTTurnManager` — si edita nel pannello Details dell'attore, a PIE avviato, e il turno
-         successivo lo usa gia'.
-      5. ⛔ **Controprova obbligatoria: metti `0`, riavvia con `R`, e rifai il passo 2.** Se la morte
-         si vede lo stesso, la coda non sta facendo niente e il numero che stai per registrare non e'
-         il suo: e' un controllo positivo, e senza di esso la taratura conferma solo la tua aspettativa.
+         `ARTTurnManager` — pannello Details, a PIE avviato.
+      5. ⛔ **Controprova obbligatoria: metti `0` e riguarda una morte in ultima fase.** Se si vede lo
+         stesso, la coda non sta facendo niente e il numero che stai per registrare non e' il suo.
 
       🔑 **Cosa registrare**: il valore scelto, e **perche'** — quale dei tre esiti del passo 3 hai
       visto. Un numero senza l'osservazione che lo motiva invecchia come quello che sostituisce.
