@@ -78,10 +78,54 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitComponentVisibilityIsDerivedTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTUnitComponentVisibilityIsDerivedTest::RunTest(const FString&)
 {
-	// Cilindro segnaposto: c'e' solo dove non c'e' l'eroe.
-	TestTrue (TEXT("nessuna skeletal: il segnaposto si vede"),  ARTUnit::ShouldShowPlaceholderMesh(true,  false));
-	TestFalse(TEXT("eroe skeletal: il segnaposto sparisce"),    ARTUnit::ShouldShowPlaceholderMesh(true,  true));
-	TestFalse(TEXT("unita' non renderizzata: mai"),             ARTUnit::ShouldShowPlaceholderMesh(false, false));
+	// ── Cilindro segnaposto: c'e' dove non c'e' un CORPO, e una mesh senza posa non e' un corpo (#2545)
+	//
+	// 🔑 **Le otto combinazioni, tutte.** Il predicato e' una congiunzione di tre booleani: coprirne solo
+	// i casi «che interessano» lascia verde meta' delle congiunzioni sbagliate. Sono otto righe e si
+	// scrivono una volta.
+	//
+	//                                                                    bRender  bHasHeroMesh  bHasPose
+	TestFalse(TEXT("non renderizzata: mai, comunque"),   ARTUnit::ShouldShowPlaceholderMesh(false, false, false));
+	TestFalse(TEXT("non renderizzata, con posa: mai"),   ARTUnit::ShouldShowPlaceholderMesh(false, false, true));
+	TestFalse(TEXT("non renderizzata, con mesh: mai"),   ARTUnit::ShouldShowPlaceholderMesh(false, true,  false));
+	TestFalse(TEXT("non renderizzata, mesh e posa"),     ARTUnit::ShouldShowPlaceholderMesh(false, true,  true));
+	TestTrue (TEXT("nessuna skeletal: si vede"),         ARTUnit::ShouldShowPlaceholderMesh(true,  false, false));
+	TestTrue (TEXT("nessuna skeletal, posa a catalogo: si vede lo stesso"),
+		ARTUnit::ShouldShowPlaceholderMesh(true,  false, true));
+	// 🔴 **La riga del difetto**: c'e' la mesh, non c'e' la clip. Prima il segnaposto spariva e restava
+	// la T-pose, che si legge come «animazione rotta» invece che come «ruolo non legato».
+	TestTrue (TEXT("mesh SENZA posa: il segnaposto torna, invece della T-pose"),
+		ARTUnit::ShouldShowPlaceholderMesh(true,  true,  false));
+	// Il controllo positivo che rende non vacue le sette righe sopra: col corpo completo sparisce davvero.
+	TestFalse(TEXT("mesh E posa: il segnaposto sparisce"),
+		ARTUnit::ShouldShowPlaceholderMesh(true,  true,  true));
+
+	// ── Skeletal dell'eroe: l'altra meta' della stessa decisione (#2545)
+	//
+	// Senza queste quattro righe il cilindro potrebbe accendersi SOPRA la T-pose invece che al suo posto,
+	// e i test del predicato di sopra resterebbero tutti verdi.
+	TestTrue (TEXT("vista, con posa: lo skeletal si mostra"),  ARTUnit::ShouldShowHeroSkeletal(true,  true));
+	TestFalse(TEXT("vista, SENZA posa: lo skeletal si nasconde e lascia il posto al segnaposto"),
+		ARTUnit::ShouldShowHeroSkeletal(true,  false));
+	TestFalse(TEXT("non vista, con posa: nascosto"),           ARTUnit::ShouldShowHeroSkeletal(false, true));
+	TestFalse(TEXT("non vista, senza posa: nascosto"),         ARTUnit::ShouldShowHeroSkeletal(false, false));
+
+	// 🔑 **I due predicati non si contraddicono mai**: su un'unita' visibile con la mesh, esattamente uno
+	// dei due componenti e' acceso. E' l'invariante che «cilindro e T-pose non si sovrappongono» significa,
+	// e nessuna delle righe sopra la copre da sola.
+	for (int32 Caso = 0; Caso < 4; ++Caso)
+	{
+		const bool bRender = (Caso & 1) != 0;
+		const bool bPose   = (Caso & 2) != 0;
+		const bool bSegnaposto = ARTUnit::ShouldShowPlaceholderMesh(bRender, /*bHasHeroMesh*/ true, bPose);
+		const bool bSkeletal   = ARTUnit::ShouldShowHeroSkeletal(bRender, bPose);
+		TestFalse(*FString::Printf(TEXT("caso %d: mai entrambi accesi"), Caso), bSegnaposto && bSkeletal);
+		if (bRender)
+		{
+			TestTrue(*FString::Printf(TEXT("caso %d: se si renderizza, uno dei due c'e'"), Caso),
+				bSegnaposto || bSkeletal);
+		}
+	}
 
 	// Anello di selezione: servono tutte e tre le condizioni.
 	TestTrue (TEXT("vista, selezionata, col materiale: si vede"),

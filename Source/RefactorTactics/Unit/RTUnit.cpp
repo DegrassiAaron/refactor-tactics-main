@@ -414,9 +414,30 @@ void ARTUnit::SetKnownToObserver(bool bKnown)
 	RefreshComponentVisibility();
 }
 
-bool ARTUnit::ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh)
+bool ARTUnit::ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh, bool bHasPose)
 {
-	return bRender && !bHasHeroMesh;
+	// 🔴 **Due condizioni diverse che fino al 2026-09-05 coincidevano per caso** (#2545).
+	//
+	// Il segnaposto spariva appena esisteva una MESH. Ma una mesh senza una clip da suonare non e' un
+	// corpo: e' una **posa di riferimento**, cioe' una T-pose — e una T-pose non dice «nessuno ha legato
+	// una clip a questo ruolo», dice «questa animazione e' rotta». Sul PACK `Riktor` — l'eroe
+	// `Hero.Branth` dopo la migrazione d'identita' di #2297 — le catene si stendono sullo schermo, ed e'
+	// lo stesso sintomo che #1750 nomina. ⚠️ Il pack Paragon conserva il nome `Riktor` perche' e' di terze
+	// parti: e' l'IDENTITA' RT ad essere cambiata, non la cartella.
+	//
+	// Coincidevano perche' il roster ha sempre avuto le clip nel default C++. Da #2441 `ActiveClipVariant`
+	// puo' valere `NAME_None`, e rimuovere la variante attiva e' un'operazione **prevista**.
+	return bRender && !(bHasHeroMesh && bHasPose);
+}
+
+bool ARTUnit::ShouldShowHeroSkeletal(bool bRender, bool bHasPose)
+{
+	// L'altra meta' della stessa decisione, e va scritta accanto: senza, il cilindro comparirebbe SOPRA la
+	// T-pose invece che al suo posto, e si vedrebbero entrambi.
+	//
+	// ⚠️ Non serve `bHasHeroMesh`: questo predicato lo chiama solo chi ha gia' trovato lo skeletal, e
+	// aggiungerlo darebbe un terzo argomento sempre vero — un ingresso che nessun test puo' falsificare.
+	return bRender && bHasPose;
 }
 
 bool ARTUnit::ShouldShowSelectionRing(bool bRender, bool bSelected, bool bHasSelectionMaterial)
@@ -473,6 +494,18 @@ void ARTUnit::RefreshComponentVisibility()
 	USkeletalMeshComponent* HeroSkeletal = FindHeroSkeletal();
 	const bool bHasHeroMesh = HeroSkeletal != nullptr && HeroSkeletal->GetSkeletalMeshAsset() != nullptr;
 
+	// 🔴 **C'e' una POSA da mostrare?** (#2545) Una mesh senza clip e' una T-pose, e una T-pose si legge
+	// come un difetto dell'animazione invece che come un ruolo non legato.
+	//
+	// Il segnale e' la variante ATTIVA del ruolo `Idle`, risolta **senza caricare**: i pack Paragon vivono
+	// in `Content/FabAsset/`, gitignorato, e un `LoadSynchronous` qui direbbe «nessuna posa» su ogni clone
+	// che non li ha — che e' vero a schermo, ma lo direbbe anche mentre il gioco gira con i pack montati,
+	// perche' la risoluzione non e' garantita a questo punto del frame.
+	//
+	// ⚠️ Legge dal CDO di `UnitAnimClass`, quindi vede anche l'override del Blueprint che
+	// `RTBuildAnimBindings` genera dai binding autorati (#2443).
+	const bool bHasPose = !GhostFallbackClipPath().IsNull();
+
 	// 🔴 Si nascondono i COMPONENTI, non l'actor. `SetActorHiddenInGame` propaga a tutti i componenti,
 	// sagoma dell'ultimo contatto compresa (Task 6) — che deve vedersi proprio quando l'unita' non si vede.
 	//
@@ -495,7 +528,7 @@ void ARTUnit::RefreshComponentVisibility()
 		// e' vero e il cilindro va nascosto comunque — le due forme coincidono per VERSO. Su un'unita'
 		// senza skeletal il cui `BP_Unit_*` usasse `bHiddenInGame = true`, questa riga chiederebbe di
 		// mostrare il cilindro e il cilindro resterebbe invisibile. Vedi `ShouldShowPlaceholderMesh`.
-		Mesh->SetVisibility(ShouldShowPlaceholderMesh(bRender, bHasHeroMesh), /*bPropagateToChildren*/ false);
+		Mesh->SetVisibility(ShouldShowPlaceholderMesh(bRender, bHasHeroMesh, bHasPose), /*bPropagateToChildren*/ false);
 	}
 
 	// L'anello di squadra esiste solo se `ApplyTeamColor` ha trovato il materiale: senza, il ripiego e' il
@@ -548,7 +581,9 @@ void ARTUnit::RefreshComponentVisibility()
 
 	if (HeroSkeletal)
 	{
-		HeroSkeletal->SetVisibility(bRender, false);
+		// #2545: si mostra solo se c'e' una posa. Senza, resterebbe a schermo in T-pose SOTTO il cilindro
+		// che il predicato di sopra ha appena acceso — due corpi invece di un segnaposto.
+		HeroSkeletal->SetVisibility(ShouldShowHeroSkeletal(bRender, bHasPose), false);
 	}
 
 	// La collisione si spegne sull'ACTOR: `SetVisibility` non la tocca, e l'unico proxy di click e' `Mesh`
