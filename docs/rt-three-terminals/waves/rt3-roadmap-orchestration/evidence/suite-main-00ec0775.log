@@ -1,0 +1,286 @@
+test_argomento_esplicito_ha_la_precedenza_massima (tests.test_binding.BindingTest.test_argomento_esplicito_ha_la_precedenza_massima) ... ok
+test_due_console_diverse_hanno_binding_diversi (tests.test_binding.BindingTest.test_due_console_diverse_hanno_binding_diversi)
+E' la proprieta' che la cwd non da': stessa directory, sessioni diverse. ... ok
+test_il_binding_vive_sotto_rt3_home (tests.test_binding.BindingTest.test_il_binding_vive_sotto_rt3_home) ... ok
+test_il_file_di_binding_e_l_ultima_risorsa (tests.test_binding.BindingTest.test_il_file_di_binding_e_l_ultima_risorsa) ... ok
+test_non_obbligatorio_ritorna_none (tests.test_binding.BindingTest.test_non_obbligatorio_ritorna_none) ... ok
+test_senza_binding_l_errore_spiega_come_uscirne (tests.test_binding.BindingTest.test_senza_binding_l_errore_spiega_come_uscirne) ... ok
+test_unbind_su_terminale_non_legato_non_esplode (tests.test_binding.BindingTest.test_unbind_su_terminale_non_legato_non_esplode) ... ok
+test_unbind_toglie_il_legame (tests.test_binding.BindingTest.test_unbind_toglie_il_legame) ... ok
+test_variabile_ambiente_batte_il_file (tests.test_binding.BindingTest.test_variabile_ambiente_batte_il_file) ... ok
+test_gli_elenchi_stanno_tutti_nel_plurale_top_level (tests.test_cli_surface.SurfaceTest.test_gli_elenchi_stanno_tutti_nel_plurale_top_level)
+La convenzione della CLI, resa verificabile. ... ok
+test_gli_stati_offerti_sono_quelli_del_modello (tests.test_cli_surface.SurfaceTest.test_gli_stati_offerti_sono_quelli_del_modello)
+Le scelte della CLI non si scrivono a mano due volte. ... ok
+test_le_invocazioni_sbagliate_sono_rifiutate (tests.test_cli_surface.SurfaceTest.test_le_invocazioni_sbagliate_sono_rifiutate) ... usage: rt3 roadmap [-h]
+                   {validate,load,show,graph,critical-path,ready,plan,state} ...
+rt3 roadmap: error: argument sub: invalid choice: 'list' (choose from validate, load, show, graph, critical-path, ready, plan, state)
+usage: rt3 roadmap [-h]
+                   {validate,load,show,graph,critical-path,ready,plan,state} ...
+rt3 roadmap: error: argument sub: invalid choice: 'states' (choose from validate, load, show, graph, critical-path, ready, plan, state)
+usage: rt3 roadmap validate [-h] --file FILE
+rt3 roadmap validate: error: the following arguments are required: --file
+usage: rt3 roadmap state set [-h]
+                             --progress {PENDING,IN_PROGRESS,VALIDATED,DONE}
+                             [--id ID] [--candidate CANDIDATE] [--note NOTE]
+                             item
+rt3 roadmap state set: error: the following arguments are required: --progress
+usage: rt3 roadmap state set [-h]
+                             --progress {PENDING,IN_PROGRESS,VALIDATED,DONE}
+                             [--id ID] [--candidate CANDIDATE] [--note NOTE]
+                             item
+rt3 roadmap state set: error: argument --progress: invalid choice: 'READY' (choose from PENDING, IN_PROGRESS, VALIDATED, DONE)
+usage: rt3 candidate status [-h] --status {PENDING,PASSED,FAILED}
+                            [--note NOTE]
+                            candidate_id
+rt3 candidate status: error: argument --status: invalid choice: 'FORSE' (choose from PENDING, PASSED, FAILED)
+usage: rt3 candidate status [-h] --status {PENDING,PASSED,FAILED}
+                            [--note NOTE]
+                            candidate_id
+rt3 candidate status: error: the following arguments are required: candidate_id
+usage: rt3 session start [-h] --id ID --role {DEV,EDITOR,VALIDATION}
+                         --lane {MAIN,DEV,DESIGNER}
+                         --workspace-group {MAIN,DEV,DESIGNER} [--task TASK]
+                         [--write-mode {READ_ONLY,WRITER}]
+                         [--write-set [WRITE_SET ...]] [--worktree WORKTREE]
+                         [--replace]
+rt3 session start: error: argument --role: invalid choice: 'QA' (choose from DEV, EDITOR, VALIDATION)
+ok
+test_ogni_comando_documentato_esiste (tests.test_cli_surface.SurfaceTest.test_ogni_comando_documentato_esiste) ... ok
+test_client_di_protocollo_diverso_e_respinto_subito (tests.test_daemon.DaemonLifecycleTest.test_client_di_protocollo_diverso_e_respinto_subito)
+Fail-fast, non degradazione. ... ok
+test_client_senza_daemon_dice_cosa_fare (tests.test_daemon.DaemonLifecycleTest.test_client_senza_daemon_dice_cosa_fare) ... ok
+test_daemon_file_dichiara_protocollo_incompatibile (tests.test_daemon.DaemonLifecycleTest.test_daemon_file_dichiara_protocollo_incompatibile)
+Anche senza chiamata, il file di endpoint basta a fermare un client vecchio. ... ok
+test_health_dichiara_le_versioni (tests.test_daemon.DaemonLifecycleTest.test_health_dichiara_le_versioni)
+L'health porta tutte e tre le versioni, e quella del DB e' quella VERA. ... ok
+test_restart_conserva_sessioni_task_ed_eventi (tests.test_daemon.OfflineMailboxTest.test_restart_conserva_sessioni_task_ed_eventi) ... ok
+test_scenario_completo_con_restart_del_coordinator (tests.test_daemon.OfflineMailboxTest.test_scenario_completo_con_restart_del_coordinator)
+Lo scenario obbligatorio della specifica §17, passo per passo. ... ok
+test_messaggio_diretto_fra_due_sessioni (tests.test_daemon.QuestionAnswerTest.test_messaggio_diretto_fra_due_sessioni) ... ok
+test_integration_requested_da_designer_arriva_a_editor_main (tests.test_daemon.RoutingOverHttpTest.test_integration_requested_da_designer_arriva_a_editor_main) ... ok
+test_sessione_duplicata_via_http_riporta_il_codice (tests.test_daemon.RoutingOverHttpTest.test_sessione_duplicata_via_http_riporta_il_codice) ... ok
+test_task_ready_arriva_solo_alla_lane_giusta (tests.test_daemon.RoutingOverHttpTest.test_task_ready_arriva_solo_alla_lane_giusta) ... ok
+test_branch_e_head_su_un_branch_normale (tests.test_gitmeta.GitMetaTest.test_branch_e_head_su_un_branch_normale) ... ok
+test_detached_head_lascia_il_branch_a_none (tests.test_gitmeta.GitMetaTest.test_detached_head_lascia_il_branch_a_none)
+Il caso che la specifica chiede esplicitamente di gestire. ... ok
+test_directory_inesistente_non_solleva (tests.test_gitmeta.GitMetaTest.test_directory_inesistente_non_solleva) ... ok
+test_fuori_da_un_repository_tutti_i_campi_sono_none (tests.test_gitmeta.GitMetaTest.test_fuori_da_un_repository_tutti_i_campi_sono_none) ... ok
+test_worktree_separato_distingue_worktree_da_repo_root (tests.test_gitmeta.GitMetaTest.test_worktree_separato_distingue_worktree_da_repo_root)
+Le due colonne non sono ridondanti, e qui si vede perche'. ... ok
+test_abbrevia (tests.test_gitmeta.ShortHeadTest.test_abbrevia) ... ok
+test_head_assente (tests.test_gitmeta.ShortHeadTest.test_head_assente) ... ok
+test_gate_conservato_sull_arco (tests.test_graph.BuildTest.test_gate_conservato_sull_arco) ... ok
+test_ordine_e_quello_di_dichiarazione (tests.test_graph.BuildTest.test_ordine_e_quello_di_dichiarazione) ... ok
+test_predecessori_e_successori (tests.test_graph.BuildTest.test_predecessori_e_successori) ... ok
+test_ciclo_non_produce_un_numero_sbagliato (tests.test_graph.CriticalPathTest.test_ciclo_non_produce_un_numero_sbagliato)
+Un cammino critico calcolato su un ciclo darebbe un numero plausibile. ... ok
+test_lineare (tests.test_graph.CriticalPathTest.test_lineare) ... ok
+test_rombo_sceglie_il_ramo_lungo (tests.test_graph.CriticalPathTest.test_rombo_sceglie_il_ramo_lungo)
+Il cammino critico e' il piu' pesante, non il piu' lungo per numero di nodi: ... ok
+test_slack_zero_solo_sul_cammino_critico (tests.test_graph.CriticalPathTest.test_slack_zero_solo_sul_cammino_critico) ... ok
+test_ciclo_diretto (tests.test_graph.CycleTest.test_ciclo_diretto) ... ok
+test_ciclo_indiretto_riporta_la_catena_intera (tests.test_graph.CycleTest.test_ciclo_indiretto_riporta_la_catena_intera) ... ok
+test_grafo_aciclico_non_produce_falsi_positivi (tests.test_graph.CycleTest.test_grafo_aciclico_non_produce_falsi_positivi) ... ok
+test_load_checked_rifiuta_il_ciclo (tests.test_graph.CycleTest.test_load_checked_rifiuta_il_ciclo)
+Il ciclo deve fermare il CARICAMENTO, non solo comparire in un report. ... ok
+test_b2_sblocca_esattamente_tre_issue (tests.test_graph.SmokeRoadmapGraphTest.test_b2_sblocca_esattamente_tre_issue) ... ok
+test_cammino_critico_attraversa_due_epic (tests.test_graph.SmokeRoadmapGraphTest.test_cammino_critico_attraversa_due_epic) ... ok
+test_le_due_parallele_hanno_slack (tests.test_graph.SmokeRoadmapGraphTest.test_le_due_parallele_hanno_slack) ... ok
+test_load_checked_e_l_ingresso_unico (tests.test_graph.SmokeRoadmapGraphTest.test_load_checked_e_l_ingresso_unico) ... ok
+test_nessun_ciclo (tests.test_graph.SmokeRoadmapGraphTest.test_nessun_ciclo) ... ok
+test_deterministico_su_ripetizioni (tests.test_graph.TopologicalTest.test_deterministico_su_ripetizioni) ... ok
+test_ogni_nodo_dopo_i_suoi_predecessori (tests.test_graph.TopologicalTest.test_ogni_nodo_dopo_i_suoi_predecessori) ... ok
+test_tie_break_e_l_ordine_di_dichiarazione (tests.test_graph.TopologicalTest.test_tie_break_e_l_ordine_di_dichiarazione) ... ok
+test_due_attivita_unreal_non_sono_schedulate_insieme (tests.test_planner.CapacityTest.test_due_attivita_unreal_non_sono_schedulate_insieme)
+L'Editor e' esclusivo per macchina: A3 e C3 lo vogliono entrambe. ... ok
+test_il_lease_unreal_non_consuma_un_writer_se_non_parte (tests.test_planner.CapacityTest.test_il_lease_unreal_non_consuma_un_writer_se_non_parte)
+\u26a0\ufe0f Verificare il lease DOPO aver preso il writer lascerebbe un writer ... ok
+test_il_temporaneo_e_esaurito_alla_terza (tests.test_planner.CapacityTest.test_il_temporaneo_e_esaurito_alla_terza)
+Con capacita' 1 il terzo pretendente su DEV viene rimandato, non inventato. ... ok
+test_lavoro_gia_in_corso_occupa_il_writer (tests.test_planner.CapacityTest.test_lavoro_gia_in_corso_occupa_il_writer)
+Senza questo, il planner proporrebbe un writer dove qualcuno sta scrivendo. ... ok
+test_wip_globale (tests.test_planner.CapacityTest.test_wip_globale) ... ok
+test_wip_per_workspace (tests.test_planner.CapacityTest.test_wip_per_workspace) ... ok
+test_wip_zero_significa_nessun_limite (tests.test_planner.CapacityTest.test_wip_zero_significa_nessun_limite) ... ok
+test_writer_permanente_poi_worktree_temporaneo (tests.test_planner.CapacityTest.test_writer_permanente_poi_worktree_temporaneo)
+DEV ha un writer e due issue pronte: una parte, l'altra vuole un temporaneo. ... ok
+test_il_cammino_critico_ha_precedenza_sulle_altre (tests.test_planner.DeterminismTest.test_il_cammino_critico_ha_precedenza_sulle_altre)
+C2 sta sul cammino critico: fra le pronte, va assegnata per prima. ... ok
+test_l_ordine_delle_chiavi_di_stato_non_cambia_il_piano (tests.test_planner.DeterminismTest.test_l_ordine_delle_chiavi_di_stato_non_cambia_il_piano)
+Uno stato costruito in ordine inverso e' lo stesso stato. ... ok
+test_lo_stesso_stato_produce_lo_stesso_piano (tests.test_planner.DeterminismTest.test_lo_stesso_stato_produce_lo_stesso_piano) ... ok
+test_cross_epic_unblock (tests.test_planner.ReadinessTest.test_cross_epic_unblock)
+\U0001f534 Il test centrale: validare B2 sblocca C2, che sta in un ALTRO Epic. ... ok
+test_done_soddisfa_un_gate_validated (tests.test_planner.ReadinessTest.test_done_soddisfa_un_gate_validated)
+Pretendere il contrario bloccherebbe per sempre chi dipende da lavoro finito. ... ok
+test_in_progress_non_e_ne_ready_ne_blocked (tests.test_planner.ReadinessTest.test_in_progress_non_e_ne_ready_ne_blocked) ... ok
+test_stato_iniziale (tests.test_planner.ReadinessTest.test_stato_iniziale)
+Senza alcuno stato dichiarato: pronte solo le tre radici. ... ok
+test_stato_non_valido_e_rifiutato (tests.test_planner.ReadinessTest.test_stato_non_valido_e_rifiutato) ... ok
+test_summary_conta_per_stato (tests.test_planner.ReadinessTest.test_summary_conta_per_stato) ... ok
+test_una_dipendenza_iniziata_non_sblocca_chi_la_aspetta (tests.test_planner.ReadinessTest.test_una_dipendenza_iniziata_non_sblocca_chi_la_aspetta)
+\U0001f534 Cominciare non e' validare, e il gate esige la validazione. ... ok
+test_una_dipendenza_iniziata_non_sblocca_nemmeno_cross_epic (tests.test_planner.ReadinessTest.test_una_dipendenza_iniziata_non_sblocca_nemmeno_cross_epic)
+La stessa regola sul confine fra Epic, dove il difetto costerebbe di piu'. ... ok
+test_una_issue_non_sblocca_chi_non_dipende_da_lei (tests.test_planner.ReadinessTest.test_una_issue_non_sblocca_chi_non_dipende_da_lei)
+Controllo positivo al contrario: se validare B2 sbloccasse tutto, il test ... ok
+test_unmet_dice_chi_manca_e_con_che_stato (tests.test_planner.ReadinessTest.test_unmet_dice_chi_manca_e_con_che_stato) ... ok
+test_validated_non_soddisfa_un_gate_done (tests.test_planner.ReadinessTest.test_validated_non_soddisfa_un_gate_done) ... ok
+test_hash_cambia_col_contenuto (tests.test_roadmap.ContentHashTest.test_hash_cambia_col_contenuto) ... ok
+test_hash_non_dipende_dalle_fini_riga (tests.test_roadmap.ContentHashTest.test_hash_non_dipende_dalle_fini_riga)
+\U0001f534 `core.autocrlf=true` da' allo STESSO file byte diversi su Windows. ... ok
+test_file_inesistente (tests.test_roadmap.LoadErrorTest.test_file_inesistente) ... ok
+test_yaml_malformato_riporta_la_riga (tests.test_roadmap.LoadErrorTest.test_yaml_malformato_riporta_la_riga) ... ok
+test_assegnazione_nel_file_e_rifiutata (tests.test_roadmap.RuntimeInPlanTest.test_assegnazione_nel_file_e_rifiutata) ... ok
+test_messaggio_spiega_dove_vive_lo_stato (tests.test_roadmap.RuntimeInPlanTest.test_messaggio_spiega_dove_vive_lo_stato) ... ok
+test_stato_nel_file_e_rifiutato (tests.test_roadmap.RuntimeInPlanTest.test_stato_nel_file_e_rifiutato) ... ok
+test_capacita_dichiarate (tests.test_roadmap.SmokeRoadmapTest.test_capacita_dichiarate) ... ok
+test_carica_senza_errori (tests.test_roadmap.SmokeRoadmapTest.test_carica_senza_errori) ... ok
+test_chiavi_canoniche (tests.test_roadmap.SmokeRoadmapTest.test_chiavi_canoniche) ... ok
+test_dipendenza_cross_epic_risolta (tests.test_roadmap.SmokeRoadmapTest.test_dipendenza_cross_epic_risolta) ... ok
+test_execution_work_eredita_da_home_work (tests.test_roadmap.SmokeRoadmapTest.test_execution_work_eredita_da_home_work) ... ok
+test_forma_breve_risolta_alla_chiave_canonica (tests.test_roadmap.SmokeRoadmapTest.test_forma_breve_risolta_alla_chiave_canonica)
+`requires: - item: A1` sta nel file; qui deve essere `EPIC-A/A1`. ... ok
+test_risorsa_unreal_dichiarata_da_due_issue (tests.test_roadmap.SmokeRoadmapTest.test_risorsa_unreal_dichiarata_da_due_issue)
+Con una sola issue Unreal il test di capacita' non distinguerebbe ... ok
+test_round_trip_dal_dizionario (tests.test_roadmap.SmokeRoadmapTest.test_round_trip_dal_dizionario)
+Il documento salvato nel database deve ricostruire la stessa roadmap. ... ok
+test_tre_epic_e_dieci_issue (tests.test_roadmap.SmokeRoadmapTest.test_tre_epic_e_dieci_issue) ... ok
+test_auto_dipendenza (tests.test_roadmap.ValidationTest.test_auto_dipendenza) ... ok
+test_chiave_sconosciuta (tests.test_roadmap.ValidationTest.test_chiave_sconosciuta) ... ok
+test_epic_senza_issue (tests.test_roadmap.ValidationTest.test_epic_senza_issue) ... ok
+test_estimate_negativa (tests.test_roadmap.ValidationTest.test_estimate_negativa) ... ok
+test_gate_sconosciuto (tests.test_roadmap.ValidationTest.test_gate_sconosciuto) ... ok
+test_issue_duplicata_nello_stesso_epic (tests.test_roadmap.ValidationTest.test_issue_duplicata_nello_stesso_epic) ... ok
+test_minimale_e_valida (tests.test_roadmap.ValidationTest.test_minimale_e_valida) ... ok
+test_requiredgate_a_livello_di_issue_avverte_e_non_blocca (tests.test_roadmap.ValidationTest.test_requiredgate_a_livello_di_issue_avverte_e_non_blocca) ... ok
+test_riferimento_ambiguo_non_viene_scelto (tests.test_roadmap.ValidationTest.test_riferimento_ambiguo_non_viene_scelto)
+Due issue omonime in due Epic: il parser NON ne sceglie una. ... ok
+test_riferimento_ambiguo_risolto_dalla_forma_lunga (tests.test_roadmap.ValidationTest.test_riferimento_ambiguo_risolto_dalla_forma_lunga) ... ok
+test_riferimento_inesistente (tests.test_roadmap.ValidationTest.test_riferimento_inesistente) ... ok
+test_risorsa_sconosciuta_e_un_errore_non_un_silenzio (tests.test_roadmap.ValidationTest.test_risorsa_sconosciuta_e_un_errore_non_un_silenzio) ... ok
+test_schema_mancante (tests.test_roadmap.ValidationTest.test_schema_mancante) ... ok
+test_schema_troppo_nuovo_dice_di_aggiornare_il_workspace (tests.test_roadmap.ValidationTest.test_schema_troppo_nuovo_dice_di_aggiornare_il_workspace) ... ok
+test_tutti_gli_errori_insieme_non_solo_il_primo (tests.test_roadmap.ValidationTest.test_tutti_gli_errori_insieme_non_solo_il_primo)
+Un errore per volta costringe a un ciclo correggi-riesegui lungo quanto ... ok
+test_workspace_group_sconosciuto (tests.test_roadmap.ValidationTest.test_workspace_group_sconosciuto) ... ok
+test_due_candidate_sulla_stessa_issue_hanno_esiti_opposti (tests.test_roadmap_store.CandidateLifecycleTest.test_due_candidate_sulla_stessa_issue_hanno_esiti_opposti)
+\u26a0\ufe0f L'esito sta sul CANDIDATE, non sulla issue. ... ok
+test_stato_candidate_non_valido_e_rifiutato (tests.test_roadmap_store.CandidateLifecycleTest.test_stato_candidate_non_valido_e_rifiutato) ... ok
+test_avanzamento_e_readiness_derivata (tests.test_roadmap_store.ItemStateTest.test_avanzamento_e_readiness_derivata) ... ok
+test_chiave_inesistente_e_rifiutata (tests.test_roadmap_store.ItemStateTest.test_chiave_inesistente_e_rifiutata)
+Un refuso salvato non avrebbe effetto sul planner, e il comando riuscirebbe. ... ok
+test_forma_breve_accettata_quando_non_ambigua (tests.test_roadmap_store.ItemStateTest.test_forma_breve_accettata_quando_non_ambigua) ... ok
+test_solo_gli_stati_dichiarati_sono_persistiti (tests.test_roadmap_store.ItemStateTest.test_solo_gli_stati_dichiarati_sono_persistiti)
+Scrivere PENDING per tutti al load fabbricherebbe stato che nessuno ha ... ok
+test_stato_non_valido_e_rifiutato (tests.test_roadmap_store.ItemStateTest.test_stato_non_valido_e_rifiutato) ... ok
+test_critical_path_via_daemon (tests.test_roadmap_store.PlanOverHttpTest.test_critical_path_via_daemon) ... ok
+test_graph_via_daemon (tests.test_roadmap_store.PlanOverHttpTest.test_graph_via_daemon) ... ok
+test_piano_calcolato_dal_daemon (tests.test_roadmap_store.PlanOverHttpTest.test_piano_calcolato_dal_daemon) ... ok
+test_tre_client_diversi_vedono_lo_stesso_piano (tests.test_roadmap_store.PlanOverHttpTest.test_tre_client_diversi_vedono_lo_stesso_piano)
+\U0001f534 La proprieta' per cui esiste un control plane unico. ... ok
+test_lo_schema_migrato_resta_migrato (tests.test_roadmap_store.RestartTest.test_lo_schema_migrato_resta_migrato) ... ok
+test_roadmap_stati_e_candidate_sopravvivono_al_riavvio (tests.test_roadmap_store.RestartTest.test_roadmap_stati_e_candidate_sopravvivono_al_riavvio)
+Il terminale che ospita rt3d viene chiuso: non deve perdersi niente. ... ok
+test_carica_e_rilegge (tests.test_roadmap_store.RoadmapPersistenceTest.test_carica_e_rilegge) ... ok
+test_due_roadmap_senza_id_non_ne_sceglie_una (tests.test_roadmap_store.RoadmapPersistenceTest.test_due_roadmap_senza_id_non_ne_sceglie_una)
+«La piu' recente» sembra ragionevole e cambia bersaglio da sola. ... ok
+test_reset_state_e_esplicito (tests.test_roadmap_store.RoadmapPersistenceTest.test_reset_state_e_esplicito) ... ok
+test_ricaricare_non_azzera_lo_stato (tests.test_roadmap_store.RoadmapPersistenceTest.test_ricaricare_non_azzera_lo_stato)
+Buttare via cinque validazioni per un refuso sarebbe un danno silenzioso. ... ok
+test_senza_roadmap_lo_dice_e_suggerisce_il_comando (tests.test_roadmap_store.RoadmapPersistenceTest.test_senza_roadmap_lo_dice_e_suggerisce_il_comando) ... ok
+test_answer_a_un_ruolo_su_lane_esplicita (tests.test_routing.DirectedTest.test_answer_a_un_ruolo_su_lane_esplicita) ... ok
+test_destinatario_ambiguo_e_rifiutato (tests.test_routing.DirectedTest.test_destinatario_ambiguo_e_rifiutato) ... ok
+test_question_a_una_sessione_nominata (tests.test_routing.DirectedTest.test_question_a_una_sessione_nominata) ... ok
+test_question_esige_un_destinatario (tests.test_routing.DirectedTest.test_question_esige_un_destinatario) ... ok
+test_ruolo_senza_lane_eredita_quella_del_mittente (tests.test_routing.DirectedTest.test_ruolo_senza_lane_eredita_quella_del_mittente) ... ok
+test_editor_designer_integra_verso_editor_main (tests.test_routing.IntegrationTest.test_editor_designer_integra_verso_editor_main) ... ok
+test_editor_dev_integra_verso_editor_main (tests.test_routing.IntegrationTest.test_editor_dev_integra_verso_editor_main) ... ok
+test_editor_gia_su_main_non_si_autoconsegna (tests.test_routing.IntegrationTest.test_editor_gia_su_main_non_si_autoconsegna)
+Caso non enumerato dalla specifica, e deliberatamente senza regola. ... ok
+test_destinatario_esplicito_batte_la_regola_automatica (tests.test_routing.OverrideTest.test_destinatario_esplicito_batte_la_regola_automatica) ... ok
+test_dev_designer_task_ready_resta_sulla_lane_designer (tests.test_routing.TaskReadyTest.test_dev_designer_task_ready_resta_sulla_lane_designer)
+Il caso negativo della specifica: non deve finire alla lane DEV. ... ok
+test_dev_task_ready_va_all_editor_della_stessa_lane (tests.test_routing.TaskReadyTest.test_dev_task_ready_va_all_editor_della_stessa_lane) ... ok
+test_task_ready_da_editor_non_ha_regola (tests.test_routing.TaskReadyTest.test_task_ready_da_editor_non_ha_regola) ... ok
+test_lane_mittente_sconosciuta (tests.test_routing.ValidationOfInputTest.test_lane_mittente_sconosciuta) ... ok
+test_ruolo_mittente_sconosciuto (tests.test_routing.ValidationOfInputTest.test_ruolo_mittente_sconosciuto) ... ok
+test_tipo_evento_sconosciuto (tests.test_routing.ValidationOfInputTest.test_tipo_evento_sconosciuto) ... ok
+test_editor_designer_chiede_validazione_alla_lane_designer (tests.test_routing.ValidationTest.test_editor_designer_chiede_validazione_alla_lane_designer) ... ok
+test_editor_dev_chiede_validazione_alla_lane_dev (tests.test_routing.ValidationTest.test_editor_dev_chiede_validazione_alla_lane_dev) ... ok
+test_verdetto_torna_all_editor_della_stessa_lane (tests.test_routing.ValidationTest.test_verdetto_torna_all_editor_della_stessa_lane) ... ok
+test_database_piu_nuovo_del_codice_e_rifiutato (tests.test_schema.SchemaTest.test_database_piu_nuovo_del_codice_e_rifiutato)
+Il caso dei tre workspace disallineati, visto dal lato del database. ... ok
+test_la_consegna_non_puo_avere_due_destinatari (tests.test_schema.SchemaTest.test_la_consegna_non_puo_avere_due_destinatari)
+Il CHECK del database, non una convenzione del codice applicativo. ... ok
+test_la_migrazione_porta_il_database_alla_versione_corrente (tests.test_schema.SchemaTest.test_la_migrazione_porta_il_database_alla_versione_corrente) ... ok
+test_migrare_due_volte_e_innocuo (tests.test_schema.SchemaTest.test_migrare_due_volte_e_innocuo) ... ok
+test_tutte_le_tabelle_previste_esistono (tests.test_schema.SchemaTest.test_tutte_le_tabelle_previste_esistono) ... ok
+test_divide_sul_terminatore (tests.test_schema.SplitStatementsTest.test_divide_sul_terminatore) ... ok
+test_il_punto_e_virgola_di_un_commento_non_divide (tests.test_schema.SplitStatementsTest.test_il_punto_e_virgola_di_un_commento_non_divide) ... ok
+test_scarta_i_frammenti_vuoti (tests.test_schema.SplitStatementsTest.test_scarta_i_frammenti_vuoti) ... ok
+test_candidate_eredita_branch_e_head_della_sessione (tests.test_store.CandidateTest.test_candidate_eredita_branch_e_head_della_sessione) ... ok
+test_ack_per_delivery_id_oltre_che_per_event_id (tests.test_store.EventStoreTest.test_ack_per_delivery_id_oltre_che_per_event_id) ... ok
+test_chi_fa_ack_adotta_il_task_dell_evento (tests.test_store.EventStoreTest.test_chi_fa_ack_adotta_il_task_dell_evento)
+Senza questo, la risposta dell'EDITOR non sarebbe legata al task. ... ok
+test_evento_senza_destinatario_e_registrato_ma_non_consegnato (tests.test_store.EventStoreTest.test_evento_senza_destinatario_e_registrato_ma_non_consegnato)
+Il caso che non deve perdere l'evento ne' fingere di averlo consegnato. ... ok
+test_evento_verso_una_sessione_inesistente_e_rifiutato (tests.test_store.EventStoreTest.test_evento_verso_una_sessione_inesistente_e_rifiutato)
+Un id scritto male resterebbe pending per sempre: meglio il rifiuto subito. ... ok
+test_l_adozione_non_sovrascrive_un_task_gia_dichiarato (tests.test_store.EventStoreTest.test_l_adozione_non_sovrascrive_un_task_gia_dichiarato)
+Una sessione che ha scelto il proprio lavoro non viene spostata. ... ok
+test_ordinamento_per_seq_e_non_per_timestamp (tests.test_store.EventStoreTest.test_ordinamento_per_seq_e_non_per_timestamp)
+Due eventi nello stesso secondo devono restare ordinati. ... ok
+test_payload_arriva_intatto (tests.test_store.EventStoreTest.test_payload_arriva_intatto) ... ok
+test_publish_registra_evento_e_consegna (tests.test_store.EventStoreTest.test_publish_registra_evento_e_consegna) ... ok
+test_retrieval_e_ack (tests.test_store.EventStoreTest.test_retrieval_e_ack) ... ok
+test_secondo_ack_perde_e_dice_chi_ha_vinto (tests.test_store.EventStoreTest.test_secondo_ack_perde_e_dice_chi_ha_vinto) ... ok
+test_una_sessione_incompatibile_non_vede_e_non_puo_prendere (tests.test_store.EventStoreTest.test_una_sessione_incompatibile_non_vede_e_non_puo_prendere)
+La separazione per lane e' cio' che impedisce il consumo accidentale. ... ok
+test_branch_nullo_e_uno_stato_legittimo (tests.test_store.SessionRegistryTest.test_branch_nullo_e_uno_stato_legittimo)
+Detached HEAD: `branch` resta None e la registrazione riesce. ... ok
+test_id_di_una_sessione_fermata_si_riusa_senza_replace (tests.test_store.SessionRegistryTest.test_id_di_una_sessione_fermata_si_riusa_senza_replace) ... ok
+test_il_file_del_database_e_sotto_rt3_home (tests.test_store.SessionRegistryTest.test_il_file_del_database_e_sotto_rt3_home) ... ok
+test_persistenza_attraverso_la_riapertura_dello_store (tests.test_store.SessionRegistryTest.test_persistenza_attraverso_la_riapertura_dello_store)
+Il database sopravvive alla chiusura del processo che lo ha scritto. ... ok
+test_registrazione_conserva_i_campi_dichiarati (tests.test_store.SessionRegistryTest.test_registrazione_conserva_i_campi_dichiarati) ... ok
+test_replace_forza_il_riuso_di_una_sessione_attiva (tests.test_store.SessionRegistryTest.test_replace_forza_il_riuso_di_una_sessione_attiva) ... ok
+test_session_id_duplicato_e_rifiutato_finche_e_attiva (tests.test_store.SessionRegistryTest.test_session_id_duplicato_e_rifiutato_finche_e_attiva) ... ok
+test_sessione_sconosciuta (tests.test_store.SessionRegistryTest.test_sessione_sconosciuta) ... ok
+test_gli_eventi_del_task_sono_recuperabili (tests.test_store.TaskRegistryTest.test_gli_eventi_del_task_sono_recuperabili) ... ok
+test_il_task_nasce_dalla_sessione_che_lo_dichiara (tests.test_store.TaskRegistryTest.test_il_task_nasce_dalla_sessione_che_lo_dichiara) ... ok
+test_documenti_sintetici (tests.test_yamlmini.CrossCheckTest.test_documenti_sintetici) ... ok
+test_roadmap_di_smoke_reale (tests.test_yamlmini.CrossCheckTest.test_roadmap_di_smoke_reale)
+Il documento vero, non uno inventato per il test. ... ok
+test_alias (tests.test_yamlmini.RejectTest.test_alias) ... ok
+test_anchor (tests.test_yamlmini.RejectTest.test_anchor) ... ok
+test_block_scalar (tests.test_yamlmini.RejectTest.test_block_scalar) ... ok
+test_chiave_duplicata (tests.test_yamlmini.RejectTest.test_chiave_duplicata)
+Una chiave ripetuta in YAML vero vince l'ultima, in silenzio. Qui no. ... ok
+test_chiave_duplicata_nel_flow (tests.test_yamlmini.RejectTest.test_chiave_duplicata_nel_flow) ... ok
+test_documento_che_comincia_indentato (tests.test_yamlmini.RejectTest.test_documento_che_comincia_indentato) ... ok
+test_documento_multiplo (tests.test_yamlmini.RejectTest.test_documento_multiplo) ... ok
+test_flow_non_chiuso (tests.test_yamlmini.RejectTest.test_flow_non_chiuso) ... ok
+test_indentazione_incoerente (tests.test_yamlmini.RejectTest.test_indentazione_incoerente) ... ok
+test_merge_key (tests.test_yamlmini.RejectTest.test_merge_key) ... ok
+test_stringa_non_chiusa_nel_flow (tests.test_yamlmini.RejectTest.test_stringa_non_chiusa_nel_flow) ... ok
+test_tab_nell_indentazione (tests.test_yamlmini.RejectTest.test_tab_nell_indentazione) ... ok
+test_tag (tests.test_yamlmini.RejectTest.test_tag) ... ok
+test_commento_in_coda_e_cancelletto_dentro_una_stringa (tests.test_yamlmini.SubsetTest.test_commento_in_coda_e_cancelletto_dentro_una_stringa)
+\u26a0\ufe0f Un `split('#')` romperebbe la seconda riga, che e' la forma normale di ... ok
+test_documento_vuoto (tests.test_yamlmini.SubsetTest.test_documento_vuoto) ... ok
+test_due_punti_senza_spazio_non_e_una_coppia (tests.test_yamlmini.SubsetTest.test_due_punti_senza_spazio_non_e_una_coppia) ... ok
+test_flow_annidato (tests.test_yamlmini.SubsetTest.test_flow_annidato) ... ok
+test_flow_inline (tests.test_yamlmini.SubsetTest.test_flow_inline) ... ok
+test_lista_allo_stesso_indent_della_chiave (tests.test_yamlmini.SubsetTest.test_lista_allo_stesso_indent_della_chiave)
+Forma legittima e comune: `- ` alla stessa colonna della chiave. ... ok
+test_lista_di_mapping_annidati (tests.test_yamlmini.SubsetTest.test_lista_di_mapping_annidati) ... ok
+test_mapping_e_scalari (tests.test_yamlmini.SubsetTest.test_mapping_e_scalari) ... ok
+test_numero_quotato_resta_stringa (tests.test_yamlmini.SubsetTest.test_numero_quotato_resta_stringa) ... ok
+test_stringa_quotata_conserva_i_due_punti (tests.test_yamlmini.SubsetTest.test_stringa_quotata_conserva_i_due_punti) ... ok
+
+----------------------------------------------------------------------
+Ran 194 tests in 5.383s
+
+OK
