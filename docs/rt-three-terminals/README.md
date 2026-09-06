@@ -225,6 +225,31 @@ un checkout
 
 Prima di modificare un binario: verificare `git status --short`. Dopo il Save: rileggere dirty state e `git status` prima che DEV esegua operazioni sullo stesso path.
 
+## Il bridge parte solo in MAIN
+
+Il bridge MCP e' **uno per macchina**, ospitato da `MAIN`. Un Editor aperto in un altro checkout, con
+`bAutoStartServer=True`, ne fa partire un **secondo**: nessuno lo usa - i client puntano tutti
+all'endpoint di MAIN - ma e' raggiungibile.
+
+⛔ Dietro `call_tool` ci sono 56 toolset, fra cui `AutomationTestToolset` con `RunTests` e
+`StopTests`. Una chiamata puo' **avviare una suite** senza passare da `rt-suite.ps1`, dal suo mutex e
+dal lease - oppure **fermare** quella di un'altra sessione. Un bridge non governato e' quel canale
+lasciato aperto.
+
+```powershell
+.\scripts\rt-mcp-server.ps1 -RepoRoot (Get-Location).Path -AutoStart Status
+.\scripts\rt-mcp-server.ps1 -RepoRoot (Get-Location).Path -AutoStart Off
+```
+
+L'installer lo applica da se': `On` in MAIN, `Off` altrove.
+
+⚠️ Il setting vive in `Saved/Config/WindowsEditor/EditorPerProjectUserSettings.ini`, che e' **per
+utente e non versionato**: e' una leva di **macchina**, e un `git pull` non la porta. Va riapplicata su
+ogni checkout, ed e' il motivo per cui l'installer la include.
+
+⚠️ **L'Editor riscrive quel file alla chiusura.** Modificarlo con un Editor aperto perde la
+modifica in silenzio: lo script rifiuta di procedere e lo dice.
+
 ## Enforcement reale
 
 Vale la pena dirlo con precisione, perché la differenza conta.
