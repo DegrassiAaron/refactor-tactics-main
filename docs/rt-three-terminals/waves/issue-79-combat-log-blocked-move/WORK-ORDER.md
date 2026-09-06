@@ -546,3 +546,70 @@ Non è un allentamento di §5: è ciò che §5 protegge, cioè la stabilità del
 | Rigenerazione del corpus golden | non ancora misurata come necessaria |
 
 `RT3_CONTRACT.md` §6: `NOT RUN` non conta come `PASS`. Nessuna riga di questo file è un verdetto.
+
+## Chiusura del consolidamento — il ciclo di rientro ha un ingresso
+
+Handoff: [`RT3-DEVLEAD-56f8c5c.md`](RT3-DEVLEAD-56f8c5c.md) — wave `issue-79-combat-log-blocked-move/**2**`, `STATUS: PARTIAL`.
+
+Le risposte ai Finding vivevano **solo in questo file**, che non è uno dei tre `RT3-*` di §10. Il ciclo di rientro non aveva quindi un ingresso leggibile per il ruolo a valle, che per contratto legge `RT3-DEVLEAD-<sha7>.md` dal filesystem e non ricostruisce l'handoff dalla chat. Ora ce l'ha.
+
+| Punto dell'`UNBLOCK` | Esito | Sede |
+|---|---|---|
+| 1 · decidere `1-F11` e scrivere la decisione | ✅ chiuso — fuori wave, e la lettura della DoD è scritta su #79 | #2628 · commento su #79 |
+| 2 · sanare o dichiarare `1-F12` | ✅ dichiarato — la misura conclusiva resta `NOT RUN`, con esecutore nominato | #2551 · #2629 |
+| 3 · decidere `1-F8` | ✅ deciso, **e il predicato corretto** | #2638 |
+| 4 · PR sul `PARENT_BRANCH` dichiarato | ✅ aperta su `main`, draft — e misurata **non mergiabile** per cause estranee | PR #2631 |
+
+### 🔴 Correzione alla decisione scritta sopra su `F13 + F8`
+
+Il merito regge. **Il predicato no**, ed è stato corretto misurando.
+
+Il blocco *«F13 + F8 — DECISI insieme»* di questo stesso file scrive la lettura come:
+
+> *il delta fra `BASE_SHA` e `HEAD` non tocca i path che la misura osserva*
+
+e il comando che la verifica è `git diff --name-only BASE_SHA..HEAD -- <path>`. **Quel comando risponde alla prima delle quattro condizioni di §5 e tace sulla terza** — *«il working tree contiene modifiche non dichiarate nel write-set in ingresso»*. Un file non committato non compare in un `diff` fra due commit, né se è `untracked` né se è una modifica non messa in stage.
+
+Misurato il **2026-09-06T18:07:03Z** su `HEAD 56f8c5cd`, mentre il consolidamento era in corso:
+
+```text
+git diff --name-only fa9e3ed2..HEAD -- Source/ Content/ Config/ Scenarios/   -> 0 file
+git status --porcelain              -- Source/ Content/ Config/ Scenarios/   -> 7 voci
+```
+
+Sette file di C++ di un'altra sessione, sotto `Source/RefactorTactics/Map/` — una directory del modulo, quindi compilata — di cui uno è un file di test. Il predicato diceva **verde**.
+
+**Decisione corretta, operativa per questa wave:**
+
+> Una misura è valida se, sui path che osserva, **entrambi** questi comandi tacciono:
+>
+> ```text
+> git diff --name-only <BASE_SHA>..<HEAD> -- <path misurati>   -> vuoto
+> git status --porcelain                  -- <path misurati>   -> vuoto
+> ```
+>
+> e la sessione li dichiara **con il loro output**, non con la loro conclusione.
+
+⚠️ Un predicato che nomina una condizione su quattro **autorizza esattamente ciò che la condizione taciuta vietava**. È il motivo per cui la domanda non poteva restare registrata solo qui.
+
+➡️ La domanda di contratto ha ora una **sede**: [#2638](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2638). ⛔ `RT3_CONTRACT.md` **non è stato modificato**, e alla ragione di owner se ne aggiunge una misurata: il branch è **45 commit indietro** rispetto a `origin/main`, dove `D-342` ha già riscritto la sezione `Aperti`. Una riga aggiunta da qui colpisce la stessa tabella.
+
+### Cosa il consolidamento ha misurato e nessuno aveva misurato
+
+| Misura | Esito |
+|---|---|
+| `git merge-tree --write-tree --name-only origin/main HEAD` | **10 conflitti `add/add`**, tutti `tools/rt3/` + `RT3_CONTROL_PLANE.md`. **Zero** su `Source/` `Content/` `Scenarios/` `Config/` |
+| `RTTurnManager.cpp`, toccato da entrambi i lati | **auto-merge**: `main` cambia `RunReactionPass`/`ResolveCombatPasses` (~4966–5983), la wave `ResolveMovement` (~7150–7609). Regioni disgiunte |
+| i 3 test rossi di `1-F12` su `origin/main` dopo la biforcazione | **0 commit** ciascuno. Catalogo icone e `Content/`: **0 file** cambiati |
+| `RT3_CONTRACT.md` §5 su `origin/main` | **invariato** — la domanda di `1-F8` è aperta sul contratto vivo, non su una copia stantia |
+| `RT3_CONTRACT.md` §6 su `origin/main` | ⚠️ **cambiato**: `D-342` ha reso canonico il vocabolario di `SEED_SOURCE` e ha **ritirato `fixed`**. Il contratto su questo branch non è quello vivo |
+
+🔑 **Il codice della wave mergia pulito.** I dieci conflitti sono al 100% del control plane `rt3`, atterrato qui da altre sessioni: è il costo — ora misurato — di ciò che la nota di consegna aveva già dichiarato, e che `1-F13` descrive sulla consegna invece che sulla misura.
+
+⛔ **Non risolti, e non per prudenza**: arbitrare due stesure parallele di `tools/rt3/store.py` è fuori dallo scope di un DEV-LEAD della #79.
+
+### Il collo di bottiglia non è un Finding
+
+Con tutti e cinque i Finding chiusi o instradati, la wave resta `PARTIAL`: i **tre check a oracolo umano** restano `NOT RUN` e non li produce nessuna suite. Guida operativa: [`guida-seduta-chiusura-79-denial-e-log.md`](../../../technical/runbooks/guida-seduta-chiusura-79-denial-e-log.md).
+
+🔴 **Precondizione della seduta**, dalla misura qui sopra: la guida si apre con *«il passo che viene prima di tutto: ricompilare»*, e compilare adesso significa compilare anche i sette file di un'altra sessione. Prima della seduta `git status --porcelain -- Source/` deve tacere, o la seduta deve dichiarare cosa c'era dentro il binario che ha misurato.
