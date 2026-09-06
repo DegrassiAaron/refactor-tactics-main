@@ -2,6 +2,7 @@
 #include "Turn/RTPacingLibrary.h"
 #include "Turn/RTPlaybackLibrary.h"
 #include "Turn/RTTurnLogLibrary.h"
+#include "Map/RTHexVisionLibrary.h" // DescribeLineOfSight: la RAGIONE del blocco, non una seconda LOS (#2534)
 #include "Turn/RTActionQueueLibrary.h"
 #include "Turn/RTActionEffectLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h"
@@ -1470,6 +1471,21 @@ void ARTTurnManager::LogBlockedIntents(const FRTBlastContext& Ctx)
 		NoLos.SrcCell = HexUnits[Blocked.AttackerId].Cell;
 		NoLos.TgtCell = bTargetsUnit ? HexUnits[Blocked.TargetId].Cell : Blocked.TargetCell;
 		NoLos.Amount = 0;
+		// CIO' CHE HA FERMATO IL TIRO (`#2534`), quando la squadra dell'attaccante lo conosceva.
+		//
+		// ⛔ **Non si ricalcola la LOS**: `DescribeLineOfSight` E' la primitiva da cui `HasLineOfSight`
+		// deriva il proprio bool, quindi qui non nasce una seconda autorita' sulla linea di tiro — si
+		// chiede la ragione a chi la decisione l'ha gia' presa. Riscrivere l'attraversamento «solo per
+		// sapere dove» sarebbe la forma che l'header di `URTHexVisionLibrary` scarta per esteso.
+		//
+		// ⚠️ **Il filtro di conoscenza non e' opzionale e non e' qui**: vive in `SightBlockerForLog`.
+		// Assegnare `Los.BlockedAt` direttamente compilerebbe e nominerebbe celle che il velo copre.
+		{
+			const FRTLineOfSightResult Los =
+				URTHexVisionLibrary::DescribeLineOfSight(Ctx.Map, NoLos.SrcCell, NoLos.TgtCell);
+			NoLos.SightBlockerCell = URTTurnLogLibrary::SightBlockerForLog(
+				Los, KnowledgeForTeam(HexUnits[Blocked.AttackerId].TeamId));
+		}
 		// QUALE azione e' stata fermata (CP 11.3, #79). `Plan.BlockedIntents` indicizza `Intents`, e
 		// `IntentDefs` gli e' parallelo per costruzione: entrambi crescono negli stessi due punti, quelli
 		// degli intenti pianificati e degli impatti di carica.

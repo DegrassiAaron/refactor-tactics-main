@@ -1184,6 +1184,37 @@ struct FRTTurnLogEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	int32 MicroStepIndex = 0;
 
+	/**
+	 * La cella che ha fermato il tiro, per le voci `Combat`/`NoLineOfSight` (`#2534`, formato **v13**).
+	 * `NoSightBlocker()` significa **«non nominabile»**, e copre tre casi che il log non distingue di
+	 * proposito: la linea era libera, la traccia e' anteriore alla v13, oppure la squadra dell'attaccante
+	 * non conosceva quella cella.
+	 *
+	 * 🔴 **Che i tre casi collassino e' la scelta, non una perdita.** Distinguerli direbbe al giocatore
+	 * *«c'e' un muro, ma non te lo dico»*, che e' informazione sulla geometria velata — esattamente cio' che
+	 * [D-225] nasconde. Il silenzio deve essere indistinguibile dall'assenza.
+	 *
+	 * ⚠️ **Chi lo riempie applica `URTTurnLogLibrary::SightBlockerForLog`**, che e' dove vive il filtro di
+	 * conoscenza. Assegnarlo dalla `FRTLineOfSightResult` grezza salterebbe il filtro e nominerebbe celle
+	 * che il velo copre: il compilatore non lo impedisce, il test
+	 * `CombatLog.SightBlockerRespectsTeamKnowledge` si'.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	FRTCellId SightBlockerCell = FRTCellId(0, 0, INDEX_NONE);
+
+	/**
+	 * La sentinella di `SightBlockerCell`.
+	 *
+	 * ⚠️ **Non si usa `FRTCellId::IsValid()`**: quella verifica l'invariante cubica `q + r + z == 0`, che
+	 * per la cella di default `(0,0,0)` e' VERA. Una cella «vuota» e' quindi valida, e usarla come
+	 * sentinella nominerebbe l'origine dell'arena su ogni voce che non ha muro. Il marcatore e' il
+	 * `Layer` a `INDEX_NONE`, che nessun layer reale assume — la stessa convenzione di `StableUnitId`.
+	 */
+	static FRTCellId NoSightBlocker() { return FRTCellId(0, 0, INDEX_NONE); }
+
+	/** Vero se la voce porta un muro nominabile. */
+	bool HasSightBlocker() const { return SightBlockerCell.Layer != INDEX_NONE; }
+
 	FRTTurnLogEntry() = default;
 };
 
@@ -1367,7 +1398,30 @@ enum class ERTTurnLogFormatVersion : uint16
 	 * v11 resta leggibile e il campo vale `0` — non e' un'inferenza, e' che quei byte non contenevano
 	 * quell'informazione. Ricostruirla sarebbe cio' che [D-310] vieta.
 	 */
-	WithMicroStep = 12
+	WithMicroStep = 12,
+
+	/**
+	 * v13 (`#2534`): la voce `NoLineOfSight` porta la **cella che ha fermato il tiro**, quando la squadra
+	 * dell'attaccante la conosceva.
+	 *
+	 * 🔴 **Perche' nel formato e non ricalcolata in lettura.** Un viewer che ricalcolasse la LOS per
+	 * scrivere la causa sarebbe una seconda autorita' sulla linea di tiro — la cosa che
+	 * `DescribeLineOfSight` esiste per evitare — e leggerebbe la mappa di ADESSO per spiegare un tiro di
+	 * ALLORA: un muro distrutto nel frattempo cambierebbe la spiegazione di un fatto passato. La causa e'
+	 * un dato del momento in cui il colpo non e' partito, e viaggia con la voce.
+	 *
+	 * ⚠️ **Cumulativa**: la v13 implica la v12 e tutte quelle sotto. Una traccia v12 resta leggibile e il
+	 * campo vale `NoSightBlocker()` — non «nessun muro», ma «quei byte non portavano l'informazione», che
+	 * e' la stessa distinzione che [D-310] impone al micro-step.
+	 *
+	 * 🔑 **Il campo NON entra in `VisitDiscriminatingFields`**, ed e' deliberato: e' una spiegazione, non un
+	 * fatto della simulazione. Due tracce che differiscono solo per quale muro hanno nominato hanno
+	 * risolto lo stesso turno, e separarle per hash renderebbe rosso un replay corretto giocato da una
+	 * squadra con memoria diversa. Il vincolo che questo impone e' l'altra faccia della stessa medaglia:
+	 * **il campo non puo' influenzare nessuna decisione**, o il determinismo dipenderebbe da un dato che
+	 * l'hash non guarda.
+	 */
+	WithSightBlocker = 13
 };
 
 /**

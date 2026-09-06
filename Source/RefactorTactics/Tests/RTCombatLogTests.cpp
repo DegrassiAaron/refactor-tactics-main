@@ -28,6 +28,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexVisionLibrary.h"   // FRTLineOfSightResult: la ragione e il PUNTO, non il solo bool (#2534)
 #include "Core/RTGameplayTags.h"      // TAG_Status_Burning · TAG_Status_Guarded: la guardia si applica al difensore
 #include "Perception/RTTeamKnowledge.h" // ClassifyTarget: la premessa «e' un ricordo» si asserisce, non si spera
 #include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason nel motivo del fallback
@@ -1702,3 +1703,160 @@ bool FRTCombatLogCoverRecordsFacingReadTest::RunTest(const FString&)
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+
+// ============================================================================
+// #2534 — il log nomina il muro che ferma il tiro, se la squadra lo conosce
+//
+// ## Il difetto
+//
+// La riga che il giocatore riceveva era:
+//
+//     (q=-1,r=0,L=0) -> (q=1,r=0,L=0): nessuna linea di tiro
+//
+// Nomina origine, destinazione, azione e le due unita' — non il muro. E il bersaglio e' VELATO, perche' il
+// muro stesso blocca la vista: chi guarda vede la propria unita' sparare verso il nulla, senza vedere ne' il
+// nemico ne' l'ostacolo. La comprensibilita' dipendeva INTERAMENTE dal fatto che il muro si vedesse a
+// schermo, e la seduta `U46` ha misurato che non si vede (`#2534`, `PIE-HEXPLAY-6` ROSSA).
+//
+// ## Perche' il filtro di conoscenza, e perche' ALLA SCRITTURA
+//
+// Nominare una cella non e' gratis: [D-225] dice che la fog of war della v0.1 NASCONDE la geometria che
+// nessuno della squadra osserva, e [D-227] le da' una memoria (`ExploredCells`). Una riga di log che
+// nominasse una cella mai esplorata rivelerebbe terreno che il velo copre — un leak scritto per gentilezza.
+//
+// Il filtro sta alla SCRITTURA e non in `ToPublicTrace`, per la stessa ragione del verdetto: `ToPublicTrace`
+// toglie CAMPI su una classificazione statica, mentre questa e' una domanda sul CONTENUTO — *«questa cella,
+// quella squadra, la conosceva?»*. E' la colonna in cui [D-223] mette il combat log.
+// ============================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSightBlockerRespectsTeamKnowledgeTest,
+	"RefactorTactics.CombatLog.SightBlockerRespectsTeamKnowledge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSightBlockerRespectsTeamKnowledgeTest::RunTest(const FString&)
+{
+	FRTLineOfSightResult Blocked;
+	Blocked.Block = ERTLineOfSightBlock::CellBlocker;
+	Blocked.BlockedAt = FRTCellId(1, 0);
+	Blocked.BlockedFrom = FRTCellId(0, 0);
+	Blocked.StepIndex = 1;
+
+	// (1) Cella IGNOTA alla squadra: non si nomina. E' il caso che protegge [D-225], ed e' fail-closed —
+	// una conoscenza vuota non nomina niente, invece di nominare tutto.
+	{
+		FRTTeamKnowledge Ignorant;
+		Ignorant.TeamId = 0;
+		const FRTCellId Named = URTTurnLogLibrary::SightBlockerForLog(Blocked, Ignorant);
+		TestEqual(TEXT("cella mai vista ne' esplorata: il log non la nomina"),
+			Named.Layer, static_cast<int32>(INDEX_NONE));
+	}
+
+	// (2) Cella ESPLORATA in passato: si nomina. E' [D-227] — il terreno esplorato resta noto e non scade,
+	// quindi ricordarlo in una riga di log non aggiunge niente a cio' che la squadra gia' sa.
+	{
+		FRTTeamKnowledge Remembers;
+		Remembers.TeamId = 0;
+		Remembers.ExploredCells.Add(FRTCellId(1, 0));
+		const FRTCellId Named = URTTurnLogLibrary::SightBlockerForLog(Blocked, Remembers);
+		TestEqual(TEXT("cella esplorata: il log la nomina (q)"), Named.X, 1);
+		TestEqual(TEXT("cella esplorata: il log la nomina (r)"), Named.Y, 0);
+		TestEqual(TEXT("cella esplorata: il log la nomina (layer)"), Named.Layer, 0);
+	}
+
+	// (3) Cella VISIBILE ora ma non ancora in `ExploredCells`: si nomina lo stesso. I due insiemi sono
+	// distinti nel dato — `ExploredCells` e' un sovrainsieme solo dopo il refresh — e leggere il solo
+	// `ExploredCells` tacerebbe un muro che la squadra sta guardando in questo istante.
+	{
+		FRTTeamKnowledge Sees;
+		Sees.TeamId = 0;
+		Sees.VisibleCells.Add(FRTCellId(1, 0));
+		const FRTCellId Named = URTTurnLogLibrary::SightBlockerForLog(Blocked, Sees);
+		TestEqual(TEXT("cella visibile ora: il log la nomina"), Named.X, 1);
+	}
+
+	// (4) Un'ALTRA cella conosciuta non autorizza a nominare questa. E' l'asserto che separa «il filtro
+	// guarda la cella giusta» da «il filtro guarda se l'insieme e' non vuoto»: senza, un'implementazione che
+	// risponde `true` appena la squadra conosce qualcosa passerebbe i primi tre casi.
+	{
+		FRTTeamKnowledge Elsewhere;
+		Elsewhere.TeamId = 0;
+		Elsewhere.ExploredCells.Add(FRTCellId(5, 5));
+		Elsewhere.VisibleCells.Add(FRTCellId(4, 4));
+		const FRTCellId Named = URTTurnLogLibrary::SightBlockerForLog(Blocked, Elsewhere);
+		TestEqual(TEXT("conoscere ALTRE celle non autorizza a nominare questa"),
+			Named.Layer, static_cast<int32>(INDEX_NONE));
+	}
+
+	// (5) Linea LIBERA: non c'e' niente da nominare, qualunque cosa la squadra conosca.
+	{
+		FRTLineOfSightResult Clear;
+		FRTTeamKnowledge Omniscient;
+		Omniscient.ExploredCells.Add(FRTCellId(1, 0));
+		const FRTCellId Named = URTTurnLogLibrary::SightBlockerForLog(Clear, Omniscient);
+		TestEqual(TEXT("linea libera: nessun muro da nominare"),
+			Named.Layer, static_cast<int32>(INDEX_NONE));
+	}
+
+	// (6) Il LAYER discrimina. Due celle con gli stessi assiali su layer diversi sono celle diverse, e una
+	// conoscenza del layer 0 non autorizza a nominare il layer 1. Senza questo asserto un confronto scritto
+	// sui soli `X`/`Y` passerebbe.
+	{
+		FRTLineOfSightResult Upstairs = Blocked;
+		Upstairs.BlockedAt = FRTCellId(1, 0, 1);
+		FRTTeamKnowledge GroundFloor;
+		GroundFloor.ExploredCells.Add(FRTCellId(1, 0, 0));
+		const FRTCellId Named = URTTurnLogLibrary::SightBlockerForLog(Upstairs, GroundFloor);
+		TestEqual(TEXT("il layer discrimina: conoscere (1,0,L0) non nomina (1,0,L1)"),
+			Named.Layer, static_cast<int32>(INDEX_NONE));
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSightBlockerAppearsInTheLineTest,
+	"RefactorTactics.CombatLog.SightBlockerAppearsInTheLine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSightBlockerAppearsInTheLineTest::RunTest(const FString&)
+{
+	FRTTurnLogEntry Entry;
+	Entry.Category = ERTLogCategory::Combat;
+	Entry.Outcome = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);
+	Entry.SrcCell = FRTCellId(-1, 0);
+	Entry.TgtCell = FRTCellId(1, 0);
+
+	// Senza muro nominabile la riga resta ESATTAMENTE quella di prima. E' il vincolo di non-regressione:
+	// ogni traccia gia' scritta, e ogni caso in cui il velo copre il muro, continua a leggersi come sempre.
+	{
+		Entry.SightBlockerCell = FRTTurnLogEntry::NoSightBlocker();
+		const FString Line = URTTurnLogLibrary::DescribeEntry(Entry);
+		TestTrue(TEXT("senza muro nominabile la riga non cambia"),
+			Line.EndsWith(TEXT("nessuna linea di tiro")));
+	}
+
+	// Col muro nominabile la riga porta la causa, nella stessa grammatica `(q=..,r=..,L=..)` che il resto
+	// del log usa per le celle.
+	{
+		Entry.SightBlockerCell = FRTCellId(0, 0);
+		const FString Line = URTTurnLogLibrary::DescribeEntry(Entry);
+		TestTrue(TEXT("la riga nomina cio' che ferma il tiro"),
+			Line.Contains(TEXT("muro in ")));
+		TestTrue(TEXT("e lo nomina con la cella giusta"),
+			Line.Contains(TEXT("(q=0,r=0,L=0)")));
+		// L'origine e la destinazione restano al loro posto: il dettaglio si ACCODA, non sostituisce.
+		TestTrue(TEXT("origine e destinazione restano nella riga"),
+			Line.Contains(TEXT("(q=-1,r=0,L=0)")) && Line.Contains(TEXT("(q=1,r=0,L=0)")));
+	}
+
+	// Un esito diverso non guadagna il dettaglio solo perche' il campo e' pieno: la causa appartiene alla
+	// riga che parla di linea di tiro, e scriverla altrove sarebbe una frase vera al posto sbagliato.
+	{
+		Entry.Outcome = static_cast<uint8>(ERTCombatOutcome::Hit);
+		Entry.Amount = 7;
+		Entry.SightBlockerCell = FRTCellId(0, 0);
+		const FString Line = URTTurnLogLibrary::DescribeEntry(Entry);
+		TestFalse(TEXT("un colpo andato a segno non nomina nessun muro"),
+			Line.Contains(TEXT("muro in ")));
+	}
+
+	return true;
+}
