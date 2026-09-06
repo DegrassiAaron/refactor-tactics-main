@@ -164,3 +164,119 @@ ATTEMPT:      1
 
 RISULTATO: BLOCKED
 NEXT_WAVE_AUTHORIZED: no
+
+---
+
+# APPENDICE — gate statici eseguiti senza motore
+
+Il lease resta rifiutato (`RT_SESSION_REQUIRED`, riprovato: stesso esito). Quanto segue non
+richiede Unreal ed è attribuibile a `0eeb5c10`.
+
+## Gate WAVE 1 soddisfatti staticamente
+
+**Nessun array parallelo residuo.** I sei array sono collassati in `TArray<FRTCounterAttack>`.
+I cinque nomi rimossi hanno **0 occorrenze** in tutto `Source/`:
+
+```text
+CounterAttackSrc  CounterActionId  CounterBaseActionId  CounterPriority  CounterAttackActors
+```
+
+⚠️ Nota di metodo: il primo giro di questo controllo usò due nomi **inventati**
+(`CounterSrcCell`, `CounterSourceCell`) che non erano mai esistiti — zero occorrenze per la
+ragione sbagliata. I nomi veri vengono dal diff, non dalla memoria.
+
+**Record completo.** `FRTCounterAttack` porta tutti e sei i campi del gate §5:
+`Attack`, `SourceCell`, `ActionId`, `BaseActionId`, `Priority`, `Actor`.
+
+**Lifetime/GC — nessuna regressione.** `Actor` è un `ARTUnit*` grezzo, ma lo era già:
+proveniva da `TArray<ARTUnit*> CounterAttackActors`. La struct non è una `USTRUCT` e l'header
+lo dichiara, con la ragione (dato transiente, fuori da serializzazione e replica). Il refactor
+**sposta** il lifetime, non lo cambia.
+
+**Astrazione non nuova.** `FRTDisplacementCause` vive nello stesso header (riga 19): il record
+segue un fratello esistente, non introduce un pattern. Non è over-engineering.
+
+## Anti-vacuità — predizione statica
+
+La mutazione prescritta **è capace** di far cadere il test. Scambiando i `SourceCell`:
+
+| assertion | dopo la mutazione |
+|---|---|
+| `VociContrattacco == 2` | resta 2 |
+| `CoppiaA == 1` — cerca `Src=(0,0) ∧ Tgt=(1,0)` | voce A ha `Src=(0,3)`; voce B ha `Tgt=(1,3)` → **0** |
+| `CoppiaB == 1` — cerca `Src=(0,3) ∧ Tgt=(1,3)` | simmetrico → **0** |
+
+Coincide con la previsione di DEV-LEAD. ⚠️ Resta `NOT RUN`: una predizione non è una misura.
+
+---
+
+```text
+FINDING_ID:   counter-attack-record/1-F5
+SEVERITY:     MINORE (qualità del test, non correttezza del refactor)
+EVIDENCE_REF: RTDefensiveReactionTests.cpp — TwoCountersKeepTheirOwnOrigin, righe del fixture:
+              ReactorA e ReactorB ricevono entrambi AddCoreAbilityInSlot("Action.Counter", 3)
+ROOT_CAUSE:   i due record hanno ActionId, BaseActionId e Priority IDENTICI. Scambiarli fra i
+              due contrattacchi è un no-op: nessuna assertion può vederlo. Il test filtra su
+              `E.ActionId != IdContrattacco` e non assevera affatto Priority né BaseActionId.
+              Nessun altro test copre l'associazione: RTDefensiveReactionTests.cpp:147 assevera
+              `Def.Priority` del CATALOGO, non del record.
+              ∴ tre dei sei campi che la wave promette di tenere insieme restano non provati —
+              e sono esattamente quelli che sei array paralleli disallineavano.
+OWNER:        DEV-LEAD
+REQUIRED_FIX: dare a ReactorB un'abilità di contrattacco con ActionId/Priority diversi, oppure
+              asserire i tre campi direttamente sulle due voci.
+REGRESSION:   nessuna: è copertura mancante, non un difetto introdotto
+ATTEMPT:      1
+```
+
+⚠️ `F5` non impedisce alla wave di essere corretta. Impedisce di **dimostrarlo** sui tre campi
+che il gate §5 nomina esplicitamente.
+
+---
+
+# POSTILLA — la wave è stata chiusa dal merge, non dal sign-off
+
+`PR #2594` risulta `MERGED` alle `2026-09-06T13:54:15Z`, merge commit `b292357c`.
+`0eeb5c10` è in `main`.
+
+Il mandato prescriveva: «⛔ Il merge della PR #2594 avviene dopo il tuo sign-off, non prima.»
+Il sign-off di questo ruolo era, ed è, `BLOCKED`.
+
+**Un merge non converte `NOT RUN` in `PASS`.** La matrice resta quella sopra.
+
+## Ciò che risulta mai eseguito, da nessun ruolo
+
+| ruolo | BUILD di `0eeb5c10` |
+|---|---|
+| DEV-LEAD | dichiarato non eseguito — «DEV non occupa Unreal» |
+| EDITOR | `NOT RUN` — «nessuna compilazione eseguita» |
+| VALIDATION | `NOT RUN` — lease rifiutato |
+
+Riscontro indipendente: `Binaries/Win64/UnrealEditor-RefactorTactics.dll` porta data
+**06:41**, circa nove ore prima del merge e prima che `0eeb5c10` esistesse. Il binario presente
+non contiene il codice della wave.
+
+∴ il codice di WAVE 1 è in `main` **senza che sia mai stato compilato né eseguito**, e il test
+di caratterizzazione `TwoCountersKeepTheirOwnOrigin` non è mai stato lanciato.
+
+```text
+FINDING_ID:   counter-attack-record/1-F6
+SEVERITY:     MAGGIORE (processo)
+EVIDENCE_REF: gh pr view 2594 -> MERGED 2026-09-06T13:54:15Z, mergeCommit b292357c;
+              mtime di Binaries/Win64/UnrealEditor-RefactorTactics.dll = 06:41
+ROOT_CAUSE:   merge eseguito con sign-off VALIDATION BLOCKED e zero gate motore eseguiti
+OWNER:        USER
+REQUIRED_FIX: eseguire build + suite su main da un terminale RT persistente. Se rosso, non è
+              più un difetto di branch: è main rotta, e cambia priorità.
+ATTEMPT:      1
+```
+
+## Priorità raccomandata, ora che è in main
+
+1. `Build.bat RefactorTacticsEditor` su `main` — se rosso in `SRTAnimPreviewViewport.cpp` la
+   causa è `f29dd374`, non questo write-set.
+2. `rt-suite.ps1 -Filter RefactorTactics.Reactions` + anti-vacuità.
+3. `F5`: la copertura mancante su `ActionId`/`BaseActionId`/`Priority` ora vive in `main`.
+
+RISULTATO: BLOCKED (invariato)
+NEXT_WAVE_AUTHORIZED: no
