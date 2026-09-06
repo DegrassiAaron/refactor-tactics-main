@@ -6,7 +6,7 @@
 > Questo documento non introduce una seconda scala di release, non assegna lavoro e non è owner di nessuna
 > feature: è una **vista di navigazione** sopra owner che esistono già.
 
-**Fotografia**: 2026-09-04, misurata su `origin/main` `070796a1` e su GitHub LIVE.
+**Fotografia**: 2026-09-06, misurata su `origin/main` `7c1af4c4` e su GitHub LIVE.
 **Issue indice**: vedi § *Dove vive questa vista su GitHub*.
 
 ---
@@ -240,6 +240,46 @@ Maturità di capability: `Contratto → Runtime → Traccia → Authoring valida
 
 ---
 
+### CR-BALANCE — Balance & Tuning
+
+**Ancora**: **#2565** *«Bilanciamento: dalla variante d'abilità al contenuto validato»* (cross-release) — `out_of_release_scope`
+**Dettaglio**: [`roadmap-balance.md`](roadmap-balance.md)
+
+Il ciclo che questa capability chiude, e che oggi è **aperto in due punti**:
+
+```text
+catalogo canonico → variante sperimentale → validazione → metriche derivate
+     → esecuzione deterministica sui sistemi REALI → diff baseline↔variante
+          → evidenza (TurnLog + StateHash) → promozione esplicita al dato canonico
+```
+
+L'invariante: ⛔ **nessun secondo simulatore**. Se lo strumento dice 28 e la partita dice 24, lo strumento ha
+smesso di essere una lente — ed è motivo di arresto, non un numero da tarare. È `ADR-0010` più il §3 di
+[`../technical/tooling/spec-tactical-designer.md`](../technical/tooling/spec-tactical-designer.md).
+
+| Sotto-vista | Owner |
+|---|---|
+| BAL-DATA — i numeri canonici | [`../balance/`](../balance/) (`D-023`) · gate `tools/radar/catalog-code.ts` · #2578 (le azioni sono scoperte) |
+| BAL-VARIANT — la variante sperimentale | #1950 *Skill Workbench* (`TD 0.3`) — dato consegnato · #2577 (manca l'ingresso) |
+| BAL-DIFF — il confronto fra due run | #2576 (`TD 0.4`, dichiarato dall'owner e senza issue fino a oggi) |
+| BAL-METRICS — le metriche derivate | `tools/radar/{rubric,power,precision,profile,balance}.ts` (`D-108`) · #2579 (solo per eroe) |
+| BAL-BATCH — la misura a lotti | **#776** (`E43`) — 🔴 dopo il competence gate `D-102` (#543) |
+| BAL-RUNTIME — il runtime d'abilità | consuma **CR-CONTENT** · #774 (`E41`) |
+| BAL-GATE — il gate umano | #403 (`BAL-1`, `U20/PIE-BAL1`) |
+
+Maturità di capability: `BAL 0.1 … BAL 1.0`, tracciate come figlie di #2565.
+⚠️ Sono maturità di **capability**, non versioni di prodotto: `BAL 0.7` non ha niente a che vedere con `v0.7`.
+È la stessa distinzione che `D-154` ha già dovuto fare per `TD 0.7`, dopo che il 2026-08-13 una milestone
+*«Skill Balance Lab v0.3»* fu proposta e dichiarata superata — *«uno strumento collocato nella roadmap di
+release compete con la consegna»*.
+
+⛔ Il vocabolario è **`Variant`**, non `Candidate`: `D-154` ha misurato che `Candidate` è già occupato in
+cinque header con due significati.
+⛔ `RefactorTactics_Balance_Matrices_v0.1.xlsx` resta `RESEARCH` (`D-023`): materiale d'analisi, mai fonte per
+risolvere un conflitto contro i cataloghi `.md`.
+
+---
+
 ## 4. Dove le capability si incontrano
 
 I contratti sono il posto in cui una capability **consuma** un'altra senza riscriverla.
@@ -250,6 +290,10 @@ I contratti sono il posto in cui una capability **consuma** un'altra senza riscr
 | Replay × Explainability | proiezione `FRTPlayerEvent` · payload di motivazione · navigazione al punto della timeline |
 | Tactical Designer × Map Editor | dati canonici di mappa · stessa semantica runtime · stessa validazione |
 | Tactical Designer × Content | Skill Workbench edita varianti, **Scenario Harness** le valuta — non un secondo valutatore |
+| Balance × Tactical Designer | `BAL 0.1` **consuma** `TD 0.3` e `TD 0.4` e non li rivendica: il workbench è l'ingresso, il bilanciamento è la domanda |
+| Balance × Content | i cataloghi Markdown possiedono i numeri (`D-023`); GAS sarà il **runtime** delle abilità, mai l'autorità (#774) |
+| Balance × Bot | un risultato bot-contro-bot **non è ancora** una misura di bilanciamento: `D-102` (#543) precede ogni lotto |
+| Balance × Online | la misura non può vedere l'intento avversario prima della risoluzione — il turno è simultaneo |
 | Tactical Designer × Bot | gli scenari diventano test di competenza e suite di regressione |
 | Presentation × TD / Replay / Playground | **un solo** linguaggio semantico di overlay: selezionato · valido · invalido · previsto · confermato · incerto · copertura · hazard |
 | Online × Replay | replay pubblico sanitizzato e audit trace privata sono **due prodotti** sugli stessi dati canonici |
@@ -283,6 +327,7 @@ e non come «70% completo».
 | [`roadmap-main-v0.1.md`](roadmap-main-v0.1.md) | vista di esecuzione della v0.1 |
 | [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) | scope di release post-v0.1 |
 | [`roadmap-gray-kit-playground.md`](roadmap-gray-kit-playground.md) | maturità di tooling, fuori dalla scala di release |
+| [`roadmap-balance.md`](roadmap-balance.md) | dettaglio di `CR-BALANCE`: `BAL 0.1 → BAL 1.0`, fuori dalla scala di release |
 | [`hex-map-roadmap.md`](hex-map-roadmap.md) | registro storico di ciò che è stato consegnato |
 | [`roadmap-editor.md`](roadmap-editor.md) | vista storica ritirata |
 
