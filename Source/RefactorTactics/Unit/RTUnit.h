@@ -1193,8 +1193,20 @@ public:
 	 *
 	 * ⚠️ Nascosto NON significa scollegato: `Mesh` resta il proxy di click (QueryOnly + `ECR_Block`), e la
 	 * collisione la decide `bRender`, non questo predicato.
+	 * ⚠️ **`bHasPose` e' la terza condizione, aggiunta il 2026-09-05 (#2545).** Una mesh SENZA una clip
+	 * da suonare non e' un corpo: e' una posa di riferimento, cioe' una T-pose — e una T-pose si legge
+	 * come «questa animazione e' rotta» invece che come «nessuno ha legato una clip a questo ruolo».
 	 */
-	static bool ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh);
+	static bool ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh, bool bHasPose);
+
+	/**
+	 * Se lo SKELETAL dell'eroe va mostrato: serve che l'unita' si veda **e** che ci sia una posa da
+	 * mostrare.
+	 *
+	 * 🔑 Esiste accanto a `ShouldShowPlaceholderMesh` perche' sono **la stessa decisione**: senza questo,
+	 * il cilindro comparirebbe SOPRA la T-pose invece che al suo posto, e si vedrebbero entrambi.
+	 */
+	static bool ShouldShowHeroSkeletal(bool bRender, bool bHasPose);
 
 	/**
 	 * Se l'ANELLO DI SELEZIONE va mostrato: serve che l'unita' si veda, che sia selezionata, e che un
