@@ -1052,7 +1052,7 @@ bool FRTHexSerializedAssetMigrationTest::RunTest(const FString&)
 	// ⚠️ **Il conteggio e' un PROXY, e vale finche' l'arena non porta nomi d'autore.** Non distingue un nome
 	// inventato dalla migrazione da uno scritto da chi ha autorato: conta i nomi, non la loro origine. Ha
 	// funzionato finche' l'arena aveva zero porte, perche' li' un nome poteva venire solo dalla migrazione.
-	// ⏱️ Misurato il 2026-09-05 (`#2330`): posando la porta con `-StableId=Door.WestYard` questa riga e'
+	// ⏱️ Misurato il 2026-09-06 (`#2330`): posando la porta con `-StableId=Door.WestYard` questa riga e'
 	// caduta — su un nome che nessuna migrazione aveva inventato. La porta e' stata quindi posata **anonima**,
 	// che e' cio' che `#2330` chiedeva: l'`Interact` adiacente risolve per `(From, To)` e non per nome.
 	// 🔴 **Chi autorera' la prima porta NOMINATA — la catena remota e' `#833` — trova qui la sua decisione**:
@@ -1547,7 +1547,7 @@ bool FRTAuthoredCoversNotBelowCatalogTest::RunTest(const FString&)
  * 🔑 **Che cosa questo oracolo fa: e' un filo teso fra un asset e un documento.** La riga di `§2` deve
  * dire il vero sulla mappa che il giocatore carica, e nessun altro meccanismo lo garantisce.
  *
- * ⏱️ **E il rosso che questo test prometteva e' arrivato il 2026-09-05, con `#2330`.** `RTSetCellDoor` ha
+ * ⏱️ **E il rosso che questo test prometteva e' arrivato il 2026-09-06, con `#2330`.** `RTSetCellDoor` ha
  * posato una porta `Closed` su `(q=-3,r=2,L=0)` bordo `SE` — porte `0 -> 1`, hash `2839750933 -> 2786630622`,
  * revisione `1974 -> 1975` — e le tre asserzioni sono cadute insieme, come dovevano. Sono state **aggiornate**,
  * non tolte, e con loro la riga di `§2`: e' esattamente il gesto che questo oracolo esiste per imporre.
@@ -1559,14 +1559,14 @@ bool FRTAuthoredCoversNotBelowCatalogTest::RunTest(const FString&)
  * in quattro stati). «`Interact` funziona» e «la mappa spedita ha qualcosa su cui usarlo» sono proposizioni
  * diverse, e §2.1 le aveva gia' confuse una volta dichiarando *«#833 ha portato porte e interruttori»* —
  * vero per il codice, non per `DA_HexMap_Arena`.
- * ⏱️ **Dal 2026-09-05 sono vere entrambe**, e restano comunque due proposizioni distinte: la mappa spedita
+ * ⏱️ **Dal 2026-09-06 sono vere entrambe**, e restano comunque due proposizioni distinte: la mappa spedita
  * porta UNA porta, non la capability. Se un giorno quella porta venisse rimossa, la prima resterebbe vera e
  * la seconda tornerebbe falsa senza che nulla nel codice cambi — che e' la ragione per cui il conteggio si
  * misura sull'ASSET e non si deduce dai test dell'`Interact`.
  *
  * ⚠️ **Si asserisce SOLO sulla mappa d'autore**, e le altre due si limitano a un `AddInfo`. E' la lezione
  * del vicino `AuthoredCoversAreNotBelowCatalog`: `_Scratch` e' una fixture che **si rigenera** — misurata a
- * 45 celle e 1 copertura, poi a 65 e 4 in dieci giorni, e a **331 celle** il 2026-09-05 — quindi
+ * 45 celle e 1 copertura, poi a 65 e 4 in dieci giorni, e a **331 celle** il 2026-09-06 — quindi
  * un'asserzione su di lei misurerebbe la rigenerazione, non un invariante. `DA_HexMap_Arena` e' autorata
  * a mano e stabile: e' l'unica delle tre su cui un conteggio significhi qualcosa.
  */
@@ -1661,7 +1661,7 @@ bool FRTAuthoredArenaDoorCountTest::RunTest(const FString&)
 	// piu' a ZERO.** Un conteggio inchiodato a `1` passerebbe anche se `ContaPorte` guardasse la cella
 	// sbagliata; sommare una porta e pretendere `PorteAutorate + 1` chiede al contatore di REAGIRE.
 	// ⚠️ Le due attese sono scritte in forma RELATIVA apposta: la prossima porta autorata muove una riga
-	// sola — l'asserzione — e non tre. Il 2026-09-05 ne mosse tre, ed era `#2330`.
+	// sola — l'asserzione — e non tre. Il 2026-09-06 ne mosse tre, ed era `#2330`.
 	URTHexMapAsset* Copia = DuplicateObject<URTHexMapAsset>(Autorata, GetTransientPackage());
 	if (TestNotNull(TEXT("la copia di lavoro esiste"), Copia) && Copia->Cells.Num() > 0)
 	{
