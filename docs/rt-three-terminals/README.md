@@ -187,6 +187,42 @@ Resta disponibile `RT: Open 3 terminals` come alias di compatibilità per aprire
 
 I task usano `panel: new` e `instanceLimit > 1`, quindi lo stesso ruolo può essere aperto più volte.
 
+## Task routing
+
+Chi lavora su un task attraverso più ruoli non deve ricordare a chi l'ha già passato.
+
+```text
+Terminal -> Run Task -> RT: Open next task terminal
+TaskId: 2330
+```
+
+Il router legge chi tocca adesso e apre **quel** ruolo. Se tocca a te — un giudizio
+visivo, il feel, una decisione di design — non apre un ruolo falso: te lo dice.
+
+```powershell
+rttask list                     # tutti i task, con stato e prossimo actor
+rttask status -TaskId 2330      # chi ha fatto cosa, e chi tocca
+```
+
+Le decisioni di routing le scrive il **RT Coordinator** (`claude --agent rt-coordinator`,
+oppure `RT: Open COORDINATOR`), che non è una quarta figura RT3: non imposta
+`RT_TERMINAL_ROLE`, non acquisisce Unreal, non esegue suite, non emette verdetti.
+
+Un worker deposita un risultato e basta:
+
+```powershell
+rttask report -TaskId 2330 -Status DONE -Summary "..." -NextActorRecommended VALIDATION
+```
+
+⛔ `NEXT_ACTOR_RECOMMENDED` è una **raccomandazione**. `next_actor` lo imposta solo
+il Coordinator.
+
+Semantica completa — schema, comandi, lifecycle, mismatch, `USER_REQUIRED`, rapporto
+con le wave RT3 e cosa **non** è source of truth: [`TASK_ROUTING.md`](TASK_ROUTING.md).
+
+Un terminale aperto senza `TaskId` si comporta esattamente come prima: il router è
+un'estensione, non un passaggio obbligato.
+
 ## Suite protetta
 
 Da un terminale con ruolo VALIDATION:

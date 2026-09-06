@@ -1,6 +1,6 @@
 ---
 name: issue-run
-description: Claims a RefactorTactics GitHub issue, defines it through sc:spec-panel, keeps code/docs/issues/references coherent, implements it, validates it including Unreal/Epic MCP scenarios when relevant, and leaves the issue in the correct final state.
+description: Executes a RefactorTactics GitHub issue inside ONE RT3 figure (DEV, EDITOR or VALIDATION), never all three in the same session. Defines the issue through sc:spec-panel, keeps code/docs/issues/references coherent, does the work that belongs to the current role, and hands off what belongs to another figure.
 argument-hint: "[issue-number]"
 arguments:
   - issue
@@ -17,10 +17,64 @@ Invocation:
 
 The command is an orchestrator. It MUST NOT jump directly from reading the issue to editing code.
 
+## Phase -1 — Role gate, prima di tutto
+
+⛔ **Questa skill esegue una sola figura RT3 per sessione.** Non salta da `DEV` a Editor a validation dentro la stessa finestra: quella catena e' l'invariante che `CLAUDE.md` §10 e `RT3_CONTRACT.md` §12 tengono in piedi, e una skill che la percorre da sola la annulla.
+
+Prima di qualunque altra cosa, leggi:
+
+```powershell
+$env:RT_TERMINAL_ROLE
+$env:RT_TASK_ID
+```
+
+### Se `RT_TERMINAL_ROLE` non c'e'
+
+`ROLE_MISSING`. Fermati. `CLAUDE.md` §2 e' esplicito: fail-closed, nessun lavoro mutante finche' il ruolo non e' risolto.
+
+Dillo in una riga e proponi le due strade: aprire un terminale RT (`RT: Open DEV terminal`, oppure `RT: Open next task terminal` se il lavoro e' instradato) o invocare `/rt-session-role <dev|editor|validation>`.
+
+Non dedurre il ruolo dal contenuto della issue.
+
+### Se c'e', vale questo confine
+
+| Ruolo | Fa | Non fa |
+|---|---|---|
+| `DEV` | C++, test, scenari come dati, tooling headless, docs, Git/GitHub, gate statici (`node tools/...`) | UnrealEditor, PIE, `rtsuite`, `rtbuild`, packaging, MCP asset write |
+| `EDITOR` | `.uasset`/`.umap`, Blueprint, UMG, Material, wiring visivo, PIE, acceptance percettiva | suite, build, verdetti su determinismo/privacy/replay/packaged |
+| `VALIDATION` | build, Automation mirata, regression, Scenario Harness, determinismo, replay, privacy, packaged, performance | authoring asset; riparare il difetto che ha trovato e poi approvarlo |
+
+Cio' che non appartiene al tuo ruolo non diventa `N/A` e non diventa `PASS`: diventa `NOT RUN` con il nome della figura che lo possiede, e un handoff.
+
+### Se `RT_TASK_ID` c'e'
+
+Il lavoro e' instradato. Prima di iniziare:
+
+```powershell
+rttask status -TaskId $env:RT_TASK_ID
+rttask assignment -TaskId $env:RT_TASK_ID
+```
+
+Se `next_actor` non e' il tuo ruolo: `TASK_ROUTE_MISMATCH`, fermati. Non correggere il routing — il router lo rifiuterebbe comunque da una sessione con ruolo.
+
+Lavora dentro l'assignment. Al termine, invece di inventare il passo successivo:
+
+```powershell
+rttask report -TaskId <id> -Status <DONE|PARTIAL|BLOCKED|FAILED> `
+    -Summary "..." -Changes "..." -Evidence "..." -NotRun "..." `
+    -NextActorRecommended <actor>
+```
+
+⛔ `NEXT_ACTOR_RECOMMENDED` e' una **raccomandazione**. Il prossimo actor lo decide il Coordinator.
+
+Semantica: `docs/rt-three-terminals/TASK_ROUTING.md`.
+
+---
+
 ## Core invariants
 
-1. The issue must be claimed before specification or implementation starts.
-2. Only one worker/session may own an issue at a time.
+1. The issue must be claimed before specification or implementation starts — **quando il claim spetta a questa sessione**. Vedi Phase 1: in una catena RT3 il claim e' gia' stato preso a monte.
+2. Due sessioni non lavorano la stessa issue **contemporaneamente**. La **successione** `DEV -> EDITOR -> VALIDATION` sulla stessa issue non e' concorrenza: e' il flusso normale.
 3. Run the existing `sc:spec-panel` workflow with the same issue argument before implementation.
    - Equivalent invocation: `/sc:spec-panel $issue`
    - If `sc:spec-panel` is exposed as a Claude Code Skill, invoke that Skill.
@@ -28,10 +82,10 @@ The command is an orchestrator. It MUST NOT jump directly from reading the issue
 4. The GitHub issue is the operational source of truth for ownership and progress.
 5. Code, tests, documentation, architecture references, roadmap and related issues must remain mutually coherent.
 6. Do not mark work complete because the code merely compiles.
-7. For gameplay/editor-facing behavior, use the connected Epic/Unreal MCP for scenario validation when it adds meaningful verification.
+7. Epic/Unreal MCP e PIE appartengono alla figura `EDITOR`, e la scrittura asset via MCP solo al workspace `MAIN`. Da `DEV` o `VALIDATION` non si usano.
 8. Never allow Unreal Editor animations, timing or presentation state to become gameplay authority.
 9. Never expose or weaken RefactorTactics planning privacy, determinism or server authority requirements.
-10. Always perform cleanup, including Unreal Editor lifecycle cleanup, before finishing the command.
+10. Always perform cleanup. Il lifecycle dell'Editor riguarda solo la figura che l'ha aperto: chi non lo apre non lo chiude, e non chiude quello di un'altra sessione.
 
 ---
 
@@ -46,8 +100,9 @@ Determine:
 - current Git status;
 - current Claude session id `${CLAUDE_SESSION_ID}`;
 - available GitHub integration: GitHub MCP first, otherwise `gh` CLI if already configured;
-- available Epic/Unreal MCP tools;
-- whether Unreal Editor is currently running for this project.
+- `RT_TERMINAL_ROLE` e `RT_TASK_ID`, gia' letti in Phase -1;
+- available Epic/Unreal MCP tools — **solo se il ruolo e' `EDITOR`**;
+- whether Unreal Editor is currently running for this project — in sola lettura (`rtlease -Action status`), che e' informazione utile a ogni ruolo perche' dice se il motore e' occupato.
 
 Read the issue completely, including:
 - title;
@@ -109,6 +164,32 @@ This issue is currently owned by this workflow. Do not start a second implementa
 Immediately re-read the issue after the claim.
 
 If ownership/status no longer belongs to this run, stop. This is the race-condition guard.
+
+## Il claim in una catena RT3
+
+⛔ **Non tutti i ruoli claimano.** Se il claim esiste gia' ed e' di un workflow a monte della stessa catena — tipicamente `DEV` ha claimato e ora tocca a `EDITOR` o `VALIDATION` — non rubarlo e non riscriverlo.
+
+Comportamento:
+
+| Situazione | Cosa fai |
+|---|---|
+| nessun claim, e sei il primo actor del task | claima normalmente |
+| claim esistente, `RT_TASK_ID` presente e `next_actor` == il tuo ruolo | **non** claimare. Aggiungi un commento di fase (`Phase: <ruolo> in progress`) senza toccare l'ownership |
+| claim esistente, nessun `RT_TASK_ID` che ti autorizzi | fermati. E' il caso «gia' claimata da un altro worker» che Phase 0 gia' prevede |
+
+⚠️ **CONTRACT CONFLICT — a chi appartiene il claim.**
+
+Le fonti accettate non lo dicono, e le due letture portano a comportamenti diversi:
+
+- `CLAUDE.md` §3 e `implement-feature` I2 dicono che una issue ha **un solo primary owner**;
+- `CLAUDE.md` §10 fa passare la stessa issue attraverso `DEV`, `EDITOR` e `VALIDATION`;
+- questa skill, storicamente, claimava per **sessione** e abortiva davanti a un claim altrui.
+
+Se il claim appartiene alla **sessione**, la catena e' impossibile: il secondo ruolo trova sempre un claim non suo. Se appartiene al **task**, serve dire come si verifica che due sessioni appartengano allo stesso task — e oggi l'unica prova disponibile e' `RT_TASK_ID` piu' il verdetto del router.
+
+Nessun Decision Log, ADR o owner specification risolve la domanda. **Non inventarla.**
+
+Finche' la decisione non esiste, vale la tabella sopra: fail-closed, il claim non si ruba e non si riscrive, e il report lo dichiara. Se la situazione non rientra in nessuna riga, fermati e chiedi.
 
 ---
 
@@ -225,9 +306,19 @@ Transition:
 
 `In Progress -> Validating`
 
-Run the repository's relevant build/test pipeline.
+Esegui **solo i gate che il tuo ruolo possiede**.
 
-Minimum checks when applicable:
+| Ruolo | Puo' eseguire | Deve dichiarare `NOT RUN` |
+|---|---|---|
+| `DEV` | gate statici e headless che non occupano Unreal: `node tools/radar/*.ts`, `node --test`, parse PowerShell, `git diff --check` | compile Unreal, Automation, scenario, determinismo, replay, packaged, performance |
+| `EDITOR` | acceptance visiva e PIE | suite, build, gate headless |
+| `VALIDATION` | `rtbuild`, `rtsuite`, Automation mirata, scenario, determinismo, replay, privacy, packaged, performance | authoring asset |
+
+⛔ Da `DEV`, «compilo solo per controllare» occupa il motore e puo' rendere `NON VALIDA` la misura di un'altra sessione. Non e' una scorciatoia: e' il difetto che `rtbuild` esiste per chiudere.
+
+Un gate che non ti appartiene si dichiara `NOT RUN` col nome della figura che lo possiede. **`NOT RUN` non e' `PASS`.**
+
+Minimum checks when applicable, dentro il proprio ruolo:
 - formatting/static validation already used by the repo;
 - Unreal C++ compilation for the milestone's pinned UE5 version;
 - targeted Automation Tests;
@@ -251,7 +342,22 @@ If blocked by an external/unrelated failure, document the exact blocker and dist
 
 ---
 
-# Phase 6 — Epic/Unreal MCP scenario validation
+# Phase 6 — Editor e PIE — **solo dalla figura EDITOR**
+
+⛔ **Se `RT_TERMINAL_ROLE` non e' `EDITOR`, questa fase e' `NOT RUN`.** Non aprire l'Editor, non avviare PIE, non chiamare MCP per mutare. Registra cosa servirebbe e a chi, e passa a Phase 7.
+
+Da `DEV` questo e' vietato da `TERMINAL_DEV.md`; da `VALIDATION` sarebbe authoring dentro il verificatore.
+
+⚠️ Anche dentro `EDITOR`, la **scrittura** asset via MCP e' consentita solo dal workspace `MAIN`, che ospita l'unico bridge della macchina. Preflight obbligatorio:
+
+```powershell
+rtmcp -Operation MCP_ASSET_WRITE -TaskId <id> -AssetWriteSet <path>
+rtlease -Action acquire -Operation EDITOR -TaskId <id>
+```
+
+Il lease si prende just-in-time e si rilascia (`rtlease -Action release`). Aprire un terminale non lo acquisisce.
+
+`MCP command sent != verified`: una risposta vuota non e' un `PASS`. Serve un oracolo positivo — rilettura della property, riapertura dell'asset, compile esplicito, PIE.
 
 Use the connected Epic/Unreal MCP when the issue affects behavior that should be verified in Unreal Editor or in a gameplay scenario.
 
@@ -406,6 +512,8 @@ Always execute cleanup, including on failure.
 
 ## Unreal Editor
 
+Riguarda **solo** la figura `EDITOR`, e solo se ha aperto lei l'Editor. Da `DEV` e `VALIDATION` questa sezione e' `N/A`: non hai aperto niente, e non chiudi quello di un'altra sessione.
+
 If this workflow launched Unreal Editor:
 
 1. save only intentional project changes;
@@ -452,21 +560,40 @@ Never hide a partial failure behind a `Done` state.
 
 # Completion gate
 
-The command is complete only if all applicable items are true:
+⚠️ **«Applicable» qui significa: appartiene al mio ruolo.** Una voce che appartiene a un'altra figura non si spunta e non si cancella: si marca `NOT RUN` con il nome della figura che la possiede. Spuntarla sarebbe fabbricare evidenza; cancellarla sarebbe far sparire un gate.
 
-- [ ] Issue claim is visible and race-checked.
-- [ ] `sc:spec-panel` was executed with `$issue`.
+## Ogni ruolo
+
+- [ ] Il ruolo RT3 era risolto prima di iniziare (Phase -1).
+- [ ] Il claim e' coerente con la tabella di Phase 1: preso, oppure riconosciuto e non riscritto.
+- [ ] `sc:spec-panel` was executed with `$issue` — quando questo ruolo possiede la definizione.
 - [ ] DNNN definition is present in the issue.
-- [ ] Implementation matches the DNNN.
-- [ ] Relevant build succeeds.
-- [ ] Relevant automated tests pass.
-- [ ] Epic/Unreal MCP scenarios pass when applicable.
-- [ ] Scenario assets/tests were added when needed.
+- [ ] Implementation matches the DNNN — per la parte che appartiene a questo ruolo.
 - [ ] Documentation is coherent.
 - [ ] Related issues are coherent and cross-linked.
 - [ ] Roadmap/spec references are coherent.
 - [ ] Git changes contain no unrelated work.
 - [ ] Main issue contains the execution report.
 - [ ] Final GitHub status is accurate.
-- [ ] Unreal Editor lifecycle cleanup is complete.
-- [ ] No Editor instance launched by this workflow remains open.
+- [ ] Cio' che appartiene a un'altra figura e' elencato come `NOT RUN`, con la figura che lo possiede.
+- [ ] Se `RT_TASK_ID` era presente, `rttask report` e' stato eseguito.
+
+## `DEV`
+
+- [ ] Gate statici/headless eseguiti, con il loro esito reale.
+- [ ] Nessun processo Unreal avviato da questa sessione.
+
+## `EDITOR`
+
+- [ ] Preflight `rtmcp` eseguito prima di ogni scrittura asset, e workspace `MAIN` verificato.
+- [ ] Lease acquisito just-in-time e rilasciato.
+- [ ] Evidenza PIE con un oracolo positivo, non una risposta vuota.
+- [ ] Unreal Editor lifecycle cleanup completo, e nessuna istanza aperta da questo workflow lasciata viva.
+- [ ] Nessun verdetto emesso su sistemi il cui tetto per `EDITOR` e' `OBSERVED`.
+
+## `VALIDATION`
+
+- [ ] Relevant build succeeds — dentro il lease.
+- [ ] Relevant automated tests pass, con `found` / `performed` / `passed` / `failed` / exit code dichiarati.
+- [ ] `HEAD`, working tree e binari invariati durante la misura; altrimenti l'esito e' `NON VALIDA`.
+- [ ] Nessun difetto riparato e poi approvato da questa stessa sessione.
