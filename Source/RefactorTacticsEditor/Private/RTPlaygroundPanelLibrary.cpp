@@ -1,6 +1,11 @@
 #include "RTPlaygroundPanelLibrary.h"
 
 #include "Camera/RTCameraPawn.h"
+#include "Components/SpinBox.h"
+#include "Engine/Engine.h"
+#include "Engine/TextRenderActor.h"
+#include "Engine/World.h"
+#include "EngineUtils.h"
 
 #include "RTPlaygroundLayout.h"
 #include "World/RTGrayboxUnitFacingFixture.h"
@@ -204,6 +209,84 @@ bool URTPlaygroundPanelLibrary::ApplyFixtureParameters(ARTGrayboxUnitFacingFixtu
 	Fixture->MarkerLength = MarkerLength;
 	Fixture->RerunConstructionScripts();
 	return true;
+}
+
+bool URTPlaygroundPanelLibrary::ApplyFixtureParameter(ARTGrayboxUnitFacingFixture* Fixture,
+	ERTPlaygroundFixtureParam Parameter, float Value)
+{
+	if (!Fixture)
+	{
+		return false;
+	}
+
+	switch (Parameter)
+	{
+	case ERTPlaygroundFixtureParam::BodyRadius:   Fixture->BodyRadius   = Value; break;
+	case ERTPlaygroundFixtureParam::BodyHeight:   Fixture->BodyHeight   = Value; break;
+	case ERTPlaygroundFixtureParam::FaceHeight:   Fixture->FaceHeight   = Value; break;
+	case ERTPlaygroundFixtureParam::MarkerLength: Fixture->MarkerLength = Value; break;
+	default:
+		// ⛔ Un valore fuori enum non scrive NIENTE e non ricostruisce: scrivere «il primo campo» per
+		// ripiego significherebbe cambiare il raggio del corpo perche' qualcuno ha aggiunto una voce.
+		return false;
+	}
+
+	// 🔑 La ricostruzione sta qui, come in `ApplyFixtureFacing`: `RerunConstructionScripts` non e' una
+	// `UFUNCTION`, quindi un Blueprint puo' scrivere la property e NON puo' far muovere il marker.
+	Fixture->RerunConstructionScripts();
+	return true;
+}
+
+int32 URTPlaygroundPanelLibrary::PushFixtureParametersToSpinBoxes(const ARTGrayboxUnitFacingFixture* Fixture,
+	USpinBox* BodyRadiusBox, USpinBox* BodyHeightBox, USpinBox* FaceHeightBox, USpinBox* MarkerLengthBox)
+{
+	if (!Fixture)
+	{
+		return 0;
+	}
+
+	// ⚠️ Uno per uno, e non «tutti o nessuno»: un campo non ancora costruito non deve impedire agli altri
+	// tre di mostrare il valore vero — sarebbero tre campi a zero per colpa del quarto.
+	int32 Written = 0;
+	auto Push = [&Written](USpinBox* Box, float Value)
+	{
+		if (Box)
+		{
+			Box->SetValue(Value);
+			++Written;
+		}
+	};
+	Push(BodyRadiusBox,   Fixture->BodyRadius);
+	Push(BodyHeightBox,   Fixture->BodyHeight);
+	Push(FaceHeightBox,   Fixture->FaceHeight);
+	Push(MarkerLengthBox, Fixture->MarkerLength);
+	return Written;
+}
+
+int32 URTPlaygroundPanelLibrary::SetStationLabelsVisible(const UObject* WorldContextObject, bool bVisible)
+{
+	const UWorld* World = GEngine
+		? GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::ReturnNull)
+		: nullptr;
+	if (!World)
+	{
+		// ⚠️ `-1`, non `0`: «non ho potuto guardare» non e' «non ce n'erano».
+		return -1;
+	}
+
+	int32 Touched = 0;
+	for (TActorIterator<ATextRenderActor> It(World); It; ++It)
+	{
+		if (ATextRenderActor* Label = *It)
+		{
+			// ⛔ `SetIsTemporarilyHiddenInEditor` e non `SetActorHiddenInGame`: la seconda e' una property
+			// SALVATA, quindi spegnere le etichette sporcherebbe la mappa di #1991 e il prossimo che la
+			// apre le troverebbe spente senza sapere da chi. Questa vive solo nella sessione d'editor.
+			Label->SetIsTemporarilyHiddenInEditor(!bVisible);
+			++Touched;
+		}
+	}
+	return Touched;
 }
 
 bool URTPlaygroundPanelLibrary::ResetFixture(ARTGrayboxUnitFacingFixture* Fixture)

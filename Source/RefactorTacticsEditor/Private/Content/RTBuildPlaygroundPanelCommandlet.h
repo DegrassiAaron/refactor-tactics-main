@@ -27,11 +27,22 @@
  * `BlueprintCallable` che fa una cosa sola, e le tre parti provabili headless — station, sei direzioni,
  * `Ready`/`Error` — sono gia' verificate. Il grafo non contiene decisioni: solo chiamate.
  *
- * Uso:
+ * ## I tre modi, e solo uno e' sicuro su un asset che esiste gia'
  *
  * ```
- * UnrealEditor-Cmd.exe <progetto> -run=RTBuildPlaygroundPanel [-Force]
+ * UnrealEditor-Cmd.exe <progetto> -run=RTBuildPlaygroundPanel -RefreshOptions   # <- l'uso normale
+ * UnrealEditor-Cmd.exe <progetto> -run=RTBuildPlaygroundPanel                   # rifiuta se esiste
+ * UnrealEditor-Cmd.exe <progetto> -run=RTBuildPlaygroundPanel -Force            # rigenera, PERDE il grafo
  * ```
+ *
+ * 🔑 **`-RefreshOptions` non e' piu' solo «le voci delle combo».** Riconcilia anche la presentazione e
+ * **crea i controlli mancanti** (`EnsureFixtureAndViewControls`), restando non distruttivo: il grafo
+ * autorato in `RTPlaygroundPanelGraph.dsl` resta dov'e'. E' la via con cui i quattro `USpinBox` e
+ * `Chk_Labels` sono entrati nell'asset il 2026-09-05 senza rigenerarlo.
+ *
+ * ⛔ **`-Force` cancella il grafo**, e il messaggio lo dice prima di farlo: dopo un `-Force` va
+ * riapplicato il `.dsl` con `write_graph_dsl`, piu' i tredici `BindToEventProperty` che
+ * `write_graph_dsl` **non** crea. Non e' l'uso quotidiano.
  */
 UCLASS()
 class URTBuildPlaygroundPanelCommandlet : public UCommandlet

@@ -3,7 +3,9 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
+#include "Components/CheckBox.h"
 #include "Components/ComboBoxString.h"
+#include "Components/SpinBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -17,6 +19,7 @@
 #include "WidgetBlueprint.h"
 
 #include "RTPlaygroundPanelLibrary.h"
+#include "World/RTGrayboxUnitFacingFixture.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogRTPlaygroundPanel, Log, All);
 
@@ -75,15 +78,40 @@ namespace
 	 * `Variables|WBP_RT_GrayKitPlayground|GetTxt_MapState` semplicemente non esiste, e cablare un testo
 	 * e' impossibile. Misurato il 2026-09-02: il pannello generato aveva variabili solo per bottoni e
 	 * combo, e i cinque `Txt_*` che il grafo scrive hanno dovuto essere convertiti a mano.
+	 *
+	 * ➕ **E ogni variabile si porta il proprio GUID.** Prende il `UWidgetBlueprint` e non il solo albero
+	 * proprio per questo: la mappa dei GUID vive sul Blueprint, e senza di essa la compilazione ensure.
+	 * Il perche' sta nel commento dentro il ciclo.
 	 */
-	void MakeEveryWidgetAVariable(UWidgetTree* Tree)
+	void MakeEveryWidgetAVariable(UWidgetBlueprint* Blueprint)
 	{
-		Tree->ForEachWidget([](UWidget* Widget)
+		UWidgetTree* Tree = Blueprint ? Blueprint->WidgetTree : nullptr;
+		if (!Tree)
 		{
-			if (Widget)
+			return;
+		}
+
+		Tree->ForEachWidget([Blueprint](UWidget* Widget)
+		{
+			if (!Widget)
 			{
-				Widget->bIsVariable = true;
+				return;
 			}
+			Widget->bIsVariable = true;
+
+			// 🔴 **Un widget-variabile AGGIUNTO deve portarsi il proprio GUID, o la compilazione ensure.**
+			// Misurato il 2026-09-05: aggiungendo i controlli a un asset gia' esistente il commandlet e'
+			// uscito `1` con *«Widget [Txt_BodyRadiusLabel] was added but did not get a GUID»*
+			// (`WidgetBlueprintCompiler.cpp:781`, `ValidateAndFixUpVariableGuids`).
+			//
+			// ⚠️ **E' lo SPECCHIO del difetto gia' documentato in `ReconcilePresentation`**: li' togliere
+			// il widget senza togliere il GUID faceva asserire *«was deleted but still has a GUID»*. Le due
+			// meta' della stessa regola — la mappa e l'albero si muovono insieme — e il codice ne
+			// conosceva una sola perche' finora nessuno aveva mai AGGIUNTO un widget a un asset esistente.
+			//
+			// ⛔ `FindOrAdd` e non `Add`: sovrascrivere il GUID di un widget che ce l'ha gia' romperebbe i
+			// riferimenti esterni che quel GUID esiste per riparare dopo un rename.
+			Blueprint->WidgetVariableNameToGuidMap.FindOrAdd(Widget->GetFName(), FGuid::NewGuid());
 		});
 	}
 
@@ -160,6 +188,109 @@ namespace
 	}
 
 	/**
+	 * 🔑 **I controlli che la DoD di #1993 chiede e che lo scheletro non aveva.** Idempotente: crea solo
+	 * cio' che manca, quindi gira sia su un albero appena costruito sia su uno gia' salvato — ed e' per
+	 * questo che `-RefreshOptions` puo' aggiungerli **senza rigenerare**, che cancellerebbe il grafo
+	 * autorato (`RTPlaygroundPanelGraph.dsl`).
+	 *
+	 * 🔴 **Perche' mancavano, e perche' nessuno se n'era accorto.** Due criteri della DoD —
+	 * *«i cinque parametri si leggono e si modificano dal pannello»* e *«i tre toggle accendono e
+	 * spengono guida, label e bounds»* — non avevano **nessun** widget: misurato il 2026-09-05 sul
+	 * `.uasset`, zero `SpinBox`, zero `CheckBox`, zero `Slider`. Il solo parametro cablato era `Facing`,
+	 * e `ApplyFixtureParameters` era una `UFUNCTION` con **zero chiamanti nel grafo**. ⚠️ E
+	 * `PanelGraphCallsTheModel` era **verde**: elencava dieci funzioni attese e quella non c'era, quindi
+	 * certificava l'assenza invece di trovarla. E' lo stesso difetto di `bLive`, chiuso in questa issue
+	 * il 2026-09-02 — dichiarato nel modello, letto da nessuno.
+	 *
+	 * ⛔ **Un toggle solo, e non tre.** `Chk_Labels` esiste perche' le etichette sono `ATextRenderActor`
+	 * e la classe e' un aggancio stabile. Guida e bounds no: vedi `SetStationLabelsVisible`, e la
+	 * integration request verso #1991.
+	 */
+	void EnsureFixtureAndViewControls(UWidgetBlueprint* Blueprint)
+	{
+		UWidgetTree* Tree = Blueprint ? Blueprint->WidgetTree : nullptr;
+		UVerticalBox* Root = Tree ? Cast<UVerticalBox>(Tree->RootWidget) : nullptr;
+		if (!Root)
+		{
+			return;
+		}
+
+		// Inserisce subito DOPO un widget noto, invece di appendere in fondo: un controllo del fixture in
+		// coda a `DIAGNOSTICS` sarebbe cablato e comunque non si troverebbe.
+		auto InsertAfter = [Root](const TCHAR* AnchorName, UWidget* NewChild)
+		{
+			// Se l'ancora non c'e', si appende in fondo: un controllo in coda si trova male, ma perderlo
+			// sarebbe peggio.
+			int32 Index = Root->GetChildrenCount();
+			for (int32 I = 0; I < Root->GetChildrenCount(); ++I)
+			{
+				const UWidget* Child = Root->GetChildAt(I);
+				if (Child && Child->GetFName() == FName(AnchorName))
+				{
+					Index = I + 1;
+					break;
+				}
+			}
+			Root->InsertChildAt(Index, NewChild);
+		};
+
+		// ---- FIXTURE: i quattro parametri numerici -------------------------------
+		if (!Tree->FindWidget(TEXT("Spn_BodyRadius")))
+		{
+			// ⛔ I valori iniziali vengono dal CDO, non da letterali: e' la stessa disciplina di
+			// `ResetFixture`. Incidere `60 / 180 / 120 / 70` qui vorrebbe dire che il giorno in cui il
+			// fixture cambia default il pannello nasce mostrando valori che non lo sono piu'.
+			const ARTGrayboxUnitFacingFixture* Defaults = GetDefault<ARTGrayboxUnitFacingFixture>();
+			struct FParamRow { const TCHAR* SpinName; const TCHAR* LabelName; const TCHAR* Caption; float Value; };
+			const FParamRow Rows[] = {
+				{ TEXT("Spn_BodyRadius"),   TEXT("Txt_BodyRadiusLabel"),   TEXT("Body Radius"),   Defaults->BodyRadius },
+				{ TEXT("Spn_BodyHeight"),   TEXT("Txt_BodyHeightLabel"),   TEXT("Body Height"),   Defaults->BodyHeight },
+				{ TEXT("Spn_FaceHeight"),   TEXT("Txt_FaceHeightLabel"),   TEXT("Face Height"),   Defaults->FaceHeight },
+				{ TEXT("Spn_MarkerLength"), TEXT("Txt_MarkerLengthLabel"), TEXT("Marker Length"), Defaults->MarkerLength },
+			};
+
+			// Si inseriscono in ordine dopo `Btn_ResetFixture`, che chiude la sezione FIXTURE. Ogni riga
+			// entra dopo la precedente, cosi' l'ordine dichiarato qui e' quello che si legge a schermo.
+			const TCHAR* Anchor = TEXT("Btn_ResetFixture");
+			for (const FParamRow& Row : Rows)
+			{
+				UTextBlock* Caption = Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), FName(Row.LabelName));
+				Caption->SetText(FText::FromString(Row.Caption));
+				FSlateFontInfo CaptionFont = Caption->GetFont();
+				CaptionFont.Size = FontBody;
+				Caption->SetFont(CaptionFont);
+				InsertAfter(Anchor, Caption);
+
+				USpinBox* Spin = Tree->ConstructWidget<USpinBox>(USpinBox::StaticClass(), FName(Row.SpinName));
+				Spin->SetValue(Row.Value);
+				// ⚠️ Un raggio o un'altezza negativi non sono un caso da gestire nel grafo: si vietano qui.
+				Spin->SetMinValue(0.f);
+				InsertAfter(Row.LabelName, Spin);
+				Anchor = Row.SpinName;
+			}
+		}
+
+		// ---- VIEW: il toggle delle etichette -------------------------------------
+		if (!Tree->FindWidget(TEXT("Chk_Labels")))
+		{
+			UCheckBox* Check = Tree->ConstructWidget<UCheckBox>(UCheckBox::StaticClass(), TEXT("Chk_Labels"));
+			// 🔴 Una casella senza etichetta e' muta come un `UButton` senza figlio di testo: e' il
+			// difetto che `U41` ha letto come *«non c'e' molto selezionabile»*.
+			UTextBlock* Caption = Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(),
+				TEXT("Txt_LabelsToggleLabel"));
+			Caption->SetText(FText::FromString(TEXT("Labels")));
+			FSlateFontInfo CaptionFont = Caption->GetFont();
+			CaptionFont.Size = FontBody;
+			Caption->SetFont(CaptionFont);
+			Check->SetContent(Caption);
+			// Le etichette nascono VISIBILI nella scena, quindi la casella nasce spuntata: un toggle che
+			// parte dallo stato opposto a cio' che si vede e' un controllo che mente prima di essere usato.
+			Check->SetIsChecked(true);
+			InsertAfter(TEXT("Txt_ViewHeader"), Check);
+		}
+	}
+
+	/**
 	 * 🔑 **La presentazione, riconciliata su un albero QUALUNQUE.** Idempotente: gira sia su uno appena
 	 * costruito sia su uno gia' salvato, e per questo il refresh non ha bisogno di rigenerare — che
 	 * cancellerebbe il grafo autorato (`RTPlaygroundPanelGraph.dsl`).
@@ -224,7 +355,11 @@ namespace
 			SetSize(Header, FontHeader);
 		}
 		for (const TCHAR* Body : { TEXT("Txt_FixtureName"), TEXT("Txt_DiagStation"),
-			TEXT("Txt_DiagBounds"), TEXT("Txt_DiagActor") })
+			TEXT("Txt_DiagBounds"), TEXT("Txt_DiagActor"),
+			// Le didascalie dei controlli aggiunti dopo lo scheletro: elencate qui perche' su un albero
+			// gia' salvato nessuno le ha mai portate giu' da 24, e a 24 non c'e' gerarchia.
+			TEXT("Txt_BodyRadiusLabel"), TEXT("Txt_BodyHeightLabel"), TEXT("Txt_FaceHeightLabel"),
+			TEXT("Txt_MarkerLengthLabel"), TEXT("Txt_LabelsToggleLabel") })
 		{
 			SetSize(Body, FontBody);
 		}
@@ -316,8 +451,9 @@ int32 URTBuildPlaygroundPanelCommandlet::Main(const FString& Params)
 				TEXT("[PlaygroundPanel] refresh impossibile: Cmb_Station o Cmb_Facing non trovate in %s."), RTPanelAsset);
 			return 1;
 		}
+		EnsureFixtureAndViewControls(Existing);
 		ReconcilePresentation(Existing);
-		MakeEveryWidgetAVariable(ExistingTree);
+		MakeEveryWidgetAVariable(Existing);
 
 		FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Existing);
 		FKismetEditorUtilities::CompileBlueprint(Existing);
@@ -420,8 +556,9 @@ int32 URTBuildPlaygroundPanelCommandlet::Main(const FString& Params)
 		UE_LOG(LogRTPlaygroundPanel, Error, TEXT("[PlaygroundPanel] combo non trovate subito dopo averle costruite."));
 		return 1;
 	}
+	EnsureFixtureAndViewControls(PanelBP);
 	ReconcilePresentation(PanelBP);
-	MakeEveryWidgetAVariable(Tree);
+	MakeEveryWidgetAVariable(PanelBP);
 
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(PanelBP);
 	FKismetEditorUtilities::CompileBlueprint(PanelBP);
