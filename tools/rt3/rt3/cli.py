@@ -17,11 +17,19 @@ import json as jsonlib
 import os
 import sys
 
-from . import PROTOCOL_VERSION, SCHEMA_VERSION
+from . import PROTOCOL_VERSION, ROADMAP_SCHEMA_VERSION, SCHEMA_VERSION
 from .errors import Rt3Error
 from .gitmeta import collect as collect_git
 from .gitmeta import short_head
-from .model import EVENT_TYPES, LANES, ROLES, WORKSPACE_GROUPS, WRITE_MODES
+from .model import (
+    CANDIDATE_STATUSES,
+    EVENT_TYPES,
+    ITEM_PROGRESS_STATES,
+    LANES,
+    ROLES,
+    WORKSPACE_GROUPS,
+    WRITE_MODES,
+)
 
 # ---------------------------------------------------------------------------
 # Stampa
@@ -669,6 +677,8 @@ def cmd_candidate_create(args):
         branch=args.branch or git["branch"],
         head=args.head or git["head"],
         note=args.note,
+        roadmapId=getattr(args, "roadmap_id", None),
+        itemKey=getattr(args, "item_key", None),
     )
     emit(
         args,
@@ -682,6 +692,451 @@ def cmd_candidate_create(args):
             )
         ),
     )
+    return 0
+
+
+def cmd_candidates_list(args):
+    client = _client(args)
+    rows = client.call("candidates.list", taskId=args.task)
+
+    def render(items):
+        if not items:
+            out("nessun candidate.")
+            return
+        _table(
+            [
+                [
+                    c["candidate_id"],
+                    c.get("status") or "PENDING",
+                    _dash(c.get("item_key")),
+                    _branch(c.get("branch")),
+                    short_head(c.get("head")),
+                    _dash(c.get("session_id")),
+                ]
+                for c in items
+            ],
+            ["CANDIDATE", "STATUS", "ITEM", "BRANCH", "HEAD", "BY"],
+        )
+
+    emit(args, rows, render)
+    return 0
+
+
+def cmd_candidate_status(args):
+    """Registra l'esito di UN candidate. E' il verdetto del validator.
+
+    Deliberatamente separato da `roadmap state set`: passare un candidate non avanza da
+    solo la issue, perche' un PASSED su un commit non dice che la issue sia finita. Chi
+    vuole entrambe le cose fa due gesti, e ognuno resta leggibile nell'event log.
+    """
+    client = _client(args)
+    session_id, _ = _session_id(args, required=False)
+    cand = client.call(
+        "candidate.setStatus",
+        candidateId=args.candidate_id,
+        status=args.status,
+        sessionId=session_id,
+        note=args.note,
+    )
+    emit(
+        args,
+        cand,
+        lambda c: out(
+            "candidate {} -> {} (item {}, {} @ {}).".format(
+                c["candidate_id"],
+                c["status"],
+                _dash(c.get("item_key")),
+                _branch(c.get("branch")),
+                short_head(c.get("head")),
+            )
+        ),
+    )
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# roadmap
+# ---------------------------------------------------------------------------
+
+
+def _print_problems(problems):
+    """Stampa i rilievi della validazione. Ritorna il numero di ERROR."""
+    errors = 0
+    for p in problems:
+        if p.level == "ERROR":
+            errors += 1
+        out("  {} {:<32} {}".format(p.level[0], p.code, p.message))
+        out("      in {}".format(p.where))
+    return errors
+
+
+def cmd_roadmap_validate(args):
+    """Valida un file. NON richiede il daemon.
+
+    E' l'unico comando roadmap che gira offline, ed e' voluto: la validazione e' la
+    cosa che si vuole poter fare mentre si scrive il file, prima che esista un control
+    plane a cui darlo.
+    """
+    from .graph import build, cycle_problems
+    from .roadmap import RoadmapError, load_document
+
+    path = os.path.abspath(args.file)
+    try:
+        roadmap, problems = load_document(path)
+    except RoadmapError as exc:
+        out("roadmap NON valida: {}".format(path))
+        _print_problems(exc.problems)
+        return exc.exit_code
+
+    if roadmap is not None:
+        problems = list(problems) + cycle_problems(build(roadmap))
+
+    errors = [p for p in problems if p.level == "ERROR"]
+    warnings = [p for p in problems if p.level == "WARNING"]
+
+    if getattr(args, "json", False):
+        out(
+            jsonlib.dumps(
+                {
+                    "path": path,
+                    "valid": roadmap is not None and not errors,
+                    "roadmapId": roadmap.id if roadmap else None,
+                    "contentHash": roadmap.content_hash if roadmap else None,
+                    "roadmapSchemaVersion": roadmap.schema_version if roadmap else None,
+                    "items": len(roadmap.items) if roadmap else 0,
+                    "epics": len(roadmap.epics) if roadmap else 0,
+                    "problems": [p.as_dict() for p in problems],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return 0 if (roadmap is not None and not errors) else 20
+
+    if roadmap is None or errors:
+        out("roadmap NON valida: {}".format(path))
+        _print_problems(problems)
+        return 20
+
+    out("roadmap valida: {}".format(path))
+    out("  id       : {}".format(roadmap.id))
+    out("  nome     : {}".format(_dash(roadmap.name)))
+    out("  schema   : v{}".format(roadmap.schema_version))
+    out("  hash     : {}".format(roadmap.content_hash))
+    out("  epic     : {}".format(len(roadmap.epics)))
+    out("  issue    : {}".format(len(roadmap.items)))
+    if warnings:
+        out("  warning  : {}".format(len(warnings)))
+        _print_problems(warnings)
+    return 0
+
+
+def cmd_roadmap_load(args):
+    from .graph import load_checked
+    from .roadmap import RoadmapError, dumps
+
+    path = os.path.abspath(args.file)
+    try:
+        roadmap, _graph, problems = load_checked(path)
+    except RoadmapError as exc:
+        out("roadmap NON caricata: {}".format(exc.message))
+        _print_problems(exc.problems)
+        return exc.exit_code
+
+    client = _client(args)
+    session_id, _ = _session_id(args, required=False)
+    saved = client.call(
+        "roadmap.save",
+        roadmapId=roadmap.id,
+        name=roadmap.name,
+        sourcePath=path,
+        contentHash=roadmap.content_hash,
+        roadmapSchemaVersion=roadmap.schema_version,
+        document=dumps(roadmap),
+        sessionId=session_id,
+        resetState=bool(args.reset_state),
+    )
+
+    def render(row):
+        out(
+            "roadmap {} caricata: {} epic, {} issue, hash {}.".format(
+                row["roadmap_id"],
+                len(roadmap.epics),
+                len(roadmap.items),
+                row["content_hash"],
+            )
+        )
+        if args.reset_state:
+            out("  stato azzerato su richiesta (--reset-state).")
+        warnings = [p for p in problems if p.level == "WARNING"]
+        if warnings:
+            out("  {} warning:".format(len(warnings)))
+            _print_problems(warnings)
+
+    emit(args, saved, render)
+    return 0
+
+
+def cmd_roadmaps_list(args):
+    client = _client(args)
+    rows = client.call("roadmaps.list")
+
+    def render(items):
+        if not items:
+            out("nessuna roadmap caricata.")
+            return
+        _table(
+            [
+                [
+                    r["roadmap_id"],
+                    "v{}".format(r["roadmap_schema_version"]),
+                    r["content_hash"],
+                    r["items"],
+                    r["loaded_at"],
+                ]
+                for r in items
+            ],
+            ["ROADMAP", "SCHEMA", "HASH", "STATI", "CARICATA"],
+        )
+
+    emit(args, rows, render)
+    return 0
+
+
+def cmd_roadmap_show(args):
+    client = _client(args)
+    payload = client.call("roadmap.summary", roadmapId=args.id)
+
+    def render(s):
+        out("roadmap {} ({})".format(s["roadmapId"], _dash(s.get("name"))))
+        out("  hash : {}".format(s["contentHash"]))
+        out("  epic : {}".format(s["epics"]))
+        out("  issue: {}".format(s["items"]))
+        out("")
+        _table(
+            [[state, count] for state, count in s["byState"].items()],
+            ["STATE", "COUNT"],
+        )
+
+    emit(args, payload, render)
+    return 0
+
+
+def cmd_roadmap_graph(args):
+    client = _client(args)
+    payload = client.call("roadmap.graph", roadmapId=args.id)
+
+    def render(g):
+        out("grafo di {} - {} nodi, {} archi".format(
+            g["roadmapId"], len(g["nodes"]), len(g["edges"])
+        ))
+        out("")
+        _table(
+            [
+                [
+                    n["key"],
+                    n["estimate"],
+                    ", ".join(
+                        "{}({})".format(r["item"], r["gate"]) for r in n["requires"]
+                    )
+                    or "-",
+                    ", ".join(n["unlocks"]) or "-",
+                ]
+                for n in g["nodes"]
+            ],
+            ["ITEM", "EST", "REQUIRES", "UNLOCKS"],
+        )
+
+    emit(args, payload, render)
+    return 0
+
+
+def cmd_roadmap_critical_path(args):
+    client = _client(args)
+    payload = client.call("roadmap.criticalPath", roadmapId=args.id)
+
+    def render(p):
+        out(
+            "critical path di {} - durata {} (limite imposto dalle DIPENDENZE, non "
+            "dalle risorse)".format(p["roadmapId"], p["duration"])
+        )
+        out("  " + (" -> ".join(p["path"]) if p["path"] else "(nessuno)"))
+        out("")
+        _table(
+            [
+                [
+                    r["key"],
+                    r["estimate"],
+                    r["earliest_start"],
+                    r["earliest_finish"],
+                    r["latest_start"],
+                    r["slack"],
+                    "SI" if r["critical"] else "",
+                ]
+                for r in p["rows"]
+            ],
+            ["ITEM", "EST", "ES", "EF", "LS", "SLACK", "CRIT"],
+        )
+
+    emit(args, payload, render)
+    return 0
+
+
+def cmd_roadmap_ready(args):
+    client = _client(args)
+    payload = client.call("roadmap.ready", roadmapId=args.id)
+
+    def render(p):
+        items = p["items"]
+        if args.state:
+            items = [i for i in items if i["state"] == args.state]
+        out("readiness di {} ({} item)".format(p["roadmapId"], len(items)))
+        out("")
+        _table(
+            [
+                [
+                    i["key"],
+                    i["state"],
+                    i["progress"],
+                    _dash(i["executionWork"]),
+                    ", ".join(i["resources"]) or "-",
+                    ", ".join(
+                        "{}<{}>".format(u["item"], u["actual"]) for u in i["unmet"]
+                    )
+                    or "-",
+                ]
+                for i in items
+            ],
+            ["ITEM", "STATE", "PROGRESS", "WORKSPACE", "RES", "ATTENDE"],
+        )
+
+    emit(args, payload, render)
+    return 0
+
+
+def cmd_roadmap_plan(args):
+    client = _client(args)
+    payload = client.call("roadmap.plan", roadmapId=args.id)
+
+    def render(p):
+        out("piano di {}".format(p["roadmapId"]))
+        out("")
+        out("ASSEGNAZIONI")
+        if p["assignments"]:
+            _table(
+                [
+                    [
+                        a["key"],
+                        a["workspace"],
+                        a["mode"],
+                        ", ".join(a["resources"]) or "-",
+                    ]
+                    for a in p["assignments"]
+                ],
+                ["ITEM", "WORKSPACE", "MODE", "RES"],
+            )
+            for a in p["assignments"]:
+                if a["mode"] == "TEMPORARY_WORKTREE_SUGGESTED":
+                    out("  ! {}: {}".format(a["key"], a["reason"]))
+        else:
+            out("  nessuna.")
+        out("")
+        out("RIMANDATE")
+        if p["deferred"]:
+            _table(
+                [
+                    [d["key"], _dash(d["workspace"]), d["reason"], d["detail"]]
+                    for d in p["deferred"]
+                ],
+                ["ITEM", "WORKSPACE", "REASON", "DETTAGLIO"],
+            )
+        else:
+            out("  nessuna.")
+        out("")
+        out("CAPACITA'")
+        rows = [
+            [
+                "writer:{}".format(g),
+                "{}/{}".format(v["used"], v["capacity"]),
+            ]
+            for g, v in p["capacity"]["writers"].items()
+        ]
+        rows.append(
+            [
+                "temporaryWorktrees",
+                "{}/{}".format(
+                    p["capacity"]["temporaryWorktrees"]["used"],
+                    p["capacity"]["temporaryWorktrees"]["capacity"],
+                ),
+            ]
+        )
+        rows.append(
+            [
+                "unrealEditor",
+                "{}/{}".format(
+                    p["capacity"]["unrealEditor"]["used"],
+                    p["capacity"]["unrealEditor"]["capacity"],
+                ),
+            ]
+        )
+        rows.append(["wip globale", str(p["wip"]["global"])])
+        _table(rows, ["RISORSA", "USO"])
+
+    emit(args, payload, render)
+    return 0
+
+
+def cmd_roadmap_state_set(args):
+    client = _client(args)
+    session_id, _ = _session_id(args, required=False)
+    row = client.call(
+        "roadmap.setState",
+        roadmapId=args.id,
+        itemKey=args.item,
+        progress=args.progress,
+        sessionId=session_id,
+        candidateId=args.candidate,
+        note=args.note,
+    )
+    emit(
+        args,
+        row,
+        lambda r: out(
+            "{} -> {}{}".format(
+                r["item_key"],
+                r["progress"],
+                " (candidate {})".format(r["candidate_id"])
+                if r.get("candidate_id")
+                else "",
+            )
+        ),
+    )
+    return 0
+
+
+def cmd_roadmap_state_list(args):
+    client = _client(args)
+    payload = client.call("roadmap.states", roadmapId=args.id)
+
+    def render(p):
+        if not p["states"]:
+            out("nessuno stato dichiarato: tutte le issue sono PENDING.")
+            return
+        _table(
+            [
+                [
+                    s["item_key"],
+                    s["progress"],
+                    _dash(s.get("candidate_id")),
+                    s["updated_at"],
+                    _dash(s.get("updated_by")),
+                ]
+                for s in p["states"]
+            ],
+            ["ITEM", "PROGRESS", "CANDIDATE", "UPDATED", "BY"],
+        )
+
+    emit(args, payload, render)
     return 0
 
 
@@ -781,17 +1236,27 @@ def cmd_status(args):
 
 
 def cmd_version(args):
+    """Le tre versioni di questo CHECKOUT, senza chiedere nulla al daemon.
+
+    E' il comando che risponde alla domanda «i tre workspace sono allineati?»: girandolo
+    nei tre checkout si confrontano tre righe. Interrogare il daemon direbbe la versione
+    del daemon - una sola, la stessa per tutti - che e' un'altra domanda.
+    """
     payload = {
         "protocolVersion": PROTOCOL_VERSION,
         "schemaVersion": SCHEMA_VERSION,
+        "roadmapSchemaVersion": ROADMAP_SCHEMA_VERSION,
         "python": sys.version.split()[0],
     }
     emit(
         args,
         payload,
         lambda p: out(
-            "rt3 protocollo v{} | schema v{} | python {}".format(
-                p["protocolVersion"], p["schemaVersion"], p["python"]
+            "rt3 protocollo v{} | schema v{} | roadmap v{} | python {}".format(
+                p["protocolVersion"],
+                p["schemaVersion"],
+                p["roadmapSchemaVersion"],
+                p["python"],
             )
         ),
     )
@@ -924,7 +1389,84 @@ def build_parser():
     p.add_argument("--branch")
     p.add_argument("--head")
     p.add_argument("--note")
+    p.add_argument("--roadmap", dest="roadmap_id", help="roadmap a cui appartiene")
+    p.add_argument("--item", dest="item_key", help="issue della roadmap, es. EPIC-B/B2")
     p.set_defaults(func=cmd_candidate_create)
+    p = c.add_parser("status", help="registra l'esito della validazione")
+    p.add_argument("candidate_id")
+    p.add_argument("--status", required=True, choices=CANDIDATE_STATUSES)
+    p.add_argument("--note")
+    p.set_defaults(func=cmd_candidate_status)
+
+    p = sub.add_parser("candidates", help="elenco candidate").add_subparsers(dest="sub")
+    q = p.add_parser("list")
+    q.add_argument("--task")
+    q.set_defaults(func=cmd_candidates_list)
+
+    # -- roadmap
+    #
+    # L'elenco sta nel PLURALE top-level, come `sessions`, `tasks`, `events` e
+    # `candidates`: una CLI in cui un elenco su cinque sta altrove costringe a
+    # ricordare l'eccezione invece della regola.
+    p = sub.add_parser("roadmaps", help="roadmap caricate").add_subparsers(dest="sub")
+    q = p.add_parser("list")
+    q.set_defaults(func=cmd_roadmaps_list)
+
+    r = sub.add_parser(
+        "roadmap", help="roadmap orchestration: PLAN, readiness, piano"
+    ).add_subparsers(dest="sub")
+
+    p = r.add_parser("validate", help="valida un file roadmap (non richiede rt3d)")
+    p.add_argument("--file", required=True)
+    p.set_defaults(func=cmd_roadmap_validate)
+
+    p = r.add_parser("load", help="valida e carica una roadmap nel control plane")
+    p.add_argument("--file", required=True)
+    p.add_argument(
+        "--reset-state",
+        action="store_true",
+        help="azzera lo stato runtime della roadmap (distruttivo: NON e' il default)",
+    )
+    p.set_defaults(func=cmd_roadmap_load)
+
+    p = r.add_parser("show", help="quadro di una roadmap")
+    p.add_argument("--id")
+    p.set_defaults(func=cmd_roadmap_show)
+
+    p = r.add_parser("graph", help="grafo delle dipendenze")
+    p.add_argument("--id")
+    p.set_defaults(func=cmd_roadmap_graph)
+
+    p = r.add_parser("critical-path", help="cammino critico e slack")
+    p.add_argument("--id")
+    p.set_defaults(func=cmd_roadmap_critical_path)
+
+    p = r.add_parser("ready", help="cosa e' READY e cosa e' BLOCKED, e perche'")
+    p.add_argument("--id")
+    p.add_argument(
+        "--state",
+        choices=("READY", "BLOCKED", "IN_PROGRESS", "VALIDATED", "DONE"),
+        help="mostra solo questo stato",
+    )
+    p.set_defaults(func=cmd_roadmap_ready)
+
+    p = r.add_parser("plan", help="assegnazioni e rimandi, con le capacita'")
+    p.add_argument("--id")
+    p.set_defaults(func=cmd_roadmap_plan)
+
+    st = r.add_parser("state", help="stato runtime delle issue").add_subparsers(
+        dest="sub2"
+    )
+    p = st.add_parser("set", help="avanza una issue")
+    p.add_argument("item", help="chiave EPIC/ISSUE, o la forma breve se non ambigua")
+    p.add_argument("--progress", required=True, choices=ITEM_PROGRESS_STATES)
+    p.add_argument("--id", help="roadmap, se ne e' caricata piu' di una")
+    p.add_argument("--candidate", help="candidate che ha prodotto questo stato")
+    p.add_argument("--note")
+    p.set_defaults(func=cmd_roadmap_state_set)
+    p = st.add_parser("list", help="stati dichiarati")
+    p.add_argument("--id")
+    p.set_defaults(func=cmd_roadmap_state_list)
 
     p = sub.add_parser("status", help="quadro sintetico")
     p.set_defaults(func=cmd_status)
