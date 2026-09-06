@@ -1,5 +1,14 @@
 === RT3 HANDOFF ===
 
+⚠️ **2026-09-06 — i soli `EVIDENCE_REF` sono stati riscritti, i verdetti no.**
+   Puntavano a `Saved/Logs/`, che non e' tracciato e vive solo dentro un worktree: alla
+   sua rimozione i quindici riferimenti sarebbero diventati pendenti, e per §6 un
+   `EVIDENCE_REF` che punta a un file assente e' malformato — il sistema corrispondente
+   si rilegge `BLOCKED`. Ora puntano a `evidence/`, che e' versionato.
+   Gli estratti conservano la numerazione di riga dell'originale, quindi `#L2403` resta
+   risolvibile. Nessun verdetto, nessuna misura e nessun FINDING e' stato toccato:
+   `RISULTATO` resta quello emesso.
+
 FROM:          VALIDATION
 TO:            DEV-LEAD
 FEATURE:       ParseCell — arita' limitata e ramo di rifiuto misurato
@@ -49,9 +58,9 @@ Sistemi in scope: DATA VALIDATORS · AUTOMATION/SCENARIO · ERRORS · ARCHITECTU
 | # | Sistema | VALIDATION | EVIDENCE_REF |
 |---:|---|---|---|
 | 2 | ARCHITECTURE | `PASS` | build log + RTScenarioLoader.cpp:60-81 |
-| 3 | BUILD | `PASS` | `Saved/Logs/rt-2482-final-build.log` |
+| 3 | BUILD | `PASS` | `evidence/final-build.txt` |
 | 7 | DATA VALIDATORS | `PASS` | suite + mutazioni M1/M2/M3 |
-| 32 | AUTOMATION/SCENARIO | `PASS` | `Saved/Logs/rt-2482-scenario-post.log` |
+| 32 | AUTOMATION/SCENARIO | `PASS` | `evidence/scenario-post.txt` |
 | 33 | ERRORS | `PASS` | mutazione M2 |
 
 Tutti gli altri sistemi della matrice §7: `N/A`, REASON «fuori write-set». Il write-set
@@ -72,7 +81,7 @@ retto dalla MISURA del criterio 6, non dall'argomento.
     exit code:   0
     esito:       4 action(s) · Result: Succeeded
     binario:     UnrealEditor-RefactorTactics.dll 14393856 byte @ 01:20:51
-    EVIDENCE_REF: Saved/Logs/rt-2482-final-build.log
+    EVIDENCE_REF: evidence/final-build.txt
     verdetto:    PASS
 
 ⚠️ LIMITE DICHIARATO sulla PRIMA build (00:23:36-00:27:37). Quella compilazione e'
@@ -88,7 +97,7 @@ retto dalla MISURA del criterio 6, non dall'argomento.
 
     EVIDENCE_REF: Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp:60-81
     EVIDENCE_REF: Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp:1417-1707
-    EVIDENCE_REF: Saved/Logs/rt-2482-final-build.log
+    EVIDENCE_REF: evidence/final-build.txt
 
 - `ParseCell` resta un helper in namespace anonimo: nessuna superficie pubblica nuova,
   nessun tipo nuovo, nessun owner spostato. L'autorita' resta in C++;
@@ -114,7 +123,7 @@ retto dalla MISURA del criterio 6, non dall'argomento.
     failed N:    0
     exit code:   0
     durata:      00:34
-    EVIDENCE_REF: Saved/Logs/rt-2482-scenario-post.log
+    EVIDENCE_REF: evidence/scenario-post.txt
     verdetto:    PASS — [RT-MEASURE] VALIDA
 
 Per nome, non per conteggio — un `found N` senza valore atteso non puo' fallire:
@@ -146,7 +155,7 @@ Riga mutata: `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp:70`
                  cells · interiorWalls · doors · units · move · expect UnitAtCell · variants)
                  LoaderRejectsCellArityOtherThanThree (casi 4 e 5, righe 1507-1508)
     VERDI:       casi 0, 1, 2 — corretto: M1 toglie il solo limite superiore
-    EVIDENCE_REF: Saved/Logs/rt-2482-M1b.log
+    EVIDENCE_REF: evidence/M1b.txt
     verdetto:    PASS
 
 ⛔ La PRIMA esecuzione di M1 e' NON VALIDA e non e' quella registrata. Durante 791s di
@@ -163,7 +172,7 @@ Riga mutata: `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp:70`
     found 174 · performed 174 · failed 2 · exit 1 · VALIDA
     ROSSI:       le assertion «nomina la lunghezza TROVATA»
     VERDI:       le assertion «e quella ATTESA» — il messaggio contiene ancora «3»
-    EVIDENCE_REF: Saved/Logs/rt-2482-M2.log
+    EVIDENCE_REF: evidence/M2.txt
     verdetto:    PASS
 
     Non era nella procedura in ingresso, che aveva M1 e M3. E' l'unica delle tre che
@@ -182,7 +191,7 @@ Riga mutata: `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp:70`
         [File: …\Runtime\Core\Public\Containers\Array.h] [Line: 1339]
         Array index out of bounds: 2 into an array of size 0
 
-    EVIDENCE_REF: Saved/Logs/rt-2482-M3.log#L2403
+    EVIDENCE_REF: evidence/M3.txt#L2403
     verdetto:    PASS
 
     Indice 2 in un array di dimensione 0: e' il caso `"cell": []`. Guardia (riga 70) e
@@ -268,7 +277,7 @@ ATTEMPT:      1
 
 FINDING_ID:   parsecell-arity/1-F16
 SEVERITY:     P1
-EVIDENCE_REF: Saved/Logs/rt-2482-M3.log#L2403 · output di rt-suite su M3
+EVIDENCE_REF: evidence/M3.txt#L2403 · output di rt-suite su M3
 ROOT_CAUSE:   `rt-suite.ps1` ha dichiarato `VALIDA` con `exit 0` — «0/1 completati, 0
               fallimenti» — una run in cui il motore e' morto su un check fatale e
               nessun test e' arrivato in fondo. La causa e' la tolleranza di copertura
@@ -351,7 +360,7 @@ ATTEMPT:      1
 FINDING_ID:   parsecell-arity/1-F6
 SEVERITY:     P1
 EVIDENCE_REF: RT3-DEVLEAD-022977f.md «VALIDATION REQUESTED» punto 3
-              Saved/Logs/rt-2482-M3.log#L2403
+              evidence/M3.txt#L2403
 ROOT_CAUSE:   La procedura anti-vacuita' prescriveva per M3 «attesi rossi: casi 0, 1 e
               2». MISURATO: non e' un rosso, e' un check fatale — `Array index out of
               bounds: 2 into an array of size 0`. Guardia e lettura sono accoppiate.
@@ -451,11 +460,11 @@ ATTEMPT:      1
 
     suite:   rt-suite-safe.ps1 -Filter RefactorTactics.Scenario -LogName rt-2482-scenario-post.log
              -> exit 0, found 174, performed 174, passed 174, failed 0, VALIDA
-    log:     Saved/Logs/rt-2482-scenario-post.log
-    log:     Saved/Logs/rt-2482-final-build.log     (4 action(s), Result: Succeeded)
-    log:     Saved/Logs/rt-2482-M1b.log             (M1, 2 fallimenti)
-    log:     Saved/Logs/rt-2482-M2.log              (M2, 2 fallimenti)
-    log:     Saved/Logs/rt-2482-M3.log#L2403        (M3, check fatale)
+    log:     evidence/scenario-post.txt
+    log:     evidence/final-build.txt     (4 action(s), Result: Succeeded)
+    log:     evidence/M1b.txt             (M1, 2 fallimenti)
+    log:     evidence/M2.txt              (M2, 2 fallimenti)
+    log:     evidence/M3.txt#L2403        (M3, check fatale)
     git:     git diff --name-only 39f3ec95..cdcf1dad -- Scenarios/ -> 0 righe, exit 0
     git:     git grep -nE '"cell"…\[x,y\]' -- Scenarios/ -> 0 righe, exit 1 (a HEAD e a BASE)
     code:    Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp:60-81

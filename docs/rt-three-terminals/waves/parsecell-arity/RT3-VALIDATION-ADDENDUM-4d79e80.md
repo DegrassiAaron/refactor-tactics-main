@@ -36,7 +36,7 @@ durata:       00:39
 verdetto:     VALIDA   (dichiarato da rt-suite: HEAD, albero, binario e processi
                         invariati per tutta la run)
 
-EVIDENCE_REF: Saved/Logs/rt-2482-rerun.log
+EVIDENCE_REF: evidence/rerun.txt
 
 I due test della wave, nominatamente:
   RefactorTactics.Scenario.EveryCellFieldRejectsWrongArity        Success
