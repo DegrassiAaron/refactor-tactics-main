@@ -949,7 +949,11 @@ sessions:
     unblocked_by: []
     shares_setup_with: [U7, U9]
     verifies: [PIE-AS4b, PIE-AS4c]
-    issues: [288, 2444, 2448, 2450, 2452]
+    # ⚠️ 2521 e' la issue che CONVOCA questa seduta; le altre cinque sono cio' che l'ha resa
+    # eseguibile. Fino al 2026-09-05 mancava, e la mancanza non era innocua: #2444 e' stata chiusa
+    # `COMPLETED` con sei caselle di DoD vuote — fra cui i sei giudizi umani — perche' lo scope si era
+    # ristretto ai riferimenti duri e nessuno possedeva piu' il giudizio a schermo.
+    issues: [288, 2444, 2448, 2450, 2452, 2521]
     done_when: PIE-AS4b e PIE-AS4c hanno esito reale sui quattro eroi
     unblocks: [U9, U19]
     steps: |
