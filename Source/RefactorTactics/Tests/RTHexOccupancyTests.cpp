@@ -643,7 +643,7 @@ bool FRTOccupancySurvivesSurfaceCycleTest::RunTest(const FString&)
 	MapActor->MapAsset = Map;
 
 	ARTUnit* A = SpawnOccupancyUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
-	SpawnOccupancyUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -1));
+	SpawnOccupancyUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A) { DestroyOccupancyWorld(World); return false; }
 

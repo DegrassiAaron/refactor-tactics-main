@@ -320,7 +320,7 @@ mezzo; Gadget ha il danno combo più alto.
 > esattamente come prima, che è la prova di quanto sopra.
 >
 > L'esito è pinnato dallo scenario
-> `Spec.Combat.RiktorIsPushedLikeAnyone`, che manda Riktor e Wraith a incassare lo stesso `Hero.Phase.PressureJet`
+> `Spec.Combat.BranthIsPushedLikeAnyone`, che manda Riktor e Wraith a incassare lo stesso `Hero.Phase.PressureJet`
 > e li fa arretrare **entrambi**; la regola della soglia resta pinnata da
 > `RefactorTactics.Actions.PushResistanceIsAThreshold`, che il valore se lo costruisce da solo.
 >

@@ -18,7 +18,7 @@
   "units": [
     { "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,  0, 0] },
     { "id": "R1", "hero": "Hero.Phase",  "team": 0, "cell": [-4,  1, 0] },
-    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [ 1,  0, 0] },
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 1,  0, 0] },
     { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 1, -1, 0] }
   ],
 
@@ -26,38 +26,38 @@
     {
       "_turno": "T1-T5 — identici a Visual.Combat.Defeat: si accumula il danno. Qui non si guarda niente.",
       "intents": [
-        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1" },
+        { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "F1" },
         { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" }
       ]
     },
     {
       "intents": [
-        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1" },
+        { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "F1" },
         { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" }
       ]
     },
     {
       "intents": [
-        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1" },
+        { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "F1" },
         { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" }
       ]
     },
     {
       "intents": [
-        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1" },
+        { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "F1" },
         { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" }
       ]
     },
     {
       "intents": [
-        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1" },
+        { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "F1" },
         { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" }
       ]
     },
     {
       "_turno": "T6 — QUI si guarda. Gadget cade nel Blast, e Phase cammina: la fase Move segue, e il montaggio di Death gioca dentro quella finestra invece di essere troncato da FinishPlayback.",
       "intents": [
-        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1" },
+        { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "F1" },
         { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" },
         { "unit": "R1", "move": [[-3, 1, 0], [-2, 1, 0]] }
       ]

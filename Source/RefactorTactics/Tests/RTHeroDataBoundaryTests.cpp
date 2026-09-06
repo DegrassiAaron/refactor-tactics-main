@@ -69,7 +69,7 @@ namespace
 		{ TEXT("Weakness"),         TEXT("Weakness"),         ERTTransport::Exact,  nullptr },
 		// E14.7 [D-047]. Trasportato e non dedotto dall'`HeroId`, che pure l'unita' porta: il resolver legge
 		// l'unita', e farlo risalire all'eroe darebbe a ogni sito che valuta una finestra una dipendenza su
-		// `URTHeroCatalogLibrary`. `NAME_None` e' legittimo — e' Riktor, cioe' profilo base.
+		// `URTHeroCatalogLibrary`. `NAME_None` e' legittimo — e' Branth, cioe' profilo base.
 		{ TEXT("ReactionProfileId"), TEXT("ReactionProfileId"), ERTTransport::Exact, nullptr },
 		// `Prefix` e non `Exact`, ed e' una regola di dominio: `ConfigureFromHeroData` copia le azioni
 		// dell'eroe e **accoda** le sette azioni generiche di D-025, che sono dell'unita' quanto le sue.

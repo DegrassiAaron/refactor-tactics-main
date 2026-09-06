@@ -100,9 +100,9 @@ bool FRTHexFullMatchTest::RunTest(const FString&)
 
 	// 2v2 su lati opposti dell'arena, in diagonale (dove la distanza esagonale conta davvero).
 	ARTUnit* A1 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(-4, 2));
-	ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 3));
+	ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 3));
 	ARTUnit* B1 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(4, -2));
-	ARTUnit* B2 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -3));
+	ARTUnit* B2 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -3));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A1 || !A2 || !B1 || !B2) { DestroyHexMatchWorld(World); return false; }
 
@@ -159,7 +159,7 @@ bool FRTHexMatchLogTest::RunTest(const FString&)
 	SpawnHexMatchMap(World, /*Radius=*/ 4);
 
 	ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
-	ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -1));
+	ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexMatchWorld(World); return false; }
 
@@ -209,9 +209,9 @@ bool FRTHexBothTeamsActTest::RunTest(const FString&)
 	// Tutti e quattro sullo stesso lato dei muri centrali, a portata reciproca: qui si vuole che gli attacchi
 	// siano LEGALI, non provare la copertura (quella e' HexVision/PIE-HEXPLAY-6).
 	ARTUnit* A_Shooter = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(1, 1));
-	ARTUnit* A_Mover   = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 2));
+	ARTUnit* A_Mover   = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 2));
 	ARTUnit* B_Shooter = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(3, 0));
-	ARTUnit* B_Mover   = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, 0));
+	ARTUnit* B_Mover   = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A_Shooter || !A_Mover || !B_Shooter || !B_Mover)
 	{
@@ -311,9 +311,9 @@ bool FRTHexArenaAnomalyTest::RunTest(const FString&)
 
 	TArray<ARTUnit*> Units;
 	Units.Add(SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   Start[0]));
-	Units.Add(SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), Start[1]));
+	Units.Add(SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), Start[1]));
 	Units.Add(SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   Start[2]));
-	Units.Add(SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), Start[3]));
+	Units.Add(SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Start[3]));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || Units.Contains(nullptr)) { DestroyHexMatchWorld(World); return false; }
 
@@ -389,7 +389,7 @@ bool FRTHexClimbViaTransitionTest::RunTest(const FString&)
 
 	// Uno scalatore e un avversario lontano (serve solo a non far finire la partita al primo turno).
 	ARTUnit* Climber = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Ground);
-	ARTUnit* Idle    = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 0));
+	ARTUnit* Idle    = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Climber || !Idle) { DestroyHexMatchWorld(World); return false; }
 	Climber->bIsBotControlled = false;
@@ -505,7 +505,7 @@ bool FRTHexHeroDashIsLinearTest::RunTest(const FString&)
 }
 
 /**
- * `Riktor.Ram` e' una CARICA, non uno scatto qualsiasi: percorre una linea retta, si ferma addosso al primo
+ * `Branth.Ram` e' una CARICA, non uno scatto qualsiasi: percorre una linea retta, si ferma addosso al primo
  * nemico che incontra e lo colpisce nel Blast (20 danni piu' una spinta di 1, gli stessi di `Action.Charge`).
  *
  * Fino a #142 la carica non dichiarava lo stile di movimento, quindi la fase Dash la instradava sul
@@ -513,7 +513,7 @@ bool FRTHexHeroDashIsLinearTest::RunTest(const FString&)
  * test guarda l'esito di un turno vero — posizione finale, danno, spinta — non il contenuto del catalogo.
  *
  * Girava su `Guardian.Charge`, sparita con gli archetipi legacy il 2026-08-10. La carica non e' sparita con
- * lei: e' nel kit di Riktor, ed e' la stessa azione con un nome d'eroe.
+ * lei: e' nel kit di Branth, ed e' la stessa azione con un nome d'eroe.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexChargeImpactTest,
 	"RefactorTactics.HexMatch.ChargeStopsOnEnemyAndHits",
@@ -525,7 +525,7 @@ bool FRTHexChargeImpactTest::RunTest(const FString&)
 	SpawnHexMatchMap(World, /*Radius=*/ 5);
 
 	// Chi carica e il bersaglio allineati sull'asse q: fra loro due celle libere, poi il nemico.
-	ARTUnit* Charger = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
+	ARTUnit* Charger = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
 	ARTUnit* Target  = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Charger || !Target) { DestroyHexMatchWorld(World); return false; }
@@ -538,10 +538,10 @@ bool FRTHexChargeImpactTest::RunTest(const FString&)
 	for (int32 i = 0; i < Charger->NumAbilities(); ++i)
 	{
 		const URTActionData* A = Charger->GetAbility(i);
-		if (A && A->Def.ActionId == FName(TEXT("Hero.Riktor.Ram"))) { ChargeIdx = i; break; }
+		if (A && A->Def.ActionId == FName(TEXT("Hero.Branth.Ram"))) { ChargeIdx = i; break; }
 	}
 	const URTActionData* Charge = Charger->GetAbility(ChargeIdx);
-	if (!TestNotNull(TEXT("premessa: Riktor ha la carica nel kit"), (void*)Charge))
+	if (!TestNotNull(TEXT("premessa: Branth ha la carica nel kit"), (void*)Charge))
 	{
 		DestroyHexMatchWorld(World); return false;
 	}
@@ -601,7 +601,7 @@ bool FRTHexDashBlockedTest::RunTest(const FString&)
 		FreeData != nullptr && !FreeData->bBlocksMovement);
 
 	ARTUnit* Dasher = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), From);
-	ARTUnit* Idle   = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 0));
+	ARTUnit* Idle   = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Dasher || !Idle) { DestroyHexMatchWorld(World); return false; }
 	Dasher->bIsBotControlled = false;
@@ -657,7 +657,7 @@ bool FRTPlaybackEventCarriesVerdictsTest::RunTest(const FString&)
 	SpawnHexMatchMap(World, /*Radius=*/ 5);
 
 	ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
-	ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -1));
+	ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexMatchWorld(World); return false; }
 
@@ -717,9 +717,9 @@ bool FRTFirstTurnDoesNotCloseItselfTest::RunTest(const FString&)
 	// Team 0 UMANO: e' la configurazione del referto — un giocatore con due unita' proprie contro due bot.
 	// Con tutte e quattro a bot la prova sarebbe di un'altra partita.
 	ARTUnit* A1 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 2));
-	ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 3));
+	ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 3));
 	ARTUnit* B1 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(4, -2));
-	ARTUnit* B2 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -3));
+	ARTUnit* B2 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -3));
 	if (!A1 || !A2 || !B1 || !B2) { DestroyHexMatchWorld(World); return false; }
 	A1->bIsBotControlled = false;
 	A2->bIsBotControlled = false;
@@ -823,7 +823,7 @@ namespace
 	{
 		SpawnHexMatchMap(World, /*Radius=*/ 4);
 		ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
-		ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -1));
+		ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
 		if (!A || !B) { return nullptr; }
 		A->bIsBotControlled = false; // il Ready e' un gesto umano: con tutte a bot la prova sarebbe di un'altra partita
 

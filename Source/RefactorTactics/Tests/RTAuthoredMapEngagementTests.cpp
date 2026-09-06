@@ -70,7 +70,7 @@ namespace RTAuthoredEngagement
  *
  * 🔵 **E IL GEMELLO SULL'ARENA GENERATA HA DECISO IL CONTRARIO, APPOSTA** (#1551).
  * `Match.Autobattle.EngagesOnTheGeneratedTestArena` rifiuta questa stessa esenzione **per iscritto**, e con
- * la propria misura: il difetto di #1088 e' esattamente *«sta ferma e spara»* — Riktor parcheggiata dieci
+ * la propria misura: il difetto di #1088 e' esattamente *«sta ferma e spara»* — Branth parcheggiata dieci
  * turni mentre il campo produceva 19 voci `Combat` — quindi li' l'esenzione rende l'oracolo cieco. Misurato
  * su quella board: senza esenzione la sequenza e' 9 turni e il test **falsifica**; con esenzione globale
  * scende a 2 e passa verde; con esenzione per unita' a 3, e passa lo stesso.
@@ -91,7 +91,7 @@ namespace RTAuthoredEngagement
  * 🔴 **NON e' il rilevatore di OSCILLAZIONE, benche' lo dichiarasse.** Questa riga diceva che un bot che
  * alterna fra «cerca» e «avvicinati» «tornerebbe sulle stesse celle». Il suo oracolo conta i turni
  * **consecutivi sulla stessa cella** — il contatore si azzera appena la cella cambia — quindi un'alternanza
- * `A->B->A->B` lo lascia a zero e passa sempre. Misurato il 2026-08-23 su `L_HexArena`: Riktor alterna fra
+ * `A->B->A->B` lo lascia a zero e passa sempre. Misurato il 2026-08-23 su `L_HexArena`: Branth alterna fra
  * `(1,-1,L0)` e la piattaforma `(3,-3,L1)` **otto volte in dodici turni**, e questo test resta verde.
  * L'oscillazione ha il suo oracolo in `NobodyOscillatesOnTheAuthoredMap`, qui sotto.
  *
@@ -328,7 +328,7 @@ bool FRTAuthoredMapEngagesTest::RunTest(const FString&)
  * sequenza e' un ciclo di periodo due — cella cieca (filtro acceso) -> cella che vede (filtro spento) ->
  * la cieca torna la migliore per punteggio -> cella cieca — e non si ferma mai.
  *
- * Misurato su `L_HexArena` il 2026-08-23: Riktor alterna fra `(1,-1,L0)` e la piattaforma `(3,-3,L1)`
+ * Misurato su `L_HexArena` il 2026-08-23: Branth alterna fra `(1,-1,L0)` e la piattaforma `(3,-3,L1)`
  * **otto volte in dodici turni** in partita, e **trentasette in quaranta** nello scenario
  * `AutoBattle.ArenaV01`, dove la partita non si decide affatto.
  *

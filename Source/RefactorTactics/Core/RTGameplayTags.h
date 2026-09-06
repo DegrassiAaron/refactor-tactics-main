@@ -46,7 +46,7 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Obscured); // offuscato: targeting lim
  *
  * ✅ **L'argomento sull'istantaneita' e' stato onorato, non aggirato**: il tag e' qui perche' `Wet` e
  * `Conductive` esistono gia' e la loro semantica lo nomina; dargli una durata inventata per farlo sembrare
- * vivo sarebbe peggio di un dato dichiaratamente inerte (stesso pattern di `PushResistance` di Riktor).
+ * vivo sarebbe peggio di un dato dichiaratamente inerte (stesso pattern di `PushResistance` di Branth).
  *
  * ⚠️ `UI.Icon.Status.Electrified` resta una chiave richiesta in `RTIconCatalogTests`, e la sua icona
  * **esiste**: `Content/RT/UI/Icons/` porta **undici** `RT_UI_Icon_Status_*` versionate — `Braced`,

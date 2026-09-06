@@ -212,7 +212,7 @@ namespace
 	 * il suo docstring in `RTActionDef.h` avverte esplicitamente contro il dedurla: *«Dedurlo da
 	 * `RangeCells == 0` sarebbe stato sbagliato»*. La fase non e' un criterio migliore della portata:
 	 * `Action.CreateCover` e' `Preparation` con portata 3 e uno `StructureOp`, quindi bersaglia una cella
-	 * lontana — e `Hero.Riktor.KineticPanel`, che ne deriva, deve continuare a pretendere un bersaglio.
+	 * lontana — e `Hero.Branth.KineticPanel`, che ne deriva, deve continuare a pretendere un bersaglio.
 	 *
 	 * ⚠️ **Il roster si legge UNA volta**, per la ragione gia' scritta accanto a `KnownHeroIds`:
 	 * `GetHeroRoster()` istanzia quattro `URTHeroData` con tutte le loro abilita' a ogni chiamata, e questo
@@ -996,7 +996,7 @@ namespace
 							{
 								// Un'azione che risolve su CHI LA USA non ha un bersaglio da dichiarare: il
 								// `TurnManager` si bersaglia da solo in fase Prep (`Instance.TargetUnitId = i`), e
-								// pretenderlo qui costringerebbe a scrivere «Riktor si mette in guardia bersagliando
+								// pretenderlo qui costringerebbe a scrivere «Branth si mette in guardia bersagliando
 								// se stesso». La domanda si pone al CATALOGO invece di elencare gli ActionId self,
 								// cosi' un'azione di Prep aggiunta domani non deve ricordarsi di questa riga.
 								//
@@ -1004,7 +1004,7 @@ namespace
 								// non e' Prep, quindi il bersaglio resta obbligatorio. Le azioni d'eroe passano di
 								// qui, ed e' il comportamento che avevano prima.
 								// 🔑 Il FLAG, non la fase: `Action.CreateCover` e' `Preparation` e bersaglia una cella
-								// a portata 3, quindi `Hero.Riktor.KineticPanel` deve restare senza scorciatoie (#2283).
+								// a portata 3, quindi `Hero.Branth.KineticPanel` deve restare senza scorciatoie (#2283).
 								const bool bResolvesOnSelf = AbilityResolvesOnSelf(Intent.Ability);
 								if (!bResolvesOnSelf)
 								{

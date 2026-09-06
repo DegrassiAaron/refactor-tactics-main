@@ -1315,7 +1315,7 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 		Entry.Category = ERTLogCategory::Reaction;
 		Entry.SrcCell = Unit->Cell;
 		Entry.TgtCell = Unit->Cell;
-		Entry.ActionId = Reaction->Def.ActionId; // `Riktor.Interposition` non e' `Action.Intercept` (CP 5.5)
+		Entry.ActionId = Reaction->Def.ActionId; // `Branth.Interposition` non e' `Action.Intercept` (CP 5.5)
 		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
 
 		// Il contatore di [D-092] vale anche qui: l'interposizione E' un'attivazione, e lasciarla fuori
@@ -1638,7 +1638,7 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 		// riga l'entry sopravvive al proprio riparo, e siccome identifica la barriera con la sola coppia
 		// (cella, bordo), alla scadenza del suo timer porterebbe via **quello che trova su quel bordo**: se
 		// nel frattempo qualcuno ha riparato lo stesso varco, gli distrugge il pannello in anticipo e scrive
-		// nel TurnLog una scadenza mai avvenuta. Due Riktor sullo stesso choke point bastano — i cooldown
+		// nel TurnLog una scadenza mai avvenuta. Due Branth sullo stesso choke point bastano — i cooldown
 		// sono per unita', quindi il secondo non aspetta il primo.
 		if (Change.bDestroyed)
 		{
@@ -2063,7 +2063,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		// 🔴 **Prima stava DENTRO il ciclo**, e una code review ha misurato il costo: `MakeCurrentSnapshot`
 		// fa un `GetAllActorsOfClass` sul livello, costruisce un `FRTHexSnapshot` che qui viene **buttato
 		// via**, e ordina — tutto questo per **ogni** unita' in `Brace`. Il caso di gran lunga piu' comune e'
-		// il profilo base (Riktor), dove `AskReactionDecision` risponde `HoldImmediate` senza mai leggere
+		// il profilo base (Branth), dove `AskReactionDecision` risponde `HoldImmediate` senza mai leggere
 		// `OwnerId`: si pagava un giro completo per un valore che nessuno guardava.
 		TArray<ARTUnit*> BlastAliveUnits;
 

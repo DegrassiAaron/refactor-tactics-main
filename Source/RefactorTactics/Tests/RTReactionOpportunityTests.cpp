@@ -178,7 +178,7 @@ bool FRTOpportunityIdUsesEveryFieldTest::RunTest(const FString&)
  * Le tre cardinalita' stanno in un test solo perche' sono **una** proprieta' — la soglia — e verificarne una
  * meta' non direbbe niente: con il solo caso `≤ 1` passerebbe un'implementazione che non apre MAI il
  * boundary, con il solo `≥ 2` una che lo apre SEMPRE. E' lo stesso motivo per cui
- * `Combat.RiktorImpactShotSlows` ha un gemello di controllo.
+ * `Combat.BranthImpactShotSlows` ha un gemello di controllo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSingleResponseCommitsWithoutWindowTest,
 	"RefactorTactics.Reactions.SingleResponseCommitsWithoutWindow",

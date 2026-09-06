@@ -424,12 +424,12 @@ struct FRTActionDef
 	FName ActionId;
 
 	/**
-	 * Di quale AZIONE GENERICA questa e' un profilo (es. `Riktor.ImpactShot` -> `Action.BasicAttack`).
+	 * Di quale AZIONE GENERICA questa e' un profilo (es. `Branth.ImpactShot` -> `Action.BasicAttack`).
 	 * `None` per le azioni che non sono profilo di niente — le generiche stesse, e le abilita' firma.
 	 *
 	 * Esiste perche' [D-033](../../../docs/decisions/RT_PDR_00_Decision_Log.md) chiede che un'azione generica
 	 * con profilo sia spiegabile **nel TurnLog** come *azione base + profilo*, e senza questo campo la
-	 * relazione non e' scritta da nessuna parte: `Riktor.ImpactShot` e' un'azione d'EROE, quindi un lettore
+	 * relazione non e' scritta da nessuna parte: `Branth.ImpactShot` e' un'azione d'EROE, quindi un lettore
 	 * della traccia non la risolve nemmeno consultando il catalogo core.
 	 *
 	 * E' un dato e non una deduzione: dedurlo dal nome (`Hero.Qualcosa` = attacco base?) funzionerebbe finche'
@@ -441,9 +441,9 @@ struct FRTActionDef
 	/** Da quale azione CORE questa eredita i suoi valori: fase, priorita', portata, fallback, effetti.
 	 *
 	 * ⚠️ **Non e' `BaseActionId`, e coincide con lui solo per gli attacchi base.** `BaseActionId` dice di
-	 * quale delle SETTE generiche un'azione e' il profilo (D-033): `Hero.Riktor.ImpactShot` e' il profilo
+	 * quale delle SETTE generiche un'azione e' il profilo (D-033): `Hero.Branth.ImpactShot` e' il profilo
 	 * di `Action.BasicAttack`. Questo dice da dove vengono i NUMERI, e la sorgente puo' essere un'azione
-	 * che generica NON e': `Hero.Riktor.Ram` eredita da `Action.Charge`, e un «profilo di Charge» non
+	 * che generica NON e': `Hero.Branth.Ram` eredita da `Action.Charge`, e un «profilo di Charge» non
 	 * esiste perche' `Charge` non e' fra le sette. Fondere i due campi renderebbe indistinguibili due
 	 * relazioni diverse nella stessa traccia.
 	 *
@@ -505,7 +505,7 @@ struct FRTActionDef
 	 * Che cosa l'azione fa a una STRUTTURA di bordo (CP 9.5). `None` per tutto il resto.
 	 *
 	 * Esiste per la stessa ragione di `MovementStyle`, e la sua assenza si sarebbe pagata subito: erigere una
-	 * copertura e' semantica di **tre** identita' diverse — l'azione core, l'abilita' di Riktor e il gadget
+	 * copertura e' semantica di **tre** identita' diverse — l'azione core, l'abilita' di Branth e il gadget
 	 * portatile — e senza un dato il resolver avrebbe tre `if` sull'ActionId, cioe' un ramo per eroe nel core.
 	 * `Ignite`, `CreateWater` ed `Electrify` sono ancora riconosciute per ActionId: la' i produttori sono uno
 	 * ciascuno, e il campo si aggiungera' quando smetteranno di esserlo.

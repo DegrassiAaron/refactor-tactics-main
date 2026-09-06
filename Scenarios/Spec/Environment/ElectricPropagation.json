@@ -11,7 +11,7 @@
   "seed": 0,
   "fixture": "RelayLite",
   "_nota": "SPECIFICA ESEGUIBILE del payoff ambientale piu' vistoso della v0.1: la scarica che si propaga sull'acqua. Due bersagli in piedi sulla spina d'acqua di RelayLite; la scarica ne colpisce uno e arriva anche all'altro, con 20 alla sorgente e 12 ai propagati, limite 3 celle, ogni unita' colpita al massimo una volta, ordine `distanza -> CellId -> UnitId` (CP 8.3).",
-  "_nota_la_strada_giusta": "`Hero.Gadget.ConductiveNode` esiste nel catalogo eroi con `Effects` VUOTI e un commento che dichiara il perche': quando fu scritta non esisteva un modello di cella conduttiva. Ora esiste. La via canonica del progetto e' quella gia' usata per le reazioni — `Hero.Riktor.Ram` riusa `Action.Charge`, `Hero.Riktor.Interposition` riusa `Action.Intercept` — cioe' cablare l'abilita' d'eroe alla semantica core conservando l'identita' dell'eroe.",
+  "_nota_la_strada_giusta": "`Hero.Gadget.ConductiveNode` esiste nel catalogo eroi con `Effects` VUOTI e un commento che dichiara il perche': quando fu scritta non esisteva un modello di cella conduttiva. Ora esiste. La via canonica del progetto e' quella gia' usata per le reazioni — `Hero.Branth.Ram` riusa `Action.Charge`, `Hero.Branth.Interposition` riusa `Action.Intercept` — cioe' cablare l'abilita' d'eroe alla semantica core conservando l'identita' dell'eroe.",
   "_nota_da_completare": "Chi cabla l'abilita' riempie il turno 2 e aggiunge le assertion: HP del bersaglio diretto, HP del propagato, e la prova che una terza unita' fuori dalla rete d'acqua resti illesa — e' quest'ultima a dimostrare che la propagazione segue l'acqua e non il raggio.",
   "units": [
     {
@@ -36,7 +36,7 @@
     },
     {
       "id": "B1",
-      "hero": "Hero.Riktor",
+      "hero": "Hero.Branth",
       "team": 1,
       "cell": [
         0,
@@ -57,7 +57,7 @@
   ],
   "turns": [
     {
-      "_turno": "T1 — allestimento: Phase e Riktor sono gia' sull'acqua ((0,0) e (0,1) di RelayLite), Wraith e' all'asciutto lontano. Gira sul gioco di oggi.",
+      "_turno": "T1 — allestimento: Phase e Branth sono gia' sull'acqua ((0,0) e (0,1) di RelayLite), Wraith e' all'asciutto lontano. Gira sul gioco di oggi.",
       "intents": []
     },
     {

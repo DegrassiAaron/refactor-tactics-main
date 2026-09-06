@@ -46,7 +46,7 @@ namespace
 	  "units": [
 	    { "id": "zulu", "hero": "Hero.Gadget", "team": 0, "cell": [2, 0, 0] },
 	    { "id": "alfa", "hero": "Hero.Wraith", "team": 0, "cell": [-2, 0, 0] },
-	    { "id": "nemico", "hero": "Hero.Riktor", "team": 1, "cell": [0, 2, 0] }
+	    { "id": "nemico", "hero": "Hero.Branth", "team": 1, "cell": [0, 2, 0] }
 	  ],
 	  "turns": [ { "intents": [ { "unit": "alfa", "move": [[-1, 0, 0]] } ] } ],
 	  "expect": [ { "type": "UnitAtCell", "unit": "alfa", "cell": [-1, 0, 0] } ]

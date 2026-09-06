@@ -209,7 +209,7 @@ bool FRTBotStalemateDemoArenaContrastTest::RunTest(const FString&)
  * ⚠️ **Due fatti letti nel codice, che restringono prima ancora di misurare:**
  *
  *  · `DeriveKiteStandoff` da' standoff `0` sotto gittata 5. Sul roster v0.1 **solo Phase** (`PressureJet`,
- *    gittata 5) tiene le distanze; Gadget e Wraith (4) e Riktor (3) **chiudono**. Lo stallo a distanza 3
+ *    gittata 5) tiene le distanze; Gadget e Wraith (4) e Branth (3) **chiudono**. Lo stallo a distanza 3
  *    non e' quindi il kiting che fa il suo mestiere — non per tre unita' su quattro.
  *  · `ChooseBestPlan` dichiara un **tie-break assoluto**: *«a parita' di punteggio vince la MOSSA MINIMA
  *    da Origin (restare vince)»*. Se attaccare non migliorasse **strettamente** il punteggio, restare
@@ -1061,7 +1061,7 @@ namespace
 	 *
 	 * ⚠️ **Un nemico solo, fermo.** Un'orbita e' un comportamento stazionario, e con il bersaglio che si muove
 	 * non esiste una funzione di cui cercare i cicli. E' l'idealizzazione in cui il difetto storico e' stato
-	 * osservato: Riktor fra due celle mentre il resto del campo non decideva.
+	 * osservato: Branth fra due celle mentre il resto del campo non decideva.
 	 */
 	struct FRTOrbitBoard
 	{
@@ -1754,7 +1754,7 @@ bool FRTBotAuthoredMapFilterStepsBackTest::RunTest(const FString&)
 		Sweep.BackstepsAt(RTOrbitNeutralMoveMP) > 0);
 
 	// 🔴 **E fra quelle coppie c'e' QUELLA MISURATA, che e' cio' che rende questo predicato una misura e non
-	// un modello plausibile.** Il consuntivo di #1287 nomina l'orbita osservata in partita — *«Riktor alterna
+	// un modello plausibile.** Il consuntivo di #1287 nomina l'orbita osservata in partita — *«Branth alterna
 	// fra `(1,-1,L0)` e la piattaforma `(3,-3,L1)` otto volte in dodici turni»* — e il predicato, che di
 	// quella misura non sa nulla, la ritrova enumerando la board.
 	const FString Storica = RTOrbitPairText(FRTCellId(1, -1, 0), FRTCellId(3, -3, 1));
@@ -1917,7 +1917,7 @@ bool FRTBotAuthoredMapClosesCyclesTest::RunTest(const FString&)
 		Sweep.RitorniAt(RTOrbitNeutralMoveMP) > 0);
 
 	// 🔴 **E fra i cicli c'e' QUELLO MISURATO, che e' cio' che rende questo predicato una misura e non un
-	// modello plausibile.** Il consuntivo di #1287 nomina l'orbita osservata in partita — *«Riktor alterna fra
+	// modello plausibile.** Il consuntivo di #1287 nomina l'orbita osservata in partita — *«Branth alterna fra
 	// `(1,-1,L0)` e la piattaforma `(3,-3,L1)`»* — e lo scanner, che di quella misura non sa nulla, la ritrova
 	// seguendo le traiettorie. Senza questa riga qualunque numero positivo soddisferebbe l'asserzione sopra,
 	// anche trovando tre cicli che con il difetto storico non c'entrano nulla. Il gemello dei passi indietro

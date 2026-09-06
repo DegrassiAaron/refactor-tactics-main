@@ -12,7 +12,7 @@
   "_nota_valore_zero": "`value: 0` non e' un'assertion debole: `LogEventCount` a zero asserisce l'ASSENZA, ed e' la stessa forma con cui il progetto verifica che una voce non trapeli prima del reveal.",
 
   "units": [
-    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [-1, 0, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Branth", "team": 0, "cell": [-1, 0, 0], "facing": "E" },
     { "id": "V1", "hero": "Hero.Wraith",  "team": 1, "cell": [2, 0, 0],  "facing": "W" }
   ],
 
@@ -21,7 +21,7 @@
       "_turno": "T1 — stesso pannello sul bordo EST dello scenario gemello.",
       "requires": ["CreateCover"],
       "intents": [
-        { "unit": "B1", "ability": "Hero.Riktor.KineticPanel", "targetCell": [-1, 0, 0], "edge": "E" }
+        { "unit": "B1", "ability": "Hero.Branth.KineticPanel", "targetCell": [-1, 0, 0], "edge": "E" }
       ]
     },
     {

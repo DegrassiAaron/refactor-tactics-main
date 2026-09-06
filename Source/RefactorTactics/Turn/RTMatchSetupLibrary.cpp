@@ -354,7 +354,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 		{ FRTCellId( 1,  0, 0), ERTHexSurface::Rough },
 		{ FRTCellId( 2,  0, 0), ERTHexSurface::Rough },
 		// Fascia di fuoco sull'approccio NORD al Relay: Wraith la attraversa al turno 3 scendendo dalla
-		// cresta, e prende `Burning`. NON sta accanto agli spawn: messa a (3,0)/(3,1) murava Riktor nel suo
+		// cresta, e prende `Burning`. NON sta accanto agli spawn: messa a (3,0)/(3,1) murava Branth nel suo
 		// angolo — ogni sua uscita passava dal fuoco, e il turno 1 sarebbe stato una punizione, non una scelta.
 		{ FRTCellId( 2, -1, 0), ERTHexSurface::Fire },
 		{ FRTCellId( 1, -1, 0), ERTHexSurface::Fire },
@@ -423,13 +423,13 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 	// bersaglio ORIGINALE, dal colpo che gli arriva da ovest.
 	//
 	// ⚠️ **Sta sulla VITTIMA e non sull'intercettore, ed e' la scelta che rende il turno discriminante.**
-	// D-017 chiede che la geometria si rivaluti sul bersaglio EFFETTIVO: quando Riktor si interpone, la
+	// D-017 chiede che la geometria si rivaluti sul bersaglio EFFETTIVO: quando Branth si interpone, la
 	// copertura che conta e' la SUA — e lui non ne ha. Un resolver che conservasse quella del bersaglio
 	// originale gli farebbe 12 danni invece di 22, cioe' **113 punti vita invece di 103**. E' il caso
 	// `CoveredVictim` di `Cover.InterceptRecalculatesOnEffectiveTarget`, portato sulla pipeline reale.
 	//
 	// ⛔ **L'inverso non era praticabile, ed e' misurato**: una copertura sul bordo d'ingresso di RIKTOR
-	// varrebbe zero. CP 16.2 dichiara scoperto l'emisfero posteriore, e Riktor arriva su (2,0) orientato a
+	// varrebbe zero. CP 16.2 dichiara scoperto l'emisfero posteriore, e Branth arriva su (2,0) orientato a
 	// **NE** mentre Gadget sta a ovest. Orientarlo con una rotazione dichiarata non e' possibile: il gioco la
 	// rifiuta — *«rotazione dichiarata RIFIUTATA (illegale per lo stile di movimento)»* — perche' nello stesso
 	// turno si muove. Wraith invece guarda gia' **W**, verso chi lo attacca.
@@ -451,7 +451,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 	// Il gate della lane sud: una PORTA chiusa (CP 9.3), non un meccanismo nuovo. Aperta, la revisione della
 	// mappa sale e un percorso che prima non esisteva diventa percorribile — ed e' cio' che
 	// `Spec.Map.InteractOpensDoor` misura, su questa fixture e su questo bordo.
-	// ✅ **Riktor la apre al turno 5**, e dal 2026-08-27 e' di nuovo un fatto: il T5 di
+	// ✅ **Branth la apre al turno 5**, e dal 2026-08-27 e' di nuovo un fatto: il T5 di
 	// `RT_Showcase_Relay_v01.json` dichiara `Action.Interact` su (0,1,0) e nel Move dello stesso turno si
 	// sposta via, cosi' il varco resta percorribile. La fixture spedisce il bordo; chi lo apre, e quando,
 	// lo decide lo scenario -- e questo commento va riletto quando quel turno cambia, perche' nessun gate
@@ -891,7 +891,7 @@ TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayBasinSpawns()
 	return {
 		FRTShowcaseSpawn(TEXT("Hero.Gadget"),    /*TeamId=*/ 0, FRTCellId(-4, 0, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Phase"),    /*TeamId=*/ 0, FRTCellId(-4, 1, 0)),
-		FRTShowcaseSpawn(TEXT("Hero.Riktor"), /*TeamId=*/ 1, FRTCellId( 4, 0, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Branth"), /*TeamId=*/ 1, FRTCellId( 4, 0, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Wraith"),  /*TeamId=*/ 1, FRTCellId( 4, 1, 0)),
 	};
 }
@@ -903,7 +903,7 @@ TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayLiteSpawns()
 	return {
 		FRTShowcaseSpawn(TEXT("Hero.Gadget"),    /*TeamId=*/ 0, FRTCellId(-5,  2, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Phase"),    /*TeamId=*/ 0, FRTCellId(-5,  3, 0)),
-		FRTShowcaseSpawn(TEXT("Hero.Riktor"), /*TeamId=*/ 1, FRTCellId( 5, -2, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Branth"), /*TeamId=*/ 1, FRTCellId( 5, -2, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Wraith"),  /*TeamId=*/ 1, FRTCellId( 5, -3, 0)),
 	};
 }

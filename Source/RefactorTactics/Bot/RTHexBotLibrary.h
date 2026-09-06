@@ -412,7 +412,7 @@ public:
 	 * restare lontano; chi colpisce da vicino no, e arretrare gli costerebbe soltanto il turno.
 	 *
 	 * Sul roster v0.1 l'unica kiter e' Phase (`PressureJet`, portata 5 -> standoff 3). Gadget e Wraith (4) e
-	 * Riktor (3) chiudono la distanza. Se la soglia va spostata, e' questa riga: il resto del bot legge
+	 * Branth (3) chiudono la distanza. Se la soglia va spostata, e' questa riga: il resto del bot legge
 	 * `FRTHexBotContext::KiteStandoff` e non sa da dove venga.
 	 */
 	/**

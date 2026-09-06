@@ -227,7 +227,7 @@ public:
 	FName HeroId;
 
 	/**
-	 * Nome canonico/player-facing dell'eroe (D-120: Gadget · Phase · Riktor · Wraith), dichiarato dal
+	 * Nome canonico/player-facing dell'eroe (D-120: Gadget · Phase · Branth · Wraith), dichiarato dal
 	 * catalogo e trasportato qui da `ConfigureFromHeroData`. `FText` perché è testo mostrato all'utente e
 	 * deve restare localizzabile.
 	 *
@@ -291,7 +291,7 @@ public:
 	FRTCellId PlannedAttackCell;
 
 	/**
-	 * Variante di abilita' attiva su questa unita' (es. `Riktor.KineticPanel.Reinforced`). `None` = i numeri
+	 * Variante di abilita' attiva su questa unita' (es. `Branth.KineticPanel.Reinforced`). `None` = i numeri
 	 * del catalogo base.
 	 *
 	 * E' il **minimo** che rende consumabili i `Parameters` delle varianti, che fino a CP 9.5 nessuno leggeva:
@@ -307,7 +307,7 @@ public:
 
 	/**
 	 * Bordo bersagliato dalle azioni che agiscono su una STRUTTURA di bordo (CP 9.5: `Action.CreateCover`,
-	 * `Riktor.Reconfigure`). Valido solo con `bHasPlannedCoverEdge`.
+	 * `Branth.Reconfigure`). Valido solo con `bHasPlannedCoverEdge`.
 	 *
 	 * Serve un dato in piu' perche' una copertura sta su un BORDO, e una cella ne ha sei: con portata 3 la
 	 * coppia (chi la erige, cella bersaglio) non basta a determinarlo — a portata 1 sarebbe bastata, ma il
@@ -893,7 +893,7 @@ public:
 	 * | Gadget | **0** | nessuno |
 	 * | Wraith | **0** | nessuno |
 	 * | Phase | **6** (`hip_chain_l/r_01..03`) | catenine ai fianchi, poco visibile |
-	 * | Riktor | **13** (`l_hand_chain_01..04`, `chain_tip_r`, ...) | **le catene si stendono sullo schermo** |
+	 * | Branth | **13** (`l_hand_chain_01..04`, `chain_tip_r`, ...) | **le catene si stendono sullo schermo** |
 	 *
 	 * Quando il LOD cala quelle ossa spariscono dalle *required bones*, e i vertici che vi sono pesati si
 	 * stirano. ⚠️ **Si vede solo da lontano** — a zoom massimo indietro e nella panoramica di inizio
@@ -1336,7 +1336,7 @@ protected:
 	 * 🔴 **Eredita il difetto di `#1784`, sullo stesso eroe.** `USkeletalMeshComponent::SnapshotPose` scrive
 	 * la posa di **riferimento** per ogni osso fuori dalle *required bones* del LOD corrente
 	 * (`bBoneHasEvaluated ? ... : RefPoseSpaceBaseTMs[i]`), e le ossa che le LOD dei pack Paragon rimuovono
-	 * sono **le catene di Riktor**. Su un'unita' non a LOD 0 questo snapshot rimetterebbe a schermo le
+	 * sono **le catene di Branth**. Su un'unita' non a LOD 0 questo snapshot rimetterebbe a schermo le
 	 * catene distese — lo stesso fotogramma che ha aperto #1750, arrivato per un'altra strada. Oggi non
 	 * morde perche' `#1784` tiene le unita' a LOD 0; chi un giorno riabilitasse le LOD deve trovare
 	 * scritto **dove** guardare.

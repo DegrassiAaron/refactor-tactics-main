@@ -979,7 +979,7 @@ TArray<FRTScenarioIntentView> FRTScenarioDraft::ListIntents(int32 TurnIndex) con
 		if (View.bHasMove) { Parts.Add(FString::Printf(TEXT("Move (%d celle)"), Intent.Move.Num())); }
 		if (!Intent.Ability.IsNone())
 		{
-			// Il bersaglio nella riga, perche' «Riktor attacca» e «Riktor attacca CHI» sono due informazioni
+			// Il bersaglio nella riga, perche' «Branth attacca» e «Branth attacca CHI» sono due informazioni
 			// diverse, e in una lista di combattimento la seconda e' quella che si cerca.
 			if (Intent.bTargetsCell)
 			{
@@ -1239,7 +1239,7 @@ TArray<FRTScenarioLogEntryView> FRTScenarioDraft::GetLastRunLog() const
 			View.FromCell = Entry.SrcCell;
 			View.ToCell = Entry.TgtCell;
 			// Il numero e l'azione: senza, il pannello direbbe «Combat.Hit» senza dire quanto, e
-			// `Riktor.Interposition` sarebbe indistinguibile da `Action.Intercept`.
+			// `Branth.Interposition` sarebbe indistinguibile da `Action.Intercept`.
 			View.Amount = Entry.Amount;
 			View.ActionId = Entry.ActionId;
 		}

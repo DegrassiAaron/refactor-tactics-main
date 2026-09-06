@@ -21,17 +21,17 @@
 
   "_nota_geometria": "I quattro attaccanti stanno a distanza **2** su quattro direzioni opposte (`E`, `W`, `SE`, `NW` rispetto a V), dentro la portata **3** di `ImpactShot`, e le celle intermedie — `[1,0]`, `[-1,0]`, `[0,1]`, `[0,-1]` — sono tutte libere, quindi nessuno occupa la **linea di tiro** di un altro verso V. ⚠️ **Sono pero' due coppie COLLINEARI**: `A1`/`A2` sull'asse `E`–`W`, `A3`/`A4` su `SE`–`NW`. Oggi e' inerte perche' la linea si ferma su V, che sta in mezzo — ma spostare un attaccante a distanza 3 sullo stesso asse metterebbe il compagno sulla sua traiettoria. *La prima stesura scriveva «nessuno e' sulla linea di un altro», che e' falso alla lettera. Trovato da una code review, ed e' il genere di imprecisione che autorizza una rottura futura.* ⛔ **Non e' una geometria di eleggibilita'**: `bDeflectEligible` e' tutto vero e nessuna di queste posizioni cambia cio' che il pool assorbe. Sta scritta perche' se `Deflect` guadagnasse un giorno una clausola d'arco, questo file cambierebbe cio' che misura **senza diventare rosso** — lo stesso inciampo che `Spec.Reaction.DeflectionReducesByTwenty` dichiara nella propria `_nota_geometria`.",
 
-  "_nota_niente_spinta": "Gli attaccanti entrano SPOGLI (`\"loadout\": []`) come in `Spec.Combat.GuardPoolSpansMultipleHits`, e per lo stesso motivo: il default di Riktor e' `Weapon.Impact`, che toglie una cella di portata e AGGIUNGE `Push 1`. Con i default montati questo file misurerebbe anche lo spostamento, e `ImpactShot` scenderebbe a portata 2 — sufficiente per queste distanze, ma la spinta no: quattro spinte sullo stesso bersaglio si annullerebbero per forze contraddittorie ([D-079], che possiede `OpposingForces` e la regola «spinto da due o piu' attaccanti, resta fermo»; [D-085] governa il CONTATORE, cioe' che a contare siano gli attaccanti e non gli eventi) lasciando l'assertion verde **per la ragione sbagliata**.",
+  "_nota_niente_spinta": "Gli attaccanti entrano SPOGLI (`\"loadout\": []`) come in `Spec.Combat.GuardPoolSpansMultipleHits`, e per lo stesso motivo: il default di Branth e' `Weapon.Impact`, che toglie una cella di portata e AGGIUNGE `Push 1`. Con i default montati questo file misurerebbe anche lo spostamento, e `ImpactShot` scenderebbe a portata 2 — sufficiente per queste distanze, ma la spinta no: quattro spinte sullo stesso bersaglio si annullerebbero per forze contraddittorie ([D-079], che possiede `OpposingForces` e la regola «spinto da due o piu' attaccanti, resta fermo»; [D-085] governa il CONTATORE, cioe' che a contare siano gli attaccanti e non gli eventi) lasciando l'assertion verde **per la ragione sbagliata**.",
 
   "_nota_slow": "`ImpactShot` applica `Status.Slow` per un turno oltre al danno, ed e' inerte qui: nessuno si muove, e il modificatore di movimento non entra in nessuna assertion. Vale la pena dirlo perche' un lettore che trovasse quattro `Slow` sullo stesso bersaglio potrebbe crederli parte della misura.",
 
   "units": [
     { "id": "V", "hero": "Hero.Wraith", "team": 1, "cell": [0, 0, 0] },
 
-    { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [2, 0, 0], "loadout": [] },
-    { "id": "A2", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0], "loadout": [] },
-    { "id": "A3", "hero": "Hero.Riktor", "team": 0, "cell": [0, 2, 0], "loadout": [] },
-    { "id": "A4", "hero": "Hero.Riktor", "team": 0, "cell": [0, -2, 0], "loadout": [] }
+    { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [2, 0, 0], "loadout": [] },
+    { "id": "A2", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0], "loadout": [] },
+    { "id": "A3", "hero": "Hero.Branth", "team": 0, "cell": [0, 2, 0], "loadout": [] },
+    { "id": "A4", "hero": "Hero.Branth", "team": 0, "cell": [0, -2, 0], "loadout": [] }
   ],
 
   "turns": [
@@ -41,10 +41,10 @@
       "intents": [
         { "unit": "V", "reaction": "Hero.Wraith.Deflection" },
 
-        { "unit": "A1", "ability": "Hero.Riktor.ImpactShot", "target": "V" },
-        { "unit": "A2", "ability": "Hero.Riktor.ImpactShot", "target": "V" },
-        { "unit": "A3", "ability": "Hero.Riktor.ImpactShot", "target": "V" },
-        { "unit": "A4", "ability": "Hero.Riktor.ImpactShot", "target": "V" }
+        { "unit": "A1", "ability": "Hero.Branth.ImpactShot", "target": "V" },
+        { "unit": "A2", "ability": "Hero.Branth.ImpactShot", "target": "V" },
+        { "unit": "A3", "ability": "Hero.Branth.ImpactShot", "target": "V" },
+        { "unit": "A4", "ability": "Hero.Branth.ImpactShot", "target": "V" }
       ]
     }
   ],
