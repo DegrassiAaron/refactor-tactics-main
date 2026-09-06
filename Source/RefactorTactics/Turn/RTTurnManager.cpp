@@ -5396,6 +5396,18 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	GuardPool.Init(0, Units.Num());
 	TArray<bool> bFrontalHit;
 	bFrontalHit.Init(false, Plan.Hits.Num());
+
+	// 🔑 **Le unita' di cui il Blast ha LETTO il facing, raccolte e registrate una volta sola** (`#2341`).
+	//
+	// Le letture sono due e avvengono in punti diversi: la **Guardia** guarda il facing per sapere se il
+	// colpo viene dall'arco frontale (anche senza copertura), e la **copertura** lo guarda per sapere se il
+	// riparo vale da quella provenienza. `D-020` chiede di registrare quale facing ha usato il consumatore,
+	// e il consumatore — il combattimento della fase Blast — e' uno solo: due voci per la stessa unita' e
+	// la stessa fase direbbero due volte lo stesso fatto.
+	//
+	// ⚠️ Un `TSet` e non un array di `bool`: l'indice qui e' quello delle unita', ma la voce si scrive per
+	// unita' **presente**, e iterare un set vuoto costa zero quando nessuno ha letto niente.
+	TSet<int32> FacingLettoDalBlast;
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		if (!Units[i] || !Units[i]->HasStatus(TAG_Status_Guarded)) { continue; }
@@ -5465,17 +5477,10 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			// una risponde «quale facing», l'altra «con quale effetto».
 			if (bOriginResolved)
 			{
-				// L'array locale e il giro da `AppendLogEntry` sono il pattern di `RecordFacingChange`: la
-				// libreria non puo' riempire turno, revisione del grafo e identita' dell'attore, e una voce
-				// aggiunta a mano a `TurnLog` nascerebbe senza contesto.
-				TArray<FRTTurnLogEntry> Lette;
-				URTFacingLibrary::ReadFacingForConsumer(
-					HexUnits[i].Cell, HexUnits[i].Facing,
-					ERTFacingOutcome::UsedByBlast, ERTMatchPhase::Blast, Lette);
-				for (FRTTurnLogEntry& Voce : Lette)
-				{
-					AppendLogEntry(Voce, Units[i]);
-				}
+				// ⚠️ Si RACCOGLIE, non si scrive: la copertura puo' aver letto il facing della stessa unita'
+				// poco piu' sotto, e due voci per lo stesso fatto sarebbero un doppione. La scrittura e'
+				// unica, in fondo al passo (`#2341`).
+				FacingLettoDalBlast.Add(i);
 			}
 
 			if (!bFrontal && bOriginResolved)
@@ -5549,6 +5554,45 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// SOLO sui colpi frontali, `Deflect` su tutti, quindi le due maschere sono parzialmente sovrapposte — la
 	// condizione in cui l'ordine cambia l'esito.
 	TArray<bool> bDeflectEligible;
+	// 🔴 **L'altra lettura: la COPERTURA** (`#2341`). `EffectiveCoverReduction` guarda il facing del
+	// bersaglio quando c'e' una copertura nominale da valutare — e a differenza della Guardia questo
+	// accade su **ogni** colpo riparato, non solo su chi ha lo status.
+	//
+	// ⛔ **La domanda si fa a `CoverReadTargetFacing`, non ai campi**: la relazione fra copertura rimasta e
+	// copertura annullata dalla direzione vive in quella funzione, e ricomporla qui sarebbe una seconda
+	// copia di una regola che puo' cambiare.
+	for (const FRTHexAttackHit& Hit : Plan.Hits)
+	{
+		if (URTHexCombatLibrary::CoverReadTargetFacing(Hit) && HexUnits.IsValidIndex(Hit.TargetId))
+		{
+			FacingLettoDalBlast.Add(Hit.TargetId);
+		}
+	}
+
+	// --- la scrittura, UNA per unita' -------------------------------------------------------------------
+	//
+	// ⚠️ L'ordine di `TSet` non e' quello di inserimento, e una traccia deve essere deterministica: si
+	// itera sugli INDICI delle unita', che sono l'ordine canonico dello snapshot. Iterare il set
+	// direttamente produrrebbe voci in ordine dipendente dall'hash, cioe' due tracce diverse per la stessa
+	// partita — la classe di difetto che `SortTurnLog` esiste per escludere.
+	for (int32 i = 0; i < HexUnits.Num(); ++i)
+	{
+		if (!FacingLettoDalBlast.Contains(i) || !Units.IsValidIndex(i) || Units[i] == nullptr)
+		{
+			continue;
+		}
+		// L'array locale e il giro da `AppendLogEntry` sono il pattern di `RecordFacingChange`: la libreria
+		// non puo' riempire turno, revisione del grafo e identita' dell'attore, e una voce aggiunta a mano a
+		// `TurnLog` nascerebbe senza contesto.
+		TArray<FRTTurnLogEntry> Lette;
+		URTFacingLibrary::ReadFacingForConsumer(HexUnits[i].Cell, HexUnits[i].Facing,
+			ERTFacingOutcome::UsedByBlast, ERTMatchPhase::Blast, Lette);
+		for (FRTTurnLogEntry& Voce : Lette)
+		{
+			AppendLogEntry(Voce, Units[i]);
+		}
+	}
+
 	bDeflectEligible.Init(true, Plan.Hits.Num());
 
 	// `Action.Brace` (CP 5.2): -10 su OGNI danno diretto, non solo sul primo. E' un secondo passaggio con una
@@ -6229,8 +6273,11 @@ namespace
 
 	int32 BoundaryCoverReduction(const URTHexMapAsset* Map, const ARTUnit* Attacker, const FRTCellId& AttackerCell,
 		ERTHexDirection AttackerFacing, const ARTUnit* Target, const FRTCellId& TargetCell,
-		ERTHexDirection TargetFacing)
+		ERTHexDirection TargetFacing, bool& bOutFacingWasRead)
 	{
+		// ⚠️ Inizializzato PRIMA di ogni uscita anticipata: un `false` non scritto lascerebbe al chiamante
+		// il valore che aveva prima, e la voce nascerebbe o mancherebbe a seconda di cosa c'era in pila.
+		bOutFacingWasRead = false;
 		if (Map == nullptr || Attacker == nullptr || Target == nullptr) { return 0; }
 
 		FRTHexCombatUnit A;
@@ -6256,7 +6303,8 @@ namespace
 		T.bAlive = Target->IsAlive();
 		T.Facing = TargetFacing;
 
-		return URTHexCombatLibrary::EffectiveCoverReduction(Map, A, T, ERTAbilityShape::Single);
+		return URTHexCombatLibrary::EffectiveCoverReduction(Map, A, T, ERTAbilityShape::Single,
+			bOutFacingWasRead);
 	}
 }
 
@@ -6357,8 +6405,28 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 			// Fuori dal ciclo dei micro-step: qui `Shooter->Facing` e `Victim->Facing` SONO l'orientamento
 			// vigente, e ADR-0008 §2 non tocca questo sito. Il facing e' esplicito perche' la firma lo chiede,
 			// non perche' cambi.
+			bool bCoverReadVictimFacing = false;
 			const int32 Reduction = BoundaryCoverReduction(Map, Shooter, Shooter->Cell, Shooter->Facing,
-				Victim, Armed.LockedCell, Victim->Facing);
+				Victim, Armed.LockedCell, Victim->Facing, bCoverReadVictimFacing);
+
+			// La stessa registrazione del colpo di reazione (`#2341`): la copertura ha letto il facing della
+			// vittima, e la traccia lo dice.
+			//
+			// ⚠️ Qui il facing e' `Victim->Facing` e **non** un `BoundaryFacing`, per la ragione che
+			// l'header di quell'helper dichiara: la predittiva risolve **fuori** dal ciclo dei micro-step,
+			// sulla cella BLOCCATA su cui si e' scommesso, e li' l'orientamento d'ingresso e' quello giusto.
+			// Registrare un facing derivato darebbe una voce coerente con un istante che questo colpo non
+			// attraversa.
+			if (bCoverReadVictimFacing)
+			{
+				TArray<FRTTurnLogEntry> Lette;
+				URTFacingLibrary::ReadFacingForConsumer(Armed.LockedCell, Victim->Facing,
+					ERTFacingOutcome::UsedByBlast, ERTMatchPhase::Move, Lette);
+				for (FRTTurnLogEntry& Voce : Lette)
+				{
+					AppendLogEntry(Voce, FRTLogSubject::UnitAt(Victim, Armed.LockedCell));
+				}
+			}
 			const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
 			// `Direct`: e' un colpo al decision boundary, e passa dallo scudo base come ogni colpo.
 			const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, ERTDamageSource::Direct,
@@ -6790,8 +6858,31 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 	// dichiarato, non cio' che il caso gli ha fatto assumere.
 	const ERTHexDirection TargetBoundaryFacing = BoundaryFacing(State, TargetIdx, Target->Facing);
 
+	bool bCoverReadTargetFacing = false;
 	const int32 Reduction = BoundaryCoverReduction(Map, WatchOwner, State.Pos[OwnerIdx], WatchOwner->Facing,
-		Target, State.Pos[TargetIdx], TargetBoundaryFacing);
+		Target, State.Pos[TargetIdx], TargetBoundaryFacing, bCoverReadTargetFacing);
+
+	// 🔴 **La copertura ha letto il facing: si registra** (`#2341`). `#1933` aveva dato un produttore a
+	// `UsedByBlast` per il solo ramo della Guardia; questa e' l'altra lettura, quella che avviene ogni
+	// volta che c'e' copertura da valutare.
+	//
+	// ⚠️ **Solo se `bCoverReadTargetFacing`**, e non «sempre che ci sia un colpo»: senza copertura il
+	// corto circuito dentro `EffectiveCoverReduction` non raggiunge `IsInFrontalArc`, quindi il facing non
+	// viene guardato. Una voce scritta li' dichiarerebbe una lettura mai avvenuta — cio' che
+	// `UsedByOverwatch` resta senza produttore per non fare.
+	//
+	// 🔑 Il valore lo conosce il chiamante (`TargetBoundaryFacing`, che ha passato lui); il resolver
+	// riporta soltanto **se** l'ha guardato. E' la decisione `(b1)`: nessun log entra nella libreria pura.
+	if (bCoverReadTargetFacing)
+	{
+		TArray<FRTTurnLogEntry> Lette;
+		URTFacingLibrary::ReadFacingForConsumer(State.Pos[TargetIdx], TargetBoundaryFacing,
+			ERTFacingOutcome::UsedByBlast, ERTMatchPhase::Move, Lette);
+		for (FRTTurnLogEntry& Voce : Lette)
+		{
+			AppendLogEntry(Voce, FRTLogSubject::UnitAt(Target, State.Pos[TargetIdx]));
+		}
+	}
 	const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
 	// `Direct`: colpo di Overwatch. Stessa natura del boundary shot qui sopra.
 	const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, ERTDamageSource::Direct,
