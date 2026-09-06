@@ -154,7 +154,11 @@ Comando: `./scripts/rt-suite.ps1 -Filter RefactorTactics.Damage` — `NOT RUN �
 
 `ApplyFirstHitDelta` è `UFUNCTION(BlueprintPure)` (`RTCombatResolver.h:244`): cambiarne la firma è una modifica di **API Blueprint**.
 
-⚠️ **DEV non può misurare chi la chiami dagli asset.** I `.uasset` sono compressi e la ricerca sulla name table è risultata non informativa in calibrazione: cinque simboli certamente usati hanno risposto zero. Va dichiarato `USER_REQUIRED` per EDITOR, non risolto per assunzione.
+🔴 **Questa riga diceva che DEV non può misurare chi la chiami dagli asset, ed era falsa.** Corretta il 2026-09-06: la calibrazione che l'aveva prodotta non era omologa al bersaglio — cercava nomi di package e di classe, che vivono nella *import table*, per concludere su nomi di funzione **invocata**, che vivono come stringhe `CallFunc_<Nome>_*` prodotte dal compilatore Blueprint.
+
+Con un controllo positivo della specie giusta la misura si fa **senza aprire l'Editor**: 67 `UFUNCTION` su 455 compaiono in almeno un asset, 111 occorrenze di `CallFunc_*` su 123 `.uasset` tracciati. Evidenza: `waves/counter-attack-record/evidence/RT3-EDITOR-reflection-0eeb5c1.md` §0.
+
+⚠️ La misura va comunque **fatta**, non assunta: finché nessuno l'ha eseguita per `ApplyFirstHitDelta`, l'esito è `NOT MEASURED` — che non è «nessuno lo usa».
 
 Il breakdown **non** entra in hash, salvataggio o replay (`RTCombatResolver.h:186-187`, misurato). Il **danno** sì: qualunque spostamento di `Marked` dentro la catena va provato invariante sul valore finale.
 

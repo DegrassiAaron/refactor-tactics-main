@@ -42,11 +42,27 @@ Ogni conteggio di questo documento viene da uno di questi selettori.
 recenti risponde vuoto. I corpi sono stati scaricati e cercati in locale — 981 issue, 376 `OPEN` e 605
 `CLOSED`.
 
-⛔ **Un selettore è stato scartato perché non misura**: la ricerca dei simboli nella name table dei
-`.uasset` (`grep -rl --binary-files=text ... Content/`). Calibrata con cinque simboli certamente usati —
-`ResolveAttacks`, `EffectiveAttackPower`, `ApplyAbsorptionPool`, `ApplyDamageDelta`, `RTCombatResolver` —
-ha risposto **zero su tutti e cinque**: i package sono compressi. Ogni affermazione sull'uso Blueprint di un
-simbolo in questo documento è quindi `NOT MEASURED`, non «nessuno lo usa».
+🔴 **Un selettore era stato dichiarato inservibile, e la dichiarazione era FALSA.** Corretta il
+2026-09-06, lo stesso giorno, da una misura EDITOR della wave `counter-attack-record`:
+`docs/rt-three-terminals/waves/counter-attack-record/evidence/RT3-EDITOR-reflection-0eeb5c1.md` §0.
+⏳ Quel file entra in `main` con la PR #2594 — finché resta aperta, il riferimento è testuale e non un link.
+
+**Cosa diceva questa sezione**: che la ricerca dei simboli nella name table dei `.uasset`
+(`grep -rl --binary-files=text … Content/`) fosse da scartare, perché calibrata con cinque simboli
+certamente usati — `ResolveAttacks`, `EffectiveAttackPower`, `ApplyAbsorptionPool`, `ApplyDamageDelta`,
+`RTCombatResolver` — aveva risposto **zero su tutti e cinque**, «i package sono compressi».
+
+**Perché era sbagliata**: il difetto non era l'assenza di un controllo positivo, era la sua **specie**. Un
+nome di package o di classe vive nella *import table*; un nome di funzione **invocata** da Blueprint vive
+come stringa prodotta dal compilatore, nella forma `CallFunc_<Nome>_*`. Sono due popolazioni diverse:
+interrogare la prima per concludere sulla seconda produce zeri che non parlano del bersaglio.
+
+**Calibrando sulla specie giusta lo strumento discrimina**: **67 `UFUNCTION` del progetto su 455**
+compaiono in almeno un asset, con **111** occorrenze di `CallFunc_*` su 123 `.uasset` tracciati.
+
+🔑 La regola che sopravvive non è «lo strumento non misura», è: **un controllo positivo vale solo se è
+della stessa specie del bersaglio**. `NOT MEASURED` resta la risposta giusta soltanto **dopo** aver cercato
+un controllo omologo e non averlo trovato.
 
 ---
 
@@ -218,8 +234,10 @@ Va detto, perché è la parte che non va cambiata.
 
 ## 7. Cosa non è stato misurato
 
-- **Se un Blueprint chiami `ApplyFirstHitDelta`** — è `UFUNCTION(BlueprintPure)`, e il selettore sui
-  `.uasset` è stato scartato in calibrazione (§2). Dominio EDITOR.
+- **Se un Blueprint chiami `ApplyFirstHitDelta`** — è `UFUNCTION(BlueprintPure)`, e questa revisione non
+  l'ha misurato. ⚠️ **Non perché non si possa**: la ragione data in §2 era falsa, vedi la correzione lì.
+  La domanda è misurabile senza aprire l'Editor con un controllo positivo omologo, e per i simboli della
+  wave 1 la misura è stata poi fatta — 0 riferimenti su 123 asset.
 - **Compile, Automation, scenari, determinismo, replay, PIE, packaged**: `NOT RUN — dominio VALIDATION`.
   Nessuna wave è stata eseguita: questo documento è una revisione di specifica, non un referto di gate.
 - **Il gate dei link del repository**: non eseguito. I link relativi di questo file sono stati verificati a
