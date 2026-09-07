@@ -113,6 +113,16 @@ void URTHeroRadarWidget::ComputeRingPoints(int32 AxisCount, FVector2D Center, fl
 	}
 }
 
+FVector2D URTHeroRadarWidget::ComputeAxisLabelAnchor(int32 AxisIndex, int32 AxisCount, FVector2D Center, float Radius, float LabelPadding)
+{
+	const float AngleRadians = FMath::DegreesToRadians(ComputeAxisAngleDegrees(AxisIndex, AxisCount));
+	const float Distance = Radius + LabelPadding;
+
+	return FVector2D(
+		Center.X + Distance * FMath::Cos(AngleRadians),
+		Center.Y + Distance * FMath::Sin(AngleRadians));
+}
+
 float URTHeroRadarWidget::ComputeRadiusForSize(FVector2D LocalSize) const
 {
 	const float ShortSide = FMath::Min(LocalSize.X, LocalSize.Y);
@@ -216,6 +226,40 @@ int32 URTHeroRadarWidget::NativePaint(const FPaintArgs& Args, const FGeometry& A
 		TArray<FVector2D> ClosedValuePoints = ValuePoints;
 		ClosedValuePoints.Add(FirstValuePoint);
 		UWidgetBlueprintLibrary::DrawLines(Context, ClosedValuePoints, ValueColor, true, ValueThickness);
+	}
+
+	// ---- Le etichette degli assi -----------------------------------------------------------------
+	//
+	// 🔵 Si disegnano anche quando il poligono NON e' disegnabile: la legenda dice cosa il radar
+	// misurerebbe, ed e' utile proprio quando i valori mancano — mentre una figura senza legenda non si
+	// puo' leggere nemmeno quando c'e'.
+	if (bShowAxisLabels)
+	{
+		for (int32 Index = 0; Index < AxisCount; ++Index)
+		{
+			const FText& Label = RadarAxes[Index].Label;
+			if (Label.IsEmpty())
+			{
+				// ⛔ Nessun ripiego sull'`AxisId`: `Radar.Profile.Offense` e' una chiave tecnica, e
+				// stamparla la spaccerebbe per il nome che il giocatore dovrebbe leggere.
+				continue;
+			}
+
+			const FVector2D Anchor = ComputeAxisLabelAnchor(Index, AxisCount, Center, Radius, AxisLabelPadding);
+			const FString Text = Label.ToString();
+
+			// `DrawText` scrive DALL'angolo in alto a sinistra. Sugli assi a sinistra del centro il testo
+			// crescerebbe verso l'interno e coprirebbe la figura, quindi lo si sposta indietro della sua
+			// larghezza stimata; a cavallo della verticale lo si centra.
+			const float Cos = FMath::Cos(FMath::DegreesToRadians(ComputeAxisAngleDegrees(Index, AxisCount)));
+			const float EstimatedWidth = Text.Len() * AxisLabelCharWidth;
+
+			float OffsetX = 0.f;
+			if (Cos < -0.3f) { OffsetX = -EstimatedWidth; }
+			else if (Cos <= 0.3f) { OffsetX = -EstimatedWidth * 0.5f; }
+
+			UWidgetBlueprintLibrary::DrawText(Context, Text, Anchor + FVector2D(OffsetX, 0.f), AxisLabelColor);
+		}
 	}
 
 	return FMath::Max(BaseLayer, Context.MaxLayer);
