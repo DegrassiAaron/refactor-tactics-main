@@ -7,6 +7,11 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTSpawnPoint.h"
 
+#if WITH_EDITOR
+#include "Logging/MessageLog.h"
+#include "Misc/UObjectToken.h"
+#endif
+
 bool URTMapTemplateLibrary::ResolveWorldToCell(const URTHexMapAsset* MapAsset, const FVector& GridOrigin,
 	float HexSize, float LayerHeight, const FVector& WorldLocation, FRTCellId& OutCell)
 {
@@ -201,3 +206,71 @@ FString URTMapTemplateLibrary::DescribeIssue(const FRTMapTemplateIssue& Issue)
 		return TEXT("Nessuna segnalazione.");
 	}
 }
+
+#if WITH_EDITOR
+void URTMapTemplateLibrary::EmitIssueToMapCheck(const FRTMapTemplateIssue& Issue, const UObject* TokenTarget)
+{
+	TSharedRef<FTokenizedMessage> Message = FMessageLog("MapCheck").Warning();
+	if (TokenTarget)
+	{
+		// Il token rende il messaggio CLICCABILE: chi legge il Map Check arriva all'attore da correggere
+		// invece di doverlo cercare per nome nell'outliner.
+		Message->AddToken(FUObjectToken::Create(const_cast<UObject*>(TokenTarget)));
+	}
+	Message->AddToken(FTextToken::Create(FText::FromString(DescribeIssue(Issue))));
+}
+
+int32 URTMapTemplateLibrary::ReportToMapCheck(const UWorld* World)
+{
+	if (!World)
+	{
+		return 0;
+	}
+
+	int32 MapActorCount = 0;
+	const URTHexMapAsset* MapAsset = nullptr;
+	TArray<FRTSpawnPlacement> Spawns;
+	CollectFromWorld(World, MapActorCount, MapAsset, Spawns);
+
+	TArray<FRTMapTemplateIssue> Issues;
+	ValidateTemplate(MapActorCount, MapAsset, Spawns, Issues);
+	if (Issues.Num() == 0)
+	{
+		return 0;
+	}
+
+	// Nome -> attore, per dare a ogni segnalazione il token del proprio marker. Si costruisce UNA volta:
+	// cercare l'attore dentro il ciclo delle segnalazioni farebbe una scansione per messaggio.
+	TMap<FString, const AActor*> ByName;
+	const AActor* AnyMapActor = nullptr;
+	for (TActorIterator<ARTSpawnPoint> It(const_cast<UWorld*>(World)); It; ++It)
+	{
+		ByName.Add(It->GetName(), *It);
+	}
+	for (TActorIterator<ARTHexMapActor> It(const_cast<UWorld*>(World)); It; ++It)
+	{
+		if (!AnyMapActor)
+		{
+			AnyMapActor = *It;
+		}
+	}
+
+	for (const FRTMapTemplateIssue& Issue : Issues)
+	{
+		// Le segnalazioni di LIVELLO non hanno un marker: il loro token e' l'attore mappa, quando c'e'.
+		// Quando non c'e' — ed e' precisamente il caso `MissingMapActor` — il messaggio resta senza token
+		// invece di puntare a un attore arbitrario che non ha nulla a che vedere col difetto.
+		const UObject* Target = AnyMapActor;
+		if (!Issue.Label.IsEmpty())
+		{
+			if (const AActor* const* Found = ByName.Find(Issue.Label))
+			{
+				Target = *Found;
+			}
+		}
+		EmitIssueToMapCheck(Issue, Target);
+	}
+
+	return Issues.Num();
+}
+#endif
