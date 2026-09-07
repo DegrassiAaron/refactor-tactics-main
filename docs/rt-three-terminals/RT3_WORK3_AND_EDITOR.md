@@ -108,7 +108,7 @@ EDITOR aperto non possiede Unreal: aprire un terminale non acquisisce niente.
 
 ### Il lease che esiste davvero
 
-**Stato: IMPLEMENTATO**, tabella `leases` (schema v4):
+**Stato: IMPLEMENTATO**, tabella `leases` (introdotta in schema v4, invariata in v5):
 
 | Colonna | Significato |
 |---|---|
@@ -303,6 +303,8 @@ occupata», che sono due problemi con due rimedi diversi.
 | `LastHeartbeatAt` | `leases.last_seen_at`, `sessions.last_seen_at` | IMPLEMENTATO (nome diverso) |
 | `LeaseExpiresAt` | — | DECISO, NON IMPLEMENTATO |
 | `JobStartedAt` · `JobCompletedAt` | — | DECISO, NON IMPLEMENTATO |
+| `TerminalCreatedAt` · `TerminalClosedAt` | `terminals.created_at`, `closed_at` | IMPLEMENTATO |
+| `ProcessStartedAt` | `terminals.process_started_at` | IMPLEMENTATO — è metà dell'identità, non un dato diagnostico |
 
 ⚠️ **Risoluzione al secondo, non al millisecondo.** `now_iso()` tronca i microsecondi:
 i timestamp escono come `2026-09-07T07:42:18Z`. Le durate derivate hanno quindi un
@@ -389,8 +391,13 @@ transizione a STALE  →  StateRevision cambia
   della sessione, non da una verifica del processo. Questo soddisfa già la regola
   «più dell'età», ma non la verifica: una sessione il cui terminale è stato chiuso
   senza `session stop` resta `ACTIVE`, e il suo lease non risulta stale.
-- `sessions.client_pid` è registrato: **il dato per verificare il processo esiste**, e
-  nessuno lo interroga.
+- `sessions.client_pid` è registrato e **nessuno lo interroga** per decidere se un lease
+  è stale.
+- ⚠️ La verifica del processo però **ora esiste**, altrove: i terminali gestiti (§14)
+  identificano un processo con `ProcessId + ProcessStartedAt` e lo riverificano a ogni
+  lettura. È la tecnica che mancherebbe qui — applicata a un'altra risorsa. Estenderla ai
+  lease è una decisione non ancora presa: un terminale sparito e un lease stale hanno
+  conseguenze diverse, e RT3 non libera un lease per conto proprio.
 - `STALE` non è un valore di `LEASE_STATES` (`ACTIVE` \| `RELEASED`) né di
   `UNREAL_LEASE_STATES` (`NONE` \| `REQUESTED` \| `OWNED`). Renderlo uno stato
   persistito richiede una migrazione.
@@ -411,9 +418,18 @@ WORKTREE_MISMATCH · PROTOCOL_MISMATCH · ROADMAP_REVISION
 per l'Editor non è una sessione bloccata: se quella sessione ha altro lavoro `READY`,
 lo stato è `STATUS`, non `BLOCKED`. Marcarla bloccata insegnerebbe a ignorare i blocchi.
 
+🔴 **La stessa regola vale per il writer, ed è stata violata per davvero.** Il pilot
+EPIC-1937 ha mostrato EDITOR e VALIDATION - entrambe `READ_ONLY` sull'albero del DEV -
+come `BLOCKED` con `RESOLVE_WRITER_CONFLICT`. Era falso e induceva l'azione sbagliata:
+il rimedio suggerito era fermare il DEV che lavorava legittimamente. Il modello è
+`WriterCount(worktree) <= 1`, non `SessionCount <= 1`: leggere lo stesso albero mentre
+un altro scrive è il caso normale, ed è il motivo per cui EDITOR e VALIDATION esistono.
+
 **Stato: IMPLEMENTATO** come vocabolario (tutti e otto i valori esistono e sono
-validati); **DECISO, NON TESTATO** per la regola qui sopra, che oggi nessun test pinna
-perché non esiste ancora una coda che la renda osservabile.
+validati). Per `RESOURCE_WRITER` la regola è **implementata e testata**
+(`test_terminals.py::ReadOnlyNotBlockedTest`, con mutazione che la uccide). Per
+`RESOURCE_UNREAL` resta **DECISA, NON TESTATA**: non esiste ancora una coda Editor che
+la renda osservabile.
 
 ### Azioni richieste
 
@@ -478,7 +494,14 @@ Stato reale delle proprietà che questa milestone dichiara:
 | DEV-2 `REQUIRED` e non `ACTIVE` | IMPLEMENTATO — `DynamicSecondDevTest` |
 | isolamento di lane | IMPLEMENTATO — `LaneIsolationTest` |
 | riuso del writer permanente posseduto | IMPLEMENTATO — `test_planner.py::PermanentOwnerReuseTest` |
-| ordinamento temporale, durate non negative | DECISO, NON TESTATO |
+| una risorsa altrui non blocca chi non ne ha bisogno | IMPLEMENTATO per il writer — `test_terminals.py::ReadOnlyNotBlockedTest` |
+| identità di processo: PID riusato → `LOST`, nessuna terminazione | IMPLEMENTATO — `test_terminals.py::PidReuseTest` |
+| durate derivate e mai negative | IMPLEMENTATO — `test_terminals.py::ElapsedTest` |
+| il tempo che passa non cambia `StateRevision` | IMPLEMENTATO — `ElapsedTest`, oltre a `NoSpamTest` |
+| rollback su spawn fallito: nessuna sessione né lease appesi | IMPLEMENTATO — `test_terminals.py::SpawnFailureTest` |
+| quoting di path con spazi, parentesi, apostrofi | IMPLEMENTATO — `test_terminals.py::QuotingTest` |
+| ordinamento temporale fra istanti di lease | DECISO, NON TESTATO |
+| durate non negative | IMPLEMENTATO — `ElapsedTest` (un orologio all'indietro dà 0) |
 | timestamp invalidi rifiutati | DECISO, NON TESTATO |
 | stale richiede più dell'età | PARZIALE — deriva dallo stato della sessione, nessun test dedicato |
 | transizione reale a STALE incrementa la revisione | DECISO, NON IMPLEMENTATO |
