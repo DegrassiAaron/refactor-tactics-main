@@ -14,6 +14,7 @@ lo scenario che l'integrazione produce. Sono due colonne separate apposta.
 """
 
 import datetime
+import os
 import re
 import uuid
 
@@ -52,6 +53,24 @@ ITEM_PROGRESS_STATES = ("PENDING", "IN_PROGRESS", "VALIDATED", "DONE")
 #: candidate appena creato non e' ne' passato ne' fallito, e conflaterlo con FAILED
 #: renderebbe indistinguibile «non ancora provato» da «provato e rotto».
 CANDIDATE_STATUSES = ("PENDING", "PASSED", "FAILED")
+
+#: Risorse ESCLUSIVE che una sessione puo' possedere. Sono due cose diverse e non vanno
+#: confuse: una sessione puo' tenere il writer di un albero senza avere l'Editor, e
+#: viceversa.
+#:
+#:     GIT_WRITER      chi puo' SCRIVERE in un albero di lavoro. Chiave: il path reale.
+#:     UNREAL_EDITOR   chi tiene l'Editor. Chiave: l'identita' del repository.
+#:
+#: 🔴 La chiave di `GIT_WRITER` e' il **path canonico**, non il workspace group. `DEV` e'
+#: un'etichetta di ruolo: due checkout diversi possono dichiararsi entrambi `DEV`, e due
+#: sessioni nello stesso albero possono dichiarare gruppi diversi. Cio' che non si puo'
+#: condividere e' la DIRECTORY, quindi e' la directory a fare da chiave.
+RESOURCE_TYPES = ("GIT_WRITER", "UNREAL_EDITOR")
+
+#: Stato di un lease. `STALE` non compare qui perche' non e' uno stato SALVATO: e'
+#: derivato dal fatto che la sessione proprietaria non sia piu' ATTIVA. Salvarlo
+#: richiederebbe che qualcuno lo aggiorni, e nessuno lo farebbe al momento giusto.
+LEASE_STATES = ("ACTIVE", "RELEASED")
 
 #: DOVE una issue viene lavorata, quando e' in corso. Non e' una preferenza: e' la
 #: risorsa che sta consumando adesso.
@@ -181,6 +200,30 @@ def check_item_progress(value):
 
 def check_candidate_status(value):
     return _check_enum(value, CANDIDATE_STATUSES, "candidateStatus")
+
+
+def check_resource_type(value):
+    return _check_enum(value, RESOURCE_TYPES, "resourceType")
+
+
+def new_lease_id():
+    return "lease_" + uuid.uuid4().hex[:12]
+
+
+def canonical_path_key(path):
+    """Chiave stabile per una directory. Due sessioni nello stesso albero devono
+    produrre la STESSA chiave, anche scrivendola in modo diverso.
+
+    ⚠️ Su Windows lo stesso albero si scrive in almeno quattro modi che il filesystem
+    considera identici: maiuscole diverse, separatori misti (`D:/x` e `D:\\x`), un path
+    relativo, o un link. Confrontarli come stringhe grezze lascerebbe passare il secondo
+    writer - cioe' fallirebbe esattamente la domanda per cui questa funzione esiste.
+
+    `realpath` risolve i link, `abspath` il relativo, `normcase` maiuscole e separatori.
+    """
+    if not path:
+        return None
+    return os.path.normcase(os.path.abspath(os.path.realpath(str(path))))
 
 
 def check_item_mode(value):

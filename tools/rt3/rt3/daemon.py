@@ -38,6 +38,21 @@ PROTOCOL_HEADER = "X-RT3-Protocol"
 # ---------------------------------------------------------------------------
 
 
+def _lease_error(resource_type):
+    """L'errore giusto per la risorsa giusta.
+
+    Un solo `RESOURCE_ALREADY_OWNED` per entrambe costringerebbe chi lo riceve a
+    leggere il messaggio per sapere se ha perso il writer o l'Editor - due situazioni
+    con rimedi diversi.
+    """
+    from .errors import ResourceAlreadyOwned, UnrealAlreadyOwned, WriterAlreadyOwned
+
+    return {
+        "GIT_WRITER": WriterAlreadyOwned,
+        "UNREAL_EDITOR": UnrealAlreadyOwned,
+    }.get(resource_type, ResourceAlreadyOwned)
+
+
 def _ops(store, server):
     """Tabella delle operazioni. Chiave = `op` della richiesta.
 
@@ -114,7 +129,16 @@ def _ops(store, server):
         from .planner import plan
 
         row, roadmap, graph, progress = _roadmap_view(a.get("roadmapId"))
-        result = plan(roadmap, graph, progress, store.mode_map(row["roadmap_id"]))
+        # 🔴 La snapshot runtime viaggia col piano. Senza, il planner dichiarerebbe
+        # libero un albero su cui una sessione tiene il writer - il difetto P0 che
+        # l'audit ha misurato.
+        result = plan(
+            roadmap,
+            graph,
+            progress,
+            store.mode_map(row["roadmap_id"]),
+            runtime=store.runtime_snapshot(),
+        )
         result["contentHash"] = row["content_hash"]
         return result
 
@@ -266,7 +290,25 @@ def _ops(store, server):
         "roadmap.graph": roadmap_graph,
         "roadmap.criticalPath": roadmap_critical_path,
         "roadmap.summary": roadmap_summary,
-        "leases.list": lambda a: store.list_leases(),
+        # -- lease: risorse esclusive
+        "leases.list": lambda a: store.list_leases(
+            include_released=bool(a.get("includeReleased"))
+        ),
+        "lease.acquire": lambda a: store.acquire_lease(
+            a["resourceType"],
+            a["resourceKey"],
+            a["sessionId"],
+            note=a.get("note"),
+            error_class=_lease_error(a["resourceType"]),
+        ),
+        "lease.release": lambda a: store.release_lease(
+            a["resourceType"],
+            a["resourceKey"],
+            session_id=a.get("sessionId"),
+            force=bool(a.get("force")),
+            note=a.get("note"),
+        ),
+        "runtime.snapshot": lambda a: store.runtime_snapshot(),
         "stats": lambda a: store.stats(),
         "daemon.stop": lambda a: server.request_stop(),
     }
@@ -377,9 +419,13 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             result = handler(args)
         except Rt3Error as exc:
-            self._send(
-                400, {"ok": False, "code": exc.code, "error": exc.message}
-            )
+            # `details` porta i campi strutturati oltre il messaggio: chi riceve un
+            # rifiuto di lease deve poter leggere il PROPRIETARIO senza spulciare la
+            # prosa, ed e' l'informazione che serve per decidere cosa fare.
+            corpo = {"ok": False, "code": exc.code, "error": exc.message}
+            if hasattr(exc, "as_dict"):
+                corpo["details"] = exc.as_dict()
+            self._send(400, corpo)
         except KeyError as exc:
             self._send(
                 400,
