@@ -21,6 +21,7 @@ perche' e' stata suggerita trasformerebbe la verifica in una fotografia dei desi
 """
 
 import collections
+import os
 
 from .model import SESSION_REQUIREMENT_STATES
 
@@ -193,6 +194,34 @@ def command_for(req):
     return " ".join(parti)
 
 
+def managed_command_for(req, cwd=None):
+    """Il comando che apre una finestra GESTITA per quel requisito.
+
+    Ritorna `None` quando non c'e' un `cwd` valido, e allora si mostra solo il comando
+    manuale.
+
+    ⛔ §41: non si inventa un path. Un requisito che chiede un worktree TEMPORANEO non
+    ha ancora una directory - quel worktree nessuno l'ha creato - e stampare un comando
+    con un path che non esiste manderebbe chi lo copia contro un errore, dopo.
+    """
+    if req.get("reason") == "TEMPORARY_WORKTREE_REQUIRED":
+        return None
+    if not cwd or not os.path.isdir(cwd):
+        return None
+    parti = [
+        "rt3 terminal launch",
+        "--id {}".format(req["session_id"]),
+        "--role {}".format(req["role"]),
+        "--lane {}".format(req["lane"]),
+        "--workspace-group {}".format(req["workspace_group"]),
+        "--write-mode {}".format(req["write_mode"]),
+    ]
+    if req.get("issue"):
+        parti.append("--task {}".format(req["issue"]))
+    parti.append("--worktree {}".format(cwd))
+    return " ".join(parti)
+
+
 def check(piano):
     """Quante delle sessioni richieste esistono davvero."""
     reqs = piano["requirements"]
@@ -208,7 +237,7 @@ def check(piano):
     }
 
 
-def render_plan(piano):
+def render_plan(piano, cwd=None):
     righe = []
     titolo = ", ".join(piano["epics"]) if piano["epics"] else piano["roadmapId"]
     righe.append("{} - TERMINAL SETUP".format(titolo))
@@ -225,7 +254,14 @@ def render_plan(piano):
         if r.get("detail"):
             righe.append("   ! {}".format(r["detail"]))
             righe.append("   ! Manual worktree setup required.")
-        righe.append("   $ {}".format(command_for(r)))
+        managed = managed_command_for(r, cwd)
+        if managed:
+            righe.append("   Manual:")
+            righe.append("     $ {}".format(command_for(r)))
+            righe.append("   Managed (RT3 apre e chiude la finestra):")
+            righe.append("     $ {}".format(managed))
+        else:
+            righe.append("   $ {}".format(command_for(r)))
         righe.append("")
     for n in piano.get("notes", []):
         righe.append("({})".format(n))

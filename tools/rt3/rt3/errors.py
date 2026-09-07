@@ -207,6 +207,31 @@ class UnrealAlreadyOwned(ResourceAlreadyOwned):
     exit_code = 31
 
 
+class TerminalAlreadyOpen(Rt3Error):
+    """Una sessione ha gia' un terminale gestito vivo.
+
+    Non e' un guasto: e' il vincolo che impedisce a due finestre di dichiararsi
+    entrambe «il terminale» della stessa sessione, e quindi a RT3 di non sapere quale
+    chiudere.
+    """
+
+    code = "RT3_TERMINAL_ALREADY_OPEN"
+    exit_code = 31
+
+
+class TerminalNotFound(Rt3Error):
+    code = "RT3_TERMINAL_NOT_FOUND"
+    exit_code = 32
+
+
+class TerminalSpawnFailed(Rt3Error):
+    """La finestra non si e' aperta. Chi chiama DEVE annullare cio' che aveva gia'
+    fatto: sessione registrata e lease presi."""
+
+    code = "RT3_TERMINAL_SPAWN_FAILED"
+    exit_code = 33
+
+
 class LeaseNotFound(Rt3Error):
     code = "RT3_LEASE_NOT_FOUND"
     exit_code = 32

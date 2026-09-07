@@ -491,6 +491,109 @@ verificata contro `tools/rt3/`.
 
 ---
 
+## 14. Terminali: manuali e gestiti
+
+Due modi di avere una finestra, e RT3 li tratta in modo opposto.
+
+```text
+MANUAL        una persona apre la PowerShell e vi esegue `rt3 session start`
+RT3_MANAGED   RT3 apre la PowerShell con `rt3 terminal launch`
+```
+
+🔴 **RT3 non chiude mai un terminale manuale.** Non per convenzione: una sessione
+manuale non ha nessuna riga nella tabella `terminals`, quindi non c'e' niente da
+chiudere. L'invariante e':
+
+```text
+RT3 termina solo processi che ha aperto lui e che riesce ancora a identificare.
+```
+
+⛔ **Mai per titolo, per nome o per SessionId.** Cercare «ogni powershell il cui titolo
+contiene DEV-1» significa chiudere la finestra di chi per caso ha quel titolo. L'identita'
+e' **la coppia**:
+
+```text
+ProcessId + ProcessStartedAt
+```
+
+Windows riusa i PID. Se l'istante di avvio non coincide con quello registrato, quel
+processo **non e' il nostro**: il terminale diventa `LOST`, RT3 emette
+`ACTION_REQUIRED` e non tocca niente.
+
+### Il ciclo di vita
+
+```text
+STARTING → ACTIVE → CLOSING → CLOSED
+                  ↘ LOST          (identita' perduta: nessuna terminazione)
+```
+
+L'ordine dell'apertura e' quello che rende impossibile una finestra orfana:
+
+```text
+reserve   sessione registrata, lease presi, riga STARTING
+spawn     il client apre la PowerShell
+attach    PID + istante di avvio → ACTIVE
+```
+
+Se lo spawn fallisce, `rollback` ferma la sessione e rilascia i lease: non resta mai una
+sessione `ACTIVE` senza finestra. E l'enforcement non si aggira - `rt3 terminal launch`
+di un secondo `WRITER` sullo stesso albero riceve `RT3_WRITER_ALREADY_OWNED` **prima**
+dello spawn, quindi nessuna finestra si apre.
+
+### Che cosa chiude la finestra, e che cosa no
+
+```text
+TASK_DONE     la finestra RESTA: la sessione puo' ricevere altro lavoro
+SESSION_STOP  la finestra si chiude, e solo quella
+```
+
+Una issue che finisce non termina la sessione. Chiudere la finestra a ogni task
+completato costringerebbe a riaprirla per il task successivo, che e' lo stesso worktree,
+lo stesso lease e la stessa persona.
+
+Il percorso di uscita preferito e' `rt3-finish` **dentro** la finestra: ferma la
+sessione, rilascia i lease, stampa il riepilogo e chiude. Chiudere con la X e' legittimo
+ma RT3 puo' solo constatarlo dopo: il terminale risulta `LOST` e la policy conservativa
+dei lease non cambia - **nessun lease viene liberato d'ufficio** perche' una finestra e'
+sparita.
+
+### Il titolo e il tempo
+
+```text
+RT3 | DEV-MAIN-1937-1 | 1936 | WRITER | +00:07
+RT3 | EDITOR-MAIN | EPIC-1937 | +00:18
+RT3 | VALIDATOR-1937 | WAITING | +00:12
+```
+
+Epic e task vengono dal runtime; se mancano, il titolo lo dice invece di inventarli.
+
+⚠️ **Il tempo e' presentazione.** `Elapsed` non e' persistito: si ricava da
+`SessionStartedAt`, e la finestra lo calcola in locale a ogni prompt - nessuna chiamata a
+RT3, nessuna roadmap ricalcolata. Il clock che avanza **non** cambia `StateRevision` e
+non produce nessun diff: e' la stessa regola di §9.
+
+### Comandi
+
+```text
+rt3 terminal launch --id ... --role ... --lane ... --workspace-group ...
+rt3 terminal list [--all]
+rt3 terminal status <session|terminal>
+rt3 terminal stop <session|terminal>
+rt3 terminal finish              (da dentro la finestra)
+```
+
+`rt3 epic terminals` mostra entrambe le forme per ogni requisito - il `session start`
+manuale e il `terminal launch` gestito - e **omette** la seconda quando non c'e' un cwd
+valido: un requisito che chiede un worktree temporaneo non ha ancora una directory, e
+stampare un path inesistente manderebbe chi lo copia contro un errore.
+
+⛔ La finestra si apre **pronta e vuota**: nessun agente viene avviato.
+
+**Stato: IMPLEMENTATO** (schema v5, tabella `terminals`). Restano fuori: heartbeat
+periodico, riconciliazione automatica dei `LOST`, allocazione automatica dei worktree.
+
+---
+
 ## Vedi anche
 
 - [`RT3_CONTROL_PLANE.md`](RT3_CONTROL_PLANE.md) — comandi, database, lease, roadmap

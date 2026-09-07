@@ -727,7 +727,10 @@ Reali, misurati, non ipotetici:
   `0.0.0.0`, che è la differenza fra "senza autenticazione sulla mia macchina" e "senza
   autenticazione sulla rete". Il ruolo dichiarato **non è un confine di sicurezza**:
   impedisce l'errore, non l'abuso — come il registro dei workspace e come il lease.
-- **Nessun heartbeat.** `LastSeenAt` si aggiorna quando la sessione fa qualcosa. Una
+- **Nessun heartbeat.** `LastSeenAt` si aggiorna quando la sessione fa qualcosa. Per i
+  terminali gestiti l'identita' del processo si verifica invece a ogni lettura, quindi
+  una finestra chiusa si scopre subito - ma la sessione resta `ACTIVE` finche' qualcuno
+  non la ferma, e il suo lease non viene liberato d'ufficio. Una
   sessione il cui terminale è stato chiuso resta `ACTIVE` finché qualcuno non la ferma o
   ne riusa l'id con `--replace`.
 - **Nessuna notifica push.** Una sessione scopre di avere posta chiamando `inbox list` o
@@ -754,6 +757,21 @@ Della Roadmap Orchestration in particolare:
   impedisce a due sessioni di scrivere nello stesso checkout: lo dice il piano, non il
   filesystem. Stesso limite del `WriteMode` qui sopra.
 - **`estimate` è adimensionale.** Il cammino critico è in unità di stima, non in ore.
+
+---
+
+## 15bis. Terminali gestiti (schema v5)
+
+`rt3 terminal launch` apre una PowerShell dedicata a una sessione e la registra nella
+tabella `terminals`. Chi apre la finestra a mano ed esegue `rt3 session start` non ha
+nessuna riga li' dentro, e **per questo RT3 non la chiudera' mai**.
+
+L'identita' di un terminale e' `ProcessId + ProcessStartedAt`, non il solo PID: Windows
+riusa i numeri, e un `taskkill` su un PID riusato colpirebbe un programma estraneo.
+Quando l'identita' non torna, il terminale diventa `LOST` e RT3 non termina niente.
+
+Dettagli, ciclo di vita e comandi in
+[`RT3_WORK3_AND_EDITOR.md` §14](RT3_WORK3_AND_EDITOR.md).
 
 ---
 

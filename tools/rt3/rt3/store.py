@@ -38,6 +38,7 @@ from .errors import (
     Rt3Error,
     SchemaMismatch,
     SessionExists,
+    TerminalAlreadyOpen,
     SessionNotFound,
     StoreUnavailable,
     TaskNotFound,
@@ -45,9 +46,11 @@ from .errors import (
     UnrealAlreadyOwned,
     WriterAlreadyOwned,
 )
+from .terminals import check_terminal_state
 from .model import (
     DELIVERY_STATES,
     canonical_path_key,
+    new_terminal_id,
     check_candidate_status,
     check_event_type,
     check_item_mode,
@@ -388,6 +391,51 @@ def _v3(conn):
         conn,
         """
         ALTER TABLE roadmap_item_state ADD COLUMN mode TEXT;
+        """
+    )
+
+
+@_migration(5)
+def _v5(conn):
+    """I terminali che RT3 possiede.
+
+    🔴 Esiste per un'invariante di sicurezza: RT3 puo' chiudere SOLO i processi che ha
+    aperto lui e che riesce ancora a identificare senza ambiguita'. Una PowerShell aperta
+    a mano da una persona non ha una riga qui, e per questo non verra' mai chiusa.
+
+    ⚠️ `process_started_at` non e' un dato diagnostico: e' meta' dell'identita'. Windows
+    riusa i PID, e senza l'istante di avvio un `taskkill` dopo un riavvio potrebbe
+    colpire un processo estraneo che ha ereditato quel numero.
+
+    La tabella e' additiva: nessuna colonna esistente cambia, e un database v4 diventa v5
+    senza toccare una riga di sessione o di lease.
+    """
+    _exec_ddl(
+        conn,
+        """
+        CREATE TABLE terminals (
+            terminal_id        TEXT PRIMARY KEY,
+            session_id         TEXT NOT NULL,
+            -- Per ora un solo valore, RT3_MANAGED. La colonna esiste perche' la
+            -- distinzione MANUAL/MANAGED e' una decisione, non un dettaglio: una
+            -- sessione manuale semplicemente non ha riga qui.
+            ownership          TEXT NOT NULL DEFAULT 'RT3_MANAGED',
+            shell_type         TEXT NOT NULL,
+            process_id         INTEGER,
+            -- L'altra meta' dell'identita'. Vedi la docstring.
+            process_started_at TEXT,
+            worktree_path      TEXT,
+            created_at         TEXT NOT NULL,
+            closed_at          TEXT,
+            state              TEXT NOT NULL DEFAULT 'STARTING',
+            exit_code          INTEGER,
+            close_reason       TEXT
+        );
+        -- Una sola finestra gestita per sessione, finche' e' viva. Come per i lease, il
+        -- vincolo lo tiene l'indice e non il codice applicativo.
+        CREATE UNIQUE INDEX idx_terminal_session_alive
+            ON terminals(session_id) WHERE state IN ('STARTING','ACTIVE','CLOSING');
+        CREATE INDEX idx_terminal_state ON terminals(state);
         """
     )
 
@@ -1684,6 +1732,93 @@ class Store:
             ],
             "takenAt": now_iso(),
         }
+
+    # -- terminali gestiti ------------------------------------------------
+
+    def create_terminal(self, session_id, shell_type, worktree_path,
+                        ownership="RT3_MANAGED"):
+        """Registra un terminale PRIMA di avviarlo, in stato `STARTING`.
+
+        🔴 L'ordine conta. La riga nasce prima dello spawn, cosi' un processo che parte
+        e non viene registrato non puo' esistere: se la scrittura fallisce, non si e'
+        ancora aperta nessuna finestra. Il contrario - spawn e poi registra - lascerebbe
+        una PowerShell viva che RT3 non conosce, cioe' esattamente il processo che poi
+        non potrebbe chiudere.
+        """
+        conn = self.connect()
+        tid = new_terminal_id()
+        try:
+            conn.execute(
+                "INSERT INTO terminals(terminal_id, session_id, ownership, shell_type, "
+                "worktree_path, created_at, state) VALUES(?,?,?,?,?,?, 'STARTING')",
+                (tid, session_id, ownership, shell_type, worktree_path, now_iso()),
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            # L'indice parziale ammette un solo terminale vivo per sessione.
+            esistente = self.get_terminal_for_session(session_id)
+            raise TerminalAlreadyOpen(
+                "la sessione {} ha gia' un terminale gestito ({}, stato {}). Chiuderlo "
+                "con `rt3 terminal stop` prima di aprirne un altro.".format(
+                    session_id,
+                    (esistente or {}).get("terminal_id", "?"),
+                    (esistente or {}).get("state", "?"),
+                )
+            )
+        return self.get_terminal(tid)
+
+    def attach_terminal_process(self, terminal_id, process_id, process_started_at):
+        """Lega il processo reale al terminale e lo porta ad `ACTIVE`.
+
+        ⚠️ `process_started_at` non e' facoltativo nella pratica: senza, il terminale
+        resta identificabile solo per PID, e un PID riusato porterebbe a chiudere un
+        processo estraneo. Se il chiamante non riesce a leggerlo, la riga resta
+        `STARTING` e nessuno la chiudera'.
+        """
+        conn = self.connect()
+        stato = "ACTIVE" if process_started_at else "STARTING"
+        conn.execute(
+            "UPDATE terminals SET process_id=?, process_started_at=?, state=? "
+            "WHERE terminal_id=?",
+            (process_id, process_started_at, stato, terminal_id),
+        )
+        conn.commit()
+        return self.get_terminal(terminal_id)
+
+    def set_terminal_state(self, terminal_id, state, close_reason=None, exit_code=None):
+        check_terminal_state(state)
+        conn = self.connect()
+        chiuso = now_iso() if state in ("CLOSED", "LOST") else None
+        conn.execute(
+            "UPDATE terminals SET state=?, close_reason=COALESCE(?, close_reason), "
+            "exit_code=COALESCE(?, exit_code), closed_at=COALESCE(?, closed_at) "
+            "WHERE terminal_id=?",
+            (state, close_reason, exit_code, chiuso, terminal_id),
+        )
+        conn.commit()
+        return self.get_terminal(terminal_id)
+
+    def get_terminal(self, terminal_id):
+        row = self.connect().execute(
+            "SELECT * FROM terminals WHERE terminal_id=?", (terminal_id,)
+        ).fetchone()
+        return _row_to_dict(row)
+
+    def get_terminal_for_session(self, session_id):
+        """Il terminale VIVO di quella sessione, se ce n'e' uno."""
+        row = self.connect().execute(
+            "SELECT * FROM terminals WHERE session_id=? "
+            "AND state IN ('STARTING','ACTIVE','CLOSING')",
+            (session_id,),
+        ).fetchone()
+        return _row_to_dict(row)
+
+    def list_terminals(self, include_closed=False):
+        sql = "SELECT * FROM terminals "
+        if not include_closed:
+            sql += "WHERE state IN ('STARTING','ACTIVE','CLOSING') "
+        sql += "ORDER BY created_at, terminal_id"
+        return [_row_to_dict(r) for r in self.connect().execute(sql)]
 
     # -- diagnosi ---------------------------------------------------------
 
