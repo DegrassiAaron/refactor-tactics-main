@@ -28,6 +28,11 @@
 #include "Components/LineBatchComponent.h"
 #include "Map/RTHexLabel.h"
 #include "Map/RTHexLabelLibrary.h"
+// Map Check (`CheckForErrors`): le regole di allestimento del livello e i token con cui si clicca l'attore
+// che le viola. Solo Editor — `CheckForErrors` stesso e' dichiarato dentro `WITH_EDITOR` in `Actor.h`.
+#include "Map/RTMapTemplateLibrary.h"
+#include "Logging/MessageLog.h"
+#include "Misc/UObjectToken.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "RTHexMap"
@@ -885,6 +890,41 @@ void ARTHexMapActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 	// vedere: si ricostruisce sempre (l'actor ha poche proprieta' e la ricostruzione e' idempotente).
 	BindToMapAsset(); // se e' cambiato l'asset, si seguono le notifiche di quello nuovo
 	RebuildInstances();
+}
+
+void ARTHexMapActor::CheckForErrors()
+{
+	Super::CheckForErrors();
+
+	const UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	int32 MapActorCount = 0;
+	const URTHexMapAsset* Asset = nullptr;
+	TArray<FRTSpawnPlacement> Spawns;
+	URTMapTemplateLibrary::CollectFromWorld(World, MapActorCount, Asset, Spawns);
+
+	TArray<FRTMapTemplateIssue> Issues;
+	URTMapTemplateLibrary::ValidateTemplate(MapActorCount, Asset, Spawns, Issues);
+
+	for (const FRTMapTemplateIssue& Issue : Issues)
+	{
+		// Solo le segnalazioni di LIVELLO, che sono quelle senza un marker a cui appartenere. Quelle con
+		// un'etichetta le emette il proprio `ARTSpawnPoint`, cosi' ogni messaggio del Map Check porta
+		// all'attore che si deve aprire.
+		if (!Issue.Label.IsEmpty())
+		{
+			continue;
+		}
+
+		FMessageLog("MapCheck").Warning()
+			->AddToken(FUObjectToken::Create(this))
+			->AddToken(FTextToken::Create(
+				FText::FromString(URTMapTemplateLibrary::DescribeIssue(Issue))));
+	}
 }
 
 void ARTHexMapActor::BindToMapAsset()
