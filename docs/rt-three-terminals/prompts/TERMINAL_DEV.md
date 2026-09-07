@@ -80,3 +80,20 @@ Quando il piano di una Epic chiede un secondo DEV, quel terminale **non esiste f
 qualcuno non lo apre**: `rt3 epic check <EPIC>` conta le sessioni vive, non quelle
 previste. Se il piano ti assegna un worktree temporaneo, il messaggio nomina chi occupa
 il writer permanente: e' a lui che va chiesto, e il worktree lo crei a mano.
+
+
+## Aprire e chiudere questo terminale
+
+Due modi, e RT3 li tratta in modo opposto.
+
+```text
+rt3 session start ...      finestra TUA: RT3 non la chiudera' mai
+rt3 terminal launch ...    finestra di RT3: si chiude con la sessione
+```
+
+In una finestra gestita esci con `rt3-finish`: ferma la sessione, rilascia il writer,
+stampa il riepilogo e chiude. Chiuderla con la X funziona, ma RT3 puo' solo constatarlo
+dopo - il terminale risulta `LOST` e il lease **non** viene liberato da solo.
+
+🔴 **Finire una issue non chiude la finestra.** La sessione resta viva e puo' ricevere il
+task successivo: stesso albero, stesso writer, stessa finestra.

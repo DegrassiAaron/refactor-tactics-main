@@ -156,3 +156,11 @@ una fila di persone che aspettano.
 
 Tenere l'Editor non e' un diritto del ruolo: si prende per un lavoro e si rilascia.
 Aprire questo terminale non acquisisce niente.
+
+
+## Terminali gestiti
+
+`rt3 terminal list` mostra quali finestre RT3 possiede e in che stato sono, con
+l'identita' del processo verificata a ogni lettura. Un `LOST` non e' un guasto da
+risolvere uccidendo qualcosa: e' RT3 che dichiara di non riconoscere piu' quel processo,
+e che quindi non lo tocchera'.
