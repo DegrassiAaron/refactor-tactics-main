@@ -16,10 +16,19 @@ import os
 import shutil
 import subprocess
 
-#: `pwsh` non si assume presente: si sceglie solo se c'e' davvero, o se qualcuno lo
-#: chiede esplicitamente. Il target della v1 e' Windows PowerShell, che su Windows c'e'
-#: sempre.
-SHELL_PREFERITE = ("powershell", "pwsh")
+#: 🔴 `pwsh` PRIMA di `powershell`, e l'ordine non e' una preferenza estetica.
+#:
+#: Gli script RT del repository usano sintassi PowerShell 7. Windows PowerShell 5.1 non
+#: li parsa: misurato il 2026-09-07 su `scripts/rt-suite.ps1` - **30 errori** con il
+#: parser 5.1, **zero** con il 7.6.5. E `rt-lease.ps1` carica quello script come engine
+#: guard, quindi da una finestra 5.1 ogni build muore con `ENGINE_GUARD_UNAVAILABLE`
+#: prima di cominciare.
+#:
+#: La prima stesura sceglieva `powershell` per primo, ragionando che su Windows c'e'
+#: sempre. E' vero, e irrilevante: una finestra che non puo' compilare non e' una
+#: finestra di lavoro. `pwsh` resta non assunto - se manca si ripiega, e il fallback e'
+#: il motivo per cui la lista ha ancora due voci.
+SHELL_PREFERITE = ("pwsh", "powershell")
 
 
 def resolve_shell(preferita=None):
@@ -40,7 +49,8 @@ def resolve_shell(preferita=None):
 
     raise TerminalSpawnFailed(
         "nessuna shell disponibile fra {}. Su Windows `powershell` fa parte del "
-        "sistema: se manca, il PATH e' rotto.".format(", ".join(SHELL_PREFERITE))
+        "sistema: se manca anche quello, il PATH e' rotto.".format(
+            ", ".join(SHELL_PREFERITE))
     )
 
 
