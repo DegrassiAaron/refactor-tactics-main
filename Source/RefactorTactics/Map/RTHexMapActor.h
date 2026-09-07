@@ -727,6 +727,16 @@ protected:
 	/** Aggiorna la vista quando si cambia asset, layer, dimensioni o mesh dal pannello Details. */
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 
+	/**
+	 * Map Check: le segnalazioni che riguardano il LIVELLO e non un singolo marker — nessun attore mappa,
+	 * piu' di uno, oppure nessun asset assegnato.
+	 *
+	 * ⚠️ **Le emette questo attore e non gli `ARTSpawnPoint`**: sono fatti del livello, e un livello con
+	 * quattro marker le ripeterebbe quattro volte. Le regole restano di `URTMapTemplateLibrary`, che e' anche
+	 * cio' che i test esercitano headless: qui si chiede il verdetto e si sceglie quale parte pubblicare.
+	 */
+	virtual void CheckForErrors() override;
+
 	/** Disiscrive dall'asset prima della distruzione (nessun delegate pendente su un actor morto). */
 	virtual void BeginDestroy() override;
 
