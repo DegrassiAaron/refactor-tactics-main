@@ -27,13 +27,40 @@ struct FRTDisplacementCause
 };
 
 /**
+ * UN colpo di ritorno, con tutto cio' che lo qualifica.
+ *
+ * **Un record e non sei array paralleli** (`#2587`), e la ragione e' la stessa che ha prodotto
+ * `FRTDisplacementCause` qui sopra: sei `Add` in fila sono sei occasioni di scriverne cinque, e il primo
+ * `continue` infilato in mezzo attribuirebbe il contrattacco all'unita' sbagliata. Fino al 2026-09-06 il
+ * commento della struct qui sotto DICHIARAVA il rischio e lo lasciava in piedi; tenere i campi insieme lo
+ * toglie a monte — non esiste piu' un modo di disallinearli fra loro.
+ *
+ * ⚠️ **Non e' una `USTRUCT`**, come il resto di questo header: e' un dato transiente della risoluzione, non
+ * entra in serializzazione ne' in replica, e `Actor` resta un puntatore grezzo esattamente com'era quando
+ * viveva in `TArray<ARTUnit*>`. Il refactor non cambia il lifetime: lo sposta.
+ */
+struct FRTCounterAttack
+{
+	/** Il colpo vero e proprio, accodato ai colpi della fase. */
+	FRTAttack Attack;
+	/** Cella di chi contrattacca, per il TurnLog e per la voce direzionale (`#2128`). */
+	FRTCellId SourceCell;
+	/** Identita' della reazione che ha prodotto il colpo di ritorno (CP 11.3, `#79`). */
+	FName ActionId;
+	/** Generica di cui `ActionId` e' un profilo, quando la dichiara (D-033). */
+	FName BaseActionId;
+	/** Priorita' intra-fase della reazione. */
+	int32 Priority = 0;
+	/** E CHI contrattacca: una cella non identifica un'unita' ([D-063]). */
+	ARTUnit* Actor = nullptr;
+};
+
+/**
  * Cio' che il pass delle reazioni RACCOGLIE e che il chiamante applica insieme al resto della propria fase
  * (CP 5.1, `#505`).
  *
  * Una struct e non sette variabili locali perche' il pass smette di essere uno solo: con `D-092` diventa
  * richiamabile per fase, e sette parametri d'uscita separati sono sette occasioni di passarne uno in meno.
- * Gli array sono **paralleli** — disallinearli attribuirebbe un contrattacco all'unita' sbagliata, che e' la
- * stessa classe di difetto gia' costata una correzione a `FRTDisplacementCause` qui sopra.
  *
  * Non contiene le FUGHE (`SelfReposition`): quelle il pass le raccoglie e le applica al proprio interno, dopo
  * aver valutato tutte le reazioni sullo snapshot congelato (`D-094`). Uscire di qui con delle destinazioni da
@@ -44,18 +71,13 @@ struct FRTReactionPassResult
 	/** Riduzione del danno per bersaglio dichiarata dalle reazioni attivate: entra nel delta del PRIMO danno. */
 	TArray<int32> DeflectDelta;
 
-	/** Colpi di ritorno, accodati ai colpi veri della fase. I cinque array che seguono gli sono paralleli. */
-	TArray<FRTAttack> CounterAttacks;
-	/** Cella di chi contrattacca, per il TurnLog. */
-	TArray<FRTCellId> CounterAttackSrc;
-	/** Identita' della reazione che ha prodotto il colpo di ritorno (CP 11.3, `#79`). */
-	TArray<FName> CounterActionId;
-	/** Generica di cui `CounterActionId` e' un profilo, quando la dichiara (D-033). */
-	TArray<FName> CounterBaseActionId;
-	/** Priorita' intra-fase della reazione. */
-	TArray<int32> CounterPriority;
-	/** E CHI contrattacca: una cella non identifica un'unita' ([D-063]). */
-	TArray<ARTUnit*> CounterAttackActors;
+	/**
+	 * Colpi di ritorno, accodati ai colpi veri della fase, **in ordine di produzione**.
+	 *
+	 * L'ordine e' quello in cui il pass li raccoglie e non va ricostruito: chi consuma accoda in coda ad
+	 * `Attacks`, e la voce direzionale di `#2128` itera esattamente quella coda.
+	 */
+	TArray<FRTCounterAttack> CounterAttacks;
 
 	/**
 	 * Chi ha ANNULLATO lo spostamento che stava per subire (`Reaction.Anchor`, `CancelDisplacement`): indici

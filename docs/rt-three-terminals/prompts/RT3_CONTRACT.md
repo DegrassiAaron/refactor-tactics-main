@@ -128,6 +128,31 @@ shot:    docs/rt-three-terminals/waves/<feature>/evidence/<file>.png
 
 Una frase descrittiva non è un `EVIDENCE_REF`.
 
+### `SEED_SOURCE` — vocabolario unico
+
+`SEED_SOURCE` attraversa i ruoli: DEV lo dichiara, EDITOR lo riporta dalla sessione PIE,
+VALIDATION lo legge per decidere `DETERMINISM`. Governa un verdetto, quindi la sua
+grafia è materia di contratto e vive qui.
+
+| Valore | Significato | Effetto su `DETERMINISM` |
+|---|---|---|
+| `canonical <sorgente>` | il seed viene da uno stato canonico nominato | può essere `PASS` |
+| `none` | non esiste RNG in questo scope | `N/A` giustificato dal write-set |
+| `generated` | il seed è prodotto a runtime e non è ricostruibile | `BLOCKED` — la ripetizione non è dimostrata |
+
+- `unseeded` **non** è un valore: un RNG senza sorgente dichiarata è `generated`;
+- ⛔ `fixed` è **ritirato**. Compariva nel solo `WAVE_EDITOR.md` e nominava ciò che DEV
+  chiama `canonical`: un valore che un ruolo produce e un altro non riconosce non è un
+  campo di handoff, è due campi con lo stesso nome;
+- `SEED_SOURCE` è `REQUIRED` ovunque esista RNG. Assente con RNG presente si legge
+  `BLOCKED`, come ogni voce malformata di §6.
+
+⚠️ **Qui c'è il vocabolario, non la forma del contratto comportamentale.** La tabella
+`Given`/`When`/`Then`/`Authority`/… resta materia dei prompt di wave DEV
+([`WAVE_DEV_LEAD.md`](WAVE_DEV_LEAD.md) §«Contratto comportamentale»): è materiale di
+authoring, e questo contratto parla di processo, verdetti ed evidenza. Sale solo ciò che
+un verdetto legge. Decisione `D-342`, che chiude `GOV-6`.
+
 ## 7. Matrice canonica
 
 Una sola tabella per entrambi i ruoli. EDITOR e VALIDATION compilano la stessa lista, ciascuno la propria colonna.
@@ -487,21 +512,128 @@ Il trasporto MCP e' HTTP diretto. Un client che salta il preflight raggiunge il
 bridge lo stesso: **nessuno script PowerShell sta su quel percorso**.
 
 Il preflight autorizza, non intercetta. L'enforcement che regge davvero e' di
-configurazione — `.mcp.json` non versionato, generato solo dove il bridge serve — e
-di disciplina. Chiamarla barriera sarebbe un falso verde, e un falso verde fa
-smettere di cercare la barriera vera.
+configurazione — il bridge **parte solo in MAIN**, quindi dove non gira non c'e' una
+porta da raggiungere — e di disciplina. Chiamarla barriera sarebbe un falso verde, e
+un falso verde fa smettere di cercare la barriera vera.
+
+⚠️ **La leva e' `bAutoStartServer`**, per utente in
+`Saved/Config/WindowsEditor/EditorPerProjectUserSettings.ini`: `On` in MAIN, `Off`
+altrove, applicato dall'installer. Vive fuori dal versionamento, quindi un `git pull`
+non la porta e va riapplicata su ogni checkout.
+
+⛔ **`.mcp.json` non e' quella leva.** E' versionato e byte-identico nei tre checkout
+— misurato il 2026-09-06, `E20761402582` in tutti e tre — quindi non discrimina
+niente: chi lo leggesse come confine leggerebbe un file uguale ovunque.
+
+---
+
+## 16. Status di sessione e attivazione di una Epic
+
+Una sessione non racconta il proprio stato: lo **stampa**. La fonte e' `rt3 status`, che
+legge il control plane e Git, non la memoria della conversazione.
+
+```text
+rt3 status                 vista normale
+rt3 status --compact       una riga
+rt3 status --verbose       aggiunge worktree, HEAD, revisioni, versioni
+rt3 status --lane <LANE>   la corsia invece della sessione
+rt3 plane                  lo stato del control plane (era `rt3 status`)
+```
+
+Quattro regole, tutte verificabili.
+
+**I campi Git li misura il client.** `worktreePath`, `branch` e `head` descrivono la
+directory da cui parte il comando; chiederli al daemon risponderebbe del checkout che lo
+ha avviato. Quando la sessione dichiara un branch e Git ne mostra un altro, vince Git:
+la dichiarazione e' cio' che la sessione ha visto all'avvio.
+
+**Il tempo che passa non e' un cambiamento di stato.** Lo status si ristampa quando
+cambia `stateRevision`, che riassume i soli campi semantici. Due snapshot identici a
+distanza di ore hanno la stessa revisione e non producono nessun diff. Uno status che si
+ripetesse identico dopo ogni comando smetterebbe di essere letto, e con lui quello che
+conta.
+
+**Uno stato bloccato non dice mai `READY`.** `BLOCKED` prevale su `ACTION_REQUIRED`, che
+prevale su `STATUS`. Il motivo e' esplicito e appartiene a un vocabolario chiuso:
+
+```text
+DEPENDENCY · RESOURCE_WRITER · RESOURCE_UNREAL · WAITING_REVIEW
+WAITING_VALIDATION · WORKTREE_MISMATCH · PROTOCOL_MISMATCH · ROADMAP_REVISION
+```
+
+**Quando ristamparlo, e a quale livello.** Prima di lavorare e dopo ogni azione che
+cambia qualcosa - non a ogni comando.
+
+```text
+all'avvio della sessione        normal
+attivita' ordinaria             compact
+ACTION_REQUIRED, BLOCKED, ERROR normal o verbose, per intero
+```
+
+🔴 **Non ricostruire lo stato dalla conversazione.** Cio' che una sessione ricorda di
+aver fatto non e' lo stato: il branch puo' essere cambiato, un lease puo' essere stato
+preso da un'altra sessione, la roadmap puo' essere avanzata. La memoria della sessione e'
+una fonte, e non e' quella autorevole.
+
+⚠️ **Il confronto fra due letture non e' automatico.** Le funzioni che sopprimono le
+ripetizioni esistono e sono provate, ma nessun comando persiste l'ultima revisione vista:
+oggi decidi tu quando ristampare. Vedi
+[`../RT3_WORK3_AND_EDITOR.md`](../RT3_WORK3_AND_EDITOR.md) §9.
+
+**L'output e' ASCII.** Non e' una preferenza estetica: su cp850 e cp437 - le codepage
+tipiche di `cmd.exe` - un carattere fuori tabella fa terminare il comando con exit 1.
+Misurato il 2026-09-07 su `rt3 epic activate`, che falliva per un em dash nel titolo.
+
+Il modello operativo dietro questi comandi - perché i worktree sono tre, come un task
+resta di chi lo possiede, come l'unico Unreal viene serializzato e che cosa significano i
+timestamp - sta in [`../RT3_WORK3_AND_EDITOR.md`](../RT3_WORK3_AND_EDITOR.md), che per
+ogni decisione dichiara se è implementata o soltanto decisa.
+
+### Attivare una Epic
+
+```text
+rt3 epic activate <EPIC>    quali terminali servono ADESSO, col comando per aprirli
+rt3 epic terminals <EPIC>   lo stesso piano, senza registrare l'attivazione
+rt3 epic check <EPIC>       quanti ne esistono davvero; exit 1 se non sono tutti
+```
+
+⛔ **Nessuno di questi comandi apre terminali, avvia Claude o crea worktree.** Stampano
+il comando da eseguire; ad aprirli e' una persona. Aprire un terminale significa decidere
+dove, con quale identita' e su quale albero: decisioni che il planner non ha gli elementi
+per prendere.
+
+🔴 **`REQUIRED` non e' `ACTIVE`.** Il piano puo' dire che serve un secondo DEV; finche'
+nessuno apre quel terminale la sessione **non esiste**. `epic check` marca `ACTIVE` solo
+cio' che il control plane vede registrato e vivo — altrimenti sarebbe una fotografia dei
+desideri, non una verifica.
+
+Il piano dipende da **quante issue sono pronte in questo momento** e da chi tiene le
+risorse. La stessa Epic vuole tre terminali all'inizio e quattro dopo due validazioni.
+
+🔴 **Una sola verita'.** A decidere se una issue va nel writer permanente o in un
+worktree temporaneo e' il **planner**, e basta: `epic activate` rende quella decisione,
+non la corregge. Due viste che si contraddicono sulla stessa risorsa sono peggio di una
+vista sola sbagliata, perche' chi legge non sa quale seguire.
+
+Possedere una risorsa non e' occuparla. Un writer lease dice **chi puo' scrivere** in
+quell'albero, non che dentro ci sia gia' una lavorazione concorrente: se il proprietario
+e' vivo e libero, la prossima issue va **a lui, nel suo albero**, e il worktree
+temporaneo resta disponibile per la successiva. Il requisito che ne chiede uno nomina
+chi tiene il permanente, perche' «occupied by another session» e' vero e inutile — non
+dice a chi rivolgersi.
+
+⛔ Riutilizzare non e' rubare. Un lease `stale`, o di una sessione che non risulta piu'
+viva, resta occupato: RT3 non se lo riprende da solo.
 
 ---
 
 ## Aperti
 
-Due domande sul contratto stesso, **non normative**: registrate perché l'owner le decida, non risolte qui.
-
-Non modificano nessuna regola sopra. Finché restano aperte, vale il testo delle sezioni §1–§13.
+Due domande sul contratto stesso, **non normative**: registrate perché l'owner le decidesse. **Entrambe sono chiuse.**
 
 | ID | Domanda | Registro |
 |---|---|---|
 | ~~`GOV-5`~~ | ✅ **Chiusa il 2026-09-05 da [`D-335`](../../decisions/RT_PDR_00_Decision_Log.md).** §9 separa la **busta**, che portano tutti, dal **payload di verdetti**, che si porta se e solo se §7 assegna una colonna. La regola è recepita sopra e non è più aperta. | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) · riga **97** di [`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) |
-| `GOV-6` | La forma del contratto comportamentale (`Given`/`When`/`Then`/`Authority`/`SEED_SOURCE`/…) sale qui, o resta nei prompt di wave DEV? Oggi vive in `WAVE_DEV_LEAD.md` e la usa `WAVE_DEV_MAIN.md`. | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) |
+| ~~`GOV-6`~~ | ✅ **Chiusa il 2026-09-06 da [`D-342`](../../decisions/RT_PDR_00_Decision_Log.md).** Si separa il **vocabolario** dalla **forma**: `SEED_SOURCE` sale in §6 perché governa `DETERMINISM`; la tabella `Given`/`When`/`Then`/… resta in [`WAVE_DEV_LEAD.md`](WAVE_DEV_LEAD.md), che [`WAVE_DEV_MAIN.md`](WAVE_DEV_MAIN.md) già referenzia esplicitamente. | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) |
 
-`GOV-6` resta aperta e non blocca: è una questione di sede, non di correttezza. Un prompt che apre un altro prompt per leggere una tabella funziona; è fragile, non rotto.
+⚠️ **La domanda di `GOV-6` era posta su una premessa incompleta**, e la misura l'ha spostata. Diceva *«oggi vive in `WAVE_DEV_LEAD.md` e la usa `WAVE_DEV_MAIN.md`»* — due prompt. Misurato il 2026-09-06: `SEED_SOURCE` era usato da **quattro** prompt con **tre vocabolari** — `canonical`/`none` in DEV-LEAD, più `generated` in DEV-MAIN, e `fixed`/`generated` in EDITOR. L'uscita *(c)*, la duplicazione parziale che la domanda elencava come ⛔, era già avvenuta per inerzia.

@@ -110,6 +110,46 @@ Una sessione Claude occupa una sola figura RT3.
 
 ---
 
+## Task routing
+
+Se `RT_TASK_ID` è presente, il ruolo da solo non basta: qualcuno ha deciso **quale** lavoro tocca a questa sessione.
+
+Dopo aver risolto il ruolo:
+
+1. chiama il router in **sola lettura**:
+
+```powershell
+rttask status -TaskId $env:RT_TASK_ID
+rttask assignment -TaskId $env:RT_TASK_ID
+```
+
+2. confronta `RT_TERMINAL_ROLE` con `next_actor`;
+3. se non corrispondono, **fermati**;
+4. lavora solo sull'assignment corrente.
+
+Errori, tutti fail-closed:
+
+```text
+TASK_NOT_FOUND            il task non esiste su questa macchina
+TASK_ROUTE_MISMATCH       questo ruolo non è l'actor atteso
+TASK_ASSIGNMENT_MISSING   nessuna consegna emessa
+TASK_ALREADY_DONE         il task è chiuso
+```
+
+Non correggere il routing per proseguire: le mutazioni (`init`, `assign`, `close`) appartengono al **RT Coordinator**, e il router le rifiuta da una sessione con ruolo.
+
+A fine lavoro deposita il risultato e torna al Coordinator:
+
+```powershell
+rttask report -TaskId <id> -Status <DONE|PARTIAL|BLOCKED|FAILED> -Summary "..." -Evidence "..."
+```
+
+⛔ `NEXT_ACTOR_RECOMMENDED` è una raccomandazione, non una decisione di routing.
+
+Il task routing è un **quarto** concetto, distinto da ruolo di sessione, identità del workspace e lease del motore. Semantica completa: [`docs/rt-three-terminals/TASK_ROUTING.md`](docs/rt-three-terminals/TASK_ROUTING.md).
+
+---
+
 # 3. Autorità e source of truth
 
 Mantieni distinti tre tipi di autorità.

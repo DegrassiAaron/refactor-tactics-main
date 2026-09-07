@@ -57,3 +57,26 @@ Se una verifica Unreal è richiesta:
 Per resolver, TurnLog, replay format, serializzazione, map hash o determinismo, non accumulare una lunga catena dipendente senza passare da VALIDATION.
 
 Un test non eseguito non è un PASS.
+
+
+## Stato della sessione
+
+Non raccontare il tuo stato: stampalo. La fonte e' `rt3 status`, che legge il control
+plane e Git — non la memoria della conversazione.
+
+```text
+rt3 status              vista normale
+rt3 status --compact    una riga, dopo un'azione
+rt3 status --verbose    worktree, HEAD, revisioni, versioni
+```
+
+Ristampalo quando lo **stato cambia**, non a ogni comando: due snapshot identici a
+distanza di ore hanno la stessa `stateRevision` e non hanno nulla da dire. Uno stato
+bloccato non e' mai `READY`, e il motivo del blocco e' esplicito.
+
+Regole complete in [`RT3_CONTRACT.md`](RT3_CONTRACT.md) §16.
+
+Quando il piano di una Epic chiede un secondo DEV, quel terminale **non esiste finche'
+qualcuno non lo apre**: `rt3 epic check <EPIC>` conta le sessioni vive, non quelle
+previste. Se il piano ti assegna un worktree temporaneo, il messaggio nomina chi occupa
+il writer permanente: e' a lui che va chiesto, e il worktree lo crei a mano.

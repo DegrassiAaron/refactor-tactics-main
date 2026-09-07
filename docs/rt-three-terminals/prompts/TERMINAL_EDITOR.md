@@ -109,3 +109,50 @@ Quando hai finito:
 - ferma PIE;
 - chiudi Editor;
 - passa a VALIDATION solo se restano gate pendenti.
+
+
+## Stato della sessione
+
+Non raccontare il tuo stato: stampalo. La fonte e' `rt3 status`, che legge il control
+plane e Git — non la memoria della conversazione.
+
+```text
+rt3 status              vista normale
+rt3 status --compact    una riga, dopo un'azione
+rt3 status --verbose    worktree, HEAD, revisioni, versioni
+```
+
+Ristampalo quando lo **stato cambia**, non a ogni comando: due snapshot identici a
+distanza di ore hanno la stessa `stateRevision` e non hanno nulla da dire. Uno stato
+bloccato non e' mai `READY`, e il motivo del blocco e' esplicito.
+
+Regole complete in [`RT3_CONTRACT.md`](RT3_CONTRACT.md) §16.
+
+`rt3 epic activate <EPIC>` stampa i comandi dei terminali che servono: non li apre, non
+avvia Claude e non crea worktree. Ad aprirli sei tu.
+
+## La vista sulle risorse condivise
+
+EDITOR e' il ruolo che guarda cio' che gli altri si contendono. La vista di lane e'
+l'ingresso:
+
+```text
+rt3 status --lane <LANE>
+```
+
+Sezioni oggi disponibili: `Active`, `Ready`, `Blocked`, `Resources`, `Actions`.
+`Resources` dice chi tiene il writer permanente, quanta capacita' temporanea resta e se
+Unreal e' libero.
+
+Il contratto completo della vista - coda Editor, tempo di attesa, durata del lease,
+ultimo heartbeat - e' in [`../RT3_WORK3_AND_EDITOR.md`](../RT3_WORK3_AND_EDITOR.md).
+⚠️ Una parte di quei dati **non esiste ancora nel runtime**: quel documento dice riga per
+riga quali.
+
+🔴 **Un task in attesa dell'Editor non e' un worker bloccato.** Se una sessione ha un
+lavoro in coda per Unreal e altro lavoro pronto, deve prendere l'altro lavoro. Leggere
+`RESOURCE_UNREAL` come «quella sessione e' ferma» e' l'errore che trasforma una coda in
+una fila di persone che aspettano.
+
+Tenere l'Editor non e' un diritto del ruolo: si prende per un lavoro e si rilascia.
+Aprire questo terminale non acquisisce niente.

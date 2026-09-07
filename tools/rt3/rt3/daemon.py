@@ -38,6 +38,21 @@ PROTOCOL_HEADER = "X-RT3-Protocol"
 # ---------------------------------------------------------------------------
 
 
+def _lease_error(resource_type):
+    """L'errore giusto per la risorsa giusta.
+
+    Un solo `RESOURCE_ALREADY_OWNED` per entrambe costringerebbe chi lo riceve a
+    leggere il messaggio per sapere se ha perso il writer o l'Editor - due situazioni
+    con rimedi diversi.
+    """
+    from .errors import ResourceAlreadyOwned, UnrealAlreadyOwned, WriterAlreadyOwned
+
+    return {
+        "GIT_WRITER": WriterAlreadyOwned,
+        "UNREAL_EDITOR": UnrealAlreadyOwned,
+    }.get(resource_type, ResourceAlreadyOwned)
+
+
 def _ops(store, server):
     """Tabella delle operazioni. Chiave = `op` della richiesta.
 
@@ -82,6 +97,10 @@ def _ops(store, server):
         roadmap = Roadmap.from_dict(document)
         return row, roadmap, build(roadmap), store.progress_map(row["roadmap_id"])
 
+    def _modes(roadmap_id):
+        row = store.get_roadmap(roadmap_id, required=True)
+        return store.mode_map(row["roadmap_id"])
+
     def roadmap_ready(a):
         from .planner import readiness
 
@@ -110,7 +129,16 @@ def _ops(store, server):
         from .planner import plan
 
         row, roadmap, graph, progress = _roadmap_view(a.get("roadmapId"))
-        result = plan(roadmap, graph, progress)
+        # 🔴 La snapshot runtime viaggia col piano. Senza, il planner dichiarerebbe
+        # libero un albero su cui una sessione tiene il writer - il difetto P0 che
+        # l'audit ha misurato.
+        result = plan(
+            roadmap,
+            graph,
+            progress,
+            store.mode_map(row["roadmap_id"]),
+            runtime=store.runtime_snapshot(),
+        )
         result["contentHash"] = row["content_hash"]
         return result
 
@@ -176,8 +204,83 @@ def _ops(store, server):
             session_id=a.get("sessionId"),
             candidate_id=a.get("candidateId"),
             note=a.get("note"),
+            mode=a.get("mode"),
         )
 
+    def _status_snapshot(a):
+        """Lo snapshot dal lato CONTROL PLANE. Git lo aggiunge il client.
+
+        ⚠️ Il daemon non legge il repository del chiamante: `worktreePath`, `branch` e
+        `head` appartengono alla directory da cui il comando parte, che il daemon non
+        conosce. Comporli qui darebbe i dati del checkout che ha avviato rt3d - cioe'
+        risponderebbe di un altro albero.
+        """
+        from .model import canonical_path_key
+        from .status import build_snapshot
+
+        sid = a.get("sessionId")
+        sessione = store.get_session(sid) if sid else None
+        leases = {"writer": None, "unreal": None}
+        if sessione:
+            chiave_w = canonical_path_key(sessione.get("worktree_path"))
+            chiave_u = canonical_path_key(
+                sessione.get("repo_root") or sessione.get("worktree_path")
+            )
+            lw = store.get_lease("GIT_WRITER", chiave_w) if chiave_w else None
+            lu = store.get_lease("UNREAL_EDITOR", chiave_u) if chiave_u else None
+            if lw:
+                leases["writer"] = {"owner": lw["owner_session_id"]}
+            if lu:
+                leases["unreal"] = {"owner": lu["owner_session_id"]}
+
+        pending = store.pending_count(sid) if sessione else 0
+        roadmap = store.get_roadmap(a.get("roadmapId"), required=False)
+
+        blocking, azione = None, "NONE"
+        if sessione:
+            # Una sessione che si DICHIARA writer senza tenere il lease e' il caso che
+            # l'enforcement rende impossibile creare, ma non impossibile ereditare da un
+            # database precedente: va detto, non nascosto.
+            if sessione.get("write_mode") == "WRITER" and not leases["writer"]:
+                blocking, azione = "RESOURCE_WRITER", "RESOLVE_WRITER_CONFLICT"
+            elif leases["writer"] and leases["writer"]["owner"] != sid:
+                blocking, azione = "RESOURCE_WRITER", "RESOLVE_WRITER_CONFLICT"
+            elif pending:
+                azione = "REVIEW_CANDIDATE" if sessione["role"] == "EDITOR" else "WAIT_REVIEW"
+            elif sessione.get("task_id"):
+                azione = "IMPLEMENT_ISSUE" if sessione["role"] == "DEV" else "NONE"
+
+        return build_snapshot(
+            session=sessione,
+            git=a.get("git"),
+            leases=leases,
+            inbox_pending=pending,
+            roadmap=roadmap,
+            planner={"epicId": a.get("epicId")},
+            versions={
+                "protocolVersion": PROTOCOL_VERSION,
+                "schemaVersion": SCHEMA_VERSION,
+                "roadmapSchemaVersion": ROADMAP_SCHEMA_VERSION,
+            },
+            generated_at=now_iso(),
+            blocking=blocking,
+            required_action=azione,
+        )
+
+    def _epic_plan(a):
+        from .bootstrap import terminal_plan
+
+        row, roadmap, graph, progress = _roadmap_view(a.get("roadmapId"))
+        return terminal_plan(
+            roadmap, graph, progress, store.mode_map(row["roadmap_id"]),
+            runtime=store.runtime_snapshot(), epic_id=a.get("epicId"),
+            sessions=store.list_sessions(),
+        )
+
+    def _epic_check(a):
+        from .bootstrap import check
+
+        return check(_epic_plan(a))
     def roadmap_states(a):
         row = store.get_roadmap(a.get("roadmapId"), required=True)
         return {
@@ -261,7 +364,30 @@ def _ops(store, server):
         "roadmap.graph": roadmap_graph,
         "roadmap.criticalPath": roadmap_critical_path,
         "roadmap.summary": roadmap_summary,
-        "leases.list": lambda a: store.list_leases(),
+        # -- status & epic bootstrap
+        "status.snapshot": _status_snapshot,
+        "epic.terminals": _epic_plan,
+        "epic.check": _epic_check,
+        "epic.activate": _epic_plan,
+        # -- lease: risorse esclusive
+        "leases.list": lambda a: store.list_leases(
+            include_released=bool(a.get("includeReleased"))
+        ),
+        "lease.acquire": lambda a: store.acquire_lease(
+            a["resourceType"],
+            a["resourceKey"],
+            a["sessionId"],
+            note=a.get("note"),
+            error_class=_lease_error(a["resourceType"]),
+        ),
+        "lease.release": lambda a: store.release_lease(
+            a["resourceType"],
+            a["resourceKey"],
+            session_id=a.get("sessionId"),
+            force=bool(a.get("force")),
+            note=a.get("note"),
+        ),
+        "runtime.snapshot": lambda a: store.runtime_snapshot(),
         "stats": lambda a: store.stats(),
         "daemon.stop": lambda a: server.request_stop(),
     }
@@ -372,9 +498,13 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             result = handler(args)
         except Rt3Error as exc:
-            self._send(
-                400, {"ok": False, "code": exc.code, "error": exc.message}
-            )
+            # `details` porta i campi strutturati oltre il messaggio: chi riceve un
+            # rifiuto di lease deve poter leggere il PROPRIETARIO senza spulciare la
+            # prosa, ed e' l'informazione che serve per decidere cosa fare.
+            corpo = {"ok": False, "code": exc.code, "error": exc.message}
+            if hasattr(exc, "as_dict"):
+                corpo["details"] = exc.as_dict()
+            self._send(400, corpo)
         except KeyError as exc:
             self._send(
                 400,

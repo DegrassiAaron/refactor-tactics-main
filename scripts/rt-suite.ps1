@@ -34,7 +34,17 @@
                   Il limite e' dichiarato, non risolto
       motore      i processi `UnrealEditor*`, con il checkout da cui vengono
 
-    Piu' due controlli sul referto:
+    ⚠️ **Le invarianti coprono la RUN, non l'attesa che la precede** (#2532). Se si
+    aspetta il lock o il motore, al rilascio lo stato viene RI-dichiarato: e' la
+    scelta giusta, perche' fra ingresso e rilascio possono passare venti minuti e
+    pretendere che nulla sia cambiato renderebbe l'attesa inutile. Cio' che il
+    referto ora DICE, e prima taceva, e' se in quella finestra qualcosa e' cambiato
+    e che cosa — albero, `HEAD`, binari. Non cambia l'esito: una misura su uno stato
+    diverso da quello richiesto resta valida per lo stato su cui e' girata, ed e' chi
+    la registra a doverlo sapere. Misurato: due attese della stessa sessione, una con
+    albero stabile e una in cui la mutazione e' sparita, davano referti IDENTICI.
+
+    Piu' quattro controlli sul referto:
 
       freschezza  il log e' stato scritto DOPO l'avvio? Un log stantio di una run
                   precedente, letto come se fosse di questa, e' verde su nulla
@@ -44,7 +54,25 @@
                   intera perde regolarmente la riga di conclusione nel flush di
                   shutdown (`clean-baseline.log`: 1232 avviati, 1231 conclusi, run
                   sana), quindi invalidare sui conclusi renderebbe NON VALIDA ogni
-                  suite completa. La ragione per esteso sta sul controllo stesso
+                  suite completa. La ragione per esteso sta sul controllo stesso.
+                  ⛔ **Con `Found 1` la tolleranza NON si applica** (#2530): su un
+                  test solo «avviato e non concluso» e' il 100% della misura, non
+                  una coda, e «l'ultimo» e' anche «l'unico». E' il caso della
+                  verifica per mutazione, che richiede filtri stretti per costruzione
+      avvio       l'Editor e' arrivato alla fase di automation? Se `LogAutomationController`
+                  non compare mai, la run NON e' mai partita — e non e' un filtro
+                  sbagliato (#2393). ⚠️ Prima le due diagnosi condividevano una riga
+                  sola, e danno entrambe `0/?, 0 fail` con rimedi OPPOSTI: correggere
+                  il filtro, oppure aspettare e rimisurare. Il referto ora nomina
+                  l'ultima riga scritta, e riconosce il bootstrap di
+                  `Intermediate/PipInstall` — 4,8 GB di dipendenze Python al PRIMO
+                  avvio di un checkout nuovo, che e' un costo, non un difetto
+      crash       un `appError called`, un `=== Critical error: ===`, un
+                  `Assertion failed:` o un `Fatal error:` nel log invalidano la run
+                  QUALUNQUE sia il conteggio (#2530). ⚠️ Copre cio' che nessun
+                  conteggio vede: una suite intera che crashi sull'ULTIMO test ha
+                  `started == found` e un solo dangling, cioe' la firma esatta della
+                  coda di shutdown sana — e prima di questo controllo usciva VALIDA
 
     Se una qualsiasi cade, l'esito NON e' registrabile: non e' rosso e non e'
     verde, e' NON VALIDA. Lo script non impedisce niente e non uccide nessuno —
@@ -659,6 +687,113 @@ function Get-Snapshot {
     }
 }
 
+function Compare-Snapshot {
+    <#
+    .SYNOPSIS
+        Dice cosa e' cambiato fra due snapshot. Nessun I/O: confronta due oggetti.
+
+    .DESCRIPTION
+        (!!) Pura, e per lo stesso motivo delle altre due (#2130, #2530): la finestra
+        che deve descrivere dura minuti e dipende da cosa fanno le ALTRE sessioni
+        della macchina, quindi non si riproduce a comando. Qui le si passano due
+        snapshot costruiti a mano - vedi `-SelfTest`.
+
+        (!!) Restituisce un oggetto e non la lista: PowerShell SROTOLA una collezione
+        restituita da una funzione, e `$d.Count` su una lista di un elemento
+        risponderebbe con la lunghezza della STRINGA. Il difetto sarebbe silenzioso e
+        proprio nel caso a un elemento, che qui e' quello comune.
+    #>
+    param($Entry, $Current)
+
+    $diffs = New-Object System.Collections.Generic.List[string]
+
+    if ($null -ne $Entry -and $null -ne $Current) {
+        if ($Entry.Head -ne $Current.Head) {
+            $diffs.Add(("HEAD      {0} -> {1}" -f $Entry.Head.Substring(0, 8), $Current.Head.Substring(0, 8)))
+        }
+        if ($Entry.TreeHash -ne $Current.TreeHash) {
+            $diffs.Add(("albero    {0} ({1} file) -> {2} ({3} file)" -f `
+                $Entry.TreeHash, $Entry.PathCount, $Current.TreeHash, $Current.PathCount))
+            # Gli stessi due rami del confronto di fine run: i path che sono comparsi o
+            # spariti sono cio' che serve per ATTRIBUIRE, e sono gia' in memoria.
+            $cmp = Compare-Object -ReferenceObject @($Entry.Paths) -DifferenceObject @($Current.Paths) -ErrorAction SilentlyContinue
+            if ($cmp) {
+                foreach ($d in $cmp) {
+                    $segno = if ($d.SideIndicator -eq '=>') { 'comparso' } else { 'sparito ' }
+                    $diffs.Add(("          {0}  {1}" -f $segno, $d.InputObject.Trim()))
+                }
+            } else {
+                $diffs.Add("          gli stessi path, contenuto diverso: qualcuno ha riscritto un file gia' modificato")
+            }
+        }
+        if ($Entry.Dlls -ne $Current.Dlls) {
+            $diffs.Add(("binario   {0}" -f $Entry.Dlls))
+            $diffs.Add(("       -> {0}" -f $Current.Dlls))
+        }
+    }
+
+    return [pscustomobject]@{
+        Changed = ($diffs.Count -gt 0)
+        Lines   = $diffs
+    }
+}
+
+function Say-Drift {
+    <#
+    .SYNOPSIS
+        Stampa se lo stato e' cambiato rispetto all'ingresso, e registra la differenza.
+
+    .DESCRIPTION
+        (!!) **Dice qualcosa ANCHE quando nulla e' cambiato**, ed e' il punto di #2532:
+        prima, `stato ridichiarato` compariva identico nei due casi, e le due righe di
+        digest erano stampate ma nessuno le confrontava. Il silenzio sull'invarianza e'
+        cio' che rendeva i due referti indistinguibili.
+    #>
+    param($Entry, $Current)
+
+    $d = Compare-Snapshot -Entry $Entry -Current $Current
+    if (-not $d.Changed) {
+        Say '  (invariato rispetto all''ingresso)'
+        return
+    }
+
+    # Si ACCUMULA, non si sovrascrive: fra lock e motore le attese sono due, e la
+    # seconda non deve cancellare cio' che la prima ha visto.
+    if ($null -eq $script:WaitDrift) {
+        $script:WaitDrift = New-Object System.Collections.Generic.List[string]
+    }
+    Say '  CAMBIATO rispetto all''ingresso:'
+    foreach ($l in $d.Lines) {
+        Say "     $l"
+        $script:WaitDrift.Add($l)
+    }
+}
+
+function Say-WaitVerdict {
+    <#
+    .SYNOPSIS
+        Porta nel REFERTO cio' che e' cambiato durante l'attesa. Vale per entrambi i verdetti.
+
+    .DESCRIPTION
+        (!!) **Non cambia l'esito, e la scelta e' deliberata** (#2532). Ri-baselinare
+        dopo l'attesa ha senso: fra l'ingresso e il rilascio possono passare venti
+        minuti, e chi aspetta lavora su altro nel frattempo — invalidare renderebbe
+        l'attesa inutile, cioe' toglierebbe la funzione che #2346 ha aggiunto.
+
+        Cio' che mancava non era un verdetto: era che il referto lo DICESSE. Una
+        misura su uno stato diverso da quello richiesto resta una misura valida di
+        quello stato; e' chi la registra che deve poter decidere, e per `RT3_CONTRACT.md`
+        §5 senza questa riga non puo'.
+
+        (!!) Sta in ENTRAMBI i rami del verdetto: una run che cade per altro e una che
+        passa hanno lo stesso bisogno di dichiarare su cosa sono girate.
+    #>
+    if ($null -eq $script:WaitDrift -or $script:WaitDrift.Count -eq 0) { return }
+    Say '  attesa    lo stato e'' CAMBIATO durante l''attesa: la misura e'' su quello NUOVO,'
+    Say '            non su quello per cui e'' stata chiesta.'
+    foreach ($l in $script:WaitDrift) { Say "            $l" }
+}
+
 function Wait-EngineWindow {
     <#
     .SYNOPSIS
@@ -826,6 +961,158 @@ function Get-LockWaitMs {
     return [int][math]::Round($ms)
 }
 
+# ----------------------------------------------------- REFERTO (PURO)
+function Resolve-LogFindings {
+    <#
+    .SYNOPSIS
+        Legge il log di una run e dice cosa NON torna. Nessun I/O, nessun orologio.
+
+    .DESCRIPTION
+        (!!) Pura per lo stesso motivo di `Resolve-EngineState`: un motore che muore
+        a meta' non si fabbrica a comando, e finche' questa regola vive dentro il
+        flusso che avvia l'Editor la voce di DoD «un crash non esce VALIDA» si chiude
+        su un aneddoto. Qui le si passa un log scritto a mano e si controlla il
+        verdetto - vedi `-SelfTest`.
+
+        (!!) Non ha una seconda sede: il flusso principale CHIAMA questa funzione, non
+        ne tiene una copia. Due copie di una regola divergono.
+    #>
+    param(
+        [string] $Log,
+        [string] $Filter
+    )
+
+    $found = $null; $completed = 0; $started = 0; $failed = 0
+    $problems = New-Object System.Collections.Generic.List[string]
+
+    if ($log -match 'Found (\d+) automation tests') { $found = [int]$Matches[1] }
+    $completed = ([regex]::Matches($log, 'Test Completed\.')).Count
+    $started   = ([regex]::Matches($log, 'Test Started\.')).Count
+    $failed    = ([regex]::Matches($log, 'Result=\{Fail\}')).Count
+
+    # 🔴 **Un crash del motore invalida la run QUALUNQUE sia il conteggio, e la
+    # domanda si fa PRIMA di contare.** Misurato il 2026-09-06 (#2530): una
+    # mutazione mandava `(*Arr)[2]` fuori dai limiti, il motore e' morto su
+    # `appError`, e la run e' uscita `VALIDA` con `exit 0` e ZERO test conclusi —
+    # `performed = 0` restituito come successo, cioe' la non-equivalenza che
+    # `RT3_CONTRACT.md` §3 enuncia per prima, prodotta dallo strumento che esiste
+    # per dichiararla.
+    #
+    # ⚠️ **Questo controllo copre un caso che nessun conteggio vede**: una suite
+    # INTERA che crashi sull'ULTIMO test ha `started == found` e un solo dangling,
+    # cioe' esattamente la firma della coda di shutdown sana. Senza guardare il
+    # log, quel crash passa per rumore.
+    #
+    # ⚠️ **`IndexOf` ordinale e non una regex con alternanza**, per due motivi: due
+    # dei marcatori contengono `===` e `.`, che in una regex andrebbero escapati; e
+    # un'alternanza che colpisce non dice QUALE ramo abbia colpito, mentre qui il
+    # marcatore e' meta' della diagnosi. Si nomina il marcatore e si riporta la sua
+    # riga.
+    $fatalMarkers = @('appError called', '=== Critical error: ===', 'Assertion failed:', 'Fatal error:')
+    foreach ($marker in $fatalMarkers) {
+        $idx = $log.IndexOf($marker, [System.StringComparison]::Ordinal)
+        if ($idx -lt 0) { continue }
+
+        $lineStart = $log.LastIndexOf("`n", $idx) + 1
+        $lineEnd = $log.IndexOf("`n", $idx)
+        if ($lineEnd -lt 0) { $lineEnd = $log.Length }
+        # `.Trim()` e non un `^.*$` multiline: in .NET `.` matcha anche `\r`, e su un
+        # log CRLF la riga catturata si porterebbe dietro il ritorno a capo.
+        $riga = $log.Substring($lineStart, $lineEnd - $lineStart).Trim()
+        if ($riga.Length -gt 160) { $riga = $riga.Substring(0, 157) + '...' }
+
+        $problems.Add("motore    crash nel log: «$marker»")
+        $problems.Add("          $riga")
+        break
+    }
+
+    if ($null -eq $found) {
+        # ⚠️ Misurato: con un filtro che non corrisponde a nessun test UE **non
+        # scrive affatto** la riga `Found N` — non scrive `Found 0`.
+        #
+        # 🔴 **«Found N assente» copriva DUE diagnosi opposte in una riga sola**
+        # (#2393). L'Editor che muore in avvio e il filtro senza corrispondenze
+        # danno entrambi `0/?, 0 fail`, ma il rimedio e' opposto: nel primo caso si
+        # aspetta e si rimisura, nel secondo si corregge il filtro. Chi legge una
+        # riga che li nomina insieme non sa quale dei due sta guardando.
+        #
+        # Il discriminante e' se l'Editor sia MAI arrivato alla fase di automation:
+        # `LogAutomationController` compare appena il controller si registra, prima
+        # ancora di sapere quanti test esistano.
+        $automationRaggiunta = $Log.IndexOf('LogAutomationController', [System.StringComparison]::Ordinal) -ge 0
+
+        if ($automationRaggiunta) {
+            $problems.Add("copertura il log non dichiara «Found N automation tests», ma la fase di automation e' stata")
+            $problems.Add("          raggiunta: il filtro '$Filter' non corrisponde a nessun test")
+        }
+        else {
+            $problems.Add("avvio     l'Editor non ha raggiunto la fase di automation: il log si ferma prima.")
+            $problems.Add("          Non e' un filtro sbagliato e non e' una suite rossa: la run non e' mai partita.")
+
+            # L'ultima riga scritta e' la sola cosa che dice DOVE si e' fermato, e
+            # nel caso misurato viveva in un log che sparisce col worktree.
+            $righe = $Log -split "`n"
+            for ($i = $righe.Count - 1; $i -ge 0; $i--) {
+                $ultima = $righe[$i].Trim()
+                if ($ultima) {
+                    if ($ultima.Length -gt 160) { $ultima = $ultima.Substring(0, 157) + '...' }
+                    $problems.Add("          ultima riga: $ultima")
+                    break
+                }
+            }
+
+            # 🔑 **La causa misurata su worktree nuovo, con il suo rimedio** (#2393).
+            # Il primo avvio scarica e installa 4,8 GB di dipendenze Python — torch,
+            # torchvision, tensorboard — e la run scade durante quella fase. Non e' un
+            # difetto permanente: e' un costo di primo avvio, e la seconda run dello
+            # stesso checkout ha fatto 35/35 in 22 secondi.
+            if ($Log.IndexOf('Installing collected packages', [System.StringComparison]::Ordinal) -ge 0 -or
+                $Log.IndexOf('PipInstall', [System.StringComparison]::Ordinal) -ge 0) {
+                $problems.Add("          ^ e' il bootstrap di Intermediate/PipInstall: 4,8 GB di dipendenze Python al")
+                $problems.Add("            PRIMO avvio di un checkout nuovo. Scaldare il worktree con un avvio dedicato")
+                $problems.Add("            e rimisurare — misurato il 2026-09-05: la seconda run 35/35 in 22 secondi.")
+            }
+        }
+    } elseif ($completed -lt $found) {
+        # 🔴 La troncatura e' la meta' silenziosa del difetto, e non si vede dai
+        # fallimenti: due run sono morte a 641/1175 e 662/1191 con ZERO rossi.
+        #
+        # ⚠️ **La soglia e' `$started`, non `$found`, e la differenza e' misurata**:
+        # su una suite intera l'ULTIMO test perde regolarmente la riga di
+        # conclusione nel flush di shutdown — `clean-baseline.log` riporta 1232
+        # avviati e 1231 conclusi, run perfettamente sana. Invalidare su `$found`
+        # avrebbe dichiarato NON VALIDA ogni suite completa con quella coda, cioe'
+        # avrebbe reso lo script inutile proprio nel caso per cui esiste.
+        # Cio' che conta e' quanti test sono PARTITI: se non sono partiti tutti, la
+        # run e' stata troncata.
+        if ($started -lt $found) {
+            $problems.Add(("copertura {0}/{1} avviati: la run e' stata troncata ({2} non partiti, {3} fallimenti)" -f $started, $found, ($found - $started), $failed))
+        }
+        elseif ($found -eq 1) {
+            # 🔴 **La tolleranza vale solo se c'e' una coda da tollerare.** La sua
+            # giustificazione e' che l'ULTIMO test di una suite perde la riga di
+            # conclusione nel flush di shutdown: su 1232 test, `avviati - conclusi = 1`
+            # e' rumore. Su un filtro che seleziona ESATTAMENTE un test, lo stesso `1`
+            # e' il 100% della misura, e «l'ultimo» e' anche «l'unico».
+            #
+            # ⚠️ E' il caso che conta di piu', non un caso limite: la verifica per
+            # mutazione RICHIEDE filtri stretti — si muta una riga e si esegue il test
+            # che deve cadere. `found` vale 1 o 2 per costruzione, ed e' li' che la
+            # tolleranza smette di essere rumore.
+            $problems.Add(("copertura {0}/1 completati: un test solo avviato e mai concluso non ha una lettura benigna" -f $completed))
+            $problems.Add("          (la coda di shutdown copre l'ULTIMO test di una suite, non l'UNICO)")
+        }
+    }
+
+    return [pscustomobject]@{
+        Found     = $found
+        Started   = $started
+        Completed = $completed
+        Failed    = $failed
+        Problems  = $problems
+    }
+}
+
 if ($SelfTest) {
     $failures = 0
     $total = 0
@@ -955,6 +1242,172 @@ if ($SelfTest) {
     Assert-LockMs 'budget negativo'    -60   0     0
     Assert-LockMs 'speso negativo'     60    -10   60000
 
+
+    # ------------------------------------------------- REFERTO SUL LOG (#2530)
+    # 🔴 **La coppia che conta e' `coda-sana` / `crash-ultimo-test`**: stessi identici
+    # conteggi - 1232 trovati, 1232 avviati, 1231 conclusi - e verdetti opposti. E' la
+    # dimostrazione che il controllo sul log vede cio' che nessun conteggio vede: un
+    # crash sull'ULTIMO test di una suite intera ha la firma esatta della coda di
+    # shutdown sana, e prima di questo controllo usciva VALIDA.
+    function New-FakeLog {
+        param(
+            [int] $Found = -1,
+            [int] $Started = 0,
+            [int] $Completed = 0,
+            [int] $Failed = 0,
+            [string] $Extra = '',
+            # ⚠️ **L'assenza di questa riga E' il discriminante di #2393**: se
+            # `LogAutomationController` non compare mai, l'Editor non e' arrivato alla
+            # fase di automation e il verdetto e' «non partito», non «filtro a vuoto».
+            [switch] $NoAutomationPhase
+        )
+        $sb = New-Object System.Text.StringBuilder
+        if (-not $NoAutomationPhase) { $null = $sb.AppendLine('LogAutomationController: Display: Test Filter: Finto') }
+        if ($Found -ge 0) { $null = $sb.AppendLine("LogAutomationController: Found $Found automation tests") }
+        for ($i = 0; $i -lt $Started; $i++)   { $null = $sb.AppendLine('LogAutomationController: Test Started. Name={Finto}') }
+        for ($i = 0; $i -lt $Completed; $i++) { $null = $sb.AppendLine('LogAutomationController: Test Completed. Result={Success}') }
+        for ($i = 0; $i -lt $Failed; $i++)    { $null = $sb.AppendLine('LogAutomationController: Result={Fail}') }
+        if ($Extra) { $null = $sb.AppendLine($Extra) }
+        return $sb.ToString()
+    }
+
+    function Assert-Log {
+        param([string] $Name, [string] $Log, [bool] $ExpectValida, [string] $ExpectContains = '')
+        $script:total++
+        $r = Resolve-LogFindings -Log $Log -Filter 'Finto'
+        $valida = ($r.Problems.Count -eq 0)
+        $ok = ($valida -eq $ExpectValida)
+        if ($ok -and $ExpectContains) {
+            $ok = [bool]($r.Problems | Where-Object { $_ -like "*$ExpectContains*" })
+        }
+        if (-not $ok) { $script:failures++ }
+        Say ("{0}  {1,-22} {2}/{3} conclusi, {4} problemi (atteso valida={5})" -f `
+            $(if ($ok) { 'ok  ' } else { 'ROTTO' }), $Name, $r.Completed, $r.Found, $r.Problems.Count, $ExpectValida)
+        if (-not $ok) { foreach ($pb in $r.Problems) { Say "        > $pb" } }
+    }
+
+    $crashAppError = '[2026.09.05-23.19.29:255][595]LogWindows: Error: appError called: Assertion failed: (Index >= 0) & (Index < ArrayNum)'
+
+    Say 'self-test del referto sul log (#2530)'
+    # La coda di shutdown su una suite intera resta SANA: e' la tolleranza che il
+    # docstring giustifica con `clean-baseline.log`, e non deve cadere.
+    Assert-Log 'coda-sana'          (New-FakeLog -Found 1232 -Started 1232 -Completed 1231) $true
+    Assert-Log 'suite-completa'     (New-FakeLog -Found 174 -Started 174 -Completed 174 -Failed 2) $true
+    Assert-Log 'un-test-concluso'   (New-FakeLog -Found 1 -Started 1 -Completed 1) $true
+    # 🔑 Il caso di #2530, alla lettera: un test solo, avviato, mai concluso, motore morto.
+    Assert-Log 'crash-un-test'      (New-FakeLog -Found 1 -Started 1 -Completed 0 -Extra $crashAppError) $false 'crash nel log'
+    # Lo stesso conteggio SENZA crash: cade lo stesso, per la regola della tolleranza.
+    Assert-Log 'un-test-appeso'     (New-FakeLog -Found 1 -Started 1 -Completed 0) $false 'lettura benigna'
+    # 🔑 Il gemello di `coda-sana`: conteggi identici, una riga di crash in piu'.
+    Assert-Log 'crash-ultimo-test'  (New-FakeLog -Found 1232 -Started 1232 -Completed 1231 -Extra 'LogWindows: Error: === Critical error: ===') $false 'crash nel log'
+    Assert-Log 'crash-assertion'    (New-FakeLog -Found 4 -Started 4 -Completed 4 -Extra 'LogCore: Error: Assertion failed: Check(bValid) [Line: 12]') $false 'Assertion failed'
+    Assert-Log 'troncata'           (New-FakeLog -Found 100 -Started 60 -Completed 60) $false 'troncata'
+    Assert-Log 'filtro-a-vuoto'     (New-FakeLog -Found -1) $false 'non corrisponde a nessun test'
+
+    # --------------------------------------- AVVIO CONTRO RACCOLTA (#2393)
+    # 🔴 **La coppia `filtro-a-vuoto` / `editor-morto-in-avvio`**: prima davano
+    # entrambe `0/?, 0 fail` e la STESSA riga di diagnosi, mentre i rimedi sono
+    # opposti — correggere il filtro, oppure aspettare e rimisurare. Il
+    # discriminante e' se `LogAutomationController` sia mai comparso.
+    $logPip = @(
+        'LogInit: Display: Engine is initialized.',
+        'LogPython: Installing collected packages: mpmath, chardet, urllib3, numpy, torch,',
+        '  torchvision, torchaudio, tensorboard, boto3'
+    ) -join "`n"
+    $logZen = 'LogZenServiceInstance: Display: Launching executable ''.../Zen/Install/zenserver'''
+
+    Assert-Log 'editor-morto-in-avvio' (New-FakeLog -Found -1 -NoAutomationPhase -Extra $logPip) $false 'PipInstall'
+    Assert-Log 'avvio-troncato-zen'    (New-FakeLog -Found -1 -NoAutomationPhase -Extra $logZen) $false 'non ha raggiunto la fase di automation'
+    # L'ultima riga scritta e' la sola cosa che dice DOVE si e' fermato, e nel caso
+    # misurato viveva in un log che sparisce col worktree.
+    Assert-Log 'avvio-nomina-la-riga'  (New-FakeLog -Found -1 -NoAutomationPhase -Extra $logZen) $false 'zenserver'
+
+
+    # ------------------------------------------- DERIVA DURANTE L'ATTESA (#2532)
+    # 🔴 **La coppia che porta la prova e' `attesa-stabile` / `mutazione-sparita`**, ed
+    # e' la trascrizione dei due casi misurati nella stessa sessione: M2 ha atteso 352s
+    # con l'albero STABILE, M1 ha atteso 791s con l'albero CAMBIATO, e i due referti
+    # erano indistinguibili. Qui non lo sono piu'.
+    function New-FakeSnapshot {
+        param(
+            [string] $Head = 'cdcf1dad0000000000000000000000000000dead',
+            [string] $TreeHash = 'cfe70ce5',
+            [string[]] $Paths = @(),
+            [string] $Dlls = 'RefactorTactics=2026-09-06 10:00:00/1024'
+        )
+        return [pscustomobject]@{
+            Head = $Head; TreeHash = $TreeHash
+            Paths = @($Paths); PathCount = @($Paths).Count; Dlls = $Dlls
+        }
+    }
+
+    function Assert-Drift {
+        param([string] $Name, $Entry, $Current, [bool] $ExpectChanged, [string] $ExpectContains = '')
+        $script:total++
+        $d = Compare-Snapshot -Entry $Entry -Current $Current
+        $ok = ($d.Changed -eq $ExpectChanged)
+        if ($ok -and $ExpectContains) {
+            $ok = [bool]($d.Lines | Where-Object { $_ -like "*$ExpectContains*" })
+        }
+        if (-not $ok) { $script:failures++ }
+        Say ("{0}  {1,-22} cambiato={2,-5} righe={3} (atteso cambiato={4})" -f `
+            $(if ($ok) { 'ok  ' } else { 'ROTTO' }), $Name, $d.Changed, $d.Lines.Count, $ExpectChanged)
+        if (-not $ok) { foreach ($l in $d.Lines) { Say "        > $l" } }
+    }
+
+    $mutato = New-FakeSnapshot -TreeHash 'cfe70ce5' -Paths @(' M Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp', ' M Scenarios/Movement/Choke.json')
+    $pulito = New-FakeSnapshot -TreeHash 'd2ffac9c' -Paths @(' M Scenarios/Movement/Choke.json')
+
+    Say 'self-test della deriva durante l''attesa (#2532)'
+    # M2: 352s di attesa, albero stabile. Deve dire INVARIATO, non tacere.
+    Assert-Drift 'attesa-stabile'     $mutato $mutato $false
+    # 🔑 M1: 791s di attesa, e la mutazione sparisce dal working tree. E' il caso della
+    # issue, e il referto deve NOMINARE il file sparito.
+    Assert-Drift 'mutazione-sparita'  $mutato $pulito $true 'RTScenarioLoader.cpp'
+    # Stessi path, contenuto diverso: il ramo che non ha nulla da elencare deve dirlo.
+    Assert-Drift 'stesso-path-altro'  $mutato (New-FakeSnapshot -TreeHash '9999aaaa' -Paths @(' M Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp', ' M Scenarios/Movement/Choke.json')) $true 'contenuto diverso'
+    Assert-Drift 'head-cambiato'      $mutato (New-FakeSnapshot -Head '4d79e8050000000000000000000000000000beef' -Paths @(' M Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp', ' M Scenarios/Movement/Choke.json')) $true 'HEAD'
+    # Il binario ricompilato durante l'attesa e' il secondo meta' del caso M1: sorgente
+    # pulito e binario mutato e' la coppia incoerente su cui la suite e' girata.
+    Assert-Drift 'binario-cambiato'   $mutato (New-FakeSnapshot -Paths @(' M Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp', ' M Scenarios/Movement/Choke.json') -Dlls 'RefactorTactics=2026-09-06 11:30:00/2048') $true 'binario'
+    # Difensivo: senza attesa non c'e' ingresso da confrontare, e non deve esplodere.
+    Assert-Drift 'snapshot-nullo'     $null   $pulito $false
+
+    # 🔴 **La funzione pura NON prova il cablaggio.** `Compare-Snapshot` puo' essere
+    # giusta e non chiamata da nessuno: sarebbe una regola inerte, e il referto
+    # tornerebbe muto esattamente come prima. Questo caso esercita la catena vera —
+    # `Say-Drift` accumula in `$script:WaitDrift`, `Say-WaitVerdict` la porta nel
+    # referto — e copre anche il fatto che le attese sono DUE (lock e motore): la
+    # seconda non deve cancellare cio' che la prima ha visto.
+    $script:WaitDrift = $null
+    $null = Say-Drift -Entry $mutato -Current $mutato          # invariata: non accumula
+    $null = Say-Drift -Entry $mutato -Current $pulito          # prima attesa
+    $null = Say-Drift -Entry $pulito -Current (New-FakeSnapshot -Head 'aaaaaaaa0000000000000000000000000000beef' -TreeHash 'd2ffac9c' -Paths @(' M Scenarios/Movement/Choke.json'))
+    $righe = @(Say-WaitVerdict)
+    $testo = ($righe -join ' | ')
+    $script:total++
+    # 5 = 2 di intestazione + 2 della prima attesa (albero, e il file sparito) + 1
+    # della seconda (HEAD). Il numero e' CONTATO su un esito osservato, non dedotto:
+    # la prima stesura ne aveva scritte 4 e il caso e' uscito ROTTO, che e' esattamente
+    # cio' che un'asserzione deve saper fare.
+    $okCablaggio = ($righe.Count -eq 5) -and
+                   ($testo -match 'CAMBIATO') -and
+                   ($testo -match 'RTScenarioLoader\.cpp') -and
+                   ($testo -match 'HEAD')
+    if (-not $okCablaggio) { $script:failures++ }
+    Say ("{0}  {1,-22} righe nel referto={2} (attese 5: 2 intestazione + albero e file sparito + HEAD)" -f `
+        $(if ($okCablaggio) { 'ok  ' } else { 'ROTTO' }), 'cablaggio-referto', $righe.Count)
+    if (-not $okCablaggio) { foreach ($r in $righe) { Say "        > $r" } }
+
+    # Il referto di una run senza attesa non deve portare la sezione.
+    $script:WaitDrift = $null
+    $script:total++
+    $vuoto = @(Say-WaitVerdict)
+    $okMuto = ($vuoto.Count -eq 0)
+    if (-not $okMuto) { $script:failures++ }
+    Say ("{0}  {1,-22} righe nel referto={2} (attese 0: senza attesa la sezione non esiste)" -f `
+        $(if ($okMuto) { 'ok  ' } else { 'ROTTO' }), 'senza-attesa', $vuoto.Count)
+
     if ($failures -gt 0) {
         Say ("self-test ROSSO: {0} caso/i non conforme/i su {1}" -f $failures, $total)
         exit 1
@@ -968,6 +1421,24 @@ if ($SelfTest) {
 
 $before = Get-Snapshot
 Say-Preamble $before
+
+# 🔴 **Lo stato d'INGRESSO, che non si sovrascrive mai** (#2532). `$before` viene
+# ridichiarato dopo il lock e dopo l'attesa del motore — ed e' giusto che lo sia:
+# fra l'ingresso e il rilascio possono passare venti minuti, e pretendere che nulla
+# sia cambiato renderebbe l'attesa inutile. Cio' che mancava e' che chi ha lanciato
+# lo SAPPIA: `stato ridichiarato` si stampava identico sia che nulla fosse cambiato,
+# sia che fosse cambiato tutto.
+#
+# Misurato il 2026-09-06: durante un'attesa di 791s una mutazione e' sparita dal
+# working tree, la suite e' girata su un sorgente pulito con un binario mutato, e il
+# referto ha dichiarato `albero d2ffac9c` - l'albero PULITO - senza una riga che
+# dicesse che era cambiato. Nella stessa sessione un'altra attesa di 352s con albero
+# stabile ha prodotto un referto INDISTINGUIBILE.
+$entry = $before
+
+# La lista delle differenze fra ingresso e ri-dichiarazione, se ce ne sono. Nulla
+# finche' nessuno aspetta, che e' il caso di `-WaitMinutes 0` (il default).
+$script:WaitDrift = $null
 
 # 🔴 **Inizializzata, e non e' pedanteria.** Un `Set-StrictMode -Version Latest`
 # nel profilo di chi lancia si propaga nello scope dello script, e leggere una
@@ -1047,6 +1518,7 @@ if ($script:LockElapsed -ge 1.0) {
     Say ('lock ottenuto dopo {0:N0}s: stato ridichiarato' -f $script:LockElapsed)
     $before = Get-Snapshot
     Say-Preamble $before
+    Say-Drift -Entry $entry -Current $before
 }
 
 # UN budget per DUE attese: i secondi andati nel lock non tornano disponibili per il
@@ -1162,6 +1634,7 @@ if ($before.LiveCount -gt 0 -and $budgetSeconds -gt 0) {
     if (Test-EngineFree $before) {
         Say ("motore libero dopo {0:N0}s: stato ridichiarato" -f $script:WaitElapsed)
         Say-Preamble $before
+        Say-Drift -Entry $entry -Current $before
     }
     elseif ($before.EngineError) {
         Say ("attesa interrotta dopo {0:N0}s: la query sui processi e' fallita" -f $script:WaitElapsed)
@@ -1322,33 +1795,12 @@ if (-not (Test-Path $LogPath)) {
         $problems.Add(("log       stantio: scritto alle {0:HH:mm:ss}, la run e' partita alle {1:HH:mm:ss}" -f $logFile.LastWriteTime, $startedAt))
     }
     $log = Get-Content $LogPath -Raw
-    if ($log -match 'Found (\d+) automation tests') { $found = [int]$Matches[1] }
-    $completed = ([regex]::Matches($log, 'Test Completed\.')).Count
-    $started   = ([regex]::Matches($log, 'Test Started\.')).Count
-    $failed    = ([regex]::Matches($log, 'Result=\{Fail\}')).Count
-
-    if ($null -eq $found) {
-        # ⚠️ Misurato: con un filtro che non corrisponde a nessun test UE **non
-        # scrive affatto** la riga `Found N` — non scrive `Found 0`. Quindi questo
-        # ramo copre due casi diversi, e vanno nominati entrambi: chi ha sbagliato
-        # il filtro non deve cercare un difetto della run.
-        $problems.Add("copertura il log non dichiara «Found N automation tests»: filtro '$Filter' senza corrispondenze, o run mai partita")
-    } elseif ($completed -lt $found) {
-        # 🔴 La troncatura e' la meta' silenziosa del difetto, e non si vede dai
-        # fallimenti: due run sono morte a 641/1175 e 662/1191 con ZERO rossi.
-        #
-        # ⚠️ **La soglia e' `$started`, non `$found`, e la differenza e' misurata**:
-        # su una suite intera l'ULTIMO test perde regolarmente la riga di
-        # conclusione nel flush di shutdown — `clean-baseline.log` riporta 1232
-        # avviati e 1231 conclusi, run perfettamente sana. Invalidare su `$found`
-        # avrebbe dichiarato NON VALIDA ogni suite completa con quella coda, cioe'
-        # avrebbe reso lo script inutile proprio nel caso per cui esiste.
-        # Cio' che conta e' quanti test sono PARTITI: se non sono partiti tutti, la
-        # run e' stata troncata.
-        if ($started -lt $found) {
-            $problems.Add(("copertura {0}/{1} avviati: la run e' stata troncata ({2} non partiti, {3} fallimenti)" -f $started, $found, ($found - $started), $failed))
-        }
-    }
+    $referto = Resolve-LogFindings -Log $log -Filter $Filter
+    $found     = $referto.Found
+    $completed = $referto.Completed
+    $started   = $referto.Started
+    $failed    = $referto.Failed
+    foreach ($p in $referto.Problems) { $problems.Add($p) }
 }
 
 $dangling = $started - $completed
@@ -1358,6 +1810,7 @@ Write-Output ''
 if ($problems.Count -gt 0) {
     Say 'NON VALIDA'
     foreach ($p in $problems) { Say "  $p" }
+    Say-WaitVerdict
     Say ("  esito     {0}/{1}, {2} fail  -> NON REGISTRABILE" -f $completed, $(if ($null -eq $found) { '?' } else { $found }), $failed)
     Say '  Non e'' rosso e non e'' verde: la misura non vale, e si rifa''. Il regime di piu'''
     Say '  sessioni sulla stessa working directory e'' dichiarato in D-222.'
@@ -1367,6 +1820,7 @@ if ($problems.Count -gt 0) {
 
 Say 'VALIDA'
 Say ("  HEAD      {0}  albero {1}" -f $after.Head.Substring(0,8), $after.TreeHash)
+Say-WaitVerdict
 Say ("  esito     {0}/{1} completati, {2} fallimenti" -f $completed, $found, $failed)
 if ($dangling -gt 0) {
     Say ("  nota      {0} test avviati senza riga di conclusione (coda di shutdown, non una troncatura)" -f $dangling)

@@ -462,6 +462,42 @@ Per la stessa ragione **`READY` e `BLOCKED` non sono stati persistiti**: sono de
 grafo più l'avanzamento, e li calcola il planner a ogni richiesta. Gli unici stati salvati
 sono i quattro che nessuno può dedurre — `PENDING`, `IN_PROGRESS`, `VALIDATED`, `DONE`.
 
+### La modalità: dove una issue viene lavorata
+
+Accanto all'avanzamento il RUNTIME registra **una** cosa in più, e serve a chiudere un
+difetto reale: `mode` ∈ `PERMANENT_WRITER | TEMPORARY_WORKTREE`.
+
+🔴 Il piano è derivato e non viene salvato. Prima che questo campo esistesse, il planner
+suggeriva `TEMPORARY_WORKTREE_SUGGESTED`, qualcuno eseguiva il suggerimento, e al giro
+successivo il planner rileggeva soltanto `IN_PROGRESS` — contando quell'item come writer
+**permanente**. Con `writerCapacity: 1` si arrivava a `used 2 / capacity 1`: il vincolo
+sforato eseguendo il piano che quel vincolo doveva rispettare, e nessuno che lo dicesse.
+
+```powershell
+scripts\rt3.ps1 roadmap state set EPIC-B/B4 --progress IN_PROGRESS --mode TEMPORARY_WORKTREE
+```
+
+⚠️ **Omettere `--mode` significa `PERMANENT_WRITER`**, che è la lettura conservativa:
+occupa la risorsa più scarsa. Chi lavora su un worktree temporaneo **deve** dichiararlo,
+altrimenti il piano conta un writer permanente che non è occupato.
+
+⚠️ `mode` **non** è conservata quando non viene ridichiarata: appartiene alla presa in
+carico corrente. Tenerla in vita quando una issue esce da `IN_PROGRESS` e ci rientra
+altrove significherebbe contare la risorsa sbagliata.
+
+`SUGGESTED` non esiste fra i valori salvabili: il planner **propone**, il RUNTIME registra
+ciò che è stato **fatto**. Conflaterli renderebbe indistinguibile un consiglio da un fatto.
+
+### `overCommitted`: lo stato impossibile si dichiara
+
+`roadmap plan` porta sempre il campo `overCommitted`, anche vuoto. Elenca le risorse il cui
+uso **supera** la capacità dichiarata — cosa che il planner non produce mai da sé, ma che
+accade quando due sessioni si dichiarano `IN_PROGRESS` sullo stesso gruppo senza passare di
+qui.
+
+⛔ Va dichiarato, non corretto in silenzio: un piano che nasconde uno stato impossibile è
+peggio di uno che lo espone, perché chi legge crede che il vincolo regga.
+
 ### Comandi
 
 ```powershell
@@ -513,18 +549,178 @@ L'ordine è totale e non ha tie-break casuali:
 2. **earliest start crescente** — ciò che può partire prima;
 3. **ordine di dichiarazione** — l'unica priorità che qualcuno ha scritto.
 
+### La precedenza del cammino critico è assoluta (D-345)
+
+Conseguenza diretta di quell'ordine, e **decisione accettata**, non un difetto: le risorse
+globali — `wip.global` e `temporaryWorktrees` — vanno a chi ha slack minore, fino a
+esaurirsi. Una lane può quindi restare **ferma con le proprie risorse libere**.
+
+È il caso che la prima wave su Epic reali ha prodotto: con `wip.global: 4`, DEV e MAIN
+consumano il budget e DESIGNER non parte, pur avendo il writer a `0/1`.
+
+Il piano lo **dice**, invece di lasciarlo dedurre:
+
+```text
+EPIC-1990/1993  DESIGNER  WIP_GLOBAL
+  limite WIP globale raggiunto (4), consumato da EPIC-2388/2402, EPIC-2388/2404, ...
+  ⚠️ DESIGNER ha risorse LIBERE - writer DESIGNER (0/1) - e resta fermo lo stesso:
+     il budget globale e' gia' stato speso da item con priorita' maggiore.
+     La precedenza del cammino critico e' assoluta per decisione accettata;
+     alzare `wip.global` e' la leva che libera questa lane.
+```
+
+⚠️ **La leva è `wip.global`**, non una modifica al planner. Chi vuole che una lane parta
+comunque alza il budget nella roadmap: è una scelta di quanto lavoro tenere aperto, e sta
+nel PLAN dove si può leggere e discutere, non in una regola di allocazione nascosta nel
+codice.
+
 ---
 
-## 13. Limiti della v1
+## 13. Risorse esclusive: i lease
+
+Il control plane era un **registro**: annotava chi diceva di essere writer, e non
+impediva nulla. L'audit lo ha misurato — due sessioni `WRITER` sullo stesso albero,
+accettate senza un fiato. Ora c'è un'invariante, e non è una convenzione:
+
+```text
+WriterCount(WorktreePath) <= 1
+```
+
+### Chi la fa rispettare
+
+Non il codice applicativo, ma **SQLite**:
+
+```sql
+CREATE UNIQUE INDEX idx_lease_exclusive
+    ON leases(resource_type, resource_key) WHERE state='ACTIVE'
+```
+
+🔴 Non c'è nessun `SELECT` + *«se è libero»* + `INSERT`. La `INSERT` viene tentata e
+basta: se un'altra sessione tiene la risorsa, l'indice la fa fallire, e **quello** è il
+rifiuto. Fra il controllo e la scrittura non c'è finestra, perché non c'è controllo — ed è
+la differenza che si vede sotto due terminali che partono insieme.
+
+⚠️ La clausola `WHERE state='ACTIVE'` è obbligatoria: senza, un lease rilasciato
+impedirebbe per sempre di riacquisire la stessa risorsa.
+
+### Due risorse, non due nomi della stessa
+
+| Risorsa | Chiave | Cosa protegge |
+|---|---|---|
+| `GIT_WRITER` | path **canonico** dell'albero | due scrittori nella stessa directory |
+| `UNREAL_EDITOR` | identità del repository | due Editor sullo stesso progetto |
+
+🔴 La chiave di `GIT_WRITER` è il **path**, non il workspace group. `DEV` è un'etichetta:
+due checkout possono entrambi dichiararsi `DEV`, e due sessioni nello stesso albero
+possono dichiarare gruppi diversi. Ciò che non si può condividere è la **directory**.
+
+⚠️ Il path è canonicalizzato (`realpath` + `abspath` + `normcase`): su Windows lo stesso
+albero si scrive in almeno quattro modi che il filesystem considera identici, e
+confrontarli come stringhe lascerebbe passare il secondo writer.
+
+Una sessione può tenerne una, l'altra, entrambe o nessuna.
+
+### Quando si acquisisce e quando si rilascia
+
+```text
+session start --write-mode WRITER   →  acquisisce, o la sessione NON viene registrata
+session set --write-mode WRITER     →  acquisisce prima di cambiare modo
+session set --write-mode READ_ONLY  →  rilascia
+session stop                        →  rilascia tutto
+```
+
+⛔ Il lease sta **dentro la stessa transazione** della sessione: se la risorsa è occupata,
+il rollback toglie anche la sessione. Non resta registrata una riga che si crede `WRITER`
+senza esserlo — ed è quella riga che il planner leggerebbe.
+
+```powershell
+scripts\rt3.ps1 leases list
+scripts\rt3.ps1 writer claim   # / release
+scripts\rt3.ps1 unreal claim   # / release
+scripts\rt3.ps1 lease release GIT_WRITER <chiave> --force
+```
+
+### Sessioni morte: `STALE`, non liberate
+
+`STALE` non è una colonna: è **derivato** dal fatto che il proprietario non sia più
+`ACTIVE`. Salvarlo richiederebbe che qualcuno lo aggiornasse al momento giusto, e quel
+momento è precisamente quello in cui la sessione è morta senza dire nulla.
+
+⚠️ **Un lease stale NON viene liberato automaticamente**, e non viene rubato. Il control
+plane non sa distinguere una sessione morta da una che tace, e liberare la risorsa da solo
+significherebbe farlo mentre qualcuno ci scrive. Il recovery è manuale ed esplicito:
+`lease release --force`, che resta tracciato in `released_by`.
+
+Stessa ragione per il **restart di `rt3d`**: i lease sopravvivono. Liberarli al riavvio
+significherebbe che riavviare il daemon — cosa che si fa per mille motivi — autorizza un
+secondo scrittore su un albero dove qualcuno sta lavorando.
+
+### Il planner li legge
+
+`plan()` riceve una `RuntimeResourceSnapshot` prodotta dallo store: chi tiene i lease
+adesso. È un **confine** — il planner resta puro e non apre mai il database — e chiude il
+P0 per cui il piano dichiarava `writer DEV 0/1` mentre due sessioni tenevano quell'albero.
+
+⚠️ Con la snapshot, i writer permanenti si contano **da lì** e non dagli item
+`IN_PROGRESS`: sommare le due fonti conterebbe due volte lo stesso lavoro. Il campo
+`runtime.used` nel piano dice sempre se una snapshot è stata usata, perché un piano che non
+sa chi sta scrivendo deve poterlo dichiarare.
+
+⛔ Il risultato per un secondo scrittore resta `TEMPORARY_WORKTREE_SUGGESTED`: nessun
+worktree viene creato. Questa milestone rende corrette le invarianti di ownership, non
+automatizza Git.
+
+---
+
+## 14. Propagare una modifica fra i workspace
+
+Il control plane coordina tre workspace; prima o poi una modifica al control plane stesso
+deve raggiungerli. La strada si sceglie **dai fatti**, e i fatti sono uno solo:
+
+```bash
+git -C <dir> rev-parse --git-common-dir     # uguale = stesso repo; diverso = cloni
+```
+
+| Caso misurato | Strategia | Perché |
+|---|---|---|
+| `SAME_REPO` — worktree dello stesso repository | **nessun trasporto** | gli oggetti sono già condivisi: il commit è visibile subito. Integrare è un merge o un cherry-pick **locale** |
+| `DISTINCT_CLONES` — cloni distinti | `fetch` da **path locale** + materializzazione | il trasporto resta su disco. GitHub serve all'**integrazione** (PR, review, main), non al trasporto |
+| `NOT_A_REPO` — Git non utilizzabile | copia controllata, **ultima risorsa** | va autorizzata esplicitamente, e dichiara i file trasferiti |
+
+```powershell
+python tools\rt3\distribute.py --to <path> --commit <sha> --paths tools/rt3 --dry-run
+```
+
+⚠️ **Il nome della directory non decide.** Su questa macchina
+`refactor-tactics-technical-designer` *contiene* un clone senza esserlo: misurato dà
+`NOT_A_REPO`, mentre il `refactor-tactics-main` annidato dentro dà `DISTINCT_CLONES`.
+
+⛔ **La copia non parte se il bersaglio è un repository**, nemmeno con `--allow-copy`.
+Senza questo rifiuto «copia come fallback» passerebbe sempre, e nessun test potrebbe
+distinguere l'ultima risorsa dall'abitudine.
+
+Lo strumento **non integra**: niente merge, niente checkout, `HEAD` e indice non si
+muovono. In un working tree condiviso spostare `HEAD` significa spostarlo sotto un'altra
+sessione, e l'integrazione appartiene a chi possiede il ramo.
+
+⚠️ Materializza con `git archive`, non con `git checkout <sha> -- <path>`: il secondo
+scrive nell'**indice** del bersaglio, e un `git commit` di un'altra sessione assorbirebbe
+quei file nel proprio commit.
+
+---
+
+## 15. Limiti della v1
 
 Reali, misurati, non ipotetici:
 
-- **Il `WriteMode` non è imposto.** La colonna esiste, `1 worktree = 1 WRITER` non è
-  verificato da nessuno. Il modello dati è pronto; l'enforcement è della milestone
-  successiva.
-- **I lease sono metadati.** La tabella `leases` e gli eventi `*_LEASE_*` annunciano, non
-  concedono. Il lease del motore resta di `rt-lease.ps1`, e `LEASE_GRANTED` pubblicato qui
-  non dà accesso a Unreal.
+- ~~**Il `WriteMode` non è imposto.**~~ ✅ **Superato.** `WriterCount(WorktreePath) <= 1`
+  è imposto da un indice unico parziale — §13 di questo stesso documento. Questa riga
+  diceva il contrario di §13, ed è stata corretta il 2026-09-07.
+- ~~**I lease sono metadati.**~~ ✅ **Superato per il control plane.** `leases` concede:
+  due sessioni RT3 non possono dichiararsi proprietarie della stessa risorsa, e il
+  rifiuto arriva dall'indice. ⚠️ Resta vero che **il control plane non apre Unreal**: il
+  lease del motore è di `rt-lease.ps1`, e possedere `UNREAL_EDITOR` qui non impedisce a
+  una persona di avviare l'Editor fuori da RT3.
 - **Il write-set non è verificato.** Una sessione può dichiarare qualunque cosa; nulla
   confronta la dichiarazione con ciò che tocca davvero.
 - **Nessuna autenticazione.** È localhost single-user. Il bind è su `127.0.0.1` e non su
@@ -545,9 +741,12 @@ Reali, misurati, non ipotetici:
 Della Roadmap Orchestration in particolare:
 
 - **Il worktree temporaneo è un suggerimento.** Il planner dice che serve; nessuno lo crea.
-- **L'assignment non nomina una sessione.** Dice *quale workspace* e *con che modalità*, non
-  *quale SessionId*: legare un item a una sessione richiederebbe di sapere quando quella
-  sessione muore, e non c'è heartbeat.
+  Chi lo usa lo **dichiara** con `--mode TEMPORARY_WORKTREE`: il control plane registra il
+  fatto, non lo verifica. Nessuno controlla che quel worktree esista davvero.
+- ~~**L'assignment non nomina una sessione.**~~ ✅ **Superato in parte.** Quando la
+  risorsa che serve è già di una sessione viva e libera, l'assignment porta
+  `ownerSessionId` e il lavoro va a lei, nel suo albero. Resta vero che un assignment
+  verso una sessione **da aprire** non nomina nessuno: quel nome non esisterebbe ancora.
 - **Il gate `requires` non è verificato contro la realtà.** `VALIDATED` significa «qualcuno
   ha dichiarato VALIDATED», non «la suite è passata». Il legame con l'evidenza passa dal
   `candidate`, ed è una convenzione, non un vincolo.
@@ -555,6 +754,25 @@ Della Roadmap Orchestration in particolare:
   impedisce a due sessioni di scrivere nello stesso checkout: lo dice il piano, non il
   filesystem. Stesso limite del `WriteMode` qui sopra.
 - **`estimate` è adimensionale.** Il cammino critico è in unità di stima, non in ore.
+
+---
+
+## 16. Work3, Editor singleton e tempo
+
+Quattro gruppi di decisioni hanno una sede propria in
+[`RT3_WORK3_AND_EDITOR.md`](RT3_WORK3_AND_EDITOR.md), perché descrivono il modello
+operativo e non i comandi:
+
+- **Work3** — i tre worktree sono capacità parallele, non tre fasi della stessa feature;
+- **ownership** — un task resta di chi lo possiede, anche quando passa dall'Editor;
+- **Unreal singleton** — una sola capacità, la coda che la serializza, e perché il lease
+  non deve duplicare i dati che sono già sulla sessione;
+- **contratto temporale** — quali istanti esistono, quali no, e perché le durate non si
+  salvano.
+
+🔴 Quel documento dichiara per ogni decisione se è **implementata**, **decisa e non
+implementata** o **decisa e non testata**. Non tutto ciò che vi è scritto esiste nel
+codice, ed è detto riga per riga.
 
 ---
 

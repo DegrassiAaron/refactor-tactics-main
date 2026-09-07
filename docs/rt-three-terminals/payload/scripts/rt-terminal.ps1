@@ -131,6 +131,26 @@ function global:rtlease {
     Invoke-RTScript -Script "rt-lease.ps1" @args2
 }
 
+function global:rtbuild {
+    <#
+        Compila DENTRO il lease (#2529). `Build.bat` era il solo passo del gate che
+        tocca il motore senza passare da nessun guard: ricompilare sotto la suite di
+        un altro checkout rende NON VALIDA la sua misura.
+
+        Non attende: se il motore e' occupato la build e' FERMATA, non sconsigliata.
+    #>
+    param(
+        [ValidateSet("RefactorTacticsEditor", "RefactorTactics")] [string] $Target = "RefactorTacticsEditor",
+        [ValidateSet("Development", "DebugGame", "Shipping")] [string] $Configuration = "Development",
+        [string] $TaskId = "",
+        [string[]] $ExtraArgs = @()
+    )
+    $args2 = @("-Target", $Target, "-Configuration", $Configuration)
+    if (-not [string]::IsNullOrWhiteSpace($TaskId)) { $args2 += @("-TaskId", $TaskId) }
+    if ($ExtraArgs.Count -gt 0) { $args2 += @("-ExtraArgs"); $args2 += $ExtraArgs }
+    Invoke-RTScript -Script "rt-build.ps1" @args2
+}
+
 function global:rtmcp {
     param(
         [ValidateSet("MCP_EDITOR_QUERY", "MCP_ASSET_WRITE")] [string] $Operation = "MCP_ASSET_WRITE",
@@ -141,6 +161,30 @@ function global:rtmcp {
     if (-not [string]::IsNullOrWhiteSpace($TaskId)) { $args2 += @("-TaskId", $TaskId) }
     if ($AssetWriteSet.Count -gt 0) { $args2 += @("-AssetWriteSet"); $args2 += $AssetWriteSet }
     Invoke-RTScript -Script "rt-mcp-guard.ps1" @args2
+}
+
+function global:rttask {
+    <#
+        Task router: chi deve lavorare adesso. E' un quarto concetto, distinto dai
+        tre che questo terminale gia' porta - ruolo di sessione, identita' del
+        workspace, lease del motore - e non ne tocca nessuno.
+
+        Da una sessione con ruolo restano disponibili le letture (`list`, `status`,
+        `assignment`, `route`) e `report`. Le mutazioni del routing - `init`,
+        `assign`, `close` - le rifiuta il router: le scrive il Coordinator, che gira
+        senza RT_TERMINAL_ROLE.
+
+        Passa gli argomenti cosi' come sono, quindi valgono sia `rttask list` sia
+        `rttask status -TaskId 2330`.
+    #>
+    param([Parameter(ValueFromRemainingArguments = $true)] $Rest)
+
+    $forwarded = @()
+    if ($null -ne $Rest) { $forwarded = @($Rest) }
+    if ($forwarded.Count -eq 0) { $forwarded = @('-Action', 'list') }
+
+    $args2 = $forwarded + @('-WorkspaceRoot', $global:RTWorkspaceRoot)
+    Invoke-RTScript -Script "rt-task-router.ps1" @args2
 }
 
 function global:rtstatus {
@@ -195,6 +239,15 @@ function global:prompt {
     Write-Host $ws -NoNewline -ForegroundColor Cyan
     Write-Host "] " -NoNewline -ForegroundColor DarkGray
 
+    # Il task compare solo se c'e'. Il prompt e' UX: la fonte del routing resta lo
+    # store per macchina, e `rttask status` e' cio' che lo legge.
+    $task = $env:RT_TASK_ID
+    if (-not [string]::IsNullOrWhiteSpace($task)) {
+        Write-Host "[TASK:" -NoNewline -ForegroundColor DarkGray
+        Write-Host $task -NoNewline -ForegroundColor Magenta
+        Write-Host "] " -NoNewline -ForegroundColor DarkGray
+    }
+
     $cwd = (Get-Location).Path
     Write-Host $cwd -ForegroundColor DarkGray
 
@@ -230,5 +283,26 @@ Write-Host ""
 Write-Host "(!) Aprire questo terminale NON acquisisce Unreal. Il lease si prende just-in-time." -ForegroundColor DarkGray
 Write-Host ""
 rtstatus
+
+# ---------------------------------------------------------------------------
+# Routing del task
+# ---------------------------------------------------------------------------
+
+# Sola lettura. Un mismatch STAMPA e non corregge: la sessione sbagliata non deve
+# poter riscrivere il routing per "sistemarlo", ed e' la stessa ragione per cui il
+# titolo della finestra qui sotto e' UX e non una fonte.
+if (-not [string]::IsNullOrWhiteSpace($TaskId)) {
+    Write-Host ""
+    $routeArgs = @("-Action", "route", "-TaskId", $TaskId, "-Role", $Role, "-WorkspaceRoot", $WorkspaceRoot)
+    Invoke-RTScript -Script "rt-task-router.ps1" @routeArgs
+
+    try {
+        $Host.UI.RawUI.WindowTitle = "RT3 $Role - #$TaskId"
+    } catch {
+        # Non tutti gli host espongono un titolo scrivibile. E' decorazione: la sua
+        # assenza non cambia niente, e non giustifica di fermare l'avvio.
+    }
+}
+
 Write-Host ""
-Write-Host "Comandi: rtstatus | rtws | rtlease | rtmcp | rtsuite ..." -ForegroundColor Gray
+Write-Host "Comandi: rtstatus | rtws | rtlease | rtmcp | rtbuild | rtsuite | rttask ..." -ForegroundColor Gray

@@ -357,6 +357,186 @@ bool FRTCounterTracesIncomingSideTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Due contrattacchi nello stesso Blast tengono ciascuno la PROPRIA origine e il PROPRIO autore** (`#2587`).
+ *
+ * Fino al 2026-09-06 il pass usciva con SEI array paralleli — colpo, cella, `ActionId`, `BaseActionId`,
+ * priorita', autore — e il commento della struct dichiarava il rischio invece di toglierlo:
+ * *«disallinearli attribuirebbe un contrattacco all'unita' sbagliata»*. Nessun test lo copriva, perche' con
+ * UN solo contrattacco in scena ogni permutazione dei sei array da' lo stesso risultato: servono DUE record
+ * perche' uno scambio sia osservabile.
+ *
+ * 🔑 **L'oracolo evita la geometria di proposito.** La voce `Combat` del TurnLog porta gia' quattro dei
+ * cinque satelliti — `SrcCell`, `ActionId`, `BaseActionId`, `Priority` — e come SOGGETTO l'autore del colpo
+ * (`RTTurnManager.cpp`, il ciclo che emette le voci d'attacco). Confrontarli non richiede di ragionare sugli
+ * spicchi dell'esagono, ed e' esattamente cio' che un disallineamento romperebbe: il colpo di A verrebbe
+ * registrato con l'identita' di B.
+ *
+ * ⚠️ **Le due scene sono duelli INDIPENDENTI e non un 2v2.** Ogni attaccante ha il proprio bersaglio: senza
+ * questo i due contrattacchi potrebbero puntare la stessa unita' e le due voci diventerebbero
+ * indistinguibili — il test resterebbe verde su uno scambio.
+ *
+ * 🔴 **La prima stesura vedeva DUE satelliti su cinque, e diceva di vederli tutti.** Dava a entrambi i
+ * reattori `Action.Counter`, quindi `ActionId`, `BaseActionId` e `Priority` erano IDENTICI fra i due record:
+ * scambiarli era un no-op che nessuna assertion poteva rilevare, e `ActionId` era per giunta usato come
+ * FILTRO invece che come oggetto della prova. Restavano coperti solo `SourceCell` e l'autore. Trovato da
+ * VALIDATION (`counter-attack-record/1-F5`) — ed erano tre dei sei campi che gli array paralleli
+ * disallineavano.
+ *
+ * 🔑 **Percio' le due identita' sono IMPOSTE nella fixture, e non e' un trucco.** Il catalogo non produce
+ * due reazioni a danno distinguibili: `Reaction.CounterShot` eredita da `Action.Counter` **fase, priorita' e
+ * trigger** (`MakeEquipmentAction`: `Def = Core`, poi cambiano solo `ActionId` e gli effetti), quindi
+ * `Priority` resterebbe `20` per entrambe. Scriverle a mano e' l'unico modo di avere due record che
+ * DIFFERISCONO in tutti e cinque i campi — ed e' l'idioma gia' in uso qui (`RTTurnLogCauseTests.cpp`).
+ * I valori restano quelli veri del dominio: `Reaction.CounterShot` e' un modulo reale, e la sua generica
+ * e' davvero `Action.Counter` (D-033).
+ *
+ * 🔴 **Anti-vacuita', per chi lo modifica**: scambiare fra loro DUE QUALUNQUE dei cinque satelliti dei due
+ * record — `SourceCell`, `ActionId`, `BaseActionId`, `Priority`, `Actor` — deve far fallire l'assertion
+ * corrispondente, mentre le due voci restano due. Se uno scambio non produce rosso, quel campo non e'
+ * coperto: e' esattamente il difetto che questa stesura ripara.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTwoCountersKeepOwnOriginTest,
+	"RefactorTactics.Reactions.Counter.TwoCountersKeepTheirOwnOrigin",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTwoCountersKeepOwnOriginTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World);
+
+	// Due duelli lontani fra loro: stessa geometria del duello singolo, traslata di tre celle.
+	ARTUnit* ReactorA = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* AttackerA = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTUnit* ReactorB = SpawnDefUnit(World, 0, FRTCellId(0, 3));
+	ARTUnit* AttackerB = SpawnDefUnit(World, 1, FRTCellId(1, 3));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("ReactorA"), ReactorA) || !TestNotNull(TEXT("AttackerA"), AttackerA)
+		|| !TestNotNull(TEXT("ReactorB"), ReactorB) || !TestNotNull(TEXT("AttackerB"), AttackerB)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	ReactorA->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(ReactorA, TEXT("Action.Counter"), 3);
+	ReactorA->PlannedAbilityIndex = INDEX_NONE;
+	ReactorB->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(ReactorB, TEXT("Action.Counter"), 3);
+	ReactorB->PlannedAbilityIndex = INDEX_NONE;
+
+	// Le due identita', DIVERSE in tutti e tre i campi: senza, scambiarle e' un no-op invisibile.
+	const FName IdAzioneA(TEXT("Action.Counter"));
+	const FName BaseAzioneA = NAME_None;               // il core non e' profilo di nessuna generica
+	const int32 PrioritaA = 20;                        // quella del catalogo per `Action.Counter`
+	const FName IdAzioneB(TEXT("Reaction.CounterShot"));
+	const FName BaseAzioneB(TEXT("Action.Counter"));   // il modulo E' un profilo del core (D-033)
+	const int32 PrioritaB = 21;
+
+	if (!ReactorA->Abilities.IsValidIndex(ReactorA->PlannedReactionAbility)
+		|| !ReactorB->Abilities.IsValidIndex(ReactorB->PlannedReactionAbility))
+	{
+		AddError(TEXT("la reazione non e' finita nello slot atteso: la fixture non descrive la scena"));
+		DestroyDefWorld(World);
+		return false;
+	}
+	URTActionData* AzioneA = ReactorA->Abilities[ReactorA->PlannedReactionAbility];
+	URTActionData* AzioneB = ReactorB->Abilities[ReactorB->PlannedReactionAbility];
+	AzioneA->Def.ActionId = IdAzioneA;
+	AzioneA->Def.BaseActionId = BaseAzioneA;
+	AzioneA->Def.Priority = PrioritaA;
+	AzioneB->Def.ActionId = IdAzioneB;
+	AzioneB->Def.BaseActionId = BaseAzioneB;
+	AzioneB->Def.Priority = PrioritaB;
+
+	// Ogni attaccante il PROPRIO bersaglio: e' cio' che rende le due coppie distinguibili.
+	AttackerA->PlannedAbilityIndex = 0; // attacco base, colpo singolo
+	AttackerA->PlannedAttackTarget = ReactorA;
+	AttackerB->PlannedAbilityIndex = 0;
+	AttackerB->PlannedAttackTarget = ReactorB;
+
+	// Catturate PRIMA del turno: nessuno si muove qui, ma leggerle dopo confonderebbe «dov'era quando ha
+	// contrattaccato» con «dov'e' adesso», che e' la stessa distinzione per cui il record porta la cella.
+	const FRTCellId CellaReactorA = ReactorA->Cell;
+	const FRTCellId CellaReactorB = ReactorB->Cell;
+	const FRTCellId CellaAttackerA = AttackerA->Cell;
+	const FRTCellId CellaAttackerB = AttackerB->Cell;
+
+	RunDefTurn(TM);
+
+	// ⚠️ E gli ID DOPO, che e' l'opposto delle celle e non una svista (`#2612`): `StableUnitId` nasce a
+	// **0** per tutti (`RTUnit.h`, `int32 StableUnitId = 0`) e lo assegna `EnsureMatchRoster()` dentro il
+	// turno — `RTTurnManager.cpp` lo dice gia': «al primo turno ogni `StableUnitId` valeva ancora 0».
+	// Leggerli prima catturava due zeri e li confrontava con gli autori veri, `1` e `2`: il test nasceva
+	// rosso, e la simmetria con le celle qui sopra e' precisamente cio' che lo ha fatto sembrare giusto.
+	// Le celle vanno lette prima perche' il turno le CAMBIA; gli id dopo perche' il turno li CREA.
+	const int32 IdReactorA = ReactorA->StableUnitId;
+	const int32 IdReactorB = ReactorB->StableUnitId;
+
+	// GUARDIA, non decorazione: se il roster tornasse ad assegnare gli id piu' tardi, questi due sarebbero
+	// di nuovo `0` — uguali fra loro — e i confronti sull'autore piu' sotto diventerebbero «zero contro
+	// zero», cioe' verdi senza provare niente. Fallire QUI dice che e' la premessa a essere caduta.
+	if (!TestNotEqual(TEXT("premessa: il roster ha assegnato gli id"), IdReactorA, IdReactorB))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// PREMESSA, non conclusione: con zero contrattacchi «ogni origine e' quella giusta» e' vero e vuoto.
+	if (!TestEqual(TEXT("premessa: entrambe le reazioni si sono attivate"),
+		CountDefensiveReactionOutcome(TM, ERTReactionOutcome::Activated), 2))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// 🔑 **L'ancora e' il BERSAGLIO, non un satellite.** `TgtCell` deriva da `Attacks[a].TargetIndex`, cioe'
+	// dal colpo stesso: e' l'unico campo che un disallineamento dei satelliti non puo' spostare, quindi e' il
+	// riferimento rispetto a cui gli altri cinque vanno verificati. I colpi di PARTENZA lasciano voci
+	// speculari — bersaglio il reattore — e non collidono con questa selezione.
+	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
+	const FRTTurnLogEntry* VoceA = nullptr;
+	const FRTTurnLogEntry* VoceB = nullptr;
+	int32 VociContrattacco = 0;
+	for (const FRTTurnLogEntry& E : Log)
+	{
+		if (E.Category != ERTLogCategory::Combat) { continue; }
+		if (E.TgtCell == CellaAttackerA) { VoceA = &E; ++VociContrattacco; }
+		if (E.TgtCell == CellaAttackerB) { VoceB = &E; ++VociContrattacco; }
+	}
+
+	TestEqual(TEXT("due contrattacchi, due voci di danno"), VociContrattacco, 2);
+	if (!TestNotNull(TEXT("il contrattacco su chi ha colpito A ha lasciato una voce"), VoceA)
+		|| !TestNotNull(TEXT("il contrattacco su chi ha colpito B ha lasciato una voce"), VoceB))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// TUTTI E CINQUE i satelliti, uno per riga: un fallimento dice QUALE campo si e' disallineato, che una
+	// tupla confrontata in blocco non direbbe.
+	TestTrue(TEXT("A: l'origine e' la cella di A"), VoceA->SrcCell == CellaReactorA);
+	TestEqual(TEXT("A: l'ActionId e' quello della reazione di A"), VoceA->ActionId, IdAzioneA);
+	TestEqual(TEXT("A: la generica e' quella di A"), VoceA->BaseActionId, BaseAzioneA);
+	TestEqual(TEXT("A: la priorita' e' quella di A"), VoceA->Priority, PrioritaA);
+	TestEqual(TEXT("A: l'autore e' A"), VoceA->UnitId, IdReactorA);
+
+	TestTrue(TEXT("B: l'origine e' la cella di B"), VoceB->SrcCell == CellaReactorB);
+	TestEqual(TEXT("B: l'ActionId e' quello della reazione di B"), VoceB->ActionId, IdAzioneB);
+	TestEqual(TEXT("B: la generica e' quella di B"), VoceB->BaseActionId, BaseAzioneB);
+	TestEqual(TEXT("B: la priorita' e' quella di B"), VoceB->Priority, PrioritaB);
+	TestEqual(TEXT("B: l'autore e' B"), VoceB->UnitId, IdReactorB);
+
+	// E le due identita' DIVERGONO davvero: senza queste righe il test resterebbe verde su una fixture che
+	// dia per sbaglio gli stessi valori a entrambi, cioe' sulla condizione che lo rendeva cieco.
+	TestNotEqual(TEXT("i due autori sono unita' diverse"), VoceA->UnitId, VoceB->UnitId);
+	TestNotEqual(TEXT("i due ActionId sono diversi"), VoceA->ActionId, VoceB->ActionId);
+	TestNotEqual(TEXT("le due generiche sono diverse"), VoceA->BaseActionId, VoceB->BaseActionId);
+	TestNotEqual(TEXT("le due priorita' sono diverse"), VoceA->Priority, VoceB->Priority);
+
+	DestroyDefWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCounterIgnoresEnvironmentalTest,
 	"RefactorTactics.Reactions.Counter.IgnoresEnvironmentalDamage",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

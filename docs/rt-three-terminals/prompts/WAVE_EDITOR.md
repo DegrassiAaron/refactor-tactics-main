@@ -142,7 +142,7 @@ Mappa:
 Modo:
 Player:
 SEED:
-SEED_SOURCE:  fixed | generated
+SEED_SOURCE:  canonical <sorgente> | none | generated
 Scenario:
 Atteso:
 Osservato:
@@ -150,6 +150,8 @@ TurnLog:
 ```
 
 `SEED_SOURCE: generated` non ammette `PASS` su `DETERMINISM`: registra il valore, ma la ripetizione non è dimostrata.
+
+⚠️ **Riporti il valore che DEV ha dichiarato, non uno tuo.** Il vocabolario è unico e sta in [`RT3_CONTRACT.md`](RT3_CONTRACT.md) §6. Fino al 2026-09-06 questo prompt scriveva `fixed`, che nominava ciò che DEV chiama `canonical`: `D-342` l'ha ritirato, perché un valore che un ruolo produce e un altro non riconosce non è un campo di handoff.
 
 Testa, se in scope: Planning · Ready · Commit · Snapshot · Movement · Collision · Targeting · LOS/Cover · Damage · Status · Control · Displacement · Reaction · Environment · Objective · KO/Cleanup · Next Turn.
 

@@ -89,7 +89,9 @@ Compila i campi della tabella in [`WAVE_DEV_LEAD.md`](WAVE_DEV_LEAD.md) per la p
 
 `Editor-visible expectation` è un'attesa che EDITOR verificherà. Marcala sempre `PREDICTED — NOT VERIFIED`: non apri l'Editor e non puoi osservarla.
 
-`SEED_SOURCE` è obbligatorio se introduci RNG, ed è lo stesso campo che `WAVE_VALIDATION.md` legge a valle: dichiararlo qui evita di scoprire dopo una sessione PIE che `DETERMINISM` non era dimostrabile. `unseeded` non è un valore accettabile; `generated` manda `DETERMINISM` in `BLOCKED`.
+`SEED_SOURCE` è obbligatorio se introduci RNG, ed è lo stesso campo che `WAVE_EDITOR.md` riporta e `WAVE_VALIDATION.md` legge a valle: dichiararlo qui evita di scoprire dopo una sessione PIE che `DETERMINISM` non era dimostrabile.
+
+Il vocabolario è uno solo e sta in [`RT3_CONTRACT.md`](RT3_CONTRACT.md) §6: `canonical <sorgente>` · `none` · `generated`. `unseeded` non è un valore accettabile; `generated` manda `DETERMINISM` in `BLOCKED`.
 
 ## 3. Architettura
 

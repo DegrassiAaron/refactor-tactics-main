@@ -14,6 +14,7 @@ lo scenario che l'integrazione produce. Sono due colonne separate apposta.
 """
 
 import datetime
+import os
 import re
 import uuid
 
@@ -52,6 +53,80 @@ ITEM_PROGRESS_STATES = ("PENDING", "IN_PROGRESS", "VALIDATED", "DONE")
 #: candidate appena creato non e' ne' passato ne' fallito, e conflaterlo con FAILED
 #: renderebbe indistinguibile «non ancora provato» da «provato e rotto».
 CANDIDATE_STATUSES = ("PENDING", "PASSED", "FAILED")
+
+#: Classi di messaggio. Non sono livelli di log: dicono che cosa il LETTORE deve fare.
+#:
+#: ⚠️ `NOTICE` non e' un warning e `BLOCKED` non e' un errore. Usare `warning` per uno
+#: stato normale addestra chi legge a ignorare i warning, ed e' il modo in cui un
+#: messaggio importante smette di essere letto.
+MESSAGE_CLASSES = ("STATUS", "NOTICE", "ACTION_REQUIRED", "BLOCKED", "ERROR")
+
+#: Livelli di dettaglio dello status.
+STATUS_LEVELS = ("compact", "normal", "verbose")
+
+#: Perche' una sessione non puo' procedere. Dato STRUTTURATO: il renderer lo trasforma
+#: in testo, e uno script lo confronta senza leggere la prosa.
+BLOCKING_REASONS = (
+    "DEPENDENCY",
+    "RESOURCE_WRITER",
+    "RESOURCE_UNREAL",
+    "WAITING_REVIEW",
+    "WAITING_VALIDATION",
+    "WORKTREE_MISMATCH",
+    "PROTOCOL_MISMATCH",
+    "ROADMAP_REVISION",
+)
+
+#: Cosa deve fare chi legge. Anche questo e' un dato, non una frase.
+REQUIRED_ACTIONS = (
+    "IMPLEMENT_ISSUE",
+    "WAIT_REVIEW",
+    "REVIEW_CANDIDATE",
+    "VALIDATE_CANDIDATE",
+    "OPEN_ADDITIONAL_DEV",
+    "CREATE_TEMP_WORKTREE",
+    "RESOLVE_WRITER_CONFLICT",
+    "NONE",
+)
+
+#: Stato di una sessione RICHIESTA da un piano di bootstrap.
+#:
+#: 🔴 `REQUIRED` e `ACTIVE` sono cose diverse e non vanno mai collassate: il planner puo'
+#: dire che serve un secondo DEV, ma finche' nessuno apre quel terminale la sessione NON
+#: esiste. Marcarla ACTIVE perche' e' stata suggerita renderebbe l'`epic check` una
+#: fotografia dei desideri invece che dei fatti.
+SESSION_REQUIREMENT_STATES = ("REQUIRED", "REQUESTED", "ACTIVE", "MISSING", "BLOCKED")
+
+#: Risorse ESCLUSIVE che una sessione puo' possedere. Sono due cose diverse e non vanno
+#: confuse: una sessione puo' tenere il writer di un albero senza avere l'Editor, e
+#: viceversa.
+#:
+#:     GIT_WRITER      chi puo' SCRIVERE in un albero di lavoro. Chiave: il path reale.
+#:     UNREAL_EDITOR   chi tiene l'Editor. Chiave: l'identita' del repository.
+#:
+#: 🔴 La chiave di `GIT_WRITER` e' il **path canonico**, non il workspace group. `DEV` e'
+#: un'etichetta di ruolo: due checkout diversi possono dichiararsi entrambi `DEV`, e due
+#: sessioni nello stesso albero possono dichiarare gruppi diversi. Cio' che non si puo'
+#: condividere e' la DIRECTORY, quindi e' la directory a fare da chiave.
+RESOURCE_TYPES = ("GIT_WRITER", "UNREAL_EDITOR")
+
+#: Stato di un lease. `STALE` non compare qui perche' non e' uno stato SALVATO: e'
+#: derivato dal fatto che la sessione proprietaria non sia piu' ATTIVA. Salvarlo
+#: richiederebbe che qualcuno lo aggiorni, e nessuno lo farebbe al momento giusto.
+LEASE_STATES = ("ACTIVE", "RELEASED")
+
+#: DOVE una issue viene lavorata, quando e' in corso. Non e' una preferenza: e' la
+#: risorsa che sta consumando adesso.
+#:
+#: 🔴 Esiste perche' il planner non puo' ricordare la propria decisione. Il piano e'
+#: DERIVATO e non viene salvato: suggerisce `TEMPORARY_WORKTREE_SUGGESTED`, e al giro
+#: successivo rilegge soltanto `IN_PROGRESS`. Senza questo campo contava quell'item come
+#: writer PERMANENTE, e la capacita' risultava `used 2 / capacity 1` - uno stato che il
+#: modello dichiara impossibile, raggiunto in silenzio eseguendo il piano stesso.
+#:
+#: `SUGGESTED` non compare qui apposta: il planner PROPONE, questo registra cio' che e'
+#: stato FATTO. Conflaterli renderebbe indistinguibile un consiglio da un fatto.
+ITEM_MODES = ("PERMANENT_WRITER", "TEMPORARY_WORKTREE")
 
 #: I tipi di evento che il control plane sa validare, salvare, instradare e mostrare.
 #: NON tutti hanno una regola di routing automatico (vedi `routing.py`): un tipo senza
@@ -168,6 +243,42 @@ def check_item_progress(value):
 
 def check_candidate_status(value):
     return _check_enum(value, CANDIDATE_STATUSES, "candidateStatus")
+
+
+def check_resource_type(value):
+    return _check_enum(value, RESOURCE_TYPES, "resourceType")
+
+
+def new_lease_id():
+    return "lease_" + uuid.uuid4().hex[:12]
+
+
+def canonical_path_key(path):
+    """Chiave stabile per una directory. Due sessioni nello stesso albero devono
+    produrre la STESSA chiave, anche scrivendola in modo diverso.
+
+    ⚠️ Su Windows lo stesso albero si scrive in almeno quattro modi che il filesystem
+    considera identici: maiuscole diverse, separatori misti (`D:/x` e `D:\\x`), un path
+    relativo, o un link. Confrontarli come stringhe grezze lascerebbe passare il secondo
+    writer - cioe' fallirebbe esattamente la domanda per cui questa funzione esiste.
+
+    `realpath` risolve i link, `abspath` il relativo, `normcase` maiuscole e separatori.
+    """
+    if not path:
+        return None
+    return os.path.normcase(os.path.abspath(os.path.realpath(str(path))))
+
+
+def check_item_mode(value):
+    """`None` e' ammesso: significa «non dichiarato».
+
+    Il planner lo tratta come `PERMANENT_WRITER`, che e' la lettura conservativa -
+    occupa la risorsa piu' scarsa. Assumere il temporaneo libererebbe un writer che
+    magari e' occupato davvero.
+    """
+    if value is None:
+        return None
+    return _check_enum(value, ITEM_MODES, "itemMode")
 
 
 def check_session_id(value):
