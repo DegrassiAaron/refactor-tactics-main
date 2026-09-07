@@ -713,12 +713,14 @@ quei file nel proprio commit.
 
 Reali, misurati, non ipotetici:
 
-- **Il `WriteMode` non è imposto.** La colonna esiste, `1 worktree = 1 WRITER` non è
-  verificato da nessuno. Il modello dati è pronto; l'enforcement è della milestone
-  successiva.
-- **I lease sono metadati.** La tabella `leases` e gli eventi `*_LEASE_*` annunciano, non
-  concedono. Il lease del motore resta di `rt-lease.ps1`, e `LEASE_GRANTED` pubblicato qui
-  non dà accesso a Unreal.
+- ~~**Il `WriteMode` non è imposto.**~~ ✅ **Superato.** `WriterCount(WorktreePath) <= 1`
+  è imposto da un indice unico parziale — §13 di questo stesso documento. Questa riga
+  diceva il contrario di §13, ed è stata corretta il 2026-09-07.
+- ~~**I lease sono metadati.**~~ ✅ **Superato per il control plane.** `leases` concede:
+  due sessioni RT3 non possono dichiararsi proprietarie della stessa risorsa, e il
+  rifiuto arriva dall'indice. ⚠️ Resta vero che **il control plane non apre Unreal**: il
+  lease del motore è di `rt-lease.ps1`, e possedere `UNREAL_EDITOR` qui non impedisce a
+  una persona di avviare l'Editor fuori da RT3.
 - **Il write-set non è verificato.** Una sessione può dichiarare qualunque cosa; nulla
   confronta la dichiarazione con ciò che tocca davvero.
 - **Nessuna autenticazione.** È localhost single-user. Il bind è su `127.0.0.1` e non su
@@ -741,9 +743,10 @@ Della Roadmap Orchestration in particolare:
 - **Il worktree temporaneo è un suggerimento.** Il planner dice che serve; nessuno lo crea.
   Chi lo usa lo **dichiara** con `--mode TEMPORARY_WORKTREE`: il control plane registra il
   fatto, non lo verifica. Nessuno controlla che quel worktree esista davvero.
-- **L'assignment non nomina una sessione.** Dice *quale workspace* e *con che modalità*, non
-  *quale SessionId*: legare un item a una sessione richiederebbe di sapere quando quella
-  sessione muore, e non c'è heartbeat.
+- ~~**L'assignment non nomina una sessione.**~~ ✅ **Superato in parte.** Quando la
+  risorsa che serve è già di una sessione viva e libera, l'assignment porta
+  `ownerSessionId` e il lavoro va a lei, nel suo albero. Resta vero che un assignment
+  verso una sessione **da aprire** non nomina nessuno: quel nome non esisterebbe ancora.
 - **Il gate `requires` non è verificato contro la realtà.** `VALIDATED` significa «qualcuno
   ha dichiarato VALIDATED», non «la suite è passata». Il legame con l'evidenza passa dal
   `candidate`, ed è una convenzione, non un vincolo.
@@ -751,6 +754,25 @@ Della Roadmap Orchestration in particolare:
   impedisce a due sessioni di scrivere nello stesso checkout: lo dice il piano, non il
   filesystem. Stesso limite del `WriteMode` qui sopra.
 - **`estimate` è adimensionale.** Il cammino critico è in unità di stima, non in ore.
+
+---
+
+## 16. Work3, Editor singleton e tempo
+
+Quattro gruppi di decisioni hanno una sede propria in
+[`RT3_WORK3_AND_EDITOR.md`](RT3_WORK3_AND_EDITOR.md), perché descrivono il modello
+operativo e non i comandi:
+
+- **Work3** — i tre worktree sono capacità parallele, non tre fasi della stessa feature;
+- **ownership** — un task resta di chi lo possiede, anche quando passa dall'Editor;
+- **Unreal singleton** — una sola capacità, la coda che la serializza, e perché il lease
+  non deve duplicare i dati che sono già sulla sessione;
+- **contratto temporale** — quali istanti esistono, quali no, e perché le durate non si
+  salvano.
+
+🔴 Quel documento dichiara per ogni decisione se è **implementata**, **decisa e non
+implementata** o **decisa e non testata**. Non tutto ciò che vi è scritto esiste nel
+codice, ed è detto riga per riga.
 
 ---
 
