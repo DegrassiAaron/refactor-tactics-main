@@ -1459,14 +1459,22 @@ bool FRTTurnLogLegacyWithoutReactionResponseTest::RunTest(const FString&)
 	Bytes[4] = static_cast<uint8>(static_cast<uint16>(ERTTurnLogFormatVersion::WithRedirectOrigin) & 0xFF);
 	Bytes[5] = static_cast<uint8>((static_cast<uint16>(ERTTurnLogFormatVersion::WithRedirectOrigin) >> 8) & 0xFF);
 
-	// Il token vuoto occupa 2 byte di lunghezza, subito prima del checksum (4 byte). Si tolgono quei 2 e si
-	// ricalcola il checksum sul payload accorciato.
+	// Si tolgono i byte dei campi aggiunti DOPO la v9 e si ricalcola il checksum sul payload accorciato.
+	// La somma esatta e' `BytesAfterV9` qui sotto: e' li' che vive la verita', non in questa prosa.
 	if (!TestTrue(TEXT("il file ha almeno checksum e token"), Bytes.Num() >= 6)) { return false; }
 	// ⚠️ **Va aggiornata a OGNI campo aggiunto in coda al record**, ed e' il prezzo di costruire una
-	// traccia «vecchia» patchandone una nuova: il layout della coda cambia sotto di lei. Oggi sono
-	// `ReactionResponse` (2 byte, stringa vuota) piu' `MicroStepIndex` (4 byte, v12) prima del checksum.
+	// traccia «vecchia» patchandone una nuova: il layout della coda cambia sotto di lei.
 	// Se un giorno fallisce con «una voce letta: 0», il primo sospetto e' un campo nuovo, non il lettore.
-	Bytes.RemoveAt(Bytes.Num() - 10, 6);
+	// ⚠️ **Il sospetto di cui sopra si e' avverato il 2026-09-07** (`#2534`): la v13 ha aggiunto
+	// `SightBlockerCell`, tre `int32` dopo il micro-step, e questo test e' fallito con *«una traccia in
+	// versione 9 resta leggibile» → false*. Sembrava una regressione del lettore ed era il numero cablato
+	// rimasto indietro. Scritto come somma, cosi' il prossimo bump aggiunge una riga invece di cercare
+	// perche' `10` e `6` non tornano piu'.
+	constexpr int32 BytesAfterV9 =
+		  2   // v10/v11: il token della risposta di reazione, stringa vuota
+		+ 4   // v12 (`#1880`): il micro-step
+		+ 12; // v13 (`#2534`): `SightBlockerCell`, tre int32
+	Bytes.RemoveAt(Bytes.Num() - 4 - BytesAfterV9, BytesAfterV9);
 	uint32 H = 2166136261u;
 	for (int32 i = 0; i < Bytes.Num() - 4; ++i) { H ^= Bytes[i]; H *= 16777619u; }
 	Bytes[Bytes.Num() - 4] = H & 0xFF;
@@ -1486,6 +1494,12 @@ bool FRTTurnLogLegacyWithoutReactionResponseTest::RunTest(const FString&)
 	TestEqual(TEXT("e il bersaglio pure"), Out[0].SelectedTargetUnitId, 3);
 	TestEqual(TEXT("e il token e' stato RICOSTRUITO dal bersaglio, non lasciato vuoto"),
 		Out[0].ReactionResponse, URTReactionOpportunityLibrary::FireResponse(3));
+	// Il campo della v13 su una traccia che non lo portava: resta la sentinella, **non si deduce** (`#2534`).
+	// E' l'unico asserto che copre il ramo `if (bHasSightBlocker)` del lettore: senza, togliere quella
+	// guardia non renderebbe rosso nulla, e una traccia v9 verrebbe letta come se portasse dodici byte che
+	// non ha. `SightBlockerSurvivesTheFormat` non lo copre — serializza e rilegge alla stessa versione.
+	TestEqual(TEXT("una traccia pre-v13 non guadagna un muro dal nulla"),
+		Out[0].SightBlockerCell.Layer, static_cast<int32>(INDEX_NONE));
 	return true;
 }
 
@@ -1588,6 +1602,68 @@ bool FRTTurnLogMicroStepRoundTripTest::RunTest(const FString&)
 		// sarebbe la ricostruzione che [D-310] vieta.
 		TestEqual(TEXT("il micro-step di una traccia vecchia e' 0, non dedotto"), E.MicroStepIndex, 0);
 	}
+
+	return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogSightBlockerRoundTripTest,
+	"RefactorTactics.TurnLog.SightBlockerSurvivesTheFormat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogSightBlockerRoundTripTest::RunTest(const FString&)
+{
+	// v13 (`#2534`): la cella che ha fermato il tiro viaggia con la voce. Se non sopravvivesse al formato,
+	// il replay tornerebbe a mostrare «nessuna linea di tiro» senza causa — cioe' il difetto che questa
+	// versione chiude — e nessun altro test se ne accorgerebbe, perche' il campo non entra nell'hash.
+	TArray<FRTTurnLogEntry> Voci;
+	{
+		FRTTurnLogEntry Muro = MakeSerEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat,
+			static_cast<uint8>(ERTCombatOutcome::NoLineOfSight), FRTCellId(-1, 0), FRTCellId(1, 0), 0);
+		Muro.SightBlockerCell = FRTCellId(0, 0, 0);
+		Voci.Add(Muro);
+
+		// ⛔ ANTI-VACUITA': una SECONDA cella diversa, e su un layer diverso. Con un solo muro a `(0,0,0)`
+		// il test passerebbe anche su un formato che scrivesse tre zeri fissi; e senza il layer a 1
+		// passerebbe su uno che serializza i soli assiali.
+		FRTTurnLogEntry Altrove = MakeSerEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat,
+			static_cast<uint8>(ERTCombatOutcome::NoLineOfSight), FRTCellId(4, 0), FRTCellId(6, 0), 0);
+		Altrove.SightBlockerCell = FRTCellId(5, -1, 1);
+		Voci.Add(Altrove);
+
+		// Una voce SENZA muro nominabile: la sentinella deve sopravvivere come tale, e non diventare
+		// `(0,0,0)` — che e' una cella legittima, e nominarla direbbe al giocatore una cosa falsa.
+		FRTTurnLogEntry Velato = MakeSerEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat,
+			static_cast<uint8>(ERTCombatOutcome::NoLineOfSight), FRTCellId(9, 0), FRTCellId(11, 0), 0);
+		Velato.SightBlockerCell = FRTTurnLogEntry::NoSightBlocker();
+		Voci.Add(Velato);
+	}
+
+	const TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog(Voci);
+
+	TArray<FRTTurnLogEntry> Rilette;
+	if (!TestTrue(TEXT("la traccia si rilegge"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Rilette)))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("tre voci"), Rilette.Num(), 3)) { return false; }
+
+	int32 Nominate = 0;
+	int32 Velate = 0;
+	bool bTrovatoPrimoPiano = false;
+	for (const FRTTurnLogEntry& E : Rilette)
+	{
+		if (E.HasSightBlocker())
+		{
+			++Nominate;
+			if (E.SightBlockerCell == FRTCellId(5, -1, 1)) { bTrovatoPrimoPiano = true; }
+		}
+		else
+		{
+			++Velate;
+		}
+	}
+
+	TestEqual(TEXT("due muri nominati sopravvivono"), Nominate, 2);
+	TestEqual(TEXT("e la voce velata resta velata"), Velate, 1);
+	TestTrue(TEXT("il layer sopravvive: (5,-1,L1) si rilegge intero"), bTrovatoPrimoPiano);
 
 	return true;
 }

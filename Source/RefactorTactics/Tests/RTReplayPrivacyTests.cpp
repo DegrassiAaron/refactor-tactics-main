@@ -72,6 +72,12 @@ namespace
 		E.SelectedTargetUnitId = 43;
 		E.OriginalTargetUnitId = 44;
 		E.ReactionResponse = TEXT("FIRE");
+		// `SightBlockerCell` (`#2534`, v13): il muro che ferma il tiro. Va **diverso dal default**
+		// `NoSightBlocker()` — `Layer = INDEX_NONE` — o il campo resterebbe al proprio default e
+		// `PublicFieldsKeepTheirValue` fallirebbe dichiarandolo «fermo», che e' esattamente il difetto che
+		// quel test esiste per prendere: un campo pubblico che nessuno copia passa inosservato finche' la
+		// fixture non lo satura.
+		E.SightBlockerCell = FRTCellId(2, -1, 1);
 		return E;
 	}
 }

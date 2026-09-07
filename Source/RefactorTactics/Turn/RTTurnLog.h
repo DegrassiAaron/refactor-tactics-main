@@ -1184,6 +1184,37 @@ struct FRTTurnLogEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	int32 MicroStepIndex = 0;
 
+	/**
+	 * La cella che ha fermato il tiro, per le voci `Combat`/`NoLineOfSight` (`#2534`, formato **v13**).
+	 * `NoSightBlocker()` significa **«non nominabile»**, e copre tre casi che il log non distingue di
+	 * proposito: la linea era libera, la traccia e' anteriore alla v13, oppure la squadra dell'attaccante
+	 * non conosceva quella cella.
+	 *
+	 * 🔴 **Che i tre casi collassino e' la scelta, non una perdita.** Distinguerli direbbe al giocatore
+	 * *«c'e' un muro, ma non te lo dico»*, che e' informazione sulla geometria velata — esattamente cio' che
+	 * [D-225] nasconde. Il silenzio deve essere indistinguibile dall'assenza.
+	 *
+	 * ⚠️ **Chi lo riempie applica `URTTurnLogLibrary::SightBlockerForLog`**, che e' dove vive il filtro di
+	 * conoscenza. Assegnarlo dalla `FRTLineOfSightResult` grezza salterebbe il filtro e nominerebbe celle
+	 * che il velo copre: il compilatore non lo impedisce, il test
+	 * `CombatLog.SightBlockerRespectsTeamKnowledge` si'.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	FRTCellId SightBlockerCell = FRTCellId(0, 0, INDEX_NONE);
+
+	/**
+	 * La sentinella di `SightBlockerCell`.
+	 *
+	 * ⚠️ **Non si usa `FRTCellId::IsValid()`**: quella verifica l'invariante cubica `q + r + z == 0`, che
+	 * per la cella di default `(0,0,0)` e' VERA. Una cella «vuota» e' quindi valida, e usarla come
+	 * sentinella nominerebbe l'origine dell'arena su ogni voce che non ha muro. Il marcatore e' il
+	 * `Layer` a `INDEX_NONE`, che nessun layer reale assume — la stessa convenzione di `StableUnitId`.
+	 */
+	static FRTCellId NoSightBlocker() { return FRTCellId(0, 0, INDEX_NONE); }
+
+	/** Vero se la voce porta un muro nominabile. */
+	bool HasSightBlocker() const { return SightBlockerCell.Layer != INDEX_NONE; }
+
 	FRTTurnLogEntry() = default;
 };
 
@@ -1367,7 +1398,49 @@ enum class ERTTurnLogFormatVersion : uint16
 	 * v11 resta leggibile e il campo vale `0` — non e' un'inferenza, e' che quei byte non contenevano
 	 * quell'informazione. Ricostruirla sarebbe cio' che [D-310] vieta.
 	 */
-	WithMicroStep = 12
+	WithMicroStep = 12,
+
+	/**
+	 * v13 (`#2534`): la voce `NoLineOfSight` porta la **cella che ha fermato il tiro**, quando la squadra
+	 * dell'attaccante la conosceva.
+	 *
+	 * 🔴 **Perche' nel formato e non ricalcolata in lettura.** Un viewer che ricalcolasse la LOS per
+	 * scrivere la causa sarebbe una seconda autorita' sulla linea di tiro — la cosa che
+	 * `DescribeLineOfSight` esiste per evitare — e leggerebbe la mappa di ADESSO per spiegare un tiro di
+	 * ALLORA: un muro distrutto nel frattempo cambierebbe la spiegazione di un fatto passato. La causa e'
+	 * un dato del momento in cui il colpo non e' partito, e viaggia con la voce.
+	 *
+	 * ⚠️ **Cumulativa**: la v13 implica la v12 e tutte quelle sotto. Una traccia v12 resta leggibile e il
+	 * campo vale `NoSightBlocker()` — non «nessun muro», ma «quei byte non portavano l'informazione», che
+	 * e' la stessa distinzione che [D-310] impone al micro-step.
+	 *
+	 * 🔑 **Il campo NON entra in `VisitDiscriminatingFields`**, ed e' deliberato: e' una spiegazione, non un
+	 * fatto della simulazione. Due tracce che differiscono solo per quale muro hanno nominato hanno
+	 * risolto lo stesso turno, e separarle per hash renderebbe rosso un replay corretto giocato da una
+	 * squadra con memoria diversa. Il vincolo che questo impone e' l'altra faccia della stessa medaglia:
+	 * **il campo non puo' influenzare nessuna decisione**, o il determinismo dipenderebbe da un dato che
+	 * l'hash non guarda.
+	 *
+	 * 🔑 **E non entra in `EntryLess`, benche' il formato lo SCRIVA.** `spec-turnlog-serialize.md` §61 pone
+	 * la regola — *«ogni campo che questo formato scrive deve stare anche in `EntryLess`»* — e ammette come
+	 * eccezione legittima il campo che **non puo' produrre pareggi perche' funzione di un altro**, com'e'
+	 * `BaseActionId` rispetto ad `ActionId`. Questo lo e': a parita' di `SrcCell`, `TgtCell` e `UnitId`
+	 * — tutte gia' chiavi del confronto — la cella bloccante e' determinata, perche' e' la stessa linea
+	 * valutata dalla stessa squadra. Ordinarci sopra non separerebbe nulla e cambierebbe la forma canonica,
+	 * invalidando il corpus: e' la stessa ragione per cui `MicroStepIndex` (v12) resta fuori.
+	 * ⚠️ Se un giorno la cella smettesse di essere funzione di quelle chiavi — un secondo produttore, o una
+	 * conoscenza che non sia quella dell'attaccante — l'eccezione decade e il campo va aggiunto.
+	 *
+	 * ⚠️ **LIMITE NOTO — il filtro guarda la squadra dell'ATTACCANTE, non quella di chi legge.** Il verdetto
+	 * della voce ha per soggetto l'attaccante, quindi la riga raggiunge ogni squadra che lo abbia osservato;
+	 * la cella pero' e' stata filtrata sulla conoscenza di chi ha sparato. Un avversario che veda
+	 * l'attaccante puo' quindi ricevere il nome di una cella che il **proprio** velo copre. Il caso e'
+	 * stretto — quella cella sta sul segmento fra due celle che il lettore gia' conosce — ma non e' vuoto.
+	 * ⛔ Non si chiude filtrando qui: [D-223] congela il verdetto alla scrittura e la voce e' **una sola**
+	 * per tutti gli autorizzati; una cella diversa per lettore uscirebbe dal formato canonico. La forma
+	 * corretta e' quella di [D-316] — sanificare il campo nella traccia per osservatore, alla registrazione.
+	 */
+	WithSightBlocker = 13
 };
 
 /**
@@ -1394,6 +1467,18 @@ enum class ERTTurnLogFormatVersion : uint16
  *
  * ⚠️ Il costo e' ~20 file binari nella PR che bumpa. E' lo stesso lavoro di sempre, pagato da chi cambia il
  * formato invece che accumulato a carico di chi passa di li' mesi dopo.
+ *
+ * 🔑 **Sono DICIANNOVE, non venti, e il ventesimo non va toccato** (misurato su `#2534`). `git ls-files
+ * '*.rttl'` ne conta 20, ma uno e' `Tests/Fixtures/Legacy/turnlog-v10-movement-collision.rttl`, che sta alla
+ * **v10 di proposito** per provare che il lettore regge le tracce vecchie. `RegenerateGolden` lo lascia dov'e'
+ * — correttamente. Chi conta venti file modificati aspetta un numero che non arrivera', o peggio rigenera
+ * anche quello e cancella il test di retrocompatibilita' senza che nulla diventi rosso.
+ *
+ * ⛔ **E c'e' un secondo file da aggiornare a mano, che nessun gate nomina**:
+ * `RefactorTactics.TurnLog.LegacyVersionWithoutReactionResponseIsReadable` costruisce una traccia al formato
+ * CORRENTE e la ridichiara `v9`, togliendo con un `RemoveAt` i byte dei campi aggiunti dopo la v9. Quel numero
+ * e' cablato: chi bumpa senza aggiornarlo vede fallire *«una traccia in versione 9 resta leggibile»* e cerca
+ * la regressione nel lettore, dove non c'e'. Nel test la lunghezza e' ora una somma per versione.
  */
 
 /**

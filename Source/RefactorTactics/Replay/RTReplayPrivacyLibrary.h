@@ -61,6 +61,17 @@ struct FRTPublicReplayEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
 	FRTCellId TgtCell;
 
+	/**
+	 * La cella che ha fermato il tiro, per le voci `NoLineOfSight` (`#2534`). `NoSightBlocker()` — cioe'
+	 * `Layer == INDEX_NONE` — quando non c'e' niente di nominabile.
+	 *
+	 * ⚠️ **Il nome deve restare identico a quello di `FRTTurnLogEntry`**: `PublicFieldBindings` accoppia i
+	 * due campi per riflessione sul NOME, non per posizione, e rinominarne uno solo spegnerebbe la copia con
+	 * un `ensure` invece che con un errore di compilazione.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
+	FRTCellId SightBlockerCell = FRTCellId(0, 0, INDEX_NONE);
+
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
 	int32 Amount = 0;
 
