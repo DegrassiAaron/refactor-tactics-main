@@ -387,9 +387,13 @@ public:
 	 * quindi cio' che si puo' sbagliare deve stare dove i test arrivano (#2184).
 	 *
 	 * 🔑 **Prende la VISTA, non l'unita'.** `FRTAbilityCooldownView` porta gia' `TurnsRemaining` e
-	 * `bUsableNow`, che questo Canvas rileggeva da `ARTUnit::GetAbilityCooldown` e `CanUseAbility` — e
-	 * `WBP_RT_ActionSlot` consuma gli stessi due campi. Con `rt.HUD.CanvasPanels` attivo le due vie rendono
-	 * nello stesso fotogramma: erano due sorgenti per un dato solo.
+	 * `bUsableNow`, che il Canvas rileggeva da `ARTUnit::GetAbilityCooldown` e `CanUseAbility` — e
+	 * `WBP_RT_ActionSlot` consuma gli stessi due campi: con entrambi i layer accesi erano due sorgenti per
+	 * un dato solo, rese nello stesso fotogramma.
+	 *
+	 * ⚠️ **Quel Canvas e' uscito** (#1936). Questa resta pura e testata perche' e' da qui che lo Screen HUD
+	 * in UMG (#613) prendera' testo e colore; finche' #613 non la consuma, il suo unico chiamante sono i
+	 * test.
 	 *
 	 * @param bArmed  l'abilita' scelta adesso (`ARTUnit::SelectedAbilityIndex`). E' SELEZIONE, non stato
 	 *                dell'abilita', e per questo non sta nella vista.

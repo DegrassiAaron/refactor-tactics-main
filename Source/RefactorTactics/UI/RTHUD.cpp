@@ -5,7 +5,6 @@
 #include "Unit/RTUnit.h"
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "Ability/RTActionData.h"
-#include "Player/RTPlayerController.h"
 #include "Player/RTPlayerState.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary::VisibleTrailFor
@@ -20,36 +19,8 @@
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Turn/RTMovementActionLibrary.h"
 #include "Engine/Canvas.h"
-#include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
 
-/**
- * L'interruttore dei pannelli **screen-space** di questo Canvas HUD.
- *
- * 🔴 **Taglia esattamente lungo il confine della spec**, e non e' una scorciatoia di comodo:
- * `progettazione-hud.md` separa il **§4.1 Screen HUD** — turno, fase, timer, combat log, barra abilita',
- * terna degli slot — dal **§4.2 Tactical World Overlay** — barre sopra le unita', path, waypoint, AoE,
- * fuoco amico. Questa variabile spegne il primo e **non tocca** il secondo.
- *
- * Serve perche' CP 11.7 sta ricostruendo il §4.1 in UMG (`WBP_RT_*`): finche' i due coesistono, le stesse
- * informazioni compaiono due volte a schermo, e i pannelli Canvas coprono le zone dove i widget nuovi
- * devono stare. Con `rt.HUD.CanvasPanels 0` si lavora sul layer nuovo senza il vecchio sotto.
- *
- * ⚠️ **Non e' una decisione di architettura**: quale dei due layer debba disegnare cosa resta aperto — il
- * piano lo chiama «Task 7-bis» — e questa variabile serve a poterlo *decidere guardando*, invece che a
- * deciderlo adesso cancellando codice coperto da `RefactorTactics.HUD.*`.
- *
- * Default `1`: il comportamento di prima resta quello che si ottiene senza fare nulla.
- */
-static TAutoConsoleVariable<int32> CVarHudCanvasPanels(
-	TEXT("rt.HUD.CanvasPanels"),
-	1,
-	TEXT("Pannelli screen-space del Canvas HUD (progettazione-hud.md §4.1).\n")
-	TEXT("  1 = accesi (default)  |  0 = spenti\n")
-	TEXT("Spegne: intestazione di turno, combat log, barra abilita', terna degli slot.\n")
-	TEXT("NON tocca il §4.2 world-space (barre sopra le unita', path, AoE, fuoco amico) ne' il banner\n")
-	TEXT("di scenario, che spiega perche' una mappa senza partita non mostra nulla."),
-	ECVF_Default);
 
 namespace
 {
@@ -916,58 +887,6 @@ void ARTHUD::DrawHUD()
 		}
 	}
 
-	// Letta UNA volta per frame, non a ogni pannello: tre `GetValueOnGameThread()` nello stesso `DrawHUD`
-	// potrebbero in teoria vedere valori diversi se la console cambiasse a meta' — e mezzo HUD acceso
-	// sarebbe piu' difficile da diagnosticare di entrambi gli stati interi.
-	const bool bCanvasPanels = CVarHudCanvasPanels.GetValueOnGameThread() != 0;
-
-	// Barra di stato in alto: turno, fase e timer/avanzamento. (§4.1 — vedi `rt.HUD.CanvasPanels`)
-	if (bCanvasPanels && TurnManager)
-	{
-		// La riga la COMPONE una statica pura (`ComposeMatchStatusLine`, #2184): qui restano la raccolta di
-		// cio' che serve e il tracciamento. Le decisioni — quando tacere un limite, un timer, un punteggio —
-		// vivono dove i test arrivano, per la stessa ragione di `ShouldDrawUnitOverlay` e `ComposeSlotLines`.
-		//
-		// ⚠️ **La vista viene da `BuildMatchHeader`, la stessa che alimenta lo Screen HUD.** Questo blocco
-		// leggeva i sette campi dall'attore per conto proprio: due sedi per lo stesso dato, allineate a mano —
-		// e il commento di `FRTMatchHeaderView::RoundLimit` citava proprio questo Canvas come riferimento.
-		const FRTMatchHeaderView Header = URTHudViewModel::BuildMatchHeader(TurnManager);
-
-		// ⚠️ **Nessuna guardia `bResolving` qui, e la prima stesura ne aveva una di troppo.** I due accessori
-		// rendono gia' stringa vuota e `0.f` fuori dal playback (`RTTurnManager.cpp:7318` e `:7335`), e il
-		// compositore li ignora quando la vista non e' in risoluzione: una terza sede per la stessa condizione
-		// e' una che si scollega dalle altre due il giorno in cui «in risoluzione» cambia definizione.
-		const FString PlaybackPhaseName = TurnManager->GetPlaybackPhaseName();
-		const float PlaybackProgress01 = TurnManager->GetPlaybackProgress01();
-
-		// L'obiettivo lo dichiara la MAPPA, non il formato. La reticenza che ne segue — tacere invece di
-		// scrivere `0-0` — sta nella funzione pura, dove un test la puo' vedere.
-		//
-		// ⚠️ `Map` e' quello gia' risolto in cima a `DrawHUD`: la prima stesura rifaceva
-		// `ARTHexMapActor::FindInWorld`, che e' un `TActorIterator` su tutto il livello, una seconda volta per
-		// fotogramma — e su un livello senza mappa entrambe le passate lo scorrevano intero per rendere nullo.
-		const bool bHasObjectiveCell = Map && Map->HasObjectiveCell();
-
-		FString Status = ComposeMatchStatusLine(Header, PlaybackPhaseName, PlaybackProgress01, bHasObjectiveCell);
-
-		// Il controllo di velocita' (CP 47.7, #1015). Sta nella riga di stato e non in un pannello suo
-		// perche' quella riga e' l'unico elemento sempre visibile durante la risoluzione — che e' quando
-		// serve — e perche' `progettazione-hud.md` §31 mette turn/phase/timer fra i persistenti.
-		//
-		// ⚠️ **Mostrato anche fuori dalla risoluzione, di proposito.** Chi guarda una partita non
-		// presidiata sceglie il ritmo PRIMA che il round parta: una manopola che compare solo mentre
-		// scorre costringe a inseguirla. Il tetto fuori dal playback non morde, quindi li' l'etichetta e'
-		// un numero solo.
-		//
-		// ⚠️ Il tasto e' nominato accanto al valore, come `(Spazio: salta)` due righe sopra: un HUD in
-		// Canvas non ha nulla su cui passare il mouse, quindi una scorciatoia non scritta e' una
-		// scorciatoia che non esiste.
-		Status += FString::Printf(TEXT("  -  Velocita': %s (V)"),
-			*ComposePlaybackSpeedLabel(TurnManager->ViewerPlaybackSpeed));
-		float TW = 0.f, TH = 0.f;
-		GetTextSize(Status, TW, TH, nullptr, 1.2f);
-		DrawText(Status, FLinearColor::White, (Canvas->SizeX - TW) * 0.5f, 16.f, nullptr, 1.2f);
-	}
 
 	// Banda «questa non e' una partita»: quando il GameMode sta eseguendo uno scenario, la partita normale non
 	// viene allestita e mancano unita' proprie, selezione e barra abilita'. Senza questa riga il sintomo non
@@ -989,87 +908,6 @@ void ARTHUD::DrawHUD()
 		}
 	}
 
-	// Combat log in basso a sinistra (dal piu' vecchio in alto al piu' recente in basso).
-	// (§4.1 — vedi `rt.HUD.CanvasPanels`)
-	if (bCanvasPanels && TurnManager)
-	{
-		const TArray<FString> Events = TurnManager->GetRecentEventsForTeam(PlayerTeamId);
-		const float LineH = 16.f;
-		float Y = Canvas->SizeY - 24.f - LineH * (Events.Num() - 1);
-		for (const FString& Line : Events)
-		{
-			DrawText(Line, FLinearColor(0.85f, 0.85f, 0.85f, 1.f), 16.f, Y, nullptr, 1.f);
-			Y += LineH;
-		}
-	}
-
-	// Barra abilita' dell'unita' selezionata (in basso al centro) e terna degli slot (in basso a destra).
-	// (§4.1 — vedi `rt.HUD.CanvasPanels`)
-	//
-	// ⚠️ Le due sezioni condividono una guardia sola perche' condividono il blocco della selezione: la
-	// barra abilita' e la terna leggono entrambe `Sel`, e separarle vorrebbe dire duplicare il `Cast` e la
-	// `GetSelectedUnit()`. Se in futuro servisse spegnerne una sola, il punto dove dividerle e' qui.
-	if (const ARTPlayerController* RTPC = Cast<ARTPlayerController>(GetOwningPlayerController());
-		bCanvasPanels && RTPC)
-	{
-		if (const ARTUnit* Sel = RTPC->GetSelectedUnit())
-		{
-			const float LineH = 18.f;
-			float Y = Canvas->SizeY - 24.f - LineH * (Sel->NumAbilities() - 1);
-			const float X = Canvas->SizeX * 0.45f;
-
-			// COSA sto per fare, in una riga sopra la barra. La barra dice quali abilita' HO; questa dice se
-			// una zona e' davvero puntata adesso e quanto e' larga — la differenza fra «sto scegliendo» e «sto
-			// per tirare», che dai soli contorni a terra non si legge.
-			if (const ARTHexMapActor* HexMap = Cast<ARTHexMapActor>(
-					UGameplayStatics::GetActorOfClass(this, ARTHexMapActor::StaticClass())))
-			{
-				// Cosa scrivere e di che colore lo decide una statica pura (#2184); qui resta il tracciamento.
-				// Testo vuoto = nessuna zona puntata, e non «una riga vuota».
-				const FRTHudTextLine Zona = ComposePreviewZoneLine(
-					HexMap->NumPreviewHitCells(), HexMap->NumPreviewAllyHitCells());
-				if (!Zona.Text.IsEmpty())
-				{
-					DrawText(Zona.Text, Zona.Color, X, Y - LineH - 6.f, nullptr, 1.f);
-				}
-			}
-			// ⚠️ **La vista, non l'unita'.** Questo ciclo rileggeva `CanUseAbility` e `GetAbilityCooldown`
-			// dall'attore, mentre `BuildAbilityCooldowns` produce gia' `bUsableNow` e `TurnsRemaining` — e
-			// `WBP_RT_ActionSlot` li consuma: con `rt.HUD.CanvasPanels` attivo le due vie rendevano nello stesso
-			// fotogramma lo stesso dato letto da due sorgenti. La vista salta le abilita' nulle con lo stesso
-			// `continue` che c'era qui, e conserva `AbilityIndex`, quindi righe e numerazione non si muovono.
-			for (const FRTAbilityCooldownView& Ability : URTHudViewModel::BuildAbilityCooldowns(Sel))
-			{
-				const FRTHudTextLine Line = ComposeAbilityLine(
-					Ability, /*bArmed=*/ Ability.AbilityIndex == Sel->SelectedAbilityIndex);
-				DrawText(Line.Text, Line.Color, X, Y, nullptr, 1.f);
-				Y += LineH;
-			}
-
-			// La terna movimento / principale / reazione (CP 11.1). La barra qui sopra dice quali abilita'
-			// HO; questa dice quali dei tre slot del turno ho gia' speso, e da cosa.
-			//
-			// Le tre righe si disegnano SEMPRE, anche a piano vuoto: la riga d'intento sopra le teste salta
-			// le unita' senza ordini, quindi uno slot libero non si vedeva da nessuna parte — ed e' meta'
-			// della domanda che il giocatore si pone in pianificazione.
-			//
-			// In basso a DESTRA perche' e' l'unica zona libera: il combat log tiene il basso a sinistra, le
-			// abilita' il centro. L'ingombro non e' un dettaglio estetico, e' meta' del giudizio di
-			// `PIE-V01-HUD`.
-			const TArray<FRTSlotLine> SlotLines = ComposeSlotLines(URTHudViewModel::BuildUnitSlots(Sel));
-			float SlotY = Canvas->SizeY - 24.f - LineH * (SlotLines.Num() - 1);
-			for (const FRTSlotLine& SlotLine : SlotLines)
-			{
-				float SW = 0.f, SH = 0.f;
-				GetTextSize(SlotLine.Text, SW, SH, nullptr, 1.f);
-
-				// Testo e colore li decide una statica pura (#2184); qui resta il tracciamento.
-				const FRTHudTextLine Riga = ComposeSlotLineStyle(SlotLine);
-				DrawText(Riga.Text, Riga.Color, Canvas->SizeX - SW - 24.f, SlotY, nullptr, 1.f);
-				SlotY += LineH;
-			}
-		}
-	}
 
 	// Esito, VIA che l'ha determinato e istruzione di riavvio a partita conclusa (CP 10.3). "Vince il team 0"
 	// da solo non distingue un'eliminazione da un punto di vantaggio allo scadere dei round.
