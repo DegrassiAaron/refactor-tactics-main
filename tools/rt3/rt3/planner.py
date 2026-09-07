@@ -74,8 +74,11 @@ Readiness = collections.namedtuple(
     "Readiness", "key state progress blocked_by unmet"
 )
 
+#: `ownerSessionId` e' popolato SOLO quando la risorsa assegnata e' gia' posseduta da
+#: una sessione viva: dice che quel lavoro va a QUELLA sessione, nel suo albero. Vuoto
+#: significa «serve una sessione nuova», non «non si sa».
 Assignment = collections.namedtuple(
-    "Assignment", "key workspace mode resources reason"
+    "Assignment", "key workspace mode resources reason ownerSessionId"
 )
 
 Deferred = collections.namedtuple("Deferred", "key workspace reason detail")
@@ -185,8 +188,20 @@ class _Capacity(object):
         #: non le fonde col massimo. Sommarle conterebbe due volte lo stesso lavoro.
         self.runtime_count = collections.Counter()
         self.declared_count = collections.Counter()
+        #: 🔴 I writer permanenti gia' posseduti da una sessione DISPONIBILE, per
+        #: gruppo. Non sono capacita' consumata: sono capacita' con un nome sopra.
+        #: Tenere un lease dice CHI puo' scrivere in quell'albero, non che una unita'
+        #: di lavoro concorrente sia gia' schedulata la' dentro.
+        self.permanent_owners = collections.defaultdict(list)
+        #: Chi tiene il writer PERMANENTE di ogni gruppo: il proprietario di un lease
+        #: non riutilizzabile, oppure la sessione a cui il piano lo assegna adesso.
+        #: Non e' «tutti i writer del gruppo»: una lane puo' avere anche scrittori in
+        #: alberi temporanei, e nominarli come occupanti del permanente produce un
+        #: messaggio che si contraddice - misurato: a DEV-B-2 veniva detto che il
+        #: writer era occupato da DEV-B-2.
+        self.permanent_holder = {}
 
-    def occupy_runtime(self, runtime):
+    def occupy_runtime(self, runtime, progress=None):
         """Occupa le risorse che il RUNTIME dichiara possedute adesso.
 
         🔴 Chiude il difetto che l'audit ha misurato: il planner leggeva solo gli item
@@ -201,17 +216,90 @@ class _Capacity(object):
         Un lease `stale` (proprietario non piu' attivo) conta comunque come occupato: la
         risorsa resta rivendicata finche' qualcuno non la rilascia, e ignorarla qui
         significherebbe pianificare sopra un albero che forse ha ancora uno scrittore.
+
+        🔴 Possedere una risorsa NON e' occuparla con lavoro concorrente. Un lease
+        writer tenuto da una sessione viva e libera dice chi puo' scrivere in
+        quell'albero, non che dentro ci sia gia' una lavorazione in corso. Contarlo
+        come occupancy era il difetto misurato il 2026-09-07: con `DEV-1` proprietario
+        e libera, due issue pronte e un solo worktree temporaneo, il piano assegnava
+        la prima al TEMPORANEO e rimandava la seconda per capacita' esaurita - mentre
+        la risposta giusta era la prima a `DEV-1` nel suo albero e la seconda al
+        temporaneo, che cosi' restava disponibile.
         """
         if not runtime:
             return
-        for voce in (runtime.get("writers") or {}).values():
+        sessioni = {s["sessionId"]: s for s in (runtime.get("sessions") or [])}
+        for chiave in sorted((runtime.get("writers") or {})):
+            voce = runtime["writers"][chiave]
             gruppo = voce.get("workspaceGroup")
             if gruppo:
-                self.runtime_count[gruppo] += 1
+                if self._riusabile(voce, sessioni, progress):
+                    # Ownership senza occupancy: la risorsa ha un padrone, non un
+                    # lavoro concorrente. La prossima assegnazione su questo gruppo
+                    # va a lui, e NON consuma un worktree temporaneo.
+                    self.permanent_owners[gruppo].append(voce["ownerSessionId"])
+                else:
+                    self.runtime_count[gruppo] += 1
+                    self.permanent_holder.setdefault(gruppo, voce["ownerSessionId"])
             self.runtime_writers.append(voce)
-        for voce in (runtime.get("unreal") or {}).values():
+        for chiave in sorted((runtime.get("unreal") or {})):
+            voce = runtime["unreal"][chiave]
             self.unreal += 1
             self.runtime_unreal.append(voce)
+
+    def _riusabile(self, voce, sessioni, progress):
+        """Il proprietario di questo lease puo' ricevere una NUOVA assegnazione?
+
+        Quattro modi di rispondere no, tutti conservativi. Il costo di sbagliare non e'
+        simmetrico: trattare per errore un lease come riutilizzabile manda due
+        scrittori nello stesso albero, trattarlo per errore come occupato rimanda una
+        issue. Nel dubbio, occupato.
+
+        ⛔ RT3 non ruba mai un lease. «Riutilizzabile» significa che il piano assegna
+        altro lavoro a chi la risorsa ce l'ha gia', non che la tolga a qualcuno.
+        """
+        if voce.get("stale"):
+            return False                      # il proprietario non risponde piu'
+        owner = voce.get("ownerSessionId")
+        if not owner:
+            return False                      # lease senza padrone identificabile
+        sessione = sessioni.get(owner)
+        if sessione is None or sessione.get("status") != "ACTIVE":
+            # Senza elenco delle sessioni non si puo' affermare che sia viva. E' il
+            # ramo che preserva il comportamento di prima quando lo snapshot e'
+            # parziale o assente.
+            return False
+        return not self._ha_lavoro_in_corso(sessione, progress)
+
+    @staticmethod
+    def _ha_lavoro_in_corso(sessione, progress):
+        """La sessione sta gia' eseguendo una issue ancora aperta?
+
+        ⚠️ `taskId` da solo non basta: resta scritto anche dopo che la issue e' stata
+        validata, e leggerlo come «occupata» terrebbe fermo per sempre un writer che si
+        e' liberato. Conta se quel task e' ANCORA `IN_PROGRESS`.
+        """
+        task = (sessione or {}).get("taskId")
+        if not task or not progress:
+            return False
+        candidati = [k for k in progress
+                     if k == task or k.split("/")[-1] == task]
+        if len(candidati) > 1:
+            return True                       # id ambiguo: non si indovina, si occupa
+        return bool(candidati) and progress[candidati[0]] == "IN_PROGRESS"
+
+    def claim_permanent_owner(self, group):
+        """Assegna il writer permanente di quel gruppo a chi gia' lo possiede.
+
+        Consuma: due assegnazioni concorrenti non possono ereditare lo stesso
+        proprietario, perche' una sessione sola non lavora due issue insieme.
+        """
+        disponibili = self.permanent_owners.get(group)
+        if not disponibili:
+            return None
+        owner = disponibili.pop(0)
+        self.permanent_holder[group] = owner
+        return owner
 
     def consolidate(self):
         """Fonde le due fonti dei writer permanenti: il RUNTIME e gli item dichiarati.
@@ -351,6 +439,16 @@ def _consumers(assignments):
     return ", ".join(a.key for a in assignments)
 
 
+def _occupato_da(capacity, group):
+    """« da DEV-1», quando il runtime sa chi tiene quell'albero. Stringa vuota altrimenti.
+
+    Un rimando che dice «occupato» senza dire da chi lascia l'operatore a cercarlo a
+    mano, ed e' l'informazione che serve per decidere se aspettare o aprire un albero.
+    """
+    tiene = capacity.permanent_holder.get(group)
+    return " da " + tiene if tiene else ""
+
+
 def _starvation_note(capacity, roadmap, group):
     """Quando una lane resta ferma con le PROPRIE risorse libere, dillo.
 
@@ -399,7 +497,7 @@ def plan(roadmap, graph, states=None, modes=None, runtime=None):
     index = priority_index(roadmap, graph)
 
     capacity = _Capacity(roadmap)
-    capacity.occupy_runtime(runtime)
+    capacity.occupy_runtime(runtime, progress)
     capacity.occupy_existing(roadmap, progress, modes, runtime)
     capacity.consolidate()
 
@@ -477,16 +575,25 @@ def plan(roadmap, graph, states=None, modes=None, runtime=None):
             )
             continue
 
+        owner = None
         if capacity.writer_free(group):
             mode = "PERMANENT_WRITER"
-            reason = "writer permanente libero su {}.".format(group)
+            # Se quell'albero ha gia' un padrone vivo e libero, il lavoro va a LUI: non
+            # si apre una sessione nuova per una risorsa che qualcuno tiene gia'.
+            owner = capacity.claim_permanent_owner(group)
+            reason = (
+                "il writer permanente di {} e' gia' di {}, che e' libera: la issue va "
+                "a quella sessione, nel suo albero.".format(group, owner)
+                if owner
+                else "writer permanente libero su {}.".format(group)
+            )
             capacity.writers[group] += 1
         elif capacity.temporary_free():
             mode = "TEMPORARY_WORKTREE_SUGGESTED"
             reason = (
-                "il writer permanente di {} e' occupato e la issue e' "
+                "il writer permanente di {} e' occupato{} e la issue e' "
                 "parallelizzabile: serve un worktree temporaneo. NON creato da qui."
-            ).format(group)
+            ).format(group, _occupato_da(capacity, group))
             capacity.temporary += 1
         else:
             deferred.append(
@@ -518,7 +625,8 @@ def plan(roadmap, graph, states=None, modes=None, runtime=None):
 
         assignments.append(
             Assignment(
-                key=key, workspace=group, mode=mode, resources=used, reason=reason
+                key=key, workspace=group, mode=mode, resources=used, reason=reason,
+                ownerSessionId=owner,
             )
         )
 
@@ -564,6 +672,7 @@ def plan(roadmap, graph, states=None, modes=None, runtime=None):
                 group: {
                     "used": capacity.writers[group],
                     "capacity": roadmap.writer_capacity(group),
+                    "holder": capacity.permanent_holder.get(group),
                 }
                 for group in sorted(roadmap.resources["workspaces"])
             },

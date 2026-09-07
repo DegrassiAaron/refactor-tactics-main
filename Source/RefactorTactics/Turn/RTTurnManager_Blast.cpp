@@ -2,6 +2,7 @@
 #include "Turn/RTPacingLibrary.h"
 #include "Turn/RTPlaybackLibrary.h"
 #include "Turn/RTTurnLogLibrary.h"
+#include "Map/RTHexVisionLibrary.h" // DescribeLineOfSight: la RAGIONE del blocco, non una seconda LOS (#2534)
 #include "Turn/RTActionQueueLibrary.h"
 #include "Turn/RTActionEffectLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h"
@@ -1454,6 +1455,15 @@ void ARTTurnManager::LogBlockedIntents(const FRTBlastContext& Ctx)
 	const TArray<FRTActionDef>& IntentDefs = Ctx.IntentDefs;
 	const FRTHexBlastPlan& Plan = Ctx.Plan;
 
+	// La conoscenza per squadra si prende UNA VOLTA, fuori dal ciclo (`#2534`).
+	//
+	// ⚠️ **`KnowledgeForTeam` restituisce per VALORE**, e `FRTTeamKnowledge` porta `VisibleCells` ed
+	// `ExploredCells` — quest'ultimo documentato crescere fino a **7 651 celle** per squadra su un'arena di
+	// raggio 50, e a non scadere mai. Chiamarla dentro il ciclo copiava ~92 KB per ogni intento bloccato, e
+	// lo faceva **prima** che `SightBlockerForLog` potesse uscire sul caso «linea libera», perche' era un
+	// argomento. Varia solo col `TeamId`, e le squadre sono due.
+	TMap<int32, FRTTeamKnowledge> KnowledgeByTeam;
+
 	// Intenti fermati dalla copertura: l'attacco non avviene e il TurnLog ne registra il motivo.
 	for (const int32 BlockedIdx : Plan.BlockedIntents)
 	{
@@ -1470,6 +1480,30 @@ void ARTTurnManager::LogBlockedIntents(const FRTBlastContext& Ctx)
 		NoLos.SrcCell = HexUnits[Blocked.AttackerId].Cell;
 		NoLos.TgtCell = bTargetsUnit ? HexUnits[Blocked.TargetId].Cell : Blocked.TargetCell;
 		NoLos.Amount = 0;
+		// CIO' CHE HA FERMATO IL TIRO (`#2534`), quando la squadra dell'attaccante lo conosceva.
+		//
+		// ⚠️ **La LOS viene ATTRAVERSATA UNA SECONDA VOLTA, e va detto invece di negarlo.** La decisione di
+		// bloccare l'ha gia' presa `CollectHexAttacks`, che chiama `HasLineOfSight` e tiene solo il bool;
+		// qui si rifa' il percorso per averne la ragione. Non nasce una seconda AUTORITA' — la funzione e'
+		// la stessa primitiva, e il bool e' `Reason == None` per costruzione — ma nasce una seconda
+		// VALUTAZIONE, e le due rispondono uguale solo finche' nulla muove unita' o mappa fra i due punti.
+		// `ApplyEnvironmentChanges`, che applica le operazioni sulle porte, sta poche righe piu' sotto.
+		//
+		// 🔑 **La forma che toglie sia il costo sia la classe di divergenza** e' registrare la
+		// `FRTLineOfSightResult` accanto a `Plan.BlockedIntents`, dove il blocco viene deciso. Non e' stato
+		// fatto qui perche' tocca la firma del piano, che appartiene a `RTHexCombatLibrary`.
+		//
+		// ⚠️ **Il filtro di conoscenza non e' opzionale e non e' qui**: vive in `SightBlockerForLog`.
+		// Assegnare `Los.BlockedAt` direttamente compilerebbe e nominerebbe celle che il velo copre.
+		{
+			const FRTLineOfSightResult Los =
+				URTHexVisionLibrary::DescribeLineOfSight(Ctx.Map, NoLos.SrcCell, NoLos.TgtCell);
+			const int32 AttackerTeam = HexUnits[Blocked.AttackerId].TeamId;
+			const FRTTeamKnowledge& Knowledge = KnowledgeByTeam.Contains(AttackerTeam)
+				? KnowledgeByTeam[AttackerTeam]
+				: KnowledgeByTeam.Add(AttackerTeam, KnowledgeForTeam(AttackerTeam));
+			NoLos.SightBlockerCell = URTTurnLogLibrary::SightBlockerForLog(Los, Knowledge);
+		}
 		// QUALE azione e' stata fermata (CP 11.3, #79). `Plan.BlockedIntents` indicizza `Intents`, e
 		// `IntentDefs` gli e' parallelo per costruzione: entrambi crescono negli stessi due punti, quelli
 		// degli intenti pianificati e degli impatti di carica.

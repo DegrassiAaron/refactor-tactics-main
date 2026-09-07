@@ -178,6 +178,31 @@ public:
 	static FString DescribeEntry(const FRTTurnLogEntry& Entry);
 
 	/**
+	 * Quale cella il TurnLog puo' NOMINARE come causa di un tiro fermato (`#2534`).
+	 *
+	 * Prende l'esito grezzo di `URTHexVisionLibrary::DescribeLineOfSight` e la conoscenza della squadra
+	 * dell'ATTACCANTE, e risponde con la cella oppure con `FRTTurnLogEntry::NoSightBlocker()`.
+	 *
+	 * 🔴 **E' il punto in cui il velo entra nel combat log, e sta qui per una ragione.** Nominare una cella
+	 * e' rivelare geometria: [D-225] stabilisce che la fog of war della v0.1 **nasconde** cio' che nessuno
+	 * della squadra osserva, e [D-227] le da' la memoria (`ExploredCells`) che rende lecito ricordare un
+	 * muro gia' visto. Una riga che nominasse una cella mai esplorata sarebbe un leak scritto per gentilezza.
+	 *
+	 * ⚠️ **Il filtro sta ALLA SCRITTURA, non in `ToPublicTrace`.** Quello toglie CAMPI su una
+	 * classificazione statica — *«di questa riga quali colonne?»* — mentre questa e' una domanda sul
+	 * CONTENUTO: *«questa cella, quella squadra, la conosceva?»*. E' la colonna in cui [D-223] mette il
+	 * combat log, ed e' lo stesso motivo per cui `Verdict` si congela dove la voce nasce.
+	 *
+	 * 🔑 **Fail-closed**: una conoscenza vuota non nomina nulla. Il default sbaglia dalla parte del
+	 * silenzio, come `FRTKnowledgeVerdict::Mask = 0`.
+	 *
+	 * Pura e deterministica: nessuno stato, nessun Actor, nessuna mappa: la LOS l'ha gia' decisa chi
+	 * chiama. Non ricalcola nulla, e in particolare **non e' una seconda LOS**.
+	 */
+	static FRTCellId SightBlockerForLog(const struct FRTLineOfSightResult& Los,
+		const struct FRTTeamKnowledge& Knowledge);
+
+	/**
 	 * Testo italiano di un motivo di invalidita'. UNA tabella sola: `DescribeEntry` la usa per le voci di
 	 * Fallback e il combat log la usa per il rifiuto al lock-in. Due tabelle divergerebbero al primo motivo
 	 * aggiunto — ed e' successo: la prima stesura del lock-in stampava l'identificatore C++ dell'enum.

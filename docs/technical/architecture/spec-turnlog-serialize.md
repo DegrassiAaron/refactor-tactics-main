@@ -23,9 +23,9 @@ e porta il KPI «Replay divergence = 0» a ✅ (traccia salvabile, ricaricabile 
   e il marcatore `ERTLogTopology` nei flags dell'header distingue i due) + `Amount` (int32). Nessun float.
 - `URTTurnLogLibrary::{EntryLess, SortTurnLog, HashTurnLog}` (FNV-1a 32-bit, permutazione-invariante) `ff5e079`.
 
-> ⚠️ **Allineamento 2026-09-04 — il formato in codice è `v12`.** Questa
+> ⚠️ **Allineamento 2026-09-07 — il formato in codice è `v13`.** Questa
 > sezione descrive la **v2**, che era il formato al momento della stesura. Da allora `ERTTurnLogFormatVersion`
-> è cresciuto **dieci volte**, sempre in modo retrocompatibile:
+> è cresciuto **undici volte**, sempre in modo retrocompatibile:
 >
 > 🔴 **E ha mentito una terza volta — di nuovo, e nel modo che il capoverso qui sotto descrive.** Il
 > 2026-09-04, arrivando per aggiungere la `v12`, il banner diceva ancora `v10` e la tabella si fermava li':
@@ -57,6 +57,7 @@ e porta il KPI «Replay divergence = 0» a ✅ (traccia salvabile, ricaricabile 
 > | `WithReactionResponse = 10` | `ReactionResponse` ([D-047](../../decisions/RT_PDR_00_Decision_Log.md)): il **token** della risposta applicata a un decision boundary, scritto come l'`ActionId`, in coda | no — la decisione è già discriminata da `Outcome` e `SelectedTargetUnitId`. ⚠️ Conseguenza dichiarata: due risposte di profilo diverse con lo stesso esito danno **lo stesso hash** — che resta ciò che quell'hash promette, cioè che lo *stato finale* coincide | leggibili, token **vuoto** — e il vuoto significa *«la risposta è derivabile dall'esito»*, che è esattamente ciò che quei byte contenevano |
 > | `ResponseAndReasonSplit = 11` | nessun byte nuovo: cambia il **significato** dei valori di `Outcome` sulle voci `ReactionDecision`, separando la risposta dalla ragione ([#1118](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1118)) | — | si **migrano** in lettura |
 > | `WithMicroStep = 12` | `MicroStepIndex` per voce: la terza coordinata del boundary, dopo `TurnNumber` e `Phase` ([#1880](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1880)). Un `int32` in coda | sì — è un dato della voce | il campo resta `0`, e **non** si deduce |
+> | `WithSightBlocker = 13` | `SightBlockerCell` per voce: la cella che ha fermato il tiro sulle righe `NoLineOfSight`, e `NoSightBlocker()` — `Layer = INDEX_NONE` — dove non c'è nulla di nominabile ([#2534](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2534)). ⚠️ Nominata **solo** per `CellBlocker`: `BlockedAt` con `EdgeBlocker` è la cella in cui si entrava (all'ultimo passo, il bersaglio) e con `InteriorGeometry` può essere quella del tiratore. Fuori da `EntryLess` per l'eccezione del §61 — è funzione di `SrcCell`, `TgtCell` e `UnitId`. |
 >
 > ⚠️ **Ogni campo che questo formato SCRIVE deve stare anche in `EntryLess`.** La forma canonica è definita
 > dall'ordinamento: un campo serializzato che il confronto non guarda lascia due voci a pari merito, e

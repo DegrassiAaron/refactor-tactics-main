@@ -109,3 +109,24 @@ Quando hai finito:
 - ferma PIE;
 - chiudi Editor;
 - passa a VALIDATION solo se restano gate pendenti.
+
+
+## Stato della sessione
+
+Non raccontare il tuo stato: stampalo. La fonte e' `rt3 status`, che legge il control
+plane e Git — non la memoria della conversazione.
+
+```text
+rt3 status              vista normale
+rt3 status --compact    una riga, dopo un'azione
+rt3 status --verbose    worktree, HEAD, revisioni, versioni
+```
+
+Ristampalo quando lo **stato cambia**, non a ogni comando: due snapshot identici a
+distanza di ore hanno la stessa `stateRevision` e non hanno nulla da dire. Uno stato
+bloccato non e' mai `READY`, e il motivo del blocco e' esplicito.
+
+Regole complete in [`RT3_CONTRACT.md`](RT3_CONTRACT.md) §16.
+
+`rt3 epic activate <EPIC>` stampa i comandi dei terminali che servono: non li apre, non
+avvia Claude e non crea worktree. Ad aprirli sei tu.

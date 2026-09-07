@@ -54,6 +54,49 @@ ITEM_PROGRESS_STATES = ("PENDING", "IN_PROGRESS", "VALIDATED", "DONE")
 #: renderebbe indistinguibile «non ancora provato» da «provato e rotto».
 CANDIDATE_STATUSES = ("PENDING", "PASSED", "FAILED")
 
+#: Classi di messaggio. Non sono livelli di log: dicono che cosa il LETTORE deve fare.
+#:
+#: ⚠️ `NOTICE` non e' un warning e `BLOCKED` non e' un errore. Usare `warning` per uno
+#: stato normale addestra chi legge a ignorare i warning, ed e' il modo in cui un
+#: messaggio importante smette di essere letto.
+MESSAGE_CLASSES = ("STATUS", "NOTICE", "ACTION_REQUIRED", "BLOCKED", "ERROR")
+
+#: Livelli di dettaglio dello status.
+STATUS_LEVELS = ("compact", "normal", "verbose")
+
+#: Perche' una sessione non puo' procedere. Dato STRUTTURATO: il renderer lo trasforma
+#: in testo, e uno script lo confronta senza leggere la prosa.
+BLOCKING_REASONS = (
+    "DEPENDENCY",
+    "RESOURCE_WRITER",
+    "RESOURCE_UNREAL",
+    "WAITING_REVIEW",
+    "WAITING_VALIDATION",
+    "WORKTREE_MISMATCH",
+    "PROTOCOL_MISMATCH",
+    "ROADMAP_REVISION",
+)
+
+#: Cosa deve fare chi legge. Anche questo e' un dato, non una frase.
+REQUIRED_ACTIONS = (
+    "IMPLEMENT_ISSUE",
+    "WAIT_REVIEW",
+    "REVIEW_CANDIDATE",
+    "VALIDATE_CANDIDATE",
+    "OPEN_ADDITIONAL_DEV",
+    "CREATE_TEMP_WORKTREE",
+    "RESOLVE_WRITER_CONFLICT",
+    "NONE",
+)
+
+#: Stato di una sessione RICHIESTA da un piano di bootstrap.
+#:
+#: 🔴 `REQUIRED` e `ACTIVE` sono cose diverse e non vanno mai collassate: il planner puo'
+#: dire che serve un secondo DEV, ma finche' nessuno apre quel terminale la sessione NON
+#: esiste. Marcarla ACTIVE perche' e' stata suggerita renderebbe l'`epic check` una
+#: fotografia dei desideri invece che dei fatti.
+SESSION_REQUIREMENT_STATES = ("REQUIRED", "REQUESTED", "ACTIVE", "MISSING", "BLOCKED")
+
 #: Risorse ESCLUSIVE che una sessione puo' possedere. Sono due cose diverse e non vanno
 #: confuse: una sessione puo' tenere il writer di un albero senza avere l'Editor, e
 #: viceversa.
