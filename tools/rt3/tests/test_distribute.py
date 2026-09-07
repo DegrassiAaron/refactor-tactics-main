@@ -380,3 +380,96 @@ class OrderOfTheChainTest(DistributeTestCase):
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
+
+
+class PersistentRefTest(DistributeTestCase):
+    """🔴 §14: un commit distribuito deve restare RAGGIUNGIBILE, non solo presente.
+
+    Il difetto, misurato il 2026-09-07 su DEV e DESIGNER: `git fetch <source> <commit>`
+    porta l'oggetto ma non crea alcun ref. L'unico ancoraggio e' `FETCH_HEAD`, che il
+    fetch successivo sovrascrive - da quel momento il commit e' candidato alla garbage
+    collection, e nessuno puo' piu' dire da dove venga il codice che quel workspace
+    esegue.
+
+    ⚠️ «l'oggetto esiste» e «un ref lo tiene» sono due domande diverse. E' la confusione
+    fra le due che aveva reso vera a meta' la frase «il commit e' nei tre repository».
+    """
+
+    def test_prima_della_distribuzione_il_commit_non_c_e(self):
+        clone = self.make_clone()
+        self.assertFalse(distribute.reachable(clone, self.commit))
+        self.assertIsNone(distribute.anchored(clone, self.commit))
+
+    def test_dopo_la_distribuzione_esiste_ED_e_ancorato(self):
+        clone = self.make_clone()
+        head_prima = run(clone, "rev-parse", "HEAD")
+        result = distribute.distribute(self.source, clone, self.commit, ["tools/rt3"])
+
+        self.assertTrue(distribute.reachable(clone, self.commit), "oggetto presente")
+        ref = distribute.anchored(clone, self.commit)
+        self.assertIsNotNone(ref, "deve esistere un ref persistente")
+        self.assertEqual(ref, "refs/rt3/distributed/" + self.commit)
+        self.assertEqual(result["ref"], ref)
+
+        self.assertEqual(run(clone, "rev-parse", "HEAD"), head_prima, "HEAD invariato")
+        self.assertTrue(
+            os.path.exists(os.path.join(clone, "tools", "rt3", "rt3", "nuovo.py"))
+        )
+
+    def test_il_ref_NON_e_un_branch(self):
+        """Un ref di distribuzione non deve comparire fra i rami di lavoro, ne' finire
+        in un push per distrazione."""
+        clone = self.make_clone()
+        distribute.distribute(self.source, clone, self.commit, ["tools/rt3"])
+        rami = run(clone, "branch", "-a")
+        self.assertNotIn("distributed", rami)
+        self.assertNotIn("rt3/distributed", rami)
+
+    def test_un_SECONDO_fetch_non_perde_il_primo_commit(self):
+        """🔴 Il test che riproduce il difetto. Con il solo `FETCH_HEAD`, la seconda
+        distribuzione lo sovrascrive e il primo commit resta senza ancoraggio."""
+        clone = self.make_clone()
+        distribute.distribute(self.source, clone, self.commit, ["tools/rt3"])
+        primo = self.commit
+
+        # secondo commit nella sorgente, e seconda distribuzione
+        write(self.source, "tools/rt3/rt3/secondo.py", "# secondo" + chr(10))
+        run(self.source, "add", "-A")
+        run(self.source, "commit", "-m", "secondo giro")
+        secondo = run(self.source, "rev-parse", "HEAD")
+        distribute.distribute(self.source, clone, secondo, ["tools/rt3"])
+
+        # FETCH_HEAD ora punta al secondo: senza il ref, il primo sarebbe orfano.
+        fetch_head = run(clone, "rev-parse", "FETCH_HEAD")
+        self.assertEqual(fetch_head, secondo, "FETCH_HEAD e' stato sovrascritto")
+        self.assertIsNotNone(
+            distribute.anchored(clone, primo),
+            "il PRIMO commit deve restare ancorato dopo il secondo fetch",
+        )
+        self.assertIsNotNone(distribute.anchored(clone, secondo))
+
+    def test_i_ref_sopravvivono_a_una_garbage_collection(self):
+        """La prova che l'ancoraggio serve davvero: `gc --prune=now` rimuove gli
+        oggetti non raggiungibili, e questo deve restare."""
+        clone = self.make_clone()
+        distribute.distribute(self.source, clone, self.commit, ["tools/rt3"])
+        run(clone, "reflog", "expire", "--expire=now", "--all")
+        run(clone, "gc", "--prune=now", "--quiet")
+        self.assertTrue(
+            distribute.reachable(clone, self.commit),
+            "il commit e' sopravvissuto alla gc perche' un ref lo tiene",
+        )
+
+    def test_il_ramo_A_non_ancora_nulla(self):
+        """Stesso repository: il commit e' gia' tenuto dai ref della sorgente, e un
+        secondo puntatore suggerirebbe un trasporto che non e' avvenuto."""
+        worktree = self.make_worktree()
+        result = distribute.distribute(self.source, worktree, self.commit, ["tools/rt3"])
+        self.assertIsNone(result["ref"])
+
+    def test_dry_run_non_crea_il_ref(self):
+        clone = self.make_clone()
+        distribute.distribute(
+            self.source, clone, self.commit, ["tools/rt3"], dry_run=True
+        )
+        self.assertIsNone(distribute.anchored(clone, self.commit))

@@ -122,6 +122,53 @@ def classify(source, target):
     return SAME_REPO if src == dst else DISTINCT_CLONES
 
 
+#: Namespace dei ref di distribuzione. Fuori da `refs/heads/` e `refs/remotes/`
+#: apposta: non deve comparire in `git branch`, non deve essere confuso con un ramo di
+#: lavoro, e non deve finire in un push per errore.
+DISTRIBUTED_REF = "refs/rt3/distributed/{}"
+
+
+def _anchor(repo, commit):
+    """Ancora il commit a un ref PERSISTENTE nel repository di destinazione.
+
+    🔴 Chiude un difetto misurato il 2026-09-07. `git fetch <source> <commit>` porta
+    l'oggetto ma NON crea alcun ref: l'unico ancoraggio e' `FETCH_HEAD`, che il fetch
+    successivo sovrascrive. Da quel momento il commit e' irraggiungibile da qualunque
+    ref e diventa candidato alla garbage collection - `git gc` lo rimuove, e con lui la
+    possibilita' di dire da dove viene il codice che quel workspace sta eseguendo.
+
+    Verificato in DEV e DESIGNER: l'oggetto c'era, `git branch --contains` non lo
+    trovava da nessuna parte.
+
+    ⛔ `update-ref` su un namespace dedicato NON tocca HEAD, non crea un branch e non
+    cambia il ramo di lavoro: aggiunge un puntatore e basta.
+    """
+    ref = DISTRIBUTED_REF.format(commit)
+    git(repo, "update-ref", ref, commit, check=True)
+    return ref
+
+
+def anchored(repo, commit):
+    """Il commit e' raggiungibile da un ref persistente in questo repository?
+
+    ⚠️ Non basta `cat-file -e`: quello dice che l'OGGETTO esiste, non che qualcuno lo
+    tenga. Sono due domande diverse, ed e' la confusione fra le due che ha reso vera a
+    meta' la frase «il commit e' nei tre repository».
+    """
+    code, out = git(repo, "for-each-ref", "--format=%(refname)", "refs/rt3/distributed/")
+    if code != 0:
+        return None
+    atteso = DISTRIBUTED_REF.format(commit)
+    for riga in out.splitlines():
+        if riga.strip() == atteso:
+            return riga.strip()
+    # Anche un ref di altro tipo va bene, se lo contiene davvero.
+    code, out = git(repo, "branch", "-a", "--contains", commit)
+    if code == 0 and out.strip():
+        return out.strip().splitlines()[0].strip("* ").strip()
+    return None
+
+
 def reachable(repo, commit):
     """Il commit e' gia' raggiungibile da questo repository?
 
@@ -187,6 +234,10 @@ def distribute(source, target, commit, paths, dry_run=False, allow_copy=False):
     if case == SAME_REPO:
         result["strategy"] = NO_TRANSPORT
         result["alreadyReachable"] = reachable(target, commit)
+        # Nessun ancoraggio: e' lo STESSO repository, il commit e' gia' tenuto dai ref
+        # della sorgente. Crearne un altro sarebbe un puntatore in piu' allo stesso
+        # oggetto, e suggerirebbe un trasporto che non e' avvenuto.
+        result["ref"] = None
         result["reason"] = (
             "sorgente e bersaglio sono lo STESSO repository (git-common-dir identico): "
             "gli oggetti sono gia' condivisi e non c'e' niente da trasportare. "
@@ -209,6 +260,7 @@ def distribute(source, target, commit, paths, dry_run=False, allow_copy=False):
         # ⚠️ La sorgente e' un PATH, non un URL: e' cio' che tiene il trasporto locale.
         git(target, "fetch", source, commit, check=True)
         result["fetched"] = True
+        result["ref"] = _anchor(target, commit)
         result["files"] = _materialize(source, target, commit, paths)
         result["reachableAfter"] = reachable(target, commit)
         if not result["reachableAfter"]:
@@ -341,6 +393,8 @@ def main(argv=None):
                 "si" if result.get("alreadyReachable") else "no - serve un merge locale"
             )
         )
+    if result.get("ref"):
+        print("ref       : {}".format(result["ref"]))
     print("file ({}){}:".format(len(result["files"]), " [dry-run]" if args.dry_run else ""))
     for f in result["files"]:
         print("  " + f)
