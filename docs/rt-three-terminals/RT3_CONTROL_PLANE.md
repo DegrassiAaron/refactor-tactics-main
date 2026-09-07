@@ -462,6 +462,42 @@ Per la stessa ragione **`READY` e `BLOCKED` non sono stati persistiti**: sono de
 grafo più l'avanzamento, e li calcola il planner a ogni richiesta. Gli unici stati salvati
 sono i quattro che nessuno può dedurre — `PENDING`, `IN_PROGRESS`, `VALIDATED`, `DONE`.
 
+### La modalità: dove una issue viene lavorata
+
+Accanto all'avanzamento il RUNTIME registra **una** cosa in più, e serve a chiudere un
+difetto reale: `mode` ∈ `PERMANENT_WRITER | TEMPORARY_WORKTREE`.
+
+🔴 Il piano è derivato e non viene salvato. Prima che questo campo esistesse, il planner
+suggeriva `TEMPORARY_WORKTREE_SUGGESTED`, qualcuno eseguiva il suggerimento, e al giro
+successivo il planner rileggeva soltanto `IN_PROGRESS` — contando quell'item come writer
+**permanente**. Con `writerCapacity: 1` si arrivava a `used 2 / capacity 1`: il vincolo
+sforato eseguendo il piano che quel vincolo doveva rispettare, e nessuno che lo dicesse.
+
+```powershell
+scripts\rt3.ps1 roadmap state set EPIC-B/B4 --progress IN_PROGRESS --mode TEMPORARY_WORKTREE
+```
+
+⚠️ **Omettere `--mode` significa `PERMANENT_WRITER`**, che è la lettura conservativa:
+occupa la risorsa più scarsa. Chi lavora su un worktree temporaneo **deve** dichiararlo,
+altrimenti il piano conta un writer permanente che non è occupato.
+
+⚠️ `mode` **non** è conservata quando non viene ridichiarata: appartiene alla presa in
+carico corrente. Tenerla in vita quando una issue esce da `IN_PROGRESS` e ci rientra
+altrove significherebbe contare la risorsa sbagliata.
+
+`SUGGESTED` non esiste fra i valori salvabili: il planner **propone**, il RUNTIME registra
+ciò che è stato **fatto**. Conflaterli renderebbe indistinguibile un consiglio da un fatto.
+
+### `overCommitted`: lo stato impossibile si dichiara
+
+`roadmap plan` porta sempre il campo `overCommitted`, anche vuoto. Elenca le risorse il cui
+uso **supera** la capacità dichiarata — cosa che il planner non produce mai da sé, ma che
+accade quando due sessioni si dichiarano `IN_PROGRESS` sullo stesso gruppo senza passare di
+qui.
+
+⛔ Va dichiarato, non corretto in silenzio: un piano che nasconde uno stato impossibile è
+peggio di uno che lo espone, perché chi legge crede che il vincolo regga.
+
 ### Comandi
 
 ```powershell
@@ -545,6 +581,8 @@ Reali, misurati, non ipotetici:
 Della Roadmap Orchestration in particolare:
 
 - **Il worktree temporaneo è un suggerimento.** Il planner dice che serve; nessuno lo crea.
+  Chi lo usa lo **dichiara** con `--mode TEMPORARY_WORKTREE`: il control plane registra il
+  fatto, non lo verifica. Nessuno controlla che quel worktree esista davvero.
 - **L'assignment non nomina una sessione.** Dice *quale workspace* e *con che modalità*, non
   *quale SessionId*: legare un item a una sessione richiederebbe di sapere quando quella
   sessione muore, e non c'è heartbeat.

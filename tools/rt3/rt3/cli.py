@@ -24,6 +24,7 @@ from .gitmeta import short_head
 from .model import (
     CANDIDATE_STATUSES,
     EVENT_TYPES,
+    ITEM_MODES,
     ITEM_PROGRESS_STATES,
     LANES,
     ROLES,
@@ -1097,14 +1098,16 @@ def cmd_roadmap_state_set(args):
         sessionId=session_id,
         candidateId=args.candidate,
         note=args.note,
+        mode=args.mode,
     )
     emit(
         args,
         row,
         lambda r: out(
-            "{} -> {}{}".format(
+            "{} -> {}{}{}".format(
                 r["item_key"],
                 r["progress"],
+                " su {}".format(r["mode"]) if r.get("mode") else "",
                 " (candidate {})".format(r["candidate_id"])
                 if r.get("candidate_id")
                 else "",
@@ -1127,13 +1130,14 @@ def cmd_roadmap_state_list(args):
                 [
                     s["item_key"],
                     s["progress"],
+                    _dash(s.get("mode")),
                     _dash(s.get("candidate_id")),
                     s["updated_at"],
                     _dash(s.get("updated_by")),
                 ]
                 for s in p["states"]
             ],
-            ["ITEM", "PROGRESS", "CANDIDATE", "UPDATED", "BY"],
+            ["ITEM", "PROGRESS", "MODE", "CANDIDATE", "UPDATED", "BY"],
         )
 
     emit(args, payload, render)
@@ -1462,6 +1466,13 @@ def build_parser():
     p.add_argument("--progress", required=True, choices=ITEM_PROGRESS_STATES)
     p.add_argument("--id", help="roadmap, se ne e' caricata piu' di una")
     p.add_argument("--candidate", help="candidate che ha prodotto questo stato")
+    p.add_argument(
+        "--mode",
+        choices=ITEM_MODES,
+        help="dove la issue viene lavorata. Omesso = PERMANENT_WRITER, che e' la "
+        "lettura conservativa: chi lavora su un worktree temporaneo DEVE dichiararlo, "
+        "altrimenti il piano conta un writer permanente che non e' occupato",
+    )
     p.add_argument("--note")
     p.set_defaults(func=cmd_roadmap_state_set)
     p = st.add_parser("list", help="stati dichiarati")

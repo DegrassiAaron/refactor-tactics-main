@@ -13,7 +13,7 @@ Due proprieta' che questo file prova e che valgono piu' del resto:
 
 import unittest
 
-from rt3.planner import plan, readiness, ready_keys, summary
+from rt3.planner import normalize_states, plan, readiness, ready_keys, summary
 from rt3.roadmap import normalize
 from rt3.graph import build
 from rt3.yamlmini import parse
@@ -333,6 +333,177 @@ epics:
         )
         result = plan(roadmap, build(roadmap), {})
         self.assertEqual(len(result["assignments"]), 3)
+
+
+class ModeAndIdempotenceTest(unittest.TestCase):
+    """🔴 D-7/D-8: il piano deve ricordare le proprie decisioni.
+
+    Il difetto che questi test chiudono, misurato il 2026-09-06: il planner suggeriva
+    `TEMPORARY_WORKTREE_SUGGESTED`, qualcuno eseguiva il suggerimento, e al giro
+    successivo il planner rileggeva soltanto `IN_PROGRESS` - contando quell'item come
+    writer PERMANENTE. Con `writerCapacity: 1` si arrivava a `used 2 / capacity 1`:
+    il vincolo sforato eseguendo il piano che quel vincolo doveva rispettare, e nessuno
+    che lo dicesse.
+    """
+
+    SOURCE = """
+roadmapSchemaVersion: 1
+id: modi
+resources:
+  workspaces:
+    DEV:
+      writerCapacity: 1
+  temporaryWorktrees:
+    capacity: 2
+epics:
+  - id: E
+    homeWork: DEV
+    issues:
+      - id: A
+      - id: B
+      - id: C
+"""
+
+    def setUp(self):
+        roadmap, problems = normalize(parse(self.SOURCE))
+        self.assertIsNotNone(roadmap, [p.code for p in problems])
+        self.roadmap = roadmap
+        self.graph = build(roadmap)
+
+    def _occupazione(self, states, modes):
+        """Risorse occupate dal lavoro GIA' in corso, prima di pianificare.
+
+        ⚠️ Misura `_Capacity` e non l'esito di `plan()`: nel piano finito `used` somma
+        l'occupazione preesistente e le assegnazioni appena decise, e i due addendi non
+        si distinguono piu'. Un test che leggesse quel totale proverebbe qualcosa di
+        diverso da quello che dice - ed e' l'errore che ho fatto scrivendolo.
+        """
+        from rt3.planner import _Capacity
+
+        capacity = _Capacity(self.roadmap)
+        capacity.occupy_existing(self.roadmap, normalize_states(self.roadmap, states), modes)
+        return capacity
+
+    def test_il_temporaneo_dichiarato_non_consuma_il_writer_permanente(self):
+        c = self._occupazione(
+            {"E/A": "IN_PROGRESS", "E/B": "IN_PROGRESS"}, {"E/B": "TEMPORARY_WORKTREE"}
+        )
+        self.assertEqual(c.writers["DEV"], 1, "solo A tiene il writer permanente")
+        self.assertEqual(c.temporary, 1, "B sta su un worktree temporaneo")
+
+    def test_senza_modalita_si_assume_il_permanente(self):
+        """Conservativo: assumere il temporaneo libererebbe un writer forse occupato."""
+        c = self._occupazione({"E/A": "IN_PROGRESS"}, {})
+        self.assertEqual(c.writers["DEV"], 1)
+        self.assertEqual(c.temporary, 0)
+
+    def test_la_modalita_conta_solo_per_cio_che_e_in_corso(self):
+        """Una issue VALIDATED non occupa nulla, qualunque modalita' porti scritta."""
+        c = self._occupazione(
+            {"E/A": "VALIDATED", "E/B": "DONE"},
+            {"E/A": "TEMPORARY_WORKTREE", "E/B": "PERMANENT_WRITER"},
+        )
+        self.assertEqual(c.writers["DEV"], 0)
+        self.assertEqual(c.temporary, 0)
+
+    def test_eseguire_il_piano_non_sfora_la_capacita(self):
+        """L'invariante di D-7, provato percorrendo il ciclo intero.
+
+        Si prende il piano, si ESEGUE (ogni assegnazione diventa IN_PROGRESS con la
+        modalita' che il planner ha scelto), e si ripianifica. Nessuna risorsa deve
+        risultare usata piu' della propria capacita', a nessun giro.
+        """
+        states, modes = {}, {}
+        for giro in range(4):
+            result = plan(self.roadmap, self.graph, states, modes)
+            with self.subTest(giro=giro):
+                for group, v in result["capacity"]["writers"].items():
+                    self.assertLessEqual(
+                        v["used"], v["capacity"], "writer {} sforato: {}".format(group, v)
+                    )
+                for res in ("temporaryWorktrees", "unrealEditor"):
+                    v = result["capacity"][res]
+                    self.assertLessEqual(
+                        v["used"], v["capacity"], "{} sforato: {}".format(res, v)
+                    )
+                self.assertEqual(
+                    result["overCommitted"],
+                    [],
+                    "il piano non deve sforare per conto proprio: {}".format(
+                        result["overCommitted"]
+                    ),
+                )
+            if not result["assignments"]:
+                break
+            for a in result["assignments"]:
+                states[a["key"]] = "IN_PROGRESS"
+                modes[a["key"]] = (
+                    "TEMPORARY_WORKTREE"
+                    if a["mode"] == "TEMPORARY_WORKTREE_SUGGESTED"
+                    else "PERMANENT_WRITER"
+                )
+
+    def test_il_ciclo_completo_prende_tutte_le_issue(self):
+        """Controllo positivo: se il piano non sforasse perche' non assegna nulla,
+        il test precedente sarebbe verde per la ragione sbagliata."""
+        states, modes = {}, {}
+        presi = set()
+        for _ in range(5):
+            result = plan(self.roadmap, self.graph, states, modes)
+            if not result["assignments"]:
+                break
+            for a in result["assignments"]:
+                presi.add(a["key"])
+                states[a["key"]] = "IN_PROGRESS"
+                modes[a["key"]] = (
+                    "TEMPORARY_WORKTREE"
+                    if a["mode"] == "TEMPORARY_WORKTREE_SUGGESTED"
+                    else "PERMANENT_WRITER"
+                )
+        self.assertEqual(presi, {"E/A", "E/B", "E/C"})
+
+    def test_uno_stato_che_sfora_viene_DICHIARATO_non_nascosto(self):
+        """Due issue in corso sullo stesso gruppo, nessuna su un temporaneo.
+
+        Il planner non lo ha prodotto - qualcuno le ha dichiarate a mano. Nasconderlo
+        sarebbe peggio che esporlo: chi legge crederebbe che il vincolo regga.
+        """
+        result = plan(
+            self.roadmap,
+            self.graph,
+            {"E/A": "IN_PROGRESS", "E/B": "IN_PROGRESS"},
+            {},
+        )
+        over = result["overCommitted"]
+        self.assertEqual(len(over), 1, over)
+        self.assertEqual(over[0]["resource"], "writer:DEV")
+        self.assertEqual((over[0]["used"], over[0]["capacity"]), (2, 1))
+        self.assertIn("TEMPORARY_WORKTREE", over[0]["detail"])
+
+    def test_over_committed_e_sempre_presente_anche_vuoto(self):
+        """Un campo che compare solo nei guai costringe a distinguere assente da nessuno."""
+        self.assertEqual(plan(self.roadmap, self.graph, {}, {})["overCommitted"], [])
+
+    def test_troppi_temporanei_sono_dichiarati(self):
+        result = plan(
+            self.roadmap,
+            self.graph,
+            {"E/A": "IN_PROGRESS", "E/B": "IN_PROGRESS", "E/C": "IN_PROGRESS"},
+            {
+                "E/A": "TEMPORARY_WORKTREE",
+                "E/B": "TEMPORARY_WORKTREE",
+                "E/C": "TEMPORARY_WORKTREE",
+            },
+        )
+        risorse = {o["resource"] for o in result["overCommitted"]}
+        self.assertIn("temporaryWorktrees", risorse)
+
+    def test_il_wip_conta_sul_gruppo_anche_per_il_temporaneo(self):
+        """Un worktree temporaneo non e' un quarto workspace: e' un secondo posto dove
+        lo stesso gruppo lavora, e il lavoro in corso resta suo."""
+        c = self._occupazione({"E/A": "IN_PROGRESS"}, {"E/A": "TEMPORARY_WORKTREE"})
+        self.assertEqual(c.wip_workspace["DEV"], 1)
+        self.assertEqual(c.wip_global, 1)
 
 
 class DeterminismTest(unittest.TestCase):

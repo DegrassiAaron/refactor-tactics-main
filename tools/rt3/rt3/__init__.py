@@ -29,13 +29,14 @@ colonna con default non rompe nessun client, e alzare il protocollo in quel caso
 costringerebbe tre workspace ad aggiornare per niente. Allo stesso modo una roadmap non
 diventa illeggibile perche' il database ha una tabella in piu'.
 
-⚠️ Il numero identico che le tre portano oggi e' una coincidenza di calendario, non un
-vincolo: si muovono per ragioni diverse e divergeranno. Non scrivere codice che assuma
-`PROTOCOL_VERSION == SCHEMA_VERSION`.
+⚠️ Non scrivere codice che assuma una relazione fra questi numeri. Si muovono per
+ragioni diverse: `ROADMAP_SCHEMA_VERSION` e' gia' rimasta a 1 mentre le altre due
+salivano due volte, e `PROTOCOL_VERSION == SCHEMA_VERSION` oggi e' un caso, non un
+invariante.
 """
 
-PROTOCOL_VERSION = 2
-SCHEMA_VERSION = 2
+PROTOCOL_VERSION = 3
+SCHEMA_VERSION = 3
 ROADMAP_SCHEMA_VERSION = 1
 
 __all__ = ["PROTOCOL_VERSION", "SCHEMA_VERSION", "ROADMAP_SCHEMA_VERSION"]

@@ -178,23 +178,91 @@ class _Capacity(object):
         self.wip_workspace = collections.Counter()
         self.wip_global = 0
 
-    def occupy_existing(self, roadmap, progress):
+    def occupy_existing(self, roadmap, progress, modes=None):
         """Il lavoro GIA' in corso occupa risorse prima che il piano cominci.
 
         Senza questo passo il planner proporrebbe un writer permanente su un workspace
         dove una sessione sta gia' scrivendo - cioe' esattamente la collisione che le
         capacita' esistono per impedire.
+
+        🔴 Ogni item in corso occupa la risorsa DOVE STA, non quella del suo gruppo.
+        Contarli tutti come writer permanenti era il difetto misurato: il planner
+        suggeriva un worktree temporaneo, e al giro dopo leggeva quello stesso item come
+        writer permanente, arrivando a `used 2 / capacity 1`. La modalita' non era
+        scritta da nessuna parte, quindi il piano non poteva ricordare se stesso.
+
+        ⚠️ Modalita' assente = `PERMANENT_WRITER`. E' la lettura conservativa: occupa la
+        risorsa piu' scarsa. Assumere il temporaneo libererebbe un writer che magari e'
+        occupato davvero, e la collisione si scoprirebbe solo a due sessioni che
+        scrivono nello stesso albero.
         """
+        modes = modes or {}
         for key, state in progress.items():
             if state != "IN_PROGRESS":
                 continue
             item = roadmap.items[key]
-            if item.execution_work:
+            if modes.get(key) == "TEMPORARY_WORKTREE":
+                self.temporary += 1
+            elif item.execution_work:
                 self.writers[item.execution_work] += 1
+            # Il WIP conta comunque, e conta sul GRUPPO: un worktree temporaneo non e'
+            # un quarto workspace, e' un secondo posto dove lo stesso gruppo lavora.
+            if item.execution_work:
                 self.wip_workspace[item.execution_work] += 1
             self.wip_global += 1
             if item.needs_unreal:
                 self.unreal += 1
+
+    def over_committed(self):
+        """Risorse il cui uso SUPERA la capacita' dichiarata.
+
+        Non e' un errore del planner: il planner non sfora mai per conto proprio. E'
+        cio' che accade quando lo STATO dichiarato descrive piu' lavoro in corso di
+        quanto la roadmap ammetta - due sessioni che si dichiarano IN_PROGRESS sullo
+        stesso gruppo senza passare di qui.
+
+        ⛔ Va DICHIARATO, non corretto in silenzio. Un piano che nasconde uno stato
+        impossibile e' peggio di uno che lo espone: chi legge crede che il vincolo
+        regga.
+        """
+        over = []
+        for group in sorted(self.roadmap.resources["workspaces"]):
+            capacity = self.roadmap.writer_capacity(group)
+            if self.writers[group] > capacity:
+                over.append(
+                    {
+                        "resource": "writer:{}".format(group),
+                        "used": self.writers[group],
+                        "capacity": capacity,
+                        "detail": "lo stato dichiara {} issue in corso su {} con "
+                        "writerCapacity {}. Il piano non lo ha prodotto: qualcuno le ha "
+                        "dichiarate IN_PROGRESS senza passare dal planner, oppure senza "
+                        "dichiarare `--mode TEMPORARY_WORKTREE`.".format(
+                            self.writers[group], group, capacity
+                        ),
+                    }
+                )
+        if self.temporary > self.roadmap.temporary_worktree_capacity:
+            over.append(
+                {
+                    "resource": "temporaryWorktrees",
+                    "used": self.temporary,
+                    "capacity": self.roadmap.temporary_worktree_capacity,
+                    "detail": "piu' worktree temporanei in uso di quanti la roadmap ne "
+                    "ammetta.",
+                }
+            )
+        if self.unreal > self.roadmap.unreal_lease_capacity:
+            over.append(
+                {
+                    "resource": "unrealEditor",
+                    "used": self.unreal,
+                    "capacity": self.roadmap.unreal_lease_capacity,
+                    "detail": "piu' attivita' Unreal in corso dei lease disponibili. "
+                    "L'Editor e' esclusivo per macchina: questo stato non e' eseguibile.",
+                }
+            )
+        return over
 
     def writer_free(self, group):
         return self.writers[group] < self.roadmap.writer_capacity(group)
@@ -214,18 +282,21 @@ class _Capacity(object):
         return limit == 0 or self.wip_global < limit
 
 
-def plan(roadmap, graph, states=None):
+def plan(roadmap, graph, states=None, modes=None):
     """Costruisce lo SCHEDULE e gli ASSIGNMENT a partire dallo stato corrente.
 
-    Ritorna un dict con `assignments`, `deferred`, `readiness`, `capacity` e `wip`.
-    Non muta nulla: e' una funzione del solo stato che le viene passato.
+    Ritorna un dict con `assignments`, `deferred`, `readiness`, `capacity`, `wip` e
+    `overCommitted`. Non muta nulla: e' una funzione del solo stato che le viene passato.
+
+    `modes` dice DOVE ogni issue in corso viene lavorata - il campo senza il quale il
+    piano non ricorda le proprie decisioni. Vedi `_Capacity.occupy_existing`.
     """
     progress = normalize_states(roadmap, states)
     ready = readiness(roadmap, graph, progress)
     index = priority_index(roadmap, graph)
 
     capacity = _Capacity(roadmap)
-    capacity.occupy_existing(roadmap, progress)
+    capacity.occupy_existing(roadmap, progress, modes)
 
     candidates = sorted(
         [k for k, r in ready.items() if r.state == "READY"], key=lambda k: index[k]
@@ -341,6 +412,9 @@ def plan(roadmap, graph, states=None):
         "roadmapId": roadmap.id,
         "assignments": [a._asdict() for a in assignments],
         "deferred": [d._asdict() for d in deferred],
+        # Dichiarato sempre, anche vuoto: un campo che compare solo quando c'e' un
+        # problema costringe chi legge a distinguere «assente» da «nessuno».
+        "overCommitted": capacity.over_committed(),
         "readiness": {
             k: {
                 "state": r.state,

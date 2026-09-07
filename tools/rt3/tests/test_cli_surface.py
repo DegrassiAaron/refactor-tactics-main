@@ -15,7 +15,7 @@ poco che mancava.
 import unittest
 
 from rt3.cli import build_parser
-from rt3.model import CANDIDATE_STATUSES, ITEM_PROGRESS_STATES
+from rt3.model import CANDIDATE_STATUSES, ITEM_MODES, ITEM_PROGRESS_STATES
 
 #: Ogni riga e' una invocazione che DEVE essere accettata dal parser. Gli argomenti
 #: obbligatori ci sono tutti: un comando che li perdesse fallirebbe qui.
@@ -57,6 +57,10 @@ ACCEPTED = [
     ["roadmap", "state", "list"],
     ["roadmap", "state", "set", "EPIC-B/B2", "--progress", "VALIDATED"],
     ["roadmap", "state", "set", "B2", "--progress", "DONE", "--candidate", "cand_1"],
+    ["roadmap", "state", "set", "B2", "--progress", "IN_PROGRESS",
+     "--mode", "TEMPORARY_WORKTREE"],
+    ["roadmap", "state", "set", "B2", "--progress", "IN_PROGRESS",
+     "--mode", "PERMANENT_WRITER"],
 ]
 
 #: Invocazioni che devono essere RIFIUTATE. Un parser che le accettasse fallirebbe piu'
@@ -68,6 +72,7 @@ REJECTED = [
     ["roadmap", "state", "set", "B2"],       # --progress e' obbligatorio
     ["roadmap", "state", "set", "B2", "--progress", "READY"],   # READY e' derivato
     ["candidate", "status", "cand_1", "--status", "FORSE"],
+    ["roadmap", "state", "set", "B2", "--progress", "IN_PROGRESS", "--mode", "ALTROVE"],
     ["candidate", "status", "--status", "PASSED"],  # manca l'id
     ["session", "start", "--id", "X", "--role", "QA", "--lane", "DEV",
      "--workspace-group", "DEV"],            # ruolo inesistente
@@ -119,6 +124,12 @@ class SurfaceTest(unittest.TestCase):
             with self.subTest(candidate=status):
                 self.parser.parse_args(
                     ["candidate", "status", "cand_1", "--status", status]
+                )
+        for mode in ITEM_MODES:
+            with self.subTest(mode=mode):
+                self.parser.parse_args(
+                    ["roadmap", "state", "set", "E/A", "--progress", "IN_PROGRESS",
+                     "--mode", mode]
                 )
 
 
