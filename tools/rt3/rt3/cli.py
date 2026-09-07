@@ -1272,6 +1272,180 @@ def cmd_roadmap_state_list(args):
 
 
 # ---------------------------------------------------------------------------
+# status & epic bootstrap
+# ---------------------------------------------------------------------------
+
+
+def _wants_json(args):
+    """`--json` vale sia prima del sottocomando sia dopo.
+
+    ⚠️ Due flag con lo stesso `dest` si sovrascrivono: quello locale, non passato,
+    azzererebbe il globale. Per questo il locale ha un `dest` proprio e qui si guardano
+    entrambi - la forma storica `rt3 --json status` continua a funzionare.
+    """
+    return bool(getattr(args, "json", False) or getattr(args, "json_out", False))
+
+
+def _snapshot(args, session_id=None):
+    """Lo snapshot completo: control plane dal daemon, Git da QUI.
+
+    ⚠️ I quattro campi Git li aggiunge il client perche' descrivono la directory da cui
+    il comando parte. Chiederli al daemon risponderebbe del checkout che lo ha avviato.
+    """
+    client = _client(args)
+    if session_id is None:
+        session_id, _ = _session_id(args, required=False)
+    git = collect_git(os.getcwd())
+    return client.call(
+        "status.snapshot",
+        sessionId=session_id,
+        git=git,
+        roadmapId=getattr(args, "id", None),
+    )
+
+
+def cmd_rt3_status(args):
+    from .status import render
+
+    if getattr(args, "lane", None):
+        return _cmd_lane_status(args)
+    livello = "compact" if args.compact else ("verbose" if args.verbose else "normal")
+    snap = _snapshot(args)
+    if _wants_json(args):
+        out(jsonlib.dumps(snap, indent=2, ensure_ascii=False))
+        return 0
+    out(render(snap, livello, snap.get("role")))
+    return 0
+
+
+def _cmd_lane_status(args):
+    """Vista di LANE: cosa e' attivo, pronto e bloccato su quella corsia.
+
+    ⛔ Filtra per lane e non mostra l'operativo delle altre: uno status di lane che
+    elencasse tutto sarebbe `roadmap plan` con un altro nome, e non risponderebbe alla
+    domanda di chi lavora su una corsia sola.
+    """
+    client = _client(args)
+    lane = args.lane
+    piano = client.call("roadmap.plan", roadmapId=getattr(args, "id", None))
+    pronte = client.call("roadmap.ready", roadmapId=getattr(args, "id", None))
+    sessioni = [s for s in client.call("sessions.list") if s["lane"] == lane]
+    leases = client.call("leases.list")
+
+    def di_lane(items):
+        return [i for i in items if i.get("workspace") == lane]
+
+    payload = {
+        "lane": lane,
+        "active": [
+            {"key": s.get("task_id"), "session": s["session_id"]}
+            for s in sessioni
+            if s.get("task_id")
+        ],
+        "assignments": di_lane(piano["assignments"]),
+        "deferred": di_lane(piano["deferred"]),
+        "ready": [
+            i["key"]
+            for i in pronte["items"]
+            if i["state"] == "READY" and i["executionWork"] == lane
+        ],
+        "blocked": [
+            {"key": i["key"], "waiting": [u["item"] for u in i["unmet"]]}
+            for i in pronte["items"]
+            if i["state"] == "BLOCKED" and i["executionWork"] == lane
+        ],
+        "sessions": [
+            {"id": s["session_id"], "role": s["role"], "writeMode": s["write_mode"]}
+            for s in sessioni
+        ],
+        "writers": [
+            l["owner_session_id"]
+            for l in leases
+            if l["resource_type"] == "GIT_WRITER"
+            and l.get("owner_workspace_group") == lane
+        ],
+        "capacity": piano["capacity"],
+    }
+    if _wants_json(args):
+        out(jsonlib.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+
+    out("[RT3 LANE {}]".format(lane))
+    out("")
+    out("Active:")
+    for a in payload["active"]:
+        out("  {} -> {} -> IN_PROGRESS".format(_dash(a["key"]), a["session"]))
+    if not payload["active"]:
+        out("  nessuna")
+    out("")
+    out("Ready:")
+    for k in payload["ready"] or ["  (nessuna)"]:
+        out("  {}".format(k) if payload["ready"] else k)
+    out("")
+    out("Blocked:")
+    for b in payload["blocked"]:
+        out("  {} -> {}".format(b["key"], ", ".join(b["waiting"]) or "-"))
+    if not payload["blocked"]:
+        out("  nessuna")
+    out("")
+    out("Resources:")
+    out("  Permanent writer: {}".format(", ".join(payload["writers"]) or "libero"))
+    t = payload["capacity"]["temporaryWorktrees"]
+    out("  Temporary capacity: {}/{}".format(t["capacity"] - t["used"], t["capacity"]))
+    u = payload["capacity"]["unrealEditor"]
+    out("  Unreal: {}".format("available" if u["used"] < u["capacity"] else "occupato"))
+    out("")
+    out("Actions:")
+    for d in payload["deferred"]:
+        out("  {} -> {}".format(d["key"], d["reason"]))
+    if not payload["deferred"]:
+        out("  nessuna")
+    return 0
+
+
+def cmd_epic_terminals(args):
+    from .bootstrap import render_plan
+
+    piano = _client(args).call("epic.terminals", roadmapId=args.id, epicId=args.epic)
+    if _wants_json(args):
+        out(jsonlib.dumps(piano, indent=2, ensure_ascii=False))
+        return 0
+    out(render_plan(piano))
+    return 0
+
+
+def cmd_epic_activate(args):
+    from .bootstrap import (
+        additional_dev_required,
+        render_additional_dev,
+        render_plan,
+        writer_owner,
+    )
+
+    piano = _client(args).call("epic.activate", roadmapId=args.id, epicId=args.epic)
+    if _wants_json(args):
+        out(jsonlib.dumps(piano, indent=2, ensure_ascii=False))
+        return 0
+    out(render_plan(piano))
+    for r in additional_dev_required(piano):
+        out("")
+        out(render_additional_dev(r, occupato_da=writer_owner(piano, r)))
+    return 0
+
+
+def cmd_epic_check(args):
+    from .bootstrap import render_check
+
+    esito = _client(args).call("epic.check", roadmapId=args.id, epicId=args.epic)
+    if _wants_json(args):
+        out(jsonlib.dumps(esito, indent=2, ensure_ascii=False))
+        return 0
+    out(render_check(esito))
+    return 0 if esito["ready"] else 1
+
+
+
+# ---------------------------------------------------------------------------
 # status generale
 # ---------------------------------------------------------------------------
 
@@ -1732,8 +1906,34 @@ def build_parser():
     q.add_argument("--worktree")
     q.set_defaults(func=cmd_unreal_release)
 
-    p = sub.add_parser("status", help="quadro sintetico")
+    p = sub.add_parser("status", help="stato RT3 di questa sessione")
+    p.add_argument("--compact", action="store_true", help="una riga sola")
+    p.add_argument("--verbose", action="store_true", help="tutti i campi dello snapshot")
+    p.add_argument("--lane", choices=LANES, help="vista di lane invece che di sessione")
+    p.add_argument("--id", help="roadmap, se ne e' caricata piu' di una")
+    p.add_argument("--json", dest="json_out", action="store_true")
+    p.set_defaults(func=cmd_rt3_status)
+
+    # Il vecchio quadro del control plane resta, con un nome che dice cos'e': serve alla
+    # diagnosi (daemon, store, versioni) e risponde a una domanda diversa dallo status
+    # di sessione.
+    p = sub.add_parser("plane", help="quadro del control plane (diagnosi)")
     p.set_defaults(func=cmd_status)
+
+    # -- epic bootstrap
+    e2 = sub.add_parser(
+        "epic", help="attivazione di una Epic e piano dei terminali"
+    ).add_subparsers(dest="sub")
+    for nome, fn, aiuto in (
+        ("activate", cmd_epic_activate, "piano dei terminali per lavorare la Epic"),
+        ("terminals", cmd_epic_terminals, "come activate, senza gli ACTION_REQUIRED"),
+        ("check", cmd_epic_check, "quali sessioni richieste esistono davvero"),
+    ):
+        q = e2.add_parser(nome, help=aiuto)
+        q.add_argument("epic", nargs="?", help="EpicId; omesso = tutta la roadmap")
+        q.add_argument("--id", help="roadmap, se ne e' caricata piu' di una")
+        q.add_argument("--json", dest="json_out", action="store_true")
+        q.set_defaults(func=fn)
 
     p = sub.add_parser("version", help="versioni di protocollo e schema")
     p.set_defaults(func=cmd_version)

@@ -527,6 +527,71 @@ niente: chi lo leggesse come confine leggerebbe un file uguale ovunque.
 
 ---
 
+## 16. Status di sessione e attivazione di una Epic
+
+Una sessione non racconta il proprio stato: lo **stampa**. La fonte e' `rt3 status`, che
+legge il control plane e Git, non la memoria della conversazione.
+
+```text
+rt3 status                 vista normale
+rt3 status --compact       una riga
+rt3 status --verbose       aggiunge worktree, HEAD, revisioni, versioni
+rt3 status --lane <LANE>   la corsia invece della sessione
+rt3 plane                  lo stato del control plane (era `rt3 status`)
+```
+
+Quattro regole, tutte verificabili.
+
+**I campi Git li misura il client.** `worktreePath`, `branch` e `head` descrivono la
+directory da cui parte il comando; chiederli al daemon risponderebbe del checkout che lo
+ha avviato. Quando la sessione dichiara un branch e Git ne mostra un altro, vince Git:
+la dichiarazione e' cio' che la sessione ha visto all'avvio.
+
+**Il tempo che passa non e' un cambiamento di stato.** Lo status si ristampa quando
+cambia `stateRevision`, che riassume i soli campi semantici. Due snapshot identici a
+distanza di ore hanno la stessa revisione e non producono nessun diff. Uno status che si
+ripetesse identico dopo ogni comando smetterebbe di essere letto, e con lui quello che
+conta.
+
+**Uno stato bloccato non dice mai `READY`.** `BLOCKED` prevale su `ACTION_REQUIRED`, che
+prevale su `STATUS`. Il motivo e' esplicito e appartiene a un vocabolario chiuso:
+
+```text
+DEPENDENCY · RESOURCE_WRITER · RESOURCE_UNREAL · WAITING_REVIEW
+WAITING_VALIDATION · WORKTREE_MISMATCH · PROTOCOL_MISMATCH · ROADMAP_REVISION
+```
+
+**L'output e' ASCII.** Non e' una preferenza estetica: su cp850 e cp437 - le codepage
+tipiche di `cmd.exe` - un carattere fuori tabella fa terminare il comando con exit 1.
+Misurato il 2026-09-07 su `rt3 epic activate`, che falliva per un em dash nel titolo.
+
+### Attivare una Epic
+
+```text
+rt3 epic activate <EPIC>    quali terminali servono ADESSO, col comando per aprirli
+rt3 epic terminals <EPIC>   lo stesso piano, senza registrare l'attivazione
+rt3 epic check <EPIC>       quanti ne esistono davvero; exit 1 se non sono tutti
+```
+
+⛔ **Nessuno di questi comandi apre terminali, avvia Claude o crea worktree.** Stampano
+il comando da eseguire; ad aprirli e' una persona. Aprire un terminale significa decidere
+dove, con quale identita' e su quale albero: decisioni che il planner non ha gli elementi
+per prendere.
+
+🔴 **`REQUIRED` non e' `ACTIVE`.** Il piano puo' dire che serve un secondo DEV; finche'
+nessuno apre quel terminale la sessione **non esiste**. `epic check` marca `ACTIVE` solo
+cio' che il control plane vede registrato e vivo — altrimenti sarebbe una fotografia dei
+desideri, non una verifica.
+
+Il piano dipende da **quante issue sono pronte in questo momento** e da chi tiene le
+risorse. La stessa Epic vuole tre terminali all'inizio e quattro dopo due validazioni.
+Chi tiene gia' il writer permanente di una lane e' il DEV numero uno di quella lane e
+lavora nel proprio albero: a lui non viene mai chiesto un worktree temporaneo. Il
+requisito che ne chiede uno nomina chi occupa il writer, perche' «occupied by another
+session» e' vero e inutile — non dice a chi rivolgersi.
+
+---
+
 ## Aperti
 
 Due domande sul contratto stesso, **non normative**: registrate perché l'owner le decidesse. **Entrambe sono chiuse.**
