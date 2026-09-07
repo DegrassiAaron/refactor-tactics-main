@@ -1,0 +1,193 @@
+# Wave 01 — tre Epic REALI di RefactorTactics, assegnate a tre lane.
+#
+# Non e' la roadmap sintetica di smoke: ogni issue qui esiste su GitHub ed e' APERTA al
+# 2026-09-06. Cio' che e' misurato e cio' che e' dedotto sta scritto riga per riga,
+# perche' una roadmap che non distingue le due cose fa sembrare dati anche le opinioni.
+#
+# ## Provenienza
+#
+#   numeri e titoli   `gh issue view <n>`                       MISURATO
+#   `requires`        campo `depends_on` nel corpo della issue   MISURATO
+#   `homeWork`        assegnazione alle lane                     DEDOTTO (vedi sotto)
+#   `resources`       dal titolo, quando nomina PIE/seduta/viewport   DEDOTTO
+#   `estimate`        1 uniforme                                 ASSENTE nei dati
+#
+# ## 🔴 Tre cose che la ricognizione ha trovato, e che questa roadmap NON nasconde
+#
+# 1. **Solo EPIC-2388 dichiara le dipendenze.** Ha `| depends_on | #NNNN |` nel corpo di
+#    ogni issue. Le figlie di #1937 e #1990 non ne hanno nessuna: qui compaiono senza
+#    `requires`, e il planner le vedra' tutte READY insieme. Non e' un errore del piano,
+#    e' lo stato della roadmap reale.
+#
+# 2. **Non esiste alcuna dipendenza cross-Epic dichiarata fra queste tre.** Le Epic si
+#    citano a vicenda nei corpi (#2388 cita #1937, #1990 e #1937 citano #1881), ma
+#    nessuna ISSUE dichiara di dipendere da una issue di un'altra Epic. Inventarne una
+#    per far funzionare il test sarebbe fabbricare il risultato.
+#
+# 3. **Le issue non portano una stima.** Nessun campo `stima`, `estimate`, `size` o
+#    `effort` nei corpi esaminati. `estimate: 1` uniforme e' una dichiarazione di
+#    ignoranza, non una misura: il cammino critico che ne esce e' la catena piu' LUNGA,
+#    non la piu' PESANTE. Va letto come tale.
+#
+# ## Assegnazione alle lane (DEDOTTA)
+#
+#   EPIC-2388  ->  DEV        simulazione, C++, TurnLog, replay: il dominio di DEV
+#   EPIC-1937  ->  MAIN       HUD, pannelli, leggibilita': converge sull'integrazione
+#   EPIC-1990  ->  DESIGNER   gray kit, fixture, sedute nel viewport: authoring
+#
+# ## Dipendenze gia' soddisfatte, e perche' non compaiono
+#
+# #2402 e #2404 dichiarano `depends_on #2401`, che e' CHIUSA (mergiata con #2428). Una
+# dipendenza verso lavoro finito non blocca nulla e non ha un nodo in questa roadmap:
+# metterla come issue PENDING renderebbe BLOCCATO un lavoro che e' pronto davvero.
+
+roadmapSchemaVersion: 1
+id: wave-01
+name: Wave 01 - Verticalita, Player Event Log, Gray Kit Playground
+
+resources:
+  workspaces:
+    MAIN:
+      writerCapacity: 1
+    DEV:
+      writerCapacity: 1
+    DESIGNER:
+      writerCapacity: 1
+  # Due: quanti ne ha davvero il clone principale di questa macchina
+  # (`rt-wt-2599`, `rt-wt-defcfg`), misurato con `git worktree list`.
+  temporaryWorktrees:
+    capacity: 2
+  unrealEditor:
+    leaseCapacity: 1
+
+wip:
+  perWorkspace: 2
+  global: 4
+
+epics:
+  # =====================================================================
+  - id: EPIC-2388
+    title: Verticalita tattica - Ledge, Fall e Forced Movement
+    homeWork: DEV
+    note: "l'unica delle tre con un grafo di dipendenze dichiarato"
+    issues:
+      - id: "2402"
+        title: Chi e' spinto oltre un bordo aperto si ferma invece di cadere
+        estimate: 1
+        capabilities: [CPP]
+
+      - id: "2403"
+        title: Una caduta non lascia una catena causale - il replay non distingue
+        estimate: 1
+        capabilities: [CPP]
+        requires:
+          - item: "2402"
+            gate: VALIDATED
+
+      - id: "2404"
+        title: L'authoring accetta un atterraggio staticamente isolato
+        estimate: 1
+        capabilities: [CPP]
+
+      - id: "2405"
+        title: La minaccia di caduta non e' leggibile in pianificazione
+        estimate: 1
+        capabilities: [CPP, UI]
+        requires:
+          - item: "2402"
+            gate: VALIDATED
+          - item: "2403"
+            gate: VALIDATED
+
+      - id: "2406"
+        title: Il gate della caduta - suite VALIDA piu' le cinque mutazioni
+        estimate: 1
+        capabilities: [CPP, AUTOMATION]
+        requires:
+          - item: "2402"
+            gate: VALIDATED
+          - item: "2403"
+            gate: VALIDATED
+          - item: "2404"
+            gate: VALIDATED
+
+      - id: "2407"
+        title: Evidenza packaged della caduta - il TurnLog si rilegge da processo
+        estimate: 1
+        capabilities: [PACKAGED]
+        requires:
+          - item: "2406"
+            gate: VALIDATED
+
+      # Seduta di accettazione: il titolo nomina una seduta, quindi l'Editor.
+      - id: "2408"
+        title: Seduta di accettazione della caduta - dieci scenari in una sola seduta
+        estimate: 1
+        capabilities: [PIE]
+        resources: [UNREAL_EDITOR]
+        requires:
+          - item: "2402"
+            gate: VALIDATED
+          - item: "2403"
+            gate: VALIDATED
+          - item: "2404"
+            gate: VALIDATED
+          - item: "2405"
+            gate: VALIDATED
+          - item: "2406"
+            gate: VALIDATED
+
+  # =====================================================================
+  - id: EPIC-1937
+    title: Player Event Log & Explainability - dal TurnLog alla UI
+    homeWork: MAIN
+    note: "nessuna delle figlie aperte dichiara depends_on: sono tutte READY insieme"
+    issues:
+      - id: "1936"
+        title: Il log a schermo racconta le celle, non la partita
+        estimate: 1
+        capabilities: [UI]
+
+      - id: "1466"
+        title: E13.6 - La conoscenza parziale diventa visibile
+        estimate: 1
+        capabilities: [CPP, UI]
+
+      - id: "613"
+        title: CP 11.7 - Screen HUD in UMG
+        estimate: 1
+        capabilities: [UMG]
+
+      - id: "268"
+        title: CP 25.3 - Integrazione HUD, world-space, reaction, perception
+        estimate: 1
+        capabilities: [UI, UMG]
+
+  # =====================================================================
+  - id: EPIC-1990
+    title: Gray Kit Playground - Visual Language & Validation Lab
+    homeWork: DESIGNER
+    note: "tre issue su quattro nominano una seduta o il viewport: chiedono l'Editor, che su questa macchina e' uno solo. E' la lane dove il lease morde davvero."
+    issues:
+      - id: "1993"
+        title: "[GKP 0.1] Playground Panel - Station 01, focus, fixture"
+        estimate: 1
+        capabilities: [BLUEPRINT, UMG]
+
+      - id: "1095"
+        title: Seduta U25 - il volume di posa della cella, e la scena che dice
+        estimate: 1
+        capabilities: [ASSET, PIE]
+        resources: [UNREAL_EDITOR]
+
+      - id: "1625"
+        title: "TD Trial T1: vedere la risoluzione nel viewport"
+        estimate: 1
+        capabilities: [BLUEPRINT, PIE]
+        resources: [UNREAL_EDITOR]
+
+      - id: "1872"
+        title: Map Editor 0.1 - accettazione - Save/Reload, seduta PIE, parita
+        estimate: 1
+        capabilities: [ASSET, PIE]
+        resources: [UNREAL_EDITOR]
