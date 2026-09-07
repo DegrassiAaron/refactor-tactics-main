@@ -1,0 +1,146 @@
+# Roadmap di SMOKE per RT3 Orchestration - NON e' la roadmap di produzione.
+#
+# Esiste per provare il control plane, non per pianificare RefactorTactics: i titoli
+# somigliano a lavoro vero perche' uno smoke test su nomi finti non prova che il
+# dominio ci stia dentro, ma nessuna issue qui corrisponde a una issue GitHub.
+#
+# 🔴 Nessuno stato in questo file. `state`, `progress`, `assignee` e `candidate` sono
+# RIFIUTATI dal parser: l'avanzamento e' runtime e vive nel control plane. Se stesse
+# qui, avanzare una issue sarebbe un commit e due sessioni che avanzano due issue
+# sarebbero un conflitto di merge.
+#
+# Cosa questa roadmap mette alla prova, per costruzione:
+#
+#   catena lineare            EPIC-A: A1 -> A2 -> A3
+#   diramazione parallela     EPIC-B: B2 sblocca B3 e B4 insieme
+#   dipendenza cross-Epic     EPIC-C/C2 aspetta EPIC-B/B2, non una issue del suo Epic
+#   risorsa esclusiva         A3 e C3 vogliono entrambe l'Editor, che e' uno solo
+#   capacita' di scrittura    DEV ha un writer permanente e due issue pronte insieme
+#
+# Il cammino critico attraversa DUE Epic - B1, B2, C2, C3 - ed e' voluto: un cammino
+# critico che restasse dentro un Epic non proverebbe che il grafo sia davvero unico.
+
+roadmapSchemaVersion: 1
+id: rt3-smoke-multi-epic
+name: RT3 smoke multi-Epic
+
+resources:
+  workspaces:
+    # Un solo scrittore permanente per checkout: e' la realta' di questa macchina,
+    # dove i tre workspace sono tre cloni e due sessioni che scrivono nello stesso
+    # albero non sono isolate.
+    MAIN:
+      writerCapacity: 1
+    DEV:
+      writerCapacity: 1
+    DESIGNER:
+      writerCapacity: 1
+  # Un worktree temporaneo: quanto basta perche' UNA delle due issue parallele di
+  # EPIC-B possa partire comunque, e non due.
+  temporaryWorktrees:
+    capacity: 1
+  # L'Editor Unreal e' esclusivo per macchina, non per checkout.
+  unrealEditor:
+    leaseCapacity: 1
+
+wip:
+  perWorkspace: 2
+  global: 4
+
+epics:
+  - id: EPIC-A
+    title: Network Smoke
+    homeWork: MAIN
+    issues:
+      - id: A1
+        title: Foundation
+        estimate: 2
+        capabilities: [CPP]
+        writeSet: [Source/RefactorTactics/Network/Foundation]
+      - id: A2
+        title: Routing
+        estimate: 3
+        capabilities: [CPP]
+        writeSet: [Source/RefactorTactics/Network/Routing]
+        requires:
+          - item: A1
+            gate: VALIDATED
+      - id: A3
+        title: Validation
+        estimate: 2
+        capabilities: [CPP, PIE]
+        # Seconda consumatrice dell'Editor, insieme a C3. Serve a dimostrare che il
+        # lease sia una capacita' vera: con una sola issue Unreal in tutta la roadmap
+        # non si potrebbe distinguere «rispetta il limite» da «non lo ha mai raggiunto».
+        resources: [UNREAL_EDITOR]
+        writeSet: [Source/RefactorTactics/Network/Validation]
+        requires:
+          - item: A2
+            gate: VALIDATED
+
+  - id: EPIC-B
+    title: Grid Smoke
+    homeWork: DEV
+    issues:
+      - id: B1
+        title: Cell model
+        estimate: 2
+        capabilities: [CPP]
+        writeSet: [Source/RefactorTactics/Grid/Cell]
+      - id: B2
+        title: Graph
+        estimate: 5
+        capabilities: [CPP]
+        writeSet: [Source/RefactorTactics/Grid/Graph]
+        requires:
+          - item: B1
+            gate: VALIDATED
+      # B3 e B4 dipendono entrambe SOLO da B2 e da nulla l'una dell'altra: sono
+      # parallelizzabili per costruzione, e con un writer permanente su DEV il planner
+      # deve prenderne una e suggerire un worktree temporaneo per l'altra.
+      - id: B3
+        title: Path
+        estimate: 3
+        capabilities: [CPP]
+        writeSet: [Source/RefactorTactics/Grid/Path]
+        requires:
+          - item: B2
+            gate: VALIDATED
+      - id: B4
+        title: Tests
+        estimate: 1
+        capabilities: [CPP, AUTOMATION]
+        writeSet: [Source/RefactorTactics/Grid/Tests]
+        requires:
+          - item: B2
+            gate: VALIDATED
+
+  - id: EPIC-C
+    title: Element Smoke
+    homeWork: DESIGNER
+    issues:
+      - id: C1
+        title: Element data
+        estimate: 2
+        capabilities: [DATA]
+        writeSet: [Data/Elements]
+      # ⚠️ C2 NON dipende da C1. La dipendenza e' cross-Epic e basta: se dipendesse
+      # anche dalla sorella, validare B2 non la sbloccherebbe, e il test del punto 6
+      # misurerebbe C1 invece del confine fra Epic.
+      - id: C2
+        title: Interaction
+        estimate: 3
+        capabilities: [CPP, DATA]
+        writeSet: [Source/RefactorTactics/Elements/Interaction]
+        requires:
+          - item: EPIC-B/B2
+            gate: VALIDATED
+      - id: C3
+        title: Unreal representation
+        estimate: 4
+        capabilities: [BLUEPRINT, ASSET]
+        resources: [UNREAL_EDITOR]
+        writeSet: [Content/Elements]
+        requires:
+          - item: C2
+            gate: VALIDATED

@@ -103,6 +103,28 @@ def client():
     return connect(timeout=10.0)
 
 
+def smoke_roadmap_path():
+    """Path della roadmap di smoke versionata.
+
+    Risolto da `__file__` e non dalla cwd: i test si lanciano indifferentemente dalla
+    radice del repository o da `tools/rt3`, e un path relativo alla cwd fallirebbe in
+    uno dei due casi - quello che gira sull'altra macchina.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo = os.path.abspath(os.path.join(here, "..", "..", ".."))
+    return os.path.join(
+        repo, "docs", "rt-three-terminals", "roadmaps", "rt3-smoke-multi-epic.yaml"
+    )
+
+
+def load_smoke_roadmap():
+    """`(roadmap, graph)` della roadmap di smoke, gia' verificata."""
+    from rt3.graph import load_checked
+
+    roadmap, graph, _problems = load_checked(smoke_roadmap_path())
+    return roadmap, graph
+
+
 def start_session(cli, session_id, role, lane, workspace_group=None, **extra):
     """Registra una sessione con i soli campi che il test si cura di dichiarare."""
     return cli.call(

@@ -26,18 +26,33 @@ import threading
 
 from . import SCHEMA_VERSION
 from .errors import (
+    CandidateNotFound,
     DeliveryConflict,
     EventNotFound,
+    LeaseNotFound,
     NotAuthorized,
+    NotLeaseOwner,
+    ResourceAlreadyOwned,
+    RoadmapAmbiguous,
+    RoadmapNotFound,
+    Rt3Error,
     SchemaMismatch,
     SessionExists,
     SessionNotFound,
     StoreUnavailable,
     TaskNotFound,
+    UnknownSessionField,
+    UnrealAlreadyOwned,
+    WriterAlreadyOwned,
 )
 from .model import (
     DELIVERY_STATES,
+    canonical_path_key,
+    check_candidate_status,
     check_event_type,
+    check_item_mode,
+    check_resource_type,
+    check_item_progress,
     check_lane,
     check_role,
     check_session_id,
@@ -49,6 +64,7 @@ from .model import (
     new_candidate_id,
     new_delivery_id,
     new_event_id,
+    new_lease_id,
     now_iso,
 )
 from .routing import route
@@ -223,6 +239,155 @@ def _v1(conn):
             key    TEXT PRIMARY KEY,
             value  TEXT NOT NULL
         );
+        """
+    )
+
+
+@_migration(2)
+def _v2(conn):
+    """Roadmap Orchestration: il PLAN caricato e il RUNTIME che gli si riferisce.
+
+    🔴 Le due cose stanno in due tabelle e non in una. `roadmaps` conserva il documento
+    NORMALIZZATO - cio' che era scritto nel file al momento del load - e
+    `roadmap_item_state` conserva cosa e' successo dopo. Fonderle significherebbe
+    riscrivere il piano ogni volta che una issue avanza, e perdere la distinzione fra
+    «il piano dice» e «e' andata cosi'».
+
+    ⚠️ Non c'e' nessuna colonna READY e nessuna colonna BLOCKED. Sono derivate dal
+    grafo piu' `progress`, le calcola `planner.py`, e salvarle creerebbe una seconda
+    autorita' che diverge al primo `requires` modificato.
+    """
+    _exec_ddl(
+        conn,
+        """
+        CREATE TABLE roadmaps (
+            roadmap_id              TEXT PRIMARY KEY,
+            name                    TEXT,
+            -- Il path da cui e' stata caricata. Diagnostico e non autorevole: i tre
+            -- workspace sono tre checkout, e lo stesso file ha tre path diversi.
+            source_path             TEXT,
+            -- L'identita' della VERSIONE. Due workspace con lo stesso hash hanno la
+            -- stessa roadmap anche se il path differisce.
+            content_hash            TEXT NOT NULL,
+            roadmap_schema_version  INTEGER NOT NULL,
+            document                TEXT NOT NULL,
+            loaded_at               TEXT NOT NULL,
+            loaded_by               TEXT
+        );
+
+        CREATE TABLE roadmap_item_state (
+            roadmap_id    TEXT NOT NULL REFERENCES roadmaps(roadmap_id) ON DELETE CASCADE,
+            item_key      TEXT NOT NULL,
+            progress      TEXT NOT NULL DEFAULT 'PENDING',
+            candidate_id  TEXT,
+            note          TEXT,
+            updated_at    TEXT NOT NULL,
+            updated_by    TEXT,
+            PRIMARY KEY (roadmap_id, item_key)
+        );
+        CREATE INDEX idx_item_state_progress
+            ON roadmap_item_state(roadmap_id, progress);
+        """
+    )
+
+    # I candidate esistevano gia' come METADATI. Qui acquistano un esito e un
+    # riferimento alla issue: senza esito, «il validator lavora sul candidate» non e'
+    # verificabile - due candidate sullo stesso ramo sarebbero indistinguibili.
+    #
+    # ALTER TABLE e non CREATE nuova: un database gia' in uso perderebbe i candidate
+    # esistenti, e la migrazione deve preservarli.
+    for column, ddl in (
+        ("status", "ALTER TABLE candidates ADD COLUMN status TEXT NOT NULL DEFAULT 'PENDING'"),
+        ("roadmap_id", "ALTER TABLE candidates ADD COLUMN roadmap_id TEXT"),
+        ("item_key", "ALTER TABLE candidates ADD COLUMN item_key TEXT"),
+        ("updated_at", "ALTER TABLE candidates ADD COLUMN updated_at TEXT"),
+        ("decided_by", "ALTER TABLE candidates ADD COLUMN decided_by TEXT"),
+    ):
+        existing = {r["name"] for r in conn.execute("PRAGMA table_info(candidates)")}
+        if column not in existing:
+            conn.execute(ddl)
+
+
+@_migration(4)
+def _v4(conn):
+    """Resource enforcement: la tabella `leases` diventa quella vera, e il DATABASE
+    garantisce l'unicita'.
+
+    🔴 L'indice parziale e' il cuore di questa migrazione:
+
+        CREATE UNIQUE INDEX ... ON leases(resource_type, resource_key)
+        WHERE state='ACTIVE'
+
+    Con questo, «un solo proprietario per risorsa» non e' una convenzione che il codice
+    applicativo si impegna a rispettare: e' una regola che SQLite fa rispettare a
+    chiunque scriva, comprese due transazioni concorrenti. Un `SELECT` + `if libero` +
+    `INSERT` avrebbe una finestra fra il controllo e la scrittura, e sotto due terminali
+    che partono insieme quella finestra si apre davvero.
+
+    ⚠️ La `WHERE state='ACTIVE'` e' obbligatoria: senza, un lease rilasciato
+    impedirebbe per sempre di riacquisire la stessa risorsa. Lo storico resta nella
+    tabella, e solo le righe ATTIVE sono soggette al vincolo.
+
+    La tabella v1 aveva altre colonne (`resource`, `holder`) e non e' mai stata scritta
+    da nessuna riga di codice - misurato durante l'audit: zero INSERT, zero UPDATE. Non
+    la cancello comunque a occhi chiusi: se contiene righe la conservo, altrimenti la
+    tolgo di mezzo. Un database che ho promesso di migrare non deve perdere dati nemmeno
+    quando sono certo che non ce ne siano.
+    """
+    righe = conn.execute("SELECT COUNT(*) FROM leases").fetchone()[0]
+    if righe:
+        conn.execute("ALTER TABLE leases RENAME TO leases_legacy_v1")
+    else:
+        conn.execute("DROP TABLE leases")
+
+    _exec_ddl(
+        conn,
+        """
+        CREATE TABLE leases (
+            lease_id          TEXT PRIMARY KEY,
+            -- GIT_WRITER oppure UNREAL_EDITOR: due risorse diverse, non due nomi della
+            -- stessa. Una sessione puo' tenerne una, l'altra, entrambe o nessuna.
+            resource_type     TEXT NOT NULL,
+            -- Per GIT_WRITER e' il PATH CANONICO dell'albero, non il workspace group:
+            -- cio' che non si puo' condividere e' la directory.
+            resource_key      TEXT NOT NULL,
+            owner_session_id  TEXT NOT NULL,
+            acquired_at       TEXT NOT NULL,
+            last_seen_at      TEXT NOT NULL,
+            released_at       TEXT,
+            released_by       TEXT,
+            state             TEXT NOT NULL DEFAULT 'ACTIVE',
+            note              TEXT
+        );
+        CREATE UNIQUE INDEX idx_lease_exclusive
+            ON leases(resource_type, resource_key) WHERE state='ACTIVE';
+        CREATE INDEX idx_lease_owner ON leases(owner_session_id, state);
+        """
+    )
+
+
+@_migration(3)
+def _v3(conn):
+    """La modalita' con cui una issue e' stata presa in carico.
+
+    🔴 Chiude un difetto misurato: il planner suggeriva un worktree temporaneo, e al
+    giro successivo contava quell'item come writer PERMANENTE - perche' rileggeva solo
+    `IN_PROGRESS` e la modalita' non era scritta da nessuna parte. Risultato:
+    `used 2 / capacity 1`, cioe' il vincolo sforato eseguendo il piano che quel vincolo
+    doveva rispettare.
+
+    ⚠️ Sta sullo STATO e non sul piano: il piano resta derivato e non salvato. Questo
+    campo non e' una decisione del planner, e' un fatto che qualcuno dichiara - dove sta
+    lavorando adesso.
+
+    NULL e' legittimo e significa «non dichiarato»: gli stati scritti prima di questa
+    migrazione non diventano falsi, restano privi dell'informazione. Il planner li legge
+    come PERMANENT_WRITER, che e' la lettura conservativa.
+    """
+    _exec_ddl(
+        conn,
+        """
+        ALTER TABLE roadmap_item_state ADD COLUMN mode TEXT;
         """
     )
 
@@ -447,11 +612,89 @@ class Store:
             )
             if task_id:
                 self._upsert_task_locked(conn, task_id, lane=lane)
+
+            # 🔴 Il lease sta DENTRO la stessa transazione della sessione. Se la
+            # risorsa e' occupata, il ROLLBACK toglie anche la sessione: non resta
+            # registrata una sessione che si crede WRITER senza esserlo. Registrarla
+            # prima e tentare il lease dopo lascerebbe, sul fallimento, una riga che
+            # dichiara un potere che non ha - ed e' quella riga che il planner
+            # leggerebbe.
+            if write_mode == "WRITER":
+                self._acquire_writer_locked(conn, session_id, worktree_path)
+            if unreal_lease == "OWNED":
+                self._acquire_unreal_locked(conn, session_id, repo_root or worktree_path)
+
             conn.execute("COMMIT")
         except Exception:
             conn.execute("ROLLBACK")
             raise
         return self.get_session(session_id)
+
+    # -- acquisizione dentro una transazione gia' aperta -------------------
+
+    def _acquire_locked(
+        self, conn, resource_type, resource_key, session_id, error_class
+    ):
+        """Come `acquire_lease`, ma su una transazione che il chiamante ha gia' aperto.
+
+        ⚠️ Non puo' riusare `acquire_lease` perche' quello legge il proprietario DOPO
+        il fallimento, e qui la lettura avverrebbe dentro la transazione che sta per
+        essere annullata. Il proprietario si legge percio' prima del rollback, ed e'
+        l'unico punto in cui questo modulo guarda la risorsa prima di scriverla - per
+        il messaggio, non per decidere.
+        """
+        if not resource_key:
+            raise Rt3Error(
+                "una sessione WRITER deve dichiarare un worktree: senza path non c'e' "
+                "una risorsa da possedere, e due sessioni non collidono mai.",
+                code="RT3_RESOURCE_KEY_MISSING",
+                exit_code=30,
+            )
+        now = now_iso()
+        try:
+            conn.execute(
+                "INSERT INTO leases(lease_id, resource_type, resource_key, "
+                "owner_session_id, acquired_at, last_seen_at, state) "
+                "VALUES(?,?,?,?,?,?,'ACTIVE')",
+                (new_lease_id(), resource_type, resource_key, session_id, now, now),
+            )
+        except sqlite3.IntegrityError:
+            row = conn.execute(
+                "SELECT owner_session_id FROM leases WHERE resource_type=? AND "
+                "resource_key=? AND state='ACTIVE'",
+                (resource_type, resource_key),
+            ).fetchone()
+            owner = row["owner_session_id"] if row else None
+            if owner == session_id:
+                return  # la sessione riparte e riprende cio' che era gia' suo
+            raise error_class(
+                "{} su {} e' gia' di {}: la sessione {} NON e' stata registrata come "
+                "proprietaria. Fermare {} oppure registrarsi READ_ONLY.".format(
+                    resource_type, resource_key, owner, session_id, owner
+                ),
+                resource_type=resource_type,
+                resource_key=resource_key,
+                owner=owner,
+                requester=session_id,
+            )
+
+    def _acquire_writer_locked(self, conn, session_id, worktree_path):
+        self._acquire_locked(
+            conn,
+            "GIT_WRITER",
+            canonical_path_key(worktree_path),
+            session_id,
+            WriterAlreadyOwned,
+        )
+
+    def _acquire_unreal_locked(self, conn, session_id, repo_identity):
+        self._acquire_locked(
+            conn,
+            "UNREAL_EDITOR",
+            canonical_path_key(repo_identity),
+            session_id,
+            UnrealAlreadyOwned,
+        )
 
     def get_session(self, session_id, required=False):
         conn = self.connect()
@@ -501,10 +744,58 @@ class Store:
             "unreal_lease": check_unreal_lease,
             "write_set": None,
         }
-        self.get_session(session_id, required=True)
+        sessione = self.get_session(session_id, required=True)
+
+        # 🔴 STRICT. Un campo sconosciuto e' un ERRORE, non un no-op silenzioso.
+        # Ignorarlo produceva il guasto peggiore: il comando riusciva, il campo restava
+        # com'era, e chi leggeva credeva di aver cambiato qualcosa. Misurato con
+        # `unrealLease` scritto al posto di `unreal_lease`.
+        ignoti = [k for k in fields if k not in validators]
+        if ignoti:
+            raise UnknownSessionField(
+                "campo di sessione sconosciuto: {}. Ammessi: {}. I nomi sono in "
+                "snake_case: `unreal_lease`, non `unrealLease`.".format(
+                    ", ".join(sorted(ignoti)), ", ".join(sorted(validators))
+                )
+            )
+
+        # L'upgrade a WRITER passa dal lease, come `session start`. Cambiare il modo
+        # prima del claim lascerebbe una sessione che si crede scrittrice per il tempo
+        # fra le due righe - e in quel tempo il planner potrebbe leggerla.
+        if fields.get("write_mode") == "WRITER" and sessione["write_mode"] != "WRITER":
+            self.acquire_lease(
+                "GIT_WRITER",
+                canonical_path_key(sessione.get("worktree_path")),
+                session_id,
+                error_class=WriterAlreadyOwned,
+            )
+        if fields.get("unreal_lease") == "OWNED" and sessione["unreal_lease"] != "OWNED":
+            self.acquire_lease(
+                "UNREAL_EDITOR",
+                canonical_path_key(
+                    sessione.get("repo_root") or sessione.get("worktree_path")
+                ),
+                session_id,
+                error_class=UnrealAlreadyOwned,
+            )
+        # Il downgrade rilascia: restare proprietari dopo essere tornati READ_ONLY
+        # bloccherebbe la risorsa per una sessione che dichiara di non usarla.
+        if fields.get("write_mode") == "READ_ONLY" and sessione["write_mode"] == "WRITER":
+            key = canonical_path_key(sessione.get("worktree_path"))
+            if self.get_lease("GIT_WRITER", key):
+                self.release_lease("GIT_WRITER", key, session_id=session_id)
+        if fields.get("unreal_lease") in ("NONE", "REQUESTED") and sessione[
+            "unreal_lease"
+        ] == "OWNED":
+            key = canonical_path_key(
+                sessione.get("repo_root") or sessione.get("worktree_path")
+            )
+            if self.get_lease("UNREAL_EDITOR", key):
+                self.release_lease("UNREAL_EDITOR", key, session_id=session_id)
+
         sets, values = [], []
         for key, value in fields.items():
-            if key not in validators or value is None:
+            if value is None:
                 continue
             validator = validators[key]
             if validator is not None:
@@ -526,6 +817,18 @@ class Store:
         return self.get_session(session_id)
 
     def stop_session(self, session_id):
+        """Ferma la sessione e RILASCIA le sue risorse.
+
+        ⚠️ Il rilascio e' parte del fermarsi, non un gesto separato: un terminale che
+        chiude lasciando il writer preso bloccherebbe l'albero per tutti, e l'unico modo
+        di liberarlo sarebbe uno strappo con `--force`. Chi si ferma in modo pulito non
+        deve lasciare pulizia da fare a mano.
+
+        Chi muore SENZA fermarsi lascia invece il lease attivo, e diventa `stale`: e'
+        deliberato, perche' il control plane non ha modo di distinguere una sessione
+        morta da una che sta solo tacendo, e liberare la risorsa da soli significherebbe
+        farlo mentre qualcuno ci scrive.
+        """
         session = self.get_session(session_id, required=True)
         conn = self.connect()
         ts = now_iso()
@@ -534,7 +837,13 @@ class Store:
             "WHERE session_id=?",
             (ts, ts, session_id),
         )
-        return self.get_session(session_id)
+        rilasciati = self.release_session_leases(session_id)
+        risultato = self.get_session(session_id)
+        risultato["releasedLeases"] = [
+            {"resourceType": r["resource_type"], "resourceKey": r["resource_key"]}
+            for r in rilasciati
+        ]
+        return risultato
 
     # -- task -------------------------------------------------------------
 
@@ -926,14 +1235,23 @@ class Store:
     # -- candidati e lease (metadati) -------------------------------------
 
     def create_candidate(
-        self, session_id, task_id=None, branch=None, head=None, note=None
+        self,
+        session_id,
+        task_id=None,
+        branch=None,
+        head=None,
+        note=None,
+        roadmap_id=None,
+        item_key=None,
     ):
         session = self.get_session(session_id, required=True)
         candidate_id = new_candidate_id()
+        now = now_iso()
         conn = self.connect()
         conn.execute(
             "INSERT INTO candidates(candidate_id, task_id, session_id, branch, head, "
-            "note, created_at) VALUES(?,?,?,?,?,?,?)",
+            "note, created_at, status, roadmap_id, item_key, updated_at) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
             (
                 candidate_id,
                 task_id or session.get("task_id"),
@@ -941,10 +1259,219 @@ class Store:
                 branch if branch is not None else session.get("branch"),
                 head if head is not None else session.get("head"),
                 note,
-                now_iso(),
+                now,
+                "PENDING",
+                roadmap_id,
+                item_key,
+                now,
             ),
         )
         return self.get_candidate(candidate_id)
+
+    def set_candidate_status(self, candidate_id, status, session_id=None, note=None):
+        """Registra l'esito della validazione di UN candidate.
+
+        ⚠️ L'esito sta sul candidate e non sulla issue, ed e' la distinzione che rende
+        verificabile «il validator lavora sulla candidate, non sul branch»: due
+        candidate sullo stesso branch possono avere esiti opposti, perche' puntano a due
+        commit diversi. Una colonna sulla issue li conflaterebbe nell'ultimo che passa.
+        """
+        check_candidate_status(status)
+        existing = self.get_candidate(candidate_id)
+        if existing is None:
+            raise CandidateNotFound(
+                "candidate {} inesistente.".format(candidate_id)
+            )
+        conn = self.connect()
+        conn.execute(
+            "UPDATE candidates SET status=?, updated_at=?, decided_by=?, "
+            "note=CASE WHEN ? IS NULL THEN note "
+            "ELSE COALESCE(note || ' | ', '') || ? END "
+            "WHERE candidate_id=?",
+            (status, now_iso(), session_id, note, note, candidate_id),
+        )
+        return self.get_candidate(candidate_id)
+
+    # -- roadmap: il PLAN caricato ----------------------------------------
+
+    def save_roadmap(
+        self,
+        roadmap_id,
+        name,
+        source_path,
+        content_hash,
+        roadmap_schema_version,
+        document,
+        session_id=None,
+        reset_state=False,
+    ):
+        """Registra o aggiorna una roadmap.
+
+        ⚠️ Ricaricare NON azzera lo stato, salvo `reset_state`. E' la scelta prudente:
+        il caso normale e' correggere una stima o aggiungere una issue, e buttare via
+        cinque validazioni per un refuso sarebbe un danno silenzioso. Gli stati di
+        item spariti dalla roadmap restano nella tabella, inerti: non li cancello,
+        perche' un ricaricamento dal file sbagliato li renderebbe irrecuperabili.
+        """
+        now = now_iso()
+        conn = self.connect()
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute(
+                "INSERT INTO roadmaps(roadmap_id, name, source_path, content_hash, "
+                "roadmap_schema_version, document, loaded_at, loaded_by) "
+                "VALUES(?,?,?,?,?,?,?,?) "
+                "ON CONFLICT(roadmap_id) DO UPDATE SET "
+                "  name=excluded.name, source_path=excluded.source_path, "
+                "  content_hash=excluded.content_hash, "
+                "  roadmap_schema_version=excluded.roadmap_schema_version, "
+                "  document=excluded.document, loaded_at=excluded.loaded_at, "
+                "  loaded_by=excluded.loaded_by",
+                (
+                    roadmap_id,
+                    name,
+                    source_path,
+                    content_hash,
+                    int(roadmap_schema_version),
+                    document,
+                    now,
+                    session_id,
+                ),
+            )
+            if reset_state:
+                conn.execute(
+                    "DELETE FROM roadmap_item_state WHERE roadmap_id=?", (roadmap_id,)
+                )
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+        return self.get_roadmap(roadmap_id)
+
+    def get_roadmap(self, roadmap_id=None, required=True):
+        """La roadmap indicata, o l'unica caricata se `roadmap_id` e' None.
+
+        Con piu' roadmap caricate e nessun id, alza `RoadmapAmbiguous` invece di
+        sceglierne una: «la piu' recente» sembra ragionevole e produce comandi che
+        cambiano bersaglio da soli quando qualcun altro ne carica una.
+        """
+        conn = self.connect()
+        if roadmap_id:
+            row = conn.execute(
+                "SELECT * FROM roadmaps WHERE roadmap_id=?", (roadmap_id,)
+            ).fetchone()
+            if row is None and required:
+                raise RoadmapNotFound(
+                    "nessuna roadmap caricata con id {!r}. `rt3 roadmap list` mostra "
+                    "quelle disponibili.".format(roadmap_id)
+                )
+            return _row_to_dict(row)
+
+        rows = conn.execute("SELECT * FROM roadmaps ORDER BY roadmap_id").fetchall()
+        if not rows:
+            if required:
+                raise RoadmapNotFound(
+                    "nessuna roadmap caricata. Usare `rt3 roadmap load --file <path>`."
+                )
+            return None
+        if len(rows) > 1:
+            raise RoadmapAmbiguous(
+                "ci sono {} roadmap caricate ({}): indicare --id.".format(
+                    len(rows), ", ".join(r["roadmap_id"] for r in rows)
+                )
+            )
+        return _row_to_dict(rows[0])
+
+    def list_roadmaps(self):
+        conn = self.connect()
+        rows = conn.execute(
+            "SELECT roadmap_id, name, source_path, content_hash, "
+            "roadmap_schema_version, loaded_at, loaded_by FROM roadmaps "
+            "ORDER BY roadmap_id"
+        ).fetchall()
+        out = []
+        for row in rows:
+            data = _row_to_dict(row)
+            data["items"] = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM roadmap_item_state WHERE roadmap_id=?",
+                    (row["roadmap_id"],),
+                ).fetchone()[0]
+            )
+            out.append(data)
+        return out
+
+    # -- roadmap: il RUNTIME ----------------------------------------------
+
+    def item_states(self, roadmap_id):
+        """Solo gli stati DICHIARATI. Un item assente vale PENDING, e lo decide il
+        planner: mettere qui il default significherebbe scrivere una riga per ogni item
+        al load, cioe' fabbricare uno stato che nessuno ha dichiarato."""
+        conn = self.connect()
+        rows = conn.execute(
+            "SELECT item_key, progress, mode, candidate_id, note, updated_at, updated_by "
+            "FROM roadmap_item_state WHERE roadmap_id=? ORDER BY item_key",
+            (roadmap_id,),
+        ).fetchall()
+        return [_row_to_dict(r) for r in rows]
+
+    def progress_map(self, roadmap_id):
+        return {r["item_key"]: r["progress"] for r in self.item_states(roadmap_id)}
+
+    def mode_map(self, roadmap_id):
+        """Dove ogni issue e' lavorata. Le chiavi senza modalita' dichiarata non
+        compaiono: il planner distingue «non dichiarato» da «permanente»."""
+        return {
+            r["item_key"]: r["mode"]
+            for r in self.item_states(roadmap_id)
+            if r.get("mode")
+        }
+
+    def set_item_state(
+        self,
+        roadmap_id,
+        item_key,
+        progress,
+        session_id=None,
+        candidate_id=None,
+        note=None,
+        mode=None,
+    ):
+        check_item_progress(progress)
+        check_item_mode(mode)
+        if self.get_roadmap(roadmap_id, required=True) is None:  # pragma: no cover
+            raise RoadmapNotFound("roadmap {} inesistente.".format(roadmap_id))
+        conn = self.connect()
+        # ⚠️ `mode` NON usa COALESCE come gli altri campi opzionali, ed e' deliberato:
+        # la modalita' appartiene alla presa in carico CORRENTE. Conservare quella
+        # vecchia quando una issue esce da IN_PROGRESS e ci rientra altrove terrebbe in
+        # vita un fatto che non e' piu' vero - e il planner conterebbe la risorsa
+        # sbagliata. Chi non la dichiara la azzera, ed e' la lettura onesta.
+        conn.execute(
+            "INSERT INTO roadmap_item_state(roadmap_id, item_key, progress, mode, "
+            "candidate_id, note, updated_at, updated_by) VALUES(?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(roadmap_id, item_key) DO UPDATE SET "
+            "  progress=excluded.progress, "
+            "  mode=excluded.mode, "
+            "  candidate_id=COALESCE(excluded.candidate_id, roadmap_item_state.candidate_id), "
+            "  note=COALESCE(excluded.note, roadmap_item_state.note), "
+            "  updated_at=excluded.updated_at, updated_by=excluded.updated_by",
+            (
+                roadmap_id,
+                item_key,
+                progress,
+                mode,
+                candidate_id,
+                note,
+                now_iso(),
+                session_id,
+            ),
+        )
+        row = conn.execute(
+            "SELECT * FROM roadmap_item_state WHERE roadmap_id=? AND item_key=?",
+            (roadmap_id, item_key),
+        ).fetchone()
+        return _row_to_dict(row)
 
     def get_candidate(self, candidate_id):
         conn = self.connect()
@@ -967,9 +1494,193 @@ class Store:
             ).fetchall()
         return [_row_to_dict(r) for r in rows]
 
-    def list_leases(self):
+    # -- lease: risorse esclusive ------------------------------------------
+
+    def acquire_lease(
+        self, resource_type, resource_key, session_id, note=None, error_class=None
+    ):
+        """Acquisisce un lease esclusivo. Atomico: vince chi arriva primo.
+
+        🔴 Nessun `SELECT` + `if libero` + `INSERT`. La INSERT viene tentata e basta:
+        se un'altra sessione tiene gia' la risorsa, l'indice unico parziale la fa
+        fallire con `IntegrityError`, e quello e' il rifiuto. Fra il controllo e la
+        scrittura non c'e' finestra, perche' non c'e' controllo.
+
+        Chi possiede la risorsa lo si legge DOPO il fallimento, per il messaggio.
+        Leggerlo prima sarebbe di nuovo un read-modify-write, e la risposta potrebbe
+        essere gia' vecchia quando la si stampa.
+        """
+        check_resource_type(resource_type)
+        check_session_id(session_id)
+        if not resource_key:
+            raise Rt3Error(
+                "resourceKey mancante per un lease {}.".format(resource_type),
+                code="RT3_RESOURCE_KEY_MISSING",
+                exit_code=30,
+            )
+        self.get_session(session_id, required=True)
+
         conn = self.connect()
-        return [_row_to_dict(r) for r in conn.execute("SELECT * FROM leases")]
+        now = now_iso()
+        lease_id = new_lease_id()
+        try:
+            conn.execute(
+                "INSERT INTO leases(lease_id, resource_type, resource_key, "
+                "owner_session_id, acquired_at, last_seen_at, state, note) "
+                "VALUES(?,?,?,?,?,?,'ACTIVE',?)",
+                (lease_id, resource_type, resource_key, session_id, now, now, note),
+            )
+        except sqlite3.IntegrityError:
+            existing = self.get_lease(resource_type, resource_key)
+            owner = (existing or {}).get("owner_session_id")
+            if owner == session_id:
+                # Riacquisire cio' che si possiede gia' e' un no-op, non un errore:
+                # una sessione che riparte non deve perdere la propria risorsa.
+                return existing
+            cls = error_class or ResourceAlreadyOwned
+            raise cls(
+                "{} su {} e' gia' di {}. La richiesta di {} e' rifiutata: la risorsa e' "
+                "esclusiva, e chi la tiene deve rilasciarla o fermare la sessione.".format(
+                    resource_type, resource_key, owner, session_id
+                ),
+                resource_type=resource_type,
+                resource_key=resource_key,
+                owner=owner,
+                requester=session_id,
+            )
+        return self.get_lease(resource_type, resource_key)
+
+    def get_lease(self, resource_type, resource_key):
+        conn = self.connect()
+        return _row_to_dict(
+            conn.execute(
+                "SELECT * FROM leases WHERE resource_type=? AND resource_key=? "
+                "AND state='ACTIVE'",
+                (resource_type, resource_key),
+            ).fetchone()
+        )
+
+    def release_lease(
+        self, resource_type, resource_key, session_id=None, force=False, note=None
+    ):
+        """Rilascia un lease. Senza `force` puo' farlo solo il proprietario.
+
+        ⚠️ `force` esiste per il recovery manuale di un lease il cui proprietario e'
+        morto senza fermarsi, e resta TRACCIATO in `released_by`: un lease strappato
+        deve lasciare il nome di chi lo ha strappato, altrimenti fra due terminali non
+        si capisce piu' chi ha fatto cosa.
+        """
+        existing = self.get_lease(resource_type, resource_key)
+        if existing is None:
+            raise LeaseNotFound(
+                "nessun lease ATTIVO su {} {}.".format(resource_type, resource_key)
+            )
+        if session_id and existing["owner_session_id"] != session_id and not force:
+            raise NotLeaseOwner(
+                "{} e' di {}, non di {}. Usare --force per strapparlo, sapendo che "
+                "l'altra sessione potrebbe starci scrivendo.".format(
+                    resource_key, existing["owner_session_id"], session_id
+                )
+            )
+        conn = self.connect()
+        conn.execute(
+            "UPDATE leases SET state='RELEASED', released_at=?, released_by=?, "
+            "note=COALESCE(note || ' | ', '') || COALESCE(?, '') "
+            "WHERE lease_id=? AND state='ACTIVE'",
+            (now_iso(), session_id or "(force)", note, existing["lease_id"]),
+        )
+        return dict(existing, state="RELEASED")
+
+    def release_session_leases(self, session_id):
+        """Tutti i lease di una sessione. Chiamato quando la sessione si ferma."""
+        conn = self.connect()
+        rows = conn.execute(
+            "SELECT * FROM leases WHERE owner_session_id=? AND state='ACTIVE'",
+            (session_id,),
+        ).fetchall()
+        if rows:
+            conn.execute(
+                "UPDATE leases SET state='RELEASED', released_at=?, released_by=? "
+                "WHERE owner_session_id=? AND state='ACTIVE'",
+                (now_iso(), session_id, session_id),
+            )
+        return [_row_to_dict(r) for r in rows]
+
+    def list_leases(self, include_released=False):
+        """I lease, con lo stato DERIVATO del proprietario.
+
+        `stale` non e' una colonna: e' vero quando la sessione proprietaria non e' piu'
+        ATTIVA. Salvarlo richiederebbe che qualcuno lo aggiornasse al momento giusto, e
+        quel momento e' precisamente quello in cui la sessione e' morta senza dire nulla.
+        """
+        conn = self.connect()
+        sql = (
+            "SELECT l.*, s.status AS owner_status, s.role AS owner_role, "
+            "       s.lane AS owner_lane, s.workspace_group AS owner_workspace_group "
+            "FROM leases l LEFT JOIN sessions s ON s.session_id = l.owner_session_id "
+        )
+        if not include_released:
+            sql += "WHERE l.state='ACTIVE' "
+        sql += "ORDER BY l.resource_type, l.resource_key"
+        out = []
+        for row in conn.execute(sql):
+            data = _row_to_dict(row)
+            data["stale"] = bool(
+                data["state"] == "ACTIVE" and data.get("owner_status") != "ACTIVE"
+            )
+            out.append(data)
+        return out
+
+    def runtime_snapshot(self):
+        """Lo stato RUNTIME autorevole delle risorse, per il planner.
+
+        🔴 Esiste per chiudere un difetto misurato: il planner ragionava solo sugli item
+        `IN_PROGRESS` dichiarati nella roadmap, e riportava `writer DEV 0/1` mentre due
+        sessioni tenevano davvero quell'albero. Piano e realta' erano due mondi.
+
+        ⛔ E' un CONFINE, non una scorciatoia: il planner riceve questo dizionario e non
+        apre mai il database. Se domani la fonte cambia, cambia qui - non in dieci query
+        sparse dentro il pianificatore.
+
+        Un lease STALE (proprietario non piu' attivo) resta contato come occupato: la
+        risorsa e' ancora rivendicata finche' qualcuno non la rilascia, e liberarla da
+        soli significherebbe rubarla a una sessione che magari sta solo tacendo.
+        """
+        sessioni = self.list_sessions()
+        per_id = {s["session_id"]: s for s in sessioni}
+        writers, unreal = {}, {}
+        for lease in self.list_leases():
+            owner = per_id.get(lease["owner_session_id"], {})
+            voce = {
+                "ownerSessionId": lease["owner_session_id"],
+                "resourceKey": lease["resource_key"],
+                "workspaceGroup": owner.get("workspace_group"),
+                "lane": owner.get("lane"),
+                "role": owner.get("role"),
+                "acquiredAt": lease["acquired_at"],
+                "stale": lease["stale"],
+            }
+            if lease["resource_type"] == "GIT_WRITER":
+                writers[lease["resource_key"]] = voce
+            elif lease["resource_type"] == "UNREAL_EDITOR":
+                unreal[lease["resource_key"]] = voce
+        return {
+            "writers": writers,
+            "unreal": unreal,
+            "sessions": [
+                {
+                    "sessionId": s["session_id"],
+                    "role": s["role"],
+                    "lane": s["lane"],
+                    "workspaceGroup": s["workspace_group"],
+                    "worktreePath": s["worktree_path"],
+                    "writeMode": s["write_mode"],
+                    "status": s["status"],
+                }
+                for s in sessioni
+            ],
+            "takenAt": now_iso(),
+        }
 
     # -- diagnosi ---------------------------------------------------------
 
@@ -991,6 +1702,14 @@ class Store:
                 "SELECT COUNT(*) FROM deliveries WHERE state='ACKED'"
             ),
             "candidates": count("SELECT COUNT(*) FROM candidates"),
+            "candidatesPassed": count(
+                "SELECT COUNT(*) FROM candidates WHERE status='PASSED'"
+            ),
+            "candidatesFailed": count(
+                "SELECT COUNT(*) FROM candidates WHERE status='FAILED'"
+            ),
+            "roadmaps": count("SELECT COUNT(*) FROM roadmaps"),
+            "roadmapItemStates": count("SELECT COUNT(*) FROM roadmap_item_state"),
         }
 
 

@@ -19,11 +19,26 @@ class DaemonLifecycleTest(Rt3TestCase):
         self.assertIn("rt3 daemon start", str(ctx.exception))
 
     def test_health_dichiara_le_versioni(self):
+        """L'health porta tutte e tre le versioni, e quella del DB e' quella VERA.
+
+        ⚠️ Il confronto e' con le costanti del pacchetto e non con dei letterali: un
+        letterale qui invecchia al primo bump e costringe a modificare il test per
+        farlo passare - cioe' toglie al test la capacita' di dire qualcosa.
+
+        `dbSchemaVersion` e' l'asserto che porta piu' informazione: non e' una costante
+        ma il numero LETTO dal database, quindi provarlo uguale a SCHEMA_VERSION prova
+        che `migrate()` sia arrivata fino in fondo. Se una migrazione mancasse, questo
+        e' il test che lo direbbe.
+        """
+        from rt3 import PROTOCOL_VERSION, ROADMAP_SCHEMA_VERSION, SCHEMA_VERSION
+
         with LocalDaemon():
             health = client().health()
             self.assertTrue(health["ok"])
-            self.assertEqual(health["protocolVersion"], 1)
-            self.assertEqual(health["dbSchemaVersion"], 1)
+            self.assertEqual(health["protocolVersion"], PROTOCOL_VERSION)
+            self.assertEqual(health["schemaVersion"], SCHEMA_VERSION)
+            self.assertEqual(health["roadmapSchemaVersion"], ROADMAP_SCHEMA_VERSION)
+            self.assertEqual(health["dbSchemaVersion"], SCHEMA_VERSION)
 
     def test_client_di_protocollo_diverso_e_respinto_subito(self):
         """Fail-fast, non degradazione.

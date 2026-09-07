@@ -110,3 +110,123 @@ class NotAuthorized(Rt3Error):
 
     code = "RT3_NOT_AUTHORIZED"
     exit_code = 13
+
+
+# -- Roadmap Orchestration ---------------------------------------------------
+#
+# Gli exit code ripartono da 20 e non da 14: i codici sopra appartengono al control
+# plane, questi alla roadmap. Lo stacco lascia spazio al primo gruppo senza dover
+# rinumerare il secondo - e un exit code che cambia significato fra due versioni e' un
+# guasto silenzioso in ogni script che lo confronti.
+
+
+class RoadmapNotFound(Rt3Error):
+    """Nessuna roadmap caricata con quell'id. Non e' un errore di forma del file."""
+
+    code = "RT3_ROADMAP_NOT_FOUND"
+    exit_code = 21
+
+
+class RoadmapAmbiguous(Rt3Error):
+    """Piu' roadmap caricate e nessun `--id`: scegliere e' del chiamante, non nostro."""
+
+    code = "RT3_ROADMAP_AMBIGUOUS"
+    exit_code = 22
+
+
+class ItemNotFound(Rt3Error):
+    """La issue non esiste nella roadmap caricata."""
+
+    code = "RT3_ITEM_NOT_FOUND"
+    exit_code = 23
+
+
+class CandidateNotFound(Rt3Error):
+    code = "RT3_CANDIDATE_NOT_FOUND"
+    exit_code = 24
+
+
+# -- Resource enforcement ----------------------------------------------------
+#
+# Gli exit code ripartono da 30: 20-29 appartengono alla roadmap. Un rifiuto di lease
+# non e' un errore di forma - e' la risposta CORRETTA a una richiesta legittima che
+# arriva seconda - e chi lo riceve deve poterlo distinguere da un guasto.
+
+
+class ResourceAlreadyOwned(Rt3Error):
+    """Una risorsa esclusiva e' gia' di qualcun altro.
+
+    ⛔ Porta SEMPRE il proprietario, la risorsa e chi ha chiesto. Un «gia' occupato»
+    senza il nome di chi la tiene lascia l'operatore a cercarlo a mano, ed e' il momento
+    in cui serve di piu': due terminali aperti, e non si sa quale fermare.
+    """
+
+    code = "RT3_RESOURCE_ALREADY_OWNED"
+    exit_code = 30
+
+    def __init__(
+        self,
+        message,
+        resource_type=None,
+        resource_key=None,
+        owner=None,
+        requester=None,
+        code=None,
+        exit_code=None,
+    ):
+        # ⚠️ `code` e `exit_code` servono a `client.py`, che ricostruisce l'errore dal
+        # codice ricevuto passandoli come keyword. Un `__init__` che non li accettasse
+        # trasformerebbe un rifiuto legittimo in un TypeError dentro il client - cioe'
+        # nasconderebbe la risposta corretta dietro un guasto apparente.
+        super().__init__(message, code=code, exit_code=exit_code)
+        self.resource_type = resource_type
+        self.resource_key = resource_key
+        self.owner_session_id = owner
+        self.requester_session_id = requester
+
+    def as_dict(self):
+        return {
+            "code": self.code,
+            "resourceType": self.resource_type,
+            "resourceKey": self.resource_key,
+            "ownerSessionId": self.owner_session_id,
+            "requesterSessionId": self.requester_session_id,
+            "message": self.message,
+        }
+
+
+class WriterAlreadyOwned(ResourceAlreadyOwned):
+    """`WriterCount(WorktreePath) <= 1` e' stato difeso: questa e' la seconda richiesta."""
+
+    code = "RT3_WRITER_ALREADY_OWNED"
+    exit_code = 30
+
+
+class UnrealAlreadyOwned(ResourceAlreadyOwned):
+    code = "RT3_UNREAL_ALREADY_OWNED"
+    exit_code = 31
+
+
+class LeaseNotFound(Rt3Error):
+    code = "RT3_LEASE_NOT_FOUND"
+    exit_code = 32
+
+
+class NotLeaseOwner(Rt3Error):
+    """Rilasciare il lease di un altro richiede `--force`, e resta tracciato."""
+
+    code = "RT3_NOT_LEASE_OWNER"
+    exit_code = 33
+
+
+class UnknownSessionField(Rt3Error):
+    """Un campo che `update_session` non conosce e' un ERRORE, non un no-op.
+
+    🔴 Ignorarlo in silenzio produce il peggior tipo di guasto: il comando riesce, il
+    campo resta com'era, e chi legge crede di aver cambiato qualcosa. Misurato durante
+    l'audit del 2026-09-06 con `unrealLease` scritto al posto di `unreal_lease`: nessun
+    errore, nessun effetto, e una conclusione sbagliata tratta da una lista vuota.
+    """
+
+    code = "RT3_UNKNOWN_SESSION_FIELD"
+    exit_code = 34
