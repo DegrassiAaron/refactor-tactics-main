@@ -27,6 +27,7 @@ from .model import (
     ITEM_MODES,
     ITEM_PROGRESS_STATES,
     LANES,
+    RESOURCE_TYPES,
     ROLES,
     WORKSPACE_GROUPS,
     WRITE_MODES,
@@ -756,6 +757,132 @@ def cmd_candidate_status(args):
 
 
 # ---------------------------------------------------------------------------
+# lease: risorse esclusive
+# ---------------------------------------------------------------------------
+
+
+def _resource_key_for(args, kind):
+    """La chiave canonica della risorsa che questo terminale rappresenta.
+
+    ⚠️ Deriva dal PATH, non dal workspace group: `DEV` e' un'etichetta e due checkout
+    possono entrambi dichiararsi DEV. Cio' che non si puo' condividere e' la directory.
+    """
+    from .model import canonical_path_key
+
+    git = collect_git(getattr(args, "worktree", None) or os.getcwd())
+    if kind == "GIT_WRITER":
+        base = getattr(args, "worktree", None) or git["worktreePath"] or os.getcwd()
+    else:
+        base = getattr(args, "worktree", None) or git["repoRoot"] or os.getcwd()
+    return canonical_path_key(base)
+
+
+def cmd_leases_list(args):
+    client = _client(args)
+    rows = client.call("leases.list", includeReleased=bool(args.all))
+
+    def render(items):
+        if not items:
+            out("nessun lease attivo.")
+            return
+        _table(
+            [
+                [
+                    l["resource_type"],
+                    l["resource_key"],
+                    l["owner_session_id"],
+                    l["state"] + (" (STALE)" if l.get("stale") else ""),
+                    l["acquired_at"],
+                ]
+                for l in items
+            ],
+            ["RESOURCE", "KEY", "OWNER", "STATE", "ACQUIRED"],
+        )
+        stale = [l for l in items if l.get("stale")]
+        if stale:
+            out("")
+            out(
+                "⚠️ {} lease STALE: il proprietario non e' piu' ATTIVO. NON vengono "
+                "liberati da soli - il control plane non sa distinguere una sessione "
+                "morta da una che tace. Recovery: `rt3 lease release <tipo> <chiave> "
+                "--force`.".format(len(stale))
+            )
+
+    emit(args, rows, render)
+    return 0
+
+
+def cmd_lease_release(args):
+    client = _client(args)
+    session_id, _ = _session_id(args, required=False)
+    row = client.call(
+        "lease.release",
+        resourceType=args.resource_type,
+        resourceKey=args.resource_key,
+        sessionId=session_id,
+        force=bool(args.force),
+    )
+    emit(
+        args,
+        row,
+        lambda r: out(
+            "rilasciato {} su {} (era di {}).".format(
+                r["resource_type"], r["resource_key"], r["owner_session_id"]
+            )
+        ),
+    )
+    return 0
+
+
+def _claim(args, kind, label):
+    client = _client(args)
+    session_id, _ = _session_id(args)
+    key = _resource_key_for(args, kind)
+    row = client.call(
+        "lease.acquire", resourceType=kind, resourceKey=key, sessionId=session_id
+    )
+    emit(
+        args,
+        row,
+        lambda r: out(
+            "{} acquisito da {} su {}.".format(label, r["owner_session_id"], r["resource_key"])
+        ),
+    )
+    return 0
+
+
+def _release(args, kind, label):
+    client = _client(args)
+    session_id, _ = _session_id(args)
+    key = _resource_key_for(args, kind)
+    row = client.call(
+        "lease.release",
+        resourceType=kind,
+        resourceKey=key,
+        sessionId=session_id,
+        force=bool(getattr(args, "force", False)),
+    )
+    emit(args, row, lambda r: out("{} rilasciato su {}.".format(label, r["resource_key"])))
+    return 0
+
+
+def cmd_writer_claim(args):
+    return _claim(args, "GIT_WRITER", "writer")
+
+
+def cmd_writer_release(args):
+    return _release(args, "GIT_WRITER", "writer")
+
+
+def cmd_unreal_claim(args):
+    return _claim(args, "UNREAL_EDITOR", "lease Unreal")
+
+
+def cmd_unreal_release(args):
+    return _release(args, "UNREAL_EDITOR", "lease Unreal")
+
+
+# ---------------------------------------------------------------------------
 # roadmap
 # ---------------------------------------------------------------------------
 
@@ -1175,13 +1302,78 @@ def cmd_status(args):
         "git": collect_git(os.getcwd()),
     }
 
-    if health is not None and session_id:
+    payload["leases"] = {"writer": None, "unreal": None, "conflicts": []}
+    if health is not None:
         client = _client(args)
+        if session_id:
+            try:
+                payload["session"] = client.call("session.get", sessionId=session_id)
+                payload["pending"] = client.call(
+                    "inbox.count", sessionId=session_id
+                )["pending"]
+            except Rt3Error as exc:
+                payload["sessionError"] = str(exc)
         try:
-            payload["session"] = client.call("session.get", sessionId=session_id)
-            payload["pending"] = client.call("inbox.count", sessionId=session_id)["pending"]
+            from .model import canonical_path_key
+
+            attivi = client.call("leases.list")
+            # ⚠️ La chiave viene dal worktree della SESSIONE, non dalla cwd: una
+            # sessione DEV registrata su `refactor-tactict-dev` puo' essere interrogata
+            # da un terminale aperto altrove, e cercare il lease della cwd risponderebbe
+            # NONE mentre la sessione lo tiene davvero.
+            sess = payload.get("session") or {}
+            qui_writer = canonical_path_key(
+                sess.get("worktree_path")
+                or payload["git"].get("worktreePath")
+                or os.getcwd()
+            )
+            qui_repo = canonical_path_key(
+                sess.get("repo_root")
+                or payload["git"].get("repoRoot")
+                or os.getcwd()
+            )
+            for lease in attivi:
+                voce = {
+                    "owner": lease["owner_session_id"],
+                    "resourceKey": lease["resource_key"],
+                    "stale": lease.get("stale"),
+                    "mine": lease["owner_session_id"] == session_id,
+                }
+                if (
+                    lease["resource_type"] == "GIT_WRITER"
+                    and lease["resource_key"] == qui_writer
+                ):
+                    payload["leases"]["writer"] = voce
+                elif (
+                    lease["resource_type"] == "UNREAL_EDITOR"
+                    and lease["resource_key"] == qui_repo
+                ):
+                    payload["leases"]["unreal"] = voce
+
+            # ⚠️ Un conflitto qui NON e' due proprietari: quello il database lo rende
+            # impossibile. E' una sessione che si DICHIARA WRITER senza tenere il lease
+            # dell'albero in cui dice di stare - possibile solo su un database migrato
+            # da prima dell'enforcement, ed e' precisamente cio' che va visto.
+            per_chiave = {
+                l["resource_key"]: l["owner_session_id"]
+                for l in attivi
+                if l["resource_type"] == "GIT_WRITER"
+            }
+            for sess in client.call("sessions.list"):
+                if sess["write_mode"] != "WRITER" or not sess.get("worktree_path"):
+                    continue
+                chiave = canonical_path_key(sess["worktree_path"])
+                if per_chiave.get(chiave) != sess["session_id"]:
+                    payload["leases"]["conflicts"].append(
+                        {
+                            "sessionId": sess["session_id"],
+                            "declares": "WRITER",
+                            "resourceKey": chiave,
+                            "actualOwner": per_chiave.get(chiave),
+                        }
+                    )
         except Rt3Error as exc:
-            payload["sessionError"] = str(exc)
+            payload["leasesError"] = str(exc)
 
     def render(p):
         c = p["coordinator"]
@@ -1231,6 +1423,31 @@ def cmd_status(args):
             out("  writeMode      : {}".format(s["write_mode"]))
             out("  eventi pending : {}".format(p["pending"]))
         g = p["git"]
+        out("")
+        lease = p.get("leases") or {}
+
+        def _lease_line(voce, libero):
+            if voce is None:
+                return libero
+            return "OWNED da {}{}{}".format(
+                voce["owner"],
+                " (questa sessione)" if voce.get("mine") else "",
+                "  ⚠️ STALE: proprietario non attivo" if voce.get("stale") else "",
+            )
+
+        out("  writerLease    : {}".format(_lease_line(lease.get("writer"), "NONE")))
+        out("  unrealLease    : {}".format(_lease_line(lease.get("unreal"), "NONE")))
+        conflitti = lease.get("conflicts") or []
+        if conflitti:
+            out("  conflitti      : {}".format(len(conflitti)))
+            for c in conflitti:
+                out(
+                    "     ⚠️ {} si dichiara WRITER su {} ma il lease e' di {}".format(
+                        c["sessionId"], c["resourceKey"], _dash(c["actualOwner"])
+                    )
+                )
+        else:
+            out("  conflitti      : nessuno")
         out("")
         out("  git qui        : {} @ {}".format(_branch(g["branch"]), short_head(g["head"])))
         out("  worktree qui   : {}".format(_dash(g["worktreePath"])))
@@ -1478,6 +1695,42 @@ def build_parser():
     p = st.add_parser("list", help="stati dichiarati")
     p.add_argument("--id")
     p.set_defaults(func=cmd_roadmap_state_list)
+
+    # -- lease
+    p = sub.add_parser("leases", help="risorse esclusive").add_subparsers(dest="sub")
+    q = p.add_parser("list")
+    q.add_argument("--all", action="store_true", help="include quelli rilasciati")
+    q.set_defaults(func=cmd_leases_list)
+
+    l = sub.add_parser("lease", help="rilascio e recovery").add_subparsers(dest="sub")
+    q = l.add_parser("release", help="rilascia un lease per chiave")
+    q.add_argument("resource_type", choices=RESOURCE_TYPES)
+    q.add_argument("resource_key")
+    q.add_argument(
+        "--force",
+        action="store_true",
+        help="strappa il lease di un'altra sessione. Resta tracciato in released_by: "
+        "usarlo solo dopo aver constatato che quel terminale e' morto",
+    )
+    q.set_defaults(func=cmd_lease_release)
+
+    w = sub.add_parser("writer", help="lease di scrittura sull'albero").add_subparsers(
+        dest="sub"
+    )
+    q = w.add_parser("claim", help="acquisisce il writer per questo worktree")
+    q.add_argument("--worktree", help="directory (default: cwd)")
+    q.set_defaults(func=cmd_writer_claim)
+    q = w.add_parser("release")
+    q.add_argument("--worktree")
+    q.set_defaults(func=cmd_writer_release)
+
+    u = sub.add_parser("unreal", help="lease dell'Editor").add_subparsers(dest="sub")
+    q = u.add_parser("claim", help="acquisisce l'Editor per questo repository")
+    q.add_argument("--worktree")
+    q.set_defaults(func=cmd_unreal_claim)
+    q = u.add_parser("release")
+    q.add_argument("--worktree")
+    q.set_defaults(func=cmd_unreal_release)
 
     p = sub.add_parser("status", help="quadro sintetico")
     p.set_defaults(func=cmd_status)

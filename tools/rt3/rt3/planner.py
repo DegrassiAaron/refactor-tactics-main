@@ -177,8 +177,64 @@ class _Capacity(object):
         self.unreal = 0
         self.wip_workspace = collections.Counter()
         self.wip_global = 0
+        #: Chi tiene le risorse secondo il RUNTIME. Serve ai messaggi: un rimando che
+        #: dice «occupato» senza dire DA CHI lascia l'operatore a cercarlo a mano.
+        self.runtime_writers = []
+        self.runtime_unreal = []
+        #: Le due fonti dei writer permanenti, tenute separate finche' `consolidate()`
+        #: non le fonde col massimo. Sommarle conterebbe due volte lo stesso lavoro.
+        self.runtime_count = collections.Counter()
+        self.declared_count = collections.Counter()
 
-    def occupy_existing(self, roadmap, progress, modes=None):
+    def occupy_runtime(self, runtime):
+        """Occupa le risorse che il RUNTIME dichiara possedute adesso.
+
+        🔴 Chiude il difetto che l'audit ha misurato: il planner leggeva solo gli item
+        `IN_PROGRESS` della roadmap e riportava `writer DEV 0/1` mentre due sessioni
+        tenevano davvero quell'albero. Il piano e la realta' erano due mondi.
+
+        ⚠️ Quando c'e' una snapshot runtime, i writer permanenti si contano DA LI' e non
+        dagli item in corso. Sommare le due fonti conterebbe due volte lo stesso lavoro
+        - la issue in corso E il lease che la sessione tiene per farla - e produrrebbe
+        una capacita' satura al doppio della verita'.
+
+        Un lease `stale` (proprietario non piu' attivo) conta comunque come occupato: la
+        risorsa resta rivendicata finche' qualcuno non la rilascia, e ignorarla qui
+        significherebbe pianificare sopra un albero che forse ha ancora uno scrittore.
+        """
+        if not runtime:
+            return
+        for voce in (runtime.get("writers") or {}).values():
+            gruppo = voce.get("workspaceGroup")
+            if gruppo:
+                self.runtime_count[gruppo] += 1
+            self.runtime_writers.append(voce)
+        for voce in (runtime.get("unreal") or {}).values():
+            self.unreal += 1
+            self.runtime_unreal.append(voce)
+
+    def consolidate(self):
+        """Fonde le due fonti dei writer permanenti: il RUNTIME e gli item dichiarati.
+
+        🔴 Il massimo, non la somma. Sommarli conterebbe due volte lo stesso lavoro -
+        la issue in corso E il lease che la sessione tiene per farla. Ignorarne una
+        perderebbe un caso reale ciascuna:
+
+            solo runtime    una sessione tiene il writer senza che nessuna issue sia
+                            dichiarata IN_PROGRESS: succede appena si apre il terminale
+            solo dichiarato una issue e' IN_PROGRESS ma nessuno tiene il lease: succede
+                            quando la sessione si e' fermata lasciando il lavoro aperto
+
+        La lettura e' conservativa: la risorsa e' occupata se lo dice ALMENO una delle
+        due. Occupare di piu' del vero fa rimandare una issue; occupare di meno manda
+        due scrittori nello stesso albero.
+        """
+        for gruppo in set(self.runtime_count) | set(self.declared_count):
+            self.writers[gruppo] = max(
+                self.runtime_count[gruppo], self.declared_count[gruppo]
+            )
+
+    def occupy_existing(self, roadmap, progress, modes=None, runtime=None):
         """Il lavoro GIA' in corso occupa risorse prima che il piano cominci.
 
         Senza questo passo il planner proporrebbe un writer permanente su un workspace
@@ -197,6 +253,7 @@ class _Capacity(object):
         scrivono nello stesso albero.
         """
         modes = modes or {}
+        runtime_autorevole = bool(runtime and runtime.get("writers") is not None)
         for key, state in progress.items():
             if state != "IN_PROGRESS":
                 continue
@@ -204,7 +261,9 @@ class _Capacity(object):
             if modes.get(key) == "TEMPORARY_WORKTREE":
                 self.temporary += 1
             elif item.execution_work:
-                self.writers[item.execution_work] += 1
+                # Una delle due fonti. `consolidate()` la fonde col runtime prendendo
+                # il MASSIMO, non la somma.
+                self.declared_count[item.execution_work] += 1
             # Il WIP conta comunque, e conta sul GRUPPO: un worktree temporaneo non e'
             # un quarto workspace, e' un secondo posto dove lo stesso gruppo lavora.
             if item.execution_work:
@@ -326,7 +385,7 @@ def _starvation_note(capacity, roadmap, group):
     )
 
 
-def plan(roadmap, graph, states=None, modes=None):
+def plan(roadmap, graph, states=None, modes=None, runtime=None):
     """Costruisce lo SCHEDULE e gli ASSIGNMENT a partire dallo stato corrente.
 
     Ritorna un dict con `assignments`, `deferred`, `readiness`, `capacity`, `wip` e
@@ -340,7 +399,9 @@ def plan(roadmap, graph, states=None, modes=None):
     index = priority_index(roadmap, graph)
 
     capacity = _Capacity(roadmap)
-    capacity.occupy_existing(roadmap, progress, modes)
+    capacity.occupy_runtime(runtime)
+    capacity.occupy_existing(roadmap, progress, modes, runtime)
+    capacity.consolidate()
 
     candidates = sorted(
         [k for k, r in ready.items() if r.state == "READY"], key=lambda k: index[k]
@@ -403,8 +464,15 @@ def plan(roadmap, graph, states=None, modes=None):
                     workspace=group,
                     reason="UNREAL_LEASE_CAPACITY",
                     detail="richiede UNREAL_EDITOR, e i lease disponibili ({}) sono "
-                    "gia' impegnati. L'Editor e' esclusivo per macchina, non per "
-                    "checkout.".format(roadmap.unreal_lease_capacity),
+                    "gia' impegnati{}. L'Editor e' esclusivo: la issue non e' "
+                    "schedulabile finche' non viene rilasciato.".format(
+                        roadmap.unreal_lease_capacity,
+                        " da " + ", ".join(
+                            v["ownerSessionId"] for v in capacity.runtime_unreal
+                        )
+                        if capacity.runtime_unreal
+                        else "",
+                    ),
                 )
             )
             continue
@@ -461,6 +529,27 @@ def plan(roadmap, graph, states=None, modes=None):
         # Dichiarato sempre, anche vuoto: un campo che compare solo quando c'e' un
         # problema costringe chi legge a distinguere «assente» da «nessuno».
         "overCommitted": capacity.over_committed(),
+        # Dichiarato sempre: un piano calcolato SENZA snapshot runtime e' un piano che
+        # non sa chi sta scrivendo, e chi lo legge deve poterlo distinguere.
+        # 🔴 NIENTE timestamp qui dentro. La prima stesura esponeva `takenAt` della
+        # snapshot, e il piano smetteva di essere una funzione del proprio input: due
+        # chiamate a cavallo di un secondo davano risultati diversi. Si e' manifestato
+        # come un test intermittente sul restart, ed era il determinismo - proprieta'
+        # dichiarata di questo modulo - a essere rotto. Quando la snapshot e' stata
+        # presa e' un dato del control plane, non del piano.
+        "runtime": {
+            "used": bool(runtime),
+            "writers": [
+                {"resourceKey": v["resourceKey"], "owner": v["ownerSessionId"],
+                 "workspaceGroup": v.get("workspaceGroup"), "stale": v.get("stale")}
+                for v in capacity.runtime_writers
+            ],
+            "unreal": [
+                {"resourceKey": v["resourceKey"], "owner": v["ownerSessionId"],
+                 "stale": v.get("stale")}
+                for v in capacity.runtime_unreal
+            ],
+        },
         "readiness": {
             k: {
                 "state": r.state,

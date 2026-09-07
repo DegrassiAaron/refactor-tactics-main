@@ -576,7 +576,103 @@ codice.
 
 ---
 
-## 13. Propagare una modifica fra i workspace
+## 13. Risorse esclusive: i lease
+
+Il control plane era un **registro**: annotava chi diceva di essere writer, e non
+impediva nulla. L'audit lo ha misurato — due sessioni `WRITER` sullo stesso albero,
+accettate senza un fiato. Ora c'è un'invariante, e non è una convenzione:
+
+```text
+WriterCount(WorktreePath) <= 1
+```
+
+### Chi la fa rispettare
+
+Non il codice applicativo, ma **SQLite**:
+
+```sql
+CREATE UNIQUE INDEX idx_lease_exclusive
+    ON leases(resource_type, resource_key) WHERE state='ACTIVE'
+```
+
+🔴 Non c'è nessun `SELECT` + *«se è libero»* + `INSERT`. La `INSERT` viene tentata e
+basta: se un'altra sessione tiene la risorsa, l'indice la fa fallire, e **quello** è il
+rifiuto. Fra il controllo e la scrittura non c'è finestra, perché non c'è controllo — ed è
+la differenza che si vede sotto due terminali che partono insieme.
+
+⚠️ La clausola `WHERE state='ACTIVE'` è obbligatoria: senza, un lease rilasciato
+impedirebbe per sempre di riacquisire la stessa risorsa.
+
+### Due risorse, non due nomi della stessa
+
+| Risorsa | Chiave | Cosa protegge |
+|---|---|---|
+| `GIT_WRITER` | path **canonico** dell'albero | due scrittori nella stessa directory |
+| `UNREAL_EDITOR` | identità del repository | due Editor sullo stesso progetto |
+
+🔴 La chiave di `GIT_WRITER` è il **path**, non il workspace group. `DEV` è un'etichetta:
+due checkout possono entrambi dichiararsi `DEV`, e due sessioni nello stesso albero
+possono dichiarare gruppi diversi. Ciò che non si può condividere è la **directory**.
+
+⚠️ Il path è canonicalizzato (`realpath` + `abspath` + `normcase`): su Windows lo stesso
+albero si scrive in almeno quattro modi che il filesystem considera identici, e
+confrontarli come stringhe lascerebbe passare il secondo writer.
+
+Una sessione può tenerne una, l'altra, entrambe o nessuna.
+
+### Quando si acquisisce e quando si rilascia
+
+```text
+session start --write-mode WRITER   →  acquisisce, o la sessione NON viene registrata
+session set --write-mode WRITER     →  acquisisce prima di cambiare modo
+session set --write-mode READ_ONLY  →  rilascia
+session stop                        →  rilascia tutto
+```
+
+⛔ Il lease sta **dentro la stessa transazione** della sessione: se la risorsa è occupata,
+il rollback toglie anche la sessione. Non resta registrata una riga che si crede `WRITER`
+senza esserlo — ed è quella riga che il planner leggerebbe.
+
+```powershell
+scripts\rt3.ps1 leases list
+scripts\rt3.ps1 writer claim   # / release
+scripts\rt3.ps1 unreal claim   # / release
+scripts\rt3.ps1 lease release GIT_WRITER <chiave> --force
+```
+
+### Sessioni morte: `STALE`, non liberate
+
+`STALE` non è una colonna: è **derivato** dal fatto che il proprietario non sia più
+`ACTIVE`. Salvarlo richiederebbe che qualcuno lo aggiornasse al momento giusto, e quel
+momento è precisamente quello in cui la sessione è morta senza dire nulla.
+
+⚠️ **Un lease stale NON viene liberato automaticamente**, e non viene rubato. Il control
+plane non sa distinguere una sessione morta da una che tace, e liberare la risorsa da solo
+significherebbe farlo mentre qualcuno ci scrive. Il recovery è manuale ed esplicito:
+`lease release --force`, che resta tracciato in `released_by`.
+
+Stessa ragione per il **restart di `rt3d`**: i lease sopravvivono. Liberarli al riavvio
+significherebbe che riavviare il daemon — cosa che si fa per mille motivi — autorizza un
+secondo scrittore su un albero dove qualcuno sta lavorando.
+
+### Il planner li legge
+
+`plan()` riceve una `RuntimeResourceSnapshot` prodotta dallo store: chi tiene i lease
+adesso. È un **confine** — il planner resta puro e non apre mai il database — e chiude il
+P0 per cui il piano dichiarava `writer DEV 0/1` mentre due sessioni tenevano quell'albero.
+
+⚠️ Con la snapshot, i writer permanenti si contano **da lì** e non dagli item
+`IN_PROGRESS`: sommare le due fonti conterebbe due volte lo stesso lavoro. Il campo
+`runtime.used` nel piano dice sempre se una snapshot è stata usata, perché un piano che non
+sa chi sta scrivendo deve poterlo dichiarare.
+
+⛔ Il risultato per un secondo scrittore resta `TEMPORARY_WORKTREE_SUGGESTED`: nessun
+worktree viene creato. Questa milestone rende corrette le invarianti di ownership, non
+automatizza Git.
+
+---
+
+## 14. Propagare una modifica fra i workspace
 
 Il control plane coordina tre workspace; prima o poi una modifica al control plane stesso
 deve raggiungerli. La strada si sceglie **dai fatti**, e i fatti sono uno solo:
@@ -613,7 +709,7 @@ quei file nel proprio commit.
 
 ---
 
-## 14. Limiti della v1
+## 15. Limiti della v1
 
 Reali, misurati, non ipotetici:
 

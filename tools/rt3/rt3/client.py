@@ -66,7 +66,18 @@ class Client:
             message = body.get("error", "errore non descritto")
             if code == "RT3_PROTOCOL_MISMATCH":
                 raise ProtocolMismatch(message)
-            raise _ERROR_CODES.get(code, Rt3Error)(message, code=code)
+            cls = _ERROR_CODES.get(code, Rt3Error)
+            details = body.get("details") or {}
+            if details and "ownerSessionId" in details:
+                raise cls(
+                    message,
+                    code=code,
+                    resource_type=details.get("resourceType"),
+                    resource_key=details.get("resourceKey"),
+                    owner=details.get("ownerSessionId"),
+                    requester=details.get("requesterSessionId"),
+                )
+            raise cls(message, code=code)
         except urllib.error.URLError as exc:
             raise DaemonUnavailable(
                 "rt3d non raggiungibile su {} ({}). Avviarlo con `rt3 daemon "

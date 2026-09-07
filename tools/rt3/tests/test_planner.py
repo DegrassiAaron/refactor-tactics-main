@@ -241,7 +241,12 @@ epics:
             d for d in result["deferred"] if d["reason"] == "UNREAL_LEASE_CAPACITY"
         ]
         self.assertEqual(len(rimandata), 1)
-        self.assertIn("esclusivo per macchina", rimandata[0]["detail"])
+        # ⚠️ L'asserto sta sul CODICE e sulla sostanza, non sulla frase: un messaggio
+        # riscritto non deve far cadere un test che verifica una regola. La prima
+        # stesura citava «esclusivo per macchina» ed e' caduta appena il testo e'
+        # cambiato per nominare il proprietario runtime.
+        self.assertIn("UNREAL_EDITOR", rimandata[0]["detail"])
+        self.assertIn("esclusiv", rimandata[0]["detail"])
 
     def test_il_lease_unreal_non_consuma_un_writer_se_non_parte(self):
         """⚠️ Verificare il lease DOPO aver preso il writer lascerebbe un writer
@@ -382,6 +387,10 @@ epics:
 
         capacity = _Capacity(self.roadmap)
         capacity.occupy_existing(self.roadmap, normalize_states(self.roadmap, states), modes)
+        # `consolidate()` fonde le due fonti dei writer permanenti - runtime e item
+        # dichiarati - col massimo. Senza, `writers` resta a zero perche'
+        # `occupy_existing` popola solo `declared_count`.
+        capacity.consolidate()
         return capacity
 
     def test_il_temporaneo_dichiarato_non_consuma_il_writer_permanente(self):
@@ -623,6 +632,155 @@ epics:
         """Il fondamento della decisione: chi ha slack 0 va per primo."""
         primi = [a["key"] for a in self.result["assignments"]]
         self.assertEqual(primi[0], "VELOCE/A", "A sta sul cammino critico")
+
+
+class RuntimeAwarenessTest(unittest.TestCase):
+    """🔴 P0 dell'audit: il planner deve vedere chi tiene le risorse ADESSO.
+
+    Prima di questa milestone `plan()` leggeva solo gli item `IN_PROGRESS` della
+    roadmap e riportava `writer DEV 0/1` mentre due sessioni tenevano davvero
+    quell'albero. Ogni test qui confronta il piano SENZA snapshot - il vecchio
+    comportamento, che resta valido per i test puri - con quello CON snapshot.
+    """
+
+    SOURCE = """
+roadmapSchemaVersion: 1
+id: runtime
+resources:
+  workspaces:
+    DEV:
+      writerCapacity: 1
+  temporaryWorktrees:
+    capacity: 1
+  unrealEditor:
+    leaseCapacity: 1
+epics:
+  - id: E
+    homeWork: DEV
+    issues:
+      - id: B4
+"""
+
+    def setUp(self):
+        roadmap, problems = normalize(parse(self.SOURCE))
+        self.assertIsNotNone(roadmap, [p.code for p in problems])
+        self.roadmap = roadmap
+        self.graph = build(roadmap)
+
+    def _snapshot(self, writer_group=None, unreal=False):
+        snap = {"writers": {}, "unreal": {}, "sessions": [], "takenAt": "2026-09-07T00:00:00Z"}
+        if writer_group:
+            snap["writers"]["d:\\alberi\\dev"] = {
+                "ownerSessionId": "DEV-1",
+                "resourceKey": "d:\\alberi\\dev",
+                "workspaceGroup": writer_group,
+                "stale": False,
+            }
+        if unreal:
+            snap["unreal"]["d:\\alberi\\main"] = {
+                "ownerSessionId": "EDITOR-MAIN",
+                "resourceKey": "d:\\alberi\\main",
+                "workspaceGroup": "MAIN",
+                "stale": False,
+            }
+        return snap
+
+    def test_senza_snapshot_il_writer_risulta_libero(self):
+        """Il comportamento PRECEDENTE, tenuto come termine di paragone."""
+        result = plan(self.roadmap, self.graph, {})
+        self.assertEqual(result["assignments"][0]["mode"], "PERMANENT_WRITER")
+        self.assertFalse(result["runtime"]["used"])
+
+    def test_con_snapshot_il_writer_occupato_forza_il_temporaneo(self):
+        """§33: il test che DEVE fallire sulla vecchia implementazione."""
+        result = plan(
+            self.roadmap, self.graph, {}, runtime=self._snapshot(writer_group="DEV")
+        )
+        self.assertEqual(result["assignments"][0]["key"], "E/B4")
+        self.assertEqual(
+            result["assignments"][0]["mode"], "TEMPORARY_WORKTREE_SUGGESTED"
+        )
+        self.assertTrue(result["runtime"]["used"])
+        self.assertEqual(result["runtime"]["writers"][0]["owner"], "DEV-1")
+
+    def test_il_piano_resta_DETERMINISTICO_anche_con_la_snapshot(self):
+        """🔴 Il piano e' funzione del solo input, snapshot compresa.
+
+        La prima stesura esponeva `takenAt` della snapshot dentro il risultato: due
+        piani presi a cavallo di un secondo diventavano diversi, e il test del restart
+        falliva una volta su tre. Un timestamp dentro un valore che si confronta e' un
+        difetto, non un dettaglio - e qui rompeva il determinismo dichiarato dal modulo.
+        """
+        snap = self._snapshot(writer_group="DEV")
+        piani = [plan(self.roadmap, self.graph, {}, runtime=snap) for _ in range(5)]
+        for altro in piani[1:]:
+            self.assertEqual(piani[0], altro)
+        # E due snapshot dello stesso stato prese in momenti diversi devono dare lo
+        # stesso piano: e' esattamente il caso del restart di rt3d.
+        altra = self._snapshot(writer_group="DEV")
+        altra["takenAt"] = "2099-01-01T00:00:00Z"
+        self.assertEqual(plan(self.roadmap, self.graph, {}, runtime=altra), piani[0])
+
+    def test_il_piano_dichiara_SEMPRE_se_ha_usato_una_snapshot(self):
+        """Un piano che non sa chi sta scrivendo deve poterlo dire."""
+        for runtime, atteso in ((None, False), (self._snapshot(), True)):
+            with self.subTest(runtime=bool(runtime)):
+                self.assertEqual(
+                    plan(self.roadmap, self.graph, {}, runtime=runtime)["runtime"]["used"],
+                    atteso,
+                )
+
+    def test_un_lease_su_un_ALTRO_gruppo_non_occupa_DEV(self):
+        """Controllo positivo: se ogni lease occupasse ogni gruppo, il test sopra
+        sarebbe verde per la ragione sbagliata."""
+        result = plan(
+            self.roadmap, self.graph, {}, runtime=self._snapshot(writer_group="MAIN")
+        )
+        self.assertEqual(result["assignments"][0]["mode"], "PERMANENT_WRITER")
+
+    def test_unreal_occupato_dal_runtime_blocca_la_issue(self):
+        """§34."""
+        roadmap, _ = normalize(
+            parse(self.SOURCE.replace("      - id: B4", "      - id: B4\n        resources: [UNREAL_EDITOR]"))
+        )
+        graph = build(roadmap)
+        result = plan(roadmap, graph, {}, runtime=self._snapshot(unreal=True))
+        self.assertEqual(result["assignments"], [])
+        rimandata = result["deferred"][0]
+        self.assertEqual(rimandata["reason"], "UNREAL_LEASE_CAPACITY")
+        self.assertIn("EDITOR-MAIN", rimandata["detail"], "deve nominare chi la tiene")
+        self.assertEqual(result["capacity"]["unrealEditor"]["used"], 1)
+
+    def test_un_lease_stale_conta_comunque_come_occupato(self):
+        """La risorsa resta rivendicata finche' qualcuno non la rilascia: ignorarla
+        significherebbe pianificare sopra un albero che forse ha ancora uno scrittore."""
+        snap = self._snapshot(writer_group="DEV")
+        snap["writers"]["d:\\alberi\\dev"]["stale"] = True
+        result = plan(self.roadmap, self.graph, {}, runtime=snap)
+        self.assertEqual(
+            result["assignments"][0]["mode"], "TEMPORARY_WORKTREE_SUGGESTED"
+        )
+        self.assertTrue(result["runtime"]["writers"][0]["stale"])
+
+    def test_niente_doppio_conteggio_fra_runtime_e_item_in_corso(self):
+        """⚠️ Sommare le due fonti conterebbe due volte lo stesso lavoro - la issue in
+        corso E il lease che la sessione tiene per farla."""
+        roadmap, _ = normalize(
+            parse(self.SOURCE.replace("      - id: B4", "      - id: B4\n      - id: B5"))
+        )
+        graph = build(roadmap)
+        result = plan(
+            roadmap,
+            graph,
+            {"E/B4": "IN_PROGRESS"},
+            runtime=self._snapshot(writer_group="DEV"),
+        )
+        self.assertEqual(
+            result["capacity"]["writers"]["DEV"]["used"],
+            1,
+            "un writer occupato, non due: {}".format(result["capacity"]["writers"]),
+        )
+        self.assertEqual(result["overCommitted"], [])
 
 
 class DeterminismTest(unittest.TestCase):
