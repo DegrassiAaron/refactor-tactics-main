@@ -18,6 +18,7 @@
 #include "Misc/AutomationTest.h"
 #include "Blueprint/WidgetBlueprintGeneratedClass.h"
 #include "Blueprint/WidgetTree.h"
+#include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/Widget.h"
 #include "Tests/RTWidgetAssetTestHelpers.h"
@@ -266,6 +267,73 @@ bool FRTHeroProfileBindingFillsTheCardTest::RunTest(const FString&)
 	{
 		TestEqual(TEXT("il radar resta senza assi"), EmptyRadar->GetRadarAxes().Num(), 0);
 		TestFalse(TEXT("e non si dichiara disegnabile"), EmptyRadar->HasDrawableAxes());
+	}
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+// L'area del radar: il difetto che nessun test vedeva, e che si e' visto solo aprendo l'Editor.
+// ------------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroProfileRadarHasDrawableAreaTest,
+	"RefactorTactics.HeroProfile.RadarHasDrawableArea",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroProfileRadarHasDrawableAreaTest::RunTest(const FString&)
+{
+	using namespace RTHeroProfileAssetTestNames;
+
+	UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(RadarPath);
+	if (!Class)
+	{
+		AddError(TEXT("WBP_RT_HeroRadar non si carica"));
+		return false;
+	}
+
+	URTHeroRadarWidget* Radar = Cast<URTHeroRadarWidget>(NewObject<UUserWidget>(GetTransientPackage(), Class));
+	if (!Radar)
+	{
+		AddError(TEXT("la classe non produce un URTHeroRadarWidget"));
+		return false;
+	}
+
+	Radar->Initialize();
+
+	USizeBox* Box = Cast<USizeBox>(Radar->GetWidgetFromName(TEXT("RadarBox")));
+	if (!TestNotNull(TEXT("il WBP ha il SizeBox di root"), Box))
+	{
+		return false;
+	}
+
+	// 🔴 Lo STATO DI PARTENZA e' il difetto: l'asset non dichiara nessuna misura. Il test lo afferma
+	// invece di darlo per scontato, perche' se un giorno il `.uasset` le dichiarasse, il ramo che
+	// stiamo pinnando non verrebbe piu' esercitato e questo test diventerebbe verde a vuoto.
+	AddInfo(FString::Printf(TEXT("SizeBox prima: width=%.0f height=%.0f"),
+		Box->GetWidthOverride(), Box->GetHeightOverride()));
+
+	Radar->EnsureDrawableArea();
+
+	TestTrue(TEXT("dopo la garanzia il SizeBox ha una larghezza"), Box->GetWidthOverride() > 0.f);
+	TestTrue(TEXT("dopo la garanzia il SizeBox ha un'altezza"), Box->GetHeightOverride() > 0.f);
+
+	// La domanda vera non e' «il box ha una misura» ma «il radar puo' disegnare»: e' il raggio a
+	// decidere, ed e' zero che fa uscire `NativePaint` prima di ogni linea.
+	const float Radius = Radar->ComputeRadiusForSize(FVector2D(Box->GetWidthOverride(), Box->GetHeightOverride()));
+	TestTrue(FString::Printf(TEXT("il raggio e' disegnabile (%.1f px)"), Radius), Radius > 0.f);
+
+	// ⚠️ E il verso opposto: una misura gia' authorata NON viene sovrascritta. Senza questo, la
+	// garanzia sarebbe un'imposizione, e ogni scelta di layout nel `.uasset` verrebbe cancellata
+	// all'apertura.
+	URTHeroRadarWidget* Authored = Cast<URTHeroRadarWidget>(NewObject<UUserWidget>(GetTransientPackage(), Class));
+	Authored->Initialize();
+	USizeBox* AuthoredBox = Cast<USizeBox>(Authored->GetWidgetFromName(TEXT("RadarBox")));
+	if (AuthoredBox)
+	{
+		AuthoredBox->SetWidthOverride(120.f);
+		AuthoredBox->SetHeightOverride(90.f);
+		Authored->EnsureDrawableArea();
+
+		TestEqual(TEXT("una larghezza authorata resta"), AuthoredBox->GetWidthOverride(), 120.f);
+		TestEqual(TEXT("un'altezza authorata resta"), AuthoredBox->GetHeightOverride(), 90.f);
 	}
 
 	return true;
