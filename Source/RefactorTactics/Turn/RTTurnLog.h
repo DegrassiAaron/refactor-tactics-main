@@ -1448,6 +1448,18 @@ enum class ERTTurnLogFormatVersion : uint16
  *
  * ⚠️ Il costo e' ~20 file binari nella PR che bumpa. E' lo stesso lavoro di sempre, pagato da chi cambia il
  * formato invece che accumulato a carico di chi passa di li' mesi dopo.
+ *
+ * 🔑 **Sono DICIANNOVE, non venti, e il ventesimo non va toccato** (misurato su `#2534`). `git ls-files
+ * '*.rttl'` ne conta 20, ma uno e' `Tests/Fixtures/Legacy/turnlog-v10-movement-collision.rttl`, che sta alla
+ * **v10 di proposito** per provare che il lettore regge le tracce vecchie. `RegenerateGolden` lo lascia dov'e'
+ * — correttamente. Chi conta venti file modificati aspetta un numero che non arrivera', o peggio rigenera
+ * anche quello e cancella il test di retrocompatibilita' senza che nulla diventi rosso.
+ *
+ * ⛔ **E c'e' un secondo file da aggiornare a mano, che nessun gate nomina**:
+ * `RefactorTactics.TurnLog.LegacyVersionWithoutReactionResponseIsReadable` costruisce una traccia al formato
+ * CORRENTE e la ridichiara `v9`, togliendo con un `RemoveAt` i byte dei campi aggiunti dopo la v9. Quel numero
+ * e' cablato: chi bumpa senza aggiornarlo vede fallire *«una traccia in versione 9 resta leggibile»* e cerca
+ * la regressione nel lettore, dove non c'e'. Nel test la lunghezza e' ora una somma per versione.
  */
 
 /**
