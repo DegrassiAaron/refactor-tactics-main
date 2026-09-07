@@ -374,11 +374,12 @@ def _ops(store, server):
             for t in store.list_terminals(include_closed=bool(a.get("includeClosed")))
         ]
 
-    def _terminal_get(a):
+    def _terminal_get(a, include_dead=False):
         if a.get("terminalId"):
             term = store.get_terminal(a["terminalId"])
         else:
-            term = store.get_terminal_for_session(a["sessionId"])
+            term = store.get_terminal_for_session(a["sessionId"],
+                                                  include_dead=include_dead)
         if term is None:
             raise TerminalNotFound(
                 "nessun terminale gestito per {}.".format(
@@ -395,7 +396,15 @@ def _ops(store, server):
         e' ancora lo stesso processo. Se non lo e', il terminale diventa `LOST` e non si
         termina niente - il PID potrebbe essere di un programma di qualcun altro.
         """
-        term = _terminal_get(a)
+        # 🔴 Anche un terminale gia' morto. La sessione e' il soggetto di questo
+        # comando, la finestra e' cio' che si chiude IN PIU' quando c'e' ancora.
+        #
+        # Cercare solo fra i vivi lasciava bloccato chi chiudeva la finestra con la X:
+        # RT3 marcava il terminale LOST - correttamente, non riconosce piu' quel
+        # processo - e da quel momento `terminal stop` rispondeva TERMINAL_NOT_FOUND,
+        # con la sessione ancora ATTIVA e il writer lease preso. Misurato nel pilot
+        # EPIC-1937, e l'unica via d'uscita era un comando diverso.
+        term = _terminal_get(a, include_dead=True)
         sid = term["session_id"]
 
         # 1. prima RT3: la sessione si ferma e i lease si liberano mentre il processo
