@@ -595,6 +595,17 @@ Epic e task vengono dal runtime; se mancano, il titolo lo dice invece di inventa
 RT3, nessuna roadmap ricalcolata. Il clock che avanza **non** cambia `StateRevision` e
 non produce nessun diff: e' la stessa regola di §9.
 
+### Quale shell
+
+🔴 **`pwsh` per primo, `powershell` come ripiego.** Non e' una preferenza: gli script RT
+del repository usano sintassi PowerShell 7, e Windows PowerShell 5.1 non li parsa -
+misurato il 2026-09-07 su `scripts/rt-suite.ps1`, **30 errori** con 5.1 e **zero** con
+7.6.5. Poiche' `rt-lease.ps1` carica quello script come engine guard, da una finestra
+5.1 ogni build muore con `ENGINE_GUARD_UNAVAILABLE` prima di partire — successo davvero
+nel pilot EPIC-1937, con la build che si fermava senza aver toccato il compilatore.
+
+`--shell` forza la scelta quando serve.
+
 ### Comandi
 
 ```text

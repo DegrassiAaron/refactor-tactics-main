@@ -9,7 +9,7 @@ import os
 import unittest
 
 from rt3.errors import TerminalAlreadyOpen, TerminalNotFound
-from rt3.launcher import ps_quote, render_script, resolve_shell
+from rt3.launcher import SHELL_PREFERITE, ps_quote, render_script, resolve_shell
 from rt3.model import now_iso
 from rt3.terminals import (
     TERMINAL_STATES,
@@ -223,6 +223,54 @@ class ShellTest(unittest.TestCase):
         self.assertIn(nome, ("powershell", "pwsh"))
         self.assertTrue(os.path.exists(exe), exe)
         self.assertEqual(resolve_shell()[1], exe, "due chiamate, stessa risposta")
+
+    def test_pwsh_viene_PRIMA_di_powershell(self):
+        """🔴 L'ordine e' un requisito, non una preferenza.
+
+        Gli script RT usano sintassi PowerShell 7. Windows PowerShell 5.1 non li parsa -
+        misurato su `scripts/rt-suite.ps1`: 30 errori con 5.1, zero con 7.6.5 - e
+        `rt-lease.ps1` carica quello script come engine guard. Da una finestra 5.1 ogni
+        build muore con `ENGINE_GUARD_UNAVAILABLE` prima di iniziare, ed e' successo nel
+        pilot EPIC-1937.
+        """
+        self.assertEqual(SHELL_PREFERITE[0], "pwsh")
+        self.assertIn("powershell", SHELL_PREFERITE, "il fallback resta")
+
+    def test_il_fallback_esiste_ancora(self):
+        """`pwsh` non si assume presente: se manca si ripiega, e la lista ha due voci
+        proprio per questo."""
+        self.assertEqual(resolve_shell("powershell")[0], "powershell")
+
+    def test_lo_script_RT_che_ha_rivelato_il_difetto_richiede_davvero_il_7(self):
+        """Controllo positivo, sulla FONTE del requisito e non sulla sua conseguenza.
+
+        Se un domani `rt-suite.ps1` diventasse compatibile con 5.1, questo test lo
+        direbbe - e la preferenza tornerebbe una scelta invece che un vincolo. Senza,
+        l'ordine resterebbe cablato per una ragione che nessuno puo' piu' verificare.
+        """
+        import subprocess
+
+        # tests -> rt3 -> tools -> radice del repository: quattro livelli, non tre.
+        # Con tre il file non si trovava e il test si SALTAVA, cioe' non provava niente.
+        radice = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        suite = os.path.join(radice, "scripts", "rt-suite.ps1")
+        if os.name != "nt" or not os.path.exists(suite):
+            self.skipTest("richiede Windows e scripts/rt-suite.ps1")
+
+        def errori_con(exe):
+            ps = (
+                "$e = $null; $t = $null; "
+                "[System.Management.Automation.Language.Parser]::ParseFile("
+                "'{}', [ref]$t, [ref]$e) | Out-Null; $e.Count".format(
+                    suite.replace("'", "''"))
+            )
+            out = subprocess.run([exe, "-NoProfile", "-Command", ps],
+                                 capture_output=True, text=True, timeout=120)
+            return int((out.stdout or "0").strip() or 0)
+
+        self.assertGreater(errori_con("powershell"), 0,
+                           "se 5.1 lo parsasse, la preferenza non sarebbe un vincolo")
+        self.assertEqual(errori_con("pwsh"), 0, "il 7 deve parsarlo")
 
 
 class RegistryTest(Rt3TestCase):
