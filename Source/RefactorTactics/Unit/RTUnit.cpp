@@ -1,5 +1,6 @@
 #include "Unit/RTUnit.h"
 #include "Turn/RTReactionOpportunityTypes.h" // IsDeclaredConditionAllowed: la validazione sta in un posto solo
+#include "Turn/RTHexSimLibrary.h" // #79: ClassifyWaypointCell classifica il rifiuto, qui non si decide nulla
 #include "Turn/RTPlaybackLibrary.h" // DirectionYaw: facing planare, presentazione
 #include "Map/RTHexLibrary.h"
 #include "Combat/RTCombatLibrary.h"
@@ -1068,12 +1069,30 @@ void ARTUnit::ApplyTeamColor()
 	RefreshComponentVisibility();
 }
 
+void ARTUnit::NoteMovePlanRejection(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& RequestedCell)
+{
+	// Il vocabolario del motivo esiste gia' e risponde qui: `Occupied` e' l'unico caso di #79, e gli altri
+	// tre — fuori mappa, cella bloccata, `Ok` (cioe' budget) — restano `Stayed` per scope dichiarato.
+	const bool bByOccupant =
+		URTHexSimLibrary::ClassifyWaypointCell(Snapshot, UnitId, RequestedCell) == ERTHexWaypointReason::Occupied;
+
+	// Assegnazione INCONDIZIONATA, non un `if (bByOccupant) { ... }`: e' cio' che rende «l'ultimo tentativo
+	// governa» un fatto del codice invece di una promessa del commento. Un rifiuto per occupazione seguito da
+	// un rifiuto fuori mappa lascia il piano senza rifiuto di occupazione, che e' l'ultimo esito vero.
+	bMovePlanRejectedByOccupant = bByOccupant;
+	RejectedMoveDestination = bByOccupant ? RequestedCell : FRTCellId();
+}
+
 void ARTUnit::PlaceOnCell(const FRTCellId& InCell, const FVector& Origin, float HexSize, float LayerHeight)
 {
 	Cell = InCell;        // posizione AUTOREVOLE (invariante #2: il FVector sotto e' solo rendering)
 	PlannedCell = InCell; // dopo un movimento, il piano riparte dalla cella attuale
 	PlannedPath.Reset();      // il percorso composito e' consumato
 	PlannedWaypoints.Reset(); // e i suoi waypoint
+	// Il rifiuto e' parte del piano e si consuma con lui (#79): chi e' stato spostato non porta al turno
+	// successivo la destinazione che gli era stata negata in QUESTO. Vale per ogni scrittore di `Cell`, non
+	// solo per la fase Move — spinte e teletrasporti passano di qui e azzerano gia' gli altri campi del piano.
+	ClearMovePlanRejection();
 	SetActorLocation(WorldForCell(InCell, Origin, HexSize, LayerHeight));
 }
 

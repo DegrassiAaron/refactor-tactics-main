@@ -1517,4 +1517,417 @@ bool FRTFirstTurnAcceptsSelectionTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// #79 / CP 11.3 — UN MOVIMENTO NEGATO IN PIANIFICAZIONE LASCIA LA SUA TRACCIA.
+//
+// Il DoD della issue chiede che «i fallback applicati siano espliciti ("percorso bloccato -> fermo")».
+// Oggi non lo sono: chi dichiara una destinazione occupata e chi non dichiara niente producono la
+// STESSA riga — «resta (q,r,L) (Action.Move, p50)» — e la sola cosa che li separa e' un `UE_LOG` che
+// emette `RTScenarioSession`, cioe' il runner degli scenari. In partita normale quella riga non esiste.
+//
+// 🔑 **Perche' questi tre test passano dal CONTROLLER e non dai campi `Planned*`.**
+// `Actions.Move.PathBlocked` produce gia' `BlockedByUnit`, ma per un'altra strada: li' il percorso e'
+// scritto a mano e ATTRAVERSA il blocker, quindi il resolver lo vede e lo tronca. Qui il percorso non
+// arriva mai al resolver — `BuildCompositeHexPath` lo rifiuta in pianificazione e
+// `PlannedWaypoints.Pop()` non lascia nulla dietro di se' (`RTPlayerController.cpp:1624-1629`).
+// Scrivere `PlannedPath` a mano misurerebbe il meccanismo che gia' funziona e lascerebbe il difetto
+// della #79 intatto sotto un verde.
+//
+// Oracoli dal contratto della wave, non dal codice: `WORK-ORDER.md` § EXPECTED BEHAVIOR
+// (`docs/rt-three-terminals/waves/issue-79-combat-log-blocked-move/`). In particolare l'arbitrato 1:
+// la voce di blocco **sostituisce** `Stayed`, non si aggiunge — due voci `Move` per la stessa unita'
+// nella stessa fase sono una violazione, non un dettaglio.
+// =====================================================================================================
+
+namespace
+{
+	/** Porta a termine risoluzione e playback. Stesso ciclo dei test di scatto qui sopra. */
+	void RisolviIlTurno(ARTTurnManager* TM)
+	{
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
+	}
+
+	/**
+	 * Le voci `Move` che il TurnLog porta PER QUELL'UNITA', nell'ordine in cui ci stanno.
+	 *
+	 * Si restituisce l'elenco e non la prima voce perche' il contratto asserisce anche la CARDINALITA':
+	 * «una sola voce finale». Una funzione che tornasse `TOptional` renderebbe indistinguibile
+	 * «una voce» da «due voci di cui la prima e' giusta», che e' esattamente il modo in cui
+	 * l'alternativita' fra `Stayed` e `BlockedByUnit` si romperebbe senza che niente diventi rosso.
+	 *
+	 * Il filtro e' `UnitId`: `BuildMoveLog` non lo popola, ma `ARTTurnManager::AppendLogEntry` lo scrive
+	 * subito dopo con lo `StableUnitId` dell'attore. Filtrare per `SrcCell` collide appena due unita'
+	 * partono dalla stessa cella.
+	 */
+	TArray<FRTTurnLogEntry> VociMoveDi(const ARTTurnManager* TM, const ARTUnit* Unit)
+	{
+		TArray<FRTTurnLogEntry> Out;
+		if (!TM || !Unit) { return Out; }
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Move && E.UnitId == Unit->StableUnitId)
+			{
+				Out.Add(E);
+			}
+		}
+		return Out;
+	}
+
+	/** Quante voci `Move` con quell'esito, su TUTTO il log: serve ai due gemelli negativi. */
+	int32 ContaEsitoMove(const ARTTurnManager* TM, ERTMoveOutcome Esito)
+	{
+		int32 N = 0;
+		if (!TM) { return N; }
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Move && static_cast<ERTMoveOutcome>(E.Outcome) == Esito)
+			{
+				++N;
+			}
+		}
+		return N;
+	}
+}
+
+/**
+ * CASO B — la destinazione dichiarata e' occupata da un'unita' ferma, e il TurnLog lo dice.
+ *
+ * L'asserzione guarda i CAMPI, non il conteggio: `TgtCell` e' la meta' del referto che rende la voce
+ * utile a chi legge il combat log, e un test che contasse solo le voci resterebbe verde su una
+ * `TgtCell` uguale alla cella di partenza — cioe' su una voce che dice «sono fermo dove sono»
+ * invece di «volevo andare LI' e me l'hanno negato».
+ *
+ * ⚠️ **Anti-vacuita', dichiarata.** `Stayed` e `BlockedByUnit` descrivono entrambi un'unita' che non
+ * si e' mossa: la posizione finale non distingue il fix dal difetto. Cio' che discrimina e' l'esito
+ * sulla voce, e le mutazioni che devono renderlo rosso sono elencate nel contributo DEV-TEST.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDeniedMoveDeclaresTheDenialTest,
+	"RefactorTactics.PlayerInteraction.DeniedMoveDeclaresTheDenial",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDeniedMoveDeclaresTheDenialTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	// La mappa e' PULITA di proposito: su `MakeTestArena` un muro farebbe rifiutare il waypoint per
+	// «cella bloccata», e il test resterebbe verde togliendo proprio la regola che dice di difendere
+	// (stessa trappola gia' misurata il 2026-08-26 e annotata su `SpawnCleanInteractionMap`).
+	const FRTCellId Partenza(0, 0);
+	const FRTCellId Occupata(1, 0); // adiacente: il rifiuto e' l'occupazione, non il budget
+	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Partenza);
+	ARTUnit* Occupante = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Occupata);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("chi pianifica"), Chi) || !TestNotNull(TEXT("chi occupa"), Occupante)
+		|| !TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	PC->SelectActorForTest(Chi);
+	Chi->SelectAbility(INDEX_NONE); // movimento normale, non scatto: il ramo in esame e' quello dei waypoint
+	Occupante->PlannedCell = Occupante->Cell; // FERMA: e' l'occupazione, non una contesa
+
+	PC->HandleClickOnCell(Occupata);
+
+	// 🔑 LA PREMESSA CHE DEFINISCE IL CASO. Senza, questo test potrebbe passare dalla strada di
+	// `Actions.Move.PathBlocked` — percorso accettato e poi troncato dal resolver — che e' un ALTRO
+	// meccanismo, gia' funzionante, e che lascerebbe il difetto della #79 non misurato.
+	if (!TestEqual(TEXT("premessa: il waypoint e' stato RIFIUTATO in pianificazione"),
+			Chi->PlannedWaypoints.Num(), 0)
+		|| !TestEqual(TEXT("premessa: e nessun percorso e' sopravvissuto al rifiuto"),
+			Chi->PlannedPath.Num(), 0))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	RisolviIlTurno(TM);
+
+	const TArray<FRTTurnLogEntry> Voci = VociMoveDi(TM, Chi);
+	if (!TestEqual(TEXT("UNA sola voce Move per l'unita' negata: la voce di blocco SOSTITUISCE Stayed"),
+			Voci.Num(), 1))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	const FRTTurnLogEntry& Voce = Voci[0];
+	TestEqual(TEXT("l'esito dichiara il diniego, non una immobilita' volontaria"),
+		Voce.Outcome, static_cast<uint8>(ERTMoveOutcome::BlockedByUnit));
+	TestEqual(TEXT("la voce sta nella fase in cui il movimento si risolve"), Voce.Phase, ERTMatchPhase::Move);
+	TestEqual(TEXT("SrcCell e' la cella di partenza — chiave stabile dell'unita' nel turno"),
+		Voce.SrcCell, Partenza);
+	// 🔴 Il campo per cui questa wave esiste. Con `TgtCell == SrcCell` la voce direbbe «fermo dove
+	// sono», che e' il difetto scritto in una forma nuova invece che corretto.
+	TestEqual(TEXT("TgtCell e' la destinazione RICHIESTA e negata, non la cella di partenza"),
+		Voce.TgtCell, Occupata);
+	TestEqual(TEXT("nomina il movimento"), Voce.ActionId, FName(TEXT("Action.Move")));
+	// `Priority` per voce e' in `main` dalla #419 (formato v7) ed e' funzione del CATALOGO: un letterale
+	// in un sito nuovo sarebbe una regressione su una decisione gia' presa, e passerebbe inosservato
+	// perche' entra nell'ordine canonico e nell'hash senza che nessuno lo guardi.
+	TestEqual(TEXT("Priority viene dal catalogo, non da uno zero implicito"),
+		Voce.Priority, URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).Priority);
+	// `Amount` e' un VALORE, non un'assenza: zero celle percorse. `SupersededByDash` ha gia' insegnato
+	// che questo campo e' stato causa di un'asserzione sbagliata quando nessuno lo guardava.
+	TestEqual(TEXT("Amount conta le celle percorse, e sono zero"), Voce.Amount, 0);
+
+	// La voce descrive il turno invece di contraddirlo: l'unita' non si e' spostata davvero.
+	TestEqual(TEXT("l'unita' e' rimasta sulla cella di partenza"), Chi->Cell, Partenza);
+	TestEqual(TEXT("e l'occupante non si e' mosso: era lui l'ostacolo"), Occupante->Cell, Occupata);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * CASO A — chi non ha dichiarato niente continua a dire `Stayed`, ed e' il GEMELLO del caso B.
+ *
+ * Senza questo test, un ramo che scrivesse `BlockedByUnit` incondizionatamente supererebbe il caso B
+ * e ogni unita' immobile del gioco dichiarerebbe un diniego che nessuno le ha opposto. E' la stessa
+ * disciplina di `NoSupersededEntryOnALegalPlan` e di `LockInStaysSilentOnALegalPlan`.
+ *
+ * La fixture e' IDENTICA a quella del caso B — stessa mappa, stesse due unita', stesse posizioni — e
+ * cambia una cosa sola: il click che non arriva. E' cio' che rende i due test una differenza misurata
+ * invece di due montaggi che nessuno confronta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUndeclaredMoveDoesNotDeclareADenialTest,
+	"RefactorTactics.PlayerInteraction.UndeclaredMoveDoesNotDeclareADenial",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUndeclaredMoveDoesNotDeclareADenialTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	const FRTCellId Partenza(0, 0);
+	const FRTCellId Occupata(1, 0);
+	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Partenza);
+	ARTUnit* Occupante = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Occupata);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("chi non dichiara"), Chi) || !TestNotNull(TEXT("il vicino"), Occupante)
+		|| !TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	// Selezionata, come nel caso B: cio' che manca e' la DICHIARAZIONE, non la selezione. Se il test
+	// non selezionasse l'unita', proverebbe che un controller inerte non scrive nulla — vero e inutile.
+	PC->SelectActorForTest(Chi);
+	Chi->SelectAbility(INDEX_NONE);
+	Occupante->PlannedCell = Occupante->Cell;
+
+	// Nessun `HandleClickOnCell`: e' l'unica differenza rispetto al caso B.
+	if (!TestEqual(TEXT("premessa: nessun waypoint dichiarato"), Chi->PlannedWaypoints.Num(), 0))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	RisolviIlTurno(TM);
+
+	const TArray<FRTTurnLogEntry> Voci = VociMoveDi(TM, Chi);
+	if (!TestEqual(TEXT("una sola voce Move per chi non ha dichiarato"), Voci.Num(), 1))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("chi non ha dichiarato niente dice Stayed, come prima della #79"),
+		Voci[0].Outcome, static_cast<uint8>(ERTMoveOutcome::Stayed));
+
+	// 🔴 Il gemello vero e proprio: su TUTTO il log, nessun diniego. Un `BlockedByUnit` incondizionato
+	// morirebbe qui, ed e' il solo posto in cui puo' morire.
+	TestEqual(TEXT("nessun diniego inventato per chi non ha tentato niente"),
+		ContaEsitoMove(TM, ERTMoveOutcome::BlockedByUnit), 0);
+
+	TestEqual(TEXT("l'unita' e' rimasta dov'era"), Chi->Cell, Partenza);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * CASO C — il giocatore sbaglia, corregge, e il TurnLog racconta il PIANO FINALE.
+ *
+ * ⛔ E' il test che impedisce la falsa soluzione. Il modo piu' semplice di far passare il caso B e'
+ * registrare un evento a ogni click rifiutato: funzionerebbe, e trasformerebbe ogni tentativo
+ * esplorativo in un fatto del replay — il TurnLog e' un formato serializzato, ordinato e riprodotto,
+ * non un diario dell'interazione. Il soggetto della voce e' il piano che il giocatore ha COMMITTATO.
+ *
+ * `WORK-ORDER.md` § *Falsi punti di partenza* punto 4, e § *EXPECTED BEHAVIOR* riga `Timing boundary`:
+ * lo stato di rifiuto nasce in `Planning` e **muore quando un piano valido lo sostituisce**.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplanAfterADenialWinsTest,
+	"RefactorTactics.PlayerInteraction.ReplanAfterADenialWins",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplanAfterADenialWinsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	const FRTCellId Partenza(0, 0);
+	const FRTCellId Occupata(1, 0);  // il tentativo che viene negato
+	const FRTCellId Ripiego(0, 1);   // adiacente e libera: la correzione del giocatore
+	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Partenza);
+	ARTUnit* Occupante = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Occupata);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("chi pianifica"), Chi) || !TestNotNull(TEXT("chi occupa"), Occupante)
+		|| !TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	PC->SelectActorForTest(Chi);
+	Chi->SelectAbility(INDEX_NONE);
+	Occupante->PlannedCell = Occupante->Cell;
+
+	// La sequenza reale del giocatore: prova il varco occupato, se lo vede negare, e ripiega.
+	PC->HandleClickOnCell(Occupata);
+	if (!TestEqual(TEXT("premessa: il primo tentativo E' stato negato"), Chi->PlannedWaypoints.Num(), 0))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	PC->HandleClickOnCell(Ripiego);
+	if (!TestEqual(TEXT("premessa: la correzione E' stata accettata"), Chi->PlannedWaypoints.Num(), 1)
+		|| !TestEqual(TEXT("premessa: e il piano finale punta al ripiego"), Chi->PlannedCell, Ripiego))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	RisolviIlTurno(TM);
+
+	// 🔴 Nessun rejection stale: lo stato del tentativo negato non deve sopravvivere al piano che lo
+	// sostituisce. Su TUTTO il log, non solo sulla voce dell'unita': un evento scritto al momento del
+	// click starebbe nel log anche se la voce finale fosse corretta.
+	TestEqual(TEXT("il tentativo negato non lascia traccia: ha vinto il piano finale"),
+		ContaEsitoMove(TM, ERTMoveOutcome::BlockedByUnit), 0);
+
+	const TArray<FRTTurnLogEntry> Voci = VociMoveDi(TM, Chi);
+	if (!TestEqual(TEXT("una sola voce Move: il turno ha un esito, non due"), Voci.Num(), 1))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("e l'esito e' il movimento eseguito"),
+		Voci[0].Outcome, static_cast<uint8>(ERTMoveOutcome::Moved));
+	TestEqual(TEXT("con la destinazione del piano CORRETTO, non di quello negato"),
+		Voci[0].TgtCell, Ripiego);
+
+	TestEqual(TEXT("l'unita' e' davvero sul ripiego"), Chi->Cell, Ripiego);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * BOUNDARY — NON TUTTI I RIFIUTI SONO LO STESSO RIFIUTO.
+ *
+ * Il contratto della wave e' esplicito sul confine (§ EXPECTED BEHAVIOR, riga `Failure`): un rifiuto
+ * di pianificazione con motivo diverso da «destinazione occupata» — budget esaurito, cella non
+ * percorribile, fuori mappa — resta `Stayed`, comportamento invariato. E' una scelta di scope della
+ * #79, dichiarata per non farla scambiare per una svista dal prossimo lettore.
+ *
+ * 🔴 **Senza questo test la scelta non e' difesa da niente.** Un classificatore che scrivesse il
+ * diniego a ogni ramo di rifiuto — invece di delegare a `ClassifyWaypointCell`, che i motivi li
+ * distingue gia' — supererebbe i casi A, B e C: A non ha rifiuti, B ha un rifiuto per occupazione, C
+ * finisce con un piano valido. Nessuno dei tre passa da un rifiuto di ALTRO motivo, e questo si'.
+ *
+ * ⚠️ **Una sola unita' nel mondo, ed e' deliberato.** Su una cella libera di una mappa senza ostacoli
+ * l'unico motivo di rifiuto possibile e' il budget: non c'e' nessuno da cui essere bloccati. Un
+ * `BlockedByUnit` che comparisse qui non avrebbe nemmeno un occupante a cui riferirsi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBudgetDenialIsNotAUnitDenialTest,
+	"RefactorTactics.PlayerInteraction.BudgetDenialIsNotAUnitDenial",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBudgetDenialIsNotAUnitDenialTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	// Raggio largo: la cella oltre il budget deve restare DENTRO la mappa, altrimenti il rifiuto
+	// sarebbe «fuori dalla mappa» e il test misurerebbe un motivo diverso da quello che dice.
+	if (!TestNotNull(TEXT("mappa ampia e senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 12)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	const FRTCellId Partenza(0, 0);
+	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Partenza);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita'"), Chi) || !TestNotNull(TEXT("controller"), PC)
+		|| !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	PC->SelectActorForTest(Chi);
+	Chi->SelectAbility(INDEX_NONE);
+
+	// La distanza si chiede al budget invece di scriverla: un eroe ribilanciato sposterebbe il confine,
+	// e un letterale renderebbe il test verde su un click che il budget copre ancora. E' la stessa
+	// trappola gia' misurata su `WaypointClicksBuildAndRejectPlans`, dove quattro celle bastavano al
+	// Ranger legacy e non piu' a chi lo ha sostituito.
+	const int32 Budget = Chi->GetEffectiveMoveRange();
+	if (!TestTrue(TEXT("premessa: l'eroe ha un budget di movimento"), Budget > 0))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	const FRTCellId Lontana(Budget + 2, 0, 0); // libera, sulla mappa, e fuori portata
+
+	PC->HandleClickOnCell(Lontana);
+	if (!TestEqual(TEXT("premessa: il waypoint e' stato rifiutato"), Chi->PlannedWaypoints.Num(), 0))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	RisolviIlTurno(TM);
+
+	// 🔴 Il confine. Il rifiuto c'e' stato, ma non e' un'occupazione: la #79 non lo copre.
+	TestEqual(TEXT("un rifiuto per BUDGET non diventa un diniego da unita'"),
+		ContaEsitoMove(TM, ERTMoveOutcome::BlockedByUnit), 0);
+
+	const TArray<FRTTurnLogEntry> Voci = VociMoveDi(TM, Chi);
+	if (!TestEqual(TEXT("una sola voce Move per l'unita'"), Voci.Num(), 1))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("l'esito resta quello di prima della #79"),
+		Voci[0].Outcome, static_cast<uint8>(ERTMoveOutcome::Stayed));
+
+	TestEqual(TEXT("e l'unita' non si e' mossa"), Chi->Cell, Partenza);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

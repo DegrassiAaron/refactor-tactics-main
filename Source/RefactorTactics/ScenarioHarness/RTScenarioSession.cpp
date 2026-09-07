@@ -1342,11 +1342,32 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 			Unit->PlannedWaypoints = Intent.Move;
 			Unit->PlannedPath = Path.Path;
 			Unit->PlannedCell = Path.Path.Last();
+			// #79, caso C: un piano valido cancella un rifiuto precedente. Vale qui per la stessa ragione per
+			// cui vale nel controller — l'esito da spiegare e' quello del piano FINALE, non di un tentativo
+			// intermedio — e uno scenario a piu' turni e' esattamente il posto in cui un residuo di turno
+			// sopravviverebbe non visto.
+			Unit->ClearMovePlanRejection();
 		}
 		else
 		{
+			// 🔑 **#79: la STESSA funzione del controller, non una copia.** Il rifiuto in pianificazione qui e
+			// in `ARTPlayerController::HandleClickOnCell` sono lo stesso fatto del gioco, e finche' l'unica
+			// traccia era la riga `[RT-Test]` qui sotto il diniego esisteva solo per il runner degli scenari:
+			// in partita nessuno lo vedeva. Chiamare `NoteMovePlanRejection` invece di costruire una voce qui
+			// dentro e' cio' che tiene UNA regola sola — una copia locale renderebbe verde `CollisionChoke`
+			// lasciando muta la partita, che e' il difetto di oggi spostato di un livello (criterio 4).
+			//
+			// La destinazione richiesta e' l'ULTIMO waypoint dichiarato dallo scenario: e' quella che
+			// `BuildCompositeHexPath` non ha potuto raggiungere. Senza waypoint non c'e' destinazione da
+			// registrare, e il ramo non ha nulla da dire.
+			if (Intent.Move.Num() > 0)
+			{
+				Unit->NoteMovePlanRejection(Snapshot, UnitId, Intent.Move.Last());
+			}
 			Notes.Add(FString::Printf(TEXT("turno %d: percorso rifiutato per '%s': l'unita' resta ferma"),
 				TurnIndex + 1, *Intent.UnitId));
+			// ⚠️ Resta, e non e' piu' l'unica traccia: e' diagnostica del RUNNER, utile a chi legge il log di
+			// una run. La sua sopravvivenza non riapre il difetto, la sua rimozione non lo chiude.
 			UE_LOG(LogRT, Warning, TEXT("[RT-Test] %s: percorso rifiutato per '%s' (l'unita' resta ferma)"),
 				*Scenario.ScenarioId, *Intent.UnitId);
 		}

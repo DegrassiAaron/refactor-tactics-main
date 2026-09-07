@@ -19,6 +19,9 @@
 #include "Turn/RTTurnLogLibrary.h" // DescribeEntry/DescribeInvalidReason: la voce nuova deve LEGGERSI, non solo esistere
 #include "Perception/RTKnowledgeView.h" // ViewForTeam/FindEntry: il canale della SAGOMA, accanto a quello della traccia
 #include "UI/RTHUD.h"                   // ShouldDrawUnitOverlay/ContactGhostTargetForUnit: le due statiche pure dell'HUD
+// #79: il diniego nasce nella PIANIFICAZIONE, e l'unico modo di produrlo e' passare dal controller.
+// Scrivere `PlannedPath` a mano misurerebbe il troncamento del resolver, che e' un altro meccanismo.
+#include "Player/RTPlayerController.h"
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -2035,6 +2038,241 @@ bool FRTHexMoveEntriesDeclareNoBoundaryTest::RunTest(const FString&)
 
 	TestEqual(TEXT("nessuna voce si attribuisce un boundary in un turno senza reazioni"), ConBoundary, 0);
 	TestEqual(TEXT("e tutte dichiarano di non appartenere a un ciclo"), Dichiarate, Log.Num());
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+// =====================================================================================================
+// #79 / CP 11.3 — «HO TENTATO E ME L'HANNO NEGATO» E «NON HO TENTATO» SONO DUE FATTI DIVERSI.
+//
+// Criterio di accettazione 2 del work order: i due casi devono essere distinguibili **leggendo la sola
+// voce**, senza il log del runner degli scenari. Oggi non lo sono — in PIE (seduta `U14`,
+// `PIE-V01-COLL`) i turni 3 e 4 producono la riga identica «Gadget: resta (q=-1,r=0,L=0)
+// (Action.Move, p50)», e i due turni sono l'uno «non ho dichiarato» e l'altro «ho tentato il varco».
+//
+// I due esiti si misurano NELLO STESSO TURNO, su due unita' diverse. Due test separati proverebbero
+// che ciascun montaggio produce il suo esito; solo un montaggio unico prova che i due esiti non
+// collassano nello stesso valore — che e' il difetto della issue.
+// =====================================================================================================
+
+namespace
+{
+	/**
+	 * Firma canonica di una voce `Move`: cio' che il replay porta, nell'ordine in cui lo porta.
+	 *
+	 * Non e' `DescribeEntry`: quella e' la PROIEZIONE leggibile, e due voci con esiti diversi possono
+	 * renderizzarsi nella stessa frase — e' esattamente il difetto della #79. Qui si confrontano i
+	 * campi serializzati, che sono cio' che entra nell'ordine canonico e nell'hash.
+	 */
+	FString FirmaCanonica(const FRTTurnLogEntry& E)
+	{
+		return FString::Printf(TEXT("u%d|o%d|s%d,%d,%d|t%d,%d,%d|%s|p%d|a%d"),
+			E.UnitId, static_cast<int32>(E.Outcome),
+			E.SrcCell.X, E.SrcCell.Y, E.SrcCell.Layer,
+			E.TgtCell.X, E.TgtCell.Y, E.TgtCell.Layer,
+			*E.ActionId.ToString(), E.Priority, E.Amount);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDenialAndStillnessAreDistinguishableTest,
+	"RefactorTactics.HexMove.DenialAndStillnessAreDistinguishable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDenialAndStillnessAreDistinguishableTest::RunTest(const FString&)
+{
+	// Il montaggio gira DUE volte, identico. La prima passata misura la distinguibilita', il confronto
+	// fra le due misura l'ordine: stesso stato iniziale, stesse versioni, nessun RNG sul percorso
+	// (`SEED_SOURCE: none`), quindi stessa sequenza canonica. Un ordine che dipendesse
+	// dall'iterazione di una `TMap` cadrebbe qui e in nessun altro test di questo file.
+	TArray<FString> Sequenze[2];
+	// `uint8` e non `ERTMoveOutcome`: e' il tipo del campo, ed e' la forma con cui questa suite confronta
+	// gli esiti ovunque (`RTHexSimTests.cpp:979`). Il valore iniziale NON e' una sentinella — se la voce
+	// mancasse, `VociNegata` resterebbe a zero e il controllo bloccante qui sotto fermerebbe il test
+	// prima che uno `Stayed` mai letto si spacci per un esito misurato.
+	uint8 EsitoNegata = static_cast<uint8>(ERTMoveOutcome::Stayed);
+	uint8 EsitoFerma = static_cast<uint8>(ERTMoveOutcome::Stayed);
+	int32 VociNegata = 0;
+	int32 VociFerma = 0;
+
+	for (int32 Passata = 0; Passata < 2; ++Passata)
+	{
+		UWorld* World = MakeHexMoveWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnHexMap(World, /*Radius=*/ 6);
+
+		const FRTCellId PartenzaNegata(0, 0);
+		const FRTCellId Occupata(1, 0);
+		const FRTCellId PartenzaFerma(-2, 0);
+
+		// `Negata` dichiara e viene respinta; `Ferma` non dichiara niente; `Occupante` e' l'ostacolo.
+		ARTUnit* Negata = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), PartenzaNegata);
+		ARTUnit* Occupante = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Occupata);
+		ARTUnit* Ferma = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), PartenzaFerma);
+		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !PC || !Negata || !Occupante || !Ferma)
+		{
+			DestroyHexMoveWorld(World);
+			return false;
+		}
+
+		Occupante->PlannedCell = Occupante->Cell; // ferma: e' l'occupazione, non una contesa
+		Ferma->PlannedCell = Ferma->Cell;
+
+		// Il diniego si produce dal controller, che e' il sito reale della pianificazione.
+		PC->SelectActorForTest(Negata);
+		Negata->SelectAbility(INDEX_NONE);
+		PC->HandleClickOnCell(Occupata);
+		if (!TestEqual(TEXT("premessa: il waypoint e' stato rifiutato in pianificazione"),
+				Negata->PlannedWaypoints.Num(), 0))
+		{
+			DestroyHexMoveWorld(World);
+			return false;
+		}
+
+		RunTurn(TM);
+
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category != ERTLogCategory::Move) { continue; }
+			Sequenze[Passata].Add(FirmaCanonica(E));
+			if (E.UnitId == Negata->StableUnitId) { EsitoNegata = E.Outcome; ++VociNegata; }
+			if (E.UnitId == Ferma->StableUnitId)  { EsitoFerma  = E.Outcome; ++VociFerma; }
+		}
+
+		if (Passata == 0)
+		{
+			// Senza questi tre controlli il confronto fra le due passate girerebbe su liste vuote e
+			// sarebbe verde per assenza, e i due esiti sarebbero quelli iniziali invece che due misure.
+			// Sono BLOCCANTI apposta: un test che prosegue senza le sue voci riporta «atteso
+			// BlockedByUnit, trovato Stayed» e manda a cercare la regola sbagliata.
+			if (!TestTrue(TEXT("il turno ha prodotto voci di movimento"), Sequenze[0].Num() > 0)
+				|| !TestEqual(TEXT("una sola voce per chi e' stata negata"), VociNegata, 1)
+				|| !TestEqual(TEXT("una sola voce per chi non ha dichiarato"), VociFerma, 1))
+			{
+				DestroyHexMoveWorld(World);
+				return false;
+			}
+		}
+
+		DestroyHexMoveWorld(World);
+	}
+
+	// 🔴 IL PUNTO DELLA ISSUE. Non «l'esito e' BlockedByUnit» — quello lo prova il caso B — ma che i
+	// due esiti NON COINCIDANO. Finche' coincidono, il combat log non puo' distinguerli comunque lo
+	// si formatti, ed e' il reperto che `CollisionChoke` misura da settembre.
+	TestTrue(TEXT("chi ha tentato e chi non ha tentato NON producono lo stesso esito"),
+		EsitoNegata != EsitoFerma);
+	TestEqual(TEXT("chi ha tentato dichiara il diniego"),
+		EsitoNegata, static_cast<uint8>(ERTMoveOutcome::BlockedByUnit));
+	TestEqual(TEXT("chi non ha tentato resta Stayed"),
+		EsitoFerma, static_cast<uint8>(ERTMoveOutcome::Stayed));
+
+	// ORDERING + DETERMINISM. Se cade sul solo `u<id>`, la causa e' l'assegnazione degli StableUnitId
+	// fra due mondi e non la voce: e' comunque una scoperta, perche' quegli id entrano nel formato.
+	if (TestEqual(TEXT("due esecuzioni identiche producono lo stesso numero di voci"),
+			Sequenze[1].Num(), Sequenze[0].Num()))
+	{
+		for (int32 I = 0; I < Sequenze[0].Num(); ++I)
+		{
+			TestEqual(*FString::Printf(TEXT("voce %d identica fra le due esecuzioni"), I),
+				Sequenze[1][I], Sequenze[0][I]);
+		}
+	}
+
+	return true;
+}
+
+/**
+ * #79 — IL TERZO PRODUTTORE: chi dichiara SOLO una destinazione, e se la vede negare.
+ *
+ * Richiesto dal work order, DEV-TEST punto 6, dopo il Finding `…/1-F3`: i produttori di un piano di
+ * movimento sono **tre** — player, Scenario Harness e bot — e il criterio di accettazione 4 chiede che
+ * producano lo **stesso** esito per lo stesso stato. `CollisionChoke` da solo esercita l'harness, e il
+ * caso B in `RTPlayerInteractionTests.cpp` esercita il player: questo e' il terzo.
+ *
+ * 🔑 **Perche' il bot e' un caso diverso e non una ripetizione.** Il bot *«pianifica destinazioni, non
+ * percorsi a waypoint»* (`RTTurnManager.cpp:775`): scrive `PlannedCell` e basta, non ha nessun ramo di
+ * rifiuto in pianificazione, e la sua destinazione arriva INTATTA alla fase Move — dove
+ * `FindPathForUnit` fallisce perche' il goal e' occupato e si cade su `Path = { Unit->Cell }`. Il
+ * player invece perde la destinazione nel `Pop()` del controller. Due strade diverse, un solo punto di
+ * collasso (`RTTurnManager.cpp:7183`), e il contratto chiede la stessa voce da entrambe.
+ *
+ * ⚠️ **Il piano si scrive a mano, ed e' la forma del bot, non il bot.** Qui non gira nessuna decisione
+ * di `URTHexBotLibrary`: cio' che si riproduce e' la FORMA del piano che il bot lascia — sola
+ * `PlannedCell`, nessun `PlannedPath` — perche' e' quella forma a produrre il caso, non l'euristica che
+ * l'ha scelta. Far girare il bot introdurrebbe la sua scelta di destinazione fra la premessa e
+ * l'asserzione, e il test misurerebbe due cose insieme.
+ *
+ * ⛔ **Non e' `Actions.Move.PathBlocked`.** Li' il percorso e' scritto a mano e ATTRAVERSA il blocker:
+ * il resolver lo vede, lo tronca, e l'unita' avanza fino alla cella precedente. Qui la destinazione E'
+ * la cella occupata, il percorso non esiste, e l'unita' non si muove di un passo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDeclaredDestinationDeniedByOccupantTest,
+	"RefactorTactics.HexMove.DeclaredDestinationDeniedByOccupantDeclaresIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDeclaredDestinationDeniedByOccupantTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 4);
+
+	const FRTCellId Partenza(0, 0);
+	const FRTCellId Occupata(1, 0);
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Partenza);
+	ARTUnit* Occupante = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Occupata);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Occupante) { DestroyHexMoveWorld(World); return false; }
+
+	// La forma del piano del bot: la destinazione, e nient'altro.
+	Mover->PlannedCell = Occupata;
+	Occupante->PlannedCell = Occupante->Cell; // FERMO: e' l'occupazione, non una contesa
+
+	// 🔑 LE DUE PREMESSE CHE DEFINISCONO IL CASO.
+	// La prima distingue questa strada da quella del player (che arriva con un percorso) e da
+	// `Actions.Move.PathBlocked` (che ne scrive uno che attraversa il blocker).
+	// La seconda dice che «ha dichiarato un movimento» e' gia' vero PRIMA di qualunque stato nuovo:
+	// `HasPlannedNormalMove()` risponde di si' leggendo la sola `PlannedCell`. E' il punto per cui il
+	// work order dice che questo caso «non costa un file in piu'».
+	if (!TestEqual(TEXT("premessa: nessun percorso pianificato — solo la destinazione"),
+			Mover->PlannedPath.Num(), 0)
+		|| !TestTrue(TEXT("premessa: e cio' basta perche' l'unita' risulti aver dichiarato un movimento"),
+			Mover->HasPlannedNormalMove()))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	RunTurn(TM);
+
+	int32 Voci = 0;
+	FRTTurnLogEntry Trovata;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Move && E.UnitId == Mover->StableUnitId)
+		{
+			++Voci;
+			Trovata = E;
+		}
+	}
+	if (!TestEqual(TEXT("una sola voce Move per l'unita': la voce di blocco SOSTITUISCE Stayed"), Voci, 1))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	// 🔴 L'oracolo del criterio 4: stesso esito del player, per lo stesso stato. Se questo fallisce
+	// mentre il caso B passa, il difetto non e' chiuso — e' stato chiuso per un produttore su tre.
+	TestEqual(TEXT("chi dichiara una destinazione occupata dichiara il diniego"),
+		Trovata.Outcome, static_cast<uint8>(ERTMoveOutcome::BlockedByUnit));
+	TestEqual(TEXT("SrcCell e' la cella di partenza"), Trovata.SrcCell, Partenza);
+	TestEqual(TEXT("TgtCell e' la destinazione richiesta e negata"), Trovata.TgtCell, Occupata);
+	TestEqual(TEXT("nomina il movimento"), Trovata.ActionId, FName(TEXT("Action.Move")));
+	TestEqual(TEXT("Priority viene dal catalogo"),
+		Trovata.Priority, URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).Priority);
+	TestEqual(TEXT("Amount conta le celle percorse, e sono zero"), Trovata.Amount, 0);
+
+	TestEqual(TEXT("l'unita' non si e' mossa di un passo"), Mover->Cell, Partenza);
 
 	DestroyHexMoveWorld(World);
 	return true;

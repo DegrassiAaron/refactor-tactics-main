@@ -1628,6 +1628,13 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	{
 		SelectedUnit->PlannedWaypoints.Pop(); // rifiutato: si torna al piano precedente, non a uno a meta'
 
+		// #79: il rifiuto sopravvive al `Pop`. Prima di questa riga non restava NIENTE del tentativo — il
+		// waypoint tornava indietro, il `UE_LOG` qui sotto e' diagnostico e non entra nel TurnLog — e la fase
+		// Move classificava `Stayed`, cioe' «non pianificava movimento», su un'unita' che aveva pianificato.
+		// La voce non si scrive qui: il TurnLog e' un formato ordinato e riprodotto, e ogni click
+		// esplorativo diventerebbe un fatto del replay. Si registra l'INTENTO, e la fase Move decide.
+		SelectedUnit->NoteMovePlanRejection(Snapshot, UnitId, Cell);
+
 		// Il motivo GIUSTO, non un elenco di tre: se la cella in se' va bene, il rifiuto e' questione di budget,
 		// e allora si dice quanto era gia' speso. Test: HexSim.WaypointRejectionSaysWhich per la
 		// classificazione, `PlayerInput.WaypointRejectionNamesTheOccupant` per il TESTO (#1939).
@@ -1643,6 +1650,10 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 
 	SelectedUnit->PlannedPath = Composite.Path;
 	SelectedUnit->PlannedCell = Composite.Path.Last();
+	// #79, caso C: un piano VALIDO cancella il rifiuto precedente. Il soggetto della voce di TurnLog e' il
+	// piano finale, non la sequenza dei tentativi: chi prova un varco occupato e poi trova una strada si
+	// muove, e non deve portarsi dietro un «fermo: cella occupata» che il replay racconterebbe come esito.
+	SelectedUnit->ClearMovePlanRejection();
 	HexMap->SetPreviewPath(Composite.Path);
 	// Il percorso si e' allungato, quindi il ventaglio si accorcia: le due meta' della stessa anteprima si
 	// aggiornano insieme (#877). Aggiornarne una sola lasciava il verde a promettere celle che il waypoint
@@ -2064,6 +2075,12 @@ void ARTPlayerController::RebuildPlannedPath()
 		Unit->PlannedPath.Reset();
 		Unit->PlannedCell = Unit->Cell;
 	}
+
+	// #79: il piano e' stato RICOSTRUITO dai waypoint rimasti, quindi il rifiuto registrato apparteneva a un
+	// tentativo che non ne fa piu' parte. Vale per entrambi i rami qui sopra ed e' il motivo per cui sta qui
+	// e non nei due chiamanti: `OnUndoWaypoint` e il passo indietro del puntatore tolgono un waypoint e
+	// passano entrambi di qui, e due copie di questa riga divergerebbero alla prima modifica.
+	Unit->ClearMovePlanRejection();
 
 	if (HexMap)
 	{
