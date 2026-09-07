@@ -19,6 +19,7 @@
 #include "Blueprint/WidgetBlueprintGeneratedClass.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/SizeBox.h"
+#include "HAL/IConsoleManager.h"
 #include "Components/TextBlock.h"
 #include "Components/Widget.h"
 #include "Tests/RTWidgetAssetTestHelpers.h"
@@ -335,6 +336,36 @@ bool FRTHeroProfileRadarHasDrawableAreaTest::RunTest(const FString&)
 		TestEqual(TEXT("una larghezza authorata resta"), AuthoredBox->GetWidthOverride(), 120.f);
 		TestEqual(TEXT("un'altezza authorata resta"), AuthoredBox->GetHeightOverride(), 90.f);
 	}
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+// Il comando che rende eseguibile la verifica visiva.
+// ------------------------------------------------------------------------------------------------
+/**
+ * ⚠️ **Non va aggiunto agli otto di `Debug.NamespaceDeclaresAllCommands`**, come `rt.Debug.Los`: quel DoD
+ * elenca cio' che deve esserci, non tutto cio' che c'e'.
+ *
+ * 🔵 Questo test prova che il comando ESISTA, non che disegni bene: cio' che si vede a schermo resta la
+ * verifica umana per cui il comando e' stato scritto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroProfileConsoleIsRegisteredTest,
+	"RefactorTactics.HeroProfile.ConsoleIsRegistered",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroProfileConsoleIsRegisteredTest::RunTest(const FString&)
+{
+	IConsoleObject* Cmd = IConsoleManager::Get().FindConsoleObject(TEXT("rt.Debug.HeroProfile"));
+	if (!TestNotNull(TEXT("rt.Debug.HeroProfile e' registrato"), Cmd))
+	{
+		return false;
+	}
+
+	// ⛔ L'aiuto deve dire che i valori sono inventati. E' l'unico posto in cui chi lo esegue lo legge, e
+	// senza quella riga le fixture di prova possono essere scambiate per dati del catalogo.
+	const FString Help = Cmd->GetHelp();
+	TestTrue(*FString::Printf(TEXT("l'aiuto dichiara che i valori sono inventati: %s"), *Help),
+		Help.Contains(TEXT("inventati")));
 
 	return true;
 }

@@ -179,7 +179,18 @@ int32 URTHeroRadarWidget::NativePaint(const FPaintArgs& Args, const FGeometry& A
 		if (RingPoints.Num() > 0)
 		{
 			// La polilinea e' aperta: ripetere il primo vertice chiude il poligono.
-			RingPoints.Add(RingPoints[0]);
+			//
+			// 🔴 **Il primo vertice si COPIA prima di aggiungerlo, e non e' pedanteria: `Add` che riceve
+			// un riferimento a un elemento dell'array a cui si sta aggiungendo e' un crash.** Se l'`Add`
+			// rialloca, quel riferimento punta alla memoria liberata; `TArray` lo verifica e fa fallire
+			// l'assert `Addr < GetData() || Addr >= (GetData() + ArrayMax)`.
+			//
+			// ⚠️ **Era latente e invisibile**: il radar non disegnava mai (area zero, corretto in #2661),
+			// quindi questa riga non veniva mai eseguita. Si e' manifestato al primo frame in cui il
+			// widget e' comparso davvero a schermo — nessun test lo poteva vedere, perche' i test
+			// chiamano `ComputeRingPoints`, non `NativePaint`.
+			const FVector2D FirstRingPoint = RingPoints[0];
+			RingPoints.Add(FirstRingPoint);
 			UWidgetBlueprintLibrary::DrawLines(Context, RingPoints, GridColor, true, GridThickness);
 		}
 	}
@@ -198,8 +209,12 @@ int32 URTHeroRadarWidget::NativePaint(const FPaintArgs& Args, const FGeometry& A
 	// anche in quel caso: dicono «qui c'e' un radar», senza affermare nulla sull'eroe.
 	if (bDrawable && ValuePoints.Num() > 0)
 	{
+		// Stessa cautela dell'anello: qui l'array sorgente e' diverso da quello che cresce, quindi
+		// l'aliasing non c'e' — ma la forma resta esplicita, perche' la differenza fra le due righe e'
+		// invisibile a chi le legge e un domani qualcuno potrebbe unificarle.
+		const FVector2D FirstValuePoint = ValuePoints[0];
 		TArray<FVector2D> ClosedValuePoints = ValuePoints;
-		ClosedValuePoints.Add(ValuePoints[0]);
+		ClosedValuePoints.Add(FirstValuePoint);
 		UWidgetBlueprintLibrary::DrawLines(Context, ClosedValuePoints, ValueColor, true, ValueThickness);
 	}
 
