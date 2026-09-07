@@ -9,7 +9,13 @@ import os
 import unittest
 
 from rt3.errors import TerminalAlreadyOpen, TerminalNotFound
-from rt3.launcher import SHELL_PREFERITE, ps_quote, render_script, resolve_shell
+from rt3.launcher import (
+    SHELL_PREFERITE,
+    ps_quote,
+    render_script,
+    resolve_shell,
+    rt_terminal_snippet,
+)
 from rt3.model import now_iso
 from rt3.terminals import (
     TERMINAL_STATES,
@@ -215,6 +221,82 @@ class QuotingTest(unittest.TestCase):
         self.assertIn("$env:RT3_HOME = 'D:\\home'",
                       render_script(rt3_home=r"D:\home", **comune))
         self.assertNotIn("RT3_HOME", render_script(**comune))
+
+
+class IdentitaSessioneRTTest(unittest.TestCase):
+    """La finestra deve poter LAVORARE, non solo aprirsi.
+
+    🔴 `rt-lease.ps1` concede il motore solo a una console che dichiara
+    `RT_TERMINAL_OWNER_PID` e `RT_TERMINAL_OWNER_STARTED_AT`. Una finestra gestita che
+    non li ha riceve `RT_SESSION_REQUIRED` e non può compilare: è successo nel pilot
+    EPIC-1937, con la build fermata prima di toccare il compilatore.
+
+    ⛔ RT3 non li imposta da sé: `scripts/rt-terminal.ps1` possiede quella logica, con le
+    stesse cautele (PID più istante di avvio, fail-closed se l'istante non si legge).
+    Due sedi per la stessa identità divergerebbero al primo campo aggiunto.
+    """
+
+    SESS = {"session_id": "DEV-MAIN-1937-1", "role": "DEV", "task_id": "1936",
+            "write_mode": "WRITER", "started_at": T0}
+    REPO = "D:/Repo/rt"
+
+    def test_lo_script_adotta_l_identita_RT_dal_repository(self):
+        s = rt_terminal_snippet(self.REPO, self.SESS)
+        self.assertIn("rt-terminal.ps1", s)
+        self.assertIn(". $RT3TerminalScript", s, "dot-source, non invocazione")
+        self.assertIn("-Role DEV", s)
+        self.assertIn("-InstanceId 'DEV-MAIN-1937-1'", s)
+        self.assertIn("-TaskId '1936'", s)
+
+    def test_il_ruolo_passa_INTATTO_per_i_tre_ammessi(self):
+        for ruolo in ("DEV", "EDITOR", "VALIDATION"):
+            with self.subTest(ruolo=ruolo):
+                s = rt_terminal_snippet(self.REPO, dict(self.SESS, role=ruolo))
+                self.assertIn("-Role " + ruolo, s)
+
+    def test_un_ruolo_sconosciuto_non_rompe_il_dot_source(self):
+        """`rt-terminal.ps1` ha un `ValidateSet`: un valore fuori lista farebbe fallire
+        il dot-source, e la finestra si aprirebbe senza identità senza dirlo."""
+        s = rt_terminal_snippet(self.REPO, dict(self.SESS, role="QA"))
+        self.assertIn("-Role DEV", s)
+
+    def test_senza_repo_root_non_si_inventa_un_path(self):
+        self.assertEqual(rt_terminal_snippet(None, self.SESS), "")
+
+    def test_se_lo_script_manca_la_finestra_lo_DICE(self):
+        s = rt_terminal_snippet(self.REPO, self.SESS)
+        self.assertIn("Test-Path", s, "verifica prima di dot-sourciare")
+        self.assertIn("else", s)
+        self.assertIn("niente build", s, "l'avviso dice cosa NON si potrà fare")
+
+    def test_l_apostrofo_dell_avviso_e_citato(self):
+        """`potra'` dentro una stringa PowerShell in apici singoli: se l'apice non
+        raddoppiasse, chiuderebbe la stringa e lo script non parserebbe."""
+        s = rt_terminal_snippet(self.REPO, self.SESS)
+        riga = [r for r in s.split(chr(10)) if "Write-Host" in r][0]
+        self.assertIn("potra''", riga)
+        self.assertEqual(riga.count("'") % 2, 0, "apici bilanciati")
+
+    def test_lo_script_completo_contiene_il_dot_source(self):
+        script = render_script(
+            session=self.SESS, terminal_id="term_1", title_base="RT3 | DEV-1",
+            python_executable="python", package_root="pkg", started_at=T0,
+            repo_root=self.REPO,
+        )
+        self.assertIn("rt-terminal.ps1", script)
+        # E sta PRIMA delle definizioni RT3, così titolo e prompt di RT3 vincono su
+        # quelli che `rt-terminal.ps1` imposta per conto suo.
+        self.assertLess(script.index("rt-terminal.ps1"), script.index("RT3-Title"))
+
+    def test_senza_repo_root_lo_script_si_genera_lo_stesso(self):
+        """Una finestra fuori da un checkout RT deve aprirsi: serve a leggere e a usare
+        `rt3`, e il segnaposto vuoto non deve lasciare sintassi rotta."""
+        script = render_script(
+            session=self.SESS, terminal_id="term_1", title_base="RT3 | DEV-1",
+            python_executable="python", package_root="pkg", started_at=T0,
+        )
+        self.assertNotIn("rt-terminal.ps1", script)
+        self.assertIn("RT3-Title", script)
 
 
 class ShellTest(unittest.TestCase):

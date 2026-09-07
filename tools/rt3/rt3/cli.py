@@ -1740,6 +1740,7 @@ def cmd_terminal_launch(args):
             started_at=sessione["started_at"],
             roadmap_id=getattr(args, "id_roadmap", None),
             rt3_home=os.environ.get("RT3_HOME"),
+            repo_root=git.get("repoRoot") or cwd,
         )
         percorso = write_script(
             os.path.join(store_root(), "terminals", term["terminal_id"] + ".ps1"), script
