@@ -551,7 +551,44 @@ L'ordine è totale e non ha tie-break casuali:
 
 ---
 
-## 13. Limiti della v1
+## 13. Propagare una modifica fra i workspace
+
+Il control plane coordina tre workspace; prima o poi una modifica al control plane stesso
+deve raggiungerli. La strada si sceglie **dai fatti**, e i fatti sono uno solo:
+
+```bash
+git -C <dir> rev-parse --git-common-dir     # uguale = stesso repo; diverso = cloni
+```
+
+| Caso misurato | Strategia | Perché |
+|---|---|---|
+| `SAME_REPO` — worktree dello stesso repository | **nessun trasporto** | gli oggetti sono già condivisi: il commit è visibile subito. Integrare è un merge o un cherry-pick **locale** |
+| `DISTINCT_CLONES` — cloni distinti | `fetch` da **path locale** + materializzazione | il trasporto resta su disco. GitHub serve all'**integrazione** (PR, review, main), non al trasporto |
+| `NOT_A_REPO` — Git non utilizzabile | copia controllata, **ultima risorsa** | va autorizzata esplicitamente, e dichiara i file trasferiti |
+
+```powershell
+python tools\rt3\distribute.py --to <path> --commit <sha> --paths tools/rt3 --dry-run
+```
+
+⚠️ **Il nome della directory non decide.** Su questa macchina
+`refactor-tactics-technical-designer` *contiene* un clone senza esserlo: misurato dà
+`NOT_A_REPO`, mentre il `refactor-tactics-main` annidato dentro dà `DISTINCT_CLONES`.
+
+⛔ **La copia non parte se il bersaglio è un repository**, nemmeno con `--allow-copy`.
+Senza questo rifiuto «copia come fallback» passerebbe sempre, e nessun test potrebbe
+distinguere l'ultima risorsa dall'abitudine.
+
+Lo strumento **non integra**: niente merge, niente checkout, `HEAD` e indice non si
+muovono. In un working tree condiviso spostare `HEAD` significa spostarlo sotto un'altra
+sessione, e l'integrazione appartiene a chi possiede il ramo.
+
+⚠️ Materializza con `git archive`, non con `git checkout <sha> -- <path>`: il secondo
+scrive nell'**indice** del bersaglio, e un `git commit` di un'altra sessione assorbirebbe
+quei file nel proprio commit.
+
+---
+
+## 14. Limiti della v1
 
 Reali, misurati, non ipotetici:
 
