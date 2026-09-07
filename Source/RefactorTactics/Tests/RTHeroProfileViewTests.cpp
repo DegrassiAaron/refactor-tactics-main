@@ -524,4 +524,52 @@ bool FRTHeroProfileNoGameplayPointersInViewTest::RunTest(const FString&)
 	return true;
 }
 
+// ------------------------------------------------------------------------------------------------
+// Le etichette: dove si ancorano, e perche' fuori dal poligono.
+// ------------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroProfileRadarLabelsSitOutsideTest,
+	"RefactorTactics.HeroProfile.RadarLabelsSitOutside",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroProfileRadarLabelsSitOutsideTest::RunTest(const FString&)
+{
+	const FVector2D Center(200.f, 200.f);
+	const float Radius = 80.f;
+	const float Padding = 12.f;
+	const int32 AxisCount = 6;
+
+	for (int32 Index = 0; Index < AxisCount; ++Index)
+	{
+		const FVector2D Anchor = URTHeroRadarWidget::ComputeAxisLabelAnchor(Index, AxisCount, Center, Radius, Padding);
+
+		// 🔴 Fuori dal poligono, sempre: un'etichetta dentro la figura la copre proprio dove il giocatore
+		// guarda per leggerne la forma.
+		const float Distance = FVector2D::Distance(Anchor, Center);
+		TestTrue(FString::Printf(TEXT("l'etichetta %d sta fuori dal raggio (%.1f > %.1f)"), Index, Distance, Radius),
+			Distance > Radius);
+		TestTrue(FString::Printf(TEXT("e alla distanza attesa (%.1f)"), Distance),
+			FMath::Abs(Distance - (Radius + Padding)) < RadarTolerance);
+
+		// Sulla direzione del proprio asse: il vertice a fondoscala e l'etichetta devono essere allineati
+		// col centro, o la legenda indicherebbe l'asse sbagliato.
+		TArray<FVector2D> Ring;
+		URTHeroRadarWidget::ComputeRingPoints(AxisCount, Center, Radius, Ring);
+		const FVector2D ToVertex = (Ring[Index] - Center).GetSafeNormal();
+		const FVector2D ToLabel = (Anchor - Center).GetSafeNormal();
+		TestTrue(FString::Printf(TEXT("l'etichetta %d e' sulla direzione del suo asse"), Index),
+			FVector2D::DotProduct(ToVertex, ToLabel) > 0.999f);
+	}
+
+	// Il primo asse punta in alto, quindi la sua etichetta sta SOPRA il centro.
+	const FVector2D First = URTHeroRadarWidget::ComputeAxisLabelAnchor(0, AxisCount, Center, Radius, Padding);
+	TestTrue(TEXT("la prima etichetta sta sopra il centro"), First.Y < Center.Y);
+
+	// ⚠️ Padding a zero non e' un errore: l'etichetta tocca il bordo. E' una scelta di stile, non un dato
+	// rotto, quindi non ha senso rifiutarla.
+	const FVector2D NoPad = URTHeroRadarWidget::ComputeAxisLabelAnchor(0, AxisCount, Center, Radius, 0.f);
+	TestTrue(TEXT("senza padding l'etichetta sta sul bordo"),
+		FMath::Abs(FVector2D::Distance(NoPad, Center) - Radius) < RadarTolerance);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
