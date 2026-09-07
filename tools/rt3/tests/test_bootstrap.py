@@ -461,5 +461,64 @@ class AsciiOutputTest(BootstrapTestCase):
         self._ascii("render_plan/note", render_plan(piano))
 
 
+class PlannerConsistencyTest(BootstrapTestCase):
+    """Una sola verita': planner, bootstrap e UX devono dire la stessa cosa.
+
+    🔴 Prima di questo gate, `bootstrap.py` conteneva logica che trasformava un
+    `TEMPORARY_WORKTREE_SUGGESTED` del planner in un permanente della UX. Correggeva un
+    difetto vero, ma nel posto sbagliato: due verita' su una sola decisione, e chi
+    leggeva `roadmap plan` vedeva l'opposto di chi leggeva `epic activate`.
+
+    Ora il planner decide e bootstrap rende. Questi test lo verificano invece di
+    prometterlo.
+    """
+
+    def _confronta(self, states, runtime):
+        from rt3.planner import plan as build_plan
+
+        roadmap, problemi = normalize(parse(self.SORGENTE_DUE))
+        self.assertIsNotNone(roadmap, [p.code for p in problemi])
+        graph = build(roadmap)
+        piano = build_plan(roadmap, graph, states, None, runtime=runtime)
+        setup = terminal_plan(roadmap, graph, states, None, runtime=runtime,
+                              epic_id="EPIC-GRID")
+        return piano, setup
+
+    def test_ogni_requisito_DEV_porta_la_modalita_DEL_PLANNER(self):
+        piano, setup = self._confronta(self._dopo_b1(), self.RUNTIME_WRITER_OCCUPATO)
+        # Solo l'Epic attivata: il piano copre tutta la roadmap, il setup una lane.
+        dal_planner = {a["key"].split("/")[-1]: a["mode"]
+                       for a in piano["assignments"] if a["key"].startswith("EPIC-GRID/")}
+        self.assertTrue(dal_planner, "lo scenario deve produrre assegnazioni")
+        dev = [r for r in setup["requirements"] if r["role"] == "DEV"]
+        self.assertEqual(len(dev), len(dal_planner))
+        for r in dev:
+            self.assertEqual(r["resource_mode"], dal_planner[r["issue"]], r["session_id"])
+
+    def test_e_anche_il_proprietario_e_quello_del_planner(self):
+        piano, setup = self._confronta(self._dopo_b1(), self.RUNTIME_WRITER_OCCUPATO)
+        owner = {a["key"].split("/")[-1]: a["ownerSessionId"]
+                 for a in piano["assignments"] if a["key"].startswith("EPIC-GRID/")}
+        for r in [x for x in setup["requirements"] if x["role"] == "DEV"]:
+            atteso = owner[r["issue"]]
+            if atteso:
+                self.assertEqual(r["session_id"], atteso,
+                                 "l'id lo porta il piano, non la convenzione")
+
+    def test_chi_ha_il_permanente_non_chiede_MAI_un_temporaneo(self):
+        """L'invariante che il difetto violava, ora espressa sui due lati insieme."""
+        _, setup = self._confronta(self._dopo_b1(), self.RUNTIME_WRITER_OCCUPATO)
+        for r in setup["requirements"]:
+            if r.get("resource_mode") == "PERMANENT_WRITER":
+                self.assertNotEqual(r["reason"], "TEMPORARY_WORKTREE_REQUIRED")
+                self.assertIsNone(r["detail"])
+
+    def test_la_coerenza_vale_anche_SENZA_runtime(self):
+        piano, setup = self._confronta(self._dopo_b1(), None)
+        dal_planner = {a["key"].split("/")[-1]: a["mode"]
+                       for a in piano["assignments"] if a["key"].startswith("EPIC-GRID/")}
+        for r in [x for x in setup["requirements"] if x["role"] == "DEV"]:
+            self.assertEqual(r["resource_mode"], dal_planner[r["issue"]])
+
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

@@ -585,10 +585,21 @@ desideri, non una verifica.
 
 Il piano dipende da **quante issue sono pronte in questo momento** e da chi tiene le
 risorse. La stessa Epic vuole tre terminali all'inizio e quattro dopo due validazioni.
-Chi tiene gia' il writer permanente di una lane e' il DEV numero uno di quella lane e
-lavora nel proprio albero: a lui non viene mai chiesto un worktree temporaneo. Il
-requisito che ne chiede uno nomina chi occupa il writer, perche' «occupied by another
-session» e' vero e inutile — non dice a chi rivolgersi.
+
+🔴 **Una sola verita'.** A decidere se una issue va nel writer permanente o in un
+worktree temporaneo e' il **planner**, e basta: `epic activate` rende quella decisione,
+non la corregge. Due viste che si contraddicono sulla stessa risorsa sono peggio di una
+vista sola sbagliata, perche' chi legge non sa quale seguire.
+
+Possedere una risorsa non e' occuparla. Un writer lease dice **chi puo' scrivere** in
+quell'albero, non che dentro ci sia gia' una lavorazione concorrente: se il proprietario
+e' vivo e libero, la prossima issue va **a lui, nel suo albero**, e il worktree
+temporaneo resta disponibile per la successiva. Il requisito che ne chiede uno nomina
+chi tiene il permanente, perche' «occupied by another session» e' vero e inutile — non
+dice a chi rivolgersi.
+
+⛔ Riutilizzare non e' rubare. Un lease `stale`, o di una sessione che non risulta piu'
+viva, resta occupato: RT3 non se lo riprende da solo.
 
 ---
 

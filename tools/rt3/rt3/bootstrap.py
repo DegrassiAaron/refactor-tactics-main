@@ -44,8 +44,13 @@ def session_ids(lane, epic_id=None):
     }
 
 
+#: `resource_mode` e' la modalita' decisa dal PLANNER, copiata senza reinterpretazione.
+#: Esiste perche' la consistenza fra le due viste sia verificabile invece che promessa:
+#: se un giorno bootstrap ricominciasse a correggere il planner, un test se ne accorge.
 Requirement = collections.namedtuple(
-    "Requirement", "session_id role lane workspace_group write_mode issue reason state detail"
+    "Requirement",
+    "session_id role lane workspace_group write_mode issue reason state detail "
+    "resource_mode",
 )
 
 
@@ -79,7 +84,15 @@ def terminal_plan(roadmap, graph, states=None, modes=None, runtime=None, epic_id
     if sessions:
         attive.update({s["session_id"]: s for s in sessions if s.get("status") == "ACTIVE"})
 
-    requisiti, note, proprietari = [], [], {}
+    requisiti, note = [], []
+    # Chi tiene il writer PERMANENTE, secondo il piano. Non «tutti i writer del
+    # gruppo»: una lane puo' avere scrittori in alberi temporanei, e nominarli come
+    # occupanti del permanente fa dire a una sessione che il writer e' occupato da se'.
+    proprietari = {
+        gruppo: v["holder"]
+        for gruppo, v in (piano.get("capacity") or {}).get("writers", {}).items()
+        if v.get("holder")
+    }
     for epic in scelte:
         lane = epic.home_work
         nomi = session_ids(lane, epic.id)
@@ -101,40 +114,25 @@ def terminal_plan(roadmap, graph, states=None, modes=None, runtime=None, epic_id
 
         # I DEV: uno per ogni issue che il piano assegna a questa lane.
         #
-        # 🔴 Chi tiene GIA' il writer permanente della lane e' il DEV numero 1, e la sua
-        # assegnazione e' permanente per definizione. Senza questo, il piano diceva che
-        # la sessione proprietaria del writer «richiede un worktree temporaneo»: il
-        # planner vede il writer occupato e marca tutto TEMPORARY, non sapendo che a
-        # occuparlo e' proprio la sessione a cui sta assegnando il lavoro.
-        #
-        # Misurato nello smoke: `DEV-B-1 [ACTIVE]` accanto a «serve un worktree
-        # temporaneo», che e' una contraddizione dal punto di vista di chi legge.
-        proprietario = None
-        for voce in (runtime or {}).get("writers", {}).values():
-            if voce.get("workspaceGroup") == lane and voce.get("ownerSessionId") in attive:
-                proprietario = voce["ownerSessionId"]
-                proprietari[lane] = proprietario
-                break
-
-        da_assegnare = [k for k in ready + in_corso if k in assegnate]
+        # 🔴 La modalita' NON si ricalcola qui. Il planner ha gia' deciso se quella
+        # issue va nel writer permanente o in un worktree temporaneo, e con `owner`
+        # dice pure a quale sessione. Reinterpretarlo produrrebbe due verita' su una
+        # sola decisione: quella del planner e quella che l'utente legge.
         numero = 0
-        for posizione, key in enumerate(da_assegnare):
+        for key in [k for k in ready + in_corso if k in assegnate]:
             a = assegnate[key]
             numero += 1
-            sid = nomi["dev"](numero)
-            # Il primo requisito eredita l'identita' di chi tiene gia' il writer: cosi'
-            # `epic check` riconosce la sessione aperta invece di chiederne una nuova.
-            if numero == 1 and proprietario:
-                sid = proprietario
-            permanente = a["mode"] == "PERMANENT_WRITER" or (numero == 1 and proprietario)
+            # L'id lo porta il piano quando la risorsa ha gia' un padrone; altrimenti
+            # e' una sessione da aprire, e il nome lo genera la convenzione.
+            sid = a.get("ownerSessionId") or nomi["dev"](numero)
             r = _req(sid, "DEV", lane, "WRITER", key.split("/")[-1],
-                     "implementa {}".format(key), attive)
-            if not permanente:
+                     "implementa {}".format(key), attive, resource_mode=a["mode"])
+            if a["mode"] == "TEMPORARY_WORKTREE_SUGGESTED":
                 # ⛔ Il worktree NON viene creato: allocation automatica e' fuori scope.
                 r = r._replace(
                     detail="il writer permanente di {} e' occupato{}: questa sessione "
                     "richiede un worktree TEMPORANEO, da creare a mano.".format(
-                        lane, " da " + proprietario if proprietario else ""
+                        lane, " da " + proprietari[lane] if lane in proprietari else ""
                     ),
                     reason="TEMPORARY_WORKTREE_REQUIRED",
                 )
@@ -153,7 +151,8 @@ def terminal_plan(roadmap, graph, states=None, modes=None, runtime=None, epic_id
     }
 
 
-def _req(session_id, role, lane, write_mode, issue, reason, attive, detail=None):
+def _req(session_id, role, lane, write_mode, issue, reason, attive, detail=None,
+         resource_mode=None):
     """Costruisce un requisito, decidendo lo stato dai FATTI.
 
     🔴 `ACTIVE` solo se il control plane la vede registrata e viva. Un requisito non
@@ -170,6 +169,7 @@ def _req(session_id, role, lane, write_mode, issue, reason, attive, detail=None)
         reason=reason,
         state=stato,
         detail=detail,
+        resource_mode=resource_mode,
     )
 
 

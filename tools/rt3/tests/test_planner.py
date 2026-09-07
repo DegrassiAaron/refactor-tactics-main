@@ -13,7 +13,14 @@ Due proprieta' che questo file prova e che valgono piu' del resto:
 
 import unittest
 
-from rt3.planner import normalize_states, plan, readiness, ready_keys, summary
+from rt3.planner import (
+    normalize_states,
+    plan,
+    priority_index,
+    readiness,
+    ready_keys,
+    summary,
+)
 from rt3.roadmap import normalize
 from rt3.graph import build
 from rt3.yamlmini import parse
@@ -811,6 +818,236 @@ class DeterminismTest(unittest.TestCase):
         result = plan(self.roadmap, self.graph, {B1: "VALIDATED", B2: "VALIDATED"})
         self.assertEqual(result["assignments"][0]["key"], C2)
 
+
+class PermanentOwnerReuseTest(unittest.TestCase):
+    """Possedere una risorsa non e' occuparla con lavoro concorrente.
+
+    🔴 Il difetto che questa classe presidia, misurato il 2026-09-07. Con `DEV-1`
+    proprietaria del writer DEV e LIBERA, due issue pronte e un solo worktree
+    temporaneo, il piano assegnava la prima al TEMPORANEO e rimandava la seconda per
+    `TEMPORARY_WORKTREE_CAPACITY`. La risposta giusta e' la prima a `DEV-1` nel suo
+    albero e la seconda al temporaneo, che cosi' resta disponibile.
+
+    La causa era una confusione fra due cose diverse:
+
+        resource ownership       chi puo' scrivere in quell'albero
+        assignment occupancy     quante lavorazioni concorrenti ci sono dentro
+
+    ⛔ Riutilizzare non e' rubare: il piano da' altro lavoro a chi la risorsa ce l'ha
+    gia'. Un lease che non si puo' riusare in sicurezza resta occupato.
+    """
+
+    SOURCE = """
+roadmapSchemaVersion: 1
+id: reuse
+resources:
+  workspaces:
+    DEV:
+      writerCapacity: 1
+  temporaryWorktrees:
+    capacity: 1
+epics:
+  - id: E
+    homeWork: DEV
+    issues:
+      - id: B3
+      - id: B4
+"""
+    B3, B4 = "E/B3", "E/B4"
+
+    def setUp(self):
+        roadmap, problems = normalize(parse(self.SOURCE))
+        self.assertIsNotNone(roadmap, [p.code for p in problems])
+        self.roadmap = roadmap
+        self.graph = build(roadmap)
+
+    def _snapshot(self, owner="DEV-CUSTOM-NAME", stale=False, task=None,
+                  status="ACTIVE", con_sessione=True):
+        """SessionId volutamente NON canonico: se il nome coincidesse con quello che la
+        convenzione genererebbe, il test non distinguerebbe «ereditato» da «calcolato».
+        """
+        sessioni = []
+        if con_sessione:
+            sessioni.append({"sessionId": owner, "role": "DEV", "lane": "DEV",
+                             "workspaceGroup": "DEV", "worktreePath": "d:/alberi/dev",
+                             "writeMode": "WRITER", "status": status, "taskId": task})
+        return {
+            "writers": {"d:/alberi/dev": {
+                "ownerSessionId": owner, "resourceKey": "d:/alberi/dev",
+                "workspaceGroup": "DEV", "stale": stale}},
+            "unreal": {},
+            "sessions": sessioni,
+            "takenAt": "2026-09-07T00:00:00Z",
+        }
+
+    def _piano(self, **kw):
+        states = kw.pop("states", {})
+        return plan(self.roadmap, self.graph, states, None,
+                    runtime=kw.pop("runtime", None) or self._snapshot(**kw))
+
+    # -- Test 1 -- owner reuse ------------------------------------------------
+
+    def test_owner_libero_riceve_la_issue_nel_proprio_albero(self):
+        piano = self._piano()
+        a = piano["assignments"]
+        self.assertEqual(len(a), 2, [x["key"] for x in a])
+        primo = a[0]
+        self.assertEqual(primo["mode"], "PERMANENT_WRITER")
+        self.assertEqual(primo["ownerSessionId"], "DEV-CUSTOM-NAME")
+        self.assertIn("DEV-CUSTOM-NAME", primo["reason"], "il motivo dice a chi va")
+
+    def test_riusare_il_permanente_NON_consuma_un_temporaneo(self):
+        """Il numero che il difetto sbagliava."""
+        cap = self._piano()["capacity"]
+        self.assertEqual(cap["writers"]["DEV"]["used"], 1)
+        self.assertEqual(cap["temporaryWorktrees"]["used"], 1,
+                         "uno solo: il secondo lavoro, non il primo")
+
+    # -- Test 2 -- due READY --------------------------------------------------
+
+    def test_due_issue_pronte_nessuna_viene_rimandata(self):
+        piano = self._piano()
+        self.assertEqual(piano["deferred"], [], "nessuna capacita' sprecata")
+        modi = sorted(x["mode"] for x in piano["assignments"])
+        self.assertEqual(modi, ["PERMANENT_WRITER", "TEMPORARY_WORKTREE_SUGGESTED"])
+
+    def test_solo_UNA_eredita_il_proprietario(self):
+        """Una sessione sola non lavora due issue insieme: il proprietario si consuma."""
+        owner = [x["ownerSessionId"] for x in self._piano()["assignments"]]
+        self.assertEqual(owner.count("DEV-CUSTOM-NAME"), 1)
+        self.assertIn(None, owner, "l'altra vuole una sessione nuova")
+
+    def test_l_ordine_lo_decide_il_planner_non_il_proprietario(self):
+        """Chi eredita il permanente e' la prima in ordine di priorita', non una scelta
+        legata al nome della sessione."""
+        piano = self._piano()
+        chiavi = [x["key"] for x in piano["assignments"]]
+        indice = priority_index(self.roadmap, self.graph)
+        atteso = sorted(ready_keys(self.roadmap, self.graph, {}), key=lambda k: indice[k])
+        self.assertEqual(chiavi, atteso)
+        self.assertEqual(piano["assignments"][0]["ownerSessionId"], "DEV-CUSTOM-NAME")
+
+    # -- Test 3 -- owner busy -------------------------------------------------
+
+    def test_owner_gia_al_lavoro_non_riceve_altro(self):
+        """Il writer permanente non si usa due volte insieme."""
+        piano = self._piano(task="B3", states={self.B3: "IN_PROGRESS"})
+        a = [x for x in piano["assignments"] if x["key"] == self.B4]
+        self.assertEqual(len(a), 1, piano["assignments"])
+        self.assertEqual(a[0]["mode"], "TEMPORARY_WORKTREE_SUGGESTED")
+        self.assertIsNone(a[0]["ownerSessionId"])
+
+    def test_un_task_gia_VALIDATO_non_tiene_occupato_il_writer(self):
+        """⚠️ `taskId` resta scritto anche dopo la validazione: leggerlo da solo
+        terrebbe fermo per sempre un writer che si e' liberato."""
+        piano = self._piano(task="B3", states={self.B3: "VALIDATED"})
+        primo = piano["assignments"][0]
+        self.assertEqual(primo["key"], self.B4)
+        self.assertEqual(primo["mode"], "PERMANENT_WRITER")
+        self.assertEqual(primo["ownerSessionId"], "DEV-CUSTOM-NAME")
+
+    def test_owner_che_lavora_in_un_TEMPORANEO_resta_occupato(self):
+        """Il caso in cui il `taskId` e' l'unica difesa.
+
+        Una sessione puo' tenere il writer permanente della sua lane e stare lavorando
+        una issue in un worktree TEMPORANEO. Allora `occupy_existing` conta un
+        temporaneo e non un writer del gruppo, e il conteggio dichiarato smette di dire
+        che quella sessione e' impegnata: senza guardare il suo `taskId` il piano le
+        assegnerebbe una seconda issue da fare insieme alla prima.
+
+        Il Test 3 non copre questo: li' la protezione arriva da `declared_count`, e una
+        mutazione che ignora il `taskId` resta verde.
+        """
+        piu_issue = self.SOURCE.replace(
+            "      - id: B4", "      - id: B4" + chr(10) + "      - id: B5")
+        roadmap, problemi = normalize(parse(piu_issue))
+        self.assertIsNotNone(roadmap, [p.code for p in problemi])
+        graph = build(roadmap)
+        piano = plan(
+            roadmap, graph,
+            {"E/B3": "IN_PROGRESS"},
+            {"E/B3": "TEMPORARY_WORKTREE"},
+            runtime=self._snapshot(task="B3"),
+        )
+        for a in piano["assignments"]:
+            self.assertNotEqual(
+                a["ownerSessionId"], "DEV-CUSTOM-NAME",
+                "sta gia' lavorando B3 in un temporaneo: non puo' prenderne un'altra",
+            )
+        self.assertTrue(piano["deferred"], "senza risorse libere qualcosa si rimanda")
+
+    # -- Test 4 -- lease non riutilizzabile -----------------------------------
+
+    def test_lease_stale_non_viene_rubato(self):
+        piano = self._piano(stale=True)
+        for a in piano["assignments"]:
+            self.assertIsNone(a["ownerSessionId"], "nessuno eredita un lease stale")
+        self.assertEqual(piano["assignments"][0]["mode"], "TEMPORARY_WORKTREE_SUGGESTED")
+
+    def test_owner_non_piu_attivo_non_viene_rubato(self):
+        for kw in ({"status": "STOPPED"}, {"con_sessione": False}):
+            with self.subTest(**kw):
+                piano = self._piano(**kw)
+                self.assertEqual(piano["assignments"][0]["mode"],
+                                 "TEMPORARY_WORKTREE_SUGGESTED")
+                self.assertIsNone(piano["assignments"][0]["ownerSessionId"])
+
+    def test_senza_elenco_sessioni_il_lease_resta_occupato(self):
+        """Il ramo conservativo: senza modo di sapere se il proprietario e' vivo, non
+        si afferma che lo sia."""
+        snap = self._snapshot()
+        del snap["sessions"]
+        piano = plan(self.roadmap, self.graph, {}, runtime=snap)
+        self.assertEqual(piano["assignments"][0]["mode"], "TEMPORARY_WORKTREE_SUGGESTED")
+
+    def test_il_messaggio_nomina_chi_tiene_il_PERMANENTE_non_ogni_writer(self):
+        """Una lane puo' avere piu' scrittori: uno nell'albero permanente e uno in un
+        temporaneo. Elencarli tutti come «occupanti del permanente» produce un
+        messaggio che si contraddice - misurato nello smoke: a `DEV-B-2`, che scriveva
+        in un albero suo, veniva detto che il writer permanente era occupato da
+        `DEV-B-2`.
+        """
+        snap = self._snapshot(owner="DEV-B-1", task="B3")
+        snap["writers"]["d:/alberi/temp"] = {
+            "ownerSessionId": "DEV-B-2", "resourceKey": "d:/alberi/temp",
+            "workspaceGroup": "DEV", "stale": False}
+        snap["sessions"].append(
+            {"sessionId": "DEV-B-2", "role": "DEV", "lane": "DEV",
+             "workspaceGroup": "DEV", "worktreePath": "d:/alberi/temp",
+             "writeMode": "WRITER", "status": "ACTIVE", "taskId": "B4"})
+
+        piano = plan(self.roadmap, self.graph, {"E/B3": "IN_PROGRESS"}, runtime=snap)
+        temporanee = [a for a in piano["assignments"]
+                      if a["mode"] == "TEMPORARY_WORKTREE_SUGGESTED"]
+        self.assertTrue(temporanee, piano["assignments"])
+        for a in temporanee:
+            self.assertIn("DEV-B-1", a["reason"])
+            self.assertNotIn("DEV-B-2", a["reason"],
+                             "non puo' dire a una sessione che occupa se stessa")
+        self.assertEqual(piano["capacity"]["writers"]["DEV"]["holder"], "DEV-B-1")
+
+    def test_holder_e_chi_RICEVE_il_permanente_quando_era_libero(self):
+        """Controllo positivo: se `holder` fosse popolato solo dai lease occupati, il
+        test sopra sarebbe verde per meta' della regola."""
+        piano = self._piano()
+        self.assertEqual(piano["capacity"]["writers"]["DEV"]["holder"],
+                         "DEV-CUSTOM-NAME")
+
+    # -- Test 5 -- nessun runtime ---------------------------------------------
+
+    def test_senza_runtime_il_comportamento_e_quello_di_prima(self):
+        piano = plan(self.roadmap, self.graph, {})
+        self.assertEqual([x["mode"] for x in piano["assignments"]],
+                         ["PERMANENT_WRITER", "TEMPORARY_WORKTREE_SUGGESTED"])
+        for a in piano["assignments"]:
+            self.assertIsNone(a["ownerSessionId"])
+        self.assertFalse(piano["runtime"]["used"])
+
+    def test_resta_deterministico(self):
+        snap = self._snapshot()
+        piani = [plan(self.roadmap, self.graph, {}, runtime=snap) for _ in range(5)]
+        for altro in piani[1:]:
+            self.assertEqual(piani[0], altro)
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
