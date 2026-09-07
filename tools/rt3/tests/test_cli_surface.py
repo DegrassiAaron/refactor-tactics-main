@@ -45,6 +45,18 @@ ACCEPTED = [
     ["candidates", "list"],
     # -- roadmap orchestration
     ["roadmaps", "list"],
+    # -- status & epic bootstrap
+    ["status"],
+    ["status", "--compact"],
+    ["status", "--verbose"],
+    ["status", "--lane", "DEV"],
+    ["status", "--json"],
+    ["plane"],
+    ["epic", "activate", "EPIC-GRID"],
+    ["epic", "activate"],
+    ["epic", "terminals", "EPIC-GRID", "--json"],
+    ["epic", "check", "EPIC-GRID"],
+    ["epic", "check", "--json"],
     ["roadmap", "validate", "--file", "r.yaml"],
     ["roadmap", "load", "--file", "r.yaml"],
     ["roadmap", "load", "--file", "r.yaml", "--reset-state"],
@@ -66,6 +78,9 @@ ACCEPTED = [
 #: Invocazioni che devono essere RIFIUTATE. Un parser che le accettasse fallirebbe piu'
 #: tardi e con un messaggio peggiore.
 REJECTED = [
+    ["status", "--lane", "QA"],              # lane inesistente
+    ["status", "--livello", "compact"],      # opzione inventata
+    ["epic", "activate", "E", "--force"],    # non esiste
     ["roadmap", "list"],                     # l'elenco sta nel plurale top-level
     ["roadmap", "states"],                   # e' `roadmap state list`
     ["roadmap", "validate"],                 # --file e' obbligatorio

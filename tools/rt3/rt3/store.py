@@ -1676,6 +1676,9 @@ class Store:
                     "worktreePath": s["worktree_path"],
                     "writeMode": s["write_mode"],
                     "status": s["status"],
+                    # Serve al planner per distinguere una sessione che POSSIEDE un
+                    # writer da una che lo sta gia' usando per una issue aperta.
+                    "taskId": s.get("task_id"),
                 }
                 for s in sessioni
             ],

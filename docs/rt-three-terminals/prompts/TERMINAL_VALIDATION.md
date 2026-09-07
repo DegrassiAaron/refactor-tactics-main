@@ -48,3 +48,24 @@ Riporta sempre:
 - PASS / FAIL / NON VALID / NOT RUN.
 
 `performed = 0` non è una validazione riuscita.
+
+
+## Stato della sessione
+
+Non raccontare il tuo stato: stampalo. La fonte e' `rt3 status`, che legge il control
+plane e Git — non la memoria della conversazione.
+
+```text
+rt3 status              vista normale
+rt3 status --compact    una riga, dopo un'azione
+rt3 status --verbose    worktree, HEAD, revisioni, versioni
+```
+
+Ristampalo quando lo **stato cambia**, non a ogni comando: due snapshot identici a
+distanza di ore hanno la stessa `stateRevision` e non hanno nulla da dire. Uno stato
+bloccato non e' mai `READY`, e il motivo del blocco e' esplicito.
+
+Regole complete in [`RT3_CONTRACT.md`](RT3_CONTRACT.md) §16.
+
+Lo status non e' evidenza di gate: dice dove sei, non cosa hai misurato. `READY` assente
+da uno stato bloccato e' una proprieta' del render, non un verdetto di validazione.
