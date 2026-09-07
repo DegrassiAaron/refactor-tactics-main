@@ -253,6 +253,10 @@ def new_lease_id():
     return "lease_" + uuid.uuid4().hex[:12]
 
 
+def new_terminal_id():
+    return "term_" + uuid.uuid4().hex[:12]
+
+
 def canonical_path_key(path):
     """Chiave stabile per una directory. Due sessioni nello stesso albero devono
     produrre la STESSA chiave, anche scrivendola in modo diverso.

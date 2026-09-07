@@ -1410,7 +1410,7 @@ def cmd_epic_terminals(args):
     if _wants_json(args):
         out(jsonlib.dumps(piano, indent=2, ensure_ascii=False))
         return 0
-    out(render_plan(piano))
+    out(render_plan(piano, cwd=os.getcwd()))
     return 0
 
 
@@ -1426,7 +1426,7 @@ def cmd_epic_activate(args):
     if _wants_json(args):
         out(jsonlib.dumps(piano, indent=2, ensure_ascii=False))
         return 0
-    out(render_plan(piano))
+    out(render_plan(piano, cwd=os.getcwd()))
     for r in additional_dev_required(piano):
         out("")
         out(render_additional_dev(r, occupato_da=writer_owner(piano, r)))
@@ -1663,6 +1663,223 @@ def cmd_version(args):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# terminali gestiti
+# ---------------------------------------------------------------------------
+
+
+def _session_payload(args, git):
+    """La specifica di sessione, UNA volta sola.
+
+    §5: `terminal launch` non duplica il parser di `session start` - usa gli stessi
+    argomenti e costruisce lo stesso payload. Due costruzioni divergerebbero al primo
+    campo aggiunto.
+    """
+    return {
+        "sessionId": args.id,
+        "role": args.role,
+        "workspaceGroup": args.workspace_group,
+        "lane": args.lane,
+        "worktreePath": args.worktree or git["worktreePath"] or os.getcwd(),
+        "repoRoot": git["repoRoot"],
+        "branch": git["branch"],
+        "head": git["head"],
+        "taskId": args.task,
+        "writeMode": args.write_mode,
+        "writeSet": getattr(args, "write_set", None) or [],
+        "clientPid": os.getpid(),
+        "host": _hostname(),
+        "replace": bool(getattr(args, "replace", False)),
+    }
+
+
+def cmd_terminal_launch(args):
+    """Apre una PowerShell dedicata a una sessione, e la registra come RT3_MANAGED.
+
+    L'ordine e' quello che rende impossibile lasciare rifiuti:
+
+        reserve   sessione registrata, lease presi, riga STARTING
+        spawn     la finestra si apre
+        attach    PID + istante di avvio -> ACTIVE
+
+    Se lo spawn fallisce, `rollback` ferma la sessione e rilascia i lease. Non resta
+    mai una sessione ATTIVA senza finestra.
+    """
+    from .launcher import render_script, resolve_shell, spawn, write_script
+    from .paths import store_root
+    from .terminals import process_started_at, window_title
+
+    client = _client(args)
+    cwd = os.path.abspath(args.worktree or os.getcwd())
+    if not os.path.isdir(cwd):
+        raise Rt3Error("la directory {} non esiste: la finestra non si apre.".format(cwd))
+
+    git = collect_git(cwd)
+    nome_shell, shell_exe = resolve_shell(getattr(args, "shell", None))
+
+    # 1. RESERVE - il control plane decide se si puo'. Qui dentro c'e' l'enforcement:
+    #    se un altro tiene il writer di questo albero, si ferma prima dello spawn.
+    riserva = client.call(
+        "terminal.reserve",
+        session=_session_payload(args, git),
+        shellType=nome_shell,
+    )
+    term, sessione = riserva["terminal"], riserva["session"]
+
+    try:
+        titolo = window_title(
+            dict(sessione, epic_id=getattr(args, "epic", None)), elapsed=None
+        )
+        titolo = titolo.rsplit(" | ", 1)[0]  # il tempo lo aggiunge la finestra stessa
+        script = render_script(
+            session=sessione,
+            terminal_id=term["terminal_id"],
+            title_base=titolo,
+            python_executable=sys.executable,
+            package_root=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            started_at=sessione["started_at"],
+            roadmap_id=getattr(args, "id_roadmap", None),
+            rt3_home=os.environ.get("RT3_HOME"),
+        )
+        percorso = write_script(
+            os.path.join(store_root(), "terminals", term["terminal_id"] + ".ps1"), script
+        )
+        proc = spawn(shell_exe, percorso, cwd)
+    except Exception as exc:
+        client.call("terminal.rollback", terminalId=term["terminal_id"],
+                    reason="spawn fallito: {}".format(exc)[:200])
+        raise
+
+    # 2. ATTACH - l'identita' completa: il PID da solo non basta.
+    avviato = process_started_at(proc.pid)
+    term = client.call(
+        "terminal.attach", terminalId=term["terminal_id"],
+        processId=proc.pid, processStartedAt=avviato,
+    )
+
+    payload = {"terminal": term, "session": sessione, "shell": nome_shell,
+               "script": percorso, "cwd": cwd}
+    if _wants_json(args):
+        out(jsonlib.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+    out("terminale {} aperto per {}.".format(term["terminal_id"], sessione["session_id"]))
+    out("  shell     : {} ({})".format(nome_shell, shell_exe))
+    out("  pid       : {}".format(term["process_id"]))
+    out("  avviato   : {}".format(_dash(term["process_started_at"])))
+    out("  stato     : {}".format(term["state"]))
+    out("  cwd       : {}".format(cwd))
+    out("  titolo    : {} | +00:00".format(titolo))
+    if term["state"] != "ACTIVE":
+        out("")
+        out("  !  identita' del processo non verificabile: il terminale resta {} e RT3"
+            .format(term["state"]))
+        out("      NON lo chiudera' da solo.")
+    return 0
+
+
+def cmd_terminal_list(args):
+    terms = _client(args).call("terminals.list",
+                               includeClosed=bool(getattr(args, "all", False)))
+    if _wants_json(args):
+        out(jsonlib.dumps(terms, indent=2, ensure_ascii=False))
+        return 0
+    if not terms:
+        out("nessun terminale gestito.")
+        return 0
+    righe = []
+    for t in terms:
+        righe.append((
+            t["terminal_id"], t["session_id"], t["ownership"],
+            t.get("verifiedState") or t["state"], str(_dash(t["process_id"])),
+            t["shell_type"], t["created_at"],
+        ))
+    _table(righe, ["TERMINAL", "SESSION", "OWNERSHIP", "STATE", "PID", "SHELL", "CREATED"])
+    perse = [t for t in terms if (t.get("verifiedState") or t["state"]) == "LOST"]
+    if perse:
+        out("")
+        out("[RT3 ACTION_REQUIRED]")
+        for t in perse:
+            out("  {} ({}): {}".format(t["terminal_id"], t["session_id"],
+                                       t.get("verifyReason") or "identita' perduta"))
+        out("  RT3 non chiude un processo che non riconosce piu'. Chiuderlo a mano se"
+            " ancora aperto, poi `rt3 --session <id> session stop`.")
+    return 0
+
+
+def cmd_terminal_status(args):
+    sid = getattr(args, "target", None) or _session_id(args, required=True)[0]
+    chiave = {"terminalId": sid} if str(sid).startswith("term_") else {"sessionId": sid}
+    term = _client(args).call("terminal.get", **chiave)
+    if _wants_json(args):
+        out(jsonlib.dumps(term, indent=2, ensure_ascii=False))
+        return 0
+    out("Terminal: {}".format(term["terminal_id"]))
+    out("  Session   : {}".format(term["session_id"]))
+    out("  Ownership : {}".format(term["ownership"]))
+    out("  State     : {}".format(term.get("verifiedState") or term["state"]))
+    out("  PID       : {}".format(_dash(term["process_id"])))
+    out("  StartedAt : {}".format(_dash(term["process_started_at"])))
+    out("  Shell     : {}".format(term["shell_type"]))
+    out("  Worktree  : {}".format(_dash(term["worktree_path"])))
+    if term.get("verifyReason"):
+        out("  Nota      : {}".format(term["verifyReason"]))
+    return 0
+
+
+def cmd_terminal_stop(args):
+    """Ferma la sessione, rilascia i lease e chiude SOLO quella finestra."""
+    sid = getattr(args, "target", None) or _session_id(args, required=True)[0]
+    chiave = {"terminalId": sid} if str(sid).startswith("term_") else {"sessionId": sid}
+    esito = _client(args).call("terminal.close", reason="TERMINAL_STOP", **chiave)
+    if _wants_json(args):
+        out(jsonlib.dumps(esito, indent=2, ensure_ascii=False))
+        return 0
+    t = esito["terminal"]
+    out("terminale {} -> {}".format(t["terminal_id"], t["state"]))
+    out("  sessione {} fermata, lease rilasciati.".format(t["session_id"]))
+    if not esito["closed"]:
+        out("  !  la finestra NON e' stata chiusa: {}".format(
+            esito.get("detail") or "identita' non confermata"))
+        out("      RT3 non termina un processo che non riconosce con certezza.")
+    return 0 if esito["closed"] else 1
+
+
+def cmd_terminal_finish(args):
+    """L'uscita pulita, invocata DA DENTRO la finestra gestita.
+
+    Stampa il riepilogo prima di chiudere: e' l'ultima cosa che si vede, e dopo la
+    finestra non c'e' piu'.
+    """
+    from .terminals import elapsed_ms, format_elapsed
+
+    sid, _ = _session_id(args, required=True)
+    client = _client(args)
+    prima = client.call("session.get", sessionId=sid)
+    esito = client.call("terminal.close", sessionId=sid, reason="TERMINAL_FINISH")
+    dopo = client.call("session.get", sessionId=sid)
+
+    fine = dopo.get("stopped_at")
+    out("")
+    out("[RT3 SESSION COMPLETE]")
+    out("")
+    out("Session: {}".format(sid))
+    out("")
+    out("Started: {}".format(_dash(prima.get("started_at"))))
+    out("Ended:   {}".format(fine))
+    out("Elapsed: {}".format(
+        format_elapsed(elapsed_ms(prima.get("started_at"), fine))))
+    out("")
+    out("Final task:  {}".format(_dash(prima.get("task_id"))))
+    out("WriterLease: {}".format(
+        "RELEASED" if prima.get("write_mode") == "WRITER" else "NONE"))
+    out("UnrealLease: {}".format(prima.get("unreal_lease") or "NONE"))
+    out("State:       {}".format(dopo.get("status")))
+    out("")
+    if not esito["closed"]:
+        out("!  {}".format(esito.get("detail") or "finestra non chiusa da RT3"))
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="rt3",
@@ -1723,6 +1940,43 @@ def build_parser():
     p.set_defaults(func=cmd_session_set)
     p = s.add_parser("stop", help="ferma la sessione e scioglie il binding")
     p.set_defaults(func=cmd_session_stop)
+
+    # -- terminali gestiti
+    t = sub.add_parser(
+        "terminal", help="finestre PowerShell che RT3 apre e chiude"
+    ).add_subparsers(dest="sub")
+    p = t.add_parser("launch", help="apre una PowerShell dedicata a una sessione")
+    p.add_argument("--id", required=True, help="SessionId, es. DEV-MAIN-1937-1")
+    p.add_argument("--role", required=True, choices=ROLES)
+    p.add_argument("--lane", required=True, choices=LANES)
+    p.add_argument("--workspace-group", required=True, choices=WORKSPACE_GROUPS)
+    p.add_argument("--task", help="TaskId su cui la sessione lavora")
+    p.add_argument("--write-mode", default="READ_ONLY", choices=WRITE_MODES)
+    p.add_argument("--write-set", nargs="*", help="path dichiarati in scrittura")
+    p.add_argument("--worktree", "--cwd", dest="worktree",
+                   help="directory da cui parte la finestra (default: cwd)")
+    p.add_argument("--epic", help="EpicId, per il titolo della finestra")
+    p.add_argument("--roadmap", dest="id_roadmap",
+                   help="roadmap da usare per lo status iniziale")
+    p.add_argument("--shell", choices=("powershell", "pwsh"),
+                   help="forza la shell invece di sceglierla")
+    p.add_argument("--replace", action="store_true")
+    p.add_argument("--json", action="store_true", dest="json_out")
+    p.set_defaults(func=cmd_terminal_launch)
+    p = t.add_parser("list", help="i terminali gestiti, con lo stato verificato")
+    p.add_argument("--all", action="store_true", help="include quelli chiusi")
+    p.add_argument("--json", action="store_true", dest="json_out")
+    p.set_defaults(func=cmd_terminal_list)
+    p = t.add_parser("status", help="stato di un terminale gestito")
+    p.add_argument("target", nargs="?", help="SessionId o TerminalId")
+    p.add_argument("--json", action="store_true", dest="json_out")
+    p.set_defaults(func=cmd_terminal_status)
+    p = t.add_parser("stop", help="ferma la sessione e chiude quella finestra")
+    p.add_argument("target", nargs="?", help="SessionId o TerminalId")
+    p.add_argument("--json", action="store_true", dest="json_out")
+    p.set_defaults(func=cmd_terminal_stop)
+    p = t.add_parser("finish", help="da DENTRO la finestra: ferma, riepiloga e chiude")
+    p.set_defaults(func=cmd_terminal_finish)
 
     p = sub.add_parser("sessions", help="elenco sessioni").add_subparsers(dest="sub")
     q = p.add_parser("list")

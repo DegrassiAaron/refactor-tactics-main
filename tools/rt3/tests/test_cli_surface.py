@@ -45,6 +45,19 @@ ACCEPTED = [
     ["candidates", "list"],
     # -- roadmap orchestration
     ["roadmaps", "list"],
+    # -- terminali gestiti
+    ["terminal", "launch", "--id", "DEV-1", "--role", "DEV", "--lane", "MAIN",
+     "--workspace-group", "MAIN"],
+    ["terminal", "launch", "--id", "DEV-1", "--role", "DEV", "--lane", "MAIN",
+     "--workspace-group", "MAIN", "--write-mode", "WRITER", "--task", "1936",
+     "--worktree", "D:/wt", "--epic", "EPIC-1937", "--roadmap", "wave-01"],
+    ["terminal", "launch", "--id", "DEV-1", "--role", "DEV", "--lane", "MAIN",
+     "--workspace-group", "MAIN", "--cwd", "D:/wt"],
+    ["terminal", "list"],
+    ["terminal", "list", "--all"],
+    ["terminal", "status", "DEV-1"],
+    ["terminal", "stop", "DEV-1"],
+    ["terminal", "finish"],
     # -- status & epic bootstrap
     ["status"],
     ["status", "--compact"],

@@ -25,10 +25,11 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import PROTOCOL_VERSION, ROADMAP_SCHEMA_VERSION, SCHEMA_VERSION
-from .errors import Rt3Error
+from .errors import Rt3Error, TerminalNotFound
 from .model import now_iso
 from .paths import daemon_file, db_path, ensure_store_root
 from .store import open_store
+from .terminals import terminate_process, verify
 
 PROTOCOL_HEADER = "X-RT3-Protocol"
 
@@ -243,7 +244,17 @@ def _ops(store, server):
             # database precedente: va detto, non nascosto.
             if sessione.get("write_mode") == "WRITER" and not leases["writer"]:
                 blocking, azione = "RESOURCE_WRITER", "RESOLVE_WRITER_CONFLICT"
-            elif leases["writer"] and leases["writer"]["owner"] != sid:
+            elif (
+                sessione.get("write_mode") == "WRITER"
+                and leases["writer"]
+                and leases["writer"]["owner"] != sid
+            ):
+                # 🔴 `write_mode == WRITER` e' la meta' che mancava, e senza di essa il
+                # pilot ha mostrato EDITOR e VALIDATION - entrambe READ_ONLY - come
+                # BLOCKED con RESOLVE_WRITER_CONFLICT. Era falso e dannoso: il rimedio
+                # suggerito sarebbe stato fermare il DEV che lavorava legittimamente.
+                # Il modello e' `WriterCount(worktree) <= 1`, non `SessionCount <= 1`:
+                # leggere lo stesso albero mentre un altro scrive e' il caso normale.
                 blocking, azione = "RESOURCE_WRITER", "RESOLVE_WRITER_CONFLICT"
             elif pending:
                 azione = "REVIEW_CANDIDATE" if sessione["role"] == "EDITOR" else "WAIT_REVIEW"
@@ -288,6 +299,126 @@ def _ops(store, server):
             "states": store.item_states(row["roadmap_id"]),
         }
 
+    # -- terminali gestiti ------------------------------------------------
+    #
+    # Lo SPAWN non avviene qui: lo fa il client, che vive nella sessione interattiva
+    # dell'utente ed e' l'unico che puo' far comparire una finestra dove la persona
+    # sta guardando. Il control plane possiede il REGISTRO e l'identita' - cioe' cio'
+    # che decide se un processo si puo' chiudere - e questo basta a non avere un
+    # secondo coordinator.
+    #
+    # L'ordine e' quello che rende impossibile una finestra orfana:
+    #
+    #     reserve   sessione registrata, lease presi, riga STARTING
+    #     (spawn)   il client apre la PowerShell
+    #     attach    PID + istante di avvio -> ACTIVE
+    #     rollback  se lo spawn fallisce: sessione fermata, lease rilasciati
+
+    def _terminal_reserve(a):
+        sessione = session_start(a["session"])
+        try:
+            term = store.create_terminal(
+                session_id=sessione["session_id"],
+                shell_type=a.get("shellType") or "powershell",
+                worktree_path=sessione.get("worktree_path"),
+            )
+        except Exception:
+            # La sessione l'abbiamo appena creata noi: toglierla non distrugge niente
+            # di qualcun altro, e lasciarla creerebbe la sessione fantasma che §6 vieta.
+            store.stop_session(sessione["session_id"])
+            raise
+        return {"terminal": term, "session": sessione}
+
+    def _terminal_attach(a):
+        term = store.get_terminal(a["terminalId"])
+        if term is None:
+            raise TerminalNotFound("terminale {} sconosciuto.".format(a["terminalId"]))
+        return store.attach_terminal_process(
+            a["terminalId"], a.get("processId"), a.get("processStartedAt")
+        )
+
+    def _terminal_rollback(a):
+        """Lo spawn e' fallito: si disfa tutto cio' che `reserve` aveva fatto."""
+        term = store.get_terminal(a["terminalId"])
+        if term is None:
+            raise TerminalNotFound("terminale {} sconosciuto.".format(a["terminalId"]))
+        store.stop_session(term["session_id"])          # rilascia anche i lease
+        return store.set_terminal_state(
+            term["terminal_id"], "CLOSED",
+            close_reason=a.get("reason") or "SPAWN_FAILED",
+        )
+
+    def _terminal_view(term):
+        """Un terminale con lo stato VERIFICATO contro il sistema operativo.
+
+        🔴 La verifica avviene a ogni lettura e non una volta sola: il processo puo'
+        essere morto un istante fa, e uno stato salvato non lo saprebbe.
+        """
+        if term is None:
+            return None
+        stato, motivo = verify(term)
+        vista = dict(term)
+        vista["verifiedState"] = stato
+        vista["verifyReason"] = motivo
+        if stato == "LOST" and term.get("state") in ("STARTING", "ACTIVE", "CLOSING"):
+            # Si registra la perdita, ma NON si tocca il lease: la policy conservativa
+            # dei lease non cambia perche' una finestra e' sparita.
+            store.set_terminal_state(term["terminal_id"], "LOST", close_reason=motivo)
+            vista["state"] = "LOST"
+            vista["close_reason"] = motivo
+        return vista
+
+    def _terminals_list(a):
+        return [
+            _terminal_view(t)
+            for t in store.list_terminals(include_closed=bool(a.get("includeClosed")))
+        ]
+
+    def _terminal_get(a):
+        if a.get("terminalId"):
+            term = store.get_terminal(a["terminalId"])
+        else:
+            term = store.get_terminal_for_session(a["sessionId"])
+        if term is None:
+            raise TerminalNotFound(
+                "nessun terminale gestito per {}.".format(
+                    a.get("terminalId") or a.get("sessionId")
+                )
+            )
+        return _terminal_view(term)
+
+    def _terminal_close(a):
+        """Ferma la sessione e chiude SOLO il processo che RT3 ha registrato.
+
+        ⛔ Non si cerca per titolo di finestra, per nome di processo o per SessionId:
+        si usa il PID registrato, e solo dopo che l'istante di avvio ha confermato che
+        e' ancora lo stesso processo. Se non lo e', il terminale diventa `LOST` e non si
+        termina niente - il PID potrebbe essere di un programma di qualcun altro.
+        """
+        term = _terminal_get(a)
+        sid = term["session_id"]
+
+        # 1. prima RT3: la sessione si ferma e i lease si liberano mentre il processo
+        #    e' ancora vivo. L'ordine inverso lascerebbe un lease appeso se la chiusura
+        #    fallisse a meta'.
+        sessione = store.get_session(sid)
+        if sessione and sessione.get("status") == "ACTIVE":
+            store.stop_session(sid)
+
+        if term.get("verifiedState") != "ACTIVE":
+            return {"terminal": term, "closed": False,
+                    "detail": term.get("verifyReason") or "terminale non attivo"}
+
+        store.set_terminal_state(term["terminal_id"], "CLOSING")
+        esito = terminate_process(term["process_id"], term.get("process_started_at"))
+        stato = "CLOSED" if esito["terminated"] else "LOST"
+        aggiornato = store.set_terminal_state(
+            term["terminal_id"], stato,
+            close_reason=a.get("reason") or esito.get("detail") or "SESSION_STOP",
+        )
+        return {"terminal": aggiornato, "closed": esito["terminated"],
+                "detail": esito.get("detail")}
+
     return {
         "health": lambda a: health_payload(store),
         "session.start": session_start,
@@ -298,6 +429,13 @@ def _ops(store, server):
         ),
         "session.stop": lambda a: store.stop_session(a["sessionId"]),
         "session.touch": lambda a: store.touch_session(a["sessionId"]),
+        # -- terminali gestiti
+        "terminal.reserve": _terminal_reserve,
+        "terminal.attach": _terminal_attach,
+        "terminal.rollback": _terminal_rollback,
+        "terminals.list": _terminals_list,
+        "terminal.get": _terminal_get,
+        "terminal.close": _terminal_close,
         "sessions.list": lambda a: store.list_sessions(
             include_stopped=bool(a.get("includeStopped"))
         ),
