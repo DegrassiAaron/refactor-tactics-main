@@ -80,6 +80,19 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HeroProfile|Radar")
 	float ComputeRadiusForSize(FVector2D LocalSize) const;
 
+	/**
+	 * Il punto in cui ancorare l'etichetta di un asse: **fuori** dal poligono, sulla sua direzione.
+	 *
+	 * ⚠️ E' l'ancora, non l'angolo in alto a sinistra del testo: dove finisce la stringa dipende
+	 * dall'allineamento, che il renderer decide dal quadrante — a sinistra del centro un testo scritto
+	 * da sinistra a destra sborderebbe verso l'interno e coprirebbe la figura.
+	 *
+	 * 🔵 `Padding` si somma al raggio: le etichette vivono nel margine che `RadiusScale` lascia libero,
+	 * ed e' la ragione per cui quel default non e' `1.0`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HeroProfile|Radar")
+	static FVector2D ComputeAxisLabelAnchor(int32 AxisIndex, int32 AxisCount, FVector2D Center, float Radius, float LabelPadding);
+
 	// ------------------------------------------------------------------------------------------------
 	// Dato
 	// ------------------------------------------------------------------------------------------------
@@ -131,6 +144,35 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HeroProfile|Radar", meta = (ClampMin = "0.1", ClampMax = "1.0"))
 	float RadiusScale = 0.8f;
+
+	/**
+	 * Disegna l'etichetta di ogni asse accanto al suo raggio.
+	 *
+	 * 🔴 **Senza, il radar e' una figura senza legenda**: la sagoma si vede, ma non si sa quale punta sia
+	 * l'Offesa e quale la Mobilita' — e la verifica «etichette leggibili» non ha nulla da leggere. Era la
+	 * meta' mancante misurata in Editor il 2026-09-07.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HeroProfile|Radar")
+	bool bShowAxisLabels = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HeroProfile|Radar")
+	FLinearColor AxisLabelColor = FLinearColor(1.f, 1.f, 1.f, 0.9f);
+
+	/** Distanza dell'etichetta dal bordo del radar, in pixel. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HeroProfile|Radar", meta = (ClampMin = "0"))
+	float AxisLabelPadding = 12.f;
+
+	/**
+	 * Larghezza media stimata di un carattere, per allineare le etichette a sinistra del centro.
+	 *
+	 * ⚠️ **E' una STIMA, non una misura.** `DrawText` usa il font di default e disegna dall'angolo in alto
+	 * a sinistra; per allineare a destra servirebbe misurare la stringa con il font measure service. In un
+	 * graybox una stima basta, e resta una proprieta' cosi' che chi cambia font possa correggerla senza
+	 * toccare il codice. ⛔ Non trasformarla in una misura precisa senza misurare davvero: un numero
+	 * esatto qui direbbe una precisione che non c'e'.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HeroProfile|Radar", meta = (ClampMin = "1"))
+	float AxisLabelCharWidth = 7.f;
 
 	/**
 	 * Il lato minimo che il radar si garantisce, in pixel di slate.

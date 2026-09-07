@@ -603,14 +603,34 @@ non produce nessun diff: e' la stessa regola di §9.
 
 ### Quale shell
 
-🔴 **`pwsh` per primo, `powershell` come ripiego.** Non e' una preferenza: gli script RT
-del repository usano sintassi PowerShell 7, e Windows PowerShell 5.1 non li parsa -
-misurato il 2026-09-07 su `scripts/rt-suite.ps1`, **30 errori** con 5.1 e **zero** con
-7.6.5. Poiche' `rt-lease.ps1` carica quello script come engine guard, da una finestra
-5.1 ogni build muore con `ENGINE_GUARD_UNAVAILABLE` prima di partire — successo davvero
-nel pilot EPIC-1937, con la build che si fermava senza aver toccato il compilatore.
+🔴 **`pwsh` per primo, `powershell` come ripiego.** Non e' una preferenza.
+
+`scripts/rt-suite.ps1` e' **UTF-8 senza BOM** e contiene 1259 byte non-ASCII. Windows
+PowerShell 5.1 legge i file senza BOM come Windows-1252, e su quel file produce **30
+errori di parsing**; PowerShell 7.6.5 ne produce **zero**. Poiche' `rt-lease.ps1` carica
+quello script come engine guard, da una finestra 5.1 ogni build muore con
+`ENGINE_GUARD_UNAVAILABLE` prima di toccare il compilatore.
+
+⚠️ E' l'ENCODING, non la sintassi. Il repository lo documentava gia' in
+`scripts/rt-terminal.ps1`, e la prima stesura di questa nota attribuiva il guasto a
+«sintassi PowerShell 7»: la conseguenza era giusta, la causa no.
 
 `--shell` forza la scelta quando serve.
+
+### E l'identita' di sessione RT
+
+Aprire una finestra non basta a poterci lavorare. `rt-lease.ps1` concede il motore solo a
+una console che dichiara `RT_TERMINAL_OWNER_PID` e `RT_TERMINAL_OWNER_STARTED_AT`; senza,
+rifiuta con `RT_SESSION_REQUIRED` e non si compila.
+
+⛔ RT3 **non** riscrive quella logica: lo script generato fa dot-source di
+`scripts/rt-terminal.ps1`, che la possiede - con le stesse cautele che RT3 applica ai
+propri terminali, PID piu' istante di avvio e fail-closed se l'istante non si legge - e in
+piu' definisce i wrapper `rtlease`, `rtbuild`, `rtsuite`. Due sedi per la stessa identita'
+divergerebbero al primo campo aggiunto.
+
+Se quel file manca nel checkout, la finestra si apre lo stesso e lo **dice**: leggere e
+usare `rt3` funziona, compilare no.
 
 ### Comandi
 
