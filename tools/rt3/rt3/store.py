@@ -605,10 +605,15 @@ class Store:
                 "SELECT status FROM sessions WHERE session_id=?", (session_id,)
             ).fetchone()
             if row is not None and row["status"] == "ACTIVE" and not replace:
+                # ⛔ Il comando suggerito deve ESISTERE. Questa riga proponeva la forma
+                # con --id dopo il sottocomando, che il parser non accetta: `--session`
+                # e' un flag GLOBALE e va PRIMA. Chi copiava scopriva l'errore dopo,
+                # senza sapere se sbagliava il comando o lo stato che il comando
+                # descriveva. Un test ora parsa cio' che questo messaggio suggerisce.
                 raise SessionExists(
                     "la sessione {} risulta gia' ATTIVA. Se il terminale precedente e' "
-                    "morto senza fermarla, ripubblicarla con --replace oppure "
-                    "`rt3 session stop --id {}`.".format(session_id, session_id)
+                    "morto senza fermarla, ripubblicarla con --replace oppure fermarla "
+                    "con `rt3 --session {} session stop`.".format(session_id, session_id)
                 )
             conn.execute(
                 """
@@ -1410,7 +1415,7 @@ class Store:
             ).fetchone()
             if row is None and required:
                 raise RoadmapNotFound(
-                    "nessuna roadmap caricata con id {!r}. `rt3 roadmap list` mostra "
+                    "nessuna roadmap caricata con id {!r}. `rt3 roadmaps list` mostra "
                     "quelle disponibili.".format(roadmap_id)
                 )
             return _row_to_dict(row)
@@ -1804,13 +1809,20 @@ class Store:
         ).fetchone()
         return _row_to_dict(row)
 
-    def get_terminal_for_session(self, session_id):
-        """Il terminale VIVO di quella sessione, se ce n'e' uno."""
-        row = self.connect().execute(
-            "SELECT * FROM terminals WHERE session_id=? "
-            "AND state IN ('STARTING','ACTIVE','CLOSING')",
-            (session_id,),
-        ).fetchone()
+    def get_terminal_for_session(self, session_id, include_dead=False):
+        """Il terminale di quella sessione.
+
+        Di norma solo quello VIVO: e' cio' che serve per sapere se se ne puo' aprire un
+        altro. Con `include_dead` si prende anche l'ultimo morto, e serve a chiudere:
+        una finestra sparita lascia comunque una sessione da fermare, e cercare solo fra
+        i vivi la renderebbe irraggiungibile proprio quando ha piu' bisogno di essere
+        ripulita.
+        """
+        sql = "SELECT * FROM terminals WHERE session_id=? "
+        if not include_dead:
+            sql += "AND state IN ('STARTING','ACTIVE','CLOSING') "
+        sql += "ORDER BY created_at DESC, terminal_id DESC"
+        row = self.connect().execute(sql, (session_id,)).fetchone()
         return _row_to_dict(row)
 
     def list_terminals(self, include_closed=False):

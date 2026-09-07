@@ -464,5 +464,150 @@ class SpawnFailureTest(Rt3TestCase):
             self.assertEqual(cli.call("terminals.list"), [], "nessuna finestra riservata")
 
 
+class TerminalStopSuLostTest(Rt3TestCase):
+    """🔴 `terminal stop` deve funzionare anche quando la finestra è già sparita.
+
+    Il caso reale, capitato nel pilot EPIC-1937: chiudi la finestra con la X, RT3 marca
+    il terminale `LOST` — corretto, non riconosce più quel processo — e poi
+    `terminal stop` risponde `TERMINAL_NOT_FOUND`, **lasciando la sessione ATTIVA e il
+    writer lease preso**.
+
+    Chi ci finisce dentro è bloccato senza una via ovvia: la finestra non c'è più, il
+    comando che dovrebbe ripulire dice che non c'è nulla da ripulire, e l'albero resta
+    occupato. La sessione è il soggetto di `terminal stop`, non la finestra: quella è
+    ciò che si chiude *in più*, quando c'è ancora.
+    """
+
+    WT = os.path.join(os.sep, "alberi", "perso")
+
+    def _riserva(self, cli, sid="DEV-LOST"):
+        return cli.call("terminal.reserve", shellType="powershell", session={
+            "sessionId": sid, "role": "DEV", "lane": "MAIN",
+            "workspaceGroup": "MAIN", "worktreePath": self.WT, "writeMode": "WRITER",
+        })
+
+    def test_stop_su_terminale_LOST_ferma_comunque_la_sessione(self):
+        with LocalDaemon() as d:
+            cli = client()
+            r = self._riserva(cli)
+            tid = r["terminal"]["terminal_id"]
+            # Il processo esiste e viene registrato, poi "muore": si simula marcando il
+            # terminale LOST, che è esattamente ciò che `_terminal_view` fa da solo
+            # quando l'identità non torna più.
+            cli.call("terminal.attach", terminalId=tid, processId=os.getpid(),
+                     processStartedAt="2000-01-01T00:00:00Z")   # istante che non torna
+            self.assertEqual(len(d.store.list_leases()), 1, "il lease c'è")
+
+            # 🔴 Il passo che rende il test fedele al caso reale. Il terminale
+            # diventa LOST NEL DATABASE quando qualcuno lo osserva - `terminal list`
+            # lo fa - e da quel momento non e' piu' fra i vivi. Senza questa riga il
+            # test passava anche col difetto: la prima osservazione avveniva dentro
+            # `close` stesso, che quindi lo trovava ancora.
+            cli.call("terminals.list")
+            self.assertEqual(d.store.get_terminal(tid)["state"], "LOST")
+
+            esito = cli.call("terminal.close", sessionId="DEV-LOST")
+
+            self.assertEqual(d.store.get_session("DEV-LOST")["status"], "STOPPED",
+                             "la sessione deve fermarsi anche senza finestra")
+            self.assertEqual(d.store.list_leases(), [], "il lease deve essere rilasciato")
+            self.assertFalse(esito["closed"], "nessuna finestra è stata chiusa")
+            self.assertIn("detail", esito)
+
+    def test_stop_di_una_sessione_SENZA_terminale_resta_un_errore(self):
+        """Controllo positivo: la tolleranza vale per un terminale che c'è stato, non
+        per una sessione manuale — quella non ha mai avuto una finestra di RT3, e
+        `terminal stop` su di lei è un comando sbagliato, non un caso da assorbire."""
+        from rt3.errors import Rt3Error
+
+        with LocalDaemon():
+            cli = client()
+            start_session(cli, "MANUALE", "DEV", "MAIN", worktreePath=self.WT,
+                          writeMode="READ_ONLY")
+            with self.assertRaises(Rt3Error) as ctx:
+                cli.call("terminal.close", sessionId="MANUALE")
+            self.assertIn("TERMINAL_NOT_FOUND", str(ctx.exception))
+
+    def test_stop_ripetuto_non_esplode(self):
+        """Chi non è sicuro di aver già ripulito deve poter richiamare il comando."""
+        with LocalDaemon() as d:
+            cli = client()
+            tid = self._riserva(cli)["terminal"]["terminal_id"]
+            cli.call("terminal.attach", terminalId=tid, processId=os.getpid(),
+                     processStartedAt="2000-01-01T00:00:00Z")
+            cli.call("terminal.close", sessionId="DEV-LOST")
+            secondo = cli.call("terminal.close", sessionId="DEV-LOST")
+            self.assertFalse(secondo["closed"])
+            self.assertEqual(d.store.list_leases(), [])
+
+
+class MessaggiCheSuggerisconoComandiTest(Rt3TestCase):
+    """⛔ Un messaggio che suggerisce un comando inesistente è peggio di uno che non ne
+    suggerisce nessuno: chi lo copia scopre l'errore dopo, e non sa se sbagliava il
+    comando o lo stato che il comando descriveva.
+
+    Successo davvero: `RT3_SESSION_EXISTS` proponeva `rt3 session stop --id <X>`, che il
+    parser non accetta — la forma vera è `rt3 --session <X> session stop`.
+    """
+
+    def _comandi_suggeriti(self, testo):
+        """Ogni `rt3 ...` fra backtick dentro il messaggio."""
+        import re
+        return [m.group(1) for m in re.finditer(r"`(rt3 [^`]+)`", testo)]
+
+    def test_il_messaggio_di_roadmap_assente_suggerisce_un_comando_VERO(self):
+        """Lo stesso difetto, un'altra occorrenza: proponeva `rt3 roadmap list`, ma il
+        sottocomando e' al PLURALE. Due messaggi sbagliati nello stesso modo non sono
+        una coincidenza: e' il motivo per cui questa classe esiste."""
+        from rt3.cli import build_parser
+        from rt3.errors import Rt3Error
+
+        with LocalDaemon():
+            cli = client()
+            try:
+                cli.call("roadmap.get", roadmapId="non-esiste")
+                self.fail("una roadmap inesistente deve essere respinta")
+            except Rt3Error as exc:
+                testo = str(exc)
+
+        suggeriti = self._comandi_suggeriti(testo)
+        self.assertTrue(suggeriti, "il messaggio deve dire come trovarne una vera")
+        parser = build_parser()
+        for comando in suggeriti:
+            with self.subTest(comando=comando):
+                try:
+                    parser.parse_args(comando.split()[1:])
+                except SystemExit:
+                    self.fail("il messaggio suggerisce `{}`, che il parser rifiuta"
+                              .format(comando))
+
+    def test_il_messaggio_di_sessione_gia_attiva_suggerisce_comandi_VERI(self):
+        from rt3.cli import build_parser
+        from rt3.errors import SessionExists
+
+        with LocalDaemon():
+            cli = client()
+            start_session(cli, "DOPPIA", "DEV", "MAIN")
+            try:
+                start_session(cli, "DOPPIA", "DEV", "MAIN")
+                self.fail("una sessione già attiva deve essere respinta")
+            except Exception as exc:
+                testo = str(exc)
+
+        self.assertIn("RT3_SESSION_EXISTS", testo)
+        suggeriti = self._comandi_suggeriti(testo)
+        self.assertTrue(suggeriti, "il messaggio deve dire cosa fare")
+
+        parser = build_parser()
+        for comando in suggeriti:
+            with self.subTest(comando=comando):
+                argv = [a for a in comando.split()[1:] if not a.startswith("<")]
+                argv = [a.replace("<id>", "X") for a in argv]
+                try:
+                    parser.parse_args(argv)
+                except SystemExit:
+                    self.fail("il messaggio suggerisce `{}`, che il parser rifiuta"
+                              .format(comando))
+
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

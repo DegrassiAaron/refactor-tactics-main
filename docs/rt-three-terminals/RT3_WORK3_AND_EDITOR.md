@@ -575,7 +575,13 @@ completato costringerebbe a riaprirla per il task successivo, che e' lo stesso w
 lo stesso lease e la stessa persona.
 
 Il percorso di uscita preferito e' `rt3-finish` **dentro** la finestra: ferma la
-sessione, rilascia i lease, stampa il riepilogo e chiude. Chiudere con la X e' legittimo
+sessione, rilascia i lease, stampa il riepilogo e chiude.
+
+⚠️ **`terminal stop` funziona anche quando la finestra e' gia' sparita.** La sessione e'
+il soggetto di quel comando; la finestra e' cio' che si chiude *in piu'*, quando c'e'
+ancora. Cercare solo fra i terminali vivi lasciava bloccato proprio chi ne aveva piu'
+bisogno: chiusa la finestra con la X, il terminale diventa `LOST` e il comando rispondeva
+`TERMINAL_NOT_FOUND` con la sessione ancora ATTIVA e il writer lease preso. Chiudere con la X e' legittimo
 ma RT3 puo' solo constatarlo dopo: il terminale risulta `LOST` e la policy conservativa
 dei lease non cambia - **nessun lease viene liberato d'ufficio** perche' una finestra e'
 sparita.
