@@ -561,9 +561,33 @@ DEPENDENCY · RESOURCE_WRITER · RESOURCE_UNREAL · WAITING_REVIEW
 WAITING_VALIDATION · WORKTREE_MISMATCH · PROTOCOL_MISMATCH · ROADMAP_REVISION
 ```
 
+**Quando ristamparlo, e a quale livello.** Prima di lavorare e dopo ogni azione che
+cambia qualcosa - non a ogni comando.
+
+```text
+all'avvio della sessione        normal
+attivita' ordinaria             compact
+ACTION_REQUIRED, BLOCKED, ERROR normal o verbose, per intero
+```
+
+🔴 **Non ricostruire lo stato dalla conversazione.** Cio' che una sessione ricorda di
+aver fatto non e' lo stato: il branch puo' essere cambiato, un lease puo' essere stato
+preso da un'altra sessione, la roadmap puo' essere avanzata. La memoria della sessione e'
+una fonte, e non e' quella autorevole.
+
+⚠️ **Il confronto fra due letture non e' automatico.** Le funzioni che sopprimono le
+ripetizioni esistono e sono provate, ma nessun comando persiste l'ultima revisione vista:
+oggi decidi tu quando ristampare. Vedi
+[`../RT3_WORK3_AND_EDITOR.md`](../RT3_WORK3_AND_EDITOR.md) §9.
+
 **L'output e' ASCII.** Non e' una preferenza estetica: su cp850 e cp437 - le codepage
 tipiche di `cmd.exe` - un carattere fuori tabella fa terminare il comando con exit 1.
 Misurato il 2026-09-07 su `rt3 epic activate`, che falliva per un em dash nel titolo.
+
+Il modello operativo dietro questi comandi - perché i worktree sono tre, come un task
+resta di chi lo possiede, come l'unico Unreal viene serializzato e che cosa significano i
+timestamp - sta in [`../RT3_WORK3_AND_EDITOR.md`](../RT3_WORK3_AND_EDITOR.md), che per
+ogni decisione dichiara se è implementata o soltanto decisa.
 
 ### Attivare una Epic
 

@@ -111,6 +111,13 @@ Il vincolo sul primo carattere è ciò che esclude `..` e `.git` senza un caso s
 
 ⚠️ **Niente `WAITING_DEV`, `WAITING_EDITOR`, `WAITING_VALIDATION`.** Quell'informazione la porta già `next_actor`, e uno stato duplicato è uno stato che diverge.
 
+> 🔴 **Il divieto vale in questo modello, e solo qui.**
+> [`RT3_WORK3_AND_EDITOR.md`](RT3_WORK3_AND_EDITOR.md) §4 usa `WAITING_EDITOR` per lo
+> stato di un lavoro **rispetto alla coda dell'Editor**, che è un altro spazio: gli stati
+> del control plane restano `ACTIVE` `BLOCKED` `DONE`, e lì non esiste un `next_actor`
+> che lo renderebbe ridondante. Se un giorno il control plane ne adottasse uno, quella
+> decisione andrebbe riaperta — sarebbe la stessa duplicazione che questa riga rifiuta.
+
 Per la stessa ragione **non sono campi**, ma valori derivati dai file presenti:
 
 - `last_result_path` — l'ultimo file in `results/`, che l'ordine lessicografico dei nomi rende cronologico;
