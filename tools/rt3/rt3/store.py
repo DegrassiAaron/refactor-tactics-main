@@ -26,9 +26,12 @@ import threading
 
 from . import SCHEMA_VERSION
 from .errors import (
+    CandidateNotFound,
     DeliveryConflict,
     EventNotFound,
     NotAuthorized,
+    RoadmapAmbiguous,
+    RoadmapNotFound,
     SchemaMismatch,
     SessionExists,
     SessionNotFound,
@@ -37,7 +40,9 @@ from .errors import (
 )
 from .model import (
     DELIVERY_STATES,
+    check_candidate_status,
     check_event_type,
+    check_item_progress,
     check_lane,
     check_role,
     check_session_id,
@@ -225,6 +230,71 @@ def _v1(conn):
         );
         """
     )
+
+
+@_migration(2)
+def _v2(conn):
+    """Roadmap Orchestration: il PLAN caricato e il RUNTIME che gli si riferisce.
+
+    🔴 Le due cose stanno in due tabelle e non in una. `roadmaps` conserva il documento
+    NORMALIZZATO - cio' che era scritto nel file al momento del load - e
+    `roadmap_item_state` conserva cosa e' successo dopo. Fonderle significherebbe
+    riscrivere il piano ogni volta che una issue avanza, e perdere la distinzione fra
+    «il piano dice» e «e' andata cosi'».
+
+    ⚠️ Non c'e' nessuna colonna READY e nessuna colonna BLOCKED. Sono derivate dal
+    grafo piu' `progress`, le calcola `planner.py`, e salvarle creerebbe una seconda
+    autorita' che diverge al primo `requires` modificato.
+    """
+    _exec_ddl(
+        conn,
+        """
+        CREATE TABLE roadmaps (
+            roadmap_id              TEXT PRIMARY KEY,
+            name                    TEXT,
+            -- Il path da cui e' stata caricata. Diagnostico e non autorevole: i tre
+            -- workspace sono tre checkout, e lo stesso file ha tre path diversi.
+            source_path             TEXT,
+            -- L'identita' della VERSIONE. Due workspace con lo stesso hash hanno la
+            -- stessa roadmap anche se il path differisce.
+            content_hash            TEXT NOT NULL,
+            roadmap_schema_version  INTEGER NOT NULL,
+            document                TEXT NOT NULL,
+            loaded_at               TEXT NOT NULL,
+            loaded_by               TEXT
+        );
+
+        CREATE TABLE roadmap_item_state (
+            roadmap_id    TEXT NOT NULL REFERENCES roadmaps(roadmap_id) ON DELETE CASCADE,
+            item_key      TEXT NOT NULL,
+            progress      TEXT NOT NULL DEFAULT 'PENDING',
+            candidate_id  TEXT,
+            note          TEXT,
+            updated_at    TEXT NOT NULL,
+            updated_by    TEXT,
+            PRIMARY KEY (roadmap_id, item_key)
+        );
+        CREATE INDEX idx_item_state_progress
+            ON roadmap_item_state(roadmap_id, progress);
+        """
+    )
+
+    # I candidate esistevano gia' come METADATI. Qui acquistano un esito e un
+    # riferimento alla issue: senza esito, «il validator lavora sul candidate» non e'
+    # verificabile - due candidate sullo stesso ramo sarebbero indistinguibili.
+    #
+    # ALTER TABLE e non CREATE nuova: un database gia' in uso perderebbe i candidate
+    # esistenti, e la migrazione deve preservarli.
+    for column, ddl in (
+        ("status", "ALTER TABLE candidates ADD COLUMN status TEXT NOT NULL DEFAULT 'PENDING'"),
+        ("roadmap_id", "ALTER TABLE candidates ADD COLUMN roadmap_id TEXT"),
+        ("item_key", "ALTER TABLE candidates ADD COLUMN item_key TEXT"),
+        ("updated_at", "ALTER TABLE candidates ADD COLUMN updated_at TEXT"),
+        ("decided_by", "ALTER TABLE candidates ADD COLUMN decided_by TEXT"),
+    ):
+        existing = {r["name"] for r in conn.execute("PRAGMA table_info(candidates)")}
+        if column not in existing:
+            conn.execute(ddl)
 
 
 # ---------------------------------------------------------------------------
@@ -926,14 +996,23 @@ class Store:
     # -- candidati e lease (metadati) -------------------------------------
 
     def create_candidate(
-        self, session_id, task_id=None, branch=None, head=None, note=None
+        self,
+        session_id,
+        task_id=None,
+        branch=None,
+        head=None,
+        note=None,
+        roadmap_id=None,
+        item_key=None,
     ):
         session = self.get_session(session_id, required=True)
         candidate_id = new_candidate_id()
+        now = now_iso()
         conn = self.connect()
         conn.execute(
             "INSERT INTO candidates(candidate_id, task_id, session_id, branch, head, "
-            "note, created_at) VALUES(?,?,?,?,?,?,?)",
+            "note, created_at, status, roadmap_id, item_key, updated_at) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
             (
                 candidate_id,
                 task_id or session.get("task_id"),
@@ -941,10 +1020,201 @@ class Store:
                 branch if branch is not None else session.get("branch"),
                 head if head is not None else session.get("head"),
                 note,
-                now_iso(),
+                now,
+                "PENDING",
+                roadmap_id,
+                item_key,
+                now,
             ),
         )
         return self.get_candidate(candidate_id)
+
+    def set_candidate_status(self, candidate_id, status, session_id=None, note=None):
+        """Registra l'esito della validazione di UN candidate.
+
+        ⚠️ L'esito sta sul candidate e non sulla issue, ed e' la distinzione che rende
+        verificabile «il validator lavora sulla candidate, non sul branch»: due
+        candidate sullo stesso branch possono avere esiti opposti, perche' puntano a due
+        commit diversi. Una colonna sulla issue li conflaterebbe nell'ultimo che passa.
+        """
+        check_candidate_status(status)
+        existing = self.get_candidate(candidate_id)
+        if existing is None:
+            raise CandidateNotFound(
+                "candidate {} inesistente.".format(candidate_id)
+            )
+        conn = self.connect()
+        conn.execute(
+            "UPDATE candidates SET status=?, updated_at=?, decided_by=?, "
+            "note=CASE WHEN ? IS NULL THEN note "
+            "ELSE COALESCE(note || ' | ', '') || ? END "
+            "WHERE candidate_id=?",
+            (status, now_iso(), session_id, note, note, candidate_id),
+        )
+        return self.get_candidate(candidate_id)
+
+    # -- roadmap: il PLAN caricato ----------------------------------------
+
+    def save_roadmap(
+        self,
+        roadmap_id,
+        name,
+        source_path,
+        content_hash,
+        roadmap_schema_version,
+        document,
+        session_id=None,
+        reset_state=False,
+    ):
+        """Registra o aggiorna una roadmap.
+
+        ⚠️ Ricaricare NON azzera lo stato, salvo `reset_state`. E' la scelta prudente:
+        il caso normale e' correggere una stima o aggiungere una issue, e buttare via
+        cinque validazioni per un refuso sarebbe un danno silenzioso. Gli stati di
+        item spariti dalla roadmap restano nella tabella, inerti: non li cancello,
+        perche' un ricaricamento dal file sbagliato li renderebbe irrecuperabili.
+        """
+        now = now_iso()
+        conn = self.connect()
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute(
+                "INSERT INTO roadmaps(roadmap_id, name, source_path, content_hash, "
+                "roadmap_schema_version, document, loaded_at, loaded_by) "
+                "VALUES(?,?,?,?,?,?,?,?) "
+                "ON CONFLICT(roadmap_id) DO UPDATE SET "
+                "  name=excluded.name, source_path=excluded.source_path, "
+                "  content_hash=excluded.content_hash, "
+                "  roadmap_schema_version=excluded.roadmap_schema_version, "
+                "  document=excluded.document, loaded_at=excluded.loaded_at, "
+                "  loaded_by=excluded.loaded_by",
+                (
+                    roadmap_id,
+                    name,
+                    source_path,
+                    content_hash,
+                    int(roadmap_schema_version),
+                    document,
+                    now,
+                    session_id,
+                ),
+            )
+            if reset_state:
+                conn.execute(
+                    "DELETE FROM roadmap_item_state WHERE roadmap_id=?", (roadmap_id,)
+                )
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+        return self.get_roadmap(roadmap_id)
+
+    def get_roadmap(self, roadmap_id=None, required=True):
+        """La roadmap indicata, o l'unica caricata se `roadmap_id` e' None.
+
+        Con piu' roadmap caricate e nessun id, alza `RoadmapAmbiguous` invece di
+        sceglierne una: «la piu' recente» sembra ragionevole e produce comandi che
+        cambiano bersaglio da soli quando qualcun altro ne carica una.
+        """
+        conn = self.connect()
+        if roadmap_id:
+            row = conn.execute(
+                "SELECT * FROM roadmaps WHERE roadmap_id=?", (roadmap_id,)
+            ).fetchone()
+            if row is None and required:
+                raise RoadmapNotFound(
+                    "nessuna roadmap caricata con id {!r}. `rt3 roadmap list` mostra "
+                    "quelle disponibili.".format(roadmap_id)
+                )
+            return _row_to_dict(row)
+
+        rows = conn.execute("SELECT * FROM roadmaps ORDER BY roadmap_id").fetchall()
+        if not rows:
+            if required:
+                raise RoadmapNotFound(
+                    "nessuna roadmap caricata. Usare `rt3 roadmap load --file <path>`."
+                )
+            return None
+        if len(rows) > 1:
+            raise RoadmapAmbiguous(
+                "ci sono {} roadmap caricate ({}): indicare --id.".format(
+                    len(rows), ", ".join(r["roadmap_id"] for r in rows)
+                )
+            )
+        return _row_to_dict(rows[0])
+
+    def list_roadmaps(self):
+        conn = self.connect()
+        rows = conn.execute(
+            "SELECT roadmap_id, name, source_path, content_hash, "
+            "roadmap_schema_version, loaded_at, loaded_by FROM roadmaps "
+            "ORDER BY roadmap_id"
+        ).fetchall()
+        out = []
+        for row in rows:
+            data = _row_to_dict(row)
+            data["items"] = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM roadmap_item_state WHERE roadmap_id=?",
+                    (row["roadmap_id"],),
+                ).fetchone()[0]
+            )
+            out.append(data)
+        return out
+
+    # -- roadmap: il RUNTIME ----------------------------------------------
+
+    def item_states(self, roadmap_id):
+        """Solo gli stati DICHIARATI. Un item assente vale PENDING, e lo decide il
+        planner: mettere qui il default significherebbe scrivere una riga per ogni item
+        al load, cioe' fabbricare uno stato che nessuno ha dichiarato."""
+        conn = self.connect()
+        rows = conn.execute(
+            "SELECT item_key, progress, candidate_id, note, updated_at, updated_by "
+            "FROM roadmap_item_state WHERE roadmap_id=? ORDER BY item_key",
+            (roadmap_id,),
+        ).fetchall()
+        return [_row_to_dict(r) for r in rows]
+
+    def progress_map(self, roadmap_id):
+        return {r["item_key"]: r["progress"] for r in self.item_states(roadmap_id)}
+
+    def set_item_state(
+        self,
+        roadmap_id,
+        item_key,
+        progress,
+        session_id=None,
+        candidate_id=None,
+        note=None,
+    ):
+        check_item_progress(progress)
+        if self.get_roadmap(roadmap_id, required=True) is None:  # pragma: no cover
+            raise RoadmapNotFound("roadmap {} inesistente.".format(roadmap_id))
+        conn = self.connect()
+        conn.execute(
+            "INSERT INTO roadmap_item_state(roadmap_id, item_key, progress, "
+            "candidate_id, note, updated_at, updated_by) VALUES(?,?,?,?,?,?,?) "
+            "ON CONFLICT(roadmap_id, item_key) DO UPDATE SET "
+            "  progress=excluded.progress, "
+            "  candidate_id=COALESCE(excluded.candidate_id, roadmap_item_state.candidate_id), "
+            "  note=COALESCE(excluded.note, roadmap_item_state.note), "
+            "  updated_at=excluded.updated_at, updated_by=excluded.updated_by",
+            (
+                roadmap_id,
+                item_key,
+                progress,
+                candidate_id,
+                note,
+                now_iso(),
+                session_id,
+            ),
+        )
+        row = conn.execute(
+            "SELECT * FROM roadmap_item_state WHERE roadmap_id=? AND item_key=?",
+            (roadmap_id, item_key),
+        ).fetchone()
+        return _row_to_dict(row)
 
     def get_candidate(self, candidate_id):
         conn = self.connect()
@@ -991,6 +1261,14 @@ class Store:
                 "SELECT COUNT(*) FROM deliveries WHERE state='ACKED'"
             ),
             "candidates": count("SELECT COUNT(*) FROM candidates"),
+            "candidatesPassed": count(
+                "SELECT COUNT(*) FROM candidates WHERE status='PASSED'"
+            ),
+            "candidatesFailed": count(
+                "SELECT COUNT(*) FROM candidates WHERE status='FAILED'"
+            ),
+            "roadmaps": count("SELECT COUNT(*) FROM roadmaps"),
+            "roadmapItemStates": count("SELECT COUNT(*) FROM roadmap_item_state"),
         }
 
 

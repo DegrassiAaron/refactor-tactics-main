@@ -110,3 +110,37 @@ class NotAuthorized(Rt3Error):
 
     code = "RT3_NOT_AUTHORIZED"
     exit_code = 13
+
+
+# -- Roadmap Orchestration ---------------------------------------------------
+#
+# Gli exit code ripartono da 20 e non da 14: i codici sopra appartengono al control
+# plane, questi alla roadmap. Lo stacco lascia spazio al primo gruppo senza dover
+# rinumerare il secondo - e un exit code che cambia significato fra due versioni e' un
+# guasto silenzioso in ogni script che lo confronti.
+
+
+class RoadmapNotFound(Rt3Error):
+    """Nessuna roadmap caricata con quell'id. Non e' un errore di forma del file."""
+
+    code = "RT3_ROADMAP_NOT_FOUND"
+    exit_code = 21
+
+
+class RoadmapAmbiguous(Rt3Error):
+    """Piu' roadmap caricate e nessun `--id`: scegliere e' del chiamante, non nostro."""
+
+    code = "RT3_ROADMAP_AMBIGUOUS"
+    exit_code = 22
+
+
+class ItemNotFound(Rt3Error):
+    """La issue non esiste nella roadmap caricata."""
+
+    code = "RT3_ITEM_NOT_FOUND"
+    exit_code = 23
+
+
+class CandidateNotFound(Rt3Error):
+    code = "RT3_CANDIDATE_NOT_FOUND"
+    exit_code = 24
