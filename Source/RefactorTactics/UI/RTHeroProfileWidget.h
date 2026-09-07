@@ -76,6 +76,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HeroProfile")
 	bool HasDifficultyRatings() const;
 
+	/**
+	 * Il testo con cui la scheda dice «questo dato non c'e'».
+	 *
+	 * ⚠️ **Una costante e non un letterale sparso**: e' la forma visibile del fail-closed, e se ogni
+	 * sezione scrivesse il proprio segnaposto la scheda mostrerebbe tre convenzioni diverse per la stessa
+	 * assenza — e prima o poi una di esse sarebbe uno `0`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HeroProfile")
+	static FText GetAbsentValueText();
+
 protected:
 	/**
 	 * La vista corrente. `EditAnywhere` per consentire una **preview di design-time** dentro il WBP con
@@ -83,4 +93,62 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HeroProfile")
 	FRTHeroProfileView ProfileView;
+
+	// ------------------------------------------------------------------------------------------------
+	// I widget del `WBP_RT_HeroProfile`, collegati PER NOME.
+	//
+	// 🔴 **`BindWidgetOptional` invece di binding authorati nel Blueprint, ed e' la scelta che rende
+	// questa scheda verificabile.** Un binding disegnato dentro il `.uasset` vive in un
+	// `FDelegateRuntimeBinding` serializzato che non si diffa, non si grep-pa e si rompe in silenzio
+	// (#937 esiste per un modale che si armava e non compariva). Popolare i testi da C++ mette la stessa
+	// regola in un posto che un Automation Test puo' leggere.
+	//
+	// ⚠️ **`Optional` e non obbligatorio**: un WBP che non dichiara uno di questi nomi resta valido e
+	// compila. Sono una scheda graybox e le sue sezioni sono opzionali per contratto — pretenderli tutti
+	// trasformerebbe ogni variante di layout in un errore di compilazione del Blueprint.
+	//
+	// 🔵 Questi puntatori sono a WIDGET, non a gameplay: il confine che
+	// `NoGameplayPointersInView` difende riguarda la VIEW, che resta senza puntatori di qualunque tipo.
+	// ------------------------------------------------------------------------------------------------
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HeroProfile")
+	TObjectPtr<class UTextBlock> HeroName;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HeroProfile")
+	TObjectPtr<class UTextBlock> RoleLine;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HeroProfile")
+	TObjectPtr<class UTextBlock> StyleTagLine;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HeroProfile")
+	TObjectPtr<class UTextBlock> AffinityText;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HeroProfile")
+	TObjectPtr<class UTextBlock> WeaknessText;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HeroProfile")
+	TObjectPtr<class UTextBlock> RangeAndDifficulty;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HeroProfile")
+	TObjectPtr<class UTextBlock> CombatIdentity;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HeroProfile")
+	TObjectPtr<class UTextBlock> StrengthsText;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HeroProfile")
+	TObjectPtr<class UTextBlock> TradeoffsText;
+
+	/** Il radar della scheda. La view gli passa gli assi; la scheda non ne disegna nessuno. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HeroProfile")
+	TObjectPtr<class URTHeroRadarWidget> HeroRadar;
+
+	/**
+	 * Riversa `ProfileView` nei widget collegati. Chiamata da `SetProfileView` e da `NativeConstruct`,
+	 * perche' la view puo' arrivare **prima** che i widget esistano — ed e' il caso normale quando la
+	 * scheda viene costruita gia' popolata.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HeroProfile")
+	void RefreshBoundWidgets();
+
+	virtual void NativeConstruct() override;
 };
