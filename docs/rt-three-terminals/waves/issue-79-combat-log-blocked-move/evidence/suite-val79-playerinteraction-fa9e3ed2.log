@@ -1,0 +1,29 @@
+# Estratto — rt-suite.ps1 -Filter <vedi sotto> -LogName rt-suite-val79-playerinteraction.log
+# Log UE completo, non versionato: Saved/Logs/rt-suite-val79-playerinteraction.log
+# Prodotto da VALIDATION, lease 416e5d77a740 (SUITE), su HEAD fa9e3ed2
+
+## riassunto rt-suite (stdout)
+[RT-MEASURE] filtro   RefactorTactics.PlayerInteraction
+[RT-MEASURE] HEAD     fa9e3ed2
+[RT-MEASURE] albero   3103b044 (1 file)
+[RT-MEASURE] binario  RefactorTactics=2026-09-06 16:47:17/14749184 RefactorTacticsEditor=2026-09-06 16:47:30/2351104
+[RT-MEASURE] run in corso...
+[RT-MEASURE] VALIDA
+[RT-MEASURE]   HEAD      fa9e3ed2  albero 3103b044
+[RT-MEASURE]   esito     13/13 completati, 0 fallimenti
+[RT-MEASURE]   durata    00:24
+[RT-MEASURE]   log: D:\Repositories\refactor-tactics-main\Saved\Logs\rt-suite-val79-playerinteraction.log
+[RT-MEASURE]   issue-refs nessuna issue cita un percorso rimosso dal repository
+EXIT=0
+
+## test della wave #79 (Result verificato per NOME, non dedotto dal totale)
+LogAutomationController: Display: Test Completed. Result={Success} Name={BudgetDenialIsNotAUnitDenial} Path={RefactorTactics.PlayerInteraction.BudgetDenialIsNotAUnitDenial}
+LogAutomationController: Display: Test Completed. Result={Success} Name={DeniedMoveDeclaresTheDenial} Path={RefactorTactics.PlayerInteraction.DeniedMoveDeclaresTheDenial}
+LogAutomationController: Display: Test Completed. Result={Success} Name={ReplanAfterADenialWins} Path={RefactorTactics.PlayerInteraction.ReplanAfterADenialWins}
+LogAutomationController: Display: Test Completed. Result={Success} Name={UndeclaredMoveDoesNotDeclareADenial} Path={RefactorTactics.PlayerInteraction.UndeclaredMoveDoesNotDeclareADenial}
+
+## Movement.CollisionChoke
+(non in questo filtro)
+
+## fallimenti
+(nessuno)

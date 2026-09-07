@@ -1,0 +1,12 @@
+[RT-MEASURE] filtro   RefactorTactics.Scenario
+[RT-MEASURE] HEAD     b5badb79
+[RT-MEASURE] albero   3353f578 (1 file)
+[RT-MEASURE] binario  RefactorTactics=2026-09-06 16:47:17/14749184 RefactorTacticsEditor=2026-09-06 16:47:30/2351104
+[RT-MEASURE] run in corso...
+
+[RT-MEASURE] VALIDA
+[RT-MEASURE]   HEAD      b5badb79  albero 3353f578
+[RT-MEASURE]   esito     174/174 completati, 0 fallimenti
+[RT-MEASURE]   durata    00:50
+[RT-MEASURE]   log: D:\Repositories\refactor-tactics-main\Saved\Logs\rt-suite.log
+[RT-MEASURE]   issue-refs nessuna issue cita un percorso rimosso dal repository
