@@ -1,0 +1,48 @@
+# Estratto — rt-suite.ps1 -Filter <vedi sotto> -LogName rt-suite-val79-scenario.log
+# Log UE completo, non versionato: Saved/Logs/rt-suite-val79-scenario.log
+# Prodotto da VALIDATION, lease 416e5d77a740 (SUITE), su HEAD fa9e3ed2
+
+## riassunto rt-suite (stdout)
+[RT-MEASURE] filtro   RefactorTactics.Scenario
+[RT-MEASURE] HEAD     fa9e3ed2
+[RT-MEASURE] albero   3103b044 (1 file)
+[RT-MEASURE] binario  RefactorTactics=2026-09-06 16:47:17/14749184 RefactorTacticsEditor=2026-09-06 16:47:30/2351104
+[RT-MEASURE] run in corso...
+[RT-MEASURE] VALIDA
+[RT-MEASURE]   HEAD      fa9e3ed2  albero 3103b044
+[RT-MEASURE]   esito     174/174 completati, 0 fallimenti
+[RT-MEASURE]   durata    00:44
+[RT-MEASURE]   log: D:\Repositories\refactor-tactics-main\Saved\Logs\rt-suite-val79-scenario.log
+[RT-MEASURE]   issue-refs nessuna issue cita un percorso rimosso dal repository
+EXIT=0
+
+## test della wave #79 (Result verificato per NOME, non dedotto dal totale)
+(nessuno: filtro fuori dal loro path)
+
+## Movement.CollisionChoke
+LogRT: [RT] Pesi bot: WKill=10000 WDamage=10 WThreat=100 WKiteViolation=50 WApproach=10 WElevation=4
+LogRT: [RT] Turno 2 - pianificazione
+LogRT: [RT] Fase Move: risolte 2 unita'
+LogRT: [RT] Gadget: fermo: cella contesa (q=-1,r=0,L=0) (Action.Move, p50)
+LogRT: [RT] Branth: fermo: cella contesa (q=1,r=0,L=0) (Action.Move, p50)
+LogRT: [RT] Pesi bot: WKill=10000 WDamage=10 WThreat=100 WKiteViolation=50 WApproach=10 WElevation=4
+LogRT: [RT] Turno 3 - pianificazione
+LogRT: [RT] Fase Move: risolte 2 unita'
+LogRT: [RT] Risoluzione: 1 fasi, ~0.7s (x1.00, slack x1.00)
+LogRT: [RT] Playback fase: Move
+LogRT: [RT] Risoluzione completata (0.7s)
+LogRT: [RT] Gadget: resta (q=-1,r=0,L=0) (Action.Move, p50)
+LogRT: [RT] Branth: si muove (q=1,r=0,L=0) -> (q=0,r=0,L=0) (1 celle) (Action.Move, p50)
+LogRT: [RT] (q=0,r=0,L=0): si orienta a W (movimento)
+LogRT: [RT] Pesi bot: WKill=10000 WDamage=10 WThreat=100 WKiteViolation=50 WApproach=10 WElevation=4
+LogRT: [RT] Turno 4 - pianificazione
+LogRT: Warning: [RT-Test] Movement.CollisionChoke: percorso rifiutato per 'A1' (l'unita' resta ferma)
+LogRT: [RT] Fase Move: risolte 2 unita'
+LogRT: [RT] Gadget: fermo: cella occupata (q=-1,r=0,L=0) (Action.Move, p50)
+LogRT: [RT] Branth: resta (q=0,r=0,L=0) (Action.Move, p50)
+LogRT: [RT] Pesi bot: WKill=10000 WDamage=10 WThreat=100 WKiteViolation=50 WApproach=10 WElevation=4
+LogRT: [RT] Turno 5 - pianificazione
+LogRT: [RT-Test] Movement.CollisionChoke: PASS (6/6 assertion, 4 turni)
+
+## fallimenti
+(nessuno)

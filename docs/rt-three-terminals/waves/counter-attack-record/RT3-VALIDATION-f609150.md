@@ -244,3 +244,11 @@ working tree condiviso, nessun `fetch` (su richiesta esplicita: `main` non va av
 
 RISULTATO: BLOCKED
 NEXT_WAVE_AUTHORIZED: no
+
+---
+
+> ⚠️ **Superato sui gate, non sui finding.** Il motore si è liberato alle 08:08Z, il lease è stato
+> acquisito (`9bde7243de40`) e la misura è stata eseguita: vedi
+> [`RT3-VALIDATION-cefcd66.md`](RT3-VALIDATION-cefcd66.md) — anti-vacuità `PASS`, più F11/F12/F13/F14.
+> I finding di processo di questo referto (F7 escluso, che era la sola indisponibilità del motore)
+> **restano aperti**: F8 bersagli collassati, F9 merge senza sign-off, F10 flag di build.

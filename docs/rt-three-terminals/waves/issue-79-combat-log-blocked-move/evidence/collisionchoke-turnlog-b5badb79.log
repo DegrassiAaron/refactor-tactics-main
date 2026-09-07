@@ -1,0 +1,21 @@
+[2026.09.06-14.52.12:735][697]LogRT: [RT] Playback fase: Move
+[2026.09.06-14.52.12:735][697]LogRT: [RT] Risoluzione completata (0.7s)
+[2026.09.06-14.52.12:735][697]LogRT: [RT] Gadget: resta (q=-1,r=0,L=0) (Action.Move, p50)
+[2026.09.06-14.52.12:735][697]LogRT: [RT] Branth: si muove (q=1,r=0,L=0) -> (q=0,r=0,L=0) (1 celle) (Action.Move, p50)
+[2026.09.06-14.52.12:735][697]LogRT: [RT] (q=0,r=0,L=0): si orienta a W (movimento)
+[2026.09.06-14.52.12:735][697]LogRT: [RT] Pesi bot: WKill=10000 WDamage=10 WThreat=100 WKiteViolation=50 WApproach=10 WElevation=4
+[2026.09.06-14.52.12:735][697]LogRT: [RT] Turno 4 - pianificazione
+[2026.09.06-14.52.12:735][697]LogRT: Warning: [RT-Test] Movement.CollisionChoke: percorso rifiutato per 'A1' (l'unita' resta ferma)
+[2026.09.06-14.52.12:735][697]LogRT: [RT] Fase Move: risolte 2 unita'
+[2026.09.06-14.52.12:735][697]LogRT: [RT] Gadget: fermo: cella occupata (q=-1,r=0,L=0) (Action.Move, p50)
+[2026.09.06-14.52.12:735][697]LogRT: [RT] Branth: resta (q=0,r=0,L=0) (Action.Move, p50)
+[2026.09.06-14.52.12:735][697]LogRT: [RT] Pesi bot: WKill=10000 WDamage=10 WThreat=100 WKiteViolation=50 WApproach=10 WElevation=4
+[2026.09.06-14.52.12:735][697]LogRT: [RT] Turno 5 - pianificazione
+[2026.09.06-14.52.12:736][697]LogRT: [RT-Test] Movement.CollisionChoke: PASS (6/6 assertion, 4 turni)
+[2026.09.06-14.52.12:736][697]LogWorld: UWorld::CleanupWorld for Untitled, bSessionEnded=true, bCleanupResources=true
+[2026.09.06-14.52.12:736][697]LogSlate: InvalidateAllWidgets triggered.  All widgets were invalidated
+[2026.09.06-14.52.12:759][697]LogChaosDD: Creating Chaos Debug Draw Scene for world Untitled
+[2026.09.06-14.52.12:771][697]LogRT: [RT] Fase Move: risolte 2 unita'
+[2026.09.06-14.52.12:771][697]LogRT: [RT] Risoluzione: 1 fasi, ~2.1s (x1.00, slack x1.00)
+[2026.09.06-14.52.12:771][697]LogRT: [RT] Playback fase: Move
+[2026.09.06-14.52.12:771][697]LogRT: [RT] Risoluzione completata (2.1s)
