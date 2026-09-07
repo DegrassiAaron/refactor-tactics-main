@@ -78,6 +78,8 @@ $env:RT3_SESSION_ID = {session_id}
 $env:PYTHONPATH = {pythonpath}
 $env:PYTHONIOENCODING = 'utf-8'
 {rt3_home}
+
+{rt_terminal}
 $Global:RT3SessionId = {session_id}
 $Global:RT3TerminalId = {terminal_id}
 $Global:RT3StartedAt = [DateTime]::Parse({started_at}).ToUniversalTime()
@@ -139,8 +141,53 @@ Write-Host ''
 """
 
 
+def rt_terminal_snippet(repo_root, session):
+    """Il dot-source di `scripts/rt-terminal.ps1`, se quel checkout ce l'ha.
+
+    🔴 Senza, la finestra non puo' acquisire il lease del motore: `rt-lease.ps1` vuole
+    `RT_TERMINAL_OWNER_PID` e `RT_TERMINAL_OWNER_STARTED_AT` di una console viva, e senza
+    di essi rifiuta con `RT_SESSION_REQUIRED`. Misurato nel pilot EPIC-1937, dove la
+    build si fermava prima di toccare il compilatore.
+
+    ⛔ Quella logica NON si duplica qui. `rt-terminal.ps1` la possiede, con le stesse
+    cautele che RT3 applica ai propri terminali - PID piu' istante di avvio, fail-closed
+    se l'istante non si legge - e in piu' definisce i wrapper `rtlease`, `rtbuild`,
+    `rtsuite`. Riscriverla darebbe due sedi per la stessa identita', e la seconda
+    divergerebbe al primo campo aggiunto.
+
+    Quando lo script manca, la finestra si apre lo stesso e lo DICE: leggere e usare
+    `rt3` funziona, compilare no. Dirlo all'apertura costa meno che scoprirlo quando la
+    build si ferma.
+    """
+    if not repo_root:
+        return ""
+    percorso = os.path.join(repo_root, "scripts", "rt-terminal.ps1")
+    ruolo = (session.get("role") or "DEV").upper()
+    if ruolo not in ("DEV", "EDITOR", "VALIDATION"):
+        ruolo = "DEV"
+    args = ["-Role", ruolo,
+            "-WorkspaceRoot", ps_quote(repo_root),
+            "-InstanceId", ps_quote(session.get("session_id"))]
+    if session.get("task_id"):
+        args += ["-TaskId", ps_quote(session["task_id"])]
+
+    avviso_manca = (
+        "scripts/rt-terminal.ps1 non trovato: questa finestra NON potra' acquisire "
+        "il lease del motore (niente build, niente suite)."
+    )
+    righe = [
+        "$RT3TerminalScript = " + ps_quote(percorso),
+        "if (Test-Path $RT3TerminalScript) {",
+        "    . $RT3TerminalScript " + " ".join(args),
+        "} else {",
+        "    Write-Host " + ps_quote(avviso_manca) + " -ForegroundColor Yellow",
+        "}",
+    ]
+    return chr(10).join(righe)
+
+
 def render_script(session, terminal_id, title_base, python_executable, package_root,
-                  started_at, roadmap_id=None, rt3_home=None):
+                  started_at, roadmap_id=None, rt3_home=None, repo_root=None):
     """Il testo dello script di avvio. Funzione pura: si puo' ispezionare in un test.
 
     ⚠️ `rt3_home` si propaga quando c'e'. Senza, la finestra parlerebbe con il control
@@ -156,6 +203,7 @@ def render_script(session, terminal_id, title_base, python_executable, package_r
     home = "$env:RT3_HOME = " + ps_quote(rt3_home) if rt3_home else ""
     return _SCRIPT.format(
         rt3_home=home,
+        rt_terminal=rt_terminal_snippet(repo_root, session),
         session_id=ps_quote(session.get("session_id")),
         terminal_id=ps_quote(terminal_id),
         pythonpath=ps_quote(package_root),
