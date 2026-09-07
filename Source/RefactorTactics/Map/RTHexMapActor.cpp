@@ -28,11 +28,10 @@
 #include "Components/LineBatchComponent.h"
 #include "Map/RTHexLabel.h"
 #include "Map/RTHexLabelLibrary.h"
-// Map Check (`CheckForErrors`): le regole di allestimento del livello e i token con cui si clicca l'attore
-// che le viola. Solo Editor — `CheckForErrors` stesso e' dichiarato dentro `WITH_EDITOR` in `Actor.h`.
+// Map Check (`CheckForErrors`): le regole di allestimento del livello. Solo Editor — `CheckForErrors`
+// stesso e' dichiarato dentro `WITH_EDITOR` in `Actor.h`. Il Message Log lo scrive
+// `URTMapTemplateLibrary::EmitIssueToMapCheck`, che e' l'unico posto che ne conosce la forma.
 #include "Map/RTMapTemplateLibrary.h"
-#include "Logging/MessageLog.h"
-#include "Misc/UObjectToken.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "RTHexMap"
@@ -920,10 +919,7 @@ void ARTHexMapActor::CheckForErrors()
 			continue;
 		}
 
-		FMessageLog("MapCheck").Warning()
-			->AddToken(FUObjectToken::Create(this))
-			->AddToken(FTextToken::Create(
-				FText::FromString(URTMapTemplateLibrary::DescribeIssue(Issue))));
+		URTMapTemplateLibrary::EmitIssueToMapCheck(Issue, this);
 	}
 }
 

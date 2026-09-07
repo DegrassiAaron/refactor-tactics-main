@@ -1,8 +1,11 @@
 #include "RefactorTacticsEditorModule.h"
 
+#include "Editor.h" // FEditorDelegates, GEditor: gli agganci della validazione automatica
+#include "Engine/World.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/LayoutExtender.h"
 #include "LevelEditor.h"
+#include "Map/RTMapTemplateLibrary.h"
 #include "RTDevSandboxLauncherSubsystem.h"
 #include "RTHexEditorModeCommands.h"
 #include "SRTAnimBrowserPanel.h"
@@ -36,10 +39,59 @@ void FRefactorTacticsEditorModule::ExtendLevelEditorLayout(FLayoutExtender& Exte
 		FTabManager::FTab(FTabId(URTDevSandboxLauncherSubsystem::TabId), ETabState::ClosedTab));
 }
 
+void FRefactorTacticsEditorModule::ValidateWorldIfEditor(UWorld* World)
+{
+	// ⛔ **Solo il mondo dell'EDITOR.** `PostSaveWorldWithContext` scatta anche per i mondi duplicati che
+	// PIE si costruisce, e una segnalazione emessa mentre si gioca non ha nessuno che la legga: comparirebbe
+	// nel Map Check a partita finita, staccata dal gesto che l'ha prodotta.
+	if (!World || World->WorldType != EWorldType::Editor)
+	{
+		return;
+	}
+
+	// ⚠️ Nessun messaggio quando non c'e' niente da dire. `ReportToMapCheck` ritorna `0` su un livello
+	// pulito e non scrive nulla: un «validazione OK» per ogni salvataggio addestrerebbe a ignorare il
+	// pannello, che e' il posto dove poi comparirebbero i difetti veri.
+	const int32 Reported = URTMapTemplateLibrary::ReportToMapCheck(World);
+	if (Reported > 0)
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[RT] Validazione mappa: %d segnalazioni sul livello '%s'. Dettaglio nel Message Log (Map Check)."),
+			Reported, *World->GetMapName());
+	}
+}
+
+void FRefactorTacticsEditorModule::HandleWorldSavedForValidation(UWorld* World, FObjectPostSaveContext)
+{
+	ValidateWorldIfEditor(World);
+}
+
+void FRefactorTacticsEditorModule::HandleMapOpenedForValidation(const FString&, bool)
+{
+	// All'apertura il mondo non arriva per argomento: e' quello che l'editor ha appena reso corrente.
+	ValidateWorldIfEditor(GEditor ? GEditor->GetEditorWorldContext().World() : nullptr);
+}
+
 void FRefactorTacticsEditorModule::StartupModule()
 {
 	// Il mode si registra da solo via CDO (Info nel costruttore di URTHexEditorMode). Qui solo i comandi dei tool.
 	FRTHexEditorModeCommands::Register();
+
+	// 🔑 **La validazione del map template gira DA SOLA**, al salvataggio e all'apertura di un livello.
+	//
+	// 🔴 Nasce da un difetto misurato il 2026-09-07: `AActor::CheckForErrors` — dove le regole vivevano —
+	// **non** viene invocato dal `MAP CHECKDEP` che l'editor esegue da solo quando apre una mappa. Con uno
+	// spawn duplicato salvato nel livello quel check riportava `0 Error(s)`: la validazione era scritta,
+	// testata e verde, e non la eseguiva nessuno. Restava `Build > Map Check` a mano — cioe' una cosa da
+	// ricordarsi, che e' esattamente cio' che un template deve togliere di mezzo.
+	//
+	// ⚠️ Le iscrizioni stanno PRIMA della guardia sui commandlet qui sotto, e non e' un caso: un
+	// commandlet che salva livelli deve poter far emergere gli stessi difetti. Cio' che la guardia
+	// protegge sono i pannelli, non le regole.
+	WorldSavedHandle = FEditorDelegates::PostSaveWorldWithContext.AddRaw(
+		this, &FRefactorTacticsEditorModule::HandleWorldSavedForValidation);
+	MapOpenedHandle = FEditorDelegates::OnMapOpened.AddRaw(
+		this, &FRefactorTacticsEditorModule::HandleMapOpenedForValidation);
 
 	// ⛔ **Solo in editor interattivo**, e la guardia viene prima di tutto il resto.
 	//
@@ -116,6 +168,19 @@ void FRefactorTacticsEditorModule::StartupModule()
 void FRefactorTacticsEditorModule::ShutdownModule()
 {
 	FRTHexEditorModeCommands::Unregister();
+
+	// Un handle che sopravvive allo scarico del modulo fa chiamare una funzione che non c'e' piu':
+	// stessa disciplina dell'estensione di layout qui sotto.
+	if (WorldSavedHandle.IsValid())
+	{
+		FEditorDelegates::PostSaveWorldWithContext.Remove(WorldSavedHandle);
+		WorldSavedHandle.Reset();
+	}
+	if (MapOpenedHandle.IsValid())
+	{
+		FEditorDelegates::OnMapOpened.Remove(MapOpenedHandle);
+		MapOpenedHandle.Reset();
+	}
 
 	// Uno spawner che sopravvive allo scarico del modulo fa costruire un widget di una classe che
 	// non c'e' piu': stessa ragione dell'handle qui sotto.

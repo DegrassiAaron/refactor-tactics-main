@@ -11,10 +11,14 @@
 #include "Misc/AutomationTest.h"
 
 #include "Algo/Reverse.h"
+#include "Engine/World.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexLibrary.h"
+#include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTMapTemplateLibrary.h"
+#include "Map/RTSpawnPoint.h"
+#include "Tests/RTWorldFixtures.h"
 #include "Turn/RTMatchSetupLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -298,6 +302,90 @@ bool FRTMapTemplateDeterministicTest::RunTest(const FString&)
 	// passerebbe senza aver misurato niente.
 	TestTrue(TEXT("Il caso di prova produce davvero delle segnalazioni"), FromForward.Num() > 0);
 
+	return true;
+}
+
+/**
+ * LA RACCOLTA DAL MONDO: `CollectFromWorld` legge davvero gli attori, e li ordina.
+ *
+ * 🔑 **E' il pezzo che i test qui sopra NON coprivano.** Quelli esercitano le regole su placement
+ * costruiti a mano; questo verifica il gradino prima — che dal livello escano i placement giusti — ed e'
+ * l'unico posto dove `ARTSpawnPoint::ResolveCell` e `GetHexContext` vengono davvero attraversati.
+ *
+ * ⚠️ **L'ordine e' la meta' che vale.** `TActorIterator` non garantisce nessun ordine, quindi la sola
+ * cosa che rende ripetibile l'elenco e' l'ordinamento esplicito: qui i marker si posano di proposito in
+ * ordine inverso a quello atteso, cosi' un ordinamento assente si vede invece di passare per fortuna.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapTemplateCollectFromWorldTest,
+	"RefactorTactics.MapTemplate.CollectFromWorldReadsAndOrdersTheLevel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapTemplateCollectFromWorldTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	if (!MapActor)
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 3);
+	Map->HexSize = MapTemplateHexSize;
+	Map->LayerHeight = MapTemplateLayerHeight;
+	MapActor->MapAsset = Map;
+	MapActor->SetActorLocation(FVector::ZeroVector);
+
+	const FVector Origin = MapActor->GetActorLocation();
+	auto PlaceSpawn = [&](int32 TeamId, int32 SlotIndex, const FRTCellId& Cell) -> ARTSpawnPoint*
+	{
+		const FVector Where = URTHexLibrary::AxialToWorld(Cell, Origin, MapTemplateHexSize, MapTemplateLayerHeight);
+		ARTSpawnPoint* Spawn = World->SpawnActor<ARTSpawnPoint>(ARTSpawnPoint::StaticClass(), FTransform(Where));
+		if (Spawn)
+		{
+			Spawn->TeamId = TeamId;
+			Spawn->SlotIndex = SlotIndex;
+		}
+		return Spawn;
+	};
+
+	// Posati AL CONTRARIO dell'ordine atteso: (1,0) prima di (0,0).
+	PlaceSpawn(/*TeamId=*/ 1, /*SlotIndex=*/ 0, FRTCellId(2, 0, 0));
+	PlaceSpawn(/*TeamId=*/ 0, /*SlotIndex=*/ 1, FRTCellId(-2, 1, 0));
+	PlaceSpawn(/*TeamId=*/ 0, /*SlotIndex=*/ 0, FRTCellId(-2, 0, 0));
+	// Fuori dal tabellone: la coppia assiale si calcola, ma l'arena di raggio 3 non contiene la cella.
+	PlaceSpawn(/*TeamId=*/ 1, /*SlotIndex=*/ 1, FRTCellId(9, 0, 0));
+
+	int32 MapActorCount = 0;
+	const URTHexMapAsset* Collected = nullptr;
+	TArray<FRTSpawnPlacement> Spawns;
+	URTMapTemplateLibrary::CollectFromWorld(World, MapActorCount, Collected, Spawns);
+
+	TestEqual(TEXT("Un solo attore mappa nel livello"), MapActorCount, 1);
+	TestTrue(TEXT("L'asset raccolto e' quello assegnato"), Collected == Map);
+	TestEqual(TEXT("Quattro marker raccolti"), Spawns.Num(), 4);
+
+	if (Spawns.Num() == 4)
+	{
+		// L'ordine atteso e' (TeamId, SlotIndex), non quello di posa.
+		TestEqual(TEXT("Primo: Team 0 Slot 0"), Spawns[0].TeamId * 10 + Spawns[0].SlotIndex, 0);
+		TestEqual(TEXT("Secondo: Team 0 Slot 1"), Spawns[1].TeamId * 10 + Spawns[1].SlotIndex, 1);
+		TestEqual(TEXT("Terzo: Team 1 Slot 0"), Spawns[2].TeamId * 10 + Spawns[2].SlotIndex, 10);
+		TestEqual(TEXT("Quarto: Team 1 Slot 1"), Spawns[3].TeamId * 10 + Spawns[3].SlotIndex, 11);
+
+		// La cella DERIVATA dalla posizione, non un valore scritto a mano da qualche parte.
+		TestTrue(TEXT("Il marker su (-2,0) risolve"), Spawns[0].bResolved);
+		TestTrue(TEXT("...e risolve proprio a quella cella"), Spawns[0].Cell == FRTCellId(-2, 0, 0));
+		TestTrue(TEXT("Il marker su (2,0) risolve"), Spawns[2].bResolved);
+		TestTrue(TEXT("...e risolve proprio a quella cella"), Spawns[2].Cell == FRTCellId(2, 0, 0));
+
+		// E il marker fuori mappa non risolve: e' la distinzione fra «coordinata calcolabile» e «cella
+		// che esiste», la stessa che `SpawnResolvesToTheCellItStandsOn` fissa senza mondo.
+		TestFalse(TEXT("Il marker fuori dal tabellone non risolve"), Spawns[3].bResolved);
+	}
+
+	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }
 

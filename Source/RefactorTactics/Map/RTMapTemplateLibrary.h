@@ -142,4 +142,33 @@ public:
 
 	/** Il testo di una segnalazione, in una forma sola: Map Check e log non devono divergere. */
 	static FString DescribeIssue(const FRTMapTemplateIssue& Issue);
+
+#if WITH_EDITOR
+	/**
+	 * Scrive UNA segnalazione nel Message Log "MapCheck", con il token che porta all'attore da aprire.
+	 *
+	 * 🔑 **Esiste perche' gli emettitori sono tre** — `CheckForErrors` dei due attori e l'aggancio
+	 * automatico — e la forma del messaggio deve essere una sola. Prima di questa funzione il blocco
+	 * `FMessageLog(...)->AddToken(...)` era ricopiato, e tre copie della stessa riga divergono appena una
+	 * delle tre cambia.
+	 */
+	static void EmitIssueToMapCheck(const FRTMapTemplateIssue& Issue, const UObject* TokenTarget);
+
+	/**
+	 * Valida il livello ed emette TUTTE le segnalazioni, ognuna col token del proprio attore. Ritorna
+	 * quante ne ha emesse — `0` significa template pulito.
+	 *
+	 * 🔑 **E' l'aggancio AUTOMATICO**, e nasce da un difetto misurato il 2026-09-07: `CheckForErrors` non
+	 * viene invocato dal `MAP CHECKDEP` che l'editor esegue da solo all'apertura di un livello. Con uno
+	 * spawn duplicato salvato nel livello, quel check riportava `0 Error(s)` — cioe' la validazione
+	 * esisteva, era verde per costruzione, e nessuno l'aveva mai eseguita. Girava solo con `Build > Map
+	 * Check` a mano, che e' esattamente la cosa che un designer non deve dover ricordare.
+	 *
+	 * ⚠️ **Non e' il gemello di `CheckForErrors`, e la differenza e' l'unita' di emissione**: li' ogni
+	 * attore dichiara i propri difetti e il Map Check li raccoglie; qui si emette tutto in una volta,
+	 * perche' chi chiama e' un evento del livello e non un attore. Le REGOLE restano di `ValidateTemplate`
+	 * per entrambi: questo e' un adattatore, non una seconda validazione.
+	 */
+	static int32 ReportToMapCheck(const UWorld* World);
+#endif
 };

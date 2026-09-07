@@ -10,11 +10,6 @@
 #include "UObject/ConstructorHelpers.h"
 #endif
 
-#if WITH_EDITOR
-#include "Logging/MessageLog.h"
-#include "Misc/UObjectToken.h"
-#endif
-
 #define LOCTEXT_NAMESPACE "RTSpawnPoint"
 
 ARTSpawnPoint::ARTSpawnPoint()
@@ -100,10 +95,7 @@ void ARTSpawnPoint::CheckForErrors()
 			continue;
 		}
 
-		FMessageLog("MapCheck").Warning()
-			->AddToken(FUObjectToken::Create(this))
-			->AddToken(FTextToken::Create(
-				FText::FromString(URTMapTemplateLibrary::DescribeIssue(Issue))));
+		URTMapTemplateLibrary::EmitIssueToMapCheck(Issue, this);
 	}
 }
 #endif
