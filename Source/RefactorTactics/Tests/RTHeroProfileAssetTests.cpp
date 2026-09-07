@@ -18,6 +18,7 @@
 #include "Misc/AutomationTest.h"
 #include "Blueprint/WidgetBlueprintGeneratedClass.h"
 #include "Blueprint/WidgetTree.h"
+#include "Components/TextBlock.h"
 #include "Components/Widget.h"
 #include "Tests/RTWidgetAssetTestHelpers.h"
 #include "UI/RTHeroProfileWidget.h"
@@ -158,6 +159,114 @@ bool FRTHeroProfileComposesTheRadarTest::RunTest(const FString&)
 	}
 
 	AddInfo(FString::Printf(TEXT("widget nella scheda (%d): %s"), Names.Num(), *FString::Join(Names, TEXT(", "))));
+
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+// Il binding, provato sull'asset vero e non su un widget fabbricato dal test.
+// ------------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroProfileBindingFillsTheCardTest,
+	"RefactorTactics.HeroProfile.BindingFillsTheCard",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroProfileBindingFillsTheCardTest::RunTest(const FString&)
+{
+	using namespace RTHeroProfileAssetTestNames;
+
+	UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(ProfilePath);
+	if (!Class)
+	{
+		AddError(TEXT("WBP_RT_HeroProfile non si carica"));
+		return false;
+	}
+
+	URTHeroProfileWidget* Card = Cast<URTHeroProfileWidget>(NewObject<UUserWidget>(GetTransientPackage(), Class));
+	if (!Card)
+	{
+		AddError(TEXT("la classe non produce un URTHeroProfileWidget"));
+		return false;
+	}
+
+	// `Initialize` duplica il widget tree e risolve i `BindWidget`: senza, i puntatori restano nulli e
+	// il test proverebbe soltanto che scrivere su `nullptr` non esplode.
+	Card->Initialize();
+
+	// Legge il testo dal widget REALE dell'albero, per nome. ⚠️ Non da un accessor C++: la domanda e'
+	// «il dato e' arrivato al `UTextBlock` che il giocatore vede», non «il codice ha una variabile».
+	auto TextOf = [Card](const TCHAR* WidgetName) -> FString
+	{
+		const UTextBlock* Block = Cast<UTextBlock>(Card->GetWidgetFromName(FName(WidgetName)));
+		return Block ? Block->GetText().ToString() : FString(TEXT("<assente>"));
+	};
+
+	// ---- profilo popolato ----------------------------------------------------------------------
+	FRTHeroProfileView View;
+	View.HeroId = FName(TEXT("Hero.TestFixture"));
+	View.DisplayName = FText::FromString(TEXT("Fixture"));
+	View.PrimaryRoleId = FName(TEXT("Role.TestPrimary"));
+	View.PrimaryRoleLabel = FText::FromString(TEXT("Primario"));
+	View.SecondaryRoleId = FName(TEXT("Role.TestSecondary"));
+	View.SecondaryRoleLabel = FText::FromString(TEXT("Secondario"));
+	View.StyleTags = { FText::FromString(TEXT("TagUno")), FText::FromString(TEXT("TagDue")) };
+	View.AffinityId = FName(TEXT("Affinity.TestFixture"));
+	View.AffinityLabel = FText::FromString(TEXT("AffinitaDiProva"));
+	View.CombatIdentity = FText::FromString(TEXT("Una frase di prova."));
+	View.Strengths = { FText::FromString(TEXT("PregioUno")) };
+
+	FRTProfileRadarAxisView Axis;
+	Axis.AxisId = FName(TEXT("Radar.Profile.Offense"));
+	Axis.Label = FText::FromString(TEXT("Offesa"));
+	Axis.Value = 7;
+	Axis.MaxValue = 10;
+	View.RadarAxes = { Axis };
+
+	Card->SetProfileView(View);
+
+	TestEqual(TEXT("il nome arriva al TextBlock"), TextOf(TEXT("HeroName")), FString(TEXT("Fixture")));
+	TestEqual(TEXT("i due ruoli stanno su una riga"), TextOf(TEXT("RoleLine")), FString(TEXT("Primario · Secondario")));
+	TestEqual(TEXT("gli style tag sono uniti"), TextOf(TEXT("StyleTagLine")), FString(TEXT("TagUno · TagDue")));
+	TestEqual(TEXT("l'affinita' mostra la label"), TextOf(TEXT("AffinityText")), FString(TEXT("AffinitaDiProva")));
+	TestEqual(TEXT("l'identita' di combattimento arriva"), TextOf(TEXT("CombatIdentity")), FString(TEXT("Una frase di prova.")));
+
+	// 🔴 Il caso che conta: la debolezza NON e' stata dichiarata, quindi la scheda deve dire «assente»
+	// — non lasciare il testo di default del widget, e non inventarla dall'affinita'.
+	TestEqual(TEXT("la debolezza assente mostra il segnaposto"),
+		TextOf(TEXT("WeaknessText")), URTHeroProfileWidget::GetAbsentValueText().ToString());
+	TestEqual(TEXT("portata e difficolta' assenti mostrano il segnaposto"),
+		TextOf(TEXT("RangeAndDifficulty")), URTHeroProfileWidget::GetAbsentValueText().ToString());
+
+	// ⚠️ Nessun `TextBlock` deve essere rimasto col testo di fabbrica: e' il sintomo esatto di un
+	// binding che non c'e', ed e' quello che si vedrebbe a schermo.
+	for (const TCHAR* const Name : { TEXT("HeroName"), TEXT("RoleLine"), TEXT("StyleTagLine"),
+		TEXT("AffinityText"), TEXT("WeaknessText"), TEXT("RangeAndDifficulty"), TEXT("CombatIdentity"),
+		TEXT("StrengthsText"), TEXT("TradeoffsText") })
+	{
+		TestNotEqual(*FString::Printf(TEXT("%s non e' rimasto al testo di default"), Name),
+			TextOf(Name), FString(TEXT("Text Block")));
+	}
+
+	// Il radar ha ricevuto gli assi dalla scheda.
+	const URTHeroRadarWidget* Radar = Cast<URTHeroRadarWidget>(Card->GetWidgetFromName(FName(TEXT("HeroRadar"))));
+	if (TestNotNull(TEXT("la scheda trova il proprio radar"), Radar))
+	{
+		TestEqual(TEXT("il radar ha ricevuto l'asse"), Radar->GetRadarAxes().Num(), 1);
+		TestTrue(TEXT("e lo considera disegnabile"), Radar->HasDrawableAxes());
+	}
+
+	// ---- profilo vuoto: tutto segnaposto, niente dedotto ----------------------------------------
+	Card->SetProfileView(FRTHeroProfileView());
+
+	const FString Absent = URTHeroProfileWidget::GetAbsentValueText().ToString();
+	TestEqual(TEXT("una view vuota svuota il nome"), TextOf(TEXT("HeroName")), Absent);
+	TestEqual(TEXT("e i ruoli"), TextOf(TEXT("RoleLine")), Absent);
+	TestEqual(TEXT("e l'affinita'"), TextOf(TEXT("AffinityText")), Absent);
+
+	const URTHeroRadarWidget* EmptyRadar = Cast<URTHeroRadarWidget>(Card->GetWidgetFromName(FName(TEXT("HeroRadar"))));
+	if (EmptyRadar)
+	{
+		TestEqual(TEXT("il radar resta senza assi"), EmptyRadar->GetRadarAxes().Num(), 0);
+		TestFalse(TEXT("e non si dichiara disegnabile"), EmptyRadar->HasDrawableAxes());
+	}
 
 	return true;
 }
