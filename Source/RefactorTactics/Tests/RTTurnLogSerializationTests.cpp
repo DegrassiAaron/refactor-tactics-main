@@ -1466,7 +1466,16 @@ bool FRTTurnLogLegacyWithoutReactionResponseTest::RunTest(const FString&)
 	// traccia «vecchia» patchandone una nuova: il layout della coda cambia sotto di lei. Oggi sono
 	// `ReactionResponse` (2 byte, stringa vuota) piu' `MicroStepIndex` (4 byte, v12) prima del checksum.
 	// Se un giorno fallisce con «una voce letta: 0», il primo sospetto e' un campo nuovo, non il lettore.
-	Bytes.RemoveAt(Bytes.Num() - 10, 6);
+	// ⚠️ **Il sospetto di cui sopra si e' avverato il 2026-09-07** (`#2534`): la v13 ha aggiunto
+	// `SightBlockerCell`, tre `int32` dopo il micro-step, e questo test e' fallito con *«una traccia in
+	// versione 9 resta leggibile» → false*. Sembrava una regressione del lettore ed era il numero cablato
+	// rimasto indietro. Scritto come somma, cosi' il prossimo bump aggiunge una riga invece di cercare
+	// perche' `10` e `6` non tornano piu'.
+	constexpr int32 BytesAfterV9 =
+		  2   // v10/v11: il token della risposta di reazione, stringa vuota
+		+ 4   // v12 (`#1880`): il micro-step
+		+ 12; // v13 (`#2534`): `SightBlockerCell`, tre int32
+	Bytes.RemoveAt(Bytes.Num() - 4 - BytesAfterV9, BytesAfterV9);
 	uint32 H = 2166136261u;
 	for (int32 i = 0; i < Bytes.Num() - 4; ++i) { H ^= Bytes[i]; H *= 16777619u; }
 	Bytes[Bytes.Num() - 4] = H & 0xFF;
@@ -1591,9 +1600,6 @@ bool FRTTurnLogMicroStepRoundTripTest::RunTest(const FString&)
 
 	return true;
 }
-
-#endif // WITH_DEV_AUTOMATION_TESTS
-
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogSightBlockerRoundTripTest,
 	"RefactorTactics.TurnLog.SightBlockerSurvivesTheFormat",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -1656,3 +1662,5 @@ bool FRTTurnLogSightBlockerRoundTripTest::RunTest(const FString&)
 
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS

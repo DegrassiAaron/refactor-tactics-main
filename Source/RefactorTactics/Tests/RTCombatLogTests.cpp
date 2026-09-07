@@ -1701,10 +1701,6 @@ bool FRTCombatLogCoverRecordsFacingReadTest::RunTest(const FString&)
 	RTCombatLogFixture::DestroyWorld(World);
 	return true;
 }
-
-#endif // WITH_DEV_AUTOMATION_TESTS
-
-
 // ============================================================================
 // #2534 — il log nomina il muro che ferma il tiro, se la squadra lo conosce
 //
@@ -1860,3 +1856,5 @@ bool FRTSightBlockerAppearsInTheLineTest::RunTest(const FString&)
 
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS
