@@ -1,6 +1,40 @@
 #include "UI/RTHeroRadarWidget.h"
 
 #include "Blueprint/WidgetBlueprintLibrary.h"
+#include "Components/SizeBox.h"
+
+void URTHeroRadarWidget::EnsureDrawableArea()
+{
+	// 🔴 Senza questa garanzia il radar non disegna mai: un `SizeBox` senza figli e senza override ha
+	// desired size `0`, e uno slot `Auto` gli assegna zero pixel. Il disegno fallisce in silenzio —
+	// nessun errore, nessun warning, solo una sezione vuota con tutti i test verdi.
+	if (!RadarBox || MinRadarSize <= 0.f)
+	{
+		return;
+	}
+
+	// ⛔ Solo se l'asset NON dichiara gia' la propria misura: sovrascrivere un `SizeBox` configurato a
+	// mano cancellerebbe una scelta di layout di chi ha authorato il WBP.
+	if (RadarBox->GetWidthOverride() <= 0.f)
+	{
+		RadarBox->SetWidthOverride(MinRadarSize);
+	}
+
+	if (RadarBox->GetHeightOverride() <= 0.f)
+	{
+		RadarBox->SetHeightOverride(MinRadarSize);
+	}
+}
+
+void URTHeroRadarWidget::NativePreConstruct()
+{
+	Super::NativePreConstruct();
+
+	// ⚠️ `PreConstruct` e non `Construct`, perche' vale anche nella preview del designer: e' li' che si
+	// guarda un widget per decidere se e' fatto bene, ed e' esattamente li' che l'area zero si e'
+	// nascosta finche' non l'abbiamo aperto.
+	EnsureDrawableArea();
+}
 
 float URTHeroRadarWidget::ComputeAxisAngleDegrees(int32 AxisIndex, int32 AxisCount)
 {

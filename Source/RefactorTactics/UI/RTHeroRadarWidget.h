@@ -132,6 +132,33 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HeroProfile|Radar", meta = (ClampMin = "0.1", ClampMax = "1.0"))
 	float RadiusScale = 0.8f;
 
+	/**
+	 * Il lato minimo che il radar si garantisce, in pixel di slate.
+	 *
+	 * 🔴 **Esiste perche' senza di esso il radar non disegna MAI, e nessun test se ne accorge.** Il
+	 * `SizeBox` che fa da root al `WBP_RT_HeroRadar` non ha figli: la sua desired size e' `0`, lo slot che
+	 * lo ospita gli assegna zero pixel, `ComputeRadiusForSize` restituisce `0` e `NativePaint` esce prima
+	 * di disegnare. Misurato in Editor il 2026-09-07 — la scheda appariva vuota con tutti i test verdi.
+	 *
+	 * ⚠️ E' un **minimo**, non una dimensione fissa: un `SizeBox` che dichiara gia' le proprie misure non
+	 * viene toccato, perche' quella e' una scelta di layout di chi ha authorato l'asset.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HeroProfile|Radar", meta = (ClampMin = "0"))
+	float MinRadarSize = 360.f;
+
+	/**
+	 * Garantisce al radar un'area in cui disegnare, se il WBP non gliela da' gia'.
+	 *
+	 * ⚠️ **Pubblica di proposito.** La chiama `NativePreConstruct`, che e' `protected` e quindi non
+	 * verificabile da un test; con la regola qui dentro,
+	 * `RefactorTactics.HeroProfile.RadarHasDrawableArea` puo' pinnarla. Un difetto che si vede solo a
+	 * schermo va messo dove un test lo raggiunge.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HeroProfile|Radar")
+	void EnsureDrawableArea();
+
+	virtual void NativePreConstruct() override;
+
 	virtual int32 NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
 		FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 
@@ -143,4 +170,14 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HeroProfile|Radar")
 	TArray<FRTProfileRadarAxisView> RadarAxes;
+
+	/**
+	 * Il `SizeBox` che fa da root al WBP, collegato **per nome**.
+	 *
+	 * ⚠️ `Optional`: un WBP che struttura il radar diversamente resta valido. Se c'e', gli si garantisce
+	 * un'area; se non c'e', l'area la deve dare lo slot che ospita il widget — e se nessuno gliela da',
+	 * `NativePaint` si rifiuta di disegnare invece di produrre una figura degenere.
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HeroProfile|Radar")
+	TObjectPtr<class USizeBox> RadarBox;
 };
