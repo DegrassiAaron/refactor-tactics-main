@@ -1459,12 +1459,11 @@ bool FRTTurnLogLegacyWithoutReactionResponseTest::RunTest(const FString&)
 	Bytes[4] = static_cast<uint8>(static_cast<uint16>(ERTTurnLogFormatVersion::WithRedirectOrigin) & 0xFF);
 	Bytes[5] = static_cast<uint8>((static_cast<uint16>(ERTTurnLogFormatVersion::WithRedirectOrigin) >> 8) & 0xFF);
 
-	// Il token vuoto occupa 2 byte di lunghezza, subito prima del checksum (4 byte). Si tolgono quei 2 e si
-	// ricalcola il checksum sul payload accorciato.
+	// Si tolgono i byte dei campi aggiunti DOPO la v9 e si ricalcola il checksum sul payload accorciato.
+	// La somma esatta e' `BytesAfterV9` qui sotto: e' li' che vive la verita', non in questa prosa.
 	if (!TestTrue(TEXT("il file ha almeno checksum e token"), Bytes.Num() >= 6)) { return false; }
 	// ⚠️ **Va aggiornata a OGNI campo aggiunto in coda al record**, ed e' il prezzo di costruire una
-	// traccia «vecchia» patchandone una nuova: il layout della coda cambia sotto di lei. Oggi sono
-	// `ReactionResponse` (2 byte, stringa vuota) piu' `MicroStepIndex` (4 byte, v12) prima del checksum.
+	// traccia «vecchia» patchandone una nuova: il layout della coda cambia sotto di lei.
 	// Se un giorno fallisce con «una voce letta: 0», il primo sospetto e' un campo nuovo, non il lettore.
 	// ⚠️ **Il sospetto di cui sopra si e' avverato il 2026-09-07** (`#2534`): la v13 ha aggiunto
 	// `SightBlockerCell`, tre `int32` dopo il micro-step, e questo test e' fallito con *«una traccia in
@@ -1495,6 +1494,12 @@ bool FRTTurnLogLegacyWithoutReactionResponseTest::RunTest(const FString&)
 	TestEqual(TEXT("e il bersaglio pure"), Out[0].SelectedTargetUnitId, 3);
 	TestEqual(TEXT("e il token e' stato RICOSTRUITO dal bersaglio, non lasciato vuoto"),
 		Out[0].ReactionResponse, URTReactionOpportunityLibrary::FireResponse(3));
+	// Il campo della v13 su una traccia che non lo portava: resta la sentinella, **non si deduce** (`#2534`).
+	// E' l'unico asserto che copre il ramo `if (bHasSightBlocker)` del lettore: senza, togliere quella
+	// guardia non renderebbe rosso nulla, e una traccia v9 verrebbe letta come se portasse dodici byte che
+	// non ha. `SightBlockerSurvivesTheFormat` non lo copre — serializza e rilegge alla stessa versione.
+	TestEqual(TEXT("una traccia pre-v13 non guadagna un muro dal nulla"),
+		Out[0].SightBlockerCell.Layer, static_cast<int32>(INDEX_NONE));
 	return true;
 }
 

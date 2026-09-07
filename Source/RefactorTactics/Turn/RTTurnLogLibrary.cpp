@@ -356,6 +356,28 @@ FRTCellId URTTurnLogLibrary::SightBlockerForLog(const FRTLineOfSightResult& Los,
 		return FRTTurnLogEntry::NoSightBlocker();
 	}
 
+	// 🔴 **Si nomina SOLO il `CellBlocker`, ed e' la correzione di un difetto che mentiva.** La prima
+	// stesura rendeva `BlockedAt` come «muro in X» per qualunque ragione di blocco. `BlockedAt` pero' non e'
+	// il muro: e' *«la cella in cui la linea stava ENTRANDO quando il blocco e' scattato»*, e le tre ragioni
+	// ci mettono cose diverse (`RTHexVisionLibrary.cpp`):
+	//
+	//   `CellBlocker`       BlockedAt = la cella con `bBlocksLineOfSight`  → E' il muro. Si nomina.
+	//   `EdgeBlocker`       BlockedAt = `Line[I]`, e l'ostacolo sta sul BORDO `Line[I-1] -> Line[I]`.
+	//                       All'ultimo passo quella cella e' il BERSAGLIO: la riga avrebbe detto «muro in
+	//                       <cella del nemico>». E puo' essere una PORTA CHIUSA, che muro non e'.
+	//   `InteriorGeometry`  BlockedAt = `Line[I-1]`, e con `I == 1` e' la cella del TIRATORE — il caso che
+	//                       piu' facilmente supera il filtro di conoscenza, perche' la propria cella la si
+	//                       conosce sempre.
+	//
+	// ⛔ **Meglio tacere che nominare la cella sbagliata**: una riga di log che indica il bersaglio come
+	// ostacolo manda il giocatore a cercare un muro che non c'e'. Le altre due ragioni restano senza
+	// dettaglio — la riga torna a essere quella di prima — finche' qualcuno non porta nella voce anche
+	// `Block` e `BlockedFrom`, che e' l'unico modo per dire «la porta fra A e B» invece di «il muro in B».
+	if (Los.Block != ERTLineOfSightBlock::CellBlocker)
+	{
+		return FRTTurnLogEntry::NoSightBlocker();
+	}
+
 	const FRTCellId& Candidate = Los.BlockedAt;
 
 	// 🔑 **Si guarda ENTRAMBI gli insiemi, e non solo `ExploredCells` benche' sia dichiarato un
@@ -1170,7 +1192,12 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 
 	TArray<uint8> Out;
 	// 31 byte fissi + 2+2 di lunghezza per ActionId e BaseActionId + 12 per i tre interi della v6.
-	Out.Reserve(14 + Canonical.Num() * 47);
+	// 83 byte e' la voce v13 MINIMA — la stessa aritmetica di `MinEntryBytes` nel lettore, e va tenuta con
+	// quella. Era ferma a `47`, cioe' alla v6: da allora la voce ha guadagnato `Priority`, la terna della
+	// v8, `OriginalTargetUnitId`, `ReactionResponse`, il micro-step e ora `SightBlockerCell`, e un turno da
+	// undici voci riservava 531 byte per oltre 1100 di output, facendo ricrescere il buffer piu' volte
+	// dentro il ciclo. E' una stima per difetto, non un limite: le stringhe la superano e va bene cosi'.
+	Out.Reserve(14 + Canonical.Num() * 83);
 
 	// Header: magic + versione + flags(topologia) + identita' del formato + conteggio (little-endian).
 	// Il FormatId sta DOPO i flags e prima del conteggio: le posizioni dei campi precedenti non si spostano,
@@ -1221,10 +1248,18 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 		AppendI32LE(Out, E.MicroStepIndex);
 		// v13 (`#2534`): la cella che ha fermato il tiro, in coda come ogni estensione dalla v7 in poi.
 		//
-		// ⚠️ **Si scrivono tre interi sempre, anche quando non c'e' muro**: il formato resta a passo fisso,
-		// e l'assenza si legge dal `Layer` a `INDEX_NONE`. Un campo a lunghezza variabile risparmierebbe 12
-		// byte per voce e costerebbe la proprieta' per cui `EntryLess` e il lettore possono saltare una voce
-		// senza interpretarla.
+		// ⚠️ **Si scrivono tre interi sempre, anche quando non c'e' muro, e il prezzo va detto**: sono 12
+		// byte su OGNI voce per un campo che ha senso solo sulle righe `Combat`/`NoLineOfSight`, e il corpus
+		// golden e' cresciuto del 13-16% (`Movement.Basic`: 182 → 206 byte per due voci che un muro non
+		// possono portarlo).
+		//
+		// ⛔ **La prima stesura giustificava la scelta con un passo fisso che questo formato non ha**: il
+		// record porta gia' quattro stringhe a lunghezza variabile (`ActionId`, `BaseActionId`,
+		// `OpportunityId`, `ReactionResponse`), il lettore deve interpretare ogni campo per avanzare `Pos`,
+		// ed `EntryLess` lavora su struct deserializzate e i byte non li vede mai. La ragione vera e' piu'
+		// modesta: un campo condizionale aggiungerebbe un ramo al lettore per risparmiare 12 byte su voci
+		// che stanno gia' fra i 67 e i 100. Se il corpus crescesse al punto da contare, la forma giusta e'
+		// un flag di presenza, non un passo fisso da difendere con un argomento falso.
 		AppendI32LE(Out, E.SightBlockerCell.X);
 		AppendI32LE(Out, E.SightBlockerCell.Y);
 		AppendI32LE(Out, E.SightBlockerCell.Layer);
@@ -1394,9 +1429,15 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// stesura della v9 l'aveva dimenticato: 61 byte dichiarati contro 65 reali, il 6% di margine in meno su un
 	// controllo fail-closed. Trovato da una code review, ed e' il motivo per cui la v10 lo aggiorna **nello
 	// stesso commit** che allunga la voce, invece di lasciarlo a un giro successivo.
+	// ⚠️ **La v12 aveva saltato il proprio aggiornamento, e la v13 lo ha scoperto** (`#2534`): mancavano i 4
+	// byte di `MicroStepIndex` oltre ai 12 di `SightBlockerCell`, cioe' 16 su una voce v13 minima di 83 —
+	// il 19% di margine in meno, tre volte il buco della v9 che questo commento gia' racconta. Le due righe
+	// sotto chiudono **entrambi** i debiti: correggere solo il proprio avrebbe lasciato il guard sbagliato
+	// per una ragione diversa.
 	const int32 MinEntryBytes = FixedEntryBytes + (bHasActionId ? 2 : 0) + (bHasBaseActionId ? 2 : 0)
 		+ (bHasUnitId ? 12 : 0) + (bHasPriority ? 4 : 0) + (bHasReactionDecision ? 10 : 0)
-		+ (bHasRedirectOrigin ? 4 : 0) + (bHasReactionResponse ? 2 : 0);
+		+ (bHasRedirectOrigin ? 4 : 0) + (bHasReactionResponse ? 2 : 0)
+		+ (bHasMicroStep ? 4 : 0) + (bHasSightBlocker ? 12 : 0);
 	const int32 Remaining = Bytes.Num() - Pos;
 	if (Remaining < 0 || Count > static_cast<uint32>(Remaining / MinEntryBytes))
 	{

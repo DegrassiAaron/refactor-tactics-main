@@ -1420,6 +1420,25 @@ enum class ERTTurnLogFormatVersion : uint16
 	 * squadra con memoria diversa. Il vincolo che questo impone e' l'altra faccia della stessa medaglia:
 	 * **il campo non puo' influenzare nessuna decisione**, o il determinismo dipenderebbe da un dato che
 	 * l'hash non guarda.
+	 *
+	 * 🔑 **E non entra in `EntryLess`, benche' il formato lo SCRIVA.** `spec-turnlog-serialize.md` §61 pone
+	 * la regola — *«ogni campo che questo formato scrive deve stare anche in `EntryLess`»* — e ammette come
+	 * eccezione legittima il campo che **non puo' produrre pareggi perche' funzione di un altro**, com'e'
+	 * `BaseActionId` rispetto ad `ActionId`. Questo lo e': a parita' di `SrcCell`, `TgtCell` e `UnitId`
+	 * — tutte gia' chiavi del confronto — la cella bloccante e' determinata, perche' e' la stessa linea
+	 * valutata dalla stessa squadra. Ordinarci sopra non separerebbe nulla e cambierebbe la forma canonica,
+	 * invalidando il corpus: e' la stessa ragione per cui `MicroStepIndex` (v12) resta fuori.
+	 * ⚠️ Se un giorno la cella smettesse di essere funzione di quelle chiavi — un secondo produttore, o una
+	 * conoscenza che non sia quella dell'attaccante — l'eccezione decade e il campo va aggiunto.
+	 *
+	 * ⚠️ **LIMITE NOTO — il filtro guarda la squadra dell'ATTACCANTE, non quella di chi legge.** Il verdetto
+	 * della voce ha per soggetto l'attaccante, quindi la riga raggiunge ogni squadra che lo abbia osservato;
+	 * la cella pero' e' stata filtrata sulla conoscenza di chi ha sparato. Un avversario che veda
+	 * l'attaccante puo' quindi ricevere il nome di una cella che il **proprio** velo copre. Il caso e'
+	 * stretto — quella cella sta sul segmento fra due celle che il lettore gia' conosce — ma non e' vuoto.
+	 * ⛔ Non si chiude filtrando qui: [D-223] congela il verdetto alla scrittura e la voce e' **una sola**
+	 * per tutti gli autorizzati; una cella diversa per lettore uscirebbe dal formato canonico. La forma
+	 * corretta e' quella di [D-316] — sanificare il campo nella traccia per osservatore, alla registrazione.
 	 */
 	WithSightBlocker = 13
 };

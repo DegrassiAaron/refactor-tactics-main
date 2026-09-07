@@ -1784,13 +1784,48 @@ bool FRTSightBlockerRespectsTeamKnowledgeTest::RunTest(const FString&)
 	}
 
 	// (5) Linea LIBERA: non c'e' niente da nominare, qualunque cosa la squadra conosca.
+	//
+	// ⚠️ La conoscenza contiene `(0,0,0)`, che e' il `BlockedAt` di una `FRTLineOfSightResult` di default.
+	// Senza, il caso passerebbe anche togliendo la guardia: la cella non conosciuta verrebbe scartata dal
+	// filtro e l'asserto resterebbe verde per la ragione sbagliata. E' il difetto che questo test misura
+	// negli altri, ed era in questo stesso blocco.
 	{
 		FRTLineOfSightResult Clear;
 		FRTTeamKnowledge Omniscient;
+		Omniscient.ExploredCells.Add(FRTCellId(0, 0, 0));
 		Omniscient.ExploredCells.Add(FRTCellId(1, 0));
 		const FRTCellId Named = URTTurnLogLibrary::SightBlockerForLog(Clear, Omniscient);
 		TestEqual(TEXT("linea libera: nessun muro da nominare"),
 			Named.Layer, static_cast<int32>(INDEX_NONE));
+	}
+
+	// (7) Un blocco che NON e' una cella non si nomina, e la conoscenza non c'entra.
+	//
+	// 🔴 `BlockedAt` non e' «il muro»: e' la cella in cui la linea stava ENTRANDO. Con `EdgeBlocker`
+	// l'ostacolo sta sul BORDO e all'ultimo passo quella cella e' il **bersaglio**; con `InteriorGeometry`
+	// e `I == 1` e' la cella del **tiratore**. Nominarle come muro manderebbe il giocatore a cercare un
+	// ostacolo dove non c'e' — ed e' il caso peggiore proprio perche' supera il filtro di conoscenza: la
+	// propria cella e quella del bersaglio si conoscono quasi sempre.
+	{
+		FRTTeamKnowledge Sees;
+		Sees.ExploredCells.Add(FRTCellId(1, 0));
+		Sees.ExploredCells.Add(FRTCellId(0, 0));
+
+		FRTLineOfSightResult Edge;
+		Edge.Block = ERTLineOfSightBlock::EdgeBlocker;
+		Edge.BlockedFrom = FRTCellId(0, 0);
+		Edge.BlockedAt = FRTCellId(1, 0); // il bersaglio, non un muro: la porta sta sul bordo fra i due
+		Edge.StepIndex = 1;
+		TestEqual(TEXT("EdgeBlocker: non si nomina, l'ostacolo e' sul bordo e puo' essere una porta"),
+			URTTurnLogLibrary::SightBlockerForLog(Edge, Sees).Layer, static_cast<int32>(INDEX_NONE));
+
+		FRTLineOfSightResult Interior;
+		Interior.Block = ERTLineOfSightBlock::InteriorGeometry;
+		Interior.BlockedFrom = FRTCellId(0, 0);
+		Interior.BlockedAt = FRTCellId(0, 0); // la cella del tiratore
+		Interior.StepIndex = 0;
+		TestEqual(TEXT("InteriorGeometry: non si nomina la cella di chi spara"),
+			URTTurnLogLibrary::SightBlockerForLog(Interior, Sees).Layer, static_cast<int32>(INDEX_NONE));
 	}
 
 	// (6) Il LAYER discrimina. Due celle con gli stessi assiali su layer diversi sono celle diverse, e una
