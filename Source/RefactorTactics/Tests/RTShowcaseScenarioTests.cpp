@@ -2263,40 +2263,29 @@ bool FRTShowcaseKeyEventsTest::RunTest(const FString&)
 	}
 	Mancanti.Sort();
 
-	// ⛔ **DUE degli otto non sono prodotti, e sono dichiarati invece che nascosti** (`#170`). La voce di DoD
-	// chiedeva che tutti e otto lo fossero: misurato, sei lo sono. Le due che mancano hanno ragioni diverse,
-	// ed entrambe sono di CONTENUTO — non di codice: il TurnLog sa scriverle entrambe, e altri scenari del
-	// corpus le producono.
+	// ⛔ **UNO degli otto non e' prodotto, ed e' dichiarato invece che nascosto** (`#170`). La voce di DoD
+	// chiedeva che tutti e otto lo fossero: misurato, sette lo sono. Quello che manca e' di CONTENUTO — non
+	// di codice: il TurnLog sa scriverlo, e altri scenari del corpus lo producono.
 	//
 	//   · **`KO`** — il §T8 della spec chiede che Gadget vada KO mentre Phase segna. Misurato: non c'e'
 	//     nessuno che possa ucciderlo. Resta a (-3,-1,0) dal T4, le due unita' rosse sono a cinque celle e
 	//     piu' dopo la scivolata del T7, e la sua cella e' `Floor` — nessun hazard. Scrivere l'intento non lo
-	//     farebbe morire; asserire il KO renderebbe il turno rosso.
-	//   · **`fallback`** — nessuna azione dello showcase ripiega. La categoria e' emessa da SETTE siti del
-	//     resolver e uno scenario che la produce esiste (`Visual.Combat.FallbackTargetMoved`, il fallback
-	//     `AttackCell` di un bersaglio uscito di portata): qui semplicemente non capita, perche' ogni
-	//     bersaglio dichiarato e' ancora raggiungibile quando l'azione risolve. ⚠️ **Il whiff del T2 NON e'
-	//     un fallback**: `PredictionWhiffed` e' `Predictive`, e la previsione mancata e' l'esito voluto di
-	//     quel turno, non un ripiego.
+	//     farebbe morire; asserire il KO renderebbe il turno rosso. Owner: `#2149`.
 	//
-	// Owner di entrambe: `#2149`.
+	// ⌫ **`fallback` stava in questa lista fino al 2026-09-08, con la motivazione «nessuna azione dello
+	// showcase ripiega … qui semplicemente non capita».** Era vera sul LOG e falsa sui FATTI: lo showcase
+	// contiene una carica `Hero.Branth.Ram` che il rough di CP 8.1 rifiuta da sempre, ma `RTTurnManager` la
+	// scartava con un `continue` muto e la categoria non compariva. Ora quel rifiuto emette una voce
+	// `Fallback`/`Cancelled` con motivo `TerrainDeniesDash`, e l'evento c'e'.
+	// ⚠️ **Il whiff del T2 NON e' un fallback**, e questa riga resta vera: `PredictionWhiffed` e'
+	// `Predictive`, e la previsione mancata e' l'esito voluto di quel turno, non un ripiego.
 	//
-	// ⚠️ **Questa riga cade il giorno in cui una delle due comparisse**, ed e' voluto: sarebbe la notizia che
+	// ⚠️ **Questa riga cade il giorno in cui l'ultimo comparisse**, ed e' voluto: sarebbe la notizia che
 	// lo showcase ha guadagnato un evento chiave, e va registrata qui invece di essere ereditata in silenzio.
 	// E' la stessa disciplina che `GoldenCorpusCoversItsCategories` applica alle categorie scoperte —
 	// l'IDENTITA' di cio' che manca, non il conteggio: perderne uno guadagnandone un altro terrebbe il
-	// numero a sei e questo test verde.
-	// ➕ **`fallback` NON manca piu', dal 2026-09-08 — ed e' la notizia che la riga qui sopra chiedeva di
-	// registrare invece di ereditare in silenzio.** Non e' cambiato lo showcase: e' cambiato il resolver.
-	// `RTTurnManager` scartava con un `continue` muto la mobilita' lineare che non parte, e lo showcase ne
-	// contiene una — la carica `Hero.Branth.Ram` che il rough di CP 8.1 rifiuta. Ora quel rifiuto emette una
-	// voce `Fallback`/`Cancelled` col motivo `TerrainDeniesDash`, quindi la categoria compare.
-	//
-	// ⚠️ La diagnosi vecchia — *«nessuna azione dello showcase ripiega … qui semplicemente non capita»* —
-	// era vera sul LOG e falsa sui FATTI: l'azione ripiegava gia', e non lo diceva a nessuno.
-	//
-	// `KO` resta, con la causa invariata e lo stesso owner (`#2149`): nessuno puo' uccidere Gadget in questo
-	// showcase, quindi e' contenuto da scrivere, non codice da correggere.
+	// numero costante e questo test verde. **Ed e' esattamente cosi' che ha funzionato**: il conteggio
+	// sarebbe rimasto a sei, il confronto per identita' no.
 	TestEqual(TEXT("a mancare resta il solo `KO` (contenuto, non codice — owner #2149)"),
 		FString::Join(Mancanti, TEXT(", ")), FString(TEXT("KO")));
 

@@ -986,9 +986,12 @@ FString ARTUnit::DisplayLabel(const FText& InDisplayName, FName InHeroId, const 
 
 FString ARTUnit::LogLabel(const ARTUnit* Unit)
 {
-	// Un `nullptr` non e' un caso teorico: diversi chiamanti passano `Units[i]` da indici che una morte o
-	// una rimozione possono aver svuotato. La riga esce lo stesso e DICE di non sapere chi, invece di
-	// sparire o di far cadere il turno per una stringa.
+	// ⚠️ Il ramo `nullptr` e' una guardia di firma, NON un caso raggiunto dai chiamanti di oggi: l'unico
+	// sito che usa questa funzione dereferenzia `Unit->Cell` nella stessa lista di argomenti, quindi un
+	// puntatore nullo cadrebbe prima di arrivare qui. Resta perche' la funzione e' pubblica e statica —
+	// chi la chiamera' da un contesto che ammette indici svuotati trova una stringa invece di un crash —
+	// ma non va letta come una protezione attiva. ⌫ Il commento diceva il contrario («diversi chiamanti
+	// passano `Units[i]`»), ed era una motivazione che il codice non sosteneva.
 	return Unit ? DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName())
 	            : TEXT("unita' sconosciuta");
 }

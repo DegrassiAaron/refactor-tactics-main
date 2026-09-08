@@ -4568,7 +4568,14 @@ void ARTTurnManager::ResolveDash()
 			// pathfinding (`Action.Sprint`) arriva qui con `Completed` e resta muto come prima — dargli un
 			// motivo chiederebbe di indovinarlo, e una riga che dichiara la causa sbagliata e' peggio di
 			// una riga assente.
-			if (URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle))
+			// ⚠️ **`IsAlive()` e non solo `IsLinear`**: `PlannedDashApplies()` verifica stile del catalogo,
+			// cooldown e destinazione diversa — **mai la vita** (`RTUnit.cpp`). Il sito gemello di questa
+			// stessa funzione la chiede (`PlannedAbilityIndex != INDEX_NONE && Unit->IsAlive()`), e
+			// `spec-turnlog.md` scrive la regola per questa famiglia: *«chi muore sulla cella d'arrivo dello
+			// scatto non lascia una traccia che adjudica il piano di un morto»*. Senza la guardia, un'unita'
+			// uccisa in un Blast precedente e tenuta in `Units` dalla morte differita scriverebbe un
+			// `Fallback` nella traccia autorevole — e quindi nel corpus golden.
+			if (Unit->IsAlive() && URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle))
 			{
 				ERTActionInvalidReason Motivo = ERTActionInvalidReason::DashPathBlocked;
 				switch (LinearStop)
@@ -4592,17 +4599,15 @@ void ARTTurnManager::ResolveDash()
 				Rifiutata.Amount = static_cast<int32>(Motivo);
 				AppendLogEntry(Rifiutata, Unit);
 
-				// ⚠️ **La CELLA sta nella riga, e non e' ridondanza**: `LogLabel` rende il nome canonico
-				// dell'EROE, quindi due `Hero.Branth` in campo producono la stessa etichetta — misurato
-				// nella seduta `U46`, dove `R_ROU` e `R_SMO` uscivano entrambi come `Branth`. Senza le
-				// coordinate due unita' nella stessa situazione scriverebbero righe identiche byte a byte,
-				// che e' il difetto gia' chiuso da `#1412` per le voci del TurnLog.
-				AddLogEvent(FString::Printf(TEXT("%s (q=%d,r=%d,L=%d): %s"), *ARTUnit::LogLabel(Unit),
-					Unit->Cell.X, Unit->Cell.Y, Unit->Cell.Layer,
-					Motivo == ERTActionInvalidReason::TerrainDeniesDash
-						? TEXT("il terreno non si attraversa di corsa")
-						: TEXT("lo scatto non parte")),
-					FRTLogSubject::Unit(Unit));
+				// ⛔ **Niente `AddLogEvent` qui**, per la stessa ragione scritta sul `SlotOccupied` piu'
+				// sotto: la riga arriva al combat log attraverso `ConcludeTurn`, che deriva l'intero log dal
+				// TurnLog (`DescribeTurnLog`) — come ogni altra voce.
+				//
+				// ⌫ **Una prima stesura ne aggiungeva uno, e produceva DUE righe per un rifiuto solo** —
+				// `Branth (q=-3,r=-1,L=0): il terreno non si attraversa di corsa` seguita subito dalla voce
+				// derivata, che dice le stesse cose e in piu' la destinazione. `RecentEvents` e' limitato a
+				// `MaxLogLines`, quindi la riga ridondante ne sfrattava una vera: peggiorava il log che
+				// questo lavoro esiste per rendere leggibile.
 			}
 			continue;
 		}

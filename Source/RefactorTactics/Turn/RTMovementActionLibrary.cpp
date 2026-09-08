@@ -43,7 +43,19 @@ namespace
 	ERTLinearStop StepBlockReason(const URTHexMapAsset* Map, const FRTCellId& Cell)
 	{
 		if (!IsWalkable(Map, Cell)) { return ERTLinearStop::BlockedByTerrain; }
-		return ERTLinearStop::TerrainDeniesDash;
+
+		// ⚠️ **Il flag si MISURA, non si deduce per eliminazione.** Una prima stesura restituiva
+		// `TerrainDeniesDash` senza guardare `bBlocksDashCharge`, contando sul fatto che l'unico altro modo
+		// di non essere attraversabili fosse il muro. Il giorno in cui `IsTraversableByStep` guadagna una
+		// terza condizione — una porta chiusa, un dislivello, un hazard — quella si presenterebbe al
+		// giocatore come «il terreno non si attraversa di corsa», che e' precisamente il difetto di causa
+		// sbagliata che questo lavoro rimuove, spostato di un livello e senza segnale di compilazione.
+		const FRTHexCellData* Data = Map->FindCell(Cell);
+		if (Data && URTTerrainLibrary::FindTerrainDef(Data->Surface).bBlocksDashCharge)
+		{
+			return ERTLinearStop::TerrainDeniesDash;
+		}
+		return ERTLinearStop::BlockedByTerrain;
 	}
 }
 
