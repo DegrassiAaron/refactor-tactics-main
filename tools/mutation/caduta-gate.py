@@ -50,10 +50,13 @@ compila, e una che compila puo' **appendere** invece di far cadere.
 E non basta che la suite finisca: una misura vale `VALIDA` solo se `HEAD`, working tree, binario
 e stato del motore non cambiano durante la run. Un `NON VALIDA` ferma il gate.
 
-⚠️ Fino al 2026-09-08 quei quattro termini li confrontava `rt-suite.ps1`. Rimosso, **tre** li
-confronta `_istantanea()` qui sotto — `HEAD`, contenuto dell'albero, firma dei binari — e il
-quarto, *nessun processo estraneo del motore*, e' sceso a **precondizione**: si verifica prima di
-partire e non durante. Chi legge questa riga sappia che quel termine e' il piu' debole dei quattro.
+⚠️ Fino al 2026-09-08 quei quattro termini li confrontava `rt-suite.ps1`. Rimosso, li confronta
+`misura.py`: `istantanea()` prende `HEAD`, contenuto dell'albero e firma dei binari prima e dopo;
+`esegui_suite()` campiona i PID del motore DURANTE la run e sottrae il proprio, cosi' il quarto
+termine — *nessun processo estraneo* — e' di nuovo osservato invece che solo dichiarato (`#2672`).
+
+⚠️ Il limite che resta e' dichiarato: il campionamento e' discreto, quindi una suite altrui che
+nasce e muore fra due campioni non viene vista. Copre la finestra lunga, non l'istante.
 
 🔴 **Guardia sul non committato.** Il ripristino usa i byte letti in memoria, non `git checkout --`:
 `#2406` avverte che quel comando **cancella il non committato**, e questo strumento gira anche
@@ -104,7 +107,6 @@ import os
 import re
 import subprocess
 import sys
-import time
 
 # La regola di validita' di una misura vive in UNA sede, e la meta' che decide e' pura:
 # `regola.verdetto()` prende un log come stringa, quindi il self-test puo' passargliene uno
@@ -122,24 +124,15 @@ try:
 except AttributeError:
     pass   # Python < 3.7: i print ASCII passano comunque
 
-RADICE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-LOG = os.path.join(RADICE, "Saved", "Logs", "automation-mutazione.log")
-UPROJECT = os.path.join(RADICE, "RefactorTactics.uproject")
-BUILD_BAT = r"D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat"
-ENGINE_CMD = r"D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
-
-# I binari del progetto: `Binaries/` e' gitignorato, quindi un `Build.bat` di un altro
-# checkout li riscrive senza muovere ne' `HEAD` ne' l'albero. ⚠️ Su un checkout mai
-# compilato il glob non trova niente: il termine binario dell'invariante e' allora
-# ASSENTE, non soddisfatto — il confronto resta stabile e semplicemente non protegge.
-DLL_GLOB = os.path.join(RADICE, "Binaries", "Win64", "UnrealEditor-RefactorTactics*.dll")
-
-# 🔴 `pwsh`, non `powershell`. ⚠️ La ragione misurata il 2026-09-05 e' SCADUTA: riguardava il PARSING
-# di `rt-suite.ps1` — errori «'}' di chiusura mancante» con **exit code 0**, cioe' un processo che
-# sembrava riuscito senza aver misurato niente — e quello script e' stato rimosso il 2026-09-08. Qui
-# `pwsh` serve solo a invocare `Build.bat` col quoting scritto in `build()`. Resta perche' e'
-# l'interprete su cui quella invocazione e' stata misurata: con `powershell` non e' stata riprovata.
-PWSH = "pwsh"
+# Percorsi, interprete e binari vivono in `misura.py`: erano in copia qui e nell'altro gate,
+# e le copie divergevano gia' — il controllo del motore scritto in due modi, il path del
+# progetto ri-derivato da chi ne aveva la costante. I nomi restano locali per leggibilita',
+# ma la sede e' una sola. (`#2672`)
+RADICE = regola.RADICE
+LOG = regola.LOG
+UPROJECT = regola.UPROJECT
+ENGINE_CMD = regola.ENGINE_CMD
+DLL_GLOB = regola.DLL_GLOB
 
 # Filtro della suite. Il mutex del motore ferma ogni checkout, e una suite intera per mutazione sono
 # ore: #2406 chiede un filtro stretto. Resta comunque un prefisso, non una lista di nomi, perche' una
@@ -379,29 +372,31 @@ def scrivi(percorso, dati):
 
 
 def sporco(rel):
-    """True se il file ha modifiche non committate. Il gate NON scrive sopra il lavoro di un altro."""
-    r = subprocess.run(["git", "status", "--porcelain", "--", rel],
+    """True se il file ha modifiche non committate, o se non si e' potuto sapere.
+
+    🔴 L'exit code si legge. Un `git status` che fallisce — `.git/index.lock` tenuto da
+    un'altra sessione — usciva a mani vuote, e `bool("")` diceva «pulito»: il gate avrebbe
+    sovrascritto un file che porta il lavoro di qualcuno, e poi lo avrebbe «ripristinato» da
+    byte letti dopo lo stesso fallimento. E' il fail-open che l'altro gate ha appena chiuso,
+    lasciato aperto proprio nel file che consolida i due."""
+    r = subprocess.run(["git", "status", "--porcelain", "--", rel], cwd=RADICE,
                        capture_output=True, text=True, errors="replace")
+    if r.returncode != 0:
+        print("   ⚠️ `git status` su %s non risponde (exit %d): lo tratto come SPORCO."
+              % (rel, r.returncode))
+        return True
     return bool((r.stdout or "").strip())
 
 
 def build(tentativi=40):
-    """Ricostruisce. True solo su `Result: Succeeded`; ritenta su QUALUNQUE fallimento.
+    """Ricostruisce, e distingue la contesa dall'errore di compilazione. Vedi `misura.build`.
 
     🔴 Un build fallito lascia il binario VECCHIO: la suite girerebbe sul codice NON mutato e
     riporterebbe «nessun test se ne accorge» - indistinguibile da una lacuna vera, e la peggiore
-    risposta possibile. Si ritenta perche' la causa tipica e' un Editor su un altro checkout
-    (`Unable to build while Live Coding is active`, oppure `Failed (OtherCompilationError)` di #971)."""
-    for _ in range(tentativi):
-        r = subprocess.run([PWSH, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
-                            "& '" + BUILD_BAT + "' RefactorTacticsEditor Win64 Development "
-                            "-Project='" + UPROJECT + "' -WaitMutex"],
-                           capture_output=True, text=True, errors="replace")
-        testo = (r.stdout or "") + (r.stderr or "")   # UBT manda alcune righe su stderr
-        if "Result: Succeeded" in testo:
-            return True
-        time.sleep(45)   # e' il motore occupato: si aspetta, non si termina il processo di un altro
-    return False
+    risposta possibile. Si ritenta quando la causa e' un Editor su un altro checkout
+    (`Unable to build while Live Coding is active`, `Failed (OtherCompilationError)` di #971);
+    su un errore di compilazione si esce subito, con la coda del compilatore."""
+    return regola.build(tentativi, stampa=print)
 
 
 def suite():
@@ -415,8 +410,8 @@ def suite():
     `0/?, 0 fail`. Zero fallimenti su zero test eseguiti supera qualunque controllo che guardi
     solo i rossi, e una mutazione sembrerebbe SOPRAVVISSUTA su una misura mai avvenuta.
 
-    ⚠️ Il quarto termine dell'invariante — *nessun processo estraneo del motore durante la
-    run* — non e' osservato: si controlla all'avvio, nel preflight. Vedi `#2672`."""
+    Il quarto termine — *nessun processo estraneo del motore durante la run* — e' osservato
+    campionando i PID mentre la suite gira, non solo all'avvio (`#2672`)."""
     verdetto, esito, rossi, eseguiti, problemi = regola.esegui_suite(
         RADICE, ENGINE_CMD, UPROJECT, LOG, FILTRO, DLL_GLOB)
     for p in problemi:
@@ -469,38 +464,14 @@ if DRY:
 
 # 🔴 Le precondizioni si verificano PRIMA del primo build, non dopo. La prima taratura ha pagato un
 # build completo per scoprire che l'interprete non era nemmeno partito (allora era `rt-suite.ps1`).
-# Vale per ogni dipendenza cablata, non solo per l'interprete: un `ENGINE_CMD` sbagliato — engine
-# su un'altra unita', o un `UE_5.9` — dava un `FileNotFoundError` non gestito DENTRO `suite()`,
-# cioe' un traceback dopo minuti di build, esattamente cio' che questo blocco esiste per evitare.
-for etichetta, percorso in (("motore", ENGINE_CMD), ("Build.bat", BUILD_BAT)):
-    if not os.path.exists(percorso):
-        print("\n⛔ FERMO: %s non esiste al percorso cablato:\n   %s\n"
-              "   Correggere la costante in testa a questo file." % (etichetta, percorso))
-        sys.exit(2)
-
-# 🔴 Non si lancia una suite SOPRA una che gira gia': il motore e' uno per macchina, e due run
-# concorrenti si invalidano a vicenda. ⚠️ E' una precondizione, non una guardia — cio' che parte
-# DOPO questo controllo si rileva solo se tocca i binari (`_istantanea`). Il mutex e il lease che
-# lo impedivano davvero sono stati rimossi (`D-347`) e nulla li rimpiazza.
-VIVI = regola.motori_vivi()
-if VIVI > 0:
-    print("\n⛔ FERMO: %d process%s del motore gia' in esecuzione.\n"
-          "   Attendere che finisca: una misura presa sopra un'altra non e' una misura."
-          % (VIVI, "o" if VIVI == 1 else "i"))
-    sys.exit(2)
-if VIVI < 0:
-    print("\n⛔ FERMO: enumerazione dei processi fallita. Non e' «nessun processo»:\n"
-          "   proseguire sarebbe un'invariante che fallisce APERTA.")
+# Sono in `misura.py`, in una sede sola: qui e nell'altro gate erano due copie che avevano gia'
+# iniziato a divergere. (`#2672`)
+if not regola.preflight_rapido(print):
     sys.exit(2)
 
-prova = subprocess.run([PWSH, "-NoProfile", "-Command", "exit 0"],
-                       capture_output=True, text=True, errors="replace")
-if prova.returncode != 0:
-    print("\n⛔ FERMO: `%s` non e' eseguibile, e `build()` invoca `Build.bat` da li'.\n"
-          "   Installare PowerShell 7 (`pwsh`), oppure cambiare PWSH dopo aver rimisurato\n"
-          "   che il quoting di `build()` regga sull'interprete scelto." % PWSH)
-    sys.exit(2)
-
+# 🔴 **E le guardie istantanee vengono prima dell'attesa del motore**, che dura fino a un'ora e
+# mezza. Bloccare tutto quel tempo per poi rifiutare a causa di un file sporco — che si sapeva in
+# partenza — non misura niente e lo fa costando un'ora e mezza.
 for m in APPLICABILI:
     if sporco(m["file"]):
         print("\n⛔ FERMO: %s ha modifiche non committate.\n"
@@ -518,6 +489,11 @@ if not APPLICABILI:
         f.write("\nLe mutazioni 1-5 mutano il ramo di **#2402**. Finche' quello non e' integrato non\n"
                 "c'e' niente da mutare, e nessun test della caduta da far cadere.\n")
     print("\n⛔ BLOCKED: nessuna mutazione applicabile. Esiti in " + ESITI)
+    sys.exit(2)
+
+# 🔑 Ora che ogni rifiuto istantaneo e' escluso, si puo' attendere il motore: e' l'unica attesa
+# lunga del gate, e ha senso solo se tutto il resto e' gia' a posto.
+if not regola.attesa_motore(print):
     sys.exit(2)
 
 ORIGINALI = {}

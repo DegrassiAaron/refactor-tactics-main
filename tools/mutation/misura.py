@@ -20,13 +20,22 @@ flusso che avvia l'Editor, la voce di DoD «un crash non esce VALIDA» si chiude
 aneddoto: nessun test puo' produrre quel log. Qui la regola prende un log come STRINGA,
 e il self-test gliene passa uno scritto a mano — vedi `--self-test` dei due gate.
 
+## I quattro termini, e come sono coperti
+
+`istantanea()` fotografa i primi tre prima e dopo la run: `HEAD`, il **contenuto**
+dell'albero, la firma dei binari. Il quarto — *nessun processo del motore estraneo durante
+la run* — lo osserva `esegui_suite()`, campionando i processi e scartando quelli che
+discendono dal proprio (`#2672`).
+
 ## Cosa NON copre, dichiarato
 
-`istantanea()` fotografa `HEAD`, il **contenuto** dell'albero e la firma dei binari.
-Il quarto termine dell'invariante di `AGENTS.md` — *nessun processo del motore estraneo
-durante la run* — non e' osservabile da qui senza un polling che questo modulo non fa:
-`motori_vivi()` risponde **prima** di partire, e cio' che parte dopo si rileva solo se
-tocca i binari. Non c'e' piu' un lease, e questo modulo non ne e' il sostituto.
+* **Il campionamento e' discreto.** Una suite altrui che nasce e muore fra due campioni non
+  viene vista: copre la finestra lunga, non l'istante. Non c'e' piu' un lease, e questo
+  modulo non ne e' il sostituto — vede cio' che passa, non impedisce che passi.
+* **Il codice di uscita del motore non entra nel verdetto**, e non e' una dimenticanza:
+  `UnrealEditor-Cmd` esce `-1` quando la suite ha dei rossi. Vedi `verdetto()`.
+* **Il terminatore `**** TEST COMPLETE ****` e' un avviso, non un verdetto**, finche' non
+  sara' confermato su un log prodotto da `esegui_suite()`.
 """
 
 import hashlib
@@ -34,6 +43,8 @@ import io
 import os
 import re
 import subprocess
+import tempfile
+import time
 
 # I quattro marcatori con cui Unreal dichiara di essere morto. `#2530`: una mutazione
 # out-of-bounds ha ucciso il motore a meta' suite, e la run e' uscita VALIDA con zero
@@ -122,23 +133,101 @@ def istantanea(radice, dll_glob=None):
     return (_git(radice, "rev-parse", "HEAD"), albero, " ".join(dll))
 
 
-def motori_vivi():
-    """Quanti processi del motore sono gia' in piedi. `0` e' la condizione per partire.
+def processi_motore():
+    """I PID dei processi del motore vivi ORA. `None` se l'enumerazione non e' riuscita.
 
-    ⚠️ Risponde **all'avvio**, non durante: e' una precondizione, non una guardia. Due
-    gate che partono nello stesso secondo si vedono entrambi liberi. Cio' che non c'e'
-    piu' — il mutex e il lease di `rt-suite.ps1` — non e' rimpiazzato da questa funzione
-    (`D-347`); serve a non lanciare una suite SOPRA una che sta gia' girando, che era il
-    caso comune e costava due misure invece di una.
+    🔴 I **PID**, non il conteggio: il gate avvia lui stesso un motore, quindi durante la
+    run il numero e' sempre >= 1 e non dice niente. Sapere QUALI permette di sottrarre il
+    proprio e rispondere alla sola domanda che conta: ne e' comparso uno che non e' mio?
+
+    🔴 `None` NON e' «nessun processo»: un'enumerazione fallita che tornasse `[]` sarebbe
+    un'invariante che fallisce APERTA, indistinguibile dal caso sano.
     """
-    esito = subprocess.run(["tasklist", "/NH", "/FO", "CSV"],
-                           capture_output=True, text=True, errors="replace")
+    alberi = _alberi_processi()
+    return None if alberi is None else sorted(alberi["motori"])
+
+
+def _alberi_processi():
+    """`{'motori': {pid}, 'padre': {pid: ppid}}`, oppure `None` se non si e' potuto leggere.
+
+    🔴 Serve il **padre**, non solo il conteggio. `UnrealEditor-Cmd` genera processi figli:
+    contarli e confrontare due numeri classifica un figlio legittimo come estraneo — e con
+    l'ordine dei campioni invertito assorbe un motore ALTRUI fra i propri. Entrambe le
+    direzioni sono sbagliate, e una e' un fail-open. La parentela e' l'unico dato che
+    risponde davvero a «questo processo l'ho avviato io?».
+
+    ⚠️ `Get-CimInstance` costa piu' di `tasklist` (misurato altrove nel progetto: 8 ms
+    contro 117). Si paga una volta per campione, ed e' il prezzo di una risposta giusta.
+    """
+    try:
+        esito = subprocess.run(
+            [PWSH, "-NoProfile", "-NonInteractive", "-Command",
+             "Get-CimInstance Win32_Process | "
+             "Select-Object ProcessId,ParentProcessId,Name | "
+             "ForEach-Object { '{0};{1};{2}' -f $_.ProcessId,$_.ParentProcessId,$_.Name }"],
+            capture_output=True, text=True, errors="replace")
+    except OSError:
+        # Interprete non risolvibile: PATH senza System32, container, host non-Windows.
+        # Senza questo ramo la funzione sollevava invece di rispettare il proprio contratto.
+        return None
     if esito.returncode != 0:
-        return -1        # 🔴 enumerazione fallita NON e' «nessun processo»: sarebbe un fail-OPEN
-    return len([r for r in (esito.stdout or "").splitlines() if "UnrealEditor" in r])
+        return None
+    motori, padre = set(), {}
+    for riga in (esito.stdout or "").splitlines():
+        campi = riga.strip().split(";")
+        if len(campi) != 3 or not campi[0].isdigit():
+            continue
+        pid, ppid, nome = int(campi[0]), int(campi[1]) if campi[1].isdigit() else 0, campi[2]
+        padre[pid] = ppid
+        if "UnrealEditor" in nome:
+            motori.add(pid)
+    return {"motori": motori, "padre": padre}
 
 
-def verdetto(prima, dopo, testo_log, filtro=""):
+def _discende_da(pid, radici, padre, profondita=24):
+    """True se `pid` e' `radici` o un loro discendente. `profondita` spezza i cicli."""
+    corrente = pid
+    for _ in range(profondita):
+        if corrente in radici:
+            return True
+        successivo = padre.get(corrente)
+        if not successivo or successivo == corrente:
+            return False
+        corrente = successivo
+    return False
+
+
+def attendi_motore_libero(minuti=90, campionamento=45, stampa=None):
+    """Attende che il motore si liberi. Torna True se e' libero, False se scade il tempo.
+
+    🔑 **Attesa, non rifiuto.** Un gate che esce `2` perche' la macchina e' occupata butta
+    via il lavoro di preparazione — e su questa macchina «occupata» e' la condizione
+    normale, non l'eccezione. `rt-suite.ps1` attendeva in coda fino a 90 minuti
+    (`-WaitMinutes`), e la prosa dei due gate ha continuato a descrivere quell'attesa anche
+    dopo la sua rimozione. Qui l'attesa esiste di nuovo, ed e' quella che la prosa dichiara.
+
+    ⚠️ Resta una precondizione: due gate che iniziano ad attendere insieme si vedono
+    entrambi liberi nello stesso istante. Cio' che copre la finestra *durante* la run e'
+    `esegui_suite()`, che campiona i PID estranei.
+    """
+    scadenza = minuti * 60
+    atteso = 0
+    while True:
+        pid = processi_motore()
+        if pid is None:
+            return False          # enumerazione fallita: fail-closed, non si parte
+        if not pid:
+            return True
+        if atteso >= scadenza:
+            return False
+        if stampa and atteso % (campionamento * 4) == 0:
+            stampa("   motore occupato da %d process%s, attendo (%d min di %d)"
+                   % (len(pid), "o" if len(pid) == 1 else "i", atteso // 60, minuti))
+        time.sleep(campionamento)
+        atteso += campionamento
+
+
+def verdetto(prima, dopo, testo_log, filtro="", estranei=(), uscita_motore=0):
     """PURA. Torna `(verdetto, esito, rossi, eseguiti, problemi)`.
 
     Ordine dei controlli, e non e' indifferente: un log crashato che ha anche visto
@@ -147,8 +236,22 @@ def verdetto(prima, dopo, testo_log, filtro=""):
     * `NON VALIDA`  la misura non e' registrabile: drift, crash, o suite troncata;
     * `NON AVVIATA` non ha misurato niente: motore morto in avvio, o filtro a vuoto;
     * `VALIDA`      registrabile — verde o rossa che sia.
+
+    `estranei` sono i PID di motori NON avviati da questa misura, visti mentre girava:
+    e' il quarto termine dell'invariante di `AGENTS.md`, e senza di esso il verdetto
+    dichiarerebbe valida una run attraversata dalla suite di un'altra sessione.
+
+    `uscita_motore` e' il codice di uscita del processo: un crash allo shutdown puo' non
+    lasciare nessuno dei quattro marcatori nel log e uscire comunque diverso da zero.
     """
     problemi = []
+
+    if estranei:
+        problemi.append("motore    %d process%s estrane%s durante la run (PID %s): la misura"
+                        " ha condiviso la macchina"
+                        % (len(estranei), "o" if len(estranei) == 1 else "i",
+                           "o" if len(estranei) == 1 else "i",
+                           ", ".join(str(p) for p in sorted(estranei)[:6])))
 
     # I due INSIEMI servono ai gate per la differenza contro la baseline; i CONTEGGI
     # servono alla regola. ⚠️ Non sono la stessa cosa: `rossi` nasce da un match che
@@ -183,6 +286,19 @@ def verdetto(prima, dopo, testo_log, filtro=""):
         problemi.append("motore    crash nel log: %s" % marcatore)
         problemi.append("          " + (riga[:157] + "..." if len(riga) > 160 else riga))
         break
+
+    # ⛔ **Il codice di uscita NON entra nel verdetto, ed e' misurato.** `UnrealEditor-Cmd`
+    # esce `-1` quando la suite ha dei rossi: sui log di questa macchina, 45 run a `0` e
+    # **22 a `-1`**. Farne una condizione di `NON VALIDA` INVERTE i due gate — una mutazione
+    # che fa cadere il suo bersaglio, cioe' il successo che il gate esiste per produrre,
+    # uscirebbe non registrabile e finirebbe fra le sopravvissute. La DoD della v0.1 lo
+    # dichiara gia': «un gate automatico non puo' leggere il verdetto dal codice di uscita —
+    # si contano i `Result={Success}`».
+    #
+    # Resta come DIAGNOSTICA: si stampa quando c'e' gia' un problema, per aiutare a capirlo.
+    if uscita_motore not in (0, None) and problemi:
+        problemi.append("          (il motore e' uscito con codice %s — da solo non dice"
+                        " niente: `-1` e' anche una suite con dei rossi)" % uscita_motore)
 
     crash = any(p.startswith("motore") for p in problemi)
     drift = any(p.startswith("albero") for p in problemi)
@@ -272,7 +388,8 @@ def verdetto(prima, dopo, testo_log, filtro=""):
     return v, esito, rossi, eseguiti, problemi
 
 
-def esegui_suite(radice, engine_cmd, uproject, log_path, filtro, dll_glob=None):
+def esegui_suite(radice, engine_cmd, uproject, log_path, filtro, dll_glob=None,
+                 timeout_minuti=180, campionamento=20):
     """Lancia la suite e torna `(verdetto, esito, rossi, eseguiti, problemi)`.
 
     Sede UNICA dell'invocazione del motore: gli argomenti di `UnrealEditor-Cmd`, la
@@ -280,7 +397,8 @@ def esegui_suite(radice, engine_cmd, uproject, log_path, filtro, dll_glob=None):
     e sarebbero tornate a divergere come tutto il resto.
 
     ⚠️ NON e' pura — avvia un processo. La parte che DECIDE e' `verdetto()`, che e' pura
-    ed e' cio' che il self-test esercita.
+    ed e' cio' che il self-test esercita: qui si RACCOLGONO i segnali (istantanee, log,
+    PID estranei, codice di uscita), la' si decide.
     """
     def guasto(messaggio):
         return "NON VALIDA", "esito ?/? completati, ? fallimenti", set(), set(), [messaggio]
@@ -299,30 +417,201 @@ def esegui_suite(radice, engine_cmd, uproject, log_path, filtro, dll_glob=None):
             return guasto("log       non rimovibile (%s): un processo lo tiene aperto. "
                           "Il log della run precedente falserebbe questa." % e.__class__.__name__)
 
-    esecuzione = subprocess.run(
+    # 🔑 **`Popen` e non `run`, per due ragioni che `run` non permette.**
+    #
+    # (1) Il TIMEOUT. Un `UnrealEditor-Cmd` appeso bloccherebbe il gate per sempre, con un
+    #     sorgente mutato sul disco: e' un caso registrato su questa macchina, non teorico.
+    # (2) Il QUARTO TERMINE. Mentre la run gira si campionano i processi del motore e si
+    #     scarta cio' che discende dal proprio: il resto e' ESTRANEO. E' l'unica finestra in
+    #     cui quel termine sia osservabile — a run finita il processo altrui puo' essere gia'
+    #     morto, e prima di partire non e' ancora nato.
+    #
+    # 🔴 **Su FILE, non su `PIPE`.** `Popen(stdout=PIPE)` senza drenare va in deadlock appena
+    # il buffer del sistema si riempie — poche decine di KB, e una suite intera ne emette
+    # megabyte: il figlio si blocca in scrittura, `poll()` resta `None` per sempre e il gate
+    # aspetta il timeout intero per ogni run. `subprocess.run(capture_output=True)`, che
+    # questo codice ha sostituito, drenava le pipe con thread propri. Il log vero e' comunque
+    # il file `-log=`; qui basta una coda per diagnosticare il caso «log non prodotto».
+    #
+    # ⚠️ Resta un limite dichiarato: il campionamento e' discreto. Una suite altrui che nasce
+    # e muore fra due campioni non viene vista. Copre la finestra lunga, non l'istante.
+    uscita_grezza = tempfile.TemporaryFile()
+    avvio = subprocess.Popen(
         [engine_cmd, uproject,
          "-ExecCmds=Automation RunTests " + filtro + ";Quit",
          "-unattended", "-nopause", "-nosplash", "-nullrhi", "-NoLiveCoding",
          "-log=" + os.path.basename(log_path)],
-        capture_output=True, text=True, errors="replace")
+        stdout=uscita_grezza, stderr=subprocess.STDOUT)
+
+    # 🔴 **La parentela, non il conteggio.** Un processo e' MIO se discende dal mio: e' la
+    # sola domanda a cui si possa rispondere senza sbagliare in una delle due direzioni.
+    # Confrontare cardinalita' marcava un figlio legittimo come estraneo (ogni run NON
+    # VALIDA) e, a campione invertito, assorbiva un motore altrui fra i propri — un
+    # fail-open, cioe' esattamente cio' che questo campionamento esiste per chiudere.
+    estranei = set()
+    trascorso = 0
+    while avvio.poll() is None:
+        if trascorso >= timeout_minuti * 60:
+            _termina_albero(avvio)
+            return guasto("motore    nessuna risposta dopo %d minuti: albero di processi"
+                          " terminato. Il sorgente mutato e' ancora sul disco, ricostruire."
+                          % timeout_minuti)
+        alberi = _alberi_processi()
+        if alberi is not None:
+            for pid in alberi["motori"]:
+                if not _discende_da(pid, {avvio.pid}, alberi["padre"]):
+                    estranei.add(pid)
+        time.sleep(campionamento)
+        trascorso += campionamento
+
+    avvio.wait()
+    uscita_grezza.flush()
+    uscita_grezza.seek(0)
+    coda_output = uscita_grezza.read().decode("utf-8", "replace")
+    uscita_grezza.close()
 
     testo = ""
     if os.path.exists(log_path):
         testo = io.open(log_path, encoding="utf-8", errors="replace").read()
     else:
         # 🔴 Nessun log e nessuna diagnosi sarebbe la peggiore combinazione: `misura()`
-        # ricostruirebbe e riproverebbe per mezz'ora senza sapere perche'. Il codice di
-        # uscita del motore e' l'unica cosa rimasta da dire.
-        coda = ((esecuzione.stderr or "") + (esecuzione.stdout or "")).strip().split("\n")
+        # ricostruirebbe e riproverebbe per mezz'ora senza sapere perche'.
+        righe = [r for r in coda_output.strip().split("\n") if r.strip()]
         return guasto("motore    log non prodotto: uscito con codice %d. Ultima riga: %s"
-                      % (esecuzione.returncode, (coda[-1] if coda else "(nessun output)")[:120]))
+                      % (avvio.returncode, (righe[-1] if righe else "(nessun output)")[:120]))
 
     try:
         dopo = istantanea(radice, dll_glob)
     except GitNonLeggibile as e:
         return guasto("albero    non letto DOPO la run: %s" % e)
 
-    return verdetto(prima, dopo, testo, filtro)
+    return verdetto(prima, dopo, testo, filtro, estranei, avvio.returncode)
+
+
+def _termina_albero(processo):
+    """Termina il processo E i suoi discendenti.
+
+    🔴 `kill()` da solo uccide il figlio diretto: cio' che ha generato resta vivo, e su
+    questa macchina «ogni run lascia un processo appeso» e' un caso registrato. Un motore
+    orfano fa attendere 90 minuti la run successiva, che poi rinuncia: un solo blocco ne
+    costerebbe due."""
+    try:
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(processo.pid)],
+                       capture_output=True)
+    except OSError:
+        pass
+    try:
+        processo.kill()
+    except OSError:
+        pass
+    processo.wait()
+
+
+# --- cio' che i due gate condividono, e che era in copia -----------------------------------------
+# Il motore, l'interprete e i percorsi erano ripetuti in entrambi i file, e le copie avevano
+# gia' iniziato a divergere: il controllo del motore era scritto in due modi, e un gate
+# ri-derivava il path del progetto pur avendone la costante. Vale qui la stessa regola di
+# `verdetto()`: una sede sola.
+
+RADICE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+UPROJECT = os.path.join(RADICE, "RefactorTactics.uproject")
+LOG = os.path.join(RADICE, "Saved", "Logs", "automation-mutazione.log")
+BUILD_BAT = r"D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat"
+ENGINE_CMD = r"D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
+DLL_GLOB = os.path.join(RADICE, "Binaries", "Win64", "UnrealEditor-RefactorTactics*.dll")
+
+# 🔴 `pwsh`, non `powershell`: e' l'interprete su cui il quoting di `build()` e' stato
+# misurato. ⚠️ La ragione storica — il parsing di `rt-suite.ps1` — e' SCADUTA con lo script
+# (2026-09-08); questa resta, e con `powershell` non e' stata riprovata.
+PWSH = "pwsh"
+
+# Frasi che dicono «il motore e' occupato», non «il codice non compila». Sulla prima si
+# ritenta, sulla seconda ritentare costa mezz'ora per un esito che non cambia.
+#
+# ⛔ **`OtherCompilationError` NON e' qui, ed e' misurato.** UBT lo emette anche per un
+# errore C++ vero: la DoD della v0.1 registra `Result: Failed (OtherCompilationError)`
+# causato da sei asserzioni che chiamavano `GetBoolMetaData`. Includerlo faceva ritentare
+# quaranta volte in silenzio proprio il caso che questa lista esiste per far fallire subito
+# — e una mutazione scritta a mano spesso non compila, quindi e' il caso comune.
+CONTESA = ("Unable to build while Live Coding is active",
+           "waiting for another instance", "mutex")
+
+
+def build(tentativi=40, pausa=45, stampa=None):
+    """Ricostruisce. True solo su `Result: Succeeded`.
+
+    🔴 Un build fallito lascia il binario VECCHIO: la suite girerebbe sul codice NON mutato
+    e riporterebbe «nessun test se ne accorge» — indistinguibile da una lacuna vera, e la
+    peggiore risposta possibile.
+
+    🔴 **Ma non si ritenta all'infinito su un errore che non cambia.** Prima si ritentava su
+    QUALUNQUE fallimento: un errore di compilazione vero costava 40 tentativi a 45 secondi —
+    mezz'ora — e non stampava niente. Si distingue la CONTESA (un Editor altrui, il mutex:
+    si aspetta) dall'errore di compilazione (si esce subito, con la coda del compilatore).
+    """
+    for tentativo in range(tentativi):
+        r = subprocess.run([PWSH, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+                            "& '" + BUILD_BAT + "' RefactorTacticsEditor Win64 Development "
+                            "-Project='" + UPROJECT + "' -WaitMutex"],
+                           capture_output=True, text=True, errors="replace")
+        testo = (r.stdout or "") + (r.stderr or "")   # UBT manda alcune righe su stderr
+        if "Result: Succeeded" in testo:
+            return True
+        if not any(f in testo for f in CONTESA):
+            if stampa:
+                coda = [x for x in testo.strip().split("\n") if x.strip()][-6:]
+                stampa("   build FALLITO, e non e' contesa del motore:")
+                for riga in coda:
+                    stampa("     " + riga.strip()[:150])
+            return False
+        if stampa and tentativo == 0:
+            stampa("   motore conteso, attendo e ritento (fino a %d volte)" % tentativi)
+        time.sleep(pausa)
+    return False
+
+
+def preflight_rapido(stampa):
+    """Le precondizioni che costano MILLISECONDI. Torna True se si puo' proseguire.
+
+    🔴 Separate dall'attesa del motore, e l'ordine e' la sostanza: un rifiuto conoscibile
+    subito non si fa aspettare un'ora e mezza. Prima si esclude tutto cio' che e' certo e
+    istantaneo — percorsi cablati, interprete, e le guardie proprie di ciascun gate — poi si
+    entra nell'attesa lunga, che ha senso solo se tutto il resto e' a posto.
+    """
+    for etichetta, percorso in (("motore", ENGINE_CMD), ("Build.bat", BUILD_BAT)):
+        if not os.path.exists(percorso):
+            stampa("\n⛔ FERMO: %s non esiste al percorso cablato:\n   %s\n"
+                   "   Correggere la costante in `tools/mutation/misura.py`."
+                   % (etichetta, percorso))
+            return False
+
+    prova = subprocess.run([PWSH, "-NoProfile", "-Command", "exit 0"],
+                           capture_output=True, text=True, errors="replace")
+    if prova.returncode != 0:
+        stampa("\n⛔ FERMO: `%s` non e' eseguibile, e `build()` invoca `Build.bat` da li'.\n"
+               "   Installare PowerShell 7, oppure cambiare PWSH dopo aver rimisurato che il\n"
+               "   quoting di `build()` regga sull'interprete scelto." % PWSH)
+        return False
+
+    return True
+
+
+def attesa_motore(stampa, attesa_minuti=90):
+    """L'attesa lunga, separata da `preflight_rapido` perche' costa fino a un'ora e mezza.
+
+    🔑 Si ATTENDE, non si rifiuta: su questa macchina «motore occupato» e' la condizione
+    normale, e uscire subito butta via la preparazione gia' fatta.
+
+    🔴 Va chiamata per ULTIMA, dopo ogni guardia istantanea. Bloccare novanta minuti per poi
+    rifiutare a causa di un file sporco — che si sapeva in partenza — non misura niente e
+    costa un'ora e mezza a chi guarda.
+    """
+    if not attendi_motore_libero(attesa_minuti, stampa=stampa):
+        stampa("\n⛔ FERMO: il motore non si e' liberato entro %d minuti, oppure l'enumerazione\n"
+               "   dei processi e' fallita — che non e' «nessun processo».\n"
+               "   Una misura presa sopra un'altra non e' una misura." % attesa_minuti)
+        return False
+    return True
 
 
 # --- self-test della regola, senza motore e senza sorgenti ---------------------------------------
@@ -399,6 +688,25 @@ def self_test():
                  any(p.startswith("avviso") for p in avvisi), str(avvisi)))
     caso("albero cambiato e' NON VALIDA", "NON VALIDA",
          _A, _B, _log(trovati=2, avviati=2, completati=2))
+
+    # 🔑 **Il quarto termine dell'invariante**, che fino a `#2672` non era osservato: un
+    # motore estraneo durante la run rende la misura non registrabile anche se il log e'
+    # perfetto e l'albero non si e' mosso. Questi due casi CADONO sulla regola precedente,
+    # che ignorava l'argomento — e' la ragione per cui sono qui.
+    caso("un motore estraneo durante la run e' NON VALIDA", "NON VALIDA",
+         _A, _A, _log(trovati=2, avviati=2, completati=2), estranei=(4242,))
+    caso("nessun estraneo: la stessa run e' VALIDA", "VALIDA",
+         _A, _A, _log(trovati=2, avviati=2, completati=2), estranei=())
+    # ⛔ **L'uscita `-1` e' una suite CON DEI ROSSI, non un crash**: 22 run su 67 nei log di
+    # questa macchina. Farne un `NON VALIDA` invertiva i due gate — la mutazione che fa cadere
+    # il bersaglio, cioe' il loro successo, sarebbe finita fra le sopravvissute. La DoD della
+    # v0.1 lo dichiara: «un gate automatico non puo' leggere il verdetto dal codice di uscita».
+    caso("uscita -1 con dei rossi resta VALIDA: e' il caso che i gate cercano", "VALIDA",
+         _A, _A, _log(trovati=2, avviati=2, completati=2, rossi=("b",)), uscita_motore=-1)
+    caso("uscita 3 su una run sana non cambia il verdetto", "VALIDA",
+         _A, _A, _log(trovati=2, avviati=2, completati=2), uscita_motore=3)
+    caso("l'editor morto in avvio resta NON AVVIATA, non NON VALIDA", "NON AVVIATA",
+         _A, _A, "LogInit: avvio", uscita_motore=-1)
     caso("filtro che non corrisponde e' NON AVVIATA", "NON AVVIATA",
          _A, _A, "LogAutomationController: nessun test")
     caso("editor morto in avvio e' NON AVVIATA", "NON AVVIATA", _A, _A, "LogInit: avvio")

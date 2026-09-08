@@ -313,13 +313,17 @@ Non equivale a verde.
 
 ```powershell
 git rev-parse HEAD
-git diff HEAD                                  # il CONTENUTO dei modificati
-git ls-files --others --exclude-standard       # e gli untracked
+git diff HEAD                                          # il CONTENUTO dei modificati
+git ls-files -o --exclude-standard | Get-FileHash      # e degli untracked
 ```
 
-🔴 **`git status --porcelain` non basta, ed è il tranello.** Elenca lettere di stato e percorsi: due modifiche *diverse* dello stesso file danno la riga identica ` M pippo.cpp`. Se stai misurando con l'albero già sporco — un gate di mutazione lo è sempre — il porcelain è cieco proprio al caso a cui sei più esposto: un'altra sessione che riscrive un file che risultava già modificato. È la stessa ragione per cui `tools/mutation/misura.py` confronta `git diff HEAD`.
+🔴 **`git status --porcelain` non basta, ed è il tranello.** Elenca lettere di stato e percorsi: due modifiche *diverse* dello stesso file danno la riga identica ` M pippo.cpp`. Se stai misurando con l'albero già sporco — un gate di mutazione lo è sempre — il porcelain è cieco proprio al caso a cui sei più esposto: un'altra sessione che riscrive un file che risultava già modificato.
 
-⚠️ E il binario resta fuori da entrambi: `Binaries/` è gitignorato, quindi un `Build.bat` di un altro checkout non muove né `HEAD` né l'albero.
+🔴 **E per lo stesso motivo gli untracked si HASHANO, non si elencano.** `git ls-files --others` dà i percorsi: se il contenuto di un file non tracciato cambia durante la run — uno scenario di prova, una fixture generata — l'elenco è identico prima e dopo. È lo stesso tranello un livello più in basso, ed è la ragione per cui `tools/mutation/misura.py` hasha ciascun file invece di fidarsi dei nomi.
+
+Misurato con due file di prova: riscrivendone uno da capo, l'elenco dei percorsi resta `a.txt, b.txt` e gli hash cambiano. ⚠️ Niente `-z` nella pipeline: separa i nomi con NUL, che PowerShell passa a `Get-FileHash` come **un unico percorso** inesistente — zero hash prodotti, e il comando che dovrebbe smascherare il tranello ci cade dentro.
+
+⚠️ Il binario resta fuori da tutti e tre: `Binaries/` è gitignorato, quindi un `Build.bat` di un altro checkout non muove né `HEAD` né l'albero. Va confrontato a parte — mtime e dimensione dei DLL dell'editor, come fa `misura.istantanea()`.
 
 Il motore è **uno solo per macchina**: due run in parallelo, o una build lanciata sotto una suite altrui, si distruggono le misure a vicenda. Non c'è più un lease che lo impedisca — accordati prima.
 
