@@ -203,6 +203,25 @@ TArray<FString> ARTTurnManager::GetRecentEvents() const
 
 namespace
 {
+	/**
+	 * Il nome dell'unita' COME LO LEGGE UNA PERSONA, per gli eventi narrativi di `AddLogEvent`.
+	 *
+	 * 🔑 **Le voci del TurnLog e gli eventi narrativi nominavano la stessa unita' in due modi diversi**, e
+	 * lo si e' visto nella seduta `U46` del 2026-09-08: sullo stesso turno uscivano
+	 * `RTUnit_3: il terreno non si attraversa di corsa` e `Branth: resta (...)`. Il TurnLog passa da
+	 * `SubjectNamesForLog()`, che risolve con `DisplayLabel` (D-120); gli eventi narrativi scrivevano
+	 * `GetName()`, cioe' il nome dell'Actor — che e' un dettaglio di implementazione, non un'identita' di
+	 * gioco. Chi legge non puo' sapere che le due righe parlano della stessa unita'.
+	 *
+	 * Qui non si duplica la cascata di `DisplayLabel`: si chiama, come fa `SubjectNamesForLog`. Il
+	 * `GetName()` resta come ULTIMO ripiego — un'unita' senza eroe dichiarato non deve perdere il nome.
+	 */
+	FString LogLabel(const ARTUnit* Unit)
+	{
+		return Unit ? ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName())
+		            : TEXT("unita' sconosciuta");
+	}
+
 	/** Gli osservatori di una squadra, alle posizioni con cui si decide il verdetto della traccia. */
 	struct FRTRouteObserverTeam
 	{
@@ -4473,7 +4492,7 @@ void ARTTurnManager::ResolveDash()
 			Rifiutata.Amount = static_cast<int32>(ERTActionInvalidReason::Unbalanced);
 			AppendLogEntry(Rifiutata, Unit);
 
-			AddLogEvent(FString::Printf(TEXT("%s: sbilanciato, non puo' correre"), *Unit->GetName()),
+			AddLogEvent(FString::Printf(TEXT("%s: sbilanciato, non puo' correre"), *LogLabel(Unit)),
 				FRTLogSubject::Unit(Unit));
 			continue;
 		}
@@ -4590,7 +4609,7 @@ void ARTTurnManager::ResolveDash()
 				Rifiutata.Amount = static_cast<int32>(Motivo);
 				AppendLogEntry(Rifiutata, Unit);
 
-				AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(),
+				AddLogEvent(FString::Printf(TEXT("%s: %s"), *LogLabel(Unit),
 					Motivo == ERTActionInvalidReason::TerrainDeniesDash
 						? TEXT("il terreno non si attraversa di corsa")
 						: TEXT("lo scatto non parte")),
