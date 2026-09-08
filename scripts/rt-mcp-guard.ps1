@@ -75,19 +75,45 @@ function Import-OwnershipContract {
         throw "OWNERSHIP_CONTRACT_UNAVAILABLE: $LeaseScript non e' parsabile ($($errors.Count) errori)."
     }
 
-    $wanted = @('Resolve-SessionIdentity', 'Test-LeaseOwnedBy')
-    $found = @{}
+    # `ConvertTo-CanonicalUtc` non e' un extra: `Test-LeaseOwnedBy` la CHIAMA, due volte.
+    # Senza, il contratto si importa senza errori e poi esplode al primo confronto - ed e'
+    # successo: `rtsuite` moriva con «The term 'ConvertTo-CanonicalUtc' is not recognized»
+    # dopo che una hotfix aveva aggiunto quella funzione a `rt-lease.ps1` senza toccare
+    # questa lista. Lo stesso difetto era in `rt-mcp-guard.ps1`, con la stessa causa.
+    $wanted = @('ConvertTo-CanonicalUtc', 'Resolve-SessionIdentity', 'Test-LeaseOwnedBy')
+    $tutte = @{}
     foreach ($fn in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
-        if ($wanted -contains $fn.Name) { $found[$fn.Name] = $fn.Extent.Text }
+        $tutte[$fn.Name] = $fn.Extent.Text
     }
+    $found = @{}
+    foreach ($n in $wanted) { if ($tutte.ContainsKey($n)) { $found[$n] = $tutte[$n] } }
     $missing = @($wanted | Where-Object { -not $found.ContainsKey($_) })
     if ($missing.Count -gt 0) {
         throw "OWNERSHIP_CONTRACT_UNAVAILABLE: $LeaseScript non espone piu' $($missing -join ', ')."
     }
 
+    # (!!) Il blocco estratto deve essere AUTOSUFFICIENTE.
+    #
+    # Elencare le funzioni che servono non basta: se una di loro ne chiama un'altra che
+    # vive in `rt-lease.ps1` e non e' nella lista, l'import riesce e il guasto arriva
+    # dopo, a runtime, con un messaggio che non nomina ne' questo file ne' la lista.
+    # Qui si guarda ogni comando invocato dentro il blocco: se e' una funzione di
+    # `rt-lease.ps1` che non stiamo portando, si fallisce SUBITO e si dice quale.
     $sb = New-Object System.Text.StringBuilder
     foreach ($n in $wanted) { [void]$sb.AppendLine($found[$n]) }
-    return $sb.ToString()
+    $blocco = $sb.ToString()
+
+    $bloccoAst = [System.Management.Automation.Language.Parser]::ParseInput($blocco, [ref]$null, [ref]$null)
+    $chiamate = @($bloccoAst.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true) |
+        ForEach-Object { $_.GetCommandName() } | Where-Object { $_ } | Select-Object -Unique)
+    $orfane = @($chiamate | Where-Object { $tutte.ContainsKey($_) -and -not $found.ContainsKey($_) })
+    if ($orfane.Count -gt 0) {
+        throw ("OWNERSHIP_CONTRACT_INCOMPLETE: il contratto importato chiama " +
+               "$($orfane -join ', '), che vive in $LeaseScript e non e' nella lista. " +
+               "Aggiungerla a `$wanted, oppure l'import riesce e il guasto arriva dopo.")
+    }
+
+    return $blocco
 }
 
 
