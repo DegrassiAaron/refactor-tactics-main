@@ -23,7 +23,9 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTActionEvent.h"
+#include "Replay/RTReplaySeekLibrary.h"
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 
@@ -168,6 +170,36 @@ namespace
 			}
 		}
 		return MAX_uint8;
+	}
+
+	/**
+	 * La CAUSA della voce `DisplacementResisted` di questa unita', o `MAX_uint8` se non ce n'e' nessuna.
+	 *
+	 * 🔑 Il reason code viaggia in `Amount`, non in un campo proprio: lo dichiara `ERTDisplacementBlockReason`
+	 * — *«i valori finiscono nel TurnLog serializzato»* — e leggerlo da li' e' cio' che fa il lettore vero.
+	 */
+	uint8 LedgeBlockReason(const ARTTurnManager* TM, const ARTUnit* Unit)
+	{
+		if (!TM || !Unit) { return MAX_uint8; }
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.UnitId == Unit->StableUnitId && E.Outcome == static_cast<uint8>(ERTMoveOutcome::DisplacementResisted))
+			{
+				return static_cast<uint8>(E.Amount);
+			}
+		}
+		return MAX_uint8;
+	}
+
+	/** La voce `Move` di questa unita', o `nullptr`. */
+	const FRTTurnLogEntry* LedgeMoveEntry(const ARTTurnManager* TM, const ARTUnit* Unit)
+	{
+		if (!TM || !Unit) { return nullptr; }
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Move && E.UnitId == Unit->StableUnitId) { return &E; }
+		}
+		return nullptr;
 	}
 
 	/**
@@ -498,6 +530,10 @@ bool FRTFallNoCellBelowTest::RunTest(const FString&)
 
 	TestEqual(TEXT("resta sull'ultima cella stabile"), Bersaglio->Cell, FRTCellId(1, 0, 1));
 	TestTrue(TEXT("ed e' ancora vivo e sulla mappa"), Bersaglio->IsAlive());
+	// #2403: la POSIZIONE non distingue questo caso dal saturo — entrambi finiscono su `LastStableCell`.
+	// Solo l'esito lo fa, ed e' la ragione per cui `FellWithoutLanding` esiste ([D-352]).
+	TestEqual(TEXT("e la traccia dice che non c'era atterraggio"), LedgeMoveOutcome(TM, Bersaglio),
+		static_cast<uint8>(ERTMoveOutcome::FellWithoutLanding));
 
 	DestroyLedgeWorld(World);
 	return true;
@@ -540,6 +576,8 @@ bool FRTFallOccupiedLandingUsesAlternativeTest::RunTest(const FString&)
 	TestNotEqual(TEXT("chi cade NON finisce sul primario occupato"), Bersaglio->Cell, FRTCellId(1, 0, 0));
 	TestEqual(TEXT("e l'occupante resta dov'e'"), Occupante->Cell, FRTCellId(1, 0, 0));
 	TestTrue(TEXT("chi cade e' comunque SCESO dalla passerella"), Bersaglio->Cell.Layer < 1);
+	TestEqual(TEXT("e la traccia dice ALTERNATIVA, non primario"), LedgeMoveOutcome(TM, Bersaglio),
+		static_cast<uint8>(ERTMoveOutcome::FellToAlternative));
 
 	DestroyLedgeWorld(World);
 	return true;
@@ -576,6 +614,10 @@ bool FRTFallSaturatedLandingTest::RunTest(const FString&)
 
 	TestEqual(TEXT("chi cade termina su LastStableCell"), Bersaglio->Cell, FRTCellId(1, 0, 1));
 	TestEqual(TEXT("l'occupante resta dov'e'"), Occupante->Cell, FRTCellId(1, 0, 0));
+	// #2403: stessa CELLA di `FellWithoutLanding`, esito diverso — qui sotto un primario c'era, ed era
+	// occupato. La posizione non li distingue: solo l'esito.
+	TestEqual(TEXT("e la traccia dice SATURO, non «senza atterraggio»"), LedgeMoveOutcome(TM, Bersaglio),
+		static_cast<uint8>(ERTMoveOutcome::FellToLastStable));
 
 	DestroyLedgeWorld(World);
 	return true;
@@ -705,6 +747,234 @@ bool FRTPullOverOpenLedgeStartsFallTest::RunTest(const FString&)
 	RunLedgeTurn(TM);
 
 	TestEqual(TEXT("chi e' tirato oltre il bordo scende"), Bersaglio->Cell, FRTCellId(2, 0, 0));
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
+// =========================================================================================================
+// 9. Il parapetto ha un esito proprio (#2403, [D-354])
+// =========================================================================================================
+
+/**
+ * Un parapetto che ferma una spinta si legge nella traccia, e non somiglia a un muro.
+ *
+ * 🔴 **Prima di [D-354] questo caso scriveva `Displaced`**, identico a una spinta fermata da una parete: un
+ * replay non poteva dire se il bordo era protetto o se non c'era. Il parapetto e' l'unica delle quattro
+ * qualifiche del `spec` §2 a essere **autorata** invece che derivata, e renderla illeggibile toglieva senso
+ * all'averla autorata.
+ *
+ * ⚠️ Stessa geometria di `GuardedLedgeDoesNotFall`, che misura la POSIZIONE. Questo misura la TRACCIA: due
+ * domande diverse sullo stesso fatto, e la prima resterebbe verde anche con l'esito sbagliato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardedLedgeIsNamedInTheLogTest,
+	"RefactorTactics.ForcedMovement.GuardedLedgeIsNamedInTheLog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGuardedLedgeIsNamedInTheLogTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnLedgeMap(World, PasserellaConAtterraggio());
+	AddLedgeGuard(MapActor, FRTCellId(1, 0, 1), ERTHexDirection::E);
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio) { DestroyLedgeWorld(World); return false; }
+
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	TestEqual(TEXT("premessa: si e' mosso e il parapetto l'ha tenuto"), Bersaglio->Cell, FRTCellId(1, 0, 1));
+	TestEqual(TEXT("e la traccia nomina il parapetto"), LedgeMoveOutcome(TM, Bersaglio),
+		static_cast<uint8>(ERTMoveOutcome::StoppedByEdgeGuard));
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
+/**
+ * Un parapetto **adiacente** non lascia percorrere nessuna cella: senza spostamento non c'e' una voce di
+ * movimento, e la causa viaggia in `ERTDisplacementBlockReason::EdgeGuard`.
+ *
+ * 🔑 **E' il secondo ramo**, lo stesso che `#2402` D006 ha dovuto gestire per la caduta: con il bordo
+ * adiacente `StepUntilBlocked` non avanza, `Dest == cella di partenza`, e il flusso finisce dove finiscono
+ * le spinte senza destinazione. Un solo valore ne coprirebbe uno e lascerebbe l'altro indistinguibile.
+ *
+ * ⛔ **`NoDestination` non basta**: dice *«non c'e' dove andare»*, che e' vero anche per un muro. Qui il
+ * vuoto c'era, ed era protetto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAdjacentGuardedLedgeSaysEdgeGuardTest,
+	"RefactorTactics.ForcedMovement.AdjacentGuardedLedgeSaysEdgeGuard",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAdjacentGuardedLedgeSaysEdgeGuardTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	// Due sole celle: il bersaglio e' GIA' sul ciglio, e il suo lato E da' sul vuoto ed e' protetto.
+	ARTHexMapActor* MapActor = SpawnLedgeMap(World, { FRTCellId(-1, 0, 1), FRTCellId(0, 0, 1) });
+	AddLedgeGuard(MapActor, FRTCellId(0, 0, 1), ERTHexDirection::E);
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio) { DestroyLedgeWorld(World); return false; }
+
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	TestEqual(TEXT("premessa: non si e' mosso"), Bersaglio->Cell, FRTCellId(0, 0, 1));
+	TestEqual(TEXT("e la causa e' il parapetto, non la mancanza di destinazione"),
+		LedgeBlockReason(TM, Bersaglio), static_cast<uint8>(ERTDisplacementBlockReason::EdgeGuard));
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
+// =========================================================================================================
+// 10. La catena causale: che cosa la traccia deve poter dire da sola (#2403)
+// =========================================================================================================
+
+/**
+ * Dalla sola voce si ricostruisce la catena: **da dove**, **dove**, **con quale esito**.
+ *
+ * 🔑 **Il test guarda i tre campi INSIEME**, che e' il punto: `SrcCell` da sola dice dov'era, `TgtCell` da
+ * sola dice dov'e' finita, e nessuna delle due dice che di mezzo c'e' stata una caduta. E' l'esito a
+ * chiudere la catena, ed e' la ragione per cui `spec` §9 chiede tutti e tre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallTracePreservesCauseChainTest,
+	"RefactorTactics.Fall.TracePreservesCauseChain",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallTracePreservesCauseChainTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnLedgeMap(World, PasserellaConAtterraggio());
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio) { DestroyLedgeWorld(World); return false; }
+
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	const FRTTurnLogEntry* Voce = LedgeMoveEntry(TM, Bersaglio);
+	if (!TestNotNull(TEXT("la caduta ha lasciato una voce di movimento"), Voce))
+	{
+		DestroyLedgeWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("da dove: la cella prima del bordo"), Voce->SrcCell, FRTCellId(0, 0, 1));
+	TestEqual(TEXT("dove: l'atterraggio primario"), Voce->TgtCell, FRTCellId(1, 0, 0));
+	TestEqual(TEXT("con quale esito: una caduta, non uno spostamento"), Voce->Outcome,
+		static_cast<uint8>(ERTMoveOutcome::Fell));
+	TestEqual(TEXT("nella fase in cui gli spostamenti si applicano"), Voce->Phase, ERTMatchPhase::Blast);
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
+/**
+ * L'esito e' **nel dato**: una traccia serializzata e riletta **senza la mappa** dice ancora quale caduta e'
+ * avvenuta.
+ *
+ * 🔑 **E' la formulazione falsificabile del criterio «riproduce senza ricalcolare»**. Senza mappa nessuno
+ * puo' rieseguire `FindLandingCell`: se l'esito sopravvive al round-trip, e' perche' e' stato scritto, non
+ * ricalcolato. La formulazione originale non diceva che cosa si rompe, e sarebbe stata verde per
+ * costruzione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallReplayMatchesResolvedOutcomeTest,
+	"RefactorTactics.Fall.ReplayMatchesResolvedOutcome",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallReplayMatchesResolvedOutcomeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnLedgeMap(World, PasserellaConAtterraggio());
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio) { DestroyLedgeWorld(World); return false; }
+
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	const int32 IdBersaglio = Bersaglio->StableUnitId;
+	const uint8 EsitoRisolto = LedgeMoveOutcome(TM, Bersaglio);
+
+	const TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog(TM->GetTurnLog(), ERTLogTopology::Hex);
+	TArray<FRTTurnLogEntry> Riletta;
+	if (!TestTrue(TEXT("la traccia si rilegge"), URTTurnLogLibrary::DeserializeTurnLog(Bytes, Riletta)))
+	{
+		DestroyLedgeWorld(World);
+		return false;
+	}
+
+	// Da qui in poi la mappa non serve piu', ed e' il punto del test: nessuno puo' ricalcolare.
+	uint8 EsitoRiletto = MAX_uint8;
+	FRTCellId Atterraggio;
+	for (const FRTTurnLogEntry& E : Riletta)
+	{
+		if (E.Category == ERTLogCategory::Move && E.UnitId == IdBersaglio)
+		{
+			EsitoRiletto = E.Outcome;
+			Atterraggio = E.TgtCell;
+			break;
+		}
+	}
+	TestEqual(TEXT("l'esito sopravvive al round-trip"), EsitoRiletto, EsitoRisolto);
+	TestEqual(TEXT("ed e' quello di una caduta sul primario"), EsitoRiletto,
+		static_cast<uint8>(ERTMoveOutcome::Fell));
+	TestEqual(TEXT("con l'atterraggio che porta con se'"), Atterraggio, FRTCellId(1, 0, 0));
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
+/**
+ * Il cursore che trova una caduta e' quello alla **fase**, non quello al **boundary**.
+ *
+ * 🔴 **Il criterio originale di `#2403` chiedeva il boundary, e non era soddisfacibile.** Le voci della
+ * caduta nascono in `ApplyDisplacements`, nella coda della fase di attacco, **fuori** dal ciclo dei
+ * micro-step: `CurrentMicroStepIndex` vale `INDEX_NONE`, e `SeekToBoundary` rifiuta i valori negativi
+ * *«senza scandire la traccia»* — perche' quelle voci condividono un valore, non una barriera che le abbia
+ * decise insieme.
+ *
+ * 🔑 **La seconda meta' del test e' anti-vacuita'**: senza di essa questo resterebbe verde anche se qualcuno
+ * "aggiustasse" il problema popolando `MicroStepIndex` nelle voci di Blast — che e' esattamente l'errore che
+ * `SeekToBoundary` esiste per rifiutare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallSeekToPhaseFindsTheEntryTest,
+	"RefactorTactics.Fall.SeekToPhaseFindsTheFallEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallSeekToPhaseFindsTheEntryTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnLedgeMap(World, PasserellaConAtterraggio());
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio) { DestroyLedgeWorld(World); return false; }
+
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	const TArray<FRTTurnLogEntry>& Traccia = TM->GetTurnLog();
+	int32 Indice = INDEX_NONE;
+	TestEqual(TEXT("il seek alla FASE trova le voci del Blast"),
+		URTReplaySeekLibrary::SeekToPhase(Traccia, ERTMatchPhase::Blast, Indice),
+		ERTReplaySeekResult::Found);
+	TestTrue(TEXT("e l'indice e' dentro la traccia"), Traccia.IsValidIndex(Indice));
+
+	// E il boundary NON la trova, ed e' corretto: la caduta non appartiene a nessun ciclo di micro-step.
+	int32 IndiceBoundary = INDEX_NONE;
+	TestNotEqual(TEXT("il seek al BOUNDARY non la trova, e non deve"),
+		URTReplaySeekLibrary::SeekToBoundary(Traccia, ERTMatchPhase::Blast, /*MicroStepIndex=*/ 0, IndiceBoundary),
+		ERTReplaySeekResult::Found);
 
 	DestroyLedgeWorld(World);
 	return true;

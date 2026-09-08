@@ -96,6 +96,21 @@ namespace
 	}
 
 	/**
+	 * L'esito dice che l'unita' e' CADUTA? I quattro valori di [D-352], e nessun altro.
+	 *
+	 * 🔑 **Una sola sede.** Il resolver ne ha bisogno in tre punti — il testo della voce, `CadeSeSbilanciato`
+	 * e la scelta dell'esito — e ripetere l'elenco tre volte significherebbe dimenticarne uno al quinto
+	 * valore. ⛔ **`StoppedByEdgeGuard` non e' una caduta**: il parapetto e' cio' che l'ha impedita.
+	 */
+	bool EsitoEUnaCaduta(ERTMoveOutcome Esito)
+	{
+		return Esito == ERTMoveOutcome::Fell
+			|| Esito == ERTMoveOutcome::FellToAlternative
+			|| Esito == ERTMoveOutcome::FellToLastStable
+			|| Esito == ERTMoveOutcome::FellWithoutLanding;
+	}
+
+	/**
 	 * DOVE FINISCE CHI CADE da `Arresto` (`spec-caduta-e-bordi.md` §4). I tre esiti, in ordine.
 	 *
 	 * 🔑 **`Arresto` E' `LastStableCell`** — la cella stabile immediatamente prima del bordo aperto, cioe'
@@ -108,18 +123,21 @@ namespace
 	 */
 	FRTCellId RisolviAtterraggio(const URTHexMapAsset* Map, const FRTCellId& Arresto,
 		const TArray<FRTCellId>& Occupate,
-		TFunctionRef<bool(const FRTCellId&, ERTHexDirection&)> FacingSuCella)
+		TFunctionRef<bool(const FRTCellId&, ERTHexDirection&)> FacingSuCella,
+		ERTMoveOutcome& OutEsito)
 	{
 		FRTCellId Primario;
 		if (!URTHexLedgeLibrary::FindLandingCell(Map, Arresto, Primario))
 		{
 			// Nessuna cella sotto nella colonna. ⚠️ Caso che `spec` §4 non copre — presuppone che un primario
 			// esista — e che il corpo di `#2402` invece nomina: si resta su `LastStableCell`, non si sparisce.
+			OutEsito = ERTMoveOutcome::FellWithoutLanding;
 			return Arresto;
 		}
 		if (!Occupate.Contains(Primario))
 		{
-			return Primario; // §4.1 primario libero
+			OutEsito = ERTMoveOutcome::Fell; // §4.1 primario libero
+			return Primario;
 		}
 
 		// §4.2 primario occupato, alternativa adiacente. Le celle RAGGIUNGIBILI, non i sei vicini geometrici:
@@ -148,6 +166,7 @@ namespace
 			const FRTCellId Guardata = URTHexLibrary::Neighbor(Primario, FacingOccupante);
 			if (Ammissibile(Guardata))
 			{
+				OutEsito = ERTMoveOutcome::FellToAlternative;
 				return Guardata;
 			}
 		}
@@ -159,6 +178,7 @@ namespace
 		{
 			if (Ammissibile(Candidata))
 			{
+				OutEsito = ERTMoveOutcome::FellToAlternative;
 				return Candidata;
 			}
 		}
@@ -166,6 +186,12 @@ namespace
 		// 3) §4.3 il caso SATURO: primario occupato e nessuna alternativa. La caduta E' avvenuta — gli
 		//    effetti non dipendono dalla disponibilita' della cella finale (`spec` §5) — e chi cade termina
 		//    su `LastStableCell`. L'occupante resta dov'e'.
+		//
+		// ⚠️ **Stessa CELLA di `FellWithoutLanding`, esito DIVERSO** (#2403): li' sotto non c'era niente, qui
+		// un primario esiste ed e' occupato. La posizione non li distingue — solo l'esito lo fa, ed e' la
+		// ragione per cui `spec` §4 ⚠️ chiama il quarto caso «una caduta senza atterraggio» invece che «una
+		// caduta con un atterraggio brutto».
+		OutEsito = ERTMoveOutcome::FellToLastStable;
 		return Arresto;
 	}
 
@@ -1980,7 +2006,8 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 	// regole non si fondono (`spec` §5.1). Chi e' `Unbalanced` e cade le attraversa entrambe, e l'ordine e'
 	// quello del resolver — `CadeSeSbilanciato` agisce sullo spostamento, questa su cio' che accade dopo.
 	auto Cade = [Map, &Units](ARTUnit* T, const FRTCellId& Arresto, const FRTCellId& Sorgente,
-		int32 Distanza, bool bAllontana, const TArray<FRTCellId>& Occupate, FRTCellId& OutFinale) -> bool
+		int32 Distanza, bool bAllontana, const TArray<FRTCellId>& Occupate, FRTCellId& OutFinale,
+		ERTMoveOutcome& OutEsito) -> bool
 	{
 		if (Map == nullptr || !IsValid(T))
 		{
@@ -2007,6 +2034,18 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		//    `StepUntilBlocked` da solo non puo' dare: il suo valore di ritorno e' identico nei tre casi.
 		if (!URTHexLedgeLibrary::IsEdgeOpen(Map, Arresto, Dir))
 		{
+			// ⛔ **Dei tre, solo il PARAPETTO e' un dato autorato**, ed e' l'unico che il log non poteva
+			// nominare: muro e bordo mappa restano `Displaced`, come sempre (#2403, [D-354]).
+			//
+			// 🔑 **Stessa precedenza di `IsEdgeOpen`, non una seconda regola**: li' il guard vince per primo
+			// — *«e' l'unico dato AUTORATO del vocabolario, e la sua ragione d'esistere e' negare
+			// un'apertura che la geometria altrimenti implica»* — e chiedere qui il vicino prima del guard
+			// creerebbe due risposte diverse alla stessa domanda.
+			const FRTHexCellData* DatiArresto = Map->FindCell(Arresto);
+			if (DatiArresto != nullptr && DatiArresto->HasGuardOn(Dir))
+			{
+				OutEsito = ERTMoveOutcome::StoppedByEdgeGuard;
+			}
 			return false;
 		}
 
@@ -2022,7 +2061,8 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					}
 				}
 				return false;
-			});
+			},
+			OutEsito);
 		return true;
 	};
 
@@ -2084,7 +2124,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		// Chi e' CADUTO (#2402): serve al solo esito della voce di TurnLog, che per una caduta non puo'
 		// dire `Displaced` — quello significa «raggiunta la destinazione della spinta», e chi cade e' finito
 		// altrove. La cella e' gia' in `KFinal`: questo insieme non la duplica.
-		TSet<ARTUnit*> KFell;
+		TMap<ARTUnit*, ERTMoveOutcome> KEsito; // #2403: QUALE esito, non solo «e' caduto»
 
 		// Chi si e' spostato per SCELTA e non per la spinta ([D-047]): serve al solo verbo del log, che
 		// altrimenti racconterebbe «spinto» un'unita' che ha deciso di scartare. Il TurnLog esiste per dire
@@ -2390,12 +2430,13 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// percorrere. Va valutata in ENTRAMBI i rami — con un bordo aperto ADIACENTE `StepUntilBlocked`
 			// non avanza, `Dest == T->Cell`, e il flusso finirebbe in `NoDestination` senza mai cadere.
 			FRTCellId Atterraggio;
-			if (Cade(T, Dest, KnockFrom[T], KnockDist[T], /*bAllontana=*/ true, KOccupied, Atterraggio)
+			ERTMoveOutcome Esito = ERTMoveOutcome::Displaced;
+			if (Cade(T, Dest, KnockFrom[T], KnockDist[T], /*bAllontana=*/ true, KOccupied, Atterraggio, Esito)
 				&& Atterraggio != T->Cell)
 			{
-				KTargets.Add(T); KFinal.Add(Atterraggio); KFell.Add(T);
+				KTargets.Add(T); KFinal.Add(Atterraggio); KEsito.Add(T, Esito);
 			}
-			else if (Dest != T->Cell) { KTargets.Add(T); KFinal.Add(Dest); }
+			else if (Dest != T->Cell) { KTargets.Add(T); KFinal.Add(Dest); KEsito.Add(T, Esito); }
 			else
 			{
 				// DESTINAZIONE IMPOSSIBILE (#420): bordo mappa, ostacolo o unita' subito dietro. La spinta e'
@@ -2406,7 +2447,12 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				// `LastStableCell`, che li' e' la cella di partenza, e senza spostamento non c'e' una voce di
 				// movimento da scrivere. La posizione — *«resta dov'e', non sparisce»* — e' cio' che
 				// `#2402` D006 chiede, ed e' esattamente quello che accade.
-				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::NoDestination, &PushCause);
+				// ⚠️ **Il PARAPETTO adiacente ha una causa propria** (#2403, [D-354]): il bordo dava sul vuoto
+				// ed era protetto, che non e' *«non c'e' dove andare»*. Gli altri restano `NoDestination`.
+				AppendDisplacementResistedEntry(T,
+					Esito == ERTMoveOutcome::StoppedByEdgeGuard ? ERTDisplacementBlockReason::EdgeGuard
+																: ERTDisplacementBlockReason::NoDestination,
+					&PushCause);
 			}
 		}
 		for (int32 a = 0; a < KTargets.Num(); ++a)
@@ -2428,11 +2474,12 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 
 			ARTUnit* T = KTargets[a];
 			const bool bScartato = Sidestepped.Contains(T);
-			const bool bCaduto = KFell.Contains(T);
+			const ERTMoveOutcome* Trovato = KEsito.Find(T);
+			const ERTMoveOutcome Esito = Trovato != nullptr ? *Trovato : ERTMoveOutcome::Displaced;
+			const bool bCaduto = EsitoEUnaCaduta(Esito);
 			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause,
 				bCaduto ? TEXT("Caduta") : (bScartato ? TEXT("Scarto") : TEXT("Spinta")),
-				Map, ERTMatchPhase::Blast,
-				bCaduto ? ERTMoveOutcome::Fell : ERTMoveOutcome::Displaced);
+				Map, ERTMatchPhase::Blast, Esito);
 
 			// ⛔ **Lo SCARTO non fa cadere, ed e' una scelta dichiarata.** `Sidestep` e' una risposta di
 			// reazione riuscita — il bersaglio esce dalla linea *invece* di arretrare — e la spinta non ha
@@ -2457,7 +2504,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 
 		TArray<ARTUnit*> PTargets;
 		TArray<FRTCellId> PFinal;
-		TSet<ARTUnit*> PFell;   // #2402: la trazione e' spostamento forzato, e cade come la spinta
+		TMap<ARTUnit*, ERTMoveOutcome> PEsito; // #2402 cade come la spinta, #2403 dice anche COME
 		for (ARTUnit* T : Units)
 		{
 			const int32* Pulls = PullCount.Find(T);
@@ -2498,12 +2545,13 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// bordo aperto fa cadere come la spinta — `bAllontana = false` perche' percorre la stessa linea
 			// nel verso opposto.
 			FRTCellId Atterraggio;
-			if (Cade(T, Dest, PullToward[T], PullDist[T], /*bAllontana=*/ false, POccupied, Atterraggio)
+			ERTMoveOutcome Esito = ERTMoveOutcome::Displaced;
+			if (Cade(T, Dest, PullToward[T], PullDist[T], /*bAllontana=*/ false, POccupied, Atterraggio, Esito)
 				&& Atterraggio != T->Cell)
 			{
-				PTargets.Add(T); PFinal.Add(Atterraggio); PFell.Add(T);
+				PTargets.Add(T); PFinal.Add(Atterraggio); PEsito.Add(T, Esito);
 			}
-			else if (Dest != T->Cell) { PTargets.Add(T); PFinal.Add(Dest); }
+			else if (Dest != T->Cell) { PTargets.Add(T); PFinal.Add(Dest); PEsito.Add(T, Esito); }
 		}
 		for (int32 a = 0; a < PTargets.Num(); ++a)
 		{
@@ -2515,10 +2563,11 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			if (bContested) { continue; }
 
 			ARTUnit* T = PTargets[a];
-			const bool bCaduto = PFell.Contains(T);
+			const ERTMoveOutcome* Trovato = PEsito.Find(T);
+			const ERTMoveOutcome Esito = Trovato != nullptr ? *Trovato : ERTMoveOutcome::Displaced;
+			const bool bCaduto = EsitoEUnaCaduta(Esito);
 			ApplyForcedDisplacement(T, PFinal[a], PullToward[T], PullCause,
-				bCaduto ? TEXT("Caduta") : TEXT("Trazione"), Map, ERTMatchPhase::Blast,
-				bCaduto ? ERTMoveOutcome::Fell : ERTMoveOutcome::Displaced);
+				bCaduto ? TEXT("Caduta") : TEXT("Trazione"), Map, ERTMatchPhase::Blast, Esito);
 			CadeSeSbilanciato(T);
 		}
 	}
