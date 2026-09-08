@@ -1,117 +1,306 @@
 ---
 name: rt-session-role
-description: Initialize the current Claude Code session with one Refactor Tactics terminal-role contract (DEV, VALIDATION, or EDITOR). Use only when explicitly invoked by the user.
+description: Initializes the current Claude Code session with exactly one RefactorTactics RT3 logical role contract (DEV, EDITOR or VALIDATION). Does not assign work, acquire Unreal, change workspace identity, or execute an issue.
 argument-hint: "[dev|test|validation|editor]"
 arguments: [role]
 disable-model-invocation: true
 allowed-tools: Read, Bash, PowerShell
 ---
 
-# Refactor Tactics session role
+# RefactorTactics — RT Session Role
 
-Initialize this Claude Code session for the requested Refactor Tactics role.
+Requested role:
 
-Requested role: `$role`
+`$role`
 
-## Normalize the role
+This skill initializes a Claude session with one RT3 **logical role**.
 
-Interpret `$role` case-insensitively:
+It does NOT create a fixed three-terminal workflow.
 
-- `dev` -> `DEV`
-- `test` -> `VALIDATION`
-- `validation` -> `VALIDATION`
-- `editor` -> `EDITOR`
+Three roles exist:
 
-If `$role` is empty or invalid, stop. Reply only with:
+```text
+DEV
+EDITOR
+VALIDATION
+```
 
-`Usage: /rt-session-role <dev|test|validation|editor>`
+The number of active windows/sessions is a runtime concern.
 
-Do not infer a role.
+---
 
-## Load the contract
+# 1 — Normalize role
+
+Case-insensitive mapping:
+
+```text
+dev         → DEV
+test        → VALIDATION
+validation  → VALIDATION
+editor      → EDITOR
+```
+
+If empty/invalid:
+
+```text
+Usage: /rt-session-role <dev|test|validation|editor>
+```
+
+Stop.
+
+Do not infer the role.
+
+---
+
+# 2 — Load canonical session contract
 
 Read:
 
-1. `${CLAUDE_PROJECT_DIR}/docs/rt-three-terminals/README.md`
-2. Exactly one role prompt:
-   - `DEV`: `${CLAUDE_PROJECT_DIR}/docs/rt-three-terminals/prompts/TERMINAL_DEV.md`
-   - `VALIDATION`: `${CLAUDE_PROJECT_DIR}/docs/rt-three-terminals/prompts/TERMINAL_VALIDATION.md`
-   - `EDITOR`: `${CLAUDE_PROJECT_DIR}/docs/rt-three-terminals/prompts/TERMINAL_EDITOR.md`
+```text
+AGENTS.md
+CLAUDE.md
+docs/rt-three-terminals/README.md
+```
 
-Do not read the other role prompts unless the user explicitly asks to compare roles.
+Then exactly one role prompt:
 
-Treat the selected role prompt as the active operational contract for the rest of this Claude Code session.
+```text
+DEV
+→ docs/rt-three-terminals/prompts/TERMINAL_DEV.md
 
-Repository-level and higher-priority instructions remain authoritative, including `AGENTS.md`, `CLAUDE.md`, applicable ADRs, issue requirements, and explicit user instructions.
+EDITOR
+→ docs/rt-three-terminals/prompts/TERMINAL_EDITOR.md
 
-## Task routing
+VALIDATION
+→ docs/rt-three-terminals/prompts/TERMINAL_VALIDATION.md
+```
 
-`Bash`/`PowerShell` are available to this skill for exactly one purpose: calling the task router **read-only**. Use them for nothing else.
+Read current RT3 shared-operation documents only as needed by the repository's live startup contract, including when referenced:
 
-If `RT_TASK_ID` is set, after loading the role contract run:
+```text
+TASK_ROUTING.md
+RT3_WORK3_AND_EDITOR.md
+RT3_CONTROL_PLANE.md
+RT3_CONTRACT.md
+```
+
+Do not read other role prompts merely to blend responsibilities.
+
+One role per session.
+
+Higher-priority repository instructions remain authoritative.
+
+---
+
+# 3 — Keep identities separate
+
+Do not collapse these concepts:
+
+```text
+SESSION ROLE
+DEV | EDITOR | VALIDATION
+
+WORKSPACE IDENTITY
+project checkout identity
+
+UNREAL RESOURCE
+who currently owns the machine-wide Unreal operation
+
+TASK ROUTING
+who should perform the current phase
+
+ISSUE OWNERSHIP / CLAIM
+GitHub/project ownership rule
+```
+
+They answer different questions.
+
+Invoking `/rt-session-role` does NOT:
+
+- change workspace identity;
+- translate workspace taxonomy;
+- acquire an Unreal lease;
+- start Unreal;
+- start PIE;
+- start build/suite;
+- assign a task;
+- claim a GitHub issue;
+- create a branch;
+- mutate the task router;
+- modify repository state.
+
+---
+
+# 4 — Workspace taxonomy safety
+
+Use the workspace identity defined by current canonical repository tooling.
+
+If environment/tooling exposes conflicting names such as:
+
+```text
+DESIGNER
+TECHNICAL_DESIGNER
+```
+
+do not invent a translation.
+
+Report:
+
+```text
+WORKSPACE_TAXONOMY_CONFLICT
+```
+
+and refer to the live owner/decision.
+
+This skill must not solve control-plane governance.
+
+---
+
+# 5 — Task routing read-only check
+
+Bash/PowerShell use inside this skill is read-only.
+
+If `RT_TASK_ID` exists, query:
 
 ```powershell
-pwsh -NoLogo -NoProfile -File scripts/rt-task-router.ps1 -Action status -TaskId <RT_TASK_ID>
-pwsh -NoLogo -NoProfile -File scripts/rt-task-router.ps1 -Action assignment -TaskId <RT_TASK_ID>
+rttask status -TaskId $env:RT_TASK_ID
+rttask assignment -TaskId $env:RT_TASK_ID
 ```
 
-Then report:
+or the repository-equivalent current command.
 
-- the task id, title and status;
-- `next_actor`;
-- the current assignment sequence and its objective.
-
-Compare `RT_TERMINAL_ROLE` with `next_actor`. If they differ, report the mismatch and stop:
+Report:
 
 ```text
-TASK_ROUTE_MISMATCH — this terminal is <role>, the task expects <next_actor>.
+TASK ID
+TASK STATUS
+NEXT ACTOR
+ASSIGNMENT SEQUENCE
+OBJECTIVE
 ```
 
-Do not fix it. Routing mutations (`init`, `assign`, `close`) belong to the RT Coordinator, and the router refuses them from a session that declares a role.
-
-If `RT_TASK_ID` is not set, say so in one line and continue: a terminal without a task is a supported, normal case.
-
-Invoking this skill:
-
-- does not change routing;
-- does not create, assign or close a task;
-- does not deposit a result.
-
-Semantics: `docs/rt-three-terminals/TASK_ROUTING.md`.
-
-## Separation of concerns
-
-Four concepts, not one. Keep them apart:
+Compare:
 
 ```text
-session role        DEV | EDITOR | VALIDATION       RT_TERMINAL_ROLE
-workspace identity  MAIN | DEV | TECHNICAL_DESIGNER rtws -Action verify
-engine lease        who occupies Unreal now         rtlease -Action status
-task routing        who must work now               rttask status
+RT_TERMINAL_ROLE
+vs
+next_actor
 ```
 
-The Claude session role and the machine-wide Unreal engine mode are separate.
+If mismatch:
 
-Invoking this skill:
-- does not change `rtmode`;
-- does not change `RT_TERMINAL_ROLE` in the parent PowerShell process;
-- does not change the VS Code terminal profile, name, or color;
-- does not acquire Unreal ownership;
-- does not start Unreal, PIE, builds, tests, Scenario Harness, or suites.
+```text
+TASK_ROUTE_MISMATCH
+```
 
-For `VALIDATION` and `EDITOR`, follow the README/prompt preconditions before any later task occupies Unreal.
+Stop.
 
-If the environment exposes an existing terminal role and it conflicts with the requested role, report the mismatch. Do not silently rewrite either value.
+Do not mutate the router or fix the assignment.
 
-## Completion response
+The Coordinator owns routing mutations.
 
-After loading the contract, reply concisely with:
+If `RT_TASK_ID` is absent:
 
-`RT SESSION ROLE: <DEV|VALIDATION|EDITOR>`
+```text
+NO TASK ASSIGNED
+```
 
-Then report:
-- the loaded role prompt path;
-- the current engine mode only if it can be read safely without changing it;
-- one sentence summarizing the role's operating boundary.
+This is valid.
 
-Then stop and wait for the user's next instruction.
+A role session may exist before receiving work.
+
+---
+
+# 6 — Unreal resource
+
+Opening or initializing an EDITOR/VALIDATION session does not acquire Unreal.
+
+A terminal may remain open while another task/role uses the machine resource.
+
+Unreal ownership is:
+
+```text
+just-in-time
+exclusive
+released after the operation
+```
+
+The exact lease/resource command comes from current repository tooling.
+
+This skill may read current status when safe.
+
+It does not acquire/release it during initialization.
+
+---
+
+# 7 — Role summary
+
+## DEV
+
+Owns C++, tests, textual Scenario Harness authoring, headless tooling, docs and Git/GitHub.
+
+Does not occupy Unreal unless a later explicit accepted workflow says otherwise.
+
+## EDITOR
+
+Owns Unreal asset authoring, Blueprint/UMG/Material, `.uasset/.umap`, PIE and visual/human acceptance.
+
+Does not automatically own the machine Unreal resource just because the session is open.
+
+## VALIDATION
+
+Owns independent build/test measurement, Scenario Harness execution, determinism/replay/privacy and packaged/performance where required.
+
+Does not repair a defect and approve its own fix.
+
+---
+
+# 8 — MAIN / MCP
+
+When live repository policy says only the `MAIN` workspace hosts the machine MCP bridge:
+
+- treat this as workspace/resource policy;
+- do not confuse `MAIN` workspace identity with Git branch `main`;
+- an EDITOR role outside the authorized workspace does not gain MCP asset-write permission merely because it is EDITOR.
+
+Do not silently bypass MCP policy.
+
+---
+
+# 9 — Completion output
+
+Reply:
+
+```text
+RT SESSION ROLE: <DEV|EDITOR|VALIDATION>
+```
+
+Then:
+
+```text
+ROLE CONTRACT: <path>
+
+TASK:
+<id/status/next actor or NO TASK ASSIGNED>
+
+WORKSPACE:
+<measured identity if available>
+
+UNREAL RESOURCE:
+<status if safely readable>
+
+BOUNDARY:
+<one-sentence role boundary>
+```
+
+If any mismatch exists, append exactly the relevant warning:
+
+```text
+TASK_ROUTE_MISMATCH
+WORKSPACE_TAXONOMY_CONFLICT
+ROLE_ENVIRONMENT_MISMATCH
+```
+
+Then stop and wait for the next instruction.
+
+Do not automatically invoke `/issue-run`.
