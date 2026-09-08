@@ -206,18 +206,45 @@ MUTAZIONI = [
         ],
     },
     {
-        # ⛔ Come la 2: non soddisfacibile oggi, e per una ragione dichiarata invece che dimenticata.
-        # `spec` §3.2 vuole che il percorso volontario residuo sia annullato, ma il piano viaggia in uno
-        # SNAPSHOT preso al lock-in — non sull'unita' — e un test esistente (`Push.DoesNotSpendTheVictimMove`,
-        # #308) asserisce l'opposto per una spinta normale. Non c'e' codice da mutare perche' non c'e'
-        # ancora codice: la lacuna e' nel report finale di #2402, non nascosta qui.
+        # 🔁 **Corretta il 2026-09-08: era dichiarata non soddisfacibile, e non lo e'.**
+        #
+        # Il pattern cercava `// #2402 §3.2` dentro `RTTurnManager_Blast.cpp`, cioe' una forma che #2402
+        # avrebbe potuto dare al ramo e non gli ha dato. Il comportamento pero' ESISTE, ed e' PIU' VECCHIO
+        # di #2402: `ApplyForcedDisplacement` azzera il piano a `RTTurnManager.cpp:2359`, per `D-045` e
+        # `#308`, e `CancelsRemainingVoluntaryPath` lo pinna da allora — verde, non rosso.
+        #
+        # 🔑 **La nota vecchia sbagliava la conclusione partendo da una premessa giusta.** Diceva che il
+        # piano «viaggia in uno SNAPSHOT preso al lock-in, non sull'unita'»: vero per la RISOLUZIONE, ma
+        # `ApplyForcedDisplacement` tocca `Unit->PlannedPath` — l'unita' viva — ed e' li' che la regola di
+        # §3.2 e' applicata. Cercare nel file sbagliato dava `NON APPLICABILE`, che e' esattamente
+        # l'inganno contro cui questo strumento e' costruito: un esito che sembra un limite del codice
+        # mentre e' un limite della query.
         "id": "5-percorso-volontario",
-        "titolo": "non annullare il percorso volontario",
-        "prova": "#2402 - niente auto-reroute dalla nuova posizione (spec §3.2)",
-        "file": "Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp",
-        "cerca": r"(\w+\.(?:Path|PlannedPath|Remaining\w*)\.(?:Empty|Reset)\(\);\s*// #2402 §3\.2)",
+        "titolo": "non annullare il percorso volontario dopo uno spostamento forzato",
+        "prova": "#2402 - niente auto-reroute dalla nuova posizione (spec §3.2, D-045)",
+        "file": "Source/RefactorTactics/Turn/RTTurnManager.cpp",
+        "cerca": r"(\tUnit->PlannedPath\.Reset\(\);\n\tUnit->PlannedWaypoints\.Reset\(\);)",
         "sostituisci": r"/* MUT5 */ ;",
         "bersagli": ["RefactorTactics.ForcedMovement.CancelsRemainingVoluntaryPath"],
+    },
+    {
+        # La SESTA, da [D-353]: l'invariante di occupazione con DUE cadute nello stesso Blast.
+        #
+        # 🔴 **La mutazione NON e' «risolvere le cadute in ordine inverso»**, che #2406 nominava e che
+        # sarebbe **sopravvissuta per costruzione**: se l'esito e' davvero invariante per permutazione,
+        # invertire l'ordine non cambia niente e nessun test cade — cioe' la mutazione misurerebbe il
+        # proprio bersaglio al contrario. Cio' che si sopprime e' la PROTEZIONE: senza il rilevamento
+        # della destinazione contesa, due cadute che puntano alla stessa cella ci finiscono entrambe.
+        #
+        # ⚠️ Il pattern e' sul ramo della SPINTA (`KFinal`): la trazione ha il proprio, e mutarli insieme
+        # non direbbe quale dei due regge.
+        "id": "6-cadute-concorrenti",
+        "titolo": "sopprimere la protezione della destinazione contesa fra due cadute",
+        "prova": "[D-353] - nessuna cella con due occupanti, comunque ordinate le cadute (spec §4.3.1)",
+        "file": "Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp",
+        "cerca": r"if \(a != b && KFinal\[a\] == KFinal\[b\]\)",
+        "sostituisci": r"if (false)",
+        "bersagli": ["RefactorTactics.Fall.TwoFallersSameLandingIsDeterministic"],
     },
 ]
 
