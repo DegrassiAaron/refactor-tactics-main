@@ -131,7 +131,7 @@ Quel che serve sapere per **orientarsi** è dove ogni domanda ha risposta:
 | A che punto è l'esecuzione | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) | Milestone M6–M11, non duplica §2.1 |
 | Come è organizzato il lavoro aperto | [`roadmap-main-v0.1.md`](roadmap-main-v0.1.md) | Tre lane, sei wave, handoff |
 | Che numeri valgono oggi | `docs/balance/` | Cataloghi vigenti — **numeri, non regole** ([D-210](../decisions/RT_PDR_00_Decision_Log.md)) |
-| Cosa è vero nel codice | `Source/` + la suite | `./scripts/rt-suite.ps1`, mai un documento |
+| Cosa è vero nel codice | `Source/` + la suite | La suite Automation, lanciata come in [`AGENTS.md`](../../AGENTS.md) §Suite Unreal — mai un documento |
 
 ### I gate, in una fotografia datata
 

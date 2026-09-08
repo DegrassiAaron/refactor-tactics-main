@@ -35,10 +35,10 @@ lacuna vera. Successo due volte il 2026-09-02 («Unable to build while Live Codi
 Editor su un altro checkout). Qui si ritenta su QUALUNQUE fallimento — non solo su quella frase, perche'
 un Editor aperto produce invece `Result: Failed (OtherCompilationError)` (`#971`).
 
-🔴 **Si RICOSTRUISCE dopo l'attesa, non prima.** `rt-suite` puo' restare in coda fino a 90 minuti, e in
-quella finestra un'altra sessione puo' riscrivere il DLL condiviso: l'invariante di `rt-suite` copre il
-binario che cambia DURANTE la run, non uno gia' stantio all'avvio. E' la regola di `AGENTS.md` e di
-`CLAUDE.md` §6, e qui vale il doppio.
+🔴 **Si RICOSTRUISCE dopo l'attesa, non prima.** La suite puo' restare in attesa del motore fino a 90
+minuti, e in quella finestra un'altra sessione puo' riscrivere il DLL condiviso: l'invariante di validita'
+copre il binario che cambia DURANTE la run, non uno gia' stantio all'avvio. E' la regola di `AGENTS.md` e
+di `CLAUDE.md` §6, e qui vale il doppio.
 
 🔴 **Si verifica che la mutazione sia ATTERRATA.** Una scrittura no-op — spaziatura diversa, letterale che
 compare prima in un commento — farebbe scattare l'allarme piu' forte dello strumento (*«nessun test se ne
@@ -52,9 +52,9 @@ mutazione sul disco: senza il ripristino iniziale diventerebbe la nuova base di 
 
 ## ⛔ Il rischio, dichiarato
 
-Modifica un sorgente. ⚠️ **Un'interruzione lascia mutato anche il BINARIO**, che e' la meta' che `rt-suite`
-**non** sa vedere: `git checkout --` rimette a posto l'header e non il DLL. Se lo strumento non stampa
-`AUDIT COMPLETO`, **ricostruire prima di qualunque altra misura**.
+Modifica un sorgente. ⚠️ **Un'interruzione lascia mutato anche il BINARIO**, che e' la meta' che il
+confronto su `HEAD` e albero **non** vede: `git checkout --` rimette a posto l'header e non il DLL. Se lo
+strumento non stampa `AUDIT COMPLETO`, **ricostruire prima di qualunque altra misura**.
 
 E mentre gira il motore e' occupato: ogni altra misura in parallelo e' NON VALIDA.
 
@@ -190,8 +190,8 @@ def suite():
     return verdetto, esito, rossi
 
 def misura():
-    """Ricostruisce DOPO aver ottenuto il motore non si puo': rt-suite lo prende da se'. Si ricostruisce
-    prima, e si RICOSTRUISCE ANCORA se la run e' rimasta in coda a lungo — la regola di AGENTS.md."""
+    """Ricostruire DOPO aver ottenuto il motore non si puo': la suite lo occupa da se' appena parte. Si
+    ricostruisce prima, e si RICOSTRUISCE ANCORA se la run ha atteso a lungo — la regola di AGENTS.md."""
     if not build():
         return None
     v, e, rossi = suite()
@@ -277,6 +277,7 @@ with io.open(ESITI, "w", encoding="utf-8") as f:
 ripristina()
 if not build():
     print("⛔ BINARIO MUTATO SUL DISCO: il ripristino finale non ha ricostruito.\n"
-          "   Ricostruire PRIMA di qualunque altra misura — `rt-suite` non vede un binario gia' stantio.")
+          "   Ricostruire PRIMA di qualunque altra misura — il confronto su `HEAD` e albero\n"
+          "   non vede un binario gia' stantio.")
     sys.exit(1)
 print("AUDIT COMPLETO" + (" (con %d costanti senza misura valida)" % len(sospese) if sospese else ""))

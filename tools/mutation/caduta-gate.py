@@ -47,8 +47,9 @@ compila, e una che compila puo' **appendere** invece di far cadere.
 ## Le scelte che rendono la misura onesta
 
 🔴 **Baseline VALIDA obbligatoria.** Senza, un rosso preesistente verrebbe attribuito alla mutazione.
-E non basta che la suite finisca: `rt-suite` dichiara `VALIDA` solo se `HEAD`, working tree, binario
-e stato del motore non cambiano durante la misura. Un `NON VALIDA` ferma il gate.
+E non basta che la suite finisca: una misura vale `VALIDA` solo se `HEAD`, working tree, binario
+e stato del motore non cambiano durante la run. Un `NON VALIDA` ferma il gate. ⚠️ Fino al 2026-09-08
+quel confronto lo faceva `rt-suite.ps1`; rimosso, lo fa `_istantanea()` qui sotto.
 
 🔴 **Guardia sul non committato.** Il ripristino usa i byte letti in memoria, non `git checkout --`:
 `#2406` avverte che quel comando **cancella il non committato**, e questo strumento gira anche
@@ -64,7 +65,7 @@ senza il ripristino iniziale diventerebbe la base di tutte le misure seguenti.
 🔴 **Il self-test.** `--self-test` esercita la logica dello strumento - i tre esiti, il controllo di
 atterraggio, la differenza di insiemi - senza motore e senza sorgenti, in un secondo. Non prova che
 il gate parli correttamente con Unreal: prova che, dati quei numeri, li classifica come dichiarato.
-E' la stessa convenzione di `rt-suite.ps1 -SelfTest`.
+E' la convenzione che il repository aveva gia' in `rt-suite.ps1 -SelfTest`, rimosso il 2026-09-08.
 
 🔴 **La taratura.** `--taratura` esegue una sesta mutazione su codice che esiste **oggi**
 (`URTHexLedgeLibrary::IsEdgeOpen`, `#2401`, gia' su `main`): sopprime la guardia del parapetto, e il
@@ -82,8 +83,8 @@ bersaglio e' `Map.OpenEdge.GuardSuppressesOpenness`. Risponde alla domanda che p
 - **Il binario, alla fine, non e' quello del sorgente** finche' non lo si ricostruisce. Il ciclo
   ripristina il sorgente dopo ogni misura ma non ricompila: l'ultimo DLL prodotto e' quello MUTATO.
   Misurato il 2026-09-05 — sorgente pulito, DLL mutato di quattro minuti prima. Per questo il gate
-  **ricostruisce da se'** alla fine, e se quel build fallisce lo dice forte: e' la meta' che
-  `rt-suite` non sa vedere, e chi misurasse dopo misurerebbe la mutazione.
+  **ricostruisce da se'** alla fine, e se quel build fallisce lo dice forte: e' la meta' che il
+  confronto su `HEAD` e albero non vede, e chi misurasse dopo misurerebbe la mutazione.
 - **Non misura gli effetti numerici della caduta** (`FallEffects`/`ImpactEffects`): non esistono come
   dato, e `#2402` D001 lo dichiara. Sono materia di `#2430`.
 - **Non sostituisce l'accettazione in Editor** (`#2408`) ne' l'evidenza packaged (`#2407`).
@@ -118,10 +119,11 @@ UPROJECT = os.path.join(RADICE, "RefactorTactics.uproject")
 BUILD_BAT = r"D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat"
 ENGINE_CMD = r"D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
 
-# 🔴 `pwsh`, non `powershell`. Windows PowerShell 5.1 non riesce nemmeno a fare il PARSING di
-# `rt-suite.ps1` — errori «'}' di chiusura mancante» — e **termina con codice 0**. Il risultato e' un
-# processo che sembra riuscito, non stampa nessun marcatore `[RT-MEASURE]`, e lascia il gate senza
-# verdetto. Misurato il 2026-09-05: la prima taratura e' morta esattamente qui.
+# 🔴 `pwsh`, non `powershell`. ⚠️ La ragione misurata il 2026-09-05 e' SCADUTA: riguardava il PARSING
+# di `rt-suite.ps1` — errori «'}' di chiusura mancante» con **exit code 0**, cioe' un processo che
+# sembrava riuscito senza aver misurato niente — e quello script e' stato rimosso il 2026-09-08. Qui
+# `pwsh` serve solo a invocare `Build.bat` col quoting scritto in `build()`. Resta perche' e'
+# l'interprete su cui quella invocazione e' stata misurata: con `powershell` non e' stata riprovata.
 PWSH = "pwsh"
 
 # Filtro della suite. Il mutex del motore ferma ogni checkout, e una suite intera per mutazione sono
@@ -475,12 +477,13 @@ if DRY:
     sys.exit(0 if not NON_APPLICABILI else 2)
 
 # 🔴 L'interprete si verifica PRIMA del primo build, non dopo. La prima taratura ha pagato un build
-# completo per scoprire che `rt-suite` non era nemmeno partito.
+# completo per scoprire che l'interprete non era nemmeno partito (allora era `rt-suite.ps1`).
 prova = subprocess.run([PWSH, "-NoProfile", "-Command", "exit 0"],
                        capture_output=True, text=True, errors="replace")
 if prova.returncode != 0:
-    print("\n⛔ FERMO: `%s` non e' eseguibile. `Build.bat` si invoca da PowerShell:\n"
-          "   Windows PowerShell 5.1 non ne fa nemmeno il parsing, e termina con codice 0." % PWSH)
+    print("\n⛔ FERMO: `%s` non e' eseguibile, e `build()` invoca `Build.bat` da li'.\n"
+          "   Installare PowerShell 7 (`pwsh`), oppure cambiare PWSH dopo aver rimisurato\n"
+          "   che il quoting di `build()` regga sull'interprete scelto." % PWSH)
     sys.exit(2)
 
 for m in APPLICABILI:
