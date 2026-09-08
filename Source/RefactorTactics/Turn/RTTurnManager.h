@@ -1449,6 +1449,9 @@ protected:
 	/** Porta a termine una risoluzione sospesa la cui finestra si e' chiusa. Vedi il .cpp. */
 	void ResumeSuspendedResolution();
 
+	/** Emette gli eventi `Move` della timeline dai risultati passati. Vedi il .cpp: serve anche a meta'. */
+	void EmitMoveEvents(const TArray<ARTUnit*>& Units, const TArray<FRTHexMoveResult>& Results);
+
 	/**
 	 * Apre UNA finestra e ne restituisce l'esito (CP 14.5). Non applica nulla: decide soltanto.
 	 *
