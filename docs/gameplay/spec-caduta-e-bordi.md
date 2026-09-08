@@ -287,6 +287,36 @@ aperto — `Combat.CounterStrikesBack`, `Movement.Basic`, `Movement.Collision`, 
 specializzazione non cambia il significato di niente di già scritto. La verifica definitiva è del gate
 [#2406](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2406).
 
+### 9.2 Il parapetto ha un esito proprio
+
+Un bordo **aperto** fa cadere, un **parapetto** ferma: sono le due qualifiche del §2 che il vocabolario di
+[#2401](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2401) ha creato, e la traccia le
+distingue entrambe da un muro.
+
+| Caso | Esito |
+|---|---|
+| l'unità si muove e il parapetto la tiene sul ciglio | `ERTMoveOutcome::StoppedByEdgeGuard` |
+| il parapetto è **adiacente**: nessuna cella utile, l'unità non si muove | `ERTDisplacementBlockReason::EdgeGuard`, con `DisplacementResisted` |
+| muro, unità, bordo mappa | invariati — `Displaced` o `NoDestination` |
+
+🔑 **Due valori e non uno, perché lo spostamento forzato ha due rami** — gli stessi due che
+[#2402](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2402) D006 ha dovuto gestire per la
+caduta: quello che sposta e quello che finisce in `NoDestination` con `Dest == cella di partenza`. Un solo
+valore ne coprirebbe uno e lascerebbe l'altro indistinguibile da un muro.
+
+⛔ **`ERTDisplacementBlockReason::Guarded` è un'altra cosa** e non si riusa: significa *«`Action.Guard` ha
+retto»*, cioè una **decisione dell'unità**, mentre il parapetto è **geometria della mappa**. La tassonomia
+dell'enum separa già le due famiglie — *«due sono decisioni dell'unità, tre sono geometria del turno»* — e
+fonderle cancellerebbe la distinzione che quel commento esiste per fare.
+
+🔑 **La query esiste già**: `FRTHexCellData::HasGuardOn(Edge)` (`RTHexCellData.h:463`), e la direzione è già
+ricostruita a valle da `DirezioneSpostamentoForzato`. Nessuna API nuova, nessuna firma allargata.
+
+⚠️ **Il codice sapeva già che i casi erano tre, e li accomunava di proposito**: il commento al punto 3 di
+`RisolviCadutaSeBordoAperto` dice *«Muro, unità e parapetto rispondono `false`, ed è la distinzione che
+`StepUntilBlocked` da solo non può dare»*. Ciò che mancava non era la conoscenza — era un posto dove
+scriverla.
+
 🔴 **I valori nuovi si aggiungono in coda.** `ERTMoveOutcome` ed `ERTDisplacementBlockReason` viaggiano nel
 TurnLog come **indice** e il formato è oggi `ERTTurnLogFormatVersion::WithSightBlocker` = **13**: estendere
 in coda non è una migrazione, riordinare o cambiare esiti già prodotti sì, con rigenerazione del corpus
