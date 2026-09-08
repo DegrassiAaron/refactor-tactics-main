@@ -118,7 +118,27 @@ Corretta come **fase**, stale come **milestone**. **Esito**: nota additiva su #2
   regola dichiarava, e che §3 conteneva già dicendo *«spostamento forzato»* invece di *«spinta»*.
 - **#2406 come gate di mutazione** — cinque mutazioni nominate, il verso della misura dichiarato,
   l'avvertenza sul mutex globale del motore. Più rigoroso della media del repository.
-- **§9 sul formato** — `WithMicroStep` = **12** è ancora il massimo su `13ddc500`: la nota è viva.
+- **§9 sul formato** — la nota sul versionamento è viva, ma il **numero** era stale e il panel non se n'era
+  accorto: vedi §9.
+
+---
+
+## 9. Ciò che la code review ha trovato, 2026-09-08
+
+🔴 **Il panel ha certificato un numero che aveva letto in un output troncato.** La §9 della spec diceva
+*«il formato è oggi `ERTTurnLogFormatVersion::WithMicroStep` = 12»*, e la §4 di questo referto lo ha
+promosso a *«è ancora il massimo su `13ddc500`»*. È **falso**: il massimo è `WithSightBlocker` = **13**,
+entrato il **2026-09-06** con `0698594b` (#2534). La stale aveva **due giorni** quando il panel l'ha
+certificata.
+
+**Come è successo, per non ripeterlo**: la misura dell'enum era stata fatta con un `sed -n '1,60p'` su un
+grep — l'output si è fermato a `WithMicroStep = 12` e la riga successiva del file era `Square = 0`, che
+sembrava la fine dell'enum. Non lo era: `WithSightBlocker` sta **42 righe più sotto**, dopo un commento
+lungo.
+
+📝 **La regola che ne segue**: un numero che si dichiara *«il massimo»* si misura con `tail`, mai con
+`head`. Corretto in tre sedi — `spec` §9 e §9.1, `D-349` — prima del merge. **La conclusione di `D-349` non
+cambia**: estendere in coda resta non-migrazione, e un campo dedicato costerebbe **14** invece di 13.
 
 ---
 

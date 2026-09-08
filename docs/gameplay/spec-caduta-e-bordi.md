@@ -275,7 +275,7 @@ attributo.
 | nessun atterraggio (§4 ⚠️) | `FellWithoutLanding` | in coda |
 
 ⛔ **Perché non un campo dedicato**: costerebbe un bump di `ERTTurnLogFormatVersion` — oggi
-`WithMicroStep` = **12**, verificato su `13ddc500` — e quindi una migrazione, per distinguere quattro casi
+`WithSightBlocker` = **13**, misurato su `13ddc500` — e quindi una migrazione, per distinguere quattro casi
 che l'enum distingue senza. ⛔ **Perché non `ERTDisplacementBlockReason`**: la caduta non è un blocco, e
 riusarlo direbbe che lo spostamento è stato impedito quando invece si è concluso.
 
@@ -288,9 +288,15 @@ specializzazione non cambia il significato di niente di già scritto. La verific
 [#2406](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2406).
 
 🔴 **I valori nuovi si aggiungono in coda.** `ERTMoveOutcome` ed `ERTDisplacementBlockReason` viaggiano nel
-TurnLog come **indice** e il formato è oggi `ERTTurnLogFormatVersion::WithMicroStep` = **12**: estendere in
-coda non è una migrazione, riordinare o cambiare esiti già prodotti sì, con rigenerazione del corpus golden
-([`D-245`](../decisions/RT_PDR_00_Decision_Log.md)).
+TurnLog come **indice** e il formato è oggi `ERTTurnLogFormatVersion::WithSightBlocker` = **13**: estendere
+in coda non è una migrazione, riordinare o cambiare esiti già prodotti sì, con rigenerazione del corpus
+golden ([`D-245`](../decisions/RT_PDR_00_Decision_Log.md)).
+
+> 🔴 **Questa riga diceva `WithMicroStep` = 12, e lo diceva da due giorni di troppo.** `WithSightBlocker` =
+> **13** è entrato il **2026-09-06** con `0698594b` (#2534, *«il log nomina il muro che ferma il tiro»*).
+> Corretto il 2026-09-08 in code review sulla PR **#2676** — che aveva **certificato** il 12 come *«ancora
+> il massimo»* dopo averlo letto in un output troncato. La conclusione non cambia: estendere in coda resta
+> non-migrazione, e un campo dedicato costerebbe **14**.
 
 ⚠️ **Questa sezione diceva *«distingue almeno»* e non diceva come.** Con un solo valore in codice, chi
 implementava [#2403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2403) avrebbe scelto da
