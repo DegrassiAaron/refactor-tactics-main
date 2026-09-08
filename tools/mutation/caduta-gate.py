@@ -223,7 +223,7 @@ MUTAZIONI = [
         "titolo": "non annullare il percorso volontario dopo uno spostamento forzato",
         "prova": "#2402 - niente auto-reroute dalla nuova posizione (spec §3.2, D-045)",
         "file": "Source/RefactorTactics/Turn/RTTurnManager.cpp",
-        "cerca": r"(\tUnit->PlannedPath\.Reset\(\);\n\tUnit->PlannedWaypoints\.Reset\(\);)",
+        "cerca": r"(\tUnit->PlannedPath\.Reset\(\);\r?\n\tUnit->PlannedWaypoints\.Reset\(\);)",
         "sostituisci": r"/* MUT5 */ ;",
         "bersagli": ["RefactorTactics.ForcedMovement.CancelsRemainingVoluntaryPath"],
     },
@@ -462,11 +462,22 @@ def applicabile(m):
     """Si misura PRIMA di toccare il motore.
 
     🔴 E' il controllo che separa «il test e' cieco» da «non c'e' niente da mutare». Senza, un gate
-    lanciato prima che #2402 sia integrata stamperebbe zero sopravvissute su zero mutazioni."""
+    lanciato prima che #2402 sia integrata stamperebbe zero sopravvissute su zero mutazioni.
+
+    🔴 **Si legge come legge la mutazione, byte per byte.** `io.open(..., encoding=...)` applica gli
+    universal newlines e traduce `CRLF` in `
+`: un pattern multi-riga scritto con `
+` trovava qui e
+    NON trovava al momento di mutare, che legge in byte per non riscrivere i fine-riga di nessuno. Le due
+    letture davano due risposte diverse, e la piu' rassicurante era quella sbagliata — `APPLICABILE` nel
+    dry-run, `NON ATTERRATA` nella run vera, senza che niente lo spiegasse.
+
+    ⚠️ Misurato il 2026-09-08 su `RTTurnManager.cpp`: **8427 CRLF, zero LF soli**. Non e' un caso di
+    confine, e' la norma dei sorgenti di questo repository."""
     percorso = os.path.join(RADICE, m["file"])
     if not os.path.exists(percorso):
         return False, "il file non esiste: " + m["file"]
-    testo = io.open(percorso, encoding="utf-8", errors="replace").read()
+    testo = io.open(percorso, encoding="utf-8", errors="replace", newline="").read()
     if not re.search(m["cerca"], testo):
         return False, "il pattern non si trova in " + m["file"]
     return True, ""
