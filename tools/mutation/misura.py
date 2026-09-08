@@ -218,6 +218,16 @@ def verdetto(prima, dopo, testo_log, filtro=""):
         troncata = True
         problemi.append("copertura %d/%d avviati: la run e' stata troncata (%d non partiti,"
                         " %d fallimenti)" % (avviati, trovati, trovati - avviati, falliti))
+    elif completati < avviati - 1:
+        # 🔴 **La tolleranza vale per UNA conclusione, non per un numero qualsiasi.** La sua
+        # giustificazione e' che l'ULTIMO test perde la riga nel flush di shutdown: uno, non
+        # dieci. ⚠️ `rt-suite.ps1` si fermava a `avviati < trovati` e qui era piu' largo del
+        # proprio motivo — `5 avviati, 0 conclusi` passava. Non e' una regressione di questa
+        # PR: e' un limite ereditato, stretto qui alla misura che lo giustifica.
+        troncata = True
+        problemi.append("copertura %d/%d completati su %d avviati: mancano %d conclusioni, e la"
+                        " coda di shutdown ne spiega UNA"
+                        % (completati, trovati, avviati, avviati - completati))
     elif trovati == 1 and completati < 1:
         # 🔴 **La tolleranza vale solo se c'e' una coda da tollerare.** La sua
         # giustificazione e' che l'ULTIMO test perde la conclusione: su 1232, uno e'
@@ -231,13 +241,20 @@ def verdetto(prima, dopo, testo_log, filtro=""):
                         " ha una lettura benigna" % completati)
         problemi.append("          (la coda di shutdown copre l'ULTIMO test di una suite,"
                         " non l'UNICO)")
-    elif "**** TEST COMPLETE. EXIT CODE:" not in testo_log:
-        # `roadmap-main-v0.1.md` §7 chiede DUE righe nel log, non una: `Found N` in testa
-        # e questa in fondo. Senza, una run uccisa dopo l'ultimo `Test Completed.` e prima
-        # del terminatore passerebbe per conclusa.
-        troncata = True
-        problemi.append("copertura il log non porta «**** TEST COMPLETE. EXIT CODE: n ****»:"
-                        " la run non e' terminata")
+    if trovati is not None and "**** TEST COMPLETE. EXIT CODE:" not in testo_log:
+        # `roadmap-main-v0.1.md` §7 chiede DUE righe nel log, non una: `Found N` in testa e
+        # questa in fondo, e una run uccisa dopo l'ultimo `Test Completed.` non ha la seconda.
+        #
+        # ⚠️ **AVVISO, non verdetto, e la ragione e' che non l'ho misurata abbastanza.** La
+        # forma esatta esiste — `LogAutomationCommandLine: Display: **** TEST COMPLETE. EXIT
+        # CODE: 0 ****`, verificata nei log di questa macchina — ma `Saved/Logs/830-final.log`
+        # riporta «Automation Test Queue Empty 824 tests performed» e NON la contiene. Finche'
+        # non e' chiaro se dipenda dall'invocazione (`-ExecCmds ... ;Quit` la scrive, altre
+        # forme no), farne una condizione bloccante rischia di dichiarare NON VALIDA ogni run
+        # e fermare i due gate sul nascere. Si promuove a bloccante quando sara' confermata su
+        # un log prodotto da `esegui_suite()`. Vedi `#2672`.
+        problemi.append("avviso    il log non porta «**** TEST COMPLETE. EXIT CODE: n ****»."
+                        " Se la run sembra completa, verificare a mano che sia terminata")
 
     if crash or drift or troncata:
         v = "NON VALIDA"
@@ -361,11 +378,25 @@ def self_test():
          _A, _A, _log(trovati=1, avviati=1, completati=0, coda="appError called"))
     caso("troncata: 60 avviati su 100 e' NON VALIDA", "NON VALIDA",
          _A, _A, _log(trovati=100, avviati=60, completati=60))
+    # 🔴 La tolleranza copre UNA conclusione, non un numero qualsiasi: `rt-suite.ps1` era
+    # piu' largo del proprio motivo e lasciava passare questi due.
+    caso("5 partiti e 0 conclusi e' NON VALIDA", "NON VALIDA",
+         _A, _A, _log(trovati=5, avviati=5, completati=0))
+    caso("10 partiti e 2 conclusi e' NON VALIDA", "NON VALIDA",
+         _A, _A, _log(trovati=10, avviati=10, completati=2))
+    caso("2 partiti e 1 concluso resta VALIDA: manca UNA conclusione", "VALIDA",
+         _A, _A, _log(trovati=2, avviati=2, completati=1))
     caso("assertion fallita e' NON VALIDA", "NON VALIDA",
          _A, _A, _log(trovati=4, avviati=4, completati=4,
                       coda="LogCore: Error: Assertion failed: Check(bValid) [Line: 12]"))
-    caso("senza il terminatore la run non e' conclusa", "NON VALIDA",
+    # ⚠️ AVVISO, non verdetto: la stringa non e' ancora confermata su un log prodotto da
+    # `esegui_suite()`, e bloccare su di essa fermerebbe i gate sul nascere (`#2672`).
+    caso("senza il terminatore il verdetto NON cambia", "VALIDA",
          _A, _A, _log(trovati=4, avviati=4, completati=4, terminatore=False))
+    _, _, _, _, avvisi = verdetto(_A, _A, _log(trovati=4, avviati=4, completati=4,
+                                               terminatore=False))
+    casi.append(("...ma l'assenza del terminatore e' segnalata",
+                 any(p.startswith("avviso") for p in avvisi), str(avvisi)))
     caso("albero cambiato e' NON VALIDA", "NON VALIDA",
          _A, _B, _log(trovati=2, avviati=2, completati=2))
     caso("filtro che non corrisponde e' NON AVVIATA", "NON AVVIATA",
