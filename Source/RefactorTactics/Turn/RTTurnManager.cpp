@@ -7028,15 +7028,16 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 		FRTLogSubject::UnitAt(WatchOwner, State.Pos[OwnerIdx]));
 }
 
-void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units,
-	FRTMovementResolutionState& State, const TArray<int32>& MovedUnitIds, int32 MicroStepIndex)
+ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map,
+	const TArray<ARTUnit*>& Units, FRTMovementResolutionState& State, const TArray<int32>& MovedUnitIds,
+	int32 MicroStepIndex)
 {
 	// Fail-closed su tutti e tre: senza mappa non c'e' LOS (quindi nessun trigger), senza Overwatch armati non
 	// c'e' chi reagisce, e senza nessuno che si sia mosso non c'e' l'ingresso in una cella controllata — che
 	// e' l'evento, non la presenza.
 	if (!Map || ArmedOverwatches.Num() == 0 || MovedUnitIds.Num() == 0)
 	{
-		return;
+		return ERTMovementAdvanceResult::Advanced;
 	}
 
 	// --- 1. I WATCHER, derivati dallo stato CORRENTE -------------------------------------------------------
@@ -7124,7 +7125,7 @@ void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TA
 	}
 	if (Watchers.Num() == 0)
 	{
-		return;
+		return ERTMovementAdvanceResult::Advanced;
 	}
 
 	// --- 2. I MOVER: il solo passo APPENA compiuto ---------------------------------------------------------
@@ -7151,6 +7152,18 @@ void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TA
 		Map, TurnNumber, Watchers, Movers, Vitals, MicroStepIndex);
 
 	// --- 3. Per ogni opportunity: finestra, decisione, commit ----------------------------------------------
+	// 🔑 **Appaiare prima, consumare poi** (`#2679` fetta 2). Il ciclo qui sotto non risolve piu' nulla:
+	// costruisce le coppie `(opportunity, armamento)` e le deposita nel contesto. A risolverle e'
+	// `PumpReactionTriggers`, che puo' fermarsi in mezzo — ed e' il motivo per cui l'appaiamento avviene
+	// **tutto adesso**: la lista dei `Watchers` e' costruita dallo stato corrente, e dopo una sospensione
+	// sarebbe diversa.
+	FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	if (!Ctx)
+	{
+		return ERTMovementAdvanceResult::Advanced; // fuori da una risoluzione riprendibile non c'e' dove depositare: e' un difetto del chiamante
+	}
+	Ctx->PendingTriggers.Reset();
+	Ctx->NextTrigger = 0;
 	for (const FRTOverwatchTrigger& Trigger : Triggers)
 	{
 		const FRTReactionOpportunity& Opportunity = Trigger.Opportunity;
@@ -7177,13 +7190,145 @@ void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TA
 				break;
 			}
 		}
+		// ⚠️ **La charge NON si controlla qui, e non piu' da `#2679`.** La verifica sta nel pump, cioe' al
+		// momento del consumo: fra l'appaiamento e il turno di questo trigger puo' essersi aperta e chiusa
+		// una finestra che ha speso la charge, e un controllo fatto adesso direbbe di uno stato che non e'
+		// piu' quello in cui la decisione verra' presa. L'esito e' identico finche' nessuno sospende, ed e'
+		// quello che la suite verifica.
+		FRTPendingReactionTrigger Pending;
+		Pending.Opportunity = Opportunity;
+		Pending.ArmedIndex = ArmedIndex;
+		Ctx->PendingTriggers.Add(MoveTemp(Pending));
+	}
+
+	return PumpReactionTriggers(Map, Units, State);
+}
+
+/**
+ * Consuma i trigger appaiati da `ResolveReactionBoundary`, uno alla volta, dal punto in cui era rimasto.
+ *
+ * 🔑 **Esiste perche' il consumo possa FERMARSI.** Oggi non si ferma mai — nessuno apre una finestra che
+ * duri — e questa funzione e' il ciclo che stava dentro `ResolveReactionBoundary`, spostato dove potra'
+ * uscire e rientrare. Il punto di sospensione si innesta qui, e in nessun altro posto.
+ *
+ * ⚠️ **La charge si verifica QUI**, non all'appaiamento: piu' watcher possono scattare nello stesso
+ * micro-step, e l'ordine totale di ADR-0004 §4 dice quale arriva prima. Il secondo non trova piu' la
+ * charge, ed e' corretto — `Charges = 1`.
+ */
+FString ARTTurnManager::GetOpenReactionWindowId() const
+{
+	const FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	return Ctx ? Ctx->OpenWindowOpportunityId : FString();
+}
+
+void ARTTurnManager::SubmitReactionResponse(const FString& OpportunityId, const FString& Response)
+{
+	FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	if (!Ctx || Ctx->OpenWindowOpportunityId.IsEmpty())
+	{
+		return; // nessuna finestra attende: una risposta senza domanda non e' un errore, e' un ritardo
+	}
+
+	// ⚠️ **Il gate dell'identita'.** Una risposta che nomina una finestra diversa da quella aperta e'
+	// arrivata tardi — la sua e' scaduta, e un'altra si e' aperta nel frattempo. Applicarla significherebbe
+	// far decidere il giocatore su un mondo che non c'e' piu': lo stesso difetto che `IsResponseAllowed`
+	// rifiuta per le risposte stale, qui su un canale che quella funzione non vede.
+	if (Ctx->OpenWindowOpportunityId != OpportunityId)
+	{
+		return;
+	}
+
+	CloseReactionWindow(Response);
+}
+
+void ARTTurnManager::ExpireReactionWindow()
+{
+	FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	if (!Ctx || Ctx->OpenWindowOpportunityId.IsEmpty())
+	{
+		return;
+	}
+
+	// Vuota = «non ho risposto». Cosa valga allo scadere lo dice una funzione pura, non questa: il ramo
+	// e' lo stesso che `AskReactionDecision` prende da sempre per il decisore che tace.
+	CloseReactionWindow(FString());
+}
+
+/**
+ * Chiude la finestra aperta applicando `Response` e riprende il consumo dei trigger.
+ *
+ * 🔑 **La risposta non viene giudicata qui.** Passa da `AskReactionDecision` come ogni altra — legata al
+ * decisore per la durata di questa chiamata — perche' la legalita' di una risposta si decide in **un**
+ * posto: una seconda politica qui applicherebbe risposte che quella rifiuta.
+ *
+ * ⛔ **Riprende il MICRO-STEP, non la risoluzione.** I trigger rimasti in questo boundary vengono
+ * consumati; far avanzare i micro-step successivi e' di chi chiama `AdvanceMovementResolution`, ed e' la
+ * fetta 3. Qui la resolution torna disponibile, non riparte da sola.
+ */
+void ARTTurnManager::CloseReactionWindow(const FString& Response)
+{
+	FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	if (!Ctx || !Ctx->PendingTriggers.IsValidIndex(Ctx->NextTrigger - 1))
+	{
+		return;
+	}
+
+	const FRTPendingReactionTrigger Pending = Ctx->PendingTriggers[Ctx->NextTrigger - 1];
+	Ctx->OpenWindowOpportunityId.Reset();
+	Ctx->OpenWindowElapsed = 0.f;
+
+	TArray<ARTUnit*> Units;
+	Units.Reserve(Ctx->Units.Num());
+	for (const TWeakObjectPtr<ARTUnit>& WeakUnit : Ctx->Units)
+	{
+		Units.Add(WeakUnit.Get());
+	}
+
+	// Il decisore viene legato per la durata di UNA domanda e poi rimesso com'era. E' il modo di far
+	// passare la risposta umana dallo stesso imbuto del bot senza aggiungere un secondo ramo dentro
+	// `AskReactionDecision`, che e' `const` e deve restarlo.
+	FRTReactionDeciderSignature Previous = ReactionDecider;
+	ReactionDecider.BindLambda(
+		[Response](const FRTReactionOpportunity&, int32) -> FString { return Response; });
+
+	const FRTReactionDecision Decision = AskReactionDecision(Pending.Opportunity,
+		Pending.Opportunity.Key.OwnerId, /*bOwnerIsBot=*/ false);
+
+	ReactionDecider = Previous;
+
+	if (ArmedOverwatches.IsValidIndex(Pending.ArmedIndex))
+	{
+		ApplyReactionDecision(Ctx->Snapshot.Map, Units, Ctx->State, Pending.Opportunity, Decision,
+			Pending.ArmedIndex);
+	}
+
+	// I trigger rimasti in questo boundary: possono aprirne un'altra, e allora si torna ad attendere.
+	PumpReactionTriggers(Ctx->Snapshot.Map, Units, Ctx->State);
+}
+
+ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAsset* Map,
+	const TArray<ARTUnit*>& Units, FRTMovementResolutionState& State)
+{
+	FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	if (!Ctx)
+	{
+		return ERTMovementAdvanceResult::Advanced;
+	}
+
+	while (Ctx->PendingTriggers.IsValidIndex(Ctx->NextTrigger))
+	{
+		// Copiato e non referenziato: `ApplyReactionDecision` puo' toccare lo stato, e da `#2679` in poi
+		// fra due giri di questo ciclo puo' passare un frame intero.
+		const FRTPendingReactionTrigger Pending = Ctx->PendingTriggers[Ctx->NextTrigger];
+		++Ctx->NextTrigger;
+
+		const int32 ArmedIndex = Pending.ArmedIndex;
 		if (!ArmedOverwatches.IsValidIndex(ArmedIndex) || !ArmedOverwatches[ArmedIndex].bCharged)
 		{
-			// Gia' spesa da un'opportunity precedente **dello stesso micro-step**: piu' watcher possono
-			// scattare insieme, e l'ordine totale di ADR-0004 §4 dice quale arriva prima. Il secondo non trova
-			// piu' la charge, ed e' corretto — `Charges = 1`.
 			continue;
 		}
+
+		const FRTReactionOpportunity& Opportunity = Pending.Opportunity;
 
 		// Un PROMPT e' una finestra che chiede davvero: si conta prima di chiedere, e solo se c'e' una scelta.
 		// Un'opportunity a cardinalita' <= 1 si committa da sola senza interrompere nessuno, e spenderle
@@ -7194,248 +7339,43 @@ void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TA
 		}
 
 		const ARTUnit* DecidingOwner = ArmedOverwatches[ArmedIndex].Owner.Get();
+		const bool bOwnerIsBot = IsValid(DecidingOwner) && DecidingOwner->bIsBotControlled;
+
+		// --- IL PUNTO DI SOSPENSIONE (`#2679` fetta 2, [D-355]) -----------------------------------------
+		//
+		// 🔑 **Quattro condizioni, e nessuna e' una politica**: sono i fatti che rendono una finestra
+		// interattiva possibile. Manca una qualsiasi e si prende la strada sincrona, che resta identica a
+		// se stessa — e' cosi' che bot, test e Verifier non hanno bisogno di un ramo che li nomini.
+		//
+		// ⛔ **`RecordedDecisions` vuota e' la condizione che protegge il replay**, e sta qui e non altrove:
+		// in ri-simulazione il Verifier non ha un decisore, e una finestra aperta non verrebbe chiusa da
+		// nessuno. `Replay.Verifier.ResimulationIsDeterministic` si bloccherebbe invece di diventare rosso,
+		// che e' il modo peggiore in cui un gate puo' fallire.
+		if (OnReactionWindowOpened.IsBound()
+			&& !bOwnerIsBot
+			&& RecordedDecisions.Num() == 0
+			&& URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opportunity))
+		{
+			const int32 OwnerTeamId = IsValid(DecidingOwner) ? DecidingOwner->TeamId : INDEX_NONE;
+			Ctx->OpenWindowOpportunityId = URTReactionOpportunityLibrary::DeriveOpportunityId(Opportunity.Key);
+			Ctx->OpenWindowElapsed = 0.f;
+
+			// Il DTO e' sanitizzato per la squadra di chi decide: `MakeReactionWindowView` acquista qui il
+			// chiamante di produzione che `RTTurnManager.h:627` dichiarava mancante.
+			OnReactionWindowOpened.Execute(
+				MakeReactionWindowView(Opportunity, OwnerTeamId, OwnerTeamId), Opportunity.Key.OwnerId);
+
+			return ERTMovementAdvanceResult::Suspended;
+		}
+
 		const FRTReactionDecision Decision = AskReactionDecision(Opportunity, Opportunity.Key.OwnerId,
-			IsValid(DecidingOwner) && DecidingOwner->bIsBotControlled);
+			bOwnerIsBot);
 		ApplyReactionDecision(Map, Units, State, Opportunity, Decision, ArmedIndex);
 	}
-}
 
-/**
- * La risoluzione del movimento in tre momenti (`#2679` fetta 1, [D-355]).
- *
- * 🔑 **Il taglio non introduce comportamento: lo SPOSTA.** Le nove locali che il ciclo dei micro-step
- * attraversa vivevano sullo stack di `ResolveMovement` e ora vivono in `PendingMovement`, che sopravvive
- * al ritorno della funzione. `FRTMovementResolutionState` era gia' sospendibile dal CP 14.2 e lo dichiara;
- * cio' che mancava era solo un posto dove tenerla fra una chiamata e l'altra.
- *
- * ⛔ **Nessuna di queste tre sospende ancora nulla.** Il punto di sospensione — `Suspended` in coda a
- * `ERTMovementAdvanceResult` — arriva con la fetta 2. Qui `ResolveMovement` resta, come composizione delle
- * tre, ed e' il GATE che tiene il comportamento invariante: finche' esiste ed e' l'unico chiamante di
- * produzione, lo split non puo' aver cambiato un esito senza che la suite se ne accorga.
- */
-void ARTTurnManager::BeginMovementResolution()
-{
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return;
-	}
-
-	PendingMovement = MakeUnique<FRTMovementResolutionContext>();
-	FRTMovementResolutionContext& Ctx = *PendingMovement;
-	Ctx.bActive = true;
-
-	GetHexContext(Ctx.Origin, Ctx.HexSize, Ctx.LayerHeight);
-
-	TArray<ARTUnit*> Units;
-	Ctx.Snapshot = MakeCurrentSnapshot(Units);
-
-	// Come nel Dash: la fase autoritativa dice cio' che lo snapshot ha registrato (#1970). Una condizione
-	// gia' segnalata in questo turno non si ripete — la deduplica sta in `ReportSnapshotOverlaps`.
-	ReportSnapshotOverlaps(Ctx.Snapshot);
-
-	Ctx.Paths.Reserve(Units.Num());
-	// Chi e' stato accorciato dalla TOPOLOGIA: il resolver non puo' saperlo (il taglio avviene prima che lui
-	// veda il percorso) e classificherebbe `Moved`, vero sul percorso troncato ma falso su cio' che l'unita'
-	// aveva pianificato. Lo sa questo ciclo, e lo scrive lui nel log.
-	Ctx.bStoppedByTopology.Init(false, Units.Num());
-	// Chi ha DICHIARATO una destinazione e se l'e' vista negare perche' occupata (#79). Come la topologia
-	// qui sopra, e' un fatto che il resolver non puo' vedere, con una differenza: la topologia taglia un
-	// percorso che esiste, questa lo azzera, e il resolver riceve `{ Cell }` — indistinguibile da chi non ha
-	// mai pianificato. Si popola nel ramo di collasso qui sotto, che e' il punto in cui i tre produttori
-	// (player, Scenario Harness, bot) diventano lo stesso caso, e si scrive nel log piu' in basso.
-	Ctx.bDeniedByOccupant.Init(false, Units.Num());
-	// La destinazione richiesta e negata, per indice. Viaggia accanto al flag e non dentro `Ctx.Paths`: in
-	// `Ctx.Paths` sarebbe una cella che qualcuno potrebbe percorrere, e nessuno l'ha percorsa.
-	Ctx.DeniedDestination.Init(FRTCellId(), Units.Num());
-	// Quanto di ogni percorso il GIOCATORE ha chiesto, e se il terreno voleva portare l'unita' oltre
-	// (`#2314`). E' l'informazione che il resolver non puo' ricostruire — riceve un percorso gia' esteso e
-	// non sa che l'ultima cella non era pianificata — e che solo questo ciclo possiede, perche' e' qui che
-	// lo scivolamento viene applicato. Gliela si passa invece di correggere il suo esito a valle: la
-	// correzione nel chiamante era l'approccio di `#2290`, e ne sono usciti tre difetti di correttezza.
-	TArray<FRTPlannedMovement> PlannedMoves;
-	PlannedMoves.Init(FRTPlannedMovement(), Units.Num());
-	for (int32 i = 0; i < Units.Num(); ++i)
-	{
-		ARTUnit* Unit = Units[i];
-
-		// Path del turno: percorso composito (waypoint) se presente e coerente, altrimenti rotta calcolata
-		// verso la destinazione singola. La validazione e' AUTOREVOLE e passa dallo strato puro esagonale:
-		// FindPathForUnit rispetta costi, blocchi, occupazione e budget, a prescindere da cosa arriva dal client.
-		TArray<FRTCellId> Path;
-		if (Unit->PlannedPath.Num() >= 2 && Unit->PlannedPath[0] == Unit->Cell)
-		{
-			Path = Unit->PlannedPath;
-		}
-		else if (Unit->PlannedCell != Unit->Cell)
-		{
-			Path = URTHexSimLibrary::FindPathForUnit(Ctx.Snapshot, /*UnitId=*/ i, Unit->PlannedCell).Path;
-		}
-
-		// Il percorso e' stato calcolato al momento del click (o impostato direttamente), PRIMA che il Blast
-		// di QUESTO turno potesse radicare o rallentare l'unita' (`Action.Root`/`Action.Slow`, CP 4.7). Si
-		// TRONCA qui contro il budget FRESCO — non si ricalcola da zero: un ostacolo POSIZIONALE (un'altra
-		// unita' che occupa una cella a meta' strada) resta compito di `ResolveHexPaths` sotto, che cammina il
-		// percorso passo per passo; qui si intercetta solo "il budget e' cambiato da quando il piano e' stato
-		// scritto". Se non e' cambiato, il troncamento non taglia nulla — il percorso `FindPathForUnit` gia'
-		// rispettava lo snapshot fresco, quindi qui e' un no-op per costruzione.
-		Path = URTHexSimLibrary::TruncatePathToBudget(Ctx.Snapshot, /*UnitId=*/ i, Path);
-
-		if (Path.Num() < 2)
-		{
-			// 🔑 **Il punto UNICO in cui i tre produttori collassano, ed e' per questo che la domanda di #79
-			// si pone qui e in nessun altro posto.** Player, Scenario Harness e bot arrivano a questa riga
-			// con lo stesso stato — nessun percorso percorribile — e da qui in giu' sono indistinguibili;
-			// `FinalizeHexMovementOutcomes` li chiamera' tutti `Stayed`, cioe' «non pianificava movimento».
-			// Su chi aveva dichiarato una destinazione occupata quella parola e' falsa.
-			//
-			// ⚠️ **Le due fonti non sono simmetriche, e nessuna delle due copre l'altra.**
-			// - Player e harness rifiutano il piano IN PIANIFICAZIONE: il `Pop()` cancella la destinazione,
-			//   `PlannedCell` torna a `Cell` e qui non resterebbe niente da leggere. Serve il dato che
-			//   l'unita' ha portato fin qui.
-			// - Il bot non ha un ramo di rifiuto: dichiara solo `PlannedCell` e il suo percorso fallisce
-			//   QUI, dentro la fase Move. La sua destinazione richiesta e' ancora leggibile, e non serve
-			//   nessuno stato che sopravviva.
-			//
-			// «Aveva dichiarato?» ha gia' una sede unica — `HasPlannedNormalMove()` — e non se ne scrive una
-			// seconda. Il motivo lo classifica `ClassifyWaypointCell`: nessun secondo vocabolario, e budget,
-			// cella bloccata e fuori mappa restano `Stayed` per scope dichiarato della #79.
-			if (Unit->bMovePlanRejectedByOccupant)
-			{
-				Ctx.bDeniedByOccupant[i] = true;
-				Ctx.DeniedDestination[i] = Unit->RejectedMoveDestination;
-			}
-			else if (Unit->HasPlannedNormalMove()
-				&& URTHexSimLibrary::ClassifyWaypointCell(Ctx.Snapshot, /*UnitId=*/ i, Unit->PlannedCell)
-					== ERTHexWaypointReason::Occupied)
-			{
-				Ctx.bDeniedByOccupant[i] = true;
-				Ctx.DeniedDestination[i] = Unit->PlannedCell;
-			}
-
-			Path = { Unit->Cell }; // fermo
-		}
-		// Ghiaccio: chi finisce il Move su Ice con budget residuo scivola di una cella oltre. La cella extra
-		// e' aggiunta al PATH, non alla posizione finale: cosi' occupazione e collisioni simultanee restano
-		// affare del microstep di ResolveHexPaths, che le risolve gia' in modo indipendente dall'ordine.
-		// Solo il Move normale: le mobilita' lineari (ResolveLinearMove) non passano da qui — §5.2 di
-		// spec-terreni-e8.md: senza il microstep condiviso lo scivolamento non avrebbe la stessa garanzia
-		// sotto collisione simultanea.
-		const int32 LengthBeforeSlide = Path.Num();
-		const FRTIceSlideResult Slide = URTHexSimLibrary::ApplyIceSliding(Ctx.Snapshot, /*UnitId=*/ i, Path);
-		Path = Slide.Path;
-
-		// TOPOLOGIA (CP 9.3): il percorso e' stato validato quando la mappa era un'altra — una porta chiusa
-		// nel Blast di QUESTO turno, un muro caduto — e `TruncatePathToBudget` non se ne accorge, perche'
-		// guarda il budget. Senza questo taglio un percorso gia' pianificato attraverserebbe un varco che nel
-		// frattempo si e' chiuso: il «path fantasma». Il movimento si FERMA all'ultima cella valida
-		// (`Fallback.Stop`), non si annulla.
-		// ⚠️ **Si confronta contro la lunghezza PRIMA dello scivolamento, non contro `Path.Num()` di adesso**
-		// (#2253). La cella di slide non e' pianificata dal giocatore: se la topologia toglie SOLO quella —
-		// basta un bordo non attraversabile accanto al ghiaccio, e `ApplyIceSliding` guarda `bBlocksMovement`
-		// della cella, non la percorribilita' del passo — l'unita' arriva esattamente dove aveva chiesto, e
-		// dirle «fermo: varco chiuso» sarebbe falso. Con il vecchio confronto lo diceva, e non serviva nemmeno
-		// un cambio di topologia a meta' turno perche' accadesse.
-		Path = URTHexSimLibrary::TruncatePathToTopology(Ctx.Snapshot, Path);
-		Ctx.bStoppedByTopology[i] = Path.Num() < LengthBeforeSlide;
-
-		// Il piano del giocatore e' cio' che resta del percorso PRIMA dello scivolamento, dopo il taglio
-		// della topologia: `Min` perche' quel taglio puo' aver accorciato anche la parte pianificata.
-		PlannedMoves[i].PlannedLength = FMath::Min(LengthBeforeSlide, Path.Num());
-		// ⚠️ **Se la topologia ha tagliato DENTRO il piano, lo scivolamento non e' piu' la domanda.** L'unita'
-		// non completa nemmeno cio' che aveva chiesto, la precedenza va al taglio, e il ramo qui sotto scrive
-		// `BlockedByTopology`. Senza questa condizione il resolver direbbe «arrivata, scivolamento impedito»
-		// a chi si e' fermata davanti a un varco chiuso — vero sul percorso troncato, falso su cio' che
-		// l'unita' aveva pianificato: esattamente il difetto che `TruncatePathToTopology` esiste per evitare.
-		PlannedMoves[i].bSlideRequested = Slide.bSlideRequested && !Ctx.bStoppedByTopology[i];
-
-		Ctx.Paths.Add(Path);
-	}
-
-	// RISOLUZIONE SEGMENTATA (CP 14.5). Fino a qui questa riga era `ResolveHexPaths(Ctx.Paths)`, cioe' un colpo
-	// solo. Non lo e' piu' perche' una finestra di reazione deve poter aprirsi **dentro** il calcolo: se si
-	// aprisse a movimento concluso, i micro-step successivi sarebbero gia' stati risolti con un'unita' nelle
-	// celle che il colpo le ha appena impedito di raggiungere, e il prompt mostrerebbe una scelta che non
-	// cambia piu' niente. E' il motivo per cui `FRTMovementResolutionState` esiste (CP 14.2), scritto nel suo
-	// stesso commento: «un Overwatch interattivo deve poter fermare il movimento dentro il calcolo».
-	//
-	// La via a passi e quella in blocco sono LO STESSO codice — `ResolveHexPaths` e' esattamente questo ciclo
-	// — quindi il comportamento senza Overwatch armati e' invariato per costruzione, non per verifica.
-	Ctx.State = URTHexSimLibrary::BeginHexMovement(Ctx.Paths, TArray<int32>(),
-		TArray<bool>(), TArray<bool>(), PlannedMoves);
-
-	// Le unita' passano nel contesto come riferimenti DEBOLI: fra due micro-step, in prospettiva, passa una
-	// finestra di reazione. Gli indici di `Ctx.State` sono indici di QUESTO array.
-	Ctx.Units.Reserve(Units.Num());
-	for (ARTUnit* Unit : Units)
-	{
-		Ctx.Units.Add(Unit);
-	}
-
-	// Nasce qui e non nel ciclo: da `#2679` in poi il ciclo puo' uscire e rientrare, e un contatore
-	// dichiarato la' dentro ripartirebbe da zero a ogni rientro.
-	Ctx.EnteredBefore.Init(0, Ctx.Paths.Num());
-}
-
-ERTMovementAdvanceResult ARTTurnManager::AdvanceMovementResolution()
-{
-	if (!PendingMovement.IsValid() || !PendingMovement->bActive)
-	{
-		return ERTMovementAdvanceResult::Finished; // niente da far avanzare: non e' un errore, e' la fine
-	}
-	FRTMovementResolutionContext& Ctx = *PendingMovement;
-
-	// La vista con puntatori nudi che le firme esistenti richiedono. Ricostruita a ogni chiamata e mai
-	// memorizzata: e' proprio la vita di questi puntatori che il contesto esiste per non dare per scontata.
-	TArray<ARTUnit*> Units;
-	Units.Reserve(Ctx.Units.Num());
-	for (const TWeakObjectPtr<ARTUnit>& WeakUnit : Ctx.Units)
-	{
-		Units.Add(WeakUnit.Get());
-	}
-
-	// 🔑 **Si semina dallo STATO, non da zero.** Oggi le due cose coincidono perche' questa funzione gira
-	// una volta sola; con la fetta 2 non coincideranno piu', e ripartire da zero rinumererebbe i boundary —
-	// cioe' le chiavi di `FRTReactionOpportunityKey`, che e' il difetto che rompe il replay.
-	CurrentMicroStepIndex = Ctx.State.MicroStepIndex;
-	ON_SCOPE_EXIT{ CurrentMicroStepIndex = INDEX_NONE; };
-
-	// CHI si e' mosso in questo micro-step, misurato e non dedotto: `Entered` cresce di una cella per ogni
-	// unita' che ha davvero avanzato, quindi il confronto col valore precedente e' l'unica lettura che
-	// distingue «ha fatto un passo» da «era ferma». Serve perche' un mover fermo non deve poter armare un
-	// trigger: l'Overwatch scatta su chi ENTRA nella cella controllata, non su chi ci sta.
-
-	// ⚠️ Il contatore e' UNO SOLO e vive sul manager (`#2260`): `AppendLogEntry` lo legge per stampare il
-	// boundary sulle voci che nascono qui dentro. Una copia locale — com'era prima — tornerebbe a essere
-	// invisibile da li', e l'unico modo di riallinearle sarebbe un secondo contatore da tenere d'accordo
-	// col primo. Lo stesso valore alimenta la voce del log e `FRTReactionOpportunityKey`.
-	// Il ripristino e' STRUTTURALE, non affidato alla disciplina: senza, ogni voce emessa dopo la
-	// risoluzione del movimento erediterebbe l'indice dell'ultima barriera e direbbe di appartenere a un
-	// ciclo gia' finito. Un `break` uscirebbe comunque di qui; un `return` futuro, no.
-	if (!URTHexSimLibrary::ResolveNextHexMicroStep(Ctx.State))
-	{
-		return ERTMovementAdvanceResult::Finished;
-	}
-
-	{
-		TArray<int32> MovedUnitIds;
-		for (int32 i = 0; i < Ctx.State.Num(); ++i)
-		{
-			const int32 EnteredNow = Ctx.State.Results[i].Entered.Num();
-			if (EnteredNow > Ctx.EnteredBefore[i])
-			{
-				MovedUnitIds.Add(i);
-			}
-			Ctx.EnteredBefore[i] = EnteredNow;
-		}
-
-		// IL DECISION BOUNDARY. La «sospensione globale» di ADR-0004 §5 e' il fatto che questa chiamata
-		// stia fra due micro-step e debba ritornare prima del successivo: nessuna unita' avanza mentre una
-		// finestra e' aperta, e non perche' qualcuno le fermi — perche' il ciclo non gira.
-		ResolveReactionBoundary(Ctx.Snapshot.Map, Units, Ctx.State, MovedUnitIds, CurrentMicroStepIndex);
-
-	}
-
+	// Consumati tutti: la lista si svuota, e il boundary successivo riparte da zero.
+	Ctx->PendingTriggers.Reset();
+	Ctx->NextTrigger = 0;
 	return ERTMovementAdvanceResult::Advanced;
 }
 
@@ -7796,22 +7736,6 @@ void ARTTurnManager::FinishMovementResolution()
 	PendingMovement.Reset();
 }
 
-void ARTTurnManager::ResolveMovement()
-{
-	BeginMovementResolution();
-
-	// ⚠️ **La guardia non e' difensiva: e' il cap che impedisce a un difetto del resolver di appendere
-	// l'Editor invece di far fallire un test.** Un micro-step non supera la lunghezza del percorso piu'
-	// lungo, e `256` sta due ordini di grandezza sopra qualunque percorso di una mappa 2v2.
-	int32 Guard = 0;
-	while (AdvanceMovementResolution() == ERTMovementAdvanceResult::Advanced && Guard < 256)
-	{
-		++Guard;
-	}
-	ensureMsgf(Guard < 256, TEXT("risoluzione del movimento non terminata in 256 micro-step"));
-
-	FinishMovementResolution();
-}
 
 // ===================== Playback della risoluzione (presentazione) =============================
 
