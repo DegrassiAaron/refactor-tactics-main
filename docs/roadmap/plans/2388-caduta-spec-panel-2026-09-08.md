@@ -129,7 +129,8 @@ Corretta come **fase**, stale come **milestone**. **Esito**: nota additiva su #2
 | `docs/gameplay/spec-caduta-e-bordi.md` | §4.3.1 nuova (invariante) · §5 riformulata · §9.1 nuova (forma) · §11 nota di revisione |
 | `docs/decisions/RT_PDR_00_Decision_Log.md` | `D-349` · `D-350` + le due note di assegnazione |
 | `docs/OPEN_DECISIONS.md` | sezione nuova, `VERT-1` |
-| #2388 · #2402 · #2403 · #2406 | note additive, nessun corpo riscritto |
+| #2402 · #2403 · #2406 | note additive, nessun corpo riscritto |
+| #2388 | note additive **e** correzione del corpo — tabelle e DoD, dal secondo giro della §7 |
 
 ⚠️ **Nessuna modifica a `Source/`.** I due lavori che il panel produce —
 `Fall.TwoFallersSameLandingIsDeterministic` e i tre valori d'enum — appartengono a #2402 e #2403, e vanno
