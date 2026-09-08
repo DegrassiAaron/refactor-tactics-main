@@ -2350,6 +2350,41 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"","dashTo":[1,1,0]})")),
 		TEXT("dashTo"), TEXT("dashTo valido con dash vuota: nessuno lo consuma"));
 
+	// ---- move: il TERZO campo di coordinate dello stesso intent ------------------------------------
+	//
+	// Portava la stessa guardia di presenza dei due qui sopra — `TryGetArrayField`, che risponde `false`
+	// sia per una chiave assente sia per una del tipo sbagliato — ed e' il caso in cui costa di piu':
+	// `move` e' l'unico dei tre a portare una LISTA di celle, quindi ha due modi di essere scritto male
+	// invece di uno. Il test gemello `LoaderRejectsCellArityAtEveryCallSite` lo chiama gia' «il chiamante
+	// piu' esposto al refuso».
+
+	// (11) Controllo POSITIVO, prima dei rifiuti: senza, i due casi sotto resterebbero verdi anche se il
+	// ramo rifiutasse ogni `move`.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(
+			*WithIntent(TEXT(R"({"unit":"A","move":[[1,0,0],[1,1,0]]})")), Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("move come lista di celle: accettato (errore: '%s')"), *Error), bOk)
+			&& TestEqual(TEXT("un turno"), Scenario.Turns.Num(), 1)
+			&& TestEqual(TEXT("un intent"), Scenario.Turns[0].Intents.Num(), 1)
+			&& TestEqual(TEXT("due passi"), Scenario.Turns[0].Intents[0].Move.Num(), 2))
+		{
+			TestEqual(TEXT("e il secondo passo e' quello scritto"),
+				Scenario.Turns[0].Intents[0].Move[1], FRTCellId(1, 1, 0));
+		}
+	}
+
+	// (12) 🔴 **Il refuso che spariva in silenzio**: la lista scritta come stringa. `TryGetArrayField`
+	// rispondeva `false`, il blocco veniva saltato, `Intent.Move` restava vuoto e nessun errore usciva —
+	// l'unita' non si muoveva e lo scenario caricava verde.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","move":"[[1,0,0]]"})")),
+		TEXT("move"), TEXT("move scritto come stringa invece che come lista"));
+
+	// (13) E un passo con arita' sbagliata resta rifiutato da `ParseCell`, come prima.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","move":[[1,0]]})")),
+		TEXT("trovati 2"), TEXT("move con un passo a due elementi"));
+
 	return true;
 }
 

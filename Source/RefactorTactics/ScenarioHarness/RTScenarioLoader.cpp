@@ -1205,9 +1205,27 @@ namespace
 								FName(*ConditionId), static_cast<int32>(FMath::RoundToDouble(ParamNumber)));
 						}
 
+						// `move` e' il TERZO campo di coordinate di questo stesso oggetto intent, e portava la
+						// stessa guardia dei due qui sopra: `TryGetArrayField` come test di PRESENZA, che
+						// risponde `false` sia per una chiave assente sia per una del tipo sbagliato.
+						// `"move": "[1,0,0]"` — una lista scritta come stringa, il refuso piu' facile da fare —
+						// saltava l'intero blocco, `Intent.Move` restava vuoto e nessun errore usciva: l'unita'
+						// non si muoveva e lo scenario caricava verde.
+						//
+						// ⚠️ **Il difetto era gia' nominato in questo repository e nessuno lo aveva ancora
+						// colpito**: il test `LoaderRejectsCellArityAtEveryCallSite` chiama `move` «il chiamante
+						// piu' esposto al refuso», perche' e' l'unico dei tre che porta una LISTA di celle e
+						// quindi ha due modi di essere scritto male invece di uno.
 						const TArray<TSharedPtr<FJsonValue>>* MoveArr = nullptr;
-						if (IntentObj->TryGetArrayField(TEXT("move"), MoveArr))
+						if (IntentObj->HasField(TEXT("move")))
 						{
+							if (!IntentObj->TryGetArrayField(TEXT("move"), MoveArr))
+							{
+								OutError = FString::Printf(
+									TEXT("intent di '%s': move non e' una lista di celle [[q, r, layer], ...]"),
+									*Intent.UnitId);
+								return false;
+							}
 							for (const TSharedPtr<FJsonValue>& Step : *MoveArr)
 							{
 								const TArray<TSharedPtr<FJsonValue>>* StepArr = nullptr;
