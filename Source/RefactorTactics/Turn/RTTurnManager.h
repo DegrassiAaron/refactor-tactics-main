@@ -648,10 +648,14 @@ public:
 	 * ⚠️ **Non e' una `UFUNCTION`**: prende `FRTReactionOpportunity`, e per esporla ai Blueprint bisognerebbe
 	 * rendere `BlueprintType` l'opportunity autorevole. Il risultato invece lo e' per intero.
 	 *
-	 * ⛔ **Nessun chiamante di produzione, oggi**, ed e' una conseguenza e non una svista: `AskReactionDecision`
-	 * e' sincrono e non esiste una finestra persistente da interrogare. Il chiamante nasce con il decisore
-	 * umano asincrono di DIR-A. Cio' che questo metodo garantisce da subito e' che quel chiamante non debba
-	 * scegliere da dove prende i 3,0 s — la seconda sorgente che ADR-0005 §4c vieta.
+	 * ✅ **Ha un chiamante di produzione dal 2026-09-08** (`#2679` fetta 2, [D-355]): `PumpReactionTriggers`
+	 * lo invoca quando apre una finestra interattiva, e il DTO che ne esce e' cio' che la UI osserva.
+	 *
+	 * ⚠️ Questa riga diceva *«nessun chiamante di produzione, oggi … il chiamante nasce con il decisore umano
+	 * asincrono di DIR-A»*, e la previsione era esatta: il chiamante e' nato con quello. La si corregge invece
+	 * di cancellarla perche' la ragione che dava — la durata non deve avere una seconda sorgente — vale
+	 * ancora, ed e' il motivo per cui questo metodo esiste invece di lasciare che ogni chiamante componga
+	 * filtro e durata da se'.
 	 */
 	FRTReactionWindowView MakeReactionWindowView(const FRTReactionOpportunity& Opportunity,
 		int32 OwnerTeamId, int32 ObserverTeamId) const;
@@ -1449,6 +1453,12 @@ protected:
 	/** Porta a termine una risoluzione sospesa la cui finestra si e' chiusa. Vedi il .cpp. */
 	void ResumeSuspendedResolution();
 
+	/** Avvia il playback su cio' che e' stato risolto finora, a resolution sospesa. Vedi il .cpp. */
+	void BeginPartialPlayback();
+
+	/** Emette gli eventi `Move` della timeline dai risultati passati. Vedi il .cpp: serve anche a meta'. */
+	void EmitMoveEvents(const TArray<ARTUnit*>& Units, const TArray<FRTHexMoveResult>& Results);
+
 	/**
 	 * Apre UNA finestra e ne restituisce l'esito (CP 14.5). Non applica nulla: decide soltanto.
 	 *
@@ -1807,7 +1817,8 @@ protected:
 	void DestroyDefeatedUnits();
 
 	/** Avvia il playback della risoluzione (movimento in parallelo, fasi a beat). */
-	void BeginPlayback();
+	/** Avvia il playback. Con `bPreserveClock` ESTENDE quello in corso invece di ricominciarlo (#2679). */
+	void BeginPlayback(bool bPreserveClock = false);
 	void EnterPlaybackPhase();
 	void TickPlayback(float DeltaSeconds);
 	void FinishPlayback();
@@ -2428,8 +2439,24 @@ private:
 	 */
 	bool bPlaybackControlsEnabled = false;
 
-	/** Il playback e' fermo. ⚠️ Ferma la PRESENTAZIONE: la risoluzione e' gia' avvenuta per intero. */
+	/**
+	 * Il playback e' fermo.
+	 *
+	 * ⚠️ **Ferma la PRESENTAZIONE.** Questa riga aggiungeva *«la risoluzione e' gia' avvenuta per intero»*, e
+	 * dal 2026-09-08 non e' piu' vero (`#2679` fetta 3, [D-355]): con una finestra di reazione aperta il
+	 * playback mostra un turno **risolto a meta'**, e cio' che lo tiene fermo in quel caso non e' questo flag
+	 * ma `bPlaybackHeldByWindow`. I due sono separati apposta — vedi la sua dichiarazione.
+	 */
 	bool bPlaybackPaused = false;
+
+	/**
+	 * Il playback ha mostrato tutto cio' che la resolution ha risolto, e ATTENDE una finestra (#2679).
+	 *
+	 * ⛔ **Non e' `bPlaybackPaused`, e tenerli separati e' la scelta**: quella e' la pausa del giocatore, ha
+	 * i suoi comandi e un suo significato. Con un flag solo, un `ResumePlayback` durante una finestra
+	 * farebbe ripartire un playback che non ha nulla da mostrare.
+	 */
+	bool bPlaybackHeldByWindow = false;
 
 	/**
 	 * Se `>= 0`, il playback avanza fino a questo `PlaybackPhaseElapsed` e poi si ferma: e' lo `Step`.
