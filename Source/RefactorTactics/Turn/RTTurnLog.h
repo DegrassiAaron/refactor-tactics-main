@@ -664,10 +664,61 @@ enum class ERTMoveOutcome : uint8
 	 *
 	 * 🔑 **`TgtCell` e' dove l'unita' e' FINITA**, che e' uno dei tre esiti di atterraggio di `spec` §4:
 	 * primario libero, alternativa adiacente, oppure `LastStableCell` nel caso saturo. La cella da cui e'
-	 * caduta resta in `SrcCell`. Distinguere QUALE dei tre e' avvenuto e' materia di **#2403**, che aggiunge
-	 * la catena causale: questo valore dice *che* e' caduta, non *come* e' atterrata.
+	 * caduta resta in `SrcCell`.
+	 *
+	 * 🔁 **Da `#2403` questo valore SI SPECIALIZZA e significa «atterrata sul PRIMARIO»** (`spec` §4.1),
+	 * non piu' «caduta» in generale: gli altri tre esiti hanno un valore proprio qui sotto. La
+	 * specializzazione non riscrive nessuna traccia — nessuno degli otto scenari del corpus golden
+	 * attraversa un bordo aperto, quindi l'indice di `Fell` non compare in nessuna traccia persistita
+	 * ([D-352]).
 	 */
-	Fell
+	Fell,
+	/**
+	 * Caduta con **primario occupato e alternativa adiacente disponibile** (`spec` §4.2): chi cade riceve
+	 * gli effetti di caduta, l'occupante quelli d'impatto, e chi cade e' collocato sulla prima candidata
+	 * legale scandita dal Facing dell'occupante lungo l'anello canonico.
+	 *
+	 * 🔑 **Un valore proprio e non un attributo di `Fell`**, e il precedente e' dentro questo stesso enum:
+	 * `Displaced`/`DisplacementResisted` e `Slid`/`SlideBlocked` distinguono con DUE valori uno spostamento
+	 * che riesce da uno che si arresta. Un campo dedicato costerebbe un bump del formato per distinguere
+	 * quattro casi che l'enum distingue senza ([D-352]).
+	 */
+	FellToAlternative,
+	/**
+	 * Caduta nel **caso saturo** (`spec` §4.3): primario occupato e nessuna alternativa disponibile. La
+	 * caduta **e' avvenuta** ai fini degli effetti — non dipendono dalla disponibilita' della cella finale
+	 * (`spec` §5) — e chi cade termina su `LastStableCell`, la cella stabile prima del bordo aperto.
+	 *
+	 * ⚠️ **Non e' `FellWithoutLanding`**: qui un atterraggio primario ESISTE ed e' occupato. Sotto c'era
+	 * qualcuno; nell'altro caso sotto non c'era niente. Il replay deve poterli distinguere, altrimenti la
+	 * spec dichiara una differenza che la traccia non porta ([D-352]).
+	 */
+	FellToLastStable,
+	/**
+	 * Caduta **senza atterraggio**: la colonna sotto il punto di uscita non ha nessuna cella, e
+	 * `FindLandingCell` non trova nulla. L'unita' resta su `LastStableCell` e **non esce dal mondo**.
+	 *
+	 * 🔑 **`spec` §4 lo chiama «un quarto caso che non e' un esito di atterraggio»** — *«non e' una caduta
+	 * con un atterraggio brutto, e' una caduta senza atterraggio»* — e senza un valore proprio quella
+	 * differenza sarebbe dichiarata e illeggibile ([D-352]).
+	 */
+	FellWithoutLanding,
+	/**
+	 * PARAPETTO: lo spostamento forzato ha percorso celle e si e' fermato sul ciglio perche' il bordo, pur
+	 * dando sul vuoto, e' **protetto** — `FRTHexEdgeGuard` (`#2401`, `spec` §2). Non e' una caduta e non e'
+	 * un ostacolo.
+	 *
+	 * 🔴 **Senza questo valore il parapetto era indistinguibile da un muro nella traccia**: entrambi
+	 * producevano `Displaced`, e un replay non poteva dire se il bordo era protetto o se non c'era ([D-354]).
+	 * Il parapetto e' la qualifica che `#2401` ha creato, ed e' l'unica delle quattro del `spec` §2 che sia
+	 * **autorata** invece che derivata: renderla illeggibile toglieva senso all'averla autorata.
+	 *
+	 * ⚠️ **Il caso simmetrico — parapetto ADIACENTE, nessuna cella percorsa — non e' qui**: senza
+	 * spostamento non c'e' una voce di movimento, e la causa viaggia in
+	 * `ERTDisplacementBlockReason::EdgeGuard`. Sono i due rami che `#2402` D006 ha dovuto gestire anche per
+	 * la caduta.
+	 */
+	StoppedByEdgeGuard
 };
 
 /**
@@ -721,7 +772,24 @@ enum class ERTDisplacementBlockReason : uint8
 	 * conteggio, non una soglia (D-094). Sta in coda all'enum perche' i valori finiscono nel TurnLog
 	 * serializzato.
 	 */
-	Anchored
+	Anchored,
+	/**
+	 * PARAPETTO ADIACENTE (`#2403`, [D-354]): il bordo verso cui la spinta puntava da' sul vuoto ed e'
+	 * protetto da un `FRTHexEdgeGuard`, quindi non c'e' nessuna cella utile e l'unita' non si muove.
+	 *
+	 * 🔑 **Sesta causa, e sta con la GEOMETRIA.** La tassonomia di questo enum separa due decisioni
+	 * dell'unita' (`Guarded`, `Braced`) da tre fatti del turno (`OpposingForces`, `NoDestination`,
+	 * `ContestedDestination`): il parapetto e' geometria della mappa, non una scelta di chi lo subisce.
+	 *
+	 * ⛔ **Non riusa `Guarded`**, che significa *«`Action.Guard` ha retto»* — un'azione difensiva spesa da
+	 * un'unita'. La somiglianza e' solo nel nome del tipo (`FRTHexEdgeGuard`), e fonderli cancellerebbe la
+	 * distinzione che la tassonomia esiste per fare.
+	 *
+	 * ⚠️ **Non riusa `NoDestination`**, che resta corretto per bordo mappa, ostacolo o unita' dietro: quello
+	 * dice *«non c'e' dove andare»*, questo dice *«c'era il vuoto, ed e' protetto»*. Distinguerli e' cio' che
+	 * permette al replay di spiegare una spinta che non ha spostato nessuno.
+	 */
+	EdgeGuard
 };
 
 /** Esito di un attacco nel turno. Priorita': Lethal > ShieldAbsorbed > TerrainBonus > Hit. */
