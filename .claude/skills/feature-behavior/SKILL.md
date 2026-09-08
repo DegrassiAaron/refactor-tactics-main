@@ -30,8 +30,6 @@ BEHAVIOR_READY
   ↓
 /implement-feature
   ↓
-role assignment
-  ↓
 /issue-run
 ```
 
@@ -65,7 +63,8 @@ It MUST NOT:
 - create scenario files;
 - create or modify `.uasset/.umap`;
 - invoke Unreal authoring;
-- acquire an Unreal lease;
+- start Unreal, PIE or a suite — it is the machine's single engine, and taking it while
+  someone else is measuring invalidates their run. Nothing enforces this any more (`D-347`);
 - assign who does the work;
 - create routing tasks;
 - implement the feature.

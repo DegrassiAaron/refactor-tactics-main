@@ -73,7 +73,7 @@ e una baseline, **una direzione sono ore, non minuti** — e le direzioni sono d
 - ⚠️ E `Scenario.EveryShippedScenarioRuns` compariva in **8** righe su 11: e' il singolo test che regge piu'
   costanti dell'intero perimetro. Un suo indebolimento non toglierebbe una copertura, ne toglierebbe otto.
 """
-import io, os, re, subprocess, sys, time
+import atexit, io, os, re, subprocess, sys, time
 
 # Stessa sede della regola di validita' dell'altro gate: `regola.verdetto()` e' pura, e i due
 # strumenti la CHIAMANO invece di tenerne una copia a testa. Le due copie precedenti erano gia'
@@ -82,24 +82,83 @@ import misura as regola   # 'misura' e' gia' il nome di una funzione, qui sotto
 
 # La radice si deriva dal file, non si scrive: su questa macchina esistono tre copie del repository, e una
 # costante scritta a mano muterebbe l'albero di qualcun altro lasciando pulito il proprio.
-RADICE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+RADICE = regola.RADICE
 H = os.path.join(RADICE, "Source", "RefactorTactics", "Combat", "RTCombatLibrary.h")
-LOG = os.path.join(RADICE, "Saved", "Logs", "automation-mutazione.log")
-UPROJECT = os.path.join(RADICE, "RefactorTactics.uproject")
-ENGINE_CMD = r"D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
-BUILD_BAT = r"D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat"
-DLL_GLOB = os.path.join(RADICE, "Binaries", "Win64", "UnrealEditor-RefactorTactics*.dll")
+LOG = regola.LOG
+UPROJECT = regola.UPROJECT
+ENGINE_CMD = regola.ENGINE_CMD
+BUILD_BAT = regola.BUILD_BAT
+DLL_GLOB = regola.DLL_GLOB
 
-# 🔴 `pwsh`, non `powershell`: e' l'interprete su cui il quoting di `build()` e' stato misurato.
-# Questo file usava `powershell` (5.1) con lo STESSO quoting che l'altro gate dichiara provato
-# solo sotto `pwsh` — e qui non c'era preflight: una differenza di parsing non da' `Result:
-# Succeeded`, che `build()` legge come motore occupato e ritenta 40 volte a 45 s, mezz'ora.
-PWSH = "pwsh"
+PWSH = regola.PWSH
+
+
+# --- le due decisioni PURE di questo file, e quindi le uniche che un test puo' esercitare ---------
+
+def dichiarazioni(testo):
+    """I `(nome, valore)` delle costanti dichiarate. PURA: prende testo, torna coppie.
+
+    Era una `re.findall` a livello di modulo, quindi non esercitabile da nessun test — e decide
+    COSA viene mutato: un pattern che non aggancia una dichiarazione la salta in silenzio, e la
+    costante risulterebbe «non misurata» senza che si sappia perche'."""
+    return re.findall(r"static constexpr int32 (\w+)\s*=\s*(-?\d+)\s*;", testo)
+
+
+def muta(byte_originali, nome, valore, nuovo):
+    """Sostituisce UNA dichiarazione, in byte. Torna i byte mutati, o `None` se non aggancia.
+
+    🔴 PURA e in BYTE, come la scrittura, e per la stessa ragione. Questo header e' CRLF: una
+    rilettura in modalita' TESTO applica le universal newlines e restituisce `\\n`, che non sara'
+    mai uguale al testo atteso in `\\r\\n`. La verifica falliva su OGNI costante, e l'audit
+    dichiarava undici `NON MISURATA` mutando benissimo il codice: la guardia contro la scrittura
+    no-op scattava su se' stessa, e la direzione `-3` non e' mai stata misurabile. Misurato il
+    2026-09-03: 17603 byte decodificati contro 17276 caratteri riletti, differenza 327,
+    esattamente le righe del file.
+
+    ⚠️ Quel difetto e' vissuto in un ramo che nessun test poteva raggiungere, perche' la logica
+    stava dentro il ciclo che muta i sorgenti. Ora e' qui, e il self-test la esercita (`#2672`)."""
+    atteso = ("static constexpr int32 %s = %s;" % (nome, valore)).encode("utf-8")
+    nuova = ("static constexpr int32 %s = %s;" % (nome, nuovo)).encode("utf-8")
+    mutati = byte_originali.replace(atteso, nuova, 1)
+    return None if mutati == byte_originali else mutati
+
+
+def _self_test_locale():
+    """I casi di QUESTO file. Quelli della regola di validita' stanno in `misura.self_test`."""
+    casi = []
+
+    def c(nome, ok, dettaglio=""):
+        casi.append((nome, bool(ok), str(dettaglio)))
+
+    sorgente = ("// commento\r\n"
+                "static constexpr int32 DeflectDamageReduction = 20;\r\n"
+                "static constexpr int32 BaseShield  =  5 ;\r\n"
+                "static constexpr int32 Negativo = -3;\r\n"
+                "static constexpr float NonIntero = 1.5f;\r\n")
+    trovate = dict(dichiarazioni(sorgente))
+    c("il parser trova le dichiarazioni int32", trovate.get("DeflectDamageReduction") == "20", trovate)
+    c("tollera la spaziatura larga", trovate.get("BaseShield") == "5", trovate)
+    c("legge i valori negativi", trovate.get("Negativo") == "-3", trovate)
+    c("ignora cio' che non e' int32", "NonIntero" not in trovate, trovate)
+
+    byte = sorgente.encode("utf-8")
+    # 🔑 Il caso del 2026-09-03: su un file CRLF la mutazione DEVE agganciare. Se questo cade,
+    # l'audit dichiara «NON MISURATA» ogni costante mutando benissimo il codice.
+    mutati = muta(byte, "DeflectDamageReduction", "20", "23")
+    c("la mutazione aggancia su un file CRLF", mutati is not None and b"= 23;" in mutati)
+    c("e non tocca il resto del file",
+      mutati is not None and mutati.count(b"\r\n") == byte.count(b"\r\n"))
+    c("un valore che non esiste non aggancia", muta(byte, "DeflectDamageReduction", "99", "102") is None)
+    c("un nome che non esiste non aggancia", muta(byte, "Inesistente", "1", "4") is None)
+    c("muta UNA sola occorrenza",
+      muta((sorgente + sorgente).encode("utf-8"), "Negativo", "-3", "0").count(b"= 0;") == 1)
+    return casi
+
 
 # Il self-test non tocca ne' sorgenti ne' motore: deve poter girare senza argomenti, e PRIMA
 # del blocco che li pretende. Un test di una funzione pura non si fa cadere da un'installazione.
 if "--self-test" in sys.argv:
-    _casi = regola.self_test()
+    _casi = _self_test_locale() + regola.self_test()
     for _nome, _ok, _dett in _casi:
         print("  %s %s%s" % ("ok  " if _ok else "FAIL", _nome, "" if _ok else "   -> " + _dett))
     _falliti = [c for c in _casi if not c[1]]
@@ -137,40 +196,42 @@ def scrivi(dati):
 # quel comando cancella il non committato (`#2406`). Un audit che si ferma perche' il motore e'
 # occupato, o perche' un percorso e' sbagliato, avrebbe gia' distrutto le modifiche locali
 # all'header — cioe' avrebbe fatto danno proprio nel caso in cui ha deciso di non misurare.
-for _etichetta, _percorso in (("motore", ENGINE_CMD), ("Build.bat", BUILD_BAT)):
-    if not os.path.exists(_percorso):
-        print("\n⛔ FERMO: %s non esiste al percorso cablato:\n   %s\n"
-              "   Correggere la costante in testa a questo file." % (_etichetta, _percorso))
-        sys.exit(2)
-
-# ⚠️ PowerShell 7 e' un'installazione a parte: `powershell` (5.1) c'e' sempre, `pwsh` no. Senza
-# questa prova, `build()` morirebbe di `FileNotFoundError` a meta' audit — dopo il checkout.
-_prova = subprocess.run([PWSH, "-NoProfile", "-Command", "exit 0"],
-                        capture_output=True, text=True, errors="replace")
-if _prova.returncode != 0:
-    print("\n⛔ FERMO: `%s` non e' eseguibile, e `build()` invoca `Build.bat` da li'.\n"
-          "   Installare PowerShell 7, oppure cambiare PWSH dopo aver rimisurato che il\n"
-          "   quoting di `build()` regga sull'interprete scelto." % PWSH)
+if not regola.preflight(print):
     sys.exit(2)
 
-# 🔴 Il motore e' uno per macchina: non si lancia una suite sopra una che gira gia'. ⚠️ E' una
-# precondizione, non una guardia — cio' che parte DOPO si rileva solo se tocca i binari. Il lease
-# che lo impediva davvero e' stato rimosso (`D-347`), e questa riga non lo rimpiazza (`#2672`).
-_vivi = regola.motori_vivi()
-if _vivi != 0:
-    print("\n⛔ FERMO: %s.\n   Una misura presa sopra un'altra non e' una misura."
-          % ("enumerazione dei processi fallita — non e' «nessun processo»" if _vivi < 0
-             else "%d process%s del motore gia' in esecuzione" % (_vivi, "o" if _vivi == 1 else "i")))
+# 🔴 **E la guardia sul non committato viene prima del ripristino.** `git checkout --` non
+# distingue la mutazione di una corsa interrotta dal lavoro di qualcuno: cancella entrambi. Il
+# gate gemello si ferma in questo caso da sempre (`sporco()`), questo lo faceva soltanto DOPO
+# aver gia' scritto. ⚠️ Chi vuole ripartire da una corsa interrotta ripristina lui l'header e
+# rilancia: e' un comando in piu' contro un lavoro perso. (`#2672`)
+_stato = subprocess.run(["git", "status", "--porcelain", "--", H],
+                        cwd=RADICE, capture_output=True, text=True, errors="replace")
+if _stato.returncode != 0:
+    print("\n⛔ FERMO: `git status` non risponde (exit %d). Non e' «albero pulito»:\n"
+          "   senza saperlo, il ripristino qui sotto cancellerebbe alla cieca." % _stato.returncode)
+    sys.exit(2)
+if (_stato.stdout or "").strip():
+    print("\n⛔ FERMO: `%s` ha modifiche non committate.\n"
+          "   L'audit ripristina quel file con `git checkout --`, che le cancellerebbe.\n"
+          "   Committarle, metterle da parte, oppure ripristinarlo a mano se sono i resti\n"
+          "   di una corsa interrotta." % os.path.relpath(H, RADICE).replace("\\", "/"))
     sys.exit(2)
 
 # 🔑 Ripristino PRIMA di leggere la base: se una corsa precedente e' stata interrotta, l'header sul disco
 # porta ancora la sua mutazione, e senza questa riga diventerebbe la base di tutto l'audit.
-subprocess.run(["git", "checkout", "--", "Source/RefactorTactics/Combat/RTCombatLibrary.h"],
-               capture_output=True, text=True)
+# ⚠️ L'exit code si legge: un `.git/index.lock` altrui fa fallire il checkout, e l'audit
+# partirebbe da un header ancora mutato credendolo pulito.
+_ripristino = subprocess.run(["git", "checkout", "--", "Source/RefactorTactics/Combat/RTCombatLibrary.h"],
+                             cwd=RADICE, capture_output=True, text=True, errors="replace")
+if _ripristino.returncode != 0:
+    print("\n⛔ FERMO: il ripristino iniziale e' fallito (exit %d): %s\n"
+          "   La baseline sarebbe presa su un header che non e' quello di `HEAD`."
+          % (_ripristino.returncode, (_ripristino.stderr or "").strip()[:120]))
+    sys.exit(2)
 BYTE_ORIGINALI = io.open(H, "rb").read()          # i byte veri, per un ripristino identico
 ORIGINALE = BYTE_ORIGINALI.decode("utf-8")
 
-TUTTE = re.findall(r"static constexpr int32 (\w+)\s*=\s*(-?\d+)\s*;", ORIGINALE)
+TUTTE = dichiarazioni(ORIGINALE)
 COST = [c for c in TUTTE if not resto or c[0] in resto]
 ignoti = [n for n in resto if n not in [c[0] for c in TUTTE]]
 if ignoti:
@@ -186,18 +247,11 @@ def ripristina():
 
 
 def build(tentativi=40):
-    """Ricostruisce. Torna True solo su `Result: Succeeded`; ritenta su QUALUNQUE fallimento."""
-    for i in range(tentativi):
-        r = subprocess.run([PWSH, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
-                            "& '" + BUILD_BAT + "' RefactorTacticsEditor "
-                            r"Win64 Development -Project='" + os.path.join(RADICE, "RefactorTactics.uproject") +
-                            r"' -WaitMutex"],
-                           capture_output=True, text=True, errors="replace")
-        testo = (r.stdout or "") + (r.stderr or "")   # UBT manda alcune righe su stderr
-        if "Result: Succeeded" in testo:
-            return True
-        time.sleep(45)   # e' l'Editor di un altro checkout, o il motore occupato: si aspetta, non si termina
-    return False
+    """Ricostruisce, e distingue la contesa dall'errore di compilazione. Vedi `misura.build`.
+
+    ⚠️ Ri-derivava il path del progetto pur avendo `UPROJECT` due righe sopra: due modi di
+    dire la stessa cosa in un file solo. Ora l'invocazione e' una, in `misura.py`."""
+    return regola.build(tentativi, stampa=print)
 
 
 def suite():
@@ -229,6 +283,32 @@ def misura():
 
 
 sospese = []
+
+# 🔴 **Il ripristino finale deve avvenire anche se qualcosa esplode.** Il `finally` per
+# iterazione rimette a posto il SORGENTE, ma l'ultimo binario costruito resta quello MUTATO:
+# un'eccezione qualsiasi — `OSError` da `istantanea`, un `KeyboardInterrupt`, un errore di
+# scrittura — saltava la ricostruzione finale, e la prossima suite di chiunque in questo
+# checkout avrebbe misurato una mutazione **invisibile nel diff**. E' l'esito che la sezione
+# «⛔ Il rischio, dichiarato» di questo file chiama il peggiore. Il gate gemello ha sempre
+# avuto questa rete; qui mancava. (`#2672`)
+_AUDIT_CONCLUSO = False
+
+
+@atexit.register
+def _rete_di_sicurezza():
+    if _AUDIT_CONCLUSO:
+        return
+    print("\n⚠️ AUDIT INTERROTTO: ripristino il sorgente e ricostruisco, perche' l'ultimo\n"
+          "   binario prodotto e' quello MUTATO e non si vede nel diff.")
+    try:
+        ripristina()
+    except Exception as e:                                  # il ripristino non deve mai mancare
+        print("   ⛔ ripristino del sorgente FALLITO (%s): rimetterlo a mano." % e)
+        return
+    if not build():
+        print("   ⛔ BINARIO MUTATO SUL DISCO: ricostruire PRIMA di qualunque altra misura.")
+
+
 with io.open(ESITI, "w", encoding="utf-8") as f:
     f.write("# Quali costanti si possono cambiare senza che niente diventi rosso\n\n")
     f.write("Direzione della mutazione: **%+d**.\n\n" % DELTA)
@@ -253,17 +333,8 @@ with io.open(ESITI, "w", encoding="utf-8") as f:
         nuovo = str(int(val) + DELTA)
         try:
             ripristina()   # a INIZIO ciclo: la mutazione precedente non deve sopravvivere
-            atteso = "static constexpr int32 %s = %s;" % (nome, val)
-            nuova_riga = "static constexpr int32 %s = %s;" % (nome, nuovo)
-            # 🔴 Sostituzione e verifica in BYTE, come la scrittura, e per la stessa ragione. Questo
-            # header e' CRLF: una rilettura in modalita' TESTO applica le universal newlines e
-            # restituisce \n, che non sara' mai uguale al testo atteso in \r\n. La verifica falliva
-            # su OGNI costante, e l'audit dichiarava undici `NON MISURATA` mutando benissimo il
-            # codice: la guardia contro la scrittura no-op scattava su se' stessa, e la direzione
-            # `-3` non e' mai stata misurabile. Misurato il 2026-09-03: 17603 byte decodificati
-            # contro 17276 caratteri riletti, differenza 327, esattamente le righe del file.
-            byte_mutati = BYTE_ORIGINALI.replace(atteso.encode("utf-8"), nuova_riga.encode("utf-8"), 1)
-            if byte_mutati == BYTE_ORIGINALI:
+            byte_mutati = muta(BYTE_ORIGINALI, nome, val, nuovo)
+            if byte_mutati is None:
                 # 🔴 Una scrittura no-op farebbe scattare l'allarme piu' forte su codice NON mutato.
                 f.write("## %s = %s -> %s\n**NON MISURATA**: la sostituzione non ha agganciato la "
                         "dichiarazione (spaziatura diversa?).\n\n" % (nome, val, nuovo))
@@ -307,3 +378,4 @@ if not build():
           "   non vede un binario gia' stantio.")
     sys.exit(1)
 print("AUDIT COMPLETO" + (" (con %d costanti senza misura valida)" % len(sospese) if sospese else ""))
+_AUDIT_CONCLUSO = True
