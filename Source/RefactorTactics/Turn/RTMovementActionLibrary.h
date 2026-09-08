@@ -29,7 +29,21 @@ enum class ERTLinearStop : uint8
 	 * `Final` e' la cella precedente — e `HexMatch.ChargeStopsOnEnemyAndHits` lo pinna, asserendo
 	 * `(2,0,0)` con il bersaglio su `(3,0)`.
 	 */
-	Impact
+	Impact,
+	/**
+	 * Fermata da un TERRENO che nega lo scatto pur restando percorribile a piedi: il dato e'
+	 * `bBlocksDashCharge` (E8/CP 8.1), oggi l'accidentato.
+	 *
+	 * 🔑 **Ha un valore proprio e non riusa `BlockedByTerrain`**, che dice «muro, cella che blocca il
+	 * movimento o bordo della mappa» — cioe' tre cose che si possono solo aggirare. Questa se ne distingue
+	 * per la lezione che insegna: la via **esiste e si percorre**, ma non di corsa. Accorpandole, chi
+	 * rilegge il turno va a cercare un muro che non c'e' — ed e' il difetto misurato il 2026-09-08 sulla
+	 * seduta `U46`, dove la carica di `R_ROU` rifiutata dal rough di `(-2,-1)` arrivava al log come
+	 * `resta`, indistinguibile da otto unita' che non avevano pianificato nulla.
+	 *
+	 * Valore aggiunto in CODA: le tracce gia' scritte conservano il proprio significato.
+	 */
+	TerrainDeniesDash
 };
 
 /** Esito di una mobilita' lineare: dove si arriva, cosa si attraversa, chi si colpisce e perche' ci si ferma. */

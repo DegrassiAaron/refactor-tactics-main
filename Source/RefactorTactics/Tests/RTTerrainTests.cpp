@@ -180,7 +180,15 @@ bool FRTTerrainRoughBlocksDashTest::RunTest(const FString&)
 		const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
 			Map, FRTCellId(0, 0, 0), FRTCellId(2, 0, 0), /*MaxCells=*/ 10, Style, {}, {});
 		TestTrue(TEXT("il resolver si ferma prima del Rough"), Linear.Final == FRTCellId(0, 0, 0));
-		TestTrue(TEXT("motivo dichiarato: terreno"), Linear.Stop == ERTLinearStop::BlockedByTerrain);
+		// ⌫ Questa riga asseriva `BlockedByTerrain` fino al 2026-09-08, e non era sbagliata: era l'unico
+		// valore che il resolver sapesse produrre. Il Rough e il MURO condividevano un esito solo, e a valle
+		// nessuno poteva distinguerli — il TurnLog raccontava la carica rifiutata dal rough come `resta`,
+		// indistinguibile da un'unita' che non aveva pianificato niente (seduta `U46`, `PIE-V01-LOG`).
+		// Ora il motivo e' proprio, ed e' `TerrainDeniesDash`: la via ESISTE e si percorre a piedi — cosa
+		// che `BlockedByTerrain`, riservato a muro/bordo, direbbe falsa. La meta' col muro sta in
+		// `Actions.Dash.DeniedByTerrain`, che asserisce i due motivi come DIVERSI.
+		TestTrue(TEXT("motivo dichiarato: il terreno nega lo scatto (non un muro)"),
+			Linear.Stop == ERTLinearStop::TerrainDeniesDash);
 	}
 
 	// Il SALTO invece scavalca: il terreno accidentato non ostacola chi ci passa sopra.

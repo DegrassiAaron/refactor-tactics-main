@@ -343,6 +343,17 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	// ⚠️ Diverso da «interrotta»: quella e' stata CANCELLATA, questa e' avvenuta senza ottenere niente.
 	case ERTActionInvalidReason::Neutralised:    return TEXT("neutralizzata da un'interruzione reciproca");
 	case ERTActionInvalidReason::Unbalanced:     return TEXT("sbilanciato: non puo' correre");
+	// ⚠️ Il testo nomina il TERRENO e dice cosa gli si puo' fare, perche' la voce `PIE-V01-LOG` non chiede
+	// se il log registri l'evento — chiede se chi lo apre **senza sapere cosa cercare** capisca perche'
+	// l'azione e' stata sostituita. «Terreno che nega lo scatto» descriverebbe il dato e lascerebbe il
+	// lettore a chiedersi se debba aggirarlo o rinunciare; «non si attraversa di corsa» dice entrambe le
+	// cose — che la via c'e', e che a piedi la si fa.
+	case ERTActionInvalidReason::TerrainDeniesDash:
+		return TEXT("il terreno sulla traiettoria non si attraversa di corsa");
+	case ERTActionInvalidReason::DashNotAligned:
+		return TEXT("destinazione non allineata, o oltre la portata dello scatto");
+	case ERTActionInvalidReason::DashPathBlocked:
+		return TEXT("traiettoria dello scatto interrotta");
 	default:                                     return TEXT("non eseguibile");
 	}
 }

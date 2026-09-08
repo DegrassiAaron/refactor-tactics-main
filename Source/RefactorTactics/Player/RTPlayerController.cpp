@@ -1580,9 +1580,20 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 			const bool bCharges = (Linear.Stop == ERTLinearStop::Impact);
 			if (Linear.Final != Cell && !bCharges)
 			{
+				// Il ternario che stava qui rendeva «traiettoria bloccata» tutto cio' che non fosse
+				// `NotAligned`, e con `TerrainDeniesDash` avrebbe mandato il giocatore a cercare un muro su
+				// una cella che si percorre benissimo a piedi — la lettura opposta a quella utile.
+				const TCHAR* Perche = TEXT("traiettoria bloccata");
+				switch (Linear.Stop)
+				{
+				case ERTLinearStop::NotAligned:
+					Perche = TEXT("non allineata o fuori portata"); break;
+				case ERTLinearStop::TerrainDeniesDash:
+					Perche = TEXT("il terreno non si attraversa di corsa"); break;
+				default: break;
+				}
 				UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d,L%d) non e' raggiungibile in LINEA (%s, max %d) per %s"),
-					Cell.X, Cell.Y, Cell.Layer,
-					Linear.Stop == ERTLinearStop::NotAligned ? TEXT("non allineata o fuori portata") : TEXT("traiettoria bloccata"),
+					Cell.X, Cell.Y, Cell.Layer, Perche,
 					DashRange, *SelectedUnit->GetName());
 				return;
 			}
