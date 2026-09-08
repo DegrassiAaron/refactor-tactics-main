@@ -1449,6 +1449,9 @@ protected:
 	/** Porta a termine una risoluzione sospesa la cui finestra si e' chiusa. Vedi il .cpp. */
 	void ResumeSuspendedResolution();
 
+	/** Avvia il playback su cio' che e' stato risolto finora, a resolution sospesa. Vedi il .cpp. */
+	void BeginPartialPlayback();
+
 	/** Emette gli eventi `Move` della timeline dai risultati passati. Vedi il .cpp: serve anche a meta'. */
 	void EmitMoveEvents(const TArray<ARTUnit*>& Units, const TArray<FRTHexMoveResult>& Results);
 
@@ -1810,7 +1813,8 @@ protected:
 	void DestroyDefeatedUnits();
 
 	/** Avvia il playback della risoluzione (movimento in parallelo, fasi a beat). */
-	void BeginPlayback();
+	/** Avvia il playback. Con `bPreserveClock` ESTENDE quello in corso invece di ricominciarlo (#2679). */
+	void BeginPlayback(bool bPreserveClock = false);
 	void EnterPlaybackPhase();
 	void TickPlayback(float DeltaSeconds);
 	void FinishPlayback();

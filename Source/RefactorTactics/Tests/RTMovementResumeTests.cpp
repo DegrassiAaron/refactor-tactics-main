@@ -436,4 +436,82 @@ bool FRTReactionWindowFullCycleTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * **Il playback e' gia' in corso quando la finestra si apre** (`#2679` fetta 3, [D-355]).
+ *
+ * 🔑 **E' la meta' che a `D-355` mancava.** La decisione dice che la finestra si apre *durante* il playback;
+ * fino a questa fetta la resolution si fermava PRIMA che `BeginPlayback` fosse mai chiamato, e chi decideva
+ * guardava uno schermo che non aveva mostrato il nemico entrare nella zona.
+ *
+ * ⚠️ **Cio' che l'automation puo' vedere, e cio' che non puo'.** Qui si verifica che il playback sia
+ * *partito* (`IsResolving()`) e che la timeline porti gia' il tratto percorso. Che il movimento **si veda**
+ * fluido attraverso la giunzione — nessun salto all'indietro, nessuna ripartenza da capo — e' presentazione,
+ * e il suo gate e' **PIE**: resta `NOT RUN` e va dichiarato, non dedotto da questo test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowPlaybackIsRunningTest,
+	"RefactorTactics.Reactions.WindowOpensWithPlaybackRunning",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowPlaybackIsRunningTest::RunTest(const FString&)
+{
+	UWorld* World = MakeResumeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnResumeMap(World);
+
+	ARTUnit* Mover = SpawnResumeUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Watcher = SpawnResumeUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Mover"), Mover) || !TestNotNull(TEXT("Watcher"), Watcher)
+		|| !TestNotNull(TEXT("TurnManager"), TM))
+	{
+		DestroyResumeWorld(World);
+		return false;
+	}
+
+	Watcher->bIsBotControlled = false;
+	Watcher->PlannedAbilityIndex =
+		RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+	Watcher->Facing = ERTHexDirection::W;
+	Watcher->PlannedCell = Watcher->Cell;
+	Mover->PlannedCell = FRTCellId(2, 0);
+
+	bool bPlaybackRunningAtOpen = false;
+	TM->OnReactionWindowOpened.BindLambda(
+		[&bPlaybackRunningAtOpen, TM](const FRTReactionWindowView&, int32)
+		{
+			// ⚠️ Letto DENTRO il delegate: dopo, il turno prosegue e la risposta non sarebbe piu' la stessa.
+			bPlaybackRunningAtOpen = TM->IsResolving();
+		});
+
+	TM->LockInAndResolve();
+
+	if (!TestTrue(TEXT("la resolution si e' sospesa su una finestra"), TM->IsResolutionSuspended()))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyResumeWorld(World);
+		return false;
+	}
+
+	// 🔑 Il playback e' partito, e la finestra si e' aperta con quello in corso.
+	TestTrue(TEXT("il playback e' in corso mentre la finestra attende"), TM->IsResolving());
+
+	// Il tratto percorso e' nella timeline: c'e' qualcosa da guardare, non uno schermo fermo.
+	TestTrue(TEXT("la timeline porta gia' il movimento percorso"),
+		TM->ResolvedEventCountOfTypeForTest(ERTResolvedEventType::Move) > 0);
+
+	// Chiuse le finestre, la resolution arriva in fondo senza che il playback riparta da zero.
+	int32 Chiusure = 0;
+	while (TM->IsResolutionSuspended() && Chiusure < 16)
+	{
+		TM->ExpireReactionWindow();
+		++Chiusure;
+	}
+	TestFalse(TEXT("la resolution e' conclusa"), TM->IsResolutionSuspended());
+	TestTrue(TEXT("il turno ha prodotto un TurnLog"), TM->GetTurnLog().Num() > 0);
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyResumeWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

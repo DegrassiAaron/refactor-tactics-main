@@ -741,6 +741,44 @@ bool ARTTurnManager::IsResolutionSuspended() const
 }
 
 /**
+ * Avvia il playback su cio' che la resolution ha risolto **finora**, mentre e' sospesa (`#2679` fetta 3).
+ *
+ * 🔑 **E' la meta' che mancava a [D-355].** La decisione dice che la finestra si apre *durante* il playback;
+ * senza questa funzione la resolution si fermava PRIMA che `BeginPlayback` fosse mai chiamato, e il
+ * giocatore avrebbe deciso su uno schermo che non aveva mostrato il nemico entrare nella zona.
+ *
+ * ⚠️ **I percorsi sono quelli PERCORSI, non quelli pianificati**: `Ctx.State.Results[i].Entered` contiene
+ * le celle davvero attraversate fino al micro-step corrente. Mostrare il percorso pianificato rivelerebbe
+ * dove l'unita' STA ANDANDO — informazione futura, che `Overwatch.OpportunityLeaksNoFuture` vieta al DTO e
+ * che non ha meno valore qui.
+ *
+ * ⛔ **No-op se il playback e' spento o gia' partito**: `bEnablePlayback` falso e' il caso headless, e un
+ * playback gia' in corso significa che questa non e' la prima sospensione del turno.
+ */
+void ARTTurnManager::BeginPartialPlayback()
+{
+	const FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	if (!Ctx || !bEnablePlayback || bIsResolving)
+	{
+		return;
+	}
+
+	TArray<ARTUnit*> Units;
+	Units.Reserve(Ctx->Units.Num());
+	for (const TWeakObjectPtr<ARTUnit>& WeakUnit : Ctx->Units)
+	{
+		Units.Add(WeakUnit.Get());
+	}
+
+	EmitMoveEvents(Units, Ctx->State.Results);
+
+	if (ResolvedTimeline.Num() > 0)
+	{
+		BeginPlayback();
+	}
+}
+
+/**
  * Emette gli eventi `Move` della timeline dai risultati che le sono passati (`#2679` fetta 3, [D-355]).
  *
  * 🔑 **Prende i risultati come ARGOMENTO, ed e' tutta la ragione per cui esiste come funzione.** Chiamata
@@ -760,6 +798,15 @@ void ARTTurnManager::EmitMoveEvents(const TArray<ARTUnit*>& Units,
 	{
 		return;
 	}
+
+	// 🔑 **Si rimuovono i `Move` gia' emessi prima di riemetterli.** Questa funzione puo' essere chiamata
+	// DUE volte nello stesso turno — una col percorso parziale alla sospensione, una col definitivo alla
+	// ripresa — e accodare produrrebbe due movimenti per la stessa unita': il playback ne mostrerebbe uno
+	// e il TurnLog ne registrerebbe due.
+	ResolvedTimeline.RemoveAll([](const FRTResolvedEvent& Ev)
+	{
+		return Ev.Type == ERTResolvedEventType::Move && Ev.Phase == ERTMatchPhase::Move;
+	});
 
 	const TArray<FRTRouteObserverTeam> ObserverTeams = BuildRouteObserverTeams(Units);
 	LastMoveRoutes.Reset();
