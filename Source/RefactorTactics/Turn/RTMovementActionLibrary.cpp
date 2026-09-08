@@ -29,6 +29,22 @@ namespace
 		const FRTHexCellData* Data = Map->FindCell(Cell);
 		return !URTTerrainLibrary::FindTerrainDef(Data->Surface).bBlocksDashCharge;
 	}
+
+	/**
+	 * QUALE delle due cose ha fermato il passo, per chi deve poi spiegarlo.
+	 *
+	 * `IsTraversableByStep` risponde si'/no ed e' cio' che serve al resolver; questa dice il motivo, che
+	 * serve al TurnLog. Le due restano separate di proposito: il predicato e' usato anche dove il motivo
+	 * non interessa, e restituire una coppia obbligherebbe ogni chiamante a scartarne meta'.
+	 *
+	 * Precedenza: il MURO prima del terreno. Una cella puo' essere entrambe le cose, e in quel caso la
+	 * lezione utile e' quella che vale anche a piedi.
+	 */
+	ERTLinearStop StepBlockReason(const URTHexMapAsset* Map, const FRTCellId& Cell)
+	{
+		if (!IsWalkable(Map, Cell)) { return ERTLinearStop::BlockedByTerrain; }
+		return ERTLinearStop::TerrainDeniesDash;
+	}
 }
 
 bool URTMovementActionLibrary::IsStraightLine(const FRTCellId& From, const FRTCellId& To, int32& OutDistance)
@@ -104,7 +120,10 @@ FRTLinearMoveResult URTMovementActionLibrary::ResolveLinearMove(const URTHexMapA
 
 		if (!IsTraversableByStep(Map, Next))
 		{
-			Result.Stop = ERTLinearStop::BlockedByTerrain; // muro, bordo mappa, o terreno che nega lo scatto
+			// Muro/bordo e terreno-che-nega-lo-scatto erano lo STESSO esito, e il commento che stava qui
+			// («muro, bordo mappa, o terreno che nega lo scatto») lo dichiarava senza che nulla a valle
+			// potesse distinguerli. Ora la causa viaggia, perche' e' cio' che il TurnLog deve poter dire.
+			Result.Stop = StepBlockReason(Map, Next);
 			break;
 		}
 

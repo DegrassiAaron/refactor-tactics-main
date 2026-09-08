@@ -176,7 +176,38 @@ enum class ERTActionInvalidReason : uint8
 	 *
 	 * ⚠️ In coda, per la ragione scritta su `DoorLocked`.
 	 */
-	DoorDestroyed
+	DoorDestroyed,
+	/**
+	 * La traiettoria dello scatto passa da un terreno che NEGA la mobilita' rapida pur restando
+	 * percorribile a piedi (`bBlocksDashCharge`, E8/CP 8.1): oggi l'accidentato.
+	 *
+	 * 🔑 **Non e' `OutOfRange` e non e' un blocco di traiettoria**, ed e' la ragione per cui ha un motivo
+	 * proprio: la portata bastava e la via esiste — quello che non si puo' fare e' **percorrerla di
+	 * corsa**. Le altre due manderebbero a cercare rispettivamente un bersaglio troppo lontano e un muro,
+	 * e il rimedio vero (aggirare il rough, o andarci a piedi pagando il costo doppio) non si deduce da
+	 * nessuna delle due.
+	 *
+	 * ⚠️ In coda, per la ragione scritta su `DoorLocked`: le tracce gia' scritte non cambiano significato.
+	 */
+	TerrainDeniesDash,
+	/**
+	 * La destinazione dello scatto non sta su una delle sei direzioni assiali, oppure e' oltre la portata
+	 * dell'azione: la mobilita' lineare non parte affatto (`ERTLinearStop::NotAligned`).
+	 *
+	 * Distinto da `OutOfRange`, che parla di un BERSAGLIO allontanatosi: qui non c'e' un bersaglio che si
+	 * e' mosso, c'e' una geometria che l'azione non ammette — e il rimedio e' scegliere un'altra cella,
+	 * non avvicinarsi.
+	 */
+	DashNotAligned,
+	/**
+	 * La traiettoria dello scatto e' interrotta da un muro, dal bordo della mappa o da un'unita' prima di
+	 * aver percorso anche un solo passo (`ERTLinearStop::BlockedByTerrain` / `BlockedByUnit`).
+	 *
+	 * ⚠️ **Non distingue muro da unita' di proposito**: `FRTTurnLogEntry::Amount` porta il motivo e non
+	 * un secondo dato, e dire CHI blocca chiederebbe un'identita' che questa voce non trasporta — la
+	 * stessa clausola con cui `ERTMoveOutcome::SlideBlocked` rinuncia a nominare la causa.
+	 */
+	DashPathBlocked
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */

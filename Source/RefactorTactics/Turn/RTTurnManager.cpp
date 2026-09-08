@@ -4486,6 +4486,9 @@ void ARTTurnManager::ResolveDash()
 
 		TArray<FRTCellId> Path;
 		bool bChargedIntoTarget = false;
+		// PERCHE' lo scatto non e' partito, per il rifiuto dichiarato piu' sotto. Vive fuori dal ramo
+		// lineare perche' e' li' che serve; il ramo a pathfinding non la valorizza e resta `Completed`.
+		ERTLinearStop LinearStop = ERTLinearStop::Completed;
 		if (URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle))
 		{
 			// Mobilita' LINEARE (catalogo §2): una direzione fra le sei, e cio' che sta sulla traiettoria la
@@ -4500,6 +4503,7 @@ void ARTTurnManager::ResolveDash()
 			const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
 				Snapshot.Map, Unit->Cell, Unit->PlannedDashCell, EffectiveRange,
 				Dash->Def.MovementStyle, Snapshot.Occupancy, Hostiles);
+			LinearStop = Linear.Stop;
 
 			// L'impatto della carica NON si applica qui: il catalogo le da' codice 20/30, cioe' movimento in
 			// fase Dash e impatto fra i controlli, che risolvono per priorita' dentro il Blast.
@@ -4543,7 +4547,56 @@ void ARTTurnManager::ResolveDash()
 		// Una carica che si ferma subito ha comunque colpito: l'impatto e' gia' registrato qui sopra.
 		if (Path.Num() < 2 && !bChargedIntoTarget)
 		{
-			continue; // destinazione non allineata, fuori portata, bloccata o occupata
+			// 🔑 **Rifiuto DICHIARATO, non scarto muto** — la stessa scelta gia' fatta poco sopra per la
+			// corsa negata da `Unbalanced`, che qui mancava. Fino al 2026-09-08 questo era un `continue`
+			// commentato «destinazione non allineata, fuori portata, bloccata o occupata»: quattro cause,
+			// nessuna traccia. L'unita' usciva dai dasher in silenzio e la fase Move la registrava
+			// `ERTMoveOutcome::Stayed`, che il TurnLog racconta «resta» e il suo stesso enum documenta
+			// «non pianificava movimento» — l'OPPOSTO del vero, visto che un piano c'era ed e' stato
+			// rifiutato.
+			//
+			// ⚠️ **Misurato, non dedotto**: seduta `U46` del 2026-09-08, scenario
+			// `Visual.Environment.Acceptance` T2. La carica `Hero.Branth.Ram` di `R_ROU` verso `(-1,-1,0)`
+			// passa dal rough di `(-2,-1)` e viene rifiutata; nel log usciva
+			// `Branth: resta (q=-3,r=-1,L=0) (Action.Move, p50)`, riga per riga identica a quella delle
+			// otto unita' che quel turno non facevano nulla. La voce `PIE-V01-LOG` chiede esattamente se
+			// il log spieghi perche' un'azione e' stata sostituita, e la risposta era no.
+			//
+			// Solo il ramo LINEARE emette: e' quello che porta una causa esatta in `LinearStop`. Il ramo a
+			// pathfinding (`Action.Sprint`) arriva qui con `Completed` e resta muto come prima — dargli un
+			// motivo chiederebbe di indovinarlo, e una riga che dichiara la causa sbagliata e' peggio di
+			// una riga assente.
+			if (URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle))
+			{
+				ERTActionInvalidReason Motivo = ERTActionInvalidReason::DashPathBlocked;
+				switch (LinearStop)
+				{
+				case ERTLinearStop::TerrainDeniesDash: Motivo = ERTActionInvalidReason::TerrainDeniesDash; break;
+				case ERTLinearStop::NotAligned:        Motivo = ERTActionInvalidReason::DashNotAligned; break;
+				default:                               Motivo = ERTActionInvalidReason::DashPathBlocked; break;
+				}
+
+				FRTTurnLogEntry Rifiutata;
+				Rifiutata.Phase = ERTMatchPhase::Dash;
+				Rifiutata.Category = ERTLogCategory::Fallback;
+				Rifiutata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+				Rifiutata.ActionId = Dash->Def.ActionId;
+				Rifiutata.BaseActionId = Dash->Def.BaseActionId;
+				Rifiutata.Priority = Dash->Def.Priority;
+				Rifiutata.SrcCell = Unit->Cell;
+				// La cella PIANIFICATA e non quella di partenza: e' l'unico posto in cui resta scritto dove
+				// l'unita' voleva andare, e senza di essa il rifiuto non e' ricostruibile dal log.
+				Rifiutata.TgtCell = Unit->PlannedDashCell;
+				Rifiutata.Amount = static_cast<int32>(Motivo);
+				AppendLogEntry(Rifiutata, Unit);
+
+				AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(),
+					Motivo == ERTActionInvalidReason::TerrainDeniesDash
+						? TEXT("il terreno non si attraversa di corsa")
+						: TEXT("lo scatto non parte")),
+					FRTLogSubject::Unit(Unit));
+			}
+			continue;
 		}
 		if (Path.Num() < 2)
 		{

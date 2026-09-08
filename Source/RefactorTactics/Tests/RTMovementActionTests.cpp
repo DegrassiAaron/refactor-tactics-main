@@ -9,6 +9,8 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTMovementActionLibrary.h"
+#include "Turn/RTActionFallbackLibrary.h"
+#include "Turn/RTTurnLogLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -27,6 +29,15 @@ namespace
 		FRTHexCellData Data = Map->FindCell(Id) ? *Map->FindCell(Id) : FRTHexCellData(Id);
 		Data.bBlocksMovement = true;
 		Data.bBlocksLineOfSight = true;
+		Map->AddOrUpdateCell(Data);
+		Map->SortCells();
+	}
+
+	/** Terreno accidentato: si percorre a piedi, e nega la mobilita' rapida (`bBlocksDashCharge`). */
+	void MakeRough(URTHexMapAsset* Map, const FRTCellId& Id)
+	{
+		FRTHexCellData Data = Map->FindCell(Id) ? *Map->FindCell(Id) : FRTHexCellData(Id);
+		Data.Surface = ERTHexSurface::Rough;
 		Map->AddOrUpdateCell(Data);
 		Map->SortCells();
 	}
@@ -82,6 +93,70 @@ bool FRTDashBlockedArcTest::RunTest(const FString&)
 	const FRTLinearMoveResult TooFar = URTMovementActionLibrary::ResolveLinearMove(
 		Clear, FRTCellId(0, 0), FRTCellId(5, 0), 3, ERTMovementStyle::LinearDash, Empty, NoHostiles);
 	TestTrue(TEXT("fuori portata: non parte"), TooFar.Final == FRTCellId(0, 0));
+	return true;
+}
+
+// Il terreno che nega lo scatto NON e' un muro, e il TurnLog deve poterlo dire. Fino al 2026-09-08 le due
+// cose condividevano `ERTLinearStop::BlockedByTerrain` — il commento del resolver lo dichiarava («muro,
+// bordo mappa, o terreno che nega lo scatto») — e a valle nessuno poteva distinguerle.
+//
+// ⚠️ Misurato sulla seduta `U46`: la carica di `R_ROU` rifiutata dal rough usciva nel log come
+// `Branth: resta (...)`, identica alle unita' che non avevano pianificato nulla. Questo test pinna la
+// distinzione alla sorgente; che la riga poi ARRIVI al log lo verifica la partita, non l'unita' di misura.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashDeniedByTerrainTest,
+	"RefactorTactics.Actions.Dash.DeniedByTerrain",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
+bool FRTDashDeniedByTerrainTest::RunTest(const FString&)
+{
+	const TMap<FRTCellId, int32> Empty;
+	const TSet<int32> NoHostiles;
+
+	// (1) Il rough sulla traiettoria ferma lo scatto CON UN MOTIVO PROPRIO.
+	URTHexMapAsset* Rough = MakeMoveActionMap();
+	MakeRough(Rough, FRTCellId(2, 0));
+	const FRTLinearMoveResult Denied = URTMovementActionLibrary::ResolveLinearMove(
+		Rough, FRTCellId(0, 0), FRTCellId(3, 0), /*MaxCells*/ 3, ERTMovementStyle::LinearDash, Empty, NoHostiles);
+
+	TestTrue(TEXT("si ferma prima del rough"), Denied.Final == FRTCellId(1, 0));
+	TestTrue(TEXT("e il motivo e' il TERRENO CHE NEGA LO SCATTO, non un muro"),
+		Denied.Stop == ERTLinearStop::TerrainDeniesDash);
+
+	// (2) CONTROLLO DIFFERENZIALE: il muro, sulla stessa cella, produce l'ALTRO motivo. Senza questa meta'
+	// il test resterebbe verde anche se `StepBlockReason` restituisse sempre `TerrainDeniesDash`.
+	URTHexMapAsset* Wall = MakeMoveActionMap();
+	MakeWall(Wall, FRTCellId(2, 0));
+	const FRTLinearMoveResult Blocked = URTMovementActionLibrary::ResolveLinearMove(
+		Wall, FRTCellId(0, 0), FRTCellId(3, 0), 3, ERTMovementStyle::LinearDash, Empty, NoHostiles);
+	TestTrue(TEXT("il muro resta `BlockedByTerrain`"), Blocked.Stop == ERTLinearStop::BlockedByTerrain);
+	TestTrue(TEXT("i due motivi sono DIVERSI"), Denied.Stop != Blocked.Stop);
+
+	// (3) La differenza che i due motivi esistono per raccontare: dal rough ci si passa A PIEDI. Se questo
+	// cadesse, distinguerlo dal muro non insegnerebbe piu' niente — sarebbe un muro con un altro nome.
+	const FRTHexCellData* RoughCell = Rough->FindCell(FRTCellId(2, 0));
+	TestTrue(TEXT("la cella rough esiste e NON blocca il movimento"),
+		RoughCell != nullptr && !RoughCell->bBlocksMovement);
+
+	// (4) Il SALTO scavalca le celle intermedie: il rough non lo riguarda, e atterrarci resta permesso.
+	const FRTLinearMoveResult Leap = URTMovementActionLibrary::ResolveLinearMove(
+		Rough, FRTCellId(0, 0), FRTCellId(3, 0), 3, ERTMovementStyle::LinearLeap, Empty, NoHostiles);
+	TestTrue(TEXT("il salto passa sopra il rough"),
+		Leap.Final == FRTCellId(3, 0) && Leap.Stop == ERTLinearStop::Completed);
+
+	// (5) Il narratore NON deve cadere nel default. Un motivo nuovo che l'enum porta ma la traduzione non
+	// conosce produce «non eseguibile» — cioe' esattamente la riga muta che questo lavoro rimuove, spostata
+	// di un livello. Si asserisce il TESTO, perche' e' il testo che la voce `PIE-V01-LOG` legge.
+	const FString Detto = URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason::TerrainDeniesDash);
+	TestNotEqual(TEXT("il motivo e' tradotto, non generico"), Detto, FString(TEXT("non eseguibile")));
+	TestTrue(TEXT("e nomina il terreno"), Detto.Contains(TEXT("terreno")));
+	TestTrue(TEXT("e dice che a piedi si passa"), Detto.Contains(TEXT("corsa")));
+
+	// Gli altri due motivi aggiunti con lui: stessa clausola, stesso rischio di default silenzioso.
+	TestNotEqual(TEXT("`DashNotAligned` e' tradotto"),
+		URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason::DashNotAligned),
+		FString(TEXT("non eseguibile")));
+	TestNotEqual(TEXT("`DashPathBlocked` e' tradotto"),
+		URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason::DashPathBlocked),
+		FString(TEXT("non eseguibile")));
 	return true;
 }
 
