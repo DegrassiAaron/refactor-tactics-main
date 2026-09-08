@@ -28,7 +28,8 @@ Un `git diff` non e' una verifica.
 -->
 
 - [ ] Build `RefactorTacticsEditor Win64 Development` → `Result: ?`
-- [ ] `./scripts/rt-suite.ps1` → VALIDA / NON VALIDA, `?/?` completati, `?` fallimenti
+- [ ] Suite Automation (`UnrealEditor-Cmd -ExecCmds="Automation RunTests RefactorTactics;Quit"`) → `?/?` completati, `?` fallimenti
+- [ ] `HEAD` e working tree invariati fra inizio e fine della misura (senza questo l'esito e' NON VALIDO, non verde)
 - [ ] Verifica di mutazione → cosa e' stato indebolito, quale test e' caduto, ripristinato **e ricostruito**
 - [ ] Gate documentali: `doc-links --check --with-archive` · `doc-tables --check` · `issue-refs --check`
 - [ ] Se la PR tocca `Scenarios/` o un valore di bilanciamento: `scenario-notes --check` (la prosa di uno scenario contro ciò che il file asserisce)

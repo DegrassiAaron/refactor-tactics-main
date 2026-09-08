@@ -35,10 +35,10 @@ lacuna vera. Successo due volte il 2026-09-02 («Unable to build while Live Codi
 Editor su un altro checkout). Qui si ritenta su QUALUNQUE fallimento — non solo su quella frase, perche'
 un Editor aperto produce invece `Result: Failed (OtherCompilationError)` (`#971`).
 
-🔴 **Si RICOSTRUISCE dopo l'attesa, non prima.** `rt-suite` puo' restare in coda fino a 90 minuti, e in
-quella finestra un'altra sessione puo' riscrivere il DLL condiviso: l'invariante di `rt-suite` copre il
-binario che cambia DURANTE la run, non uno gia' stantio all'avvio. E' la regola di `AGENTS.md` e di
-`CLAUDE.md` §6, e qui vale il doppio.
+🔴 **Si RICOSTRUISCE dopo l'attesa, non prima.** La suite puo' restare in attesa del motore fino a 90
+minuti, e in quella finestra un'altra sessione puo' riscrivere il DLL condiviso: l'invariante di validita'
+copre il binario che cambia DURANTE la run, non uno gia' stantio all'avvio. E' la regola di `AGENTS.md` e
+di `CLAUDE.md` §6, e qui vale il doppio.
 
 🔴 **Si verifica che la mutazione sia ATTERRATA.** Una scrittura no-op — spaziatura diversa, letterale che
 compare prima in un commento — farebbe scattare l'allarme piu' forte dello strumento (*«nessun test se ne
@@ -52,9 +52,9 @@ mutazione sul disco: senza il ripristino iniziale diventerebbe la nuova base di 
 
 ## ⛔ Il rischio, dichiarato
 
-Modifica un sorgente. ⚠️ **Un'interruzione lascia mutato anche il BINARIO**, che e' la meta' che `rt-suite`
-**non** sa vedere: `git checkout --` rimette a posto l'header e non il DLL. Se lo strumento non stampa
-`AUDIT COMPLETO`, **ricostruire prima di qualunque altra misura**.
+Modifica un sorgente. ⚠️ **Un'interruzione lascia mutato anche il BINARIO**, che e' la meta' che il
+confronto su `HEAD` e albero **non** vede: `git checkout --` rimette a posto l'header e non il DLL. Se lo
+strumento non stampa `AUDIT COMPLETO`, **ricostruire prima di qualunque altra misura**.
 
 E mentre gira il motore e' occupato: ogni altra misura in parallelo e' NON VALIDA.
 
@@ -75,11 +75,36 @@ e una baseline, **una direzione sono ore, non minuti** — e le direzioni sono d
 """
 import io, os, re, subprocess, sys, time
 
+# Stessa sede della regola di validita' dell'altro gate: `regola.verdetto()` e' pura, e i due
+# strumenti la CHIAMANO invece di tenerne una copia a testa. Le due copie precedenti erano gia'
+# divergenti — arita' diversa e interprete diverso — dopo un solo commit di vita.
+import misura as regola   # 'misura' e' gia' il nome di una funzione, qui sotto
+
 # La radice si deriva dal file, non si scrive: su questa macchina esistono tre copie del repository, e una
 # costante scritta a mano muterebbe l'albero di qualcun altro lasciando pulito il proprio.
 RADICE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 H = os.path.join(RADICE, "Source", "RefactorTactics", "Combat", "RTCombatLibrary.h")
-LOG = os.path.join(RADICE, "Saved", "Logs", "rt-suite.log")
+LOG = os.path.join(RADICE, "Saved", "Logs", "automation-mutazione.log")
+UPROJECT = os.path.join(RADICE, "RefactorTactics.uproject")
+ENGINE_CMD = r"D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
+BUILD_BAT = r"D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat"
+DLL_GLOB = os.path.join(RADICE, "Binaries", "Win64", "UnrealEditor-RefactorTactics*.dll")
+
+# 🔴 `pwsh`, non `powershell`: e' l'interprete su cui il quoting di `build()` e' stato misurato.
+# Questo file usava `powershell` (5.1) con lo STESSO quoting che l'altro gate dichiara provato
+# solo sotto `pwsh` — e qui non c'era preflight: una differenza di parsing non da' `Result:
+# Succeeded`, che `build()` legge come motore occupato e ritenta 40 volte a 45 s, mezz'ora.
+PWSH = "pwsh"
+
+# Il self-test non tocca ne' sorgenti ne' motore: deve poter girare senza argomenti, e PRIMA
+# del blocco che li pretende. Un test di una funzione pura non si fa cadere da un'installazione.
+if "--self-test" in sys.argv:
+    _casi = regola.self_test()
+    for _nome, _ok, _dett in _casi:
+        print("  %s %s%s" % ("ok  " if _ok else "FAIL", _nome, "" if _ok else "   -> " + _dett))
+    _falliti = [c for c in _casi if not c[1]]
+    print("\nself-test: %d/%d" % (len(_casi) - len(_falliti), len(_casi)))
+    sys.exit(1 if _falliti else 0)
 
 if len(sys.argv) < 2:
     print(__doc__.split("\n\n")[1].strip())
@@ -108,6 +133,36 @@ def scrivi(dati):
     os.replace(tmp, H)
 
 
+# 🔴 **Il preflight viene PRIMA del `git checkout --` qui sotto**, e l'ordine e' la sostanza:
+# quel comando cancella il non committato (`#2406`). Un audit che si ferma perche' il motore e'
+# occupato, o perche' un percorso e' sbagliato, avrebbe gia' distrutto le modifiche locali
+# all'header — cioe' avrebbe fatto danno proprio nel caso in cui ha deciso di non misurare.
+for _etichetta, _percorso in (("motore", ENGINE_CMD), ("Build.bat", BUILD_BAT)):
+    if not os.path.exists(_percorso):
+        print("\n⛔ FERMO: %s non esiste al percorso cablato:\n   %s\n"
+              "   Correggere la costante in testa a questo file." % (_etichetta, _percorso))
+        sys.exit(2)
+
+# ⚠️ PowerShell 7 e' un'installazione a parte: `powershell` (5.1) c'e' sempre, `pwsh` no. Senza
+# questa prova, `build()` morirebbe di `FileNotFoundError` a meta' audit — dopo il checkout.
+_prova = subprocess.run([PWSH, "-NoProfile", "-Command", "exit 0"],
+                        capture_output=True, text=True, errors="replace")
+if _prova.returncode != 0:
+    print("\n⛔ FERMO: `%s` non e' eseguibile, e `build()` invoca `Build.bat` da li'.\n"
+          "   Installare PowerShell 7, oppure cambiare PWSH dopo aver rimisurato che il\n"
+          "   quoting di `build()` regga sull'interprete scelto." % PWSH)
+    sys.exit(2)
+
+# 🔴 Il motore e' uno per macchina: non si lancia una suite sopra una che gira gia'. ⚠️ E' una
+# precondizione, non una guardia — cio' che parte DOPO si rileva solo se tocca i binari. Il lease
+# che lo impediva davvero e' stato rimosso (`D-347`), e questa riga non lo rimpiazza (`#2672`).
+_vivi = regola.motori_vivi()
+if _vivi != 0:
+    print("\n⛔ FERMO: %s.\n   Una misura presa sopra un'altra non e' una misura."
+          % ("enumerazione dei processi fallita — non e' «nessun processo»" if _vivi < 0
+             else "%d process%s del motore gia' in esecuzione" % (_vivi, "o" if _vivi == 1 else "i")))
+    sys.exit(2)
+
 # 🔑 Ripristino PRIMA di leggere la base: se una corsa precedente e' stata interrotta, l'header sul disco
 # porta ancora la sua mutazione, e senza questa riga diventerebbe la base di tutto l'audit.
 subprocess.run(["git", "checkout", "--", "Source/RefactorTactics/Combat/RTCombatLibrary.h"],
@@ -133,8 +188,8 @@ def ripristina():
 def build(tentativi=40):
     """Ricostruisce. Torna True solo su `Result: Succeeded`; ritenta su QUALUNQUE fallimento."""
     for i in range(tentativi):
-        r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
-                            r"& 'D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat' RefactorTacticsEditor "
+        r = subprocess.run([PWSH, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+                            "& '" + BUILD_BAT + "' RefactorTacticsEditor "
                             r"Win64 Development -Project='" + os.path.join(RADICE, "RefactorTactics.uproject") +
                             r"' -WaitMutex"],
                            capture_output=True, text=True, errors="replace")
@@ -146,31 +201,23 @@ def build(tentativi=40):
 
 
 def suite():
-    """Coda per il motore, POI ricostruisce, poi misura. Torna (verdetto, esito, rossi)."""
-    r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                        "scripts/rt-suite.ps1", "-WaitMinutes", "90"],
-                       capture_output=True, text=True, errors="replace")
-    out = (r.stdout or "") + (r.stderr or "")
-    if "[RT-MEASURE] NON VALIDA" in out:
-        verdetto = "NON VALIDA"
-    elif "[RT-MEASURE] VALIDA" in out:
-        verdetto = "VALIDA"
-    elif "NON AVVIATA" in out:
-        verdetto = "NON AVVIATA"
-    else:
-        verdetto = "ALTRO"
-    m = re.search(r"esito\s+(\d+)/(\d+) completati, (\d+) fallimenti", out)
-    esito = m.group(0) if m else "(nessun esito)"
-    rossi = set()
-    if os.path.exists(LOG):
-        testo = io.open(LOG, encoding="utf-8", errors="replace").read()
-        rossi = set(re.findall(r"Result=\{Fail\} Name=\{[^}]*\} Path=\{([^}]+)\}", testo))
+    """Misura. Torna (verdetto, esito, rossi).
+
+    Motore, istantanee e regola stanno in `misura.py`, in una sede sola: erano in copia qui
+    e in `caduta-gate.py`, e le due copie avevano gia' iniziato a divergere.
+
+    ⚠️ Il quarto termine dell'invariante — nessun processo estraneo del motore DURANTE la
+    run — non e' osservato: si controlla all'avvio (`regola.motori_vivi`), e cio' che parte
+    dopo si vede solo se tocca i binari. Vedi `#2672`."""
+    verdetto, esito, rossi, _, problemi = regola.esegui_suite(
+        RADICE, ENGINE_CMD, UPROJECT, LOG, "RefactorTactics", DLL_GLOB)
+    for p in problemi:
+        print("   " + p)
     return verdetto, esito, rossi
 
-
 def misura():
-    """Ricostruisce DOPO aver ottenuto il motore non si puo': rt-suite lo prende da se'. Si ricostruisce
-    prima, e si RICOSTRUISCE ANCORA se la run e' rimasta in coda a lungo — la regola di AGENTS.md."""
+    """Ricostruire DOPO aver ottenuto il motore non si puo': la suite lo occupa da se' appena parte. Si
+    ricostruisce prima, e si RICOSTRUISCE ANCORA se la run ha atteso a lungo — la regola di AGENTS.md."""
     if not build():
         return None
     v, e, rossi = suite()
@@ -256,6 +303,7 @@ with io.open(ESITI, "w", encoding="utf-8") as f:
 ripristina()
 if not build():
     print("⛔ BINARIO MUTATO SUL DISCO: il ripristino finale non ha ricostruito.\n"
-          "   Ricostruire PRIMA di qualunque altra misura — `rt-suite` non vede un binario gia' stantio.")
+          "   Ricostruire PRIMA di qualunque altra misura — il confronto su `HEAD` e albero\n"
+          "   non vede un binario gia' stantio.")
     sys.exit(1)
 print("AUDIT COMPLETO" + (" (con %d costanti senza misura valida)" % len(sospese) if sospese else ""))

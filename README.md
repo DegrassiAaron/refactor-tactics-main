@@ -131,9 +131,6 @@ RefactorTactics.uproject
 ├─ docs/
 ├─ tools/
 │
-├─ scripts/
-│  └─ rt-suite.ps1
-│
 ├─ AGENTS.md
 └─ CLAUDE.md
 ```

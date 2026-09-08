@@ -176,8 +176,10 @@ che il progetto protegge non è la directory.
   parallelo non sono tre lane, sono una lane e due run non valide.
 - 🔑 **Quel che va protetto è la MISURA.** Una suite vale solo se `HEAD`, l'albero, il binario e i
   processi del motore sono gli stessi all'inizio e alla fine. Altrimenti non è rossa né verde: è **NON
-  VALIDA**, e non si registra. Per questo si lancia da [`../../scripts/rt-suite.ps1`](../../scripts/rt-suite.ps1)
-  e non a mano — quei controlli, a mano, si dimenticano.
+  VALIDA**, e non si registra. ⚠️ Fino al 2026-09-08 quei quattro controlli li faceva
+  `scripts/rt-suite.ps1`, rimosso da [D-347](../decisions/RT_PDR_00_Decision_Log.md): ora si fanno **a
+  mano**, prima e dopo la run, e a mano si dimenticano. L'invariante non è cambiato — è cambiato chi
+  risponde che vale.
 
 ∴ **Una lane è un write-set, non una cartella.** Le tre lane si tengono separate se toccano file diversi e
 si sincronizzano su una sola misura, non se vivono in tre copie del repository. Il criterio operativo che
@@ -409,14 +411,23 @@ chiude niente.
 
 Una wave è chiusa quando la misura che lo dice è **valida**, non quando il lavoro sembra fatto.
 
+Con Unreal Editor chiuso, da PowerShell — la forma canonica è in
+[`AGENTS.md`](../../AGENTS.md) §Suite Unreal:
+
 ```powershell
-./scripts/rt-suite.ps1                                    # la suite intera
-./scripts/rt-suite.ps1 -Filter RefactorTactics.Scenario   # una sola area, molto più veloce
+& "<engine>/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "<repo>/RefactorTactics.uproject" `
+    "-ExecCmds=Automation RunTests RefactorTactics;Quit" `
+    -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-log=suite.log"
 ```
 
-Exit: `0` verde · `1` test falliti · `2` non avviata, motore occupato · `3` **NON VALIDA**, esito non
-registrabile. PowerShell e non Git Bash: MSYS traduce gli argomenti che iniziano con `/` e l'harness non
-parte nemmeno.
+Il filtro è il segmento dopo `RunTests`: `RefactorTactics` esegue tutto, `RefactorTactics.Scenario` solo
+quel gruppo — una sola area, molto più veloce.
+
+⚠️ **Non c'è più un exit code che distingua `NON VALIDA` da rossa.** Fino al 2026-09-08 lo dava
+`scripts/rt-suite.ps1` — `0` verde · `1` test falliti · `2` motore occupato · `3` **NON VALIDA** — e con
+lo script se n'è andato anche quello ([D-347](../decisions/RT_PDR_00_Decision_Log.md)). Unreal risponde
+soltanto verde o rosso: che `HEAD`, l'albero e il binario non siano cambiati durante la run va
+fotografato **prima e dopo**, e dichiarato insieme al risultato.
 
 Le tre trappole, che valgono per ogni lane:
 

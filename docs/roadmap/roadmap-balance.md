@@ -176,10 +176,12 @@ introdotto da #1963. Quel gap è chiuso, e non è stata aperta una issue per rip
 La scala del §5 risponde *«quando»*. Questo albero risponde *«quale problema, quali capability, quali issue lo
 dimostrano»*. Sono **due viste sugli stessi owner GitHub**: nessun backlog parallelo.
 
-> ⚠️ **Nota di naming.** Nel repository `RT3` significa già *RT Three Terminals* — il contratto di wave
-> `DEV`/`EDITOR`/`VALIDATION` di [`../rt-three-terminals/prompts/RT3_CONTRACT.md`](../rt-three-terminals/prompts/RT3_CONTRACT.md),
-> citato da `CLAUDE.md` e `AGENTS.md`. Questo albero **non usa quella sigla**: sarebbe un secondo significato
-> su un identificatore canonico, che è la classe di difetto che `D-154` documenta.
+> ⚠️ **Nota di naming.** Nel repository `RT3` ha significato *RT Three Terminals* fino al 2026-09-08,
+> quando il control plane e i suoi documenti sono stati rimossi ([`D-346`](../decisions/RT_PDR_00_Decision_Log.md)).
+> La sigla resta **occupata nella history e nei referti già scritti**, quindi questo albero continua a **non
+> usarla**: riciclarla ora darebbe due significati allo stesso identificatore a seconda della data del documento,
+> che è la classe di difetto che `D-154` documenta — peggiorata dal fatto che il primo significato non ha
+> più un documento vivo che lo dichiari.
 
 ### O1 — Sperimentare senza corrompere
 

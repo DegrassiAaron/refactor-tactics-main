@@ -20,7 +20,7 @@ valore. La ricarica è una riga in coda al `Cleanup`, dove il temporaneo scade g
 
 - UE **5.8.1**. Motore in `D:\EpicGames\UE_5.8`.
 - Build: `D:/EpicGames/UE_5.8/Engine/Build/BatchFiles/Build.bat RefactorTacticsEditor Win64 Development -Project="D:\Repositories\refactor-tactict-dev\RefactorTactics.uproject" -WaitMutex`
-- Suite: `./scripts/rt-suite.ps1 -Filter <filtro>` da **PowerShell**, mai da Bash (MSYS traduce i path).
+- Suite: da **PowerShell**, mai da Bash (MSYS traduce i path). ⚠️ Il piano fu scritto quando la si lanciava con `./scripts/rt-suite.ps1 -Filter <filtro>`; lo script è stato rimosso il 2026-09-08 (`D-347`) e la forma canonica è ora in `AGENTS.md` §Suite Unreal — il filtro è il segmento dopo `RunTests`. I comandi che questo piano cita più sotto vanno letti così.
   Lo script dichiara `NON VALIDA` una run in cui HEAD, albero, binario o processi del motore sono cambiati.
 - ⛔ **Prima di lanciare la suite**: `Get-Process -Name UnrealEditor-Cmd` deve essere vuoto. Due run di
   automation si uccidono a vicenda anche da checkout diversi — il mutex è globale sull'eseguibile.

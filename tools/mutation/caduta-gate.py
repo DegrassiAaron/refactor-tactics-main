@@ -47,8 +47,13 @@ compila, e una che compila puo' **appendere** invece di far cadere.
 ## Le scelte che rendono la misura onesta
 
 🔴 **Baseline VALIDA obbligatoria.** Senza, un rosso preesistente verrebbe attribuito alla mutazione.
-E non basta che la suite finisca: `rt-suite` dichiara `VALIDA` solo se `HEAD`, working tree, binario
-e stato del motore non cambiano durante la misura. Un `NON VALIDA` ferma il gate.
+E non basta che la suite finisca: una misura vale `VALIDA` solo se `HEAD`, working tree, binario
+e stato del motore non cambiano durante la run. Un `NON VALIDA` ferma il gate.
+
+⚠️ Fino al 2026-09-08 quei quattro termini li confrontava `rt-suite.ps1`. Rimosso, **tre** li
+confronta `_istantanea()` qui sotto — `HEAD`, contenuto dell'albero, firma dei binari — e il
+quarto, *nessun processo estraneo del motore*, e' sceso a **precondizione**: si verifica prima di
+partire e non durante. Chi legge questa riga sappia che quel termine e' il piu' debole dei quattro.
 
 🔴 **Guardia sul non committato.** Il ripristino usa i byte letti in memoria, non `git checkout --`:
 `#2406` avverte che quel comando **cancella il non committato**, e questo strumento gira anche
@@ -64,7 +69,7 @@ senza il ripristino iniziale diventerebbe la base di tutte le misure seguenti.
 🔴 **Il self-test.** `--self-test` esercita la logica dello strumento - i tre esiti, il controllo di
 atterraggio, la differenza di insiemi - senza motore e senza sorgenti, in un secondo. Non prova che
 il gate parli correttamente con Unreal: prova che, dati quei numeri, li classifica come dichiarato.
-E' la stessa convenzione di `rt-suite.ps1 -SelfTest`.
+E' la convenzione che il repository aveva gia' in `rt-suite.ps1 -SelfTest`, rimosso il 2026-09-08.
 
 🔴 **La taratura.** `--taratura` esegue una sesta mutazione su codice che esiste **oggi**
 (`URTHexLedgeLibrary::IsEdgeOpen`, `#2401`, gia' su `main`): sopprime la guardia del parapetto, e il
@@ -82,8 +87,8 @@ bersaglio e' `Map.OpenEdge.GuardSuppressesOpenness`. Risponde alla domanda che p
 - **Il binario, alla fine, non e' quello del sorgente** finche' non lo si ricostruisce. Il ciclo
   ripristina il sorgente dopo ogni misura ma non ricompila: l'ultimo DLL prodotto e' quello MUTATO.
   Misurato il 2026-09-05 — sorgente pulito, DLL mutato di quattro minuti prima. Per questo il gate
-  **ricostruisce da se'** alla fine, e se quel build fallisce lo dice forte: e' la meta' che
-  `rt-suite` non sa vedere, e chi misurasse dopo misurerebbe la mutazione.
+  **ricostruisce da se'** alla fine, e se quel build fallisce lo dice forte: e' la meta' che il
+  confronto su `HEAD` e albero non vede, e chi misurasse dopo misurerebbe la mutazione.
 - **Non misura gli effetti numerici della caduta** (`FallEffects`/`ImpactEffects`): non esistono come
   dato, e `#2402` D001 lo dichiara. Sono materia di `#2430`.
 - **Non sostituisce l'accettazione in Editor** (`#2408`) ne' l'evidenza packaged (`#2407`).
@@ -101,6 +106,11 @@ import subprocess
 import sys
 import time
 
+# La regola di validita' di una misura vive in UNA sede, e la meta' che decide e' pura:
+# `regola.verdetto()` prende un log come stringa, quindi il self-test puo' passargliene uno
+# crashato — cosa che nessun test puo' fare con un motore vero. Vedi `misura.py`.
+import misura as regola   # 'misura' e' gia' il nome di una funzione, qui sotto
+
 # 🔴 Lo stdout di Windows e' `cp1252`, e un `print` con un carattere fuori tabella solleva
 # `UnicodeEncodeError`: misurato su questo stesso strumento, che moriva sul simbolo del verdetto
 # BLOCKED dopo aver scritto correttamente il file degli esiti. Un gate che termina per un carattere
@@ -113,14 +123,22 @@ except AttributeError:
     pass   # Python < 3.7: i print ASCII passano comunque
 
 RADICE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-LOG = os.path.join(RADICE, "Saved", "Logs", "rt-suite.log")
+LOG = os.path.join(RADICE, "Saved", "Logs", "automation-mutazione.log")
 UPROJECT = os.path.join(RADICE, "RefactorTactics.uproject")
 BUILD_BAT = r"D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat"
+ENGINE_CMD = r"D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
 
-# 🔴 `pwsh`, non `powershell`. Windows PowerShell 5.1 non riesce nemmeno a fare il PARSING di
-# `rt-suite.ps1` — errori «'}' di chiusura mancante» — e **termina con codice 0**. Il risultato e' un
-# processo che sembra riuscito, non stampa nessun marcatore `[RT-MEASURE]`, e lascia il gate senza
-# verdetto. Misurato il 2026-09-05: la prima taratura e' morta esattamente qui.
+# I binari del progetto: `Binaries/` e' gitignorato, quindi un `Build.bat` di un altro
+# checkout li riscrive senza muovere ne' `HEAD` ne' l'albero. ⚠️ Su un checkout mai
+# compilato il glob non trova niente: il termine binario dell'invariante e' allora
+# ASSENTE, non soddisfatto — il confronto resta stabile e semplicemente non protegge.
+DLL_GLOB = os.path.join(RADICE, "Binaries", "Win64", "UnrealEditor-RefactorTactics*.dll")
+
+# 🔴 `pwsh`, non `powershell`. ⚠️ La ragione misurata il 2026-09-05 e' SCADUTA: riguardava il PARSING
+# di `rt-suite.ps1` — errori «'}' di chiusura mancante» con **exit code 0**, cioe' un processo che
+# sembrava riuscito senza aver misurato niente — e quello script e' stato rimosso il 2026-09-08. Qui
+# `pwsh` serve solo a invocare `Build.bat` col quoting scritto in `build()`. Resta perche' e'
+# l'interprete su cui quella invocazione e' stata misurata: con `powershell` non e' stata riprovata.
 PWSH = "pwsh"
 
 # Filtro della suite. Il mutex del motore ferma ogni checkout, e una suite intera per mutazione sono
@@ -248,27 +266,6 @@ def classifica(verdetto, nuovi, attesi):
     return "CADUTA (BERSAGLI DIVERSI)", True    # cade qualcosa, ma non cio' che si diceva di misurare
 
 
-def verdetto_da_output(out):
-    """Il verdetto di `rt-suite`, letto dal suo stdout.
-
-    🔴 «Nessun marcatore» non e' un caso qualunque, ed e' per questo che ha un nome proprio: se
-    `[RT-MEASURE]` non compare affatto, `rt-suite` non ha parlato — non ha misurato male, non ha
-    misurato. La causa piu' probabile e' l'interprete sbagliato (`powershell` 5.1 non fa il parsing
-    dello script e esce 0), e chiamarla `ALTRO` la rende indistinguibile da una suite andata storta."""
-    if "[RT-MEASURE] NON VALIDA" in out:
-        return "NON VALIDA"
-    if "[RT-MEASURE] VALIDA" in out:
-        return "VALIDA"
-    if "NON AVVIATA" in out:
-        return "NON AVVIATA"
-    if "[RT-MEASURE]" not in out:
-        if re.search(r"ParserError|chiusura mancante|missing closing|Unexpected token|"
-                     r"CommandNotFoundException|non e' riconosciuto|is not recognized", out):
-            return "INTERPRETE SBAGLIATO"
-        return "SENZA MARCATORE"
-    return "ALTRO"
-
-
 def bersagli_mancanti(attesi, eseguiti):
     """Quali bersagli la baseline non ha nemmeno ESEGUITO.
 
@@ -308,21 +305,6 @@ def self_test():
     c("un rosso preesistente che guarisce non maschera la sopravvissuta",
       classifica("VALIDA", rossi_dopo - rossi_base, {"A"}), ("SOPRAVVISSUTA", False))
 
-    # 🔴 L'interprete sbagliato: misurato il 2026-09-05. `powershell` 5.1 non fa il parsing di
-    # rt-suite.ps1, stampa errori di sintassi e ESCE 0. Senza un nome proprio finiva in `ALTRO`,
-    # indistinguibile da una suite andata storta, e la diagnosi costava un ciclo di build.
-    c("errore di parsing 5.1: interprete, non 'altro'",
-      verdetto_da_output("In rt-suite.ps1:1067\n'}' di chiusura mancante nel blocco"),
-      "INTERPRETE SBAGLIATO")
-    c("comando assente: interprete",
-      verdetto_da_output("pwsh: is not recognized as an internal or external command"),
-      "INTERPRETE SBAGLIATO")
-    c("nessun marcatore ma nessun errore noto",
-      verdetto_da_output("qualcosa di inatteso"), "SENZA MARCATORE")
-    c("verdetto valida", verdetto_da_output("[RT-MEASURE] VALIDA"), "VALIDA")
-    c("verdetto non valida non e' valida",
-      verdetto_da_output("[RT-MEASURE] NON VALIDA"), "NON VALIDA")
-    c("non avviata", verdetto_da_output("[RT-MEASURE] NON AVVIATA: il lock"), "NON AVVIATA")
 
     # 🔴 #2393: Editor morto all'avvio su worktree nuovo -> `0/?, 0 fail`. Zero rossi su zero test
     # eseguiti supera qualunque controllo che guardi solo i rossi.
@@ -332,6 +314,14 @@ def self_test():
       bersagli_mancanti({"A"}, {"B", "C"}), {"A"})
     c("bersaglio eseguito: niente da segnalare",
       bersagli_mancanti({"A"}, {"A", "B"}), set())
+
+    # 🔴 La regola di validita' e' inclusa qui, non lasciata al solo modulo: e' cio' che
+    # decide se un esito e' registrabile, e finche' viveva dentro `suite()` — che non gira
+    # senza motore — nessun caso poteva esercitarla. Un crash a meta' suite usciva `VALIDA`
+    # e questo gate ci gridava sopra `SOPRAVVISSUTA`. I casi stanno in `regola.self_test`,
+    # perche' la regola ha una sede sola; qui si esercitano insieme al resto.
+    for nome, ok, dettaglio in regola.self_test():
+        casi.append(("regola di validita': " + nome, ok, dettaglio, "ok"))
 
     falliti = [x for x in casi if not x[1]]
     for nome, ok, ottenuto, atteso in casi:
@@ -415,27 +405,23 @@ def build(tentativi=40):
 
 
 def suite():
-    """Coda per il motore, poi misura. Torna (verdetto, esito, rossi, eseguiti).
+    """Misura. Torna (verdetto, esito, rossi, eseguiti).
+
+    L'invocazione del motore, le due istantanee e la regola stanno in `misura.py`: erano in
+    copia qui e nell'altro gate, e le copie avevano gia' iniziato a divergere.
 
     🔴 `eseguiti` non e' un di piu': e' il modo di accorgersi che la suite non ha misurato niente.
-    `#2393` descrive un Editor che muore durante l'avvio su un **worktree nuovo**, con `rt-suite` che
-    riporta `0/?, 0 fail`. Zero fallimenti su zero test eseguiti supera qualunque controllo che guardi
-    solo i rossi, e una mutazione sembrerebbe SOPRAVVISSUTA su una misura mai avvenuta."""
-    r = subprocess.run([PWSH, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                        "scripts/rt-suite.ps1", "-Filter", FILTRO, "-WaitMinutes", "90"],
-                       capture_output=True, text=True, errors="replace")
-    out = (r.stdout or "") + (r.stderr or "")
-    verdetto = verdetto_da_output(out)
-    m = re.search(r"esito\s+(\d+)/(\d+) completati, (\d+) fallimenti", out)
-    esito = m.group(0) if m else "(nessun esito)"
-    rossi = set()
-    eseguiti = set()
-    if os.path.exists(LOG):
-        testo = io.open(LOG, encoding="utf-8", errors="replace").read()
-        rossi = set(re.findall(r"Result=\{Fail\} Name=\{[^}]*\} Path=\{([^}]+)\}", testo))
-        eseguiti = set(re.findall(r"Test Started\. Name=\{[^}]*\} Path=\{([^}]+)\}", testo))
-    return verdetto, esito, rossi, eseguiti
+    `#2393` descrive un Editor che muore durante l'avvio su un **worktree nuovo**, riportando
+    `0/?, 0 fail`. Zero fallimenti su zero test eseguiti supera qualunque controllo che guardi
+    solo i rossi, e una mutazione sembrerebbe SOPRAVVISSUTA su una misura mai avvenuta.
 
+    ⚠️ Il quarto termine dell'invariante — *nessun processo estraneo del motore durante la
+    run* — non e' osservato: si controlla all'avvio, nel preflight. Vedi `#2672`."""
+    verdetto, esito, rossi, eseguiti, problemi = regola.esegui_suite(
+        RADICE, ENGINE_CMD, UPROJECT, LOG, FILTRO, DLL_GLOB)
+    for p in problemi:
+        print("   " + p)
+    return verdetto, esito, rossi, eseguiti
 
 def misura():
     """Ricostruisce, poi misura. Se la run non ha nemmeno preso il motore RICOSTRUISCE e riprova: in
@@ -481,13 +467,38 @@ if DRY:
     print("\n--dry-run: nessun build, nessuna suite, nessuna scrittura sui sorgenti.")
     sys.exit(0 if not NON_APPLICABILI else 2)
 
-# 🔴 L'interprete si verifica PRIMA del primo build, non dopo. La prima taratura ha pagato un build
-# completo per scoprire che `rt-suite` non era nemmeno partito.
+# 🔴 Le precondizioni si verificano PRIMA del primo build, non dopo. La prima taratura ha pagato un
+# build completo per scoprire che l'interprete non era nemmeno partito (allora era `rt-suite.ps1`).
+# Vale per ogni dipendenza cablata, non solo per l'interprete: un `ENGINE_CMD` sbagliato — engine
+# su un'altra unita', o un `UE_5.9` — dava un `FileNotFoundError` non gestito DENTRO `suite()`,
+# cioe' un traceback dopo minuti di build, esattamente cio' che questo blocco esiste per evitare.
+for etichetta, percorso in (("motore", ENGINE_CMD), ("Build.bat", BUILD_BAT)):
+    if not os.path.exists(percorso):
+        print("\n⛔ FERMO: %s non esiste al percorso cablato:\n   %s\n"
+              "   Correggere la costante in testa a questo file." % (etichetta, percorso))
+        sys.exit(2)
+
+# 🔴 Non si lancia una suite SOPRA una che gira gia': il motore e' uno per macchina, e due run
+# concorrenti si invalidano a vicenda. ⚠️ E' una precondizione, non una guardia — cio' che parte
+# DOPO questo controllo si rileva solo se tocca i binari (`_istantanea`). Il mutex e il lease che
+# lo impedivano davvero sono stati rimossi (`D-347`) e nulla li rimpiazza.
+VIVI = regola.motori_vivi()
+if VIVI > 0:
+    print("\n⛔ FERMO: %d process%s del motore gia' in esecuzione.\n"
+          "   Attendere che finisca: una misura presa sopra un'altra non e' una misura."
+          % (VIVI, "o" if VIVI == 1 else "i"))
+    sys.exit(2)
+if VIVI < 0:
+    print("\n⛔ FERMO: enumerazione dei processi fallita. Non e' «nessun processo»:\n"
+          "   proseguire sarebbe un'invariante che fallisce APERTA.")
+    sys.exit(2)
+
 prova = subprocess.run([PWSH, "-NoProfile", "-Command", "exit 0"],
                        capture_output=True, text=True, errors="replace")
 if prova.returncode != 0:
-    print("\n⛔ FERMO: `%s` non e' eseguibile. `rt-suite.ps1` richiede PowerShell 7:\n"
-          "   Windows PowerShell 5.1 non ne fa nemmeno il parsing, e termina con codice 0." % PWSH)
+    print("\n⛔ FERMO: `%s` non e' eseguibile, e `build()` invoca `Build.bat` da li'.\n"
+          "   Installare PowerShell 7 (`pwsh`), oppure cambiare PWSH dopo aver rimisurato\n"
+          "   che il quoting di `build()` regga sull'interprete scelto." % PWSH)
     sys.exit(2)
 
 for m in APPLICABILI:

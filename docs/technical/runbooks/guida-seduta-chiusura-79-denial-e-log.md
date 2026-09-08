@@ -2,7 +2,10 @@
 
 > `CURRENT` · **Creata**: 2026-09-06 · **Voci**: `PIE-V01-COLL` clausola (c) · `PIE-V01-LOG` ·
 > **Issue**: [#79](https://github.com/DegrassiAaron/refactor-tactics-main/issues/79) — `CP 11.3` ·
-> **Wave RT3**: [`issue-79-combat-log-blocked-move/1`](../../rt-three-terminals/waves/issue-79-combat-log-blocked-move/)
+> **Wave RT3**: `issue-79-combat-log-blocked-move/1`
+> ⚠️ I path `docs/rt-three-terminals/` citati sotto **non esistono piu'**: rimossi il
+> 2026-09-08 con il control plane RT3. Il documento resta come referto datato; le evidenze
+> vivono nella history del repository.
 > **Owner degli esiti**: [`test-manuali-pie.md`](../test-manuali-pie.md) — questa guida dice **come**
 > osservare, non **cosa è risultato**.
 >
@@ -67,7 +70,7 @@ Se la riga c'è ma non si capisce, è ❌ con la ragione scritta, non ✅ con un
 
 ⚠️ **Guarda il combat log a schermo, non l'Output Log.** In headless la riga è già stata misurata
 conforme il 2026-09-06 (`OBSERVED`, evidenza in
-[`evidence/collisionchoke-turnlog-b5badb79.log`](../../rt-three-terminals/waves/issue-79-combat-log-blocked-move/evidence/)).
+`evidence/collisionchoke-turnlog-b5badb79.log`).
 Ciò che **nessun oracolo ha dato** è che quella riga arrivi al **widget** che il giocatore guarda: è l'unica
 cosa che questa seduta aggiunge, ed è il motivo per cui `COMBAT LOG` è rimasto `OBSERVED` invece di `PASS`.
 

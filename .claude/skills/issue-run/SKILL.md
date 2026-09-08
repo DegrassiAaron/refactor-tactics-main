@@ -1,6 +1,6 @@
 ---
 name: issue-run
-description: Executes the CURRENT RefactorTactics RT3 phase of one GitHub issue inside exactly one role (DEV, EDITOR or VALIDATION). Consumes the existing Behavior Contract and issue definition, performs only role-owned work, records evidence, and hands off remaining phases through RT3.
+description: Executes one GitHub issue as far as a single session can take it. Consumes the existing Behavior Contract and issue definition, does only the work the current step needs, records evidence with the commit it was measured on, and states plainly what was left NOT RUN.
 argument-hint: "[issue-number]"
 arguments:
   - issue
@@ -19,91 +19,33 @@ Invocation:
 
 This skill executes:
 
-> the CURRENT RT3 PHASE of one issue
+> one issue, as far as this session can take it
 
 It does NOT mean:
 
-> complete the whole issue through DEV + EDITOR + VALIDATION in this session
+> close every issue it touches
 
-One session = one RT3 role.
-
----
-
-# 0 — Role gate
-
-Read:
-
-```powershell
-$env:RT_TERMINAL_ROLE
-$env:RT_TASK_ID
-```
-
-Allowed roles:
-
-```text
-DEV
-EDITOR
-VALIDATION
-```
-
-If missing:
-
-```text
-ROLE_MISSING
-```
-
-Stop before mutations.
-
-Do not infer role from the issue.
-
-Role boundaries:
-
-| Role | Owns |
-|---|---|
-| DEV | C++, tests, scenario data/files, tooling headless, textual data/docs, Git/GitHub |
-| EDITOR | `.uasset/.umap`, Blueprint/UMG/Material, visual wiring, PIE, visual/human acceptance |
-| VALIDATION | build, Automation, Scenario Harness execution, determinism, replay, privacy, network gates, packaged, performance |
-
-Not owned by the current role:
-
-```text
-NOT RUN — OWNER: <role>
-```
-
-Never convert it to PASS or N/A merely because this role cannot perform it.
+An issue is done when it is merged and its DoD is verified, not when this skill returns.
 
 ---
 
-# 1 — Routed task gate
+# 0 — Scope gate
 
-If `RT_TASK_ID` exists, read current routing:
+⚠️ **Execution roles no longer exist.** Until 2026-09-08 a session declared one of `DEV`,
+`EDITOR` or `VALIDATION` in `RT_TERMINAL_ROLE`, a task router named the `next_actor`, and this
+skill refused to run when the two disagreed. Roles, router and the `scripts/` guards were all
+removed (`D-346`, `D-347`). If `RT_TERMINAL_*` or `RT_TASK_ID` are set in the environment, they
+are leftovers from a window opened earlier: nothing reads them.
 
-```powershell
-rttask status -TaskId $env:RT_TASK_ID
-rttask assignment -TaskId $env:RT_TASK_ID
-```
+What the gate protected is still real, and is now yours to hold:
 
-Verify:
-
-```text
-next_actor == RT_TERMINAL_ROLE
-```
-
-If not:
-
-```text
-TASK_ROUTE_MISMATCH
-```
-
-Stop.
-
-Do not fix routing from a worker role.
-
-The RT Coordinator owns routing mutations.
-
-The assignment defines current actor, objective, constraints, expected output and next-actor recommendation.
-
-GitHub Issue remains the operational work owner.
+- **one issue at a time.** Do not widen to sibling issues because they look adjacent;
+- **the machine has one Unreal.** Before Editor, PIE, build or a suite, check that no other
+  session is using it — `Get-Process UnrealEditor*, UnrealEditor-Cmd*`;
+- **asset authoring belongs to the main clone.** A worktree lacks gitignored files, so hard
+  references read `None` and saving **zeroes them** — silently;
+- **whoever writes a fix does not sign off on it alone.** Fix and measurement are two moments:
+  correct, name the commit, then measure that commit.
 
 ---
 
@@ -154,11 +96,10 @@ Until a canonical decision supersedes it:
 | Situation | Action |
 |---|---|
 | no claim and this is the first authorized actor | claim according to repository convention |
-| existing claim + routed `RT_TASK_ID` + this role is `next_actor` | do not steal/rewrite claim; add phase progress only |
-| existing claim without routing evidence authorizing this phase | stop |
+| existing claim by another session | do not steal or rewrite the claim; add your evidence to the issue |
 | ambiguous case | `BLOCKED — CLAIM_DECISION_REQUIRED` |
 
-Do NOT create separate issues for DEV/EDITOR/VALIDATION to bypass the claim problem.
+Do NOT create separate issues per kind of work to bypass the claim problem.
 
 Do NOT invent whether claim belongs to session or task.
 
@@ -206,7 +147,7 @@ Run it when:
 - this role is authorized to define the technical work;
 - repository workflow requires it.
 
-Do NOT rerun/rewrite the technical definition merely because the issue moved from DEV to EDITOR or VALIDATION.
+Do NOT rerun/rewrite the technical definition merely because the issue moved between sessions.
 
 If an accepted D001-D010 definition already exists, consume it.
 
@@ -237,13 +178,12 @@ Do not let technical specification silently override design.
 
 # 6 — Current-phase work only
 
-Determine exactly what this RT3 phase must accomplish.
+Determine exactly what this phase must accomplish.
 
 Record:
 
 ```text
-CURRENT ROLE
-CURRENT PHASE OBJECTIVE
+CURRENT STEP OBJECTIVE
 OWNED WRITE-SET
 READ-ONLY CONTRACTS
 ACCEPTANCE IDS
@@ -253,13 +193,15 @@ NOT RUN GATES
 
 Do not perform work merely because it exists somewhere in the issue.
 
-Perform only work belonging to the current role/phase.
+The three headings below are **kinds of work with different technical constraints**, not roles
+assigned to terminals: one session may cross all three. What does not change is that a gate you
+did not run is `NOT RUN`, never `PASS`.
 
 ---
 
-# 7 — DEV phase
+# 7 — Code and tooling work
 
-DEV owns, when in scope:
+This kind of work does not need Unreal Editor. It covers, when in scope:
 
 - C++;
 - implementation source;
@@ -271,13 +213,13 @@ DEV owns, when in scope:
 - documentation;
 - Git/GitHub updates.
 
-DEV does NOT:
+From here you cannot claim what only the Editor can show: `PIE`, visual evidence and asset
+integration are not observable without opening it. Claiming them is the one failure this section
+exists to prevent.
 
-- open Unreal Editor;
-- start PIE;
-- author `.uasset/.umap`;
-- use MCP asset write;
-- run machine-wide Unreal build/suite when live RT3 policy assigns that resource to VALIDATION.
+Unreal itself — build or suite — is a **machine** resource, not a session one: before starting
+one, check by hand that no other session is running it. Two measurements in the same window
+invalidate each other, and nothing stops them any more (`D-347`).
 
 Before implementing:
 
@@ -288,15 +230,15 @@ Before implementing:
 5. avoid duplicate resolver/pathfinder/replay authority;
 6. preserve determinism/privacy/versioning rules.
 
-Scenario creation by DEV is valid when it is textual Scenario Harness authoring and belongs to the issue.
+Creating a scenario is code-and-tooling work when it is textual Scenario Harness authoring and belongs to the issue.
 
 Do not create a scenario merely because one was proposed; reconcile against the scenario plan first.
 
 ---
 
-# 8 — EDITOR phase
+# 8 — Work that requires Unreal Editor
 
-EDITOR owns:
+This kind of work needs the Editor open:
 
 - `.uasset/.umap`;
 - Blueprint;
@@ -308,9 +250,13 @@ EDITOR owns:
 - persistence verification;
 - human/mixed visual acceptance.
 
-Opening an EDITOR terminal does NOT automatically acquire Unreal.
+Opening a terminal does NOT acquire Unreal.
 
-Acquire the machine resource only just-in-time according to current RT3 tooling.
+Take the machine resource only just-in-time, and verify by hand that nobody else holds it: the lease that enforced this was removed.
+
+⚠️ **PIE sessions and MCP asset authoring want the main clone.** A worktree does not carry the
+gitignored files: without the packs, hard references read `None`, and **saving zeroes them**. This
+is not a protocol rule — it is a property of the checkout, and it survived the removal.
 
 Asset writes:
 
@@ -364,9 +310,9 @@ Editor cannot certify by itself byte determinism, payload privacy, replay equiva
 
 ---
 
-# 9 — VALIDATION phase
+# 9 — Independent verification
 
-VALIDATION is independent.
+Verification is independent of whoever wrote the code — that is what the word means.
 
 It may:
 
@@ -394,12 +340,16 @@ Instead:
 find defect
 → preserve evidence
 → finding
-→ DEV or EDITOR fixes
-→ new candidate
-→ VALIDATION reruns
+→ fix it
+→ new candidate, commit declared
+→ measure again on that commit
 ```
 
-Validation measures an immutable candidate.
+Verification measures an immutable candidate.
+
+⚠️ The same session may do both steps — no role forbids it any more. What it must not do is
+collapse them: fixing and measuring are **two moments**, and if one session did both, say so
+next to the result. Whoever wrote the fix knows the case they had in mind, not the one they broke.
 
 Record:
 
@@ -430,7 +380,7 @@ INVALIDATED
 
 # 10 — Scenario execution
 
-Scenario Harness execution normally belongs to VALIDATION.
+Running the Scenario Harness is a measurement: it counts as evidence under the independence rule of §9.
 
 Before running a scenario:
 
@@ -473,7 +423,7 @@ Never infer PASS from compilation only, MCP `success`, command sent, no visible 
 
 # 12 — Candidate changes
 
-If DEV or EDITOR changes source, config, scenario fixture, binary asset or relevant test data, produce a new candidate identity/SHA according to project convention.
+If source, config, scenario fixture, binary asset or relevant test data change, produce a new candidate identity/SHA according to project convention — an earlier measurement does not carry over to it.
 
 Mark impacted previous evidence:
 
@@ -515,31 +465,25 @@ A finding does not automatically require a new issue if an existing owner can ab
 
 ---
 
-# 14 — Reporting to RT3
+# 14 — Reporting
 
-If `RT_TASK_ID` is present, deposit current phase result:
+Report on the **issue itself** — a comment, or the PR body. The task router that collected these
+reports was removed with the roles (`D-347`), and a result that lives only in a chat does not
+exist for whoever comes next.
 
-```powershell
-rttask report -TaskId <id> `
-  -Status <DONE|PARTIAL|BLOCKED|FAILED> `
-  -Summary "..." `
-  -Changes "..." `
-  -Evidence "..." `
-  -NotRun "..." `
-  -NextActorRecommended <actor>
-```
+State at minimum: status (`DONE` / `PARTIAL` / `BLOCKED` / `FAILED`), what changed, the evidence
+with its commit, and what was **NOT RUN**.
 
-`NextActorRecommended` is a recommendation.
-
-The Coordinator decides routing.
-
-Do not assign the next actor yourself from a worker role.
+If the issue needs work this session cannot do — an Editor seance, a packaged build, a
+measurement someone else must take independently — name it in the report as remaining work.
+Nothing routes it automatically any more: the Coordinator and the task router were removed
+with the roles (`D-347`), so an unstated remainder is simply lost.
 
 ---
 
 # 15 — Issue progress
 
-Completing one RT3 phase does NOT automatically close the GitHub issue.
+Completing one phase does NOT automatically close the GitHub issue.
 
 The issue may still require another role, human acceptance, packaged, merge, final validation or a decision.
 
@@ -551,26 +495,26 @@ Do not mark the whole issue `Done` unless its live DoD is actually complete.
 
 # 16 — Cleanup
 
-Every role cleans up only resources it owns.
+Clean up only what this session opened.
 
-DEV:
+After code and tooling work:
 
-- no Unreal process should have been opened;
+- no Unreal process should have been left running;
 - leave unrelated local work untouched.
 
-EDITOR:
+After work in the Editor:
 
 - stop PIE;
 - save only intentional assets;
 - verify dirty packages;
-- release Unreal resource;
-- close Editor only if this workflow owns that lifecycle.
+- close the Editor only if this session opened it.
 
-VALIDATION:
+After a verification run:
 
-- release validation/Unreal resource;
 - preserve logs/evidence;
-- do not leave mutated source from validation probes;
+- do not leave mutated source from probes — a mutation gate that stops early leaves the
+  **binary** mutated too, which `git checkout --` does not undo: rebuild before any other
+  measurement;
 - verify working tree/candidate integrity.
 
 Never close a user-owned or another-session Editor.
@@ -586,9 +530,6 @@ Always finish with:
 
 ## ISSUE
 #...
-
-## ROLE
-DEV | EDITOR | VALIDATION
 
 ## TASK
 ...
@@ -635,4 +576,4 @@ BLOCKED
 FAILED
 ```
 
-`DONE` here means this RT3 phase is done unless the report explicitly states that the full GitHub Issue DoD is also satisfied.
+`DONE` here means this phase is done unless the report explicitly states that the full GitHub Issue DoD is also satisfied.

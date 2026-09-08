@@ -7,7 +7,7 @@
 > `DeflectDelta`, `GuardFirstHitReduction` e `ApplyFirstHitDelta`.
 > 🔑 **Nessun numero qui è ricordato.** Ogni conteggio porta in §2 il selettore che l'ha prodotto.
 > ⛔ **La WAVE 4 non è in questo documento**: la sua premessa era falsa e la wave è stata riscritta come
-> work order proprio — [`waves/first-hit-provenance/WORK-ORDER.md`](../../rt-three-terminals/waves/first-hit-provenance/WORK-ORDER.md).
+> work order proprio — `waves/first-hit-provenance/WORK-ORDER.md`.
 > Qui restano le wave 1-3 e le osservazioni di processo.
 
 ---
@@ -222,7 +222,7 @@ manutenzione, non verità: la revisione che l'ha lasciato lì aveva sistemato un
 
 Va detto, perché è la parte che non va cambiata.
 
-- **§10 è fedele** a [`WAVE_DEV_LEAD.md`](../../rt-three-terminals/prompts/WAVE_DEV_LEAD.md) `:181-195`:
+- **§10 è fedele** a `WAVE_DEV_LEAD.md` `:181-195`:
   busta e non payload, nessuna matrice di verdetti, semantica corretta di `STATUS: READY`.
 - Il naming `RT3-DEVLEAD-<sha7>.md` e la cartella `contrib/` **corrispondono** al precedente reale
   (`waves/parsecell-arity/`).
