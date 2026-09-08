@@ -131,7 +131,6 @@ except AttributeError:
 RADICE = regola.RADICE
 LOG = regola.LOG
 UPROJECT = regola.UPROJECT
-BUILD_BAT = regola.BUILD_BAT
 ENGINE_CMD = regola.ENGINE_CMD
 DLL_GLOB = regola.DLL_GLOB
 
@@ -373,9 +372,19 @@ def scrivi(percorso, dati):
 
 
 def sporco(rel):
-    """True se il file ha modifiche non committate. Il gate NON scrive sopra il lavoro di un altro."""
-    r = subprocess.run(["git", "status", "--porcelain", "--", rel],
+    """True se il file ha modifiche non committate, o se non si e' potuto sapere.
+
+    🔴 L'exit code si legge. Un `git status` che fallisce — `.git/index.lock` tenuto da
+    un'altra sessione — usciva a mani vuote, e `bool("")` diceva «pulito»: il gate avrebbe
+    sovrascritto un file che porta il lavoro di qualcuno, e poi lo avrebbe «ripristinato» da
+    byte letti dopo lo stesso fallimento. E' il fail-open che l'altro gate ha appena chiuso,
+    lasciato aperto proprio nel file che consolida i due."""
+    r = subprocess.run(["git", "status", "--porcelain", "--", rel], cwd=RADICE,
                        capture_output=True, text=True, errors="replace")
+    if r.returncode != 0:
+        print("   ⚠️ `git status` su %s non risponde (exit %d): lo tratto come SPORCO."
+              % (rel, r.returncode))
+        return True
     return bool((r.stdout or "").strip())
 
 
@@ -455,12 +464,14 @@ if DRY:
 
 # 🔴 Le precondizioni si verificano PRIMA del primo build, non dopo. La prima taratura ha pagato un
 # build completo per scoprire che l'interprete non era nemmeno partito (allora era `rt-suite.ps1`).
-# Sono in `misura.preflight`, in una sede sola: qui e nell'altro gate erano due copie che avevano
-# gia' iniziato a divergere. E ora si ATTENDE il motore invece di rifiutare — su questa macchina
-# «occupato» e' la condizione normale, e uscire subito butta via la preparazione. (`#2672`)
-if not regola.preflight(print):
+# Sono in `misura.py`, in una sede sola: qui e nell'altro gate erano due copie che avevano gia'
+# iniziato a divergere. (`#2672`)
+if not regola.preflight_rapido(print):
     sys.exit(2)
 
+# 🔴 **E le guardie istantanee vengono prima dell'attesa del motore**, che dura fino a un'ora e
+# mezza. Bloccare tutto quel tempo per poi rifiutare a causa di un file sporco — che si sapeva in
+# partenza — non misura niente e lo fa costando un'ora e mezza.
 for m in APPLICABILI:
     if sporco(m["file"]):
         print("\n⛔ FERMO: %s ha modifiche non committate.\n"
@@ -478,6 +489,11 @@ if not APPLICABILI:
         f.write("\nLe mutazioni 1-5 mutano il ramo di **#2402**. Finche' quello non e' integrato non\n"
                 "c'e' niente da mutare, e nessun test della caduta da far cadere.\n")
     print("\n⛔ BLOCKED: nessuna mutazione applicabile. Esiti in " + ESITI)
+    sys.exit(2)
+
+# 🔑 Ora che ogni rifiuto istantaneo e' escluso, si puo' attendere il motore: e' l'unica attesa
+# lunga del gate, e ha senso solo se tutto il resto e' gia' a posto.
+if not regola.attesa_motore(print):
     sys.exit(2)
 
 ORIGINALI = {}

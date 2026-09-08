@@ -32,8 +32,10 @@ non risponde alla domanda**: la prima stesura di questo strumento mutava solo di
 🔴 **La guardia sul build.** Un `Build.bat` fallito lascia il binario VECCHIO: la suite girerebbe sul codice
 **non** mutato e riporterebbe «0 rossi», la peggiore risposta possibile perche' indistinguibile da una
 lacuna vera. Successo due volte il 2026-09-02 («Unable to build while Live Coding is active», cioe' un
-Editor su un altro checkout). Qui si ritenta su QUALUNQUE fallimento — non solo su quella frase, perche'
-un Editor aperto produce invece `Result: Failed (OtherCompilationError)` (`#971`).
+Editor su un altro checkout). ⚠️ Si ritenta sulla CONTESA del motore, non su qualunque fallimento: un
+errore di compilazione non cambia col tempo, e ritentarlo costava mezz'ora di silenzio. La distinzione
+sta in `misura.CONTESA`, e `OtherCompilationError` non vi appartiene — UBT lo emette anche per un errore
+C++ vero, che e' il caso comune quando una mutazione scritta a mano non compila.
 
 🔴 **Si RICOSTRUISCE dopo l'attesa, non prima.** La suite puo' restare in attesa del motore fino a 90
 minuti, e in quella finestra un'altra sessione puo' riscrivere il DLL condiviso: l'invariante di validita'
@@ -73,7 +75,7 @@ e una baseline, **una direzione sono ore, non minuti** — e le direzioni sono d
 - ⚠️ E `Scenario.EveryShippedScenarioRuns` compariva in **8** righe su 11: e' il singolo test che regge piu'
   costanti dell'intero perimetro. Un suo indebolimento non toglierebbe una copertura, ne toglierebbe otto.
 """
-import atexit, io, os, re, subprocess, sys, time
+import atexit, io, os, re, subprocess, sys
 
 # Stessa sede della regola di validita' dell'altro gate: `regola.verdetto()` e' pura, e i due
 # strumenti la CHIAMANO invece di tenerne una copia a testa. Le due copie precedenti erano gia'
@@ -87,10 +89,8 @@ H = os.path.join(RADICE, "Source", "RefactorTactics", "Combat", "RTCombatLibrary
 LOG = regola.LOG
 UPROJECT = regola.UPROJECT
 ENGINE_CMD = regola.ENGINE_CMD
-BUILD_BAT = regola.BUILD_BAT
 DLL_GLOB = regola.DLL_GLOB
 
-PWSH = regola.PWSH
 
 
 # --- le due decisioni PURE di questo file, e quindi le uniche che un test puo' esercitare ---------
@@ -116,11 +116,18 @@ def muta(byte_originali, nome, valore, nuovo):
     esattamente le righe del file.
 
     ⚠️ Quel difetto e' vissuto in un ramo che nessun test poteva raggiungere, perche' la logica
-    stava dentro il ciclo che muta i sorgenti. Ora e' qui, e il self-test la esercita (`#2672`)."""
-    atteso = ("static constexpr int32 %s = %s;" % (nome, valore)).encode("utf-8")
-    nuova = ("static constexpr int32 %s = %s;" % (nome, nuovo)).encode("utf-8")
-    mutati = byte_originali.replace(atteso, nuova, 1)
-    return None if mutati == byte_originali else mutati
+    stava dentro il ciclo che muta i sorgenti. Ora e' qui, e il self-test la esercita (`#2672`).
+
+    🔴 **L'ancora si DERIVA dal testo, non si ricostruisce.** Scrivere `"... %s = %s;"` impone
+    una spaziatura sola, mentre `dichiarazioni()` ne accetta qualunque (`\\s*`): una riga come
+    `int32 BaseShield  =  5 ;` veniva trovata dal parser e poi non agganciata dal mutatore, e
+    l'audit la dichiarava `NON MISURATA` — una costante selezionata e mai misurata, con la
+    ragione sbagliata scritta accanto. I due devono leggere la stessa grammatica."""
+    ancora = re.compile((r"(static\s+constexpr\s+int32\s+%s\s*=\s*)(%s)(\s*;)"
+                         % (re.escape(nome), re.escape(str(valore)))).encode("utf-8"))
+    mutati, quante = ancora.subn(lambda m: m.group(1) + str(nuovo).encode("utf-8") + m.group(3),
+                                 byte_originali, count=1)
+    return mutati if quante else None
 
 
 def _self_test_locale():
@@ -146,6 +153,11 @@ def _self_test_locale():
     # l'audit dichiara «NON MISURATA» ogni costante mutando benissimo il codice.
     mutati = muta(byte, "DeflectDamageReduction", "20", "23")
     c("la mutazione aggancia su un file CRLF", mutati is not None and b"= 23;" in mutati)
+    # 🔑 Il parser accetta la spaziatura larga: il mutatore deve accettarla anche lui, o la
+    # costante viene selezionata e poi dichiarata NON MISURATA per una ragione falsa.
+    largo = muta(byte, "BaseShield", "5", "8")
+    c("aggancia anche la spaziatura larga che il parser tollera",
+      largo is not None and b"=  8 ;" in largo, largo)
     c("e non tocca il resto del file",
       mutati is not None and mutati.count(b"\r\n") == byte.count(b"\r\n"))
     c("un valore che non esiste non aggancia", muta(byte, "DeflectDamageReduction", "99", "102") is None)
@@ -193,10 +205,10 @@ def scrivi(dati):
 
 
 # 🔴 **Il preflight viene PRIMA del `git checkout --` qui sotto**, e l'ordine e' la sostanza:
-# quel comando cancella il non committato (`#2406`). Un audit che si ferma perche' il motore e'
-# occupato, o perche' un percorso e' sbagliato, avrebbe gia' distrutto le modifiche locali
-# all'header — cioe' avrebbe fatto danno proprio nel caso in cui ha deciso di non misurare.
-if not regola.preflight(print):
+# quel comando cancella il non committato (`#2406`). Un audit che si ferma perche' un percorso e'
+# sbagliato avrebbe gia' distrutto le modifiche locali all'header — cioe' avrebbe fatto danno
+# proprio nel caso in cui ha deciso di non misurare.
+if not regola.preflight_rapido(print):
     sys.exit(2)
 
 # 🔴 **E la guardia sul non committato viene prima del ripristino.** `git checkout --` non
@@ -221,7 +233,8 @@ if (_stato.stdout or "").strip():
 # porta ancora la sua mutazione, e senza questa riga diventerebbe la base di tutto l'audit.
 # ⚠️ L'exit code si legge: un `.git/index.lock` altrui fa fallire il checkout, e l'audit
 # partirebbe da un header ancora mutato credendolo pulito.
-_ripristino = subprocess.run(["git", "checkout", "--", "Source/RefactorTactics/Combat/RTCombatLibrary.h"],
+_H_REL = os.path.relpath(H, RADICE).replace("\\", "/")   # un solo modo di dire dov'e' l'header
+_ripristino = subprocess.run(["git", "checkout", "--", _H_REL],
                              cwd=RADICE, capture_output=True, text=True, errors="replace")
 if _ripristino.returncode != 0:
     print("\n⛔ FERMO: il ripristino iniziale e' fallito (exit %d): %s\n"
@@ -239,6 +252,12 @@ if ignoti:
     sys.exit(2)
 if not COST:
     print("nessuna costante da misurare")
+    sys.exit(2)
+
+# 🔑 L'attesa del motore per ULTIMA, quando ogni rifiuto istantaneo e' gia' escluso: nomi
+# sconosciuti, header sporco e percorsi cablati si sanno in millisecondi, e farli aspettare
+# un'ora e mezza prima di dire «no» non misura niente e lo fa costando un'ora e mezza.
+if not regola.attesa_motore(print):
     sys.exit(2)
 
 
@@ -260,9 +279,10 @@ def suite():
     Motore, istantanee e regola stanno in `misura.py`, in una sede sola: erano in copia qui
     e in `caduta-gate.py`, e le due copie avevano gia' iniziato a divergere.
 
-    ⚠️ Il quarto termine dell'invariante — nessun processo estraneo del motore DURANTE la
-    run — non e' osservato: si controlla all'avvio (`regola.motori_vivi`), e cio' che parte
-    dopo si vede solo se tocca i binari. Vedi `#2672`."""
+    Il quarto termine — nessun processo estraneo del motore DURANTE la run — e' osservato
+    campionando i processi mentre la suite gira e scartando quelli che discendono dal
+    proprio (`#2672`). ⚠️ Il campionamento e' discreto: copre la finestra lunga, non
+    l'istante."""
     verdetto, esito, rossi, _, problemi = regola.esegui_suite(
         RADICE, ENGINE_CMD, UPROJECT, LOG, "RefactorTactics", DLL_GLOB)
     for p in problemi:
@@ -293,10 +313,17 @@ sospese = []
 # avuto questa rete; qui mancava. (`#2672`)
 _AUDIT_CONCLUSO = False
 
+# 🔴 **E la rete scatta solo se qualcosa e' stato davvero mutato.** Senza questa guardia
+# partiva anche sulle uscite in cui nulla era stato scritto — `BASELINE NON MISURABILE`, che
+# esce dopo aver misurato l'header intatto — stampando «il binario e' MUTATO» su un binario
+# sano e avviando un build da mezz'ora. Il gate gemello lo dice in una riga: *i falsi allarmi
+# sono il modo in cui un avviso vero smette di essere letto*.
+_COSTRUITO_MUTATO = False
+
 
 @atexit.register
 def _rete_di_sicurezza():
-    if _AUDIT_CONCLUSO:
+    if _AUDIT_CONCLUSO or not _COSTRUITO_MUTATO:
         return
     print("\n⚠️ AUDIT INTERROTTO: ripristino il sorgente e ricostruisco, perche' l'ultimo\n"
           "   binario prodotto e' quello MUTATO e non si vede nel diff.")
@@ -340,6 +367,7 @@ with io.open(ESITI, "w", encoding="utf-8") as f:
                         "dichiarazione (spaziatura diversa?).\n\n" % (nome, val, nuovo))
                 sospese.append(nome); f.flush(); continue
             scrivi(byte_mutati)
+            _COSTRUITO_MUTATO = True     # da qui in poi il binario puo' portare la mutazione
             if io.open(H, "rb").read() != byte_mutati:
                 f.write("## %s = %s -> %s\n**NON MISURATA**: il file riletto non porta la mutazione.\n\n"
                         % (nome, val, nuovo))
