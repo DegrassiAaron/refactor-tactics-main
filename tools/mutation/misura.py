@@ -361,14 +361,20 @@ def verdetto(prima, dopo, testo_log, filtro="", estranei=(), uscita_motore=0):
         # `roadmap-main-v0.1.md` §7 chiede DUE righe nel log, non una: `Found N` in testa e
         # questa in fondo, e una run uccisa dopo l'ultimo `Test Completed.` non ha la seconda.
         #
-        # ⚠️ **AVVISO, non verdetto, e la ragione e' che non l'ho misurata abbastanza.** La
-        # forma esatta esiste — `LogAutomationCommandLine: Display: **** TEST COMPLETE. EXIT
-        # CODE: 0 ****`, verificata nei log di questa macchina — ma `Saved/Logs/830-final.log`
-        # riporta «Automation Test Queue Empty 824 tests performed» e NON la contiene. Finche'
-        # non e' chiaro se dipenda dall'invocazione (`-ExecCmds ... ;Quit` la scrive, altre
-        # forme no), farne una condizione bloccante rischia di dichiarare NON VALIDA ogni run
-        # e fermare i due gate sul nascere. Si promuove a bloccante quando sara' confermata su
-        # un log prodotto da `esegui_suite()`. Vedi `#2672`.
+        # ⚠️ **AVVISO, non verdetto — e ora si sa perche' il contro-esempio non lo aveva.**
+        #
+        # Misurato il 2026-09-08 con un motore vero: le due run prodotte da `esegui_suite()`
+        # — una verde (`10/10`) e una con un rosso (`exit -1`) — portano ENTRAMBE la riga
+        # `LogAutomationCommandLine: Display: **** TEST COMPLETE. EXIT CODE: n ****`.
+        # `Saved/Logs/830-final.log`, che non ce l'ha pur avendo eseguito 824 test, era stato
+        # lanciato con `-ExecCmds="Automation RunTests RefactorTactics+Quit"`: col `+`, che
+        # nei filtri Automation e' un separatore, `Quit` finisce DENTRO il filtro invece di
+        # essere un comando, e la sequenza non si conclude mai. Qui si usa `;Quit`.
+        #
+        # Resta un avviso perche' due run non bastano a rendere BLOCCANTE una condizione che,
+        # se sbagliata, ferma entrambi i gate sul nascere: il costo di lasciarla avviso e'
+        # quasi nullo — si stampa comunque — e quello di sbagliarla e' che non si misura piu'
+        # niente. Si promuove quando i casi saranno molti. Vedi `#2672`.
         problemi.append("avviso    il log non porta «**** TEST COMPLETE. EXIT CODE: n ****»."
                         " Se la run sembra completa, verificare a mano che sia terminata")
 
