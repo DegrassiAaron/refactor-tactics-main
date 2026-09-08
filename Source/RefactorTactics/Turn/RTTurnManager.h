@@ -30,6 +30,14 @@ enum class ERTMovementAdvanceResult : uint8
 	Advanced,
 	/** Nessun micro-step da risolvere: la risoluzione e' pronta per `FinishMovementResolution`. */
 	Finished,
+	/**
+	 * Una finestra di reazione e' aperta e la risoluzione **attende**. Nessuna unita' avanza finche' non
+	 * si chiude — per risposta (`SubmitReactionResponse`) o per scadenza (`ExpireReactionWindow`).
+	 *
+	 * 🔴 **In coda e non in mezzo**, come il commento sopra prescriveva: `Advanced` e `Finished` valgono
+	 * ancora 0 e 1, e nessun confronto gia' scritto cambia significato.
+	 */
+	Suspended,
 };
 #include "Turn/RTPacingRecorder.h" // FRTPacingRecorder: la telemetria vive fuori (#1818)
 #include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
@@ -1409,7 +1417,7 @@ protected:
 	 * `MicroStepIndex` e' l'indice del passo nel TURNO, e viaggia fino dentro `FRTReactionOpportunityKey`:
 	 * senza, due passi dello stesso turno avrebbero lo stesso `OpportunityId`.
 	 */
-	void ResolveReactionBoundary(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units,
+	ERTMovementAdvanceResult ResolveReactionBoundary(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units,
 		FRTMovementResolutionState& State, const TArray<int32>& MovedUnitIds, int32 MicroStepIndex);
 
 	/**
@@ -1419,8 +1427,11 @@ protected:
 	 * — nessuno apre una finestra che duri — e l'esito e' identico a prima. Il punto di sospensione della
 	 * fetta 2 si innesta qui, e in nessun altro posto.
 	 */
-	void PumpReactionTriggers(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units,
+	ERTMovementAdvanceResult PumpReactionTriggers(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units,
 		FRTMovementResolutionState& State);
+
+	/** Chiude la finestra aperta con `Response` (vuota = scadenza) e riprende il consumo dei trigger. */
+	void CloseReactionWindow(const FString& Response);
 
 	/**
 	 * Apre UNA finestra e ne restituisce l'esito (CP 14.5). Non applica nulla: decide soltanto.
@@ -1469,6 +1480,50 @@ protected:
 	 */
 public:
 	FRTReactionDeciderSignature ReactionDecider;
+
+	/**
+	 * Notifica che una finestra di reazione si e' APERTA e che la resolution attende (`#2679` fetta 2).
+	 *
+	 * 🔑 **Legarlo e' cio' che rende la finestra interattiva.** Senza, `AskReactionDecision` resta l'unica
+	 * strada e la resolution non si ferma mai: e' il modo in cui **bot, test e Verifier** conservano il
+	 * modello sincrono per intero, senza un ramo che li distingua. Non e' una configurazione da ricordarsi
+	 * — e' l'assenza di una UI, che e' il caso normale fuori da una partita presidiata.
+	 *
+	 * ⛔ **Il `View` e' gia' sanitizzato per la squadra del proprietario** (`MakeReactionWindowView`): chi
+	 * ascolta riceve cio' che quel giocatore puo' vedere, non l'opportunity autorevole.
+	 */
+	DECLARE_DELEGATE_TwoParams(FRTReactionWindowOpenedSignature,
+		const FRTReactionWindowView& /*View*/, int32 /*OwnerUnitId*/);
+	FRTReactionWindowOpenedSignature OnReactionWindowOpened;
+
+	/**
+	 * Chiude la finestra aperta con la risposta del giocatore e **riprende** la resolution.
+	 *
+	 * ⚠️ **`OpportunityId` non e' cortesia: e' il gate.** Una risposta che nomina una finestra diversa da
+	 * quella aperta viene ignorata — e' arrivata tardi, dopo che la sua finestra era scaduta. Applicarla
+	 * comunque significherebbe far decidere il giocatore su un mondo che non c'e' piu', che e' lo stesso
+	 * difetto che `IsResponseAllowed` rifiuta per le risposte stale.
+	 *
+	 * Una risposta illegale non viene respinta qui: passa da `AskReactionDecision` come ogni altra, e
+	 * diventa `Rejected` con la scelta sicura applicata. La legalita' si decide in **un** posto.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void SubmitReactionResponse(const FString& OpportunityId, const FString& Response);
+
+	/**
+	 * Chiude la finestra aperta **per scadenza** e riprende: l'esito e' quello che
+	 * `URTReactionOpportunityLibrary::DecisionOnTimeout` dichiara — `HoldTimeout`, charge non consumata.
+	 *
+	 * 🔑 **Non legge un orologio.** Chi conta i secondi sta fuori, e cio' che entra nella decisione e' solo
+	 * *scaduta / non scaduta*: il tempo reale non tocca l'esito logico, che e' l'invariante che
+	 * `Reactions.NoResolverWait` protegge e che questa fetta non incrina.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void ExpireReactionWindow();
+
+	/** L'`OpportunityId` della finestra aperta, vuoto se nessuna attende. Per la UI e per i test. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	FString GetOpenReactionWindowId() const;
 
 	/**
 	 * Arma il manager con le decisioni di reazione GIA' PRESE, lette da una traccia (`#886`).

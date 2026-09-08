@@ -6962,15 +6962,16 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 		FRTLogSubject::UnitAt(WatchOwner, State.Pos[OwnerIdx]));
 }
 
-void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units,
-	FRTMovementResolutionState& State, const TArray<int32>& MovedUnitIds, int32 MicroStepIndex)
+ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map,
+	const TArray<ARTUnit*>& Units, FRTMovementResolutionState& State, const TArray<int32>& MovedUnitIds,
+	int32 MicroStepIndex)
 {
 	// Fail-closed su tutti e tre: senza mappa non c'e' LOS (quindi nessun trigger), senza Overwatch armati non
 	// c'e' chi reagisce, e senza nessuno che si sia mosso non c'e' l'ingresso in una cella controllata — che
 	// e' l'evento, non la presenza.
 	if (!Map || ArmedOverwatches.Num() == 0 || MovedUnitIds.Num() == 0)
 	{
-		return;
+		return ERTMovementAdvanceResult::Advanced;
 	}
 
 	// --- 1. I WATCHER, derivati dallo stato CORRENTE -------------------------------------------------------
@@ -7058,7 +7059,7 @@ void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TA
 	}
 	if (Watchers.Num() == 0)
 	{
-		return;
+		return ERTMovementAdvanceResult::Advanced;
 	}
 
 	// --- 2. I MOVER: il solo passo APPENA compiuto ---------------------------------------------------------
@@ -7093,7 +7094,7 @@ void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TA
 	FRTMovementResolutionContext* Ctx = PendingMovement.Get();
 	if (!Ctx)
 	{
-		return; // fuori da una risoluzione riprendibile non c'e' dove depositare: e' un difetto del chiamante
+		return ERTMovementAdvanceResult::Advanced; // fuori da una risoluzione riprendibile non c'e' dove depositare: e' un difetto del chiamante
 	}
 	Ctx->PendingTriggers.Reset();
 	Ctx->NextTrigger = 0;
@@ -7134,7 +7135,7 @@ void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TA
 		Ctx->PendingTriggers.Add(MoveTemp(Pending));
 	}
 
-	PumpReactionTriggers(Map, Units, State);
+	return PumpReactionTriggers(Map, Units, State);
 }
 
 /**
@@ -7148,13 +7149,104 @@ void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TA
  * micro-step, e l'ordine totale di ADR-0004 §4 dice quale arriva prima. Il secondo non trova piu' la
  * charge, ed e' corretto — `Charges = 1`.
  */
-void ARTTurnManager::PumpReactionTriggers(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units,
-	FRTMovementResolutionState& State)
+FString ARTTurnManager::GetOpenReactionWindowId() const
+{
+	const FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	return Ctx ? Ctx->OpenWindowOpportunityId : FString();
+}
+
+void ARTTurnManager::SubmitReactionResponse(const FString& OpportunityId, const FString& Response)
+{
+	FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	if (!Ctx || Ctx->OpenWindowOpportunityId.IsEmpty())
+	{
+		return; // nessuna finestra attende: una risposta senza domanda non e' un errore, e' un ritardo
+	}
+
+	// ⚠️ **Il gate dell'identita'.** Una risposta che nomina una finestra diversa da quella aperta e'
+	// arrivata tardi — la sua e' scaduta, e un'altra si e' aperta nel frattempo. Applicarla significherebbe
+	// far decidere il giocatore su un mondo che non c'e' piu': lo stesso difetto che `IsResponseAllowed`
+	// rifiuta per le risposte stale, qui su un canale che quella funzione non vede.
+	if (Ctx->OpenWindowOpportunityId != OpportunityId)
+	{
+		return;
+	}
+
+	CloseReactionWindow(Response);
+}
+
+void ARTTurnManager::ExpireReactionWindow()
+{
+	FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	if (!Ctx || Ctx->OpenWindowOpportunityId.IsEmpty())
+	{
+		return;
+	}
+
+	// Vuota = «non ho risposto». Cosa valga allo scadere lo dice una funzione pura, non questa: il ramo
+	// e' lo stesso che `AskReactionDecision` prende da sempre per il decisore che tace.
+	CloseReactionWindow(FString());
+}
+
+/**
+ * Chiude la finestra aperta applicando `Response` e riprende il consumo dei trigger.
+ *
+ * 🔑 **La risposta non viene giudicata qui.** Passa da `AskReactionDecision` come ogni altra — legata al
+ * decisore per la durata di questa chiamata — perche' la legalita' di una risposta si decide in **un**
+ * posto: una seconda politica qui applicherebbe risposte che quella rifiuta.
+ *
+ * ⛔ **Riprende il MICRO-STEP, non la risoluzione.** I trigger rimasti in questo boundary vengono
+ * consumati; far avanzare i micro-step successivi e' di chi chiama `AdvanceMovementResolution`, ed e' la
+ * fetta 3. Qui la resolution torna disponibile, non riparte da sola.
+ */
+void ARTTurnManager::CloseReactionWindow(const FString& Response)
+{
+	FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	if (!Ctx || !Ctx->PendingTriggers.IsValidIndex(Ctx->NextTrigger - 1))
+	{
+		return;
+	}
+
+	const FRTPendingReactionTrigger Pending = Ctx->PendingTriggers[Ctx->NextTrigger - 1];
+	Ctx->OpenWindowOpportunityId.Reset();
+	Ctx->OpenWindowElapsed = 0.f;
+
+	TArray<ARTUnit*> Units;
+	Units.Reserve(Ctx->Units.Num());
+	for (const TWeakObjectPtr<ARTUnit>& WeakUnit : Ctx->Units)
+	{
+		Units.Add(WeakUnit.Get());
+	}
+
+	// Il decisore viene legato per la durata di UNA domanda e poi rimesso com'era. E' il modo di far
+	// passare la risposta umana dallo stesso imbuto del bot senza aggiungere un secondo ramo dentro
+	// `AskReactionDecision`, che e' `const` e deve restarlo.
+	FRTReactionDeciderSignature Previous = ReactionDecider;
+	ReactionDecider.BindLambda(
+		[Response](const FRTReactionOpportunity&, int32) -> FString { return Response; });
+
+	const FRTReactionDecision Decision = AskReactionDecision(Pending.Opportunity,
+		Pending.Opportunity.Key.OwnerId, /*bOwnerIsBot=*/ false);
+
+	ReactionDecider = Previous;
+
+	if (ArmedOverwatches.IsValidIndex(Pending.ArmedIndex))
+	{
+		ApplyReactionDecision(Ctx->Snapshot.Map, Units, Ctx->State, Pending.Opportunity, Decision,
+			Pending.ArmedIndex);
+	}
+
+	// I trigger rimasti in questo boundary: possono aprirne un'altra, e allora si torna ad attendere.
+	PumpReactionTriggers(Ctx->Snapshot.Map, Units, Ctx->State);
+}
+
+ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAsset* Map,
+	const TArray<ARTUnit*>& Units, FRTMovementResolutionState& State)
 {
 	FRTMovementResolutionContext* Ctx = PendingMovement.Get();
 	if (!Ctx)
 	{
-		return;
+		return ERTMovementAdvanceResult::Advanced;
 	}
 
 	while (Ctx->PendingTriggers.IsValidIndex(Ctx->NextTrigger))
@@ -7181,14 +7273,44 @@ void ARTTurnManager::PumpReactionTriggers(const URTHexMapAsset* Map, const TArra
 		}
 
 		const ARTUnit* DecidingOwner = ArmedOverwatches[ArmedIndex].Owner.Get();
+		const bool bOwnerIsBot = IsValid(DecidingOwner) && DecidingOwner->bIsBotControlled;
+
+		// --- IL PUNTO DI SOSPENSIONE (`#2679` fetta 2, [D-355]) -----------------------------------------
+		//
+		// 🔑 **Quattro condizioni, e nessuna e' una politica**: sono i fatti che rendono una finestra
+		// interattiva possibile. Manca una qualsiasi e si prende la strada sincrona, che resta identica a
+		// se stessa — e' cosi' che bot, test e Verifier non hanno bisogno di un ramo che li nomini.
+		//
+		// ⛔ **`RecordedDecisions` vuota e' la condizione che protegge il replay**, e sta qui e non altrove:
+		// in ri-simulazione il Verifier non ha un decisore, e una finestra aperta non verrebbe chiusa da
+		// nessuno. `Replay.Verifier.ResimulationIsDeterministic` si bloccherebbe invece di diventare rosso,
+		// che e' il modo peggiore in cui un gate puo' fallire.
+		if (OnReactionWindowOpened.IsBound()
+			&& !bOwnerIsBot
+			&& RecordedDecisions.Num() == 0
+			&& URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opportunity))
+		{
+			const int32 OwnerTeamId = IsValid(DecidingOwner) ? DecidingOwner->TeamId : INDEX_NONE;
+			Ctx->OpenWindowOpportunityId = URTReactionOpportunityLibrary::DeriveOpportunityId(Opportunity.Key);
+			Ctx->OpenWindowElapsed = 0.f;
+
+			// Il DTO e' sanitizzato per la squadra di chi decide: `MakeReactionWindowView` acquista qui il
+			// chiamante di produzione che `RTTurnManager.h:627` dichiarava mancante.
+			OnReactionWindowOpened.Execute(
+				MakeReactionWindowView(Opportunity, OwnerTeamId, OwnerTeamId), Opportunity.Key.OwnerId);
+
+			return ERTMovementAdvanceResult::Suspended;
+		}
+
 		const FRTReactionDecision Decision = AskReactionDecision(Opportunity, Opportunity.Key.OwnerId,
-			IsValid(DecidingOwner) && DecidingOwner->bIsBotControlled);
+			bOwnerIsBot);
 		ApplyReactionDecision(Map, Units, State, Opportunity, Decision, ArmedIndex);
 	}
 
 	// Consumati tutti: la lista si svuota, e il boundary successivo riparte da zero.
 	Ctx->PendingTriggers.Reset();
 	Ctx->NextTrigger = 0;
+	return ERTMovementAdvanceResult::Advanced;
 }
 
 void ARTTurnManager::FinishMovementResolution()

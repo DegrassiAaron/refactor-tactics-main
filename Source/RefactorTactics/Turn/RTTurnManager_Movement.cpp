@@ -292,7 +292,16 @@ ERTMovementAdvanceResult ARTTurnManager::AdvanceMovementResolution()
 		// IL DECISION BOUNDARY. La «sospensione globale» di ADR-0004 §5 e' il fatto che questa chiamata
 		// stia fra due micro-step e debba ritornare prima del successivo: nessuna unita' avanza mentre una
 		// finestra e' aperta, e non perche' qualcuno le fermi — perche' il ciclo non gira.
-		ResolveReactionBoundary(Ctx.Snapshot.Map, Units, Ctx.State, MovedUnitIds, CurrentMicroStepIndex);
+		// 🔑 **Il boundary puo' non tornare.** Se ha aperto una finestra, la resolution attende:
+		// nessuna unita' avanza finche' non si chiude, e non perche' qualcuno le fermi — perche'
+		// questa funzione ritorna senza risolvere il micro-step successivo. E' la sospensione globale
+		// di ADR-0004 §5, che la fetta 1 aveva gratis dalla chiamata sincrona e che qui va conservata
+		// di proposito.
+		if (ResolveReactionBoundary(Ctx.Snapshot.Map, Units, Ctx.State, MovedUnitIds,
+			CurrentMicroStepIndex) == ERTMovementAdvanceResult::Suspended)
+		{
+			return ERTMovementAdvanceResult::Suspended;
+		}
 
 	}
 
@@ -307,11 +316,28 @@ void ARTTurnManager::ResolveMovement()
 	// l'Editor invece di far fallire un test.** Un micro-step non supera la lunghezza del percorso piu'
 	// lungo, e `256` sta due ordini di grandezza sopra qualunque percorso di una mappa 2v2.
 	int32 Guard = 0;
-	while (AdvanceMovementResolution() == ERTMovementAdvanceResult::Advanced && Guard < 256)
+	ERTMovementAdvanceResult Step = ERTMovementAdvanceResult::Advanced;
+	while (Step == ERTMovementAdvanceResult::Advanced && Guard < 256)
 	{
+		Step = AdvanceMovementResolution();
 		++Guard;
 	}
 	ensureMsgf(Guard < 256, TEXT("risoluzione del movimento non terminata in 256 micro-step"));
+
+	// ⛔ **Questa e' la via SINCRONA, e una sospensione qui non puo' arrivare**: si sospende solo con
+	// `OnReactionWindowOpened` legato, cioe' con una UI che attende — e chi ha una UI non chiama
+	// `ResolveMovement`, guida i tre momenti. Se accadesse, concludere applicherebbe una risoluzione a
+	// meta': meglio dirlo forte che scoprirlo dal TurnLog.
+	if (Step == ERTMovementAdvanceResult::Suspended)
+	{
+		// ⚠️ **Warning e non `ensure`, e la ragione e' che questo non e' un difetto di runtime**: e' un
+		// chiamante configurato male — ha legato `OnReactionWindowOpened` e poi ha chiesto la via sincrona.
+		// Un `ensure` qui produce un callstack che l'automation conta come errore, e renderebbe rosso
+		// qualunque test che la sospensione la voglia ESERCITARE.
+		UE_LOG(LogRT, Warning,
+			TEXT("ResolveMovement ha incontrato una finestra aperta: la via sincrona non puo' attenderla. ")
+			TEXT("Chi lega OnReactionWindowOpened deve guidare Begin/Advance/Finish."));
+	}
 
 	FinishMovementResolution();
 }

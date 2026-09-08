@@ -128,4 +128,20 @@ struct FRTMovementResolutionContext
 	 */
 	TArray<FRTPendingReactionTrigger> PendingTriggers;
 	int32 NextTrigger = 0;
+
+	/**
+	 * La finestra aperta, se ce n'e' una. Vuoto significa **nessuna attesa in corso** (`#2679` fetta 2).
+	 *
+	 * 🔑 **E' l'`OpportunityId` e non un indice**, per la stessa ragione per cui `RecordedDecisions` e' una
+	 * mappa: una risposta che arriva da fuori nomina la finestra a cui risponde, e una risposta in ritardo
+	 * — arrivata dopo che la finestra e' scaduta e un'altra si e' aperta — deve poter essere **riconosciuta
+	 * come tale** invece di essere applicata a quella sbagliata. Un indice non lo consente.
+	 *
+	 * ⚠️ Il trigger a cui appartiene e' `PendingTriggers[NextTrigger - 1]`: il pump incrementa l'indice
+	 * **prima** di decidere, quindi la finestra aperta e' sempre quella dell'elemento gia' consumato.
+	 */
+	FString OpenWindowOpportunityId;
+
+	/** Da quanti secondi la finestra aperta e' in attesa. Senza finestra non significa nulla. */
+	float OpenWindowElapsed = 0.f;
 };
