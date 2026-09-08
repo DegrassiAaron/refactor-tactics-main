@@ -1413,6 +1413,16 @@ protected:
 		FRTMovementResolutionState& State, const TArray<int32>& MovedUnitIds, int32 MicroStepIndex);
 
 	/**
+	 * Consuma i trigger che `ResolveReactionBoundary` ha appaiato, dal punto in cui era rimasto (`#2679`).
+	 *
+	 * 🔑 **E' il ciclo che stava dentro il boundary, spostato dove potra' FERMARSI.** Oggi non si ferma mai
+	 * — nessuno apre una finestra che duri — e l'esito e' identico a prima. Il punto di sospensione della
+	 * fetta 2 si innesta qui, e in nessun altro posto.
+	 */
+	void PumpReactionTriggers(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units,
+		FRTMovementResolutionState& State);
+
+	/**
 	 * Apre UNA finestra e ne restituisce l'esito (CP 14.5). Non applica nulla: decide soltanto.
 	 *
 	 * Separata da `ApplyReactionDecision` perche' sono due responsabilita' che falliscono in modi diversi —

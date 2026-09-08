@@ -7085,6 +7085,18 @@ void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TA
 		Map, TurnNumber, Watchers, Movers, Vitals, MicroStepIndex);
 
 	// --- 3. Per ogni opportunity: finestra, decisione, commit ----------------------------------------------
+	// 🔑 **Appaiare prima, consumare poi** (`#2679` fetta 2). Il ciclo qui sotto non risolve piu' nulla:
+	// costruisce le coppie `(opportunity, armamento)` e le deposita nel contesto. A risolverle e'
+	// `PumpReactionTriggers`, che puo' fermarsi in mezzo — ed e' il motivo per cui l'appaiamento avviene
+	// **tutto adesso**: la lista dei `Watchers` e' costruita dallo stato corrente, e dopo una sospensione
+	// sarebbe diversa.
+	FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	if (!Ctx)
+	{
+		return; // fuori da una risoluzione riprendibile non c'e' dove depositare: e' un difetto del chiamante
+	}
+	Ctx->PendingTriggers.Reset();
+	Ctx->NextTrigger = 0;
 	for (const FRTOverwatchTrigger& Trigger : Triggers)
 	{
 		const FRTReactionOpportunity& Opportunity = Trigger.Opportunity;
@@ -7111,13 +7123,54 @@ void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TA
 				break;
 			}
 		}
+		// ⚠️ **La charge NON si controlla qui, e non piu' da `#2679`.** La verifica sta nel pump, cioe' al
+		// momento del consumo: fra l'appaiamento e il turno di questo trigger puo' essersi aperta e chiusa
+		// una finestra che ha speso la charge, e un controllo fatto adesso direbbe di uno stato che non e'
+		// piu' quello in cui la decisione verra' presa. L'esito e' identico finche' nessuno sospende, ed e'
+		// quello che la suite verifica.
+		FRTPendingReactionTrigger Pending;
+		Pending.Opportunity = Opportunity;
+		Pending.ArmedIndex = ArmedIndex;
+		Ctx->PendingTriggers.Add(MoveTemp(Pending));
+	}
+
+	PumpReactionTriggers(Map, Units, State);
+}
+
+/**
+ * Consuma i trigger appaiati da `ResolveReactionBoundary`, uno alla volta, dal punto in cui era rimasto.
+ *
+ * 🔑 **Esiste perche' il consumo possa FERMARSI.** Oggi non si ferma mai — nessuno apre una finestra che
+ * duri — e questa funzione e' il ciclo che stava dentro `ResolveReactionBoundary`, spostato dove potra'
+ * uscire e rientrare. Il punto di sospensione si innesta qui, e in nessun altro posto.
+ *
+ * ⚠️ **La charge si verifica QUI**, non all'appaiamento: piu' watcher possono scattare nello stesso
+ * micro-step, e l'ordine totale di ADR-0004 §4 dice quale arriva prima. Il secondo non trova piu' la
+ * charge, ed e' corretto — `Charges = 1`.
+ */
+void ARTTurnManager::PumpReactionTriggers(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units,
+	FRTMovementResolutionState& State)
+{
+	FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	if (!Ctx)
+	{
+		return;
+	}
+
+	while (Ctx->PendingTriggers.IsValidIndex(Ctx->NextTrigger))
+	{
+		// Copiato e non referenziato: `ApplyReactionDecision` puo' toccare lo stato, e da `#2679` in poi
+		// fra due giri di questo ciclo puo' passare un frame intero.
+		const FRTPendingReactionTrigger Pending = Ctx->PendingTriggers[Ctx->NextTrigger];
+		++Ctx->NextTrigger;
+
+		const int32 ArmedIndex = Pending.ArmedIndex;
 		if (!ArmedOverwatches.IsValidIndex(ArmedIndex) || !ArmedOverwatches[ArmedIndex].bCharged)
 		{
-			// Gia' spesa da un'opportunity precedente **dello stesso micro-step**: piu' watcher possono
-			// scattare insieme, e l'ordine totale di ADR-0004 §4 dice quale arriva prima. Il secondo non trova
-			// piu' la charge, ed e' corretto — `Charges = 1`.
 			continue;
 		}
+
+		const FRTReactionOpportunity& Opportunity = Pending.Opportunity;
 
 		// Un PROMPT e' una finestra che chiede davvero: si conta prima di chiedere, e solo se c'e' una scelta.
 		// Un'opportunity a cardinalita' <= 1 si committa da sola senza interrompere nessuno, e spenderle
@@ -7132,6 +7185,10 @@ void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TA
 			IsValid(DecidingOwner) && DecidingOwner->bIsBotControlled);
 		ApplyReactionDecision(Map, Units, State, Opportunity, Decision, ArmedIndex);
 	}
+
+	// Consumati tutti: la lista si svuota, e il boundary successivo riparte da zero.
+	Ctx->PendingTriggers.Reset();
+	Ctx->NextTrigger = 0;
 }
 
 void ARTTurnManager::FinishMovementResolution()
