@@ -6954,6 +6954,9 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// resolution si sospende su una finestra il playback parte su una timeline parziale; alla ripresa la
 	// timeline si completa e questa funzione va rieseguita — ma azzerare l'orologio farebbe ripartire il
 	// movimento da capo sotto gli occhi di chi ha appena deciso.
+	// Estendendo, cio' che teneva fermo il playback non c'e' piu': la timeline e' cresciuta.
+	bPlaybackHeldByWindow = false;
+
 	const float ClockElapsedTotal = PlaybackElapsedTotal;
 	const int32 ClockPhaseIdx = PlaybackPhaseIdx;
 	const float ClockPhaseElapsed = PlaybackPhaseElapsed;
@@ -7257,6 +7260,15 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		return;
 	}
 
+	// 🔑 **Trattenuto da una finestra**: il playback parziale ha mostrato tutto cio' che era risolto e
+	// aspetta la risposta. Non e' la pausa del giocatore — quella e' `bPlaybackPaused`, ha i suoi comandi
+	// e un suo significato — ed e' tenuta separata di proposito: due pause con lo stesso flag si
+	// annullerebbero a vicenda al primo `ResumePlayback`.
+	if (bPlaybackHeldByWindow)
+	{
+		return;
+	}
+
 	const float Dt = DeltaSeconds * URTPlaybackLibrary::EffectivePlaybackSpeed(ViewerPlaybackSpeed);
 
 	// 🔴 **La coda della morte, e sta PRIMA di leggere la fase corrente** (#2452): quando l'ultima fase si e'
@@ -7470,6 +7482,20 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 
 void ARTTurnManager::FinishPlayback()
 {
+	// 🔴 **Il playback puo' finire mentre il turno NON e' finito** (`#2679` fetta 3, [D-355]). Il playback
+	// parziale mostra il tratto percorso fino al boundary — pochi secondi — mentre la finestra ne dura
+	// `FastReactionDuration`: senza questo controllo `ConcludeTurn` chiuderebbe il turno sotto chi sta
+	// ancora decidendo, e la sua risposta arriverebbe a partita gia' avanzata.
+	//
+	// ✅ **Fermarsi qui e' anche la lettura giusta**: ADR-0004 §5 dice che chi guarda *«vede il mondo
+	// fermarsi su un momento di tensione»*. Il mondo si ferma sull'ultimo fotogramma mostrato, che e'
+	// esattamente l'istante in cui il nemico e' entrato nella zona.
+	if (IsResolutionSuspended())
+	{
+		bPlaybackHeldByWindow = true;
+		return;
+	}
+
 	bIsResolving = false;
 	SetActorTickEnabled(false);
 

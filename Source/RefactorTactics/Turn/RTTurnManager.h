@@ -2439,6 +2439,15 @@ private:
 	bool bPlaybackPaused = false;
 
 	/**
+	 * Il playback ha mostrato tutto cio' che la resolution ha risolto, e ATTENDE una finestra (#2679).
+	 *
+	 * ⛔ **Non e' `bPlaybackPaused`, e tenerli separati e' la scelta**: quella e' la pausa del giocatore, ha
+	 * i suoi comandi e un suo significato. Con un flag solo, un `ResumePlayback` durante una finestra
+	 * farebbe ripartire un playback che non ha nulla da mostrare.
+	 */
+	bool bPlaybackHeldByWindow = false;
+
+	/**
 	 * Se `>= 0`, il playback avanza fino a questo `PlaybackPhaseElapsed` e poi si ferma: e' lo `Step`.
 	 *
 	 * 🔑 **Un tempo e non un contatore di frame**: il confine si calcola una volta, alla pressione, e il

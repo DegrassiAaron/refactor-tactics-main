@@ -499,6 +499,17 @@ bool FRTReactionWindowPlaybackIsRunningTest::RunTest(const FString&)
 	TestTrue(TEXT("la timeline porta gia' il movimento percorso"),
 		TM->ResolvedEventCountOfTypeForTest(ERTResolvedEventType::Move) > 0);
 
+	// 🔴 **Il turno NON si conclude mentre la finestra attende**, ed e' il difetto che questo test esiste
+	// per impedire: `FinishPlayback` chiama `ConcludeTurn`, e il playback parziale mostra pochi secondi
+	// mentre la finestra ne dura `FastReactionDuration`. Senza il fermo, il turno si chiudeva sotto chi
+	// stava ancora decidendo. Si ticka ben oltre la durata del tratto mostrato.
+	for (int32 I = 0; I < 200; ++I)
+	{
+		TM->Tick(0.05f);
+	}
+	TestTrue(TEXT("dopo 10s di tick la resolution attende ancora"), TM->IsResolutionSuspended());
+	TestTrue(TEXT("la finestra e' ancora aperta"), !TM->GetOpenReactionWindowId().IsEmpty());
+
 	// Chiuse le finestre, la resolution arriva in fondo senza che il playback riparta da zero.
 	int32 Chiusure = 0;
 	while (TM->IsResolutionSuspended() && Chiusure < 16)
