@@ -982,13 +982,37 @@ namespace
 							// Bersaglio a CELLA: alternativa a `target`, per le aree che si centrano su una cella
 							// anche vuota. La coesistenza dei due la rifiuta `Validate`, non questo punto: qui si
 							// legge il file, li' si giudica se ha senso.
+							// 🔑 **`HasField` e non `TryGetArrayField` come guardia** (`#2546`): la domanda e' se
+							// l'autore ABBIA SCRITTO il campo, non se cio' che ha scritto sia gia' un array
+							// buono. Un campo presente e malformato non e' un campo assente, e trattarlo come
+							// tale e' il difetto che questo ramo portava.
 							const TArray<TSharedPtr<FJsonValue>>* TargetCellArr = nullptr;
-							if (IntentObj->TryGetArrayField(TEXT("targetCell"), TargetCellArr) && TargetCellArr->Num() >= 2)
+							if (IntentObj->HasField(TEXT("targetCell")))
 							{
-								Intent.TargetCell = FRTCellId(
-									static_cast<int32>((*TargetCellArr)[0]->AsNumber()),
-									static_cast<int32>((*TargetCellArr)[1]->AsNumber()),
-									TargetCellArr->Num() >= 3 ? static_cast<int32>((*TargetCellArr)[2]->AsNumber()) : 0);
+								// ⌫ **Qui c'era `TryGetArrayField(...) && Num() >= 2`, con il layer dedotto a 0 e
+								// la coda scartata in silenzio.** Il caso peggiore non era la coda: con
+								// `"targetCell": [3]` **e** un `target` valido, la condizione cadeva, il ramo
+								// `else if` trovava il `target` e non emetteva NESSUN errore. `bTargetsCell`
+								// restava falso, quindi anche il controllo di ambiguita' di `Validate` — scritto
+								// per rifiutare «dichiara sia il bersaglio sia una cella» — non scattava. Lo
+								// scenario caricava verde e bersagliava la stringa al posto della cella scritta
+								// dall'autore: non un rosso, **un verde su un'altra partita**.
+								//
+								// `ParseCell` e' la stessa guardia che ogni altra cella dello scenario attraversa
+								// (`cells`, `interiorWalls`, `doors`, `unita'`): esattamente `[q, r, layer]`, e
+								// ogni altra arita' e' un errore che nomina il campo e la lunghezza trovata.
+								if (!IntentObj->TryGetArrayField(TEXT("targetCell"), TargetCellArr))
+								{
+									OutError = FString::Printf(
+										TEXT("intent di '%s': targetCell non e' un array [q, r, layer]"),
+										*Intent.UnitId);
+									return false;
+								}
+								if (!ParseCell(TargetCellArr, Intent.TargetCell, OutError,
+									*FString::Printf(TEXT("intent di '%s': targetCell"), *Intent.UnitId)))
+								{
+									return false;
+								}
 								Intent.bTargetsCell = true;
 								IntentObj->TryGetStringField(TEXT("target"), Intent.Target); // solo per diagnosticare l'ambiguita'
 							}
@@ -1069,18 +1093,35 @@ namespace
 							// La destinazione e' obbligatoria per lo stesso motivo per cui lo e' il bersaglio di
 							// un'abilita': senza, lo scatto non partirebbe e l'assertion cadrebbe su un fatto
 							// diverso da quello che lo scenario voleva verificare.
+							// 🔑 **ASSENTE e MALFORMATO portano due messaggi, ed e' la decisione che `#2546`
+							// chiedeva di prendere e scrivere.** Il testo storico — «non dichiara una
+							// destinazione» — e' vero per un campo che manca e FALSO per uno che c'e': chi
+							// scrive `"dashTo": [3, 4]` legge di non aver dichiarato una destinazione, va a
+							// cercare un campo che ha davanti agli occhi, e nel frattempo il layer gli veniva
+							// dedotto a 0 in silenzio.
 							const TArray<TSharedPtr<FJsonValue>>* DashCellArr = nullptr;
-							if (!IntentObj->TryGetArrayField(TEXT("dashTo"), DashCellArr) || DashCellArr->Num() < 2)
+							if (!IntentObj->HasField(TEXT("dashTo")))
 							{
+								// Campo ASSENTE: messaggio invariato, ed e' l'unico ramo che lo conserva.
 								OutError = FString::Printf(
 									TEXT("intent di '%s': la mobilita' '%s' non dichiara una destinazione (campo dashTo)"),
 									*Intent.UnitId, *DashText);
 								return false;
 							}
-							Intent.DashCell = FRTCellId(
-								static_cast<int32>((*DashCellArr)[0]->AsNumber()),
-								static_cast<int32>((*DashCellArr)[1]->AsNumber()),
-								DashCellArr->Num() >= 3 ? static_cast<int32>((*DashCellArr)[2]->AsNumber()) : 0);
+							if (!IntentObj->TryGetArrayField(TEXT("dashTo"), DashCellArr))
+							{
+								OutError = FString::Printf(
+									TEXT("intent di '%s': dashTo non e' un array [q, r, layer]"), *Intent.UnitId);
+								return false;
+							}
+							// Campo PRESENTE: stessa guardia di ogni altra cella dello scenario. `Num() < 2`
+							// rifiutava due elementi e ne accettava quattro scartando la coda — due arita'
+							// sbagliate su tre passavano.
+							if (!ParseCell(DashCellArr, Intent.DashCell, OutError,
+								*FString::Printf(TEXT("intent di '%s': dashTo"), *Intent.UnitId)))
+							{
+								return false;
+							}
 						}
 
 						FString ReactionText;
