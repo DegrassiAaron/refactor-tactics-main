@@ -180,10 +180,13 @@ Totale corpus versionato: **117** scenari (`A 78 + B 31 + D-bloccati 8`). Totale
 > **La ripartizione A/B/C resta umana** — dipende da dove sta l'oracolo, non dai file — ed è il motivo per
 > cui questa pagina continua a esistere.
 
-> ⚠️ **La cartella non è la classe.** **Dieci** scenari di `Scenarios/Spec/` sono di **classe A**: i sei
-> `Spec.Facing.*`, `Spec.Cover.TemporaryCoverExpires` e i tre che chiedono `EnvironmentalActionOwner`
-> (`Spec.Environment.ElectricPropagation`, `Spec.Environment.WaterQuenchesFire`,
-> `Spec.Map.BridgeBreaksThePath`). I primi hanno
+> ⚠️ **La cartella non è la classe.** **Nove** scenari di `Scenarios/Spec/` sono di **classe A**: i sei
+> `Spec.Facing.*`, `Spec.Cover.TemporaryCoverExpires` e i **due** che chiedono `EnvironmentalActionOwner`
+> (`Spec.Environment.ElectricPropagation`, `Spec.Environment.WaterQuenchesFire`).
+> ⌫ **Erano dieci fino al 2026-09-08, e il decimo era `Spec.Map.BridgeBreaksThePath`**: chiedeva
+> `EnvironmentalActionOwner` — disponibile — e risultava acceso, mentre girava a vuoto con `intents: []`.
+> Da [#2549](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2549) chiede `ArcModification`,
+> che è indisponibile per decisione (`D-046`), quindi è **BLOCKED e non di classe A**. I primi hanno
 > `requires` vuoto perché **E16 è chiusa**; il settimo dichiara ancora `CreateCover`, ma quella capability è
 > **disponibile** da E9.5, quindi il runner non lo blocca più; gli ultimi tre si sono accesi con `#282`.
 > È il meccanismo del corpus che funziona come

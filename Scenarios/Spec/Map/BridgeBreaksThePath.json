@@ -14,6 +14,7 @@
   "_nota_perche_e_bloccato": "BLOCCATO PER DECISIONE, non per lacuna (D-046, #282). `Action.ModifyArc` resta senza owner nel roster v0.1: rompere e creare ponti non appartiene a nessun kit, e darlo a Branth per affinita' Structures gli aggiungerebbe un potere che il suo kit non dichiara. CP 9.4 e' verde e resta verificato da questo scenario come SPECIFICA; diventera' eseguibile quando esistera' un owner - un eroe della v0.2, o una capability di scenario che agisca senza un'unita'.",
   "_nota_cosa_dimostra_davvero": "Non «il ponte si rompe», ma che la **revisione della mappa** sale e i percorsi gia' pianificati se ne accorgono: un path calcolato prima della rottura non deve restare valido. E' l'obiettivo dichiarato di E9 — niente path fantasma — e si osserva solo con un movimento pianificato **nello stesso turno** in cui l'arco cade.",
   "_nota_da_completare": "Chi cabla l'azione riempie il turno 2 e aggiunge l'assertion: Gadget resta sul layer 0 invece di salire, e il TurnLog dice `BlockedByTopology`. Se arrivasse comunque sulla piattaforma, il path era fantasma.",
+  "_nota_le_assertion_di_oggi_sono_TAUTOLOGICHE": "🔴 **E vanno sostituite, non integrate, dal primo che rende questo scenario eseguibile.** `UnitAtCell(F1) = (1,0,0)` nomina la cella da cui F1 PARTE, quindi e' vera in ogni esecuzione in cui nessuno si muove; `TurnsCompleted: 1` e' soddisfatta dal solo T1, che ha `intents: []`. Insieme passano senza che accada niente. Oggi non fanno danno — il T2 chiede `ArcModification`, che e' indisponibile, e lo scenario esce BLOCKED — ma il blocco **differisce** il difetto di #2549, non lo rimuove: il giorno in cui D-046 venisse riaperta e la capability diventasse disponibile, entrambi i turni vuoti girerebbero, entrambe le tautologie passerebbero, e il file tornerebbe `PASS 2/2` con `intents: []`, identico allo stato che #2549 descrive. ⚠️ Anche il T1 ha `intents: []` e nessun `requires`: gira gia' oggi e non esercita nulla.",
   "units": [
     {
       "id": "F1",
@@ -43,9 +44,9 @@
     },
     {
       "_turno": "T2 — l'arco cade mentre Gadget ci sta salendo: il percorso non si allunga, sparisce.",
-      "_nota_requires": "⌫ Chiedeva `EnvironmentalActionOwner` fino al 2026-09-08, e quella capability e' DISPONIBILE — copre `Electrify` e `CreateWater`, che un owner ce l'hanno. Il turno risultava quindi giocabile, non trovava intents e lo scenario usciva PASS 2/2 senza che accadesse niente (#2549). Cio' che serve qui e' `Action.ModifyArc`, che D-046 (#282) lascia deliberatamente senza owner nel roster v0.1: `AvailableCapabilities()` lo dichiarava gia' — «uno scenario che chieda di accenderle deve restare BLOCKED» — ma non esisteva un nome con cui chiederlo.",
+      "_nota_requires": "⌫ Chiedeva `EnvironmentalActionOwner` fino al 2026-09-08, e quella capability e' DISPONIBILE — copre `Electrify` e `CreateWater`, che un owner ce l'hanno. Il turno risultava quindi giocabile, non trovava intents e lo scenario usciva PASS 2/2 senza che accadesse niente (#2549). Cio' che serve qui e' `Action.ModifyArc`, che D-046 lascia deliberatamente senza esecutore nel roster v0.1: `AvailableCapabilities()` lo dichiarava gia' — «uno scenario che chieda di accenderle deve restare BLOCKED» — ma non esisteva un nome con cui chiederlo.",
       "requires": [
-        "ArcModificationOwner"
+        "ArcModification"
       ],
       "intents": []
     }
