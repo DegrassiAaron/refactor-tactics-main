@@ -331,13 +331,10 @@ void ARTTurnManager::ResolveMovement()
 	// meta': meglio dirlo forte che scoprirlo dal TurnLog.
 	if (Step == ERTMovementAdvanceResult::Suspended)
 	{
-		// ⚠️ **Warning e non `ensure`, e la ragione e' che questo non e' un difetto di runtime**: e' un
-		// chiamante configurato male — ha legato `OnReactionWindowOpened` e poi ha chiesto la via sincrona.
-		// Un `ensure` qui produce un callstack che l'automation conta come errore, e renderebbe rosso
-		// qualunque test che la sospensione la voglia ESERCITARE.
-		UE_LOG(LogRT, Warning,
-			TEXT("ResolveMovement ha incontrato una finestra aperta: la via sincrona non puo' attenderla. ")
-			TEXT("Chi lega OnReactionWindowOpened deve guidare Begin/Advance/Finish."));
+		// 🔑 **Si esce SENZA concludere, e il contesto resta vivo.** E' la sospensione: chi chiude la
+		// finestra trova la risoluzione dove l'abbiamo lasciata e la porta a termine. Chiamare `Finish`
+		// qui rilascerebbe il contesto e la finestra aperta non avrebbe piu' a cosa tornare.
+		return;
 	}
 
 	FinishMovementResolution();
@@ -620,7 +617,48 @@ void ARTTurnManager::CloseReactionWindow(const FString& Response)
 	}
 
 	// I trigger rimasti in questo boundary: possono aprirne un'altra, e allora si torna ad attendere.
-	PumpReactionTriggers(Ctx->Snapshot.Map, Units, Ctx->State);
+	if (PumpReactionTriggers(Ctx->Snapshot.Map, Units, Ctx->State)
+		== ERTMovementAdvanceResult::Suspended)
+	{
+		return;
+	}
+
+	ResumeSuspendedResolution();
+}
+
+/**
+ * Porta a termine una risoluzione che si era fermata su una finestra, ora chiusa (`#2679` fetta 3, [D-355]).
+ *
+ * 🔑 **E' il secondo chiamante di `ConcludeResolution`, e la ragione per cui quella coda e' stata estratta.**
+ * `LockInAndResolve` esce senza concludere quando il movimento si sospende; da li' in poi il turno esiste a
+ * meta' e qualcuno deve finirlo. Quel qualcuno e' chi chiude la finestra, ed e' qui.
+ *
+ * ⚠️ **Puo' sospendersi di nuovo**, e non e' un caso limite: `ThreeArmedWatchersOnOneEntry` mette tre watcher
+ * su un ingresso, e la seconda finestra si apre mentre si riprende dalla prima. Ogni ritorno anticipato
+ * lascia il contesto vivo, esattamente come il primo.
+ */
+void ARTTurnManager::ResumeSuspendedResolution()
+{
+	if (!IsResolutionSuspended())
+	{
+		return;
+	}
+
+	int32 Guard = 0;
+	ERTMovementAdvanceResult Step = ERTMovementAdvanceResult::Advanced;
+	while (Step == ERTMovementAdvanceResult::Advanced && Guard < 256)
+	{
+		Step = AdvanceMovementResolution();
+		++Guard;
+	}
+
+	if (Step == ERTMovementAdvanceResult::Suspended)
+	{
+		return; // un'altra finestra: si torna ad attendere, e il contesto resta dov'e'
+	}
+
+	FinishMovementResolution();
+	ConcludeResolution();
 }
 
 ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAsset* Map,
@@ -694,6 +732,12 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 	Ctx->PendingTriggers.Reset();
 	Ctx->NextTrigger = 0;
 	return ERTMovementAdvanceResult::Advanced;
+}
+
+bool ARTTurnManager::IsResolutionSuspended() const
+{
+	const FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	return Ctx != nullptr && Ctx->bActive;
 }
 
 void ARTTurnManager::FinishMovementResolution()

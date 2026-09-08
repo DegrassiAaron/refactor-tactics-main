@@ -1851,6 +1851,37 @@ void ARTTurnManager::LockInAndResolve()
 
 	// TurnLog: ordinamento deterministico (fase -> categoria -> cella di partenza); GetAllActorsOfClass
 	// non e' ordinato, quindi l'ordine di inserimento non e' affidabile (enum: confronto per valore intero).
+
+	// 🔑 **La resolution puo' NON essere finita** (`#2679` fetta 3, [D-355]). Se il movimento si e' sospeso
+	// su una finestra di reazione, il contesto e' ancora vivo: concludere adesso scriverebbe un TurnLog a
+	// meta' e farebbe partire il playback di un turno che nessuno ha finito di decidere. Chi chiude la
+	// finestra riprende da li' e chiama `ConcludeResolution` al posto nostro.
+	//
+	// ⚠️ **`Move` e' l'ULTIMA fase risolta** (`URTTurnRules::NextPhase`: Blast -> Move -> Cleanup), ed e'
+	// la ragione per cui basta questo controllo e non serve ricordare a che fase si era arrivati: dopo il
+	// movimento non resta una fase da riprendere, resta solo questa coda.
+	if (IsResolutionSuspended())
+	{
+		return;
+	}
+
+	ConcludeResolution();
+}
+
+/**
+ * La coda della risoluzione: ordinamento del TurnLog, Cleanup, verdetto di fine partita, playback.
+ *
+ * 🔑 **Estratta da `LockInAndResolve` perche' ha DUE chiamanti** (`#2679` fetta 3): il flusso normale, e la
+ * chiusura di una finestra di reazione che riprende una resolution sospesa. Prima ne aveva uno solo e
+ * poteva stare in linea; da quando la resolution puo' fermarsi in mezzo, il punto in cui si conclude deve
+ * essere raggiungibile da due strade.
+ *
+ * ⛔ **Non e' un'API pubblica**: chiamarla con una risoluzione ancora sospesa produce esattamente il difetto
+ * che il controllo in `LockInAndResolve` esiste per evitare.
+ */
+void ARTTurnManager::ConcludeResolution()
+{
+
 	URTTurnLogLibrary::SortTurnLog(TurnLog); // ordine totale deterministico (libreria pura testabile)
 
 	// Fase Cleanup, nell'ordine fissato da `spec-stati-temporanei-cp82.md` §4: revoca degli stati legati alla
