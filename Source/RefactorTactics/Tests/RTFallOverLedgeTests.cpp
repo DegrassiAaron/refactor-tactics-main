@@ -218,6 +218,29 @@ namespace
 			FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0)
 		};
 	}
+
+	/**
+	 * La geometria in cui **due** cadute puntano alla stessa cella.
+	 *
+	 *     Layer 1:  (-1,0) A1   (0,0) B1   (1,0) ultima stabile   || vuoto
+	 *               (-1,1) A2   (0,1) B2   (1,1) ultima stabile   || vuoto
+	 *     Layer 0:                         (1,0) primario di B1
+	 *                                      (1,1) primario di B2 — OCCUPATO
+	 *
+	 * 🔑 **La collisione non e' un caso fortunato, e' costruita.** Due unita' non possono cadere dalla stessa
+	 * cella — quindi non condividono mai il primario — ma possono incontrarsi sull'**alternativa**: il primario
+	 * di `B2` e' occupato, e i vicini di `(1,1,0)` che esistono sulla mappa sono **uno solo**, `(1,0,0)`, che e'
+	 * il primario di `B1`. Togliere `(2,1,0)` e `(2,0,0)` dalla mappa e' cio' che rende l'alternativa forzata
+	 * invece che probabile.
+	 */
+	TArray<FRTCellId> DuePasserelleUnAtterraggio()
+	{
+		return {
+			FRTCellId(-1, 0, 1), FRTCellId(0, 0, 1), FRTCellId(1, 0, 1),
+			FRTCellId(-1, 1, 1), FRTCellId(0, 1, 1), FRTCellId(1, 1, 1),
+			FRTCellId(1, 0, 0), FRTCellId(1, 1, 0)
+		};
+	}
 }
 
 // =========================================================================================================
@@ -1022,6 +1045,149 @@ bool FRTPullTowardGuardedLedgeSaysEdgeGuardTest::RunTest(const FString&)
 		static_cast<uint8>(ERTDisplacementBlockReason::EdgeGuard));
 
 	DestroyLedgeWorld(World);
+	return true;
+}
+
+// =========================================================================================================
+// 12. Due cadute nello stesso Blast: l'invariante di occupazione ([D-353])
+// =========================================================================================================
+
+/**
+ * Due unita' che cadono nello stesso Blast **non si sovrappongono**, e l'esito non dipende dall'ordine in
+ * cui il resolver le risolve (`spec` §4.3.1, [D-353]).
+ *
+ * 🔴 **L'invariante era promesso e verificato su N = 1.** `#2402` D002 dichiara *«esito invariante per
+ * permutazione dell'ordine di risoluzione»*, ma `Fall.NeverOverlaps` mette in scena **una** caduta e un
+ * occupante fermo: dove la permutazione non esiste, l'invarianza e' vera per costruzione. Questo test e' il
+ * primo in cui due cadute competono davvero.
+ *
+ * 🔑 **La seconda meta' e' ANTI-VACUITA'.** Senza di essa il test resterebbe verde anche se le due cadute
+ * non si contendessero niente — e allora non misurerebbe l'invariante, ma la fortuna della geometria.
+ * Chiedere che la contesa sia **registrata** e' cio' che prova che il caso e' stato esercitato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallTwoFallersSameLandingTest,
+	"RefactorTactics.Fall.TwoFallersSameLandingIsDeterministic",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallTwoFallersSameLandingTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnLedgeMap(World, DuePasserelleUnAtterraggio());
+
+	ARTUnit* A1 = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* B1 = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTUnit* A2 = SpawnLedgeUnit(World, 0, FRTCellId(-1, 1, 1));
+	ARTUnit* B2 = SpawnLedgeUnit(World, 1, FRTCellId(0, 1, 1));
+	ARTUnit* Occupante = SpawnLedgeUnit(World, 1, FRTCellId(1, 1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A1 || !B1 || !A2 || !B2 || !Occupante) { DestroyLedgeWorld(World); return false; }
+
+	PlanLedgeShove(A1, B1, /*Celle=*/ 2);
+	PlanLedgeShove(A2, B2, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	// 1. L'INVARIANTE. Non «B1 e' finito li'» — la scelta dell'atterraggio puo' cambiare — ma che nessuna
+	//    cella porti due occupanti, che e' cio' che `spec` §4.3.1 dichiara osservabile.
+	TArray<ARTUnit*> Vive = { A1, B1, A2, B2, Occupante };
+	for (int32 a = 0; a < Vive.Num(); ++a)
+	{
+		for (int32 b = a + 1; b < Vive.Num(); ++b)
+		{
+			TestNotEqual(FString::Printf(TEXT("nessuna sovrapposizione fra %d e %d"), a, b),
+				Vive[a]->Cell, Vive[b]->Cell);
+		}
+	}
+
+	// 2. ANTI-VACUITA': le due cadute si sono DAVVERO contese la stessa cella.
+	//
+	// 🔑 **`&&`, non `||`.** Con `||` basterebbe UNA contesa qualunque — anche fra due unita' che non
+	// c'entrano — e il test tornerebbe a misurare la fortuna della geometria invece dell'invariante. La
+	// contesa che questo scenario costruisce ne coinvolge DUE: `B1` sul proprio primario, `B2` sull'unica
+	// alternativa che la mappa gli lascia.
+	TestEqual(TEXT("B1 ha contesa la cella"), LedgeBlockReason(TM, B1),
+		static_cast<uint8>(ERTDisplacementBlockReason::ContestedDestination));
+	TestEqual(TEXT("e B2 anche"), LedgeBlockReason(TM, B2),
+		static_cast<uint8>(ERTDisplacementBlockReason::ContestedDestination));
+
+	// 3. DOVE FINISCONO, che e' il comportamento vigente e non una regola decisa.
+	//
+	// 🔴 **La spec non copre due cadute che si contendono lo stesso atterraggio.** §4.3 governa il primario
+	// occupato da un'unita' FERMA, non due che scendono insieme; e cio' che accade qui viene da `#420` —
+	// «due bersagli spinti verso la stessa cella restano entrambi fermi» — scritto per le spinte, non per la
+	// gravita'. La differenza e' visibile: §4.3 dice che nel caso saturo la caduta E' AVVENUTA e chi cade
+	// termina su `LastStableCell`, cioe' sul **ciglio**; qui le due unita' non lasciano nemmeno la cella di
+	// partenza.
+	//
+	// ⚠️ **Il test pinna il comportamento vigente, non lo approva**: registrato come `VERT-2` in
+	// `OPEN_DECISIONS.md`. Se la decisione va nell'altro verso, questa asserzione cambia **con la regola** —
+	// ed e' il punto di scriverla adesso: senza, il cambio passerebbe inosservato.
+	TestEqual(TEXT("B1 non ha lasciato la cella di partenza"), B1->Cell, FRTCellId(0, 0, 1));
+	TestEqual(TEXT("ne' B2"), B2->Cell, FRTCellId(0, 1, 1));
+	TestEqual(TEXT("e l'occupante di sotto non e' stato toccato"), Occupante->Cell, FRTCellId(1, 1, 0));
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
+/**
+ * Lo stesso scenario con le unita' **spawnate nell'ordine inverso** produce le stesse posizioni finali.
+ *
+ * 🔑 **E' la permutazione vera.** L'ordine di spawn e' l'ordine dell'array `Units`, cioe' l'ordine in cui il
+ * resolver incontra i bersagli: se l'esito ne dipendesse, due partite identiche divergerebbero per un
+ * dettaglio che nessuna regola dichiara. E' lo stesso difetto che `HexSim` misura per le mobilita' contese,
+ * *«chi vince deve dipendere dalla priorita', non dalla posizione nell'array»*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallTwoFallersOrderInvariantTest,
+	"RefactorTactics.Fall.TwoFallersOutcomeIsOrderInvariant",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallTwoFallersOrderInvariantTest::RunTest(const FString&)
+{
+	auto Esegui = [this](bool bInverso, TArray<FRTCellId>& OutFinali) -> bool
+	{
+		UWorld* World = MakeLedgeWorld();
+		if (!World) { return false; }
+		SpawnLedgeMap(World, DuePasserelleUnAtterraggio());
+
+		ARTUnit *A1 = nullptr, *B1 = nullptr, *A2 = nullptr, *B2 = nullptr, *Occupante = nullptr;
+		if (!bInverso)
+		{
+			A1 = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+			B1 = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+			A2 = SpawnLedgeUnit(World, 0, FRTCellId(-1, 1, 1));
+			B2 = SpawnLedgeUnit(World, 1, FRTCellId(0, 1, 1));
+		}
+		else
+		{
+			A2 = SpawnLedgeUnit(World, 0, FRTCellId(-1, 1, 1));
+			B2 = SpawnLedgeUnit(World, 1, FRTCellId(0, 1, 1));
+			A1 = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+			B1 = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+		}
+		Occupante = SpawnLedgeUnit(World, 1, FRTCellId(1, 1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !A1 || !B1 || !A2 || !B2 || !Occupante) { DestroyLedgeWorld(World); return false; }
+
+		PlanLedgeShove(A1, B1, /*Celle=*/ 2);
+		PlanLedgeShove(A2, B2, /*Celle=*/ 2);
+		RunLedgeTurn(TM);
+
+		// Sempre nello stesso ordine LOGICO — B1 poi B2 — non nell'ordine di spawn: e' il confronto che
+		// deve reggere, non l'indice.
+		OutFinali = { B1->Cell, B2->Cell, Occupante->Cell };
+		DestroyLedgeWorld(World);
+		return true;
+	};
+
+	TArray<FRTCellId> Diretto, Inverso;
+	if (!TestTrue(TEXT("la prima esecuzione riesce"), Esegui(false, Diretto))) { return false; }
+	if (!TestTrue(TEXT("la seconda esecuzione riesce"), Esegui(true, Inverso))) { return false; }
+
+	if (!TestEqual(TEXT("stesso numero di posizioni"), Inverso.Num(), Diretto.Num())) { return false; }
+	for (int32 i = 0; i < Diretto.Num(); ++i)
+	{
+		TestEqual(FString::Printf(TEXT("l'unita' %d finisce dove finiva"), i), Inverso[i], Diretto[i]);
+	}
+
 	return true;
 }
 
