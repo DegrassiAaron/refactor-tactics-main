@@ -1224,6 +1224,39 @@ namespace
 								Intent.Move.Add(Cell);
 							}
 						}
+
+						// 🔴 **Un campo dichiarato che NESSUNO consuma e' un errore** (`#2546`), e questo
+						// controllo esiste perche' la prima stesura del fix commetteva un livello piu' su lo
+						// stesso difetto che chiudeva un livello piu' giu'.
+						//
+						// `targetCell` si legge dentro `if (ability non vuota)`, `dashTo` dentro
+						// `if (dash non vuota)`. Quelle due guardie esterne usano `TryGetStringField(...) &&
+						// !IsEmpty()`, quindi `{"unit":"A","ability":"","targetCell":[1,0,0]}` salta l'intero
+						// blocco: la cella non viene mai letta, `bTargetsCell` resta falso e **nessun errore
+						// viene emesso** — `ability` e `targetCell` sono entrambe chiavi note, quindi nemmeno
+						// il gate delle chiavi sconosciute dice niente. Lo scenario carica verde e gioca un
+						// turno in cui l'azione dichiarata non avviene: la stessa forma di difetto che questa
+						// issue esiste per rimuovere.
+						//
+						// Il controllo sta QUI, dopo tutti i consumatori, e non dentro ciascuno: e' l'unico
+						// punto in cui si sa se qualcuno abbia raccolto il campo.
+						if (IntentObj->HasField(TEXT("targetCell")) && !Intent.bTargetsCell)
+						{
+							OutError = FString::Printf(
+								TEXT("intent di '%s': dichiara targetCell ma nessuna 'ability' che lo usi ")
+								TEXT("(un campo presente e non consumato non e' un campo assente)"),
+								*Intent.UnitId);
+							return false;
+						}
+						if (IntentObj->HasField(TEXT("dashTo")) && Intent.Dash.IsNone())
+						{
+							OutError = FString::Printf(
+								TEXT("intent di '%s': dichiara dashTo ma nessuna 'dash' che lo usi ")
+								TEXT("(un campo presente e non consumato non e' un campo assente)"),
+								*Intent.UnitId);
+							return false;
+						}
+
 						Turn.Intents.Add(Intent);
 					}
 				}
