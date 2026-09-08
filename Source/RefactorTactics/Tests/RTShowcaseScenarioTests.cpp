@@ -2286,8 +2286,19 @@ bool FRTShowcaseKeyEventsTest::RunTest(const FString&)
 	// E' la stessa disciplina che `GoldenCorpusCoversItsCategories` applica alle categorie scoperte —
 	// l'IDENTITA' di cio' che manca, non il conteggio: perderne uno guadagnandone un altro terrebbe il
 	// numero a sei e questo test verde.
-	TestEqual(TEXT("e a mancare sono esattamente `fallback` e `KO` (contenuto, non codice — owner #2149)"),
-		FString::Join(Mancanti, TEXT(", ")), FString(TEXT("fallback, KO")));
+	// ➕ **`fallback` NON manca piu', dal 2026-09-08 — ed e' la notizia che la riga qui sopra chiedeva di
+	// registrare invece di ereditare in silenzio.** Non e' cambiato lo showcase: e' cambiato il resolver.
+	// `RTTurnManager` scartava con un `continue` muto la mobilita' lineare che non parte, e lo showcase ne
+	// contiene una — la carica `Hero.Branth.Ram` che il rough di CP 8.1 rifiuta. Ora quel rifiuto emette una
+	// voce `Fallback`/`Cancelled` col motivo `TerrainDeniesDash`, quindi la categoria compare.
+	//
+	// ⚠️ La diagnosi vecchia — *«nessuna azione dello showcase ripiega … qui semplicemente non capita»* —
+	// era vera sul LOG e falsa sui FATTI: l'azione ripiegava gia', e non lo diceva a nessuno.
+	//
+	// `KO` resta, con la causa invariata e lo stesso owner (`#2149`): nessuno puo' uccidere Gadget in questo
+	// showcase, quindi e' contenuto da scrivere, non codice da correggere.
+	TestEqual(TEXT("a mancare resta il solo `KO` (contenuto, non codice — owner #2149)"),
+		FString::Join(Mancanti, TEXT(", ")), FString(TEXT("KO")));
 
 	return true;
 }
