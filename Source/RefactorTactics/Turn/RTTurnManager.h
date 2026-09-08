@@ -15,6 +15,22 @@
 #include "Replay/RTReplayManifest.h"
 #include "Ability/RTActionDef.h" // FRTActionDef: l'impatto della carica porta con se' la definizione
 #include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
+#include "Turn/RTMovementResolutionContext.h" // FRTMovementResolutionContext: la risoluzione che attraversa piu' frame (#2679)
+
+/**
+ * L'esito di un passo di risoluzione del movimento (`#2679` fetta 1).
+ *
+ * ➕ **La fetta 2 aggiunge `Suspended` IN CODA**, mai in mezzo: chi legge questo enum lo fa con uno
+ * `switch` senza `default` — la disciplina che `ERTReactionDecisionOutcome` gia' prescrive — e un valore
+ * inserito prima cambierebbe significato ai confronti gia' scritti senza che nulla diventi rosso.
+ */
+enum class ERTMovementAdvanceResult : uint8
+{
+	/** Un micro-step risolto. Ne restano, o almeno il resolver non ha ancora detto di no. */
+	Advanced,
+	/** Nessun micro-step da risolvere: la risoluzione e' pronta per `FinishMovementResolution`. */
+	Finished,
+};
 #include "Turn/RTPacingRecorder.h" // FRTPacingRecorder: la telemetria vive fuori (#1818)
 #include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
 #include "Turn/RTPlaybackLibrary.h" // FRTPhaseTime: la fase ha due termini, e il budget ne tocca uno solo
@@ -1143,6 +1159,28 @@ protected:
 	void ResolveCombat();
 	void ResolveMovement();
 
+	/**
+	 * La risoluzione del movimento in tre momenti invece che in uno (`#2679` fetta 1, [D-355]).
+	 *
+	 * 🔑 **`ResolveMovement` resta, e non per compatibilita'**: e' la composizione delle tre, ed e' il GATE
+	 * che tiene il comportamento invariante. Finche' esiste ed e' l'unico chiamante di produzione, lo split
+	 * non puo' aver cambiato un esito senza che la suite se ne accorga.
+	 *
+	 * ⛔ **Nessuna delle tre sospende ancora nulla.** `Advance` gira il ciclo fino in fondo, come il `while`
+	 * che sostituisce. Il punto di sospensione arriva con la fetta 2 di `#2679`.
+	 *
+	 * ⚠️ **`public` e non `protected`, ed e' una scelta e non una comodita' di test**: con la fetta 3
+	 * ([D-355]) a guidare questi tre momenti non e' piu' il manager da solo — la risoluzione si interlaccia
+	 * col playback, e chi la fa avanzare sta fuori. Esporli ora evita che la fetta 3 debba allargare la
+	 * visibilita' insieme a tutto il resto, quando sarebbe indistinguibile da un allargamento per comodita'.
+	 */
+public:
+	void BeginMovementResolution();
+	ERTMovementAdvanceResult AdvanceMovementResolution();
+	void FinishMovementResolution();
+
+protected:
+
 	// --- Pass della fase Blast -------------------------------------------------------------------
 	//
 	// `ResolveCombat` ordina; questi decidono. Ogni pass riceve il contesto della fase (`FRTBlastContext`)
@@ -1335,6 +1373,19 @@ protected:
 	 */
 	UPROPERTY(Transient)
 	TArray<FRTArmedOverwatch> ArmedOverwatches;
+
+	/**
+	 * La risoluzione di movimento in corso, quando esiste (`#2679`, [D-355]).
+	 *
+	 * 🔑 **`TUniquePtr` e non un valore**: il contesto porta lo snapshot e i percorsi di ogni unita', e un
+	 * turno su due non ne ha nessuno. Tenerlo per valore lo farebbe pagare a ogni istanza del manager,
+	 * compresi quelli dei test che non muovono niente.
+	 *
+	 * ⛔ **Non e' un secondo stato canonico**: e' il MEZZO con cui la risoluzione attraversa piu' frame, e
+	 * vive solo fra `BeginMovementResolution` e `FinishMovementResolution`. Fuori da quella finestra e'
+	 * nullo, e leggerlo e' un difetto — le tre funzioni lo verificano invece di darlo per scontato.
+	 */
+	TUniquePtr<FRTMovementResolutionContext> PendingMovement;
 
 	/**
 	 * Risolve i colpi predittivi armati contro le rotte appena calcolate, e TRONCA il movimento di chi viene
