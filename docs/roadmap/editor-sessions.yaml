@@ -3054,12 +3054,23 @@ sessions:
       ⛔ E il velo entra nella misura: `VeilInstances` porta a scala **zero** i volumi delle celle mai
       viste ([D-225]), quindi una cella non osservata non mostra nulla **per progetto**.
 
-      **③ `PIE-HEXPLAY-8` — che il crollo del ponte si veda.**
-      `rt.Test.Scenario Spec.Map.BridgeBreaksThePath`, poi Play: due turni, l'unico arco fra i layer si
-      rompe e il percorso **fallisce** invece di teletrasportare.
+      **③ `PIE-HEXPLAY-8` — NON ESEGUIBILE, e non per una lacuna. Salta al ④.**
+      ⛔ **Questo passo prescriveva una verifica impossibile fino al 2026-09-08** ([#2549]):
+      `rt.Test.Scenario Spec.Map.BridgeBreaksThePath`, poi Play — «due turni, l'unico arco fra i layer si
+      rompe e il percorso fallisce invece di teletrasportare». **Su quel banco non accade niente**:
+      entrambi i turni hanno `"intents": []`, e lo scenario passava `2/2` senza muovere un'unita'.
+      Chi lo esegui' il 2026-09-06 riporto' *«non vedo ponti, o se ci sono non sono evidenti»*, ed era la
+      lettura corretta di una scena vuota — non un giudizio negativo sulla leggibilita' del crollo.
+      🔑 **La causa e' una decisione, non un difetto**: `Action.ModifyArc` resta **senza owner nel roster
+      v0.1** ([D-046], [#282]) — rompere ponti non appartiene a nessun kit. Nessuna unita' puo' provocare
+      il crollo, quindi nessuna seduta puo' guardarlo. Da oggi lo scenario esce `BLOCKED` e si vede nei
+      conteggi invece di sommare un verde.
       ✅ L'altra meta' del residuo e' **chiusa dal 2026-09-04**: la salita porta l'unita' a
       `LayerHeight` esatto — `z` 140,0 contro -110,0, **250,0** di dislivello, misurato sugli Actor con
-      `Spec.Map.MatchArenaPlatformClimb`. Qui resta il solo crollo.
+      `Spec.Map.MatchArenaPlatformClimb`.
+      ∴ **Il crollo del ponte non e' osservabile in v0.1**, e `PIE-HEXPLAY-8` resta 🟡 per quella ragione
+      dichiarata — non per una verifica che qualcuno deve ancora fare. La regola resta coperta headless da
+      `Structures.Bridge.RemovalBreaksPath` e `NoTeleportOnRemoval`.
 
       **④ `PIE-V01-ROSTER` — che i quattro si sentano diversi.** `rt.Test.Scenario ""`, poi Play:
       partita normale, si comandano Gadget (5 MP, 90 HP) e Phase (5, 95) contro Riktor (4, 120) e

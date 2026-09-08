@@ -321,7 +321,14 @@ bool URTScenarioLoader::LoadFromFile(const FString& FilePath, FRTTestScenario& O
 		OutError = FString::Printf(TEXT("scenario non leggibile: %s"), *FilePath);
 		return false;
 	}
-	return LoadFromString(Text, OutScenario, OutError);
+	if (!LoadFromString(Text, OutScenario, OutError))
+	{
+		return false;
+	}
+	// La provenienza si marca QUI, che e' l'unico punto che la conosce: `LoadFromString` riceve del testo e
+	// non sa da dove venga, e un test che costruisce uno scenario in memoria non passa mai di qua (`#2549`).
+	OutScenario.bFromShippedCorpus = true;
+	return true;
 }
 
 namespace

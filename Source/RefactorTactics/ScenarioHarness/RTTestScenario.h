@@ -720,6 +720,24 @@ struct FRTTestScenario
 	UPROPERTY()
 	FString ScenarioId;
 
+	/**
+	 * Vero se lo scenario viene dal **corpus spedito** — cioe' e' stato caricato da un file di
+	 * `Scenarios/` — falso se e' stato costruito in memoria da un test.
+	 *
+	 * 🔑 **Serve a distinguere due cose che si somigliano e non sono la stessa** (`#2549`). Un file del
+	 * corpus che dichiara N turni promette che qualcosa avvenga in quegli N turni, e se non ha un solo
+	 * intent non sta esercitando cio' che descrive: e' un `BLOCKED` travestito da verde, e va contato per
+	 * quello che e'. Uno scenario costruito da un test **puo' legittimamente non avere intent** — il banco
+	 * di `Simulation.ChecksumSeesMapInPlayedScenario` gioca due partite in cui *nessuno si muove*, perche'
+	 * l'unica differenza che deve restare e' un pannello sulla mappa.
+	 *
+	 * ⚠️ Non si deduce dall'`ScenarioId`: gli scenari in memoria ne dichiarano uno (`Internal.*`), e un
+	 * prefisso e' una convenzione che il primo file fuori norma smentisce. Lo imposta `LoadFromFile`, che
+	 * e' l'unico punto che la provenienza la **sa** invece di dedurla.
+	 */
+	UPROPERTY()
+	bool bFromShippedCorpus = false;
+
 	/** Versione del FORMATO dello scenario, non del contenuto. Un loader piu' nuovo deve poter rifiutare un formato che non conosce. */
 	UPROPERTY()
 	int32 Version = 1;

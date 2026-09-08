@@ -2234,6 +2234,44 @@ void FRTScenarioSession::Finish()
 	// Poi un FAIL vero batte il BLOCKED: un'assertion caduta PRIMA del punto di blocco riguarda codice che
 	// esiste ed e' rotto — nasconderla dietro "non e' ancora pronto" sarebbe il modo piu' comodo di perdere
 	// una regressione.
+	// 🔑 **Uno scenario che dichiara turni e non esercita NIENTE non e' un PASS: e' un BLOCKED** (`#2549`).
+	//
+	// Misurato il 2026-09-08 sul corpus spedito: **cinque** scenari dichiarano turni con zero intent in
+	// tutti quanti, e il runner li contava verdi — fra questi `Spec.Map.BridgeBreaksThePath`, che nel
+	// proprio `_nota` si dichiara *«BLOCCATO PER DECISIONE … CP 9.4 resta verificato da questo scenario
+	// come SPECIFICA»*. Un file che dice di non essere eseguibile e che il corpus somma ai verdi e' peggio
+	// di un `BLOCKED`: il secondo si vede nei conteggi, il primo aggiunge un verde a un insieme di cose che
+	// nessuno ha verificato.
+	//
+	// ⚠️ **Il criterio sono i TURNI DICHIARATI, non gli intent in assoluto.** Undici scenari del corpus
+	// hanno `turns: []` ed e' legittimo: sono CONFIGURAZIONI — `Visual.Map.TwoLayersSameColumn` mette due
+	// unita' su piani diversi perche' una persona guardi, e non ha una regola da far accadere. Chi dichiara
+	// N turni promette invece che qualcosa succeda in quegli N turni, e qui non succede.
+	//
+	// ⛔ Sta **dopo** `FAIL` e `ERROR` nella precedenza, non prima: un'assertion caduta o uno scenario
+	// scritto male riguardano codice che esiste, e nasconderli dietro «non esercita nulla» sarebbe il modo
+	// piu' comodo di perdere una regressione. E non sovrascrive un `BlockedBy` gia' posto: la capability
+	// mancante e' una ragione piu' specifica di questa, e va detta al posto suo.
+	// ⚠️ **Solo per il corpus SPEDITO**, e la distinzione e' misurata, non prudenziale: il banco di
+	// `Simulation.ChecksumSeesMapInPlayedScenario` dichiara un turno con zero intent **di proposito** —
+	// gioca due partite in cui nessuno si muove, perche' l'unica differenza che deve restare e' un pannello
+	// sulla mappa. Applicare la regola a lui lo rendeva `BLOCKED` e faceva cadere un test sano. Un file del
+	// corpus e uno scenario costruito da un test si somigliano e non promettono la stessa cosa.
+	if (Scenario.bFromShippedCorpus && BlockedBy.IsEmpty() && Scenario.Turns.Num() > 0)
+	{
+		bool bQualcunoAgisce = false;
+		for (const FRTScenarioTurn& Turno : Scenario.Turns)
+		{
+			if (Turno.Intents.Num() > 0) { bQualcunoAgisce = true; break; }
+		}
+		if (!bQualcunoAgisce)
+		{
+			BlockedBy = FString::Printf(
+				TEXT("nessun intent in %d turni dichiarati: lo scenario non esercita cio' che descrive"),
+				Scenario.Turns.Num());
+		}
+	}
+
 	if (!ErroredBy.IsEmpty())
 	{
 		Result.Outcome = ERTTestOutcome::Error;
