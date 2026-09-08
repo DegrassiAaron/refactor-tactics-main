@@ -1183,9 +1183,22 @@ protected:
 	 * visibilita' insieme a tutto il resto, quando sarebbe indistinguibile da un allargamento per comodita'.
 	 */
 public:
+	/**
+	 * Vero quando la resolution si e' fermata su una finestra di reazione e attende (`#2679` fetta 3).
+	 *
+	 * 🔑 **Il contesto vivo E' la sospensione**: `FinishMovementResolution` lo rilascia, quindi trovarlo
+	 * ancora attivo significa che il movimento non e' arrivato in fondo. Non serve un secondo flag da
+	 * tenere d'accordo con questo — e un secondo flag e' precisamente il modo in cui due verita' divergono.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	bool IsResolutionSuspended() const;
+
 	void BeginMovementResolution();
 	ERTMovementAdvanceResult AdvanceMovementResolution();
 	void FinishMovementResolution();
+
+	/** La coda della risoluzione: TurnLog, Cleanup, fine partita, playback. Due chiamanti, vedi il .cpp. */
+	void ConcludeResolution();
 
 protected:
 
@@ -1432,6 +1445,9 @@ protected:
 
 	/** Chiude la finestra aperta con `Response` (vuota = scadenza) e riprende il consumo dei trigger. */
 	void CloseReactionWindow(const FString& Response);
+
+	/** Porta a termine una risoluzione sospesa la cui finestra si e' chiusa. Vedi il .cpp. */
+	void ResumeSuspendedResolution();
 
 	/**
 	 * Apre UNA finestra e ne restituisce l'esito (CP 14.5). Non applica nulla: decide soltanto.
