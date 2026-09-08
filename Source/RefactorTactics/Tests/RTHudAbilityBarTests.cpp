@@ -5,10 +5,15 @@
 // precedenza fra due motivi, tre livelli di grigio, un avviso di fuoco amico — e nessuna di loro era
 // verificabile se non guardando lo schermo.
 //
-// 🔴 **E il Canvas ricalcolava a mano una vista che l'altra via consuma già.** `bUsable` da
+// 🔴 **Il Canvas ricalcolava a mano una vista che l'altra via consuma già.** `bUsable` da
 // `ARTUnit::CanUseAbility` e `CD` da `GetAbilityCooldown`, mentre `FRTAbilityCooldownView` porta
-// `bUsableNow` e `TurnsRemaining` — e `WBP_RT_ActionSlot` li legge. Con `rt.HUD.CanvasPanels` a `1` le
-// due vie rendono nello stesso fotogramma leggendo lo stesso dato da due sorgenti diverse.
+// `bUsableNow` e `TurnsRemaining` — e `WBP_RT_ActionSlot` li legge: con entrambi i layer accesi, due vie
+// rendevano nello stesso fotogramma lo stesso dato letto da due sorgenti diverse.
+//
+// ⚠️ **Quel Canvas non esiste più** (#1936): i pannelli screen-space e la CVar `rt.HUD.CanvasPanels` sono
+// usciti da `ARTHUD`. Resta il §4.2 world-space, e restano queste funzioni pure — è da qui che lo Screen
+// HUD in UMG (#613) prende testo e colore. Finché #613 non le consuma, **questi test sono il loro unico
+// chiamante**: non è codice morto, è codice in attesa del suo consumatore, e i test dicono cosa promette.
 //
 // ⚠️ **`TestEqualSensitive` e non `TestEqual`**: su stringhe `TestEqual` passa da `FCString::Stricmp`
 // (`AutomationTest.cpp:2163`) ed è case-insensitive. Qui si pinna testo, e `ALLEATO` → `Alleato` deve
