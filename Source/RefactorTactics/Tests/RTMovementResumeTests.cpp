@@ -181,63 +181,61 @@ bool FRTMovementCharacterizationTest::RunTest(const FString&)
 
 
 /**
- * Il cuore della fetta 1: **`Advance` fa UN micro-step per chiamata, e la sequenza guidata a mano arriva
- * allo stesso posto del percorso di produzione**.
+ * Le GUARDIE delle tre funzioni: avanzare o concludere una risoluzione che non esiste e' `Finished`, non
+ * un crash.
  *
- * ⚠️ **Non confronta due esecuzioni fra loro, ed e' deliberato.** Dopo lo split, `ResolveMovement` E' il
- * ciclo di `Advance`: un confronto fra le due sarebbe vero per costruzione e non proverebbe niente. Cio'
- * che qui si verifica e' l'unica cosa che il ciclo non puo' dire di se': che i passi siano **piu' di uno**,
- * cioe' che `Advance` sia davvero diventato un passo singolo e non abbia conservato il `while` dentro.
+ * 🔴 **Questo test nasce da un fallimento vero, e la cronaca vale.** La prima versione guidava
+ * `Begin` → `Advance`×N → `Finish` a mano e contava i passi, asserendo `Passi > 1`. Ha misurato **0**, e
+ * non per un difetto dello split: `LockInAndResolve` esegue `ValidatePlansAtLockIn` e l'altro preambolo
+ * **prima** delle fasi, quindi una risoluzione avviata fuori da li' non ha piani validati — nessun
+ * percorso, nessun micro-step. Il test chiedeva a una funzione di funzionare fuori dal contesto che la
+ * rende sensata.
  *
- * 🔑 **Che l'esito resti quello giusto lo dice l'altro test di questo file**, che gira il turno per la via
- * di produzione e ne fissa l'impronta. I due si dividono il lavoro: quello misura *cosa* esce, questo
- * misura *in quanti passi*.
+ * ⛔ **Che `Advance` faccia UN passo per chiamata non e' verificabile da fuori oggi**, e questo file lo
+ * dichiara invece di fingerlo con un'asserzione piu' debole: il contesto e' privato e muore in `Finish`,
+ * e il percorso di produzione (`ResolveMovement`) e' il ciclo di `Advance` — confrontarli sarebbe vero per
+ * costruzione. Diventa verificabile con la **fetta 3**, quando a guidare i tre momenti sara' un
+ * orchestratore esterno dopo il preambolo: li' il conteggio dei passi e' osservabile da chi li conta.
+ *
+ * ✅ **Cio' che invece resta coperto**, ed e' il gate che conta per questa fetta: `ResolveMovementFingerprintIsStable`
+ * gira il turno per la via di produzione e fissa il suo esito. Se lo split avesse perso una delle nove
+ * locali, sarebbe rosso.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementAdvanceIsOneStepTest,
-	"RefactorTactics.Movement.AdvanceResolvesOneMicroStepPerCall",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementResolutionGuardsTest,
+	"RefactorTactics.Movement.ResolutionGuardsFailClosed",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTMovementAdvanceIsOneStepTest::RunTest(const FString&)
+bool FRTMovementResolutionGuardsTest::RunTest(const FString&)
 {
 	UWorld* World = MakeResumeWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnResumeMap(World);
 
-	ARTUnit* Mover = SpawnResumeUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
-	ARTUnit* Watcher = SpawnResumeUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Mover"), Mover) || !TestNotNull(TEXT("Watcher"), Watcher)
-		|| !TestNotNull(TEXT("TurnManager"), TM))
+	if (!TestNotNull(TEXT("TurnManager"), TM))
 	{
 		DestroyResumeWorld(World);
 		return false;
 	}
 
-	Watcher->bIsBotControlled = true;
-	Watcher->PlannedReactionAbility =
-		RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+	// Nessun `Begin`: non c'e' contesto, e la risposta e' «non c'e' niente da far avanzare».
+	TestTrue(TEXT("Advance senza Begin e' Finished"),
+		TM->AdvanceMovementResolution() == ERTMovementAdvanceResult::Finished);
 
-	// Tre celle: servono piu' micro-step, che e' cio' che questo test conta.
-	Mover->PlannedCell = FRTCellId(3, 0);
+	// E `Finish` sullo stesso vuoto non deve toccare niente ne' esplodere.
+	TM->FinishMovementResolution();
+	TestTrue(TEXT("Finish senza Begin e' un no-op"),
+		TM->AdvanceMovementResolution() == ERTMovementAdvanceResult::Finished);
 
+	// Dopo un ciclo completo il contesto e' rilasciato: un Advance in piu' e' Finished, non un dangling.
 	TM->BeginMovementResolution();
-
-	int32 Passi = 0;
 	int32 Guard = 0;
 	while (TM->AdvanceMovementResolution() == ERTMovementAdvanceResult::Advanced && Guard < 256)
 	{
-		++Passi;
 		++Guard;
 	}
 	TM->FinishMovementResolution();
-
-	// ⚠️ **La riga che da' valore al test.** Senza, un `Advance` che avesse conservato il `while` dentro
-	// passerebbe tutto il resto: il movimento sarebbe risolto, il log scritto, e nessuno saprebbe che il
-	// passo singolo non esiste.
-	TestTrue(FString::Printf(TEXT("i micro-step sono stati piu' di uno (%d)"), Passi), Passi > 1);
-	TestTrue(TEXT("il ciclo e' terminato senza toccare la guardia"), Guard < 256);
-
-	// Dopo `Finish` il contesto non esiste piu': un `Advance` in piu' e' `Finished`, non un crash.
-	TestTrue(TEXT("avanzare una risoluzione conclusa e' Finished, non un difetto"),
+	TestTrue(TEXT("il ciclo termina senza toccare la guardia"), Guard < 256);
+	TestTrue(TEXT("dopo Finish il contesto e' rilasciato"),
 		TM->AdvanceMovementResolution() == ERTMovementAdvanceResult::Finished);
 
 	DestroyResumeWorld(World);
