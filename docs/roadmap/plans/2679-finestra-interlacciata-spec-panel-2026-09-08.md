@@ -165,3 +165,22 @@ dovrebbe attraversarla no.
 Il corpo di #2679 è riscritto con: il criterio C1 invertito, il costo di C2 dichiarato come deliverable
 primario, `D-355` registrata come decisione che governa, il drift di C4 fra le voci di chiusura, la
 conseguenza di C5 come gate, il gate vuoto sostituito e le due caselle non falsificabili rese tali.
+
+### #166 informata, e due suoi numeri corretti
+
+`D-355` tocca [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) senza portarvi lavoro:
+`D-350` e la riga *«la slow-motion **durante la finestra** è sola presentazione»* **presupponevano già** questa
+risposta, e il presupposto non era dichiarato da nessuna parte. Registrata anche la **sequenza** — tre caselle
+di CP 14.6 (tasto `V` inerte, `Overwatch.SlowMotionDoesNotChangeOutcome`, `TimeoutReason = Abandoned`) non
+sono spuntabili prima che #2679 atterri, e chi le trovasse aperte non deve concluderne che siano state saltate.
+
+Nel farlo sono emersi due numeri sbagliati nel suo corpo, corretti in linea:
+
+| | |
+|---|---|
+| *«derivato dagli **undici** `continue` reali»* | 🔴 → **tredici**, di cui dieci skip di un watcher. La correzione era in `D-349` **dal 2026-09-08 e non era mai arrivata su #166** — il Decision Log la registrava, la issue no |
+| #1818 a *«10.412 righe»* | citazione corretta, file già oltre: **10.817** su `5327d514` |
+
+⚠️ **Il primo è lo stesso difetto che `D-349` esiste per prevenire**, ricomparso sul documento che quella
+decisione ha prodotto: una correzione registrata in un posto e non propagata all'altro. Il vocabolario non
+aveva buchi — a sbagliare era solo il numero che lo giustificava.
