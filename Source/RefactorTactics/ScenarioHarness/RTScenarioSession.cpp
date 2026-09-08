@@ -208,6 +208,14 @@ namespace
 			// deciso che restino senza owner in v0.1 (nessuna affinita' col fuoco; i ponti non appartengono a
 			// nessun kit). Uno scenario che chieda di accenderle deve restare BLOCKED, ed e' il motivo per cui
 			// questa capability non si chiama «Environment»: quella c'e' gia' e dice un'altra cosa.
+			//
+			// ➡️ **CHI CERCA `ModifyArc` USI `ArcModification`**, fra le indisponibili. Questa riga
+			// enunciava la regola e non offriva un nome per rispettarla, e il risultato misurato e' che
+			// `Spec.Map.BridgeBreaksThePath` ripiegava PROPRIO QUI: chiedeva `EnvironmentalActionOwner`,
+			// la trovava disponibile, e usciva `PASS 2/2` con `intents: []` (`#2549`).
+			// ⚠️ **`Action.Ignite` e' ancora in quel buco**: la regola la nomina, nessun nome la esprime.
+			// Il primo scenario che la chiedera' ripetera' lo stesso errore, e il rimedio e' lo stesso —
+			// un nome accanto ad `ArcModification`, non un ripiego su questa voce.
 			TEXT("EnvironmentalActionOwner"),
 			// E18 CP 18.2 (D-016): `Wraith.InterceptShot` e' una Predictive Action — cella dichiarata in
 			// Planning, verificata al boundary del Move, nessun input durante la Resolution.
@@ -449,6 +457,40 @@ namespace
 			TEXT("SpatialTrigger"),           // owner: #704
 			TEXT("SemanticTrigger"),          // owner: #704
 			TEXT("Teleport"),                 // owner: #704
+			/**
+			 * **Nessuno puo' modificare la topologia della mappa**: `Action.ModifyArc` — rompere o creare
+			 * un arco fra due layer — non ha un esecutore nel gioco di oggi.
+			 *
+			 * 🔑 **Esiste perche' `AvailableCapabilities()` prescriveva questo blocco e nessun nome lo
+			 * diceva** (`#2549`). La voce `EnvironmentalActionOwner`, la' sopra, dichiara: *«NON copre
+			 * `Action.Ignite` ne' `Action.ModifyArc` […] Uno scenario che chieda di accenderle deve restare
+			 * BLOCKED»*. La regola c'era; mancava il **nome** con cui chiederla, e
+			 * `Spec.Map.BridgeBreaksThePath` ripiegava su `EnvironmentalActionOwner` — che e' DISPONIBILE,
+			 * perche' copre `Electrify` e `CreateWater`, che un owner ce l'hanno. Il turno risultava
+			 * giocabile, non trovava intents, e lo scenario usciva `PASS 2/2` senza che accadesse niente.
+			 *
+			 * ⚠️ **Il blocco e' una DECISIONE, non una lacuna**: [D-046] stabilisce che rompere e creare
+			 * ponti non appartiene a nessun kit del roster v0.1, e che darlo a Branth per affinita'
+			 * `Structures` gli aggiungerebbe un potere che il suo kit non dichiara. Chi sposta questo nome
+			 * fra le disponibili sta **riaprendo D-046**, non aggiungendo una feature — ed e' la ragione per
+			 * cui l'owner qui sotto non e' una issue.
+			 *
+			 * 🔵 **`owner: none` e non `#282`, che e' CHIUSA dal 2026-08-09.** Una riga indisponibile con
+			 * l'owner chiuso e' esattamente il difetto che questo file documenta poco piu' su —
+			 * `check-capability-owners.py --online` esisteva per trovarlo. Qui non c'e' una issue che
+			 * sposta il nome perche' non c'e' lavoro da fare: c'e' una decisione da riaprire, e finche'
+			 * regge il blocco e' corretto.
+			 *
+			 * ⛔ **Il nome dice cosa MANCA, non chi lo possiedera'.** `_nota_perche_e_bloccato` dello
+			 * scenario tiene aperte due vie — *«un eroe della v0.2, **o una capability di scenario che
+			 * agisca senza un'unita'**»* — e un nome in `…Owner` avrebbe chiuso la seconda per sintassi.
+			 *
+			 * ⛔ **`Action.Ignite` non ha ancora un nome qui**, e non per dimenticanza: nessuno scenario del
+			 * corpus la chiede. Il giorno in cui uno la chiedera', il nome si aggiunge accanto a questo —
+			 * separato, perche' i due blocchi cadono per ragioni diverse (nessuna affinita' col fuoco contro
+			 * nessun kit che tocchi la topologia).
+			 */
+			TEXT("ArcModification"),          // owner: none (D-046: e' una decisione, non un lavoro)
 			// 🔒 RISERVATA AI TEST, e non diventera' MAI disponibile. Non e' una feature: e' il veicolo con cui
 			// `BlockedFirstTurnStaysBlocked` prova che un turno bloccato batte le assertion finali.
 			//

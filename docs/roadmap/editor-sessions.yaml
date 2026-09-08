@@ -2988,11 +2988,14 @@ sessions:
       board risultasse ancora nera il difetto e' **tornato**, e va riaperta.
 
   - id: U46
-    title: I quattro residui del gate G9, in una sola apertura
+    title: I residui del gate G9, in una sola apertura
     block: 6
     critical: true
     execution_lane: pie
-    produces: i quattro verdetti che separano `G9` dal verde, piu' i due che chiudono gli scenari orfani
+    produces: >-
+      i tre verdetti che `G9` puo' ancora ricevere da una seduta, piu' i due che chiudono gli scenari
+      orfani. ⌫ Erano QUATTRO fino al 2026-09-08 — `PIE-HEXPLAY-8` esce dal conto perche' il suo
+      residuo non e' osservabile in v0.1 ([#2549]), non perche' sia stato giudicato
     artifacts: []
     # 🔑 **Perche' questa seduta esiste, ed e' il difetto SIMMETRICO a quello di U45.** Li' erano voci
     # senza casa; qui sono **sedute quasi esaurite che nessuno riaprira' per una voce sola**. Misurato il
@@ -3018,11 +3021,18 @@ sessions:
     verifies: [PIE-HEXPLAY-6, PIE-HEXPLAY-8, PIE-V01-ROSTER, PIE-V01-LOG, PIE-VIS-SIGHTWALL,
                PIE-VIS-TWOLAYERS]
     issues: [1246]
-    done_when: le sei voci hanno un esito reale nel registro, in un verso o nell'altro — le quattro del
-      gate `G9` e le due che il 2026-09-04 hanno chiuso i due scenari `Visual.*` orfani
+    done_when: >-
+      cinque voci hanno un esito reale nel registro, in un verso o nell'altro — tre del gate `G9`
+      e le due che il 2026-09-04 hanno chiuso i due scenari `Visual.*` orfani.
+      ⌫ **Erano SEI, e le voci di gate erano quattro, fino al 2026-09-08.** `PIE-HEXPLAY-8` resta in
+      `verifies` perche' la seduta la copre, ma il suo residuo — che il crollo del ponte si veda —
+      **non e' osservabile in v0.1**, e non va contato fra gli esiti che questa seduta puo' produrre.
+      La ragione e' una decisione e non una lacuna — [D-046] (`#282`) lascia `Action.ModifyArc` senza
+      owner nel roster, quindi nessuna unita' puo' provocare il crollo e nessuna seduta puo' guardarlo.
+      Chiedere sei verdetti a chi ne puo' dare cinque e' un `done_when` che nessuno soddisfa ([#2549])
     unblocks: []
     steps: |
-      Una apertura, quattro giudizi. Lo scenario si cambia da console con PIE **fermo** — cambiare
+      Una apertura, cinque giudizi — il ③ non ne produce, vedi li'. Lo scenario si cambia da console con PIE **fermo** — cambiare
       scenario e fare Stop/Start non richiede di riaprire l'editor (vedi la regola di batching in testa
       a questo file).
 
@@ -3054,12 +3064,24 @@ sessions:
       ⛔ E il velo entra nella misura: `VeilInstances` porta a scala **zero** i volumi delle celle mai
       viste ([D-225]), quindi una cella non osservata non mostra nulla **per progetto**.
 
-      **③ `PIE-HEXPLAY-8` — che il crollo del ponte si veda.**
-      `rt.Test.Scenario Spec.Map.BridgeBreaksThePath`, poi Play: due turni, l'unico arco fra i layer si
-      rompe e il percorso **fallisce** invece di teletrasportare.
+      **③ `PIE-HEXPLAY-8` — NIENTE DA GUARDARE. Salta al ④.**
+      ⛔ **Questo passo prescriveva una verifica impossibile fino al 2026-09-08** ([#2549]). Diceva:
+      «`rt.Test.Scenario Spec.Map.BridgeBreaksThePath`, poi Play: due turni, l'unico arco fra i layer si
+      rompe e il percorso **fallisce** invece di teletrasportare». **Su quel banco non accade niente**:
+      entrambi i turni hanno `intents: []`, e lo scenario passava `2/2` senza muovere un'unita'. Chi lo
+      esegui' il 2026-09-06 riporto' *«non vedo ponti, o se ci sono non sono evidenti»*, ed era la lettura
+      corretta di una scena vuota — **non** un giudizio negativo sulla leggibilita' del crollo.
+      🔑 **La causa e' una DECISIONE, non un difetto**: `Action.ModifyArc` resta **senza owner nel roster
+      v0.1** ([D-046], [#282]) — rompere ponti non appartiene a nessun kit. Nessuna unita' puo' provocare
+      il crollo, quindi nessuna seduta puo' guardarlo. Da oggi lo scenario chiede `ArcModification`,
+      che e' fra le capability **non disponibili**, ed esce `BLOCKED`: si vede nei conteggi invece di
+      sommare un verde.
       ✅ L'altra meta' del residuo e' **chiusa dal 2026-09-04**: la salita porta l'unita' a
       `LayerHeight` esatto — `z` 140,0 contro -110,0, **250,0** di dislivello, misurato sugli Actor con
-      `Spec.Map.MatchArenaPlatformClimb`. Qui resta il solo crollo.
+      `Spec.Map.MatchArenaPlatformClimb`.
+      ∴ `PIE-HEXPLAY-8` resta 🟡 **per una ragione dichiarata**, non per una verifica che qualcuno deve
+      ancora fare. La regola resta coperta headless da `Structures.Bridge.RemovalBreaksPath` e
+      `Structures.Bridge.NoTeleportOnRemoval`.
 
       **④ `PIE-V01-ROSTER` — che i quattro si sentano diversi.** `rt.Test.Scenario ""`, poi Play:
       partita normale, si comandano Gadget (5 MP, 90 HP) e Phase (5, 95) contro Riktor (4, 120) e
