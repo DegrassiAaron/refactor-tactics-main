@@ -1853,3 +1853,28 @@ elencati qui perché **sembrano decisi e non lo sono**.
 > direzionale?*) e `FAC-5` (*una reazione può ruotare chi reagisce?*) tornano rilevanti perché maneuver come
 > `Pivot Step` e `Sidestep` presuppongono la risposta «sì». Restano `PROPOSED` finché quelle due non sono
 > decise — vedi la §6 della spec, che lo dichiara invece di risolverle di lato.
+
+
+---
+
+## Aperta — la caduta che il giocatore non vede arrivare, dallo spec panel del 2026-09-08
+
+Origine: [`roadmap/plans/2388-caduta-spec-panel-2026-09-08.md`](roadmap/plans/2388-caduta-spec-panel-2026-09-08.md) §M2.
+Prefisso `VERT-`, che era libero (**0** occorrenze in questo file prima di oggi).
+
+La capability [#2388](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2388) è in **v0.1** da
+`D-332`. La sua meccanica — [#2402](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2402) e
+[#2403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2403) — è **P1**; la sua leggibilità in
+pianificazione — [#2405](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2405) — è **P2** e a
+valle di entrambe. Così ordinato, il perimetro consente di spedire una meccanica che sposta e uccide senza
+che il giocatore possa prevederla.
+
+⚠️ **Non è un difetto della spec: è una scelta che nessuno ha dichiarato.**
+[`gameplay/spec-caduta-e-bordi.md`](gameplay/spec-caduta-e-bordi.md) §8 esclude *«input del giocatore durante
+la risoluzione»*, che è corretto e deciso, ma nessuna riga dice cosa il giocatore vede **prima** di
+committare il piano. La domanda non si deduce dai documenti perché è di prodotto, non di regole: entrambe le
+risposte sono coerenti con tutto ciò che è scritto.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `VERT-1` | La v0.1 può spedire la caduta (#2402 · #2403) **senza** la preview della minaccia (#2405), o la leggibilità entra nel gate di release? | Le due risposte sono entrambe difendibili e nessun documento le distingue. **(a) Sì**: la caduta è un esito di uno spostamento forzato, e nemmeno gli altri esiti forzati hanno preview — sarebbe coerente con la baseline. **(b) No**: `D-332` ha portato la capability in v0.1 come *ampliamento di perimetro dichiarato*, e un ampliamento che il giocatore subisce senza vederlo arrivare è un rischio di leggibilità nella release il cui gate `G*` la misura. ⚠️ **La scelta ha un costo asimmetrico**: se si sceglie (a) e il playtest la boccia, #2405 rientra in coda a un gate già chiuso; se si sceglie (b), #2405 passa da P2 a bloccante e va davanti alle sedute. Innesco: prima che #2403 chiuda — dopo, la meccanica è spedibile e la domanda diventa retroattiva |
