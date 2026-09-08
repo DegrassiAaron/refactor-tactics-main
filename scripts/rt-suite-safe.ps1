@@ -13,12 +13,17 @@
 #>
 
 # -CheckOnly interroga il guard e riporta il verdetto SENZA eseguire la suite.
+# -Release  rilascia il lease a fine run. Senza, la finestra di validazione resta
+#           aperta - che e' il default, perche' una finestra contiene spesso piu' run.
 # Serve a chi deve sapere se puo' misurare - e ai test, che altrimenti per
 # verificare il guard dovrebbero occupare il motore per quaranta minuti.
 $CheckOnly = $false
+$ReleaseAfter = $false
 $Forward = @()
 foreach ($a in $args) {
-    if ("$a" -eq '-CheckOnly') { $CheckOnly = $true } else { $Forward += $a }
+    if ("$a" -eq '-CheckOnly') { $CheckOnly = $true }
+    elseif ("$a" -eq '-Release') { $ReleaseAfter = $true }
+    else { $Forward += $a }
 }
 
 $ErrorActionPreference = "Stop"
@@ -179,5 +184,37 @@ if ($CheckOnly) {
 
 Write-Host ("VALIDATION WINDOW attiva da VALIDATION:{0} (lease {1}, task {2})." -f $instance, $lease.lease_id, $lease.task_id) -ForegroundColor Yellow
 Write-Host "La serializzazione dei job Unreal resta affidata al mutex canonico di rt-suite." -ForegroundColor DarkYellow
-& $suite @Forward
-exit $LASTEXITCODE
+
+# (!!) Il lease NON si rilascia da solo a fine suite, ed e' deliberato: una finestra di
+# validazione contiene spesso piu' run - misuri, leggi, rimisuri - e rilasciare a ogni
+# giro costringerebbe a riacquisire ogni volta, con la finestra fra i due che un'altra
+# sessione puo' occupare.
+#
+# Cio' che mancava e' DIRLO. La suite finiva, il terminale tornava al prompt, e il motore
+# restava occupato senza che nulla lo ricordasse: il guasto si scopriva alla build
+# successiva, che veniva rifiutata da un lease che nessuno sapeva ancora vivo. Misurato
+# il 2026-09-08, con il lease rimasto preso un quarto d'ora dopo la fine della run.
+$codice = 0
+try {
+    & $suite @Forward
+    $codice = $LASTEXITCODE
+}
+finally {
+    # `finally` e non una riga dopo la chiamata: la suite puo' uscire per un rosso, per
+    # un Ctrl+C o per un'eccezione, e sono proprio quei rami a lasciare il motore preso
+    # senza che nessuno ci pensi. E' la stessa ragione per cui `rt-build.ps1` rilascia li'.
+    if ($ReleaseAfter) {
+        Write-Host ""
+        Write-Host ("VALIDATION WINDOW chiusa: rilascio del lease {0}..." -f $lease.lease_id) -ForegroundColor Yellow
+        & (Join-Path (Join-Path $workspaceRoot "scripts") "rt-lease.ps1") -Action release -WorkspaceRoot $workspaceRoot
+    }
+    else {
+        Write-Host ""
+        Write-Host ("VALIDATION WINDOW ANCORA APERTA: il lease {0} resta TUO." -f $lease.lease_id) -ForegroundColor Yellow
+        Write-Host "  Il motore resta occupato: build e altre suite saranno rifiutate finche' non lo rilasci." -ForegroundColor DarkGray
+        Write-Host "  Rilascia con : rtlease -Action release" -ForegroundColor DarkGray
+        Write-Host "  Oppure usa   : rtsuite -Release   (rilascia da solo a fine run)" -ForegroundColor DarkGray
+    }
+}
+
+exit $codice
