@@ -645,7 +645,7 @@ Una figura VALIDATION può aprire una finestra **prima** che la catena sia compl
 
 È consentito e utile. **Non è il sign-off finale**: misura un commit che non è quello consegnato, e un verde su una base precedente non copre ciò che è stato scritto dopo. Il sign-off resta il passaggio VALIDATION a valle di EDITOR, sul commit realmente consegnato.
 
-È questa la finestra che compare come passata anticipata nel flusso operativo di [`docs/rt-three-terminals/README.md`](docs/rt-three-terminals/README.md). Non contraddice la catena: la anticipa in un punto, e non la chiude.
+Non contraddice la catena: la anticipa in un punto, e non la chiude.
 
 ### Handoff minimo
 
@@ -668,15 +668,15 @@ Fail-closed, non best-effort:
 
 ### Dove vive il dettaglio
 
-Verdetti tipizzati, matrice dei sistemi per ruolo, scoping dal write-set, schema completo dell'handoff, persistenza e defect policy hanno un owner unico:
+⚠️ **Il control plane RT3 è stato rimosso.** Verdetti tipizzati, matrice dei sistemi per
+ruolo, scoping dal write-set, schema dell'handoff e defect policy vivevano in
+`RT3_CONTRACT.md`, che non esiste più. Ciò che resta di quel modello è in questo file e in
+[`CLAUDE.md`](CLAUDE.md); ciò che serviva solo a coordinare tre sessioni via database non
+si sostituisce.
 
-[`docs/rt-three-terminals/prompts/RT3_CONTRACT.md`](docs/rt-three-terminals/prompts/RT3_CONTRACT.md)
-
-Non riscriverli qui. Se una regola di quel contratto contraddice questo file o [`CLAUDE.md`](CLAUDE.md), vince il documento di repository.
-
-Prompt di figura, prompt di wave, installazione e regole di concorrenza operative:
-
-[`docs/rt-three-terminals/README.md`](docs/rt-three-terminals/README.md)
+Restano gli script che governano le risorse vere: `rt-lease.ps1` per il motore,
+`rt-suite.ps1` per le misure, `rt-terminal.ps1` per l'identità di sessione,
+`rt-task-router.ps1` per il routing dei task.
 
 ## 12. Git
 

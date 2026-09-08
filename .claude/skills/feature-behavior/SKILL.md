@@ -30,7 +30,7 @@ BEHAVIOR_READY
   ↓
 /implement-feature
   ↓
-RT3
+role assignment
   ↓
 /issue-run
 ```
@@ -67,7 +67,7 @@ It MUST NOT:
 - invoke Unreal authoring;
 - acquire an Unreal lease;
 - assign DEV / EDITOR / VALIDATION;
-- create RT3 tasks;
+- create routing tasks;
 - implement the feature.
 
 If implementation work starts during this skill, the boundary has been violated.
@@ -520,7 +520,7 @@ Always finish with:
 ## IMPLEMENTATION IMPLICATIONS
 
 Only consequences useful to `/implement-feature`.
-Do not assign issues or RT3 roles here.
+Do not assign issues or execution roles here.
 
 ## VERDICT
 

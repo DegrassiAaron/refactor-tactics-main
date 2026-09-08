@@ -1,6 +1,6 @@
 ---
 name: issue-run
-description: Executes the CURRENT RefactorTactics RT3 phase of one GitHub issue inside exactly one role (DEV, EDITOR or VALIDATION). Consumes the existing Behavior Contract and issue definition, performs only role-owned work, records evidence, and hands off remaining phases through RT3.
+description: Executes the CURRENT RefactorTactics phase of one GitHub issue inside exactly one role (DEV, EDITOR or VALIDATION). Consumes the existing Behavior Contract and issue definition, performs only role-owned work, records evidence, and hands off remaining phases through RT3.
 argument-hint: "[issue-number]"
 arguments:
   - issue
@@ -19,13 +19,13 @@ Invocation:
 
 This skill executes:
 
-> the CURRENT RT3 PHASE of one issue
+> the CURRENT PHASE of one issue
 
 It does NOT mean:
 
 > complete the whole issue through DEV + EDITOR + VALIDATION in this session
 
-One session = one RT3 role.
+One session = one execution role.
 
 ---
 
@@ -237,7 +237,7 @@ Do not let technical specification silently override design.
 
 # 6 — Current-phase work only
 
-Determine exactly what this RT3 phase must accomplish.
+Determine exactly what this phase must accomplish.
 
 Record:
 
@@ -277,7 +277,7 @@ DEV does NOT:
 - start PIE;
 - author `.uasset/.umap`;
 - use MCP asset write;
-- run machine-wide Unreal build/suite when live RT3 policy assigns that resource to VALIDATION.
+- run machine-wide Unreal build/suite when live policy assigns that resource to VALIDATION.
 
 Before implementing:
 
@@ -310,7 +310,7 @@ EDITOR owns:
 
 Opening an EDITOR terminal does NOT automatically acquire Unreal.
 
-Acquire the machine resource only just-in-time according to current RT3 tooling.
+Acquire the machine resource only just-in-time according to current tooling (`rtlease`).
 
 Asset writes:
 
@@ -515,7 +515,7 @@ A finding does not automatically require a new issue if an existing owner can ab
 
 ---
 
-# 14 — Reporting to RT3
+# 14 — Reporting
 
 If `RT_TASK_ID` is present, deposit current phase result:
 
@@ -539,7 +539,7 @@ Do not assign the next actor yourself from a worker role.
 
 # 15 — Issue progress
 
-Completing one RT3 phase does NOT automatically close the GitHub issue.
+Completing one phase does NOT automatically close the GitHub issue.
 
 The issue may still require another role, human acceptance, packaged, merge, final validation or a decision.
 
@@ -635,4 +635,4 @@ BLOCKED
 FAILED
 ```
 
-`DONE` here means this RT3 phase is done unless the report explicitly states that the full GitHub Issue DoD is also satisfied.
+`DONE` here means this phase is done unless the report explicitly states that the full GitHub Issue DoD is also satisfied.

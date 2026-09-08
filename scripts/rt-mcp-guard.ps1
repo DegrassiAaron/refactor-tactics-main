@@ -22,7 +22,8 @@
     L'enforcement che regge davvero e' a monte, ed e' di CONFIGURAZIONE:
     `.mcp.json` non e' versionato e viene generato dall'installer solo dove il
     bridge deve essere raggiungibile. Un workspace che non lo ha non vede il server.
-    Vedi `docs/rt-three-terminals/README.md`, sezione "Enforcement reale".
+    Il preflight AUTORIZZA, non intercetta: il trasporto MCP e' HTTP diretto, e chi lo
+    salta raggiunge il bridge lo stesso. Vedi `CLAUDE.md` §10, "Authoring asset via MCP".
 #>
 param(
     [Parameter(Mandatory)]

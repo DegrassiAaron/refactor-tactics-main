@@ -59,29 +59,20 @@ Read:
 ```text
 AGENTS.md
 CLAUDE.md
-docs/rt-three-terminals/README.md
 ```
 
-Then exactly one role prompt:
+⚠️ The per-role prompt files and the RT3 shared-operation documents **no longer exist**.
+The control plane was removed: what survived of that model now lives in `AGENTS.md` and
+`CLAUDE.md`, and nowhere else. Do not look for `docs/rt-three-terminals/` — reading a
+path that is gone teaches the session to invent what it cannot find.
+
+The role itself is still real, and the scripts that enforce it are still there:
 
 ```text
-DEV
-→ docs/rt-three-terminals/prompts/TERMINAL_DEV.md
-
-EDITOR
-→ docs/rt-three-terminals/prompts/TERMINAL_EDITOR.md
-
-VALIDATION
-→ docs/rt-three-terminals/prompts/TERMINAL_VALIDATION.md
-```
-
-Read current RT3 shared-operation documents only as needed by the repository's live startup contract, including when referenced:
-
-```text
-TASK_ROUTING.md
-RT3_WORK3_AND_EDITOR.md
-RT3_CONTROL_PLANE.md
-RT3_CONTRACT.md
+scripts/rt-terminal.ps1     session identity (role, instance, owner PID + start time)
+scripts/rt-lease.ps1        the engine: one Unreal per machine
+scripts/rt-suite.ps1        measurements
+scripts/rt-task-router.ps1  task routing
 ```
 
 Do not read other role prompts merely to blend responsibilities.

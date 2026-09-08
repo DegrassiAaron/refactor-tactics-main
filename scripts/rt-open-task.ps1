@@ -35,7 +35,7 @@ $Terminal = Join-Path $ScriptsDir "rt-terminal.ps1"
 
 foreach ($required in @($Router, $Terminal)) {
     if (-not (Test-Path $required)) {
-        Write-Host "ERROR: $required non trovato. Reinstalla il bundle rt-three-terminals." -ForegroundColor Red
+        Write-Host "ERROR: $required non trovato. Manca dal checkout: ripristinalo dal repository (git checkout -- scripts/)." -ForegroundColor Red
         return
     }
 }

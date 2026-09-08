@@ -44,6 +44,9 @@ La modifica deve ridurre duplicazioni e non creare una quarta source of truth.
    - `AGENTS.md`: `8ee70da0551fb3b53f1931908463c7ae2c79c889`;
    - `CLAUDE.md`: `f2a45527e07065a14ec83ad959f0daea48203f73`.
 4. Leggi:
+> ⚠️ I path `docs/rt-three-terminals/` citati qui **non esistono piu'**: rimossi il
+> 2026-09-08 con il control plane RT3. Il documento resta come referto datato; le evidenze
+> vivono nella history del repository.
    - `docs/rt-three-terminals/README.md`;
    - `docs/rt-three-terminals/prompts/RT3_CONTRACT.md`;
    - i tre `TERMINAL_*.md`;

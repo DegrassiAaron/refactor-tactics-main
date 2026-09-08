@@ -5,15 +5,12 @@ Overlay operativo **Claude Code** per RefactorTactics.
 Questo file non sostituisce:
 
 * `AGENTS.md`;
-* `docs/rt-three-terminals/prompts/RT3_CONTRACT.md`;
 * Decision Log / ADR;
 * owner specification;
 * GitHub issue e milestone;
 * test eseguibili.
 
 `AGENTS.md` possiede i guardrail tool-agnostic.
-
-`RT3_CONTRACT.md` possiede il contratto operativo RT3.
 
 Questo file definisce esclusivamente come **Claude Code** applica tali regole durante una sessione.
 
@@ -46,16 +43,13 @@ Non dedurre il current scope da questo file.
 
 ---
 
-# 2. Avvio sessione e ruolo RT3
+# 2. Avvio sessione e ruolo
 
 All'avvio della sessione:
 
 1. leggi `AGENTS.md`;
 2. individua le variabili `RT_TERMINAL_*` e `RT_WORKSPACE_*`, se presenti;
-3. esegui `rtstatus` quando disponibile;
-4. leggi `docs/rt-three-terminals/prompts/RT3_CONTRACT.md`;
-5. carica **un solo** `TERMINAL_*.md` coerente con il ruolo;
-6. carica al massimo **un solo** `WAVE_*.md` compatibile con la sessione corrente.
+3. esegui `rtstatus` quando disponibile.
 
 Le variabili sono:
 
@@ -106,7 +100,7 @@ Se più fonti assegnano ruoli incompatibili:
 
 In entrambi i casi opera **fail-closed**: non iniziare lavoro mutante finché il ruolo non è risolto.
 
-Una sessione Claude occupa una sola figura RT3.
+Una sessione Claude occupa una sola figura fra `DEV`, `EDITOR` e `VALIDATION`.
 
 ---
 
@@ -146,7 +140,7 @@ rttask report -TaskId <id> -Status <DONE|PARTIAL|BLOCKED|FAILED> -Summary "..." 
 
 ⛔ `NEXT_ACTOR_RECOMMENDED` è una raccomandazione, non una decisione di routing.
 
-Il task routing è un **quarto** concetto, distinto da ruolo di sessione, identità del workspace e lease del motore. Semantica completa: [`docs/rt-three-terminals/TASK_ROUTING.md`](docs/rt-three-terminals/TASK_ROUTING.md).
+Il task routing è un **quarto** concetto, distinto da ruolo di sessione, identità del workspace e lease del motore. La semantica vive in `scripts/rt-task-router.ps1`, che ne è l'unica autorità: la sua documentazione narrativa è stata rimossa insieme al control plane.
 
 ---
 
@@ -332,7 +326,7 @@ Regola generale:
 
 Uno non sostituisce automaticamente gli altri.
 
-Una Validation Window preliminare può produrre evidenza utile, ma non equivale al sign-off finale previsto dal contratto RT3.
+Una Validation Window preliminare può produrre evidenza utile, ma non equivale al sign-off finale.
 
 VALIDATION non deve:
 
@@ -494,7 +488,7 @@ Working tree separati possono avere filesystem Git distinti, ma condividono comu
 
 Prima di lavoro sostanziale registra:
 
-* ruolo RT3;
+* ruolo;
 * workspace;
 * branch;
 * HEAD;
@@ -520,7 +514,7 @@ Il coordinamento avviene tramite:
 * commit SHA;
 * handoff persistiti;
 * issue / PR;
-* artifact/evidence condivisi secondo RT3.
+* artifact/evidence condivisi.
 
 Non coordinare tramite copie locali non tracciate come source of truth.
 
@@ -548,7 +542,7 @@ Ogni handoff significativo deve identificare almeno:
 * failure note;
 * istruzione successiva.
 
-Usa le forme complete definite da `RT3_CONTRACT.md`; non duplicarne qui lo schema.
+Un handoff che non identifica questi elementi non e' un handoff: e' un messaggio.
 
 ---
 
@@ -642,8 +636,6 @@ Misurato il 2026-09-06: dietro `call_tool` ci sono **56 toolset**, di cui 55 non
 
 Conseguenza: una chiamata MCP può avviare o fermare una suite senza passare da `rt-suite.ps1`, dal lease e dal mutex — cioè può rendere `NON VALIDA` la misura di un'altra sessione.
 
-Dettaglio: `docs/rt-three-terminals/prompts/RT3_CONTRACT.md` §14.
-
 ---
 
 ## VALIDATION
@@ -661,13 +653,11 @@ Usa VALIDATION per verifiche indipendenti come:
 
 VALIDATION non implementa e approva autonomamente la stessa correzione.
 
-Quando Unreal è una risorsa esclusiva, EDITOR e VALIDATION rispettano la mutua esclusione definita da RT3.
+Unreal e' una risorsa esclusiva della macchina: EDITOR e VALIDATION si serializzano sul lease di `rt-lease.ps1`.
 
 La catena canonica resta:
 
 `DEV-LEAD → EDITOR → VALIDATION`
-
-salvo Validation Window o routing esplicitamente consentiti da `RT3_CONTRACT.md`.
 
 ---
 

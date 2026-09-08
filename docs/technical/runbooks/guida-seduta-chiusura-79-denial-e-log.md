@@ -3,6 +3,9 @@
 > `CURRENT` · **Creata**: 2026-09-06 · **Voci**: `PIE-V01-COLL` clausola (c) · `PIE-V01-LOG` ·
 > **Issue**: [#79](https://github.com/DegrassiAaron/refactor-tactics-main/issues/79) — `CP 11.3` ·
 > **Wave RT3**: [`issue-79-combat-log-blocked-move/1`](../../rt-three-terminals/waves/issue-79-combat-log-blocked-move/)
+> ⚠️ I path `docs/rt-three-terminals/` citati sotto **non esistono piu'**: rimossi il
+> 2026-09-08 con il control plane RT3. Il documento resta come referto datato; le evidenze
+> vivono nella history del repository.
 > **Owner degli esiti**: [`test-manuali-pie.md`](../test-manuali-pie.md) — questa guida dice **come**
 > osservare, non **cosa è risultato**.
 >

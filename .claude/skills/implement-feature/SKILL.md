@@ -1,6 +1,6 @@
 ---
 name: implement-feature
-description: Reconciles a RefactorTactics Behavior Contract or objective with live repository/GitHub ownership, Epics, Issues, roadmap and verification evidence. Produces a safe RT3 execution plan by default; mutations require explicit --apply. Never implements gameplay/code/assets itself.
+description: Reconciles a RefactorTactics Behavior Contract or objective with live repository/GitHub ownership, Epics, Issues, roadmap and verification evidence. Produces a safe execution plan by default; mutations require explicit --apply. Never implements gameplay/code/assets itself.
 argument-hint: "[--apply] <Behavior Contract, feature or objective>"
 disable-model-invocation: true
 ---
@@ -123,13 +123,13 @@ NO_EPIC_REQUIRED
 EPIC_CANDIDATE
 ```
 
-A new Epic is never auto-created just for roadmap symmetry, one residual issue, a new name over an existing capability, RT3 role separation or cross-domain collection.
+A new Epic is never auto-created just for roadmap symmetry, one residual issue, a new name over an existing capability, role separation or cross-domain collection.
 
 `EPIC_CANDIDATE` requires explicit approval before creation.
 
 ## P3 — Role is not Issue ownership
 
-RT3 roles are execution responsibilities:
+Execution roles are responsibilities:
 
 ```text
 DEV
@@ -202,7 +202,7 @@ ZERO MUTATIONS
 
 ---
 
-# 3 — Current RT3 execution model
+# 3 — Current execution model
 
 Use the accepted live repository model.
 
@@ -237,15 +237,16 @@ Do not resolve workspace taxonomy conflicts by inference.
 Before planning, check current status of live governance owners such as:
 
 ```text
-#2633 — issue claim across RT3 figures
-#2647 — RT3 control-plane/workspace taxonomy
+#2633 — issue claim across the three execution roles
 ```
+
+⚠️ `#2647` (RT3 control-plane/workspace taxonomy) described a defect of a system that no
+longer exists: the control plane was removed. Do not treat it as a live constraint.
 
 If still open:
 
 - do not invent a solution;
 - do not create separate issues per role to bypass #2633;
-- do not create a new workspace taxonomy to bypass #2647;
 - preserve current fail-closed behavior.
 
 If closed/superseded by an accepted decision, use that new canonical source.
@@ -270,7 +271,6 @@ Read when relevant:
 
 - `AGENTS.md`;
 - `CLAUDE.md`;
-- RT3 contract/docs;
 - Decision Log / ADR;
 - roadmap/checkpoint;
 - Behavior Contract;
@@ -397,13 +397,13 @@ measured gap
 These are NOT enough:
 
 ```text
-different RT3 role
+different execution role
 different test method
 different terminal
 different phase
 ```
 
-One issue may flow sequentially through multiple RT3 figures when live routing/claim rules permit it.
+One issue may flow sequentially through multiple execution roles when live routing/claim rules permit it.
 
 ---
 
@@ -474,7 +474,7 @@ OWNER
 EXPECTED WRITE-SET
 SHARED READ-ONLY CONTRACTS
 DEPENDENCIES
-RT3 ROLE(S) NEEDED
+ROLE(S) NEEDED
 ```
 
 If two work units write the same central file/contract:
@@ -487,7 +487,7 @@ If two work units write the same central file/contract:
 
 ---
 
-# 13 — Phase 8: RT3 routing plan
+# 13 — Phase 8: role routing plan
 
 Determine actual phase sequence per issue.
 
@@ -557,7 +557,7 @@ Without `--apply`, finish with:
 
 ## PROPOSED MUTATIONS
 
-## RT3 EXECUTION PLAN
+## EXECUTION PLAN
 
 | Issue | First/current actor | Later gates |
 |---|---|---|
@@ -614,7 +614,7 @@ Allowed planning mutations:
 - create genuine gap issue;
 - update parent/child/back-references;
 - update applicable roadmap/checkpoint source;
-- create RT3 task/routing assignment when current coordinator/tooling contract allows it.
+- create task/routing assignment when current coordinator/tooling contract allows it.
 
 Not allowed:
 
@@ -667,7 +667,7 @@ A perfect result may be:
 
 ## OPEN DECISIONS
 
-## RT3 NEXT READY WORK
+## NEXT READY WORK
 
 ## NOT RUN
 

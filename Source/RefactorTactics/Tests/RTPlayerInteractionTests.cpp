@@ -1533,8 +1533,8 @@ bool FRTFirstTurnAcceptsSelectionTest::RunTest(const FString&)
 // Scrivere `PlannedPath` a mano misurerebbe il meccanismo che gia' funziona e lascerebbe il difetto
 // della #79 intatto sotto un verde.
 //
-// Oracoli dal contratto della wave, non dal codice: `WORK-ORDER.md` § EXPECTED BEHAVIOR
-// (`docs/rt-three-terminals/waves/issue-79-combat-log-blocked-move/`). In particolare l'arbitrato 1:
+// Oracoli dal contratto della issue #79, non dal codice (il documento di wave che li
+// portava e' stato rimosso col control plane; la regola no). In particolare:
 // la voce di blocco **sostituisce** `Stayed`, non si aggiunge — due voci `Move` per la stessa unita'
 // nella stessa fase sono una violazione, non un dettaglio.
 // =====================================================================================================

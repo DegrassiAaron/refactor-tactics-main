@@ -87,7 +87,7 @@ function global:Invoke-RTScript {
 
     $path = Join-Path (Join-Path $global:RTWorkspaceRoot "scripts") $Script
     if (-not (Test-Path $path)) {
-        Write-Host "ERROR: $path non trovato. Reinstalla il bundle rt-three-terminals." -ForegroundColor Red
+        Write-Host "ERROR: $path non trovato. Manca dal checkout: ripristinalo dal repository (git checkout -- scripts/)." -ForegroundColor Red
         return
     }
 
