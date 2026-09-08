@@ -16,6 +16,21 @@
 #include "Ability/RTActionDef.h" // FRTActionDef: l'impatto della carica porta con se' la definizione
 #include "Turn/RTHexSim.h" // FRTHexSnapshot: restituito per valore da MakeCurrentSnapshot
 #include "Turn/RTMovementResolutionContext.h" // FRTMovementResolutionContext: la risoluzione che attraversa piu' frame (#2679)
+
+/**
+ * L'esito di un passo di risoluzione del movimento (`#2679` fetta 1).
+ *
+ * ➕ **La fetta 2 aggiunge `Suspended` IN CODA**, mai in mezzo: chi legge questo enum lo fa con uno
+ * `switch` senza `default` — la disciplina che `ERTReactionDecisionOutcome` gia' prescrive — e un valore
+ * inserito prima cambierebbe significato ai confronti gia' scritti senza che nulla diventi rosso.
+ */
+enum class ERTMovementAdvanceResult : uint8
+{
+	/** Un micro-step risolto. Ne restano, o almeno il resolver non ha ancora detto di no. */
+	Advanced,
+	/** Nessun micro-step da risolvere: la risoluzione e' pronta per `FinishMovementResolution`. */
+	Finished,
+};
 #include "Turn/RTPacingRecorder.h" // FRTPacingRecorder: la telemetria vive fuori (#1818)
 #include "Turn/RTPacing.h" // FRTPacingSample: telemetria, canale separato dal TurnLog
 #include "Turn/RTPlaybackLibrary.h" // FRTPhaseTime: la fase ha due termini, e il budget ne tocca uno solo
@@ -1161,7 +1176,7 @@ protected:
 	 */
 public:
 	void BeginMovementResolution();
-	void AdvanceMovementResolution();
+	ERTMovementAdvanceResult AdvanceMovementResolution();
 	void FinishMovementResolution();
 
 protected:

@@ -7311,11 +7311,11 @@ void ARTTurnManager::BeginMovementResolution()
 	Ctx.EnteredBefore.Init(0, Ctx.Paths.Num());
 }
 
-void ARTTurnManager::AdvanceMovementResolution()
+ERTMovementAdvanceResult ARTTurnManager::AdvanceMovementResolution()
 {
 	if (!PendingMovement.IsValid() || !PendingMovement->bActive)
 	{
-		return; // fail-closed: proseguire una risoluzione che non esiste non e' un no-op da inventare
+		return ERTMovementAdvanceResult::Finished; // niente da far avanzare: non e' un errore, e' la fine
 	}
 	FRTMovementResolutionContext& Ctx = *PendingMovement;
 
@@ -7346,7 +7346,11 @@ void ARTTurnManager::AdvanceMovementResolution()
 	// Il ripristino e' STRUTTURALE, non affidato alla disciplina: senza, ogni voce emessa dopo la
 	// risoluzione del movimento erediterebbe l'indice dell'ultima barriera e direbbe di appartenere a un
 	// ciclo gia' finito. Un `break` uscirebbe comunque di qui; un `return` futuro, no.
-	while (URTHexSimLibrary::ResolveNextHexMicroStep(Ctx.State))
+	if (!URTHexSimLibrary::ResolveNextHexMicroStep(Ctx.State))
+	{
+		return ERTMovementAdvanceResult::Finished;
+	}
+
 	{
 		TArray<int32> MovedUnitIds;
 		for (int32 i = 0; i < Ctx.State.Num(); ++i)
@@ -7363,8 +7367,10 @@ void ARTTurnManager::AdvanceMovementResolution()
 		// stia fra due micro-step e debba ritornare prima del successivo: nessuna unita' avanza mentre una
 		// finestra e' aperta, e non perche' qualcuno le fermi — perche' il ciclo non gira.
 		ResolveReactionBoundary(Ctx.Snapshot.Map, Units, Ctx.State, MovedUnitIds, CurrentMicroStepIndex);
-		++CurrentMicroStepIndex;
+
 	}
+
+	return ERTMovementAdvanceResult::Advanced;
 }
 
 void ARTTurnManager::FinishMovementResolution()
@@ -7727,7 +7733,17 @@ void ARTTurnManager::FinishMovementResolution()
 void ARTTurnManager::ResolveMovement()
 {
 	BeginMovementResolution();
-	AdvanceMovementResolution();
+
+	// ⚠️ **La guardia non e' difensiva: e' il cap che impedisce a un difetto del resolver di appendere
+	// l'Editor invece di far fallire un test.** Un micro-step non supera la lunghezza del percorso piu'
+	// lungo, e `256` sta due ordini di grandezza sopra qualunque percorso di una mappa 2v2.
+	int32 Guard = 0;
+	while (AdvanceMovementResolution() == ERTMovementAdvanceResult::Advanced && Guard < 256)
+	{
+		++Guard;
+	}
+	ensureMsgf(Guard < 256, TEXT("risoluzione del movimento non terminata in 256 micro-step"));
+
 	FinishMovementResolution();
 }
 
