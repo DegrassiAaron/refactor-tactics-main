@@ -518,6 +518,8 @@ Prima del merge rimisura.
 
 > ⚠️ **Dal 2026-09-08 nessuno script fa rispettare ciò che segue.** I ruoli operativi, il lease del motore e i guard di `scripts/` sono stati rimossi ([`D-346`](docs/decisions/RT_PDR_00_Decision_Log.md), [`D-347`](docs/decisions/RT_PDR_00_Decision_Log.md)). I vincoli fisici che li avevano motivati **non sono spariti con loro**: Unreal resta uno per macchina, un worktree resta privo dei file gitignorati, due sessioni nella stessa directory restano sullo stesso `HEAD`. Quello che prima veniva rifiutato ora riesce — e produce il danno che il rifiuto evitava.
 
+> 🧹 **Pulizia locale, una volta per macchina.** L'installer scriveva in `.vscode/` — che è gitignorato, quindi nessun commit lo tocca — task e marker del sistema rimosso: `tasks.json` invoca `rt-terminal.ps1`, `rt-workspace.ps1` e `rt-lease.ps1`, e accanto restano `rt-engine-mode.txt` e `rt-workspace-id.txt`. Gli script non esistono più: ogni task «RT: …» fallisce con un file-not-found, e i due marker non li legge nessuno. Vanno rimossi a mano nei checkout dove l'installer era passato — l'installer che li generava è stato rimosso con il resto e non li ripulisce.
+
 ### Cosa isola una directory, e cosa no
 
 | Configurazione | Isola | Non isola |

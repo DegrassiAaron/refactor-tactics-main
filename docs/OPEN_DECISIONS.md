@@ -28,11 +28,11 @@
 ## Il contratto di wave RT3 e il ruolo di ingresso, dal 2026-09-05 — `GOV-5` ✅ chiusa, `GOV-6` ✅ chiusa
 
 Origine: il bundle `docs/rt-three-terminals/`, livello wave, introdotto il 2026-09-05 da `75ad7241`
-([`prompts/RT3_CONTRACT.md`](rt-three-terminals/prompts/RT3_CONTRACT.md)) e completato lo stesso giorno sul
+(`prompts/RT3_CONTRACT.md`) e completato lo stesso giorno sul
 lato DEV da `0f7465f8` e `53323c2d`
-([`prompts/WAVE_DEV_LEAD.md`](rt-three-terminals/prompts/WAVE_DEV_LEAD.md) ·
-[`WAVE_DEV_MAIN.md`](rt-three-terminals/prompts/WAVE_DEV_MAIN.md) ·
-[`WAVE_DEV_TEST.md`](rt-three-terminals/prompts/WAVE_DEV_TEST.md)).
+(`prompts/WAVE_DEV_LEAD.md` ·
+`WAVE_DEV_MAIN.md` ·
+`WAVE_DEV_TEST.md`).
 Conflitto registrato alla riga **97** di [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md).
 
 ⚠️ I documenti citati qui **non esistono piu'**: il bundle `docs/rt-three-terminals/` e' stato rimosso il 2026-09-08 con il control plane ([`D-346`](decisions/RT_PDR_00_Decision_Log.md)). I link restano perche' l'istruttoria si conserva; la history li serve ancora.
