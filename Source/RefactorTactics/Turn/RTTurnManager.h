@@ -1449,6 +1449,12 @@ protected:
 	/** Porta a termine una risoluzione sospesa la cui finestra si e' chiusa. Vedi il .cpp. */
 	void ResumeSuspendedResolution();
 
+	/** Avvia il playback su cio' che e' stato risolto finora, a resolution sospesa. Vedi il .cpp. */
+	void BeginPartialPlayback();
+
+	/** Emette gli eventi `Move` della timeline dai risultati passati. Vedi il .cpp: serve anche a meta'. */
+	void EmitMoveEvents(const TArray<ARTUnit*>& Units, const TArray<FRTHexMoveResult>& Results);
+
 	/**
 	 * Apre UNA finestra e ne restituisce l'esito (CP 14.5). Non applica nulla: decide soltanto.
 	 *
@@ -1807,7 +1813,8 @@ protected:
 	void DestroyDefeatedUnits();
 
 	/** Avvia il playback della risoluzione (movimento in parallelo, fasi a beat). */
-	void BeginPlayback();
+	/** Avvia il playback. Con `bPreserveClock` ESTENDE quello in corso invece di ricominciarlo (#2679). */
+	void BeginPlayback(bool bPreserveClock = false);
 	void EnterPlaybackPhase();
 	void TickPlayback(float DeltaSeconds);
 	void FinishPlayback();
@@ -2430,6 +2437,15 @@ private:
 
 	/** Il playback e' fermo. ⚠️ Ferma la PRESENTAZIONE: la risoluzione e' gia' avvenuta per intero. */
 	bool bPlaybackPaused = false;
+
+	/**
+	 * Il playback ha mostrato tutto cio' che la resolution ha risolto, e ATTENDE una finestra (#2679).
+	 *
+	 * ⛔ **Non e' `bPlaybackPaused`, e tenerli separati e' la scelta**: quella e' la pausa del giocatore, ha
+	 * i suoi comandi e un suo significato. Con un flag solo, un `ResumePlayback` durante una finestra
+	 * farebbe ripartire un playback che non ha nulla da mostrare.
+	 */
+	bool bPlaybackHeldByWindow = false;
 
 	/**
 	 * Se `>= 0`, il playback avanza fino a questo `PlaybackPhaseElapsed` e poi si ferma: e' lo `Step`.

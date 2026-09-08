@@ -1862,6 +1862,11 @@ void ARTTurnManager::LockInAndResolve()
 	// movimento non resta una fase da riprendere, resta solo questa coda.
 	if (IsResolutionSuspended())
 	{
+		// 🔑 **Il playback parte ORA, sulla timeline parziale** ([D-355]): chi decide deve aver visto il
+		// nemico entrare nella zona, e cio' che e' stato risolto fin qui e' esattamente quel tratto.
+		// Senza questa riga la finestra si aprirebbe su uno schermo che non ha mostrato nulla — il difetto
+		// che quella decisione esiste per chiudere.
+		BeginPartialPlayback();
 		return;
 	}
 
@@ -2194,7 +2199,10 @@ void ARTTurnManager::ConcludeResolution()
 	// nel tempo; altrimenti concludi subito il turno (comportamento istantaneo: es. headless/senza eventi).
 	if (bEnablePlayback && ResolvedTimeline.Num() > 0)
 	{
-		BeginPlayback();
+		// ⚠️ **Se il playback e' GIA' in corso lo si estende, non lo si ricomincia**: ci si arriva quando la
+		// resolution si era sospesa su una finestra e il playback parziale era gia' partito. Ricominciare
+		// farebbe ripartire il movimento da capo sotto gli occhi di chi ha appena risposto.
+		BeginPlayback(/*bPreserveClock=*/ bIsResolving);
 		return;
 	}
 	ConcludeTurn();
@@ -6940,8 +6948,19 @@ int32 ARTTurnManager::ResolvedMoveVerdictCountForTest(int32 StableUnitId) const
 	return INDEX_NONE;
 }
 
-void ARTTurnManager::BeginPlayback()
+void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 {
+	// 🔑 **`bPreserveClock` distingue ESTENDERE da RICOMINCIARE** (`#2679` fetta 3, [D-355]). Quando la
+	// resolution si sospende su una finestra il playback parte su una timeline parziale; alla ripresa la
+	// timeline si completa e questa funzione va rieseguita — ma azzerare l'orologio farebbe ripartire il
+	// movimento da capo sotto gli occhi di chi ha appena deciso.
+	// Estendendo, cio' che teneva fermo il playback non c'e' piu': la timeline e' cresciuta.
+	bPlaybackHeldByWindow = false;
+
+	const float ClockElapsedTotal = PlaybackElapsedTotal;
+	const int32 ClockPhaseIdx = PlaybackPhaseIdx;
+	const float ClockPhaseElapsed = PlaybackPhaseElapsed;
+
 	// Cache della trasformazione della mappa per convertire celle -> mondo durante il playback.
 	// Stessa fonte usata da ResolveMovement: risoluzione e playback non possono divergere di scala.
 	GetHexContext(PBOrigin, PBCellSize, PBLayerHeight);
@@ -6997,7 +7016,9 @@ void ARTTurnManager::BeginPlayback()
 			}
 			// Metti il cilindro all'inizio della sua PRIMA anim (Dash precede Move nella timeline):
 			// niente flash sulla cella finale. Un'anim successiva della stessa unita' non ne sposta lo start.
-			if (!StartPositioned.Contains(Src))
+			// ⛔ **Non si riposiziona quando si estende**: il cilindro e' gia' dove il playback lo ha
+			// portato, e riportarlo all'inizio della propria anim lo farebbe saltare indietro.
+			if (!bPreserveClock && !StartPositioned.Contains(Src))
 			{
 				Src->SetVisualLocation(Anim.World[0]);
 				StartPositioned.Add(Src);
@@ -7081,9 +7102,14 @@ void ARTTurnManager::BeginPlayback()
 	// col 75% ancora da mostrare. Il difetto precede #1878; questa riga era gia' da riscrivere e lasciarlo
 	// dentro sarebbe stato peggio che allargare di poco lo scope.
 	PlaybackTotalSeconds = BudgetedTotal;
-	PlaybackElapsedTotal = 0.f;
+	PlaybackElapsedTotal = bPreserveClock ? ClockElapsedTotal : 0.f;
 
-	PlaybackPhaseIdx = 0;
+	// Estendendo si resta nella fase in corso; il clamp copre il caso in cui la timeline completa
+	// abbia meno fasi di quella parziale — non dovrebbe accadere, e un indice fuori range in
+	// `TickPlayback` sarebbe un crash invece di un difetto visibile.
+	PlaybackPhaseIdx = bPreserveClock
+		? FMath::Clamp(ClockPhaseIdx, 0, FMath::Max(0, PlaybackPhases.Num() - 1))
+		: 0;
 	bIsResolving = true;
 	SetActorTickEnabled(true);
 	// I secondi di parete si compongono qui, dove servono a chi legge, invece di essere conservati in un
@@ -7097,6 +7123,15 @@ void ARTTurnManager::BeginPlayback()
 	AddLogEvent(FString::Printf(TEXT("Risoluzione: %d fasi, ~%.1fs (x%.2f, slack x%.2f)"),
 		PlaybackPhases.Num(), (StartSpeed > 0.f) ? (BudgetedTotal / StartSpeed) : BudgetedTotal,
 		StartSpeed, PlaybackSlackScale), FRTLogSubject::World());
+
+	if (bPreserveClock)
+	{
+		// `EnterPlaybackPhase` azzera l'orologio di fase e annuncia l'ingresso: estendendo non si entra in
+		// nessuna fase nuova, si continua quella in corso.
+		PlaybackPhaseElapsed = ClockPhaseElapsed;
+		return;
+	}
+
 	EnterPlaybackPhase();
 }
 
@@ -7221,6 +7256,15 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 	// Non `Dt = 0`: un tick che prosegue con passo nullo rivelerebbe comunque i colpi del Blast, perche'
 	// `AttacksToShow` legge `PlaybackPhaseElapsed` e non il passo. Fermarsi significa non guardare.
 	if (bPlaybackPaused && PlaybackStepTargetElapsed < 0.f)
+	{
+		return;
+	}
+
+	// 🔑 **Trattenuto da una finestra**: il playback parziale ha mostrato tutto cio' che era risolto e
+	// aspetta la risposta. Non e' la pausa del giocatore — quella e' `bPlaybackPaused`, ha i suoi comandi
+	// e un suo significato — ed e' tenuta separata di proposito: due pause con lo stesso flag si
+	// annullerebbero a vicenda al primo `ResumePlayback`.
+	if (bPlaybackHeldByWindow)
 	{
 		return;
 	}
@@ -7438,6 +7482,20 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 
 void ARTTurnManager::FinishPlayback()
 {
+	// 🔴 **Il playback puo' finire mentre il turno NON e' finito** (`#2679` fetta 3, [D-355]). Il playback
+	// parziale mostra il tratto percorso fino al boundary — pochi secondi — mentre la finestra ne dura
+	// `FastReactionDuration`: senza questo controllo `ConcludeTurn` chiuderebbe il turno sotto chi sta
+	// ancora decidendo, e la sua risposta arriverebbe a partita gia' avanzata.
+	//
+	// ✅ **Fermarsi qui e' anche la lettura giusta**: ADR-0004 §5 dice che chi guarda *«vede il mondo
+	// fermarsi su un momento di tensione»*. Il mondo si ferma sull'ultimo fotogramma mostrato, che e'
+	// esattamente l'istante in cui il nemico e' entrato nella zona.
+	if (IsResolutionSuspended())
+	{
+		bPlaybackHeldByWindow = true;
+		return;
+	}
+
 	bIsResolving = false;
 	SetActorTickEnabled(false);
 

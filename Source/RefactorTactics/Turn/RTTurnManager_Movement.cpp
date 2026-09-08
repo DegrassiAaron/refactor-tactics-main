@@ -740,6 +740,104 @@ bool ARTTurnManager::IsResolutionSuspended() const
 	return Ctx != nullptr && Ctx->bActive;
 }
 
+/**
+ * Avvia il playback su cio' che la resolution ha risolto **finora**, mentre e' sospesa (`#2679` fetta 3).
+ *
+ * 🔑 **E' la meta' che mancava a [D-355].** La decisione dice che la finestra si apre *durante* il playback;
+ * senza questa funzione la resolution si fermava PRIMA che `BeginPlayback` fosse mai chiamato, e il
+ * giocatore avrebbe deciso su uno schermo che non aveva mostrato il nemico entrare nella zona.
+ *
+ * ⚠️ **I percorsi sono quelli PERCORSI, non quelli pianificati**: `Ctx.State.Results[i].Entered` contiene
+ * le celle davvero attraversate fino al micro-step corrente. Mostrare il percorso pianificato rivelerebbe
+ * dove l'unita' STA ANDANDO — informazione futura, che `Overwatch.OpportunityLeaksNoFuture` vieta al DTO e
+ * che non ha meno valore qui.
+ *
+ * ⛔ **No-op se il playback e' spento o gia' partito**: `bEnablePlayback` falso e' il caso headless, e un
+ * playback gia' in corso significa che questa non e' la prima sospensione del turno.
+ */
+void ARTTurnManager::BeginPartialPlayback()
+{
+	const FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	if (!Ctx || !bEnablePlayback || bIsResolving)
+	{
+		return;
+	}
+
+	TArray<ARTUnit*> Units;
+	Units.Reserve(Ctx->Units.Num());
+	for (const TWeakObjectPtr<ARTUnit>& WeakUnit : Ctx->Units)
+	{
+		Units.Add(WeakUnit.Get());
+	}
+
+	EmitMoveEvents(Units, Ctx->State.Results);
+
+	if (ResolvedTimeline.Num() > 0)
+	{
+		BeginPlayback();
+	}
+}
+
+/**
+ * Emette gli eventi `Move` della timeline dai risultati che le sono passati (`#2679` fetta 3, [D-355]).
+ *
+ * 🔑 **Prende i risultati come ARGOMENTO, ed e' tutta la ragione per cui esiste come funzione.** Chiamata
+ * con l'uscita di `FinishHexMovement` produce i percorsi definitivi, come faceva in linea dentro
+ * `FinishMovementResolution`. Chiamata con `Ctx.State.Results` a risoluzione **sospesa** produce i percorsi
+ * PERCORSI FINORA — cio' che il playback deve poter mostrare **prima** che il giocatore decida.
+ *
+ * ⚠️ **`LastMoveRoutes` si azzera a ogni chiamata**, e chi la chiama due volte nello stesso turno deve
+ * saperlo: la seconda emissione SOSTITUISCE la prima invece di accodarsi. E' voluto — un percorso parziale
+ * sopravvissuto accanto al proprio completamento verrebbe letto come un secondo movimento.
+ */
+void ARTTurnManager::EmitMoveEvents(const TArray<ARTUnit*>& Units,
+	const TArray<FRTHexMoveResult>& Results)
+{
+	const FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	if (!Ctx)
+	{
+		return;
+	}
+
+	// 🔑 **Si rimuovono i `Move` gia' emessi prima di riemetterli.** Questa funzione puo' essere chiamata
+	// DUE volte nello stesso turno — una col percorso parziale alla sospensione, una col definitivo alla
+	// ripresa — e accodare produrrebbe due movimenti per la stessa unita': il playback ne mostrerebbe uno
+	// e il TurnLog ne registrerebbe due.
+	ResolvedTimeline.RemoveAll([](const FRTResolvedEvent& Ev)
+	{
+		return Ev.Type == ERTResolvedEventType::Move && Ev.Phase == ERTMatchPhase::Move;
+	});
+
+	const TArray<FRTRouteObserverTeam> ObserverTeams = BuildRouteObserverTeams(Units);
+	LastMoveRoutes.Reset();
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		if (!Results.IsValidIndex(i) || !IsValid(Units[i]) || Results[i].Entered.Num() == 0)
+		{
+			continue;
+		}
+
+		// La rotta e' la cella di partenza piu' cio' che l'unita' ha ATTRAVERSATO: `Entered` non include
+		// la partenza, e un percorso di una sola cella non e' un movimento da mostrare.
+		TArray<FRTCellId> Route;
+		Route.Add(Units[i]->Cell);
+		Route.Append(Results[i].Entered);
+
+		FRTMoveRoute& Tracked = LastMoveRoutes.AddDefaulted_GetRef();
+		Tracked.StableUnitId = Units[i]->StableUnitId;
+		Tracked.Cells = Route;
+		FreezeRouteVerdicts(Ctx->Snapshot.Map, ObserverTeams, Units[i]->TeamId, Route, Tracked.CellVerdicts);
+
+		FRTResolvedEvent Ev;
+		Ev.Phase = ERTMatchPhase::Move;
+		Ev.Type = ERTResolvedEventType::Move;
+		Ev.SourceStableUnitId = Units[i]->StableUnitId;
+		Ev.Path = Route;
+		Ev.CellVerdicts = Tracked.CellVerdicts;
+		ResolvedTimeline.Add(Ev);
+	}
+}
+
 void ARTTurnManager::FinishMovementResolution()
 {
 	if (!PendingMovement.IsValid() || !PendingMovement->bActive)
@@ -891,39 +989,7 @@ void ARTTurnManager::FinishMovementResolution()
 	// costruiti qui, guardano dalle celle di inizio fase. Un campione per micro-step non esiste — la
 	// conoscenza di squadra ha due sole assegnazioni per turno, entrambe per fase — e questo e' il limite
 	// scritto nella decisione, non un difetto da riparare qui.
-	const TArray<FRTRouteObserverTeam> ObserverTeams = BuildRouteObserverTeams(Units);
-	LastMoveRoutes.Reset();
-	for (int32 i = 0; i < Units.Num(); ++i)
-	{
-		if (Resolved[i].Entered.Num() > 0)
-		{
-			TArray<FRTCellId> Route;
-			Route.Add(Units[i]->Cell);
-			Route.Append(Resolved[i].Entered);
-
-			// Come nel sito del Dash: l'identita' viene da `Units[i]`, mai dall'indice di `LastMoveRoutes`,
-			// che salta chi non si e' mosso (`#1497`).
-			FRTMoveRoute& Tracked = LastMoveRoutes.AddDefaulted_GetRef();
-			Tracked.StableUnitId = Units[i]->StableUnitId;
-			Tracked.Cells = Route;
-
-			// Il verdetto di [D-223], una cella alla volta: la traccia porta il tratto OSSERVATO e si
-			// tronca dove l'osservatore ha perso il soggetto. Congelato QUI e non letto a valle, perche' al
-			// prossimo Planning la conoscenza sara' un'altra e il soggetto potrebbe non esistere piu'.
-			FreezeRouteVerdicts(Ctx.Snapshot.Map, ObserverTeams, Units[i]->TeamId, Route, Tracked.CellVerdicts);
-
-			// Evento per il playback: rotta percorsa (start + celle attraversate) da animare.
-			FRTResolvedEvent Ev;
-			Ev.Phase = ERTMatchPhase::Move;
-			Ev.Type = ERTResolvedEventType::Move;
-			Ev.SourceStableUnitId = Units[i]->StableUnitId;
-			Ev.Path = Route;
-			// 🔴 Lo STESSO verdetto congelato una riga sopra per la traccia (`#1525`): il modello e la
-			// polilinea che lo racconta si troncano allo stesso punto, perche' leggono lo stesso dato.
-			Ev.CellVerdicts = Tracked.CellVerdicts;
-			ResolvedTimeline.Add(Ev);
-		}
-	}
+	EmitMoveEvents(Units, Resolved);
 
 	// Applica le posizioni finali e gli effetti delle celle ATTRAVERSATE (non solo di quella finale).
 	for (int32 i = 0; i < Units.Num(); ++i)
