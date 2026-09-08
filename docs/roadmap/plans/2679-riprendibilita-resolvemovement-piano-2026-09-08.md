@@ -61,7 +61,7 @@ Prima di spostare una riga, si fissa il comportamento attuale. È un refactor: i
 - Consumes: `ARTTurnManager::LockInAndResolve()`, `ARTTurnManager::GetTurnLog()`, `URTTurnLogLibrary`
 - Produces: gli helper `MakeResumeWorld`, `SpawnResumeUnit`, `DestroyResumeWorld`, usati da Task 4
 
-- [ ] **Step 1: Scrivere il test di caratterizzazione**
+- [x] **Step 1: Scrivere il test di caratterizzazione**
 
 Uno scenario con un Overwatch armato che scatta durante il movimento — cioè un turno che **attraversa** `ResolveReactionBoundary`, che è il punto che il refactor tocca.
 
@@ -167,7 +167,7 @@ bool FRTMovementCharacterizationTest::RunTest(const FString&)
 #endif // WITH_DEV_AUTOMATION_TESTS
 ```
 
-- [ ] **Step 2: Verificare che nessuno stia usando Unreal, poi compilare**
+- [x] **Step 2: Verificare che nessuno stia usando Unreal, poi compilare**
 
 ```powershell
 Get-Process UnrealEditor*,UnrealEditor-Cmd* -ErrorAction SilentlyContinue
@@ -181,7 +181,7 @@ D:/EpicGames/UE_5.8/Engine/Build/BatchFiles/Build.bat RefactorTacticsEditor Win6
 
 Atteso: **compila**. Se `Unable to build while Live Coding is active` con nessun editor aperto, il mutex è di un processo zombie: aggiungere `-NoHotReloadFromIDE`.
 
-- [ ] **Step 3: Eseguire il test e verificare che PASSA**
+- [x] **Step 3: Eseguire il test e verificare che PASSA**
 
 ```
 D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe "D:\Repositories\refactor-tactics-dev\RefactorTactics.uproject" -ExecCmds="Automation RunTests RefactorTactics.Movement.ResolveMovementFingerprintIsStable;Quit" -unattended -nopause -nosplash -nullrhi -NoLiveCoding -log
@@ -191,7 +191,7 @@ Atteso: **PASS**. Questo test non è "red": è una **rete**, e cattura il compor
 
 ⚠️ Se fallisce, il difetto è nel test (helper, fixture, id dell'abilità), non nel codice di produzione: va corretto prima di proseguire. Un refactor senza rete non si fa.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add Source/RefactorTactics/Tests/RTMovementResumeTests.cpp
@@ -212,7 +212,7 @@ Si crea la struct e la si riempie, lasciando `ResolveMovement` intatta. È un pa
 - Consumes: `FRTMovementResolutionState` (`Turn/RTHexSim.h:201`), `FRTHexSnapshot`
 - Produces: `FRTMovementResolutionContext`, e il membro `TUniquePtr<FRTMovementResolutionContext> ARTTurnManager::PendingMovement` — su cui Task 3 e Task 4 si appoggiano
 
-- [ ] **Step 1: Creare l'header del contesto**
+- [x] **Step 1: Creare l'header del contesto**
 
 I campi sono **esattamente** le locali che il ciclo dei micro-step attraversa e che il codice dopo il ciclo rilegge — misurate su `RTTurnManager.cpp:7137-7660`, non indovinate.
 
@@ -279,7 +279,7 @@ struct FRTMovementResolutionContext
 };
 ```
 
-- [ ] **Step 2: Dichiarare il membro sul manager**
+- [x] **Step 2: Dichiarare il membro sul manager**
 
 In `Turn/RTTurnManager.h`, accanto agli altri stati della risoluzione (cercare `ArmedOverwatches`, che è lo stato affine, e mettere il campo lì sotto):
 
@@ -304,13 +304,13 @@ E l'include in cima al file, accanto agli altri `#include "Turn/..."`:
 #include "Turn/RTMovementResolutionContext.h"
 ```
 
-- [ ] **Step 3: Compilare**
+- [x] **Step 3: Compilare**
 
 Stesso comando del Task 1 Step 2. Atteso: **compila**. Nessun uso ancora: si sta solo verificando che l'header sia autosufficiente e che gli include non siano circolari.
 
 ⚠️ Se `RTHexSnapshot.h` non è il path corretto, trovarlo con `grep -rn "struct FRTHexSnapshot" Source/` e correggere l'include — non aggiungere una forward declaration: la struct è usata per valore.
 
-- [ ] **Step 4: Eseguire la suite intera**
+- [x] **Step 4: Eseguire la suite intera**
 
 ```
 D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe "D:\Repositories\refactor-tactics-dev\RefactorTactics.uproject" -ExecCmds="Automation RunTests RefactorTactics;Quit" -unattended -nopause -nosplash -nullrhi -NoLiveCoding -log
@@ -318,7 +318,7 @@ D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe "D:\Repositories\
 
 Atteso: **stesso numero di `Result={Success}` di prima del task**, zero `Result={Fail}`. ~1156 test, ~3 minuti. Registrare il numero: è la baseline dei task successivi.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Source/RefactorTactics/Turn/RTMovementResolutionContext.h Source/RefactorTactics/Turn/RTTurnManager.h
@@ -341,7 +341,7 @@ git commit -m "feat(2679): il contesto sospendibile, con i campi misurati e non 
   - `void ARTTurnManager::FinishMovementResolution()` — da `FinishHexMovement` alla fine, e rilascia `PendingMovement`
   - `void ARTTurnManager::ResolveMovement()` — **resta**, come `Begin(); Advance(); Finish();`
 
-- [ ] **Step 1: Dichiarare le tre funzioni in `RTTurnManager.h`**
+- [x] **Step 1: Dichiarare le tre funzioni in `RTTurnManager.h`**
 
 Accanto alla dichiarazione esistente di `ResolveMovement`:
 
@@ -361,7 +361,7 @@ Accanto alla dichiarazione esistente di `ResolveMovement`:
     void FinishMovementResolution();
 ```
 
-- [ ] **Step 2: Spezzare la funzione**
+- [x] **Step 2: Spezzare la funzione**
 
 Il taglio è meccanico e i confini sono già misurati:
 
@@ -487,7 +487,7 @@ void ARTTurnManager::ResolveMovement()
 }
 ```
 
-- [ ] **Step 3: Compilare**
+- [x] **Step 3: Compilare**
 
 Stesso comando. Atteso: **compila**. Gli errori probabili e cosa significano:
 
@@ -497,13 +497,13 @@ Stesso comando. Atteso: **compila**. Gli errori probabili e cosa significano:
 | `use of undeclared identifier 'PlannedMoves'` in `Finish` | `PlannedMoves` è locale a `Begin` | è corretto: quel punto non deve usarla — verificare cosa gli serve davvero |
 | `'Origin' was not declared` | una riga sfuggita alla riscrittura | `Ctx.Origin` |
 
-- [ ] **Step 4: Eseguire la suite intera e confrontare con la baseline del Task 2**
+- [x] **Step 4: Eseguire la suite intera e confrontare con la baseline del Task 2**
 
 Stesso comando del Task 2 Step 4.
 
 Atteso: **stesso numero di `Result={Success}`, zero `Result={Fail}`**. Un solo test rosso qui significa che lo split ha cambiato un comportamento: **non si prosegue** e si trova quale locale è stata persa. `Movement.ResolveMovementFingerprintIsStable` è quello che deve gridare per primo.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Turn/RTTurnManager.h
@@ -524,7 +524,7 @@ Ora `Advance` fa **un** passo e dice se ne restano. È la capacità che il piano
 - Consumes: tutto il Task 3
 - Produces: `enum class ERTMovementAdvanceResult : uint8 { Advanced, Finished };` e la nuova firma `ERTMovementAdvanceResult ARTTurnManager::AdvanceMovementResolution()` — su cui il **piano 2** aggiungerà il terzo valore `Suspended`
 
-- [ ] **Step 1: Scrivere il test di equivalenza (questo è "red")**
+- [x] **Step 1: Scrivere il test di equivalenza (questo è "red")**
 
 ```cpp
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementStepwiseMatchesWholeTest,
@@ -586,11 +586,11 @@ bool FRTMovementStepwiseMatchesWholeTest::RunTest(const FString&)
 
 ⚠️ **Esecuzione B non chiama `LockInAndResolve`**: chiama le tre funzioni direttamente. Le fasi non-movimento non entrano nel confronto, e l'impronta le esclude filtrando su `ERTMatchPhase::Move`.
 
-- [ ] **Step 2: Compilare, e verificare che FALLISCE**
+- [x] **Step 2: Compilare, e verificare che FALLISCE**
 
 Atteso: **errore di compilazione** — `ERTMovementAdvanceResult` non esiste, e `AdvanceMovementResolution` ritorna `void`. È il "red" di questo task.
 
-- [ ] **Step 3: Cambiare `Advance` in passo singolo**
+- [x] **Step 3: Cambiare `Advance` in passo singolo**
 
 L'enum, in `RTTurnManager.h` sopra la classe:
 
@@ -677,7 +677,7 @@ void ARTTurnManager::ResolveMovement()
 }
 ```
 
-- [ ] **Step 4: Compilare ed eseguire il test nuovo**
+- [x] **Step 4: Compilare ed eseguire il test nuovo**
 
 ```
 D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe "D:\Repositories\refactor-tactics-dev\RefactorTactics.uproject" -ExecCmds="Automation RunTests RefactorTactics.Movement;Quit" -unattended -nopause -nosplash -nullrhi -NoLiveCoding -log
@@ -685,13 +685,13 @@ D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe "D:\Repositories\
 
 Atteso: **PASS** su `StepwiseResolutionMatchesWhole`, `ResolveMovementFingerprintIsStable` e `StepperMatchesBatchResolver`.
 
-- [ ] **Step 5: Eseguire la suite intera**
+- [x] **Step 5: Eseguire la suite intera**
 
 Atteso: **stesso numero di `Result={Success}` della baseline**, più i due test nuovi. Zero `Result={Fail}`.
 
 ⚠️ I test da guardare per primi se qualcosa si rompe, perché sono quelli che attraversano il boundary: `Overwatch.DecisionIsReplayable`, `Overwatch.OrderIsDeterministic`, `Overwatch.TimeoutIsHold`, `Replay.Verifier.ResimulationIsDeterministic`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Tests/RTMovementResumeTests.cpp
@@ -707,7 +707,7 @@ La DoD di #2679 vincola `RTTurnManager.cpp` + `.h` a **11.000 righe**. Questo pi
 **Files:**
 - Modify: nessuno, salvo quanto la misura imponga
 
-- [ ] **Step 1: Misurare**
+- [x] **Step 1: Misurare**
 
 ```bash
 wc -l Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Turn/RTTurnManager.h
@@ -715,13 +715,13 @@ wc -l Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Turn/
 
 Baseline su `a83ea7d9`: **10.817** (8.427 + 2.390). Soglia: **11.000**.
 
-- [ ] **Step 2: Se la misura supera 11.000, spostare `Finish` in un file affine**
+- [x] **Step 2: Se la misura supera 11.000, spostare `Finish` in un file affine**
 
 `RTTurnManager_Blast.cpp` è il precedente: il progetto già divide questa classe per fase. Un `RTTurnManager_Movement.cpp` che accoglie le tre funzioni è la mossa coerente, e va fatta **qui** — non rimandata al piano 2, che la troverebbe come debito invece che come scelta.
 
 ⚠️ Aggiungere il file nuovo non richiede modifiche a `RefactorTactics.Build.cs`: Unreal compila per cartella.
 
-- [ ] **Step 3: Aggiornare la casella nella DoD di #2679**
+- [x] **Step 3: Aggiornare la casella nella DoD di #2679**
 
 ```bash
 gh issue view 2679 --json body -q '.body' > /tmp/2679.md
@@ -730,7 +730,7 @@ gh issue view 2679 --json body -q '.body' > /tmp/2679.md
 gh issue edit 2679 --body-file /tmp/2679.md
 ```
 
-- [ ] **Step 4: Commit e PR**
+- [x] **Step 4: Commit e PR**
 
 ```bash
 git push -u origin feat/2679-riprendibilita-resolvemovement
@@ -748,3 +748,35 @@ Dichiarato perché nessuno lo scopra leggendo la DoD di #2679 e trovandola a met
 - ⛔ **Il sito del `Brace` (`RTTurnManager_Blast.cpp:2264`) non e' toccato.** La DoD di #2679 chiede che sospendano **entrambi** i siti di `AskReactionDecision`; questo piano copre il movimento. Il `Brace` vive in `ResolveCombat`, ha un ciclo diverso, e merita la propria fetta invece di essere infilato qui.
 - ⛔ **`LockInAndResolve` resta monolitica**: sospendere il movimento senza sospendere il ciclo delle fasi lascerebbe proseguire le fasi successive. È il piano 3, ed è la ragione per cui il piano 2 da solo non basta a far vedere una finestra al giocatore.
 - ⛔ **I tre commenti normativi** (`RTTurnManager.h:552`, `:627`, `.cpp:6622`) restano falsi: diventano correggibili quando il comportamento che descrivono cambia davvero, cioè col piano 3.
+
+---
+
+## Evidenza — eseguita il 2026-09-08 su `feat/2679-riprendibilita-resolvemovement`
+
+Motore libero (nessun processo Unreal), UE 5.8, target `RefactorTacticsEditor Win64 Development`.
+
+| Gate | Esito |
+|---|---|
+| **Compile** | `PASS` — `Result: Succeeded`, 39 azioni, 117 s. **Al primo colpo**, sul refactor scritto senza compilatore |
+| **Tests** (suite `RefactorTactics`) | `PASS` — **2159** test riusciti, **3** falliti su 2162 |
+| **Regressioni** | **zero** — i 3 falliti sono gli **stessi** su `main` = `9477689c`, misurati con una build separata |
+| **Determinism** | `PASS` — `Replay.Verifier.ResimulationIsDeterministic`, `Overwatch.OrderIsDeterministic`, `Movement.StepperIsDeterministicUnderPermutation` |
+| **Replay** | `PASS` — `Overwatch.DecisionIsReplayable`, `Overwatch.TimeoutIsHold`, `Overwatch.HoldKeepsArmed` |
+| **PIE / Packaged** | `NOT RUN` — nessun cambiamento di presentazione in questa fetta |
+
+I tre rossi preesistenti, per il verbale: `IconCatalog.RealCatalogCoversRequiredIds` (*«1 chiave non coperta:
+`UI.Icon.Identity.Branth`»*), `Match.Autobattle.EngagesOnTheGeneratedTestArena` e
+`Bot.StallDefinitionsOnTheGeneratedTestArena` (entrambi *«ferma 11 turni, limite 4»*). ⛔ **Non sono di
+questa fetta e non vanno assorbiti qui**: la misura su `main` li trova identici.
+
+🔴 **Un test e' stato riscritto dopo un fallimento vero, e la cronaca sta nel file di test.**
+`AdvanceResolvesOneMicroStepPerCall` asseriva `Passi > 1` e ha misurato **0** — non per un difetto dello
+split, ma perche' `LockInAndResolve` esegue `ValidatePlansAtLockIn` e il resto del preambolo **prima** delle
+fasi: una risoluzione avviata fuori da li' non ha piani validati. Sostituito da
+`Movement.ResolutionGuardsFailClosed`, e la copertura mancante — *che `Advance` faccia un passo per
+chiamata* — e' **dichiarata scoperta** invece di essere finta con un'asserzione piu' debole. Diventa
+osservabile con la fetta 3.
+
+**Bound `#1818`**: `RTTurnManager.cpp` + `.h` = **10.956** righe, soglia **11.000**. Passa con **44** di
+margine — che la fetta 2 mangia. Lo spostamento in `RTTurnManager_Movement.cpp` previsto dal Task 5 va
+fatto **all'inizio della fetta 2**, non rimandato.
