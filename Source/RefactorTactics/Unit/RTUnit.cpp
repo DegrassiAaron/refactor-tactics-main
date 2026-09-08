@@ -984,6 +984,15 @@ FString ARTUnit::DisplayLabel(const FText& InDisplayName, FName InHeroId, const 
 	return ShortHeroName(InHeroId, Fallback);
 }
 
+FString ARTUnit::LogLabel(const ARTUnit* Unit)
+{
+	// Un `nullptr` non e' un caso teorico: diversi chiamanti passano `Units[i]` da indici che una morte o
+	// una rimozione possono aver svuotato. La riga esce lo stesso e DICE di non sapere chi, invece di
+	// sparire o di far cadere il turno per una stringa.
+	return Unit ? DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName())
+	            : TEXT("unita' sconosciuta");
+}
+
 float ARTUnit::RingLocalZ(float VisualZOffset)
 {
 	// L'attore sta `VisualZOffset` sopra il piano della cella; l'anello scende della stessa quota e risale

@@ -1138,6 +1138,24 @@ public:
 	static FString DisplayLabel(const FText& InDisplayName, FName InHeroId, const FString& Fallback);
 
 	/**
+	 * Il nome dell'unita' per una riga di log che una PERSONA leggera'.
+	 *
+	 * 🔑 **Esiste perche' lo stesso turno nominava la stessa unita' in due modi.** Le voci del TurnLog
+	 * passano da `SubjectNamesForLog()`, che risolve con `DisplayLabel` (D-120); gli eventi narrativi di
+	 * `AddLogEvent` scrivevano `GetName()`, cioe' il nome dell'Actor. Misurato nella seduta `U46` del
+	 * 2026-09-08: `RTUnit_3: il terreno non si attraversa di corsa` e `Branth: resta (...)`, due righe
+	 * adiacenti sulla stessa unita', e nulla diceva al lettore che fosse la stessa.
+	 *
+	 * Non duplica la cascata di `DisplayLabel`: la chiama, col nome dell'Actor come ultimo ripiego —
+	 * un'unita' senza eroe dichiarato non deve perdere il nome.
+	 *
+	 * ⚠️ **Il nome canonico e' per EROE, non per unita'**: due `Hero.Branth` in campo producono la stessa
+	 * etichetta. Chi scrive una riga che deve distinguerli aggiunga la CELLA, come fanno le voci del
+	 * TurnLog — l'etichetta da sola non e' un identificatore.
+	 */
+	static FString LogLabel(const ARTUnit* Unit);
+
+	/**
 	 * Quota del CENTRO di un anello a terra sopra il piano della cella (unita' di mondo).
 	 *
 	 * 🔴 **Non e' un margine estetico: e' un vincolo geometrico, e sbagliarlo rende l'anello INVISIBILE.**

@@ -392,8 +392,8 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 		}
 
 		AddLogEvent(Removed.IsValid()
-			? FString::Printf(TEXT("%s: purificato %s"), *Unit->GetName(), *Removed.ToString())
-			: FString::Printf(TEXT("%s: nessuno stato da purificare"), *Unit->GetName()), FRTLogSubject::Unit(Unit));
+			? FString::Printf(TEXT("%s: purificato %s"), *ARTUnit::LogLabel(Unit), *Removed.ToString())
+			: FString::Printf(TEXT("%s: nessuno stato da purificare"), *ARTUnit::LogLabel(Unit)), FRTLogSubject::Unit(Unit));
 	}
 }
 
@@ -577,7 +577,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 					// Stesso soggetto della voce: `ConcludeTurn` ne deriva una riga identica a questa, e
 					// due soggetti diversi sulla stessa frase farebbero passare una copia e non l'altra.
 					AddLogEvent(FString::Printf(TEXT("%s: %s"),
-						*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(ArcRejected)), FRTLogSubject::Unit(Unit));
+						*ARTUnit::LogLabel(Unit), *URTTurnLogLibrary::DescribeEntry(ArcRejected)), FRTLogSubject::Unit(Unit));
 
 					// L'abilita' NON si consuma: il piano e' gia' stato azzerato sopra (si spende nel turno,
 					// attivata o no), ma il cooldown paga solo cio' che ha davvero toccato la mappa.
@@ -755,7 +755,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			// Stesso soggetto della voce: vedi `ArcRejected` poco sopra — la copia derivata da
 			// `ConcludeTurn` e questa devono passare o cadere insieme.
 			AddLogEvent(FString::Printf(TEXT("%s: %s"),
-				*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(FallbackEntry)), FRTLogSubject::Unit(Unit));
+				*ARTUnit::LogLabel(Unit), *URTTurnLogLibrary::DescribeEntry(FallbackEntry)), FRTLogSubject::Unit(Unit));
 
 			if (!Fallback.bProducesEffects)
 			{
@@ -1392,7 +1392,7 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 			// dalla singola risoluzione — che e' esattamente cio' che un'assertion di scenario deve confrontare.
 			Entry.OriginalTargetUnitId = Units[OriginalTarget]->StableUnitId;
 			AddLogEvent(FString::Printf(TEXT("%s: si interpone per %s"),
-				*Unit->GetName(), *Units[OriginalTarget]->GetName()), FRTLogSubject::Unit(Unit));
+				*ARTUnit::LogLabel(Unit), *ARTUnit::LogLabel(Units[OriginalTarget])), FRTLogSubject::Unit(Unit));
 		}
 		else
 		{
@@ -1404,7 +1404,7 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 		AppendLogEntry(Entry, Unit);
 		// Stesso soggetto della voce: la copia che `ConcludeTurn` deriva e questa raccontano lo stesso
 		// evento con le stesse coordinate, e devono passare o cadere insieme.
-		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)), FRTLogSubject::Unit(Unit));
+		AddLogEvent(FString::Printf(TEXT("%s: %s"), *ARTUnit::LogLabel(Unit), *URTTurnLogLibrary::DescribeEntry(Entry)), FRTLogSubject::Unit(Unit));
 	}
 	// APPLICA: i bersagli si riscrivono solo ora, quando ogni decisione e' stata presa sullo stesso snapshot.
 	//
@@ -1522,8 +1522,8 @@ void ARTTurnManager::LogBlockedIntents(const FRTBlastContext& Ctx)
 		// Scegliere il bersaglio qui farebbe filtrare le due copie con criteri diversi.
 		AddLogEvent(FString::Printf(TEXT("%s (%s -> %s)"),
 			*URTTurnLogLibrary::DescribeEntry(NoLos),
-			*Units[Blocked.AttackerId]->GetName(),
-			bTargetsUnit ? *Units[Blocked.TargetId]->GetName() : TEXT("cella")),
+			*ARTUnit::LogLabel(Units[Blocked.AttackerId]),
+			bTargetsUnit ? *ARTUnit::LogLabel(Units[Blocked.TargetId]) : TEXT("cella")),
 			FRTLogSubject::Unit(Units.IsValidIndex(Blocked.AttackerId) ? Units[Blocked.AttackerId] : nullptr));
 	}
 
@@ -1572,7 +1572,7 @@ void ARTTurnManager::LogBlockedIntents(const FRTBlastContext& Ctx)
 		// dichiarato — il ramo di CP 9.3, dove l'operazione nasce da una traiettoria. Dire «sul bordo
 		// dichiarato» a chi non ne ha dichiarato uno indirizza verso una causa che non esiste.
 		AddLogEvent(FString::Printf(TEXT("%s: %s"),
-			Actor ? *Actor->GetName() : TEXT("unita'"),
+			Actor ? *ARTUnit::LogLabel(Actor) : TEXT("unita'"),
 			Doorless.bHasDeclaredDoorEdge
 				? TEXT("nessuna porta sul bordo dichiarato")
 				: TEXT("nessuna porta sulla traiettoria")),
@@ -1622,7 +1622,7 @@ void ARTTurnManager::LogBlockedIntents(const FRTBlastContext& Ctx)
 		ARTUnit* Actor = Units.IsValidIndex(Refused.AttackerId) ? Units[Refused.AttackerId] : nullptr;
 		AppendLogEntry(Entry, Actor);
 		AddLogEvent(FString::Printf(TEXT("%s: %s"),
-			Actor ? *Actor->GetName() : TEXT("unita'"),
+			Actor ? *ARTUnit::LogLabel(Actor) : TEXT("unita'"),
 			Refusal.State == ERTHexDoorState::Destroyed
 				? TEXT("la porta e' distrutta: non c'e' piu' niente da commutare")
 				: TEXT("la porta e' bloccata: serve un'apertura autorizzata")),
@@ -2144,7 +2144,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// dichiarata ha la precedenza su uno stato che non si consuma.
 			if (DisplacementReactions.CancelledDisplacements.Contains(Units.IndexOfByKey(T)))
 			{
-				AddLogEvent(FString::Printf(TEXT("%s: ancorato, la spinta non lo sposta"), *T->GetName()), FRTLogSubject::Unit(T));
+				AddLogEvent(FString::Printf(TEXT("%s: ancorato, la spinta non lo sposta"), *ARTUnit::LogLabel(T)), FRTLogSubject::Unit(T));
 				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Anchored, &PushCause);
 				continue;
 			}
@@ -2168,7 +2168,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			if (T->HasStatus(TAG_Status_Guarded) && !T->HasStatus(TAG_Status_Unbalanced)
 				&& KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
 			{
-				AddLogEvent(FString::Printf(TEXT("%s: in guardia, resiste alla spinta"), *T->GetName()), FRTLogSubject::Unit(T));
+				AddLogEvent(FString::Printf(TEXT("%s: in guardia, resiste alla spinta"), *ARTUnit::LogLabel(T)), FRTLogSubject::Unit(T));
 				// La stringa sopra e' per l'HUD e non finisce nel file (#420): la voce di TurnLog e' questa, ed
 				// e' cio' che permette a un replay di dire QUALE difesa ha retto invece del solo «non si e' mosso».
 				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Guarded, &PushCause);
@@ -2375,10 +2375,10 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					// consuma, qui `Hold Ground` non e' una risorsa. Chi sceglie di scartare non deve finire
 					// meno protetto di chi non ha scelto affatto.
 					AddLogEvent(FString::Printf(
-						TEXT("%s: nessuna cella per scartare, tiene la posizione"), *T->GetName()), FRTLogSubject::Unit(T));
+						TEXT("%s: nessuna cella per scartare, tiene la posizione"), *ARTUnit::LogLabel(T)), FRTLogSubject::Unit(T));
 				}
 
-				AddLogEvent(FString::Printf(TEXT("%s: irrigidito, la spinta non lo sposta"), *T->GetName()), FRTLogSubject::Unit(T));
+				AddLogEvent(FString::Printf(TEXT("%s: irrigidito, la spinta non lo sposta"), *ARTUnit::LogLabel(T)), FRTLogSubject::Unit(T));
 				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Braced, &PushCause);
 				continue;
 			}
@@ -2486,7 +2486,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// chi e' spinto e tirato nello stesso Blast non paga due reazioni.
 			if (DisplacementReactions.CancelledDisplacements.Contains(Units.IndexOfByKey(T)))
 			{
-				AddLogEvent(FString::Printf(TEXT("%s: ancorato, la trazione non lo sposta"), *T->GetName()), FRTLogSubject::Unit(T));
+				AddLogEvent(FString::Printf(TEXT("%s: ancorato, la trazione non lo sposta"), *ARTUnit::LogLabel(T)), FRTLogSubject::Unit(T));
 				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Anchored, &PullCause);
 				continue;
 			}
@@ -2624,7 +2624,7 @@ void ARTTurnManager::ApplyControlStatuses(FRTBlastContext& Ctx)
 		{
 			CancelledStatusIdx.Add(BestIdx);
 			AddLogEvent(FString::Printf(TEXT("%s: %s annullato dalla purificazione"),
-				*Canceller->GetName(), *StatusTags[BestIdx].ToString()), FRTLogSubject::Unit(Canceller));
+				*ARTUnit::LogLabel(Canceller), *StatusTags[BestIdx].ToString()), FRTLogSubject::Unit(Canceller));
 		}
 	}
 
@@ -2645,7 +2645,7 @@ void ARTTurnManager::ApplyControlStatuses(FRTBlastContext& Ctx)
 					StatusDurations[i], /*bFromTerrain=*/ false);
 				AppendLogEntry(Nato, Slowed);
 			}
-			AddLogEvent(FString::Printf(TEXT("Status: %s"), *Slowed->GetName()), FRTLogSubject::Unit(Slowed));
+			AddLogEvent(FString::Printf(TEXT("Status: %s"), *ARTUnit::LogLabel(Slowed)), FRTLogSubject::Unit(Slowed));
 		}
 	}
 }
