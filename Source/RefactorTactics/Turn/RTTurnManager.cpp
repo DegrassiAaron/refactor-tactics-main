@@ -6535,11 +6535,20 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 			ERTReactionDecisionOutcome::NoDecider);
 	}
 
-	// ⚠️ **Qui non si aspetta.** L'unica cosa che questa riga fa e' chiedere e ricevere: nessun `Sleep`,
-	// nessun `Delay`, nessun timer, nessuna Timeline. Chi decide in fretta — il bot, un decisore di test —
-	// risponde subito; una UI umana (CP 14.6) rispondera' invece con una stringa vuota fino a che il
-	// giocatore non ha scelto, e sara' l'orchestratore a richiamare. Il risultato LOGICO non dipende dal
-	// tempo reale in nessuno dei due casi, ed e' precisamente cio' che `Reactions.NoResolverWait` protegge.
+	// ⚠️ **Qui non si aspetta, e non aspettera' mai.** L'unica cosa che questa riga fa e' chiedere e
+	// ricevere: nessun `Sleep`, nessun `Delay`, nessun timer, nessuna Timeline. Il risultato LOGICO non
+	// dipende dal tempo reale, ed e' precisamente cio' che `Reactions.NoResolverWait` protegge.
+	//
+	// 🔴 **Questo commento prometteva una strada che il ramo sotto smentiva**, e la correzione arriva con
+	// `#2679` fetta 2: diceva che *«una UI umana rispondera' con una stringa vuota fino a che il giocatore
+	// non ha scelto, e sara' l'orchestratore a richiamare»*. Falso — nove righe sotto, `Response.IsEmpty()`
+	// applica `DecisionOnTimeout`: vuota significa **scaduta**, non «non ancora», e nessun orchestratore
+	// puo' richiamare una finestra gia' chiusa.
+	//
+	// ✅ **L'attesa umana passa da un'altra parte**: `PumpReactionTriggers` apre una finestra e ritorna
+	// `Suspended` **prima** di arrivare qui; la risposta rientra da `CloseReactionWindow`, che lega il
+	// decisore per una sola domanda e ripassa da questa riga. Cosi' la legalita' di una risposta resta
+	// decisa in **un** posto, e questa funzione resta sincrona e `const`.
 	const FString Response = ReactionDecider.Execute(Opportunity, OwnerUnitId);
 
 	// Vuota = «non ho risposto». Non e' un errore: e' la scadenza, e cosa valga allo scadere lo dice una
