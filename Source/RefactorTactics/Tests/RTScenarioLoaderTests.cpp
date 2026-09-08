@@ -1565,7 +1565,10 @@ bool FRTScenarioLoaderCellArityTest::RunTest(const FString&)
  *
  * ⚠️ **Il numero si RICONTA, non si eredita.** Questo commento ha detto «SETTE punti di chiamata» e «sono
  * sette, non otto — l'ottava occorrenza e' la DEFINIZIONE» fino al 2026-09-08, quando `#2546` ne ha
- * aggiunti due e un `grep -c ParseCell` e' passato a **10**. La frase che spiegava come non farsi ingannare
+ * aggiunti due e i punti di chiamata sono diventati NOVE. ⌫ E questa riga ha spedito **10** come conteggio
+ * del `grep`, che ne conta **11**: la mia stessa passata aveva aggiunto una menzione in PROSA di
+ * `ParseCell` nel loader, e non l'ho ricontata. Il paragrafo che predica «il numero si riconta» ha
+ * ereditato un numero. La frase che spiegava come non farsi ingannare
  * dal grep e' diventata essa stessa il numero sbagliato: un criterio di copertura scritto come costante
  * invecchia come ogni altra costante.
  *
@@ -2267,11 +2270,16 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 		const bool bOk = URTScenarioLoader::LoadFromString(
 			*WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":[1,0,0]})")),
 			Scenario, Error);
-		TestTrue(FString::Printf(TEXT("[q,r,layer] completo: accettato (errore: '%s')"), *Error), bOk);
-		if (bOk && Scenario.Turns.Num() == 1 && Scenario.Turns[0].Intents.Num() == 1)
+		// Le condizioni di forma si ASSERISCONO, non si usano come guardia muta: con un `&&` grezzo, un
+		// loader che emettesse due turni farebbe sparire l'assertion sulla cella senza un rosso, e il
+		// controllo positivo direbbe «accettato» avendo verificato il solo bool.
+		if (TestTrue(FString::Printf(TEXT("[q,r,layer] completo: accettato (errore: '%s')"), *Error), bOk)
+			&& TestEqual(TEXT("un turno"), Scenario.Turns.Num(), 1)
+			&& TestEqual(TEXT("un intent"), Scenario.Turns[0].Intents.Num(), 1))
 		{
 			const FRTScenarioIntent& I = Scenario.Turns[0].Intents[0];
-			TestTrue(TEXT("e la cella e' quella scritta"), I.bTargetsCell && I.TargetCell == FRTCellId(1, 0, 0));
+			TestTrue(TEXT("bersaglia una cella"), I.bTargetsCell);
+			TestEqual(TEXT("e la cella e' quella scritta"), I.TargetCell, FRTCellId(1, 0, 0));
 		}
 	}
 
@@ -2333,10 +2341,15 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 		}
 	}
 
-	// (10) Il messaggio nomina `dashTo` e non un altro campo: `trovati N` da solo non lo distingue da un
-	// errore su `targetCell`, che produce la stessa sottostringa.
+	// (10) Il messaggio nomina `dashTo` **e** viene dal ramo del MALFORMATO.
+	//
+	// ⚠️ **`Contains("dashTo")` da solo non basta, ed e' un oracolo piu' debole di quanto sembri**: lo
+	// contiene anche il messaggio storico dell'ASSENZA — «non dichiara una destinazione (campo dashTo)» —
+	// quindi questo caso non distinguerebbe i due rami che la issue chiede di separare. E lo contiene pure
+	// il messaggio delle chiavi sconosciute, che ENUMERA tutte le chiavi note. Si asserisce percio' una
+	// stringa che appartiene al solo `ParseCell`.
 	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Wraith.PassingBlade","dashTo":[1,1]})")),
-		TEXT("dashTo"), TEXT("dashTo malformato: il messaggio nomina il campo"));
+		TEXT("dashTo: la cella deve essere"), TEXT("dashTo malformato: il messaggio viene dal ramo giusto"));
 
 	// ---- il campo dichiarato che NESSUNO consuma ---------------------------------------------------
 	//
@@ -2384,6 +2397,35 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 	// (13) E un passo con arita' sbagliata resta rifiutato da `ParseCell`, come prima.
 	Rejects(WithIntent(TEXT(R"({"unit":"A","move":[[1,0]]})")),
 		TEXT("trovati 2"), TEXT("move con un passo a due elementi"));
+
+	// ---- il TIPO sbagliato, non solo l'arita' ------------------------------------------------------
+	//
+	// Le tre guardie nuove hanno ciascuna due rami — «campo assente» e «campo presente ma non array» — e
+	// fino a qui solo quello di `move` era esercitato. Senza questi due casi, chi ricollassasse
+	// `HasField` + `TryGetArrayField` in una guardia sola su `targetCell` o `dashTo` li riporterebbe al
+	// silenzio che questa issue rimuove, e tutti i tredici casi sopra resterebbero verdi.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":"1,0,0"})")),
+		TEXT("targetCell non e' un array"), TEXT("targetCell scritto come stringa"));
+	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Wraith.PassingBlade","dashTo":"1,1,0"})")),
+		TEXT("dashTo non e' un array"), TEXT("dashTo scritto come stringa"));
+
+	// (16) 🔴 **`"dash": "None"` NON e' un dash mancante**, e derivare il consumo da `Intent.Dash.IsNone()`
+	// lo diceva: `FName(TEXT("None"))` **e'** `NAME_None`, quindi il blocco girava, `dashTo` veniva letto
+	// correttamente, e il controllo di consumo rifiutava dicendo «nessuna 'dash' che lo usi» — mandando
+	// l'autore a cercare un campo che ha davanti agli occhi. Il consumo si legge da un FLAG, non da un
+	// valore con una sentinella che collide.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(
+			*WithIntent(TEXT(R"({"unit":"A","dash":"None","dashTo":[1,1,0]})")), Scenario, Error);
+		TestFalse(FString::Printf(
+			TEXT("`dash: \"None\"` non viene rifiutato per «nessuna dash che lo usi» (errore: '%s')"), *Error),
+			Error.Contains(TEXT("nessuna 'dash' che lo usi")));
+		// Che poi lo scenario passi o no dipende dal catalogo, non da questo controllo: cio' che si pinna
+		// e' che il rifiuto NON arrivi dal ramo del consumo.
+		(void)bOk;
+	}
 
 	return true;
 }

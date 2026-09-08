@@ -1085,10 +1085,19 @@ namespace
 							Intent.bDeclaresFacing = true;
 						}
 
+						// ⚠️ **Flag esplicito e non `Intent.Dash.IsNone()`**: `FName(TEXT("None"))` **E'**
+						// `NAME_None`, quindi un intent che scrivesse `"dash": "None"` avrebbe il blocco
+						// eseguito, `dashTo` letto correttamente, e poi il controllo di consumo lo avrebbe
+						// rifiutato dicendo «nessuna 'dash' che lo usi» — mandando l'autore a cercare un campo
+						// che ha davanti agli occhi. E' il difetto diagnostico che questa issue rimuove, e
+						// derivarlo da un valore con una sentinella che collide lo reintroduceva. Il sito
+						// gemello usa gia' un flag (`bTargetsCell`); questo ne aveva bisogno e non ce l'aveva.
+						bool bDashDichiarato = false;
 						FString DashText;
 						if (IntentObj->TryGetStringField(TEXT("dash"), DashText) && !DashText.IsEmpty())
 						{
 							Intent.Dash = FName(*DashText);
+							bDashDichiarato = true;
 
 							// La destinazione e' obbligatoria per lo stesso motivo per cui lo e' il bersaglio di
 							// un'abilita': senza, lo scatto non partirebbe e l'assertion cadrebbe su un fatto
@@ -1266,7 +1275,7 @@ namespace
 								*Intent.UnitId);
 							return false;
 						}
-						if (IntentObj->HasField(TEXT("dashTo")) && Intent.Dash.IsNone())
+						if (IntentObj->HasField(TEXT("dashTo")) && !bDashDichiarato)
 						{
 							OutError = FString::Printf(
 								TEXT("intent di '%s': dichiara dashTo ma nessuna 'dash' che lo usi ")
