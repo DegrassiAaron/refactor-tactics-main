@@ -2552,6 +2552,20 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				PTargets.Add(T); PFinal.Add(Atterraggio); PEsito.Add(T, Esito);
 			}
 			else if (Dest != T->Cell) { PTargets.Add(T); PFinal.Add(Dest); PEsito.Add(T, Esito); }
+			else
+			{
+				// 🔴 **La trazione era MUTA dove la spinta parla**, e non per una scelta: `#420` conta i modi
+				// di non muoversi di uno «spostamento forzato», e `spec` §3 dice che la trazione lo e' —
+				// tanto che `Anchored` una voce la scrive gia', dieci righe piu' su. Mancava il solo caso
+				// geometrico, e il buco si vedeva solo dal lato che non lo dichiarava.
+				//
+				// ⚠️ **Il parapetto ha la sua causa anche qui** (#2403, [D-354]): un bordo protetto verso cui
+				// si viene tirati non e' *«non c'e' dove andare»*.
+				AppendDisplacementResistedEntry(T,
+					Esito == ERTMoveOutcome::StoppedByEdgeGuard ? ERTDisplacementBlockReason::EdgeGuard
+																: ERTDisplacementBlockReason::NoDestination,
+					&PullCause);
+			}
 		}
 		for (int32 a = 0; a < PTargets.Num(); ++a)
 		{
@@ -2560,7 +2574,16 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			{
 				if (a != b && PFinal[a] == PFinal[b]) { bContested = true; break; }
 			}
-			if (bContested) { continue; }
+			if (bContested)
+			{
+				// Stesso silenzio, stessa correzione: il commento del ramo della spinta chiama
+				// `ContestedDestination` *«il piu' muto dei sei»*, ed era stato tolto dalla spinta e non da
+				// qui. Due bersagli TIRATI verso la stessa cella restano entrambi fermi, esattamente come due
+				// spinti.
+				AppendDisplacementResistedEntry(PTargets[a], ERTDisplacementBlockReason::ContestedDestination,
+					&PullCause);
+				continue;
+			}
 
 			ARTUnit* T = PTargets[a];
 			const ERTMoveOutcome* Trovato = PEsito.Find(T);

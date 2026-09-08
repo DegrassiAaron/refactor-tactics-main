@@ -980,4 +980,49 @@ bool FRTFallSeekToPhaseFindsTheEntryTest::RunTest(const FString&)
 	return true;
 }
 
+// =========================================================================================================
+// 11. La trazione smette di essere muta dove la spinta parla (#2403)
+// =========================================================================================================
+
+/**
+ * Una trazione verso un bordo **protetto** non sposta nessuno, e la traccia dice **perche'**.
+ *
+ * 🔴 **Il ramo della trazione era muto, e non per una scelta.** `#420` conta i modi in cui uno «spostamento
+ * forzato» non sposta nessuno, e `spec` §3 dice che la trazione lo e' — tanto che `Anchored` una voce la
+ * scriveva gia'. Mancava il solo caso geometrico, e il buco si vedeva solo dal lato che non lo dichiarava:
+ * chi leggeva il ramo della spinta trovava sei cause, chi leggeva quello della trazione ne trovava una.
+ *
+ * 🔑 **La geometria e' quella di `PullOverOpenLedgeStartsFall`**, con in piu' il parapetto: la stessa
+ * trazione che li' fa cadere, qui non sposta nulla. Cambiare anche la mappa misurerebbe due cose insieme.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPullTowardGuardedLedgeSaysEdgeGuardTest,
+	"RefactorTactics.ForcedMovement.PullTowardGuardedLedgeSaysEdgeGuard",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPullTowardGuardedLedgeSaysEdgeGuardTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	// Chi tira sta a OVEST, il bersaglio a EST, e in mezzo manca `(1,0,1)`: la trazione attraverserebbe il
+	// vuoto — ma il lato W del bersaglio e' protetto, quindi non lo attraversa.
+	ARTHexMapActor* MapActor = SpawnLedgeMap(World, {
+		FRTCellId(0, 0, 1), FRTCellId(2, 0, 1), FRTCellId(2, 0, 0)
+	});
+	AddLedgeGuard(MapActor, FRTCellId(2, 0, 1), ERTHexDirection::W);
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(0, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(2, 0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio) { DestroyLedgeWorld(World); return false; }
+
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2, ERTActionEffect::Pull);
+	RunLedgeTurn(TM);
+
+	TestEqual(TEXT("premessa: il parapetto lo tiene, e non scende"), Bersaglio->Cell, FRTCellId(2, 0, 1));
+	TestEqual(TEXT("e la trazione non e' piu' muta: dice il parapetto"), LedgeBlockReason(TM, Bersaglio),
+		static_cast<uint8>(ERTDisplacementBlockReason::EdgeGuard));
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
