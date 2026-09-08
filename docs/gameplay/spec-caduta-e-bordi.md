@@ -155,7 +155,7 @@ sequenza interna sarebbe un secondo resolver scritto in prosa, vietato dal guard
 🔴 **Il blocco precedente non era falsificabile, ed è la ragione della riscrittura.** Diceva *«modello di
 risoluzione consigliato»* e poi *«a meno che l'architettura del resolver lo imponga»*: un requisito con
 un'eccezione discrezionale è soddisfatto da qualunque implementazione, inclusa quella che sovrappone.
-Registrato in [`D-350`](../decisions/RT_PDR_00_Decision_Log.md).
+Registrato in [`D-353`](../decisions/RT_PDR_00_Decision_Log.md).
 
 Modello di risoluzione **raccomandato** — non normativo, e il più semplice a soddisfare l'invariante:
 
@@ -301,7 +301,7 @@ golden ([`D-245`](../decisions/RT_PDR_00_Decision_Log.md)).
 ⚠️ **Questa sezione diceva *«distingue almeno»* e non diceva come.** Con un solo valore in codice, chi
 implementava [#2403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2403) avrebbe scelto da
 solo fra tre design incompatibili, su un formato di traccia che ha un owner. Deciso in
-[`D-349`](../decisions/RT_PDR_00_Decision_Log.md).
+[`D-352`](../decisions/RT_PDR_00_Decision_Log.md).
 
 ---
 
@@ -327,9 +327,9 @@ era, la terza decide una forma che mancava.
 
 | § | Che cosa diceva | Perché è cambiato |
 |---|---|---|
-| §4.3 | modello di risoluzione *«consigliato»*, con eccezione discrezionale | non falsificabile → invariante osservabile ([`D-350`](../decisions/RT_PDR_00_Decision_Log.md)) |
+| §4.3 | modello di risoluzione *«consigliato»*, con eccezione discrezionale | non falsificabile → invariante osservabile ([`D-353`](../decisions/RT_PDR_00_Decision_Log.md)) |
 | §5 | *«zero occorrenze in `Source/`»* | falsa su due simboli su tre: le occorrenze sono le note stesse |
-| §9 | *«distingue almeno»*, senza dire in quale forma | un solo valore in codice → forma decisa ([`D-349`](../decisions/RT_PDR_00_Decision_Log.md)) |
+| §9 | *«distingue almeno»*, senza dire in quale forma | un solo valore in codice → forma decisa ([`D-352`](../decisions/RT_PDR_00_Decision_Log.md)) |
 
 ⚠️ **Due lavori nascono da qui, e nessuno dei due è coperto oggi.**
 

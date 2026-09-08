@@ -4,8 +4,8 @@
 > [`../../gameplay/spec-caduta-e-bordi.md`](../../gameplay/spec-caduta-e-bordi.md)
 > **Modalità**: `critique` · **Focus**: requirements · architecture · testing
 > **Misure**: tutte su `origin/main` = **`13ddc500`**, salvo dove indicato.
-> **Esito**: 2 decisioni ([`D-349`](../../decisions/RT_PDR_00_Decision_Log.md) ·
-> [`D-350`](../../decisions/RT_PDR_00_Decision_Log.md)), 1 domanda registrata (`VERT-1`), 3 correzioni di
+> **Esito**: 2 decisioni ([`D-352`](../../decisions/RT_PDR_00_Decision_Log.md) ·
+> [`D-353`](../../decisions/RT_PDR_00_Decision_Log.md)), 1 domanda registrata (`VERT-1`), 3 correzioni di
 > testo, 2 lavori nuovi nominati.
 
 ---
@@ -44,7 +44,7 @@ Giudizio del panel, non una misura strumentale.
 — valori d'enum, estensione di `ERTDisplacementBlockReason`, campo dedicato — e nessuno li aveva scelti: chi
 implementava #2403 avrebbe deciso da solo su un formato che ha un owner.
 
-**Esito**: [`D-349`](../../decisions/RT_PDR_00_Decision_Log.md). Valori in coda a `ERTMoveOutcome`, sul
+**Esito**: [`D-352`](../../decisions/RT_PDR_00_Decision_Log.md). Valori in coda a `ERTMoveOutcome`, sul
 precedente `Displaced`/`DisplacementResisted` e `Slid`/`SlideBlocked` che è **dentro lo stesso enum**. Nasce
 un **quarto** valore che la §9 non chiedeva, perché il §4 ⚠️ dichiara la colonna senza fondo *«una caduta
 senza atterraggio»* — una differenza dichiarata e non leggibile è peggio di una differenza non dichiarata.
@@ -61,7 +61,7 @@ Misura: dei 14 test di `RTFallOverLedgeTests.cpp`, `Fall.NeverOverlaps` (riga 64
 caduta e un occupante fermo — tre unità, una spinta. Nessuno ha **due** unità che cadono nello stesso Blast;
 `simultan`/`contemporane` danno **zero** occorrenze nel file.
 
-**Esito**: [`D-350`](../../decisions/RT_PDR_00_Decision_Log.md). Invariante osservabile (`spec` §4.3.1), il
+**Esito**: [`D-353`](../../decisions/RT_PDR_00_Decision_Log.md). Invariante osservabile (`spec` §4.3.1), il
 modello resta **raccomandato** e non normativo — prescrivere la sequenza interna sarebbe un secondo resolver
 in prosa, vietato dal guardrail 2 della spec stessa. Lavoro che ne nasce:
 `Fall.TwoFallersSameLandingIsDeterministic` su #2402, mutazione al gate #2406.
@@ -137,7 +137,7 @@ sembrava la fine dell'enum. Non lo era: `WithSightBlocker` sta **42 righe più s
 lungo.
 
 📝 **La regola che ne segue**: un numero che si dichiara *«il massimo»* si misura con `tail`, mai con
-`head`. Corretto in tre sedi — `spec` §9 e §9.1, `D-349` — prima del merge. **La conclusione di `D-349` non
+`head`. Corretto in tre sedi — `spec` §9 e §9.1, `D-352` — prima del merge. **La conclusione di `D-352` non
 cambia**: estendere in coda resta non-migrazione, e un campo dedicato costerebbe **14** invece di 13.
 
 ---
@@ -147,7 +147,7 @@ cambia**: estendere in coda resta non-migrazione, e un campo dedicato costerebbe
 | File | Modifica |
 |---|---|
 | `docs/gameplay/spec-caduta-e-bordi.md` | §4.3.1 nuova (invariante) · §5 riformulata · §9.1 nuova (forma) · §11 nota di revisione |
-| `docs/decisions/RT_PDR_00_Decision_Log.md` | `D-349` · `D-350` + le due note di assegnazione |
+| `docs/decisions/RT_PDR_00_Decision_Log.md` | `D-352` · `D-353` + le due note di assegnazione |
 | `docs/OPEN_DECISIONS.md` | sezione nuova, `VERT-1` |
 | #2402 · #2403 · #2406 | note additive, nessun corpo riscritto |
 | #2388 | note additive **e** correzione del corpo — tabelle e DoD, dal secondo giro della §7 |
@@ -164,7 +164,7 @@ scritti là con la loro evidenza. Questo referto li nomina, non li anticipa.
 `docs/166-d348-fast-reaction-duration-configurabile`, aperto e non mergiato, quindi invisibile a un
 conteggio fatto sul solo `main`. È la variante che `D-344` aveva già incontrato con una PR; qui a tenere il
 numero è il branch di un'altra sessione, che sta lavorando #166 in parallelo. Misura a tre posti ripetuta
-per `D-349` e `D-350`: Decision Log massimo `D-347`, **zero** su tutti i branch remoti, **zero**
+per `D-352` e `D-353`: Decision Log massimo `D-347`, **zero** su tutti i branch remoti, **zero**
 assegnazioni su GitHub (i match full-text sono cifre dentro altri testi, verificati uno per uno nei corpi).
 
 ---
@@ -226,3 +226,31 @@ Un panel che rivede i propri follow-up ne boccia uno su tre. Vale la pena regist
 giro erano stati scritti **senza** aprire `RTTurnManager_Blast.cpp`, e il rilievo `m2` sarebbe passato per
 buono. La misura che l'ha respinto — *«quanti consumatori, e la ricostruzione è già incapsulata?»* — è
 esattamente quella che il primo giro non aveva fatto.
+
+---
+
+## 10. La collisione di numerazione, e cosa insegna
+
+Le due decisioni di questo panel sono nate `D-349` e `D-350`. Si chiamano **`D-352`** e **`D-353`**.
+
+**La misura era corretta.** Al momento dell'assegnazione — `origin/main` = `13ddc500` — il massimo del
+registro era `D-347`, i numeri erano liberi su **tutti** i branch remoti e su GitHub, e `D-348` era già stato
+escluso perché rivendicato dal branch `docs/166-d348-fast-reaction-duration-configurabile` (la variante che
+`D-344` aveva già incontrato).
+
+**Poi la PR #2677 ha mergiato `D-349`, `D-350` e `D-351`** mentre questa PR era aperta — dalla sessione che
+lavora #166 in parallelo, con la stessa misura a tre posti, fatta correttamente anche lei.
+
+🔑 **È un caso nuovo.** `D-344` descriveva un numero **già rivendicato** da una PR aperta: la misura poteva
+trovarlo e non l'aveva cercato. Qui i numeri non erano rivendicati da nessuna parte quando entrambe le
+sessioni li hanno presi. Nessuna misura sullo stato poteva prevederlo, perché il fatto che le rende
+incompatibili — il merge — non era ancora avvenuto.
+
+📝 **La regola che ne segue**: *la misura a tre posti riduce le collisioni, non le elimina. A decidere è il
+**merge**: chi arriva secondo rinumera, e lo dichiara.* Rimisurato prima di riscrivere: `D-352` e `D-353`
+liberi su `origin/main` = `0a119308`, su tutti i branch remoti e su GitHub.
+
+⚠️ **I quattro commenti già postati su #2388, #2402, #2403 e #2406 citavano `D-349`/`D-350`**, che ora
+puntano a decisioni di un'altra sessione — l'overwatch che non spara, la velocità di playback. Corretti con
+una nota additiva su ciascuno: un riferimento sbagliato in una issue è peggio di un riferimento assente,
+perché **risolve**.
