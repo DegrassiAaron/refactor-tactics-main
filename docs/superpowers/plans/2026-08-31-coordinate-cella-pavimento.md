@@ -23,7 +23,7 @@
 - **Nessun asset nuovo nel gray kit**, nessun ottavo `InstancedStaticMeshComponent`, nessun interruttore.
 - **Commenti implementativi in italiano**, come il resto del repository. I nomi dei test in inglese, nel namespace `RefactorTactics.<Area>.<Nome>`.
 - **Build**: `Build.bat RefactorTacticsEditor Win64 Development -Project=<uproject> -WaitMutex -NoHotReloadFromIDE`.
-- **Misura**: `./scripts/rt-suite.ps1 -Filter "<filtro>" -WaitMinutes 40`. Se il motore è occupato lo script attende: non aggirarlo lanciando a mano senza dichiararlo.
+- **Misura**: la suite Automation con il filtro voluto, nella forma di `AGENTS.md` §Suite Unreal. ⚠️ Il piano fu scritto quando la si lanciava con `./scripts/rt-suite.ps1 -Filter "<filtro>" -WaitMinutes 40`, e **lo script attendeva** se il motore era occupato. Rimosso il 2026-09-08 (`D-347`): oggi non attende nessuno, quindi accertati a mano che nessun'altra sessione stia misurando — e dichiara il commit e lo stato dell'albero su cui hai raccolto l'evidenza. I comandi citati più sotto vanno letti così.
 
 ---
 
@@ -840,7 +840,7 @@ git commit -m "docs(1920): due voci PIE per cio' che nessun test misura, e la se
 
 ## Chiusura
 
-- [ ] `./scripts/rt-suite.ps1 -WaitMinutes 40` sul commit che verrà davvero mergiato, **dopo** aver portato `origin/main` dentro il branch.
+- [ ] Suite Automation completa sul commit che verrà davvero mergiato, **dopo** aver portato `origin/main` dentro il branch — forma in `AGENTS.md` §Suite Unreal, e con `HEAD` e albero dichiarati invarianti fra inizio e fine run.
 - [ ] PR verso `main` (il parent dichiarato di questo branch), con il referto di misura nel corpo.
 - [ ] Aggiorna #1920: quali criteri sono soddisfatti e quali restano alle voci PIE.
 - [ ] ⛔ **Non chiudere #1920 al merge**: i suoi acceptance criteria includono la voce PIE aperta e collocata — che questo piano fa — ma la leggibilità resta un verdetto d'autore da dare in seduta.

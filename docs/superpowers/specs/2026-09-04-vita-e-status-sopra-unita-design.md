@@ -283,7 +283,7 @@ quel lavoro.
 ⚠️ **Due misure erano state scartate prima di quella registrabile**, nessuna per un difetto del codice: una
 **NON VALIDA** (una run di un altro worktree comparsa a metà, mentre rigenerava il corpus golden — esito
 grezzo `1918/1918, 0 fail`, non registrabile) e una **NON AVVIATA** (lock condiviso). È il regime di più
-sessioni che `D-222` dichiara, e il motivo per cui `rt-suite` esiste.
+sessioni che `D-222` dichiara, ed era il motivo per cui `rt-suite` esisteva.
 
 ⚠️ **Nessun `D-nnn` è stato assegnato né prenotato** da questo pass: le tre issue sono lavoro
 d'implementazione e citano decisioni esistenti (`D-278`, `D-301`, `D-304`, `D-124`). La voce che

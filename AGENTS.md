@@ -309,7 +309,17 @@ Se cambiano:
 
 Non equivale a verde.
 
-⚠️ **Questa verifica ora è tua.** Fino al 2026-09-08 la faceva `rt-suite.ps1`, che fotografava `HEAD`, l'hash dell'albero e il binario prima e dopo la run, e dichiarava `NON VALIDA` una misura attraversata da un cambiamento. Lo script è stato rimosso; l'invariante no. Prima di registrare un esito, confronta almeno `git rev-parse HEAD` e `git status --porcelain` con ciò che valeva alla partenza.
+⚠️ **Questa verifica ora è tua.** Fino al 2026-09-08 la faceva `rt-suite.ps1`, che fotografava `HEAD`, l'hash dell'albero e il binario prima e dopo la run, e dichiarava `NON VALIDA` una misura attraversata da un cambiamento. Lo script è stato rimosso; l'invariante no. Prima di registrare un esito, confronta con ciò che valeva alla partenza:
+
+```powershell
+git rev-parse HEAD
+git diff HEAD                                  # il CONTENUTO dei modificati
+git ls-files --others --exclude-standard       # e gli untracked
+```
+
+🔴 **`git status --porcelain` non basta, ed è il tranello.** Elenca lettere di stato e percorsi: due modifiche *diverse* dello stesso file danno la riga identica ` M pippo.cpp`. Se stai misurando con l'albero già sporco — un gate di mutazione lo è sempre — il porcelain è cieco proprio al caso a cui sei più esposto: un'altra sessione che riscrive un file che risultava già modificato. È la stessa ragione per cui `tools/mutation/misura.py` confronta `git diff HEAD`.
+
+⚠️ E il binario resta fuori da entrambi: `Binaries/` è gitignorato, quindi un `Build.bat` di un altro checkout non muove né `HEAD` né l'albero.
 
 Il motore è **uno solo per macchina**: due run in parallelo, o una build lanciata sotto una suite altrui, si distruggono le misure a vicenda. Non c'è più un lease che lo impedisca — accordati prima.
 
@@ -366,7 +376,7 @@ sarebbe cieca sui ~15,8 GB di pack che stanno fuori dal repository per scelta.
 
 ⛔ `tools/mutation/costanti-combattimento.py` **non e' fra i controlli noti**, e di proposito. Modifica un sorgente e occupa il motore per **un build completo piu' una suite intera per ogni costante**, piu' una baseline: con le 11 di `RTCombatLibrary.h` sono **ore**, e le direzioni di mutazione da misurare sono **due** (`+3` e `-3` danno risposte diverse — vedi il docstring). Mentre gira, ogni altra misura in parallelo e' NON VALIDA. Si lancia per rispondere alla domanda che `#2118` ha posto — *quali costanti si possono cambiare senza che niente diventi rosso* — non a ogni PR.
 
-⚠️ E se non stampa `AUDIT COMPLETO`, **ricostruire prima di qualunque altra misura**: un'interruzione lascia mutato anche il binario, che e' la meta' che `rt-suite` non sa vedere.
+⚠️ E se non stampa `AUDIT COMPLETO`, **ricostruire prima di qualunque altra misura**: un'interruzione lascia mutato anche il binario, che è la metà che il confronto su `HEAD` e albero non vede.
 
 ⚠️ `scenario-notes.ts` confronta i numeri citati nella **prosa** di uno scenario con ciò che il file
 stesso asserisce — è la deriva che `#1904` ha misurato propagarsi nei documenti a valle, e che `#2049`

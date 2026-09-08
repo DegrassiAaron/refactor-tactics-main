@@ -133,6 +133,36 @@ def scrivi(dati):
     os.replace(tmp, H)
 
 
+# 🔴 **Il preflight viene PRIMA del `git checkout --` qui sotto**, e l'ordine e' la sostanza:
+# quel comando cancella il non committato (`#2406`). Un audit che si ferma perche' il motore e'
+# occupato, o perche' un percorso e' sbagliato, avrebbe gia' distrutto le modifiche locali
+# all'header — cioe' avrebbe fatto danno proprio nel caso in cui ha deciso di non misurare.
+for _etichetta, _percorso in (("motore", ENGINE_CMD), ("Build.bat", BUILD_BAT)):
+    if not os.path.exists(_percorso):
+        print("\n⛔ FERMO: %s non esiste al percorso cablato:\n   %s\n"
+              "   Correggere la costante in testa a questo file." % (_etichetta, _percorso))
+        sys.exit(2)
+
+# ⚠️ PowerShell 7 e' un'installazione a parte: `powershell` (5.1) c'e' sempre, `pwsh` no. Senza
+# questa prova, `build()` morirebbe di `FileNotFoundError` a meta' audit — dopo il checkout.
+_prova = subprocess.run([PWSH, "-NoProfile", "-Command", "exit 0"],
+                        capture_output=True, text=True, errors="replace")
+if _prova.returncode != 0:
+    print("\n⛔ FERMO: `%s` non e' eseguibile, e `build()` invoca `Build.bat` da li'.\n"
+          "   Installare PowerShell 7, oppure cambiare PWSH dopo aver rimisurato che il\n"
+          "   quoting di `build()` regga sull'interprete scelto." % PWSH)
+    sys.exit(2)
+
+# 🔴 Il motore e' uno per macchina: non si lancia una suite sopra una che gira gia'. ⚠️ E' una
+# precondizione, non una guardia — cio' che parte DOPO si rileva solo se tocca i binari. Il lease
+# che lo impediva davvero e' stato rimosso (`D-347`), e questa riga non lo rimpiazza (`#2672`).
+_vivi = regola.motori_vivi()
+if _vivi != 0:
+    print("\n⛔ FERMO: %s.\n   Una misura presa sopra un'altra non e' una misura."
+          % ("enumerazione dei processi fallita — non e' «nessun processo»" if _vivi < 0
+             else "%d process%s del motore gia' in esecuzione" % (_vivi, "o" if _vivi == 1 else "i")))
+    sys.exit(2)
+
 # 🔑 Ripristino PRIMA di leggere la base: se una corsa precedente e' stata interrotta, l'header sul disco
 # porta ancora la sua mutazione, e senza questa riga diventerebbe la base di tutto l'audit.
 subprocess.run(["git", "checkout", "--", "Source/RefactorTactics/Combat/RTCombatLibrary.h"],
@@ -170,34 +200,17 @@ def build(tentativi=40):
     return False
 
 
-def _istantanea():
-    """`HEAD`, CONTENUTO dell'albero e firma dei binari. Le legge questo tool: `rt-suite.ps1`,
-    che lo faceva prima, e' stato rimosso il 2026-09-08 e con lui il marcatore `[RT-MEASURE]`.
-
-    ⚠️ Il quarto termine — nessun processo estraneo del motore DURANTE la run — non e' qui:
-    si controlla all'avvio (`regola.motori_vivi`), e cio' che parte dopo si vede solo se
-    tocca i binari."""
-    return regola.istantanea(RADICE, DLL_GLOB)
-
-
 def suite():
-    """Misura. Torna (verdetto, esito, rossi)."""
-    prima = _istantanea()
-    if os.path.exists(LOG):
-        os.remove(LOG)
+    """Misura. Torna (verdetto, esito, rossi).
 
-    subprocess.run([ENGINE_CMD, UPROJECT,
-                    "-ExecCmds=Automation RunTests RefactorTactics;Quit",
-                    "-unattended", "-nopause", "-nosplash", "-nullrhi", "-NoLiveCoding",
-                    "-log=" + os.path.basename(LOG)],
-                   capture_output=True, text=True, errors="replace")
+    Motore, istantanee e regola stanno in `misura.py`, in una sede sola: erano in copia qui
+    e in `caduta-gate.py`, e le due copie avevano gia' iniziato a divergere.
 
-    testo = ""
-    if os.path.exists(LOG):
-        testo = io.open(LOG, encoding="utf-8", errors="replace").read()
-
-    dopo = _istantanea()
-    verdetto, esito, rossi, _, problemi = regola.verdetto(prima, dopo, testo, "RefactorTactics")
+    ⚠️ Il quarto termine dell'invariante — nessun processo estraneo del motore DURANTE la
+    run — non e' osservato: si controlla all'avvio (`regola.motori_vivi`), e cio' che parte
+    dopo si vede solo se tocca i binari. Vedi `#2672`."""
+    verdetto, esito, rossi, _, problemi = regola.esegui_suite(
+        RADICE, ENGINE_CMD, UPROJECT, LOG, "RefactorTactics", DLL_GLOB)
     for p in problemi:
         print("   " + p)
     return verdetto, esito, rossi
@@ -214,25 +227,6 @@ def misura():
         v, e, rossi = suite()
     return v, e, rossi
 
-
-# 🔴 Le dipendenze cablate si verificano PRIMA del primo build, che qui costa fino a mezz'ora di
-# ritentativi: un `ENGINE_CMD` sbagliato darebbe un `FileNotFoundError` non gestito dentro `suite()`,
-# cioe' un traceback dopo l'attesa invece di una diagnosi prima.
-for _etichetta, _percorso in (("motore", ENGINE_CMD), ("Build.bat", BUILD_BAT)):
-    if not os.path.exists(_percorso):
-        print("\n⛔ FERMO: %s non esiste al percorso cablato:\n   %s\n"
-              "   Correggere la costante in testa a questo file." % (_etichetta, _percorso))
-        sys.exit(2)
-
-# 🔴 Il motore e' uno per macchina: non si lancia una suite sopra una che gira gia'. ⚠️ E' una
-# precondizione, non una guardia — cio' che parte DOPO si rileva solo se tocca i binari. Il lease
-# che lo impediva davvero e' stato rimosso (`D-347`), e questa riga non lo rimpiazza.
-_vivi = regola.motori_vivi()
-if _vivi != 0:
-    print("\n⛔ FERMO: %s.\n   Una misura presa sopra un'altra non e' una misura."
-          % ("enumerazione dei processi fallita — non e' «nessun processo»" if _vivi < 0
-             else "%d process%s del motore gia' in esecuzione" % (_vivi, "o" if _vivi == 1 else "i")))
-    sys.exit(2)
 
 sospese = []
 with io.open(ESITI, "w", encoding="utf-8") as f:

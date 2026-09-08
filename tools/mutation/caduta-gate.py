@@ -404,43 +404,21 @@ def build(tentativi=40):
     return False
 
 
-def _istantanea():
-    """`HEAD`, CONTENUTO dell'albero e firma dei binari — tre termini su quattro.
-
-    (!!) Li legge questo tool perche' nessun altro lo fa piu'. `rt-suite.ps1` li
-    fotografava prima e dopo la run e stampava `[RT-MEASURE] NON VALIDA` quando
-    cambiavano; e' stato rimosso il 2026-09-08, e senza questo confronto una
-    mutazione misurata sotto il commit di un altro passerebbe per sopravvissuta.
-
-    ⚠️ Il quarto termine — *nessun processo estraneo del motore durante la run* — NON
-    e' qui: si controlla solo all'avvio, in `preflight`. Vedi `regola.motori_vivi`.
-    """
-    return regola.istantanea(RADICE, DLL_GLOB)
-
-
 def suite():
     """Misura. Torna (verdetto, esito, rossi, eseguiti).
+
+    L'invocazione del motore, le due istantanee e la regola stanno in `misura.py`: erano in
+    copia qui e nell'altro gate, e le copie avevano gia' iniziato a divergere.
 
     🔴 `eseguiti` non e' un di piu': e' il modo di accorgersi che la suite non ha misurato niente.
     `#2393` descrive un Editor che muore durante l'avvio su un **worktree nuovo**, riportando
     `0/?, 0 fail`. Zero fallimenti su zero test eseguiti supera qualunque controllo che guardi
-    solo i rossi, e una mutazione sembrerebbe SOPRAVVISSUTA su una misura mai avvenuta."""
-    prima = _istantanea()
-    if os.path.exists(LOG):
-        os.remove(LOG)   # un log vecchio darebbe i rossi di una run che non e' questa
+    solo i rossi, e una mutazione sembrerebbe SOPRAVVISSUTA su una misura mai avvenuta.
 
-    subprocess.run([ENGINE_CMD, UPROJECT,
-                    "-ExecCmds=Automation RunTests " + FILTRO + ";Quit",
-                    "-unattended", "-nopause", "-nosplash", "-nullrhi", "-NoLiveCoding",
-                    "-log=" + os.path.basename(LOG)],
-                   capture_output=True, text=True, errors="replace")
-
-    testo = ""
-    if os.path.exists(LOG):
-        testo = io.open(LOG, encoding="utf-8", errors="replace").read()
-
-    dopo = _istantanea()
-    verdetto, esito, rossi, eseguiti, problemi = regola.verdetto(prima, dopo, testo, FILTRO)
+    ⚠️ Il quarto termine dell'invariante — *nessun processo estraneo del motore durante la
+    run* — non e' osservato: si controlla all'avvio, nel preflight. Vedi `#2672`."""
+    verdetto, esito, rossi, eseguiti, problemi = regola.esegui_suite(
+        RADICE, ENGINE_CMD, UPROJECT, LOG, FILTRO, DLL_GLOB)
     for p in problemi:
         print("   " + p)
     return verdetto, esito, rossi, eseguiti
