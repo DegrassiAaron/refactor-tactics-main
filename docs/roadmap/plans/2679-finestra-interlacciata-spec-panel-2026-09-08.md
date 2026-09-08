@@ -45,7 +45,7 @@ La issue dice che *«manca una cosa sola: che la finestra sia un oggetto che dur
 |---|---|
 | Il ciclo dei micro-step vive dentro `ResolveMovement` | `RTTurnManager.cpp:7305` |
 | `State`, `Paths`, `EnteredBefore`, `bStoppedByTopology`, `bDeniedByOccupant`, `DeniedDestination`, `PlannedMoves` sono **locali di stack** | `RTTurnManager.cpp:7137-7305` |
-| `ON_SCOPE_EXIT` ripristina `CurrentMicroStepIndex` all'uscita di funzione | `RTTurnManager.cpp:7303` |
+| `ON_SCOPE_EXIT` ripristina `CurrentMicroStepIndex` all'uscita di funzione | `RTTurnManager.cpp:7304` |
 | I siti di `AskReactionDecision` sono **due**: Overwatch e `Brace` di [D-047] | `RTTurnManager.cpp:7131` · `RTTurnManager_Blast.cpp:2264` |
 
 Per attendere `FastReactionDuration` un umano bisogna **o** bloccare il game thread — inaccettabile: senza
@@ -75,7 +75,7 @@ aprirebbe, il giocatore **non ha visto il nemico entrare nella zona**.
 
 E l'alternativa non era neutra: [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166)
 riga 59 dice *«la slow-motion **durante la finestra** è sola presentazione»*, e `D-350` la realizza scrivendo
-`ViewerPlaybackSpeed < 1`, cioè **l'orologio del playback** (`TickPlayback`, `:8020`). Una finestra che
+`ViewerPlaybackSpeed < 1`, cioè **l'orologio del playback** (`TickPlayback`, `:8015`). Una finestra che
 precede il playback non ha alcun orologio da rallentare.
 
 Tre uscite poste all'autore, deciso **(A)**:
@@ -86,7 +86,7 @@ Tre uscite poste all'autore, deciso **(A)**:
 | **(B)** prima del playback, decisione al buio | ⛔ richiede di riaprire `D-350` e `#166` riga 59 |
 | **(C)** nessuna finestra runtime in v0.1, pre-dichiarazione via `CollapsedByCondition` | ⛔ svuota il widget `FIRE`/`HOLD`, cuore di CP 14.6 (`P0`) |
 
-🔑 **La barriera esiste già**: `StepMicroStep` (`:7966`) calcola il confine con
+🔑 **La barriera esiste già**: `StepMicroStep` (`:7967`) calcola il confine con
 `URTPlaybackLibrary::NextMicroStepBoundary` (`RTPlaybackLibrary.cpp:176`) e ferma `TickPlayback` esattamente
 lì, correggendo lo scarto di frame (`:8045-8052`). Ciò che manca non è **dove** fermarsi: è che la
 simulazione sappia ripartire dall'altra parte.
@@ -100,7 +100,7 @@ simulazione sappia ripartire dall'altra parte.
 > *«una UI umana (CP 14.6) risponderà invece con una **stringa vuota** fino a che il giocatore non ha scelto,
 > e sarà **l'orchestratore a richiamare**»*
 
-Nove righe sotto (`:6629`), `Response.IsEmpty()` applica `DecisionOnTimeout`. Vuota significa **scaduta**, non
+Nove righe sotto (`:6631`), `Response.IsEmpty()` applica `DecisionOnTimeout`. Vuota significa **scaduta**, non
 «non ancora»: una UI che rispondesse `""` mentre il giocatore pensa otterrebbe `HoldTimeout` immediato,
 decisione applicata, finestra chiusa. Nessun orchestratore richiamerà — non c'è più niente da richiamare.
 
