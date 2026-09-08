@@ -79,7 +79,10 @@ import io, os, re, subprocess, sys, time
 # costante scritta a mano muterebbe l'albero di qualcun altro lasciando pulito il proprio.
 RADICE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 H = os.path.join(RADICE, "Source", "RefactorTactics", "Combat", "RTCombatLibrary.h")
-LOG = os.path.join(RADICE, "Saved", "Logs", "rt-suite.log")
+LOG = os.path.join(RADICE, "Saved", "Logs", "automation-mutazione.log")
+UPROJECT = os.path.join(RADICE, "RefactorTactics.uproject")
+ENGINE_CMD = r"D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
+
 
 if len(sys.argv) < 2:
     print(__doc__.split("\n\n")[1].strip())
@@ -145,28 +148,46 @@ def build(tentativi=40):
     return False
 
 
+def _istantanea():
+    """`HEAD` e stato dell'albero. Le legge questo tool: `rt-suite.ps1`, che lo faceva
+    prima, e' stato rimosso il 2026-09-08 e con lui il marcatore `[RT-MEASURE]`."""
+    def g(*a):
+        r = subprocess.run(["git"] + list(a), cwd=RADICE,
+                           capture_output=True, text=True, errors="replace")
+        return (r.stdout or "").strip()
+    return (g("rev-parse", "HEAD"), g("status", "--porcelain"))
+
+
 def suite():
-    """Coda per il motore, POI ricostruisce, poi misura. Torna (verdetto, esito, rossi)."""
-    r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                        "scripts/rt-suite.ps1", "-WaitMinutes", "90"],
-                       capture_output=True, text=True, errors="replace")
-    out = (r.stdout or "") + (r.stderr or "")
-    if "[RT-MEASURE] NON VALIDA" in out:
-        verdetto = "NON VALIDA"
-    elif "[RT-MEASURE] VALIDA" in out:
-        verdetto = "VALIDA"
-    elif "NON AVVIATA" in out:
-        verdetto = "NON AVVIATA"
-    else:
-        verdetto = "ALTRO"
-    m = re.search(r"esito\s+(\d+)/(\d+) completati, (\d+) fallimenti", out)
-    esito = m.group(0) if m else "(nessun esito)"
+    """Misura. Torna (verdetto, esito, rossi)."""
+    prima = _istantanea()
+    if os.path.exists(LOG):
+        os.remove(LOG)
+
+    subprocess.run([ENGINE_CMD, UPROJECT,
+                    "-ExecCmds=Automation RunTests RefactorTactics;Quit",
+                    "-unattended", "-nopause", "-nosplash", "-nullrhi", "-NoLiveCoding",
+                    "-log=" + os.path.basename(LOG)],
+                   capture_output=True, text=True, errors="replace")
+
     rossi = set()
+    eseguiti = set()
     if os.path.exists(LOG):
         testo = io.open(LOG, encoding="utf-8", errors="replace").read()
         rossi = set(re.findall(r"Result=\{Fail\} Name=\{[^}]*\} Path=\{([^}]+)\}", testo))
-    return verdetto, esito, rossi
+        eseguiti = set(re.findall(r"Test Started\. Name=\{[^}]*\} Path=\{([^}]+)\}", testo))
 
+    dopo = _istantanea()
+    if prima != dopo:
+        verdetto = "NON VALIDA"
+    elif not eseguiti:
+        verdetto = "NON AVVIATA"
+    else:
+        verdetto = "VALIDA"
+
+    esito = "esito %d/%d completati, %d fallimenti" % (
+        len(eseguiti), len(eseguiti), len(rossi))
+    return verdetto, esito, rossi
 
 def misura():
     """Ricostruisce DOPO aver ottenuto il motore non si puo': rt-suite lo prende da se'. Si ricostruisce

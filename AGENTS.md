@@ -162,7 +162,6 @@ L'owner gameplay corrente stabilisce quali azioni appartengono alla famiglia.
 | `Config/` | Config Unreal |
 | `docs/` | Canone e documentazione |
 | `tools/` | Validatori e generatori |
-| `scripts/rt-suite.ps1` | Suite Unreal locale |
 
 Mappa dettagliata:
 
@@ -285,13 +284,15 @@ Non introdurre CI, package manager o nuovi build step senza una decisione esplic
 
 ### Suite Unreal
 
-Da PowerShell:
+Con Unreal Editor chiuso, da PowerShell:
 
 ```powershell
-./scripts/rt-suite.ps1
-./scripts/rt-suite.ps1 -Filter RefactorTactics.Scenario
-./scripts/rt-suite.ps1 -WaitMinutes 40
+& "<engine>/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "<repo>/RefactorTactics.uproject" `
+    "-ExecCmds=Automation RunTests RefactorTactics;Quit" `
+    -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-log=suite.log"
 ```
+
+Il filtro è il segmento dopo `RunTests`: `RefactorTactics` esegue tutto, `RefactorTactics.Scenario` solo quel gruppo.
 
 Una misura è valida soltanto se osserva lo stesso:
 
@@ -308,9 +309,11 @@ Se cambiano:
 
 Non equivale a verde.
 
-Non sostituire `-WaitMinutes` con watcher scritti a mano.
+⚠️ **Questa verifica ora è tua.** Fino al 2026-09-08 la faceva `rt-suite.ps1`, che fotografava `HEAD`, l'hash dell'albero e il binario prima e dopo la run, e dichiarava `NON VALIDA` una misura attraversata da un cambiamento. Lo script è stato rimosso; l'invariante no. Prima di registrare un esito, confronta almeno `git rev-parse HEAD` e `git status --porcelain` con ciò che valeva alla partenza.
 
-Dopo una lunga attesa, ricompila prima di registrare il risultato: il DLL presente sul disco potrebbe provenire da un'altra sessione.
+Il motore è **uno solo per macchina**: due run in parallelo, o una build lanciata sotto una suite altrui, si distruggono le misure a vicenda. Non c'è più un lease che lo impedisca — accordati prima.
+
+Dopo una lunga attesa, ricompila prima di registrare il risultato: il DLL presente sul disco potrebbe provenire da un altro commit.
 
 Prima del merge verifica che il gate appartenga al commit che stai mergiando.
 
@@ -319,25 +322,13 @@ Prima del merge verifica che il gate appartenga al commit che stai mergiando.
 Con Unreal Editor chiuso:
 
 ```powershell
-.\scripts\rt-build.ps1 -TaskId <issue>
-```
-
-⛔ **Non invocare `Build.bat` a mano.** Era il solo passo del gate che tocca il motore
-senza passare da nessun guard, e nel gate della wave `parsecell-arity/1` la build
-precede la suite: ricompilare le DLL sotto la full suite di un altro checkout rende
-`NON VALIDA` la sua misura, per l'invariante «binario» che `rt-suite.ps1` legge prima
-e dopo la run. Misurato il 2026-09-06 — [#2529](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2529).
-
-`rt-build.ps1` chiede il lease per `BUILD`, esce `2` se il motore è occupato o non
-attribuibile, e lo rilascia anche quando la build fallisce. Non attende: una build in
-condizione di contesa va **fermata**, non sconsigliata.
-
-Il comando che esegue, se serve leggerlo:
-
-```powershell
 & "<engine>/Engine/Build/BatchFiles/Build.bat" RefactorTacticsEditor Win64 Development `
     -Project="<repo>/RefactorTactics.uproject" -WaitMutex
 ```
+
+`-Project` col percorso **virgolettato** e `-WaitMutex` non sono opzionali: senza il secondo, due build concorrenti si sovrascrivono gli oggetti intermedi.
+
+⚠️ Ricompilare mentre un altro checkout ha una suite in corso rende `NON VALIDA` la sua misura, per l'invariante «binario» qui sopra — [#2529](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2529). Il guard che lo impediva è stato rimosso: verifica che nessuno stia misurando.
 
 ### Tooling locale
 
@@ -476,13 +467,13 @@ Il gate stampa le esenzioni a ogni esecuzione.
 esplicita»*. Il difetto che chiude però non nasce da un commit, **nasce dal tempo che passa** fra la
 rimozione di un percorso e la issue che nessuno riapre.
 
-Per questo `rt-suite.ps1` lo esegue **come promemoria** dopo un verdetto `VALIDA`, e lo si disattiva con
-`-NoIssueRefs`:
+Fino al 2026-09-08 lo eseguiva `rt-suite.ps1` come promemoria dopo un verdetto `VALIDA`. Rimosso lo
+script, si lancia a mano come gli altri radar:
 
 🔴 **Non concorre al verdetto della suite, ed è una scelta, non una svista.** Legge GitHub, che cambia
 mentre la suite gira: in una run da quaranta minuti può passare all'avvio e fallire alla fine. Farlo
 entrare nelle invarianti di §9 renderebbe `NON VALIDA` una misura sana per una issue che ha modificato
-qualcun altro — cioè il difetto che `rt-suite.ps1` esiste per impedire. Stampa, e l'esito resta quello
+qualcun altro — cioè il difetto che l'invariante esiste per impedire. Stampa, e l'esito resta quello
 dei test.
 
 Gli output generati dei radar non si editano a mano.
@@ -508,7 +499,7 @@ Quando applicabile:
 - Per modifiche editor-facing/asset-facing, MCP/Editor usato quando disponibile e pertinente.
 - Nessun Unreal Editor avviato dal workflow resta aperto a fine task.
 
-## 11. Lavoro parallelo e figure operative
+## 11. Lavoro parallelo
 
 Il repository viene modificato da più sessioni.
 
@@ -525,158 +516,56 @@ Un worktree separato non elimina il mutex globale Unreal/Live Coding.
 
 Prima del merge rimisura.
 
-### Le tre figure
-
-Il lavoro concorrente si organizza in **tre figure**. Sono tre le figure, non i terminali: le istanze DEV possono essere N, e nulla obbliga ad aprirne esattamente tre.
-
-| Figura | Possiede | Non possiede |
-|---|---|---|
-| **DEV** | codice, authoring dei test, review, Git/GitHub, tooling statico e headless | Unreal: non avvia Editor, `rt-suite`, packaging o build che monopolizzano il motore |
-| **EDITOR** | Unreal Editor, PIE, MCP/editor automation, `.uasset`/`.umap`, Blueprint, authoring asset, acceptance visuale | suite e build concorrenti; il verdetto sui sistemi che può soltanto osservare |
-| **VALIDATION** | build, Automation Test mirati, Scenario Harness, suite completa, packaged | i binari; l'approvazione del proprio fix |
-
-`DEV-LEAD`, `DEV-MAIN` e `DEV-TEST` sono **funzioni DEV dentro una wave**, non figure aggiuntive: valgono per intero i limiti DEV, incluso il divieto di occupare il motore.
-
-- `DEV-LEAD` — la singola istanza che per una wave possiede l'integrazione ed emette l'handoff di ingresso;
-- `DEV-MAIN` — implementa dentro lo scope assegnato;
-- `DEV-TEST` — scrive test, scenari e validator, e dichiara i comandi che VALIDATION eseguirà.
-
-### Workspace, figura e branch sono tre cose diverse
-
-Si confondono facilmente, e ogni confusione ha gia' prodotto un difetto.
-
-| Cosa | Valori | Dove vive |
-|---|---|---|
-| **Figura** della sessione | `DEV` · `EDITOR` · `VALIDATION` | `RT_TERMINAL_ROLE` |
-| **Identita'** del workspace | `MAIN` · `DEV` · `TECHNICAL_DESIGNER` | registro per macchina, non il nome della cartella |
-| **Branch** git | qualunque | `git rev-parse` |
-
-`MAIN` **non** e' il branch `main`. E' il checkout che ospita l'unico bridge MCP della macchina. L'authoring asset avviene la', e su un **branch di task** — mai su `main`.
-
-Ogni directory apre tutte e tre le figure. Nessun checkout e' vincolato a un ruolo operativo.
-
-### Il motore e' una risorsa di macchina
-
-Unreal e' **uno** e lo condividono tutti i checkout. Da cui:
-
-- il permesso di occuparlo non puo' vivere dentro un checkout. Uno stato per-root non descrive una risorsa per-macchina, e il finding `parsecell-arity/1-F13` lo ha misurato: con sei checkout attivi, l'unico che dichiarava `VALIDATION` era quello che **non** stava usando il motore;
-- il lease si acquisisce **just-in-time**, immediatamente prima di Editor, PIE, build, commandlet o di una chiamata MCP che richieda l'Editor vivo. Aprire un terminale o avviare un agente non lo acquisisce;
-- il lease **non e' preemptive**: chi trova la risorsa presa attende, e nessuna sessione termina quella attiva;
-- un processo motore vivo che nessun lease rivendica **blocca**: concedere sarebbe promettere un'esclusivita' che non c'e';
-- il rilascio e' una **dichiarazione** che la risorsa e' libera. Se un processo avviato dalla sessione e' ancora vivo, non si rilascia.
-
-### Authoring asset: solo dal workspace MAIN
-
-Una chiamata che crea, modifica, rinomina, sposta, cancella, importa o salva un asset Unreal via MCP e' autorizzata solo se valgono **tutte** queste condizioni:
-
-```text
-figura            = EDITOR
-workspace         = MAIN, verificato sul registro di macchina
-branch            = branch di task, diverso da main
-task id           presente
-write-set asset   dichiarato
-lease             vivo, posseduto, per l'operazione giusta
-contesto          progetto, Editor ed endpoint coincidono col lease
-```
-
-Una figura EDITOR in un workspace `DEV` o `TECHNICAL_DESIGNER` resta legittima: prepara, ispeziona, usa capacita' realmente read-only. **Non muta asset.**
-
-La ragione e' misurabile, non formale: il bridge e' uno solo e vive in MAIN, quindi una sessione che lo usa da un altro checkout **muta gli asset di MAIN** mentre legge il `git status` del proprio.
-
-VALIDATION puo' usare il motore per misurare. Non ripara asset durante il sign-off: un difetto torna a EDITOR, e la nuova evidenza si produce su input rimisurato.
-
-### Una figura per sessione
-
-
-Una sessione assume **una sola figura**, e la dichiara all'avvio.
-
-Il ruolo **non si deduce dal nome della directory**. `Main`, `Dev`, `Technical Designer` e ogni altro checkout sono luoghi, non figure: la stessa directory ospita figure diverse in momenti diversi, e una cartella chiamata `Dev` non rende DEV la sessione che ci lavora.
-
-Se il ruolo non è dichiarato, non indovinarlo.
+> ⚠️ **Dal 2026-09-08 nessuno script fa rispettare ciò che segue.** I ruoli operativi, il lease del motore e i guard di `scripts/` sono stati rimossi ([`D-346`](docs/decisions/RT_PDR_00_Decision_Log.md), [`D-347`](docs/decisions/RT_PDR_00_Decision_Log.md)). I vincoli fisici che li avevano motivati **non sono spariti con loro**: Unreal resta uno per macchina, un worktree resta privo dei file gitignorati, due sessioni nella stessa directory restano sullo stesso `HEAD`. Quello che prima veniva rifiutato ora riesce — e produce il danno che il rifiuto evitava.
 
 ### Cosa isola una directory, e cosa no
 
 | Configurazione | Isola | Non isola |
 |---|---|---|
-| Più sessioni nella **stessa directory** | niente | working tree, index e `HEAD` sono condivisi: il parallelismo è operativo, non Git |
-| Sessioni in **directory separate** | working tree, index, `HEAD` | Unreal, Live Coding, DDC, CPU e disco: le risorse macchina restano una sola |
+| Più sessioni nella **stessa directory** | niente | working tree, index e `HEAD` sono condivisi: il parallelismo è apparente |
+| Sessioni in **directory separate** | working tree, index, `HEAD` | Unreal, Live Coding, DDC, CPU e disco: le risorse di macchina restano una sola |
 
 Da cui due conseguenze:
 
-- nella stessa directory `git add -A`, `git commit -am`, `reset`, `restore`, `clean`, `switch` e `pull --rebase` inglobano o distruggono il lavoro non integrato di un'altra istanza. Staging per path espliciti;
-- in directory separate due misure Unreal non diventano parallele: diventano una coda.
+- nella stessa directory `git add -A`, `git commit -am`, `reset`, `restore`, `clean`, `switch` e `pull --rebase` ingoiano il lavoro di chi condivide l'albero;
+- in directory separate due misure Unreal non diventano parallele: diventano una coda, e se partono insieme si invalidano a vicenda.
 
 `git status` non risponde alla domanda «questo file è mio».
 
+### Il motore è una risorsa di macchina
+
+Unreal è **uno** e lo condividono tutti i checkout. Da cui:
+
+- una build lanciata sotto la suite di un altro checkout rende `NON VALIDA` quella misura, riscrivendo il binario che l'invariante osserva;
+- un Editor aperto e una suite non convivono;
+- prima di occupare il motore — Editor, PIE, build, commandlet, suite — **accertati che nessun altro lo stia usando**. `Get-Process UnrealEditor*, UnrealEditor-Cmd*` lo dice; il lease che lo diceva prima non c'è più.
+
+### Authoring asset: appartiene al clone principale
+
+Una chiamata che crea, modifica, rinomina, sposta, cancella, importa o salva un asset Unreal via MCP appartiene al **clone principale**, quello che ospita il bridge.
+
+La ragione è tecnica e silenziosa: un worktree non ha i file **gitignorati**, quindi i riferimenti duri di un asset vi leggono `None`, e salvarlo li **azzera** — senza errore, e ce ne si accorge dopo. Il bridge MCP è inoltre uno solo: usarlo da un altro checkout muta gli asset del principale mentre si legge il `git status` del proprio.
+
+Preparazione, ispezione e query read-only non hanno questo vincolo.
+
 ### Coordinamento
 
-Le figure si coordinano su **artefatti**, non su copie locali né sul contesto di una conversazione:
+Le sessioni si coordinano su **artefatti**, non su copie locali né sul contesto di una conversazione:
 
 - il **branch** e il **parent branch** reali;
 - gli **SHA**: il commit ereditato in ingresso e quello prodotto in uscita;
 - gli **handoff persistiti** su file.
 
-Un handoff che vive solo in chat non esiste per la figura successiva, e un'evidenza descritta a parole non è riverificabile.
+Un handoff che vive solo in chat non esiste per chi viene dopo, e un'evidenza descritta a parole non è riverificabile.
 
-### Esclusione reciproca su Unreal
+### Chi ripara non firma
 
-EDITOR e VALIDATION si escludono a vicenda **quando occupano il motore**.
+Non è una regola di ruolo — i ruoli non esistono più — ma di indipendenza della misura:
 
-Un Editor aperto e una suite non convivono: mentre uno dei due tiene Unreal, l'altro attende. Aprire un secondo terminale non produce una seconda istanza del motore.
+- chi ha scritto una correzione non ne emette da solo il verdetto sui sistemi che quella correzione tocca;
+- un difetto trovato durante una verifica torna a chi possiede il codice, con la sua evidenza, e si rimisura su un commit successivo.
 
-Le sessioni DEV continuano a lavorare, purché non lo occupino.
-
-### Catena canonica
-
-```text
-DEV-LEAD → EDITOR → VALIDATION
-```
-
-Tre punti fissi. Le altre istanze DEV contribuiscono a monte di `DEV-LEAD` e non sono punti della catena.
-
-Nessuna figura firma il proprio lavoro:
-
-- EDITOR **non** emette il verdetto sui sistemi che può soltanto osservare — privacy, determinismo, autorità di rete, replay, performance, e gli altri che il contratto elenca. Constatare che un dato non compare nella UI avversaria non prova che non sia sul client: quella prova appartiene a VALIDATION;
-- VALIDATION **non** ripara il codice di produzione e poi approva sé stesso. Un difetto torna al suo owner con la correzione richiesta e con la regressione che deve esistere prima della richiusura.
-
-### Validation Window preliminare
-
-Una figura VALIDATION può aprire una finestra **prima** che la catena sia completa, per misurare presto ciò che è già misurabile.
-
-È consentito e utile. **Non è il sign-off finale**: misura un commit che non è quello consegnato, e un verde su una base precedente non copre ciò che è stato scritto dopo. Il sign-off resta il passaggio VALIDATION a valle di EDITOR, sul commit realmente consegnato.
-
-Non contraddice la catena: la anticipa in un punto, e non la chiude.
-
-### Handoff minimo
-
-Un passaggio di consegne porta almeno:
-
-```text
-FEATURE · BRANCH · PARENT_BRANCH
-BASE_SHA · PRODUCED_SHA
-WRITE_SET · BINARY_ASSETS
-STATUS
-```
-
-Fail-closed, non best-effort:
-
-- campo vuoto, placeholder non risolto o input non risolvibile ⇒ handoff bloccato, **prima** di leggere il repository e prima di aprire l'Editor. Un placeholder risolto per inferenza è un input inventato;
-- `PARENT_BRANCH` non ha default: non è `main` per assunzione;
-- un handoff in ingresso bloccato blocca la figura successiva. Non si valida sopra una base che il ruolo a monte ha dichiarato inaffidabile;
-- un verdetto senza il campo che lo prova non è un verdetto;
-- ciò che non è stato eseguito resta `NOT RUN`, col motivo.
-
-### Dove vive il dettaglio
-
-⚠️ **Il control plane RT3 è stato rimosso.** Verdetti tipizzati, matrice dei sistemi per
-ruolo, scoping dal write-set, schema dell'handoff e defect policy vivevano in
-`RT3_CONTRACT.md`, che non esiste più. Ciò che resta di quel modello è in questo file e in
-[`CLAUDE.md`](CLAUDE.md); ciò che serviva solo a coordinare tre sessioni via database non
-si sostituisce.
-
-Restano gli script che governano le risorse vere: `rt-lease.ps1` per il motore,
-`rt-suite.ps1` per le misure, `rt-terminal.ps1` per l'identità di sessione,
-`rt-task-router.ps1` per il routing dei task.
+Vale anche quando la stessa persona fa entrambe le cose: ciò che cambia non è chi digita, è che la misura avvenga **dopo** e su un artefatto dichiarato.
 
 ## 12. Git
 

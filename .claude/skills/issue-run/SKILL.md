@@ -1,6 +1,6 @@
 ---
 name: issue-run
-description: Executes the CURRENT RefactorTactics phase of one GitHub issue inside exactly one role (DEV, EDITOR or VALIDATION). Consumes the existing Behavior Contract and issue definition, performs only role-owned work, records evidence, and hands off remaining phases through RT3.
+description: Executes one GitHub issue end to end. Consumes the existing Behavior Contract and issue definition, performs only role-owned work, records evidence, and hands off remaining phases through RT3.
 argument-hint: "[issue-number]"
 arguments:
   - issue
@@ -19,91 +19,33 @@ Invocation:
 
 This skill executes:
 
-> the CURRENT PHASE of one issue
+> one issue, as far as this session can take it
 
 It does NOT mean:
 
-> complete the whole issue through DEV + EDITOR + VALIDATION in this session
+> close every issue it touches
 
-One session = one execution role.
-
----
-
-# 0 — Role gate
-
-Read:
-
-```powershell
-$env:RT_TERMINAL_ROLE
-$env:RT_TASK_ID
-```
-
-Allowed roles:
-
-```text
-DEV
-EDITOR
-VALIDATION
-```
-
-If missing:
-
-```text
-ROLE_MISSING
-```
-
-Stop before mutations.
-
-Do not infer role from the issue.
-
-Role boundaries:
-
-| Role | Owns |
-|---|---|
-| DEV | C++, tests, scenario data/files, tooling headless, textual data/docs, Git/GitHub |
-| EDITOR | `.uasset/.umap`, Blueprint/UMG/Material, visual wiring, PIE, visual/human acceptance |
-| VALIDATION | build, Automation, Scenario Harness execution, determinism, replay, privacy, network gates, packaged, performance |
-
-Not owned by the current role:
-
-```text
-NOT RUN — OWNER: <role>
-```
-
-Never convert it to PASS or N/A merely because this role cannot perform it.
+An issue is done when it is merged and its DoD is verified, not when this skill returns.
 
 ---
 
-# 1 — Routed task gate
+# 0 — Scope gate
 
-If `RT_TASK_ID` exists, read current routing:
+⚠️ **Execution roles no longer exist.** Until 2026-09-08 a session declared one of `DEV`,
+`EDITOR` or `VALIDATION` in `RT_TERMINAL_ROLE`, a task router named the `next_actor`, and this
+skill refused to run when the two disagreed. Roles, router and the `scripts/` guards were all
+removed (`D-346`, `D-347`). If `RT_TERMINAL_*` or `RT_TASK_ID` are set in the environment, they
+are leftovers from a window opened earlier: nothing reads them.
 
-```powershell
-rttask status -TaskId $env:RT_TASK_ID
-rttask assignment -TaskId $env:RT_TASK_ID
-```
+What the gate protected is still real, and is now yours to hold:
 
-Verify:
-
-```text
-next_actor == RT_TERMINAL_ROLE
-```
-
-If not:
-
-```text
-TASK_ROUTE_MISMATCH
-```
-
-Stop.
-
-Do not fix routing from a worker role.
-
-The RT Coordinator owns routing mutations.
-
-The assignment defines current actor, objective, constraints, expected output and next-actor recommendation.
-
-GitHub Issue remains the operational work owner.
+- **one issue at a time.** Do not widen to sibling issues because they look adjacent;
+- **the machine has one Unreal.** Before Editor, PIE, build or a suite, check that no other
+  session is using it — `Get-Process UnrealEditor*, UnrealEditor-Cmd*`;
+- **asset authoring belongs to the main clone.** A worktree lacks gitignored files, so hard
+  references read `None` and saving **zeroes them** — silently;
+- **whoever writes a fix does not sign off on it alone.** Fix and measurement are two moments:
+  correct, name the commit, then measure that commit.
 
 ---
 
@@ -154,11 +96,10 @@ Until a canonical decision supersedes it:
 | Situation | Action |
 |---|---|
 | no claim and this is the first authorized actor | claim according to repository convention |
-| existing claim + routed `RT_TASK_ID` + this role is `next_actor` | do not steal/rewrite claim; add phase progress only |
-| existing claim without routing evidence authorizing this phase | stop |
+| existing claim by another session | do not steal or rewrite the claim; add your evidence to the issue |
 | ambiguous case | `BLOCKED — CLAIM_DECISION_REQUIRED` |
 
-Do NOT create separate issues for DEV/EDITOR/VALIDATION to bypass the claim problem.
+Do NOT create separate issues per kind of work to bypass the claim problem.
 
 Do NOT invent whether claim belongs to session or task.
 
@@ -206,7 +147,7 @@ Run it when:
 - this role is authorized to define the technical work;
 - repository workflow requires it.
 
-Do NOT rerun/rewrite the technical definition merely because the issue moved from DEV to EDITOR or VALIDATION.
+Do NOT rerun/rewrite the technical definition merely because the issue moved between sessions or VALIDATION.
 
 If an accepted D001-D010 definition already exists, consume it.
 
@@ -310,7 +251,7 @@ EDITOR owns:
 
 Opening an EDITOR terminal does NOT automatically acquire Unreal.
 
-Acquire the machine resource only just-in-time according to current tooling (`rtlease`).
+Take the machine resource only just-in-time, and verify by hand that nobody else holds it: the lease that enforced this was removed.
 
 Asset writes:
 
@@ -517,17 +458,12 @@ A finding does not automatically require a new issue if an existing owner can ab
 
 # 14 — Reporting
 
-If `RT_TASK_ID` is present, deposit current phase result:
+Report on the **issue itself** — a comment, or the PR body. The task router that collected these
+reports was removed with the roles (`D-347`), and a result that lives only in a chat does not
+exist for whoever comes next.
 
-```powershell
-rttask report -TaskId <id> `
-  -Status <DONE|PARTIAL|BLOCKED|FAILED> `
-  -Summary "..." `
-  -Changes "..." `
-  -Evidence "..." `
-  -NotRun "..." `
-  -NextActorRecommended <actor>
-```
+State at minimum: status (`DONE` / `PARTIAL` / `BLOCKED` / `FAILED`), what changed, the evidence
+with its commit, and what was **NOT RUN**.
 
 `NextActorRecommended` is a recommendation.
 
@@ -586,9 +522,6 @@ Always finish with:
 
 ## ISSUE
 #...
-
-## ROLE
-DEV | EDITOR | VALIDATION
 
 ## TASK
 ...

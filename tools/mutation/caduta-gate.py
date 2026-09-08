@@ -113,9 +113,10 @@ except AttributeError:
     pass   # Python < 3.7: i print ASCII passano comunque
 
 RADICE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-LOG = os.path.join(RADICE, "Saved", "Logs", "rt-suite.log")
+LOG = os.path.join(RADICE, "Saved", "Logs", "automation-mutazione.log")
 UPROJECT = os.path.join(RADICE, "RefactorTactics.uproject")
 BUILD_BAT = r"D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat"
+ENGINE_CMD = r"D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
 
 # 🔴 `pwsh`, non `powershell`. Windows PowerShell 5.1 non riesce nemmeno a fare il PARSING di
 # `rt-suite.ps1` — errori «'}' di chiusura mancante» — e **termina con codice 0**. Il risultato e' un
@@ -248,27 +249,6 @@ def classifica(verdetto, nuovi, attesi):
     return "CADUTA (BERSAGLI DIVERSI)", True    # cade qualcosa, ma non cio' che si diceva di misurare
 
 
-def verdetto_da_output(out):
-    """Il verdetto di `rt-suite`, letto dal suo stdout.
-
-    🔴 «Nessun marcatore» non e' un caso qualunque, ed e' per questo che ha un nome proprio: se
-    `[RT-MEASURE]` non compare affatto, `rt-suite` non ha parlato — non ha misurato male, non ha
-    misurato. La causa piu' probabile e' l'interprete sbagliato (`powershell` 5.1 non fa il parsing
-    dello script e esce 0), e chiamarla `ALTRO` la rende indistinguibile da una suite andata storta."""
-    if "[RT-MEASURE] NON VALIDA" in out:
-        return "NON VALIDA"
-    if "[RT-MEASURE] VALIDA" in out:
-        return "VALIDA"
-    if "NON AVVIATA" in out:
-        return "NON AVVIATA"
-    if "[RT-MEASURE]" not in out:
-        if re.search(r"ParserError|chiusura mancante|missing closing|Unexpected token|"
-                     r"CommandNotFoundException|non e' riconosciuto|is not recognized", out):
-            return "INTERPRETE SBAGLIATO"
-        return "SENZA MARCATORE"
-    return "ALTRO"
-
-
 def bersagli_mancanti(attesi, eseguiti):
     """Quali bersagli la baseline non ha nemmeno ESEGUITO.
 
@@ -308,21 +288,6 @@ def self_test():
     c("un rosso preesistente che guarisce non maschera la sopravvissuta",
       classifica("VALIDA", rossi_dopo - rossi_base, {"A"}), ("SOPRAVVISSUTA", False))
 
-    # 🔴 L'interprete sbagliato: misurato il 2026-09-05. `powershell` 5.1 non fa il parsing di
-    # rt-suite.ps1, stampa errori di sintassi e ESCE 0. Senza un nome proprio finiva in `ALTRO`,
-    # indistinguibile da una suite andata storta, e la diagnosi costava un ciclo di build.
-    c("errore di parsing 5.1: interprete, non 'altro'",
-      verdetto_da_output("In rt-suite.ps1:1067\n'}' di chiusura mancante nel blocco"),
-      "INTERPRETE SBAGLIATO")
-    c("comando assente: interprete",
-      verdetto_da_output("pwsh: is not recognized as an internal or external command"),
-      "INTERPRETE SBAGLIATO")
-    c("nessun marcatore ma nessun errore noto",
-      verdetto_da_output("qualcosa di inatteso"), "SENZA MARCATORE")
-    c("verdetto valida", verdetto_da_output("[RT-MEASURE] VALIDA"), "VALIDA")
-    c("verdetto non valida non e' valida",
-      verdetto_da_output("[RT-MEASURE] NON VALIDA"), "NON VALIDA")
-    c("non avviata", verdetto_da_output("[RT-MEASURE] NON AVVIATA: il lock"), "NON AVVIATA")
 
     # 🔴 #2393: Editor morto all'avvio su worktree nuovo -> `0/?, 0 fail`. Zero rossi su zero test
     # eseguiti supera qualunque controllo che guardi solo i rossi.
@@ -414,28 +379,56 @@ def build(tentativi=40):
     return False
 
 
+def _istantanea():
+    """`HEAD` e stato dell'albero: le due meta' dell'invariante di AGENTS.md §11.
+
+    (!!) Le legge questo tool perche' nessun altro lo fa piu'. `rt-suite.ps1` le
+    fotografava prima e dopo la run e stampava `[RT-MEASURE] NON VALIDA` quando
+    cambiavano; e' stato rimosso il 2026-09-08, e senza questo confronto una
+    mutazione misurata sotto il commit di un altro passerebbe per sopravvissuta.
+    """
+    def g(*a):
+        r = subprocess.run(["git"] + list(a), cwd=RADICE,
+                           capture_output=True, text=True, errors="replace")
+        return (r.stdout or "").strip()
+    return (g("rev-parse", "HEAD"), g("status", "--porcelain"))
+
+
 def suite():
-    """Coda per il motore, poi misura. Torna (verdetto, esito, rossi, eseguiti).
+    """Misura. Torna (verdetto, esito, rossi, eseguiti).
 
     🔴 `eseguiti` non e' un di piu': e' il modo di accorgersi che la suite non ha misurato niente.
-    `#2393` descrive un Editor che muore durante l'avvio su un **worktree nuovo**, con `rt-suite` che
-    riporta `0/?, 0 fail`. Zero fallimenti su zero test eseguiti supera qualunque controllo che guardi
+    `#2393` descrive un Editor che muore durante l'avvio su un **worktree nuovo**, riportando
+    `0/?, 0 fail`. Zero fallimenti su zero test eseguiti supera qualunque controllo che guardi
     solo i rossi, e una mutazione sembrerebbe SOPRAVVISSUTA su una misura mai avvenuta."""
-    r = subprocess.run([PWSH, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                        "scripts/rt-suite.ps1", "-Filter", FILTRO, "-WaitMinutes", "90"],
-                       capture_output=True, text=True, errors="replace")
-    out = (r.stdout or "") + (r.stderr or "")
-    verdetto = verdetto_da_output(out)
-    m = re.search(r"esito\s+(\d+)/(\d+) completati, (\d+) fallimenti", out)
-    esito = m.group(0) if m else "(nessun esito)"
+    prima = _istantanea()
+    if os.path.exists(LOG):
+        os.remove(LOG)   # un log vecchio darebbe i rossi di una run che non e' questa
+
+    subprocess.run([ENGINE_CMD, UPROJECT,
+                    "-ExecCmds=Automation RunTests " + FILTRO + ";Quit",
+                    "-unattended", "-nopause", "-nosplash", "-nullrhi", "-NoLiveCoding",
+                    "-log=" + os.path.basename(LOG)],
+                   capture_output=True, text=True, errors="replace")
+
     rossi = set()
     eseguiti = set()
     if os.path.exists(LOG):
         testo = io.open(LOG, encoding="utf-8", errors="replace").read()
         rossi = set(re.findall(r"Result=\{Fail\} Name=\{[^}]*\} Path=\{([^}]+)\}", testo))
         eseguiti = set(re.findall(r"Test Started\. Name=\{[^}]*\} Path=\{([^}]+)\}", testo))
-    return verdetto, esito, rossi, eseguiti
 
+    dopo = _istantanea()
+    if prima != dopo:
+        verdetto = "NON VALIDA"
+    elif not eseguiti:
+        verdetto = "NON AVVIATA"
+    else:
+        verdetto = "VALIDA"
+
+    esito = "esito %d/%d completati, %d fallimenti" % (
+        len(eseguiti), len(eseguiti), len(rossi))
+    return verdetto, esito, rossi, eseguiti
 
 def misura():
     """Ricostruisce, poi misura. Se la run non ha nemmeno preso il motore RICOSTRUISCE e riprova: in
@@ -486,7 +479,7 @@ if DRY:
 prova = subprocess.run([PWSH, "-NoProfile", "-Command", "exit 0"],
                        capture_output=True, text=True, errors="replace")
 if prova.returncode != 0:
-    print("\n⛔ FERMO: `%s` non e' eseguibile. `rt-suite.ps1` richiede PowerShell 7:\n"
+    print("\n⛔ FERMO: `%s` non e' eseguibile. `Build.bat` si invoca da PowerShell:\n"
           "   Windows PowerShell 5.1 non ne fa nemmeno il parsing, e termina con codice 0." % PWSH)
     sys.exit(2)
 

@@ -127,24 +127,18 @@ A new Epic is never auto-created just for roadmap symmetry, one residual issue, 
 
 `EPIC_CANDIDATE` requires explicit approval before creation.
 
-## P3 — Role is not Issue ownership
+## P3 — Kind of work is not Issue ownership
 
-Execution roles are responsibilities:
-
-```text
-DEV
-EDITOR
-VALIDATION
-```
-
-They are NOT automatically separate issues.
+⚠️ Execution roles were removed on 2026-09-08 (`D-347`). What the rule protected survives them:
+code, asset authoring and independent verification are different **kinds of work**, and they are
+NOT automatically separate issues.
 
 Do NOT create:
 
 ```text
-Issue A — DEV
-Issue B — EDITOR
-Issue C — VALIDATION
+Issue A — write the code
+Issue B — author the assets
+Issue C — verify it
 ```
 
 just because one outcome passes through several phases.
@@ -215,7 +209,7 @@ DEV pool 1..N
  machine-wide Unreal resource
       │
    ┌──┴───────┐
- EDITOR   VALIDATION
+ editor    suite
 ```
 
 Rules:
@@ -237,7 +231,7 @@ Do not resolve workspace taxonomy conflicts by inference.
 Before planning, check current status of live governance owners such as:
 
 ```text
-#2633 — issue claim across the three execution roles
+#2633 — issue claim has no declared owner
 ```
 
 ⚠️ `#2647` (RT3 control-plane/workspace taxonomy) described a defect of a system that no
@@ -397,13 +391,13 @@ measured gap
 These are NOT enough:
 
 ```text
-different execution role
+different kind of work
 different test method
 different terminal
 different phase
 ```
 
-One issue may flow sequentially through multiple execution roles when live routing/claim rules permit it.
+One issue may pass through several kinds of work in sequence; the claim rules still apply.
 
 ---
 
@@ -442,7 +436,7 @@ Use:
 ```text
 HARD_DEPENDENCY
 SOFT_ORDER
-VALIDATION_DEPENDENCY
+VERIFICATION_DEPENDENCY
 DECISION
 RESOURCE_CONFLICT
 RELATED
@@ -494,11 +488,11 @@ Determine actual phase sequence per issue.
 Examples:
 
 ```text
-DEV → VALIDATION
-EDITOR → VALIDATION
-DEV → VALIDATION → EDITOR → VALIDATION
-EDITOR → USER
-VALIDATION → DEV → VALIDATION
+code → verification
+assets → verification
+code → verification → assets → verification
+assets → decision by USER
+verification → fix → verification
 ```
 
 There is no mandatory universal sequence.

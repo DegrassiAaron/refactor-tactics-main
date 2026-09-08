@@ -66,7 +66,7 @@ It MUST NOT:
 - create or modify `.uasset/.umap`;
 - invoke Unreal authoring;
 - acquire an Unreal lease;
-- assign DEV / EDITOR / VALIDATION;
+- assign who does the work;
 - create routing tasks;
 - implement the feature.
 
@@ -520,7 +520,7 @@ Always finish with:
 ## IMPLEMENTATION IMPLICATIONS
 
 Only consequences useful to `/implement-feature`.
-Do not assign issues or execution roles here.
+Do not assign issues or owners here.
 
 ## VERDICT
 

@@ -43,106 +43,23 @@ Non dedurre il current scope da questo file.
 
 ---
 
-# 2. Avvio sessione e ruolo
+# 2. Avvio sessione
 
 All'avvio della sessione:
 
 1. leggi `AGENTS.md`;
-2. individua le variabili `RT_TERMINAL_*` e `RT_WORKSPACE_*`, se presenti;
-3. esegui `rtstatus` quando disponibile.
+2. determina dal repository e da GitHub lo stato reale: branch, `HEAD`, `git status`, issue e milestone correnti.
 
-Le variabili sono:
+> ⚠️ **Non esiste più un ruolo di sessione da dichiarare.** Fino al 2026-09-08 una sessione assumeva una figura fra `DEV`, `EDITOR` e `VALIDATION`, la dichiarava in `RT_TERMINAL_ROLE`, e gli script di `scripts/` la facevano rispettare. Ruoli e script sono stati rimossi ([`D-346`](docs/decisions/RT_PDR_00_Decision_Log.md) e [`D-347`](docs/decisions/RT_PDR_00_Decision_Log.md)). Se trovi `RT_TERMINAL_*` o `RT_WORKSPACE_*` nell'ambiente, sono residui di una finestra aperta prima: non significano nulla, e nessuno script li legge più.
 
-```text
-RT_TERMINAL_ROLE       DEV | EDITOR | VALIDATION
-RT_TERMINAL_INSTANCE   identificativo dell'istanza
-RT_WORKSPACE_ROOT      checkout su cui la sessione lavora
-RT_WORKSPACE_ID        MAIN | DEV | TECHNICAL_DESIGNER
-RT_TASK_ID             task/issue, quando dichiarato
-```
+Quello che i ruoli separavano resta separato **dai fatti**, non da un guard:
 
-`RT_WORKSPACE_ID` non è il ruolo della sessione e non è il branch.
+* Unreal è **uno per macchina**. Prima di aprire l'Editor, lanciare PIE, compilare o misurare, accertati che nessun'altra sessione lo stia usando: due job insieme si invalidano le misure a vicenda;
+* i checkout **non isolano** le risorse di macchina. Working tree e `HEAD` sì, Unreal e Live Coding no;
+* l'**authoring asset** appartiene al clone principale — un worktree non ha i file gitignorati, e salvare un asset i cui riferimenti duri leggono `None` **li azzera**, senza errore;
+* chi scrive una correzione **non ne firma da solo il verdetto** sui sistemi che tocca: la misura vale se avviene dopo, su un commit dichiarato.
 
-È l'identità del **workspace**: `MAIN` è il checkout che ospita l'unico bridge MCP della macchina.
-
-`MAIN` non è il branch `main`.
-
-Il valore autorevole vive nel registro per macchina, non nella variabile e non nel marker locale.
-
-Per verificarlo:
-
-```powershell
-rtws -Action verify
-```
-
-Le figure canoniche sono:
-
-* `DEV`;
-* `EDITOR`;
-* `VALIDATION`.
-
-`DEV-LEAD`, `DEV-MAIN` e `DEV-TEST` sono funzioni DEV di una wave, non nuove figure.
-
-Non dedurre il ruolo da:
-
-* nome della directory;
-* branch;
-* terminal title;
-* repository clone.
-
-Se il ruolo non è determinabile:
-
-`ROLE_MISSING`
-
-Se più fonti assegnano ruoli incompatibili:
-
-`ROLE_CONFLICT`
-
-In entrambi i casi opera **fail-closed**: non iniziare lavoro mutante finché il ruolo non è risolto.
-
-Una sessione Claude occupa una sola figura fra `DEV`, `EDITOR` e `VALIDATION`.
-
----
-
-## Task routing
-
-Se `RT_TASK_ID` è presente, il ruolo da solo non basta: qualcuno ha deciso **quale** lavoro tocca a questa sessione.
-
-Dopo aver risolto il ruolo:
-
-1. chiama il router in **sola lettura**:
-
-```powershell
-rttask status -TaskId $env:RT_TASK_ID
-rttask assignment -TaskId $env:RT_TASK_ID
-```
-
-2. confronta `RT_TERMINAL_ROLE` con `next_actor`;
-3. se non corrispondono, **fermati**;
-4. lavora solo sull'assignment corrente.
-
-Errori, tutti fail-closed:
-
-```text
-TASK_NOT_FOUND            il task non esiste su questa macchina
-TASK_ROUTE_MISMATCH       questo ruolo non è l'actor atteso
-TASK_ASSIGNMENT_MISSING   nessuna consegna emessa
-TASK_ALREADY_DONE         il task è chiuso
-```
-
-Non correggere il routing per proseguire: le mutazioni (`init`, `assign`, `close`) appartengono al **RT Coordinator**, e il router le rifiuta da una sessione con ruolo.
-
-A fine lavoro deposita il risultato e torna al Coordinator:
-
-```powershell
-rttask report -TaskId <id> -Status <DONE|PARTIAL|BLOCKED|FAILED> -Summary "..." -Evidence "..."
-```
-
-⛔ `NEXT_ACTOR_RECOMMENDED` è una raccomandazione, non una decisione di routing.
-
-Il task routing è un **quarto** concetto, distinto da ruolo di sessione, identità del workspace e lease del motore. La semantica vive in `scripts/rt-task-router.ps1`, che ne è l'unica autorità: la sua documentazione narrativa è stata rimossa insieme al control plane.
-
----
+Nessuno di questi punti è più verificato da uno script. Sono a carico di chi lavora.
 
 # 3. Autorità e source of truth
 
@@ -326,15 +243,15 @@ Regola generale:
 
 Uno non sostituisce automaticamente gli altri.
 
-Una Validation Window preliminare può produrre evidenza utile, ma non equivale al sign-off finale.
+Una misura preliminare può produrre evidenza utile, ma non equivale al sign-off finale.
 
-VALIDATION non deve:
+Chi verifica non deve, nello stesso passaggio:
 
 1. modificare un problema;
 2. validare autonomamente il proprio fix;
 3. dichiararlo approvato.
 
-Se VALIDATION trova un difetto che richiede modifica, produce handoff al ruolo appropriato e poi rivalida una build/commit indipendente.
+Se una verifica trova un difetto che richiede modifica, la correzione e la sua misura sono **due momenti**: si corregge, si dichiara il commit, e si rimisura su quello. Non è una regola di ruolo — i ruoli non esistono più — ma di indipendenza della misura.
 
 ---
 
@@ -488,7 +405,6 @@ Working tree separati possono avere filesystem Git distinti, ma condividono comu
 
 Prima di lavoro sostanziale registra:
 
-* ruolo;
 * workspace;
 * branch;
 * HEAD;
@@ -530,8 +446,6 @@ Non fare push o modifiche GitHub distruttive salvo autorizzazione della sessione
 
 Ogni handoff significativo deve identificare almeno:
 
-* ruolo sorgente;
-* ruolo destinazione;
 * branch;
 * commit SHA / build;
 * scope;
@@ -546,120 +460,41 @@ Un handoff che non identifica questi elementi non e' un handoff: e' un messaggio
 
 ---
 
-# 10. Routing rapido Claude
+# 10. Unreal, asset e risorse di macchina
 
-## DEV
+I ruoli operativi sono stati rimossi ([`D-347`](docs/decisions/RT_PDR_00_Decision_Log.md)). I vincoli che li avevano motivati no: erano fatti della macchina, non convenzioni.
 
-Usa DEV per:
+## Il motore è uno
 
-* C++;
-* simulator;
-* resolver;
-* networking;
-* pathfinding;
-* serialization;
-* replay;
-* TurnLog;
-* Automation;
-* script/tooling non Editor-bound;
-* documentazione tecnica quando non richiede asset verification.
+Unreal è **uno** e lo condividono tutti i checkout. Non c'è più un lease che serializzi gli accessi, quindi:
 
-DEV non deve dichiarare verifiche Editor-only che non ha realmente eseguito.
+* prima di aprire l'Editor, lanciare PIE, compilare o misurare, **verifica che nessun altro lo stia usando** — `Get-Process UnrealEditor*, UnrealEditor-Cmd*`;
+* una build lanciata mentre un altro checkout misura riscrive il binario sotto quella misura e la rende `NON VALIDA`;
+* un worktree separato **non** elimina il mutex globale di Unreal e Live Coding: due misure non diventano parallele, diventano una coda.
 
----
+## Authoring asset: il clone principale
 
-## EDITOR
+Una chiamata che crea, modifica, rinomina, sposta, cancella, importa o salva un asset Unreal via MCP appartiene al **clone principale**, quello che ospita il bridge.
 
-Usa EDITOR per:
+Due ragioni, entrambe tecniche:
 
-* `.umap`;
-* `.uasset`;
-* Blueprint;
-* UMG;
-* animation;
-* visual setup;
-* asset integration;
-* Editor authoring;
-* PIE;
-* visual evidence.
+* il bridge MCP è **uno solo**. Usarlo da un altro checkout muta gli asset del principale mentre si legge il `git status` del proprio;
+* un worktree **non ha i file gitignorati**. I riferimenti duri di un asset vi leggono `None`, e salvarlo **li azzera** — senza errore, e ce ne si accorge dopo.
 
-EDITOR consuma i contratti gameplay.
+Preparazione, ispezione e query read-only non hanno questo vincolo.
 
-Non sostituisce VALIDATION per:
+⛔ **Nessuno script lo verifica più.** Il preflight che esisteva prima autorizzava e non intercettava: il trasporto MCP è HTTP diretto, e chi lo saltava raggiungeva il bridge lo stesso. Ora non c'è nemmeno l'autorizzazione — resta solo la verifica che fai tu.
 
-* determinismo;
-* privacy;
-* replay correctness;
-* authoritative logic.
+Misurato il 2026-09-06: dietro `call_tool` ci sono **56 toolset**, di cui 55 non sono di RefactorTactics. Fra questi `AssetTools` (`write_file`, `delete`, `move`), `AutomationTestToolset` (`RunTests`, `StopTests`) e `ProgrammaticToolset`, che esegue Python. Una chiamata MCP può quindi avviare o fermare una suite, e rendere `NON VALIDA` la misura di un'altra sessione.
 
-### Authoring asset via MCP
+## Chi ripara non firma
 
-Il ruolo EDITOR esiste in ogni workspace.
+Non è più una regola di ruolo, ma resta una regola di indipendenza della misura:
 
-L'authoring asset via MCP no: è consentito **solo** dal workspace `MAIN`.
+* chi ha scritto una correzione non ne emette da solo il verdetto sui sistemi che quella correzione tocca — determinismo, privacy, autorità, replay;
+* un difetto trovato durante una verifica torna a chi possiede il codice, con la sua evidenza, e si rimisura su un commit successivo.
 
-Il bridge MCP è uno solo e vive in MAIN. Usarlo da un altro checkout muta gli asset di MAIN mentre si legge il `git status` del proprio.
-
-Condizioni, tutte necessarie:
-
-```text
-RT_TERMINAL_ROLE == EDITOR
-RT_WORKSPACE_ID  == MAIN, verificato sul registro di macchina
-branch           == branch di task, diverso da main
-RT_TASK_ID       presente
-write-set asset  dichiarato
-lease Unreal     vivo, posseduto, per l'operazione giusta
-```
-
-Preflight:
-
-```powershell
-rtmcp -Operation MCP_ASSET_WRITE -TaskId <id> -AssetWriteSet <path>
-```
-
-Fuori da MAIN restano consentite preparazione, ispezione e query read-only.
-
-Il motore si prende just-in-time:
-
-```powershell
-rtlease -Action acquire -Operation EDITOR -TaskId <id>
-rtlease -Action release
-```
-
-Aprire un terminale non acquisisce Unreal.
-
-⛔ Il preflight **autorizza, non intercetta**.
-
-Il trasporto MCP è HTTP diretto: chi lo salta raggiunge il bridge lo stesso, e nessuno script può impedirlo.
-
-Misurato il 2026-09-06: dietro `call_tool` ci sono **56 toolset**, di cui 55 non sono di RefactorTactics. Fra questi `AssetTools` (`write_file`, `delete`, `move`), `AutomationTestToolset` (`RunTests`, `StopTests`) e `ProgrammaticToolset` (esegue Python).
-
-Conseguenza: una chiamata MCP può avviare o fermare una suite senza passare da `rt-suite.ps1`, dal lease e dal mutex — cioè può rendere `NON VALIDA` la misura di un'altra sessione.
-
----
-
-## VALIDATION
-
-Usa VALIDATION per verifiche indipendenti come:
-
-* Automation gate;
-* replay regression;
-* determinism;
-* privacy;
-* packaged build;
-* scenario/golden test;
-* performance;
-* release evidence.
-
-VALIDATION non implementa e approva autonomamente la stessa correzione.
-
-Unreal e' una risorsa esclusiva della macchina: EDITOR e VALIDATION si serializzano sul lease di `rt-lease.ps1`.
-
-La catena canonica resta:
-
-`DEV-LEAD → EDITOR → VALIDATION`
-
----
+Vale anche quando la stessa persona fa entrambe le cose: ciò che conta non è chi digita, è che la misura avvenga **dopo** e su un artefatto dichiarato.
 
 # 11. Regole permanenti di gameplay engineering
 
