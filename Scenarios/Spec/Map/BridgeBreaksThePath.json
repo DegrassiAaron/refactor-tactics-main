@@ -43,8 +43,9 @@
     },
     {
       "_turno": "T2 — l'arco cade mentre Gadget ci sta salendo: il percorso non si allunga, sparisce.",
+      "_nota_requires": "⌫ Chiedeva `EnvironmentalActionOwner` fino al 2026-09-08, e quella capability e' DISPONIBILE — copre `Electrify` e `CreateWater`, che un owner ce l'hanno. Il turno risultava quindi giocabile, non trovava intents e lo scenario usciva PASS 2/2 senza che accadesse niente (#2549). Cio' che serve qui e' `Action.ModifyArc`, che D-046 (#282) lascia deliberatamente senza owner nel roster v0.1: `AvailableCapabilities()` lo dichiarava gia' — «uno scenario che chieda di accenderle deve restare BLOCKED» — ma non esisteva un nome con cui chiederlo.",
       "requires": [
-        "EnvironmentalActionOwner"
+        "ArcModificationOwner"
       ],
       "intents": []
     }
