@@ -2,11 +2,20 @@
 
 > `REFERTO` · **Oggetto**: [#2692](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2692)
 > **Modalità**: `critique` · **Focus**: requirements · architecture · testing
-> **Misure**: su `docs/2692-voce-pie-brace`, `HEAD` = **`6516a1a2`** (working tree pulito salvo
-> `docs/technical/test-manuali-pie.md`).
-> **Esito**: **1 criterio di DoD con un numero non riproducibile**, **1 requisito mancante che rende il
-> contratto soddisfacibile senza soddisfare [`D-355`](../../decisions/RT_PDR_00_Decision_Log.md)**, 2 costi
-> strutturali non dichiarati, 1 decisione ereditata e non chiusa, 2 correzioni al piano di test.
+> **Misure**: su **`6516a1a2`** per il codice; la voce PIE letta a **`02c71f58`**, che è il commit in cui
+> `PIE-V01-RXBRACE` esiste (era working tree quando il panel l'ha letta, poi mergiata con #2693).
+> **Precedente**: [`2679-finestra-interlacciata-spec-panel-2026-09-08.md`](2679-finestra-interlacciata-spec-panel-2026-09-08.md)
+> · **Piano che fissa il bound**: [`2679-riprendibilita-resolvemovement-piano-2026-09-08.md`](2679-riprendibilita-resolvemovement-piano-2026-09-08.md)
+> **Esito**: **9 rilievi** — 1 attribuzione di commit stale su un criterio di DoD, 1 requisito mancante che
+> rende il contratto soddisfacibile senza soddisfare
+> [`D-355`](../../decisions/RT_PDR_00_Decision_Log.md), 1 costo strutturale non dichiarato, 1 decisione
+> ereditata e non chiusa, 1 criterio falsificato sulla grandezza sbagliata, 1 cautela di progetto, 3
+> correzioni al piano di test.
+> 🔴 **Referto CORRETTO dopo code review** ([PR #2694](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2694)):
+> C1 diceva che il numero della issue non era misurato — è **falso**, ed è l'errore più grave di questo
+> documento; C3 elencava due chiamanti su tre; C4 era contraddetto dal codice ed è stato declassato; **C9 è
+> nuovo** e nessuno del panel l'aveva visto. Le correzioni sono **in linea**, non in coda: un referto che
+> lascia in piedi la diagnosi sbagliata e la smentisce sotto è peggio di un referto sbagliato.
 > **Contesto**: la issue scorpora il **secondo** dei due siti che `D-355` nomina; il primo è arrivato con
 > [#2679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2679).
 
@@ -18,7 +27,7 @@
 | Phase usa quel profilo | ✅ `Ability/RTHeroCatalogLibrary.cpp:445` |
 | `BraceExecutableResponses` filtra per effetti → cardinalità 2 | ✅ `Ability/RTCatalogLibrary.cpp:98-111` |
 | Il `Brace` chiama `AskReactionDecision` **diretta**, fuori dal pump | ✅ `Turn/RTTurnManager_Blast.cpp:2304` |
-| Esito `NoDecider` → `SafeResponse` | ✅ `Turn/RTTurnManager.cpp:6537-6541` |
+| Esito `NoDecider` → `SafeResponse` | ✅ `Turn/RTTurnManager.cpp:6534-6535`, con la ragione a `:6531-6533` |
 | `ApplyDisplacements` = **670** righe (1928→2597), decisione al **56 %** | ✅ misurato |
 | `FRTBlastContext` dichiara di **non** sopravvivere alla fase | ✅ `Turn/RTBlastContext.h:50-53` |
 | `FRTMovementResolutionState` era già sospendibile, con input copiati | ✅ `Turn/RTHexSim.h:195-201` |
@@ -29,38 +38,58 @@
 *«falsificato da: **il Blast avanza mentre la finestra è aperta**»*, che è la forma per inversione. Si
 registra perché è la correzione più cara del panel precedente, ed è arrivata da sola.
 
-Ciò che segue riguarda **due cose che il DoD non chiede** e senza le quali la issue può chiudersi verde
-lasciando il difetto in campo.
+Ciò che segue riguarda **ciò che il DoD non chiede** e senza cui la issue può chiudersi verde lasciando il
+difetto in campo — più una cosa che **nessuno del panel aveva guardato**: le due condizioni che aprono il
+ramo del `Brace` (C9).
 
 ---
 
-## 1. C1 🔴 — il bound di #1818 nel DoD non è riproducibile
+## 1. C1 🔴 — il bound di #1818 è attribuito al commit sbagliato
 
 Il criterio dice: *«Il bound di #1818 resta rispettato — misura di partenza **10.115** su 11.000
 (`6516a1a2`)»*.
 
-La formula del bound è fissata dal piano di #2679 (`2679-riprendibilita-resolvemovement-piano-2026-09-08.md`,
-Task 5): **`RTTurnManager.cpp` + `RTTurnManager.h`**, soglia **11.000**. Misurata sul commit che la issue
-stessa dichiara:
+La formula è fissata dal
+[piano di #2679](2679-riprendibilita-resolvemovement-piano-2026-09-08.md), Task 5:
+**`RTTurnManager.cpp` + `RTTurnManager.h`**, soglia **11.000**. Misurata sul commit che la issue dichiara:
 
 ```
-git show 6516a1a2:Source/RefactorTactics/Turn/RTTurnManager.cpp | wc -l   →  7 707
-git show 6516a1a2:Source/RefactorTactics/Turn/RTTurnManager.h   | wc -l   →  2 549
-                                                                    TOT   → 10 256
+git show 6516a1a2:…/RTTurnManager.cpp | wc -l  →  7 707
+git show 6516a1a2:…/RTTurnManager.h   | wc -l  →  2 549
+                                          TOT  → 10 256
 ```
 
-**10.256, non 10.115.** Lo scarto è **141 righe**, e nessuna combinazione plausibile dei file lo spiega:
-`.cpp` da solo = 7.707 · `.cpp`+`Blast` = 10.503 · `.cpp`+`.h`+`Movement` = 11.420 · `.h`+`Blast` = 5.345.
-Il numero non è ottenibile da nessuna formula, quindi non è stato misurato: è stato riportato.
+**10.256, non 10.115.** Ma il numero della issue **non è inventato**: è la stessa formula, su un commit
+precedente dello stesso branch.
 
-**KARL WIEGERS**: *«Un criterio di accettazione con una baseline sbagliata non è un criterio debole — è un
-criterio che mente in una direzione sola. Chi chiuderà questa issue misurerà, poniamo, 10.640, calcolerà
-+525 contro una partenza che non esiste, e non saprà se ha aggiunto 525 righe o 384. Il margine reale è
-**744**, non 885: la issue si è regalata 141 righe di spazio che non ha.»*
+```
+git show a7c2c600:…/RTTurnManager.cpp | wc -l  →  7 609
+git show a7c2c600:…/RTTurnManager.h   | wc -l  →  2 506
+                                          TOT  → 10 115   ← esatto
+```
 
-📝 **Correzione**: sostituire con *«misura di partenza **10.256** su 11.000 (`6516a1a2`), formula
-`RTTurnManager.cpp` + `RTTurnManager.h` come da piano #2679 Task 5 — margine **744**»*. La formula va scritta
-nel criterio, non lasciata a un piano di un'altra issue: è la sola cosa che rende la rimisura ripetibile.
+`a7c2c600` (*«refactor(2679): gli helper condivisi escono dal namespace anonimo»*) è antenato di
+`6516a1a2`. Fra i due sono atterrati gli ultimi commit del branch, che hanno aggiunto le 141 righe.
+
+🔴 **La prima stesura di questo referto concludeva che il numero «non era stato misurato, era stato
+riportato», ed era falsa.** Aveva enumerato quattro *insiemi di file* a **un** commit — `.cpp` da solo,
+`.cpp`+`Blast`, `.cpp`+`.h`+`Movement`, `.h`+`Blast` — presentando l'enumerazione come esaustiva senza mai
+variare **il commit**. La correzione arriva da una code review, non dal panel.
+
+**KARL WIEGERS**: *«Il difetto resta, ed è più insidioso di quello che il panel credeva di aver trovato: un
+numero misurato bene e attribuito male non si smaschera rileggendo, perché è internamente coerente. Chi
+chiude la issue rimisurerà su `6516a1a2`, otterrà 10.256 e calcolerà +141 di crescita che nessuno ha
+scritto. Un numero inventato lo si scopre; questo no.»*
+
+⚠️ **E la lacuna di processo è un'altra**: non «qualcuno ha riportato invece di misurare», ma **la misura
+non è stata rifatta dopo gli ultimi commit del branch**. È la stessa cautela che la nota di `D-355`
+prescrive per la numerazione — *«misurare su `origin`, non sul checkout»* — applicata a una grandezza che
+cambia a ogni commit invece che a ogni merge.
+
+📝 **Correzione**: *«misura di partenza **10.256** su 11.000 a `6516a1a2`, formula `RTTurnManager.cpp` +
+`RTTurnManager.h` (piano #2679 Task 5) — margine **744**»*. La formula **e lo sha** stanno dentro il
+criterio: senza entrambi la rimisura non è ripetibile, ed è esattamente il modo in cui questo scarto è
+nato.
 
 ---
 
@@ -71,7 +100,7 @@ Questo è il rilievo più grave, perché è un **requisito assente**, non un req
 `D-355` non decide «la resolution si sospende». Decide che **la finestra si apre *durante* il playback**, e
 la sua motivazione è testuale: senza playback il giocatore deciderebbe *«su un movimento che il suo schermo
 non ha mostrato»*. Per il movimento quella metà è stata costruita — `BeginPartialPlayback()`
-(`Turn/RTTurnManager_Movement.cpp:753`), il cui commento la chiama *«la metà che mancava a D-355»*.
+(`Turn/RTTurnManager_Movement.cpp:758`), il cui commento la chiama *«la metà che mancava a D-355»*.
 
 Applicata al Blast, quella funzione **non fa niente**:
 
@@ -79,15 +108,20 @@ Applicata al Blast, quella funzione **non fa niente**:
 void ARTTurnManager::BeginPartialPlayback()
 {
     const FRTMovementResolutionContext* Ctx = PendingMovement.Get();
-    if (!Ctx || !bEnablePlayback || bIsResolving) { return; }   // ← esce qui, sempre
+    if (!Ctx || !bEnablePlayback || bIsResolving) { return; }   // ← nullo se la sospensione è nel Blast
     ...
     EmitMoveEvents(Units, Ctx->State.Results);                  // ← e comunque emette solo MOVIMENTO
+    if (ResolvedTimeline.Num() > 0) { BeginPlayback(); }        // ← il gancio che il criterio misura
 }
 ```
 
-Con una sospensione nel Blast, `PendingMovement` è nullo: si esce alla prima riga. E se anche non lo fosse,
-l'unica cosa che quella funzione emette sono eventi di movimento — non la spinta, non il colpo che l'ha
-causata.
+⚠️ **La guardia non è inerte in generale** — sul percorso del movimento passa, ed è tutta la consegna di
+#2679 fetta 3 (`RTTurnManager.cpp:1863-1871`). È nulla **per il Blast**, perché `PendingMovement` non è il
+contesto che si è sospeso. E se anche lo fosse, l'unica cosa che questa funzione emette sono eventi di
+movimento — non la spinta, non il colpo che l'ha causata.
+
+🔑 L'ultima riga è il motivo per cui il criterio proposto sotto si misura su `ResolvedTimeline`: è lì che
+`BeginPlayback` guarda, e una timeline vuota è esattamente lo schermo nero.
 
 **MICHAEL NYGARD**: *«Il difetto che la issue descrive è "la finestra non si apre". Il difetto che
 l'implementazione minima produrrebbe è peggiore: la finestra **si apre su uno schermo nero**. Il giocatore
@@ -123,29 +157,41 @@ bool ARTTurnManager::IsResolutionSuspended() const
 ```
 `Turn/RTTurnManager_Movement.cpp:737`
 
-Una sospensione del Blast che non estenda questo predicato produce **due difetti silenziosi**, entrambi
+Una sospensione del Blast che non estenda questo predicato produce **tre difetti silenziosi**, tutti
 peggiori di quello che la issue chiude:
 
 | Chiamante | Cosa fa se il predicato mente | Conseguenza |
 |---|---|---|
 | `LockInAndResolve:1863` | non vede la sospensione, prosegue | `ConcludeResolution()` su un turno **a metà**: TurnLog ordinato e chiuso, Cleanup eseguito, verdetto di fine partita emesso su uno stato incompleto |
 | `FinishPlayback:7502` | non alza `bPlaybackHeldByWindow` | il playback si chiude e `bIsResolving` va a falso mentre una finestra è aperta |
+| `ResumeSuspendedResolution:642` | `if (!IsResolutionSuspended()) { return; }` | 🔴 **il turno non riprende affatto**: chi chiude la finestra chiama una funzione che esce subito — finestra chiusa, `bPlaybackHeldByWindow` ancora vero, `bIsResolving` mai spento. Un **blocco permanente**, non una conclusione anticipata |
+
+🔴 **Il terzo era stato omesso dalla prima stesura, ed è il peggiore.** La correzione arriva da una code
+review. Conta due volte: perché il difetto è di gravità diversa dagli altri due, e perché il criterio che
+questo rilievo proponeva — *«`ConcludeResolution` viene raggiunta»* — **è cieco proprio a quel caso**, dato
+che in quello scenario `ConcludeResolution` non viene raggiunta mai.
 
 **MARTIN FOWLER**: *«Il nome della funzione dice "resolution", il corpo dice "movement". Finché il sito era
 uno la differenza non si vedeva; questa issue è il momento in cui diventa un bug. E non è una rinomina: è la
 domanda "**che cosa** è sospeso", che oggi il manager non sa porsi.»*
 
-📝 **Criterio da aggiungere**:
+📝 **Criterio da aggiungere**, riformulato per coprire tutti e tre:
 
-> - [ ] `IsResolutionSuspended()` è vero anche quando la sospensione è nel Blast — falsificato da:
->   `ConcludeResolution` viene raggiunta con una finestra del `Brace` aperta
+> - [ ] `IsResolutionSuspended()` è vero quando la sospensione è nel **Blast**, e la ripresa arriva a
+>   `ConcludeResolution` — falsificato da: `ConcludeResolution` raggiunta **con la finestra ancora aperta**,
+>   oppure **mai raggiunta** dopo che la finestra si è chiusa
 
 ---
 
-## 4. C4 ⚠️ — `FRTBlastContext` non è trasportabile: sei array e nove mappe di `ARTUnit*` grezzi
+## 4. C4 🟢 — `FRTBlastContext` porta sei array e nove mappe di `ARTUnit*` grezzi
 
-La issue confronta correttamente le due strutture sul **ciclo di vita**. Manca il confronto sui **tipi**, ed
-è la differenza che costa di più.
+> 🔴 **Declassato da ⚠️ dopo la code review.** La prima stesura sosteneva che una chiave potesse *danglare
+> durante la finestra*, ed è **falso**: `RTTurnManager_Blast.cpp:2787` dichiara che *«nessuna unità viene
+> DISTRUTTA dentro il Blast — `DestroyDefeatedUnits` gira in `ConcludeTurn`, dopo»*, e una sospensione
+> tiene il turno **aperto**, quindi `ConcludeTurn` non può girare mentre la finestra è su schermo. Ciò che
+> resta è una cautela di progetto, non un difetto — e la sezione lo dice adesso invece di lasciarlo credere.
+
+La issue confronta correttamente le due strutture sul **ciclo di vita**. Manca il confronto sui **tipi**.
 
 | | `FRTMovementResolutionContext` | `FRTBlastContext` |
 |---|---|---|
@@ -158,20 +204,23 @@ La issue confronta correttamente le due strutture sul **ciclo di vita**. Manca i
 `PullToward`, `PullDist`, `PullCount`, `PushCause`, `PullCause`, `IndexOf`.
 
 **MICHAEL NYGARD**: *«Un `TWeakObjectPtr` che muore diventa `nullptr` e lo si vede al primo `Get()`. Un raw
-pointer usato **come chiave** che muore resta un indirizzo: la `TMap` continua a rispondere, l'hash è
-ancora valido, e la lookup restituisce il valore di un'unità che non c'è più. È il difetto che non fallisce
-il test — fallisce la partita, tre turni dopo, in un modo che nessuno riconduce qui.»*
+pointer usato **come chiave** che muore resta un indirizzo: la `TMap` continua a rispondere e la lookup
+restituisce il valore di un'unità che non c'è più. Oggi non può succedere, e va detto. Ma il codice stesso
+tiene la guardia per un motivo dichiarato — `RTTurnManager_Blast.cpp:2787`: *«resta perché il contesto
+tiene puntatori grezzi … se un giorno un pass distruggesse un attore, saltare è meglio che
+dereferenziare»* — e quel "se un giorno" è un'ipotesi che regge finché il contesto **muore a fine fase**.
+Questa issue è precisamente ciò che gliela toglie.»*
 
-⚠️ Il rischio non è teorico neanche nella finestra dei tempi: la finestra del `Brace` dura
-`FastReactionDuration` di orologio, e il Blast è la fase in cui le unità **muoiono**. `DestroyDefeatedUnits`
-gira in Cleanup, quindi dopo — ma il commento di `RTTurnManager_Blast.cpp:2270-2280` documenta già che
-`Ctx.Units` e `MakeCurrentSnapshot` divergono **appena qualcuno è caduto**, e quella divergenza è stata
-trovata da una code review, non dalla suite.
+⚠️ **Quindi non è un difetto presente, è un invariante che smette di essere gratuito.** Oggi «nessuno
+distrugge dentro il Blast» è vero perché il Blast dura una chiamata; da qui in poi dura quanto un umano ci
+mette a scegliere. Il costo di scriverlo giusto ora è una traduzione di indici; il costo di scoprirlo dopo è
+la classe di difetto che il commento di 2787 descrive.
 
 📝 **Non è un criterio di DoD, è un vincolo di progetto** da scrivere nella issue: *la parte di
 `FRTBlastContext` che sopravvive alla sospensione porta identità stabili (`TWeakObjectPtr` o
 `StableUnitId`, [D-063]), mai `ARTUnit*` grezzi — le mappe indicizzate per puntatore si traducono o restano
-fuori dal contesto trasportato.*
+fuori dal contesto trasportato.* Con la ragione onesta accanto: **non** «altrimenti danglano», ma «altrimenti
+la guardia di 2787 diventa l'unica difesa di un invariante che questa issue rende non più ovvio».
 
 ---
 
@@ -251,13 +300,62 @@ però *«un nemico che la **spinga** durante il Blast»* senza nominarlo, e chi 
 ricostruirlo dal catalogo.
 
 Misurato: nel roster canonico l'unica spinta **ostile** disponibile è **`Hero.Branth.Ram`**
-(`Ability/RTHeroCatalogLibrary.cpp:723-728`), che è `Action.Charge` — 20 danni + `Push 1` — e il cui impatto
-entra nel Blast via `AppendChargeImpactIntents` (`Turn/RTTurnManager.cpp:5146`). Le altre due sorgenti di
-`Push` del roster (`Hero.Phase.PressureJet`, la variante `CircularTide.Impact`) appartengono a **Phase
-stessa**, quindi servirebbe un mirror match.
+(`Ability/RTHeroCatalogLibrary.cpp:720-729` — i numeri nel commento a `:720`, l'identificatore a `:728`),
+che è `Action.Charge` — 20 danni + `Push 1` — e il cui impatto entra nel Blast via
+`AppendChargeImpactIntents` (`Turn/RTTurnManager.cpp:5146`). Le altre due sorgenti di `Push` del roster
+(`Hero.Phase.PressureJet`, la variante `CircularTide.Impact`) appartengono a **Phase stessa**, quindi
+servirebbero due Phase.
 
-📝 **Precondizione da aggiungere alla voce**: *«il nemico è **Branth**, che usa `Ram` (`Action.Charge`,
-`Push 1`) su Phase: è l'unica spinta ostile del roster canonico che non richieda Phase su entrambi i lati»*.
+⚠️ **E la formazione di default lo consente, ma il trigger lo produce un bot.** `RTGameMode.h:86-89` dà
+`Team0Heroes = {Gadget, Phase}` al giocatore e `Team1Heroes = {Branth, Wraith}` al bot: Branth è dal lato
+giusto, ma **`Ram` lo pianifica il bot**, e deve capitare su Phase nel turno in cui Phase è in `Brace`. La
+voce sorella `PIE-V01-RXPLAYBACK` dichiara il pericolo speculare — *«serve un decisore umano: col bot il
+ramo interattivo non si prende»* — e questa ha bisogno del contrario: che il bot **produca** l'evento. Senza
+dirlo, chi esegue ritenta un numero indefinito di turni e la voce resta ⏳ per un motivo di **setup**, non di
+comportamento.
+
+📝 **Precondizioni da aggiungere alla voce**: *«il nemico è **Branth**, che usa `Ram` (`Action.Charge`,
+`Push 1`) su Phase: è l'unica spinta ostile del roster canonico che non richieda due Phase. È pianificata
+dal **bot**, quindi il caso va atteso o forzato dallo Scenario Harness»*.
+
+---
+
+## 9. C9 🔴 — le due precondizioni che aprono davvero il ramo non sono scritte da nessuna parte
+
+> 🔴 **Rilievo NUOVO, trovato dalla code review e non dal panel.** Nessuna delle otto sezioni sopra guardava
+> il gate del ramo `Brace`: tutte davano per buono che «Phase spinta» bastasse.
+
+Il ramo che contiene la chiamata a `AskReactionDecision` è protetto da una condizione che né la issue né la
+voce PIE nominano:
+
+```cpp
+if (T->HasStatus(TAG_Status_Braced) && !T->HasStatus(TAG_Status_Unbalanced))
+```
+`Turn/RTTurnManager_Blast.cpp:2248`
+
+`Status.Braced` lo concede **solo** `Action.Brace` (`Ability/RTCatalogLibrary.cpp:1465-1467`, fase
+`Preparation`, 1 turno). Quindi **Phase deve aver pianificato `Action.Brace` in quel turno**: senza, il ramo
+non si apre, nessuna finestra è dovuta, e non c'è alcun difetto da osservare.
+
+⛔ **E c'è una seconda condizione, che sopprime il caso silenziosamente.** Il ramo `Guarded`
+(`Turn/RTTurnManager_Blast.cpp:2208-2209`) precede quello del `Brace` e fa `continue`:
+
+```cpp
+if (T->HasStatus(TAG_Status_Guarded) && !T->HasStatus(TAG_Status_Unbalanced)
+    && KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
+```
+
+`GuardResistedPushDistance = 1` (`Combat/RTCombatLibrary.h:142`) e `Ram` spinge di **1**: se Phase ha
+`Action.Guard` invece di — o insieme a — `Action.Brace`, l'unità resiste alla spinta e l'esecuzione **esce
+prima** di arrivare al `Brace`.
+
+**LISA CRISPIN**: *«Un operatore che segue la voce alla lettera — 2v2 live, Phase del giocatore, Branth che
+carica — non vede nessuna finestra, e registra un ⛔ contro #2692 per una ragione che con #2692 non c'entra.
+È il modo peggiore in cui un test manuale può fallire: produce una misura, e la misura è sbagliata nella
+direzione che conferma l'aspettativa.»*
+
+📝 **Va scritto in due posti**: nella voce PIE come precondizione (`Action.Brace` su Phase, **niente**
+`Action.Guard`), e nella issue come parte dell'armamento del caso AUTOMATION.
 
 ---
 
@@ -278,19 +376,27 @@ playback è inutilizzabile, quindi la coesione regge. Ma la stima va rifatta con
 
 | | Rilievo | Azione | Costo |
 |---|---|---|---|
-| 🔴 | **C1** baseline #1818 sbagliata di 141 righe | correggere il numero e scrivere la formula | 1 riga |
 | 🔴 | **C2** nessun criterio sul playback parziale del Blast | criterio nuovo + stima da rifare | alto |
-| ⚠️ | **C3** `IsResolutionSuspended` cieco al Blast | criterio nuovo | medio |
-| ⚠️ | **C4** `FRTBlastContext` porta 15 raw `ARTUnit*` | vincolo di progetto nella issue | medio |
+| 🔴 | **C9** `Status.Braced` e la soppressione di `Guard` non sono scritte | precondizioni nella voce PIE e nella issue | 2 righe |
+| 🔴 | **C1** baseline #1818 attribuita al commit sbagliato | correggere numero **e sha**, scrivere la formula | 1 riga |
+| ⚠️ | **C3** `IsResolutionSuspended` cieco al Blast, ripresa inclusa | criterio nuovo, che copre anche il blocco permanente | medio |
 | ⚠️ | **C5** forma della continuazione non decisa | dichiararla, o `BLOCKED — DECISION REQUIRED` | decisione |
 | ⚠️ | **C6** «non riesegue» falsificato solo sul danno | riformulare il criterio | 1 riga |
+| 🟢 | **C4** `FRTBlastContext` porta 15 raw `ARTUnit*` | vincolo di progetto nella issue | medio |
 | 🟢 | **C7** esempio ancorato all'eroe invece che alla cardinalità | nota nel piano di test | 1 riga |
-| 🟢 | **C8** la voce PIE non nomina chi spinge | precondizione nella voce | 1 riga |
+| 🟢 | **C8** la voce PIE non nomina chi spinge, né che lo fa un bot | precondizione nella voce | 1 riga |
 
-**Punto cieco del panel.** Nessuno di questi rilievi tocca il **countdown**. `D-355` colloca la finestra
-dentro il playback e `D-350` ne rallenta l'orologio; nel Blast la sospensione avviene in una fase che oggi
-**non ha un playback interlacciato**, e il panel non ha misurato se `FastReactionDuration` scorra
-correttamente in quel contesto. È la prima cosa da guardare dopo C2.
+**Punti ciechi del panel.** Due, e il primo è stato chiuso da qualcun altro.
+
+**(1) Il gate del ramo** — C9. Otto sezioni scritte sul `Brace` senza che nessuna leggesse la condizione che
+lo apre. La code review l'ha trovata, e con essa il caso in cui `Action.Guard` sopprime tutto. Registrato
+qui perché è la lezione più utile del documento: **il panel ha verificato ogni citazione della issue e non
+ha verificato le proprie premesse**.
+
+**(2) Il countdown**, ancora aperto. `D-355` colloca la finestra dentro il playback e `D-350` ne rallenta
+l'orologio; nel Blast la sospensione avviene in una fase che oggi **non ha un playback interlacciato**, e
+nessuno ha misurato se `FastReactionDuration` scorra correttamente in quel contesto. È la prima cosa da
+guardare dopo C2.
 
 **Domanda aperta per l'autore.** C5 è una decisione, non una raccomandazione: (A) rientro nel `do…while`
 con un secondo punto d'ingresso in `LockInAndResolve`, o (B) indice di fase nel contesto sospeso con un
@@ -301,7 +407,18 @@ e che una issue che la lascia aperta la farà decidere all'implementazione.
 
 ## Verification
 
-* Compile: `NOT RUN` — nessuna modifica al codice
-* Tests: `NOT RUN`
-* Determinism · Replay · Privacy · PIE · Packaged: `N/A` — referto di specifica
-* Misure del referto: **eseguite** su `6516a1a2` (conteggi righe, citazioni file:riga, catalogo azioni)
+I due gate che questo cambiamento può realmente far fallire, eseguiti sul commit che lo porta:
+
+| Gate | Esito | Misura |
+|---|---|---|
+| `node tools/radar/doc-tables.ts --check` | **PASS** | 2.460 tabelle in 391 documenti, tutte le righe alla larghezza delle sorelle |
+| `node tools/radar/doc-links.ts --check` | **PASS** | 5.797 link in 391 documenti, tutti i percorsi risolvono |
+
+* Compile · Tests · Determinism · Replay · Privacy · PIE · Packaged: **`N/A`** — nessuna modifica al codice,
+  nessun asset toccato. `N/A` e non `NOT RUN`: non sono gate saltati, sono gate che questo cambiamento non
+  può esercitare.
+* Misure del referto: **eseguite** su `6516a1a2` per il codice e `02c71f58` per la voce PIE — conteggi
+  righe, citazioni `file:riga`, catalogo azioni, formazione di default.
+* ⚠️ **Le misure di C1, C3, C4, C8 e C9 sono state rifatte** dopo la code review della
+  [PR #2694](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2694): quattro erano sbagliate o
+  incomplete, una mancava del tutto.
