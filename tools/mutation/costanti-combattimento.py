@@ -75,6 +75,11 @@ e una baseline, **una direzione sono ore, non minuti** — e le direzioni sono d
 """
 import io, os, re, subprocess, sys, time
 
+# Stessa sede della regola di validita' dell'altro gate: `regola.verdetto()` e' pura, e i due
+# strumenti la CHIAMANO invece di tenerne una copia a testa. Le due copie precedenti erano gia'
+# divergenti — arita' diversa e interprete diverso — dopo un solo commit di vita.
+import misura as regola   # 'misura' e' gia' il nome di una funzione, qui sotto
+
 # La radice si deriva dal file, non si scrive: su questa macchina esistono tre copie del repository, e una
 # costante scritta a mano muterebbe l'albero di qualcun altro lasciando pulito il proprio.
 RADICE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -82,7 +87,24 @@ H = os.path.join(RADICE, "Source", "RefactorTactics", "Combat", "RTCombatLibrary
 LOG = os.path.join(RADICE, "Saved", "Logs", "automation-mutazione.log")
 UPROJECT = os.path.join(RADICE, "RefactorTactics.uproject")
 ENGINE_CMD = r"D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
+BUILD_BAT = r"D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat"
+DLL_GLOB = os.path.join(RADICE, "Binaries", "Win64", "UnrealEditor-RefactorTactics*.dll")
 
+# 🔴 `pwsh`, non `powershell`: e' l'interprete su cui il quoting di `build()` e' stato misurato.
+# Questo file usava `powershell` (5.1) con lo STESSO quoting che l'altro gate dichiara provato
+# solo sotto `pwsh` — e qui non c'era preflight: una differenza di parsing non da' `Result:
+# Succeeded`, che `build()` legge come motore occupato e ritenta 40 volte a 45 s, mezz'ora.
+PWSH = "pwsh"
+
+# Il self-test non tocca ne' sorgenti ne' motore: deve poter girare senza argomenti, e PRIMA
+# del blocco che li pretende. Un test di una funzione pura non si fa cadere da un'installazione.
+if "--self-test" in sys.argv:
+    _casi = regola.self_test()
+    for _nome, _ok, _dett in _casi:
+        print("  %s %s%s" % ("ok  " if _ok else "FAIL", _nome, "" if _ok else "   -> " + _dett))
+    _falliti = [c for c in _casi if not c[1]]
+    print("\nself-test: %d/%d" % (len(_casi) - len(_falliti), len(_casi)))
+    sys.exit(1 if _falliti else 0)
 
 if len(sys.argv) < 2:
     print(__doc__.split("\n\n")[1].strip())
@@ -136,8 +158,8 @@ def ripristina():
 def build(tentativi=40):
     """Ricostruisce. Torna True solo su `Result: Succeeded`; ritenta su QUALUNQUE fallimento."""
     for i in range(tentativi):
-        r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
-                            r"& 'D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat' RefactorTacticsEditor "
+        r = subprocess.run([PWSH, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+                            "& '" + BUILD_BAT + "' RefactorTacticsEditor "
                             r"Win64 Development -Project='" + os.path.join(RADICE, "RefactorTactics.uproject") +
                             r"' -WaitMutex"],
                            capture_output=True, text=True, errors="replace")
@@ -149,13 +171,13 @@ def build(tentativi=40):
 
 
 def _istantanea():
-    """`HEAD` e stato dell'albero. Le legge questo tool: `rt-suite.ps1`, che lo faceva
-    prima, e' stato rimosso il 2026-09-08 e con lui il marcatore `[RT-MEASURE]`."""
-    def g(*a):
-        r = subprocess.run(["git"] + list(a), cwd=RADICE,
-                           capture_output=True, text=True, errors="replace")
-        return (r.stdout or "").strip()
-    return (g("rev-parse", "HEAD"), g("status", "--porcelain"))
+    """`HEAD`, CONTENUTO dell'albero e firma dei binari. Le legge questo tool: `rt-suite.ps1`,
+    che lo faceva prima, e' stato rimosso il 2026-09-08 e con lui il marcatore `[RT-MEASURE]`.
+
+    ⚠️ Il quarto termine — nessun processo estraneo del motore DURANTE la run — non e' qui:
+    si controlla all'avvio (`regola.motori_vivi`), e cio' che parte dopo si vede solo se
+    tocca i binari."""
+    return regola.istantanea(RADICE, DLL_GLOB)
 
 
 def suite():
@@ -170,23 +192,14 @@ def suite():
                     "-log=" + os.path.basename(LOG)],
                    capture_output=True, text=True, errors="replace")
 
-    rossi = set()
-    eseguiti = set()
+    testo = ""
     if os.path.exists(LOG):
         testo = io.open(LOG, encoding="utf-8", errors="replace").read()
-        rossi = set(re.findall(r"Result=\{Fail\} Name=\{[^}]*\} Path=\{([^}]+)\}", testo))
-        eseguiti = set(re.findall(r"Test Started\. Name=\{[^}]*\} Path=\{([^}]+)\}", testo))
 
     dopo = _istantanea()
-    if prima != dopo:
-        verdetto = "NON VALIDA"
-    elif not eseguiti:
-        verdetto = "NON AVVIATA"
-    else:
-        verdetto = "VALIDA"
-
-    esito = "esito %d/%d completati, %d fallimenti" % (
-        len(eseguiti), len(eseguiti), len(rossi))
+    verdetto, esito, rossi, _, problemi = regola.verdetto(prima, dopo, testo, "RefactorTactics")
+    for p in problemi:
+        print("   " + p)
     return verdetto, esito, rossi
 
 def misura():
@@ -201,6 +214,25 @@ def misura():
         v, e, rossi = suite()
     return v, e, rossi
 
+
+# 🔴 Le dipendenze cablate si verificano PRIMA del primo build, che qui costa fino a mezz'ora di
+# ritentativi: un `ENGINE_CMD` sbagliato darebbe un `FileNotFoundError` non gestito dentro `suite()`,
+# cioe' un traceback dopo l'attesa invece di una diagnosi prima.
+for _etichetta, _percorso in (("motore", ENGINE_CMD), ("Build.bat", BUILD_BAT)):
+    if not os.path.exists(_percorso):
+        print("\n⛔ FERMO: %s non esiste al percorso cablato:\n   %s\n"
+              "   Correggere la costante in testa a questo file." % (_etichetta, _percorso))
+        sys.exit(2)
+
+# 🔴 Il motore e' uno per macchina: non si lancia una suite sopra una che gira gia'. ⚠️ E' una
+# precondizione, non una guardia — cio' che parte DOPO si rileva solo se tocca i binari. Il lease
+# che lo impediva davvero e' stato rimosso (`D-347`), e questa riga non lo rimpiazza.
+_vivi = regola.motori_vivi()
+if _vivi != 0:
+    print("\n⛔ FERMO: %s.\n   Una misura presa sopra un'altra non e' una misura."
+          % ("enumerazione dei processi fallita — non e' «nessun processo»" if _vivi < 0
+             else "%d process%s del motore gia' in esecuzione" % (_vivi, "o" if _vivi == 1 else "i")))
+    sys.exit(2)
 
 sospese = []
 with io.open(ESITI, "w", encoding="utf-8") as f:

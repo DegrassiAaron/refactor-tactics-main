@@ -48,8 +48,12 @@ compila, e una che compila puo' **appendere** invece di far cadere.
 
 🔴 **Baseline VALIDA obbligatoria.** Senza, un rosso preesistente verrebbe attribuito alla mutazione.
 E non basta che la suite finisca: una misura vale `VALIDA` solo se `HEAD`, working tree, binario
-e stato del motore non cambiano durante la run. Un `NON VALIDA` ferma il gate. ⚠️ Fino al 2026-09-08
-quel confronto lo faceva `rt-suite.ps1`; rimosso, lo fa `_istantanea()` qui sotto.
+e stato del motore non cambiano durante la run. Un `NON VALIDA` ferma il gate.
+
+⚠️ Fino al 2026-09-08 quei quattro termini li confrontava `rt-suite.ps1`. Rimosso, **tre** li
+confronta `_istantanea()` qui sotto — `HEAD`, contenuto dell'albero, firma dei binari — e il
+quarto, *nessun processo estraneo del motore*, e' sceso a **precondizione**: si verifica prima di
+partire e non durante. Chi legge questa riga sappia che quel termine e' il piu' debole dei quattro.
 
 🔴 **Guardia sul non committato.** Il ripristino usa i byte letti in memoria, non `git checkout --`:
 `#2406` avverte che quel comando **cancella il non committato**, e questo strumento gira anche
@@ -102,6 +106,11 @@ import subprocess
 import sys
 import time
 
+# La regola di validita' di una misura vive in UNA sede, e la meta' che decide e' pura:
+# `regola.verdetto()` prende un log come stringa, quindi il self-test puo' passargliene uno
+# crashato — cosa che nessun test puo' fare con un motore vero. Vedi `misura.py`.
+import misura as regola   # 'misura' e' gia' il nome di una funzione, qui sotto
+
 # 🔴 Lo stdout di Windows e' `cp1252`, e un `print` con un carattere fuori tabella solleva
 # `UnicodeEncodeError`: misurato su questo stesso strumento, che moriva sul simbolo del verdetto
 # BLOCKED dopo aver scritto correttamente il file degli esiti. Un gate che termina per un carattere
@@ -118,6 +127,12 @@ LOG = os.path.join(RADICE, "Saved", "Logs", "automation-mutazione.log")
 UPROJECT = os.path.join(RADICE, "RefactorTactics.uproject")
 BUILD_BAT = r"D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat"
 ENGINE_CMD = r"D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
+
+# I binari del progetto: `Binaries/` e' gitignorato, quindi un `Build.bat` di un altro
+# checkout li riscrive senza muovere ne' `HEAD` ne' l'albero. ⚠️ Su un checkout mai
+# compilato il glob non trova niente: il termine binario dell'invariante e' allora
+# ASSENTE, non soddisfatto — il confronto resta stabile e semplicemente non protegge.
+DLL_GLOB = os.path.join(RADICE, "Binaries", "Win64", "UnrealEditor-RefactorTactics*.dll")
 
 # 🔴 `pwsh`, non `powershell`. ⚠️ La ragione misurata il 2026-09-05 e' SCADUTA: riguardava il PARSING
 # di `rt-suite.ps1` — errori «'}' di chiusura mancante» con **exit code 0**, cioe' un processo che
@@ -300,6 +315,14 @@ def self_test():
     c("bersaglio eseguito: niente da segnalare",
       bersagli_mancanti({"A"}, {"A", "B"}), set())
 
+    # 🔴 La regola di validita' e' inclusa qui, non lasciata al solo modulo: e' cio' che
+    # decide se un esito e' registrabile, e finche' viveva dentro `suite()` — che non gira
+    # senza motore — nessun caso poteva esercitarla. Un crash a meta' suite usciva `VALIDA`
+    # e questo gate ci gridava sopra `SOPRAVVISSUTA`. I casi stanno in `regola.self_test`,
+    # perche' la regola ha una sede sola; qui si esercitano insieme al resto.
+    for nome, ok, dettaglio in regola.self_test():
+        casi.append(("regola di validita': " + nome, ok, dettaglio, "ok"))
+
     falliti = [x for x in casi if not x[1]]
     for nome, ok, ottenuto, atteso in casi:
         print("  %s %s" % ("ok  " if ok else "FAIL", nome))
@@ -382,18 +405,17 @@ def build(tentativi=40):
 
 
 def _istantanea():
-    """`HEAD` e stato dell'albero: le due meta' dell'invariante di AGENTS.md §11.
+    """`HEAD`, CONTENUTO dell'albero e firma dei binari — tre termini su quattro.
 
-    (!!) Le legge questo tool perche' nessun altro lo fa piu'. `rt-suite.ps1` le
+    (!!) Li legge questo tool perche' nessun altro lo fa piu'. `rt-suite.ps1` li
     fotografava prima e dopo la run e stampava `[RT-MEASURE] NON VALIDA` quando
     cambiavano; e' stato rimosso il 2026-09-08, e senza questo confronto una
     mutazione misurata sotto il commit di un altro passerebbe per sopravvissuta.
+
+    ⚠️ Il quarto termine — *nessun processo estraneo del motore durante la run* — NON
+    e' qui: si controlla solo all'avvio, in `preflight`. Vedi `regola.motori_vivi`.
     """
-    def g(*a):
-        r = subprocess.run(["git"] + list(a), cwd=RADICE,
-                           capture_output=True, text=True, errors="replace")
-        return (r.stdout or "").strip()
-    return (g("rev-parse", "HEAD"), g("status", "--porcelain"))
+    return regola.istantanea(RADICE, DLL_GLOB)
 
 
 def suite():
@@ -413,23 +435,14 @@ def suite():
                     "-log=" + os.path.basename(LOG)],
                    capture_output=True, text=True, errors="replace")
 
-    rossi = set()
-    eseguiti = set()
+    testo = ""
     if os.path.exists(LOG):
         testo = io.open(LOG, encoding="utf-8", errors="replace").read()
-        rossi = set(re.findall(r"Result=\{Fail\} Name=\{[^}]*\} Path=\{([^}]+)\}", testo))
-        eseguiti = set(re.findall(r"Test Started\. Name=\{[^}]*\} Path=\{([^}]+)\}", testo))
 
     dopo = _istantanea()
-    if prima != dopo:
-        verdetto = "NON VALIDA"
-    elif not eseguiti:
-        verdetto = "NON AVVIATA"
-    else:
-        verdetto = "VALIDA"
-
-    esito = "esito %d/%d completati, %d fallimenti" % (
-        len(eseguiti), len(eseguiti), len(rossi))
+    verdetto, esito, rossi, eseguiti, problemi = regola.verdetto(prima, dopo, testo, FILTRO)
+    for p in problemi:
+        print("   " + p)
     return verdetto, esito, rossi, eseguiti
 
 def misura():
@@ -476,8 +489,32 @@ if DRY:
     print("\n--dry-run: nessun build, nessuna suite, nessuna scrittura sui sorgenti.")
     sys.exit(0 if not NON_APPLICABILI else 2)
 
-# 🔴 L'interprete si verifica PRIMA del primo build, non dopo. La prima taratura ha pagato un build
-# completo per scoprire che l'interprete non era nemmeno partito (allora era `rt-suite.ps1`).
+# 🔴 Le precondizioni si verificano PRIMA del primo build, non dopo. La prima taratura ha pagato un
+# build completo per scoprire che l'interprete non era nemmeno partito (allora era `rt-suite.ps1`).
+# Vale per ogni dipendenza cablata, non solo per l'interprete: un `ENGINE_CMD` sbagliato — engine
+# su un'altra unita', o un `UE_5.9` — dava un `FileNotFoundError` non gestito DENTRO `suite()`,
+# cioe' un traceback dopo minuti di build, esattamente cio' che questo blocco esiste per evitare.
+for etichetta, percorso in (("motore", ENGINE_CMD), ("Build.bat", BUILD_BAT)):
+    if not os.path.exists(percorso):
+        print("\n⛔ FERMO: %s non esiste al percorso cablato:\n   %s\n"
+              "   Correggere la costante in testa a questo file." % (etichetta, percorso))
+        sys.exit(2)
+
+# 🔴 Non si lancia una suite SOPRA una che gira gia': il motore e' uno per macchina, e due run
+# concorrenti si invalidano a vicenda. ⚠️ E' una precondizione, non una guardia — cio' che parte
+# DOPO questo controllo si rileva solo se tocca i binari (`_istantanea`). Il mutex e il lease che
+# lo impedivano davvero sono stati rimossi (`D-347`) e nulla li rimpiazza.
+VIVI = regola.motori_vivi()
+if VIVI > 0:
+    print("\n⛔ FERMO: %d process%s del motore gia' in esecuzione.\n"
+          "   Attendere che finisca: una misura presa sopra un'altra non e' una misura."
+          % (VIVI, "o" if VIVI == 1 else "i"))
+    sys.exit(2)
+if VIVI < 0:
+    print("\n⛔ FERMO: enumerazione dei processi fallita. Non e' «nessun processo»:\n"
+          "   proseguire sarebbe un'invariante che fallisce APERTA.")
+    sys.exit(2)
+
 prova = subprocess.run([PWSH, "-NoProfile", "-Command", "exit 0"],
                        capture_output=True, text=True, errors="replace")
 if prova.returncode != 0:
