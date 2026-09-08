@@ -145,3 +145,63 @@ conteggio fatto sul solo `main`. È la variante che `D-344` aveva già incontrat
 numero è il branch di un'altra sessione, che sta lavorando #166 in parallelo. Misura a tre posti ripetuta
 per `D-349` e `D-350`: Decision Log massimo `D-347`, **zero** su tutti i branch remoti, **zero**
 assegnazioni su GitHub (i match full-text sono cifre dentro altri testi, verificati uno per uno nei corpi).
+
+---
+
+## 7. Secondo giro — i follow-up del panel, passati al panel
+
+I tre follow-up della §3 sono stati rimessi in `critique` lo stesso giorno. **Uno è stato respinto.**
+
+### 7.1 `m2` — l'overload di `HexKnockbackDestination` · **RESPINTO**
+
+Il follow-up diceva: *«un overload che restituisce la ragione dell'arresto — oggi ogni consumatore
+ricostruisce la direzione con `DirectionBetween`»*. Due affermazioni, e la seconda è falsa.
+
+**MARTIN FOWLER**: *«La misura non regge il verbo. `DirectionBetween` è chiamata in 12 file, ma il sito che
+riguarda la caduta è **uno**: `RTTurnManager_Blast.cpp:90`, dentro `DirezioneSpostamentoForzato` — una
+funzione di namespace anonimo che porta il proprio perché scritto sopra: 'Non è nel valore di ritorno di
+`HexKnockbackDestination` […] ed è il motivo per cui questa funzione esiste invece di allargare quella
+firma, che ha molti chiamanti'. La duplicazione che il follow-up temeva è già stata prevenuta
+dall'incapsulamento, dallo stesso autore, nello stesso commit.»*
+
+**KARL WIEGERS**: *«E il requisito non ha uno stakeholder. Chi ha bisogno della **ragione** dell'arresto —
+bordo, muro, unità? Un consumatore: la caduta, che la ottiene a valle con `IsEdgeOpen`. Un overload per il
+secondo consumatore è un requisito senza richiedente.»*
+
+🔴 **La funzione non è nemmeno una riscrittura banale**, ed è il dettaglio che il follow-up non conosceva:
+deve replicare la semantica di `HexKnockbackDestination` — l'**ultimo** passo della linea, non il primo,
+perché su celle non allineate `HexLine` zigzaga e `DirectionTowards` risponderebbe un'altra cosa — e
+invertirla per la trazione. Un overload che restituisse la ragione **non** eviterebbe questo calcolo.
+
+∴ **Respinto per YAGNI**, che qui non è una preferenza di stile: `CLAUDE.md` §4 vieta di *«introdurre
+placeholder per roadmap lontane»* e i *«refactor opportunistici»*.
+➡️ **La via di rientro, se un secondo consumatore nasce**: non un overload, ma promuovere
+`DirezioneSpostamentoForzato` da funzione anonima a membro di libreria. E nemmeno quello prima del secondo
+consumatore.
+
+### 7.2 · 7.3 — colonna «Fase» e DoD spacchettata · **ACCOLTI, e allargati**
+
+Entrambi confermati dalla misura, **entrambi più larghi di come erano formulati**:
+
+- **la colonna** — le sette milestone di fase non sono *«confluite»* in senso lasco: **non esistono**, nemmeno
+  chiuse. Il repository ha **11** milestone, tutte per release (`gh api …/milestones?state=all`). Lo stesso
+  valore stale vive in **#921**, **#1095** e **#1317**, in una riga `| Milestone |` di §Tracking: nominati
+  nella nota, non toccati — sono di altri owner;
+- **la DoD** — spacchettarla non bastava. L'inventario dei figli era **incompleto**:
+  [#2430](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2430) dichiara *«Capability #2388»*
+  nella propria prima riga e non compariva in nessuna delle due tabelle (**zero** occorrenze di `2430` nel
+  corpo). L'epic dichiarava sette figli e ne aveva otto. Il difetto che il follow-up nominava — una casella
+  che aggrega — ne nascondeva un secondo: una tabella che non elenca.
+
+**LISA CRISPIN**: *«È il caso in cui la correzione trova più di quanto cercava. Se la DoD fosse rimasta
+aggregata, l'assenza di #2430 non sarebbe emersa: `#2402…#2407` non nomina ciò che manca fuori dal proprio
+intervallo.»*
+
+---
+
+## 8. Nota di metodo
+
+Un panel che rivede i propri follow-up ne boccia uno su tre. Vale la pena registrarlo: i follow-up del primo
+giro erano stati scritti **senza** aprire `RTTurnManager_Blast.cpp`, e il rilievo `m2` sarebbe passato per
+buono. La misura che l'ha respinto — *«quanti consumatori, e la ricostruzione è già incapsulata?»* — è
+esattamente quella che il primo giro non aveva fatto.
