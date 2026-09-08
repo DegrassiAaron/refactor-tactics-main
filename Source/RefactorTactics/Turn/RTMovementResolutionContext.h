@@ -2,8 +2,28 @@
 
 #include "CoreMinimal.h"
 #include "Turn/RTHexSim.h" // FRTMovementResolutionState e FRTHexSnapshot: stanno entrambe qui
+#include "Turn/RTReactionOpportunityTypes.h" // FRTReactionOpportunity: cio' che una finestra offre
 
 class ARTUnit;
+
+
+/**
+ * Un trigger dell'Overwatch gia' appaiato al suo armamento, in attesa di essere risolto (`#2679` fetta 2).
+ *
+ * 🔑 **Perche' l'`ArmedIndex` viaggia con l'opportunity invece di essere ricercato al momento.** Il lookup
+ * originale confronta l'opportunity con la lista dei `Watchers`, che e' costruita dallo stato **corrente**.
+ * Fra un trigger e il successivo la resolution puo' sospendersi per una finestra, e al rientro quella lista
+ * sarebbe diversa — una charge spesa, un'unita' ferma. Appaiare una volta sola, prima di cominciare a
+ * consumare, e' cio' che tiene l'ordine totale di ADR-0004 §4 uguale a se stesso attraverso una sospensione.
+ */
+struct FRTPendingReactionTrigger
+{
+	/** Cio' che viene offerto a chi decide. */
+	FRTReactionOpportunity Opportunity;
+
+	/** L'armamento da cui nasce, indice in `ARTTurnManager::ArmedOverwatches`. */
+	int32 ArmedIndex = INDEX_NONE;
+};
 
 /**
  * Il contesto di una risoluzione di movimento che puo' SOSPENDERSI fra due micro-step (`#2679`, [D-355]).
@@ -91,4 +111,37 @@ struct FRTMovementResolutionContext
 
 	/** Vero fra `Begin` e `Finish`. Un contesto non attivo non ha campi da leggere. */
 	bool bActive = false;
+
+	/**
+	 * I trigger del micro-step corrente non ancora risolti, e a che punto e' arrivato il consumo
+	 * (`#2679` fetta 2).
+	 *
+	 * 🔴 **Costruiti UNA volta e poi consumati, mai ricostruiti a meta'.** Ricalcolarli dopo che una
+	 * decisione e' stata applicata darebbe una lista diversa — `ApplyReactionDecision` spende una charge e
+	 * puo' fermare un mover — e i trigger gia' risolti si presenterebbero una seconda volta, o quelli non
+	 * ancora visti sparirebbero. E' la stessa ragione per cui `RecordedDecisions` e' una mappa e non un
+	 * array: cio' che identifica una finestra e' la sua IDENTITA', non la sua posizione in una lista che
+	 * cambia sotto.
+	 *
+	 * ⚠️ `NextTrigger` e' un indice in `PendingTriggers`, non un contatore di micro-step: si azzera quando
+	 * la lista si svuota, cioe' a ogni boundary nuovo.
+	 */
+	TArray<FRTPendingReactionTrigger> PendingTriggers;
+	int32 NextTrigger = 0;
+
+	/**
+	 * La finestra aperta, se ce n'e' una. Vuoto significa **nessuna attesa in corso** (`#2679` fetta 2).
+	 *
+	 * 🔑 **E' l'`OpportunityId` e non un indice**, per la stessa ragione per cui `RecordedDecisions` e' una
+	 * mappa: una risposta che arriva da fuori nomina la finestra a cui risponde, e una risposta in ritardo
+	 * — arrivata dopo che la finestra e' scaduta e un'altra si e' aperta — deve poter essere **riconosciuta
+	 * come tale** invece di essere applicata a quella sbagliata. Un indice non lo consente.
+	 *
+	 * ⚠️ Il trigger a cui appartiene e' `PendingTriggers[NextTrigger - 1]`: il pump incrementa l'indice
+	 * **prima** di decidere, quindi la finestra aperta e' sempre quella dell'elemento gia' consumato.
+	 */
+	FString OpenWindowOpportunityId;
+
+	/** Da quanti secondi la finestra aperta e' in attesa. Senza finestra non significa nulla. */
+	float OpenWindowElapsed = 0.f;
 };

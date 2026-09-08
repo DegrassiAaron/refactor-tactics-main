@@ -6,6 +6,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Tests/RTAbilityFixtures.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/RTReactionOpportunityTypes.h" // DeriveOpportunityId: l'identita' della finestra
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
@@ -159,7 +160,10 @@ bool FRTMovementCharacterizationTest::RunTest(const FString&)
 	// Il watcher e' del bot: il decisore sincrono prende il ramo `bIsBotControlled` e risponde subito,
 	// che e' l'unico modo in cui questo test puo' essere un test e non una sessione manuale.
 	Watcher->bIsBotControlled = true;
-	Watcher->PlannedReactionAbility =
+	// 🔴 **`PlannedAbilityIndex` e non `PlannedReactionAbility`**: l'Overwatch e' l'AZIONE PRINCIPALE del
+	// turno, che e' cio' che costa (catalogo §1). Lo slot reazione e' un altro meccanismo — Counter,
+	// Deflect — e armarlo li' non produce nessun watcher: misurato, il test vedeva zero finestre.
+	Watcher->PlannedAbilityIndex =
 		RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
 
 	// Due celle: dentro il budget di movimento del Wraith senza dover conoscere il numero esatto.
@@ -238,6 +242,196 @@ bool FRTMovementResolutionGuardsTest::RunTest(const FString&)
 	TestTrue(TEXT("dopo Finish il contesto e' rilasciato"),
 		TM->AdvanceMovementResolution() == ERTMovementAdvanceResult::Finished);
 
+	DestroyResumeWorld(World);
+	return true;
+}
+
+
+/**
+ * **La finestra si apre e la resolution si sospende** (`#2679` fetta 2, [D-355]).
+ *
+ * 🔑 **Cosa dimostra, esattamente.** Con `OnReactionWindowOpened` legato — cioe' con una UI che attende —
+ * un'opportunity che richiede una decisione **apre una finestra** e `AdvanceMovementResolution` ritorna
+ * `Suspended` invece di risolvere il micro-step successivo. E' la sospensione globale di ADR-0004 §5, che
+ * la fetta 1 aveva gratis dalla chiamata sincrona e che qui e' conservata di proposito.
+ *
+ * ⚠️ **L'`ensure` atteso E' la prova, non un difetto.** Il test guida il turno per la via **sincrona**
+ * (`LockInAndResolve` → `ResolveMovement`), che per costruzione non sa attendere: incontrando una finestra
+ * dichiara forte di non poterla onorare. Dichiararlo atteso con `AddExpectedError` e' il modo di
+ * verificare che quella strada sia stata **davvero** imboccata — senza, il test passerebbe anche se la
+ * sospensione non fosse mai avvenuta.
+ *
+ * ⛔ **Il ciclo completo — attesa, risposta, ripresa — non e' verificabile qui**, e non si finge: richiede
+ * un orchestratore che guidi i tre momenti dopo il preambolo di `LockInAndResolve`, ed e' la **fetta 3**.
+ * Cio' che questa fetta consegna e' il meccanismo; chi lo guida arriva dopo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowSuspendsTest,
+	"RefactorTactics.Reactions.WindowSuspendsResolution",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowSuspendsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeResumeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnResumeMap(World);
+
+	ARTUnit* Mover = SpawnResumeUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Watcher = SpawnResumeUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Mover"), Mover) || !TestNotNull(TEXT("Watcher"), Watcher)
+		|| !TestNotNull(TEXT("TurnManager"), TM))
+	{
+		DestroyResumeWorld(World);
+		return false;
+	}
+
+	// ⚠️ **Il watcher NON e' del bot**: e' la condizione che rende la finestra interattiva possibile.
+	Watcher->bIsBotControlled = false;
+
+	// 🔴 **`PlannedAbilityIndex` e non `PlannedReactionAbility`**: l'Overwatch e' l'AZIONE PRINCIPALE del
+	// turno, che e' cio' che costa (catalogo §1). Lo slot reazione e' un altro meccanismo — Counter,
+	// Deflect — e armarlo li' non produce nessun watcher: misurato, il test vedeva zero finestre.
+	Watcher->PlannedAbilityIndex =
+		RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+
+	// 🔑 **Il cono E' il facing** (ADR-0005 §4c): senza orientarlo verso il mover la zona guarda altrove.
+	Watcher->Facing = ERTHexDirection::W;
+	Watcher->PlannedCell = Watcher->Cell;
+
+	// (2,0) e non (3,0): la cella del watcher e' occupata, e una destinazione occupata viene negata prima
+	// che il mover entri nella zona.
+	Mover->PlannedCell = FRTCellId(2, 0);
+
+	// La UI finta: registra le finestre che si aprono e non risponde a nessuna.
+	TArray<FString> Aperte;
+	TM->OnReactionWindowOpened.BindLambda(
+		[&Aperte](const FRTReactionWindowView& View, int32 /*OwnerUnitId*/)
+		{
+			Aperte.Add(URTReactionOpportunityLibrary::DeriveOpportunityId(View.Key));
+		});
+
+	TM->LockInAndResolve();
+
+	// 🔑 **La prova.** Il delegate e' stato invocato: una finestra si e' aperta, con la sua identita', e la
+	// resolution ha smesso di avanzare per aspettarla.
+	TestTrue(FString::Printf(TEXT("una finestra si e' aperta (%d)"), Aperte.Num()), Aperte.Num() > 0);
+	if (Aperte.Num() > 0)
+	{
+		TestTrue(TEXT("la finestra ha un'identita' non vuota"), !Aperte[0].IsEmpty());
+	}
+
+	// 🔑 **La resolution NON e' arrivata in fondo, ed e' il punto.** Da `#2679` fetta 3 `LockInAndResolve`
+	// esce senza concludere quando il movimento si sospende: il turno esiste a meta' e aspetta una risposta.
+	TestTrue(TEXT("la resolution e' sospesa e attende"), TM->IsResolutionSuspended());
+
+	// Una risposta che nomina un'altra finestra non chiude nulla: e' arrivata tardi.
+	TM->SubmitReactionResponse(TEXT("una-finestra-che-non-esiste"), TEXT("HOLD"));
+	TestTrue(TEXT("una risposta stale non chiude la finestra"), TM->IsResolutionSuspended());
+
+	// La scadenza la chiude, e la resolution riprende: `HoldTimeout`, charge non consumata.
+	int32 Scadenze = 0;
+	while (TM->IsResolutionSuspended() && Scadenze < 16)
+	{
+		TM->ExpireReactionWindow();
+		++Scadenze;
+	}
+	TestFalse(TEXT("scadute le finestre, la resolution e' conclusa"), TM->IsResolutionSuspended());
+	TestTrue(TEXT("il turno ha prodotto un TurnLog"), TM->GetTurnLog().Num() > 0);
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyResumeWorld(World);
+	return true;
+}
+
+
+/**
+ * **Il ciclo completo: attesa, risposta, ripresa** (`#2679` fetta 3, [D-355]).
+ *
+ * ✅ **E' la copertura che le fette 1 e 2 avevano dichiarato SCOPERTA**, e che diventa verificabile solo
+ * ora: serviva che `LockInAndResolve` sapesse uscire senza concludere, e che la chiusura della finestra
+ * sapesse riprendere. Con il turno che si ferma davvero, il ciclo si osserva dall'esterno senza guidare
+ * nulla a mano.
+ *
+ * 🔑 **Il turno NON e' concluso mentre la finestra e' aperta**, ed e' la sospensione globale di
+ * ADR-0004 §5 misurata dove conta: `IsResolutionSuspended()` e' vero, e nessuna delle fasi successive ha
+ * girato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowFullCycleTest,
+	"RefactorTactics.Reactions.WindowResponseResumesResolution",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowFullCycleTest::RunTest(const FString&)
+{
+	UWorld* World = MakeResumeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnResumeMap(World);
+
+	ARTUnit* Mover = SpawnResumeUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Watcher = SpawnResumeUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Mover"), Mover) || !TestNotNull(TEXT("Watcher"), Watcher)
+		|| !TestNotNull(TEXT("TurnManager"), TM))
+	{
+		DestroyResumeWorld(World);
+		return false;
+	}
+
+	Watcher->bIsBotControlled = false;
+	Watcher->PlannedAbilityIndex =
+		RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+	Watcher->Facing = ERTHexDirection::W;
+	Watcher->PlannedCell = Watcher->Cell;
+	Mover->PlannedCell = FRTCellId(2, 0);
+
+	TArray<FString> Aperte;
+	TM->OnReactionWindowOpened.BindLambda(
+		[&Aperte](const FRTReactionWindowView& View, int32 /*OwnerUnitId*/)
+		{
+			Aperte.Add(URTReactionOpportunityLibrary::DeriveOpportunityId(View.Key));
+		});
+
+	TM->LockInAndResolve();
+
+	// --- L'ATTESA ---------------------------------------------------------------------------------------
+	const bool bSospesa = TM->IsResolutionSuspended();
+	TestTrue(TEXT("la resolution si e' fermata sulla finestra"), bSospesa);
+	TestTrue(FString::Printf(TEXT("una finestra si e' aperta (%d)"), Aperte.Num()), Aperte.Num() > 0);
+
+	if (!bSospesa)
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyResumeWorld(World);
+		return false;
+	}
+
+	const FString Aperta = TM->GetOpenReactionWindowId();
+	TestTrue(TEXT("la finestra aperta ha un'identita'"), !Aperta.IsEmpty());
+
+	// --- LA RISPOSTA ------------------------------------------------------------------------------------
+	// Una risposta che nomina un'altra finestra non chiude nulla: e' arrivata tardi.
+	TM->SubmitReactionResponse(TEXT("finestra-inesistente"), TEXT("HOLD"));
+	TestTrue(TEXT("una risposta stale non chiude la finestra"), TM->IsResolutionSuspended());
+
+	// La risposta giusta la chiude. `HOLD` e' sempre fra le risposte legali di un Overwatch.
+	TM->SubmitReactionResponse(Aperta, TEXT("HOLD"));
+
+	// --- LA RIPRESA -------------------------------------------------------------------------------------
+	// ⚠️ **Puo' essersi riaperta**: se un secondo watcher scatta nello stesso micro-step, la resolution
+	// torna ad attendere. Si risponde finche' non ce ne sono piu' — che e' esattamente cio' che fara' la UI.
+	int32 Chiusure = 1;
+	while (TM->IsResolutionSuspended() && Chiusure < 16)
+	{
+		const FString Ancora = TM->GetOpenReactionWindowId();
+		if (Ancora.IsEmpty()) { break; }
+		TM->SubmitReactionResponse(Ancora, TEXT("HOLD"));
+		++Chiusure;
+	}
+
+	TestFalse(TEXT("chiuse le finestre, la resolution non e' piu' sospesa"), TM->IsResolutionSuspended());
+	TestTrue(TEXT("il numero di chiusure e' rimasto ragionevole"), Chiusure < 16);
+
+	// Il turno e' arrivato in fondo: il TurnLog e' stato scritto.
+	TestTrue(TEXT("il turno ha prodotto un TurnLog"), TM->GetTurnLog().Num() > 0);
+
+	TM->OnReactionWindowOpened.Unbind();
 	DestroyResumeWorld(World);
 	return true;
 }
