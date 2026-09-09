@@ -96,6 +96,8 @@ Il commento in `RTHUDMarksTests.cpp` lo dichiara: un secondo contratto di conosc
 
 ⛔ Fuori scope di questa issue, ma non può restare senza owner: è la sorveglianza del campo che #2534 esiste per introdurre.
 
+✅ **Owner assegnato il 2026-09-09**: [#2714](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2714), aperta da questa run con le due vie — includere il campo fra i discriminanti, oppure sorvegliarlo con un oracolo dedicato — e la richiesta che l'oracolo scelto **sappia fallire**.
+
 ## §3 — Consenso del panel
 
 1. **La parte di codice di #2534 è completa nel perimetro che `D-340` le assegna.** Non c'è implementazione mancante da scrivere qui.
