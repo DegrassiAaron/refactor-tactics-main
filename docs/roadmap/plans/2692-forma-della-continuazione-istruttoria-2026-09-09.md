@@ -5,7 +5,10 @@
 > **Governata da**: [`D-355`](../../decisions/RT_PDR_00_Decision_Log.md), che la dichiara **non decisa qui**.
 > **Misure**: su `520352c8`, motore libero. Compile `PASS`, Automation `PASS` (203 + 20 test, 0 fail).
 > **Esito**: la scelta **non è simmetrica**. Una delle due forme corregge **tre difetti già in campo**;
-> l'altra li estende al Blast. Raccomandazione motivata in coda — la decisione resta d'autore.
+> l'altra li estende al Blast.
+> ✅ **DECISA il 2026-09-09 — uscita (A)**, registrata come [`D-356`](../../decisions/RT_PDR_00_Decision_Log.md):
+> durante una sospensione `Phase` resta la fase in cui l'esecuzione si è fermata, e il ciclo delle fasi esce
+> appena `IsResolutionSuspended()` è vero. Questo documento resta l'istruttoria che la motiva.
 
 ---
 
