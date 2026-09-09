@@ -1,12 +1,12 @@
-# Proposta — la palette degli overlay semantici
+# La palette degli overlay semantici — analisi di `D-364`
 
-> **Stato: PROPOSTA, non accettata.** Nessun valore di questo documento è in vigore.
+> **Stato: ACCETTATA come [`D-364`](../../decisions/RT_PDR_00_Decision_Log.md) il 2026-09-10.**
+> Questo documento e' l'**analisi lunga** dietro quella voce: la decisione vive nel Decision Log, qui stanno
+> le misure, i comandi che le producono e le due domande che restano aperte.
 > Aperta il **2026-09-10** dal brainstorm su #1941 (famiglia OVL, Epic #1769).
-> **Il numero `D-nnn` si assegna all'accettazione**, non qui — vedi *«Perché questo documento non ha un
-> numero»* in fondo.
-> ⚠️ È il **primo file di proposta** in `docs/decisions/`, che finora conteneva solo ADR accettati e il
-> Decision Log. Se la convenzione preferita è un'altra, questo documento è il posto sbagliato e va spostato
-> prima di essere accettato.
+> ⏱️ **Nata in `docs/decisions/` come proposta, spostata qui all'accettazione**: `docs/decisions/` contiene
+> ADR accettati e il Decision Log, non documenti di lavoro. Gli spec-panel della famiglia OVL stanno in
+> questa cartella, ed e' qui che si cerca.
 
 ---
 
@@ -177,11 +177,12 @@ avevo ripetuto. Il criterio **6** di #956 (issue **CLOSED**, quindi accettato) d
 
 ∴ nessuno ha imparato dei placeholder. *(Reperto della sessione `1ca3c609`, 2026-09-09, su #1941.)*
 
-# Perché questo documento non ha un numero
+# Perché il numero è arrivato tardi
 
 La prima stesura del brainstorm annunciava questa decisione come `D-363`, misurato come primo libero il
 2026-09-09. **Il numero è stato consumato da un'altra sessione mentre il lavoro era in corso**, ed è toccato
 proprio a `D-363` — la voce che prescrive di non incidere i valori volatili.
 
-Le occorrenze pubblicate sono state ripulite (body di #1941 e i commenti di quella sessione). Il numero si
-assegna **all'inserimento nel Decision Log**, rimisurando in quel momento.
+Le occorrenze pubblicate sono state ripulite (body di #1941 e i commenti di quella sessione). Il numero e'
+stato **rimisurato all'inserimento** nel Decision Log — `D-364`, massimo registrato `D-363` — che e' la sola
+regola che tiene: si misura quando si scrive, non quando si progetta.
