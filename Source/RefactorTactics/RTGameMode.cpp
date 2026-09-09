@@ -13,6 +13,9 @@
 #include "Frontend/RTMatchFrontendBridge.h" // la POLITICA del confine col frontend: qui resta il cablaggio
 #include "Match/RTMatchBootstrapper.h"      // COME nasce una partita: qui resta il COSA e' stato chiesto
 #include "Perception/RTKnowledgeVeilPresenter.h" // il velo e' del client: qui resta il solo aggancio
+// #2723: il view model della finestra e' del client per la stessa ragione — qui resta il solo aggancio,
+// e a differenza del velo NON ha un ripiego senza proprietario.
+#include "UI/RTReactionWindowViewModel.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "UObject/ConstructorHelpers.h" // FClassFinder: i BP_Unit_* dei quattro eroi (CP E21.1)
 #include "Misc/CommandLine.h"
@@ -556,6 +559,11 @@ void ARTGameMode::BeginPlay()
 	// da cinque test, e nessuno lo chiamava — quindi in partita la board restava interamente disegnata e la
 	// fog of war non si vedeva.
 	HookKnowledgeVeil();
+
+	// 🔴 **Il consumatore della finestra di reazione (`#2723`), che a `#2679`/`#2692`/`#2717` mancava**: la
+	// sospensione, il `Brace` e l'orologio erano costruiti e coperti, e nessuno legava il delegate che li
+	// rende raggiungibili. Stessa forma del difetto che `HookKnowledgeVeil` ha chiuso per il velo.
+	HookReactionWindow();
 }
 
 URTKnowledgeVeilPresenter* ARTGameMode::GetKnowledgeVeilPresenter()
@@ -597,6 +605,37 @@ void ARTGameMode::HookKnowledgeVeil()
 	if (URTKnowledgeVeilPresenter* Presenter = GetKnowledgeVeilPresenter())
 	{
 		Presenter->Hook(TurnManager);
+	}
+}
+
+void ARTGameMode::HookReactionWindow()
+{
+	ARTTurnManager* TurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+	if (!TurnManager)
+	{
+		return;
+	}
+
+	// ⛔ **La differenza con `HookKnowledgeVeil` sta in queste tre righe, ed e' deliberata.** Li' un mondo
+	// senza `ARTPlayerController` riceve comunque un presenter senza proprietario; qui **non si lega
+	// niente**. Legare il delegate dove nessuno disegna aprirebbe finestre in ogni harness headless che
+	// monta un GameMode — e li' nessuno risponde e il `Tick` del manager puo' non girare mai, quindi la
+	// prima finestra sospenderebbe la resolution senza che nessuno la riprenda.
+	//
+	// 🔑 **Non e' una cautela: e' il significato di `IsBound()`.** Quel test distingue «umano con UI» da
+	// «umano senza UI», ed e' cio' che tiene bot, test e Verifier sul modello sincrono senza un ramo che li
+	// nomini. Un ripiego senza proprietario lo farebbe rispondere «c'e' una UI» proprio quando non c'e'.
+	ARTPlayerController* PC =
+		Cast<ARTPlayerController>(UGameplayStatics::GetPlayerController(this, 0));
+	if (!PC)
+	{
+		return;
+	}
+
+	if (URTReactionWindowViewModel* ViewModel = PC->GetReactionWindowViewModel())
+	{
+		ViewModel->Hook(TurnManager);
 	}
 }
 

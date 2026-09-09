@@ -550,6 +550,45 @@ FString ARTTurnManager::GetOpenReactionWindowId() const
 	return Ctx ? Ctx->OpenWindowOpportunityId : FString();
 }
 
+float ARTTurnManager::GetOpenReactionWindowRemainingSeconds() const
+{
+	// 🔑 **Il `Brace` per primo**, come `GetOpenReactionWindowId`, `SubmitReactionResponse` e
+	// `TickReactionWindow`: i due siti non sono mai aperti insieme, ma l'ordine dichiara quale contesto ha
+	// la parola quando esiste — ed e' lo stesso ordine che fa scorrere l'orologio, quindi i due leggono per
+	// costruzione lo stesso `Elapsed`. Sceglierne uno diverso qui produrrebbe un countdown che mostra il
+	// tempo di una finestra e ne fa scadere un'altra.
+	const float* Elapsed = nullptr;
+	if (const FRTBlastContext* Blast = PendingBlast.Get())
+	{
+		if (Blast->bSuspended && !Blast->Displacement.OpenWindowOpportunityId.IsEmpty())
+		{
+			Elapsed = &Blast->Displacement.OpenWindowElapsed;
+		}
+	}
+	if (!Elapsed)
+	{
+		if (const FRTMovementResolutionContext* Move = PendingMovement.Get())
+		{
+			if (!Move->OpenWindowOpportunityId.IsEmpty())
+			{
+				Elapsed = &Move->OpenWindowElapsed;
+			}
+		}
+	}
+
+	if (!Elapsed)
+	{
+		// ⚠️ **Negativo e non zero**: nessuna finestra attende, e la domanda non si applica. Uno zero direbbe
+		// «scaduta adesso», che e' l'altro caso di questa funzione e deve restare distinguibile.
+		return -1.f;
+	}
+
+	// ⛔ **Il clamp non e' difensivo, e' il caso normale di un frame lungo**: `TickReactionWindow` somma il
+	// `DeltaSeconds` prima di confrontare, quindi fra l'incremento e `ExpireReactionWindow` il residuo e'
+	// gia' sotto zero. Senza clamp quell'istante sarebbe indistinguibile da «nessuna finestra».
+	return FMath::Max(0.f, GetFastReactionDuration() - *Elapsed);
+}
+
 void ARTTurnManager::SubmitReactionResponse(const FString& OpportunityId, const FString& Response)
 {
 	// 🔑 **Il `Brace` per primo** (`#2692`): i due siti non sono mai aperti insieme — il Blast si risolve

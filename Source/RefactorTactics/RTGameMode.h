@@ -417,6 +417,27 @@ public:
 	void HookKnowledgeVeil();
 
 	/**
+	 * Lega il view model della finestra di reazione al `TurnManager`, **se un client c'e'** (`#2723`).
+	 *
+	 * 🔑 **E' il cablaggio che mancava, e senza di lui tre issue restavano irraggiungibili.** Il ramo che
+	 * apre una finestra interattiva e' protetto da `OnReactionWindowOpened.IsBound()`, e fino a `#2723` le
+	 * sole occorrenze del binding stavano nei test: in partita l'esito restava `NoDecider`, la risposta
+	 * sicura veniva applicata d'ufficio, e il giocatore non sapeva che una scelta esisteva.
+	 *
+	 * ⛔ **NESSUN ripiego senza proprietario, e qui la simmetria con `HookKnowledgeVeil` si ferma.** Quella
+	 * funzione crea un presenter anche quando `ARTPlayerController` non c'e' — *«harness headless, test di
+	 * simulazione»* — perche' la board e' comunque nel mondo e il velo va steso lo stesso. Il delegate della
+	 * finestra e' l'opposto: legarlo dove nessuno disegna e nessuno risponde aprirebbe finestre che
+	 * attendono un interlocutore inesistente, in **ogni** harness che monta un GameMode. `IsBound()` E' il
+	 * segnale che distingue «umano con UI» da «umano senza UI»; un ripiego lo invertirebbe.
+	 *
+	 * ⚠️ **Chiamarla due volte e' sicuro**: il delegate e' single-cast e il secondo binding sostituisce il
+	 * primo. Come la gemella, e' pubblica perche' i test allestiscono con `SetupHexMatch` senza far correre
+	 * `BeginPlay` — e un cablaggio che nessun test attraversa e' esattamente il difetto che chiude.
+	 */
+	void HookReactionWindow();
+
+	/**
 	 * APRE il turno 1 sul TurnManager della sessione, se qualcuno l'ha rivendicato — `#2102`, [D-314].
 	 *
 	 * 🔴 **Esiste perche' `BeginPlay` ha piu' uscite, e ognuna deve poter aprire.** Rivendicare l'apertura
