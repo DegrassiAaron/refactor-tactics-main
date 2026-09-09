@@ -301,6 +301,17 @@ public:
 	 */
 	void SetTargetRefusal(ERTTargetRefusal Refusal, const FRTCellId& AtCell);
 
+	/**
+	 * Il testo di un rifiuto — e cio' che NON ha un testo, che e' il punto (`#2741`).
+	 *
+	 * ⛔ **`Nothing` e `None` restituiscono entrambi la stringa VUOTA, e devono restituire la stessa cosa.**
+	 * Se `Nothing` avesse una frase — anche vaga — quella frase comparirebbe dove sta un nemico velato e non
+	 * dove la cella e' davvero vuota: la differenza fra «un messaggio» e «nessun messaggio» sarebbe essa
+	 * stessa il canale ([D-225]). Statica e pura perche' sia verificabile senza aprire un viewport, come
+	 * `ComputeBlockerMarks`.
+	 */
+	static FString RefusalText(ERTTargetRefusal Refusal);
+
 	static void ComputeBlockerMarks(const TArray<struct FRTPlayerEventLineView>& Feed,
 		TSet<FRTCellId>& OutBlockerCells);
 

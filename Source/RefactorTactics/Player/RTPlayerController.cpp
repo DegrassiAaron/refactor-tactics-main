@@ -1158,6 +1158,18 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		}
 	}
 
+	// ⛔ **Il rifiuto precedente muore QUI, in cima e per ogni click** — `#2741`.
+	//
+	// 🔴 Azzerarlo solo nel ramo che ne produce uno nuovo lascerebbe il messaggio a **mentire**: clicchi un
+	// bersaglio coperto, poi uno valido, il piano parte e a schermo resta «Coperto». La durata dichiarata e'
+	// *«vive finche' il giocatore non fa un altro click»*, e un altro click e' **questo punto**, non il
+	// sottoinsieme dei click che finiscono in rifiuto. Vale anche per il click a vuoto che esce due righe
+	// sotto: anche quello e' una decisione del giocatore, e cancella cio' che rispondeva alla precedente.
+	if (ARTHUD* RefusalHud = Cast<ARTHUD>(GetHUD()))
+	{
+		RefusalHud->SetTargetRefusal(ERTTargetRefusal::None, FRTCellId(0, 0, INDEX_NONE));
+	}
+
 	FHitResult Hit;
 	if (!GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit) || !Hit.GetActor())
 	{

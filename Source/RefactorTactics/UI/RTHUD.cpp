@@ -71,7 +71,7 @@ void ARTHUD::SetTargetRefusal(ERTTargetRefusal Refusal, const FRTCellId& AtCell)
  * differenza fra «un messaggio» e «nessun messaggio» sarebbe **essa stessa** il canale ([D-225]).
  * Il giocatore che clicca nel nulla e il giocatore che clicca su un'ombra ricevono la stessa cosa: niente.
  */
-static FString RefusalText(ERTTargetRefusal Refusal)
+FString ARTHUD::RefusalText(ERTTargetRefusal Refusal)
 {
 	switch (Refusal)
 	{
@@ -1018,7 +1018,7 @@ void ARTHUD::DrawHUD()
 	// ⛔ **Il testo puo' essere vuoto, ed e' un esito, non un caso degenere**: `Nothing` copre insieme la
 	// cella vuota e il nemico che l'osservatore non conosce, e le due non devono distinguersi nemmeno per
 	// la PRESENZA di un messaggio. Qui non si disegna niente, e va bene cosi'.
-	if (const FString Testo = RefusalText(LastRefusal); !Testo.IsEmpty())
+	if (const FString Testo = ARTHUD::RefusalText(LastRefusal); !Testo.IsEmpty())
 	{
 		float RW = 0.f, RH = 0.f;
 		GetTextSize(Testo, RW, RH, nullptr, 1.0f);
