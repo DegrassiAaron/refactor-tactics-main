@@ -771,4 +771,168 @@ bool FRTPanelsLeaveTheCenterFreeTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// Chi e' MONTATO nell'albero della HUD (#2697, #2760)
+// =====================================================================================================
+//
+// 🔴 **La domanda che i due test qui sotto pongono e' diversa da tutte quelle sopra**, e la differenza e'
+// esattamente il difetto che #2697 insegue da tre stesure: quelli sopra chiedono *«questo widget e' fatto
+// bene?»*, e possono essere tutti verdi mentre il widget **non e' nell'albero di nessuno**. Un canale che
+// nessuno monta non produce nessun rosso, come un canale che nessuno legge.
+//
+// ⚠️ **Non e' un'ipotesi: e' successo due volte sullo stesso asset.** `cc5ca967` — `feat(2697): la destra
+// ospita il feed invece di un secondo pannello unita'` — dichiara un montaggio che nel `.uasset` non c'e',
+// e nello stesso salvataggio ha riportato l'albero allo stato **precedente** al fix di #2760. Misura, sulla
+// tabella dei nomi del pacchetto: `WBP_RT_TacticalHUD` a `cc5ca967` e' nome-per-nome **identico** a
+// `bbca9a36`, il commit prima di quel fix. Nessun gate se n'e' accorto perche' nessun gate guardava.
+
+/**
+ * ⛔ **Il feed del giocatore deve essere MONTATO, non solo esistere.**
+ *
+ * `URTPlayerEventLogWidget::GetFeed()` e' filtrato per osservatore, coperto da
+ * `EventFeedShowsOnlyWhatTheObserverMaySee`, e `WBP_RT_EventLog` ha radice, contenitore e grafo (#2784).
+ * Tutto verde, e a schermo **niente**: `WBP_RT_TacticalHUD` non lo referenzia.
+ *
+ * 🔑 **Il test chiede la PRESENZA nell'albero, non la zona.** Dove vada e' materia di
+ * `guida-screen-hud-umg.md` §3 — che oggi dice `RIGHT` — e congelarla qui darebbe a un test di montaggio
+ * un'opinione sul layout. La zona finisce nel report, cosi' il log dice **dove** e' atterrato senza che il
+ * criterio dipenda dalla risposta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudMountsTheFeedTest,
+	"RefactorTactics.ScreenHud.TheHudMountsTheFeedThatExplainsTheTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTHudMountsTheFeedTest::RunTest(const FString&)
+{
+	UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(TacticalHudPath);
+	if (!TestNotNull(TEXT("WBP_RT_TacticalHUD si carica"), Class))
+	{
+		return false;
+	}
+
+	const UWidgetTree* Tree = Class->GetWidgetTreeArchetype();
+	if (!TestNotNull(TEXT("WBP_RT_TacticalHUD ha un albero di widget"), Tree))
+	{
+		return false;
+	}
+
+	int32 Trovati = 0;
+	TArray<FString> Inquilini;
+
+	Tree->ForEachWidget([this, &Trovati, &Inquilini](UWidget* Widget)
+	{
+		if (!Widget)
+		{
+			return;
+		}
+
+		// Solo i widget-blueprint innestati: i contenitori nudi (`Canvas`, `HorizontalBox`) sono struttura,
+		// e l'elenco serve a dire CHI abita l'albero, non com'e' fatto.
+		if (Widget->IsA<UUserWidget>())
+		{
+			Inquilini.Add(FString::Printf(TEXT("  %-32s %-34s in `%s`"),
+				*Widget->GetName(),
+				*Widget->GetClass()->GetName(),
+				Widget->Slot && Widget->Slot->Parent ? *Widget->Slot->Parent->GetName() : TEXT("<radice>")));
+		}
+
+		if (Widget->IsA(URTPlayerEventLogWidget::StaticClass()))
+		{
+			++Trovati;
+		}
+	});
+
+	AddInfo(FString::Printf(TEXT("=== inquilini di WBP_RT_TacticalHUD (%d) ==="), Inquilini.Num()));
+	for (const FString& Riga : Inquilini)
+	{
+		AddInfo(Riga);
+	}
+
+	// Senza questa riga il test sarebbe verde su un albero vuoto — lo stesso modo in cui
+	// `PanelsLeaveTheCenterFree` sarebbe diventato decorativo, e che quel test ha gia' imparato a evitare.
+	TestTrue(
+		*FString::Printf(TEXT("l'albero della HUD ospita dei widget-blueprint (ne ha %d)"), Inquilini.Num()),
+		Inquilini.Num() > 0);
+
+	if (Trovati == 0)
+	{
+		AddError(FString::Printf(
+			TEXT("`WBP_RT_TacticalHUD` non monta nessun `URTPlayerEventLogWidget`: il feed che spiega ")
+			TEXT("perche' un'azione dichiarata non e' avvenuta esiste (`WBP_RT_EventLog`, con grafo da ")
+			TEXT("#2784) e non e' nell'albero di nessuno, quindi in partita non disegna. ")
+			TEXT("Monta un'istanza di `/Game/RT/UI/Match/WBP_RT_EventLog` nella zona che ")
+			TEXT("`docs/technical/runbooks/guida-screen-hud-umg.md` §3 le assegna (#2697, #1936 fetta F).")));
+	}
+
+	return true;
+}
+
+/**
+ * ⛔ **Un nodo che porta il nome di un widget deve esserne un'istanza.**
+ *
+ * E' il difetto di #2760, scritto come regola invece che come caso: `ZoneBottomContainer` conteneva due
+ * `HorizontalBox` **vuoti** chiamati `WBP_RT_SelectedUnitPanel` e `WBP_RT_ActionDock`. Portavano il nome
+ * senza esserne istanze, quindi nessun binding poteva popolarli e il dock non poteva riempirsi **per
+ * costruzione** — non perche' mancasse una selezione.
+ *
+ * 🔴 **#2760 e' stata chiusa senza questo oracolo, e la correzione e' regredita in silenzio.** Il fix
+ * (`9943dfda`) ha sostituito i due segnaposto con `WBP_RT_SelectedUnitPanelBottom` e
+ * `WBP_RT_ActionDockBottom`; `cc5ca967` ha risalvato l'asset com'era prima, e i due segnaposto sono
+ * tornati. Fra i due eventi la suite e' rimasta verde: **nessun test guardava l'albero**.
+ *
+ * ⚠️ **La regola e' sul PREFISSO, non su un elenco di nomi.** Un elenco invecchia al primo widget nuovo ed
+ * e' un promemoria; il prefisso vale anche per chi verra' dopo, ed e' un oracolo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoNodeWearsAWidgetNameTest,
+	"RefactorTactics.ScreenHud.NoNodeWearsTheNameOfAWidgetWithoutBeingOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTNoNodeWearsAWidgetNameTest::RunTest(const FString&)
+{
+	UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(TacticalHudPath);
+	if (!TestNotNull(TEXT("WBP_RT_TacticalHUD si carica"), Class))
+	{
+		return false;
+	}
+
+	const UWidgetTree* Tree = Class->GetWidgetTreeArchetype();
+	if (!TestNotNull(TEXT("WBP_RT_TacticalHUD ha un albero di widget"), Tree))
+	{
+		return false;
+	}
+
+	int32 Esaminati = 0;
+
+	Tree->ForEachWidget([this, &Esaminati](UWidget* Widget)
+	{
+		if (!Widget || !Widget->GetName().StartsWith(TEXT("WBP_")))
+		{
+			return;
+		}
+
+		++Esaminati;
+
+		if (Widget->IsA<UUserWidget>())
+		{
+			return;
+		}
+
+		AddError(FString::Printf(
+			TEXT("il nodo `%s` porta il nome di un widget-blueprint ma e' un `%s`: un contenitore nudo che ")
+			TEXT("ne indossa il nome non ha i suoi binding e non si popola per costruzione, e a chi legge ")
+			TEXT("l'albero sembra montato. Sostituiscilo con un'istanza della classe che il nome promette ")
+			TEXT("(#2760, regredito con `cc5ca967`)."),
+			*Widget->GetName(),
+			*Widget->GetClass()->GetName()));
+	});
+
+	// Zero nodi esaminati significherebbe che il criterio non ha misurato niente — e un gate che misura zero
+	// e' verde per assenza, non per correttezza.
+	TestTrue(
+		*FString::Printf(TEXT("l'albero contiene nodi con prefisso `WBP_` da esaminare (ne ha %d)"), Esaminati),
+		Esaminati > 0);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
