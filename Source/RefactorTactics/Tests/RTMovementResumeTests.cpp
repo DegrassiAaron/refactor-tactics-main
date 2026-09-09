@@ -588,12 +588,31 @@ bool FRTReactionWindowPlaybackIsRunningTest::RunTest(const FString&)
 	// per impedire: `FinishPlayback` chiama `ConcludeTurn`, e il playback parziale mostra pochi secondi
 	// mentre la finestra ne dura `FastReactionDuration`. Senza il fermo, il turno si chiudeva sotto chi
 	// stava ancora decidendo. Si ticka ben oltre la durata del tratto mostrato.
-	for (int32 I = 0; I < 200; ++I)
+	//
+	// ⚠️ **Ma SOTTO la durata della finestra, e il vincolo e' nuovo** (`#2717`). Questo ciclo faceva 200
+	// tick — **10 secondi** — e asseriva che la finestra fosse ancora aperta. Era vero, e per il motivo
+	// sbagliato: nessuno la faceva scadere, perche' `OpenWindowElapsed` era azzerato in quattro punti e
+	// incrementato in zero. L'asserto codificava il difetto invece di sorvegliare l'intento.
+	//
+	// 🔑 Ora la finestra scade a `FastReactionDuration` (3,0 s di default, ADR-0004 §8), quindi il tempo
+	// da far passare e' quello che serve a esaurire il playback parziale e **non** la finestra: 2 secondi
+	// stanno comodamente in mezzo. Il difetto che il test sorveglia — il turno che si chiude perche' il
+	// PLAYBACK e' finito — resta osservabile esattamente come prima.
+	const float DurataFinestra = TM->GetFastReactionDuration();
+	const int32 TickSottoLaScadenza = FMath::Max(1, FMath::FloorToInt((DurataFinestra * 0.66f) / 0.05f));
+	for (int32 I = 0; I < TickSottoLaScadenza; ++I)
 	{
 		TM->Tick(0.05f);
 	}
-	TestTrue(TEXT("dopo 10s di tick la resolution attende ancora"), TM->IsResolutionSuspended());
+	TestTrue(TEXT("esaurito il playback parziale ma non la finestra, la resolution attende ancora"),
+		TM->IsResolutionSuspended());
 	TestTrue(TEXT("la finestra e' ancora aperta"), !TM->GetOpenReactionWindowId().IsEmpty());
+
+	// ⛔ **Che la finestra scada da sola NON si misura qui**, ed e' una lezione costata un rosso: questo
+	// scenario arma piu' watcher, quindi le finestre si aprono **in sequenza** e ognuna dura
+	// `FastReactionDuration`. Un asserto «dopo N tick non attende piu'» dipenderebbe da **quante** finestre
+	// si sono aperte, che questo test non controlla. La scadenza autonoma ha il suo test dedicato e
+	// deterministico: `Reactions.Brace.WindowExpiresOnItsOwn`.
 
 	// Chiuse le finestre, la resolution arriva in fondo senza che il playback riparta da zero.
 	int32 Chiusure = 0;

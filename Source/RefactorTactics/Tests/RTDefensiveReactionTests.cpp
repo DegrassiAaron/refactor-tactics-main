@@ -753,6 +753,197 @@ bool FRTBraceBlocksPushTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **La finestra del `Brace` ferma il Blast, e la ripresa non lo riesegue** (`#2692`, [D-355], [D-356]).
+ *
+ * 🔴 **E' il difetto che #2692 esiste per chiudere.** Con una UI legata, un'unita' il cui profilo di
+ * reazione offre una risposta con effetti — `Profile.Sidestep` — deve poter SCEGLIERE quando viene
+ * spinta. Fino al 2026-09-09 il `Brace` chiamava `AskReactionDecision` diretta: esito `NoDecider`,
+ * `Hold Ground` applicata, e il giocatore perdeva una scelta che il gioco gli doveva.
+ *
+ * 🔑 **Tre cose in un test solo**, perche' separarle darebbe tre test che passano su un turno rotto:
+ * la finestra si apre, la fase si FERMA — `Phase` resta `Blast`, [D-356] — e alla chiusura il turno
+ * arriva in fondo con la spinta applicata **una volta sola**.
+ *
+ * ⚠️ **`Action.Push` spinge di 1 e il profilo base non basta**: con `Hold Ground` sola la cardinalita' e'
+ * 1, `RequiresDecisionBoundary` e' falso e nessuna finestra e' dovuta — per costruzione, non per difetto.
+ * Il profilo va assegnato, ed e' la stessa precondizione che la voce PIE dichiara.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceWindowSuspendsBlastTest,
+	"RefactorTactics.Reactions.Brace.WindowSuspendsBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceWindowSuspendsBlastTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World, /*Radius*/ 8);
+
+	ARTUnit* Bracer = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bracer"), Bracer) || !TestNotNull(TEXT("Pusher"), Pusher)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// Le tre precondizioni del ramo, tutte necessarie: lo stato lo concede `Action.Brace`, la cardinalita'
+	// viene dal profilo, e un bot non riceve finestre.
+	Bracer->bIsBotControlled = false;
+	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
+	Bracer->PlannedCell = Bracer->Cell;
+
+	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
+	Pusher->PlannedAttackTarget = Bracer;
+	Pusher->PlannedCell = Pusher->Cell;
+
+	// ⛔ **Si misura DENTRO il delegate, non dopo**: cio' che [D-355] chiede e' che il giocatore abbia gia'
+	// visto qualcosa NELL'ISTANTE in cui gli si chiede di scegliere. Leggere la timeline a finestra chiusa
+	// risponderebbe a una domanda diversa.
+	int32 Aperte = 0;
+	int32 TimelineAllApertura = -1;
+	TM->OnReactionWindowOpened.BindLambda(
+		[&Aperte, &TimelineAllApertura, TM](const FRTReactionWindowView&, int32)
+		{
+			++Aperte;
+			TimelineAllApertura = TM->ResolvedTimelineCountForTest();
+		});
+
+	const FRTCellId Partenza = Bracer->Cell;
+	TM->LockInAndResolve();
+
+	// 🔑 **(1) La finestra si e' aperta**, e con essa la scelta che prima non arrivava.
+	TestEqual(TEXT("si e' aperta UNA finestra del Brace"), Aperte, 1);
+
+	// 🔑 **(2) La fase si e' fermata.** `IsResolutionSuspended` copre il Blast, e `Phase` resta la fase
+	// che si e' fermata invece di tornare a `Planning` ([D-356]): senza, `Move` si risolverebbe su un
+	// Blast applicato a meta'.
+	TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended());
+	TestEqual(TEXT("e la fase dichiarata e' quella che si e' fermata"),
+		TM->GetPhase(), ERTMatchPhase::Blast);
+
+	// 🔑 **(2-bis) Lo schermo non era vuoto** ([D-355], criterio C2 dello spec panel). `ResolveCombatPasses`
+	// ha gia' emesso le impronte dei colpi quando il `Brace` sospende, quindi il giocatore ha visto il colpo
+	// che sta per spingerlo. ⚠️ La spinta NON c'e', e non e' una lacuna: e' cio' su cui gli si sta chiedendo
+	// di decidere.
+	TestTrue(FString::Printf(TEXT("la timeline non era vuota quando la finestra si e' aperta (%d eventi)"),
+		TimelineAllApertura), TimelineAllApertura > 0);
+
+	// 🔑 **(3) La chiusura riprende il turno**, e la spinta non si riapplica: `Hold Ground` allo scadere
+	// tiene la cella, ed e' l'esito che il profilo garantisce.
+	int32 Scadenze = 0;
+	while (TM->IsResolutionSuspended() && Scadenze < 8)
+	{
+		TM->ExpireReactionWindow();
+		++Scadenze;
+	}
+	TestFalse(TEXT("chiusa la finestra, la resolution non e' piu' sospesa"), TM->IsResolutionSuspended());
+	TestEqual(TEXT("e il ciclo delle fasi e' arrivato in fondo"), TM->GetPhase(), ERTMatchPhase::Planning);
+	TestTrue(TEXT("il turno ha prodotto un TurnLog"), TM->GetTurnLog().Num() > 0);
+
+	// ⛔ **Il difetto strutturale che questa fetta rischiava**: una ripresa che rieseguisse il Blast
+	// dall'inizio spingerebbe due volte. `Hold Ground` non sposta, quindi la cella di partenza e' la
+	// prova che nessuno ha applicato la spinta due volte ne' una volta di troppo.
+	TestTrue(TEXT("irrigidito: la spinta non lo ha spostato, e non e' stata riapplicata"),
+		Bracer->Cell == Partenza);
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyDefWorld(World);
+	return true;
+}
+
+/**
+ * **La finestra scade da sola, senza che nessuno la chiuda a mano** (`#2717`).
+ *
+ * 🔴 **E' il difetto che #2717 esiste per chiudere, e i test lo mascheravano.** `#2679` e `#2692` hanno
+ * costruito la sospensione ai due siti, ma `OpenWindowElapsed` era azzerato in quattro punti e
+ * incrementato in **zero**, e `ExpireReactionWindow` non aveva chiamanti di produzione: il giorno in cui
+ * qualcosa avesse legato `OnReactionWindowOpened`, la prima finestra aperta avrebbe fermato il turno
+ * **per sempre**. Non si vedeva perche' ogni test chiamava `ExpireReactionWindow()` a mano — la suite
+ * faceva da orologio al posto del gioco.
+ *
+ * 🔑 **Questo test non la chiama.** Fa passare il tempo con `Tick` e basta, che e' cio' che il gioco fa.
+ *
+ * ⚠️ **Il tick e' quello dell'Actor, non del playback**: la finestra puo' aprirsi senza che il playback
+ * sia mai partito, e l'orologio deve girare lo stesso. Qui il mondo di prova non avvia il playback, quindi
+ * il caso e' proprio quello.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceWindowExpiresOnItsOwnTest,
+	"RefactorTactics.Reactions.Brace.WindowExpiresOnItsOwn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceWindowExpiresOnItsOwnTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World, /*Radius*/ 8);
+
+	ARTUnit* Bracer = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bracer"), Bracer) || !TestNotNull(TEXT("Pusher"), Pusher)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	Bracer->bIsBotControlled = false;
+	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
+	Bracer->PlannedCell = Bracer->Cell;
+
+	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
+	Pusher->PlannedAttackTarget = Bracer;
+	Pusher->PlannedCell = Pusher->Cell;
+
+	// Una durata corta rende il test rapido senza cambiare la regola: la finestra scade a
+	// `GetFastReactionDuration()`, qualunque sia il valore. E' un setting di partita ([D-348]), non una
+	// costante — ed e' precisamente perche' e' un setting che il test puo' abbassarlo.
+	TM->SetFastReactionDuration(0.5f);
+
+	bool bAperta = false;
+	TM->OnReactionWindowOpened.BindLambda(
+		[&bAperta](const FRTReactionWindowView&, int32) { bAperta = true; });
+
+	TM->LockInAndResolve();
+
+	if (!TestTrue(TEXT("la finestra si e' aperta"), bAperta)
+		|| !TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended()))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// ⛔ **Un tick solo non deve bastare**: con `0,5 s` di durata e `0,05 s` di passo servono dieci giri, e
+	// se la finestra si chiudesse al primo significherebbe che qualcuno scade senza guardare l'orologio.
+	TM->Tick(0.05f);
+	TestTrue(TEXT("dopo un tick breve la finestra e' ANCORA aperta"), TM->IsResolutionSuspended());
+
+	// 🔑 **LA PROVA.** Nessuno chiama `ExpireReactionWindow`: passa solo il tempo, come in partita.
+	int32 Tick = 0;
+	while (TM->IsResolutionSuspended() && Tick < 200)
+	{
+		TM->Tick(0.05f);
+		++Tick;
+	}
+
+	TestFalse(TEXT("la finestra e' scaduta DA SOLA, senza che nessuno la chiudesse"),
+		TM->IsResolutionSuspended());
+	TestEqual(TEXT("e il turno e' arrivato in fondo"), TM->GetPhase(), ERTMatchPhase::Planning);
+	TestTrue(TEXT("il turno ha prodotto un TurnLog"), TM->GetTurnLog().Num() > 0);
+
+	// La scadenza applica la risposta sicura: `Hold Ground` tiene la cella.
+	TestTrue(TEXT("allo scadere vale `Hold Ground`: la spinta non lo ha spostato"),
+		Bracer->Cell == FRTCellId(0, 0));
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyDefWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShieldTest,
 	"RefactorTactics.Reactions.Shield.AbsorbsBeforeHealth",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

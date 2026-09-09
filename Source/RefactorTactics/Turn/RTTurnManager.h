@@ -464,6 +464,17 @@ public:
 	int32 ResolvedReactionCountForTest(int32 ReactorStableUnitId) const;
 
 	/**
+	 * Hook per i test: quanti eventi contiene la timeline di questo turno (`#2692`).
+	 *
+	 * 🔴 Stessa ragione degli accessori qui sopra — `ResolvedTimeline` e' privato — con una in piu': cio'
+	 * che va sorvegliato e' che al momento in cui una finestra si apre la timeline **non sia vuota**.
+	 * [D-355] colloca la finestra dentro il playback perche' chiedere una scelta su uno schermo che non ha
+	 * mostrato nulla e' il difetto che quella decisione chiude, e senza questo accessore la proprieta'
+	 * sarebbe giudicabile solo a schermo.
+	 */
+	int32 ResolvedTimelineCountForTest() const { return ResolvedTimeline.Num(); }
+
+	/**
 	 * Hook per i test: gli eventi `StatusChanged` emessi in questo turno (`#2245`).
 	 *
 	 * 🔴 Stessa ragione dell'accessore qui sopra — `ResolvedTimeline` e' privato e la presentazione e'
@@ -1222,10 +1233,27 @@ public:
 	ERTMovementAdvanceResult AdvanceMovementResolution();
 	void FinishMovementResolution();
 
+	/** La coda della fase Blast, quando gli spostamenti sono risolti. Due chiamanti (`#2692`). */
+	void FinishBlastPhase(FRTBlastContext& Ctx);
+
+	/** Riprende la fase Blast dopo una finestra del `Brace`, ora chiusa (`#2692`). */
+	void ResumeBlastResolution();
+
+	/** Chiude la finestra del `Brace` applicando la risposta, e riprende la fase (`#2692`). */
+	void CloseBraceWindow(const FString& Response);
+
 	/**
 	 * Il ciclo delle fasi, con uscita anticipata sulla sospensione ([D-356]). Due chiamanti come
 	 * `ConcludeResolution`: il lock-in e la ripresa. Non fa il setup del turno — vedi il .cpp.
 	 */
+	/**
+	 * Fa scorrere il countdown della finestra di reazione e la chiude quando scade (`#2717`).
+	 *
+	 * Sta in `Tick` e non in `TickPlayback`, con `DeltaSeconds` **non scalato**: vedi il .cpp per le tre
+	 * decisioni che escludono ogni altra collocazione.
+	 */
+	void TickReactionWindow(float DeltaSeconds);
+
 	void RunPhaseLoop();
 
 	/** La coda della risoluzione: TurnLog, Cleanup, fine partita, playback. Due chiamanti, vedi il .cpp. */
@@ -1438,6 +1466,15 @@ protected:
 	 * nullo, e leggerlo e' un difetto — le tre funzioni lo verificano invece di darlo per scontato.
 	 */
 	TUniquePtr<FRTMovementResolutionContext> PendingMovement;
+
+	/**
+	 * Il contesto della fase Blast, sull'heap perche' la fase deve poter uscire e rientrare (`#2692`).
+	 *
+	 * Vivo solo durante `ResolveCombat`: nasce in testa e muore in coda, come quando stava sullo stack.
+	 * Cio' che cambia e' che sia raggiungibile da fuori — senza, una sospensione non avrebbe niente da
+	 * riprendere. Stessa forma di `PendingMovement`, e per la stessa ragione.
+	 */
+	TUniquePtr<FRTBlastContext> PendingBlast;
 
 	/**
 	 * Risolve i colpi predittivi armati contro le rotte appena calcolate, e TRONCA il movimento di chi viene
@@ -2216,6 +2253,24 @@ protected:
 
 	/** Applica uno status e registra la voce se cosi' facendo ha SPENTO un `Burning` (#1314). */
 	void ApplyStatusLogged(ARTUnit* Unit, FGameplayTag Tag, int32 Turns);
+
+	/**
+	 * Gli EFFETTI della caduta gravitazionale (#2430, [D-357]): danno e, per chi cade, `Exposed`.
+	 *
+	 * 🔑 **Gli effetti non sono la posizione** (`spec-caduta-e-bordi.md` §5), ed e' il motivo per cui
+	 * questa funzione non sa nulla di dove l'unita' sia finita: si applicano anche quando la discesa
+	 * NON avviene — atterraggio saturo, colonna senza fondo, due cadute contese ([D-358] §4.3.2).
+	 *
+	 * ⚠️ **`bMarchia` distingue chi cade dall'occupante centrato**, e la differenza e' semantica:
+	 * `Exposed` significa *«hai perso l'equilibrio»*, e chi stava fermo non l'ha perso. Prende l'urto,
+	 * non il marchio.
+	 *
+	 * ⛔ **Un'unita' gia' KO non subisce niente.** `ApplyDisplacements` gira nella coda di
+	 * `ResolveCombat`, DOPO `ApplyCombatState`: chi e' morto per il colpo e' gia' a zero quando la
+	 * spinta lo raggiunge. Il precedente e' `CP 14.5` — *«il watcher caduto non spara»* — e senza questo
+	 * controllo il TurnLog registrerebbe la caduta di un cadavere.
+	 */
+	void ApplyFallEffects(ARTUnit* Unit, bool bMarchia, ERTMatchPhase InPhase);
 
 	/** L'invariante dei pesi si verifica una volta per partita, sull'istanza viva (#1276). */
 	bool bBotWeightInvariantChecked = false;

@@ -214,7 +214,7 @@ vanno risolte separatamente.
 
 | Chi | Subisce |
 |---|---|
-| chi cade | **5** danni · `Status.Exposed` per **1** turno |
+| chi cade | **5** danni · `Status.Exposed` per **1** turno di effetto |
 | l'occupante centrato (§4.2) | **5** danni, **nessun** `Exposed` |
 | dislivello | **nessuna scala**: il danno è piatto |
 
@@ -230,6 +230,16 @@ scartato perché dimezzare il movimento di chi deve risalire punisce due volte s
 
 ⚠️ **L'asimmetria sull'occupante è semantica**: `Exposed` significa *«hai perso l'equilibrio»*, e chi stava
 fermo non l'ha perso. Prende l'urto, non il marchio.
+
+⏱️ **«Un turno di effetto» vale `StatusTurns = 2` nel codice, e la differenza non è un refuso.**
+`TickStatuses()` decrementa nel `Cleanup`, e la caduta si risolve nel `Blast`: con `1` lo stato nascerebbe e
+morirebbe nello stesso turno, senza che nessuna fase interposta possa leggerlo. Con `2` sopravvive al
+proprio Cleanup ed è disponibile per il `Blast` successivo — che è il colpo che [`D-357`](../decisions/RT_PDR_00_Decision_Log.md)
+vuole preparare.
+
+⚠️ **La misura è del repository, non mia**: `RTTurnManager_Movement.cpp` la porta scritta per lo slide su
+ghiaccio — *«Durata `2` e non `1`, ed è misurato»* — e il `Move` è una fase **dopo** il `Blast`. La prima
+stesura di #2430 usò `1` copiando `Action.Sprint`, e cinque test su sei la presero.
 
 🔑 **Nessuna meccanica nuova**: è la forma con cui `Action.Sprint` paga la propria corsa —
 `FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, 1)`. Sprint risolve nella fase `Move`,

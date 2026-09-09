@@ -128,9 +128,92 @@ void ARTTurnManager::OpenFirstTurnAfterSetup()
 void ARTTurnManager::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	// 🔑 **L'orologio della finestra sta QUI, e non dentro `TickPlayback`** (`#2717`). Non e' una scelta di
+	// collocazione: e' l'unica che regge, e le altre sono vietate da decisioni accettate.
+	//
+	// ⛔ Dentro `TickPlayback` non girerebbe **mai**: la prima cosa che quella funzione fa con una finestra
+	// aperta e' uscire su `bPlaybackHeldByWindow`, e quel `return` esiste esattamente per il caso in cui
+	// l'orologio serve.
+	// ⛔ Sotto il `return` di `bPlaybackPaused` si fermerebbe con la pausa del giocatore, contro [D-351]:
+	// *«ESC non ferma il countdown della finestra»*, perche' *«cio' che in rete non potra' esistere e'
+	// fermare il tempo di tutti»*.
+	// ⛔ Col `Dt` di `TickPlayback` leggerebbe un tempo **scalato** da `EffectivePlaybackSpeed`, e [D-355]
+	// dichiara che [D-350] realizza la slow-motion della finestra scrivendo proprio `ViewerPlaybackSpeed < 1`:
+	// la finestra si allungherebbe **proprio mentre** la slow-motion e' attiva, contro `#166` riga 59.
+	//
+	// ⚠️ E sta **prima** di `TickPlayback` e fuori da `bIsResolving`: la finestra puo' essere aperta senza
+	// che il playback sia mai partito — `BeginPartialPlayback` lo avvia solo se la timeline non e' vuota.
+	TickReactionWindow(DeltaSeconds);
+
 	if (bIsResolving)
 	{
 		TickPlayback(DeltaSeconds);
+	}
+}
+
+/**
+ * Fa scorrere il countdown della finestra di reazione aperta, e la chiude quando scade (`#2717`).
+ *
+ * 🔑 **E' l'orologio che mancava.** `#2679` e `#2692` hanno costruito la sospensione ai due siti, ma
+ * `OpenWindowElapsed` era azzerato in quattro punti e incrementato in **zero**, e `ExpireReactionWindow`
+ * non aveva chiamanti di produzione: il giorno in cui qualcosa avesse legato `OnReactionWindowOpened`, la
+ * prima finestra aperta avrebbe fermato il turno **per sempre**.
+ *
+ * ⛔ **Il tempo e' quello di gioco NON scalato**, ed e' il punto: la durata della finestra e'
+ * server-authoritative (`#166` riga 59), quindi ne' la slow-motion ne' la velocita' scelta da chi guarda
+ * la allungano. L'esito logico resta *scaduta / non scaduta* — nessun numero di secondi entra nella
+ * decisione, che e' cio' che `Reactions.NoResolverWait` protegge.
+ *
+ * ⚠️ **La ri-simulazione non ha finestre da far scorrere**, e non serve un ramo che la nomini:
+ * `RecordedDecisions.Num() > 0` impedisce l'apertura a monte, quindi `OpenWindowOpportunityId` resta vuoto
+ * e questa funzione esce alla prima domanda.
+ *
+ * ⛔ **Chiudere puo' riprendere l'INTERO turno** — `ExpireReactionWindow` porta a `ResumeSuspendedResolution`
+ * — e va bene: e' la stessa strada che percorre una risposta umana. Se la ripresa riapre un'altra finestra,
+ * il suo `OpenWindowElapsed` nasce a zero e questo orologio riparte da capo.
+ */
+void ARTTurnManager::TickReactionWindow(float DeltaSeconds)
+{
+	if (!IsResolutionSuspended())
+	{
+		return;
+	}
+
+	// Quale dei due siti attende. Il `Brace` per primo, come in `SubmitReactionResponse`: il Blast si
+	// risolve prima del movimento, e la sua finestra tiene ferma la fase.
+	float* Elapsed = nullptr;
+	if (FRTBlastContext* Blast = PendingBlast.Get())
+	{
+		if (Blast->bSuspended && !Blast->Displacement.OpenWindowOpportunityId.IsEmpty())
+		{
+			Elapsed = &Blast->Displacement.OpenWindowElapsed;
+		}
+	}
+	if (!Elapsed)
+	{
+		if (FRTMovementResolutionContext* Move = PendingMovement.Get())
+		{
+			if (!Move->OpenWindowOpportunityId.IsEmpty())
+			{
+				Elapsed = &Move->OpenWindowElapsed;
+			}
+		}
+	}
+
+	if (!Elapsed)
+	{
+		return; // sospesa ma senza finestra aperta: nessun orologio da far scorrere
+	}
+
+	*Elapsed += DeltaSeconds;
+
+	// ⚠️ **`>=` e non `>`**: a `FastReactionDuration` esatti la finestra E' scaduta. Il contrario darebbe un
+	// frame di grazia che dipende dal frame rate, cioe' esattamente la dipendenza dal tempo reale che
+	// ADR-0004 §8 esclude.
+	if (*Elapsed >= GetFastReactionDuration())
+	{
+		ExpireReactionWindow();
 	}
 }
 
@@ -262,6 +345,77 @@ FRTTurnLogEntry ARTTurnManager::MakeStatusBirthEntry(ERTMatchPhase InPhase, FGam
 }
 
 /** La voce di MORTE di uno stato: revoca (una mossa), scadenza (il tempo), o una causa che la toglie. */
+/**
+ * Il danno di una caduta gravitazionale, in punti vita ([D-357]).
+ *
+ * 🔑 **Piatto, e non scala col dislivello.** Il dislivello non e' `Layer - 1` — `FindLandingCell` scandisce
+ * la colonna e tiene il massimo, perche' *«la colonna puo' saltare dei piani»* — quindi una scala andrebbe
+ * definita sui piani ATTRAVERSATI, e finche' le mappe della v0.1 non ne dichiarano piu' di due sarebbe un
+ * numero fisso con piu' codice attorno.
+ *
+ * ⚠️ **Non e' un dato di catalogo, ed e' deliberato**: la caduta non e' un'azione e non ha un `ActionId`
+ * che possa portarlo. Un campo di catalogo senza consumatore e' il difetto che `PushResistance` documenta.
+ * La revisione del valore resta materia `BAL-*`, la sua esistenza no.
+ */
+static constexpr int32 RTFallDamage = 5;
+
+void ARTTurnManager::ApplyFallEffects(ARTUnit* Unit, bool bMarchia, ERTMatchPhase InPhase)
+{
+	// ⛔ Chi e' gia' KO non subisce effetti di caduta: vedi la dichiarazione.
+	if (!IsValid(Unit) || !Unit->IsAlive())
+	{
+		return;
+	}
+
+	const int32 HpPrima = Unit->Health; // serve DOPO, per classificare l'esito
+
+	// 🔑 **`Environmental`, e la differenza e' OSSERVABILE.** `Exposed` amplifica *«il PRIMO danno
+	// DIRETTO»*: con `Environmental` non amplifica la caduta, quindi due cadute non si sommano e il
+	// marchio vale solo per il colpo che arriva dopo — che e' esattamente cio' che [D-357] costruisce
+	// (*«chi ti butta giu' ti prepara per il colpo dopo»*). Implementarla `Direct` avrebbe prodotto un
+	// gioco diverso dallo stesso testo di specifica.
+	const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(RTFallDamage,
+		ERTDamageSource::Environmental, Unit->Shield, Unit->GetTemporaryShield(), Unit->Health);
+	// `ApplyCombatState` e non l'assegnazione diretta: e' l'unica contabilita' che erode anche
+	// `TemporaryShield`. Scrivendo `Health`/`Shield` a mano lo scudo temporaneo resterebbe al valore
+	// vecchio e il Cleanup lo sottrarrebbe una seconda volta.
+	Unit->ApplyCombatState(Result.Health, Result.Shield);
+
+	// La voce canonica, sulla forma di quella del danno da terreno (`#1067`): categoria `Combat`, causa
+	// in `ActionId`, soggetto chi SUBISCE — in una caduta non c'e' un attaccante.
+	FRTTurnLogEntry Caduta;
+	Caduta.Phase = InPhase;
+	Caduta.Category = ERTLogCategory::Combat;
+	Caduta.ActionId = FName(*FString::Printf(TEXT("%s%s"), URTTurnLogLibrary::FallCausePrefix(),
+		bMarchia ? TEXT("Fall") : TEXT("Impact")));
+	// ⚠️ **Le due celle COINCIDONO, e non e' una comodita'**: e' la forma che `IsEnvironmentalDamage`
+	// riconosce come ambientale anche senza conoscere la causa. Un attacco non puo' averle uguali.
+	Caduta.SrcCell = Unit->Cell;
+	Caduta.TgtCell = Unit->Cell;
+	Caduta.Amount = RTFallDamage;
+	Caduta.Outcome = static_cast<uint8>(
+		URTCombatLibrary::ClassifyCombatOutcome(HpPrima, Result.Health, /*AttackerDmgBonus*/ 0));
+	AppendLogEntry(Caduta, Unit);
+
+	AddLogEvent(FString::Printf(TEXT("%s: %d danni da %s"), *Unit->GetName(), RTFallDamage,
+		bMarchia ? TEXT("caduta") : TEXT("impatto")), FRTLogSubject::Unit(Unit));
+
+	// ⚠️ Solo a chi cade: l'occupante prende l'urto, non il marchio.
+	//
+	// ⏱️ **Durata `2` e non `1`, ed e' MISURATO.** `TickStatuses()` decrementa nel `Cleanup`, e questo
+	// e' il `Blast`: con `1` lo stato nascerebbe e morirebbe nello stesso turno, senza che nessuna fase
+	// interposta potesse leggerlo — e [D-357] lo vuole leggibile dal colpo che arriva DOPO. Con `2`
+	// sopravvive al proprio Cleanup e vale per il `Blast` successivo, che e' un turno di effetto.
+	//
+	// 🔴 **La prima stesura usava `1`, copiando `Action.Sprint`, e i test lo hanno preso**: cinque su
+	// sei rossi con `Exposed` assente a fine turno. Il precedente giusto non era Sprint ma lo slide su
+	// ghiaccio (`RTTurnManager_Movement.cpp`), che quella misura l'aveva gia' fatta e scritta.
+	if (bMarchia)
+	{
+		ApplyStatusLogged(Unit, TAG_Status_Exposed, /*Turni*/ 2);
+	}
+}
+
 void ARTTurnManager::ApplyStatusLogged(ARTUnit* Unit, FGameplayTag Tag, int32 Turns)
 {
 	if (Unit == nullptr)
@@ -5170,9 +5324,28 @@ void ARTTurnManager::ResolveCombat()
 	//
 	// Tenendolo qui l'invariante diventa STRUTTURALE: qualunque uscita futura della sequenza passa comunque
 	// da `SpendStartedAbilities`, e un `return` in piu' non puo' far dimenticare il cooldown a nessuno.
-	FRTBlastContext Ctx;
-	ResolveCombatPasses(Ctx);
-	SpendStartedAbilities(Ctx);
+	// 🔑 **Il contesto vive sull'HEAP, e non e' una preferenza di allocazione** (`#2692`): la fase deve
+	// poter uscire su una finestra del `Brace` e rientrare, e uno `FRTBlastContext` sullo stack di questa
+	// funzione morirebbe al primo ritorno. `PendingMovement` sta qui per la stessa ragione da `#2679`.
+	//
+	// ⚠️ **Nasce e muore ancora dentro questa funzione**, quindi il contratto dichiarato in
+	// `RTBlastContext.h` — *«non e' stato del turno e non sopravvive alla fase»* — resta vero oggi. Cio'
+	// che cambia e' che il contesto sia RAGGIUNGIBILE da fuori quando la sospensione arrivera': senza,
+	// non ci sarebbe niente da riprendere.
+	PendingBlast = MakeUnique<FRTBlastContext>();
+	ResolveCombatPasses(*PendingBlast);
+
+	// 🔑 **La fase puo' NON essere finita** (`#2692`, [D-355]). Un `Brace` ha aperto una finestra e
+	// `ApplyDisplacements` e' uscita a meta': concludere adesso pagherebbe i cooldown di un Blast che non
+	// ha spostato nessuno, e la fase `Move` si risolverebbe su uno stato applicato a meta'. Chi chiude la
+	// finestra riprende da li' e chiama `FinishBlastPhase` al posto nostro.
+	if (PendingBlast->bSuspended)
+	{
+		return; // il contesto resta VIVO: e' cio' che il rientro riprende
+	}
+
+	FinishBlastPhase(*PendingBlast);
+	PendingBlast.Reset();
 }
 
 void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
@@ -6154,9 +6327,31 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors, HealDefs);
 
 	// Coda della fase: cio' che si applica quando il danno e' risolto e si sa chi e' rimasto in piedi.
+	//
+	// ⚠️ **`ApplyDisplacements` puo' uscire senza aver finito** (`#2692`, [D-355]): se un `Brace` apre una
+	// finestra, il contesto resta vivo e cio' che segue va rimandato al rientro. Le due chiamate che
+	// stavano qui vivono in `FinishBlastPhase`, raggiungibile da due strade — come `ConcludeResolution`
+	// da `#2679`, e per la stessa ragione.
 	ApplyDisplacements(Ctx);
+}
+
+/**
+ * La coda della fase Blast: cio' che si applica quando gli spostamenti sono risolti.
+ *
+ * 🔑 **Estratta perche' ha DUE chiamanti** (`#2692`): la sequenza normale e il rientro dopo una finestra
+ * del `Brace`. Prima ne aveva uno solo e poteva stare in linea.
+ *
+ * ⛔ **Non e' un'API pubblica**: chiamarla con la fase ancora sospesa applicherebbe i cooldown a un Blast
+ * che non ha finito di spostare nessuno.
+ */
+void ARTTurnManager::FinishBlastPhase(FRTBlastContext& Ctx)
+{
 	MarkAttackerAbilitiesSpent(Ctx);
 	ApplyControlStatuses(Ctx);
+
+	// 🔴 Il pagamento resta in coda alla sequenza e fuori dai pass, come dichiarato in `ResolveCombat`
+	// (`#1451` punto 3): qualunque uscita anticipata passa comunque di qui.
+	SpendStartedAbilities(Ctx);
 }
 
 

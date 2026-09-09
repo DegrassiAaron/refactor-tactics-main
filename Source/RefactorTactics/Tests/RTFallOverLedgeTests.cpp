@@ -8,9 +8,10 @@
 // vero, un colpo vero, e dove finisce l'unita'. Sono due soggetti, e tenerli separati e' anche cio' che
 // permette a `-Filter RefactorTactics.Fall` di girare da solo.
 //
-// ⚠️ **Cio' che NON si misura qui, e la ragione e' misurata.** Gli effetti numerici della caduta
-// (`FallEffects`, `ImpactEffects`) hanno **zero occorrenze in `Source/`**: non esiste il dato da applicare,
-// e un test che li asserisse misurerebbe la propria invenzione. Sono **#2430**.
+// 🔁 **Gli effetti numerici della caduta ORA si misurano** (#2430, sezione 12). Questo blocco diceva che
+// `FallEffects` e `ImpactEffects` avevano *«zero occorrenze in `Source/`»* e che un test su di essi
+// avrebbe misurato la propria invenzione: era vero finche' [D-357] non ha deciso i numeri — 5 danni,
+// `Exposed` a chi cade — e [D-358] quando si applicano. Il vincolo era reale, non una cautela.
 
 #include "Misc/AutomationTest.h"
 
@@ -18,6 +19,7 @@
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
 #include "Ability/RTHeroCatalogLibrary.h"
+#include "Core/RTGameplayTags.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapActor.h"
@@ -189,6 +191,27 @@ namespace
 			}
 		}
 		return MAX_uint8;
+	}
+
+	/**
+	 * L'importo della voce di danno da CADUTA di questa unita', o `-1` se non ce n'e' nessuna.
+	 *
+	 * 🔑 **Si legge dalla TRACCIA, non dagli HP.** Un'unita' che cade in un turno prende anche il
+	 * colpo che l'ha spinta, e `FirstHitDelta` amplifica QUEL colpo se e' `Exposed`: misurare la
+	 * differenza di HP misurerebbe la somma di due danni, non quello della caduta.
+	 */
+	int32 LedgeFallDamage(const ARTTurnManager* TM, const ARTUnit* Unit)
+	{
+		if (!TM || !Unit) { return -1; }
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.UnitId == Unit->StableUnitId
+				&& E.ActionId.ToString().StartsWith(URTTurnLogLibrary::FallCausePrefix()))
+			{
+				return E.Amount;
+			}
+		}
+		return -1;
 	}
 
 	/** La voce `Move` di questa unita', o `nullptr`. */
@@ -1137,21 +1160,23 @@ bool FRTFallTwoFallersSameLandingTest::RunTest(const FString&)
 	TestEqual(TEXT("e B2 anche"), LedgeBlockReason(TM, B2),
 		static_cast<uint8>(ERTDisplacementBlockReason::ContestedDestination));
 
-	// 3. DOVE FINISCONO, che e' il comportamento vigente e non una regola decisa.
+	// 3. DOVE FINISCONO, e ora e' una regola decisa.
 	//
-	// 🔴 **La spec non copre due cadute che si contendono lo stesso atterraggio.** §4.3 governa il primario
-	// occupato da un'unita' FERMA, non due che scendono insieme; e cio' che accade qui viene da `#420` —
-	// «due bersagli spinti verso la stessa cella restano entrambi fermi» — scritto per le spinte, non per la
-	// gravita'. La differenza e' visibile: §4.3 dice che nel caso saturo la caduta E' AVVENUTA e chi cade
-	// termina su `LastStableCell`, cioe' sul **ciglio**; qui le due unita' non lasciano nemmeno la cella di
-	// partenza.
+	// 🔁 **`VERT-2` e' stata decisa nell'altro verso, e questa asserzione e' cambiata CON la regola.**
+	// [D-358]: *«se non ci sono celle disponibili, la caduta non avviene ma gli effetti si'»*. Le due
+	// unita' non scendono — l'atterraggio e' conteso — ma arrivano sul proprio **ciglio** e subiscono i
+	// 5 danni e `Exposed` di [D-357].
 	//
-	// ⚠️ **Il test pinna il comportamento vigente, non lo approva**: registrato come `VERT-2` in
-	// `OPEN_DECISIONS.md`. Se la decisione va nell'altro verso, questa asserzione cambia **con la regola** —
-	// ed e' il punto di scriverla adesso: senza, il cambio passerebbe inosservato.
-	TestEqual(TEXT("B1 non ha lasciato la cella di partenza"), B1->Cell, FRTCellId(0, 0, 1));
-	TestEqual(TEXT("ne' B2"), B2->Cell, FRTCellId(0, 1, 1));
-	TestEqual(TEXT("e l'occupante di sotto non e' stato toccato"), Occupante->Cell, FRTCellId(1, 1, 0));
+	// 🔑 **La versione precedente asseriva la cella di PARTENZA**, e lo dichiarava: *«il test pinna il
+	// comportamento vigente, non lo approva; se la decisione va nell'altro verso questa asserzione
+	// cambia con la regola»*. E' esattamente quello che e' successo — ed e' il motivo per cui era stata
+	// scritta cosi': senza, il cambio sarebbe passato inosservato.
+	TestEqual(TEXT("B1 e' arrivato sul proprio ciglio"), B1->Cell, FRTCellId(1, 0, 1));
+	TestEqual(TEXT("e B2 sul suo, che e' un'altra cella"), B2->Cell, FRTCellId(1, 1, 1));
+	TestEqual(TEXT("l'occupante di sotto non e' stato spostato"), Occupante->Cell, FRTCellId(1, 1, 0));
+	TestEqual(TEXT("e la caduta e' avvenuta ai fini degli effetti, per B1"),
+		LedgeFallDamage(TM, B1), 5);
+	TestEqual(TEXT("e per B2"), LedgeFallDamage(TM, B2), 5);
 
 	DestroyLedgeWorld(World);
 	return true;
@@ -1216,6 +1241,231 @@ bool FRTFallTwoFallersOrderInvariantTest::RunTest(const FString&)
 		TestEqual(FString::Printf(TEXT("l'unita' %d finisce dove finiva"), i), Inverso[i], Diretto[i]);
 	}
 
+	return true;
+}
+
+// =========================================================================================================
+// 12. Gli effetti della caduta (#2430, [D-357] e [D-358])
+// =========================================================================================================
+
+/**
+ * Chi cade sul primario libero prende **5 danni** e il marchio `Exposed`.
+ *
+ * 🔑 **Cinque, e la scala e' quella di `Exposed` stesso** (+5 al primo danno diretto): la caduta dice
+ * *«e' successo qualcosa»* senza spostare l'aritmetica dello scontro, perche' il prezzo e' gia' pagato
+ * dalla posizione e dalla rarita' della condizione — `Action.Push` ha range 1, spinta 1 e nessun danno
+ * proprio, quindi il bersaglio deve essere GIA' sul ciglio ([D-357]).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallPrimaryAppliesEffectsTest,
+	"RefactorTactics.Fall.PrimaryLandingAppliesFallEffects",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallPrimaryAppliesEffectsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnLedgeMap(World, PasserellaConAtterraggio());
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio) { DestroyLedgeWorld(World); return false; }
+
+	const int32 HpPrima = Bersaglio->Health;
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	TestEqual(TEXT("premessa: e' caduto sul primario"), Bersaglio->Cell, FRTCellId(1, 0, 0));
+	TestEqual(TEXT("ha perso 5 punti vita"), Bersaglio->Health, HpPrima - 5);
+	TestTrue(TEXT("ed e' scoperto"), Bersaglio->HasStatus(TAG_Status_Exposed));
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
+/**
+ * L'occupante centrato prende **5 danni**, e **non** `Exposed`.
+ *
+ * ⚠️ **L'asimmetria e' semantica, non un risparmio di taratura**: `Exposed` significa *«hai perso
+ * l'equilibrio»*, e chi stava fermo non l'ha perso. Prende l'urto, non il marchio ([D-357]).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallOccupantTakesImpactTest,
+	"RefactorTactics.Fall.OccupiedLandingAppliesImpact",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallOccupantTakesImpactTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnLedgeMap(World, PasserellaConAtterraggio());
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTUnit* Occupante = SpawnLedgeUnit(World, 1, FRTCellId(1, 0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio || !Occupante) { DestroyLedgeWorld(World); return false; }
+
+	const int32 HpOccupante = Occupante->Health;
+	const int32 HpBersaglio = Bersaglio->Health;
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	TestEqual(TEXT("l'occupante ha preso l'urto"), Occupante->Health, HpOccupante - 5);
+	TestFalse(TEXT("ma NON e' scoperto: non ha perso lui l'equilibrio"),
+		Occupante->HasStatus(TAG_Status_Exposed));
+	TestEqual(TEXT("e chi e' caduto ha comunque pagato"), Bersaglio->Health, HpBersaglio - 5);
+	TestTrue(TEXT("con il marchio"), Bersaglio->HasStatus(TAG_Status_Exposed));
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
+/**
+ * **Caso saturo**: nessuno scende, e gli effetti si applicano lo stesso (`spec` §4.3, §4.3.2).
+ *
+ * 🔑 E' il test che `#2402` non poteva scrivere — *«non c'e' nulla da applicare, e un test su di essi
+ * sarebbe vacuo per costruzione»* — e che [D-357] rende possibile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallSaturatedAppliesEffectsTest,
+	"RefactorTactics.Fall.SaturatedLandingAppliesFallEffects",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallSaturatedAppliesEffectsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	// Il primario e' l'unica cella di sotto, e ha un occupante: nessuna alternativa esiste.
+	SpawnLedgeMap(World, {
+		FRTCellId(-1, 0, 1), FRTCellId(0, 0, 1), FRTCellId(1, 0, 1), FRTCellId(1, 0, 0)
+	});
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTUnit* Occupante = SpawnLedgeUnit(World, 1, FRTCellId(1, 0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio || !Occupante) { DestroyLedgeWorld(World); return false; }
+
+	const int32 HpBersaglio = Bersaglio->Health;
+	const int32 HpOccupante = Occupante->Health;
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	TestEqual(TEXT("premessa: non e' sceso, resta sul ciglio"), Bersaglio->Cell, FRTCellId(1, 0, 1));
+	TestEqual(TEXT("ma la caduta E' avvenuta ai fini degli effetti"), Bersaglio->Health, HpBersaglio - 5);
+	TestTrue(TEXT("con il marchio"), Bersaglio->HasStatus(TAG_Status_Exposed));
+	TestEqual(TEXT("e l'occupante ha preso l'urto"), Occupante->Health, HpOccupante - 5);
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
+/**
+ * **Colonna senza fondo**: nessun atterraggio esiste, e gli effetti si applicano comunque.
+ *
+ * 🔑 E' il terzo dei casi che [D-358] unifica: *«se non ci sono celle disponibili, la caduta non avviene
+ * ma gli effetti si'»*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallNoLandingStillAppliesTest,
+	"RefactorTactics.Fall.NoLandingStillAppliesEffects",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallNoLandingStillAppliesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnLedgeMap(World, { FRTCellId(-1, 0, 1), FRTCellId(0, 0, 1), FRTCellId(1, 0, 1) });
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio) { DestroyLedgeWorld(World); return false; }
+
+	const int32 HpPrima = Bersaglio->Health;
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	TestEqual(TEXT("premessa: sotto non c'era niente, resta sul ciglio"), Bersaglio->Cell, FRTCellId(1, 0, 1));
+	TestEqual(TEXT("e ha pagato lo stesso"), Bersaglio->Health, HpPrima - 5);
+	TestTrue(TEXT("con il marchio"), Bersaglio->HasStatus(TAG_Status_Exposed));
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
+/**
+ * Il danno di caduta e' **ambientale**, non diretto: `Exposed` non lo amplifica.
+ *
+ * 🔴 **E' l'anti-vacuita' di D002.1, e senza di essa la scelta sarebbe invisibile.** `Exposed` da' *«+5 al
+ * PRIMO danno DIRETTO»*: se la caduta fosse `Direct`, un'unita' gia' scoperta ne prenderebbe **10** invece
+ * di 5 — e due cadute consecutive si sommerebbero. Con `Environmental` il marchio vale solo per il colpo
+ * che arriva dopo, che e' cio' che [D-357] costruisce.
+ *
+ * 🔑 Il bersaglio arriva **gia'** `Exposed`: il test lo mette a mano, perche' quello che misura e' come il
+ * danno di caduta interagisce con un marchio preesistente, non come lo applica.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallDamageIsEnvironmentalTest,
+	"RefactorTactics.Fall.FallDamageIsEnvironmentalNotDirect",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallDamageIsEnvironmentalTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnLedgeMap(World, PasserellaConAtterraggio());
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio) { DestroyLedgeWorld(World); return false; }
+
+	Bersaglio->ApplyStatus(TAG_Status_Exposed, /*Turni*/ 2);
+	const int32 HpPrima = Bersaglio->Health;
+
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	TestEqual(TEXT("premessa: e' caduto"), Bersaglio->Cell, FRTCellId(1, 0, 0));
+	// 🔴 **Si misura la VOCE, non gli HP**, e la prima stesura sbagliava proprio qui: il bersaglio
+	// prende anche il colpo che l'ha spinto, e `FirstHitDelta` amplifica QUELLO se e' `Exposed`.
+	// Contro gli HP il test leggeva 10 e accusava la caduta di un +5 che era del colpo.
+	TestEqual(TEXT("la voce di caduta dice 5: Exposed non amplifica un danno ambientale"),
+		LedgeFallDamage(TM, Bersaglio), 5);
+	TestTrue(TEXT("e il totale non e' 5+5+5: il bonus e' stato speso una volta sola"),
+		Bersaglio->Health >= HpPrima - 10);
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
+/**
+ * Un'unita' gia' **KO** non subisce effetti di caduta.
+ *
+ * 🔑 `ApplyDisplacements` gira nella coda di `ResolveCombat`, **dopo** `ApplyCombatState`: chi e' morto per
+ * il colpo e' gia' a zero quando la spinta lo raggiunge. Il precedente e' `CP 14.5` — *«il watcher caduto
+ * non spara»* — e senza questo controllo il TurnLog registrerebbe la caduta di un cadavere.
+ *
+ * ⚠️ Il test porta il bersaglio a **zero HP prima del turno**: e' il modo di isolare la condizione senza
+ * dipendere dal danno di un attacco, che introdurrebbe una seconda variabile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallDeadUnitTakesNothingTest,
+	"RefactorTactics.Fall.DeadUnitTakesNoFallEffects",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallDeadUnitTakesNothingTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnLedgeMap(World, PasserellaConAtterraggio());
+
+	ARTUnit* Attaccante = SpawnLedgeUnit(World, 0, FRTCellId(-1, 0, 1));
+	ARTUnit* Bersaglio = SpawnLedgeUnit(World, 1, FRTCellId(0, 0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attaccante || !Bersaglio) { DestroyLedgeWorld(World); return false; }
+
+	Bersaglio->ApplyCombatState(/*Health*/ 0, Bersaglio->Shield);
+	if (!TestFalse(TEXT("premessa: e' KO"), Bersaglio->IsAlive())) { DestroyLedgeWorld(World); return false; }
+
+	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
+	RunLedgeTurn(TM);
+
+	TestEqual(TEXT("resta a zero: nessun danno post-mortem"), Bersaglio->Health, 0);
+	TestFalse(TEXT("e nessun marchio su un cadavere"), Bersaglio->HasStatus(TAG_Status_Exposed));
+
+	DestroyLedgeWorld(World);
 	return true;
 }
 
