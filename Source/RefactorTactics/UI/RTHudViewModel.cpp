@@ -489,11 +489,17 @@ FText URTHudViewModel::ComposePlayerEventText(const FRTPlayerEvent& Event)
 TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
 	int32 ObserverTeamId)
 {
+	return BuildPlayerEventFeed(TurnLog, TArray<int32>{ ObserverTeamId });
+}
+
+TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
+	const TArray<int32>& ObserverTeamIds)
+{
 	// ⛔ **L'autorizzazione non si ripete qui, e non deve.** `Project` la applica come primo passo, sul
 	// verdetto che ogni voce porta congelato ([D-223]). Riapplicarla sarebbe un secondo contratto di
 	// conoscenza — il difetto che `#1936` vieta — e ometterla sarebbe il leak. Questa funzione **compone** e
 	// nient'altro.
-	const TArray<FRTPlayerEvent> Events = URTPlayerEventProjector::Project(TurnLog, ObserverTeamId);
+	const TArray<FRTPlayerEvent> Events = URTPlayerEventProjector::Project(TurnLog, ObserverTeamIds);
 
 	TArray<FRTPlayerEventLineView> Lines;
 	Lines.Reserve(Events.Num());
@@ -521,6 +527,53 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const ARTTu
 	return TurnManager != nullptr
 		? BuildPlayerEventFeed(TurnManager->GetTurnLog(), ObserverTeamId)
 		: TArray<FRTPlayerEventLineView>{};
+}
+
+TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
+	const TArray<int32>& ObserverTeamIds)
+{
+	return TurnManager != nullptr
+		? BuildPlayerEventFeed(TurnManager->GetTurnLog(), ObserverTeamIds)
+		: TArray<FRTPlayerEventLineView>{};
+}
+
+TArray<int32> URTHudViewModel::ResolveObserverTeamIds(const ARTTurnManager* TurnManager, int32 PlayerTeamId,
+	const TArray<ARTUnit*>& Units)
+{
+	// ⛔ **Senza manager si risponde come una sessione presidiata, non come una non presidiata.** Il dubbio
+	// si risolve verso la vista PIU' STRETTA: un widget nato prima del manager (`NativeTick` lo riacquisisce
+	// dopo pochi frame) mostrerebbe altrimenti entrambe le squadre per quei frame, ed e' un leak temporale
+	// invece di un difetto di layout.
+	if (TurnManager == nullptr || !TurnManager->IsUnattendedSession())
+	{
+		return TArray<int32>{ PlayerTeamId };
+	}
+
+	// ── Sessione non presidiata: chi guarda non gioca in nessuna delle due squadre (`#2386`).
+	//
+	// 🔴 **Le squadre si SCOPRONO dalle unita' in campo, non da una costante `2`.** Un letterale reggerebbe
+	// oggi e si romperebbe al primo formato 3v3 (`E24`, `#325`) mostrando due squadre su tre — e sarebbe un
+	// difetto silenzioso, perche' il roster resterebbe pieno.
+	TArray<int32> TeamIds;
+	for (const ARTUnit* Unit : Units)
+	{
+		if (Unit)
+		{
+			TeamIds.AddUnique(Unit->TeamId);
+		}
+	}
+
+	// La propria squadra c'e' comunque: senza unita' in campo — allestimento fallito, mondo di prova vuoto —
+	// l'insieme sarebbe vuoto e il feed tacerebbe per una ragione che non e' l'autorizzazione.
+	// ⚠️ **Prima del `Sort`**: aggiungerla dopo la rimetterebbe in coda e l'ordine dichiarato sarebbe falso
+	// esattamente nel caso che questa riga esiste per coprire.
+	TeamIds.AddUnique(PlayerTeamId);
+
+	// ⚠️ **Ordinato, e non per estetica.** L'insieme decide l'ordine delle liste del roster e viaggia in una
+	// vista: l'ordine di `GetAllActorsOfClass` non e' dichiarato, e due frame potrebbero scambiare le due
+	// squadre di posto. E' la stessa disciplina per cui il roster ordina per `HeroId`.
+	TeamIds.Sort();
+	return TeamIds;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -132,6 +132,29 @@ protected:
 	const ARTTurnManager* GetTurnManager() const { return TurnManager.Get(); }
 	int32 GetPlayerTeamId() const { return PlayerTeamId; }
 
+	/**
+	 * Le unita' in campo, in ordine STABILE per `HeroId`.
+	 *
+	 * ⚠️ **L'ordine e' parte del contratto, non una comodita'.** `GetAllActorsOfClass` non dichiara un
+	 * ordine, e una vista che cambia disposizione fra due frame e' illeggibile. Ordinare qui — invece che
+	 * in ogni chiamante — e' anche cio' che rende il roster e la scoperta delle squadre coerenti fra loro.
+	 *
+	 * ⛔ **Non e' esposta ai Blueprint**: restituisce `ARTUnit*`, cioe' esattamente la porta da cui un
+	 * widget potrebbe ricalcolare. La superficie pubblica resta fatta di VISTE.
+	 */
+	TArray<ARTUnit*> GatherUnitsInWorld() const;
+
+	/**
+	 * Chi e' autorizzato a guardare questa partita: la propria squadra, o tutte in sessione non presidiata.
+	 *
+	 * 🔴 **Delega a `URTHudViewModel::ResolveObserverTeamIds` e non decide qui**, ed e' la ragione
+	 * architetturale di `#2744`: il dato che decide e' `ARTTurnManager::IsUnattendedSession()`, che e'
+	 * **inline** nell'header dell'orchestratore. Leggerla da questo file ritirerebbe dentro
+	 * `RTScreenHudWidgets.cpp` l'header che `#2257` ha tolto — lo dichiara il commento accanto al suo
+	 * `#include "Turn/RTTurnManagerAccess.h"`. Qui si passa il puntatore, come gia' fa `GetFeed()`.
+	 */
+	TArray<int32> ResolveObserverTeamIds() const;
+
 	/** L'unita' selezionata dal giocatore, o `nullptr`. Protetta: i Blueprint vedono solo le VISTE. */
 	const ARTUnit* GetSelectedUnit() const;
 
@@ -261,12 +284,23 @@ public:
 	 *
 	 * ⚠️ Non ha un parametro «mostra tutto». La regola di privacy diventa una proprieta' della firma invece
 	 * che disciplina da ricordare — la stessa forma di `GetRoster()`.
+	 *
+	 * ⚠️ **In sessione non presidiata l'insieme degli osservatori si allarga, la firma no** (`#2744`): chi
+	 * decide e' `ResolveObserverTeamIds()`, da un dato della sessione. Un widget non ha comunque modo di
+	 * chiedere le righe non filtrate.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	TArray<FRTPlayerEventLineView> GetFeed() const;
 };
 
-/** `WBP_RT_TeamRoster` — le unita' della PROPRIA squadra, morte comprese. */
+/**
+ * `WBP_RT_TeamRoster` — le unita' della PROPRIA squadra, morte comprese; e in autobattle anche le altre.
+ *
+ * 🔴 **Due liste, mai una fusa** (`#2744`). `FRTUnitCardView` non porta `TeamId`: porta `bIsAlly`, calcolato
+ * contro la squadra chiesta. In una lista sola meta' delle carte direbbe «alleata» a uno spettatore che non
+ * comanda nessuno — un occultamento semantico dentro un tipo, che e' lo stesso difetto di forma che `#2281`
+ * descrive per il punteggio. Con due liste ciascuna e' interamente di una squadra, e a dirlo e' la lista.
+ */
 UCLASS(BlueprintType)
 class REFACTORTACTICS_API URTTeamRosterWidget : public URTScreenHudWidgetBase
 {
@@ -274,11 +308,30 @@ class REFACTORTACTICS_API URTTeamRosterWidget : public URTScreenHudWidgetBase
 
 public:
 	/**
-	 * Il roster. Non c'e' un parametro «mostra anche gli avversari», ed e' voluto: la regola di §4.1 diventa
-	 * una proprieta' della firma invece di una disciplina.
+	 * Il roster della propria squadra. Non c'e' un parametro «mostra anche gli avversari», ed e' voluto: la
+	 * regola di §4.1 diventa una proprieta' della firma invece di una disciplina.
+	 *
+	 * ⚠️ **Questa firma non cambia in autobattle**, e non e' un dettaglio: risponde a *«chi comando io»*
+	 * (`URTHudViewModel::BuildTeamRoster`), e ribaltarne il significato per una modalita' renderebbe la
+	 * stessa funzione due cose diverse a seconda della sessione.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	TArray<FRTUnitCardView> GetRoster() const;
+
+	/**
+	 * Le altre squadre in campo — **vuoto in sessione presidiata**, ed e' li' che sta la regola (`#2744`).
+	 *
+	 * Non c'e' una guardia scritta a parte: l'insieme viene da `ResolveObserverTeamIds()`, che in sessione
+	 * presidiata restituisce la sola squadra del giocatore. Il ciclo qui sotto salta quella, e non resta
+	 * niente. ∴ un `if (presidiata)` sarebbe una seconda copia della stessa decisione.
+	 *
+	 * 🔑 **Due chiamate a `BuildTeamRoster` compongono senza doppioni PER COSTRUZIONE**, perche' quel filtro
+	 * e' `TeamId == PlayerTeamId` e gli insiemi di due squadre sono disgiunti. ⛔ Non e' la forma giusta per
+	 * il feed, dove il filtro autorizza per voce e gli insiemi si sovrappongono — vedi
+	 * `URTPlayerEventProjector::Project`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	TArray<FRTUnitCardView> GetOpposingRoster() const;
 };
 
 /** `WBP_RT_SelectedUnitPanel` — dettaglio di chi si sta comandando: carta, slot occupati. */

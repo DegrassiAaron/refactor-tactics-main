@@ -112,6 +112,49 @@ void URTScreenHudWidgetBase::AcquireMatchContext()
 	}
 }
 
+TArray<ARTUnit*> URTScreenHudWidgetBase::GatherUnitsInWorld() const
+{
+	TArray<ARTUnit*> Units;
+
+	const UWorld* World = GetWorld();
+	if (!World)
+	{
+		return Units;
+	}
+
+	TArray<AActor*> Found;
+	UGameplayStatics::GetAllActorsOfClass(const_cast<UWorld*>(World), ARTUnit::StaticClass(), Found);
+
+	Units.Reserve(Found.Num());
+	for (AActor* Actor : Found)
+	{
+		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
+		{
+			Units.Add(Unit);
+		}
+	}
+
+	// ⚠️ L'ordine di `GetAllActorsOfClass` non e' dichiarato, e un roster che cambia ordine fra due frame e'
+	// illeggibile. Si ordina per un criterio STABILE e indipendente dal mondo: l'id dell'eroe. Non e' una
+	// preferenza estetica — e' la stessa disciplina per cui il resolver non si affida all'ordine di `TMap`.
+	//
+	// ⚠️ **Sta qui e non nel roster** da `#2744`: anche la scoperta delle squadre legge questo elenco, e due
+	// ordini diversi per lo stesso mondo renderebbero l'ordine delle liste dipendente da chi ha chiesto.
+	Units.Sort([](const ARTUnit& A, const ARTUnit& B)
+	{
+		return A.HeroId.LexicalLess(B.HeroId);
+	});
+
+	return Units;
+}
+
+TArray<int32> URTScreenHudWidgetBase::ResolveObserverTeamIds() const
+{
+	// Il puntatore si PASSA: `IsUnattendedSession()` e' inline nell'header dell'orchestratore, e leggerla qui
+	// riporterebbe dentro questo file la dipendenza che `#2257` ha tolto. Vedi la dichiarazione nell'header.
+	return URTHudViewModel::ResolveObserverTeamIds(GetTurnManager(), GetPlayerTeamId(), GatherUnitsInWorld());
+}
+
 void URTScreenHudWidgetBase::SetMatchContextForTest(TWeakObjectPtr<ARTTurnManager> InTurnManager, int32 InPlayerTeamId)
 {
 	TurnManager = InTurnManager;
@@ -192,7 +235,11 @@ TArray<FRTPlayerEventLineView> URTPlayerEventLogWidget::GetFeed() const
 	// ⛔ **`GetPlayerTeamId()` e non un letterale**, ed e' la ragione per cui [D-242] ha centralizzato la
 	// domanda «di chi e' la vista?»: le copie divergenti che c'erano prima comprendevano un `PlayerTeamId = 0`
 	// scritto a mano che alimentava quattro filtri di privacy.
-	return URTHudViewModel::BuildPlayerEventFeed(GetTurnManager(), GetPlayerTeamId());
+	//
+	// ⚠️ **L'insieme e non il singolo** (`#2744`): in sessione presidiata contiene la sola `PlayerTeamId` e
+	// questa riga risponde come rispondeva; in autobattle contiene le squadre in campo, e la decisione
+	// resta una per voce dentro `Project` — non due proiezioni concatenate, che produrrebbero doppioni.
+	return URTHudViewModel::BuildPlayerEventFeed(GetTurnManager(), ResolveObserverTeamIds());
 }
 
 FRTMatchHeaderView URTTurnHeaderWidget::GetHeader() const
@@ -224,36 +271,31 @@ FText URTTurnHeaderWidget::GetRoundCounterText() const
 
 TArray<FRTUnitCardView> URTTeamRosterWidget::GetRoster() const
 {
-	TArray<FRTUnitCardView> Empty;
+	return URTHudViewModel::BuildTeamRoster(GatherUnitsInWorld(), GetPlayerTeamId());
+}
 
-	const UWorld* World = GetWorld();
-	if (!World)
+TArray<FRTUnitCardView> URTTeamRosterWidget::GetOpposingRoster() const
+{
+	const TArray<ARTUnit*> Units = GatherUnitsInWorld();
+	const int32 OwnTeamId = GetPlayerTeamId();
+
+	TArray<FRTUnitCardView> Roster;
+	for (const int32 TeamId : ResolveObserverTeamIds())
 	{
-		return Empty;
-	}
-
-	TArray<AActor*> Found;
-	UGameplayStatics::GetAllActorsOfClass(const_cast<UWorld*>(World), ARTUnit::StaticClass(), Found);
-
-	TArray<ARTUnit*> Units;
-	Units.Reserve(Found.Num());
-	for (AActor* Actor : Found)
-	{
-		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
+		// La propria squadra e' gia' in `GetRoster()`: qui si aggiungono le ALTRE. In sessione presidiata
+		// l'insieme contiene solo la propria, quindi questo ciclo non aggiunge niente — ed e' cosi' che la
+		// regola «vuoto quando qualcuno gioca» esiste senza essere scritta una seconda volta.
+		if (TeamId == OwnTeamId)
 		{
-			Units.Add(Unit);
+			continue;
 		}
+
+		// `BuildTeamRoster` filtra per `TeamId ==`: due squadre diverse danno insiemi DISGIUNTI, quindi
+		// `Append` non puo' duplicare. Con un filtro che autorizza per voce — il feed — questa stessa forma
+		// sarebbe sbagliata.
+		Roster.Append(URTHudViewModel::BuildTeamRoster(Units, TeamId));
 	}
-
-	// ⚠️ L'ordine di `GetAllActorsOfClass` non e' dichiarato, e un roster che cambia ordine fra due frame e'
-	// illeggibile. Si ordina per un criterio STABILE e indipendente dal mondo: l'id dell'eroe. Non e' una
-	// preferenza estetica — e' la stessa disciplina per cui il resolver non si affida all'ordine di `TMap`.
-	Units.Sort([](const ARTUnit& A, const ARTUnit& B)
-	{
-		return A.HeroId.LexicalLess(B.HeroId);
-	});
-
-	return URTHudViewModel::BuildTeamRoster(Units, GetPlayerTeamId());
+	return Roster;
 }
 
 // =====================================================================================================
