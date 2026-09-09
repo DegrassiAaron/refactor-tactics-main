@@ -309,7 +309,7 @@ Le nove tappe d'esperienza e il loro owner reale — ⚠️ **lettere di questo 
 
 | Tappa | Outcome | Owner reale | Release |
 |---|---|---|---|
-| `A` watchable | la partita gira e si guarda | #952 (7 CP chiusi) · **#2744** | v0.1 |
+| `A` watchable | la partita gira e si guarda | #952 (i `CP 47.x` sono chiusi) · **#2744** | v0.1 |
 | `B` readable | capisco *perché* è successo | #1937 → #1936 · #2697 · #2281 · #613 | v0.1 |
 | `C` useful playtest | ci si può giudicare il gameplay | #2556 · #2629 · #2477 · #326 | v0.1 → v0.2 |
 | `D` spectator / camera | guardo da spettatore | **#1769** · #1781 (`CAM-12`) | v0.1 parziale (`D-286`) |

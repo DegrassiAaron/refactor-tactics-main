@@ -8,6 +8,13 @@
 > repository **ha già**, più il minimo di lavoro nuovo che quella riconciliazione ha lasciato scoperto.
 > **Cosa non è**: una seconda roadmap di release, un owner di feature, o una fonte di stato. Lo stato vive
 > nelle issue e nelle milestone GitHub. Quando questo file e GitHub non concordano, **vince GitHub**.
+>
+> 🔢 **Convenzione sui numeri.** Dove compaiono `xx` e `yy` **non manca un dato**: è un totale che cambia da
+> solo — quante issue sono aperte, quanti asset ci sono in una cartella, quante milestone esistono — e
+> scriverlo qui lo renderebbe stantio senza che nessuno se ne accorga. Si conta alla lettura, con il comando
+> o la query indicati accanto. ⚠️ **I numeri che restano scritti sono quelli che non cambiano da soli**:
+> gli esiti di questo passaggio, i conteggi storici citati da una decisione, e gli **zero** che *sono* il
+> difetto — uno zero misurato è un fatto, non un totale.
 
 ---
 
@@ -55,7 +62,8 @@ otto secondi owner»*.
 
 Le lettere `A`–`I` di questo documento sono **tappe d'esperienza**, non release. Il repository ha già:
 
-- **release** → milestone GitHub `v0.1 … v1.0` più `PIA` (11 milestone aperte, misurate il 2026-09-09);
+- **release** → milestone GitHub `v0.1 … v1.0` più `PIA` (`xx` aperte — si contano con
+  `gh api repos/.../milestones`, e non si riportano qui perché cambiano);
 - **fette di lavoro** → *checkpoint* (`CP <n>.<m>`, label `checkpoint`);
 - **viste trasversali** → sezioni `CR-*` di [`../capability-roadmaps.md`](../capability-roadmaps.md).
 
@@ -103,15 +111,15 @@ va chiarito · **CREATE** = lavoro reale senza owner.
 | Corpus di determinismo dell'autobattle | #958 | CLOSED | — `Seed` escluso per `RNG-1` | KEEP |
 | Partita registrata, PIE **e** packaged | #959 | CLOSED | — | KEEP |
 | Finestra di preparazione osservabile | #2386 | CLOSED | — e decide *chi guarda* in autobattle | KEEP |
-| Screen HUD §4.1 in UMG | #613 | OPEN | i 9 `WBP_RT_*` esistono; DoD non chiusa | KEEP |
+| Screen HUD §4.1 in UMG | #613 | OPEN | i `WBP_RT_*` esistono; DoD non chiusa | KEEP |
 | **Roster e feed §4.1 in autobattle** | *nessuno* | — | **il §4.1 non legge `IsUnattendedSession()`** | **CREATE → #2744** |
 | Player Event Log (pipeline + asset) | #1937 → #1936 · #2697 | OPEN | `WBP_RT_EventLog` **non esiste** in `Content/` | LINK |
 | Rimozione pannelli Canvas legacy | #1936 §A | OPEN | — | KEEP |
 | Punteggio/obiettivo: la condizione nel tipo | #2281 | OPEN | binding BP non protetto | LINK |
 | Bot stall patologico | #2556 · #2629 | OPEN | `BOT-STALL-1` **riaperta** il 2026-09-09 | KEEP |
-| Banchi PIE-AI e breakdown decisionale | #2477 | OPEN | 2 banchi su 5 da scrivere | KEEP |
+| Banchi PIE-AI e breakdown decisionale | #2477 | OPEN | `PIE-AI-03` e `PIE-AI-04` senza banco | KEEP |
 | Competenza del bot oltre la v0.1 | #326 (`E26`) → #328 (`E28`) | OPEN | post-v0.1 | KEEP |
-| Camera tattica e presentazione mappa | #1769 (`E49`) + 13 `CAM-*` | OPEN | 5 promosse a v0.1 da `D-286` | KEEP |
+| Camera tattica e presentazione mappa | #1769 (`E49`) + le `CAM-*` | OPEN | #1834 · #1835 · #1836 · #1837 · #1838 promosse a v0.1 da `D-286` | KEEP |
 | Camera Director della Resolution | #1781 (`CAM-12`) | OPEN | backlog dichiarato, `P3` | KEEP |
 | Observer / POV esplicito, omniscient in partita | *nessuno* | — | `OmniscientTeamId` esiste **solo** nell'harness | **DECISIONE → `OBS-1`** |
 | Replay: viewer player-facing | #472 | **CLOSED** | ⛔ non ricreare | KEEP |
@@ -122,7 +130,7 @@ va chiarito · **CREATE** = lavoro reale senza owner.
 | Combat feedback (cue, danno, status) | #2453 → #2454 · #2456 · #2457 | OPEN | #2455 chiusa | KEEP |
 | Icon language | #217 (`E20`) · #265 (`E25`) | OPEN | — | KEEP |
 | Shell, Result e ritorno al menu | #934 (`E46`) → #940 | OPEN | **#940 è l'unico CP `E46` aperto** | LINK |
-| **Configurazione ripetibile di uno showcase** | *nessuno* | — | sei famiglie di seam, nessun manifesto | **CREATE → #2745** |
+| **Configurazione ripetibile di uno showcase** | *nessuno* | — | i seam esistono sparsi, nessun manifesto li compone | **CREATE → #2745** |
 | Formato 3v3 | #325 (`E24`) | OPEN | v0.2 | KEEP |
 | Stress 4v4 | #221 (`E17`) · #333 (`E32`) | OPEN | v0.1 `P3` / v0.4 | KEEP |
 | Mappe Operations, obiettivi multipli | #331 (`E30`) · #332 (`E31`) | OPEN | v0.4 | KEEP |
@@ -151,7 +159,7 @@ va chiarito · **CREATE** = lavoro reale senza owner.
 **Owner**: #952 (`E47`) · consuma #613.
 **Release**: v0.1.
 
-**FATTO — quasi tutto esiste, e i checkpoint sono chiusi.** Tutti e sette i `CP 47.x` (#954 … #959, #1015)
+**FATTO — quasi tutto esiste, e i checkpoint sono chiusi.** Tutti i `CP 47.x` (#954 … #959, #1015)
 e #2386 sono `CLOSED`. In concreto, su `c3151afd`:
 
 - `FRTMatchBootstrapConfig::bAutobattle` mette entrambe le squadre al bot
@@ -204,7 +212,8 @@ git ls-tree -r --name-only c3151afd -- Content/ | grep -ci eventlog
 → 0
 ```
 
-`Content/RT/UI/Match/` porta nove `WBP_RT_*` e nessun event log. ⚠️ **Questo aggiorna la misura di #2697**,
+`Content/RT/UI/Match/` porta `xx` `WBP_RT_*` e **nessun** event log — ed è lo zero che conta, non `xx`.
+⚠️ **Questo aggiorna la misura di #2697**,
 che il 2026-09-09 contava *«zero chiamanti fuori dai test»* per `URTPlayerEventProjector::Project`: il
 chiamante C++ **c'è ora**, ed è la classe base del widget. Ciò che manca è il `.uasset` — cioè #1936 §F.
 
@@ -236,12 +245,13 @@ l'immobilità, o l'immobilità STERILE?»*. Due esenzioni convivono nel corpus
 *ferma*), ed è il perché #2556 e #2629 sono rossi. Istruttoria:
 [`2556-stallo-innesco-scattato-istruttoria-2026-09-09.md`](2556-stallo-innesco-scattato-istruttoria-2026-09-09.md).
 
-**FATTO — i banchi.** #2477 misura che di cinque voci `PIE-AI-*`, tre hanno un banco candidato
-(`AutoBattle.OpenField` · `Spec.Bot.SeeksUncontestedObjective` + `AutoBattle.Objective` · `AutoBattle.Hazard`)
-e **due non ne hanno**: `PIE-AI-03` (lethal contro posizione) e `PIE-AI-04` (cover contro esposizione).
+**FATTO — i banchi.** #2477 misura quali voci `PIE-AI-*` hanno un banco e quali no. Hanno un candidato:
+`AutoBattle.OpenField` · `Spec.Bot.SeeksUncontestedObjective` + `AutoBattle.Objective` · `AutoBattle.Hazard`.
+**Non ne hanno**: `PIE-AI-03` (lethal contro posizione) e `PIE-AI-04` (cover contro esposizione).
+⚠️ Il conteggio vive in #2477 e si legge lì: qui si riportano i **nomi**, che non scadono.
 
-**FATTO — il corpus deterministico esiste già.** `E47.5` (#958) è chiuso; `Scenarios/AutoBattle/` contiene
-cinque scenari.
+**FATTO — il corpus deterministico esiste già.** `E47.5` (#958) è chiuso e `Scenarios/AutoBattle/` è
+popolata.
 
 **PROPOSTA — le metriche** (turni · danno · KO · tempo fermo · pressione sull'obiettivo · durata).
 ⚠️ **Non diventano issue qui**, e il motivo è misurato: `CR-BALANCE` ha già `BAL-METRICS`
@@ -259,7 +269,7 @@ già: *«un risultato bot-contro-bot **non è ancora** una misura di bilanciamen
 **Outcome**: guardo la partita da spettatore, non da giocatore a cui hanno tolto i controlli.
 
 **Owner**: #1769 (`E49`) per tutto il lavoro camera · #1781 (`CAM-12`) per il Camera Director.
-**Release**: cinque `CAM-*` promosse a **v0.1** da `D-286` (#1834 · #1835 · #1836 · #1837 · #1838); il
+**Release**: le `CAM-*` promosse a **v0.1** da `D-286` sono #1834 · #1835 · #1836 · #1837 · #1838; il
 resto **post-v0.1**.
 
 ⛔ **Nessuna epic camera nuova.** #1769 possiede stato camera, gesti, zoom e Strategic View, multilayer,
@@ -359,7 +369,7 @@ contratto: il playback cambia *quanto velocemente* si guarda un risultato **già
 **Owner**: #2745 (discovery) sotto #952 · consuma #934 (`E46`) e #1105/#1625 (authoring scenari).
 **Release**: post-v0.1.
 
-**FATTO — i seam esistono, e sono sei famiglie.** Nessuno va costruito:
+**FATTO — i seam esistono già, sparsi per famiglia.** Nessuno va costruito:
 
 | cosa | dove | precedenza |
 |---|---|---|
@@ -368,7 +378,7 @@ contratto: il playback cambia *quanto velocemente* si guarda un risultato **già
 | ritmo | `MatchPlanningSeconds` (negativo = non intervenire) | proprietà |
 | formato | `MatchFormat` → `ShippedFormatId` → ripiego | asset > id spedito > ripiego |
 | mappa | `MapFixtureId` → `MapSource` → `DemoArenaRadius` | il più specifico vince |
-| scenario | `rt.Test.Scenario` + `Scenarios/AutoBattle/*.json` (5 file) | `ResolveScenarioToRun` |
+| scenario | `rt.Test.Scenario` + `Scenarios/AutoBattle/*.json` | `ResolveScenarioToRun` |
 
 più la velocità di playback in HUD (#1015), la prep window (#2386) e la registrazione PIE + packaged (#959).
 
@@ -442,7 +452,9 @@ epic si aprono. Restano registrate qui e nel backlog di #952, non come issue pre
         F  REPLAY / INSPECTION   #1881 · #472(chiusa) · #2411 · #1805
         ────────────────────────────────────────────────────────────────
         ⚠️ NON è a valle di nessuna delle altre. Cammina in parallelo dalla
-           v0.1, ed è la tappa più avanzata di tutte: 12 issue chiuse, 4 aperte.
+           v0.1, ed è la tappa più avanzata di tutte: `xx` chiuse, `yy` aperte.
+           I due conteggi si leggono su GitHub, non qui — l'elenco nominale
+           delle issue sta in §F.
 ```
 
 ### 4.1 Le dipendenze vere, e le preferenze d'ordine
@@ -453,7 +465,7 @@ epic si aprono. Restano registrate qui e nel backlog di #952, non come issue pre
 |---|---|---|
 | `A → B` | **sì, parziale** | il feed di `B` in autobattle sarà della squadra sbagliata finché #2744 non passa |
 | `B → C` | **no, preferenza** | i rossi di #2556 si tolgono senza toccare l'HUD |
-| `C → D` | **no** | le cinque `CAM-*` v0.1 sono indipendenti dal bot |
+| `C → D` | **no** | le `CAM-*` promosse a v0.1 sono indipendenti dal bot |
 | `D`, `E`, `G` fra loro | **no** | tre owner distinti, tre verifiche distinte — procedono in parallelo |
 | `F` verso chiunque | **no** | `F` non dipende da `A`–`E`: consuma il TurnLog, che esiste |
 | `H → A`,`D`,`E` | **sì** | un manifesto che configuri observer e camera policy presuppone che esistano |
@@ -549,7 +561,7 @@ l'harness ha già attraversa il confine verso la partita — e con quale garanzi
 
 Tre ragioni, in ordine di forza:
 
-1. **È il più piccolo lavoro che chiude la tappa `A`.** Tutti e sette i checkpoint di `E47` sono già chiusi:
+1. **È il più piccolo lavoro che chiude la tappa `A`.** Tutti i checkpoint di `E47` sono già chiusi:
    ciò che separa «la partita gira» da «la partita si guarda» è **un ramo in tre siti**, non un sistema.
 2. **La decisione è già presa.** #2386 ha scelto il dato (`IsUnattendedSession()`) e l'ha applicato al §4.2.
    Estenderlo al §4.1 non chiede una scelta di prodotto — chiede coerenza.
