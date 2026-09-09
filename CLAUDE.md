@@ -744,6 +744,16 @@ Per una milestone aggiungi:
 
 Non fabbricare evidenza.
 
+E non scrivere **totali che cambiano da soli** — quante issue sono aperte, quanti asset ci sono in una
+cartella, quante milestone esistono. La regola è `AGENTS.md` §14; qui conta come Claude la applica:
+
+* vale su **tutto ciò che pubblichi**, non solo sui file: corpo di issue, **titolo**, commento, corpo di PR;
+* se te ne accorgi dopo aver pubblicato, ripulisci **l'intero giro** — `gh issue edit`, `gh pr edit`, e
+  `gh api -X PATCH repos/.../issues/comments/<id>` per i commenti già postati. Uno lasciato indietro rende
+  la convenzione una preferenza;
+* ⛔ **non confondere con la vaghezza**: un difetto espresso come conteggio — *«un solo lettore non-test»*,
+  *«`grep -ci` risponde 0»* — è evidenza, e resta scritto col comando che lo produce.
+
 ---
 
 # 16. Priorità

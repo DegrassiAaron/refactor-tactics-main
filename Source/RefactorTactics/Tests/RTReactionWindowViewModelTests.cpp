@@ -891,4 +891,186 @@ bool FRTFastDecisionVisibilityFollowsOpennessTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **IL RILEVAMENTO DEL CAMBIO FINESTRA distingue «e' cambiata» da «c'e' una finestra»** (`#166`, voce 2).
+ *
+ * 🔑 **E' la proprieta' su cui poggia la ricostruzione dei bottoni**, e la ragione per cui esiste un evento
+ * invece di un binding: due finestre consecutive sono **entrambe** «aperta», quindi `IsWindowOpen()` non le
+ * distingue. Un grafo che ricostruisse sulla transizione `falso → vero` terrebbe i bottoni della domanda
+ * precedente per tutta la seconda finestra — e il primo click risponderebbe a una domanda che il gioco non
+ * sta piu' facendo.
+ *
+ * ⚠️ **Il poll CONSUMA**: e' cio' che rende il test capace di dire che il segnale non e' semplicemente «c'e'
+ * una finestra». Senza il passo 3, un `PollWindowChanged` che restituisse sempre `true` passerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFastDecisionWindowChangedTest,
+	"RefactorTactics.ScreenHud.FastDecisionDetectsTheWindowChanging",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFastDecisionWindowChangedTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	InitVmWorld(World);
+	SpawnVmMap(World);
+
+	ARTUnit* Mover = SpawnVmUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Watcher = SpawnVmUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, /*TeamId=*/ 1);
+	URTFastDecisionWidget* Widget = NewObject<URTFastDecisionWidget>(World);
+	if (!TestNotNull(TEXT("TurnManager"), TM) || !TestNotNull(TEXT("GameMode"), GameMode)
+		|| !TestNotNull(TEXT("PlayerController"), PC) || !TestNotNull(TEXT("widget"), Widget))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// --- 1. Stato di partenza: niente finestra, niente cambio -----------------------------------------
+	// Senza questo passo il punto 2 non proverebbe nulla: un poll che dicesse sempre `true` sarebbe verde.
+	TestFalse(TEXT("senza finestra il primo poll non segnala nessun cambio"),
+		Widget->PollWindowChangedForTest());
+
+	ArmOverwatchScenario(Mover, Watcher);
+	GameMode->HookReactionWindow();
+	Widget->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
+
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("premessa: la finestra A attende"), Widget->IsWindowOpen()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const FString IdA = TM->GetOpenReactionWindowId();
+
+	// --- 2. La finestra A si apre: cambio segnalato ----------------------------------------------------
+	TestTrue(TEXT("l'apertura della finestra A e' un cambio"), Widget->PollWindowChangedForTest());
+
+	// --- 3. Il poll CONSUMA: la stessa finestra non e' un cambio nuovo ---------------------------------
+	// 🔑 E' la meta' che distingue il segnale da «c'e' una finestra»: se questo fosse `true`, il grafo
+	// ricostruirebbe i bottoni a ogni frame — e un click Slate, che e' due eventi su due frame, si
+	// perderebbe fra un'istanza e l'altra.
+	TestFalse(TEXT("la STESSA finestra non e' un cambio nuovo"), Widget->PollWindowChangedForTest());
+	TestFalse(TEXT("e nemmeno al terzo poll"), Widget->PollWindowChangedForTest());
+
+	// --- 4. La finestra cambia davvero: si porta A a scadenza -----------------------------------------
+	int32 Giri = 0;
+	while (TM->IsResolutionSuspended() && TM->GetOpenReactionWindowId() == IdA && Giri < 400)
+	{
+		TM->Tick(0.05f);
+		++Giri;
+	}
+
+	// 🔑 **Il cambio va segnalato in ENTRAMBI i casi**, e sono due fatti diversi: se dopo A si apre una
+	// finestra B il widget deve ricostruire per B; se non se ne apre nessuna deve ricostruire per il vuoto,
+	// cioe' togliere i bottoni. Un evento che segnalasse solo le aperture lascerebbe a schermo la domanda
+	// precedente.
+	const bool bAltraFinestra = TM->IsResolutionSuspended() && Widget->IsWindowOpen();
+	AddInfo(bAltraFinestra
+		? TEXT("dopo A si e' aperta un'altra finestra: si verifica il cambio A -> B")
+		: TEXT("dopo A non si e' aperta nessuna finestra: si verifica il cambio A -> vuoto"));
+
+	TestTrue(TEXT("la finestra A non e' piu' quella corrente"),
+		TM->GetOpenReactionWindowId() != IdA || !Widget->IsWindowOpen());
+	TestTrue(TEXT("e il cambio e' segnalato"), Widget->PollWindowChangedForTest());
+	TestFalse(TEXT("e poi si riconsuma"), Widget->PollWindowChangedForTest());
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **L'OPZIONE INOLTRA IL PROPRIO INDICE, e non puo' nominare una risposta** (`#166`, voce 2).
+ *
+ * 🔑 **Il widget figlio esiste per una ragione meccanica**: in un `ForEach` di Blueprint l'indice non e'
+ * catturabile dentro un delegate — `OnClicked` non porta parametri — e tutti i bottoni risponderebbero con
+ * lo stesso indice, l'ultimo. Tenere l'indice nel figlio e' la forma che lo risolve, ed e' il precedente di
+ * `URTActionSlotWidget`.
+ *
+ * ⚠️ **E la scelta sicura la decide il C++, non il testo.** Nel `Brace` si chiama `Hold Ground`: un grafo
+ * che cercasse la parola `HOLD` sarebbe corretto oggi e sbagliato con la prima finestra che non e' un
+ * Overwatch.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFastDecisionOptionForwardsIndexTest,
+	"RefactorTactics.ScreenHud.FastDecisionOptionForwardsItsOwnIndex",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFastDecisionOptionForwardsIndexTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	InitVmWorld(World);
+	SpawnVmMap(World);
+
+	ARTUnit* Mover = SpawnVmUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Watcher = SpawnVmUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, /*TeamId=*/ 1);
+	URTFastDecisionWidget* Finestra = NewObject<URTFastDecisionWidget>(World);
+	if (!TestNotNull(TEXT("TurnManager"), TM) || !TestNotNull(TEXT("GameMode"), GameMode)
+		|| !TestNotNull(TEXT("PlayerController"), PC) || !TestNotNull(TEXT("widget"), Finestra))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// --- 0. Un'opzione SENZA proprietario non risponde per nessuno ------------------------------------
+	// Il caso non e' teorico: il grafo puo' tenere in vita un bottone oltre la ricostruzione.
+	URTFastDecisionOptionWidget* Orfana = NewObject<URTFastDecisionOptionWidget>(World);
+	Orfana->Choose(); // non deve esplodere, e non deve fare nulla
+	TestEqual(TEXT("un'opzione mai assegnata ha indice INDEX_NONE"),
+		Orfana->OptionIndex, (int32)INDEX_NONE);
+
+	ArmOverwatchScenario(Mover, Watcher);
+	GameMode->HookReactionWindow();
+	Finestra->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
+
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("premessa: una finestra attende"), Finestra->IsWindowOpen()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	const FRTReactionWindowView Vista = Finestra->GetWindow();
+	if (!TestTrue(TEXT("premessa: la finestra offre piu' di una risposta"), Vista.Options.Num() > 1))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const FString IdAperta = TM->GetOpenReactionWindowId();
+
+	// --- 1. Ogni opzione riceve il PROPRIO indice, e la sicura e' riconosciuta -------------------------
+	int32 Sicure = 0;
+	for (int32 i = 0; i < Vista.Options.Num(); ++i)
+	{
+		URTFastDecisionOptionWidget* Bottone = NewObject<URTFastDecisionOptionWidget>(World);
+		const bool bSicura = Vista.Options[i].Response == Vista.SafeResponse;
+		Bottone->SetOption(Finestra, Vista.Options[i], i, bSicura);
+
+		TestEqual(*FString::Printf(TEXT("il bottone %d tiene il proprio indice"), i),
+			Bottone->OptionIndex, i);
+		TestFalse(*FString::Printf(TEXT("il bottone %d ha un'etichetta"), i),
+			Bottone->GetOptionLabel().IsEmpty());
+		Sicure += bSicura ? 1 : 0;
+	}
+
+	// La scelta sicura e' UNA sola, e viene da `SafeResponse` — non dalla parola «HOLD».
+	TestEqual(TEXT("esattamente una opzione e' la scelta sicura"), Sicure, 1);
+
+	// --- 2. LA MISURA: il click di UN bottone inoltra QUELL'indice -------------------------------------
+	// Si sceglie l'ultimo: con l'indice non catturato — il difetto che questo widget esiste per evitare —
+	// ogni bottone risponderebbe con l'ultimo, e un test sul primo non lo vedrebbe.
+	const int32 Ultimo = Vista.Options.Num() - 1;
+	URTFastDecisionOptionWidget* Premuto = NewObject<URTFastDecisionOptionWidget>(World);
+	Premuto->SetOption(Finestra, Vista.Options[Ultimo], Ultimo, /*bIsSafe=*/ false);
+	Premuto->Choose();
+
+	TestTrue(TEXT("il click ha chiuso la finestra a cui rispondeva"),
+		TM->GetOpenReactionWindowId() != IdAperta);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

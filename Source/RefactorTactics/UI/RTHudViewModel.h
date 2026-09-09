@@ -522,6 +522,46 @@ public:
 		int32 ObserverTeamId);
 
 	/**
+	 * Gli stessi due, per un INSIEME di osservatori autorizzati — la sessione non presidiata (`#2744`).
+	 *
+	 * 🔴 **Non e' «mostra tutto» con un altro nome.** L'insieme lo decide `ResolveObserverTeamIds` da un
+	 * DATO — `ARTTurnManager::IsUnattendedSession()` — e ogni squadra dentro l'insieme passa comunque da
+	 * `AllowsTeam`, una volta per voce. Un insieme **vuoto** da' un feed **vuoto**: il fail-closed non si
+	 * allenta passando per un contenitore.
+	 *
+	 * ⛔ Le due firme a un solo `int32` restano quello che erano e rispondono identiche: delegano a queste
+	 * con un insieme di un elemento. Non esiste un parametro che significhi «ignora l'osservatore».
+	 */
+	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
+		const TArray<int32>& ObserverTeamIds);
+
+	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
+		const TArray<int32>& ObserverTeamIds);
+
+	/**
+	 * 🔑 **Chi guarda questa partita.** La sede UNICA della domanda, e il motivo per cui vive qui.
+	 *
+	 * Sessione presidiata → `{ PlayerTeamId }`, cioe' il comportamento di sempre.
+	 * Sessione **non presidiata** → tutte le squadre in campo: nessuno gioca, e con l'osservatore di sempre
+	 * si vedrebbe meta' della partita che si e' venuti a guardare (`#2386`, `ARTHUD::DrawHUD`).
+	 *
+	 * 🔴 **Sta nel view model e NON nel widget**, e non e' una preferenza di collocazione.
+	 * `IsUnattendedSession()` e' inline in `RTTurnManager.h`; chiamarla da `RTScreenHudWidgets.cpp`
+	 * ritirerebbe dentro quel file l'header dell'orchestratore che `#2257` ha tolto di proposito — lo
+	 * dichiara il commento del suo `#include "Turn/RTTurnManagerAccess.h"`. Qui l'header c'e' gia'.
+	 *
+	 * ⛔ **Nessun `bIsSpectator`.** `ARTPlayerState::TeamIdOf` resta l'unica porta per «di chi e' la vista»
+	 * ([D-242], `#1730`): questa funzione non risponde a quella domanda, risponde a «chi e' **autorizzato**
+	 * a guardare», e la risposta viene da un dato della sessione.
+	 *
+	 * @param Units  le unita' in campo. Servono a **scoprire** le squadre invece di assumerne due: un
+	 *               letterale reggerebbe fino al primo 3v3 (`E24`, `#325`). Vuote in sessione non presidiata
+	 *               → resta la sola `PlayerTeamId`, mai un insieme vuoto.
+	 */
+	static TArray<int32> ResolveObserverTeamIds(const ARTTurnManager* TurnManager, int32 PlayerTeamId,
+		const TArray<ARTUnit*>& Units);
+
+	/**
 	 * La frase di un singolo evento, esposta perche' e' la decisione che si sbaglia una volta sola.
 	 *
 	 * ⚠️ **Una tabella, non un `if` per sito.** Un tipo nuovo dell'enum non tradotto qui produce una riga

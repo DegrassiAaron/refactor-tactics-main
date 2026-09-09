@@ -112,6 +112,49 @@ void URTScreenHudWidgetBase::AcquireMatchContext()
 	}
 }
 
+TArray<ARTUnit*> URTScreenHudWidgetBase::GatherUnitsInWorld() const
+{
+	TArray<ARTUnit*> Units;
+
+	const UWorld* World = GetWorld();
+	if (!World)
+	{
+		return Units;
+	}
+
+	TArray<AActor*> Found;
+	UGameplayStatics::GetAllActorsOfClass(const_cast<UWorld*>(World), ARTUnit::StaticClass(), Found);
+
+	Units.Reserve(Found.Num());
+	for (AActor* Actor : Found)
+	{
+		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
+		{
+			Units.Add(Unit);
+		}
+	}
+
+	// ⚠️ L'ordine di `GetAllActorsOfClass` non e' dichiarato, e un roster che cambia ordine fra due frame e'
+	// illeggibile. Si ordina per un criterio STABILE e indipendente dal mondo: l'id dell'eroe. Non e' una
+	// preferenza estetica — e' la stessa disciplina per cui il resolver non si affida all'ordine di `TMap`.
+	//
+	// ⚠️ **Sta qui e non nel roster** da `#2744`: anche la scoperta delle squadre legge questo elenco, e due
+	// ordini diversi per lo stesso mondo renderebbero l'ordine delle liste dipendente da chi ha chiesto.
+	Units.Sort([](const ARTUnit& A, const ARTUnit& B)
+	{
+		return A.HeroId.LexicalLess(B.HeroId);
+	});
+
+	return Units;
+}
+
+TArray<int32> URTScreenHudWidgetBase::ResolveObserverTeamIds() const
+{
+	// Il puntatore si PASSA: `IsUnattendedSession()` e' inline nell'header dell'orchestratore, e leggerla qui
+	// riporterebbe dentro questo file la dipendenza che `#2257` ha tolto. Vedi la dichiarazione nell'header.
+	return URTHudViewModel::ResolveObserverTeamIds(GetTurnManager(), GetPlayerTeamId(), GatherUnitsInWorld());
+}
+
 void URTScreenHudWidgetBase::SetMatchContextForTest(TWeakObjectPtr<ARTTurnManager> InTurnManager, int32 InPlayerTeamId)
 {
 	TurnManager = InTurnManager;
@@ -192,7 +235,11 @@ TArray<FRTPlayerEventLineView> URTPlayerEventLogWidget::GetFeed() const
 	// ⛔ **`GetPlayerTeamId()` e non un letterale**, ed e' la ragione per cui [D-242] ha centralizzato la
 	// domanda «di chi e' la vista?»: le copie divergenti che c'erano prima comprendevano un `PlayerTeamId = 0`
 	// scritto a mano che alimentava quattro filtri di privacy.
-	return URTHudViewModel::BuildPlayerEventFeed(GetTurnManager(), GetPlayerTeamId());
+	//
+	// ⚠️ **L'insieme e non il singolo** (`#2744`): in sessione presidiata contiene la sola `PlayerTeamId` e
+	// questa riga risponde come rispondeva; in autobattle contiene le squadre in campo, e la decisione
+	// resta una per voce dentro `Project` — non due proiezioni concatenate, che produrrebbero doppioni.
+	return URTHudViewModel::BuildPlayerEventFeed(GetTurnManager(), ResolveObserverTeamIds());
 }
 
 FRTMatchHeaderView URTTurnHeaderWidget::GetHeader() const
@@ -224,36 +271,31 @@ FText URTTurnHeaderWidget::GetRoundCounterText() const
 
 TArray<FRTUnitCardView> URTTeamRosterWidget::GetRoster() const
 {
-	TArray<FRTUnitCardView> Empty;
+	return URTHudViewModel::BuildTeamRoster(GatherUnitsInWorld(), GetPlayerTeamId());
+}
 
-	const UWorld* World = GetWorld();
-	if (!World)
+TArray<FRTUnitCardView> URTTeamRosterWidget::GetOpposingRoster() const
+{
+	const TArray<ARTUnit*> Units = GatherUnitsInWorld();
+	const int32 OwnTeamId = GetPlayerTeamId();
+
+	TArray<FRTUnitCardView> Roster;
+	for (const int32 TeamId : ResolveObserverTeamIds())
 	{
-		return Empty;
-	}
-
-	TArray<AActor*> Found;
-	UGameplayStatics::GetAllActorsOfClass(const_cast<UWorld*>(World), ARTUnit::StaticClass(), Found);
-
-	TArray<ARTUnit*> Units;
-	Units.Reserve(Found.Num());
-	for (AActor* Actor : Found)
-	{
-		if (ARTUnit* Unit = Cast<ARTUnit>(Actor))
+		// La propria squadra e' gia' in `GetRoster()`: qui si aggiungono le ALTRE. In sessione presidiata
+		// l'insieme contiene solo la propria, quindi questo ciclo non aggiunge niente — ed e' cosi' che la
+		// regola «vuoto quando qualcuno gioca» esiste senza essere scritta una seconda volta.
+		if (TeamId == OwnTeamId)
 		{
-			Units.Add(Unit);
+			continue;
 		}
+
+		// `BuildTeamRoster` filtra per `TeamId ==`: due squadre diverse danno insiemi DISGIUNTI, quindi
+		// `Append` non puo' duplicare. Con un filtro che autorizza per voce — il feed — questa stessa forma
+		// sarebbe sbagliata.
+		Roster.Append(URTHudViewModel::BuildTeamRoster(Units, TeamId));
 	}
-
-	// ⚠️ L'ordine di `GetAllActorsOfClass` non e' dichiarato, e un roster che cambia ordine fra due frame e'
-	// illeggibile. Si ordina per un criterio STABILE e indipendente dal mondo: l'id dell'eroe. Non e' una
-	// preferenza estetica — e' la stessa disciplina per cui il resolver non si affida all'ordine di `TMap`.
-	Units.Sort([](const ARTUnit& A, const ARTUnit& B)
-	{
-		return A.HeroId.LexicalLess(B.HeroId);
-	});
-
-	return URTHudViewModel::BuildTeamRoster(Units, GetPlayerTeamId());
+	return Roster;
 }
 
 // =====================================================================================================
@@ -432,4 +474,83 @@ FText URTFastDecisionWidget::GetPromptText() const
 	// `TargetSnapshotIndex`, non un id stabile, e risolverlo qui nominerebbe l'unita' sbagliata in ogni
 	// partita in cui qualcuno e' gia' caduto. Un'etichetta neutra e' l'unica cosa che questo widget sa.
 	return NSLOCTEXT("RefactorTactics", "FastDecisionPrompt", "Reazione");
+}
+
+void URTFastDecisionWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+
+	// ⚠️ Non e' un tick di gameplay e non decide nulla: e' presentazione che si accorge di un cambio. Come
+	// il retry del contesto sulla base, `InDeltaTime` qui non viene nemmeno letto.
+	if (PollWindowChanged())
+	{
+		// L'evento va per ULTIMO: `PollWindowChanged` ha gia' aggiornato `LastWindowId`, quindi il grafo
+		// che ricostruisce legge lo stato della finestra NUOVA.
+		OnWindowChanged();
+	}
+}
+
+bool URTFastDecisionWidget::PollWindowChanged()
+{
+	// 🔑 **L'identita' si CHIEDE al view model, non si deriva dalla vista.** `DeriveOpportunityId` e' un
+	// formato con un solo produttore: ricomporlo qui ne creerebbe un secondo, ed e' esattamente cio' che il
+	// view model ha gia' rifiutato di fare per se'.
+	const URTReactionWindowViewModel* ViewModel = GetReactionWindow();
+
+	// ⚠️ **Senza view model l'identita' e' VUOTA, non «invariata».** Un HUD che perde il proprio
+	// proprietario deve ricostruire — cioe' svuotare i bottoni — non restare con quelli dell'ultima
+	// finestra: e' lo stesso caso della finestra che si chiude.
+	//
+	// ⛔ E si legge l'id solo quando la finestra e' APERTA: `WindowOpportunityId` resta valorizzato anche
+	// dopo una scadenza — e' `IsWindowOpen()` a confrontarlo con l'orologio autorevole. Leggerlo senza quel
+	// gate terrebbe i bottoni di una finestra che il core ha gia' chiuso.
+	const FString Corrente =
+		(ViewModel && ViewModel->IsWindowOpen()) ? ViewModel->GetWindowId() : FString();
+
+	if (Corrente == LastWindowId)
+	{
+		return false;
+	}
+
+	LastWindowId = Corrente;
+	return true;
+}
+
+// =====================================================================================================
+// Fast decision option — un bottone, il suo indice, e nient'altro
+// =====================================================================================================
+
+void URTFastDecisionOptionWidget::SetOption(URTFastDecisionWidget* InOwner,
+	const FRTReactionWindowOptionView& InOption, int32 InIndex, bool bInIsSafe)
+{
+	Owner = InOwner;
+	Option = InOption;
+	OptionIndex = InIndex;
+	bIsSafeChoice = bInIsSafe;
+
+	// ⚠️ Per ULTIMO, come `URTActionSlotWidget::SetAction`: il Blueprint disegna leggendo i campi qui sopra.
+	OnOptionChanged();
+}
+
+FText URTFastDecisionOptionWidget::GetOptionLabel() const
+{
+	// ⚠️ **La stringa di risposta diventa un'etichetta e non torna piu' indietro.** E' l'unico punto in cui
+	// `Response` attraversa il confine verso la presentazione, e lo fa come `FText`: da li' non si puo'
+	// rimandare al core, perche' `Choose()` spedisce l'INDICE.
+	//
+	// ⛔ Nessuna traduzione e nessun abbellimento qui: `Response` e' un vocabolario del core
+	// (`FIRE:<indice>`, `HOLD`, `Hold Ground`, le maneuver del profilo) e mapparlo su nomi leggibili e'
+	// lavoro di contenuto, con una tabella e un owner. Inventarlo qui sarebbe un secondo vocabolario.
+	return FText::FromString(Option.Response);
+}
+
+void URTFastDecisionOptionWidget::Choose()
+{
+	// ⛔ **Fail-closed sul proprietario**: un'opzione staccata dalla propria finestra non risponde per
+	// nessuno. Il caso non e' teorico — il grafo puo' tenere in vita un bottone oltre la ricostruzione.
+	if (URTFastDecisionWidget* Finestra = Owner.Get())
+	{
+		// L'indice, non la risposta. Il gate della validita' resta in `ChooseOption`, che rilegge la vista.
+		Finestra->ChooseOption(OptionIndex);
+	}
 }

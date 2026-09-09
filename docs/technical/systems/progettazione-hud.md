@@ -284,6 +284,15 @@ Ogni membro può mostrare:
 
 Il roster non deve trasformarsi in tre enormi character card.
 
+> 🔑 **In sessione non presidiata le squadre sono due, in due liste** (`#2744`). Quando nessuno comanda —
+> autobattle, `ARTTurnManager::IsUnattendedSession()` — il roster risponde a *«chi sta giocando questa
+> partita»* invece che a *«chi comando io»*, e mostra anche l'altra squadra. Restano **due liste distinte**:
+> `FRTUnitCardView` porta `bIsAlly` e non `TeamId`, quindi in un elenco fuso metà delle carte direbbe
+> «alleata» a chi non comanda nessuno.
+>
+> ⛔ **In sessione presidiata non cambia nulla**: la seconda lista è vuota per costruzione, non per una
+> guardia scritta a parte.
+
 ## 6.3 Top right — Objective
 
 Compatto ma sempre leggibile.

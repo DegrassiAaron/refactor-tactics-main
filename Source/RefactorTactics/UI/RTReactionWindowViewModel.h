@@ -133,6 +133,27 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Reaction")
 	void SubmitResponse(const FString& Response);
 
+	/**
+	 * L'identita' della finestra consegnata, o stringa vuota. **Non e' una `UFUNCTION`, e non e' una
+	 * dimenticanza** (`#166`, CP 14.6).
+	 *
+	 * 🔑 **Serve a chi disegna per sapere QUANDO ricostruire, e a nessun altro.** Il widget deve accorgersi
+	 * che la finestra e' cambiata — due finestre consecutive sono entrambe «aperta», quindi `IsWindowOpen()`
+	 * non lo distingue — e senza questo dovrebbe dedurlo da un surrogato: il numero di opzioni, il testo di
+	 * un bottone, `SafeResponse`. Ognuno di quei surrogati sarebbe un **secondo identificatore** della
+	 * finestra, che e' il difetto che `FRTReactionOpportunityKey` esiste per impedire.
+	 *
+	 * ⛔ **Resta fuori dalla riflessione, e quindi dai Blueprint**, per la stessa ragione per cui
+	 * `FRTReactionWindowView::Key` non e' `BlueprintReadOnly`: un grafo che potesse leggere l'identita'
+	 * potrebbe anche confrontarla, deciderne l'uguaglianza a modo proprio, e ricostruirne una versione «per
+	 * la UI». Il C++ la legge e ne ricava un solo fatto — «e' cambiata» — che e' cio' che il disegno
+	 * consuma.
+	 *
+	 * Si RESTITUISCE cio' che `HandleWindowOpened` ha registrato: non si ricompone da `Window.Key`, perche'
+	 * `DeriveOpportunityId` ha un solo produttore e questo non e' quello.
+	 */
+	const FString& GetWindowId() const { return WindowOpportunityId; }
+
 private:
 	/** L'handler legato a `OnReactionWindowOpened`. Registra la finestra; non risponde e non decide. */
 	void HandleWindowOpened(const FRTReactionWindowView& View, int32 OwnerUnitId);

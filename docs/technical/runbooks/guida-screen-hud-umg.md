@@ -46,7 +46,7 @@ Crea ogni widget con **Widget Blueprint → scegli la classe padre**, non con il
 |---|---|---|
 | `WBP_RT_TacticalHUD` | `RTTacticalHUDWidget` | contenitore a schermo intero; tiene `IconCatalog` |
 | `WBP_RT_TurnHeader` | `RTTurnHeaderWidget` | `GetRoundCounterText`, `GetHeader` |
-| `WBP_RT_TeamRoster` | `RTTeamRosterWidget` | `GetRoster` |
+| `WBP_RT_TeamRoster` | `RTTeamRosterWidget` | `GetRoster`, `GetOpposingRoster` |
 | `WBP_RT_SelectedUnitPanel` | `RTSelectedUnitPanelWidget` | `HasSelection`, `GetCard`, `GetSlots` |
 | `WBP_RT_ActionDock` | `RTActionDockWidget` | `GetActions`, `GetArmedActionIndex` |
 | `WBP_RT_ActionSlot` | `RTActionSlotWidget` | riceve `SetAction`; implementa `OnActionChanged` |
@@ -54,6 +54,17 @@ Crea ogni widget con **Widget Blueprint → scegli la classe padre**, non con il
 
 > ⚠️ **I nomi non sono suggerimenti.** `progettazione-hud.md` §45 li dichiara, e su un `.uasset` il rename
 > costa più che scriverlo giusto la prima volta (redirector, riferimenti, Fix Up).
+
+> 🔴 **`GetOpposingRoster` esiste in C++ e nessun Blueprint lo lega** — misurato il 2026-09-09 su
+> `WBP_RT_TeamRoster.uasset`, dove `GetRoster` compare e `GetOpposingRoster` no. È il residuo d'editor di
+> [`#2744`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2744).
+>
+> **Cosa lega**: una seconda lista, sotto la propria, che si **nasconde quando è vuota** — e lo è per
+> costruzione in ogni sessione presidiata, quindi non serve una condizione a parte nel grafo.
+>
+> ⚠️ **Non fondere le due liste in una.** `FRTUnitCardView` porta `bIsAlly` e non `TeamId`: in una lista
+> sola metà delle carte direbbe «alleata» a uno spettatore che non comanda nessuno. È la lista a portare
+> l'identità di squadra, ed è anche il «secondo canale oltre al colore» che `D-146` chiede.
 
 > 🔁 **La tabella diceva «i sei» e ne elencava sei — il 2026-09-09 sono sette, e uno era già mancante prima.**
 > `WBP_RT_FastDecision` entra con [`#166`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) (CP 14.6). ⚠️ **Manca ancora `WBP_RT_EventLog`**, classe padre
@@ -299,15 +310,107 @@ gate — **non lo incontrerebbe**.
 
 Lo scheletro non è la finestra. Restano da fare, e sono lavoro d'autore:
 
-1. **I binding**: `WindowRoot.Visibility` ← `Is Window Open`; `CountdownText.Text` ← `Get Remaining Seconds`
-   formattato; `PromptText.Text` ← il bersaglio della finestra;
-2. **Il popolamento di `OptionsBox`**: un bottone per elemento di `GetWindow().Options`, con
-   `Choose Option(indice)` sul click — vedi le quattro regole qui sopra;
+1. **I tre binding** — tre menù a tendina, e i nodi da scegliere sono **esattamente** questi:
+
+   | Widget | Proprietà | Funzione da collegare |
+   |---|---|---|
+   | `WindowRoot` | **Visibility** | `Get Window Visibility` |
+   | `CountdownText` | **Text** | `Get Countdown Text` |
+   | `PromptText` | **Text** | `Get Prompt Text` |
+
+   ⛔ **Non collegare `Visibility` al countdown.** È la scorciatoia che viene in mente per prima ed è il
+   difetto **F7**: i due orologi non hanno lo stesso tick, il numero tocca lo zero **prima** che la finestra
+   si chiuda, e il prompt sparirebbe mentre il gioco sta ancora aspettando. La risposta mancata diventa un
+   `HoldTimeout` che nel TurnLog è indistinguibile da una scelta deliberata.
+
+2. **Il popolamento di `OptionsBox`** — vedi §7-ter, ha una ricetta sua;
 3. **L'aspetto**: colori, font, ingombro, e la posizione dentro `WBP_RT_TacticalHUD`. ⚠️ Il **centro libero**
    di §3 vale anche per questa finestra: §4.2 disegna path e AoE sopra la mappa.
 
-✅ Il gate headless copre già il **contratto** — parent class, caricamento, nessuna texture. Ciò che resta
-è esattamente ciò che solo `PIE-V01-OVERWATCH` può guardare.
+### ✅ Come sapere di aver collegato i nodi giusti
+
+```bash
+"D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
+  "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
+  -ExecCmds="Automation RunTests RefactorTactics.ScreenHud.FastDecisionBindingsAreWiredToTheRightNodes;Quit" \
+  -unattended -nopause -nosplash -nullrhi -NoLiveCoding -log
+```
+
+`RefactorTactics.ScreenHud.FastDecisionBindingsAreWiredToTheRightNodes` legge `Class->Bindings` e verifica
+le **tre triplette** widget → proprietà → funzione. Finché non le trovi è rosso, e l'errore nomina il widget,
+la proprietà, la funzione mancante e la ragione.
+
+🔑 **La metà che conta non è «c'è un binding», è «è collegato alla funzione giusta»**: un binding presente e
+sbagliato è peggio di uno assente, perché a schermo sembra funzionare.
+
+✅ Gli altri gate headless coprono il **contratto** — parent class, caricamento, nessuna texture. Ciò che
+resta dopo questi due è esattamente ciò che solo `PIE-V01-OVERWATCH` può guardare.
+
+---
+
+## 7-ter. `OptionsBox` — i bottoni della finestra
+
+Sezione aggiunta il **2026-09-09**. È l'ultimo pezzo di UI delle voci 2 · 4 di CP 14.6.
+
+### Perché serve un secondo Blueprint
+
+⛔ **Non si può fare con un `ForEach` e basta.** In un ciclo Blueprint l'indice **non è catturabile** dentro
+un delegate: `OnClicked` non porta parametri, quindi tutti i bottoni finirebbero per rispondere con lo stesso
+indice — l'ultimo. Serve un widget figlio che **tenga il proprio indice**, ed è lo stesso motivo per cui
+`WBP_RT_ActionSlot` esiste accanto a `WBP_RT_ActionDock`.
+
+| Blueprint | Parent Class | Cosa fa |
+|---|---|---|
+| `WBP_RT_FastDecisionOption` | `RTFastDecisionOptionWidget` | un `Button` + un `Text Block`; il click chiama `Choose` |
+
+### Il grafo, in quattro nodi
+
+Nel Designer di **`WBP_RT_FastDecision`** implementa l'evento **`On Window Changed`**:
+
+```text
+Event On Window Changed
+  └─ OptionsBox → Clear Children
+  └─ Get Window → Options → ForEach (Element, Index)
+       └─ Create Widget (WBP_RT_FastDecisionOption)
+            └─ Set Option (Owner = self, Option = Element, Index = Index,
+                           bIsSafe = Element.Response == Get Window.SafeResponse)
+            └─ OptionsBox → Add Child
+```
+
+E dentro **`WBP_RT_FastDecisionOption`**: `OnClicked` del bottone → **`Choose`**. Nient'altro.
+Il testo del bottone si lega a **`Get Option Label`**, e lo stile «scelta sicura» a **`Is Safe Choice`**.
+
+### 🔴 Le tre regole che il C++ non può importi
+
+**1. Ricostruisci SOLO su `On Window Changed`, mai su `Tick`.**
+Un click Slate è **due eventi su due frame** — `MouseButtonDown` e `MouseButtonUp` — e devono atterrare sulla
+**stessa istanza** di widget. Svuotare e ripopolare il box ogni frame non lo garantisce, e in una finestra da
+3,0 s un click perso matura in `HoldTimeout` — indistinguibile, nel TurnLog, da una scelta deliberata.
+
+**2. L'evento scatta anche quando la finestra si CHIUDE.** `Clear Children` va eseguito **sempre**, prima del
+ciclo: se la finestra è chiusa, `Options` è vuoto e il box resta vuoto. Un `if (Is Window Open)` messo prima
+del `Clear` lascerebbe a schermo i bottoni dell'ultima domanda.
+
+**3. La scelta sicura non si riconosce dal testo.** Confronta `Response` con `SafeResponse`, come nello
+pseudo-grafo qui sopra — nel `Brace` si chiama `Hold Ground`, non `HOLD`.
+
+⚠️ **E due finestre di fila esistono davvero**, non è un caso limite teorico: misurato da
+`ScreenHud.FastDecisionDetectsTheWindowChanging`, che registra nel log *«dopo A si è aperta un'altra
+finestra»*. È esattamente lo scenario in cui una ricostruzione legata a `Is Window Open` — vero prima e dopo —
+lascerebbe i bottoni sbagliati.
+
+### ✅ Verifica
+
+```bash
+"D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
+  "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
+  -ExecCmds="Automation RunTests RefactorTactics.ScreenHud;Quit" \
+  -unattended -nopause -nosplash -nullrhi -NoLiveCoding -log
+```
+
+⚠️ **Il gate headless copre il C++, NON il tuo grafo.** `Class->Bindings` vede i property binding, **non** il
+consumo dentro un event graph — è l'errore che `ActionDockConsumesArmedIndex` ha già commesso una volta, ed è
+scritto in `RTMatchWidgetAssetTests.cpp`. Ciò che il grafo fa davvero si guarda in **`PIE-V01-OVERWATCH`**.
 
 ---
 

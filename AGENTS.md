@@ -5,6 +5,8 @@ Contratto operativo condiviso per coding agent nel repository.
 Obiettivo: modifiche **piccole, verificabili, coerenti con gli owner correnti e con la milestone attiva**.
 
 > Numeri di test, SHA, issue aperte, checkpoint e altri dati volatili si misurano sul branch corrente. Non copiarli qui.
+> ⚠️ **E non copiarli nemmeno in ciò che produci**: la regola vale per questo file *e* per referti, corpi di
+> issue, commenti e PR. Vedi **§14**.
 
 ## 1. Progetto in 30 secondi
 
@@ -679,3 +681,41 @@ Codice, identificatori e API:
 **inglese**.
 
 Tutoring C++/UE su richiesta, non come default.
+
+## 14. Numeri nei documenti che produci
+
+La nota in testa a questo file dice di non copiare qui i dati volatili. **Vale identica per ciò che
+scrivi**: referto, corpo di issue, commento, corpo di PR, riga di roadmap.
+
+**Un totale che cambia da solo non si scrive.** Quante issue di una famiglia sono aperte, quanti asset
+stanno in una cartella, quante milestone esistono, quanti file ha una directory.
+
+Non c'è un gate che rimisuri un numero in prosa. Nessuno lo vede invecchiare, e chi legge lo tratta come
+corrente perché sta accanto a fatti che lo sono. Il caso di riferimento è
+[`docs/roadmap/plans/README.md`](docs/roadmap/plans/README.md): la sua tabella di conteggi è ferma a una
+vecchia misura mentre la cartella è cresciuta di un ordine di grandezza — il generatore è uscito con
+`D-181`/`D-182`, e da allora la deriva non la segnala nessuno.
+
+Tre forme, in ordine di preferenza:
+
+1. **Il nome invece del numero.** Se segue un'enumerazione, il numerale è ridondante *e* fragile:
+   «tutti i `CP 47.x` (#954 … #959, #1015)» batte «tutti e sette i checkpoint». I nomi non scadono.
+2. **`xx` / `yy`, col modo di contarli accanto**, quando il conteggio *è* l'informazione:
+   «(`xx` aperte — si contano con `gh api repos/.../milestones`)». ⚠️ Dichiara la convenzione una volta in
+   testa al documento, o `xx` si legge come un dato mancante.
+3. **Lascia il numero** quando non cambia da solo — e sono tre casi soli:
+   - gli **esiti del passaggio che stai scrivendo** (`epic create: 0`);
+   - i **conteggi storici citati da una decisione** (`D-242` centralizzò *quattro* filtri di privacy);
+   - gli **zero misurati che *sono* il difetto**: `grep -ci eventlog → 0` è un fatto, non un totale.
+
+⛔ **Non è licenza di essere vaghi.** Un fatto misurato resta misurato, con file, riga e comando. Cade il
+*totale*, non l'evidenza — e un difetto espresso come conteggio (*«un solo lettore non-test»*) è evidenza.
+
+⚠️ **Se la correzione arriva dopo la pubblicazione, vale su tutti gli artefatti dello stesso giro**: corpi
+delle issue, **titolo** se contiene un conteggio, corpo della PR, e i commenti già postati
+(`gh api -X PATCH repos/.../issues/comments/<id> -F body=@file`). Lasciarne uno rende la convenzione una
+preferenza invece che una regola.
+
+ℹ️ Il precedente meccanico esiste già per un caso: `scenario-notes.ts` confronta i numeri citati nella
+**prosa** di uno scenario con ciò che il file dichiara. Per la prosa di documenti e issue quel gate non
+c'è — ed è la ragione per cui questa sezione è una regola invece di un controllo.
