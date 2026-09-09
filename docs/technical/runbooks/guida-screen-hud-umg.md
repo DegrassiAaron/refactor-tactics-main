@@ -46,7 +46,7 @@ Crea ogni widget con **Widget Blueprint → scegli la classe padre**, non con il
 |---|---|---|
 | `WBP_RT_TacticalHUD` | `RTTacticalHUDWidget` | contenitore a schermo intero; tiene `IconCatalog` |
 | `WBP_RT_TurnHeader` | `RTTurnHeaderWidget` | `GetRoundCounterText`, `GetHeader` |
-| `WBP_RT_TeamRoster` | `RTTeamRosterWidget` | `GetRoster` |
+| `WBP_RT_TeamRoster` | `RTTeamRosterWidget` | `GetRoster`, `GetOpposingRoster` |
 | `WBP_RT_SelectedUnitPanel` | `RTSelectedUnitPanelWidget` | `HasSelection`, `GetCard`, `GetSlots` |
 | `WBP_RT_ActionDock` | `RTActionDockWidget` | `GetActions`, `GetArmedActionIndex` |
 | `WBP_RT_ActionSlot` | `RTActionSlotWidget` | riceve `SetAction`; implementa `OnActionChanged` |
@@ -54,6 +54,17 @@ Crea ogni widget con **Widget Blueprint → scegli la classe padre**, non con il
 
 > ⚠️ **I nomi non sono suggerimenti.** `progettazione-hud.md` §45 li dichiara, e su un `.uasset` il rename
 > costa più che scriverlo giusto la prima volta (redirector, riferimenti, Fix Up).
+
+> 🔴 **`GetOpposingRoster` esiste in C++ e nessun Blueprint lo lega** — misurato il 2026-09-09 su
+> `WBP_RT_TeamRoster.uasset`, dove `GetRoster` compare e `GetOpposingRoster` no. È il residuo d'editor di
+> [`#2744`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2744).
+>
+> **Cosa lega**: una seconda lista, sotto la propria, che si **nasconde quando è vuota** — e lo è per
+> costruzione in ogni sessione presidiata, quindi non serve una condizione a parte nel grafo.
+>
+> ⚠️ **Non fondere le due liste in una.** `FRTUnitCardView` porta `bIsAlly` e non `TeamId`: in una lista
+> sola metà delle carte direbbe «alleata» a uno spettatore che non comanda nessuno. È la lista a portare
+> l'identità di squadra, ed è anche il «secondo canale oltre al colore» che `D-146` chiede.
 
 > 🔁 **La tabella diceva «i sei» e ne elencava sei — il 2026-09-09 sono sette, e uno era già mancante prima.**
 > `WBP_RT_FastDecision` entra con [`#166`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) (CP 14.6). ⚠️ **Manca ancora `WBP_RT_EventLog`**, classe padre
