@@ -393,6 +393,67 @@ void URTFastDecisionWidget::ChooseOption(int32 OptionIndex)
 	ViewModel->SubmitResponse(Window.Options[OptionIndex].Response);
 }
 
+int32 URTFastDecisionWidget::GetOptionCount() const
+{
+	return GetWindow().Options.Num();
+}
+
+URTFastDecisionOptionWidget* URTFastDecisionWidget::MakeOptionWidget(
+	TSubclassOf<URTFastDecisionOptionWidget> OptionClass, int32 OptionIndex)
+{
+	if (!OptionClass)
+	{
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] FastDecision: nessuna classe per il bottone dell'opzione %d — nessun widget creato."),
+			OptionIndex);
+		return nullptr;
+	}
+
+	// 🔑 **Si rilegge la vista invece di fidarsi di quella con cui il grafo ha iniziato il ciclo.**
+	// `GetWindow()` rende i default appena l'identita' cambia, quindi un `ForEach` sopravvissuto alla
+	// chiusura della finestra trova `Options` vuoto e cade nel ramo qui sotto invece di costruire bottoni
+	// per una domanda che non c'e' piu'.
+	const FRTReactionWindowView Window = GetWindow();
+	if (!Window.Options.IsValidIndex(OptionIndex))
+	{
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] FastDecision: opzione %d fuori range (%d disponibili) — nessun bottone creato."),
+			OptionIndex, Window.Options.Num());
+		return nullptr;
+	}
+
+	// 🔴 **NON `CreateWidget(this, ...)`, e la ragione e' misurata.** Quella forma pretende che il
+	// genitore abbia un `WidgetTree` — `UUserWidget.cpp:2708`, `ensure(ParentUserWidget && ...->WidgetTree)`
+	// — e un'istanza C++ costruita con `NewObject` non ce l'ha: l'albero arriva dalla classe generata dal
+	// Blueprint. In partita l'ensure non scatta; in una run headless si', e la funzione sarebbe verificabile
+	// solo aprendo l'Editor. Trovato dal test, non previsto.
+	//
+	// ⚠️ **Il proprietario resta quello giusto quando c'e'**: il bottone appartiene al giocatore che
+	// possiede la finestra, e solo in sua assenza si ripiega sul mondo. Il ripiego non e' una scorciatoia di
+	// test — e' anche il caso di un HUD creato prima che il `PlayerController` locale esista, che
+	// `AcquireMatchContext` documenta come percorso normale per qualche frame.
+	URTFastDecisionOptionWidget* Bottone = nullptr;
+	if (APlayerController* Proprietario = GetOwningPlayer())
+	{
+		Bottone = CreateWidget<URTFastDecisionOptionWidget>(Proprietario, OptionClass);
+	}
+	else if (UWorld* Mondo = GetWorld())
+	{
+		Bottone = CreateWidget<URTFastDecisionOptionWidget>(Mondo, OptionClass);
+	}
+	if (!Bottone)
+	{
+		return nullptr;
+	}
+
+	// ⛔ **Qui, e non nel grafo, si decide quale opzione e' la SICURA.** `SafeResponse` la NOMINA; nel
+	// `Brace` si chiama `Hold Ground`, non `HOLD`. Un grafo che cercasse la parola sarebbe corretto oggi e
+	// sbagliato con la prima finestra che non e' un Overwatch.
+	const bool bSicura = Window.Options[OptionIndex].Response == Window.SafeResponse;
+	Bottone->SetOption(this, Window.Options[OptionIndex], OptionIndex, bSicura);
+	return Bottone;
+}
+
 ESlateVisibility URTFastDecisionWidget::GetWindowVisibility() const
 {
 	// 🔑 **`IsWindowOpen()`, e non `GetRemainingSeconds() > 0`.** Sono due orologi: il residuo scorre col
