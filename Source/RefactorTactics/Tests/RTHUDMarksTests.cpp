@@ -513,19 +513,27 @@ bool FRTRefusalTextNamesTheAppliedRangeTest::RunTest(const FString&)
 }
 
 /**
- * 🔴 **LA PORTATA NON SOPRAVVIVE ALL'ESITO CHE L'HA PRODOTTA** — `#2800`.
+ * 🔴 **IL TESTO A SCHERMO SEGUE L'ULTIMO CLICK, NUMERO COMPRESO** — `#2800`.
  *
- * `SetTargetRefusal` azzera `LastRefusalRange` su ogni esito che non sia `Range`. Senza, un rifiuto per
- * copertura mostrerebbe la portata del click **precedente**: un numero vero, riferito a un'altra domanda —
- * la forma di errore piu' difficile da vedere a schermo, perche' non sembra un errore.
+ * Misura la catena che il disegno percorre davvero: `SetTargetRefusal` scrive lo stato, `CurrentRefusalText`
+ * lo compone, `DrawHUD` chiama **quella stessa** funzione. Un test che leggesse i campi passerebbe anche se
+ * il disegno prendesse il testo da un'altra parte.
  *
- * ⚠️ Si misura attraverso il **testo**, non leggendo il campo: e' cio' che il giocatore riceve, e un test
- * sul campo passerebbe anche se il disegno usasse un'altra sorgente.
+ * ## ⌫ Cosa c'era qui prima, e perche' non c'e' piu'
+ *
+ * Una stesura precedente asseriva che *«la portata non sopravvive al proprio esito»*, difendendo un
+ * ternario che azzerava `LastRefusalRange` su ogni esito diverso da `Range`. ⛔ **La verifica di mutazione
+ * l'ha falsificato**: togliendo il ternario la suite restava **93/0**. `RefusalText` legge il numero solo
+ * nel ramo `Range`, quindi un valore residuo non raggiunge mai lo schermo — la guardia era inerte e il
+ * test la difendeva a vuoto.
+ *
+ * Questo test misura invece qualcosa che una mutazione **puo'** far cadere: che il numero mostrato sia
+ * quello dell'ULTIMO click e non di quello prima.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusalRangeDoesNotOutliveItsOutcomeTest,
-	"RefactorTactics.HUD.RefusalRangeDoesNotOutliveItsOutcome",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusalTextFollowsTheLastClickTest,
+	"RefactorTactics.HUD.RefusalTextFollowsTheLastClick",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTRefusalRangeDoesNotOutliveItsOutcomeTest::RunTest(const FString&)
+bool FRTRefusalTextFollowsTheLastClickTest::RunTest(const FString&)
 {
 	UWorld* World = MakeMarksWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
@@ -537,19 +545,21 @@ bool FRTRefusalRangeDoesNotOutliveItsOutcomeTest::RunTest(const FString&)
 		return false;
 	}
 
-	// 1. Un rifiuto per distanza: il numero c'e'.
+	// 1. Un rifiuto per distanza con la portata cappata dal terreno.
 	Hud->SetTargetRefusal(ERTTargetRefusal::Range, /*EffectiveRange*/ 2);
-	TestTrue(TEXT("premessa: il rifiuto per distanza porta il suo numero"),
+	TestTrue(TEXT("il rifiuto porta la portata di QUESTO click"),
 		Hud->CurrentRefusalText().Contains(TEXT("2")));
 
-	// 2. Poi un rifiuto per COPERTURA. Il numero precedente non deve sopravvivere.
-	Hud->SetTargetRefusal(ERTTargetRefusal::Cover, /*EffectiveRange*/ INDEX_NONE);
-	TestFalse(TEXT("la copertura non eredita la portata del click precedente"),
+	// 2. 🔴 Un secondo click, altra portata. Il numero deve CAMBIARE: se lo stato non si aggiornasse,
+	//    il giocatore leggerebbe un numero vero riferito al bersaglio precedente.
+	Hud->SetTargetRefusal(ERTTargetRefusal::Range, /*EffectiveRange*/ 5);
+	TestTrue(TEXT("il secondo click porta la SUA portata"),
+		Hud->CurrentRefusalText().Contains(TEXT("5")));
+	TestFalse(TEXT("e quella del click precedente e' sparita"),
 		Hud->CurrentRefusalText().Contains(TEXT("2")));
-	TestFalse(TEXT("ma un testo ce l'ha"), Hud->CurrentRefusalText().IsEmpty());
 
-	// 3. E un click che va a segno cancella tutto.
-	Hud->SetTargetRefusal(ERTTargetRefusal::None, /*EffectiveRange*/ INDEX_NONE);
+	// 3. Un esito senza testo cancella tutto: e' la durata dichiarata da `#2741`.
+	Hud->SetTargetRefusal(ERTTargetRefusal::None, /*EffectiveRange*/ 5);
 	TestTrue(TEXT("un click riuscito non lascia niente a schermo"),
 		Hud->CurrentRefusalText().IsEmpty());
 

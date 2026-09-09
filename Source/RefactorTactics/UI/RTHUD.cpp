@@ -61,11 +61,17 @@ void ARTHUD::SetTargetRefusal(ERTTargetRefusal Refusal, int32 EffectiveRange)
 	// timer decide al posto del giocatore.
 	LastRefusal = Refusal;
 
-	// 🔴 **La portata si azzera con OGNI esito che non sia `Range`, e non si conserva** (`#2800`).
-	// Tenerla lascerebbe a schermo un numero vero riferito al click PRECEDENTE: un rifiuto per copertura
-	// non ha una portata, e un numero rimasto li' sembrerebbe la sua. E' la stessa disciplina della
-	// durata qui sopra — lo stato di presentazione vale per la decisione che lo ha prodotto, non oltre.
-	LastRefusalRange = (Refusal == ERTTargetRefusal::Range) ? EffectiveRange : INDEX_NONE;
+	// La portata segue l'esito, e i due si aggiornano SEMPRE insieme: il chiamante calcola il numero a
+	// ogni click, anche quando l'esito non e' `Range`, quindi non esiste un istante in cui `LastRefusal`
+	// e `LastRefusalRange` vengano da due decisioni diverse.
+	//
+	// ⌫ **Qui c'era un ternario che azzerava la portata su ogni esito diverso da `Range`, e non c'e' piu'.**
+	// Sembrava difesa in profondita' — «un rifiuto per copertura non ha una portata» — ma era **inerte**:
+	// `RefusalText` legge il numero solo nel ramo `Range`, quindi un valore residuo non raggiungeva mai
+	// lo schermo. Lo ha dimostrato una verifica di mutazione (`#2800`): sostituendo il ternario con questa
+	// assegnazione la suite restava **93/0**, e il test che doveva difenderlo non cadeva. Una guardia che
+	// nessuna mutazione puo' far fallire non protegge niente: protegge la sua stessa presenza.
+	LastRefusalRange = EffectiveRange;
 }
 
 /**
