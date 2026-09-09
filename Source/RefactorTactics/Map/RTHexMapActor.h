@@ -680,10 +680,24 @@ protected:
 	 */
 	bool bCellBordersVisible = true;
 
-#if !UE_BUILD_SHIPPING
-	/** Debug dei volumi di conoscenza attivo (acceso da `rt.Debug.Knowledge`, spento per default). */
+	/**
+	 * Debug dei volumi di conoscenza attivo (acceso da `rt.Debug.Knowledge`, spento per default).
+	 *
+	 * ⚠️ **Dichiarato SENZA guardia, e la scelta e' la stessa di `LastRebuildCreated`**: il confine di
+	 * questo strumento *«passa dall'API, non dal componente»* — lo dichiara l'intestazione di
+	 * `KnowledgeVolumes` poco piu' sotto — quindi cio' che non esiste in Shipping e' il **modo di
+	 * accenderlo** (`SetKnowledgeDebugEnabled`, `rt.Debug.Knowledge`), non il byte che ne ricorda lo stato.
+	 *
+	 * 🔴 **Con la guardia, la Shipping non compilava** (`#2395`): `RebuildInstances` lo legge e lo azzera
+	 * nel proprio percorso — condiviso, non diagnostico — e quel codice non puo' portarsi dietro un `#if`
+	 * senza spezzare in due il rendering. Un `bool` di un byte, sempre `false` dove nessuno puo' accenderlo,
+	 * costa meno di un ramo di preprocessore in mezzo alla ricostruzione della board.
+	 *
+	 * ⛔ **Restano guardati l'accessore e chi lo scrive**: `IsKnowledgeDebugEnabled()` e
+	 * `SetKnowledgeDebugEnabled(...)`. E' li' che il confine deve passare, ed e' li' che `G1` lo verifica —
+	 * i simboli `rt.Debug.Knowledge` e `RT_KnowledgeVolume` restano **assenti** dal binario Shipping.
+	 */
 	bool bKnowledgeDebug = false;
-#endif
 
 	/** Disegna evidenziazione e traccia (debug-line): nessun effetto sulla logica. */
 	void DrawPlanningPreview() const;
@@ -891,7 +905,15 @@ protected:
 	 * provare che non e' stato spedito. Il dettaglio, con il suo controllo di sanita', sta in
 	 * `Map/RTKnowledgeDebugConsole.cpp`.
 	 *
-	 * ⚠️ **NON partecipa a `RebuildInstances`, ed e' una scelta contro un difetto noto.** Le altre cinque
+	 * ⌫ **QUESTA RIGA DICEVA CHE «NON partecipa a `RebuildInstances`», e dal 2026-09-04 e' falsa.** `#2222`
+	 * (`81ef73d4`) ha aggiunto a `RebuildInstances` il ramo che **azzera** questi volumi, perche' erano
+	 * l'unica famiglia che sopravviveva alla ricostruzione e lasciava appesi i prismi della board
+	 * precedente. Il `.cpp` lo dichiara — *«l'OTTAVA famiglia, ed era l'unica che sopravviveva a questa
+	 * funzione»* — e per cinque giorni ha detto il contrario di questa intestazione. Corretto il 2026-09-09
+	 * durante `#2395`. **Cio' che resta vero e' il seguito**: non vengono RICOSTRUITI, e la ragione e'
+	 * quella scritta qui sotto.
+	 *
+	 * ⚠️ **Non viene RIPOPOLATO da `RebuildInstances`, ed e' una scelta contro un difetto noto.** Le altre cinque
 	 * famiglie hanno array paralleli (`InstanceCells`, `…BaseScale`, `Last…VeilState`) che un
 	 * `RebuildInstances` di mezzo lascia stantii — l'header di `ApplyKnowledgeVeil` lo dichiara: *«celle
 	 * velate SBAGLIATE, un difetto che si legge come "problema grafico" per settimane»*. Questo componente si

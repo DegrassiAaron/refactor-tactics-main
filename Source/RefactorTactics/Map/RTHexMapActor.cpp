@@ -1459,6 +1459,21 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 	// ⛔ **Non si RICOSTRUISCONO, e la scelta e' dichiarata**: l'actor non ha la conoscenza da cui rifarli,
 	// e conservarne una copia farebbe di un componente di presentazione una seconda sede della conoscenza di
 	// squadra — cio' che [D-242] esiste per impedire. Si rilancia il comando, che e' gia' la sua semantica.
+	// ⚠️ **Questo ramo NON porta un `#if`, ed e' una scelta** (`#2395`). `bKnowledgeDebug` era dichiarato
+	// sotto `#if !UE_BUILD_SHIPPING` mentre **due** righe di questo blocco lo toccano fuori da quella
+	// guardia — la condizione qui sotto lo **legge**, il corpo lo **scrive** (`bKnowledgeDebug = false`) —
+	// e stanno nel percorso di ricostruzione condiviso: la Shipping non compilava (`C2065` su ENTRAMBE, e a
+	// cascata `C2088` sull'`&&`, perche' con un operando inesistente l'espressione non si forma).
+	// ⛔ **Due, non una**: un audit che cercasse le sole letture mancherebbe la scrittura, che e' la riga da
+	// cui il compilatore ha riportato il primo errore.
+	//
+	// 🔑 **La guardia e' stata tolta dalla DICHIARAZIONE, non aggiunta qui.** Il confine di questo strumento
+	// *«passa dall'API, non dal componente»* — lo dichiara l'intestazione di `KnowledgeVolumes` — e cio' che
+	// in Shipping non esiste e' il modo di **accenderlo**, non il byte che ne ricorda lo stato. E' la stessa
+	// forma di `LastRebuildCreated`: campo nudo, accessore guardato. Un `#if` qui avrebbe spezzato in due il
+	// rendering per un `bool` sempre `false`, e — non ovvio — avrebbe tolto alla Shipping l'**unico** punto
+	// che azzera `KnowledgeVolumes`, che e' un default subobject i cui dati d'istanza si serializzano col
+	// livello: una `.umap` salvata con istanze non avrebbe piu' nulla che le pulisca.
 	if (KnowledgeVolumes && (bKnowledgeDebug || KnowledgeVolumes->GetInstanceCount() > 0))
 	{
 		KnowledgeVolumes->ClearInstances();
