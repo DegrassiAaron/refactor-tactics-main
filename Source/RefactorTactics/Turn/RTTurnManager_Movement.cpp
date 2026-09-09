@@ -885,21 +885,35 @@ bool ARTTurnManager::IsResolutionSuspended() const
  */
 void ARTTurnManager::BeginPartialPlayback()
 {
-	const FRTMovementResolutionContext* Ctx = PendingMovement.Get();
-	if (!Ctx || !bEnablePlayback || bIsResolving)
+	if (!bEnablePlayback || bIsResolving)
 	{
 		return;
 	}
 
-	TArray<ARTUnit*> Units;
-	Units.Reserve(Ctx->Units.Num());
-	for (const TWeakObjectPtr<ARTUnit>& WeakUnit : Ctx->Units)
+	// 🔑 **I due siti riempiono la timeline in momenti diversi, e il ramo lo dichiara** (`#2692`).
+	//
+	// Il MOVIMENTO deve emettere adesso: `EmitMoveEvents` traduce i risultati del resolver in eventi, e
+	// fino a questa riga la timeline non sa niente dei passi gia' percorsi.
+	//
+	// Il BLAST no: `ResolveCombatPasses` ha gia' emesso le impronte dei colpi e i danni **prima** di
+	// arrivare agli spostamenti. Quando un `Brace` sospende, cio' che il giocatore deve aver visto — il
+	// colpo che sta per spingerlo — e' gia' nella timeline. La spinta invece non c'e', e non e' una
+	// lacuna: e' precisamente cio' su cui gli si sta chiedendo di decidere.
+	if (const FRTMovementResolutionContext* Ctx = PendingMovement.Get())
 	{
-		Units.Add(WeakUnit.Get());
+		TArray<ARTUnit*> Units;
+		Units.Reserve(Ctx->Units.Num());
+		for (const TWeakObjectPtr<ARTUnit>& WeakUnit : Ctx->Units)
+		{
+			Units.Add(WeakUnit.Get());
+		}
+
+		EmitMoveEvents(Units, Ctx->State.Results);
 	}
 
-	EmitMoveEvents(Units, Ctx->State.Results);
-
+	// ⛔ **La timeline vuota e' lo schermo nero che [D-355] esiste per evitare**, e per questo la
+	// condizione e' sul contenuto e non sul contesto: chiedere una scelta su un turno che non ha ancora
+	// mostrato nulla e' il difetto, qualunque sia la fase che si e' fermata.
 	if (ResolvedTimeline.Num() > 0)
 	{
 		BeginPlayback();

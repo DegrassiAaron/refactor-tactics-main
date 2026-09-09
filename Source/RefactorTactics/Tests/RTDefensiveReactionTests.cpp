@@ -799,9 +799,17 @@ bool FRTBraceWindowSuspendsBlastTest::RunTest(const FString&)
 	Pusher->PlannedAttackTarget = Bracer;
 	Pusher->PlannedCell = Pusher->Cell;
 
+	// ⛔ **Si misura DENTRO il delegate, non dopo**: cio' che [D-355] chiede e' che il giocatore abbia gia'
+	// visto qualcosa NELL'ISTANTE in cui gli si chiede di scegliere. Leggere la timeline a finestra chiusa
+	// risponderebbe a una domanda diversa.
 	int32 Aperte = 0;
+	int32 TimelineAllApertura = -1;
 	TM->OnReactionWindowOpened.BindLambda(
-		[&Aperte](const FRTReactionWindowView&, int32) { ++Aperte; });
+		[&Aperte, &TimelineAllApertura, TM](const FRTReactionWindowView&, int32)
+		{
+			++Aperte;
+			TimelineAllApertura = TM->ResolvedTimelineCountForTest();
+		});
 
 	const FRTCellId Partenza = Bracer->Cell;
 	TM->LockInAndResolve();
@@ -815,6 +823,13 @@ bool FRTBraceWindowSuspendsBlastTest::RunTest(const FString&)
 	TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended());
 	TestEqual(TEXT("e la fase dichiarata e' quella che si e' fermata"),
 		TM->GetPhase(), ERTMatchPhase::Blast);
+
+	// 🔑 **(2-bis) Lo schermo non era vuoto** ([D-355], criterio C2 dello spec panel). `ResolveCombatPasses`
+	// ha gia' emesso le impronte dei colpi quando il `Brace` sospende, quindi il giocatore ha visto il colpo
+	// che sta per spingerlo. ⚠️ La spinta NON c'e', e non e' una lacuna: e' cio' su cui gli si sta chiedendo
+	// di decidere.
+	TestTrue(FString::Printf(TEXT("la timeline non era vuota quando la finestra si e' aperta (%d eventi)"),
+		TimelineAllApertura), TimelineAllApertura > 0);
 
 	// 🔑 **(3) La chiusura riprende il turno**, e la spinta non si riapplica: `Hold Ground` allo scadere
 	// tiene la cella, ed e' l'esito che il profilo garantisce.
