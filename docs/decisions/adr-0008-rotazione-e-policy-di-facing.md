@@ -95,6 +95,21 @@ hanno identità diverse e l'handoff §10 chiede esplicitamente policy separate:
 > partenza**: entrano nel catalogo perché il modello ha bisogno di un valore per esistere, non perché siano
 > stati misurati. La revisione è in fondo a questo ADR.
 
+> 🔤 **`Riktor` è l'identità ritirata: a runtime l'eroe è `Hero.Branth`** ([D-334](RT_PDR_00_Decision_Log.md),
+> 2026-09-09). I quattro nomi di questa tabella sono quelli del 2026-08-10 e **non vengono riscritti**: il rename
+> delle altre tre identità (`Gadget → Aevik`, `Wraith → Ivrin`, `Phase → Muiren`) è in corso a fette, e
+> riallineare metà tabella la renderebbe meno leggibile di così. La corrispondenza con il catalogo è verificabile:
+> `Branth->MoveEndPivotMaxSteps = 1` e `Branth->DashEndPivotMaxSteps = 0` in
+> `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp`, cioè **gli stessi due numeri** della riga `Riktor`.
+> ⛔ **Il tetto residuo di `Hero.Riktor` non è zero e non deve diventarlo**: le occorrenze rimaste in `Source/`
+> sono menzioni legittime, e `RTLegacyIdentityRatchetTests.cpp` le pinna.
+
+> ✅ **`FAC-12` è chiusa il 2026-09-10, e conferma questa sezione**
+> ([D-365](RT_PDR_00_Decision_Log.md)): il pivot finale è **gratuito** — non costa MP, non occupa slot — e
+> i due numeri per eroe restano un **tetto**, non un prezzo. La proposta alternativa della fonte §10
+> (*«Move 2 celle + Pivot 60° = 3 MP»*) è **respinta**: avrebbe fatto pagare anche chi ruota da fermo, che
+> qui è libero e universale.
+
 Due scelte dentro la tabella meritano di essere dette, perché non vengono dalla fonte:
 
 - **Riktor, Dash = 0.** La fonte dà «0–60°», che è un intervallo, non un valore. Lo 0 è l'estremo che
@@ -305,6 +320,24 @@ ipotesi: la domanda da porre è se il pivot sia diventato un asse di scelta real
 **Soglia di allarme**: se il pivot alto risulta sempre preferibile — cioè se Wraith e Phase dominano il
 posizionamento per la sola rotazione — la via di rientro è **comprimere la scala** (portare tutti a 1–2 step),
 non rimuovere il modello.
+
+> 🔴 **Il trigger della prima revisione è scaduto a vuoto, e da oggi ne ha uno che non può scadere così.**
+> `CP 16.2` ([#177](https://github.com/DegrassiAaron/refactor-tactics-main/issues/177)) **è chiusa dal
+> 2026-08-09** e il playtest non è avvenuto: al momento della chiusura i due campi non esistevano nemmeno a
+> runtime — è la misura di [#1605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1605),
+> che li ha portati a runtime il 2026-09-03 **senza tararli**. Un trigger legato alla chiusura di un
+> checkpoint si consuma da solo quando quel checkpoint chiude per altre ragioni.
+>
+> ➡️ **La revisione ha ora un owner e una lista di misure**:
+> [#2819](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2819), che dipende da
+> [#291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/291) — senza un modo di *scegliere*
+> il pivot non c'è niente da misurare. ⚠️ **La soglia qui sopra resta la sua**, e non si riscrive: quella issue
+> la cita invece di duplicarla, e le aggiunge la speculare che questa sezione non aveva (*se il pivot non viene
+> quasi mai modificato*).
+>
+> ⛔ **Fino ad allora gli otto numeri della §1 restano dichiaratamente non bilanciati**, e la loro conferma
+> non si deduce dal fatto che il gioco gira. [D-365](RT_PDR_00_Decision_Log.md) ha chiuso il **modello**
+> (`FAC-12`: tetto, non prezzo); i **numeri** no.
 
 **Seconda revisione — le policy.** Alla chiusura di **CP 14.3**. Se a quel punto **nessuna** azione del catalogo
 ha dichiarato una policy diversa dal default, la §3 va riconsiderata: significherebbe che il caso reale che
