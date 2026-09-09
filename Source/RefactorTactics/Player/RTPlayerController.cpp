@@ -1811,11 +1811,69 @@ void ARTPlayerController::ApplyNextPlaybackSpeed(ARTTurnManager* TurnManager)
 
 void ARTPlayerController::OnCyclePlaybackSpeed(const FInputActionValue& Value)
 {
-	// Nessun vincolo di fase: si cambia ritmo mentre la risoluzione scorre — e' il punto di CP 47.2, che
-	// ha reso `TickPlayback` capace di rileggere la velocita' a ogni tick invece di congelarla — e anche
-	// prima che parta, perche' chi guarda una partita non presidiata sceglie il ritmo in anticipo.
+	// Una riga sola, e deliberatamente: il corpo — guardia compresa — sta in `CyclePlaybackSpeed()`, che e'
+	// pubblica proprio perche' questo handler non lo e' e un test non lo raggiungerebbe.
+	CyclePlaybackSpeed();
+}
+
+void ARTPlayerController::CyclePlaybackSpeed()
+{
+	// 🔑 **La manopola e' di chi OSSERVA** ([`D-350`](docs/decisions/RT_PDR_00_Decision_Log.md), CP 14.6): dove una finestra di reazione puo' aprirsi
+	// su un'unita' di questo giocatore, accelerare significherebbe accorciare il tempo che il gioco gli
+	// concede per rispondere — cioe' far decidere alla presentazione quanto dura una regola.
+	//
+	// ⚠️ **E' una RESTRIZIONE di una feature chiusa, non la correzione di un difetto.** CP 47.2 e CP 47.7
+	// sono atterrate, e questo corpo dichiarava *«nessun vincolo di fase»* — vero allora, quando nessuna
+	// finestra poteva aprirsi in partita. Lo ha reso falso `#2723`, che ha reso la finestra raggiungibile.
+	//
+	// ✅ **Il commento originale conteneva gia' la meta' giusta**, e vale la pena conservarla: *«chi guarda
+	// una partita non presidiata sceglie il ritmo in anticipo»* — la manopola e' nata per l'autobattle, che
+	// e' proprio il caso che la guardia lascia passare.
+	if (LocalUnitCanReceiveReactionWindow())
+	{
+		return;
+	}
+
+	// Nessun vincolo di FASE, e questo resta vero: si cambia ritmo mentre la risoluzione scorre — CP 47.2 ha
+	// reso `TickPlayback` capace di rileggere la velocita' a ogni tick invece di congelarla — e anche prima
+	// che parta.
 	ApplyNextPlaybackSpeed(
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())));
+}
+
+bool ARTPlayerController::LocalUnitCanReceiveReactionWindow() const
+{
+	const UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	// ⚠️ **Fail-OPEN, e va detto perche' qui e' l'esito giusto.** Senza mondo, senza unita' o senza squadra
+	// risolta non esiste nessuno che possa ricevere una finestra: la manopola resta girabile. La regola
+	// protegge un decisore, e dove non c'e' un decisore non c'e' niente da proteggere — spegnere il tasto
+	// «per sicurezza» renderebbe inerte il replay, che e' il contesto per cui la scala esiste.
+	const int32 MyTeam = ARTPlayerState::TeamIdOf(this);
+
+	TArray<AActor*> Units;
+	UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Units);
+	for (const AActor* Actor : Units)
+	{
+		const ARTUnit* Unit = Cast<ARTUnit>(Actor);
+		if (!IsValid(Unit) || !Unit->IsAlive())
+		{
+			continue;
+		}
+
+		// La regola di controllo ha un solo produttore, e non e' questa riga: `CanPlayerControlUnit` sa gia'
+		// del bot alleato ([D-174]), che una condizione riscritta a mano qui non saprebbe.
+		if (URTCombatLibrary::CanPlayerControlUnit(Unit->TeamId, MyTeam, Unit->bIsBotControlled))
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 void ARTPlayerController::OnTogglePrepWindowPause(const FInputActionValue& Value)

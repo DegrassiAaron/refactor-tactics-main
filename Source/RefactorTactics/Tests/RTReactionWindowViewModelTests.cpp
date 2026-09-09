@@ -12,6 +12,7 @@
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "UI/RTReactionWindowViewModel.h"
+#include "UI/RTScreenHudWidgets.h" // URTFastDecisionWidget: la meta' UI delle voci 2 · 3 · 4 di CP 14.6
 #include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -599,6 +600,179 @@ bool FRTReactionVmBotOwnerTest::RunTest(const FString&)
 	TestFalse(TEXT("la resolution non si e' sospesa"), TM->IsResolutionSuspended());
 	TestTrue(TEXT("il residuo dice «nessuna finestra»"), ViewModel->GetRemainingSeconds() < 0.f);
 	TestTrue(TEXT("il turno si e' risolto per la via sincrona"), TM->GetTurnLog().Num() > 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+// =====================================================================================================
+// `URTFastDecisionWidget` — la meta' UI delle voci 2 · 3 · 4 di CP 14.6 (`#166`)
+//
+// ⚠️ **Perche' stanno in QUESTO file e non in `RTScreenHudWidgetTests.cpp`**: quei test allestiscono un
+// mondo e un `ARTTurnManager` nudo, e nessuna finestra vi si apre. Qui c'e' la fixture che ne apre una vera
+// — mappa, mover, watcher armato, cablaggio di produzione — e duplicarla costerebbe piu' di quanto valga.
+// I NOMI restano `RefactorTactics.ScreenHud.*` perche' e' il widget a essere sotto misura, non il view
+// model: e' la stessa scelta gia' fatta da `RTAutobattleInputInertTests`, dove *«i nomi restano sotto
+// `RefactorTactics.Match.Autobattle.*` perche' e' la modalita' a essere sotto misura, non il puntatore»*.
+//
+// ⛔ **Il widget si guida per INIEZIONE, e non e' una scorciatoia.** `AcquireMatchContext` risolve il view
+// model dall'**owning player**, e `UUserWidget::SetOwningPlayer` memorizza il `ULocalPlayer` — che una run
+// headless non ha. Senza `SetReactionWindowForTest` questi test proverebbero solo il ramo «nessuna
+// finestra», che e' il verde-per-la-ragione-sbagliata gia' pagato da `ActionDockShowsTheNeutralState`.
+// =====================================================================================================
+
+/**
+ * 🔑 **IL WIDGET LEGGE LA FINESTRA VERA, e i tre numeri che mostra vengono tutti da fuori** (`#166`, voci
+ * 2 · 3).
+ *
+ * ⚠️ **Il countdown si confronta con l'orologio AUTOREVOLE, non con una costante.** Asserire «3,0 s»
+ * fisserebbe qui il valore che [`D-348`](../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha appena dichiarato **configurabile**: il test diventerebbe
+ * rosso il giorno in cui la durata diventa un setting di partita, e per la ragione sbagliata. Cio' che va
+ * pinnato e' che il numero **coincida con quello del manager**, qualunque esso sia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFastDecisionReadsWindowTest,
+	"RefactorTactics.ScreenHud.FastDecisionReadsTheInjectedWindow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFastDecisionReadsWindowTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	InitVmWorld(World);
+	SpawnVmMap(World);
+
+	ARTUnit* Mover = SpawnVmUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Watcher = SpawnVmUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, /*TeamId=*/ 1);
+	if (!TestNotNull(TEXT("Mover"), Mover) || !TestNotNull(TEXT("Watcher"), Watcher)
+		|| !TestNotNull(TEXT("TurnManager"), TM) || !TestNotNull(TEXT("GameMode"), GameMode)
+		|| !TestNotNull(TEXT("PlayerController"), PC))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	URTFastDecisionWidget* Widget = NewObject<URTFastDecisionWidget>(World);
+	if (!TestNotNull(TEXT("widget"), Widget))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// --- 1. Senza view model: chiuso, ai default, residuo negativo -----------------------------------
+	// E' il ramo di un HUD nato prima del proprietario, che nel percorso normale esiste davvero.
+	TestFalse(TEXT("senza view model la finestra e' chiusa"), Widget->IsWindowOpen());
+	TestFalse(TEXT("e la vista e' ai default"), Widget->GetWindow().bOpen);
+	TestTrue(TEXT("e il residuo dice «nessuna finestra», non «scaduta adesso»"),
+		Widget->GetRemainingSeconds() < 0.f);
+
+	ArmOverwatchScenario(Mover, Watcher);
+	GameMode->HookReactionWindow();
+	URTReactionWindowViewModel* ViewModel = PC->GetReactionWindowViewModel();
+	Widget->SetReactionWindowForTest(ViewModel);
+
+	// --- 2. Con il view model ma prima che una finestra si apra: ancora chiuso -----------------------
+	// Senza questo passo il punto 3 sarebbe soddisfatto anche da un widget che dice sempre «aperta».
+	TestFalse(TEXT("con il view model ma senza finestra: ancora chiuso"), Widget->IsWindowOpen());
+
+	// --- 3. La finestra si apre DAVVERO, e il widget la legge ----------------------------------------
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("premessa: la resolution si e' sospesa"), TM->IsResolutionSuspended()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	TestTrue(TEXT("il widget vede la finestra aperta"), Widget->IsWindowOpen());
+
+	const FRTReactionWindowView Vista = Widget->GetWindow();
+	TestTrue(TEXT("la vista consegnata al widget e' APERTA"), Vista.bOpen);
+	TestTrue(TEXT("e offre piu' di una risposta: e' un boundary vero"), Vista.Options.Num() > 1);
+	TestFalse(TEXT("e nomina la scelta sicura, che il widget non deve comporre"),
+		Vista.SafeResponse.IsEmpty());
+
+	// 🔑 Il countdown viene dall'orologio del manager, non da un contatore del widget.
+	TestTrue(TEXT("il countdown coincide con l'orologio autorevole"),
+		FMath::IsNearlyEqual(Widget->GetRemainingSeconds(),
+			TM->GetOpenReactionWindowRemainingSeconds(), 1e-3f));
+	TestTrue(TEXT("e la durata dichiarata e' quella server-authoritative"),
+		FMath::IsNearlyEqual(Vista.WindowSeconds, TM->GetFastReactionDuration(), 1e-3f));
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **IL WIDGET SCEGLIE PER INDICE, e non puo' nominare una risposta** (`#166`, voce 2 — *«nessuna logica
+ * di gioco nel widget»*).
+ *
+ * ⚠️ **La meta' che conta e' il fail-closed.** Un indice fuori range non inoltra niente: le opzioni cambiano
+ * quando la finestra cambia, e in una finestra da 3,0 s un bottone disegnato per la precedente porta con se'
+ * il proprio indice. Se quel caso passasse, il widget risponderebbe a una domanda che il gioco non sta piu'
+ * facendo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFastDecisionChoosesByIndexTest,
+	"RefactorTactics.ScreenHud.FastDecisionChoosesByIndexAndNeverNamesAResponse",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFastDecisionChoosesByIndexTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	InitVmWorld(World);
+	SpawnVmMap(World);
+
+	ARTUnit* Mover = SpawnVmUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Watcher = SpawnVmUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, /*TeamId=*/ 1);
+	if (!TestNotNull(TEXT("TurnManager"), TM) || !TestNotNull(TEXT("GameMode"), GameMode)
+		|| !TestNotNull(TEXT("PlayerController"), PC))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	URTFastDecisionWidget* Widget = NewObject<URTFastDecisionWidget>(World);
+	if (!TestNotNull(TEXT("widget"), Widget))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	ArmOverwatchScenario(Mover, Watcher);
+	GameMode->HookReactionWindow();
+	Widget->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
+
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("premessa: una finestra attende"), Widget->IsWindowOpen()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	const FString IdAperta = TM->GetOpenReactionWindowId();
+	const int32 Opzioni = Widget->GetWindow().Options.Num();
+
+	// --- 1. FAIL-CLOSED: fuori range non inoltra niente, e la finestra resta quella --------------------
+	// ⚠️ La warning e' attesa: si dichiara al framework, o il test la trasformerebbe in un fallimento.
+	AddExpectedError(TEXT("FastDecision: opzione .* fuori range"), EAutomationExpectedErrorFlags::Contains, 0);
+	Widget->ChooseOption(-1);
+	Widget->ChooseOption(Opzioni);
+
+	TestTrue(TEXT("un indice fuori range non ha chiuso la finestra"), Widget->IsWindowOpen());
+	TestEqual(TEXT("ed e' ancora la stessa finestra"), TM->GetOpenReactionWindowId(), IdAperta);
+
+	// --- 2. LA SCELTA: un indice valido inoltra la risposta che il CORE ha prodotto --------------------
+	TestTrue(TEXT("premessa: la finestra offre almeno un'opzione"), Opzioni > 0);
+	Widget->ChooseOption(0);
+
+	// 🔑 La prova non e' «il widget ha chiamato qualcosa»: e' che la finestra a cui aveva risposto **non e'
+	// piu' quella aperta**. Chiudere e riprendere puo' aprirne subito un'altra (`#2723`), quindi non si
+	// asserisce «nessuna finestra» — si asserisce che *questa* e' chiusa.
+	TestTrue(TEXT("la scelta ha chiuso la finestra a cui rispondeva"),
+		TM->GetOpenReactionWindowId() != IdAperta);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
