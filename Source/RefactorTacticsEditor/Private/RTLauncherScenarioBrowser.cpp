@@ -178,4 +178,32 @@ FText FRTLauncherScenarioBrowser::DescribePerspective(int32 TeamId)
 		FText::AsNumber(TeamId));
 }
 
+FString FRTLauncherScenarioBrowser::CoinUnitId(const TArray<FRTScenarioUnitView>& Existing)
+{
+	// ⚠️ Il confronto e' **case-insensitive**: `FRTScenarioDraft` non impone una capitalizzazione agli id, e
+	// un `u1` gia' schierato renderebbe `U1` una collisione per il draft e un id libero per questa
+	// funzione. Sbagliare in questo verso produce esattamente il messaggio che il conio esiste per evitare.
+	TSet<FString> Taken;
+	Taken.Reserve(Existing.Num());
+	for (const FRTScenarioUnitView& Unit : Existing)
+	{
+		Taken.Add(Unit.Id.ToLower());
+	}
+
+	// Il limite superiore e' `Num() + 1`: con N id presi, fra `U1` e `U(N+1)` almeno uno e' libero per il
+	// principio della piccionaia. Il ciclo termina sempre, e non serve una guardia sul numero di giri.
+	for (int32 Candidate = 1; Candidate <= Existing.Num() + 1; ++Candidate)
+	{
+		const FString Proposed = FString::Printf(TEXT("U%d"), Candidate);
+		if (!Taken.Contains(Proposed.ToLower()))
+		{
+			return Proposed;
+		}
+	}
+
+	// Irraggiungibile per l'argomento sopra. Restituire una stringa vuota invece di un id inventato: la
+	// facade la rifiuta con `Invalid`, che e' un esito visibile — un id casuale finirebbe nel file.
+	return FString();
+}
+
 #undef LOCTEXT_NAMESPACE

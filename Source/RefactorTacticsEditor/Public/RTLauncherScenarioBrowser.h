@@ -115,6 +115,25 @@ public:
 	static TArray<FString> BuildReadout(const FRTScenarioSummary& Summary, const TArray<FRTScenarioUnitView>& Units);
 
 	/**
+	 * Un `UnitId` che non collide con nessuno di quelli gia' schierati (#2786).
+	 *
+	 * ⚠️ **Esiste perche' `AddUnit` prende l'id in INGRESSO e non lo restituisce** (#1115): il conio e' del
+	 * chiamante, e se il chiamante e' una schermata il difetto diventa suo. Un id che collide torna come
+	 * `Invalid` con «id gia' preso» — un messaggio che accusa lo SCENARIO per un errore della SCHERMATA, e
+	 * manda chi legge a cercare nel posto sbagliato.
+	 *
+	 * Forma `U<n>`, con `n` il primo intero libero da `1`. **Riempie i buchi**: rimossa `U2`, la prossima
+	 * unita' torna `U2`. E' voluto — un contatore monotono richiederebbe di ricordare quante unita' sono
+	 * passate, cioe' uno stato che ne' il draft ne' il pannello possiedono, e che dopo un salva/riapri
+	 * ripartirebbe da capo producendo la collisione che questa funzione esiste per evitare.
+	 *
+	 * ⛔ **Non guarda la forma degli id esistenti.** Uno scenario scritto a mano puo' chiamarle `attaccante`
+	 * o `hero_a`: cercare il primo `U<n>` libero non collide con nessuna di quelle, e non prova a
+	 * indovinare una convenzione che il formato non impone.
+	 */
+	static FString CoinUnitId(const TArray<FRTScenarioUnitView>& Existing);
+
+	/**
 	 * L'etichetta di una posizione del selettore di prospettiva (#1754): `Omniscient` oppure `Team N`.
 	 *
 	 * ⚠️ **`N` e' l'id della squadra, non la sua posizione nel selettore.** Uno scenario che schiera le
