@@ -145,12 +145,20 @@ Planning → Ready → countdown annullabile → Commit affidabile → validazio
 
 | Anello | Owner |
 |---|---|
-| Ready / Unready / countdown | **#2193** |
+| Ready / Unready / countdown / soggetto del Ready / quorum | **#2193** |
+| coordinamento del bot alleato prima del Ready | #534 (CP 26.4) — **post-v0.1** |
+| protocollo ready/commit in rete | #782 (CP 40.4) — **post-v0.1** |
 | Result e ritorno al menu | #940 (CP 46.5) |
 | finestra di reazione e pacing | #166 · #314 · #319 |
 
-⚠️ Il countdown di #2193 tocca un confine d'autorità: va deciso **prima** se viva nella presentazione o nella
-simulazione — nel secondo caso entra nello snapshot, quindi nel replay.
+✅ **Il confine d'autorità del countdown è deciso**: vive nella **presentazione**. `ReadyCountdownSeconds` sta
+fra i *Tempi UX* di [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md)
+§11, e #2193 è atterrata senza countdown in snapshot, `TurnLog` o `StateHash`.
+
+⚠️ **Ready ha un owner solo, e resta #2193** — anche dopo l'estensione del 2026-09-07 (soggetto del Ready per
+partecipante, quorum). La metà «coordinamento del bot alleato» **non** vive qui: è di #534, con
+[`spec-bot-tattico.md`](../gameplay/spec-bot-tattico.md) §3 e `D-096`. Sono due owner di cose diverse, non due
+owner della stessa.
 
 ### CR-NET — Online / Competitive Runtime
 

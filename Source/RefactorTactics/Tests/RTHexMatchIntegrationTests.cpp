@@ -16,6 +16,9 @@
 #include "Map/RTHexVisionLibrary.h"
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
+// `#2193` estensione: la regola di autorizzazione ha UN owner, e i test del Ready per partecipante la
+// interrogano invece di riscriverla — stesso precedente di `IsIntentVisibleTo` (`#507`).
+#include "Combat/RTCombatLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "Tests/RTWorldFixtures.h"
@@ -1549,6 +1552,268 @@ bool FRTPlaybackAllowsInspectAndRestoresPreviewTest::RunTest(const FString&)
 		|| B.HexMap->IsPreviewReachableCell(URTHexLibrary::Neighbors(Seconda->Cell)[1]));
 
 	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+// =====================================================================================================
+// `#2193`, estensione 2026-09-07 — il Ready e' del PARTECIPANTE, e il countdown parte dal QUORUM.
+//
+// 🔑 **Nessuno di questi test passa da `RequestLockIn()`**, ed e' deliberato: quella resta la porta
+// dell'harness e dei test storici, cioe' «il quorum si e' chiuso» detto senza partecipanti. Qui si prova
+// lo strato sopra, che e' l'unico che il gioco attraversa da `#2193` in poi.
+// =====================================================================================================
+
+namespace
+{
+	/** Una partita con due unita' umane nello stesso gruppo e una avversaria pianificata dal bot. */
+	struct FRTParticipantMatch
+	{
+		UWorld* World = nullptr;
+		ARTTurnManager* TM = nullptr;
+		ARTUnit* A = nullptr;   // squadra 0, gruppo 0 — umana
+		ARTUnit* A2 = nullptr;  // squadra 0, gruppo 0 — umana: il SECONDO Hero dello stesso Player
+		ARTUnit* B = nullptr;   // squadra 1 — bot
+	};
+
+	/**
+	 * ⚠️ **`B->bIsBotControlled` si scrive a mano, e non e' pignoleria**: `MakeCountdownMatch` lo lascia al
+	 * default `false`, che in una partita vera non accade mai — `RTMatchBootstrapper` scrive
+	 * `(TeamId == 1) || Config.bAutobattle || bBotAlly`. Lasciarlo falso renderebbe l'avversario un
+	 * partecipante eleggibile, e il quorum di questi test non sarebbe quello del gioco.
+	 */
+	FRTParticipantMatch MakeParticipantMatch()
+	{
+		FRTParticipantMatch M;
+		M.World = MakeHexMatchWorld();
+		if (!M.World) { return M; }
+
+		SpawnHexMatchMap(M.World, /*Radius=*/ 4);
+		M.A  = SpawnHexMatchUnit(M.World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
+		M.A2 = SpawnHexMatchUnit(M.World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-3, 0));
+		M.B  = SpawnHexMatchUnit(M.World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
+		if (!M.A || !M.A2 || !M.B) { return M; }
+
+		// Il formato v0.1: `UnitsPerPlayer == UnitsPerTeam`, quindi un gruppo solo per squadra.
+		M.A->ControlGroup = 0;  M.A->bIsBotControlled = false;
+		M.A2->ControlGroup = 0; M.A2->bIsBotControlled = false;
+		M.B->ControlGroup = 0;  M.B->bIsBotControlled = true;
+
+		M.TM = M.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (M.TM) { M.TM->DispatchBeginPlay(); }
+		return M;
+	}
+}
+
+/**
+ * **Il Ready dichiarato da chi comanda vale per TUTTE le unita' che comanda** (`D011`, `D016.2`).
+ *
+ * 🔑 La sanita' che rende il test non-vacuo e' la coppia di `CanPlayerControlUnitInGroup`: senza, «il
+ * partecipante e' Ready» non direbbe nulla su **quante** unita' quel Ready copre — ed e' esattamente la
+ * domanda che l'estensione esiste per chiudere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTParticipantReadyCoversEveryCommandedUnitTest,
+	"RefactorTactics.HexMatch.ParticipantReadyCoversEveryCommandedUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTParticipantReadyCoversEveryCommandedUnitTest::RunTest(const FString&)
+{
+	FRTParticipantMatch M = MakeParticipantMatch();
+	if (!TestNotNull(TEXT("turn manager"), M.TM)) { DestroyHexMatchWorld(M.World); return false; }
+
+	TestFalse(TEXT("nessuno e' Ready all'apertura"), M.TM->IsParticipantReady(0, 0));
+	TestFalse(TEXT("e il quorum non e' chiuso"), M.TM->HasReadyQuorum());
+
+	M.TM->DeclareParticipantReady(0, 0);
+
+	TestTrue(TEXT("il PARTECIPANTE e' Ready"), M.TM->IsParticipantReady(0, 0));
+	TestTrue(TEXT("il quorum si e' chiuso"), M.TM->HasReadyQuorum());
+	TestTrue(TEXT("e il countdown e' stato armato dal quorum"), M.TM->IsReadyCountdownActive());
+
+	// 🔴 **Le due unita' rispondono allo STESSO partecipante**, ed e' cio' che rende impossibile lo stato
+	// «A Ready / A2 non Ready»: non ci sono due stati da tenere allineati, ce n'e' uno solo.
+	TestTrue(TEXT("il partecipante (0,0) comanda A"),
+		URTCombatLibrary::CanPlayerControlUnitInGroup(M.A->TeamId, M.A->ControlGroup, 0, 0, M.A->bIsBotControlled));
+	TestTrue(TEXT("e comanda anche A2"),
+		URTCombatLibrary::CanPlayerControlUnitInGroup(M.A2->TeamId, M.A2->ControlGroup, 0, 0, M.A2->bIsBotControlled));
+
+	// ⛔ E non comanda l'avversaria: il Ready non ha attraversato la squadra.
+	TestFalse(TEXT("ma non comanda l'unita' della squadra 1"),
+		URTCombatLibrary::CanPlayerControlUnitInGroup(M.B->TeamId, M.B->ControlGroup, 0, 0, M.B->bIsBotControlled));
+
+	DestroyHexMatchWorld(M.World);
+	return true;
+}
+
+/**
+ * **L'Unready e' simmetrico e non perde il piano** (`D016.3`).
+ *
+ * ⚠️ L'asserto sul piano non e' decorativo: e' la meta' del criterio di `#2193` che un test puo' vedere, e
+ * senza di esso «l'Unready funziona» sarebbe vero anche per un Unready che azzera la pianificazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTParticipantUnreadyClearsTheWholeParticipantTest,
+	"RefactorTactics.HexMatch.ParticipantUnreadyClearsTheWholeParticipant",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTParticipantUnreadyClearsTheWholeParticipantTest::RunTest(const FString&)
+{
+	FRTParticipantMatch M = MakeParticipantMatch();
+	if (!TestNotNull(TEXT("turn manager"), M.TM)) { DestroyHexMatchWorld(M.World); return false; }
+
+	const FRTCellId Pianificata = URTHexLibrary::Neighbors(M.A->Cell)[0];
+	M.A->PlannedCell = Pianificata;
+
+	M.TM->DeclareParticipantReady(0, 0);
+	if (!TestTrue(TEXT("premessa: il countdown e' armato"), M.TM->IsReadyCountdownActive()))
+	{
+		DestroyHexMatchWorld(M.World); return false;
+	}
+
+	M.TM->WithdrawParticipantReady(0, 0);
+
+	TestFalse(TEXT("il partecipante non e' piu' Ready"), M.TM->IsParticipantReady(0, 0));
+	TestFalse(TEXT("il quorum si e' riaperto"), M.TM->HasReadyQuorum());
+	TestFalse(TEXT("e il countdown e' stato annullato"), M.TM->IsReadyCountdownActive());
+	TestEqual(TEXT("il piano e' ancora quello di prima"), M.A->PlannedCell, Pianificata);
+
+	// Il tetto non e' stato riarmato dall'Unready: e' la regola di `#2193`, e vale anche da questa strada.
+	TestTrue(TEXT("il tetto della pianificazione scorre ancora"), M.TM->GetPlanningTimeRemaining() > 0.f);
+
+	DestroyHexMatchWorld(M.World);
+	return true;
+}
+
+/**
+ * **Quorum VUOTO: nessun commit anticipato** (`D016.6`).
+ *
+ * 🔴 Il difetto che questo test coglie e' la misura diventata vuota — la stessa forma di `#2356`. Un
+ * quorum scritto come *«tutti gli eleggibili sono Ready»* e' **vacuamente vero** su un insieme vuoto: in
+ * autobattle chiuderebbe ogni turno dopo il countdown invece che al tetto, e nessun test che guardi solo
+ * il caso umano se ne accorgerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEmptyQuorumDoesNotArmAnEarlyCommitTest,
+	"RefactorTactics.HexMatch.EmptyQuorumDoesNotArmAnEarlyCommit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEmptyQuorumDoesNotArmAnEarlyCommitTest::RunTest(const FString&)
+{
+	FRTParticipantMatch M = MakeParticipantMatch();
+	if (!TestNotNull(TEXT("turn manager"), M.TM)) { DestroyHexMatchWorld(M.World); return false; }
+
+	// La partita non presidiata: ogni unita' e' pianificata dal bot, come `Config.bAutobattle` la allestisce.
+	M.A->bIsBotControlled = true;
+	M.A2->bIsBotControlled = true;
+
+	TestFalse(TEXT("con nessuno che possa premere, il quorum NON e' soddisfatto"), M.TM->HasReadyQuorum());
+
+	const int32 TurnoPrima = M.TM->GetTurnNumber();
+	M.TM->DeclareParticipantReady(0, 0);
+
+	TestFalse(TEXT("un Ready da chi non e' eleggibile non entra"), M.TM->IsParticipantReady(0, 0));
+	TestFalse(TEXT("e non arma nessun countdown"), M.TM->IsReadyCountdownActive());
+
+	// Oltre la durata del countdown il turno non e' avanzato: il commit di queste partite resta quello del
+	// tetto, cioe' `OnPlanningTimeout`.
+	AdvanceWallClock(M.World, 4.0f);
+	TestEqual(TEXT("il turno non si e' chiuso da solo dopo il countdown"), M.TM->GetTurnNumber(), TurnoPrima);
+
+	DestroyHexMatchWorld(M.World);
+	return true;
+}
+
+/**
+ * **Partecipanti distinti non si contaminano, e il countdown aspetta l'ultimo** (`D016.5`, `D016.7`).
+ *
+ * E' il caso che in v0.1 non si osserva — un posto per squadra — e che esiste perche' il quorum sia gia'
+ * corretto quando il formato lo produrra'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDistinctParticipantsDoNotContaminateTest,
+	"RefactorTactics.HexMatch.DistinctParticipantsDoNotContaminate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDistinctParticipantsDoNotContaminateTest::RunTest(const FString&)
+{
+	FRTParticipantMatch M = MakeParticipantMatch();
+	if (!TestNotNull(TEXT("turn manager"), M.TM)) { DestroyHexMatchWorld(M.World); return false; }
+
+	// Due posti nella stessa squadra: e' la ripartizione che `UnitsPerPlayer = 1` produrrebbe.
+	M.A2->ControlGroup = 1;
+
+	M.TM->DeclareParticipantReady(0, 0);
+	TestTrue(TEXT("il primo partecipante e' Ready"), M.TM->IsParticipantReady(0, 0));
+	TestFalse(TEXT("ma il secondo NO: il Ready non ha attraversato il gruppo"), M.TM->IsParticipantReady(0, 1));
+	TestFalse(TEXT("quindi il quorum non e' chiuso"), M.TM->HasReadyQuorum());
+	TestFalse(TEXT("e nessun countdown e' partito"), M.TM->IsReadyCountdownActive());
+
+	M.TM->DeclareParticipantReady(0, 1);
+	TestTrue(TEXT("con l'ultimo il quorum si chiude"), M.TM->HasReadyQuorum());
+	TestTrue(TEXT("e solo ora parte il countdown"), M.TM->IsReadyCountdownActive());
+
+	DestroyHexMatchWorld(M.World);
+	return true;
+}
+
+/**
+ * **Il compagno pianificato dal bot non entra nel quorum — oggi** (`D014`).
+ *
+ * 🔑 Questo test pinna un CONFINE, non una funzionalita': la readiness del bot alleato — finestra di
+ * coordinamento, replanning, revoca sopra soglia — e' di `#534` (`CP 26.4`, post-v0.1). Se un giorno il bot
+ * entrera' nel quorum, questo test deve CADERE ed essere riscritto li': e' il modo in cui il confine si
+ * fa sentire invece di essere dimenticato.
+ *
+ * ⚠️ E prova anche la ragione per cui l'eleggibilita' guarda `bIsBotControlled` e non `TeamId`: qui le due
+ * unita' sono nella stessa squadra E nello stesso `ControlGroup`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAllyBotDoesNotJoinTheQuorumYetTest,
+	"RefactorTactics.HexMatch.AllyBotDoesNotJoinTheQuorumYet",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAllyBotDoesNotJoinTheQuorumYetTest::RunTest(const FString&)
+{
+	FRTParticipantMatch M = MakeParticipantMatch();
+	if (!TestNotNull(TEXT("turn manager"), M.TM)) { DestroyHexMatchWorld(M.World); return false; }
+
+	// `rt.Match.BotAllies=1`: il secondo Hero della squadra 0 lo pianifica il bot, e resta nel gruppo 0.
+	M.A2->bIsBotControlled = true;
+
+	M.TM->DeclareParticipantReady(0, 0);
+
+	TestTrue(TEXT("il quorum si chiude sul solo Ready umano"), M.TM->HasReadyQuorum());
+	TestTrue(TEXT("e il countdown parte"), M.TM->IsReadyCountdownActive());
+
+	DestroyHexMatchWorld(M.World);
+	return true;
+}
+
+/**
+ * **La readiness non sopravvive al turno** (`D016.8`).
+ *
+ * ⛔ Il difetto che coglie: un `TSet` mai svuotato renderebbe il turno 2 gia' in quorum all'apertura, e il
+ * commit arriverebbe dal countdown su un piano che nessuno ha ancora scritto. Non e' un caso di parete —
+ * e' l'unico modo in cui uno stato di readiness puo' diventare autorita' senza che nessuno lo decida.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReadinessDoesNotSurviveIntoTheNextPlanningTest,
+	"RefactorTactics.HexMatch.ReadinessDoesNotSurviveIntoTheNextPlanning",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReadinessDoesNotSurviveIntoTheNextPlanningTest::RunTest(const FString&)
+{
+	FRTParticipantMatch M = MakeParticipantMatch();
+	if (!TestNotNull(TEXT("turn manager"), M.TM)) { DestroyHexMatchWorld(M.World); return false; }
+
+	const int32 TurnoPrima = M.TM->GetTurnNumber();
+	M.TM->DeclareParticipantReady(0, 0);
+	if (!TestTrue(TEXT("premessa: il countdown e' armato"), M.TM->IsReadyCountdownActive()))
+	{
+		DestroyHexMatchWorld(M.World); return false;
+	}
+
+	AdvanceWallClock(M.World, 3.5f); // il countdown scade e committa
+	DrainPlayback(M.TM);             // il turno avanza quando il playback finisce
+
+	if (!TestTrue(TEXT("premessa: il turno e' avanzato"), M.TM->GetTurnNumber() > TurnoPrima))
+	{
+		DestroyHexMatchWorld(M.World); return false;
+	}
+
+	TestFalse(TEXT("nel turno nuovo il partecipante NON e' piu' Ready"), M.TM->IsParticipantReady(0, 0));
+	TestFalse(TEXT("il quorum e' riaperto"), M.TM->HasReadyQuorum());
+	TestFalse(TEXT("e nessun countdown si e' riarmato da solo"), M.TM->IsReadyCountdownActive());
+
+	DestroyHexMatchWorld(M.World);
 	return true;
 }
 
