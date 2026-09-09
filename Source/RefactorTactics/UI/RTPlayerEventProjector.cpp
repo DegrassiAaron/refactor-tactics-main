@@ -201,8 +201,29 @@ bool URTPlayerEventProjector::IsAuthorized(const FRTTurnLogEntry& Entry, int32 O
 	return Entry.Verdict.AllowsTeam(ObserverTeamId);
 }
 
+bool URTPlayerEventProjector::IsAuthorized(const FRTTurnLogEntry& Entry, const TArray<int32>& ObserverTeamIds)
+{
+	// ⚠️ `ContainsByPredicate` su un insieme vuoto risponde `false`, ed e' il comportamento voluto: un
+	// insieme vuoto e' «nessuno guarda», non «guardano tutti». Scriverlo con un ciclo esplicito e un
+	// `return true` renderebbe la stessa cosa piu' facile da invertire per sbaglio.
+	return ObserverTeamIds.ContainsByPredicate([&Entry](int32 TeamId)
+	{
+		return IsAuthorized(Entry, TeamId);
+	});
+}
+
 TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogEntry>& Entries,
 	int32 ObserverTeamId)
+{
+	// 🔑 **Delega, e non e' una comodita': e' cio' che tiene UNA sola implementazione della dominanza.**
+	// Duplicare il corpo qui significherebbe che il raggruppamento per unita' e per turno esiste in due
+	// copie, e la seconda si scoprirebbe divergente solo quando un esito nuovo viene tradotto in una sola
+	// delle due.
+	return Project(Entries, TArray<int32>{ ObserverTeamId });
+}
+
+TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogEntry>& Entries,
+	const TArray<int32>& ObserverTeamIds)
 {
 	TArray<FRTPlayerEvent> Out;
 
@@ -219,7 +240,12 @@ TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogE
 	{
 		// ── PRIMO passo, sempre. Un fatto non autorizzato non diventa un evento, e non lascia traccia
 		// nemmeno come conteggio: e' la differenza fra filtrare prima e sanitizzare dopo.
-		if (!IsAuthorized(Entry, ObserverTeamId))
+		//
+		// ⚠️ **Una domanda per VOCE, non una proiezione per osservatore.** E' il punto dell'overload: la
+		// dominanza qui sotto tiene una riga per unita' e una per turno per l'ambiente, e quello stato
+		// vive in QUESTA passata. Proiettare due volte e concatenare produrrebbe doppioni e due
+		// raggruppamenti scollegati.
+		if (!IsAuthorized(Entry, ObserverTeamIds))
 		{
 			continue;
 		}

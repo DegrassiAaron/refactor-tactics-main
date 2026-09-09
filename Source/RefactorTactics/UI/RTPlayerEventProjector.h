@@ -52,6 +52,29 @@ public:
 	static TArray<FRTPlayerEvent> Project(const TArray<FRTTurnLogEntry>& Entries, int32 ObserverTeamId);
 
 	/**
+	 * Lo stesso, per un INSIEME di osservatori autorizzati — la sessione non presidiata (`#2744`).
+	 *
+	 * 🔴 **Esiste perche' chiamare l'overload singolo due volte e' SBAGLIATO, e in due modi.** Una voce
+	 * autorizzata per entrambe le squadre — un KO pubblico — comparirebbe **due volte**; ed e' la stessa
+	 * trappola che `ARTHUD::DrawHUD` documenta gia' per gli intenti (*«due `FilterForTeam` sull'insieme
+	 * intero produrrebbero DOPPIONI»*). In piu' `IndexByUnit` ed `EnvironmentIndex` sono stato **per
+	 * proiezione**: due chiamate produrrebbero due raggruppamenti indipendenti, e la dominanza — la regola
+	 * che tiene una riga sola per unita' — si applicherebbe due volte a meta' dei fatti.
+	 *
+	 * ∴ La decisione resta **una per voce**: si chiede all'insieme, non si somma il risultato di due
+	 * domande.
+	 *
+	 * 🔑 **Il nome dell'insieme non e' nuovo**: `FRTReplayManifest::ObserverTeamIds` (`D-316`) chiama gia'
+	 * cosi' *«le squadre per cui esiste una traccia pubblica filtrata per osservatore»*. Stesso concetto,
+	 * stesso tipo, stesso nome.
+	 *
+	 * @param ObserverTeamIds  chi guarda. **Vuoto -> nessun evento**: il fail-closed di `AllowsTeam` non si
+	 *                         allenta passando per un contenitore, e un insieme vuoto non significa «tutti».
+	 */
+	static TArray<FRTPlayerEvent> Project(const TArray<FRTTurnLogEntry>& Entries,
+		const TArray<int32>& ObserverTeamIds);
+
+	/**
 	 * Il solo passo di autorizzazione, esposto perche' e' **verificabile**.
 	 *
 	 * Esiste per `UI.PlayerEventLog.AuthorizationMatchesLogLines`: senza un punto nominabile, «il proiettore
@@ -59,4 +82,13 @@ public:
 	 * un'assertion. Chiama `AllowsTeam` e nient'altro.
 	 */
 	static bool IsAuthorized(const FRTTurnLogEntry& Entry, int32 ObserverTeamId);
+
+	/**
+	 * Autorizzata per **almeno uno** degli osservatori. Insieme vuoto -> `false`, sempre.
+	 *
+	 * ⛔ Non e' una guardia ammorbidita: `AllowsTeam` decide ancora da sola per ogni squadra, e questa
+	 * funzione non fa altro che chiederglielo piu' volte. Una squadra che non e' nell'insieme non vede
+	 * niente in piu' di prima.
+	 */
+	static bool IsAuthorized(const FRTTurnLogEntry& Entry, const TArray<int32>& ObserverTeamIds);
 };

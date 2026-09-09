@@ -13,6 +13,9 @@
 #include "Turn/RTTurnLog.h" // FRTTurnLogEntry: il feed si prova iniettando una voce nel log
 #include "Unit/RTUnit.h" // ARTUnit: e' una delle classi AUTOREVOLI che nessun widget deve esporre
 #include "UI/RTReactionWindowViewModel.h" // idem, ed e' quella che porterebbe `SubmitResponse` nel grafo
+#include "UI/RTHudViewModel.h"           // il feed si prova anche SOTTO il widget: l'insieme vuoto (#2744)
+#include "UI/RTPlayerEventProjector.h"   // IsAuthorized: il predicato si interroga da solo, ed e' il punto
+#include "Misc/ScopeExit.h"              // ON_SCOPE_EXIT: il mondo si distrugge anche sui ritorni anticipati
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/Texture2D.h"
@@ -735,6 +738,201 @@ bool FRTScreenHudEventLogReadsFilteredFeedTest::RunTest(const FString&)
 	TestEqual(TEXT("chi non e' autorizzato non legge nulla"), Feed->GetFeed().Num(), 0);
 
 	DestroyHudWidgetWorld(World);
+	return true;
+}
+
+namespace
+{
+	/** Un'unita' in campo, con l'identita' minima che il roster legge. */
+	ARTUnit* SpawnRosterUnit(UWorld* World, int32 TeamId, const TCHAR* HeroId)
+	{
+		ARTUnit* Unit = World->SpawnActor<ARTUnit>();
+		if (Unit)
+		{
+			Unit->TeamId = TeamId;
+			Unit->HeroId = FName(HeroId);
+			Unit->MaxHealth = 10;
+			Unit->Health = 10;
+		}
+		return Unit;
+	}
+
+	/**
+	 * Gli `HeroId` di una lista di carte, come stringa unica.
+	 *
+	 * ⚠️ **Si confronta CHI c'e', non quanti**: un roster rotto che restituisse la squadra 0 due volte
+	 * conterebbe anche lui quattro carte. La forma a stringa esiste perche' `TestEqual` non confronta
+	 * `TArray`, e perche' il messaggio di fallimento dice subito **quale** elenco e' arrivato.
+	 */
+	FString HeroIdsOf(const TArray<FRTUnitCardView>& Cards)
+	{
+		TArray<FString> Ids;
+		Ids.Reserve(Cards.Num());
+		for (const FRTUnitCardView& Card : Cards) { Ids.Add(Card.HeroId.ToString()); }
+		return FString::Join(Ids, TEXT(","));
+	}
+}
+
+/**
+ * La GEMELLA non presidiata di `RosterShowsOnlyOwnTeamAndKeepsTheFallen` (`RTHudScenarioTests.cpp`), e il
+ * nome le accoppia di proposito.
+ *
+ * 🔴 **Senza questa, quel test resta verde e il suo NOME diventa una mezza verita'.** Afferma una regola
+ * incondizionata — *«solo la propria squadra»* — che `#2744` rende condizionata alla sessione presidiata; e
+ * il suo scenario non arma mai una sessione non presidiata, quindi nessun rosso avviserebbe. Il verde di la'
+ * e' il controllo positivo di qui: senza, un roster che mostrasse **sempre** tutto passerebbe.
+ *
+ * ⚠️ **Si guarda CHI c'e', non quanti.** Un roster rotto che restituisse la squadra 0 due volte conterebbe
+ * anche lui quattro carte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudRosterUnattendedTest,
+	"RefactorTactics.ScreenHud.RosterSplitsTheTeamsOnlyInAnUnattendedSession",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudRosterUnattendedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ DestroyHudWidgetWorld(World); };
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("turn manager"), TM)) { return false; }
+
+	SpawnRosterUnit(World, /*TeamId=*/ 0, TEXT("Alfa"));
+	SpawnRosterUnit(World, /*TeamId=*/ 0, TEXT("Bravo"));
+	SpawnRosterUnit(World, /*TeamId=*/ 1, TEXT("Charlie"));
+	SpawnRosterUnit(World, /*TeamId=*/ 1, TEXT("Delta"));
+
+	URTTeamRosterWidget* Roster = NewObject<URTTeamRosterWidget>(World);
+	if (!TestNotNull(TEXT("widget"), Roster)) { return false; }
+	Roster->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+
+	// ── 1. CONTROLLO POSITIVO: sessione presidiata. Il comportamento di oggi, bit per bit.
+	if (!TestFalse(TEXT("premessa: la sessione e' presidiata"), TM->IsUnattendedSession())) { return false; }
+
+	TestEqual(TEXT("presidiata: il roster e' la propria squadra"),
+		HeroIdsOf(Roster->GetRoster()), FString(TEXT("Alfa,Bravo")));
+
+	// 🔑 **La riga che vale il test.** Se questa lista non fosse vuota, la lista avversaria esisterebbe
+	// anche per chi sta giocando — cioe' il difetto sarebbe stato spostato, non chiuso.
+	TestEqual(TEXT("presidiata: non c'e' NESSUNA lista avversaria"), Roster->GetOpposingRoster().Num(), 0);
+
+	// ── 2. Sessione non presidiata: chi guarda non gioca in nessuna delle due.
+	TM->SetUnattendedSession(true);
+
+	const FString Propria = HeroIdsOf(Roster->GetRoster());
+	const FString Altra = HeroIdsOf(Roster->GetOpposingRoster());
+
+	TestEqual(TEXT("non presidiata: la propria lista non cambia"), Propria, FString(TEXT("Alfa,Bravo")));
+	TestEqual(TEXT("non presidiata: l'altra squadra ha la sua lista"), Altra, FString(TEXT("Charlie,Delta")));
+
+	// ── 3. Le due liste sono DISGIUNTE: e' la proprieta' per cui due chiamate a `BuildTeamRoster` possono
+	//      comporre senza doppioni, e senza di essa il disegno sarebbe sbagliato invece che solo il codice.
+	for (const FRTUnitCardView& Card : Roster->GetOpposingRoster())
+	{
+		TestFalse(FString::Printf(TEXT("'%s' non compare in entrambe le liste"), *Card.HeroId.ToString()),
+			Propria.Contains(Card.HeroId.ToString()));
+	}
+
+	return true;
+}
+
+/**
+ * In autobattle il feed si allarga a entrambe le squadre — e una voce autorizzata a TUTTE E DUE resta UNA.
+ *
+ * 🔴 **E' il doppione che due proiezioni concatenate produrrebbero**, ed e' il motivo per cui il feed non
+ * ha la stessa forma del roster: `BuildTeamRoster` filtra per `TeamId ==` e da' insiemi disgiunti, mentre
+ * `AllowsTeam` autorizza per voce e gli insiemi si sovrappongono. La stessa trappola che `ARTHUD::DrawHUD`
+ * documenta per gli intenti.
+ *
+ * ⚠️ Senza la voce pubblica il test sarebbe vacuo: due voci private, una per squadra, passerebbero anche
+ * con l'implementazione sbagliata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudFeedUnattendedTest,
+	"RefactorTactics.ScreenHud.EventFeedWidensToBothTeamsWithoutDuplicatingAnEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudFeedUnattendedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ DestroyHudWidgetWorld(World); };
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("turn manager"), TM)) { return false; }
+
+	SpawnRosterUnit(World, /*TeamId=*/ 0, TEXT("Alfa"));
+	SpawnRosterUnit(World, /*TeamId=*/ 1, TEXT("Charlie"));
+
+	// Un tiro rifiutato che solo la squadra 1 puo' conoscere.
+	FRTTurnLogEntry SoloUno;
+	SoloUno.Category = ERTLogCategory::Combat;
+	SoloUno.Outcome = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);
+	SoloUno.UnitId = 9;
+	SoloUno.SrcCell = FRTCellId(-1, 0, 0);
+	SoloUno.TgtCell = FRTCellId(1, 0, 0);
+	SoloUno.Verdict.AllowTeam(1);
+	TM->AppendTurnLogEntryForTest(SoloUno);
+
+	// Un fatto PUBBLICO: autorizzato a entrambe. E' la voce su cui il doppione si manifesterebbe.
+	FRTTurnLogEntry Pubblico;
+	Pubblico.Category = ERTLogCategory::Combat;
+	Pubblico.Outcome = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);
+	Pubblico.UnitId = 7;
+	Pubblico.SrcCell = FRTCellId(-2, 0, 0);
+	Pubblico.TgtCell = FRTCellId(2, 0, 0);
+	Pubblico.Verdict.AllowTeam(0);
+	Pubblico.Verdict.AllowTeam(1);
+	TM->AppendTurnLogEntryForTest(Pubblico);
+
+	URTPlayerEventLogWidget* Feed = NewObject<URTPlayerEventLogWidget>(World);
+	if (!TestNotNull(TEXT("widget"), Feed)) { return false; }
+	Feed->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+
+	// ── 1. CONTROLLO POSITIVO: presidiata. La squadra 0 vede solo il fatto pubblico.
+	if (!TestFalse(TEXT("premessa: la sessione e' presidiata"), TM->IsUnattendedSession())) { return false; }
+	TestEqual(TEXT("presidiata: la squadra 0 legge solo il fatto pubblico"), Feed->GetFeed().Num(), 1);
+
+	// ── 2. Non presidiata: si aggiunge la voce dell'altra squadra, e il pubblico NON si sdoppia.
+	TM->SetUnattendedSession(true);
+	TestEqual(TEXT("non presidiata: due righe, non tre"), Feed->GetFeed().Num(), 2);
+
+	return true;
+}
+
+/**
+ * L'insieme vuoto e' «nessuno guarda», mai «guardano tutti».
+ *
+ * 🔴 **Il fail-closed di `AllowsTeam` poteva perdersi passando per un contenitore.** Un
+ * `ContainsByPredicate` invertito, o un `if (Ids.IsEmpty()) return true` scritto per «comodita'», darebbe
+ * un proiettore che pubblica tutto — e nessun altro test lo direbbe, perche' tutti gli altri passano un
+ * insieme non vuoto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudEmptyObserverSetTest,
+	"RefactorTactics.ScreenHud.AnEmptyObserverSetAuthorizesNothing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudEmptyObserverSetTest::RunTest(const FString&)
+{
+	FRTTurnLogEntry Pubblico;
+	Pubblico.Category = ERTLogCategory::Combat;
+	Pubblico.Outcome = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);
+	Pubblico.UnitId = 7;
+	Pubblico.SrcCell = FRTCellId(-2, 0, 0);
+	Pubblico.TgtCell = FRTCellId(2, 0, 0);
+	Pubblico.Verdict.AllowTeam(0);
+	Pubblico.Verdict.AllowTeam(1);
+
+	const TArray<FRTTurnLogEntry> Log{ Pubblico };
+
+	// Controllo positivo: con un osservatore autorizzato la riga c'e'. Senza, «zero righe» sarebbe vero
+	// anche per un log vuoto o per una voce che nessuno classifica.
+	TestEqual(TEXT("con un osservatore autorizzato la riga esiste"),
+		URTHudViewModel::BuildPlayerEventFeed(Log, TArray<int32>{ 0 }).Num(), 1);
+
+	TestEqual(TEXT("insieme VUOTO: nessuna riga"),
+		URTHudViewModel::BuildPlayerEventFeed(Log, TArray<int32>{}).Num(), 0);
+
+	TestFalse(TEXT("e il predicato dice di no anche da solo"),
+		URTPlayerEventProjector::IsAuthorized(Pubblico, TArray<int32>{}));
+
 	return true;
 }
 
