@@ -8,6 +8,10 @@
 > **Panel**: Wiegers (qualità del requisito) · Cockburn (attore e obiettivo) · Fowler (confini) ·
 > Nygard (produttori senza consumatori) · Adzic (falsificabilità).
 > **Base misurata**: `origin/main` = `4fdb01a0b1d169963d5ae4ce364f5814d247567f` — `2026-09-10 00:49 +0200`.
+> ⚠️ **`origin/main` si è mosso durante la sessione** — `07ccb918`, su cui questo referto è ribasato.
+> Rimisurato il delta: fra i file citati in §1 cambiano solo `UI/RTHudViewModel.{h,cpp}`, che nessuna misura
+> qui nomina, e `docs/decisions/`. **Le misure di §1 reggono su entrambi gli sha**; il contatore `D-nnn` no,
+> ed è stato riassegnato sulla misura nuova (§7).
 > **Working tree**: `D:/Repositories/refactor-tactics-designer`, branch `docs/leggibilita-turno-v01`, pulito.
 > **Codice modificato**: nessuno. **Build · Automation Suite · PIE · packaged**: `NOT RUN`.
 >
@@ -315,30 +319,45 @@ v0.9   #777 E44 · v1.0 #778 E45 (gate di produzione)
 
 ---
 
-## §7 — Decisioni ancora richieste
+## §7 — Le due decisioni, chiuse in sessione
 
-### Una struttura è bersagliabile direttamente solo da un'azione che lo dichiara?
+### ✅ Chiusa da `D-369` — una struttura è bersagliabile solo se l'authoring la dichiara *e* l'azione lo dichiara
 
 Il kit propone: *«una struttura è direttamente attaccabile soltanto da un'azione che dichiara
 `DamageStructure`; `BasicAttack` non acquista demolizione»*.
 
-🔴 **Non è canone, e non va scritta come tale.** Ricerca eseguita: `RT_PDR_00_Decision_Log.md` nomina
-`DamageStructure` in `D-172`, `D-298` e `D-300`, sempre **come effetto già esistente** e mai per decidere chi
-può *bersagliare* una struttura. `OPEN_DECISIONS.md` non porta la domanda.
+🔁 **Alla stesura non era canone**: `RT_PDR_00_Decision_Log.md` nominava `DamageStructure` in `D-172`,
+`D-298` e `D-300` sempre come **effetto già esistente**, mai per decidere chi potesse *bersagliare* una
+struttura, e `OPEN_DECISIONS.md` non portava la domanda.
 
-⛔ **Nessun `D-nnn` assegnato qui** ([`AGENTS.md`](../../../AGENTS.md) §12 «ID condivisi»). La domanda entra
-nella issue 4.2 come **proposta**, e la decisione è dell'autore.
+✅ **Decisa in sessione lo stesso giorno — [`D-369`](../../decisions/RT_PDR_00_Decision_Log.md).** La risposta
+è **sì**, e aggiunge una seconda metà che la proposta non aveva: **il distruggibile lo dichiara l'Editor**.
+Due condizioni, entrambe necessarie, e nessuna delle due è la mesh.
+
+🔑 **E la metà nuova conferma la forma esistente invece di aggiungerne una**: `FRTHexCover`
+(`Edge · Type · Integrity`) e `FRTHexDoor` (`Edge · State · DoorId · StableId`) sono già tutti `EditAnywhere`
+sull'asset di mappa, e `ERTHexDoorState::Destroyed` è già dichiarato terminale. Non nasce un campo: nasce la
+regola che **solo quel dato conta**.
 
 **Cosa cambia a seconda della risposta**: se `BasicAttack` non demolisce, il primo slice ha **un solo**
 produttore (`HeavyAttack`) e la regola è verificabile con un test di esclusione; se demolisce, ogni attacco
 diventa un attacco a struttura e il costo di validazione cresce su tutto il catalogo.
 
-### La tassonomia dei bersagli non-unità
+### ✅ Chiusa da `D-370` — la tassonomia è derivata, con un'etichetta sull'elemento
 
 Il kit chiede di distinguere *struttura attaccabile · oggetto interagibile · objective · hazard · decorativo ·
 visibile ma non conosciuto*. Oggi il puntatore ha **un solo bit** (`bMapElement`) e la conoscenza è già gestita
-a parte (`IsKnownToObserver`, `D-225`). Se la tassonomia debba diventare un enum del puntatore o restare
-derivata dai dati di mappa è una scelta che appartiene a **E23** (`#324`), non a questo referto.
+a parte (`IsKnownToObserver`, `D-225`).
+
+✅ **Decisa in sessione — [`D-370`](../../decisions/RT_PDR_00_Decision_Log.md): derivata.** Il puntatore **non**
+acquista un secondo campo; la categoria si interroga ai dati di mappa sul `(Cell, Edge)` scelto, dove ogni
+tipologia ha già una rappresentazione autorata — `bIsObjective`, `Covers`, `Doors`, `Surface`/`BodyFill`, e gli
+hazard nel terreno. La **forma** dell'etichetta (enum, tag, o un campo che già la implica) resta a chi
+implementa, con un vincolo: sta in **un posto solo**, nei dati di mappa.
+
+⛔ **E la derivazione passa dalla conoscenza autorizzata**: una categoria è informazione, quindi un elemento
+non conosciuto collassa su «niente» — la forma che `RefusalForObserver` applica già alle unità (`D-225`).
+Dove l'etichetta **vive** resta di **E23** (`#324`), `E23.3` e `E23.4`.
 
 ---
 
@@ -353,7 +372,8 @@ derivata dai dati di mappa è una scelta che appartiene a **E23** (`#324`), non 
 | Creare una issue sul reason code player-facing | ⛔ **non fatto** | `#2741` è **chiusa**: il canale esiste (`SetTargetRefusal`) |
 | Creare una Slice F di accettazione | ⛔ **non fatto** | è `#2623` PIA, con le sedute già raggruppate |
 | Un documento roadmap separato dal referto | ⛔ **non fatto** | sarebbe una seconda source of truth della stessa sequenza; §5 è la roadmap |
-| Assegnare `D-nnn`, `E<n>`, milestone o label nuove | ⛔ **non fatto** | `AGENTS.md` §8 e §12 |
+| Assegnare `E<n>`, milestone o label nuove | ⛔ **non fatto** | `AGENTS.md` §8 e §12 |
+| Assegnare `D-nnn` | ✅ **fatto DOPO la risposta dell'autore** — `D-369` e `D-370` | non dalla memoria del kit: misura a tre posti su `07ccb918`, rifatta perché `origin/main` si era mosso durante la sessione |
 
 ---
 
