@@ -23,6 +23,7 @@
 #include "Misc/AutomationTest.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
+#include "Engine/HitResult.h"
 #include "Engine/World.h"
 #include "UI/RTHUD.h"
 #include "Unit/RTUnit.h"
@@ -328,6 +329,87 @@ bool FRTVeilDriverRunsOnTickTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: l'avversario nasce noto"), F.Enemy->IsKnownToObserver());
 	F.Hud->Tick(0.f);
 	TestFalse(TEXT("dopo un tick: l'avversario non e' piu' noto"), F.Enemy->IsKnownToObserver());
+
+	UvDestroyWorld(F.World);
+	return true;
+}
+
+/**
+ * 🔴 **Un'unita' velata non e' cliccabile, e questo e' il test che lo MISURA invece di dedurlo.**
+ *
+ * ## La premessa falsa che ha aperto #2755
+ *
+ * La issue affermava il contrario: *«il collider di un'unita' velata resta attivo — la mesh e'
+ * `QueryOnly` + `ECR_Block` (`RTUnit.cpp:62-63`) e `RefreshComponentVisibility` spegne la visibilita' ma
+ * non la collisione»*. Quella lettura si era fermata al **costruttore**. La stessa funzione, in coda,
+ * chiama `SetActorEnableCollision(bRender)` — dal 2026-08-27, commit `678cc8fc`, il cui titolo dice
+ * esattamente *«un'unita' ignota alla squadra non si vede e non si clicca»*.
+ *
+ * ∴ La via che #2755 proponeva era gia' quella implementata. Quello che mancava non era il codice: era
+ * **la prova**. Nessun test copriva `SetActorEnableCollision`, e una riga che nessun test tiene ferma e'
+ * una riga che il prossimo refactor puo' togliere senza che nulla diventi rosso.
+ *
+ * ## Perche' il trace, e non `GetActorEnableCollision()`
+ *
+ * L'oracolo e' il **percorso reale**: `RTPlayerController.cpp:1174` risolve il bersaglio con un trace su
+ * `ECC_Visibility`. Asserire il flag proverebbe che il flag e' `false`; asserire il trace prova che il
+ * click non trova l'unita' — che e' l'affermazione che ci interessa. Fra le due c'e' tutto cio' che puo'
+ * ancora bloccare il raggio: un secondo componente, una skeletal del Blueprint, un canale diverso.
+ *
+ * ## Anti-vacuita', su due fronti
+ *
+ *   - ⚠️ **Controllo positivo** — prima del velo il nemico DEVE essere colpito. Senza questa asserzione un
+ *     mondo di prova senza scena fisica non colpirebbe mai nulla, e il test sarebbe verde per assenza di
+ *     geometria invece che per il velo;
+ *   - ⚠️ **La propria squadra resta cliccabile** — un'implementazione che spegnesse la collisione a
+ *     *tutti* soddisfa la prima meta' e rompe il gioco. E' la stessa coppia che gli altri test di questo
+ *     file asseriscono sulla visibilita'.
+ *
+ * ⛔ **Verifica di mutazione**: sostituire `SetActorEnableCollision(bRender)` con
+ * `SetActorEnableCollision(true)` deve far cadere l'asserzione centrale, e SOLO quella.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilHiddenEnemyIsNotPickableTest,
+	"RefactorTactics.Veil.HiddenEnemyIsNotPickable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVeilHiddenEnemyIsNotPickableTest::RunTest(const FString&)
+{
+	FUvVeilFixture F = UvMakeVeilFixture();
+	if (!TestNotNull(TEXT("mondo di prova"), F.World)) { return false; }
+	if (!TestNotNull(TEXT("HUD"), F.Hud) || !TestNotNull(TEXT("avversario"), F.Enemy)
+		|| !TestNotNull(TEXT("alleato"), F.Ally))
+	{
+		UvDestroyWorld(F.World);
+		return false;
+	}
+
+	// La fixture spawna entrambe le unita' all'ORIGINE: sovrapposte, un trace verticale non saprebbe dire
+	// quale delle due ha colpito. Si separano prima di misurare.
+	const float EnemyX = 0.f;
+	const float AllyX  = 1000.f;
+	F.Enemy->SetActorLocation(FVector(EnemyX, 0.f, 0.f));
+	F.Ally->SetActorLocation(FVector(AllyX, 0.f, 0.f));
+
+	// Lo stesso canale del picking (`ECC_Visibility`), dall'alto verso il basso lungo l'asse dell'unita'.
+	auto PickAt = [&F](float X) -> AActor*
+	{
+		FHitResult Hit;
+		const bool bHit = F.World->LineTraceSingleByChannel(
+			Hit, FVector(X, 0.f, 500.f), FVector(X, 0.f, -500.f), ECC_Visibility);
+		return bHit ? Hit.GetActor() : nullptr;
+	};
+
+	// 1. CONTROLLO POSITIVO. Senza, tutto il resto sarebbe verde anche in un mondo senza collisione.
+	TestTrue(TEXT("premessa: finche' e' noto, il trace del picking COLPISCE l'avversario"),
+		PickAt(EnemyX) == F.Enemy);
+
+	F.Hud->UpdateObserverVeil();
+	TestFalse(TEXT("premessa: il velo ha reso ignoto l'avversario"), F.Enemy->IsKnownToObserver());
+
+	// 2. 🔴 Il cuore: velato, il trace non lo restituisce piu'.
+	TestNull(TEXT("l'avversario velato non viene restituito dal trace del picking"), PickAt(EnemyX));
+
+	// 3. E la propria squadra resta selezionabile: e' l'altra meta', e cade se qualcuno spegne tutto.
+	TestTrue(TEXT("la propria unita' resta cliccabile"), PickAt(AllyX) == F.Ally);
 
 	UvDestroyWorld(F.World);
 	return true;
