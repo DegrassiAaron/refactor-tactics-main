@@ -685,6 +685,22 @@ void URTFrontendNavigator::PresentMatchHud()
 	if (!MatchHudWidget->IsInViewport())
 	{
 		MatchHudWidget->AddToViewport(MatchHudZ);
+
+		// 🔴 **L'unica riga che dica «lo Screen HUD §4.1 e' a schermo», e prima non esisteva.**
+		// Questa funzione ha quattro uscite e **tre erano mute** — classe non dichiarata, nessuna
+		// `GameInstance`, widget non creato — piu' quella di successo, muta anche lei. Una partita CON
+		// l'HUD e una SENZA producevano lo stesso log: nessuno. Chi esegue `PIE-V01-SCREENHUD` (`#613`,
+		// seduta `U49`) parte da qui — se questa riga non compare non c'e' niente da giudicare, e la voce
+		// non e' eseguibile invece che rossa.
+		//
+		// ⚠️ **`__DATE__`/`__TIME__` datano il MODULO, non il commit**, ed e' esattamente cio' che serve:
+		// rispondono a *«sto guardando il binario che ho appena compilato?»*. In questa sessione la DLL si
+		// e' trovata piu' vecchia del sorgente **due volte**, e in entrambi i casi una misura sarebbe
+		// stata presa su un altro programma. Un fallimento che nomina un sistema non toccato e' il
+		// binario, non `main`.
+		UE_LOG(LogRT, Display,
+			TEXT("Screen HUD 4.1 montato: '%s' (z=%d) - modulo compilato il %hs alle %hs"),
+			*MatchHudWidget->GetClass()->GetName(), MatchHudZ, __DATE__, __TIME__);
 	}
 }
 
