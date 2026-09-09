@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-09-05
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-09-09 (`OBS-1`, aggiunta in testa)
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -22,6 +22,22 @@
 > risposta, ed è la disciplina che questo documento dichiara dodici righe più in alto.
 > 🔴 **`GBX-1` e `GBX-5` NON sono fra queste**: la sessione ne ha deciso il **metodo**
 > ([`D-283`](decisions/RT_PDR_00_Decision_Log.md)) e ha lasciato i **numeri aperti** fino a `U25`.
+
+---
+
+## Aperta — chi guarda una partita che nessuno gioca, dalla riconciliazione autobattle del 2026-09-09
+
+Origine: il panel di riconciliazione della roadmap lunga dell'autobattle,
+[`roadmap/plans/autobattle-showcase-long-term-roadmap-2026-09-09.md`](roadmap/plans/autobattle-showcase-long-term-roadmap-2026-09-09.md).
+Misurato su `origin/main` `c3151afd`. Issue correlate: #952 · #2744 · #1769 · #1881 · #1805 · #773.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `OBS-1` | **L'osservatore di una partita è una posizione NOMINATA — `Omniscient` \| `Team N` \| `ReplayPOV` — oppure resta la squadra del `PlayerController` con un ramo per la sessione non presidiata?** | ⚠️ **Non è una domanda vergine, ed è il motivo per cui va decisa invece che dedotta: le due risposte esistono già entrambe, in due sottosistemi diversi.** **(1)** Nell'harness la posizione nominata **c'è**: `RTScenarioKnowledge::OmniscientTeamId = INDEX_NONE` (`ScenarioHarness/RTScenarioKnowledge.h:50`), documentata come *«una posizione NOMINATA, non "il filtro spento"»*, e il Tactical Designer la consuma dal selettore di prospettiva di #1754 (chiusa). **(2)** In partita **non c'è**: `ARTPlayerState::TeamIdOf` è l'unica risposta alla domanda «di chi è la vista?», e lo è **per decisione** — [`D-242`](decisions/RT_PDR_00_Decision_Log.md) / #1730 ha centralizzato quattro filtri di privacy che prima avevano copie divergenti, fra cui un letterale `PlayerTeamId = 0`. **(3)** L'unica autorizzazione d'osservatore in partita è oggi `ARTTurnManager::IsUnattendedSession()`, con **un solo** sito di lettura (`UI/RTHUD.cpp:715`, il §4.2 in Canvas) — misurato con `git grep -n "IsUnattendedSession" -- Source/ \| grep -v /Tests/`. ∴ estendere quel ramo al §4.1 è coerenza e non richiede questa decisione (è **#2744**); introdurre un `ObserverMode` con cambio POV **sì**. 🔴 **E le due risposte non costano uguale in rete.** Un `ObserverMode` locale che riceve i piani di entrambe le squadre è un client che li **possiede**: `RTHUD.cpp:710` lo scrive già come avvertenza, e #784 (*canary anti-leak*) pretende che un client avversario non riceva *un solo byte* del piano nemico. La decisione va presa **prima** di `E40` (#773), o il costo si paga in rete su un percorso già scritto. ⛔ **Ciò che va escluso in entrambe le uscite**: un `bIsSpectator` che i filtri onorino — sarebbe la seconda risposta alla stessa domanda, cioè il debito che `D-242` ha chiuso. |
+
+⚠️ **Non blocca la v0.1.** #2744 chiude la tappa «watchable» estendendo la decisione già presa da #2386, e
+dichiara `OBS-1` come *out of scope*. Questa voce serve a impedire che un `ObserverMode` entri di
+straforo dentro un lavoro di HUD.
 
 ---
 

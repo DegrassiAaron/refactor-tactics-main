@@ -280,6 +280,55 @@ risolvere un conflitto contro i cataloghi `.md`.
 
 ---
 
+### CR-WATCH — La partita che si guarda
+
+**Ancora**: **#952** *«E47 · Mini v0.1 Autobattle — la partita che si guarda»* (v0.1)
+**Dettaglio**: [`plans/autobattle-showcase-long-term-roadmap-2026-09-09.md`](plans/autobattle-showcase-long-term-roadmap-2026-09-09.md)
+
+⚠️ **Aggiunta il 2026-09-09**, misurata su `origin/main` `c3151afd`. La fotografia dichiarata in testa a
+questo documento resta quella del 2026-09-06: **questa sezione non la rimisura**, e nessun'altra riga qui
+sotto è stata riletta in quell'occasione.
+
+Non è `CR-BOT` con un altro nome. `CR-BOT` segue la **competenza** di chi gioca da solo; questa segue la
+**leggibilità** di ciò che sta accadendo — sono due domande, e il 2026-09-09 la seconda non aveva una vista.
+
+L'invariante, ed è tutto ciò che questa capability protegge:
+
+```text
+#952 non possiede il gioco: lo CONSUMA.
+     HUD · Bot · Camera · Presentation · Objectives · Playback
+     restano owner dei propri sistemi.
+```
+
+⛔ **Mai** una mega-epic «Showcase» che assorba metà repository. ⛔ **Mai** un secondo Scenario Harness per
+configurare una demo. ⛔ **Mai** uno spettatore che allenti la privacy: l'autorizzazione è un **dato**
+(`ARTTurnManager::IsUnattendedSession()`, `D-242`), non una guardia ammorbidita.
+
+Le nove tappe d'esperienza e il loro owner reale — ⚠️ **lettere di questo documento, non milestone GitHub**
+(`D-145`):
+
+| Tappa | Outcome | Owner reale | Release |
+|---|---|---|---|
+| `A` watchable | la partita gira e si guarda | #952 (7 CP chiusi) · **#2744** | v0.1 |
+| `B` readable | capisco *perché* è successo | #1937 → #1936 · #2697 · #2281 · #613 | v0.1 |
+| `C` useful playtest | ci si può giudicare il gameplay | #2556 · #2629 · #2477 · #326 | v0.1 → v0.2 |
+| `D` spectator / camera | guardo da spettatore | **#1769** · #1781 (`CAM-12`) | v0.1 parziale (`D-286`) |
+| `E` match story | so chi sta vincendo, e perché | #2281 · #331 · #332 | v0.1 → v0.4 |
+| `F` replay / inspection | studio la partita | **#1881** · #472 (chiusa) · #2411 · #1805 | v0.1 → v1.0 |
+| `G` presentation | comincia a sembrare un gioco | #286 · #217 · #2453 | v0.1 → v0.2 |
+| `H` showcase / video | configuro una demo e la ripeto | **#2745** (discovery) | post-v0.1 |
+| `I` representative match | mostra il gioco futuro, non l'arena | #325 · #221 · #333 · #331 · #332 | post-v0.1 |
+
+⚠️ **`F` non è a valle delle altre**: cammina in parallelo dalla v0.1 ed è la tappa più avanzata di tutte.
+Le uniche dipendenze vere sono `A → B` (parziale), `H → A·D·E` e `I → E·G`; il resto è preferenza d'ordine.
+
+Decisione aperta che questa capability porta con sé: **`OBS-1`** in
+[`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — se l'osservatore in partita diventi una **posizione
+nominata** come già è nello Scenario Harness (`RTScenarioKnowledge::OmniscientTeamId`, #1754), o resti la
+squadra del `PlayerController` con un ramo per la sessione non presidiata.
+
+---
+
 ## 4. Dove le capability si incontrano
 
 I contratti sono il posto in cui una capability **consuma** un'altra senza riscriverla.
@@ -302,6 +351,10 @@ I contratti sono il posto in cui una capability **consuma** un'altra senza riscr
 | Verticalità × Map Editor | stessa qualificazione del bordo in authoring e a runtime — una sola sede, mai due |
 | Verticalità × Replay | l’esito di atterraggio è un valore serializzato: si aggiunge **in coda**, non si riordina |
 | Verticalità × Explainability | la caduta è avvenuta anche quando la posizione finale non lo mostra — il log lo deve dire |
+| Watch × Explainability | l'autorizzazione dell'osservatore è **un dato** (`IsUnattendedSession()`), e vale per il §4.2 come per il §4.1: due filtri divergenti sono il debito che `D-242` ha chiuso |
+| Watch × Camera | l'autobattle è un **consumer** della camera, mai una seconda camera: il Camera Director resta #1781 e non anticipa il core |
+| Watch × Replay | guardare live e ristudiare passano dallo **stesso** playback core (#1881) — nessun secondo viewer, nessun resolver dentro il viewer |
+| Watch × Online | uno spettatore locale che vede entrambe le squadre è ammesso; in rete (#773, `E40`) è un client che **possiede** quei piani — o è lato server, o non esiste (#784) |
 
 ---
 
