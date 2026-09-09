@@ -4,11 +4,13 @@
 #include "Blueprint/UserWidget.h"
 #include "UI/RTHudViewModel.h"
 #include "UI/RTIconCatalogData.h" // FRTIconResolution e' un valore di ritorno: serve la definizione, non basta la forward
+#include "Turn/RTReactionWindowView.h" // idem per FRTReactionWindowView, reso per valore da `URTFastDecisionWidget`
 #include "RTScreenHudWidgets.generated.h"
 
 class ARTTurnManager;
 class ARTUnit;
 class URTIconCatalogData;
+class URTReactionWindowViewModel;
 
 /**
  * Le classi BASE dei widget dello Screen HUD (§4.1 di `progettazione-hud.md`, CP 11.7 / #613).
@@ -89,6 +91,24 @@ public:
 	 */
 	void SetSelectedUnitForTest(ARTUnit* InUnit);
 
+	/**
+	 * Inietta il VIEW MODEL della finestra di reazione senza un `PlayerController` (CP 14.6, `#166`).
+	 *
+	 * 🔴 **Non e' una comodita': senza, il widget della finestra sarebbe verificabile solo nel ramo «nessuna
+	 * finestra».** `AcquireMatchContext` ripara il proprietario mancante con
+	 * `SetOwningPlayer(World->GetFirstPlayerController())`, ma `UUserWidget::SetOwningPlayer` memorizza il
+	 * **`ULocalPlayer`** e in headless non ne esiste uno — la stessa ragione, misurata, per cui
+	 * `SetSelectedUnitForTest` esiste, e con lo stesso prezzo gia' pagato una volta: *«il Blueprint passava
+	 * `false` fisso, e `ActionDockShowsTheNeutralState` era verde»*.
+	 *
+	 * In gioco resta nulla e la verita' e' il `PlayerController`. **Non** e' esposta ai Blueprint: un secondo
+	 * canale per raggiungere la finestra sarebbe un secondo posto da cui rispondere.
+	 *
+	 * ⚠️ Definita nel `.cpp` come le due sorelle: `URTReactionWindowViewModel` e' solo forward-declared qui e
+	 * `TWeakObjectPtr::operator=` vuole il tipo completo.
+	 */
+	void SetReactionWindowForTest(URTReactionWindowViewModel* InViewModel);
+
 protected:
 	virtual void NativeConstruct() override;
 
@@ -114,6 +134,23 @@ protected:
 
 	/** L'unita' selezionata dal giocatore, o `nullptr`. Protetta: i Blueprint vedono solo le VISTE. */
 	const ARTUnit* GetSelectedUnit() const;
+
+	/**
+	 * Il view model della finestra di reazione di questo client, o `nullptr` (CP 14.6, `#166`).
+	 *
+	 * 🔴 **`protected`, e la differenza NON e' stilistica.** `URTReactionWindowViewModel::SubmitResponse` e'
+	 * `BlueprintCallable`: un accessore **pubblico** su questa base metterebbe un nodo che **spara un
+	 * Overwatch** nel grafo di tutte e sei le classi che ne derivano — roster, dock, event log compresi. Ed e'
+	 * l'esatto contrario della disciplina che questo file dichiara in testa: *«se non c'e' il puntatore, non
+	 * c'e' il modo di ricalcolare»*. Qui c'e' un solo sito di risoluzione, e la superficie pubblica vive su
+	 * `URTFastDecisionWidget`, la cui firma porta solo cio' che quel widget puo' fare.
+	 *
+	 * ⚠️ **Si risolve dall'OWNING PLAYER, non dal primo controller del mondo**, per la stessa ragione di
+	 * `PlayerTeamId`: la finestra e' una domanda posta a **un** giocatore, e in split-screen il primo
+	 * controller non e' necessariamente il proprio. Il prezzo e' che in headless resta nullo — ed e' il
+	 * motivo per cui `SetReactionWindowForTest` esiste.
+	 */
+	URTReactionWindowViewModel* GetReactionWindow() const;
 
 public:
 	/**
@@ -157,6 +194,17 @@ private:
 	 */
 	UPROPERTY(Transient)
 	TWeakObjectPtr<ARTUnit> SelectedUnitForTest;
+
+	/**
+	 * La finestra di reazione, risolta dal proprietario in `AcquireMatchContext` oppure iniettata da un test.
+	 *
+	 * ⚠️ **Weak e non `TObjectPtr`**: il view model vive col `PlayerController` (`#2723`), che questo widget
+	 * non possiede. Un puntatore forte lo terrebbe in vita oltre il proprio controller, e
+	 * `URTReactionWindowViewModel::Hook` fa dipendere da quella morte proprio cio' che spegne il ramo
+	 * interattivo — `IsBound()` e' falso quando il view model non c'e' piu'.
+	 */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<URTReactionWindowViewModel> ReactionWindow;
 };
 
 /** `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer. */
@@ -357,6 +405,98 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FName GetIconId() const;
+};
+
+/**
+ * `WBP_RT_FastDecision` — la finestra di reazione: countdown, bersaglio, e i bottoni della scelta (CP 14.6,
+ * `#166`, voci **2 · 3 · 4** della DoD).
+ *
+ * ## Che cosa questa firma rende IMPOSSIBILE
+ *
+ * La DoD chiede *«nessuna logica di gioco nel widget»*, e fino a qui era una promessa che si verificava
+ * leggendo il diff. Qui diventa una proprieta' della firma, su tre fronti:
+ *
+ *  1. **Non si nomina una risposta.** `ChooseOption` prende un **`int32`**, non una `FString`. Un widget che
+ *     scrivesse `TEXT("FIRE")` nel proprio grafo sarebbe il nono produttore di quel letterale — otto siti
+ *     dello scenario harness lo confrontano `CaseSensitive` — e il primo **fuori** dai test del core. Qui il
+ *     widget puo' soltanto **indicare** un'opzione che il core ha prodotto.
+ *     ⚠️ E un `FRTReactionWindowOptionView` come parametro non basterebbe: un Blueprint puo' costruirne uno
+ *     ai default, con `Response` **vuota**, e una risposta vuota il core la legge come **scadenza**
+ *     (`RTTurnManager.cpp`, `Response.IsEmpty()` → `DecisionOnTimeout`) — cioe' un bottone che sembra una
+ *     scelta e vale un timeout. L'indice non ha un valore «di default plausibile»: fuori range non fa nulla.
+ *  2. **Non si conta il tempo.** `GetRemainingSeconds()` inoltra a `GetOpenReactionWindowRemainingSeconds()`.
+ *     Un countdown contato dal client e' un client che decide quando scade.
+ *  3. **Non c'e' una seconda porta.** La base non espone il `TurnManager` ai Blueprint e
+ *     `GetReactionWindow()` e' `protected`: cio' che si puo' leggere e' la vista **gia' sanitizzata** da
+ *     `URTReactionWindowLibrary::FilterWindowForTeam`, che per un avversario e' ai default.
+ *
+ * ## ⚠️ Il numero mostrato e l'apertura sono due condizioni diverse, e solo una e' autorevole
+ *
+ * 🔴 **Il widget smette di accettare input quando `IsWindowOpen()` e' falso — mai quando il numero arriva a
+ * zero.** I due orologi non hanno lo stesso tick: `GetOpenReactionWindowRemainingSeconds()` scorre col
+ * `Tick` dell'Actor, il widget disegna col proprio `NativeTick`. Un countdown arrotondato per difetto mostra
+ * `0` per almeno un frame **prima** che la finestra si chiuda, e un giocatore che preme in quel frame
+ * vedrebbe il proprio input sparire in un prompt che dice zero ed e' ancora aperto. Il numero e' cosmesi;
+ * l'apertura e' il contratto.
+ *
+ * ## ⚠️ Due finestre possono arrivare in fila, senza un frame di stacco
+ *
+ * Chiudere una finestra **riprende** la resolution, e la ripresa puo' aprirne un'altra nello stesso stack —
+ * misurato da `#2723`, dove `Reactions.ViewModel.SubmitClosesAndResumesOverwatch` e' andato rosso proprio
+ * su questo. Non viola *«un boundary → una decisione»* (sono due boundary), ma il `.uasset` deve
+ * **ricostruirsi** sull'identita' della finestra invece di animare una transizione: 300 ms di apertura
+ * costano il 10% di una finestra da 3,0 s, e il countdown autorevole non li aspetta.
+ *
+ * ⚠️ **Qui non c'e' layout**, come per gli altri di questo file. La ricetta del `.uasset` sta in
+ * `docs/technical/runbooks/guida-screen-hud-umg.md`.
+ */
+UCLASS(BlueprintType)
+class REFACTORTACTICS_API URTFastDecisionWidget : public URTScreenHudWidgetBase
+{
+	GENERATED_BODY()
+
+public:
+	/**
+	 * C'e' una finestra da disegnare, ADESSO? Falso anche quando il view model non c'e' — un HUD senza
+	 * proprietario mostra la finestra chiusa, non una finestra vuota.
+	 *
+	 * 🔑 **E' questa, e non il countdown, la condizione che governa la visibilita' e l'input** (vedi la nota
+	 * sui due orologi nella dichiarazione della classe).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
+	bool IsWindowOpen() const;
+
+	/**
+	 * La finestra, gia' sanitizzata per chi la riceve: durata, opzioni, scelta sicura. Ai default quando
+	 * nessuna attende — che e' la stessa forma che un avversario riceve, e non per caso.
+	 *
+	 * ⚠️ **`SafeResponse` dice QUALE delle `Options` e' la scelta sicura, e non e' la costante `HOLD`**: nel
+	 * `Brace` e' `Hold Ground`. Un widget che scrivesse «tieni» a mano sarebbe corretto oggi e sbagliato con
+	 * la prima finestra che non e' un Overwatch.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
+	FRTReactionWindowView GetWindow() const;
+
+	/**
+	 * Secondi che restano, dall'orologio **autorevole**. Negativo quando nessuna finestra attende — la
+	 * convenzione di `FRTMatchHeaderView::PlanningSecondsRemaining`, dove `0.f` direbbe «scaduta adesso».
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
+	float GetRemainingSeconds() const;
+
+	/**
+	 * Inoltra la risposta che sta all'indice `OptionIndex` di `GetWindow().Options`.
+	 *
+	 * ⛔ **Fail-closed**: indice fuori range, o nessuna finestra aperta, non fanno **nulla** — con una warning
+	 * che nomina indice e conteggio. Il caso non e' teorico: le opzioni cambiano quando la finestra cambia, e
+	 * un bottone disegnato per la finestra precedente porta con se' il proprio indice.
+	 *
+	 * La legalita' non si giudica qui e nemmeno nel view model: passa da `AskReactionDecision` come quella di
+	 * un bot. E l'identita' della finestra la mette `URTReactionWindowViewModel::SubmitResponse`, che nomina
+	 * quella per cui la vista e' stata costruita — non «qualunque finestra ci sia adesso».
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Reaction")
+	void ChooseOption(int32 OptionIndex);
 };
 
 /**

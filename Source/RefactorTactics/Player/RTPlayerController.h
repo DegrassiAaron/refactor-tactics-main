@@ -445,6 +445,21 @@ public:
 	static void ApplyNextPlaybackSpeed(class ARTTurnManager* TurnManager);
 
 	/**
+	 * Il tasto `V`, **guardia compresa** — il corpo che l'input esegue ([`D-350`](../../../docs/decisions/RT_PDR_00_Decision_Log.md), CP 14.6, `#166`).
+	 *
+	 * 🔑 **Esiste come funzione pubblica perche' `OnCyclePlaybackSpeed` e' `protected` e un test non la
+	 * raggiunge.** Metterla qui e lasciare l'handler a una riga significa che la misura passa dallo **stesso
+	 * corpo** dell'input: togliere la guardia fa cadere il test. Un predicato pubblico e una guardia scritta
+	 * a parte darebbero invece un test che non puo' fallire — il criterio che `RTAutobattleInputInertTests`
+	 * dichiara di aver gia' scartato una volta.
+	 *
+	 * ⚠️ **`ApplyNextPlaybackSpeed` resta statica e senza guardia**, ed e' voluto: quella e' la MECCANICA
+	 * della scala (`x1 · x2 · x4`) e ha i propri tre test. Qui c'e' la POLITICA di chi puo' girare la
+	 * manopola, e sono due domande diverse.
+	 */
+	void CyclePlaybackSpeed();
+
+	/**
 	 * I tasti che armano una POSIZIONE del kit, in ordine: l'indice nell'elenco **e'** l'indice nel kit
 	 * dell'unita' selezionata. Dieci, `1`..`9` piu' `0`.
 	 *
@@ -878,6 +893,32 @@ protected:
 	bool bPhaseFocusPinned = false;
 
 private:
+	/**
+	 * Esiste, in questo mondo, un'unita' **viva** e **non bot** che questo giocatore comanda?
+	 *
+	 * 🔑 **E' il criterio FUNZIONALE di [`D-350`](../../../docs/decisions/RT_PDR_00_Decision_Log.md), scritto com'e' posto**: *«esiste un'unita' del
+	 * giocatore locale, non bot, che puo' ricevere una finestra?»*. La risposta non passa da una modalita' —
+	 * `ERTMatchMode` **non esiste**, e inventarlo per un binding di tastiera sarebbe il cambiamento piu'
+	 * grande dei due — ma dalla lista delle unita', che la domanda la risponde gia'.
+	 *
+	 * · **autobattle** → `bIsBotControlled` e' vero su tutte (`RTMatchBootstrapper.cpp`,
+	 *   `(TeamId == 1) || Config.bAutobattle || bBotAlly`), quindi falso: la manopola resta;
+	 * · **partita live** → vero: la manopola si spegne;
+	 * · **il giocatore ha perso tutte le unita'** → falso, e non e' un caso limite da tollerare: da quel
+	 *   momento sta **osservando**, ed e' esattamente di chi osserva che `D-350` dichiara essere la velocita'.
+	 *
+	 * ⚠️ **Riusa `URTCombatLibrary::CanPlayerControlUnit` invece di ricomporne la regola**: «unita' mia e non
+	 * bot» ha gia' un solo produttore, e un secondo qui divergerebbe il giorno del bot alleato — che e'
+	 * proprio il caso che quella funzione ha imparato per ultimo.
+	 *
+	 * ⛔ **Un termine che oggi non serve e che va nominato**: in ri-simulazione il ramo della traccia
+	 * (`RecordedDecisions.Num() > 0`) impedisce l'apertura a monte, quindi nessuna finestra arriva a un
+	 * umano. Oggi `ArmRecordedReactionDecisions` **non ha chiamanti di produzione** — solo il Verifier e i
+	 * test, che non hanno un `PlayerController` — e il predicato e' completo cosi'. Il giorno in cui un
+	 * replay venisse riprodotto **dentro un mondo con questo controller**, qui servirebbe un secondo termine.
+	 */
+	bool LocalUnitCanReceiveReactionWindow() const;
+
 	/**
 	 * Vedi `GetKnowledgeVeilPresenter()`. `Transient` come i fratelli creati con `NewObject`: non entra
 	 * nella serializzazione del controller, ma la `UPROPERTY` serve — senza, il GC se lo porterebbe via

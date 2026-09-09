@@ -50,9 +50,16 @@ Crea ogni widget con **Widget Blueprint → scegli la classe padre**, non con il
 | `WBP_RT_SelectedUnitPanel` | `RTSelectedUnitPanelWidget` | `HasSelection`, `GetCard`, `GetSlots` |
 | `WBP_RT_ActionDock` | `RTActionDockWidget` | `GetActions`, `GetArmedActionIndex` |
 | `WBP_RT_ActionSlot` | `RTActionSlotWidget` | riceve `SetAction`; implementa `OnActionChanged` |
+| `WBP_RT_FastDecision` | `RTFastDecisionWidget` | `IsWindowOpen`, `GetWindow`, `GetRemainingSeconds`; chiama `ChooseOption` |
 
 > ⚠️ **I nomi non sono suggerimenti.** `progettazione-hud.md` §45 li dichiara, e su un `.uasset` il rename
 > costa più che scriverlo giusto la prima volta (redirector, riferimenti, Fix Up).
+
+> 🔁 **La tabella diceva «i sei» e ne elencava sei — il 2026-09-09 sono sette, e uno era già mancante prima.**
+> `WBP_RT_FastDecision` entra con [`#166`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) (CP 14.6). ⚠️ **Manca ancora `WBP_RT_EventLog`**, classe padre
+> `RTPlayerEventLogWidget`, che [`#2697`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697) ha portato in C++ senza che nessuno lo aggiungesse qui:
+> misurato, `Content/RT/UI/Match/` non lo contiene. Non è di questo checkpoint e resta al proprio owner —
+> è annotato perché una tabella che si dichiara completa e non lo è manda a cercare nel posto sbagliato.
 
 ---
 
@@ -190,6 +197,71 @@ con `wc -l` invece di copiarlo)*.
 
 Le barre coesistono di proposito: quella ancorata risponde a «quanto è ferito *quello lì*», il pannello a
 «quanto è ferito *chi sto comandando*».
+
+---
+
+## 7-bis. `WBP_RT_FastDecision` — la finestra di reazione
+
+Sezione aggiunta il **2026-09-09** con la metà C++ di [`#166`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) (CP 14.6, voci 2 · 3 · 4 della DoD).
+Il C++ è atterrato: quello che resta qui è **solo layout**.
+
+### Che cosa il widget legge
+
+| Nodo | Rende | Nota |
+|---|---|---|
+| `Is Window Open` | `bool` | **è questa** che governa visibilità e input, non il countdown |
+| `Get Window` | `FRTReactionWindowView` | `Options`, `SafeResponse`, `WindowSeconds` |
+| `Get Remaining Seconds` | `float` | **negativo** quando nessuna finestra attende |
+| `Choose Option` | — | prende l'**indice** dell'opzione premuta |
+
+### Le quattro regole, e perché
+
+**1. 🔴 Un bottone per elemento di `Options`, e il testo viene da `Response`.**
+Non scrivere `FIRE` o `HOLD` a mano nel grafo. `FIRE:<indice>` è un **formato** con un solo produttore
+(`URTReactionOpportunityLibrary::FireResponse`), e comporlo qui ne creerebbe un secondo — fuori dai test che
+presidiano il primo. Un `ListView` sulle `Options` è la forma naturale: l'indice della riga **è** l'indice da
+passare a `Choose Option`.
+
+**2. 🔴 La scelta sicura si riconosce da `SafeResponse`, non dalla parola «HOLD».**
+Nel `Brace` si chiama `Hold Ground`. Un bottone etichettato a mano sarebbe corretto oggi e sbagliato con la
+prima finestra che non è un Overwatch — è la regressione che `SafeResponse` ha già evitato una volta nel
+core. Confronta `Option.Response == SafeResponse` per dargli lo stile «tieni».
+
+**3. ⛔ La visibilità e l'input si legano a `Is Window Open`, MAI al countdown a zero.**
+I due orologi non hanno lo stesso tick: quello autorevole scorre col `Tick` dell'Actor, il widget disegna col
+proprio. Un countdown arrotondato per difetto mostra `0` per almeno un frame **prima** che la finestra si
+chiuda, e un giocatore che preme in quel frame vedrebbe il proprio input sparire in un prompt che dice zero
+ed è ancora aperto. Il numero è cosmesi; l'apertura è il contratto.
+
+**4. ⛔ Niente animazione di apertura.**
+Chiudere una finestra **riprende** la resolution, e la ripresa può aprirne un'altra nello stesso stack —
+misurato da [`#2723`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2723). Il giocatore vedrà due finestre in fila senza un frame di stacco. Il widget si
+**ricostruisce** sui dati; non anima una transizione: 300 ms costerebbero il **10%** di una finestra da
+3,0 s, e il countdown autorevole non li aspetta.
+
+### Cosa NON cercare nel grafo
+
+Non c'è un nodo che dia il `TurnManager`, l'unità o il view model della finestra: `GetReactionWindow()` è
+`protected` in C++, e `RefactorTactics.ScreenHud.FastDecisionApiCarriesNoAuthority` lo pinna per tutta la
+famiglia. Se ti serve un dato che non è in `Get Window`, la risposta non è aggiungere una variabile al
+Blueprint — è che quel dato non deve arrivare al widget, oppure va aggiunto al DTO **con il suo produttore**.
+
+### Quando l'asset esiste
+
+Aggiungi il suo path all'elenco di `Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp`, accanto agli
+altri sette:
+
+```cpp
+const TCHAR* const FastDecisionPath =
+    TEXT("/Game/RT/UI/Match/WBP_RT_FastDecision.WBP_RT_FastDecision_C");
+```
+
+⚠️ **La riga atterra CON l'asset, non prima**: quel test carica per path, e un path che non esiste è un
+test rosso che aspetta un file che nessuno ha ancora creato.
+
+⚠️ **Il nome e la cartella non sono negoziabili**: misurato, **25 widget su 25** seguono `WBP_RT_*`, e
+`RTMatchWidgetAssetTests` carica da `/Game/RT/UI/Match/`. Un asset fuori convenzione non fallirebbe il
+gate — **non lo incontrerebbe**.
 
 ---
 

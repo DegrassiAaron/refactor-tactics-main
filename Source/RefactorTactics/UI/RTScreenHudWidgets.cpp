@@ -21,6 +21,7 @@
 // bisogno» — resta soddisfatta a vuoto. Verificato compilando questo file FUORI dal blob unity.
 #include "Unit/RTUnit.h"
 #include "UI/RTIconLibrary.h"
+#include "UI/RTReactionWindowViewModel.h" // il view model si INTERROGA: qui non si costruisce e non si lega
 #include "Kismet/GameplayStatics.h"
 
 // =====================================================================================================
@@ -95,9 +96,19 @@ void URTScreenHudWidgetBase::AcquireMatchContext()
 
 	// La squadra viene dal controller che POSSIEDE il widget, non da un default: in split-screen o in una
 	// futura sessione a due controller, un `PlayerTeamId` costante mostrerebbe a entrambi lo stesso roster.
-	if (const ARTPlayerController* PC = Cast<ARTPlayerController>(GetOwningPlayer()))
+	if (ARTPlayerController* PC = Cast<ARTPlayerController>(GetOwningPlayer()))
 	{
 		PlayerTeamId = ARTPlayerState::TeamIdOf(PC);
+
+		// ⚠️ **Dallo STESSO controller da cui viene la squadra, e non dal primo del mondo** (CP 14.6, `#166`).
+		// La finestra e' una domanda posta a **un** giocatore: risolverla su `GetFirstPlayerController()`
+		// sarebbe corretto oggi — un umano solo, [D-155] — e sbagliato al primo split-screen, mostrando a
+		// entrambi la finestra di uno.
+		//
+		// ⚠️ `GetReactionWindowViewModel()` COSTRUISCE il view model se non c'e' ancora, e va bene: e'
+		// l'oggetto del controller, non una copia di questo widget, e chi lo lega al manager resta
+		// `ARTGameMode::HookReactionWindow`. Qui si prende un riferimento, non si accende niente.
+		ReactionWindow = PC->GetReactionWindowViewModel();
 	}
 }
 
@@ -110,6 +121,19 @@ void URTScreenHudWidgetBase::SetMatchContextForTest(TWeakObjectPtr<ARTTurnManage
 void URTScreenHudWidgetBase::SetSelectedUnitForTest(ARTUnit* InUnit)
 {
 	SelectedUnitForTest = InUnit;
+}
+
+void URTScreenHudWidgetBase::SetReactionWindowForTest(URTReactionWindowViewModel* InViewModel)
+{
+	ReactionWindow = InViewModel;
+}
+
+URTReactionWindowViewModel* URTScreenHudWidgetBase::GetReactionWindow() const
+{
+	// ⚠️ **Nessun ripiego su `GetFirstPlayerController()` qui.** `AcquireMatchContext` risolve dal
+	// proprietario e basta: un ripiego renderebbe questo accessore l'unico posto dell'HUD in cui «la mia
+	// finestra» significa «la finestra di qualcuno», e il difetto si vedrebbe solo con due controller.
+	return ReactionWindow.Get();
 }
 
 bool URTScreenHudWidgetBase::HasMatchContext() const
@@ -305,4 +329,66 @@ FName URTActionSlotWidget::GetIconId() const
 		return NAME_None;
 	}
 	return URTIconLibrary::MakeIconId(Action.ActionId);
+}
+
+// =====================================================================================================
+// Fast decision — la finestra di reazione (CP 14.6, #166)
+//
+// ⚠️ **Quattro corpi che INOLTRANO, e nessuno che decide.** E' il punto: se qui comparisse un ramo che
+// sceglie, la DoD di questo checkpoint — «nessuna logica di gioco nel widget» — sarebbe falsa nel file che
+// esiste per renderla vera.
+// =====================================================================================================
+
+bool URTFastDecisionWidget::IsWindowOpen() const
+{
+	const URTReactionWindowViewModel* ViewModel = GetReactionWindow();
+	return ViewModel && ViewModel->IsWindowOpen();
+}
+
+FRTReactionWindowView URTFastDecisionWidget::GetWindow() const
+{
+	// Senza view model la vista e' ai default, non «vuota da nascondere in Blueprint»: e' la stessa forma che
+	// `FilterWindowForTeam` da' a un avversario, e tenerne una sola significa che il widget non ha un ramo in
+	// cui distinguere «non ho il contesto» da «non devo sapere».
+	const URTReactionWindowViewModel* ViewModel = GetReactionWindow();
+	return ViewModel ? ViewModel->GetWindow() : FRTReactionWindowView();
+}
+
+float URTFastDecisionWidget::GetRemainingSeconds() const
+{
+	// `-1.f` e non `0.f`, come il view model e come `FRTMatchHeaderView::PlanningSecondsRemaining`: zero
+	// direbbe «scaduta adesso», che e' un'altra cosa da «non ce n'e' una».
+	const URTReactionWindowViewModel* ViewModel = GetReactionWindow();
+	return ViewModel ? ViewModel->GetRemainingSeconds() : -1.f;
+}
+
+void URTFastDecisionWidget::ChooseOption(int32 OptionIndex)
+{
+	URTReactionWindowViewModel* ViewModel = GetReactionWindow();
+	if (!ViewModel)
+	{
+		return;
+	}
+
+	// 🔑 **Si rilegge la vista invece di fidarsi di quella con cui il bottone e' stato disegnato.**
+	// `GetWindow()` rende i default appena l'identita' della finestra cambia, quindi un click su un bottone
+	// della finestra PRECEDENTE trova `Options` vuoto e cade nel ramo qui sotto. Senza questa rilettura
+	// l'indice verrebbe risolto su un elenco che il gioco non sta piu' offrendo.
+	const FRTReactionWindowView Window = ViewModel->GetWindow();
+	if (!Window.Options.IsValidIndex(OptionIndex))
+	{
+		// ⚠️ **`Warning` e non `Error`, e non fa nulla.** In una finestra da 3,0 s l'elenco puo' cambiare fra
+		// il disegno e il click: e' un ritardo, non un difetto del chiamante. Ma va **visto**, perche' un
+		// bottone che non risponde e' il sintomo piu' difficile da diagnosticare a schermo.
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] FastDecision: opzione %d fuori range (%d disponibili) — nessuna risposta inoltrata. "
+				 "La finestra puo' essere cambiata fra il disegno e il click."),
+			OptionIndex, Window.Options.Num());
+		return;
+	}
+
+	// ⛔ **Si spedisce la stringa che il core ha prodotto, e non se ne compone una.** `FIRE:<indice>` e'
+	// un FORMATO con un solo produttore (`URTReactionOpportunityLibrary::FireResponse`); comporlo qui ne
+	// creerebbe un secondo, fuori dai test che presidiano il primo.
+	ViewModel->SubmitResponse(Window.Options[OptionIndex].Response);
 }
