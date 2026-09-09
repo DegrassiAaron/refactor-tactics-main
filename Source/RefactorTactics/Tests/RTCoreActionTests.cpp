@@ -389,4 +389,72 @@ bool FRTSprintIsAMoveProfileTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSprintExposedDurationTracksReaderPhaseTest,
+	"RefactorTactics.Actions.Sprint.ExposedDurationTracksItsReaderPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSprintExposedDurationTracksReaderPhaseTest::RunTest(const FString&)
+{
+	// **La durata di `Status.Exposed` non e' un numero libero: dipende da DOVE risolve Sprint.** Questo test
+	// pinna l'accoppiamento fra le due cose, ed e' il gate di [#641].
+	//
+	// 🔑 **La regola, misurata da `#2725`.** `TickStatuses()` decrementa nel `Cleanup`, quindi `Turni = 1`
+	// basta **se e solo se** fra la fase che applica e il `Cleanup` c'e' una fase che LEGGE. Oggi Sprint e'
+	// `FastMovement` -> `Dash`, e il lettore di `Exposed` — `FirstHitDelta` in `ARTTurnManager` — sta nel
+	// `Blast`, che viene dopo: la fase interposta c'e', e `1` basta. Lo misura end-to-end
+	// `Actions.Sprint.AppliesExposed`, che asserisce `FullHit + 5` con la controprova senza Sprint.
+	//
+	// ⛔ **Dopo [D-116] non bastera' piu', ed e' esattamente cio' che questo test sorveglia.** La migrazione
+	// porta Sprint a `NormalMovement` -> `Move`, che segue il `Blast`: da li' in poi nessuna fase legge piu'
+	// prima del `Cleanup`, e D-116 lo dice — *«senza, lo spostamento di fase lo renderebbe inerte»*. Per
+	// questo le sue quattro voci **non sono separabili**: chi migrasse la fase lasciando `1` spegnerebbe il
+	// prezzo dello scatto senza che niente diventi rosso.
+	//
+	// ✅ **Da qui il verde condizionato invece di un rosso permanente.** Il test passa oggi e passera' dopo
+	// una migrazione fatta **intera**; cade soltanto nel caso che nessuno vuole — fase spostata, durata
+	// rimasta `1`. Un test rosso di proposito su `main` sarebbe invece una tassa per ogni sessione, ed e' la
+	// ragione per cui `test/sprint-exposed-misura` non e' stato mergiato.
+	//
+	// 🔑 E' il fratello di `Actions.SprintIsAMoveProfileResolvedPreBlast`, qui sopra: quello pinna la fase,
+	// questo pinna cio' che la fase **impone al prezzo**.
+	const FRTActionDef Sprint = CoreActionDef(TEXT("Action.Sprint"));
+	if (!TestTrue(TEXT("Action.Sprint e' nel catalogo"), Sprint.ActionId == FName(TEXT("Action.Sprint"))))
+	{
+		return false;
+	}
+
+	int32 Durata = INDEX_NONE;
+	for (const FRTActionEffectSpec& Spec : Sprint.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::Status && Spec.StatusTag == TAG_Status_Exposed)
+		{
+			Durata = Spec.StatusDuration;
+		}
+	}
+	if (!TestTrue(TEXT("Sprint dichiara Status.Exposed come proprio prezzo"), Durata != INDEX_NONE))
+	{
+		return false;
+	}
+
+	// ⚠️ `Prep` e `Dash` sono le sole fasi che PRECEDONO il `Blast` e in cui un'azione possa risolvere:
+	// `Planning` congela e non risolve nulla, e `Move`/`Cleanup` lo seguono. Enumerarle e' quindi esaustivo,
+	// e non una lista da tenere aggiornata a mano.
+	const ERTMatchPhase Fase = URTCatalogLibrary::MapResolutionPhase(Sprint.ResolutionPhase);
+	const bool bLeggibileDalBlastDiQuestoTurno = (Fase == ERTMatchPhase::Prep || Fase == ERTMatchPhase::Dash);
+
+	if (bLeggibileDalBlastDiQuestoTurno)
+	{
+		TestEqual(TEXT("Sprint risolve prima del Blast: il Blast di QUESTO turno lo legge, e 1 turno basta"),
+			Durata, 1);
+	}
+	else
+	{
+		// Il ramo di [#641]. `>= 2` e non `== 2` perche' la proprieta' sorvegliata e' *«sopravvive al proprio
+		// Cleanup»*: il valore esatto e' taratura, e D-116 ne dichiara uno senza chiudere la porta.
+		TestTrue(TEXT("#641/D-116: Sprint non risolve piu' prima del Blast, quindi Exposed deve durare >= 2"),
+			Durata >= 2);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
