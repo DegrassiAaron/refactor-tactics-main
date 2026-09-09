@@ -312,4 +312,249 @@ bool FRTBlindActionsPathLeaksTest::RunTest(const FString&)
 	return true;
 }
 
+// =========================================================================================================
+// `BLIND-4` — la GEOMETRIA mai osservata, non l'occupazione
+// =========================================================================================================
+//
+// ⛔ **Stessa disciplina dei due test sopra: qui non si decide e non si corregge.** `BLIND-4` chiede se la
+// geometria mai osservata sia informazione pubblica, ed e' una decisione d'autore aperta in
+// `docs/OPEN_DECISIONS.md`.
+//
+// 🔴 **Perche' questa sonda esiste, e perche' la sua prima stesura non fu scritta.** `BLIND-4` era stata
+// registrata con la riga *«chi la chiude deve produrre l'esempio falsificabile insieme alla risposta»* —
+// cioe' con la conclusione che l'esempio non fosse producibile prima. E' lo stesso errore gia' fatto e gia'
+// corretto su `BLIND-1`: **l'esempio non misura la risposta, misura il CANALE**. La domanda instrumentabile
+// oggi, senza decidere nulla, e':
+//
+//     due mondi con conoscenza autorizzata IDENTICA, che differiscono solo per la geometria MAI OSSERVATA.
+//     Se un output osservabile del Planning differisce, quella geometria e' GIA' pubblica per quel canale.
+//
+// ## I due canali, che non si equivalgono
+//
+// Il velo E' cablato — `URTKnowledgeVeilPresenter::Apply` chiama
+// `ARTHexMapActor::ApplyKnowledgeVeil(KnowledgeForTeamPublic(ViewerTeamId()))` — quindi una cella mai
+// osservata **non si disegna**. Da qui la separazione:
+//
+//   - **diretto**  — il ventaglio OFFRE celle che il velo nasconde. Misurato da
+//                    `ReachableFanOffersNeverObservedCells`.
+//   - **indiretto** — un muro NEL BUIO fa piegare la parte di percorso che sta NELLA LUCE. Il giocatore non
+//                    vede il muro: vede che la strada gira. Misurato da `NeverObservedWallBendsTheLitPath`,
+//                    ed e' il piu' insidioso dei due perche' non ha un rimedio ovvio — per non piegare, il
+//                    percorso dovrebbe ignorare il muro, cioe' servirebbe la **mappa ottimistica** che
+//                    [D-249] aveva contato fra i costi da evitare.
+//
+// ⚠️ **La destinazione e' RICORDATA, non mai vista, ed e' la condizione che rende il caso legale.** Per
+// [D-227] una cella gia' vista resta raggiungibile; per [D-249] una mai vista non e' bersaglio di movimento.
+// Un banco che puntasse al buio misurerebbe un percorso che il giocatore non puo' chiedere.
+//
+// ## LA MISURA — 2026-09-09, clone `refactor-tactics-dev`, su `47795187`, run dichiarata VALIDA
+//
+//     CANALE INDIRETTO — un muro in (2,0), MAI OSSERVATA, contro la stessa cella libera
+//       mondo APERTO   costo 4:  (0,0) (1,0) (2,0) (3,0) (4,0)
+//       mondo MURO     costo 5:  (0,0) (1,0) (1,1) (2,1) (3,0) (4,0)
+//       celle in cui i tracciati differiscono E CHE L'OSSERVATORE VEDE:  (1,1) (2,1)
+//
+//     CANALE DIRETTO — ricordo fermo a distanza 2
+//       ventaglio 61 celle, di cui MAI OSSERVATE: 42
+//
+// 🔴 **Il canale indiretto e' REALE, e la misura che conta e' la terza riga.** Non «i due tracciati
+// differiscono» — quello sarebbe ovvio e innocuo se la differenza stesse nel buio. Differiscono in **due
+// celle che l'osservatore ha diritto di vedere disegnate**: il giocatore guarda la strada girare in piena
+// luce, e da quella curva deduce che al buio c'e' un muro. Il muro non si vede; la sua **conseguenza** si'.
+//
+// 🔴 **E il canale diretto non e' un caso limite: e' la maggioranza del ventaglio.** Con un ricordo fermo a
+// distanza 2, **42 celle su 61** che la portata offre sono celle che il velo non disegna. La portata conosce
+// il buio molto piu' di quanto il buio si lasci guardare.
+//
+// ∴ **la geometria mai osservata e' GIA' pubblica per entrambi i canali.** `BLIND-4` non e' quindi la
+// domanda *«la rendiamo pubblica?»* — lo e' gia' — ma *«la dichiariamo tale, oppure paghiamo la mappa
+// ottimistica che [D-249] aveva contato fra i costi da evitare?»*. E' una domanda molto piu' stretta di
+// quella con cui la voce era stata registrata.
+
+namespace
+{
+	/** La cella BUIA: mai osservata in entrambi i mondi, e nel mondo `Muro` e' il muro. */
+	const FRTCellId DarkCell{ 2, 0, 0 };
+	/** Destinazione RICORDATA — legale per [D-227] — che sta oltre la cella buia sulla stessa direttrice. */
+	const FRTCellId LitGoal{ 4, 0, 0 };
+
+	/** Un'arena piatta nuova: i due mondi non possono condividere la mappa, perche' uno la muta. */
+	URTHexMapAsset* MakeArena()
+	{
+		return URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), ArenaRadius);
+	}
+
+	/**
+	 * Conoscenza in cui **tutto e' ricordato tranne `DarkCell`**: il minimo indispensabile perche' una sola
+	 * cella sia «mai osservata» e tutto il resto sia legalmente disegnabile e raggiungibile.
+	 *
+	 * 🔑 Minimale di proposito. Se il percorso piega per **una** cella al buio, piegherebbe a maggior ragione
+	 * per una regione.
+	 */
+	FRTTeamKnowledge KnowledgeWithOneDarkCell(const URTHexMapAsset* Map)
+	{
+		FRTTeamKnowledge K;
+		K.TeamId = ObserverTeam;
+		K.TurnNumber = 1;
+		for (const FRTHexCellData& Cell : Map->Cells)
+		{
+			if (Cell.Id == DarkCell) { continue; }         // mai osservata: non entra nemmeno in `Explored`
+			K.ExploredCells.Add(Cell.Id);
+			if (URTHexLibrary::HexDistance(PlannerCell, Cell.Id) <= 1) { K.VisibleCells.Add(Cell.Id); }
+		}
+		K.ExploredCells.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+		K.VisibleCells.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+		return K;
+	}
+
+	/** Conoscenza in cui il ricordo si ferma a distanza 2: oltre, la board e' buia. Per il canale DIRETTO. */
+	FRTTeamKnowledge KnowledgeExploredWithinTwo(const URTHexMapAsset* Map)
+	{
+		FRTTeamKnowledge K;
+		K.TeamId = ObserverTeam;
+		K.TurnNumber = 1;
+		for (const FRTHexCellData& Cell : Map->Cells)
+		{
+			const int32 D = URTHexLibrary::HexDistance(PlannerCell, Cell.Id);
+			if (D <= 2) { K.ExploredCells.Add(Cell.Id); }
+			if (D <= 1) { K.VisibleCells.Add(Cell.Id); }
+		}
+		K.ExploredCells.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+		K.VisibleCells.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+		return K;
+	}
+
+	/** Cio' che l'osservatore ha diritto di VEDERE disegnato: il visibile piu' il ricordato. */
+	bool IsLit(const FRTTeamKnowledge& K, const FRTCellId& Cell)
+	{
+		return K.VisibleCells.Contains(Cell) || K.ExploredCells.Contains(Cell);
+	}
+
+	/** Solo chi pianifica, su questa mappa. Nessun nascosto: qui la variabile e' il TERRENO. */
+	FRTHexSnapshot LonePlannerOn(const URTHexMapAsset* Map, const FRTTeamKnowledge& K)
+	{
+		TArray<FRTHexSimUnit> Units;
+		Units.Add(FRTHexSimUnit(PlannerId, PlannerCell, PlannerBudget));
+		FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, Units);
+		Snapshot.TeamKnowledge.Add(K);
+		return Snapshot;
+	}
+}
+
+/**
+ * ⚠️ **VERDE PERCHE' IL CANALE C'E'**, come i due test sopra. Diventa rosso il giorno in cui `BLIND-4` viene
+ * chiusa nel verso *(b)* — «la geometria mai osservata non e' pubblica» — e qualcuno lo implementa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsDarkWallBendsPathTest,
+	"RefactorTactics.BlindActions.NeverObservedWallBendsTheLitPath",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBlindActionsDarkWallBendsPathTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Open = MakeArena();
+	URTHexMapAsset* Walled = MakeArena();
+	if (!TestTrue(TEXT("premessa: le due arene esistono e sono distinte"), Open != nullptr && Walled != nullptr && Open != Walled))
+	{
+		return false;
+	}
+
+	// L'UNICA differenza fra i due mondi: un muro nella cella che l'osservatore non ha mai visto.
+	FRTHexCellData Wall(DarkCell);
+	Wall.bBlocksMovement = true;
+	Walled->AddOrUpdateCell(Wall);
+	Walled->SortCells();
+
+	const FRTTeamKnowledge K = KnowledgeWithOneDarkCell(Open);
+
+	// 🔴 Le premesse che rendono la misura leggibile, e senza le quali un delta non direbbe niente.
+	if (!TestTrue(TEXT("premessa: la cella del muro e' MAI OSSERVATA (ne' vista ne' ricordata)"), !IsLit(K, DarkCell)))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("premessa: la destinazione e' RICORDATA, quindi legale per [D-227]"), IsLit(K, LitGoal)))
+	{
+		return false;
+	}
+
+	const FRTHexPathResult PathOpen   = URTHexSimLibrary::FindPathForUnit(LonePlannerOn(Open, K), PlannerId, LitGoal);
+	const FRTHexPathResult PathWalled = URTHexSimLibrary::FindPathForUnit(LonePlannerOn(Walled, K), PlannerId, LitGoal);
+
+	AddInfo(FString::Printf(TEXT("mondo APERTO — nessun muro al buio: %s"), *DescribePath(PathOpen)));
+	AddInfo(FString::Printf(TEXT("mondo MURO   — muro in (%d,%d) mai osservata: %s"),
+		DarkCell.X, DarkCell.Y, *DescribePath(PathWalled)));
+
+	// Il controllo: senza un percorso che passi dalla cella buia, il muro non poteva contare.
+	if (!TestTrue(TEXT("premessa: nel mondo APERTO il percorso passa dalla cella buia"),
+		PathOpen.Status == ERTHexPathStatus::Success && PathOpen.Path.Contains(DarkCell)))
+	{
+		return false;
+	}
+
+	// 🔴 **LA MISURA CHE CONTA**: non «i percorsi differiscono», ma «differiscono DOVE IL GIOCATORE GUARDA».
+	// Una differenza confinata alla cella buia non sarebbe un leak: quella cella non si disegna.
+	TArray<FRTCellId> LitDifference;
+	for (const FRTCellId& Cell : PathWalled.Path)
+	{
+		if (!PathOpen.Path.Contains(Cell) && IsLit(K, Cell)) { LitDifference.AddUnique(Cell); }
+	}
+	for (const FRTCellId& Cell : PathOpen.Path)
+	{
+		if (!PathWalled.Path.Contains(Cell) && IsLit(K, Cell)) { LitDifference.AddUnique(Cell); }
+	}
+	LitDifference.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+
+	AddInfo(FString::Printf(TEXT("celle in cui i due tracciati differiscono E che l'osservatore VEDE: %s"),
+		*DescribeCells(LitDifference)));
+
+	// La misura, asserita come COMPORTAMENTO CORRENTE.
+	TestTrue(TEXT("oggi un muro MAI OSSERVATO fa piegare il percorso nella parte ILLUMINATA: il giocatore lo deduce senza vederlo"),
+		LitDifference.Num() > 0);
+	TestTrue(TEXT("oggi anche il COSTO cambia per una geometria che l'osservatore non ha mai visto"),
+		PathOpen.TotalCost != PathWalled.TotalCost);
+
+	return true;
+}
+
+/**
+ * Il canale DIRETTO: il ventaglio offre celle che il velo nasconde.
+ *
+ * ⚠️ **VERDE PERCHE' IL CANALE C'E'.** Se `BLIND-4` chiudesse nel verso *(b)*, questo test diventa rosso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsFanOffersDarkCellsTest,
+	"RefactorTactics.BlindActions.ReachableFanOffersNeverObservedCells",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBlindActionsFanOffersDarkCellsTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeArena();
+	if (!TestNotNull(TEXT("premessa: l'arena piatta esiste"), Map))
+	{
+		return false;
+	}
+
+	const FRTTeamKnowledge K = KnowledgeExploredWithinTwo(Map);
+	const TSet<FRTCellId> Fan = FanCells(LonePlannerOn(Map, K));
+
+	TArray<FRTCellId> Dark;
+	for (const FRTCellId& Cell : Fan)
+	{
+		if (!IsLit(K, Cell)) { Dark.Add(Cell); }
+	}
+	Dark.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+
+	AddInfo(FString::Printf(TEXT("ricordo fino a distanza 2 — ventaglio: %d celle, di cui MAI OSSERVATE: %d"),
+		Fan.Num(), Dark.Num()));
+
+	// Il controllo: con un ricordo che copre tutto, il numero sarebbe zero per costruzione e non direbbe nulla.
+	if (!TestTrue(TEXT("premessa: il ventaglio esce dal ricordo (budget sufficiente a superare la distanza 2)"),
+		Fan.Num() > K.ExploredCells.Num() / 2))
+	{
+		return false;
+	}
+
+	// La misura, asserita come COMPORTAMENTO CORRENTE.
+	TestTrue(TEXT("oggi il ventaglio OFFRE celle che il velo non disegna: la portata conosce il buio"),
+		Dark.Num() > 0);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
