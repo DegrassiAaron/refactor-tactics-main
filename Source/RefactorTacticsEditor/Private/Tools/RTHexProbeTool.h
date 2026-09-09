@@ -28,7 +28,7 @@ public:
  * ⚠️ **`HeroId` e' l'unico campo editabile, e non e' un dettaglio di comodo.** #711 chiede che profilo e
  * budget vengano da *«dati reali, non da costanti d'editor»*: qui si sceglie **quale eroe**, e il budget lo
  * DERIVA il catalogo. Un `Budget` scrivibile a mano avrebbe risposto alla domanda sbagliata — «dove
- * arriverebbe un'unita' con 7 punti» invece di «dove arriva Wraith».
+ * arriverebbe un'unita' con 7 punti» invece di «dove arriva Ivrin».
  */
 UCLASS()
 class URTHexProbeToolProperties : public UInteractiveToolPropertySet

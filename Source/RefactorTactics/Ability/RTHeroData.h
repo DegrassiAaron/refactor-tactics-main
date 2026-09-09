@@ -7,7 +7,7 @@
 class URTActionData;
 
 /**
- * Definizione data-driven di un EROE del catalogo v0.1 (Gadget, Phase, Branth, Wraith).
+ * Definizione data-driven di un EROE del catalogo v0.1 (Gadget, Phase, Branth, Ivrin).
  *
  * Contiene solo cio' che il catalogo dichiara come **fisso** dell'eroe: identita', statistiche base e le
  * azioni fondamentali (attacco base compreso). Cio' che e' configurabile FRA eroi diversi (variante d'arma,
@@ -52,7 +52,7 @@ public:
 	 * **almeno** a questo valore perche' l'eroe lo senta. Scala `0-10`, la stessa dell'intensita'
 	 * (`Wait 0 · Sprint 5 · Dash 6 · esplosione 10`), e soglia **bassa = orecchio fine**.
 	 *
-	 * Quarta statistica, e **compensa** la vista invece di seguirla: Gadget 5 · Phase 3 · Branth 3 · Wraith 5.
+	 * Quarta statistica, e **compensa** la vista invece di seguirla: Gadget 5 · Phase 3 · Branth 3 · Ivrin 5.
 	 * Chi vede lontano sente meno. La terza via — udito allineato alla vista — e' stata scartata perche'
 	 * raddoppiare lo stesso vantaggio su due canali renderebbe gli eroi da ricognizione *migliori*, non
 	 * diversi.
@@ -75,7 +75,7 @@ public:
 	 * | Gadget | 2 | 2 |
 	 * | Phase | 2 | 3 |
 	 * | Branth | 1 | **0** |
-	 * | Wraith | 3 | 3 |
+	 * | Ivrin | 3 | 3 |
 	 *
 	 * ⚠️ **Ipotesi iniziali, non bilanciamento approvato.** L'ADR li dichiara «*ipotesi da scenario/playtest*»
 	 * e chiede di non canonizzarli come definitivi: entrano nel catalogo perche' il modello ha bisogno di un

@@ -975,7 +975,7 @@ namespace
 	struct FRTAutobattleSlot
 	{
 		int32 TeamId;
-		bool bIsWraith;      // il roster del 2v2 headless: un tiratore e un corpo a corpo per squadra
+		bool bIsIvrin;      // il roster del 2v2 headless: un tiratore e un corpo a corpo per squadra
 		FRTCellId Cell;
 	};
 
@@ -1003,8 +1003,8 @@ namespace
 		for (int32 Index : Order)
 		{
 			const FRTAutobattleSlot& Slot = AutobattleStandardSlots()[Index];
-			const URTHeroData* Hero = Slot.bIsWraith
-				? URTHeroCatalogLibrary::MakeWraith()
+			const URTHeroData* Hero = Slot.bIsIvrin
+				? URTHeroCatalogLibrary::MakeIvrin()
 				: URTHeroCatalogLibrary::MakeBranth();
 			Spawned.Add(SpawnAutobattleUnit(World, Slot.TeamId, Hero, Slot.Cell));
 		}
@@ -1264,7 +1264,7 @@ bool FRTAutobattleNoPathTest::RunTest(const FString&)
 	Map->SortCells();
 
 	ARTUnit* Trapped = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), Walled);
-	ARTUnit* Free    = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(4, -2));
+	ARTUnit* Free    = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, -2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Trapped || !Free)
 	{
@@ -1425,13 +1425,13 @@ bool FRTAutobattleSimultaneousKOTest::RunTest(const FString&)
 		ARTUnit* Second = nullptr;
 		if (bTeam0First)
 		{
-			First  = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), CellA, false);
-			Second = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), CellB, false);
+			First  = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), CellA, false);
+			Second = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), CellB, false);
 		}
 		else
 		{
-			Second = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), CellB, false);
-			First  = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), CellA, false);
+			Second = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), CellB, false);
+			First  = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), CellA, false);
 		}
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !First || !Second) { RTWorldFixtures::DestroyWorld(World); return false; }
@@ -2158,7 +2158,7 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 				*Record.Chi, Record.Turni - Record.Inerti, Record.Turni, Natura));
 
 			// 🔵 **SUL FILO PER QUALE RAGIONE** (`#1602`). Misurato il 2026-08-28: la sequenza che consuma
-			// tutto il margine e' `Hero.Wraith`, **quattro turni su quattro armati** — zero inerti. Il margine
+			// tutto il margine e' `Hero.Ivrin`, **quattro turni su quattro armati** — zero inerti. Il margine
 			// zero non e' un parcheggio a un turno dal rosso: e' `hold-and-shoot`, la condotta che `ScorePlan`
 			// dichiara corretta, e il meccanismo sta gia' scritto nel bot — *«i piani con attacco nascono in
 			// gran parte da `StaySnapshot` con `MoveBudget = 0`, cioe' dalla cella attuale»*, e il termine di
@@ -2306,7 +2306,7 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	//     nessuna voce di catalogo runtime, nessun codice che riservi lo slot movimento. `D-070` e' decisa e
 	//     **non implementata**.
 	//   · Nessun punto del runtime porta `MoveBudget` a 2: viene da `MovePoints` dell'eroe.
-	//   · Il roster spedito non scende sotto **4** (`Gadget` 5, `Phase` 5, `Branth` 4, `Wraith` 6), e a 4 MP
+	//   · Il roster spedito non scende sotto **4** (`Gadget` 5, `Phase` 5, `Branth` 4, `Ivrin` 6), e a 4 MP
 	//     quella board arretra in **zero** coppie.
 	//
 	// ∴ Un Overwatch sostenuto non tiene il budget a 2 MP **perche' non lo tocca affatto**.

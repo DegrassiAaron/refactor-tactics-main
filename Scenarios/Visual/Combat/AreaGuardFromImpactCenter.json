@@ -16,10 +16,10 @@
   "_nota_numeri": "`90` e `77` su 90 HP: il primo esce ILLESO — pool della Guardia piu' scudo base assorbono tutto — il secondo perde 13. Sono OSSERVAZIONI, non derivazioni: fra la granata e gli HP passano il pool, lo scudo e la copertura, e cio' che rende il file valido non e' che i due numeri siano calcolabili a mano ma che siano DIVERSI, e nel verso giusto. Verificato per mutazione il 2026-09-02: forzando `bArea` a `false` in `ResolveCombatPasses` — cioe' rimettendo la cella del lanciatore al posto del centro d'impatto — i due valori si SCAMBIANO e lo scenario cade su entrambe le righe.",
 
   "units": [
-    { "id": "DAV",      "hero": "Hero.Wraith", "team": 1, "cell": [0, 2, 0], "facing": "W" },
+    { "id": "DAV",      "hero": "Hero.Ivrin", "team": 1, "cell": [0, 2, 0], "facing": "W" },
     { "id": "LDIETRO",  "hero": "Hero.Gadget", "team": 0, "cell": [2, 2, 0] },
 
-    { "id": "DIE",      "hero": "Hero.Wraith", "team": 1, "cell": [0, -2, 0], "facing": "W" },
+    { "id": "DIE",      "hero": "Hero.Ivrin", "team": 1, "cell": [0, -2, 0], "facing": "W" },
     { "id": "LDAVANTI", "hero": "Hero.Gadget", "team": 0, "cell": [-2, -2, 0] }
   ],
 

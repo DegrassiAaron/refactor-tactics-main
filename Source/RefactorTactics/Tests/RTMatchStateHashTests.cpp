@@ -180,7 +180,7 @@ namespace
 		// arrivare al digest.
 		FRTScenarioUnit Foe;
 		Foe.Id = TEXT("V1");
-		Foe.HeroId = FName(TEXT("Hero.Wraith"));
+		Foe.HeroId = FName(TEXT("Hero.Ivrin"));
 		Foe.TeamId = 1;
 		Foe.Cell = FRTCellId(3, 0);
 		S.Units.Add(Foe);

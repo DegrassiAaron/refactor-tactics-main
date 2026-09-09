@@ -26,7 +26,7 @@ bool FRTUnitShortHeroNameTest::RunTest(const FString&)
 	TestEqual(TEXT("Hero.Gadget -> Gadget"), ARTUnit::ShortHeroName(TEXT("Hero.Gadget"), Fallback), TEXT("Gadget"));
 	TestEqual(TEXT("Hero.Phase -> Phase"), ARTUnit::ShortHeroName(TEXT("Hero.Phase"), Fallback), TEXT("Phase"));
 	TestEqual(TEXT("Hero.Branth -> Branth"), ARTUnit::ShortHeroName(TEXT("Hero.Branth"), Fallback), TEXT("Branth"));
-	TestEqual(TEXT("Hero.Wraith -> Wraith"), ARTUnit::ShortHeroName(TEXT("Hero.Wraith"), Fallback), TEXT("Wraith"));
+	TestEqual(TEXT("Hero.Ivrin -> Ivrin"), ARTUnit::ShortHeroName(TEXT("Hero.Ivrin"), Fallback), TEXT("Ivrin"));
 
 	// Unita' legacy (archetipo, nessun eroe): l'etichetta non deve sparire.
 	TestEqual(TEXT("NAME_None -> fallback"), ARTUnit::ShortHeroName(NAME_None, Fallback), Fallback);
@@ -69,7 +69,7 @@ bool FRTCanonicalHeroIdTest::RunTest(const FString&)
 	//
 	// Quattro vengono da D-130; `Riktor` da [D-334], che ha superseduto D-322 e portato il roster v0.1 a
 	// `Aevik`/`Muiren`/`Branth`/`Ivrin`. ⚠️ **La lista cresce con la migrazione, non prima**: aggiungere
-	// qui un nome ancora in uso — `Gadget`, `Phase`, `Wraith` finche' non sono migrati — fa rosso il test
+	// qui un nome ancora in uso — `Gadget`, `Phase`, `Ivrin` finche' non sono migrati — fa rosso il test
 	// contro un roster sano. Ogni fetta aggiunge il proprio nome quando lo ritira davvero.
 	// 🔴 **NON RINOMINARE QUESTA RIGA** — vale la stessa avvertenza di
 	// `Heroes.AbilityIdsAreNamespacedUnderTheirHero`, e per lo stesso incidente, capitato DUE volte:
@@ -156,7 +156,7 @@ bool FRTRosterCanonicalNamesTest::RunTest(const FString&)
 		{ TEXT("Hero.Gadget"),    TEXT("Gadget") },
 		{ TEXT("Hero.Phase"),    TEXT("Phase")  },
 		{ TEXT("Hero.Branth"), TEXT("Branth") },
-		{ TEXT("Hero.Wraith"),  TEXT("Wraith") },
+		{ TEXT("Hero.Ivrin"),  TEXT("Ivrin")  },
 	};
 
 	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();

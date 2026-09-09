@@ -231,7 +231,7 @@ public:
 	FName HeroId;
 
 	/**
-	 * Nome canonico/player-facing dell'eroe (D-120: Gadget · Phase · Branth · Wraith), dichiarato dal
+	 * Nome canonico/player-facing dell'eroe (D-120: Gadget · Phase · Branth · Ivrin), dichiarato dal
 	 * catalogo e trasportato qui da `ConfigureFromHeroData`. `FText` perché è testo mostrato all'utente e
 	 * deve restare localizzabile.
 	 *
@@ -956,7 +956,7 @@ public:
 	 * | Pack | ossa di catena rimosse | effetto a schermo |
 	 * |---|---|---|
 	 * | Gadget | **0** | nessuno |
-	 * | Wraith | **0** | nessuno |
+	 * | Ivrin | **0** | nessuno |
 	 * | Phase | **6** (`hip_chain_l/r_01..03`) | catenine ai fianchi, poco visibile |
 	 * | Branth | **13** (`l_hand_chain_01..04`, `chain_tip_r`, ...) | **le catene si stendono sullo schermo** |
 	 *

@@ -15,7 +15,7 @@
     { "id": "R1", "hero": "Hero.Gadget", "team": 0, "cell": [-1, 0, 0] },
     { "id": "R2", "hero": "Hero.Phase",  "team": 0, "cell": [-1, 1, 0] },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] },
-    { "id": "B2", "hero": "Hero.Wraith", "team": 1, "cell": [3, 0, 0] }
+    { "id": "B2", "hero": "Hero.Ivrin", "team": 1, "cell": [3, 0, 0] }
   ],
 
   "_nota_unita": "Quattro unita' e non due: GBX-5 chiede il rapporto unita'/cella, e si guarda meglio con piu' silhouette nella stessa inquadratura. Stanno tutte su pavimento e ai lati delle coperture, cosi' nessuna copre i soggetti da giudicare. R1 e' adiacente alla copertura ALTA, R2 alla BASSA: il confronto fra le due si legge con un'unita' accanto a ciascuna, che e' anche la scala con cui si giudicano.",

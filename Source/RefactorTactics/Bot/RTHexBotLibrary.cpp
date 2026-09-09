@@ -432,7 +432,7 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 				// 🔴 **La penalita' parte dallo STANDOFF, e costa al kiter due celle di gittata.** Il costo si
 				// dichiara qui perche' e' una scelta, non una svista: Phase (`PressureJet` portata 5 ->
 				// standoff 3) si avvicinera' fino a 3 invece di sparare da 5, cioe' dentro la portata 4 di
-				// Gadget e Wraith. `DeriveKiteStandoff` dice che «chi colpisce da lontano ha qualcosa da
+				// Gadget e Ivrin. `DeriveKiteStandoff` dice che «chi colpisce da lontano ha qualcosa da
 				// guadagnare a restare lontano», e questo termine gliene toglie una parte.
 				//
 				// ⚠️ **L'alternativa e' stata scritta e MISURATA, e riapre il difetto.** Facendo partire la

@@ -115,7 +115,7 @@ namespace
 	}
 
 	constexpr int32 HeroReactInterpositionIndex = 4; // Branth
-	constexpr int32 HeroReactDeflectionIndex = 3;    // Wraith
+	constexpr int32 HeroReactDeflectionIndex = 3;    // Ivrin
 	constexpr int32 HeroReactCapacitorIndex = 4;     // Gadget
 }
 
@@ -146,10 +146,10 @@ bool FRTBranthInterpositionSlotTest::RunTest(const FString&)
 	SpawnHeroReactMap(World);
 
 	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakePhase();
-	URTHeroData* WraithData = URTHeroCatalogLibrary::MakeWraith();
+	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
 	ARTUnit* Branth = SpawnHeroReactUnit(World, BranthData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Ally = SpawnHeroReactUnit(World, PhaseData, /*Team*/ 0, FRTCellId(1, 0));
-	ARTUnit* Enemy = SpawnHeroReactUnit(World, WraithData, /*Team*/ 1, FRTCellId(3, 0));
+	ARTUnit* Enemy = SpawnHeroReactUnit(World, IvrinData, /*Team*/ 1, FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("alleata"), Ally)
 		|| !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
@@ -191,10 +191,10 @@ bool FRTBranthInterpositionRedirectsTest::RunTest(const FString&)
 
 	URTHeroData* BranthData = URTHeroCatalogLibrary::MakeBranth();
 	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakePhase();
-	URTHeroData* WraithData = URTHeroCatalogLibrary::MakeWraith();
+	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
 	ARTUnit* Branth = SpawnHeroReactUnit(World, BranthData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Ally = SpawnHeroReactUnit(World, PhaseData, /*Team*/ 0, FRTCellId(1, 0));
-	ARTUnit* Enemy = SpawnHeroReactUnit(World, WraithData, /*Team*/ 1, FRTCellId(3, 0));
+	ARTUnit* Enemy = SpawnHeroReactUnit(World, IvrinData, /*Team*/ 1, FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("alleata"), Ally)
 		|| !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
@@ -210,7 +210,7 @@ bool FRTBranthInterpositionRedirectsTest::RunTest(const FString&)
 
 	const int32 BranthBefore = Branth->Health;
 	const int32 AllyBefore = Ally->Health;
-	const int32 Shot = HeroReactDeclaredDamage(WraithData->Actions[0]);
+	const int32 Shot = HeroReactDeclaredDamage(IvrinData->Actions[0]);
 	RunHeroReactTurn(TM);
 
 	TestEqual(TEXT("la reazione risulta attivata nel TurnLog"),
@@ -257,11 +257,11 @@ bool FRTBranthInterpositionRevalidatesCoverTest::RunTest(const FString&)
 
 	URTHeroData* BranthData = URTHeroCatalogLibrary::MakeBranth();
 	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakePhase();
-	URTHeroData* WraithData = URTHeroCatalogLibrary::MakeWraith();
+	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
 	// Stesso layout del test gemello: l'attaccante sta a EST, quindi il colpo entra dal bordo `E`.
 	ARTUnit* Branth = SpawnHeroReactUnit(World, BranthData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Ally = SpawnHeroReactUnit(World, PhaseData, /*Team*/ 0, FRTCellId(1, 0));
-	ARTUnit* Enemy = SpawnHeroReactUnit(World, WraithData, /*Team*/ 1, FRTCellId(3, 0));
+	ARTUnit* Enemy = SpawnHeroReactUnit(World, IvrinData, /*Team*/ 1, FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("alleata"), Ally)
 		|| !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
@@ -291,7 +291,7 @@ bool FRTBranthInterpositionRevalidatesCoverTest::RunTest(const FString&)
 
 	const int32 BranthBefore = Branth->Health;
 	const int32 AllyBefore = Ally->Health;
-	const int32 Shot = HeroReactDeclaredDamage(WraithData->Actions[0]);
+	const int32 Shot = HeroReactDeclaredDamage(IvrinData->Actions[0]);
 	RunHeroReactTurn(TM);
 
 	// Premesse: senza queste, l'asserzione sul danno misurerebbe un turno che non e' successo.
@@ -312,43 +312,43 @@ bool FRTBranthInterpositionRevalidatesCoverTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWraithDeflectionReducesTest,
-	"RefactorTactics.Heroes.WraithDeflectionReducesDirectHit",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIvrinDeflectionReducesTest,
+	"RefactorTactics.Heroes.IvrinDeflectionReducesDirectHit",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTWraithDeflectionReducesTest::RunTest(const FString&)
+bool FRTIvrinDeflectionReducesTest::RunTest(const FString&)
 {
 	// Un pool di 20 assorbibili sui colpi diretti del boundary, dalla semantica di `Action.Deflect` ([D-309]).
 	// ⚠️ Qui c'e' UN SOLO colpo, quindi pool e sconto-sul-primo-colpo danno lo stesso numero e questo test
 	// non li distingue: a farlo e' `Spec.Reaction.DeflectionPoolSpansMultipleHits` (`#2190`), con quattro colpi
-	// piu' piccoli del budget. Wraith non ha difese passive: la deviazione e' cio' che compra con la fragilita'.
+	// piu' piccoli del budget. Ivrin non ha difese passive: la deviazione e' cio' che compra con la fragilita'.
 	UWorld* World = MakeHeroReactWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHeroReactMap(World);
 
-	URTHeroData* WraithData = URTHeroCatalogLibrary::MakeWraith();
+	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
 	URTHeroData* GadgetData = URTHeroCatalogLibrary::MakeGadget();
-	ARTUnit* Wraith = SpawnHeroReactUnit(World, WraithData, /*Team*/ 0, FRTCellId(0, 0));
+	ARTUnit* Ivrin = SpawnHeroReactUnit(World, IvrinData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Enemy = SpawnHeroReactUnit(World, GadgetData, /*Team*/ 1, FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Wraith"), Wraith) || !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
+	if (!TestNotNull(TEXT("Ivrin"), Ivrin) || !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyHeroReactWorld(World);
 		return false;
 	}
 
-	Wraith->PlannedReactionAbility = HeroReactDeflectionIndex;
-	Wraith->PlannedAbilityIndex = INDEX_NONE;
+	Ivrin->PlannedReactionAbility = HeroReactDeflectionIndex;
+	Ivrin->PlannedAbilityIndex = INDEX_NONE;
 	Enemy->PlannedAbilityIndex = 0; // ArcPulse, colpo singolo
-	Enemy->PlannedAttackTarget = Wraith;
+	Enemy->PlannedAttackTarget = Ivrin;
 
-	const int32 Before = Wraith->Health;
+	const int32 Before = Ivrin->Health;
 	const int32 Shot = HeroReactDeclaredDamage(GadgetData->Actions[0]);
 	RunHeroReactTurn(TM);
 
 	TestEqual(TEXT("la reazione risulta attivata nel TurnLog"),
-		CountHeroReactActivations(TM, TEXT("Hero.Wraith.Deflection")), 1);
+		CountHeroReactActivations(TM, TEXT("Hero.Ivrin.Deflection")), 1);
 	TestEqual(TEXT("il colpo arriva ridotto di 20"),
-		Before - Wraith->Health, Shot - URTCombatLibrary::DeflectDamageReduction);
+		Before - Ivrin->Health, Shot - URTCombatLibrary::DeflectDamageReduction);
 	TestEqual(TEXT("non riflette: chi ha colpito non incassa nulla"), Enemy->Health, Enemy->MaxHealth);
 
 	DestroyHeroReactWorld(World);
@@ -368,9 +368,9 @@ bool FRTGadgetCapacitorShieldsAndCountersTest::RunTest(const FString&)
 	SpawnHeroReactMap(World);
 
 	URTHeroData* GadgetData = URTHeroCatalogLibrary::MakeGadget();
-	URTHeroData* WraithData = URTHeroCatalogLibrary::MakeWraith();
+	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
 	ARTUnit* Gadget = SpawnHeroReactUnit(World, GadgetData, /*Team*/ 0, FRTCellId(0, 0));
-	ARTUnit* Enemy = SpawnHeroReactUnit(World, WraithData, /*Team*/ 1, FRTCellId(2, 0));
+	ARTUnit* Enemy = SpawnHeroReactUnit(World, IvrinData, /*Team*/ 1, FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
 	{
@@ -395,7 +395,7 @@ bool FRTGadgetCapacitorShieldsAndCountersTest::RunTest(const FString&)
 
 	const int32 GadgetBefore = Gadget->Health;
 	const int32 EnemyBefore = Enemy->Health;
-	const int32 Shot = HeroReactDeclaredDamage(WraithData->Actions[0]);
+	const int32 Shot = HeroReactDeclaredDamage(IvrinData->Actions[0]);
 	RunHeroReactTurn(TM);
 
 	TestEqual(TEXT("la reazione risulta attivata nel TurnLog"),
@@ -418,7 +418,7 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 	// all'interpretazione di chi legge: una reazione a meta' con lo slot giusto verrebbe raccolta dal pass e
 	// non farebbe nulla, in silenzio.
 	//
-	// ⚠️ **La quinta e' USCITA da questo elenco il 2026-08-10** (E18 CP 18.2, D-016): `Wraith.InterceptShot`
+	// ⚠️ **La quinta e' USCITA da questo elenco il 2026-08-10** (E18 CP 18.2, D-016): `Ivrin.InterceptShot`
 	// non e' piu' «rinviata», e' diventata una **Predictive Action**. La sua verifica sta sotto, e afferma il
 	// contrario di quella che c'era prima: non «nessuno la raccoglie», ma «la raccoglie il boundary del Move».
 	// Il test non e' stato cancellato perche' la domanda che poneva resta viva — *chi valuta questa azione?* —
@@ -426,13 +426,13 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 	URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
 	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
 	URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
-	URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
+	URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
 
 	struct FWired { const URTActionData* Action; const TCHAR* Id; };
 	const FWired Wired[] = {
 		{ Gadget->Actions[HeroReactCapacitorIndex],        TEXT("Hero.Gadget.ReactiveCapacitor") },
 		{ Branth->Actions[HeroReactInterpositionIndex], TEXT("Hero.Branth.Interposition") },
-		{ Wraith->Actions[HeroReactDeflectionIndex],     TEXT("Hero.Wraith.Deflection") },
+		{ Ivrin->Actions[HeroReactDeflectionIndex],     TEXT("Hero.Ivrin.Deflection") },
 	};
 	for (const FWired& W : Wired)
 	{
@@ -464,8 +464,8 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 	// La MIGRATA. Il rinvio si chiude dichiarando chi la valuta, non togliendo la riga: se `InterceptShot`
 	// tornasse senza trigger E senza campi predittivi, sarebbe di nuovo un'azione che nessuno raccoglie — e
 	// nessun test se ne accorgerebbe. Questa e' la verifica che il buco non si riapra in silenzio.
-	const URTActionData* Intercept = Wraith->Actions[1];
-	TestEqual(TEXT("Hero.Wraith.InterceptShot: identita'"), Intercept->Def.ActionId, FName(TEXT("Hero.Wraith.InterceptShot")));
+	const URTActionData* Intercept = Ivrin->Actions[1];
+	TestEqual(TEXT("Hero.Ivrin.InterceptShot: identita'"), Intercept->Def.ActionId, FName(TEXT("Hero.Ivrin.InterceptShot")));
 	TestTrue(TEXT("non e' una reazione: non occupa lo slot Reazione"),
 		Intercept->Def.Slot != ERTActionSlot::Reaction);
 	TestTrue(TEXT("e non dichiara un trigger di reazione"),
@@ -475,7 +475,7 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 		&& Intercept->Def.PredictionBoundary == ERTPredictionBoundary::MovementEntry);
 
 	// Il roster resta strutturalmente valido: il cablaggio non ha cambiato il numero di azioni ne' le varianti.
-	const TArray<const URTHeroData*> Roster = { Gadget, Phase, Branth, Wraith };
+	const TArray<const URTHeroData*> Roster = { Gadget, Phase, Branth, Ivrin };
 	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes(Roster);
 	for (const FString& Err : Errors) { AddError(Err); }
 	TestEqual(TEXT("roster valido dopo il cablaggio"), Errors.Num(), 0);

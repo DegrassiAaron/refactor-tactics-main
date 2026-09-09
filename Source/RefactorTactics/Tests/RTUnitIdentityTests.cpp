@@ -104,9 +104,9 @@ bool FRTUnitIdentitySurvivesDeathTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnIdentityMap(World, /*Radius=*/ 5);
 
-	SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(-4, 2));
+	SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),   FRTCellId(-4, 2));
 	SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 3));
-	SpawnIdentityUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(4, -2));
+	SpawnIdentityUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),   FRTCellId(4, -2));
 	SpawnIdentityUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -3));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyIdentityWorld(World); return false; }
@@ -172,9 +172,9 @@ bool FRTUnitIdentityIgnoresSpawnOrderTest::RunTest(const FString&)
 {
 	struct FPlacement { int32 TeamId; const URTHeroData* Hero; FRTCellId Cell; };
 	const TArray<FPlacement> Placements = {
-		{ 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(-4, 2) },
+		{ 0, URTHeroCatalogLibrary::MakeIvrin(),   FRTCellId(-4, 2) },
 		{ 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 3) },
-		{ 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(4, -2) },
+		{ 1, URTHeroCatalogLibrary::MakeIvrin(),   FRTCellId(4, -2) },
 		{ 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -3) },
 	};
 
@@ -257,7 +257,7 @@ bool FRTUnitIdentityStartsAtOneTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnIdentityMap(World, /*Radius=*/ 4);
 
-	SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(-3, 1));
+	SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),   FRTCellId(-3, 1));
 	SpawnIdentityUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyIdentityWorld(World); return false; }
@@ -300,7 +300,7 @@ bool FRTUnitIdentityEnvironmentActorTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	URTHexMapAsset* Map = SpawnIdentityMap(World, /*Radius=*/ 4);
 
-	ARTUnit* A = SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(-3, 1));
+	ARTUnit* A = SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),   FRTCellId(-3, 1));
 	SpawnIdentityUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !Map) { DestroyIdentityWorld(World); return false; }
@@ -379,7 +379,7 @@ bool FRTFacingEntriesCarryContextTest::RunTest(const FString&)
 	SpawnIdentityMap(World, /*Radius=*/ 4);
 
 	// Distanti, cosi' i bot si avvicinano: e' il movimento che produce `DerivedFromMove`.
-	SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
+	SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-3, 1));
 	SpawnIdentityUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM) { DestroyIdentityWorld(World); return false; }
@@ -444,7 +444,7 @@ bool FRTTurnLogGraphRevisionRisesWithinTurnTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	URTHexMapAsset* Map = SpawnIdentityMap(World, /*Radius=*/ 4);
 
-	ARTUnit* A = SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(-3, 1));
+	ARTUnit* A = SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),   FRTCellId(-3, 1));
 	SpawnIdentityUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !Map) { DestroyIdentityWorld(World); return false; }

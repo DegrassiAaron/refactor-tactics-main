@@ -336,7 +336,7 @@ namespace RTMatchBootstrapDetail
 			// Un `if (!bIsBotControlled)` sarebbe la forma in cui «il bot gioca un altro gioco» rientra.
 			//
 			// `DefaultLoadoutFor` risponde VUOTO per un eroe i cui pezzi non sono spediti — oggi Gadget e
-			// Wraith, che §4 assegna a due gadget che v0.1 non costruisce — e un array vuoto qui non fa nulla.
+			// Ivrin, che §4 assegna a due gadget che v0.1 non costruisce — e un array vuoto qui non fa nulla.
 			Unit->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId));
 
 			UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);

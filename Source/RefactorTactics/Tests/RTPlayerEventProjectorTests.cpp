@@ -449,7 +449,7 @@ bool FRTPlayerEventOmitsMinorMovementTest::RunTest(const FString&)
 /**
  * IL KO DOMINA IL DANNO, E IL DANNO IL COLPO — `#1936` §E.
  *
- * 🔴 La narrazione tripla *«Wraith colpisce Phase · Phase subisce 24 · Phase e' eliminata»* e' il modo in
+ * 🔴 La narrazione tripla *«Ivrin colpisce Phase · Phase subisce 24 · Phase e' eliminata»* e' il modo in
  * cui un feed diventa illeggibile pur essendo corretto: tre righe per un fatto solo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerEventKODominatesTest,

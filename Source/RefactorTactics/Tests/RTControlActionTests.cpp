@@ -97,7 +97,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // i piani li scriviamo noi
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith()); // stats/portata base qualunque: i test guardano il controllo
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin()); // stats/portata base qualunque: i test guardano il controllo
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		// 🔴 **`PlannedCell` si allinea alla cella di posa, e non e' una comodita'.** Il default

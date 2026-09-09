@@ -9,7 +9,7 @@
   "seed": 0,
   "fixture": "RelayBasin",
 
-  "_nota": "La copertura appartiene a un BORDO, non a una cella: e' la decisione di CP 9.1, ed e' invisibile finche' non la si colpisce da due lati diversi. Gadget sta sul Relay a (0,0), che ha copertura bassa sul lato NORD. Nello stesso turno Wraith tira da nord — attraverso il bordo riparato — e Branth da sud, dove non c'e' niente. Stesso bersaglio, stessa distanza, due danni diversi.",
+  "_nota": "La copertura appartiene a un BORDO, non a una cella: e' la decisione di CP 9.1, ed e' invisibile finche' non la si colpisce da due lati diversi. Gadget sta sul Relay a (0,0), che ha copertura bassa sul lato NORD. Nello stesso turno Ivrin tira da nord — attraverso il bordo riparato — e Branth da sud, dove non c'e' niente. Stesso bersaglio, stessa distanza, due danni diversi.",
 
   "_nota_chi_tira_da_nord": "Fino ad ADR-0007 era Branth a tirare da nord, e la riga di sopra diceva «ImpactShot 24 diventa 14». Con ImpactShot portato a 8 quel colpo NON misura piu' niente: la riduzione da copertura bassa e' 10, il danno viene troncato a zero (`FMath::Max(0, Power - Reduction)`) e una riduzione da 10, da 15 o da 40 darebbero lo stesso identico risultato. Uno scenario che non distingue la grandezza che dichiara di misurare e' peggio di uno assente, perche' resta verde. Da qui i due tiratori si scambiano di posto: dal lato riparato deve arrivare un colpo PIU' GRANDE della riduzione, e nel roster attuale l'unico attacco base che lo e' con margine leggibile e' PulseShot.",
 
@@ -24,7 +24,7 @@
 
   "units": [
     { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [0,  0, 0] },
-    { "id": "V1", "hero": "Hero.Wraith",  "team": 1, "cell": [0, -2, 0] },
+    { "id": "V1", "hero": "Hero.Ivrin",  "team": 1, "cell": [0, -2, 0] },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [0,  2, 0], "loadout": [] }
   ],
 
@@ -32,7 +32,7 @@
     {
       "intents": [
         { "unit": "F1", "ability": "Hero.Gadget.ArcPulse",       "target": "V1" },
-        { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" },
+        { "unit": "V1", "ability": "Hero.Ivrin.PulseShot",   "target": "F1" },
         { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "F1" }
       ]
     }

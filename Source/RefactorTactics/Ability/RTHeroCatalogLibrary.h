@@ -82,7 +82,7 @@ public:
 	/**
 	 * Costruisce **Branth**, architetto del campo (catalogo eroi v0.1 §3): 120 HP, 4 MP, vista 5,
 	 * **resistenza push 1** (l'unico del roster), affinita' strutture, debolezza movimento — simmetrica a
-	 * Wraith (CP 6.5), come Gadget/Phase lo sono fra loro.
+	 * Ivrin (CP 6.5), come Gadget/Phase lo sono fra loro.
 	 *
 	 * ⚠️ **Resta l'eroe piu' incompleto del roster, e la sua issue (#57) chiede esplicitamente di dichiararlo.**
 	 * `KineticPanel` e `Reconfigure` manipolano STRUTTURE, che non esistono nel modello dati (`FRTHexCellData`
@@ -93,9 +93,9 @@ public:
 	static URTHeroData* MakeBranth();
 
 	/**
-	 * Costruisce **Wraith**, duellante predittivo (catalogo eroi v0.1 §4): 100 HP, **6 MP** (il piu' mobile),
+	 * Costruisce **Ivrin**, duellante predittivo (catalogo eroi v0.1 §4): 100 HP, **6 MP** (il piu' mobile),
 	 * vista 6, resistenza push 0, affinita' movimento, debolezza strutture — simmetrica a Branth, che chiude
-	 * il roster in due coppie (Gadget↔Phase, Branth↔Wraith).
+	 * il roster in due coppie (Gadget↔Phase, Branth↔Ivrin).
 	 *
 	 * `Deflection` e' cablata (CP 6.7, semantica di `Action.Deflect`). `InterceptShot` **non e' piu' una
 	 * reazione**: dal 2026-08-10 (E18 CP 18.2, D-016) e' una **Predictive Action** — cella dichiarata in
@@ -105,16 +105,16 @@ public:
 	 * Limiti dichiarati: `Feint` marca una CELLA e concede un `Reposition`, e nessuna delle due meta' e' un
 	 * `ERTActionEffect` (gli stati si applicano alle unita', il movimento passa da `ERTMovementStyle`).
 	 */
-	static URTHeroData* MakeWraith();
+	static URTHeroData* MakeIvrin();
 
 	/**
-	 * Il roster completo della v0.1, nell'ordine del catalogo eroi: Gadget, Phase, Branth, Wraith.
+	 * Il roster completo della v0.1, nell'ordine del catalogo eroi: Gadget, Phase, Branth, Ivrin.
 	 * Nuove istanze a ogni chiamata (stesso idioma di `URTCatalogLibrary::GetCoreActionCatalog`).
 	 */
 	static TArray<URTHeroData*> GetHeroRoster();
 
 	/**
-	 * Solo gli `HeroId` del roster (`Hero.Gadget`, `Hero.Phase`, `Hero.Branth`, `Hero.Wraith`), senza costruire
+	 * Solo gli `HeroId` del roster (`Hero.Gadget`, `Hero.Phase`, `Hero.Branth`, `Hero.Ivrin`), senza costruire
 	 * gli eroi.
 	 *
 	 * Esiste perche' `GetHeroRoster()` istanzia quattro `URTHeroData` **con tutte le loro abilita'** a ogni

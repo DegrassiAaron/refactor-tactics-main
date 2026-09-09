@@ -9,7 +9,7 @@
   "seed": 0,
   "mapRadius": 5,
 
-  "_nota": "La combo firma nella forma COORDINATA: Phase bagna, Gadget incenerisce, nello stesso turno. Dentro la fase Blast la priorita' piu' bassa risolve per prima — `Hero.Phase.PressureJet` ha 50, `Hero.Gadget.LinearDischarge` ha 55 — quindi quando la scarica parte il bersaglio e' gia' bagnato e prende il bonus. Wraith 90 - (16 + 32 - 5 di scudo base, [D-224]) = 47.",
+  "_nota": "La combo firma nella forma COORDINATA: Phase bagna, Gadget incenerisce, nello stesso turno. Dentro la fase Blast la priorita' piu' bassa risolve per prima — `Hero.Phase.PressureJet` ha 50, `Hero.Gadget.LinearDischarge` ha 55 — quindi quando la scarica parte il bersaglio e' gia' bagnato e prende il bonus. Ivrin 90 - (16 + 32 - 5 di scudo base, [D-224]) = 47.",
 
   "_nota_perche_esiste": "Fino al 2026-08-08 questo turno dava **60**, non 52: il bonus leggeva `HasStatus(Wet)` mentre i colpi venivano preparati, cioe' prima che il getto di Phase atterrasse. La combo era documentata nella showcase, aveva un test verde sull'aritmetica (`Heroes.Gadget.WetBonus`, che non passa dal TurnManager) ed era **ineseguibile in partita**. Corretto in #242 estendendo a `Wet` la disciplina che `Status.Marked` aveva gia': cio' che nasce dentro il Blast vale per i colpi a priorita' piu' alta.",
 
@@ -21,7 +21,7 @@
   "units": [
     { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [-3, 0, 0] },
     { "id": "R1", "hero": "Hero.Phase",   "team": 0, "cell": [-2, 0, 0] },
-    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 0, 0, 0] }
+    { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 0, 0, 0] }
   ],
 
   "turns": [

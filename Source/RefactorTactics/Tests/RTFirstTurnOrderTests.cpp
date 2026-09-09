@@ -191,7 +191,7 @@ bool FRTFirstTurnOrderTest::RunTest(const FString&)
 	TestFalse(TEXT("e il turno NON e' aperto su una board vuota"), TM->HasOpenedFirstTurn());
 
 	// (2) L'allestimento mette in campo le unita' — e' il `Board 2v2 esagonale avviata` della misura.
-	SpawnFirstTurnUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-2, 0));
+	SpawnFirstTurnUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 0));
 	SpawnFirstTurnUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
 
 	TArray<AActor*> UnitsAfter;

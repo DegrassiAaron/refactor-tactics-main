@@ -73,7 +73,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell;
@@ -1955,7 +1955,7 @@ bool FRTHazardSufferedVsInflictedTest::RunTest(const FString&)
 	// Salute fissata dal test e non ereditata dal catalogo: entrambi devono SOPRAVVIVERE al turno, altrimenti
 	// una delle due voci non nasce e il confronto non esiste. Stessa cura di `BurningLeavesACanonicalEntry`.
 	//
-	// ⚠️ **Dentro il range del catalogo** (`MakeWraith` da' `MaxHealth = 90`): la prima stesura metteva 200 e
+	// ⚠️ **Dentro il range del catalogo** (`MakeIvrin` da' `MaxHealth = 90`): la prima stesura metteva 200 e
 	// creava uno stato che il gioco non puo' produrre — e `ApplyCombatState` clampa solo lo zero, quindi
 	// 200/90 attraversava tutto il turno. Il ramo `ShieldAbsorbed` confronta con `MaxHealth`. I danni reali
 	// sono 18 e 21, quindi 60 basta con margine. Trovato in code review.

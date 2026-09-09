@@ -34,7 +34,7 @@ namespace
 	//
 	// ⚠️ **Ogni campo sta su una unita' che puo' portarlo davvero**, e non e' pedanteria: `B1` e' affidata
 	// al bot e `ValidateScenarioTurns` rifiuta un intent dichiarato per lei — *«il suo piano lo produce
-	// l'utility scoring, non il file»*. Percio' `C1` (Wraith) esiste: possiede `PassingBlade` e
+	// l'utility scoring, non il file»*. Percio' `C1` (Ivrin) esiste: possiede `PassingBlade` e
 	// `Deflection`, mentre Gadget non ha ne' un dash ne' quella reazione. Una fixture che nominasse una
 	// mobilita' inesistente girerebbe lo stesso — il possesso del dash non e' validato — e sarebbe un dato
 	// finto che sembra una prova.
@@ -58,7 +58,7 @@ namespace
 	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0], "facing": "SW", "health": 12,
 	      "statuses": [ { "tag": "Status.Guarded", "turns": 3 }, { "tag": "Status.Wet", "turns": 1 } ] },
 	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0], "shield": 4, "visionRange": 6, "bot": true },
-	    { "id": "C1", "hero": "Hero.Wraith", "team": 0, "cell": [-2, 1, 0] }
+	    { "id": "C1", "hero": "Hero.Ivrin", "team": 0, "cell": [-2, 1, 0] }
 	  ],
 	  "turns": [
 	    { "intents": [ { "unit": "A1", "move": [[-1, 0, 0], [0, -1, 0]] } ] },
@@ -69,11 +69,11 @@ namespace
 	        { "unit": "C1", "ability": "Action.Guard" }
 	    ] },
 	    { "intents": [
-	        { "unit": "C1", "dash": "Hero.Wraith.PassingBlade", "dashTo": [1, -1, 0] },
+	        { "unit": "C1", "dash": "Hero.Ivrin.PassingBlade", "dashTo": [1, -1, 0] },
 	        { "unit": "A1", "ability": "Action.Interact", "targetCell": [0, 0, 0] }
 	    ] },
 	    { "intents": [
-	        { "unit": "C1", "reaction": "Hero.Wraith.Deflection",
+	        { "unit": "C1", "reaction": "Hero.Ivrin.Deflection",
 	          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": 10 } }
 	    ] }
 	  ],

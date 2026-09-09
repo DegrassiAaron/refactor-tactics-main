@@ -89,7 +89,7 @@ TArray<FString> URTCatalogLibrary::BraceAllowedResponses(const FName& ProfileId)
 	{
 		// Il TOKEN, non gli effetti: questa funzione risponde a «cosa dichiara il profilo», ed e' la
 		// cardinalita' che [D-132] ha deciso. Filtrare qui per effetti disponibili farebbe dire al catalogo
-		// che Wraith ha una risposta sola, cioe' cambierebbe un contenuto deciso per una lacuna di runtime.
+		// che Ivrin ha una risposta sola, cioe' cambierebbe un contenuto deciso per una lacuna di runtime.
 		Responses.Add(Extra.Response);
 	}
 	return Responses;
@@ -746,8 +746,8 @@ FName URTCatalogLibrary::DefaultWeaponVariantFor(const FName& HeroId)
 		{ FName(TEXT("Hero.Gadget")),    FName(TEXT("Weapon.Precision")) },
 		// Phase e' il setter del roster, e `Impact` porta la sua spinta da 1 a 2 (D-085).
 		{ FName(TEXT("Hero.Phase")),    FName(TEXT("Weapon.Impact")) },
-		// Wraith e' il piu' mobile (Move 6): `Suppressive` gli da' come impedirlo agli altri.
-		{ FName(TEXT("Hero.Wraith")),  FName(TEXT("Weapon.Suppressive")) },
+		// Ivrin e' il piu' mobile (Move 6): `Suppressive` gli da' come impedirlo agli altri.
+		{ FName(TEXT("Hero.Ivrin")),  FName(TEXT("Weapon.Suppressive")) },
 		// Branth tiene `Impact` perche' e' l'unica che NON gli toglie danno — paga in portata — e l'attacco
 		// base diventa displacement, coerente con Utility/Emergency (ADR-0007).
 		{ FName(TEXT("Hero.Branth")), FName(TEXT("Weapon.Impact")) },
@@ -777,7 +777,7 @@ FName URTCatalogLibrary::DefaultGadgetFor(const FName& HeroId)
 		// Copertura portatile: crea una copertura bassa su un bordo. Branth e' l'eroe delle strutture.
 		{ FName(TEXT("Hero.Branth")), FName(TEXT("Gadget.PortableCover")) },
 		// Sensore: alza la Team Knowledge in un'area.
-		{ FName(TEXT("Hero.Wraith")), FName(TEXT("Gadget.Sensor")) },
+		{ FName(TEXT("Hero.Ivrin")), FName(TEXT("Gadget.Sensor")) },
 	};
 	const FName* Found = Defaults.Find(HeroId);
 	return Found ? *Found : FName();
@@ -801,7 +801,7 @@ FName URTCatalogLibrary::DefaultReactionModuleFor(const FName& HeroId)
 		// prescriveva un duplicato, e per [D-210] il codice recepito prevale su un catalogo di `balance/`.
 		{ FName(TEXT("Hero.Branth")), FName(TEXT("Reaction.Cleanse")) },
 		// Dash d'emergenza: `Reposition 1` quando sei bersagliato.
-		{ FName(TEXT("Hero.Wraith")), FName(TEXT("Reaction.EmergencyDash")) },
+		{ FName(TEXT("Hero.Ivrin")), FName(TEXT("Reaction.EmergencyDash")) },
 	};
 	const FName* Found = Defaults.Find(HeroId);
 	return Found ? *Found : FName();
@@ -818,12 +818,12 @@ TArray<FName> URTCatalogLibrary::DefaultLoadoutFor(const FName& HeroId)
 	// 1. Un pezzo non DICHIARATO (`None`): l'eroe non ha una riga in §4.
 	// 2. Un pezzo dichiarato ma **non spedito**: §4 lo prescrive e il catalogo v0.1 non lo costruisce.
 	//    Non e' un'ipotesi — succede a due eroi su quattro. §4 assegna `Gadget.Insulator` a Gadget e
-	//    `Gadget.Sensor` a Wraith, e `MakeGadgets` li dichiara assenti con la loro ragione: il primo e' un
+	//    `Gadget.Sensor` a Ivrin, e `MakeGadgets` li dichiara assenti con la loro ragione: il primo e' un
 	//    PASSIVO e il motore non ha immunita' per categoria (`RT-FEAT-STATUS-FRAMEWORK`, E36); il secondo
 	//    dipende dalla conoscenza parziale, che e' E13 e non esiste — e il catalogo stesso ne dichiara
 	//    raggio e durata «non specificati dalla fonte».
 	//
-	// ⚠️ **La condizione 2 si misura, non si elenca.** La tentazione era scrivere «Gadget e Wraith non hanno
+	// ⚠️ **La condizione 2 si misura, non si elenca.** La tentazione era scrivere «Gadget e Ivrin non hanno
 	// default»: sarebbe vero oggi e falso il giorno in cui E36 atterra, e nessuno tornerebbe a correggerlo.
 	// Chiedendo invece al catalogo se il pezzo esiste, il default di Gadget comincia a funzionare **da se'**
 	// quando `Gadget.Insulator` viene spedito, senza che questa funzione cambi di una riga.

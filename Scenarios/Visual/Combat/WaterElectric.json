@@ -5,7 +5,7 @@
   "seed": 0,
   "fixture": "RelayLite",
 
-  "_nota": "La combo firma acqua+elettricita', nell'unica forma in cui il gioco di oggi la sa eseguire. Wraith scatta dentro la spina d'acqua a (0,0) in fase **Dash**; il terreno gli applica `Status.Wet` all'ingresso; il Blast arriva DOPO, e la scarica di Gadget trova un bersaglio bagnato: 24 + 8 = 32, meno i 5 dello scudo base ([D-224]). Wraith 90 -> 63.",
+  "_nota": "La combo firma acqua+elettricita', nell'unica forma in cui il gioco di oggi la sa eseguire. Ivrin scatta dentro la spina d'acqua a (0,0) in fase **Dash**; il terreno gli applica `Status.Wet` all'ingresso; il Blast arriva DOPO, e la scarica di Gadget trova un bersaglio bagnato: 24 + 8 = 32, meno i 5 dello scudo base ([D-224]). Ivrin 90 -> 63.",
 
   "_nota_ordine": "Non e' un dettaglio di allestimento, e' LA regola: il bonus si applica leggendo `HasStatus(Wet)` quando i colpi vengono preparati. Solo cio' che bagna PRIMA del Blast conta — e prima del Blast c'e' il Dash, non il Move.",
 
@@ -13,13 +13,13 @@
 
   "units": [
     { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [-2, 0, 0] },
-    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 3, 0, 0] }
+    { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 3, 0, 0] }
   ],
 
   "turns": [
     {
       "intents": [
-        { "unit": "V1", "dash": "Hero.Wraith.PassingBlade", "dashTo": [0, 0, 0] },
+        { "unit": "V1", "dash": "Hero.Ivrin.PassingBlade", "dashTo": [0, 0, 0] },
         { "unit": "F1", "ability": "Hero.Gadget.LinearDischarge", "target": "V1" }
       ]
     }

@@ -102,9 +102,9 @@ bool FRTHexFullMatchTest::RunTest(const FString&)
 	URTHexMapAsset* Map = SpawnHexMatchMap(World, /*Radius=*/ 5);
 
 	// 2v2 su lati opposti dell'arena, in diagonale (dove la distanza esagonale conta davvero).
-	ARTUnit* A1 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(-4, 2));
+	ARTUnit* A1 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),   FRTCellId(-4, 2));
 	ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 3));
-	ARTUnit* B1 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(4, -2));
+	ARTUnit* B1 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),   FRTCellId(4, -2));
 	ARTUnit* B2 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -3));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A1 || !A2 || !B1 || !B2) { DestroyHexMatchWorld(World); return false; }
@@ -161,7 +161,7 @@ bool FRTHexMatchLogTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMatchMap(World, /*Radius=*/ 4);
 
-	ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
+	ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-3, 1));
 	ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexMatchWorld(World); return false; }
@@ -211,9 +211,9 @@ bool FRTHexBothTeamsActTest::RunTest(const FString&)
 
 	// Tutti e quattro sullo stesso lato dei muri centrali, a portata reciproca: qui si vuole che gli attacchi
 	// siano LEGALI, non provare la copertura (quella e' HexVision/PIE-HEXPLAY-6).
-	ARTUnit* A_Shooter = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(1, 1));
+	ARTUnit* A_Shooter = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),   FRTCellId(1, 1));
 	ARTUnit* A_Mover   = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 2));
-	ARTUnit* B_Shooter = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(3, 0));
+	ARTUnit* B_Shooter = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),   FRTCellId(3, 0));
 	ARTUnit* B_Mover   = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A_Shooter || !A_Mover || !B_Shooter || !B_Mover)
@@ -313,9 +313,9 @@ bool FRTHexArenaAnomalyTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("quattro celle di partenza"), Start.Num(), 4)) { DestroyHexMatchWorld(World); return false; }
 
 	TArray<ARTUnit*> Units;
-	Units.Add(SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   Start[0]));
+	Units.Add(SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),   Start[0]));
 	Units.Add(SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), Start[1]));
-	Units.Add(SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   Start[2]));
+	Units.Add(SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),   Start[2]));
 	Units.Add(SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Start[3]));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || Units.Contains(nullptr)) { DestroyHexMatchWorld(World); return false; }
@@ -391,7 +391,7 @@ bool FRTHexClimbViaTransitionTest::RunTest(const FString&)
 	const FRTCellId Platform(2, 0, 1);  // la piattaforma, un layer sopra
 
 	// Uno scalatore e un avversario lontano (serve solo a non far finire la partita al primo turno).
-	ARTUnit* Climber = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Ground);
+	ARTUnit* Climber = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Ground);
 	ARTUnit* Idle    = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Climber || !Idle) { DestroyHexMatchWorld(World); return false; }
@@ -529,7 +529,7 @@ bool FRTHexChargeImpactTest::RunTest(const FString&)
 
 	// Chi carica e il bersaglio allineati sull'asse q: fra loro due celle libere, poi il nemico.
 	ARTUnit* Charger = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
-	ARTUnit* Target  = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(3, 0));
+	ARTUnit* Target  = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),   FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Charger || !Target) { DestroyHexMatchWorld(World); return false; }
 	Charger->bIsBotControlled = false; // i piani li scrive il test, non l'utility del bot
@@ -603,7 +603,7 @@ bool FRTHexDashBlockedTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: la cella intermedia esiste ed e' libera"),
 		FreeData != nullptr && !FreeData->bBlocksMovement);
 
-	ARTUnit* Dasher = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), From);
+	ARTUnit* Dasher = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), From);
 	ARTUnit* Idle   = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Dasher || !Idle) { DestroyHexMatchWorld(World); return false; }
@@ -611,7 +611,7 @@ bool FRTHexDashBlockedTest::RunTest(const FString&)
 	Idle->bIsBotControlled = false;
 
 	// La mobilita' rapida si CERCA, non si assume all'indice 3: quello era lo Scatto del Ranger legacy, e
-	// dopo la migrazione al roster l'indice 3 di Wraith e' `Deflection`, una reazione — le premesse qui sotto
+	// dopo la migrazione al roster l'indice 3 di Ivrin e' `Deflection`, una reazione — le premesse qui sotto
 	// fallivano su un'abilita' che non c'entra. `FindDashAbilityIndex` interroga la fase del catalogo, che e'
 	// il modo in cui il gioco stesso riconosce uno scatto (#142).
 	const int32 DashIdx = Dasher->FindDashAbilityIndex();
@@ -659,7 +659,7 @@ bool FRTPlaybackEventCarriesVerdictsTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMatchMap(World, /*Radius=*/ 5);
 
-	ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
+	ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-3, 1));
 	ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexMatchWorld(World); return false; }
@@ -719,9 +719,9 @@ bool FRTFirstTurnDoesNotCloseItselfTest::RunTest(const FString&)
 
 	// Team 0 UMANO: e' la configurazione del referto — un giocatore con due unita' proprie contro due bot.
 	// Con tutte e quattro a bot la prova sarebbe di un'altra partita.
-	ARTUnit* A1 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 2));
+	ARTUnit* A1 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 2));
 	ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 3));
-	ARTUnit* B1 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(4, -2));
+	ARTUnit* B1 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, -2));
 	ARTUnit* B2 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -3));
 	if (!A1 || !A2 || !B1 || !B2) { DestroyHexMatchWorld(World); return false; }
 	A1->bIsBotControlled = false;
@@ -825,7 +825,7 @@ namespace
 	ARTTurnManager* MakeCountdownMatch(UWorld* World)
 	{
 		SpawnHexMatchMap(World, /*Radius=*/ 4);
-		ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
+		ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-3, 1));
 		// 🔑 **Una SECONDA unita' propria** (`#2555`): senza, «il clic durante il playback cambia la
 		// selezione» non e' esprimibile — l'unica alternativa sarebbe selezionare l'AVVERSARIA, che
 		// `OnSelect` rifiuta (*«e' avversaria: seleziona prima una tua unita'»*) e che un test non deve
@@ -1588,7 +1588,7 @@ namespace
 		if (!M.World) { return M; }
 
 		SpawnHexMatchMap(M.World, /*Radius=*/ 4);
-		M.A  = SpawnHexMatchUnit(M.World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
+		M.A  = SpawnHexMatchUnit(M.World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-3, 1));
 		M.A2 = SpawnHexMatchUnit(M.World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-3, 0));
 		M.B  = SpawnHexMatchUnit(M.World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -1));
 		if (!M.A || !M.A2 || !M.B) { return M; }

@@ -160,7 +160,7 @@ namespace
  * ⚠️ **Senza la rotazione dichiarata il test non direbbe nulla**: il `FIRE` tronca il movimento nella cella
  * raggiunta, quindi il boundary del colpo E' l'ultimo passo e il `FacingFinalAfterMove` deriva dallo stesso
  * passo — i due valori COINCIDEREBBERO, e un'implementazione retroattiva passerebbe. Il pivot e' cio' che li
- * separa, ed e' la ragione per cui il mover e' `Hero.Phase` (`MoveEndPivotMaxSteps = 2`) e non il Wraith.
+ * separa, ed e' la ragione per cui il mover e' `Hero.Phase` (`MoveEndPivotMaxSteps = 2`) e non il Ivrin.
  *
  * *Mutazione che lo rende rosso*: spostare la `RecordFacingChange(DeclaredInPlanning)` prima del ciclo dei
  * micro-step, o rileggere `Target->Facing` dopo il pivot invece del `TargetBoundaryFacing` del boundary.
@@ -177,14 +177,14 @@ bool FRTFacingFinalPivotIsNotRetroactiveTest::RunTest(const FString&)
 
 	// Geometria di `Spec/Overwatch/HoldThenFire.json`: la zona dell'Overwatch e' una LINEA lungo il facing
 	// letto in Prep. V guarda a W da (2,-1) e controlla (1,-1) (0,-1) (-1,-1) (-2,-1) — la portata dell'arma
-	// del Wraith.
+	// del Ivrin.
 	const FRTCellId WatcherCell(2, -1, 0);
 	const FRTCellId MoverStart(-3, 0, 0);
 	const FRTCellId MoverEntry(-2, -1, 0);   // ci si entra percorrendo NE: e' la prima cella controllata
 	const FRTCellId MoverBeyond(-1, -1, 0);  // il secondo passo, che il FIRE impedisce
 
 	ARTUnit* Watcher = SpawnMsFacingUnit(World, /*Team*/ 1, WatcherCell, ERTHexDirection::W,
-		URTHeroCatalogLibrary::MakeWraith());
+		URTHeroCatalogLibrary::MakeIvrin());
 	// `Hero.Phase` per il BUDGET: ADR-0008 §1 gli da' `MoveEndPivotMaxSteps = 2`, cioe' esattamente i due
 	// step che separano `NE` da `W`. Con un budget minore la dichiarazione sarebbe RIFIUTATA e il test
 	// misurerebbe il rifiuto invece della non retroattivita'.
@@ -290,11 +290,11 @@ bool FRTOverwatchTriggerReadsMicroStepFacingTest::RunTest(const FString&)
 		if (!MapActor || !MapActor->MapAsset) { return false; }
 
 		ARTUnit* Watcher = SpawnMsFacingUnit(OutWorld, /*Team*/ 1, WatcherCell, ERTHexDirection::E,
-			URTHeroCatalogLibrary::MakeWraith());
+			URTHeroCatalogLibrary::MakeIvrin());
 		ARTUnit* Ally = SpawnMsFacingUnit(OutWorld, /*Team*/ 1, bAllyWalks ? AllyStart : AllySeat,
-			ERTHexDirection::E, URTHeroCatalogLibrary::MakeWraith());
+			ERTHexDirection::E, URTHeroCatalogLibrary::MakeIvrin());
 		OutTarget = SpawnMsFacingUnit(OutWorld, /*Team*/ 0, TargetStart, ERTHexDirection::W,
-			URTHeroCatalogLibrary::MakeWraith());
+			URTHeroCatalogLibrary::MakeIvrin());
 		OutTM = OutWorld->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Watcher || !Ally || !OutTarget || !OutTM) { return false; }
 

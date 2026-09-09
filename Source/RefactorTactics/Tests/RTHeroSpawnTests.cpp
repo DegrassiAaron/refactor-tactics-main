@@ -111,7 +111,7 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 	TestTrue(TEXT("c'e' Gadget"), InPlay.Contains(FName(TEXT("Hero.Gadget"))));
 	TestTrue(TEXT("c'e' Phase"), InPlay.Contains(FName(TEXT("Hero.Phase"))));
 	TestTrue(TEXT("c'e' Branth"), InPlay.Contains(FName(TEXT("Hero.Branth"))));
-	TestTrue(TEXT("c'e' Wraith"), InPlay.Contains(FName(TEXT("Hero.Wraith"))));
+	TestTrue(TEXT("c'e' Ivrin"), InPlay.Contains(FName(TEXT("Hero.Ivrin"))));
 
 	// Ogni unita' porta le statistiche del SUO eroe, sopravvissute a BeginPlay.
 	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
@@ -135,7 +135,7 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 		// v0.1 non costruisce), e diventerebbe falso in silenzio il giorno in cui E36 o E13 li sbloccano.
 		const int32 PezziCheConcedono = URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId).Num() > 0 ? 2 : 0;
 		// ⚠️ **Anche il numero di azioni d'eroe si DERIVA**, per la stessa ragione del `+2` qui sopra: era
-		// un `5` scritto a mano, ed e' diventato falso il giorno in cui [D-226] ha dato a Phase e Wraith
+		// un `5` scritto a mano, ed e' diventato falso il giorno in cui [D-226] ha dato a Phase e Ivrin
 		// una sesta abilita'. Un conteggio esatto in un test che misura una SOMMA non aggiunge niente —
 		// quanti kit abbia un eroe lo pinna `Heroes.RosterIsBalanced`, che esiste per quello.
 		TestEqual(FString::Printf(TEXT("%s: azioni dell'eroe piu' generiche piu' il loadout"), *Who),
@@ -145,24 +145,24 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 			Unit->GetAbility(0)->Def.ActionId, Hero->Actions[0]->Def.ActionId);
 	}
 
-	// Formazione di default: Gadget+Phase (giocatore) contro Branth+Wraith (bot).
+	// Formazione di default: Gadget+Phase (giocatore) contro Branth+Ivrin (bot).
 	ARTUnit* Gadget = FindByHeroId(Units, TEXT("Hero.Gadget"));
 	ARTUnit* Phase = FindByHeroId(Units, TEXT("Hero.Phase"));
 	ARTUnit* Branth = FindByHeroId(Units, TEXT("Hero.Branth"));
-	ARTUnit* Wraith = FindByHeroId(Units, TEXT("Hero.Wraith"));
-	if (Gadget && Phase && Branth && Wraith)
+	ARTUnit* Ivrin = FindByHeroId(Units, TEXT("Hero.Ivrin"));
+	if (Gadget && Phase && Branth && Ivrin)
 	{
 		TestEqual(TEXT("Gadget e' del giocatore"), Gadget->TeamId, 0);
 		TestEqual(TEXT("Phase anche: la combo Wet e' giocabile"), Phase->TeamId, 0);
 		TestEqual(TEXT("Branth e' del bot"), Branth->TeamId, 1);
-		TestEqual(TEXT("Wraith anche"), Wraith->TeamId, 1);
+		TestEqual(TEXT("Ivrin anche"), Ivrin->TeamId, 1);
 		TestFalse(TEXT("il giocatore comanda i suoi"), Gadget->bIsBotControlled);
 		TestTrue(TEXT("il bot comanda i propri"), Branth->bIsBotControlled);
 
 		// **Il punto della DoD sul bot**: MP diversi arrivano davvero in campo. Il budget dello snapshot viene
 		// da `MoveRange`, quindi il bot non puo' proporre a Branth una mossa da 6 celle.
 		TestEqual(TEXT("Branth: 4 MP"), Branth->MoveRange, 4);
-		TestEqual(TEXT("Wraith: 6 MP"), Wraith->MoveRange, 6);
+		TestEqual(TEXT("Ivrin: 6 MP"), Ivrin->MoveRange, 6);
 		// ⚠️ **La portata ora dipende dalla VARIANTE D'ARMA, e il valore atteso si deriva** (`#1054`).
 		// Gadget non ha un loadout — §4 gli assegna `Gadget.Insulator`, che v0.1 non costruisce — quindi
 		// resta a 4, il numero del catalogo. Branth monta `Weapon.Impact`, che toglie una cella: **3 → 2**.
@@ -230,7 +230,7 @@ bool FRTHeroSpawnDuplicateTest::RunTest(const FString&)
 	// Gadget in ENTRAMBE le squadre: la formazione dichiara quattro slot, ma i nomi distinti sono tre.
 	// Due unita' che condividessero un `URTHeroData` ricaricherebbero insieme le stesse azioni.
 	GameMode->Team0Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Phase") };
-	GameMode->Team1Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Wraith") };
+	GameMode->Team1Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Ivrin") };
 
 	GameMode->SetupHexMatch(HexMap);
 
@@ -240,7 +240,7 @@ bool FRTHeroSpawnDuplicateTest::RunTest(const FString&)
 	TSet<FName> InPlay;
 	for (const ARTUnit* Unit : Units) { InPlay.Add(Unit->HeroId); }
 	TestTrue(TEXT("Gadget, una volta sola"), InPlay.Contains(FName(TEXT("Hero.Gadget"))));
-	TestTrue(TEXT("e Wraith"), InPlay.Contains(FName(TEXT("Hero.Wraith"))));
+	TestTrue(TEXT("e Ivrin"), InPlay.Contains(FName(TEXT("Hero.Ivrin"))));
 	TestEqual(TEXT("nessun duplicato in campo"), InPlay.Num(), Units.Num());
 
 	// Nessuna unita' e' rimasta senza identita': se il fail-closed non funzionasse, qui ci sarebbe un'unita'
@@ -268,7 +268,7 @@ bool FRTHeroSpawnDuplicateTest::RunTest(const FString&)
  * dice quale portata deve avere l'attacco base dopo la variante. Trascrivere un numero qui creerebbe una
  * terza copia di ciò che il catalogo già decide, e cadrebbe al primo ribilanciamento senza dire perché.
  *
- * ⚠️ **Metà roster non ha un loadout, e non è un difetto di questo test.** §4 assegna a Gadget e Wraith
+ * ⚠️ **Metà roster non ha un loadout, e non è un difetto di questo test.** §4 assegna a Gadget e Ivrin
  * due gadget che v0.1 non costruisce (`Gadget.Insulator` è un passivo che aspetta E36, `Gadget.Sensor`
  * aspetta E13), quindi `DefaultLoadoutFor` restituisce vuoto per loro — decisione presa nella fetta A.
  * Il test non elenca *quali*: chiede al catalogo, così quando E36 atterrerà comincerà a coprire anche
@@ -505,7 +505,7 @@ bool FRTHeroUnitClassesDefaultTest::RunTest(const FString&)
 		{ FName(TEXT("Hero.Gadget")), TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget") },
 		{ FName(TEXT("Hero.Phase")),  TEXT("/Game/RT/Characters/Phase/Blueprints/BP_Unit_Phase")   },
 		{ FName(TEXT("Hero.Branth")), TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor") },
-		{ FName(TEXT("Hero.Wraith")), TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith") },
+		{ FName(TEXT("Hero.Ivrin")), TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith") },
 	};
 
 	TestEqual(TEXT("il default copre i quattro eroi del roster"), Cdo->HeroUnitClasses.Num(), Attesi.Num());
@@ -630,7 +630,7 @@ bool FRTHeroUnitClassesPartialTest::RunTest(const FString&)
 	UClass* AttesaGadget = ClasseGadget->Get();
 
 	GameMode->HeroUnitClasses.Remove(FName(TEXT("Hero.Branth")));
-	GameMode->HeroUnitClasses.Remove(FName(TEXT("Hero.Wraith")));
+	GameMode->HeroUnitClasses.Remove(FName(TEXT("Hero.Ivrin")));
 
 	GameMode->SetupHexMatch(HexMap);
 

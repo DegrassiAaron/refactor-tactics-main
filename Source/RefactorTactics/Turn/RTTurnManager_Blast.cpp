@@ -1990,7 +1990,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		}
 
 		// (3) PREDICTIVE ARMATA PERSA. `FRTArmedPrediction` non ha una charge da spegnere — la lista **e'**
-		// lo stato — quindi si rimuove. ⚠️ Tocca il thin slice v0.1 `Hero.Wraith.InterceptShot`: una scelta
+		// lo stato — quindi si rimuove. ⚠️ Tocca il thin slice v0.1 `Hero.Ivrin.InterceptShot`: una scelta
 		// dichiarata e pagata un turno prima viene cancellata da una spinta, ed e' il punto che il brief §8.4
 		// lascia da confermare con E18 davanti. Implementato come [D-319] lo descrive, non oltre.
 		ArmedPredictions.RemoveAll([T](const FRTArmedPrediction& A) { return A.Shooter.Get() == T; });

@@ -453,7 +453,7 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 		{ FName(TEXT("Hero.Gadget")), { TEXT("Idle"),           TEXT("Run_Fwd") } },
 		{ FName(TEXT("Hero.Phase")),  { TEXT("Idle"),           TEXT("Jog_Fwd") } },
 		{ FName(TEXT("Hero.Branth")), { TEXT("Idle"),           TEXT("Jog_Fwd") } },
-		{ FName(TEXT("Hero.Wraith")), { TEXT("Idle_NonCombat"), TEXT("Jog_Fwd") } },
+		{ FName(TEXT("Hero.Ivrin")), { TEXT("Idle_NonCombat"), TEXT("Jog_Fwd") } },
 	};
 
 	// 🔴 **Il pack NON si deriva dall'HeroId, e da [D-334] non potrebbe piu'.** Fino al rename di `Riktor`
@@ -466,7 +466,7 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 		{ FName(TEXT("Hero.Gadget")), TEXT("Gadget") },
 		{ FName(TEXT("Hero.Phase")),  TEXT("Phase")  },
 		{ FName(TEXT("Hero.Branth")), TEXT("Riktor") },
-		{ FName(TEXT("Hero.Wraith")), TEXT("Wraith") },
+		{ FName(TEXT("Hero.Ivrin")), TEXT("Wraith") },
 	};
 
 	TestEqual(TEXT("il default copre i quattro eroi del roster"), Cdo->ClipsPerHero.Num(), Attese.Num());
@@ -541,7 +541,7 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
  *
  * ⚠️ **Quattro caselle su dodici** non si chiamano come ci si aspetta — contate sulla tabella di §AS.3b,
  * non a memoria: `Hitreact_Fwd` con la `r` minuscola per Gadget, `HitReact_Fwd` per Phase, `Death` nudo per
- * Phase, `Death_Forward` per Wraith. `Cast` regge **4 volte su 4**, ed e' l'unico ruolo che si trasferisce
+ * Phase, `Death_Forward` per Ivrin. `Cast` regge **4 volte su 4**, ed e' l'unico ruolo che si trasferisce
  * sempre.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitDiscreteRoleClipsTest,
@@ -562,7 +562,7 @@ bool FRTUnitDiscreteRoleClipsTest::RunTest(const FString&)
 		{ TEXT("Hero.Gadget"), TEXT("Gadget"), TEXT("Cast"), TEXT("Hitreact_Fwd"),   TEXT("Death_Fwd") },
 		{ TEXT("Hero.Phase"),  TEXT("Phase"),  TEXT("Cast"), TEXT("HitReact_Fwd"),   TEXT("Death") },
 		{ TEXT("Hero.Branth"), TEXT("Riktor"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd") },
-		{ TEXT("Hero.Wraith"), TEXT("Wraith"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward") },
+		{ TEXT("Hero.Ivrin"), TEXT("Wraith"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward") },
 	};
 
 	for (const FAttesa& A : Attese)
@@ -755,7 +755,7 @@ bool FRTUnitGhostFallbackClipTest::RunTest(const FString&)
 
 	const FName Eroi[] = {
 		FName(TEXT("Hero.Gadget")), FName(TEXT("Hero.Phase")),
-		FName(TEXT("Hero.Branth")), FName(TEXT("Hero.Wraith")),
+		FName(TEXT("Hero.Branth")), FName(TEXT("Hero.Ivrin")),
 	};
 
 	for (const FName& Eroe : Eroi)

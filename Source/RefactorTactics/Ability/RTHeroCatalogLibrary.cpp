@@ -69,13 +69,13 @@ namespace
 			{ TEXT("Hero.Branth.Ram"),             TEXT("Carica d'ariete") },
 			{ TEXT("Hero.Branth.Interposition"),   TEXT("Interposizione") },
 
-			// Wraith (`Hero.Wraith`)
-			{ TEXT("Hero.Wraith.PulseShot"),        TEXT("Colpo a impulsi") },
-			{ TEXT("Hero.Wraith.InterceptShot"),    TEXT("Intercetto") },
-			{ TEXT("Hero.Wraith.PassingBlade"),     TEXT("Lama di passaggio") },
-			{ TEXT("Hero.Wraith.Deflection"),       TEXT("Deviazione") },
-			{ TEXT("Hero.Wraith.Feint"),            TEXT("Finta") },
-			{ TEXT("Hero.Wraith.PhaseGuard"),       TEXT("Guardia di fase") },
+			// Ivrin (`Hero.Ivrin`)
+			{ TEXT("Hero.Ivrin.PulseShot"),        TEXT("Colpo a impulsi") },
+			{ TEXT("Hero.Ivrin.InterceptShot"),    TEXT("Intercetto") },
+			{ TEXT("Hero.Ivrin.PassingBlade"),     TEXT("Lama di passaggio") },
+			{ TEXT("Hero.Ivrin.Deflection"),       TEXT("Deviazione") },
+			{ TEXT("Hero.Ivrin.Feint"),            TEXT("Finta") },
+			{ TEXT("Hero.Ivrin.PhaseGuard"),       TEXT("Guardia di fase") },
 		};
 
 		if (const FString* Found = Names.Find(Id))
@@ -306,14 +306,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	Gadget->DisplayName = FText::FromString(TEXT("Gadget"));
 	Gadget->MaxHealth = 90;
 	Gadget->MovePoints = 5;
-	// 6 -> 7 (#131, [D-073]). E' la seconda meta' del lavoro cominciato con Wraith 100->90: quel calo aveva
-	// tolto la dominanza su Phase e lasciato quella su **Gadget**, dove a parita' di salute e vista Wraith
+	// 6 -> 7 (#131, [D-073]). E' la seconda meta' del lavoro cominciato con Ivrin 100->90: quel calo aveva
+	// tolto la dominanza su Phase e lasciato quella su **Gadget**, dove a parita' di salute e vista Ivrin
 	// restava avanti di un punto movimento.
 	//
 	// La leva e' la VISTA e non il movimento, per due ragioni misurate. Dare 6 MP a Gadget (o toglierne uno a
-	// Wraith) renderebbe i due profili IDENTICI sulle quattro statistiche base, e `RosterIsBalanced` verifica
+	// Ivrin) renderebbe i due profili IDENTICI sulle quattro statistiche base, e `RosterIsBalanced` verifica
 	// che nessuna coppia li condivida: si sarebbe rotto un test per ripararne un altro. E una resistenza alla
-	// spinta NEGATIVA per Wraith sarebbe stata un numero senza effetto — `PushResistance` e' una SOGLIA, e le
+	// spinta NEGATIVA per Ivrin sarebbe stata un numero senza effetto — `PushResistance` e' una SOGLIA, e le
 	// spinte del catalogo valgono almeno 1, quindi -1 e 0 si comportano allo stesso modo.
 	//
 	// Con 7, Gadget diventa l'unico che vede oltre l'esagono di raggio 6: identita' vera, non compensazione.
@@ -501,7 +501,7 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// conduttivo — dipende ora dalla mappa o dallo Sprinkler.
 	//
 	// ✅ E D-028 riacquista un soggetto: `RTHeroCatalogTests.cpp` registra che dopo D-046 la regola era
-	// «vera, e oggi senza nessuno a cui applicarsi», perche' `Wraith.PassingBlade` e' FastMovement e fa
+	// «vera, e oggi senza nessuno a cui applicarsi», perche' `Ivrin.PassingBlade` e' FastMovement e fa
 	// 20 danni. Questa e' di nuovo mobilita' senza danno.
 	//
 	// 🔴 Questa riga chiamava `PassingBlade` **«una carica»** per via del danno. Dopo [D-191] la
@@ -516,7 +516,7 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// quello sbagliato (D-028). Chi scatta si e' mosso, ma puo' ancora agire.
 	//
 	// 🔴 **Questa riga diceva «per una mobilita' che NON FA DANNO», e la clausola era il difetto**: ha
-	// lasciato `Hero.Wraith.PassingBlade` — che fa danno — col `Main` di default, e con esso due azioni
+	// lasciato `Hero.Ivrin.PassingBlade` — che fa danno — col `Main` di default, e con esso due azioni
 	// principali in un turno. [D-191] toglie la clausola e fissa il criterio: conta se la mobilita' si
 	// FERMA sul bersaglio (`LinearCharge` -> attacco, slot principale) o lo ATTRAVERSA (`LinearPass` ->
 	// mobilita', slot movimento), non se fa danno.
@@ -582,13 +582,13 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// scudo temporaneo, cooldown 2. E' l'unico scudo del gioco che si sceglie PRIMA di sapere se sarai
 	// colpito: `Gadget.ReactiveCapacitor` e `Reaction.ReactiveShield` rispondono a un colpo gia' partito.
 	//
-	// Uno per squadra — il gemello e' `Hero.Wraith.PhaseGuard` — perche' le formazioni sono fisse
+	// Uno per squadra — il gemello e' `Hero.Ivrin.PhaseGuard` — perche' le formazioni sono fisse
 	// (`ARTGameMode::Team0Heroes`/`Team1Heroes`). Non va a Gadget, che porta gia' `ReactiveCapacitor`:
 	// sarebbe la terza fonte di scudo sullo stesso eroe, il difetto che [D-218] ha corretto altrove.
 	//
 	// ⚠️ **E' la SESTA azione di Phase, e prima non ci sarebbe stata**: fino a quando le generiche
 	// occupavano la fila dei numeri, un kit da undici voci ne lasciava una impremibile.
-	// Stessa ragione del gemello `Hero.Wraith.PhaseGuard`: un `nullptr` non entra nel kit.
+	// Stessa ragione del gemello `Hero.Ivrin.PhaseGuard`: un `nullptr` non entra nel kit.
 	AddAbility(Phase, MakeHeroActionFromCore(TEXT("Hero.Phase.TideGuard"), TEXT("Action.Shield"),
 		/*Cooldown*/ 2));
 
@@ -646,7 +646,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeBranth()
 	Branth->MoveEndPivotMaxSteps = 1;
 	Branth->DashEndPivotMaxSteps = 0;
 	Branth->Affinity = TEXT("Affinity.Structures");
-	// Simmetrica a Wraith (CP 6.5), come Gadget/Phase fra loro: il roster chiude in due coppie. Il piu' lento
+	// Simmetrica a Ivrin (CP 6.5), come Gadget/Phase fra loro: il roster chiude in due coppie. Il piu' lento
 	// del roster e' vulnerabile a chi il movimento lo fa di mestiere.
 	Branth->Weakness = TEXT("Affinity.Movement");
 	// ⛔ **Branth NON ha un profilo, e il campo resta `None` di proposito** ([D-047], §2.5). La proposta gli
@@ -783,39 +783,39 @@ URTHeroData* URTHeroCatalogLibrary::MakeBranth()
 	return Branth;
 }
 
-URTHeroData* URTHeroCatalogLibrary::MakeWraith()
+URTHeroData* URTHeroCatalogLibrary::MakeIvrin()
 {
-	URTHeroData* Wraith = NewObject<URTHeroData>();
-	Wraith->HeroId = TEXT("Hero.Wraith");
-	Wraith->DisplayName = FText::FromString(TEXT("Wraith")); // D-120: nome canonico; `Hero.Wraith` resta lo Stable ID
-	// 100 -> 90 (#131). A 100 HP Wraith DOMINAVA Gadget (90/5/6/0) e Phase (95/5/5/0) sulle quattro statistiche
+	URTHeroData* Ivrin = NewObject<URTHeroData>();
+	Ivrin->HeroId = TEXT("Hero.Ivrin");
+	Ivrin->DisplayName = FText::FromString(TEXT("Ivrin")); // D-120: nome canonico; `Hero.Ivrin` resta lo Stable ID
+	// 100 -> 90 (#131). A 100 HP Ivrin DOMINAVA Gadget (90/5/6/0) e Phase (95/5/5/0) sulle quattro statistiche
 	// base: migliore o pari ovunque, strettamente migliore in salute e movimento. Il catalogo §5 scriveva
-	// «Wraith compra mobilita' con l'assenza di difese», che sui numeri era falso — non pagava nulla.
+	// «Ivrin compra mobilita' con l'assenza di difese», che sui numeri era falso — non pagava nulla.
 	//
 	// ⚠️ 90 toglie la dominanza su **Phase** (-5 HP), NON quella su Gadget: a parita' di HP e vista resta +1 MP.
-	// Non e' una svista, e' il perimetro della decisione presa: il costo di Wraith diventa visibile, ma il
-	// confronto Gadget/Wraith resta da chiudere e vive in `#131`, che non si chiude qui.
-	Wraith->MaxHealth = 90;
-	Wraith->MovePoints = 6; // il piu' mobile del roster: e' cio' che compra con l'assenza di difese
-	Wraith->VisionRange = 6;
-	Wraith->HearingThreshold = 5;  // D-041: mobilita' e vista si pagano sull'udito.
-	Wraith->PushResistance = 0;
+	// Non e' una svista, e' il perimetro della decisione presa: il costo di Ivrin diventa visibile, ma il
+	// confronto Gadget/Ivrin resta da chiudere e vive in `#131`, che non si chiude qui.
+	Ivrin->MaxHealth = 90;
+	Ivrin->MovePoints = 6; // il piu' mobile del roster: e' cio' che compra con l'assenza di difese
+	Ivrin->VisionRange = 6;
+	Ivrin->HearingThreshold = 5;  // D-041: mobilita' e vista si pagano sull'udito.
+	Ivrin->PushResistance = 0;
 	// ADR-0008 §1 — «agile/predittivo» e «reposition rapido»: 3 e 3, l'unico del roster libero di finire
 	// qualunque movimento guardando dove vuole. E' l'estremo opposto di Branth, e la scala esiste per
 	// questo: se il pivot alto risultasse sempre preferibile, la via di rientro dichiarata dall'ADR e'
 	// **comprimere la scala** (tutti a 1-2), non rimuovere il modello.
-	Wraith->MoveEndPivotMaxSteps = 3;
-	Wraith->DashEndPivotMaxSteps = 3;
-	Wraith->Affinity = TEXT("Affinity.Movement");
+	Ivrin->MoveEndPivotMaxSteps = 3;
+	Ivrin->DashEndPivotMaxSteps = 3;
+	Ivrin->Affinity = TEXT("Affinity.Movement");
 	// Simmetrica a Branth: chi si muove di mestiere e' neutralizzato da chi gli chiude le traiettorie.
-	// Il roster chiude in due coppie — Gadget↔Phase sull'acqua, Branth↔Wraith sullo spazio.
-	Wraith->Weakness = TEXT("Affinity.Structures");
+	// Il roster chiude in due coppie — Gadget↔Phase sull'acqua, Branth↔Ivrin sullo spazio.
+	Ivrin->Weakness = TEXT("Affinity.Structures");
 	// E14.7 [D-047]: `Profile.Glance` porta DUE risposte extra, quindi cardinalita' 3 — l'unico del roster.
-	Wraith->ReactionProfileId = TEXT("Profile.Glance");
+	Ivrin->ReactionProfileId = TEXT("Profile.Glance");
 
 	// Indice 0 — PulseShot, attacco base. 21 danni / range 4: come per Phase e Branth, non e' la fascia
 	// generica (a range 4 darebbe 22). Un punto in meno del medio raggio, pagato in mobilita'.
-	Wraith->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Wraith.PulseShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+	Ivrin->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Ivrin.PulseShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 4, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 21) }));
 
@@ -831,7 +831,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// Lo slot torna `Main`: e' un'azione dichiarata in pianificazione come le altre, non una reazione tenuta
 	// pronta. Portata 1 e' la cella ADIACENTE controllata; il cooldown 2 non cambia — chi scommette paga il
 	// cooldown anche quando sbaglia, ed e' la meta' del costo che rende il whiff una scelta.
-	URTActionData* InterceptShot = MakeHeroAction(TEXT("Hero.Wraith.InterceptShot"), ERTResolutionPhase::Preparation,
+	URTActionData* InterceptShot = MakeHeroAction(TEXT("Hero.Ivrin.InterceptShot"), ERTResolutionPhase::Preparation,
 		/*Priority*/ 30, /*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) }, ERTAbilityShape::Single, /*AreaRadius*/ 0,
 		ERTActionSlot::Main, ERTInterruptPolicy::None);
@@ -839,10 +839,10 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// la cella non si rivaluta, `MovementEntry` quando si guarda chi ci e' passato.
 	InterceptShot->Def.PredictiveTargeting = ERTPredictiveTargeting::LockCell;
 	InterceptShot->Def.PredictionBoundary = ERTPredictionBoundary::MovementEntry;
-	Wraith->Actions.Add(InterceptShot);
+	Ivrin->Actions.Add(InterceptShot);
 
 	// Indice 2 — PassingBlade. `Dash 3` che colpisce per 20 le unita' ATTRAVERSATE: l'unica abilita'
-	// non-base di Wraith interamente rappresentabile. Stile `LinearPass` e non `LinearCharge`: la carica si
+	// non-base di Ivrin interamente rappresentabile. Stile `LinearPass` e non `LinearCharge`: la carica si
 	// FERMA sul primo nemico, questa gli passa attraverso — e' la differenza che `ERTMovementStyle` esiste
 	// per rendere un dato invece che un `if` sull'ActionId (CP 4.5).
 	//
@@ -858,7 +858,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// misurabile: il bot pianificava lama + attacco base e il resolver eseguiva ENTRAMBE — due azioni
 	// principali, 41 danni in un turno. Il difetto e' rimasto invisibile finche' nessuno ha composto il
 	// piano e chiesto a `URTPlanValidationLibrary::ValidatePlan` se fosse legale.
-	Wraith->Actions.Add(MakeHeroAction(TEXT("Hero.Wraith.PassingBlade"), ERTResolutionPhase::FastMovement,
+	Ivrin->Actions.Add(MakeHeroAction(TEXT("Hero.Ivrin.PassingBlade"), ERTResolutionPhase::FastMovement,
 		/*Priority*/ 30, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20) },
 		ERTAbilityShape::Single, /*AreaRadius*/ 0, ERTActionSlot::Movement));
@@ -866,7 +866,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// codice si fermava sul primo nemico come uno scatto qualsiasi, quindi i 20 danni dichiarati sopra non
 	// avevano un momento in cui applicarsi. Lo stile e' un DATO proprio per questo (CP 4.5): la differenza
 	// fra fermarsi, fermarsi addosso, scavalcare e attraversare non e' un `if` sull'ActionId.
-	Wraith->Actions[2]->Def.MovementStyle = ERTMovementStyle::LinearPass;
+	Ivrin->Actions[2]->Def.MovementStyle = ERTMovementStyle::LinearPass;
 
 	// Indice 3 — Deflection (CP 6.7). REAZIONE cablata sulla semantica di `Action.Deflect`: un POOL di 20
 	// danni assorbibili sui colpi diretti del boundary che l'ha innescata. La riduzione arriva dagli effetti
@@ -877,7 +877,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// il Deflect e' una reazione senza clausola d'arco — e l'ORDINE: `Deflect` assorbe per primo ([D-312]).
 	// ⚠️ La divergenza aperta da [D-292] il 2026-08-31 e' durata un giorno: [D-309] l'ha richiusa.
 	// Cooldown 2, uguale al core: il catalogo eroi non ne dichiara uno diverso.
-	AddAbility(Wraith, MakeHeroReactionFromCoreAction(TEXT("Hero.Wraith.Deflection"), TEXT("Action.Deflect"),
+	AddAbility(Ivrin, MakeHeroReactionFromCoreAction(TEXT("Hero.Ivrin.Deflection"), TEXT("Action.Deflect"),
 		/*Cooldown*/ 2));
 
 	// Indice 4 — Feint. Marca una CELLA e concede un `Reposition`: nessuna delle due meta' e' dichiarabile.
@@ -889,16 +889,16 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// `Parameters` perche' quelli sono della VARIANTE (dove il catalogo differenzia due configurazioni), e
 	// qui non c'e' niente da differenziare: e' un numero dell'azione base, e finche' non esiste un effetto
 	// che lo porti resta dichiarato nel catalogo eroi, non simulato in un campo che nessuno leggerebbe.
-	Wraith->Actions.Add(MakeHeroAction(TEXT("Hero.Wraith.Feint"), ERTResolutionPhase::Control, /*Priority*/ 40,
+	Ivrin->Actions.Add(MakeHeroAction(TEXT("Hero.Ivrin.Feint"), ERTResolutionPhase::Control, /*Priority*/ 40,
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
 
-	// `Hero.Wraith.PhaseGuard` — gemello di `Hero.Phase.TideGuard`, uno per squadra. Su Wraith costa una
+	// `Hero.Ivrin.PhaseGuard` — gemello di `Hero.Phase.TideGuard`, uno per squadra. Su Ivrin costa una
 	// scelta vera: la Preparation spesa qui e' quella che non arma `InterceptShot`.
 	// 🔴 `AddAbility` e non `Actions.Add`: `MakeHeroActionFromCore` e' fail-closed e torna `nullptr` se
 	// `Action.Shield` sparisce o cambia nome. Con `Add` quel `nullptr` ENTRA nel kit — `Num()` conta 6,
 	// quindi ogni guardia che si fida del conteggio passa, e chi dereferenzia va giu'. E' l'invariante che
 	// `AddAbility` esiste per tenere, e qui era aggirata.
-	AddAbility(Wraith, MakeHeroActionFromCore(TEXT("Hero.Wraith.PhaseGuard"), TEXT("Action.Shield"),
+	AddAbility(Ivrin, MakeHeroActionFromCore(TEXT("Hero.Ivrin.PhaseGuard"), TEXT("Action.Shield"),
 		/*Cooldown*/ 2));
 
 	// Variante di InterceptShot (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
@@ -907,35 +907,35 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// da `FRTSuppressiveZone`, che nessuno collega ancora a un eroe): sta nei `Parameters`, come l'integrita'
 	// del pannello di Branth.
 	FRTAbilityVariant Precise;
-	Precise.VariantId = TEXT("Hero.Wraith.InterceptShot.Precise");
+	Precise.VariantId = TEXT("Hero.Ivrin.InterceptShot.Precise");
 	Precise.DisplayName = FText::FromString(TEXT("Intercetto preciso"));
 	Precise.Tradeoff = FText::FromString(TEXT("20 danni invece di 16, ma controlla una sola cella"));
 	Precise.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 20));
 	Precise.Parameters.Add(TEXT("ControlledCells"), 1);
 
 	FRTAbilityVariant Extended;
-	Extended.VariantId = TEXT("Hero.Wraith.InterceptShot.Extended");
+	Extended.VariantId = TEXT("Hero.Ivrin.InterceptShot.Extended");
 	Extended.DisplayName = FText::FromString(TEXT("Intercetto esteso"));
 	Extended.Tradeoff = FText::FromString(TEXT("controlla una linea di 3 celle, ma solo 14 danni"));
 	Extended.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 14));
 	Extended.Parameters.Add(TEXT("ControlledCells"), 3);
 
-	Wraith->Actions[1]->Variants.Add(Precise);
-	Wraith->Actions[1]->Variants.Add(Extended);
+	Ivrin->Actions[1]->Variants.Add(Precise);
+	Ivrin->Actions[1]->Variants.Add(Extended);
 
-	return Wraith;
+	return Ivrin;
 }
 
 TArray<URTHeroData*> URTHeroCatalogLibrary::GetHeroRoster()
 {
-	return { MakeGadget(), MakePhase(), MakeBranth(), MakeWraith() };
+	return { MakeGadget(), MakePhase(), MakeBranth(), MakeIvrin() };
 }
 
 TArray<FName> URTHeroCatalogLibrary::GetHeroIds()
 {
 	// Stesso ordine di `GetHeroRoster()`: `Heroes.HeroIdsMatchRoster` confronta le due liste posizione per
 	// posizione, quindi riordinare qui senza riordinare la' e' un rosso, non una svista che passa.
-	return { TEXT("Hero.Gadget"), TEXT("Hero.Phase"), TEXT("Hero.Branth"), TEXT("Hero.Wraith") };
+	return { TEXT("Hero.Gadget"), TEXT("Hero.Phase"), TEXT("Hero.Branth"), TEXT("Hero.Ivrin") };
 }
 
 URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroActionId,

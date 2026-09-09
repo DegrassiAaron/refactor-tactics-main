@@ -18,7 +18,7 @@
   "fixture": "TestArena",
   "_nota": "COMPOSITO DI ACCEPTANCE dell'HUD di prima giocabilita'. Non verifica una regola: porta la partita in uno stato RICCO — roster pieno, salute non piena su due squadre, uno slot in cooldown, un combat log popolato — e la lascia li' perche' una persona guardi se l'interfaccia lo racconta. Lo stato nasce da turni giocati dal runtime reale: nessun widget viene scritto a mano, che e' il modo in cui un'acceptance dell'HUD si falsifica da sola.",
   "_oracolo": "Le voci di `docs/technical/test-manuali-pie.md` che chiedono uno stato ricco per essere giudicate — fra cui `PIE-V01-SCREENHUD`, `PIE-ICON-01`, `PIE-V01-POINTER`, `PIE-V01-KIT-HOTKEYS`, `PIE-V01-LOG`, `PIE-V01-FALLBACK` — piu' la voce ombrello `PIE-ACC-HUD`, che dichiara soltanto che la scena e' allestita e leggibile. I criteri restano dove sono: un composito che prepara dieci verifiche non si giudica con un si'/no unico.",
-  "_nota_roster": "Quattro eroi, uno per personaggio del roster v0.1, ed e' un requisito e non una decorazione: il pannello del roster e il catalogo icone non si giudicano su due unita' uguali. Gadget 90, Phase 95, Branth 120, Wraith 90 — quattro valori distinti, quindi quattro barre di lunghezza diversa.",
+  "_nota_roster": "Quattro eroi, uno per personaggio del roster v0.1, ed e' un requisito e non una decorazione: il pannello del roster e il catalogo icone non si giudicano su due unita' uguali. Gadget 90, Phase 95, Branth 120, Ivrin 90 — quattro valori distinti, quindi quattro barre di lunghezza diversa.",
   "_nota_geometria": "Le quattro unita' stanno su `r = 3` e su `(-2,4)` di `TestArena`, e la scelta e' misurata. La colonna che BLOCCA LA VISTA in quella fixture e' `(0, r)` per `r` da -2 a 2: la riga `r = 3` le passa sotto, quindi le due squadre si vedono. Le tre celle che bloccano il passo — (-1,2), (1,-2), (2,1) — e il fango a `(-2, r)` per `r` da -1 a 1 restano fuori da ogni percorso usato.",
   "_nota_cooldown": "Il secondo colpo di A1 e' `Hero.Gadget.LinearDischarge`, che ha **cooldown 2**: al termine lo slot e' ancora spento, ed e' l'unico modo per far trovare all'osservatore un Action Dock con uno slot occupato invece di quattro slot pronti. B1 riceve entrambi i colpi, ed e' voluto: due bersagli con danni diversi — 84 e 90 — danno due barre di lunghezza diversa nel pannello, che e' cio' che l'HUD deve saper raccontare.",
   "_nota_assertion": "L'ancora anti-vacuita' e' `UnitHpEquals B1 103`, ed e' **misurata, non dedotta**: il log della run del 2026-08-31 riporta *«(q=-3,r=3) -> (q=0,r=3): 17 danni (Hero.Gadget.ArcPulse)»*, e Branth parte da 120. Dice che il primo colpo e' stato RISOLTO dal runtime, non disegnato: se nessun turno girasse, B1 sarebbe a 120 e la scena sarebbe quattro unita' intatte — lo stato povero che questo file esiste per evitare. B1 riceve un colpo SOLO, ed e' per questo che il numero regge: `LinearDischarge` va su B2.",
@@ -60,7 +60,7 @@
     },
     {
       "id": "B2",
-      "hero": "Hero.Wraith",
+      "hero": "Hero.Ivrin",
       "team": 1,
       "cell": [
         1,

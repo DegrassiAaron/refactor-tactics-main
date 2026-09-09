@@ -11,7 +11,7 @@
 // Cio' che questi test NON coprono, e va detto: la finestra di 3,0 s, il commit e il troncamento del movimento
 // sono CP 14.5. Qui si produce l'opportunity, non la si risolve.
 //
-// ⚠️ Questa riga nominava anche «il cablaggio di `Wraith.InterceptShot`», ed era doppiamente falsa: [D-016]
+// ⚠️ Questa riga nominava anche «il cablaggio di `Ivrin.InterceptShot`», ed era doppiamente falsa: [D-016]
 // ha reso `InterceptShot` una Predictive Action — decisa in Planning, risolta a un boundary, senza input live,
 // quindi senza finestra — e l'ha spostata in **E18**, dove e' chiusa dal 2026-08-10.
 //
@@ -1262,7 +1262,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchSecondFireOnDownedTargetTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
 {
-	// Due Wraith che guardano la STESSA cella da lati opposti: `MakeSuppressiveZone` costruisce una LINEA
+	// Due Ivrin che guardano la STESSA cella da lati opposti: `MakeSuppressiveZone` costruisce una LINEA
 	// lungo il facing, quindi (-1,-1,0) cade nella zona di entrambi. Sono due WATCHER diversi sullo stesso
 	// bersaglio — quindi due opportunity — non due bersagli nello stesso passo, che darebbero una opportunity
 	// sola (`Overwatch.SimultaneousTargetsSingleOpportunity`).
@@ -1274,7 +1274,7 @@ bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
 
 	FRTScenarioUnit W1;
 	W1.Id = TEXT("W1");
-	W1.HeroId = TEXT("Hero.Wraith");
+	W1.HeroId = TEXT("Hero.Ivrin");
 	W1.TeamId = 1;
 	W1.Cell = FRTCellId(2, -1, 0);
 	W1.Facing = ERTHexDirection::W;
@@ -1282,7 +1282,7 @@ bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
 
 	FRTScenarioUnit W2;
 	W2.Id = TEXT("W2");
-	W2.HeroId = TEXT("Hero.Wraith");
+	W2.HeroId = TEXT("Hero.Ivrin");
 	W2.TeamId = 1;
 	W2.Cell = FRTCellId(-3, -1, 0);
 	W2.Facing = ERTHexDirection::E;

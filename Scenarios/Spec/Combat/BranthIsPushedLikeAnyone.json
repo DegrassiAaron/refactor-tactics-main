@@ -5,7 +5,7 @@
   "seed": 0,
   "mapRadius": 5,
 
-  "_nota": "Branth e Wraith prendono lo stesso colpo — `Hero.Phase.PressureJet`, 16 danni e `Push 1` — e arretrano ENTRAMBI di una cella. E' la specifica eseguibile di D-075 (#402): dal 2026-08-10 nessun eroe del roster ha resistenza nativa alla spinta.",
+  "_nota": "Branth e Ivrin prendono lo stesso colpo — `Hero.Phase.PressureJet`, 16 danni e `Push 1` — e arretrano ENTRAMBI di una cella. E' la specifica eseguibile di D-075 (#402): dal 2026-08-10 nessun eroe del roster ha resistenza nativa alla spinta.",
 
   "_nota_perche_esiste": "Fino a qui Branth aveva `PushResistance = 1`, l'unico del roster. Siccome ogni spinta del gioco vale 1 e la resistenza e' una SOGLIA (D-038), quel valore non comprava «stabilita'»: lo rendeva immune a OGNI spostamento del gioco, sempre, senza spendere un'azione. Nessun documento dichiarava quell'immunita' — era una conseguenza del catalogo, non una scelta — e svuotava meta' di `Guard` e `Brace` proprio sull'eroe su cui la scelta difensiva dovrebbe pesare di piu'. Questo file pinna l'esito nell'altro verso, cosi' che rimettere una resistenza nativa senza passare da una decisione diventi rosso.",
 
@@ -19,7 +19,7 @@
 
   "units": [
     { "id": "B1", "hero": "Hero.Branth", "team": 0, "cell": [0,  0, 0] },
-    { "id": "V1", "hero": "Hero.Wraith",  "team": 0, "cell": [0, -2, 0] },
+    { "id": "V1", "hero": "Hero.Ivrin",  "team": 0, "cell": [0, -2, 0] },
 
     { "facing": "W", "id": "A1", "hero": "Hero.Phase",    "team": 1, "cell": [3,  0, 0] },
     { "facing": "W", "id": "A2", "hero": "Hero.Phase",    "team": 1, "cell": [3, -2, 0] }
@@ -35,7 +35,7 @@
     }
   ],
 
-  "_nota_hp": "Il danno e' identico e non e' il punto: 120 - (16 - 5 di scudo base, [D-224]) = 109 per Branth, 90 - (16 - 5) = 79 per Wraith. Sta nelle assertion perche' un colpo che non arriva spiegherebbe una cella ferma nel modo sbagliato.",
+  "_nota_hp": "Il danno e' identico e non e' il punto: 120 - (16 - 5 di scudo base, [D-224]) = 109 per Branth, 90 - (16 - 5) = 79 per Ivrin. Sta nelle assertion perche' un colpo che non arriva spiegherebbe una cella ferma nel modo sbagliato.",
   "_nota_scudo_base": "Ogni conto in prosa di questo file sottrae gia' lo SCUDO BASE. Causa: `URTCombatLibrary::BaseShield = 5` ([D-224]) esiste dal COSTRUTTORE di `ARTUnit`, quindi ogni unita' assorbe 5 danni prima degli HP, e ogni nota scritta prima di [D-224] sbagliava di 5 per bersaglio colpito. \u26a0\ufe0f **Fino al 2026-09-02 questo campo era un'ERRATA** (2026-08-30): dichiarava che la prosa sopra era rimasta indietro e che NON sarebbe stata riscritta, *«dice ancora cosa faceva il gioco quando fu scritto»*. `#2049` ha ribaltato quella scelta, e la ragione e' misurata: un `_nota` descrive il file di **oggi**, non e' un registro storico, e due testi che si contraddicono nello stesso file sono il difetto \u2014 non la sua documentazione. La versione precedente dei conti e' in git.",
 
   "expect": [

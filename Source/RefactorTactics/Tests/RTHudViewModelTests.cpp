@@ -74,16 +74,16 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 	ARTUnit* Gadget = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
 	ARTUnit* Phase = SpawnHudVmUnit(World, TEXT("Hero.Phase"), /*TeamId*/ 0);
 	ARTUnit* Branth = SpawnHudVmUnit(World, TEXT("Hero.Branth"), /*TeamId*/ 1);
-	ARTUnit* Wraith = SpawnHudVmUnit(World, TEXT("Hero.Wraith"), /*TeamId*/ 1);
+	ARTUnit* Ivrin = SpawnHudVmUnit(World, TEXT("Hero.Ivrin"), /*TeamId*/ 1);
 
 	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Phase"), Phase)
-		|| !TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Wraith"), Wraith))
+		|| !TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Ivrin"), Ivrin))
 	{
 		DestroyHudVmWorld(World);
 		return false;
 	}
 
-	const TArray<ARTUnit*> All = { Gadget, Phase, Branth, Wraith };
+	const TArray<ARTUnit*> All = { Gadget, Phase, Branth, Ivrin };
 
 	const TArray<FRTUnitCardView> Mine = URTHudViewModel::BuildTeamRoster(All, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("il roster ha le due unita' della mia squadra"), Mine.Num(), 2);
@@ -91,7 +91,7 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 	{
 		TestTrue(*FString::Printf(TEXT("%s e' un alleato"), *Card.HeroId.ToString()), Card.bIsAlly);
 		TestFalse(TEXT("nessun avversario nel roster"),
-			Card.HeroId == TEXT("Hero.Branth") || Card.HeroId == TEXT("Hero.Wraith"));
+			Card.HeroId == TEXT("Hero.Branth") || Card.HeroId == TEXT("Hero.Ivrin"));
 	}
 
 	// Simmetrico: cambiando squadra cambia il roster, e la funzione non ha altri parametri con cui sbagliare.

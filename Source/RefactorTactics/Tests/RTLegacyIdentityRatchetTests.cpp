@@ -23,7 +23,12 @@ namespace RTLegacyIdentity
 	 */
 	const FRitirata Ritirate[] = {
 		{ TEXT("Hero.Gadget"), TEXT("Hero.Aevik"),  60, 97 },
-		{ TEXT("Hero.Wraith"), TEXT("Hero.Ivrin"),  57, 74 },
+		// ✅ **Fetta eseguita il 2026-09-09**: il tetto è sceso a ZERO, e per questa identità il ratchet
+		// **è già** l'oracolo secco che [D-341] chiede — qualunque ricomparsa fallisce.
+		// ⚠️ Zero e non quattro come `Hero.Riktor`: quelle quattro sono commenti sul rename e un test che ne
+		// verifica la scomparsa. Qui non esistono ancora — se qualcuno li scrivesse, il tetto va alzato
+		// **con loro**, non prima.
+		{ TEXT("Hero.Wraith"), TEXT("Hero.Ivrin"),   0,  0 },
 		{ TEXT("Hero.Phase"),  TEXT("Hero.Muiren"), 35, 44 },
 		// ⌫ Gia' rinominata (`D-334`), e il suo tetto **non e' zero**: le quattro occorrenze residue sono
 		// menzioni LEGITTIME — tre commenti che spiegano il rename e un test che verifica che l'identita' non
