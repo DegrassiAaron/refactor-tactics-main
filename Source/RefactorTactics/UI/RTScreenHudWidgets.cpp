@@ -160,6 +160,17 @@ const URTIconCatalogData* URTScreenHudWidgetBase::GetIconCatalog() const
 // Turn header
 // =====================================================================================================
 
+TArray<FRTPlayerEventLineView> URTPlayerEventLogWidget::GetFeed() const
+{
+	// ⚠️ **Il manager si passa, non si dereferenzia qui.** Leggere `GetTurnLog()` da questo file
+	// pretenderebbe il tipo completo di `ARTTurnManager`, e `#2257` ne ha tolto l'header di proposito:
+	// l'overload del view model paga la dipendenza dove gia' esiste. Il manager nullo lo gestisce li'.
+	// ⛔ **`GetPlayerTeamId()` e non un letterale**, ed e' la ragione per cui [D-242] ha centralizzato la
+	// domanda «di chi e' la vista?»: le copie divergenti che c'erano prima comprendevano un `PlayerTeamId = 0`
+	// scritto a mano che alimentava quattro filtri di privacy.
+	return URTHudViewModel::BuildPlayerEventFeed(GetTurnManager(), GetPlayerTeamId());
+}
+
 FRTMatchHeaderView URTTurnHeaderWidget::GetHeader() const
 {
 	// `BuildMatchHeader` gestisce gia' il manager nullo con una vista neutra: qui non serve una seconda

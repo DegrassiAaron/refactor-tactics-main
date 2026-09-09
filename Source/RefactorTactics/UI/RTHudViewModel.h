@@ -10,7 +10,11 @@
 // FRTDamageTokenView: vive in un header PROPRIO perche' `RTUnit.h` possa includerlo senza tirarsi
 // dietro il view-model — e' incluso quasi ovunque, e ogni dipendenza aggiunta li' si paga in tutto il modulo.
 #include "UI/RTDamageTokenView.h"
+// FRTPlayerEvent: la vista del feed ne porta l'importanza per valore, e la composizione consuma il tipo.
+#include "UI/RTPlayerEvent.h"
 #include "RTHudViewModel.generated.h"
+
+struct FRTTurnLogEntry;
 
 class AActor;
 class ARTTurnManager;
@@ -405,6 +409,61 @@ struct FRTAbilityCooldownView
 };
 
 /**
+ * Una riga del feed di chi gioca, pronta da disegnare — `#1936` §F, `#2697`.
+ *
+ * 🔑 **Il testo e' composto qui e il DOVE viaggia come cella**, e la separazione e' il confine di `#1936`
+ * §A. Una riga che stampasse `(q=-1,r=0,L=0) -> (q=1,r=0,L=0)` sarebbe diagnostica — resta a `#79` e al
+ * `TurnLog`, che questa vista non tocca. Il riferimento nel mondo lo dà `BlockerCell`, che chi disegna puo'
+ * marcare dove il giocatore sta gia' guardando.
+ *
+ * ⛔ **Nessun puntatore, nessun Actor.** Come ogni vista di questo file: un widget che potesse risalire
+ * all'unita' o al manager avrebbe il modo di ricalcolare, ed e' la porta che §4.1 chiude.
+ */
+USTRUCT(BlueprintType)
+struct FRTPlayerEventLineView
+{
+	GENERATED_BODY()
+
+	/** La frase che il giocatore legge. Mai vuota per una riga che arriva al feed. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Text;
+
+	/** Quanto in alto deve arrivare: il widget la usa per lo stile, non per decidere se mostrarla. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTPlayerEventImportance Importance = ERTPlayerEventImportance::Important;
+
+	/**
+	 * Di CHI parla la riga, come `StableUnitId`.
+	 *
+	 * ⚠️ Si conserva l'id invece di risolvere un nome, ed e' la convenzione gia' scelta da
+	 * `FRTDamageTokenView`: chi disegna confronta con lo `StableUnitId` della propria unita'. `INDEX_NONE`
+	 * e' «nessuno» — le voci di mondo non hanno un soggetto.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 PrimaryStableUnitId = INDEX_NONE;
+
+	/**
+	 * L'ostacolo da marcare nel mondo, quando la riga ne ha uno.
+	 *
+	 * ⚠️ **Va letta insieme a `bHasBlocker`, mai da sola**: la sentinella e' `Layer == INDEX_NONE`, e
+	 * `FRTCellId::IsValid()` non la riconosce — la cella «vuota» `(0,0,0)` supera l'invariante cubica, e un
+	 * binding ingenuo marcherebbe l'origine dell'arena a ogni riga senza ostacolo.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FRTCellId BlockerCell = FRTCellId(0, 0, INDEX_NONE);
+
+	/**
+	 * Vero se `BlockerCell` va disegnata.
+	 *
+	 * Esiste come **campo** e non come metodo perche' un binding di proprieta' UMG legge proprieta', non
+	 * chiama funzioni: senza, la decisione «e' una sentinella?» tornerebbe dentro il Blueprint, che e'
+	 * esattamente dove non deve stare.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bHasBlocker = false;
+};
+
+/**
  * Le viste che alimentano lo Screen HUD (§4.1 di `progettazione-hud.md`, CP 11.7).
  *
  * Statiche e pure per la stessa ragione per cui lo e' `ARTHUD::ComputePlannedHitMarks`: l'indipendenza dallo
@@ -432,6 +491,44 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static FRTMatchHeaderView BuildMatchHeader(const ARTTurnManager* TurnManager);
+
+	/**
+	 * Il feed di chi gioca, dal `TurnLog` canonico — `#1936` §C, e il consumatore che `#2697` misurava
+	 * mancante.
+	 *
+	 * 🔴 **Non c'e' un parametro «mostra tutto», e non e' una svista.** `ObserverTeamId` e' l'unica porta:
+	 * la funzione chiama `URTPlayerEventProjector::Project`, che applica l'autorizzazione come **primo**
+	 * passo. Un widget non ha modo di chiedere le righe non filtrate, perche' la firma non gliene offre
+	 * uno — la stessa proprieta' per cui `BuildTeamRoster` non puo' mostrare gli avversari.
+	 *
+	 * ⛔ **Non fa parsing di stringhe diagnostiche.** Consuma il `TurnLog` tipizzato e compone; il canale
+	 * testuale `GetRecentEventsForTeam` non entra in questa catena, e non deve — la sua riga porta
+	 * coordinate assiali e reason code, che `#1936` §A tiene fuori dallo schermo del giocatore.
+	 *
+	 * @param TurnLog          il log canonico, completo e non modificato.
+	 * @param ObserverTeamId   chi guarda. Fuori intervallo -> nessuna riga (fail-closed di `AllowsTeam`).
+	 */
+	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
+		int32 ObserverTeamId);
+
+	/**
+	 * Lo stesso feed, preso dal manager. `TurnManager` nullo -> nessuna riga.
+	 *
+	 * 🔑 **Esiste per non far pagare a `RTScreenHudWidgets.cpp` l'header dell'orchestratore**, che `#2257`
+	 * ne ha tolto: leggere `GetTurnLog()` da li' pretenderebbe il tipo completo, e la dipendenza tornerebbe
+	 * dentro il file dei widget. Qui l'header c'e' gia', e l'estrazione costa una riga.
+	 */
+	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
+		int32 ObserverTeamId);
+
+	/**
+	 * La frase di un singolo evento, esposta perche' e' la decisione che si sbaglia una volta sola.
+	 *
+	 * ⚠️ **Una tabella, non un `if` per sito.** Un tipo nuovo dell'enum non tradotto qui produce una riga
+	 * **vuota** nel feed, non un errore di compilazione: il `default` esiste per non far sparire la riga, e
+	 * il test `EventFeedShowsOnlyWhatTheObserverMaySee` verifica che il testo non sia mai vuoto.
+	 */
+	static FText ComposePlayerEventText(const FRTPlayerEvent& Event);
 
 	/**
 	 * Il contatore del round come si mostra: `Round N/L` con un formato in vigore, `Round N` senza.

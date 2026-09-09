@@ -106,7 +106,20 @@ namespace
 				OutImportance = ERTPlayerEventImportance::Important;
 				return true;
 
-			// `NoLineOfSight` e' il *perche'* di un colpo che non c'e' stato: diagnostica, non cronaca.
+			// 🔴 **`NoLineOfSight` E' cronaca, e fino a `#2697` questo ramo diceva il contrario.** La riga
+			// che stava qui — *«e' il perche' di un colpo che non c'e' stato: diagnostica, non cronaca»* —
+			// era vera finche' il giocatore aveva un altro modo di capire: guardare. Non ce l'ha, ed e' il
+			// caso particolare che `D-340` ha misurato — e' il muro stesso a velare il bersaglio, quindi
+			// non si vede ne' l'ostacolo ne' il nemico. Senza questo ramo l'azione dichiarata sparisce
+			// senza spiegazione, e `PIE-HEXPLAY-6` resta rossa.
+			//
+			// ⚠️ **Vale per QUESTO esito e non per la famiglia**: gli altri `Combat` non risolti restano
+			// diagnostica, perche' ciascuno lascia qualcosa da guardare.
+			case ERTCombatOutcome::NoLineOfSight:
+				OutType = ERTPlayerEventType::AttackBlocked;
+				OutImportance = ERTPlayerEventImportance::Important;
+				return true;
+
 			default:
 				return false;
 			}
@@ -163,6 +176,18 @@ namespace
 		// non ne ha nessuna. Abbassarlo a 20 per simmetria lo renderebbe l'unico dei due davvero muto.
 		// Che `Slid` meriti un tipo proprio resta aperto, ed e' fuori dal perimetro di `#2314`.
 		case ERTPlayerEventType::SlideBlocked:  return 30;
+		// Fra `MoveBlocked` e `SlideBlocked`, e i due confini hanno ragioni diverse (#2697).
+		//
+		// 🔴 **Sopra `Moved` perche' senza sarebbe MUTO**: un'unita' che si sposta e poi non riesce a
+		// sparare e' il turno ordinario di questo gioco, e col rango di `default` (`10`) la riga del
+		// movimento — `Minor`, quindi scartata alla fine — teneva lo slot e l'attacco bloccato spariva.
+		// Zero eventi, misurato da `AttackBlockedSurvivesAMoveInTheSameTurn`. E' lo stesso difetto che il
+		// commento di `SlideBlocked` qui sopra descrive, ripresentatosi identico per il tipo successivo.
+		//
+		// ⚠️ **Sotto `MoveBlocked` perche' spesso ne e' la CONSEGUENZA**: un'unita' fermata prima di
+		// arrivare in posizione non ha linea di tiro *per quello*, e §E vieta la narrazione doppia. La
+		// causa a monte e' la riga piu' utile delle due.
+		case ERTPlayerEventType::AttackBlocked: return 35;
 		case ERTPlayerEventType::Moved:         return 20;
 		default:                                return 10;
 		}
@@ -239,6 +264,20 @@ TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogE
 		// una cella, che [D-063] vieta.
 		Candidate.ActionId = Entry.ActionId;
 		Candidate.Amount = Entry.Amount;
+
+		// ⛔ **La cella si copia SOLO per `AttackBlocked`, e la guardia e' strutturale** (`#2697`). Copiarla
+		// per ogni voce sembrerebbe innocuo — oggi `SightBlockerCell` e' scritta in un sito solo, per questo
+		// esito — ma renderebbe il guardrail di `SlideBlocked` vero per **coincidenza** invece che per
+		// costruzione: basterebbe un secondo produttore che riempie il campo per un esito il cui blocker e'
+		// un'unita', e il feed nominerebbe una cella che nessun filtro di conoscenza ha esaminato.
+		//
+		// ⚠️ La cella non viene ne' ricalcolata ne' rifiltrata: `SightBlockerForLog` ha gia' deciso alla
+		// scrittura, e una seconda decisione qui sarebbe il secondo contratto di conoscenza che `#1936`
+		// vieta.
+		if (Type == ERTPlayerEventType::AttackBlocked)
+		{
+			Candidate.BlockerCell = Entry.SightBlockerCell;
+		}
 
 		if (UnitId == INDEX_NONE)
 		{

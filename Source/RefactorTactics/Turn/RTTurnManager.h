@@ -422,6 +422,20 @@ public:
 	void OnPlanningTimeoutForTest() { OnPlanningTimeout(); }
 
 	/**
+	 * Accoda una voce al `TurnLog` senza far girare un turno — `#2697`.
+	 *
+	 * 🔑 **Esiste perche' senza il test del consumatore sarebbe VACUO.** Un widget del feed interrogato su
+	 * un manager con log vuoto restituisce zero righe: indistinguibile da un widget che non legge affatto,
+	 * cioe' proprio il difetto che `#2697` misura. Con una voce iniettata, «zero righe per il non
+	 * autorizzato» diventa una prova del filtro invece che una prova dell'assenza.
+	 *
+	 * ⛔ **Non e' una porta di produzione.** Il `TurnLog` autorevole lo scrive `AppendLogEntry` durante la
+	 * risoluzione; questa aggiunge in coda e non tocca hash, versione o snapshot — un uso fuori dai test
+	 * inserirebbe una voce che nessun resolver ha prodotto.
+	 */
+	void AppendTurnLogEntryForTest(const FRTTurnLogEntry& Entry) { TurnLog.Add(Entry); }
+
+	/**
 	 * Hook per i test: quanti verdetti porta l'evento di movimento di questa unita' nella timeline risolta.
 	 *
 	 * 🔴 **Esiste perche' il predicato puro non basta a dimostrare il fix di `#1525`.**
