@@ -65,9 +65,18 @@ namespace
 	}
 
 	/**
-	 * Un turno intero: commit e risoluzione, come `RTCombatLogFixture::RunTurn` fa nel proprio file.
-	 * Il tick e' quello della risoluzione, non un'attesa: `IsResolving()` e' la condizione, il 400 e' il
-	 * tetto che impedisce a un difetto di diventare un test appeso.
+	 * Un turno intero: commit e risoluzione. Il tick e' quello della risoluzione, non un'attesa:
+	 * `IsResolving()` e' la condizione, il 400 e' il tetto che impedisce a un difetto di diventare un test
+	 * appeso.
+	 *
+	 * ⛔ **Non si riusa `RTWorldFixtures::PlayOneTurn`, e la ragione non e' la comodita'**: quella chiama
+	 * `PlanBotsForTest()` prima del commit, e i test di questo file **dichiarano il piano a mano**
+	 * (`PlannedAbilityIndex`, `PlannedAttackTarget`). Farlo ripianificare misurerebbe il bot, non il ciclo
+	 * del turno. Il corpo e' lo stesso di quel helper meno quella riga, ed e' la riga che conta.
+	 *
+	 * ⚠️ **Chi chiama verifica che il turno sia AVANZATO**, e non lo fa questo helper: `RTTurnManager.h`
+	 * avverte che una seconda `LockInAndResolve()` mentre `IsResolving()` e' ancora vero e' un **no-op
+	 * silenzioso**. Un test che non guardasse `GetTurnNumber()` racconterebbe di un lock-in mai avvenuto.
 	 */
 	void PlayOneMarksTurn(ARTTurnManager* TM)
 	{
@@ -122,19 +131,29 @@ bool FRTHUDAllyMarkFromPlanTest::RunTest(const FString&)
 
 	TSet<FRTCellId> Hit, Ally;
 	ARTHUD::ComputePlannedHitMarks({ Gadget, Phase, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
+
+	// ⛔ **Le celle si copiano PRIMA di distruggere il mondo.** Le asserzioni qui sotto leggevano
+	// `Branth->Cell` e `Phase->Cell` **dopo** `DestroyMarksWorld`, cioe' da Actor di un mondo gia'
+	// distrutto: funzionava solo perche' il GC non era ancora passato, e un giro di garbage collection
+	// fra le due righe — plausibile quando la suite esegue l'intero gruppo `RefactorTactics.HUD` — le
+	// avrebbe fatte leggere memoria liberata. Trovato dalla code review su `#2726`.
+	const FRTCellId CellaBranth = Branth->Cell;
+	const FRTCellId CellaPhase  = Phase->Cell;
+	const FRTCellId CellaGadget = Gadget->Cell;
+
 	DestroyMarksWorld(World);
 
 	// L'area di raggio 1 accende il bersaglio piu' i suoi vicini: piu' di una cella distingue «area» da
 	// «bersaglio singolo».
 	TestTrue(FString::Printf(TEXT("l'area e' accesa (celle: %d)"), Hit.Num()), Hit.Num() > 1);
-	TestTrue(TEXT("il bersaglio e' nella zona"), Hit.Contains(Branth->Cell));
-	TestTrue(TEXT("anche la cella di Phase e' nella zona"), Hit.Contains(Phase->Cell));
+	TestTrue(TEXT("il bersaglio e' nella zona"), Hit.Contains(CellaBranth));
+	TestTrue(TEXT("anche la cella di Phase e' nella zona"), Hit.Contains(CellaPhase));
 
 	// Il punto del test: l'ALLEATA e' segnalata come fuoco amico.
 	TestEqual(TEXT("una sola cella di fuoco amico"), Ally.Num(), 1);
-	TestTrue(TEXT("ed e' quella di Phase"), Ally.Contains(Phase->Cell));
+	TestTrue(TEXT("ed e' quella di Phase"), Ally.Contains(CellaPhase));
 	// Chi lancia non si segnala mai da solo.
-	TestFalse(TEXT("Gadget non e' marcato"), Ally.Contains(Gadget->Cell));
+	TestFalse(TEXT("Gadget non e' marcato"), Ally.Contains(CellaGadget));
 	return true;
 }
 
@@ -285,11 +304,22 @@ bool FRTHudBlockerMarksTest::RunTest(const FString&)
  * fine risoluzione, che sembra il posto naturale — spegnerebbe la spiegazione **prima** che il giocatore
  * abbia la possibilita' di leggerla, e nessun test cadrebbe.
  *
- * Le due meta' vanno tenute insieme, e la seconda e' quella che rende il test non vacuo:
- *   (1) dopo la risoluzione il feed NON e' vuoto  -> il segno c'e' quando serve;
- *   (2) dopo il lock-in successivo NON accumula   -> il segno non sopravvive alla sua ragione.
- * Con la sola (1) passerebbe anche un feed che non si spegne mai; con la sola (2) passerebbe un feed
- * sempre vuoto.
+ * Le due meta' vanno tenute insieme, e ciascuna copre il buco dell'altra:
+ *   (1) dopo la risoluzione la CELLA DEL MURO e' fra le marche -> il segno c'e' quando serve;
+ *   (2) subito dopo il commit del turno 2, e PRIMA dei tick    -> il segno e' gia' spento.
+ * Con la sola (1) passerebbe un segno che non si spegne mai; con la sola (2), un segno che non si accende.
+ *
+ * 🔑 **Il campionamento della (2) e' la parte non ovvia.** Leggere dopo la risoluzione del turno 2 non
+ * distinguerebbe `D-359` — *«si spegne quando il giocatore committa»* — da *«si spegne a fine risoluzione»*:
+ * entrambe darebbero zero. Fra `OnLockInCommitted.Broadcast()` e `TurnLog.Reset()` corrono quattro righe, e
+ * leggere in quell'istante e' l'unico modo di dire quale delle due regole vale.
+ *
+ * ⌫ **La prima stesura non provava niente di tutto questo**, ed e' stata trovata dalla code review: contava
+ * la lunghezza del feed su un montaggio senza muro e senza attacco, quindi non produceva **nessuna** riga
+ * con ostacolo e non chiamava mai `ComputeBlockerMarks`. Restava verde anche cancellando la riga che copia
+ * `BlockerCell` nel feed. E la sua premessa poggiava su un incidente: `SpawnMarksUnit` non inizializza
+ * `PlannedCell`, che resta `(0,0,0)`, quindi le due unita' «ferme» pianificavano entrambe l'origine e si
+ * contendevano la cella — le righe contate venivano da li'.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlockerMarkLivesUntilNextLockInTest,
 	"RefactorTactics.HUD.BlockerMarkLivesUntilNextLockIn",
@@ -299,7 +329,19 @@ bool FRTBlockerMarkLivesUntilNextLockInTest::RunTest(const FString&)
 	UWorld* World = MakeMarksWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
+	// ⚠️ **L'arena si controlla**: senza `MapAsset` l'actor genera il proprio esagono dimostrativo
+	// (`DemoRadius`), e il turno si risolverebbe su una topologia che nessuno ha dichiarato.
 	URTHexMapAsset* Asset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 4);
+	if (!TestNotNull(TEXT("arena di prova"), Asset)) { DestroyMarksWorld(World); return false; }
+
+	// Il MURO, ed e' cio' che rende questo test diverso da una misura di lunghezza del feed: la cella
+	// (0,0,0) nega la linea di tiro, quindi l'attacco pianificato sotto produce `NoLineOfSight` **con la
+	// cella bloccante** — l'unica voce da cui nasce un marcatore.
+	FRTHexCellData Muro(FRTCellId(0, 0, 0));
+	Muro.bBlocksLineOfSight = true;
+	Asset->AddOrUpdateCell(Muro);
+	Asset->SortCells();
+
 	ARTHexMapActor* Map = World->SpawnActor<ARTHexMapActor>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
 	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("turn manager"), TM))
@@ -309,52 +351,69 @@ bool FRTBlockerMarkLivesUntilNextLockInTest::RunTest(const FString&)
 	}
 	Map->MapAsset = Asset;
 
-	// Due unita' avversarie: basta che il turno produca voci di TurnLog, e due unita' che restano ferme
-	// ne producono. Il fenomeno sotto misura e' il CICLO, non l'esito.
-	ARTUnit* A = SpawnMarksUnit(World, TEXT("Hero.Gadget"), /*TeamId=*/ 0, FRTCellId(-1, 0, 0));
-	ARTUnit* B = SpawnMarksUnit(World, TEXT("Hero.Branth"), /*TeamId=*/ 1, FRTCellId(1, 0, 0));
-	if (!TestNotNull(TEXT("unita' A"), A) || !TestNotNull(TEXT("unita' B"), B))
+	ARTUnit* Gadget = SpawnMarksUnit(World, TEXT("Hero.Gadget"), /*TeamId=*/ 0, FRTCellId(-1, 0, 0));
+	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), /*TeamId=*/ 1, FRTCellId(1, 0, 0));
+	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Branth"), Branth))
 	{
 		DestroyMarksWorld(World);
 		return false;
 	}
 
-	// ── Turno 1: risolto. Da qui in poi il giocatore PIANIFICA il turno 2, ed e' la finestra in cui la
-	//    spiegazione di cio' che e' appena successo deve restare leggibile.
-	PlayOneMarksTurn(TM);
-	const int32 DuranteLaPianificazione =
-		URTHudViewModel::BuildPlayerEventFeed(TM, /*ObserverTeamId=*/ 0).Num();
+	// ⛔ **`PlaceOnCell`, non il solo `Cell`.** E' l'unico punto che inizializza anche `PlannedCell`: senza,
+	// resta al default `(0,0,0)` e ogni unita' pianifica in silenzio un movimento verso l'origine — due
+	// unita' che si contendono la stessa cella, esito `BlockedContested`, righe nel feed che nessuno ha
+	// chiesto. E' l'incidente su cui la prima stesura di questo test poggiava la propria premessa.
+	Gadget->PlaceOnCell(FRTCellId(-1, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+	Branth->PlaceOnCell(FRTCellId(1, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 
-	if (!TestTrue(TEXT("(1) il turno risolto lascia righe nel feed: il segno c'e' mentre si pianifica"),
-		DuranteLaPianificazione > 0))
+	// L'attacco che il muro nega: e' il fenomeno di `#2534`, e produce la voce che porta `SightBlockerCell`.
+	const int32 ArcPulse = MarksAbilityIndex(Gadget, TEXT("Hero.Gadget.ArcPulse"));
+	if (!TestTrue(TEXT("premessa: Gadget ha ArcPulse nel kit"), ArcPulse != INDEX_NONE))
+	{
+		DestroyMarksWorld(World);
+		return false;
+	}
+	Gadget->PlannedAbilityIndex = ArcPulse;
+	Gadget->PlannedAttackTarget = Branth;
+
+	// ── Turno 1: risolto per intero. Da qui il giocatore PIANIFICA il turno 2, ed e' la finestra in cui
+	//    la spiegazione di cio' che e' appena successo deve restare leggibile.
+	const int32 TurnoPrima = TM->GetTurnNumber();
+	PlayOneMarksTurn(TM);
+	if (!TestFalse(TEXT("premessa: il turno 1 si e' concluso, non e' rimasto in risoluzione"),
+			TM->IsResolving())
+		|| !TestTrue(TEXT("premessa: il turno e' avanzato"), TM->GetTurnNumber() > TurnoPrima))
 	{
 		DestroyMarksWorld(World);
 		return false;
 	}
 
-	// ── Turno 2: il giocatore ha committato. `LockInAndResolve` ha azzerato il TurnLog, e cio' che il
-	//    feed porta ora appartiene al turno NUOVO.
-	PlayOneMarksTurn(TM);
-	const int32 VociDelTurnoDue = TM->GetTurnLog().Num();
-	const int32 DopoIlLockIn =
-		URTHudViewModel::BuildPlayerEventFeed(TM, /*ObserverTeamId=*/ 0).Num();
+	// (1) IL SEGNO C'E', e si misura dove vive davvero: nelle marche, non nel numero di righe.
+	TSet<FRTCellId> DuranteLaPianificazione;
+	ARTHUD::ComputeBlockerMarks(
+		URTHudViewModel::BuildPlayerEventFeed(TM, /*ObserverTeamId=*/ 0), DuranteLaPianificazione);
+	if (!TestTrue(TEXT("(1) mentre si pianifica, la cella che ha fermato il tiro e' marcata"),
+		DuranteLaPianificazione.Contains(FRTCellId(0, 0, 0))))
+	{
+		DestroyMarksWorld(World);
+		return false;
+	}
 
-	// PREMESSA della seconda meta': il turno 2 ha prodotto esiti. Senza, «feed vuoto» sarebbe soddisfatto
-	// anche da un turno che non e' mai avvenuto, e l'asserzione sotto non misurerebbe il ciclo.
-	TestTrue(TEXT("premessa: anche il turno 2 ha prodotto voci di TurnLog"), VociDelTurnoDue > 0);
+	// ── (2) IL COMMIT, e NIENTE TICK. E' il campionamento che rende il test fedele al proprio nome:
+	//    `D-359` dice che il segno si spegne **quando il giocatore committa**, non a fine risoluzione.
+	//    Fra `OnLockInCommitted.Broadcast()` e `TurnLog.Reset()` corrono quattro righe; leggere qui — dopo
+	//    il commit e prima che la risoluzione dreni — e' l'unico istante che distingue le due regole.
+	//    🔴 Spostare il reset in coda alla risoluzione lascerebbe verde un test che campionasse dopo i
+	//    tick, e il marcatore sopravviverebbe a tutto il turno seguente.
+	TM->LockInAndResolve();
+	TSet<FRTCellId> SubitoDopoIlCommit;
+	ARTHUD::ComputeBlockerMarks(
+		URTHudViewModel::BuildPlayerEventFeed(TM, /*ObserverTeamId=*/ 0), SubitoDopoIlCommit);
+	TestEqual(TEXT("(2) al commit del turno 2 il segno e' gia' spento, non a fine risoluzione"),
+		SubitoDopoIlCommit.Num(), 0);
 
-	// 🔴 L'asserzione che vale il test, e il valore atteso e' ZERO — non «lo stesso numero di prima».
-	// ⚠️ **Misurato, non dedotto**: il turno 2 di questo montaggio produce voci di TurnLog ma **nessuna
-	// riga proiettabile** — sono movimenti che `Project` classifica minori e omette (`OmitsMinorMovement`).
-	// E' precisamente cio' che rende l'oracolo stretto: il feed **puo' essere vuoto solo se le righe del
-	// turno 1 sono sparite**. Se il TurnLog accumulasse — cioe' se il segno sopravvivesse al turno che lo
-	// ha prodotto — qui si leggerebbero ancora le 2 righe di prima, e un marcatore resterebbe acceso su
-	// una cella la cui ragione e' passata: un segno che non scade mente.
-	// ⌫ La prima stesura asseriva `DopoIlLockIn == DuranteLaPianificazione`, dando per scontato che due
-	// turni uguali producessero lo stesso numero di righe. Il test e' caduto con `2` atteso e `0` trovato:
-	// l'asserzione era sbagliata, non il codice.
-	TestEqual(TEXT("(2) le righe del turno 1 non sopravvivono al lock-in del turno 2"),
-		DopoIlLockIn, 0);
+	// Il turno 2 si drena: un TurnManager lasciato a meta' non e' uno stato che questo test debba produrre.
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
 
 	DestroyMarksWorld(World);
 	return true;
