@@ -573,10 +573,17 @@ public:
 	/**
 	 * Ferma la riproduzione **al prossimo confine di micro-step**, mai a meta' (`#1879`).
 	 *
-	 * ⚠️ Ferma cio' che si VEDE. La risoluzione e' gia' avvenuta per intero quando il playback comincia:
-	 * non esiste uno stato logico a meta' barriera da proteggere, ed e' giusto dirlo invece di difendersi
-	 * da un pericolo che non c'e'. Cio' che la regola protegge e' l'immagine — nessun mondo mostrato a
-	 * meta' di una barriera che il resolver ha deciso in blocco.
+	 * ⚠️ Ferma cio' che si VEDE, e cio' che si vede non e' piu' sempre un turno finito. Questa riga diceva
+	 * *«la risoluzione e' gia' avvenuta per intero quando il playback comincia: non esiste uno stato logico
+	 * a meta' barriera da proteggere»*, ed e' **falso dal 2026-09-08** (`#2679` fetta 3, [D-355]): con una
+	 * finestra di reazione aperta il playback scorre su un turno **risolto a meta'**, e lo stato logico a
+	 * meta' barriera esiste — vive in `PendingMovement`.
+	 *
+	 * 🔑 **Ma la conclusione operativa non cambia, e la ragione e' un'altra**: quello stato non lo protegge
+	 * questo metodo. Chi mette in pausa ferma `TickPlayback`, cioe' l'immagine; la simulazione sospesa e'
+	 * gia' ferma per conto suo — il ciclo non gira — e a tenerla ferma e' `bPlaybackHeldByWindow`, separato
+	 * da `bPlaybackPaused` apposta. Cio' che questa regola protegge resta l'immagine: nessun mondo mostrato
+	 * a meta' di una barriera.
 	 *
 	 * Senza controlli abilitati non fa nulla. Idempotente.
 	 */
