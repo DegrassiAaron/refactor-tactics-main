@@ -144,12 +144,18 @@ ERTTargetRefusal URTCombatLibrary::RefusalForObserver(ERTHexTargetReason Reason,
 		return ERTTargetRefusal::Cover;
 
 	case ERTHexTargetReason::NoMap:
-	default:
 		// ⚠️ Fail-closed, e per la stessa ragione di `ClassifyHexTargeting`: senza mappa autorevole la
 		// linea non e' verificabile, quindi non si afferma niente su di essa. `Nothing` qui non dice
 		// «non c'e' nessuno»: dice «non ho nulla da mostrarti», che e' l'unica cosa vera.
 		return ERTTargetRefusal::Nothing;
 	}
+
+	// ⛔ **Nessun `default:` nello switch, ed e' una scelta.** Con un `default` un enumerato nuovo
+	// scivolerebbe in silenzio su «non dire niente», e la feature perderebbe un caso con la suite verde.
+	// Senza, `-Wswitch` lo rende un errore di compilazione qui e ora — che e' cio' che il fail-closed di
+	// questa funzione dichiara di volere.
+	checkNoEntry();
+	return ERTTargetRefusal::Nothing;
 }
 
 bool URTCombatLibrary::CanTargetHexCell(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,

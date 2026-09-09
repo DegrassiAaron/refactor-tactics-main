@@ -1167,7 +1167,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	// sotto: anche quello e' una decisione del giocatore, e cancella cio' che rispondeva alla precedente.
 	if (ARTHUD* RefusalHud = Cast<ARTHUD>(GetHUD()))
 	{
-		RefusalHud->SetTargetRefusal(ERTTargetRefusal::None, FRTCellId(0, 0, INDEX_NONE));
+		RefusalHud->SetTargetRefusal(ERTTargetRefusal::None);
 	}
 
 	FHitResult Hit;
@@ -1435,6 +1435,23 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
 			TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells);
 
+		// 🔴 **NON SI BERSAGLIA CIO' CHE NON SI VEDE, e questa guardia chiude il canale PIU' RUMOROSO**
+		// (`#2741`). Il collider di un'unita' velata resta attivo (`#2755`), quindi un nemico invisibile e'
+		// cliccabile: se e' anche in portata e in linea, il ramo qui sotto pianificherebbe l'attacco e
+		// `RefreshPlanningPreview` disegnerebbe la zona colpita **sulla sua cella vera** — una posizione
+		// esatta a schermo, non una frase.
+		//
+		// ⚠️ **Il rifiuto testuale da solo non bastava, ed e' il difetto che una code review ha trovato in
+		// questa stessa issue**: filtrare il ramo del RIFIUTO e lasciare aperto quello del SUCCESSO chiude
+		// il canale silenzioso e lascia quello che grida.
+		//
+		// ⛔ L'uscita e' la stessa di una cella vuota: nessun piano e nessun messaggio. Non «non lo vedi»,
+		// che sarebbe di nuovo un rilevatore di presenze ([D-225]).
+		if (!ClickedUnit->IsKnownToObserver())
+		{
+			return;
+		}
+
 		if (bReady && Reason == ERTHexTargetReason::Ok)
 		{
 			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
@@ -1480,11 +1497,14 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 			// trace usa `ECC_Visibility`, la mesh lo blocca, e il velo spegne la visibilita' ma non la
 			// collisione. Un nemico invisibile e' quindi CLICCABILE, e senza questo filtro il rifiuto ne
 			// rivelerebbe la presenza a chi non lo osserva ([D-225]).
+			// ⚠️ **Il flag qui e' ridondante con la guardia sopra, e resta di proposito**: e' difesa in
+			// profondita'. Se qualcuno togliesse quella guardia — o aggiungesse un secondo percorso di
+			// targeting che non ce l'ha — questa riga continuerebbe a collassare il caso su `Nothing`.
+			// Toglierla renderebbe la sicurezza dipendente da un `return` a venti righe di distanza.
 			if (ARTHUD* Hud = Cast<ARTHUD>(GetHUD()))
 			{
 				Hud->SetTargetRefusal(
-					URTCombatLibrary::RefusalForObserver(Reason, ClickedUnit->IsKnownToObserver()),
-					ClickedUnit->Cell);
+					URTCombatLibrary::RefusalForObserver(Reason, ClickedUnit->IsKnownToObserver()));
 			}
 		}
 	}

@@ -54,13 +54,12 @@ FVector2D ARTHUD::ClampOverlayAnchor(const FVector2D& Anchor, float HalfWidth,
 	return FVector2D(X, Y);
 }
 
-void ARTHUD::SetTargetRefusal(ERTTargetRefusal Refusal, const FRTCellId& AtCell)
+void ARTHUD::SetTargetRefusal(ERTTargetRefusal Refusal)
 {
 	// Ogni click sostituisce il precedente, incluso il click che va a segno: `None` cancella. E' la
 	// durata dichiarata da `#2741` — il messaggio vive quanto la decisione che lo ha prodotto, e nessun
 	// timer decide al posto del giocatore.
 	LastRefusal = Refusal;
-	LastRefusalCell = AtCell;
 }
 
 /**
@@ -78,9 +77,13 @@ FString ARTHUD::RefusalText(ERTTargetRefusal Refusal)
 	case ERTTargetRefusal::Cover: return TEXT("Coperto: la linea di tiro e' interrotta");
 	case ERTTargetRefusal::Range: return TEXT("Troppo lontano per questa abilita'");
 	case ERTTargetRefusal::None:
-	case ERTTargetRefusal::Nothing:
-	default:                      return FString();
+	case ERTTargetRefusal::Nothing: return FString();
 	}
+
+	// ⛔ Nessun `default:`, come in `RefusalForObserver`: un esito nuovo deve rompere la build qui, non
+	// scivolare in silenzio sul silenzio.
+	checkNoEntry();
+	return FString();
 }
 
 void ARTHUD::ComputeBlockerMarks(const TArray<FRTPlayerEventLineView>& Feed,

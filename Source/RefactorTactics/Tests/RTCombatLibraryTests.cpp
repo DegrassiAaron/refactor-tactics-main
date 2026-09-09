@@ -463,10 +463,10 @@ bool FRTRefusalDistinguishesCoverFromRangeTest::RunTest(const FString&)
 		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::OutOfRange, bNoto),
 		ERTTargetRefusal::Range);
 
-	// 🔴 L'asserzione che rende il test non vacuo: i due esiti sono DIVERSI FRA LORO. Senza, un'implementazione
-	// che restituisse `Cover` per entrambi passerebbe le due righe qui sopra... no: le passerebbe solo se
-	// entrambe attendessero lo stesso valore. Questa riga lo dichiara comunque, perche' il requisito e' la
-	// DISTINZIONE, non i due valori presi uno alla volta.
+	// ⚠️ **Ridondante rispetto alle due righe sopra, e tenuta apposta come guardia di REGRESSIONE.** Quelle
+	// pinnano due costanti distinte, quindi nessuna implementazione puo' soddisfarle e insieme collassare i
+	// due esiti: questa riga non puo' cadere da sola. Vale perche' dichiara il REQUISITO — la distinzione —
+	// invece dei due valori presi uno alla volta, e sopravvive a una riscrittura che cambiasse le costanti.
 	TestNotEqual(TEXT("e i due non collassano l'uno sull'altro"),
 		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::NoLineOfSight, bNoto),
 		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::OutOfRange, bNoto));
