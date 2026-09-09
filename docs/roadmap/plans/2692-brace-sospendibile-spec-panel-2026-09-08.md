@@ -16,6 +16,9 @@
 > documento; C3 elencava due chiamanti su tre; C4 era contraddetto dal codice ed è stato declassato; **C9 è
 > nuovo** e nessuno del panel l'aveva visto. Le correzioni sono **in linea**, non in coda: un referto che
 > lascia in piedi la diagnosi sbagliata e la smentisce sotto è peggio di un referto sbagliato.
+> 🔴 **E una seconda correzione, dall'autore**: C7 negava che la cardinalità venisse dal profilo. `Brace` è
+> una **famiglia** di reazioni, non un'azione con un effetto proprio — le risposte le determinano le skill
+> del personaggio, e il filtro sugli effetti le *riduce*.
 > **Contesto**: la issue scorpora il **secondo** dei due siti che `D-355` nomina; il primo è arrivato con
 > [#2679](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2679).
 
@@ -274,9 +277,26 @@ duplicata»*.
 
 ## 7. C7 🟢 — l'esempio è ancorato all'eroe, e l'eroe è un dato di bilanciamento aperto
 
-Il caso è costruito su Phase perché è l'unico con cardinalità 2. Ma la cardinalità non viene dal profilo:
-viene dal filtro `Effects.Num() > 0` di `BraceExecutableResponses`, e il commento sopra il catalogo dichiara
-perché gli altri due profili sono vuoti:
+> 🔴 **Frase corretta dopo la revisione dell'autore.** Diceva *«la cardinalità **non** viene dal profilo:
+> viene dal filtro `Effects.Num() > 0`»*, e nega il modello: `Brace` è una **famiglia** di reazioni, non
+> un'azione con un effetto proprio, e **cosa** un'unità può fare nella finestra lo decidono le skill di
+> reazione che il personaggio porta. Il filtro non produce la cardinalità: la **riduce**.
+
+Il caso è costruito su Phase perché è l'unico con cardinalità 2. La cardinalità **viene dal profilo** — cioè
+dalle skill di reazione del personaggio — e `BraceExecutableResponses` la riduce a quella *eseguibile*
+scartando le risposte che il catalogo dichiara ma il resolver non sa ancora applicare (`Effects.Num() > 0`).
+`Hold Ground` resta in ogni profilo, universale: è **lei** la risposta che tiene la cella, e il suo esito è
+il ramo `Status.Braced` del resolver.
+
+| Personaggio | Profilo | Oltre a `Hold Ground` | Eseguibile |
+|---|---|---|---|
+| Phase | `Profile.Sidestep` | `SIDESTEP` — `SelfReposition 1` | ✅ → cardinalità **2** |
+| Gadget | `Profile.Grounding` | `GROUND` | ⛔ nessun effetto → cardinalità **1** |
+| Wraith | `Profile.Glance` | `GLANCE LEFT` / `GLANCE RIGHT` | ⛔ nessun effetto → cardinalità **1** |
+| Branth | — | — | cardinalità **1**, per costruzione |
+
+Le due assenze non sono lacune: il commento sopra il catalogo dichiara perché quelle risposte non contano
+ancora:
 
 > *«`spec-reaction-clash-e14.md` §2.5 e [D-132] dichiarano **aperti** "Charge del `Grounding`" e "ampiezza
 > della deviazione": sono bilanciamento … Finché restano aperti, `BraceExecutableResponses` non offre quelle
@@ -383,7 +403,7 @@ playback è inutilizzabile, quindi la coesione regge. Ma la stima va rifatta con
 | ⚠️ | **C5** forma della continuazione non decisa | dichiararla, o `BLOCKED — DECISION REQUIRED` | decisione |
 | ⚠️ | **C6** «non riesegue» falsificato solo sul danno | riformulare il criterio | 1 riga |
 | 🟢 | **C4** `FRTBlastContext` porta 15 raw `ARTUnit*` | vincolo di progetto nella issue | medio |
-| 🟢 | **C7** esempio ancorato all'eroe invece che alla cardinalità | nota nel piano di test | 1 riga |
+| 🟢 | **C7** esempio ancorato all'eroe invece che alla cardinalità del profilo | nota nel piano di test | 1 riga |
 | 🟢 | **C8** la voce PIE non nomina chi spinge, né che lo fa un bot | precondizione nella voce | 1 riga |
 
 **Punti ciechi del panel.** Due, e il primo è stato chiuso da qualcun altro.
@@ -422,3 +442,5 @@ I due gate che questo cambiamento può realmente far fallire, eseguiti sul commi
 * ⚠️ **Le misure di C1, C3, C4, C8 e C9 sono state rifatte** dopo la code review della
   [PR #2694](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2694): quattro erano sbagliate o
   incomplete, una mancava del tutto.
+* ⚠️ **C7 è stato corretto dopo la revisione dell'autore**: la frase che lo motivava negava il ruolo del
+  profilo di reazione, cioè il modello stesso del `Brace`.
