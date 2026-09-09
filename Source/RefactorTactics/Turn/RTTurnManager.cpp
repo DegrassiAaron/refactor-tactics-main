@@ -160,6 +160,11 @@ void ARTTurnManager::Tick(float DeltaSeconds)
  * non aveva chiamanti di produzione: il giorno in cui qualcosa avesse legato `OnReactionWindowOpened`, la
  * prima finestra aperta avrebbe fermato il turno **per sempre**.
  *
+ * ✅ **Quel giorno e' arrivato il 2026-09-09** (`#2723`): `URTReactionWindowViewModel::Hook` lega il
+ * delegate in partita, e questa funzione e' cio' che impedisce alla prima finestra di essere l'ultima. La
+ * previsione si registra invece di cancellarla — era esatta, ed e' il motivo per cui `#2717` e' venuta
+ * prima del cablaggio e non dopo.
+ *
  * ⛔ **Il tempo e' quello di gioco NON scalato**, ed e' il punto: la durata della finestra e'
  * server-authoritative (`#166` riga 59), quindi ne' la slow-motion ne' la velocita' scelta da chi guarda
  * la allungano. L'esito logico resta *scaduta / non scaduta* — nessun numero di secondi entra nella

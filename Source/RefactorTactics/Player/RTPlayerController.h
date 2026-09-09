@@ -9,6 +9,7 @@
 class UInputMappingContext;
 class UInputAction;
 class URTKnowledgeVeilPresenter;
+class URTReactionWindowViewModel;
 class ARTUnit;
 struct FInputActionValue;
 struct FRTHexSnapshot;
@@ -42,6 +43,22 @@ public:
 	 * e' il GameMode a spawnarlo.
 	 */
 	URTKnowledgeVeilPresenter* GetKnowledgeVeilPresenter();
+
+	/**
+	 * Il view model della finestra di reazione di QUESTO client (`#2723`, CP 14.6).
+	 *
+	 * 🔑 **Sta qui per la stessa ragione del velo, e non per simmetria**: la finestra e' una domanda posta a
+	 * **un** giocatore, e chi la riceve e' il client — non la partita. In multiplayer il GameMode e' uno solo
+	 * e sta sul server; chiedergli «a chi si apre la finestra?» sarebbe la domanda sbagliata non appena i
+	 * client sono due.
+	 *
+	 * ⚠️ **Non lo aggancia il controller**, per la ragione gia' scritta sopra: il `TurnManager` puo' non
+	 * esistere quando `BeginPlay` corre. L'aggancio e' di `ARTGameMode::HookReactionWindow`.
+	 *
+	 * ⛔ **E l'aggancio NON ha un ripiego senza proprietario**, a differenza del velo: legare il delegate
+	 * dove nessuno disegna e' esattamente cio' che `OnReactionWindowOpened.IsBound()` esiste per escludere.
+	 */
+	URTReactionWindowViewModel* GetReactionWindowViewModel();
 
 	/**
 	 * Il **piano attivo del giocatore**: il layer su cui hover e click risolvono la cella (`D-255`).
@@ -868,4 +885,13 @@ private:
 	 */
 	UPROPERTY(Transient)
 	TObjectPtr<URTKnowledgeVeilPresenter> KnowledgeVeilPresenter;
+
+	/**
+	 * Vedi `GetReactionWindowViewModel()`. `Transient` e `UPROPERTY` per la stessa ragione del velo — ma qui
+	 * il GC non toglierebbe una vista: toglierebbe il **binding**. `IsBound()` interroga il weak pointer del
+	 * delegate, quindi un view model raccolto spegnerebbe il ramo interattivo a partita in corso, e la
+	 * finestra tornerebbe a non aprirsi senza che niente lo segnali.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<URTReactionWindowViewModel> ReactionWindowViewModel;
 };
