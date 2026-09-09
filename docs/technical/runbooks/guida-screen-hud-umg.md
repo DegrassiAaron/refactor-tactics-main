@@ -27,7 +27,7 @@ e senza una ricetta scritta quell'ultimo passo si rifà a memoria ogni volta.
 | Viste sanitizzate (round, roster, slot, cooldown) | `URTHudViewModel` | ✅ |
 | Catalogo icone (chiave → asset) | `URTIconCatalogData` + `URTIconLibrary` + `Content/RT/UI/DA_IconCatalog.uasset` | 🟡 esiste, **indietro di una chiave** ([#2551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2551)); il consumo dai widget è [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) |
 | Il layer che lo mette a schermo | `URTFrontendNavigator::PresentMatchHud` | ✅ **dal 2026-08-26** (#613, Task 1) |
-| I `WBP_RT_*` di partita | `Content/RT/UI/Match/` | ✅ **esistono** — vedi §2; resta `WBP_RT_EventLog` ([#1936](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1936) §F) |
+| I `WBP_RT_*` di partita | `Content/RT/UI/Match/` | ✅ **esistono** — vedi §2; `WBP_RT_EventLog` esiste dal 2026-09-09 ma è un **guscio**: albero vuoto ([#2784](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2784)) |
 
 > 🔁 **Corretto il 2026-09-09.** Due righe di questa tabella descrivevano come futuro ciò che è già in
 > `main`, misurato su `a897de28`. **(1)** *«Catalogo icone — il `.uasset` no»*: `Content/RT/UI/DA_IconCatalog.uasset`
@@ -74,10 +74,12 @@ Crea ogni widget con **Widget Blueprint → scegli la classe padre**, non con il
 > l'identità di squadra, ed è anche il «secondo canale oltre al colore» che `D-146` chiede.
 
 > 🔁 **La tabella diceva «i sei» e ne elencava sei — il 2026-09-09 sono sette, e uno era già mancante prima.**
-> `WBP_RT_FastDecision` entra con [`#166`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) (CP 14.6). ⚠️ **Manca ancora `WBP_RT_EventLog`**, classe padre
-> `RTPlayerEventLogWidget`, che [`#2697`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697) ha portato in C++ senza che nessuno lo aggiungesse qui:
-> misurato, `Content/RT/UI/Match/` non lo contiene. Non è di questo checkpoint e resta al proprio owner —
-> è annotato perché una tabella che si dichiara completa e non lo è manda a cercare nel posto sbagliato.
+> `WBP_RT_FastDecision` entra con [`#166`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) (CP 14.6). ✅ **`WBP_RT_EventLog` ora esiste** (2026-09-09), classe padre
+> `RTPlayerEventLogWidget` ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)), ed è montato nella `RIGHT` al posto del pannello
+> unità, che dalla PR di [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) sta in `BOTTOM` dove §3 lo disegna.
+> ⚠️ **Ma è un guscio**: albero vuoto e nessun grafo, quindi a schermo non disegna niente. Il
+> completamento — radice, contenitore e il popolamento `GetFeed` → `ForEach` →
+> `AddChildToVerticalBox` come fa il roster — è [#2784](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2784).
 
 ---
 
@@ -91,8 +93,8 @@ Cinque zone — `TOP`, `LEFT`, `RIGHT`, `BOTTOM`, `CENTER`. Le prime quattro son
 │  TOP — TurnHeader                       │
 ├──────────┬───────────────────┬──────────┤
 │ LEFT     │  CENTER           │ RIGHT    │
-│ Team     │  nessun pannello  │ Selected │
-│ Roster   │  battlefield §4.2 │ UnitPanel│
+│ Team     │  nessun pannello  │ Event    │
+│ Roster   │  battlefield §4.2 │ Log      │
 │          │                   │          │
 ├──────────┴───────────────────┴──────────┤
 │  BOTTOM — SelectedUnitPanel + ActionDock│
@@ -103,7 +105,7 @@ Cinque zone — `TOP`, `LEFT`, `RIGHT`, `BOTTOM`, `CENTER`. Le prime quattro son
 |---|---|---|
 | `TOP` | `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer, objective | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) |
 | `LEFT` | `WBP_RT_TeamRoster` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2744) |
-| `RIGHT` | `WBP_RT_SelectedUnitPanel` — l'istanza si chiama `WBP_RT_SelectedUnitPanelRight` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
+| `RIGHT` | `WBP_RT_EventLog` — l'istanza si chiama `WBP_RT_EventLogRight`. ⚠️ **Montata ma vuota** ([#2784](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2784)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
 | `BOTTOM` | `WBP_RT_SelectedUnitPanel` (+ `WBP_RT_UnitCard`), `WBP_RT_ActionDock` (+ `WBP_RT_ActionSlot`), `WBP_RT_FastDecision` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) |
 | `CENTER` | ⛔ **NESSUN PANNELLO SCREEN-HUD STATICO** — battlefield e Tactical World Overlay §4.2 | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
 
