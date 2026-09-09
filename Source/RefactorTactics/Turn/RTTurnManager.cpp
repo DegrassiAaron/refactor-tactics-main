@@ -128,9 +128,92 @@ void ARTTurnManager::OpenFirstTurnAfterSetup()
 void ARTTurnManager::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	// 🔑 **L'orologio della finestra sta QUI, e non dentro `TickPlayback`** (`#2717`). Non e' una scelta di
+	// collocazione: e' l'unica che regge, e le altre sono vietate da decisioni accettate.
+	//
+	// ⛔ Dentro `TickPlayback` non girerebbe **mai**: la prima cosa che quella funzione fa con una finestra
+	// aperta e' uscire su `bPlaybackHeldByWindow`, e quel `return` esiste esattamente per il caso in cui
+	// l'orologio serve.
+	// ⛔ Sotto il `return` di `bPlaybackPaused` si fermerebbe con la pausa del giocatore, contro [D-351]:
+	// *«ESC non ferma il countdown della finestra»*, perche' *«cio' che in rete non potra' esistere e'
+	// fermare il tempo di tutti»*.
+	// ⛔ Col `Dt` di `TickPlayback` leggerebbe un tempo **scalato** da `EffectivePlaybackSpeed`, e [D-355]
+	// dichiara che [D-350] realizza la slow-motion della finestra scrivendo proprio `ViewerPlaybackSpeed < 1`:
+	// la finestra si allungherebbe **proprio mentre** la slow-motion e' attiva, contro `#166` riga 59.
+	//
+	// ⚠️ E sta **prima** di `TickPlayback` e fuori da `bIsResolving`: la finestra puo' essere aperta senza
+	// che il playback sia mai partito — `BeginPartialPlayback` lo avvia solo se la timeline non e' vuota.
+	TickReactionWindow(DeltaSeconds);
+
 	if (bIsResolving)
 	{
 		TickPlayback(DeltaSeconds);
+	}
+}
+
+/**
+ * Fa scorrere il countdown della finestra di reazione aperta, e la chiude quando scade (`#2717`).
+ *
+ * 🔑 **E' l'orologio che mancava.** `#2679` e `#2692` hanno costruito la sospensione ai due siti, ma
+ * `OpenWindowElapsed` era azzerato in quattro punti e incrementato in **zero**, e `ExpireReactionWindow`
+ * non aveva chiamanti di produzione: il giorno in cui qualcosa avesse legato `OnReactionWindowOpened`, la
+ * prima finestra aperta avrebbe fermato il turno **per sempre**.
+ *
+ * ⛔ **Il tempo e' quello di gioco NON scalato**, ed e' il punto: la durata della finestra e'
+ * server-authoritative (`#166` riga 59), quindi ne' la slow-motion ne' la velocita' scelta da chi guarda
+ * la allungano. L'esito logico resta *scaduta / non scaduta* — nessun numero di secondi entra nella
+ * decisione, che e' cio' che `Reactions.NoResolverWait` protegge.
+ *
+ * ⚠️ **La ri-simulazione non ha finestre da far scorrere**, e non serve un ramo che la nomini:
+ * `RecordedDecisions.Num() > 0` impedisce l'apertura a monte, quindi `OpenWindowOpportunityId` resta vuoto
+ * e questa funzione esce alla prima domanda.
+ *
+ * ⛔ **Chiudere puo' riprendere l'INTERO turno** — `ExpireReactionWindow` porta a `ResumeSuspendedResolution`
+ * — e va bene: e' la stessa strada che percorre una risposta umana. Se la ripresa riapre un'altra finestra,
+ * il suo `OpenWindowElapsed` nasce a zero e questo orologio riparte da capo.
+ */
+void ARTTurnManager::TickReactionWindow(float DeltaSeconds)
+{
+	if (!IsResolutionSuspended())
+	{
+		return;
+	}
+
+	// Quale dei due siti attende. Il `Brace` per primo, come in `SubmitReactionResponse`: il Blast si
+	// risolve prima del movimento, e la sua finestra tiene ferma la fase.
+	float* Elapsed = nullptr;
+	if (FRTBlastContext* Blast = PendingBlast.Get())
+	{
+		if (Blast->bSuspended && !Blast->Displacement.OpenWindowOpportunityId.IsEmpty())
+		{
+			Elapsed = &Blast->Displacement.OpenWindowElapsed;
+		}
+	}
+	if (!Elapsed)
+	{
+		if (FRTMovementResolutionContext* Move = PendingMovement.Get())
+		{
+			if (!Move->OpenWindowOpportunityId.IsEmpty())
+			{
+				Elapsed = &Move->OpenWindowElapsed;
+			}
+		}
+	}
+
+	if (!Elapsed)
+	{
+		return; // sospesa ma senza finestra aperta: nessun orologio da far scorrere
+	}
+
+	*Elapsed += DeltaSeconds;
+
+	// ⚠️ **`>=` e non `>`**: a `FastReactionDuration` esatti la finestra E' scaduta. Il contrario darebbe un
+	// frame di grazia che dipende dal frame rate, cioe' esattamente la dipendenza dal tempo reale che
+	// ADR-0004 §8 esclude.
+	if (*Elapsed >= GetFastReactionDuration())
+	{
+		ExpireReactionWindow();
 	}
 }
 

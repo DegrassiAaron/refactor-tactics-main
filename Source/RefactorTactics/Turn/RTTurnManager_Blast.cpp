@@ -2407,6 +2407,12 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					Ctx.Displacement.PendingOpportunity = BraceOpportunity;
 					Ctx.bSuspended = true;
 
+					// 🔑 **Il tick serve all'OROLOGIO, non al playback** (`#2717`): `SetActorTickEnabled(true)`
+					// vive in `BeginPlayback`, che `BeginPartialPlayback` chiama solo se la timeline non e'
+					// vuota. Un Blast che si sospende senza aver emesso nulla aprirebbe una finestra senza
+					// nessuno che la faccia scadere.
+					SetActorTickEnabled(true);
+
 					// Il DTO e' sanitizzato per la squadra di chi decide, come nell'altro sito.
 					const int32 OwnerTeamId = T->TeamId;
 					OnReactionWindowOpened.Execute(
