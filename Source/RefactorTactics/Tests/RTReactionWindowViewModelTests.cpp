@@ -1040,30 +1040,55 @@ bool FRTFastDecisionOptionForwardsIndexTest::RunTest(const FString&)
 	}
 	const FString IdAperta = TM->GetOpenReactionWindowId();
 
-	// --- 1. Ogni opzione riceve il PROPRIO indice, e la sicura e' riconosciuta -------------------------
+	// --- 1. LA VIA DI PRODUZIONE: `MakeOptionWidget`, cio' che il grafo chiama davvero ----------------
+	// 🔑 Il test costruisce i bottoni **come li costruisce il gioco**. Chiamare `SetOption` a mano
+	// proverebbe il figlio e lascerebbe scoperta la funzione che il grafo usa — dove vivono le tre
+	// decisioni che il grafo NON deve prendere: proprietario, indice, quale opzione e' la sicura.
+	TestEqual(TEXT("il conteggio delle opzioni coincide con la vista"),
+		Finestra->GetOptionCount(), Vista.Options.Num());
+
 	int32 Sicure = 0;
 	for (int32 i = 0; i < Vista.Options.Num(); ++i)
 	{
-		URTFastDecisionOptionWidget* Bottone = NewObject<URTFastDecisionOptionWidget>(World);
-		const bool bSicura = Vista.Options[i].Response == Vista.SafeResponse;
-		Bottone->SetOption(Finestra, Vista.Options[i], i, bSicura);
+		URTFastDecisionOptionWidget* Bottone =
+			Finestra->MakeOptionWidget(URTFastDecisionOptionWidget::StaticClass(), i);
+		if (!TestNotNull(*FString::Printf(TEXT("il bottone %d e' stato costruito"), i), Bottone))
+		{
+			continue;
+		}
 
 		TestEqual(*FString::Printf(TEXT("il bottone %d tiene il proprio indice"), i),
 			Bottone->OptionIndex, i);
 		TestFalse(*FString::Printf(TEXT("il bottone %d ha un'etichetta"), i),
 			Bottone->GetOptionLabel().IsEmpty());
-		Sicure += bSicura ? 1 : 0;
+		Sicure += Bottone->bIsSafeChoice ? 1 : 0;
 	}
 
-	// La scelta sicura e' UNA sola, e viene da `SafeResponse` — non dalla parola «HOLD».
-	TestEqual(TEXT("esattamente una opzione e' la scelta sicura"), Sicure, 1);
+	// 🔑 **La scelta sicura la marca il C++, e ne esiste UNA.** Viene da `SafeResponse`, non dalla
+	// parola «HOLD»: nel `Brace` si chiama `Hold Ground`, e un grafo che cercasse la parola sarebbe
+	// corretto oggi e sbagliato con la prima finestra che non e' un Overwatch.
+	TestEqual(TEXT("esattamente una opzione e' marcata come scelta sicura"), Sicure, 1);
 
-	// --- 2. LA MISURA: il click di UN bottone inoltra QUELL'indice -------------------------------------
+	// --- 2. FAIL-CLOSED: il grafo non puo' costruire un bottone che non ha una domanda ----------------
+	AddExpectedError(TEXT("FastDecision: opzione .* fuori range"), EAutomationExpectedErrorFlags::Contains, 0);
+	AddExpectedError(TEXT("FastDecision: nessuna classe"), EAutomationExpectedErrorFlags::Contains, 0);
+	TestNull(TEXT("indice fuori range non produce nessun bottone"),
+		Finestra->MakeOptionWidget(URTFastDecisionOptionWidget::StaticClass(), Vista.Options.Num()));
+	TestNull(TEXT("classe nulla non produce nessun bottone"),
+		Finestra->MakeOptionWidget(nullptr, 0));
+
+	// --- 3. LA MISURA: il click di UN bottone inoltra QUELL'indice -------------------------------------
 	// Si sceglie l'ultimo: con l'indice non catturato — il difetto che questo widget esiste per evitare —
 	// ogni bottone risponderebbe con l'ultimo, e un test sul primo non lo vedrebbe.
 	const int32 Ultimo = Vista.Options.Num() - 1;
-	URTFastDecisionOptionWidget* Premuto = NewObject<URTFastDecisionOptionWidget>(World);
-	Premuto->SetOption(Finestra, Vista.Options[Ultimo], Ultimo, /*bIsSafe=*/ false);
+	URTFastDecisionOptionWidget* Premuto =
+		Finestra->MakeOptionWidget(URTFastDecisionOptionWidget::StaticClass(), Ultimo);
+	if (!TestNotNull(TEXT("il bottone dell'ultima opzione esiste"), Premuto))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("ed e' davvero l'ultimo indice"), Premuto->OptionIndex, Ultimo);
 	Premuto->Choose();
 
 	TestTrue(TEXT("il click ha chiuso la finestra a cui rispondeva"),

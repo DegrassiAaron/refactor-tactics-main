@@ -11,6 +11,7 @@ class ARTTurnManager;
 class ARTUnit;
 class URTIconCatalogData;
 class URTReactionWindowViewModel;
+class URTFastDecisionOptionWidget;
 
 /**
  * Le classi BASE dei widget dello Screen HUD (§4.1 di `progettazione-hud.md`, CP 11.7 / #613).
@@ -550,6 +551,34 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Reaction")
 	void ChooseOption(int32 OptionIndex);
+
+	/** Quante risposte offre la finestra aperta. Zero quando non ce n'e' una. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
+	int32 GetOptionCount() const;
+
+	/**
+	 * Costruisce il bottone per l'opzione `OptionIndex`, gia' collegato a questa finestra.
+	 *
+	 * 🔑 **Esiste per tenere FUORI dal grafo tre cose che il grafo sbaglierebbe**, e ognuna ha un
+	 * precedente in questo file:
+	 *
+	 *  1. **il proprietario** — se il grafo dovesse passarlo, `URTFastDecisionWidget` diventerebbe un tipo che
+	 *     un Blueprint puo' maneggiare, e con esso una seconda porta su `ChooseOption` con un indice che non e'
+	 *     il proprio;
+	 *  2. **quale opzione e' la SICURA** — si decide confrontando con `SafeResponse`, non cercando la parola
+	 *     `HOLD`: nel `Brace` si chiama `Hold Ground`;
+	 *  3. **la risposta stessa** — che resta privata nel figlio e non attraversa mai il grafo.
+	 *
+	 * ⚠️ **La CLASSE arriva dal grafo e non da qui**, ed e' voluto: un percorso di `Content/` scritto in
+	 * C++ sarebbe un riferimento duro a un `.uasset` dentro il modulo, che questo progetto non ha in nessun
+	 * altro widget.
+	 *
+	 * ⛔ Indice fuori range o classe nulla -> `nullptr`, con una warning. Il chiamante e' un grafo: non deve
+	 * poter costruire un bottone che risponde per un'opzione che non esiste.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Reaction")
+	URTFastDecisionOptionWidget* MakeOptionWidget(
+		TSubclassOf<URTFastDecisionOptionWidget> OptionClass, int32 OptionIndex);
 
 	// -------------------------------------------------------------------------------------------------
 	// I VESTITI DEI BINDING — §4.3 della guida: *«tutte le funzioni delle basi sono `BlueprintPure`: si

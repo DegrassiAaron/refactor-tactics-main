@@ -41,6 +41,9 @@ namespace
 	// CP 14.6 (`#166`): la finestra di reazione. Il path entra QUI e non prima — questo file carica per
 	// path, e un path senza asset e' un test rosso che aspetta un file che nessuno ha creato.
 	const TCHAR* const FastDecisionPath = TEXT("/Game/RT/UI/Match/WBP_RT_FastDecision.WBP_RT_FastDecision_C");
+	// Il bottone di UNA risposta. Entra col proprio asset, come il fratello qui sopra.
+	const TCHAR* const FastDecisionOptionPath =
+		TEXT("/Game/RT/UI/Match/WBP_RT_FastDecisionOption.WBP_RT_FastDecisionOption_C");
 
 	/**
 	 * Vero se la proprieta' e' — o contiene — una `UTexture2D`.
@@ -202,11 +205,12 @@ bool FRTMatchWidgetsLoadTest::RunTest(const FString&)
 {
 	const TCHAR* const Paths[] = {
 		TacticalHudPath, TurnHeaderPath, TeamRosterPath, SelectedUnitPath,
-		ActionDockPath, ActionSlotPath, UnitCardPath, FastDecisionPath
+		ActionDockPath, ActionSlotPath, UnitCardPath, FastDecisionPath, FastDecisionOptionPath
 	};
 	const TCHAR* const Labels[] = {
 		TEXT("TacticalHUD"), TEXT("TurnHeader"), TEXT("TeamRoster"), TEXT("SelectedUnitPanel"),
-		TEXT("ActionDock"), TEXT("ActionSlot"), TEXT("UnitCard"), TEXT("FastDecision")
+		TEXT("ActionDock"), TEXT("ActionSlot"), TEXT("UnitCard"), TEXT("FastDecision"),
+		TEXT("FastDecisionOption")
 	};
 
 	for (int32 i = 0; i < UE_ARRAY_COUNT(Paths); ++i)
@@ -333,6 +337,8 @@ bool FRTMatchWidgetsDeriveFromCppBaseTest::RunTest(const FString&)
 		{ ActionDockPath,   TEXT("ActionDock"),        URTActionDockWidget::StaticClass() },
 		{ ActionSlotPath,   TEXT("ActionSlot"),        URTActionSlotWidget::StaticClass() },
 		{ FastDecisionPath, TEXT("FastDecision"),      URTFastDecisionWidget::StaticClass() },
+		{ FastDecisionOptionPath, TEXT("FastDecisionOption"),
+		                                               URTFastDecisionOptionWidget::StaticClass() },
 	};
 
 	for (const FExpected& E : Expected)
@@ -389,11 +395,12 @@ bool FRTMatchWidgetsDeclareNoTextureTest::RunTest(const FString&)
 {
 	const TCHAR* const Paths[] = {
 		TacticalHudPath, TurnHeaderPath, TeamRosterPath, SelectedUnitPath,
-		ActionDockPath, ActionSlotPath, UnitCardPath, FastDecisionPath
+		ActionDockPath, ActionSlotPath, UnitCardPath, FastDecisionPath, FastDecisionOptionPath
 	};
 	const TCHAR* const Labels[] = {
 		TEXT("TacticalHUD"), TEXT("TurnHeader"), TEXT("TeamRoster"), TEXT("SelectedUnitPanel"),
-		TEXT("ActionDock"), TEXT("ActionSlot"), TEXT("UnitCard"), TEXT("FastDecision")
+		TEXT("ActionDock"), TEXT("ActionSlot"), TEXT("UnitCard"), TEXT("FastDecision"),
+		TEXT("FastDecisionOption")
 	};
 
 	int32 Caricate = 0;

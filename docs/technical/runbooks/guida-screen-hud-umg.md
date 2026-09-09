@@ -363,22 +363,30 @@ indice — l'ultimo. Serve un widget figlio che **tenga il proprio indice**, ed 
 |---|---|---|
 | `WBP_RT_FastDecisionOption` | `RTFastDecisionOptionWidget` | un `Button` + un `Text Block`; il click chiama `Choose` |
 
-### Il grafo, in quattro nodi
-
-Nel Designer di **`WBP_RT_FastDecision`** implementa l'evento **`On Window Changed`**:
+### ✅ Il grafo — scritto il 2026-09-09
 
 ```text
 Event On Window Changed
   └─ OptionsBox → Clear Children
-  └─ Get Window → Options → ForEach (Element, Index)
-       └─ Create Widget (WBP_RT_FastDecisionOption)
-            └─ Set Option (Owner = self, Option = Element, Index = Index,
-                           bIsSafe = Element.Response == Get Window.SafeResponse)
-            └─ OptionsBox → Add Child
+  └─ ForEach i in range(Get Option Count)
+       └─ Make Option Widget (OptionClass = WBP_RT_FastDecisionOption, OptionIndex = i)
+       └─ OptionsBox → Add Child
 ```
 
-E dentro **`WBP_RT_FastDecisionOption`**: `OnClicked` del bottone → **`Choose`**. Nient'altro.
-Il testo del bottone si lega a **`Get Option Label`**, e lo stile «scelta sicura» a **`Is Safe Choice`**.
+E dentro **`WBP_RT_FastDecisionOption`**: `OnClicked` del bottone → **`Choose`**, e
+`Event On Option Changed` → `LabelText → Set Text (Get Option Label)`. Nient'altro.
+
+🔑 **Il grafo NON costruisce il bottone da sé, e non è una semplificazione.** La prima stesura di
+questa sezione chiedeva `Create Widget` + `Set Option(Owner, Option, Index, bIsSafe)`. Sarebbe stato il
+grafo a decidere tre cose che non deve toccare:
+
+1. **il proprietario** — e con esso una seconda porta su `Choose Option`, con un indice non suo;
+2. **quale opzione è la sicura** — che si decide confrontando con `SafeResponse`, non cercando `HOLD`;
+3. **la risposta** — che resterebbe visibile al grafo.
+
+`Make Option Widget` le tiene tutte e tre in C++, dove sono testate. ⚠️ La **classe** invece arriva dal
+grafo, ed è voluto: un percorso di `Content/` scritto in C++ sarebbe un riferimento duro a un `.uasset`
+dentro il modulo, che nessun altro widget di questo progetto ha.
 
 ### 🔴 Le tre regole che il C++ non può importi
 
