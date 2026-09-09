@@ -1081,24 +1081,32 @@ e questa tabella non ne aggiunge una quarta.
 producono **numeri di playtest** (G11 chiede di *avere* i numeri, non di centrarli), il corpus `Visual.*`
 (leggibilità, non consegnabilità — e la regola è già coperta dalle assertion), le voci di E34 e della v0.2.
 
+🔄 **La colonna «Oggi» è stata riallineata al registro il 2026-09-09** (`main = 5ab19332`, durante `#2534`).
+Era **stantia su sei voci su diciassette** — `PIE-HEXPLAY-4` ⏳→✅, `PIE-HEXPLAY-6` 🟡→❌, `PIE-FACING-1`
+🟡→✅, `PIE-HEXPLAY-10` 🟡→✅, `PIE-V01-LOG` 🟡→✅, `PIE-V01-ROSTER` 🟡→✅ — e in cinque casi su sei
+**dichiarava aperto ciò che era stato chiuso**, che è la forma di deriva più costosa: fa riaprire lavoro finito.
+⚠️ **Questa tabella è una copia, non l'originale**: l'unico owner del verdetto è
+[`test-manuali-pie.md`](../test-manuali-pie.md), e ogni icona qui va letta dalla **prima per posizione** nella
+cella di stato di quel file — una voce che ne elenca più d'una verrebbe contata verde.
+
 | Voce | Cosa gate | Oggi |
 |---|---|---|
 | `PIE-HEXPLAY-1` | la partita si allestisce su esagoni, unità sui centri-cella | ✅ |
 | `PIE-HEXPLAY-2` | selezione e cella sotto il cursore, **layer giusto** su multilivello | ✅ |
 | `PIE-HEXPLAY-3` | pianificazione entro budget, con anteprima visibile | ✅ |
-| `PIE-HEXPLAY-4` | risoluzione e playback senza deriva | ⏳ |
+| `PIE-HEXPLAY-4` | risoluzione e playback senza deriva | ✅ |
 | `PIE-HEXPLAY-5` | collisione simultanea, nessuna sovrapposizione | ✅ |
-| `PIE-HEXPLAY-6` | LOS esagonale, e che il giocatore capisca perché il colpo non parte | 🟡 |
+| `PIE-HEXPLAY-6` | LOS esagonale, e che il giocatore capisca perché il colpo non parte | ❌ |
 | `PIE-HEXPLAY-8` | **multilivello**: il movimento via arco, esplicitamente nominato da G10 | 🟡 |
 | `PIE-HEXPLAY-9` | HUD e anteprima piani sui centri esagonali | ✅ |
-| `PIE-FACING-1` | l'orientamento che si **vede** è quello che il resolver ha **usato** | 🟡 |
-| `PIE-HEXPLAY-10` | **partita completa fino alla vittoria** — è G10 | 🟡 |
+| `PIE-FACING-1` | l'orientamento che si **vede** è quello che il resolver ha **usato** | ✅ |
+| `PIE-HEXPLAY-10` | **partita completa fino alla vittoria** — è G10 | ✅ |
 | `PIE-CAM-START` | la partita si apre sulla propria squadra | ✅ |
 | `PIE-V01-MATCHEND` | **fine partita a tre vie**, a schermo, e `R` riavvia | ✅ |
 | `PIE-V01-HUD` | HUD di partita completo. Il **valore** del limite di round viene già dal formato (`RTHUD.cpp:403`), la **parola** no — `:405` stampa `"Turno"`, il DoD prescrive *round*. Resta sul Canvas: lo Screen HUD §4.1 di CP 11.7 (`#613`) avrà una voce propria | ✅ |
-| `PIE-V01-LOG` | combat log con reason code leggibili | 🟡 |
+| `PIE-V01-LOG` | combat log con reason code leggibili | ✅ |
 | `PIE-V01-INTENT` | intenti alleati e **nessun** intento avversario visibile | ✅ |
-| `PIE-V01-ROSTER` | i quattro eroi si sentono diversi da giocare | 🟡 |
+| `PIE-V01-ROSTER` | i quattro eroi si sentono diversi da giocare | ✅ |
 | `PIE-PREVIEW-AREA` | **leggibilità minima**: si capisce cosa si sta per colpire, prima del lock-in | ✅ |
 
 **17 voci: 10 verdi, 6 parziali, 1 aperta** — misurate col comando **ancorato** di §7, non contate a mano

@@ -3020,7 +3020,11 @@ sessions:
     shares_setup_with: []
     verifies: [PIE-HEXPLAY-6, PIE-HEXPLAY-8, PIE-V01-ROSTER, PIE-V01-LOG, PIE-VIS-SIGHTWALL,
                PIE-VIS-TWOLAYERS]
-    issues: [1246]
+    issues: [1246, 2476, 2534]
+    # ⌫ Diceva `[1246]` fino al 2026-09-09, e #1246 e' il difetto della vista a picco — non una issue che
+    # convochi questa seduta. Aggiunte le due che la convocano davvero: #2476 (la seduta stessa) e #2534,
+    # la cui DoD chiede la rigiudicazione di `PIE-HEXPLAY-6` e `PIE-VIS-SIGHTWALL` **su questo banco**.
+    # 🔑 La rigiudicazione e' **una sola**: si consuntiva in `test-manuali-pie.md`, mai in due issue.
     done_when: >-
       cinque voci hanno un esito reale nel registro, in un verso o nell'altro — tre del gate `G9`
       e le due che il 2026-09-04 hanno chiuso i due scenari `Visual.*` orfani.
@@ -3029,7 +3033,14 @@ sessions:
       **non e' osservabile in v0.1**, e non va contato fra gli esiti che questa seduta puo' produrre.
       La ragione e' una decisione e non una lacuna — [D-046] (`#282`) lascia `Action.ModifyArc` senza
       owner nel roster, quindi nessuna unita' puo' provocare il crollo e nessuna seduta puo' guardarlo.
-      Chiedere sei verdetti a chi ne puo' dare cinque e' un `done_when` che nessuno soddisfa ([#2549])
+      Chiedere sei verdetti a chi ne puo' dare cinque e' un `done_when` che nessuno soddisfa ([#2549]).
+      🔄 **E dal 2026-09-09 le voci aperte sono DUE, non cinque** — misurate in `test-manuali-pie.md`
+      leggendo la prima icona per posizione: `PIE-V01-ROSTER` ✅, `PIE-V01-LOG` ✅ e `PIE-VIS-TWOLAYERS` ✅
+      sono state chiuse nel frattempo. Restano ❌ `PIE-HEXPLAY-6` e ❌ `PIE-VIS-SIGHTWALL`, e
+      🔑 **sono la STESSA rigiudicazione**: stesso banco `Visual.Map.SightWallIsWalkable`, stessa apertura,
+      un giudizio solo — la [DoD di #2534](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2534)
+      le nomina insieme per questo. ∴ questa seduta oggi vale **un'apertura per un verdetto**, ed e' il suo
+      residuo reale
     unblocks: []
     steps: |
       Una apertura, cinque giudizi — il ③ non ne produce, vedi li'. Lo scenario si cambia da console con PIE **fermo** — cambiare
@@ -3063,6 +3074,24 @@ sessions:
       sovrappongono — ma `Visual.Map.SightWallIsWalkable`, il muro che si attraversa.
       ⛔ E il velo entra nella misura: `VeilInstances` porta a scala **zero** i volumi delle celle mai
       viste ([D-225]), quindi una cella non osservata non mostra nulla **per progetto**.
+      🔄 **AGGIORNATO il 2026-09-09, e cambia la domanda che questo passo pone.** Le due righe qui sopra
+      chiedevano *«se la lastra, alta 10 cm, si legga a camera obliqua»*: dopo [D-340] quella domanda **non
+      ha piu' un esito utile** — la decisione ha scelto la via *(b)* e ha rinunciato per iscritto ad alzare
+      `RTSightSlabHeight`, quindi un «no» sulla lastra e' il risultato **atteso** e non un difetto da aprire.
+      ⚠️ **E la premessa e' cambiata di nuovo dopo il verdetto negativo del 2026-09-09**: la PR #2707
+      (`063ab898`, mergiata alle 05:02 UTC — **47 minuti dopo** quel verdetto) fa marcare a schermo, da
+      `ARTHUD::ComputeBlockerMarks`, la cella che ha fermato il tiro. Il verdetto *«non ci sono riferimenti
+      video, solo log»* e' stato emesso su una build che **non conteneva il marcatore**.
+      🔑 **La domanda da porre ora**, e le prime due meta' hanno gia' un oracolo headless:
+      la riga nomina la cella (`CombatLog.SightBlockerAppearsInTheLine`) · quella cella e **nessun'altra**
+      e' marcata (`HUD.BlockerMarksOnlyNameableCells`) · **e chi guarda collega la riga al segno senza
+      sapere in anticipo cosa cercare** — che e' l'unica meta' che vuole un occhio.
+      ⛔ **Dichiarare commit e binario accanto al verdetto**, non solo lo scenario: la misura del 2026-09-04
+      diceva *«il muro si vede»* perche' guardava la colonna da 55 cm credendo di guardare la lastra da 10,
+      e cio' che mancava accanto a quel verdetto era proprio l'oggetto misurato.
+      ⚠️ Il feed **testuale** non disegna ancora — manca `WBP_RT_EventLog.uasset`, fetta **F** di #1936 —
+      quindi la riga si legge in `Window -> Output Log`: se il verdetto resta ❌ per questa ragione, il
+      residuo appartiene a quella fetta, non a #2534.
 
       **③ `PIE-HEXPLAY-8` — NIENTE DA GUARDARE. Salta al ④.**
       ⛔ **Questo passo prescriveva una verifica impossibile fino al 2026-09-08** ([#2549]). Diceva:
