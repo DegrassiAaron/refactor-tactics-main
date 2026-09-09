@@ -329,6 +329,40 @@ Misurato con due file di prova: riscrivendone uno da capo, l'elenco dei percorsi
 
 Il motore è **uno solo per macchina**: due run in parallelo, o una build lanciata sotto una suite altrui, si distruggono le misure a vicenda. Non c'è più un lease che lo impedisca — accordati prima.
 
+> 🔑 **Cosa si calpesta davvero, misurato il 2026-09-09.** La riga qui sopra è la cautela giusta, ma è più
+> larga del fatto — e la differenza conta, perché su questa macchina convivono più cloni
+> (`refactor-tactics-main`, `-dev`, `-designer`, più i worktree) e più sessioni che compilano e misurano a
+> rotazione.
+>
+> **Non si calpestano**: una build in un clone e una suite in un altro. `Binaries/` è **per clone** — ogni
+> checkout e ogni worktree ha il proprio `Binaries/Win64/UnrealEditor-RefactorTactics.dll` — quindi una
+> build non riscrive il modulo che un'altra suite ha caricato, e `-WaitMutex` serializza le invocazioni di
+> UBT.
+>
+> ⚠️ **E regge per una condizione dichiarata, non per fortuna**: il motore è una **installed build**
+> (`D:/EpicGames/UE_5.8/Engine/Build/InstalledBuild.txt` esiste), quindi UBT tratta i moduli Engine come
+> read-only e un target di progetto non può riscriverli. Misurato: `UnrealEditor.exe` e
+> `UnrealEditor-Engine.dll` erano del **2026-07-31** dopo due build di progetto dello stesso giorno.
+>
+> 🔴 **Si calpestano ancora**, e queste restano vere:
+> * due run nello **stesso** clone o worktree — stesso `Binaries/`;
+> * un Editor aperto sullo stesso clone: tiene il DLL, e la build fallisce o gli cambia il modulo sotto;
+> * **qualunque cosa tocchi l'Engine** — se `InstalledBuild.txt` sparisce, o si compila un target Engine,
+>   l'argomento qui sopra decade **per intero**;
+> * le misure di **performance**: la contesa di CPU/GPU cambia i tempi anche quando la correttezza tiene.
+>   Per un gate di pacing, «il motore è libero» resta un prerequisito.
+>
+> Come si verifica, prima di dichiarare una misura valida contro una run altrui:
+>
+> ```powershell
+> Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select ProcessId, CommandLine
+> Test-Path "D:/EpicGames/UE_5.8/Engine/Build/InstalledBuild.txt"      # installed build?
+> Get-Item "<clone-altrui>/Binaries/Win64/UnrealEditor-RefactorTactics.dll" | Select Length, LastWriteTime
+> ```
+>
+> ⛔ **La `CommandLine` non è un dettaglio**: dice **quale clone** sta girando, ed è l'unica cosa che
+> distingue «una suite altrui» da «la mia». Un conteggio di processi non lo dice.
+
 Dopo una lunga attesa, ricompila prima di registrare il risultato: il DLL presente sul disco potrebbe provenire da un altro commit.
 
 Prima del merge verifica che il gate appartenga al commit che stai mergiando.
@@ -408,6 +442,33 @@ Usi tipici:
 PIE non sostituisce build, Automation Test o Scenario Harness quando questi sono richiesti.
 
 Se PIE/MCP non può essere eseguito per limiti dell'ambiente o per ownership concorrente, riportare `NOT RUN` con il motivo invece di simulare il risultato.
+
+> 🔴 **`write_graph_dsl` NON è il gemello di `read_graph_dsl`: il giro non torna, e la differenza si paga
+> in silenzio.** Misurato il 2026-09-09 su `WBP_RT_TeamRoster`.
+>
+> `read_graph_dsl` serializza i **pin dinamici** — quelli che un nodo guadagna dopo che una sua input è
+> stata assegnata, come il `Card` che `CreateWidget` espone quando `Class` punta a un widget con variabili
+> *expose on spawn*. `write_graph_dsl` quegli stessi pin li **rifiuta**:
+>
+> ```
+> UserInterface|CreateWidget received 3 positional arg(s) but has 2 data input pin(s).
+>   Available: ['Class', 'OwningPlayer']
+> ```
+>
+> e la forma a keyword non aiuta: `Unknown input pin "Card"`.
+>
+> ⛔ **Quindi non si rilegge un grafo e lo si riscrive per "aggiungere un ramo".** Il risultato compila,
+> nessuno strumento protesta, e i pin dinamici che c'erano prima **spariscono** — nel caso misurato,
+> ogni carta del roster sarebbe nata vuota, con un rosso che nessun test esistente produce.
+>
+> **Come si fa invece**: scrivere col DSL la struttura **senza** quei pin, poi ricablarli con
+> `connect_pins`, e **verificare uno per uno** con `get_node_infos` che l'origine sia quella giusta —
+> `find_nodes` restituisce i nodi in ordine di creazione, non di semantica, e due `CreateWidget` scambiati
+> danno carte con i dati dell'altra squadra senza che nulla fallisca.
+>
+> ⚠️ Vale per **ogni** nodo con pin dipendenti da una classe: `CreateWidget`, `SpawnActor`, i cast, le
+> chiamate a funzioni con parametri wildcard. Prima di riscrivere un grafo, chiediti se qualche pin di
+> quel grafo esiste solo perché un'altra input è già assegnata.
 
 Per ogni uso Editor/MCP:
 

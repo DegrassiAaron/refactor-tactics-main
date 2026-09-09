@@ -216,13 +216,24 @@ Rules:
 
 - three logical roles do NOT mean exactly three fixed terminal windows;
 - DEV parallelism only exists when work is really separable;
-- Unreal is an exclusive machine resource;
+- Unreal is an exclusive machine resource — but see the measured boundary below;
 - opening a terminal does not acquire Unreal;
 - `.uasset/.umap` have one writer;
 - MAIN hosts the machine MCP bridge when current accepted policy says so;
 - RT Coordinator routes work but is not a fourth implementation role.
 
 Do not resolve workspace taxonomy conflicts by inference.
+
+🔑 **"Exclusive" is the caution, not the fact — and planning on the caution alone stalls work that
+could proceed.** Measured 2026-09-09: a build in one clone does **not** invalidate a suite running in
+another, because `Binaries/` is per-clone and the engine is an *installed build*
+(`Engine/Build/InstalledBuild.txt`), so project targets cannot rewrite Engine modules. Still
+exclusive: two runs in the **same** clone, an Editor holding that clone's DLL, anything touching the
+Engine, and every **performance** measurement. When planning parallelism, allocate by **clone**, not
+by "the machine". `AGENTS.md` §9 owns the rule and the verification commands.
+
+⚠️ And when checking who holds Unreal, read the process `CommandLine`: it names the clone. A count of
+processes does not distinguish another session's suite from your own.
 
 ---
 
