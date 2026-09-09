@@ -115,7 +115,7 @@ di *«il dock non c'è»*, e la passata di debug avrà prodotto una diagnosi sba
 dei due nodi. Se sono segnaposto, si ferma qui e si apre la issue: montare un widget non è lavoro di questa
 strumentazione.
 
-### 1.2 🔴 `ZoneBottom` è disegnata fuori dallo schermo — misurato
+### 1.2 ✅ `ZoneBottom` era disegnata fuori dallo schermo — corretto
 
 `RefactorTactics.ScreenHud.PanelsLeaveTheCenterFree`, alla sua prima esecuzione (2026-09-09), ha misurato
 le quattro zone del Canvas radice a 1920×1080:
@@ -127,10 +127,14 @@ ZoneLeft     anchors=(0.00,0.00)-(0.00,1.00) align=(0.00,0.00)  ->  X 0..280    
 ZoneBottom   anchors=(0.00,1.00)-(1.00,1.00) align=(0.00,0.00)  ->  X 0..1920      Y 1080..1280 (1920x200)
 ```
 
-⛔ **`ZoneBottom` comincia dove lo schermo finisce.** Ancorata al bordo inferiore con `Alignment.Y = 0`,
+⛔ **`ZoneBottom` cominciava dove lo schermo finisce.** Ancorata al bordo inferiore con `Alignment.Y = 0`,
 l'origine resta *sul* bordo invece di risalire della propria altezza: la zona occupa `Y 1080..1280`, cioè
 duecento pixel **sotto** la viewport. Tutto ciò che contiene — `ActionDock` e il `SelectedUnitPanel` in
-basso — non è visibile in partita. La correzione è `Alignment.Y = 1`, che la riporta a `Y 880..1080`.
+basso — non era visibile in partita. La correzione è `Alignment.Y = 1`, che la riporta a `Y 880..1080`.
+
+✅ **Applicata il 2026-09-09** con `UnrealEditor-Cmd -run=pythonscript` sul clone principale
+([#2759](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2759), `6225f50b`): sullo stesso
+binario, `24 Success · 1 Fail` con la correzione contro `23 · 2` senza — chiude esattamente il proprio rosso.
 
 🔑 **Questo spiega il sintomo meglio di §1.1, e va tenuto separato da esso.** «Il dock non si vede» ha ora
 due cause candidate e indipendenti: i nodi della zona bassa potrebbero essere segnaposto (§1.1) **e** la
@@ -166,10 +170,11 @@ Non è un numero sacro: è un numero **scritto**, che si discute in una issue in
 `Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp`) misura le zone del Canvas radice con la stessa
 formula che `SConstraintCanvas::OnArrangeChildren` applica a runtime, e fallisce nominando la zona che
 invade e di quanto.
+✅ **Ha trovato un difetto alla prima esecuzione** — `ZoneBottom` fuori viewport (§1.2), corretta da
+[#2759](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2759) — e da allora è verde.
 
-⛔ **Oggi è ROSSO su `main`, e per un difetto vero**: `ZoneBottom` fuori viewport (§1.2). Non va reso verde
-allargando la soglia — va reso verde correggendo l'`Alignment` dell'asset. Il resto della suite
-`RefactorTactics.ScreenHud` è verde, quindi il rosso è isolato e attribuito.
+⚠️ **Se torna rosso non va spento allargando la soglia**: la soglia è il contratto, e un pannello che la
+tocca è un pannello da spostare.
 
 🔑 **Il criterio del centro libero, da solo, non bastava** — ed è la lezione che questo test ha imparato
 alla prima esecuzione. Una zona fuori schermo *lascia* il centro libero, e passava. Il gate verifica perciò
@@ -438,9 +443,8 @@ Voci verificabili da una macchina:
 * [ ] `bShowDebug` torna `false` su tutti gli asset toccati (§8-bis punto 7);
 * [ ] `git status --short` mostra solo gli asset previsti;
 * [ ] Blueprint compile green;
-* [ ] `RefactorTactics.ScreenHud.PanelsLeaveTheCenterFree` verde — ⛔ **oggi non lo è**, e non per colpa dei
-      decorator: `ZoneBottom` è fuori viewport (§1.2). Questa casella non si spunta prima che #613 abbia
-      corretto l'asset, e **non si spunta allargando la soglia**;
+* [ ] `RefactorTactics.ScreenHud.PanelsLeaveTheCenterFree` verde — e **non si spunta allargando la
+      soglia**: se un decorator la fa cadere, è il decorator a essere invasivo;
 * [ ] stessi rettangoli con debug ON e OFF;
 * [ ] suite `RefactorTactics.ScreenHud` ≥ baseline di §0.3.
 
