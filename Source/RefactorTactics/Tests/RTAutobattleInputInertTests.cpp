@@ -187,6 +187,22 @@ namespace
 		B.Branth = SpawnInertUnit(B.World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-1, 0, 0));
 		B.Enemy  = SpawnInertUnit(B.World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, 0, 0));
 
+		// 🔴 **L'avversaria e' pianificata dal BOT, e il banco deve dirlo** (`#2193`, estensione 2026-09-07).
+		//
+		// `SpawnInertUnit` mette `bIsBotControlled = false` su tutte, e per la squadra 0 e' giusto; per la
+		// squadra 1 e' una configurazione che nessuna partita reale produce — `RTMatchBootstrapper.cpp:322`
+		// scrive `(TeamId == 1) || Config.bAutobattle || bBotAlly`, quindi l'avversaria e' **sempre** al bot.
+		//
+		// ⚠️ **Perche' e' diventato osservabile solo adesso**: da questa estensione il countdown parte dal
+		// QUORUM dei partecipanti che possono dichiarare Ready, e un'avversaria non marcata bot conta come un
+		// secondo essere umano che non ha ancora premuto. Il controllo A di `LockInDoesNotCloseTheTurn`
+		// misurava quindi una partita a due giocatori credendo di misurarne una normale.
+		//
+		// ⛔ **Nessun asserto e' stato indebolito**: cambia il MONDO, che ora e' quello del gioco, non la
+		// domanda. E l'avversaria qui serve solo da BERSAGLIO (`HandleClickOnUnitForTest`), che
+		// `bIsBotControlled` non tocca: quel flag decide chi si puo' *comandare*, non chi si puo' colpire.
+		if (B.Enemy) { B.Enemy->bIsBotControlled = true; }
+
 		B.GameMode = B.World->SpawnActor<ARTGameMode>();
 		B.PC = B.World->SpawnActor<ARTPlayerController>();
 		return B;

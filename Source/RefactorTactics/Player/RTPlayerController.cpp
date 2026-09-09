@@ -1741,7 +1741,16 @@ void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 			// lo stesso. Le due chiamate sono idempotenti: la sede della regola e' una,
 			// `EnsureTurnPresentationSubscriptions`, e `AddUniqueDynamic` le rende innocue a ripetersi.
 			EnsureTurnPresentationSubscriptions(TurnManager);
-			TurnManager->RequestLockIn();
+
+			// 🔴 **Il Ready si risolve da CHI COMANDA, non dall'unita' selezionata** (`#2193`, estensione
+			// 2026-09-07). La selezione qui non compare, e l'assenza e' il punto: questo tasto arriva anche
+			// senza niente selezionato — sopra c'e' scritto — e farlo dipendere dalla selezione riaprirebbe la
+			// domanda *«quale dei due Hero e' Ready?»*, che con un Player che ne comanda due non ha risposta.
+			//
+			// 🔑 Le due chiamate sono l'unica porta che esista per squadra e gruppo, ed e' la stessa che usano
+			// i filtri di privacy: nessun identificatore nuovo, nessuna copia locale del ripiego.
+			TurnManager->DeclareParticipantReady(
+				ARTPlayerState::TeamIdOf(this), ARTPlayerState::ControlGroupOf(this));
 		}
 	}
 }
@@ -2110,7 +2119,11 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 	{
 		if (TM->IsReadyCountdownActive())
 		{
-			TM->CancelLockIn();
+			// Simmetrico del Ready: toglie il consenso a CHI COMANDA, e con esso il countdown che quel
+			// consenso aveva armato. Il piano non si tocca — e' la meta' del criterio di `#2193` che dice
+			// *«si torna alla pianificazione senza aver perso il piano»*.
+			TM->WithdrawParticipantReady(
+				ARTPlayerState::TeamIdOf(this), ARTPlayerState::ControlGroupOf(this));
 			return;
 		}
 	}
