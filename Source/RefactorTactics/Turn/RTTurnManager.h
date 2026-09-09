@@ -464,6 +464,17 @@ public:
 	int32 ResolvedReactionCountForTest(int32 ReactorStableUnitId) const;
 
 	/**
+	 * Hook per i test: quanti eventi contiene la timeline di questo turno (`#2692`).
+	 *
+	 * 🔴 Stessa ragione degli accessori qui sopra — `ResolvedTimeline` e' privato — con una in piu': cio'
+	 * che va sorvegliato e' che al momento in cui una finestra si apre la timeline **non sia vuota**.
+	 * [D-355] colloca la finestra dentro il playback perche' chiedere una scelta su uno schermo che non ha
+	 * mostrato nulla e' il difetto che quella decisione chiude, e senza questo accessore la proprieta'
+	 * sarebbe giudicabile solo a schermo.
+	 */
+	int32 ResolvedTimelineCountForTest() const { return ResolvedTimeline.Num(); }
+
+	/**
 	 * Hook per i test: gli eventi `StatusChanged` emessi in questo turno (`#2245`).
 	 *
 	 * 🔴 Stessa ragione dell'accessore qui sopra — `ResolvedTimeline` e' privato e la presentazione e'
