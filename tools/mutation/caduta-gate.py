@@ -182,7 +182,14 @@ MUTAZIONI = [
         "file": "Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp",
         "cerca": r"(\w*ApplyFallEffects\w*\([^;]*\);)",
         "sostituisci": r"/* MUT2 */ ;",
-        "bersagli": ["RefactorTactics.Fall.SaturatedLandingAppliesFallEffects"],
+        # ⚠️ **Due, non uno.** Sopprimere `ApplyFallEffects` toglie anche l'impatto sull'occupante: i due
+        # test cadono insieme perche' passano dalla stessa chiamata. Dichiararne uno solo lascerebbe che il
+        # secondo smetta di accorgersene senza che nessuno lo veda — la stessa lacuna che `4-sovrapposizione`
+        # aveva prima di dichiarare tutti e sei i propri. Misurato il 2026-09-09.
+        "bersagli": [
+            "RefactorTactics.Fall.SaturatedLandingAppliesFallEffects",
+            "RefactorTactics.Fall.OccupiedLandingAppliesImpact",
+        ],
     },
     {
         "id": "3-ordine-adiacente",
