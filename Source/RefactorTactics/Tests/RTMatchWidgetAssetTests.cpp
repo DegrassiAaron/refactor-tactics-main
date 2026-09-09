@@ -438,4 +438,88 @@ bool FRTMatchWidgetsDeclareNoTextureTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **I TRE BINDING DELLA FINESTRA SONO COLLEGATI, E AI NODI GIUSTI** (CP 14.6, `#166`, voce 3).
+ *
+ * 🔑 **Esiste perche' il cablaggio e' lavoro a mano, e il difetto che teme e' SILENZIOSO.** I tre vestiti
+ * (`GetWindowVisibility` · `GetCountdownText` · `GetPromptText`) vivono in C++ e sono coperti da test; ma
+ * *quale* funzione finisce su *quale* proprieta' lo decide chi apre il Designer, in tre menu a tendina. Un
+ * `Visibility` collegato al countdown invece che all'apertura e' **esattamente il difetto `F7`** — il
+ * prompt sparisce mentre il gioco aspetta ancora, e la risposta mancata diventa un `HoldTimeout`
+ * indistinguibile da una scelta. A schermo si vede come «a volte il bottone non c'e'»; nella suite, senza
+ * questo test, non si vede affatto.
+ *
+ * ⚠️ **L'oracolo e' `Class->Bindings`, ed e' quello GIUSTO qui — a differenza del caso raccontato piu'
+ * su.** `ActionDockConsumesArmedIndex` cercava property binding dove il dock usa il **grafo**, e sbagliava
+ * meccanismo. Qui il meccanismo prescritto **e'** il property binding (`guida-screen-hud-umg.md` §4.3 e
+ * §7-bis), quindi `FDelegateRuntimeBinding` e' la sede in cui la risposta deve comparire. La lezione di
+ * quel caso resta applicata: prima di accusare l'asset, si controlla che l'oracolo misuri il meccanismo.
+ *
+ * ⛔ **Fallisce finche' i binding non ci sono, ed e' voluto**: e' il segnale di «fatto» per chi apre il
+ * Designer. Per questo atterra INSIEME all'asset cablato, non prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFastDecisionBindingsWiredTest,
+	"RefactorTactics.ScreenHud.FastDecisionBindingsAreWiredToTheRightNodes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTFastDecisionBindingsWiredTest::RunTest(const FString&)
+{
+	UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(FastDecisionPath);
+	if (!TestNotNull(TEXT("WBP_RT_FastDecision si carica"), Class))
+	{
+		return false;
+	}
+
+	struct FAtteso
+	{
+		const TCHAR* Widget;    // `ObjectName` del binding: il widget nell'albero
+		const TCHAR* Proprieta; // la proprieta' legata
+		const TCHAR* Funzione;  // il vestito C++ che la alimenta
+		const TCHAR* Perche;
+	};
+
+	const FAtteso Attesi[] = {
+		{ TEXT("WindowRoot"), TEXT("Visibility"), TEXT("GetWindowVisibility"),
+		  TEXT("la visibilita' segue l'APERTURA; legata al countdown sarebbe il difetto F7") },
+		{ TEXT("CountdownText"), TEXT("Text"), TEXT("GetCountdownText"),
+		  TEXT("il countdown viene dall'orologio autorevole, non da un contatore del widget") },
+		{ TEXT("PromptText"), TEXT("Text"), TEXT("GetPromptText"),
+		  TEXT("l'etichetta viene dal C++, che sa di non poter nominare il bersaglio") },
+	};
+
+	for (const FAtteso& A : Attesi)
+	{
+		const FDelegateRuntimeBinding* Trovato = Class->Bindings.FindByPredicate(
+			[&A](const FDelegateRuntimeBinding& B)
+			{
+				return B.ObjectName == A.Widget && B.PropertyName == FName(A.Proprieta);
+			});
+
+		if (!Trovato)
+		{
+			AddError(FString::Printf(
+				TEXT("`%s` non ha un binding su `%s`. Va collegato a `%s` nel Designer — %s. ")
+				TEXT("La ricetta e' in `docs/technical/runbooks/guida-screen-hud-umg.md` §7-bis."),
+				A.Widget, A.Proprieta, A.Funzione, A.Perche));
+			continue;
+		}
+
+		// 🔑 **La meta' che conta: non «c'e' un binding», ma «e' collegato alla funzione GIUSTA».** Un
+		// binding presente e sbagliato e' peggio di uno assente — a schermo sembra funzionare.
+		TestEqual(
+			*FString::Printf(TEXT("`%s.%s` e' alimentata da `%s` (%s)"),
+				A.Widget, A.Proprieta, A.Funzione, A.Perche),
+			Trovato->FunctionName, FName(A.Funzione));
+	}
+
+	// Senza questa riga il ciclo sarebbe verde anche su un asset senza un solo binding, perche' `AddError`
+	// non ferma l'iterazione e `TestEqual` non viene mai raggiunto.
+	TestTrue(
+		*FString::Printf(TEXT("l'asset dichiara almeno i tre binding attesi (ne ha %d)"),
+			Class->Bindings.Num()),
+		Class->Bindings.Num() >= UE_ARRAY_COUNT(Attesi));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
