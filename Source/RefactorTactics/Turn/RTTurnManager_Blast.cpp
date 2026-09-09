@@ -2003,7 +2003,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 	// regola dichiara.
 	//
 	// ⛔ **Non applica `Prone`.** Nel repository *«la caduta»* e' gia' `D-319`, ed e' un'altra cosa: le due
-	// regole non si fondono (`spec` §5.1). Chi e' `Unbalanced` e cade le attraversa entrambe, e l'ordine e'
+	// regole non si fondono (`spec` §5.2). Chi e' `Unbalanced` e cade le attraversa entrambe, e l'ordine e'
 	// quello del resolver — `CadeSeSbilanciato` agisce sullo spostamento, questa su cio' che accade dopo.
 	auto Cade = [Map, &Units](ARTUnit* T, const FRTCellId& Arresto, const FRTCellId& Sorgente,
 		int32 Distanza, bool bAllontana, const TArray<FRTCellId>& Occupate, FRTCellId& OutFinale,
