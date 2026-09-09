@@ -2066,6 +2066,47 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		return true;
 	};
 
+	// #2430 — gli EFFETTI della caduta, e i due helper che li applicano.
+	//
+	// 🔑 **Stanno qui, non dentro il ramo della spinta**: la trazione e' in un blocco separato e non li
+	// vedrebbe. Sono la stessa regola per entrambe — `spec` §3 dice **spostamento forzato**, non «spinta».
+	//
+	// ⛔ **`ImpattoSuPrimario` non riceve l'occupante, lo DERIVA.** L'esito dice se il primario era
+	// occupato — `FellToAlternative` e `FellToLastStable` significano esattamente quello — e
+	// `FindLandingCell` e' pura: stesso ciglio, stesso primario. Propagarlo come out-param avrebbe
+	// richiesto una sentinella su `FRTCellId`, e `(0,0,0)` e' una cella VALIDA.
+	auto CellaOccupata = [&Units](const FRTCellId& Cella)
+	{
+		for (ARTUnit* U : Units)
+		{
+			if (IsValid(U) && U->IsAlive() && U->Cell == Cella) { return true; }
+		}
+		return false;
+	};
+	auto ImpattoSuPrimario = [this, Map, &Units](ARTUnit* Caduto, ERTMoveOutcome Esito,
+		const FRTCellId& Ciglio)
+	{
+		if (Esito != ERTMoveOutcome::FellToAlternative && Esito != ERTMoveOutcome::FellToLastStable)
+		{
+			return; // il primario era libero, o non esisteva: nessuno da centrare
+		}
+		FRTCellId Primario;
+		if (!URTHexLedgeLibrary::FindLandingCell(Map, Ciglio, Primario))
+		{
+			return;
+		}
+		for (ARTUnit* U : Units)
+		{
+			if (IsValid(U) && U != Caduto && U->Cell == Primario)
+			{
+				// ⚠️ **Senza `Exposed`, ed e' semantica**: significa *«hai perso l'equilibrio»*, e chi stava
+				// fermo non l'ha perso. Prende l'urto, non il marchio ([D-357]).
+				ApplyFallEffects(U, /*bMarchia=*/ false, ERTMatchPhase::Blast);
+				return;
+			}
+		}
+	};
+
 	// --- Ancoraggio (CP 7.5, `#505`): il punto di valutazione degli SPOSTAMENTI ----------------------
 	// Spinte e trazioni sono decise — raccolte in `KnockCount`/`PullCount` — e non ancora applicate. E' il
 	// solo momento in cui `Reaction.Anchor` puo' annullarle: dopo, annullare vorrebbe dire rimettere indietro
@@ -2130,6 +2171,8 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		TArray<ARTUnit*>& KTargets = Ctx.Displacement.Targets;
 		TArray<FRTCellId>& KFinal = Ctx.Displacement.Final;
 		TMap<ARTUnit*, ERTMoveOutcome>& KEsito = Ctx.Displacement.Esito;
+		// #2430: e il ciglio con lui — vedi `FRTDisplacementPassState::Ciglio`.
+		TMap<ARTUnit*, FRTCellId>& KCiglio = Ctx.Displacement.Ciglio;
 		TSet<const ARTUnit*>& Sidestepped = Ctx.Displacement.Sidestepped;
 		TArray<ARTUnit*>& BlastAliveUnits = Ctx.Displacement.AliveUnits;
 
@@ -2512,6 +2555,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				&& Atterraggio != T->Cell)
 			{
 				KTargets.Add(T); KFinal.Add(Atterraggio); KEsito.Add(T, Esito);
+				KCiglio.Add(T, Dest);
 			}
 			else if (Dest != T->Cell) { KTargets.Add(T); KFinal.Add(Dest); KEsito.Add(T, Esito); }
 			else
@@ -2546,6 +2590,28 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				// cella restano entrambi fermi. Era il piu' muto dei sei — nemmeno una riga di combat log.
 				AppendDisplacementResistedEntry(KTargets[a], ERTDisplacementBlockReason::ContestedDestination,
 					&PushCause);
+
+				// 🔑 **[D-358]: la discesa non avviene, gli EFFETTI si'.** Due cadute che si contendono lo
+				// stesso atterraggio non scendono — ma sono cadute, e `spec` §5 dice che gli effetti non sono
+				// la posizione. Prima di #2430 restavano sulla cella di PARTENZA senza subire niente: due
+				// unita' spinte oltre un bordo che non si muovevano affatto.
+				//
+				// ⚠️ **Il ciglio e' condizionale**: puo' essere occupato — da una terza unita', o da un'altra
+				// che ci finisce in questo stesso Blast — e allora l'unita' resta dov'e'. E' cio' che rende
+				// l'invariante §4.3.1 vero SENZA eccezioni invece che vero salvo un caso.
+				ARTUnit* Conteso = KTargets[a];
+				const ERTMoveOutcome* EsitoConteso = KEsito.Find(Conteso);
+				if (EsitoConteso != nullptr && EsitoEUnaCaduta(*EsitoConteso))
+				{
+					const FRTCellId* Ciglio = KCiglio.Find(Conteso);
+					if (Ciglio != nullptr && *Ciglio != Conteso->Cell && !CellaOccupata(*Ciglio))
+					{
+						ApplyForcedDisplacement(Conteso, *Ciglio, KnockFrom[Conteso], PushCause, TEXT("Caduta"),
+							Map, ERTMatchPhase::Blast, *EsitoConteso);
+					}
+					ApplyFallEffects(Conteso, /*bMarchia=*/ true, ERTMatchPhase::Blast);
+					if (Ciglio != nullptr) { ImpattoSuPrimario(Conteso, *EsitoConteso, *Ciglio); }
+				}
 				continue;
 			}
 
@@ -2557,6 +2623,14 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause,
 				bCaduto ? TEXT("Caduta") : (bScartato ? TEXT("Scarto") : TEXT("Spinta")),
 				Map, ERTMatchPhase::Blast, Esito);
+
+			// #2430: gli effetti DOPO lo spostamento, cosi' la voce nomina la cella dove l'unita' e' finita
+			// e non quella da cui e' partita.
+			if (bCaduto)
+			{
+				ApplyFallEffects(T, /*bMarchia=*/ true, ERTMatchPhase::Blast);
+				if (const FRTCellId* CiglioT = KCiglio.Find(T)) { ImpattoSuPrimario(T, Esito, *CiglioT); }
+			}
 
 			// ⛔ **Lo SCARTO non fa cadere, ed e' una scelta dichiarata.** `Sidestep` e' una risposta di
 			// reazione riuscita — il bersaglio esce dalla linea *invece* di arretrare — e la spinta non ha
@@ -2582,6 +2656,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		TArray<ARTUnit*> PTargets;
 		TArray<FRTCellId> PFinal;
 		TMap<ARTUnit*, ERTMoveOutcome> PEsito; // #2402 cade come la spinta, #2403 dice anche COME
+		TMap<ARTUnit*, FRTCellId> PCiglio;     // #2430: e #2430 le da' gli stessi effetti
 		for (ARTUnit* T : Units)
 		{
 			const int32* Pulls = PullCount.Find(T);
@@ -2627,6 +2702,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				&& Atterraggio != T->Cell)
 			{
 				PTargets.Add(T); PFinal.Add(Atterraggio); PEsito.Add(T, Esito);
+				PCiglio.Add(T, Dest);
 			}
 			else if (Dest != T->Cell) { PTargets.Add(T); PFinal.Add(Dest); PEsito.Add(T, Esito); }
 			else
@@ -2659,6 +2735,21 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				// spinti.
 				AppendDisplacementResistedEntry(PTargets[a], ERTDisplacementBlockReason::ContestedDestination,
 					&PullCause);
+
+				// [D-358] anche qui: la discesa non avviene, gli effetti si'.
+				ARTUnit* ContesoP = PTargets[a];
+				const ERTMoveOutcome* EsitoP = PEsito.Find(ContesoP);
+				if (EsitoP != nullptr && EsitoEUnaCaduta(*EsitoP))
+				{
+					const FRTCellId* CiglioC = PCiglio.Find(ContesoP);
+					if (CiglioC != nullptr && *CiglioC != ContesoP->Cell && !CellaOccupata(*CiglioC))
+					{
+						ApplyForcedDisplacement(ContesoP, *CiglioC, PullToward[ContesoP], PullCause,
+							TEXT("Caduta"), Map, ERTMatchPhase::Blast, *EsitoP);
+					}
+					ApplyFallEffects(ContesoP, /*bMarchia=*/ true, ERTMatchPhase::Blast);
+					if (CiglioC != nullptr) { ImpattoSuPrimario(ContesoP, *EsitoP, *CiglioC); }
+				}
 				continue;
 			}
 
@@ -2668,6 +2759,14 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			const bool bCaduto = EsitoEUnaCaduta(Esito);
 			ApplyForcedDisplacement(T, PFinal[a], PullToward[T], PullCause,
 				bCaduto ? TEXT("Caduta") : TEXT("Trazione"), Map, ERTMatchPhase::Blast, Esito);
+
+			// #2430: `spec` §3 dice **spostamento forzato**, non «spinta» — una caduta da trazione applica
+			// gli stessi effetti. E' la stessa ragione per cui `PullOverOpenLedgeStartsFall` esiste.
+			if (bCaduto)
+			{
+				ApplyFallEffects(T, /*bMarchia=*/ true, ERTMatchPhase::Blast);
+				if (const FRTCellId* CiglioP = PCiglio.Find(T)) { ImpattoSuPrimario(T, Esito, *CiglioP); }
+			}
 			CadeSeSbilanciato(T);
 		}
 	}

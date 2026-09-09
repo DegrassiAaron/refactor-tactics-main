@@ -95,6 +95,16 @@ struct FRTDisplacementPassState
 	/** Chi e' caduto e con QUALE esito (`#2402`, `#2403`): serve al solo verbo della voce di TurnLog. */
 	TMap<ARTUnit*, ERTMoveOutcome> Esito;
 
+	/**
+	 * Il CIGLIO da cui ciascuno e' caduto — `LastStableCell` (`#2430`).
+	 *
+	 * 🔑 **Sta qui per la stessa ragione di `Esito`**: si calcola nel primo ciclo e si legge nel
+	 * secondo, e fra i due c'e' il punto di sospensione di `#2692`. Da locale si perderebbe alla
+	 * ripresa, e con lei l'unico modo di ritrovare il primario occupato — che [D-357] usa per gli
+	 * effetti d'impatto e [D-358] per ripiegare la caduta contesa.
+	 */
+	TMap<ARTUnit*, FRTCellId> Ciglio;
+
 	/** Chi si e' spostato per SCELTA e non per la spinta ([D-047]): un `SIDESTEP` non e' «spinto». */
 	TSet<const ARTUnit*> Sidestepped;
 

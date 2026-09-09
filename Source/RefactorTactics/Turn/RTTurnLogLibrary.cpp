@@ -115,6 +115,7 @@ bool URTTurnLogLibrary::IsEnvironmentalDamage(const FRTTurnLogEntry& Entry)
 	//    Un `CaseSensitive` qui sarebbe verde in automation e falso nel pacchettizzato.
 	const FString Causa = Entry.ActionId.ToString();
 	if (Causa.StartsWith(TerrainCausePrefix(), ESearchCase::IgnoreCase)
+		|| Causa.StartsWith(FallCausePrefix(), ESearchCase::IgnoreCase)
 		|| Entry.ActionId == TAG_Status_Burning.GetTag().GetTagName())
 	{
 		return true;
