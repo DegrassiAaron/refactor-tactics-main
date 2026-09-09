@@ -299,15 +299,42 @@ gate — **non lo incontrerebbe**.
 
 Lo scheletro non è la finestra. Restano da fare, e sono lavoro d'autore:
 
-1. **I binding**: `WindowRoot.Visibility` ← `Is Window Open`; `CountdownText.Text` ← `Get Remaining Seconds`
-   formattato; `PromptText.Text` ← il bersaglio della finestra;
+1. **I tre binding** — tre menù a tendina, e i nodi da scegliere sono **esattamente** questi:
+
+   | Widget | Proprietà | Funzione da collegare |
+   |---|---|---|
+   | `WindowRoot` | **Visibility** | `Get Window Visibility` |
+   | `CountdownText` | **Text** | `Get Countdown Text` |
+   | `PromptText` | **Text** | `Get Prompt Text` |
+
+   ⛔ **Non collegare `Visibility` al countdown.** È la scorciatoia che viene in mente per prima ed è il
+   difetto **F7**: i due orologi non hanno lo stesso tick, il numero tocca lo zero **prima** che la finestra
+   si chiuda, e il prompt sparirebbe mentre il gioco sta ancora aspettando. La risposta mancata diventa un
+   `HoldTimeout` che nel TurnLog è indistinguibile da una scelta deliberata.
+
 2. **Il popolamento di `OptionsBox`**: un bottone per elemento di `GetWindow().Options`, con
    `Choose Option(indice)` sul click — vedi le quattro regole qui sopra;
 3. **L'aspetto**: colori, font, ingombro, e la posizione dentro `WBP_RT_TacticalHUD`. ⚠️ Il **centro libero**
    di §3 vale anche per questa finestra: §4.2 disegna path e AoE sopra la mappa.
 
-✅ Il gate headless copre già il **contratto** — parent class, caricamento, nessuna texture. Ciò che resta
-è esattamente ciò che solo `PIE-V01-OVERWATCH` può guardare.
+### ✅ Come sapere di aver collegato i nodi giusti
+
+```bash
+"D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
+  "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
+  -ExecCmds="Automation RunTests RefactorTactics.ScreenHud.FastDecisionBindingsAreWiredToTheRightNodes;Quit" \
+  -unattended -nopause -nosplash -nullrhi -NoLiveCoding -log
+```
+
+`RefactorTactics.ScreenHud.FastDecisionBindingsAreWiredToTheRightNodes` legge `Class->Bindings` e verifica
+le **tre triplette** widget → proprietà → funzione. Finché non le trovi è rosso, e l'errore nomina il widget,
+la proprietà, la funzione mancante e la ragione.
+
+🔑 **La metà che conta non è «c'è un binding», è «è collegato alla funzione giusta»**: un binding presente e
+sbagliato è peggio di uno assente, perché a schermo sembra funzionare.
+
+✅ Gli altri gate headless coprono il **contratto** — parent class, caricamento, nessuna texture. Ciò che
+resta dopo questi due è esattamente ciò che solo `PIE-V01-OVERWATCH` può guardare.
 
 ---
 
