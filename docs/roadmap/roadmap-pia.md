@@ -78,8 +78,43 @@ Applicata all'audit del 2026-09-06, ha tolto cinque voci dal lavoro previsto.
 | Privacy degli intenti — **offline**, sul DTO | `G8` ✅ 2026-08-24, rimisurato 2026-08-29 su `bbf0d780`. Cinque test su più file, non tre: `Reactions.IntentNotVisibleToEnemy` e `UI.IntentViewFieldsAreClassified` e `UI.EnemyViewCarriesNoAllyOnlyField` in `RTIntentPrivacyTests.cpp`; `Facing.IntentIsTeamFiltered` in `RTFacingTests.cpp`; `Combat.IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed` in `RTCombatLibraryTests.cpp`. |
 | Deflect: pool commutativa, con anti-mutazione | **D-309** e **D-312** nel [Decision Log](../decisions/RT_PDR_00_Decision_Log.md) · issue `#1918` · PR `#2032` · `1ac6e734`. Test: `Combat.GuardPoolIsPermutationInvariant`, `Combat.DeflectPoolAbsorbsBeforeGuardPool`, `Combat.GuardAndDeflectAbsorbInDeclaredOrder`. |
 | Determinismo, 100 ripetizioni | **`G4` verde dal 2026-08-24** — `Replay.Verifier.ResimulationIsDeterministic`. |
-| Packaging Development e Shipping | **`G12` verde dal 2026-08-16** — da **ridatare** sul commit di release. |
 | Emissione di `HazardDamage` | `#2460` — produttore in `Source/RefactorTactics/Turn/RTTurnManager.cpp`. Resta il solo lato presentazione, owner `#2505`. |
+
+### 🔴 `G12` è USCITO da questa tabella il 2026-09-09
+
+Fino a oggi questa lista portava *«Packaging Development e Shipping — **`G12` verde dal 2026-08-16**, da
+ridatare sul commit di release»*. La riga è stata **tolta**, non aggiornata, perché il gate non appartiene
+più alla categoria che questa sezione raccoglie.
+
+[`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3 lo dichiara **`🔴 STANTIO`**: il timbro è del
+2026-08-16 e il gate è stato *«verde-e-falso dal 2026-09-04 al 2026-09-09»* — in quella finestra il target
+Shipping **non compilava** ([#2395](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2395)),
+quindi `BUILD SUCCESSFUL` non era ottenibile. La causa è rimossa, ma **`G12` non eredita il verde di `G1`**:
+chiede `RunUAT BuildCookRun`, che è un'altra esecuzione e un altro artefatto.
+
+⚠️ **Conseguenza per [`#2620`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2620) (PIA-5)**:
+il packaging non è un gate **da registrare**, è un gate **da rifare**. Con la riga precedente, chi avesse letto
+solo questa mappa avrebbe saltato il lavoro.
+
+🔑 **È il difetto che PIA-0 esiste per impedire, capitato a PIA-0.** La mappa era misurata al 2026-09-06 su
+`008edd1c` e in tre giorni la fonte si è mossa senza che la mappa la seguisse. Questa sezione è un
+**consumatore** di §3, mai un'autorità parallela: dove le due divergono, cede questa.
+
+### Baseline rimisurata il 2026-09-09 su `main = 1c1b4296`
+
+Le celle di §3 che si sono mosse dopo il baseline `008edd1c` di
+[`#2615`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2615). **Stati citati, non copiati**:
+l'autorità resta §3, qui c'è la data a cui questa mappa è stata riconciliata.
+
+| Gate | §3 al 2026-09-09 | Effetto sulla mappa |
+|---|---|---|
+| `G1` | ✅ **rimisurata**, `fix/2395-shipping-knowledge-guard` — e per la **terza** volta era rossa quando la cella la dava verde | nessuno diretto; entra nel riporto di `PIA-6` |
+| `G9` | 🟡 **15 verdi · 1 parziale · 1 FALLITA**, rimisurato su `5ab19332` | conferma §6: `PIE-HEXPLAY-6` è il `FAIL`, owner `#2534` |
+| `G12` | 🔴 **STANTIO** | esce dai gate soddisfatti — vedi sopra |
+
+⛔ **Una baseline senza data non è una baseline.** [D-182](../decisions/RT_PDR_00_Decision_Log.md) — niente CI
+— significa che ogni gate è *verde a una data*, e fra due misure può passare qualunque commit. Questa
+sezione va riconciliata a ogni ripresa di PIA, e la sua data va letta insieme ai glifi.
 
 ### 🔴 La privacy è verde **offline**, e PIA non può fermarsi lì
 
