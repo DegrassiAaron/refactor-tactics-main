@@ -1388,4 +1388,77 @@ bool FRTHexMapActorPartialRebuildTest::RunTest(const FString&)
 	return true;
 }
 
+// L'anteprima semantica non muta nulla: e' l'invariante presentation-only di #1941, misurata sul CANALE che
+// la issue costruisce — non sulla griglia, che ha gia' il suo `GridAddsNoActorPerCell`.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAreaOverlayDrawingIsInertTest,
+	"RefactorTactics.AreaOverlay.DrawingMutatesNothing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAreaOverlayDrawingIsInertTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius=*/ 3); // 37 celle
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!Actor)
+	{
+		AddError(TEXT("actor non spawnato"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// Lo stato PRIMA che un solo overlay esista.
+	const uint32 HashPrima = Asset->ComputeHash();
+	const int32 CellePrima = Actor->NumInstanceCells();
+	int32 AttoriPrima = 0;
+	for (TActorIterator<AActor> It(World); It; ++It) { ++AttoriPrima; }
+	TArray<UActorComponent*> ComponentiPrima;
+	Actor->GetComponents(ComponentiPrima);
+
+	// Un'anteprima densa: raggiungibili, percorso e area colpita insieme, cioe' il caso in cui piu' significati
+	// convivono sulla stessa board. Se un canale creasse un Actor o un component per cella, 37 celle lo
+	// renderebbero un salto e non rumore.
+	TArray<FRTCellId> Raggiungibili;
+	for (int32 X = -3; X <= 3; ++X)
+	{
+		for (int32 Y = -3; Y <= 3; ++Y)
+		{
+			if (FMath::Abs(X + Y) <= 3) { Raggiungibili.Add(FRTCellId(X, Y, 0)); }
+		}
+	}
+	Actor->SetPreviewReachableCells(Raggiungibili);
+	Actor->SetPreviewPath({ FRTCellId(0, 0, 0), FRTCellId(1, 0, 0), FRTCellId(2, 0, 0) });
+	Actor->SetPreviewHitCells({ FRTCellId(2, 0, 0), FRTCellId(2, 1, 0) }, { FRTCellId(2, 1, 0) });
+
+	// E' il `Tick` a chiamare `DrawPlanningPreview`: si esercita il percorso vero, non la funzione da sola.
+	Actor->TickActor(0.016f, LEVELTICK_All, Actor->PrimaryActorTick);
+	// Due frame: un accumulo per-frame si vedrebbe qui e non al primo giro.
+	Actor->TickActor(0.016f, LEVELTICK_All, Actor->PrimaryActorTick);
+
+	// ⛔ Presentation-only: nessuna mutazione dello stato canonico.
+	TestEqual(TEXT("l'hash dell'asset non cambia: ne' FRTMapState, ne' graph revision, ne' path cache"),
+		Asset->ComputeHash(), HashPrima);
+	TestEqual(TEXT("la mappa istanza->cella e' intatta"), Actor->NumInstanceCells(), CellePrima);
+
+	// ⛔ Nessun Actor per cella, misurato sul DELTA come gia' fa la griglia.
+	int32 AttoriDopo = 0;
+	for (TActorIterator<AActor> It(World); It; ++It) { ++AttoriDopo; }
+	TestEqual(TEXT("un'anteprima densa non aggiunge NESSUN actor al mondo"), AttoriDopo, AttoriPrima);
+
+	// ⛔ E nessun component per cella: il conteggio dei component dell'actor non si muove.
+	TArray<UActorComponent*> ComponentiDopo;
+	Actor->GetComponents(ComponentiDopo);
+	TestEqual(TEXT("un'anteprima densa non aggiunge NESSUN component"),
+		ComponentiDopo.Num(), ComponentiPrima.Num());
+
+	// E spegnere l'anteprima la riporta inerte, senza lasciare residui nello stato canonico.
+	Actor->SetPreviewReachableCells({});
+	Actor->SetPreviewPath({});
+	Actor->SetPreviewHitCells({}, {});
+	Actor->TickActor(0.016f, LEVELTICK_All, Actor->PrimaryActorTick);
+	TestEqual(TEXT("spenta l'anteprima, l'hash e' ancora quello di partenza"), Asset->ComputeHash(), HashPrima);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+
 #endif // WITH_DEV_AUTOMATION_TESTS
