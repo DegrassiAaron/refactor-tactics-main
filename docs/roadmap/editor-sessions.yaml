@@ -672,7 +672,8 @@ sessions:
     verifies:
       - PIE-V01-PACKAGED
       - PIE-V01-PREPWINDOW
-    issues: [959, 1088, 1069, 79, 1296, 2386]
+      - PIE-V01-SPECTATOR-ROSTER
+    issues: [959, 1088, 1069, 79, 1296, 2386, 2744]
     done_when: esiste una registrazione di una partita 2v2 conclusa senza un solo input, eseguita due volte — PIE e pacchetto Development
     notes: |
       ➕ **`PIE-V01-PREPWINDOW` si aggiunge qui il 2026-09-06 (#2386) e NON chiede una seduta propria**,
@@ -682,6 +683,19 @@ sessions:
       chiedono cose diverse e non si spuntano insieme**: quella chiede una partita che arriva alla vittoria
       *senza input*, questa chiede di **premere `P`** e guardare cosa succede. Chi esegue la prima senza mai
       toccare la tastiera lascia questa aperta, ed e' corretto.
+
+      ➕ **`PIE-V01-SPECTATOR-ROSTER` si aggiunge qui il 2026-09-09 (#2744), per la stessa ragione di
+      `PIE-V01-PREPWINDOW`**: l'allestimento e' gia' quello — modalita' non presidiata, `unblocked_by: E47.1` —
+      e chi registra la partita **ha gia' il roster davanti**. ⚠️ **Ma questa chiede un passo che le altre due
+      non fanno**: rilanciare la stessa mappa in partita **presidiata** e verificare che il roster torni a una
+      lista sola. E' il controllo negativo, e senza di esso un roster che mostrasse sempre entrambe le squadre
+      passerebbe. ∴ chi esegue le prime due senza rilanciare lascia questa aperta, ed e' corretto.
+
+      ⚠️ **Precondizione in piu', e non e' pro forma**: lo Screen HUD UMG dev'essere a schermo
+      (`WBP_RT_TacticalHUD`, §4.1 di #613). Senza, la voce non misura «due squadre» ma «nessun roster».
+
+      ⛔ **Il punto (d) — il feed che nomina entrambe le squadre — si dichiara `N/A` finche'
+      `WBP_RT_EventLog` non esiste in `Content/` (#1936 §F).** Non si finge, e non blocca il resto della voce.
 
       ⛔ **Nessuno scenario puo' sostituirla, e non per una capability mancante.** `RTScenarioSession`
       chiama `LockInAndResolve()` diretto dopo `SetPlanningSeconds(0.f)`: non attraversa
