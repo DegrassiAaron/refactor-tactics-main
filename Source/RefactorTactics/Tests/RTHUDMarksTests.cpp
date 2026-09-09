@@ -436,8 +436,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusalTextSaysNothingForNothingTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTRefusalTextSaysNothingForNothingTest::RunTest(const FString&)
 {
-	const FString Niente = ARTHUD::RefusalText(ERTTargetRefusal::Nothing);
-	const FString Nessuno = ARTHUD::RefusalText(ERTTargetRefusal::None);
+	const FString Niente = ARTHUD::RefusalText(ERTTargetRefusal::Nothing, /*EffectiveRange*/ INDEX_NONE);
+	const FString Nessuno = ARTHUD::RefusalText(ERTTargetRefusal::None, /*EffectiveRange*/ INDEX_NONE);
 
 	TestEqual(TEXT("«niente da bersagliare» e «nessun rifiuto» dicono la stessa cosa a schermo"),
 		Niente, Nessuno);
@@ -446,11 +446,114 @@ bool FRTRefusalTextSaysNothingForNothingTest::RunTest(const FString&)
 	// 🔴 La meta' che impedisce l'implementazione degenere: se `RefusalText` restituisse sempre vuoto, le
 	// due righe sopra passerebbero e il giocatore non riceverebbe MAI un rifiuto. I due esiti che devono
 	// parlare, parlano — e dicono cose diverse fra loro.
-	const FString Coperto = ARTHUD::RefusalText(ERTTargetRefusal::Cover);
-	const FString Lontano = ARTHUD::RefusalText(ERTTargetRefusal::Range);
+	const FString Coperto = ARTHUD::RefusalText(ERTTargetRefusal::Cover, /*EffectiveRange*/ INDEX_NONE);
+	const FString Lontano = ARTHUD::RefusalText(ERTTargetRefusal::Range, /*EffectiveRange*/ 4);
 	TestFalse(TEXT("la copertura ha un testo"), Coperto.IsEmpty());
 	TestFalse(TEXT("la portata ha un testo"), Lontano.IsEmpty());
 	TestNotEqual(TEXT("e i due non dicono la stessa frase"), Coperto, Lontano);
+	return true;
+}
+
+/**
+ * 🔴 **IL RIFIUTO PER DISTANZA DICE *DI QUANTO*, E IL NUMERO E' QUELLO APPLICATO** — `#2800`.
+ *
+ * ## Cosa mancava
+ *
+ * *«Troppo lontano per questa abilita'»* diceva **che**, non **di quanto**. Non era un difetto introdotto
+ * dal Fumo: il messaggio non ha mai avuto numeri, e vale identico su un'arena senza terreno che cappi
+ * nulla. Il cap lo rendeva solo piu' sorprendente — chi conosce la portata dell'abilita' si aspetta 5 e ne
+ * incassa 2.
+ *
+ * ## La forma, e perche' UNA sola
+ *
+ * Il numero c'e' **sempre**, anche quando dichiarata ed effettiva coincidono. Un messaggio che guadagnasse
+ * la portata solo dove il terreno la riduce insegnerebbe al giocatore che quello e' un rifiuto **diverso**,
+ * mentre e' lo stesso rifiuto con un limite piu' basso. *(Scelta d'autore in sessione, 2026-09-09, fra tre
+ * forme: numero sempre · numero piu' la distanza · numero solo col cap.)*
+ *
+ * ## Le due sponde
+ *
+ *   - **portata piena** — senza terreno il numero e' quello dichiarato;
+ *   - **portata ridotta** — col cap il numero **scende**, ed e' l'unica cosa che cambia nel messaggio.
+ *
+ * ⚠️ Asserire solo la seconda passerebbe anche con un'implementazione che stampasse sempre il cap; asserire
+ * solo la prima passerebbe con una che ignora il terreno — cioe' col difetto che `#2766` ha tolto dal log.
+ *
+ * ⛔ **Verifica di mutazione**: passare `RangeCells` al posto della portata effettiva deve far cadere
+ * l'asserzione del cap, e SOLO quella.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusalTextNamesTheAppliedRangeTest,
+	"RefactorTactics.HUD.RefusalTextNamesTheAppliedRange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRefusalTextNamesTheAppliedRangeTest::RunTest(const FString&)
+{
+	// ── Sponda 1: portata piena. Il numero e' quello dichiarato dall'abilita'.
+	const FString Piena = ARTHUD::RefusalText(ERTTargetRefusal::Range, /*EffectiveRange*/ 5);
+	TestTrue(TEXT("a portata piena il rifiuto nomina 5"), Piena.Contains(TEXT("5")));
+
+	// ── Sponda 2: il terreno l'ha ridotta. Il numero SCENDE, ed e' l'unica cosa che cambia.
+	const FString Ridotta = ARTHUD::RefusalText(ERTTargetRefusal::Range, /*EffectiveRange*/ 2);
+	TestTrue(TEXT("col cap del terreno il rifiuto nomina 2"), Ridotta.Contains(TEXT("2")));
+	TestFalse(TEXT("e NON nomina piu' la portata dichiarata"), Ridotta.Contains(TEXT("5")));
+
+	// 🔴 Il cuore della forma scelta: i due messaggi differiscono per il NUMERO, non per la struttura.
+	// Se differissero anche nella frase, il giocatore leggerebbe due rifiuti diversi dove la causa e' una.
+	TestNotEqual(TEXT("i due rifiuti non sono la stessa stringa"), Piena, Ridotta);
+	TestEqual(TEXT("ma hanno la stessa lunghezza: cambia una cifra, non la frase"),
+		Piena.Len(), Ridotta.Len());
+
+	// ── E il numero NON compare dove non deve. `Nothing` copre insieme la cella vuota e il nemico velato:
+	//    un numero li' sarebbe un canale di conoscenza in piu' ([D-225]), non un miglioramento.
+	TestTrue(TEXT("un bersaglio ignoto non riceve ne' frase ne' numero"),
+		ARTHUD::RefusalText(ERTTargetRefusal::Nothing, /*EffectiveRange*/ 2).IsEmpty());
+	TestFalse(TEXT("e la copertura, che non ha una portata, non ne stampa una"),
+		ARTHUD::RefusalText(ERTTargetRefusal::Cover, /*EffectiveRange*/ 2).Contains(TEXT("2")));
+
+	return true;
+}
+
+/**
+ * 🔴 **LA PORTATA NON SOPRAVVIVE ALL'ESITO CHE L'HA PRODOTTA** — `#2800`.
+ *
+ * `SetTargetRefusal` azzera `LastRefusalRange` su ogni esito che non sia `Range`. Senza, un rifiuto per
+ * copertura mostrerebbe la portata del click **precedente**: un numero vero, riferito a un'altra domanda —
+ * la forma di errore piu' difficile da vedere a schermo, perche' non sembra un errore.
+ *
+ * ⚠️ Si misura attraverso il **testo**, non leggendo il campo: e' cio' che il giocatore riceve, e un test
+ * sul campo passerebbe anche se il disegno usasse un'altra sorgente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusalRangeDoesNotOutliveItsOutcomeTest,
+	"RefactorTactics.HUD.RefusalRangeDoesNotOutliveItsOutcome",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRefusalRangeDoesNotOutliveItsOutcomeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMarksWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHUD* Hud = World->SpawnActor<ARTHUD>();
+	if (!TestNotNull(TEXT("HUD"), Hud))
+	{
+		DestroyMarksWorld(World);
+		return false;
+	}
+
+	// 1. Un rifiuto per distanza: il numero c'e'.
+	Hud->SetTargetRefusal(ERTTargetRefusal::Range, /*EffectiveRange*/ 2);
+	TestTrue(TEXT("premessa: il rifiuto per distanza porta il suo numero"),
+		Hud->CurrentRefusalText().Contains(TEXT("2")));
+
+	// 2. Poi un rifiuto per COPERTURA. Il numero precedente non deve sopravvivere.
+	Hud->SetTargetRefusal(ERTTargetRefusal::Cover, /*EffectiveRange*/ INDEX_NONE);
+	TestFalse(TEXT("la copertura non eredita la portata del click precedente"),
+		Hud->CurrentRefusalText().Contains(TEXT("2")));
+	TestFalse(TEXT("ma un testo ce l'ha"), Hud->CurrentRefusalText().IsEmpty());
+
+	// 3. E un click che va a segno cancella tutto.
+	Hud->SetTargetRefusal(ERTTargetRefusal::None, /*EffectiveRange*/ INDEX_NONE);
+	TestTrue(TEXT("un click riuscito non lascia niente a schermo"),
+		Hud->CurrentRefusalText().IsEmpty());
+
+	DestroyMarksWorld(World);
 	return true;
 }
 

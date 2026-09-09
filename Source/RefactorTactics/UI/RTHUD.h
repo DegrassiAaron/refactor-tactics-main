@@ -282,8 +282,12 @@ public:
 	 *
 	 * ⚠️ **Nessun timer, nessun `DeltaTime`.** Il messaggio vive finche' il giocatore non fa un altro click:
 	 * e' stato di presentazione, e la sua durata e' un fatto dell'input, non del tempo (`CLAUDE.md` §11).
+	 *
+	 * @param Refusal         l'esito gia' filtrato per l'osservatore
+	 * @param EffectiveRange  la portata DAVVERO applicata dal classificatore, per il solo esito
+	 *                        `Range` (`#2800`). `INDEX_NONE` quando non c'e' un limite da mostrare.
 	 */
-	void SetTargetRefusal(ERTTargetRefusal Refusal);
+	void SetTargetRefusal(ERTTargetRefusal Refusal, int32 EffectiveRange);
 
 	/**
 	 * Il testo di un rifiuto — e cio' che NON ha un testo, che e' il punto (`#2741`).
@@ -294,7 +298,16 @@ public:
 	 * stessa il canale ([D-225]). Statica e pura perche' sia verificabile senza aprire un viewport, come
 	 * `ComputeBlockerMarks`.
 	 */
-	static FString RefusalText(ERTTargetRefusal Refusal);
+	static FString RefusalText(ERTTargetRefusal Refusal, int32 EffectiveRange);
+
+	/**
+	 * Il testo del rifiuto CORRENTE, composto dallo stato di presentazione — `#2800`.
+	 *
+	 * 🔑 **E' la sorgente che il disegno usa**, non una seconda composizione a uso dei test: un accessor
+	 * parallelo passerebbe anche se `DrawHUD` leggesse altro, ed e' esattamente il difetto che un test
+	 * sul solo campo non vedrebbe.
+	 */
+	FString CurrentRefusalText() const;
 	/**
 	 * Le celle da marcare nel mondo perche' hanno fermato un colpo — `#2697`.
 	 *
@@ -609,6 +622,18 @@ private:
 	 * messaggio resti a schermo.
 	 */
 	ERTTargetRefusal LastRefusal = ERTTargetRefusal::None;
+
+	/**
+	 * La portata APPLICATA dell'ultimo rifiuto per distanza — `#2800`.
+	 *
+	 * 🔑 Non e' `RangeCells`: e' il numero che il classificatore ha davvero usato, cappato dal terreno
+	 * (`EffectiveTargetingRange`). Mostrare la dichiarata rimetterebbe a schermo l'inganno che `#2766`
+	 * ha appena tolto dal log.
+	 *
+	 * ⚠️ `INDEX_NONE` quando l'ultimo esito non e' `Range`: non c'e' un limite da mostrare, e un valore
+	 * residuo del click precedente sarebbe un numero vero riferito a un'altra domanda.
+	 */
+	int32 LastRefusalRange = INDEX_NONE;
 
 	// ⌫ **Qui stava anche `LastRefusalCell`, e non c'e' piu'.** Registrava la cella del bersaglio cliccato
 	// — inclusa quella di un nemico che l'osservatore non conosce — per «ancorarvi il messaggio», ma nessuno

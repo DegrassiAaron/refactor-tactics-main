@@ -54,12 +54,18 @@ FVector2D ARTHUD::ClampOverlayAnchor(const FVector2D& Anchor, float HalfWidth,
 	return FVector2D(X, Y);
 }
 
-void ARTHUD::SetTargetRefusal(ERTTargetRefusal Refusal)
+void ARTHUD::SetTargetRefusal(ERTTargetRefusal Refusal, int32 EffectiveRange)
 {
 	// Ogni click sostituisce il precedente, incluso il click che va a segno: `None` cancella. E' la
 	// durata dichiarata da `#2741` — il messaggio vive quanto la decisione che lo ha prodotto, e nessun
 	// timer decide al posto del giocatore.
 	LastRefusal = Refusal;
+
+	// 🔴 **La portata si azzera con OGNI esito che non sia `Range`, e non si conserva** (`#2800`).
+	// Tenerla lascerebbe a schermo un numero vero riferito al click PRECEDENTE: un rifiuto per copertura
+	// non ha una portata, e un numero rimasto li' sembrerebbe la sua. E' la stessa disciplina della
+	// durata qui sopra — lo stato di presentazione vale per la decisione che lo ha prodotto, non oltre.
+	LastRefusalRange = (Refusal == ERTTargetRefusal::Range) ? EffectiveRange : INDEX_NONE;
 }
 
 /**
@@ -70,12 +76,28 @@ void ARTHUD::SetTargetRefusal(ERTTargetRefusal Refusal)
  * differenza fra «un messaggio» e «nessun messaggio» sarebbe **essa stessa** il canale ([D-225]).
  * Il giocatore che clicca nel nulla e il giocatore che clicca su un'ombra ricevono la stessa cosa: niente.
  */
-FString ARTHUD::RefusalText(ERTTargetRefusal Refusal)
+FString ARTHUD::RefusalText(ERTTargetRefusal Refusal, int32 EffectiveRange)
 {
 	switch (Refusal)
 	{
 	case ERTTargetRefusal::Cover: return TEXT("Coperto: la linea di tiro e' interrotta");
-	case ERTTargetRefusal::Range: return TEXT("Troppo lontano per questa abilita'");
+
+	case ERTTargetRefusal::Range:
+		// 🔴 **UNA forma sola, col numero sempre presente** (`#2800`, scelta d'autore). Un messaggio che
+		// guadagnasse la portata solo quando il terreno la riduce insegnerebbe al giocatore che quello e'
+		// un rifiuto DIVERSO, mentre e' lo stesso rifiuto con un limite piu' basso. Col numero sempre a
+		// schermo, il valore che scende quando entra il fumo insegna la meccanica senza spiegarla.
+		//
+		// ⚠️ **E' la portata APPLICATA, non `RangeCells`**: mostrare la dichiarata rimetterebbe a schermo
+		// lo stesso inganno che `#2766` ha appena tolto dal log — «max 5» su un bersaglio a distanza 3.
+		//
+		// ⛔ **Il ripiego senza numero non e' una seconda forma, e' un fail-safe**: si raggiunge solo se un
+		// chiamante passasse un limite non valido, e allora dire MENO e' preferibile a stampare `-1` come
+		// se fosse una portata. Nessun percorso attuale ci arriva — il controller calcola sempre il numero.
+		return (EffectiveRange >= 0)
+			? FString::Printf(TEXT("Troppo lontano (portata %d)"), EffectiveRange)
+			: FString(TEXT("Troppo lontano per questa abilita'"));
+
 	case ERTTargetRefusal::None:
 	case ERTTargetRefusal::Nothing: return FString();
 	}
@@ -84,6 +106,11 @@ FString ARTHUD::RefusalText(ERTTargetRefusal Refusal)
 	// scivolare in silenzio sul silenzio.
 	checkNoEntry();
 	return FString();
+}
+
+FString ARTHUD::CurrentRefusalText() const
+{
+	return RefusalText(LastRefusal, LastRefusalRange);
 }
 
 void ARTHUD::ComputeBlockerMarks(const TArray<FRTPlayerEventLineView>& Feed,
@@ -1021,7 +1048,7 @@ void ARTHUD::DrawHUD()
 	// ⛔ **Il testo puo' essere vuoto, ed e' un esito, non un caso degenere**: `Nothing` copre insieme la
 	// cella vuota e il nemico che l'osservatore non conosce, e le due non devono distinguersi nemmeno per
 	// la PRESENZA di un messaggio. Qui non si disegna niente, e va bene cosi'.
-	if (const FString Testo = ARTHUD::RefusalText(LastRefusal); !Testo.IsEmpty())
+	if (const FString Testo = CurrentRefusalText(); !Testo.IsEmpty())
 	{
 		float RW = 0.f, RH = 0.f;
 		GetTextSize(Testo, RW, RH, nullptr, 1.0f);
