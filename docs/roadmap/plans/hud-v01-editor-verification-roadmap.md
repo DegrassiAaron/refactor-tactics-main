@@ -278,7 +278,7 @@ non ha owner e la seduta produce un'osservazione senza sbocco.
 | Campo | Contenuto |
 |---|---|
 | **ID** | `HUD-EDITOR-E8` · **Consumes** `HUD-CODE-C4` |
-| **Owner** | `PIE-V01-LOG` (🟡, `RELEASE-V01`) · sedute **U15** · **U43** · **U46** |
+| **Owner** | `PIE-V01-LOG` (✅ dal 2026-09-09, `RELEASE-V01`) · sedute **U15** · **U43** · **U46** — ⌫ *era 🟡: copia stantia, il verdetto vive in `test-manuali-pie.md`* |
 | **Class** | `AUTO` + `MCP_READ` + `USER_PIE` |
 | **Preconditions** | `E0`; **la parte F di `#1936` deve esistere** (nessun `WBP_RT_EventLog` oggi) |
 | **Setup** | un turno con un **fallback** e una **modifica ambientale** |

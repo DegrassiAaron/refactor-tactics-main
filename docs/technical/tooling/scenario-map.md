@@ -994,11 +994,16 @@ grep -c '^| \*\*PIE-MUT-' docs/technical/test-manuali-pie.md            #   2  f
 awk '/^#{2,3} /{s=$0} /^\| \*\*PIE-/{c[s]++} END{for(k in c) print c[k], k}' \
     docs/technical/test-manuali-pie.md | sort -rn
 
-# Registro PIE — verdi / parziali / aperte
+# Registro PIE — verdi / parziali / fallite / aperte
+# 🔴 L'alternanza NON aveva `❌` fino al 2026-09-09, come quella del subset qui sotto: `senza-marcatore`
+#    restava 0 e le fallite non risultavano MANCANTI, risultavano ALTRO — il primo glifo noto che compare
+#    più avanti nella stessa cella. È il difetto di #1248, che la sua chiusura del 2026-08-21 dichiarava
+#    corretto «nel comando stampato nel registro»: lo era in `test-manuali-pie.md` (due comandi, entrambi
+#    con `❌` dal 2026-08-21), e NON qui — due consumatori fuori dal censimento, per diciannove giorni.
 awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
-  if (match(s, /✅|🟡|⏳/)) c[substr(s, RSTART, RLENGTH)]++; else c["nessuno"]++ }
-  END {printf "verde=%d parziale=%d aperta=%d senza-marcatore=%d\n",
-       c["✅"], c["🟡"], c["⏳"], c["nessuno"]}' docs/technical/test-manuali-pie.md
+  if (match(s, /✅|🟡|❌|⏳/)) c[substr(s, RSTART, RLENGTH)]++; else c["nessuno"]++ }
+  END {printf "verde=%d parziale=%d fallita=%d aperta=%d senza-marcatore=%d\n",
+       c["✅"], c["🟡"], c["❌"], c["⏳"], c["nessuno"]}' docs/technical/test-manuali-pie.md
 
 # Classe B — ogni scenario Visual deve avere UNA QUALCHE voce PIE che lo guarda.
 # ⚠️ Il comando precedente contava le voci `PIE-VIS-*` e le confrontava col numero di file: misurava il
@@ -1018,10 +1023,18 @@ grep -c '^| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`' docs/technical/test-manual
 # ⚠️ Ancorato al MARCATORE come il grep qui sopra, non alla riga: `/RELEASE-V01/` nudo cattura anche le
 #    voci la cui prosa dichiara di NON farne parte, e dà 19 invece di 17 — `PIE-BAL1` e `PIE-FMTVER`,
 #    entrambi ⏳, cioè +2 sulla sola colonna "aperta".
+# 🔴 **L'alternanza NON aveva `❌`, e il 2026-09-09 questo ha prodotto il difetto che il comando esiste per
+#    impedire.** Senza quel ramo l'oracolo non salta la voce fallita: salta al PRIMO glifo che conosce, che
+#    può stare centinaia di caratteri più avanti nella stessa cella — e una cella che si apre con `❌` e più
+#    avanti porta un `✅` in una nota interna veniva contata **verde**. Successo davvero: la rigiudicazione di
+#    `PIE-HEXPLAY-6` ha aggiunto alla cella una nota che comincia con `✅`, e il conteggio è passato da
+#    `15 · 2 · 0` a `16 · 1 · 0` mentre il verdetto umano scritto nella stessa cella era ❌.
+# 🔑 **Un oracolo cieco a un esito non lo riporta assente: lo riporta come l'esito successivo che sa vedere.**
+#    Ed è peggio del silenzio, perché il gate legge un numero e nessuno conta a mano.
 awk -F'|' '/^\| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`/ {s=$(NF-1);
-  if (match(s, /✅|🟡|⏳/)) c[substr(s, RSTART, RLENGTH)]++ }
-  END {printf "verde=%d parziale=%d aperta=%d totale=%d\n",
-       c["✅"], c["🟡"], c["⏳"], c["✅"]+c["🟡"]+c["⏳"]}' \
+  if (match(s, /✅|🟡|❌|⏳/)) c[substr(s, RSTART, RLENGTH)]++ }
+  END {printf "verde=%d parziale=%d fallita=%d aperta=%d totale=%d\n",
+       c["✅"], c["🟡"], c["❌"], c["⏳"], c["✅"]+c["🟡"]+c["❌"]+c["⏳"]}' \
   docs/technical/test-manuali-pie.md
 
 # Il controllo che mancava: i due comandi del subset devono dare lo STESSO totale. Se divergono, uno dei
@@ -1081,24 +1094,34 @@ e questa tabella non ne aggiunge una quarta.
 producono **numeri di playtest** (G11 chiede di *avere* i numeri, non di centrarli), il corpus `Visual.*`
 (leggibilità, non consegnabilità — e la regola è già coperta dalle assertion), le voci di E34 e della v0.2.
 
+🔄 **La colonna «Oggi» è stata riallineata al registro il 2026-09-09** (`main = 5ab19332`, durante `#2534`).
+Era **stantia su sei voci su diciassette** — `PIE-HEXPLAY-4` ⏳→✅, `PIE-HEXPLAY-6` 🟡→❌, `PIE-FACING-1`
+🟡→✅, `PIE-HEXPLAY-10` 🟡→✅, `PIE-V01-LOG` 🟡→✅, `PIE-V01-ROSTER` 🟡→✅ — e in cinque casi su sei
+**dichiarava aperto ciò che era stato chiuso**, che è la forma di deriva più costosa: fa riaprire lavoro finito.
+⚠️ **Questa tabella è una copia, non l'originale**: l'unico owner del verdetto è
+[`test-manuali-pie.md`](../test-manuali-pie.md), e ogni icona qui va letta dalla **prima icona di stato per
+posizione** nella cella di quel file — cioè la prima fra `✅ 🟡 ❌ ⏳`, ignorando `⚠️` e `🔴`, che aprono
+molte celle come marcatori di prosa e non sono esiti. ⚠️ Detto senza quella precisazione il criterio non
+riproduce i numeri: `PIE-HEXPLAY-4` apre con `⚠️` e la sua ✅ arriva 631 caratteri dopo.
+
 | Voce | Cosa gate | Oggi |
 |---|---|---|
 | `PIE-HEXPLAY-1` | la partita si allestisce su esagoni, unità sui centri-cella | ✅ |
 | `PIE-HEXPLAY-2` | selezione e cella sotto il cursore, **layer giusto** su multilivello | ✅ |
 | `PIE-HEXPLAY-3` | pianificazione entro budget, con anteprima visibile | ✅ |
-| `PIE-HEXPLAY-4` | risoluzione e playback senza deriva | ⏳ |
+| `PIE-HEXPLAY-4` | risoluzione e playback senza deriva | ✅ |
 | `PIE-HEXPLAY-5` | collisione simultanea, nessuna sovrapposizione | ✅ |
-| `PIE-HEXPLAY-6` | LOS esagonale, e che il giocatore capisca perché il colpo non parte | 🟡 |
+| `PIE-HEXPLAY-6` | LOS esagonale, e che il giocatore capisca perché il colpo non parte | ❌ |
 | `PIE-HEXPLAY-8` | **multilivello**: il movimento via arco, esplicitamente nominato da G10 | 🟡 |
 | `PIE-HEXPLAY-9` | HUD e anteprima piani sui centri esagonali | ✅ |
-| `PIE-FACING-1` | l'orientamento che si **vede** è quello che il resolver ha **usato** | 🟡 |
-| `PIE-HEXPLAY-10` | **partita completa fino alla vittoria** — è G10 | 🟡 |
+| `PIE-FACING-1` | l'orientamento che si **vede** è quello che il resolver ha **usato** | ✅ |
+| `PIE-HEXPLAY-10` | **partita completa fino alla vittoria** — è G10 | ✅ |
 | `PIE-CAM-START` | la partita si apre sulla propria squadra | ✅ |
 | `PIE-V01-MATCHEND` | **fine partita a tre vie**, a schermo, e `R` riavvia | ✅ |
 | `PIE-V01-HUD` | HUD di partita completo. Il **valore** del limite di round viene già dal formato (`RTHUD.cpp:403`), la **parola** no — `:405` stampa `"Turno"`, il DoD prescrive *round*. Resta sul Canvas: lo Screen HUD §4.1 di CP 11.7 (`#613`) avrà una voce propria | ✅ |
-| `PIE-V01-LOG` | combat log con reason code leggibili | 🟡 |
+| `PIE-V01-LOG` | combat log con reason code leggibili | ✅ |
 | `PIE-V01-INTENT` | intenti alleati e **nessun** intento avversario visibile | ✅ |
-| `PIE-V01-ROSTER` | i quattro eroi si sentono diversi da giocare | 🟡 |
+| `PIE-V01-ROSTER` | i quattro eroi si sentono diversi da giocare | ✅ |
 | `PIE-PREVIEW-AREA` | **leggibilità minima**: si capisce cosa si sta per colpire, prima del lock-in | ✅ |
 
 **17 voci: 10 verdi, 6 parziali, 1 aperta** — misurate col comando **ancorato** di §7, non contate a mano
