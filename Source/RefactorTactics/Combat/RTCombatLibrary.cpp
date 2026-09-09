@@ -158,6 +158,26 @@ ERTTargetRefusal URTCombatLibrary::RefusalForObserver(ERTHexTargetReason Reason,
 	return ERTTargetRefusal::Nothing;
 }
 
+FString URTCombatLibrary::OutOfRangeDiagnostic(int32 DeclaredRange, int32 EffectiveRange)
+{
+	// Il caso ordinario: nessun terreno ha ridotto niente, e il numero dichiarato E' il limite applicato.
+	// Si stampa **una** portata, perche' due numeri uguali affiancati insegnano a ignorarli.
+	if (EffectiveRange >= DeclaredRange)
+	{
+		return FString::Printf(TEXT("fuori portata (max %d)"), DeclaredRange);
+	}
+
+	// 🔴 Il caso che apriva la issue. Si dice per PRIMO il limite applicato — e' quello che spiega il
+	// rifiuto — e poi la dichiarata, che senza contesto sembrerebbe smentirlo.
+	//
+	// ⚠️ Il terreno non viene NOMINATO: questa funzione riceve due interi e non sa quale superficie ha
+	// cappato. Nominarlo richiederebbe che `EffectiveTargetingRange` restituisse anche la cella
+	// responsabile, cioe' un secondo valore di ritorno per un log. Il numero basta a togliere l'inganno:
+	// chi legge `max 2` non conclude piu' che il classificatore sia rotto.
+	return FString::Printf(TEXT("fuori portata (max %d applicato, %d dichiarata: il terreno sulla linea la riduce)"),
+		EffectiveRange, DeclaredRange);
+}
+
 bool URTCombatLibrary::CanTargetHexCell(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
 	int32 RangeCells)
 {

@@ -1735,6 +1735,12 @@ void ARTTurnManager::StartPlanningTimer()
 
 	Pacing.Begin(TurnNumber, CollectPacingUnitFacts(), PacingTeamId); // apre il campione: il cronometro parte quando parte la pianificazione
 
+	// 🔴 **La readiness NON sopravvive al turno** (`#2193`, estensione 2026-09-07). Un partecipante rimasto
+	// Ready dal turno precedente chiuderebbe il quorum prima che chiunque abbia guardato la board nuova: il
+	// commit arriverebbe dal countdown su un piano che nessuno ha ancora scritto. E' l'unico punto in cui
+	// l'insieme si azzera, perche' e' l'unico punto in cui una pianificazione si apre.
+	ReadyParticipants.Reset();
+
 	PlanBots(); // il bot pianifica a inizio turno
 
 	World->GetTimerManager().ClearTimer(PlanningTimerHandle);
@@ -1913,6 +1919,111 @@ void ARTTurnManager::CancelLockIn()
 	// pianificare senza limite.
 	UE_LOG(LogRT, Log, TEXT("[RT] Unready -> il piano torna in pianificazione (turno %d, restano %.1fs)"),
 		TurnNumber, GetPlanningTimeRemaining());
+}
+
+void ARTTurnManager::CollectReadyEligibleParticipants(TArray<FIntPoint>& OutParticipants) const
+{
+	OutParticipants.Reset();
+
+	TArray<ARTUnit*> Vive;
+	CollectLivingUnits(Vive);
+	for (const ARTUnit* Unit : Vive)
+	{
+		// ⛔ `bIsBotControlled` e non `TeamId`: la squadra dice di CHI e' l'unita', il flag dice se qualcun
+		// altro la sta gia' pianificando. Con un compagno bot le due domande hanno risposte diverse dentro
+		// lo STESSO gruppo — e' la ragione per cui `CanPlayerControlUnit` ha due condizioni e non una.
+		if (!Unit || Unit->bIsBotControlled)
+		{
+			continue;
+		}
+
+		OutParticipants.AddUnique(FIntPoint(Unit->TeamId, Unit->ControlGroup));
+	}
+}
+
+bool ARTTurnManager::IsParticipantReady(int32 InTeamId, int32 InControlGroup) const
+{
+	return ReadyParticipants.Contains(FIntPoint(InTeamId, InControlGroup));
+}
+
+bool ARTTurnManager::HasReadyQuorum() const
+{
+	TArray<FIntPoint> Eleggibili;
+	CollectReadyEligibleParticipants(Eleggibili);
+
+	// 🔴 **L'insieme vuoto NON e' un quorum soddisfatto**, ed e' la clausola che tiene l'autobattle sul suo
+	// percorso di sempre: senza, «tutti i partecipanti sono Ready» sarebbe vacuamente vero in una partita
+	// dove non c'e' nessuno che possa premere, e ogni turno non presidiato si chiuderebbe dopo il countdown
+	// invece che al tetto. E' anche il difetto che `#2356` e' costato una volta: una misura diventata vuota
+	// non fallisce, risponde di si'.
+	if (Eleggibili.Num() == 0)
+	{
+		return false;
+	}
+
+	for (const FIntPoint& Partecipante : Eleggibili)
+	{
+		if (!ReadyParticipants.Contains(Partecipante))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void ARTTurnManager::DeclareParticipantReady(int32 InTeamId, int32 InControlGroup)
+{
+	// Stessa guardia di `RequestLockIn`, e per la stessa ragione: un Ready fuori pianificazione non deve
+	// lasciarsi dietro uno stato che il turno dopo trovera' gia' acceso.
+	if (Phase != ERTMatchPhase::Planning || bIsResolving)
+	{
+		return;
+	}
+
+	const FIntPoint Partecipante(InTeamId, InControlGroup);
+
+	// ⛔ Chi non puo' dichiarare Ready non entra nell'insieme, altrimenti il quorum si chiuderebbe con una
+	// chiave che nessun'altra strada rimetterebbe mai in discussione — un Ready fantasma.
+	TArray<FIntPoint> Eleggibili;
+	CollectReadyEligibleParticipants(Eleggibili);
+	if (!Eleggibili.Contains(Partecipante))
+	{
+		return;
+	}
+
+	bool bGiaPresente = false;
+	ReadyParticipants.Add(Partecipante, &bGiaPresente);
+	if (bGiaPresente)
+	{
+		return; // un secondo Ready dello stesso partecipante non riapre niente
+	}
+
+	// ⚠️ **Diagnostica, non combat log.** Serve a chi legge `RefactorTactics.log` e deve distinguere «manca
+	// ancora qualcuno» da «il quorum si e' chiuso»: sono due stati che a schermo, oggi, si somigliano.
+	UE_LOG(LogRT, Log, TEXT("[RT] Ready del partecipante (squadra %d, gruppo %d) -> %d/%d (turno %d)"),
+		InTeamId, InControlGroup, ReadyParticipants.Num(), Eleggibili.Num(), TurnNumber);
+
+	if (HasReadyQuorum())
+	{
+		// 🔑 **Il quorum e' l'unico chiamante di produzione di `RequestLockIn()`**, e la chiama UNA volta: il
+		// countdown resta dov'era, con la sua guardia contro il doppio armamento. L'harness e i test
+		// continuano a entrare direttamente da `RequestLockIn()`, che e' esattamente «il quorum si e' chiuso»
+		// detto senza partecipanti.
+		RequestLockIn();
+	}
+}
+
+void ARTTurnManager::WithdrawParticipantReady(int32 InTeamId, int32 InControlGroup)
+{
+	if (ReadyParticipants.Remove(FIntPoint(InTeamId, InControlGroup)) == 0)
+	{
+		return; // no-op silenzioso: l'Unready di chi non era Ready e' un tasto premuto a vuoto
+	}
+
+	// Il quorum si e' rotto: il countdown non ha piu' il consenso che lo ha armato. `CancelLockIn` e' gia'
+	// no-op se non c'era niente di armato — l'Unready prima del quorum e' legittimo.
+	CancelLockIn();
 }
 
 bool ARTTurnManager::IsReadyCountdownActive() const
