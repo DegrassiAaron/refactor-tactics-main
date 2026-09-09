@@ -146,6 +146,10 @@ void ARTTurnManager::Tick(float DeltaSeconds)
 	// che il playback sia mai partito — `BeginPartialPlayback` lo avvia solo se la timeline non e' vuota.
 	TickReactionWindow(DeltaSeconds);
 
+	// La slow-motion di [D-350] si allinea DOPO l'orologio: se questo tick ha fatto scadere la finestra, il
+	// ripristino avviene nello stesso frame invece che al successivo.
+	UpdateReactionSlowMotion();
+
 	if (bIsResolving)
 	{
 		TickPlayback(DeltaSeconds);
@@ -220,6 +224,27 @@ void ARTTurnManager::TickReactionWindow(float DeltaSeconds)
 	{
 		ExpireReactionWindow();
 	}
+}
+
+void ARTTurnManager::UpdateReactionSlowMotion()
+{
+	// `GetOpenReactionWindowId` copre ENTRAMBI i siti — il `Brace` e il movimento — ed e' la ragione per cui
+	// questa funzione non deve sapere quale dei due attende.
+	const bool bWindowOpen = !GetOpenReactionWindowId().IsEmpty();
+	if (bWindowOpen == bSlowedForReactionWindow)
+	{
+		return; // niente da fare: si scrive al CAMBIO, non a ogni frame
+	}
+
+	bSlowedForReactionWindow = bWindowOpen;
+
+	// ⛔ **`1.f` e non il valore precedente**: dove una finestra puo' aprirsi il tasto `V` e' inerte
+	// (`#2733`), quindi in live non esiste una preferenza da conservare. E' cio' che [D-350] dichiara con
+	// *«senza salvare ne' ripristinare una preferenza»*.
+	//
+	// ⚠️ Il valore lento si legge dal campo e non si scrive qui: e' una manopola di pacing, e un letterale
+	// in questa riga la renderebbe due.
+	ViewerPlaybackSpeed = bWindowOpen ? ReactionWindowPlaybackSpeed : 1.f;
 }
 
 void ARTTurnManager::AddLogEvent(const FString& Message, FRTLogSubject Subject)

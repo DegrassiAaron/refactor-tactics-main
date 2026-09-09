@@ -1098,4 +1098,114 @@ bool FRTFastDecisionOptionForwardsIndexTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **LA SLOW-MOTION SI RIPRISTINA SU ENTRAMBE LE USCITE** ([`D-350`], `#166`, voce 11).
+ *
+ * 🔑 **Il difetto che questo test esiste per impedire non e' «la slow-motion non parte»: e' «non
+ * finisce».** Le uscite di una finestra sono quattro — risposta e scadenza, per il movimento e per il
+ * `Brace` — e un ripristino scritto su ognuna e' disciplina in quattro posti. Dimenticarne uno lascia la
+ * partita al 35% **per il resto del match**, e si manifesta solo dopo quella particolare uscita.
+ *
+ * ⚠️ **Percio' il ramo che conta e' la SCADENZA**, non la risposta: e' quella che un giocatore nota meno,
+ * riproduce peggio, e che una correzione frettolosa dimentica per prima.
+ *
+ * ⛔ Il test NON asserisce il valore `0.35`: e' una manopola di pacing, e fissarlo qui renderebbe rosso un
+ * cambio di taratura. Asserisce le due proprieta' che sono contratto: **rallentato mentre attende**
+ * (`< 1`), e **esattamente 1** quando non attende piu'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionSlowMotionRestoresTest,
+	"RefactorTactics.Reactions.SlowMotionRestoresOnBothExits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionSlowMotionRestoresTest::RunTest(const FString&)
+{
+	// Il banco si allestisce due volte: una per la RISPOSTA, una per la SCADENZA. Una lambda invece di due
+	// copie — e il ramo che cambia e' l'unico parametro.
+	auto Esegui = [this](bool bRispondi, const TCHAR* Etichetta)
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return; }
+		InitVmWorld(World);
+		SpawnVmMap(World);
+
+		ARTUnit* Mover = SpawnVmUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+		ARTUnit* Watcher = SpawnVmUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+		ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, /*TeamId=*/ 1);
+		if (!TM || !GameMode || !PC) { RTWorldFixtures::DestroyWorld(World); return; }
+
+		ArmOverwatchScenario(Mover, Watcher);
+		GameMode->HookReactionWindow();
+		URTReactionWindowViewModel* ViewModel = PC->GetReactionWindowViewModel();
+
+		// --- 1. Stato di partenza: nessuna finestra, velocita' piena ---------------------------------
+		TestTrue(*FString::Printf(TEXT("%s: si parte a velocita' piena"), Etichetta),
+			FMath::IsNearlyEqual(TM->ViewerPlaybackSpeed, 1.f, 1e-3f));
+
+		TM->LockInAndResolve();
+		if (!TestTrue(*FString::Printf(TEXT("%s: premessa — una finestra attende"), Etichetta),
+				TM->IsResolutionSuspended()))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return;
+		}
+		const FString IdAperta = TM->GetOpenReactionWindowId();
+
+		// --- 2. Un tick, e la riproduzione RALLENTA --------------------------------------------------
+		// ⚠️ Serve un tick: l'allineamento vive nel `Tick`, non nel sito che apre. E' cio' che lo rende
+		// indipendente da QUALE dei due siti ha aperto.
+		TM->Tick(0.01f);
+		TestTrue(*FString::Printf(TEXT("%s: mentre la finestra attende la riproduzione e' rallentata"), Etichetta),
+			TM->ViewerPlaybackSpeed < 1.f);
+		TestTrue(*FString::Printf(TEXT("%s: e resta positiva — zero varrebbe «non scelto»"), Etichetta),
+			TM->ViewerPlaybackSpeed > 0.f);
+
+		// --- 3. L'USCITA: risposta oppure scadenza ---------------------------------------------------
+		if (bRispondi)
+		{
+			ViewModel->SubmitResponse(ViewModel->GetWindow().SafeResponse);
+			TM->Tick(0.01f);
+		}
+		else
+		{
+			// Si lascia scadere: nessuno risponde, e l'orologio fa il proprio lavoro.
+			int32 Giri = 0;
+			while (TM->GetOpenReactionWindowId() == IdAperta && Giri < 2000)
+			{
+				TM->Tick(0.01f);
+				++Giri;
+			}
+		}
+
+		// --- 4. LA MISURA -----------------------------------------------------------------------------
+		// 🔑 Se dopo l'uscita un'ALTRA finestra si e' aperta, restare rallentati e' corretto: la
+		// proprieta' non e' «si torna a 1», e' «la velocita' segue la presenza di una finestra».
+		if (TM->GetOpenReactionWindowId().IsEmpty())
+		{
+			TestTrue(*FString::Printf(TEXT("%s: chiusa l'ultima finestra si torna a velocita' PIENA"), Etichetta),
+				FMath::IsNearlyEqual(TM->ViewerPlaybackSpeed, 1.f, 1e-3f));
+		}
+		else
+		{
+			AddInfo(FString::Printf(
+				TEXT("%s: dopo l'uscita un'altra finestra e' aperta — si verifica che resti rallentata"),
+				Etichetta));
+			TestTrue(*FString::Printf(TEXT("%s: con un'altra finestra aperta resta rallentata"), Etichetta),
+				TM->ViewerPlaybackSpeed < 1.f);
+
+			// ...e si porta il turno in fondo, per misurare comunque il ritorno a 1.
+			int32 Giri = 0;
+			while (TM->IsResolutionSuspended() && Giri < 4000) { TM->Tick(0.01f); ++Giri; }
+			TestTrue(*FString::Printf(TEXT("%s: esaurite le finestre si torna a velocita' PIENA"), Etichetta),
+				FMath::IsNearlyEqual(TM->ViewerPlaybackSpeed, 1.f, 1e-3f));
+		}
+
+		RTWorldFixtures::DestroyWorld(World);
+	};
+
+	Esegui(/*bRispondi=*/ true, TEXT("uscita per RISPOSTA"));
+	Esegui(/*bRispondi=*/ false, TEXT("uscita per SCADENZA"));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
