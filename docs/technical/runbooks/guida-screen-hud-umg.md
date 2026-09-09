@@ -476,10 +476,16 @@ test automatico può guardare.
 > registrata come prevalente sul DoD di [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613), che chiede *«`PIE-V01-HUD` estesa all'ingombro del §4.1»*.
 > Eseguire U15 avrebbe rimisurato il Canvas e lasciato il §4.1 `NOT RUN`.
 
-⚠️ **`PIE-V01-SCREENHUD` non ha ancora una seduta**: `grep -c PIE-V01-SCREENHUD docs/roadmap/editor-sessions.yaml`
-→ **0**, misurato il 2026-09-09. Chi la esegue la aggiunge **dopo `git fetch --prune`**: `U-nnn` è un
-contatore condiviso e non si assegna dalla memoria. ⚠️ L'header di
-[`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml) è normativo: leggilo prima di scrivere.
+La seduta che la convoca è **`U49`** in [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml), aperta
+il 2026-09-09 — prima non ne aveva nessuna, ed è la ragione per cui la voce esisteva dal 2026-08-28 senza
+che nessuno potesse aprirla.
+
+🔴 **Si esegue da `L_Frontend` premendo `PLAY`, non aprendo una mappa di partita.** Il layer è presentato da
+`EnterMatch` e non dallo stack: chi apre `L_DevSandbox` o `L_HexArena` non vede né roster né dock **perché
+nessuno li ha montati**, e dichiarerebbe rotto un HUD mai caricato. ⛔ Dal frontend **non è pilotabile via
+MCP** — misurato il 2026-08-30: i bottoni del menu non si premono dal ponte. Serve una persona alla
+tastiera. ⚠️ E premi `Home` prima di giudicare: la camera parte dall'origine, e la prima inquadratura
+sembra un livello rotto.
 
 Cosa **non** serve la PIE per verificarlo, e quindi non va rimandato lì:
 
