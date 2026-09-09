@@ -488,10 +488,16 @@ bool FRTRefusalDistinguishesCoverFromRangeTest::RunTest(const FString&)
  * generici — sono essi stessi il canale: la differenza fra i due E' l'informazione. Per questo il test
  * asserisce l'UGUAGLIANZA fra i due esiti, non la genericita' di ciascuno.
  *
- * 🔑 La misura che rende il caso reale: il collider di un'unita' velata **resta attivo** — il trace del
- * click usa `ECC_Visibility`, la mesh lo blocca (`RTUnit.cpp:62-63`), e `RefreshComponentVisibility`
- * spegne la visibilita' ma non la collisione. Un nemico invisibile e' quindi cliccabile, e senza questo
- * collasso il rifiuto lo rivelerebbe.
+ * 🔑 **Perche' il caso e' reale, corretto il 2026-09-09 (#2755).** Una stesura precedente di questo
+ * commento diceva che *«il collider di un'unita' velata resta attivo»*, e citava `RTUnit.cpp:62-63` —
+ * cioe' il COSTRUTTORE. Era falso: la stessa `RefreshComponentVisibility`, in coda, chiama
+ * `SetActorEnableCollision(bRender)` dal commit `678cc8fc`. Un nemico velato **non** viene colpito dal
+ * trace del click, e `RefactorTactics.Veil.HiddenEnemyIsNotPickable` ora lo misura sul percorso reale.
+ *
+ * Il caso resta reale per una ragione diversa, e piu' stretta: `bKnownToObserver` nasce **`true`**
+ * (`RTUnit.h:1392`) e il velo lo corregge nel `Tick` dell'HUD. Fra lo spawn di un'unita' e il primo tick
+ * c'e' una finestra in cui la collisione e' accesa su un nemico che l'osservatore non ha mai visto. Il
+ * collasso qui sotto e' quindi difesa in profondita' su una finestra breve, non l'unica difesa.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusalHidesTheUnknownTargetTest,
 	"RefactorTactics.Combat.RefusalHidesTheUnknownTarget",

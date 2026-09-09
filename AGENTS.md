@@ -329,6 +329,40 @@ Misurato con due file di prova: riscrivendone uno da capo, l'elenco dei percorsi
 
 Il motore è **uno solo per macchina**: due run in parallelo, o una build lanciata sotto una suite altrui, si distruggono le misure a vicenda. Non c'è più un lease che lo impedisca — accordati prima.
 
+> 🔑 **Cosa si calpesta davvero, misurato il 2026-09-09.** La riga qui sopra è la cautela giusta, ma è più
+> larga del fatto — e la differenza conta, perché su questa macchina convivono più cloni
+> (`refactor-tactics-main`, `-dev`, `-designer`, più i worktree) e più sessioni che compilano e misurano a
+> rotazione.
+>
+> **Non si calpestano**: una build in un clone e una suite in un altro. `Binaries/` è **per clone** — ogni
+> checkout e ogni worktree ha il proprio `Binaries/Win64/UnrealEditor-RefactorTactics.dll` — quindi una
+> build non riscrive il modulo che un'altra suite ha caricato, e `-WaitMutex` serializza le invocazioni di
+> UBT.
+>
+> ⚠️ **E regge per una condizione dichiarata, non per fortuna**: il motore è una **installed build**
+> (`D:/EpicGames/UE_5.8/Engine/Build/InstalledBuild.txt` esiste), quindi UBT tratta i moduli Engine come
+> read-only e un target di progetto non può riscriverli. Misurato: `UnrealEditor.exe` e
+> `UnrealEditor-Engine.dll` erano del **2026-07-31** dopo due build di progetto dello stesso giorno.
+>
+> 🔴 **Si calpestano ancora**, e queste restano vere:
+> * due run nello **stesso** clone o worktree — stesso `Binaries/`;
+> * un Editor aperto sullo stesso clone: tiene il DLL, e la build fallisce o gli cambia il modulo sotto;
+> * **qualunque cosa tocchi l'Engine** — se `InstalledBuild.txt` sparisce, o si compila un target Engine,
+>   l'argomento qui sopra decade **per intero**;
+> * le misure di **performance**: la contesa di CPU/GPU cambia i tempi anche quando la correttezza tiene.
+>   Per un gate di pacing, «il motore è libero» resta un prerequisito.
+>
+> Come si verifica, prima di dichiarare una misura valida contro una run altrui:
+>
+> ```powershell
+> Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select ProcessId, CommandLine
+> Test-Path "D:/EpicGames/UE_5.8/Engine/Build/InstalledBuild.txt"      # installed build?
+> Get-Item "<clone-altrui>/Binaries/Win64/UnrealEditor-RefactorTactics.dll" | Select Length, LastWriteTime
+> ```
+>
+> ⛔ **La `CommandLine` non è un dettaglio**: dice **quale clone** sta girando, ed è l'unica cosa che
+> distingue «una suite altrui» da «la mia». Un conteggio di processi non lo dice.
+
 Dopo una lunga attesa, ricompila prima di registrare il risultato: il DLL presente sul disco potrebbe provenire da un altro commit.
 
 Prima del merge verifica che il gate appartenga al commit che stai mergiando.
@@ -408,6 +442,33 @@ Usi tipici:
 PIE non sostituisce build, Automation Test o Scenario Harness quando questi sono richiesti.
 
 Se PIE/MCP non può essere eseguito per limiti dell'ambiente o per ownership concorrente, riportare `NOT RUN` con il motivo invece di simulare il risultato.
+
+> 🔴 **`write_graph_dsl` NON è il gemello di `read_graph_dsl`: il giro non torna, e la differenza si paga
+> in silenzio.** Misurato il 2026-09-09 su `WBP_RT_TeamRoster`.
+>
+> `read_graph_dsl` serializza i **pin dinamici** — quelli che un nodo guadagna dopo che una sua input è
+> stata assegnata, come il `Card` che `CreateWidget` espone quando `Class` punta a un widget con variabili
+> *expose on spawn*. `write_graph_dsl` quegli stessi pin li **rifiuta**:
+>
+> ```
+> UserInterface|CreateWidget received 3 positional arg(s) but has 2 data input pin(s).
+>   Available: ['Class', 'OwningPlayer']
+> ```
+>
+> e la forma a keyword non aiuta: `Unknown input pin "Card"`.
+>
+> ⛔ **Quindi non si rilegge un grafo e lo si riscrive per "aggiungere un ramo".** Il risultato compila,
+> nessuno strumento protesta, e i pin dinamici che c'erano prima **spariscono** — nel caso misurato,
+> ogni carta del roster sarebbe nata vuota, con un rosso che nessun test esistente produce.
+>
+> **Come si fa invece**: scrivere col DSL la struttura **senza** quei pin, poi ricablarli con
+> `connect_pins`, e **verificare uno per uno** con `get_node_infos` che l'origine sia quella giusta —
+> `find_nodes` restituisce i nodi in ordine di creazione, non di semantica, e due `CreateWidget` scambiati
+> danno carte con i dati dell'altra squadra senza che nulla fallisca.
+>
+> ⚠️ Vale per **ogni** nodo con pin dipendenti da una classe: `CreateWidget`, `SpawnActor`, i cast, le
+> chiamate a funzioni con parametri wildcard. Prima di riscrivere un grafo, chiediti se qualche pin di
+> quel grafo esiste solo perché un'altra input è già assegnata.
 
 Per ogni uso Editor/MCP:
 
@@ -554,9 +615,44 @@ Da cui due conseguenze:
 
 Unreal è **uno** e lo condividono tutti i checkout. Da cui:
 
-- una build lanciata sotto la suite di un altro checkout rende `NON VALIDA` quella misura, riscrivendo il binario che l'invariante osserva;
-- un Editor aperto e una suite non convivono;
-- prima di occupare il motore — Editor, PIE, build, commandlet, suite — **accertati che nessun altro lo stia usando**. `Get-Process UnrealEditor*, UnrealEditor-Cmd*` lo dice; il lease che lo diceva prima non c'è più.
+- un Editor aperto e una suite sullo **stesso** clone non convivono;
+- prima di occupare il motore — Editor, PIE, build, commandlet, suite — **accertati di cosa stia già girando**. Il lease che lo diceva prima non c'è più ([`D-347`](docs/decisions/RT_PDR_00_Decision_Log.md)).
+
+> ⌫ **Fino al 2026-09-09 questa lista diceva anche** *«una build lanciata sotto la suite di un altro checkout rende `NON VALIDA` quella misura, riscrivendo il binario che l'invariante osserva»*. **La premessa è falsa**, e la correzione vale perché applicata alla lettera bloccava lavoro che poteva procedere: `Binaries/` è **per clone**, quindi una build non riscrive il binario che un'altra suite ha caricato. La misura completa — cosa si calpesta e cosa no, con i comandi per verificarlo — è in **§9**. ⚠️ Ciò che resta vero è il **resto** della frase in altri casi: stesso clone, Editor che tiene il DLL, qualunque cosa tocchi l'Engine, e ogni misura di **performance**.
+
+### Prendere il motore, senza un lease
+
+`D-347` ha spostato la disciplina dagli script a chi lavora, e non l'ha sostituita con niente. Questo è il niente, reso esplicito — nessuno script, nessun file di lock, nessun processo da ricordare di spegnere.
+
+**1 · Allocazione: una sessione, un clone.** È la sola forma di parallelismo che regge alla misura di §9: due sessioni in due cloni compilano senza calpestarsi, perché i moduli sono per clone e l'Engine è una *installed build*. Due sessioni nello **stesso** clone non sono parallele, sono in coda — e sul working tree non sono nemmeno in coda, sono sovrapposte.
+
+**2 · Prima di prendere: leggi chi c'è, e da dove.**
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select ProcessId, Name, CommandLine
+```
+
+⛔ **Un conteggio di processi non serve a niente.** La `CommandLine` porta il `.uproject`, quindi **quale clone**; `UnrealEditor.exe` contro `UnrealEditor-Cmd.exe` dice se è un Editor interattivo o una run headless; e `-abslog` dice **quale sessione**. Sono le tre cose che decidono se aspettare.
+
+**3 · Quando prendi, rendi il tuo processo leggibile.** Ogni run headless passa `-abslog` dentro la propria directory di scratchpad di sessione:
+
+```
+-abslog=<scratchpad della sessione>/<nome-parlante>.log
+```
+
+🔑 **È l'unica «dichiarazione di possesso» che sopravvive senza script: il processo stesso.** Non va creato, non va ripulito, non può restare stantio dopo un crash — se il processo non c'è, la dichiarazione non c'è. Un file di lock avrebbe tutti e tre i difetti.
+
+**4 · Quando aspettare, e quando no.**
+
+| Cosa gira | Tu vuoi | |
+|---|---|---|
+| build o suite in un **altro** clone | build o suite | **non aspettare** — §9 |
+| misura di **performance** in qualunque clone | qualsiasi cosa sul motore | **aspetta**: la contesa di CPU falsa i tempi |
+| qualsiasi cosa nel **tuo** clone | qualsiasi cosa | **aspetta**: stesso `Binaries/` |
+| Editor interattivo sul **tuo** clone | build | **aspetta**: tiene il DLL |
+| qualsiasi cosa | build di un target **Engine** | **aspetta**, e avvisa: decade l'argomento di §9 |
+
+**5 · Se non puoi aspettare, non misurare comunque.** Si dichiara `NOT RUN` con il motivo — *«motore occupato da `<clone>`»* — invece di produrre un verde in finestra sporca. Un `NOT RUN` onesto costa un giro; una misura invalida costa la fiducia in tutte le altre.
 
 ### Authoring asset: appartiene al clone principale
 

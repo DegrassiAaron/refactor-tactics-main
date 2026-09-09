@@ -5,6 +5,20 @@
 > **Base**: `main = c3151afd`, in worktree isolato `rt-wt-2741`.
 > ⚠️ Ogni affermazione qui viene dal sorgente, non dal corpo della issue.
 
+> ## ⛔ RITRATTAZIONE — 2026-09-09, da [#2755](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2755)
+>
+> **La terza riga della tabella del §1 è falsa, e con essa la conclusione *«un nemico velato resta cliccabile»* (§1) e il rilievo registrato al §5.**
+>
+> `RefreshComponentVisibility` **spegne** la collisione: chiude con `SetActorEnableCollision(bRender)` (`RTUnit.cpp:597`), dal commit `678cc8fc` del 2026-08-27 — *«un'unità ignota alla squadra non si vede e non si clicca»*.
+>
+> 🔴 La misura dichiarata — *«zero occorrenze di `Collision` nel corpo»* — è falsificabile leggendo il corpo: `SetActorEnableCollision` contiene la parola. Il grep si era fermato prima della riga 597, e il §1 ha letto quel troncamento come un'assenza.
+>
+> **Cosa resta valido**: la feature di #2741 e il collasso dei tre esiti, per una ragione più stretta — `bKnownToObserver` nasce `true` (`RTUnit.h:1392`) e il velo lo corregge nel `Tick` dell'HUD, quindi fra lo spawn e il primo tick esiste una finestra in cui la collisione è accesa su un nemico mai visto. La guardia resta, come difesa in profondità su quella finestra.
+>
+> **Cosa non resta**: il rilievo del §5 non descrive un lavoro da fare. `RefactorTactics.Veil.HiddenEnemyIsNotPickable` ora misura il picking sul percorso reale.
+>
+> ⚠️ Il testo qui sotto **non è riscritto**: registra ciò che questo panel misurò, e la cronaca di come l'errore si è propagato vale più della sua cancellazione.
+
 ## §1 — 🔴 Il rilievo che cambia la specifica: la feature, fatta ingenuamente, **converte un leak latente in un leak reale**
 
 Tre fatti misurati, che presi insieme decidono la forma della feature:

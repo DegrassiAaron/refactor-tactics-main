@@ -672,7 +672,8 @@ sessions:
     verifies:
       - PIE-V01-PACKAGED
       - PIE-V01-PREPWINDOW
-    issues: [959, 1088, 1069, 79, 1296, 2386]
+      - PIE-V01-SPECTATOR-ROSTER
+    issues: [959, 1088, 1069, 79, 1296, 2386, 2744]
     done_when: esiste una registrazione di una partita 2v2 conclusa senza un solo input, eseguita due volte — PIE e pacchetto Development
     notes: |
       ➕ **`PIE-V01-PREPWINDOW` si aggiunge qui il 2026-09-06 (#2386) e NON chiede una seduta propria**,
@@ -682,6 +683,19 @@ sessions:
       chiedono cose diverse e non si spuntano insieme**: quella chiede una partita che arriva alla vittoria
       *senza input*, questa chiede di **premere `P`** e guardare cosa succede. Chi esegue la prima senza mai
       toccare la tastiera lascia questa aperta, ed e' corretto.
+
+      ➕ **`PIE-V01-SPECTATOR-ROSTER` si aggiunge qui il 2026-09-09 (#2744), per la stessa ragione di
+      `PIE-V01-PREPWINDOW`**: l'allestimento e' gia' quello — modalita' non presidiata, `unblocked_by: E47.1` —
+      e chi registra la partita **ha gia' il roster davanti**. ⚠️ **Ma questa chiede un passo che le altre due
+      non fanno**: rilanciare la stessa mappa in partita **presidiata** e verificare che il roster torni a una
+      lista sola. E' il controllo negativo, e senza di esso un roster che mostrasse sempre entrambe le squadre
+      passerebbe. ∴ chi esegue le prime due senza rilanciare lascia questa aperta, ed e' corretto.
+
+      ⚠️ **Precondizione in piu', e non e' pro forma**: lo Screen HUD UMG dev'essere a schermo
+      (`WBP_RT_TacticalHUD`, §4.1 di #613). Senza, la voce non misura «due squadre» ma «nessun roster».
+
+      ⛔ **Il punto (d) — il feed che nomina entrambe le squadre — si dichiara `N/A` finche'
+      `WBP_RT_EventLog` non esiste in `Content/` (#1936 §F).** Non si finge, e non blocca il resto della voce.
 
       ⛔ **Nessuno scenario puo' sostituirla, e non per una capability mancante.** `RTScenarioSession`
       chiama `LockInAndResolve()` diretto dopo `SetPlanningSeconds(0.f)`: non attraversa
@@ -3245,3 +3259,65 @@ sessions:
 
       ⛔ Se compare una warning di `ResolveIcon` — nomina chiave e consumer — stai guardando il ripiego
       testuale e non la texture: la voce **non e' eseguibile** finche' quella riga c'e'.
+  - id: U49
+    title: Lo Screen HUD §4.1 a schermo, e va aperto dal frontend
+    block: 6
+    critical: true
+    execution_lane: pie
+    produces: verdetto su ingombro, leggibilita' e centro libero del layer §4.1 in partita
+    artifacts: []
+    # 🔑 **La voce esisteva dal 2026-08-28 e non aveva una seduta**: `grep -c PIE-V01-SCREENHUD` su questo
+    # file dava **0** il 2026-09-09. Non era una svista di chi l'ha scritta — la voce nasce dopo l'ultima
+    # tornata di sedute — ma il risultato e' lo stesso: `#613` dichiara questa voce come proprio unico
+    # residuo, e nessuno poteva aprirla.
+    #
+    # ⛔ **Non duplica U15.** Quella e' «HUD, intenti, log e comandi debug» e giudica il **Canvas**: la sua
+    # voce `PIE-V01-HUD` e' chiusa dal 2026-08-24 e vive sul §4.2. Eseguire U15 per il §4.1 rimisurerebbe
+    # il layer sbagliato e lascerebbe questo `NOT RUN` credendo di averlo verificato.
+    unblocked_by: []
+    # Vuoto e non e' una svista, come in U46: il codice c'e' tutto. I `WBP_RT_*` di `Content/RT/UI/Match/`
+    # esistono, `URTFrontendNavigator::PresentMatchHud` li monta, e nove test `RefactorTactics.ScreenHud.*`
+    # coprono la meta' strutturale. Quello che manca e' un occhio.
+    shares_setup_with: []
+    # ⚠️ Vuoto per una ragione MISURATA, non per default: l'allestimento di questa seduta parte da
+    # `L_Frontend`, e nessun'altra seduta lo condivide — le altre aprono direttamente una mappa di partita.
+    verifies: [PIE-V01-SCREENHUD]
+    issues: [613, 2764]
+    # #613 e' l'owner del layer e dichiara questa voce come proprio residuo. #2764 la nomina fra le proprie
+    # verifiche: il verde headless dei suoi 69 test non dice cosa il Blueprint mostri, e questa seduta si'.
+    done_when: la voce ha esito reale nel registro
+    unblocks: [E11.7]
+    steps: |
+      🔴 **Si apre da `L_Frontend` e si preme `PLAY`. Non aprendo una mappa di partita.**
+
+      Misurato il 2026-08-30 e depositato in `test-manuali-pie.md`: `DefaultGame.ini` dichiara
+      `MatchHudWidgetClass`, ma il layer e' *«presentato da `EnterMatch` e non dallo stack»*. Le catture
+      fatte su `L_DevSandbox` e `L_HexArena` non mostrano ne' il roster ne' il dock **perche' nessuno li
+      ha montati** — e chi giudicasse da li' dichiarerebbe rotto un HUD che non e' stato caricato.
+
+      ⛔ **Dal frontend NON e' pilotabile via MCP**, misurato lo stesso giorno: il main menu si vede, e
+      nessuno dei suoi bottoni si preme dal ponte. Questa seduta vuole una persona alla tastiera.
+
+      ⚠️ **Premi `Home` prima di guardare.** La camera parte dall'origine: la prima inquadratura mostra
+      due unita' su fondo nero e nessuna griglia, e sembra un livello rotto. Vale anche per una cattura
+      automatica, che non ha l'istinto di ricentrare.
+
+      Poi, in partita:
+
+      - le quattro zone popolate — `Zone_Top`, `ZoneLeft`, `ZoneRight`, `ZoneBottom` — e **il centro
+        della board libero**, che e' il criterio negativo del layer: la Screen HUD non deve coprire le
+        celle su cui si decide;
+      - il contatore del round, la fase e il timer nell'header;
+      - gli slot del dock nei loro stati, e le icone risolte per chiave e non come ripiego testuale;
+      - il debug **spento** nella vista giocatore.
+
+      🔑 **Le barre sono due di proposito, e questa seduta esiste anche per non farle leggere come un
+      difetto**: quella ancorata sopra l'unita' e' §4.2 e risponde a «quanto e' ferito quello li'», quella
+      del roster e' §4.1 e risponde a «quanto e' ferito chi sto comandando». Il giudizio e' se un
+      giocatore le legga come **due informazioni**.
+
+      ⛔ Cio' che NON serve guardare qui, perche' gia' coperto headless da `RefactorTactics.ScreenHud.*`:
+      che i widget carichino, che derivino dalla base C++, che l'API non esponga texture, che lo slot
+      porti una chiave icona e che il catalogo arrivi alla radice.
+
+      L'esito si scrive in `test-manuali-pie.md`, che ne resta l'unico owner — **qui non si copia** (R-6).

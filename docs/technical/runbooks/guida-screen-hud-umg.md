@@ -91,8 +91,8 @@ Cinque zone — `TOP`, `LEFT`, `RIGHT`, `BOTTOM`, `CENTER`. Le prime quattro son
 │  TOP — TurnHeader                       │
 ├──────────┬───────────────────┬──────────┤
 │ LEFT     │  CENTER           │ RIGHT    │
-│ Team     │  nessun pannello  │ riservata│
-│ Roster   │  battlefield §4.2 │ (vuota)  │
+│ Team     │  nessun pannello  │ Selected │
+│ Roster   │  battlefield §4.2 │ UnitPanel│
 │          │                   │          │
 ├──────────┴───────────────────┴──────────┤
 │  BOTTOM — SelectedUnitPanel + ActionDock│
@@ -103,7 +103,7 @@ Cinque zone — `TOP`, `LEFT`, `RIGHT`, `BOTTOM`, `CENTER`. Le prime quattro son
 |---|---|---|
 | `TOP` | `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer, objective | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) |
 | `LEFT` | `WBP_RT_TeamRoster` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2744) |
-| `RIGHT` | **vuota, e non è un difetto.** Candidato dichiarato: `WBP_RT_EventLog`, che non esiste ancora | [#1936](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1936) §F |
+| `RIGHT` | `WBP_RT_SelectedUnitPanel` — l'istanza si chiama `WBP_RT_SelectedUnitPanelRight` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
 | `BOTTOM` | `WBP_RT_SelectedUnitPanel` (+ `WBP_RT_UnitCard`), `WBP_RT_ActionDock` (+ `WBP_RT_ActionSlot`), `WBP_RT_FastDecision` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) |
 | `CENTER` | ⛔ **NESSUN PANNELLO SCREEN-HUD STATICO** — battlefield e Tactical World Overlay §4.2 | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
 
@@ -112,9 +112,24 @@ per ciò che non deve contenere. Il criterio è misurabile — *la Screen HUD no
 centro e non oscura le celle necessarie alla decisione* — e chi lo violasse lo farebbe allargando una delle
 altre quattro, non aggiungendo la quinta.
 
-⚠️ **`LEFT` è il roster e `BOTTOM` porta la selezione**, non il contrario. È l'assegnazione implementata e
-compilata; una lettura che metta il contesto locale a sinistra e la squadra a destra è un **re-layout**, non
-una correzione, e passerebbe dal giudizio di `PIE-V01-SCREENHUD` sull'ingombro.
+⚠️ **`LEFT` è la squadra e `RIGHT` il contesto locale**, non il contrario. È l'assegnazione implementata e
+compilata; una lettura che le scambi è un **re-layout**, non una correzione, e passerebbe dal giudizio di
+`PIE-V01-SCREENHUD` sull'ingombro.
+
+> 🔁 **Corretto il 2026-09-09, poche ore dopo essere stato scritto sbagliato.** Questa tabella dichiarava
+> `RIGHT` **vuota**, *«e non è un difetto»*. **Falso.** Il tree è stato misurato col ponte MCP
+> (`UMGToolSet.GetWidgetDescription` su `WBP_RT_TacticalHUD`) e depositato in
+> [`test-manuali-pie.md`](../test-manuali-pie.md): *«le quattro zone reali e popolate — `Zone_Top` →
+> `WBP_RT_TurnHeader`, `ZoneLeft` → `WBP_RT_TeamRoster`, `ZoneRight` → `WBP_RT_SelectedUnitPanel`,
+> `ZoneBottom` → `WBP_RT_SelectedUnitPanel` + `WBP_RT_ActionDock`»*. Il log PIE di
+> [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) lo conferma per un'altra via, nominando l'istanza:
+> `WBP_RT_TacticalHUD_C_0.WidgetTree_0.WBP_RT_SelectedUnitPanelRight.WidgetTree_0.WBP_RT_UnitCard`.
+>
+> ⚠️ **L'errore non è nato qui: è stato ereditato e rafforzato.** La versione precedente diceva `Right:
+> (spazio futuro)` — stantia, e mai misurata. Riscriverla come *«vuota, e non è un difetto»* ha trasformato
+> una riga vecchia in un'affermazione, senza aggiungere la misura che l'avrebbe smentita. ⛔ Un `.uasset` è
+> compresso e `strings` non lo legge: **questo tree si verifica solo dall'Editor**, e finché non lo si apre
+> la fonte è il registro, non l'intuizione.
 
 🔴 **Il centro libero è un requisito, non un gusto.** Il layer §4.2 (`ARTHUD::DrawHUD`) continua a disegnare
 path, waypoint, AoE, fuoco amico e le barre ancorate **sopra la mappa**: un pannello al centro glieli
@@ -461,10 +476,16 @@ test automatico può guardare.
 > registrata come prevalente sul DoD di [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613), che chiede *«`PIE-V01-HUD` estesa all'ingombro del §4.1»*.
 > Eseguire U15 avrebbe rimisurato il Canvas e lasciato il §4.1 `NOT RUN`.
 
-⚠️ **`PIE-V01-SCREENHUD` non ha ancora una seduta**: `grep -c PIE-V01-SCREENHUD docs/roadmap/editor-sessions.yaml`
-→ **0**, misurato il 2026-09-09. Chi la esegue la aggiunge **dopo `git fetch --prune`**: `U-nnn` è un
-contatore condiviso e non si assegna dalla memoria. ⚠️ L'header di
-[`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml) è normativo: leggilo prima di scrivere.
+La seduta che la convoca è **`U49`** in [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml), aperta
+il 2026-09-09 — prima non ne aveva nessuna, ed è la ragione per cui la voce esisteva dal 2026-08-28 senza
+che nessuno potesse aprirla.
+
+🔴 **Si esegue da `L_Frontend` premendo `PLAY`, non aprendo una mappa di partita.** Il layer è presentato da
+`EnterMatch` e non dallo stack: chi apre `L_DevSandbox` o `L_HexArena` non vede né roster né dock **perché
+nessuno li ha montati**, e dichiarerebbe rotto un HUD mai caricato. ⛔ Dal frontend **non è pilotabile via
+MCP** — misurato il 2026-08-30: i bottoni del menu non si premono dal ponte. Serve una persona alla
+tastiera. ⚠️ E premi `Home` prima di giudicare: la camera parte dall'origine, e la prima inquadratura
+sembra un livello rotto.
 
 Cosa **non** serve la PIE per verificarlo, e quindi non va rimandato lì:
 
