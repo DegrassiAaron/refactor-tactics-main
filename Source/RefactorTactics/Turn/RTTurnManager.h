@@ -330,6 +330,51 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	float GetReadyCountdownSeconds() const { return ReadyCountdownSeconds; }
 
+	// --- Ready per PARTECIPANTE e quorum (`#2193`, estensione 2026-09-07) -------------------------------
+
+	/**
+	 * Dichiara Ready il PARTECIPANTE — cioe' **chi comanda** — e non il Character selezionato.
+	 *
+	 * 🔑 **Il soggetto e' il controller, e la coppia `(TeamId, ControlGroup)` NON e' un identificatore
+	 * nuovo**: sono i due campi che `#1124` ha gia' consegnato, letti dal chiamante attraverso l'unica porta
+	 * che esiste — `ARTPlayerState::TeamIdOf` / `::ControlGroupOf`. Un secondo sistema di ownership del
+	 * Player e' esattamente cio' che l'estensione vieta.
+	 *
+	 * ⛔ **Non prende l'unita' selezionata, e la firma lo impone.** Il Ready arriva anche quando non e'
+	 * selezionato niente, e farlo dipendere dalla selezione riaprirebbe la domanda che questa estensione
+	 * chiude: *«quale dei due Hero e' Ready?»*. Nessuno: lo e' chi li comanda, quindi tutti quelli che
+	 * comanda.
+	 *
+	 * 🔴 **Non arma il countdown da sola.** Lo arma il **quorum**: `RequestLockIn()` viene chiamata una volta,
+	 * quando tutti i partecipanti che possono dichiarare Ready lo sono. Con un solo partecipante — la v0.1 —
+	 * il quorum si chiude sullo stesso gesto, ed e' il motivo per cui questa estensione **non cambia nulla di
+	 * osservabile** in v0.1 (`D013`).
+	 *
+	 * ⚠️ Un secondo Ready dello stesso partecipante non riarma niente, come il secondo Ready di
+	 * `RequestLockIn()` non regala altri tre secondi.
+	 */
+	void DeclareParticipantReady(int32 InTeamId, int32 InControlGroup);
+
+	/**
+	 * **Unready del partecipante**: toglie il Ready a tutte le unita' che comanda e annulla il countdown.
+	 *
+	 * No-op silenzioso se quel partecipante non era Ready — un tasto premuto a vuoto non e' un errore, stessa
+	 * scelta di `CancelLockIn()`.
+	 */
+	void WithdrawParticipantReady(int32 InTeamId, int32 InControlGroup);
+
+	/** Quel partecipante ha dichiarato Ready in questo turno. Consumata dal quorum e dai test. */
+	bool IsParticipantReady(int32 InTeamId, int32 InControlGroup) const;
+
+	/**
+	 * Tutti i partecipanti che **possono** dichiarare Ready lo sono.
+	 *
+	 * ⛔ **Quorum VUOTO ⇒ `false`, e non e' un dettaglio**: in autobattle nessuno puo' premere Ready, e un
+	 * insieme vuoto che si dichiarasse «tutto soddisfatto» chiuderebbe ogni turno non presidiato dopo il
+	 * countdown invece che al tetto. Il commit di quelle partite resta quello di `OnPlanningTimeout`.
+	 */
+	bool HasReadyQuorum() const;
+
 	// --- Finestra di preparazione dell'autobattle (`#2386`) -------------------------------------------
 
 	/**
@@ -1193,6 +1238,25 @@ public:
 	FRTHexSimUnit MakeSimUnit(int32 Index, const ARTUnit* Unit) const;
 
 	void CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const;
+
+	/**
+	 * I partecipanti che **possono** dichiarare Ready: le coppie `(TeamId, ControlGroup)` distinte fra le
+	 * unita' vive che **non** sono pianificate dal bot (`#2193`, estensione 2026-09-07).
+	 *
+	 * 🔑 **Si deriva dalle unita' vive, non dai `PlayerState`**, e per due ragioni misurate: un gruppo le cui
+	 * unita' sono tutte a `bIsBotControlled` non ha nessuno che prema — ed e' il caso del compagno bot
+	 * (`rt.Match.BotAllies`), dove la squadra 0 contiene entrambi i casi dentro lo **stesso**
+	 * `ControlGroup` (`URTCombatLibrary::CanPlayerControlUnit`); e in autobattle l'insieme e' vuoto senza
+	 * bisogno di una regola a parte.
+	 *
+	 * ⚠️ **L'ordine non conta e non deve contare**: l'esito e' un'appartenenza a insieme, quindi l'ordine di
+	 * `CollectLivingUnits` non puo' cambiare il quorum. Se un giorno contasse, sarebbe un difetto.
+	 *
+	 * ⛔ **Il bot alleato NON entra nel quorum oggi.** La sua readiness — finestra di coordinamento,
+	 * replanning sull'ultima revisione del piano alleato, revoca sopra soglia — e' di `#534` (`CP 26.4`,
+	 * post-v0.1). Anticiparla qui aprirebbe un secondo owner per la policy del bot.
+	 */
+	void CollectReadyEligibleParticipants(TArray<FIntPoint>& OutParticipants) const;
 
 protected:
 	virtual void BeginPlay() override;
@@ -2119,6 +2183,21 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
 	float ReadyCountdownSeconds = 3.f;
+
+	/**
+	 * I partecipanti che hanno dichiarato Ready in QUESTO turno, come coppie `(TeamId, ControlGroup)`
+	 * (`#2193`, estensione 2026-09-07).
+	 *
+	 * 🔑 **`FIntPoint` e non una struct nuova**, ed e' la stessa ragione per cui non c'e' un `ReadyOwner`: la
+	 * chiave non e' un'identita' nuova da mantenere, e' la coppia di campi che `ARTPlayerState` e `ARTUnit`
+	 * gia' portano. Una struct nuova sarebbe il secondo sistema di ownership che l'estensione vieta.
+	 *
+	 * ⛔ **Non e' stato di simulazione.** Non entra nello snapshot, nel `TurnLog` ne' nello `StateHash`: e'
+	 * readiness di pianificazione, la stessa classe di `ReadyCountdownSeconds` qui sopra. Si azzera
+	 * all'apertura di ogni pianificazione (`StartPlanningTimer`) — un Ready che sopravvivesse al turno
+	 * chiuderebbe il quorum del turno dopo prima che qualcuno abbia guardato la board.
+	 */
+	TSet<FIntPoint> ReadyParticipants;
 
 	/**
 	 * La finestra di preparazione dell'autobattle (`#2386`). **Terzo Tempo UX**, accanto agli altri due e
