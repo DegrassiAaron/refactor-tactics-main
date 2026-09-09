@@ -142,6 +142,19 @@ namespace
 	constexpr float RTLiftMarker  = RTCellTopZ + 1.5f;  // blocca-movimento / blocca-vista
 	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
 
+	// 🔴 **La ribbon di perimetro (#1942) NON entra in questa pila: la attraversa.** Il vincolo della issue
+	// chiede che una parete alta sia *decisa* rispetto a queste quote e non aggiunta sopra per inerzia — ed e'
+	// una decisione che il compilatore puo' tenere. `RTBoundaryRibbonHeight` vale un ordine di grandezza piu'
+	// dell'intera pila: se qualcuno la abbassasse fin dentro il vicinato dei lift smetterebbe di leggersi come
+	// parete e diventerebbe un sesto contorno, che e' precisamente il difetto che OVL-02 chiude.
+	//
+	// ⚠️ Il confronto e' con lo **spessore** della pila (`RTLiftPreview - RTCellTopZ`, cioe' `2.5`), non con
+	// la sua quota assoluta: una prima stesura di questo assert confrontava `base + altezza` con
+	// `RTLiftPreview * 4` ed e' uscita **falsa per zero** — `40.0 > 40.0`. Un fattore scelto a occhio su una
+	// quota assoluta non dice nulla; su uno spessore dice quello che si intende.
+	static_assert(RTBoundaryRibbonHeight > (RTLiftPreview - RTCellTopZ) * 4.f,
+		"La ribbon di perimetro deve TORREGGIARE sulla pila dei lift, non infilarcisi dentro (#1942).");
+
 	/**
 	 * 🔴 **Il tetto vero dello spessore del tile, e NON e' lo `static_assert` degli anelli.**
 	 *
