@@ -615,9 +615,44 @@ Da cui due conseguenze:
 
 Unreal è **uno** e lo condividono tutti i checkout. Da cui:
 
-- una build lanciata sotto la suite di un altro checkout rende `NON VALIDA` quella misura, riscrivendo il binario che l'invariante osserva;
-- un Editor aperto e una suite non convivono;
-- prima di occupare il motore — Editor, PIE, build, commandlet, suite — **accertati che nessun altro lo stia usando**. `Get-Process UnrealEditor*, UnrealEditor-Cmd*` lo dice; il lease che lo diceva prima non c'è più.
+- un Editor aperto e una suite sullo **stesso** clone non convivono;
+- prima di occupare il motore — Editor, PIE, build, commandlet, suite — **accertati di cosa stia già girando**. Il lease che lo diceva prima non c'è più ([`D-347`](docs/decisions/RT_PDR_00_Decision_Log.md)).
+
+> ⌫ **Fino al 2026-09-09 questa lista diceva anche** *«una build lanciata sotto la suite di un altro checkout rende `NON VALIDA` quella misura, riscrivendo il binario che l'invariante osserva»*. **La premessa è falsa**, e la correzione vale perché applicata alla lettera bloccava lavoro che poteva procedere: `Binaries/` è **per clone**, quindi una build non riscrive il binario che un'altra suite ha caricato. La misura completa — cosa si calpesta e cosa no, con i comandi per verificarlo — è in **§9**. ⚠️ Ciò che resta vero è il **resto** della frase in altri casi: stesso clone, Editor che tiene il DLL, qualunque cosa tocchi l'Engine, e ogni misura di **performance**.
+
+### Prendere il motore, senza un lease
+
+`D-347` ha spostato la disciplina dagli script a chi lavora, e non l'ha sostituita con niente. Questo è il niente, reso esplicito — nessuno script, nessun file di lock, nessun processo da ricordare di spegnere.
+
+**1 · Allocazione: una sessione, un clone.** È la sola forma di parallelismo che regge alla misura di §9: due sessioni in due cloni compilano senza calpestarsi, perché i moduli sono per clone e l'Engine è una *installed build*. Due sessioni nello **stesso** clone non sono parallele, sono in coda — e sul working tree non sono nemmeno in coda, sono sovrapposte.
+
+**2 · Prima di prendere: leggi chi c'è, e da dove.**
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select ProcessId, Name, CommandLine
+```
+
+⛔ **Un conteggio di processi non serve a niente.** La `CommandLine` porta il `.uproject`, quindi **quale clone**; `UnrealEditor.exe` contro `UnrealEditor-Cmd.exe` dice se è un Editor interattivo o una run headless; e `-abslog` dice **quale sessione**. Sono le tre cose che decidono se aspettare.
+
+**3 · Quando prendi, rendi il tuo processo leggibile.** Ogni run headless passa `-abslog` dentro la propria directory di scratchpad di sessione:
+
+```
+-abslog=<scratchpad della sessione>/<nome-parlante>.log
+```
+
+🔑 **È l'unica «dichiarazione di possesso» che sopravvive senza script: il processo stesso.** Non va creato, non va ripulito, non può restare stantio dopo un crash — se il processo non c'è, la dichiarazione non c'è. Un file di lock avrebbe tutti e tre i difetti.
+
+**4 · Quando aspettare, e quando no.**
+
+| Cosa gira | Tu vuoi | |
+|---|---|---|
+| build o suite in un **altro** clone | build o suite | **non aspettare** — §9 |
+| misura di **performance** in qualunque clone | qualsiasi cosa sul motore | **aspetta**: la contesa di CPU falsa i tempi |
+| qualsiasi cosa nel **tuo** clone | qualsiasi cosa | **aspetta**: stesso `Binaries/` |
+| Editor interattivo sul **tuo** clone | build | **aspetta**: tiene il DLL |
+| qualsiasi cosa | build di un target **Engine** | **aspetta**, e avvisa: decade l'argomento di §9 |
+
+**5 · Se non puoi aspettare, non misurare comunque.** Si dichiara `NOT RUN` con il motivo — *«motore occupato da `<clone>`»* — invece di produrre un verde in finestra sporca. Un `NOT RUN` onesto costa un giro; una misura invalida costa la fiducia in tutte le altre.
 
 ### Authoring asset: appartiene al clone principale
 

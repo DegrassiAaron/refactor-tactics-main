@@ -466,11 +466,17 @@ I ruoli operativi sono stati rimossi ([`D-347`](docs/decisions/RT_PDR_00_Decisio
 
 ## Il motore è uno
 
-Unreal è **uno** e lo condividono tutti i checkout. Non c'è più un lease che serializzi gli accessi, quindi:
+Unreal è **uno** e lo condividono tutti i checkout. Non c'è più un lease che serializzi gli accessi ([`D-347`](docs/decisions/RT_PDR_00_Decision_Log.md)), e il protocollo che lo sostituisce è `AGENTS.md` §11 *«Prendere il motore, senza un lease»* ([`D-362`](docs/decisions/RT_PDR_00_Decision_Log.md)). Qui conta come lo applichi:
 
-* prima di aprire l'Editor, lanciare PIE, compilare o misurare, **verifica che nessun altro lo stia usando** — `Get-Process UnrealEditor*, UnrealEditor-Cmd*`;
-* una build lanciata mentre un altro checkout misura riscrive il binario sotto quella misura e la rende `NON VALIDA`;
-* un worktree separato **non** elimina il mutex globale di Unreal e Live Coding: due misure non diventano parallele, diventano una coda.
+* **Leggi la `CommandLine`, non conta i processi.**
+  `Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select ProcessId, Name, CommandLine`
+  Porta il `.uproject` — quindi **quale clone** — e `-abslog` — quindi **quale sessione**. `Get-Process` da solo non distingue una suite altrui dalla tua, ed è la distinzione che decide se aspettare.
+* **Quando lanci una run headless, passa `-abslog` nel tuo scratchpad di sessione.** Non è per te: è ciò che rende il tuo processo attribuibile a chi guarda dopo. È l'unica dichiarazione di possesso che non può restare stantia — se il processo muore, muore con lui.
+* **Non aspettare per una build in un altro clone**, e non dichiararla dannosa: `Binaries/` è per clone e l'Engine è una *installed build*. Aspetta invece per: stesso clone, Editor che tiene il DLL, misure di **performance**, e qualunque target **Engine**. La misura sta in `AGENTS.md` §9.
+* **Se il motore è occupato e non puoi aspettare, dichiara `NOT RUN` col nome del clone che lo tiene** — mai un verde ottenuto in finestra sporca.
+* Un worktree separato **non** elimina il mutex globale di Unreal e Live Coding: due misure nello stesso clone non diventano parallele, diventano una coda.
+
+⚠️ **E se hai compilato mentre qualcun altro misurava, verificalo invece di scusarti o tacere**: confronta il `LastWriteTime` dei binari dell'*altro* clone e di `Engine/Binaries/`. Nel caso misurato il 2026-09-09 non era successo niente, e dirlo con i numeri è valso più di entrambe le alternative.
 
 ## Authoring asset: il clone principale
 
