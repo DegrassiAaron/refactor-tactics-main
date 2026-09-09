@@ -1044,6 +1044,27 @@ public:
 	float ViewerPlaybackSpeed = 1.f;
 
 	/**
+	 * La velocita' di riproduzione MENTRE una finestra di reazione attende ([`D-350`], CP 14.6, `#166`).
+	 *
+	 * 🔑 **La slow-motion non ha bisogno di una tecnica nuova, e questo campo lo dichiara.**
+	 * `SetGlobalTimeDilation` non serve e non va usata (`Frontend/RTFrontendNavigator.h`): il meccanismo e'
+	 * `ViewerPlaybackSpeed`, gia' dichiarato *«presentazione, mai decisione (invariante #1)»* poche righe piu'
+	 * su, con il proprio gate di determinismo. Un valore `< 1` e' gia' ammesso oggi —
+	 * `URTPlaybackLibrary::EffectivePlaybackSpeed` legge `(v > 0.f) ? v : 1.f`, quindi `0.3` passa e **non**
+	 * si confonde con «non scelto», che e' lo zero.
+	 *
+	 * ⚠️ **Il valore e' una manopola di pacing come le sue vicine**, non una costante di regola: sta accanto
+	 * a `PhaseBeatSeconds` e `AttackShowSeconds` perche' e' la stessa categoria di scelta. `0.35` e' un punto
+	 * di partenza dichiarato, non misurato: la taratura appartiene al playtest delle voci 13–18.
+	 *
+	 * ⛔ **Non entra nel TurnLog e non tocca l'hash**, come il campo che scrive. Se un giorno la durata della
+	 * finestra dipendesse da questo numero, quella dipendenza andrebbe rifiutata qui: la finestra e'
+	 * server-authoritative e la sua durata non si guarda.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
+	float ReactionWindowPlaybackSpeed = 0.35f;
+
+	/**
 	 * Quanto il budget sta comprimendo le attese di questo round: `1` = nessuna compressione, `0` = tolto
 	 * tutto il comprimibile e la durata sfora comunque.
 	 *
@@ -1619,6 +1640,29 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
 	void ExpireReactionWindow();
+
+	/**
+	 * Allinea `ViewerPlaybackSpeed` alla presenza di una finestra aperta ([`D-350`], `#166`).
+	 *
+	 * 🔴 **E' UN ALLINEAMENTO, non due scritture, e la differenza e' il difetto che evita.** Le uscite
+	 * di una finestra sono **quattro** — `SubmitReactionResponse` ed `ExpireReactionWindow`, ciascuna per il
+	 * movimento e per il `Brace` — e ripristinare la velocita' su ognuna sarebbe disciplina da ricordare in
+	 * quattro posti. Dimenticarne uno lascia la partita al 35% **per il resto del match**, e si manifesta solo
+	 * dopo quella particolare uscita: il caso peggiore e' la scadenza, che e' anche quella che un giocatore
+	 * nota meno e riproduce peggio.
+	 *
+	 * 🔑 Qui si legge lo STATO (`GetOpenReactionWindowId`, che copre entrambi i siti) e si scrive solo
+	 * quando cambia. Chiudere la finestra da qualunque strada riporta la velocita' a 1 al tick successivo,
+	 * **senza che quella strada lo sappia**.
+	 *
+	 * ⚠️ **Ripristina `1.f`, non il valore precedente**, ed e' `D-350` a renderlo corretto: dove una finestra
+	 * puo' aprirsi il tasto `V` e' inerte (`#2733`), quindi in live non esiste una preferenza da conservare.
+	 * Il giorno in cui esistesse, questa riga e' la prima da rileggere.
+	 */
+	void UpdateReactionSlowMotion();
+
+	/** Vero se la slow-motion della finestra e' NOSTRA: senza, il ripristino stomperebbe la scelta di altri. */
+	bool bSlowedForReactionWindow = false;
 
 	/** L'`OpportunityId` della finestra aperta, vuoto se nessuna attende. Per la UI e per i test. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
