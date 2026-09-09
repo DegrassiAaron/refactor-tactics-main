@@ -179,9 +179,38 @@ effetti di caduta  ≠  esito di atterraggio
 Chi cade riceve gli effetti **anche** quando la cella finale non è occupabile. Sono due domande separate e
 vanno risolte separatamente.
 
-⛔ **Nessun numero è deciso qui.** Il danno da caduta, la sua scala con il dislivello e gli effetti d'impatto
-sono materia di bilanciamento (`BAL-*`) e del catalogo. Questo documento dice **che** si applicano e
-**quando**, non **quanto**.
+### 5.1 I numeri, decisi da `D-356`
+
+| Chi | Subisce |
+|---|---|
+| chi cade | **5** danni · `Status.Exposed` per **1** turno |
+| l'occupante centrato (§4.2) | **5** danni, **nessun** `Exposed` |
+| dislivello | **nessuna scala**: il danno è piatto |
+
+🔑 **Il danno è minimo perché il prezzo è già pagato.** Far cadere qualcuno richiede una condizione
+posizionale rara: `Action.Push` ha **range 1**, **spinta 1** e **nessun danno proprio**, quindi il bersaglio
+deve essere **già** adiacente al bordo. E chi cade perde la posizione — scende di un piano e deve cercare un
+arco di risalita. **5 su 90-120 HP**, un quarto di `Charge`, dice *«è successo qualcosa»* senza spostare
+l'aritmetica dello scontro.
+
+🔑 **La minaccia viene da `Exposed`, non dal danno**: *«+5 al primo danno diretto»* significa che chi ti
+butta giù ti **prepara per il colpo dopo**. Il bordo è pericoloso perché apre una combo. ⛔ `Slow` è stato
+scartato perché dimezzare il movimento di chi deve risalire punisce due volte sullo stesso asse.
+
+⚠️ **L'asimmetria sull'occupante è semantica**: `Exposed` significa *«hai perso l'equilibrio»*, e chi stava
+fermo non l'ha perso. Prende l'urto, non il marchio.
+
+🔑 **Nessuna meccanica nuova**: è la forma con cui `Action.Sprint` paga la propria corsa —
+`FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, 1)`. Sprint risolve nella fase `Move`,
+anch'essa **dopo** il `Blast`.
+
+⛔ **Perché nessuna scala.** Il dislivello **non è `Layer - 1`**: `FindLandingCell` scandisce la colonna e
+tiene il massimo, perché *«la colonna può saltare dei piani»*. Una scala andrebbe definita sui **piani
+attraversati**, e finché le mappe della v0.1 non dichiarano più di due layer sarebbe un numero fisso con più
+codice attorno.
+
+⚠️ **Ciò che resta materia `BAL-*`** è la revisione di questi numeri, non la loro esistenza: la taratura
+torna in bilanciamento con l'evidenza di playtest, non con un'argomentazione.
 
 🔴 **Lo scope è diviso, e la divisione è misurata.** `FallEffects`, `ImpactEffects` e `FallDamage` non
 hanno **né definizione né uso** in `Source/`: il criterio *«chi cade prende gli effetti di caduta»* non è
@@ -202,7 +231,7 @@ Guardrail di baseline, finché il bilanciamento non dice altro:
 - nessun ring-out universale;
 - `Void`/KO solo dove è **authored**.
 
-### 5.1 L'omonimo da non fondere
+### 5.2 L'omonimo da non fondere
 
 Nel repository *«la caduta»* è già una cosa: `Prone`, da [`D-319`](../decisions/RT_PDR_00_Decision_Log.md) —
 chi subisce uno spostamento forzato **mentre è `Unbalanced`** finisce a terra.

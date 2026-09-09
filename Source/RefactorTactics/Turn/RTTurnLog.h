@@ -660,7 +660,7 @@ enum class ERTMoveOutcome : uint8
 	 * ⚠️ **Non e' `Prone`.** Nel repository *«la caduta»* e' gia' una cosa — `D-319`, chi e' spostato mentre
 	 * e' `Unbalanced` finisce a terra — e le due regole **non si fondono**: la caduta gravitazionale non
 	 * applica `Prone` per se'. Un'unita' `Unbalanced` spinta oltre un bordo aperto le attraversa entrambe
-	 * (`spec` §5.1).
+	 * (`spec` §5.2).
 	 *
 	 * 🔑 **`TgtCell` e' dove l'unita' e' FINITA**, che e' uno dei tre esiti di atterraggio di `spec` §4:
 	 * primario libero, alternativa adiacente, oppure `LastStableCell` nel caso saturo. La cella da cui e'
