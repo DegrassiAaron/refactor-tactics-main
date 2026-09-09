@@ -2160,8 +2160,8 @@
       "MockOrigin": "roster — Control, deriva da Action.Intercept"
     },
     {
-      "AssetName": "RT_UI_Icon_Action_Hero_Wraith_PulseShot",
-      "IconId": "UI.Icon.Action.Hero.Wraith.PulseShot",
+      "AssetName": "RT_UI_Icon_Action_Hero_Ivrin_PulseShot",
+      "IconId": "UI.Icon.Action.Hero.Ivrin.PulseShot",
       "Category": "Action",
       "Axes": {
         "phase": "Attack",
@@ -2174,7 +2174,7 @@
         ],
         "derived_from": null,
         "display": "Colpo a impulsi",
-        "hero": "Wraith"
+        "hero": "Ivrin"
       },
       "Alphabet": {
         "PhaseStation": 14.8,
@@ -2200,8 +2200,8 @@
       "MockOrigin": "roster — Attack, Damage"
     },
     {
-      "AssetName": "RT_UI_Icon_Action_Hero_Wraith_InterceptShot",
-      "IconId": "UI.Icon.Action.Hero.Wraith.InterceptShot",
+      "AssetName": "RT_UI_Icon_Action_Hero_Ivrin_InterceptShot",
+      "IconId": "UI.Icon.Action.Hero.Ivrin.InterceptShot",
       "Category": "Action",
       "Axes": {
         "phase": "Preparation",
@@ -2214,7 +2214,7 @@
         ],
         "derived_from": null,
         "display": "Intercetto",
-        "hero": "Wraith"
+        "hero": "Ivrin"
       },
       "Alphabet": {
         "PhaseStation": 4.4,
@@ -2240,8 +2240,8 @@
       "MockOrigin": "roster — Preparation, thin slice Predictive della v0.1"
     },
     {
-      "AssetName": "RT_UI_Icon_Action_Hero_Wraith_PassingBlade",
-      "IconId": "UI.Icon.Action.Hero.Wraith.PassingBlade",
+      "AssetName": "RT_UI_Icon_Action_Hero_Ivrin_PassingBlade",
+      "IconId": "UI.Icon.Action.Hero.Ivrin.PassingBlade",
       "Category": "Action",
       "Axes": {
         "phase": "FastMovement",
@@ -2254,7 +2254,7 @@
         ],
         "derived_from": null,
         "display": "Lama di passaggio",
-        "hero": "Wraith"
+        "hero": "Ivrin"
       },
       "Alphabet": {
         "PhaseStation": 6.8,
@@ -2280,8 +2280,8 @@
       "MockOrigin": "roster — FastMovement, attraversa e colpisce"
     },
     {
-      "AssetName": "RT_UI_Icon_Action_Hero_Wraith_Deflection",
-      "IconId": "UI.Icon.Action.Hero.Wraith.Deflection",
+      "AssetName": "RT_UI_Icon_Action_Hero_Ivrin_Deflection",
+      "IconId": "UI.Icon.Action.Hero.Ivrin.Deflection",
       "Category": "Action",
       "Axes": {
         "phase": "Control",
@@ -2294,7 +2294,7 @@
         ],
         "derived_from": "Action.Deflect",
         "display": "Deviazione",
-        "hero": "Wraith"
+        "hero": "Ivrin"
       },
       "Alphabet": {
         "PhaseStation": 9.2,
@@ -2320,8 +2320,8 @@
       "MockOrigin": "roster — Control, deriva da Action.Deflect"
     },
     {
-      "AssetName": "RT_UI_Icon_Action_Hero_Wraith_Feint",
-      "IconId": "UI.Icon.Action.Hero.Wraith.Feint",
+      "AssetName": "RT_UI_Icon_Action_Hero_Ivrin_Feint",
+      "IconId": "UI.Icon.Action.Hero.Ivrin.Feint",
       "Category": "Action",
       "Axes": {
         "phase": "Control",
@@ -2329,7 +2329,7 @@
         "effects": [],
         "derived_from": null,
         "display": "Finta",
-        "hero": "Wraith"
+        "hero": "Ivrin"
       },
       "Alphabet": {
         "PhaseStation": 9.2,
@@ -2919,8 +2919,8 @@
       "MockOrigin": "assente dal mock"
     },
     {
-      "AssetName": "RT_UI_Icon_Identity_Wraith",
-      "IconId": "UI.Icon.Identity.Wraith",
+      "AssetName": "RT_UI_Icon_Identity_Ivrin",
+      "IconId": "UI.Icon.Identity.Ivrin",
       "Category": "Identity",
       "Axes": null,
       "Alphabet": null,
@@ -3666,7 +3666,7 @@
       "AlphaMode": "straight RGBA, nessun matte",
       "EmbeddedText": false,
       "CVDSafe": "verificare sulla contact sheet in scala di grigi",
-      "MockOrigin": "E25 — modulo di Wraith, facing conservato"
+      "MockOrigin": "E25 — modulo di Ivrin, facing conservato"
     },
     {
       "AssetName": "RT_UI_Icon_Warning_Cooldown",
