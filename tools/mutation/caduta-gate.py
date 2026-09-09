@@ -107,6 +107,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 # La regola di validita' di una misura vive in UNA sede, e la meta' che decide e' pura:
 # `regola.verdetto()` prende un log come stringa, quindi il self-test puo' passargliene uno
@@ -199,27 +200,113 @@ MUTAZIONI = [
         "file": "Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp",
         "cerca": r"if \(!Occupate\.Contains\(Primario\)\)",
         "sostituisci": r"if (true)",
+        # ⚠️ **Sei, non tre.** La stesura originale ne dichiarava tre e il gate diceva `CADUTA` lo stesso,
+        # perche' i rossi osservati INCLUDEVANO gli attesi. Ma «cadono anche altri tre» e' informazione: se
+        # domani `TwoFallersSameLandingIsDeterministic` smettesse di accorgersi della sovrapposizione,
+        # nessuno se ne accorgerebbe — l'insieme resterebbe un soprainsieme dei bersagli dichiarati.
+        # Misurato il 2026-09-08: questi sei, ogni volta che la misura e' stata valida.
         "bersagli": [
             "RefactorTactics.Fall.NeverOverlaps",
             "RefactorTactics.Fall.OccupiedLandingUsesAdjacentAlternative",
             "RefactorTactics.Fall.SaturatedLandingStaysOnLastStable",
+            "RefactorTactics.Fall.AlternativeFollowsCanonicalRingFromFacing",
+            "RefactorTactics.Fall.TwoFallersSameLandingIsDeterministic",
+            "RefactorTactics.Fall.TwoFallersOutcomeIsOrderInvariant",
         ],
     },
     {
-        # ⛔ Come la 2: non soddisfacibile oggi, e per una ragione dichiarata invece che dimenticata.
-        # `spec` §3.2 vuole che il percorso volontario residuo sia annullato, ma il piano viaggia in uno
-        # SNAPSHOT preso al lock-in — non sull'unita' — e un test esistente (`Push.DoesNotSpendTheVictimMove`,
-        # #308) asserisce l'opposto per una spinta normale. Non c'e' codice da mutare perche' non c'e'
-        # ancora codice: la lacuna e' nel report finale di #2402, non nascosta qui.
+        # 🔁 **Corretta il 2026-09-08: era dichiarata non soddisfacibile, e non lo e'.**
+        #
+        # Il pattern cercava `// #2402 §3.2` dentro `RTTurnManager_Blast.cpp`, cioe' una forma che #2402
+        # avrebbe potuto dare al ramo e non gli ha dato. Il comportamento pero' ESISTE, ed e' PIU' VECCHIO
+        # di #2402: `ApplyForcedDisplacement` azzera il piano a `RTTurnManager.cpp:2359`, per `D-045` e
+        # `#308`, e `CancelsRemainingVoluntaryPath` lo pinna da allora — verde, non rosso.
+        #
+        # 🔑 **La nota vecchia sbagliava la conclusione partendo da una premessa giusta.** Diceva che il
+        # piano «viaggia in uno SNAPSHOT preso al lock-in, non sull'unita'»: vero per la RISOLUZIONE, ma
+        # `ApplyForcedDisplacement` tocca `Unit->PlannedPath` — l'unita' viva — ed e' li' che la regola di
+        # §3.2 e' applicata. Cercare nel file sbagliato dava `NON APPLICABILE`, che e' esattamente
+        # l'inganno contro cui questo strumento e' costruito: un esito che sembra un limite del codice
+        # mentre e' un limite della query.
+        #
+        # 🔴 **E alla prima esecuzione vera e' uscita SOPRAVVISSUTA, per una ragione che vale registrare.**
+        # La regola di §3.2 ha DUE guardie: i `Reset()` qui mutati, e il controllo d'ancoraggio di
+        # `ResolveMovement` — `PlannedPath[0] == Cell`, falso dopo una caduta, che fa ripiegare su
+        # `PlannedCell`. Togliendone una, l'altra assorbe, e il COMPORTAMENTO non cambia: il test guardava
+        # dove l'unita' finiva, e finiva nello stesso posto.
+        #
+        # 🔑 `RTUnit.h:595` lo dichiarava gia' — *«oggi la differenza non e' raggiungibile, entrambi gli
+        # scrittori di `Cell` azzerano `PlannedPath`»* — ma nessuno lo misurava. **Codice difeso due volte e
+        # coperto zero**: e' precisamente cio' che una mutazione sopravvissuta serve a rivelare, e non si
+        # sarebbe visto da nessuna suite verde.
+        #
+        # ➡️ `CancelsRemainingVoluntaryPath` ora asserisce anche lo STATO del piano, che e' cio' che §3.2
+        # dice — *«perde il resto del piano»* — invece del solo esito osservabile.
         "id": "5-percorso-volontario",
-        "titolo": "non annullare il percorso volontario",
-        "prova": "#2402 - niente auto-reroute dalla nuova posizione (spec §3.2)",
-        "file": "Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp",
-        "cerca": r"(\w+\.(?:Path|PlannedPath|Remaining\w*)\.(?:Empty|Reset)\(\);\s*// #2402 §3\.2)",
-        "sostituisci": r"/* MUT5 */ ;",
+        "titolo": "non annullare il percorso volontario dopo uno spostamento forzato",
+        "prova": "#2402 - niente auto-reroute dalla nuova posizione (spec §3.2, D-045)",
+        # 🔑 **DUE punti, perche' la regola ha due guardie.** Mutarne una sola lascia che l'altra
+        # assorba, e l'esito `SOPRAVVISSUTA` direbbe «i test sono ciechi» quando il fatto e' «questa
+        # riga da sola non decide». Vedi `punti()`.
+        "punti": [
+            {
+                # (1) lo spostamento forzato azzera il piano — `ApplyForcedDisplacement`, per `D-045`.
+                "file": "Source/RefactorTactics/Turn/RTTurnManager.cpp",
+                "cerca": r"(\tUnit->PlannedPath\.Reset\(\);\r?\n\tUnit->PlannedWaypoints\.Reset\(\);)",
+                "sostituisci": r"/* MUT5a */ ;",
+            },
+            {
+                # (2) e OGNI scrittore di `Cell` fa lo stesso — `PlaceOnCell`, che la fase `Move`
+                #     attraversa DOPO il `Blast`. E' la guardia che assorbiva la mutazione a un punto.
+                "file": "Source/RefactorTactics/Unit/RTUnit.cpp",
+                "cerca": r"(\tPlannedPath\.Reset\(\);.*\r?\n\tPlannedWaypoints\.Reset\(\);.*)",
+                "sostituisci": r"/* MUT5b */ ;",
+            },
+        ],
         "bersagli": ["RefactorTactics.ForcedMovement.CancelsRemainingVoluntaryPath"],
     },
+    {
+        # La SESTA, da [D-353]: l'invariante di occupazione con DUE cadute nello stesso Blast.
+        #
+        # 🔴 **La mutazione NON e' «risolvere le cadute in ordine inverso»**, che #2406 nominava e che
+        # sarebbe **sopravvissuta per costruzione**: se l'esito e' davvero invariante per permutazione,
+        # invertire l'ordine non cambia niente e nessun test cade — cioe' la mutazione misurerebbe il
+        # proprio bersaglio al contrario. Cio' che si sopprime e' la PROTEZIONE: senza il rilevamento
+        # della destinazione contesa, due cadute che puntano alla stessa cella ci finiscono entrambe.
+        #
+        # ⚠️ Il pattern e' sul ramo della SPINTA (`KFinal`): la trazione ha il proprio, e mutarli insieme
+        # non direbbe quale dei due regge.
+        "id": "6-cadute-concorrenti",
+        "titolo": "sopprimere la protezione della destinazione contesa fra due cadute",
+        "prova": "[D-353] - nessuna cella con due occupanti, comunque ordinate le cadute (spec §4.3.1)",
+        "file": "Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp",
+        "cerca": r"if \(a != b && KFinal\[a\] == KFinal\[b\]\)",
+        "sostituisci": r"if (false)",
+        "bersagli": ["RefactorTactics.Fall.TwoFallersSameLandingIsDeterministic"],
+    },
 ]
+
+
+def punti(m):
+    """I punti che una mutazione tocca. Uno, o piu' d'uno.
+
+    🔴 **Una regola difesa in due posti non si muta in uno solo.** Se il comportamento e' garantito da
+    due guardie, togliendone una l'altra assorbe e l'osservabile non cambia: la mutazione esce
+    `SOPRAVVISSUTA` e sembra dire «nessun test se ne accorge», mentre sta dicendo «questa riga da sola
+    non decide niente». Sono due diagnosi opposte con lo stesso nome, e la seconda manda a cercare una
+    lacuna nei test che non c'e'.
+
+    ⚠️ Misurato su `5-percorso-volontario`, tre esecuzioni: mutare i soli `Reset()` di
+    `ApplyForcedDisplacement` non fa cadere niente, perche' la fase `Move` — che viene DOPO il `Blast`
+    — chiama `ARTUnit::PlaceOnCell`, che azzera gli stessi campi. `RTUnit.cpp:1092` lo dichiarava gia':
+    *«spinte e teletrasporti passano di qui e azzerano gia' gli altri campi del piano»*.
+
+    🔑 **Mutare tutte le guardie insieme prova la REGOLA**, che e' cio' che `spec` §3.2 enuncia, invece
+    di una sua implementazione. Il formato a punto singolo resta valido e non e' stato riscritto: la
+    maggioranza delle mutazioni tocca un posto solo, e chiedergli una lista sarebbe cerimonia."""
+    if "punti" in m:
+        return m["punti"]
+    return [{"file": m["file"], "cerca": m["cerca"], "sostituisci": m["sostituisci"]}]
 
 
 def uso():
@@ -418,9 +505,42 @@ def suite():
         print("   " + p)
     return verdetto, esito, rossi, eseguiti
 
+# Quante volte si rifa' una misura che ha condiviso la macchina, e quanto si aspetta fra i tentativi.
+# Tre e' il numero che copre il caso comune — una suite altrui che finisce — senza incaponirsi su un
+# Editor lasciato aperto per un'ora, che nessuna attesa risolve.
+TENTATIVI_VALIDITA = 3
+ATTESA_VALIDITA_S = 45
+
+
+def macchina_libera():
+    """Nessun processo del motore oltre al proprio. Sondaggio, non garanzia: vedi `misura.esegui_suite`."""
+    try:
+        r = subprocess.run(["powershell", "-NoProfile", "-Command",
+                            "@(Get-Process UnrealEditor*, UnrealEditor-Cmd*, dotnet "
+                            "-ErrorAction SilentlyContinue).Count"],
+                           capture_output=True, text=True, errors="replace", timeout=30)
+        return r.returncode == 0 and (r.stdout or "").strip() == "0"
+    except Exception:
+        return False   # fail-closed: se non si sa, non si dichiara libero
+
+
 def misura():
-    """Ricostruisce, poi misura. Se la run non ha nemmeno preso il motore RICOSTRUISCE e riprova: in
-    una coda lunga un'altra sessione puo' aver riscritto il DLL condiviso (AGENTS.md, CLAUDE.md §6)."""
+    """Ricostruisce, poi misura. Ritenta quando la misura non e' valutabile, non quando e' rossa.
+
+    🔴 **Due modi di non misurare, e prima ne era coperto uno solo.** `NON AVVIATA` — la run non ha
+    nemmeno preso il motore — ritentava gia'. `NON VALIDA` no: veniva registrata e il gate passava alla
+    mutazione dopo, **bruciando** un ciclo da minuti su un esito che non dice ne' `CADUTA` ne'
+    `SOPRAVVISSUTA`. Con piu' checkout sulla stessa macchina e' il caso comune, non il raro: misurato il
+    2026-09-08, tre esecuzioni su quattro ne hanno avuta almeno una, e un giro intero ne ha avute quattro
+    su cinque.
+
+    ⚠️ **Si ritenta la MISURA, non il verdetto.** Una mutazione che sopravvive resta sopravvissuta: qui
+    si ripete solo cio' che non ha prodotto un'osservazione utilizzabile. Confondere le due cose
+    trasformerebbe lo strumento in uno che riprova finche' non ottiene la risposta che gli piace.
+
+    ⚠️ **L'attesa e' fra i tentativi e non prima**: chi contamina di solito e' una suite altrui che
+    finisce da sola in qualche minuto. Contro un Editor aperto e fermo nessuna attesa serve, e infatti
+    dopo `TENTATIVI_VALIDITA` si registra `NON VALIDA` e si prosegue — dichiarato, non nascosto."""
     if not build():
         return None
     v, e, rossi, eseguiti = suite()
@@ -428,6 +548,23 @@ def misura():
         if not build():
             return None
         v, e, rossi, eseguiti = suite()
+
+    tentativi = 1
+    while v == "NON VALIDA" and tentativi < TENTATIVI_VALIDITA:
+        print("   ⏳ misura non valutabile: attendo %ds e rifaccio (%d/%d)"
+              % (ATTESA_VALIDITA_S, tentativi + 1, TENTATIVI_VALIDITA))
+        time.sleep(ATTESA_VALIDITA_S)
+        if not macchina_libera():
+            print("   ⏳ la macchina e' ancora condivisa: attendo altri %ds" % ATTESA_VALIDITA_S)
+            time.sleep(ATTESA_VALIDITA_S)
+        if not build():
+            return None
+        v, e, rossi, eseguiti = suite()
+        tentativi += 1
+
+    if v == "NON VALIDA":
+        print("   ⛔ %d tentativi e la misura resta non valutabile: la registro come tale."
+              % TENTATIVI_VALIDITA)
     return v, e, rossi, eseguiti
 
 
@@ -435,13 +572,25 @@ def applicabile(m):
     """Si misura PRIMA di toccare il motore.
 
     🔴 E' il controllo che separa «il test e' cieco» da «non c'e' niente da mutare». Senza, un gate
-    lanciato prima che #2402 sia integrata stamperebbe zero sopravvissute su zero mutazioni."""
-    percorso = os.path.join(RADICE, m["file"])
-    if not os.path.exists(percorso):
-        return False, "il file non esiste: " + m["file"]
-    testo = io.open(percorso, encoding="utf-8", errors="replace").read()
-    if not re.search(m["cerca"], testo):
-        return False, "il pattern non si trova in " + m["file"]
+    lanciato prima che #2402 sia integrata stamperebbe zero sopravvissute su zero mutazioni.
+
+    🔴 **Si legge come legge la mutazione, byte per byte.** `io.open(..., encoding=...)` applica gli
+    universal newlines e traduce `CRLF` in `
+`: un pattern multi-riga scritto con `
+` trovava qui e
+    NON trovava al momento di mutare, che legge in byte per non riscrivere i fine-riga di nessuno. Le due
+    letture davano due risposte diverse, e la piu' rassicurante era quella sbagliata — `APPLICABILE` nel
+    dry-run, `NON ATTERRATA` nella run vera, senza che niente lo spiegasse.
+
+    ⚠️ Misurato il 2026-09-08 su `RTTurnManager.cpp`: **8427 CRLF, zero LF soli**. Non e' un caso di
+    confine, e' la norma dei sorgenti di questo repository."""
+    for punto in punti(m):
+        percorso = os.path.join(RADICE, punto["file"])
+        if not os.path.exists(percorso):
+            return False, "il file non esiste: " + punto["file"]
+        testo = io.open(percorso, encoding="utf-8", errors="replace", newline="").read()
+        if not re.search(punto["cerca"], testo):
+            return False, "il pattern non si trova in " + punto["file"]
     return True, ""
 
 
@@ -473,10 +622,11 @@ if not regola.preflight_rapido(print):
 # mezza. Bloccare tutto quel tempo per poi rifiutare a causa di un file sporco — che si sapeva in
 # partenza — non misura niente e lo fa costando un'ora e mezza.
 for m in APPLICABILI:
-    if sporco(m["file"]):
-        print("\n⛔ FERMO: %s ha modifiche non committate.\n"
-              "   Il gate non scrive sopra il lavoro di qualcun altro." % m["file"])
-        sys.exit(2)
+    for punto in punti(m):
+        if sporco(punto["file"]):
+            print("\n⛔ FERMO: %s ha modifiche non committate.\n"
+                  "   Il gate non scrive sopra il lavoro di qualcun altro." % punto["file"])
+            sys.exit(2)
 
 if not APPLICABILI:
     with io.open(ESITI, "w", encoding="utf-8") as f:
@@ -498,7 +648,9 @@ if not regola.attesa_motore(print):
 
 ORIGINALI = {}
 for m in APPLICABILI:
-    ORIGINALI[m["file"]] = io.open(os.path.join(RADICE, m["file"]), "rb").read()
+    for punto in punti(m):
+        if punto["file"] not in ORIGINALI:
+            ORIGINALI[punto["file"]] = io.open(os.path.join(RADICE, punto["file"]), "rb").read()
 
 
 def ripristina_tutto():
@@ -562,17 +714,28 @@ try:
 
         for m in APPLICABILI:
             ripristina_tutto()
-            percorso = os.path.join(RADICE, m["file"])
-            prima = ORIGINALI[m["file"]].decode("utf-8")
-            dopo = re.sub(m["cerca"], m["sostituisci"], prima, count=1)
 
-            if not atterrata(prima, dopo):
-                f.write("| %s | %s | ⛔ NON ATTERRATA | - | - |\n" % (m["id"], m["titolo"]))
+            # 🔴 **Si scrive solo se TUTTI i punti atterrano.** Una mutazione a meta' e' la peggiore:
+            # il binario contiene una modifica parziale, e l'esito — qualunque sia — non risponde alla
+            # domanda posta. Si calcola prima, si scrive dopo.
+            scritture = []
+            manca = None
+            for punto in punti(m):
+                prima = ORIGINALI[punto["file"]].decode("utf-8")
+                dopo = re.sub(punto["cerca"], punto["sostituisci"], prima, count=1)
+                if not atterrata(prima, dopo):
+                    manca = punto["file"]
+                    break
+                scritture.append((os.path.join(RADICE, punto["file"]), dopo.encode("utf-8")))
+
+            if manca is not None:
+                f.write("| %s | %s | ⛔ NON ATTERRATA (%s) | - | - |\n" % (m["id"], m["titolo"], manca))
                 f.flush()
                 sopravvissute.append(m["id"] + " (non atterrata)")
                 continue
 
-            scrivi(percorso, dopo.encode("utf-8"))
+            for percorso, byte in scritture:
+                scrivi(percorso, byte)
             costruito_mutato = True     # da qui il binario puo' contenere la mutazione
             r = misura()
             ripristina_tutto()

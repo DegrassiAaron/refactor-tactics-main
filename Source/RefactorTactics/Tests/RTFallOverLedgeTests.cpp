@@ -437,12 +437,40 @@ bool FRTFallCancelsVoluntaryPathTest::RunTest(const FString&)
 	const FRTCellId Pianificata(1, 0, 1);
 	Bersaglio->PlannedCell = Pianificata;
 
+	// 🔴 **E il piano va POPOLATO, non solo dichiarato.** Un `PlannedCell` da solo non esercita
+	// l'azzeramento: `PlannedPath` e `PlannedWaypoints` nascono vuoti, e asserire che siano vuoti dopo il
+	// turno e' verde per costruzione — con o senza il codice che li azzera.
+	//
+	// ⚠️ Il percorso e' ANCORATO alla cella corrente (`PlannedPath[0] == Cell`), che e' la forma che
+	// `ResolveMovement` pretende per percorrerlo: un percorso non ancorato verrebbe scartato da solo, e il
+	// test tornerebbe a misurare la propria fixture invece della regola.
+	Bersaglio->PlannedPath = { Bersaglio->Cell, Pianificata };
+	Bersaglio->PlannedWaypoints = { Pianificata };
+
 	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
 	RunLedgeTurn(TM);
 
 	TestEqual(TEXT("e' caduto sul piano di sotto"), Bersaglio->Cell, FRTCellId(1, 0, 0));
 	TestNotEqual(TEXT("e NON e' risalito verso la cella che aveva pianificato"),
 		Bersaglio->Cell, Pianificata);
+
+	// 🔴 **E il PIANO e' stato tolto, non solo disatteso.** Le due righe sopra guardano dove l'unita' e'
+	// finita, e restano verdi anche se `PlannedPath` sopravvive: `ResolveMovement` esige che il percorso sia
+	// **ancorato** — `PlannedPath[0] == Cell` — e dopo una caduta non lo e' piu', quindi ripiega su
+	// `PlannedCell`, che il ramo `bPrimaDelMove` riscrive comunque. La regola ha DUE guardie e il
+	// comportamento non distingue quale abbia retto.
+	//
+	// ⚠️ **Trovato dal gate di #2406**: la mutazione `5-percorso-volontario` — togliere i due `Reset()` da
+	// `ApplyForcedDisplacement` — usciva **SOPRAVVISSUTA**, cioe' nessun test se ne accorgeva. Non era una
+	// svista del test: era la difesa in profondita' che `RTUnit.h:595` gia' dichiara — *«oggi la differenza
+	// non e' raggiungibile, entrambi gli scrittori di `Cell` azzerano `PlannedPath`»* — e che nessuno
+	// misurava. Un codice difeso due volte e coperto zero e' esattamente cio' che una mutazione
+	// sopravvissuta segnala.
+	//
+	// 🔑 `spec` §3.2 dice *«perde il resto del piano»*: e' uno stato, e va asserito come tale — su un piano
+	// che ESISTE, altrimenti l'asserzione non ha niente da falsificare.
+	TestEqual(TEXT("il percorso residuo e' stato annullato"), Bersaglio->PlannedPath.Num(), 0);
+	TestEqual(TEXT("e i waypoint con lui"), Bersaglio->PlannedWaypoints.Num(), 0);
 
 	DestroyLedgeWorld(World);
 	return true;
