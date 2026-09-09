@@ -23,7 +23,9 @@
  * cinque no. Un sesto colore letterale avrebbe chiuso questa issue **allargando** quel difetto.
  *
  * ⚠️ E c'e' una collisione di palette gia' dichiarata: la spec v0.2 assegna il ciano-blu a Vision/LOS,
- * mentre in questo repository il ciano `FColor(40, 220, 220)` e' **gia'** la traccia del percorso. Non e'
+ * mentre in questo repository quel ciano e' **gia'** la traccia del percorso — il valore vive ora in una
+ * sede sola, `URTOverlayPalette::ColorFor(ERTOverlayMeaning::PathTrace)` (#1941), e questa riga non lo
+ * ricopia apposta. Non e'
  * una scelta da fare mentre si scrive un comando: e' una delle collisioni che #1941 porta a un `D-nnn`.
  *
  * ∴ si stampa, come fanno gia' `DrawPaths`, `DrawCover` e `DrawResolution` — e come `RTDebugConsole.cpp:163`

@@ -23,6 +23,7 @@
 #include "PhysicsEngine/BodySetup.h"
 #include "UObject/StrongObjectPtr.h"
 #include "Map/RTMapVisuals.h" // #983: le misure del disco stanno scritte una volta sola
+#include "Map/RTOverlayPalette.h" // #1941: colore, scala e profondita' di un significato, in una sede sola
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
 #include "Components/LineBatchComponent.h"
@@ -140,6 +141,19 @@ namespace
 	constexpr float RTLiftCoordinateLabel = RTCellTopZ + 1.0f;
 	constexpr float RTLiftMarker  = RTCellTopZ + 1.5f;  // blocca-movimento / blocca-vista
 	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
+
+	// 🔴 **La ribbon di perimetro (#1942) NON entra in questa pila: la attraversa.** Il vincolo della issue
+	// chiede che una parete alta sia *decisa* rispetto a queste quote e non aggiunta sopra per inerzia — ed e'
+	// una decisione che il compilatore puo' tenere. `RTBoundaryRibbonHeight` vale un ordine di grandezza piu'
+	// dell'intera pila: se qualcuno la abbassasse fin dentro il vicinato dei lift smetterebbe di leggersi come
+	// parete e diventerebbe un sesto contorno, che e' precisamente il difetto che OVL-02 chiude.
+	//
+	// ⚠️ Il confronto e' con lo **spessore** della pila (`RTLiftPreview - RTCellTopZ`, cioe' `2.5`), non con
+	// la sua quota assoluta: una prima stesura di questo assert confrontava `base + altezza` con
+	// `RTLiftPreview * 4` ed e' uscita **falsa per zero** — `40.0 > 40.0`. Un fattore scelto a occhio su una
+	// quota assoluta non dice nulla; su uno spessore dice quello che si intende.
+	static_assert(RTBoundaryRibbonHeight > (RTLiftPreview - RTCellTopZ) * 4.f,
+		"La ribbon di perimetro deve TORREGGIARE sulla pila dei lift, non infilarcisi dentro (#1942).");
 
 	/**
 	 * 🔴 **Il tetto vero dello spessore del tile, e NON e' lo `static_assert` degli anelli.**
@@ -1182,27 +1196,35 @@ void ARTHexMapActor::DrawPlanningPreview() const
 		}
 	};
 
+	// Un significato porta con se' colore, scala e profondita': si passa QUELLO, e la grammatica la decide
+	// `URTOverlayPalette` invece di tre argomenti ricopiati a ogni chiamata (#1941).
+	const auto DrawMeaning = [&DrawCellOutline](const FRTCellId& Cell, const ERTOverlayMeaning Meaning)
+	{
+		DrawCellOutline(Cell, URTOverlayPalette::ColorFor(Meaning), URTOverlayPalette::ScaleFor(Meaning),
+			URTOverlayPalette::DrawsThroughUnits(Meaning));
+	};
+
 	// Ordine di disegno: dal meno al piu' urgente, cosi' l'informazione critica resta leggibile sopra.
-	// 1) dove POSSO andare  2) dove VADO  3) chi COLPISCO  4) cosa sto indicando.
+	// L'ordine non e' piu' soltanto questo commento: e' `URTOverlayPalette::PriorityFor`, e un test lo fissa.
 
 	// Celle raggiungibili: contorno piccolo e tenue. Fa vedere il budget mordere (il fango accorcia il raggio)
 	// senza coprire il resto: e' contesto, non una decisione presa.
 	for (const FRTCellId& Cell : PreviewReachable)
 	{
-		DrawCellOutline(Cell, FColor(60, 110, 90), 0.52f);
+		DrawMeaning(Cell, ERTOverlayMeaning::Movement);
 	}
 
 	// Traccia del percorso: contorno ciano su ogni cella + segmento fra i centri consecutivi.
 	for (int32 I = 0; I < PreviewPath.Num(); ++I)
 	{
-		DrawCellOutline(PreviewPath[I], FColor(40, 220, 220), 0.72f);
+		DrawMeaning(PreviewPath[I], ERTOverlayMeaning::PathTrace);
 		if (I > 0)
 		{
 			const FVector A = URTHexLibrary::AxialToWorld(PreviewPath[I - 1], Origin, Size, LayerH)
 				+ FVector(0, 0, CellLift(PreviewPath[I - 1]) + RTLiftPreview + 1.5f);
 			const FVector B = URTHexLibrary::AxialToWorld(PreviewPath[I], Origin, Size, LayerH)
 				+ FVector(0, 0, CellLift(PreviewPath[I]) + RTLiftPreview + 1.5f);
-			DrawDebugLine(World, A, B, FColor(40, 220, 220), false, -1.f, 0, 4.f);
+			DrawDebugLine(World, A, B, URTOverlayPalette::ColorFor(ERTOverlayMeaning::PathTrace), false, -1.f, 0, 4.f);
 		}
 	}
 
@@ -1219,13 +1241,13 @@ void ARTHexMapActor::DrawPlanningPreview() const
 	// la differenza fra continuo e spezzato.
 	if (bPreviewAttackValid)
 	{
-		DrawCellOutline(PreviewAttackOrigin, FColor(220, 220, 255), 0.58f, /*bThroughUnits=*/ true);
+		DrawMeaning(PreviewAttackOrigin, ERTOverlayMeaning::AttackOriginAim);
 
 		const FVector A = URTHexLibrary::AxialToWorld(PreviewAttackOrigin, Origin, Size, LayerH)
 			+ FVector(0, 0, CellLift(PreviewAttackOrigin) + RTLiftPreview + 3.f);
 		const FVector B = URTHexLibrary::AxialToWorld(PreviewAttackAim, Origin, Size, LayerH)
 			+ FVector(0, 0, CellLift(PreviewAttackAim) + RTLiftPreview + 3.f);
-		const FColor AimColor(220, 220, 255);
+		const FColor AimColor = URTOverlayPalette::ColorFor(ERTOverlayMeaning::AttackOriginAim);
 		if (bPreviewOriginPredicted)
 		{
 			// Spezzata: otto tratti, quattro disegnati. Il numero e' fisso e non dipende dalla distanza —
@@ -1250,8 +1272,7 @@ void ARTHexMapActor::DrawPlanningPreview() const
 	for (const FRTCellId& Cell : PreviewHitCells)
 	{
 		const bool bAlly = PreviewAllyHitCells.Contains(Cell);
-		DrawCellOutline(Cell, bAlly ? FColor(255, 150, 30) : FColor(230, 60, 50), bAlly ? 0.80f : 0.68f,
-			/*bThroughUnits=*/ true);
+		DrawMeaning(Cell, bAlly ? ERTOverlayMeaning::FriendlyFire : ERTOverlayMeaning::Attack);
 	}
 
 	// Cella sotto il cursore: disegnata per ultima e piu' larga, cosi' resta leggibile sopra la traccia.
@@ -1259,7 +1280,7 @@ void ARTHexMapActor::DrawPlanningPreview() const
 	// l'evidenziazione che sparisce proprio quando indichi qualcuno e' peggio che non averla.
 	if (bHoveredValid)
 	{
-		DrawCellOutline(HoveredCell, FColor::Yellow, 0.88f, /*bThroughUnits=*/ true);
+		DrawMeaning(HoveredCell, ERTOverlayMeaning::Hover);
 	}
 }
 

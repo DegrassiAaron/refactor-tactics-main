@@ -10,6 +10,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
@@ -345,6 +346,14 @@ void SRTLauncherScenarioPanel::Construct(const FArguments&)
 			})
 		]
 
+		// --- piazzamento delle unita' (#2786) ---------------------------------------------------------
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(RowPadding)
+		[
+			BuildPlacementRow()
+		]
+
 		// --- trasporto del playback (`#1625`) ---------------------------------------------------------
 		+ SVerticalBox::Slot()
 		.AutoHeight()
@@ -371,6 +380,11 @@ void SRTLauncherScenarioPanel::Construct(const FArguments&)
 	}
 
 	RefreshPerspectiveOptions();
+
+	// Il roster si legge subito: la tendina degli eroi non dipende da uno scenario aperto, e lasciarla
+	// vuota fino alla prima selezione farebbe sembrare rotto il pannello appena aperto.
+	RefreshPlacementOptions();
+
 	RefreshFilters();
 }
 
@@ -548,6 +562,11 @@ void SRTLauncherScenarioPanel::ClearSelection()
 	SelectedId.Reset();
 	ReadoutLines.Reset();
 	ReadoutError.Reset();
+
+	// Senza scenario non ci sono unita' schierate: tenere il bersaglio precedente lascerebbe i tre pulsanti
+	// abilitati su un'unita' che nessuno puo' piu' raggiungere.
+	PlacedUnitOptions.Reset();
+	SelectedUnitId.Reset();
 }
 
 void SRTLauncherScenarioPanel::RefreshReadout()
@@ -664,6 +683,11 @@ void SRTLauncherScenarioPanel::OnScenarioSelected(TSharedPtr<FString> Item, ESel
 
 	SelectedId = *Item;
 	RefreshReadout();
+
+	// Le unita' schierate sono di QUESTO scenario: senza questa riga le tendine di sposta/ruota/ritira
+	// resterebbero su quelle del precedente, e il primo gesto fallirebbe con `NotFound` accusando lo
+	// scenario nuovo di non avere un'unita' che non ha mai avuto.
+	RefreshPlacementOptions();
 }
 
 void SRTLauncherScenarioPanel::OnSearchTextChanged(const FText& NewText)
@@ -674,6 +698,185 @@ void SRTLauncherScenarioPanel::OnSearchTextChanged(const FText& NewText)
 	RefreshVisible();
 }
 
+
+// --- Piazzamento delle unita' (#2786) ---------------------------------------------------------------
+
+void SRTLauncherScenarioPanel::RefreshPlacementOptions()
+{
+	// Il roster e' `static`: non dipende dallo scenario aperto e si legge anche a selezione vuota. Leggerlo
+	// una volta sola al `Construct` lo terrebbe fermo su un catalogo che il codice puo' cambiare mentre
+	// l'editor e' aperto — e la tendina offrirebbe un eroe che `AddUnit` rifiuta.
+	HeroOptions.Reset();
+	for (const FName HeroId : URTScenarioAuthoring::ListHeroIds())
+	{
+		HeroOptions.Add(MakeShared<FName>(HeroId));
+	}
+
+	// Se l'eroe scelto non e' piu' nel roster, la scelta cade invece di restare a puntare al nulla: un
+	// `AddUnit` con un `HeroId` sparito tornerebbe `Invalid` accusando lo scenario di un difetto del panel.
+	const bool bHeroStillListed = HeroOptions.ContainsByPredicate(
+		[this](const TSharedPtr<FName>& Option) { return Option.IsValid() && *Option == PlacementHeroId; });
+	if (!bHeroStillListed)
+	{
+		PlacementHeroId = HeroOptions.Num() > 0 ? *HeroOptions[0] : NAME_None;
+	}
+
+	// Le unita' schierate arrivano dal readout appena ricostruito: `ReadoutLines` non le contiene come dato,
+	// quindi si riapre il draft il minimo indispensabile. E' lo stesso ciclo di `RefreshReadout`.
+	PlacedUnitOptions.Reset();
+	if (SelectedId.IsEmpty() || !Authoring.IsValid())
+	{
+		SelectedUnitId.Empty();
+		return;
+	}
+
+	FString OpenError;
+	if (Authoring->OpenById(SelectedId, OpenError) != ERTScenarioAuthoringResult::Success)
+	{
+		// Non si scrive `ReadoutError` qui: l'ha gia' fatto `RefreshReadout`, che apre lo stesso scenario e
+		// fallirebbe allo stesso modo. Un secondo messaggio direbbe due volte la stessa cosa.
+		Authoring->Close();
+		SelectedUnitId.Empty();
+		return;
+	}
+
+	for (const FRTScenarioUnitView& Unit : Authoring->ListUnits())
+	{
+		PlacedUnitOptions.Add(MakeShared<FString>(Unit.Id));
+	}
+	Authoring->Close();
+
+	const bool bUnitStillPlaced = PlacedUnitOptions.ContainsByPredicate(
+		[this](const TSharedPtr<FString>& Option) { return Option.IsValid() && *Option == SelectedUnitId; });
+	if (!bUnitStillPlaced)
+	{
+		// Dopo un `RemoveUnit` il bersaglio non esiste piu'. Lasciarlo selezionato farebbe fallire il gesto
+		// successivo con `NotFound`, che accuserebbe lo scenario di un'unita' che il pannello stesso ha tolto.
+		SelectedUnitId = PlacedUnitOptions.Num() > 0 ? *PlacedUnitOptions[0] : FString();
+	}
+}
+
+FReply SRTLauncherScenarioPanel::RunPlacementGesture(
+	TFunctionRef<ERTScenarioAuthoringResult(URTScenarioAuthoring&, FString&)> Mutate)
+{
+	if (SelectedId.IsEmpty())
+	{
+		SessionMessage = TEXT("Nessuno scenario selezionato: scegli una riga nell'elenco.");
+		return FReply::Handled();
+	}
+
+	if (!Authoring.IsValid())
+	{
+		Authoring.Reset(URTScenarioAuthoring::CreateScenarioDraft(GetTransientPackage()));
+	}
+
+	if (!Authoring.IsValid())
+	{
+		SessionMessage = TEXT("la facade d'authoring non e' disponibile: il difetto non e' nello scenario.");
+		return FReply::Handled();
+	}
+
+	FString OpenError;
+	if (Authoring->OpenById(SelectedId, OpenError) != ERTScenarioAuthoringResult::Success)
+	{
+		SessionMessage = OpenError;
+		Authoring->Close();
+		return FReply::Handled();
+	}
+
+	FString MutateError;
+	const ERTScenarioAuthoringResult MutateResult = Mutate(*Authoring, MutateError);
+	if (MutateResult != ERTScenarioAuthoringResult::Success)
+	{
+		// ⛔ **Nessuna riscrittura della frase.** `DescribeResult` distingue `Invalid` da `WriteFailed` e da
+		// `NotFound`, e `OutError` nomina il campo: fonderli in «non e' stato possibile» manderebbe a
+		// cercare nel posto sbagliato — vedi il contratto del widget, che lo dichiara per gli stessi esiti.
+		SessionMessage = MutateError.IsEmpty()
+			? URTScenarioAuthoring::DescribeResult(MutateResult).ToString()
+			: MutateError;
+		Authoring->Close();
+		return FReply::Handled();
+	}
+
+	// 🔑 Senza questa riga il gesto non esiste: la `Close()` qui sotto butterebbe la mutazione, e il pannello
+	// mostrerebbe un readout identico a prima senza alcun errore — cioe' un pulsante che sembra non fare
+	// niente. E' `DEC-1` della issue.
+	FString SaveError;
+	const ERTScenarioAuthoringResult SaveResult = Authoring->SaveInPlace(SaveError);
+	Authoring->Close();
+
+	if (SaveResult != ERTScenarioAuthoringResult::Success)
+	{
+		// ⚠️ **Il disco vince.** La mutazione era riuscita in memoria e non e' arrivata al file: il readout
+		// si ricostruisce comunque dal file, quindi tornera' a mostrare lo stato di prima. Dire «aggiunta»
+		// qui sarebbe l'unico modo di far divergere schermo e disco.
+		SessionMessage = SaveError.IsEmpty()
+			? URTScenarioAuthoring::DescribeResult(SaveResult).ToString()
+			: SaveError;
+		RefreshReadout();
+		RefreshPlacementOptions();
+		return FReply::Handled();
+	}
+
+	// Rilettura dal file, non dalla memoria: e' cio' che rende osservabile il salvataggio invece di
+	// presupporlo.
+	RefreshReadout();
+	RefreshPlacementOptions();
+	return FReply::Handled();
+}
+
+FReply SRTLauncherScenarioPanel::OnAddUnitClicked()
+{
+	return RunPlacementGesture([this](URTScenarioAuthoring& Facade, FString& OutError)
+	{
+		// Il conio legge le unita' della facade **gia' aperta**: una lista presa prima dell'apertura
+		// sarebbe di un istante diverso, e due gesti rapidi conierebbero lo stesso id.
+		const FString UnitId = FRTLauncherScenarioBrowser::CoinUnitId(Facade.ListUnits());
+		return Facade.AddUnit(UnitId, PlacementHeroId, PlacementTeamId, PlacementCell, PlacementFacing, OutError);
+	});
+}
+
+FReply SRTLauncherScenarioPanel::OnMoveUnitClicked()
+{
+	if (SelectedUnitId.IsEmpty())
+	{
+		SessionMessage = TEXT("Nessuna unita' selezionata: scegline una fra quelle schierate.");
+		return FReply::Handled();
+	}
+
+	return RunPlacementGesture([this](URTScenarioAuthoring& Facade, FString& OutError)
+	{
+		return Facade.MoveUnit(SelectedUnitId, PlacementCell, OutError);
+	});
+}
+
+FReply SRTLauncherScenarioPanel::OnFaceUnitClicked()
+{
+	if (SelectedUnitId.IsEmpty())
+	{
+		SessionMessage = TEXT("Nessuna unita' selezionata: scegline una fra quelle schierate.");
+		return FReply::Handled();
+	}
+
+	return RunPlacementGesture([this](URTScenarioAuthoring& Facade, FString& OutError)
+	{
+		return Facade.SetUnitFacing(SelectedUnitId, PlacementFacing, OutError);
+	});
+}
+
+FReply SRTLauncherScenarioPanel::OnRemoveUnitClicked()
+{
+	if (SelectedUnitId.IsEmpty())
+	{
+		SessionMessage = TEXT("Nessuna unita' selezionata: scegline una fra quelle schierate.");
+		return FReply::Handled();
+	}
+
+	return RunPlacementGesture([this](URTScenarioAuthoring& Facade, FString& OutError)
+	{
+		return Facade.RemoveUnit(SelectedUnitId, OutError);
+	});
+}
 
 // --- Trasporto del playback (`#1625`) ---------------------------------------------------------------
 //
@@ -751,6 +954,198 @@ void SRTLauncherScenarioPanel::Tick(const FGeometry& AllottedGeometry, const dou
 	{
 		Preview->PlaybackTick(DeltaTime);
 	}
+}
+
+TSharedRef<SWidget> SRTLauncherScenarioPanel::BuildPlacementRow()
+{
+	// Le sei direzioni si costruiscono una volta: l'enum non cambia a runtime, e ricostruirle a ogni
+	// ridisegno romperebbe l'identita' di puntatore su cui `SComboBox` tiene la selezione.
+	if (FacingOptions.Num() == 0)
+	{
+		for (const ERTHexDirection Dir : { ERTHexDirection::E, ERTHexDirection::NE, ERTHexDirection::NW,
+			ERTHexDirection::W, ERTHexDirection::SW, ERTHexDirection::SE })
+		{
+			FacingOptions.Add(MakeShared<ERTHexDirection>(Dir));
+		}
+	}
+
+	// I nomi delle direzioni sono quelli del sorgente (`E`, `NE`, …), non tradotti: sono gli stessi che
+	// compaiono nel JSON dello scenario e nel TurnLog, e un secondo vocabolario costringerebbe a tradurre
+	// mentalmente ogni volta che si confronta la schermata con il file.
+	auto NomeFacing = [](ERTHexDirection Dir)
+	{
+		switch (Dir)
+		{
+		case ERTHexDirection::E:  return FText::FromString(TEXT("E"));
+		case ERTHexDirection::NE: return FText::FromString(TEXT("NE"));
+		case ERTHexDirection::NW: return FText::FromString(TEXT("NW"));
+		case ERTHexDirection::W:  return FText::FromString(TEXT("W"));
+		case ERTHexDirection::SW: return FText::FromString(TEXT("SW"));
+		default:                  return FText::FromString(TEXT("SE"));
+		}
+	};
+
+	// Un campo di coordinata: legge e scrive un `int32` della cella corrente. Nessun limite imposto qui —
+	// quale cella esista lo decide `AddUnit`, e un intervallo scritto nel pannello sarebbe una seconda
+	// regola di arena che diverge il giorno che una mappa cambia raggio.
+	auto Coordinata = [this](FText Etichetta, TFunction<int32()> Leggi, TFunction<void(int32)> Scrivi)
+	{
+		return SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 2.0f, 0.0f).VAlign(VAlign_Center)
+			[
+				SNew(STextBlock).Text(Etichetta)
+			]
+			+ SHorizontalBox::Slot().AutoWidth()
+			[
+				SNew(SBox).MinDesiredWidth(48.0f)
+				[
+					SNew(SNumericEntryBox<int32>)
+					.AllowSpin(false)
+					.Value_Lambda([Leggi]() { return TOptional<int32>(Leggi()); })
+					.OnValueCommitted_Lambda([Scrivi](int32 NewValue, ETextCommit::Type) { Scrivi(NewValue); })
+				]
+			];
+	};
+
+	return SNew(SVerticalBox)
+
+		// Riga 1 — cosa schierare, e dove.
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		[
+			SNew(SHorizontalBox)
+
+			+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 6.0f, 0.0f)
+			[
+				SNew(SComboBox<TSharedPtr<FName>>)
+				.OptionsSource(&HeroOptions)
+				.ToolTipText(LOCTEXT("PlaceHeroTip", "Gli HeroId del roster, da ListHeroIds(). Nessun elenco scritto nel pannello."))
+				.OnGenerateWidget_Lambda([](TSharedPtr<FName> Option)
+				{
+					return SNew(STextBlock).Text(FText::FromName(Option.IsValid() ? *Option : NAME_None));
+				})
+				.OnSelectionChanged_Lambda([this](TSharedPtr<FName> Option, ESelectInfo::Type)
+				{
+					if (Option.IsValid()) { PlacementHeroId = *Option; }
+				})
+				[
+					SNew(STextBlock).Text_Lambda([this]() { return FText::FromName(PlacementHeroId); })
+				]
+			]
+
+			+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 6.0f, 0.0f)
+			[
+				Coordinata(LOCTEXT("PlaceTeam", "team"),
+					[this]() { return PlacementTeamId; },
+					[this](int32 V) { PlacementTeamId = V; })
+			]
+
+			+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 6.0f, 0.0f)
+			[
+				Coordinata(LOCTEXT("PlaceQ", "q"),
+					[this]() { return PlacementCell.X; },
+					[this](int32 V) { PlacementCell.X = V; })
+			]
+
+			+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 6.0f, 0.0f)
+			[
+				Coordinata(LOCTEXT("PlaceR", "r"),
+					[this]() { return PlacementCell.Y; },
+					[this](int32 V) { PlacementCell.Y = V; })
+			]
+
+			+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 6.0f, 0.0f)
+			[
+				Coordinata(LOCTEXT("PlaceLayer", "L"),
+					[this]() { return PlacementCell.Layer; },
+					[this](int32 V) { PlacementCell.Layer = V; })
+			]
+
+			+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 6.0f, 0.0f)
+			[
+				SNew(SComboBox<TSharedPtr<ERTHexDirection>>)
+				.OptionsSource(&FacingOptions)
+				.ToolTipText(LOCTEXT("PlaceFacingTip", "Una delle sei direzioni esagonali. Mai un angolo libero."))
+				.OnGenerateWidget_Lambda([NomeFacing](TSharedPtr<ERTHexDirection> Option)
+				{
+					return SNew(STextBlock).Text(NomeFacing(Option.IsValid() ? *Option : ERTHexDirection::E));
+				})
+				.OnSelectionChanged_Lambda([this](TSharedPtr<ERTHexDirection> Option, ESelectInfo::Type)
+				{
+					if (Option.IsValid()) { PlacementFacing = *Option; }
+				})
+				[
+					SNew(STextBlock).Text_Lambda([this, NomeFacing]() { return NomeFacing(PlacementFacing); })
+				]
+			]
+
+			+ SHorizontalBox::Slot().AutoWidth()
+			[
+				SNew(SButton)
+				.Text(LOCTEXT("AddUnit", "+ UNIT"))
+				.ToolTipText(LOCTEXT("AddUnitTip", "Schiera l'unita' attraverso URTScenarioAuthoring::AddUnit e salva. L'id lo conia il pannello; validita' e occupazione le decide la facade."))
+				.IsEnabled_Lambda([this]() { return !SelectedId.IsEmpty(); })
+				.OnClicked(this, &SRTLauncherScenarioPanel::OnAddUnitClicked)
+			]
+		]
+
+		// Riga 2 — cosa fare di una gia' schierata.
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(0.0f, 4.0f, 0.0f, 0.0f)
+		[
+			SNew(SHorizontalBox)
+
+			+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 6.0f, 0.0f)
+			[
+				SNew(SComboBox<TSharedPtr<FString>>)
+				.OptionsSource(&PlacedUnitOptions)
+				.ToolTipText(LOCTEXT("PlacedUnitTip", "Le unita' gia' schierate, rilette da ListUnits() dopo ogni gesto."))
+				.OnGenerateWidget_Lambda([](TSharedPtr<FString> Option)
+				{
+					return SNew(STextBlock).Text(FText::FromString(Option.IsValid() ? *Option : FString()));
+				})
+				.OnSelectionChanged_Lambda([this](TSharedPtr<FString> Option, ESelectInfo::Type)
+				{
+					if (Option.IsValid()) { SelectedUnitId = *Option; }
+				})
+				[
+					SNew(STextBlock).Text_Lambda([this]()
+					{
+						return SelectedUnitId.IsEmpty()
+							? LOCTEXT("NoPlacedUnit", "nessuna unita'")
+							: FText::FromString(SelectedUnitId);
+					})
+				]
+			]
+
+			+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 6.0f, 0.0f)
+			[
+				SNew(SButton)
+				.Text(LOCTEXT("MoveUnit", "Sposta"))
+				.ToolTipText(LOCTEXT("MoveUnitTip", "MoveUnit sulla cella dei campi q/r/L."))
+				.IsEnabled_Lambda([this]() { return !SelectedUnitId.IsEmpty(); })
+				.OnClicked(this, &SRTLauncherScenarioPanel::OnMoveUnitClicked)
+			]
+
+			+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 6.0f, 0.0f)
+			[
+				SNew(SButton)
+				.Text(LOCTEXT("FaceUnit", "Ruota"))
+				.ToolTipText(LOCTEXT("FaceUnitTip", "SetUnitFacing sulla direzione scelta."))
+				.IsEnabled_Lambda([this]() { return !SelectedUnitId.IsEmpty(); })
+				.OnClicked(this, &SRTLauncherScenarioPanel::OnFaceUnitClicked)
+			]
+
+			+ SHorizontalBox::Slot().AutoWidth()
+			[
+				SNew(SButton)
+				.Text(LOCTEXT("RemoveUnit", "Ritira"))
+				.ToolTipText(LOCTEXT("RemoveUnitTip", "RemoveUnit sull'unita' selezionata."))
+				.IsEnabled_Lambda([this]() { return !SelectedUnitId.IsEmpty(); })
+				.OnClicked(this, &SRTLauncherScenarioPanel::OnRemoveUnitClicked)
+			]
+		];
 }
 
 TSharedRef<SWidget> SRTLauncherScenarioPanel::BuildTransportRow()

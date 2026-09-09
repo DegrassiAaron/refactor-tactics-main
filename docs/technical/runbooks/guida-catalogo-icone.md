@@ -15,7 +15,8 @@ loro texture. Le chiavi non le digiti: le deriva `URTIconLibrary::RequiredIconId
 funzione che poi verifica la copertura. È il motivo per cui questa procedura è un commandlet e non una
 sessione di clic.
 
-Prerequisiti: branch di lavoro tuo, UE **5.8.1**, il progetto compila, Python 3 con `cairosvg`.
+Prerequisiti: branch di lavoro tuo, UE **5.8.1**, il progetto compila, Python 3 con `cairosvg`, e
+**GTK3 Runtime** — vedi la riga qui sotto, che è la sola parte non ovvia di questa procedura.
 
 ---
 
@@ -25,6 +26,28 @@ Prerequisiti: branch di lavoro tuo, UE **5.8.1**, il progetto compila, Python 3 
 pip install cairosvg          # solo la prima volta
 python3 tools/hud-assets/generate_hud_assets.py
 ```
+
+> 🔴 **`pip install cairosvg` NON basta, e crederlo è costato tre giorni** ([#2551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2551)).
+> Il pacchetto si installa e si importa; poi `cairocffi` cerca la libreria **nativa** `libcairo-2.dll` e
+> solleva `OSError` **dentro l'import**. Il generatore cade nel ripiego «scritti solo gli SVG» ed esce **0**:
+> nessun PNG, nessun errore, e il commandlet del passo 2 si ferma fail-closed su una causa che non nomina.
+>
+> Su Windows la libreria la porta **GTK3 Runtime**. Se è già installato — controlla
+> `C:\Program Files\GTK3-Runtime Win64\bin` — non serve installare nulla: manca solo dal `PATH`.
+>
+> ```bash
+> PATH="/c/Program Files/GTK3-Runtime Win64/bin:$PATH" python tools/hud-assets/generate_hud_assets.py
+> ```
+>
+> ⚠️ **Distinguere i due fallimenti costa un secondo, e la loro confusione è tutto il difetto**:
+>
+> ```bash
+> python -c "import cairosvg"
+> ```
+>
+> `ModuleNotFoundError` → è `pip`. `cannot load library 'libcairo-2.dll'` → è il `PATH`, e il pacchetto
+> c'era già. Il messaggio di ripiego del generatore diceva `pip install cairosvg` in **entrambi** i casi:
+> corretto nello stesso passaggio.
 
 Devi leggere esattamente questo:
 

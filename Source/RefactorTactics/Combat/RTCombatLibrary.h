@@ -441,6 +441,33 @@ public:
 	static ERTTargetRefusal RefusalForObserver(ERTHexTargetReason Reason, bool bTargetKnownToObserver);
 
 	/**
+	 * La coda del log diagnostico di un rifiuto per DISTANZA — `#2766`.
+	 *
+	 * 🔴 **Il difetto che chiude**: il log stampava `Ability->RangeCells`, cioe' la portata **dichiarata**,
+	 * mentre il classificatore confronta con quella **effettiva** — `EffectiveTargetingRange` applica
+	 * `Min(Effective, MaxTargetingRangeThrough)` su ogni cella della linea, e il Fumo la cappa a 2. Con
+	 * un'abilita' a portata 5 e un bersaglio a distanza 3 usciva *«fuori portata (max 5)»*, e chi legge
+	 * conclude che il classificatore e' rotto — `3 <= 5` — e cerca un difetto che non c'e'. E' successo
+	 * davvero, in una code review su `#2754`.
+	 *
+	 * 🔑 **Perche' e' una funzione pura e non un `UE_LOG` piu' lungo.** Il canale diagnostico dichiara di
+	 * *«dire il vero per intero»* (`RTPlayerController.cpp`), ma una stringa composta dentro una macro non
+	 * e' verificabile senza PIE. Estraendola si misura in Automation cio' che il log dira', com'e' gia'
+	 * stato fatto per `ARTHUD::RefusalText` (`#2741`).
+	 *
+	 * ⛔ **Non tocca il messaggio al GIOCATORE, e la ragione va detta**: *«Troppo lontano per questa
+	 * abilita'»* resta corretto anche col cap, perche' il cap limita la **distanza**, non la traiettoria —
+	 * il Fumo ha `bBlocksLineOfSight = false`. Avvicinarsi fino alla portata effettiva fa passare il tiro,
+	 * quindi il rifiuto suggerisce gia' l'azione giusta. ⚠️ Cio' che il giocatore continua a non sapere e'
+	 * **di quanto** avvicinarsi, ma non lo sapeva nemmeno prima: il messaggio non ha mai avuto numeri.
+	 *
+	 * @param DeclaredRange   `RangeCells` dell'abilita'
+	 * @param EffectiveRange  il limite davvero applicato, da `URTTerrainLibrary::EffectiveTargetingRange`
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static FString OutOfRangeDiagnostic(int32 DeclaredRange, int32 EffectiveRange);
+
+	/**
 	 * Danno effettivo di un attacco dato il bonus della cella occupata dall'attaccante
 	 * (es. Altura +danno). Risultato con clamp >= 0.
 	 */

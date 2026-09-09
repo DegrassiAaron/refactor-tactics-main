@@ -2737,7 +2737,17 @@ def main() -> int:
         breakdown = ", ".join(f"{k} {v}" for k, v in sorted(by_cat.items()))
         print(f"ℹ️  {len(extra)} icone fuori dal set richiesto — {breakdown}")
     if cairosvg is None:
-        print("⚠️  cairosvg assente: scritti solo gli SVG. `pip install cairosvg` per i PNG.")
+        # 🔴 **Questo messaggio diceva `pip install cairosvg`, e su Windows e' il consiglio SBAGLIATO**
+        # (`#2551`). Li' `cairosvg` e' quasi sempre gia' installato: quello che manca e' la libreria
+        # NATIVA che `cairocffi` cerca a runtime, e `pip` non la porta. Chi seguiva questa riga
+        # reinstallava un pacchetto che c'era gia', vedeva lo stesso ripiego, e concludeva che servisse
+        # un'altra macchina — e' successo davvero, ed e' costato tre giorni a una chiave di catalogo
+        # mentre `libcairo-2.dll` era sul disco da sempre.
+        print("⚠️  cairosvg non utilizzabile: scritti solo gli SVG, nessun PNG.")
+        print("    Non e' `pip`: il modulo si importa e fallisce sulla libreria NATIVA `libcairo-2.dll`.")
+        print("    Su Windows la porta GTK3 Runtime. Se e' installato, basta il PATH:")
+        print('      PATH="/c/Program Files/GTK3-Runtime Win64/bin:$PATH" python tools/hud-assets/generate_hud_assets.py')
+        print("    Per sapere quale dei due casi e' il tuo:  python -c \"import cairosvg\"")
     else:
         print(f"{rasterized} PNG rasterizzati")
     return 1 if (missing or gate_errors) else 0

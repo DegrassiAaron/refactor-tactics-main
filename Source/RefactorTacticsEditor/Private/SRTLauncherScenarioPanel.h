@@ -99,6 +99,47 @@ private:
 	/** La riga di trasporto: esecuzione, passi, riavvolgimento e velocita'. Solo disposizione e chiamate. */
 	TSharedRef<SWidget> BuildTransportRow();
 
+	// --- piazzamento delle unita' (#2786) ---------------------------------------------------------------
+
+	/**
+	 * La riga di piazzamento: eroe, squadra, cella, facing e i quattro gesti. Solo disposizione.
+	 *
+	 * ⚠️ **La cella si digita**, e non e' una rinuncia: `DEC-2` della issue tiene il click sul viewport per
+	 * #2802, che riusa questo stesso `AddUnit` da un altro ingresso. Due ingressi, un solo mutatore.
+	 */
+	TSharedRef<SWidget> BuildPlacementRow();
+
+	/**
+	 * Il ciclo comune a ogni gesto di piazzamento: apri, muta, **salva**, chiudi, rileggi.
+	 *
+	 * 🔑 **`SaveInPlace` prima di `Close` non e' prudenza, e' la condizione di esistenza del gesto.** Il
+	 * pannello non possiede una sessione — `RefreshReadout` e `OnRunScenarioClicked` aprono e chiudono il
+	 * draft ogni volta — quindi una mutazione non salvata muore con la `Close()` che la segue, e il gesto
+	 * sembrerebbe non aver fatto niente. E' `DEC-1` della issue, dichiarata invece che dedotta.
+	 *
+	 * ⚠️ **Il prezzo e' scritto**: ogni gesto tocca il disco, e non c'e' annulla. L'alternativa era tenere
+	 * il draft aperto fra un gesto e l'altro, cioe' dare al pannello lo stato che l'invariante gli nega.
+	 *
+	 * `Mutate` riceve la facade **gia' aperta** sullo scenario selezionato e ne restituisce l'esito; il
+	 * messaggio d'errore lo scrive in `OutError`.
+	 */
+	FReply RunPlacementGesture(TFunctionRef<ERTScenarioAuthoringResult(URTScenarioAuthoring&, FString&)> Mutate);
+
+	/** Schiera una unita' nuova: id coniato, eroe, squadra, cella e facing correnti. */
+	FReply OnAddUnitClicked();
+
+	/** Sposta l'unita' selezionata sulla cella corrente. */
+	FReply OnMoveUnitClicked();
+
+	/** Ruota l'unita' selezionata sul facing corrente. */
+	FReply OnFaceUnitClicked();
+
+	/** Ritira l'unita' selezionata. */
+	FReply OnRemoveUnitClicked();
+
+	/** Rilegge eroi e unita' schierate per le due tendine. Chiamata dopo ogni gesto e a ogni selezione. */
+	void RefreshPlacementOptions();
+
 	/**
 	 * Fa scorrere la riproduzione automatica.
 	 *
@@ -176,6 +217,55 @@ private:
 
 	/** L'id proposto per uno scenario nuovo. Vuoto = `New Scenario` rifiuta, dicendolo. */
 	FString NewScenarioId;
+
+	// --- piazzamento delle unita' (#2786) ---------------------------------------------------------------
+
+	/**
+	 * Gli `HeroId` del roster, da `URTScenarioAuthoring::ListHeroIds()`.
+	 *
+	 * ⛔ **Non un elenco scritto qui.** Un roster copiato nel pannello diverge dal catalogo il giorno che
+	 * un eroe entra o cambia nome, e lo fa in silenzio: la tendina offrirebbe un eroe che `AddUnit`
+	 * rifiuta, o ne nasconderebbe uno valido.
+	 */
+	TArray<TSharedPtr<FName>> HeroOptions;
+
+	/** L'eroe scelto. `NAME_None` finche' il roster non e' stato letto: `AddUnit` lo rifiuta, dicendolo. */
+	FName PlacementHeroId;
+
+	/**
+	 * La squadra su cui schierare. Default **1**, cioe' l'avversario.
+	 *
+	 * 🔑 Il default non e' `0` per la ragione per cui questa issue esiste: mettere un nemico e' il gesto che
+	 * mancava, e farlo costare un cambio di tendina in piu' rispetto a schierare un alleato lo tratterebbe
+	 * come il caso raro. Non lo e'.
+	 */
+	int32 PlacementTeamId = 1;
+
+	/** La cella su cui schierare, in coordinate assiali piu' layer. `DEC-2`: si digita, per ora. */
+	FRTCellId PlacementCell = FRTCellId();
+
+	/** L'orientamento iniziale. `ERTHexDirection`, mai un angolo libero. */
+	ERTHexDirection PlacementFacing = ERTHexDirection::E;
+
+	/**
+	 * Le sei direzioni esagonali, per la tendina.
+	 *
+	 * ⛔ **Sei, e non un angolo in gradi**: `AddUnit` e `SetUnitFacing` prendono `ERTHexDirection`, e un
+	 * campo libero costringerebbe il pannello a decidere a quale direzione arrotondare — una regola di
+	 * geometria di lato-strumento, che e' esattamente cio' che `spec-tactical-designer.md` §3 vieta.
+	 */
+	TArray<TSharedPtr<ERTHexDirection>> FacingOptions;
+
+    /**
+	 * Le unita' gia' schierate, per le tendine di sposta/ruota/ritira.
+	 *
+	 * ⚠️ Si rilegge da `ListUnits()` dopo ogni gesto: e' una **fotografia**, e tenerla ferma la farebbe
+	 * puntare a un'unita' che il gesto precedente ha ritirato.
+	 */
+	TArray<TSharedPtr<FString>> PlacedUnitOptions;
+
+	/** L'unita' bersaglio dei gesti che ne richiedono una. Vuota = quei gesti rifiutano, dicendolo. */
+	FString SelectedUnitId;
 
 	/** L'errore dell'ultima apertura, quando c'e'. Uno scenario illeggibile resta elencato e lo dice. */
 	FString ReadoutError;

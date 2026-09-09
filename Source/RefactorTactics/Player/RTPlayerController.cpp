@@ -19,6 +19,7 @@
 #include "Turn/RTMovementActionLibrary.h"
 #include "Turn/RTFacingLibrary.h" // CP 11.8: la legalita' della rotazione si CHIEDE, non si riscrive qui
 #include "Combat/RTCombatLibrary.h"
+#include "Terrain/RTTerrainLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Turn/RTTurnManager.h"
 // #971: la sessione non presidiata e' un fatto del GameMode (`IsAutobattleInEffect()`), non dell'unita'.
@@ -1167,7 +1168,8 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	// sotto: anche quello e' una decisione del giocatore, e cancella cio' che rispondeva alla precedente.
 	if (ARTHUD* RefusalHud = Cast<ARTHUD>(GetHUD()))
 	{
-		RefusalHud->SetTargetRefusal(ERTTargetRefusal::None);
+		// `INDEX_NONE`: `None` non e' un rifiuto e non ha una portata da mostrare (`#2800`).
+		RefusalHud->SetTargetRefusal(ERTTargetRefusal::None, INDEX_NONE);
 	}
 
 	FHitResult Hit;
@@ -1436,10 +1438,17 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 			TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells);
 
 		// 🔴 **NON SI BERSAGLIA CIO' CHE NON SI VEDE, e questa guardia chiude il canale PIU' RUMOROSO**
-		// (`#2741`). Il collider di un'unita' velata resta attivo (`#2755`), quindi un nemico invisibile e'
-		// cliccabile: se e' anche in portata e in linea, il ramo qui sotto pianificherebbe l'attacco e
-		// `RefreshPlanningPreview` disegnerebbe la zona colpita **sulla sua cella vera** — una posizione
-		// esatta a schermo, non una frase.
+		// (`#2741`). Se un click raggiungesse un nemico velato e questo fosse anche in portata e in linea,
+		// il ramo qui sotto pianificherebbe l'attacco e `RefreshPlanningPreview` disegnerebbe la zona
+		// colpita **sulla sua cella vera** — una posizione esatta a schermo, non una frase.
+		//
+		// ⚠️ **La motivazione originale era falsa, corretta il 2026-09-09 da `#2755`**: diceva che «il
+		// collider di un'unita' velata resta attivo, quindi un nemico invisibile e' cliccabile». Non lo e':
+		// `ARTUnit::RefreshComponentVisibility` chiude con `SetActorEnableCollision(bRender)` dal commit
+		// `678cc8fc`, e `RefactorTactics.Veil.HiddenEnemyIsNotPickable` lo misura sul trace del picking.
+		// La guardia resta perche' `bKnownToObserver` nasce `true` (`RTUnit.h`) e il velo lo corregge nel
+		// `Tick` dell'HUD: fra lo spawn di un'unita' e il primo tick la collisione e' accesa su un nemico
+		// mai visto. E' difesa in profondita' su quella finestra, non l'unica difesa.
 		//
 		// ⚠️ **Il rifiuto testuale da solo non bastava, ed e' il difetto che una code review ha trovato in
 		// questa stessa issue**: filtrare il ramo del RIFIUTO e lasciare aperto quello del SUCCESSO chiude
@@ -1477,8 +1486,22 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 			switch (Reason)
 			{
 			case ERTHexTargetReason::OutOfRange:
-				UE_LOG(LogRT, Log, TEXT("[RT] %s fuori portata (max %d)"), *ClickedUnit->GetName(), Ability->RangeCells);
+			{
+				// ⛔ **La portata che si stampa e' quella APPLICATA, non quella dichiarata** (`#2766`).
+				// `ClassifyHexTargeting` confronta la distanza con `EffectiveTargetingRange`, che il Fumo
+				// cappa a 2: stampare `RangeCells` faceva uscire «fuori portata (max 5)» per un bersaglio
+				// a distanza 3, e chi legge conclude che il classificatore e' rotto.
+				//
+				// 🔑 **Stessa funzione del classificatore, non una seconda regola.** Si richiama
+				// `EffectiveTargetingRange` con gli stessi argomenti invece di riderivare il cap qui: una
+				// copia della regola nel canale diagnostico direbbe il vero solo finche' qualcuno non
+				// cambia il catalogo del terreno.
+				const int32 EffectiveRange = URTTerrainLibrary::EffectiveTargetingRange(
+					TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells);
+				UE_LOG(LogRT, Log, TEXT("[RT] %s %s"), *ClickedUnit->GetName(),
+					*URTCombatLibrary::OutOfRangeDiagnostic(Ability->RangeCells, EffectiveRange));
 				break;
+			}
 			case ERTHexTargetReason::NoLineOfSight:
 				UE_LOG(LogRT, Log, TEXT("[RT] %s coperto (nessuna linea di tiro)"), *ClickedUnit->GetName());
 				break;
@@ -1493,18 +1516,31 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 			//    (`#2741`). ⛔ La conoscenza entra in `RefusalForObserver` e da nessun'altra parte: qui si
 			//    passa il flag che il velo ha gia' deciso, senza rileggerlo e senza una seconda regola.
 			//
-			// 🔴 **Perche' il flag serve davvero**: il collider di un'unita' velata resta attivo — il
-			// trace usa `ECC_Visibility`, la mesh lo blocca, e il velo spegne la visibilita' ma non la
-			// collisione. Un nemico invisibile e' quindi CLICCABILE, e senza questo filtro il rifiuto ne
-			// rivelerebbe la presenza a chi non lo osserva ([D-225]).
+			// 🔴 **Perche' il flag serve davvero**, corretto il 2026-09-09 da `#2755`. La stesura
+			// precedente diceva che «il collider di un'unita' velata resta attivo, quindi un nemico
+			// invisibile e' CLICCABILE»: e' falso, `RefreshComponentVisibility` chiude con
+			// `SetActorEnableCollision(bRender)` e `RefactorTactics.Veil.HiddenEnemyIsNotPickable` lo
+			// misura sul trace del picking. La ragione vera e' piu' stretta: `bKnownToObserver` nasce
+			// `true` e il velo lo corregge nel `Tick` dell'HUD, quindi fra lo spawn di un'unita' e il primo
+			// tick la collisione e' accesa su un nemico mai visto. In quella finestra un click lo
+			// raggiunge, e senza questo filtro il rifiuto ne rivelerebbe la presenza ([D-225]).
 			// ⚠️ **Il flag qui e' ridondante con la guardia sopra, e resta di proposito**: e' difesa in
 			// profondita'. Se qualcuno togliesse quella guardia — o aggiungesse un secondo percorso di
 			// targeting che non ce l'ha — questa riga continuerebbe a collassare il caso su `Nothing`.
 			// Toglierla renderebbe la sicurezza dipendente da un `return` a venti righe di distanza.
 			if (ARTHUD* Hud = Cast<ARTHUD>(GetHUD()))
 			{
+				// 🔑 **La portata mostrata e' la STESSA che il classificatore ha applicato** (`#2800`):
+				// si richiama `EffectiveTargetingRange` con gli stessi argomenti, come fa il log qui sopra.
+				// Passare `Ability->RangeCells` rimetterebbe a schermo l'inganno che `#2766` ha tolto.
+				//
+				// ⛔ Il numero segue lo stesso filtro del messaggio: `RefusalForObserver` collassa su
+				// `Nothing` un bersaglio ignoto, e `SetTargetRefusal` scarta la portata per ogni esito che
+				// non sia `Range`. Un numero su un'ombra sarebbe un canale di conoscenza in piu' ([D-225]).
 				Hud->SetTargetRefusal(
-					URTCombatLibrary::RefusalForObserver(Reason, ClickedUnit->IsKnownToObserver()));
+					URTCombatLibrary::RefusalForObserver(Reason, ClickedUnit->IsKnownToObserver()),
+					URTTerrainLibrary::EffectiveTargetingRange(
+						TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells));
 			}
 		}
 	}
