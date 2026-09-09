@@ -145,6 +145,18 @@ namespace
  * 🔴 **Il gate che decide questa feature.** Ha quattro parti, e la prima esiste perche' senza di essa
  * sarebbe VACUO: una query che non restituisse mai niente supererebbe tutte le altre tre.
  *
+ * E' il canary che il DoD di #2596 chiede «nella forma di `RefactorTactics.Debug.DrawIntentHidesEnemyIntent`»
+ * (`RTDebugConsoleTests.cpp`), e da quel test prende la struttura: prima la controprova di non vacuita',
+ * poi il confronto fra due scene che differiscono SOLO per lo stato nascosto.
+ *
+ * ⚠️ Il nome NON e' quello del modello, e non puo' esserlo: `RefactorTactics.Debug.DrawIntentHidesEnemyIntent`
+ * e' gia' registrato da quel test, e due `IMPLEMENT_SIMPLE_AUTOMATION_TEST` non possono dichiarare la stessa
+ * stringa. Il DoD dice «nella forma di», non «con il nome di» — la forma e' qui, il nome vive nel namespace
+ * del soggetto interrogato.
+ *
+ * Dove va oltre il modello: quello confronta le righe prodotte, questo confronta **cella per cella** su
+ * tutte e tre le regioni, perche' due insiemi diversi possono avere la stessa cardinalita' (parte 3).
+ *
  * La differenza fra le due scene NON e' scritta a mano nella vista: passa da
  * `URTKnowledgeViewLibrary::ViewForTeam` con due elenchi di soggetti AUTOREVOLI che differiscono per
  * un'unita' nascosta. E' cio' che rende il test una misura della porta e non una tautologia sulla firma —
