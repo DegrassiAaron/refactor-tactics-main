@@ -275,6 +275,74 @@ Il countdown **non sostituisce** il timer massimo del planning: è la scorciatoi
 > *oggi* non è l'attesa reciproca, è **annullare una chiusura involontaria**. La forma «tutti Ready» diventa
 > osservabile con il 3v3 e con **M10**, e `RequestLockIn` è un punto solo perché aggiungerci il quorum non
 > richieda di spostare il countdown.
+>
+> ➕ **E c'è una terza strada verso l'osservabilità, più vicina delle altre due**: il coordinamento del bot
+> alleato (§7.3, owner `#534`, post-v0.1). Con quello il quorum ha due partecipanti **in 2v2 offline**, senza
+> aspettare né il 3v3 né M10. ⚠️ Il *soggetto* del Ready, però, è già cambiato adesso: non è più l'umano ma il
+> **partecipante** — §7.3.
+
+### 7.3 Di chi è il Ready — *(decisione dell'autore, 2026-09-07; consolidata il 2026-09-09)*
+
+Il Ready appartiene al **partecipante**, cioè a **chi comanda** — un posto umano, oppure l'insieme delle unità
+che un bot pianifica. Il Character selezionato è solo il contesto da cui parte l'input.
+
+```text
+Ready dichiarato con A selezionata
+  → l'autorità risolve il PARTECIPANTE dal controller di A
+  → Ready del partecipante = true
+  → ogni unità di quel partecipante mostra READY
+```
+
+| Regola | Forma |
+|---|---|
+| propagazione | Ready da una qualunque unità del partecipante ⇒ **tutte** le sue unità sono Ready |
+| simmetria | Unready ⇒ **tutte** tornano Not Ready, **senza perdere il piano** (§7.2) |
+| invariante | non esiste uno stato valido in cui due unità **dello stesso partecipante** hanno Ready diverso |
+| quorum | il countdown parte quando **tutti i partecipanti che possono dichiarare Ready** lo sono. ⛔ **Quorum vuoto ⇒ nessun commit anticipato**: l'autobattle resta sul percorso del tetto, che è il suo comportamento di sempre |
+
+⚠️ **Il soggetto è il controller, non il `ControlGroup`.** Sono due cose diverse e in v0.1 non coincidono:
+`ControlGroup = IndexInTeam / UnitsPerPlayer` (§16.4) è la chiave di **autorizzazione** consegnata da
+[`#1124`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1124), e con `UnitsPerPlayer = 2` su
+`UnitsPerTeam = 2` la squadra ha **un gruppo solo**. Un compagno pianificato dal bot (`rt.Match.BotAllies`)
+vive **dentro quel gruppo**, con `bIsBotControlled = true`: scrivere la regola sul gruppo renderebbe
+indistinguibili l'umano e il suo alleato bot, che è esattamente il caso che questa sezione deve separare.
+
+🔴 **E in v0.1 questa forma non cambia nulla di osservabile.** Va detto qui, perché il difetto che
+[`#2193`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2193) è nata per chiudere è proprio una
+voce che *«descrive un comportamento che non esiste»*:
+
+| Configurazione | Chi comanda | Cosa si osserva |
+|---|---|---|
+| `BotAllyCount = 0` | l'umano comanda entrambe le unità | un partecipante umano solo: il Ready copre già entrambe, come oggi |
+| `BotAllyCount = 1` | l'umano una, il bot l'altra | due partecipanti — ma il bot ha il piano finalizzato **da inizio Planning**, quindi è Ready subito e il quorum si chiude sul Ready umano, come oggi |
+
+Il valore della forma è a **monte** di ciò che si vede: è la superficie su cui si appoggiano il coordinamento
+del bot alleato (sotto) e il protocollo di rete di `CP 40.4`.
+
+#### Il coordinamento del bot alleato — **post-v0.1**, e non è un ritardo cosmetico
+
+*(decisione dell'autore, 2026-09-07 · owner [`#534`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/534) CP 26.4 · [`spec-bot-tattico.md`](spec-bot-tattico.md) §3 · [D-096](../decisions/RT_PDR_00_Decision_Log.md))*
+
+Quando atterrerà, la forma decisa è **in serie** con il countdown esistente:
+
+```text
+Human Ready → finestra di coordinamento del bot alleato → quorum → ReadyCountdown 3 s → Commit
+```
+
+| Cosa | Forma |
+|---|---|
+| la finestra | tempo minimo di coordinamento sull'**ultima** revisione del piano alleato, non un timer che porta il bot a Ready da solo |
+| il replanning | il bot può mantenere o rifare il proprio piano; il risultato dipende da **stato canonico + revisione del piano alleato**, mai dal tempo trascorso — è [D-096](../decisions/RT_PDR_00_Decision_Log.md) |
+| la revoca | un cambio **significativo** del piano alleato — sopra la soglia di isteresi di `#534` — riporta il bot a Not Ready e riapre la finestra. ⛔ **Non** ogni micro-modifica: sarebbe il bot nervoso che `#534` esiste per prevenire, e in co-op un modo per impedire il commit a tutta la squadra |
+| il costo | **≈ 4 s** dal Ready umano al Commit senza altre modifiche. È un punto di playtest dichiarato, non una costante |
+| privacy | il piano alleato passa dal canale che esiste già — `URTCombatLibrary::IsIntentVisibleTo` (`#507`). ⛔ Nessun dato nuovo verso la squadra avversaria, e nessun secondo canale |
+| classificazione | **tempo UX** (§11), come `ReadyCountdown`: fuori da snapshot, `TurnLog`, replay e `StateHash` |
+
+⚠️ **Il tetto continua a vincere** (§7.2): la finestra del bot non allunga `PlanningSeconds`, e all'uscita da
+Planning ogni valutazione pendente è invalidata.
+
+⚠️ **Il valore della finestra è una baseline da playtestare** (§19), non una costante consolidata: `#534`
+dichiara la soglia e il *grace* di stabilità prima del Ready dei **buchi dichiarati**, da misurare.
 
 ---
 
@@ -804,6 +872,7 @@ da 3 s. La sonda esiste già come design (`spec-pacing-turno.md`); qui si aggiun
 | Skirmish round | ~10–14 |
 | Skirmish traversal | ~3–4 Move |
 | Celle percorribili Standard | ordine di grandezza 150–200 |
+| Finestra di coordinamento del bot alleato (§7.3) | **1.0 s** — e con essa il percorso `Ready umano → Commit` a **≈ 4 s**. ⚠️ `#534` dichiara questo valore e la soglia di isteresi **buchi da misurare**, non contenuto di quel CP |
 
 **Non trasformare questi valori in requisiti immutabili.** Nessuno di essi è oggi verificato da un test.
 
