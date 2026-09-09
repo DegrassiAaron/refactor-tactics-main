@@ -392,3 +392,44 @@ void URTFastDecisionWidget::ChooseOption(int32 OptionIndex)
 	// creerebbe un secondo, fuori dai test che presidiano il primo.
 	ViewModel->SubmitResponse(Window.Options[OptionIndex].Response);
 }
+
+ESlateVisibility URTFastDecisionWidget::GetWindowVisibility() const
+{
+	// 🔑 **`IsWindowOpen()`, e non `GetRemainingSeconds() > 0`.** Sono due orologi: il residuo scorre col
+	// `Tick` dell'Actor, il widget disegna col proprio, e il numero tocca lo zero PRIMA che la finestra si
+	// chiuda. Un binding costruito sul numero farebbe sparire il prompt mentre il gioco aspetta ancora.
+	return IsWindowOpen() ? ESlateVisibility::Visible : ESlateVisibility::Collapsed;
+}
+
+FText URTFastDecisionWidget::GetCountdownText() const
+{
+	const float Remaining = GetRemainingSeconds();
+
+	// Negativo significa «nessuna finestra» — la convenzione di `FRTMatchHeaderView::PlanningSecondsRemaining`
+	// — e non «scaduta». Vuoto, non «0.0»: un numero senza domanda si legge come una domanda scaduta.
+	if (Remaining < 0.f)
+	{
+		return FText::GetEmpty();
+	}
+
+	// ⚠️ **Il clamp e' sul BASSO e non serve al numero: serve al segno.** Fra l'ultimo tick dell'orologio
+	// autorevole e la chiusura il residuo puo' essere di poco negativo, e `-0.1` a schermo sarebbe l'unico
+	// momento in cui questo widget mostra qualcosa che il gioco non ha mai detto.
+	FNumberFormattingOptions Format;
+	Format.MinimumFractionalDigits = 1;
+	Format.MaximumFractionalDigits = 1;
+	return FText::AsNumber(FMath::Max(0.f, Remaining), &Format);
+}
+
+FText URTFastDecisionWidget::GetPromptText() const
+{
+	if (!IsWindowOpen())
+	{
+		return FText::GetEmpty();
+	}
+
+	// ⛔ **Niente nome del bersaglio, e la ragione sta nella dichiarazione**: il DTO porta un
+	// `TargetSnapshotIndex`, non un id stabile, e risolverlo qui nominerebbe l'unita' sbagliata in ogni
+	// partita in cui qualcuno e' gia' caduto. Un'etichetta neutra e' l'unica cosa che questo widget sa.
+	return NSLOCTEXT("RefactorTactics", "FastDecisionPrompt", "Reazione");
+}

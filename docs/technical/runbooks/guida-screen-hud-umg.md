@@ -207,12 +207,34 @@ Il C++ è atterrato: quello che resta qui è **solo layout**.
 
 ### Che cosa il widget legge
 
+**I vestiti dei binding** — si collegano **direttamente** a una proprietà, senza un nodo in mezzo:
+
+| Nodo | Rende | Si lega a |
+|---|---|---|
+| `Get Window Visibility` | `ESlateVisibility` | `WindowRoot` → **Visibility** |
+| `Get Countdown Text` | `FText` | `CountdownText` → **Text** |
+| `Get Prompt Text` | `FText` | `PromptText` → **Text** |
+
+**Le letture** — per il grafo, non per un binding diretto:
+
 | Nodo | Rende | Nota |
 |---|---|---|
 | `Is Window Open` | `bool` | **è questa** che governa visibilità e input, non il countdown |
 | `Get Window` | `FRTReactionWindowView` | `Options`, `SafeResponse`, `WindowSeconds` |
 | `Get Remaining Seconds` | `float` | **negativo** quando nessuna finestra attende |
 | `Choose Option` | — | prende l'**indice** dell'opzione premuta |
+
+⚠️ **I tre vestiti esistono perché senza di loro non c'è nulla da legare**: un binding di `Visibility` vuole
+una funzione che renda `ESlateVisibility`, uno di `Text` una che renda `FText` — e `Is Window Open` rende
+`bool` mentre `Get Remaining Seconds` rende `float`. È lo stesso motivo per cui
+`URTTurnHeaderWidget::GetRoundCounterText` esiste come funzione invece che come regola scritta qui: la
+formattazione messa in un grafo è formattazione che nessun test legge.
+
+🔴 **`Get Prompt Text` NON nomina il bersaglio, e non è una semplificazione.** La DoD chiede *«countdown **e
+bersaglio**»*, ma l'unico riferimento che il DTO porta è `TargetSnapshotIndex` — un indice nello spazio di
+`MakeCurrentSnapshot`, che scarta i morti. Risolverlo su un roster nominerebbe **l'unità sbagliata** in ogni
+partita in cui qualcuno è già caduto. Mostrare un nome richiede che il **produttore** lo metta nel DTO;
+finché non c'è, non inventarlo nel Designer.
 
 ### Le quattro regole, e perché
 

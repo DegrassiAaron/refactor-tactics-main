@@ -497,6 +497,69 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Reaction")
 	void ChooseOption(int32 OptionIndex);
+
+	// -------------------------------------------------------------------------------------------------
+	// I VESTITI DEI BINDING — §4.3 della guida: *«tutte le funzioni delle basi sono `BlueprintPure`: si
+	// collegano DIRETTAMENTE a un binding di proprieta' (`Text`, `Visibility`)»*.
+	//
+	// 🔑 **Esistono perche' senza di loro il Designer non ha nulla da legare.** Un binding di `Visibility`
+	// vuole una funzione che renda `ESlateVisibility`, uno di `Text` una che renda `FText`: `IsWindowOpen()`
+	// rende `bool` e `GetRemainingSeconds()` rende `float`, e **nessuna delle due e' collegabile**. Le
+	// alternative erano due, e questa e' la meno cara: comporre il vestito in un grafo Blueprint avrebbe
+	// messo la formattazione — e con essa la regola dei due orologi — dentro un `.uasset` che nessun test
+	// legge. E' lo stesso argomento con cui `URTTurnHeaderWidget::GetRoundCounterText` esiste come funzione
+	// invece che come regola scritta nella guida.
+	// -------------------------------------------------------------------------------------------------
+
+	/**
+	 * La visibilita' della finestra: `Visible` quando c'e' una domanda, `Collapsed` quando non c'e'.
+	 *
+	 * 🔴 **Segue `IsWindowOpen()`, MAI il countdown a zero**, ed e' il punto per cui questa funzione sta in
+	 * C++ e non nel grafo: i due orologi non hanno lo stesso tick, e il numero disegnato tocca `0` per
+	 * almeno un frame **prima** che la finestra si chiuda. Un binding costruito sul numero farebbe sparire
+	 * il prompt mentre il gioco sta ancora aspettando una risposta — e la risposta mancata diventerebbe un
+	 * `HoldTimeout` che nel TurnLog e' indistinguibile da una scelta.
+	 *
+	 * ⚠️ **`Collapsed` e non `Hidden`**: `Hidden` continua a occupare spazio nel layout, e una finestra
+	 * chiusa lascerebbe un buco nel pannello che la ospita.
+	 *
+	 * ⚠️ **`Visible` e non `SelfHitTestInvisible`**: i bottoni delle opzioni devono ricevere il click, ed e'
+	 * l'unica ragione per cui la scelta fra i due valori conta qui.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
+	ESlateVisibility GetWindowVisibility() const;
+
+	/**
+	 * Il countdown come lo legge un giocatore: `2.4` — un decimale, mai negativo. Vuoto senza finestra.
+	 *
+	 * ⚠️ **Un decimale e non un intero, e la scelta e' misurabile.** Arrotondando all'intero per difetto il
+	 * numero mostrerebbe `0` per l'**ultimo secondo intero** di una finestra ancora aperta; con un decimale
+	 * la stessa finestra mostra `0.0` solo negli ultimi ~50 ms. Il disallineamento fra numero e apertura non
+	 * si elimina — sono due orologi — ma si riduce di venti volte, e quel che resta e' sotto la soglia in
+	 * cui qualcuno prova a premere.
+	 *
+	 * ⛔ **Non e' il gate dell'input**: quello e' `GetWindowVisibility()`, che interroga l'apertura. Questo
+	 * numero e' cosmesi.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
+	FText GetCountdownText() const;
+
+	/**
+	 * L'etichetta della finestra. Vuota quando non ce n'e' una.
+	 *
+	 * 🔴 **NON nomina il bersaglio, e non e' una semplificazione: oggi il bersaglio NON E' ESPRIMIBILE.** La
+	 * DoD di CP 14.6 chiede *«UI `FIRE`/`HOLD` con countdown **e bersaglio**»*, ma l'unico riferimento al
+	 * bersaglio che il DTO porta e' `FRTReactionWindowOptionView::TargetSnapshotIndex` — e la sua stessa
+	 * dichiarazione vieta di risolverlo qui: *«e' un indice nello spazio di `MakeCurrentSnapshot`, che
+	 * scarta i morti — NON un id stabile … chi lo risolvesse su un roster, su `StableUnitId` o su una lista
+	 * di Actor nominerebbe l'unita' SBAGLIATA in ogni partita in cui qualcuno e' gia' caduto»*.
+	 *
+	 * ∴ mostrare un nome richiede che il **produttore** lo metta nel DTO — ha lo snapshot in mano, questo
+	 * widget no. Finche' non c'e', un'etichetta neutra e' l'unica cosa onesta: inventare un nome qui
+	 * sarebbe il difetto che quella dichiarazione esiste per impedire. Owner: `#166`, meta' «e bersaglio».
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
+	FText GetPromptText() const;
 };
 
 /**
