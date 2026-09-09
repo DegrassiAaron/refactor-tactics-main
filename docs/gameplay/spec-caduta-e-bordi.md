@@ -168,6 +168,37 @@ LastStableCell → caduta candidata → risolvi effetti ed esito → committa la
 che cadono nello stesso Blast. Lo chiude `Fall.TwoFallersSameLandingIsDeterministic`, con la mutazione
 corrispondente nel gate [#2406](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2406).
 
+### 4.3.2 Quando non c'è dove atterrare, in generale
+
+🔑 **La discesa non avviene, gli effetti sì** ([`D-358`](../decisions/RT_PDR_00_Decision_Log.md)). È `spec`
+§5 — *«gli effetti non sono la posizione»* — applicata fino in fondo: sono **due domande separate**, e la
+prima non contamina la seconda.
+
+| | |
+|---|---|
+| discesa | **non avviene** |
+| effetti | **si applicano**: 5 danni · `Exposed` (§5.1) |
+| posizione | il **ciglio** (`LastStableCell`) se è libero, altrimenti l'unità resta dov'è |
+
+⚠️ **Il ciglio è condizionale, e il ramo in più è voluto**: `LastStableCell` può essere occupata — da una
+terza unità, o da un'altra che vi finisce nello stesso Blast. In quel caso l'unità resta dov'è. È ciò che
+rende l'invariante §4.3.1 vero **senza eccezioni**, invece che vero salvo un caso.
+
+🔑 **Una regola sola per tre casi** che finora ne avevano tre:
+
+1. il **saturo** di §4.3 — primario occupato da un'unità ferma;
+2. la **colonna senza fondo** del §4 ⚠️ — nessun primario esiste;
+3. **due cadute che si contendono** lo stesso atterraggio nello stesso Blast.
+
+In tutti e tre la domanda è la stessa — *«non c'è dove scendere»* — e la risposta ora è una.
+
+🔴 **Il conflitto che questa regola scioglie era fra due principi entrambi validi.** §4.3 dice *«la caduta è
+avvenuta, ai fini degli effetti»*; [`#420`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/420)
+dice che due bersagli diretti alla stessa cella **restano entrambi fermi**, che è la sola soluzione
+ordine-indipendente senza inventare una priorità fra unità. Il secondo vinceva **non perché qualcuno
+l'avesse deciso**, ma perché è più vecchio ed è scritto per le **spinte**: nella caduta la gravità non
+contende — entrambe scendono comunque, e la cella è contesa solo come destinazione.
+
 ---
 
 ## 5. Gli effetti non sono la posizione
