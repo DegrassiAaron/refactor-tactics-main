@@ -345,4 +345,82 @@ bool FRTLauncherCompositionReadoutTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il conio dell'`UnitId` (#2786).
+ *
+ * ⚠️ **Perche' e' una funzione e non due righe nel pannello.** `AddUnit` prende l'id in INGRESSO (#1115):
+ * il conio e' del chiamante, e se sbaglia il difetto si manifesta come `Invalid` con «id gia' preso» —
+ * un messaggio che accusa lo SCENARIO per un errore della SCHERMATA. Tenendolo qui, cio' che puo'
+ * sbagliare ha un test che gira senza un editor vivo.
+ *
+ * ⛔ **Cosa questo test NON copre**: che la tendina si popoli, che il pulsante sia abilitato e che il
+ * readout si aggiorni sono Slate su un editor vivo — voce `PIE-SCEN-COMPOSER`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLauncherCoinUnitIdTest,
+	"RefactorTactics.DevSandboxLauncher.CoinUnitIdAvoidsCollisions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLauncherCoinUnitIdTest::RunTest(const FString&)
+{
+	auto Unita = [](const FString& Id)
+	{
+		FRTScenarioUnitView View;
+		View.Id = Id;
+		return View;
+	};
+
+	// Scenario vuoto: il primo id e' `U1`. Non `U0` — gli id sono nomi, non indici, e partire da zero
+	// inviterebbe a leggerli come posizioni nell'array.
+	TestEqual(TEXT("senza unita' schierate il conio da' U1"),
+		FRTLauncherScenarioBrowser::CoinUnitId({}), FString(TEXT("U1")));
+
+	// 🔑 **L'invariante che il pannello compra con questa funzione**: due gesti di fila non collidono. Il
+	// secondo conio vede la lista DOPO il primo `AddUnit`, ed e' per questo che il pannello la rilegge
+	// dalla facade gia' aperta invece di usarne una fotografia precedente.
+	const TArray<FRTScenarioUnitView> Uno = { Unita(TEXT("U1")) };
+	TestEqual(TEXT("con U1 schierata il conio da' U2"),
+		FRTLauncherScenarioBrowser::CoinUnitId(Uno), FString(TEXT("U2")));
+
+	// I buchi si riempiono, ed e' dichiarato: rimossa `U2`, la prossima torna `U2`. L'alternativa —
+	// un contatore monotono — richiederebbe uno stato che sopravviva a salva/riapri, e senza di quello
+	// ripartirebbe da capo producendo proprio la collisione che il conio evita.
+	const TArray<FRTScenarioUnitView> ConBuco = { Unita(TEXT("U1")), Unita(TEXT("U3")) };
+	TestEqual(TEXT("il conio riempie il buco lasciato da una rimozione"),
+		FRTLauncherScenarioBrowser::CoinUnitId(ConBuco), FString(TEXT("U2")));
+
+	// ⚠️ **Case-insensitive, e non e' pedanteria**: il formato non impone una capitalizzazione agli id, e
+	// uno scenario scritto a mano puo' portare `u1`. Un confronto sensibile alle maiuscole lo dichiarerebbe
+	// libero e produrrebbe la collisione — cioe' il caso peggiore, perche' passa il conio e fallisce la
+	// facade.
+	const TArray<FRTScenarioUnitView> Minuscolo = { Unita(TEXT("u1")) };
+	TestEqual(TEXT("u1 minuscola occupa U1"),
+		FRTLauncherScenarioBrowser::CoinUnitId(Minuscolo), FString(TEXT("U2")));
+
+	// Id fuori convenzione: il conio non prova a indovinarne la forma, cerca il primo `U<n>` libero. Uno
+	// scenario del corpus puo' chiamare le unita' `attaccante` o `hero_a`, e nessuna collide con `U1`.
+	const TArray<FRTScenarioUnitView> FuoriConvenzione = { Unita(TEXT("attaccante")), Unita(TEXT("hero_a")) };
+	TestEqual(TEXT("gli id fuori convenzione non spostano il conio"),
+		FRTLauncherScenarioBrowser::CoinUnitId(FuoriConvenzione), FString(TEXT("U1")));
+
+	// La piccionaia: con N id presi, fra `U1` e `U(N+1)` almeno uno e' libero. Qui tutti gli `U1..U3` sono
+	// presi, quindi l'esito deve essere `U4` e non una stringa vuota.
+	const TArray<FRTScenarioUnitView> Pieno = { Unita(TEXT("U1")), Unita(TEXT("U2")), Unita(TEXT("U3")) };
+	TestEqual(TEXT("con U1..U3 prese il conio da' U4"),
+		FRTLauncherScenarioBrowser::CoinUnitId(Pieno), FString(TEXT("U4")));
+
+	// 🔴 **Il conio non restituisce mai un id gia' preso.** E' l'asserzione che vale piu' delle singole
+	// uguaglianze: le altre fissano la forma, questa fissa la proprieta'.
+	for (const TArray<FRTScenarioUnitView>& Caso : { Uno, ConBuco, Minuscolo, FuoriConvenzione, Pieno })
+	{
+		const FString Coniato = FRTLauncherScenarioBrowser::CoinUnitId(Caso);
+		TestFalse(TEXT("l'id coniato non e' vuoto"), Coniato.IsEmpty());
+		for (const FRTScenarioUnitView& Presente : Caso)
+		{
+			TestFalse(FString::Printf(TEXT("'%s' non collide con '%s'"), *Coniato, *Presente.Id),
+				Coniato.Equals(Presente.Id, ESearchCase::IgnoreCase));
+		}
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
