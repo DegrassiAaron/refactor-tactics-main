@@ -5170,9 +5170,21 @@ void ARTTurnManager::ResolveCombat()
 	//
 	// Tenendolo qui l'invariante diventa STRUTTURALE: qualunque uscita futura della sequenza passa comunque
 	// da `SpendStartedAbilities`, e un `return` in piu' non puo' far dimenticare il cooldown a nessuno.
-	FRTBlastContext Ctx;
-	ResolveCombatPasses(Ctx);
-	SpendStartedAbilities(Ctx);
+	// 🔑 **Il contesto vive sull'HEAP, e non e' una preferenza di allocazione** (`#2692`): la fase deve
+	// poter uscire su una finestra del `Brace` e rientrare, e uno `FRTBlastContext` sullo stack di questa
+	// funzione morirebbe al primo ritorno. `PendingMovement` sta qui per la stessa ragione da `#2679`.
+	//
+	// ⚠️ **Nasce e muore ancora dentro questa funzione**, quindi il contratto dichiarato in
+	// `RTBlastContext.h` — *«non e' stato del turno e non sopravvive alla fase»* — resta vero oggi. Cio'
+	// che cambia e' che il contesto sia RAGGIUNGIBILE da fuori quando la sospensione arrivera': senza,
+	// non ci sarebbe niente da riprendere.
+	PendingBlast = MakeUnique<FRTBlastContext>();
+	ResolveCombatPasses(*PendingBlast);
+	SpendStartedAbilities(*PendingBlast);
+
+	// Il contesto muore QUI, come prima. Quando il `Brace` sapra' sospendere, questa riga diventera'
+	// condizionale — e sara' quello il momento in cui il commento sopra smettera' di essere vero.
+	PendingBlast.Reset();
 }
 
 void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
