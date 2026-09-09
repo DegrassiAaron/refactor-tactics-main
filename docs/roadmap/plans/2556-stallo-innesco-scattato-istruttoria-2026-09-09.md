@@ -7,6 +7,13 @@
 > l'uscita (d) — *restare divergenti* — **e ne ha dichiarato l'innesco di riapertura**.
 > **Misure**: su `main` = `9fa7c416`, motore libero, working tree pulito verificato prima e dopo.
 > Compile `PASS`, suite `RefactorTactics` 2225 test, 3 fail tutti con owner.
+> ✅ **DECISA il 2026-09-09 — [`D-361`](../../decisions/RT_PDR_00_Decision_Log.md)**, e con un'uscita che
+> questa istruttoria **non aveva sul tavolo**: né la `(a)` né la `(b)`, ma la **`(c)-eliminazione`** —
+> *«stallo = nessuna unità è caduta per N turni»*. Le tre uscite qui sotto restano la ragione per cui le
+> altre due sono state scartate; ciò che mancava era il dato sullo **scopo** del bot su quella board
+> (*«Vince per eliminazione, obiettivo 0-0»*) e quello sul **giocatore** ([#2747](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2747)),
+> entrambi presi dopo. ⚠️ Costo accettato: margine **zero**.
+>
 > **Esito dell'istruttoria**: il rosso **non misura un difetto del bot**. Ogni definizione che guarda se il
 > bot *fa* qualcosa è **identica a prima di `Model A`**; si è mossa solo quella che guarda se cambia cella.
 
