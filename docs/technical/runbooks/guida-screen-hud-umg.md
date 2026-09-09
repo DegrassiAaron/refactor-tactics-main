@@ -323,8 +323,7 @@ Lo scheletro non è la finestra. Restano da fare, e sono lavoro d'autore:
    si chiuda, e il prompt sparirebbe mentre il gioco sta ancora aspettando. La risposta mancata diventa un
    `HoldTimeout` che nel TurnLog è indistinguibile da una scelta deliberata.
 
-2. **Il popolamento di `OptionsBox`**: un bottone per elemento di `GetWindow().Options`, con
-   `Choose Option(indice)` sul click — vedi le quattro regole qui sopra;
+2. **Il popolamento di `OptionsBox`** — vedi §7-ter, ha una ricetta sua;
 3. **L'aspetto**: colori, font, ingombro, e la posizione dentro `WBP_RT_TacticalHUD`. ⚠️ Il **centro libero**
    di §3 vale anche per questa finestra: §4.2 disegna path e AoE sopra la mappa.
 
@@ -346,6 +345,72 @@ sbagliato è peggio di uno assente, perché a schermo sembra funzionare.
 
 ✅ Gli altri gate headless coprono il **contratto** — parent class, caricamento, nessuna texture. Ciò che
 resta dopo questi due è esattamente ciò che solo `PIE-V01-OVERWATCH` può guardare.
+
+---
+
+## 7-ter. `OptionsBox` — i bottoni della finestra
+
+Sezione aggiunta il **2026-09-09**. È l'ultimo pezzo di UI delle voci 2 · 4 di CP 14.6.
+
+### Perché serve un secondo Blueprint
+
+⛔ **Non si può fare con un `ForEach` e basta.** In un ciclo Blueprint l'indice **non è catturabile** dentro
+un delegate: `OnClicked` non porta parametri, quindi tutti i bottoni finirebbero per rispondere con lo stesso
+indice — l'ultimo. Serve un widget figlio che **tenga il proprio indice**, ed è lo stesso motivo per cui
+`WBP_RT_ActionSlot` esiste accanto a `WBP_RT_ActionDock`.
+
+| Blueprint | Parent Class | Cosa fa |
+|---|---|---|
+| `WBP_RT_FastDecisionOption` | `RTFastDecisionOptionWidget` | un `Button` + un `Text Block`; il click chiama `Choose` |
+
+### Il grafo, in quattro nodi
+
+Nel Designer di **`WBP_RT_FastDecision`** implementa l'evento **`On Window Changed`**:
+
+```text
+Event On Window Changed
+  └─ OptionsBox → Clear Children
+  └─ Get Window → Options → ForEach (Element, Index)
+       └─ Create Widget (WBP_RT_FastDecisionOption)
+            └─ Set Option (Owner = self, Option = Element, Index = Index,
+                           bIsSafe = Element.Response == Get Window.SafeResponse)
+            └─ OptionsBox → Add Child
+```
+
+E dentro **`WBP_RT_FastDecisionOption`**: `OnClicked` del bottone → **`Choose`**. Nient'altro.
+Il testo del bottone si lega a **`Get Option Label`**, e lo stile «scelta sicura» a **`Is Safe Choice`**.
+
+### 🔴 Le tre regole che il C++ non può importi
+
+**1. Ricostruisci SOLO su `On Window Changed`, mai su `Tick`.**
+Un click Slate è **due eventi su due frame** — `MouseButtonDown` e `MouseButtonUp` — e devono atterrare sulla
+**stessa istanza** di widget. Svuotare e ripopolare il box ogni frame non lo garantisce, e in una finestra da
+3,0 s un click perso matura in `HoldTimeout` — indistinguibile, nel TurnLog, da una scelta deliberata.
+
+**2. L'evento scatta anche quando la finestra si CHIUDE.** `Clear Children` va eseguito **sempre**, prima del
+ciclo: se la finestra è chiusa, `Options` è vuoto e il box resta vuoto. Un `if (Is Window Open)` messo prima
+del `Clear` lascerebbe a schermo i bottoni dell'ultima domanda.
+
+**3. La scelta sicura non si riconosce dal testo.** Confronta `Response` con `SafeResponse`, come nello
+pseudo-grafo qui sopra — nel `Brace` si chiama `Hold Ground`, non `HOLD`.
+
+⚠️ **E due finestre di fila esistono davvero**, non è un caso limite teorico: misurato da
+`ScreenHud.FastDecisionDetectsTheWindowChanging`, che registra nel log *«dopo A si è aperta un'altra
+finestra»*. È esattamente lo scenario in cui una ricostruzione legata a `Is Window Open` — vero prima e dopo —
+lascerebbe i bottoni sbagliati.
+
+### ✅ Verifica
+
+```bash
+"D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
+  "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
+  -ExecCmds="Automation RunTests RefactorTactics.ScreenHud;Quit" \
+  -unattended -nopause -nosplash -nullrhi -NoLiveCoding -log
+```
+
+⚠️ **Il gate headless copre il C++, NON il tuo grafo.** `Class->Bindings` vede i property binding, **non** il
+consumo dentro un event graph — è l'errore che `ActionDockConsumesArmedIndex` ha già commesso una volta, ed è
+scritto in `RTMatchWidgetAssetTests.cpp`. Ciò che il grafo fa davvero si guarda in **`PIE-V01-OVERWATCH`**.
 
 ---
 

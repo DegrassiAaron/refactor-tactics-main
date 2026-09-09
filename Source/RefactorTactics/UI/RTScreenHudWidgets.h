@@ -613,6 +613,136 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
 	FText GetPromptText() const;
+
+	// -------------------------------------------------------------------------------------------------
+	// LA RICOSTRUZIONE DEI BOTTONI — chi dice QUANDO, e chi disegna COSA
+	// -------------------------------------------------------------------------------------------------
+
+	/**
+	 * La finestra e' cambiata: ricostruisci `OptionsBox`. Il Blueprint lo implementa; qui non c'e' layout.
+	 *
+	 * 🔴 **Un evento e non un binding, e non e' una preferenza: e' l'unica forma disponibile.** L'identita'
+	 * della finestra e' irraggiungibile dal grafo — `FRTReactionWindowView::Key` non e' `BlueprintReadOnly`,
+	 * deliberatamente — quindi un Blueprint non puo' chiedersi «e' ancora la stessa?». Dedurlo da un
+	 * surrogato (numero di opzioni, testo di un bottone) creerebbe un **secondo identificatore** della
+	 * finestra.
+	 *
+	 * ⛔ **E ricostruire a ogni tick non e' l'alternativa economica: rompe il click.** Un click Slate e' due
+	 * eventi su due frame — `MouseButtonDown` e `MouseButtonUp` — e devono atterrare sulla **stessa
+	 * istanza** di widget. Svuotare e ripopolare il box a ogni frame non lo garantisce, e in una finestra da
+	 * 3,0 s un click perso matura in `HoldTimeout` — che nel TurnLog e' indistinguibile da una scelta
+	 * deliberata.
+	 *
+	 * ⚠️ **Scatta anche quando la finestra si CHIUDE** (identita' → vuota): e' il momento in cui i bottoni
+	 * vanno tolti. Un evento che segnalasse solo le aperture lascerebbe a schermo i bottoni dell'ultima
+	 * domanda.
+	 */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Reaction")
+	void OnWindowChanged();
+
+	/**
+	 * Fa avanzare il rilevamento e dice se l'identita' e' cambiata (per i test).
+	 *
+	 * 🔴 **Esiste perche' `NativeTick` non gira in una run headless**, e senza questo il rilevamento sarebbe
+	 * verificabile solo aprendo l'Editor — cioe' non verificabile dalla suite. E' la stessa ragione, e la
+	 * stessa forma, di `SetSelectedUnitForTest`.
+	 *
+	 * ⚠️ **Consuma**: due chiamate di fila sulla stessa finestra danno `true` e poi `false`. E' cio' che
+	 * rende il test capace di distinguere «e' cambiata» da «c'e' una finestra».
+	 */
+	bool PollWindowChangedForTest() { return PollWindowChanged(); }
+
+protected:
+	/**
+	 * Rileva il cambio e chiama `OnWindowChanged`.
+	 *
+	 * ⚠️ **L'evento va per ULTIMO**, dopo che `LastWindowId` e' aggiornato — la stessa regola che
+	 * `URTActionSlotWidget::SetAction` porta scritta: *«e' il Blueprint che disegna, e disegna leggendo i
+	 * campi qui sopra; se partisse prima, un'implementazione leggerebbe il catalogo del turno PRECEDENTE»*.
+	 * Qui il difetto sarebbe peggiore che un frame di ritardo: il grafo costruirebbe i bottoni della
+	 * finestra precedente, e il primo click risponderebbe a una domanda che il gioco non sta piu' facendo.
+	 */
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
+private:
+	/** Vero se l'identita' e' cambiata da questa chiamata; aggiorna `LastWindowId`. */
+	bool PollWindowChanged();
+
+	/**
+	 * L'identita' della finestra per cui i bottoni sono stati costruiti.
+	 *
+	 * 🔑 **Non e' una copia della vista: e' cio' che distingue «un'altra finestra» da «la stessa».**
+	 * `IsWindowOpen()` non basta — chiudere una finestra RIPRENDE la resolution, e la ripresa puo' aprirne
+	 * subito un'altra (`#2723`): il widget vedrebbe «aperta» prima e dopo, e terrebbe i bottoni della
+	 * domanda precedente.
+	 */
+	FString LastWindowId;
+};
+
+/**
+ * `WBP_RT_FastDecisionOption` — UNA risposta della finestra. Non estende la base di contesto: **riceve** i
+ * dati, non va a prenderli (CP 14.6, `#166`).
+ *
+ * 🔑 **Esiste per una ragione meccanica, non estetica.** In un `ForEach` di Blueprint non si puo' catturare
+ * l'indice dentro un delegate: `OnClicked` non porta parametri, e tutti i bottoni finirebbero per
+ * rispondere con lo stesso indice — l'ultimo. Un widget figlio che **tiene il proprio indice** e' la forma
+ * che lo risolve, ed e' gia' il precedente di `URTActionSlotWidget`.
+ *
+ * ⛔ **E la risposta resta un indice anche qui.** Questo widget non espone `Response`: espone
+ * `GetOptionLabel()`, che rende un `FText`. Un `FString` esposto sarebbe la porta da cui il letterale
+ * `FIRE`/`HOLD` rientra nel grafo — il difetto che `FastDecisionApiCarriesNoAuthority` presidia un livello
+ * piu' su.
+ */
+UCLASS(BlueprintType)
+class REFACTORTACTICS_API URTFastDecisionOptionWidget : public UUserWidget
+{
+	GENERATED_BODY()
+
+public:
+	/** L'indice di questa opzione dentro `GetWindow().Options`. `INDEX_NONE` finche' nessuno lo assegna. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
+	int32 OptionIndex = INDEX_NONE;
+
+	/**
+	 * Vero se questa e' la scelta SICURA — quella che si applica allo scadere.
+	 *
+	 * ⚠️ **Lo decide il C++ confrontando con `SafeResponse`, non il widget guardando il testo.** Nel `Brace`
+	 * la scelta sicura si chiama `Hold Ground`, non `HOLD`: un grafo che cercasse la parola sarebbe corretto
+	 * oggi e sbagliato con la prima finestra che non e' un Overwatch.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
+	bool bIsSafeChoice = false;
+
+	/**
+	 * Riceve l'opzione. Chi lo chiama e' il widget della finestra, che ha l'elenco e il proprietario.
+	 *
+	 * ⚠️ L'evento parte per ULTIMO, dopo i campi: vedi `URTActionSlotWidget::SetAction`.
+	 */
+	void SetOption(URTFastDecisionWidget* InOwner, const FRTReactionWindowOptionView& InOption,
+		int32 InIndex, bool bInIsSafe);
+
+	/** L'etichetta da stampare sul bottone. `FText`, mai la stringa di risposta. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Reaction")
+	FText GetOptionLabel() const;
+
+	/** Il click: inoltra al widget della finestra il proprio indice, e nient'altro. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Reaction")
+	void Choose();
+
+	/** Ridisegna. Il Blueprint la implementa: qui non c'e' layout. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Reaction")
+	void OnOptionChanged();
+
+private:
+	/**
+	 * Chi ha la finestra. **Weak, e non esposto ai Blueprint**: un grafo che raggiungesse il widget della
+	 * finestra da qui avrebbe una seconda porta su `ChooseOption`, con un indice che non e' il proprio.
+	 */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<URTFastDecisionWidget> Owner;
+
+	/** La risposta esatta, per l'etichetta. Privata: il grafo non la vede e non puo' comporla. */
+	FRTReactionWindowOptionView Option;
 };
 
 /**

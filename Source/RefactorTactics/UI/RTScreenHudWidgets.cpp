@@ -475,3 +475,82 @@ FText URTFastDecisionWidget::GetPromptText() const
 	// partita in cui qualcuno e' gia' caduto. Un'etichetta neutra e' l'unica cosa che questo widget sa.
 	return NSLOCTEXT("RefactorTactics", "FastDecisionPrompt", "Reazione");
 }
+
+void URTFastDecisionWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+
+	// ⚠️ Non e' un tick di gameplay e non decide nulla: e' presentazione che si accorge di un cambio. Come
+	// il retry del contesto sulla base, `InDeltaTime` qui non viene nemmeno letto.
+	if (PollWindowChanged())
+	{
+		// L'evento va per ULTIMO: `PollWindowChanged` ha gia' aggiornato `LastWindowId`, quindi il grafo
+		// che ricostruisce legge lo stato della finestra NUOVA.
+		OnWindowChanged();
+	}
+}
+
+bool URTFastDecisionWidget::PollWindowChanged()
+{
+	// 🔑 **L'identita' si CHIEDE al view model, non si deriva dalla vista.** `DeriveOpportunityId` e' un
+	// formato con un solo produttore: ricomporlo qui ne creerebbe un secondo, ed e' esattamente cio' che il
+	// view model ha gia' rifiutato di fare per se'.
+	const URTReactionWindowViewModel* ViewModel = GetReactionWindow();
+
+	// ⚠️ **Senza view model l'identita' e' VUOTA, non «invariata».** Un HUD che perde il proprio
+	// proprietario deve ricostruire — cioe' svuotare i bottoni — non restare con quelli dell'ultima
+	// finestra: e' lo stesso caso della finestra che si chiude.
+	//
+	// ⛔ E si legge l'id solo quando la finestra e' APERTA: `WindowOpportunityId` resta valorizzato anche
+	// dopo una scadenza — e' `IsWindowOpen()` a confrontarlo con l'orologio autorevole. Leggerlo senza quel
+	// gate terrebbe i bottoni di una finestra che il core ha gia' chiuso.
+	const FString Corrente =
+		(ViewModel && ViewModel->IsWindowOpen()) ? ViewModel->GetWindowId() : FString();
+
+	if (Corrente == LastWindowId)
+	{
+		return false;
+	}
+
+	LastWindowId = Corrente;
+	return true;
+}
+
+// =====================================================================================================
+// Fast decision option — un bottone, il suo indice, e nient'altro
+// =====================================================================================================
+
+void URTFastDecisionOptionWidget::SetOption(URTFastDecisionWidget* InOwner,
+	const FRTReactionWindowOptionView& InOption, int32 InIndex, bool bInIsSafe)
+{
+	Owner = InOwner;
+	Option = InOption;
+	OptionIndex = InIndex;
+	bIsSafeChoice = bInIsSafe;
+
+	// ⚠️ Per ULTIMO, come `URTActionSlotWidget::SetAction`: il Blueprint disegna leggendo i campi qui sopra.
+	OnOptionChanged();
+}
+
+FText URTFastDecisionOptionWidget::GetOptionLabel() const
+{
+	// ⚠️ **La stringa di risposta diventa un'etichetta e non torna piu' indietro.** E' l'unico punto in cui
+	// `Response` attraversa il confine verso la presentazione, e lo fa come `FText`: da li' non si puo'
+	// rimandare al core, perche' `Choose()` spedisce l'INDICE.
+	//
+	// ⛔ Nessuna traduzione e nessun abbellimento qui: `Response` e' un vocabolario del core
+	// (`FIRE:<indice>`, `HOLD`, `Hold Ground`, le maneuver del profilo) e mapparlo su nomi leggibili e'
+	// lavoro di contenuto, con una tabella e un owner. Inventarlo qui sarebbe un secondo vocabolario.
+	return FText::FromString(Option.Response);
+}
+
+void URTFastDecisionOptionWidget::Choose()
+{
+	// ⛔ **Fail-closed sul proprietario**: un'opzione staccata dalla propria finestra non risponde per
+	// nessuno. Il caso non e' teorico — il grafo puo' tenere in vita un bottone oltre la ricostruzione.
+	if (URTFastDecisionWidget* Finestra = Owner.Get())
+	{
+		// L'indice, non la risposta. Il gate della validita' resta in `ChooseOption`, che rilegge la vista.
+		Finestra->ChooseOption(OptionIndex);
+	}
+}
