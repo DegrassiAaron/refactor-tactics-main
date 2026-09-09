@@ -5180,10 +5180,17 @@ void ARTTurnManager::ResolveCombat()
 	// non ci sarebbe niente da riprendere.
 	PendingBlast = MakeUnique<FRTBlastContext>();
 	ResolveCombatPasses(*PendingBlast);
-	SpendStartedAbilities(*PendingBlast);
 
-	// Il contesto muore QUI, come prima. Quando il `Brace` sapra' sospendere, questa riga diventera'
-	// condizionale — e sara' quello il momento in cui il commento sopra smettera' di essere vero.
+	// 🔑 **La fase puo' NON essere finita** (`#2692`, [D-355]). Un `Brace` ha aperto una finestra e
+	// `ApplyDisplacements` e' uscita a meta': concludere adesso pagherebbe i cooldown di un Blast che non
+	// ha spostato nessuno, e la fase `Move` si risolverebbe su uno stato applicato a meta'. Chi chiude la
+	// finestra riprende da li' e chiama `FinishBlastPhase` al posto nostro.
+	if (PendingBlast->bSuspended)
+	{
+		return; // il contesto resta VIVO: e' cio' che il rientro riprende
+	}
+
+	FinishBlastPhase(*PendingBlast);
 	PendingBlast.Reset();
 }
 
@@ -6166,9 +6173,31 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors, HealDefs);
 
 	// Coda della fase: cio' che si applica quando il danno e' risolto e si sa chi e' rimasto in piedi.
+	//
+	// ⚠️ **`ApplyDisplacements` puo' uscire senza aver finito** (`#2692`, [D-355]): se un `Brace` apre una
+	// finestra, il contesto resta vivo e cio' che segue va rimandato al rientro. Le due chiamate che
+	// stavano qui vivono in `FinishBlastPhase`, raggiungibile da due strade — come `ConcludeResolution`
+	// da `#2679`, e per la stessa ragione.
 	ApplyDisplacements(Ctx);
+}
+
+/**
+ * La coda della fase Blast: cio' che si applica quando gli spostamenti sono risolti.
+ *
+ * 🔑 **Estratta perche' ha DUE chiamanti** (`#2692`): la sequenza normale e il rientro dopo una finestra
+ * del `Brace`. Prima ne aveva uno solo e poteva stare in linea.
+ *
+ * ⛔ **Non e' un'API pubblica**: chiamarla con la fase ancora sospesa applicherebbe i cooldown a un Blast
+ * che non ha finito di spostare nessuno.
+ */
+void ARTTurnManager::FinishBlastPhase(FRTBlastContext& Ctx)
+{
 	MarkAttackerAbilitiesSpent(Ctx);
 	ApplyControlStatuses(Ctx);
+
+	// 🔴 Il pagamento resta in coda alla sequenza e fuori dai pass, come dichiarato in `ResolveCombat`
+	// (`#1451` punto 3): qualunque uscita anticipata passa comunque di qui.
+	SpendStartedAbilities(Ctx);
 }
 
 

@@ -1222,6 +1222,15 @@ public:
 	ERTMovementAdvanceResult AdvanceMovementResolution();
 	void FinishMovementResolution();
 
+	/** La coda della fase Blast, quando gli spostamenti sono risolti. Due chiamanti (`#2692`). */
+	void FinishBlastPhase(FRTBlastContext& Ctx);
+
+	/** Riprende la fase Blast dopo una finestra del `Brace`, ora chiusa (`#2692`). */
+	void ResumeBlastResolution();
+
+	/** Chiude la finestra del `Brace` applicando la risposta, e riprende la fase (`#2692`). */
+	void CloseBraceWindow(const FString& Response);
+
 	/**
 	 * Il ciclo delle fasi, con uscita anticipata sulla sospensione ([D-356]). Due chiamanti come
 	 * `ConcludeResolution`: il lock-in e la ripresa. Non fa il setup del turno — vedi il .cpp.
