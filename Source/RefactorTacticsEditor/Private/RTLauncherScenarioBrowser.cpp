@@ -2,6 +2,7 @@
 
 #include "ScenarioHarness/RTScenarioDraft.h"
 #include "ScenarioHarness/RTScenarioKnowledge.h"
+#include "Turn/RTTurnRules.h" // ERTMatchPhase, per il nome leggibile della fase
 
 #define LOCTEXT_NAMESPACE "RTLauncherScenarioBrowser"
 
@@ -204,6 +205,97 @@ FString FRTLauncherScenarioBrowser::CoinUnitId(const TArray<FRTScenarioUnitView>
 	// Irraggiungibile per l'argomento sopra. Restituire una stringa vuota invece di un id inventato: la
 	// facade la rifiuta con `Invalid`, che e' un esito visibile — un id casuale finirebbe nel file.
 	return FString();
+}
+
+FText FRTLauncherScenarioBrowser::DescribePlaybackPosition(const FRTReplayPosition& Position)
+{
+	// 🔴 **`Ended` e `BeforeStart` sono DUE stati diversi**, e `HasTurn()` e' falso in entrambi: la
+	// prima stesura guardava solo quello e scriveva *«Posa iniziale»* anche a partita finita. Si vedeva
+	// subito — bastava premere `>` fino in fondo — ma nessun automation test poteva accorgersene, perche'
+	// questa era una stringa di presentazione dentro un pannello Slate. Trovato via MCP il 2026-09-04.
+	// Da #2788 la funzione vive qui, e quel test esiste.
+	if (Position.State == ERTReplayPositionState::Ended)
+	{
+		return LOCTEXT("PlaybackAtEnd", "Fine della risoluzione.");
+	}
+
+	if (!Position.HasTurn())
+	{
+		// Restano `BeforeStart` e `Unaddressable`. Il secondo porta una fase leggibile ma nessun turno:
+		// dirlo e' meglio che tacerlo, perche' altrimenti si legge come l'inizio.
+		if (Position.HasPhase())
+		{
+			return LOCTEXT("PlaybackUnaddressable", "Posizione non raggiungibile nella traccia.");
+		}
+		return LOCTEXT("PlaybackAtStart", "Posa iniziale.");
+	}
+
+	const UEnum* TipoFase = StaticEnum<ERTMatchPhase>();
+	const FText Fase = TipoFase
+		? TipoFase->GetDisplayNameTextByValue(static_cast<int64>(Position.Phase))
+		: FText::GetEmpty();
+
+	return FText::Format(LOCTEXT("PlaybackAt", "Turno {0} · {1}"),
+		FText::AsNumber(Position.TurnNumber), Fase);
+}
+
+FText FRTLauncherScenarioBrowser::DescribeTransport(const FRTLauncherTransportStatus& Status)
+{
+	// I turni come argomento NUMERICO e non come testo gia' formattato: e' cio' che rende usabile
+	// `|plural(...)`. «1 turni» su `Movement.Basic` — che di turno ne ha esattamente uno — sarebbe la prima
+	// cosa che si nota, e la meno interessante.
+	FFormatNamedArguments Argomenti;
+	Argomenti.Add(TEXT("Turni"), Status.TurnsPlayed);
+
+	if (Status.bPlaybackOpen)
+	{
+		if (Status.Run != ERTLauncherRunState::Ran)
+		{
+			// ⚠️ Un playback aperto di cui questo pannello non ha memoria — ricostruito dopo che la corsa
+			// era gia' stata lanciata, per esempio. Si dice dove si e' e **non** «corsa di 0 turni», che
+			// sarebbe un conteggio inventato su una traccia che invece ne ha.
+			return DescribePlaybackPosition(Status.Position);
+		}
+
+		// 🔑 **Qui sta la distinzione che #2788 chiede.** La stessa `Posa iniziale.` che prima si leggeva
+		// come «non e' successo niente» ora arriva preceduta dalla corsa che l'ha prodotta: il campo mostra
+		// il turno 0 **di una traccia**, non lo schieramento d'authoring.
+		Argomenti.Add(TEXT("Posizione"), DescribePlaybackPosition(Status.Position));
+		return FText::Format(
+			LOCTEXT("TransportRan", "Corsa di {Turni} {Turni}|plural(one=turno,other=turni) · {Posizione}"),
+			Argomenti);
+	}
+
+	// ⚠️ Nessun `default:`, come in `DescribeEmptyState` e per la stessa ragione: uno stato aggiunto domani
+	// deve rompere la compilazione qui, non tradursi in silenzio nella frase di un altro.
+	switch (Status.Run)
+	{
+	case ERTLauncherRunState::NotRun:
+		return LOCTEXT("TransportNoPlayback", "Nessun playback: esegui uno scenario.");
+
+	case ERTLauncherRunState::Failed:
+		// Manda a leggere, invece di invitare a ripetere il gesto: il messaggio della facade e' nel readout.
+		return LOCTEXT("TransportFailed", "Corsa fallita: nessun playback. Il referto dice perche'.");
+
+	case ERTLauncherRunState::Ran:
+		if (Status.TurnsPlayed == 0)
+		{
+			// 🎯 **Il caso che ha ingannato un lettore.** Una corsa senza turni non apre nessun playback, e
+			// la riga diceva «esegui uno scenario» a chi lo aveva appena eseguito. Non e' un errore: e' un
+			// esito legittimo, e va detto come tale.
+			return LOCTEXT("TransportNoTurns", "Corsa eseguita: nessun turno da riprodurre.");
+		}
+
+		// Turni giocati ma niente da riprodurre: traccia non decodificabile, oppure aggregato a varianti,
+		// che non porta ne' hash ne' TurnLog (`FRTScenarioRunReport::bHasTrace`). Dirlo separa il guasto
+		// dello strumento dall'esito vuoto qui sopra.
+		return FText::Format(
+			LOCTEXT("TransportNotPlayable",
+				"Corsa di {Turni} {Turni}|plural(one=turno,other=turni): traccia non riproducibile."),
+			Argomenti);
+	}
+
+	return FText::GetEmpty();
 }
 
 #undef LOCTEXT_NAMESPACE

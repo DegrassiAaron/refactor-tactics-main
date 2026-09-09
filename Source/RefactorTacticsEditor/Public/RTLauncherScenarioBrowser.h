@@ -1,6 +1,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+// ⚠️ Header intero e non una forward declaration: `FRTLauncherTransportStatus` tiene una
+// `FRTReplayPosition` **per valore**, e un tipo incompleto non ha dimensione. Passarla per riferimento
+// avrebbe evitato l'include e imposto al chiamante di tenerla viva: per un aggregato che si costruisce
+// sullo stack a ogni ridisegno, e' il baratto sbagliato.
+#include "Replay/RTReplayViewModel.h" // FRTReplayPosition
 
 struct FRTScenarioSummary;
 struct FRTScenarioUnitView;
@@ -33,6 +38,60 @@ enum class ERTLauncherListState : uint8
 
 	/** I tag lasciavano passare qualcosa, e la ricerca testuale l'ha azzerato. */
 	NoSearchMatches,
+};
+
+/**
+ * Cosa il pulsante `Esegui` ha prodotto l'ultima volta (#2788).
+ *
+ * ⚠️ **Non e' «il playback e' aperto».** Quella domanda la risponde gia' il sottosistema d'anteprima a ogni
+ * frame, e la riga di stato del trasporto la leggeva da sola: e' precisamente il motivo per cui `Esegui`
+ * risultava muto. *«Il playback e' aperto»* e *«una corsa e' avvenuta»* sono due domande, e la prima non
+ * risponde alla seconda — una corsa che non produce turni non apre nessun playback, e la riga diceva
+ * «esegui uno scenario» a chi lo aveva appena eseguito.
+ *
+ * ⛔ **Nessun valore qui significa PASS o FAIL.** L'esito delle assertion sta in
+ * `FRTScenarioRunReport::Outcome` e non e' cio' che il trasporto descrive: uno scenario che fallisce le
+ * sue attese ha comunque prodotto una traccia da riprodurre, e sono due letture diverse dello stesso
+ * gesto.
+ */
+enum class ERTLauncherRunState : uint8
+{
+	/** Nessuna corsa da quando il pannello ha posato questo scenario. */
+	NotRun,
+
+	/**
+	 * La facade ha rifiutato: scenario non apribile, non valido, o corsa non eseguibile.
+	 *
+	 * ⚠️ Distinto da `NotRun` e non fuso con esso: dopo un rifiuto la riga direbbe altrimenti «esegui uno
+	 * scenario» a chi lo ha appena eseguito senza successo, cioe' inviterebbe a ripetere il gesto invece di
+	 * mandare a leggere il perche'.
+	 */
+	Failed,
+
+	/** La corsa e' avvenuta. Quanti turni abbia prodotto lo dice `FRTLauncherTransportStatus::TurnsPlayed`. */
+	Ran,
+};
+
+/**
+ * I fatti da cui la riga di stato del trasporto si scrive (#2788).
+ *
+ * 🔑 **Due sorgenti, e nessuna delle due e' il widget.** `Run` e `TurnsPlayed` vengono dal referto che la
+ * facade restituisce a `URTScenarioAuthoring::Run`; `bPlaybackOpen` e `Position` dal sottosistema
+ * d'anteprima, che li possiede. Il pannello li mette in questo aggregato e non ne deriva nessuno: se un
+ * giorno il conteggio dei turni comparisse calcolato qui, sarebbe una seconda autorita' su un numero che
+ * il runner ha gia' misurato.
+ */
+struct FRTLauncherTransportStatus
+{
+	ERTLauncherRunState Run = ERTLauncherRunState::NotRun;
+
+	/** I turni che la corsa ha GIOCATO — `FRTScenarioRunReport::TurnsPlayed`, non i turni authorati. */
+	int32 TurnsPlayed = 0;
+
+	bool bPlaybackOpen = false;
+
+	/** Ha senso solo con `bPlaybackOpen`: a playback chiuso resta il default e non va letta. */
+	FRTReplayPosition Position;
 };
 
 /**
@@ -145,4 +204,34 @@ public:
 	 * «tutti», che leggerebbero come l'assenza di una scelta invece che come una scelta.
 	 */
 	static FText DescribePerspective(int32 TeamId);
+
+	/**
+	 * Dove il playback e' arrivato, in una riga.
+	 *
+	 * ⚠️ **Si guarda `State`, non i valori.** `TurnNumber` e `Phase` portano un default anche quando non
+	 * significano niente — prima dell'inizio e a fine partita — e stamparli comunque direbbe «turno 0, fase
+	 * Planning» come se fosse un istante della partita.
+	 *
+	 * 🔑 **Sta qui e non nel pannello dal 2026-09-10** (#2788). Ci viveva come funzione libera in un
+	 * anonimo, dove nessun automation test la raggiungeva — e il commento nel suo corpo lo dichiarava,
+	 * accanto a un difetto che solo una seduta in Editor aveva potuto vedere. La stessa frase, dallo stesso
+	 * posto, ora ha un test.
+	 */
+	static FText DescribePlaybackPosition(const FRTReplayPosition& Position);
+
+	/**
+	 * La riga di stato del trasporto: cosa il campo sta mostrando, e da quale gesto viene (#2788).
+	 *
+	 * 🔴 **La domanda a cui risponde non e' «dove sono nella traccia», e' «cosa sto guardando».** Prima
+	 * rispondeva solo alla prima, e le tre risposte che contano collassavano: una posa d'authoring senza
+	 * corsa, una corsa che non ha prodotto turni e una corsa la cui traccia comincia dalla posa si
+	 * leggevano tutte come *«Posa iniziale.»* oppure come *«Nessun playback: esegui uno scenario.»* — cioe'
+	 * come un pulsante che non fa niente. Misurato in Editor il 2026-09-09 su `AutoBattle.ArenaV01`: il
+	 * click e' stato classificato non funzionante per due tentativi consecutivi.
+	 *
+	 * ⛔ **Non decide se il playback e' apribile.** Riceve `bPlaybackOpen` gia' misurato dal sottosistema:
+	 * una funzione pura che provasse a dedurlo dai turni direbbe «aperto» per una traccia che non si e'
+	 * decodificata.
+	 */
+	static FText DescribeTransport(const FRTLauncherTransportStatus& Status);
 };
