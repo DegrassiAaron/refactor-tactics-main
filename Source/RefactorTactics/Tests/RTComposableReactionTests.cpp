@@ -244,7 +244,7 @@ bool FRTHeroReactionIdentityTest::RunTest(const FString&)
 	//
 	// Il commento qui sopra diceva che il residuo a runtime «non e' osservabile»: valeva fino a **#135**, che
 	// ha riallineato `AbilityCooldowns` al kit in tutti i punti che lo popolano invece del solo `BeginPlay`.
-	// Oggi il residuo si osserva su un'unita' configurata (`RefactorTactics.Unit.ArchetypeKitRecordsCooldown`).
+	// Oggi il residuo si osserva su un'unita' configurata (`RefactorTactics.Unit.HeroKitRecordsCooldown`).
 	// Resta scoperto il caso degli helper che aggiungono abilita' DOPO la configurazione: quelli allungano
 	// `Abilities` senza risincronizzare, e per quegli slot il cooldown legge ancora 0.
 	TestEqual(TEXT("il cooldown d'eroe e' nel Def"), Deflection->Def.CooldownTurns, HeroCooldown);

@@ -10,8 +10,15 @@
 
 **Aggiornato al 2026-08-06 (epic E6 completata)**: i quattro eroi esistono come dati
 (`URTHeroCatalogLibrary::MakeGadget/MakePhase/MakeBranth/MakeWraith`) e `ARTGameMode` allestisce il 2v2 con loro
-— formazione di default **Gadget + Phase** contro **Branth + Wraith**. I due archetipi (`ERTArchetype`) non
-partecipano più allo spawn di partita; restano come helper nei test d'integrazione.
+— formazione di default **Gadget + Phase** contro **Branth + Wraith**.
+
+> ⚠️ **Corretto il 2026-09-10.** Questo capoverso proseguiva: «*I due archetipi (`ERTArchetype`) non
+> partecipano più allo spawn di partita; restano come helper nei test d'integrazione*». La seconda metà è
+> caduta: `ERTArchetype` e `ARTUnit::ConfigureAsArchetype` sono stati **rimossi** — `git grep ERTArchetype --
+> Source/` non risponde nulla. Non resta un modello di ruolo legacy: `Ranger` e `Guardian` sopravvivono solo
+> come nomi in commenti storici e in definizioni che i test dichiarano da sé.
+> ⛔ Non confondere con la colonna **`Ruolo`** di §5.1 (`Controller`/`Support`/`Guardian`/`Striker`): quella è
+> **viva e consumata** da `tools/radar/generate.ts`, e la parola `Guardian` vi ha un altro significato.
 
 **Aggiornamento 2026-08-08.** Di quel «non ancora costruito» resta solo una voce: **E8** (terreni dinamici,
 superfici attive) ed **E9** (coperture bassa e alta, strutture, distruzione) sono **completate**; le abilità
@@ -64,6 +71,13 @@ Identità, cooldown ed effetti restano dell'eroe; fase, priorità, slot e trigge
 
 **Fisso**: identità · ruolo · attacco base · **quattro abilità fondamentali** · affinità ambientale · debolezza ·
 statistiche base.
+
+> ➕ **Il kit può portare una SESTA voce, e due eroi la portano.** Oltre all'attacco base e alle quattro
+> fondamentali, un eroe può avere **al più una** azione **generica del catalogo core** derivata nel kit:
+> `URTHeroCatalogLibrary::ValidateHeroes` ammette da **5 a 6** azioni, non esattamente 5. Sul roster v0.1 sono
+> `Hero.Phase.TideGuard` e `Hero.Wraith.PhaseGuard`, entrambe da `Action.Shield`; Gadget e Branth restano a
+> cinque. Il tetto è 6 perché oltre il kit supera le posizioni che l'input raggiunge —
+> `PlayerInput.EveryKitEntryIsReachable` è il gate che lo misura.
 **Configurabile**: variante arma · gadget · modulo di reazione · **variante di una** abilità (una sola per eroe
 nel vertical slice).
 
@@ -86,9 +100,9 @@ nel vertical slice).
 |---|---|---|---|---:|
 | `Hero.Gadget.ArcPulse` | Impulso ad arco | attacco base | 22 danni, range 4 | 0 |
 | `Hero.Gadget.LinearDischarge` | Scarica lineare | linea | 24 danni, **+8 su bersaglio `Wet`** | 2 |
-| `Hero.Gadget.ConductiveNode` | Nodo conduttore | cella | **è `Action.Electrify`**: scarica sul grafo conduttivo, range 4, propagazione 3 ([D-064](../decisions/RT_PDR_00_Decision_Log.md)) | 2 |
+| `Hero.Gadget.ConductiveNode` | Nodo conduttivo | cella | **è `Action.Electrify`**: scarica sul grafo conduttivo, range 4, propagazione 3 ([D-064](../decisions/RT_PDR_00_Decision_Log.md)) | 2 |
 | `Hero.Gadget.Overload` | Sovraccarico | AoE | 18 danni, `Interrupt` sui dispositivi | 3 |
-| `Hero.Gadget.ReactiveCapacitor` | Capacitore reattivo | reazione | scudo 15 e 10 danni all'attaccante | 3 |
+| `Hero.Gadget.ReactiveCapacitor` | Condensatore reattivo | reazione | scudo 15 e 10 danni all'attaccante | 3 |
 
 > **Ownership del bonus `Wet`** ([D-029](../decisions/RT_PDR_00_Decision_Log.md) ·
 > [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md)). Il `+8` di `Hero.Gadget.LinearDischarge` è una
@@ -120,9 +134,9 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Hero.Phase.PressureJet` | Getto pressurizzato | linea | 16 danni, applica `Wet`, `Push 1` | 0 |
-| `Hero.Phase.CircularTide` | Marea circolare | AoE | cura 18 agli alleati, `Wet` ai nemici | 2 |
-| `Hero.Phase.FluidTrail` | Scia fluida | dash | `Dash 3` e crea acqua lungo il percorso | 2 |
+| `Hero.Phase.PressureJet` | Getto in pressione | linea | 16 danni, applica `Wet`, `Push 1` | 0 |
+| `Hero.Phase.CircularTide` | Marea circolare | AoE | cura 18 agli alleati | 2 |
+| `Hero.Phase.FluidTrail` | Scia fluida | dash | `Dash 3` | 2 |
 | `Hero.Phase.MistVeil` | Velo di nebbia | AoE | crea fumo raggio 1 | 3 |
 | `Hero.Phase.FlowReaction` | Flusso reattivo | reazione | `Reposition 1` dopo un attacco | 3 |
 
@@ -147,10 +161,10 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Hero.Branth.ImpactShot` | Colpo cinetico | attacco base | 8 danni, range 3, applica `Slow` | 0 |
+| `Hero.Branth.ImpactShot` | Colpo d'impatto | attacco base | 8 danni, range 3, applica `Slow` | 0 |
 | `Hero.Branth.KineticPanel` | Pannello cinetico | arco | crea una copertura da 30 HP | 2 |
 | `Hero.Branth.Reconfigure` | Riconfigurazione | arco | sposta o ruota una copertura | 2 |
-| `Hero.Branth.Ram` | Ariete | charge | 20 danni e `Push 1` | 2 |
+| `Hero.Branth.Ram` | Carica d'ariete | charge | 20 danni e `Push 1` | 2 |
 | `Hero.Branth.Interposition` | Interposizione | reazione | intercetta un attacco diretto a un alleato | 3 |
 
 **Variante di `KineticPanel`**
@@ -174,8 +188,8 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Hero.Wraith.PulseShot` | Tiro a impulsi | attacco base | 21 danni, range 4 | 0 |
-| `Hero.Wraith.InterceptShot` | Tiro d'intercetto | predittiva | 16 danni e **stop del movimento** | 2 |
+| `Hero.Wraith.PulseShot` | Colpo a impulsi | attacco base | 21 danni, range 4 | 0 |
+| `Hero.Wraith.InterceptShot` | Intercetto | predittiva | 16 danni e **stop del movimento** | 2 |
 | `Hero.Wraith.PassingBlade` | Lama di passaggio | dash | `Dash 3`, 20 danni attraversando | 2 |
 | `Hero.Wraith.Deflection` | Deviazione | reazione | riduce il danno di 20 | 2 |
 | `Hero.Wraith.Feint` | Finta | controllo | marca una cella e ottiene `Reposition` | 2 |
@@ -195,6 +209,39 @@ nel vertical slice).
 **Variante di `InterceptShot`**
 - *Intercetto preciso*: **20 danni**, ma controlla **una sola cella**.
 - *Intercetto esteso*: **14 danni**, ma controlla **una linea di 3 celle**.
+
+---
+
+## 4bis. Le due generiche del kit — `TideGuard` e `PhaseGuard`
+
+Due eroi portano una **sesta** azione, e non è una fondamentale: è una **generica del catalogo core**
+derivata nel kit da `Action.Shield`. `URTHeroCatalogLibrary::ValidateHeroes` ammette da **5 a 6** azioni per
+eroe proprio per questo.
+
+- **`Hero.Phase.TideGuard`** — «Guardia di marea», di **Phase**. Derivata da `Action.Shield`, fase
+  `Preparation`, scudo temporaneo su di sé (`bSelfTarget`), cooldown **2**.
+- **`Hero.Wraith.PhaseGuard`** — «Guardia di fase», di **Wraith**. Stessa derivazione, stessa fase,
+  stesso cooldown **2**.
+
+**Uno per squadra**, perché le formazioni sono fisse (`ARTGameMode::Team0Heroes`/`Team1Heroes`). Sono gli
+unici scudi del gioco che si scelgono **prima** di sapere se sarai colpito: `Gadget.ReactiveCapacitor` e
+`Reaction.ReactiveShield` rispondono a un colpo già partito. Su Wraith il costo è una scelta vera — la
+Preparation spesa qui è quella che non arma `InterceptShot`.
+
+> ⛔ **`PhaseGuard` è di Wraith, e `Phase` vi compare come *fase*, non come nome d'eroe.** Lo dimostra il
+> DisplayName italiano: «Guardia di fase». Un rename d'identità che la trattasse come abilità di Phase
+> produrrebbe un nome sbagliato — il vincolo è registrato in
+> [#2491](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2491), owner del rename.
+
+> ➖ **Perché stanno qui e non nelle tabelle §2 e §4.** Quelle tabelle sono la base da cui i radar leggono le
+> **20** abilità del roster (`node tools/radar/generate.ts --check` stampa la copertura), e la colonna `Tipo`
+> ha un vocabolario **chiuso** che non contempla uno scudo proattivo. Aggiungere due righe significherebbe
+> estendere quel vocabolario **e** la formula che lo pesa — cioè cambiare il modello dei radar, non allineare
+> un documento. Resta come lavoro dichiarato, non come dimenticanza; e nessuna delle due si cancella per far
+> tornare una tabella a cinque.
+
+> ℹ️ `Hero.Wraith.PhaseGuard` **non è esercitata da nulla** oggi — né scenario, né voce PIE. Owner:
+> [#2381](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2381).
 
 ---
 
