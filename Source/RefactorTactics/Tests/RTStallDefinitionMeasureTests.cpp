@@ -123,34 +123,10 @@ namespace RTStallMisura
 	}
 
 	/** I totali per squadra, a fine turno. La sonda non conosce le squadre: glieli si passa gia' fatti. */
-	struct FTotali { int32 Salute = 0; int32 Pool = 0; int32 Vivi = 0; };
-
-	TMap<int32, FTotali> TotaliPerSquadra(const TArray<ARTUnit*>& Vive)
-	{
-		TMap<int32, FTotali> Per;
-		for (const ARTUnit* U : Vive)
-		{
-			FTotali& T = Per.FindOrAdd(U->TeamId);
-			T.Salute += U->Health;
-			T.Pool += U->Health + U->Shield;
-			T.Vivi += 1;
-		}
-		return Per;
-	}
-
-	/** Tutto cio' che non e' della squadra `Mia`. Generico sul numero di squadre, non solo su due. */
-	FRTStallDefinitionProbe::FStatoNemico NemiciDi(const TMap<int32, FTotali>& Per, int32 Mia)
-	{
-		FRTStallDefinitionProbe::FStatoNemico N;
-		for (const TPair<int32, FTotali>& P : Per)
-		{
-			if (P.Key == Mia) { continue; }
-			N.Salute += P.Value.Salute;
-			N.Pool += P.Value.Pool;
-			N.Vivi += P.Value.Vivi;
-		}
-		return N;
-	}
+	// I totali per squadra e i nemici di una squadra vivono nella SONDA dal 2026-09-09 (`D-361`): da quando
+	// l'oracolo dell'arena generata li consuma anche lui, una `Vivi` contata in due posti puo' divergere in
+	// silenzio. Qui restano gli alias, perche' i corpi sotto si leggano come prima.
+	using FTotali = FRTStallDefinitionProbe::FTotaliSquadra;
 
 	/** Il referto: una riga per definizione, nell'ordine in cui l'enum le dichiara. */
 	void Riporta(FAutomationTestBase& Test, const TCHAR* Board, const FRTStallDefinitionProbe& Sonda,
@@ -366,12 +342,12 @@ namespace RTStallMisura
 			}
 			G.MinChiaviDistinte = FMath::Min(G.MinChiaviDistinte, ChiaviViste.Num());
 			G.MinVive = FMath::Min(G.MinVive, Vive.Num());
-			const TMap<int32, FTotali> Per = TotaliPerSquadra(Vive);
+			const TMap<int32, FTotali> Per = FRTStallDefinitionProbe::TotaliPerSquadra(Vive);
 			for (const ARTUnit* U : Vive)
 			{
 				const bool bArmato = ChiHaColpito.Contains(U->StableUnitId);
 				if (bArmato) { ++OutTurniArmati; }
-				const FRTStallDefinitionProbe::FStatoNemico Nemici = NemiciDi(Per, U->TeamId);
+				const FRTStallDefinitionProbe::FStatoNemico Nemici = FRTStallDefinitionProbe::NemiciDi(Per, U->TeamId);
 				++G.Osservazioni;
 				if (Nemici.Pool != Nemici.Salute + URTCombatLibrary::BaseShield * Nemici.Vivi)
 				{
@@ -540,12 +516,21 @@ bool FRTStallDefinitionsGeneratedArenaTest::RunTest(const FString&)
 	// `Bot.ShippedRosterStaysAboveTheBackstepBudget`: una premessa che si muove deve farlo sapere a qualcuno.
 	// `EDef` e' un alias locale ai corpi che lo usano piu' volte (vedi i due Meta test): per due sole
 	// occorrenze si qualifica, invece di introdurne un terzo.
-	const int32 ImmobilitaMisurata =
-		Sonda.Peggiore(FRTStallDefinitionProbe::EDefinizione::Immobilita);
+	// ⏱️ **Rimisurato il 2026-09-09: il canary segue l'oracolo, e l'oracolo ha cambiato grandezza**
+	// ([`D-361`], `#2556`). Fino ad allora qui si pinnava la **(b)**, perche' era la definizione di
+	// `EngagesOnTheGeneratedTestArena`; da `D-361` quell'oracolo misura le **eliminazioni**, e il margine da
+	// sorvegliare e' il suo. Il numero e' lo stesso di prima — **4 su 4**, margine zero — perche' `D-244`
+	// aveva gia' misurato che le due letture coincidevano; `Model A` ha mosso la (b) a **11** e lasciato
+	// l'eliminazione dov'era.
+	//
+	// ⛔ **La soglia non e' toccata**, ed e' il vincolo che `D-361` scrive per chi implementa: cambia
+	// **quale grandezza** si misura, non **quanto** se ne tollera. `LimiteInUso` resta `max(2, RoundLimit/3)`.
+	const int32 EliminazioneMisurata =
+		Sonda.Peggiore(FRTStallDefinitionProbe::EDefinizione::Eliminazione);
 	TestEqual(FString::Printf(
-		TEXT("controllo: la (b) tocca la soglia in uso (margine zero) — %d su %d"),
-		ImmobilitaMisurata, LimiteInUso),
-		ImmobilitaMisurata, LimiteInUso);
+		TEXT("controllo: l'eliminazione tocca la soglia in uso (margine zero) — %d su %d"),
+		EliminazioneMisurata, LimiteInUso),
+		EliminazioneMisurata, LimiteInUso);
 	TestTrue(FString::Printf(
 		TEXT("il classificatore del danno risponde: %d turni-unita' armati in %d turni"),
 		TurniArmati, Turni), TurniArmati > 0);

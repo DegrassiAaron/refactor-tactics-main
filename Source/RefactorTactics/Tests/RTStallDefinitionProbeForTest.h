@@ -2,6 +2,9 @@
 
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
+// `TotaliPerSquadra` legge `TeamId`, `Health` e `Shield` dalle unita' vive: la somma vive accanto alle
+// definizioni che alimenta, quindi l'unita' entra in questo header (`D-361`).
+#include "Unit/RTUnit.h"
 
 /**
  * **Le definizioni di «stallo», messe una accanto all'altra sulla stessa partita** (`BOT-STALL-1`, `#1551`).
@@ -99,7 +102,13 @@ struct FRTStallDefinitionProbe
 	/** Le sei letture messe a confronto. Le prime due sono gia' nel repository, le altre quattro no. */
 	enum class EDefinizione : uint8
 	{
-		/** (b) — un turno fermo conta sempre. `EngagesOnTheGeneratedTestArena`. */
+		/**
+		 * (b) — un turno fermo conta sempre.
+		 *
+		 * ⏱️ **Non e' piu' la definizione di nessun oracolo dal 2026-09-09** ([`D-361`]): l'arena generata
+		 * usava questa e ora usa `Eliminazione`. Resta misurata e stampata — e' la lettura che `Model A` ha
+		 * separato dalle altre, e toglierla renderebbe invisibile la divergenza che ha motivato la decisione.
+		 */
 		Immobilita = 0,
 		/** (a) — conta solo se l'unita' non ha inflitto danno. `NobodyParksOnTheAuthoredMap`. */
 		Sterile,
@@ -107,7 +116,14 @@ struct FRTStallDefinitionProbe
 		SaluteNetta,
 		/** (c) — esente se armata e `Health + Shield` nemici sono calati nella finestra. */
 		PoolNetto,
-		/** (c) — esente se armata e un nemico e' caduto nella finestra. */
+		/**
+		 * (c) — esente se armata e un nemico e' caduto nella finestra.
+		 *
+		 * ✅ **E' la definizione dell'oracolo dell'arena generata dal 2026-09-09** ([`D-361`],
+		 * `EngagesOnTheGeneratedTestArena`): su quella board «stallo» significa *«nessuna unita' e' caduta
+		 * per N turni»*, perche' lo scopo del bot li' e' eliminare — il referto di fine partita dice *«per
+		 * eliminazione, obiettivo 0-0»*. La definizione segue lo scopo invece della sua approssimazione.
+		 */
 		Eliminazione,
 		/** (c) — esente se armata e (`SaluteNetta` oppure `Eliminazione`). */
 		SaluteOEliminazione,
@@ -141,6 +157,50 @@ struct FRTStallDefinitionProbe
 		int32 Pool = 0;
 		int32 Vivi = 0;
 	};
+
+	/** I totali di UNA squadra fra le unita' vive. */
+	struct FTotaliSquadra
+	{
+		int32 Salute = 0;
+		int32 Pool = 0;
+		int32 Vivi = 0;
+	};
+
+	/**
+	 * I totali per squadra, e poi quelli della squadra avversaria a una data.
+	 *
+	 * 🔑 **Stanno QUI, accanto alle definizioni che alimentano, e non nel file di chi misura** ([`D-361`]).
+	 * Dal 2026-09-09 i chiamanti sono **due** — `StallDefinitionsOnTheGeneratedTestArena` e l'oracolo
+	 * `EngagesOnTheGeneratedTestArena` — e una `Vivi` contata in due posti puo' divergere in silenzio: i due
+	 * numeri direbbero due partite diverse e nessun test se ne accorgerebbe. E' lo stesso precedente di
+	 * `IsIntentVisibleTo` (`#507`): una regola riscritta inline resta.
+	 */
+	static TMap<int32, FTotaliSquadra> TotaliPerSquadra(const TArray<ARTUnit*>& Vive)
+	{
+		TMap<int32, FTotaliSquadra> Per;
+		for (const ARTUnit* U : Vive)
+		{
+			FTotaliSquadra& T = Per.FindOrAdd(U->TeamId);
+			T.Salute += U->Health;
+			T.Pool += U->Health + U->Shield;
+			T.Vivi += 1;
+		}
+		return Per;
+	}
+
+	/** Tutto cio' che non e' della squadra `Mia`. Generico sul numero di squadre, non solo su due. */
+	static FStatoNemico NemiciDi(const TMap<int32, FTotaliSquadra>& Per, int32 Mia)
+	{
+		FStatoNemico N;
+		for (const TPair<int32, FTotaliSquadra>& P : Per)
+		{
+			if (P.Key == Mia) { continue; }
+			N.Salute += P.Value.Salute;
+			N.Pool += P.Value.Pool;
+			N.Vivi += P.Value.Vivi;
+		}
+		return N;
+	}
 
 	/**
 	 * Un'osservazione: una unita', a fine di un turno risolto.
