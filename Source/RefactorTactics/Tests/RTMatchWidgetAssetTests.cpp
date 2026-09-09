@@ -18,6 +18,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetBlueprintGeneratedClass.h"
 #include "Blueprint/WidgetTree.h"
+#include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/Image.h"
 #include "Components/PanelSlot.h"
@@ -518,6 +519,247 @@ bool FRTFastDecisionBindingsWiredTest::RunTest(const FString&)
 		*FString::Printf(TEXT("l'asset dichiara almeno i tre binding attesi (ne ha %d)"),
 			Class->Bindings.Num()),
 		Class->Bindings.Num() >= UE_ARRAY_COUNT(Attesi));
+
+	return true;
+}
+
+/**
+ * 🔴 **IL CENTRO RESTA LIBERO, E LO DICE UN NUMERO** (CP 11.7, `#613`, voce «centro libero» del DoD).
+ *
+ * 🔑 **Esiste perche' il gate che lo copriva non era falsificabile.** `guida-screen-hud-umg.md` §3 scrive
+ * che il centro libero e' *«un requisito, non un gusto»*, e poi lo affida a *«si verifica a occhio in
+ * `PIE-V01-HUD`»*. Un occhio non ha una soglia: due persone guardano lo stesso fotogramma e passano
+ * entrambe legittimamente, e nessuna delle due si accorge di una regressione da venti pixel.
+ *
+ * ⚠️ **Cio' che questo test NON toglie a PIE.** Comprensione, leggibilita', proporzioni fra i pannelli e il
+ * sospetto delle barre duplicate restano di `PIE-V01-SCREENHUD`: nessuna aritmetica su rettangoli le vede.
+ * Qui cade soltanto la meta' geometrica — ingombro, sovrapposizione, invasione del centro — che era
+ * affidata all'occhio **pur essendo calcolabile**, ed e' anche l'unica meta' che regredisce in silenzio
+ * quando qualcuno trascina una zona nel Designer.
+ *
+ * 🔑 **La soglia e' dichiarata qui e non altrove**: il riquadro centrale e' il **60% x 60% centrato** della
+ * risoluzione di riferimento 1920x1080, cioe' `X 384..1536` e `Y 216..864`. Non e' un numero sacro — e' un
+ * numero **scritto**, che si discute in una issue invece che in un playtest. Se la release lo vuole
+ * diverso si cambia `CenterFraction`, e il gate resta ripetibile.
+ *
+ * ⚠️ **L'oracolo e' l'archetipo dell'albero, non un fotogramma renderizzato**: le zone si misurano da
+ * `UCanvasPanelSlot` con la stessa formula che `SConstraintCanvas::OnArrangeChildren` applica a runtime.
+ * Vale percio' per il layout **dichiarato nell'asset**; un widget spostato a runtime da Blueprint sfugge
+ * di qui e resta di PIE.
+ */
+namespace RTCenterFree
+{
+	/** La risoluzione a cui il DoD di `#613` chiede coerenza. Cambiarla cambia il significato del gate. */
+	constexpr float RefWidth = 1920.f;
+	constexpr float RefHeight = 1080.f;
+
+	/** Il lato del riquadro centrale che nessuna zona puo' toccare, in frazione dello schermo. */
+	constexpr float CenterFraction = 0.6f;
+
+	struct FRect
+	{
+		float Left = 0.f;
+		float Top = 0.f;
+		float Right = 0.f;
+		float Bottom = 0.f;
+
+		float Width() const { return Right - Left; }
+		float Height() const { return Bottom - Top; }
+	};
+
+	/** Il riquadro che deve restare sgombro, in pixel di riferimento. */
+	FRect CenterKeepOut()
+	{
+		const float MargineX = RefWidth * (1.f - CenterFraction) * 0.5f;
+		const float MargineY = RefHeight * (1.f - CenterFraction) * 0.5f;
+		return FRect{ MargineX, MargineY, RefWidth - MargineX, RefHeight - MargineY };
+	}
+
+	/** Intersezione: larghezza o altezza <= 0 significa che i due riquadri non si toccano. */
+	FRect Intersezione(const FRect& A, const FRect& B)
+	{
+		return FRect{
+			FMath::Max(A.Left, B.Left),
+			FMath::Max(A.Top, B.Top),
+			FMath::Min(A.Right, B.Right),
+			FMath::Min(A.Bottom, B.Bottom) };
+	}
+
+	bool SiToccano(const FRect& A, const FRect& B)
+	{
+		const FRect I = Intersezione(A, B);
+		return I.Width() > 0.f && I.Height() > 0.f;
+	}
+
+	/**
+	 * Il rettangolo che il Canvas assegnera' alla zona a `RefWidth x RefHeight`.
+	 *
+	 * ⚠️ **E' la formula di `SConstraintCanvas::OnArrangeChildren`, non una sua semplificazione**: gli
+	 * offset di un `UCanvasPanelSlot` NON sono un rettangolo — cambiano significato con gli anchor. Con
+	 * anchor «stiracchiati» su un asse (`Minimum != Maximum`) `Left`/`Right` sono **margini** dai bordi
+	 * dell'ancora; con anchor a punto, `Right` e' la **larghezza** e l'allineamento sposta l'origine.
+	 * Leggerli come un rettangolo produce un oracolo che sbaglia proprio sulle zone ancorate a destra e in
+	 * basso — quelle che invadono il centro nel modo piu' comune.
+	 */
+	FRect RettangoloDellaZona(const FAnchorData& Layout)
+	{
+		const float AncoraSinistra = static_cast<float>(Layout.Anchors.Minimum.X) * RefWidth;
+		const float AncoraDestra = static_cast<float>(Layout.Anchors.Maximum.X) * RefWidth;
+		const float AncoraAlto = static_cast<float>(Layout.Anchors.Minimum.Y) * RefHeight;
+		const float AncoraBasso = static_cast<float>(Layout.Anchors.Maximum.Y) * RefHeight;
+
+		const bool bStiracchiatoX = Layout.Anchors.Minimum.X != Layout.Anchors.Maximum.X;
+		const bool bStiracchiatoY = Layout.Anchors.Minimum.Y != Layout.Anchors.Maximum.Y;
+
+		FRect R;
+
+		if (bStiracchiatoX)
+		{
+			R.Left = AncoraSinistra + Layout.Offsets.Left;
+			R.Right = AncoraDestra - Layout.Offsets.Right;
+		}
+		else
+		{
+			const float Larghezza = Layout.Offsets.Right;
+			R.Left = AncoraSinistra + Layout.Offsets.Left - static_cast<float>(Layout.Alignment.X) * Larghezza;
+			R.Right = R.Left + Larghezza;
+		}
+
+		if (bStiracchiatoY)
+		{
+			R.Top = AncoraAlto + Layout.Offsets.Top;
+			R.Bottom = AncoraBasso - Layout.Offsets.Bottom;
+		}
+		else
+		{
+			const float Altezza = Layout.Offsets.Bottom;
+			R.Top = AncoraAlto + Layout.Offsets.Top - static_cast<float>(Layout.Alignment.Y) * Altezza;
+			R.Bottom = R.Top + Altezza;
+		}
+
+		return R;
+	}
+
+	FString Descrivi(const FRect& R)
+	{
+		return FString::Printf(TEXT("X %.0f..%.0f  Y %.0f..%.0f  (%.0fx%.0f)"),
+			R.Left, R.Right, R.Top, R.Bottom, R.Width(), R.Height());
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelsLeaveTheCenterFreeTest,
+	"RefactorTactics.ScreenHud.PanelsLeaveTheCenterFree",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTPanelsLeaveTheCenterFreeTest::RunTest(const FString&)
+{
+	UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(TacticalHudPath);
+	if (!TestNotNull(TEXT("WBP_RT_TacticalHUD si carica"), Class))
+	{
+		return false;
+	}
+
+	const UWidgetTree* Tree = Class->GetWidgetTreeArchetype();
+	if (!TestNotNull(TEXT("WBP_RT_TacticalHUD ha un albero di widget"), Tree))
+	{
+		return false;
+	}
+
+	// 🔑 La radice DEVE essere un Canvas: `guida-screen-hud-umg.md` §3 lo prescrive perche' una `Vertical
+	// Box` a schermo pieno «non lascia un centro davvero libero». Se la radice cambia, questo gate non ha
+	// piu' niente da misurare — e deve dirlo, non passare.
+	const UCanvasPanel* Radice = Cast<UCanvasPanel>(Tree->RootWidget);
+	if (!TestNotNull(
+		TEXT("la radice di WBP_RT_TacticalHUD e' un Canvas Panel (guida-screen-hud-umg.md §3)"),
+		Radice))
+	{
+		return false;
+	}
+
+	const RTCenterFree::FRect Centro = RTCenterFree::CenterKeepOut();
+	AddInfo(FString::Printf(TEXT("=== centro da lasciare libero a %.0fx%.0f: %s ==="),
+		RTCenterFree::RefWidth, RTCenterFree::RefHeight, *RTCenterFree::Descrivi(Centro)));
+
+	// Le geometrie sono float: mezzo pixel di tolleranza evita che un arrotondamento diventi un difetto.
+	constexpr float Tolleranza = 0.5f;
+
+	int32 ZoneMisurate = 0;
+
+	Tree->ForEachWidget([this, &Centro, &ZoneMisurate, Radice, Tolleranza](UWidget* Widget)
+	{
+		if (!Widget)
+		{
+			return;
+		}
+
+		const UCanvasPanelSlot* Slot = Cast<UCanvasPanelSlot>(Widget->Slot);
+		if (!Slot || Slot->Parent != Radice)
+		{
+			return; // non e' una zona di primo livello: il suo posto lo decide la zona che lo contiene
+		}
+
+		const FAnchorData Layout = Slot->GetLayout();
+
+		// ⚠️ **`AutoSize` rende la zona non misurabile QUI, e non e' un limite del test: e' il difetto.**
+		// Una zona che si dimensiona sul contenuto puo' invadere il centro quando il contenuto cresce — un
+		// roster con piu' unita', un nome piu' lungo — e nessun numero nell'asset la trattiene. Il centro
+		// libero smette di essere una proprieta' del layout e diventa una coincidenza dei dati.
+		if (Slot->GetAutoSize())
+		{
+			AddError(FString::Printf(
+				TEXT("la zona `%s` e' AutoSize: la sua dimensione dipende dal contenuto, quindi il centro ")
+				TEXT("libero non e' garantito dal layout. Dalle una dimensione esplicita nel Canvas."),
+				*Widget->GetName()));
+			return;
+		}
+
+		const RTCenterFree::FRect Zona = RTCenterFree::RettangoloDellaZona(Layout);
+		++ZoneMisurate;
+
+		AddInfo(FString::Printf(
+			TEXT("  %-22s %-24s anchors=(%.2f,%.2f)-(%.2f,%.2f) align=(%.2f,%.2f)  ->  %s"),
+			*Widget->GetName(), *Widget->GetClass()->GetName(),
+			Layout.Anchors.Minimum.X, Layout.Anchors.Minimum.Y,
+			Layout.Anchors.Maximum.X, Layout.Anchors.Maximum.Y,
+			Layout.Alignment.X, Layout.Alignment.Y,
+			*RTCenterFree::Descrivi(Zona)));
+
+		// 🔴 **Una zona FUORI dallo schermo non invade il centro — e senza questo controllo passerebbe.**
+		// E' il difetto che questo test ha trovato alla prima esecuzione: `ZoneBottom` risultava
+		// `Y 1080..1280`, cioe' duecento pixel sotto il bordo inferiore, perche' con anchor in basso e
+		// `Alignment.Y = 0` l'origine resta sul bordo invece di risalire dell'altezza. Il criterio del
+		// centro libero da solo la dichiarava a posto: il centro lo lascia libero **non esistendo**.
+		if (Zona.Left < -Tolleranza || Zona.Top < -Tolleranza
+			|| Zona.Right > RTCenterFree::RefWidth + Tolleranza
+			|| Zona.Bottom > RTCenterFree::RefHeight + Tolleranza)
+		{
+			AddError(FString::Printf(
+				TEXT("la zona `%s` cade fuori dallo schermo di riferimento: %s contro %.0fx%.0f. ")
+				TEXT("Una zona fuori viewport non si vede in partita, e non invade il centro solo perche' ")
+				TEXT("non c'e'. Se e' ancorata a un bordo, l'Alignment deve riportarla dentro."),
+				*Widget->GetName(),
+				*RTCenterFree::Descrivi(Zona),
+				RTCenterFree::RefWidth, RTCenterFree::RefHeight));
+		}
+
+		if (RTCenterFree::SiToccano(Zona, Centro))
+		{
+			const RTCenterFree::FRect Invasione = RTCenterFree::Intersezione(Zona, Centro);
+			AddError(FString::Printf(
+				TEXT("la zona `%s` invade il centro tattico: occupa %s del riquadro %s. ")
+				TEXT("Il layer §4.2 (`ARTHUD::DrawHUD`) disegna li' path, AoE e fuoco amico — ")
+				TEXT("un pannello al centro glieli copre (guida-screen-hud-umg.md §3)."),
+				*Widget->GetName(),
+				*RTCenterFree::Descrivi(Invasione),
+				*RTCenterFree::Descrivi(Centro)));
+		}
+	});
+
+	// Senza questa riga il test sarebbe verde su un albero senza zone — cioe' misurando zero, che e' il
+	// modo in cui un gate diventa decorativo. Questo file lo ha gia' imparato una volta, piu' su.
+	TestTrue(
+		*FString::Printf(TEXT("il Canvas radice dichiara delle zone da misurare (ne ha %d)"), ZoneMisurate),
+		ZoneMisurate > 0);
 
 	return true;
 }
