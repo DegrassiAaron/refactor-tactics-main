@@ -267,7 +267,32 @@ Il silenzio è quindi **scelto**, e questa voce esiste perché non venga riscope
 
 ---
 
-## Aperte — come si apre il Composer, dal widget costruito il 2026-08-29
+## ~~Aperte~~ SUPERATE — come si apre il Composer, dal widget costruito il 2026-08-29
+
+> 🔴 **L'intera sezione è superata il 2026-09-09: il Composer si ritira**
+> ([#2789](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2789)). *Nulla di ciò che segue
+> viene cancellato* — le due voci erano chiuse correttamente e la loro istruttoria resta leggibile. È la
+> **domanda** che non esiste più: come si apra un widget non riguarda più nessuno, perché quel widget non
+> c'è.
+>
+> **L'innesco dichiarato è scattato, e ha risposto a una domanda diversa da quella attesa.**
+> `TD-COMP-1` fissava come innesco *«la prima esecuzione di `PIE-SCEN-COMPOSER`»*. Quella esecuzione è
+> avvenuta il 2026-09-09: aprendo l'asset, la sua gerarchia era `[WBP_RT_ScenarioComposer] → [RootBox]` e
+> nient'altro. **Non c'era nulla da eseguire** — nessun `[ + UNIT ]`, nessun `[ SAVE ]`, nessuna lista.
+> La voce presupponeva un widget costruito; il widget era un guscio.
+>
+> ⚠️ **Il pattern che `TD-COMP-1` temeva di introdurre non è nato.** Quella voce accettava il costo di
+> essere *«il primo `EditorUtilityWidget` del progetto, quindi il pattern nasce qui e il secondo
+> strumento lo erediterà»*. Il secondo strumento è arrivato prima: `SRTLauncherScenarioPanel`
+> ([#1678](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1678)) è **Slate registrato come
+> nomad tab**, si presenta da sé sul livello di bootstrap, e da
+> [#2786](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2786) ha i quattro gesti di
+> piazzamento. Il pattern che il progetto ha ereditato è quello, non l'`EditorUtilityWidget`.
+>
+> 🔑 **`TD-COMP-2` resta valida per la parte che non riguarda il Composer**: `/Game/RT/Editor/` come
+> namespace degli strumenti solo-Editor è di [`D-280`](decisions/RT_PDR_00_Decision_Log.md), e continua a
+> valere — `WBP_RT_GrayKitPlayground` ci vive ancora, e la riga `DirectoriesToNeverCook` presidia la
+> **famiglia**, non il singolo asset.
 
 > ✅ **`TD-COMP-1` chiusa il 2026-08-29: uscita (a), `EditorUtilityWidget`.** Il Composer si lancia col
 > tasto destro dal Content Browser. ⚠️ **Il prezzo che questa voce gli attribuiva era sopravvalutato**:

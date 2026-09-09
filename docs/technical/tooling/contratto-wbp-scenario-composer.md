@@ -1,8 +1,38 @@
 # Contratto — Widget Scenario Composer (TD-EDITOR-01)
 
-> **Stato**: contratto del terminale EDITOR, rimisurato su `feat/editor-docs-1155` HEAD `d0e35814`
-> il 2026-08-28. La stesura precedente era del 2026-08-27 su `feat/1114-writer-json-scenario` HEAD
-> `5843ea49`, quando i mutatori non esistevano ancora: §3 e §7 sono state riscritte, non ritoccate.
+> 🔴 **`SUPERSEDED` il 2026-09-09 — il widget che questo documento contrattava NON ESISTE PIÙ**
+> ([#2789](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2789)).
+>
+> **Cosa è stato misurato.** Aperto `WBP_RT_ScenarioComposer` nell'editor UMG il 2026-09-09: la sua
+> gerarchia era `[WBP_RT_ScenarioComposer] → [RootBox]`, e nient'altro. **Nessun `[ + UNIT ]`, nessun
+> `[ SAVE ]`, nessuna lista unità** — cioè nessuno dei gesti che le sezioni qui sotto descrivono. E
+> nessun codice lo apriva: `grep -rn "ScenarioComposer" Source/RefactorTacticsEditor/` dava **una** riga,
+> un commento in `RTBuildPlaygroundPanelCommandlet.h` che lo cita come precedente.
+>
+> ⚠️ **Il difetto non era l'asset: era questo documento.** Descriveva minuziosamente controlli che non
+> erano mai stati costruiti, su una superficie che non si raggiungeva. Chi lo leggeva concludeva che il
+> piazzamento di un'unità fosse a portata di clic — e fino al 2026-09-09 non lo era da nessuna parte.
+>
+> **La superficie viva è un'altra**: `SRTLauncherScenarioPanel`
+> ([#1678](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1678)), il tab **Tactical
+> Designer** che il livello di bootstrap presenta da sé. Da
+> [#2786](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2786) ha i quattro gesti —
+> schiera, sposta, ruota, ritira — attraverso la stessa facade che questo contratto descrive.
+>
+> 🔑 **Perché il documento resta invece di essere cancellato.** Le sezioni §1 e §2 — l'invariante di
+> ADR-0010, i cinque esiti di `ERTScenarioAuthoringResult` e il divieto di ricostruire regole in
+> Blueprint — **non erano legate a quel widget**: valgono per qualunque UI che chiami
+> `URTScenarioAuthoring`, e `SRTLauncherScenarioPanel` le rispetta. Cancellarle perderebbe la parte utile
+> insieme a quella morta.
+>
+> ⛔ **Cosa NON leggere più come vero**: ogni riferimento a `[ + UNIT ]`, `[ SAVE ]`, alla lista del
+> widget e al DoD *«piazza almeno due unità»* come gesti **di questo asset**. Il DoD è stato soddisfatto,
+> ma sull'altra superficie e con altri controlli.
+
+> **Stato storico** (conservato): contratto del terminale EDITOR, rimisurato su `feat/editor-docs-1155`
+> HEAD `d0e35814` il 2026-08-28. La stesura precedente era del 2026-08-27 su
+> `feat/1114-writer-json-scenario` HEAD `5843ea49`, quando i mutatori non esistevano ancora: §3 e §7 sono
+> state riscritte, non ritoccate.
 > **Subordinato a**: [`spec-tactical-designer.md`](spec-tactical-designer.md) §3 · [ADR-0010](../../decisions/adr-0010-esposizione-blueprint-scenario-harness.md)
 
 Questo documento dice **cosa il widget chiama e cosa non gli è permesso decidere**. Non è un tracker e non

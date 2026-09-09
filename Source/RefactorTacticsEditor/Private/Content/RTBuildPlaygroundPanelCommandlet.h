@@ -21,7 +21,13 @@
  *
  * ⛔ **Non genera il grafo**: gli eventi che chiamano il modello — `Focus`, `Select Fixture`, il dropdown
  * del `Facing` — restano authoring. Un `UEdGraph` costruito da codice sarebbe illeggibile in UMG e
- * impossibile da mantenere, e il precedente del progetto (`WBP_RT_ScenarioComposer`) e' autorato a mano.
+ * impossibile da mantenere.
+ *
+ * ⚠️ **Qui citavo `WBP_RT_ScenarioComposer` come precedente autorato a mano, e quell'asset non esiste
+ * piu'** — rimosso il 2026-09-09 da `#2789`, perche' era un guscio che nessun codice apriva. Il
+ * precedente cade, l'argomento no: regge sulla leggibilita' di un `UEdGraph` generato, non su quanti
+ * altri widget lo abbiano fatto prima. ⛔ Non l'ho sostituito con un altro nome: un precedente citato
+ * per riempire il posto di quello caduto invecchia allo stesso modo, e questo commento ne e' la prova.
  *
  * 🔑 **Cio' che rende il cablaggio banale e' che il modello esiste gia'**: ogni pulsante ha una funzione
  * `BlueprintCallable` che fa una cosa sola, e le tre parti provabili headless — station, sei direzioni,

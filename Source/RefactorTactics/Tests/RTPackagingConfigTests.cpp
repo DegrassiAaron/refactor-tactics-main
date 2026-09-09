@@ -26,6 +26,12 @@
  * che una directory conti qualcosa. ∴ **Oggi la riga che questo test presidia non e' cio' che tiene i due
  * strumenti fuori dal pacchetto**, e un verde qui non va letto come "gli strumenti sono esclusi".
  *
+ * ⚠️ **La misura sopra e' del 2026-09-03 e resta com'e' scritta: e' cronaca, non uno stato.** Ma i "due
+ * strumenti" oggi sono UNO: `WBP_RT_ScenarioComposer` e' stato rimosso il 2026-09-09 da `#2789` — era un
+ * guscio che nessun codice apriva. Resta `WBP_RT_GrayKitPlayground`, e con lui **resta intatto cio' che
+ * questo test difende**: la riga presidia la FAMIGLIA `/Game/RT/Editor`, non un asset, e la famiglia ha
+ * ancora un abitante piu' tutti quelli che verranno.
+ *
  * ✅ **Cio' che il test presidia resta necessario**, e anche questo e' misurato: un never-cook di controllo
  * su `/Game/RT/UI/Icons` fa sparire 62 package dal container, quindi il meccanismo funziona e batte
  * `DirectoriesToAlwaysCook` su una sottodirectory. La riga e' la garanzia della **famiglia aperta** — il
