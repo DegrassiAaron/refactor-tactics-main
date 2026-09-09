@@ -179,7 +179,7 @@ effetti di caduta  ≠  esito di atterraggio
 Chi cade riceve gli effetti **anche** quando la cella finale non è occupabile. Sono due domande separate e
 vanno risolte separatamente.
 
-### 5.1 I numeri, decisi da `D-356`
+### 5.1 I numeri, decisi da `D-357`
 
 | Chi | Subisce |
 |---|---|
