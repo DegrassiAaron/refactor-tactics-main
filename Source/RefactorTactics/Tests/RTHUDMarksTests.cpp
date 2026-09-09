@@ -11,6 +11,10 @@
 #include "Misc/AutomationTest.h"
 #include "UI/RTHudViewModel.h" // FRTPlayerEventLineView: le righe da cui i marcatori si derivano (#2697)
 #include "UI/RTHUD.h"
+#include "Turn/RTTurnManager.h"     // il ciclo del turno: e' cio' che D-359 usa come confine
+#include "Map/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTHeroCatalogLibrary.h"
@@ -58,6 +62,21 @@ namespace
 		Unit->TeamId = TeamId;
 		Unit->Cell = Cell;
 		return Unit;
+	}
+
+	/**
+	 * Un turno intero: commit e risoluzione, come `RTCombatLogFixture::RunTurn` fa nel proprio file.
+	 * Il tick e' quello della risoluzione, non un'attesa: `IsResolving()` e' la condizione, il 400 e' il
+	 * tetto che impedisce a un difetto di diventare un test appeso.
+	 */
+	void PlayOneMarksTurn(ARTTurnManager* TM)
+	{
+		if (!TM) { return; }
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
 	}
 
 	/** Indice dell'abilita' con quell'ActionId nel kit dell'unita', o INDEX_NONE. */
@@ -249,6 +268,95 @@ bool FRTHudBlockerMarksTest::RunTest(const FString&)
 	// della sentinella, questa riga sarebbe rossa e il pannello comparirebbe in mezzo al campo.
 	TestFalse(TEXT("e l'origine dell'arena non viene marcata per una sentinella"),
 		Marks.Contains(FRTCellId(0, 0, 0)));
+	return true;
+}
+
+/**
+ * IL SEGNO D'OSTACOLO VIVE FINO AL LOCK-IN SUCCESSIVO, E NON OLTRE — `D-359`.
+ *
+ * 🔑 **Il confine non e' un timer: e' il ciclo del turno.** `ARTHUD::DrawHUD` costruisce le marche da
+ * `URTHudViewModel::BuildPlayerEventFeed(TurnManager, ...)`, che legge `ARTTurnManager::GetTurnLog()` —
+ * gli esiti dell'**ultimo turno risolto** — e `LockInAndResolve` fa `TurnLog.Reset()` una riga dopo aver
+ * annunciato `OnLockInCommitted`. Ne segue, senza che nessuno lo scriva a mano, che il segno resta acceso
+ * per tutta la **pianificazione** seguente e si spegne quando il giocatore committa.
+ *
+ * ⚠️ **Questo test esiste perche' quella proprieta' oggi non e' presidiata da niente.** E' emersa da una
+ * lettura del codice durante `#2534`, non da un oracolo: chiunque sposti `TurnLog.Reset()` — per esempio a
+ * fine risoluzione, che sembra il posto naturale — spegnerebbe la spiegazione **prima** che il giocatore
+ * abbia la possibilita' di leggerla, e nessun test cadrebbe.
+ *
+ * Le due meta' vanno tenute insieme, e la seconda e' quella che rende il test non vacuo:
+ *   (1) dopo la risoluzione il feed NON e' vuoto  -> il segno c'e' quando serve;
+ *   (2) dopo il lock-in successivo NON accumula   -> il segno non sopravvive alla sua ragione.
+ * Con la sola (1) passerebbe anche un feed che non si spegne mai; con la sola (2) passerebbe un feed
+ * sempre vuoto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlockerMarkLivesUntilNextLockInTest,
+	"RefactorTactics.HUD.BlockerMarkLivesUntilNextLockIn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBlockerMarkLivesUntilNextLockInTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMarksWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTHexMapAsset* Asset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 4);
+	ARTHexMapActor* Map = World->SpawnActor<ARTHexMapActor>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("mappa"), Map) || !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyMarksWorld(World);
+		return false;
+	}
+	Map->MapAsset = Asset;
+
+	// Due unita' avversarie: basta che il turno produca voci di TurnLog, e due unita' che restano ferme
+	// ne producono. Il fenomeno sotto misura e' il CICLO, non l'esito.
+	ARTUnit* A = SpawnMarksUnit(World, TEXT("Hero.Gadget"), /*TeamId=*/ 0, FRTCellId(-1, 0, 0));
+	ARTUnit* B = SpawnMarksUnit(World, TEXT("Hero.Branth"), /*TeamId=*/ 1, FRTCellId(1, 0, 0));
+	if (!TestNotNull(TEXT("unita' A"), A) || !TestNotNull(TEXT("unita' B"), B))
+	{
+		DestroyMarksWorld(World);
+		return false;
+	}
+
+	// ── Turno 1: risolto. Da qui in poi il giocatore PIANIFICA il turno 2, ed e' la finestra in cui la
+	//    spiegazione di cio' che e' appena successo deve restare leggibile.
+	PlayOneMarksTurn(TM);
+	const int32 DuranteLaPianificazione =
+		URTHudViewModel::BuildPlayerEventFeed(TM, /*ObserverTeamId=*/ 0).Num();
+
+	if (!TestTrue(TEXT("(1) il turno risolto lascia righe nel feed: il segno c'e' mentre si pianifica"),
+		DuranteLaPianificazione > 0))
+	{
+		DestroyMarksWorld(World);
+		return false;
+	}
+
+	// ── Turno 2: il giocatore ha committato. `LockInAndResolve` ha azzerato il TurnLog, e cio' che il
+	//    feed porta ora appartiene al turno NUOVO.
+	PlayOneMarksTurn(TM);
+	const int32 VociDelTurnoDue = TM->GetTurnLog().Num();
+	const int32 DopoIlLockIn =
+		URTHudViewModel::BuildPlayerEventFeed(TM, /*ObserverTeamId=*/ 0).Num();
+
+	// PREMESSA della seconda meta': il turno 2 ha prodotto esiti. Senza, «feed vuoto» sarebbe soddisfatto
+	// anche da un turno che non e' mai avvenuto, e l'asserzione sotto non misurerebbe il ciclo.
+	TestTrue(TEXT("premessa: anche il turno 2 ha prodotto voci di TurnLog"), VociDelTurnoDue > 0);
+
+	// 🔴 L'asserzione che vale il test, e il valore atteso e' ZERO — non «lo stesso numero di prima».
+	// ⚠️ **Misurato, non dedotto**: il turno 2 di questo montaggio produce voci di TurnLog ma **nessuna
+	// riga proiettabile** — sono movimenti che `Project` classifica minori e omette (`OmitsMinorMovement`).
+	// E' precisamente cio' che rende l'oracolo stretto: il feed **puo' essere vuoto solo se le righe del
+	// turno 1 sono sparite**. Se il TurnLog accumulasse — cioe' se il segno sopravvivesse al turno che lo
+	// ha prodotto — qui si leggerebbero ancora le 2 righe di prima, e un marcatore resterebbe acceso su
+	// una cella la cui ragione e' passata: un segno che non scade mente.
+	// ⌫ La prima stesura asseriva `DopoIlLockIn == DuranteLaPianificazione`, dando per scontato che due
+	// turni uguali producessero lo stesso numero di righe. Il test e' caduto con `2` atteso e `0` trovato:
+	// l'asserzione era sbagliata, non il codice.
+	TestEqual(TEXT("(2) le righe del turno 1 non sopravvivono al lock-in del turno 2"),
+		DopoIlLockIn, 0);
+
+	DestroyMarksWorld(World);
 	return true;
 }
 
