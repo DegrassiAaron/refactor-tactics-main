@@ -1,5 +1,12 @@
 # #2534 — Panel di specifica sulla rigiudicazione · 2026-09-09
 
+> ⌫ **SUPERATO IN PARTE DALLA SEDUTA CHE PRESCRIVE, lo stesso giorno.** §3 e §4 dicono che il verdetto non è
+> emettibile da questa sessione e che il residuo è *«un giudizio umano»*: la seduta **è stata eseguita** il
+> 2026-09-09 (`runId 20260909-085103`), il verdetto è ❌, e ha ri-diagnosticato il residuo come **codice** —
+> la persistenza del marcatore, [#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697).
+> Il verdetto con la sua evidenza vive in [`test-manuali-pie.md`](../../technical/test-manuali-pie.md), unico
+> owner. **§1 e §2 restano validi**: sono l'istruttoria che ha reso la seduta eseguibile.
+
 > **Comando**: `/issue-run 2534` → `sc:spec-panel 2534`, modalità **critique**, focus `requirements · testing · compliance`.
 > **Base misurata**: `main = 5ab19332`, working tree pulito, allineato a `origin/main` dopo `fetch`.
 > **Panel**: Wiegers (requisiti) · Adzic (criteri eseguibili) · Cockburn (attore e goal) · Nygard (modi di fallimento) · Crispin (cosa può giudicare un test, cosa un occhio).
@@ -13,7 +20,7 @@ Tutto misurato su `main = 5ab19332`. Nessuna riga di questa sezione viene dal co
 |---|---|
 | La scelta fra (a) e (b) **è presa e motivata** | [`D-340`](../../decisions/RT_PDR_00_Decision_Log.md), **Accettata**, decisione d'autore del 2026-09-06 — sceglie la (b) e dichiara ⛔ *«non si alza `RTSightSlabHeight` oltre i 10 cm»*, ⛔ *«se un giorno la lastra dovrà essere leggibile, servirà un `D-nnn` proprio»* |
 | La (b) è **implementata nel TurnLog** | `Turn/RTTurnManager_Blast.cpp:1531` scrive `SightBlockerCell` via `SightBlockerForLog`; `Turn/RTTurnLogLibrary.cpp:792` compone la riga |
-| Il filtro di conoscenza vive **alla scrittura** | `Turn/RTTurnLogLibrary.cpp:361`; sei casi in `Tests/RTCombatLogTests.cpp:1745-1839`; ciclo RED eseguito e documentato in issue |
+| Il filtro di conoscenza vive **alla scrittura** | `Turn/RTTurnLogLibrary.cpp:361`; **sette** casi numerati in `Tests/RTCombatLogTests.cpp:1729-1845` — ignota · esplorata · visibile · altra-cella · linea libera · blocco-non-cella · layer; ciclo RED eseguito e documentato in issue. ⌫ *Diceva «sei casi, 1745-1839»: il sei contava le sole chiamate a `SightBlockerForLog` con lo stesso pattern e perdeva il caso (7), e il range tagliava il test a entrambe le estremità* |
 | Il formato è **v13** | `Tests/RTTurnLogSerializationTests.cpp:1476` (`+12` byte); campo `Public` in `Replay/RTReplayPrivacyLibrary.cpp:41` |
 | Il feed **ha un consumatore** | `UI/RTHudViewModel.cpp:496` chiama `URTPlayerEventProjector::Project` — consegnato da **#2707** (`063ab898`, mergiata `2026-09-09T05:02:04Z`) |
 | L'ostacolo è **marcato nel mondo** | `UI/RTHUD.cpp:57` `ComputeBlockerMarks`, chiamata a `:929`; test `RefactorTactics.HUD.BlockerMarksOnlyNameableCells` |
@@ -39,19 +46,24 @@ Un criterio che il proprietario non può soddisfare non misura il suo lavoro: mi
 
 📌 Il commento del 2026-09-09 04:14 lo dice già a metà (*«non è raggiungibile da sola»*), ma **il corpo della issue non è stato aggiornato**: un lettore che apre la issue trova ancora quattro caselle pari.
 
-### 🔴 F-02 · NYGARD + CRISPIN — la premessa del verdetto è cambiata 47 minuti dopo il verdetto
+### 🔴 F-02 · NYGARD + CRISPIN — la premessa del verdetto è cambiata **68 minuti** dopo il verdetto
 
 La cronologia, in UTC, dagli oggetti Git e da GitHub:
 
 | Ora | Evento |
 |---|---|
-| ~03:54 | verdetto d'autore sul banco: *«non si capisce perché non parte, non ci sono riferimenti video, solo log»* |
+| **03:54** | verdetto d'autore sul banco (`runId 20260909-055417`): *«non si capisce perché non parte, non ci sono riferimenti video, solo log»* |
 | 04:14 | commento su #2534 che registra la dipendenza da #2697 |
+| **04:49** | `e3dbfd56` — **`ComputeBlockerMarks` viene scritto**, sul branch di #2707 |
 | **04:57** | ultimo commit che tocca `Source/` (`282c8a5b`) |
-| **04:58** | mtime del binario `Binaries/Win64/UnrealEditor-RefactorTactics.dll` |
-| **05:02** | merge di **#2707** — `ComputeBlockerMarks` entra in `main` |
+| **04:58** | mtime del binario `Binaries/Win64/UnrealEditor-RefactorTactics.dll` — **posteriore a `e3dbfd56`, quindi lo contiene** |
+| **05:02** | merge di **#2707** su `main` (`063ab898`) |
 
-∴ **Il verdetto negativo è stato emesso su una build che non conteneva il marcatore nel mondo.** *«Non ci sono riferimenti video»* era vero quando è stato scritto e **non è più una descrizione dello stato corrente**.
+∴ **Il verdetto negativo è stato emesso su una build che non conteneva il marcatore**: `03:54` precede `04:49` di **68 minuti**.
+
+⚠️ **La riga `04:49` non è un dettaglio, è ciò che rende la tabella non contraddittoria.** Senza di essa il binario delle `04:58` sembra precedere l'arrivo del marcatore (che si daterebbe al merge delle `05:02`) — e allora la seduta del 2026-09-09 avrebbe giudicato una build *senza* marcatore, il contrario di quanto il registro dichiara. Ciò che data una build è **il commit del codice**, non il merge del ramo che lo porta.
+
+⌫ *Questa sezione diceva «47 minuti», ed erano due errori in un numero: 47 è la distanza fra il **commento** delle 04:14 e il merge, non fra il verdetto e alcunché. Trovato dalla code review.*
 
 ⚠️ Rigiudicare senza dichiarare *quale build si sta guardando* ripeterebbe esattamente l'errore che questa issue esiste per correggere: la misura del 2026-09-04 diceva *«il muro si vede»* perché guardava l'oggetto sbagliato (la colonna da 55 cm), e nessuno lo aveva scritto accanto al verdetto.
 
@@ -102,10 +114,22 @@ Il commento in `RTHUDMarksTests.cpp` lo dichiara: un secondo contratto di conosc
 
 1. **La parte di codice di #2534 è completa nel perimetro che `D-340` le assegna.** Non c'è implementazione mancante da scrivere qui.
 2. **Il residuo è un giudizio umano**, e una sessione headless non lo emette. Ciò che una sessione headless può consegnare è il **banco pronto**: la seduta convocata, il criterio aggiornato alla decisione vigente, la build dichiarata.
-3. **Due criteri su quattro vanno riscritti** perché oggi misurano lavoro di altri (F-01) o una domanda superata (F-03).
+3. **Un criterio su quattro va riscritto** — il quarto, perché misura lavoro di altri (F-01); ed è quello che `D010` ha riformulato. ⌫ *Diceva «due su quattro, F-01 o F-03»: `F-03` riguarda `U46.issues` e il passo ②, che non sono criteri di DoD.*
 4. **Nessuno dei rilievi giustifica di riaprire (a).** `D-340` regge: il panel non ha trovato un fatto nuovo che la contraddica.
 
 ## §4 — Cosa questa run può firmare, e cosa no
+
+### I gate che governano davvero questa PR
+
+Il diff è **solo markdown e YAML**: non tocca `Source/`, quindi `Compile` e la suite non sono i gate rilevanti — lo sono i tre controlli documentali che [`docs/README.md`](../../README.md) dichiara vivi. Eseguiti il 2026-09-09, e uno era **rosso per colpa di questa PR**:
+
+| Gate | Esito |
+|---|---|
+| `node tools/radar/doc-links.ts --check` | ✅ **5813 link** in 395 documenti, tutti risolvono |
+| `node tools/radar/doc-tables.ts --check` | 🔴→✅ **trovava 1 riga rotta**: la cella `G9` a 6 celle invece di 4, per le pipe non escapate di `✅ \| 🟡 \| ⏳` scritte da questa PR. Corretta con `\|`, poi **2477 tabelle** tutte a larghezza di sorella |
+| `node tools/radar/issue-refs.ts --check` | ✅ 399 issue, 2922 percorsi vivi, nessuna cita un percorso rimosso |
+
+⚠️ **`doc-tables` esce `0` anche quando è rosso**: l'oracolo è il **conteggio** che stampa, non il codice di uscita. Chi lo lancia in una catena `&&` non se ne accorge.
 
 | | |
 |---|---|

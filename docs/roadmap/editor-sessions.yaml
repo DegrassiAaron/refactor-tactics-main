@@ -31,6 +31,16 @@
 #   - lo stato delle voci PIE     -> da `test-manuali-pie.md`
 #   - lo stato di checkpoint/epic -> da `roadmap-checkpoint.md` e `roadmap-v0.1.md`
 #
+# 🔴 MISURATO il 2026-09-09: **12 sedute su 48 non hanno `issues:`**, e sono
+#   U2 U4 U5 U6 U9 U10 U11 U12 U14 U15 U17 U20.
+#   E' la condizione che `#2476` nomina nel proprio titolo — *«la seduta esiste, nessuna issue la
+#   convoca»* — e che quel giorno e' stata corretta su `U46` **come caso singolo**, senza contare
+#   la popolazione. Una seduta senza issue non e' raggiungibile da chi lavora: nessuno la apre, e il
+#   suo `done_when` non scade mai. Il conteggio si rifa' con:
+#     python -c "import yaml;d=yaml.safe_load(open('docs/roadmap/editor-sessions.yaml',encoding='utf-8'))" ...
+#   ⚠️ Non e' un TODO nascosto qui dentro: e' un numero, perche' la prossima occorrenza non vada
+#   riscoperta da zero. Il lavoro, se si decide di farlo, sta in `#2476`.
+#
 # Campi:
 #   id                 stabile, mai riusato per un'altra seduta
 #   title              una riga
@@ -3034,13 +3044,13 @@ sessions:
       La ragione e' una decisione e non una lacuna — [D-046] (`#282`) lascia `Action.ModifyArc` senza
       owner nel roster, quindi nessuna unita' puo' provocare il crollo e nessuna seduta puo' guardarlo.
       Chiedere sei verdetti a chi ne puo' dare cinque e' un `done_when` che nessuno soddisfa ([#2549]).
-      🔄 **E dal 2026-09-09 le voci aperte sono DUE, non cinque** — misurate in `test-manuali-pie.md`
-      leggendo la prima icona per posizione: `PIE-V01-ROSTER` ✅, `PIE-V01-LOG` ✅ e `PIE-VIS-TWOLAYERS` ✅
-      sono state chiuse nel frattempo. Restano ❌ `PIE-HEXPLAY-6` e ❌ `PIE-VIS-SIGHTWALL`, e
-      🔑 **sono la STESSA rigiudicazione**: stesso banco `Visual.Map.SightWallIsWalkable`, stessa apertura,
-      un giudizio solo — la [DoD di #2534](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2534)
-      le nomina insieme per questo. ∴ questa seduta oggi vale **un'apertura per un verdetto**, ed e' il suo
-      residuo reale
+      ✅ **ESEGUITA il 2026-09-09** per le due voci che le restavano, `PIE-HEXPLAY-6` e `PIE-VIS-SIGHTWALL`,
+      che sono la **stessa** rigiudicazione: stesso banco `Visual.Map.SightWallIsWalkable`, stessa apertura,
+      un giudizio solo. `runId 20260909-085103`, commit `b5a61d89`, convocata da `#2534`.
+      Gli esiti stanno in `test-manuali-pie.md`, che ne resta l'unico owner — **qui non si copiano** (R-6).
+      ⌫ **Questa riga elencava lo stato di cinque voci con i loro glifi, e violava R-6**: la regola che
+      questo file esiste per far rispettare vieta di scrivere qui l'esito, e una copia in piu' e' esattamente
+      il difetto che la PR che l'aveva aggiunta stava correggendo altrove. Rimossa il 2026-09-09
     unblocks: []
     steps: |
       Una apertura, cinque giudizi — il ③ non ne produce, vedi li'. Lo scenario si cambia da console con PIE **fermo** — cambiare
@@ -3078,10 +3088,15 @@ sessions:
       chiedevano *«se la lastra, alta 10 cm, si legga a camera obliqua»*: dopo [D-340] quella domanda **non
       ha piu' un esito utile** — la decisione ha scelto la via *(b)* e ha rinunciato per iscritto ad alzare
       `RTSightSlabHeight`, quindi un «no» sulla lastra e' il risultato **atteso** e non un difetto da aprire.
-      ⚠️ **E la premessa e' cambiata di nuovo dopo il verdetto negativo del 2026-09-09**: la PR #2707
-      (`063ab898`, mergiata alle 05:02 UTC — **47 minuti dopo** quel verdetto) fa marcare a schermo, da
-      `ARTHUD::ComputeBlockerMarks`, la cella che ha fermato il tiro. Il verdetto *«non ci sono riferimenti
-      video, solo log»* e' stato emesso su una build che **non conteneva il marcatore**.
+      ⚠️ **E la premessa e' cambiata dopo il verdetto negativo del 2026-09-09**: `ARTHUD::ComputeBlockerMarks`
+      fa marcare a schermo la cella che ha fermato il tiro. Il codice entra col commit `e3dbfd56`
+      (**04:49:01Z**, sul branch di #2707) e il binario Editor delle **04:58:37Z** lo contiene; la PR #2707
+      e' stata mergiata su `main` alle **05:02:04Z**. Il verdetto *«non ci sono riferimenti video, solo log»*
+      e' del `runId 20260909-055417`, cioe' le **03:54Z**: **68 minuti prima** che quel codice esistesse su
+      un ramo qualsiasi.
+      ⌫ Questa riga diceva «47 minuti dopo quel verdetto», ed erano **due errori in un numero**: 47 e' la
+      distanza fra il **commento** che registrava il verdetto (04:14Z) e il merge, non fra il verdetto e il
+      merge; e la data che conta per una build non e' il merge ma il **commit del codice**.
       🔑 **La domanda da porre ora**, e le prime due meta' hanno gia' un oracolo headless:
       la riga nomina la cella (`CombatLog.SightBlockerAppearsInTheLine`) · quella cella e **nessun'altra**
       e' marcata (`HUD.BlockerMarksOnlyNameableCells`) · **e chi guarda collega la riga al segno senza
@@ -3090,8 +3105,8 @@ sessions:
       diceva *«il muro si vede»* perche' guardava la colonna da 55 cm credendo di guardare la lastra da 10,
       e cio' che mancava accanto a quel verdetto era proprio l'oggetto misurato.
       ⚠️ Il feed **testuale** non disegna ancora — manca `WBP_RT_EventLog.uasset`, fetta **F** di #1936 —
-      quindi la riga si legge in `Window -> Output Log`: se il verdetto resta ❌ per questa ragione, il
-      residuo appartiene a quella fetta, non a #2534.
+      quindi la riga si legge in `Window -> Output Log`. Se e' questa la ragione che chi guarda dichiara, il
+      residuo appartiene a quella fetta e non a #2534 — ma **l'esito lo scrive il registro**, non questo file.
 
       **③ `PIE-HEXPLAY-8` — NIENTE DA GUARDARE. Salta al ④.**
       ⛔ **Questo passo prescriveva una verifica impossibile fino al 2026-09-08** ([#2549]). Diceva:

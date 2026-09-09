@@ -1018,10 +1018,18 @@ grep -c '^| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`' docs/technical/test-manual
 # ⚠️ Ancorato al MARCATORE come il grep qui sopra, non alla riga: `/RELEASE-V01/` nudo cattura anche le
 #    voci la cui prosa dichiara di NON farne parte, e dà 19 invece di 17 — `PIE-BAL1` e `PIE-FMTVER`,
 #    entrambi ⏳, cioè +2 sulla sola colonna "aperta".
+# 🔴 **L'alternanza NON aveva `❌`, e il 2026-09-09 questo ha prodotto il difetto che il comando esiste per
+#    impedire.** Senza quel ramo l'oracolo non salta la voce fallita: salta al PRIMO glifo che conosce, che
+#    può stare centinaia di caratteri più avanti nella stessa cella — e una cella che si apre con `❌` e più
+#    avanti porta un `✅` in una nota interna veniva contata **verde**. Successo davvero: la rigiudicazione di
+#    `PIE-HEXPLAY-6` ha aggiunto alla cella una nota che comincia con `✅`, e il conteggio è passato da
+#    `15 · 2 · 0` a `16 · 1 · 0` mentre il verdetto umano scritto nella stessa cella era ❌.
+# 🔑 **Un oracolo cieco a un esito non lo riporta assente: lo riporta come l'esito successivo che sa vedere.**
+#    Ed è peggio del silenzio, perché il gate legge un numero e nessuno conta a mano.
 awk -F'|' '/^\| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`/ {s=$(NF-1);
-  if (match(s, /✅|🟡|⏳/)) c[substr(s, RSTART, RLENGTH)]++ }
-  END {printf "verde=%d parziale=%d aperta=%d totale=%d\n",
-       c["✅"], c["🟡"], c["⏳"], c["✅"]+c["🟡"]+c["⏳"]}' \
+  if (match(s, /✅|🟡|❌|⏳/)) c[substr(s, RSTART, RLENGTH)]++ }
+  END {printf "verde=%d parziale=%d fallita=%d aperta=%d totale=%d\n",
+       c["✅"], c["🟡"], c["❌"], c["⏳"], c["✅"]+c["🟡"]+c["❌"]+c["⏳"]}' \
   docs/technical/test-manuali-pie.md
 
 # Il controllo che mancava: i due comandi del subset devono dare lo STESSO totale. Se divergono, uno dei
@@ -1086,8 +1094,10 @@ Era **stantia su sei voci su diciassette** — `PIE-HEXPLAY-4` ⏳→✅, `PIE-H
 🟡→✅, `PIE-HEXPLAY-10` 🟡→✅, `PIE-V01-LOG` 🟡→✅, `PIE-V01-ROSTER` 🟡→✅ — e in cinque casi su sei
 **dichiarava aperto ciò che era stato chiuso**, che è la forma di deriva più costosa: fa riaprire lavoro finito.
 ⚠️ **Questa tabella è una copia, non l'originale**: l'unico owner del verdetto è
-[`test-manuali-pie.md`](../test-manuali-pie.md), e ogni icona qui va letta dalla **prima per posizione** nella
-cella di stato di quel file — una voce che ne elenca più d'una verrebbe contata verde.
+[`test-manuali-pie.md`](../test-manuali-pie.md), e ogni icona qui va letta dalla **prima icona di stato per
+posizione** nella cella di quel file — cioè la prima fra `✅ 🟡 ❌ ⏳`, ignorando `⚠️` e `🔴`, che aprono
+molte celle come marcatori di prosa e non sono esiti. ⚠️ Detto senza quella precisazione il criterio non
+riproduce i numeri: `PIE-HEXPLAY-4` apre con `⚠️` e la sua ✅ arriva 631 caratteri dopo.
 
 | Voce | Cosa gate | Oggi |
 |---|---|---|

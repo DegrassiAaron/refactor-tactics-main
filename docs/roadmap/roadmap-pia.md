@@ -135,6 +135,18 @@ raggruppano più voci in una sola apertura. PIA usa quelle, non ne inventa altre
 eseguita il 2026-09-05/06 (`#2476`, PR `#2541`, commit `6a677671` delle 10:01) — **sei ore prima** del baseline
 `008edd1c` di questo documento. Riprogrammarla sarebbe un lease speso per rigiudicare verdetti già scritti.
 
+> 🔴 **`STALE ROADMAP` — 2026-09-09.** Il paragrafo qui sopra è stato **contraddetto dai fatti**, e la
+> divergenza si dichiara invece di riconciliarla in silenzio ([`CLAUDE.md` §3](../../CLAUDE.md)).
+> `U46` **è stata riconvocata e rispesa** quel giorno per `PIE-HEXPLAY-6` e `PIE-VIS-SIGHTWALL`
+> (`runId 20260909-085103`, `#2534`), e **non** per rigiudicare verdetti già scritti: fra i due momenti è
+> cambiato **l'oggetto** della misura. Il commit `e3dbfd56` (2026-09-09, `04:49Z`) ha aggiunto
+> `ARTHUD::ComputeBlockerMarks`, il segno a schermo sulla cella che ferma il tiro, che al 2026-09-06 **non
+> esisteva**: i verdetti precedenti erano stati emessi su una build che non poteva mostrarlo.
+> 🔑 **La regola che questo paragrafo esprime resta giusta** — non si rispende un lease per rigiudicare la
+> stessa cosa. Ciò che è caduto è la sua premessa: *«la stessa cosa»* vale finché la build non cambia.
+> La riga `PIE-HEXPLAY-6` nella tabella qui sotto dice *«al baseline»* ed è corretta come storia; lo stato
+> corrente vive in [`test-manuali-pie.md`](../technical/test-manuali-pie.md), unico owner.
+
 | Voce | Seduta | Stato al baseline |
 |---|---|---|
 | `PIE-V01-HUD` | `U15` | ✅ 2026-08-24 |
