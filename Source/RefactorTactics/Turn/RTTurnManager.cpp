@@ -1757,6 +1757,64 @@ float ARTTurnManager::GetPlanningTimeRemaining() const
 	return 0.f;
 }
 
+/**
+ * Il ciclo delle fasi: `Prep` -> `Dash` -> `Blast` -> `Move` -> `Cleanup` -> `Planning`.
+ *
+ * 🔑 **Estratto da `LockInAndResolve` perche' ha DUE chiamanti** ([D-356]): il lock-in, e la ripresa dopo
+ * una finestra di reazione. Prima ne aveva uno solo e poteva stare in linea; da quando una fase puo'
+ * sospendersi in mezzo, il ciclo deve essere raggiungibile da due strade — esattamente come
+ * `ConcludeResolution`, estratta da `#2679` per la stessa ragione.
+ *
+ * 🔴 **L'uscita anticipata e' il punto della funzione, non una guardia difensiva.** Un resolver che si
+ * sospende RITORNA normalmente, lasciandosi dietro un contesto vivo: senza questo controllo il ciclo non
+ * se ne accorge e prosegue con la fase successiva. Col movimento non si vedeva — `Move` e' l'ultima, e
+ * dopo di lei non restava niente da rovinare — ma col `Brace` (`#2692`) significherebbe risolvere `Move`
+ * su un Blast applicato a meta', con una finestra ancora aperta sullo schermo.
+ *
+ * 🔑 **E `Phase` resta la fase che si e' fermata**, che e' la seconda meta' di [D-356]: durante l'attesa
+ * il gioco risponde `Blast` o `Move` invece di `Planning`. Non e' cosmesi — tre lettori interrogano la
+ * fase senza accoppiarla a `IsResolving()`, e con `Planning` sbagliavano tutti e tre: l'header dell'HUD
+ * scriveva «Pianificazione» col countdown a schermo (`UI/RTHUD.cpp`, ramo `default:` -> «Risoluzione»), la
+ * traccia post-lock si disegnava sopra un turno in corso, e `RecordPlanningInput` contava i click come
+ * input di pianificazione — cioe' sporcava il pacing con cui si tara [D-348]. Nessuno dei tre e' stato
+ * toccato: con la fase vera i loro `== Planning` sono falsi per costruzione.
+ *
+ * ⛔ **Non fa il setup del turno e non deve farlo.** `EnsureMatchRoster`, la sonda di pacing,
+ * `ResolvedTimeline.Reset()`, `TurnLog.Reset()` e `ValidatePlansAtLockIn()` restano in `LockInAndResolve`:
+ * rieseguirli alla ripresa azzererebbe il TurnLog di cio' che e' gia' stato risolto, e il replay perderebbe
+ * il pezzo senza che nessun test lo veda.
+ */
+void ARTTurnManager::RunPhaseLoop()
+{
+	do
+	{
+		Phase = URTTurnRules::NextPhase(Phase);
+		if (Phase == ERTMatchPhase::Prep)
+		{
+			ResolvePrep(); // abilita' di supporto (buff su se stessi)
+		}
+		else if (Phase == ERTMatchPhase::Dash)
+		{
+			ResolveDash(); // scatti: riposizionamento rapido PRIMA del Blast
+		}
+		else if (Phase == ERTMatchPhase::Blast)
+		{
+			ResolveCombat(); // gli attacchi usano la posizione PRIMA del movimento
+		}
+		else if (Phase == ERTMatchPhase::Move)
+		{
+			ResolveMovement();
+		}
+
+		// La fase si e' fermata su una finestra di reazione: si esce lasciando `Phase` dov'e'. Chi chiude la
+		// finestra rientra qui e il `NextPhase` sopra riparte dalla fase GIA' risolta — non la riesegue.
+		if (IsResolutionSuspended())
+		{
+			return;
+		}
+	} while (Phase != ERTMatchPhase::Planning);
+}
+
 void ARTTurnManager::LockInAndResolve()
 {
 	if (Phase != ERTMatchPhase::Planning || bIsResolving)
@@ -1828,26 +1886,7 @@ void ARTTurnManager::LockInAndResolve()
 	ValidatePlansAtLockIn();
 
 	// Avanza le fasi fino a tornare a Planning; il movimento si applica nella fase Move.
-	do
-	{
-		Phase = URTTurnRules::NextPhase(Phase);
-		if (Phase == ERTMatchPhase::Prep)
-		{
-			ResolvePrep(); // abilita' di supporto (buff su se stessi)
-		}
-		else if (Phase == ERTMatchPhase::Dash)
-		{
-			ResolveDash(); // scatti: riposizionamento rapido PRIMA del Blast
-		}
-		else if (Phase == ERTMatchPhase::Blast)
-		{
-			ResolveCombat(); // gli attacchi usano la posizione PRIMA del movimento
-		}
-		else if (Phase == ERTMatchPhase::Move)
-		{
-			ResolveMovement();
-		}
-	} while (Phase != ERTMatchPhase::Planning);
+	RunPhaseLoop();
 
 	// TurnLog: ordinamento deterministico (fase -> categoria -> cella di partenza); GetAllActorsOfClass
 	// non e' ordinato, quindi l'ordine di inserimento non e' affidabile (enum: confronto per valore intero).
@@ -1857,9 +1896,12 @@ void ARTTurnManager::LockInAndResolve()
 	// meta' e farebbe partire il playback di un turno che nessuno ha finito di decidere. Chi chiude la
 	// finestra riprende da li' e chiama `ConcludeResolution` al posto nostro.
 	//
-	// ⚠️ **`Move` e' l'ULTIMA fase risolta** (`URTTurnRules::NextPhase`: Blast -> Move -> Cleanup), ed e'
-	// la ragione per cui basta questo controllo e non serve ricordare a che fase si era arrivati: dopo il
-	// movimento non resta una fase da riprendere, resta solo questa coda.
+	// ⚠️ **A che fase si era arrivati lo dice `Phase`** ([D-356]): `RunPhaseLoop` esce appena la resolution
+	// si sospende, quindi qui `Phase` vale ancora la fase che si e' fermata — `Move` oggi, `Blast` quando
+	// il `Brace` sapra' sospendere (`#2692`). Fino al 2026-09-09 questa riga diceva che non serviva
+	// ricordarlo *«perche' dopo il movimento non resta una fase da riprendere»*: era vero solo finche' il
+	// solo sito di sospensione era l'ultimo, e ha lasciato `Phase` a `Planning` durante l'attesa — con tre
+	// lettori che leggevano «siamo in pianificazione» a turno non finito. Vedi `D-356`.
 	if (IsResolutionSuspended())
 	{
 		// 🔑 **Il playback parte ORA, sulla timeline parziale** ([D-355]): chi decide deve aver visto il

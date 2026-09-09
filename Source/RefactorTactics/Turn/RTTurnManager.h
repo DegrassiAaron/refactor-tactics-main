@@ -1208,6 +1208,12 @@ public:
 	ERTMovementAdvanceResult AdvanceMovementResolution();
 	void FinishMovementResolution();
 
+	/**
+	 * Il ciclo delle fasi, con uscita anticipata sulla sospensione ([D-356]). Due chiamanti come
+	 * `ConcludeResolution`: il lock-in e la ripresa. Non fa il setup del turno — vedi il .cpp.
+	 */
+	void RunPhaseLoop();
+
 	/** La coda della risoluzione: TurnLog, Cleanup, fine partita, playback. Due chiamanti, vedi il .cpp. */
 	void ConcludeResolution();
 

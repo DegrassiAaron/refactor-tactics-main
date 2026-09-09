@@ -658,6 +658,23 @@ void ARTTurnManager::ResumeSuspendedResolution()
 	}
 
 	FinishMovementResolution();
+
+	// 🔑 **Le fasi rimaste, e non e' una riga di simmetria** ([D-356]). `RunPhaseLoop` esce lasciando
+	// `Phase` sulla fase che si e' fermata, quindi qui il turno e' avanzato solo fino a li': senza questa
+	// chiamata `ConcludeResolution` chiuderebbe un turno a cui mancano le fasi successive.
+	//
+	// ⛔ **Non riesegue la fase gia' risolta**: il ciclo comincia con `NextPhase(Phase)`, quindi da `Move`
+	// riparte da `Cleanup`. Oggi il solo sito di sospensione e' il movimento e dopo di lui non resta
+	// lavoro, ma la riga vale gia' adesso — ed e' cio' che rende il `Brace` (`#2692`) un'estensione invece
+	// di un secondo meccanismo.
+	RunPhaseLoop();
+
+	// Una fase successiva puo' sospendersi a sua volta: si torna ad attendere, come sopra.
+	if (IsResolutionSuspended())
+	{
+		return;
+	}
+
 	ConcludeResolution();
 }
 

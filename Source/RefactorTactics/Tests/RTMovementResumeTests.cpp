@@ -344,6 +344,91 @@ bool FRTReactionWindowSuspendsTest::RunTest(const FString&)
 
 
 /**
+ * **La fase che il gioco dichiara mentre aspetta** ([D-356], `#2692`).
+ *
+ * 🔴 **E' il test che `D-356` chiede esplicitamente, e che non esisteva.** Fino al 2026-09-09 il ciclo
+ * delle fasi arrivava in fondo anche quando una fase si sospendeva — un resolver che si ferma RITORNA
+ * normalmente, e il ciclo non se ne accorgeva — quindi `Phase` tornava a `Planning` mentre il turno non
+ * era finito, il playback scorreva e una finestra aspettava una risposta.
+ *
+ * ⛔ **Tre lettori sbagliavano, e nessuno di loro e' stato toccato per correggerli**: l'header dell'HUD
+ * stampava «Pianificazione» col countdown a schermo, la traccia post-lock si disegnava sopra un turno in
+ * corso, e `RecordPlanningInput` contava i click come input di pianificazione — cioe' sporcava il pacing
+ * con cui si tara [D-348]. Con la fase vera i loro `== Planning` sono falsi per costruzione.
+ *
+ * 🔑 **Cosa misura, esattamente**: che a resolution sospesa `GetPhase()` sia la fase che si e' fermata e
+ * **non** `Planning`, e che alla chiusura il turno arrivi comunque in fondo. Il secondo asserto e' cio'
+ * che impedisce alla correzione di fermare il turno per sempre: uscire dal ciclo non basta, bisogna anche
+ * rientrarci.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSuspendedPhaseIsTheRealPhaseTest,
+	"RefactorTactics.Reactions.SuspendedPhaseIsNotPlanning",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSuspendedPhaseIsTheRealPhaseTest::RunTest(const FString&)
+{
+	UWorld* World = MakeResumeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnResumeMap(World);
+
+	ARTUnit* Mover = SpawnResumeUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Watcher = SpawnResumeUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Mover"), Mover) || !TestNotNull(TEXT("Watcher"), Watcher)
+		|| !TestNotNull(TEXT("TurnManager"), TM))
+	{
+		DestroyResumeWorld(World);
+		return false;
+	}
+
+	Watcher->bIsBotControlled = false;
+	Watcher->PlannedAbilityIndex =
+		RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+	Watcher->Facing = ERTHexDirection::W;
+	Watcher->PlannedCell = Watcher->Cell;
+	Mover->PlannedCell = FRTCellId(2, 0);
+
+	// La UI finta: apre e non risponde, come negli altri casi di questo file.
+	bool bApertaAlmenoUna = false;
+	TM->OnReactionWindowOpened.BindLambda(
+		[&bApertaAlmenoUna](const FRTReactionWindowView&, int32) { bApertaAlmenoUna = true; });
+
+	TM->LockInAndResolve();
+
+	if (!TestTrue(TEXT("una finestra si e' aperta"), bApertaAlmenoUna)
+		|| !TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended()))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyResumeWorld(World);
+		return false;
+	}
+
+	// 🔑 **LA PROVA.** La sospensione avviene nel movimento, quindi la fase dichiarata dev'essere `Move`.
+	// Prima di [D-356] qui si leggeva `Planning`, ed e' il difetto che questo test esiste per fissare.
+	TestEqual(TEXT("a resolution sospesa la fase e' quella che si e' fermata"),
+		TM->GetPhase(), ERTMatchPhase::Move);
+	TestFalse(TEXT("e NON e' `Planning`: il turno non e' finito"),
+		TM->GetPhase() == ERTMatchPhase::Planning);
+
+	// ⚠️ **Uscire dal ciclo non basta: bisogna rientrarci.** Alla chiusura il turno deve arrivare in fondo,
+	// altrimenti la correzione avrebbe barattato una fase sbagliata con un turno che non finisce piu'.
+	int32 Scadenze = 0;
+	while (TM->IsResolutionSuspended() && Scadenze < 16)
+	{
+		TM->ExpireReactionWindow();
+		++Scadenze;
+	}
+	TestFalse(TEXT("chiuse le finestre, la resolution e' conclusa"), TM->IsResolutionSuspended());
+	TestEqual(TEXT("e il ciclo delle fasi e' tornato a `Planning`"),
+		TM->GetPhase(), ERTMatchPhase::Planning);
+	TestTrue(TEXT("il turno ha prodotto un TurnLog"), TM->GetTurnLog().Num() > 0);
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyResumeWorld(World);
+	return true;
+}
+
+
+/**
  * **Il ciclo completo: attesa, risposta, ripresa** (`#2679` fetta 3, [D-355]).
  *
  * ✅ **E' la copertura che le fette 1 e 2 avevano dichiarato SCOPERTA**, e che diventa verificabile solo
