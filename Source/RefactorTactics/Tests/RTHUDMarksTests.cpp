@@ -419,4 +419,39 @@ bool FRTBlockerMarkLivesUntilNextLockInTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * ⛔ A SCHERMO, «NIENTE» E «NESSUN RIFIUTO» SONO LA STESSA COSA — `#2741`, [D-225].
+ *
+ * 🔴 **Il canary di `RefusalForObserver` pinna l'indistinguibilita' sul VALORE; questo la pinna su cio' che
+ * il giocatore riceve.** Sono due difese diverse: la prima cade se qualcuno separa i due esiti nell'enum, la
+ * seconda se qualcuno da' a `Nothing` una frase — «non puoi bersagliare qui» sembra innocuo, e comparirebbe
+ * dove sta un nemico velato e **non** dove la cella e' vuota. La differenza fra un messaggio e il silenzio
+ * sarebbe essa stessa l'informazione.
+ *
+ * ⚠️ Il test asserisce l'**uguaglianza fra i due**, non che ciascuno sia vuoto: due stringhe entrambe
+ * generiche ma diverse riaprirebbero il canale, e un test su ciascuna separatamente non lo vedrebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusalTextSaysNothingForNothingTest,
+	"RefactorTactics.HUD.RefusalTextSaysNothingForNothing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRefusalTextSaysNothingForNothingTest::RunTest(const FString&)
+{
+	const FString Niente = ARTHUD::RefusalText(ERTTargetRefusal::Nothing);
+	const FString Nessuno = ARTHUD::RefusalText(ERTTargetRefusal::None);
+
+	TestEqual(TEXT("«niente da bersagliare» e «nessun rifiuto» dicono la stessa cosa a schermo"),
+		Niente, Nessuno);
+	TestTrue(TEXT("e quella cosa e' il silenzio"), Niente.IsEmpty());
+
+	// 🔴 La meta' che impedisce l'implementazione degenere: se `RefusalText` restituisse sempre vuoto, le
+	// due righe sopra passerebbero e il giocatore non riceverebbe MAI un rifiuto. I due esiti che devono
+	// parlare, parlano — e dicono cose diverse fra loro.
+	const FString Coperto = ARTHUD::RefusalText(ERTTargetRefusal::Cover);
+	const FString Lontano = ARTHUD::RefusalText(ERTTargetRefusal::Range);
+	TestFalse(TEXT("la copertura ha un testo"), Coperto.IsEmpty());
+	TestFalse(TEXT("la portata ha un testo"), Lontano.IsEmpty());
+	TestNotEqual(TEXT("e i due non dicono la stessa frase"), Coperto, Lontano);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

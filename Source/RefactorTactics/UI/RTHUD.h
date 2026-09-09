@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
 #include "Map/RTCellId.h"
+#include "Combat/RTCombatLibrary.h" // ERTTargetRefusal: l'esito gia' filtrato per l'osservatore (#2741)
 #include "Perception/RTKnowledgeView.h" // FRTKnowledgeView: l'HUD legge la vista, non lo stato
 #include "RTHUD.generated.h"
 
@@ -273,6 +274,28 @@ public:
 		TSet<FRTCellId>& OutHitCells, TSet<FRTCellId>& OutAllyHitCells);
 
 	/**
+	 * Registra il rifiuto di bersaglio da mostrare a chi gioca — `#2741`.
+	 *
+	 * ⛔ **Riceve un esito GIA' filtrato per l'osservatore** (`URTCombatLibrary::RefusalForObserver`), e non
+	 * rifiltra: e' la stessa disciplina di `ComputeBlockerMarks`, dove la difesa sta nella sorgente e un
+	 * secondo contratto di conoscenza sarebbe il difetto.
+	 *
+	 * ⚠️ **Nessun timer, nessun `DeltaTime`.** Il messaggio vive finche' il giocatore non fa un altro click:
+	 * e' stato di presentazione, e la sua durata e' un fatto dell'input, non del tempo (`CLAUDE.md` §11).
+	 */
+	void SetTargetRefusal(ERTTargetRefusal Refusal);
+
+	/**
+	 * Il testo di un rifiuto — e cio' che NON ha un testo, che e' il punto (`#2741`).
+	 *
+	 * ⛔ **`Nothing` e `None` restituiscono entrambi la stringa VUOTA, e devono restituire la stessa cosa.**
+	 * Se `Nothing` avesse una frase — anche vaga — quella frase comparirebbe dove sta un nemico velato e non
+	 * dove la cella e' davvero vuota: la differenza fra «un messaggio» e «nessun messaggio» sarebbe essa
+	 * stessa il canale ([D-225]). Statica e pura perche' sia verificabile senza aprire un viewport, come
+	 * `ComputeBlockerMarks`.
+	 */
+	static FString RefusalText(ERTTargetRefusal Refusal);
+	/**
 	 * Le celle da marcare nel mondo perche' hanno fermato un colpo — `#2697`.
 	 *
 	 * 🔑 **E' la meta' «riferimento video» del verdetto d'autore**: *«non si capisce perche' non parte, non
@@ -288,6 +311,7 @@ public:
 	 * headless, quindi cio' che si puo' sbagliare deve stare dove i test arrivano — e cio' che si sbaglia
 	 * qui e' la **sentinella**, che `FRTCellId::IsValid()` non riconosce.
 	 */
+
 	static void ComputeBlockerMarks(const TArray<struct FRTPlayerEventLineView>& Feed,
 		TSet<FRTCellId>& OutBlockerCells);
 
@@ -575,6 +599,22 @@ public:
 	 */
 	static FString ComposeMatchStatusLine(const struct FRTMatchHeaderView& Header,
 		const FString& PlaybackPhaseName, float PlaybackProgress01, bool bHasObjectiveCell);
+
+private:
+	/**
+	 * L'ultimo rifiuto di bersaglio, gia' filtrato per l'osservatore — `#2741`.
+	 *
+	 * ⚠️ **Stato di PRESENTAZIONE**: nasce da un click e muore col click seguente. Non entra nel `TurnLog`,
+	 * non tocca lo snapshot, e non ha durata propria — la simulazione non ricorda nulla perche' un
+	 * messaggio resti a schermo.
+	 */
+	ERTTargetRefusal LastRefusal = ERTTargetRefusal::None;
+
+	// ⌫ **Qui stava anche `LastRefusalCell`, e non c'e' piu'.** Registrava la cella del bersaglio cliccato
+	// — inclusa quella di un nemico che l'osservatore non conosce — per «ancorarvi il messaggio», ma nessuno
+	// la leggeva: stato morto che portava un dato sensibile in attesa di un consumatore. Quando il messaggio
+	// dovra' indicare la cella che interrompe la linea, quella cella e' gia' prodotta e gia' autorizzata da
+	// `ComputeBlockerMarks` (`#2697`), e si consuma da li' invece di ricopiarla qui.
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HUD")

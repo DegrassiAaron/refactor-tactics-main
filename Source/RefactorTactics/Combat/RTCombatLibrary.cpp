@@ -119,6 +119,45 @@ ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* 
 		? ERTHexTargetReason::Ok : ERTHexTargetReason::NoLineOfSight;
 }
 
+ERTTargetRefusal URTCombatLibrary::RefusalForObserver(ERTHexTargetReason Reason, bool bTargetKnownToObserver)
+{
+	// 🔴 **La conoscenza si valuta PRIMA della geometria, e l'ordine e' il requisito.**
+	//
+	// Invertirlo produrrebbe un difetto che nessun test di forma vedrebbe: su un bersaglio ignoto
+	// classificato `NoLineOfSight` uscirebbe «copertura», e il giocatore avrebbe appreso che li' c'e'
+	// qualcuno da un messaggio che parla d'altro. Il velo non e' un filtro applicato all'esito: e' la
+	// domanda che viene per prima.
+	if (!bTargetKnownToObserver)
+	{
+		return ERTTargetRefusal::Nothing;
+	}
+
+	switch (Reason)
+	{
+	case ERTHexTargetReason::Ok:
+		return ERTTargetRefusal::None;
+
+	case ERTHexTargetReason::OutOfRange:
+		return ERTTargetRefusal::Range;
+
+	case ERTHexTargetReason::NoLineOfSight:
+		return ERTTargetRefusal::Cover;
+
+	case ERTHexTargetReason::NoMap:
+		// ⚠️ Fail-closed, e per la stessa ragione di `ClassifyHexTargeting`: senza mappa autorevole la
+		// linea non e' verificabile, quindi non si afferma niente su di essa. `Nothing` qui non dice
+		// «non c'e' nessuno»: dice «non ho nulla da mostrarti», che e' l'unica cosa vera.
+		return ERTTargetRefusal::Nothing;
+	}
+
+	// ⛔ **Nessun `default:` nello switch, ed e' una scelta.** Con un `default` un enumerato nuovo
+	// scivolerebbe in silenzio su «non dire niente», e la feature perderebbe un caso con la suite verde.
+	// Senza, `-Wswitch` lo rende un errore di compilazione qui e ora — che e' cio' che il fail-closed di
+	// questa funzione dichiara di volere.
+	checkNoEntry();
+	return ERTTargetRefusal::Nothing;
+}
+
 bool URTCombatLibrary::CanTargetHexCell(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
 	int32 RangeCells)
 {

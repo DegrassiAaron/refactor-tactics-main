@@ -442,4 +442,107 @@ bool FRTControlGroupPartitionTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * I DUE RIFIUTI NOTI RESTANO DISTINTI, PERCHE' SUGGERISCONO AZIONI DIVERSE — `#2741`.
+ *
+ * Non e' fedelta' all'enum: «coperto» si corregge spostandosi di lato, «fuori portata» avvicinandosi.
+ * Appiattirli darebbe al giocatore un rifiuto che non gli dice cosa cambiare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusalDistinguishesCoverFromRangeTest,
+	"RefactorTactics.Combat.RefusalDistinguishesCoverFromRange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRefusalDistinguishesCoverFromRangeTest::RunTest(const FString&)
+{
+	const bool bNoto = true;
+
+	TestEqual(TEXT("una traiettoria interrotta si mostra come COPERTURA"),
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::NoLineOfSight, bNoto),
+		ERTTargetRefusal::Cover);
+
+	TestEqual(TEXT("oltre la portata si mostra come PORTATA"),
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::OutOfRange, bNoto),
+		ERTTargetRefusal::Range);
+
+	// ⚠️ **Ridondante rispetto alle due righe sopra, e tenuta apposta come guardia di REGRESSIONE.** Quelle
+	// pinnano due costanti distinte, quindi nessuna implementazione puo' soddisfarle e insieme collassare i
+	// due esiti: questa riga non puo' cadere da sola. Vale perche' dichiara il REQUISITO — la distinzione —
+	// invece dei due valori presi uno alla volta, e sopravvive a una riscrittura che cambiasse le costanti.
+	TestNotEqual(TEXT("e i due non collassano l'uno sull'altro"),
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::NoLineOfSight, bNoto),
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::OutOfRange, bNoto));
+
+	TestEqual(TEXT("un bersaglio ingaggiabile non produce rifiuto"),
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::Ok, bNoto),
+		ERTTargetRefusal::None);
+	return true;
+}
+
+/**
+ * ⛔ IL CANARY: UN BERSAGLIO IGNOTO E UNA CELLA VUOTA SONO INDISTINGUIBILI — `#2741`, [D-225].
+ *
+ * 🔴 **Il difetto che questo test esiste per impedire non e' un crash: e' un'informazione CORRETTA
+ * consegnata a chi non doveva riceverla.** Chi clicca su una cella apparentemente vuota e riceve
+ * «nessuna linea di tiro» ha appena appreso che li' c'e' qualcuno.
+ *
+ * ⚠️ **E non basta che il rifiuto «non nomini il nemico».** Due messaggi diversi — anche entrambi
+ * generici — sono essi stessi il canale: la differenza fra i due E' l'informazione. Per questo il test
+ * asserisce l'UGUAGLIANZA fra i due esiti, non la genericita' di ciascuno.
+ *
+ * 🔑 La misura che rende il caso reale: il collider di un'unita' velata **resta attivo** — il trace del
+ * click usa `ECC_Visibility`, la mesh lo blocca (`RTUnit.cpp:62-63`), e `RefreshComponentVisibility`
+ * spegne la visibilita' ma non la collisione. Un nemico invisibile e' quindi cliccabile, e senza questo
+ * collasso il rifiuto lo rivelerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusalHidesTheUnknownTargetTest,
+	"RefactorTactics.Combat.RefusalHidesTheUnknownTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRefusalHidesTheUnknownTargetTest::RunTest(const FString&)
+{
+	const bool bIgnoto = false;
+
+	// La cella VUOTA: nessuna geometria da valutare, quindi il verdetto interno non e' nemmeno un rifiuto.
+	const ERTTargetRefusal CellaVuota =
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::Ok, bIgnoto);
+
+	// Le due situazioni in cui un nemico IGNOTO produce un verdetto interno diverso — ed e' precisamente
+	// li' che il canale si aprirebbe.
+	const ERTTargetRefusal IgnotoCoperto =
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::NoLineOfSight, bIgnoto);
+	const ERTTargetRefusal IgnotoLontano =
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::OutOfRange, bIgnoto);
+
+	TestEqual(TEXT("un nemico ignoto e coperto e' indistinguibile da una cella vuota"),
+		IgnotoCoperto, CellaVuota);
+	TestEqual(TEXT("un nemico ignoto e lontano e' indistinguibile da una cella vuota"),
+		IgnotoLontano, CellaVuota);
+	TestEqual(TEXT("e i due casi ignoti non si distinguono nemmeno FRA LORO"),
+		IgnotoCoperto, IgnotoLontano);
+
+	// 🔴 E la meta' che impedisce al test di essere soddisfatto da un'implementazione degenere: se
+	// `RefusalForObserver` restituisse sempre `Nothing`, le tre righe sopra passerebbero e la feature non
+	// esisterebbe. Con lo STESSO verdetto interno, un bersaglio NOTO deve dare qualcosa di diverso.
+	TestNotEqual(TEXT("ma su un bersaglio NOTO lo stesso verdetto interno dice qualcosa"),
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::NoLineOfSight, /*bKnown=*/ true),
+		IgnotoCoperto);
+	return true;
+}
+
+/**
+ * SENZA MAPPA NON SI AFFERMA NIENTE — `#2741`, fail-closed.
+ *
+ * `NoMap` non e' «non c'e' linea di tiro»: e' «non ho verificato». Mostrarlo come copertura sarebbe
+ * affermare al giocatore qualcosa che nessuno ha valutato — la stessa ragione per cui
+ * `ClassifyHexTargeting` restituisce `NoMap` invece di indovinare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusalWithoutMapAffirmsNothingTest,
+	"RefactorTactics.Combat.RefusalWithoutMapAffirmsNothing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRefusalWithoutMapAffirmsNothingTest::RunTest(const FString&)
+{
+	TestEqual(TEXT("senza mappa autorevole non si mostra un motivo"),
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::NoMap, /*bKnown=*/ true),
+		ERTTargetRefusal::Nothing);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

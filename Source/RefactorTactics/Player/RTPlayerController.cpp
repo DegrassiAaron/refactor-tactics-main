@@ -1158,6 +1158,18 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		}
 	}
 
+	// ⛔ **Il rifiuto precedente muore QUI, in cima e per ogni click** — `#2741`.
+	//
+	// 🔴 Azzerarlo solo nel ramo che ne produce uno nuovo lascerebbe il messaggio a **mentire**: clicchi un
+	// bersaglio coperto, poi uno valido, il piano parte e a schermo resta «Coperto». La durata dichiarata e'
+	// *«vive finche' il giocatore non fa un altro click»*, e un altro click e' **questo punto**, non il
+	// sottoinsieme dei click che finiscono in rifiuto. Vale anche per il click a vuoto che esce due righe
+	// sotto: anche quello e' una decisione del giocatore, e cancella cio' che rispondeva alla precedente.
+	if (ARTHUD* RefusalHud = Cast<ARTHUD>(GetHUD()))
+	{
+		RefusalHud->SetTargetRefusal(ERTTargetRefusal::None);
+	}
+
 	FHitResult Hit;
 	if (!GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit) || !Hit.GetActor())
 	{
@@ -1423,6 +1435,23 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
 			TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells);
 
+		// 🔴 **NON SI BERSAGLIA CIO' CHE NON SI VEDE, e questa guardia chiude il canale PIU' RUMOROSO**
+		// (`#2741`). Il collider di un'unita' velata resta attivo (`#2755`), quindi un nemico invisibile e'
+		// cliccabile: se e' anche in portata e in linea, il ramo qui sotto pianificherebbe l'attacco e
+		// `RefreshPlanningPreview` disegnerebbe la zona colpita **sulla sua cella vera** — una posizione
+		// esatta a schermo, non una frase.
+		//
+		// ⚠️ **Il rifiuto testuale da solo non bastava, ed e' il difetto che una code review ha trovato in
+		// questa stessa issue**: filtrare il ramo del RIFIUTO e lasciare aperto quello del SUCCESSO chiude
+		// il canale silenzioso e lascia quello che grida.
+		//
+		// ⛔ L'uscita e' la stessa di una cella vuota: nessun piano e nessun messaggio. Non «non lo vedi»,
+		// che sarebbe di nuovo un rilevatore di presenze ([D-225]).
+		if (!ClickedUnit->IsKnownToObserver())
+		{
+			return;
+		}
+
 		if (bReady && Reason == ERTHexTargetReason::Ok)
 		{
 			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
@@ -1442,6 +1471,9 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		}
 		else
 		{
+			// ── Il canale DIAGNOSTICO, invariato: dice il vero per intero, e il suo pubblico e' chi
+			//    sviluppa. Include cio' che al giocatore va nascosto, ed e' la ragione per cui non e' la
+			//    sorgente del messaggio a schermo (`#2741`).
 			switch (Reason)
 			{
 			case ERTHexTargetReason::OutOfRange:
@@ -1455,6 +1487,24 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 				UE_LOG(LogRT, Warning,
 					TEXT("[RT] Nessuna mappa esagonale: bersagliamento non validabile, piano rifiutato"));
 				break;
+			}
+
+			// ── Il canale del GIOCATORE, che nasce filtrato e non formattato dal testo qui sopra
+			//    (`#2741`). ⛔ La conoscenza entra in `RefusalForObserver` e da nessun'altra parte: qui si
+			//    passa il flag che il velo ha gia' deciso, senza rileggerlo e senza una seconda regola.
+			//
+			// 🔴 **Perche' il flag serve davvero**: il collider di un'unita' velata resta attivo — il
+			// trace usa `ECC_Visibility`, la mesh lo blocca, e il velo spegne la visibilita' ma non la
+			// collisione. Un nemico invisibile e' quindi CLICCABILE, e senza questo filtro il rifiuto ne
+			// rivelerebbe la presenza a chi non lo osserva ([D-225]).
+			// ⚠️ **Il flag qui e' ridondante con la guardia sopra, e resta di proposito**: e' difesa in
+			// profondita'. Se qualcuno togliesse quella guardia — o aggiungesse un secondo percorso di
+			// targeting che non ce l'ha — questa riga continuerebbe a collassare il caso su `Nothing`.
+			// Toglierla renderebbe la sicurezza dipendente da un `return` a venti righe di distanza.
+			if (ARTHUD* Hud = Cast<ARTHUD>(GetHUD()))
+			{
+				Hud->SetTargetRefusal(
+					URTCombatLibrary::RefusalForObserver(Reason, ClickedUnit->IsKnownToObserver()));
 			}
 		}
 	}
