@@ -1555,23 +1555,28 @@ bool FRTScenarioLoaderCellArityTest::RunTest(const FString&)
 /**
  * #2482 — LA REGOLA VALE PER **OGNI** CAMPO CHE DICHIARA UNA CELLA, NON SOLO PER `units`.
  *
- * 🔑 **E' il criterio di copertura scritto come misura invece che come dichiarazione.** `ParseCell` ha SETTE
+ * 🔑 **E' il criterio di copertura scritto come misura invece che come dichiarazione.** `ParseCell` ha NOVE
  * punti di chiamata in `RTScenarioLoader.cpp` — `cells`, `interiorWalls`, `doors`, `units`, i passi di
- * `move`, la cella di `expect UnitAtCell` e le unita' delle `variants` — e questo test li esercita **tutti e
- * sette**, uno per blocco, con la stessa arita' rotta iniettata in un campo diverso ogni volta.
+ * `move`, la cella di `expect UnitAtCell`, le unita' delle `variants`, e da `#2546` anche `targetCell` e
+ * `dashTo`. Questo test ne esercita **sette**, uno per blocco, con la stessa arita' rotta iniettata in un
+ * campo diverso ogni volta; i due nuovi hanno un test proprio,
+ * `Scenario.LoaderRejectsMalformedTargetCellAndDashTo`, perche' portano anche i rami «campo presente ma
+ * non consumato» che gli altri sette non hanno.
  *
- * ⚠️ **Sono sette, non otto.** L'ottava occorrenza che un `grep -c ParseCell` conta e' la DEFINIZIONE della
- * funzione. Vale la pena scriverlo qui invece di lasciare che il prossimo lo riconti: «otto chiamanti» era
- * una misura di grep, non di chiamate.
+ * ⚠️ **Il numero si RICONTA, non si eredita.** Questo commento ha detto «SETTE punti di chiamata» e «sono
+ * sette, non otto — l'ottava occorrenza e' la DEFINIZIONE» fino al 2026-09-08, quando `#2546` ne ha
+ * aggiunti due e i punti di chiamata sono diventati NOVE. ⌫ E questa riga ha spedito **10** come conteggio
+ * del `grep`, che ne conta **11**: la mia stessa passata aveva aggiunto una menzione in PROSA di
+ * `ParseCell` nel loader, e non l'ho ricontata. Il paragrafo che predica «il numero si riconta» ha
+ * ereditato un numero. La frase che spiegava come non farsi ingannare
+ * dal grep e' diventata essa stessa il numero sbagliato: un criterio di copertura scritto come costante
+ * invecchia come ogni altra costante.
  *
- * 🔴 **E ci sono due campi di coordinate che NON passano da `ParseCell`: `targetCell` e `dashTo`**, letti
- * inline nell'intent con la stessa vecchia guardia (`Num() >= 2`, terzo elemento opzionale). `targetCell`
- * ha anche un difetto in piu': con meno di due elementi non e' un errore, e' un campo che SPARISCE — il
- * ramo fallisce e `bTargetsCell` resta falso senza che nessuno lo dica. **Questo test non li copre di
- * proposito**: stanno fuori dal contratto di questa wave, che nomina `ParseCell` e i suoi chiamanti, e un
- * test rosso su un ramo che nessuno ha deciso di cambiare verrebbe letto come regressione invece che come
- * Finding. Sono un Finding aperto, non una lacuna dimenticata: unificarli e' una restrizione di formato su
- * due chiavi diverse, e la sede della decisione e' l'issue.
+ * ⌫ **Questo blocco dichiarava `targetCell` e `dashTo` come «due campi che NON passano da `ParseCell`» e
+ * «un Finding aperto».** Il Finding era `#2546`, ed e' chiuso: entrambi passano da `ParseCell` dal
+ * 2026-09-08. La riga resta come registro del perche' quella lacuna fosse deliberata — stava fuori dal
+ * contratto della wave che ha scritto questo test, e un rosso su un ramo che nessuno aveva deciso di
+ * cambiare si sarebbe letto come regressione invece che come Finding.
  *
  * ⛔ **Ogni blocco porta la propria CONTROPROVA, e non e' cerimonia.** Le fixture di `interiorWalls` e
  * `doors` sono costruite a mano qui dentro: senza un caricamento riuscito con `[0, 0, 0]`, un rifiuto
@@ -2182,6 +2187,222 @@ bool FRTScenarioNoActionEnumTest::RunTest(const FString&)
 			TestFalse(FString::Printf(TEXT("%s non dichiara %s"), *File, Name), Text.Contains(Name));
 		}
 	}
+
+	return true;
+}
+
+/**
+ * `targetCell` e `dashTo` seguono lo STESSO contratto di ogni altra cella dello scenario (`#2546`).
+ *
+ * ## Il difetto che questi casi pinnano
+ *
+ * I due campi costruivano `FRTCellId` a mano, con una guardia propria e piu' debole di `ParseCell`:
+ * `targetCell` accettava `Num() >= 2` deducendo il layer a 0, `dashTo` rifiutava `< 2` e poi leggeva
+ * `Num() >= 3 ? [2] : 0`. Due arita' sbagliate su tre passavano, e la coda veniva scartata in silenzio.
+ *
+ * 🔴 **Il caso peggiore non era la coda scartata.** Con `"targetCell": [3]` **e** un `target` valido nello
+ * stesso intent: la `if` cadeva (un elemento solo), il ramo `else if` trovava il `target` e non emetteva
+ * NESSUN errore, `bTargetsCell` restava falso — e cosi' il controllo di ambiguita' di `Validate`, scritto
+ * per rifiutare «dichiara sia il bersaglio sia una cella», non aveva nulla da rifiutare. Lo scenario
+ * caricava verde e bersagliava la stringa al posto della cella che l'autore aveva scritto: non un rosso,
+ * **un verde su un'altra partita**.
+ *
+ * ## Perche' si legge il MESSAGGIO e non solo il bool
+ *
+ * Un `TestFalse` sul caricamento sarebbe verde anche se l'errore nominasse il campo sbagliato — ed e'
+ * precisamente cio' che succedeva: `"targetCell": [3]` senza `target` produceva «non dichiara un
+ * bersaglio», mandando chi legge a cercare un campo che aveva scritto. Il contratto di `#2546` e' che il
+ * messaggio nomini **il campo** e **la lunghezza trovata**, quindi e' quello che si asserisce.
+ *
+ * ⚠️ **`dashTo` ASSENTE conserva il proprio messaggio storico**, ed e' la decisione che lo scope della
+ * issue chiedeva di prendere e scrivere: «non dichiara una destinazione» e' vero per un campo che manca e
+ * falso per uno che c'e' malformato. I due rami sono separati, e l'ultimo caso qui sotto pinna che il
+ * primo non sia stato assorbito dal secondo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderIntentCellArityTest,
+	"RefactorTactics.Scenario.LoaderRejectsMalformedTargetCellAndDashTo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
+{
+	auto Rejects = [this](const FString& Json, const TCHAR* MustMention, const TCHAR* What)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(*Json, Scenario, Error);
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), What), bOk);
+		TestTrue(FString::Printf(TEXT("%s: il motivo cita '%s' (era: '%s')"), What, MustMention, *Error),
+			Error.Contains(MustMention));
+	};
+
+	// Due unita' e un'assertion: il minimo perche' lo scenario arrivi al parsing degli intent.
+	auto WithIntent = [](const FString& IntentBody) -> FString
+	{
+		return FString::Printf(TEXT(R"({"scenarioId":"X","mapRadius":3,)")
+			TEXT(R"("units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,0]},)")
+			TEXT(R"({"id":"B","hero":"Hero.Phase","team":1,"cell":[2,0,0]}],)")
+			TEXT(R"("turns":[{"intents":[%s]}],)")
+			TEXT(R"("expect":[{"type":"TurnsCompleted","value":1}]})"), *IntentBody);
+	};
+
+	// 🔑 **Le celle sono interne alla mappa (`mapRadius: 3`, e `(1,1)` dista 2), per igiene del banco.**
+	//
+	// ⌫ **Una stesura precedente di questo commento diceva che le celle fuori arena facevano rifiutare lo
+	// scenario «dalla validazione di mappa», e la spiegazione era FALSA.** Misurato: `FlatArenaContains` e'
+	// chiamato in tre punti soltanto — `cells`, le unita' di variante e `units` — e **nessuno riguarda**
+	// `targetCell` o `dashTo`, che non sono mai validati contro l'arena. `"targetCell": [3, 4]` su
+	// `mapRadius: 3` si carica benissimo.
+	//
+	// La causa vera del vuoto era un'altra, ed era nel METODO: la prima mutazione M1 sostituiva solo la
+	// CONDIZIONE dell'`if` e lasciava dentro le chiamate a `ParseCell`, quindi la guardia mutata entrava e
+	// il fix rifiutava lo stesso. Il test non era vacuo — era la misura a non rimuovere il fix.
+	//
+	// ⚠️ E c'e' un difetto ADIACENTE che questa nota registra invece di lasciarlo implicito: `Validate`
+	// porta il commento «una cella bersaglio segue le stesse regole di ogni altra cella dello scenario:
+	// fuori dall'arena e' un errore di scrittura» sopra un `continue` che **non controlla niente**. La
+	// regola e' dichiarata e non applicata; chi la implementera' trovera' questi casi gia' dentro l'arena.
+	// ---- targetCell -------------------------------------------------------------------------------
+
+	// (1) Tre elementi: accettato. E' il controllo POSITIVO — senza, ogni riga sotto sarebbe verde anche
+	// se il loader rifiutasse qualunque `targetCell`, e il test non distinguerebbe una guardia da un muro.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(
+			*WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":[1,0,0]})")),
+			Scenario, Error);
+		// Le condizioni di forma si ASSERISCONO, non si usano come guardia muta: con un `&&` grezzo, un
+		// loader che emettesse due turni farebbe sparire l'assertion sulla cella senza un rosso, e il
+		// controllo positivo direbbe «accettato» avendo verificato il solo bool.
+		if (TestTrue(FString::Printf(TEXT("[q,r,layer] completo: accettato (errore: '%s')"), *Error), bOk)
+			&& TestEqual(TEXT("un turno"), Scenario.Turns.Num(), 1)
+			&& TestEqual(TEXT("un intent"), Scenario.Turns[0].Intents.Num(), 1))
+		{
+			const FRTScenarioIntent& I = Scenario.Turns[0].Intents[0];
+			TestTrue(TEXT("bersaglia una cella"), I.bTargetsCell);
+			TestEqual(TEXT("e la cella e' quella scritta"), I.TargetCell, FRTCellId(1, 0, 0));
+		}
+	}
+
+	// (2) Due elementi: il layer NON si deduce piu'.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":[1,1]})")),
+		TEXT("targetCell"), TEXT("targetCell con due elementi"));
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":[1,1]})")),
+		TEXT("trovati 2"), TEXT("targetCell con due elementi: la lunghezza e' nel messaggio"));
+
+	// (3) Quattro elementi: la coda non si scarta piu' in silenzio.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":[1,1,0,7]})")),
+		TEXT("trovati 4"), TEXT("targetCell con quattro elementi"));
+
+	// (4) Un elemento, senza `target`: l'errore nomina `targetCell` e non piu' il bersaglio mancante.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":[3]})")),
+		TEXT("targetCell"), TEXT("targetCell con un elemento, senza target"));
+
+	// (5) 🔴 **Il caso che non emetteva NESSUN errore**: un elemento, accanto a un `target` valido.
+	//
+	// ⚠️ **Si asserisce «trovati 1», non «targetCell»**, ed e' la differenza fra pinnare l'arita' e non
+	// pinnare niente: anche il messaggio di ambiguita' di `Validate` — «dichiara sia il bersaglio 'B' sia
+	// una cella (target e targetCell insieme)» — contiene la parola `targetCell`. Con una regressione
+	// parziale che accettasse `Num() >= 1`, la cella diventerebbe (3,0,0), `bTargetsCell` passerebbe a vero
+	// e sarebbe `Validate` a rifiutare: `Contains("targetCell")` resterebbe VERO e questo caso — il caso
+	// per cui l'intera issue esiste — resterebbe verde mentre la regressione parte.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":[3],"target":"B"})")),
+		TEXT("trovati 1"), TEXT("targetCell malformato accanto a un target valido"));
+
+	// ---- dashTo -----------------------------------------------------------------------------------
+
+	// (6) Due elementi: rifiutato, dove prima il layer veniva dedotto.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Wraith.PassingBlade","dashTo":[1,1]})")),
+		TEXT("trovati 2"), TEXT("dashTo con due elementi"));
+
+	// (7) Quattro elementi: rifiutato, dove prima la coda veniva scartata.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Wraith.PassingBlade","dashTo":[1,1,0,7]})")),
+		TEXT("trovati 4"), TEXT("dashTo con quattro elementi"));
+
+	// (8) ASSENTE: il messaggio storico resta, ed e' l'unico ramo che lo conserva. Senza questo caso il
+	// ramo dell'assenza potrebbe essere assorbito da quello del malformato senza che nulla diventi rosso.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Wraith.PassingBlade"})")),
+		TEXT("non dichiara una destinazione"), TEXT("dashTo assente: messaggio invariato"));
+
+	// (9) Il CONTROLLO POSITIVO di `dashTo`, per la stessa ragione del (1): senza, tutti i casi sopra
+	// resterebbero verdi anche se il ramo rifiutasse OGNI arita', e il test non distinguerebbe una guardia
+	// da un muro. Si verifica anche la cella prodotta, non solo il bool.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(
+			*WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Wraith.PassingBlade","dashTo":[1,1,0]})")),
+			Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("dashTo [q,r,layer]: accettato (errore: '%s')"), *Error), bOk)
+			&& TestEqual(TEXT("un turno"), Scenario.Turns.Num(), 1)
+			&& TestEqual(TEXT("un intent"), Scenario.Turns[0].Intents.Num(), 1))
+		{
+			TestEqual(TEXT("e la destinazione e' quella scritta"),
+				Scenario.Turns[0].Intents[0].DashCell, FRTCellId(1, 1, 0));
+		}
+	}
+
+	// (10) Il messaggio nomina `dashTo` **e** viene dal ramo del MALFORMATO.
+	//
+	// ⚠️ **`Contains("dashTo")` da solo non basta, ed e' un oracolo piu' debole di quanto sembri**: lo
+	// contiene anche il messaggio storico dell'ASSENZA — «non dichiara una destinazione (campo dashTo)» —
+	// quindi questo caso non distinguerebbe i due rami che la issue chiede di separare. E lo contiene pure
+	// il messaggio delle chiavi sconosciute, che ENUMERA tutte le chiavi note. Si asserisce percio' una
+	// stringa che appartiene al solo `ParseCell`.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Wraith.PassingBlade","dashTo":[1,1]})")),
+		TEXT("dashTo: la cella deve essere"), TEXT("dashTo malformato: il messaggio viene dal ramo giusto"));
+
+	// ---- move: il TERZO campo di coordinate dello stesso intent ------------------------------------
+	//
+	// Portava la stessa guardia di presenza dei due qui sopra — `TryGetArrayField`, che risponde `false`
+	// sia per una chiave assente sia per una del tipo sbagliato — ed e' il caso in cui costa di piu':
+	// `move` e' l'unico dei tre a portare una LISTA di celle, quindi ha due modi di essere scritto male
+	// invece di uno. Il test gemello `Scenario.EveryCellFieldRejectsWrongArity` lo chiama gia' «il chiamante
+	// piu' esposto al refuso».
+
+	// (11) Controllo POSITIVO, prima dei rifiuti: senza, i due casi sotto resterebbero verdi anche se il
+	// ramo rifiutasse ogni `move`.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(
+			*WithIntent(TEXT(R"({"unit":"A","move":[[1,0,0],[1,1,0]]})")), Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("move come lista di celle: accettato (errore: '%s')"), *Error), bOk)
+			&& TestEqual(TEXT("un turno"), Scenario.Turns.Num(), 1)
+			&& TestEqual(TEXT("un intent"), Scenario.Turns[0].Intents.Num(), 1)
+			&& TestEqual(TEXT("due passi"), Scenario.Turns[0].Intents[0].Move.Num(), 2))
+		{
+			TestEqual(TEXT("e il secondo passo e' quello scritto"),
+				Scenario.Turns[0].Intents[0].Move[1], FRTCellId(1, 1, 0));
+		}
+	}
+
+	// (12) 🔴 **Il refuso che spariva in silenzio**: la lista scritta come stringa. `TryGetArrayField`
+	// rispondeva `false`, il blocco veniva saltato, `Intent.Move` restava vuoto e nessun errore usciva —
+	// l'unita' non si muoveva e lo scenario caricava verde.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","move":"[[1,0,0]]"})")),
+		TEXT("move"), TEXT("move scritto come stringa invece che come lista"));
+
+	// (13) E un passo con arita' sbagliata resta rifiutato da `ParseCell`, come prima.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","move":[[1,0]]})")),
+		TEXT("trovati 2"), TEXT("move con un passo a due elementi"));
+
+	// ---- il TIPO sbagliato, non solo l'arita' ------------------------------------------------------
+	//
+	// Le tre guardie nuove hanno ciascuna due rami — «campo assente» e «campo presente ma non array» — e
+	// fino a qui solo quello di `move` era esercitato. Senza questi due casi, chi ricollassasse
+	// `HasField` + `TryGetArrayField` in una guardia sola su `targetCell` o `dashTo` li riporterebbe al
+	// silenzio che questa issue rimuove, e i casi sopra resterebbero tutti verdi.
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":"1,0,0"})")),
+		TEXT("targetCell non e' un array"), TEXT("targetCell scritto come stringa"));
+	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Wraith.PassingBlade","dashTo":"1,1,0"})")),
+		TEXT("dashTo non e' un array"), TEXT("dashTo scritto come stringa"));
+
+	// ⌫ **Qui stava un caso su `"dash": "None"`, rimosso col controllo che lo motivava.**
+	// ⚠️ E la sua rimozione lascia scoperto un difetto PREESISTENTE che vale la pena nominare:
+	// `FName(TEXT("None"))` **e'** `NAME_None`, quindi `{"dash":"None","dashTo":[1,1,0]}` si carica verde
+	// e a runtime `RTScenarioSession` salta il dash — `dashTo` viene letto e consumato da nessuno. Non e'
+	// stato introdotto da questa passata e non si chiude qui: chiuderlo chiede di decidere se `"None"` sia
+	// un identificatore legale o un refuso, e la sede della decisione e' un'issue.
 
 	return true;
 }
