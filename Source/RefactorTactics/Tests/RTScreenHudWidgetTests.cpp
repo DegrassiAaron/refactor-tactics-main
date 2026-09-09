@@ -11,6 +11,8 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTTurnLog.h" // FRTTurnLogEntry: il feed si prova iniettando una voce nel log
+#include "Unit/RTUnit.h" // ARTUnit: e' una delle classi AUTOREVOLI che nessun widget deve esporre
+#include "UI/RTReactionWindowViewModel.h" // idem, ed e' quella che porterebbe `SubmitResponse` nel grafo
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/Texture2D.h"
@@ -189,6 +191,51 @@ namespace
 		return false;
 	}
 
+	/**
+	 * Il nome della classe AUTOREVOLE che questa proprieta' porta, o vuoto (CP 14.6, `#166`).
+	 *
+	 * Stessa forma ricorsiva di `HudWidgetCarriesTexture`, e per la stessa ragione: un contenitore nasconde
+	 * il tipo. Cio' che cambia e' cosa si cerca — non un asset, ma una **porta**: un widget che raggiunge il
+	 * `TurnManager`, un `ARTUnit` o il view model della finestra ha il modo di ricalcolare e di rispondere,
+	 * che e' esattamente cio' che §4.1 chiude e che la DoD di CP 14.6 chiede al widget della finestra.
+	 */
+	FString HudWidgetAuthorityCarried(const FProperty* Prop)
+	{
+		if (!Prop)
+		{
+			return FString();
+		}
+		if (const FObjectPropertyBase* AsObject = CastField<FObjectPropertyBase>(Prop))
+		{
+			const UClass* Carried = AsObject->PropertyClass;
+			if (!Carried)
+			{
+				return FString();
+			}
+			if (Carried->IsChildOf(ARTTurnManager::StaticClass())
+				|| Carried->IsChildOf(ARTUnit::StaticClass())
+				|| Carried->IsChildOf(URTReactionWindowViewModel::StaticClass()))
+			{
+				return Carried->GetName();
+			}
+			return FString();
+		}
+		if (const FArrayProperty* AsArray = CastField<FArrayProperty>(Prop))
+		{
+			return HudWidgetAuthorityCarried(AsArray->Inner);
+		}
+		if (const FSetProperty* AsSet = CastField<FSetProperty>(Prop))
+		{
+			return HudWidgetAuthorityCarried(AsSet->ElementProp);
+		}
+		if (const FMapProperty* AsMap = CastField<FMapProperty>(Prop))
+		{
+			const FString FromKey = HudWidgetAuthorityCarried(AsMap->KeyProp);
+			return FromKey.IsEmpty() ? HudWidgetAuthorityCarried(AsMap->ValueProp) : FromKey;
+		}
+		return FString();
+	}
+
 	/** I widget NOSTRI: nativi, dentro questo modulo. Un Blueprint caricato non entra — il suo caso e'
 	 *  dichiarato fuori scope sopra, e includerlo renderebbe l'esito dipendente da cosa e' in memoria. */
 	TArray<UClass*> ModuleHudWidgetClasses()
@@ -221,16 +268,23 @@ bool FRTScreenHudNoTextureTest::RunTest(const FString&)
 	const TArray<UClass*> WidgetClasses = ModuleHudWidgetClasses();
 
 	// Controprova della PREMESSA, e stavolta verifica la copertura invece della lunghezza di una lista:
-	// i sette widget dell'HUD devono essere fra quelli trovati. Se l'enumerazione smettesse di funzionare,
-	// il test cadrebbe qui invece di passare senza guardare niente.
+	// i widget dell'HUD devono essere fra quelli trovati. Se l'enumerazione smettesse di funzionare, il
+	// test cadrebbe qui invece di passare senza guardare niente.
+	//
+	// ⚠️ **Due voci mancavano e sono state aggiunte il 2026-09-09** (`#166`): `URTFastDecisionWidget`, che
+	// nasce con questo checkpoint, e `URTPlayerEventLogWidget`, che era entrato con `#2697` senza passare di
+	// qui. La lista e' scritta a mano e non si aggiorna da sola: chi aggiunge un widget alla famiglia
+	// aggiunge una riga anche qui, o la «copertura» resta vera di una famiglia piu' piccola di quella reale.
 	const TArray<UClass*> MustBeCovered = {
 		URTScreenHudWidgetBase::StaticClass(),
 		URTTurnHeaderWidget::StaticClass(),
+		URTPlayerEventLogWidget::StaticClass(),
 		URTTeamRosterWidget::StaticClass(),
 		URTSelectedUnitPanelWidget::StaticClass(),
 		URTActionDockWidget::StaticClass(),
 		URTActionSlotWidget::StaticClass(),
 		URTTacticalHUDWidget::StaticClass(),
+		URTFastDecisionWidget::StaticClass(),
 	};
 	for (UClass* Class : MustBeCovered)
 	{
@@ -279,6 +333,214 @@ bool FRTScreenHudNoTextureTest::RunTest(const FString&)
 	// Senza questa riga il test sarebbe verde anche se l'iterazione non vedesse nulla.
 	TestTrue(TEXT("l'iterazione ha davvero guardato delle superfici"), Inspected > 0);
 
+	return true;
+}
+
+/**
+ * 🔴 **«NESSUNA LOGICA DI GIOCO NEL WIDGET» SMETTE DI ESSERE UNA PROMESSA** (CP 14.6, `#166`, voce 2).
+ *
+ * Fino a qui quella riga di DoD si verificava **leggendo il diff**: nessun test poteva dire se un widget
+ * avesse acquistato una porta sul core. Questo test la rende falsificabile, e in due modi che vanno tenuti
+ * distinti perche' chiudono difetti diversi.
+ *
+ * **(1) Nessuna porta, su NESSUN widget della famiglia.** `URTReactionWindowViewModel::SubmitResponse` e'
+ * `BlueprintCallable`: un accessore **pubblico** sulla base — la forma che questo checkpoint stava per
+ * prendere — metterebbe un nodo che **spara un Overwatch** nel grafo di tutte e sei le classi derivate,
+ * roster ed event log compresi. Percio' si guarda l'intera famiglia e non il solo widget nuovo:
+ * `GetReactionWindow()` e' `protected` e non riflessa, e questa riga e' cio' che lo mantiene vero.
+ *
+ * **(2) La risposta non si NOMINA.** `ChooseOption` prende un `int32`. Se prendesse una `FString`, il
+ * widget diventerebbe il nono produttore del letterale `FIRE`/`HOLD` — otto siti dello scenario harness lo
+ * confrontano `CaseSensitive` — e il primo fuori dai test del core. E un `FRTReactionWindowOptionView` come
+ * parametro non basterebbe: un Blueprint ne costruisce uno ai default, con `Response` **vuota**, che il
+ * core legge come **scadenza**.
+ *
+ * ⚠️ **Il limite e' lo stesso di `WidgetApiExposesNoTexture` e va ripetuto**: si vede la superficie C++, non
+ * il grafo di un `.uasset`. Un `WBP_RT_*` puo' sempre aggiungersi una variabile — nessun gate lo impedisce,
+ * perche' i Blueprint non sono versionati qui. Cio' che questo test garantisce e' che il C++ non gliela
+ * **offra**.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudFastDecisionNoAuthorityTest,
+	"RefactorTactics.ScreenHud.FastDecisionApiCarriesNoAuthority",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudFastDecisionNoAuthorityTest::RunTest(const FString&)
+{
+	// --- 1. NESSUNA PORTA, su tutta la famiglia -----------------------------------------------------
+	const TArray<UClass*> WidgetClasses = ModuleHudWidgetClasses();
+	if (!TestTrue(TEXT("premessa: l'enumerazione trova il widget della finestra"),
+			WidgetClasses.Contains(URTFastDecisionWidget::StaticClass())))
+	{
+		return false;
+	}
+
+	// 🔴 **Si guarda cio' che i Blueprint VEDONO, non cio' che la riflessione elenca — e la distinzione e'
+	// stata misurata, non prevista.** La prima stesura iterava tutte le `UPROPERTY` e segnalava tre campi
+	// PRIVATI della base: `TurnManager`, `SelectedUnitForTest` e `ReactionWindow`. Sono `UPROPERTY(Transient)`
+	// **senza** flag Blueprint, e la `UPROPERTY` li' serve al **GC** — un weak pointer al view model raccolto
+	// spegnerebbe il ramo interattivo a partita in corso. Nessun grafo li raggiunge.
+	//
+	// ⚠️ **Il criterio sbagliato non era «troppo severo»: diceva una cosa falsa.** Il messaggio d'errore
+	// affermava *«espone ai Blueprint»* di campi che ai Blueprint non arrivano — e chi lo avesse letto
+	// avrebbe tolto la `UPROPERTY` giusta per il motivo sbagliato.
+	//
+	// ⚠️ Vale anche per le funzioni: solo quelle raggiungibili da un grafo (`BlueprintCallable`,
+	// `BlueprintPure`, `BlueprintImplementableEvent`) sono una superficie. Una `UFUNCTION()` nuda esiste per
+	// il delegate binding, non per l'autore di un `.uasset`.
+	static constexpr uint64 BlueprintReachable =
+		FUNC_BlueprintCallable | FUNC_BlueprintEvent;
+
+	int32 Inspected = 0;
+	for (const UClass* Class : WidgetClasses)
+	{
+		for (TFieldIterator<FProperty> It(Class, EFieldIterationFlags::None); It; ++It)
+		{
+			if (!It->HasAnyPropertyFlags(CPF_BlueprintVisible))
+			{
+				continue;
+			}
+			++Inspected;
+			const FString Carried = HudWidgetAuthorityCarried(*It);
+			if (!Carried.IsEmpty())
+			{
+				AddError(FString::Printf(
+					TEXT("%s::%s espone `%s` ai Blueprint: e' una PORTA sul core. §4.1 chiude questa ")
+					TEXT("strada — se non c'e' il puntatore, non c'e' il modo di ricalcolare — e per la ")
+					TEXT("finestra di reazione significherebbe un nodo che risponde `FIRE` nel grafo di ")
+					TEXT("un widget che non deve poterlo fare."),
+					*Class->GetName(), *It->GetName(), *Carried));
+			}
+		}
+
+		for (TFieldIterator<UFunction> Fn(Class, EFieldIterationFlags::None); Fn; ++Fn)
+		{
+			if ((Fn->FunctionFlags & BlueprintReachable) == 0)
+			{
+				continue;
+			}
+			for (TFieldIterator<FProperty> Param(*Fn, EFieldIterationFlags::None); Param; ++Param)
+			{
+				++Inspected;
+				const FString Carried = HudWidgetAuthorityCarried(*Param);
+				if (!Carried.IsEmpty())
+				{
+					AddError(FString::Printf(
+						TEXT("%s::%s espone `%s` nella propria firma: la presentazione riceve VISTE, ")
+						TEXT("non attori."),
+						*Class->GetName(), *Fn->GetName(), *Carried));
+				}
+			}
+		}
+	}
+	TestTrue(TEXT("l'iterazione ha davvero guardato delle superfici"), Inspected > 0);
+
+	// ⛔ **Controprova della PREMESSA, e senza di essa il punto 1 sarebbe verde a vuoto.** I tre campi che
+	// hanno fatto cadere la prima stesura devono esistere e **non** essere Blueprint-visibili: e' il fatto
+	// su cui poggia tutto il filtro qui sopra, e un giorno qualcuno potrebbe marcarne uno `BlueprintReadOnly`
+	// «per comodita' di debug».
+	for (const TCHAR* Nome : { TEXT("TurnManager"), TEXT("SelectedUnitForTest"), TEXT("ReactionWindow") })
+	{
+		const FProperty* Prop =
+			URTScreenHudWidgetBase::StaticClass()->FindPropertyByName(FName(Nome));
+		if (TestNotNull(*FString::Printf(TEXT("la base dichiara `%s`"), Nome), Prop))
+		{
+			TestFalse(
+				*FString::Printf(TEXT("`%s` NON e' visibile ai Blueprint: e' riflessa per il GC"), Nome),
+				Prop->HasAnyPropertyFlags(CPF_BlueprintVisible));
+		}
+	}
+
+	// --- 2. LA RISPOSTA NON SI NOMINA: `ChooseOption` prende un indice ------------------------------
+	const UFunction* Choose =
+		URTFastDecisionWidget::StaticClass()->FindFunctionByName(TEXT("ChooseOption"));
+	if (!TestNotNull(TEXT("`ChooseOption` e' esposta ai Blueprint"), Choose))
+	{
+		return false;
+	}
+
+	int32 Parametri = 0;
+	for (TFieldIterator<FProperty> Param(Choose, EFieldIterationFlags::None); Param; ++Param)
+	{
+		if (Param->HasAnyPropertyFlags(CPF_ReturnParm))
+		{
+			continue;
+		}
+		++Parametri;
+		TestTrue(
+			*FString::Printf(TEXT("`ChooseOption::%s` e' un intero, non una risposta da comporre"),
+				*Param->GetName()),
+			CastField<FIntProperty>(*Param) != nullptr);
+	}
+	TestEqual(TEXT("`ChooseOption` prende un parametro solo: l'indice"), Parametri, 1);
+
+	// --- 3. E nessuna funzione del widget accetta una stringa --------------------------------------
+	// E' la meta' che chiude la porta di lato: un secondo mutatore che prendesse una `FString` renderebbe
+	// il punto 2 vero e la regola falsa.
+	for (TFieldIterator<UFunction> Fn(URTFastDecisionWidget::StaticClass(), EFieldIterationFlags::None);
+		 Fn; ++Fn)
+	{
+		if ((Fn->FunctionFlags & BlueprintReachable) == 0)
+		{
+			continue;
+		}
+		for (TFieldIterator<FProperty> Param(*Fn, EFieldIterationFlags::None); Param; ++Param)
+		{
+			if (Param->HasAnyPropertyFlags(CPF_ReturnParm))
+			{
+				continue;
+			}
+			if (CastField<FStrProperty>(*Param) || CastField<FNameProperty>(*Param))
+			{
+				AddError(FString::Printf(
+					TEXT("`URTFastDecisionWidget::%s` accetta `%s` come testo: la risposta si INDICA per ")
+					TEXT("indice, non si nomina. `FIRE:<indice>` e' un formato con un solo produttore ")
+					TEXT("(`URTReactionOpportunityLibrary::FireResponse`)."),
+					*Fn->GetName(), *Param->GetName()));
+			}
+		}
+	}
+
+	return true;
+}
+
+/**
+ * ⛔ **SENZA VIEW MODEL IL WIDGET NON MOSTRA NIENTE, e non esplode** (CP 14.6, `#166`).
+ *
+ * 🔴 **Non e' un caso limite: e' il percorso normale per qualche frame.** `ARTGameMode::BeginPlay` presenta
+ * l'HUD prima di spawnare il `TurnManager`, e `URTFrontendNavigator::PresentMatchHud` crea i widget con
+ * `CreateWidget(GameInstance, ...)` — quindi puo' non esserci ancora un proprietario da cui risolvere la
+ * finestra. Un widget che in quel momento chiamasse `GetWindow()` su un puntatore nullo chiuderebbe la
+ * partita al primo frame.
+ *
+ * ⚠️ **Il residuo e' `-1`, non `0`, e la differenza e' semantica**: zero direbbe «scaduta adesso», che e' lo
+ * stato in cui il countdown NON deve piu' accettare input. E' la convenzione di
+ * `FRTMatchHeaderView::PlanningSecondsRemaining`, tenuta uguale di proposito.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudFastDecisionEmptyTest,
+	"RefactorTactics.ScreenHud.FastDecisionWithoutAWindowShowsNothing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudFastDecisionEmptyTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTFastDecisionWidget* Widget = NewObject<URTFastDecisionWidget>(World);
+	if (!TestNotNull(TEXT("widget"), Widget)) { DestroyHudWidgetWorld(World); return false; }
+
+	TestFalse(TEXT("nessuna finestra da disegnare"), Widget->IsWindowOpen());
+
+	const FRTReactionWindowView Vista = Widget->GetWindow();
+	TestFalse(TEXT("la vista e' ai default"), Vista.bOpen);
+	TestEqual(TEXT("e non offre nessuna opzione da premere"), Vista.Options.Num(), 0);
+	TestTrue(TEXT("il residuo dice «nessuna finestra», non «scaduta adesso»"),
+		Widget->GetRemainingSeconds() < 0.f);
+
+	// Un click senza finestra non deve fare nulla ne' esplodere: e' il ramo che un `.uasset` prende ogni
+	// volta che un bottone sopravvive di un frame alla propria finestra. ⛔ Nessuna warning attesa qui: si
+	// esce PRIMA di valutare l'indice, perche' senza view model non c'e' un elenco su cui giudicarlo.
+	Widget->ChooseOption(0);
+	TestFalse(TEXT("e dopo il click continua a non esserci nessuna finestra"), Widget->IsWindowOpen());
+
+	DestroyHudWidgetWorld(World);
 	return true;
 }
 

@@ -26,6 +26,8 @@
 #include "Player/RTPlayerController.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTPlaybackLibrary.h"
+#include "Unit/RTUnit.h" // la guardia di `D-350` interroga le unita', non una modalita'
+#include "Tests/RTWorldFixtures.h" // MakePlayerOnTeam: la squadra viene dal PlayerState, non da un default
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 
@@ -221,6 +223,152 @@ bool FRTHudPlaybackSpeedWritesOnlyViewerTest::RunTest(const FString&)
 
 	// Un comando senza partita non deve esplodere: l'HUD esiste anche prima del turn manager.
 	ARTPlayerController::ApplyNextPlaybackSpeed(nullptr);
+
+	DestroyPlaybackSpeedWorld(World);
+	return true;
+}
+
+// =====================================================================================================
+// La manopola e' di chi OSSERVA — [`D-350`](../../../docs/decisions/RT_PDR_00_Decision_Log.md), CP 14.6 (`#166`), voce 12
+//
+// ⚠️ **Questi due test misurano la POLITICA, non la meccanica.** I tre sopra provano la scala e cosa il
+// controllo scrive, e restano invariati: `ApplyNextPlaybackSpeed` non ha guardie e non deve averne. Qui si
+// prova chi puo' girare la manopola, e la domanda passa da `ARTPlayerController::CyclePlaybackSpeed()` —
+// che e' lo **stesso corpo** che l'input esegue. Un predicato provato a parte sarebbe un criterio che non
+// puo' fallire: togliere la guardia dall'handler lo lascerebbe verde.
+// =====================================================================================================
+
+namespace
+{
+	/** Nome distinto per la unity build, come `MakePlaybackSpeedWorld`. */
+	ARTUnit* SpawnSpeedUnit(UWorld* World, int32 TeamId, bool bBot)
+	{
+		ARTUnit* Unit = World ? World->SpawnActor<ARTUnit>() : nullptr;
+		if (Unit)
+		{
+			Unit->TeamId = TeamId;
+			Unit->bIsBotControlled = bBot;
+		}
+		return Unit;
+	}
+}
+
+/**
+ * 🔴 **DOVE UNA FINESTRA PUO' APRIRSI, IL TASTO `V` E' INERTE** (`#166`, voce 12).
+ *
+ * Accelerare mentre un `FastReactionDuration` scorre accorcerebbe il tempo che il gioco concede per
+ * rispondere: sarebbe la presentazione a decidere quanto dura una regola. `D-350` lo vieta con un criterio
+ * **funzionale** — *«esiste un'unita' del giocatore locale, non bot, che puo' ricevere una finestra?»* — e
+ * non nominando una modalita': `ERTMatchMode` non esiste, e inventarlo per un binding di tastiera sarebbe
+ * il cambiamento piu' grande dei due.
+ *
+ * ⚠️ **Il PASSO 1 e' il controllo, e senza di esso il test sarebbe soddisfatto da un tasto rotto**: «non
+ * cambia niente» e' vero anche di un comando che non funziona piu'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudPlaybackSpeedInertWithWindowTest,
+	"RefactorTactics.HUD.PlaybackSpeedIsInertWhereAWindowCanOpen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudPlaybackSpeedInertWithWindowTest::RunTest(const FString&)
+{
+	UWorld* World = MakePlaybackSpeedWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTTurnManager* TurnManager = World->SpawnActor<ARTTurnManager>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, /*TeamId=*/ 0);
+	ARTUnit* Mia = SpawnSpeedUnit(World, /*TeamId=*/ 0, /*bBot=*/ true);
+	if (!TestNotNull(TEXT("turn manager"), TurnManager) || !TestNotNull(TEXT("controller"), PC)
+		|| !TestNotNull(TEXT("unita'"), Mia))
+	{
+		DestroyPlaybackSpeedWorld(World);
+		return false;
+	}
+
+	// --- PASSO 1 — CONTROLLO: solo unita' bot, la manopola gira -------------------------------------
+	// E' il caso dell'autobattle: `bIsBotControlled` e' vero su tutte (`RTMatchBootstrapper`), nessuna
+	// finestra puo' aprirsi, e la scala resta quella per cui e' nata.
+	TurnManager->ViewerPlaybackSpeed = 1.f;
+	PC->CyclePlaybackSpeed();
+	if (!TestTrue(TEXT("controllo: con sole unita' bot il tasto funziona (x1 -> x2)"),
+			FMath::IsNearlyEqual(TurnManager->ViewerPlaybackSpeed, 2.f, 1e-3f)))
+	{
+		DestroyPlaybackSpeedWorld(World);
+		return false;
+	}
+
+	// --- PASSO 2 — LA MISURA: la stessa unita' torna al giocatore, il tasto si spegne ---------------
+	// Cambia UN campo solo fra i due passi: e' cio' che rende la differenza attribuibile alla guardia e non
+	// all'allestimento.
+	Mia->bIsBotControlled = false;
+	const float Prima = TurnManager->ViewerPlaybackSpeed;
+
+	PC->CyclePlaybackSpeed();
+	TestTrue(TEXT("con un'unita' del giocatore il tasto e' inerte"),
+		FMath::IsNearlyEqual(TurnManager->ViewerPlaybackSpeed, Prima, 1e-3f));
+
+	// E resta inerte: non e' un ritardo di un frame, e' una porta chiusa.
+	PC->CyclePlaybackSpeed();
+	PC->CyclePlaybackSpeed();
+	TestTrue(TEXT("e resta inerte a ogni pressione"),
+		FMath::IsNearlyEqual(TurnManager->ViewerPlaybackSpeed, Prima, 1e-3f));
+
+	DestroyPlaybackSpeedWorld(World);
+	return true;
+}
+
+/**
+ * ⛔ **UN'UNITA' CHE NON PUO' RISPONDERE NON SPEGNE IL TASTO** (`#166`, voce 12).
+ *
+ * Il criterio di `D-350` dice *«un'unita' del giocatore locale, non bot, che PUO' RICEVERE una finestra»*, e
+ * i due modi in cui quel «puo'» e' falso sono qui:
+ *
+ * · **l'unita' e' caduta** — il ciclo delle reazioni salta chi non e' vivo (`!WatchOwner->IsAlive()`), e da
+ *   quel momento il giocatore sta **osservando**: e' esattamente di chi osserva che la velocita' e';
+ * · **l'unita' non e' sua** — un avversario umano ricevera' le proprie finestre sul proprio client, e
+ *   spegnere il tasto qui proteggerebbe una decisione che non passa da questa persona.
+ *
+ * 🔴 **Senza questo test la guardia sarebbe indistinguibile da un «esiste un'unita' non-bot qualsiasi?»**,
+ * che e' la forma sbagliata e piu' facile da scrivere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudPlaybackSpeedIgnoresSilentUnitsTest,
+	"RefactorTactics.HUD.PlaybackSpeedIgnoresUnitsThatCannotAnswer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudPlaybackSpeedIgnoresSilentUnitsTest::RunTest(const FString&)
+{
+	UWorld* World = MakePlaybackSpeedWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTTurnManager* TurnManager = World->SpawnActor<ARTTurnManager>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, /*TeamId=*/ 0);
+	// Un'unita' NON bot della squadra avversaria: la piu' vicina al falso positivo.
+	ARTUnit* Avversaria = SpawnSpeedUnit(World, /*TeamId=*/ 1, /*bBot=*/ false);
+	// E una MIA, non bot, ma caduta.
+	ARTUnit* Caduta = SpawnSpeedUnit(World, /*TeamId=*/ 0, /*bBot=*/ false);
+	if (!TestNotNull(TEXT("turn manager"), TurnManager) || !TestNotNull(TEXT("controller"), PC)
+		|| !TestNotNull(TEXT("unita' avversaria"), Avversaria) || !TestNotNull(TEXT("unita' caduta"), Caduta))
+	{
+		DestroyPlaybackSpeedWorld(World);
+		return false;
+	}
+	Caduta->Health = 0;
+	if (!TestFalse(TEXT("premessa: l'unita' e' davvero caduta"), Caduta->IsAlive()))
+	{
+		DestroyPlaybackSpeedWorld(World);
+		return false;
+	}
+
+	// Nessuna delle due puo' ricevere una finestra su questo client: la manopola resta girabile.
+	TurnManager->ViewerPlaybackSpeed = 1.f;
+	PC->CyclePlaybackSpeed();
+	TestTrue(TEXT("un'unita' avversaria e una caduta non spengono il tasto (x1 -> x2)"),
+		FMath::IsNearlyEqual(TurnManager->ViewerPlaybackSpeed, 2.f, 1e-3f));
+
+	// --- La controprova: basta che UNA torni in piedi perche' il tasto si spenga --------------------
+	// Senza questa meta' il test non distinguerebbe la guardia da un `return false` costante.
+	Caduta->Health = 100;
+	const float Prima = TurnManager->ViewerPlaybackSpeed;
+	PC->CyclePlaybackSpeed();
+	TestTrue(TEXT("con la stessa unita' viva il tasto torna inerte"),
+		FMath::IsNearlyEqual(TurnManager->ViewerPlaybackSpeed, Prima, 1e-3f));
 
 	DestroyPlaybackSpeedWorld(World);
 	return true;
