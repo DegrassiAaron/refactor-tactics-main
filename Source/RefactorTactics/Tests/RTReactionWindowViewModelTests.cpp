@@ -778,4 +778,117 @@ bool FRTFastDecisionChoosesByIndexTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **LA VISIBILITA' SEGUE L'APERTURA, NON IL NUMERO — e qui il numero dice davvero zero** (`#166`,
+ * voce 3; rilievo `F7` dello spec panel del 2026-09-09).
+ *
+ * 🔑 **E' la meta' che nessun test poteva misurare finche' il vestito del binding stava in un grafo.**
+ * `GetOpenReactionWindowRemainingSeconds()` scorre col `Tick` dell'Actor e il widget disegna col proprio:
+ * il countdown mostrato tocca lo zero **prima** che la finestra si chiuda. Un binding di `Visibility`
+ * costruito sul numero — la scorciatoia naturale nel Designer — farebbe sparire il prompt mentre il gioco
+ * sta ancora aspettando una risposta, e la risposta mancata diventerebbe un `HoldTimeout` che nel TurnLog
+ * e' indistinguibile da una scelta deliberata.
+ *
+ * Il test porta la finestra **dentro** quella fessura e ci guarda: numero a zero, finestra ancora aperta,
+ * `Visible`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFastDecisionVisibilityFollowsOpennessTest,
+	"RefactorTactics.ScreenHud.FastDecisionVisibilityFollowsOpennessNotTheCountdown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFastDecisionVisibilityFollowsOpennessTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	InitVmWorld(World);
+	SpawnVmMap(World);
+
+	ARTUnit* Mover = SpawnVmUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTUnit* Watcher = SpawnVmUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, /*TeamId=*/ 1);
+	URTFastDecisionWidget* Widget = NewObject<URTFastDecisionWidget>(World);
+	if (!TestNotNull(TEXT("TurnManager"), TM) || !TestNotNull(TEXT("GameMode"), GameMode)
+		|| !TestNotNull(TEXT("PlayerController"), PC) || !TestNotNull(TEXT("widget"), Widget))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// --- 1. Senza finestra: collassata, e i due testi vuoti ------------------------------------------
+	// `Collapsed` e non `Hidden`: una finestra chiusa non deve lasciare un buco nel layout.
+	TestEqual(TEXT("senza finestra la visibilita' e' Collapsed"),
+		static_cast<int32>(Widget->GetWindowVisibility()),
+		static_cast<int32>(ESlateVisibility::Collapsed));
+	TestTrue(TEXT("e il countdown e' vuoto, non «0»"), Widget->GetCountdownText().IsEmpty());
+	TestTrue(TEXT("e l'etichetta e' vuota"), Widget->GetPromptText().IsEmpty());
+
+	ArmOverwatchScenario(Mover, Watcher);
+	GameMode->HookReactionWindow();
+	Widget->SetReactionWindowForTest(PC->GetReactionWindowViewModel());
+
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("premessa: una finestra attende"), Widget->IsWindowOpen()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// --- 2. Finestra appena aperta: visibile, e il countdown dice qualcosa ---------------------------
+	TestEqual(TEXT("con la finestra aperta la visibilita' e' Visible"),
+		static_cast<int32>(Widget->GetWindowVisibility()),
+		static_cast<int32>(ESlateVisibility::Visible));
+	TestFalse(TEXT("e il countdown non e' vuoto"), Widget->GetCountdownText().IsEmpty());
+	TestFalse(TEXT("e l'etichetta non e' vuota"), Widget->GetPromptText().IsEmpty());
+
+	// --- 3. LA MISURA: dentro la fessura fra «il numero dice zero» e «la finestra si chiude» ---------
+	// Tick deterministici: la durata e' server-authoritative e il residuo e' `durata - trascorso`, quindi
+	// questo ciclo atterra sempre nello stesso punto. Il tetto esiste per far fallire il test invece di
+	// appenderlo, se un giorno la finestra smettesse di scadere.
+	int32 Giri = 0;
+	while (Widget->IsWindowOpen() && Widget->GetRemainingSeconds() > 0.05f && Giri < 2000)
+	{
+		TM->Tick(0.01f);
+		++Giri;
+	}
+
+	if (!TestTrue(TEXT("la finestra e' ancora APERTA a residuo quasi nullo — e' la fessura da misurare"),
+			Widget->IsWindowOpen()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// 🔑 Il numero disegnato E' zero: senza questa riga il punto 4 non proverebbe niente, perche' potrebbe
+	// essere verde semplicemente perche' il countdown non ci e' mai arrivato.
+	const FString Countdown = Widget->GetCountdownText().ToString();
+	TestTrue(*FString::Printf(TEXT("il numero mostrato e' a zero (letto: «%s»)"), *Countdown),
+		Countdown.Contains(TEXT("0")) && !Countdown.Contains(TEXT("1"))
+			&& !Countdown.Contains(TEXT("2")) && !Countdown.Contains(TEXT("3")));
+
+	// --- 4. E la visibilita' NON lo segue ------------------------------------------------------------
+	TestEqual(TEXT("il prompt e' ANCORA visibile: il gioco sta ancora aspettando una risposta"),
+		static_cast<int32>(Widget->GetWindowVisibility()),
+		static_cast<int32>(ESlateVisibility::Visible));
+
+	// ⚠️ **Mai un segno meno.** Fra l'ultimo tick dell'orologio e la chiusura il residuo puo' essere di poco
+	// negativo, e sarebbe l'unico momento in cui il widget mostra qualcosa che il gioco non ha mai detto.
+	TestFalse(TEXT("e il numero non porta mai un segno meno"), Countdown.Contains(TEXT("-")));
+
+	// --- 5. Chiusa la finestra, tutto torna neutro ---------------------------------------------------
+	Giri = 0;
+	while (Widget->IsWindowOpen() && Giri < 2000)
+	{
+		TM->Tick(0.01f);
+		++Giri;
+	}
+	TestEqual(TEXT("chiusa la finestra la visibilita' torna Collapsed"),
+		static_cast<int32>(Widget->GetWindowVisibility()),
+		static_cast<int32>(ESlateVisibility::Collapsed));
+	TestTrue(TEXT("e il countdown torna vuoto"), Widget->GetCountdownText().IsEmpty());
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
