@@ -2351,24 +2351,12 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Wraith.PassingBlade","dashTo":[1,1]})")),
 		TEXT("dashTo: la cella deve essere"), TEXT("dashTo malformato: il messaggio viene dal ramo giusto"));
 
-	// ---- il campo dichiarato che NESSUNO consuma ---------------------------------------------------
-	//
-	// 🔴 **Questi due casi coprono il difetto che la prima stesura del fix aveva un livello piu' su.**
-	// `targetCell` si legge dentro `if (ability non vuota)` e `dashTo` dentro `if (dash non vuota)`: con
-	// una `ability` vuota il blocco veniva saltato, la cella non veniva mai letta e NESSUN errore usciva —
-	// esattamente «un campo presente e malformato trattato come assente», la frase che questa issue usa per
-	// descrivere cio' che corregge.
-	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"","targetCell":[1,0,0]})")),
-		TEXT("targetCell"), TEXT("targetCell valido con ability vuota: nessuno lo consuma"));
-	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"","dashTo":[1,1,0]})")),
-		TEXT("dashTo"), TEXT("dashTo valido con dash vuota: nessuno lo consuma"));
-
 	// ---- move: il TERZO campo di coordinate dello stesso intent ------------------------------------
 	//
 	// Portava la stessa guardia di presenza dei due qui sopra — `TryGetArrayField`, che risponde `false`
 	// sia per una chiave assente sia per una del tipo sbagliato — ed e' il caso in cui costa di piu':
 	// `move` e' l'unico dei tre a portare una LISTA di celle, quindi ha due modi di essere scritto male
-	// invece di uno. Il test gemello `LoaderRejectsCellArityAtEveryCallSite` lo chiama gia' «il chiamante
+	// invece di uno. Il test gemello `Scenario.EveryCellFieldRejectsWrongArity` lo chiama gia' «il chiamante
 	// piu' esposto al refuso».
 
 	// (11) Controllo POSITIVO, prima dei rifiuti: senza, i due casi sotto resterebbero verdi anche se il
@@ -2403,29 +2391,18 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 	// Le tre guardie nuove hanno ciascuna due rami — «campo assente» e «campo presente ma non array» — e
 	// fino a qui solo quello di `move` era esercitato. Senza questi due casi, chi ricollassasse
 	// `HasField` + `TryGetArrayField` in una guardia sola su `targetCell` o `dashTo` li riporterebbe al
-	// silenzio che questa issue rimuove, e tutti i tredici casi sopra resterebbero verdi.
+	// silenzio che questa issue rimuove, e i casi sopra resterebbero tutti verdi.
 	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":"1,0,0"})")),
 		TEXT("targetCell non e' un array"), TEXT("targetCell scritto come stringa"));
 	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Wraith.PassingBlade","dashTo":"1,1,0"})")),
 		TEXT("dashTo non e' un array"), TEXT("dashTo scritto come stringa"));
 
-	// (16) 🔴 **`"dash": "None"` NON e' un dash mancante**, e derivare il consumo da `Intent.Dash.IsNone()`
-	// lo diceva: `FName(TEXT("None"))` **e'** `NAME_None`, quindi il blocco girava, `dashTo` veniva letto
-	// correttamente, e il controllo di consumo rifiutava dicendo «nessuna 'dash' che lo usi» — mandando
-	// l'autore a cercare un campo che ha davanti agli occhi. Il consumo si legge da un FLAG, non da un
-	// valore con una sentinella che collide.
-	{
-		FRTTestScenario Scenario;
-		FString Error;
-		const bool bOk = URTScenarioLoader::LoadFromString(
-			*WithIntent(TEXT(R"({"unit":"A","dash":"None","dashTo":[1,1,0]})")), Scenario, Error);
-		TestFalse(FString::Printf(
-			TEXT("`dash: \"None\"` non viene rifiutato per «nessuna dash che lo usi» (errore: '%s')"), *Error),
-			Error.Contains(TEXT("nessuna 'dash' che lo usi")));
-		// Che poi lo scenario passi o no dipende dal catalogo, non da questo controllo: cio' che si pinna
-		// e' che il rifiuto NON arrivi dal ramo del consumo.
-		(void)bOk;
-	}
+	// ⌫ **Qui stava un caso su `"dash": "None"`, rimosso col controllo che lo motivava.**
+	// ⚠️ E la sua rimozione lascia scoperto un difetto PREESISTENTE che vale la pena nominare:
+	// `FName(TEXT("None"))` **e'** `NAME_None`, quindi `{"dash":"None","dashTo":[1,1,0]}` si carica verde
+	// e a runtime `RTScenarioSession` salta il dash — `dashTo` viene letto e consumato da nessuno. Non e'
+	// stato introdotto da questa passata e non si chiude qui: chiuderlo chiede di decidere se `"None"` sia
+	// un identificatore legale o un refuso, e la sede della decisione e' un'issue.
 
 	return true;
 }

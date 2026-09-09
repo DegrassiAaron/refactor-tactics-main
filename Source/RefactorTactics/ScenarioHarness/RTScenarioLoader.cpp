@@ -1085,19 +1085,10 @@ namespace
 							Intent.bDeclaresFacing = true;
 						}
 
-						// ⚠️ **Flag esplicito e non `Intent.Dash.IsNone()`**: `FName(TEXT("None"))` **E'**
-						// `NAME_None`, quindi un intent che scrivesse `"dash": "None"` avrebbe il blocco
-						// eseguito, `dashTo` letto correttamente, e poi il controllo di consumo lo avrebbe
-						// rifiutato dicendo «nessuna 'dash' che lo usi» — mandando l'autore a cercare un campo
-						// che ha davanti agli occhi. E' il difetto diagnostico che questa issue rimuove, e
-						// derivarlo da un valore con una sentinella che collide lo reintroduceva. Il sito
-						// gemello usa gia' un flag (`bTargetsCell`); questo ne aveva bisogno e non ce l'aveva.
-						bool bDashDichiarato = false;
 						FString DashText;
 						if (IntentObj->TryGetStringField(TEXT("dash"), DashText) && !DashText.IsEmpty())
 						{
 							Intent.Dash = FName(*DashText);
-							bDashDichiarato = true;
 
 							// La destinazione e' obbligatoria per lo stesso motivo per cui lo e' il bersaglio di
 							// un'abilita': senza, lo scatto non partirebbe e l'assertion cadrebbe su un fatto
@@ -1222,7 +1213,7 @@ namespace
 						// non si muoveva e lo scenario caricava verde.
 						//
 						// ⚠️ **Il difetto era gia' nominato in questo repository e nessuno lo aveva ancora
-						// colpito**: il test `LoaderRejectsCellArityAtEveryCallSite` chiama `move` «il chiamante
+						// colpito**: il test `Scenario.EveryCellFieldRejectsWrongArity` chiama `move` «il chiamante
 						// piu' esposto al refuso», perche' e' l'unico dei tre che porta una LISTA di celle e
 						// quindi ha due modi di essere scritto male invece di uno.
 						const TArray<TSharedPtr<FJsonValue>>* MoveArr = nullptr;
@@ -1252,37 +1243,21 @@ namespace
 							}
 						}
 
-						// 🔴 **Un campo dichiarato che NESSUNO consuma e' un errore** (`#2546`), e questo
-						// controllo esiste perche' la prima stesura del fix commetteva un livello piu' su lo
-						// stesso difetto che chiudeva un livello piu' giu'.
+						// ⌫ **Qui stavano due controlli «campo dichiarato che nessuno consuma», rimossi il
+						// 2026-09-09 perche' ROMPEVANO IL ROUND-TRIP.** Rifiutavano `targetCell` senza
+						// `ability` e `dashTo` senza `dash`, ma `RTScenarioWriter` emette `targetCell` sul solo
+						// `bTargetsCell` mentre scrive `ability` solo se non e' `NAME_None`: un intent salvato
+						// come `{"unit":"A","targetCell":[...]}` tornava indietro RIFIUTATO, su un file che
+						// prima si ricaricava. Una guardia che invalida cio' che il writer produce non e' una
+						// guardia: e' una regressione.
 						//
-						// `targetCell` si legge dentro `if (ability non vuota)`, `dashTo` dentro
-						// `if (dash non vuota)`. Quelle due guardie esterne usano `TryGetStringField(...) &&
-						// !IsEmpty()`, quindi `{"unit":"A","ability":"","targetCell":[1,0,0]}` salta l'intero
-						// blocco: la cella non viene mai letta, `bTargetsCell` resta falso e **nessun errore
-						// viene emesso** — `ability` e `targetCell` sono entrambe chiavi note, quindi nemmeno
-						// il gate delle chiavi sconosciute dice niente. Lo scenario carica verde e gioca un
-						// turno in cui l'azione dichiarata non avviene: la stessa forma di difetto che questa
-						// issue esiste per rimuovere.
-						//
-						// Il controllo sta QUI, dopo tutti i consumatori, e non dentro ciascuno: e' l'unico
-						// punto in cui si sa se qualcuno abbia raccolto il campo.
-						if (IntentObj->HasField(TEXT("targetCell")) && !Intent.bTargetsCell)
-						{
-							OutError = FString::Printf(
-								TEXT("intent di '%s': dichiara targetCell ma nessuna 'ability' che lo usi ")
-								TEXT("(un campo presente e non consumato non e' un campo assente)"),
-								*Intent.UnitId);
-							return false;
-						}
-						if (IntentObj->HasField(TEXT("dashTo")) && !bDashDichiarato)
-						{
-							OutError = FString::Printf(
-								TEXT("intent di '%s': dichiara dashTo ma nessuna 'dash' che lo usi ")
-								TEXT("(un campo presente e non consumato non e' un campo assente)"),
-								*Intent.UnitId);
-							return false;
-						}
+						// ⚠️ **Il difetto che coprivano resta APERTO e non e' questo**: le guardie esterne
+						// `if (ability non vuota)` e `if (dash non vuota)` usano `TryGetStringField`, quindi un
+						// `"ability": ""` o `"ability": ["X"]` salta l'intero blocco in silenzio. Il rimedio
+						// giusto e' applicare a QUEI campi la stessa distinzione presente/malformato che questa
+						// passata ha dato ai tre array — non un controllo a valle che indovina chi avrebbe
+						// dovuto consumare cosa, e che sull'`ability` malformata diceva «nessuna ability che lo
+						// usi» mandando l'autore a cercare un campo che ha davanti agli occhi.
 
 						Turn.Intents.Add(Intent);
 					}
