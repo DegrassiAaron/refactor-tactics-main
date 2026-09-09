@@ -994,11 +994,16 @@ grep -c '^| \*\*PIE-MUT-' docs/technical/test-manuali-pie.md            #   2  f
 awk '/^#{2,3} /{s=$0} /^\| \*\*PIE-/{c[s]++} END{for(k in c) print c[k], k}' \
     docs/technical/test-manuali-pie.md | sort -rn
 
-# Registro PIE — verdi / parziali / aperte
+# Registro PIE — verdi / parziali / fallite / aperte
+# 🔴 L'alternanza NON aveva `❌` fino al 2026-09-09, come quella del subset qui sotto: `senza-marcatore`
+#    restava 0 e le fallite non risultavano MANCANTI, risultavano ALTRO — il primo glifo noto che compare
+#    più avanti nella stessa cella. È il difetto di #1248, che la sua chiusura del 2026-08-21 dichiarava
+#    corretto «nel comando stampato nel registro»: lo era in `test-manuali-pie.md` (due comandi, entrambi
+#    con `❌` dal 2026-08-21), e NON qui — due consumatori fuori dal censimento, per diciannove giorni.
 awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
-  if (match(s, /✅|🟡|⏳/)) c[substr(s, RSTART, RLENGTH)]++; else c["nessuno"]++ }
-  END {printf "verde=%d parziale=%d aperta=%d senza-marcatore=%d\n",
-       c["✅"], c["🟡"], c["⏳"], c["nessuno"]}' docs/technical/test-manuali-pie.md
+  if (match(s, /✅|🟡|❌|⏳/)) c[substr(s, RSTART, RLENGTH)]++; else c["nessuno"]++ }
+  END {printf "verde=%d parziale=%d fallita=%d aperta=%d senza-marcatore=%d\n",
+       c["✅"], c["🟡"], c["❌"], c["⏳"], c["nessuno"]}' docs/technical/test-manuali-pie.md
 
 # Classe B — ogni scenario Visual deve avere UNA QUALCHE voce PIE che lo guarda.
 # ⚠️ Il comando precedente contava le voci `PIE-VIS-*` e le confrontava col numero di file: misurava il
