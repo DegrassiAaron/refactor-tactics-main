@@ -1579,6 +1579,15 @@ public:
 	 * modello sincrono per intero, senza un ramo che li distingua. Non e' una configurazione da ricordarsi
 	 * — e' l'assenza di una UI, che e' il caso normale fuori da una partita presidiata.
 	 *
+	 * ✅ **Ha un binding di produzione dal 2026-09-09** (`#2723`): `URTReactionWindowViewModel::Hook`, legato
+	 * da `ARTGameMode::HookReactionWindow` **solo quando un `ARTPlayerController` esiste**. Prima di allora
+	 * le sole tre occorrenze stavano nei test che lo legavano apposta, e in partita il ramo non si prendeva
+	 * mai: `#2679`, `#2692` e `#2717` erano costruite fino al confine della UI e irraggiungibili.
+	 *
+	 * ⛔ **E il cablaggio non ha un ripiego senza proprietario, deliberatamente**: legarlo in un harness
+	 * headless aprirebbe finestre che nessuno chiude, ed e' il caso che questa stessa riga esiste per
+	 * escludere.
+	 *
 	 * ⛔ **Il `View` e' gia' sanitizzato per la squadra del proprietario** (`MakeReactionWindowView`): chi
 	 * ascolta riceve cio' che quel giocatore puo' vedere, non l'opportunity autorevole.
 	 */
@@ -1614,6 +1623,26 @@ public:
 	/** L'`OpportunityId` della finestra aperta, vuoto se nessuna attende. Per la UI e per i test. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	FString GetOpenReactionWindowId() const;
+
+	/**
+	 * Secondi che restano alla finestra aperta. **Negativo** quando nessuna attende (`#2723`).
+	 *
+	 * 🔑 **E' il primo lettore del residuo, e per questo nasce adesso.** `#2717` ha costruito l'orologio —
+	 * `OpenWindowElapsed` scorre e fa scadere — ma quel campo e' privato e non esisteva un modo di
+	 * chiedergli *quanto manca*: il countdown a schermo avrebbe dovuto contarselo da solo, cioe' tenere una
+	 * seconda verita' sul tempo. Un countdown contato dal client e' un client che decide quando scade.
+	 *
+	 * ⚠️ **Negativo, non zero, quando la domanda non si applica**: e' la convenzione gia' motivata da
+	 * `FRTMatchHeaderView::PlanningSecondsRemaining`, dove *«un `0.f` direbbe "scaduto adesso", che e'
+	 * un'altra cosa»*. Qui i due significati sono entrambi reali e vanno distinti.
+	 *
+	 * ⛔ **Clampato a `0` verso il basso, e il caso non e' teorico**: `TickReactionWindow` incrementa
+	 * `Elapsed` **prima** di confrontarlo con la durata, quindi un frame lungo lo porta oltre. Un lettore
+	 * fra l'incremento e `ExpireReactionWindow` vedrebbe un residuo negativo — indistinguibile da «nessuna
+	 * finestra», che e' la sola cosa che questo valore deve saper dire.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	float GetOpenReactionWindowRemainingSeconds() const;
 
 	/**
 	 * Arma il manager con le decisioni di reazione GIA' PRESE, lette da una traccia (`#886`).

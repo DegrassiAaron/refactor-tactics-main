@@ -8,6 +8,8 @@
 #include "Map/RTHexVisionLibrary.h"
 // `E-SOLID` fetta 4: il viewer del velo e' di questo controller, non della partita.
 #include "Perception/RTKnowledgeVeilPresenter.h"
+// #2723: il view model della finestra di reazione appartiene a questo client, come il velo.
+#include "UI/RTReactionWindowViewModel.h"
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
@@ -464,6 +466,18 @@ URTKnowledgeVeilPresenter* ARTPlayerController::GetKnowledgeVeilPresenter()
 		KnowledgeVeilPresenter = NewObject<URTKnowledgeVeilPresenter>(this);
 	}
 	return KnowledgeVeilPresenter;
+}
+
+URTReactionWindowViewModel* ARTPlayerController::GetReactionWindowViewModel()
+{
+	if (!ReactionWindowViewModel)
+	{
+		// L'`Outer` e' `this` come per il velo. Qui non serve a risalire alla squadra — il view model non
+		// gliela chiede (`RTReactionWindowViewModel.h`, la nota sulla privacy) — ma lega la vita del binding
+		// a quella del controller, che e' la proprieta' che rende sicuro non disfarlo al teardown.
+		ReactionWindowViewModel = NewObject<URTReactionWindowViewModel>(this);
+	}
+	return ReactionWindowViewModel;
 }
 
 void ARTPlayerController::BeginPlay()
