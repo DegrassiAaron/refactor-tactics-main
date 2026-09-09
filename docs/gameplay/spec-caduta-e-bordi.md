@@ -242,8 +242,18 @@ ghiaccio — *«Durata `2` e non `1`, ed è misurato»* — e il `Move` è una f
 stesura di #2430 usò `1` copiando `Action.Sprint`, e cinque test su sei la presero.
 
 🔑 **Nessuna meccanica nuova**: è la forma con cui `Action.Sprint` paga la propria corsa —
-`FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, 1)`. Sprint risolve nella fase `Move`,
-anch'essa **dopo** il `Blast`.
+`FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, 1)`.
+
+🔴 **La forma è la stessa, la durata no — e qui c'era scritto il contrario.** Fino al 2026-09-09 questo
+paragrafo proseguiva *«Sprint risolve nella fase `Move`, anch'essa dopo il `Blast`»*, ed è **falso**: Sprint è
+`FastMovement`, che `MapResolutionPhase` manda su **`Dash`** — *«la mobilità rapida precede il Blast»*
+(`RTCatalogLibrary.cpp:177`) — e `Actions.SprintIsAMoveProfileResolvedPreBlast` lo pinna verde. ∴ a Sprint `1`
+**basta**, perché il `Blast` dello stesso turno è la fase interposta che lo legge: lo misura end-to-end
+`Actions.Sprint.AppliesExposed`, che asserisce `FullHit + 5` e porta la controprova senza Sprint. Alla caduta
+no, perché risolve **nel** `Blast`, e dopo di lei non legge più nessuno — è tutta qui la differenza fra `1` e
+`2`. La frase tornerà vera con [D-116](../decisions/RT_PDR_00_Decision_Log.md), cioè con la migrazione di
+[#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641). Corretto da
+[#2725](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2725), che l'equivoco l'ha misurato.
 
 ⛔ **Perché nessuna scala.** Il dislivello **non è `Layer - 1`**: `FindLandingCell` scandisce la colonna e
 tiene il massimo, perché *«la colonna può saltare dei piani»*. Una scala andrebbe definita sui **piani
