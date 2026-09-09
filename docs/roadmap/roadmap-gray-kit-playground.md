@@ -140,9 +140,13 @@ che sono nella stessa condizione — versionate, non di gioco, escluse dal pacch
 ### Il nome del pannello è `WBP_`, non `EUW_`
 
 §6 di `convenzioni-contenuti-ue.md` elenca i prefissi ammessi: `WBP_` = Widget Blueprint. **`EUW_` non
-esiste nella tabella.** Il precedente è già in casa: `WBP_RT_ScenarioComposer` **è** un
-`EditorUtilityWidget` — [`D-244`](../decisions/RT_PDR_00_Decision_Log.md), uscita (a) di `TD-COMP-1` — e
-porta il prefisso `WBP_`. Un secondo prefisso per la stessa classe base sarebbe una convenzione nuova
+esiste nella tabella.** Il precedente è già in casa: `WBP_RT_GrayKitPlayground` **è** un
+`EditorUtilityWidget` e porta il prefisso `WBP_`.
+
+> 🔴 **Questa riga citava `WBP_RT_ScenarioComposer`, rimosso il 2026-09-09 da [#2789](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2789).** Il precedente cade, la
+> conclusione no: l'altro `EditorUtilityWidget` del progetto porta lo stesso prefisso, quindi la
+> convenzione ha ancora un caso vivo che la sostiene invece di uno storico. `D-244` e l'uscita (a) di
+> `TD-COMP-1` restano leggibili, ma non sono più l'appoggio di questa frase. Un secondo prefisso per la stessa classe base sarebbe una convenzione nuova
 introdotta senza deciderla.
 
 ⚠️ **La scelta `EditorUtilityWidget` vs Slate/C++ non merita una voce del Decision Log**: `TD-COMP-1` l'ha
