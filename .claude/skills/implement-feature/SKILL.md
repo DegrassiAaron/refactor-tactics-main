@@ -642,6 +642,17 @@ A perfect result may be:
 
 # 18 — Final APPLY report
 
+⚠️ **This skill writes issue bodies, roadmap lines and PR text — none of them may carry a volatile
+total.** How many issues a family has open, how many assets a folder holds, how many milestones exist:
+nothing re-measures a number written in prose, so it goes stale silently. Use the **names** when an
+enumeration follows (`all the CP 47.x (#954 … #959, #1015)`), or `xx`/`yy` with the command to count
+them. Keep the number only for this run's own outcomes, historical counts a decision cites, and measured
+**zeros that are the defect**. `AGENTS.md` §14.
+
+⚠️ **Applies to what you already published too**: if a count slips into an issue body, a **title**, a PR
+body or a posted comment, clean the whole round — `gh issue edit`, `gh pr edit`,
+`gh api -X PATCH repos/.../issues/comments/<id> -F body=@file`.
+
 ```markdown
 # APPLY RESULT
 

@@ -475,6 +475,12 @@ INSUFFICIENT_EVIDENCE
 
 # 14 — Final output
 
+⚠️ **`FATTI` may carry measured counts; the report must not carry volatile totals.** A number that
+changes on its own — open issues in a family, assets in a folder, files in a directory — goes stale with
+no gate to catch it. Prefer the **names**, or `xx`/`yy` with the command to count them. The measured
+defect keeps its number and its command: *«`grep -ci` answers 0»* is a `FATTO`, not a total.
+`AGENTS.md` §14.
+
 Always finish with:
 
 ```markdown

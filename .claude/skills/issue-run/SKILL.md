@@ -474,6 +474,13 @@ exist for whoever comes next.
 State at minimum: status (`DONE` / `PARTIAL` / `BLOCKED` / `FAILED`), what changed, the evidence
 with its commit, and what was **NOT RUN**.
 
+⚠️ **Do not write totals that change on their own** — how many issues in a family are open, how many
+assets a folder holds, how many milestones exist. Nothing re-measures a number written in prose, so it
+goes stale silently and reads as current. Use the **names** when an enumeration follows, or `xx`/`yy`
+with the command to count them next to it. `AGENTS.md` §14 has the rule and the three exceptions.
+⛔ This is not licence to be vague: a defect stated as a count — *«one non-test reader»*, *«`grep -ci`
+answers 0»* — is evidence, and stays written with the command that produced it.
+
 If the issue needs work this session cannot do — an Editor seance, a packaged build, a
 measurement someone else must take independently — name it in the report as remaining work.
 Nothing routes it automatically any more: the Coordinator and the task router were removed
