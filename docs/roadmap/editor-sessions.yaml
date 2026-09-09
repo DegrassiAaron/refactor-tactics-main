@@ -3044,9 +3044,16 @@ sessions:
       La ragione e' una decisione e non una lacuna — [D-046] (`#282`) lascia `Action.ModifyArc` senza
       owner nel roster, quindi nessuna unita' puo' provocare il crollo e nessuna seduta puo' guardarlo.
       Chiedere sei verdetti a chi ne puo' dare cinque e' un `done_when` che nessuno soddisfa ([#2549]).
-      ✅ **ESEGUITA il 2026-09-09** per le due voci che le restavano, `PIE-HEXPLAY-6` e `PIE-VIS-SIGHTWALL`,
-      che sono la **stessa** rigiudicazione: stesso banco `Visual.Map.SightWallIsWalkable`, stessa apertura,
-      un giudizio solo. `runId 20260909-085103`, commit `b5a61d89`, convocata da `#2534`.
+      ✅ **ESEGUITA DUE VOLTE il 2026-09-09** per le due voci che le restavano, `PIE-HEXPLAY-6` e
+      `PIE-VIS-SIGHTWALL`, che si giudicano insieme sullo stesso banco `Visual.Map.SightWallIsWalkable`.
+      `runId 20260909-085103` (commit `b5a61d89`) e `runId 20260909-123728` (su `main = b1178002`).
+      🔑 **La seconda apertura non e' una ripetizione, ed e' il caso che `roadmap-pia.md` vieta se non
+      motivato**: li' la regola dice *«non si rispende un lease per rigiudicare la stessa cosa»*, e fra le due
+      sedute la **build non e' cambiata**. E' cambiata la **configurazione del banco** —
+      `ScenarioTurnPauseSeconds` da 1,5 a 15 — cioe' la finestra entro cui il giudizio e' possibile: la prima
+      apertura misurava un secondo e mezzo di scena credendo di misurare il gioco.
+      ⚠️ **La deroga si dichiara, non si sottintende**: *«la stessa cosa»* smette di valere anche quando cambia
+      cio' che rende la misura leggibile, non solo quando cambia il codice.
       Gli esiti stanno in `test-manuali-pie.md`, che ne resta l'unico owner — **qui non si copiano** (R-6).
       ⌫ **Questa riga elencava lo stato di cinque voci con i loro glifi, e violava R-6**: la regola che
       questo file esiste per far rispettare vieta di scrivere qui l'esito, e una copia in piu' e' esattamente
