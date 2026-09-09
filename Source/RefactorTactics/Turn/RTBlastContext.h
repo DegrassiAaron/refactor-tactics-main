@@ -8,6 +8,7 @@
 #include "Combat/RTHexCombatLibrary.h"  // FRTHexCombatUnit, FRTHexAttackIntent, FRTHexBlastPlan
 #include "Turn/RTReactionPassResult.h"  // FRTReactionPassResult: l'esito del pass reazioni sopravvive al pass
 #include "Turn/RTTurnLog.h"             // ERTMoveOutcome: l'esito che il passo spinte ricorda per bersaglio
+#include "Turn/RTReactionOpportunityTypes.h" // FRTReactionOpportunity: la finestra del `Brace` che sopravvive
 
 class ARTUnit;
 class URTActionData;
@@ -105,6 +106,47 @@ struct FRTDisplacementPassState
 
 	/** Indice del bersaglio in corso dentro `FRTBlastContext::Units`. Vedi il commento della struct. */
 	int32 NextTarget = 0;
+
+	/**
+	 * Il prologo del passo e' gia' girato.
+	 *
+	 * 🔴 **Senza, la ripresa lo rifarebbe**, e non in modo innocuo: `RunReactionPass(BlastDisplacement)` e'
+	 * il solo momento in cui `Reaction.Anchor` puo' annullare uno spostamento, e girarlo due volte
+	 * applicherebbe due volte quelle reazioni. `Occupied` si riempirebbe di doppioni, e il ciclo dei
+	 * conflitti conta le celle.
+	 */
+	bool bStarted = false;
+
+	/**
+	 * L'esito del pass reazioni sullo spostamento, letto dai cicli di spinta E di trazione.
+	 *
+	 * Era una locale di `ApplyDisplacements`: sopravvive perche' `CancelledDisplacements` viene
+	 * interrogato dopo il punto di sospensione, in entrambi i cicli.
+	 */
+	FRTReactionPassResult Reactions;
+
+	// --- La finestra del `Brace`, quando ne e' aperta una (`#2692`, [D-355]) ------------------------
+
+	/** Identita' della finestra aperta. Vuota = nessuna finestra attende. */
+	FString OpenWindowOpportunityId;
+
+	/** Tempo trascorso da quando si e' aperta. Presentazione e countdown; l'esito logico non ne dipende. */
+	float OpenWindowElapsed = 0.f;
+
+	/**
+	 * L'opportunity su cui la finestra e' aperta, trasportata perche' alla chiusura va ri-valutata.
+	 *
+	 * ⚠️ **Copiata e non referenziata**, per la stessa ragione degli input di `FRTMovementResolutionState`:
+	 * fra l'apertura e la chiusura passa un turno di orologio, e la locale che l'ha costruita e' uscita di
+	 * scope da un pezzo.
+	 */
+	FRTReactionOpportunity PendingOpportunity;
+
+	/** La risposta arrivata, che il rientro consuma al posto di chiedere. */
+	FString ClosedWindowResponse;
+
+	/** Vero fra la chiusura della finestra e il rientro che la consuma. */
+	bool bResumingWithResponse = false;
 };
 
 struct FRTBlastContext
@@ -128,6 +170,15 @@ struct FRTBlastContext
 
 	/** Lo stato del passo spinte, che deve poter uscire e rientrare (`#2692`). Vedi `FRTDisplacementPassState`. */
 	FRTDisplacementPassState Displacement;
+
+	/**
+	 * La fase si e' fermata su una finestra di reazione e attende una risposta (`#2692`, [D-355]).
+	 *
+	 * 🔑 **E' il flag che il contesto espone ai suoi chiamanti**: `ResolveCombat` non conclude la fase,
+	 * `RunPhaseLoop` non passa a `Move`, e `IsResolutionSuspended()` lo riporta al resto del manager.
+	 * Senza, il ciclo delle fasi risolverebbe il movimento su un Blast applicato a meta'.
+	 */
+	bool bSuspended = false;
 
 	/** Salute e scudo all'inizio del Blast, paralleli a `Units`: la base su cui il resolver applica i danni. */
 	TArray<FRTUnitCombatState> States;

@@ -753,6 +753,92 @@ bool FRTBraceBlocksPushTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **La finestra del `Brace` ferma il Blast, e la ripresa non lo riesegue** (`#2692`, [D-355], [D-356]).
+ *
+ * 🔴 **E' il difetto che #2692 esiste per chiudere.** Con una UI legata, un'unita' il cui profilo di
+ * reazione offre una risposta con effetti — `Profile.Sidestep` — deve poter SCEGLIERE quando viene
+ * spinta. Fino al 2026-09-09 il `Brace` chiamava `AskReactionDecision` diretta: esito `NoDecider`,
+ * `Hold Ground` applicata, e il giocatore perdeva una scelta che il gioco gli doveva.
+ *
+ * 🔑 **Tre cose in un test solo**, perche' separarle darebbe tre test che passano su un turno rotto:
+ * la finestra si apre, la fase si FERMA — `Phase` resta `Blast`, [D-356] — e alla chiusura il turno
+ * arriva in fondo con la spinta applicata **una volta sola**.
+ *
+ * ⚠️ **`Action.Push` spinge di 1 e il profilo base non basta**: con `Hold Ground` sola la cardinalita' e'
+ * 1, `RequiresDecisionBoundary` e' falso e nessuna finestra e' dovuta — per costruzione, non per difetto.
+ * Il profilo va assegnato, ed e' la stessa precondizione che la voce PIE dichiara.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceWindowSuspendsBlastTest,
+	"RefactorTactics.Reactions.Brace.WindowSuspendsBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceWindowSuspendsBlastTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World, /*Radius*/ 8);
+
+	ARTUnit* Bracer = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bracer"), Bracer) || !TestNotNull(TEXT("Pusher"), Pusher)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// Le tre precondizioni del ramo, tutte necessarie: lo stato lo concede `Action.Brace`, la cardinalita'
+	// viene dal profilo, e un bot non riceve finestre.
+	Bracer->bIsBotControlled = false;
+	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
+	Bracer->PlannedCell = Bracer->Cell;
+
+	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
+	Pusher->PlannedAttackTarget = Bracer;
+	Pusher->PlannedCell = Pusher->Cell;
+
+	int32 Aperte = 0;
+	TM->OnReactionWindowOpened.BindLambda(
+		[&Aperte](const FRTReactionWindowView&, int32) { ++Aperte; });
+
+	const FRTCellId Partenza = Bracer->Cell;
+	TM->LockInAndResolve();
+
+	// 🔑 **(1) La finestra si e' aperta**, e con essa la scelta che prima non arrivava.
+	TestEqual(TEXT("si e' aperta UNA finestra del Brace"), Aperte, 1);
+
+	// 🔑 **(2) La fase si e' fermata.** `IsResolutionSuspended` copre il Blast, e `Phase` resta la fase
+	// che si e' fermata invece di tornare a `Planning` ([D-356]): senza, `Move` si risolverebbe su un
+	// Blast applicato a meta'.
+	TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended());
+	TestEqual(TEXT("e la fase dichiarata e' quella che si e' fermata"),
+		TM->GetPhase(), ERTMatchPhase::Blast);
+
+	// 🔑 **(3) La chiusura riprende il turno**, e la spinta non si riapplica: `Hold Ground` allo scadere
+	// tiene la cella, ed e' l'esito che il profilo garantisce.
+	int32 Scadenze = 0;
+	while (TM->IsResolutionSuspended() && Scadenze < 8)
+	{
+		TM->ExpireReactionWindow();
+		++Scadenze;
+	}
+	TestFalse(TEXT("chiusa la finestra, la resolution non e' piu' sospesa"), TM->IsResolutionSuspended());
+	TestEqual(TEXT("e il ciclo delle fasi e' arrivato in fondo"), TM->GetPhase(), ERTMatchPhase::Planning);
+	TestTrue(TEXT("il turno ha prodotto un TurnLog"), TM->GetTurnLog().Num() > 0);
+
+	// ⛔ **Il difetto strutturale che questa fetta rischiava**: una ripresa che rieseguisse il Blast
+	// dall'inizio spingerebbe due volte. `Hold Ground` non sposta, quindi la cella di partenza e' la
+	// prova che nessuno ha applicato la spinta due volte ne' una volta di troppo.
+	TestTrue(TEXT("irrigidito: la spinta non lo ha spostato, e non e' stata riapplicata"),
+		Bracer->Cell == Partenza);
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyDefWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShieldTest,
 	"RefactorTactics.Reactions.Shield.AbsorbsBeforeHealth",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
