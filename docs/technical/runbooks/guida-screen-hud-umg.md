@@ -246,10 +246,20 @@ Non c'è un nodo che dia il `TurnManager`, l'unità o il view model della finest
 famiglia. Se ti serve un dato che non è in `Get Window`, la risposta non è aggiungere una variabile al
 Blueprint — è che quel dato non deve arrivare al widget, oppure va aggiunto al DTO **con il suo produttore**.
 
-### Quando l'asset esiste
+### ✅ L'asset esiste — creato il 2026-09-09
 
-Aggiungi il suo path all'elenco di `Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp`, accanto agli
-altri sette:
+`Content/RT/UI/Match/WBP_RT_FastDecision.uasset`, parent class `RTFastDecisionWidget`, creato via MCP dal
+**clone principale** come `CLAUDE.md` §10 richiede. L'albero è lo scheletro, non l'aspetto:
+
+```text
+[0] VerticalBox   WindowRoot      ← variabile: la visibilità si lega a `Is Window Open`
+  [1] TextBlock   PromptText
+  [2] TextBlock   CountdownText   ← binding su `Get Remaining Seconds`
+  [3] HorizontalBox OptionsBox    ← variabile: il grafo lo popola, un bottone per elemento di `Options`
+```
+
+E la riga del gate è atterrata **con** l'asset, in quattro siti di
+`Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp`:
 
 ```cpp
 const TCHAR* const FastDecisionPath =
@@ -262,6 +272,20 @@ test rosso che aspetta un file che nessuno ha ancora creato.
 ⚠️ **Il nome e la cartella non sono negoziabili**: misurato, **25 widget su 25** seguono `WBP_RT_*`, e
 `RTMatchWidgetAssetTests` carica da `/Game/RT/UI/Match/`. Un asset fuori convenzione non fallirebbe il
 gate — **non lo incontrerebbe**.
+
+### ⛔ Cosa NON è nell'asset, e va fatto nel Designer
+
+Lo scheletro non è la finestra. Restano da fare, e sono lavoro d'autore:
+
+1. **I binding**: `WindowRoot.Visibility` ← `Is Window Open`; `CountdownText.Text` ← `Get Remaining Seconds`
+   formattato; `PromptText.Text` ← il bersaglio della finestra;
+2. **Il popolamento di `OptionsBox`**: un bottone per elemento di `GetWindow().Options`, con
+   `Choose Option(indice)` sul click — vedi le quattro regole qui sopra;
+3. **L'aspetto**: colori, font, ingombro, e la posizione dentro `WBP_RT_TacticalHUD`. ⚠️ Il **centro libero**
+   di §3 vale anche per questa finestra: §4.2 disegna path e AoE sopra la mappa.
+
+✅ Il gate headless copre già il **contratto** — parent class, caricamento, nessuna texture. Ciò che resta
+è esattamente ciò che solo `PIE-V01-OVERWATCH` può guardare.
 
 ---
 
