@@ -2111,25 +2111,34 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 	// e si ferma su bordo mappa, ostacolo o unita'. Spinte multiple sullo stesso bersaglio si annullano.
 	if (KnockCount.Num() > 0)
 	{
+		// 🔑 **Le sei collezioni di questo passo vivono nel CONTESTO, non sullo stack** (`#2692`): il ciclo
+		// piu' sotto deve poter uscire su una finestra del `Brace` e rientrare, e fra un bersaglio e il
+		// successivo lo stack puo' essere stato srotolato. Sono alias, non copie — stessa disciplina delle
+		// undici righe in testa alla funzione.
+		TArray<FRTCellId>& KOccupied = Ctx.Displacement.Occupied;
+		TArray<ARTUnit*>& KTargets = Ctx.Displacement.Targets;
+		TArray<FRTCellId>& KFinal = Ctx.Displacement.Final;
+		TMap<ARTUnit*, ERTMoveOutcome>& KEsito = Ctx.Displacement.Esito;
+		TSet<const ARTUnit*>& Sidestepped = Ctx.Displacement.Sidestepped;
+		TArray<ARTUnit*>& BlastAliveUnits = Ctx.Displacement.AliveUnits;
+
 		// Bloccanti: le celle di tutte le unita' (non si spinge dentro un'altra unita').
-		TArray<FRTCellId> KOccupied;
 		for (ARTUnit* U : Units) { KOccupied.Add(U->Cell); }
 
 		// Destinazioni dallo snapshot: solo bersagli vivi spinti da ESATTAMENTE un attaccante.
 		// Si itera su Units (ordine stabile per cella): l'ordine di iterazione di una TMap non e' garantito
 		// e da qui dipendono la sequenza del playback e quella del combat log.
-		TArray<ARTUnit*> KTargets;
-		TArray<FRTCellId> KFinal;
+
 
 		// Chi e' CADUTO (#2402): serve al solo esito della voce di TurnLog, che per una caduta non puo'
 		// dire `Displaced` — quello significa «raggiunta la destinazione della spinta», e chi cade e' finito
 		// altrove. La cella e' gia' in `KFinal`: questo insieme non la duplica.
-		TMap<ARTUnit*, ERTMoveOutcome> KEsito; // #2403: QUALE esito, non solo «e' caduto»
+
 
 		// Chi si e' spostato per SCELTA e non per la spinta ([D-047]): serve al solo verbo del log, che
 		// altrimenti racconterebbe «spinto» un'unita' che ha deciso di scartare. Il TurnLog esiste per dire
 		// QUALE difesa ha retto e quale no — un verbo sbagliato e' la stessa lacuna di `#420`, un livello sopra.
-		TSet<const ARTUnit*> Sidestepped;
+
 
 		// Lo spazio di id alive-only in cui vive `Key.OwnerId`, costruito **al piu' una volta per Blast** e
 		// solo se una finestra si apre davvero.
@@ -2139,10 +2148,12 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		// via**, e ordina — tutto questo per **ogni** unita' in `Brace`. Il caso di gran lunga piu' comune e'
 		// il profilo base (Branth), dove `AskReactionDecision` risponde `HoldImmediate` senza mai leggere
 		// `OwnerId`: si pagava un giro completo per un valore che nessuno guardava.
-		TArray<ARTUnit*> BlastAliveUnits;
-
-		for (ARTUnit* T : Units)
+		// ⛔ **Ciclo INDICIZZATO e non range-based** (`#2692`): l'indice vive nel contesto, quindi un'uscita
+		// a meta' sa da dove ricominciare. Durante il corpo punta al bersaglio IN CORSO — l'incremento
+		// avviene passando al successivo — e i `continue` di questo ciclo lo fanno avanzare come prima.
+		for (; Ctx.Displacement.NextTarget < Units.Num(); ++Ctx.Displacement.NextTarget)
 		{
+			ARTUnit* T = Units[Ctx.Displacement.NextTarget];
 			const int32* Pushes = KnockCount.Find(T);
 
 			// FORZE CONTRADDITTORIE (#420): spinto da due o piu' attaccanti, resta fermo. Non e' una difesa —

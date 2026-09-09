@@ -1440,6 +1440,15 @@ protected:
 	TUniquePtr<FRTMovementResolutionContext> PendingMovement;
 
 	/**
+	 * Il contesto della fase Blast, sull'heap perche' la fase deve poter uscire e rientrare (`#2692`).
+	 *
+	 * Vivo solo durante `ResolveCombat`: nasce in testa e muore in coda, come quando stava sullo stack.
+	 * Cio' che cambia e' che sia raggiungibile da fuori — senza, una sospensione non avrebbe niente da
+	 * riprendere. Stessa forma di `PendingMovement`, e per la stessa ragione.
+	 */
+	TUniquePtr<FRTBlastContext> PendingBlast;
+
+	/**
 	 * Risolve i colpi predittivi armati contro le rotte appena calcolate, e TRONCA il movimento di chi viene
 	 * colto (E18 CP 18.2). Modifica `Resolved` in luogo: chiamata prima che il TurnLog sia costruito.
 	 *
