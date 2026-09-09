@@ -854,6 +854,96 @@ bool FRTBraceWindowSuspendsBlastTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **La finestra scade da sola, senza che nessuno la chiuda a mano** (`#2717`).
+ *
+ * 🔴 **E' il difetto che #2717 esiste per chiudere, e i test lo mascheravano.** `#2679` e `#2692` hanno
+ * costruito la sospensione ai due siti, ma `OpenWindowElapsed` era azzerato in quattro punti e
+ * incrementato in **zero**, e `ExpireReactionWindow` non aveva chiamanti di produzione: il giorno in cui
+ * qualcosa avesse legato `OnReactionWindowOpened`, la prima finestra aperta avrebbe fermato il turno
+ * **per sempre**. Non si vedeva perche' ogni test chiamava `ExpireReactionWindow()` a mano — la suite
+ * faceva da orologio al posto del gioco.
+ *
+ * 🔑 **Questo test non la chiama.** Fa passare il tempo con `Tick` e basta, che e' cio' che il gioco fa.
+ *
+ * ⚠️ **Il tick e' quello dell'Actor, non del playback**: la finestra puo' aprirsi senza che il playback
+ * sia mai partito, e l'orologio deve girare lo stesso. Qui il mondo di prova non avvia il playback, quindi
+ * il caso e' proprio quello.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceWindowExpiresOnItsOwnTest,
+	"RefactorTactics.Reactions.Brace.WindowExpiresOnItsOwn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceWindowExpiresOnItsOwnTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World, /*Radius*/ 8);
+
+	ARTUnit* Bracer = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bracer"), Bracer) || !TestNotNull(TEXT("Pusher"), Pusher)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	Bracer->bIsBotControlled = false;
+	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
+	Bracer->PlannedCell = Bracer->Cell;
+
+	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
+	Pusher->PlannedAttackTarget = Bracer;
+	Pusher->PlannedCell = Pusher->Cell;
+
+	// Una durata corta rende il test rapido senza cambiare la regola: la finestra scade a
+	// `GetFastReactionDuration()`, qualunque sia il valore. E' un setting di partita ([D-348]), non una
+	// costante — ed e' precisamente perche' e' un setting che il test puo' abbassarlo.
+	TM->SetFastReactionDuration(0.5f);
+
+	bool bAperta = false;
+	TM->OnReactionWindowOpened.BindLambda(
+		[&bAperta](const FRTReactionWindowView&, int32) { bAperta = true; });
+
+	TM->LockInAndResolve();
+
+	if (!TestTrue(TEXT("la finestra si e' aperta"), bAperta)
+		|| !TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended()))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// ⛔ **Un tick solo non deve bastare**: con `0,5 s` di durata e `0,05 s` di passo servono dieci giri, e
+	// se la finestra si chiudesse al primo significherebbe che qualcuno scade senza guardare l'orologio.
+	TM->Tick(0.05f);
+	TestTrue(TEXT("dopo un tick breve la finestra e' ANCORA aperta"), TM->IsResolutionSuspended());
+
+	// 🔑 **LA PROVA.** Nessuno chiama `ExpireReactionWindow`: passa solo il tempo, come in partita.
+	int32 Tick = 0;
+	while (TM->IsResolutionSuspended() && Tick < 200)
+	{
+		TM->Tick(0.05f);
+		++Tick;
+	}
+
+	TestFalse(TEXT("la finestra e' scaduta DA SOLA, senza che nessuno la chiudesse"),
+		TM->IsResolutionSuspended());
+	TestEqual(TEXT("e il turno e' arrivato in fondo"), TM->GetPhase(), ERTMatchPhase::Planning);
+	TestTrue(TEXT("il turno ha prodotto un TurnLog"), TM->GetTurnLog().Num() > 0);
+
+	// La scadenza applica la risposta sicura: `Hold Ground` tiene la cella.
+	TestTrue(TEXT("allo scadere vale `Hold Ground`: la spinta non lo ha spostato"),
+		Bracer->Cell == FRTCellId(0, 0));
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyDefWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShieldTest,
 	"RefactorTactics.Reactions.Shield.AbsorbsBeforeHealth",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

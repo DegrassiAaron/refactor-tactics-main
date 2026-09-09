@@ -830,6 +830,10 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 			Ctx->OpenWindowOpportunityId = URTReactionOpportunityLibrary::DeriveOpportunityId(Opportunity.Key);
 			Ctx->OpenWindowElapsed = 0.f;
 
+			// Il tick serve all'orologio della finestra (`#2717`), non al playback: vedi il gemello nel sito
+			// del `Brace`. `BeginPlayback` puo' non essere mai chiamato, e allora nessuno farebbe scadere.
+			SetActorTickEnabled(true);
+
 			// Il DTO e' sanitizzato per la squadra di chi decide: `MakeReactionWindowView` acquista qui il
 			// chiamante di produzione che `RTTurnManager.h:627` dichiarava mancante.
 			OnReactionWindowOpened.Execute(

@@ -1246,6 +1246,14 @@ public:
 	 * Il ciclo delle fasi, con uscita anticipata sulla sospensione ([D-356]). Due chiamanti come
 	 * `ConcludeResolution`: il lock-in e la ripresa. Non fa il setup del turno — vedi il .cpp.
 	 */
+	/**
+	 * Fa scorrere il countdown della finestra di reazione e la chiude quando scade (`#2717`).
+	 *
+	 * Sta in `Tick` e non in `TickPlayback`, con `DeltaSeconds` **non scalato**: vedi il .cpp per le tre
+	 * decisioni che escludono ogni altra collocazione.
+	 */
+	void TickReactionWindow(float DeltaSeconds);
+
 	void RunPhaseLoop();
 
 	/** La coda della risoluzione: TurnLog, Cleanup, fine partita, playback. Due chiamanti, vedi il .cpp. */
