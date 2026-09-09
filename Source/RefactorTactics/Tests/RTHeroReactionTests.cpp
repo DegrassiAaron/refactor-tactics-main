@@ -49,12 +49,14 @@ namespace
 		}
 	}
 
-	void SpawnHeroReactMap(UWorld* World, int32 Radius = 6)
+	/** Restituisce l'actor: chi deve posare una copertura ha bisogno dell'asset, non solo della board. */
+	ARTHexMapActor* SpawnHeroReactMap(UWorld* World, int32 Radius = 6)
 	{
 		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		Actor->MapAsset = M;
+		return Actor;
 	}
 
 	/** Un'unita' configurata dal CATALOGO EROI: statistiche, abilita' e reazioni sono quelle spedite. */
@@ -215,6 +217,96 @@ bool FRTBranthInterpositionRedirectsTest::RunTest(const FString&)
 		CountHeroReactActivations(TM, TEXT("Hero.Branth.Interposition")), 1);
 	TestEqual(TEXT("il colpo lo incassa Branth"), BranthBefore - Branth->Health, Shot);
 	TestEqual(TEXT("e l'alleata non subisce nulla"), Ally->Health, AllyBefore);
+
+	DestroyHeroReactWorld(World);
+	return true;
+}
+
+/**
+ * **La copertura si rivalida su chi il colpo lo incassa DAVVERO, non su chi era il bersaglio.**
+ *
+ * 🔑 **L'oracolo e' il DANNO, non la sostituzione** (`PIA-1.3`, `#2616`). Che il colpo arrivi a Branth lo
+ * misura gia' `Heroes.BranthInterpositionRedirectsDirectHit`; un test che si fermasse li' sarebbe **vacuo**
+ * rispetto a questa proprieta' — resterebbe verde anche se la copertura non venisse rivalidata, perche' il
+ * bersaglio cambia comunque.
+ *
+ * La regola e' [D-017], e vive in `ARTTurnManager::ResolveInterceptions`:
+ *
+ * > *«Riscrivere il solo `TargetId` non basta: la copertura e' gia' dentro il `Power`, calcolata sul bordo
+ * > davanti a chi era il bersaglio quando i colpi sono stati raccolti. Il colpo arriverebbe a chi si
+ * > interpone protetto dal muretto di qualcun altro.»*
+ *
+ * La fixture da' coperture **diverse** ai due bersagli, che e' cio' che rende l'asserzione discriminante:
+ * l'alleata e' **scoperta**, Branth ha un riparo **basso** sul bordo da cui il colpo entra. Senza
+ * `RedirectHitTo`, Branth incasserebbe il colpo pieno calcolato su di lei.
+ *
+ * ⚠️ **`Low` e non `High`, ed e' la riga che decide se il test misura qualcosa**: `HexCoverDamageReduction`
+ * attenua solo la copertura bassa — l'alta blocca la linea di tiro, non il danno. Con `High` la riduzione
+ * nominale sarebbe `0` e il test sarebbe verde per la ragione sbagliata. E' la trappola gia' pagata da
+ * `RTCombatLogTests.cpp`, che la dichiara accanto alla propria fixture.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBranthInterpositionRevalidatesCoverTest,
+	"RefactorTactics.Heroes.BranthInterpositionRevalidatesCoverOnEffectiveTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBranthInterpositionRevalidatesCoverTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHeroReactWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* Map = SpawnHeroReactMap(World);
+	if (!TestNotNull(TEXT("mappa"), Map)) { DestroyHeroReactWorld(World); return false; }
+
+	URTHeroData* BranthData = URTHeroCatalogLibrary::MakeBranth();
+	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakePhase();
+	URTHeroData* WraithData = URTHeroCatalogLibrary::MakeWraith();
+	// Stesso layout del test gemello: l'attaccante sta a EST, quindi il colpo entra dal bordo `E`.
+	ARTUnit* Branth = SpawnHeroReactUnit(World, BranthData, /*Team*/ 0, FRTCellId(0, 0));
+	ARTUnit* Ally = SpawnHeroReactUnit(World, PhaseData, /*Team*/ 0, FRTCellId(1, 0));
+	ARTUnit* Enemy = SpawnHeroReactUnit(World, WraithData, /*Team*/ 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("alleata"), Ally)
+		|| !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyHeroReactWorld(World);
+		return false;
+	}
+
+	// 🔑 **La copertura sta su BRANTH e non sull'alleata**: e' l'asimmetria che rende il test discriminante.
+	// Si parte dalla cella esistente e le si aggiunge la faccia — costruirne una nuova con lo stesso `Id`
+	// perderebbe il terreno posato dalla fixture.
+	if (URTHexMapAsset* Asset = Map->MapAsset)
+	{
+		if (const FRTHexCellData* Esistente = Asset->FindCell(FRTCellId(0, 0, 0)))
+		{
+			FRTHexCellData Riparo = *Esistente;
+			Riparo.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::Low, 50));
+			Asset->AddOrUpdateCell(Riparo);
+		}
+	}
+	Branth->Facing = ERTHexDirection::E; // il riparo vale nell'arco frontale: guarda chi spara
+
+	Branth->PlannedReactionAbility = HeroReactInterpositionIndex;
+	Branth->PlannedAbilityIndex = INDEX_NONE;
+	Enemy->PlannedAbilityIndex = 0; // PulseShot, colpo singolo
+	Enemy->PlannedAttackTarget = Ally;
+
+	const int32 BranthBefore = Branth->Health;
+	const int32 AllyBefore = Ally->Health;
+	const int32 Shot = HeroReactDeclaredDamage(WraithData->Actions[0]);
+	RunHeroReactTurn(TM);
+
+	// Premesse: senza queste, l'asserzione sul danno misurerebbe un turno che non e' successo.
+	if (!TestEqual(TEXT("premessa: la reazione si e' attivata"),
+			CountHeroReactActivations(TM, TEXT("Hero.Branth.Interposition")), 1)
+		|| !TestEqual(TEXT("premessa: l'alleata non incassa nulla"), Ally->Health, AllyBefore))
+	{
+		DestroyHeroReactWorld(World);
+		return false;
+	}
+
+	// 🔴 **L'asserzione.** Il colpo era stato calcolato su un bersaglio SCOPERTO; lo incassa un bersaglio
+	// RIPARATO, e il numero deve dirlo. Senza rivalidazione qui si leggerebbe `Shot`.
+	TestEqual(TEXT("il danno riflette la copertura di CHI INCASSA, non quella del bersaglio originale"),
+		BranthBefore - Branth->Health, Shot - URTCombatLibrary::LowCoverDamageReduction);
 
 	DestroyHeroReactWorld(World);
 	return true;
