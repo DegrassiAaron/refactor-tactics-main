@@ -10,6 +10,7 @@
 #include "UI/RTIconCatalogData.h" // URTIconCatalogData: esplicito, non ereditato da RTIconLibrary.h
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
+#include "Turn/RTTurnLog.h" // FRTTurnLogEntry: il feed si prova iniettando una voce nel log
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/Texture2D.h"
@@ -409,6 +410,69 @@ bool FRTActionSlotResolvesFromCatalogTest::RunTest(const FString&)
 	TestFalse(TEXT("un'altra azione chiede un'altra chiave, che il catalogo non ha"),
 		Slot->GetResolvedIcon().bResolved);
 
+	return true;
+}
+
+/**
+ * IL WIDGET DEL FEED LEGGE IL CANALE FILTRATO, E NON NE HA UN ALTRO — `#2697`.
+ *
+ * 🔴 **E' l'assertion che il difetto originale non aveva.** `GetRecentEventsForTeam` era corretto, testato
+ * e verde — e senza chiamanti: un canale che nessuno legge non produce nessun rosso, ed e' la forma di
+ * `#2549` e `#2492`. Questo test lega il **consumatore** al filtro: cancellare la chiamata nel widget lo
+ * rende rosso, che e' l'unica cosa che il verde precedente non poteva fare.
+ *
+ * ⛔ **E copre la regressione che sarebbe un LEAK, non un difetto di UI.** Un widget che leggesse il canale
+ * non filtrato mostrerebbe fatti che l'osservatore non ha diritto di conoscere. La difesa e' strutturale —
+ * `URTScreenHudWidgetBase` non espone il `TurnManager` ai Blueprint, quindi non c'e' una seconda porta da
+ * cui passare — ma la struttura si puo' cambiare, e l'assertion no.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudEventLogReadsFilteredFeedTest,
+	"RefactorTactics.ScreenHud.EventLogWidgetReadsTheFilteredFeed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudEventLogReadsFilteredFeedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTPlayerEventLogWidget* Feed = NewObject<URTPlayerEventLogWidget>(World);
+	if (!TestNotNull(TEXT("widget"), Feed)) { DestroyHudWidgetWorld(World); return false; }
+
+	// 1. Senza contesto: nessuna riga, e nessun crash. Un widget costruito prima del manager e' il percorso
+	//    normale, non un caso limite — `NativeConstruct` gira prima che l'orchestratore esista.
+	TestEqual(TEXT("senza contesto il feed e' vuoto"), Feed->GetFeed().Num(), 0);
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHudWidgetWorld(World); return false; }
+
+	// Il tiro rifiutato di un'unita' della squadra 1, con un muro che la SUA squadra conosce.
+	FRTTurnLogEntry Rifiutato;
+	Rifiutato.Category = ERTLogCategory::Combat;
+	Rifiutato.Outcome = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);
+	Rifiutato.UnitId = 9;
+	Rifiutato.SrcCell = FRTCellId(-1, 0, 0);
+	Rifiutato.TgtCell = FRTCellId(1, 0, 0);
+	Rifiutato.SightBlockerCell = FRTCellId(0, 0, 0);
+	Rifiutato.Verdict.AllowTeam(1);
+	TM->AppendTurnLogEntryForTest(Rifiutato);
+
+	// 2. L'osservatore AUTORIZZATO legge la riga, e il riferimento nel mondo per trovarla.
+	Feed->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 1);
+	const TArray<FRTPlayerEventLineView> Autorizzato = Feed->GetFeed();
+	if (!TestEqual(TEXT("chi e' autorizzato legge la riga dal widget"), Autorizzato.Num(), 1))
+	{
+		DestroyHudWidgetWorld(World);
+		return false;
+	}
+	TestFalse(TEXT("e la riga non e' vuota"), Autorizzato[0].Text.IsEmpty());
+	TestTrue(TEXT("e porta l'ostacolo da marcare"), Autorizzato[0].bHasBlocker);
+	TestTrue(TEXT("nella cella che la voce portava"), Autorizzato[0].BlockerCell == FRTCellId(0, 0, 0));
+
+	// 3. L'altro osservatore, STESSO widget e stesso log: niente. E' la meta' che rende il test una prova
+	//    del filtro invece che una prova dell'esistenza.
+	Feed->SetMatchContextForTest(TM, /*PlayerTeamId=*/ 0);
+	TestEqual(TEXT("chi non e' autorizzato non legge nulla"), Feed->GetFeed().Num(), 0);
+
+	DestroyHudWidgetWorld(World);
 	return true;
 }
 

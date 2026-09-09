@@ -186,6 +186,38 @@ public:
 	FText GetRoundCounterText() const;
 };
 
+/**
+ * `WBP_RT_EventLog` — il feed di chi gioca: cosa e' successo nel turno, filtrato per squadra.
+ *
+ * 🔴 **E' il consumatore che `#2697` ha misurato mancante.** Il canale autorizzato esisteva, era coperto da
+ * test ed era **verde** — e nessuno lo leggeva: la spiegazione di un'azione dichiarata e non avvenuta
+ * arrivava al `TurnLog` e all'Output Log, dove in partita nessuno guarda. Verdetto d'autore del 2026-09-09:
+ * *«non si capisce perche' non parte, non ci sono riferimenti video, solo log»*.
+ *
+ * ⛔ **Non c'e' un accessor per il log completo, ed e' la proprieta' che conta.** `GetFeed()` passa da
+ * `URTHudViewModel::BuildPlayerEventFeed`, che filtra per l'osservatore; il `TurnManager` non e' esposto ai
+ * Blueprint dalla base, quindi un widget derivato non ha una seconda porta da cui leggere le righe non
+ * filtrate. Una regressione a un canale completo sarebbe un **leak di conoscenza**, non un dettaglio di UI.
+ *
+ * ⚠️ **Qui non c'e' layout, come per gli altri.** Posizione, budget di righe e comportamento fra Planning e
+ * Resolution stanno nel `.uasset` e in `progettazione-hud.md` §4.1, che ne e' l'owner (`#1936` §F).
+ */
+UCLASS(BlueprintType)
+class REFACTORTACTICS_API URTPlayerEventLogWidget : public URTScreenHudWidgetBase
+{
+	GENERATED_BODY()
+
+public:
+	/**
+	 * Le righe da mostrare, gia' autorizzate e gia' composte. Senza contesto: nessuna riga.
+	 *
+	 * ⚠️ Non ha un parametro «mostra tutto». La regola di privacy diventa una proprieta' della firma invece
+	 * che disciplina da ricordare — la stessa forma di `GetRoster()`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	TArray<FRTPlayerEventLineView> GetFeed() const;
+};
+
 /** `WBP_RT_TeamRoster` — le unita' della PROPRIA squadra, morte comprese. */
 UCLASS(BlueprintType)
 class REFACTORTACTICS_API URTTeamRosterWidget : public URTScreenHudWidgetBase

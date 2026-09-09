@@ -9,6 +9,8 @@
 #include "UI/RTIconLibrary.h"         // MakeIconId: la chiave dell'icona si deriva dal tag, non si compone
 #include "Turn/RTReactionLibrary.h"   // ControlSeverityRank: la gravita' dei controlli ha gia' un owner (#2274)
 #include "Turn/RTIntentPrivacyLibrary.h"
+#include "UI/RTPlayerEventProjector.h" // la porta autorizzata del feed: il filtro non e' del widget
+#include "Turn/RTTurnLog.h"            // FRTTurnLogEntry: il feed consuma il log canonico, non il testo
 
 FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnManager)
 {
@@ -448,3 +450,77 @@ FString URTHudViewModel::ComposeRoundCounter(const FRTMatchHeaderView& Header)
 		? FString::Printf(TEXT("Round %d/%d"), Header.Round, Header.RoundLimit)
 		: FString::Printf(TEXT("Round %d"), Header.Round);
 }
+
+
+#define LOCTEXT_NAMESPACE "RTPlayerEventFeed"
+
+FText URTHudViewModel::ComposePlayerEventText(const FRTPlayerEvent& Event)
+{
+	switch (Event.Type)
+	{
+	case ERTPlayerEventType::AttackBlocked:
+		// 🔴 **La frase non nomina la cella, e il DOVE non e' perduto**: viaggia in `BlockerCell`, che chi
+		// disegna marca nel mondo. E' la meta' che mancava al verdetto d'autore — *«non ci sono riferimenti
+		// video, solo log»* — e stampare `(q=0,r=0,L=0)` l'avrebbe lasciata scoperta comunque, perche' un
+		// giocatore non converte coordinate assiali guardando lo schermo.
+		return LOCTEXT("AttackBlocked", "Nessuna linea di tiro");
+
+	case ERTPlayerEventType::MoveBlocked:   return LOCTEXT("MoveBlocked", "Movimento bloccato");
+	case ERTPlayerEventType::Moved:         return LOCTEXT("Moved", "Spostata");
+	case ERTPlayerEventType::SlideBlocked:  return LOCTEXT("SlideBlocked", "Il terreno non l'ha spostata");
+	case ERTPlayerEventType::Defeated:      return LOCTEXT("Defeated", "Eliminata");
+	case ERTPlayerEventType::ReactionFired: return LOCTEXT("ReactionFired", "Reazione scattata");
+	case ERTPlayerEventType::StatusChanged: return LOCTEXT("StatusChanged", "Stato cambiato");
+	case ERTPlayerEventType::Environment:   return LOCTEXT("Environment", "L'ambiente cambia");
+	case ERTPlayerEventType::ObjectiveChanged: return LOCTEXT("Objective", "Obiettivo aggiornato");
+
+	case ERTPlayerEventType::Attacked:
+		return FText::Format(LOCTEXT("Attacked", "Colpita — {0}"), FText::AsNumber(Event.Amount));
+	case ERTPlayerEventType::Healed:
+		return FText::Format(LOCTEXT("Healed", "Curata — {0}"), FText::AsNumber(Event.Amount));
+	}
+
+	// ⚠️ **Il `default` non e' irraggiungibile e non deve tacere.** Un valore nuovo dell'enum non tradotto
+	// sopra arriverebbe qui: una riga generica e' un difetto visibile, una riga **vuota** e' una sparizione
+	// che nessuno nota — lo stesso difetto che `SlideIsImportant` documenta un piano piu' in la'.
+	return LOCTEXT("Unknown", "Qualcosa e' successo");
+}
+
+TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
+	int32 ObserverTeamId)
+{
+	// ⛔ **L'autorizzazione non si ripete qui, e non deve.** `Project` la applica come primo passo, sul
+	// verdetto che ogni voce porta congelato ([D-223]). Riapplicarla sarebbe un secondo contratto di
+	// conoscenza — il difetto che `#1936` vieta — e ometterla sarebbe il leak. Questa funzione **compone** e
+	// nient'altro.
+	const TArray<FRTPlayerEvent> Events = URTPlayerEventProjector::Project(TurnLog, ObserverTeamId);
+
+	TArray<FRTPlayerEventLineView> Lines;
+	Lines.Reserve(Events.Num());
+	for (const FRTPlayerEvent& Event : Events)
+	{
+		FRTPlayerEventLineView& Line = Lines.AddDefaulted_GetRef();
+		Line.Text = ComposePlayerEventText(Event);
+		Line.Importance = Event.Importance;
+		Line.PrimaryStableUnitId = Event.PrimaryUnitId;
+		Line.BlockerCell = Event.BlockerCell;
+
+		// ⚠️ La sentinella si legge **una volta**, qui, e diventa un `bool`. Lasciarla al widget
+		// rimetterebbe nel Blueprint la distinzione fra «cella (0,0,0)» e «nessuna cella», che e' proprio
+		// dove `FRTCellId::IsValid()` risponde di si' e marcherebbe l'origine dell'arena.
+		Line.bHasBlocker = Event.HasBlockerCell();
+	}
+	return Lines;
+}
+
+TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
+	int32 ObserverTeamId)
+{
+	// Nessun manager, nessun log: un feed vuoto e' gia' la risposta giusta, e non c'e' una «vista neutra»
+	// da inventare come per l'intestazione — una riga non esiste finche' qualcosa non e' successo.
+	return TurnManager != nullptr
+		? BuildPlayerEventFeed(TurnManager->GetTurnLog(), ObserverTeamId)
+		: TArray<FRTPlayerEventLineView>{};
+}
+
+#undef LOCTEXT_NAMESPACE

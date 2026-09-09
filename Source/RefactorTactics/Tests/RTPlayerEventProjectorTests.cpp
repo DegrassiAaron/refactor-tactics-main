@@ -169,12 +169,217 @@ bool FRTPlayerEventSlideBlockedHidesTheBlockerTest::RunTest(const FString&)
 	TestEqual(TEXT("e nessun secondo soggetto: il blocker non ha un campo dove stare"),
 		PerLAutorizzato[0].SecondaryUnitId, static_cast<int32>(INDEX_NONE));
 
+	// 🔴 **`BlockerCell` e' un campo NUOVO, ed e' esattamente il posto in cui questo blocker potrebbe
+	// entrare per distrazione** (`#2697`). Esiste per il muro di `NoLineOfSight` — una cella di TERRENO che
+	// `SightBlockerForLog` ha gia' filtrato — e cio' che impedisce lo scivolamento non e' quello: puo'
+	// essere un'unita' che l'osservatore non conosce, e per essa nessun filtro e' stato applicato.
+	//
+	// ⚠️ **Senza questa riga il guardrail sopra invecchia in silenzio**: la doc di `SlideBlocked` dichiarava
+	// «non esiste nessun campo in cui un blocker possa entrare», e dal momento in cui il campo esiste quella
+	// frase e' una promessa da verificare invece che un fatto strutturale.
+	TestFalse(TEXT("e la cella del blocker resta la sentinella: il campo nuovo non e' una porta"),
+		PerLAutorizzato[0].HasBlockerCell());
+
 	// ⛔ E l'autorizzazione e' quella ESISTENTE, non una scritta per questo esito: lo stesso predicato che
 	// il canale testuale applica. Un `SlideBlocked` che si autorizzasse da solo passerebbe le righe sopra.
 	TestFalse(TEXT("e passa dal predicato di autorizzazione condiviso"),
 		URTPlayerEventProjector::IsAuthorized(Nemica, /*ObserverTeamId*/ 0));
 	TestTrue(TEXT("che ammette la squadra autorizzata"),
 		URTPlayerEventProjector::IsAuthorized(Nemica, /*ObserverTeamId*/ 1));
+	return true;
+}
+
+/**
+ * IL TIRO SENZA LINEA DI VISTA ARRIVA A CHI GIOCA — `#2697`, ed e' cio' che completa la via *(b)* di
+ * `#2534`.
+ *
+ * 🔴 **Il difetto che questo test esiste per impedire e' un SILENZIO.** `ClassifyEntry` scartava
+ * `NoLineOfSight` con la motivazione *«e' il perche' di un colpo che non c'e' stato: diagnostica, non
+ * cronaca»* — vera finche' l'unico canale al giocatore era il testo diagnostico, falsa da quando la riga
+ * e' **l'unica cosa** che spiega un'azione dichiarata e non avvenuta. `D-340` ha scelto di far nominare
+ * la causa al log; la seduta del 2026-09-09 ha misurato che quella riga non lascia l'Output Log.
+ *
+ * ⚠️ **Il bersaglio e' VELATO, ed e' la ragione per cui il silenzio non e' recuperabile guardando.** E' il
+ * muro stesso a bloccare la vista: chi guarda vede la propria unita' sparare verso il nulla, senza vedere
+ * ne' il nemico ne' l'ostacolo. Senza questa riga il giocatore conclude che l'attacco sia rotto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerEventNoLineOfSightReachesTheFeedTest,
+	"RefactorTactics.UI.PlayerEventLog.NoLineOfSightReachesTheFeed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerEventNoLineOfSightReachesTheFeedTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Log;
+	FRTTurnLogEntry Rifiutato = PlayerEventEntry(ERTLogCategory::Combat,
+		static_cast<uint8>(ERTCombatOutcome::NoLineOfSight), /*UnitId*/ 3, /*AllowedTeam*/ 0);
+	Rifiutato.SrcCell = FRTCellId(-1, 0, 0);
+	Rifiutato.TgtCell = FRTCellId(1, 0, 0);
+	Rifiutato.SightBlockerCell = FRTCellId(0, 0, 0);
+	Rifiutato.ActionId = TEXT("Action.BasicAttack");
+	Log.Add(Rifiutato);
+
+	const TArray<FRTPlayerEvent> Eventi = URTPlayerEventProjector::Project(Log, /*ObserverTeamId*/ 0);
+
+	if (!TestEqual(TEXT("il tiro rifiutato produce una riga per chi gioca"), Eventi.Num(), 1))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("che nomina chi ha provato a sparare"), Eventi[0].PrimaryUnitId, 3);
+	TestEqual(TEXT("e l'azione dichiarata"), Eventi[0].ActionId.ToString(),
+		FString(TEXT("Action.BasicAttack")));
+
+	// ⚠️ **`Minor` sarebbe una sparizione travestita da evento**: `Project` scarta le righe minori alla
+	// fine, quindi un tipo classificato `Minor` non arriverebbe comunque al feed. L'asserzione guarda cio'
+	// che il giocatore riceve, non cio' che il proiettore ha pensato.
+	TestTrue(TEXT("e non e' silenziosa"),
+		Eventi[0].Importance != ERTPlayerEventImportance::Minor);
+	return true;
+}
+
+/**
+ * IL MURO ARRIVA AL FEED COME CELLA, NON COME FRASE — `#2697`.
+ *
+ * 🔑 **E' il campo che permette il «riferimento video» che il verdetto d'autore chiedeva**: *«non ci sono
+ * riferimenti video, solo log»*. Con la cella, chi disegna puo' marcare l'ostacolo nel mondo; con una
+ * stringa gia' composta potrebbe solo ristamparla, e ristampare `(q=0,r=0,L=0)` a un giocatore e' la
+ * diagnostica che `#1936` §A toglie dallo schermo.
+ *
+ * ⛔ **La cella NON viene ricalcolata qui e non passa da nessun filtro nuovo.** Arriva dalla voce, dove
+ * `URTTurnLogLibrary::SightBlockerForLog` l'ha gia' ammessa solo se la squadra dell'attaccante la conosceva
+ * — `VisibleCells` ∪ `ExploredCells`, fail-closed. E' la stessa ragione per cui `RTReplayPrivacyLibrary` la
+ * marca **`Public`**: cio' che arriva a valle e' gia' filtrato, e nasconderlo non aggiungerebbe privacy.
+ *
+ * ⚠️ **Le due meta' del test non sono ridondanti.** Che la cella nominabile arrivi prova il canale; che
+ * quella non nominabile resti la **sentinella** prova che il silenzio si propaga — e il silenzio deve
+ * restare indistinguibile dall'assenza ([D-225]), altrimenti il feed direbbe «c'e' un muro ma non te lo
+ * dico», che e' gia' informazione sulla geometria velata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerEventBlockerCellReachesTheFeedTest,
+	"RefactorTactics.UI.PlayerEventLog.BlockerCellReachesTheFeed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerEventBlockerCellReachesTheFeedTest::RunTest(const FString&)
+{
+	// ── Muro nominabile: la squadra dell'attaccante conosceva la cella, e `SightBlockerForLog` l'ha scritta.
+	{
+		TArray<FRTTurnLogEntry> Log;
+		FRTTurnLogEntry ConMuro = PlayerEventEntry(ERTLogCategory::Combat,
+			static_cast<uint8>(ERTCombatOutcome::NoLineOfSight), /*UnitId*/ 3, /*AllowedTeam*/ 0);
+		ConMuro.SightBlockerCell = FRTCellId(0, 0, 0);
+		Log.Add(ConMuro);
+
+		const TArray<FRTPlayerEvent> Eventi = URTPlayerEventProjector::Project(Log, /*ObserverTeamId*/ 0);
+		if (!TestEqual(TEXT("premessa: il tiro rifiutato produce una riga"), Eventi.Num(), 1))
+		{
+			return false;
+		}
+		TestTrue(TEXT("che porta un muro nominabile"), Eventi[0].HasBlockerCell());
+		TestTrue(TEXT("ed e' la cella che la voce portava"),
+			Eventi[0].BlockerCell == FRTCellId(0, 0, 0));
+	}
+
+	// ── Muro NON nominabile: la squadra non conosceva quella cella, e la voce porta la sentinella. La riga
+	// per il giocatore esiste lo stesso — «il tiro non e' partito» resta vero e utile — ma non dice dove.
+	{
+		TArray<FRTTurnLogEntry> Log;
+		FRTTurnLogEntry SenzaMuro = PlayerEventEntry(ERTLogCategory::Combat,
+			static_cast<uint8>(ERTCombatOutcome::NoLineOfSight), /*UnitId*/ 3, /*AllowedTeam*/ 0);
+		SenzaMuro.SightBlockerCell = FRTTurnLogEntry::NoSightBlocker();
+		Log.Add(SenzaMuro);
+
+		const TArray<FRTPlayerEvent> Eventi = URTPlayerEventProjector::Project(Log, /*ObserverTeamId*/ 0);
+		if (!TestEqual(TEXT("la riga c'e' anche senza muro nominabile"), Eventi.Num(), 1))
+		{
+			return false;
+		}
+		TestFalse(TEXT("ma non nomina nessuna cella: il silenzio si propaga"),
+			Eventi[0].HasBlockerCell());
+	}
+	return true;
+}
+
+/**
+ * IL TIRO RIFIUTATO DI UN AVVERSARIO NON RIVELA IL SUO MURO — `#2697`, guardrail di privacy.
+ *
+ * 🔴 **Un campo nuovo e' una porta nuova, e questa ne porta una cella.** `BlockerCell` e' filtrata **alla
+ * scrittura** per la squadra dell'attaccante; il feed pero' lo legge per un OSSERVATORE, che puo' essere
+ * un'altra squadra. La difesa non e' un filtro nuovo — sarebbe un secondo contratto di conoscenza — ma
+ * `IsAuthorized` come **primo** passo: una voce che l'osservatore non puo' leggere non diventa un evento,
+ * quindi non c'e' nessun evento in cui la cella possa viaggiare.
+ *
+ * ⚠️ **Il test misura entrambe le meta'**, come il suo gemello per `SlideBlocked`: che l'autorizzato la
+ * riceva — senza, «zero eventi» sarebbe soddisfatto anche da un proiettore rotto — e che l'altro non
+ * riceva niente, nemmeno un conteggio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerEventBlockedShotHidesTheWallTest,
+	"RefactorTactics.UI.PlayerEventLog.BlockedShotDoesNotRevealTheWallToTheUnauthorized",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerEventBlockedShotHidesTheWallTest::RunTest(const FString&)
+{
+	// Il tiro rifiutato di un'unita' della squadra 1, con un muro che LA SUA squadra conosce.
+	TArray<FRTTurnLogEntry> Log;
+	FRTTurnLogEntry Avversario = PlayerEventEntry(ERTLogCategory::Combat,
+		static_cast<uint8>(ERTCombatOutcome::NoLineOfSight), /*UnitId*/ 9, /*AllowedTeam*/ 1);
+	Avversario.SrcCell = FRTCellId(4, -2, 0);
+	Avversario.TgtCell = FRTCellId(6, -2, 0);
+	Avversario.SightBlockerCell = FRTCellId(5, -2, 0);
+	Log.Add(Avversario);
+
+	// PREMESSA: per chi e' autorizzato la riga c'e', con la sua cella.
+	const TArray<FRTPlayerEvent> PerLAutorizzato = URTPlayerEventProjector::Project(Log, /*Team*/ 1);
+	if (!TestEqual(TEXT("premessa: chi e' autorizzato legge il tiro rifiutato"),
+		PlayerEventCountOf(PerLAutorizzato, ERTPlayerEventType::AttackBlocked), 1))
+	{
+		return false;
+	}
+	TestTrue(TEXT("premessa: e ne vede il muro"), PerLAutorizzato[0].HasBlockerCell());
+
+	// E per chi non lo e': NIENTE. Non una riga anonima, non una cella, non un conteggio.
+	const TArray<FRTPlayerEvent> PerLAltro = URTPlayerEventProjector::Project(Log, /*Team*/ 0);
+	TestEqual(TEXT("chi non e' autorizzato non riceve nessun evento"), PerLAltro.Num(), 0);
+
+	// ⛔ E il predicato e' quello ESISTENTE, non uno scritto per questo esito.
+	TestFalse(TEXT("e passa dal predicato di autorizzazione condiviso"),
+		URTPlayerEventProjector::IsAuthorized(Avversario, /*ObserverTeamId*/ 0));
+	TestTrue(TEXT("che ammette la squadra autorizzata"),
+		URTPlayerEventProjector::IsAuthorized(Avversario, /*ObserverTeamId*/ 1));
+	return true;
+}
+
+/**
+ * UN MOVIMENTO NELLO STESSO TURNO NON COPRE IL TIRO RIFIUTATO — `#2697`, dominanza.
+ *
+ * 🔴 **E' il difetto documentato per `SlideBlocked`, alla lettera.** Un tipo senza riga propria in
+ * `DominanceRank` cade nel `default` a `10`, cioe' **sotto** `Moved` a `20`: la stessa unita' che si muove
+ * e poi prova a sparare tiene la riga del movimento, che il filtro finale scarta perche' `Minor`. Ne esce
+ * **zero eventi** — la sparizione che questo test esiste per impedire.
+ *
+ * ⚠️ **Lo scenario e' quello ordinario, non un caso limite**: muoversi e attaccare nello stesso turno e'
+ * il turno normale di questo gioco, ed e' precisamente il turno in cui il giocatore si chiede perche' il
+ * colpo non sia partito.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerEventAttackBlockedSurvivesAMoveTest,
+	"RefactorTactics.UI.PlayerEventLog.AttackBlockedSurvivesAMoveInTheSameTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerEventAttackBlockedSurvivesAMoveTest::RunTest(const FString&)
+{
+	// La stessa unita', nello stesso turno: prima si sposta, poi il tiro non parte.
+	TArray<FRTTurnLogEntry> Log;
+	Log.Add(PlayerEventEntry(ERTLogCategory::Move,
+		static_cast<uint8>(ERTMoveOutcome::Moved), /*UnitId*/ 3, /*AllowedTeam*/ 0));
+
+	FRTTurnLogEntry Rifiutato = PlayerEventEntry(ERTLogCategory::Combat,
+		static_cast<uint8>(ERTCombatOutcome::NoLineOfSight), /*UnitId*/ 3, /*AllowedTeam*/ 0);
+	Rifiutato.SightBlockerCell = FRTCellId(0, 0, 0);
+	Log.Add(Rifiutato);
+
+	const TArray<FRTPlayerEvent> Eventi = URTPlayerEventProjector::Project(Log, /*ObserverTeamId*/ 0);
+
+	TestEqual(TEXT("il tiro rifiutato sopravvive al movimento della stessa unita'"),
+		PlayerEventCountOf(Eventi, ERTPlayerEventType::AttackBlocked), 1);
+
+	// ⚠️ **E resta l'UNICA riga**: il movimento riuscito non ne aggiunge una seconda. Senza questa
+	// asserzione, un proiettore che accodasse invece di dominare passerebbe la riga sopra.
+	TestEqual(TEXT("e resta l'unica riga di quell'unita'"), Eventi.Num(), 1);
 	return true;
 }
 

@@ -9,6 +9,7 @@
 // che non deve leggere.
 
 #include "Misc/AutomationTest.h"
+#include "UI/RTHudViewModel.h" // FRTPlayerEventLineView: le righe da cui i marcatori si derivano (#2697)
 #include "UI/RTHUD.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
@@ -195,6 +196,59 @@ bool FRTHUDNoFriendlyFireNoMarkTest::RunTest(const FString&)
 	// La zona c'e' comunque — l'attacco parte lo stesso — ma l'alleata non e' segnalata.
 	TestTrue(TEXT("la zona resta accesa"), Hit.Num() > 1);
 	TestEqual(TEXT("nessun avviso di fuoco amico"), Ally.Num(), 0);
+	return true;
+}
+
+/**
+ * LE CELLE DA MARCARE SONO SOLO QUELLE NOMINABILI — `#2697`.
+ *
+ * 🔴 **La sentinella e' `Layer == INDEX_NONE`, e `FRTCellId::IsValid()` NON la riconosce**: la cella
+ * «vuota» `(0,0,0)` supera l'invariante cubica `q + r + z == 0`. Un filtro ingenuo marcherebbe l'origine
+ * dell'arena a ogni riga senza ostacolo — un pannello che compare in mezzo al campo, dove non c'e' niente,
+ * ogni volta che il velo copre il muro.
+ *
+ * ⚠️ **La decisione vive QUI e non in `DrawHUD`** perche' `DrawHUD` non ha copertura headless: e' la
+ * stessa strada di `ComputePlannedHitMarks`, e la ragione per cui quel precedente esiste.
+ *
+ * ⛔ **Non c'e' nessun filtro di conoscenza in questa funzione, e non deve essercene uno.** Le righe
+ * arrivano gia' autorizzate da `BuildPlayerEventFeed`; riapplicare qui una regola di privacy sarebbe il
+ * secondo contratto di conoscenza che `#1936` vieta — e ometterla dove serviva sarebbe stato il leak.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudBlockerMarksTest,
+	"RefactorTactics.HUD.BlockerMarksOnlyNameableCells",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudBlockerMarksTest::RunTest(const FString&)
+{
+	TArray<FRTPlayerEventLineView> Feed;
+
+	// Una riga con ostacolo nominabile: si marca.
+	FRTPlayerEventLineView ConMuro;
+	ConMuro.bHasBlocker = true;
+	ConMuro.BlockerCell = FRTCellId(2, -1, 0);
+	Feed.Add(ConMuro);
+
+	// Una riga il cui muro il velo copre: la cella e' la SENTINELLA, e non si marca.
+	FRTPlayerEventLineView SenzaMuro;
+	SenzaMuro.bHasBlocker = false;
+	SenzaMuro.BlockerCell = FRTCellId(0, 0, INDEX_NONE);
+	Feed.Add(SenzaMuro);
+
+	// Una riga ordinaria — un colpo, un movimento — che non ha ostacoli per costruzione.
+	Feed.Add(FRTPlayerEventLineView{});
+
+	// E lo stesso ostacolo nominato due volte nello stesso turno: due unita' possono trovare lo stesso muro.
+	Feed.Add(ConMuro);
+
+	TSet<FRTCellId> Marks;
+	ARTHUD::ComputeBlockerMarks(Feed, Marks);
+
+	TestEqual(TEXT("si marca un ostacolo solo, non quattro righe"), Marks.Num(), 1);
+	TestTrue(TEXT("ed e' la cella nominabile"), Marks.Contains(FRTCellId(2, -1, 0)));
+
+	// 🔴 L'asserzione che vale il test: l'origine dell'arena NON e' un ostacolo. Con `IsValid()` al posto
+	// della sentinella, questa riga sarebbe rossa e il pannello comparirebbe in mezzo al campo.
+	TestFalse(TEXT("e l'origine dell'arena non viene marcata per una sentinella"),
+		Marks.Contains(FRTCellId(0, 0, 0)));
 	return true;
 }
 

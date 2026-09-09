@@ -54,6 +54,26 @@ FVector2D ARTHUD::ClampOverlayAnchor(const FVector2D& Anchor, float HalfWidth,
 	return FVector2D(X, Y);
 }
 
+void ARTHUD::ComputeBlockerMarks(const TArray<FRTPlayerEventLineView>& Feed,
+	TSet<FRTCellId>& OutBlockerCells)
+{
+	OutBlockerCells.Reset();
+	for (const FRTPlayerEventLineView& Line : Feed)
+	{
+		// ⛔ **`bHasBlocker` e non `BlockerCell.IsValid()`**, ed e' l'unica cosa che questa funzione puo'
+		// sbagliare. `IsValid()` verifica l'invariante cubica `q + r + z == 0`, VERA per la cella di default
+		// `(0,0,0)`: ogni riga senza ostacolo — il caso ordinario — marcherebbe l'origine dell'arena, e il
+		// giocatore vedrebbe un pannello in mezzo al campo dove non c'e' niente. La sentinella e' il `Layer`
+		// a `INDEX_NONE`, che il `bool` della vista ha gia' letto una volta sola.
+		if (Line.bHasBlocker)
+		{
+			// Un `TSet`, perche' due unita' possono trovare lo stesso muro nello stesso turno: due righe nel
+			// feed sono corrette — sono due tiri — ma due marcatori sovrapposti sulla stessa cella no.
+			OutBlockerCells.Add(Line.BlockerCell);
+		}
+	}
+}
+
 void ARTHUD::ComputePlannedHitMarks(const TArray<ARTUnit*>& Units, int32 PlayerTeamId,
 	TSet<FRTCellId>& OutHitCells, TSet<FRTCellId>& OutAllyHitCells)
 {
@@ -883,6 +903,61 @@ void ARTHUD::DrawHUD()
 					DrawIntentLine(FVector2D(HeadScreen.X, HeadScreen.Y), FVector2D(TgtScreen.X, TgtScreen.Y),
 						Color, Style);
 				}
+			}
+		}
+	}
+
+
+	// Ostacoli che hanno fermato un colpo in questo turno — `#2697`, e chiude la via *(b)* di `#2534`.
+	//
+	// 🔴 **E' la meta' che mancava a `D-340`.** Il log NOMINA gia' il muro dal 2026-09-06, ma la riga
+	// arrivava al `TurnLog` e all'Output Log: in partita nessuno li apre. Verdetto d'autore del 2026-09-09
+	// sul banco `Visual.Map.SightWallIsWalkable` — *«non si capisce perche' non parte, non ci sono
+	// riferimenti video, solo log»*. Questo e' il riferimento video.
+	//
+	// ⚠️ **Il bersaglio e' VELATO proprio dal muro**, ed e' la ragione per cui marcare l'ostacolo vale piu'
+	// che evidenziare il bersaglio: chi guarda non vede ne' il nemico ne' cio' che lo copre, e senza un
+	// segno sulla cella conclude che l'attacco sia rotto.
+	//
+	// ⛔ **Il feed e' gia' filtrato, e qui non si rifiltra.** `BuildPlayerEventFeed` passa da
+	// `URTPlayerEventProjector`, che autorizza come primo passo: una cella che l'osservatore non conosce
+	// non e' mai arrivata fin qui. Una seconda regola di privacy in questo punto sarebbe il secondo
+	// contratto di conoscenza che `#1936` vieta.
+	if (TurnManager)
+	{
+		TSet<FRTCellId> BlockerCells;
+		ComputeBlockerMarks(URTHudViewModel::BuildPlayerEventFeed(TurnManager, PlayerTeamId), BlockerCells);
+
+		// Un contorno esagonale, non un riempimento: la cella porta gia' la propria geometria, e coprirla
+		// nasconderebbe cio' che il giocatore deve riconoscere come ostacolo. Colore ambra, lo stesso della
+		// banda diagnostica qui sotto — «guarda qui, c'e' una spiegazione».
+		const FLinearColor BlockerColor(1.f, 0.6f, 0.15f, 0.9f);
+		for (const FRTCellId& Cell : BlockerCells)
+		{
+			const FVector Centre = Project(HexCellWorld(Cell, Origin, HexSize, LayerH));
+			if (Centre.Z <= 0.f)
+			{
+				continue; // dietro la camera: `Project` non da' una posizione utile
+			}
+
+			// Sei vertici, presi allo stesso raggio con cui la mappa disegna la cella. Il ciclo chiude
+			// l'anello con `% 6`, cosi' l'ultimo segmento torna al primo vertice senza un caso speciale.
+			FVector2D V[6];
+			bool bAllVisible = true;
+			for (int32 I = 0; I < 6; ++I)
+			{
+				const float Angle = FMath::DegreesToRadians(60.f * I);
+				const FVector WorldVertex = HexCellWorld(Cell, Origin, HexSize, LayerH)
+					+ FVector(HexSize * FMath::Cos(Angle), HexSize * FMath::Sin(Angle), 0.f);
+				const FVector Screen = Project(WorldVertex);
+				if (Screen.Z <= 0.f) { bAllVisible = false; break; }
+				V[I] = FVector2D(Screen.X, Screen.Y);
+			}
+			if (!bAllVisible) { continue; }
+
+			for (int32 I = 0; I < 6; ++I)
+			{
+				DrawLine(V[I].X, V[I].Y, V[(I + 1) % 6].X, V[(I + 1) % 6].Y, BlockerColor, 2.5f);
 			}
 		}
 	}

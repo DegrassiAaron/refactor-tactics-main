@@ -273,6 +273,25 @@ public:
 		TSet<FRTCellId>& OutHitCells, TSet<FRTCellId>& OutAllyHitCells);
 
 	/**
+	 * Le celle da marcare nel mondo perche' hanno fermato un colpo — `#2697`.
+	 *
+	 * 🔑 **E' la meta' «riferimento video» del verdetto d'autore**: *«non si capisce perche' non parte, non
+	 * ci sono riferimenti video, solo log»*. La riga del feed dice **che** il tiro non e' partito; questo
+	 * dice **dove**, nel posto in cui il giocatore sta gia' guardando — e senza stampargli addosso
+	 * `(q=..,r=..,L=..)`, che `#1936` §A tiene fuori dallo schermo.
+	 *
+	 * ⛔ **Nessun filtro di conoscenza qui, ed e' voluto.** Le righe arrivano gia' autorizzate da
+	 * `URTHudViewModel::BuildPlayerEventFeed`; riapplicare una regola di privacy sarebbe un secondo
+	 * contratto di conoscenza. Questa funzione legge `bHasBlocker` e deduplica, e nient'altro.
+	 *
+	 * Statica e pura per la stessa ragione di `ComputePlannedHitMarks`: `DrawHUD` non ha copertura
+	 * headless, quindi cio' che si puo' sbagliare deve stare dove i test arrivano — e cio' che si sbaglia
+	 * qui e' la **sentinella**, che `FRTCellId::IsValid()` non riconosce.
+	 */
+	static void ComputeBlockerMarks(const TArray<struct FRTPlayerEventLineView>& Feed,
+		TSet<FRTCellId>& OutBlockerCells);
+
+	/**
 	 * Se l'overlay di un'unita' (nome, barra HP, scudo) va disegnato per questo osservatore.
 	 *
 	 * Statica e PURA: `DrawHUD` non ha test, quindi la decisione vive qui dove si puo' interrogare — e' la

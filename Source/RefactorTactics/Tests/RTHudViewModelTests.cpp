@@ -1210,4 +1210,60 @@ bool FRTOverlayFadeAlphaTest::RunTest(const FString&)
 
 	return true;
 }
+
+/**
+ * IL FEED MOSTRA SOLO CIO' CHE L'OSSERVATORE PUO' VEDERE — `#2697`, ed e' l'assertion sul CONSUMATORE.
+ *
+ * 🔴 **Il test che mancava aveva un altro soggetto.** `RTCombatLogTests` esercita `GetRecentEventsForTeam`
+ * e asserisce sull'uscita: prova che il **filtro** funziona, ed e' verde da prima che questa issue nascesse.
+ * Cio' che nessuno provava e' che il filtro fosse **quello usato da chi disegna** — un canale corretto senza
+ * consumatori non produce nessun rosso, ed e' la forma di `#2549` e `#2492`.
+ *
+ * ⛔ **Una regressione a un canale non filtrato e' un LEAK, non un dettaglio di UI.** La riga completa
+ * mostrerebbe fatti che l'osservatore non ha diritto di conoscere: questo test e' cio' che la rende rossa.
+ *
+ * ⚠️ **Le due meta' sono entrambe necessarie.** Senza la premessa positiva, «zero righe per il non
+ * autorizzato» sarebbe soddisfatto anche da una funzione che non restituisce mai niente — cioe' proprio dal
+ * difetto che stiamo chiudendo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudEventFeedRespectsTheObserverTest,
+	"RefactorTactics.ScreenHud.EventFeedShowsOnlyWhatTheObserverMaySee",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudEventFeedRespectsTheObserverTest::RunTest(const FString&)
+{
+	// Il tiro rifiutato di un'unita' della squadra 1, con un muro che la SUA squadra conosce.
+	TArray<FRTTurnLogEntry> Log;
+	FRTTurnLogEntry Rifiutato;
+	Rifiutato.Category = ERTLogCategory::Combat;
+	Rifiutato.Outcome = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);
+	Rifiutato.UnitId = 9;
+	Rifiutato.SrcCell = FRTCellId(-1, 0, 0);
+	Rifiutato.TgtCell = FRTCellId(1, 0, 0);
+	Rifiutato.SightBlockerCell = FRTCellId(0, 0, 0);
+	Rifiutato.Verdict.AllowTeam(1);
+	Log.Add(Rifiutato);
+
+	// PREMESSA: chi e' autorizzato riceve la riga, e il riferimento nel mondo per trovarla.
+	const TArray<FRTPlayerEventLineView> Autorizzato =
+		URTHudViewModel::BuildPlayerEventFeed(Log, /*ObserverTeamId*/ 1);
+	if (!TestEqual(TEXT("premessa: chi e' autorizzato legge la riga"), Autorizzato.Num(), 1))
+	{
+		return false;
+	}
+	TestTrue(TEXT("con un ostacolo da mostrare nel mondo"), Autorizzato[0].bHasBlocker);
+	TestTrue(TEXT("e la cella e' quella della voce"), Autorizzato[0].BlockerCell == FRTCellId(0, 0, 0));
+	TestFalse(TEXT("e la riga non e' vuota"), Autorizzato[0].Text.IsEmpty());
+
+	// ⛔ **La riga non stampa coordinate**, ed e' il confine di `#1936` §A: `(q=..,r=..,L=..)` e' diagnostica
+	// e resta a `#79`. Il **dove** viaggia come cella, non come testo — cosi' chi disegna puo' marcarlo nel
+	// mondo, che e' il «riferimento video» che il verdetto d'autore chiedeva.
+	TestFalse(TEXT("e non stampa coordinate assiali"), Autorizzato[0].Text.ToString().Contains(TEXT("q=")));
+
+	// E chi non lo e' non riceve NIENTE: non una riga anonima, non un conteggio, non una cella.
+	const TArray<FRTPlayerEventLineView> NonAutorizzato =
+		URTHudViewModel::BuildPlayerEventFeed(Log, /*ObserverTeamId*/ 0);
+	TestEqual(TEXT("chi non e' autorizzato non riceve nessuna riga"), NonAutorizzato.Num(), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
