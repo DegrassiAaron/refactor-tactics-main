@@ -262,6 +262,77 @@ FRTTurnLogEntry ARTTurnManager::MakeStatusBirthEntry(ERTMatchPhase InPhase, FGam
 }
 
 /** La voce di MORTE di uno stato: revoca (una mossa), scadenza (il tempo), o una causa che la toglie. */
+/**
+ * Il danno di una caduta gravitazionale, in punti vita ([D-357]).
+ *
+ * 🔑 **Piatto, e non scala col dislivello.** Il dislivello non e' `Layer - 1` — `FindLandingCell` scandisce
+ * la colonna e tiene il massimo, perche' *«la colonna puo' saltare dei piani»* — quindi una scala andrebbe
+ * definita sui piani ATTRAVERSATI, e finche' le mappe della v0.1 non ne dichiarano piu' di due sarebbe un
+ * numero fisso con piu' codice attorno.
+ *
+ * ⚠️ **Non e' un dato di catalogo, ed e' deliberato**: la caduta non e' un'azione e non ha un `ActionId`
+ * che possa portarlo. Un campo di catalogo senza consumatore e' il difetto che `PushResistance` documenta.
+ * La revisione del valore resta materia `BAL-*`, la sua esistenza no.
+ */
+static constexpr int32 RTFallDamage = 5;
+
+void ARTTurnManager::ApplyFallEffects(ARTUnit* Unit, bool bMarchia, ERTMatchPhase InPhase)
+{
+	// ⛔ Chi e' gia' KO non subisce effetti di caduta: vedi la dichiarazione.
+	if (!IsValid(Unit) || !Unit->IsAlive())
+	{
+		return;
+	}
+
+	const int32 HpPrima = Unit->Health; // serve DOPO, per classificare l'esito
+
+	// 🔑 **`Environmental`, e la differenza e' OSSERVABILE.** `Exposed` amplifica *«il PRIMO danno
+	// DIRETTO»*: con `Environmental` non amplifica la caduta, quindi due cadute non si sommano e il
+	// marchio vale solo per il colpo che arriva dopo — che e' esattamente cio' che [D-357] costruisce
+	// (*«chi ti butta giu' ti prepara per il colpo dopo»*). Implementarla `Direct` avrebbe prodotto un
+	// gioco diverso dallo stesso testo di specifica.
+	const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(RTFallDamage,
+		ERTDamageSource::Environmental, Unit->Shield, Unit->GetTemporaryShield(), Unit->Health);
+	// `ApplyCombatState` e non l'assegnazione diretta: e' l'unica contabilita' che erode anche
+	// `TemporaryShield`. Scrivendo `Health`/`Shield` a mano lo scudo temporaneo resterebbe al valore
+	// vecchio e il Cleanup lo sottrarrebbe una seconda volta.
+	Unit->ApplyCombatState(Result.Health, Result.Shield);
+
+	// La voce canonica, sulla forma di quella del danno da terreno (`#1067`): categoria `Combat`, causa
+	// in `ActionId`, soggetto chi SUBISCE — in una caduta non c'e' un attaccante.
+	FRTTurnLogEntry Caduta;
+	Caduta.Phase = InPhase;
+	Caduta.Category = ERTLogCategory::Combat;
+	Caduta.ActionId = FName(*FString::Printf(TEXT("%s%s"), URTTurnLogLibrary::FallCausePrefix(),
+		bMarchia ? TEXT("Fall") : TEXT("Impact")));
+	// ⚠️ **Le due celle COINCIDONO, e non e' una comodita'**: e' la forma che `IsEnvironmentalDamage`
+	// riconosce come ambientale anche senza conoscere la causa. Un attacco non puo' averle uguali.
+	Caduta.SrcCell = Unit->Cell;
+	Caduta.TgtCell = Unit->Cell;
+	Caduta.Amount = RTFallDamage;
+	Caduta.Outcome = static_cast<uint8>(
+		URTCombatLibrary::ClassifyCombatOutcome(HpPrima, Result.Health, /*AttackerDmgBonus*/ 0));
+	AppendLogEntry(Caduta, Unit);
+
+	AddLogEvent(FString::Printf(TEXT("%s: %d danni da %s"), *Unit->GetName(), RTFallDamage,
+		bMarchia ? TEXT("caduta") : TEXT("impatto")), FRTLogSubject::Unit(Unit));
+
+	// ⚠️ Solo a chi cade: l'occupante prende l'urto, non il marchio.
+	//
+	// ⏱️ **Durata `2` e non `1`, ed e' MISURATO.** `TickStatuses()` decrementa nel `Cleanup`, e questo
+	// e' il `Blast`: con `1` lo stato nascerebbe e morirebbe nello stesso turno, senza che nessuna fase
+	// interposta potesse leggerlo — e [D-357] lo vuole leggibile dal colpo che arriva DOPO. Con `2`
+	// sopravvive al proprio Cleanup e vale per il `Blast` successivo, che e' un turno di effetto.
+	//
+	// 🔴 **La prima stesura usava `1`, copiando `Action.Sprint`, e i test lo hanno preso**: cinque su
+	// sei rossi con `Exposed` assente a fine turno. Il precedente giusto non era Sprint ma lo slide su
+	// ghiaccio (`RTTurnManager_Movement.cpp`), che quella misura l'aveva gia' fatta e scritta.
+	if (bMarchia)
+	{
+		ApplyStatusLogged(Unit, TAG_Status_Exposed, /*Turni*/ 2);
+	}
+}
+
 void ARTTurnManager::ApplyStatusLogged(ARTUnit* Unit, FGameplayTag Tag, int32 Turns)
 {
 	if (Unit == nullptr)

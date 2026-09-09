@@ -2217,6 +2217,24 @@ protected:
 	/** Applica uno status e registra la voce se cosi' facendo ha SPENTO un `Burning` (#1314). */
 	void ApplyStatusLogged(ARTUnit* Unit, FGameplayTag Tag, int32 Turns);
 
+	/**
+	 * Gli EFFETTI della caduta gravitazionale (#2430, [D-357]): danno e, per chi cade, `Exposed`.
+	 *
+	 * 🔑 **Gli effetti non sono la posizione** (`spec-caduta-e-bordi.md` §5), ed e' il motivo per cui
+	 * questa funzione non sa nulla di dove l'unita' sia finita: si applicano anche quando la discesa
+	 * NON avviene — atterraggio saturo, colonna senza fondo, due cadute contese ([D-358] §4.3.2).
+	 *
+	 * ⚠️ **`bMarchia` distingue chi cade dall'occupante centrato**, e la differenza e' semantica:
+	 * `Exposed` significa *«hai perso l'equilibrio»*, e chi stava fermo non l'ha perso. Prende l'urto,
+	 * non il marchio.
+	 *
+	 * ⛔ **Un'unita' gia' KO non subisce niente.** `ApplyDisplacements` gira nella coda di
+	 * `ResolveCombat`, DOPO `ApplyCombatState`: chi e' morto per il colpo e' gia' a zero quando la
+	 * spinta lo raggiunge. Il precedente e' `CP 14.5` — *«il watcher caduto non spara»* — e senza questo
+	 * controllo il TurnLog registrerebbe la caduta di un cadavere.
+	 */
+	void ApplyFallEffects(ARTUnit* Unit, bool bMarchia, ERTMatchPhase InPhase);
+
 	/** L'invariante dei pesi si verifica una volta per partita, sull'istanza viva (#1276). */
 	bool bBotWeightInvariantChecked = false;
 

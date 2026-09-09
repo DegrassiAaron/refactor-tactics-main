@@ -220,6 +220,16 @@ public:
 	static const TCHAR* TerrainCausePrefix() { return TEXT("Terrain."); }
 
 	/**
+	 * La causa di un danno da CADUTA gravitazionale (#2430, [D-357]).
+	 *
+	 * 🔑 **Dichiarata invece che dedotta.** `IsEnvironmentalDamage` la classificherebbe comunque per la
+	 * rete di sicurezza — le due celle coincidono — ma quel ramo esiste perche' l'elenco esplicito
+	 * *«fallisce aperto»*, non per sostituirlo. Una causa nuova che si appoggia solo alla rete e' una
+	 * causa che nessuno ha dichiarato.
+	 */
+	static const TCHAR* FallCausePrefix() { return TEXT("Fall."); }
+
+	/**
 	 * La voce e' **danno AMBIENTALE**, cioe' una di quelle in cui `UnitId` porta chi SUBISCE (`#1150`).
 	 *
 	 * Sono due, e la loro causa sta nell'`ActionId`: `Terrain.<Surface>` all'ingresso (`#1067`) e
