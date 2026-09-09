@@ -156,3 +156,39 @@ static_assert(RTLiftCellBorder > RTCellTopZ,
 	"La griglia deve stare SOPRA la faccia del prisma, o sparisce dentro il volume opaco.");
 static_assert(RTCellBorderThickness > 0.f && RTCellBorderThickness < 0.0526f,
 	"L'anello di bordo deve restare piu' sottile di quello del glifo (RTGlyphThickness), o ne cancella il conteggio.");
+
+/**
+ * 🔑 **L'altezza della ribbon di perimetro** (#1942, OVL-02): una parete verticale sul confine di una
+ * regione semantica, **derivata** invece che scritta in centimetri.
+ *
+ * La spec dichiara «30–35 cm di baseline, configurabile 20–50». ⛔ **Scriverli come `32.5f` sarebbe il
+ * difetto che questo header esiste per impedire**: uno spessore assoluto si e' gia' desincronizzato in
+ * silenzio quando `HexSize` e' passato da `100` a `150` ([D-163]), e le altezze si budgettano in frazioni di
+ * `H` ([D-168]). Quindi la frazione e' il dato e i centimetri sono la conseguenza, non il contrario.
+ *
+ * ⚠️ **La banda della spec e' ricontrollata dal compilatore, non dalla memoria di chi legge**: se qualcuno
+ * cambia `RTCellLayerHeightRef` la frazione resta valida e i centimetri seguono; se cambia la frazione fuori
+ * banda, la build si ferma.
+ */
+constexpr float RTBoundaryRibbonHeightInH = 0.13f;
+constexpr float RTBoundaryRibbonHeight = RTBoundaryRibbonHeightInH * RTCellLayerHeightRef;
+
+/** I due estremi della banda configurabile dichiarata dalla spec v0.2, anch'essi in frazioni di `H`. */
+constexpr float RTBoundaryRibbonMinInH = 0.08f;
+constexpr float RTBoundaryRibbonMaxInH = 0.20f;
+
+/**
+ * La ribbon **nasce sulla superficie del Layer corrente** e sale. Non si infila nella pila dei lift: la
+ * attraversa, perche' e' verticale ed e' un ordine di grandezza piu' alta di tutta la pila messa insieme.
+ * Che sia davvero cosi' — invece di essere una parete che si perde fra i contorni — lo verifica uno
+ * `static_assert` accanto ai lift, in `RTHexMapActor.cpp`, dove quelli sono visibili.
+ */
+constexpr float RTBoundaryRibbonBaseZ = RTCellTopZ;
+
+static_assert(RTBoundaryRibbonHeight >= 30.f && RTBoundaryRibbonHeight <= 35.f,
+	"L'altezza della ribbon deve restare nella baseline 30-35 cm dichiarata dalla spec v0.2 (#1942).");
+static_assert(RTBoundaryRibbonHeightInH >= RTBoundaryRibbonMinInH
+	&& RTBoundaryRibbonHeightInH <= RTBoundaryRibbonMaxInH,
+	"La baseline deve stare dentro la banda configurabile 20-50 cm, o la banda non e' la banda.");
+static_assert(RTBoundaryRibbonBaseZ >= RTCellTopZ,
+	"La base della ribbon non puo' stare sotto la faccia del prisma, o nasce dentro un volume opaco.");
