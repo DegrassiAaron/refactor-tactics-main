@@ -25,9 +25,16 @@ e senza una ricetta scritta quell'ultimo passo si rifà a memoria ogni volta.
 |---|---|---|
 | Classi base C++ dei widget | `Source/RefactorTactics/UI/RTScreenHudWidgets.h` | ✅ |
 | Viste sanitizzate (round, roster, slot, cooldown) | `URTHudViewModel` | ✅ |
-| Catalogo icone (chiave → asset) | `URTIconCatalogData` + `URTIconLibrary` | 🟡 codice sì, **il `.uasset` no** ([#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220)) |
+| Catalogo icone (chiave → asset) | `URTIconCatalogData` + `URTIconLibrary` + `Content/RT/UI/DA_IconCatalog.uasset` | 🟡 esiste, **indietro di una chiave** ([#2551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2551)); il consumo dai widget è [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) |
 | Il layer che lo mette a schermo | `URTFrontendNavigator::PresentMatchHud` | ✅ **dal 2026-08-26** (#613, Task 1) |
-| I sei `WBP_RT_*` | `Content/RT/UI/Match/` | ⛔ **questo lavoro** |
+| I `WBP_RT_*` di partita | `Content/RT/UI/Match/` | ✅ **esistono** — vedi §2; resta `WBP_RT_EventLog` ([#1936](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1936) §F) |
+
+> 🔁 **Corretto il 2026-09-09.** Due righe di questa tabella descrivevano come futuro ciò che è già in
+> `main`, misurato su `a897de28`. **(1)** *«Catalogo icone — il `.uasset` no»*: `Content/RT/UI/DA_IconCatalog.uasset`
+> esiste; ciò che resta aperto è un'altra cosa — è **indietro di una chiave** (#2551), e il difetto
+> «indietro di una chiave» si diagnostica in modo opposto a «non esiste». **(2)** *«I sei `WBP_RT_*` — ⛔
+> questo lavoro»*: esistono, e non sono sei. Una guida che dice «costruiscili» a chi li ha già davanti manda
+> a ricrearli, ed è il modo in cui un `.uasset` acquista un duplicato.
 
 > 🔁 **Corretto il 2026-08-26.** Qui c'era scritto «`Content/RT/UI/` **non esiste**: va creata». Esiste, e
 > contiene già otto `WBP_RT_*` — ma sono la shell di frontend di E46 (`MainMenu`, `LoadingScreen`,
@@ -65,24 +72,42 @@ Crea ogni widget con **Widget Blueprint → scegli la classe padre**, non con il
 
 ## 3. Il layout di `WBP_RT_TacticalHUD`
 
-Quattro zone ancorate ai bordi, **centro libero**:
+Cinque zone — `TOP`, `LEFT`, `RIGHT`, `BOTTOM`, `CENTER`. Le prime quattro sono ancorate ai bordi; la quinta
+è definita da ciò che **non** contiene.
 
 ```text
 ┌─────────────────────────────────────────┐
-│              Top: TurnHeader            │
+│  TOP — TurnHeader                       │
 ├──────────┬───────────────────┬──────────┤
-│  Left:   │                   │  Right:  │
-│  Team    │   ← CENTRO        │  (spazio │
-│  Roster  │     LIBERO →      │  futuro) │
+│ LEFT     │  CENTER           │ RIGHT    │
+│ Team     │  nessun pannello  │ riservata│
+│ Roster   │  battlefield §4.2 │ (vuota)  │
 │          │                   │          │
 ├──────────┴───────────────────┴──────────┤
-│  Bottom: SelectedUnitPanel + ActionDock │
+│  BOTTOM — SelectedUnitPanel + ActionDock│
 └─────────────────────────────────────────┘
 ```
 
+| Zona | Contiene oggi | Owner del comportamento |
+|---|---|---|
+| `TOP` | `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer, objective | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) |
+| `LEFT` | `WBP_RT_TeamRoster` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2744) |
+| `RIGHT` | **vuota, e non è un difetto.** Candidato dichiarato: `WBP_RT_EventLog`, che non esiste ancora | [#1936](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1936) §F |
+| `BOTTOM` | `WBP_RT_SelectedUnitPanel` (+ `WBP_RT_UnitCard`), `WBP_RT_ActionDock` (+ `WBP_RT_ActionSlot`), `WBP_RT_FastDecision` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) |
+| `CENTER` | ⛔ **NESSUN PANNELLO SCREEN-HUD STATICO** — battlefield e Tactical World Overlay §4.2 | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
+
+🔑 **`CENTER` è una zona a contratto negativo**, e per questo non ha un `WBP_RT_CenterPanel`: si definisce
+per ciò che non deve contenere. Il criterio è misurabile — *la Screen HUD non occupa permanentemente il
+centro e non oscura le celle necessarie alla decisione* — e chi lo violasse lo farebbe allargando una delle
+altre quattro, non aggiungendo la quinta.
+
+⚠️ **`LEFT` è il roster e `BOTTOM` porta la selezione**, non il contrario. È l'assegnazione implementata e
+compilata; una lettura che metta il contesto locale a sinistra e la squadra a destra è un **re-layout**, non
+una correzione, e passerebbe dal giudizio di `PIE-V01-SCREENHUD` sull'ingombro.
+
 🔴 **Il centro libero è un requisito, non un gusto.** Il layer §4.2 (`ARTHUD::DrawHUD`) continua a disegnare
 path, waypoint, AoE, fuoco amico e le barre ancorate **sopra la mappa**: un pannello al centro glieli
-coprirebbe. Si verifica a occhio in `PIE-V01-HUD`, ed è il primo difetto che un playtest segnalerebbe.
+coprirebbe. Si verifica a occhio in `PIE-V01-SCREENHUD`, ed è il primo difetto che un playtest segnalerebbe.
 
 Usa un `Canvas Panel` con anchor ai bordi, non una `Vertical Box` a schermo pieno: quest'ultima non lascia un
 centro davvero libero.
@@ -340,14 +365,22 @@ resta dopo questi due è esattamente ciò che solo `PIE-V01-OVERWATCH` può guar
 
 ## 8. Verifica
 
-Quando i sei Blueprint esistono e l'HUD è agganciato, esegui **`PIE-V01-HUD`**
+Quando i Blueprint della §2 esistono e l'HUD è agganciato, esegui **`PIE-V01-SCREENHUD`**
 ([`test-manuali-pie.md`](../test-manuali-pie.md)) e registra l'esito. È la parte che richiede un occhio:
 leggibilità delle barre, ingombro, coerenza visiva durante il playback, e il **centro libero** che nessun
 test automatico può guardare.
 
-Registra l'esito in [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml), seduta **U15** — è la
-seduta che dichiara `PIE-V01-HUD` fra le sue `verifies`. ⚠️ L'header di quel file è normativo: leggilo prima
-di scrivere.
+> 🔁 **Corretto il 2026-09-09.** Questa sezione diceva `PIE-V01-HUD`, seduta **U15**. Quella voce è **chiusa
+> dal 2026-08-24** e vive **sul Canvas**: dichiarava fin dall'inizio che *«lo Screen HUD §4.1 di CP 11.7 avrà
+> una voce PIE propria»*, ed è `PIE-V01-SCREENHUD`. Governa
+> [`test-manuali-pie.md`](../test-manuali-pie.md), che di quelle voci è l'owner — la stessa riga vi è
+> registrata come prevalente sul DoD di [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613), che chiede *«`PIE-V01-HUD` estesa all'ingombro del §4.1»*.
+> Eseguire U15 avrebbe rimisurato il Canvas e lasciato il §4.1 `NOT RUN`.
+
+⚠️ **`PIE-V01-SCREENHUD` non ha ancora una seduta**: `grep -c PIE-V01-SCREENHUD docs/roadmap/editor-sessions.yaml`
+→ **0**, misurato il 2026-09-09. Chi la esegue la aggiunge **dopo `git fetch --prune`**: `U-nnn` è un
+contatore condiviso e non si assegna dalla memoria. ⚠️ L'header di
+[`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml) è normativo: leggilo prima di scrivere.
 
 Cosa **non** serve la PIE per verificarlo, e quindi non va rimandato lì:
 
