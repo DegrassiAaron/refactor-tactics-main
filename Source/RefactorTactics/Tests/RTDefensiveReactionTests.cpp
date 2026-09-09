@@ -944,6 +944,152 @@ bool FRTBraceWindowExpiresOnItsOwnTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **La pausa del giocatore non ferma il countdown** ([D-351], `#2717`).
+ *
+ * 🔴 **Era vero per costruzione e non lo sorvegliava nessuno.** `TickReactionWindow` sta in `Tick` **prima**
+ * di `TickPlayback`, quindi il `return` su `bPlaybackPaused` non lo raggiunge — ma quella proprieta' regge
+ * solo finche' nessuno sposta la chiamata, ed e' precisamente la mossa che sembra naturale a chi legge
+ * «tick» e pensa «playback».
+ *
+ * 🔑 **La regola non e' di comodo**: [D-351] la fa discendere da `RTFrontendNavigator.h`, dove ESC
+ * *«non sospende niente»* perche' *«cio' che in rete non potra' esistere e' fermare il tempo di tutti»*.
+ * Un countdown che si ferma col menu e' un giocatore che si prende tempo togliendolo all'avversario.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWindowClockIgnoresPauseTest,
+	"RefactorTactics.Reactions.Brace.PauseDoesNotStopTheClock",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTWindowClockIgnoresPauseTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World, /*Radius*/ 8);
+
+	ARTUnit* Bracer = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bracer"), Bracer) || !TestNotNull(TEXT("Pusher"), Pusher)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	Bracer->bIsBotControlled = false;
+	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
+	Bracer->PlannedCell = Bracer->Cell;
+	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
+	Pusher->PlannedAttackTarget = Bracer;
+	Pusher->PlannedCell = Pusher->Cell;
+
+	TM->SetFastReactionDuration(0.5f);
+	TM->OnReactionWindowOpened.BindLambda([](const FRTReactionWindowView&, int32) {});
+	TM->LockInAndResolve();
+
+	if (!TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended()))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// ➕ E l'id della finestra si legge anche quando e' il `Brace` ad attendere (`#2692`): l'accessore era
+	// rimasto sul solo movimento, e rispondeva «nessuna finestra» mentre una era aperta.
+	TestTrue(TEXT("l'id della finestra del Brace e' leggibile"),
+		!TM->GetOpenReactionWindowId().IsEmpty());
+
+	// 🔑 **LA PROVA.** In pausa, e il tempo passa lo stesso.
+	TM->PausePlayback();
+
+	int32 Tick = 0;
+	while (TM->IsResolutionSuspended() && Tick < 200)
+	{
+		TM->Tick(0.05f);
+		++Tick;
+	}
+
+	TestFalse(TEXT("in pausa la finestra scade lo stesso"), TM->IsResolutionSuspended());
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyDefWorld(World);
+	return true;
+}
+
+/**
+ * **Una risposta non lascia una scadenza in ritardo** (`#2717`).
+ *
+ * 🔴 **L'altra meta' che era vera per costruzione**: `CloseBraceWindow` azzera `OpenWindowOpportunityId`, e
+ * `TickReactionWindow` cerca proprio quello — quindi dopo una risposta l'orologio non trova piu' nulla da
+ * far scorrere. Senza questo test, un rientro futuro che dimenticasse di azzerare l'id produrrebbe una
+ * scadenza su una finestra gia' chiusa: `ExpireReactionWindow` chiamata su un turno concluso, con tutto
+ * cio' che ne segue.
+ *
+ * 🔑 **Si misura sul TurnLog**, non sul solo `IsResolutionSuspended`: una seconda chiusura potrebbe
+ * scrivere una seconda voce di decisione, ed e' il sintomo che si vedrebbe nel replay.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnsweredWindowHasNoLateExpiryTest,
+	"RefactorTactics.Reactions.Brace.AnsweredWindowHasNoLateExpiry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnsweredWindowHasNoLateExpiryTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World, /*Radius*/ 8);
+
+	ARTUnit* Bracer = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bracer"), Bracer) || !TestNotNull(TEXT("Pusher"), Pusher)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	Bracer->bIsBotControlled = false;
+	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
+	Bracer->PlannedCell = Bracer->Cell;
+	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
+	Pusher->PlannedAttackTarget = Bracer;
+	Pusher->PlannedCell = Pusher->Cell;
+
+	TM->SetFastReactionDuration(0.5f);
+	TM->OnReactionWindowOpened.BindLambda([](const FRTReactionWindowView&, int32) {});
+	TM->LockInAndResolve();
+
+	const FString IdFinestra = TM->GetOpenReactionWindowId();
+	if (!TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended())
+		|| !TestTrue(TEXT("la finestra ha un'identita'"), !IdFinestra.IsEmpty()))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// Si risponde SUBITO, ben prima della scadenza.
+	TM->SubmitReactionResponse(IdFinestra, TEXT("Hold Ground"));
+	TestFalse(TEXT("la risposta ha chiuso la finestra"), TM->IsResolutionSuspended());
+
+	const int32 VociDopoLaRisposta = TM->GetTurnLog().Num();
+
+	// 🔑 **LA PROVA.** Passa molto piu' tempo della durata della finestra: se l'orologio fosse rimasto
+	// armato, qui scatterebbe una scadenza su una finestra che non esiste piu'.
+	for (int32 I = 0; I < 100; ++I)
+	{
+		TM->Tick(0.05f);
+	}
+
+	TestFalse(TEXT("nessuna sospensione risorge dopo la risposta"), TM->IsResolutionSuspended());
+	TestEqual(TEXT("e il TurnLog non cresce: nessuna seconda chiusura"),
+		TM->GetTurnLog().Num(), VociDopoLaRisposta);
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyDefWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShieldTest,
 	"RefactorTactics.Reactions.Shield.AbsorbsBeforeHealth",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

@@ -531,6 +531,21 @@ ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMap
  */
 FString ARTTurnManager::GetOpenReactionWindowId() const
 {
+	// 🔑 **Due siti, come ogni altro accessore della finestra** (`#2692`): il `Brace` per primo, nello
+	// stesso ordine di `SubmitReactionResponse` e `TickReactionWindow`.
+	//
+	// 🔴 **Questa funzione era rimasta indietro**, ed e' l'unica del gruppo che lo era: `#2692` aveva esteso
+	// `IsResolutionSuspended`, `SubmitReactionResponse` ed `ExpireReactionWindow` al Blast e non lei. Con una
+	// finestra del `Brace` aperta rispondeva **stringa vuota**, cioe' «nessuna finestra attende» — e chi la
+	// interroga per sapere a quale finestra rispondere non avrebbe avuto l'identita' da nominare.
+	if (const FRTBlastContext* Blast = PendingBlast.Get())
+	{
+		if (Blast->bSuspended && !Blast->Displacement.OpenWindowOpportunityId.IsEmpty())
+		{
+			return Blast->Displacement.OpenWindowOpportunityId;
+		}
+	}
+
 	const FRTMovementResolutionContext* Ctx = PendingMovement.Get();
 	return Ctx ? Ctx->OpenWindowOpportunityId : FString();
 }
