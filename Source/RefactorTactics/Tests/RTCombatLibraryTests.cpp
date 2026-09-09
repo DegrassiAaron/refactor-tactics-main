@@ -1,6 +1,8 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Terrain/RTTerrainLibrary.h"
+#include "Map/RTHexLibrary.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTTurnLog.h"
@@ -548,6 +550,94 @@ bool FRTRefusalWithoutMapAffirmsNothingTest::RunTest(const FString&)
 	TestEqual(TEXT("senza mappa autorevole non si mostra un motivo"),
 		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::NoMap, /*bKnown=*/ true),
 		ERTTargetRefusal::Nothing);
+	return true;
+}
+
+/**
+ * 🔴 **IL LOG DICE IL LIMITE APPLICATO, NON QUELLO DICHIARATO** — `#2766`.
+ *
+ * ## Il difetto
+ *
+ * `ClassifyHexTargeting` confronta la distanza con `EffectiveTargetingRange`, che il Fumo cappa a **2**.
+ * Il log stampava `Ability->RangeCells`, cioe' **5**. Un bersaglio a distanza 3 produceva quindi
+ * *«fuori portata (max 5)»*, e chi legge conclude che il classificatore e' rotto — `3 <= 5` — e cerca un
+ * difetto che non c'e'. E' successo davvero, in una code review su `#2754`.
+ *
+ * ## Le DUE sponde, e perche' servono entrambe
+ *
+ * Il caso e' definito da una congiunzione, non da una disuguaglianza:
+ *
+ *   - `distanza <= RangeCells` — altrimenti sarebbe un fuori portata ORDINARIO, e non ci sarebbe niente
+ *     di ingannevole da correggere;
+ *   - `distanza > EffectiveRange` — altrimenti il rifiuto non ci sarebbe affatto.
+ *
+ * ⚠️ Un test che asserisse solo la seconda passerebbe anche con `RangeCells = 2`, dove dichiarata ed
+ * effettiva coincidono e il log non ha mai mentito.
+ *
+ * ## Il controllo positivo
+ *
+ * Il primo blocco misura la stessa mappa **senza** fumo: il bersaglio e' ingaggiabile e il testo resta a
+ * un numero solo. Senza, un'implementazione che stampasse sempre due portate sarebbe verde, e il caso
+ * ordinario guadagnerebbe una precisazione che non ha ragione d'essere.
+ *
+ * ## Cosa questo test NON copre, ed e' dichiarato
+ *
+ * ⛔ Il **sito di chiamata** in `ARTPlayerController::OnSelect` non e' esercitato qui: comporre il log
+ * richiede un controller, un'unita' selezionata e un click, cioe' PIE. Il test lega i tre anelli che si
+ * possono legare in Automation — `EffectiveTargetingRange` -> `ClassifyHexTargeting` -> il testo — e la
+ * riga del controller passa a `OutOfRangeDiagnostic` esattamente questi due valori.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOutOfRangeDiagnosticNamesAppliedLimitTest,
+	"RefactorTactics.Combat.OutOfRangeDiagnosticNamesTheAppliedLimit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOutOfRangeDiagnosticNamesAppliedLimitTest::RunTest(const FString&)
+{
+	const FRTCellId From(0, 0, 0);
+	const FRTCellId To(3, 0, 0);
+	const int32 Dichiarata = 5;
+
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 4);
+	if (!TestNotNull(TEXT("arena di prova"), Map)) { return false; }
+
+	// ── CONTROLLO POSITIVO: senza fumo non c'e' nulla da correggere.
+	TestEqual(TEXT("premessa: senza terreno che cappa, effettiva == dichiarata"),
+		URTTerrainLibrary::EffectiveTargetingRange(Map, From, To, Dichiarata), Dichiarata);
+	TestTrue(TEXT("premessa: e il bersaglio e' ingaggiabile"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, To, Dichiarata) == ERTHexTargetReason::Ok);
+	TestEqual(TEXT("senza cap il log resta a UN numero"),
+		URTCombatLibrary::OutOfRangeDiagnostic(Dichiarata, Dichiarata),
+		FString(TEXT("fuori portata (max 5)")));
+
+	// ── Il fumo a meta' strada. Non blocca la vista: cappa la distanza.
+	FRTHexCellData Fumo(FRTCellId(2, 0, 0));
+	Fumo.Surface = ERTHexSurface::Smoke;
+	Map->AddOrUpdateCell(Fumo);
+	Map->SortCells();
+
+	const int32 Effettiva = URTTerrainLibrary::EffectiveTargetingRange(Map, From, To, Dichiarata);
+	const int32 Distanza  = URTHexLibrary::HexDistance(From, To);
+
+	// ── LE DUE SPONDE che definiscono il caso.
+	TestEqual(TEXT("il fumo cappa la portata a 2"), Effettiva, 2);
+	TestTrue(TEXT("sponda 1: la distanza sta DENTRO la portata dichiarata"), Distanza <= Dichiarata);
+	TestTrue(TEXT("sponda 2: ma oltre quella effettiva"), Distanza > Effettiva);
+	TestTrue(TEXT("ed e' per questo che il classificatore rifiuta"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, To, Dichiarata) == ERTHexTargetReason::OutOfRange);
+
+	// ── 🔴 Il cuore.
+	const FString Diagnostico = URTCombatLibrary::OutOfRangeDiagnostic(Dichiarata, Effettiva);
+	TestTrue(TEXT("il log nomina il limite APPLICATO"), Diagnostico.Contains(TEXT("max 2")));
+	TestTrue(TEXT("e dice anche quella dichiarata, che senza contesto sembrerebbe smentirlo"),
+		Diagnostico.Contains(TEXT("5 dichiarata")));
+	TestFalse(TEXT("e non spaccia piu' la dichiarata per il limite: era esattamente la stringa vecchia"),
+		Diagnostico.Contains(TEXT("max 5")));
+
+	// ── E al GIOCATORE non cambia niente, che e' una decisione e non una dimenticanza: il cap limita la
+	//    distanza, non la traiettoria, quindi «avvicinati» resta l'azione giusta anche col fumo.
+	TestEqual(TEXT("il rifiuto mostrato resta quello di distanza"),
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::OutOfRange, /*bNoto=*/ true),
+		ERTTargetRefusal::Range);
+
 	return true;
 }
 
