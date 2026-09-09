@@ -22,6 +22,30 @@ enum class ERTHexTargetReason : uint8
 };
 
 /**
+ * Cio' che il GIOCATORE puo' sapere di un bersaglio rifiutato — `#2741`.
+ *
+ * 🔴 **Non e' `ERTHexTargetReason` con altri nomi, ed e' la ragione per cui esiste.** Quell'enum e' la
+ * classificazione *interna*: dice il vero anche quando il vero non e' dicibile. Questo e' cio' che si puo'
+ * mostrare, e la differenza sta tutta in `Nothing`.
+ *
+ * ⛔ **`Nothing` e' un ESITO, non l'assenza di esito.** Copre due situazioni che il giocatore **non deve
+ * poter distinguere**: una cella vuota, e una cella dove c'e' un nemico che la sua squadra non osserva.
+ * Se le due producessero messaggi diversi — anche entrambi generici — la differenza fra i due messaggi
+ * sarebbe **essa stessa** il canale, e il rifiuto diventerebbe un rilevatore di presenze contro [D-225].
+ *
+ * ⚠️ Il difetto che questo enum previene non si manifesta come errore: si manifesta come
+ * un'informazione **corretta** consegnata a chi non doveva riceverla. Nessun log lo segnala.
+ */
+UENUM(BlueprintType)
+enum class ERTTargetRefusal : uint8
+{
+	None,    // nessun rifiuto: il bersaglio e' ingaggiabile
+	Cover,   // qualcosa interrompe la traiettoria — «spostati di lato»
+	Range,   // troppo lontano — «avvicinati»
+	Nothing  // niente da bersagliare QUI, per quanto l'osservatore ne sappia
+};
+
+/**
  * Da dove viene il danno ([D-224]). Decide se lo scudo BASE partecipa all'assorbimento: il cuscinetto
  * passivo che ogni unita' porta ferma i colpi, non gli hazard. Lo scudo TEMPORANEO assorbe entrambi —
  * quello e' protezione che qualcuno ha speso un'azione per costruire.
@@ -394,6 +418,27 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static ERTHexTargetReason ClassifyHexTargeting(const URTHexMapAsset* Map, const FRTCellId& From,
 		const FRTCellId& To, int32 RangeCells);
+
+	/**
+	 * Traduce la classificazione INTERNA in cio' che il giocatore puo' sapere — `#2741`.
+	 *
+	 * 🔑 **La conoscenza entra qui e da nessun'altra parte.** `ClassifyHexTargeting` decide sulla
+	 * geometria e non sa nulla di chi guarda; questa funzione riceve **il verdetto gia' calcolato** e il
+	 * flag di conoscenza **gia' deciso dal velo**, e non ne ricalcola nessuno dei due. E' la stessa
+	 * disciplina di `ARTHUD::ComputeBlockerMarks`, che non rifiltra perche' il feed le arriva filtrato: un
+	 * secondo contratto di conoscenza sarebbe il difetto, non la difesa.
+	 *
+	 * ⛔ **Il bersaglio ignoto collassa su `Nothing`, e con esso la cella vuota.** Non e' prudenza: e' il
+	 * requisito. Due esiti diversi — anche entrambi vaghi — direbbero al giocatore che li' c'e' qualcosa.
+	 *
+	 * ⚠️ `NoMap` collassa anch'esso su `Nothing`: senza mappa autorevole non si valida (fail-closed), e
+	 * mostrare «non c'e' linea di tiro» sarebbe affermare qualcosa che nessuno ha verificato.
+	 *
+	 * @param Reason                  il verdetto di `ClassifyHexTargeting`, non ricalcolato
+	 * @param bTargetKnownToObserver  cio' che il velo ha gia' deciso su quel bersaglio
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static ERTTargetRefusal RefusalForObserver(ERTHexTargetReason Reason, bool bTargetKnownToObserver);
 
 	/**
 	 * Danno effettivo di un attacco dato il bonus della cella occupata dall'attaccante

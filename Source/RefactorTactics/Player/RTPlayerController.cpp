@@ -1442,6 +1442,9 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		}
 		else
 		{
+			// ── Il canale DIAGNOSTICO, invariato: dice il vero per intero, e il suo pubblico e' chi
+			//    sviluppa. Include cio' che al giocatore va nascosto, ed e' la ragione per cui non e' la
+			//    sorgente del messaggio a schermo (`#2741`).
 			switch (Reason)
 			{
 			case ERTHexTargetReason::OutOfRange:
@@ -1455,6 +1458,21 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 				UE_LOG(LogRT, Warning,
 					TEXT("[RT] Nessuna mappa esagonale: bersagliamento non validabile, piano rifiutato"));
 				break;
+			}
+
+			// ── Il canale del GIOCATORE, che nasce filtrato e non formattato dal testo qui sopra
+			//    (`#2741`). ⛔ La conoscenza entra in `RefusalForObserver` e da nessun'altra parte: qui si
+			//    passa il flag che il velo ha gia' deciso, senza rileggerlo e senza una seconda regola.
+			//
+			// 🔴 **Perche' il flag serve davvero**: il collider di un'unita' velata resta attivo — il
+			// trace usa `ECC_Visibility`, la mesh lo blocca, e il velo spegne la visibilita' ma non la
+			// collisione. Un nemico invisibile e' quindi CLICCABILE, e senza questo filtro il rifiuto ne
+			// rivelerebbe la presenza a chi non lo osserva ([D-225]).
+			if (ARTHUD* Hud = Cast<ARTHUD>(GetHUD()))
+			{
+				Hud->SetTargetRefusal(
+					URTCombatLibrary::RefusalForObserver(Reason, ClickedUnit->IsKnownToObserver()),
+					ClickedUnit->Cell);
 			}
 		}
 	}

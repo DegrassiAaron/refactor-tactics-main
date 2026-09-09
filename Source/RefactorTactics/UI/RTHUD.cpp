@@ -54,6 +54,35 @@ FVector2D ARTHUD::ClampOverlayAnchor(const FVector2D& Anchor, float HalfWidth,
 	return FVector2D(X, Y);
 }
 
+void ARTHUD::SetTargetRefusal(ERTTargetRefusal Refusal, const FRTCellId& AtCell)
+{
+	// Ogni click sostituisce il precedente, incluso il click che va a segno: `None` cancella. E' la
+	// durata dichiarata da `#2741` — il messaggio vive quanto la decisione che lo ha prodotto, e nessun
+	// timer decide al posto del giocatore.
+	LastRefusal = Refusal;
+	LastRefusalCell = AtCell;
+}
+
+/**
+ * Il testo di un rifiuto, e cosa NON dice.
+ *
+ * ⛔ **`Nothing` non ha un testo proprio**, ed e' il punto dell'intera feature: se avesse una frase — anche
+ * vaga — quella frase comparirebbe dove c'e' un nemico velato e non dove la cella e' davvero vuota, e la
+ * differenza fra «un messaggio» e «nessun messaggio» sarebbe **essa stessa** il canale ([D-225]).
+ * Il giocatore che clicca nel nulla e il giocatore che clicca su un'ombra ricevono la stessa cosa: niente.
+ */
+static FString RefusalText(ERTTargetRefusal Refusal)
+{
+	switch (Refusal)
+	{
+	case ERTTargetRefusal::Cover: return TEXT("Coperto: la linea di tiro e' interrotta");
+	case ERTTargetRefusal::Range: return TEXT("Troppo lontano per questa abilita'");
+	case ERTTargetRefusal::None:
+	case ERTTargetRefusal::Nothing:
+	default:                      return FString();
+	}
+}
+
 void ARTHUD::ComputeBlockerMarks(const TArray<FRTPlayerEventLineView>& Feed,
 	TSet<FRTCellId>& OutBlockerCells)
 {
@@ -981,6 +1010,22 @@ void ARTHUD::DrawHUD()
 			DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.7f), BX - 8.f, BY - 4.f, BW + 16.f, BH + 8.f);
 			DrawText(Banner, FLinearColor(1.f, 0.75f, 0.2f, 1.f), BX, BY, nullptr, 1.1f);
 		}
+	}
+
+	// Il rifiuto di bersaglio — `#2741`. Prima esisteva solo in `UE_LOG`, e chi giocava vedeva **il
+	// silenzio**: un click che non produce niente e' indistinguibile da un click non registrato.
+	//
+	// ⛔ **Il testo puo' essere vuoto, ed e' un esito, non un caso degenere**: `Nothing` copre insieme la
+	// cella vuota e il nemico che l'osservatore non conosce, e le due non devono distinguersi nemmeno per
+	// la PRESENZA di un messaggio. Qui non si disegna niente, e va bene cosi'.
+	if (const FString Testo = RefusalText(LastRefusal); !Testo.IsEmpty())
+	{
+		float RW = 0.f, RH = 0.f;
+		GetTextSize(Testo, RW, RH, nullptr, 1.0f);
+		const float RX = (Canvas->SizeX - RW) * 0.5f;
+		const float RY = Canvas->SizeY - 120.f;
+		DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.6f), RX - 8.f, RY - 4.f, RW + 16.f, RH + 8.f);
+		DrawText(Testo, FLinearColor(1.f, 0.55f, 0.35f, 1.f), RX, RY, nullptr, 1.0f);
 	}
 
 

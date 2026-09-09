@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
 #include "Map/RTCellId.h"
+#include "Combat/RTCombatLibrary.h" // ERTTargetRefusal: l'esito gia' filtrato per l'osservatore (#2741)
 #include "Perception/RTKnowledgeView.h" // FRTKnowledgeView: l'HUD legge la vista, non lo stato
 #include "RTHUD.generated.h"
 
@@ -288,6 +289,18 @@ public:
 	 * headless, quindi cio' che si puo' sbagliare deve stare dove i test arrivano — e cio' che si sbaglia
 	 * qui e' la **sentinella**, che `FRTCellId::IsValid()` non riconosce.
 	 */
+	/**
+	 * Registra il rifiuto di bersaglio da mostrare a chi gioca — `#2741`.
+	 *
+	 * ⛔ **Riceve un esito GIA' filtrato per l'osservatore** (`URTCombatLibrary::RefusalForObserver`), e non
+	 * rifiltra: e' la stessa disciplina di `ComputeBlockerMarks`, dove la difesa sta nella sorgente e un
+	 * secondo contratto di conoscenza sarebbe il difetto.
+	 *
+	 * ⚠️ **Nessun timer, nessun `DeltaTime`.** Il messaggio vive finche' il giocatore non fa un altro click:
+	 * e' stato di presentazione, e la sua durata e' un fatto dell'input, non del tempo (`CLAUDE.md` §11).
+	 */
+	void SetTargetRefusal(ERTTargetRefusal Refusal, const FRTCellId& AtCell);
+
 	static void ComputeBlockerMarks(const TArray<struct FRTPlayerEventLineView>& Feed,
 		TSet<FRTCellId>& OutBlockerCells);
 
@@ -575,6 +588,19 @@ public:
 	 */
 	static FString ComposeMatchStatusLine(const struct FRTMatchHeaderView& Header,
 		const FString& PlaybackPhaseName, float PlaybackProgress01, bool bHasObjectiveCell);
+
+private:
+	/**
+	 * L'ultimo rifiuto di bersaglio, gia' filtrato per l'osservatore — `#2741`.
+	 *
+	 * ⚠️ **Stato di PRESENTAZIONE**: nasce da un click e muore col click seguente. Non entra nel `TurnLog`,
+	 * non tocca lo snapshot, e non ha durata propria — la simulazione non ricorda nulla perche' un
+	 * messaggio resti a schermo.
+	 */
+	ERTTargetRefusal LastRefusal = ERTTargetRefusal::None;
+
+	/** La cella su cui il rifiuto e' stato prodotto: serve ad ancorarvi il messaggio. */
+	FRTCellId LastRefusalCell = FRTCellId(0, 0, INDEX_NONE);
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HUD")
