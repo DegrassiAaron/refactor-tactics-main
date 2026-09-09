@@ -221,6 +221,20 @@ Unreal itself — build or suite — is a **machine** resource, not a session on
 one, check by hand that no other session is running it. Two measurements in the same window
 invalidate each other, and nothing stops them any more (`D-347`).
 
+⚠️ **Check the `CommandLine`, not the process count.** Several clones of this repository coexist on
+one machine (`refactor-tactics-main`, `-dev`, `-designer`, plus worktrees), each with its own
+sessions. `Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select CommandLine`
+tells you **which clone** is running — the only thing that separates "somebody else's suite" from
+your own, and whether what you see is an interactive Editor or a headless run.
+
+🔑 **What actually collides is narrower than the sentence above**, measured 2026-09-09 — and knowing
+the difference is what lets you work at all when the machine is busy. A build in clone A does **not**
+invalidate a suite in clone B: `Binaries/` is per-clone, and the engine is an *installed build*
+(`Engine/Build/InstalledBuild.txt`), so a project target cannot rewrite Engine modules. What still
+collides: two runs in the **same** clone, an Editor holding that clone's DLL, anything that touches
+the Engine, and **every performance measurement** — CPU contention moves timings even when
+correctness holds. `AGENTS.md` §9 carries the full rule and the commands to verify it.
+
 Before implementing:
 
 1. reproduce or demonstrate the gap;
