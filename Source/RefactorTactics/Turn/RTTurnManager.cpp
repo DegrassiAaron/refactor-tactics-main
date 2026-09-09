@@ -5241,9 +5241,28 @@ void ARTTurnManager::ResolveCombat()
 	//
 	// Tenendolo qui l'invariante diventa STRUTTURALE: qualunque uscita futura della sequenza passa comunque
 	// da `SpendStartedAbilities`, e un `return` in piu' non puo' far dimenticare il cooldown a nessuno.
-	FRTBlastContext Ctx;
-	ResolveCombatPasses(Ctx);
-	SpendStartedAbilities(Ctx);
+	// 🔑 **Il contesto vive sull'HEAP, e non e' una preferenza di allocazione** (`#2692`): la fase deve
+	// poter uscire su una finestra del `Brace` e rientrare, e uno `FRTBlastContext` sullo stack di questa
+	// funzione morirebbe al primo ritorno. `PendingMovement` sta qui per la stessa ragione da `#2679`.
+	//
+	// ⚠️ **Nasce e muore ancora dentro questa funzione**, quindi il contratto dichiarato in
+	// `RTBlastContext.h` — *«non e' stato del turno e non sopravvive alla fase»* — resta vero oggi. Cio'
+	// che cambia e' che il contesto sia RAGGIUNGIBILE da fuori quando la sospensione arrivera': senza,
+	// non ci sarebbe niente da riprendere.
+	PendingBlast = MakeUnique<FRTBlastContext>();
+	ResolveCombatPasses(*PendingBlast);
+
+	// 🔑 **La fase puo' NON essere finita** (`#2692`, [D-355]). Un `Brace` ha aperto una finestra e
+	// `ApplyDisplacements` e' uscita a meta': concludere adesso pagherebbe i cooldown di un Blast che non
+	// ha spostato nessuno, e la fase `Move` si risolverebbe su uno stato applicato a meta'. Chi chiude la
+	// finestra riprende da li' e chiama `FinishBlastPhase` al posto nostro.
+	if (PendingBlast->bSuspended)
+	{
+		return; // il contesto resta VIVO: e' cio' che il rientro riprende
+	}
+
+	FinishBlastPhase(*PendingBlast);
+	PendingBlast.Reset();
 }
 
 void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
@@ -6225,9 +6244,31 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors, HealDefs);
 
 	// Coda della fase: cio' che si applica quando il danno e' risolto e si sa chi e' rimasto in piedi.
+	//
+	// ⚠️ **`ApplyDisplacements` puo' uscire senza aver finito** (`#2692`, [D-355]): se un `Brace` apre una
+	// finestra, il contesto resta vivo e cio' che segue va rimandato al rientro. Le due chiamate che
+	// stavano qui vivono in `FinishBlastPhase`, raggiungibile da due strade — come `ConcludeResolution`
+	// da `#2679`, e per la stessa ragione.
 	ApplyDisplacements(Ctx);
+}
+
+/**
+ * La coda della fase Blast: cio' che si applica quando gli spostamenti sono risolti.
+ *
+ * 🔑 **Estratta perche' ha DUE chiamanti** (`#2692`): la sequenza normale e il rientro dopo una finestra
+ * del `Brace`. Prima ne aveva uno solo e poteva stare in linea.
+ *
+ * ⛔ **Non e' un'API pubblica**: chiamarla con la fase ancora sospesa applicherebbe i cooldown a un Blast
+ * che non ha finito di spostare nessuno.
+ */
+void ARTTurnManager::FinishBlastPhase(FRTBlastContext& Ctx)
+{
 	MarkAttackerAbilitiesSpent(Ctx);
 	ApplyControlStatuses(Ctx);
+
+	// 🔴 Il pagamento resta in coda alla sequenza e fuori dai pass, come dichiarato in `ResolveCombat`
+	// (`#1451` punto 3): qualunque uscita anticipata passa comunque di qui.
+	SpendStartedAbilities(Ctx);
 }
 
 

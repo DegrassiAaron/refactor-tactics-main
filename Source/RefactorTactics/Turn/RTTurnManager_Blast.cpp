@@ -2122,7 +2122,17 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 	// Di questo punto si consuma `CancelledDisplacements` e basta: un contrattacco dichiarato da una reazione
 	// allo spostamento arriverebbe a colpi gia' risolti, quindi il catalogo non lo prevede (`Reaction.Anchor`
 	// dichiara solo `CancelDisplacement`).
-	FRTReactionPassResult DisplacementReactions;
+	// Alias sul contesto: `CancelledDisplacements` viene letto DOPO il punto di sospensione, da entrambi
+	// i cicli. Una locale non sopravvivrebbe alla finestra del `Brace` (`#2692`).
+	FRTReactionPassResult& DisplacementReactions = Ctx.Displacement.Reactions;
+	// 🔴 **Una volta sola per fase, e non e' un'ottimizzazione** (`#2692`): questo pass e' il solo momento
+	// in cui `Reaction.Anchor` puo' annullare uno spostamento, e una ripresa che lo rifacesse applicherebbe
+	// due volte quelle reazioni. Il flag vive nel contesto perche' e' esattamente cio' che il rientro deve
+	// sapere e lo stack non puo' piu' dirgli.
+	const bool bPrimoGiro = !Ctx.Displacement.bStarted;
+	Ctx.Displacement.bStarted = true;
+	if (bPrimoGiro)
+	{
 	RunReactionPass(ERTReactionPassPoint::BlastDisplacement,
 		[&Units, &KnockCount, &PullCount](int32 SelfId, ERTReactionTrigger)
 		{
@@ -2146,34 +2156,48 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			return FRTReactionTriggerHit{ bAboutToMove, INDEX_NONE };
 		},
 		Units, States, Map, DisplacementReactions);
+	}
 
 	// --- Spinta (knockback): dopo il danno, sulle posizioni snapshot del Blast -----------------------
 	// Direzione ESAGONALE (una delle sei), non piu' cardinale: la spinta segue la linea attaccante->bersaglio
 	// e si ferma su bordo mappa, ostacolo o unita'. Spinte multiple sullo stesso bersaglio si annullano.
 	if (KnockCount.Num() > 0)
 	{
+		// 🔑 **Le sei collezioni di questo passo vivono nel CONTESTO, non sullo stack** (`#2692`): il ciclo
+		// piu' sotto deve poter uscire su una finestra del `Brace` e rientrare, e fra un bersaglio e il
+		// successivo lo stack puo' essere stato srotolato. Sono alias, non copie — stessa disciplina delle
+		// undici righe in testa alla funzione.
+		TArray<FRTCellId>& KOccupied = Ctx.Displacement.Occupied;
+		TArray<ARTUnit*>& KTargets = Ctx.Displacement.Targets;
+		TArray<FRTCellId>& KFinal = Ctx.Displacement.Final;
+		TMap<ARTUnit*, ERTMoveOutcome>& KEsito = Ctx.Displacement.Esito;
+		// #2430: e il ciglio con lui — vedi `FRTDisplacementPassState::Ciglio`.
+		TMap<ARTUnit*, FRTCellId>& KCiglio = Ctx.Displacement.Ciglio;
+		TSet<const ARTUnit*>& Sidestepped = Ctx.Displacement.Sidestepped;
+		TArray<ARTUnit*>& BlastAliveUnits = Ctx.Displacement.AliveUnits;
+
 		// Bloccanti: le celle di tutte le unita' (non si spinge dentro un'altra unita').
-		TArray<FRTCellId> KOccupied;
-		for (ARTUnit* U : Units) { KOccupied.Add(U->Cell); }
+		// Sotto lo stesso flag del pass: rifarlo alla ripresa riempirebbe l'array di doppioni, e il ciclo
+		// dei conflitti piu' sotto CONTA le celle.
+		if (bPrimoGiro)
+		{
+			for (ARTUnit* U : Units) { KOccupied.Add(U->Cell); }
+		}
 
 		// Destinazioni dallo snapshot: solo bersagli vivi spinti da ESATTAMENTE un attaccante.
 		// Si itera su Units (ordine stabile per cella): l'ordine di iterazione di una TMap non e' garantito
 		// e da qui dipendono la sequenza del playback e quella del combat log.
-		TArray<ARTUnit*> KTargets;
-		TArray<FRTCellId> KFinal;
+
 
 		// Chi e' CADUTO (#2402): serve al solo esito della voce di TurnLog, che per una caduta non puo'
 		// dire `Displaced` — quello significa «raggiunta la destinazione della spinta», e chi cade e' finito
 		// altrove. La cella e' gia' in `KFinal`: questo insieme non la duplica.
-		TMap<ARTUnit*, ERTMoveOutcome> KEsito; // #2403: QUALE esito, non solo «e' caduto»
-		// #2430: il CIGLIO si sa solo nel primo ciclo e serve nel secondo — [D-358] ci fa ripiegare la
-		// caduta contesa, e da li' si ritrova il primario occupato per gli effetti d'impatto.
-		TMap<ARTUnit*, FRTCellId> KCiglio;
+
 
 		// Chi si e' spostato per SCELTA e non per la spinta ([D-047]): serve al solo verbo del log, che
 		// altrimenti racconterebbe «spinto» un'unita' che ha deciso di scartare. Il TurnLog esiste per dire
 		// QUALE difesa ha retto e quale no — un verbo sbagliato e' la stessa lacuna di `#420`, un livello sopra.
-		TSet<const ARTUnit*> Sidestepped;
+
 
 		// Lo spazio di id alive-only in cui vive `Key.OwnerId`, costruito **al piu' una volta per Blast** e
 		// solo se una finestra si apre davvero.
@@ -2183,10 +2207,12 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		// via**, e ordina — tutto questo per **ogni** unita' in `Brace`. Il caso di gran lunga piu' comune e'
 		// il profilo base (Branth), dove `AskReactionDecision` risponde `HoldImmediate` senza mai leggere
 		// `OwnerId`: si pagava un giro completo per un valore che nessuno guardava.
-		TArray<ARTUnit*> BlastAliveUnits;
-
-		for (ARTUnit* T : Units)
+		// ⛔ **Ciclo INDICIZZATO e non range-based** (`#2692`): l'indice vive nel contesto, quindi un'uscita
+		// a meta' sa da dove ricominciare. Durante il corpo punta al bersaglio IN CORSO — l'incremento
+		// avviene passando al successivo — e i `continue` di questo ciclo lo fanno avanzare come prima.
+		for (; Ctx.Displacement.NextTarget < Units.Num(); ++Ctx.Displacement.NextTarget)
 		{
+			ARTUnit* T = Units[Ctx.Displacement.NextTarget];
 			const int32* Pushes = KnockCount.Find(T);
 
 			// FORZE CONTRADDITTORIE (#420): spinto da due o piu' attaccanti, resta fermo. Non e' una difesa —
@@ -2345,8 +2371,58 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					BraceOpportunity.Key.OwnerId = BlastAliveUnits.IndexOfByKey(T);
 				}
 
-				const FRTReactionDecision BraceDecision = AskReactionDecision(
-					BraceOpportunity, BraceOpportunity.Key.OwnerId, T->bIsBotControlled);
+				// --- IL PUNTO DI SOSPENSIONE DEL `Brace` (`#2692`, [D-355]) --------------------------
+				//
+				// 🔑 **Le stesse quattro condizioni del movimento** (`RTTurnManager_Movement.cpp`), e non per
+				// simmetria: sono i fatti che rendono possibile una finestra interattiva. Manca una qualsiasi
+				// e si prende la strada sincrona, che resta identica a se stessa — e' cosi' che bot, test e
+				// Verifier non hanno bisogno di un ramo che li nomini.
+				//
+				// ⛔ **`RecordedDecisions` vuota protegge il replay**: in ri-simulazione il Verifier non ha un
+				// decisore, e una finestra aperta non verrebbe chiusa da nessuno. Si bloccherebbe invece di
+				// diventare rosso, che e' il modo peggiore in cui un gate puo' fallire.
+				FRTReactionDecision BraceDecision;
+				if (Ctx.Displacement.bResumingWithResponse)
+				{
+					// Rientro da una finestra chiusa: la risposta e' gia' arrivata e passa dallo stesso
+					// imbuto del bot, senza un secondo ramo dentro `AskReactionDecision` — che e' `const`
+					// e deve restarlo.
+					Ctx.Displacement.bResumingWithResponse = false;
+					const FString Risposta = Ctx.Displacement.ClosedWindowResponse;
+					FRTReactionDeciderSignature Precedente = ReactionDecider;
+					ReactionDecider.BindLambda(
+						[Risposta](const FRTReactionOpportunity&, int32) -> FString { return Risposta; });
+					BraceDecision = AskReactionDecision(BraceOpportunity, BraceOpportunity.Key.OwnerId,
+						/*bOwnerIsBot=*/ false);
+					ReactionDecider = Precedente;
+				}
+				else if (OnReactionWindowOpened.IsBound()
+					&& !T->bIsBotControlled
+					&& RecordedDecisions.Num() == 0
+					&& URTReactionOpportunityLibrary::RequiresDecisionBoundary(BraceOpportunity))
+				{
+					Ctx.Displacement.OpenWindowOpportunityId =
+						URTReactionOpportunityLibrary::DeriveOpportunityId(BraceOpportunity.Key);
+					Ctx.Displacement.OpenWindowElapsed = 0.f;
+					Ctx.Displacement.PendingOpportunity = BraceOpportunity;
+					Ctx.bSuspended = true;
+
+					// Il DTO e' sanitizzato per la squadra di chi decide, come nell'altro sito.
+					const int32 OwnerTeamId = T->TeamId;
+					OnReactionWindowOpened.Execute(
+						MakeReactionWindowView(BraceOpportunity, OwnerTeamId, OwnerTeamId),
+						BraceOpportunity.Key.OwnerId);
+
+					// ⛔ **Si esce PRIMA dell'incremento**, quindi `NextTarget` punta ancora a questo
+					// bersaglio: il rientro lo rifa' con la risposta in mano, e nulla di cio' che segue —
+					// TurnLog, spostamento, caduta — e' stato applicato.
+					return;
+				}
+				else
+				{
+					BraceDecision = AskReactionDecision(
+						BraceOpportunity, BraceOpportunity.Key.OwnerId, T->bIsBotControlled);
+				}
 
 				// ➕ **La decisione entra nel TurnLog** (v10, [D-047]), e non e' una rifinitura di
 				// diagnostica: senza questa voce la ri-simulazione **perde lo scarto**.

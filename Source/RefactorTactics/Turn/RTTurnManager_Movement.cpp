@@ -537,6 +537,22 @@ FString ARTTurnManager::GetOpenReactionWindowId() const
 
 void ARTTurnManager::SubmitReactionResponse(const FString& OpportunityId, const FString& Response)
 {
+	// 🔑 **Il `Brace` per primo** (`#2692`): i due siti non sono mai aperti insieme — il Blast si risolve
+	// prima del movimento e la sua finestra tiene ferma la fase — ma l'ordine dichiara quale contesto ha
+	// la parola quando esiste. Il gate dell'identita' e' lo stesso, e vale a maggior ragione qui: una
+	// risposta stale non deve chiudere la finestra sbagliata.
+	if (FRTBlastContext* Blast = PendingBlast.Get())
+	{
+		if (Blast->bSuspended && !Blast->Displacement.OpenWindowOpportunityId.IsEmpty())
+		{
+			if (Blast->Displacement.OpenWindowOpportunityId == OpportunityId)
+			{
+				CloseBraceWindow(Response);
+			}
+			return; // con una finestra del `Brace` aperta, nessun'altra strada e' legittima
+		}
+	}
+
 	FRTMovementResolutionContext* Ctx = PendingMovement.Get();
 	if (!Ctx || Ctx->OpenWindowOpportunityId.IsEmpty())
 	{
@@ -557,6 +573,15 @@ void ARTTurnManager::SubmitReactionResponse(const FString& OpportunityId, const 
 
 void ARTTurnManager::ExpireReactionWindow()
 {
+	if (FRTBlastContext* Blast = PendingBlast.Get())
+	{
+		if (Blast->bSuspended && !Blast->Displacement.OpenWindowOpportunityId.IsEmpty())
+		{
+			CloseBraceWindow(FString()); // vuota = «non ho risposto», come nell'altro sito
+			return;
+		}
+	}
+
 	FRTMovementResolutionContext* Ctx = PendingMovement.Get();
 	if (!Ctx || Ctx->OpenWindowOpportunityId.IsEmpty())
 	{
@@ -627,6 +652,64 @@ void ARTTurnManager::CloseReactionWindow(const FString& Response)
 }
 
 /**
+ * Chiude la finestra del `Brace` applicando `Response`, e riprende la fase (`#2692`, [D-355]).
+ *
+ * 🔑 **La risposta non viene giudicata qui**, esattamente come nell'altro sito: viene messa nel contesto e
+ * il rientro in `ApplyDisplacements` la fa passare da `AskReactionDecision` come ogni altra. La legalita'
+ * di una risposta si decide in **un** posto, e una seconda politica qui applicherebbe scelte che quella
+ * rifiuta.
+ *
+ * ⛔ **Non applica lo spostamento**: quel codice vive nel ciclo dei bersagli, dopo la decisione, e il
+ * rientro ci ripassa con `NextTarget` fermo su quel bersaglio. Duplicarlo qui sarebbe la seconda autorita'
+ * che [D-355] esiste per non creare.
+ */
+void ARTTurnManager::CloseBraceWindow(const FString& Response)
+{
+	FRTBlastContext* Ctx = PendingBlast.Get();
+	if (!Ctx || !Ctx->bSuspended)
+	{
+		return;
+	}
+
+	Ctx->Displacement.OpenWindowOpportunityId.Reset();
+	Ctx->Displacement.OpenWindowElapsed = 0.f;
+	Ctx->Displacement.ClosedWindowResponse = Response;
+	Ctx->Displacement.bResumingWithResponse = true;
+
+	ResumeSuspendedResolution();
+}
+
+/**
+ * Riprende la fase Blast dopo una finestra del `Brace`, ora chiusa (`#2692`, [D-355]).
+ *
+ * 🔑 **Rientra in `ApplyDisplacements`, che riparte da `NextTarget`**: il bersaglio su cui la finestra si
+ * era aperta e' ancora quello in corso, e niente di cio' che lo riguarda era stato applicato — si esce
+ * PRIMA del TurnLog, dello spostamento e della caduta. Il prologo non si rifa': `bStarted` lo dice.
+ *
+ * ⚠️ **Puo' sospendersi di nuovo**, e non e' un caso limite: due unita' in `Brace` spinte nello stesso
+ * Blast aprono due finestre, e la seconda si apre mentre si riprende dalla prima.
+ */
+void ARTTurnManager::ResumeBlastResolution()
+{
+	FRTBlastContext* Ctx = PendingBlast.Get();
+	if (!Ctx || !Ctx->bSuspended)
+	{
+		return;
+	}
+
+	Ctx->bSuspended = false;
+	ApplyDisplacements(*Ctx);
+
+	if (Ctx->bSuspended)
+	{
+		return; // un altro `Brace`: il contesto resta dov'e'
+	}
+
+	FinishBlastPhase(*Ctx);
+	PendingBlast.Reset();
+}
+
+/**
  * Porta a termine una risoluzione che si era fermata su una finestra, ora chiusa (`#2679` fetta 3, [D-355]).
  *
  * 🔑 **E' il secondo chiamante di `ConcludeResolution`, e la ragione per cui quella coda e' stata estratta.**
@@ -644,20 +727,35 @@ void ARTTurnManager::ResumeSuspendedResolution()
 		return;
 	}
 
-	int32 Guard = 0;
-	ERTMovementAdvanceResult Step = ERTMovementAdvanceResult::Advanced;
-	while (Step == ERTMovementAdvanceResult::Advanced && Guard < 256)
+	// 🔑 **Che cosa e' sospeso** (`#2692`): finche' il sito era uno solo questa funzione poteva essere
+	// cablata sul movimento. Da quando il `Brace` sospende, la prima domanda e' quale contesto riprendere.
+	if (PendingBlast.IsValid() && PendingBlast->bSuspended)
 	{
-		Step = AdvanceMovementResolution();
-		++Guard;
-	}
+		ResumeBlastResolution();
 
-	if (Step == ERTMovementAdvanceResult::Suspended)
+		// Un altro `Brace` nello stesso passo puo' riaprire: si torna ad attendere.
+		if (IsResolutionSuspended())
+		{
+			return;
+		}
+	}
+	else
 	{
-		return; // un'altra finestra: si torna ad attendere, e il contesto resta dov'e'
-	}
+		int32 Guard = 0;
+		ERTMovementAdvanceResult Step = ERTMovementAdvanceResult::Advanced;
+		while (Step == ERTMovementAdvanceResult::Advanced && Guard < 256)
+		{
+			Step = AdvanceMovementResolution();
+			++Guard;
+		}
 
-	FinishMovementResolution();
+		if (Step == ERTMovementAdvanceResult::Suspended)
+		{
+			return; // un'altra finestra: si torna ad attendere, e il contesto resta dov'e'
+		}
+
+		FinishMovementResolution();
+	}
 
 	// 🔑 **Le fasi rimaste, e non e' una riga di simmetria** ([D-356]). `RunPhaseLoop` esce lasciando
 	// `Phase` sulla fase che si e' fermata, quindi qui il turno e' avanzato solo fino a li': senza questa
@@ -753,6 +851,19 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 
 bool ARTTurnManager::IsResolutionSuspended() const
 {
+	// 🔑 **Due siti, non uno** ([D-355]): l'Overwatch nel movimento e il `Brace` nel Blast (`#2692`).
+	// Il nome dice «resolution» e da qui in poi il corpo lo mantiene: finche' leggeva il solo
+	// `PendingMovement`, una sospensione del Blast avrebbe lasciato `ConcludeResolution` raggiungibile su
+	// un turno a meta' — e `ResumeSuspendedResolution` sarebbe uscita subito, lasciando il turno fermo
+	// per sempre.
+	if (const FRTBlastContext* Blast = PendingBlast.Get())
+	{
+		if (Blast->bSuspended)
+		{
+			return true;
+		}
+	}
+
 	const FRTMovementResolutionContext* Ctx = PendingMovement.Get();
 	return Ctx != nullptr && Ctx->bActive;
 }

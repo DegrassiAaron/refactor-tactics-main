@@ -1222,6 +1222,15 @@ public:
 	ERTMovementAdvanceResult AdvanceMovementResolution();
 	void FinishMovementResolution();
 
+	/** La coda della fase Blast, quando gli spostamenti sono risolti. Due chiamanti (`#2692`). */
+	void FinishBlastPhase(FRTBlastContext& Ctx);
+
+	/** Riprende la fase Blast dopo una finestra del `Brace`, ora chiusa (`#2692`). */
+	void ResumeBlastResolution();
+
+	/** Chiude la finestra del `Brace` applicando la risposta, e riprende la fase (`#2692`). */
+	void CloseBraceWindow(const FString& Response);
+
 	/**
 	 * Il ciclo delle fasi, con uscita anticipata sulla sospensione ([D-356]). Due chiamanti come
 	 * `ConcludeResolution`: il lock-in e la ripresa. Non fa il setup del turno — vedi il .cpp.
@@ -1438,6 +1447,15 @@ protected:
 	 * nullo, e leggerlo e' un difetto — le tre funzioni lo verificano invece di darlo per scontato.
 	 */
 	TUniquePtr<FRTMovementResolutionContext> PendingMovement;
+
+	/**
+	 * Il contesto della fase Blast, sull'heap perche' la fase deve poter uscire e rientrare (`#2692`).
+	 *
+	 * Vivo solo durante `ResolveCombat`: nasce in testa e muore in coda, come quando stava sullo stack.
+	 * Cio' che cambia e' che sia raggiungibile da fuori — senza, una sospensione non avrebbe niente da
+	 * riprendere. Stessa forma di `PendingMovement`, e per la stessa ragione.
+	 */
+	TUniquePtr<FRTBlastContext> PendingBlast;
 
 	/**
 	 * Risolve i colpi predittivi armati contro le rotte appena calcolate, e TRONCA il movimento di chi viene

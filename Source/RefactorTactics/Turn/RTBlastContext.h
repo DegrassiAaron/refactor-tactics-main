@@ -7,6 +7,8 @@
 #include "Combat/RTCombatResolver.h"    // FRTUnitCombatState
 #include "Combat/RTHexCombatLibrary.h"  // FRTHexCombatUnit, FRTHexAttackIntent, FRTHexBlastPlan
 #include "Turn/RTReactionPassResult.h"  // FRTReactionPassResult: l'esito del pass reazioni sopravvive al pass
+#include "Turn/RTTurnLog.h"             // ERTMoveOutcome: l'esito che il passo spinte ricorda per bersaglio
+#include "Turn/RTReactionOpportunityTypes.h" // FRTReactionOpportunity: la finestra del `Brace` che sopravvive
 
 class ARTUnit;
 class URTActionData;
@@ -58,6 +60,105 @@ struct FRTPendingArcOp
  * questa struttura. Le identita' che devono sopravvivere all'ordinamento usano `ARTUnit::StableUnitId`
  * ([D-063]), mai l'indice.
  */
+/**
+ * Lo stato del PASSO SPINTE di `ApplyDisplacements`, estratto perche' quel passo deve poter uscire e
+ * rientrare (`#2692`, [D-355]).
+ *
+ * 🔑 **Erano sei variabili locali di un blocco `if`**, riempite dal ciclo sui bersagli e lette dopo di
+ * lui — dai conflitti di destinazione e dal blocco delle trazioni. Finche' il ciclo girava in un colpo
+ * solo potevano vivere sullo stack; da quando la finestra del `Brace` puo' fermarlo in mezzo, lo stack
+ * fra un bersaglio e il successivo puo' essere stato srotolato.
+ *
+ * ⛔ **`NextTarget` indicizza `FRTBlastContext::Units`, e punta al bersaglio IN CORSO, non al prossimo.**
+ * Il ciclo lo incrementa passando all'elemento dopo, quindi durante il corpo vale sempre l'indice di chi
+ * si sta risolvendo: chi riprende decide se rifare quel bersaglio o saltarlo, e la scelta e' sua perche'
+ * dipende da quanto era stato applicato prima di uscire. Un indice che puntasse al prossimo la
+ * nasconderebbe.
+ *
+ * ⚠️ **I puntatori sono grezzi come nel resto di `FRTBlastContext`, e oggi e' sicuro**: nessuna unita'
+ * viene distrutta dentro il Blast — `DestroyDefeatedUnits` gira in `ConcludeTurn`, dopo — e una
+ * sospensione tiene il turno APERTO, quindi `ConcludeTurn` non puo' girare mentre la finestra e' su
+ * schermo. E' un invariante che regge, non una svista; smettera' di essere ovvio il giorno in cui
+ * qualcosa distrugga un attore a fase iniziata, ed e' per quello che sta scritto qui.
+ */
+struct FRTDisplacementPassState
+{
+	/** Celle bloccanti: le posizioni di tutte le unita'. Non si spinge dentro un'altra unita'. */
+	TArray<FRTCellId> Occupied;
+
+	/** Bersagli vivi spinti da ESATTAMENTE un attaccante, nell'ordine stabile di `Units`. */
+	TArray<ARTUnit*> Targets;
+
+	/** Destinazione calcolata per ogni bersaglio, parallela a `Targets`. */
+	TArray<FRTCellId> Final;
+
+	/** Chi e' caduto e con QUALE esito (`#2402`, `#2403`): serve al solo verbo della voce di TurnLog. */
+	TMap<ARTUnit*, ERTMoveOutcome> Esito;
+
+	/**
+	 * Il CIGLIO da cui ciascuno e' caduto — `LastStableCell` (`#2430`).
+	 *
+	 * 🔑 **Sta qui per la stessa ragione di `Esito`**: si calcola nel primo ciclo e si legge nel
+	 * secondo, e fra i due c'e' il punto di sospensione di `#2692`. Da locale si perderebbe alla
+	 * ripresa, e con lei l'unico modo di ritrovare il primario occupato — che [D-357] usa per gli
+	 * effetti d'impatto e [D-358] per ripiegare la caduta contesa.
+	 */
+	TMap<ARTUnit*, FRTCellId> Ciglio;
+
+	/** Chi si e' spostato per SCELTA e non per la spinta ([D-047]): un `SIDESTEP` non e' «spinto». */
+	TSet<const ARTUnit*> Sidestepped;
+
+	/**
+	 * Lo spazio di id alive-only in cui vive `Key.OwnerId`, costruito **al piu' una volta per Blast** e
+	 * solo se una finestra si apre davvero: `MakeCurrentSnapshot` scarta i morti, `GatherBlastUnits` no.
+	 */
+	TArray<ARTUnit*> AliveUnits;
+
+	/** Indice del bersaglio in corso dentro `FRTBlastContext::Units`. Vedi il commento della struct. */
+	int32 NextTarget = 0;
+
+	/**
+	 * Il prologo del passo e' gia' girato.
+	 *
+	 * 🔴 **Senza, la ripresa lo rifarebbe**, e non in modo innocuo: `RunReactionPass(BlastDisplacement)` e'
+	 * il solo momento in cui `Reaction.Anchor` puo' annullare uno spostamento, e girarlo due volte
+	 * applicherebbe due volte quelle reazioni. `Occupied` si riempirebbe di doppioni, e il ciclo dei
+	 * conflitti conta le celle.
+	 */
+	bool bStarted = false;
+
+	/**
+	 * L'esito del pass reazioni sullo spostamento, letto dai cicli di spinta E di trazione.
+	 *
+	 * Era una locale di `ApplyDisplacements`: sopravvive perche' `CancelledDisplacements` viene
+	 * interrogato dopo il punto di sospensione, in entrambi i cicli.
+	 */
+	FRTReactionPassResult Reactions;
+
+	// --- La finestra del `Brace`, quando ne e' aperta una (`#2692`, [D-355]) ------------------------
+
+	/** Identita' della finestra aperta. Vuota = nessuna finestra attende. */
+	FString OpenWindowOpportunityId;
+
+	/** Tempo trascorso da quando si e' aperta. Presentazione e countdown; l'esito logico non ne dipende. */
+	float OpenWindowElapsed = 0.f;
+
+	/**
+	 * L'opportunity su cui la finestra e' aperta, trasportata perche' alla chiusura va ri-valutata.
+	 *
+	 * ⚠️ **Copiata e non referenziata**, per la stessa ragione degli input di `FRTMovementResolutionState`:
+	 * fra l'apertura e la chiusura passa un turno di orologio, e la locale che l'ha costruita e' uscita di
+	 * scope da un pezzo.
+	 */
+	FRTReactionOpportunity PendingOpportunity;
+
+	/** La risposta arrivata, che il rientro consuma al posto di chiedere. */
+	FString ClosedWindowResponse;
+
+	/** Vero fra la chiusura della finestra e il rientro che la consuma. */
+	bool bResumingWithResponse = false;
+};
+
 struct FRTBlastContext
 {
 	// --- Geometria autorevole della fase: letta una volta, mai riscritta ---------------------------
@@ -76,6 +177,18 @@ struct FRTBlastContext
 
 	/** Inverso di `Units`: dall'attore al suo indice. Serve a tradurre i bersagli pianificati in `UnitId`. */
 	TMap<ARTUnit*, int32> IndexOf;
+
+	/** Lo stato del passo spinte, che deve poter uscire e rientrare (`#2692`). Vedi `FRTDisplacementPassState`. */
+	FRTDisplacementPassState Displacement;
+
+	/**
+	 * La fase si e' fermata su una finestra di reazione e attende una risposta (`#2692`, [D-355]).
+	 *
+	 * 🔑 **E' il flag che il contesto espone ai suoi chiamanti**: `ResolveCombat` non conclude la fase,
+	 * `RunPhaseLoop` non passa a `Move`, e `IsResolutionSuspended()` lo riporta al resto del manager.
+	 * Senza, il ciclo delle fasi risolverebbe il movimento su un Blast applicato a meta'.
+	 */
+	bool bSuspended = false;
 
 	/** Salute e scudo all'inizio del Blast, paralleli a `Units`: la base su cui il resolver applica i danni. */
 	TArray<FRTUnitCombatState> States;
