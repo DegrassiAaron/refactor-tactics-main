@@ -122,7 +122,7 @@ Inizio pianificazione (ARTTurnManager::StartPlanningTimer, 30s)
   → timer 30s
 
 Lock-in (Spazio) oppure timeout → LockInAndResolve()
-  → NextPhase attraversa le fasi:
+  → RunPhaseLoop(): NextPhase attraversa le fasi, e ESCE se una di esse si sospende ([D-356])
       · Prep  → ResolvePrep():    abilità di supporto (bSelfTarget) → scudo / self-buff
       · Dash  → (riservata: mobilità rapida, nessuna abilità la usa ancora)
       · Blast → ResolveCombat():  raccoglie gli attacchi validi (nemico/vivo/in portata/LOS, posizione ATTUALE)
@@ -130,6 +130,11 @@ Lock-in (Spazio) oppure timeout → LockInAndResolve()
                 → ApplyCombatState → status/energia → eliminazione a HP ≤ 0
       · Move  → ResolveMovement(): path compositi → ResolvePaths (microstep, cross-damage terreno)
                 → PlaceOnCell → hazard di fine turno (Lava) + terreno dinamico (Erba→Fuoco)
+  → ⏸️ se una fase si e' sospesa su una finestra di reazione ([D-355]) il ciclo esce **lasciando `Phase`
+     sulla fase che si e' fermata** ([D-356]): il turno non e' finito, il playback parte sulla timeline
+     parziale, e chi chiude la finestra rientra in `RunPhaseLoop()` e poi in `ConcludeResolution()`.
+     Durante l'attesa `GetPhase()` risponde `Move` (o `Blast`, quando il `Brace` sapra' sospendere —
+     [#2692](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2692)), **mai** `Planning`.
   → TickCooldowns / TickStatuses ; EvaluateOutcome(vivi team0, vivi team1):
       · InProgress → nuovo turno (StartPlanningTimer)
       · altrimenti → MatchEnded (turni fermi, HUD "PARTITA FINITA")
