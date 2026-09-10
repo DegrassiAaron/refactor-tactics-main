@@ -305,3 +305,30 @@ TArray<FString> URTPresentationBindingLibrary::FindMissingBindings(
 
 	return Missing;
 }
+
+ERTGraykitLocomotionStyle URTPresentationBindingLibrary::StyleForPhase(ERTMatchPhase Phase)
+{
+	switch (Phase)
+	{
+	case ERTMatchPhase::Dash:
+		// L'unica fase che corre. Il Dash e' uno scatto dichiarato, non un Move piu' lungo, e
+		// `DescriptorForStyle(Run)` lo rende con una COMPOSIZIONE diversa — non con magnitudini piu' alte.
+		return ERTGraykitLocomotionStyle::Run;
+
+	// ⚠️ **Le altre fasi si elencano invece di cadere in un `default` muto**, ed e' cio' che rende questa
+	// funzione una tabella leggibile invece di una scorciatoia. Il `Blast` in particolare muove le unita'
+	// (knockback) e finisce qui: un knockback non e' una corsa, e' uno spostamento subito.
+	case ERTMatchPhase::Move:
+	case ERTMatchPhase::Blast:
+	case ERTMatchPhase::Planning:
+	case ERTMatchPhase::Prep:
+	case ERTMatchPhase::Cleanup:
+	case ERTMatchPhase::MatchEnded:
+		return ERTGraykitLocomotionStyle::Normal;
+
+	default:
+		// ⛔ Un valore che questa build non conosce: andatura neutra, mai un crash e mai un ensure. La
+		// presentazione degrada; e' la simulazione che deve essere rumorosa quando incontra l'ignoto.
+		return ERTGraykitLocomotionStyle::Normal;
+	}
+}

@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTPresentationBinding.h"
+#include "Turn/RTTurnRules.h" // ERTMatchPhase
 #include "Turn/RTResolvedEvent.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -489,6 +490,62 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 		OwnerDi(ERTResolvedEventType::ReactionResolved), FString(TEXT("#2454")));
 	TestEqual(TEXT("StatusChanged attende #2456"),
 		OwnerDi(ERTResolvedEventType::StatusChanged), FString(TEXT("#2456")));
+
+	return true;
+}
+
+
+// ---------------------------------------------------------------------------------------------------------
+// L'andatura di una fase (#2881): tabella completa, purezza, e le due esclusioni difese.
+// ---------------------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationStyleForPhaseIsTotalTest,
+	"RefactorTactics.Presentation.AndaturaPerFase", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTPresentationStyleForPhaseIsTotalTest::RunTest(const FString& Parameters)
+{
+	// 🔑 Solo il Dash corre. E' la sola riga di questa tabella che porta informazione.
+	TestEqual(TEXT("Dash -> Run"),
+		URTPresentationBindingLibrary::StyleForPhase(ERTMatchPhase::Dash), ERTGraykitLocomotionStyle::Run);
+
+	// ⚠️ Il Blast MUOVE le unita' (knockback) e resta `Normal`: un knockback non e' una corsa, e' uno
+	// spostamento subito. E' il caso che una scorciatoia «se si muove allora corre» sbaglierebbe.
+	TestEqual(TEXT("Move -> Normal"),
+		URTPresentationBindingLibrary::StyleForPhase(ERTMatchPhase::Move), ERTGraykitLocomotionStyle::Normal);
+	TestEqual(TEXT("Blast -> Normal (il knockback non e' una corsa)"),
+		URTPresentationBindingLibrary::StyleForPhase(ERTMatchPhase::Blast), ERTGraykitLocomotionStyle::Normal);
+
+	// La funzione e' TOTALE: si itera l'enum vero, non una lista scritta a mano — stessa disciplina del gate
+	// di `DeclaredBindings`. Un valore aggiunto domani e' coperto per costruzione.
+	const UEnum* PhaseEnum = StaticEnum<ERTMatchPhase>();
+	if (!TestNotNull(TEXT("reflection di ERTMatchPhase"), PhaseEnum))
+	{
+		return false;
+	}
+
+	const int32 PhaseCount = PhaseEnum->NumEnums() - 1; // l'ultima e' il _MAX sintetico di UHT
+	for (int32 i = 0; i < PhaseCount; ++i)
+	{
+		const ERTMatchPhase Phase = static_cast<ERTMatchPhase>(PhaseEnum->GetValueByIndex(i));
+		const ERTGraykitLocomotionStyle Style = URTPresentationBindingLibrary::StyleForPhase(Phase);
+
+		// ⛔ **Le due esclusioni, difese per OGNI ingresso.** `Reduced` non e' derivabile
+		// deterministicamente — richiederebbe di leggere l'unita' viva, cioe' lo stato corrente invece di
+		// quello al momento dell'azione — e `Stealth` non ha nessun consumatore. Aggiungerli in futuro deve
+		// costare la modifica di questo test, non uno scivolamento.
+		TestTrue(FString::Printf(TEXT("la fase %s non produce Reduced"), *PhaseEnum->GetNameStringByIndex(i)),
+			Style != ERTGraykitLocomotionStyle::Reduced);
+		TestTrue(FString::Printf(TEXT("la fase %s non produce Stealth"), *PhaseEnum->GetNameStringByIndex(i)),
+			Style != ERTGraykitLocomotionStyle::Stealth);
+
+		// Purezza: due chiamate coincidono, perche' non si legge nessuno stato.
+		TestEqual(FString::Printf(TEXT("la fase %s da' sempre lo stesso stile"), *PhaseEnum->GetNameStringByIndex(i)),
+			URTPresentationBindingLibrary::StyleForPhase(Phase), Style);
+	}
+
+	// Un valore fuori dall'enum ricade su `Normal` senza crash: e' cio' che arriva da una build piu' nuova.
+	TestEqual(TEXT("una fase sconosciuta ricade su Normal"),
+		URTPresentationBindingLibrary::StyleForPhase(static_cast<ERTMatchPhase>(200)),
+		ERTGraykitLocomotionStyle::Normal);
 
 	return true;
 }
