@@ -192,6 +192,13 @@ namespace
 				if (A.Decisions[D].Unit != B.Decisions[D].Unit) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].unit"), T, D)); }
 				if (A.Decisions[D].Respond != B.Decisions[D].Respond) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].respond"), T, D)); }
 				if (A.Decisions[D].Target != B.Decisions[D].Target) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].target"), T, D)); }
+				// Il SELETTORE entra nel confronto come ogni altro campo del formato: una chiave che il writer
+				// dimenticasse si noterebbe solo qui, e il file salvato tornerebbe all'abbinamento per ordine
+				// senza che nulla lo dica.
+				if (A.Decisions[D].bHasSelector != B.Decisions[D].bHasSelector) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].on (presenza)"), T, D)); }
+				if (A.Decisions[D].On.Reactor != B.Decisions[D].On.Reactor) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].on.reactor"), T, D)); }
+				if (A.Decisions[D].On.Reaction != B.Decisions[D].On.Reaction) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].on.reaction"), T, D)); }
+				if (A.Decisions[D].On.TriggerUnit != B.Decisions[D].On.TriggerUnit) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].on.triggerUnit"), T, D)); }
 			}
 			if (A.Intents.Num() != B.Intents.Num()) { return Fail(FString::Printf(TEXT("turns[%d]: numero di intent"), T)); }
 			for (int32 N = 0; N < A.Intents.Num(); ++N)

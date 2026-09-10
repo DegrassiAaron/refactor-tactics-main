@@ -339,6 +339,37 @@ namespace
 	 */
 	bool ValidateDecisionForm(const FRTScenarioDecision& Decision, int32 ScenarioVersion, FString& OutError)
 	{
+		// 🔴 **Il selettore si valida QUI, prima del vocabolario di `respond`**, per la stessa ragione per cui
+		// questa funzione esiste: e' il punto che entrambi i chiamanti attraversano — il parser e il gate —
+		// e uno scenario COSTRUITO IN MEMORIA (l'editor, ogni test del runner) non passa dal primo. Con il
+		// controllo scritto nel solo parser, un `on` senza `reactor` prodotto da codice sarebbe arrivato
+		// intatto fino al matching, dove non avrebbe combaciato con nessuna finestra e sarebbe riemerso come
+		// un residuo che parla d'altro: «nessuna finestra per l'unita' ''».
+		if (Decision.bHasSelector)
+		{
+			if (Decision.On.IsEmpty())
+			{
+				OutError = TEXT("decisions: 'on' non dichiara nessun vincolo (previsti: reaction, reactor, triggerUnit)");
+				return false;
+			}
+			if (Decision.On.Reactor.IsEmpty())
+			{
+				OutError = TEXT("decisions: 'on' richiede 'reactor' (chi risponde alla finestra)");
+				return false;
+			}
+			// ⚠️ **Anche questa forma dichiara la versione che la ammette**, come `decisions` con la `2` e le
+			// risposte di profilo con la `3`: senza, un file `version: 4` con `on` verrebbe accettato da una
+			// build a `SupportedVersion = 4` — che non conosce la chiave — e rifiutato con «chiave
+			// sconosciuta», un messaggio che accusa il file mentre il difetto e' la build.
+			if (ScenarioVersion < 5)
+			{
+				OutError = FString::Printf(
+					TEXT("decisions: il selettore 'on' richiede \"version\": 5 (dichiarata: %d)"),
+					ScenarioVersion);
+				return false;
+			}
+		}
+
 		const bool bFire = Decision.Respond.Equals(TEXT("FIRE"), ESearchCase::CaseSensitive);
 		const bool bHold = Decision.Respond.Equals(TEXT("HOLD"), ESearchCase::CaseSensitive);
 
@@ -850,11 +881,73 @@ namespace
 						DecisionObj->TryGetStringField(TEXT("respond"), Decision.Respond);
 						DecisionObj->TryGetStringField(TEXT("target"), Decision.Target);
 
+						// `on`: il SELETTORE SEMANTICO della finestra a cui questa risposta risponde.
+						//
+						// 🔴 **La chiave c'e' ma non e' un oggetto: e' un errore, non un'assenza.** Stessa
+						// disciplina di `decisions` dieci righe piu' su — `"on": []` supererebbe il controllo
+						// sulle chiavi (la chiave E' nota) e produrrebbe un selettore vuoto, cioe' una risposta
+						// che dichiara di scegliere una finestra e poi prende la prima disponibile.
+						const bool bHasOnKey = DecisionObj->HasField(TEXT("on"));
+						if (bHasOnKey)
+						{
+							const TSharedPtr<FJsonObject>* OnObj = nullptr;
+							if (!DecisionObj->TryGetObjectField(TEXT("on"), OnObj) || !OnObj || !OnObj->IsValid())
+							{
+								OutError = TEXT("decisions: 'on' deve essere un oggetto");
+								return false;
+							}
+							// ⛔ **`unit` e `on.reactor` insieme sono un errore, non una ridondanza da
+							// riconciliare.** Sarebbero due posti per lo stesso fatto, e sceglierne uno al posto
+							// dell'autore produrrebbe uno scenario verde su una premessa che nessuno ha scritto:
+							// e' la stessa regola che `TargetCell`/`Target` applica sull'intent.
+							if (!Decision.Unit.IsEmpty())
+							{
+								OutError = TEXT("decisions: 'unit' e 'on' non convivono: chi risponde si dichiara in 'on.reactor'");
+								return false;
+							}
+
+							static const TSet<FString> KnownSelectorKeys = {
+								TEXT("reactor"), TEXT("reaction"), TEXT("triggerUnit")
+							};
+							TArray<FString> UnknownSelectorKeys;
+							for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : (*OnObj)->Values)
+							{
+								if (Field.Key.StartsWith(TEXT("_"))) { continue; }
+								if (!KnownSelectorKeys.Contains(Field.Key)) { UnknownSelectorKeys.Add(Field.Key); }
+							}
+							if (UnknownSelectorKeys.Num() > 0)
+							{
+								UnknownSelectorKeys.Sort();
+								TArray<FString> ExpectedSelectorKeys = KnownSelectorKeys.Array();
+								ExpectedSelectorKeys.Sort();
+								// ⚠️ `triggerCell` finisce QUI, e il messaggio lo dice per costruzione elencando
+								// cio' che c'e': la cella del trigger non e' in `FRTReactionOpportunity`, che ha
+								// un elenco chiuso di campi. Vedi `FRTScenarioOpportunitySelector`.
+								OutError = FString::Printf(
+									TEXT("decisions: 'on' ha una chiave sconosciuta '%s' (previste: %s)"),
+									*UnknownSelectorKeys[0], *FString::Join(ExpectedSelectorKeys, TEXT(", ")));
+								return false;
+							}
+
+							(*OnObj)->TryGetStringField(TEXT("reactor"), Decision.On.Reactor);
+							(*OnObj)->TryGetStringField(TEXT("triggerUnit"), Decision.On.TriggerUnit);
+							FString ReactionName;
+							if ((*OnObj)->TryGetStringField(TEXT("reaction"), ReactionName) && !ReactionName.IsEmpty())
+							{
+								Decision.On.Reaction = FName(*ReactionName);
+							}
+							Decision.bHasSelector = true;
+							// In memoria il reactor resta UN campo solo: `Unit`. Cosi' validazione, messaggi e
+							// matching per unita' continuano a leggere una verita' sola, e il selettore aggiunge
+							// soltanto i vincoli in piu'.
+							Decision.Unit = Decision.On.Reactor;
+						}
+
 						// L'elenco delle chiavi attese si GENERA dal set e si ORDINA: le due copie sono divergite
 						// alla prima aggiunta (`edge`, poco piu' sotto), e un `TSet` non ha ordine — un messaggio che
 						// cambia testo fra due esecuzioni identiche fa dubitare del file invece che di se' stesso.
 						static const TSet<FString> KnownDecisionKeys = {
-							TEXT("unit"), TEXT("respond"), TEXT("target")
+							TEXT("unit"), TEXT("respond"), TEXT("target"), TEXT("on")
 						};
 						TArray<FString> UnknownDecisionKeys;
 						for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : DecisionObj->Values)
@@ -900,6 +993,17 @@ namespace
 						{
 							OutError = FString::Printf(
 								TEXT("decisions: bersaglio '%s' non schierato"), *Decision.Target);
+							return false;
+						}
+						// Il trigger nominato dal selettore deve esistere, per la stessa ragione del bersaglio:
+						// un id scritto male non troverebbe nessuna finestra e riemergerebbe a fine turno come
+						// «risposta mai consumata», che manda a cercare una finestra mancante invece di un refuso.
+						if (Decision.bHasSelector && !Decision.On.TriggerUnit.IsEmpty()
+							&& !OutScenario.FindUnit(Decision.On.TriggerUnit))
+						{
+							OutError = FString::Printf(
+								TEXT("decisions: 'on.triggerUnit' nomina '%s', che non e' schierata"),
+								*Decision.On.TriggerUnit);
 							return false;
 						}
 
@@ -1778,6 +1882,14 @@ namespace
 				if (bFire && !SeenIds.Contains(Decision.Target))
 				{
 					OutError = FString::Printf(TEXT("decisions: bersaglio '%s' non schierato"), *Decision.Target);
+					return false;
+				}
+				if (Decision.bHasSelector && !Decision.On.TriggerUnit.IsEmpty()
+					&& !SeenIds.Contains(Decision.On.TriggerUnit))
+				{
+					OutError = FString::Printf(
+						TEXT("decisions: 'on.triggerUnit' nomina '%s', che non e' schierata"),
+						*Decision.On.TriggerUnit);
 					return false;
 				}
 			}

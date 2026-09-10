@@ -284,7 +284,16 @@ ERTScenarioAuthoringResult FRTScenarioDraft::RemoveUnit(const FString& UnitId, F
 		}
 		for (const FRTScenarioDecision& Decision : Turn.Decisions)
 		{
-			if (Decision.Unit == UnitId || Decision.Target == UnitId) { ++DanglingDecisions; }
+			// ⚠️ **Anche il TRIGGER del selettore conta come riferimento appeso**, e non e' ridondante col
+			// reactor: `on.triggerUnit` nomina il MOVER che apre la finestra, cioe' un'unita' che non
+			// risponde e non e' bersagliata. Senza questa riga, ritirare quel mover lasciava una decisione
+			// che `Validate` rifiuta al salvataggio mentre il messaggio di ritiro diceva che non restava
+			// niente — il vicolo cieco che questo conteggio esiste per rendere visibile.
+			if (Decision.Unit == UnitId || Decision.Target == UnitId
+				|| (Decision.bHasSelector && Decision.On.TriggerUnit == UnitId))
+			{
+				++DanglingDecisions;
+			}
 		}
 	}
 	int32 DanglingExpectations = 0;
