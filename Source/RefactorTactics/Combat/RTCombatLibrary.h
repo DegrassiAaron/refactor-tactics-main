@@ -4,6 +4,10 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Core/RTTypes.h"
 #include "Turn/RTTurnLog.h"
+// `ERTLineOfSightPolicy` vive col DATO che la dichiara (`FRTActionDef`), non accanto al gate che la applica:
+// il requisito e' una proprieta' dell'azione (`#2870`). La dipendenza e' la stessa che `RTHexCombatLibrary.h`
+// ha gia' su `Ability/RTActionData.h`, e non introduce cicli — `RTActionDef.h` non risale a Combat.
+#include "Ability/RTActionDef.h"
 #include "RTCombatLibrary.generated.h"
 
 class URTHexMapAsset;
@@ -401,23 +405,39 @@ public:
 
 	/**
 	 * Vero se il bersaglio e' ingaggiabile su griglia esagonale: entro `RangeCells` (distanza esagonale) e con
-	 * linea di tiro libera sulla mappa.
+	 * linea di tiro libera sulla mappa, **se l'azione la richiede** (`Policy`).
 	 *
 	 * **FAIL-CLOSED**: `Map == nullptr` -> falso. Senza mappa autorevole non si valida la linea di tiro, quindi
 	 * non si pianifica l'attacco. La versione precedente nel controller faceva l'opposto (`!Grid || HasLOS`) e
 	 * lasciava passare ogni bersaglio quando la griglia non c'era.
+	 *
+	 * ⚠️ **Il fail-closed vale anche con `NotRequired`**: senza mappa non si valida nemmeno la PORTATA, e una
+	 * licenza sulla linea non e' una licenza sulla distanza.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static bool CanTargetHexCell(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
-		int32 RangeCells);
+		int32 RangeCells, ERTLineOfSightPolicy Policy);
 
 	/**
 	 * Come `CanTargetHexCell`, ma dice **perche'**: portata prima, poi linea di tiro. Il chiamante logga il
 	 * motivo esatto invece di attribuire ogni rifiuto alla copertura.
+	 *
+	 * ## 🔴 `Policy` non ha un valore di default, ed e' una scelta
+	 *
+	 * Ogni chiamante **dichiara** il requisito dell'azione che sta validando. Un default renderebbe muto il
+	 * sito che si dimentica di leggerlo dal `Def`, e un sito muto e' esattamente il modo in cui la regola
+	 * tornerebbe a essere una proprieta' del classificatore invece che dell'azione — cioe' il difetto che
+	 * `#2870` chiude. Il compilatore chiede la risposta a chi la conosce.
+	 *
+	 * ⛔ **`HasLineOfSight` NON esce di qui.** Con `Required` — lo zero dell'enum, e quindi il caso normale —
+	 * questa funzione fa esattamente cio' che faceva prima. `NotRequired` non e' un bypass globale: e' una
+	 * licenza che una singola azione porta con se'.
+	 *
+	 * @param Policy  `FRTActionDef::LineOfSightPolicy` dell'azione che si sta pianificando
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static ERTHexTargetReason ClassifyHexTargeting(const URTHexMapAsset* Map, const FRTCellId& From,
-		const FRTCellId& To, int32 RangeCells);
+		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy);
 
 	/**
 	 * Traduce la classificazione INTERNA in cio' che il giocatore puo' sapere — `#2741`.

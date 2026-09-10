@@ -804,6 +804,11 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// Stessa storia, stesso rimedio ([`INT-8`]): senza questa riga l'intento nascerebbe sempre a `false` e
 		// NESSUN attacco produrrebbe un colpo, benche' il catalogo lo dichiari.
 		Intent.bCountsAsAttack = Instance.Def.bCountsAsAttack;
+		// Terza volta lo stesso rimedio, e stavolta il difetto sarebbe stato SILENZIOSO (`#2870`, [D-378]):
+		// senza questa riga l'intento nascerebbe `Required` e `CollectHexAttacks` scarterebbe in
+		// `BlockedIntents` proprio i piani che il planning ha appena accettato — una regola permissiva sul
+		// client che il resolver rifiuta, cioe' il contrario di cio' che la policy esiste per garantire.
+		Intent.LineOfSightPolicy = Instance.Def.LineOfSightPolicy;
 		// Danno DICHIARATO dagli effetti dell'azione: e' il catalogo a dirlo. Il campo legacy `Power` resta
 		// come ripiego per le abilita' non ancora catalogate (quelle generiche di EnsureDefaultAbilities):
 		// finche' esistono, toglierlo del tutto trasformerebbe i loro colpi in danno zero.

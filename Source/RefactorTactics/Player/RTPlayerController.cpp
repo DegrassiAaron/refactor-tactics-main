@@ -1436,8 +1436,13 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		// copertura un bersaglio che era solo troppo lontano (test
 		// Combat.HexTargetingReasonDistinguishesRangeFromCover).
 		const bool bReady = SelectedUnit->CanUseAbility(AbilityIndex);
+		// ⚠️ **La policy si passa anche qui, e per un'azione mirata a un'unita' oggi non cambia niente**: le
+		// azioni `NotRequired` del catalogo hanno `Shape::Area`, quindi `TargetKindForAction` le manda a
+		// `HandleTargetCell` e non passano di qua. Si legge lo stesso perche' il dato e' **uno**: il giorno
+		// in cui un'azione mirata dichiarera' il tiro indiretto, questo sito non sara' quello dimenticato.
+		// ⛔ E non tocca la CONOSCENZA: la guardia `IsKnownToObserver()` qui sotto vale comunque (`#2741`).
 		const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
-			TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells);
+			TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
 
 		// 🔴 **NON SI BERSAGLIA CIO' CHE NON SI VEDE, e questa guardia chiude il canale PIU' RUMOROSO**
 		// (`#2741`). Se un click raggiungesse un nemico velato e questo fosse anche in portata e in linea,
@@ -2619,8 +2624,18 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 		return false;
 	}
 
+	// ➕ **IL TIRO INDIRETTO ENTRA DA QUI, ED E' L'UNICO INGRESSO DEL GIOCATORE** (`#2870`, [D-378]).
+	//
+	// 🔑 La riga non cambia forma: cambia il fatto che il requisito della linea sia **chiesto all'azione**
+	// invece che dato per scontato. Un'abilita' `NotRequired` puo' cosi' centrare una cella non visibile —
+	// granata, mortaio, velo — mentre ogni altra continua a essere rifiutata come prima.
+	//
+	// ⛔ **E il rifiuto NON diventa piu' informativo per questo.** Questa funzione non guarda chi sta sulla
+	// cella: valida `ContainsCell` e la geometria, e basta. Due mondi che differiscono solo per un nemico
+	// ignoto sopra il bersaglio arrivano entrambi qui con lo stesso esito e lo stesso log — che e'
+	// l'invariante di `#2791` applicata al targeting, e cio' che `BlindFireIsNotAnEnemyDetector` pinna.
 	const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
-		Map, Unit->Cell, Cell, Ability->RangeCells);
+		Map, Unit->Cell, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
 	if (Reason != ERTHexTargetReason::Ok)
 	{
 		UE_LOG(LogRT, Log, TEXT("[RT] Cella non bersagliabile (%s, portata %d)"),
@@ -2682,8 +2697,10 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 		return false;
 	}
 
+	// La policy si legge dall'azione anche qui: una struttura di bordo si erige DOVE si arriva, e se un giorno
+	// un'azione dichiarera' di poterlo fare senza vedere il lato, il dato e' gia' quello giusto (`#2870`).
 	const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
-		Map, Unit->Cell, Cell, Ability->RangeCells);
+		Map, Unit->Cell, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
 	if (Reason != ERTHexTargetReason::Ok)
 	{
 		UE_LOG(LogRT, Log, TEXT("[RT] Bordo non raggiungibile (portata %d)"), Ability->RangeCells);

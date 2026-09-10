@@ -56,8 +56,13 @@ ERTActionInvalidReason URTActionFallbackLibrary::ValidateInstance(const FRTActio
 	{
 		return ERTActionInvalidReason::NoMap;
 	}
-	if (URTCombatLibrary::ClassifyHexTargeting(Map, Source.Cell, Target.Cell, Instance.Def.RangeCells)
-		== ERTHexTargetReason::NoLineOfSight)
+	// La policy viene dal `Def` dell'istanza, cioe' dalla stessa riga di catalogo che il planning ha letto
+	// (`#2870`, [D-378]). ⚠️ **Qui morde solo per i bersagli-UNITA'**: un bersaglio a cella e' gia' uscito
+	// con `None` in cima a questa funzione, e la sua linea di tiro la giudica `CollectHexAttacks`, che e'
+	// l'owner della geometria dei colpi a cella. Passarla comunque non e' ridondanza: e' cio' che tiene il
+	// dato unico se domani un'azione mirata a un'unita' dichiarera' il tiro indiretto.
+	if (URTCombatLibrary::ClassifyHexTargeting(Map, Source.Cell, Target.Cell, Instance.Def.RangeCells,
+		Instance.Def.LineOfSightPolicy) == ERTHexTargetReason::NoLineOfSight)
 	{
 		return ERTActionInvalidReason::NoLineOfSight;
 	}

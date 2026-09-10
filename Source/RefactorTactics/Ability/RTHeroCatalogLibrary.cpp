@@ -602,6 +602,22 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 		MistVeil->Def.bCreatesSurface = true;
 		MistVeil->Def.SurfaceCreated = ERTHexSurface::Smoke;
 		MistVeil->Def.SurfaceRadius = 1; // «crea fumo raggio 1», catalogo eroi
+
+		// ➕ **LA PRIMA — E PER ORA L'UNICA — AZIONE CHE NON CHIEDE LA LINEA DI TIRO** (`#2870`, [D-378]).
+		//
+		// 🔑 **Perche' questa e non un attacco ad area.** `MistVeil` non e' un'aggressione: `bCountsAsAttack`
+		// resta falso e non dichiara `Damage`, quindi la licenza **non riprezza niente** — nessun numero di
+		// bilanciamento cambia, e non nasce l'AoE che colpisce da dietro un muro senza che nessuno l'abbia
+		// deciso. `Aevik.Overload` e `Muiren.CircularTide` restano `Required`, che e' il default.
+		//
+		// ⚠️ **E il concept regge nel verso giusto**: un velo si lancia *per non far vedere*, e pretendere di
+		// vedere il punto in cui lo si posa e' la richiesta piu' strana delle due. Il fumo si alza nel
+		// Cleanup e copre il turno seguente (vedi sopra), quindi cio' che si guadagna e' un attraversamento
+		// preparato al buio — non un colpo.
+		//
+		// ⛔ **Non e' un rilevatore**: la cella si sceglie sulla topologia, che [D-373] ha dichiarato
+		// pubblica, e nessun ramo del targeting guarda chi ci sta sopra.
+		MistVeil->Def.LineOfSightPolicy = ERTLineOfSightPolicy::NotRequired;
 		Muiren->Actions.Add(MistVeil);
 	}
 

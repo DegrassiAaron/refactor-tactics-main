@@ -547,7 +547,18 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 				continue;
 			}
 		}
-		if (!URTHexVisionLibrary::HasLineOfSight(Map, Attacker.Cell, AimCell))
+		// ➕ **LA LICENZA DELL'AZIONE, LETTA DALLO STESSO DATO DEL PLANNING** (`#2870`, [D-378]).
+		//
+		// 🔑 **E' l'estremo che rende UNA la semantica.** `ClassifyHexTargeting` ha gia' posto la stessa
+		// domanda quando il giocatore ha scelto la cella; qui la si ripone sull'intento, con il campo copiato
+		// dal medesimo `FRTActionDef`. Non e' una seconda regola da tenere allineata: e' la stessa regola
+		// interrogata dove il colpo nasce, che e' cio' che impedisce a un piano legale di morire in silenzio
+		// dentro `BlockedIntents`.
+		//
+		// ⚠️ Resta **dopo** la portata e prima dell'aggressione, come prima: la licenza toglie la linea, non
+		// l'ordine dei motivi.
+		if (Intent.LineOfSightPolicy == ERTLineOfSightPolicy::Required
+			&& !URTHexVisionLibrary::HasLineOfSight(Map, Attacker.Cell, AimCell))
 		{
 			Plan.BlockedIntents.Add(IntentIdx);
 			continue;
