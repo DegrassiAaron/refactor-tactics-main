@@ -2,6 +2,7 @@
 #include "Turn/RTPacingLibrary.h"
 #include "Turn/RTPlaybackLibrary.h"
 #include "Unit/RTGraykitLibrary.h" // #2880: la posa si valuta sullo stesso Alpha del movimento
+#include "Turn/RTPresentationBinding.h" // #2881: l'andatura la decide l'owner di [D-278], non questo file
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTPlanValidationLibrary.h" // CP 38.2: la legalita' del piano si CHIEDE al commit
 #include "Turn/RTActionQueueLibrary.h"
@@ -8207,12 +8208,15 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				// ricalcolarlo qui produrrebbe due orologi sulla stessa animazione, sfasati al primo cambio
 				// di velocita' di playback.
 				//
-				// ⚠️ **Lo stile si sceglie dalla FASE, ed e' esplicitamente temporaneo**: il TurnManager
-				// conosce gia' `Ph`, quindi non nasce nessun mapping nuovo — legge un dato che ha in mano.
-				// Quando #2881 chiudera', la scelta si sposta li' e questa riga diventa una chiamata.
-				const ERTGraykitLocomotionStyle Style = (Ph == ERTMatchPhase::Dash)
-					? ERTGraykitLocomotionStyle::Run
-					: ERTGraykitLocomotionStyle::Normal;
+				// ⚠️ **L'andatura la decide `URTPresentationBindingLibrary`, non questo ciclo** (#2881). Fino
+				// al 2026-09-10 la scelta era scritta qui inline, dichiarata temporanea: era il TurnManager a
+				// rispondere a «cosa significa questa fase», che e' una domanda di [D-278].
+				//
+				// 🔑 Si passa `A.Phase` e non `Ph`: il ramo li rende uguali (`A.Phase == Ph` e' la condizione
+				// del filtro), ma il primo e' il dato che appartiene all'ANIM — cioe' all'azione — mentre il
+				// secondo e' lo stato del riproduttore. Se un giorno il ciclo smettesse di filtrare per fase,
+				// questa riga resterebbe giusta.
+				const ERTGraykitLocomotionStyle Style = URTPresentationBindingLibrary::StyleForPhase(A.Phase);
 				A.Unit->ApplyGraykitPose(URTGraykitLibrary::Evaluate(
 					URTGraykitLibrary::DescriptorForStyle(Style), Alpha));
 			}
