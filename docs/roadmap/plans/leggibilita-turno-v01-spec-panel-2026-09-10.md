@@ -405,10 +405,27 @@ struttura, e `OPEN_DECISIONS.md` non portava la domanda.
 è **sì**, e aggiunge una seconda metà che la proposta non aveva: **il distruggibile lo dichiara l'Editor**.
 Due condizioni, entrambe necessarie, e nessuna delle due è la mesh.
 
+🔁 **Poi emendata da [`D-375`](../../decisions/RT_PDR_00_Decision_Log.md) lo stesso giorno**: `D-369`
+concludeva che il dato del distruggibile fosse **per tipo**, perché `FRTHexDoor` non ha `Integrity`.
+`D-375` sceglie il verso opposto — **dare** il dato alle porte, nella forma che `FRTHexEdge` già porta
+(`Integrity` + `State` terminale, con la guardia di `ValidateMap` a `RTHexMapAsset.cpp:706`). Con
+`FRTHexDoor::DefaultIntegrity = 35`, integrità **per voce di bordo**, e `FRTHexEdgeGuard` fuori per
+dichiarazione.
+
+🔁 **Ciò che `D-375` fa scadere è un LIMITE DICHIARATO, non un invariante**: la voce **4** di
+[`spec-porte-cp93.md`](../../gameplay/spec-porte-cp93.md) `## 8. Limiti dichiarati` — *«Le porte non hanno
+integrità»* — e i limiti sono scritti perché scadano. La regola gruppo/segmento invece **non è nuova**: la
+stessa spec scriveva già *«se un bordo del gruppo viene distrutto, gli altri restano»*, ed è la riga `E23.2`
+di `roadmap-v0.1.md` a essere rimasta indietro. Allineati nello stesso giro **tre** documenti — la spec, la
+roadmap e il catalogo icone, che chiedeva proprio se `Gadget.BreachCharge` sfondi una porta — più le due
+domande che restano aperte, `INT-9` e `INT-10`, in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md).
+
 🔑 **E la metà nuova conferma la forma esistente invece di aggiungerne una**: `FRTHexCover`
 (`Edge · Type · Integrity`) e `FRTHexDoor` (`Edge · State · DoorId · StableId`) sono già tutti `EditAnywhere`
 sull'asset di mappa, e `ERTHexDoorState::Destroyed` è già dichiarato terminale. Non nasce un campo: nasce la
 regola che **solo quel dato conta**.
+
+⚠️ **Questa conclusione non regge più per le porte**: [`D-375`](../../decisions/RT_PDR_00_Decision_Log.md) dà loro `Integrity`, quindi un campo nasce. Regge per coperture e archi, che il dato ce l'avevano già.
 
 **Cosa cambia a seconda della risposta**: se `BasicAttack` non demolisce, il primo slice ha **un solo**
 produttore (`HeavyAttack`) e la regola è verificabile con un test di esclusione; se demolisce, ogni attacco
