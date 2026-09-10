@@ -309,14 +309,28 @@ bool FRTUnitOrderFallsBackToActorNameTest::RunTest(const FString&)
 		URTActionQueueLibrary::UnitOrderLess(A, B) != URTActionQueueLibrary::UnitOrderLess(B, A));
 	TestTrue(TEXT("nome lessicalmente minore per primo"), URTActionQueueLibrary::UnitOrderLess(B, A));
 
-	// 🔴 Il confronto e' CASE-SENSITIVE. `FString::operator<` e' `Stricmp(...) < 0` — case INSENSITIVE — e
-	// due nomi che differiscono solo per il caso pareggerebbero in **entrambi** i versi: non un ordine
-	// totale, e il pareggio tornerebbe all'ordine d'ingresso. E' lo stesso difetto che `EntryLess` ha gia'
-	// pagato una volta sulla v10 del TurnLog.
+	// 🔴 **Il caso che con una `FString` sarebbe stato un buco, e con un `FName` non e' rappresentabile.**
+	// `FName::LexicalLess` e' case-INSENSITIVE, quindi due nomi che differiscono solo per il caso
+	// pareggerebbero in entrambi i versi — l'ordine non sarebbe totale. Ma quella coppia non puo' esistere
+	// fra due Actor: i nomi degli `UObject` sono unici in modo case-insensitive dentro lo stesso Outer,
+	// quindi `FName("UNIT")` e `FName("unit")` sono **lo stesso nome**, cioe' la stessa unita'.
+	//
+	// ⚠️ Questa assertion nasce ROSSA e corretta: la stesura precedente teneva una `FString` confrontata
+	// case-sensitive e affermava che i due restassero distinguibili. Passando a `FName` — per non allocare
+	// a ogni confronto — quell'affermazione e' diventata falsa, e il test l'ha presa. Trovato dalla suite,
+	// non dalla rilettura.
 	const FRTUnitOrderKey Upper = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("UNIT"));
 	const FRTUnitOrderKey Lower = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("unit"));
-	TestTrue(TEXT("nomi che differiscono solo per il caso restano distinguibili"),
-		URTActionQueueLibrary::UnitOrderLess(Upper, Lower) != URTActionQueueLibrary::UnitOrderLess(Lower, Upper));
+	TestTrue(TEXT("due nomi che differiscono solo per il caso sono lo STESSO FName, non due unita'"),
+		Upper.ActorName == Lower.ActorName);
+	TestFalse(TEXT("e infatti nessuno dei due precede l'altro: non c'e' una coppia da spareggiare"),
+		URTActionQueueLibrary::UnitOrderLess(Upper, Lower) || URTActionQueueLibrary::UnitOrderLess(Lower, Upper));
+
+	// Due nomi VERAMENTE diversi, invece, si ordinano: e' la proprieta' che la terza chiave deve avere.
+	const FRTUnitOrderKey Primo  = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("BP_Unit_Aaa"));
+	const FRTUnitOrderKey Ultimo = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("BP_Unit_Zzz"));
+	TestTrue(TEXT("nomi distinti restano distinguibili, in un verso solo"),
+		URTActionQueueLibrary::UnitOrderLess(Primo, Ultimo) != URTActionQueueLibrary::UnitOrderLess(Ultimo, Primo));
 
 	// Un `StableUnitId` assegnato batte comunque uno non assegnato, deterministicamente: `0` non e' l'unita'
 	// zero, e non deve comportarsi come un valore mancante che scivola a caso.
