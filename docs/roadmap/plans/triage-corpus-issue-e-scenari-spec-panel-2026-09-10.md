@@ -322,7 +322,7 @@ verdetto. Misurate:
 
 | Issue | Il codice c'e'? | Cosa resta | Chiudibile? |
 |---|---|---|---|
-| #2875 | ✅ `RTVeilTransition` + `feat(2875)` mergiato | il corpo lo dichiara da solo: *«nessun blocco resta sul codice. L'unico residuo e' la **seduta Editor**»*, piu' una voce PIE nuova accanto a `PIE-HEX-VIZ-VELO` | ❌ |
+| #2875 | ✅ `RTVeilTransition` + `feat(2875)` mergiato | il corpo lo dichiara da solo: *«nessun blocco resta sul codice. L'unico residuo e' la **seduta Editor**»*, piu' una voce PIE nuova accanto a `PIE-HEX-VIZ-VELO` | ❌ → ✅ vedi §5.1 |
 | #2402 | ✅ `ERTMoveOutcome::Fell` in `RTTurnManager_Blast.cpp`, `Fall.OutcomeIsFellNotDisplaced` esiste | la DoD chiude con **«suite VALIDA»** e una verifica di mutazione via `tools/mutation/caduta-gate.py` | ❌ |
 | #2742 | ✅ `feat(2742)` mergiato | la DoD esige **#1941 chiusa** (che e' aperta) e la voce PIE scritta *con* la feature | ❌ |
 | #2596 | ✅ `feat(2596)` mergiato | da rimisurare contro la DoD | ❌ non concluso |
@@ -340,6 +340,32 @@ verdetto. Misurate:
 🔑 **∴ La leva «stale-open» e' molto piu' piccola di come si presenta.** Un `feat(N)` mergiato col titolo
 giusto **somiglia** a una chiusura e quasi mai lo e'. L'unica chiusura di questo passaggio — #1515 — non
 veniva da questo incrocio: veniva dal codice, che la citava per nome.
+
+### 5.1 ✅ E poche ore dopo, #2875 si e' chiusa — nel modo che la tabella prevedeva
+
+> **Aggiunto in revisione della PR**, su `origin/main` = `79718bb3`. La misura di §5 resta quella
+> dichiarata in testa al referto (`5ec21ed0`): questa nota non la corregge, la **segue**.
+
+Mentre questa PR era aperta, un'altra sessione ha chiuso **#2875** con
+[`docs(2875)`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2904) — *«PIE-VELO-TRANSIZIONE
+e' eseguita»*.
+
+🔑 **Non e' una smentita: e' la conferma piu' forte che questo referto potesse ricevere.** La
+tabella di §5 non diceva *«#2875 non si chiude»*. Diceva che il suo residuo era **una seduta PIE**, e
+che nessuna misura del sorgente avrebbe potuto chiuderla. A chiuderla e' stata esattamente una seduta
+PIE, poche ore dopo.
+
+⚠️ E il commit che la chiude porta una lezione che appartiene alla stessa famiglia di quelle di §1.2 e
+§4.2 — un verde che sembra piu' grande di quello che e':
+
+> *«Due criteri non si vedono guardando passivamente, e sono stati chiesti esplicitamente PRIMA di
+> registrare il verde: (3) e' NEGATIVO — una cella mai vista deve comparire tutta insieme. Se invece
+> sfumasse da nero sarebbe piacevole da guardare, e verrebbe riportata come «ok» lo stesso. … Senza
+> quella domanda sarebbe stato un verde ottenuto su quattro criteri su sei, con l'aria di valerne sei.»*
+
+∴ Un criterio **negativo** non si osserva: si chiede. E' la stessa forma del `400` che coincideva col
+proprio limite, e degli scenari la cui specifica stava dentro l'esclusione della misura — **un risultato
+plausibile che nessun controllo incrocia**.
 
 ## 6. Cosa resta `NOT RUN`
 
@@ -386,6 +412,7 @@ Ogni chiusura porta un commento con la misura che la giustifica. Nessun corpo e'
 - Ri-verifica di `ParseCell` prima di consolidare il cluster: `PASS` — §3.3
 - Verifica delle regole degli epic prima di collassarne i capitoli: `PASS` — §3.4, §3.4.1
 - Misura dei nove sospetti contro la loro DoD: `PASS` per sette (#2875, #2402, #2742, #2697, #2849, #2501, #2826), `NOT RUN` per due (#2596, #2341) — §5
+- Rilettura in revisione di PR su `79718bb3`: `PASS` — sei riferimenti di riga su sei ancora esatti, e #2875 chiusa da una seduta PIE (§5.1)
 - Verifica di mutazione di #1515: `NOT RUN` — dichiarata nel commento di chiusura
 - Auto-documentazione degli scenari (§4.2): `PASS` — e **ritira** la conclusione della prima stesura
 
