@@ -89,7 +89,7 @@ public:
 	TArray<FName> Team1Heroes = { TEXT("Hero.Branth"), TEXT("Hero.Ivrin") };
 
 	/**
-	 * Classe visiva per `HeroId` (es. `BP_Unit_Gadget` con skeletal mesh). Un eroe assente da questa mappa
+	 * Classe visiva per `HeroId` (es. `BP_Unit_Aevik` con skeletal mesh). Un eroe assente da questa mappa
 	 * ricade su `ARTUnit` — il cilindro segnaposto — che resta il comportamento di ripiego di sempre: un
 	 * personaggio senza asset si vede lo stesso e la partita si gioca.
 	 */

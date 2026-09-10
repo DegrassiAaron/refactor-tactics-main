@@ -388,20 +388,29 @@ ARTGameMode::ARTGameMode()
 			}
 		};
 
-		// ⚠️ **`BranthBP` punta a un path che dice ancora `Riktor`, e NON e' un refuso.** [D-334] ha rinominato
-		// l'IDENTITA' (`Hero.Riktor` -> `Hero.Branth`), non gli asset: `/Game/RT/Characters/Riktor/` e
-		// `BP_Unit_Riktor` sono `.uasset`, e il loro rename e' la fetta E di #2297 — fuori dallo scope di
-		// #2491, che tocca solo codice e scenari. Allineare il path prima che l'asset esista farebbe fallire
-		// il `FClassFinder` **nel costruttore**, e i quattro eroi ricadrebbero sul cilindro di fallback.
-		// ∴ quando la fetta E rinomina l'asset, questa riga e la tabella di `RTHeroSpawnTests` si muovono
-		// insieme — sono le due meta' dello stesso pin.
-		static ConstructorHelpers::FClassFinder<ARTUnit> GadgetBP(TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget"));
-		static ConstructorHelpers::FClassFinder<ARTUnit> PhaseBP(TEXT("/Game/RT/Characters/Phase/Blueprints/BP_Unit_Phase"));
-		static ConstructorHelpers::FClassFinder<ARTUnit> BranthBP(TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor"));
-		static ConstructorHelpers::FClassFinder<ARTUnit> IvrinBP(TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith"));
+		// ✅ **I path dicono ora l'IDENTITA', e non piu' lo slot asset Paragon** (`#2297` fetta E, [D-321]).
+		//
+		// Fino al 2026-09-10 queste quattro righe puntavano a `Gadget`, `Phase`, `Riktor` e `Wraith`, che
+		// [D-321] ha misurato **non essere nomi ispirati**: sono i nomi degli **slot asset Paragon**. [D-334]
+		// aveva gia' rinominato l'identita' (`Hero.Riktor` -> `Hero.Branth`) lasciando indietro gli asset, e il
+		// disallineamento e' stato per settimane «la verita' del progetto, non un errore da correggere».
+		//
+		// 🔴 **Il rename NON e' un search/replace, ed e' la ragione per cui la fetta E aspettava.** Questi sono
+		// letterali risolti da `FClassFinder` **nel costruttore**: se il path non risolve, la voce resta ASSENTE
+		// e in partita torna il cilindro **senza dire niente** (il difetto che `#287` ha chiuso). ∴ asset e
+		// codice si muovono **insieme**, e l'oracolo che lo prova e' `RTHeroSpawnTests`, che risolve davvero le
+		// quattro classi invece di confrontare stringhe.
+		//
+		// ⚠️ **Cio' che NON si e' mosso, e non e' una dimenticanza**: i path dentro `/Game/FabAsset/Paragon/`
+		// restano quelli di terze parti — l'ultimo segmento e' il nome dell'asset originale, non l'id
+		// dell'eroe. `RTPackagingConfigTests` lo dichiara sul proprio letterale di controllo.
+		static ConstructorHelpers::FClassFinder<ARTUnit> AevikBP(TEXT("/Game/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> MuirenBP(TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> BranthBP(TEXT("/Game/RT/Characters/Branth/Blueprints/BP_Unit_Branth"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> IvrinBP(TEXT("/Game/RT/Characters/Ivrin/Blueprints/BP_Unit_Ivrin"));
 
-		Assegna(TEXT("Hero.Aevik"), GadgetBP);
-		Assegna(TEXT("Hero.Muiren"),  PhaseBP);
+		Assegna(TEXT("Hero.Aevik"), AevikBP);
+		Assegna(TEXT("Hero.Muiren"),  MuirenBP);
 		Assegna(TEXT("Hero.Branth"), BranthBP);
 		Assegna(TEXT("Hero.Ivrin"), IvrinBP);
 	}
