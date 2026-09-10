@@ -7706,6 +7706,21 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// Estendendo, cio' che teneva fermo il playback non c'e' piu': la timeline e' cresciuta.
 	bPlaybackHeldByWindow = false;
 
+	// `#2858`: la politica *start paused*, applicata dove il playback comincia a scorrere.
+	//
+	// 🔑 **Solo quando RICOMINCIA, mai quando ESTENDE.** Con `bPreserveClock` questa funzione riprende un
+	// playback gia' in corso dopo una finestra di reazione: rimetterlo in pausa li' fermerebbe l'immagine
+	// **subito dopo** che chi guardava ha deciso, cioe' nel punto in cui si aspetta di vedere l'esito della
+	// propria scelta. La politica riguarda l'INIZIO di un playback, e quello e' l'altro ramo.
+	//
+	// ⛔ La subordinazione ai controlli e' gia' in `SetStartPlaybackPaused`, che e' l'unico modo di
+	// accendere questo flag: qui non si ricontrolla, o sarebbero due guardie da tenere d'accordo.
+	if (!bPreserveClock && bStartPlaybackPaused)
+	{
+		bPlaybackPaused = true;
+		PlaybackStepTargetElapsed = -1.f;
+	}
+
 	const float ClockElapsedTotal = PlaybackElapsedTotal;
 	const int32 ClockPhaseIdx = PlaybackPhaseIdx;
 	const float ClockPhaseElapsed = PlaybackPhaseElapsed;
@@ -7952,7 +7967,24 @@ void ARTTurnManager::SetPlaybackControlsEnabled(bool bEnabled)
 		// stessa partita bloccata da un flag che le due righe qui sopra esistono per evitare.
 		PlaybackStopAt = ERTPlaybackStopAt::None;
 		PlaybackStopFromAction = NAME_None;
+		// `#2858`: e cade anche la politica di partire in pausa. Sopravvivendo, il prossimo playback
+		// nascerebbe fermo in una sessione che non ha piu' il comando per riprenderlo — la stessa partita
+		// bloccata da un flag, per una terza via.
+		bStartPlaybackPaused = false;
 	}
+}
+
+void ARTTurnManager::SetStartPlaybackPaused(bool bStartPaused)
+{
+	// ⛔ **Subordinato ai controlli, e non e' una comodita'.** Partire in pausa senza `ResumePlayback`
+	// raggiungibile e' una partita che non riparte. Chiederlo a controlli spenti non fa nulla **e non lo
+	// ricorda per dopo**: un'intenzione messa in coda si applicherebbe a un'accensione successiva che
+	// nessuno ha collegato a questa richiesta.
+	if (!bPlaybackControlsEnabled)
+	{
+		return;
+	}
+	bStartPlaybackPaused = bStartPaused;
 }
 
 void ARTTurnManager::PausePlayback()
@@ -8414,6 +8446,26 @@ void ARTTurnManager::FinishPlayback()
 	// della finestra e mai ancora servito.
 	PlaybackStopAt = ERTPlaybackStopAt::None;
 	PlaybackStopFromAction = NAME_None;
+
+	// 🔴 **E la PAUSA non sopravvive al turno, per la stessa ragione e per una via che `#2858` apre**
+	// (rischio dichiarato in quella issue). `TickPlayback` esce prima di toccare qualunque cosa quando e'
+	// in pausa, quindi un playback in pausa non puo' finire da solo: l'unica strada per arrivare qui con
+	// il flag acceso e' `SkipPlayback()`, che salta il resto e chiama direttamente questa funzione.
+	//
+	// 🔎 Misurato su `00b751ce`: ne' questa funzione ne' `BeginPlayback` azzeravano `bPlaybackPaused`
+	// (`grep -n "bPlaybackPaused" RTTurnManager.cpp` → nessuna scrittura in nessuna delle due). Il turno
+	// SEGUENTE nasceva quindi in pausa, e il suo `TickPlayback` usciva al primo tick: l'osservazione si
+	// fermava senza che nessuno l'avesse chiesto, e senza dirlo.
+	//
+	// ⚠️ **Era latente finche' `#1879` non aveva chiamanti di produzione** — nessuno poteva mettere in
+	// pausa, quindi nessuno poteva saltare da fermo. `#2858` accende i comandi: la via si apre, e va
+	// chiusa nello stesso commit che la apre.
+	//
+	// ⛔ **Qui e non in `BeginPlayback`**: quella ricomincia anche a META' turno (`bPreserveClock`,
+	// [D-355]), e azzerare li' farebbe ripartire l'immagine sotto chi l'aveva messa in pausa prima di una
+	// finestra di reazione.
+	bPlaybackPaused = false;
+	PlaybackStepTargetElapsed = -1.f;
 
 	// Snap di sicurezza alle posizioni finali (la cella logica e' gia' quella finale).
 	for (const FRTMoveAnim& A : MoveAnims)
