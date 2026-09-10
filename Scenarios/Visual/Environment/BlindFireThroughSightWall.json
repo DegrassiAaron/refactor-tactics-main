@@ -1,0 +1,56 @@
+{
+  "scenarioId": "Visual.Environment.BlindFireThroughSightWall",
+  "tags": ["environment", "muiren", "aevik", "blindfire", "targeting"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "TestArena",
+
+  "_nota": "Il TIRO INDIRETTO a schermo (#2870, [D-378]) e la RESA della superficie che ne nasce (#2894). Muiren posa `MistVeil` su una cella che NON vede: il muro alla vista di `TestArena` lungo q=0 sta fra lei e il bersaglio. Cio' che si guarda e' se il fumo COMPAIA sulle celle mirate — prima di #2894 la superficie cambiava nel dato e la board restava quella del primo fotogramma, perche' `RebuildInstances` aveva due chiamanti ed erano entrambi `OnConstruction`.",
+
+  "_nota_coppia": "🔑 **Le due unita' fanno la STESSA cosa e ottengono esiti opposti, ed e' il punto dello scenario.** Muiren e Aevik puntano entrambe un'area sulla stessa cella invisibile: `Hero.Muiren.MistVeil` dichiara `LineOfSightPolicy = NotRequired` e passa, `Hero.Aevik.Overload` resta `Required` e viene scartata con `NoLineOfSight`. Senza la seconda meta' questo file proverebbe che una cella oltre un muro e' bersagliabile — che e' vero anche se la policy non esistesse e il muro non bloccasse davvero. La coppia prova che la differenza e' **la policy dell'azione**, non la geometria.",
+
+  "_nota_geometria": "Muro alla vista di `TestArena`: lungo q=0, r=-2..2, ATTRAVERSABILE (blocca la vista, non il passo). Muiren in (-2,0) e Aevik in (-2,1) mirano (1,0): distanza 3 su portata 4, e la linea passa per (0,0) che e' sul muro. La cella e' libera — gli ostacoli al movimento di questa arena sono (-1,2), (1,-2) e (2,1), nessuno dei tre.",
+
+  "_nota_assertion": "⚠️ **Non esiste un'assertion sulla SUPERFICIE di una cella**: `ERTAssertionKind` ne ha dieci e nessuna guarda il terreno. Cio' che si asserisce e' la voce di TurnLog che `ApplyDynamicSurface` scrive — categoria `Environment`, ActionId dell'azione che l'ha causata. ⛔ E `LogEventCount` non filtra per cella: che il fumo cada sulla cella MIRATA lo pinna `RefactorTactics.BlindFire.BlindFireReachesTheResolverAndLandsOnTheAimedCell`, che confronta l'`AimCell` dell'impronta. I due presidi sono complementari e nessuno dei due basta da solo.",
+
+  "_nota_harness": "⛔ **Questo scenario NON prova che il giocatore ci arrivi.** `FRTScenarioSession` scrive i campi `Planned*` direttamente e non passa da `ARTPlayerController::HandleTargetCell`, che e' l'unico ingresso reale del targeting a cella. La meta' dell'input la pinnano i test del controller (`BlindFire.BlindFireCellIsTargetableThroughABlocker`) e la seduta `PIE-V01-BLINDFIRE`.",
+
+  "_nota_vacuita": "🔴 **E c'e' un limite piu' stretto, MISURATO e non dedotto: questo scenario e' VACUO rispetto alla policy di [D-378].** Verificato per mutazione il 2026-09-10 togliendo `LineOfSightPolicy = NotRequired` da `MistVeil`: tre test del controller diventano rossi (`BlindFireCellIsTargetableThroughABlocker`, `BlindFireIsNotAnEnemyDetector`, `BlindFireStillObeysRange`) e **questo file resta PASS 5/5**. ∴ un lettore che lo prendesse come presidio della policy si sbaglierebbe. 🔑 **La causa e' strutturale, non un difetto di questo file**: `MistVeil` risolve nel **Cleanup**, e il ramo ambientale di `ARTTurnManager` non ha alcun gate di linea di tiro — `grep -cE 'HasLineOfSight|ClassifyHexTargeting'` su quel blocco da' **0**. I tre gate della LOS stanno nel planning (`ClassifyHexTargeting`), nella validazione degli ordini (`ValidateInstance`, solo bersagli-unita') e nel Blast (`CollectHexAttacks`): nessuno dei tre e' sulla strada di un'azione ambientale. ⚠️ Ne segue che oggi, per l'unica azione `NotRequired` del roster, la policy e' osservabile **solo al gate di pianificazione** — che il harness scavalca per costruzione. Un'azione `NotRequired` che risolva nel Blast renderebbe questo scenario non vacuo; finche' non esiste, il presidio della policy sono i test del controller.",
+
+  "units": [
+    { "id": "M1", "hero": "Hero.Muiren", "team": 0, "cell": [-2,  0, 0] },
+    { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [-2,  1, 0] },
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 3, -1, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — le due aree partono insieme sulla stessa cella invisibile. Il velo si alza nel Cleanup, quindi il fumo si vede dal turno seguente: e' la regola del catalogo, non un ritardo.",
+      "intents": [
+        { "unit": "M1", "ability": "Hero.Muiren.MistVeil", "targetCell": [1, 0, 0] },
+        { "unit": "A1", "ability": "Hero.Aevik.Overload",  "targetCell": [1, 0, 0] }
+      ]
+    },
+    {
+      "_turno": "T2 — nessuno agisce: il turno esiste perche' il fumo nato nel Cleanup del T1 sia sulla board mentre qualcuno guarda.",
+      "intents": []
+    }
+  ],
+
+  "expect": [
+    {
+      "_perche": "Il tiro indiretto ARRIVA: la voce ambientale esiste e la causa e' MistVeil. Senza la policy di [D-378] il piano morirebbe in `BlockedIntents` e questo conteggio sarebbe ZERO. 🔑 **Sette e non uno, e il numero e' esso stesso un'asserzione**: `MistVeil` dichiara `SurfaceRadius = 1`, cioe' un esagono PIENO attorno alla cella mirata, e `ApplyDynamicSurface` scrive una voce per cella trasformata. Un 1 direbbe che l'area ha smesso di essere un'area; un numero minore di 7 direbbe che parte del fumo e' caduto fuori mappa o su celle che non lo ammettono. ⚠️ La prima stesura di questo file attendeva 1 e l'harness ha risposto 7: l'attesa era sbagliata, non il gioco.",
+      "type": "LogEventCount", "category": "Environment", "outcome": "SurfaceChanged", "actionId": "Hero.Muiren.MistVeil", "value": 7
+    },
+    {
+      "_perche": "⛔ IL CONTROLLO NEGATIVO. La stessa cella, la stessa forma, l'altra policy: `Overload` chiede la linea e la linea non c'e'. Se questo fosse zero, il muro non starebbe bloccando nulla e la meta' positiva non proverebbe niente.",
+      "type": "LogEventCount", "category": "Combat", "outcome": "NoLineOfSight", "value": 1
+    },
+    {
+      "_perche": "Nessuno e' stato colpito: MistVeil non e' un'aggressione e Overload e' stata scartata. Un danno qui direbbe che una delle due aree ha raggiunto Branth, cioe' che la geometria non e' quella dichiarata.",
+      "type": "UnitHpEquals", "unit": "B1", "value": 120
+    },
+    { "type": "UnitAlive", "unit": "B1", "value": true },
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}
