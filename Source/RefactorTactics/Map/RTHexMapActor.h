@@ -737,10 +737,33 @@ public:
 	 */
 	void SetPreviewSightBlock(bool bBlocked, const FRTCellId& From, const FRTCellId& BlockedAt);
 
+	/**
+	 * L'impronta a terra di un colpo **gia' risolto**, durante il playback — `#2454`, `D-301`.
+	 *
+	 * 🔑 **Canale distinto da quello di pianificazione, e la distinzione e' di CICLO DI VITA.**
+	 * `SetPreviewHitCells` mostra cio' che *accadrebbe* e muore al lock-in; questo mostra cio' che
+	 * **e' accaduto** e muore a `FinishPlayback`. Non convivono mai nello stesso momento del turno, ed e'
+	 * per questo che due array separati non producono due grammatiche.
+	 *
+	 * ⛔ **Si copia e basta.** Le celle arrivano da `FRTResolvedEvent::HitCells`, che il resolver ha gia'
+	 * prodotto con `HexHitCells`: richiamarlo qui sarebbe la seconda implementazione di una primitiva
+	 * canonica dentro la presentazione, che e' cio' che `D-301` punto (1) esclude a monte.
+	 *
+	 * ⚠️ **Additivo**: ogni chiamata AGGIUNGE l'impronta di un evento, perche' la regola della v0.1 e'
+	 * `un evento -> un segnale` e due impronte nello stesso Blast restano due fatti. `ClearPlaybackFootprint`
+	 * e' l'unico modo di svuotare.
+	 */
+	void AddPlaybackFootprint(const TArray<FRTCellId>& FootprintCells);
+
+	/** Spegne il canale di playback. Lo chiama `FinishPlayback`: nessuna impronta sopravvive al turno. */
+	void ClearPlaybackFootprint();
+
 	/** Conteggi dell'anteprima (diagnostica e test headless: il disegno non e' verificabile senza schermo). */
 	int32 NumPreviewHitCells() const { return PreviewHitCells.Num(); }
 	int32 NumPreviewAllyHitCells() const { return PreviewAllyHitCells.Num(); }
 	int32 NumPreviewReachableCells() const { return PreviewReachable.Num(); }
+	/** Celle dell'impronta di playback correntemente mostrate (oracolo headless di `#2454`). */
+	int32 NumPlaybackFootprintCells() const { return PlaybackFootprintCells.Num(); }
 
 	/** Vero se la cella e' fra quelle colpite dall'anteprima corrente (test). */
 	bool IsPreviewHitCell(const FRTCellId& Cell) const { return PreviewHitCells.Contains(Cell); }
@@ -748,6 +771,8 @@ public:
 	bool IsPreviewAllyHitCell(const FRTCellId& Cell) const { return PreviewAllyHitCells.Contains(Cell); }
 	/** Vero se la cella e' fra quelle raggiungibili nell'anteprima corrente (test). */
 	bool IsPreviewReachableCell(const FRTCellId& Cell) const { return PreviewReachable.Contains(Cell); }
+	/** Vero se la cella e' nell'impronta di playback corrente (test). */
+	bool IsPlaybackFootprintCell(const FRTCellId& Cell) const { return PlaybackFootprintCells.Contains(Cell); }
 
 	/** Cella attualmente evidenziata e sua validita' (diagnostica e test). */
 	FRTCellId GetHoveredCell() const { return HoveredCell; }
@@ -867,6 +892,15 @@ protected:
 
 	/** Dove la linea si e' fermata — `FRTLineOfSightResult::BlockedAt`, non ricalcolato. */
 	FRTCellId PreviewSightBlockedAt;
+
+	/**
+	 * Celle investite dai colpi gia' risolti, mostrate durante il playback (`#2454`).
+	 *
+	 * ⚠️ Separato da `PreviewHitCells` **per ciclo di vita**, non per grammatica: il colore e' lo stesso
+	 * `ERTOverlayMeaning::Attack`, perche' l'area colpita significa la stessa cosa prima e dopo. Ciò che
+	 * cambia e' chi la spegne.
+	 */
+	TArray<FRTCellId> PlaybackFootprintCells;
 
 	FRTCellId PreviewAttackOrigin;
 	/** Cella verso cui punta la mira (bersaglio dichiarato o cella mirata). */

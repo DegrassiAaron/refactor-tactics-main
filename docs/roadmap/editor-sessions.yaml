@@ -3028,6 +3028,11 @@ sessions:
     block: 6
     critical: true
     execution_lane: pie
+    runbook: docs/technical/runbooks/guida-seduta-u46-residui-g9.md
+    # Aggiunto il 2026-09-10 con la guida. La guida corregge due prescrizioni di questi `steps`, e chi
+    # esegue segue LEI: (1) il passo (2) non si giudica sul banco in auto-run — non ha una fase di
+    # pianificazione, ed e' l'errore che il registro ha gia' contato quattro volte su `PIE-HEXPLAY-6`;
+    # (2) tre delle voci in `verifies` sono chiuse, e `PIE-VIS-SIGHTWALL` NON e' nel subset `RELEASE-V01`.
     produces: >-
       i tre verdetti che `G9` puo' ancora ricevere da una seduta, piu' i due che chiudono gli scenari
       orfani. ⌫ Erano QUATTRO fino al 2026-09-08 — `PIE-HEXPLAY-8` esce dal conto perche' il suo

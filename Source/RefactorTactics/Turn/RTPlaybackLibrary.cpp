@@ -44,6 +44,13 @@ int32 URTPlaybackLibrary::AttacksToShow(int32 NumAttacks, float PhaseElapsed, fl
 	return FMath::Min(NumAttacks, 1 + FMath::FloorToInt(Elapsed / AttackShowSeconds));
 }
 
+bool URTPlaybackLibrary::BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints)
+{
+	// Tre ragioni indipendenti, e la terza e' quella nuova: un'impronta senza vittime e' comunque un fatto
+	// avvenuto nel Blast. ⛔ Nessuna somma e nessuna soglia: basta che UNA sia vera.
+	return NumAttacks > 0 || bHasBlastMove || NumFootprints > 0;
+}
+
 float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
 	float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds)
 {
