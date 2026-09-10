@@ -2112,3 +2112,341 @@ bool FRTMovementPlannedLengthIsOrderIndependentTest::RunTest(const FString&)
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+// ---------------------------------------------------------------------------------------------------------
+// #2914 — la durata del passo e' un dato, e chi attraversa resta sull'origine
+//
+// [D-381] TraversalDurationTicks = TotalMoveCost(cella) + max(0, MoveCostModifier), come DATO del passo
+// [D-382] durante un attraversamento multi-microstep l'unita' resta sulla cella d'origine
+// [D-383] la catena del rilevamento di ciclo include le unita' IN TRANSITO
+//
+// 🔴 VERIFICA DI MUTAZIONE — i controlli positivi di questo blocco, misurati:
+//   (a) forzare `DurationOfStep` a restituire `1`  -> rossi SameCostSpentArrivesTogether e
+//       ShorterMoveArrivesEarlier: senza, i due sarebbero verdi anche sul resolver di prima;
+//   (b) usare `Arriving[Occupant]` invece di `Moving[Occupant]` nella catena del ciclo -> rosso
+//       HeadOnStaggeredBlocksAsCycle, che e' l'uscita che [D-383] ha scartato;
+//   (c) usare `!Moving[j]` invece di `!Arriving[j]` nel ramo dell'unita' ferma -> rosso
+//       TransitStillOccupiesItsOriginCell, cioe' un inseguitore entrerebbe dentro chi sta uscendo.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/**
+	 * Esaurisce la risoluzione un microstep alla volta e restituisce, per ogni unita', il microstep in cui
+	 * ha raggiunto l'ultima cella del proprio percorso — `INDEX_NONE` se non ci e' arrivata.
+	 *
+	 * ⚠️ Conta i microstep ESEGUITI, che e' l'unita' di misura di [D-381]: non il numero di celle.
+	 */
+	TArray<int32> ArrivalTicks(FRTMovementResolutionState& State, int32 MaxSteps = 64)
+	{
+		TArray<int32> Arrival;
+		Arrival.Init(INDEX_NONE, State.Num());
+
+		for (int32 Tick = 1; Tick <= MaxSteps; ++Tick)
+		{
+			if (!URTHexSimLibrary::ResolveNextHexMicroStep(State))
+			{
+				break;
+			}
+			for (int32 i = 0; i < State.Num(); ++i)
+			{
+				if (Arrival[i] == INDEX_NONE && State.Paths[i].Num() >= 2
+					&& State.Pos[i] == State.Paths[i].Last())
+				{
+					Arrival[i] = Tick;
+				}
+			}
+		}
+		return Arrival;
+	}
+}
+
+/**
+ * L'invariante centrale di [D-381]: **a parita' di costo speso, l'arrivo e' allo stesso microstep**, e la
+ * distanza percorsa non lo decide.
+ *
+ * Prima di `#2914` il resolver contava gli ARCHI: la lenta arrivava al microstep 1 e la veloce al 4, cioe'
+ * chi paga di piu' arrivava PRIMA.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementSameCostSpentArrivesTogetherTest,
+	"RefactorTactics.Movement.SameCostSpentArrivesTogether",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementSameCostSpentArrivesTogetherTest::RunTest(const FString&)
+{
+	// Tre corridoi paralleli e disgiunti: nessuna interazione, si misura solo il tempo.
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) });                                          // Slow  : 1 cella
+	Paths.Add({ FRTCellId(0, 3), FRTCellId(1, 3), FRTCellId(2, 3) });                         // Medium: 2 celle
+	Paths.Add({ FRTCellId(0, 6), FRTCellId(1, 6), FRTCellId(2, 6), FRTCellId(3, 6),
+				FRTCellId(4, 6) });                                                           // Fast  : 4 celle
+
+	TArray<TArray<int32>> Durations;
+	Durations.Add({ 4 });              // costo 4 per cella
+	Durations.Add({ 2, 2 });           // costo 2 per cella
+	Durations.Add({ 1, 1, 1, 1 });     // costo 1 per cella
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), Durations);
+
+	const TArray<int32> Arrival = ArrivalTicks(State);
+
+	TestEqual(TEXT("Slow arriva al microstep 4"), Arrival[0], 4);
+	TestEqual(TEXT("Medium arriva al microstep 4"), Arrival[1], 4);
+	TestEqual(TEXT("Fast arriva al microstep 4"), Arrival[2], 4);
+
+	// Il conto totale chiude il cerchio: nessuno e' arrivato prima, e la risoluzione e' finita.
+	TestTrue(TEXT("tutte e tre sono arrivate"), State.Done[0] && State.Done[1] && State.Done[2]);
+
+	const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+	TestEqual(TEXT("Slow ha percorso una cella"), Out[0].Entered.Num(), 1);
+	TestEqual(TEXT("Medium due"), Out[1].Entered.Num(), 2);
+	TestEqual(TEXT("Fast quattro"), Out[2].Entered.Num(), 4);
+	return true;
+}
+
+/**
+ * L'altra meta' di [D-381]: **chi non spende tutto non viene rallentato**. Due celle da costo 1 costano 2
+ * microstep, e l'unita' e' a destinazione da li' in poi — non viene allungata per parita' con nessuno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementShorterMoveArrivesEarlierTest,
+	"RefactorTactics.Movement.ShorterMoveArrivesEarlier",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementShorterMoveArrivesEarlierTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });                         // FastShort: 2 celle
+	Paths.Add({ FRTCellId(0, 4), FRTCellId(1, 4) });                                          // Slow     : 1 cella costosa
+
+	TArray<TArray<int32>> Durations;
+	Durations.Add({ 1, 1 });
+	Durations.Add({ 4 });
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), Durations);
+
+	const TArray<int32> Arrival = ArrivalTicks(State);
+
+	TestEqual(TEXT("FastShort arriva al microstep 2, non al 4"), Arrival[0], 2);
+	TestEqual(TEXT("Slow arriva al 4"), Arrival[1], 4);
+	return true;
+}
+
+/**
+ * [D-382] osservabile: **un'unita' in transito occupa ancora la propria cella d'origine**, quindi chi la
+ * segue si ferma finche' l'arco non e' completo — *«un'unita' lenta tappa il corridoio»*.
+ *
+ * ⚠️ E il seguito riparte da solo: al microstep in cui la lenta ENTRA nella destinazione, la cella si libera
+ * nello stesso istante e l'inseguitore avanza. E' il convoy a coda libera di [D-295], che deve continuare a
+ * funzionare — con un ritardo, non con un blocco definitivo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementTransitStillOccupiesItsOriginCellTest,
+	"RefactorTactics.Movement.TransitStillOccupiesItsOriginCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementTransitStillOccupiesItsOriginCellTest::RunTest(const FString&)
+{
+	const FRTCellId W(-1, 0), X(0, 0), Y(1, 0);
+
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ X, Y });   // 0 = la lenta: attraversa X -> Y in 3 microstep
+	Paths.Add({ W, X });   // 1 = l'inseguitore: vuole X, che la lenta non ha ancora lasciato
+
+	TArray<TArray<int32>> Durations;
+	Durations.Add({ 3 });
+	Durations.Add({ 1 });
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), Durations);
+
+	// Microstep 1 e 2: la lenta paga il proprio arco e resta su X; l'inseguitore non entra.
+	for (int32 Tick = 1; Tick <= 2; ++Tick)
+	{
+		TestTrue(FString::Printf(TEXT("microstep %d: la risoluzione prosegue"), Tick),
+			URTHexSimLibrary::ResolveNextHexMicroStep(State));
+		TestEqual(FString::Printf(TEXT("microstep %d: la lenta e' ancora su X"), Tick), State.Pos[0], X);
+		TestEqual(FString::Printf(TEXT("microstep %d: l'inseguitore e' ancora su W"), Tick), State.Pos[1], W);
+		TestEqual(FString::Printf(TEXT("microstep %d: nessuna cella entrata dalla lenta"), Tick),
+			State.Results[0].Entered.Num(), 0);
+	}
+
+	// Microstep 3: la lenta entra in Y e l'inseguitore entra in X nello stesso istante.
+	TestTrue(TEXT("microstep 3 eseguito"), URTHexSimLibrary::ResolveNextHexMicroStep(State));
+	TestEqual(TEXT("la lenta e' arrivata in Y"), State.Pos[0], Y);
+	TestEqual(TEXT("l'inseguitore e' entrato in X"), State.Pos[1], X);
+
+	const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+	TestEqual(TEXT("la lenta e' arrivata"), Out[0].Outcome, ERTMoveOutcome::Moved);
+	TestEqual(TEXT("e l'inseguitore anche, con un ritardo e non un blocco"), Out[1].Outcome,
+		ERTMoveOutcome::Moved);
+	return true;
+}
+
+/**
+ * 🔴 **Il test di [D-383]**: uno scontro frontale con durate DIVERSE si blocca come **ciclo**, su entrambe
+ * le unita' e allo stesso microstep.
+ *
+ * Senza quella decisione la catena si aprirebbe sull'unita' in transito — che non avanza in quel microstep —
+ * e le due unita' dello stesso conflitto riporterebbero due reason code diversi: `BlockedByUnit` su chi si
+ * ferma per prima, `BlockedByCycle` sull'altra tre microstep dopo. Uno dei due direbbe *«bloccato da
+ * un'unita' ferma»* di un'unita' che stava attraversando.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementHeadOnStaggeredBlocksAsCycleTest,
+	"RefactorTactics.Movement.HeadOnStaggeredBlocksAsCycle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementHeadOnStaggeredBlocksAsCycleTest::RunTest(const FString&)
+{
+	const FRTCellId X(0, 0), Y(1, 0);
+
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ X, Y });   // A attraversa verso Y in 4 microstep
+	Paths.Add({ Y, X });   // B verso X in 1
+
+	TArray<TArray<int32>> Durations;
+	Durations.Add({ 4 });
+	Durations.Add({ 1 });
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), Durations);
+
+	// Il blocco e' immediato: nessuna delle due si muove, e non serve aspettare il quarto microstep.
+	TestFalse(TEXT("nessuno avanza: il conflitto e' risolto al primo microstep"),
+		URTHexSimLibrary::ResolveNextHexMicroStep(State));
+
+	const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+	TestEqual(TEXT("A blocca come ciclo"), Out[0].Outcome, ERTMoveOutcome::BlockedByCycle);
+	TestEqual(TEXT("e B con lo STESSO reason: e' un conflitto solo"), Out[1].Outcome,
+		ERTMoveOutcome::BlockedByCycle);
+	TestTrue(TEXT("nessuna delle due ha percorso alcuna cella"),
+		Out[0].Entered.Num() == 0 && Out[1].Entered.Num() == 0);
+	return true;
+}
+
+/**
+ * Chi arriva prima e si ferma diventa un ostacolo per chi doveva passare dopo — §5.4 di `#2902`, e la
+ * conseguenza diretta dell'arrivo anticipato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementEarlyArrivalBlocksALaterPasserTest,
+	"RefactorTactics.Movement.EarlyArrivalBlocksALaterPasser",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementEarlyArrivalBlocksALaterPasserTest::RunTest(const FString&)
+{
+	const FRTCellId A0(0, 0), Meta(1, 0);          // dove la veloce si ferma
+	const FRTCellId B0(1, 2), B1(1, 1);            // la seconda passa da B1 e vorrebbe Meta
+
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ A0, Meta });                        // veloce: arriva a Meta al microstep 1 e si ferma
+	Paths.Add({ B0, B1, Meta });                    // seconda: B1 al 2, Meta al 3 — ma Meta e' occupata
+
+	TArray<TArray<int32>> Durations;
+	Durations.Add({ 1 });
+	Durations.Add({ 2, 1 });
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), Durations);
+
+	const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+
+	TestEqual(TEXT("la veloce e' su Meta"), Out[0].Final, Meta);
+	TestEqual(TEXT("la seconda si e' fermata su B1"), Out[1].Final, B1);
+	TestEqual(TEXT("e il motivo e' la cella occupata"), Out[1].Outcome, ERTMoveOutcome::BlockedByUnit);
+	return true;
+}
+
+/**
+ * ⛔ **Anti-regressione**: senza `StepDurations` il resolver si comporta **esattamente** come prima di
+ * `#2914`. Non e' una speranza: e' la stessa chiamata, con l'array vuoto.
+ *
+ * 🔑 Il caso scelto e' uno scambio diretto, che [D-295] blocca: se il default di durata slittasse a un
+ * valore diverso da `1`, questo esito cambierebbe con lui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementEmptyDurationsMatchPreviousResolverTest,
+	"RefactorTactics.Movement.EmptyDurationsMatchPreviousResolver",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementEmptyDurationsMatchPreviousResolverTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+	Paths.Add({ FRTCellId(0, 5), FRTCellId(1, 5) });
+
+	const TArray<FRTHexMoveResult> Reference = URTHexSimLibrary::ResolveHexPaths(Paths);
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), TArray<TArray<int32>>());
+	const TArray<FRTHexMoveResult> WithEmptyDurations = URTHexSimLibrary::FinishHexMovement(State);
+
+	TestEqual(TEXT("stesso numero di risultati"), WithEmptyDurations.Num(), Reference.Num());
+	for (int32 i = 0; i < Reference.Num(); ++i)
+	{
+		TestEqual(FString::Printf(TEXT("unita' %d: stessa cella finale"), i),
+			WithEmptyDurations[i].Final, Reference[i].Final);
+		TestEqual(FString::Printf(TEXT("unita' %d: stesso esito"), i),
+			WithEmptyDurations[i].Outcome, Reference[i].Outcome);
+		TestEqual(FString::Printf(TEXT("unita' %d: stesse celle percorse"), i),
+			WithEmptyDurations[i].Entered.Num(), Reference[i].Entered.Num());
+	}
+	return true;
+}
+
+/**
+ * La durata si legge dal **costo d'ingresso della cella**, non dagli MP consumati ([D-381]).
+ *
+ * ⚠️ `TotalMoveCost()` e' la SOMMA di `MoveCost` e `OccupancySurcharge`, e il modificatore dell'unita' si
+ * aggiunge a entrambi: e' la stessa lettura che fa `TruncatePathToBudget`, e le due non devono divergere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementTraversalDurationReadsTheEntryCostTest,
+	"RefactorTactics.Movement.TraversalDurationReadsTheEntryCost",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementTraversalDurationReadsTheEntryCostTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeSimMap(3);
+
+	const FRTCellId Rough(1, 0);
+	const FRTCellId Narrow(2, 0);
+	for (FRTHexCellData& Cell : M->Cells)
+	{
+		if (Cell.Id == Rough)
+		{
+			Cell.MoveCost = 2;                       // terreno difficile
+		}
+		else if (Cell.Id == Narrow)
+		{
+			Cell.MoveCost = 2;
+			Cell.OccupancySurcharge = 1;             // costo totale 3: il campo e' la somma
+		}
+	}
+
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(0, FRTCellId(0, 0), 10));
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+
+	TestEqual(TEXT("pavimento: un microstep"),
+		URTHexSimLibrary::TraversalDurationTicks(Snap, 0, FRTCellId(0, 1)), 1);
+	TestEqual(TEXT("terreno difficile: due"),
+		URTHexSimLibrary::TraversalDurationTicks(Snap, 0, Rough), 2);
+	TestEqual(TEXT("difficile e stretto: tre, perche' il sovrapprezzo si somma"),
+		URTHexSimLibrary::TraversalDurationTicks(Snap, 0, Narrow), 3);
+	TestEqual(TEXT("cella fuori mappa: un microstep, non una durata inventata"),
+		URTHexSimLibrary::TraversalDurationTicks(Snap, 0, FRTCellId(99, 99)), 1);
+
+	// Il modificatore dell'unita' si somma a ogni cella: e' `Status.Slow`, che alza il costo per cella.
+	TArray<FRTHexSimUnit> Slowed;
+	FRTHexSimUnit Unit(0, FRTCellId(0, 0), 10);
+	Unit.MoveCostModifier = 1;
+	Slowed.Add(Unit);
+	const FRTHexSnapshot SlowSnap = URTHexSimLibrary::MakeSnapshot(M, Slowed);
+	TestEqual(TEXT("con Slow il pavimento costa due microstep"),
+		URTHexSimLibrary::TraversalDurationTicks(SlowSnap, 0, FRTCellId(0, 1)), 2);
+
+	// E il percorso porta una durata per ARCO, quindi una in meno delle celle.
+	const TArray<int32> Durations = URTHexSimLibrary::StepDurationsForPath(Snap, 0,
+		{ FRTCellId(0, 0), Rough, Narrow });
+	TestEqual(TEXT("due archi, due durate"), Durations.Num(), 2);
+	if (Durations.Num() == 2)
+	{
+		TestEqual(TEXT("primo arco: entra nel difficile"), Durations[0], 2);
+		TestEqual(TEXT("secondo arco: entra nello stretto"), Durations[1], 3);
+	}
+
+	TestEqual(TEXT("un percorso di una sola cella non ha archi da temporizzare"),
+		URTHexSimLibrary::StepDurationsForPath(Snap, 0, { FRTCellId(0, 0) }).Num(), 0);
+	return true;
+}
