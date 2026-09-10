@@ -2111,9 +2111,82 @@ protected:
 	 * · questa funzione e' chiamata da **quattro** siti in **tre** fasi diverse — `ResolveDash` (`Dash`),
 	 *   `ResolveMovement` (`Move`), `ResolveEnvironment` (`Cleanup`) e `ApplyForcedDisplacement`, che a sua
 	 *   volta arriva da tre punti in fasi diverse. Nessun valore fisso sarebbe giusto per tutti.
+	 *
+	 * ⏱️ **Da `#2885` NON e' piu' chiamata direttamente da quei quattro siti**: la chiama `ApplyOnEnter`, che
+	 * e' diventata l'imbuto. Resta `private` e resta l'owner degli effetti del terreno — cio' che e' cambiato
+	 * e' che non e' piu' l'unica cosa che accade per aver attraversato una cella.
 	 */
 	void ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUnit* Unit, const TArray<FRTCellId>& Entered,
 		ERTMatchPhase InPhase);
+
+	/**
+	 * 🔑 **TUTTO cio' che accade a un'unita' PER AVER ATTRAVERSATO delle celle** (`#2885`): gli effetti del
+	 * terreno, e la memoria che la sua squadra ne ricava.
+	 *
+	 * 🔴 **Esiste per essere UN punto derivato, non due righe da tenere allineate a mano.** I percorsi che
+	 * attraversano celle sono quattro — `ResolveMovement`, `ResolveDash`, `ApplyForcedDisplacement` (che a sua
+	 * volta serve knockback, pull, fuga e **caduta**) e il pass ambiente del Cleanup — e prima di `#2885`
+	 * chiamavano tutti `ApplyTerrainOnEnterEffects`. Aggiungere l'accumulo di conoscenza **accanto** a ognuna
+	 * di quelle quattro chiamate sarebbe stato quattro occasioni di dimenticarne una, e un percorso aggiunto
+	 * domani sarebbe nato scoperto. E' la stessa lezione gia' registrata in questo file per l'emissione della
+	 * `ResolvedTimeline`: *«da qui un percorso aggiunto domani e' coperto per costruzione»*.
+	 *
+	 * 🔴 **L'ORDINE fra i due passi non e' indifferente, ed e' il motivo per cui la conoscenza viene PRIMA.**
+	 * `ApplyTerrainOnEnterEffects` **puo' uccidere l'unita'** — `Fire` fa 10 danni all'ingresso e il commento
+	 * di `ResolveDash` lo dichiara. Un'unita' che muore sull'ultima cella di un corridoio l'ha comunque
+	 * **attraversata**, e la sua squadra l'ha vista: accumulare dopo perderebbe in silenzio proprio il
+	 * percorso piu' informativo, e nessun test lo direbbe senza il caso apposta.
+	 *
+	 * @param FromCell la cella da cui si e' entrati — la PARTENZA della rotta, non `Unit->Cell`, che a
+	 *        tutti e quattro i siti e' **gia'** quella d'arrivo. Serve solo a orientare il primo passo.
+	 */
+	void ApplyOnEnter(const URTHexMapAsset* Map, ARTUnit* Unit, const FRTCellId& FromCell,
+		const TArray<FRTCellId>& Entered, ERTMatchPhase InPhase);
+
+	/**
+	 * Versa in `FRTTeamKnowledge::ExploredCells` cio' che la squadra ha visto **mentre attraversava**
+	 * ([D-227] applicata agli istanti che i due refresh saltano — decisione di `#2873`, ramo **(a)**).
+	 *
+	 * 🔴 **Il difetto che chiude sopravvive al turno.** La conoscenza si rinfresca in due soli punti —
+	 * `RefreshTeamKnowledgeForPlanning` e `RefreshTeamKnowledgeForBlast` — e l'ordine delle fasi e'
+	 * `Planning → Prep → Dash → Blast → Move → Cleanup`: la fase `Move` scorre **intera** fra l'uno e
+	 * l'altro. ∴ una cella vista **solo** attraversandola — un corridoio non visibile ne' dalla partenza ne'
+	 * dall'arrivo — restava `Hidden` **per sempre**, e non e' solo grafica: `URTTurnLogLibrary` legge
+	 * `VisibleCells ∪ ExploredCells` fail-closed per decidere quale cella il combat log puo' **nominare**
+	 * come causa di un tiro fermato, e taceva su un muro che il giocatore aveva costeggiato.
+	 *
+	 * ⛔ **`Contacts` NON cresce qui, e l'asimmetria e' argomentata.** E' lo stesso argomento di [D-227],
+	 * applicato una seconda volta: **il terreno non si muove**, quindi ricordarlo a un istante qualunque e'
+	 * sicuro; **un'unita' si', quindi un contatto raccolto a meta' transito sarebbe la vista sotto mentite
+	 * spoglie** — e sarebbe una regola nuova su intercettazione e finestra di reazione, che confina con
+	 * l'Overwatch di `#2795`. Una squadra ricorda il PAVIMENTO che ha visto all'istante `t` e non il nemico
+	 * che ci stava sopra: e' voluto, ed e' scritto qui perche' chi lo trovera' senza questa riga lo
+	 * chiamera' bug.
+	 *
+	 * 🔑 **Non e' una seconda regola di visibilita'.** Passa da `URTPerceptionLibrary::TeamVisibleCells`, la
+	 * stessa funzione pura che usano entrambi i refresh: nessun cono nuovo, nessuna LOS nuova. Cio' che
+	 * questa funzione aggiunge sono gli **osservatori**, uno per posizione attraversata, con
+	 * l'orientamento **di quel passo** letto da `URTFacingLibrary::FacingAtMicroStep`. Riusare il facing
+	 * finale per tutte le celle rivelerebbe cio' che l'unita' non ha mai guardato.
+	 *
+	 * ⚠️ **Un'unita' morta accumula lo stesso**, e non c'e' una guardia `IsAlive()`: la conoscenza e' di
+	 * SQUADRA ([D-043]), e la squadra ha visto quelle celle finche' quella era viva.
+	 *
+	 * 🔴 **Se la squadra non ha ancora una voce in `TeamKnowledgeState`, la voce si CREA** — vuota e di
+	 * versione corrente, esattamente come fa `KnowledgeForTeam` per il caso simmetrico e per la ragione che
+	 * ha gia' scritto accanto a se'. Una prima stesura saltava, ragionando che *«`PlanBots` rinfresca prima
+	 * della prima risoluzione»*: vero **solo** con un `ARTGameMode`, che chiama `RefreshTeamKnowledgeNow()`
+	 * in `SetupHexMatch`. Un mondo headless che spawna il `TurnManager` da solo arriva al `Move` del primo
+	 * turno con lo stato **vuoto**, e l'accumulo spariva senza dire niente.
+	 *
+	 * ⚠️ Una `Version` diversa da quella corrente, invece, **non** si tocca: `Observe` la scarterebbe come
+	 * illeggibile, e scriverci dentro darebbe una memoria plausibile e sbagliata.
+	 *
+	 * ⚠️ **Sopravvive fino al refresh successivo per COSTRUZIONE**, non per fortuna: entrambi i refresh
+	 * chiamano `Observe(..., KnowledgeForTeam(TeamId))`, e `Observe` unisce `Previous.ExploredCells`.
+	 */
+	void AccumulateExploredFromTransit(const URTHexMapAsset* Map, const ARTUnit* Unit,
+		const FRTCellId& FromCell, const TArray<FRTCellId>& Entered);
 
 	/** Le celle ENTRATE lungo un percorso: tutte tranne la partenza, dove l'unita' stava gia'. */
 	static TArray<FRTCellId> CellsEnteredAlong(const TArray<FRTCellId>& Path);

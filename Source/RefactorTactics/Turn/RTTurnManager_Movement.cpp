@@ -1194,8 +1194,18 @@ void ARTTurnManager::FinishMovementResolution()
 	// Applica le posizioni finali e gli effetti delle celle ATTRAVERSATE (non solo di quella finale).
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
+		// La cella di PARTENZA della rotta — la stessa chiave che `BuildMoveLog` usa qui sopra, e per la
+		// stessa ragione: `Cell` cambia con `PlaceOnCell`, quindi dopo questa riga non e' piu' leggibile.
+		// Serve a `ApplyOnEnter` per orientare il PRIMO passo attraversato (`#2885`).
+		//
+		// ⚠️ Il ripiego non e' un caso da gestire: una rotta vuota ha `Entered` vuoto, e l'accumulo esce
+		// subito senza guardare `FromCell`. Sta qui perche' l'espressione si valuta comunque.
+		const FRTCellId FromCell = (Ctx.Paths.IsValidIndex(i) && Ctx.Paths[i].Num() > 0)
+			? Ctx.Paths[i][0]
+			: Resolved[i].Final;
+
 		Units[i]->PlaceOnCell(Resolved[i].Final, Ctx.Origin, Ctx.HexSize, Ctx.LayerHeight);
-		ApplyTerrainOnEnterEffects(Ctx.Snapshot.Map, Units[i], Resolved[i].Entered, ERTMatchPhase::Move);
+		ApplyOnEnter(Ctx.Snapshot.Map, Units[i], FromCell, Resolved[i].Entered, ERTMatchPhase::Move);
 	}
 
 	// Orientamento di fine Move (CP 16.1, `FacingFinalAfterMove` di D-020). Si deriva dalla rotta EFFETTIVA —
