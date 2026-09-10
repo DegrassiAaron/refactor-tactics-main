@@ -12,7 +12,7 @@
 
 ---
 
-**Indice** · [1. La richiesta](#1-la-richiesta) · [2. Perché la roadmap non è stata creata](#2-perché-la-roadmap-non-è-stata-creata) · [3. Il call flow reale](#3-il-call-flow-reale) · [4. Dove l'avanzamento è accoppiato al tempo](#4-dove-lavanzamento-è-accoppiato-al-tempo) · [5. Cosa esiste già](#5-cosa-esiste-già) · [6. Il buco vero](#6-il-buco-vero) · [7. Le cinque issue aperte](#7-le-cinque-issue-aperte) · [8. Deduplicazione](#8-deduplicazione) · [9. Domande aperte](#9-domande-aperte) · [10. Cosa è stato fatto in questa sessione](#10-cosa-è-stato-fatto-in-questa-sessione)
+**Indice** · [1. La richiesta](#1-la-richiesta) · [2. Perché la roadmap non è stata creata](#2-perché-la-roadmap-non-è-stata-creata) · [3. Il call flow reale](#3-il-call-flow-reale) · [4. Dove l'avanzamento è accoppiato al tempo](#4-dove-lavanzamento-è-accoppiato-al-tempo) · [5. Cosa esiste già](#5-cosa-esiste-già) · [6. Il buco vero](#6-il-buco-vero) · [7. Le cinque issue aperte](#7-le-cinque-issue-aperte) · [8. Deduplicazione](#8-deduplicazione) · [9. Le quattro domande, e cosa ne è uscito](#9-le-quattro-domande-e-cosa-ne-è-uscito) · [10. Cosa è stato fatto in questa sessione](#10-cosa-è-stato-fatto-in-questa-sessione)
 
 ---
 
@@ -311,17 +311,19 @@ Tutte sub-issue di [`#1881`](https://github.com/DegrassiAaron/refactor-tactics-m
 
 | # | Titolo | Priorità | Milestone | Dipende da |
 |---|---|---|---|---|
-| [#2855](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2855) | `RunPhaseLoop` ha una sola uscita, e nessuno può chiederne una | P2 | — | — |
-| [#2856](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2856) | `AdvanceMovementResolution` e nessuno può chiederne **uno** | P2 | — | #2855 |
-| [#2857](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2857) | `Next Action` non ha un confine | P3 | — | #2855, #2856 |
+| [#2855](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2855) | `Next Phase` / `Next Action`: il playback conosce il confine e nessuno può chiedergli di fermarcisi | P2 | — | #2857 (solo `Next Action`) |
+| [#2856](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2856) | il tetto di 256 micro-step limita il **pump**, non la risoluzione | P2 | — | — |
+| [#2857](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2857) | `Next Action` non ha un confine: `FRTResolvedEvent` non porta `ActionId` | P2 | — | — |
 | [#2858](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2858) | I controlli di #1879 non hanno un chiamante di produzione | P2 | `v0.1` | — |
-| [#2859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2859) | **Gate**: nessun test dimostra `stepped ≡ continuous` | P2 | — | #2855, #2856 |
+| [#2859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2859) | **Gate**: nessun test dimostra `stepped ≡ continuous` | P2 | — | #2855 |
+
+🔴 **Titoli, priorità e dipendenze sono quelli **dopo** lo spec panel di §11**, che ha ritirato dallo scope
+la fermata richiedibile del resolver. La forma di apertura è nella cronaca dei commenti delle issue.
 
 ```text
-#2855 ──┬── #2856 ──── #2857
-        │      │
-        └──────┴──────► #2859   (gate)
+#2857 ActionId sulla timeline ──► #2855 predicato Next Phase / Next Action ──► #2859 gate
 
+#2856  indipendente — difetto misurato del `Guard`
 #2858  indipendente — completa il gate v0.1 già dichiarato da #1879
 ```
 
@@ -368,27 +370,85 @@ e che oggi è verde nei test e non premibile in partita.
 
 ---
 
-## 9. Domande aperte
+## 9. Le quattro domande, e cosa ne è uscito
 
-Solo ciò che il repository non risolve da solo.
+> 🔴 **Sottoposte a un secondo spec panel lo stesso giorno.** Tre hanno una risposta; la quarta ha
+> **cambiato lo scope di una issue**, e il panel ne ha trovata una quinta che nessuno aveva posto.
+> Panel: Fowler, Nygard, Cockburn, Wiegers, Crispin, Hohpe, Adzic.
 
-1. **Il tetto `Guard < 256` sotto avanzamento richiesto.** Oggi conta i passi di *un pump*. Con un
-   richiedente esterno, o si azzera a ogni richiesta — e allora smette di proteggere da un resolver che
-   non termina — o accumula, e allora una sessione di debug lunga scatta l'`ensureMsgf` senza che nulla
-   sia rotto. Registrata in **#2856**, va decisa nella issue.
-2. **Il tasto della pausa.** `P` è già `PrepWindowPauseAction` (`RTPlayerController.cpp:449`). Le due
-   pause sono mutuamente esclusive per costruzione, ma un tasto che a volte fa una cosa e a volte l'altra
-   resta ambiguo per chi preme. Registrata in **#2858**.
-3. **Chi legge lo stato quando la simulazione è ferma.** [D-356] dichiara come residuo che *«un test che
-   interroghi l'HUD a resolution sospesa non esiste»*, e una sospensione **richiesta** dura quanto vuole
-   chi l'ha chiesta, non quanto una finestra. La lettura appartiene a **#25** / **#2757**; il rischio è
-   registrato in **#2855**.
-4. **Se `Next Phase` sia davvero ciò che serve.** Il prompt lo dà per necessario. Il repository ha già
-   `Step` al micro-step e `Seek` per turno e fase nel replay (**#415**): può darsi che la granularità
-   mancante sia solo `Action`, e che `#2855` risolva un problema che nessuno ha davvero. **È una domanda
-   per il committente, non per un referto** — la stessa forma della domanda 3 di
-   [`match-lab-discovery-spec-panel-2026-09-09.md`](match-lab-discovery-spec-panel-2026-09-09.md) §8.5,
-   che è ancora senza risposta.
+### 9.1 Il tetto `Guard < 256` — ✅ **la domanda era mal posta**
+
+Chiedeva *«azzerare o accumulare»*. 🔎 `Guard` è una **locale** in entrambi i pump
+(`RTTurnManager_Movement.cpp:319` e `:798`): il tetto **già oggi** limita una singola invocazione, non la
+risoluzione, e una risoluzione che si sospende e riprende riparte da `0` — con
+`ThreeArmedWatchersOnOneEntry` a dimostrare che non è un caso limite. L'`ensureMsgf` afferma *«risoluzione
+del movimento non terminata in 256 micro-step»* e misura *«questo pump»*.
+
+∴ **né azzerare né accumulare: il contatore si sposta in `FRTMovementResolutionContext`**, dove vive già
+ciò che sopravvive a una sospensione, e muore con la risoluzione che deve limitare. La domanda si dissolve
+invece di essere decisa. **#2856** è stata ri-titolata su questo difetto.
+### 9.2 Il tasto — ✅ **il repository aveva già deciso**
+
+`Player/RTPlayerController.h:227` dichiara la tassonomia, e non l'avevo letta:
+
+> 🔑 *«Sta accanto a `PlaybackSpeedAction` […] perché è lo stesso **attore**: chi **guarda** una partita non
+> presidiata […] è il **secondo comando dello spettatore**»* · ⛔ *«non è la pausa del playback di #1879:
+> quella ferma una risoluzione già decisa che si sta mostrando. Qui […] ciò che si ferma è **l'attesa**.»*
+
+Le pause sono **tre** atti distinti — il menu (`ESC`, **#941**), l'attesa (`P`, **#2386**), l'immagine
+(**#1879**, senza tasto) — e la terza è l'unica scoperta. ∴ **`P` non si riusa**. Sulla fila di `V` restano
+liberi **`N`** (Pause/Resume) e **`M`** (Step); `,`/`.` scartati perché prometterebbero un `Previous Step`
+fuori scope. Registrato in **#2858**.
+### 9.3 Chi legge lo stato a simulazione ferma — ✅ **residuo ancora aperto, e ancoraggi scaduti**
+
+🔎 Nessun test in `Tests/` interroga l'HUD a resolution sospesa: i tre file che nominano
+`IsResolutionSuspended` sono di reazioni e movimento. E i siti che [D-356] cita — `UI/RTHUD.cpp:623`,
+`:974`, `RTTurnManager.cpp:7697` — sono **scaduti**: `RTHUD.cpp` è cresciuto con **#2697**, e i lettori veri
+oggi sono `:708`, `:750`, `:1130`, `:1179` e `RTTurnManager.cpp:8073`.
+
+✅ La riparazione di [D-356] regge — leggono `Phase`, che resta sulla fase sospesa. ⚠️ Ma «per costruzione»
+è vero finché nessuno cambia la costruzione, e nessun gate rilegge una voce di Decision Log. Il test è stato
+proposto in **#2757**, con gli ancoraggi rimisurati: è là che vive ciò che l'HUD dichiara.
+### 9.4 Serve davvero `Next Phase`? — 🔴 **no come fermata del resolver, e #2855 è stata ri-scoped**
+
+Il sospetto era esatto. `SeekToPhase` / `SeekToBoundary` / `UnitsAtBoundary` prendono una
+`TArray<FRTTurnLogEntry>` — cioè ciò che `GetTurnLog()` restituisce per il **turno vivo**, non un file di
+replay — e il confine di fase nel tempo dell'immagine il playback lo **annuncia già**
+(`PlaybackPhaseIdx`, `OnPhasePlaybackStarted`).
+
+| Granularità | Nella traccia | Nel tempo del playback | Seek |
+|---|---|---|---|
+| Turn | ✅ | ✅ | ✅ `SeekToTurn` |
+| Phase | ✅ | ✅ `PlaybackPhaseIdx` | ✅ `SeekToPhase` |
+| Micro-step | ✅ | ✅ `NextMicroStepBoundary` | ✅ `SeekToBoundary` |
+| **Action** | ✅ `ActionId` | ⛔ **assente** | ⛔ **assente** |
+
+∴ **tre granularità su quattro sono complete, e l'unica mancante è `Action`** — sul solo lato playback.
+`Next Phase` è un **predicato di pausa una tantum** su un evento che esiste, non una modifica del motore.
+
+**#2855** è passata da *«rendere richiedibile un'uscita da `RunPhaseLoop`»* a *«`Next Phase` / `Next
+Action` si fermano al confine del playback»*, e **#2857** è salita a P2 perché è diventata la sua
+dipendenza. La fermata richiedibile del resolver è ritirata: l'unico movente che le resterebbe —
+diagnosticare una risoluzione che **non termina** — non è osservazione, ed è registrato come tale.
+
+⚠️ Il confine con [D-355] va dichiarato nella PR: quella voce vieta al playback di acquisire ragioni di
+fermarsi **per simmetria**, e un predicato armato esplicitamente non lo è.
+
+### 9.5 🔴 Quella che nessuno aveva posto — `BLOCKED — DECISION REQUIRED`
+
+🔎 `TickReactionWindow(DeltaSeconds)` sta in `Tick` a `:147`, **prima** di `TickPlayback` (`:155`), fuori da
+`bIsResolving`, con `DeltaSeconds` **non** scalato. Il commento a `:138` lo dichiara deliberato, citando
+[D-351]: *«ESC non ferma il countdown della finestra»*, perché *«ciò che in rete non potrà esistere è
+fermare il tempo di tutti»*. Con `FastReactionDuration = 3.f`.
+
+∴ **fermarsi a un confine mentre una finestra di reazione è aperta la lascia scadere**: `DecisionOnTimeout`
+decide al posto di chi stava guardando, e l'esito cambia a seconda che si sia premuto Step. Oggi è latente
+— i comandi non hanno chiamanti — e **#2858** lo rende raggiungibile.
+
+Un criterio d'accettazione di **#2859** era insoddisfacibile per questa ragione ed è stato scisso: il caso a
+**decisioni registrate** è misurabile oggi ([D-355]: il ramo della traccia precede ogni attesa), quello a
+**finestra interattiva** è `NOT RUN` finché non c'è una decisione. Le tre poste — fermare anche l'orologio,
+rifiutare il comando, o accettare la scadenza — stanno in **#2859**, col lean del panel e le sue ragioni.
 
 ---
 
@@ -400,7 +460,11 @@ Solo ciò che il repository non risolve da solo.
 - deduplicazione contro le issue OPEN e CLOSED, per intento e scope e non per titolo (§8);
 - **cinque issue aperte** — **#2855**, **#2856**, **#2857**, **#2858**, **#2859** — tutte sub-issue di
   **#1881** tramite l'API `sub_issues`, cioè il meccanismo che il repository usa già;
-- **#1881** aggiornata con una sezione datata che dichiara cosa manca e cosa non è stato aperto.
+- **#1881** aggiornata con una sezione datata che dichiara cosa manca e cosa non è stato aperto;
+- **secondo spec panel sulle quattro domande aperte** (§9), che ha ri-scoped **#2855**, ri-titolato
+  **#2856**, promosso **#2857** a P2, deciso i tasti di **#2858**, scisso un criterio di **#2859** e
+  aperto un `BLOCKED — DECISION REQUIRED`; più un commento su **#2757** con il residuo di [D-356] e i
+  suoi ancoraggi rimisurati.
 
 **Non è stato fatto**: nessuna epic nuova, nessuna milestone nuova, nessuna label nuova; nessun file di
 `Source/` modificato; nessuna build, nessun test eseguito, nessun avvio dell'Editor.
@@ -413,4 +477,4 @@ Solo ciò che il repository non risolve da solo.
 | Tests | `N/A` |
 | Determinism · Replay · Privacy | `N/A` |
 | PIE · Packaged | `N/A` |
-| Misure `grep` di §5 e §6 | eseguite su `origin/main` = `18065c28`, comando accanto a ogni riga 🔎 |
+| Misure `grep` di §5, §6 e §9 | eseguite su `origin/main` = `18065c28`, comando accanto a ogni riga 🔎 |
