@@ -289,6 +289,27 @@ struct FRTScenarioUnit
 	 * Serve da CP 13.2: da quando il targeting consuma la conoscenza, l'orientamento decide COSA la squadra
 	 * vede, quindi uno scenario che non potesse esprimerlo non potrebbe descrivere un tiratore che guarda il
 	 * proprio bersaglio.
+	 *
+	 * 🔑 **E' anche il solo modo di orientare un OVERWATCH, ed e' la domanda che chi scrive scenari si pone
+	 * per prima** (`#2868`, confermata dall'autore il 2026-09-10).
+	 *
+	 * Non esiste una `watchDirection`: il cono della guardia **e'** il facing dell'unita', e
+	 * [ADR-0005](../../../docs/decisions/adr-0005-orientamento.md) §4c respinge per nome l'alternativa —
+	 * *«la zona controllata di un Overwatch armato nasce dal facing dell'unita', **non** da una direzione
+	 * dichiarata a parte … due sorgenti per la stessa cosa sarebbero due verita': chi arma la guardia decide
+	 * dove guardare **orientandosi**»*. Lo confermano `D-020`, che colloca `FacingUsedByOverwatch` fra i
+	 * valori **letti**, e `D-365` (`FAC-5`).
+	 *
+	 * ⚠️ **Conseguenza pratica, e non e' ovvia**: `ARTTurnManager` legge `Armed.Facing = Unit->Facing` in
+	 * **Prep**, mentre una rotazione dichiarata (`FRTScenarioIntent::Facing`) si applica dentro
+	 * `ResolveMovement`, cioe' **dopo**. Un cono quindi si prepara **il turno prima**, oppure si dichiara
+	 * **qui**, al piazzamento. Un'unita' che si muove ruota strada facendo e il caso non si vede; una che
+	 * arma e resta ferma conserva il facing di piazzamento, e li' si vede tutto — e' cio' che
+	 * `Spec.Overwatch.HoldThenFire` registra nella propria `_nota_facing_di_piazzamento`.
+	 *
+	 * ⛔ **Non e' una lacuna da colmare in un formato di scenario.** Darebbe all'harness un ingresso che
+	 * nessun giocatore ha in partita — la stessa asimmetria per cui `DeclaredRotation` e `ReactionPlanning`
+	 * sono rimaste fuori finche' non hanno avuto un produttore.
 	 */
 	UPROPERTY()
 	ERTHexDirection Facing = ERTHexDirection::E;
