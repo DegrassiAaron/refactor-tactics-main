@@ -310,9 +310,9 @@ bool FRTActionMistVeilTest::RunTest(const FString&)
 
 	// L'abilita' vera del catalogo, non una ricostruita nel test: la issue nasceva proprio da uno scarto fra
 	// cio' che il catalogo dichiarava e cio' che l'azione faceva.
-	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
 	if (!TestNotNull(TEXT("Phase costruita"), Phase)) { DestroyEnvWorld(World); return false; }
-	URTActionData* MistVeil = Phase->Actions.IsValidIndex(3) ? Phase->Actions[3] : nullptr;
+	URTActionData* MistVeil = Muiren->Actions.IsValidIndex(3) ? Muiren->Actions[3] : nullptr;
 	if (!TestNotNull(TEXT("MistVeil nel kit"), MistVeil)) { DestroyEnvWorld(World); return false; }
 
 	Caster->Abilities[3] = MistVeil;
@@ -1449,8 +1449,8 @@ bool FRTBornSurfaceIsNotOnlyFireTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
 
-	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
-	URTActionData* MistVeil = (Phase && Phase->Actions.IsValidIndex(3)) ? Phase->Actions[3] : nullptr;
+	URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
+	URTActionData* MistVeil = (Phase && Muiren->Actions.IsValidIndex(3)) ? Muiren->Actions[3] : nullptr;
 	if (!TestNotNull(TEXT("MistVeil nel kit di Phase"), MistVeil)) { DestroyEnvWorld(World); return false; }
 
 	Caster->Abilities[3] = MistVeil;

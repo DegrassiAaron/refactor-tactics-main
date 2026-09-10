@@ -1132,7 +1132,7 @@ bool FRTScenarioAbilityNotInKitTest::RunTest(const FString&)
 	// `Phase.CircularTide` esiste nel catalogo, ma NON e' nel kit di Aevik. E' il caso interessante: un id
 	// inventato lo prende gia' il validator al caricamento, questo no — passa la validazione e muore a runtime.
 	FRTScenarioTurn T;
-	FRTScenarioIntent I; I.UnitId = TEXT("A1"); I.Ability = TEXT("Hero.Phase.CircularTide"); I.Target = TEXT("B1");
+	FRTScenarioIntent I; I.UnitId = TEXT("A1"); I.Ability = TEXT("Hero.Muiren.CircularTide"); I.Target = TEXT("B1");
 	T.Intents.Add(I); S.Turns.Add(T);
 
 	// Un'assertion che sarebbe caduta: e' cio' che prima produceva il FAIL fuorviante.
@@ -1144,7 +1144,7 @@ bool FRTScenarioAbilityNotInKitTest::RunTest(const FString&)
 
 	TestEqual(TEXT("esito ERROR, non FAIL"), Result.OutcomeString(), FString(TEXT("ERROR")));
 	// Il messaggio deve bastare a correggere lo scenario senza aprire il log del motore.
-	TestTrue(TEXT("il messaggio nomina l'abilita'"), Result.ErrorMessage.Contains(TEXT("Hero.Phase.CircularTide")));
+	TestTrue(TEXT("il messaggio nomina l'abilita'"), Result.ErrorMessage.Contains(TEXT("Hero.Muiren.CircularTide")));
 	TestTrue(TEXT("e nomina l'unita' che la chiedeva"), Result.ErrorMessage.Contains(TEXT("A1")));
 	return true;
 }
@@ -1175,7 +1175,7 @@ bool FRTScenarioDeadTargetTest::RunTest(const FString&)
 	// invece di un fallimento misterioso sulla nota.
 	FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Aevik");   A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
 	FRTScenarioUnit B; B.Id = TEXT("A2"); B.HeroId = TEXT("Hero.Ivrin"); B.TeamId = 0; B.Cell = FRTCellId(-2, 1, 0);
-	FRTScenarioUnit C; C.Id = TEXT("B1"); C.HeroId = TEXT("Hero.Phase");   C.TeamId = 1; C.Cell = FRTCellId(1, 0, 0);
+	FRTScenarioUnit C; C.Id = TEXT("B1"); C.HeroId = TEXT("Hero.Muiren");   C.TeamId = 1; C.Cell = FRTCellId(1, 0, 0);
 	// Un SECONDO difensore, lontano e mai bersagliato. Senza, la morte di B1 elimina la squadra 1, la partita
 	// finisce e il turno in cui si spara al morto non viene mai giocato: il test misurerebbe il silenzio di un
 	// turno che non e' avvenuto invece del silenzio del report. E' costato una run per accorgersene.
@@ -1264,7 +1264,7 @@ bool FRTScenarioDashIntentTest::RunTest(const FString&)
 		S.MapRadius = 4;
 		FRTScenarioUnit A; A.Id = TEXT("V"); A.HeroId = TEXT("Hero.Ivrin"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
 		// Un avversario lontano e fermo: senza, la squadra 1 e' vuota e la partita finisce prima di giocare.
-		FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Phase");   B.TeamId = 1; B.Cell = FRTCellId(0, 3, 0);
+		FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Muiren");   B.TeamId = 1; B.Cell = FRTCellId(0, 3, 0);
 		S.Units.Add(A); S.Units.Add(B);
 
 		FRTScenarioTurn T;
@@ -1337,7 +1337,7 @@ bool FRTScenarioPassingBladeTest::RunTest(const FString&)
 	S.MapRadius = 4;
 	FRTScenarioUnit A; A.Id = TEXT("V"); A.HeroId = TEXT("Hero.Ivrin"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
 	// Phase e' IN MEZZO: la lama le passa attraverso e prosegue.
-	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Phase");   B.TeamId = 1; B.Cell = FRTCellId(0, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Muiren");   B.TeamId = 1; B.Cell = FRTCellId(0, 0, 0);
 	S.Units.Add(A); S.Units.Add(B);
 
 	FRTScenarioTurn T;
@@ -1393,7 +1393,7 @@ bool FRTScenarioCellTargetTest::RunTest(const FString&)
 	S.ScenarioId = TEXT("Probe.CellTarget");
 	S.MapRadius = 4;
 	FRTScenarioUnit A; A.Id = TEXT("F"); A.HeroId = TEXT("Hero.Aevik"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
-	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Phase"); B.TeamId = 1; B.Cell = FRTCellId(1, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Muiren"); B.TeamId = 1; B.Cell = FRTCellId(1, 0, 0);
 	S.Units.Add(A); S.Units.Add(B);
 
 	FRTScenarioTurn T;
@@ -1432,7 +1432,7 @@ bool FRTScenarioAmbiguousTargetTest::RunTest(const FString&)
 	S.ScenarioId = TEXT("Probe.AmbiguousTarget");
 	S.MapRadius = 4;
 	FRTScenarioUnit A; A.Id = TEXT("F"); A.HeroId = TEXT("Hero.Aevik"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
-	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Phase"); B.TeamId = 1; B.Cell = FRTCellId(1, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Muiren"); B.TeamId = 1; B.Cell = FRTCellId(1, 0, 0);
 	S.Units.Add(A); S.Units.Add(B);
 
 	FRTScenarioTurn T;

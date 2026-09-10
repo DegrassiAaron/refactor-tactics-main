@@ -296,7 +296,7 @@ già costruiti. Restano fuori, esplicitamente:
   ⛔ Ciò che resta fuori scope non cambia: la privacy come **regola** è di `E27` (`INT-6`), e la semantica di
   composizione `N→1` è `INT-5`. Qui entra il solo **meccanismo**: una sorgente comanda i propri bersagli;
 - valvole, pompe e fluidodinamica: l'acqua ha un produttore nel roster ([`D-046`](../decisions/RT_PDR_00_Decision_Log.md),
-  `Hero.Phase.FluidTrail` **è** `Action.CreateWater`) e non serve un secondo modello per crearla;
+  `Hero.Muiren.FluidTrail` **è** `Action.CreateWater`) e non serve un secondo modello per crearla;
 - ascensori e piattaforme mobili, che sono transizioni con stato temporale, non elementi con verbi.
 
 Il criterio non è la difficoltà: è che **ognuno di questi dipende da un sistema che non è ancora verde**.

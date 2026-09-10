@@ -22,7 +22,7 @@ class URTActionData;
  * `URTHeroCatalogLibrary::ValidateHeroes` fa valere l'intervallo e il vincolo della variante unica.
  *
  * ⚠️ **Era «ESATTAMENTE cinque», e la parola in maiuscolo non e' bastata a tenerlo vero.** Sul roster v0.1
- * ne hanno sei **Phase** (`Hero.Phase.TideGuard`) e **Ivrin** (`Hero.Ivrin.PhaseGuard`), entrambe derivate
+ * ne hanno sei **Phase** (`Hero.Muiren.TideGuard`) e **Ivrin** (`Hero.Ivrin.PhaseGuard`), entrambe derivate
  * da `Action.Shield`; Aevik e Branth restano a cinque. Il tetto e' 6 e non «quante ne vuoi» perche' oltre,
  * il kit supera le posizioni che l'input raggiunge — `PlayerInput.EveryKitEntryIsReachable` lo misura.
  * Il costo dell'intervallo e' dichiarato accanto al validator: non dice piu' «questo eroe e' completo».

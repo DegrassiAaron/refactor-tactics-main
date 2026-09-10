@@ -265,7 +265,7 @@ struct FRTScenarioUnit
 	UPROPERTY()
 	FString Id;
 
-	/** ID stabile dell'eroe dal catalogo: `Hero.Aevik`, `Hero.Phase`, `Hero.Branth`, `Hero.Ivrin`. */
+	/** ID stabile dell'eroe dal catalogo: `Hero.Aevik`, `Hero.Muiren`, `Hero.Branth`, `Hero.Ivrin`. */
 	UPROPERTY()
 	FName HeroId;
 

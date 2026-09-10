@@ -156,7 +156,7 @@ URTUnitAnimInstance::URTUnitAnimInstance()
 {
 	ClipsPerHero.Add(FName(TEXT("Hero.Aevik")), MakeClips(TEXT("Gadget"), TEXT("Idle"), TEXT("Run_Fwd"),
 		TEXT("Cast"), TEXT("Hitreact_Fwd"), TEXT("Death_Fwd")));
-	ClipsPerHero.Add(FName(TEXT("Hero.Phase")), MakeClips(TEXT("Phase"), TEXT("Idle"), TEXT("Jog_Fwd"),
+	ClipsPerHero.Add(FName(TEXT("Hero.Muiren")), MakeClips(TEXT("Phase"), TEXT("Idle"), TEXT("Jog_Fwd"),
 		TEXT("Cast"), TEXT("HitReact_Fwd"), TEXT("Death")));
 	ClipsPerHero.Add(FName(TEXT("Hero.Branth")), MakeClips(TEXT("Riktor"), TEXT("Idle"), TEXT("Jog_Fwd"),
 		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd")));

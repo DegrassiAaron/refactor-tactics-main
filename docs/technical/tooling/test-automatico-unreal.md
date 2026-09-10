@@ -108,7 +108,7 @@ sapere cosa ciascuno prova:
 ```
 
 - `id` dell'unità è **locale allo scenario** (`A1`), non l'ID di gioco: lo usano intent e assertion.
-- `hero` è lo Stable ID del catalogo: `Hero.Aevik`, `Hero.Phase`, `Hero.Riktor`, `Hero.Wraith`.
+- `hero` è lo Stable ID del catalogo: `Hero.Aevik`, `Hero.Muiren`, `Hero.Riktor`, `Hero.Wraith`.
 - `move` sono i **waypoint**, esattamente come li produrrebbe un giocatore che clicca. Vuoto = unità ferma.
 - `cells` modifica solo le celle che interessano: le altre restano pavimento a costo 1. È ciò che permette di
   scrivere `Movement.Blocked` senza versionare una mappa.

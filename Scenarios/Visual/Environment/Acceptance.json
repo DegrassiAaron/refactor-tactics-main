@@ -13,9 +13,9 @@
 
   "_nota_un_fenomeno_per_turno": "⚠️ **I cinque fenomeni sono separati per TURNO e non affiancati nello spazio, ed e' una scelta contro il rischio.** L'acqua della spina centrale CONDUCE, e la scarica del T1 si propaga su di essa e sui due nodi conduttivi: due esperimenti che toccassero il terreno nello stesso Blast potrebbero interferire in un modo che nessuna assertion di questo file distingue. Separandoli, ogni turno ha un solo soggetto — che e' anche il modo in cui una persona riesce a guardarli senza perderne uno.",
 
-  "_nota_ordine": "L'elettrico va PRIMA di tutto e l'acqua che spegne il fuoco per ULTIMA, e nemmeno questo e' estetica: `Hero.Phase.PressureJet` applica `Wet`, e uno stato che si propaga su una rete conduttiva gia' scaricata non e' la stessa cosa di uno che la trova intatta. Con la scarica al T1 la rete e' nello stato che `Visual.Combat.WaterElectric` misura; il resto avviene dopo, quando nessuno guarda piu' l'acqua.",
+  "_nota_ordine": "L'elettrico va PRIMA di tutto e l'acqua che spegne il fuoco per ULTIMA, e nemmeno questo e' estetica: `Hero.Muiren.PressureJet` applica `Wet`, e uno stato che si propaga su una rete conduttiva gia' scaricata non e' la stessa cosa di uno che la trova intatta. Con la scarica al T1 la rete e' nello stato che `Visual.Combat.WaterElectric` misura; il resto avviene dopo, quando nessuno guarda piu' l'acqua.",
 
-  "_nota_geometria": "Ogni gruppo riusa la geometria del proprio scenario singolo, **traslata solo dove collideva**. Le collisioni erano due, e la seconda si e' vista solo ESEGUENDO. (1) `(-2,0,0)` era contesa fra il Gadget di `WaterElectric` e il Phase di `WetExtinguishesFire`: il Gadget si sposta a `(-3,0,0)`, che dista 3 dall'acqua centrale ed e' dentro la portata 5 di `LinearDischarge`. (2) 🔴 **`Hero.Phase.PressureJet` ha forma LINEA, e la linea da `(-2,0,0)` a `(0,-2,0)` passa per `(-1,-1,0)` — dove sta G_ROU.** Il primo run l'ha misurato: `UnitHpEquals(G_ROU) atteso 90, ottenuto 79`, cioe' i 16 del getto meno i 5 di scudo base. Il Phase e' quindi salito a `(0,-4,0)`, da cui il getto raggiunge il bersaglio a distanza 2 **senza attraversare nessuna cella occupata**. ⚠️ Sposta CHI SPARA e non chi guarda: G_ROU e' il bersaglio della carica rifiutata, e muoverlo avrebbe cambiato l'esperimento invece della traiettoria. Le altre celle sono quelle originali, quindi i numeri restano **ereditati da sei misure** invece che ricalcolati.",
+  "_nota_geometria": "Ogni gruppo riusa la geometria del proprio scenario singolo, **traslata solo dove collideva**. Le collisioni erano due, e la seconda si e' vista solo ESEGUENDO. (1) `(-2,0,0)` era contesa fra il Gadget di `WaterElectric` e il Phase di `WetExtinguishesFire`: il Gadget si sposta a `(-3,0,0)`, che dista 3 dall'acqua centrale ed e' dentro la portata 5 di `LinearDischarge`. (2) 🔴 **`Hero.Muiren.PressureJet` ha forma LINEA, e la linea da `(-2,0,0)` a `(0,-2,0)` passa per `(-1,-1,0)` — dove sta G_ROU.** Il primo run l'ha misurato: `UnitHpEquals(G_ROU) atteso 90, ottenuto 79`, cioe' i 16 del getto meno i 5 di scudo base. Il Phase e' quindi salito a `(0,-4,0)`, da cui il getto raggiunge il bersaglio a distanza 2 **senza attraversare nessuna cella occupata**. ⚠️ Sposta CHI SPARA e non chi guarda: G_ROU e' il bersaglio della carica rifiutata, e muoverlo avrebbe cambiato l'esperimento invece della traiettoria. Le altre celle sono quelle originali, quindi i numeri restano **ereditati da sei misure** invece che ricalcolati.",
 
   "_nota_fuoco_e_acqua_sono_una_scena_sola": "🔑 **`Visual.Environment.FireOnEnter` e `Visual.Environment.WetExtinguishesFire` sono lo STESSO allestimento a due tempi**, e qui si fondono in una unita' sola: W_FIRE entra nel fuoco al T4 — ed e' `PIE-VIS-FIRE` — poi il getto di P_WET lo spegne al T5, che e' `PIE-VIS-WETFIRE`. Due voci, due turni, una unita'. La distanza temporale fra ingresso e getto e' **un turno**, la stessa dello scenario originale: il `Burning` dura un turno, e allungarla lo lascerebbe scadere da solo, misurando un'assenza invece di uno spegnimento.",
 
@@ -35,7 +35,7 @@
     { "id": "G_SMO", "hero": "Hero.Aevik", "team": 0, "cell": [1, 4, 0] },
     { "id": "R_SMO", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] },
 
-    { "id": "P_WET", "hero": "Hero.Phase", "team": 0, "cell": [0, -4, 0] },
+    { "id": "P_WET", "hero": "Hero.Muiren", "team": 0, "cell": [0, -4, 0] },
     { "id": "W_FIRE", "hero": "Hero.Ivrin", "team": 1, "cell": [0, -3, 0] }
   ],
 
@@ -69,7 +69,7 @@
     {
       "_turno": "T5 — L'ACQUA SPEGNE (`PIE-VIS-WETFIRE`). P_WET, da (0,-4,0), colpisce W_FIRE col getto — la traiettoria e' libera e non attraversa nessuno, vedi `_nota_geometria`: il `Wet` che arriva spegne il `Burning` prima che il Cleanup lo faccia scattare di nuovo. Cio' che si guarda e' un'ASSENZA — i danni che non arrivano — ed e' la ragione per cui questo turno deve seguire immediatamente il precedente. 🔑 **E il getto SPINGE**: W_FIRE arretra di una cella lungo la traiettoria e finisce su (0,-1,0), che e' acqua. Lo scenario originale non lo mostra — non asserisce la cella affatto — e qui si vede, perche' la spinta porta il bruciato proprio dentro la spina d'acqua. Misurato eseguendo: la prima stesura attendeva (0,-2,0) ed e' caduta.",
       "intents": [
-        { "unit": "P_WET", "ability": "Hero.Phase.PressureJet", "target": "W_FIRE" }
+        { "unit": "P_WET", "ability": "Hero.Muiren.PressureJet", "target": "W_FIRE" }
       ]
     }
   ],

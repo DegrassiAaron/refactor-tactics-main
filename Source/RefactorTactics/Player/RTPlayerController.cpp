@@ -2118,7 +2118,7 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 }
 
 // Selezionano per INDICE, non per azione. Uno scatto e' un'abilita' di fase `ERTResolutionPhase::Dash`
-// (nel roster ce n'e' una, `Hero.Phase.FluidTrail`) e non ha un tasto dedicato: sta dove la mette il
+// (nel roster ce n'e' una, `Hero.Muiren.FluidTrail`) e non ha un tasto dedicato: sta dove la mette il
 // suo eroe. Un commento che promettesse un'azione a un tasto invecchierebbe al primo cambio di roster.
 void ARTPlayerController::OnAbility1(const FInputActionValue& Value)  { SelectAbilityForCurrent(0); }
 void ARTPlayerController::OnAbility2(const FInputActionValue& Value)  { SelectAbilityForCurrent(1); }

@@ -18,7 +18,7 @@ altri documenti la referenziano, non la copiano.
 | Identità RefactorTactics | `RT Character ID` | Slot asset Paragon | Release |
 |---|---|---|---|
 | **Aevik** ⏳ | `Hero.Aevik` → `Hero.Aevik` | [Gadget](candidates/gadget.md) | v0.1 |
-| **Muiren** ⏳ | `Hero.Phase` → `Hero.Muiren` | [Phase](candidates/phase.md) | v0.1 |
+| **Muiren** ⏳ | `Hero.Muiren` → `Hero.Muiren` | [Phase](candidates/phase.md) | v0.1 |
 | **Branth** ⏳ | `Hero.Riktor` → `Hero.Branth` | [Riktor](candidates/riktor.md) | v0.1 |
 | **Ivrin** ⏳ | `Hero.Wraith` → `Hero.Ivrin` | [Wraith](candidates/wraith.md) | v0.1 |
 | **Ward** | `Hero.Ward` | [Steel](v0.2/steel.md) | v0.2 |
@@ -157,7 +157,7 @@ Ogni pagina contiene una card grafica locale in `images/paragon/`. È un placeho
 | [Gideon](candidates/gideon.md) | Controller / Mobility | Rift Network | 5/5 | Candidate |
 | [The Fey](candidates/the-fey.md) | Terrain Controller | Growth | 5/5 | Candidate |
 | [Morigesh](candidates/morigesh.md) | Hexer / Hunter | Hex | 4/5 | Candidate |
-| [Phase](candidates/phase.md) | Support / Mobility | Phase Link | 5/5 | **Roster v0.1** — `Hero.Phase` → `Hero.Muiren` ⏳ |
+| [Phase](candidates/phase.md) | Support / Mobility | Phase Link | 5/5 | **Roster v0.1** — `Hero.Muiren` → `Hero.Muiren` ⏳ |
 | [Narbash](candidates/narbash.md) | Support / Rhythm | Beat | 4/5 | Candidate |
 | [Iggy & Scorch](candidates/iggy-and-scorch.md) | Terrain Controller / Duo | Combustion Field | 5/5 | Candidate |
 | [Sparrow](candidates/sparrow.md) | Marksman | Precision Chain | 3/5 | Candidate |

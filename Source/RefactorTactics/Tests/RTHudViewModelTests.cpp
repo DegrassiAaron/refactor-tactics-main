@@ -72,7 +72,7 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
 	ARTUnit* Aevik = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
-	ARTUnit* Phase = SpawnHudVmUnit(World, TEXT("Hero.Phase"), /*TeamId*/ 0);
+	ARTUnit* Muiren = SpawnHudVmUnit(World, TEXT("Hero.Muiren"), /*TeamId*/ 0);
 	ARTUnit* Branth = SpawnHudVmUnit(World, TEXT("Hero.Branth"), /*TeamId*/ 1);
 	ARTUnit* Ivrin = SpawnHudVmUnit(World, TEXT("Hero.Ivrin"), /*TeamId*/ 1);
 

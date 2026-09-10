@@ -147,7 +147,7 @@ esso l'errore di aprire la cartella sbagliata.
 | Eroe (gioco) | `HeroId` (C++) | `<CharacterId>` (contenuti) |
 |---|---|---|
 | Gadget | `Hero.Aevik` | **`Gadget`** |
-| Phase | `Hero.Phase` | **`Phase`** |
+| Phase | `Hero.Muiren` | **`Phase`** |
 | Riktor | `Hero.Riktor` | **`Riktor`** |
 | Wraith | `Hero.Wraith` | **`Wraith`** |
 

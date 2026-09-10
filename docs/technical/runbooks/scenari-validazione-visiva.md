@@ -147,7 +147,7 @@ ostacoli `(-1,2)` `(1,-2)` `(2,1)` e la fascia Rough a costo 3 su `q=-2`.
 | Eroe | HP | MP | Attacco base | Note |
 |---|---:|---:|---|---|
 | Gadget | 90 | 5 | `Hero.Aevik.ArcPulse` 22, r4 | `LinearDischarge` 24 r5 linea cd2 · `Overload` 18 AoE r1 |
-| Phase | 95 | 5 | `Hero.Phase.PressureJet` 16 + Wet(1) + Push 1, r5 linea | fallback `AttackCell` |
+| Phase | 95 | 5 | `Hero.Muiren.PressureJet` 16 + Wet(1) + Push 1, r5 linea | fallback `AttackCell` |
 | Riktor | 120 | 4 | `Hero.Riktor.ImpactShot` 8 + Slow(1), r3 | PushResistance 1 · `Ram` = carica 20 + Push 1 |
 | Wraith | 90 | 6 | `Hero.Wraith.PulseShot` 21, r4 | il più mobile |
 
@@ -388,7 +388,7 @@ ambientale in mano a ogni eroe sarebbe una decisione di design — «chiunque pu
 non un cablaggio.
 
 La via canonica è un'altra, e il progetto l'ha già usata per le reazioni: `Hero.Aevik.ConductiveNode`,
-`Hero.Phase.MistVeil` e `Hero.Phase.FluidTrail` **esistono nel catalogo eroi con `Effects` vuoti**, e i loro commenti
+`Hero.Muiren.MistVeil` e `Hero.Muiren.FluidTrail` **esistono nel catalogo eroi con `Effects` vuoti**, e i loro commenti
 dichiarano il perché — quando furono scritte, il sistema d'ambiente non c'era. Ora c'è. Cablarle alla
 semantica core conservando l'identità dell'eroe è la stessa mossa di `Hero.Riktor.Ram` → `Action.Charge`.
 
@@ -448,7 +448,7 @@ Le due sorgenti di `Wet` hanno ora uno scenario ciascuna, e servono entrambe:
 
 | Scenario | Sorgente del bagnato | Cosa dimostra |
 |---|---|---|
-| `Visual.Combat.WaterElectricCoordinated` | `Hero.Phase.PressureJet`, priorità 50 | la **coordinazione fra due eroi** dentro lo stesso Blast: `90 − (16 + 32 − 5 di BaseShield) = 47` — Wraith ha 90 HP, non 100 |
+| `Visual.Combat.WaterElectricCoordinated` | `Hero.Muiren.PressureJet`, priorità 50 | la **coordinazione fra due eroi** dentro lo stesso Blast: `90 − (16 + 32 − 5 di BaseShield) = 47` — Wraith ha 90 HP, non 100 |
 | `Visual.Combat.WaterElectric` | il **terreno**, attraversato in fase Dash | che il bonus non dipende da chi bagna (D-029): `90 − (32 − 5 di BaseShield) = 63` — Wraith ha 90 HP, non 100 |
 
 ### Lacune dichiarate
@@ -457,8 +457,8 @@ Tre abilità del kit non hanno scenario, e non per dimenticanza:
 
 | Abilità | Perché no |
 |---|---|
-| `Hero.Phase.CircularTide` | il routing cura-agli-alleati / `Wet`-ai-nemici è dichiarato **incompleto** nel catalogo. Un'assertion scritta sul design invece che sul comportamento reale produrrebbe un `FAIL` che accusa il gioco di un difetto già noto |
-| `Hero.Phase.FluidTrail` | la mobilità è rappresentabile, la scia d'acqua no: resterebbe uno scenario che verifica un Dash e lo chiama `FluidTrail` |
+| `Hero.Muiren.CircularTide` | il routing cura-agli-alleati / `Wet`-ai-nemici è dichiarato **incompleto** nel catalogo. Un'assertion scritta sul design invece che sul comportamento reale produrrebbe un `FAIL` che accusa il gioco di un difetto già noto |
+| `Hero.Muiren.FluidTrail` | la mobilità è rappresentabile, la scia d'acqua no: resterebbe uno scenario che verifica un Dash e lo chiama `FluidTrail` |
 | `Hero.Wraith.Feint` | nessuna delle due metà è dichiarabile — `Status` si applica alle unità e non alle celle, e il `Reposition` passa da `MovementStyle`, non da `Effects` |
 
 Vanno scritte quando il comportamento è **osservabile**, misurando il primo run invece di derivarlo dal

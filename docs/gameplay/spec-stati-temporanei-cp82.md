@@ -134,7 +134,7 @@ all'ingresso: è già il comportamento coperto da `Terrain.Fire.ErodesTemporaryS
 ### D6 — Durata di `Wet` fuori dall'acqua = 1 turno *(chiude un «non specificato» del catalogo)*
 
 Il catalogo terreni §4 lascia aperta la durata di `Wet` applicato lontano dall'acqua. Il catalogo eroi la
-dichiara già **1 turno** per `Hero.Phase.PressureJet` e `Hero.Phase.CircularTide`: si adotta quel valore e si aggiorna il
+dichiara già **1 turno** per `Hero.Muiren.PressureJet` e `Hero.Muiren.CircularTide`: si adotta quel valore e si aggiorna il
 catalogo terreni, invece di tenere aperta una domanda a cui il repository ha già risposto.
 
 ### D7 — Uno stato che finisce **quando paghi**: durata più `RemoveStatus`, non una terza forma *(2026-09-04)*

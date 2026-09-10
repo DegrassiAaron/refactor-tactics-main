@@ -83,7 +83,7 @@ public:
 	 * la selezione pre-partita esistera' (north-star) questa restera' solo il valore di partenza.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
-	TArray<FName> Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Phase") };
+	TArray<FName> Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren") };
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
 	TArray<FName> Team1Heroes = { TEXT("Hero.Branth"), TEXT("Hero.Ivrin") };

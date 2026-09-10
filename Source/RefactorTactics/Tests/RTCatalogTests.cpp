@@ -499,7 +499,7 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		{ TEXT("Action.Push"),            TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.Reposition"),      TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.Root"),            TEXT("Aspetta il suo eroe") },
-		// `Action.Shield` e' USCITA da questo elenco: la portano `Hero.Phase.TideGuard` e
+		// `Action.Shield` e' USCITA da questo elenco: la portano `Hero.Muiren.TideGuard` e
 		// `Hero.Ivrin.PhaseGuard`, uno per squadra. Ci si era provato il 2026-08-28 con [D-224] e il
 		// tentativo era stato RITIRATO — un sesto slot d'eroe portava il kit a 11 voci contro i 10 tasti
 		// numerici, e l'azione sarebbe stata raggiungibile per QUESTO gate e impremibile per il giocatore.

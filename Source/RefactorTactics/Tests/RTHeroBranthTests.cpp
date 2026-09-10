@@ -102,18 +102,18 @@ bool FRTBranthPushResistanceTest::RunTest(const FString&)
 	// qualcuno rimette una resistenza nativa senza passare da una decisione.
 	URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
 	URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
-	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
 	URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
 	TestEqual(TEXT("Branth non ha piu' resistenza nativa"), Branth->PushResistance, 0);
 	TestEqual(TEXT("Aevik non resiste"), Aevik->PushResistance, 0);
-	TestEqual(TEXT("Phase non resiste"), Phase->PushResistance, 0);
+	TestEqual(TEXT("Phase non resiste"), Muiren->PushResistance, 0);
 	TestEqual(TEXT("Ivrin non resiste"), Ivrin->PushResistance, 0);
 
 	// Il prezzo, in dati: piu' salute di tutti, ma il movimento piu' basso finora.
 	TestTrue(TEXT("piu' salute di Aevik e Phase"),
-		Branth->MaxHealth > Aevik->MaxHealth && Branth->MaxHealth > Phase->MaxHealth);
+		Branth->MaxHealth > Aevik->MaxHealth && Branth->MaxHealth > Muiren->MaxHealth);
 	TestTrue(TEXT("ma meno movimento"),
-		Branth->MovePoints < Aevik->MovePoints && Branth->MovePoints < Phase->MovePoints);
+		Branth->MovePoints < Aevik->MovePoints && Branth->MovePoints < Muiren->MovePoints);
 
 	// Il commento che stava qui diceva `PushResistance` "un DATO senza consumatore", e che il resolver
 	// applicava solo `GuardResistedPushDistance`. **Era invecchiato**: il ramo `ERTActionEffect::Push` di

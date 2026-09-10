@@ -376,7 +376,7 @@ tabella di redirect stanno in [`scenario-index-e-tag.md`](../tooling/scenario-in
 | `tags` | *(opzionale)* parole per cui filtrare nell'Editor: tipologia, lente, personaggio. Vedi [`scenario-index-e-tag.md`](../tooling/scenario-index-e-tag.md) |
 | `mapRadius` | arena esagonale piena generata da codice (nessun `.umap` da versionare) |
 | `cells` | *(opzionale)* celle da modificare: `blocksMovement`, `blocksLineOfSight`, `moveCost` |
-| `hero` | ID stabile dal catalogo: `Hero.Aevik` · `Hero.Phase` · `Hero.Riktor` · `Hero.Wraith` |
+| `hero` | ID stabile dal catalogo: `Hero.Aevik` · `Hero.Muiren` · `Hero.Riktor` · `Hero.Wraith` |
 | `cell` | `[q, r]` oppure `[q, r, layer]` — il layer è opzionale e vale 0 |
 | `move` | lista di **waypoint**, come li produrrebbe il giocatore cliccando |
 | `ability` | `ActionId` dell'abilità (`Hero.Aevik.ArcPulse`) — per **ID**, non per indice |

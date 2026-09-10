@@ -621,13 +621,13 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingMoveAndDashBudgetsAreIndependentTest,
 bool FRTFacingMoveAndDashBudgetsAreIndependentTest::RunTest(const FString&)
 {
 	// Phase e' la coppia che dimostra da sola perche' i budget sono DUE: Move 2, Dash 3.
-	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	const URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
 	if (!Phase)
 	{
 		AddError(TEXT("il catalogo non ha prodotto Phase"));
 		return false;
 	}
-	const FRTPivotBudget Budget(Phase->MoveEndPivotMaxSteps, Phase->DashEndPivotMaxSteps);
+	const FRTPivotBudget Budget(Muiren->MoveEndPivotMaxSteps, Muiren->DashEndPivotMaxSteps);
 	const TArray<FRTCellId> Path = MakePath(FRTCellId(0, 0, 0), { ERTHexDirection::E, ERTHexDirection::NE });
 
 	const int32 MoveNum =
@@ -650,7 +650,7 @@ bool FRTFacingMoveAndDashBudgetsAreIndependentTest::RunTest(const FString&)
 		TestTrue(TEXT("ogni Linear* e' famiglia Dash"),
 			URTFacingLibrary::FamilyForStyle(Style) == ERTMovementFamily::Dash);
 		TestEqual(TEXT("e legge il budget Dash"),
-			URTFacingLibrary::PivotStepsForStyle(Budget, Style), Phase->DashEndPivotMaxSteps);
+			URTFacingLibrary::PivotStepsForStyle(Budget, Style), Muiren->DashEndPivotMaxSteps);
 	}
 	return true;
 }
@@ -696,7 +696,7 @@ bool FRTFacingCatalogPivotBudgetsMatchAdr0008Test::RunTest(const FString&)
 	struct FExpected { const TCHAR* HeroId; int32 Move; int32 Dash; };
 	const FExpected Expected[] = {
 		{ TEXT("Hero.Aevik"), 2, 2 },
-		{ TEXT("Hero.Phase"),  2, 3 },
+		{ TEXT("Hero.Muiren"),  2, 3 },
 		{ TEXT("Hero.Branth"), 1, 0 },
 		{ TEXT("Hero.Ivrin"), 3, 3 },
 	};

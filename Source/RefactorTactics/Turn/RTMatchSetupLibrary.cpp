@@ -890,7 +890,7 @@ TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayBasinSpawns()
 	// dentro un terreno che la penalizza al primo passo.
 	return {
 		FRTShowcaseSpawn(TEXT("Hero.Aevik"),    /*TeamId=*/ 0, FRTCellId(-4, 0, 0)),
-		FRTShowcaseSpawn(TEXT("Hero.Phase"),    /*TeamId=*/ 0, FRTCellId(-4, 1, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Muiren"),    /*TeamId=*/ 0, FRTCellId(-4, 1, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Branth"), /*TeamId=*/ 1, FRTCellId( 4, 0, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Ivrin"),  /*TeamId=*/ 1, FRTCellId( 4, 1, 0)),
 	};
@@ -902,7 +902,7 @@ TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayLiteSpawns()
 	// comincia dentro un terreno che la penalizza al primo passo.
 	return {
 		FRTShowcaseSpawn(TEXT("Hero.Aevik"),    /*TeamId=*/ 0, FRTCellId(-5,  2, 0)),
-		FRTShowcaseSpawn(TEXT("Hero.Phase"),    /*TeamId=*/ 0, FRTCellId(-5,  3, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Muiren"),    /*TeamId=*/ 0, FRTCellId(-5,  3, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Branth"), /*TeamId=*/ 1, FRTCellId( 5, -2, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Ivrin"),  /*TeamId=*/ 1, FRTCellId( 5, -3, 0)),
 	};

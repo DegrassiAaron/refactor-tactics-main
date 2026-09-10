@@ -367,7 +367,7 @@ ARTGameMode::ARTGameMode()
 		static ConstructorHelpers::FClassFinder<ARTUnit> IvrinBP(TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith"));
 
 		Assegna(TEXT("Hero.Aevik"), GadgetBP);
-		Assegna(TEXT("Hero.Phase"),  PhaseBP);
+		Assegna(TEXT("Hero.Muiren"),  PhaseBP);
 		Assegna(TEXT("Hero.Branth"), BranthBP);
 		Assegna(TEXT("Hero.Ivrin"), IvrinBP);
 	}

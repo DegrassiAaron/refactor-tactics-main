@@ -24,7 +24,7 @@
   "_nota_anti_vacuita": "Ogni gruppo porta un'assertion che cade se il suo fenomeno non avviene: `UnitAtCell P_DOOR (1,1,0)` per la deviazione attorno alla porta, `UnitHpEquals G_COV 76` per i due colpi che la copertura tratta in modo diverso, e `UnitHpEquals G_HIGH 53` per i due colpi identici che l'altura NON differenzia. 🔑 **Il 53 e' il numero piu' importante della scena**: e' la prova che il bonus non c'e', e sarebbe piu' basso se ci fosse.",
 
   "units": [
-    { "id": "P_DOOR", "hero": "Hero.Phase", "team": 0, "cell": [0, 1, 0] },
+    { "id": "P_DOOR", "hero": "Hero.Muiren", "team": 0, "cell": [0, 1, 0] },
 
     { "id": "G_COV", "hero": "Hero.Aevik", "team": 0, "cell": [0, 0, 0] },
     { "id": "W_COV", "hero": "Hero.Ivrin", "team": 1, "cell": [0, -2, 0] },

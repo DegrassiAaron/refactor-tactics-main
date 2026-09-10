@@ -2162,15 +2162,15 @@ ICONS = [
 
     # Le altre quindici ability del roster. Fuori dal set richiesto come quelle di Gadget: hanno una
     # chiave regolare sotto `Action.` ma non stanno nel catalogo generico.
-    ("Action.Hero.Phase.PressureJet", g_phase_pressure_jet, "Utility",
+    ("Action.Hero.Muiren.PressureJet", g_phase_pressure_jet, "Utility",
      "roster — Attack/Line, Damage + Wet + Push"),
-    ("Action.Hero.Phase.CircularTide", g_phase_circular_tide, "Utility",
+    ("Action.Hero.Muiren.CircularTide", g_phase_circular_tide, "Utility",
      "roster — Attack/Area, l'unica d'area che cura"),
-    ("Action.Hero.Phase.FluidTrail", g_phase_fluid_trail, "Utility",
+    ("Action.Hero.Muiren.FluidTrail", g_phase_fluid_trail, "Utility",
      "roster — FastMovement, la scia e' meta' del significato"),
-    ("Action.Hero.Phase.MistVeil", g_phase_mist_veil, "Utility",
+    ("Action.Hero.Muiren.MistVeil", g_phase_mist_veil, "Utility",
      "roster — Environment/Area, da tenere distinta da Status.Obscured"),
-    ("Action.Hero.Phase.FlowReaction", g_phase_flow_reaction, "Reaction",
+    ("Action.Hero.Muiren.FlowReaction", g_phase_flow_reaction, "Reaction",
      "roster — Preparation, si arma e risponde"),
 
     ("Action.Hero.Branth.ImpactShot", g_branth_impact_shot, "Attack",
@@ -2897,7 +2897,7 @@ PHASE_INK = {
 
 # Le macro-fasi senza colore: D-233 le lascia aperte di proposito.
 # ⚠️ `Cleanup` NON e' vuota: **cinque** icone ci mappano via `Environment` — `Electrify`, `Ignite`,
-# `CreateWater`, piu' `Hero.Aevik.ConductiveNode` e `Hero.Phase.MistVeil`. Sono il consumatore
+# `CreateWater`, piu' `Hero.Aevik.ConductiveNode` e `Hero.Muiren.MistVeil`. Sono il consumatore
 # reale che l'open point di D-233 aspettava, e il gate le CONTA invece di tacerle: quando `Cleanup`
 # prendera' un colore, si sa gia' su che cosa cade.
 MATCH_PHASES_WITHOUT_INK = ("Planning", "Cleanup")
@@ -2922,8 +2922,8 @@ COLOR_DEBT = {
     # abilita' d'eroe (14)
     "Action.Hero.Aevik.ArcPulse", "Action.Hero.Aevik.LinearDischarge",
     "Action.Hero.Aevik.Overload", "Action.Hero.Aevik.ReactiveCapacitor",
-    "Action.Hero.Phase.CircularTide", "Action.Hero.Phase.FlowReaction",
-    "Action.Hero.Phase.FluidTrail", "Action.Hero.Phase.PressureJet",
+    "Action.Hero.Muiren.CircularTide", "Action.Hero.Muiren.FlowReaction",
+    "Action.Hero.Muiren.FluidTrail", "Action.Hero.Muiren.PressureJet",
     "Action.Hero.Branth.Interposition", "Action.Hero.Branth.Ram",
     "Action.Hero.Ivrin.Deflection", "Action.Hero.Ivrin.Feint",
     "Action.Hero.Ivrin.InterceptShot", "Action.Hero.Ivrin.PassingBlade",

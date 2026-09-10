@@ -48,7 +48,7 @@ test('il radar di confronto sovrappone due eroi e li distingue', () => {
 test('anche il confronto ha decimali fissi', () => {
   const svg = renderCompare(
     { name: 'Aevik', values: profileAxes(hero('Aevik')) },
-    { name: 'Phase', values: profileAxes(hero('Phase')) },
+    { name: 'Muiren', values: profileAxes(hero('Muiren')) },
     PROFILE_AXES,
   );
   for (const n of svg.match(/-?\d+\.\d+/g) ?? []) assert.match(n, /^-?\d+\.\d{2}$/);

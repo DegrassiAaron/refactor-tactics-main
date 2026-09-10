@@ -323,7 +323,7 @@ Misurato: nel roster canonico l'unica spinta **ostile** disponibile è **`Hero.B
 (`Ability/RTHeroCatalogLibrary.cpp:720-729` — i numeri nel commento a `:720`, l'identificatore a `:728`),
 che è `Action.Charge` — 20 danni + `Push 1` — e il cui impatto entra nel Blast via
 `AppendChargeImpactIntents` (`Turn/RTTurnManager.cpp:5146`). Le altre due sorgenti di `Push` del roster
-(`Hero.Phase.PressureJet`, la variante `CircularTide.Impact`) appartengono a **Phase stessa**, quindi
+(`Hero.Muiren.PressureJet`, la variante `CircularTide.Impact`) appartengono a **Phase stessa**, quindi
 servirebbero due Phase.
 
 ⚠️ **E la formazione di default lo consente, ma il trigger lo produce un bot.** `RTGameMode.h:86-89` dà

@@ -196,7 +196,7 @@ bool FRTPlanBotsNoTeammateOverlapTest::RunTest(const FString&)
 	ARTUnit* BotA = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-2, 0, 0), true);
 	ARTUnit* BotB = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 1, 0), true);
 	ARTUnit* FoeA = SpawnTeamPlanningUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0, 0), true);
-	ARTUnit* FoeB = SpawnTeamPlanningUnit(World, 1, URTHeroCatalogLibrary::MakePhase(), FRTCellId(2, -1, 0), true);
+	ARTUnit* FoeB = SpawnTeamPlanningUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(2, -1, 0), true);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !BotA || !BotB || !FoeA || !FoeB) { DestroyTeamPlanningWorld(World); return false; }
 

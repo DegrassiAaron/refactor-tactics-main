@@ -38,14 +38,14 @@ test('legge i quattro eroi del roster e le loro venti abilita', () => {
     // sostituzione meccanica produce un letterale corretto nei nomi e sbagliato nell'ordine.
     // ⚠️ D-334 (`Riktor` -> `Branth`) invece la RIORDINA, ed e' la prima rinomina che lo fa: `Branth`
     // precede `Aevik`. L'avvertenza qui sopra ha colto il difetto al primo tentativo.
-    // ⚠️ E la SECONDA e' `Wraith` -> `Ivrin` (#2491): stava in coda, ora precede `Phase`. La
-    // sostituzione meccanica aveva prodotto `['Branth','Aevik','Phase','Ivrin']` — nomi giusti,
+    // ⚠️ E la SECONDA e' `Wraith` -> `Ivrin` (#2491): stava in coda, ora precede `Muiren`. La
+    // sostituzione meccanica aveva prodotto `['Branth','Aevik','Muiren','Ivrin']` — nomi giusti,
     // ordine sbagliato — e questo test e' caduto dicendo esattamente dove. E' il difetto che
     // l'avvertenza descrive, capitato una seconda volta e intercettato dallo stesso assert.
     // ⚠️ E la TERZA e' `Gadget` -> `Aevik` (#2491): passa dalla seconda posizione alla PRIMA. Tre
     // rinomine su quattro hanno spostato l'ordine, e ogni volta e' stato questo assert a dirlo — la
     // sostituzione meccanica produce nomi giusti in posizione sbagliata, che nessun compilatore vede.
-    ['Aevik', 'Branth', 'Ivrin', 'Phase'],
+    ['Aevik', 'Branth', 'Ivrin', 'Muiren'],
   );
   assert.equal(
     heroes.reduce((n, h) => n + h.abilities.length, 0),
@@ -167,8 +167,8 @@ test('una reazione rinviata a E14 dichiara status deferred e nessuna semantica c
   // tabella, e con lei il denominatore. Il caso da pinnare resta — una reazione davvero rinviata —
   // e oggi l'unica e' `FlowReaction`. Cambiare soggetto e' l'unico modo di NON indebolire il test:
   // cancellarlo avrebbe tolto la copertura a `status: 'deferred'`, che nessun altro test esercita.
-  const phase = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Phase')!;
-  const flow = phase.abilities.find((a) => a.id === 'Hero.Phase.FlowReaction')!;
+  const muiren = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Muiren')!;
+  const flow = muiren.abilities.find((a) => a.id === 'Hero.Muiren.FlowReaction')!;
 
   assert.equal(flow.reaction?.status, 'deferred');
   assert.equal(flow.reaction?.coreSemantics, null);

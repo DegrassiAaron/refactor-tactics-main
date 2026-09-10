@@ -564,7 +564,7 @@ nell'acqua in fase **Dash**, prima del Blast — ed è oggi il primo test end-to
 resta quella **giusta**, la suite non è rossa e il difetto non è nascosto. Quando #241 verrà chiusa, sarà
 `ExpectedFailScenariosReallyFail` a diventare rosso e a chiedere di promuoverlo.
 
-Tre abilità del kit (`Hero.Phase.CircularTide`, `Hero.Phase.FluidTrail`, `Hero.Wraith.Feint`) restano **senza scenario**, e
+Tre abilità del kit (`Hero.Muiren.CircularTide`, `Hero.Muiren.FluidTrail`, `Hero.Wraith.Feint`) restano **senza scenario**, e
 sono elencate col perché: il loro comportamento non è derivabile dal catalogo, e un'assertion scritta sul
 design invece che sul comportamento reale produrrebbe un rosso che accusa il gioco di un difetto già noto.
 

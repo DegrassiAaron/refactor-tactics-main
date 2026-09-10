@@ -26,7 +26,7 @@ test('un danno incondizionato entra per intero', () => {
 });
 
 test('i quattro power_raw coincidono con quelli pubblicati in #603', () => {
-  const atteso: Record<string, number> = { Aevik: 55.2, Ivrin: 31.0, Branth: 18.0, Phase: 16.0 };
+  const atteso: Record<string, number> = { Aevik: 55.2, Ivrin: 31.0, Branth: 18.0, Muiren: 16.0 };
   for (const hero of roster()) {
     assert.equal(powerRaw(hero), atteso[hero.name], `${hero.name}`);
   }
@@ -34,5 +34,5 @@ test('i quattro power_raw coincidono con quelli pubblicati in #603', () => {
 
 test('i quattro rating power sono quelli pubblicati, e distinti', () => {
   const rating = Object.fromEntries(roster().map((h) => [h.name, powerRating(h)]));
-  assert.deepEqual(rating, { Aevik: 6, Ivrin: 4, Branth: 3, Phase: 2 });
+  assert.deepEqual(rating, { Aevik: 6, Ivrin: 4, Branth: 3, Muiren: 2 });
 });

@@ -31,7 +31,7 @@ TArray<FRTReactionProfileDef> URTCatalogLibrary::GetReactionProfileCatalog()
 
 		// `SIDESTEP` si esprime con `SelfReposition`, e NON e' una primitiva scelta per comodita': `BAS-4`
 		// decide che questo profilo «risponde al **Forced Movement**» nella stessa forma di
-		// `Hero.Phase.FlowReaction`, cioe' `Reposition 1`. La stessa che `Reaction.EmergencyDash` e
+		// `Hero.Muiren.FlowReaction`, cioe' `Reposition 1`. La stessa che `Reaction.EmergencyDash` e
 		// `Reaction.HazardEscape` gia' usano — quindi lo spostamento passa dai dieci passi di
 		// `ApplyForcedDisplacement` (causa nel TurnLog, hazard attraversati, facing, piano che segue) invece
 		// di essere un `SetActorLocation` di questa feature.
@@ -745,7 +745,7 @@ FName URTCatalogLibrary::DefaultWeaponVariantFor(const FName& HeroId)
 		// Aevik vede a 7 e sparava a 4: `Precision` e' l'unica che riduce quel divario (18 a portata 5).
 		{ FName(TEXT("Hero.Aevik")),    FName(TEXT("Weapon.Precision")) },
 		// Phase e' il setter del roster, e `Impact` porta la sua spinta da 1 a 2 (D-085).
-		{ FName(TEXT("Hero.Phase")),    FName(TEXT("Weapon.Impact")) },
+		{ FName(TEXT("Hero.Muiren")),    FName(TEXT("Weapon.Impact")) },
 		// Ivrin e' il piu' mobile (Move 6): `Suppressive` gli da' come impedirlo agli altri.
 		{ FName(TEXT("Hero.Ivrin")),  FName(TEXT("Weapon.Suppressive")) },
 		// Branth tiene `Impact` perche' e' l'unica che NON gli toglie danno — paga in portata — e l'attacco
@@ -772,8 +772,8 @@ FName URTCatalogLibrary::DefaultGadgetFor(const FName& HeroId)
 		// Isolante: immunita' a **una** propagazione elettrica. Aevik e' l'eroe elettrico del roster.
 		{ FName(TEXT("Hero.Aevik")), FName(TEXT("Gadget.Insulator")) },
 		// Sprinkler: acqua raggio 1. Dal 2026-08-16 e' anche l'unico produttore d'acqua che il roster puo'
-		// portare in campo — `Hero.Phase.FluidTrail` l'ha persa con D-046 superata (#1006).
-		{ FName(TEXT("Hero.Phase")), FName(TEXT("Gadget.Sprinkler")) },
+		// portare in campo — `Hero.Muiren.FluidTrail` l'ha persa con D-046 superata (#1006).
+		{ FName(TEXT("Hero.Muiren")), FName(TEXT("Gadget.Sprinkler")) },
 		// Copertura portatile: crea una copertura bassa su un bordo. Branth e' l'eroe delle strutture.
 		{ FName(TEXT("Hero.Branth")), FName(TEXT("Gadget.PortableCover")) },
 		// Sensore: alza la Team Knowledge in un'area.
@@ -790,7 +790,7 @@ FName URTCatalogLibrary::DefaultReactionModuleFor(const FName& HeroId)
 		// Scudo reattivo: scudo 15 quando subisci danno.
 		{ FName(TEXT("Hero.Aevik")), FName(TEXT("Reaction.ReactiveShield")) },
 		// Fuga hazard: `Reposition 1` quando la cella diventa pericolosa.
-		{ FName(TEXT("Hero.Phase")), FName(TEXT("Reaction.HazardEscape")) },
+		{ FName(TEXT("Hero.Muiren")), FName(TEXT("Reaction.HazardEscape")) },
 		// 🔴 **Purificazione, non interposizione** (`#1403`, [D-218]). §4 prescriveva
 		// `Reaction.AllyIntercept`, costruito su `Action.Intercept` — e la reazione di KIT di Branth,
 		// `Hero.Branth.Interposition`, e' costruita sullo **stesso** `Action.Intercept`. Lo slot di loadout
@@ -1593,7 +1593,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	}
 
 	// `CreateSmoke` — la TERZA ambientale, e nasce da `#2087`. Il fumo era l'unica delle otto superfici che
-	// nessuna azione CORE sapeva creare: `Hero.Phase.MistVeil` lo crea, ma e' d'eroe, e un gadget non si
+	// nessuna azione CORE sapeva creare: `Hero.Muiren.MistVeil` lo crea, ma e' d'eroe, e un gadget non si
 	// costruisce su un'abilita' di Phase. `Gadget.SmokeEmitter` sta a questa azione come `Gadget.Sprinkler`
 	// sta a `CreateWater` — ed e' la ragione per cui l'azione esiste prima del gadget, non insieme.
 	//

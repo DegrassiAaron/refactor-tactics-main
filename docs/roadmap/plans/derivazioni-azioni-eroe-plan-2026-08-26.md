@@ -146,8 +146,8 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 	// una derivazione di parametri — tre dei quattro hanno i numeri scritti a mano, non presi dal core.
 	const TMap<FName, FName> Atteso = {
 		{ TEXT("Hero.Aevik.ConductiveNode"),     TEXT("Action.Electrify")    },
-		{ TEXT("Hero.Phase.FluidTrail"),          TEXT("Action.Dash")         },
-		{ TEXT("Hero.Phase.MistVeil"),            TEXT("Action.Ignite")       },
+		{ TEXT("Hero.Muiren.FluidTrail"),          TEXT("Action.Dash")         },
+		{ TEXT("Hero.Muiren.MistVeil"),            TEXT("Action.Ignite")       },
 		{ TEXT("Hero.Riktor.KineticPanel"),       TEXT("Action.CreateCover")  },
 		{ TEXT("Hero.Riktor.Ram"),                TEXT("Action.Charge")       },
 		{ TEXT("Hero.Aevik.ReactiveCapacitor"),  TEXT("Action.Counter")      },
@@ -339,7 +339,7 @@ Dopo — la riga di `PropagationLimit` **resta**, e legge il core una volta sola
 
 ```cpp
 	const FRTActionDef DashDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
-	URTActionData* FluidTrail = MakeHeroActionFromCore(TEXT("Hero.Phase.FluidTrail"),
+	URTActionData* FluidTrail = MakeHeroActionFromCore(TEXT("Hero.Muiren.FluidTrail"),
 		TEXT("Action.Dash"), /*Cooldown*/ 2, ERTAbilityShape::Single, /*AreaRadius*/ 0, {},
 		/*bUseCoreSlot*/ false);
 	FluidTrail->Def.Slot = ERTActionSlot::Movement; // mobilita' che ATTRAVERSA: slot movimento [D-191]
@@ -354,7 +354,7 @@ in cui la riga `const FRTActionDef IgniteDef = URTCatalogLibrary::FindCoreAction
 darebbe una variabile non usata.
 
 ```cpp
-	URTActionData* MistVeil = MakeHeroActionFromCore(TEXT("Hero.Phase.MistVeil"),
+	URTActionData* MistVeil = MakeHeroActionFromCore(TEXT("Hero.Muiren.MistVeil"),
 		TEXT("Action.Ignite"), /*Cooldown*/ 3, ERTAbilityShape::Area, /*AreaRadius*/ 1, {},
 		/*bUseCoreSlot*/ false, ERTActionFallback::Cancel, /*bUseCoreFallback*/ false);
 	MistVeil->Def.Effects.Empty(); // «crea fumo», non brucia: nessun effetto ereditato da Ignite

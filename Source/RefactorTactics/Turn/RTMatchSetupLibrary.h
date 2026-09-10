@@ -16,7 +16,7 @@ struct FRTShowcaseSpawn
 {
 	GENERATED_BODY()
 
-	/** `HeroId` del catalogo eroi (`Hero.Aevik`, `Hero.Phase`, `Hero.Branth`, `Hero.Ivrin`), non un archetipo legacy. */
+	/** `HeroId` del catalogo eroi (`Hero.Aevik`, `Hero.Muiren`, `Hero.Branth`, `Hero.Ivrin`), non un archetipo legacy. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Showcase")
 	FName HeroId;
 

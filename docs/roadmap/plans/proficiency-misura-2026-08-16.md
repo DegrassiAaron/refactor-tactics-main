@@ -37,14 +37,14 @@ Fonte: `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp`, le quattro fac
 | `Hero.Aevik.Overload` | `Damage 18`, area r1 | ❌ |
 | `Hero.Aevik.ReactiveCapacitor` | `Shield 15` + `Damage 10` | ❌ |
 
-### Phase (`Hero.Phase`) — `Affinity.Water`, debolezza `Affinity.Electricity`
+### Phase (`Hero.Muiren`) — `Affinity.Water`, debolezza `Affinity.Electricity`
 
 | Abilità | Effetti dichiarati | Elementale? |
 |---|---|:--:|
-| `Hero.Phase.PressureJet` | `Status.Wet` + `Push 1`, linea | ✅ **Apply** Water |
-| `Hero.Phase.CircularTide` | `Heal 18` — il `Wet` è uscito con #1006 | ❌ |
-| `Hero.Phase.FluidTrail` | `Action.Dash` — l'acqua è uscita con #1006 | ❌ |
-| `Hero.Phase.MistVeil` | `bCreatesSurface` → `Smoke` | ⚠️ vedi «Smoke» |
+| `Hero.Muiren.PressureJet` | `Status.Wet` + `Push 1`, linea | ✅ **Apply** Water |
+| `Hero.Muiren.CircularTide` | `Heal 18` — il `Wet` è uscito con #1006 | ❌ |
+| `Hero.Muiren.FluidTrail` | `Action.Dash` — l'acqua è uscita con #1006 | ❌ |
+| `Hero.Muiren.MistVeil` | `bCreatesSurface` → `Smoke` | ⚠️ vedi «Smoke» |
 
 ### Riktor (`Hero.Riktor`) — `Affinity.Structures`, debolezza `Affinity.Movement`
 
@@ -80,7 +80,7 @@ Fonte: `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp`, le quattro fac
 
 ## Tre questioni che la misura ha sollevato e non risolve
 
-**1. `Smoke` è un elemento?** `Hero.Phase.MistVeil` crea davvero una superficie (`bCreatesSurface` → `Smoke`), quindi *genera* qualcosa. Se `Smoke` conta come elemento, Phase ha due capability di elementi **diversi** — e la grammatica di #995 conta per elemento, quindi resterebbe `Access` di Water più `Access` di Smoke. Se non conta, va scritto perché. Oggi la issue non nomina né `Smoke` né `Fire` fra gli elementi.
+**1. `Smoke` è un elemento?** `Hero.Muiren.MistVeil` crea davvero una superficie (`bCreatesSurface` → `Smoke`), quindi *genera* qualcosa. Se `Smoke` conta come elemento, Phase ha due capability di elementi **diversi** — e la grammatica di #995 conta per elemento, quindi resterebbe `Access` di Water più `Access` di Smoke. Se non conta, va scritto perché. Oggi la issue non nomina né `Smoke` né `Fire` fra gli elementi.
 
 **2. Le azioni core ospitate contano.** `ConductiveNode` **è** `Action.Electrify` e `FluidTrail` **era** `Action.CreateWater`: l'eroe è il veicolo di un'azione di catalogo. #1006 ha scartato l'opzione di escluderle — sarebbe scesa anche la baseline di Gadget — quindi **contano**, ed è una decisione già presa che l'owner deve scrivere invece di lasciare implicita.
 

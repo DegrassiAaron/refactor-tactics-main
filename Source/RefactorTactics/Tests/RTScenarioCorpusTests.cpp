@@ -358,7 +358,7 @@ bool FRTScenarioUnknownCapabilityIsErrorTest::RunTest(const FString&)
 		  "version": 1, "seed": 0, "mapRadius": 4,
 		  "units": [
 		    { "id": "A1", "hero": "Hero.Ivrin", "team": 0, "cell": [-1, 0, 0] },
-		    { "id": "B1", "hero": "Hero.Phase",   "team": 1, "cell": [1, 0, 0] }
+		    { "id": "B1", "hero": "Hero.Muiren",   "team": 1, "cell": [1, 0, 0] }
 		  ],
 		  "turns": [ { "requires": [%s], "intents": [] } ],
 		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
@@ -542,7 +542,7 @@ bool FRTScenarioBlockedBeatsFinalAssertionsTest::RunTest(const FString&)
 	  "mapRadius": 4,
 	  "units": [
 	    { "id": "A1", "hero": "Hero.Ivrin", "team": 0, "cell": [-1, 0, 0] },
-	    { "id": "B1", "hero": "Hero.Phase",   "team": 1, "cell": [1, 0, 0] }
+	    { "id": "B1", "hero": "Hero.Muiren",   "team": 1, "cell": [1, 0, 0] }
 	  ],
 	  "turns": [
 	    {

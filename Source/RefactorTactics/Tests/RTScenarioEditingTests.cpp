@@ -74,7 +74,7 @@ bool FRTScenarioEditingAddMoveRemoveTest::RunTest(const FString&)
 
 	// --- Add ---
 	if (!TestEqual(TEXT("una unita' nuova si schiera"),
-		Draft.AddUnit(TEXT("A2"), FName(TEXT("Hero.Phase")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::NE, Error),
+		Draft.AddUnit(TEXT("A2"), FName(TEXT("Hero.Muiren")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::NE, Error),
 		ERTScenarioAuthoringResult::Success))
 	{
 		AddError(Error);
@@ -89,7 +89,7 @@ bool FRTScenarioEditingAddMoveRemoveTest::RunTest(const FString&)
 	if (TestTrue(TEXT("A2 e' nel modello canonico"), Index != INDEX_NONE))
 	{
 		const FRTScenarioUnit& Canonical = Draft.GetScenario().Units[Index];
-		TestEqual(TEXT("eroe scritto nel dato"), Canonical.HeroId, FName(TEXT("Hero.Phase")));
+		TestEqual(TEXT("eroe scritto nel dato"), Canonical.HeroId, FName(TEXT("Hero.Muiren")));
 		TestEqual(TEXT("squadra scritta nel dato"), Canonical.TeamId, 0);
 		TestEqual(TEXT("cella scritta nel dato"), Canonical.Cell, FRTCellId(-1, 1, 0));
 		TestEqual(TEXT("facing scritto nel dato"), Canonical.Facing, ERTHexDirection::NE);
@@ -156,25 +156,25 @@ bool FRTScenarioEditingNamesItsRefusalsTest::RunTest(const FString&)
 
 	// (1) Stable Unit ID gia' preso.
 	TestEqual(TEXT("id duplicato rifiutato"),
-		Draft.AddUnit(TEXT("A1"), FName(TEXT("Hero.Phase")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::Invalid);
+		Draft.AddUnit(TEXT("A1"), FName(TEXT("Hero.Muiren")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::Invalid);
 	TestTrue(*FString::Printf(TEXT("l'errore nomina l'id duplicato (era: %s)"), *Error),
 		Error.Contains(TEXT("A1")) && Error.Contains(TEXT("duplicat")));
 
 	// (2) Cella gia' occupata da un'altra unita'.
 	TestEqual(TEXT("cella occupata rifiutata"),
-		Draft.AddUnit(TEXT("C1"), FName(TEXT("Hero.Phase")), 0, FRTCellId(2, 0, 0), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::Invalid);
+		Draft.AddUnit(TEXT("C1"), FName(TEXT("Hero.Muiren")), 0, FRTCellId(2, 0, 0), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::Invalid);
 	TestTrue(*FString::Printf(TEXT("l'errore nomina la cella (era: %s)"), *Error),
 		Error.Contains(TEXT("cella")));
 
 	// (3) Cella fuori dall'arena: raggio 3, questa e' a distanza 9.
 	TestEqual(TEXT("cella fuori arena rifiutata"),
-		Draft.AddUnit(TEXT("C2"), FName(TEXT("Hero.Phase")), 0, FRTCellId(9, 0, 0), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::Invalid);
+		Draft.AddUnit(TEXT("C2"), FName(TEXT("Hero.Muiren")), 0, FRTCellId(9, 0, 0), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::Invalid);
 	TestTrue(*FString::Printf(TEXT("l'errore nomina l'arena (era: %s)"), *Error),
 		Error.Contains(TEXT("arena")));
 
 	// (4) Cella che blocca il movimento: lo scenario ne dichiara una a (0,1,0).
 	TestEqual(TEXT("cella bloccante rifiutata"),
-		Draft.AddUnit(TEXT("C3"), FName(TEXT("Hero.Phase")), 0, FRTCellId(0, 1, 0), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::Invalid);
+		Draft.AddUnit(TEXT("C3"), FName(TEXT("Hero.Muiren")), 0, FRTCellId(0, 1, 0), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::Invalid);
 	TestTrue(*FString::Printf(TEXT("l'errore nomina il blocco (era: %s)"), *Error),
 		Error.Contains(TEXT("blocca")));
 
@@ -186,7 +186,7 @@ bool FRTScenarioEditingNamesItsRefusalsTest::RunTest(const FString&)
 
 	// (6) Id vuoto.
 	TestEqual(TEXT("id vuoto rifiutato"),
-		Draft.AddUnit(FString(), FName(TEXT("Hero.Phase")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::Invalid);
+		Draft.AddUnit(FString(), FName(TEXT("Hero.Muiren")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::Invalid);
 	TestTrue(*FString::Printf(TEXT("l'errore nomina l'id (era: %s)"), *Error), Error.Contains(TEXT("id")));
 
 	// ⚠️ Sei rifiuti, e **nessuno** deve aver lasciato traccia: un'operazione che fallisce a meta' lascia lo
@@ -257,10 +257,10 @@ bool FRTScenarioEditingSharesTheRuleWithValidateTest::RunTest(const FString&)
 	};
 
 	const TArray<FCase> Cases = {
-		{ TEXT("id duplicato"),      TEXT("A1"), FName(TEXT("Hero.Phase")),     FRTCellId(-1, 1, 0) },
-		{ TEXT("cella occupata"),    TEXT("C1"), FName(TEXT("Hero.Phase")),     FRTCellId( 2, 0, 0) },
-		{ TEXT("fuori arena"),       TEXT("C2"), FName(TEXT("Hero.Phase")),     FRTCellId( 9, 0, 0) },
-		{ TEXT("cella bloccante"),   TEXT("C3"), FName(TEXT("Hero.Phase")),     FRTCellId( 0, 1, 0) },
+		{ TEXT("id duplicato"),      TEXT("A1"), FName(TEXT("Hero.Muiren")),     FRTCellId(-1, 1, 0) },
+		{ TEXT("cella occupata"),    TEXT("C1"), FName(TEXT("Hero.Muiren")),     FRTCellId( 2, 0, 0) },
+		{ TEXT("fuori arena"),       TEXT("C2"), FName(TEXT("Hero.Muiren")),     FRTCellId( 9, 0, 0) },
+		{ TEXT("cella bloccante"),   TEXT("C3"), FName(TEXT("Hero.Muiren")),     FRTCellId( 0, 1, 0) },
 		{ TEXT("eroe sconosciuto"),  TEXT("C4"), FName(TEXT("Hero.NonEsiste")), FRTCellId(-1, 1, 0) }
 	};
 
@@ -558,7 +558,7 @@ bool FRTScenarioDuplicateIdBothDoorsTest::RunTest(const FString&)
 		const bool bOk = URTScenarioLoader::LoadFromString(
 			TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[)")
 			TEXT(R"({"id":"Gemella","hero":"Hero.Aevik","team":0,"cell":[0,0,0]},)")
-			TEXT(R"({"id":"Gemella","hero":"Hero.Phase","team":1,"cell":[1,0,0]}],)")
+			TEXT(R"({"id":"Gemella","hero":"Hero.Muiren","team":1,"cell":[1,0,0]}],)")
 			TEXT(R"("expect":[{"type":"TurnsCompleted","value":1}]})"),
 			Loaded, Error);
 		TestFalse(TEXT("porta 1: lo scenario con id duplicato non si apre"), bOk);

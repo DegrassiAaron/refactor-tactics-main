@@ -102,7 +102,7 @@ namespace
 		TArray<URTHeroData*> Roster;
 		const TArray<URTHeroData*> All = {
 			URTHeroCatalogLibrary::MakeAevik(),
-			URTHeroCatalogLibrary::MakePhase(),
+			URTHeroCatalogLibrary::MakeMuiren(),
 			URTHeroCatalogLibrary::MakeBranth(),
 			URTHeroCatalogLibrary::MakeIvrin(),
 		};

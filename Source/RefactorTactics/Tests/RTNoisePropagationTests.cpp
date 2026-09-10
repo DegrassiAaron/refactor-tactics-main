@@ -150,11 +150,11 @@ bool FRTNoiseAttenuationBySurfaceTest::RunTest(const FString&)
 	const int32 OnFloor = HeardAt(Map, Sprint(Origin), TwoAway);
 	TestEqual(TEXT("Sprint su terreno libero, a due celle: 3"), OnFloor, 3);
 
-	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	const URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
 	const URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
 	if (!TestNotNull(TEXT("Phase costruita"), Phase) || !TestNotNull(TEXT("Aevik costruito"), Aevik)) { return false; }
 	TestTrue(TEXT("Phase (orecchio fine, 3) lo sente"),
-		URTAcousticPropagationLibrary::IsAudible(OnFloor, Phase->HearingThreshold));
+		URTAcousticPropagationLibrary::IsAudible(OnFloor, Muiren->HearingThreshold));
 	TestFalse(TEXT("Aevik (5) non lo sente"),
 		URTAcousticPropagationLibrary::IsAudible(OnFloor, Aevik->HearingThreshold));
 
@@ -183,7 +183,7 @@ bool FRTNoiseThresholdDecidesTest::RunTest(const FString&)
 	// I quattro valori di D-041, dal catalogo. Pinnati: sono una decisione, e una decisione che nessun test
 	// guarda e' una riga di documentazione.
 	const URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
-	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	const URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
 	const URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
 	const URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
 	if (!TestNotNull(TEXT("roster costruito"), Aevik) || !TestNotNull(TEXT("roster costruito"), Phase)
@@ -192,14 +192,14 @@ bool FRTNoiseThresholdDecidesTest::RunTest(const FString&)
 		return false;
 	}
 	TestEqual(TEXT("Aevik 5"), Aevik->HearingThreshold, 5);
-	TestEqual(TEXT("Phase 3"), Phase->HearingThreshold, 3);
+	TestEqual(TEXT("Phase 3"), Muiren->HearingThreshold, 3);
 	TestEqual(TEXT("Branth 3"), Branth->HearingThreshold, 3);
 	TestEqual(TEXT("Ivrin 5"), Ivrin->HearingThreshold, 5);
 
 	// L'udito COMPENSA la vista: chi vede lontano sente meno. E' la proprieta' che rende l'udito una seconda
 	// via all'informazione e non un raddoppio della prima.
-	TestTrue(TEXT("Aevik vede piu' di Phase"), Aevik->VisionRange > Phase->VisionRange);
-	TestTrue(TEXT("...e in cambio sente meno"), Aevik->HearingThreshold > Phase->HearingThreshold);
+	TestTrue(TEXT("Aevik vede piu' di Phase"), Aevik->VisionRange > Muiren->VisionRange);
+	TestTrue(TEXT("...e in cambio sente meno"), Aevik->HearingThreshold > Muiren->HearingThreshold);
 
 	TestTrue(TEXT("soglia raggiunta esattamente: si sente"),
 		URTAcousticPropagationLibrary::IsAudible(3, 3));

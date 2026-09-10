@@ -232,7 +232,7 @@ composito compra tempo di seduta, non verdetti — le voci restano ⏳ finché q
 > sbagliata. È lo stesso motivo per cui la tabella delle epic ora esiste in **un solo posto**.
 >
 > Stessa forma, altro caso: E5 ed E6 risultavano «chiuse» mentre `Hero.Riktor.Interposition`,
-> `Hero.Wraith.Deflection`, `Hero.Aevik.ReactiveCapacitor` e `Hero.Phase.FlowReaction` erano identità a catalogo con `Effects`
+> `Hero.Wraith.Deflection`, `Hero.Aevik.ReactiveCapacitor` e `Hero.Muiren.FlowReaction` erano identità a catalogo con `Effects`
 > **vuoto**. Un motore che nessuno consuma non è collaudato. E5.5 ed E6.7 (chiusi il 2026-08-07) lo hanno
 > reso componibile e cablato tre reazioni su cinque. Delle due allora rinviate ne resta **una**:
 > `FlowReaction`. `InterceptShot` è uscita dall'insieme il 2026-08-10 — non è rinviata, è **consegnata**

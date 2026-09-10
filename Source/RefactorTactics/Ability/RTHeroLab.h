@@ -35,7 +35,7 @@ struct FRTHeroLabEntry
 {
 	GENERATED_BODY()
 
-	/** `Hero.Aevik`, `Hero.Phase`, `Hero.Branth`, `Hero.Ivrin`. */
+	/** `Hero.Aevik`, `Hero.Muiren`, `Hero.Branth`, `Hero.Ivrin`. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HeroLab")
 	FName HeroId;
 

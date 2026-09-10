@@ -111,7 +111,7 @@ stesso Cleanup, l'ordine lo decide la `X` (§1c).
 
 ### A1 — coordinamento in-Blast
 
-Si sostituisce l'intento di Phase con `Hero.Phase.PressureJet`. **Si ottiene** il +8
+Si sostituisce l'intento di Phase con `Hero.Muiren.PressureJet`. **Si ottiene** il +8
 (`GadgetWetDischargeBonus`). **Non si ottiene** *«il fuoco si spegne»*: `PressureJet` non crea superficie, e
 quella è la prima riga dell'`Expected`. Sparisce anche l'unico evento `Environment` del turno.
 

@@ -50,7 +50,22 @@ namespace RTLegacyIdentity
 		// allora questo test e' ROSSO su `main`: misurato 36 file contro un tetto di 35. Qui sale con la
 		// ragione scritta, che e' quanto la regola in testa a questo file chiede — il tetto si muove
 		// **insieme** a cio' che lo muove, mai in silenzio e mai prima.
-		{ TEXT("Hero.Phase"),  TEXT("Hero.Muiren"), 36, 44 },
+		// ✅ **Fetta eseguita il 2026-09-10** (#2491), l'ultima delle quattro: il tetto scende da `36, 44`
+		// a **`1, 0`**, e l'uno non e' un residuo — e' il commento di `RTHeroCatalogLibrary.cpp` che
+		// dichiara il rename, la stessa menzione legittima per cui `Hero.Riktor` sta a quattro.
+		//
+		// ⚠️ **Questa riga ha detto `0, 0` per il tempo di due comandi.** La misura era gia' stampata —
+		// «Source/: 2 file» — e il tetto e' stato scritto guardando l'intenzione invece del numero. Il
+		// difetto e' esattamente quello che la regola in testa a questo file descrive: *un tetto piu'
+		// basso del reale e' un rosso che non nomina un difetto*. Corretto misurando di nuovo, dopo aver
+		// migrato gli esempi di `RTUnitLabelTests`.
+		//
+		// ⛔ Il tetto misura `Hero.Phase`, cioe' l'IDENTITA'. NON lo consumano — e non devono —
+		// `ERTMatchPhase`, `ERTResolutionPhase`, `Hero.Ivrin.PhaseGuard`, `Visual.Core.PhaseOrder`,
+		// le icone `RT_UI_Icon_Phase_*` e i diciotto test di Playback/Replay che nominano la fase.
+		// Su 937 usi di `ERT*Phase` in `Source/`, questa riga ne conta UNO: il token e' lo stesso, il
+		// significato no, ed e' la ragione per cui il rename e' stato contestuale e mai globale.
+		{ TEXT("Hero.Phase"),  TEXT("Hero.Muiren"),  1,  0 },
 		// ⌫ Gia' rinominata (`D-334`), e il suo tetto **non e' zero**: le quattro occorrenze residue sono
 		// menzioni LEGITTIME — tre commenti che spiegano il rename e un test che verifica che l'identita' non
 		// si risolva piu'. E' la misura di cosa resta quando una fetta e' completa.

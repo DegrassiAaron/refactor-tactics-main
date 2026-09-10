@@ -32,7 +32,7 @@ const OUT = fileURLToPath(new URL('../../docs/characters/radar/', import.meta.ur
 // la chiave "aevik"» invece di un radar disegnato con un trattino al posto del ruolo.
 const ROLES: Record<string, string> = {
   aevik: 'Controller',
-  phase: 'Support',
+  muiren: 'Support',
   branth: 'Guardian',
   ivrin: 'Striker',
 };

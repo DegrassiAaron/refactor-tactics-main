@@ -145,7 +145,7 @@ bool FRTBranthInterpositionSlotTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHeroReactMap(World);
 
-	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakePhase();
+	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakeMuiren();
 	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
 	ARTUnit* Branth = SpawnHeroReactUnit(World, BranthData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Ally = SpawnHeroReactUnit(World, PhaseData, /*Team*/ 0, FRTCellId(1, 0));
@@ -190,7 +190,7 @@ bool FRTBranthInterpositionRedirectsTest::RunTest(const FString&)
 	SpawnHeroReactMap(World);
 
 	URTHeroData* BranthData = URTHeroCatalogLibrary::MakeBranth();
-	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakePhase();
+	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakeMuiren();
 	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
 	ARTUnit* Branth = SpawnHeroReactUnit(World, BranthData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Ally = SpawnHeroReactUnit(World, PhaseData, /*Team*/ 0, FRTCellId(1, 0));
@@ -256,7 +256,7 @@ bool FRTBranthInterpositionRevalidatesCoverTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("mappa"), Map)) { DestroyHeroReactWorld(World); return false; }
 
 	URTHeroData* BranthData = URTHeroCatalogLibrary::MakeBranth();
-	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakePhase();
+	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakeMuiren();
 	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
 	// Stesso layout del test gemello: l'attaccante sta a EST, quindi il colpo entra dal bordo `E`.
 	ARTUnit* Branth = SpawnHeroReactUnit(World, BranthData, /*Team*/ 0, FRTCellId(0, 0));
@@ -424,7 +424,7 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 	// Il test non e' stato cancellato perche' la domanda che poneva resta viva — *chi valuta questa azione?* —
 	// ed e' cambiata la risposta, non la domanda.
 	URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
-	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
 	URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
 	URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
 
@@ -450,7 +450,7 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 
 	struct FDeferred { const URTActionData* Action; const TCHAR* Id; };
 	const FDeferred Deferred[] = {
-		{ Phase->Actions[4], TEXT("Hero.Phase.FlowReaction") },
+		{ Muiren->Actions[4], TEXT("Hero.Muiren.FlowReaction") },
 	};
 	for (const FDeferred& D : Deferred)
 	{

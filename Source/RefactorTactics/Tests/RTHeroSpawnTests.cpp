@@ -109,7 +109,7 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 	for (const ARTUnit* Unit : Units) { InPlay.Add(Unit->HeroId); }
 	TestEqual(TEXT("quattro eroi distinti"), InPlay.Num(), 4);
 	TestTrue(TEXT("c'e' Aevik"), InPlay.Contains(FName(TEXT("Hero.Aevik"))));
-	TestTrue(TEXT("c'e' Phase"), InPlay.Contains(FName(TEXT("Hero.Phase"))));
+	TestTrue(TEXT("c'e' Phase"), InPlay.Contains(FName(TEXT("Hero.Muiren"))));
 	TestTrue(TEXT("c'e' Branth"), InPlay.Contains(FName(TEXT("Hero.Branth"))));
 	TestTrue(TEXT("c'e' Ivrin"), InPlay.Contains(FName(TEXT("Hero.Ivrin"))));
 
@@ -147,13 +147,13 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 
 	// Formazione di default: Aevik+Phase (giocatore) contro Branth+Ivrin (bot).
 	ARTUnit* Aevik = FindByHeroId(Units, TEXT("Hero.Aevik"));
-	ARTUnit* Phase = FindByHeroId(Units, TEXT("Hero.Phase"));
+	ARTUnit* Muiren = FindByHeroId(Units, TEXT("Hero.Muiren"));
 	ARTUnit* Branth = FindByHeroId(Units, TEXT("Hero.Branth"));
 	ARTUnit* Ivrin = FindByHeroId(Units, TEXT("Hero.Ivrin"));
 	if (Aevik && Phase && Branth && Ivrin)
 	{
 		TestEqual(TEXT("Aevik e' del giocatore"), Aevik->TeamId, 0);
-		TestEqual(TEXT("Phase anche: la combo Wet e' giocabile"), Phase->TeamId, 0);
+		TestEqual(TEXT("Phase anche: la combo Wet e' giocabile"), Muiren->TeamId, 0);
 		TestEqual(TEXT("Branth e' del bot"), Branth->TeamId, 1);
 		TestEqual(TEXT("Ivrin anche"), Ivrin->TeamId, 1);
 		TestFalse(TEXT("il giocatore comanda i suoi"), Aevik->bIsBotControlled);
@@ -194,7 +194,7 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 
 		// Ogni unita' ha le PROPRIE istanze d'azione: due eroi che condividessero un `URTActionData`
 		// ricaricherebbero insieme.
-		TestTrue(TEXT("azioni non condivise"), Aevik->GetAbility(0) != Phase->GetAbility(0));
+		TestTrue(TEXT("azioni non condivise"), Aevik->GetAbility(0) != Muiren->GetAbility(0));
 
 		// Le unita' stanno su celle distinte della mappa.
 		TSet<FRTCellId> Cells;
@@ -229,7 +229,7 @@ bool FRTHeroSpawnDuplicateTest::RunTest(const FString&)
 
 	// Aevik in ENTRAMBE le squadre: la formazione dichiara quattro slot, ma i nomi distinti sono tre.
 	// Due unita' che condividessero un `URTHeroData` ricaricherebbero insieme le stesse azioni.
-	GameMode->Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Phase") };
+	GameMode->Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren") };
 	GameMode->Team1Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Ivrin") };
 
 	GameMode->SetupHexMatch(HexMap);
@@ -495,7 +495,7 @@ bool FRTHeroUnitClassesDefaultTest::RunTest(const FString&)
 	// chiuso. Se un `BP_Unit_*` viene spostato o rinominato, qui si vede subito.
 	//
 	// ⚠️ **E il percorso e' per eroe**, perche' l'errore facile in quel costruttore e' lo scambio: quattro
-	// `Assegna` in fila con quattro finder simili, e `Hero.Phase` che riceve il Blueprint di Aevik passerebbe
+	// `Assegna` in fila con quattro finder simili, e `Hero.Muiren` che riceve il Blueprint di Aevik passerebbe
 	// un asserto scritto solo su «non e' il cilindro».
 	// ⚠️ **`Hero.Branth` mappa su un path che dice `Riktor`, ed e' la coppia CORRETTA oggi.** [D-334] ha
 	// rinominato l'identita', non l'asset: il rename di `/Game/RT/Characters/Riktor/` e' la fetta E di
@@ -503,7 +503,7 @@ bool FRTHeroUnitClassesDefaultTest::RunTest(const FString&)
 	// qui, e finche' non si muove il disallineamento e' la verita' del progetto, non un errore da correggere.
 	const TMap<FName, FString> Attesi = {
 		{ FName(TEXT("Hero.Aevik")), TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget") },
-		{ FName(TEXT("Hero.Phase")),  TEXT("/Game/RT/Characters/Phase/Blueprints/BP_Unit_Phase")   },
+		{ FName(TEXT("Hero.Muiren")),  TEXT("/Game/RT/Characters/Phase/Blueprints/BP_Unit_Phase")   },
 		{ FName(TEXT("Hero.Branth")), TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor") },
 		{ FName(TEXT("Hero.Ivrin")), TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith") },
 	};

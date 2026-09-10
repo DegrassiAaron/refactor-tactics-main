@@ -14,7 +14,7 @@
   "_nota_la_morte_e_ambientale": "⚠️ **Gadget muore di fuoco, non di spada, ed e' una scelta di precisione.** La tesi e' che il controllo dell'obiettivo si valuti *«dopo gli effetti ambientali E i KO»*: una morte in combattimento avviene nel **Blast**, cioe' in una fase precedente, e proverebbe solo che il Cleanup viene dopo il Blast — che nessuno mette in dubbio. Il `Burning` uccide **dentro** il Cleanup, poche righe prima che le presenze sull'obiettivo vengano contate: e' l'unico modo di mettere il KO e il conteggio nello stesso passaggio, che e' dove l'ordine puo' davvero sbagliarsi. ⚠️ La salute di F1 e' dichiarata perche' il turno in cui muore dev'essere il **secondo**: morendo al T1 il punto verrebbe assegnato con un'unita' gia' fuori da un turno, e la contemporaneita' — che e' il soggetto — si perderebbe.",
 
   "units": [
-    { "id": "R1", "hero": "Hero.Phase",  "team": 0, "cell": [-1,  1, 0] },
+    { "id": "R1", "hero": "Hero.Muiren",  "team": 0, "cell": [-1,  1, 0] },
     { "id": "F1", "hero": "Hero.Aevik", "team": 0, "cell": [ 2, -2, 0], "health": 20, "shield": 0 },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 3,  0, 0] }
   ],

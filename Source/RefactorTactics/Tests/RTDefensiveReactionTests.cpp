@@ -1563,10 +1563,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceProfileDecidesInPlayTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTBraceProfileDecidesInPlayTest::RunTest(const FString&)
 {
-	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	const URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
 	if (!TestNotNull(TEXT("Phase, che porta `Profile.Sidestep`"), Phase)) { return false; }
 	if (!TestTrue(TEXT("e il profilo e' quello atteso"),
-		Phase->ReactionProfileId == FName(TEXT("Profile.Sidestep")))) { return false; }
+		Muiren->ReactionProfileId == FName(TEXT("Profile.Sidestep")))) { return false; }
 
 	const FRTCellId Start(1, 0, 0);
 
@@ -1754,7 +1754,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceDecisionRoundTripsThroughTraceTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTBraceDecisionRoundTripsThroughTraceTest::RunTest(const FString&)
 {
-	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	const URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
 	if (!TestNotNull(TEXT("Phase, che porta `Profile.Sidestep`"), Phase)) { return false; }
 	const FRTCellId Start(1, 0, 0);
 
@@ -1938,7 +1938,7 @@ bool FRTDefaultReactionModuleIsNotADuplicateTest::RunTest(const FString&)
 		       "Non corretto insieme a Branth perche' il loadout di Aevik e' comunque VUOTO — `Gadget.Insulator` "
 		       "non e' spedito e `DefaultLoadoutFor` e' tutto-o-niente — quindi il duplicato non raggiunge il "
 		       "campo. Va corretto quando quel gadget arriva, e questa riga e' il promemoria (#1403).") },
-		{ TEXT("Hero.Phase"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakePhase(); },
+		{ TEXT("Hero.Muiren"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeMuiren(); },
 		  false, TEXT("nessuna reazione nel kit: qualunque modulo e' una capacita' nuova") },
 		{ TEXT("Hero.Branth"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeBranth(); },
 		  false, TEXT("`Reaction.Cleanse` contro `Interposition` di kit: due capacita' diverse ([D-218])") },

@@ -35,7 +35,7 @@ Valgono per **ogni** task, senza ripeterli:
 - **Unity build**: helper e costanti in namespace anonimo devono avere nomi **distinti da ogni altro file di
   test**. La translation unit è condivisa e due omonimi collidono al merge della unity.
 - **Nomi eroe — misurato, non ereditato.** `RTHeroCatalogLibrary.cpp` dichiara **solo**
-  `Hero.Aevik`, `Hero.Phase`, `Hero.Riktor`, `Hero.Wraith` (tre occorrenze ciascuno), e
+  `Hero.Aevik`, `Hero.Muiren`, `Hero.Riktor`, `Hero.Wraith` (tre occorrenze ciascuno), e
   `Gadget`/`Phase`/`Riktor`/`Wraith` hanno **zero** occorrenze in tutto `Source/`: la fetta 3 di `D-130`
   (`#753`) non è stata eseguita. Nei test si usano **quelli**, o il catalogo non risolve — e questo piano ne
   contiene **19** occorrenze, tutte dentro esempi di codice.

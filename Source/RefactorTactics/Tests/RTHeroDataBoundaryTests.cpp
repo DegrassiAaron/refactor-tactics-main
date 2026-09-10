@@ -169,7 +169,7 @@ bool FRTHeroDataBoundaryTest::RunTest(const FString&)
 	// Il punto 2 da solo direbbe che il campo esiste, non che qualcuno lo riempie: e' la differenza fra una
 	// dichiarazione e un produttore, ed e' il difetto che questo repository ha gia' pagato piu' volte.
 	//
-	// 🔴 **L'eroe di prova e' SINTETICO, e non e' un vezzo.** La prima versione usava `MakePhase()`, e il
+	// 🔴 **L'eroe di prova e' SINTETICO, e non e' un vezzo.** La prima versione usava `MakeMuiren()`, e il
 	// gate restava VERDE anche togliendo il trasporto di `PushResistance`: il valore di Phase e' `0`, che e'
 	// **identico al default di `ARTUnit`**, quindi «copiato 0» e «mai copiato, default 0» sono lo stesso
 	// stato e nessun confronto puo' distinguerli. Preso in code review, e il rimedio proposto — cambiare il

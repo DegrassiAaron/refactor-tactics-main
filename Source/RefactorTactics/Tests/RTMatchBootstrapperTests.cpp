@@ -31,7 +31,7 @@ namespace RTBootstrapperTestsLocal
 		Config.MapSource = ERTMapSource::GeneratedDemoArena;
 		Config.DemoArenaRadius = 4;
 		Config.ShippedFormatId = FName(TEXT("Format.Skirmish2v2"));
-		Config.Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Phase") };
+		Config.Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren") };
 		Config.Team1Heroes = { TEXT("Hero.Branth"), TEXT("Hero.Ivrin") };
 		return Config;
 	}

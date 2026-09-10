@@ -526,7 +526,7 @@ bool FRTHeroActionDisplayNameTest::RunTest(const FString&)
  * Due asserzioni, e la seconda e' quella che il grep non sa fare. Il DoD motiva il **terzo segmento**
  * dicendo che un prefisso piatto metterebbe `Aevik.ArcPulse` accanto a `Gadget.Medkit` (un oggetto) e a
  * `ERTEquipmentSlot::Gadget` (serializzato). Ma «comincia per `Hero.`» non basterebbe: legare l'azione
- * al `HeroId` del **suo** eroe fa cadere anche un'azione di Aevik che finisse sotto `Hero.Phase.` —
+ * al `HeroId` del **suo** eroe fa cadere anche un'azione di Aevik che finisse sotto `Hero.Muiren.` —
  * un errore che un rename massivo produce esattamente come quello che deve correggere.
  *
  * Il prefisso si legge dal roster, non si scrive qui: un quinto eroe non richiede di toccare il test.
@@ -601,15 +601,15 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 	// chiamarli «derivati» trasformerebbe «i parametri vengono da li'» in «gli somiglia».
 	const TMap<FName, FName> Atteso = {
 		{ TEXT("Hero.Aevik.ConductiveNode"),     TEXT("Action.Electrify")    },
-		{ TEXT("Hero.Phase.FluidTrail"),          TEXT("Action.Dodge")         },
-		{ TEXT("Hero.Phase.MistVeil"),            TEXT("Action.Ignite")       },
+		{ TEXT("Hero.Muiren.FluidTrail"),          TEXT("Action.Dodge")         },
+		{ TEXT("Hero.Muiren.MistVeil"),            TEXT("Action.Ignite")       },
 		{ TEXT("Hero.Branth.KineticPanel"),       TEXT("Action.CreateCover")  },
 		{ TEXT("Hero.Branth.Ram"),                TEXT("Action.Charge")       },
 		{ TEXT("Hero.Aevik.ReactiveCapacitor"),  TEXT("Action.Counter")      },
 		{ TEXT("Hero.Branth.Interposition"),      TEXT("Action.Intercept")    },
 		{ TEXT("Hero.Ivrin.Deflection"),         TEXT("Action.Deflect")      },
 		// [D-226]: le due che chiudono la meta' `Shield` di `#1403`, uno scudo proattivo per squadra.
-		{ TEXT("Hero.Phase.TideGuard"),           TEXT("Action.Shield")       },
+		{ TEXT("Hero.Muiren.TideGuard"),           TEXT("Action.Shield")       },
 		{ TEXT("Hero.Ivrin.PhaseGuard"),         TEXT("Action.Shield")       },
 	};
 

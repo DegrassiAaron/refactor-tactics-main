@@ -116,7 +116,7 @@ bool FRTHUDAllyMarkFromPlanTest::RunTest(const FString&)
 
 	// Stessa geometria di `Combat.FriendlyFire`: Phase adiacente al bersaglio, dentro l'area r1.
 	ARTUnit* Aevik    = SpawnMarksUnit(World, TEXT("Hero.Aevik"),    0, FRTCellId(-1, 0, 0));
-	ARTUnit* Phase    = SpawnMarksUnit(World, TEXT("Hero.Phase"),    0, FRTCellId( 1, 0, 0));
+	ARTUnit* Muiren    = SpawnMarksUnit(World, TEXT("Hero.Muiren"),    0, FRTCellId( 1, 0, 0));
 	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 2, 0, 0));
 	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Phase"), Phase) || !TestNotNull(TEXT("Branth"), Branth))
 	{
@@ -133,12 +133,12 @@ bool FRTHUDAllyMarkFromPlanTest::RunTest(const FString&)
 	ARTHUD::ComputePlannedHitMarks({ Aevik, Phase, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
 
 	// ⛔ **Le celle si copiano PRIMA di distruggere il mondo.** Le asserzioni qui sotto leggevano
-	// `Branth->Cell` e `Phase->Cell` **dopo** `DestroyMarksWorld`, cioe' da Actor di un mondo gia'
+	// `Branth->Cell` e `Muiren->Cell` **dopo** `DestroyMarksWorld`, cioe' da Actor di un mondo gia'
 	// distrutto: funzionava solo perche' il GC non era ancora passato, e un giro di garbage collection
 	// fra le due righe — plausibile quando la suite esegue l'intero gruppo `RefactorTactics.HUD` — le
 	// avrebbe fatte leggere memoria liberata. Trovato dalla code review su `#2726`.
 	const FRTCellId CellaBranth = Branth->Cell;
-	const FRTCellId CellaPhase  = Phase->Cell;
+	const FRTCellId CellaPhase  = Muiren->Cell;
 	const FRTCellId CellaGadget = Aevik->Cell;
 
 	DestroyMarksWorld(World);
@@ -174,7 +174,7 @@ bool FRTHUDEnemyPlansAreNotReadTest::RunTest(const FString&)
 
 	// Stavolta e' l'avversario a pianificare, su un bersaglio del giocatore.
 	ARTUnit* NemicoAevik = SpawnMarksUnit(World, TEXT("Hero.Aevik"),    1, FRTCellId(-1, 0, 0));
-	ARTUnit* MioPhase    = SpawnMarksUnit(World, TEXT("Hero.Phase"),    0, FRTCellId( 1, 0, 0));
+	ARTUnit* MioPhase    = SpawnMarksUnit(World, TEXT("Hero.Muiren"),    0, FRTCellId( 1, 0, 0));
 	ARTUnit* MioBranth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 0, FRTCellId( 2, 0, 0));
 	if (!TestNotNull(TEXT("unita'"), NemicoAevik) || !MioPhase || !MioBranth)
 	{
@@ -209,7 +209,7 @@ bool FRTHUDNoFriendlyFireNoMarkTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 
 	ARTUnit* Aevik    = SpawnMarksUnit(World, TEXT("Hero.Aevik"),    0, FRTCellId(-1, 0, 0));
-	ARTUnit* Phase    = SpawnMarksUnit(World, TEXT("Hero.Phase"),    0, FRTCellId( 1, 0, 0));
+	ARTUnit* Muiren    = SpawnMarksUnit(World, TEXT("Hero.Muiren"),    0, FRTCellId( 1, 0, 0));
 	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 2, 0, 0));
 	if (!Aevik || !Phase || !Branth) { DestroyMarksWorld(World); return false; }
 

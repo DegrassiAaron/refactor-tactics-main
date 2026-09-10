@@ -68,7 +68,7 @@ bool URTHeroLabLibrary::BuildHeroFixture(const FName& HeroId, const FName& Abili
 	if (!FindHero(HeroId, Hero))
 	{
 		OutError = FString::Printf(
-			TEXT("HeroId non canonico: '%s'. Il roster della v0.1 e' Hero.Aevik, Hero.Phase, Hero.Branth, Hero.Ivrin."),
+			TEXT("HeroId non canonico: '%s'. Il roster della v0.1 e' Hero.Aevik, Hero.Muiren, Hero.Branth, Hero.Ivrin."),
 			*HeroId.ToString());
 		return false;
 	}

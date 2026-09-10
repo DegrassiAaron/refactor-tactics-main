@@ -24,7 +24,7 @@ bool FRTUnitShortHeroNameTest::RunTest(const FString&)
 
 	// Il caso reale: gli HeroId del catalogo sono namespaced.
 	TestEqual(TEXT("Hero.Aevik -> Gadget"), ARTUnit::ShortHeroName(TEXT("Hero.Aevik"), Fallback), TEXT("Gadget"));
-	TestEqual(TEXT("Hero.Phase -> Phase"), ARTUnit::ShortHeroName(TEXT("Hero.Phase"), Fallback), TEXT("Phase"));
+	TestEqual(TEXT("Hero.Muiren -> Muiren"), ARTUnit::ShortHeroName(TEXT("Hero.Muiren"), Fallback), TEXT("Muiren"));
 	TestEqual(TEXT("Hero.Branth -> Branth"), ARTUnit::ShortHeroName(TEXT("Hero.Branth"), Fallback), TEXT("Branth"));
 	TestEqual(TEXT("Hero.Ivrin -> Ivrin"), ARTUnit::ShortHeroName(TEXT("Hero.Ivrin"), Fallback), TEXT("Ivrin"));
 
@@ -69,9 +69,12 @@ bool FRTCanonicalHeroIdTest::RunTest(const FString&)
 	//
 	// Quattro vengono da D-130; `Riktor` da [D-334], che ha superseduto D-322 e portato il roster v0.1 a
 	// `Aevik`/`Muiren`/`Branth`/`Ivrin`; `Wraith` da [D-341], la fetta che lo ha ritirato davvero.
-	// ⚠️ **La lista cresce con la migrazione, non prima**: aggiungere qui un nome ancora in uso —
-	// `Phase` finche' non e' migrata — fa rosso il test contro un roster sano. Ogni fetta aggiunge il
-	// proprio nome quando lo ritira davvero, e `Gadget` e' entrato con la sua (#2491).
+	// ⚠️ **La lista cresce con la migrazione, non prima**, e con `Phase` e' COMPLETA: tutte e quattro le
+	// identita' v0.1 sono migrate (#2491). Un nome ancora in uso, aggiunto qui, farebbe rosso il test
+	// contro un roster sano — e' la ragione per cui ogni fetta ha aggiunto il proprio quando lo ritirava.
+	// ⛔ `Phase` qui e' l'EROE. La guardia confronta gli `HeroId` del roster reale, e nessuno dei quattro
+	// contiene la parola: `ERTMatchPhase`, `ERTResolutionPhase` e `Hero.Ivrin.PhaseGuard` non sono `HeroId`,
+	// quindi non la sfiorano.
 	// ⛔ **E mai l'EREDE.** La stesura precedente elencava `Ivrin` fra i nomi da non aggiungere ancora:
 	// era un refuso per `Wraith`. `Ivrin` e' il nome NUOVO, non uno ritirato — in questa lista non entra
 	// mai, e mettercelo renderebbe il test rosso contro un roster sano per sempre.
@@ -81,7 +84,7 @@ bool FRTCanonicalHeroIdTest::RunTest(const FString&)
 	// la seconda quando lo stesso script e' stato rilanciato *per misurare i residui* — uno script che
 	// sostituisce non e' una misura, e rieseguirlo ha disfatto la riparazione appena scritta.
 	const TArray<FString> Legacy = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor"),
-		TEXT("Riktor"), TEXT("Wraith"), TEXT("Gadget") };
+		TEXT("Riktor"), TEXT("Wraith"), TEXT("Gadget"), TEXT("Phase") };
 
 	const TArray<FName> Ids = URTHeroCatalogLibrary::GetHeroIds();
 	if (!TestEqual(TEXT("il roster v0.1 dichiara quattro id"), Ids.Num(), 4)) { return false; }
@@ -133,7 +136,7 @@ bool FRTUnitDisplayLabelTest::RunTest(const FString&)
 
 	// Soli spazi: a schermo e' indistinguibile da assente, quindi vale come assente.
 	TestEqual(TEXT("soli spazi -> ripiego, non un'etichetta invisibile"),
-		ARTUnit::DisplayLabel(FText::FromString(TEXT("   ")), TEXT("Hero.Phase"), Fallback), TEXT("Phase"));
+		ARTUnit::DisplayLabel(FText::FromString(TEXT("   ")), TEXT("Hero.Muiren"), Fallback), TEXT("Muiren"));
 
 	// 3. Ne' nome ne' eroe: resta il nome dell'attore. L'etichetta non sparisce mai.
 	TestEqual(TEXT("nessun nome e nessun eroe -> fallback"),
@@ -159,7 +162,7 @@ bool FRTRosterCanonicalNamesTest::RunTest(const FString&)
 	// automatico, e che l'etichetta si veda davvero resta la voce `PIE-NAME`.
 	const TMap<FName, FString> Attesi = {
 		{ TEXT("Hero.Aevik"),    TEXT("Gadget") },
-		{ TEXT("Hero.Phase"),    TEXT("Phase")  },
+		{ TEXT("Hero.Muiren"),   TEXT("Muiren") },
 		{ TEXT("Hero.Branth"), TEXT("Branth") },
 		{ TEXT("Hero.Ivrin"),  TEXT("Ivrin")  },
 	};

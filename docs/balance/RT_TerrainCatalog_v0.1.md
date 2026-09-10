@@ -158,5 +158,5 @@ grafo** (invalidazione delle cache di percorso).
 
 **Non specificato nel PDF** (da decidere in E8/E9): riduzione esatta della LOS attraverso il fuoco ·
 ~~durata di `Wet` fuori dall'acqua~~ **deciso al CP 8.2: 1 turno**, il valore che il catalogo eroi dichiarava
-già per `Hero.Phase.PressureJet` e `Hero.Phase.CircularTide` · comportamento del ghiaccio quando due unità scivolano nella
+già per `Hero.Muiren.PressureJet` e `Hero.Muiren.CircularTide` · comportamento del ghiaccio quando due unità scivolano nella
 stessa cella · se la copertura bassa protegga anche dai `Push`.

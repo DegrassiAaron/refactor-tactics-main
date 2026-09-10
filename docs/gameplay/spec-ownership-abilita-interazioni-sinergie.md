@@ -28,11 +28,11 @@ Una sinergia **non è** una Ability Definition e non introduce per default un nu
 Corretto:
 
 ```text
-Hero.Phase.PressureJet -> Status.Wet
+Hero.Muiren.PressureJet -> Status.Wet
 Hero.Aevik.LinearDischarge -> se Target.HasStatus(Wet), +8
 ```
 
-Il secondo passaggio dipende da `Wet`, non da `Hero.Phase`. Una futura sorgente di Wet può abilitare lo stesso payoff se le regole lo consentono.
+Il secondo passaggio dipende da `Wet`, non da `Hero.Muiren`. Una futura sorgente di Wet può abilitare lo stesso payoff se le regole lo consentono.
 
 Errato:
 

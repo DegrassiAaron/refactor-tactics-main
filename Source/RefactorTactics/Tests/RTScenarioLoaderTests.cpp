@@ -50,7 +50,7 @@ namespace
 	// Le decisioni di finestra come DATO (CP 15.3 meta' B, #512). Nome distinto, come sopra.
 	//
 	// ⚠️ Gli id eroe sono i LEGACY, e non e' una svista: `RTHeroCatalogLibrary.cpp` dichiara oggi solo
-	// `Hero.Aevik`, `Hero.Phase`, `Hero.Branth`, `Hero.Ivrin`, e i nomi di [D-130] — Aevik, Phase, Branth,
+	// `Hero.Aevik`, `Hero.Muiren`, `Hero.Branth`, `Hero.Ivrin`, e i nomi di [D-130] — Aevik, Phase, Branth,
 	// Ivrin — hanno ZERO occorrenze in tutto `Source/`, perche' la fetta 3 (`#753`) non e' stata eseguita.
 	// Un `Hero.Branth` qui non risolverebbe. Si rinominano insieme al catalogo, non prima.
 	const TCHAR* ScenarioLoaderDecisionsJson = TEXT(R"JSON(
@@ -139,10 +139,10 @@ bool FRTScenarioLoaderRejectsTest::RunTest(const FString&)
 	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":2,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[9,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("fuori dall'arena"), TEXT("cella fuori mappa"));
 
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]},{"id":"A","hero":"Hero.Phase","team":1,"cell":[1,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]},{"id":"A","hero":"Hero.Muiren","team":1,"cell":[1,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("duplicato"), TEXT("id unita' duplicato"));
 
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]},{"id":"B","hero":"Hero.Phase","team":1,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]},{"id":"B","hero":"Hero.Muiren","team":1,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("stessa cella"), TEXT("due unita' sovrapposte alla partenza"));
 
 	// #1515 — una squadra che la partita non conosce. Non e' pedanteria di formato: `GetTeamScore` risponde
@@ -1871,7 +1871,7 @@ bool FRTScenarioHeroSelfActionTest::RunTest(const FString&)
 		const FString Json = FString::Printf(TEXT(R"JSON({
 		  "scenarioId": "T", "version": 1, "mapRadius": 3,
 		  "units": [
-		    { "id": "P1", "hero": "Hero.Phase", "team": 0, "cell": [-1,0,0] },
+		    { "id": "P1", "hero": "Hero.Muiren", "team": 0, "cell": [-1,0,0] },
 		    { "id": "R1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
 		  ],
 		  "turns": [ { "intents": [ %s ] } ],
@@ -1880,19 +1880,19 @@ bool FRTScenarioHeroSelfActionTest::RunTest(const FString&)
 		return URTScenarioLoader::LoadFromString(*Json, OutScenario, OutError);
 	};
 
-	// 1. Il caso: `Hero.Phase.TideGuard` deriva da `Action.Shield`, che nel catalogo core e' `Preparation`.
+	// 1. Il caso: `Hero.Muiren.TideGuard` deriva da `Action.Shield`, che nel catalogo core e' `Preparation`.
 	//    Risolve su chi la arma, quindi non ha un bersaglio da dichiarare.
 	{
 		FRTTestScenario S;
 		FString Error;
-		const bool bLoaded = Load(TEXT("{ \"unit\": \"P1\", \"ability\": \"Hero.Phase.TideGuard\" }"), S, Error);
+		const bool bLoaded = Load(TEXT("{ \"unit\": \"P1\", \"ability\": \"Hero.Muiren.TideGuard\" }"), S, Error);
 		if (!TestTrue(FString::Printf(TEXT("TideGuard senza bersaglio si esprime (errore: '%s')"), *Error), bLoaded))
 		{
 			return false;
 		}
 		if (TestTrue(TEXT("il turno porta l'intento"), S.Turns.Num() > 0 && S.Turns[0].Intents.Num() > 0))
 		{
-			TestEqual(TEXT("con l'abilita' giusta"), S.Turns[0].Intents[0].Ability, FName(TEXT("Hero.Phase.TideGuard")));
+			TestEqual(TEXT("con l'abilita' giusta"), S.Turns[0].Intents[0].Ability, FName(TEXT("Hero.Muiren.TideGuard")));
 			TestTrue(TEXT("e nessun bersaglio dichiarato"), S.Turns[0].Intents[0].Target.IsEmpty());
 		}
 	}
@@ -1913,7 +1913,7 @@ bool FRTScenarioHeroSelfActionTest::RunTest(const FString&)
 	{
 		FRTTestScenario S;
 		FString Error;
-		const bool bLoaded = Load(TEXT("{ \"unit\": \"P1\", \"ability\": \"Hero.Phase.PressureJet\" }"), S, Error);
+		const bool bLoaded = Load(TEXT("{ \"unit\": \"P1\", \"ability\": \"Hero.Muiren.PressureJet\" }"), S, Error);
 		TestFalse(TEXT("un attacco d'eroe senza bersaglio resta rifiutato"), bLoaded);
 	}
 
@@ -1921,7 +1921,7 @@ bool FRTScenarioHeroSelfActionTest::RunTest(const FString&)
 	{
 		FRTTestScenario S;
 		FString Error;
-		const bool bLoaded = Load(TEXT("{ \"unit\": \"P1\", \"ability\": \"Hero.Phase.TideGuard\", \"target\": \"P1\" }"), S, Error);
+		const bool bLoaded = Load(TEXT("{ \"unit\": \"P1\", \"ability\": \"Hero.Muiren.TideGuard\", \"target\": \"P1\" }"), S, Error);
 		TestFalse(TEXT("bersagliare se stessi resta un errore"), bLoaded);
 		TestTrue(TEXT("e il motivo lo dice"), Error.Contains(TEXT("se stessa")));
 	}
@@ -2239,7 +2239,7 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 	{
 		return FString::Printf(TEXT(R"({"scenarioId":"X","mapRadius":3,)")
 			TEXT(R"("units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]},)")
-			TEXT(R"({"id":"B","hero":"Hero.Phase","team":1,"cell":[2,0,0]}],)")
+			TEXT(R"({"id":"B","hero":"Hero.Muiren","team":1,"cell":[2,0,0]}],)")
 			TEXT(R"("turns":[{"intents":[%s]}],)")
 			TEXT(R"("expect":[{"type":"TurnsCompleted","value":1}]})"), *IntentBody);
 	};

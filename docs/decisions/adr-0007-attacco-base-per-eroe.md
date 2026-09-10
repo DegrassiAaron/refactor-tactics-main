@@ -67,7 +67,7 @@ runtime (metriche, UI, tutorial) — non prima.
 
 D-033 richiede che un'azione generica con profilo sia **spiegabile nel TurnLog come *azione base + profilo***.
 Oggi i quattro attacchi base non passano da `Action.BasicAttack`: hanno `ActionId` propri
-(`Hero.Aevik.ArcPulse`, `Hero.Phase.PressureJet`, `Hero.Riktor.ImpactShot`, `Hero.Wraith.PulseShot`), quindi il TurnLog registra
+(`Hero.Aevik.ArcPulse`, `Hero.Muiren.PressureJet`, `Hero.Riktor.ImpactShot`, `Hero.Wraith.PulseShot`), quindi il TurnLog registra
 **il nome dell'eroe**, non la coppia.
 
 Questo ADR **non risolveva** quel punto e non lo dichiarava risolto: lo registrava come conseguenza da

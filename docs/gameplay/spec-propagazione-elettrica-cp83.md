@@ -47,7 +47,7 @@ un pilastro di prodotto, e qui costava una scelta di algoritmo, non una feature.
 ### D2 — La conduzione è della CELLA, mai dello stato dell'unità
 
 Il modello ha due portatori possibili: la cella (`bConductsElectricity`) e l'unità (`Status.Wet`, che
-`Hero.Phase.PressureJet` applica anche all'asciutto). **La propagazione guarda solo le celle.**
+`Hero.Muiren.PressureJet` applica anche all'asciutto). **La propagazione guarda solo le celle.**
 
 *Perché*: due modelli di conduzione paralleli sarebbero la duplicazione che il canone vieta, e renderebbero la
 regola impredicibile (chi è bagnato non si vede sulla mappa quanto l'acqua). `Status.Wet` resta ciò che è già:

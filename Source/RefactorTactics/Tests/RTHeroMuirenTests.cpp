@@ -32,26 +32,26 @@ namespace
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPhaseMatchesCatalogTest,
-	"RefactorTactics.Heroes.Phase.MatchesCatalog",
+	"RefactorTactics.Heroes.Muiren.MatchesCatalog",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
 {
 	// Numeri della tabella §2 del catalogo eroi v0.1.
-	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
 	if (!TestNotNull(TEXT("Phase costruita"), Phase)) { return false; }
 
-	TestEqual(TEXT("HeroId"), Phase->HeroId, FName(TEXT("Hero.Phase")));
-	TestEqual(TEXT("salute"), Phase->MaxHealth, 95);
-	TestEqual(TEXT("movimento"), Phase->MovePoints, 5);
-	TestEqual(TEXT("vista"), Phase->VisionRange, 5);
-	TestEqual(TEXT("resistenza push"), Phase->PushResistance, 0);
-	TestEqual(TEXT("affinita'"), Phase->Affinity, FName(TEXT("Affinity.Water")));
+	TestEqual(TEXT("HeroId"), Muiren->HeroId, FName(TEXT("Hero.Muiren")));
+	TestEqual(TEXT("salute"), Muiren->MaxHealth, 95);
+	TestEqual(TEXT("movimento"), Muiren->MovePoints, 5);
+	TestEqual(TEXT("vista"), Muiren->VisionRange, 5);
+	TestEqual(TEXT("resistenza push"), Muiren->PushResistance, 0);
+	TestEqual(TEXT("affinita'"), Muiren->Affinity, FName(TEXT("Affinity.Water")));
 	// Simmetrica a Aevik: la stessa combo si legge da entrambi i lati con lo stesso nome.
-	TestEqual(TEXT("debolezza simmetrica a Aevik"), Phase->Weakness, FName(TEXT("Affinity.Electricity")));
+	TestEqual(TEXT("debolezza simmetrica a Aevik"), Muiren->Weakness, FName(TEXT("Affinity.Electricity")));
 
-	if (!TestEqual(TEXT("sei azioni: le cinque del catalogo piu' lo scudo proattivo di D-226"), Phase->Actions.Num(), 6)) { return false; }
+	if (!TestEqual(TEXT("sei azioni: le cinque del catalogo piu' lo scudo proattivo di D-226"), Muiren->Actions.Num(), 6)) { return false; }
 
-	const URTActionData* PressureJet = Phase->Actions[0];
+	const URTActionData* PressureJet = Muiren->Actions[0];
 	TestEqual(TEXT("PressureJet: 16 danni"), PhaseEffectAmount(PressureJet->Def.Effects, ERTActionEffect::Damage), 16);
 	TestTrue(TEXT("PressureJet: applica Wet"), PhaseDeclaresEffect(PressureJet, ERTActionEffect::Status));
 	TestEqual(TEXT("PressureJet: Push 1"), PhaseEffectAmount(PressureJet->Def.Effects, ERTActionEffect::Push), 1);
@@ -71,7 +71,7 @@ bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
 	// ⚠️ Il costo e' dichiarato in #1006 e non va dimenticato leggendo solo questa riga: il roster perde
 	// l'unico produttore INNATO di superficie acqua, quindi `Aevik.ConductiveNode` — che propaga sul grafo
 	// conduttivo — dipende dalla mappa o dallo Sprinkler. La vetrina Conflux di D-046 ne risente.
-	const URTActionData* FluidTrail = Phase->Actions[2];
+	const URTActionData* FluidTrail = Muiren->Actions[2];
 	const FRTActionDef DodgeDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
 	TestEqual(TEXT("FluidTrail: portata dal core, non un numero nuovo"), FluidTrail->Def.RangeCells, DodgeDef.RangeCells);
 	TestEqual(TEXT("FluidTrail: cooldown 2, il proprio e non quello del core"), FluidTrail->Def.CooldownTurns, 2);
@@ -93,7 +93,7 @@ bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
 	// vincolante del kit: se un giorno tornasse `Preparation`, o il flag sparisse, deve cadere qualcosa —
 	// perche' il modo in cui questa abilita' falliva era il piu' silenzioso possibile (risolveva, e non
 	// succedeva niente).
-	const URTActionData* MistVeil = Phase->Actions[3];
+	const URTActionData* MistVeil = Muiren->Actions[3];
 	const FRTActionDef IgniteDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Ignite"));
 	TestEqual(TEXT("MistVeil: cooldown 3"), MistVeil->Def.CooldownTurns, 3);
 	TestTrue(TEXT("MistVeil: crea una superficie"), MistVeil->Def.bCreatesSurface);
@@ -130,11 +130,11 @@ bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
  * di `PressureJet`, che colpisce meno bersagli. E' il prezzo accettato con l'opzione C di #1006.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPhaseTideHealsWithoutWettingTest,
-	"RefactorTactics.Heroes.Phase.TideHealsWithoutWetting",
+	"RefactorTactics.Heroes.Muiren.TideHealsWithoutWetting",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPhaseTideHealsWithoutWettingTest::RunTest(const FString&)
 {
-	const URTActionData* CircularTide = URTHeroCatalogLibrary::MakePhase()->Actions[1];
+	const URTActionData* CircularTide = URTHeroCatalogLibrary::MakeMuiren()->Actions[1];
 
 	// Le assertion ancora vive del test precedente: la cura e i numeri di forma non cambiano.
 	TestTrue(TEXT("dichiara una cura"), PhaseDeclaresEffect(CircularTide, ERTActionEffect::Heal));
@@ -165,12 +165,12 @@ bool FRTPhaseTideHealsWithoutWettingTest::RunTest(const FString&)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPhaseVariantTradeoffTest,
-	"RefactorTactics.Heroes.Phase.VariantTradeoff",
+	"RefactorTactics.Heroes.Muiren.VariantTradeoff",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPhaseVariantTradeoffTest::RunTest(const FString&)
 {
 	// Nome vincolante della DoD: nessuna variante di CircularTide e' migliore in ogni parametro.
-	const URTActionData* CircularTide = URTHeroCatalogLibrary::MakePhase()->Actions[1];
+	const URTActionData* CircularTide = URTHeroCatalogLibrary::MakeMuiren()->Actions[1];
 	if (!TestEqual(TEXT("due varianti"), CircularTide->Variants.Num(), 2)) { return false; }
 
 	const FRTAbilityVariant& Healing = CircularTide->Variants[0];

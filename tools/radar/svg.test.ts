@@ -50,7 +50,7 @@ test('l SVG dichiara una dimensione propria, non solo una proporzione', () => {
     renderRadar('Aevik', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile'),
     renderCompare(
       { name: 'Aevik', values: profileAxes(flux()) },
-      { name: 'Phase', values: profileAxes(flux()) },
+      { name: 'Muiren', values: profileAxes(flux()) },
       PROFILE_AXES,
     ),
   ]) {
@@ -99,7 +99,7 @@ test('la legenda del confronto prende il colore da una classe, non da un attribu
   // poter cambiare colore col tema, e restare comunque distinte fra loro.
   const svg = renderCompare(
     { name: 'Aevik', values: profileAxes(flux()) },
-    { name: 'Phase', values: profileAxes(flux()) },
+    { name: 'Muiren', values: profileAxes(flux()) },
     PROFILE_AXES,
   );
   assert.doesNotMatch(svg, /<text class="legend[^"]*"[^>]*fill=/);

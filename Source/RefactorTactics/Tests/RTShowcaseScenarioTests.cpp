@@ -269,7 +269,7 @@ bool FRTShowcaseFixtureLayoutTest::RunTest(const FString&)
 
 	// Il roster canonico della v0.1, con gli ID del catalogo eroi: non gli archetipi legacy ne' i nomi
 	// storici (Aegis/Nyx/Drift/Vex). Sono gli stessi ID che `URTHeroCatalogLibrary` usa come chiave stabile.
-	for (const FName HeroId : { FName("Hero.Aevik"), FName("Hero.Phase"), FName("Hero.Branth"), FName("Hero.Ivrin") })
+	for (const FName HeroId : { FName("Hero.Aevik"), FName("Hero.Muiren"), FName("Hero.Branth"), FName("Hero.Ivrin") })
 	{
 		TestTrue(*FString::Printf(TEXT("%s e' in campo"), *HeroId.ToString()), Heroes.Contains(HeroId));
 	}
@@ -545,7 +545,7 @@ bool FRTShowcaseBasinLayoutTest::RunTest(const FString&)
 	}
 
 	TestEqual(TEXT("Aevik allo spawn dichiarato"),    ById.FindRef(TEXT("Hero.Aevik")),    FRTCellId(-4, 0, 0));
-	TestEqual(TEXT("Phase allo spawn dichiarato"),    ById.FindRef(TEXT("Hero.Phase")),    FRTCellId(-4, 1, 0));
+	TestEqual(TEXT("Phase allo spawn dichiarato"),    ById.FindRef(TEXT("Hero.Muiren")),    FRTCellId(-4, 1, 0));
 	TestEqual(TEXT("Branth allo spawn dichiarato"), ById.FindRef(TEXT("Hero.Branth")), FRTCellId( 4, 0, 0));
 	TestEqual(TEXT("Ivrin allo spawn dichiarato"),  ById.FindRef(TEXT("Hero.Ivrin")),  FRTCellId( 4, 1, 0));
 
@@ -949,7 +949,7 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 		return U;
 	};
 	Scenario.Units.Add(Unita(TEXT("Aevik"),    TEXT("Hero.Aevik"),    0, FRTCellId(-4, 0, 0)));
-	Scenario.Units.Add(Unita(TEXT("Phase"),    TEXT("Hero.Phase"),    0, FRTCellId(-4, 1, 0)));
+	Scenario.Units.Add(Unita(TEXT("Phase"),    TEXT("Hero.Muiren"),    0, FRTCellId(-4, 1, 0)));
 	Scenario.Units.Add(Unita(TEXT("Branth"), TEXT("Hero.Branth"), 1, FRTCellId( 4, 0, 0)));
 	Scenario.Units.Add(Unita(TEXT("Ivrin"),  TEXT("Hero.Ivrin"),  1, FRTCellId( 4, 1, 0)));
 

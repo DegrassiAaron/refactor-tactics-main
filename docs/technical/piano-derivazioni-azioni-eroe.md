@@ -94,8 +94,8 @@ confronto — è quella che `URTCatalogLibrary::MakeEquipmentAction` usa da semp
 | Abilità | Deriva da | Oggi |
 |---|---|---|
 | `Hero.Aevik.ConductiveNode` | `Action.Electrify` | `Def` locale in `MakeGadget` |
-| `Hero.Phase.FluidTrail` | `Action.Dodge` | `Def` locale in `MakePhase` |
-| `Hero.Phase.MistVeil` | `Action.Ignite` | `Def` locale in `MakePhase` |
+| `Hero.Muiren.FluidTrail` | `Action.Dodge` | `Def` locale in `MakePhase` |
+| `Hero.Muiren.MistVeil` | `Action.Ignite` | `Def` locale in `MakePhase` |
 | `Hero.Riktor.KineticPanel` | `Action.CreateCover` | `Def` locale in `MakeRiktor` |
 | `Hero.Riktor.Ram` | `Action.Charge` | `Def` locale in `MakeRiktor` |
 | `Hero.Aevik.ReactiveCapacitor` | `Action.Counter` | riceve l'ID e lo butta, in `MakeHeroReactionFromCoreAction` |

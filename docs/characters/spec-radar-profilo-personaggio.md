@@ -292,7 +292,7 @@ confrontabili (§1). Il loadout consigliato aprirebbe il catalogo equipaggiament
 richiederebbe di assumere **quanti bersagli** colpisce *Scarica ramificata* — che è uno scenario, non un
 dato. Le varianti restano documentate come **direzione**, senza numeri.
 
-**Le reazioni rinviate a E14 contano.** `Hero.Phase.FlowReaction` non produce nulla in partita, ma il radar
+**Le reazioni rinviate a E14 contano.** `Hero.Muiren.FlowReaction` non produce nulla in partita, ma il radar
 descrive l'eroe come il **catalogo lo dichiara**. Escluderla legherebbe i rating al calendario di
 implementazione: quando E14 atterra i numeri cambierebbero e il gate di §8 diventerebbe rosso **senza** che
 nessuno abbia toccato un dato competitivo.

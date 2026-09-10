@@ -163,13 +163,13 @@ test('la soglia d udito vive in §5.1, una quarta tabella con una sola colonna d
     '| Eroe | Vista | Soglia d\'udito | Ruolo | Risorsa firma | Ricarica su | Cap |',
     '|---|---:|---:|---|---|---|---:|',
     "| Aevik | 7 | 5 | Controller | Carica Conduttiva | interazione elettrica | 4 |",
-    "| Phase | 5 | 3 | Support | Riserva Idrica | interazione con acqua | 4 |",
+    "| Muiren | 5 | 3 | Support | Riserva Idrica | interazione con acqua | 4 |",
   ].join('\n');
 
   const rows = parsePerceptionTable(md);
 
   assert.equal(rows.get('Aevik')!.hearingThreshold, 5);
-  assert.equal(rows.get('Phase')!.hearingThreshold, 3);
+  assert.equal(rows.get('Muiren')!.hearingThreshold, 3);
   // La `Vista` c'e' gia' nelle schede e nel §5: qui si legge solo cio' che questa tabella possiede da sola.
   assert.equal(rows.get('Aevik')!.visionRange, undefined);
 });
