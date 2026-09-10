@@ -48,6 +48,23 @@ Un vertical slice **2v2 offline contro bot** su griglia **esagonale multilivello
   ha reso possibile l'ampliamento è misurato**: `StepUntilBlocked` ferma già la spinta sulla cella libera
   precedente, quindi il fallback non è una posizione da inventare — mancano gli effetti e la traccia.
   ⛔ Il **motore del ghiaccio** resta fuori, e con lui lo slide a catena.
+<!-- rename-exempt: la riga dichiara la rinomina imposta da D-343: sostituirla la renderebbe muta -->
+- **strumenti di prova della fetta e riproduzione** — **Replay Viewer**
+  ([#472](https://github.com/DegrassiAaron/refactor-tactics-main/issues/472), chiusa), **Ability Lab**
+  ([#2599](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2599)) e **Hero Lab**
+  ([#2600](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2600)), entrati con la decisione di
+  release del 2026-09-06 e ratificati da [D-343](../decisions/RT_PDR_00_Decision_Log.md) come **deliverable
+  della v0.1** — non capability che maturano fra le release, e quindi **senza numero di versione nel nome**:
+  si scrive *Ability Lab*, non *Ability Lab 0.1*. I confini restano quelli delle due issue — catalogo canonico
+  → fixture → **runner reale** → resolver reale → TurnLog reale per il primo, `HeroId` canonico → dati canonici
+  → ability del kit → **lo stesso runner** per il secondo. ⛔ **Fuori**: authoring di ability o di eroi,
+  mini-resolver separato, balance in batch, modding, Skill Workbench, editor completo. Che siano usabili **nello
+  stesso giro** di Presentation, Turn Log e Replay Viewer è il gate **`G16`** di
+  [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3, eseguito da
+  [#2601](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2601). ⚠️ **È il terzo ampliamento che
+  questa lista riceve dopo la stesura**, e stavolta non aggiunge lavoro: le tre capability erano **già** nel
+  target della milestone `v0.1` dal 2026-09-06 e in nessuna riga di questo file, che ne è lo scope owner. Una
+  capability dichiarata dal tracker e assente dall'owner dello scope non è scope: è un'aspettativa.
 
 **Fuori scope v0.1** (restano north-star): multiplayer in rete, 4v4, GAS, progressione, modding, editor di
 mappe dinamico a runtime.

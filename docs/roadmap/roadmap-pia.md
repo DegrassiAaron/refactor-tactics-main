@@ -5,7 +5,9 @@
 > Lo stato delle epic resta in [`roadmap-v0.1.md`](roadmap-v0.1.md).
 > La vista di esecuzione generale resta in [`roadmap-checkpoint.md`](roadmap-checkpoint.md).
 > **La matrice dei gate di release resta in [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3
-> — `G1`–`G14`**, che ha già le colonne criterio, evidenza e stato datato.
+> — `G1`–`G14`**, che ha già le colonne criterio, evidenza e stato datato. ⚠️ `G1`–`G14` è il perimetro su cui
+> **PIA** riporta, non l'elenco dei gate vivi: dal 2026-09-10 la tabella porta anche `G16`, su cui PIA non
+> riporta nulla.
 > Il registro delle verifiche manuali resta in [`test-manuali-pie.md`](../technical/test-manuali-pie.md).
 >
 > **PIA registra soltanto il progresso dei propri gate di integrazione e accettazione.**
