@@ -1040,6 +1040,7 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| PreviewReachable.Num() > 0
 		|| bPreviewAttackValid
 		|| bHasPreviewSightBlock
+		|| PlaybackFootprintCells.Num() > 0
 		// Una dissolvenza del velo in volo e' lavoro da fare per fotogramma quanto un'anteprima (`#2875`).
 		|| VeilCellsInTransition > 0;
 }
@@ -1078,6 +1079,27 @@ void ARTHexMapActor::SetPreviewSightBlock(bool bBlocked, const FRTCellId& From, 
 	bHasPreviewSightBlock = bBlocked;
 	PreviewSightFrom = From;
 	PreviewSightBlockedAt = BlockedAt;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::AddPlaybackFootprint(const TArray<FRTCellId>& FootprintCells)
+{
+	// Si copia e basta, come le celle colpite dell'anteprima: arrivano da `FRTResolvedEvent::HitCells`, che
+	// il resolver ha gia' prodotto. ⛔ Nessun filtro e nessun ricalcolo qui — sarebbero una seconda risposta
+	// alla stessa domanda, ed e' l'invariante #1.
+	//
+	// ⚠️ `Append` e non assegnazione: `un evento -> un segnale`, e due impronte nello stesso Blast sono due
+	// fatti distinti. ⛔ Nessuna deduplicazione: due aree che si sovrappongono si sovrappongono davvero, e
+	// toglierne una sarebbe l'aggregazione furba che la v0.1 esclude (`#2453`).
+	// ⚠️ `FootprintCells` e non `Cells`: `Cells` e' gia' un membro di questo actor — le istanze della
+	// griglia — e il parametro lo nasconderebbe (`C4458`, che qui e' un errore, non un warning).
+	PlaybackFootprintCells.Append(FootprintCells);
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::ClearPlaybackFootprint()
+{
+	PlaybackFootprintCells.Reset();
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
@@ -1333,6 +1355,21 @@ void ARTHexMapActor::DrawPlanningPreview() const
 	{
 		const bool bAlly = PreviewAllyHitCells.Contains(Cell);
 		DrawMeaning(Cell, bAlly ? ERTOverlayMeaning::FriendlyFire : ERTOverlayMeaning::Attack);
+	}
+
+	// Impronta dei colpi gia' RISOLTI, durante il playback (`#2454`).
+	//
+	// 🔑 **Stesso significato dell'area in anteprima, quindi stesso colore**: `ERTOverlayMeaning::Attack`
+	// da `URTOverlayPalette`. ⛔ Nessun `FColor` letterale nuovo — un sesto letterale in questa funzione e'
+	// precisamente il difetto che `#1941` esiste per chiudere, e che `RTHexLosConsole.cpp` ha gia' rifiutato
+	// per iscritto.
+	//
+	// ⚠️ Vive nella stessa funzione dell'anteprima e non in una gemella: `DrawMeaning` e' una lambda locale,
+	// ed estrarla sarebbe un refactor che questa issue non ha ragione di fare. Cio' che resta separato e' lo
+	// **stato** — array proprio, spento da `FinishPlayback` invece che dal lock-in.
+	for (const FRTCellId& Cell : PlaybackFootprintCells)
+	{
+		DrawMeaning(Cell, ERTOverlayMeaning::Attack);
 	}
 
 	// Cella sotto il cursore: disegnata per ultima e piu' larga, cosi' resta leggibile sopra la traccia.

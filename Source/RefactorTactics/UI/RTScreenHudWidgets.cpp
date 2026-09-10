@@ -709,9 +709,18 @@ void URTTacticalHUDWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
-	// ⚠️ **Questa e' una fotografia AL MONTAGGIO, e va letta come tale.** Gli `ActionSlot` li crea il grafo
-	// del dock quando arrivano le azioni: qui contano `0` anche quando poi ci saranno, ed e' precisamente
-	// l'equivoco in cui la seduta `U49` e' incorsa il 2026-09-10. Per l'albero VIVO: `rt.Debug.ScreenHud`.
+	// ⚠️ **Fotografia AL MONTAGGIO: non e' l'albero a regime**, e le due cose possono divergere. Per
+	// l'albero vivo, a partita avviata: `rt.Debug.ScreenHud`.
+	//
+	// 🔴 **La distinzione e' costata un equivoco, e va raccontata perche' era nel verso opposto a quello
+	// che sembrava.** Durante `U49`, il 2026-09-10, questo dump ha detto `[MANCA] ActionSlot: 0` e la prima
+	// spiegazione fu «li crea il grafo del dock DOPO la radice, e' solo il timing». **Falsa**: il `.uasset`
+	// di allora non li costruiva affatto, ed e' il difetto che `#2297` ha chiuso facendo costruire al dock
+	// i propri slot. La prova che sembrava smentirlo — migliaia di `Icona non risolta` firmate
+	// `'ActionSlot'` — veniva da una sessione con un asset diverso.
+	//
+	// ⚠️ Quindi uno zero su questa riga vuole una **seconda misura**, non una spiegazione: eseguire
+	// `rt.Debug.ScreenHud` prima di concludere in un verso o nell'altro.
 	UE_LOG(LogRT, Display,
 		TEXT("Screen HUD 4.1 - fotografia AL MONTAGGIO; per l'albero a regime usa 'rt.Debug.ScreenHud'"));
 

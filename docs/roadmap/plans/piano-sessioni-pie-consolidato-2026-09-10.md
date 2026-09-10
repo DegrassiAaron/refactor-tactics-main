@@ -47,6 +47,24 @@ Fonte normativa: repository/runtime/TurnLog. Le tavole 05–09 sono riferimenti 
 
 ### S2 — Pianificazione umana, pointer, rifiuti e muro LOS
 
+> 🔗 **Seduta**: `U46` — [#2476](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2476) ·
+> **Runbook**: [`guida-seduta-u46-residui-g9.md`](../../technical/runbooks/guida-seduta-u46-residui-g9.md)
+> · *aggiunti il 2026-09-10*
+>
+> ✅ **Il runbook conferma il «Setup B» di questa sezione e ne spiega il perche' nel codice**: durante la
+> pausa dell'auto-run `FRTScenarioSession::Step` fa **solo** `PauseElapsed += DeltaSeconds`, e la guardia
+> della linea d'intento richiede `View.bHasTarget`, falso perche' il resolver ha appena azzerato i piani.
+> ∴ alzare la pausa da' piu' tempo per guardare una scena **in cui nessuno pianifica**.
+>
+> ⚠️ **E aggiunge un fatto che questa sezione non aveva**: la finestra di pianificazione umana su un
+> banco **non e' oggi ottenibile** — `git grep` per `bHumanPlanning|WaitForPlayer|Interactive|PauseForPlanning`
+> in `ScenarioHarness/` da' **0**. ∴ il **Setup A** e' l'unico eseguibile, e va dichiarato come tale
+> accanto al verdetto.
+>
+> 🔑 **Stato delle voci al 2026-09-10**: del subset `RELEASE-V01` l'unica ❌ e' `PIE-HEXPLAY-6`.
+> `PIE-VIS-SIGHTWALL` e' ❌ ma **fuori subset** — si giudica nello stesso Play e vale per #2534.
+> `PIE-HEXPLAY-8` aspetta una **decisione**, non una seduta: [#2911](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2911).
+
 **Stato:** eseguibile dopo #2826; #2697 è l'owner del verdetto, non un motivo per rimandarlo.  
 **Setup A:** `Visual.Hud.FirstPlayable`, giocatore umano.  
 **Setup B:** `Visual.Map.SightWallIsWalkable`, ma con una finestra di vera pianificazione umana o un intento mantenuto vivo; non usare l'auto-run come oracolo della planning UI.

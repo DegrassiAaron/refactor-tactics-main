@@ -725,6 +725,17 @@ public:
 	void OnTogglePrepWindowPauseForTest();
 
 	/**
+	 * Hook per i test: percorre il **tasto destro** senza Enhanced Input. Gemello di `OnLockInForTest`.
+	 *
+	 * 🔴 **Esiste perche' senza di esso il Back era verificato solo a valle.** `ResolveBack` e `ApplyBack`
+	 * hanno test propri, ma nessuno guardava il percorso che il giocatore usa davvero: l'`RMB` entra da
+	 * `OnUndoWaypoint`, e finche' quella funzione ordinava i livelli per conto suo il modulo puro poteva
+	 * restare verde mentre il tasto faceva un'altra cosa. E' la distinzione fra testare una regola e
+	 * testare chi la applica.
+	 */
+	void OnUndoWaypointForTest();
+
+	/**
 	 * Hook per i test: percorre i gesti `K` e `L` senza Enhanced Input (`#2858`).
 	 *
 	 * 🔑 **Esistono perche' il criterio d'accettazione parla del GESTO, non della funzione del manager.**

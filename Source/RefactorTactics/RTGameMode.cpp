@@ -7,7 +7,10 @@
 #include "Map/RTHexMapActor.h"
 #include "Unit/RTUnit.h" // FClassFinder<ARTUnit> nel costruttore, e il tipo di `HeroUnitClasses`
 #include "Combat/RTCombatLibrary.h" // ControlGroupForUnit: la partizione della squadra (`CP 19.3`, `#1124`)
-#include "Map/RTHexLibrary.h"        // StableLess: l'ordine deterministico delle unita'
+// `Map/RTHexLibrary.h` stava qui per `StableLess`, che questo file non chiama piu': l'ordine delle unita'
+// passa dalla sede unica (#2922), e un include con accanto la ragione sbagliata invecchia senza che nessuno
+// lo veda. `git grep "URTHexLibrary::" Source/RefactorTactics/RTGameMode.cpp` risponde a vuoto.
+#include "Turn/RTActionQueueLibrary.h" // SortUnitsForResolution: la sede unica dell'ordine (#2922)
 #include "Turn/RTTurnManager.h"
 #include "Frontend/RTFrontendNavigator.h"
 #include "Frontend/RTMatchFrontendBridge.h" // la POLITICA del confine col frontend: qui resta il cablaggio
@@ -388,20 +391,29 @@ ARTGameMode::ARTGameMode()
 			}
 		};
 
-		// ⚠️ **`BranthBP` punta a un path che dice ancora `Riktor`, e NON e' un refuso.** [D-334] ha rinominato
-		// l'IDENTITA' (`Hero.Riktor` -> `Hero.Branth`), non gli asset: `/Game/RT/Characters/Riktor/` e
-		// `BP_Unit_Riktor` sono `.uasset`, e il loro rename e' la fetta E di #2297 — fuori dallo scope di
-		// #2491, che tocca solo codice e scenari. Allineare il path prima che l'asset esista farebbe fallire
-		// il `FClassFinder` **nel costruttore**, e i quattro eroi ricadrebbero sul cilindro di fallback.
-		// ∴ quando la fetta E rinomina l'asset, questa riga e la tabella di `RTHeroSpawnTests` si muovono
-		// insieme — sono le due meta' dello stesso pin.
-		static ConstructorHelpers::FClassFinder<ARTUnit> GadgetBP(TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget"));
-		static ConstructorHelpers::FClassFinder<ARTUnit> PhaseBP(TEXT("/Game/RT/Characters/Phase/Blueprints/BP_Unit_Phase"));
-		static ConstructorHelpers::FClassFinder<ARTUnit> BranthBP(TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor"));
-		static ConstructorHelpers::FClassFinder<ARTUnit> IvrinBP(TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith"));
+		// ✅ **I path dicono ora l'IDENTITA', e non piu' lo slot asset Paragon** (`#2297` fetta E, [D-321]).
+		//
+		// Fino al 2026-09-10 queste quattro righe puntavano a `Gadget`, `Phase`, `Riktor` e `Wraith`, che
+		// [D-321] ha misurato **non essere nomi ispirati**: sono i nomi degli **slot asset Paragon**. [D-334]
+		// aveva gia' rinominato l'identita' (`Hero.Riktor` -> `Hero.Branth`) lasciando indietro gli asset, e il
+		// disallineamento e' stato per settimane «la verita' del progetto, non un errore da correggere».
+		//
+		// 🔴 **Il rename NON e' un search/replace, ed e' la ragione per cui la fetta E aspettava.** Questi sono
+		// letterali risolti da `FClassFinder` **nel costruttore**: se il path non risolve, la voce resta ASSENTE
+		// e in partita torna il cilindro **senza dire niente** (il difetto che `#287` ha chiuso). ∴ asset e
+		// codice si muovono **insieme**, e l'oracolo che lo prova e' `RTHeroSpawnTests`, che risolve davvero le
+		// quattro classi invece di confrontare stringhe.
+		//
+		// ⚠️ **Cio' che NON si e' mosso, e non e' una dimenticanza**: i path dentro `/Game/FabAsset/Paragon/`
+		// restano quelli di terze parti — l'ultimo segmento e' il nome dell'asset originale, non l'id
+		// dell'eroe. `RTPackagingConfigTests` lo dichiara sul proprio letterale di controllo.
+		static ConstructorHelpers::FClassFinder<ARTUnit> AevikBP(TEXT("/Game/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> MuirenBP(TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> BranthBP(TEXT("/Game/RT/Characters/Branth/Blueprints/BP_Unit_Branth"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> IvrinBP(TEXT("/Game/RT/Characters/Ivrin/Blueprints/BP_Unit_Ivrin"));
 
-		Assegna(TEXT("Hero.Aevik"), GadgetBP);
-		Assegna(TEXT("Hero.Muiren"),  PhaseBP);
+		Assegna(TEXT("Hero.Aevik"), AevikBP);
+		Assegna(TEXT("Hero.Muiren"),  MuirenBP);
 		Assegna(TEXT("Hero.Branth"), BranthBP);
 		Assegna(TEXT("Hero.Ivrin"), IvrinBP);
 	}
@@ -904,7 +916,11 @@ void ARTGameMode::AssignUnitControlGroups()
 	// ⚠️ **L'ordine e' quello di `CollectLivingUnits`, non quello di `GetAllActorsOfClass`.** Quest'ultimo non
 	// promette nulla, e il gruppo di un'unita' decide CHI la comanda: farlo dipendere dall'ordine di
 	// registrazione degli Actor renderebbe la partizione diversa a ogni avvio, che e' l'invariante n. 4.
-	Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+	//
+	// 🔑 Qui `StableUnitId` vale ancora `0` per tutti — `EnsureMatchRoster()` non e' passato — quindi a
+	// spareggiare due unita' sulla stessa cella e' il NOME dell'Actor, l'ultima chiave di `UnitOrderLess`.
+	// E' il caso per cui quella terza chiave esiste (#2922).
+	URTActionQueueLibrary::SortUnitsForResolution(Units);
 
 	// L'indice riparte per SQUADRA: il gruppo dice quale persona *di quella squadra* comanda, e due squadre
 	// hanno entrambe un gruppo `0`.

@@ -2,6 +2,7 @@
 #include "Turn/RTPacingLibrary.h"
 #include "Turn/RTPlaybackLibrary.h"
 #include "Unit/RTGraykitLibrary.h" // #2880: la posa si valuta sullo stesso Alpha del movimento
+#include "Turn/RTPresentationBinding.h" // #2881: l'andatura la decide l'owner di [D-278], non questo file
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTPlanValidationLibrary.h" // CP 38.2: la legalita' del piano si CHIEDE al commit
 #include "Turn/RTActionQueueLibrary.h"
@@ -2397,18 +2398,26 @@ void ARTTurnManager::ConcludeResolution()
 		// run riga per riga. Uno scambio farebbe divergere l'archivio da se' stesso.
 		// E' la stessa disciplina che `ResolveEnvironment` e `TickDynamicCovers` applicano gia', con lo
 		// stesso comparatore. Trovato in code review.
-		Actors.Sort([](const AActor& A, const AActor& B)
-		{
-			const ARTUnit* UA = Cast<ARTUnit>(&A);
-			const ARTUnit* UB = Cast<ARTUnit>(&B);
-			if (!UA || !UB) { return UA != nullptr; } // i non-unita' in coda, deterministicamente
-			return URTHexLibrary::StableLess(UA->Cell, UB->Cell);
-		});
-
+		//
+		// ⚠️ Il comparatore stava QUI, scritto a mano, e confrontava la sola cella (#2922): due unita' sulla
+		// stessa cella pareggiavano e a deciderle tornava `GetAllActorsOfClass`. La regola vive ora in una
+		// sede sola ed e' un ordine TOTALE.
+		//
+		// 🔑 E si raccoglie in `TArray<ARTUnit*>` PRIMA di ordinare, invece di ordinare gli `AActor*` con un
+		// comparatore che sa gestire i non-unita': la query e' `ARTUnit::StaticClass()`, quindi quel ramo non
+		// sarebbe mai stato raggiunto — codice difensivo che nessun test puo' rendere rosso. Ed e' la stessa
+		// forma degli altri chiamanti (`ResolvePrep`, `ResolveEnvironment`), che e' il punto.
+		TArray<ARTUnit*> Units;
+		Units.Reserve(Actors.Num());
 		for (AActor* Actor : Actors)
 		{
-			ARTUnit* Unit = Cast<ARTUnit>(Actor);
-			if (!Unit || !Unit->IsAlive())
+			if (ARTUnit* Unit = Cast<ARTUnit>(Actor)) { Units.Add(Unit); }
+		}
+		URTActionQueueLibrary::SortUnitsForResolution(Units);
+
+		for (ARTUnit* Unit : Units)
+		{
+			if (!Unit->IsAlive())
 			{
 				continue;
 			}
@@ -3683,9 +3692,10 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		}
 	}
 	if (Units.Num() == 0) { return; }
-	// Stesso ordine stabile per cella del resto del turno: da qui dipendono gli indici passati alla libreria
-	// e l'ordine in cui due scariche dello stesso turno si applicano.
-	Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+	// Stesso ordine stabile del resto del turno: da qui dipendono gli indici passati alla libreria e l'ordine
+	// in cui due scariche dello stesso turno si applicano. La cella e' la prima chiave, ma non l'unica
+	// (#2922): da sola pareggia sulla sovrapposizione, e il pareggio tornerebbe a `GetAllActorsOfClass`.
+	URTActionQueueLibrary::SortUnitsForResolution(Units);
 
 	// Celle la cui SUPERFICIE nasce in questo Cleanup (`#570`). Si raccolgono qui e i loro effetti si
 	// applicano in fondo, a tutte le trasformazioni decise: e' lo stesso "raccogli poi applica" del resto del
@@ -4652,7 +4662,9 @@ void ARTTurnManager::ResolvePrep()
 			Units.Add(Unit);
 		}
 	}
-	Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+	// Ordine totale: cella, poi identita' stabile, poi nome (#2922). Da questo ordine dipendono gli indici
+	// delle istanze raccolte qui sotto.
+	URTActionQueueLibrary::SortUnitsForResolution(Units);
 
 	// 0. Le strutture di BORDO (CP 9.5) prima del motore azioni, e fuori da esso: il loro esito e' una modifica
 	// della mappa, non un evento verso un'unita'. Passando dalla raccolta, un'azione senza `Effects`
@@ -6941,7 +6953,14 @@ void ARTTurnManager::CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const
 	//
 	// CADE `RefactorTactics.Match.Autobattle.DeterminismSurvivesUnitPermutation` se questa riga sparisce:
 	// verificato per mutazione, non dedotto.
-	OutUnits.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+	//
+	// 🔴 **E la cella da sola non bastava** (#2922). `#990` chiuse con questo comparatore sulla premessa
+	// *«due unita' vive non condividono una cella»*; `#1733`/`#1970` l'hanno misurata falsa — la
+	// sovrapposizione esiste e `MakeSnapshot` la REGISTRA in `Overlaps`. Su un pareggio `Algo::Sort` non e'
+	// stabile, quindi a decidere tornava proprio l'ordine che queste venti righe esistono per togliere di
+	// mezzo: due unita' scambiate qui ricevono `UnitId` scambiati, e `MakeSnapshot` tiene come occupante
+	// l'altra. La regola vive ora in `URTActionQueueLibrary`, con la cella ancora come PRIMA chiave.
+	URTActionQueueLibrary::SortUnitsForResolution(OutUnits);
 }
 
 FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const
@@ -7736,6 +7755,7 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	PlaybackAnimCellIndex.Reset();
 	PlaybackAttacks.Reset();
 	PlaybackDefeated.Reset();
+	PlaybackFootprints.Reset();
 	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
 	PlaybackDefeatBeatRemaining = 0.f; // e nemmeno la coda: `SkipPlayback` passa di qui e la scavalca
 	// 🔴 **La squadra di chi GUARDA, e il playback si tronca su di essa** (`#1525`, [D-223]). Stessa porta
@@ -7804,6 +7824,16 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 		{
 			PlaybackDefeated.Add(Ev);
 		}
+		else if (Ev.Type == ERTResolvedEventType::AttackFootprint)
+		{
+			// ⛔ **Nessun filtro di conoscenza qui, e non e' una dimenticanza**: l'impronta e' un fatto
+			// dell'AZIONE e le sue celle sono terreno, non occupazione. `HitCells` non consulta chi c'e'
+			// dentro — la catena `BlastOriginCell -> HexHitCells` non tocca l'occupazione in nessun punto
+			// (`#2791`), quindi disegnarla non rivela una presenza.
+			// ⚠️ Se un giorno l'impronta portasse un dato dipendente da CHI e' stato colpito, questa riga
+			// diventerebbe un canale e andrebbe filtrata come il prefisso osservato del `Move` qui sopra.
+			PlaybackFootprints.Add(Ev);
+		}
 	}
 
 	// Fasi attive, in ordine canonico (Prep -> Dash -> Blast -> Move). Cleanup: gia' applicato, nessun beat.
@@ -7817,7 +7847,14 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	PlaybackPhases.Reset();
 	if (bPrepActiveThisTurn) { PlaybackPhases.Add(ERTMatchPhase::Prep); }
 	if (bHasDash) { PlaybackPhases.Add(ERTMatchPhase::Dash); }
-	if (PlaybackAttacks.Num() > 0 || bHasBlastMove) { PlaybackPhases.Add(ERTMatchPhase::Blast); }
+	// 🔴 **Le impronte contano quanto i colpi**, ed e' la riga che apre il caso «area su sole celle
+	// vuote»: zero vittime -> zero `Attack` -> senza questo termine la fase non nasceva, e non esisteva
+	// un istante in cui disegnare (`#2454`). La decisione sta in una funzione pura perche' cambia la
+	// DURATA di un turno, ed e' cio' che i test di pacing sorvegliano.
+	if (URTPlaybackLibrary::BlastPhaseIsActive(PlaybackAttacks.Num(), bHasBlastMove, PlaybackFootprints.Num()))
+	{
+		PlaybackPhases.Add(ERTMatchPhase::Blast);
+	}
 	if (bHasMove) { PlaybackPhases.Add(ERTMatchPhase::Move); }
 
 	if (PlaybackPhases.Num() == 0)
@@ -7906,10 +7943,37 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	EnterPlaybackPhase();
 }
 
+void ARTTurnManager::RevealPlaybackFootprints(int32 UpTo)
+{
+	const int32 Target = FMath::Min(UpTo, PlaybackFootprints.Num());
+	if (FootprintsShown >= Target)
+	{
+		return;
+	}
+
+	// ⚠️ L'actor si cerca UNA volta per chiamata e non per impronta: `FindInWorld` itera gli attori, e
+	// farlo dentro il ciclo lo renderebbe quadratico in un ramo che gira a ogni tick del Blast.
+	ARTHexMapActor* const MapActor = ARTHexMapActor::FindInWorld(GetWorld());
+
+	while (FootprintsShown < Target)
+	{
+		const FRTResolvedEvent& Footprint = PlaybackFootprints[FootprintsShown];
+		if (MapActor)
+		{
+			// ⛔ Le celle si passano COSI' COME ARRIVANO. `HexHitCells` le ha gia' prodotte nell'ordine
+			// stabile di `URTHexLibrary::StableLess`, e riordinarle o filtrarle qui sarebbe la seconda
+			// risposta a una domanda che il resolver ha gia' chiuso ([D-301]).
+			MapActor->AddPlaybackFootprint(Footprint.HitCells);
+		}
+		++FootprintsShown;
+	}
+}
+
 void ARTTurnManager::EnterPlaybackPhase()
 {
 	PlaybackPhaseElapsed = 0.f;
 	AttacksShown = 0;
+	FootprintsShown = 0;
 	const ERTMatchPhase Ph = PlaybackPhases[PlaybackPhaseIdx];
 	AddLogEvent(FString::Printf(TEXT("Playback fase: %s"), *GetPlaybackPhaseName()), FRTLogSubject::World());
 	OnPhasePlaybackStarted.Broadcast(Ph);
@@ -8207,12 +8271,15 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				// ricalcolarlo qui produrrebbe due orologi sulla stessa animazione, sfasati al primo cambio
 				// di velocita' di playback.
 				//
-				// ⚠️ **Lo stile si sceglie dalla FASE, ed e' esplicitamente temporaneo**: il TurnManager
-				// conosce gia' `Ph`, quindi non nasce nessun mapping nuovo — legge un dato che ha in mano.
-				// Quando #2881 chiudera', la scelta si sposta li' e questa riga diventa una chiamata.
-				const ERTGraykitLocomotionStyle Style = (Ph == ERTMatchPhase::Dash)
-					? ERTGraykitLocomotionStyle::Run
-					: ERTGraykitLocomotionStyle::Normal;
+				// ⚠️ **L'andatura la decide `URTPresentationBindingLibrary`, non questo ciclo** (#2881). Fino
+				// al 2026-09-10 la scelta era scritta qui inline, dichiarata temporanea: era il TurnManager a
+				// rispondere a «cosa significa questa fase», che e' una domanda di [D-278].
+				//
+				// 🔑 Si passa `A.Phase` e non `Ph`: il ramo li rende uguali (`A.Phase == Ph` e' la condizione
+				// del filtro), ma il primo e' il dato che appartiene all'ANIM — cioe' all'azione — mentre il
+				// secondo e' lo stato del riproduttore. Se un giorno il ciclo smettesse di filtrare per fase,
+				// questa riga resterebbe giusta.
+				const ERTGraykitLocomotionStyle Style = URTPresentationBindingLibrary::StyleForPhase(A.Phase);
 				A.Unit->ApplyGraykitPose(URTGraykitLibrary::Evaluate(
 					URTGraykitLibrary::DescriptorForStyle(Style), Alpha));
 			}
@@ -8237,6 +8304,11 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 	if (Ph == ERTMatchPhase::Blast)
 	{
 		// Rivela i colpi in serie (uno ogni AttackShowSeconds) per leggibilita' del danno.
+		// L'impronta PRECEDE i suoi colpi: e' il segno a terra dell'azione, e vederla dopo le vittime
+		// racconterebbe la storia al contrario (`#2454`). Stesso scaglionamento, contatore proprio.
+		RevealPlaybackFootprints(URTPlaybackLibrary::AttacksToShow(
+			PlaybackFootprints.Num(), PlaybackPhaseElapsed, AttackShowSeconds));
+
 		const int32 ShouldShow = URTPlaybackLibrary::AttacksToShow(
 			PlaybackAttacks.Num(), PlaybackPhaseElapsed, AttackShowSeconds);
 		while (AttacksShown < ShouldShow)
@@ -8311,6 +8383,10 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		}
 		if (Ph == ERTMatchPhase::Blast)
 		{
+			// Chi non ha fatto in tempo a comparire compare adesso: una fase compressa dal budget non deve
+			// PERDERE un fatto, deve solo mostrarlo piu' in fretta.
+			RevealPlaybackFootprints(PlaybackFootprints.Num());
+
 			while (AttacksShown < PlaybackAttacks.Num())
 			{
 				const FRTResolvedEvent& Atk = PlaybackAttacks[AttacksShown];
@@ -8532,6 +8608,14 @@ void ARTTurnManager::FinishPlayback()
 	PlaybackAnimCellIndex.Reset();
 	PlaybackAttacks.Reset();
 	PlaybackDefeated.Reset();
+	PlaybackFootprints.Reset();
+	FootprintsShown = 0;
+	// ⛔ **Il canale si spegne qui, e passa di qui anche `SkipPlayback`**: un'impronta che
+	// sopravvivesse al turno sarebbe un'anteprima di qualcosa che non accadra' (`#2454`).
+	if (ARTHexMapActor* const FootprintMap = ARTHexMapActor::FindInWorld(GetWorld()))
+	{
+		FootprintMap->ClearPlaybackFootprint();
+	}
 	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
 	PlaybackDefeatBeatRemaining = 0.f; // e nemmeno la coda: `SkipPlayback` passa di qui e la scavalca
 	PlaybackPhases.Reset();
