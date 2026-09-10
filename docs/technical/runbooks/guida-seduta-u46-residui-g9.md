@@ -26,14 +26,32 @@ Stato al 2026-09-10, letto voce per voce con la **prima icona di stato per posiz
 | `PIE-V01-LOG` | `RELEASE-V01` | ✅ | — chiusa |
 | `PIE-V01-ROSTER` | `RELEASE-V01` | ✅ | — chiusa |
 | `PIE-VIS-TWOLAYERS` | — | ✅ | — chiusa |
-| **`PIE-HEXPLAY-6`** | `RELEASE-V01` | ❌ | **un occhio** |
-| **`PIE-VIS-SIGHTWALL`** | `RELEASE-V01` | ❌ | **un occhio** |
+| **`PIE-HEXPLAY-6`** | **`RELEASE-V01`** | ❌ | **un occhio** — ed è **l'unica ❌ che blocca `G9`** |
+| **`PIE-VIS-SIGHTWALL`** | — *(fuori subset)* | ❌ | **un occhio** — non blocca `G9`, ma è la DoD di [#2534](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2534) |
 | `PIE-HEXPLAY-8` | `RELEASE-V01` | 🟡 | **una decisione** — [#2911](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2911) |
 | `PIE-V01-DEBUG` *(opportunistica)* | — | 🟡 | un occhio, su un altro allestimento |
 
+⚠️ **`PIE-VIS-SIGHTWALL` NON è nel subset di release, e la distinzione è quella che la stessa
+`grep -c RELEASE-V01` sbaglia**: quella stringa compare anche nella **prosa** di celle che non portano il
+marcatore. Il conteggio si fa sul marcatore in testa alla riga, ed è la ragione per cui il registro
+prescrive il comando che prescrive:
+
+```bash
+grep -c '^| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`' docs/technical/test-manuali-pie.md   # 17
+
+grep '^| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`' docs/technical/test-manuali-pie.md \
+| awk -F'|' '{s=$(NF-1); if (match(s, /✅|🟡|❌|⏳/)) c[substr(s, RSTART, RLENGTH)]++}
+  END {printf "verde=%d parziale=%d fallita=%d aperta=%d\n", c["✅"], c["🟡"], c["❌"], c["⏳"]}'
+# verde=15 parziale=1 fallita=1 aperta=0     ← 2026-09-10, main = 5d44e38e
+```
+
+∴ del subset resta **una sola ❌**, `PIE-HEXPLAY-6`, più `PIE-HEXPLAY-8` 🟡 che aspetta una decisione.
+`PIE-VIS-SIGHTWALL` si giudica **nello stesso Play e gratis**, e vale per #2534.
+
 🔑 **Le due voci `❌` si giudicano sullo STESSO banco, nello STESSO Play.** `PIE-HEXPLAY-6` e
 `PIE-VIS-SIGHTWALL` guardano entrambe `Visual.Map.SightWallIsWalkable`: la prima chiede che il blocco-vista
-sia comprensibile, la seconda registra il verdetto della vista di gioco sulla coppia lastra/colonna.
+sia comprensibile, la seconda registra il verdetto della vista di gioco sulla coppia lastra/colonna. La
+seconda non e' un'aggiunta di lavoro — e' la stessa scena, guardata per rispondere a una domanda in piu'.
 
 ∴ **questa seduta è una apertura, un banco, due verdetti** — più `PIE-V01-DEBUG`, che vuole un secondo
 allestimento e non entra nel `done_when`.
