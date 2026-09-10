@@ -173,7 +173,7 @@ bool FRTAnimRosterMigrationKeepsPathsTest::RunTest(const FString&)
 		{ TEXT("Hero.Gadget"), TEXT("Gadget"), TEXT("Idle"),           TEXT("Run_Fwd") },
 		{ TEXT("Hero.Phase"),  TEXT("Phase"),  TEXT("Idle"),           TEXT("Jog_Fwd") },
 		{ TEXT("Hero.Branth"), TEXT("Riktor"), TEXT("Idle"),           TEXT("Jog_Fwd") },
-		{ TEXT("Hero.Wraith"), TEXT("Wraith"), TEXT("Idle_NonCombat"), TEXT("Jog_Fwd") },
+		{ TEXT("Hero.Ivrin"), TEXT("Wraith"), TEXT("Idle_NonCombat"), TEXT("Jog_Fwd") },
 	};
 
 	if (!TestEqual(TEXT("il roster ha quattro eroi"), Cdo->ClipsPerHero.Num(), 4)) { return false; }

@@ -1174,7 +1174,7 @@ bool FRTScenarioDeadTargetTest::RunTest(const FString&)
 	// tanto da non bastare, a cadere sarebbe la precondizione qui sotto — con un messaggio che lo dice,
 	// invece di un fallimento misterioso sulla nota.
 	FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Gadget");   A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
-	FRTScenarioUnit B; B.Id = TEXT("A2"); B.HeroId = TEXT("Hero.Wraith"); B.TeamId = 0; B.Cell = FRTCellId(-2, 1, 0);
+	FRTScenarioUnit B; B.Id = TEXT("A2"); B.HeroId = TEXT("Hero.Ivrin"); B.TeamId = 0; B.Cell = FRTCellId(-2, 1, 0);
 	FRTScenarioUnit C; C.Id = TEXT("B1"); C.HeroId = TEXT("Hero.Phase");   C.TeamId = 1; C.Cell = FRTCellId(1, 0, 0);
 	// Un SECONDO difensore, lontano e mai bersagliato. Senza, la morte di B1 elimina la squadra 1, la partita
 	// finisce e il turno in cui si spara al morto non viene mai giocato: il test misurerebbe il silenzio di un
@@ -1187,7 +1187,7 @@ bool FRTScenarioDeadTargetTest::RunTest(const FString&)
 	{
 		FRTScenarioTurn T;
 		FRTScenarioIntent I1; I1.UnitId = TEXT("A1"); I1.Ability = TEXT("Hero.Gadget.ArcPulse"); I1.Target = TEXT("B1");
-		FRTScenarioIntent I2; I2.UnitId = TEXT("A2"); I2.Ability = TEXT("Hero.Wraith.PulseShot");   I2.Target = TEXT("B1");
+		FRTScenarioIntent I2; I2.UnitId = TEXT("A2"); I2.Ability = TEXT("Hero.Ivrin.PulseShot");   I2.Target = TEXT("B1");
 		T.Intents.Add(I1); T.Intents.Add(I2);
 		S.Turns.Add(T);
 	}
@@ -1262,7 +1262,7 @@ bool FRTScenarioDashIntentTest::RunTest(const FString&)
 		FRTTestScenario S;
 		S.ScenarioId = bWithDash ? TEXT("Probe.DashDeclared") : TEXT("Probe.DashOmitted");
 		S.MapRadius = 4;
-		FRTScenarioUnit A; A.Id = TEXT("V"); A.HeroId = TEXT("Hero.Wraith"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+		FRTScenarioUnit A; A.Id = TEXT("V"); A.HeroId = TEXT("Hero.Ivrin"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
 		// Un avversario lontano e fermo: senza, la squadra 1 e' vuota e la partita finisce prima di giocare.
 		FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Phase");   B.TeamId = 1; B.Cell = FRTCellId(0, 3, 0);
 		S.Units.Add(A); S.Units.Add(B);
@@ -1280,7 +1280,7 @@ bool FRTScenarioDashIntentTest::RunTest(const FString&)
 			// entrambe le meta': lo stile e' `LinearPass` dal 2026-08-08. Peggio, la motivazione dell'allestimento
 			// era rovesciata — chi ci ragionasse sopra per modificare lo scenario partirebbe dalla semantica
 			// sbagliata. Corretta con [D-191], che su quella distinzione fonda il criterio dello slot.
-			I.Dash = TEXT("Hero.Wraith.PassingBlade");
+			I.Dash = TEXT("Hero.Ivrin.PassingBlade");
 			I.DashCell = FRTCellId(1, 0, 0);
 		}
 		T.Intents.Add(I);
@@ -1335,7 +1335,7 @@ bool FRTScenarioPassingBladeTest::RunTest(const FString&)
 	FRTTestScenario S;
 	S.ScenarioId = TEXT("Probe.PassingBlade");
 	S.MapRadius = 4;
-	FRTScenarioUnit A; A.Id = TEXT("V"); A.HeroId = TEXT("Hero.Wraith"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit A; A.Id = TEXT("V"); A.HeroId = TEXT("Hero.Ivrin"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
 	// Phase e' IN MEZZO: la lama le passa attraverso e prosegue.
 	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Phase");   B.TeamId = 1; B.Cell = FRTCellId(0, 0, 0);
 	S.Units.Add(A); S.Units.Add(B);
@@ -1343,7 +1343,7 @@ bool FRTScenarioPassingBladeTest::RunTest(const FString&)
 	FRTScenarioTurn T;
 	FRTScenarioIntent I;
 	I.UnitId = TEXT("V");
-	I.Dash = TEXT("Hero.Wraith.PassingBlade");
+	I.Dash = TEXT("Hero.Ivrin.PassingBlade");
 	I.DashCell = FRTCellId(1, 0, 0);   // oltre Phase
 	T.Intents.Add(I);
 	S.Turns.Add(T);
@@ -1460,7 +1460,7 @@ bool FRTScenarioAmbiguousTargetTest::RunTest(const FString&)
 namespace
 {
 	/**
-	 * Interposizione: Gadget spara a Wraith, Branth si mette in mezzo. E' la fixture di `Visual.Reaction.
+	 * Interposizione: Gadget spara a Ivrin, Branth si mette in mezzo. E' la fixture di `Visual.Reaction.
 	 * Interposition`, costruita in memoria perche' `Scenarios/` e' `integration_only`.
 	 */
 	FRTTestScenario MakeRedirectScenario()
@@ -1470,7 +1470,7 @@ namespace
 		S.MapRadius = 4;
 
 		FRTScenarioUnit F; F.Id = TEXT("F1"); F.HeroId = TEXT("Hero.Gadget"); F.TeamId = 0; F.Cell = FRTCellId(0, 0, 0);
-		FRTScenarioUnit V; V.Id = TEXT("V1"); V.HeroId = TEXT("Hero.Wraith"); V.TeamId = 1; V.Cell = FRTCellId(2, 0, 0);
+		FRTScenarioUnit V; V.Id = TEXT("V1"); V.HeroId = TEXT("Hero.Ivrin"); V.TeamId = 1; V.Cell = FRTCellId(2, 0, 0);
 		FRTScenarioUnit B; B.Id = TEXT("B1"); B.HeroId = TEXT("Hero.Branth"); B.TeamId = 1; B.Cell = FRTCellId(2, 1, 0);
 		S.Units.Add(F); S.Units.Add(V); S.Units.Add(B);
 
@@ -1503,7 +1503,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRedirectVocabularyTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioRedirectVocabularyTest::RunTest(const FString&)
 {
-	// (a) I due capi dichiarati GIUSTI: Wraith era il bersaglio, Branth l'ha incassato.
+	// (a) I due capi dichiarati GIUSTI: Ivrin era il bersaglio, Branth l'ha incassato.
 	{
 		UWorld* World = MakeRunnerWorld();
 		if (!TestNotNull(TEXT("world"), World)) { return false; }

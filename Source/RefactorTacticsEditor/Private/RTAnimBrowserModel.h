@@ -9,7 +9,7 @@ struct FRTAnimBrowserRow
 	FName                Id;
 	FString              AssetName;
 	FString              AssetPath;
-	FString              Pack;        // `Gadget`, `Wraith`, … dedotto dal path, non dal nome della clip
+	FString              Pack;        // `Gadget`, `Ivrin`, … dedotto dal path, non dal nome della clip
 	ERTAnimClipStatus    Status = ERTAnimClipStatus::Unreviewed;
 	FString              Label;
 	float                DurationSeconds = 0.f;

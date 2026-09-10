@@ -201,7 +201,7 @@ bool FRTWorkbenchUnknownActionFailsBeforeTheFirstTurnTest::RunTest(const FString
 	FRTWorkbenchVariant Assurda;
 	Assurda.VariantId = TEXT("Test.AzioneCheNessunoPorta");
 	FRTAbilityParameterOverride Ov;
-	Ov.ActionId = FName(TEXT("Hero.Wraith.PulseShot")); // Wraith non e' in questo scenario
+	Ov.ActionId = FName(TEXT("Hero.Ivrin.PulseShot")); // Ivrin non e' in questo scenario
 	Ov.ParameterKey = RTActionParameterKeys::Damage();
 	Ov.Value = 99;
 	Assurda.Overrides.Add(Ov);

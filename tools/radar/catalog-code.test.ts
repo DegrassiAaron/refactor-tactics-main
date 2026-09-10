@@ -202,11 +202,11 @@ test('vince il valore CORRENTE, non la cifra della nota storica che lo segue', (
   // dopo quella buona. Un parser che prendesse l'ultima occorrenza dichiarerebbe il difetto appena
   // riparato.
   const h = [
-    "\t * Costruisce **Wraith**, duellante predittivo: **90 HP** (era 100, abbassata da D-069 / #131),",
+    "\t * Costruisce **Ivrin**, duellante predittivo: **90 HP** (era 100, abbassata da D-069 / #131),",
     "\t * **6 MP** (il piu' mobile), vista 6, resistenza push 0.",
   ].join('\n');
 
-  const w = parseHeaderDocstrings(h).get('Wraith')!;
+  const w = parseHeaderDocstrings(h).get('Ivrin')!;
   assert.equal(w.health, 90);
   assert.equal(w.movePoints, 6);
   assert.equal(w.visionRange, 6);

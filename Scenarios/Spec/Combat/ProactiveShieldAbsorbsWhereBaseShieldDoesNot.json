@@ -5,7 +5,7 @@
   "seed": 0,
   "mapRadius": 5,
 
-  "_nota": "Lo scudo PROATTIVO contro lo scudo BASE, sullo stesso colpo. Due difensori IDENTICI — stesso eroe, stessi HP, stesso facing, stessa distanza dal proprio attaccante — prendono lo stesso `Hero.Wraith.PulseShot`. L'unica differenza e' che uno ha armato `Hero.Phase.TideGuard` in Preparation e l'altro no. E' il primo scenario che esercita `Action.Shield`: fino al 2026-09-04 nessuno dei 119 lo faceva, benche' l'azione abbia DUE portatori dal 2026-08-28 (`D-226`): `Hero.Phase.TideGuard` e il gemello `Hero.Wraith.PhaseGuard`, uno per squadra.",
+  "_nota": "Lo scudo PROATTIVO contro lo scudo BASE, sullo stesso colpo. Due difensori IDENTICI — stesso eroe, stessi HP, stesso facing, stessa distanza dal proprio attaccante — prendono lo stesso `Hero.Ivrin.PulseShot`. L'unica differenza e' che uno ha armato `Hero.Phase.TideGuard` in Preparation e l'altro no. E' il primo scenario che esercita `Action.Shield`: fino al 2026-09-04 nessuno dei 119 lo faceva, benche' l'azione abbia DUE portatori dal 2026-08-28 (`D-226`): `Hero.Phase.TideGuard` e il gemello `Hero.Ivrin.PhaseGuard`, uno per squadra.",
 
   "_nota_perche_due_e_non_uno": "Con un solo difensore i numeri non direbbero niente: fra il colpo e gli HP passano scudo base, copertura e facing, e chi legge non saprebbe se il valore che vede e' quello ridotto o quello pieno. Affiancati, la differenza E' l'oggetto. E' la stessa scelta di `Spec.Combat.AreaGuardFromImpactCenter*` e di `Spec.Brace.GuardAndBraceOnMixedHit`.",
 
@@ -17,10 +17,10 @@
 
   "units": [
     { "id": "CON",     "hero": "Hero.Phase",  "team": 0, "cell": [0, 2, 0],  "facing": "W" },
-    { "id": "TIRACON", "hero": "Hero.Wraith", "team": 1, "cell": [-2, 2, 0] },
+    { "id": "TIRACON", "hero": "Hero.Ivrin", "team": 1, "cell": [-2, 2, 0] },
 
     { "id": "SENZA",     "hero": "Hero.Phase",  "team": 0, "cell": [0, -2, 0],  "facing": "W" },
-    { "id": "TIRASENZA", "hero": "Hero.Wraith", "team": 1, "cell": [-2, -2, 0] }
+    { "id": "TIRASENZA", "hero": "Hero.Ivrin", "team": 1, "cell": [-2, -2, 0] }
   ],
 
   "turns": [
@@ -28,8 +28,8 @@
       "_turno": "Un turno solo. `Action.Shield` risolve in Preparation (priorita' 35), il colpo nel Blast: quando la granata arriva lo scudo temporaneo c'e' gia'. `SENZA` NON compare fra gli intenti: un'unita' senza intento e' la pratica normale del corpus (83 scenari su 119 ne hanno almeno una), ed e' piu' pulito di un `Action.Wait` — che il loader rifiuterebbe senza bersaglio, non risolvendo su se stessa. Cosi' l'unica differenza fra le due scene resta l'azione armata.",
       "intents": [
         { "unit": "CON",       "ability": "Hero.Phase.TideGuard" },
-        { "unit": "TIRACON",   "ability": "Hero.Wraith.PulseShot", "target": "CON" },
-        { "unit": "TIRASENZA", "ability": "Hero.Wraith.PulseShot", "target": "SENZA" }
+        { "unit": "TIRACON",   "ability": "Hero.Ivrin.PulseShot", "target": "CON" },
+        { "unit": "TIRASENZA", "ability": "Hero.Ivrin.PulseShot", "target": "SENZA" }
       ]
     }
   ],

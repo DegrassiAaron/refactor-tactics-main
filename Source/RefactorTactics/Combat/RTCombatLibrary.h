@@ -219,7 +219,7 @@ public:
 	 * da `FRTReactionPassResult::DeflectDelta`, che il dispatcher riempie per QUALUNQUE reazione dichiari
 	 * `ERTActionEffect::DamageReduction` — *«Qui non si guarda mai l'`ActionId`: e' cio' che permette a una
 	 * reazione d'eroe di riusare la semantica di `Action.Deflect` con numeri propri»* (`RTTurnManager.cpp`).
-	 * Etichettarlo `Action.Deflect` attribuirebbe a `Hero.Wraith.Deflection` un'azione che l'unita' non ha
+	 * Etichettarlo `Action.Deflect` attribuirebbe a `Hero.Ivrin.Deflection` un'azione che l'unita' non ha
 	 * usato: lo stesso difetto che `#2213` corregge, un livello piu' sotto. Trovato da una code review.
 	 *
 	 * ⚠️ La Guardia invece un tag ce l'ha, ed e' esatto: il suo pool e' gated su `TAG_Status_Guarded`.

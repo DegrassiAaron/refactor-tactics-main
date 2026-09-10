@@ -217,7 +217,7 @@ namespace
 			// Il primo scenario che la chiedera' ripetera' lo stesso errore, e il rimedio e' lo stesso —
 			// un nome accanto ad `ArcModification`, non un ripiego su questa voce.
 			TEXT("EnvironmentalActionOwner"),
-			// E18 CP 18.2 (D-016): `Wraith.InterceptShot` e' una Predictive Action — cella dichiarata in
+			// E18 CP 18.2 (D-016): `Ivrin.InterceptShot` e' una Predictive Action — cella dichiarata in
 			// Planning, verificata al boundary del Move, nessun input durante la Resolution.
 			//
 			// ✅ **La motivazione di questa riga e' tornata VERA il 2026-08-13 sera, e vale la pena dire come.**
@@ -305,7 +305,7 @@ namespace
 			//   · il **contenuto** del T6 atterra nello STESSO commit di questa riga, che e' la condizione che
 			//     la vecchia nota poneva: scoprirla da sola farebbe passare un turno con `intents: []`.
 			// ⚠️ E la fixture e' **discriminante**, che e' la quarta condizione e non era scritta: la copertura
-			// sul bordo `(1,0)->(2,0)` ripara Branth e non Wraith, quindi un resolver che conservasse la
+			// sul bordo `(1,0)->(2,0)` ripara Branth e non Ivrin, quindi un resolver che conservasse la
 			// copertura del bersaglio ORIGINALE darebbe 98 invece di 108 — e il turno cadrebbe. Senza quella
 			// copertura, i due comportamenti sarebbero indistinguibili e il verde non direbbe niente.
 			TEXT("InterceptRevalidation"),

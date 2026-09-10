@@ -17,12 +17,12 @@
 
   "_nota_status_seminato": "`Status.Unbalanced` e' SEMINATO nel setup invece di essere prodotto da uno scivolamento. Il modo naturale costa due turni — il Blast precede il Move ([ADR-0003] §1), quindi «scivolo e poi mi spingono» non puo' accadere nello stesso turno — e mostrerebbe la catena invece dell'amplificazione. Come si arriva sbilanciati lo mostra `Visual.Environment.IceSlide`; qui si guarda cosa succede quando lo si e' gia'.",
 
-  "_nota_numeri": "Entrambi i bersagli sono Wraith e incassano lo stesso colpo: `PressureJet` 16, meno i 5 dello scudo base ([D-224]), fanno 11. 90 - 11 = **79** per tutti e due. Lo stato non tocca il danno: se un giorno i due HP divergessero, la meccanica avrebbe smesso di essere solo di spostamento.",
+  "_nota_numeri": "Entrambi i bersagli sono Ivrin e incassano lo stesso colpo: `PressureJet` 16, meno i 5 dello scudo base ([D-224]), fanno 11. 90 - 11 = **79** per tutti e due. Lo stato non tocca il danno: se un giorno i due HP divergessero, la meccanica avrebbe smesso di essere solo di spostamento.",
 
   "units": [
-    { "id": "B1", "hero": "Hero.Wraith", "team": 0, "cell": [0,  0, 0] },
+    { "id": "B1", "hero": "Hero.Ivrin", "team": 0, "cell": [0,  0, 0] },
 
-    { "id": "V1", "hero": "Hero.Wraith", "team": 0, "cell": [0, -2, 0],
+    { "id": "V1", "hero": "Hero.Ivrin", "team": 0, "cell": [0, -2, 0],
       "statuses": [ { "tag": "Status.Unbalanced", "turns": 2 } ] },
 
     { "facing": "W", "id": "R1", "hero": "Hero.Phase", "team": 1, "cell": [3,  0, 0], "loadout": [] },

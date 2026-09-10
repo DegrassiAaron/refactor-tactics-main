@@ -603,7 +603,7 @@ void ARTUnit::RefreshComponentVisibility()
  *
  * 🔑 **Si legge dal CDO di `UnitAnimClass`, non da una seconda lista.** Le clip vivono in
  * `URTUnitAnimInstance::ClipsPerHero` e i loro nomi **non si deducono** — la guida §AS.3b ha misurato che
- * sei caselle su venti non si chiamano come ci si aspetta, e su Wraith l'idle e' `Idle_NonCombat`.
+ * sei caselle su venti non si chiamano come ci si aspetta, e su Ivrin l'idle e' `Idle_NonCombat`.
  * Duplicare qui quei nomi creerebbe una seconda fonte che invecchia da sola.
  *
  * ⚠️ **Un eroe senza clip non e' un errore**: `FindClipsFor` restituisce `nullptr`, e la sagoma resta in

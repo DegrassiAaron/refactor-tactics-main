@@ -17,16 +17,16 @@ test('un bonus condizionato da uno stato non entra nel danno garantito', () => {
 test('un payoff condizionato da una previsione non entra affatto', () => {
   // Stessa regola, condizionante diverso: la tabella reazioni dichiara il trigger d'ingresso su
   // movimento, quindi i 16 danni valgono solo se hai indovinato dove andra' l'avversario.
-  assert.equal(guaranteedDamage(ability('Wraith', 'Hero.Wraith.InterceptShot')), 0);
+  assert.equal(guaranteedDamage(ability('Ivrin', 'Hero.Ivrin.InterceptShot')), 0);
 });
 
 test('un danno incondizionato entra per intero', () => {
-  assert.equal(guaranteedDamage(ability('Wraith', 'Hero.Wraith.PulseShot')), 21);
+  assert.equal(guaranteedDamage(ability('Ivrin', 'Hero.Ivrin.PulseShot')), 21);
   assert.equal(guaranteedDamage(ability('Gadget', 'Hero.Gadget.ConductiveNode')), 20);
 });
 
 test('i quattro power_raw coincidono con quelli pubblicati in #603', () => {
-  const atteso: Record<string, number> = { Gadget: 55.2, Wraith: 31.0, Branth: 18.0, Phase: 16.0 };
+  const atteso: Record<string, number> = { Gadget: 55.2, Ivrin: 31.0, Branth: 18.0, Phase: 16.0 };
   for (const hero of roster()) {
     assert.equal(powerRaw(hero), atteso[hero.name], `${hero.name}`);
   }
@@ -34,5 +34,5 @@ test('i quattro power_raw coincidono con quelli pubblicati in #603', () => {
 
 test('i quattro rating power sono quelli pubblicati, e distinti', () => {
   const rating = Object.fromEntries(roster().map((h) => [h.name, powerRating(h)]));
-  assert.deepEqual(rating, { Gadget: 6, Wraith: 4, Branth: 3, Phase: 2 });
+  assert.deepEqual(rating, { Gadget: 6, Ivrin: 4, Branth: 3, Phase: 2 });
 });

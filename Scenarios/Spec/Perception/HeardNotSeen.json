@@ -5,7 +5,7 @@
   "seed": 0,
   "fixture": "TestArena",
 
-  "_nota": "SPECIFICA ESEGUIBILE di E13. Wraith corre dietro il muro che blocca la vista su q=0: non lo si vede, e lo si **sente**. Il rumore e' una seconda fonte di informazione, non un debuff — e cio' che la squadra avversaria ottiene e' un'area, non una cella: «qualcuno si muove a nord-est», non «Wraith e' in (1,-2,0)».",
+  "_nota": "SPECIFICA ESEGUIBILE di E13. Ivrin corre dietro il muro che blocca la vista su q=0: non lo si vede, e lo si **sente**. Il rumore e' una seconda fonte di informazione, non un debuff — e cio' che la squadra avversaria ottiene e' un'area, non una cella: «qualcuno si muove a nord-est», non «Ivrin e' in (1,-2,0)».",
 
   "_nota_perche_esiste": "La tentazione, implementando, e' derivare la conoscenza dallo stato nascosto dell'avversario e poi nasconderla nella UI. Questo scenario esiste per rendere quella scorciatoia visibile come difetto: il trigger deve venire dall'**evento percepito**, non dall'intento nemico. Esce BLOCKED su `Perception`.",
 
@@ -13,18 +13,18 @@
 
   "units": [
     { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [-3,  0, 0] },
-    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 3,  0, 0] }
+    { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 3,  0, 0] }
   ],
 
   "turns": [
     {
-      "_turno": "T1 — Wraith si sposta dietro il muro (q=0 blocca la vista, non il passo). Sul gioco di oggi accade il movimento; cio' che manca e' che Gadget ne sappia qualcosa.",
+      "_turno": "T1 — Ivrin si sposta dietro il muro (q=0 blocca la vista, non il passo). Sul gioco di oggi accade il movimento; cio' che manca e' che Gadget ne sappia qualcosa.",
       "intents": [
         { "unit": "V1", "move": [[2, 0, 0], [1, 0, 0]] }
       ]
     },
     {
-      "_turno": "T2 — Wraith corre. Il team 0 non lo vede e deve ricevere una posizione APPROSSIMATA, mai la cella.",
+      "_turno": "T2 — Ivrin corre. Il team 0 non lo vede e deve ricevere una posizione APPROSSIMATA, mai la cella.",
       "requires": ["Perception"],
       "intents": []
     }

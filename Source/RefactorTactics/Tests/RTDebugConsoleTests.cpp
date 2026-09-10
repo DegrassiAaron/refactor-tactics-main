@@ -390,7 +390,7 @@ bool FRTDebugActionReportCarriesEveryFieldTest::RunTest(const FString&)
 	E.Phase = ERTMatchPhase::Blast;
 	E.Category = ERTLogCategory::Fallback;
 	E.Outcome = static_cast<uint8>(ERTFallbackOutcome::AttackedCell);
-	E.ActionId = FName(TEXT("Hero.Wraith.PulseShot"));
+	E.ActionId = FName(TEXT("Hero.Ivrin.PulseShot"));
 	E.UnitId = 3;
 	E.Priority = 40;
 	E.SrcCell = FRTCellId(1, -1, 0);
@@ -398,7 +398,7 @@ bool FRTDebugActionReportCarriesEveryFieldTest::RunTest(const FString&)
 
 	const FString Line = URTDebugReportLibrary::DescribeLogEntry(E, /*SequenceIndex*/ 11);
 
-	TestTrue(TEXT("ActionId"),                       Line.Contains(TEXT("Hero.Wraith.PulseShot")));
+	TestTrue(TEXT("ActionId"),                       Line.Contains(TEXT("Hero.Ivrin.PulseShot")));
 	TestTrue(TEXT("SourceUnitId — nel modello e' UnitId"), Line.Contains(TEXT("unita=3")));
 	TestTrue(TEXT("fase"),                           Line.Contains(TEXT("Blast")));
 	TestTrue(TEXT("priorita'"),                      Line.Contains(TEXT("p40")));

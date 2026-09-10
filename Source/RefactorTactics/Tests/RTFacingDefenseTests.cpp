@@ -88,7 +88,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // il piano lo scriviamo noi: qui si prova la difesa, non il bot
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		return U;
@@ -128,7 +128,7 @@ namespace
 		if (bGuarded) { Difensore->ApplyStatus(TAG_Status_Guarded, 1); }
 		Difensore->PlannedAbilityIndex = INDEX_NONE; // il difensore non fa nulla: incassa e basta
 
-		Attaccante->PlannedAbilityIndex = 0; // indice 0 = attacco base (`Hero.Wraith.PulseShot`)
+		Attaccante->PlannedAbilityIndex = 0; // indice 0 = attacco base (`Hero.Ivrin.PulseShot`)
 		Attaccante->PlannedAttackTarget = Difensore;
 
 		TM->LockInAndResolve();

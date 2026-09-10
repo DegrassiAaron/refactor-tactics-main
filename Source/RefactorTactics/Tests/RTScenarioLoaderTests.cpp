@@ -50,8 +50,8 @@ namespace
 	// Le decisioni di finestra come DATO (CP 15.3 meta' B, #512). Nome distinto, come sopra.
 	//
 	// ⚠️ Gli id eroe sono i LEGACY, e non e' una svista: `RTHeroCatalogLibrary.cpp` dichiara oggi solo
-	// `Hero.Gadget`, `Hero.Phase`, `Hero.Branth`, `Hero.Wraith`, e i nomi di [D-130] — Gadget, Phase, Branth,
-	// Wraith — hanno ZERO occorrenze in tutto `Source/`, perche' la fetta 3 (`#753`) non e' stata eseguita.
+	// `Hero.Gadget`, `Hero.Phase`, `Hero.Branth`, `Hero.Ivrin`, e i nomi di [D-130] — Gadget, Phase, Branth,
+	// Ivrin — hanno ZERO occorrenze in tutto `Source/`, perche' la fetta 3 (`#753`) non e' stata eseguita.
 	// Un `Hero.Branth` qui non risolverebbe. Si rinominano insieme al catalogo, non prima.
 	const TCHAR* ScenarioLoaderDecisionsJson = TEXT(R"JSON(
 	{
@@ -60,7 +60,7 @@ namespace
 	  "mapRadius": 3,
 	  "units": [
 	    { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] },
-	    { "id": "B1", "hero": "Hero.Wraith",  "team": 1, "cell": [ 2, 0, 0] }
+	    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [ 2, 0, 0] }
 	  ],
 	  "turns": [ {
 	    "intents": [],
@@ -702,7 +702,7 @@ bool FRTScenarioLoaderDecisionsRejectTest::RunTest(const FString&)
 		  "scenarioId": "Spec.Decisions.Reject", "version": 2, "mapRadius": 3,
 		  "units": [
 		    { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] },
-		    { "id": "B1", "hero": "Hero.Wraith",  "team": 1, "cell": [ 2, 0, 0] }
+		    { "id": "B1", "hero": "Hero.Ivrin",  "team": 1, "cell": [ 2, 0, 0] }
 		  ],
 		  "turns": [ { "intents": [], "decisions": [ %s ] } ],
 		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
@@ -1023,10 +1023,10 @@ bool FRTScenarioLoaderDeclaredConditionTest::RunTest(const FString&)
 	  "scenarioId": "Spec.Condition.Probe", "version": 2, "mapRadius": 3,
 	  "units": [
 	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
-	    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 2, 0, 0] }
+	    { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 2, 0, 0] }
 	  ],
 	  "turns": [ { "intents": [
-	    { "unit": "V1", "ability": "Action.Overwatch", "reaction": "Hero.Wraith.Deflection",
+	    { "unit": "V1", "ability": "Action.Overwatch", "reaction": "Hero.Ivrin.Deflection",
 	      "condition": { "id": "TargetHealthAtOrBelowPercent", "param": 10 } },
 	    { "unit": "A1", "move": [[-1, 0, 0]] }
 	  ] } ],
@@ -1081,7 +1081,7 @@ bool FRTScenarioLoaderConditionRejectTest::RunTest(const FString&)
 		  "scenarioId": "Spec.Condition.Reject", "version": 2, "mapRadius": 3,
 		  "units": [
 		    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
-		    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 2, 0, 0] }
+		    { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 2, 0, 0] }
 		  ],
 		  "turns": [ { "intents": [ %s ] } ],
 		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
@@ -1103,17 +1103,17 @@ bool FRTScenarioLoaderConditionRejectTest::RunTest(const FString&)
 	// TurnLog caduta. La forma con la stringa e' anche la prima che verrebbe in mente: ogni altro campo
 	// dell'intent e' una stringa. Trovato dalla code review, non dal test che diceva di coprire il silenzio.
 	Rifiuta(TEXT("condition come stringa invece che oggetto"),
-		TEXT(R"({ "unit": "V1", "reaction": "Hero.Wraith.Deflection",
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection",
 		          "condition": "TargetHealthAtOrBelowPercent" })"),
 		TEXT("oggetto"));
 	Rifiuta(TEXT("condition come numero"),
-		TEXT(R"({ "unit": "V1", "reaction": "Hero.Wraith.Deflection", "condition": 10 })"),
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection", "condition": 10 })"),
 		TEXT("oggetto"));
 
 	// Il gemello del `101` gia' coperto: `IsDeclaredConditionAllowed` chiede `Param >= 0` e la coppia
 	// verifica **entrambi** i lati del dominio, non solo quello a cui si pensa per primo.
 	Rifiuta(TEXT("soglia negativa"),
-		TEXT(R"({ "unit": "V1", "reaction": "Hero.Wraith.Deflection",
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection",
 		          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": -1 } })"),
 		TEXT("-1"));
 
@@ -1128,20 +1128,20 @@ bool FRTScenarioLoaderConditionRejectTest::RunTest(const FString&)
 	// L'elenco delle condizioni ammesse e' CHIUSO e vive nel gioco: l'harness non puo' conoscerne una che il
 	// resolver non sa valutare, o produrrebbe un piano che il gioco scarta.
 	Rifiuta(TEXT("condizione inesistente"),
-		TEXT(R"({ "unit": "V1", "reaction": "Hero.Wraith.Deflection",
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection",
 		          "condition": { "id": "TargetIsFlanked", "param": 1 } })"),
 		TEXT("TargetIsFlanked"));
 
 	// Oltre il 100% sarebbe sempre vera — una condizione che non condiziona.
 	Rifiuta(TEXT("soglia oltre il 100"),
-		TEXT(R"({ "unit": "V1", "reaction": "Hero.Wraith.Deflection",
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection",
 		          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": 101 } })"),
 		TEXT("101"));
 
 	// Gate `G7`: il confronto del gioco e' in aritmetica intera, quindi un `50.5` verrebbe troncato in
 	// silenzio e lo scenario descriverebbe una soglia che non e' la sua.
 	Rifiuta(TEXT("soglia in virgola mobile"),
-		TEXT(R"({ "unit": "V1", "reaction": "Hero.Wraith.Deflection",
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection",
 		          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": 50.5 } })"),
 		TEXT("INTERO"));
 
@@ -1152,18 +1152,18 @@ bool FRTScenarioLoaderConditionRejectTest::RunTest(const FString&)
 	// scenario sarebbe ACCETTATO con una soglia diversa da quella scritta nel file. Silenziosamente, che e'
 	// il modo di fallire contro cui questo intero file esiste.
 	Rifiuta(TEXT("soglia fuori dalla scala di int32"),
-		TEXT(R"({ "unit": "V1", "reaction": "Hero.Wraith.Deflection",
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection",
 		          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": 1e20 } })"),
 		TEXT("fuori scala"));
 
 	// I due campi si chiedono ENTRAMBI: un default silenzioso su `param` significherebbe soglia 0, cioe' una
 	// condizione mai vera — il fuoco spento invece che ristretto.
 	Rifiuta(TEXT("condizione senza param"),
-		TEXT(R"({ "unit": "V1", "reaction": "Hero.Wraith.Deflection",
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection",
 		          "condition": { "id": "TargetHealthAtOrBelowPercent" } })"),
 		TEXT("param"));
 	Rifiuta(TEXT("condizione senza id"),
-		TEXT(R"({ "unit": "V1", "reaction": "Hero.Wraith.Deflection", "condition": { "param": 10 } })"),
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Ivrin.Deflection", "condition": { "param": 10 } })"),
 		TEXT("id"));
 
 	// 🔴 **Il difetto che questo test ha SCOPERTO, e che non riguarda solo la condizione.** Il blocco che
@@ -1173,7 +1173,7 @@ bool FRTScenarioLoaderConditionRejectTest::RunTest(const FString&)
 	// INESISTENTE e passare in silenzio: esattamente il modo di fallire che il commento accanto a quella
 	// validazione dichiara di voler impedire. Questa riga lo pinna, e cade se qualcuno riordina i blocchi.
 	Rifiuta(TEXT("reazione inesistente insieme a un'azione di Prep"),
-		TEXT(R"({ "unit": "V1", "ability": "Action.Overwatch", "reaction": "Hero.Wraith.NonEsiste" })"),
+		TEXT(R"({ "unit": "V1", "ability": "Action.Overwatch", "reaction": "Hero.Ivrin.NonEsiste" })"),
 		TEXT("NonEsiste"));
 	return true;
 }
@@ -2046,7 +2046,7 @@ bool FRTScenarioD025CoverageTest::RunTest(const FString&)
 	// 7. OVERWATCH — si arma con `ability`, e **non** con `reaction`.
 	//
 	// 🔴 L'assunzione naturale e' sbagliata, ed e' misurata: `Scenarios/Spec/Overwatch/` lo arma con
-	// `ability`, e il campo `reaction` porta un'abilita' reattiva DIVERSA (p.es. `Hero.Wraith.Deflection`).
+	// `ability`, e il campo `reaction` porta un'abilita' reattiva DIVERSA (p.es. `Hero.Ivrin.Deflection`).
 	// La ragione sta scritta in quello scenario: l'Overwatch costa l'azione **principale**, e
 	// `SetPlannedReactionCondition` rifiuta se `PlannedReactionAbility` e' `INDEX_NONE` — quindi un piano
 	// di solo-Overwatch non riesce a dichiarare una condizione, e il campo resterebbe vuoto senza dirlo.
@@ -2311,16 +2311,16 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 	// ---- dashTo -----------------------------------------------------------------------------------
 
 	// (6) Due elementi: rifiutato, dove prima il layer veniva dedotto.
-	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Wraith.PassingBlade","dashTo":[1,1]})")),
+	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Ivrin.PassingBlade","dashTo":[1,1]})")),
 		TEXT("trovati 2"), TEXT("dashTo con due elementi"));
 
 	// (7) Quattro elementi: rifiutato, dove prima la coda veniva scartata.
-	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Wraith.PassingBlade","dashTo":[1,1,0,7]})")),
+	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Ivrin.PassingBlade","dashTo":[1,1,0,7]})")),
 		TEXT("trovati 4"), TEXT("dashTo con quattro elementi"));
 
 	// (8) ASSENTE: il messaggio storico resta, ed e' l'unico ramo che lo conserva. Senza questo caso il
 	// ramo dell'assenza potrebbe essere assorbito da quello del malformato senza che nulla diventi rosso.
-	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Wraith.PassingBlade"})")),
+	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Ivrin.PassingBlade"})")),
 		TEXT("non dichiara una destinazione"), TEXT("dashTo assente: messaggio invariato"));
 
 	// (9) Il CONTROLLO POSITIVO di `dashTo`, per la stessa ragione del (1): senza, tutti i casi sopra
@@ -2330,7 +2330,7 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 		FRTTestScenario Scenario;
 		FString Error;
 		const bool bOk = URTScenarioLoader::LoadFromString(
-			*WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Wraith.PassingBlade","dashTo":[1,1,0]})")),
+			*WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Ivrin.PassingBlade","dashTo":[1,1,0]})")),
 			Scenario, Error);
 		if (TestTrue(FString::Printf(TEXT("dashTo [q,r,layer]: accettato (errore: '%s')"), *Error), bOk)
 			&& TestEqual(TEXT("un turno"), Scenario.Turns.Num(), 1)
@@ -2348,7 +2348,7 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 	// quindi questo caso non distinguerebbe i due rami che la issue chiede di separare. E lo contiene pure
 	// il messaggio delle chiavi sconosciute, che ENUMERA tutte le chiavi note. Si asserisce percio' una
 	// stringa che appartiene al solo `ParseCell`.
-	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Wraith.PassingBlade","dashTo":[1,1]})")),
+	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Ivrin.PassingBlade","dashTo":[1,1]})")),
 		TEXT("dashTo: la cella deve essere"), TEXT("dashTo malformato: il messaggio viene dal ramo giusto"));
 
 	// ---- move: il TERZO campo di coordinate dello stesso intent ------------------------------------
@@ -2394,7 +2394,7 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 	// silenzio che questa issue rimuove, e i casi sopra resterebbero tutti verdi.
 	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":"1,0,0"})")),
 		TEXT("targetCell non e' un array"), TEXT("targetCell scritto come stringa"));
-	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Wraith.PassingBlade","dashTo":"1,1,0"})")),
+	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Ivrin.PassingBlade","dashTo":"1,1,0"})")),
 		TEXT("dashTo non e' un array"), TEXT("dashTo scritto come stringa"));
 
 	// ⌫ **Qui stava un caso su `"dash": "None"`, rimosso col controllo che lo motivava.**

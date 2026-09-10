@@ -332,7 +332,7 @@ bool FRTScenarioEditingSurvivesSaveReloadTest::RunTest(const FString&)
 
 	// Un giro di modifiche come lo farebbe l'Editor: piazza, sposta, ruota, ritira.
 	if (!TestEqual(TEXT("schierata A2"),
-		Draft.AddUnit(TEXT("A2"), FName(TEXT("Hero.Wraith")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::NW, Error),
+		Draft.AddUnit(TEXT("A2"), FName(TEXT("Hero.Ivrin")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::NW, Error),
 		ERTScenarioAuthoringResult::Success))
 	{
 		AddError(Error);
@@ -366,7 +366,7 @@ bool FRTScenarioEditingSurvivesSaveReloadTest::RunTest(const FString&)
 	const int32 A2 = Reloaded.IndexOfUnit(TEXT("A2"));
 	if (TestTrue(TEXT("A2 sopravvive al salvataggio"), A2 != INDEX_NONE))
 	{
-		TestEqual(TEXT("A2: eroe"), Reloaded.GetScenario().Units[A2].HeroId, FName(TEXT("Hero.Wraith")));
+		TestEqual(TEXT("A2: eroe"), Reloaded.GetScenario().Units[A2].HeroId, FName(TEXT("Hero.Ivrin")));
 		TestEqual(TEXT("A2: cella"), Reloaded.GetScenario().Units[A2].Cell, FRTCellId(-1, 1, 0));
 		TestEqual(TEXT("A2: facing"), Reloaded.GetScenario().Units[A2].Facing, ERTHexDirection::NW);
 	}
@@ -416,7 +416,7 @@ bool FRTScenarioEditingIsReachableFromBlueprintTest::RunTest(const FString&)
 	// a meta' non e' rossa, e' NON VALIDA (D-222).
 	if (!TestTrue(TEXT("il catalogo eroi non e' vuoto"), Heroes.Num() > 0)) { return false; }
 	TestTrue(TEXT("e contiene il roster della v0.1"),
-		Heroes.Contains(FName(TEXT("Hero.Gadget"))) && Heroes.Contains(FName(TEXT("Hero.Wraith"))));
+		Heroes.Contains(FName(TEXT("Hero.Gadget"))) && Heroes.Contains(FName(TEXT("Hero.Ivrin"))));
 
 	// Un giro dell'editing attraverso la facade, non attraverso il draft: e' il percorso che fara' l'Editor.
 	URTScenarioAuthoring* Authoring = URTScenarioAuthoring::CreateScenarioDraft(nullptr);
@@ -581,7 +581,7 @@ bool FRTScenarioDuplicateIdBothDoorsTest::RunTest(const FString&)
 		// Una cella LIBERA: il rifiuto deve venire dall'id, non dalla sovrapposizione — altrimenti il test
 		// passerebbe per il motivo sbagliato e resterebbe verde anche togliendo il controllo sui duplicati.
 		const ERTScenarioAuthoringResult Esito = Draft.AddUnit(
-			IdEsistente, FName(TEXT("Hero.Wraith")), 1, FRTCellId(2, -1, 0), ERTHexDirection::NE, Error);
+			IdEsistente, FName(TEXT("Hero.Ivrin")), 1, FRTCellId(2, -1, 0), ERTHexDirection::NE, Error);
 
 		TestEqual(TEXT("porta 2: AddUnit rifiuta un id gia' schierato"),
 			Esito, ERTScenarioAuthoringResult::Invalid);
@@ -593,7 +593,7 @@ bool FRTScenarioDuplicateIdBothDoorsTest::RunTest(const FString&)
 		// Controprova: con un id nuovo, sulla STESSA cella, l'inserimento riesce. Senza, «rifiutato» non
 		// distinguerebbe la regola sull'id da una fixture che non sa aggiungere unita'.
 		const ERTScenarioAuthoringResult Controprova = Draft.AddUnit(
-			TEXT("IdNuovo"), FName(TEXT("Hero.Wraith")), 1, FRTCellId(2, -1, 0), ERTHexDirection::NE, Error);
+			TEXT("IdNuovo"), FName(TEXT("Hero.Ivrin")), 1, FRTCellId(2, -1, 0), ERTHexDirection::NE, Error);
 		TestEqual(TEXT("controprova: con un id nuovo la stessa aggiunta riesce"),
 			Controprova, ERTScenarioAuthoringResult::Success);
 		TestEqual(TEXT("controprova: ora le unita' sono una in piu'"),

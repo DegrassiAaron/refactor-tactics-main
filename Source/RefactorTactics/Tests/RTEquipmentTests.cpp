@@ -48,10 +48,10 @@ namespace
 		return false;
 	}
 
-	/** L'attacco base di Wraith: `PulseShot`, 21 danni a portata 4 (catalogo eroi). */
-	FRTActionDef WraithBasicAttack()
+	/** L'attacco base di Ivrin: `PulseShot`, 21 danni a portata 4 (catalogo eroi). */
+	FRTActionDef IvrinBasicAttack()
 	{
-		return URTHeroCatalogLibrary::MakeWraith()->Actions[0]->Def;
+		return URTHeroCatalogLibrary::MakeIvrin()->Actions[0]->Def;
 	}
 }
 
@@ -70,7 +70,7 @@ bool FRTWeaponVariantTradeoffTest::RunTest(const FString&)
 	for (const FString& Err : Errors) { AddError(Err); }
 	TestEqual(TEXT("il catalogo delle varianti e' strutturalmente valido"), Errors.Num(), 0);
 
-	const FRTActionDef Base = WraithBasicAttack();
+	const FRTActionDef Base = IvrinBasicAttack();
 
 	for (const URTEquipmentData* V : Variants)
 	{
@@ -125,7 +125,7 @@ bool FRTPrecisionRangeAndDamageTest::RunTest(const FString&)
 	}
 	if (!TestNotNull(TEXT("Weapon.Precision e' nel catalogo"), Precision)) { return false; }
 
-	const FRTActionDef Base = WraithBasicAttack();
+	const FRTActionDef Base = IvrinBasicAttack();
 	const FRTActionDef Modified = URTCatalogLibrary::ApplyWeaponVariant(Base, Precision);
 
 	// I delta si SOMMANO alla portata dell'arma, non la sostituiscono: la variante non sa quale attacco base
@@ -219,7 +219,7 @@ bool FRTSplitHasNoConsumerTest::RunTest(const FString&)
 
 	TestEqual(TEXT("il dato dichiara il bersaglio in piu'"), Split->ExtraTargets, 1);
 
-	const FRTActionDef Base = WraithBasicAttack();
+	const FRTActionDef Base = IvrinBasicAttack();
 	const FRTActionDef Modified = URTCatalogLibrary::ApplyWeaponVariant(Base, Split);
 	TestEqual(TEXT("ma sull'azione prodotta si vede solo lo svantaggio"),
 		DirectDamage(Modified), DirectDamage(Base) - 6);
@@ -475,7 +475,7 @@ bool FRTImpactVariantStacksPushTest::RunTest(const FString&)
 
 	// Phase spinge da (0,0) verso (1,0): il bersaglio deve finire a (3,0), due celle più in là.
 	ARTUnit* Phase = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakePhase());
-	ARTUnit* Bersaglio = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeWraith());
+	ARTUnit* Bersaglio = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeIvrin());
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("Phase"), Phase) || !TestNotNull(TEXT("bersaglio"), Bersaglio) || !TestNotNull(TEXT("TM"), TM))
 	{
@@ -583,7 +583,7 @@ bool FRTMedkitHealsInMatchTest::RunTest(const FString&)
 	SpawnEquipMap(World, 6);
 
 	ARTUnit* Curatore = SpawnEquipUnit(World, 0, FRTCellId(2, 0), URTHeroCatalogLibrary::MakeBranth());
-	ARTUnit* Ferito = SpawnEquipUnit(World, 0, FRTCellId(3, 0), URTHeroCatalogLibrary::MakeWraith()); // stessa squadra, adiacente
+	ARTUnit* Ferito = SpawnEquipUnit(World, 0, FRTCellId(3, 0), URTHeroCatalogLibrary::MakeIvrin()); // stessa squadra, adiacente
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("Curatore"), Curatore) || !TestNotNull(TEXT("Ferito"), Ferito)
 		|| !TestNotNull(TEXT("TM"), TM))
@@ -852,7 +852,7 @@ bool FRTDefaultWeaponVariantsTest::RunTest(const FString&)
 		FName(TEXT("Weapon.Precision")));
 	TestEqual(TEXT("Phase: Impatto"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Phase")),
 		FName(TEXT("Weapon.Impact")));
-	TestEqual(TEXT("Wraith: Soppressione"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Wraith")),
+	TestEqual(TEXT("Ivrin: Soppressione"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Ivrin")),
 		FName(TEXT("Weapon.Suppressive")));
 	TestEqual(TEXT("Branth: Impatto"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Branth")),
 		FName(TEXT("Weapon.Impact")));
@@ -863,7 +863,7 @@ bool FRTDefaultWeaponVariantsTest::RunTest(const FString&)
 
 	// Nessun default usa `Overcharge` finché il suo costo è `WV-1` (#510): un default il cui prezzo si
 	// decide dopo cambierebbe insieme a quella risposta. Il test lo pinna, così la scelta resta consapevole.
-	const TCHAR* Roster[] = { TEXT("Hero.Gadget"), TEXT("Hero.Phase"), TEXT("Hero.Wraith"), TEXT("Hero.Branth") };
+	const TCHAR* Roster[] = { TEXT("Hero.Gadget"), TEXT("Hero.Phase"), TEXT("Hero.Ivrin"), TEXT("Hero.Branth") };
 	for (const TCHAR* H : Roster)
 	{
 		TestTrue(*FString::Printf(TEXT("%s non ha Overcharge come default"), H),
@@ -932,7 +932,7 @@ bool FRTDefaultLoadoutTest::RunTest(const FString&)
 
 		// ⚠️ **L'invariante, e non l'elenco.** Due eroi su quattro non hanno un loadout, perché §4 prescrive
 		// loro un gadget che v0.1 non costruisce — `Gadget.Insulator` è un passivo (E36), `Gadget.Sensor`
-		// dipende da E13. Scrivere qui «Gadget e Wraith non hanno default» sarebbe vero oggi e **falso il
+		// dipende da E13. Scrivere qui «Gadget e Ivrin non hanno default» sarebbe vero oggi e **falso il
 		// giorno in cui E36 atterra**, e nessuno tornerebbe a correggerlo. Il test pinna invece la regola che
 		// lega le due cose: hai il loadout **se e solo se** tutti e tre i pezzi prescritti sono spediti.
 		TestEqual(*FString::Printf(TEXT("%s: ha il loadout se e solo se i tre pezzi sono spediti"), *Who),
@@ -1008,7 +1008,7 @@ bool FRTVariantWarningsTest::RunTest(const FString&)
 	};
 
 	const FRTActionDef Branth = URTHeroCatalogLibrary::MakeBranth()->Actions[0]->Def;
-	const FRTActionDef Wraith = WraithBasicAttack();
+	const FRTActionDef Ivrin = IvrinBasicAttack();
 
 	// Il caso concreto che ha fatto nascere la regola: `ImpactShot` rallenta già, quindi `Suppressive` fa
 	// pagare 5 danni su 8 per un effetto che l'eroe possiede — legale e privo di senso (D-086).
@@ -1022,13 +1022,13 @@ bool FRTVariantWarningsTest::RunTest(const FString&)
 
 	// Il gemello di controllo: lo stesso identico dato su un attacco che NON rallenta non avvisa. Senza
 	// questo, un avviso che scattasse sempre passerebbe il test sopra e non direbbe niente.
-	const TArray<FString> SuWraith = URTCatalogLibrary::WarnOnVariantForAttack(Wraith, Suppressive);
-	TestEqual(TEXT("Wraith + Soppressione: nessun avviso, il suo attacco non rallenta"), SuWraith.Num(), 0);
+	const TArray<FString> SuIvrin = URTCatalogLibrary::WarnOnVariantForAttack(Ivrin, Suppressive);
+	TestEqual(TEXT("Ivrin + Soppressione: nessun avviso, il suo attacco non rallenta"), SuIvrin.Num(), 0);
 
 	// I default scelti da D-089 devono essere puliti: se un default producesse un avviso, la decisione
 	// sarebbe da rivedere — ed è esattamente il momento in cui vogliamo saperlo.
 	URTHeroData* Eroi[] = { URTHeroCatalogLibrary::MakeGadget(), URTHeroCatalogLibrary::MakePhase(),
-		URTHeroCatalogLibrary::MakeWraith(), URTHeroCatalogLibrary::MakeBranth() };
+		URTHeroCatalogLibrary::MakeIvrin(), URTHeroCatalogLibrary::MakeBranth() };
 	for (URTHeroData* Eroe : Eroi)
 	{
 		const FName DefId = URTCatalogLibrary::DefaultWeaponVariantFor(Eroe->HeroId);
@@ -1046,7 +1046,7 @@ bool FRTVariantWarningsTest::RunTest(const FString&)
 // CP 7.4 metà regola (#63) — 1+1+1, e nessuna progressione in partita.
 //
 // ⚠️ La metà **default** non è qui, e non è una dimenticanza: dei quattro loadout consigliati dal catalogo
-// §4 solo quello di Branth è interamente costruibile — a Gadget manca `Gadget.Insulator` (E36), a Wraith
+// §4 solo quello di Branth è interamente costruibile — a Gadget manca `Gadget.Insulator` (E36), a Ivrin
 // `Gadget.Sensor` (E13) e `Reaction.EmergencyDash` (#505), a Phase `Reaction.HazardEscape` (#505). Caricarli
 // oggi significherebbe scrivere default con dei buchi.
 // =====================================================================================================
@@ -1179,7 +1179,7 @@ bool FRTPushTwoAgainstDefencesTest::RunTest(const FString&)
 		if (!TestNotNull(TEXT("world guard"), World)) { return false; }
 		SpawnEquipMap(World, 8);
 		ARTUnit* Phase = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakePhase());
-		ARTUnit* Guardato = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeWraith());
+		ARTUnit* Guardato = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeIvrin());
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (Phase && Guardato && TM)
 		{
@@ -1205,7 +1205,7 @@ bool FRTPushTwoAgainstDefencesTest::RunTest(const FString&)
 		if (!TestNotNull(TEXT("world brace"), World)) { return false; }
 		SpawnEquipMap(World, 8);
 		ARTUnit* Phase = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakePhase());
-		ARTUnit* Piantato = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeWraith());
+		ARTUnit* Piantato = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeIvrin());
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (Phase && Piantato && TM)
 		{
@@ -1249,8 +1249,8 @@ bool FRTVariantReachesTheLegacyMirrorsTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("Weapon.Overcharge"), Overcharge)) { return false; }
 
 	// Istanza costruita come la costruisce il gioco: dal roster, non a mano.
-	URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
-	URTActionData* Basic = Wraith->Actions[0];
+	URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
+	URTActionData* Basic = Ivrin->Actions[0];
 	const int32 RangePrima = Basic->RangeCells;
 	const int32 PowerPrima = Basic->Power;
 
@@ -1309,8 +1309,8 @@ bool FRTEmergencyDashInPlayTest::RunTest(const FString&)
 	SpawnEquipMap(World, 8);
 
 	// L'attaccante è a (0,0), chi reagisce a (1,0): la fuga lo porta a (2,0), lontano dalla minaccia.
-	ARTUnit* Attaccante = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeWraith());
-	ARTUnit* Reattore = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeWraith());
+	ARTUnit* Attaccante = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeIvrin());
+	ARTUnit* Reattore = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeIvrin());
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!Attaccante || !Reattore || !TM) { DestroyEquipWorld(World); return false; }
 
@@ -1370,7 +1370,7 @@ bool FRTOverchargeRealPauseTest::RunTest(const FString&)
 	}
 	if (!TestNotNull(TEXT("`Weapon.Overcharge` e' a catalogo"), Overcharge)) { return false; }
 
-	const FRTActionDef Base = WraithBasicAttack();
+	const FRTActionDef Base = IvrinBasicAttack();
 	const FRTActionDef Modified = URTCatalogLibrary::ApplyWeaponVariant(Base, Overcharge);
 
 	// All'uso il cooldown parte dal valore dell'azione (`ARTUnit::StartCooldown`), e il Cleanup dello
@@ -1440,7 +1440,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamageBandStableTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTDamageBandStableTest::RunTest(const FString&)
 {
-	const FRTActionDef Base = WraithBasicAttack();
+	const FRTActionDef Base = IvrinBasicAttack();
 	const int32 BaseDamage = URTCatalogLibrary::DeclaredDamage(Base);
 	const ERTAttackDamageBand BandBefore = URTCatalogLibrary::DamageBandOf(BaseDamage);
 

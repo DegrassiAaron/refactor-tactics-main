@@ -103,7 +103,7 @@ struct FRTAnimBinding
 {
 	GENERATED_BODY()
 
-	/** `Hero.Gadget`, `Hero.Wraith`, … */
+	/** `Hero.Gadget`, `Hero.Ivrin`, … */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Anim")
 	FName HeroId;
 

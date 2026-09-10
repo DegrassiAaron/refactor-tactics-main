@@ -108,7 +108,7 @@ bool FRTPlayerWaypointInteractionTest::RunTest(const FString&)
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
 	// Ranger: 5 punti movimento. Parte in una zona libera del quadrante destro.
-	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, -2, 0));
+	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("unita'"), Unit))
 	{
@@ -191,7 +191,7 @@ bool FRTPlayerUndoInteractionTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, -2, 0));
+	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyInteractionWorld(World); return false; }
 	PC->SelectActorForTest(Unit);
@@ -244,7 +244,7 @@ bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
 
 	// Guardian e bersaglio allineati sull'asse q, a distanza 3: dentro la portata della Carica (4).
 	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0, 0));
-	ARTUnit* Enemy   = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(3, 0, 0));
+	ARTUnit* Enemy   = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),   FRTCellId(3, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Charger || !Enemy) { DestroyInteractionWorld(World); return false; }
 
@@ -268,7 +268,7 @@ bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
 		Charger->PlannedAbilityIndex, (int32)INDEX_NONE);
 
 	// Uno scatto che NON e' una carica si ferma davanti alle unita': puntarne una resta senza senso.
-	ARTUnit* Dasher = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 0, 0));
+	ARTUnit* Dasher = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-3, 0, 0));
 	PC->SelectActorForTest(Dasher);
 	Dasher->SelectAbility(3); // Scatto del Ranger: LinearDash
 	PC->HandleClickOnUnitForTest(Enemy);
@@ -301,12 +301,12 @@ bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, -2, 0));
+	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyInteractionWorld(World); return false; }
 
 	// La mobilita' rapida si CERCA: l'indice 3 era lo Scatto del Ranger legacy, e dopo la migrazione al
-	// roster e' `Wraith.Deflection`, una reazione. `FindDashAbilityIndex` legge la fase dal catalogo, che e'
+	// roster e' `Ivrin.Deflection`, una reazione. `FindDashAbilityIndex` legge la fase dal catalogo, che e'
 	// come il gioco stesso riconosce uno scatto (#142).
 	const int32 DashIdx = Unit->FindDashAbilityIndex();
 	const URTActionData* Dash = Unit->GetAbility(DashIdx);
@@ -1311,7 +1311,7 @@ bool FRTWaypointRejectionNamesOccupantTest::RunTest(const FString&)
 
 	const FRTCellId Mia(0, 0, 0);
 	const FRTCellId Loro(2, 0, 0);
-	ARTUnit* Chi  = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Mia);
+	ARTUnit* Chi  = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Mia);
 	ARTUnit* Alt  = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Loro);
 	if (!TestNotNull(TEXT("chi pianifica"), Chi) || !TestNotNull(TEXT("chi occupa"), Alt))
 	{
@@ -1407,14 +1407,14 @@ bool FRTFirstTurnAcceptsSelectionTest::RunTest(const FString&)
 	if (MapActor) { MapActor->MapAsset = Arena; }
 
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	ARTUnit* Mia = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, -2, 0));
+	ARTUnit* Mia = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, -2, 0));
 	// ⚠️ **Un avversario serve, e la prima stesura non ce l'aveva.** Con una sola squadra in campo
 	// `EvaluateOutcome` dichiara vinta la partita alla fine del turno 1: `Phase` diventa `MatchEnded`,
 	// `TurnNumber` resta `1` e il turno 2 — che qui e' il CONTROLLO — non arriva mai. L'ha intercettato
 	// la guardia sull'avanzamento, con «era 1, ora 1».
 	//
 	// Lontano e senza piano: deve esistere, non partecipare.
-	ARTUnit* Avversario = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 2, 0));
+	ARTUnit* Avversario = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("unita'"), Mia)
 		|| !TestNotNull(TEXT("avversario"), Avversario)
@@ -1623,7 +1623,7 @@ bool FRTDeniedMoveDeclaresTheDenialTest::RunTest(const FString&)
 	// (stessa trappola gia' misurata il 2026-08-26 e annotata su `SpawnCleanInteractionMap`).
 	const FRTCellId Partenza(0, 0);
 	const FRTCellId Occupata(1, 0); // adiacente: il rifiuto e' l'occupazione, non il budget
-	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Partenza);
+	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Partenza);
 	ARTUnit* Occupante = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Occupata);
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -1716,7 +1716,7 @@ bool FRTUndeclaredMoveDoesNotDeclareADenialTest::RunTest(const FString&)
 
 	const FRTCellId Partenza(0, 0);
 	const FRTCellId Occupata(1, 0);
-	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Partenza);
+	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Partenza);
 	ARTUnit* Occupante = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Occupata);
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -1789,7 +1789,7 @@ bool FRTReplanAfterADenialWinsTest::RunTest(const FString&)
 	const FRTCellId Partenza(0, 0);
 	const FRTCellId Occupata(1, 0);  // il tentativo che viene negato
 	const FRTCellId Ripiego(0, 1);   // adiacente e libera: la correzione del giocatore
-	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Partenza);
+	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Partenza);
 	ARTUnit* Occupante = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Occupata);
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -1877,7 +1877,7 @@ bool FRTBudgetDenialIsNotAUnitDenialTest::RunTest(const FString&)
 	}
 
 	const FRTCellId Partenza(0, 0);
-	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Partenza);
+	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Partenza);
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), Chi) || !TestNotNull(TEXT("controller"), PC)

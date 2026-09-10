@@ -411,7 +411,7 @@ public:
 	 * standoff 4, `Guardian` portata 3 e standoff 0. Chi colpisce da lontano ha qualcosa da guadagnare a
 	 * restare lontano; chi colpisce da vicino no, e arretrare gli costerebbe soltanto il turno.
 	 *
-	 * Sul roster v0.1 l'unica kiter e' Phase (`PressureJet`, portata 5 -> standoff 3). Gadget e Wraith (4) e
+	 * Sul roster v0.1 l'unica kiter e' Phase (`PressureJet`, portata 5 -> standoff 3). Gadget e Ivrin (4) e
 	 * Branth (3) chiudono la distanza. Se la soglia va spostata, e' questa riga: il resto del bot legge
 	 * `FRTHexBotContext::KiteStandoff` e non sa da dove venga.
 	 */

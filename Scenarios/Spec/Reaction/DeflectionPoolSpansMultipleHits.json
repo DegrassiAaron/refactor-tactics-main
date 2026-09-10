@@ -11,7 +11,7 @@
 
   "_nota_e_il_gemello_della_Guardia": "E' `Spec.Combat.GuardPoolSpansMultipleHits` per l'altro pool, con la stessa costruzione e per la stessa ragione ([D-292] la' , [D-309] qui). ⚠️ **Ma non e' una copia**: la Guardia e' uno STATO di Prep eleggibile solo sull'arco frontale ([D-206]), `Deflect` e' una REAZIONE senza clausola d'arco — *«nessun filtro direzionale, ed e' una differenza DICHIARATA rispetto alla Guardia»* (`RTTurnManager.cpp`). Qui la geometria e' quindi inerte per costruzione, e gli attaccanti stanno su quattro direzioni opposte per renderlo evidente invece che tacerlo.",
 
-  "_nota_perche_ImpactShot": "**8 danni** (ADR-0007), il colpo principale piu' piccolo del roster. ⛔ **NON e' l'unico sotto la soglia, e dirlo sarebbe copiare la nota del gemello senza rifare il conto**: quel file misura la `Guard`, il cui pool vale **15**, e li' «ogni altra abilita' vale 16 o piu'» chiude la questione. Qui il pool vale **20**, e tre abilita' principali ci stanno sotto — `Hero.Phase.PressureJet` (16, `RTHeroCatalogLibrary.cpp:453`), `Hero.Gadget.Overload` (18, `:386`) e `Hero.Wraith.InterceptShot` (16, `:835`). 🔑 **`ImpactShot` si sceglie perche' e' il piu' PICCOLO, non perche' sia il solo**: a 8 contro 20 il budget sopravvive a due colpi interi e muore a meta' del terzo, quindi il riporto si osserva **tre volte** invece di una. Le altre tre restano candidate per uno scenario futuro sulla stessa regola: `Overload` e' pero' `Area` e prenderebbe anche gli alleati, e `InterceptShot` sta in fase `Preparation`.",
+  "_nota_perche_ImpactShot": "**8 danni** (ADR-0007), il colpo principale piu' piccolo del roster. ⛔ **NON e' l'unico sotto la soglia, e dirlo sarebbe copiare la nota del gemello senza rifare il conto**: quel file misura la `Guard`, il cui pool vale **15**, e li' «ogni altra abilita' vale 16 o piu'» chiude la questione. Qui il pool vale **20**, e tre abilita' principali ci stanno sotto — `Hero.Phase.PressureJet` (16, `RTHeroCatalogLibrary.cpp:453`), `Hero.Gadget.Overload` (18, `:386`) e `Hero.Ivrin.InterceptShot` (16, `:835`). 🔑 **`ImpactShot` si sceglie perche' e' il piu' PICCOLO, non perche' sia il solo**: a 8 contro 20 il budget sopravvive a due colpi interi e muore a meta' del terzo, quindi il riporto si osserva **tre volte** invece di una. Le altre tre restano candidate per uno scenario futuro sulla stessa regola: `Overload` e' pero' `Area` e prenderebbe anche gli alleati, e `InterceptShot` sta in fase `Preparation`.",
 
   "_nota_perche_QUATTRO_colpi": "🔑 **Con tre l'attesa sarebbe 90, cioe' la VITA PIENA, e il difetto e' li'.** Il pool assorbirebbe 8+8+4 = 20 lasciandone passare 4, sotto i 5 dello scudo base ([D-224]): il bersaglio resterebbe intatto. ⛔ **Non perche' le due regole coincidano** — con `ApplyFirstHitDelta` si leggerebbe 79, e senza reazione affatto 71, quindi anche tre colpi discriminerebbero. Il problema e' un altro: un'attesa uguale alla vita piena e' indistinguibile da un turno in cui **non e' successo niente**, e un allestimento rotto — un attaccante fuori portata, un'abilita' che non parte — la soddisfa. Col quarto colpo passano 12, lo scudo ne ferma 5, e i 7 applicati rendono l'assertion falsificabile anche rispetto al proprio fixture. ⚠️ *La prima stesura diceva che con tre colpi «l'assertion non distinguerebbe niente, nemmeno una reazione che non fosse partita»: era falso in entrambe le meta', 79 e 71 sono diversi da 90. Trovato da una code review.*",
 
@@ -26,7 +26,7 @@
   "_nota_slow": "`ImpactShot` applica `Status.Slow` per un turno oltre al danno, ed e' inerte qui: nessuno si muove, e il modificatore di movimento non entra in nessuna assertion. Vale la pena dirlo perche' un lettore che trovasse quattro `Slow` sullo stesso bersaglio potrebbe crederli parte della misura.",
 
   "units": [
-    { "id": "V", "hero": "Hero.Wraith", "team": 1, "cell": [0, 0, 0] },
+    { "id": "V", "hero": "Hero.Ivrin", "team": 1, "cell": [0, 0, 0] },
 
     { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [2, 0, 0], "loadout": [] },
     { "id": "A2", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0], "loadout": [] },
@@ -39,7 +39,7 @@
       "requires": ["Reaction", "ReactionPlanning"],
       "_turno": "Un turno solo: la parata si arma in pianificazione e i quattro colpi si risolvono nello stesso passaggio di Blast, cioe' dentro un unico Decision Boundary. Un secondo turno misurerebbe un pool NUOVO — la reazione si riarma — invece della proprieta' del riporto.",
       "intents": [
-        { "unit": "V", "reaction": "Hero.Wraith.Deflection" },
+        { "unit": "V", "reaction": "Hero.Ivrin.Deflection" },
 
         { "unit": "A1", "ability": "Hero.Branth.ImpactShot", "target": "V" },
         { "unit": "A2", "ability": "Hero.Branth.ImpactShot", "target": "V" },

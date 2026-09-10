@@ -71,7 +71,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // il piano lo scriviamo noi: una misura non si chiede a un'euristica
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, /*CellSize=*/ 100.f, /*LayerHeight=*/ 250.f);
 		// Senza, `PlannedCell` resta il default `(0,0,0)` — una cella VERA — e ogni unita' pianificherebbe

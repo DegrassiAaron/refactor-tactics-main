@@ -265,7 +265,7 @@ struct FRTScenarioUnit
 	UPROPERTY()
 	FString Id;
 
-	/** ID stabile dell'eroe dal catalogo: `Hero.Gadget`, `Hero.Phase`, `Hero.Branth`, `Hero.Wraith`. */
+	/** ID stabile dell'eroe dal catalogo: `Hero.Gadget`, `Hero.Phase`, `Hero.Branth`, `Hero.Ivrin`. */
 	UPROPERTY()
 	FName HeroId;
 
@@ -441,7 +441,7 @@ struct FRTScenarioIntent
 	FString Target;
 
 	/**
-	 * `ActionId` della mobilita' RAPIDA (`Wraith.PassingBlade`, `Action.Dodge`): risolve in fase Dash, prima
+	 * `ActionId` della mobilita' RAPIDA (`Ivrin.PassingBlade`, `Action.Dodge`): risolve in fase Dash, prima
 	 * del Blast. Vuoto = nessuno scatto.
 	 *
 	 * Campo separato da `Ability` e non un'alternativa, perche' dopo [D-028] occupano slot diversi: lo scatto

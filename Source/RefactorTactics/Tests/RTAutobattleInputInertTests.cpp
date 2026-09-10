@@ -185,7 +185,7 @@ namespace
 
 		B.Gadget = SpawnInertUnit(B.World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
 		B.Branth = SpawnInertUnit(B.World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-1, 0, 0));
-		B.Enemy  = SpawnInertUnit(B.World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, 0, 0));
+		B.Enemy  = SpawnInertUnit(B.World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
 
 		// 🔴 **L'avversaria e' pianificata dal BOT, e il banco deve dirlo** (`#2193`, estensione 2026-09-07).
 		//

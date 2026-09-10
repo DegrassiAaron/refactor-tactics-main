@@ -142,7 +142,7 @@ bool FRTPointerTargetCellIgnoresUnitTest::RunTest(const FString&)
 {
 	UWorld* World = MakePointerWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	ARTUnit* Occupant = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, 0, 0));
+	ARTUnit* Occupant = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
 
 	FRTPointerCandidates C;
 	C.Unit = Occupant;
@@ -268,7 +268,7 @@ bool FRTPointerBackNeverDeselectsTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, -2, 0));
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 
@@ -310,7 +310,7 @@ bool FRTPointerNeutralEnemyClickTest::RunTest(const FString&)
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
 	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(),   FRTCellId(0, 0, 0));
-	ARTUnit* Enemy = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, 0, 0));
+	ARTUnit* Enemy = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Mine || !Enemy) { DestroyPointerWorld(World); return false; }
 
@@ -458,7 +458,7 @@ bool FRTPointerFacingProducerTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0, 0));
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 
@@ -504,8 +504,8 @@ bool FRTPointerIllegalFacingRejectedTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	// 🔴 **Branth e non Wraith, e la sostituzione e' il punto del test** — ADR-0008 §1 (#1605). Questo test
-	// ha bisogno che esista almeno una direzione ILLEGALE da rifiutare, e con Wraith non esiste piu':
+	// 🔴 **Branth e non Ivrin, e la sostituzione e' il punto del test** — ADR-0008 §1 (#1605). Questo test
+	// ha bisogno che esista almeno una direzione ILLEGALE da rifiutare, e con Ivrin non esiste piu':
 	// `MoveEndPivotMaxSteps = 3` gli concede tutte e sei le direzioni a fine Move. Branth, con budget 1, ne
 	// concede tre e ne lascia tre da rifiutare. Il soggetto del test — «una rotazione illegale e'
 	// rifiutata» — resta lo stesso; cambia l'eroe che ne ha ancora una.
@@ -572,7 +572,7 @@ bool FRTCycleDeclaredFacingTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0, 0));
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 
@@ -633,7 +633,7 @@ bool FRTPlannedFacingPreviewTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0, 0));
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 	PC->SelectActorForTest(Unit);

@@ -40,7 +40,7 @@ bool FRTBranthMatchesCatalogTest::RunTest(const FString&)
 	TestEqual(TEXT("movimento"), Branth->MovePoints, 4);
 	TestEqual(TEXT("vista"), Branth->VisionRange, 5);
 	TestEqual(TEXT("affinita'"), Branth->Affinity, FName(TEXT("Affinity.Structures")));
-	TestEqual(TEXT("debolezza simmetrica a Wraith"), Branth->Weakness, FName(TEXT("Affinity.Movement")));
+	TestEqual(TEXT("debolezza simmetrica a Ivrin"), Branth->Weakness, FName(TEXT("Affinity.Movement")));
 
 	if (!TestEqual(TEXT("cinque azioni"), Branth->Actions.Num(), 5)) { return false; }
 
@@ -103,11 +103,11 @@ bool FRTBranthPushResistanceTest::RunTest(const FString&)
 	URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
 	URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
 	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
-	URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
+	URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
 	TestEqual(TEXT("Branth non ha piu' resistenza nativa"), Branth->PushResistance, 0);
 	TestEqual(TEXT("Gadget non resiste"), Gadget->PushResistance, 0);
 	TestEqual(TEXT("Phase non resiste"), Phase->PushResistance, 0);
-	TestEqual(TEXT("Wraith non resiste"), Wraith->PushResistance, 0);
+	TestEqual(TEXT("Ivrin non resiste"), Ivrin->PushResistance, 0);
 
 	// Il prezzo, in dati: piu' salute di tutti, ma il movimento piu' basso finora.
 	TestTrue(TEXT("piu' salute di Gadget e Phase"),

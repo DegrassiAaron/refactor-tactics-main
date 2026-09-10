@@ -19,7 +19,7 @@ test('i sei assi del Profile per i quattro eroi', () => {
   // Nessun numero di gameplay e' stato toccato per ottenere questi valori — vedi #2824.
   assert.deepEqual(got, {
     Gadget:    { offense: 5, durability: 7, mobility: 7, control: 2, support: 1, information: 7 },
-    Wraith:  { offense: 4, durability: 7, mobility: 9, control: 4, support: 1, information: 6 },
+    Ivrin:  { offense: 4, durability: 7, mobility: 9, control: 4, support: 1, information: 6 },
     Branth: { offense: 3, durability: 8, mobility: 6, control: 9, support: 2, information: 5 },
     Phase:    { offense: 1, durability: 7, mobility: 8, control: 5, support: 6, information: 5 },
   });

@@ -911,7 +911,7 @@ void ARTTurnManager::PlanBots()
 		// il suo primo consumatore reale del roster. La ragione sta nella condizione d'ingresso, non nei
 		// cooldown: `Health * 2 < MaxHealth` la scioglie **solo** un effetto che alza gli HP. Lo scudo di
 		// `Action.Shield` e' TEMPORANEO — `AddTemporaryShield`, scade nel Cleanup — quindi non tocca
-		// `Health`, la condizione resta vera per sempre e il bot rientra qui a ogni ricarica. Misurato: Wraith
+		// `Health`, la condizione resta vera per sempre e il bot rientra qui a ogni ricarica. Misurato: Ivrin
 		// ferma 5 turni contro un limite di 4, «di cui 2 inerti e 3 armati», con `Bot.StallDefinitions...`,
 		// `Match.Autobattle...`, `Replay.Producer...` e il playback dell'Editor rossi a cascata.
 		//
@@ -5239,7 +5239,7 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 		Entry.Category = ERTLogCategory::Reaction;
 		Entry.SrcCell = Unit->Cell;
 		Entry.TgtCell = Unit->Cell;
-		Entry.ActionId = Reaction->Def.ActionId; // identita': `Wraith.Deflection` non e' `Action.Deflect` (CP 5.5)
+		Entry.ActionId = Reaction->Def.ActionId; // identita': `Ivrin.Deflection` non e' `Action.Deflect` (CP 5.5)
 		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
 
 		// CHI sa se il trigger e' scattato e' il chiamante: cambia con il punto, e il pass non ha modo di

@@ -88,7 +88,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell;
@@ -202,13 +202,13 @@ namespace
 		return nullptr;
 	}
 
-	/** Il danno dichiarato dell'arma del Wraith, letto dal CATALOGO: `Armed.Damage` nasce di li'. */
+	/** Il danno dichiarato dell'arma del Ivrin, letto dal CATALOGO: `Armed.Damage` nasce di li'. */
 	int32 RxCellWeaponDamage()
 	{
 		int32 Damage = 0;
-		const URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
-		if (!Wraith) { return 0; }
-		for (const URTActionData* Action : Wraith->Actions)
+		const URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
+		if (!Ivrin) { return 0; }
+		for (const URTActionData* Action : Ivrin->Actions)
 		{
 			if (!Action || Action->Def.BaseActionId != FName(TEXT("Action.BasicAttack"))) { continue; }
 			for (const FRTActionEffectSpec& Effect : Action->Def.Effects)

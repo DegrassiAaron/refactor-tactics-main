@@ -198,7 +198,7 @@ bool FRTHexBlastDealsDamageTest::RunTest(const FString&)
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
 	// Attacco base dell'eroe (indice 0). Bersaglio a distanza esagonale 3, vista libera.
-	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
@@ -240,7 +240,7 @@ bool FRTHexBlastBlockedBySightTest::RunTest(const FString&)
 	Walls.Add(FRTCellId(2, 0));
 	SpawnHexBlastMap(World, /*Radius=*/ 6, Walls);
 
-	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
@@ -275,7 +275,7 @@ bool FRTHexBlastOutOfRangeTest::RunTest(const FString&)
 	SpawnHexBlastMap(World, /*Radius=*/ 9);
 
 	// Distanza ESAGONALE 8 > portata 6 del "Tiro": la portata si misura in celle esagonali, non in Manhattan.
-	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(8, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
@@ -307,7 +307,7 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 	SpawnHexBlastMap(World, /*Radius=*/ 9);
 
 	ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0)); // Spazzata, portata 3
-	ARTUnit* Runner = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0));
+	ARTUnit* Runner = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Attacker || !Runner) { DestroyHexBlastWorld(World); return false; }
 
@@ -414,8 +414,8 @@ bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Defender = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
-	ARTUnit* Shooter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(3, 0)); // Tiro: 25 danni
+	ARTUnit* Defender = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 0)); // Tiro: 25 danni
 	if (Shooter) { Shooter->Facing = ERTHexDirection::W; }
 	// Guarda il proprio bersaglio: da CP 13.2 il targeting consuma la conoscenza, e un tiratore rivolto
 	// altrove non VEDE cio' che sta a piu' di due celle. In partita l'orientamento lo deriva il movimento;
@@ -465,7 +465,7 @@ bool FRTGuardResistsPushTest::RunTest(const FString&)
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
 	ARTUnit* Defender = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
-	ARTUnit* Pusher = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0));
+	ARTUnit* Pusher = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Defender || !Pusher) { DestroyHexBlastWorld(World); return false; }
 
@@ -512,7 +512,7 @@ bool FRTChargeImpactInBlastTest::RunTest(const FString&)
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
 	ARTUnit* Charger = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
-	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0));
+	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Charger || !Victim) { DestroyHexBlastWorld(World); return false; }
 
@@ -558,10 +558,10 @@ bool FRTChargeImpactSurvivesInterruptTest::RunTest(const FString&)
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
 	ARTUnit* Charger = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
-	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0));
+	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
 	// L'interruttore parte adiacente a dove la carica FERMA il caricatore — (1,0) — perche'
 	// `Action.Interrupt` ha portata 1 e il colpo si valida sulle posizioni del Blast, dopo il Dash.
-	ARTUnit* Interrupter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, -1));
+	ARTUnit* Interrupter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, -1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Charger || !Victim || !Interrupter) { DestroyHexBlastWorld(World); return false; }
 
@@ -668,9 +668,9 @@ bool FRTActionsAoEFriendlyFireInMatchTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Thrower = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Thrower = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
-	ARTUnit* Ally = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0)); // adiacente al centro
+	ARTUnit* Ally = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0)); // adiacente al centro
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Thrower || !Foe || !Ally) { DestroyHexBlastWorld(World); return false; }
 
@@ -724,8 +724,8 @@ bool FRTActionsMarkTargetReachesTargetTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Marker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
-	ARTUnit* Ally = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 1));
+	ARTUnit* Marker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Ally = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 1));
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0)); // a 3 celle dal marcatore
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Marker || !Ally || !Foe) { DestroyHexBlastWorld(World); return false; }
@@ -793,7 +793,7 @@ bool FRTHexCoverDestructionLoggedTest::RunTest(const FString&)
 	MapActor->MapAsset->AddOrUpdateCell(WithWall);
 	MapActor->MapAsset->SortCells();
 
-	ARTUnit* Breacher = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Breacher = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Breacher || !Foe) { DestroyHexBlastWorld(World); return false; }
@@ -860,7 +860,7 @@ bool FRTHexDoorClosingStopsMovementTest::RunTest(const FString&)
 	MapActor->MapAsset->SortCells();
 
 	ARTUnit* Mover = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
-	ARTUnit* Closer = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(3, 0));
+	ARTUnit* Closer = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, 0));
 	if (Closer) { Closer->Facing = ERTHexDirection::W; } // vedi CP 13.2: guarda chi vuole bloccare
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Closer) { DestroyHexBlastWorld(World); return false; }
@@ -953,7 +953,7 @@ bool FRTHexInteractFromKitOpensDoorTest::RunTest(const FString&)
 	MapActor->MapAsset->SortCells();
 
 	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Hinge);
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
 
@@ -1036,7 +1036,7 @@ bool FRTHexInteractDoorlessEdgeRefusedTest::RunTest(const FString&)
 	AddClosedDoor(MapActor, Target, ERTHexDirection::W);
 
 	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
 
@@ -1118,7 +1118,7 @@ bool FRTHexInteractUsesDeclaredEdgeTest::RunTest(const FString&)
 	AddClosedDoor(MapActor, Target, ERTHexDirection::E);
 
 	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
 
@@ -1188,8 +1188,8 @@ bool FRTInterruptStillCancelsWholeActionTest::RunTest(const FString&)
 	SpawnHexBlastMap(World, /*Radius=*/ 6);
 
 	ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
-	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, 0));
-	ARTUnit* Interrupter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 1));
+	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0));
+	ARTUnit* Interrupter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 1));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Attacker || !Victim || !Interrupter) { DestroyHexBlastWorld(World); return false; }
 
@@ -1264,7 +1264,7 @@ bool FRTHexInteractTogglesOpenDoorClosedTest::RunTest(const FString&)
 	AddDoor(MapActor, Target, ERTHexDirection::W, ERTHexDoorState::Open);
 
 	ARTUnit* Closer = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Closer || !Foe) { DestroyHexBlastWorld(World); return false; }
 
@@ -1356,7 +1356,7 @@ bool FRTHexToggleResolvesOncePreBlastTest::RunTest(const FString&)
 			First = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), West);
 			Second = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), East);
 		}
-		ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 0));
+		ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !First || !Second || !Foe) { DestroyHexBlastWorld(World); return false; }
 
@@ -1463,7 +1463,7 @@ bool FRTHexInteractOnLockedDoorRefusedTest::RunTest(const FString&)
 	AddDoor(MapActor, Target, ERTHexDirection::W, ERTHexDoorState::Locked);
 
 	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
 
@@ -1527,7 +1527,7 @@ bool FRTHexInteractOnDestroyedDoorRefusedTest::RunTest(const FString&)
 	AddDoor(MapActor, Target, ERTHexDirection::W, ERTHexDoorState::Destroyed);
 
 	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
-	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
 

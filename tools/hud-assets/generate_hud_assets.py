@@ -1120,8 +1120,8 @@ def g_identity_branth() -> str:
     ]))
 
 
-def g_identity_wraith() -> str:
-    """Wraith: la lama che passa. Il tratto interrotto dice il transito, che e' la sua firma."""
+def g_identity_ivrin() -> str:
+    """Ivrin: la lama che passa. Il tratto interrotto dice il transito, che e' la sua firma."""
     return _identity("\n".join([
         path("M7.4 16.6 L16.6 7.4", stroke_width=1.9),
         path("M8.6 8.4 L11 10.8", stroke_dasharray="1.4 1.8", stroke_width=1.3),
@@ -1172,7 +1172,7 @@ def g_missing_icon() -> str:
 #   Gadget  elettricita' — nodi, archi, contenimento che cede
 #   Phase   acqua        — superfici, onde, spinta
 #   Branth  massa        — piastre, ancoraggi, basi larghe
-#   Wraith  lama         — tratti netti, transito, tratteggio di passaggio
+#   Ivrin  lama         — tratti netti, transito, tratteggio di passaggio
 
 
 def g_phase_pressure_jet() -> str:
@@ -1297,7 +1297,7 @@ def g_branth_interposition() -> str:
     ])
 
 
-def g_wraith_pulse_shot() -> str:
+def g_ivrin_pulse_shot() -> str:
     """`PulseShot` (Attack — Damage): colpo a impulsi, non un raggio continuo."""
     return "\n".join([
         dot(3.4, 12, 1.7),
@@ -1306,7 +1306,7 @@ def g_wraith_pulse_shot() -> str:
     ])
 
 
-def g_wraith_intercept_shot() -> str:
+def g_ivrin_intercept_shot() -> str:
     """`InterceptShot` (Preparation, Single — Damage): la thin slice Predictive della v0.1.
 
     Si arma su DOVE il bersaglio sara', non dove e': il bersaglio tratteggiato non e' decorazione, e'
@@ -1320,7 +1320,7 @@ def g_wraith_intercept_shot() -> str:
     ])
 
 
-def g_wraith_passing_blade() -> str:
+def g_ivrin_passing_blade() -> str:
     """`PassingBlade` (FastMovement — Damage): attraversa e colpisce chi trova in mezzo.
 
     Contro `Leap`, che scavalca e non incontra nessuno: qui i due segni sulla traiettoria sono le
@@ -1333,7 +1333,7 @@ def g_wraith_passing_blade() -> str:
     ])
 
 
-def g_wraith_deflection() -> str:
+def g_ivrin_deflection() -> str:
     """`Deflection` (Control, da `Action.Deflect` — DamageReduction): la lama devia invece della
     piastra. Il tratto inclinato e' sottile e lungo: e' una lama, non un muro."""
     return "\n".join([
@@ -1345,7 +1345,7 @@ def g_wraith_deflection() -> str:
     ])
 
 
-def g_wraith_feint() -> str:
+def g_ivrin_feint() -> str:
     """`Feint` (Control): due traiettorie, una sola vera.
 
     Il tratteggio qui NON e' `Predicted`: e' la finta, cioe' una cosa che il giocatore che la lancia
@@ -1758,7 +1758,7 @@ def g_reaction_hazard_escape() -> str:
 def g_reaction_ally_intercept() -> str:
     """Modulo di Branth: ti interponi e prendi al posto di un alleato entro 2 celle.
 
-    ⚠️ La confusione piu' insidiosa e' con `Hero.Wraith.InterceptShot`, che e' la thin slice
+    ⚠️ La confusione piu' insidiosa e' con `Hero.Ivrin.InterceptShot`, che e' la thin slice
     Predictive: due nomi quasi identici per un'interposizione e una previsione."""
     return "\n".join([
         path("M2.6 12.4 L6.4 12.4", stroke_width=1.6),
@@ -1771,7 +1771,7 @@ def g_reaction_ally_intercept() -> str:
 
 
 def g_reaction_emergency_dash() -> str:
-    """Modulo di Wraith: quando sei bersagliato ti sposti di una cella **restando fronte alla
+    """Modulo di Ivrin: quando sei bersagliato ti sposti di una cella **restando fronte alla
     minaccia**.
 
     🔴 Vietata la grammatica `Dash`: la parola nel nome porta dritto al glifo della FASE Dash, con cui
@@ -2184,15 +2184,15 @@ ICONS = [
     ("Action.Hero.Branth.Interposition", g_branth_interposition, "Reaction",
      "roster — Control, deriva da Action.Intercept"),
 
-    ("Action.Hero.Wraith.PulseShot", g_wraith_pulse_shot, "Attack",
+    ("Action.Hero.Ivrin.PulseShot", g_ivrin_pulse_shot, "Attack",
      "roster — Attack, Damage"),
-    ("Action.Hero.Wraith.InterceptShot", g_wraith_intercept_shot, "Reaction",
+    ("Action.Hero.Ivrin.InterceptShot", g_ivrin_intercept_shot, "Reaction",
      "roster — Preparation, thin slice Predictive della v0.1"),
-    ("Action.Hero.Wraith.PassingBlade", g_wraith_passing_blade, "Attack",
+    ("Action.Hero.Ivrin.PassingBlade", g_ivrin_passing_blade, "Attack",
      "roster — FastMovement, attraversa e colpisce"),
-    ("Action.Hero.Wraith.Deflection", g_wraith_deflection, "Reaction",
+    ("Action.Hero.Ivrin.Deflection", g_ivrin_deflection, "Reaction",
      "roster — Control, deriva da Action.Deflect"),
-    ("Action.Hero.Wraith.Feint", g_wraith_feint, "Utility",
+    ("Action.Hero.Ivrin.Feint", g_ivrin_feint, "Utility",
      "roster — Control, il tratteggio qui significa «falso», non «previsto»"),
     ("Phase.Prep", g_phase_prep, "Utility",
      "mock 03 — sostituisce la timeline a iniziativa"),
@@ -2240,7 +2240,7 @@ ICONS = [
      "assente dal mock"),
     ("Identity.Branth", g_identity_branth, "Defense",
      "assente dal mock"),
-    ("Identity.Wraith", g_identity_wraith, "Reaction",
+    ("Identity.Ivrin", g_identity_ivrin, "Reaction",
      "assente dal mock"),
     ("Identity.Ally", g_identity_ally, "Defense",
      "assente dal mock"),
@@ -2293,7 +2293,7 @@ ICONS = [
      "E25 — modulo di Phase, vive nel Cleanup"),
     ("Reaction.AllyIntercept", g_reaction_ally_intercept, "Defense", "E25 — modulo di Branth"),
     ("Reaction.EmergencyDash", g_reaction_emergency_dash, "Movement",
-     "E25 — modulo di Wraith, facing conservato"),
+     "E25 — modulo di Ivrin, facing conservato"),
 
     ("Warning.Cooldown", g_warn_cooldown, "Disabled", "E25 — tempo, non economia"),
     ("Warning.SlotOccupied", g_warn_slot_occupied, "Hazard",
@@ -2801,7 +2801,7 @@ def rail(y: float, slot: int, slots: int, *, width: float = 2.2, guide: bool = T
 # La marca di materia. E' l'asse Identity riusato come MODIFICATORE invece che come icona a se':
 # le quattro identita' esistono gia' nel catalogo, e un'ability d'eroe appartiene a un eroe.
 #
-# Perche' serve, misurato: senza, `Wraith.PulseShot`, `Phase.PressureJet`, `Branth.ImpactShot`,
+# Perche' serve, misurato: senza, `Ivrin.PulseShot`, `Phase.PressureJet`, `Branth.ImpactShot`,
 # `Action.LineAttack` e `Action.Dash` stanno tutte entro 0.11 l'una dall'altra — cinque glifi che
 # rivendicano la stessa silhouette «linea orizzontale con una punta». Non e' un difetto dei singoli
 # disegni: e' che molte abilita' a distanza SONO una linea con una punta, e a un certo punto il
@@ -2829,7 +2829,7 @@ def hero_sigil(hero: str) -> str:
             path(f"M{_n(x - 0.2)} {_n(HERO_SIGIL_Y - 1.6)} L{_n(x + 2.6)} {_n(HERO_SIGIL_Y - 1.6)}",
                  stroke_width=1.4),
         ])
-    if hero == "Wraith":       # lama: il transito
+    if hero == "Ivrin":       # lama: il transito
         return "\n".join([
             path(f"M{_n(x - 1.6)} {_n(HERO_SIGIL_Y + 1.6)} L{_n(x + 4)} {_n(HERO_SIGIL_Y - 1.6)}",
                  stroke_width=1.8),
@@ -2840,7 +2840,7 @@ def hero_sigil(hero: str) -> str:
 
 
 def hero_of(semantic: str):
-    """`Action.Hero.Wraith.Feint` -> `Wraith`. `Action.Move` -> None."""
+    """`Action.Hero.Ivrin.Feint` -> `Ivrin`. `Action.Move` -> None."""
     parts = semantic.split(".")
     return parts[2] if len(parts) >= 4 and parts[1] == "Hero" else None
 
@@ -2925,8 +2925,8 @@ COLOR_DEBT = {
     "Action.Hero.Phase.CircularTide", "Action.Hero.Phase.FlowReaction",
     "Action.Hero.Phase.FluidTrail", "Action.Hero.Phase.PressureJet",
     "Action.Hero.Branth.Interposition", "Action.Hero.Branth.Ram",
-    "Action.Hero.Wraith.Deflection", "Action.Hero.Wraith.Feint",
-    "Action.Hero.Wraith.InterceptShot", "Action.Hero.Wraith.PassingBlade",
+    "Action.Hero.Ivrin.Deflection", "Action.Hero.Ivrin.Feint",
+    "Action.Hero.Ivrin.InterceptShot", "Action.Hero.Ivrin.PassingBlade",
 }
 
 

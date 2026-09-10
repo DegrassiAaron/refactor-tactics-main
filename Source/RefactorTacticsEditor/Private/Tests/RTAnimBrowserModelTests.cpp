@@ -15,7 +15,7 @@ namespace
 			Pack, Pack, Clip, Clip);
 	}
 
-	/** Un modello con quattro clip: due di Gadget, due di Wraith, stati assortiti. */
+	/** Un modello con quattro clip: due di Gadget, due di Ivrin, stati assortiti. */
 	FRTAnimBrowserModel ModelloDiProva()
 	{
 		FRTAnimCatalog Catalog;
@@ -34,8 +34,8 @@ namespace
 
 		Aggiungi(TEXT("AV_0001"), TEXT("Gadget"), TEXT("Idle"),     ERTAnimClipStatus::Promoted);
 		Aggiungi(TEXT("AV_0002"), TEXT("Gadget"), TEXT("Run_Fwd"),  ERTAnimClipStatus::Unreviewed);
-		Aggiungi(TEXT("AV_0003"), TEXT("Wraith"), TEXT("Idle_NonCombat"), ERTAnimClipStatus::Rejected);
-		Aggiungi(TEXT("AV_0004"), TEXT("Wraith"), TEXT("Jog_Fwd"),  ERTAnimClipStatus::Promoted);
+		Aggiungi(TEXT("AV_0003"), TEXT("Ivrin"), TEXT("Idle_NonCombat"), ERTAnimClipStatus::Rejected);
+		Aggiungi(TEXT("AV_0004"), TEXT("Ivrin"), TEXT("Jog_Fwd"),  ERTAnimClipStatus::Promoted);
 
 		// Si passa dal JSON invece di iniettare la struct: cosi' il test attraversa anche la
 		// serializzazione, ed e' l'unico modo in cui il pannello vedra' davvero questi dati.
@@ -64,8 +64,8 @@ bool FRTAnimBrowserPackFromPathTest::RunTest(const FString&)
 {
 	TestEqual(TEXT("Gadget"),
 		FRTAnimBrowserModel::PackFromAssetPath(PathDi(TEXT("Gadget"), TEXT("Idle"))), FString(TEXT("Gadget")));
-	TestEqual(TEXT("Wraith"),
-		FRTAnimBrowserModel::PackFromAssetPath(PathDi(TEXT("Wraith"), TEXT("Jog_Fwd"))), FString(TEXT("Wraith")));
+	TestEqual(TEXT("Ivrin"),
+		FRTAnimBrowserModel::PackFromAssetPath(PathDi(TEXT("Ivrin"), TEXT("Jog_Fwd"))), FString(TEXT("Ivrin")));
 
 	// ⛔ Un path che non nomina un pack da' vuoto, non un pack inventato: dedurre produrrebbe un dato che
 	// sembra misurato e non lo e'.
@@ -301,7 +301,7 @@ bool FRTAnimBindingsMapToCdoTest::RunTest(const FString&)
 
 	Aggiungi(TEXT("AV_0001"), TEXT("Run_Fwd"), TEXT("Hero.Gadget"), ERTPresentationRole::Move, true,  TEXT("A"));
 	Aggiungi(TEXT("AV_0002"), TEXT("Run_Bwd"), TEXT("Hero.Gadget"), ERTPresentationRole::Move, false, TEXT("B"));
-	Aggiungi(TEXT("AV_0003"), TEXT("Idle"),    TEXT("Hero.Wraith"), ERTPresentationRole::Idle, true,  TEXT("A"));
+	Aggiungi(TEXT("AV_0003"), TEXT("Idle"),    TEXT("Hero.Ivrin"), ERTPresentationRole::Idle, true,  TEXT("A"));
 
 	int32 Legami = 0;
 	const TMap<FName, FRTHeroPresentationClips> PerEroe =
@@ -331,11 +331,11 @@ bool FRTAnimBindingsMapToCdoTest::RunTest(const FString&)
 		Attiva->Clip.ToSoftObjectPath().ToString(), PathDi(TEXT("Gadget"), TEXT("Run_Fwd")));
 
 	// Un eroe diverso non finisce nella stessa voce: la mappa e' per eroe, non globale.
-	const FRTHeroPresentationClips* Wraith = PerEroe.Find(FName(TEXT("Hero.Wraith")));
-	if (TestNotNull(TEXT("Wraith c'e'"), (const void*)Wraith))
+	const FRTHeroPresentationClips* Ivrin = PerEroe.Find(FName(TEXT("Hero.Ivrin")));
+	if (TestNotNull(TEXT("Ivrin c'e'"), (const void*)Ivrin))
 	{
-		TestNull(TEXT("Wraith non ha il ruolo Move"), (const void*)Wraith->FindRole(ERTPresentationRole::Move));
-		TestNotNull(TEXT("Wraith ha il ruolo Idle"), (const void*)Wraith->FindRole(ERTPresentationRole::Idle));
+		TestNull(TEXT("Ivrin non ha il ruolo Move"), (const void*)Ivrin->FindRole(ERTPresentationRole::Move));
+		TestNotNull(TEXT("Ivrin ha il ruolo Idle"), (const void*)Ivrin->FindRole(ERTPresentationRole::Idle));
 	}
 
 	// ⛔ Un binding senza eroe non produce una voce fantasma.

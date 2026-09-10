@@ -353,7 +353,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 		// Sbarra la via diretta est->Relay ai movimenti lineari: invalida il `Ram` del turno 7.
 		{ FRTCellId( 1,  0, 0), ERTHexSurface::Rough },
 		{ FRTCellId( 2,  0, 0), ERTHexSurface::Rough },
-		// Fascia di fuoco sull'approccio NORD al Relay: Wraith la attraversa al turno 3 scendendo dalla
+		// Fascia di fuoco sull'approccio NORD al Relay: Ivrin la attraversa al turno 3 scendendo dalla
 		// cresta, e prende `Burning`. NON sta accanto agli spawn: messa a (3,0)/(3,1) murava Branth nel suo
 		// angolo — ogni sua uscita passava dal fuoco, e il turno 1 sarebbe stato una punizione, non una scelta.
 		{ FRTCellId( 2, -1, 0), ERTHexSurface::Fire },
@@ -419,7 +419,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 		}
 	}
 
-	// Copertura bassa sul bordo `(0,-1) <-> (1,-1)`, ed e' l'oracolo del **T6** (#1060): ripara **Wraith**, il
+	// Copertura bassa sul bordo `(0,-1) <-> (1,-1)`, ed e' l'oracolo del **T6** (#1060): ripara **Ivrin**, il
 	// bersaglio ORIGINALE, dal colpo che gli arriva da ovest.
 	//
 	// ⚠️ **Sta sulla VITTIMA e non sull'intercettore, ed e' la scelta che rende il turno discriminante.**
@@ -432,16 +432,16 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 	// varrebbe zero. CP 16.2 dichiara scoperto l'emisfero posteriore, e Branth arriva su (2,0) orientato a
 	// **NE** mentre Gadget sta a ovest. Orientarlo con una rotazione dichiarata non e' possibile: il gioco la
 	// rifiuta — *«rotazione dichiarata RIFIUTATA (illegale per lo stile di movimento)»* — perche' nello stesso
-	// turno si muove. Wraith invece guarda gia' **W**, verso chi lo attacca.
+	// turno si muove. Ivrin invece guarda gia' **W**, verso chi lo attacca.
 	//
 	// ⛔ `Low` e non `High`: una copertura alta toglierebbe la linea di tiro, e il colpo non partirebbe
 	// affatto — l'interposizione non avrebbe nulla da intercettare.
-	if (const FRTHexCellData* WraithCell = Draft.Find(FRTCellId(1, -1, 0)))
+	if (const FRTHexCellData* IvrinCell = Draft.Find(FRTCellId(1, -1, 0)))
 	{
 		ERTHexDirection Edge;
 		if (URTHexCoverLibrary::EdgeDirection(FRTCellId(1, -1, 0), FRTCellId(0, -1, 0), Edge))
 		{
-			FRTHexCellData Updated = *WraithCell;
+			FRTHexCellData Updated = *IvrinCell;
 			Updated.Covers.Add(FRTHexCover(Edge, ERTHexCoverType::Low,
 				FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
 			Draft.Set(Updated);
@@ -892,7 +892,7 @@ TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayBasinSpawns()
 		FRTShowcaseSpawn(TEXT("Hero.Gadget"),    /*TeamId=*/ 0, FRTCellId(-4, 0, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Phase"),    /*TeamId=*/ 0, FRTCellId(-4, 1, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Branth"), /*TeamId=*/ 1, FRTCellId( 4, 0, 0)),
-		FRTShowcaseSpawn(TEXT("Hero.Wraith"),  /*TeamId=*/ 1, FRTCellId( 4, 1, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Ivrin"),  /*TeamId=*/ 1, FRTCellId( 4, 1, 0)),
 	};
 }
 
@@ -904,7 +904,7 @@ TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayLiteSpawns()
 		FRTShowcaseSpawn(TEXT("Hero.Gadget"),    /*TeamId=*/ 0, FRTCellId(-5,  2, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Phase"),    /*TeamId=*/ 0, FRTCellId(-5,  3, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Branth"), /*TeamId=*/ 1, FRTCellId( 5, -2, 0)),
-		FRTShowcaseSpawn(TEXT("Hero.Wraith"),  /*TeamId=*/ 1, FRTCellId( 5, -3, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Ivrin"),  /*TeamId=*/ 1, FRTCellId( 5, -3, 0)),
 	};
 }
 

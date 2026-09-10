@@ -447,7 +447,7 @@ bool FRTFastMovementDeclaresStyleTest::RunTest(const FString&)
 // MOB-1 — la lama che PASSA ATTRAVERSO.
 //
 // `LinearDash` si ferma su cio' che incontra, `LinearCharge` si ferma addosso, `LinearLeap` scavalca senza
-// toccare. Manca la quarta: attraversare colpendo. `Wraith.PassingBlade` la descriveva gia' («colpisce per
+// toccare. Manca la quarta: attraversare colpendo. `Ivrin.PassingBlade` la descriveva gia' («colpisce per
 // 20 le unita' ATTRAVERSATE») ma usava `LinearDash`, quindi non attraversava nessuno e quei 20 danni non
 // avevano un momento in cui applicarsi.
 //

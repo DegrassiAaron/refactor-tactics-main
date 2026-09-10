@@ -13,12 +13,12 @@
 
   "units": [
     { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [-2, 0, 0] },
-    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 3, 0, 0] }
+    { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 3, 0, 0] }
   ],
 
   "turns": [
     {
-      "_turno": "T1 — Wraith arma una trappola sul bordo fra (0,0) e (1,0), condizionata al solo movimento di tipo Dash. Gadget attraversa quel bordo con un MOVE normale: la trappola NON scatta.",
+      "_turno": "T1 — Ivrin arma una trappola sul bordo fra (0,0) e (1,0), condizionata al solo movimento di tipo Dash. Gadget attraversa quel bordo con un MOVE normale: la trappola NON scatta.",
       "requires": ["SemanticTrigger"],
       "intents": []
     },

@@ -26,7 +26,7 @@ bool FRTUnitShortHeroNameTest::RunTest(const FString&)
 	TestEqual(TEXT("Hero.Gadget -> Gadget"), ARTUnit::ShortHeroName(TEXT("Hero.Gadget"), Fallback), TEXT("Gadget"));
 	TestEqual(TEXT("Hero.Phase -> Phase"), ARTUnit::ShortHeroName(TEXT("Hero.Phase"), Fallback), TEXT("Phase"));
 	TestEqual(TEXT("Hero.Branth -> Branth"), ARTUnit::ShortHeroName(TEXT("Hero.Branth"), Fallback), TEXT("Branth"));
-	TestEqual(TEXT("Hero.Wraith -> Wraith"), ARTUnit::ShortHeroName(TEXT("Hero.Wraith"), Fallback), TEXT("Wraith"));
+	TestEqual(TEXT("Hero.Ivrin -> Ivrin"), ARTUnit::ShortHeroName(TEXT("Hero.Ivrin"), Fallback), TEXT("Ivrin"));
 
 	// Unita' legacy (archetipo, nessun eroe): l'etichetta non deve sparire.
 	TestEqual(TEXT("NAME_None -> fallback"), ARTUnit::ShortHeroName(NAME_None, Fallback), Fallback);
@@ -68,15 +68,20 @@ bool FRTCanonicalHeroIdTest::RunTest(const FString&)
 	// cambiare in un punto che il test rilegge, non in un commento.
 	//
 	// Quattro vengono da D-130; `Riktor` da [D-334], che ha superseduto D-322 e portato il roster v0.1 a
-	// `Aevik`/`Muiren`/`Branth`/`Ivrin`. ⚠️ **La lista cresce con la migrazione, non prima**: aggiungere
-	// qui un nome ancora in uso — `Gadget`, `Phase`, `Wraith` finche' non sono migrati — fa rosso il test
-	// contro un roster sano. Ogni fetta aggiunge il proprio nome quando lo ritira davvero.
+	// `Aevik`/`Muiren`/`Branth`/`Ivrin`; `Wraith` da [D-341], la fetta che lo ha ritirato davvero.
+	// ⚠️ **La lista cresce con la migrazione, non prima**: aggiungere qui un nome ancora in uso —
+	// `Gadget` e `Phase` finche' non sono migrati — fa rosso il test contro un roster sano. Ogni fetta
+	// aggiunge il proprio nome quando lo ritira davvero.
+	// ⛔ **E mai l'EREDE.** La stesura precedente elencava `Ivrin` fra i nomi da non aggiungere ancora:
+	// era un refuso per `Wraith`. `Ivrin` e' il nome NUOVO, non uno ritirato — in questa lista non entra
+	// mai, e mettercelo renderebbe il test rosso contro un roster sano per sempre.
 	// 🔴 **NON RINOMINARE QUESTA RIGA** — vale la stessa avvertenza di
 	// `Heroes.AbilityIdsAreNamespacedUnderTheirHero`, e per lo stesso incidente, capitato DUE volte:
 	// la prima quando il passaggio finale di #754 ha cercato i nomi ritirati senza confini di parola,
 	// la seconda quando lo stesso script e' stato rilanciato *per misurare i residui* — uno script che
 	// sostituisce non e' una misura, e rieseguirlo ha disfatto la riparazione appena scritta.
-	const TArray<FString> Legacy = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor"), TEXT("Riktor") };
+	const TArray<FString> Legacy = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor"),
+		TEXT("Riktor"), TEXT("Wraith") };
 
 	const TArray<FName> Ids = URTHeroCatalogLibrary::GetHeroIds();
 	if (!TestEqual(TEXT("il roster v0.1 dichiara quattro id"), Ids.Num(), 4)) { return false; }
@@ -156,7 +161,7 @@ bool FRTRosterCanonicalNamesTest::RunTest(const FString&)
 		{ TEXT("Hero.Gadget"),    TEXT("Gadget") },
 		{ TEXT("Hero.Phase"),    TEXT("Phase")  },
 		{ TEXT("Hero.Branth"), TEXT("Branth") },
-		{ TEXT("Hero.Wraith"),  TEXT("Wraith") },
+		{ TEXT("Hero.Ivrin"),  TEXT("Ivrin")  },
 	};
 
 	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();

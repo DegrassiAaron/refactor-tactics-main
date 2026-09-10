@@ -34,7 +34,7 @@ const ROLES: Record<string, string> = {
   gadget: 'Controller',
   phase: 'Support',
   branth: 'Guardian',
-  wraith: 'Striker',
+  ivrin: 'Striker',
 };
 
 const check = process.argv.includes('--check');

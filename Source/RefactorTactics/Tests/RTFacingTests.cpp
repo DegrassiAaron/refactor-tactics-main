@@ -698,7 +698,7 @@ bool FRTFacingCatalogPivotBudgetsMatchAdr0008Test::RunTest(const FString&)
 		{ TEXT("Hero.Gadget"), 2, 2 },
 		{ TEXT("Hero.Phase"),  2, 3 },
 		{ TEXT("Hero.Branth"), 1, 0 },
-		{ TEXT("Hero.Wraith"), 3, 3 },
+		{ TEXT("Hero.Ivrin"), 3, 3 },
 	};
 
 	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();

@@ -53,7 +53,7 @@ for (const [nome, testo] of [
 
 /** Un numero che COINCIDE con un'attesa e' la prosa che fa il suo mestiere: silenzio. */
 test('un numero uguale a un attesa non viene segnalato', () => {
-  assert.equal(segnala('X.json', conAttesa('Wraith resta a 90 pieni.', 90)).length, 0);
+  assert.equal(segnala('X.json', conAttesa('Ivrin resta a 90 pieni.', 90)).length, 0);
 });
 
 /**

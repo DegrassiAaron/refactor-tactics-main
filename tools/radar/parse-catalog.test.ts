@@ -38,7 +38,11 @@ test('legge i quattro eroi del roster e le loro venti abilita', () => {
     // sostituzione meccanica produce un letterale corretto nei nomi e sbagliato nell'ordine.
     // ⚠️ D-334 (`Riktor` -> `Branth`) invece la RIORDINA, ed e' la prima rinomina che lo fa: `Branth`
     // precede `Gadget`. L'avvertenza qui sopra ha colto il difetto al primo tentativo.
-    ['Branth', 'Gadget', 'Phase', 'Wraith'],
+    // ⚠️ E la SECONDA e' `Wraith` -> `Ivrin` (#2491): stava in coda, ora precede `Phase`. La
+    // sostituzione meccanica aveva prodotto `['Branth','Gadget','Phase','Ivrin']` — nomi giusti,
+    // ordine sbagliato — e questo test e' caduto dicendo esattamente dove. E' il difetto che
+    // l'avvertenza descrive, capitato una seconda volta e intercettato dallo stesso assert.
+    ['Branth', 'Gadget', 'Ivrin', 'Phase'],
   );
   assert.equal(
     heroes.reduce((n, h) => n + h.abilities.length, 0),
@@ -169,15 +173,15 @@ test('una reazione rinviata a E14 dichiara status deferred e nessuna semantica c
 });
 
 test('una azione predittiva NON e una reazione, e la condizionalita viene dal Tipo', () => {
-  const wraith = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Wraith')!;
-  const intercept = wraith.abilities.find((a) => a.id === 'Hero.Wraith.InterceptShot')!;
+  const ivrin = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Ivrin')!;
+  const intercept = ivrin.abilities.find((a) => a.id === 'Hero.Ivrin.InterceptShot')!;
 
   // Fuori dalla tabella delle reazioni: non attende un innesco, si dichiara in pianificazione.
   assert.equal(intercept.reaction, null);
   // ⚠️ E' QUESTA la riga che tiene insieme catalogo e rubrica. Fino al 2026-08-17 `isPredictive()`
   // faceva match su una frase in prosa (`/trigger d'ingresso su movimento/`) dentro la cella `Stato`
   // della tabella reazioni: chi avesse riscritto quella cella avrebbe azzerato la condizionalita' del
-  // payoff — 16 danni al posto di 0 nel `power` di Wraith — senza toccare un numero.
+  // payoff — 16 danni al posto di 0 nel `power` di Ivrin — senza toccare un numero.
   assert.equal(intercept.kind, 'predittiva');
   assert.equal(intercept.damage, 16);
 });

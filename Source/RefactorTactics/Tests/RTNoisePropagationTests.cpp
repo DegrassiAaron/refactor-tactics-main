@@ -146,7 +146,7 @@ bool FRTNoiseAttenuationBySurfaceTest::RunTest(const FString&)
 	const FRTCellId TwoAway(2, 0);
 
 	// Su terreno libero uno Sprint (5) attenuato di 2 celle arriva a 3: lo sentono Phase e Branth
-	// (soglia 3), non Gadget e Wraith (soglia 5). E' l'esempio che D-041 usa per giustificare i valori.
+	// (soglia 3), non Gadget e Ivrin (soglia 5). E' l'esempio che D-041 usa per giustificare i valori.
 	const int32 OnFloor = HeardAt(Map, Sprint(Origin), TwoAway);
 	TestEqual(TEXT("Sprint su terreno libero, a due celle: 3"), OnFloor, 3);
 
@@ -185,16 +185,16 @@ bool FRTNoiseThresholdDecidesTest::RunTest(const FString&)
 	const URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
 	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
 	const URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
-	const URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
+	const URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
 	if (!TestNotNull(TEXT("roster costruito"), Gadget) || !TestNotNull(TEXT("roster costruito"), Phase)
-		|| !TestNotNull(TEXT("roster costruito"), Branth) || !TestNotNull(TEXT("roster costruito"), Wraith))
+		|| !TestNotNull(TEXT("roster costruito"), Branth) || !TestNotNull(TEXT("roster costruito"), Ivrin))
 	{
 		return false;
 	}
 	TestEqual(TEXT("Gadget 5"), Gadget->HearingThreshold, 5);
 	TestEqual(TEXT("Phase 3"), Phase->HearingThreshold, 3);
 	TestEqual(TEXT("Branth 3"), Branth->HearingThreshold, 3);
-	TestEqual(TEXT("Wraith 5"), Wraith->HearingThreshold, 5);
+	TestEqual(TEXT("Ivrin 5"), Ivrin->HearingThreshold, 5);
 
 	// L'udito COMPENSA la vista: chi vede lontano sente meno. E' la proprieta' che rende l'udito una seconda
 	// via all'informazione e non un raddoppio della prima.

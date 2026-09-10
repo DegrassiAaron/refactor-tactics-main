@@ -292,7 +292,7 @@ enum class ERTMovementStyle : uint8
 	/** Salto: ignora unita' e celle intermedie, conta solo dove si atterra (`Leap`). */
 	LinearLeap,
 	/**
-	 * ATTRAVERSA le unita' sulla traiettoria e le colpisce, poi prosegue (`Wraith.PassingBlade`).
+	 * ATTRAVERSA le unita' sulla traiettoria e le colpisce, poi prosegue (`Ivrin.PassingBlade`).
 	 *
 	 * La differenza con `LinearLeap` non e' il danno ma cosa si tocca: il salto **scavalca** e non incontra
 	 * nessuno, la lama passa **in mezzo** e applica a ognuno gli effetti dell'azione. Con `LinearCharge`

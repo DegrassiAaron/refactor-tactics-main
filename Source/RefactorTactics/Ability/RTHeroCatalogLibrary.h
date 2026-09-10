@@ -38,7 +38,7 @@ public:
 	 * ⚠️ **L'intervallo era `== 5` esatte, e il corpo della funzione ne dichiara il costo**: il validator non
 	 * dice piu' «questo eroe e' completo» ma «e' nell'intervallo». Il tetto e' 6 e non «quante ne vuoi»
 	 * perche' oltre il kit supera le posizioni che l'input raggiunge — `PlayerInput.EveryKitEntryIsReachable`
-	 * e' il gate che lo misura. Sul roster v0.1 ne hanno sei **Phase** (`TideGuard`) e **Wraith**
+	 * e' il gate che lo misura. Sul roster v0.1 ne hanno sei **Phase** (`TideGuard`) e **Ivrin**
 	 * (`PhaseGuard`); Gadget e Branth restano a cinque.
 	 *
 	 * Ogni messaggio nomina l'eroe colpevole: un errore che non dice QUALE eroe e' rotto costringe a
@@ -91,7 +91,7 @@ public:
 	 *
 	 * ⚠️ **Phase porta SEI azioni**: le cinque del catalogo piu' `TideGuard`, lo scudo proattivo derivato da
 	 * `Action.Shield`. Non e' una fondamentale — e' la generica core che l'intervallo 5-6 di `ValidateHeroes`
-	 * ammette — e il suo gemello e' `Hero.Wraith.PhaseGuard`, uno per squadra.
+	 * ammette — e il suo gemello e' `Hero.Ivrin.PhaseGuard`, uno per squadra.
 	 *
 	 * Limiti dichiarati: `CircularTide` **cura e basta** (`{ Heal 18 }`). Il `Wet` ad area e' uscito dalla
 	 * dichiarazione con #1006, che allinea Phase al grado `Access` di #995 — una sola capability elementale,
@@ -114,7 +114,7 @@ public:
 	/**
 	 * Costruisce **Branth**, architetto del campo (catalogo eroi v0.1 §3): 120 HP, 4 MP, vista 5,
 	 * **resistenza push 0**, affinita' strutture, debolezza movimento — simmetrica a
-	 * Wraith (CP 6.5), come Gadget/Phase lo sono fra loro.
+	 * Ivrin (CP 6.5), come Gadget/Phase lo sono fra loro.
 	 *
 	 * ⚠️ **Era `1`, l'unico del roster, e questa riga lo ha dichiarato per piu' di quanto sia stato vero.**
 	 * D-075 (#402) l'ha azzerata il 2026-08-10: siccome ogni spinta del gioco vale 1 e `PushResistance` e'
@@ -133,16 +133,16 @@ public:
 	static URTHeroData* MakeBranth();
 
 	/**
-	 * Costruisce **Wraith**, duellante predittivo (catalogo eroi v0.1 §4): **90 HP** (era 100, abbassata da
+	 * Costruisce **Ivrin**, duellante predittivo (catalogo eroi v0.1 §4): **90 HP** (era 100, abbassata da
 	 * D-069 / #131 perche' «compra mobilita' con l'assenza di difese» sui numeri era falso), **6 MP** (il piu'
 	 * mobile), vista 6, resistenza push 0, affinita' movimento, debolezza strutture — simmetrica a Branth, che
-	 * chiude il roster in due coppie (Gadget↔Phase, Branth↔Wraith).
+	 * chiude il roster in due coppie (Gadget↔Phase, Branth↔Ivrin).
 	 *
-	 * ⚠️ **Anche Wraith porta SEI azioni**: le cinque del catalogo piu' `PhaseGuard`, gemello di
+	 * ⚠️ **Anche Ivrin porta SEI azioni**: le cinque del catalogo piu' `PhaseGuard`, gemello di
 	 * `Hero.Phase.TideGuard` e derivato dallo stesso `Action.Shield`. Non e' una fondamentale, e' la generica
 	 * core che l'intervallo 5-6 di `ValidateHeroes` ammette. ⛔ Il `Phase` del nome e' la **fase** — DisplayName
-	 * «Guardia di fase» — non l'eroe: un rename d'identita' che lo trattasse come tale sbaglierebbe bersaglio
-	 * (#2491).
+	 * «Guardia di fase» — non l'eroe, e infatti il rename di questa identita' l'ha lasciato intatto: e'
+	 * `Hero.Ivrin.PhaseGuard`, non `Hero.Ivrin.IvrinGuard` (#2491).
 	 *
 	 * `Deflection` e' cablata (CP 6.7, semantica di `Action.Deflect`). `InterceptShot` **non e' piu' una
 	 * reazione**: dal 2026-08-10 (E18 CP 18.2, D-016) e' una **Predictive Action** — cella dichiarata in
@@ -152,16 +152,16 @@ public:
 	 * Limiti dichiarati: `Feint` marca una CELLA e concede un `Reposition`, e nessuna delle due meta' e' un
 	 * `ERTActionEffect` (gli stati si applicano alle unita', il movimento passa da `ERTMovementStyle`).
 	 */
-	static URTHeroData* MakeWraith();
+	static URTHeroData* MakeIvrin();
 
 	/**
-	 * Il roster completo della v0.1, nell'ordine del catalogo eroi: Gadget, Phase, Branth, Wraith.
+	 * Il roster completo della v0.1, nell'ordine del catalogo eroi: Gadget, Phase, Branth, Ivrin.
 	 * Nuove istanze a ogni chiamata (stesso idioma di `URTCatalogLibrary::GetCoreActionCatalog`).
 	 */
 	static TArray<URTHeroData*> GetHeroRoster();
 
 	/**
-	 * Solo gli `HeroId` del roster (`Hero.Gadget`, `Hero.Phase`, `Hero.Branth`, `Hero.Wraith`), senza costruire
+	 * Solo gli `HeroId` del roster (`Hero.Gadget`, `Hero.Phase`, `Hero.Branth`, `Hero.Ivrin`), senza costruire
 	 * gli eroi.
 	 *
 	 * Esiste perche' `GetHeroRoster()` istanzia quattro `URTHeroData` **con tutte le loro abilita'** a ogni

@@ -10,7 +10,7 @@
 
 namespace
 {
-	int32 WraithEffectAmount(const TArray<FRTActionEffectSpec>& Effects, ERTActionEffect Kind)
+	int32 IvrinEffectAmount(const TArray<FRTActionEffectSpec>& Effects, ERTActionEffect Kind)
 	{
 		for (const FRTActionEffectSpec& Spec : Effects)
 		{
@@ -19,41 +19,41 @@ namespace
 		return 0;
 	}
 
-	int32 WraithVariantParam(const FRTAbilityVariant& Variant, const TCHAR* Key)
+	int32 IvrinVariantParam(const FRTAbilityVariant& Variant, const TCHAR* Key)
 	{
 		const int32* Found = Variant.Parameters.Find(FName(Key));
 		return Found ? *Found : INDEX_NONE;
 	}
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWraithMatchesCatalogTest,
-	"RefactorTactics.Heroes.Wraith.MatchesCatalog",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIvrinMatchesCatalogTest,
+	"RefactorTactics.Heroes.Ivrin.MatchesCatalog",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTWraithMatchesCatalogTest::RunTest(const FString&)
+bool FRTIvrinMatchesCatalogTest::RunTest(const FString&)
 {
 	// Numeri della tabella §4 del catalogo eroi v0.1.
-	URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
-	if (!TestNotNull(TEXT("Wraith costruito"), Wraith)) { return false; }
+	URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
+	if (!TestNotNull(TEXT("Ivrin costruito"), Ivrin)) { return false; }
 
-	TestEqual(TEXT("HeroId"), Wraith->HeroId, FName(TEXT("Hero.Wraith")));
-	TestEqual(TEXT("salute"), Wraith->MaxHealth, 90); // 100 -> 90 (#131): il costo statistico di Wraith
-	TestEqual(TEXT("movimento"), Wraith->MovePoints, 6);
-	TestEqual(TEXT("vista"), Wraith->VisionRange, 6);
-	TestEqual(TEXT("resistenza push"), Wraith->PushResistance, 0);
-	TestEqual(TEXT("affinita'"), Wraith->Affinity, FName(TEXT("Affinity.Movement")));
-	TestEqual(TEXT("debolezza simmetrica a Branth"), Wraith->Weakness, FName(TEXT("Affinity.Structures")));
+	TestEqual(TEXT("HeroId"), Ivrin->HeroId, FName(TEXT("Hero.Ivrin")));
+	TestEqual(TEXT("salute"), Ivrin->MaxHealth, 90); // 100 -> 90 (#131): il costo statistico di Ivrin
+	TestEqual(TEXT("movimento"), Ivrin->MovePoints, 6);
+	TestEqual(TEXT("vista"), Ivrin->VisionRange, 6);
+	TestEqual(TEXT("resistenza push"), Ivrin->PushResistance, 0);
+	TestEqual(TEXT("affinita'"), Ivrin->Affinity, FName(TEXT("Affinity.Movement")));
+	TestEqual(TEXT("debolezza simmetrica a Branth"), Ivrin->Weakness, FName(TEXT("Affinity.Structures")));
 
-	if (!TestEqual(TEXT("sei azioni: le cinque del catalogo piu' lo scudo proattivo di D-226"), Wraith->Actions.Num(), 6)) { return false; }
+	if (!TestEqual(TEXT("sei azioni: le cinque del catalogo piu' lo scudo proattivo di D-226"), Ivrin->Actions.Num(), 6)) { return false; }
 
-	const URTActionData* PulseShot = Wraith->Actions[0];
-	TestEqual(TEXT("PulseShot: 21 danni"), WraithEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage), 21);
+	const URTActionData* PulseShot = Ivrin->Actions[0];
+	TestEqual(TEXT("PulseShot: 21 danni"), IvrinEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage), 21);
 	TestEqual(TEXT("PulseShot: range 4"), PulseShot->Def.RangeCells, 4);
 	TestNotEqual(TEXT("non e' il danno generico della fascia medio raggio"),
-		WraithEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage),
+		IvrinEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage),
 		URTCatalogLibrary::BasicAttackDamageForRange(4));
 
-	const URTActionData* PassingBlade = Wraith->Actions[2];
-	TestEqual(TEXT("PassingBlade: 20 danni"), WraithEffectAmount(PassingBlade->Def.Effects, ERTActionEffect::Damage), 20);
+	const URTActionData* PassingBlade = Ivrin->Actions[2];
+	TestEqual(TEXT("PassingBlade: 20 danni"), IvrinEffectAmount(PassingBlade->Def.Effects, ERTActionEffect::Damage), 20);
 	TestEqual(TEXT("PassingBlade: Dash 3"), PassingBlade->Def.RangeCells, 3);
 
 	// Lo SLOT, che e' cio' che [D-191] ha deciso: e' un dash che fa danno a chi trapassa, non un attacco che
@@ -78,7 +78,7 @@ bool FRTWraithMatchesCatalogTest::RunTest(const FString&)
 	TestTrue(TEXT("e non si ferma addosso come la carica"),
 		PassingBlade->Def.MovementStyle != ChargeDef.MovementStyle);
 
-	// 🔑 **La RIDUZIONE della parata, che era l'unico numero del kit di Wraith che questo file non
+	// 🔑 **La RIDUZIONE della parata, che era l'unico numero del kit di Ivrin che questo file non
 	// guardava** (`#2105`). Scritta a mano di proposito: leggerla da
 	// `URTCombatLibrary::DeflectDamageReduction` renderebbe la riga tautologica come i tre test di reazione
 	// — `RTHeroReactionTests`, `RTDefensiveReactionTests`, `RTComposableReactionTests` — che calcolano
@@ -89,9 +89,9 @@ bool FRTWraithMatchesCatalogTest::RunTest(const FString&)
 	// `Visual.Reaction.Deflection` — il solo scenario che la nominava — da [D-224] e' verde per
 	// qualunque riduzione >= 17, perche' i 2 residui finiscono interi nello scudo base. La meta' in partita
 	// la misura ora `Spec.Reaction.DeflectionReducesByTwenty`.
-	const URTActionData* Deflection = Wraith->Actions[3];
+	const URTActionData* Deflection = Ivrin->Actions[3];
 	TestEqual(TEXT("Deflection: un budget di 20 sui colpi del turno"),
-		WraithEffectAmount(Deflection->Def.Effects, ERTActionEffect::DamageReduction), 20);
+		IvrinEffectAmount(Deflection->Def.Effects, ERTActionEffect::DamageReduction), 20);
 	// ⚠️ **E NON dichiara anche uno scudo**, che sarebbe un'altra cosa: uno scudo assorbe e si
 	// consuma come oggetto proprio, questa e' un budget sul colpo. La riga sopra non copre il caso in cui
 	// i due effetti coesistano — li' leggerebbe ancora 20 e tacerebbe.
@@ -99,21 +99,21 @@ bool FRTWraithMatchesCatalogTest::RunTest(const FString&)
 		Deflection->Def.Effects.Num(), 1);
 
 	// Feint risolve nel Blast per priorita' (fase Control, codice 30 del catalogo): precede il danno.
-	const URTActionData* Feint = Wraith->Actions[4];
+	const URTActionData* Feint = Ivrin->Actions[4];
 	TestTrue(TEXT("Feint: risolve nel Blast"),
 		URTCatalogLibrary::MapResolutionPhase(Feint->Def.ResolutionPhase) == ERTMatchPhase::Blast);
 	TestEqual(TEXT("Feint: cooldown 2"), Feint->Def.CooldownTurns, 2);
 
-	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes({ Wraith });
+	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes({ Ivrin });
 	for (const FString& Err : Errors) { AddError(Err); }
-	TestEqual(TEXT("Wraith e' strutturalmente valido"), Errors.Num(), 0);
+	TestEqual(TEXT("Ivrin e' strutturalmente valido"), Errors.Num(), 0);
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWraithInterceptShotStopsMovementTest,
-	"RefactorTactics.Heroes.Wraith.InterceptShotStopsMovement",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIvrinInterceptShotStopsMovementTest,
+	"RefactorTactics.Heroes.Ivrin.InterceptShotStopsMovement",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTWraithInterceptShotStopsMovementTest::RunTest(const FString&)
+bool FRTIvrinInterceptShotStopsMovementTest::RunTest(const FString&)
 {
 	// Nome vincolante della DoD di CP 6.4. Fino al 2026-08-10 questo test verificava un LIMITE — «lo stop del
 	// movimento non e' rappresentabile, l'azione e' rinviata a E14» — ed era la verita' del suo momento. E18
@@ -121,10 +121,10 @@ bool FRTWraithInterceptShotStopsMovementTest::RunTest(const FString&)
 	// (`ERTMoveOutcome::StoppedByPrediction`), quindi il nome del test e' finalmente descrittivo invece che
 	// aspirazionale. Le assertion sono state SOSTITUITE, non cancellate: la domanda «questa azione ferma
 	// davvero chi entra?» resta quella, ed e' cambiata la risposta.
-	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeWraith()->Actions[1];
+	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeIvrin()->Actions[1];
 
 	TestEqual(TEXT("InterceptShot: 16 danni"),
-		WraithEffectAmount(Intercept->Def.Effects, ERTActionEffect::Damage), 16);
+		IvrinEffectAmount(Intercept->Def.Effects, ERTActionEffect::Damage), 16);
 	TestEqual(TEXT("InterceptShot: cooldown 2"), Intercept->Def.CooldownTurns, 2);
 
 	// Si dichiara nel Prep e si verifica al Move: la fase resta quella, e non e' interrompibile — un colpo
@@ -150,18 +150,18 @@ bool FRTWraithInterceptShotStopsMovementTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWraithInterceptShotIsPredictiveTest,
-	"RefactorTactics.Heroes.Wraith.InterceptShotIsPredictive",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIvrinInterceptShotIsPredictiveTest,
+	"RefactorTactics.Heroes.Ivrin.InterceptShotIsPredictive",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTWraithInterceptShotIsPredictiveTest::RunTest(const FString&)
+bool FRTIvrinInterceptShotIsPredictiveTest::RunTest(const FString&)
 {
 	// La MIGRAZIONE di classificazione di D-016, verificata sul dato. Il rinvio a E14 era dichiarato nei dati
 	// (slot `None`, nessun trigger) proprio perche' un commento non si puo' verificare: per lo stesso motivo
 	// la sua fine dev'essere un dato, e non la sparizione di quelle righe.
-	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeWraith()->Actions[1];
+	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeIvrin()->Actions[1];
 
 	TestEqual(TEXT("identita' invariata: e' una migrazione, non un'azione nuova"),
-		Intercept->Def.ActionId, FName(TEXT("Hero.Wraith.InterceptShot")));
+		Intercept->Def.ActionId, FName(TEXT("Hero.Ivrin.InterceptShot")));
 
 	TestTrue(TEXT("la cella si blocca in Planning"),
 		Intercept->Def.PredictiveTargeting == ERTPredictiveTargeting::LockCell);
@@ -184,23 +184,23 @@ bool FRTWraithInterceptShotIsPredictiveTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWraithVariantTradeoffTest,
-	"RefactorTactics.Heroes.Wraith.VariantTradeoff",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIvrinVariantTradeoffTest,
+	"RefactorTactics.Heroes.Ivrin.VariantTradeoff",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTWraithVariantTradeoffTest::RunTest(const FString&)
+bool FRTIvrinVariantTradeoffTest::RunTest(const FString&)
 {
 	// Nome vincolante della DoD: nessuna variante migliore in ogni parametro. Qui il compromesso e' meta'
 	// effetto (il danno) e meta' parametro non ancora modellato (le celle controllate).
-	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeWraith()->Actions[1];
+	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeIvrin()->Actions[1];
 	if (!TestEqual(TEXT("due varianti"), Intercept->Variants.Num(), 2)) { return false; }
 
 	const FRTAbilityVariant& Precise = Intercept->Variants[0];
 	const FRTAbilityVariant& Extended = Intercept->Variants[1];
 
-	const int32 PreciseDamage = WraithEffectAmount(Precise.Effects, ERTActionEffect::Damage);
-	const int32 ExtendedDamage = WraithEffectAmount(Extended.Effects, ERTActionEffect::Damage);
-	const int32 PreciseCells = WraithVariantParam(Precise, TEXT("ControlledCells"));
-	const int32 ExtendedCells = WraithVariantParam(Extended, TEXT("ControlledCells"));
+	const int32 PreciseDamage = IvrinEffectAmount(Precise.Effects, ERTActionEffect::Damage);
+	const int32 ExtendedDamage = IvrinEffectAmount(Extended.Effects, ERTActionEffect::Damage);
+	const int32 PreciseCells = IvrinVariantParam(Precise, TEXT("ControlledCells"));
+	const int32 ExtendedCells = IvrinVariantParam(Extended, TEXT("ControlledCells"));
 
 	TestEqual(TEXT("preciso: 20 danni"), PreciseDamage, 20);
 	TestEqual(TEXT("preciso: una cella"), PreciseCells, 1);
@@ -251,13 +251,13 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 		}
 	}
 
-	// BILANCIAMENTO (#131). Wraith era 100/6/6/0 e dominava sia Gadget (90/5/6/0) sia Phase (95/5/5/0): migliore
+	// BILANCIAMENTO (#131). Ivrin era 100/6/6/0 e dominava sia Gadget (90/5/6/0) sia Phase (95/5/5/0): migliore
 	// o pari ovunque, strettamente migliore in salute e movimento. Il catalogo §5 gli attribuiva a parole un
 	// costo — «compra mobilita' con l'assenza di difese» — che sui numeri non esisteva.
 	//
 	// Con 90 HP la dominanza su **Phase** e' finita, e questa parte diventa una REGOLA: il ciclo sotto non
 	// registra piu' un fatto, lo vieta. Un ritorno a 95+ HP fa cadere il test invece di passare inosservato.
-	const URTHeroData* WraithInRoster = Roster[3];
+	const URTHeroData* IvrinInRoster = Roster[3];
 	const URTHeroData* GadgetInRoster = Roster[0];
 	const URTHeroData* PhaseInRoster = Roster[1];
 
@@ -283,12 +283,12 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 	// senza che nessuno debba ricordarsi di aggiungere una riga.
 	//
 	// Le due leve che l'hanno chiusa, e perche' proprio quelle:
-	//   Wraith 100 -> 90 HP  ([D-069]) — toglie la dominanza su Phase
-	//   Gadget    6 -> 7 vista ([D-073]) — toglie quella su Gadget, che il calo di Wraith NON aveva risolto
+	//   Ivrin 100 -> 90 HP  ([D-069]) — toglie la dominanza su Phase
+	//   Gadget    6 -> 7 vista ([D-073]) — toglie quella su Gadget, che il calo di Ivrin NON aveva risolto
 	//
-	// Le alternative scartate, misurate e non intuite: dare 6 MP a Gadget o toglierne uno a Wraith rende i due
+	// Le alternative scartate, misurate e non intuite: dare 6 MP a Gadget o toglierne uno a Ivrin rende i due
 	// profili IDENTICI, e il ciclo di distinguibilita' qui sopra sarebbe caduto — un test rotto per ripararne
-	// un altro. Una `PushResistance` negativa per Wraith non ha effetto osservabile, perche' e' una SOGLIA e
+	// un altro. Una `PushResistance` negativa per Ivrin non ha effetto osservabile, perche' e' una SOGLIA e
 	// le spinte valgono almeno 1.
 	for (int32 i = 0; i < Roster.Num(); ++i)
 	{
@@ -306,7 +306,7 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 	TestTrue(TEXT("Gadget conserva il bonus combo piu' alto del roster"),
 		URTCombatLibrary::GadgetWetDischargeBonus > 0);
 	TestTrue(TEXT("e Gadget e' l'unico a vedere oltre il raggio 6"),
-		GadgetInRoster->VisionRange > WraithInRoster->VisionRange);
+		GadgetInRoster->VisionRange > IvrinInRoster->VisionRange);
 
 	// Le affinita' sono tutte diverse: quattro identita' ambientali, non due coppie di gemelli.
 	TSet<FName> Affinities;

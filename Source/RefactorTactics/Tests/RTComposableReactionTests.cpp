@@ -67,7 +67,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell; // fermo: questi test guardano il Blast
@@ -122,7 +122,7 @@ namespace
 	int32 CompBasicAttackDamage()
 	{
 		// Lo stesso eroe che `SpawnCompUnit` schiera: il numero viene dal catalogo, non da qui.
-		const URTHeroData* Hero = URTHeroCatalogLibrary::MakeWraith();
+		const URTHeroData* Hero = URTHeroCatalogLibrary::MakeIvrin();
 		return (Hero && Hero->Actions.Num() > 0 && Hero->Actions[0]) ? Hero->Actions[0]->Power : 0;
 	}
 }
@@ -297,7 +297,7 @@ bool FRTNoHeroBranchInResolverTest::RunTest(const FString&)
 
 	// Stessa semantica, tre identita' diverse: l'esito non cambia.
 	const int32 CoreDamage = RunDeflectScenario(TEXT("Action.Deflect"));
-	const int32 HeroDamage = RunDeflectScenario(TEXT("Hero.Wraith.Deflection"));
+	const int32 HeroDamage = RunDeflectScenario(TEXT("Hero.Ivrin.Deflection"));
 	const int32 OtherDamage = RunDeflectScenario(TEXT("Zzz.PermutedIdentity"));
 
 	TestEqual(TEXT("la riduzione arriva dai dati, non dall'ActionId"),

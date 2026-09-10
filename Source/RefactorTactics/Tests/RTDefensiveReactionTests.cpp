@@ -69,7 +69,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell; // fermo: questi test guardano il Blast
@@ -83,7 +83,7 @@ namespace
 	/** Il colpo pieno dell'attacco base, dal catalogo: era scritto `25`, il Tiro del Ranger legacy. */
 	int32 DefFullHit()
 	{
-		const URTHeroData* Hero = URTHeroCatalogLibrary::MakeWraith();
+		const URTHeroData* Hero = URTHeroCatalogLibrary::MakeIvrin();
 		return (Hero && Hero->Actions.Num() > 0 && Hero->Actions[0]) ? Hero->Actions[0]->Power : 0;
 	}
 
@@ -1617,19 +1617,19 @@ bool FRTBraceProfileDecidesInPlayTest::RunTest(const FString&)
 		TestEqual(TEXT("e nessuna finestra si e' aperta per lui"), PromptsBranth, 0);
 	}
 
-	// 🔴 **Wraith e' la meta' che pinna QUALE dei due elenchi il resolver interroga.** `Profile.Glance`
+	// 🔴 **Ivrin e' la meta' che pinna QUALE dei due elenchi il resolver interroga.** `Profile.Glance`
 	// dichiara **tre** risposte ([D-132]) e nessuna delle due extra ha effetti, quindi le eseguibili sono
 	// una sola e nessuna finestra si apre. Con `BraceAllowedResponses` al posto di `BraceExecutableResponses`
 	// il resolver aprirebbe qui un prompt su `GLANCE LEFT`, che poi non saprebbe applicare — e senza questa
 	// meta' la sostituzione resterebbe verde, perche' l'unita' finirebbe comunque ferma.
-	const URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
-	if (TestNotNull(TEXT("Wraith"), Wraith))
+	const URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
+	if (TestNotNull(TEXT("Ivrin"), Ivrin))
 	{
-		int32 PromptsWraith = 0; bool bRanWraith = false;
-		const FRTCellId Fermo = RunBracePushTurn(Wraith, TEXT("GLANCE LEFT"), PromptsWraith, bRanWraith);
-		TestTrue(TEXT("il turno di Wraith e' girato davvero"), bRanWraith);
-		TestEqual(TEXT("nessuna finestra per un profilo senza effetti dichiarati"), PromptsWraith, 0);
-		TestTrue(TEXT("e il `Brace` di Wraith regge come sempre"), Fermo == Start);
+		int32 PromptsIvrin = 0; bool bRanIvrin = false;
+		const FRTCellId Fermo = RunBracePushTurn(Ivrin, TEXT("GLANCE LEFT"), PromptsIvrin, bRanIvrin);
+		TestTrue(TEXT("il turno di Ivrin e' girato davvero"), bRanIvrin);
+		TestEqual(TEXT("nessuna finestra per un profilo senza effetti dichiarati"), PromptsIvrin, 0);
+		TestTrue(TEXT("e il `Brace` di Ivrin regge come sempre"), Fermo == Start);
 	}
 
 	return true;
@@ -1942,7 +1942,7 @@ bool FRTDefaultReactionModuleIsNotADuplicateTest::RunTest(const FString&)
 		  false, TEXT("nessuna reazione nel kit: qualunque modulo e' una capacita' nuova") },
 		{ TEXT("Hero.Branth"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeBranth(); },
 		  false, TEXT("`Reaction.Cleanse` contro `Interposition` di kit: due capacita' diverse ([D-218])") },
-		{ TEXT("Hero.Wraith"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeWraith(); },
+		{ TEXT("Hero.Ivrin"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeIvrin(); },
 		  false, TEXT("`EmergencyDash` (Counter) contro `Deflection` di kit (Deflect)") },
 	};
 

@@ -1178,7 +1178,7 @@ void ARTTurnManager::FinishMovementResolution()
 	//
 	// 🔴 **E le due copie non erano nemmeno identiche**: questa nominava l'unita' con
 	// `Units[i]->GetName()` — l'Actor, cioe' `RTUnit_0` — mentre la derivata usa il nome risolto da
-	// `SubjectNamesForLog()`, cioe' `Wraith`. Lo stesso evento arrivava al giocatore due volte,
+	// `SubjectNamesForLog()`, cioe' `Ivrin`. Lo stesso evento arrivava al giocatore due volte,
 	// attribuito a due entita' che sembravano diverse. Misurato da
 	// `RefactorTactics.UI.BlockedMoveLineIsNotRepeated`, che senza questa rimozione conta `2` (`#1412`).
 

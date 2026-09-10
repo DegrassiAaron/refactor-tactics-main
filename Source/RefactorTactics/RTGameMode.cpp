@@ -364,12 +364,12 @@ ARTGameMode::ARTGameMode()
 		static ConstructorHelpers::FClassFinder<ARTUnit> GadgetBP(TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget"));
 		static ConstructorHelpers::FClassFinder<ARTUnit> PhaseBP(TEXT("/Game/RT/Characters/Phase/Blueprints/BP_Unit_Phase"));
 		static ConstructorHelpers::FClassFinder<ARTUnit> BranthBP(TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor"));
-		static ConstructorHelpers::FClassFinder<ARTUnit> WraithBP(TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> IvrinBP(TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith"));
 
 		Assegna(TEXT("Hero.Gadget"), GadgetBP);
 		Assegna(TEXT("Hero.Phase"),  PhaseBP);
 		Assegna(TEXT("Hero.Branth"), BranthBP);
-		Assegna(TEXT("Hero.Wraith"), WraithBP);
+		Assegna(TEXT("Hero.Ivrin"), IvrinBP);
 	}
 }
 

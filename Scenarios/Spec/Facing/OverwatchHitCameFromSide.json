@@ -15,7 +15,7 @@
 
   "_nota_il_pivot_non_e_retroattivo": "🔑 **La riga `UnitFacing` prova la NON retroattivita' del pivot finale, ed e' l'unica che la rende osservabile in partita.** Senza una rotazione dichiarata i due valori COINCIDEREBBERO: il `FIRE` tronca il movimento nella cella raggiunta, quindi il boundary del colpo e' l'ultimo passo e il `FacingFinalAfterMove` deriva dallo stesso passo. P1 (`Hero.Phase`, `MoveEndPivotMaxSteps = 2`) dichiara allora `W`, che da `NE` dista esattamente due step ed e' legale al limite del budget. Il pivot si applica DOPO l'uscita dal ciclo dei micro-step: la voce direzionale e' gia' scritta e nessuno la rilegge. Se il pivot diventasse retroattivo il lato scenderebbe da `5` a `3` e questo file lo direbbe.",
 
-  "_nota_geometria": "Ripresa da `Spec/Overwatch/HoldThenFire.json`, che ha gia' pagato l'errore: la zona dell'Overwatch e' una LINEA e nasce dal facing letto in PREP, quindi V1 dichiara `facing` fra le UNITA' (piazzamento) e non fra gli intent — una rotazione dichiarata si applica dentro `ResolveMovement`, troppo tardi per il proprio cono. V1 e' a (2,-1) e guarda W: controlla (1,-1) (0,-1) (-1,-1) (-2,-1), la portata di `Hero.Wraith.PulseShot`. P1 parte FUORI dalla linea, a (-3,0), ed entra in (-2,-1) al primo micro-step; il FIRE lo tronca li' e il secondo passo, (-1,-1), non lo fa mai — ed e' quello a rendere osservabile la troncatura invece di lasciarla implicita.",
+  "_nota_geometria": "Ripresa da `Spec/Overwatch/HoldThenFire.json`, che ha gia' pagato l'errore: la zona dell'Overwatch e' una LINEA e nasce dal facing letto in PREP, quindi V1 dichiara `facing` fra le UNITA' (piazzamento) e non fra gli intent — una rotazione dichiarata si applica dentro `ResolveMovement`, troppo tardi per il proprio cono. V1 e' a (2,-1) e guarda W: controlla (1,-1) (0,-1) (-1,-1) (-2,-1), la portata di `Hero.Ivrin.PulseShot`. P1 parte FUORI dalla linea, a (-3,0), ed entra in (-2,-1) al primo micro-step; il FIRE lo tronca li' e il secondo passo, (-1,-1), non lo fa mai — ed e' quello a rendere osservabile la troncatura invece di lasciarla implicita.",
 
   "_nota_un_solo_colpo": "🔑 **Un solo colpo risolto in tutto lo scenario, e serve all'oracolo.** `LogEventAmount` legge la PRIMA occorrenza della coppia (categoria, esito) e `IndexOfScenarioLogEvent` non nomina l'unita': con due colpi la riga asserirebbe sul colpo sbagliato **senza diventare rossa**. Nessuno pianifica attacchi qui, quindi la sola voce `HitCameFromSide` del turno e' quella dell'Overwatch. Chi aggiunga un attacco, o un turno prima di questo, sposta l'oracolo in silenzio.",
 
@@ -23,7 +23,7 @@
 
   "units": [
     { "id": "P1", "hero": "Hero.Phase",  "team": 0, "cell": [-3,  0, 0], "facing": "W" },
-    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 2, -1, 0], "facing": "W" }
+    { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 2, -1, 0], "facing": "W" }
   ],
 
   "turns": [
