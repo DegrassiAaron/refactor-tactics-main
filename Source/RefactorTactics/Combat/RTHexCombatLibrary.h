@@ -175,6 +175,23 @@ struct FRTHexAttackIntent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	bool bFriendlyFire = false;
 
+	/**
+	 * Se questo colpo ha bisogno della linea di tiro (`#2870`, [D-378]). Si COPIA da
+	 * `FRTActionDef::LineOfSightPolicy`, accanto a `bFriendlyFire` e `bCountsAsAttack` e per la stessa
+	 * ragione: la sede della decisione e' il catalogo, qui c'e' il parametro dell'intento.
+	 *
+	 * 🔴 **Senza questo campo la semantica si spaccherebbe in due.** Il planning accetterebbe il bersaglio
+	 * — `ClassifyHexTargeting` legge la policy — e `CollectHexAttacks` lo scarterebbe subito dopo in
+	 * `BlockedIntents`: slot speso, nessun effetto, e una riga di TurnLog che dice «nessuna linea di tiro»
+	 * a chi aveva pianificato proprio di farne a meno. Una regola permissiva sul solo client che il resolver
+	 * poi rifiuta e' il difetto peggiore dei due, perche' e' invisibile finche' non si gioca.
+	 *
+	 * ⚠️ **Nasce `Required` come il `Def` da cui viene**: un intento costruito senza dichiararla — l'impatto
+	 * di una carica, un test — resta col comportamento storico.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	ERTLineOfSightPolicy LineOfSightPolicy = ERTLineOfSightPolicy::Required;
+
 	FRTHexAttackIntent() = default;
 };
 

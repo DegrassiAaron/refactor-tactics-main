@@ -169,6 +169,63 @@ enum class ERTInterruptPolicy : uint8
 	CancelChannel
 };
 
+/**
+ * Se l'azione ha BISOGNO della linea di tiro per essere legale (`#2870`).
+ *
+ * ## 🔴 Perche' e' un dato dell'AZIONE e non una deduzione dal bersaglio
+ *
+ * Fino a qui il requisito era cablato dentro `URTCombatLibrary::ClassifyHexTargeting`, che lo applicava a
+ * chiunque: un'azione ad area finiva rifiutata su una cella non visibile esattamente come un tiro mirato.
+ * ∴ *forma dell'area* e *requisito di linea* erano la stessa riga di codice, e nessuna azione poteva
+ * dissociarli — granata, mortaio, blast oltre un ostacolo e velo di nebbia non erano rappresentabili.
+ *
+ * ⛔ **Dedurlo dal fatto che il bersaglio sia una CELLA sarebbe sbagliato**, ed e' la scorciatoia che
+ * questa enum esiste per non prendere: `Shape::Area` dice dove cade l'esplosione, non se il tiratore debba
+ * vedere il punto in cui la manda. Un'AoE mirata a vista e un mortaio hanno la stessa forma e regole
+ * diverse, e la differenza appartiene all'azione.
+ *
+ * ## ⛔ Enum e non `bool`, e la ragione e' tecnica prima che semantica
+ *
+ * Lo **zero** dell'enum E' il requisito. Un pin Blueprint che nessuno riempie, un `Def` costruito in codice
+ * che si dimentica il campo e un `FRTHexAttackIntent` inizializzato di default restano quindi
+ * **fail-closed**, cioe' col comportamento storico. Un `bRequiresLineOfSight` avrebbe lo stesso significato
+ * e il verso opposto: non dichiararlo varrebbe `false`, cioe' *«il tiro indiretto e' concesso»* — fail-OPEN
+ * su un vincolo di legalita', che e' il modo in cui un permesso si estende a chi non l'ha chiesto.
+ *
+ * E' lo stesso argomento che `bCountsAsAttack` porta nel verso suo: quel flag descrive un'IDENTITA' e nasce
+ * chiuso, mentre `bAllowsReaction` e `bFriendlyFire` descrivono PERMESSI e nascono aperti. Questa e' una
+ * **licenza**, quindi nasce revocata.
+ *
+ * ## ⛔ Cio' che questa enum NON e'
+ *
+ * Non e' `DirectLOS / CellLOS / Indirect`. Quella distinzione — *che FORMA di bersaglio chiede l'azione* —
+ * la fa gia' `URTPointerLibrary::TargetKindForAction` leggendo `Shape` e `StructureOp`, e duplicarla qui
+ * creerebbe la seconda fonte di verita' che quel file dichiara apertamente di evitare. I due assi sono
+ * ortogonali per costruzione: un'azione a cella puo' richiedere la linea, e domani un'azione mirata a
+ * un'unita' gia' conosciuta potrebbe non richiederla.
+ *
+ * ⚠️ **E non e' una policy di CONOSCENZA.** Chi si possa bersagliare lo decidono `ERTTargetKnowledge` e
+ * `#2741`; questa enum parla solo di **geometria**. Un'azione `NotRequired` non rende bersagliabile
+ * un'unita' che l'osservatore non conosce, e non deve: sono due velluti diversi sulla stessa cella.
+ */
+UENUM(BlueprintType)
+enum class ERTLineOfSightPolicy : uint8
+{
+	/**
+	 * La linea di tiro e' un requisito: senza, il bersaglio e' rifiutato con `NoLineOfSight`. E' il
+	 * comportamento di ogni azione del catalogo prima di `#2870`, ed e' lo **zero** dell'enum apposta.
+	 */
+	Required,
+
+	/**
+	 * L'azione e' esplicitamente autorizzata a colpire dove non si vede (tiro indiretto, blast, velo).
+	 *
+	 * ⚠️ **Non toglie NIENTE ALTRO**: portata, terreno, forma, fuoco amico e ogni altro vincolo dell'azione
+	 * restano. Cieco non significa illimitato — `BlindFireStillObeysRange` lo pinna.
+	 */
+	NotRequired
+};
+
 UENUM(BlueprintType)
 enum class ERTReactionTrigger : uint8
 {
@@ -669,6 +726,23 @@ struct FRTActionDef
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	ERTPredictionBoundary PredictionBoundary = ERTPredictionBoundary::None;
+
+	/**
+	 * Se l'azione ha bisogno della linea di tiro (`#2870`, [D-378]). Default `Required`: il comportamento di
+	 * ogni azione del catalogo prima di questo campo, quindi introdurlo non sposta nulla.
+	 *
+	 * ⛔ **Sta nei DATI e non nel codice**, come `bFriendlyFire` e `SurfaceCreated` prima di lui: altrimenti
+	 * il tiro indiretto sarebbe un `if (ActionId == ...)` dentro il classificatore, cioe' l'eccezione
+	 * hard-coded che il motore azioni esiste per togliere ([D-046]).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	ERTLineOfSightPolicy LineOfSightPolicy = ERTLineOfSightPolicy::Required;
+
+	/**
+	 * La domanda binaria che i tre gate pongono. E' una funzione sola perche' la risposta e' una sola: chi
+	 * deve decidere se rifiutare legge questo, e non ricostruisce il confronto con l'enum a modo proprio.
+	 */
+	bool RequiresLineOfSight() const { return LineOfSightPolicy == ERTLineOfSightPolicy::Required; }
 
 	FRTActionDef() = default;
 };

@@ -3574,18 +3574,41 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		}
 
 		ARTUnit* Target = Caster->PlannedAttackTarget;
+		// ➕ **IL BERSAGLIO A CELLA, che questo ramo aspettava da E11** (`#2870`).
+		//
+		// 🔴 **Il limite dichiarato qui sotto aveva una precondizione GIA' SCATTATA.** Il commento a valle
+		// diceva — e continua a dire, per il solo Electrify — che *«la pianificazione non ha ancora un
+		// bersaglio-cella per le azioni (`PlannedAttackTarget` e' un'unita'); arrivera' col targeting per
+		// cella dell'HUD (E11)»*. E' arrivato con `#737`: `HandleTargetCell` scrive `PlannedAttackCell` e
+		// **azzera** `PlannedAttackTarget`, perche' il bersaglio E' la cella.
+		//
+		// ∴ ogni azione ambientale pianificata come il suo `Shape::Area` prescrive arrivava qui con
+		// `Target == nullptr` e usciva **annullata «nessun bersaglio»**: un'abilita' del roster inerte
+		// dall'unico ingresso che il giocatore ha. Il difetto non si vedeva perche' gli scenari la
+		// pianificano su un'unita', dove il vecchio ramo funziona.
+		const bool bTargetsCell = Caster->bAttackTargetsCell;
+		const FRTCellId PlannedCell = Caster->PlannedAttackCell;
 		Caster->PlannedAbilityIndex = INDEX_NONE; // consumato: attivata o no, il piano non sopravvive al turno
 		Caster->PlannedAttackTarget = nullptr;
 		if (!Caster->CanUseAbility(AbilityIndex)) { continue; }
 
 		// Il fallback dichiarato di `Action.Electrify` e' `Cancel`: senza bersaglio valido non succede nulla,
 		// e non si sceglie un bersaglio di ripiego (il catalogo vieta le scelte implicite).
-		if (!Target || !Target->IsAlive())
+		//
+		// ⚠️ **La guardia vale per il bersaglio-UNITA' e solo per quello.** Un'azione mirata a una cella non
+		// puo' «perdere il bersaglio»: la cella c'e' sempre, ed e' la stessa distinzione che
+		// `RTTurnManager_Blast.cpp` fa fra `TargetGone` e bersaglio a cella.
+		if (!bTargetsCell && (!Target || !Target->IsAlive()))
 		{
 			AddLogEvent(FString::Printf(TEXT("%s: %s annullata (nessun bersaglio)"),
 				*Caster->GetName(), *Ability->Def.ActionId.ToString()), FRTLogSubject::Unit(Caster));
 			continue;
 		}
+
+		// La cella su cui l'azione ambientale agisce: quella DICHIARATA, o quella di chi e' stato puntato.
+		// Una sola derivazione per entrambi i rami — superficie ed elettricita' — cosi' non nascono due
+		// risposte alla stessa domanda.
+		const FRTCellId AimCell = bTargetsCell ? PlannedCell : Target->Cell;
 
 		// Azioni che modificano la MAPPA (CP 8.4). Quale superficie creano lo dice l'ActionId, ed e' l'unico
 		// punto in cui questo orchestratore lo guarda: la coppia azione->superficie non e' esprimibile come
@@ -3609,8 +3632,9 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 			{
 				Caster->ConsumeAbility(AbilityIndex);
 				// Durata 2 turni per entrambe (catalogo terreni §2 per il fuoco, catalogo azioni §6 per l'acqua).
-				// La cella e' quella del bersaglio, come per la scarica: stesso limite dichiarato sul
-				// targeting per cella.
+				// La cella e' `AimCell`: quella dichiarata dal piano, o quella di chi e' stato puntato.
+				// ⌫ *Qui stava scritto «stesso limite dichiarato sul targeting per cella»: quel limite e'
+				// caduto con `#2870`, che ha collegato `PlannedAttackCell` a questo ramo.*
 				//
 				// Il raggio e' dell'AZIONE, non della superficie. Era `(Created == ShallowWater) ? 1 : 0`, cioe'
 				// il ramo che il commento qui sopra dichiara di voler evitare: con tre produttori — acqua 1,
@@ -3619,7 +3643,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 				const int32 Radius = FMath::Max(0, Ability->Def.SurfaceRadius);
 				// Ordine STABILE delle celle: `HexArea` restituisce gia' un'area ordinata, quindi le voci di
 				// TurnLog escono sempre nella stessa sequenza (#4).
-				for (const FRTCellId& Cell : URTHexLibrary::HexArea(Target->Cell, Radius))
+				for (const FRTCellId& Cell : URTHexLibrary::HexArea(AimCell, Radius))
 				{
 					if (!ApplyDynamicSurface(Map, Cell, Created, /*Turns*/ 2, EnvActionId, Caster))
 					{
@@ -3651,13 +3675,16 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 			// deve vederla. Il suo ramo vive in `ResolveCombat`.
 		}
 
-		// La SORGENTE e' la cella del bersaglio, non l'unita': l'elettricita' entra nel terreno e da li' si
-		// propaga. **Limite dichiarato (CP 8.3)**: il catalogo prevede anche «colpisce una cella conduttiva»
-		// senza unita' sopra, ma la pianificazione non ha ancora un bersaglio-cella per le azioni
-		// (`PlannedAttackTarget` e' un'unita'); arrivera' col targeting per cella dell'HUD (E11).
+		// La SORGENTE e' la cella mirata, non l'unita': l'elettricita' entra nel terreno e da li' si propaga.
+		//
+		// ✅ **Il limite dichiarato di CP 8.3 e' CADUTO** (`#2870`). Diceva: *«il catalogo prevede anche
+		// "colpisce una cella conduttiva" senza unita' sopra, ma la pianificazione non ha ancora un
+		// bersaglio-cella per le azioni (`PlannedAttackTarget` e' un'unita'); arrivera' col targeting per
+		// cella dell'HUD (E11)»*. E' arrivato con `#737`, e questo ramo non se n'era accorto: `AimCell` legge
+		// ora `PlannedAttackCell` quando il piano dichiara una cella.
 		const int32 InitialDamage = URTCatalogLibrary::FirstDamage(Ability->Def);
 		const TArray<FRTPropagationHit> Hits = URTTerrainLibrary::CollectElectricPropagation(
-			Map, Target->Cell, Ability->Def.PropagationLimit, InitialDamage,
+			Map, AimCell, Ability->Def.PropagationLimit, InitialDamage,
 			URTCombatLibrary::PropagatedElectricDamage, HexUnits);
 
 		Caster->ConsumeAbility(AbilityIndex);
