@@ -1,0 +1,34 @@
+{
+  "scenarioId": "Visual.Movement.MoveVsRun",
+  "tags": ["animation", "movement", "graykit", "dash", "aevik", "branth"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "BANCO per `E-03` dell'handoff graykit: la domanda e' se `Normal` e `Run` si distinguono SENZA HUD. Due unita' percorrono tre celle ciascuna su righe parallele, una camminando e una scattando. Non e' un test di regole — le regole del dash le misurano gia' `Spec/Facing/DashReorients` e `Visual/Movement/Charge`: qui l'oggetto e' la LEGGIBILITA', e l'unico strumento che puo' rispondere e' un occhio.",
+
+  "_nota_fasi": "🔴 Le due andature NON si vedono nello stesso istante, ed e' bene saperlo prima di guardare: `Dash` e `Move` sono FASI diverse e il playback le riproduce in sequenza (`PlaybackPhases`). Il confronto e' quindi «prima lo scatto, poi la camminata», sulla stessa mappa e con la stessa inquadratura — che e' il piu' vicino a un affiancamento che l'architettura consenta. Un banco che le mostrasse insieme starebbe mentendo sull'ordine della risoluzione.",
+
+  "_nota_cosa_guardare": "Dal 2026-09-10 le due andature differiscono per COMPOSIZIONE e non per velocita' (#2881, `StyleForPhase`): `Run` porta un `Lean` di 18 gradi contro 6, uno `Stretch` direzionale che `Normal` non ha affatto, e oscillazioni a 4 cicli invece di 3. L'inclinazione e l'allungamento si leggono anche in un fermo immagine; il RITMO del braccio no — quello richiede di guardare il movimento.",
+
+  "_nota_traiettorie": "Righe parallele (`r = 0` e `r = -2`), con le celle verificate contro il raggio: in coordinate ASSIALI la distanza e' `(|q|+|r|+|q+r|)/2`, non il massimo dei due — la prima stesura poneva `RUN` in `(-4,-2)`, che dista **6** e cade fuori da un'arena di raggio 5. Il caricatore lo ha rifiutato per nome, e la correzione e' venuta da li'. Righe parallele perche' `Hero.Branth.Ram` e' una carica che si ferma addosso al primo nemico sulla traiettoria (`Visual/Movement/Charge`): incrociare i percorsi trasformerebbe il banco di leggibilita' in un test d'urto.",
+
+  "units": [
+    { "id": "WALK", "hero": "Hero.Aevik",  "team": 0, "cell": [-3,  0, 0] },
+    { "id": "RUN",  "hero": "Hero.Branth", "team": 1, "cell": [-2, -2, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "WALK", "move": [[ 0,  0, 0]] },
+        { "unit": "RUN",  "dash": "Hero.Branth.Ram", "dashTo": [ 1, -2, 0] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "WALK", "cell": [0, 0, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
