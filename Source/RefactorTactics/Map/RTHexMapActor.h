@@ -1075,6 +1075,25 @@ protected:
 	TArray<uint8> LastVeilState;
 	TArray<uint8> LastGlyphVeilState[4];
 
+	/**
+	 * La `URTHexMapAsset::Revision` su cui le istanze derivate sono state costruite (`#2894`).
+	 *
+	 * 🔴 **Esiste perche' senza di lui una superficie creata IN PARTITA non cambiava niente a schermo.** Il
+	 * colore di una cella vive nel `CustomData` delle istanze e lo scrive `RebuildInstances`, che aveva **due
+	 * chiamanti e sono entrambi `OnConstruction`**: `Action.Ignite`, `Action.CreateWater` e
+	 * `Hero.Muiren.MistVeil` cambiavano il terreno, la simulazione ne teneva conto, e chi guardava non vedeva
+	 * nulla.
+	 *
+	 * ⛔ **Non e' una cache della superficie, ed e' la differenza che conta**: `SurfaceForCell` continua a
+	 * rileggere dall'asset, e resta l'unica verita' sul colore. Qui c'e' un **numero di versione**, cioe' la
+	 * domanda «e' cambiato qualcosa?» — non una copia del dato, che sarebbe la seconda verita' che il
+	 * commento di `SurfaceForCell` dichiara di voler evitare.
+	 *
+	 * ⚠️ `INDEX_NONE` significa «mai sincronizzato»: la prima velatura ricostruisce sempre, e il caso non si
+	 * confonde con la `Revision 0` di un asset appena creato.
+	 */
+	int32 LastSyncedMapRevision = INDEX_NONE;
+
 	/** Quante istanze l'ultimo velo ha toccato. Diagnostica: vedi `GetLastVeilTouchedCells`. */
 	int32 LastVeilTouchedCells = 0;
 
