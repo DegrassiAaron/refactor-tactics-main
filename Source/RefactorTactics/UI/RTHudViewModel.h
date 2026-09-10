@@ -12,6 +12,7 @@
 #include "UI/RTDamageTokenView.h"
 // FRTPlayerEvent: la vista del feed ne porta l'importanza per valore, e la composizione consuma il tipo.
 #include "UI/RTPlayerEvent.h"
+#include "Player/RTPointerInteraction.h" // ERTPointerContext/ERTPointerTargetKind: il prompt li LEGGE, non li sceglie
 #include "RTHudViewModel.generated.h"
 
 struct FRTTurnLogEntry;
@@ -463,6 +464,110 @@ struct FRTPlayerEventLineView
 	bool bHasBlocker = false;
 };
 
+
+/**
+ * Perche' il dock chiede — o NON chiede — un bersaglio (`#2826` scope 5).
+ *
+ * 🔴 **Esiste perche' `ERTPointerTargetKind` da solo collassa tre situazioni opposte in `None`.** La DoD di
+ * `#2826` elenca cinque prompt — *«scegli un'unita' · scegli una cella · scegli un bordo · scegli
+ * l'orientamento · azione su di se', confermata»* — e l'enum del puntatore ne distingue quattro valori, di
+ * cui uno solo (`None`) dovrebbe portare l'ultimo. Misurato su `ARTPlayerController::GetPointerTargetKind`:
+ * risponde `None` quando non c'e' unita' selezionata, quando non c'e' niente di armato, **e** quando
+ * l'azione armata e' su se' stessi. Un prompt scritto come funzione del solo `Kind` direbbe la stessa cosa
+ * nei tre casi.
+ *
+ * 🔑 **La coppia `(Context, Kind)` invece li separa**, e non serve un campo nuovo per ottenerlo: un
+ * self-target armato produce `Targeting` + `None` (`GetPointerContext` entra in `Targeting` appena
+ * `SelectedAbilityIndex != INDEX_NONE`), il neutro di [D-128] produce `Planning` + `None`, e l'assenza di
+ * selezione produce `IdleSelection` + `None`. Sono i tre casi che la missione §4.1 chiede di distinguere:
+ * *dato non disponibile*, *widget non applicabile*, *dato disponibile il cui valore e' «nessuno»*.
+ *
+ * ⛔ **Non e' un reason code di dominio e non ne crea uno**: nomina lo stato di una domanda gia' decisa
+ * altrove. Chi decide la forma del bersaglio resta `URTPointerLibrary::TargetKindForAction` ([D-128]).
+ */
+UENUM(BlueprintType)
+enum class ERTTargetPromptKind : uint8
+{
+	/**
+	 * Il mondo e' in sola lettura: playback, modale, finestra di reazione. Non c'e' niente da chiedere e il
+	 * prompt **non si mostra** — non e' «vuoto», e' fuori fase.
+	 */
+	NotApplicable,
+
+	/** Nessuna unita' selezionata: la domanda non ha soggetto. */
+	NoSelection,
+
+	/**
+	 * Unita' selezionata, niente armato — il NEUTRO di [D-128], dove un click ispeziona.
+	 *
+	 * ⚠️ Distinto da `NotApplicable`: qui il dock **e' applicabile**, e sta aspettando che si scelga
+	 * un'azione. Comprimerli direbbe al giocatore che l'interfaccia e' spenta mentre e' pronta.
+	 */
+	Neutral,
+
+	/**
+	 * Un'azione e' armata e **non chiede nessun bersaglio**: si pianifica alla pressione.
+	 *
+	 * 🔑 E' il `None` che significa *«dato disponibile, e il suo valore e' nessuno»* — l'opposto di
+	 * `NoSelection`, che significa *«non c'e' dato»*. Sono lo stesso valore di `ERTPointerTargetKind` e due
+	 * risposte diverse al giocatore.
+	 */
+	SelfTargetConfirmed,
+
+	ChooseUnit,
+	ChooseCell,
+	ChooseEdge,
+
+	/** Si dichiara la rotazione finale: `ERTPointerContext::Facing`, che **non e'** un `TargetKind`. */
+	ChooseFacing,
+
+	/**
+	 * Una forma di bersaglio che nessuno produce oggi — `ERTPointerTargetKind::Object`.
+	 *
+	 * ⚠️ **Dichiarata invece che silenziosa, ed e' il punto.** `TargetKindForAction` non restituisce mai
+	 * `Object`: farlo cadere su un prompt qualsiasi mostrerebbe una frase sbagliata il giorno in cui un
+	 * owner lo produrra', e farlo cadere su una stringa vuota lo farebbe **sparire**. Cosi' invece il gap ha
+	 * un nome e un test che lo pinna.
+	 */
+	Unsupported
+};
+
+/** La domanda che il dock pone al giocatore, gia' decisa: il widget la mostra e non la deduce (`#2826`). */
+USTRUCT(BlueprintType)
+struct FRTTargetPromptView
+{
+	GENERATED_BODY()
+
+	/** Perche' si sta chiedendo, o perche' non si chiede. Vedi `ERTTargetPromptKind`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTTargetPromptKind Kind = ERTTargetPromptKind::NoSelection;
+
+	/**
+	 * La frase da mostrare. **Vuota quando `Kind == NotApplicable`**, e solo allora.
+	 *
+	 * ⚠️ Un testo vuoto non e' un dato mancante: e' il caso «fuori fase», che `Kind` nomina. Chi disegna
+	 * guarda `Kind`, non la lunghezza della stringa — la stessa disciplina per cui
+	 * `FRTMatchHeaderView::RoundLimit == 0` non si stampa come «su 0».
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Text;
+
+	/**
+	 * Il puntatore sta aspettando un bersaglio dal giocatore.
+	 *
+	 * Esiste come **campo** e non come metodo per la stessa ragione dichiarata da
+	 * `FRTUnitOverlayView::bHasBlocker`: un binding di proprieta' UMG legge proprieta' e non chiama
+	 * funzioni, quindi senza questo campo la domanda «devo evidenziare il cursore?» tornerebbe a essere un
+	 * confronto fra enum dentro il Blueprint.
+	 *
+	 * ⛔ **Non e' `Kind != NotApplicable`**: `Neutral` e `SelfTargetConfirmed` mostrano un prompt e **non**
+	 * aspettano niente. Comprimere le due domande e' esattamente cio' che `#2757` chiama confondere
+	 * *visibile* con *in attesa*.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bIsAwaitingTarget = false;
+};
+
 /**
  * Le viste che alimentano lo Screen HUD (§4.1 di `progettazione-hud.md`, CP 11.7).
  *
@@ -773,4 +878,28 @@ public:
 	 * sulla cosa che si sta debuggando. Una sola sede, due chiamanti.
 	 */
 	static TArray<FRTPlannedIntent> BuildAuthoritativeIntents(const TArray<AActor*>& Actors);
+
+	/**
+	 * La domanda di targeting da mostrare accanto al dock (`#2826` scope 5, DoD *«il prompt contestuale
+	 * nomina la forma di bersaglio che l'azione dichiara»*).
+	 *
+	 * 🔴 **Prende DUE ingressi e non uno, ed e' il reperto che ha deciso la firma.** Lo scope della issue
+	 * dice *«alimentato da `GetPointerTargetKind()`, che gia' esiste»* — ma quella funzione da sola non
+	 * basta a scrivere i cinque prompt che la stessa DoD elenca: `None` copre *«azione su di se',
+	 * confermata»*, *«nessuna azione armata»* e *«nessuna unita' selezionata»*, e `Facing` non e' affatto un
+	 * `TargetKind`. Entrambi gli ingressi sono gia' `BlueprintPure` sul controller
+	 * (`GetPointerContext` · `GetPointerTargetKind`): non nasce nessuno stato nuovo, si legge quello che
+	 * c'e'.
+	 *
+	 * ⛔ **Non decide niente di gioco.** Non consulta il catalogo, non guarda cooldown, non stabilisce se
+	 * un'azione sia usabile: traduce in una frase due valori che il core ha gia' prodotto. E' la stessa
+	 * disciplina di `ComposePlayerEventText`, che nomina un evento senza ricalcolarlo.
+	 *
+	 * ⚠️ **La precedenza e' quella del contratto puntatore, non una nuova**: `NotApplicable` viene prima di
+	 * tutto perche' `GetPointerContext()` mette gia' `Modal` e `ResolutionPlayback` davanti a ogni altro
+	 * ramo. Se qui si guardasse il `Kind` per primo, un'azione armata mostrerebbe *«scegli un'unita'»* a
+	 * partita in pausa.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	static FRTTargetPromptView BuildTargetPrompt(ERTPointerContext Context, ERTPointerTargetKind Kind);
 };
