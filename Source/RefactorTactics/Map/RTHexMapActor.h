@@ -1108,6 +1108,31 @@ protected:
 	TArray<uint8> LastEdgeFeatureVeilState;
 
 	/**
+	 * 🔴 **La mappatura del CORPO STRUTTURALE, che mancava** (`#2731`).
+	 *
+	 * Fino al 2026-09-10 `StructuralBodies` era **l'unica famiglia visiva che `ApplyKnowledgeVeil` non
+	 * poteva nascondere**, e la ragione era strutturale invece che una dimenticanza di una riga: il suo sito
+	 * di `AddInstance` non registrava niente, quindi non esisteva nessun indice da velare. `BodyCells` non
+	 * compariva da nessuna parte nel repository.
+	 *
+	 * ⛔ **La conseguenza era un leak, non un difetto estetico**: su una mappa le cui celle dichiarano
+	 * `BodyFill != None`, un giocatore vedeva il **volume solido sotto celle che la sua squadra non aveva
+	 * mai osservato** — la geometria che [D-225] dichiara di non disegnare. E' la forma esatta del difetto
+	 * che il commento in `ApplyKnowledgeVeil` chiama *«il piu' grave che questa funzione poteva avere»* per
+	 * le tre famiglie corrette allora; questa non c'era ancora.
+	 *
+	 * ⚠️ **E nessun test poteva vederlo**: `GetVeilCounts` legge il solo `Cells`, quindi la copertura era
+	 * cieca per costruzione su tutte le famiglie tranne la prima. Il guardiano che lo prende ora non e' una
+	 * lista di famiglie da tenere aggiornata — sarebbe la stessa dimenticanza un livello piu' su — ma
+	 * `Veil.EveryInstanceFamilyDisappearsUnderAnEmptyKnowledge`, che **enumera i componenti** e chiede a
+	 * ciascuno quante istanze restino disegnate sotto una conoscenza vuota. Una decima famiglia si presenta
+	 * da sola.
+	 */
+	TArray<FRTCellId> BodyCells;
+	TArray<FVector> BodyBaseScale;
+	TArray<uint8> LastBodyVeilState;
+
+	/**
 	 * Lo stato che il velo ha SCRITTO per ultimo su ogni istanza: `0` nascosta, `1` ricordata, `2` accesa —
 	 * `0xFF` quando non e' mai stato scritto. Stato DERIVATO, azzerato da `RebuildInstances` insieme agli
 	 * indici a cui si riferisce.
