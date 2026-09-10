@@ -81,6 +81,63 @@ FRTTeamKnowledge URTTeamKnowledgeLibrary::Observe(const URTHexMapAsset* Map, int
 	return Out;
 }
 
+FRTTeamKnowledge URTTeamKnowledgeLibrary::RevealByHit(const FRTTeamKnowledge& Knowledge,
+	const TArray<FRTLastKnownContact>& VictimsHit, int32 TurnNumber)
+{
+	// Fail-closed, come `Observe`: una memoria di versione ignota non si arricchisce. Aggiungere un contatto
+	// a cio' che non si sa rileggere darebbe una conoscenza per meta' interpretabile, e nessuno se ne
+	// accorgerebbe finche' una decisione del bot non ne dipendesse.
+	if (Knowledge.Version != FRTTeamKnowledge::CurrentVersion)
+	{
+		return Knowledge;
+	}
+
+	// ⛔ **Niente da rivelare non e' un caso speciale**: senza vittime si restituisce l'ingresso intatto, e
+	// il chiamante non deve sapere se il piano abbia prodotto colpi. E' cio' che tiene la funzione priva di
+	// rami osservabili dall'esterno.
+	if (VictimsHit.Num() == 0)
+	{
+		return Knowledge;
+	}
+
+	FRTTeamKnowledge Out = Knowledge;
+
+	for (const FRTLastKnownContact& Victim : VictimsHit)
+	{
+		if (Victim.StableUnitId == INDEX_NONE)
+		{
+			continue;
+		}
+
+		// 🔴 **SOVRASCRIVE invece di accodare, ed e' la stessa regola del punto 1 di `Observe`**: un ricordo
+		// vecchio accanto a un contatto fresco sarebbero due verita' sulla stessa unita', e
+		// `AwarenessOfUnit` scorre l'array fermandosi al primo — quindi quale delle due vinca dipenderebbe
+		// dall'ordine di inserimento invece che dal fatto piu' recente.
+		const int32 Existing = Out.Contacts.IndexOfByPredicate(
+			[&Victim](const FRTLastKnownContact& C) { return C.StableUnitId == Victim.StableUnitId; });
+
+		// La cella e' quella in cui il colpo l'ha TROVATO, e il turno e' quello del colpo: da qui parte la
+		// scadenza, esattamente come per un avvistamento. Un contatto che non scadesse renderebbe permanente
+		// una rivelazione che si e' pagata una volta sola.
+		const FRTLastKnownContact Fresh(Victim.StableUnitId, Victim.Cell, TurnNumber);
+		if (Existing != INDEX_NONE)
+		{
+			Out.Contacts[Existing] = Fresh;
+		}
+		else
+		{
+			Out.Contacts.Add(Fresh);
+		}
+	}
+
+	// Ordine canonico per `StableUnitId`, come in `Observe` e per la stessa ragione (invariante #3): questa
+	// memoria entra nello snapshot, e un ordine che dipendesse da quello dei colpi farebbe divergere due
+	// tracce a parita' di partita — senza che nessuna asserzione lo dica.
+	Out.Contacts.Sort([](const FRTLastKnownContact& A, const FRTLastKnownContact& B)
+		{ return A.StableUnitId < B.StableUnitId; });
+	return Out;
+}
+
 ERTAwareness URTTeamKnowledgeLibrary::AwarenessOfUnit(const FRTTeamKnowledge& Knowledge, int32 StableUnitId,
 	const FRTCellId& CurrentCell)
 {

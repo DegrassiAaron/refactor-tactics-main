@@ -5559,6 +5559,19 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	ApplyInterrupts(Ctx);
 	ResolveInterceptions(Ctx);
 
+	// ➕ **Chi e' stato colpito diventa noto a chi lo ha colpito** (`#2890`, [D-379]).
+	//
+	// 🔑 **QUI e non dopo `CollectHexAttacks`**, ed e' la ragione per cui la chiamata sta su questa riga:
+	// le due funzioni sopra riscrivono il piano — la prima toglie i colpi che non devono partire, la
+	// seconda cambia chi li incassa — quindi solo adesso `Plan.Hits` dice cio' che e' **davvero avvenuto**.
+	// Rivelare prima significherebbe che un colpo interrotto insegna comunque dov'era il nemico: una
+	// rivelazione che nessuno ha pagato.
+	//
+	// ⚠️ **E prima del ciclo del danno**, cosi' le voci di TurnLog dei colpi si congelano ([D-223]) contro
+	// una conoscenza che gia' include la rivelazione — altrimenti chi spara al buio applicherebbe il danno
+	// e non leggerebbe la riga che lo racconta.
+	RevealHitTargetsToAttackers(Ctx);
+
 	RunBlastReactions(Ctx);
 	LogBlockedIntents(Ctx);
 	ApplyEnvironmentChanges(Ctx);

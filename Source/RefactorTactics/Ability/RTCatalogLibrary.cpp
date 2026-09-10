@@ -1313,6 +1313,33 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
+	// `Mortar` — la PRIMA azione che fa DANNO senza aver bisogno della linea di tiro (`#2890`, [D-379]).
+	//
+	// 🔑 **Perche' esiste, e perche' non bastava `MistVeil`.** [D-378] ha reso il requisito della linea un
+	// dato dell'azione, ma l'ha dichiarato su un'azione che non colpisce: `bCountsAsAttack` falso, nessun
+	// `Damage`, quindi *«la licenza non riprezza niente»*. Il motore sapeva gia' fare tiro indiretto e
+	// nessuna azione lo usava per colpire — granata, mortaio e artiglieria restavano non rappresentabili
+	// per assenza di una DECISIONE, non di un meccanismo.
+	//
+	// ## Il prezzo, e perche' e' su due assi invece che su uno
+	//
+	// Si confronta con `Action.CircularAoE` qui sopra, che e' la stessa forma con la linea richiesta:
+	// **12 danni invece di 18** e **ricarica 3 invece di 2**. Due leve morbide invece di una dura, perche'
+	// una sola avrebbe dovuto essere severa abbastanza da bastare — e un'azione che colpisce quanto l'altra
+	// ma quasi mai non insegna quando usarla, mentre una che colpisce molto meno non si prende mai.
+	//
+	// ⚠️ **La portata resta 4, uguale a `CircularAoE`, ed e' deliberato**: un mortaio e' un'arma di
+	// distanza, e accorciarlo per punirlo contraddirebbe cio' che l'azione E'. Il tiro indiretto si paga
+	// con la potenza e con l'attesa, non con l'avvicinamento.
+	//
+	// ⛔ **Non rende blind fire nessun'altra azione**: `Action.CircularAoE`, `Action.LineAttack`,
+	// `Hero.Aevik.Overload` e `Hero.Muiren.CircularTide` restano `Required`, che e' lo zero dell'enum.
+	Catalog.Add(ShippedAction(TEXT("Action.Mortar"), ERTResolutionPhase::Attack, /*Priority*/ 65,
+		/*Range (centro)*/ 4, /*Cooldown*/ 3, ERTActionFallback::AttackCell,
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 12) }));
+	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
+	Catalog.Last().LineOfSightPolicy = ERTLineOfSightPolicy::NotRequired; // `#2890`, [D-379]
+
 	// `SuppressiveLine` — si PREPARA (fase 10, quindi macro-fase Prep) e si attiva su un trigger: il primo
 	// nemico che entra in una cella controllata durante il Move prende 16 danni e si ferma li'. Una sola
 	// attivazione per turno. Non interrompibile: una volta preparata la linea, c'e'.

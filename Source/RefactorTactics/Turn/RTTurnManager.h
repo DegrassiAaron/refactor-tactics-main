@@ -1365,6 +1365,19 @@ protected:
 	void RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx);
 
 	/**
+	 * Chi e' stato COLPITO diventa un contatto per la squadra che ha sparato (`#2890`, [D-379]).
+	 *
+	 * 🔑 **Chiamata a piano DEFINITIVO**, cioe' dopo `ApplyInterrupts` e `ResolveInterceptions`: quelle
+	 * due riscrivono `Plan.Hits`, e rivelare prima significherebbe che un colpo **interrotto** — mai
+	 * avvenuto — insegna comunque dov'era il nemico. Sarebbe una rivelazione che nessuno ha pagato.
+	 *
+	 * ⚠️ La regola vive in `URTTeamKnowledgeLibrary::RevealByHit`, che e' pura: qui c'e' solo la
+	 * traduzione dagli indici di snapshot agli `StableUnitId`, e il verso — dalla squadra dell'ATTACCANTE
+	 * verso il bersaglio, mai il contrario.
+	 */
+	void RevealHitTargetsToAttackers(const FRTBlastContext& Ctx);
+
+	/**
 	 * `Action.Cleanse` (CP 5.2): risolve PRIMA del ciclo degli intenti, che consuma `PlannedAbilityIndex`.
 	 * Il controllo (codice 30) viene prima del danno (40): purificarsi da `Exposed` dopo averne incassato il
 	 * malus non servirebbe a niente.

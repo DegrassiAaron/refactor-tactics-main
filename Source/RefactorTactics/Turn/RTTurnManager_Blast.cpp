@@ -346,6 +346,89 @@ void ARTTurnManager::RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx)
 	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
 }
 
+void ARTTurnManager::RevealHitTargetsToAttackers(const FRTBlastContext& Ctx)
+{
+	// ➕ **CHI HAI COLPITO, LO HAI TROVATO** (`#2890`, [D-379]).
+	//
+	// 🔴 **E' l'estremo che rende usabile il tiro indiretto.** [D-378] ha reso il requisito della linea un
+	// dato dell'azione e ha tenuto il **targeting** cieco: `ClassifyHexTargeting` non guarda chi sta sulla
+	// cella. Restava che un colpo al buio a segno non producesse **alcun** feedback — la voce che lo
+	// racconta e' congelata contro un soggetto che l'attaccante non conosce ([D-223]), quindi non la legge.
+	// Un'azione senza segnale e' un'azione che nessuno impara a usare.
+	//
+	// ⚠️ **Si raccoglie per SQUADRA e si applica una volta**, invece di chiamare `RevealByHit` per colpo:
+	// due colpi dello stesso attaccante sullo stesso bersaglio scriverebbero due volte lo stesso contatto, e
+	// il secondo passaggio dipenderebbe dall'ordine dei colpi per decidere quale cella conservare.
+	TMap<int32, TArray<FRTLastKnownContact>> VictimsByTeam;
+
+	for (const FRTHexAttackHit& Hit : Ctx.Plan.Hits)
+	{
+		if (!Ctx.Units.IsValidIndex(Hit.AttackerId) || !Ctx.Units.IsValidIndex(Hit.TargetId))
+		{
+			continue;
+		}
+		const ARTUnit* Attacker = Ctx.Units[Hit.AttackerId];
+		const ARTUnit* Target   = Ctx.Units[Hit.TargetId];
+		if (Attacker == nullptr || Target == nullptr)
+		{
+			continue;
+		}
+
+		// ⛔ **Un colpo su un ALLEATO non rivela niente**, e non perche' sia innocuo: la conoscenza di
+		// squadra non contiene se stessa — `ClassifyTarget` lo dichiara — quindi un contatto sui propri
+		// sarebbe un dato che nessun consumatore sa leggere e che sporcherebbe l'array.
+		if (Attacker->TeamId == Target->TeamId)
+		{
+			continue;
+		}
+
+		// La cella e' quella dello snapshot di Blast, cioe' **dove il colpo l'ha trovato**: e' il fatto
+		// avvenuto, non la posizione di adesso. `Ctx.HexUnits` e' l'istantanea contro cui il piano e' stato
+		// calcolato, e leggere `Target->Cell` prenderebbe una posizione che il Move puo' gia' aver cambiato.
+		const FRTCellId FoundAt = Ctx.HexUnits.IsValidIndex(Hit.TargetId)
+			? Ctx.HexUnits[Hit.TargetId].Cell : Target->Cell;
+
+		// ⚠️ **Si deduplica sullo `StableUnitId`, non sulla struttura**: `AddUnique` confronterebbe il
+		// contatto intero — cella e turno compresi — e `FRTLastKnownContact` non ha nemmeno un
+		// `operator==`. Due colpi sullo stesso bersaglio nello stesso Blast sono il caso ORDINARIO (un'area
+		// che lo investe due volte, due tiratori che lo scelgono), e accodarli due volte lascerebbe a
+		// `RevealByHit` una lista in cui l'ultimo vince: deterministica qui solo perche' la cella e'
+		// la stessa, e fragile il giorno in cui non lo fosse.
+		TArray<FRTLastKnownContact>& Victims = VictimsByTeam.FindOrAdd(Attacker->TeamId);
+		const bool bGiaPresente = Victims.ContainsByPredicate(
+			[Target](const FRTLastKnownContact& C) { return C.StableUnitId == Target->StableUnitId; });
+		if (!bGiaPresente)
+		{
+			Victims.Add(FRTLastKnownContact(Target->StableUnitId, FoundAt, TurnNumber));
+		}
+	}
+
+	if (VictimsByTeam.Num() == 0)
+	{
+		return; // nessun colpo fra squadre avverse: niente da rivelare, e nessuno stato da toccare
+	}
+
+	// ⚠️ **Si itera `TeamKnowledgeState`, non la mappa**: l'ordine di un `TMap` dipende dall'hash, e questa
+	// memoria entra nello snapshot (invariante #3). Scorrere l'array in ordine di squadra rende la scrittura
+	// deterministica a parita' di partita.
+	for (FRTTeamKnowledge& Knowledge : TeamKnowledgeState)
+	{
+		if (const TArray<FRTLastKnownContact>* Victims = VictimsByTeam.Find(Knowledge.TeamId))
+		{
+			Knowledge = URTTeamKnowledgeLibrary::RevealByHit(Knowledge, *Victims, TurnNumber);
+		}
+	}
+
+	// 🔴 **E l'istantanea d'audit si riallinea**, o il replay racconterebbe una conoscenza diversa da quella
+	// che la partita ha avuto: [D-313] congela i verdetti contro questa fotografia, e lasciarla indietro
+	// renderebbe il feedback visibile in partita e assente nella traccia.
+	if (bRecordReplay)
+	{
+		BlastKnowledgeForAudit = TeamKnowledgeState;
+	}
+	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
+}
+
 void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 {
 	// `Action.Cleanse` (CP 5.2): azione PRINCIPALE, non una reazione, e l'unica del Blast che agisce su CHI LA

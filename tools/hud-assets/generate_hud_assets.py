@@ -693,6 +693,27 @@ def g_circular_aoe() -> str:
     ])
 
 
+def g_mortar() -> str:
+    """`Mortar` (`#2890`, D-379): la traiettoria che SCAVALCA. Arco alto da sinistra a destra, il muro
+    sotto di esso, e il punto d'impatto oltre.
+
+    🔴 **Il muro e' il glifo, non l'arco.** Un arco da solo si legge come `Leap` — anche quello e' una
+    parabola — e la differenza non e' la curvatura: e' che qui c'e' un OSTACOLO in mezzo, e la
+    traiettoria lo ignora. Togliendo il muro le due icone diventano la stessa cosa a 24 px.
+
+    ⚠️ Nessun tubo di mortaio, nessuna arma disegnata: il resto del set nomina cio' che l'azione FA, mai
+    l'attrezzo con cui lo fa — `LineAttack` non disegna un fucile.
+    """
+    return "\n".join([
+        # L'arco: parte in basso a sinistra, scavalca, ricade a destra.
+        path("M3.6 18.4 Q12 2.6 20.4 15.4", stroke_width=1.5, fill="none"),
+        # Il muro che l'arco supera, al centro e sotto la sommita': e' cio' che rende l'arco necessario.
+        path("M12 20.6 L12 13.2", stroke_width=2.0),
+        # L'impatto oltre il muro.
+        dot(20.4, 15.4, 1.8),
+    ])
+
+
 def g_suppressive_line() -> str:
     """`SuppressiveLine`: negazione d'area lungo una linea — una fascia tratteggiata trasversalmente,
     non un fascio di traiettorie.
@@ -2099,6 +2120,8 @@ ICONS = [
      "assente dal mock"),
     ("Action.SuppressiveLine", g_suppressive_line, "Attack",
      "assente dal mock"),
+    ("Action.Mortar", g_mortar, "Attack",
+     "AGGIUNTO - #2890/D-379: la prima azione che colpisce senza linea di tiro"),
     ("Action.MarkTarget", g_mark_target, "Utility",
      "assente dal mock"),
     ("Action.Guard", g_guard, "Defense",
