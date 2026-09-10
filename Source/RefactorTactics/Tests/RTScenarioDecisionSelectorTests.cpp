@@ -25,6 +25,7 @@
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestResult.h"
 #include "ScenarioHarness/RTTestScenario.h"
+#include "Turn/RTReactionOpportunityTypes.h" // BoundaryCapableReactionIds (#2866)
 #include "Tests/RTWorldFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -279,6 +280,64 @@ bool FRTScenarioSelectorRejectTest::RunTest(const FString&)
 	// `SupportedVersion = 4` lo accuserebbe di una «chiave sconosciuta» che invece la build non conosce.
 	Rifiuta(TEXT("il selettore richiede version 5"), 4,
 		TEXT(R"({ "on": { "reactor": "B1" }, "respond": "HOLD" })"), TEXT("version"));
+
+	// ── `on.reaction` (#2866) ────────────────────────────────────────────────────────────────────────
+	//
+	// Il refuso: due lettere scambiate. Senza questa guardia il file caricava verde e il difetto riemergeva
+	// a fine turno come «nessuna finestra ha soddisfatto il selettore» — vero, e nel posto sbagliato.
+	Rifiuta(TEXT("reaction con un refuso"), 5,
+		TEXT(R"({ "on": { "reactor": "B1", "reaction": "Action.Overwtach" }, "respond": "HOLD" })"),
+		TEXT("Action.Overwtach"));
+	// 🔑 **Il caso che decide la forma della guardia, e che il refuso da solo non coglie**: `Action.Counter`
+	// e' una reaction VERA del catalogo — la base di `Reaction.CounterShot` — e non apre nessuna finestra.
+	// Una guardia costruita sul catalogo lo accetterebbe, e lo scenario resterebbe verde nominando una
+	// finestra che non esistera' mai: il difetto spostato, non chiuso.
+	Rifiuta(TEXT("reaction del catalogo che non apre finestre"), 5,
+		TEXT(R"({ "on": { "reactor": "B1", "reaction": "Action.Counter" }, "respond": "HOLD" })"),
+		TEXT("Action.Counter"));
+	return true;
+}
+
+/**
+ * L'insieme delle reaction che aprono un boundary e' **chiuso**, e il messaggio di rifiuto lo elenca.
+ *
+ * ⚠️ **Questo test non ripete i valori dell'elenco**, e l'omissione e' il punto: un test che scrivesse
+ * `{Action.Overwatch, Action.Brace}` accanto alla funzione che li dichiara confermerebbe se stesso, e
+ * resterebbe verde anche il giorno in cui un produttore emette un id che l'elenco non ha. Qui si verificano
+ * due proprieta' che non dipendono dai valori — l'elenco non e' vuoto, e il predicato e' coerente con esso —
+ * mentre il **pin sui produttori reali** lo portano gli scenari del corpus, che nominano la propria reaction
+ * nel selettore: `Spec.Overwatch.HoldThenFire` e `Spec.Brace.ProfileChangesResponse` diventano rossi se un
+ * produttore cambia `ActionId`, perche' il loro selettore smette di trovare la finestra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBoundaryReactionSetTest,
+	"RefactorTactics.Scenario.BoundaryCapableReactionsAreAClosedSet",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBoundaryReactionSetTest::RunTest(const FString&)
+{
+	const TArray<FName>& Ammesse = URTReactionOpportunityLibrary::BoundaryCapableReactionIds();
+
+	// Anti-vacuita': con l'elenco vuoto il predicato rifiuterebbe tutto e la guardia bloccherebbe ogni
+	// scenario che usa `on.reaction` — un rosso generalizzato, non una guardia.
+	if (!TestTrue(TEXT("anti-vacuita': l'elenco non e' vuoto"), Ammesse.Num() > 0)) { return false; }
+
+	// Il predicato dice esattamente cio' che l'elenco contiene: due verita' che non possono divergere.
+	for (const FName& Id : Ammesse)
+	{
+		TestTrue(*FString::Printf(TEXT("'%s' e' ammessa dal predicato"), *Id.ToString()),
+			URTReactionOpportunityLibrary::IsBoundaryCapableReaction(Id));
+	}
+
+	// `NAME_None` non e' un'ammissione: e' il campo non dichiarato, e il loader lo tratta come «nessun
+	// vincolo» prima ancora di interrogare il predicato. Se qui passasse, un `"reaction": ""` diventerebbe
+	// un vincolo silenziosamente vero.
+	TestFalse(TEXT("NAME_None non e' una reaction ammessa"),
+		URTReactionOpportunityLibrary::IsBoundaryCapableReaction(NAME_None));
+
+	// Una reaction VERA del catalogo che non apre finestre resta fuori. E' la proprieta' per cui questo
+	// elenco esiste separato dal catalogo, e l'unico valore che il test nomina — perche' cio' che afferma e'
+	// un'ASSENZA, e un'assenza non si puo' derivare dall'elenco che si sta verificando.
+	TestFalse(TEXT("'Action.Counter' apre finestre? no: e' a catalogo ma non e' boundary-capable"),
+		URTReactionOpportunityLibrary::IsBoundaryCapableReaction(FName(TEXT("Action.Counter"))));
 	return true;
 }
 
@@ -368,6 +427,46 @@ bool FRTScenarioSelectorAmbiguousTest::RunTest(const FString&)
 		Tutto.Contains(TEXT("ambiguo")));
 
 	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * La guardia vale anche per uno scenario COSTRUITO IN MEMORIA, non solo per uno letto da JSON.
+ *
+ * 🔴 **E' la meta' che si dimentica**, ed e' gia' successo una volta in questo file: i controlli scritti
+ * dentro `LoadFromString` li vede solo chi arriva dal parser, mentre `Validate` e' il gate che ogni strada
+ * attraversa — `FRTScenarioSession::Start` lo chiama. Ogni scenario costruito da codice (l'editor di
+ * scenari, ogni chiamante di `RunScenarioIsolated`, e i test di questa stessa fase) salterebbe la guardia.
+ *
+ * Il commento di `ValidateDecisionForm` lo dichiara: la funzione esiste perche' erano DUE copie e sono
+ * divergite alla prima aggiunta. Questo test e' cio' che impedisce che accada di nuovo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBoundaryReactionInMemoryTest,
+	"RefactorTactics.Scenario.BoundaryReactionGuardAlsoCoversValidate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBoundaryReactionInMemoryTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario = MakeTwoWindowScenario();
+	// Una reaction del catalogo che non apre finestre: il caso che una guardia costruita sul catalogo
+	// lascerebbe passare.
+	FRTScenarioDecision D = MakeSelectorDecision(TEXT("W1"), TEXT("M1"), TEXT("HOLD"), nullptr);
+	D.On.Reaction = FName(TEXT("Action.Counter"));
+	Scenario.Turns[0].Decisions.Add(D);
+
+	FString Error;
+	const bool bValido = URTScenarioLoader::Validate(Scenario, Error);
+	TestFalse(TEXT("`Validate` rifiuta la reaction non-boundary"), bValido);
+	TestTrue(FString::Printf(TEXT("il motivo nomina 'Action.Counter' (era: '%s')"), *Error),
+		Error.Contains(TEXT("Action.Counter")));
+
+	// E il caso positivo, per non lasciare il test verde su un rifiuto generalizzato: la stessa decisione
+	// con una reaction che un produttore emette davvero passa.
+	Scenario.Turns[0].Decisions.Empty();
+	Scenario.Turns[0].Decisions.Add(
+		MakeSelectorDecision(TEXT("W1"), TEXT("M1"), TEXT("HOLD"), nullptr));
+	FString ErrorePositivo;
+	TestTrue(FString::Printf(TEXT("`Validate` accetta 'Action.Overwatch' (errore: '%s')"), *ErrorePositivo),
+		URTScenarioLoader::Validate(Scenario, ErrorePositivo));
 	return true;
 }
 
