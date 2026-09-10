@@ -87,28 +87,40 @@ FRTUnitOrderKey URTActionQueueLibrary::MakeUnitOrderKey(const ARTUnit& Unit)
 
 void URTActionQueueLibrary::SortUnitsForResolution(TArray<ARTUnit*>& Units)
 {
-	Units.Sort([](const ARTUnit& A, const ARTUnit& B)
+	const int32 Num = Units.Num();
+	if (Num < 2)
 	{
-		return UnitOrderLess(MakeUnitOrderKey(A), MakeUnitOrderKey(B));
-	});
-}
+		return; // niente da ordinare, e niente chiave da costruire
+	}
 
-void URTActionQueueLibrary::SortActorsForResolution(TArray<AActor*>& Actors)
-{
-	Actors.Sort([](const AActor& A, const AActor& B)
+	// 🔑 **La chiave si costruisce UNA volta per unita', non a ogni confronto.** `AActor::GetName()` passa da
+	// `FName::ToString()` e alloca una `FString`: dentro il comparatore ne pagherebbe O(N log N) dove ne
+	// bastano O(N), e questi sort girano piu' volte per turno su ogni fase. E' anche la ragione per cui
+	// `MatchRosterLess` il nome lo tocca solo nell'ultimo ramo, quando tutto il resto ha gia' pareggiato.
+	//
+	// Si ordinano gli INDICI e non due array in parallelo, come fa gia'
+	// `URTReactionOpportunityTypesLibrary::SortParticipantsCanonically`: due sort indipendenti sugli stessi
+	// criteri divergono al primo pareggio, ed e' il difetto che questa funzione esiste per chiudere.
+	TArray<FRTUnitOrderKey> Keys;
+	Keys.Reserve(Num);
+	TArray<int32> Order;
+	Order.Reserve(Num);
+	for (int32 i = 0; i < Num; ++i)
 	{
-		const ARTUnit* UA = Cast<ARTUnit>(&A);
-		const ARTUnit* UB = Cast<ARTUnit>(&B);
-		if (UA && UB)
-		{
-			return UnitOrderLess(MakeUnitOrderKey(*UA), MakeUnitOrderKey(*UB));
-		}
-		if (UA != UB) // esattamente uno dei due e' un'unita': le unita' stanno davanti
-		{
-			return UA != nullptr;
-		}
-		// Nessuno dei due e' un'unita'. Il nome spareggia: senza, il pareggio tornerebbe all'ordine
-		// d'ingresso — lo stesso difetto un piano piu' sotto.
-		return A.GetName().Compare(B.GetName(), ESearchCase::CaseSensitive) < 0;
-	});
+		Keys.Add(MakeUnitOrderKey(*Units[i])); // stessa precondizione di prima: nessun `nullptr` nell'array
+		Order.Add(i);
+	}
+
+	// `Sort` e non `StableSort`: `UnitOrderLess` e' un ordine TOTALE, quindi la stabilita' non ha niente da
+	// decidere. Due chiavi identiche vorrebbero due Actor con lo stesso nome nello stesso mondo, che UE non
+	// produce — ed e' `Actions.UnitOrderPermutationInvariant` a tenere onesta questa frase.
+	Order.Sort([&Keys](int32 A, int32 B) { return UnitOrderLess(Keys[A], Keys[B]); });
+
+	TArray<ARTUnit*> Sorted;
+	Sorted.Reserve(Num);
+	for (int32 Idx : Order)
+	{
+		Sorted.Add(Units[Idx]);
+	}
+	Units = MoveTemp(Sorted);
 }

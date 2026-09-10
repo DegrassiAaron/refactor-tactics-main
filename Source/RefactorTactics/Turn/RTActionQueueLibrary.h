@@ -116,16 +116,12 @@ public:
 	/**
 	 * Ordina in place con `UnitOrderLess`: permutare l'ingresso non cambia la sequenza risolta, nemmeno
 	 * quando due unita' condividono una cella.
+	 *
+	 * ⚠️ **Precondizione: nessun `nullptr` nell'array** — la stessa che avevano i sei `Sort` scritti a mano
+	 * che questa funzione sostituisce (`TDereferenceWrapper` dereferenzia comunque). I chiamanti riempiono
+	 * l'array da un `Cast<ARTUnit>`, quindi la condizione e' vera per costruzione. Un ripiego silenzioso
+	 * sarebbe peggio del crash: una chiave di default ordinerebbe il `nullptr` **in mezzo** alle unita' vere,
+	 * come se stesse sulla cella `(0,0,0)`.
 	 */
 	static void SortUnitsForResolution(TArray<ARTUnit*>& Units);
-
-	/**
-	 * Come sopra, per un array che contiene anche Actor che non sono unita': quelli finiscono **in coda**,
-	 * fra loro ordinati per nome.
-	 *
-	 * ⚠️ Il nome serve, e non e' pignoleria: senza, due non-unita' pareggerebbero e il pareggio tornerebbe a
-	 * `GetAllActorsOfClass` — lo stesso difetto un piano piu' sotto. Un `nullptr` finisce in fondo a tutto,
-	 * deterministicamente, invece di rendere il comparatore incoerente.
-	 */
-	static void SortActorsForResolution(TArray<AActor*>& Actors);
 };

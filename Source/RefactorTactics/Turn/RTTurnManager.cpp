@@ -2401,12 +2401,22 @@ void ARTTurnManager::ConcludeResolution()
 		// ⚠️ Il comparatore stava QUI, scritto a mano, e confrontava la sola cella (#2922): due unita' sulla
 		// stessa cella pareggiavano e a deciderle tornava `GetAllActorsOfClass`. La regola vive ora in una
 		// sede sola ed e' un ordine TOTALE.
-		URTActionQueueLibrary::SortActorsForResolution(Actors);
-
+		//
+		// 🔑 E si raccoglie in `TArray<ARTUnit*>` PRIMA di ordinare, invece di ordinare gli `AActor*` con un
+		// comparatore che sa gestire i non-unita': la query e' `ARTUnit::StaticClass()`, quindi quel ramo non
+		// sarebbe mai stato raggiunto — codice difensivo che nessun test puo' rendere rosso. Ed e' la stessa
+		// forma degli altri chiamanti (`ResolvePrep`, `ResolveEnvironment`), che e' il punto.
+		TArray<ARTUnit*> Units;
+		Units.Reserve(Actors.Num());
 		for (AActor* Actor : Actors)
 		{
-			ARTUnit* Unit = Cast<ARTUnit>(Actor);
-			if (!Unit || !Unit->IsAlive())
+			if (ARTUnit* Unit = Cast<ARTUnit>(Actor)) { Units.Add(Unit); }
+		}
+		URTActionQueueLibrary::SortUnitsForResolution(Units);
+
+		for (ARTUnit* Unit : Units)
+		{
+			if (!Unit->IsAlive())
 			{
 				continue;
 			}
