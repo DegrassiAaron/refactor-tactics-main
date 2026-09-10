@@ -688,7 +688,7 @@ La storia della classe *Passo*: **le prime tre celle sono silenziose**, ogni cel
 🔴 **La regola si applica alla definizione RISOLTA PER EROE, non alla voce del catalogo core**, ed è la
 distinzione che rendeva muto l'attacco base. Il catalogo core dichiara *«identità, fase, priorità e
 fallback stanno qui; DANNO e PORTATA no»* — il danno lo mette `URTCatalogLibrary::MakeBasicAttack`, che è
-anche il produttore di `Hero.Gadget.ArcPulse`. Interrogare la voce core significa interrogare un guscio.
+anche il produttore di `Hero.Aevik.ArcPulse`. Interrogare la voce core significa interrogare un guscio.
 
 **Il DoD porta un test di esaustività**: ogni voce restituita da `GetCoreActionCatalog()`, risolta per
 eroe, cade in **esattamente una** classe — un ramo di default che non scatta mai, come il gate del

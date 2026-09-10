@@ -39,8 +39,8 @@ un buco da riempire: la maggior parte dei personaggi non deve avere uno stato sp
 
 | CharacterId | Nome | Versione | Stance | Form | Overdrive | Environmental | Configuration | PrimaryStateType | Candidato consigliato | DesignStatus |
 |---|---|---|---|:--:|:--:|:--:|:--:|---|---|---|
-| `Hero.Gadget` | Gadget | v0.1 | | | | ✅ | | Environmental | Charged | `PROPOSED` |
-| `Hero.Phase` | Phase | v0.1 | ✅ | | | | | Stance (leggero) | Flow State | `PROPOSED` |
+| `Hero.Aevik` | Gadget | v0.1 | | | | ✅ | | Environmental | Charged | `PROPOSED` |
+| `Hero.Muiren` | Phase | v0.1 | ✅ | | | | | Stance (leggero) | Flow State | `PROPOSED` |
 | `Hero.Riktor` | Riktor | v0.1 | ✅ | | | | ✅ | Stance/Configuration | Bulwark | `PROPOSED` |
 | `Hero.Wraith` | Wraith | v0.1 | | ⚠️ | | | | Form | — **vedi nota** | `REJECTED` |
 | `Hero.Steel` | Steel | v0.2 | ✅ | | | | | Stance | Guard ↔ Assault | `PROPOSED` |

@@ -805,7 +805,7 @@ classificazione. I sette `DEFER` si dividono per **ragione**, e le ragioni sono 
 
 > 🔴 **La valvola è il caso che dimostra perché un kit si filtra.** Il kit la mette fra i diciannove della
 > v0.1. CP 10.1 §11 la dichiara fuori scope con una motivazione registrata: *«l'acqua ha un produttore nel
-> roster ([`D-046`](../../decisions/RT_PDR_00_Decision_Log.md), `Hero.Phase.FluidTrail` **è**
+> roster ([`D-046`](../../decisions/RT_PDR_00_Decision_Log.md), `Hero.Muiren.FluidTrail` **è**
 > `Action.CreateWater`) e non serve un secondo modello per crearla»*. Modellarla ora non sarebbe lavoro in
 > anticipo: sarebbe l'asset di un sistema che il progetto ha deciso di non costruire.
 

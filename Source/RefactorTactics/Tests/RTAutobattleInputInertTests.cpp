@@ -147,13 +147,13 @@ namespace
 		ARTGameMode* GameMode = nullptr;
 		ARTTurnManager* TurnManager = nullptr;
 		ARTPlayerController* PC = nullptr;
-		ARTUnit* Gadget = nullptr;   // team 0, azione base + area
+		ARTUnit* Aevik = nullptr;   // team 0, azione base + area
 		ARTUnit* Branth = nullptr;   // team 0, azione su struttura
 		ARTUnit* Enemy = nullptr;    // team 1
 
 		bool IsComplete() const
 		{
-			return World && Map && GameMode && TurnManager && PC && Gadget && Branth && Enemy;
+			return World && Map && GameMode && TurnManager && PC && Aevik && Branth && Enemy;
 		}
 
 		/** Rilatcha la modalita' passando dalla porta vera. */
@@ -183,7 +183,7 @@ namespace
 			B.TurnManager->DispatchBeginPlay();
 		}
 
-		B.Gadget = SpawnInertUnit(B.World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
+		B.Aevik = SpawnInertUnit(B.World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
 		B.Branth = SpawnInertUnit(B.World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-1, 0, 0));
 		B.Enemy  = SpawnInertUnit(B.World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
 
@@ -243,9 +243,9 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 AreaIdx = FindInertAreaAbility(B.Gadget);
+	const int32 AreaIdx = FindInertAreaAbility(B.Aevik);
 	const int32 StructIdx = FindInertStructureAbility(B.Branth);
-	if (!TestTrue(TEXT("premessa: Gadget ha un'azione ad AREA"), AreaIdx != INDEX_NONE)
+	if (!TestTrue(TEXT("premessa: Aevik ha un'azione ad AREA"), AreaIdx != INDEX_NONE)
 		|| !TestTrue(TEXT("premessa: Branth ha un'azione su STRUTTURA"), StructIdx != INDEX_NONE))
 	{
 		RTWorldFixtures::DestroyWorld(B.World);
@@ -263,24 +263,24 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 	}
 
 	// (1) click sul nemico con l'azione armata
-	B.PC->SelectActorForTest(B.Gadget);
-	B.Gadget->SelectAbility(0);
+	B.PC->SelectActorForTest(B.Aevik);
+	B.Aevik->SelectAbility(0);
 	B.PC->HandleClickOnUnitForTest(B.Enemy);
 	TestTrue(TEXT("controllo (1): il click sul nemico registra il bersaglio"),
-		B.Gadget->PlannedAttackTarget == B.Enemy);
+		B.Aevik->PlannedAttackTarget == B.Enemy);
 
 	// (2) tasto abilita'
-	ClearInertPlan(B.Gadget);
+	ClearInertPlan(B.Aevik);
 	B.PC->SelectAbilityForCurrentForTest(AreaIdx);
 	TestEqual(TEXT("controllo (2): il tasto abilita' arma l'azione"),
-		B.Gadget->SelectedAbilityIndex, AreaIdx);
+		B.Aevik->SelectedAbilityIndex, AreaIdx);
 
 	// (3) bersaglio a cella
 	TestTrue(TEXT("controllo (3): il bersaglio a cella e' accettato"),
 		B.PC->HandleTargetCell(FRTCellId(0, -1, 0)));
 
 	// (4) bersaglio a bordo
-	ClearInertPlan(B.Gadget);
+	ClearInertPlan(B.Aevik);
 	B.PC->SelectActorForTest(B.Branth);
 	B.Branth->SelectAbility(StructIdx);
 	TestTrue(TEXT("controllo (4): il bersaglio a bordo e' accettato"),
@@ -288,7 +288,7 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 
 	// (5) rotazione dichiarata
 	ClearInertPlan(B.Branth);
-	B.PC->SelectActorForTest(B.Gadget);
+	B.PC->SelectActorForTest(B.Aevik);
 	B.PC->BeginFacingDeclaration();
 	TestTrue(TEXT("controllo (5): la rotazione dichiarata e' accettata"),
 		B.PC->HandleFacingSector(ERTHexDirection::W));
@@ -296,7 +296,7 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 	// ---------------------------------------------------------------------------------------------
 	// PASSO 2 — LA MISURA: autobattle in vigore, gli stessi cinque siti non agganciano piu' niente.
 	// ---------------------------------------------------------------------------------------------
-	ClearInertPlan(B.Gadget);
+	ClearInertPlan(B.Aevik);
 	ClearInertPlan(B.Branth);
 	B.Setup(/*bAutobattle=*/ true);
 	if (!TestTrue(TEXT("la misura: l'input e' inerte"), B.PC->IsPlanningInputInert()))
@@ -305,25 +305,25 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 		return false;
 	}
 
-	B.PC->SelectActorForTest(B.Gadget);
-	B.Gadget->SelectAbility(0);
+	B.PC->SelectActorForTest(B.Aevik);
+	B.Aevik->SelectAbility(0);
 	B.PC->HandleClickOnUnitForTest(B.Enemy);
 	TestNull(TEXT("(1) il click sul nemico non registra nessun bersaglio"),
-		(void*)B.Gadget->PlannedAttackTarget.Get());
+		(void*)B.Aevik->PlannedAttackTarget.Get());
 	TestEqual(TEXT("(1) e non pianifica nessuna azione"),
-		B.Gadget->PlannedAbilityIndex, (int32)INDEX_NONE);
+		B.Aevik->PlannedAbilityIndex, (int32)INDEX_NONE);
 
-	B.Gadget->SelectAbility(INDEX_NONE);
+	B.Aevik->SelectAbility(INDEX_NONE);
 	B.PC->SelectAbilityForCurrentForTest(AreaIdx);
 	TestEqual(TEXT("(2) il tasto abilita' non arma niente"),
-		B.Gadget->SelectedAbilityIndex, (int32)INDEX_NONE);
+		B.Aevik->SelectedAbilityIndex, (int32)INDEX_NONE);
 
 	// Il bersaglio a cella si prova con l'azione armata A MANO: cosi' il rifiuto viene dalla guardia e non
 	// dal fatto che il passo (2) ha gia' impedito di armarla.
-	B.Gadget->SelectAbility(AreaIdx);
+	B.Aevik->SelectAbility(AreaIdx);
 	TestFalse(TEXT("(3) il bersaglio a cella e' rifiutato"),
 		B.PC->HandleTargetCell(FRTCellId(0, -1, 0)));
-	TestFalse(TEXT("(3) e non ha sporcato il piano"), B.Gadget->bAttackTargetsCell);
+	TestFalse(TEXT("(3) e non ha sporcato il piano"), B.Aevik->bAttackTargetsCell);
 
 	B.PC->SelectActorForTest(B.Branth);
 	B.Branth->SelectAbility(StructIdx);
@@ -331,11 +331,11 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 		B.PC->HandleTargetEdge(FRTCellId(-2, 0, 0), ERTHexDirection::NE));
 	TestFalse(TEXT("(4) e nessun lato e' stato registrato"), B.Branth->bHasPlannedCoverEdge);
 
-	B.PC->SelectActorForTest(B.Gadget);
+	B.PC->SelectActorForTest(B.Aevik);
 	B.PC->BeginFacingDeclaration();
 	TestFalse(TEXT("(5) la rotazione dichiarata e' rifiutata"),
 		B.PC->HandleFacingSector(ERTHexDirection::W));
-	TestFalse(TEXT("(5) e nessun facing e' stato dichiarato"), B.Gadget->bDeclaresPlannedFacing);
+	TestFalse(TEXT("(5) e nessun facing e' stato dichiarato"), B.Aevik->bDeclaresPlannedFacing);
 
 	RTWorldFixtures::DestroyWorld(B.World);
 	return true;

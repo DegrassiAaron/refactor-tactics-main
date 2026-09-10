@@ -136,8 +136,8 @@ Sono i documenti a non aver recepito la riclassificazione del 2026-08-10:
 | File | Riga | Cosa dice oggi |
 |---|---|---|
 | `docs/decisions/RT_PDR_00_Decision_Log.md` | 442 | *«**oggi** l'azione è a catalogo con `ERTActionSlot::None` e **nessun trigger** … resta una migrazione di classificazione **da tracciare, non da fare**»* — l'«oggi» è il **2026-08-08**, e non è scritto |
-| `docs/product/showcase-v0.1.md` | 116 | *«**due** reazioni d'eroe non sono cablate: `Hero.Phase.FlowReaction` e `Hero.Wraith.InterceptShot`»* |
-| `docs/characters/spec-radar-profilo-personaggio.md` | 277 | *«Le **reazioni** rinviate a E14 contano. `Hero.Wraith.InterceptShot` e `Hero.Phase.FlowReaction`…»* |
+| `docs/product/showcase-v0.1.md` | 116 | *«**due** reazioni d'eroe non sono cablate: `Hero.Muiren.FlowReaction` e `Hero.Wraith.InterceptShot`»* |
+| `docs/characters/spec-radar-profilo-personaggio.md` | 277 | *«Le **reazioni** rinviate a E14 contano. `Hero.Wraith.InterceptShot` e `Hero.Muiren.FlowReaction`…»* |
 | `docs/roadmap/roadmap-v0.1.md` | 102 · 174 | *«**tre reazioni su cinque** cablate; `InterceptShot`/`FlowReaction` rinviate»* |
 | `docs/roadmap/roadmap.shortlist.md` | 25 | idem — ⚠️ **vista generata**: si rigenera, non si edita |
 

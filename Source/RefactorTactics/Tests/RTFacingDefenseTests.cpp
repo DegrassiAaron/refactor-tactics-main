@@ -525,7 +525,7 @@ namespace
 		Difensore->PlannedAbilityIndex = INDEX_NONE; // incassa e basta: nessuna reazione da isolare
 
 		// Un'area montata sull'attacco base invece che pescata dal kit di un eroe: qui contano la FORMA e il
-		// raggio, non i numeri di bilanciamento di `Hero.Gadget.Overload`, e legare il test a quelli lo
+		// raggio, non i numeri di bilanciamento di `Hero.Aevik.Overload`, e legare il test a quelli lo
 		// farebbe cadere al prossimo ritocco del catalogo.
 		const int32 Slot = RTAbilityFixtures::AddCoreAbilityInSlot(Lanciatore, TEXT("Action.BasicAttack"), 3);
 		if (!Test.TestTrue(TEXT("slot dell'area"), Slot != INDEX_NONE))

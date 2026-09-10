@@ -64,7 +64,7 @@ git rev-list --count HEAD..origin/main  -> 0
 | Misura | Comando | Esito |
 |---|---|---|
 | `Flux.` in `Source/` | `rg -c "Flux\." Source` | **0 occorrenze, 0 file** |
-| `Hero.Gadget.ArcPulse` negli scenari | `rg -c "Hero\.Gadget\.ArcPulse" Scenarios` | **34 occorrenze in 21 file** |
+| `Hero.Aevik.ArcPulse` negli scenari | `rg -c "Hero\.Gadget\.ArcPulse" Scenarios` | **34 occorrenze in 21 file** |
 | Test di run/reset | `rg -c IMPLEMENT_SIMPLE_AUTOMATION_TEST Source/RefactorTactics/Tests/RTScenarioRunResetTests.cpp` | **10** |
 | Abilità Paragon di Gadget | `ls Content/FabAsset/Paragon/ParagonGadget/FX/Abilities` | `ElectroGate` · `Primary` · `RollingBot` · `StickyBomb` · `Ultimate` · `VisionBot` |
 | Clip di animazione Gadget | `find …/Heroes/Gadget/Animations -maxdepth 1 -type d` | solo `AimOffsets/` e `Blendspaces/` |
@@ -91,13 +91,13 @@ Stato issue citate dal kit, letto il 2026-08-31:
 ### 🔨 WIEGERS — qualità dei requisiti
 
 ❌ **CRITICO — un requisito normativo costruito su un identificatore ritirato.** Il §3 e il TD01-E fissano
-`Flux.ArcPulse` come contratto. `D-130` rinomina il token in `Hero.Gadget.ArcPulse`; `D-134` **cancella il
+`Flux.ArcPulse` come contratto. `D-130` rinomina il token in `Hero.Aevik.ArcPulse`; `D-134` **cancella il
 redirect** (`URTCatalogLibrary::ResolveLegacyActionId` non esiste più) perché non aveva lettori. Misura:
 `Flux.` ha **zero** occorrenze in `Source/`; le uniche superstiti nel repository sono commenti che
 *dichiarano la rinomina* (`tools/radar/parse-catalog.ts:48,275,282`) e la riga di mappatura in
 `piano-migrazione-roster.md:96`. Un'acceptance scritta su quel token non è ambigua: è **falsificabile e
 falsa**. <!-- rename-exempt: la riga dichiara la rinomina del token: sostituirla la renderebbe muta -->
-📝 **Raccomandazione**: `Hero.Gadget.ArcPulse` ovunque, e il nome scenario `SCN_Gadget_ArcPulse_Baseline`
+📝 **Raccomandazione**: `Hero.Aevik.ArcPulse` ovunque, e il nome scenario `SCN_Gadget_ArcPulse_Baseline`
 cade con esso (§5, TD01-F).
 
 ⚠️ **MAGGIORE — il kit vieta a sé stesso ciò che poi fa.** Il §3 scrive *«non rinominare Stable ID in questo
@@ -144,7 +144,7 @@ turni, passed/failed e **StateHash** è già un test che gira. TD01-I chiede di 
 
 ❌ **CRITICO — TD01-F chiede di creare uno scenario che esiste.** `Scenarios/Combat/BasicAttack.json`:
 `scenarioId: Combat.BasicAttack`, `seed: 0`, `mapRadius: 4`, Gadget `A1` contro Riktor `B1` a distanza 2,
-intent `Hero.Gadget.ArcPulse`, aspettative dure (`UnitHpEquals` ×2, `UnitAlive`, `TurnsCompleted`). Il kit
+intent `Hero.Aevik.ArcPulse`, aspettative dure (`UnitHpEquals` ×2, `UnitAlive`, `TurnsCompleted`). Il kit
 premette *«Creare SOLO se non esiste scenario equivalente»*: la clausola scatta.
 
 ⚠️ **TD01-G è per metà già scritto e per metà dichiarato post-Trial.** La parte LOS ha il suo complemento
@@ -154,7 +154,7 @@ elencata fra i *«post-Trial»* nel corpo di `#1105` («sonde LOS, copertura, le
 diversi da `#711`, **non aperte**). Il kit stesso autorizza il defer: *«se l'owner dice post-slice, defer e
 registra il motivo»*. Registrato.
 
-📊 **Copertura reale della Golden Skill**: `Hero.Gadget.ArcPulse` compare **34 volte in 21 scenari** —
+📊 **Copertura reale della Golden Skill**: `Hero.Aevik.ArcPulse` compare **34 volte in 21 scenari** —
 percezione, facing, guard/brace, copertura, HUD, reazioni. Non è una skill da promuovere ad *anchor*: **è
 già** l'anchor del corpus.
 
@@ -204,7 +204,7 @@ presente = REUSE · CREATE solo per gap reale.*
 | **TD01-B** Esecuzione canonica via Harness | **#1117** | CLOSED | `ADR-0010` · `URTScenarioAuthoring` | **REUSE** — la facade, il draft e il TurnLog esistono |
 | **TD01-C** Reset deterministico, seed, StateHash | **#1117** + `T0` | CLOSED | `RTScenarioRunResetTests.cpp` (10 test) · `RTMatchStateHash` | **REUSE** |
 | **TD01-D** Controlli Target / Context | **#1626** · **#1629** | OPEN | `T2` intent · `T5` status iniziali | **LINK** — sono le due metà del suo «minimo utile»; il resto è già nel formato o dichiarato assente |
-| **TD01-E** Golden Skill come contratto | — | — | `ADR-0007` · `RT_HeroCatalog_v0.1.md:87` | **REUSE, con ID corretto** — `Hero.Gadget.ArcPulse`, 22 danni, range 4; nessun `if Gadget` da evitare perché nessuno esiste |
+| **TD01-E** Golden Skill come contratto | — | — | `ADR-0007` · `RT_HeroCatalog_v0.1.md:87` | **REUSE, con ID corretto** — `Hero.Aevik.ArcPulse`, 22 danni, range 4; nessun `if Gadget` da evitare perché nessuno esiste |
 | **TD01-F** Scenario baseline | `Scenarios/Combat/BasicAttack.json` | esiste | `scenario-map.md` | **NON CREARE** — clausola del kit soddisfatta |
 | **TD01-G** Scenario tattico range/cover | `Combat.BlockedByWall` (LOS) | esiste / post-Trial | `#1105` §post-Trial | **DEFER** — la metà copertura è dichiarata non aperta dall'owner |
 | **TD01-H** Save as Scenario Draft | **#1114** + gate d'uscita Trial | CLOSED | writer canonico + round-trip Stable ID | **REUSE** |
@@ -228,7 +228,7 @@ Reason:     issue OPEN semanticamente equivalenti; il contributo del kit e' mate
 
 Candidate:  TD01-E · TD01-F
 Covered by: ADR-0007 + RT_HeroCatalog_v0.1.md + Scenarios/Combat/BasicAttack.json (34 occorrenze
-            di Hero.Gadget.ArcPulse in 21 scenari)
+            di Hero.Aevik.ArcPulse in 21 scenari)
 Reason:     il contratto end-to-end esiste; cio' che manca non e' uno scenario, e' la coerenza dei suoi
             derivati documentali — vedi §8
 
@@ -306,7 +306,7 @@ owner più la nota interna dello scenario stesso** sono rimaste al valore preced
 >
 > ```text
 > LogRT: [RT] Colpo: RTUnit_0 -> RTUnit_1 (22)
-> LogRT: [RT] (q=-1,r=0,L=0) -> (q=1,r=0,L=0): 17 danni (Action.BasicAttack · Hero.Gadget.ArcPulse, p50)
+> LogRT: [RT] (q=-1,r=0,L=0) -> (q=1,r=0,L=0): 17 danni (Action.BasicAttack · Hero.Aevik.ArcPulse, p50)
 > ```
 >
 > Il `22` che i documenti citano è reale — è il danno **dichiarato** del colpo, non la differenza di HP.
@@ -343,7 +343,7 @@ A. EXISTING CAPABILITIES
    - StateHash runtime: RTMatchStateHash, consumato da Runner/Session/Draft
    - Parita' editor/headless: RefactorTactics.Scenario.RunFromTheEditorMatchesTheHeadlessRun
    - Writer canonico e round-trip con Stable ID                                (#1114)
-   - Golden Skill a catalogo: Hero.Gadget.ArcPulse, 22 danni / range 4 (ADR-0007)
+   - Golden Skill a catalogo: Hero.Aevik.ArcPulse, 22 danni / range 4 (ADR-0007)
    - Corpus: 34 occorrenze in 21 scenari, baseline Combat.BasicAttack + BlockedByWall
    - Launcher d'ingresso: SRTLauncherScenarioPanel, RTLauncherScenarioBrowser,
      RTDevSandboxLauncherSubsystem
@@ -439,7 +439,7 @@ esattamente ciò che ha impedito a questo consumo di aprire dieci issue duplicat
 strumento che lo confuta.
 
 ✅ **La domanda del §3**, che è il suo unico contributo davvero nuovo: *quale singola azione ha un percorso
-completo dal catalogo alla presentation?* La risposta misurata è: `Hero.Gadget.ArcPulse` lo ha **intero fino
+completo dal catalogo alla presentation?* La risposta misurata è: `Hero.Aevik.ArcPulse` lo ha **intero fino
 al TurnLog e agli scenari**, e lo perde alla presentation — dove non è `PARTIAL`, è `NONE` (`#1663`). E
 cercandola è emerso il §8.
 

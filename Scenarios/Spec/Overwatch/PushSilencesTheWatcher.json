@@ -23,7 +23,7 @@
 
   "units": [
     { "id": "M1", "hero": "Hero.Ivrin", "team": 0, "cell": [-2,  0, 0] },
-    { "id": "P1", "hero": "Hero.Phase",  "team": 0, "cell": [ 3, -1, 0], "loadout": [] },
+    { "id": "P1", "hero": "Hero.Muiren",  "team": 0, "cell": [ 3, -1, 0], "loadout": [] },
 
     { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 2, -1, 0], "facing": "W" }
   ],
@@ -33,7 +33,7 @@
       "_turno": "Un turno solo, e i tre momenti stanno tutti dentro. PREP: `V1` arma sul varco che gia' guarda, e la direzione si congela li'. BLAST: `P1` lo spinge da est — `V1` arretra a (1,-1) e si gira verso la sorgente, con il corridoio alle spalle. MOVE: `M1` entra in (-2,-1), dentro la linea guardata, e non succede niente.",
       "intents": [
         { "unit": "V1", "ability": "Action.Overwatch" },
-        { "unit": "P1", "ability": "Hero.Phase.PressureJet", "target": "V1" },
+        { "unit": "P1", "ability": "Hero.Muiren.PressureJet", "target": "V1" },
         { "unit": "M1", "move": [[-2, -1, 0]] }
       ]
     }

@@ -160,7 +160,7 @@ namespace
  * ⚠️ **Senza la rotazione dichiarata il test non direbbe nulla**: il `FIRE` tronca il movimento nella cella
  * raggiunta, quindi il boundary del colpo E' l'ultimo passo e il `FacingFinalAfterMove` deriva dallo stesso
  * passo — i due valori COINCIDEREBBERO, e un'implementazione retroattiva passerebbe. Il pivot e' cio' che li
- * separa, ed e' la ragione per cui il mover e' `Hero.Phase` (`MoveEndPivotMaxSteps = 2`) e non il Ivrin.
+ * separa, ed e' la ragione per cui il mover e' `Hero.Muiren` (`MoveEndPivotMaxSteps = 2`) e non il Ivrin.
  *
  * *Mutazione che lo rende rosso*: spostare la `RecordFacingChange(DeclaredInPlanning)` prima del ciclo dei
  * micro-step, o rileggere `Target->Facing` dopo il pivot invece del `TargetBoundaryFacing` del boundary.
@@ -185,11 +185,11 @@ bool FRTFacingFinalPivotIsNotRetroactiveTest::RunTest(const FString&)
 
 	ARTUnit* Watcher = SpawnMsFacingUnit(World, /*Team*/ 1, WatcherCell, ERTHexDirection::W,
 		URTHeroCatalogLibrary::MakeIvrin());
-	// `Hero.Phase` per il BUDGET: ADR-0008 §1 gli da' `MoveEndPivotMaxSteps = 2`, cioe' esattamente i due
+	// `Hero.Muiren` per il BUDGET: ADR-0008 §1 gli da' `MoveEndPivotMaxSteps = 2`, cioe' esattamente i due
 	// step che separano `NE` da `W`. Con un budget minore la dichiarazione sarebbe RIFIUTATA e il test
 	// misurerebbe il rifiuto invece della non retroattivita'.
 	ARTUnit* Mover = SpawnMsFacingUnit(World, /*Team*/ 0, MoverStart, ERTHexDirection::W,
-		URTHeroCatalogLibrary::MakePhase());
+		URTHeroCatalogLibrary::MakeMuiren());
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestTrue(TEXT("la scena si monta"), MapActor && MapActor->MapAsset && Watcher && Mover && TM))
 	{

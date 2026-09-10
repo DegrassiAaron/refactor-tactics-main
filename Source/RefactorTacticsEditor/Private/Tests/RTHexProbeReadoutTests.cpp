@@ -146,7 +146,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexProbeReadoutUnknownHeroTest,
 bool FRTHexProbeReadoutUnknownHeroTest::RunTest(const FString&)
 {
 	// L'eroe del catalogo: il budget viene da li', e la riga non ha niente da segnalare.
-	const RTHexProbe::FBudget Known = RTHexProbe::ResolveBudget(TEXT("Hero.Gadget"));
+	const RTHexProbe::FBudget Known = RTHexProbe::ResolveBudget(TEXT("Hero.Aevik"));
 	TestTrue(TEXT("un eroe del catalogo e' riconosciuto"), Known.bKnown);
 	TestTrue(TEXT("e porta il suo movimento"), Known.Points > 0);
 

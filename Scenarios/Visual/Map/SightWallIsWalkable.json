@@ -9,10 +9,10 @@
 
   "_nota_perche_esiste": "`Combat.BlockedByWall` copre gia' la logica del rifiuto, ma gira su una mappa generata da `mapRadius` e non sulla `TestArena`. Questo scenario usa la fixture, quindi il muro e' quello vero — la colonna che `MakeTestArena` costruisce con `bBlocksLineOfSight = true` su r=-2..2 lasciando `bBlocksMovement` falso. Il residuo (c) di `PIE-HEXPLAY-6` dice che il log annuncia «nessuna linea di tiro» senza NOMINARE cio' che l'ha bloccata: la comprensibilita' dipende tutta dal fatto che il muro si veda, ed e' quello che questo allestimento mette davanti agli occhi.",
 
-  "_nota_verifica": "ESEGUITO il 2026-08-30 con `-RTScenario=Visual.Map.SightWallIsWalkable`: PASS, 4/4 assertion, `stateHash 288c3d12`, al primo tentativo. TUTTE E TRE le assunzioni dichiarate prima dell'esecuzione hanno retto. Il combat log a schermo mostra il rifiuto — «(q=-1,r=0,L=0) -> (q=1,r=0,L=0): nessuna linea di tiro (Action.BasicAttack, Hero.Gadget.ArcPulse, p50)» — e subito sotto «si muove (q=-1,r=0,L=0) -> (q=0,r=0,L=0) (1 celle)»: la stessa cella che ha fermato il colpo viene attraversata. CONFERMATO anche il difetto che la voce isola: la riga di rifiuto NON nomina il muro, quindi la comprensibilita' dipende interamente dal fatto che si veda a schermo — e quello resta un giudizio umano.",
+  "_nota_verifica": "ESEGUITO il 2026-08-30 con `-RTScenario=Visual.Map.SightWallIsWalkable`: PASS, 4/4 assertion, `stateHash 288c3d12`, al primo tentativo. TUTTE E TRE le assunzioni dichiarate prima dell'esecuzione hanno retto. Il combat log a schermo mostra il rifiuto — «(q=-1,r=0,L=0) -> (q=1,r=0,L=0): nessuna linea di tiro (Action.BasicAttack, Hero.Aevik.ArcPulse, p50)» — e subito sotto «si muove (q=-1,r=0,L=0) -> (q=0,r=0,L=0) (1 celle)»: la stessa cella che ha fermato il colpo viene attraversata. CONFERMATO anche il difetto che la voce isola: la riga di rifiuto NON nomina il muro, quindi la comprensibilita' dipende interamente dal fatto che si veda a schermo — e quello resta un giudizio umano.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1, 0, 0] },
+    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0] },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 1, 0, 0] }
   ],
 
@@ -20,7 +20,7 @@
     {
       "_turno": "Il colpo NON parte: la colonna q=0 e' fra i due e nega la linea di tiro.",
       "intents": [
-        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
+        { "unit": "A1", "ability": "Hero.Aevik.ArcPulse", "target": "B1" }
       ]
     },
     {

@@ -191,7 +191,7 @@ squadra — le formazioni sono fisse (`RTGameMode.h:87,90`: Team 0 = Gadget + Ph
 
 Perché non Gadget: [D-218] ha appena corretto Riktor perché il suo modulo duplicava un mestiere già nel kit,
 e nella stessa riga registra che **Gadget ha lo stesso difetto non corretto** — `Reaction.ReactiveShield` e
-`Hero.Gadget.ReactiveCapacitor` sono entrambi `Action.Counter` ed entrambi danno scudo. Sarebbe la terza
+`Hero.Aevik.ReactiveCapacitor` sono entrambi `Action.Counter` ed entrambi danno scudo. Sarebbe la terza
 fonte di scudo sullo stesso eroe il giorno dopo aver deciso che i doppioni si tolgono.
 
 Conseguenze:

@@ -208,7 +208,7 @@ FRTUnitOverlayView URTHudViewModel::BuildUnitOverlay(const ARTUnit* Unit, int32 
 	View.Card = BuildUnitCard(Unit, PlayerTeamId);
 	View.Statuses = BuildStatusBadges(Unit);
 
-	// Il nome CANONICO del catalogo ([D-120]), non l'ID stabile: `Hero.Gadget` si legge `Gadget`. Il
+	// Il nome CANONICO del catalogo ([D-120]), non l'ID stabile: `Hero.Aevik` si legge `Aevik`. Il
 	// ripiego sull'ID resta dentro `DisplayLabel`, per le unita' che nessun eroe ha configurato.
 	View.DisplayName = ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName());
 

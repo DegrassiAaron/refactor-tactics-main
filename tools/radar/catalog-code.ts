@@ -31,7 +31,7 @@
  *
  *  🔴 **Il quinto lato e' entrato il 2026-09-10, e la ragione e' che i primi quattro erano verdi
  *  mentre l'header mentiva.** Su `4fdb01a0` schede, tabella §5, §5.1 e literal concordavano su tutto,
- *  e a due righe dai literal le docstring di `MakeGadget`, `MakeBranth` e `MakeWraith` dichiaravano
+ *  e a due righe dai literal le docstring di `MakeAevik`, `MakeBranth` e `MakeWraith` dichiaravano
  *  `vista 6` (codice: 7), `resistenza push 1` (codice: 0) e `100 HP` (codice: 90). Il posto piu'
  *  pericoloso in cui un numero puo' invecchiare e' **dentro il file che lo contraddice**. [#2824]
  *
@@ -71,7 +71,7 @@ const CPP_FIELDS: Record<string, keyof HeroStats> = {
   HearingThreshold: 'hearingThreshold',
 };
 
-/** `Gadget->MaxHealth = 90;` · `Gadget->Affinity = TEXT("Affinity.Electricity");`
+/** `Aevik->MaxHealth = 90;` · `Aevik->Affinity = TEXT("Affinity.Electricity");`
  *
  *  Solo **literal**: un `= kBaseHealth` non viene letto, e la copertura cade invece di passare in
  *  silenzio. E' il modo di guasto che questo gate teme di piu' — un parser che non trova niente resta
@@ -143,7 +143,7 @@ function cellAffinity(cell: string, field: string, hero: string): string {
  *
  *  ⚠️ **Sono un lato a se', e il difetto che li rende tale e' misurato.** Il 2026-09-10, su `4fdb01a0`,
  *  questo gate era **verde** — schede, tabella §5, §5.1 e literal C++ concordavano su tutto — mentre a
- *  due righe dai literal la docstring di `MakeGadget` dichiarava «vista 6» (il codice: `7`), quella di
+ *  due righe dai literal la docstring di `MakeAevik` dichiarava «vista 6» (il codice: `7`), quella di
  *  `MakeBranth` «resistenza push 1» (il codice: `0`) e quella di `MakeWraith` «100 HP» (il codice: `90`).
  *  Tre valori falsi in un punto che nessuno ha ragione di sospettare, perche' e' **dentro** il file
  *  che lo contraddice. Chiuso da [#2824].
@@ -262,7 +262,7 @@ export function parseSummaryTable(text: string): Map<string, Partial<HeroStats>>
     const hero = cells[1]!;
     // Discriminante STRUTTURALE, non lessicale: una riga di dati ha un intero in colonna `HP`.
     // `| Eroe | HP | …` supererebbe un controllo sulla forma del nome — `Eroe` e' un `[A-Z][a-z]+`
-    // come `Gadget` — e il parser leggerebbe l'intestazione come un quinto eroe.
+    // come `Aevik` — e il parser leggerebbe l'intestazione come un quinto eroe.
     if (!/^-?\d+$/.test(cells[2] ?? '')) continue;
 
     const stats: Partial<HeroStats> = {};

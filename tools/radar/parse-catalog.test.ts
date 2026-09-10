@@ -6,23 +6,23 @@ import { parseHeroCatalog, readCatalogs } from './parse-catalog.ts';
 const HERO_CATALOG = new URL('../../docs/balance/RT_HeroCatalog_v0.1.md', import.meta.url);
 const ACTION_CATALOG = new URL('../../docs/balance/RT_ActionCatalog_v0.1.md', import.meta.url);
 
-test('legge le quattro statistiche di Gadget dal catalogo', () => {
+test('legge le quattro statistiche di Aevik dal catalogo', () => {
   const heroes = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG);
-  const flux = heroes.find((h) => h.name === 'Gadget');
+  const flux = heroes.find((h) => h.name === 'Aevik');
 
-  assert.ok(flux, 'Gadget deve esistere nel catalogo');
+  assert.ok(flux, 'Aevik deve esistere nel catalogo');
   assert.equal(flux.health, 90);
   assert.equal(flux.movePoints, 5);
   assert.equal(flux.visionRange, 7);
   assert.equal(flux.pushResistance, 0);
 });
 
-test('legge le abilita di Gadget con danno e cooldown', () => {
-  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Gadget')!;
+test('legge le abilita di Aevik con danno e cooldown', () => {
+  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Aevik')!;
 
   assert.equal(flux.abilities.length, 5);
 
-  const arcPulse = flux.abilities.find((a) => a.id === 'Hero.Gadget.ArcPulse')!;
+  const arcPulse = flux.abilities.find((a) => a.id === 'Hero.Aevik.ArcPulse')!;
   assert.equal(arcPulse.damage, 22);
   assert.equal(arcPulse.cooldown, 0);
   assert.equal(arcPulse.kind, 'attacco base');
@@ -37,12 +37,15 @@ test('legge i quattro eroi del roster e le loro venti abilita', () => {
     // (`Bastion, Flux, Riva, Vektor`) e la rinomina di D-120 non la riordina — e' il caso in cui una
     // sostituzione meccanica produce un letterale corretto nei nomi e sbagliato nell'ordine.
     // ⚠️ D-334 (`Riktor` -> `Branth`) invece la RIORDINA, ed e' la prima rinomina che lo fa: `Branth`
-    // precede `Gadget`. L'avvertenza qui sopra ha colto il difetto al primo tentativo.
-    // ⚠️ E la SECONDA e' `Wraith` -> `Ivrin` (#2491): stava in coda, ora precede `Phase`. La
-    // sostituzione meccanica aveva prodotto `['Branth','Gadget','Phase','Ivrin']` — nomi giusti,
+    // precede `Aevik`. L'avvertenza qui sopra ha colto il difetto al primo tentativo.
+    // ⚠️ E la SECONDA e' `Wraith` -> `Ivrin` (#2491): stava in coda, ora precede `Muiren`. La
+    // sostituzione meccanica aveva prodotto `['Branth','Aevik','Muiren','Ivrin']` — nomi giusti,
     // ordine sbagliato — e questo test e' caduto dicendo esattamente dove. E' il difetto che
     // l'avvertenza descrive, capitato una seconda volta e intercettato dallo stesso assert.
-    ['Branth', 'Gadget', 'Ivrin', 'Phase'],
+    // ⚠️ E la TERZA e' `Gadget` -> `Aevik` (#2491): passa dalla seconda posizione alla PRIMA. Tre
+    // rinomine su quattro hanno spostato l'ordine, e ogni volta e' stato questo assert a dirlo — la
+    // sostituzione meccanica produce nomi giusti in posizione sbagliata, che nessun compilatore vede.
+    ['Aevik', 'Branth', 'Ivrin', 'Muiren'],
   );
   assert.equal(
     heroes.reduce((n, h) => n + h.abilities.length, 0),
@@ -63,8 +66,8 @@ test('una statistica rinominata fa fallire il parser nominando il campo', () => 
 });
 
 test('risolve il rinvio `e Action.X` sul catalogo azioni (D-115)', () => {
-  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Gadget')!;
-  const node = flux.abilities.find((a) => a.id === 'Hero.Gadget.ConductiveNode')!;
+  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Aevik')!;
+  const node = flux.abilities.find((a) => a.id === 'Hero.Aevik.ConductiveNode')!;
 
   // Il catalogo eroi non porta il numero: viene da `Action.Electrify` (20 danni).
   assert.equal(node.damage, 20);
@@ -100,10 +103,10 @@ test('la copertura e dichiarata, e un eroe in meno la fa fallire', () => {
 test('anche un abilita persa fa fallire la copertura, non solo un eroe', () => {
   // Una nota in coda alla cella dell'id rende la riga invisibile al parser — e' la forma che
   // `Action.Sprint` usa gia' nel catalogo azioni, quindi non e' un caso inventato. Senza un
-  // atteso sulle abilita', Gadget ne perderebbe una e il roster resterebbe di quattro.
+  // atteso sulle abilita', Aevik ne perderebbe una e il roster resterebbe di quattro.
   const conNota = readFileSync(HERO_CATALOG, 'utf8').replace(
-    '| `Hero.Gadget.Overload` |',
-    '| `Hero.Gadget.Overload` *(vedi §7)* |',
+    '| `Hero.Aevik.Overload` |',
+    '| `Hero.Aevik.Overload` *(vedi §7)* |',
   );
   const tmp = new URL('./catalogo-abilita.tmp.md', import.meta.url);
   writeFileSync(tmp, conNota);
@@ -124,16 +127,16 @@ test('citare un Action.X senza `e` NON delega: si tengono i numeri inline', () =
   // il filtro le scarta comunque — questo caso le mette dove il filtro NON protegge, cioe' dentro
   // la tabella delle abilita'. Senza la precisione del pattern, `damage` diventerebbe 20.
   const sintetico = readFileSync(HERO_CATALOG, 'utf8').replace(
-    '| `Hero.Gadget.ArcPulse` | Impulso ad arco | attacco base | 22 danni, range 4 | 0 |',
-    '| `Hero.Gadget.ArcPulse` | Impulso ad arco | attacco base | 22 danni, riusa `Action.Electrify` | 0 |',
+    '| `Hero.Aevik.ArcPulse` | Impulso ad arco | attacco base | 22 danni, range 4 | 0 |',
+    '| `Hero.Aevik.ArcPulse` | Impulso ad arco | attacco base | 22 danni, riusa `Action.Electrify` | 0 |',
   );
   const tmp = new URL('./catalogo-riuso.tmp.md', import.meta.url);
   writeFileSync(tmp, sintetico);
 
   try {
     const arcPulse = parseHeroCatalog(tmp, ACTION_CATALOG)
-      .find((h) => h.name === 'Gadget')!
-      .abilities.find((a) => a.id === 'Hero.Gadget.ArcPulse')!;
+      .find((h) => h.name === 'Aevik')!
+      .abilities.find((a) => a.id === 'Hero.Aevik.ArcPulse')!;
 
     assert.equal(arcPulse.delegatesTo, null, 'citare non e delegare');
     assert.equal(arcPulse.damage, 22, 'il danno resta quello inline, non quello dell azione core');
@@ -144,11 +147,11 @@ test('citare un Action.X senza `e` NON delega: si tengono i numeri inline', () =
 
 test('la tabella reazioni si unisce all abilita, senza duplicarla', () => {
   const heroes = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG);
-  const flux = heroes.find((h) => h.name === 'Gadget')!;
+  const flux = heroes.find((h) => h.name === 'Aevik')!;
 
   // `ReactiveCapacitor` e' dichiarato DUE volte: tabella reazioni e tabella abilita'. Deve restare
   // una sola voce, con i dati uniti — non due abilita' omonime.
-  const capacitors = flux.abilities.filter((a) => a.id === 'Hero.Gadget.ReactiveCapacitor');
+  const capacitors = flux.abilities.filter((a) => a.id === 'Hero.Aevik.ReactiveCapacitor');
   assert.equal(capacitors.length, 1);
   assert.equal(flux.abilities.length, 5);
 
@@ -164,8 +167,8 @@ test('una reazione rinviata a E14 dichiara status deferred e nessuna semantica c
   // tabella, e con lei il denominatore. Il caso da pinnare resta — una reazione davvero rinviata —
   // e oggi l'unica e' `FlowReaction`. Cambiare soggetto e' l'unico modo di NON indebolire il test:
   // cancellarlo avrebbe tolto la copertura a `status: 'deferred'`, che nessun altro test esercita.
-  const phase = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Phase')!;
-  const flow = phase.abilities.find((a) => a.id === 'Hero.Phase.FlowReaction')!;
+  const muiren = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Muiren')!;
+  const flow = muiren.abilities.find((a) => a.id === 'Hero.Muiren.FlowReaction')!;
 
   assert.equal(flow.reaction?.status, 'deferred');
   assert.equal(flow.reaction?.coreSemantics, null);
@@ -187,18 +190,18 @@ test('una azione predittiva NON e una reazione, e la condizionalita viene dal Ti
 });
 
 test('un abilita che non e una reazione ha reaction null', () => {
-  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Gadget')!;
-  assert.equal(flux.abilities.find((a) => a.id === 'Hero.Gadget.ArcPulse')!.reaction, null);
+  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Aevik')!;
+  assert.equal(flux.abilities.find((a) => a.id === 'Hero.Aevik.ArcPulse')!.reaction, null);
 });
 
 test('il bonus condizionale esce come numero, separato dal danno garantito', () => {
-  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Gadget')!;
+  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Aevik')!;
 
   // `24 danni, **+8 su bersaglio Wet**` -> garantito 24, condizionale 8.
-  const linear = flux.abilities.find((a) => a.id === 'Hero.Gadget.LinearDischarge')!;
+  const linear = flux.abilities.find((a) => a.id === 'Hero.Aevik.LinearDischarge')!;
   assert.equal(linear.damage, 24);
   assert.equal(linear.conditionalBonus, 8);
 
   // Chi non ha bonus condizionali lo dichiara con null, non con zero.
-  assert.equal(flux.abilities.find((a) => a.id === 'Hero.Gadget.ArcPulse')!.conditionalBonus, null);
+  assert.equal(flux.abilities.find((a) => a.id === 'Hero.Aevik.ArcPulse')!.conditionalBonus, null);
 });

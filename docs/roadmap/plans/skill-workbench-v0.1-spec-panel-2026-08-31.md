@@ -206,7 +206,7 @@ l'invariante #4 del catalogo, verificata per reflection da
 
 ⚠️ Il kit dichiara i suoi esempi concettuali (*«Damage 40 → 45»*, *«×1.20 Character Buff»*, *«×1.50 Wet
 Target»*) e fa bene, ma **non si àncora mai a un'abilità reale**. Il repository ne ha una con percorso
-completo fino al TurnLog, misurata stamattina: `Hero.Gadget.ArcPulse`, **22 danni / range 4**,
+completo fino al TurnLog, misurata stamattina: `Hero.Aevik.ArcPulse`, **22 danni / range 4**,
 34 occorrenze in 21 scenari, con baseline `Scenarios/Combat/BasicAttack.json`.
 📝 **Raccomandazione**: `SW0-06` e `SW0-08` si scrivono su quell'abilità e su quello scenario. Un esempio
 falsificabile costa una riga e rende l'acceptance verificabile prima di scrivere codice.
@@ -405,7 +405,7 @@ TArray<FRTAttack> Attacks = URTCombatResolver::ApplyAbsorptionPool(
 |---:|---|---|---|---|
 | 1 | Valore di catalogo | — | `URTActionData::Power` · `FRTActionDef` | invariante #4: **solo interi**, `NoFloatInIntegerFields` |
 | 2 | Bonus di cella dell'attaccante | `+` | `EffectiveAttackPower` · `RTTurnManager_Blast.cpp:675,750` | il terreno di chi tira |
-| 3 | Bonus condizionale di catalogo | `+` | `RTTurnManager.cpp:4535` (`Wet` × `Hero.Gadget.LinearDischarge`) | **limite dichiarato CP 8.2**: è l'unico, e il commento dice che il secondo andrà a catalogo, non in un secondo `if` |
+| 3 | Bonus condizionale di catalogo | `+` | `RTTurnManager.cpp:4535` (`Wet` × `Hero.Aevik.LinearDischarge`) | **limite dichiarato CP 8.2**: è l'unico, e il commento dice che il secondo andrà a catalogo, non in un secondo `if` |
 | 4 | Copertura, per-colpo e direzionale | `− … clamp 0` | `CollectHexAttacks` · `RTHexCombatLibrary.cpp:444` | dipende da **dove sta chi subisce**, non dall'intento: due bersagli della stessa azione sono riparati diversamente (`D-206`) |
 | 5 | Delta di **primo colpo** per bersaglio | `± … clamp 0` | `ApplyFirstHitDelta` (`Status.Exposed` `+5`, `Deflect` `−20`) | vale una volta sola; il totale non dipende da quale colpo se lo prenda |
 | 6 | Delta su **ogni colpo** | `± … clamp 0` | `ApplyDamageDelta` (`Action.Brace` `−10`) | senza il gate «una volta sola»: `Brace` su `ApplyFirstHitDelta` proteggerebbe da un colpo e lascerebbe passare gli altri |

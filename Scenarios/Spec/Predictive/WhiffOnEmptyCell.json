@@ -12,7 +12,7 @@
   "_nota_completato": "Completato il 2026-08-10 con E18 CP 18.2 (#227), che ha reso disponibile la capability `PredictiveAction`. La previsione si dichiara con `targetCell` su un'azione principale — il canale che il gioco ha gia' per le aree — quindi l'harness non e' il primo produttore del campo. In T1 Ivrin si avvicina: senza quel passo la cella prevista sarebbe fuori dalla portata 1 dichiarata a catalogo, e lo scenario verificherebbe una regola violando il catalogo che la contiene.",
 
   "units": [
-    { "id": "R1", "hero": "Hero.Phase",   "team": 0, "cell": [-3, 0, 0] },
+    { "id": "R1", "hero": "Hero.Muiren",   "team": 0, "cell": [-3, 0, 0] },
     { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 2, 0, 0] }
   ],
 

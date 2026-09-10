@@ -128,6 +128,6 @@ public:
 	// trovato a confrontare due tag DIVERSI — vero come frase, muto come esempio.
 	// Un rename che passa sulla prosa puo' invalidare un esempio senza rompere il codice, e nessun gate lo
 	// vede perche' il file compila: se un giorno queste due parole smettono di essere la stessa, e' rotto.
-	/** Forma canonica di un tag: senza spazi ai bordi, minuscolo. `Gadget` e `gadget ` sono lo stesso filtro. */
+	/** Forma canonica di un tag: senza spazi ai bordi, minuscolo. `Aevik` e `gadget ` sono lo stesso filtro. */
 	static FString NormalizeTag(const FString& Tag);
 };

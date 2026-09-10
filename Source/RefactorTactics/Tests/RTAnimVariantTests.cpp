@@ -170,8 +170,8 @@ bool FRTAnimRosterMigrationKeepsPathsTest::RunTest(const FString&)
 
 	struct FAtteso { const TCHAR* Eroe; const TCHAR* Pack; const TCHAR* Idle; const TCHAR* Move; };
 	const FAtteso Attesi[] = {
-		{ TEXT("Hero.Gadget"), TEXT("Gadget"), TEXT("Idle"),           TEXT("Run_Fwd") },
-		{ TEXT("Hero.Phase"),  TEXT("Phase"),  TEXT("Idle"),           TEXT("Jog_Fwd") },
+		{ TEXT("Hero.Aevik"), TEXT("Aevik"), TEXT("Idle"),           TEXT("Run_Fwd") },
+		{ TEXT("Hero.Muiren"),  TEXT("Phase"),  TEXT("Idle"),           TEXT("Jog_Fwd") },
 		{ TEXT("Hero.Branth"), TEXT("Riktor"), TEXT("Idle"),           TEXT("Jog_Fwd") },
 		{ TEXT("Hero.Ivrin"), TEXT("Wraith"), TEXT("Idle_NonCombat"), TEXT("Jog_Fwd") },
 	};

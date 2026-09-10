@@ -31,7 +31,7 @@ TArray<FRTReactionProfileDef> URTCatalogLibrary::GetReactionProfileCatalog()
 
 		// `SIDESTEP` si esprime con `SelfReposition`, e NON e' una primitiva scelta per comodita': `BAS-4`
 		// decide che questo profilo «risponde al **Forced Movement**» nella stessa forma di
-		// `Hero.Phase.FlowReaction`, cioe' `Reposition 1`. La stessa che `Reaction.EmergencyDash` e
+		// `Hero.Muiren.FlowReaction`, cioe' `Reposition 1`. La stessa che `Reaction.EmergencyDash` e
 		// `Reaction.HazardEscape` gia' usano — quindi lo spostamento passa dai dieci passi di
 		// `ApplyForcedDisplacement` (causa nel TurnLog, hazard attraversati, facing, piano che segue) invece
 		// di essere un `SetActorLocation` di questa feature.
@@ -742,10 +742,10 @@ FName URTCatalogLibrary::DefaultWeaponVariantFor(const FName& HeroId)
 	// ⚠️ Nessuno usa `Weapon.Overcharge`, ed e' deliberato: il suo costo e' `WV-1`, ancora aperto (#510). Un
 	// default il cui prezzo si decide dopo cambierebbe insieme a quella risposta.
 	static const TMap<FName, FName> Defaults = {
-		// Gadget vede a 7 e sparava a 4: `Precision` e' l'unica che riduce quel divario (18 a portata 5).
-		{ FName(TEXT("Hero.Gadget")),    FName(TEXT("Weapon.Precision")) },
+		// Aevik vede a 7 e sparava a 4: `Precision` e' l'unica che riduce quel divario (18 a portata 5).
+		{ FName(TEXT("Hero.Aevik")),    FName(TEXT("Weapon.Precision")) },
 		// Phase e' il setter del roster, e `Impact` porta la sua spinta da 1 a 2 (D-085).
-		{ FName(TEXT("Hero.Phase")),    FName(TEXT("Weapon.Impact")) },
+		{ FName(TEXT("Hero.Muiren")),    FName(TEXT("Weapon.Impact")) },
 		// Ivrin e' il piu' mobile (Move 6): `Suppressive` gli da' come impedirlo agli altri.
 		{ FName(TEXT("Hero.Ivrin")),  FName(TEXT("Weapon.Suppressive")) },
 		// Branth tiene `Impact` perche' e' l'unica che NON gli toglie danno — paga in portata — e l'attacco
@@ -769,11 +769,11 @@ FName URTCatalogLibrary::DefaultGadgetFor(const FName& HeroId)
 	// scelta senza argomentarla, e qui NON si inventa una motivazione che la fonte non da': si scrive cosa
 	// fa il pezzo, che e' verificabile, e si lascia la ragione a chi ha compilato la tabella.
 	static const TMap<FName, FName> Defaults = {
-		// Isolante: immunita' a **una** propagazione elettrica. Gadget e' l'eroe elettrico del roster.
-		{ FName(TEXT("Hero.Gadget")), FName(TEXT("Gadget.Insulator")) },
+		// Isolante: immunita' a **una** propagazione elettrica. Aevik e' l'eroe elettrico del roster.
+		{ FName(TEXT("Hero.Aevik")), FName(TEXT("Gadget.Insulator")) },
 		// Sprinkler: acqua raggio 1. Dal 2026-08-16 e' anche l'unico produttore d'acqua che il roster puo'
-		// portare in campo — `Hero.Phase.FluidTrail` l'ha persa con D-046 superata (#1006).
-		{ FName(TEXT("Hero.Phase")), FName(TEXT("Gadget.Sprinkler")) },
+		// portare in campo — `Hero.Muiren.FluidTrail` l'ha persa con D-046 superata (#1006).
+		{ FName(TEXT("Hero.Muiren")), FName(TEXT("Gadget.Sprinkler")) },
 		// Copertura portatile: crea una copertura bassa su un bordo. Branth e' l'eroe delle strutture.
 		{ FName(TEXT("Hero.Branth")), FName(TEXT("Gadget.PortableCover")) },
 		// Sensore: alza la Team Knowledge in un'area.
@@ -788,9 +788,9 @@ FName URTCatalogLibrary::DefaultReactionModuleFor(const FName& HeroId)
 	// Fonte: §4 del catalogo equipaggiamento, colonna «Reazione». Vale la stessa nota di `DefaultGadgetFor`.
 	static const TMap<FName, FName> Defaults = {
 		// Scudo reattivo: scudo 15 quando subisci danno.
-		{ FName(TEXT("Hero.Gadget")), FName(TEXT("Reaction.ReactiveShield")) },
+		{ FName(TEXT("Hero.Aevik")), FName(TEXT("Reaction.ReactiveShield")) },
 		// Fuga hazard: `Reposition 1` quando la cella diventa pericolosa.
-		{ FName(TEXT("Hero.Phase")), FName(TEXT("Reaction.HazardEscape")) },
+		{ FName(TEXT("Hero.Muiren")), FName(TEXT("Reaction.HazardEscape")) },
 		// 🔴 **Purificazione, non interposizione** (`#1403`, [D-218]). §4 prescriveva
 		// `Reaction.AllyIntercept`, costruito su `Action.Intercept` — e la reazione di KIT di Branth,
 		// `Hero.Branth.Interposition`, e' costruita sullo **stesso** `Action.Intercept`. Lo slot di loadout
@@ -817,15 +817,15 @@ TArray<FName> URTCatalogLibrary::DefaultLoadoutFor(const FName& HeroId)
 	//
 	// 1. Un pezzo non DICHIARATO (`None`): l'eroe non ha una riga in §4.
 	// 2. Un pezzo dichiarato ma **non spedito**: §4 lo prescrive e il catalogo v0.1 non lo costruisce.
-	//    Non e' un'ipotesi — succede a due eroi su quattro. §4 assegna `Gadget.Insulator` a Gadget e
+	//    Non e' un'ipotesi — succede a due eroi su quattro. §4 assegna `Gadget.Insulator` a Aevik e
 	//    `Gadget.Sensor` a Ivrin, e `MakeGadgets` li dichiara assenti con la loro ragione: il primo e' un
 	//    PASSIVO e il motore non ha immunita' per categoria (`RT-FEAT-STATUS-FRAMEWORK`, E36); il secondo
 	//    dipende dalla conoscenza parziale, che e' E13 e non esiste — e il catalogo stesso ne dichiara
 	//    raggio e durata «non specificati dalla fonte».
 	//
-	// ⚠️ **La condizione 2 si misura, non si elenca.** La tentazione era scrivere «Gadget e Ivrin non hanno
+	// ⚠️ **La condizione 2 si misura, non si elenca.** La tentazione era scrivere «Aevik e Ivrin non hanno
 	// default»: sarebbe vero oggi e falso il giorno in cui E36 atterra, e nessuno tornerebbe a correggerlo.
-	// Chiedendo invece al catalogo se il pezzo esiste, il default di Gadget comincia a funzionare **da se'**
+	// Chiedendo invece al catalogo se il pezzo esiste, il default di Aevik comincia a funzionare **da se'**
 	// quando `Gadget.Insulator` viene spedito, senza che questa funzione cambi di una riga.
 	//
 	// E vuoto invece che parziale: un loadout a due pezzi verrebbe rifiutato da `ValidateLoadout`, e il
@@ -1307,7 +1307,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// **Friendly fire**: non serve piu' dichiararlo qui. Dal 2026-08-08 `bFriendlyFire` e' vero di DEFAULT
 	// (vedi `FRTActionDef`), perche' la riga esplicita qui sotto non raggiungeva il roster: gli eroi si
 	// costruiscono con `MakeHeroAction`, che non aveva il parametro, e «la copia da qui e basta» non e'
-	// avvenuto — `Gadget.Overload` aveva preso danno e raggio ma non il fuoco amico.
+	// avvenuto — `Aevik.Overload` aveva preso danno e raggio ma non il fuoco amico.
 	Catalog.Add(ShippedAction(TEXT("Action.CircularAoE"), ERTResolutionPhase::Attack, /*Priority*/ 65,
 		/*Range (centro)*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }));
@@ -1593,7 +1593,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	}
 
 	// `CreateSmoke` — la TERZA ambientale, e nasce da `#2087`. Il fumo era l'unica delle otto superfici che
-	// nessuna azione CORE sapeva creare: `Hero.Phase.MistVeil` lo crea, ma e' d'eroe, e un gadget non si
+	// nessuna azione CORE sapeva creare: `Hero.Muiren.MistVeil` lo crea, ma e' d'eroe, e un gadget non si
 	// costruisce su un'abilita' di Phase. `Gadget.SmokeEmitter` sta a questa azione come `Gadget.Sprinkler`
 	// sta a `CreateWater` — ed e' la ragione per cui l'azione esiste prima del gadget, non insieme.
 	//

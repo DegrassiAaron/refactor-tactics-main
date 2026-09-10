@@ -1293,7 +1293,7 @@ bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
 	// avrebbe modo di manifestarsi — il test resterebbe verde su un bug vivo.
 	FRTScenarioUnit M1;
 	M1.Id = TEXT("M1");
-	M1.HeroId = TEXT("Hero.Gadget");
+	M1.HeroId = TEXT("Hero.Aevik");
 	M1.TeamId = 0;
 	M1.Cell = FRTCellId(-2, 0, 0);
 	M1.Health = 10;

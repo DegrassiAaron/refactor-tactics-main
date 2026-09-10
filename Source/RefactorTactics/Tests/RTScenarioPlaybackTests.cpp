@@ -19,7 +19,7 @@ namespace
 	{
 		FRTScenarioUnitView V;
 		V.Id = Id;
-		V.HeroId = FName(TEXT("Hero.Gadget"));
+		V.HeroId = FName(TEXT("Hero.Aevik"));
 		V.TeamId = TeamId;
 		V.Cell = FRTCellId(Q, R);
 		V.Facing = Facing;
@@ -78,7 +78,7 @@ bool FRTScenarioPlaybackTranslatesTest::RunTest(const FString&)
 			A->Cell, FRTCellId(3, 0));
 		TestEqual(TEXT("e ne prende il facing"), A->Facing, ERTHexDirection::NE);
 		// ⚠️ I campi d'authoring non si perdono nella conversione.
-		TestEqual(TEXT("l'eroe resta quello dello scenario"), A->HeroId, FName(TEXT("Hero.Gadget")));
+		TestEqual(TEXT("l'eroe resta quello dello scenario"), A->HeroId, FName(TEXT("Hero.Aevik")));
 	}
 	else { AddError(TEXT("alfa manca dall'uscita")); }
 

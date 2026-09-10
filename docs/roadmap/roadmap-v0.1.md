@@ -786,11 +786,11 @@ in ogni parametro (vincolo del catalogo, verificato dal validator di CP 1.4).
 
 <!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 > **CP 6.7 chiuso il 2026-08-07** (`#155`, 5 test nuovi): `Bastion.Interposition`, `Vektor.Deflection` e
-> `Hero.Gadget.ReactiveCapacitor` sono cablate sulla semantica core con `MakeHeroReactionFromCoreAction` e verificate
-> **in partita** (unità configurate con `ConfigureFromHeroData`). `Hero.Wraith.InterceptShot` e `Hero.Phase.FlowReaction`
+> `Hero.Aevik.ReactiveCapacitor` sono cablate sulla semantica core con `MakeHeroReactionFromCoreAction` e verificate
+> **in partita** (unità configurate con `ConfigureFromHeroData`). `Hero.Wraith.InterceptShot` e `Hero.Muiren.FlowReaction`
 > restano a **E14**, e il rinvio è dichiarato nei dati — slot `None`, nessun trigger — non in un commento.
 > I test che fissavano l'assenza sono stati **sostituiti**: `Heroes.Hero.Riktor.PanelCreatesCover` ora verifica che
-> Interposition sia una reazione, `Heroes.Hero.Gadget.MatchesCatalog` i suoi due effetti.
+> Interposition sia una reazione, `Heroes.Hero.Aevik.MatchesCatalog` i suoi due effetti.
 > Dettaglio: [`spec-reazioni-componibili-cp55.md`](../gameplay/spec-reazioni-componibili-cp55.md) §8.
 >
 > ➖ **Aggiornamento 2026-08-10 — dei due rinviati, uno è uscito.** `InterceptShot` non è più una reazione
@@ -850,7 +850,7 @@ l'unicità del colpo per unità sono **test**, non commenti.
 > senza, la regola non aveva alcun innesco — e **`Gadget.Insulator` si sposta a CP 7.2** (`#61`): dipendeva da
 > un'epic non costruita, e una DoD non spuntabile non chiude un checkpoint.
 >
-> `Hero.Gadget.ConductiveNode` resta senza effetti: «rendere conduttiva una cella» richiede **terreno dinamico**, che
+> `Hero.Aevik.ConductiveNode` resta senza effetti: «rendere conduttiva una cella» richiede **terreno dinamico**, che
 > la mappa (asset statico) non ha ancora. Non è una svista, è il limite dichiarato di CP 8.4/E9.
 
 ---
@@ -985,7 +985,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 > `../archive/src/design/action-ghosts-fasi-fast-reactions.md`. Il documento **conferma** sette
 > decisioni già canoniche (ordine delle fasi, Move ultima, Dash ≠ Move, privacy degli intenti, slow-motion
 > come presentazione, reaction decisa in resolution, renderer non autoritativo) e ne aggiunge una sola di
-> regola: il **displacement reattivo non è la Move Phase** e non la consuma — vincolo per `Hero.Phase.FlowReaction`
+> regola: il **displacement reattivo non è la Move Phase** e non la consuma — vincolo per `Hero.Muiren.FlowReaction`
 > e per il troncamento del movimento in CP 14.5.
 >
 > ✅ **Il punto aperto sul facing è chiuso** ([ADR-0005](../decisions/adr-0005-orientamento.md), 2026-08-07): l'orientamento

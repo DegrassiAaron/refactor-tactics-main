@@ -5,11 +5,11 @@
   "seed": 0,
   "mapRadius": 5,
 
-  "_nota": "DA GUARDARE, non solo da eseguire: e' la scena di `COV-12` allestita perche' il contrasto si veda in un colpo d'occhio. Due difensori IDENTICI — stesso eroe, stessi HP, entrambi in `Action.Guard`, entrambi rivolti a OVEST — prendono la stessa granata di `Hero.Gadget.Overload`. L'unica differenza e' DOVE cade: davanti a uno, dietro all'altro. `D-302` punto (3) dice che per un'area la direzione d'impatto e' `centro d'impatto -> bersaglio`, quindi il primo e' un colpo frontale e il secondo no.",
+  "_nota": "DA GUARDARE, non solo da eseguire: e' la scena di `COV-12` allestita perche' il contrasto si veda in un colpo d'occhio. Due difensori IDENTICI — stesso eroe, stessi HP, entrambi in `Action.Guard`, entrambi rivolti a OVEST — prendono la stessa granata di `Hero.Aevik.Overload`. L'unica differenza e' DOVE cade: davanti a uno, dietro all'altro. `D-302` punto (3) dice che per un'area la direzione d'impatto e' `centro d'impatto -> bersaglio`, quindi il primo e' un colpo frontale e il secondo no.",
 
   "_nota_cosa_guardare": "La domanda di `COV-12` non e' se il numero sia giusto — quello lo pinnano i due `Spec.Combat.AreaGuardFromImpactCenter*` e i test C++. E' se a schermo si CAPISCA perche' la Guardia ha retto su una granata caduta davanti mentre chi l'ha lanciata stava alle spalle. Guarda `DAV`, in alto: il lanciatore e' DIETRO di lui, l'esplosione DAVANTI, e la Guardia regge. Sembra un difetto? Allora la regola e' giusta e la presentazione no, ed e' esattamente cio' che questa seduta esiste per scoprire.",
 
-  "_nota_geometria": "Due scene affiancate e non sovrapposte, quattro celle di distanza in `r`. In ciascuna il difensore sta al centro e guarda a OVEST, quindi chi sta a X negativo lo prende di fronte e chi sta a X positivo alle spalle. `Hero.Gadget.Overload` ha raggio 1 e portata 3: l'area investe il difensore, ogni lanciatore e' esattamente a portata del proprio bersaglio-cella, e nessuna delle due aree tocca l'altra scena ne' chi lancia.",
+  "_nota_geometria": "Due scene affiancate e non sovrapposte, quattro celle di distanza in `r`. In ciascuna il difensore sta al centro e guarda a OVEST, quindi chi sta a X negativo lo prende di fronte e chi sta a X positivo alle spalle. `Hero.Aevik.Overload` ha raggio 1 e portata 3: l'area investe il difensore, ogni lanciatore e' esattamente a portata del proprio bersaglio-cella, e nessuna delle due aree tocca l'altra scena ne' chi lancia.",
 
   "_nota_perche_due_e_non_uno": "Con un solo difensore non ci sarebbe niente da confrontare, e chi guarda non saprebbe se il danno che vede e' quello ridotto o quello pieno. Affiancati, la differenza E' l'oggetto — la stessa scelta di `Spec.Brace.GuardAndBraceOnMixedHit`, che mette tre difese sullo stesso colpo invece che in tre file separati.",
 
@@ -17,10 +17,10 @@
 
   "units": [
     { "id": "DAV",      "hero": "Hero.Ivrin", "team": 1, "cell": [0, 2, 0], "facing": "W" },
-    { "id": "LDIETRO",  "hero": "Hero.Gadget", "team": 0, "cell": [2, 2, 0] },
+    { "id": "LDIETRO",  "hero": "Hero.Aevik", "team": 0, "cell": [2, 2, 0] },
 
     { "id": "DIE",      "hero": "Hero.Ivrin", "team": 1, "cell": [0, -2, 0], "facing": "W" },
-    { "id": "LDAVANTI", "hero": "Hero.Gadget", "team": 0, "cell": [-2, -2, 0] }
+    { "id": "LDAVANTI", "hero": "Hero.Aevik", "team": 0, "cell": [-2, -2, 0] }
   ],
 
   "turns": [
@@ -30,8 +30,8 @@
         { "unit": "DAV", "ability": "Action.Guard" },
         { "unit": "DIE", "ability": "Action.Guard" },
 
-        { "unit": "LDIETRO",  "ability": "Hero.Gadget.Overload", "targetCell": [-1, 2, 0] },
-        { "unit": "LDAVANTI", "ability": "Hero.Gadget.Overload", "targetCell": [1, -2, 0] }
+        { "unit": "LDIETRO",  "ability": "Hero.Aevik.Overload", "targetCell": [-1, 2, 0] },
+        { "unit": "LDAVANTI", "ability": "Hero.Aevik.Overload", "targetCell": [1, -2, 0] }
       ]
     }
   ],

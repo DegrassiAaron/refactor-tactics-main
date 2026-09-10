@@ -30,7 +30,7 @@ applica `TAG_Status_Guarded`/`TAG_Status_Braced`, la spinta nel passaggio unico 
 > **Nel gioco non esiste una spinta maggiore di 1.**
 
 Misurato sul catalogo eroi: **due soli effetti `Push`, entrambi di valore `1`** — quello di
-`Hero.Phase.PressureJet` e quello dell'impatto di Riktor. Quindi la clausola che distingue `Brace` da `Guard`
+`Hero.Muiren.PressureJet` e quello dell'impatto di Riktor. Quindi la clausola che distingue `Brace` da `Guard`
 sulla spinta — *«senza limite di distanza»* — **non è raggiungibile in partita**. `GuardResistedPushDistance = 1`
 copre per intero lo spazio degli spostamenti esistenti.
 
@@ -38,7 +38,7 @@ L'asse dello spostamento, che è quello su cui l'handoff voleva costruire la sep
 
 ### 1.3 Cosa fanno davvero, in numeri
 
-Bersaglio con `PushResistance = 0` (Gadget, Phase, Wraith) colpito da `Hero.Phase.PressureJet` — 16 danni **e** spinta 1
+Bersaglio con `PushResistance = 0` (Gadget, Phase, Wraith) colpito da `Hero.Muiren.PressureJet` — 16 danni **e** spinta 1
 nello stesso colpo:
 
 | Difesa | 1 colpo | 2 colpi |
@@ -99,7 +99,7 @@ capability. *(aggiornato il 2026-08-13: quei gruppi sono **tredici** dopo la ric
 aspettano più — `LogEventAmount` è atterrata il 2026-08-10 con `a7e4677b`. Il contrasto di questa riga vale
 ancora per la data in cui fu scritta, non per oggi.)*
 
-**Anche la fixture esiste già**: `Hero.Phase.PressureJet` è a catalogo con 16 danni, `Push 1`, `Wet`, forma a linea,
+**Anche la fixture esiste già**: `Hero.Muiren.PressureJet` è a catalogo con 16 danni, `Push 1`, `Wet`, forma a linea,
 ed è pinnata da `RTHeroPhaseTests.cpp`. Non c'è niente da costruire — era la fixture che l'handoff proponeva,
 e il repository ce l'aveva.
 
@@ -124,7 +124,7 @@ Gli scenari dicono *cosa succede*, non *cosa è divertente*: questa fase è una 
 
 `D-074` aveva scartato la Fase 0-A — introdurre una spinta `≥ 2` — e su quella premessa aveva **precluso
 l'opzione 2**. La premessa è caduta, e non perché qualcuno l'abbia riaperta: **`Weapon.Impact` su
-`Hero.Phase.PressureJet`**, che spinge già di 1, produce una spinta di **2** ([D-085](../../decisions/RT_PDR_00_Decision_Log.md)),
+`Hero.Muiren.PressureJet`**, che spinge già di 1, produce una spinta di **2** ([D-085](../../decisions/RT_PDR_00_Decision_Log.md)),
 ed è il loadout di **default** di Phase ([D-089](../../decisions/RT_PDR_00_Decision_Log.md)).
 
 La spinta forte non è entrata dal catalogo azioni, dove D-074 la stava guardando: è entrata

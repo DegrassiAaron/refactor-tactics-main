@@ -19,7 +19,7 @@
 //   · Nessun punto del runtime porta `MoveBudget` a 2: viene da `MovePoints` dell'eroe
 //     (`RTScenarioDraft.cpp`), e le uniche riscritture sono `0` per lo `StaySnapshot`, il budget del Dash e
 //     `EffectiveRange` della carica.
-//   · Il roster spedito non ha nessuno sotto **4**: `Gadget` 5, `Phase` 5, `Branth` **4**, `Ivrin` 6 — e a
+//   · Il roster spedito non ha nessuno sotto **4**: `Aevik` 5, `Phase` 5, `Branth` **4**, `Ivrin` 6 — e a
 //     4 MP quella board arretra in **zero** coppie.
 //
 // ∴ **Un Overwatch sostenuto non tiene il budget a 2 MP perche' non lo tocca affatto.** La pista, come era

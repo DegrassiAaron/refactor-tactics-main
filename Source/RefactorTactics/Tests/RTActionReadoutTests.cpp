@@ -158,7 +158,7 @@ bool FRTReadoutAgreesWithTheConsumerTest::RunTest(const FString&)
  *
  * ⚠️ **La fixture e' sintetica, e la ragione va detta**: misurato sul catalogo al `996804dc`, **nessuna
  * azione base** dichiara due effetti `Damage` — quelle multi-effetto ne hanno uno piu' `Status`/`Push`. Il
- * caso a due colpi esiste, ma vive in una VARIANTE di loadout: `Hero.Gadget.LinearDischarge.Branched`
+ * caso a due colpi esiste, ma vive in una VARIANTE di loadout: `Hero.Aevik.LinearDischarge.Branched`
  * dichiara due `Damage 18` in `FRTAbilityVariant::Effects`. Le varianti sono fuori dallo scope di questa
  * slice — i loro `Effects` sostituiscono per intero quelli del `Def` e sono un readout diverso — quindi
  * `Branched` e' la MOTIVAZIONE del caso, non la sua fixture.

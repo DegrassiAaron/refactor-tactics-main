@@ -1708,7 +1708,7 @@ bool FRTHexMoveRoutesCarryIdentityTest::RunTest(const FString&)
 	// ⚠️ Il fermo sta in `(1, 1)`, **fuori** dai percorsi minimi di chi si muove: su `(1, 0)` sarebbe un
 	// ostacolo sul cammino del mover, e un fallimento misurerebbe il pathfinding invece dell'identita'.
 	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* Fermo = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(1, 1));
+	ARTUnit* Fermo = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(1, 1));
 	ARTUnit* Avversario = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Fermo || !Avversario) { DestroyHexMoveWorld(World); return false; }
@@ -1791,7 +1791,7 @@ bool FRTHexMoveTrailHidesUnobservedRouteTest::RunTest(const FString&)
 	SpawnHexMap(World, /*Radius=*/ 8);
 
 	ARTUnit* A1 = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* B1 = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(2, 0));
+	ARTUnit* B1 = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(2, 0));
 	ARTUnit* B2 = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-8, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A1 || !B1 || !B2) { DestroyHexMoveWorld(World); return false; }
@@ -1885,7 +1885,7 @@ bool FRTHexMoveTrailAndGhostAgreeTest::RunTest(const FString&)
 	// dove nessuno lo vede piu'. E' il soggetto che si perde di vista MUOVENDOSI, l'unico caso in cui
 	// ricordo e posizione vera non coincidono — senza il movimento la verifica sarebbe vuota.
 	ARTUnit* A = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* B = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(5, 0));
+	ARTUnit* B = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(5, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexMoveWorld(World); return false; }
 	A->Facing = ERTHexDirection::E;
@@ -2048,7 +2048,7 @@ bool FRTHexMoveEntriesDeclareNoBoundaryTest::RunTest(const FString&)
 //
 // Criterio di accettazione 2 del work order: i due casi devono essere distinguibili **leggendo la sola
 // voce**, senza il log del runner degli scenari. Oggi non lo sono — in PIE (seduta `U14`,
-// `PIE-V01-COLL`) i turni 3 e 4 producono la riga identica «Gadget: resta (q=-1,r=0,L=0)
+// `PIE-V01-COLL`) i turni 3 e 4 producono la riga identica «Aevik: resta (q=-1,r=0,L=0)
 // (Action.Move, p50)», e i due turni sono l'uno «non ho dichiarato» e l'altro «ho tentato il varco».
 //
 // I due esiti si misurano NELLO STESSO TURNO, su due unita' diverse. Due test separati proverebbero

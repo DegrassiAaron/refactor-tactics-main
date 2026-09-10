@@ -339,7 +339,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 	// Chi cambia una superficie qui guardi anche quel checkpoint, non solo il turno che stava sistemando.
 	struct FBasinPatch { FRTCellId Cell; ERTHexSurface Surface; };
 	static const FBasinPatch Patches[] = {
-		// Corridoio ovest: Gadget ci passa al turno 1, `MistVeil` ne aggiunge al turno 5.
+		// Corridoio ovest: Aevik ci passa al turno 1, `MistVeil` ne aggiunge al turno 5.
 		{ FRTCellId(-3,  0, 0), ERTHexSurface::Smoke },
 		{ FRTCellId(-2,  0, 0), ERTHexSurface::Smoke },
 		// Lane d'acqua di Phase: conduttiva, ed e' cio' che rende possibile il payoff elettrico del turno 7.
@@ -430,7 +430,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 	//
 	// ⛔ **L'inverso non era praticabile, ed e' misurato**: una copertura sul bordo d'ingresso di RIKTOR
 	// varrebbe zero. CP 16.2 dichiara scoperto l'emisfero posteriore, e Branth arriva su (2,0) orientato a
-	// **NE** mentre Gadget sta a ovest. Orientarlo con una rotazione dichiarata non e' possibile: il gioco la
+	// **NE** mentre Aevik sta a ovest. Orientarlo con una rotazione dichiarata non e' possibile: il gioco la
 	// rifiuta — *«rotazione dichiarata RIFIUTATA (illegale per lo stile di movimento)»* — perche' nello stesso
 	// turno si muove. Ivrin invece guarda gia' **W**, verso chi lo attacca.
 	//
@@ -574,7 +574,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeVisionSplitArena(UObject* Outer)
 	FRTArenaDraft Draft;
 
 	// Base: esagono pieno di raggio 8. Il numero non e' estetico — e' **maggiore del `VisionRange` piu'
-	// lungo del roster** (Gadget, 7), che e' la condizione perche' esista terreno mai visto da guardare.
+	// lungo del roster** (Aevik, 7), che e' la condizione perche' esista terreno mai visto da guardare.
 	constexpr int32 Radius = 8;
 	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
 	{
@@ -889,8 +889,8 @@ TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayBasinSpawns()
 	// Estremi opposti del bacino, sulle due righe centrali. Celle di pavimento: nessuna squadra comincia
 	// dentro un terreno che la penalizza al primo passo.
 	return {
-		FRTShowcaseSpawn(TEXT("Hero.Gadget"),    /*TeamId=*/ 0, FRTCellId(-4, 0, 0)),
-		FRTShowcaseSpawn(TEXT("Hero.Phase"),    /*TeamId=*/ 0, FRTCellId(-4, 1, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Aevik"),    /*TeamId=*/ 0, FRTCellId(-4, 0, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Muiren"),    /*TeamId=*/ 0, FRTCellId(-4, 1, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Branth"), /*TeamId=*/ 1, FRTCellId( 4, 0, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Ivrin"),  /*TeamId=*/ 1, FRTCellId( 4, 1, 0)),
 	};
@@ -901,8 +901,8 @@ TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayLiteSpawns()
 	// Estremi opposti dell'arena, in coppie speculari come le superfici. Celle di pavimento: nessuna squadra
 	// comincia dentro un terreno che la penalizza al primo passo.
 	return {
-		FRTShowcaseSpawn(TEXT("Hero.Gadget"),    /*TeamId=*/ 0, FRTCellId(-5,  2, 0)),
-		FRTShowcaseSpawn(TEXT("Hero.Phase"),    /*TeamId=*/ 0, FRTCellId(-5,  3, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Aevik"),    /*TeamId=*/ 0, FRTCellId(-5,  2, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Muiren"),    /*TeamId=*/ 0, FRTCellId(-5,  3, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Branth"), /*TeamId=*/ 1, FRTCellId( 5, -2, 0)),
 		FRTShowcaseSpawn(TEXT("Hero.Ivrin"),  /*TeamId=*/ 1, FRTCellId( 5, -3, 0)),
 	};

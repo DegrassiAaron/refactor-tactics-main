@@ -21,12 +21,12 @@
 
   "_nota_assertion": "L'anti-vacuita' e' `UnitHpEquals B1 103`, e dice una cosa sola: dei DUE colpi dichiarati ne e' andato a segno UNO. Il primo trova B1 osservato; il terzo parte a memoria e va sulla cella RICORDATA (-1,0,0), che B1 ha lasciato. Se la conoscenza smettesse di essere consultata — onniscienza, o un rinfresco che non avviene — il terzo colpo andrebbe a segno e il valore sarebbe 86. Se invece non risolvesse NESSUN colpo, sarebbe 120. Il numero distingue i tre casi, ed e' la ragione per cui non basta asserire che B1 sia vivo.",
 
-  "_nota_numeri": "22 di `Hero.Gadget.ArcPulse` meno i 5 punti di scudo BASE di [D-224] fanno 17; Branth parte da 120 e finisce a 103. Sono gli stessi numeri di `Spec.Perception.MovingBreaksContact`, che li ha gia' misurati sulla stessa meccanica.",
+  "_nota_numeri": "22 di `Hero.Aevik.ArcPulse` meno i 5 punti di scudo BASE di [D-224] fanno 17; Branth parte da 120 e finisce a 103. Sono gli stessi numeri di `Spec.Perception.MovingBreaksContact`, che li ha gia' misurati sulla stessa meccanica.",
 
   "_nota_udito_escluso": "Nessun turno dichiara `requires`, ed e' deliberato. La capability `Perception` copre l'UDITO — la chiede solo `Spec.Perception.HeardNotSeen` — e non e' disponibile (owner #151, aperta): dichiararla renderebbe questo scenario `BLOCKED`, cioe' inerte. Vista, contatto e ricordo non la richiedono, come mostrano i quattro scenari fratelli che girano senza.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-4, 0, 0], "facing": "E" },
+    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-4, 0, 0], "facing": "E" },
     { "id": "A2", "hero": "Hero.Branth", "team": 0, "cell": [-3, 5, 0] },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [-1, 0, 0] },
     { "id": "B2", "hero": "Hero.Ivrin", "team": 1, "cell": [6, 0, 0] }
@@ -36,7 +36,7 @@
     {
       "_turno": "T1 — OBSERVED. A1 guarda a est e vede B1 a tre celle: dentro l'arco, dentro la portata 4. Il colpo va a segno, 120 - 17 = 103. E' lo stato da cui parte `PIE-KNOW1`: nome e barra di B1 sono a schermo.",
       "intents": [
-        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
+        { "unit": "A1", "ability": "Hero.Aevik.ArcPulse", "target": "B1" }
       ]
     },
     {
@@ -49,7 +49,7 @@
     {
       "_turno": "T3 — IL RICORDO COSTA. Il passo e' gia' avvenuto: A1 guarda a ovest e B1 e' fuori dall'arco. Il colpo parte lo stesso — il ricordo del T2 ha un turno di eta' ed e' ancora vivo — ma va su (-1,0,0), e B1 non e' piu' li'. E' `PIE-KNOW4`: la sagoma sta sulla cella del contatto, e alla cella VERA non deve esserci nulla.",
       "intents": [
-        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
+        { "unit": "A1", "ability": "Hero.Aevik.ArcPulse", "target": "B1" }
       ]
     }
   ],

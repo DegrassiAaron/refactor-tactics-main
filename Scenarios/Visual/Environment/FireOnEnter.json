@@ -10,7 +10,7 @@
   "_nota_evento": "L'ingresso emette `HazardDamage` e si puo' agganciare. Il tick di Burning nel Cleanup NON ha un evento proprio: si vede solo la barra scendere. Vedi docs/technical/runbooks/scenari-validazione-visiva.md §8.1.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [-4,  0, 0] },
+    { "id": "F1", "hero": "Hero.Aevik",   "team": 0, "cell": [-4,  0, 0] },
     { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 0, -3, 0] }
   ],
 

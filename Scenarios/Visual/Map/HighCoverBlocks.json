@@ -14,14 +14,14 @@
   "_nota_abbattimento": "Che la barriera si ABBATTA (integrita' 50, riapertura dalla fase successiva) questo scenario non lo mostra, e non per scelta: `ERTActionEffect::DamageStructure` esiste su una sola azione, `Action.HeavyAttack`, che e' core e non appartiene al kit di nessuna unita'. Finche' resta cosi', nessuno scenario puo' sfondare un muro.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [-1, 0, 0] },
+    { "id": "F1", "hero": "Hero.Aevik",    "team": 0, "cell": [-1, 0, 0] },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 2, 0, 0] }
   ],
 
   "turns": [
     {
       "intents": [
-        { "unit": "F1", "ability": "Hero.Gadget.ArcPulse", "target": "B1", "move": [[1, 0, 0]] }
+        { "unit": "F1", "ability": "Hero.Aevik.ArcPulse", "target": "B1", "move": [[1, 0, 0]] }
       ]
     }
   ],

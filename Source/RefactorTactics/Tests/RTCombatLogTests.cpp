@@ -132,7 +132,7 @@ namespace RTCombatLogFixture
 	 *
 	 * ⚠️ Non `DescribeTurnLog`: da quando le voci `Move` portano il soggetto nel testo, quella forma le rende
 	 * con `u<id>` — non avendo la mappa — e il confronto con cio' che e' stato emesso cadrebbe su
-	 * `Gadget: resta` contro `u3: resta`, che e' la stessa riga scritta da due risoluzioni diverse. Il
+	 * `Aevik: resta` contro `u3: resta`, che e' la stessa riga scritta da due risoluzioni diverse. Il
 	 * produttore resta uno solo: qui si passa la mappa, non si riscrive il testo.
 	 */
 	TArray<FString> RigheAttese(const ARTTurnManager* TM)
@@ -1294,7 +1294,7 @@ namespace RT1932
  * gameplay su un comportamento corretto.
  *
  * ⚠️ Il prefisso vale solo dove `UnitId` e' anche il soggetto GRAMMATICALE: nelle voci di danno porta chi
- * **subisce** (#1150), e «Gadget: colpisce» direbbe il falso. Il test lo pinna, altrimenti la prossima
+ * **subisce** (#1150), e «Aevik: colpisce» direbbe il falso. Il test lo pinna, altrimenti la prossima
  * estensione lo scopre a schermo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveLineNamesItsSubjectTest,
@@ -1309,10 +1309,10 @@ bool FRTMoveLineNamesItsSubjectTest::RunTest(const FString&)
 	// --- 1. Col nome risolto dal chiamante -----------------------------------------------------------
 	{
 		TMap<int32, FString> Nomi;
-		Nomi.Add(3, TEXT("Gadget"));
+		Nomi.Add(3, TEXT("Aevik"));
 		const TArray<FRTDescribedLine> Righe = URTTurnLogLibrary::DescribeTurnLogWithSubjects({ Mossa }, Nomi);
 		if (!TestEqual(TEXT("una riga per voce"), Righe.Num(), 1)) { return false; }
-		TestEqual(TEXT("la riga nomina il soggetto"), Soggetto(Righe[0].Text), FString(TEXT("Gadget")));
+		TestEqual(TEXT("la riga nomina il soggetto"), Soggetto(Righe[0].Text), FString(TEXT("Aevik")));
 		TestTrue(*FString::Printf(TEXT("e conserva il predicato: %s"), *Righe[0].Text),
 			Righe[0].Text.Contains(TEXT("si muove")));
 		// Il dato per il filtro di conoscenza non cambia: il testo si aggiunge, non sostituisce.
@@ -1350,11 +1350,11 @@ bool FRTMoveLineNamesItsSubjectTest::RunTest(const FString&)
 		Colpo.Amount = 12;
 
 		TMap<int32, FString> Nomi;
-		Nomi.Add(7, TEXT("Gadget"));
+		Nomi.Add(7, TEXT("Aevik"));
 		const TArray<FRTDescribedLine> Righe = URTTurnLogLibrary::DescribeTurnLogWithSubjects({ Colpo }, Nomi);
 		if (!TestEqual(TEXT("una riga per voce"), Righe.Num(), 1)) { return false; }
 		TestFalse(*FString::Printf(TEXT("il difensore non diventa il soggetto della frase: %s"), *Righe[0].Text),
-			Righe[0].Text.StartsWith(TEXT("Gadget:"), ESearchCase::CaseSensitive));
+			Righe[0].Text.StartsWith(TEXT("Aevik:"), ESearchCase::CaseSensitive));
 		// Ma il soggetto come DATO resta: e' quello che il filtro di conoscenza usa.
 		TestEqual(TEXT("e resta il soggetto per la conoscenza"), Righe[0].SubjectStableUnitId, 7);
 	}

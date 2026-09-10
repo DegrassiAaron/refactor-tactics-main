@@ -166,15 +166,15 @@ bool FRTVariantAddedEffectsTest::RunTest(const FString&)
 		return false;
 	}
 
-	// `Phase.PressureJet` e' l'attacco base che gia' fa TRE cose: danno, `Wet` e spinta. E' il caso che
+	// `Muiren.PressureJet` e' l'attacco base che gia' fa TRE cose: danno, `Wet` e spinta. E' il caso che
 	// distingue «aggiunge» da «sostituisce»: applicando una variante, cio' che l'arma faceva deve restare.
-	const FRTActionDef Phase = URTHeroCatalogLibrary::MakePhase()->Actions[0]->Def;
-	const int32 EffectsBefore = Phase.Effects.Num();
+	const FRTActionDef Muiren = URTHeroCatalogLibrary::MakeMuiren()->Actions[0]->Def;
+	const int32 EffectsBefore = Muiren.Effects.Num();
 
-	const FRTActionDef Suppressed = URTCatalogLibrary::ApplyWeaponVariant(Phase, Suppressive);
+	const FRTActionDef Suppressed = URTCatalogLibrary::ApplyWeaponVariant(Muiren, Suppressive);
 	TestEqual(TEXT("la Soppressione aggiunge un effetto, non ne sostituisce"),
 		Suppressed.Effects.Num(), EffectsBefore + 1);
-	TestTrue(TEXT("l'attacco di Phase continua a bagnare"), HasEffect(Suppressed, ERTActionEffect::Status));
+	TestTrue(TEXT("l'attacco di Muiren continua a bagnare"), HasEffect(Suppressed, ERTActionEffect::Status));
 	TestTrue(TEXT("e continua a spingere"), HasEffect(Suppressed, ERTActionEffect::Push));
 
 	bool bHasSlow = false;
@@ -186,7 +186,7 @@ bool FRTVariantAddedEffectsTest::RunTest(const FString&)
 
 	// L'Impatto su un'arma a portata 1 non deve produrre portata -1: si resta a contatto. Senza il clamp la
 	// def uscirebbe illegale, e `ValidateActions` la rifiuterebbe.
-	FRTActionDef Melee = Phase;
+	FRTActionDef Melee = Muiren;
 	Melee.RangeCells = 1;
 	const FRTActionDef Pushed = URTCatalogLibrary::ApplyWeaponVariant(Melee, Impact);
 	TestEqual(TEXT("portata 1 meno 1 resta 0, non -1"), Pushed.RangeCells, 0);
@@ -381,7 +381,7 @@ bool FRTEmergencyDashExistsTest::RunTest(const FString&)
 // =====================================================================================================
 // D-085 — le spinte additive della stessa azione si SOMMANO.
 //
-// `Phase.PressureJet` spinge già di 1; `Weapon.Impact` aggiunge `Push 1`. Il catalogo dice che il
+// `Muiren.PressureJet` spinge già di 1; `Weapon.Impact` aggiunge `Push 1`. Il catalogo dice che il
 // risultato è **una spinta di 2**, e non due spinte da 1: sono cose osservabilmente diverse — una spinta
 // di 2 attraversa la cella intermedia, due da 1 la valutano due volte.
 //
@@ -473,29 +473,29 @@ bool FRTImpactVariantStacksPushTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 	SpawnEquipMap(World, 8);
 
-	// Phase spinge da (0,0) verso (1,0): il bersaglio deve finire a (3,0), due celle più in là.
-	ARTUnit* Phase = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakePhase());
+	// Muiren spinge da (0,0) verso (1,0): il bersaglio deve finire a (3,0), due celle più in là.
+	ARTUnit* Muiren = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeMuiren());
 	ARTUnit* Bersaglio = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeIvrin());
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Phase"), Phase) || !TestNotNull(TEXT("bersaglio"), Bersaglio) || !TestNotNull(TEXT("TM"), TM))
+	if (!TestNotNull(TEXT("Muiren"), Muiren) || !TestNotNull(TEXT("bersaglio"), Bersaglio) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyEquipWorld(World);
 		return false;
 	}
 
-	EquipVariantOnBasicAttack(Phase, Impact);
+	EquipVariantOnBasicAttack(Muiren, Impact);
 
 	// Due spec `Push` nella stessa azione: è la configurazione che produceva il difetto.
 	int32 PushSpecs = 0;
-	for (const FRTActionEffectSpec& Spec : Phase->Abilities[0]->Def.Effects)
+	for (const FRTActionEffectSpec& Spec : Muiren->Abilities[0]->Def.Effects)
 	{
 		if (Spec.Effect == ERTActionEffect::Push) { ++PushSpecs; }
 	}
 	TestEqual(TEXT("l'attacco modificato dichiara due spinte separate"), PushSpecs, 2);
 
-	Phase->PlannedAbilityIndex = 0;
-	Phase->PlannedAttackTarget = Bersaglio;
-	Phase->PlannedCell = Phase->Cell;
+	Muiren->PlannedAbilityIndex = 0;
+	Muiren->PlannedAttackTarget = Bersaglio;
+	Muiren->PlannedCell = Muiren->Cell;
 	Bersaglio->PlannedAbilityIndex = INDEX_NONE;
 	Bersaglio->PlannedCell = Bersaglio->Cell;
 
@@ -804,16 +804,16 @@ bool FRTSmokeEmitterChainTest::RunTest(const FString&)
 	TestTrue(TEXT("e la superficie e' fumo"), Azione->Def.SurfaceCreated == ERTHexSurface::Smoke);
 	TestEqual(TEXT("raggio 1, ereditato dal core"), Azione->Def.SurfaceRadius, 1);
 
-	// 4. E' lo STESSO fumo di `Hero.Phase.MistVeil`, non un fumo del gadget. E' il punto della DoD: se
+	// 4. E' lo STESSO fumo di `Hero.Muiren.MistVeil`, non un fumo del gadget. E' il punto della DoD: se
 	//    qualcuno introducesse una seconda superficie «fumo», le due righe qui sotto divergerebbero.
-	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
-	if (!TestNotNull(TEXT("Hero.Phase"), Phase)) { return false; }
+	const URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
+	if (!TestNotNull(TEXT("Hero.Muiren"), Muiren)) { return false; }
 	const URTActionData* MistVeil = nullptr;
-	for (const URTActionData* A : Phase->Actions)
+	for (const URTActionData* A : Muiren->Actions)
 	{
-		if (A && A->Def.ActionId == FName(TEXT("Hero.Phase.MistVeil"))) { MistVeil = A; }
+		if (A && A->Def.ActionId == FName(TEXT("Hero.Muiren.MistVeil"))) { MistVeil = A; }
 	}
-	if (!TestNotNull(TEXT("Hero.Phase.MistVeil"), MistVeil)) { return false; }
+	if (!TestNotNull(TEXT("Hero.Muiren.MistVeil"), MistVeil)) { return false; }
 	TestTrue(TEXT("gadget e MistVeil creano la STESSA superficie"),
 		Azione->Def.SurfaceCreated == MistVeil->Def.SurfaceCreated);
 	TestEqual(TEXT("e con lo stesso raggio"), Azione->Def.SurfaceRadius, MistVeil->Def.SurfaceRadius);
@@ -848,9 +848,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDefaultWeaponVariantsTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTDefaultWeaponVariantsTest::RunTest(const FString&)
 {
-	TestEqual(TEXT("Gadget: Precisione"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Gadget")),
+	TestEqual(TEXT("Aevik: Precisione"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Aevik")),
 		FName(TEXT("Weapon.Precision")));
-	TestEqual(TEXT("Phase: Impatto"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Phase")),
+	TestEqual(TEXT("Muiren: Impatto"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Muiren")),
 		FName(TEXT("Weapon.Impact")));
 	TestEqual(TEXT("Ivrin: Soppressione"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Ivrin")),
 		FName(TEXT("Weapon.Suppressive")));
@@ -863,7 +863,7 @@ bool FRTDefaultWeaponVariantsTest::RunTest(const FString&)
 
 	// Nessun default usa `Overcharge` finché il suo costo è `WV-1` (#510): un default il cui prezzo si
 	// decide dopo cambierebbe insieme a quella risposta. Il test lo pinna, così la scelta resta consapevole.
-	const TCHAR* Roster[] = { TEXT("Hero.Gadget"), TEXT("Hero.Phase"), TEXT("Hero.Ivrin"), TEXT("Hero.Branth") };
+	const TCHAR* Roster[] = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren"), TEXT("Hero.Ivrin"), TEXT("Hero.Branth") };
 	for (const TCHAR* H : Roster)
 	{
 		TestTrue(*FString::Printf(TEXT("%s non ha Overcharge come default"), H),
@@ -932,7 +932,7 @@ bool FRTDefaultLoadoutTest::RunTest(const FString&)
 
 		// ⚠️ **L'invariante, e non l'elenco.** Due eroi su quattro non hanno un loadout, perché §4 prescrive
 		// loro un gadget che v0.1 non costruisce — `Gadget.Insulator` è un passivo (E36), `Gadget.Sensor`
-		// dipende da E13. Scrivere qui «Gadget e Ivrin non hanno default» sarebbe vero oggi e **falso il
+		// dipende da E13. Scrivere qui «Aevik e Ivrin non hanno default» sarebbe vero oggi e **falso il
 		// giorno in cui E36 atterra**, e nessuno tornerebbe a correggerlo. Il test pinna invece la regola che
 		// lega le due cose: hai il loadout **se e solo se** tutti e tre i pezzi prescritti sono spediti.
 		TestEqual(*FString::Printf(TEXT("%s: ha il loadout se e solo se i tre pezzi sono spediti"), *Who),
@@ -1027,7 +1027,7 @@ bool FRTVariantWarningsTest::RunTest(const FString&)
 
 	// I default scelti da D-089 devono essere puliti: se un default producesse un avviso, la decisione
 	// sarebbe da rivedere — ed è esattamente il momento in cui vogliamo saperlo.
-	URTHeroData* Eroi[] = { URTHeroCatalogLibrary::MakeGadget(), URTHeroCatalogLibrary::MakePhase(),
+	URTHeroData* Eroi[] = { URTHeroCatalogLibrary::MakeAevik(), URTHeroCatalogLibrary::MakeMuiren(),
 		URTHeroCatalogLibrary::MakeIvrin(), URTHeroCatalogLibrary::MakeBranth() };
 	for (URTHeroData* Eroe : Eroi)
 	{
@@ -1046,8 +1046,8 @@ bool FRTVariantWarningsTest::RunTest(const FString&)
 // CP 7.4 metà regola (#63) — 1+1+1, e nessuna progressione in partita.
 //
 // ⚠️ La metà **default** non è qui, e non è una dimenticanza: dei quattro loadout consigliati dal catalogo
-// §4 solo quello di Branth è interamente costruibile — a Gadget manca `Gadget.Insulator` (E36), a Ivrin
-// `Gadget.Sensor` (E13) e `Reaction.EmergencyDash` (#505), a Phase `Reaction.HazardEscape` (#505). Caricarli
+// §4 solo quello di Branth è interamente costruibile — a Aevik manca `Gadget.Insulator` (E36), a Ivrin
+// `Gadget.Sensor` (E13) e `Reaction.EmergencyDash` (#505), a Muiren `Reaction.HazardEscape` (#505). Caricarli
 // oggi significherebbe scrivere default con dei buchi.
 // =====================================================================================================
 
@@ -1158,7 +1158,7 @@ bool FRTPushTwoAgainstDefencesTest::RunTest(const FString&)
 	//
 	// [D-074] aveva deciso che «ogni spinta del gioco vale 1», e su quella premessa il resolver dichiarava a
 	// commento che `Guard` intercetta OGNI spinta e che `Brace` «non aggiunge copertura». Con `Weapon.Impact`
-	// su `Phase.PressureJet` — che D-089 ha reso il **default** di Phase — una spinta di 2 esiste in partita, e
+	// su `Muiren.PressureJet` — che D-089 ha reso il **default** di Muiren — una spinta di 2 esiste in partita, e
 	// quella premessa è caduta.
 	//
 	// La conseguenza non è cosmetica: a distanza 2 `Guard` cede e `Brace` regge, quindi le due difese
@@ -1178,16 +1178,16 @@ bool FRTPushTwoAgainstDefencesTest::RunTest(const FString&)
 		UWorld* World = MakeEquipWorld();
 		if (!TestNotNull(TEXT("world guard"), World)) { return false; }
 		SpawnEquipMap(World, 8);
-		ARTUnit* Phase = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakePhase());
+		ARTUnit* Muiren = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeMuiren());
 		ARTUnit* Guardato = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeIvrin());
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (Phase && Guardato && TM)
+		if (Muiren && Guardato && TM)
 		{
-			EquipVariantOnBasicAttack(Phase, Impact);
+			EquipVariantOnBasicAttack(Muiren, Impact);
 			Guardato->ApplyStatus(TAG_Status_Guarded, 1);
-			Phase->PlannedAbilityIndex = 0;
-			Phase->PlannedAttackTarget = Guardato;
-			Phase->PlannedCell = Phase->Cell;
+			Muiren->PlannedAbilityIndex = 0;
+			Muiren->PlannedAttackTarget = Guardato;
+			Muiren->PlannedCell = Muiren->Cell;
 			Guardato->PlannedAbilityIndex = INDEX_NONE;
 			Guardato->PlannedCell = Guardato->Cell;
 			RunEquipTurn(TM);
@@ -1204,16 +1204,16 @@ bool FRTPushTwoAgainstDefencesTest::RunTest(const FString&)
 		UWorld* World = MakeEquipWorld();
 		if (!TestNotNull(TEXT("world brace"), World)) { return false; }
 		SpawnEquipMap(World, 8);
-		ARTUnit* Phase = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakePhase());
+		ARTUnit* Muiren = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeMuiren());
 		ARTUnit* Piantato = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeIvrin());
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (Phase && Piantato && TM)
+		if (Muiren && Piantato && TM)
 		{
-			EquipVariantOnBasicAttack(Phase, Impact);
+			EquipVariantOnBasicAttack(Muiren, Impact);
 			Piantato->ApplyStatus(TAG_Status_Braced, 1);
-			Phase->PlannedAbilityIndex = 0;
-			Phase->PlannedAttackTarget = Piantato;
-			Phase->PlannedCell = Phase->Cell;
+			Muiren->PlannedAbilityIndex = 0;
+			Muiren->PlannedAttackTarget = Piantato;
+			Muiren->PlannedCell = Muiren->Cell;
 			Piantato->PlannedAbilityIndex = INDEX_NONE;
 			Piantato->PlannedCell = Piantato->Cell;
 			RunEquipTurn(TM);
@@ -1264,8 +1264,8 @@ bool FRTVariantReachesTheLegacyMirrorsTest::RunTest(const FString&)
 
 	// `Overcharge` è il caso che perderebbe di più: la ricarica è il suo intero prezzo (D-090). Se lo
 	// specchio non la ricevesse, la variante sarebbe un bonus gratis in partita.
-	URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
-	URTActionData* GadgetBasic = Gadget->Actions[0];
+	URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
+	URTActionData* GadgetBasic = Aevik->Actions[0];
 	const int32 CooldownPrima = GadgetBasic->CooldownTurns;
 	URTCatalogLibrary::EquipWeaponVariant(GadgetBasic, Overcharge);
 	// L'atteso si DERIVA dal dato invece di scrivere il numero: questo test verifica che la ricarica

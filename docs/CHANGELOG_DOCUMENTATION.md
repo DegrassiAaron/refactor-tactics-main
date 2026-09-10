@@ -551,7 +551,7 @@ scenari su diciassette erano rossi** — e la ripartizione delle cause è ciò c
 verificato dai test come **valore**, e mai letto quando si applica una spinta.
 
 La combo Phase→Gadget (**#242**) è il caso più istruttivo della sessione: documentata nella showcase, con un
-test verde (`Heroes.Hero.Gadget.WetBonus`, che verifica l'aritmetica senza passare dal `TurnManager`), e
+test verde (`Heroes.Hero.Aevik.WetBonus`, che verifica l'aritmetica senza passare dal `TurnManager`), e
 **ineseguibile** — il `Wet` di `PressureJet` arriva durante il Blast quando i colpi sono già preparati, e su
 due turni scade nel Cleanup prima di servire.
 
@@ -564,7 +564,7 @@ nell'acqua in fase **Dash**, prima del Blast — ed è oggi il primo test end-to
 resta quella **giusta**, la suite non è rossa e il difetto non è nascosto. Quando #241 verrà chiusa, sarà
 `ExpectedFailScenariosReallyFail` a diventare rosso e a chiedere di promuoverlo.
 
-Tre abilità del kit (`Hero.Phase.CircularTide`, `Hero.Phase.FluidTrail`, `Hero.Wraith.Feint`) restano **senza scenario**, e
+Tre abilità del kit (`Hero.Muiren.CircularTide`, `Hero.Muiren.FluidTrail`, `Hero.Wraith.Feint`) restano **senza scenario**, e
 sono elencate col perché: il loro comportamento non è derivabile dal catalogo, e un'assertion scritta sul
 design invece che sul comportamento reale produrrebbe un rosso che accusa il gioco di un difetto già noto.
 

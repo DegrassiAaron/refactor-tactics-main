@@ -56,7 +56,7 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 > ✅ **Migrato nel codice il 2026-08-08.** A far valere la regola è il **resolver**: dopo uno scatto la
 > destinazione pianificata *diventa* la cella d'arrivo, quindi il movimento è speso comunque sia stato
 > pianificato — non un controllo che il bot potrebbe aggirare (invariante #1). Vale anche per le mobilità
-> d'eroe: `Hero.Phase.FluidTrail` è passata a **Movimento**, e l'invariante `Heroes.MobilityWithoutDamageIsNotMain`
+> d'eroe: `Hero.Muiren.FluidTrail` è passata a **Movimento**, e l'invariante `Heroes.MobilityWithoutDamageIsNotMain`
 > impedisce che la prossima nasca sulla principale, dove `MakeHeroAction` la metterebbe per default.
 
 > **Slot ≡ Action Points** (consolidato il 2026-08-07). Il workbook `RefactorTactics_Balance_Matrices_v0.1.xlsx`
@@ -234,7 +234,7 @@ stesso slot, stessa macro-fase — non una mobilità rapida. Tre cose lo disting
   invece di essere scelto a intuito. Resta da playtest come ogni valore di questa tabella.
 
 > **Perché non si chiama `Reposition`.** Quel nome è già di un'azione viva: scatto lineare di 2 celle in
-> macro-fase **`Dash`** (§2.2), concesso anche da `Hero.Phase.FlowReaction` e `Hero.Wraith.Feint`. Due entità con lo
+> macro-fase **`Dash`** (§2.2), concesso anche da `Hero.Muiren.FlowReaction` e `Hero.Wraith.Feint`. Due entità con lo
 > stesso nome in due fasi diverse si pagano a ogni lettura del TurnLog, non una volta sola.
 
 **`Sprint` non è un `Dash`.** È il profilo lungo del movimento normale, quindi risolve dopo il Blast: non
@@ -422,7 +422,7 @@ movimento volontario** dell'eroe.
 > ⚠️ **L'anti-spinta non distingue `Brace` da `Guard` in v0.1** — [D-074](../decisions/RT_PDR_00_Decision_Log.md),
 > uscita **(B)** di [#400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400).
 > Il catalogo ha **un solo valore di spinta, `1`**: `Action.Push`, `Action.Charge` (da cui `Hero.Riktor.Ram`
-> eredita i suoi `20 danni + Push 1`), `Hero.Phase.PressureJet` e la variante `Hero.Phase.CircularTide.Impact`.
+> eredita i suoi `20 danni + Push 1`), `Hero.Muiren.PressureJet` e la variante `Hero.Muiren.CircularTide.Impact`.
 > L'elenco è **esaustivo e senza eccezioni in tutto il progetto**: l'ultimo `Push 2` era `Guardian.Sweep`, ed
 > è sparito insieme agli archetipi legacy (`#426`, 2026-08-10) — quando questa nota è stata scritta esisteva
 > ancora, fuori dal roster, e la riga lo dichiarava come eccezione. Ora nessuna azione, in nessun catalogo,
@@ -430,7 +430,7 @@ movimento volontario** dell'eroe.
 > spostamenti prodotti **dalle azioni**.
 >
 > 🔵 **La spinta forte esiste nei DATI, e non da qui: dall'equipaggiamento** (corretto il 2026-08-16).
-> `Weapon.Impact` porta lo spostamento di `Hero.Phase.PressureJet` a **2** ([D-085](../decisions/RT_PDR_00_Decision_Log.md))
+> `Weapon.Impact` porta lo spostamento di `Hero.Muiren.PressureJet` a **2** ([D-085](../decisions/RT_PDR_00_Decision_Log.md))
 > ed è il **default dichiarato** di Phase ([D-089](../decisions/RT_PDR_00_Decision_Log.md)). L'elenco delle
 > azioni qui sopra resta esatto — `Weapon.Impact` non è un'azione — ma la conclusione che se ne traeva no:
 > contro una spinta di 2 **`Guard` cede e `Brace` regge**, misurato da

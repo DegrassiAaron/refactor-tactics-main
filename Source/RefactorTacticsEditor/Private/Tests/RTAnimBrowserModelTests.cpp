@@ -15,7 +15,7 @@ namespace
 			Pack, Pack, Clip, Clip);
 	}
 
-	/** Un modello con quattro clip: due di Gadget, due di Ivrin, stati assortiti. */
+	/** Un modello con quattro clip: due di Aevik, due di Ivrin, stati assortiti. */
 	FRTAnimBrowserModel ModelloDiProva()
 	{
 		FRTAnimCatalog Catalog;
@@ -32,8 +32,8 @@ namespace
 			Catalog.Entries.Add(MoveTemp(E));
 		};
 
-		Aggiungi(TEXT("AV_0001"), TEXT("Gadget"), TEXT("Idle"),     ERTAnimClipStatus::Promoted);
-		Aggiungi(TEXT("AV_0002"), TEXT("Gadget"), TEXT("Run_Fwd"),  ERTAnimClipStatus::Unreviewed);
+		Aggiungi(TEXT("AV_0001"), TEXT("Aevik"), TEXT("Idle"),     ERTAnimClipStatus::Promoted);
+		Aggiungi(TEXT("AV_0002"), TEXT("Aevik"), TEXT("Run_Fwd"),  ERTAnimClipStatus::Unreviewed);
 		Aggiungi(TEXT("AV_0003"), TEXT("Ivrin"), TEXT("Idle_NonCombat"), ERTAnimClipStatus::Rejected);
 		Aggiungi(TEXT("AV_0004"), TEXT("Ivrin"), TEXT("Jog_Fwd"),  ERTAnimClipStatus::Promoted);
 
@@ -62,8 +62,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimBrowserPackFromPathTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTAnimBrowserPackFromPathTest::RunTest(const FString&)
 {
-	TestEqual(TEXT("Gadget"),
-		FRTAnimBrowserModel::PackFromAssetPath(PathDi(TEXT("Gadget"), TEXT("Idle"))), FString(TEXT("Gadget")));
+	TestEqual(TEXT("Aevik"),
+		FRTAnimBrowserModel::PackFromAssetPath(PathDi(TEXT("Aevik"), TEXT("Idle"))), FString(TEXT("Aevik")));
 	TestEqual(TEXT("Ivrin"),
 		FRTAnimBrowserModel::PackFromAssetPath(PathDi(TEXT("Ivrin"), TEXT("Jog_Fwd"))), FString(TEXT("Ivrin")));
 
@@ -89,21 +89,21 @@ bool FRTAnimBrowserFiltersCombineTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("il catalogo di prova ha quattro voci"), M.TotalRowCount(), 4)) { return false; }
 	if (!TestEqual(TEXT("senza filtri si vedono tutte"), M.VisibleRows().Num(), 4)) { return false; }
 
-	M.SetPackFilter(TEXT("Gadget"));
-	TestEqual(TEXT("solo Gadget"), M.VisibleRows().Num(), 2);
+	M.SetPackFilter(TEXT("Aevik"));
+	TestEqual(TEXT("solo Aevik"), M.VisibleRows().Num(), 2);
 
 	M.SetStatusFilter(ERTAnimClipStatus::Promoted);
-	TestEqual(TEXT("Gadget + Promoted"), M.VisibleRows().Num(), 1);
+	TestEqual(TEXT("Aevik + Promoted"), M.VisibleRows().Num(), 1);
 
 	// 🔑 La COMBINAZIONE, che e' il caso che un test per filtro singolo non copre: tre filtri in AND, e
 	// il terzo esclude cio' che i primi due lasciavano passare.
 	M.SetSearchText(TEXT("Run"));
-	TestEqual(TEXT("Gadget + Promoted + 'Run' -> nessuna (Idle e' promossa, Run_Fwd no)"),
+	TestEqual(TEXT("Aevik + Promoted + 'Run' -> nessuna (Idle e' promossa, Run_Fwd no)"),
 		M.VisibleRows().Num(), 0);
 
 	// E il controllo positivo che rende non vacuo lo zero qui sopra: rilassando UN filtro riappare.
 	M.SetStatusFilter(TOptional<ERTAnimClipStatus>());
-	TestEqual(TEXT("Gadget + 'Run', senza filtro di stato -> una"), M.VisibleRows().Num(), 1);
+	TestEqual(TEXT("Aevik + 'Run', senza filtro di stato -> una"), M.VisibleRows().Num(), 1);
 
 	// La ricerca guarda anche l'`AV_ID`.
 	M.SetPackFilter(FString());
@@ -143,9 +143,9 @@ bool FRTAnimBrowserOnlyUserWritesStatusTest::RunTest(const FString&)
 
 	// ⛔ Nessun altro percorso lo tocca. `BindToRole`, `MakeActive` e `Unbind` sono gli unici altri
 	// comandi che scrivono, e nessuno dei tre puo' cambiare uno `Status`.
-	M.BindToRole(FName(TEXT("AV_0002")), FName(TEXT("Hero.Gadget")), ERTPresentationRole::Move);
-	M.MakeActive(FName(TEXT("AV_0002")), FName(TEXT("Hero.Gadget")), ERTPresentationRole::Move);
-	M.Unbind(FName(TEXT("AV_0002")), FName(TEXT("Hero.Gadget")), ERTPresentationRole::Move);
+	M.BindToRole(FName(TEXT("AV_0002")), FName(TEXT("Hero.Aevik")), ERTPresentationRole::Move);
+	M.MakeActive(FName(TEXT("AV_0002")), FName(TEXT("Hero.Aevik")), ERTPresentationRole::Move);
+	M.Unbind(FName(TEXT("AV_0002")), FName(TEXT("Hero.Aevik")), ERTPresentationRole::Move);
 	TestEqual(TEXT("bind/active/unbind non cambiano lo Status"),
 		static_cast<int32>(StatoDi(TEXT("AV_0002"))), static_cast<int32>(ERTAnimClipStatus::Promoted));
 
@@ -169,19 +169,19 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimBrowserBindingRulesTest,
 bool FRTAnimBrowserBindingRulesTest::RunTest(const FString&)
 {
 	FRTAnimBrowserModel M = ModelloDiProva();
-	const FName Gadget(TEXT("Hero.Gadget"));
+	const FName Aevik(TEXT("Hero.Aevik"));
 	const FName Idle(TEXT("AV_0001"));      // Promoted
 	const FName Run(TEXT("AV_0002"));       // Unreviewed
 
 	// ⛔ Non si lega cio' che nessuno ha guardato.
 	TestFalse(TEXT("una clip Unreviewed non si lega"),
-		M.BindToRole(Run, Gadget, ERTPresentationRole::Move));
+		M.BindToRole(Run, Aevik, ERTPresentationRole::Move));
 
 	// Il controllo positivo: una Promoted si lega.
 	TestTrue(TEXT("una clip Promoted si lega"),
-		M.BindToRole(Idle, Gadget, ERTPresentationRole::Idle));
+		M.BindToRole(Idle, Aevik, ERTPresentationRole::Idle));
 	TestFalse(TEXT("legarla due volte non duplica"),
-		M.BindToRole(Idle, Gadget, ERTPresentationRole::Idle));
+		M.BindToRole(Idle, Aevik, ERTPresentationRole::Idle));
 
 	auto Attiva = [&M](const FName& Id, const FName& Hero, ERTPresentationRole Role) -> bool
 	{
@@ -197,29 +197,29 @@ bool FRTAnimBrowserBindingRulesTest::RunTest(const FString&)
 	};
 
 	// 🔑 Entra INATTIVA anche se e' la prima del ruolo.
-	TestFalse(TEXT("la prima variante legata non e' attiva"), Attiva(Idle, Gadget, ERTPresentationRole::Idle));
+	TestFalse(TEXT("la prima variante legata non e' attiva"), Attiva(Idle, Aevik, ERTPresentationRole::Idle));
 
-	TestTrue(TEXT("Make Active riesce"), M.MakeActive(Idle, Gadget, ERTPresentationRole::Idle));
-	TestTrue(TEXT("ed e' attiva"), Attiva(Idle, Gadget, ERTPresentationRole::Idle));
+	TestTrue(TEXT("Make Active riesce"), M.MakeActive(Idle, Aevik, ERTPresentationRole::Idle));
+	TestTrue(TEXT("ed e' attiva"), Attiva(Idle, Aevik, ERTPresentationRole::Idle));
 
 	// Una seconda clip promossa sullo stesso ruolo: legandola, l'attiva NON cambia.
 	M.ApplyUserStatus(Run, ERTAnimClipStatus::Promoted);
-	TestTrue(TEXT("la seconda si lega"), M.BindToRole(Run, Gadget, ERTPresentationRole::Idle));
-	TestTrue(TEXT("il bind non ha spostato l'attiva"), Attiva(Idle, Gadget, ERTPresentationRole::Idle));
-	TestFalse(TEXT("e la nuova e' inattiva"), Attiva(Run, Gadget, ERTPresentationRole::Idle));
+	TestTrue(TEXT("la seconda si lega"), M.BindToRole(Run, Aevik, ERTPresentationRole::Idle));
+	TestTrue(TEXT("il bind non ha spostato l'attiva"), Attiva(Idle, Aevik, ERTPresentationRole::Idle));
+	TestFalse(TEXT("e la nuova e' inattiva"), Attiva(Run, Aevik, ERTPresentationRole::Idle));
 
 	// L'atomicita': attivando la seconda, la prima si spegne nello stesso passo.
-	TestTrue(TEXT("Make Active sulla seconda"), M.MakeActive(Run, Gadget, ERTPresentationRole::Idle));
-	TestTrue(TEXT("la seconda e' attiva"), Attiva(Run, Gadget, ERTPresentationRole::Idle));
-	TestFalse(TEXT("la prima non lo e' piu'"), Attiva(Idle, Gadget, ERTPresentationRole::Idle));
+	TestTrue(TEXT("Make Active sulla seconda"), M.MakeActive(Run, Aevik, ERTPresentationRole::Idle));
+	TestTrue(TEXT("la seconda e' attiva"), Attiva(Run, Aevik, ERTPresentationRole::Idle));
+	TestFalse(TEXT("la prima non lo e' piu'"), Attiva(Idle, Aevik, ERTPresentationRole::Idle));
 
 	// E il catalogo resta valido: due attive sullo stesso ruolo sarebbero rosse.
 	TestEqual(TEXT("il catalogo e' valido dopo lo scambio"),
 		URTAnimCatalogLibrary::ValidateCatalog(&M.GetCatalog()).Num(), 0);
 
 	// Rimuovere l'attiva lascia il ruolo SENZA attiva.
-	TestTrue(TEXT("unbind dell'attiva"), M.Unbind(Run, Gadget, ERTPresentationRole::Idle));
-	TestFalse(TEXT("nessuna sostituta eletta"), Attiva(Idle, Gadget, ERTPresentationRole::Idle));
+	TestTrue(TEXT("unbind dell'attiva"), M.Unbind(Run, Aevik, ERTPresentationRole::Idle));
+	TestFalse(TEXT("nessuna sostituta eletta"), Attiva(Idle, Aevik, ERTPresentationRole::Idle));
 	return true;
 }
 
@@ -236,10 +236,10 @@ bool FRTAnimCatalogRejectsTwoActivePerRoleTest::RunTest(const FString&)
 	{
 		FRTAnimCatalogEntry E;
 		E.Id = FName(Id);
-		E.Derived.AssetPath = PathDi(TEXT("Gadget"), Clip);
+		E.Derived.AssetPath = PathDi(TEXT("Aevik"), Clip);
 		E.Authored.Status = ERTAnimClipStatus::Promoted;
 		FRTAnimBinding B;
-		B.HeroId = FName(TEXT("Hero.Gadget"));
+		B.HeroId = FName(TEXT("Hero.Aevik"));
 		B.Role = ERTPresentationRole::Move;
 		B.bActive = bActive;
 		E.Authored.Bindings.Add(B);
@@ -287,7 +287,7 @@ bool FRTAnimBindingsMapToCdoTest::RunTest(const FString&)
 	{
 		FRTAnimCatalogEntry E;
 		E.Id = FName(Id);
-		E.Derived.AssetPath = PathDi(TEXT("Gadget"), Clip);
+		E.Derived.AssetPath = PathDi(TEXT("Aevik"), Clip);
 		E.Derived.AssetName = Clip;
 		E.Authored.Status = ERTAnimClipStatus::Promoted;
 		E.Authored.Label = Label;
@@ -299,8 +299,8 @@ bool FRTAnimBindingsMapToCdoTest::RunTest(const FString&)
 		Catalog.Entries.Add(MoveTemp(E));
 	};
 
-	Aggiungi(TEXT("AV_0001"), TEXT("Run_Fwd"), TEXT("Hero.Gadget"), ERTPresentationRole::Move, true,  TEXT("A"));
-	Aggiungi(TEXT("AV_0002"), TEXT("Run_Bwd"), TEXT("Hero.Gadget"), ERTPresentationRole::Move, false, TEXT("B"));
+	Aggiungi(TEXT("AV_0001"), TEXT("Run_Fwd"), TEXT("Hero.Aevik"), ERTPresentationRole::Move, true,  TEXT("A"));
+	Aggiungi(TEXT("AV_0002"), TEXT("Run_Bwd"), TEXT("Hero.Aevik"), ERTPresentationRole::Move, false, TEXT("B"));
 	Aggiungi(TEXT("AV_0003"), TEXT("Idle"),    TEXT("Hero.Ivrin"), ERTPresentationRole::Idle, true,  TEXT("A"));
 
 	int32 Legami = 0;
@@ -311,9 +311,9 @@ bool FRTAnimBindingsMapToCdoTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("tre legami tradotti"), Legami, 3)) { return false; }
 	if (!TestEqual(TEXT("due eroi"), PerEroe.Num(), 2)) { return false; }
 
-	const FRTHeroPresentationClips* Gadget = PerEroe.Find(FName(TEXT("Hero.Gadget")));
-	if (!TestNotNull(TEXT("Gadget c'e'"), (const void*)Gadget)) { return false; }
-	const FRTAnimRoleClips* Move = Gadget->FindRole(ERTPresentationRole::Move);
+	const FRTHeroPresentationClips* Aevik = PerEroe.Find(FName(TEXT("Hero.Aevik")));
+	if (!TestNotNull(TEXT("Aevik c'e'"), (const void*)Aevik)) { return false; }
+	const FRTAnimRoleClips* Move = Aevik->FindRole(ERTPresentationRole::Move);
 	if (!TestNotNull(TEXT("il ruolo Move c'e'"), (const void*)Move)) { return false; }
 
 	TestEqual(TEXT("due varianti sullo stesso ruolo"), Move->Variants.Num(), 2);
@@ -328,7 +328,7 @@ bool FRTAnimBindingsMapToCdoTest::RunTest(const FString&)
 
 	// E il path della clip attraversa intatto: e' il dato che il cook dovra' seguire.
 	TestEqual(TEXT("il path arriva al CDO"),
-		Attiva->Clip.ToSoftObjectPath().ToString(), PathDi(TEXT("Gadget"), TEXT("Run_Fwd")));
+		Attiva->Clip.ToSoftObjectPath().ToString(), PathDi(TEXT("Aevik"), TEXT("Run_Fwd")));
 
 	// Un eroe diverso non finisce nella stessa voce: la mappa e' per eroe, non globale.
 	const FRTHeroPresentationClips* Ivrin = PerEroe.Find(FName(TEXT("Hero.Ivrin")));
@@ -343,7 +343,7 @@ bool FRTAnimBindingsMapToCdoTest::RunTest(const FString&)
 	Sporco.NextId = 2;
 	FRTAnimCatalogEntry Orfana;
 	Orfana.Id = FName(TEXT("AV_0001"));
-	Orfana.Derived.AssetPath = PathDi(TEXT("Gadget"), TEXT("Idle"));
+	Orfana.Derived.AssetPath = PathDi(TEXT("Aevik"), TEXT("Idle"));
 	FRTAnimBinding SenzaEroe;   // HeroId resta NAME_None
 	Orfana.Authored.Bindings.Add(SenzaEroe);
 	Sporco.Entries.Add(MoveTemp(Orfana));

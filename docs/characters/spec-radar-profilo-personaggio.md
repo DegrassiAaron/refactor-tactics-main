@@ -166,7 +166,7 @@ RT_HeroCatalog_v0.1.md      ← autorità (D-023)
 ### 4.0 Due cataloghi, una sola autorità
 
 [D-115](../decisions/RT_PDR_00_Decision_Log.md). Il catalogo eroi non è autosufficiente: la riga di
-`Hero.Gadget.ConductiveNode` dichiara *«**è `Action.Electrify`**»* e non porta un numero di danno, che vive in
+`Hero.Aevik.ConductiveNode` dichiara *«**è `Action.Electrify`**»* e non porta un numero di danno, che vive in
 [`RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md). La rubrica legge quindi **entrambi**,
 e il rinvio `` è `Action.X` `` è parte del contratto di lettura, non prosa libera.
 
@@ -179,7 +179,7 @@ proprio perché **non** è di Gadget: è dell'azione core che sette abilità pot
 `offense 4` invece di `6` e `5`, perché i `20` danni di `ConductiveNode` non vengono letti.
 
 ⚠️ **Un solo pattern risolve, e va distinto dall'altro che gli somiglia.** La tabella delle reazioni
-del catalogo eroi cita anch'essa azioni core — `Hero.Gadget.ReactiveCapacitor` → `Action.Counter`,
+del catalogo eroi cita anch'essa azioni core — `Hero.Aevik.ReactiveCapacitor` → `Action.Counter`,
 `Hero.Riktor.Interposition` → `Action.Intercept`, `Hero.Wraith.Deflection` → `Action.Deflect` — ma tiene i
 **propri numeri inline** (`scudo 15 e 10 danni`, `−20`). Quelle riusano la **semantica**, non i valori:
 il parser non deve risolverle contro il catalogo azioni. Solo `` è `Action.X` `` delega il dato, e nel
@@ -292,7 +292,7 @@ confrontabili (§1). Il loadout consigliato aprirebbe il catalogo equipaggiament
 richiederebbe di assumere **quanti bersagli** colpisce *Scarica ramificata* — che è uno scenario, non un
 dato. Le varianti restano documentate come **direzione**, senza numeri.
 
-**Le reazioni rinviate a E14 contano.** `Hero.Phase.FlowReaction` non produce nulla in partita, ma il radar
+**Le reazioni rinviate a E14 contano.** `Hero.Muiren.FlowReaction` non produce nulla in partita, ma il radar
 descrive l'eroe come il **catalogo lo dichiara**. Escluderla legherebbe i rating al calendario di
 implementazione: quando E14 atterra i numeri cambierebbero e il gate di §8 diventerebbe rosso **senza** che
 nessuno abbia toccato un dato competitivo.
@@ -323,7 +323,7 @@ quattro. Scartata la frequenza pura `10/(1+CD)`, che fa collidere Riktor e Phase
 > proprio quelle a cooldown alto, la sua selettività *sale*. Con una tabella piatta usciva
 > `power 7 / precision 6`; con questa curva esce `6 / 7`.
 
-**Un bonus condizionale vale zero come danno.** Il `+8 su `Wet`` di `Hero.Gadget.LinearDischarge` non entra in
+**Un bonus condizionale vale zero come danno.** Il `+8 su `Wet`` di `Hero.Aevik.LinearDischarge` non entra in
 nessun rating come danno: entra come **condizionalità**. La regola vale su ogni asse e su **entrambe** le
 sedi in cui il catalogo dichiara una condizione — la cella `Effetto` per gli stati, la tabella delle
 reazioni per le previsioni (`Hero.Wraith.InterceptShot`). Due meccanismi separati potrebbero divergere.

@@ -76,7 +76,7 @@ Il vincolo che ha deciso lo schema, e non era previsto:
 
 ⚠️ `Guardia` e `Corsa` sono **id di scenario**, cioè etichette locali al file — non id eroe. La distinzione
 conta: l'id eroe è una chiave di catalogo e oggi il catalogo dichiara **solo** i quattro nomi legacy
-(`Hero.Gadget`, `Hero.Phase`, `Hero.Riktor`, `Hero.Wraith`; misurato in `RTHeroCatalogLibrary.cpp`, e
+(`Hero.Aevik`, `Hero.Muiren`, `Hero.Riktor`, `Hero.Wraith`; misurato in `RTHeroCatalogLibrary.cpp`, e
 `Gadget`/`Phase`/`Riktor`/`Wraith` hanno **zero** occorrenze in tutto `Source/` perché la fetta 3 di `D-130`
 (`#753`) non è stata eseguita). Una prima stesura di questo esempio usava `riktor` e `wraith` come id di
 scenario: legittimo di per sé, ma affiancato a un piano che scrive `Hero.Riktor` invitava a leggerli come
