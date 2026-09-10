@@ -296,3 +296,4 @@ __pycache__/
 # byte-identici alla versione degli script gia' versionata in `ec48f06b`: la history
 # li conserva, l'albero no.
 *.bak
+.temp/FOW.md
