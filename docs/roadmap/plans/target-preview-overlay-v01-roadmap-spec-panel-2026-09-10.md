@@ -512,3 +512,26 @@ grep -inE "preview|anteprima|ghost|timeline|fase selezionat" <indice del Log>   
 ### ⛔ Cosa questo censimento **non** ha fatto
 
 Ha letto i **titoli**, non i corpi. Una decisione il cui titolo non nomina il perimetro ma il cui corpo lo tocca **non è stata vista** — e `D-364` insegna che i corpi contengono clausole che i titoli non annunciano. Le voci nominate qui vanno lette per intero prima di essere usate come vincolo.
+
+### 🔁 E il censimento era già scaduto quando è stato scritto — `D-371`…`D-374`
+
+Fra la stesura della sezione qui sopra e il suo push, `origin/main` è avanzato e ha portato **quattro decisioni nuove**, tutte sulla privacy del planning e sull'ignoto. Non è un aneddoto: è la dimostrazione che un censimento è una **misura datata**, non uno stato.
+
+⚠️ **Il conflitto `D-364`/`D-368` resta intatto** — misurato, non supposto:
+
+```bash
+grep -oE "^\| \*\*D-37[1-4]\*\*.*" <Log su origin/main> | grep -ocE "FriendlyFire|Hover|D-364|D-368"   # -> 0
+```
+
+Ma due delle quattro cambiano il terreno sotto la roadmap:
+
+| | Cosa dice | Cosa muove |
+|---|---|---|
+| **`D-371`** | *«IL PLANNING SMETTE DI ESSERE UN SIMULATORE FEDELE DEL RESOLVER: nasce la SECONDA CLASSE DI PRIVACY — quella della CONOSCENZA — e vale per TUTTI, bot compreso»*. **Emenda `D-249`** | la §4 di questo censimento cita `D-225`/`D-249` come *«l'ignoto non si disegna»*: quella riga è **emendata**, e va riletta lì |
+| **`D-372`** | *«UN MOVE VERSO L'IGNOTO SI PIANIFICA SU MAPPA OTTIMISTICA — «ignoto = passabile» — E IL TRACCIATO OLTRE IL NOTO SI DICHIARA INCERTO»*, con un trilemma esplicito: l'anteprima non rivela ciò che il giocatore non sa · l'anteprima non mente · nessuna mappa ottimistica — **non si possono avere tutti e tre** | 🔴 **`Certainty` smette di essere una scelta di resa e diventa un meccanismo di privacy** |
+| **`D-373`** | *«LA FORMA DELLA BOARD — QUALI CELLE ESISTONO — È INFORMAZIONE PUBBLICA; COSA CONTENGONO NO»* | delimita cosa un overlay può disegnare senza rivelare |
+| **`D-374`** | hazard e blocker ignoti non hanno una policy propria: le regole d'arresto che il resolver già possiede li coprono | evita una policy in più nel canale della preview |
+
+🔴 **La conseguenza per la Wave 0 è la più pesante di tutto questo referto.** La riga *«Certainty: linea piena = confirmed; tratteggiata = predicted»* è presentata come una scelta di grammatica visiva. Dopo `D-372` è **la metà visibile di un contratto di privacy**: se il canale della certezza non distingue, l'anteprima o mente o rivela. ∴ sbagliarlo non è un difetto di leggibilità — è un difetto di privacy.
+
+⚠️ **E questo rende §C2 più grave, non meno.** Il canale che oggi porta la certezza è il **tratteggio su `DrawDebugLine`** — scelto perché quel renderer *ignora l'alpha*. Un contratto di privacy che poggia su un canale scelto per i limiti del debug draw è il punto in cui §C2 smette di essere una questione di resa.
