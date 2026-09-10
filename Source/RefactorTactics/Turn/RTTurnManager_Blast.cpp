@@ -356,66 +356,40 @@ void ARTTurnManager::RevealHitTargetsToAttackers(const FRTBlastContext& Ctx)
 	// racconta e' congelata contro un soggetto che l'attaccante non conosce ([D-223]), quindi non la legge.
 	// Un'azione senza segnale e' un'azione che nessuno impara a usare.
 	//
-	// ⚠️ **Si raccoglie per SQUADRA e si applica una volta**, invece di chiamare `RevealByHit` per colpo:
-	// due colpi dello stesso attaccante sullo stesso bersaglio scriverebbero due volte lo stesso contatto, e
-	// il secondo passaggio dipenderebbe dall'ordine dei colpi per decidere quale cella conservare.
-	TMap<int32, TArray<FRTLastKnownContact>> VictimsByTeam;
-
-	for (const FRTHexAttackHit& Hit : Ctx.Plan.Hits)
+	// ⚠️ **Qui non c'e' nessuna REGOLA, e non e' un caso.** Chi decide *quali* vittime si rivelano e'
+	// `VictimsRevealedByHits`, pura e testabile; chi decide *come* un contatto entra in una memoria e'
+	// `RevealByHit`, pura anch'essa. Questa funzione traduce e basta. La prima stesura teneva le tre regole
+	// qui dentro, e la misura per mutazione lo ha bocciato: far rivelare anche gli alleati non rendeva rosso
+	// **nessun** test della suite intera.
+	TArray<int32> StableUnitIds;
+	StableUnitIds.Reserve(Ctx.Units.Num());
+	for (const ARTUnit* U : Ctx.Units)
 	{
-		if (!Ctx.Units.IsValidIndex(Hit.AttackerId) || !Ctx.Units.IsValidIndex(Hit.TargetId))
-		{
-			continue;
-		}
-		const ARTUnit* Attacker = Ctx.Units[Hit.AttackerId];
-		const ARTUnit* Target   = Ctx.Units[Hit.TargetId];
-		if (Attacker == nullptr || Target == nullptr)
-		{
-			continue;
-		}
-
-		// ⛔ **Un colpo su un ALLEATO non rivela niente**, e non perche' sia innocuo: la conoscenza di
-		// squadra non contiene se stessa — `ClassifyTarget` lo dichiara — quindi un contatto sui propri
-		// sarebbe un dato che nessun consumatore sa leggere e che sporcherebbe l'array.
-		if (Attacker->TeamId == Target->TeamId)
-		{
-			continue;
-		}
-
-		// La cella e' quella dello snapshot di Blast, cioe' **dove il colpo l'ha trovato**: e' il fatto
-		// avvenuto, non la posizione di adesso. `Ctx.HexUnits` e' l'istantanea contro cui il piano e' stato
-		// calcolato, e leggere `Target->Cell` prenderebbe una posizione che il Move puo' gia' aver cambiato.
-		const FRTCellId FoundAt = Ctx.HexUnits.IsValidIndex(Hit.TargetId)
-			? Ctx.HexUnits[Hit.TargetId].Cell : Target->Cell;
-
-		// ⚠️ **Si deduplica sullo `StableUnitId`, non sulla struttura**: `AddUnique` confronterebbe il
-		// contatto intero — cella e turno compresi — e `FRTLastKnownContact` non ha nemmeno un
-		// `operator==`. Due colpi sullo stesso bersaglio nello stesso Blast sono il caso ORDINARIO (un'area
-		// che lo investe due volte, due tiratori che lo scelgono), e accodarli due volte lascerebbe a
-		// `RevealByHit` una lista in cui l'ultimo vince: deterministica qui solo perche' la cella e'
-		// la stessa, e fragile il giorno in cui non lo fosse.
-		TArray<FRTLastKnownContact>& Victims = VictimsByTeam.FindOrAdd(Attacker->TeamId);
-		const bool bGiaPresente = Victims.ContainsByPredicate(
-			[Target](const FRTLastKnownContact& C) { return C.StableUnitId == Target->StableUnitId; });
-		if (!bGiaPresente)
-		{
-			Victims.Add(FRTLastKnownContact(Target->StableUnitId, FoundAt, TurnNumber));
-		}
+		StableUnitIds.Add(U ? U->StableUnitId : INDEX_NONE);
 	}
 
-	if (VictimsByTeam.Num() == 0)
+	const TArray<FRTRevealedVictim> Rivelate =
+		URTHexCombatLibrary::VictimsRevealedByHits(Ctx.Plan.Hits, Ctx.HexUnits, StableUnitIds);
+	if (Rivelate.Num() == 0)
 	{
 		return; // nessun colpo fra squadre avverse: niente da rivelare, e nessuno stato da toccare
 	}
 
-	// ⚠️ **Si itera `TeamKnowledgeState`, non la mappa**: l'ordine di un `TMap` dipende dall'hash, e questa
-	// memoria entra nello snapshot (invariante #3). Scorrere l'array in ordine di squadra rende la scrittura
-	// deterministica a parita' di partita.
+	// ⚠️ **Si itera `TeamKnowledgeState`, non le rivelazioni**: questa memoria entra nello snapshot, e
+	// l'ordine di scrittura dev'essere quello delle squadre (invariante #3).
 	for (FRTTeamKnowledge& Knowledge : TeamKnowledgeState)
 	{
-		if (const TArray<FRTLastKnownContact>* Victims = VictimsByTeam.Find(Knowledge.TeamId))
+		TArray<FRTLastKnownContact> Vittime;
+		for (const FRTRevealedVictim& V : Rivelate)
 		{
-			Knowledge = URTTeamKnowledgeLibrary::RevealByHit(Knowledge, *Victims, TurnNumber);
+			if (V.AttackerTeamId == Knowledge.TeamId)
+			{
+				Vittime.Add(FRTLastKnownContact(V.VictimStableUnitId, V.Cell, TurnNumber));
+			}
+		}
+		if (Vittime.Num() > 0)
+		{
+			Knowledge = URTTeamKnowledgeLibrary::RevealByHit(Knowledge, Vittime, TurnNumber);
 		}
 	}
 

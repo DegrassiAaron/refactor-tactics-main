@@ -12,6 +12,7 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Combat/RTHexCombatLibrary.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
@@ -473,6 +474,145 @@ bool FRTRevealIsFailClosedOnVersionTest::RunTest(const FString&)
 	const FRTTeamKnowledge Dopo = URTTeamKnowledgeLibrary::RevealByHit(Illeggibile, Vittime, 5);
 	TestEqual(TEXT("nessun contatto aggiunto a una memoria che non si sa rileggere"),
 		Dopo.Contacts.Num(), 0);
+	return true;
+}
+
+// ======================================================================================================
+// 9-11 — CHI viene rivelato: le tre regole che vivevano nel chiamante, dove nessun test le raggiungeva
+// ======================================================================================================
+
+namespace
+{
+	/** Un colpo di `A` su `B`, con gli indici dello snapshot. */
+	FRTHexAttackHit MortarHit(int32 AttackerId, int32 TargetId)
+	{
+		FRTHexAttackHit H;
+		H.AttackerId = AttackerId;
+		H.TargetId = TargetId;
+		H.Power = 12;
+		return H;
+	}
+
+	FRTHexCombatUnit MortarCombatUnit(int32 UnitId, int32 TeamId, const FRTCellId& Cell)
+	{
+		FRTHexCombatUnit U;
+		U.UnitId = UnitId;
+		U.TeamId = TeamId;
+		U.Cell = Cell;
+		U.bAlive = true;
+		return U;
+	}
+}
+
+/**
+ * **Test 9** — un colpo su un ALLEATO non rivela niente.
+ *
+ * 🔴 **Questo test nasce da una mutazione che passava.** Misurato il 2026-09-10: con la regola dentro
+ * `ARTTurnManager`, disattivare il salto degli alleati **non rendeva rosso nessun test dell'intera
+ * suite** — 2343 verdi con il difetto in produzione. E' la stessa lezione di [D-378], dove il test che
+ * catturava la copia `Def`→`Intent` non esisteva nella prima stesura: una logica che vive in un chiamante
+ * non e' provata dal fatto che il modulo puro sotto sia verde.
+ *
+ * ⚠️ Non e' privacy — la conoscenza di squadra non contiene se stessa — ma IGIENE del dato: un contatto
+ * sui propri sarebbe una voce che nessun consumatore sa leggere. Il fuoco amico e' vero di default,
+ * quindi il caso e' ordinario.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFriendlyFireRevealsNothingTest,
+	"RefactorTactics.BlindFireOffensive.FriendlyFireRevealsNothing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFriendlyFireRevealsNothingTest::RunTest(const FString&)
+{
+	// 0 e 1 stessa squadra; 2 avversario.
+	const TArray<FRTHexCombatUnit> Units = {
+		MortarCombatUnit(0, /*Team*/ 0, FRTCellId(0, 0, 0)),
+		MortarCombatUnit(1, /*Team*/ 0, FRTCellId(1, 0, 0)),
+		MortarCombatUnit(2, /*Team*/ 1, FRTCellId(2, 0, 0)),
+	};
+	const TArray<int32> Stabili = { 100, 101, 102 };
+
+	// Un'area che investe l'alleato E il nemico: il caso reale del fuoco amico.
+	const TArray<FRTHexAttackHit> Hits = { MortarHit(/*A*/ 0, /*T*/ 1), MortarHit(/*A*/ 0, /*T*/ 2) };
+
+	const TArray<FRTRevealedVictim> Rivelate =
+		URTHexCombatLibrary::VictimsRevealedByHits(Hits, Units, Stabili);
+
+	TestEqual(TEXT("una sola rivelazione: l'alleato non conta"), Rivelate.Num(), 1);
+	if (Rivelate.Num() == 1)
+	{
+		TestEqual(TEXT("ed e' il NEMICO colpito"), Rivelate[0].VictimStableUnitId, 102);
+		TestEqual(TEXT("appresa dalla squadra di chi ha sparato"), Rivelate[0].AttackerTeamId, 0);
+	}
+	return true;
+}
+
+/**
+ * **Test 10** — una vittima per attaccante, non una per colpo; e la cella e' quella dello SNAPSHOT.
+ *
+ * ⚠️ Due colpi sullo stesso bersaglio nello stesso Blast sono ordinari (un'area che lo investe due volte,
+ * due tiratori della stessa squadra). Accodarli lascerebbe a `RevealByHit` una lista in cui l'ultimo
+ * vince — deterministica solo per caso.
+ *
+ * 🔑 **E la cella si legge da `Units`, non da altrove**: e' dove il colpo ha trovato la vittima. Il Move
+ * viene DOPO il Blast, quindi una posizione presa dall'Actor sarebbe gia' un'altra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRevealedVictimsAreUniquePerTeamTest,
+	"RefactorTactics.BlindFireOffensive.RevealedVictimsAreUniquePerAttackingTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRevealedVictimsAreUniquePerTeamTest::RunTest(const FString&)
+{
+	const FRTCellId DoveEraNelBlast(2, 0, 0);
+	const TArray<FRTHexCombatUnit> Units = {
+		MortarCombatUnit(0, /*Team*/ 0, FRTCellId(0, 0, 0)),
+		MortarCombatUnit(1, /*Team*/ 0, FRTCellId(1, 0, 0)),
+		MortarCombatUnit(2, /*Team*/ 1, DoveEraNelBlast),
+	};
+	const TArray<int32> Stabili = { 100, 101, 102 };
+
+	// Lo stesso bersaglio colpito due volte dalla stessa squadra, da due tiratori diversi.
+	const TArray<FRTHexAttackHit> Hits = { MortarHit(0, 2), MortarHit(1, 2) };
+
+	const TArray<FRTRevealedVictim> Rivelate =
+		URTHexCombatLibrary::VictimsRevealedByHits(Hits, Units, Stabili);
+
+	TestEqual(TEXT("una sola rivelazione per la squadra che ha colpito"), Rivelate.Num(), 1);
+	if (Rivelate.Num() == 1)
+	{
+		TestTrue(TEXT("con la cella dello snapshot di Blast"), Rivelate[0].Cell == DoveEraNelBlast);
+	}
+	return true;
+}
+
+/**
+ * **Test 11** — due squadre che colpiscono lo stesso bersaglio lo imparano ENTRAMBE.
+ *
+ * ⚠️ E' il verso opposto del test 10, e serve perche' la deduplica corretta e' sulla COPPIA
+ * (squadra, vittima) e non sulla sola vittima. Deduplicando sul solo bersaglio, la seconda squadra
+ * perderebbe una rivelazione che ha pagato — un difetto che il test 10 da solo non vedrebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBothTeamsLearnWhatTheyHitTest,
+	"RefactorTactics.BlindFireOffensive.BothAttackingTeamsLearnWhatTheyHit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBothTeamsLearnWhatTheyHitTest::RunTest(const FString&)
+{
+	// 0 e 1 avversari fra loro; 2 e' della squadra 2, e le prende da entrambi.
+	const TArray<FRTHexCombatUnit> Units = {
+		MortarCombatUnit(0, /*Team*/ 0, FRTCellId(0, 0, 0)),
+		MortarCombatUnit(1, /*Team*/ 1, FRTCellId(1, 0, 0)),
+		MortarCombatUnit(2, /*Team*/ 2, FRTCellId(2, 0, 0)),
+	};
+	const TArray<int32> Stabili = { 100, 101, 102 };
+	const TArray<FRTHexAttackHit> Hits = { MortarHit(0, 2), MortarHit(1, 2) };
+
+	const TArray<FRTRevealedVictim> Rivelate =
+		URTHexCombatLibrary::VictimsRevealedByHits(Hits, Units, Stabili);
+
+	TestEqual(TEXT("entrambe le squadre imparano"), Rivelate.Num(), 2);
+	// L'ordine e' canonico per squadra: e' cio' che rende la scrittura deterministica.
+	if (Rivelate.Num() == 2)
+	{
+		TestEqual(TEXT("prima la squadra 0"), Rivelate[0].AttackerTeamId, 0);
+		TestEqual(TEXT("poi la squadra 1"), Rivelate[1].AttackerTeamId, 1);
+	}
 	return true;
 }
 
