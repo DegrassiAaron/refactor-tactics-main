@@ -178,12 +178,29 @@ bool FRTOverlayEnumCoverageTest::RunTest(const FString&)
 // Il ratchet della palette
 // ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverlayPaletteRatchetTest,
-	"RefactorTactics.AreaOverlay.PaletteRatchet",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverlayPaletteIsDistinguishableTest,
+	"RefactorTactics.AreaOverlay.PaletteIsDistinguishable",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTOverlayPaletteRatchetTest::RunTest(const FString&)
+bool FRTOverlayPaletteIsDistinguishableTest::RunTest(const FString&)
 {
-	// 🔑 **Perche' un ratchet e non un gate.** La DoD di #1941 chiede che la palette passi il gate di
+	// ✅ **Era un ratchet, ed e' diventato un gate il 2026-09-10 con [D-368].**
+	//
+	// La stesura precedente pinnava DUE esenzioni, perche' la palette spedita non passava la soglia in due
+	// punti e i valori non si potevano correggere li': `#1941` dichiara che le collisioni «non [vanno]
+	// risolte in silenzio nel codice». Un gate verde sarebbe stato una bugia, uno rosso sarebbe stato
+	// disattivato entro una settimana; il ratchet diceva la verita' e la teneva ferma.
+	//
+	// [D-368] ha deciso i valori, quindi le esenzioni sono uscite e questo e' il gate che la DoD chiedeva.
+	// ⚠️ Il ratchet era costruito per **cadere** anche quando una collisione veniva risolta e l'esenzione
+	// restava: e' precisamente cio' che ha fatto, ed e' il motivo per cui questa conversione non e' stata
+	// dimenticata.
+	//
+	// ⚠️ **Una coppia resta esattamente sulla soglia**: `FriendlyFire` contro la superficie `Fire`, a `60`.
+	// Non e' una svista — [D-368] la dichiara e ne da' la ragione: il fuoco amico e' un AVVISO e deve
+	// restare arancione acceso, mentre la superficie `Fire` occupa la stessa regione cromatica. `60` e' il
+	// massimo compatibile con entrambi i vincoli, e il resto lo porta la ridondanza di forma ([D-146]).
+	// 🔴 Conseguenza operativa: **qualunque ritocco a quei due valori rompe questo test**, ed e' voluto.
+	// 🔑 **Perche' un ratchet era, e perche' non lo e' piu'.** La DoD di #1941 chiede che la palette passi il gate di
 	// `RefactorTactics.Hex.SurfaceColorsAreDistinguishable`. Misurata con la stessa formula e la stessa
 	// soglia, la palette IN PRODUZIONE non lo passa in due punti — e i valori non si possono correggere qui,
 	// perche' #1941 dichiara che le collisioni «non [vanno] risolte in silenzio nel codice».
@@ -219,7 +236,6 @@ bool FRTOverlayPaletteRatchetTest::RunTest(const FString&)
 		ERTHexSurface::Smoke, ERTHexSurface::HighGround
 	};
 
-	int32 KnownFound = 0;
 	for (const ERTOverlayMeaning Meaning : All)
 	{
 		const FColor Overlay = URTOverlayPalette::ColorFor(Meaning);
@@ -230,14 +246,6 @@ bool FRTOverlayPaletteRatchetTest::RunTest(const FString&)
 			//    L'avviso che deve arrivare PRIMA del lock-in, disegnato su una cella che ha quasi il suo
 			//    stesso colore. La voce PIE verde di `PIE-PREVIEW-AREA` (2026-08-09) non puo' essere stata
 			//    passata su una cella di fuoco.
-			const bool bKnownFriendlyFireOnFire =
-				Meaning == ERTOverlayMeaning::FriendlyFire && Surface == ERTHexSurface::Fire;
-			if (bKnownFriendlyFireOnFire)
-			{
-				++KnownFound;
-				continue;
-			}
-
 			const int32 D = Distance(Overlay, URTHexLibrary::SurfaceColor(Surface));
 			TestTrue(*FString::Printf(TEXT("il significato %d non si confonde con la superficie %d (distanza %d)"),
 					static_cast<int32>(Meaning), static_cast<int32>(Surface), D),
@@ -247,13 +255,6 @@ bool FRTOverlayPaletteRatchetTest::RunTest(const FString&)
 		// ⛔ ESENZIONE NOTA 2: il rosso dell'attacco contro il rosso del «non ci si passa».
 		//    Due rossi che significano cose diverse — «ti colpisco» e «non puoi entrare» — a un terzo della
 		//    soglia. E' la collisione che rende difficile aggiungere un TERZO rosso alla grammatica.
-		const bool bKnownAttackOnBlocked = Meaning == ERTOverlayMeaning::Attack;
-		if (bKnownAttackOnBlocked)
-		{
-			++KnownFound;
-			continue;
-		}
-
 		const int32 DBlocked = Distance(Overlay, URTHexLibrary::BlockedCellColor());
 		TestTrue(*FString::Printf(TEXT("il significato %d non si confonde col marcatore di blocco (distanza %d)"),
 				static_cast<int32>(Meaning), DBlocked),
@@ -265,13 +266,5 @@ bool FRTOverlayPaletteRatchetTest::RunTest(const FString&)
 	// Se una decisione di palette risolve una delle due, questo test cade e chiede di TOGLIERE l'esenzione
 	// invece di lasciarla li' a coprire un difetto che non c'e' piu'. E' la meta' che un elenco di eccezioni
 	// non ha quasi mai, ed e' quella che lo tiene onesto.
-	TestEqual(TEXT("le esenzioni note sono ancora esattamente quelle dichiarate"), KnownFound, 2);
-
-	TestTrue(TEXT("l'arancione del fuoco amico e' ancora indistinguibile dal fuoco (esenzione 1)"),
-		Distance(URTOverlayPalette::ColorFor(ERTOverlayMeaning::FriendlyFire),
-			URTHexLibrary::SurfaceColor(ERTHexSurface::Fire)) < Threshold);
-	TestTrue(TEXT("il rosso dell'attacco e' ancora indistinguibile dal blocco (esenzione 2)"),
-		Distance(URTOverlayPalette::ColorFor(ERTOverlayMeaning::Attack),
-			URTHexLibrary::BlockedCellColor()) < Threshold);
 	return true;
 }

@@ -17,7 +17,7 @@
   <polygon class="grid" points="200.00,110.00 277.94,155.00 277.94,245.00 200.00,290.00 122.06,245.00 122.06,155.00" />
   <polygon class="grid" points="200.00,80.00 303.92,140.00 303.92,260.00 200.00,320.00 96.08,260.00 96.08,140.00" />
   <polygon class="grid" points="200.00,50.00 329.90,125.00 329.90,275.00 200.00,350.00 70.10,275.00 70.10,125.00" />
-  <polygon class="shape" points="200.00,185.00 290.93,147.50 303.92,260.00 200.00,305.00 96.08,260.00 135.05,162.50" />
+  <polygon class="shape" points="200.00,185.00 290.93,147.50 303.92,260.00 200.00,275.00 122.06,245.00 135.05,162.50" />
   <text class="axis" x="200.00" y="23.00">Offesa</text>
   <text class="value" x="200.00" y="37.00">1</text>
   <text class="axis" x="353.29" y="111.50">Durabilità</text>
@@ -25,9 +25,9 @@
   <text class="axis" x="353.29" y="288.50">Mobilità</text>
   <text class="value" x="353.29" y="302.50">8</text>
   <text class="axis" x="200.00" y="377.00">Controllo</text>
-  <text class="value" x="200.00" y="391.00">7</text>
+  <text class="value" x="200.00" y="391.00">5</text>
   <text class="axis" x="46.71" y="288.50">Supporto</text>
-  <text class="value" x="46.71" y="302.50">8</text>
+  <text class="value" x="46.71" y="302.50">6</text>
   <text class="axis" x="46.71" y="111.50">Informazione</text>
   <text class="value" x="46.71" y="125.50">5</text>
 </svg>

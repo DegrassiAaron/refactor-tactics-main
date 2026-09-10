@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCpp, parseCatalogSections, parseSummaryTable, parsePerceptionTable, compare } from './catalog-code.ts';
+import {
+  parseCpp,
+  parseCatalogSections,
+  parseSummaryTable,
+  parsePerceptionTable,
+  parseHeaderDocstrings,
+  compare,
+} from './catalog-code.ts';
 
 test('le stat base si leggono dai literal C++, per eroe', () => {
   const cpp = [
@@ -165,4 +172,66 @@ test('la soglia d udito vive in §5.1, una quarta tabella con una sola colonna d
   assert.equal(rows.get('Phase')!.hearingThreshold, 3);
   // La `Vista` c'e' gia' nelle schede e nel §5: qui si legge solo cio' che questa tabella possiede da sola.
   assert.equal(rows.get('Gadget')!.visionRange, undefined);
+});
+
+
+test('le docstring dell header sono il quinto lato, e si leggono anche a capo', () => {
+  // Forma REALE del blocco Doxygen: ogni riga comincia con ` * `, e un campo puo' spezzarsi a capo
+  // (`resistenza` / `push 0`). Senza normalizzare il prefisso, quel campo non si leggerebbe e la
+  // copertura cadrebbe per un a-capo invece che per un difetto.
+  const h = [
+    '\t/**',
+    "\t * Costruisce **Gadget**, tecnico della conduzione (catalogo eroi v0.1): 90 HP, 5 MP, **vista 7** (era 6,",
+    "\t * alzata da D-073 / #131: l'unico del roster che vede oltre il raggio 6), resistenza",
+    "\t * push 0, affinita' elettricita', debolezza acqua.",
+    '\t */',
+    '\tstatic URTHeroData* MakeGadget();',
+  ].join('\n');
+
+  assert.deepEqual(parseHeaderDocstrings(h).get('Gadget'), {
+    health: 90,
+    movePoints: 5,
+    visionRange: 7,
+    pushResistance: 0,
+  });
+});
+
+test('vince il valore CORRENTE, non la cifra della nota storica che lo segue', () => {
+  // ⚠️ E' il caso che rende il parser non ingenuo. Le docstring corrette portano accanto il valore
+  // vecchio (`era 6`, `era 100`) e i riferimenti alle decisioni (`D-069`, `#131`): tutte cifre, tutte
+  // dopo quella buona. Un parser che prendesse l'ultima occorrenza dichiarerebbe il difetto appena
+  // riparato.
+  const h = [
+    "\t * Costruisce **Ivrin**, duellante predittivo: **90 HP** (era 100, abbassata da D-069 / #131),",
+    "\t * **6 MP** (il piu' mobile), vista 6, resistenza push 0.",
+  ].join('\n');
+
+  const w = parseHeaderDocstrings(h).get('Ivrin')!;
+  assert.equal(w.health, 90);
+  assert.equal(w.movePoints, 6);
+  assert.equal(w.visionRange, 6);
+});
+
+test('una docstring che contraddice i literal fa divergere il quinto lato', () => {
+  // Il difetto misurato su `4fdb01a0`: quattro lati verdi, la docstring falsa. Senza questo lato la
+  // divergenza non esisteva per nessuno.
+  const cpp = parseCpp('Branth->PushResistance = 0;');
+  const header = parseHeaderDocstrings(
+    "\t * Costruisce **Branth**, architetto del campo: 120 HP, 4 MP, vista 5, **resistenza push 1**.",
+  );
+
+  const { divergences } = compare(new Map(), new Map(), cpp, new Map(), header);
+  const d = divergences.find((x) => x.field === 'pushResistance')!;
+
+  assert.ok(d, 'la divergenza sulla resistenza push deve emergere');
+  assert.equal(d.hero, 'Branth');
+  // Il gate NON prescrive quale lato correggere: stampa i due valori e si ferma.
+  assert.deepEqual(d.values, { 'C++': 0, 'docstring .h': 1 });
+});
+
+test('un blocco che non e un eroe non entra fra le fonti', () => {
+  // L'header nomina anche helper e tipi. Un `Costruisce **qualcosa**` che non sia un nome d'eroe non
+  // deve produrre una quinta fonte fantasma con zero campi, che abbasserebbe la copertura senza motivo.
+  const h = "\t * Costruisce **il** roster completo della v0.1, nell'ordine del catalogo.";
+  assert.equal(parseHeaderDocstrings(h).size, 0);
 });

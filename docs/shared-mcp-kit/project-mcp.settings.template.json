@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "projectId": "CHANGE-ME",
+  "serena": {
+    "enabled": true,
+    "port": 9121
+  },
+  "sharedGateway": {
+    "enabled": true,
+    "endpoint": "http://127.0.0.1:8080/mcp"
+  },
+  "notes": "Copy this file to the ROOT of each repo/worktree as .mcp-shared.json. Use a UNIQUE Serena port for every simultaneously active repo/worktree."
+}

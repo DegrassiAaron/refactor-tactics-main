@@ -505,11 +505,35 @@ public:
 	 * testuale `GetRecentEventsForTeam` non entra in questa catena, e non deve — la sua riga porta
 	 * coordinate assiali e reason code, che `#1936` §A tiene fuori dallo schermo del giocatore.
 	 *
+	 * ⚠️ **Il perimetro e' il TURNO piu' recente del log, non la partita** — vedi `MaxFeedLines` per il
+	 * perche' non e' una scelta di comodo ma la condizione che la dominanza pretende.
+	 *
 	 * @param TurnLog          il log canonico, completo e non modificato.
 	 * @param ObserverTeamId   chi guarda. Fuori intervallo -> nessuna riga (fail-closed di `AllowsTeam`).
 	 */
 	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
 		int32 ObserverTeamId);
+
+	/**
+	 * Quante righe il feed mostra al massimo, prendendo le **ultime** del turno.
+	 *
+	 * 🔑 **Il tetto e' la rete, non il rimedio.** Il rimedio e' il perimetro: `URTPlayerEventProjector`
+	 * applica la **dominanza** — una riga per unita', dove il KO prende il posto del danno e il danno
+	 * quello del colpo — e il suo stesso commento la descrive *«in questo turno»*. Ricevendo la partita
+	 * intera quella regola cambia significato: l'unita' andata KO al round 3 tiene la propria riga fino
+	 * alla fine, perche' nessun evento successivo ha rango piu' alto, e cio' che le e' accaduto dopo
+	 * **non si vede**. Non e' un problema di ingombro: e' il feed che nasconde.
+	 *
+	 * ⚠️ Le voci di **mondo** (`UnitId == INDEX_NONE`) sfuggono alla dominanza e si accodano: sono quelle
+	 * che, senza perimetro, crescerebbero davvero senza limite.
+	 *
+	 * ⛔ **Il taglio vive nella VISTA e non nel `TurnLog`**, che e' la fonte del replay ([`#469`]): un
+	 * troncamento li' cambierebbe cio' che si puo' rigiocare.
+	 *
+	 * Dodici e' un numero **scritto**, non sacro: a ~20px di riga occupa 240 dei 1080 px della colonna
+	 * destra e la lascia leggibile invece che piena. Si discute in una issue, non in un playtest.
+	 */
+	static constexpr int32 MaxFeedLines = 12;
 
 	/**
 	 * Lo stesso feed, preso dal manager. `TurnManager` nullo -> nessuna riga.

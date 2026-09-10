@@ -469,10 +469,10 @@ facesse:
 | Fuori perimetro | Dove vive la domanda |
 |---|---|
 | ~~Il facing **durante** i micro-step di un Move~~ | ✅ **Chiuso 2026-08-10**: `FAC-4` è deciso in [ADR-0008](adr-0008-rotazione-e-policy-di-facing.md) §2 — è la direzione dell'**ultimo passo compiuto** |
-| Se una **reazione** possa ruotare chi reagisce | `FAC-5` — la §4c e D-020 nominano il facing dell'Overwatch come valore **letto**, mai scritto |
-| Se `Interact` richieda o imponga un orientamento | `FAC-6` |
-| Se **status** o **terreno** possano limitare la rotazione | `FAC-7`, `FAC-8` |
-| Se il pathfinding debba diventare orientation-aware | `FAC-9` — l'ADR assume `CellId → CellId` con facing derivato e validato alla fine |
+| ~~Se una **reazione** possa ruotare chi reagisce~~ | ✅ **Chiuso 2026-09-10**: `FAC-5` è deciso da [D-365](RT_PDR_00_Decision_Log.md) — **no**, il default è `KeepFacing`. La §4c e D-020 avevano ragione a nominare il facing dell'Overwatch come valore **letto**: resta tale, e una reazione potrà ruotare solo dichiarando una policy esplicita |
+| ~~Se `Interact` richieda o imponga un orientamento~~ | ✅ **Chiuso 2026-09-10**: `FAC-6` è deciso da [D-365](RT_PDR_00_Decision_Log.md) — lo **impone**, immediatamente prima della risoluzione, senza secondo input e senza consumare il budget del pivot finale |
+| ~~Se **status** o **terreno** possano limitare la rotazione~~ | ✅ **Chiuso 2026-09-10 per la v0.1**: `FAC-7` e `FAC-8` sono decisi da [D-365](RT_PDR_00_Decision_Log.md) — **nessuno dei due**, nella v0.1. `Status.Root` impedisce il movimento e **consente** la rotazione. ⚠️ Chiuso per la release, non per sempre |
+| ~~Se il pathfinding debba diventare orientation-aware~~ | ✅ **Chiuso 2026-09-10 per la v0.1**: `FAC-9` è deciso da [D-365](RT_PDR_00_Decision_Log.md) — **no**, resta `CellId → CellId` con facing derivato e validato alla fine, cioè l'assunzione che questo ADR faceva già. Il facing ottenibile lo mostra la **preview**, che [D-367](RT_PDR_00_Decision_Log.md) costruisce come selettore sulla cella d'arrivo |
 | ~~Il **vocabolario** della rotazione in posto~~ | ✅ **Chiuso 2026-08-10**: `FAC-10` è risolto in [ADR-0008](adr-0008-rotazione-e-policy-di-facing.md) §4 — **pivot** è la capacità, **rotazione dichiarata** è l'atto |
 
 Tre proposte di **modifica** dell'ADR erano registrate come `FAC-1`, `FAC-2` e `FAC-3` nello stesso file, e
@@ -485,6 +485,18 @@ per azione ed effetto) sono state **accettate** dall'autore e sono ora in
 vigore e `Combat.ShieldWorksFromAnyDirection` continua a proteggerla dalla deriva. Da notare che, con `FAC-2`
 accettata, `FAC-3` avrebbe ora una sede naturale in cui esprimersi — una policy di facing dichiarata su
 `Brace` — il che ne abbassa il costo di implementazione ma **non** ne cambia il merito.
+
+> ✅ **Esito, 2026-09-10 — `FAC-3` è decisa, e la §4a NON cambia.** [D-365](RT_PDR_00_Decision_Log.md):
+> `Brace`, `Guard` e `Shield` restano **omnidirezionali**, perché proteggono la **persona** e non un lato. Il
+> paragrafo qui sopra resta com'era scritto — era vero fino a ieri — ma la sua ultima riga ha
+> ricevuto risposta: la sede che `FAC-2` offriva **esiste e non viene usata**, perché ciò che abbassava era il
+> **costo**, e a decidere è stato il **merito**.
+>
+> 🔑 **Nessuna riga di questo ADR va riscritta, ed è il punto.** Con `FAC-3`, `FAC-5`, `FAC-6`, `FAC-7`, `FAC-8`
+> e `FAC-9` chiuse, il perimetro dichiarato dal 2026-08-08 non ha più domande pendenti: le sei risposte
+> **confermano** l'ADR salvo `FAC-6`, che aggiunge a `Interact` una rotazione automatica prima della
+> risoluzione. Owner dell'implementazione di quel pezzo:
+> [#339](https://github.com/DegrassiAaron/refactor-tactics-main/issues/339).
 
 ## Revisione
 

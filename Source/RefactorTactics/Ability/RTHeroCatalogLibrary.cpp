@@ -380,8 +380,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	}
 
 	// Indice 3 — Overload. AoE 18 danni, raggio 1 (riuso il raggio di `Action.CircularAoE`, non un numero
-	// nuovo), portata 3. "Interrupt sui dispositivi" non e' rappresentabile: non esistono dispositivi/gadget
-	// (E7). Solo il danno e' un effetto dichiarato.
+	// nuovo), portata 3. "Interrupt sui dispositivi" non e' rappresentabile: manca un modello di **dispositivo
+	// interrompibile**, cioe' un bersaglio con uno stato che un `Interrupt` possa spegnere. Solo il danno e'
+	// un effetto dichiarato.
+	//
+	// ⚠️ Questa riga diceva «non esistono dispositivi/gadget (E7)». **E7 e' chiusa** e i gadget esistono —
+	// `Gadget.Sprinkler` e `Gadget.Insulator` sono equipaggiamento del catalogo. Il limite non e' caduto con
+	// l'epic, si e' solo ristretto: un limite che cita un'epic chiusa si legge come gia' risolto, ed e' cosi'
+	// che un vincolo reale sparisce senza che nessuno lo tolga.
 	Gadget->Actions.Add(MakeHeroAction(TEXT("Hero.Gadget.Overload"), ERTResolutionPhase::Attack, /*Priority*/ 65,
 		/*Range*/ 3, /*Cooldown*/ 3, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }, ERTAbilityShape::Area, /*AreaRadius*/ 1));
@@ -400,7 +406,19 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 
 	// Variante di LinearDischarge (catalogo v0.1 §6, vincolo: una sola abilita' fondamentale con variante).
 	// Concentrata: +6 danni (30 totali), un solo bersaglio — "non si propaga" e' vero per costruzione, dato
-	// che LinearDischarge base non propaga (nessun sistema di propagazione elettrica esiste, E8).
+	// che LinearDischarge base **non dichiara** propagazione: `PropagationLimit` resta al default, a
+	// differenza di `ConductiveNode` che lo prende dal core.
+	//
+	// ⚠️ Questa riga diceva «nessun sistema di propagazione elettrica esiste, E8», e contraddiceva il
+	// commento di `ConductiveNode` quaranta righe piu' sopra, **nello stesso file**. Il sistema esiste: E8 e'
+	// chiusa, `ERTHexSurface::Conductive` dichiara `bConductsElectricity`, e CP 8.3 e' esercitata da
+	// `RTElectricPropagationTests.cpp`. Cio' che regge non e' l'assenza del sistema — e' che questa abilita'
+	// non vi si aggancia. La differenza conta: la prima formulazione rendeva la variante inspiegabile il
+	// giorno in cui qualcuno leggesse `Action.Electrify`, e prometteva un lavoro gia' fatto.
+	//
+	// 🔑 Ed e' il verso corretto della combo firma: `Status.Wet` e le superfici conduttive sono il **setup
+	// sistemico**, la scarica e' il **payoff**. Il `+8` di LinearDischarge dipende dallo STATO del bersaglio,
+	// non da chi l'ha bagnato (D-029, ADR-0006) — resta un'abilita' elettrica, non una skill d'acqua.
 	FRTAbilityVariant Concentrated;
 	Concentrated.VariantId = TEXT("Hero.Gadget.LinearDischarge.Concentrated");
 	Concentrated.DisplayName = FText::FromString(TEXT("Scarica concentrata"));
@@ -476,12 +494,16 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 			FRTActionEffectSpec(ERTActionEffect::Heal, 18),
 		}, ERTAbilityShape::Area, /*AreaRadius*/ 1));
 
-	// Indice 2 — FluidTrail. `Dash 3` che crea acqua lungo il percorso: la mobilita' e' rappresentabile
-	// (fase Dash, stile lineare — stessa famiglia di `Action.Dodge`), la creazione di terreno no (nessun
-	// effetto di cella dinamica esiste: E8/E9). Nessun Effects dichiarato: il movimento non passa da li', e
-	// l'acqua lasciata dietro non ha un modello da consumare.
+	// Indice 2 — FluidTrail. `Dash 3` e **basta**: la scia d'acqua e' uscita dal kit con #1006. Nessun
+	// Effects dichiarato, e non e' un limite in attesa di un sistema — e' la forma corrente dell'abilita'.
 	// Lo slot va dichiarato: `MakeHeroAction` mette `Main` di default, e per una mobilita' che non fa danno
 	// sarebbe quello sbagliato (D-028). Chi lascia la scia si e' mosso, ma puo' ancora agire.
+	//
+	// ⚠️ Queste righe dicevano «crea acqua lungo il percorso: … la creazione di terreno no (nessun effetto di
+	// cella dinamica esiste: E8/E9)», e la premessa era scaduta **due volte**. E8/E9 sono chiuse — il terreno
+	// dinamico esiste, `ApplyDynamicSurface` cambia la superficie di una cella per N turni — e l'abilita' non
+	// crea piu' terreno affatto. Contraddicevano il capoverso qui sotto, che il cambio lo spiega per intero.
+	//
 	// 🔵 **TORNA a essere uno scatto (#1006), e D-046 e' superata su questo punto.**
 	//
 	// D-046 l'aveva cablata su `Action.CreateWater` per dare all'acqua un owner nel roster, e il suo

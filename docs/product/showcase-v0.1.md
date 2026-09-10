@@ -433,7 +433,9 @@ e non al lato. I costi di movimento li detta il **catalogo terreni**: la fixture
 
 **Spawn canonico** (celle di pavimento, anch'esse speculari): `Hero.Gadget` `(-5,2)` e `Hero.Phase` `(-5,3)` per
 il team 0; `Hero.Riktor` `(5,-2)` e `Hero.Wraith` `(5,-3)` per il team 1. Le unità si configurano da
-`URTHeroCatalogLibrary`, **non** con `ConfigureAsArchetype` (legacy di test).
+`URTHeroCatalogLibrary` (`ConfigureFromHeroData`). ⚠️ Questa riga contrapponeva il catalogo a
+`ConfigureAsArchetype`, «legacy di test»: quel percorso e' stato **rimosso**, quindi non c'e' piu' un'altra
+via da escludere — ce n'e' una sola.
 
 **Verificato da**: `RefactorTactics.ShowcaseRelay.FixtureLayoutIsStable` (conteggio celle, superfici, costi
 dal catalogo, simmetria puntuale, spawn, hash stabile fra due generazioni) e

@@ -44,43 +44,11 @@ namespace
 		return FText::GetEmpty();
 	}
 
-	/**
-	 * Dove il playback e' arrivato, in una riga.
-	 *
-	 * ⚠️ **Si guarda `State`, non i valori.** `TurnNumber` e `Phase` portano un default anche quando non
-	 * significano niente — prima dell'inizio e a fine partita — e stamparli comunque direbbe «turno 0, fase
-	 * Planning» come se fosse un istante della partita.
-	 */
-	FText DescribePosition(const FRTReplayPosition& Posizione)
-	{
-		// 🔴 **`Ended` e `BeforeStart` sono DUE stati diversi**, e `HasTurn()` e' falso in entrambi: la
-		// prima stesura guardava solo quello e scriveva *«Posa iniziale»* anche a partita finita. Si vedeva
-		// subito — bastava premere `>` fino in fondo — ma nessun automation test poteva accorgersene, perche'
-		// questa e' una stringa di presentazione in un pannello Slate. Trovato via MCP il 2026-09-04.
-		if (Posizione.State == ERTReplayPositionState::Ended)
-		{
-			return LOCTEXT("PlaybackAtEnd", "Fine della risoluzione.");
-		}
-
-		if (!Posizione.HasTurn())
-		{
-			// Restano `BeforeStart` e `Unaddressable`. Il secondo porta una fase leggibile ma nessun turno:
-			// dirlo e' meglio che tacerlo, perche' altrimenti si legge come l'inizio.
-			if (Posizione.HasPhase())
-			{
-				return LOCTEXT("PlaybackUnaddressable", "Posizione non raggiungibile nella traccia.");
-			}
-			return LOCTEXT("PlaybackAtStart", "Posa iniziale.");
-		}
-
-		const UEnum* TipoFase = StaticEnum<ERTMatchPhase>();
-		const FText Fase = TipoFase
-			? TipoFase->GetDisplayNameTextByValue(static_cast<int64>(Posizione.Phase))
-			: FText::GetEmpty();
-
-		return FText::Format(LOCTEXT("PlaybackAt", "Turno {0} · {1}"),
-			FText::AsNumber(Posizione.TurnNumber), Fase);
-	}
+	// ⛔ **`DescribePosition` non e' piu' qui.** Viveva in questo anonimo, e il commento nel suo corpo
+	// dichiarava che nessun automation test poteva vederla — accanto a un difetto che solo una seduta in
+	// Editor aveva potuto trovare. Da #2788 e' `FRTLauncherScenarioBrowser::DescribePlaybackPosition`,
+	// insieme alla riga di trasporto che la usa: stesso testo, stesso posto di `DescribeEmptyState`, e un
+	// test che le vede entrambe.
 
 	void ClearScenarioPreview()
 	{
@@ -574,6 +542,17 @@ void SRTLauncherScenarioPanel::RefreshReadout()
 	ReadoutLines.Reset();
 	ReadoutError.Reset();
 
+	// ⚠️ **E la corsa insieme a loro** (#2788). Questa funzione riporta a schermo la posa d'AUTHORING:
+	// `ShowScenario` comincia con `ClearPreview`, che chiude il playback. Una corsa ricordata qui
+	// sopravvivrebbe alla traccia che descriveva, e la riga di trasporto annuncerebbe una corsa di N turni
+	// sopra un campo che non la sta piu' mostrando.
+	//
+	// 🔑 **Ed e' la ragione per cui i due rami di rifiuto di `OnRunScenarioClicked` scrivono `Failed`
+	// DOPO aver chiamato questa funzione**, non prima: scritto prima, verrebbe cancellato qui. Vale identico
+	// per `ReadoutError`, che quei rami perdevano esattamente cosi'.
+	LastRunState = ERTLauncherRunState::NotRun;
+	LastRunTurns = 0;
+
 	if (SelectedId.IsEmpty())
 	{
 		// Nessuna selezione, nessuna anteprima: lasciare a schermo lo scenario di prima mostrerebbe qualcosa
@@ -901,9 +880,15 @@ FReply SRTLauncherScenarioPanel::OnRunScenarioClicked()
 	FString ApriErrore;
 	if (Authoring->OpenById(SelectedId, ApriErrore) != ERTScenarioAuthoringResult::Success)
 	{
-		ReadoutError = ApriErrore;
 		Authoring->Close();
 		RefreshReadout();
+
+		// ⚠️ **Dopo `RefreshReadout()`, non prima**: quella funzione azzera `ReadoutError` in testa. Scritto
+		// prima, il messaggio sopravviveva solo perche' la riapertura falliva a sua volta e ne rimetteva uno
+		// identico — una stesura sbagliata che dava il risultato giusto.
+		ReadoutError = ApriErrore;
+		LastRunState = ERTLauncherRunState::Failed;
+		LastRunTurns = 0;
 		return FReply::Handled();
 	}
 
@@ -915,9 +900,16 @@ FReply SRTLauncherScenarioPanel::OnRunScenarioClicked()
 	{
 		// ⛔ Una corsa fallita NON apre un playback. Il campo resterebbe sulla posa d'authoring, che e'
 		// indistinguibile da uno scenario in cui non succede niente — e sono due affermazioni diverse.
-		ReadoutError = CorsaErrore;
 		Authoring->Close();
 		RefreshReadout();
+
+		// 🔴 **`CorsaErrore` arriva sullo schermo solo scrivendolo QUI.** Prima era assegnato davanti a
+		// `RefreshReadout()`, che lo azzera in testa e poi riapre lo scenario — con successo, perche' a
+		// fallire e' stata la CORSA e non l'apertura. Il messaggio della facade non raggiungeva quindi mai
+		// il pannello, mentre il criterio 3 di #2788 lo dava per acquisito.
+		ReadoutError = CorsaErrore;
+		LastRunState = ERTLauncherRunState::Failed;
+		LastRunTurns = 0;
 		return FReply::Handled();
 	}
 
@@ -941,6 +933,17 @@ FReply SRTLauncherScenarioPanel::OnRunScenarioClicked()
 	//
 	// Il referto non ne soffre: e' gia' quello dello scenario selezionato, e la riga di stato del trasporto
 	// legge il sottosistema a ogni frame, quindi dice da sola se il playback si e' aperto.
+	//
+	// ⚠️ **«Se il playback si e' aperto» non e' «se una corsa e' avvenuta»** (#2788): una corsa che non
+	// produce turni non apre nessun playback, e il sottosistema non ha modo di distinguerla da un pulsante
+	// mai premuto. Il pannello se lo ricorda qui, e la riga lo legge insieme alla posizione.
+	//
+	// 🔑 **Il conteggio viene dal referto della facade, non da un giro proprio.** `TurnsPlayed` e' cio' che
+	// il runner ha misurato; ricavarlo qui dalle tracce sarebbe una seconda autorita' su un numero che esiste
+	// gia', e divergerebbe sugli scenari a varianti — dove l'aggregato non porta traccia.
+	LastRunState = ERTLauncherRunState::Ran;
+	LastRunTurns = Referto.TurnsPlayed;
+
 	return FReply::Handled();
 }
 
@@ -1268,14 +1271,27 @@ TSharedRef<SWidget> SRTLauncherScenarioPanel::BuildTransportRow()
 		+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 		[
 			SNew(STextBlock)
-			.Text_Lambda([]()
+			.Text_Lambda([this]()
 			{
+				// 🔴 **Qui non si sceglie nessuna frase**, ed e' la stessa regola del blocco qui sopra: si
+				// mettono insieme i fatti — due dal sottosistema, due dalla memoria della corsa — e a tradurli
+				// e' `FRTLauncherScenarioBrowser`, dove un automation test li vede tutti.
 				const URTScenarioPreviewSubsystem* P = PreviewSubsystem();
-				if (!P || !P->IsPlaybackOpen())
+
+				FRTLauncherTransportStatus Stato;
+				Stato.Run = LastRunState;
+				Stato.TurnsPlayed = LastRunTurns;
+
+				// L'apertura si richiede a OGNI ridisegno e non si ricorda: il playback puo' chiudersi da
+				// sotto — un `ClearPreview` per un'altra via — e una copia locale direbbe «aperto» su un
+				// campo vuoto.
+				Stato.bPlaybackOpen = P && P->IsPlaybackOpen();
+				if (Stato.bPlaybackOpen)
 				{
-					return LOCTEXT("NoPlayback", "Nessun playback: esegui uno scenario.");
+					Stato.Position = P->GetPlaybackPosition();
 				}
-				return DescribePosition(P->GetPlaybackPosition());
+
+				return FRTLauncherScenarioBrowser::DescribeTransport(Stato);
 			})
 		];
 }

@@ -9,9 +9,16 @@
 ## Stato dell'implementazione (2026-08-06)
 
 **Aggiornato al 2026-08-06 (epic E6 completata)**: i quattro eroi esistono come dati
-(`URTHeroCatalogLibrary::MakeGadget/MakePhase/MakeBranth/MakeWraith`) e `ARTGameMode` allestisce il 2v2 con loro
-— formazione di default **Gadget + Phase** contro **Branth + Wraith**. I due archetipi (`ERTArchetype`) non
-partecipano più allo spawn di partita; restano come helper nei test d'integrazione.
+(`URTHeroCatalogLibrary::MakeGadget/MakePhase/MakeBranth/MakeIvrin`) e `ARTGameMode` allestisce il 2v2 con loro
+— formazione di default **Gadget + Phase** contro **Branth + Ivrin**.
+
+> ⚠️ **Corretto il 2026-09-10.** Questo capoverso proseguiva: «*I due archetipi (`ERTArchetype`) non
+> partecipano più allo spawn di partita; restano come helper nei test d'integrazione*». La seconda metà è
+> caduta: `ERTArchetype` e `ARTUnit::ConfigureAsArchetype` sono stati **rimossi** — `git grep ERTArchetype --
+> Source/` non risponde nulla. Non resta un modello di ruolo legacy: `Ranger` e `Guardian` sopravvivono solo
+> come nomi in commenti storici e in definizioni che i test dichiarano da sé.
+> ⛔ Non confondere con la colonna **`Ruolo`** di §5.1 (`Controller`/`Support`/`Guardian`/`Striker`): quella è
+> **viva e consumata** da `tools/radar/generate.ts`, e la parola `Guardian` vi ha un altro significato.
 
 **Aggiornamento 2026-08-08.** Di quel «non ancora costruito» resta solo una voce: **E8** (terreni dinamici,
 superfici attive) ed **E9** (coperture bassa e alta, strutture, distruzione) sono **completate**; le abilità
@@ -44,18 +51,18 @@ sono cablate e verificate in partita.
 |---|---|---|
 | `Hero.Gadget.ReactiveCapacitor` | `Action.Counter` | ✅ scudo 15 **e** 10 danni all'attaccante |
 | `Hero.Branth.Interposition` | `Action.Intercept` | ✅ incassa il colpo diretto a un alleato entro 2 celle |
-| `Hero.Wraith.Deflection` | `Action.Deflect` | ✅ pool da 20 danni assorbibili dentro il boundary ([D-309](../decisions/RT_PDR_00_Decision_Log.md)) |
+| `Hero.Ivrin.Deflection` | `Action.Deflect` | ✅ pool da 20 danni assorbibili dentro il boundary ([D-309](../decisions/RT_PDR_00_Decision_Log.md)) |
 | `Hero.Phase.FlowReaction` | — | ⏳ **E14**: produce movimento dentro un boundary di risoluzione |
 
 La rinviata lo dichiara **nei dati** (slot `None`, nessun trigger), non solo nei commenti: con lo slot
 `Reaction` il pass del turno la raccoglierebbe e registrerebbe un'attivazione che non produce nulla.
 
-> ➖ **`Hero.Wraith.InterceptShot` è uscita da questa tabella il 2026-08-17, e il denominatore è calato con
+> ➖ **`Hero.Ivrin.InterceptShot` è uscita da questa tabella il 2026-08-17, e il denominatore è calato con
 > lei: erano cinque.** Non è una reazione — dal 2026-08-10 è una **Predictive Action** consegnata
 > (E18 CP 18.2, [D-016](../decisions/RT_PDR_00_Decision_Log.md)), con slot `Main`,
 > `PredictiveTargeting = LockCell` e `PredictionBoundary = MovementEntry`. Non attende un innesco: si
 > dichiara in pianificazione e si risolve a un boundary deterministico.
-> Il suo **Tipo** nella tabella delle abilità di Wraith è ora `predittiva`, ed è **lì** che la rubrica dei
+> Il suo **Tipo** nella tabella delle abilità di Ivrin è ora `predittiva`, ed è **lì** che la rubrica dei
 > radar legge la condizionalità del payoff — non più da questa cella di prosa.
 
 Identità, cooldown ed effetti restano dell'eroe; fase, priorità, slot e trigger vengono dall'azione core.
@@ -64,6 +71,13 @@ Identità, cooldown ed effetti restano dell'eroe; fase, priorità, slot e trigge
 
 **Fisso**: identità · ruolo · attacco base · **quattro abilità fondamentali** · affinità ambientale · debolezza ·
 statistiche base.
+
+> ➕ **Il kit può portare una SESTA voce, e due eroi la portano.** Oltre all'attacco base e alle quattro
+> fondamentali, un eroe può avere **al più una** azione **generica del catalogo core** derivata nel kit:
+> `URTHeroCatalogLibrary::ValidateHeroes` ammette da **5 a 6** azioni, non esattamente 5. Sul roster v0.1 sono
+> `Hero.Phase.TideGuard` e `Hero.Ivrin.PhaseGuard`, entrambe da `Action.Shield`; Gadget e Branth restano a
+> cinque. Il tetto è 6 perché oltre il kit supera le posizioni che l'input raggiunge —
+> `PlayerInput.EveryKitEntryIsReachable` è il gate che lo misura.
 **Configurabile**: variante arma · gadget · modulo di reazione · **variante di una** abilità (una sola per eroe
 nel vertical slice).
 
@@ -86,9 +100,9 @@ nel vertical slice).
 |---|---|---|---|---:|
 | `Hero.Gadget.ArcPulse` | Impulso ad arco | attacco base | 22 danni, range 4 | 0 |
 | `Hero.Gadget.LinearDischarge` | Scarica lineare | linea | 24 danni, **+8 su bersaglio `Wet`** | 2 |
-| `Hero.Gadget.ConductiveNode` | Nodo conduttore | cella | **è `Action.Electrify`**: scarica sul grafo conduttivo, range 4, propagazione 3 ([D-064](../decisions/RT_PDR_00_Decision_Log.md)) | 2 |
+| `Hero.Gadget.ConductiveNode` | Nodo conduttivo | cella | **è `Action.Electrify`**: scarica sul grafo conduttivo, range 4, propagazione 3 ([D-064](../decisions/RT_PDR_00_Decision_Log.md)) | 2 |
 | `Hero.Gadget.Overload` | Sovraccarico | AoE | 18 danni, `Interrupt` sui dispositivi | 3 |
-| `Hero.Gadget.ReactiveCapacitor` | Capacitore reattivo | reazione | scudo 15 e 10 danni all'attaccante | 3 |
+| `Hero.Gadget.ReactiveCapacitor` | Condensatore reattivo | reazione | scudo 15 e 10 danni all'attaccante | 3 |
 
 > **Ownership del bonus `Wet`** ([D-029](../decisions/RT_PDR_00_Decision_Log.md) ·
 > [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md)). Il `+8` di `Hero.Gadget.LinearDischarge` è una
@@ -120,9 +134,9 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Hero.Phase.PressureJet` | Getto pressurizzato | linea | 16 danni, applica `Wet`, `Push 1` | 0 |
-| `Hero.Phase.CircularTide` | Marea circolare | AoE | cura 18 agli alleati, `Wet` ai nemici | 2 |
-| `Hero.Phase.FluidTrail` | Scia fluida | dash | `Dash 3` e crea acqua lungo il percorso | 2 |
+| `Hero.Phase.PressureJet` | Getto in pressione | linea | 16 danni, applica `Wet`, `Push 1` | 0 |
+| `Hero.Phase.CircularTide` | Marea circolare | AoE | cura 18 agli alleati | 2 |
+| `Hero.Phase.FluidTrail` | Scia fluida | dash | `Dash 3` | 2 |
 | `Hero.Phase.MistVeil` | Velo di nebbia | AoE | crea fumo raggio 1 | 3 |
 | `Hero.Phase.FlowReaction` | Flusso reattivo | reazione | `Reposition 1` dopo un attacco | 3 |
 
@@ -143,14 +157,14 @@ nel vertical slice).
 | Range visivo | 5 |
 | Resistenza Push | 0 — *era 1, l'unica del roster, azzerata da [D-075](../decisions/RT_PDR_00_Decision_Log.md) (`#402`): a soglia 1 era immunità totale, non stabilità — vedi §5* |
 | Affinità | strutture |
-| Debolezza | movimento (`Affinity.Movement`) — decisa in CP 6.4, non nel PDF: simmetrica a Wraith |
+| Debolezza | movimento (`Affinity.Movement`) — decisa in CP 6.4, non nel PDF: simmetrica a Ivrin |
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Hero.Branth.ImpactShot` | Colpo cinetico | attacco base | 8 danni, range 3, applica `Slow` | 0 |
+| `Hero.Branth.ImpactShot` | Colpo d'impatto | attacco base | 8 danni, range 3, applica `Slow` | 0 |
 | `Hero.Branth.KineticPanel` | Pannello cinetico | arco | crea una copertura da 30 HP | 2 |
 | `Hero.Branth.Reconfigure` | Riconfigurazione | arco | sposta o ruota una copertura | 2 |
-| `Hero.Branth.Ram` | Ariete | charge | 20 danni e `Push 1` | 2 |
+| `Hero.Branth.Ram` | Carica d'ariete | charge | 20 danni e `Push 1` | 2 |
 | `Hero.Branth.Interposition` | Interposizione | reazione | intercetta un attacco diretto a un alleato | 3 |
 
 **Variante di `KineticPanel`**
@@ -159,7 +173,7 @@ nel vertical slice).
 
 ---
 
-## 4. Wraith — duellante predittivo
+## 4. Ivrin — duellante predittivo
 
 **Ruolo**: assalto · interruzione · punizione del movimento · duello.
 
@@ -174,11 +188,11 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Hero.Wraith.PulseShot` | Tiro a impulsi | attacco base | 21 danni, range 4 | 0 |
-| `Hero.Wraith.InterceptShot` | Tiro d'intercetto | predittiva | 16 danni e **stop del movimento** | 2 |
-| `Hero.Wraith.PassingBlade` | Lama di passaggio | dash | `Dash 3`, 20 danni attraversando | 2 |
-| `Hero.Wraith.Deflection` | Deviazione | reazione | riduce il danno di 20 | 2 |
-| `Hero.Wraith.Feint` | Finta | controllo | marca una cella e ottiene `Reposition` | 2 |
+| `Hero.Ivrin.PulseShot` | Colpo a impulsi | attacco base | 21 danni, range 4 | 0 |
+| `Hero.Ivrin.InterceptShot` | Intercetto | predittiva | 16 danni e **stop del movimento** | 2 |
+| `Hero.Ivrin.PassingBlade` | Lama di passaggio | dash | `Dash 3`, 20 danni attraversando | 2 |
+| `Hero.Ivrin.Deflection` | Deviazione | reazione | riduce il danno di 20 | 2 |
+| `Hero.Ivrin.Feint` | Finta | controllo | marca una cella e ottiene `Reposition` | 2 |
 
 > ℹ️ **`InterceptShot` è di tipo `predittiva`, e il trigger non sta nella cella `Effetto`** — quella cella ha
 > un **vocabolario chiuso**, verificato da `Radar.Vocabulary`, e scriverci prosa la fa fallire. Il trigger è
@@ -189,12 +203,45 @@ nel vertical slice).
 > e non entra nel danno garantito (#557, #1080).
 > ⚠️ **Quella parola è un ingresso di calcolo, non un'etichetta**: scriverla diversamente — `predittivo`,
 > `predittiva ` con uno spazio — non fa fallire nessun gate del catalogo, ma rimette 16 danni nel `power`
-> di Wraith. A intercettarlo è un test che pinna il valore (`Radar.ParseCatalog`), non un controllo di
+> di Ivrin. A intercettarlo è un test che pinna il valore (`Radar.ParseCatalog`), non un controllo di
 > dominio: se cambi questa cella, esegui `node --test tools/radar/*.test.ts`.
 
 **Variante di `InterceptShot`**
 - *Intercetto preciso*: **20 danni**, ma controlla **una sola cella**.
 - *Intercetto esteso*: **14 danni**, ma controlla **una linea di 3 celle**.
+
+---
+
+## 4bis. Le due generiche del kit — `TideGuard` e `PhaseGuard`
+
+Due eroi portano una **sesta** azione, e non è una fondamentale: è una **generica del catalogo core**
+derivata nel kit da `Action.Shield`. `URTHeroCatalogLibrary::ValidateHeroes` ammette da **5 a 6** azioni per
+eroe proprio per questo.
+
+- **`Hero.Phase.TideGuard`** — «Guardia di marea», di **Phase**. Derivata da `Action.Shield`, fase
+  `Preparation`, scudo temporaneo su di sé (`bSelfTarget`), cooldown **2**.
+- **`Hero.Ivrin.PhaseGuard`** — «Guardia di fase», di **Ivrin**. Stessa derivazione, stessa fase,
+  stesso cooldown **2**.
+
+**Uno per squadra**, perché le formazioni sono fisse (`ARTGameMode::Team0Heroes`/`Team1Heroes`). Sono gli
+unici scudi del gioco che si scelgono **prima** di sapere se sarai colpito: `Gadget.ReactiveCapacitor` e
+`Reaction.ReactiveShield` rispondono a un colpo già partito. Su Ivrin il costo è una scelta vera — la
+Preparation spesa qui è quella che non arma `InterceptShot`.
+
+> ⛔ **`PhaseGuard` è di Ivrin, e `Phase` vi compare come *fase*, non come nome d'eroe.** Lo dimostra il
+> DisplayName italiano: «Guardia di fase». Un rename d'identità che la trattasse come abilità di Phase
+> produrrebbe un nome sbagliato — il vincolo è registrato in
+> [#2491](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2491), owner del rename.
+
+> ➖ **Perché stanno qui e non nelle tabelle §2 e §4.** Quelle tabelle sono la base da cui i radar leggono le
+> **20** abilità del roster (`node tools/radar/generate.ts --check` stampa la copertura), e la colonna `Tipo`
+> ha un vocabolario **chiuso** che non contempla uno scudo proattivo. Aggiungere due righe significherebbe
+> estendere quel vocabolario **e** la formula che lo pesa — cioè cambiare il modello dei radar, non allineare
+> un documento. Resta come lavoro dichiarato, non come dimenticanza; e nessuna delle due si cancella per far
+> tornare una tabella a cinque.
+
+> ℹ️ `Hero.Ivrin.PhaseGuard` **non è esercitata da nulla** oggi — né scenario, né voce PIE. Owner:
+> [#2381](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2381).
 
 ---
 
@@ -205,7 +252,7 @@ nel vertical slice).
 | Gadget | 90 | 5 | 7 | 0 | elettricità | fragile, trasforma l'acqua altrui in danno, e **vede più lontano di tutti** |
 | Phase | 95 | 5 | 5 | 0 | acqua | prepara il terreno agli altri e cura |
 | Branth | 120 | 4 | 5 | 0 | strutture | cambia la forma della mappa, lento |
-| Wraith | 90 | 6 | 6 | 0 | movimento | punisce chi si muove, il più mobile |
+| Ivrin | 90 | 6 | 6 | 0 | movimento | punisce chi si muove, il più mobile |
 
 ### 5.1 Percezione e risorsa firma — consolidato il 2026-08-07
 
@@ -231,7 +278,7 @@ non riduce la gittata di nessuno: la vista lunga vale **anticipo d'informazione*
 | Gadget | 7 | 5 | Controller | Carica Conduttiva | interazione elettrica | 4 |
 | Phase | 5 | 3 | Support | Riserva Idrica | interazione con acqua | 4 |
 | Branth | 5 | 3 | Guardian | Integrità Strutturale | Cleanup | 4 |
-| Wraith | 6 | 5 | Striker | Slancio | movimento eseguito | 4 |
+| Ivrin | 6 | 5 | Striker | Slancio | movimento eseguito | 4 |
 
 > 🔊 **La `Soglia d'udito` si legge al contrario delle altre colonne: più bassa, meglio si sente.** È la
 > soglia sotto la quale un rumore **non** viene percepito, sulla stessa scala `0-10` dell'intensità delle
@@ -265,22 +312,22 @@ Stealth 2, Tracking 1): si parte piatti e si differenzia col playtest.
 > Quali di questi parametri diventino statistiche per eroe, e con quali valori, si decide in **E13**: qui non
 > si scrive un numero che nessun sistema legge.
 
-Branth compra HP con **movimento** e vista; Wraith compra mobilità con **salute**; Phase sta in
+Branth compra HP con **movimento** e vista; Ivrin compra mobilità con **salute**; Phase sta in
 mezzo; Gadget ha il danno combo più alto.
 
-> ✅ **Aggiornato il 2026-08-10 ([D-069](../decisions/RT_PDR_00_Decision_Log.md), `#131`): Wraith 100 → 90.**
-> La frase qui sopra diceva che Wraith «compra mobilità con l'assenza di difese» mentre sulle quattro
+> ✅ **Aggiornato il 2026-08-10 ([D-069](../decisions/RT_PDR_00_Decision_Log.md), `#131`): Ivrin 100 → 90.**
+> La frase qui sopra diceva che Ivrin «compra mobilità con l'assenza di difese» mentre sulle quattro
 > statistiche base **non comprava nulla**: a 100/6/6/0 era migliore o pari ovunque rispetto a Gadget (90/5/6/0)
 > *e* a Phase (95/5/5/0), e strettamente migliore in salute **e** movimento. Adesso il costo è un numero.
 >
 > ✅ **Chiusa il 2026-08-10 con la seconda leva: Gadget 6 → 7 di vista ([D-073](../decisions/RT_PDR_00_Decision_Log.md)).**
-> Il calo di Wraith aveva tolto la dominanza su Phase e lasciato quella su Gadget, dove a parità di salute e
-> vista Wraith restava avanti di un punto movimento. Con la vista 7 Gadget ha qualcosa di strettamente
+> Il calo di Ivrin aveva tolto la dominanza su Phase e lasciato quella su Gadget, dove a parità di salute e
+> vista Ivrin restava avanti di un punto movimento. Con la vista 7 Gadget ha qualcosa di strettamente
 > migliore, e **nessun eroe domina più nessun altro** sulle quattro statistiche base.
 >
 > **Perché la vista e non il movimento**, misurato e non intuito: dare 6 MP a Gadget — o toglierne uno a
-> Wraith — renderebbe i due profili **identici**, e `RosterIsBalanced` verifica che nessuna coppia li
-> condivida; si sarebbe rotto un test per ripararne un altro. E una `PushResistance` negativa per Wraith
+> Ivrin — renderebbe i due profili **identici**, e `RosterIsBalanced` verifica che nessuna coppia li
+> condivida; si sarebbe rotto un test per ripararne un altro. E una `PushResistance` negativa per Ivrin
 > sarebbe stata un numero **senza effetto osservabile**: è una soglia, e le spinte del catalogo valgono
 > almeno 1.
 >
@@ -320,21 +367,21 @@ mezzo; Gadget ha il danno combo più alto.
 > esattamente come prima, che è la prova di quanto sopra.
 >
 > L'esito è pinnato dallo scenario
-> `Spec.Combat.BranthIsPushedLikeAnyone`, che manda Branth e Wraith a incassare lo stesso `Hero.Phase.PressureJet`
+> `Spec.Combat.BranthIsPushedLikeAnyone`, che manda Branth e Ivrin a incassare lo stesso `Hero.Phase.PressureJet`
 > e li fa arretrare **entrambi**; la regola della soglia resta pinnata da
 > `RefactorTactics.Actions.PushResistanceIsAThreshold`, che il valore se lo costruisce da solo.
 >
 > ⚠️ Conseguenza per chi deriva viste dai cataloghi: `Resistenza Push` è **costante sul roster**, quindi non
-> discrimina. Un asse che la somma alla `Salute` ricade sulla sola salute — e lì Gadget e Wraith sono **entrambi
+> discrimina. Un asse che la somma alla `Salute` ricade sulla sola salute — e lì Gadget e Ivrin sono **entrambi
 > a 90**.
 
 **Debolezza dichiarata**: il PDF elenca «debolezza» fra gli elementi fissi di ogni eroe ma **non la esplicita**
 per nessuno dei quattro. Va fissata in E6 e scritta qui: senza, l'identità resta metà. **Gadget**: fissata in
 CP 6.2, acqua (`Affinity.Water`) — vedi §1. **Phase**: fissata in CP 6.3, elettricità (`Affinity.Electricity`),
 simmetrica a Gadget — vedi §2. **Branth**: fissata in CP 6.4, movimento (`Affinity.Movement`), simmetrica a
-Wraith — vedi §3. **Wraith**: fissata in CP 6.5, strutture (`Affinity.Structures`) — vedi §4.
+Ivrin — vedi §3. **Ivrin**: fissata in CP 6.5, strutture (`Affinity.Structures`) — vedi §4.
 
-Il roster chiude in **due coppie simmetriche**: Gadget↔Phase sull'acqua/elettricità, Branth↔Wraith sullo
+Il roster chiude in **due coppie simmetriche**: Gadget↔Phase sull'acqua/elettricità, Branth↔Ivrin sullo
 spazio/movimento. La debolezza di ogni eroe è l'affinità di un altro — verificato da
 `RefactorTactics.Heroes.RosterIsBalanced`.
 
@@ -347,7 +394,7 @@ spazio/movimento. La debolezza di ogni eroe è l'affinità di un altro — verif
 | Gadget | Scarica ramificata | `Gadget.Insulator` | `Reaction.ReactiveShield` |
 | Phase | Marea curativa | `Gadget.Sprinkler` | `Reaction.HazardEscape` |
 | Branth | Pannello adattivo | `Gadget.PortableCover` | `Reaction.AllyIntercept` |
-| Wraith | Intercetto esteso | `Gadget.Sensor` | `Reaction.EmergencyDash` |
+| Ivrin | Intercetto esteso | `Gadget.Sensor` | `Reaction.EmergencyDash` |
 
 ---
 
@@ -362,9 +409,9 @@ spazio/movimento. La debolezza di ogni eroe è l'affinità di un altro — verif
 | 5 | `Bastion.ImpactShot`: 24 danni | **8 danni + `Slow` 1 turno**, range 3 invariato ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md), 2026-08-09) | A 24 era l'attacco base **più forte del roster**, mentre il ruolo dichiarato di Riktor è Utility/Emergency: la contraddizione stava nei numeri, non nel ruolo. 8 è la metà esatta di `Riva.PressureJet` (16), che sta un gradino sopra. Lo `Slow` è l'unica delle utility candidate insieme esprimibile e coerente — `ERTStructureOp` non danneggia coperture, e uno `Status` si applica al bersaglio, quindi «genera Guard su di sé» non è rappresentabile | <!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 
 **Non specificato nel PDF** (da fissare in E6): debolezza di ciascun eroe (**tutte fissate**: Gadget CP 6.2, Phase
-CP 6.3, Branth CP 6.4, Wraith CP 6.5) ·
+CP 6.3, Branth CP 6.4, Ivrin CP 6.5) ·
 range di `Hero.Gadget.Overload` (fissato in CP 6.2: **3**, coerente con `ConductiveNode`) e `Hero.Phase.CircularTide`
 (fissato in CP 6.3: **4**, come `Hero.Gadget.Overload`) · durata di `Status.Wet` (fissata in CP 6.3: **1 turno**, come
-`Guard`/`Exposed`/`Marked` — finestra di combo stretta) · durata di `Hero.Wraith.Feint` (fissata in CP 6.5: **1 turno**, come `Wet`/`Marked`) · se le reazioni
+`Guard`/`Exposed`/`Marked` — finestra di combo stretta) · durata di `Hero.Ivrin.Feint` (fissata in CP 6.5: **1 turno**, come `Wet`/`Marked`) · se le reazioni
 degli eroi occupino lo stesso slot dei moduli di reazione dell'equipaggiamento (probabile, ma il PDF elenca
 entrambi senza dirlo).

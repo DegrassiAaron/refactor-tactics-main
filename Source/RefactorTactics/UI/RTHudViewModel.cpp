@@ -495,16 +495,46 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArra
 TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
 	const TArray<int32>& ObserverTeamIds)
 {
+	// 🔴 **Il PERIMETRO viene prima della proiezione, ed e' una correzione non un taglio.**
+	// `Project` applica la dominanza — una riga per unita' — e il suo commento la descrive «in questo
+	// turno». Passandogli la partita intera quella regola cambia significato: chi e' andato KO al round 3
+	// tiene la riga fino alla fine, perche' nessun evento successivo ha rango piu' alto, e cio' che gli e'
+	// accaduto dopo non si vede. Anche l'aggregazione dell'ambiente («quante celle, non quali») si
+	// fonderebbe su dodici round in un contatore solo.
+	int32 UltimoTurno = 0;
+	for (const FRTTurnLogEntry& Entry : TurnLog)
+	{
+		UltimoTurno = FMath::Max(UltimoTurno, Entry.TurnNumber);
+	}
+
+	TArray<FRTTurnLogEntry> DelTurnoCorrente;
+	DelTurnoCorrente.Reserve(TurnLog.Num());
+	for (const FRTTurnLogEntry& Entry : TurnLog)
+	{
+		if (Entry.TurnNumber == UltimoTurno)
+		{
+			DelTurnoCorrente.Add(Entry);
+		}
+	}
+
 	// ⛔ **L'autorizzazione non si ripete qui, e non deve.** `Project` la applica come primo passo, sul
 	// verdetto che ogni voce porta congelato ([D-223]). Riapplicarla sarebbe un secondo contratto di
 	// conoscenza — il difetto che `#1936` vieta — e ometterla sarebbe il leak. Questa funzione **compone** e
 	// nient'altro.
-	const TArray<FRTPlayerEvent> Events = URTPlayerEventProjector::Project(TurnLog, ObserverTeamIds);
+	//
+	// ⚠️ Il filtro qui sopra non tocca l'autorizzazione: seleziona QUALI voci entrano, non chi puo'
+	// vederle. Le due decisioni restano separate, e quella di privacy resta una sola.
+	const TArray<FRTPlayerEvent> Events = URTPlayerEventProjector::Project(DelTurnoCorrente, ObserverTeamIds);
+
+	// Le **ultime** `MaxFeedLines`: il giocatore vuole sapere cos'e' appena successo, non come il turno
+	// era cominciato. Prendere le prime sarebbe altrettanto implementabile e inutile.
+	const int32 Prime = FMath::Max(0, Events.Num() - MaxFeedLines);
 
 	TArray<FRTPlayerEventLineView> Lines;
-	Lines.Reserve(Events.Num());
-	for (const FRTPlayerEvent& Event : Events)
+	Lines.Reserve(Events.Num() - Prime);
+	for (int32 i = Prime; i < Events.Num(); ++i)
 	{
+		const FRTPlayerEvent& Event = Events[i];
 		FRTPlayerEventLineView& Line = Lines.AddDefaulted_GetRef();
 		Line.Text = ComposePlayerEventText(Event);
 		Line.Importance = Event.Importance;

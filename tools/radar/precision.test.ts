@@ -12,15 +12,15 @@ test('incondizionalita: quota di danno garantito sul potenziale, pesata', () => 
   assert.equal(unconditionality(hero('Branth')), 1);
   assert.equal(unconditionality(hero('Phase')), 1);
 
-  // Gadget paga il `+8 su Wet`; Wraith paga l'intero payoff predittivo di InterceptShot.
+  // Gadget paga il `+8 su Wet`; Ivrin paga l'intero payoff predittivo di InterceptShot.
   assert.ok(unconditionality(hero('Gadget')) < 1);
-  assert.ok(unconditionality(hero('Wraith')) < unconditionality(hero('Gadget')));
+  assert.ok(unconditionality(hero('Ivrin')) < unconditionality(hero('Gadget')));
 });
 
 test('selettivita: quota di disponibilita che non rischia gli alleati', () => {
   assert.equal(selectivity(hero('Branth')), 1);
   assert.equal(selectivity(hero('Phase')), 0);
-  assert.equal(selectivity(hero('Wraith')), 0.75);
+  assert.equal(selectivity(hero('Ivrin')), 0.75);
   assert.equal(selectivity(hero('Gadget')), 0.5);
 });
 
@@ -28,5 +28,5 @@ test('i quattro rating precision sono quelli pubblicati, e distinti', () => {
   const r = Object.fromEntries(
     parseHeroCatalog(HERO, ACTION).map((h) => [h.name, precisionRating(h)]),
   );
-  assert.deepEqual(r, { Gadget: 7, Wraith: 8, Branth: 10, Phase: 4 });
+  assert.deepEqual(r, { Gadget: 7, Ivrin: 8, Branth: 10, Phase: 4 });
 });

@@ -27,6 +27,8 @@
 #include "Unit/RTUnit.h"
 #include "RTAttackPlaybackProbeForTest.h"
 #include "RTOrbitProbeForTest.h" // il ritorno di periodo due, condiviso con `NobodyOscillatesOnTheAuthoredMap`
+// `D-361`: la definizione di stallo di questa board vive nella sonda, non qui.
+#include "RTStallDefinitionProbeForTest.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "HAL/IConsoleManager.h"
@@ -1795,6 +1797,16 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	TMap<int32, int32> StillStreak;       // turni consecutivi senza muoversi
 	int32 LongestStillStreak = 0;
 
+	// ✅ **La grandezza che questo oracolo GIUDICA dal 2026-09-09** ([`D-361`], `#2556`): su questa board
+	// «stallo» significa *«nessuna unita' e' caduta per N turni»*, non *«un'unita' non ha cambiato cella»*.
+	//
+	// 🔑 **Perche' la sonda e non un conteggio locale.** La definizione ha gia' un owner —
+	// `FRTStallDefinitionProbe` — e riscriverla qui la duplicherebbe: due implementazioni della stessa
+	// regola divergono in silenzio, ed e' il precedente di `IsIntentVisibleTo` (`#507`). La sonda misura
+	// **tutte** le definizioni a ogni osservazione, quindi il referto sotto puo' continuare a stampare
+	// anche la (b) — che resta la lettura piu' interessante da leggere, e non piu' quella che decide.
+	FRTStallDefinitionProbe SondaStallo;
+
 	// 🔵 **CHI produce la sequenza piu' lunga, e se in quei turni ha colpito** (`#1602`).
 	//
 	// Il margine dell'anti-parcheggio su questa board e' **zero** — 4 su soglia 4 — e finora il referto
@@ -1880,6 +1892,16 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 			}
 		}
 
+		// I totali per squadra fra le VIVE, una passata sola: la sonda non conosce le squadre e li vuole
+		// gia' fatti. Somma e selezione stanno in `FRTStallDefinitionProbe` — un solo posto che conta i vivi.
+		TArray<ARTUnit*> ViveQuestoTurno;
+		for (ARTUnit* Unit : CollectAutobattleUnits(World))
+		{
+			if (Unit->IsAlive()) { ViveQuestoTurno.Add(Unit); }
+		}
+		const TMap<int32, FRTStallDefinitionProbe::FTotaliSquadra> TotaliSquadra =
+			FRTStallDefinitionProbe::TotaliPerSquadra(ViveQuestoTurno);
+
 		TSet<int32> SeenIds;
 		int32 AliveThisTurn = 0;
 		for (const ARTUnit* Unit : CollectAutobattleUnits(World))
@@ -1894,6 +1916,11 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 
 			const bool bHaColpito = ChiHaColpito.Contains(Id);
 			if (bHaColpito) { ++TurniArmatiTotali; }
+
+			// La sonda tiene lei la cella precedente e i totali d'inizio finestra: le si passa lo stato di
+			// adesso, una volta per unita' viva per turno, nell'ordine dei turni.
+			SondaStallo.Observe(Id, Unit->Cell, bHaColpito,
+				FRTStallDefinitionProbe::NemiciDi(TotaliSquadra, Unit->TeamId));
 
 			int32& Inerti = InertInStreak.FindOrAdd(Id);
 			if (bStill)
@@ -2127,12 +2154,26 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	}
 	else
 	{
+		// ✅ **Il gate misura le ELIMINAZIONI dal 2026-09-09** ([`D-361`]): su una board deathmatch lo stallo
+		// e' *«per N turni non e' caduto nessuno»*, che e' una notizia leggibile — non *«un'unita' non ha
+		// cambiato cella»*, che con `Model A` ([`D-045`]) diventa rossa su un `hold-and-shoot` legittimo.
+		//
+		// ⛔ **La soglia e' la stessa di prima**, ed e' il vincolo esplicito di `D-361` a chi implementa:
+		// cambia quale grandezza si misura, non quanto se ne tollera. `MaxLegitimateStillTurns` non e'
+		// toccato, e la DoD di `#2556` chiede esattamente questo.
+		//
+		// ⚠️ **Il margine resta ZERO — 4 su 4 — e `D-361` lo dichiara costo accettato, non risolto**: il
+		// prossimo ritocco ai pesi del bot puo' farlo passare rosso. La differenza e' che allora il rosso
+		// significherebbe qualcosa che si puo' leggere.
+		const int32 SequenzaSenzaCadute =
+			SondaStallo.Peggiore(FRTStallDefinitionProbe::EDefinizione::Eliminazione);
 		TestTrue(FString::Printf(
-			TEXT("nessuna unita' si parcheggia: piu' lunga sequenza ferma %d turni (limite %d) — %s - %s al turno %d"),
-			LongestStillStreak, MaxLegitimateStillTurns,
+			TEXT("nessuno cade: piu' lunga sequenza senza eliminazioni %d turni (limite %d) — "
+				 "la piu' lunga sequenza FERMA e' %d — %s - %s al turno %d"),
+			SequenzaSenzaCadute, MaxLegitimateStillTurns, LongestStillStreak,
 			*URTTurnRules::DescribeOutcome(Result.Outcome),
 			*URTTurnRules::DescribeEndReason(Result.Reason), TurnsPlayed),
-			LongestStillStreak <= MaxLegitimateStillTurns);
+			SequenzaSenzaCadute <= MaxLegitimateStillTurns);
 		bStatoAssorbenteMisurato = true;
 
 		// 🔴 **IL MARGINE, non solo l'esito.** Misurato il 2026-08-28 sulla configurazione spedita: sequenza

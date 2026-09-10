@@ -1266,4 +1266,121 @@ bool FRTHudEventFeedRespectsTheObserverTest::RunTest(const FString&)
 	return true;
 }
 
+namespace
+{
+	/** Una voce autorizzata alla squadra 1, distinguibile per `UnitId`, nel turno chiesto. */
+	FRTTurnLogEntry VoceDiTurno(int32 TurnNumber, int32 UnitId)
+	{
+		FRTTurnLogEntry Voce;
+		Voce.Category = ERTLogCategory::Combat;
+		Voce.Outcome = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);
+		Voce.UnitId = UnitId;
+		Voce.TurnNumber = TurnNumber;
+		Voce.SrcCell = FRTCellId(-1, 0, 0);
+		Voce.TgtCell = FRTCellId(1, 0, 0);
+		Voce.Verdict.AllowTeam(1);
+		return Voce;
+	}
+}
+
+/**
+ * 🔴 **IL FEED PARLA DEL TURNO, NON DELLA PARTITA — e non e' una questione di ingombro.**
+ *
+ * 🔑 **Il difetto che questo test chiude e' che il feed NASCONDE.** `URTPlayerEventProjector::Project`
+ * applica la **dominanza**: una riga per unita', dove «il KO prende il posto del danno, il danno quello
+ * del colpo». Il suo commento la descrive *«in questo turno»* — ma il chiamante gli passava
+ * `TurnManager->GetTurnLog()`, cioe' la **partita intera**. Con quel perimetro l'unita' andata KO al
+ * round 3 tiene la propria riga fino alla fine, perche' nessun evento successivo ha rango piu' alto: cio'
+ * che le e' accaduto dopo non compare, e il giocatore legge una cronaca ferma a tre round prima.
+ *
+ * ⚠️ **Stessa sorte per l'ambiente**: §E vuole una riga sola con un contatore («quante celle, non
+ * quali»), e su dodici round quel contatore sommava l'intera partita in una voce che non dice piu' nulla.
+ *
+ * ⛔ **Il taglio sta nella VISTA e non nel `TurnLog`**, che e' la fonte del replay (`#469`): troncare li'
+ * cambierebbe cio' che si puo' rigiocare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudFeedIsScopedToTheCurrentTurnTest,
+	"RefactorTactics.ScreenHud.FeedIsScopedToTheCurrentTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTHudFeedIsScopedToTheCurrentTurnTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Log;
+	Log.Add(VoceDiTurno(/*TurnNumber*/ 1, /*UnitId*/ 11)); // turno vecchio
+	Log.Add(VoceDiTurno(/*TurnNumber*/ 1, /*UnitId*/ 12)); // turno vecchio
+	Log.Add(VoceDiTurno(/*TurnNumber*/ 2, /*UnitId*/ 21)); // turno corrente
+
+	const TArray<FRTPlayerEventLineView> Feed =
+		URTHudViewModel::BuildPlayerEventFeed(Log, /*ObserverTeamId*/ 1);
+
+	if (!TestEqual(TEXT("il feed porta solo le voci del turno piu' recente"), Feed.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("ed e' quella dell'unita' che ha agito in quel turno"),
+		Feed[0].PrimaryStableUnitId, 21);
+
+	// ⚠️ Il controllo che il test sarebbe inutile senza: le voci vecchie erano **autorizzate** e
+	// **componibili**, quindi la loro assenza dice «filtrate per turno» e non «scartate per privacy».
+	TArray<FRTTurnLogEntry> SoloVecchie;
+	SoloVecchie.Add(VoceDiTurno(1, 11));
+	SoloVecchie.Add(VoceDiTurno(1, 12));
+	TestEqual(TEXT("controllo: da sole quelle voci PRODUCONO righe"),
+		URTHudViewModel::BuildPlayerEventFeed(SoloVecchie, 1).Num(), 2);
+
+	return true;
+}
+
+/**
+ * 🔴 **IL TETTO E' UN NUMERO, E SI PRENDONO LE ULTIME.**
+ *
+ * ⚠️ **«Le prime N» sarebbe altrettanto implementabile e completamente inutile**, ed e' esattamente cio'
+ * che questo test distingue: un tetto che tagliasse la coda lascerebbe a schermo l'inizio del turno e
+ * nasconderebbe l'esito. Verificare solo il **numero** di righe non vedrebbe la differenza.
+ *
+ * 🔑 Il tetto e' la **rete**, non il rimedio: il rimedio e' il perimetro
+ * (`FeedIsScopedToTheCurrentTurn`). Serve per il turno anomalo — molte voci di **mondo**, che sfuggono
+ * alla dominanza perche' non appartengono a nessuna unita' e si accodano una per una.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudFeedShowsTheLastLinesWithinBudgetTest,
+	"RefactorTactics.ScreenHud.FeedShowsTheLastLinesWithinBudget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTHudFeedShowsTheLastLinesWithinBudgetTest::RunTest(const FString&)
+{
+	// Un turno con molte piu' voci del budget, ciascuna di un'unita' diversa: senza unita' distinte la
+	// dominanza le fonderebbe in una riga sola e il tetto non verrebbe mai raggiunto.
+	const int32 Quante = URTHudViewModel::MaxFeedLines * 3;
+	TArray<FRTTurnLogEntry> Log;
+	for (int32 i = 0; i < Quante; ++i)
+	{
+		Log.Add(VoceDiTurno(/*TurnNumber*/ 7, /*UnitId*/ 100 + i));
+	}
+
+	const TArray<FRTPlayerEventLineView> Feed =
+		URTHudViewModel::BuildPlayerEventFeed(Log, /*ObserverTeamId*/ 1);
+
+	if (!TestEqual(TEXT("il feed si ferma al budget"), Feed.Num(), URTHudViewModel::MaxFeedLines))
+	{
+		return false;
+	}
+
+	// 🔑 La meta' che conta: **quali** dodici. La prima riga mostrata e' la tredicesima dal fondo, non la
+	// prima del turno.
+	const int32 PrimaAttesa = 100 + (Quante - URTHudViewModel::MaxFeedLines);
+	TestEqual(TEXT("e sono le ULTIME: la prima riga e' quella giusta"),
+		Feed[0].PrimaryStableUnitId, PrimaAttesa);
+	TestEqual(TEXT("e l'ultima riga e' l'evento piu' recente del turno"),
+		Feed[Feed.Num() - 1].PrimaryStableUnitId, 100 + Quante - 1);
+
+	// Sotto il budget non si taglia niente: un tetto che accorciasse sempre sarebbe un altro difetto.
+	TArray<FRTTurnLogEntry> Poche;
+	Poche.Add(VoceDiTurno(7, 1));
+	Poche.Add(VoceDiTurno(7, 2));
+	TestEqual(TEXT("sotto il budget il feed non taglia"),
+		URTHudViewModel::BuildPlayerEventFeed(Poche, 1).Num(), 2);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

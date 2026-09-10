@@ -3,6 +3,10 @@
 #include "RTLauncherScenarioBrowser.h"
 #include "ScenarioHarness/RTScenarioDraft.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
+#include "ScenarioHarness/RTScenarioAuthoring.h"
+#include "Turn/RTTurnRules.h" // ERTMatchPhase
+#include "UObject/Package.h"       // GetTransientPackage
+#include "UObject/StrongObjectPtr.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -417,6 +421,320 @@ bool FRTLauncherCoinUnitIdTest::RunTest(const FString&)
 		{
 			TestFalse(FString::Printf(TEXT("'%s' non collide con '%s'"), *Coniato, *Presente.Id),
 				Coniato.Equals(Presente.Id, ESearchCase::IgnoreCase));
+		}
+	}
+
+	return true;
+}
+
+/**
+ * Le quattro posizioni del playback si leggono diverse — e `Ended` non si legge come l'inizio (#2788).
+ *
+ * 🔑 **Questo test non esisteva, e il commento nella funzione diceva perche'**: la frase viveva in un
+ * anonimo dentro il pannello Slate, dove nessun automation test la raggiungeva. Il difetto che quel
+ * commento registra — *«Posa iniziale» anche a partita finita* — lo trovo' una seduta in Editor il
+ * 2026-09-04. Spostata la funzione, la stessa domanda costa una chiamata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLauncherPlaybackPositionNamesItselfTest,
+	"RefactorTactics.DevSandboxLauncher.PlaybackPositionNamesItself",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLauncherPlaybackPositionNamesItselfTest::RunTest(const FString&)
+{
+	FRTReplayPosition Inizio;
+	Inizio.State = ERTReplayPositionState::BeforeStart;
+
+	FRTReplayPosition Fine;
+	Fine.State = ERTReplayPositionState::Ended;
+
+	FRTReplayPosition Dentro;
+	Dentro.State = ERTReplayPositionState::AtPhase;
+	Dentro.TurnNumber = 3;
+	Dentro.Phase = ERTMatchPhase::Move;
+
+	FRTReplayPosition Cieca;
+	Cieca.State = ERTReplayPositionState::Unaddressable;
+	Cieca.Phase = ERTMatchPhase::Move;
+
+	const FText DaInizio = FRTLauncherScenarioBrowser::DescribePlaybackPosition(Inizio);
+	const FText DaFine = FRTLauncherScenarioBrowser::DescribePlaybackPosition(Fine);
+	const FText DaDentro = FRTLauncherScenarioBrowser::DescribePlaybackPosition(Dentro);
+	const FText DaCieca = FRTLauncherScenarioBrowser::DescribePlaybackPosition(Cieca);
+
+	// ⚠️ **`HasTurn()` e' falso sia prima dell'inizio sia alla fine**, ed e' esattamente l'errore che la
+	// prima stesura fece: guardare solo quello e scrivere «Posa iniziale» a partita finita.
+	TestFalse(TEXT("l'inizio e la fine non si leggono uguali"), DaInizio.EqualTo(DaFine));
+
+	// `Unaddressable` porta una fase e nessun turno: leggerlo come l'inizio manderebbe a premere `>` da un
+	// punto che non e' quello in cui si e'.
+	TestFalse(TEXT("l'inizio e una posizione non indirizzabile non si leggono uguali"),
+		DaInizio.EqualTo(DaCieca));
+	TestFalse(TEXT("la fine e una posizione non indirizzabile non si leggono uguali"),
+		DaFine.EqualTo(DaCieca));
+
+	// Il turno compare per davvero: una frase che lo ignorasse passerebbe tutti i confronti qui sopra.
+	TestTrue(TEXT("dentro un turno la riga porta il numero del turno"),
+		DaDentro.ToString().Contains(TEXT("3")));
+
+	// ⛔ E non lo porta dove non vale: `TurnNumber` e' `0` per default negli altri tre stati, e stamparlo
+	// direbbe «turno 0» come se fosse un istante della partita.
+	TestFalse(TEXT("prima dell'inizio non si annuncia nessun turno"),
+		DaInizio.ToString().Contains(TEXT("Turno")));
+
+	return true;
+}
+
+/**
+ * `Esegui` non e' piu' muto: la riga di trasporto dice **cosa** sta mostrando, non solo dove si e' (#2788).
+ *
+ * 🔴 **Il difetto misurato, e perche' nessun test poteva vederlo prima.** Seduta in Editor del
+ * 2026-09-09, pilotata via MCP: su `AutoBattle.ArenaV01` il click su `Esegui` non cambiava una sola parola
+ * sullo schermo, e il pulsante fu classificato non funzionante per due tentativi consecutivi. La riga
+ * rispondeva alla domanda «dove sono nella traccia», che a playback appena aperto e' sempre la stessa
+ * risposta; la domanda che il designer stava facendo era «e' successo qualcosa». Le tre condizioni che
+ * collassavano sono i tre casi qui sotto.
+ *
+ * ⚠️ **Questo test copre la traduzione, non il gesto.** Che il click chiami la facade, che il playback si
+ * apra e che la riga si ridisegni sono Slate su un editor vivo: restano voce di seduta
+ * (`PIE-SCEN-COMPOSER`), e nessuna asserzione qui li tocca.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLauncherTransportNamesTheRunTest,
+	"RefactorTactics.DevSandboxLauncher.TransportNamesTheRun",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLauncherTransportNamesTheRunTest::RunTest(const FString&)
+{
+	FRTReplayPosition Inizio;
+	Inizio.State = ERTReplayPositionState::BeforeStart;
+
+	// 1. Mai eseguito: nessun playback aperto, e la riga invita a eseguire.
+	FRTLauncherTransportStatus MaiEseguito;
+
+	// 2. Eseguito senza turni: la corsa e' avvenuta e non ha aperto niente, perche' non c'era niente da
+	//    aprire. E' l'esito legittimo che si leggeva come un pulsante rotto.
+	FRTLauncherTransportStatus SenzaTurni;
+	SenzaTurni.Run = ERTLauncherRunState::Ran;
+	SenzaTurni.TurnsPlayed = 0;
+
+	// 3. Eseguito con turni: il playback e' aperto sul turno 0 della TRACCIA — la stessa posizione che,
+	//    da sola, si legge «Posa iniziale».
+	FRTLauncherTransportStatus ConTraccia;
+	ConTraccia.Run = ERTLauncherRunState::Ran;
+	ConTraccia.TurnsPlayed = 22;
+	ConTraccia.bPlaybackOpen = true;
+	ConTraccia.Position = Inizio;
+
+	// 4. Corsa rifiutata dalla facade: nessun playback, e il readout porta il messaggio.
+	FRTLauncherTransportStatus Fallita;
+	Fallita.Run = ERTLauncherRunState::Failed;
+
+	const FText Mai = FRTLauncherScenarioBrowser::DescribeTransport(MaiEseguito);
+	const FText Vuota = FRTLauncherScenarioBrowser::DescribeTransport(SenzaTurni);
+	const FText Traccia = FRTLauncherScenarioBrowser::DescribeTransport(ConTraccia);
+	const FText Rifiutata = FRTLauncherScenarioBrowser::DescribeTransport(Fallita);
+
+	// --- criterio 1: la corsa senza turni non si legge come «non hai ancora eseguito» ------------------
+	TestFalse(TEXT("una corsa senza turni non si legge come un pulsante mai premuto"),
+		Vuota.EqualTo(Mai));
+	TestTrue(TEXT("e nomina l'assenza di turni invece di tacerla"),
+		Vuota.ToString().Contains(TEXT("nessun turno")));
+
+	// --- criterio 2: la traccia prodotta non si legge come la posa d'authoring ---------------------------
+	//
+	// 🎯 **I due confronti sono diversi e servono entrambi.** Il primo tiene la traccia distinta dallo stato
+	// in cui il pannello si trova PRIMA del click; il secondo la tiene distinta dalla frase che la sola
+	// posizione produce — cioe' da *«Posa iniziale.»*, che e' la parola per parola che ha ingannato il
+	// lettore. Senza il secondo, una stesura che ignorasse la corsa e restituisse la sola posizione
+	// passerebbe il primo.
+	TestFalse(TEXT("la traccia aperta non si legge come lo stato precedente al click"),
+		Traccia.EqualTo(Mai));
+	TestFalse(TEXT("e non si legge come la sola posizione, che dice \"Posa iniziale\""),
+		Traccia.EqualTo(FRTLauncherScenarioBrowser::DescribePlaybackPosition(Inizio)));
+
+	// Il conteggio non e' decorativo: e' il dato che distingue una corsa lunga da una che non ha giocato
+	// niente, e arriva dal referto del runner.
+	TestTrue(TEXT("la riga porta i turni che la corsa ha giocato"),
+		Traccia.ToString().Contains(TEXT("22")));
+
+	// --- criterio 3: il rifiuto resta distinto da entrambi ----------------------------------------------
+	TestFalse(TEXT("una corsa fallita non si legge come un pulsante mai premuto"),
+		Rifiutata.EqualTo(Mai));
+	TestFalse(TEXT("una corsa fallita non si legge come una corsa senza turni"),
+		Rifiutata.EqualTo(Vuota));
+	TestFalse(TEXT("una corsa fallita non si legge come una traccia aperta"),
+		Rifiutata.EqualTo(Traccia));
+
+	// --- il quinto caso: turni giocati, ma niente da riprodurre -----------------------------------------
+	//
+	// ⚠️ Non e' teorico: gli scenari a VARIANTI aggregano piu' corse e non assegnano ne' hash ne'
+	// `TurnTraces` all'aggregato (`FRTScenarioRunReport::bHasTrace`). Fondere questo caso con «nessun
+	// turno» direbbe che la partita non ha giocato niente, mentre ha giocato e non e' ispezionabile.
+	FRTLauncherTransportStatus NonRiproducibile;
+	NonRiproducibile.Run = ERTLauncherRunState::Ran;
+	NonRiproducibile.TurnsPlayed = 7;
+
+	const FText Muta = FRTLauncherScenarioBrowser::DescribeTransport(NonRiproducibile);
+	TestFalse(TEXT("una traccia mancante non si legge come una corsa senza turni"), Muta.EqualTo(Vuota));
+	TestTrue(TEXT("e dichiara i turni che sono stati giocati"), Muta.ToString().Contains(TEXT("7")));
+
+	// --- il singolare, su `Movement.Basic`, che di turno ne ha esattamente uno --------------------------
+	FRTLauncherTransportStatus UnTurno;
+	UnTurno.Run = ERTLauncherRunState::Ran;
+	UnTurno.TurnsPlayed = 1;
+	UnTurno.bPlaybackOpen = true;
+	UnTurno.Position = Inizio;
+
+	const FString Singolare = FRTLauncherScenarioBrowser::DescribeTransport(UnTurno).ToString();
+	TestTrue(TEXT("un turno solo si dice al singolare"), Singolare.Contains(TEXT("1 turno")));
+	TestFalse(TEXT("e non al plurale"), Singolare.Contains(TEXT("1 turni")));
+
+	// --- un playback aperto di cui il pannello non ha memoria -------------------------------------------
+	//
+	// ⛔ Nessun conteggio inventato: si dice dove si e', che e' l'unica cosa che si sa. Scrivere «corsa di 0
+	// turni» su una traccia aperta — che quindi di turni ne ha — sarebbe un numero falso.
+	FRTLauncherTransportStatus SenzaMemoria;
+	SenzaMemoria.bPlaybackOpen = true;
+	SenzaMemoria.Position = Inizio;
+
+	TestTrue(TEXT("un playback senza corsa nota si descrive per posizione"),
+		FRTLauncherScenarioBrowser::DescribeTransport(SenzaMemoria)
+			.EqualTo(FRTLauncherScenarioBrowser::DescribePlaybackPosition(Inizio)));
+
+	return true;
+}
+
+/**
+ * Gli stati del trasporto sul CORPUS vero, e la distinzione che il criterio 4 di #2788 confonde.
+ *
+ * 🔴 **«turni» nel readout e «turni giocati» non sono lo stesso numero, ed e' la causa del difetto.**
+ * La riga `turni` del readout viene da `FRTScenarioSummary::TurnCount`, cioe' dai turni **authorati** nel
+ * file; quelli che la corsa gioca stanno in `FRTScenarioRunReport::TurnsPlayed`. Su `AutoBattle.ArenaV01` i
+ * due divergono al massimo: il file ne dichiara **0** ed e' `freeRun`, quindi la partita ne gioca decine.
+ * Chi ha misurato la seduta ha letto «turni 0» e si e' aspettato che non succedesse niente — e il
+ * pulsante, che invece stava eseguendo, e' sembrato rotto.
+ *
+ * 🎯 **Percio' la coppia che verifica davvero il criterio non e' quella scritta nella issue.** Uno scenario
+ * la cui CORSA non gioca turni e' uno con `turns` vuoto e **senza** `freeRun`; misurati sul corpus il
+ * 2026-09-10 con un `python -c` che apre ricorsivamente i `.json` di `Scenarios/`, sono `Spec.Hud.DockArmsTheSelectedAction`,
+ * `Spec.Hud.MatchWithTwoAllies`, `Visual.Input.PcGym`, `Visual.Map.BlockVolumes` e
+ * `Visual.Map.TwoLayersSameColumn`. Qui si usa l'ultimo.
+ *
+ * ⚠️ **Cosa questo test NON dimostra.** Non apre nessun playback — `OpenPlayback` pretende un'anteprima
+ * viva nel viewport, che headless non c'e' — e non preme nessun pulsante. Dimostra i FATTI da cui lo stato
+ * del pannello dipende: quanti turni la corsa gioca e se lascia una traccia da riprodurre. Che il click li
+ * legga resta la seduta `PIE-SCEN-COMPOSER`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLauncherTransportMatchesTheCorpusTest,
+	"RefactorTactics.DevSandboxLauncher.TransportMatchesTheCorpus",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLauncherTransportMatchesTheCorpusTest::RunTest(const FString&)
+{
+	// Apre, esegue, richiude. La facade e' la stessa che il pannello usa, e come li' il draft non resta
+	// aperto: il ciclo e' quello, non una scorciatoia del test.
+	auto Corri = [this](const TCHAR* Id, int32& OutTurniGiocati, int32& OutTracce) -> bool
+	{
+		TStrongObjectPtr<URTScenarioAuthoring> Facade(
+			URTScenarioAuthoring::CreateScenarioDraft(GetTransientPackage()));
+
+		if (!TestTrue(TEXT("la facade d'authoring si costruisce"), Facade.IsValid()))
+		{
+			return false;
+		}
+
+		// ⚠️ L'apertura su una riga a se': dentro `TestTrue` il messaggio e la condizione sono due argomenti,
+		// e l'ordine in cui si valutano non e' specificato — la diagnostica stamperebbe la stringa d'errore
+		// come era PRIMA della chiamata, cioe' vuota, proprio nel caso in cui serve.
+		FString ApriErrore;
+		const bool bAperto = Facade->OpenById(Id, ApriErrore) == ERTScenarioAuthoringResult::Success;
+		if (!TestTrue(FString::Printf(TEXT("%s si apre: %s"), Id, *ApriErrore), bAperto))
+		{
+			Facade->Close();
+			return false;
+		}
+
+		FRTScenarioRunReport Referto;
+		FString CorsaErrore;
+		const bool bCorsa = Facade->Run(Referto, CorsaErrore) == ERTScenarioAuthoringResult::Success;
+
+		OutTurniGiocati = Referto.TurnsPlayed;
+		OutTracce = Facade->GetLastRunTraces().Num();
+		Facade->Close();
+
+		return TestTrue(FString::Printf(TEXT("%s esegue: %s"), Id, *CorsaErrore), bCorsa);
+	};
+
+	// --- uno scenario a turni authorati: la corsa produce una traccia -----------------------------------
+	int32 TurniBasic = -1;
+	int32 TracceBasic = -1;
+	if (Corri(TEXT("Movement.Basic"), TurniBasic, TracceBasic))
+	{
+		TestEqual(TEXT("Movement.Basic gioca il turno che dichiara"), TurniBasic, 1);
+		TestTrue(TEXT("e lascia una traccia da riprodurre"), TracceBasic > 0);
+
+		// Lo stato che il pannello costruisce da questi due fatti, con il playback aperto sulla posa.
+		FRTReplayPosition Inizio;
+		Inizio.State = ERTReplayPositionState::BeforeStart;
+
+		FRTLauncherTransportStatus Stato;
+		Stato.Run = ERTLauncherRunState::Ran;
+		Stato.TurnsPlayed = TurniBasic;
+		Stato.bPlaybackOpen = true;
+		Stato.Position = Inizio;
+
+		const FString Riga = FRTLauncherScenarioBrowser::DescribeTransport(Stato).ToString();
+		TestTrue(FString::Printf(TEXT("la riga nomina la corsa e il suo turno: %s"), *Riga),
+			Riga.Contains(TEXT("1 turno")));
+
+		// 🎯 Il criterio 2, sullo scenario che l'ha rivelato: non si legge come la sola posizione.
+		TestFalse(TEXT("e non si legge come la posa d'authoring"),
+			Riga == FRTLauncherScenarioBrowser::DescribePlaybackPosition(Inizio).ToString());
+	}
+
+	// --- uno scenario la cui corsa NON gioca turni ------------------------------------------------------
+	int32 TurniVuoto = -1;
+	int32 TracceVuoto = -1;
+	if (Corri(TEXT("Visual.Map.TwoLayersSameColumn"), TurniVuoto, TracceVuoto))
+	{
+		TestEqual(TEXT("uno scenario senza turni authorati non ne gioca"), TurniVuoto, 0);
+
+		// 🔑 **E' questa la ragione per cui il playback non si apriva, e la riga taceva.**
+		// `URTScenarioPreviewSubsystem::OpenPlayback` rifiuta quando `GetLastRunTraces()` e' vuota, e il
+		// pannello restava sulla frase che invita a eseguire — detta a chi aveva appena eseguito.
+		TestEqual(TEXT("e non lascia nessuna traccia da riprodurre"), TracceVuoto, 0);
+
+		FRTLauncherTransportStatus Stato;
+		Stato.Run = ERTLauncherRunState::Ran;
+		Stato.TurnsPlayed = TurniVuoto;
+		Stato.bPlaybackOpen = false;
+
+		const FText Riga = FRTLauncherScenarioBrowser::DescribeTransport(Stato);
+		TestTrue(TEXT("la riga nomina l'assenza di turni invece di tacere"),
+			Riga.ToString().Contains(TEXT("nessun turno")));
+
+		FRTLauncherTransportStatus MaiEseguito;
+		TestFalse(TEXT("e non si legge come un pulsante mai premuto"),
+			Riga.EqualTo(FRTLauncherScenarioBrowser::DescribeTransport(MaiEseguito)));
+	}
+
+	// --- il numero che il readout mostra per `AutoBattle.ArenaV01` --------------------------------------
+	//
+	// ⛔ **Non si esegue qui.** La corsa di questo scenario e' gia' misurata da
+	// `Scenario.FreeRun.ArenaV01ReachesAWinner`, che asserisce `PASS` e `TurnsPlayed` sotto il tetto di 40:
+	// rieseguirla pagherebbe decine di turni di bot per una conclusione che quel test gia' porta. Qui serve
+	// solo il numero che il READOUT mostra, e quello si legge dall'header senza correre.
+	{
+		TStrongObjectPtr<URTScenarioAuthoring> Facade(
+			URTScenarioAuthoring::CreateScenarioDraft(GetTransientPackage()));
+
+		FString ApriErrore;
+		const bool bAperto = Facade.IsValid()
+			&& Facade->OpenById(TEXT("AutoBattle.ArenaV01"), ApriErrore) == ERTScenarioAuthoringResult::Success;
+
+		if (TestTrue(FString::Printf(TEXT("AutoBattle.ArenaV01 si apre: %s"), *ApriErrore), bAperto))
+		{
+			// 🔴 Il readout dice «turni 0», e la partita ne gioca decine: e' la divergenza che ha fatto
+			// leggere come rotto un pulsante che funzionava.
+			TestEqual(TEXT("il readout di ArenaV01 dichiara zero turni authorati"),
+				Facade->GetSummary().TurnCount, 0);
+			Facade->Close();
 		}
 	}
 

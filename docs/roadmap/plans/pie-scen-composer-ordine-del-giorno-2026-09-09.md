@@ -259,8 +259,19 @@ Con queste quattro risposte si decide cosa costruire. Senza, qualunque progetto 
 un'assunzione.
 
 ⚠️ **Se la seduta viene eseguita, va registrata**: `editor-sessions.yaml` è l'owner di *quale voce e
-quando*, e oggi nessuna sua seduta nomina il Composer. Questo file non può inventarsi una seduta — può
-solo dire che manca.
+quando*. Questo file non può inventarsi una seduta — può solo dire che manca.
+
+✅ **E non manca più, dal 2026-09-10: è `U50`**
+([#1527](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1527)). *La riga qui sopra
+proseguiva con «e oggi nessuna sua seduta nomina il Composer», ed era vera fino a quel giorno.*
+`U50` dichiara `verifies: [PIE-SCEN-COMPOSER]`, `issues: [1527, 1105]` e
+`shares_setup_with: [U31, U32]` — la stessa apertura di `L_DevSandbox` su cui quelle due già
+guardano il tab **Tactical Designer**, quindi la seduta entra in sequenza senza reclamare un terzo
+avvio dell'Editor.
+
+⛔ **Aprire la seduta non è eseguirla**, e i due passi hanno validazioni diverse: il primo si misura
+con un `grep`, il secondo vuole il motore. Il DoD resta **osservato a metà** finché due unità su celle
+diverse non sono state viste a schermo.
 
 
 ---

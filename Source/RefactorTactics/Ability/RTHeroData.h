@@ -16,9 +16,16 @@ class URTActionData;
  * dall'abilita' che modifica — la stessa "Scarica ramificata" non avrebbe senso su un'abilita' di un altro
  * eroe.
  *
- * `Actions` ha ESATTAMENTE cinque elementi nel catalogo v0.1: indice 0 l'attacco base (fascia dalla portata,
+ * `Actions` ha **da cinque a sei** elementi nel catalogo v0.1: indice 0 l'attacco base (fascia dalla portata,
  * `URTCatalogLibrary::MakeBasicAttack`), indici 1-4 le quattro abilita' fondamentali — di cui **una sola**
- * dichiara varianti (`URTHeroCatalogLibrary::ValidateHeroes` lo fa valere).
+ * dichiara varianti — e un indice 5 **facoltativo**, una generica del catalogo core portata nel kit.
+ * `URTHeroCatalogLibrary::ValidateHeroes` fa valere l'intervallo e il vincolo della variante unica.
+ *
+ * ⚠️ **Era «ESATTAMENTE cinque», e la parola in maiuscolo non e' bastata a tenerlo vero.** Sul roster v0.1
+ * ne hanno sei **Phase** (`Hero.Phase.TideGuard`) e **Ivrin** (`Hero.Ivrin.PhaseGuard`), entrambe derivate
+ * da `Action.Shield`; Gadget e Branth restano a cinque. Il tetto e' 6 e non «quante ne vuoi» perche' oltre,
+ * il kit supera le posizioni che l'input raggiunge — `PlayerInput.EveryKitEntryIsReachable` lo misura.
+ * Il costo dell'intervallo e' dichiarato accanto al validator: non dice piu' «questo eroe e' completo».
  *
  * Solo interi (invariante #4). Riferimento: docs/balance/RT_HeroCatalog_v0.1.md
  */
@@ -63,7 +70,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 HearingThreshold = 5;
 
-	/** Celle di spinta assorbite prima di essere spostato (Branth: 1). */
+	/**
+	 * Celle di spinta assorbite prima di essere spostato. **Soglia**, non riduzione (D-038).
+	 *
+	 * ⚠️ Il roster v0.1 e' interamente a `0` da D-075 (#402), Branth compreso — che fino al 2026-08-10 era
+	 * l'unico a `1`. A soglia 1, siccome ogni spinta del gioco vale 1, il campo comprava **immunita' totale**
+	 * invece di stabilita'. La meccanica resta implementata (`RTTurnManager.cpp`, ramo `ERTActionEffect::Push`)
+	 * e **dormiente**: si risveglia il giorno in cui una spinta >= 2 entra nel catalogo.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 PushResistance = 0;
 
@@ -121,7 +135,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName ReactionProfileId;
 
-	/** Le azioni dell'eroe: attacco base (indice 0) + quattro abilita' fondamentali (indici 1-4). */
+	/**
+	 * Le azioni dell'eroe: attacco base (indice 0) + quattro abilita' fondamentali (indici 1-4) + una
+	 * generica del catalogo core **facoltativa** (indice 5). Cardinalita' 5-6, vedi il docstring della classe.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	TArray<TObjectPtr<URTActionData>> Actions;
 

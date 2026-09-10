@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "bindHost": "127.0.0.1",
+  "gatewayPort": 8080,
+  "playwright": {
+    "enabled": true,
+    "port": 8931,
+    "endpoint": "http://127.0.0.1:8931/mcp"
+  },
+  "episodicMemory": {
+    "enabled": true,
+    "gatewayBackendName": "episodic-memory",
+    "command": "episodic-memory-mcp-server",
+    "centralizeMcpOnlyAfterPluginAudit": true
+  },
+  "superpowersChrome": {
+    "enabled": false,
+    "reason": "Keep disabled until multi-client browser-session contention and plugin MCP duplication are verified."
+  },
+  "serena": {
+    "basePort": 9121,
+    "context": "claude-code",
+    "transport": "streamable-http"
+  }
+}

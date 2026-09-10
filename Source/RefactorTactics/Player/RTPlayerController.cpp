@@ -2023,6 +2023,25 @@ ARTUnit* ARTPlayerController::GetSelectedUnit() const
 	return Cast<ARTUnit>(SelectedActor);
 }
 
+void ARTPlayerController::ArmKitAbility(int32 KitIndex)
+{
+	// 🔑 **Il TOGGLE e' tutto cio' che questa porta aggiunge**, e va deciso QUI e non dentro
+	// `SelectAbilityForCurrent`: quella la chiamano anche i dieci tasti numerici, e premere due volte `3`
+	// non deve disarmare — un tasto ripetuto e' una riconferma, un click ripetuto su uno slot acceso e'
+	// una richiesta di spegnerlo. Stesso percorso, intenzioni diverse.
+	const ARTUnit* Unit = GetSelectedUnit();
+	if (KitIndex != INDEX_NONE && Unit && Unit->SelectedAbilityIndex == KitIndex)
+	{
+		// ⛔ Il disarmo NON scrive `SelectedAbilityIndex` da qui: passa dalla stessa funzione, quindi
+		// eredita le guardie su input bloccato e pianificazione inerte. Un click che disarmasse durante
+		// la risoluzione sarebbe un secondo canale con regole proprie.
+		SelectAbilityForCurrent(INDEX_NONE);
+		return;
+	}
+
+	SelectAbilityForCurrent(KitIndex);
+}
+
 void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 {
 	// Le `OnAbility*` sono one-liner che passano tutte di qui: la guardia sta nel punto comune invece che

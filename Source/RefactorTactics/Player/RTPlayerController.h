@@ -715,6 +715,34 @@ public:
 	ERTPointerContext GetPointerContext() const;
 
 	/**
+	 * 🔴 **La porta che il dock chiama: arma — o DISARMA — la posizione `KitIndex` del kit dell'unita'
+	 * selezionata** (`#2826`).
+	 *
+	 * 🔑 **Esiste perche' il dock era a schermo e non serviva a niente.** `#2759`, `#2760` e `#2784` hanno
+	 * chiuso i tre difetti di montaggio: gli slot mostrano azione, icona, cooldown e stato armato — e
+	 * cliccarli non faceva nulla, perche' `SelectAbilityForCurrent` e' `private:` e senza `UFUNCTION`.
+	 * L'unica strada per armare era la tastiera. Il contrasto sta nello stesso progetto:
+	 * `URTFastDecisionWidget::ChooseOption` e' `BlueprintCallable` e porta il click fino al core — la
+	 * finestra di reazione una porta ce l'ha, il dock no.
+	 *
+	 * ⛔ **DELEGA, non duplica.** Il corpo resta uno solo: cooldown, slot reazione e self-target sono
+	 * decisi da `SelectAbilityForCurrent`, e un click non puo' aggirare un controllo che il tasto
+	 * rispetta. Cio' che questa funzione aggiunge e' **solo** il toggle, che la tastiera non ha.
+	 *
+	 * ⚠️ **Un `int32`, mai un `FName` scelto dal widget** — la stessa disciplina di `ChooseOption`: il
+	 * widget puo' soltanto *indicare* una posizione che il core ha prodotto, non nominare un'azione.
+	 *
+	 * 🔑 **Ricliccare lo slot gia' armato DISARMA**, e riporta al neutro di [D-128]: `SelectAbility`
+	 * dichiara `INDEX_NONE` un ingresso legittimo — *«senza di esso non esisterebbe un modo di tornare
+	 * allo stato neutro»* — quindi anche il disarmo passa dalla stessa porta e dalle stesse guardie.
+	 *
+	 * ⚠️ Fail-closed come il resto della catena: senza unita' selezionata, con l'input bloccato o con la
+	 * pianificazione inerte non fa **nulla**.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Planning")
+	void ArmKitAbility(int32 KitIndex);
+
+	/**
 	 * Il mondo e' in SOLA LETTURA: nessun input puo' cambiare il piano (`#2518`).
 	 *
 	 * 🔑 **E' un INSIEME di contesti, non un valore.** `spec-pointer-interaction.md` §5.3 li elenca insieme
