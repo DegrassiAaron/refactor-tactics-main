@@ -29,7 +29,14 @@ namespace RTLegacyIdentity
 		// verifica la scomparsa. Qui non esistono ancora — se qualcuno li scrivesse, il tetto va alzato
 		// **con loro**, non prima.
 		{ TEXT("Hero.Wraith"), TEXT("Hero.Ivrin"),   0,  0 },
-		{ TEXT("Hero.Phase"),  TEXT("Hero.Muiren"), 35, 44 },
+		// **Il tetto di `Hero.Phase` sale da 35 a 36, e NON e' questa fetta a consumarlo.** Il commit
+		// `18806f68` (#2824) ha aggiunto `RTHeroData.h`, che nomina `Hero.Phase.TideGuard` per spiegare
+		// perche' due eroi portano sei azioni invece di cinque. E' una menzione LEGITTIMA di un'identita'
+		// ancora viva — `Phase` non e' rinominata — ma il tetto non e' stato alzato nella stessa PR, e da
+		// allora questo test e' ROSSO su `main`: misurato 36 file contro un tetto di 35. Qui sale con la
+		// ragione scritta, che e' quanto la regola in testa a questo file chiede — il tetto si muove
+		// **insieme** a cio' che lo muove, mai in silenzio e mai prima.
+		{ TEXT("Hero.Phase"),  TEXT("Hero.Muiren"), 36, 44 },
 		// ⌫ Gia' rinominata (`D-334`), e il suo tetto **non e' zero**: le quattro occorrenze residue sono
 		// menzioni LEGITTIME — tre commenti che spiegano il rename e un test che verifica che l'identita' non
 		// si risolva piu'. E' la misura di cosa resta quando una fetta e' completa.
