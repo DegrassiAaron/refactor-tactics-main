@@ -46,7 +46,17 @@ enum class ERTOverlayMeaning : uint8
 	/** Un alleato e' dentro l'area colpita, e va visto PRIMA del lock-in. */
 	FriendlyFire,
 	/** Cosa sto indicando. Interaction Context, non un'area semantica di gameplay. */
-	Hover
+	Hover,
+	/**
+	 * La LINEA di tiro verso un bersaglio, e dove si interrompe — `#2742`.
+	 *
+	 * ⛔ **Non e' l'area di visibilita'**, cioe' *«quali celle vedo»*: quella e' di `#1944`, ha un'altra
+	 * resa e un altro costo. Il confine e' stato deciso il 2026-09-10 ed e' scritto in entrambe le issue.
+	 *
+	 * 🔑 Il valore `#32ADE6` era **riservato da [D-368] e tenuto fuori da questo enum**, perche' un
+	 * significato senza produttore nasce morto. Entra ora, insieme a `URTSightLineLibrary`.
+	 */
+	Vision
 };
 
 /**

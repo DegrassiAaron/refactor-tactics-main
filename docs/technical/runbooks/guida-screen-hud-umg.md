@@ -27,7 +27,7 @@ e senza una ricetta scritta quell'ultimo passo si rifà a memoria ogni volta.
 | Viste sanitizzate (round, roster, slot, cooldown) | `URTHudViewModel` | ✅ |
 | Catalogo icone (chiave → asset) | `URTIconCatalogData` + `URTIconLibrary` + `Content/RT/UI/DA_IconCatalog.uasset` | 🟡 esiste, **indietro di una chiave** ([#2551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2551)); il consumo dai widget è [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) |
 | Il layer che lo mette a schermo | `URTFrontendNavigator::PresentMatchHud` | ✅ **dal 2026-08-26** (#613, Task 1) |
-| I `WBP_RT_*` di partita | `Content/RT/UI/Match/` | ✅ **esistono** — vedi §2; `WBP_RT_EventLog` esiste dal 2026-09-09 ma è un **guscio**: albero vuoto ([#2784](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2784)) |
+| I `WBP_RT_*` di partita | `Content/RT/UI/Match/` | ✅ **esistono e sono montati** — vedi §2 e §3. `WBP_RT_EventLog` ha radice, contenitore e grafo (#2784, `a7c189f9`) ed è nella `ZoneRight` dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)) |
 
 > 🔁 **Corretto il 2026-09-09.** Due righe di questa tabella descrivevano come futuro ciò che è già in
 > `main`, misurato su `a897de28`. **(1)** *«Catalogo icone — il `.uasset` no»*: `Content/RT/UI/DA_IconCatalog.uasset`
@@ -75,11 +75,20 @@ Crea ogni widget con **Widget Blueprint → scegli la classe padre**, non con il
 
 > 🔁 **La tabella diceva «i sei» e ne elencava sei — il 2026-09-09 sono sette, e uno era già mancante prima.**
 > `WBP_RT_FastDecision` entra con [`#166`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) (CP 14.6). ✅ **`WBP_RT_EventLog` ora esiste** (2026-09-09), classe padre
-> `RTPlayerEventLogWidget` ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)), ed è montato nella `RIGHT` al posto del pannello
-> unità, che dalla PR di [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) sta in `BOTTOM` dove §3 lo disegna.
-> ⚠️ **Ma è un guscio**: albero vuoto e nessun grafo, quindi a schermo non disegna niente. Il
-> completamento — radice, contenitore e il popolamento `GetFeed` → `ForEach` →
-> `AddChildToVerticalBox` come fa il roster — è [#2784](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2784).
+> `RTPlayerEventLogWidget` ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)), e dal 2026-09-10 ha radice, contenitore e il grafo che
+> lo popola — `GetFeed` → `ForEach` → `AddChildToVerticalBox`, come fa il roster ([#2784](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2784), `a7c189f9`).
+>
+> 🔴 **⌫ Questa riga ha dichiarato per un giorno un montaggio che non esisteva.** Diceva *«è montato nella
+> `RIGHT` al posto del pannello unità»* dal 2026-09-09; misurato il 2026-09-10 su `origin/main` = `69451996`,
+> nella tabella dei nomi di `WBP_RT_TacticalHUD` la stringa `EventLog` compariva **zero** volte, e nessun
+> altro `.uasset` tracciato la nominava. La riga riportava ciò che lo strumento di authoring aveva risposto,
+> **non ciò che il pacchetto conteneva dopo il salvataggio**.
+>
+> ✅ **Ora è vero, e lo è per misura**: `WBP_RT_EventLogRight` (classe `WBP_RT_EventLog_C`) è nella
+> `ZoneRight`, riletto dal `.uasset` dopo il salvataggio e presidiato da
+> `RefactorTactics.ScreenHud.TheHudMountsTheFeedThatExplainsTheTurn` — che sull'asset precedente **fallisce**,
+> verificato eseguendolo su entrambi. ⛔ **Un `.uasset` si dichiara rileggendolo, non dalla risposta di chi
+> lo ha scritto.**
 
 ---
 
@@ -105,9 +114,27 @@ Cinque zone — `TOP`, `LEFT`, `RIGHT`, `BOTTOM`, `CENTER`. Le prime quattro son
 |---|---|---|
 | `TOP` | `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer, objective | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) |
 | `LEFT` | `WBP_RT_TeamRoster` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2744) |
-| `RIGHT` | `WBP_RT_EventLog` — l'istanza si chiama `WBP_RT_EventLogRight`. ⚠️ **Montata ma vuota** ([#2784](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2784)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
-| `BOTTOM` | `WBP_RT_SelectedUnitPanel` (+ `WBP_RT_UnitCard`), `WBP_RT_ActionDock` (+ `WBP_RT_ActionSlot`), `WBP_RT_FastDecision` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) |
+| `RIGHT` | `WBP_RT_EventLogRight` — istanza di `WBP_RT_EventLog_C`, dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)). ⌫ *Fino a lì c'era ancora `WBP_RT_SelectedUnitPanelRight`, che questa tabella dava già per sostituito* | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
+| `BOTTOM` | `WBP_RT_SelectedUnitPanelBottom` (+ `WBP_RT_UnitCard`) e `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`), dentro `ZoneBottomContainer`; `WBP_RT_FastDecision` a runtime. ⌫ *Erano tornati due `HorizontalBox` vuoti col nome dei widget — la regressione di [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) descritta sotto* | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) |
 | `CENTER` | ⛔ **NESSUN PANNELLO SCREEN-HUD STATICO** — battlefield e Tactical World Overlay §4.2 | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
+
+> 🔴 **Per un giorno il diagramma e la colonna «contiene oggi» hanno descritto un albero che il `.uasset`
+> non conteneva, e la ragione va ricordata perché è ripetibile.** `cc5ca967` — il commit che dichiarava
+> *«la destra ospita il feed»* — ha in realtà **risalvato l'albero dei widget nello stato precedente** al fix
+> di [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760): verificato confrontando la
+> tabella dei nomi del pacchetto a `cc5ca967` con quella a `bbca9a36`, **identiche nome per nome**. È il modo
+> di guasto dell'Editor con una copia in memoria anteriore, e fra i due eventi la suite è rimasta verde
+> perché **nessun gate guardava l'albero**.
+>
+> ✅ **Dal 2026-09-10 due lo guardano**, e non sono decorativi — falliscono entrambi sull'asset precedente,
+> verificato eseguendoli su entrambe le versioni:
+> `RefactorTactics.ScreenHud.TheHudMountsTheFeedThatExplainsTheTurn` (l'albero ospita un
+> `URTPlayerEventLogWidget`) e `RefactorTactics.ScreenHud.NoNodeWearsTheNameOfAWidgetWithoutBeingOne`
+> (nessun nodo col prefisso `WBP_` che non sia un `UUserWidget`).
+> Referto: [`2697-il-feed-non-e-montato-spec-panel-2026-09-10.md`](../../roadmap/plans/2697-il-feed-non-e-montato-spec-panel-2026-09-10.md).
+>
+> ⚠️ **Chi rimonta un widget rilegga comunque il `.uasset` DOPO il salvataggio.** È il passo che mancava alle
+> tre dichiarazioni sbagliate; i due test lo rendono automatico solo per l'albero della HUD.
 
 🔑 **`CENTER` è una zona a contratto negativo**, e per questo non ha un `WBP_RT_CenterPanel`: si definisce
 per ciò che non deve contenere. Il criterio è misurabile — *la Screen HUD non occupa permanentemente il
@@ -129,9 +156,23 @@ compilata; una lettura che le scambi è un **re-layout**, non una correzione, e 
 >
 > ⚠️ **L'errore non è nato qui: è stato ereditato e rafforzato.** La versione precedente diceva `Right:
 > (spazio futuro)` — stantia, e mai misurata. Riscriverla come *«vuota, e non è un difetto»* ha trasformato
-> una riga vecchia in un'affermazione, senza aggiungere la misura che l'avrebbe smentita. ⛔ Un `.uasset` è
-> compresso e `strings` non lo legge: **questo tree si verifica solo dall'Editor**, e finché non lo si apre
-> la fonte è il registro, non l'intuizione.
+> una riga vecchia in un'affermazione, senza aggiungere la misura che l'avrebbe smentita.
+>
+> 🔴 **⌫ E qui stava la frase che ha reso possibile l'errore successivo**: *«Un `.uasset` è compresso e
+> `strings` non lo legge: questo tree si verifica **solo dall'Editor**»*. È **falsa**, e il 2026-09-10 la sua
+> falsità è costata tre dichiarazioni sbagliate (§2, §3 e il messaggio di `cc5ca967`). La **tabella dei nomi**
+> di un pacchetto Unreal **non è compressa**: è una sequenza di `FString` con prefisso di lunghezza, e
+> contiene il nome di ogni widget, classe e import dell'albero. Si legge dal blob di Git, senza aprire nulla:
+>
+> ```
+> python tools/uasset/names.py Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset --filtro WBP_RT_ --unici
+> python tools/uasset/names.py --rev cc5ca967 Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset --filtro EventLog
+> #                                                                                        -> 0 nomi
+> ```
+>
+> ⛔ **Non sostituisce l'Editor per il *layout*** — dice chi c'è nell'albero, non com'è disposto. Ma la
+> domanda *«questo widget è montato?»* la risponde in un secondo, ed è la domanda su cui l'Editor è stato
+> creduto tre volte a torto.
 
 🔴 **Il centro libero è un requisito, non un gusto.** Il layer §4.2 (`ARTHUD::DrawHUD`) continua a disegnare
 path, waypoint, AoE, fuoco amico e le barre ancorate **sopra la mappa**: un pannello al centro glieli
