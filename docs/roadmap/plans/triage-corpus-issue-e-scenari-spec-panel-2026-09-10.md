@@ -11,27 +11,76 @@
 > **Convenzione dei numeri**: ogni conteggio qui sotto e' una **misura**, e porta il comando che la
 > produce. Non e' un totale di prosa: se lo si rilegge fra un mese, lo si rimisura con quel comando.
 >
-> 🔴 **Tre conclusioni della prima stesura sono state RITIRATE dalla misura successiva** — §3.4.1
-> (BAL e Wiki PF), §4.2 (gli scenari «senza specifica») e la parte di §4.3 che riguardava #2793. Restano
-> scritte, con la ragione: un referto che cancella i propri errori insegna meno di uno che li tiene.
+> 🔴 **Quattro conclusioni della prima stesura sono state RITIRATE dalla misura successiva** — §1.1-§1.2
+> (i totali, troncati da un limite di paginazione), §3.4.1 (BAL e Wiki PF), §4.2 (gli scenari «senza
+> specifica») e la parte di §4.3 che riguardava #2793. Restano scritte, con la ragione: un referto che
+> cancella i propri errori insegna meno di uno che li tiene.
 
 ---
 
 ## 1. Il verdetto in una riga
 
 > **Il corpus non e' gonfio di lavoro sciatto: e' gonfio di lavoro scritto all'altezza sbagliata.**
-> Quattrocento issue aperte, e centosessanta descrivono milestone che cominciano fra cinque release.
-> Il tracker non riesce a rispondere a *«cosa lavoro adesso»* senza filtrare via voci che non sono
-> mai state candidate.
+> All'apertura del passaggio `163` issue su `428` — **piu' di un terzo** — portavano `post-v0.1`. Il
+> tracker non riusciva a rispondere a *«cosa lavoro adesso»* senza filtrare via voci che non erano mai
+> state candidate.
+
+Il conteggio autorevole **non passa da `gh issue list`** — vedi sotto:
 
 ```bash
-gh issue list --state open --limit 400 --json number --jq 'length'                     # 400
-gh issue list --state open --limit 400 --label post-v0.1 --json number --jq 'length'   # 160
+gh api -X GET search/issues \
+  -f q='repo:DegrassiAaron/refactor-tactics-main is:issue is:open' --jq '.total_count'
+gh issue list --state open --limit 2000 --label post-v0.1 --json number --jq 'length'
 ```
 
-⚠️ **La trappola di paginazione del referto del 2026-09-02 vale ancora**: `gh issue list` senza
-`--limit` sopra il default restituisce una risposta plausibile e corta, e non avverte. Ogni comando
-qui porta `--limit 400`.
+### 1.1 🔴 La trappola di paginazione, presa in pieno da questo stesso referto
+
+Il referto del 2026-09-02 la aveva gia' misurata e scritta: *«un limite di paginazione produce una
+risposta plausibile e sbagliata»*. La prima stesura di **questa** sezione ci e' caduta comunque.
+
+Il comando era `gh issue list --state open --limit 400 --json number --jq 'length'`, e la risposta era
+**esattamente `400`**. Il numero e' stato letto come una misura. Era un **tetto**.
+
+🔑 **La firma del difetto e' che il risultato coincida col limite.** `400` con `--limit 400` non e' un
+conteggio: e' l'assenza di un conteggio, travestita da uno plausibile. La prima stesura ha anche scritto
+in nota *«ogni comando qui porta `--limit 400`»* — cioe' ha documentato la propria precauzione senza
+accorgersi che era la causa.
+
+Smascherata **dall'aritmetica, non da un sospetto**: chiuse quarantacinque issue, il totale sarebbe dovuto
+scendere a `355`. Misurava `383`.
+
+∴ Due metodi indipendenti concordano sul valore reale **dopo** questo passaggio:
+
+| Metodo | Risultato |
+|---|---|
+| `gh api search/issues … .total_count` — non paginato | `383` |
+| `gh issue list --limit 2000` — limite sopra il corpus | `383` |
+
+E le quarantacinque chiusure di questo passaggio dicono che **prima** erano `428`.
+
+### 1.2 Il troncamento ha contaminato anche cio' che sembrava filtrato
+
+Il difetto non si e' fermato al totale. Due sottoinsiemi erano **derivati per raggruppamento dalla lista
+troncata** invece che interrogati direttamente, e hanno ereditato il taglio senza mostrarlo:
+
+| Misura | Prima stesura | Rimisurata direttamente | Contaminata? |
+|---|---|---|---|
+| issue in `v0.1 — Offline Vertical Slice` | `89` | **`116`** | 🔴 si' |
+| issue `post-v0.1` | `160` | `123` ora ⇒ **`163`** prima delle quaranta chiusure | 🔴 si' |
+| issue in `v0.5`→`v1.0` | `46` | `6` epic residui + `40` capitoli chiusi = **`46`** | ✅ no — regge |
+
+🔑 **Un `--jq 'group_by'` non e' un filtro: e' un conteggio su cio' che e' arrivato.** La riga
+`89 v0.1 — Offline Vertical Slice` aveva l'aria di una query per milestone, ed era una somma sui primi
+quattrocento elementi. La terza riga regge per una ragione che non ha nulla a che vedere con la
+prudenza — quelle issue sono numerate `773`-`816` e stavano tutte dentro il taglio.
+
+⚠️ E il numero sbagliato **rendeva l'argomento piu' debole di quanto fosse**: `v0.1` non aveva 89 issue
+aperte mentre si scrivevano capitoli per la `v1.0`. Ne aveva `116`.
+
+⚠️ **La regola operativa che ne discende**: per un totale si usa `search/issues .total_count`, che non
+pagina. Per un sottoinsieme si **interroga il sottoinsieme** — `--label`, `--milestone` — invece di
+raggruppare una lista gia' presa. E `gh issue list` serve a **elencare**, col `--limit` tenuto sopra il
+corpus, non pari a una stima di quanto sia grande.
 
 ---
 
@@ -120,7 +169,7 @@ un solo giro.
 ### 3.4 🔴 Il livello sbagliato — le milestone da `v0.5` a `v1.0`
 
 ```bash
-gh issue list --state open --limit 400 --json number,milestone \
+gh issue list --state open --limit 2000 --json number,milestone \
   --jq '[.[] | select((.milestone.title // "") | test("v0[.][5-9]|v1[.]0"))] | length'   # 46
 ```
 
@@ -128,8 +177,8 @@ Quarantasei issue, di cui sei epic e quaranta capitoli. Nessuna di esse e' un ca
 mentre `v0.1` ha ancora il proprio perimetro aperto:
 
 ```bash
-gh issue list --state open --limit 400 --milestone "v0.1 — Offline Vertical Slice" \
-  --json number --jq 'length'   # 89
+gh issue list --state open --limit 2000 --milestone "v0.1 — Offline Vertical Slice" \
+  --json number --jq 'length'   # 116
 ```
 
 L'epic di ciascuna milestone **esiste gia'** ed e' il contenitore giusto: i capitoli vivono nel suo corpo
@@ -342,11 +391,11 @@ Ogni chiusura porta un commento con la misura che la giustifica. Nessun corpo e'
 
 ### La misura che si e' corretta da sola
 
-Tre conclusioni sono state ritirate **dopo** essere state scritte, e due di esse **prima** che l'azione
-corrispondente venisse eseguita:
+Quattro conclusioni sono state ritirate **dopo** essere state scritte. Tre in tempo, una no:
 
 | Ritirata | Sbagliava perche' | Fermata prima dell'azione? |
 |---|---|---|
+| §1.1-§1.2 — i totali (`400`, `89`, `160`) | un `--limit` pari alla stima del corpus, e due sottoinsiemi **raggruppati** dalla lista troncata invece che interrogati | ❌ no: smascherata **dopo**, dall'aritmetica delle chiusure |
 | §3.4.1 — collassare `BAL` e `Wiki PF` | due cluster con la stessa **forma** non hanno la stessa **natura**: entrambi gli epic vietano il collasso per iscritto | ✅ si', ma l'indice era gia' stato appeso ed e' stato rimosso |
 | §4.2 — «sei scenari senza specifica» | la misura escludeva `Scenarios/`, cioe' **il posto in cui la specifica vive** | ✅ si' |
 | §4.3 (parte) — ri-titolare #2793 | a spostarsi era il **bloccante**, non la premessa: il titolo e' vero | ✅ si' |
@@ -354,3 +403,13 @@ corrispondente venisse eseguita:
 ⚠️ **La correzione di §4.2 e' arrivata solo perche' la leva andava *eseguita*.** Finche' la conclusione
 restava scritta in un referto, reggeva; ad aprire i file per nominarli, e' caduta in un minuto. Una
 conclusione che nessuno prova a usare non viene falsificata da niente.
+
+🔴 **E la prima riga della tabella e' la piu' istruttiva, perche' e' l'unica che l'esecuzione non ha
+fermato.** Il totale sbagliato non ha cambiato nessuna decisione — le quaranta chiusure sarebbero state
+le stesse — ma e' sopravvissuto a tutto il passaggio e sarebbe finito in un documento autoritativo. A
+smascherarlo non e' stato un controllo: e' stata l'**aritmetica di un effetto collaterale**, cioe' il
+totale che dopo quarantacinque chiusure non era sceso di quarantacinque.
+
+∴ **Un numero che nessun conto incrocia non e' verificato da niente**, per quanto porti il comando che lo
+produce. La convenzione in testa a questo referto — *«ogni conteggio porta il comando che lo produce»* —
+e' necessaria e non basta: il comando era li', ed era sbagliato.
