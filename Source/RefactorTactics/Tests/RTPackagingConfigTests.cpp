@@ -670,7 +670,7 @@ bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 	// registro PIE avverte per gli zeri di packaging.
 	// ⛔ **Il path e' quello PARAGON e non segue il rename del roster** (`#2491`): l'ultimo segmento e' il
 	// nome dell'asset di terze parti, non l'id dell'eroe. Misurato dentro il package che lo referenzia:
-	// `python -c` su `Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset` estrae
+	// `python -c` su `Content/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik.uasset` (allora `.../Gadget/BP_Unit_Gadget`, `#2297`) estrae
 	// `.../Heroes/Gadget/Meshes/Gadget` — e `.../Meshes/Aevik` non esiste.
 	//
 	// 🔴 Ha detto `Aevik` dal rename al 2026-09-10, e il controllo POSITIVO cadeva: il test usciva rosso

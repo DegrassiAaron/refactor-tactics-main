@@ -509,15 +509,19 @@ bool FRTHeroUnitClassesDefaultTest::RunTest(const FString&)
 	// ⚠️ **E il percorso e' per eroe**, perche' l'errore facile in quel costruttore e' lo scambio: quattro
 	// `Assegna` in fila con quattro finder simili, e `Hero.Muiren` che riceve il Blueprint di Aevik passerebbe
 	// un asserto scritto solo su «non e' il cilindro».
-	// ⚠️ **`Hero.Branth` mappa su un path che dice `Riktor`, ed e' la coppia CORRETTA oggi.** [D-334] ha
-	// rinominato l'identita', non l'asset: il rename di `/Game/RT/Characters/Riktor/` e' la fetta E di
-	// #2297. Questa riga e' il pin che tiene insieme le due meta' — quando l'asset si muove, si muove anche
-	// qui, e finche' non si muove il disallineamento e' la verita' del progetto, non un errore da correggere.
+	// ✅ **L'asset si e' mosso, e questa tabella con lui** (`#2297` fetta E, 2026-09-10). Fino a qui i quattro
+	// path dicevano `Gadget`, `Phase`, `Riktor` e `Wraith` — i nomi degli **slot asset Paragon**, che [D-321]
+	// ha dichiarato non-definitivi — mentre le identita' erano gia' quelle canoniche.
+	//
+	// 🔑 **Questa riga e' l'ORACOLO del rename, non la sua copia.** Il ciclo qui sotto non confronta stringhe:
+	// risolve `Trovata->Get()` e asserisce che la classe **esista**. ∴ se l'asset non fosse stato rinominato,
+	// o lo fosse a un path diverso, il `FClassFinder` di `ARTGameMode` lascerebbe la voce assente e questo
+	// test cadrebbe — che e' cio' che il commento a `:507` promette da sempre.
 	const TMap<FName, FString> Attesi = {
-		{ FName(TEXT("Hero.Aevik")), TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget") },
-		{ FName(TEXT("Hero.Muiren")),  TEXT("/Game/RT/Characters/Phase/Blueprints/BP_Unit_Phase")   },
-		{ FName(TEXT("Hero.Branth")), TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor") },
-		{ FName(TEXT("Hero.Ivrin")), TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith") },
+		{ FName(TEXT("Hero.Aevik")), TEXT("/Game/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik") },
+		{ FName(TEXT("Hero.Muiren")),  TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren")   },
+		{ FName(TEXT("Hero.Branth")), TEXT("/Game/RT/Characters/Branth/Blueprints/BP_Unit_Branth") },
+		{ FName(TEXT("Hero.Ivrin")), TEXT("/Game/RT/Characters/Ivrin/Blueprints/BP_Unit_Ivrin") },
 	};
 
 	TestEqual(TEXT("il default copre i quattro eroi del roster"), Cdo->HeroUnitClasses.Num(), Attesi.Num());

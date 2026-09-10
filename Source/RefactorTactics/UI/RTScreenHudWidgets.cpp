@@ -23,6 +23,7 @@
 #include "UI/RTIconLibrary.h"
 #include "UI/RTReactionWindowViewModel.h" // il view model si INTERROGA: qui non si costruisce e non si lega
 #include "Kismet/GameplayStatics.h"
+#include "Blueprint/WidgetTree.h" // ComposeMountReport cammina l'albero COSTRUITO, non quello progettato
 
 // =====================================================================================================
 // Base: il contesto, e nient'altro
@@ -613,5 +614,103 @@ void URTFastDecisionOptionWidget::Choose()
 	{
 		// L'indice, non la risposta. Il gate della validita' resta in `ChooseOption`, che rilegge la vista.
 		Finestra->ChooseOption(OptionIndex);
+	}
+}
+
+// =====================================================================================================
+// Chi e' stato costruito, e chi no
+// =====================================================================================================
+
+namespace
+{
+	/**
+	 * Scende RICORSIVAMENTE. Ogni `UUserWidget` ha un `WidgetTree` suo e `ForEachWidget` non ci entra:
+	 * senza questa discesa un `WBP_RT_ActionSlot` dentro il dock resterebbe invisibile, ed e' esattamente
+	 * il caso che si voleva vedere.
+	 */
+	void RTRaccogliWidgetInnestati(const UUserWidget* Radice, TArray<const UUserWidget*>& Fuori)
+	{
+		if (Radice == nullptr || Radice->WidgetTree == nullptr)
+		{
+			return;
+		}
+
+		Radice->WidgetTree->ForEachWidget([&Fuori](UWidget* Widget)
+		{
+			if (const UUserWidget* Innestato = Cast<UUserWidget>(Widget))
+			{
+				Fuori.Add(Innestato);
+				RTRaccogliWidgetInnestati(Innestato, Fuori);
+			}
+		});
+	}
+}
+
+TArray<FString> URTTacticalHUDWidget::ComposeMountReport(const UUserWidget* Radice)
+{
+	TArray<FString> Righe;
+
+	if (Radice == nullptr)
+	{
+		Righe.Add(TEXT("Screen HUD 4.1: nessuna radice, non c'e' albero da camminare"));
+		return Righe;
+	}
+
+	TArray<const UUserWidget*> Innestati;
+	RTRaccogliWidgetInnestati(Radice, Innestati);
+
+	Righe.Add(FString::Printf(TEXT("Screen HUD 4.1 - albero costruito di '%s': %d widget innestati"),
+		*Radice->GetName(), Innestati.Num()));
+
+	for (const UUserWidget* Widget : Innestati)
+	{
+		Righe.Add(FString::Printf(TEXT("  costruito: '%s' (%s)"),
+			*Widget->GetName(), *Widget->GetClass()->GetName()));
+	}
+
+	// ⚠️ **Gli attesi sono le CLASSI C++, non i nomi degli asset.** Un `.uasset` rinominato continuerebbe a
+	// rispondere; un widget sostituito da un segnaposto che ne porta il nome, no. E' la stessa distinzione
+	// che `NoNodeWearsTheNameOfAWidgetWithoutBeingOne` fa sull'albero progettato.
+	struct FAtteso
+	{
+		const TCHAR* Nome;
+		UClass* Classe;
+	};
+
+	const FAtteso Attesi[] =
+	{
+		{ TEXT("TurnHeader"),        URTTurnHeaderWidget::StaticClass() },
+		{ TEXT("TeamRoster"),        URTTeamRosterWidget::StaticClass() },
+		{ TEXT("SelectedUnitPanel"), URTSelectedUnitPanelWidget::StaticClass() },
+		{ TEXT("ActionDock"),        URTActionDockWidget::StaticClass() },
+		{ TEXT("ActionSlot"),        URTActionSlotWidget::StaticClass() },
+		{ TEXT("EventLog"),          URTPlayerEventLogWidget::StaticClass() },
+	};
+
+	for (const FAtteso& Atteso : Attesi)
+	{
+		int32 Quanti = 0;
+		for (const UUserWidget* Widget : Innestati)
+		{
+			if (Widget && Widget->IsA(Atteso.Classe))
+			{
+				++Quanti;
+			}
+		}
+
+		Righe.Add(FString::Printf(TEXT("  %s %s: %d"),
+			Quanti > 0 ? TEXT("[ok]   ") : TEXT("[MANCA]"), Atteso.Nome, Quanti));
+	}
+
+	return Righe;
+}
+
+void URTTacticalHUDWidget::NativeConstruct()
+{
+	Super::NativeConstruct();
+
+	for (const FString& Riga : ComposeMountReport(this))
+	{
+		UE_LOG(LogRT, Display, TEXT("%s"), *Riga);
 	}
 }
