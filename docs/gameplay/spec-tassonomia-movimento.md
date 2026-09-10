@@ -231,6 +231,28 @@ renderebbe l'attraversamento del `Floor` istantaneo. `FRTHexCellData::TotalMoveC
 su ogni cella del catalogo prima e dopo quella separazione — la linea di base che `D-117` sottrae riguarda il
 **prezzo**, non il **tempo**.
 
+#### Tre concetti, tre proprietà — e nessuna è le altre
+
+La regola qui sopra li fa **coincidere in valore**. Non li fa diventare la stessa cosa, e la distinzione va
+scritta perché il costo di confonderli si paga una volta sola e tardi.
+
+| Concetto | Domanda a cui risponde | Chi è autorevole |
+|---|---|---|
+| **Movement Cost** | quanto **budget** costa entrare in questa cella | `FRTHexCellData::TotalMoveCost()` + `FRTHexSimUnit::MoveCostModifier` |
+| **Traversal Duration** | quanti **micro-step di simulazione** dura quell'ingresso | il dato del passo di [D-381](../decisions/RT_PDR_00_Decision_Log.md) — in v0.1 vale il Movement Cost |
+| **Animation Duration** | quanto **tempo di orologio** impiega la resa a schermo | `PlaybackCellsPerSecond` e `URTPlaybackLibrary`, cioè la presentazione |
+
+⛔ **L'animazione non è mai la sorgente del timing della simulazione**, e non è una regola nuova:
+[`spec-anima-risoluzione.md`](spec-anima-risoluzione.md) §14.3 dichiara che una dilatazione globale del tempo
+*«sarebbe autorità di simulazione travestita da presentazione»*, e
+`RefactorTactics.Match.Autobattle.DeterminismIsIndependentOfPlayback` lo pinna. Nulla che il playback produca
+entra nel `TurnLog`, nello `StateHash` o in una decisione di gioco — né viceversa.
+
+⚠️ **E la coincidenza fra i primi due è temporanea per costruzione.** Il giorno in cui un profilo di movimento
+dichiarasse una cadenza propria — `MOV-3` in [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), aperta — la durata
+smetterebbe di essere una funzione del solo costo. È la ragione per cui è un **campo**, e non una lettura
+sparsa nei consumatori.
+
 #### Dove sta l'unità mentre attraversa
 
 **Sulla cella d'origine, fino al micro-step in cui completa l'arco.** Il passo è un **impegno**, non uno
