@@ -1295,9 +1295,14 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `Shape::Line` delle abilita' d'archetipo (che colpisce tutti quelli attraversati): la risolve
 	// URTOffensiveActionLibrary::ResolveLineAttack, che si ferma sul primo che incontra.
 	// `Fallback.AttackCell`: se il bersaglio si sposta, la linea parte comunque dov'era puntata.
+	//
+	// ⚠️ **Fino al 2026-09-10 questo commento descriveva un resolver che nessuno chiamava** (`#2929`,
+	// [D-386]): l'azione si risolveva come colpo SINGOLO sulla cella puntata, scavalcando chi stava in
+	// mezzo. La riga `LineResolution` qui sotto e' cio' che lo rende vero — la dichiarazione non basta.
 	Catalog.Add(ShippedAction(TEXT("Action.LineAttack"), ERTResolutionPhase::Attack, /*Priority*/ 55,
 		/*Range*/ 5, /*Cooldown*/ 1, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 22) }));
+	Catalog.Last().LineResolution = ERTLineResolution::StopAtFirstTarget;
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
 	// `CircularAoE` — 18 danni in un esagono di raggio 1, centro entro 4 celle. `RangeCells` e' la portata
