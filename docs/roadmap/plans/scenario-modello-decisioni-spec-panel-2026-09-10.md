@@ -374,10 +374,14 @@ distingua gli esiti, e `RefactorTactics.Replay.Verifier.OrphanRecordedResponseIs
 2. **`triggerUnit` su una finestra senza `FIRE:`** — un profilo di `Brace`, per esempio — non può essere
    soddisfatto da nessuna opportunità, e la decisione finisce nel residuo. Il messaggio lo dice, ma non
    spiega **perché**: chi lo incontra deve sapere che quel vincolo vale solo dove esistono bersagli offerti.
-3. **`on.reaction` accetta qualunque `FName`**: il loader non la confronta con un catalogo. Un refuso
-   (`Action.Overwtach`) non trova finestre e cade nel residuo invece di essere rifiutato al caricamento. È la
-   stessa classe di difetto che [#2698](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2698)
-   misura per gli altri campi dell'intent.
+3. ~~**`on.reaction` accetta qualunque `FName`**: il loader non la confronta con un catalogo. Un refuso
+   (`Action.Overwtach`) non trova finestre e cade nel residuo invece di essere rifiutato al caricamento.~~
+   ✅ **Chiuso da [#2866](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2866)**, e la
+   correzione ha smentito il modo in cui questa riga poneva il problema: l'insieme legale **non è il
+   catalogo**. `Action.Counter` e `Action.Intercept` esistono a catalogo — sono la base dei moduli di
+   equipaggiamento — e non aprono nessuna finestra, quindi una guardia costruita sul catalogo avrebbe
+   spostato il difetto invece di chiuderlo. L'insieme dichiarato è quello delle reaction che possono
+   **aprire un boundary**, e vive in `URTReactionOpportunityLibrary`.
 4. ~~**Il corpus non usa ancora il selettore**, quindi la strada nuova è esercitata solo dai test: finché
    `HoldThenFire` e `RT_Showcase_Relay_v01` restano posizionali, il difetto §1.2 resta vivo **su di loro**.~~
    ✅ **Chiuso da [#2865](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2865)**: i cinque
@@ -390,7 +394,7 @@ distingua gli esiti, e `RefactorTactics.Replay.Verifier.OrphanRecordedResponseIs
 | # | Cosa | Dipendenza |
 |---|---|---|
 | 7.1 | [#2865](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2865) — migrare al selettore gli scenari con `decisions` | questa fetta ✅ |
-| 7.2 | [#2866](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2866) — `on.reaction` validata contro il catalogo al caricamento | — |
+| 7.2 | ✅ [#2866](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2866) — `on.reaction` validata al caricamento contro le reaction che **aprono un boundary** (⚠️ *non* il catalogo: vedi §6.3) | — |
 | 7.3 | [#2867](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2867) — checkpoint di fase e `afterEvent`: serve un seam di sospensione per macro-fase in `LockInAndResolve` | resolver |
 | 7.4 | [#2868](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2868) — `watchDirection`: emendare o confermare ADR-0005 §4c | `#152` · `#339` · `#291` |
 | 7.5 | Target tipizzato discriminato — **nessuna issue nuova**: l'owner è già `#1119` (`RCI-1`), e crearne una seconda sarebbe la duplicazione che `AGENTS.md` §8 vieta | `#1119` risponde prima |
