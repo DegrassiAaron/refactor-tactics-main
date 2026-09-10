@@ -738,7 +738,7 @@ bool FRTUnitBaseShieldSurvivesTemporaryExpiryTest::RunTest(const FString&)
  * Due cose lo impediscono, entrambe verificate: **la skeletal la aggiunge il Blueprint e non il C++** —
  * `FindHeroSkeletal` cerca fra i componenti, e un `ARTUnit` spawnato da codice non ne ha nessuna — e le
  * **clip non esistono** su un checkout senza i pack. Confrontare le ossa richiederebbe di caricare
- * `BP_Unit_Riktor` **e** i suoi 44 GB di dipendenze: sarebbe un test verde solo sulle macchine che li hanno,
+ * `BP_Unit_Branth` **e** i suoi 44 GB di dipendenze: sarebbe un test verde solo sulle macchine che li hanno,
  * cioè un test che dichiara l'ambiente e non il codice.
  * ∴ quel criterio resta la **verifica PIE**, dove è già registrato, e questo test copre ciò che si può
  * asserire senza schermo: che il ripiego sappia **quale** clip usare, per ciascuno dei quattro eroi.

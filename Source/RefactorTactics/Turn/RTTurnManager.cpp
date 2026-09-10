@@ -2,6 +2,7 @@
 #include "Turn/RTPacingLibrary.h"
 #include "Turn/RTPlaybackLibrary.h"
 #include "Unit/RTGraykitLibrary.h" // #2880: la posa si valuta sullo stesso Alpha del movimento
+#include "Turn/RTPresentationBinding.h" // #2881: l'andatura la decide l'owner di [D-278], non questo file
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTPlanValidationLibrary.h" // CP 38.2: la legalita' del piano si CHIEDE al commit
 #include "Turn/RTActionQueueLibrary.h"
@@ -7706,6 +7707,21 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// Estendendo, cio' che teneva fermo il playback non c'e' piu': la timeline e' cresciuta.
 	bPlaybackHeldByWindow = false;
 
+	// `#2858`: la politica *start paused*, applicata dove il playback comincia a scorrere.
+	//
+	// 🔑 **Solo quando RICOMINCIA, mai quando ESTENDE.** Con `bPreserveClock` questa funzione riprende un
+	// playback gia' in corso dopo una finestra di reazione: rimetterlo in pausa li' fermerebbe l'immagine
+	// **subito dopo** che chi guardava ha deciso, cioe' nel punto in cui si aspetta di vedere l'esito della
+	// propria scelta. La politica riguarda l'INIZIO di un playback, e quello e' l'altro ramo.
+	//
+	// ⛔ La subordinazione ai controlli e' gia' in `SetStartPlaybackPaused`, che e' l'unico modo di
+	// accendere questo flag: qui non si ricontrolla, o sarebbero due guardie da tenere d'accordo.
+	if (!bPreserveClock && bStartPlaybackPaused)
+	{
+		bPlaybackPaused = true;
+		PlaybackStepTargetElapsed = -1.f;
+	}
+
 	const float ClockElapsedTotal = PlaybackElapsedTotal;
 	const int32 ClockPhaseIdx = PlaybackPhaseIdx;
 	const float ClockPhaseElapsed = PlaybackPhaseElapsed;
@@ -7721,6 +7737,7 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	PlaybackAnimCellIndex.Reset();
 	PlaybackAttacks.Reset();
 	PlaybackDefeated.Reset();
+	PlaybackFootprints.Reset();
 	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
 	PlaybackDefeatBeatRemaining = 0.f; // e nemmeno la coda: `SkipPlayback` passa di qui e la scavalca
 	// 🔴 **La squadra di chi GUARDA, e il playback si tronca su di essa** (`#1525`, [D-223]). Stessa porta
@@ -7789,6 +7806,16 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 		{
 			PlaybackDefeated.Add(Ev);
 		}
+		else if (Ev.Type == ERTResolvedEventType::AttackFootprint)
+		{
+			// ⛔ **Nessun filtro di conoscenza qui, e non e' una dimenticanza**: l'impronta e' un fatto
+			// dell'AZIONE e le sue celle sono terreno, non occupazione. `HitCells` non consulta chi c'e'
+			// dentro — la catena `BlastOriginCell -> HexHitCells` non tocca l'occupazione in nessun punto
+			// (`#2791`), quindi disegnarla non rivela una presenza.
+			// ⚠️ Se un giorno l'impronta portasse un dato dipendente da CHI e' stato colpito, questa riga
+			// diventerebbe un canale e andrebbe filtrata come il prefisso osservato del `Move` qui sopra.
+			PlaybackFootprints.Add(Ev);
+		}
 	}
 
 	// Fasi attive, in ordine canonico (Prep -> Dash -> Blast -> Move). Cleanup: gia' applicato, nessun beat.
@@ -7802,7 +7829,14 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	PlaybackPhases.Reset();
 	if (bPrepActiveThisTurn) { PlaybackPhases.Add(ERTMatchPhase::Prep); }
 	if (bHasDash) { PlaybackPhases.Add(ERTMatchPhase::Dash); }
-	if (PlaybackAttacks.Num() > 0 || bHasBlastMove) { PlaybackPhases.Add(ERTMatchPhase::Blast); }
+	// 🔴 **Le impronte contano quanto i colpi**, ed e' la riga che apre il caso «area su sole celle
+	// vuote»: zero vittime -> zero `Attack` -> senza questo termine la fase non nasceva, e non esisteva
+	// un istante in cui disegnare (`#2454`). La decisione sta in una funzione pura perche' cambia la
+	// DURATA di un turno, ed e' cio' che i test di pacing sorvegliano.
+	if (URTPlaybackLibrary::BlastPhaseIsActive(PlaybackAttacks.Num(), bHasBlastMove, PlaybackFootprints.Num()))
+	{
+		PlaybackPhases.Add(ERTMatchPhase::Blast);
+	}
 	if (bHasMove) { PlaybackPhases.Add(ERTMatchPhase::Move); }
 
 	if (PlaybackPhases.Num() == 0)
@@ -7891,10 +7925,37 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	EnterPlaybackPhase();
 }
 
+void ARTTurnManager::RevealPlaybackFootprints(int32 UpTo)
+{
+	const int32 Target = FMath::Min(UpTo, PlaybackFootprints.Num());
+	if (FootprintsShown >= Target)
+	{
+		return;
+	}
+
+	// ⚠️ L'actor si cerca UNA volta per chiamata e non per impronta: `FindInWorld` itera gli attori, e
+	// farlo dentro il ciclo lo renderebbe quadratico in un ramo che gira a ogni tick del Blast.
+	ARTHexMapActor* const MapActor = ARTHexMapActor::FindInWorld(GetWorld());
+
+	while (FootprintsShown < Target)
+	{
+		const FRTResolvedEvent& Footprint = PlaybackFootprints[FootprintsShown];
+		if (MapActor)
+		{
+			// ⛔ Le celle si passano COSI' COME ARRIVANO. `HexHitCells` le ha gia' prodotte nell'ordine
+			// stabile di `URTHexLibrary::StableLess`, e riordinarle o filtrarle qui sarebbe la seconda
+			// risposta a una domanda che il resolver ha gia' chiuso ([D-301]).
+			MapActor->AddPlaybackFootprint(Footprint.HitCells);
+		}
+		++FootprintsShown;
+	}
+}
+
 void ARTTurnManager::EnterPlaybackPhase()
 {
 	PlaybackPhaseElapsed = 0.f;
 	AttacksShown = 0;
+	FootprintsShown = 0;
 	const ERTMatchPhase Ph = PlaybackPhases[PlaybackPhaseIdx];
 	AddLogEvent(FString::Printf(TEXT("Playback fase: %s"), *GetPlaybackPhaseName()), FRTLogSubject::World());
 	OnPhasePlaybackStarted.Broadcast(Ph);
@@ -7952,7 +8013,24 @@ void ARTTurnManager::SetPlaybackControlsEnabled(bool bEnabled)
 		// stessa partita bloccata da un flag che le due righe qui sopra esistono per evitare.
 		PlaybackStopAt = ERTPlaybackStopAt::None;
 		PlaybackStopFromAction = NAME_None;
+		// `#2858`: e cade anche la politica di partire in pausa. Sopravvivendo, il prossimo playback
+		// nascerebbe fermo in una sessione che non ha piu' il comando per riprenderlo — la stessa partita
+		// bloccata da un flag, per una terza via.
+		bStartPlaybackPaused = false;
 	}
+}
+
+void ARTTurnManager::SetStartPlaybackPaused(bool bStartPaused)
+{
+	// ⛔ **Subordinato ai controlli, e non e' una comodita'.** Partire in pausa senza `ResumePlayback`
+	// raggiungibile e' una partita che non riparte. Chiederlo a controlli spenti non fa nulla **e non lo
+	// ricorda per dopo**: un'intenzione messa in coda si applicherebbe a un'accensione successiva che
+	// nessuno ha collegato a questa richiesta.
+	if (!bPlaybackControlsEnabled)
+	{
+		return;
+	}
+	bStartPlaybackPaused = bStartPaused;
 }
 
 void ARTTurnManager::PausePlayback()
@@ -8175,12 +8253,15 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				// ricalcolarlo qui produrrebbe due orologi sulla stessa animazione, sfasati al primo cambio
 				// di velocita' di playback.
 				//
-				// ⚠️ **Lo stile si sceglie dalla FASE, ed e' esplicitamente temporaneo**: il TurnManager
-				// conosce gia' `Ph`, quindi non nasce nessun mapping nuovo — legge un dato che ha in mano.
-				// Quando #2881 chiudera', la scelta si sposta li' e questa riga diventa una chiamata.
-				const ERTGraykitLocomotionStyle Style = (Ph == ERTMatchPhase::Dash)
-					? ERTGraykitLocomotionStyle::Run
-					: ERTGraykitLocomotionStyle::Normal;
+				// ⚠️ **L'andatura la decide `URTPresentationBindingLibrary`, non questo ciclo** (#2881). Fino
+				// al 2026-09-10 la scelta era scritta qui inline, dichiarata temporanea: era il TurnManager a
+				// rispondere a «cosa significa questa fase», che e' una domanda di [D-278].
+				//
+				// 🔑 Si passa `A.Phase` e non `Ph`: il ramo li rende uguali (`A.Phase == Ph` e' la condizione
+				// del filtro), ma il primo e' il dato che appartiene all'ANIM — cioe' all'azione — mentre il
+				// secondo e' lo stato del riproduttore. Se un giorno il ciclo smettesse di filtrare per fase,
+				// questa riga resterebbe giusta.
+				const ERTGraykitLocomotionStyle Style = URTPresentationBindingLibrary::StyleForPhase(A.Phase);
 				A.Unit->ApplyGraykitPose(URTGraykitLibrary::Evaluate(
 					URTGraykitLibrary::DescriptorForStyle(Style), Alpha));
 			}
@@ -8205,6 +8286,11 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 	if (Ph == ERTMatchPhase::Blast)
 	{
 		// Rivela i colpi in serie (uno ogni AttackShowSeconds) per leggibilita' del danno.
+		// L'impronta PRECEDE i suoi colpi: e' il segno a terra dell'azione, e vederla dopo le vittime
+		// racconterebbe la storia al contrario (`#2454`). Stesso scaglionamento, contatore proprio.
+		RevealPlaybackFootprints(URTPlaybackLibrary::AttacksToShow(
+			PlaybackFootprints.Num(), PlaybackPhaseElapsed, AttackShowSeconds));
+
 		const int32 ShouldShow = URTPlaybackLibrary::AttacksToShow(
 			PlaybackAttacks.Num(), PlaybackPhaseElapsed, AttackShowSeconds);
 		while (AttacksShown < ShouldShow)
@@ -8279,6 +8365,10 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		}
 		if (Ph == ERTMatchPhase::Blast)
 		{
+			// Chi non ha fatto in tempo a comparire compare adesso: una fase compressa dal budget non deve
+			// PERDERE un fatto, deve solo mostrarlo piu' in fretta.
+			RevealPlaybackFootprints(PlaybackFootprints.Num());
+
 			while (AttacksShown < PlaybackAttacks.Num())
 			{
 				const FRTResolvedEvent& Atk = PlaybackAttacks[AttacksShown];
@@ -8415,6 +8505,26 @@ void ARTTurnManager::FinishPlayback()
 	PlaybackStopAt = ERTPlaybackStopAt::None;
 	PlaybackStopFromAction = NAME_None;
 
+	// 🔴 **E la PAUSA non sopravvive al turno, per la stessa ragione e per una via che `#2858` apre**
+	// (rischio dichiarato in quella issue). `TickPlayback` esce prima di toccare qualunque cosa quando e'
+	// in pausa, quindi un playback in pausa non puo' finire da solo: l'unica strada per arrivare qui con
+	// il flag acceso e' `SkipPlayback()`, che salta il resto e chiama direttamente questa funzione.
+	//
+	// 🔎 Misurato su `00b751ce`: ne' questa funzione ne' `BeginPlayback` azzeravano `bPlaybackPaused`
+	// (`grep -n "bPlaybackPaused" RTTurnManager.cpp` → nessuna scrittura in nessuna delle due). Il turno
+	// SEGUENTE nasceva quindi in pausa, e il suo `TickPlayback` usciva al primo tick: l'osservazione si
+	// fermava senza che nessuno l'avesse chiesto, e senza dirlo.
+	//
+	// ⚠️ **Era latente finche' `#1879` non aveva chiamanti di produzione** — nessuno poteva mettere in
+	// pausa, quindi nessuno poteva saltare da fermo. `#2858` accende i comandi: la via si apre, e va
+	// chiusa nello stesso commit che la apre.
+	//
+	// ⛔ **Qui e non in `BeginPlayback`**: quella ricomincia anche a META' turno (`bPreserveClock`,
+	// [D-355]), e azzerare li' farebbe ripartire l'immagine sotto chi l'aveva messa in pausa prima di una
+	// finestra di reazione.
+	bPlaybackPaused = false;
+	PlaybackStepTargetElapsed = -1.f;
+
 	// Snap di sicurezza alle posizioni finali (la cella logica e' gia' quella finale).
 	for (const FRTMoveAnim& A : MoveAnims)
 	{
@@ -8480,6 +8590,14 @@ void ARTTurnManager::FinishPlayback()
 	PlaybackAnimCellIndex.Reset();
 	PlaybackAttacks.Reset();
 	PlaybackDefeated.Reset();
+	PlaybackFootprints.Reset();
+	FootprintsShown = 0;
+	// ⛔ **Il canale si spegne qui, e passa di qui anche `SkipPlayback`**: un'impronta che
+	// sopravvivesse al turno sarebbe un'anteprima di qualcosa che non accadra' (`#2454`).
+	if (ARTHexMapActor* const FootprintMap = ARTHexMapActor::FindInWorld(GetWorld()))
+	{
+		FootprintMap->ClearPlaybackFootprint();
+	}
 	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
 	PlaybackDefeatBeatRemaining = 0.f; // e nemmeno la coda: `SkipPlayback` passa di qui e la scavalca
 	PlaybackPhases.Reset();

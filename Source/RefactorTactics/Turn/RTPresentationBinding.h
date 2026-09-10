@@ -3,6 +3,10 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Turn/RTResolvedEvent.h"
+// #2881: `ERTGraykitLocomotionStyle`. Header di soli enum e struct di valore — nessuna dipendenza
+// pesante, e nessun ribaltamento di ownership: e' questa libreria a decidere l'andatura, il graykit
+// si limita a renderla.
+#include "Unit/RTGraykitTypes.h"
 #include "RTPresentationBinding.generated.h"
 
 /**
@@ -200,4 +204,43 @@ public:
 
 	/** Il nome leggibile di un tipo (`Attack`), per i messaggi del gate. */
 	static FString EventTypeName(ERTResolvedEventType Type);
+
+	/**
+	 * Con quale ANDATURA si cammina l'azione di una fase (#2881).
+	 *
+	 * ## Perche' sta qui, e perche' non e' una colonna di `DeclaredBindings`
+	 *
+	 * 🔑 **Sta qui perche' questa libreria e' l'owner dell'asse «evento -> presentazione»** ([D-278], #1801).
+	 * Metterla in `URTGraykitLibrary` creerebbe la seconda risposta alla domanda *«cosa significa questa
+	 * azione»*, e il graykit tornerebbe a decidere qualcosa che non gli appartiene: lui sa deformare un
+	 * corpo, non sa cosa sta succedendo.
+	 *
+	 * ⚠️ **Ma e' una funzione SEPARATA e non un campo di `FRTPresentationBinding`**, perche' risponde a una
+	 * domanda diversa: la tabella dice *cosa* si presenta (le cue), questa dice *come* la si cammina. Un
+	 * campo in piu' nella struct avrebbe fatto rispondere a una sola riga due domande, e ogni cue senza
+	 * un'andatura sensata avrebbe costretto a inventarne una.
+	 *
+	 * ## Perche' prende la FASE e non `ERTResolvedEventType`
+	 *
+	 * 🔴 **Il tipo di evento NON distingue il Dash.** `ERTResolvedEventType` ha un solo valore `Move`, e una
+	 * corsa e una camminata vi finiscono dentro insieme. L'informazione la porta `ERTMatchPhase`, che sta
+	 * nello **stesso** `FRTResolvedEvent` (campo `Phase`) e che `FRTMoveAnim::Phase` consegna gia' al punto
+	 * di playback.
+	 *
+	 * ## Cio' che questa funzione NON puo' fare, e perche'
+	 *
+	 * ⛔ **Non restituisce mai `Reduced` ne' `Stealth`**, e non e' una dimenticanza:
+	 *
+	 * - `Reduced` sarebbe derivabile da `TAG_Status_Slow`, ma **solo leggendo l'unita' viva** — cioe' lo
+	 *   stato *corrente*, non quello al momento dell'azione. Rieseguire lo stesso turno dopo la scadenza
+	 *   dello Slow sceglierebbe un'altra andatura, e la posa smetterebbe di essere una funzione del tempo
+	 *   normalizzato — l'invariante che `RefactorTactics.Graykit.Determinismo` misura. Serve un campo
+	 *   nell'evento risolto, che appartiene a chi possiede `StatusChanged` (#2453).
+	 * - `Stealth` non ha **nessun** consumatore: ne' azione, ne' tag, ne' chiamante. Implementarlo
+	 *   significherebbe inventare chi lo chiede.
+	 *
+	 * `FRTPresentationStyleExcludesUnreachableTest` difende entrambe le esclusioni: aggiungerle in futuro
+	 * deve costare la modifica di un test, non uno scivolamento.
+	 */
+	static ERTGraykitLocomotionStyle StyleForPhase(ERTMatchPhase Phase);
 };

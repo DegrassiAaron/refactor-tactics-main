@@ -340,6 +340,14 @@ void ARTPlayerController::BuildInputMappings()
 	PrepWindowPauseAction->ValueType = EInputActionValueType::Boolean;
 	PlaybackSpeedAction->ValueType = EInputActionValueType::Boolean;
 
+	// `#2858`: i due comandi che mancavano alla matrice di `#1881`. Nascono sempre — anche in Shipping,
+	// dove restano inerti perche' il manager non li accende: il fail-closed di `#1879` ha un solo owner, e
+	// una guardia in piu' qui sarebbe la sua seconda sede.
+	PlaybackPauseAction = NewObject<UInputAction>(this, TEXT("IA_TogglePlaybackPause"));
+	PlaybackPauseAction->ValueType = EInputActionValueType::Boolean;
+	PlaybackStepAction = NewObject<UInputAction>(this, TEXT("IA_StepPlaybackMicroStep"));
+	PlaybackStepAction->ValueType = EInputActionValueType::Boolean;
+
 	// CP 46.6 (#941): il menu di pausa.
 	PauseAction = NewObject<UInputAction>(this, TEXT("IA_Pause"));
 	PauseAction->ValueType = EInputActionValueType::Boolean;
@@ -447,6 +455,19 @@ void ARTPlayerController::BuildInputMappings()
 	// lock-in. Il tasto e' libero: `PlayerInput.HotkeysDoNotCollide` lo verifica su tutto il mapping context
 	// invece che su una lista scritta a mano, quindi questa riga non ha bisogno di essere ricordata altrove.
 	MappingContext->MapKey(PrepWindowPauseAction, EKeys::P);
+
+	// `#2858` — `K` pausa/riprendi il PLAYBACK, `L` avanza di un micro-step.
+	//
+	// 🔴 **Deliberatamente lontani da `P`.** Quella e' la pausa della *finestra di preparazione*, e le due
+	// si somigliano abbastanza da confondersi: un tasto adiacente produrrebbe un comando che a volte ferma
+	// l'attesa e a volte l'immagine, a seconda della fase. `RTTurnManager.h` le dichiara mutuamente
+	// esclusive per costruzione — due tasti distanti tengono distinte anche le due intenzioni.
+	//
+	// 🔑 `K` e `L` sono la convenzione dei riproduttori, e sono liberi: come per gli altri,
+	// `PlayerInput.HotkeysDoNotCollide` lo verifica sull'intero mapping context invece che su una lista
+	// scritta a mano, quindi queste due righe non vanno ricordate altrove.
+	MappingContext->MapKey(PlaybackPauseAction, EKeys::K);
+	MappingContext->MapKey(PlaybackStepAction, EKeys::L);
 
 	// `ESC`: la pausa (CP 46.6).
 	//
@@ -597,6 +618,10 @@ void ARTPlayerController::SetupInputComponent()
 			&ARTPlayerController::OnSelectReleased);
 		EIC->BindAction(PlaybackSpeedAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCyclePlaybackSpeed);
 		EIC->BindAction(PrepWindowPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePrepWindowPause);
+		// `#2858`: i comandi di playback sullo STESSO percorso della velocita', non un secondo. Un altro
+		// produttore d'input divergerebbe il giorno in cui uno dei due impara una regola nuova.
+		EIC->BindAction(PlaybackPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePlaybackPause);
+		EIC->BindAction(PlaybackStepAction, ETriggerEvent::Started, this, &ARTPlayerController::OnStepPlaybackMicroStep);
 		EIC->BindAction(FocusAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFocusSelected);
 		EIC->BindAction(FacingAction, ETriggerEvent::Started, this, &ARTPlayerController::CycleDeclaredFacing);
 		EIC->BindAction(PauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePause);
@@ -2044,6 +2069,61 @@ void ARTPlayerController::OnTogglePrepWindowPause(const FInputActionValue& Value
 	}
 }
 
+void ARTPlayerController::OnTogglePlaybackPause(const FInputActionValue& Value)
+{
+	// Stessa unica guardia dei fratelli: una schermata bloccante copre la partita e questo gesto non le
+	// arriva. ⛔ Nessun `IsPlanningInputInert()`, per la ragione gia' scritta su `OnTogglePrepWindowPause`:
+	// spegnerebbe il comando proprio nella modalita' non presidiata, che e' dove serve di piu'.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
+	ARTTurnManager* TurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+	if (!TurnManager)
+	{
+		return;
+	}
+
+	// ⚠️ **Il toggle interroga lo stato, non lo ricorda** — come la pausa della finestra. Un `bool` locale
+	// qui divergerebbe al primo percorso che questo controller non vede passare: il predicato di `#2855`
+	// mette in pausa da se' quando raggiunge il confine armato, e un ricordo locale direbbe il contrario.
+	//
+	// ⛔ **Nessuna guardia su `ArePlaybackControlsEnabled()`.** I comandi sono gia' fail-closed nel manager
+	// (`#1879`): a controlli spenti `PausePlayback` non fa nulla e `IsPlaybackPaused()` resta falso, quindi
+	// questo ramo chiama una funzione inerte invece di saltarla. Ricontrollare qui sarebbe una seconda sede
+	// della stessa regola, e la seconda sede e' quella che un giorno resta indietro.
+	if (TurnManager->IsPlaybackPaused())
+	{
+		TurnManager->ResumePlayback();
+	}
+	else
+	{
+		TurnManager->PausePlayback();
+	}
+}
+
+void ARTPlayerController::OnStepPlaybackMicroStep(const FInputActionValue& Value)
+{
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
+	ARTTurnManager* TurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+	if (!TurnManager)
+	{
+		return;
+	}
+
+	// Un intero micro-step, poi di nuovo fermo. Il confine lo calcola il manager **alla pressione** e in
+	// secondi: un «avanza per N frame» dipenderebbe dal frame rate, e la stessa pressione fermerebbe il
+	// playback in punti diversi su macchine diverse.
+	TurnManager->StepMicroStep();
+}
+
 void ARTPlayerController::OnRestart(const FInputActionValue& Value)
 {
 	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
@@ -2417,6 +2497,16 @@ void ARTPlayerController::OnTogglePrepWindowPauseForTest()
 void ARTPlayerController::OnUndoWaypointForTest()
 {
 	OnUndoWaypoint(FInputActionValue());
+}
+
+void ARTPlayerController::OnTogglePlaybackPauseForTest()
+{
+	OnTogglePlaybackPause(FInputActionValue());
+}
+
+void ARTPlayerController::OnStepPlaybackMicroStepForTest()
+{
+	OnStepPlaybackMicroStep(FInputActionValue());
 }
 
 bool ARTPlayerController::IsPlanningInputInert() const

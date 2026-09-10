@@ -151,6 +151,21 @@ public:
 	static int32 AttacksToShow(int32 NumAttacks, float PhaseElapsed, float AttackShowSeconds);
 
 	/**
+	 * La fase `Blast` va aperta nel playback? — `#2454`.
+	 *
+	 * 🔴 **`NumFootprints` non e' un terzo modo di dire "ci sono colpi", ed e' la ragione per cui questa
+	 * funzione esiste.** `ResolveCombatPasses` emette un `Attack` per **VITTIMA** e un `AttackFootprint` per
+	 * **INTENTO**: un'area che investe solo celle vuote produce zero colpi e **una** impronta. Contando i soli
+	 * colpi, quel turno non apriva la fase — quindi non esisteva un istante in cui disegnarla, ed e'
+	 * esattamente il caso che `D-301` esiste per far esistere.
+	 *
+	 * ⚠️ Pura di proposito: la decisione si prova senza mondo, senza Actor e senza PIE. Chi la cambia
+	 * cambia la **durata** di un turno, che e' cio' che i test di pacing sorvegliano.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static bool BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints);
+
+	/**
 	 * Durata (secondi) di UNA fase del playback, prima di qualunque accelerazione.
 	 *
 	 * `MaxMoveSegments` e' il percorso PIU' LUNGO fra quelli riprodotti in questa fase, non la loro somma:

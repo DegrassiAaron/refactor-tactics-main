@@ -73,7 +73,7 @@ file gitignorati: salvare un asset i cui riferimenti duri leggono `None` **li az
 | **Map/scenario** | `L_GrayKitPlayground` o una scena 1v1 con percorso lungo |
 | **Asset interessato** | nessuno |
 | **Setup richiesto** | `E-01` completata |
-| **Operazione editor** | Far percorrere lo stesso tragitto a due unità, una con `ERTGraykitLocomotionStyle::Normal` e una con `Run`. **Guardarle senza HUD.** |
+| **Operazione editor** | 🔴 **Aggiornato da #2881: lo stile non si imposta più a mano.** Lo decide `URTPresentationBindingLibrary::StyleForPhase` dalla **fase**, e l'unica fase che corre è il `Dash`. ∴ per confrontare le due andature serve un turno in cui un'unità **fa un Dash** e un'altra un `Move` ordinario — non due unità configurate diversamente. **Guardarle senza HUD.** |
 | **MCP operation** | `AutomationTestToolset` no — questa è una misura di occhio |
 | **PIE richiesto** | **Sì** |
 | **Controllo visuale** | 🔴 **Il criterio del mandato**: sono distinguibili *senza HUD*? Se la risposta è no, i numeri di `DescriptorForStyle` vanno cambiati — sono un punto di partenza, non un accordo di design, e il referto lo dichiara |
