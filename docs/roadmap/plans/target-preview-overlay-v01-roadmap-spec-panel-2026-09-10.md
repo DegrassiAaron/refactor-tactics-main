@@ -400,6 +400,8 @@ git grep -niE "ballistic|parabol|trajector" -- 'Source/*' ':!*Tests*'   # -> 0
 ## ⛔ `CONTRACT CONFLICT` — `D-364` e `D-368` decidono il contrario l'una dell'altra
 
 > Rilievo **nuovo**, non presente nel corpo: emerso rileggendo il Decision Log dopo l'aggiornamento su `D-368`. Non lo risolve questo referto — `CLAUDE.md` §13, *«se il conflitto resta reale: `BLOCKED — DECISION REQUIRED`»*.
+>
+> ✅ **RISOLTO il 2026-09-10 da [`D-375`](../../decisions/RT_PDR_00_Decision_Log.md)**, dopo che questa sezione lo ha posto. L'esito è in fondo a questa appendice; il rilievo resta scritto com'era, perché è la domanda che ha prodotto la voce.
 
 Due voci **accettate lo stesso giorno**, a quattro righe di distanza nello stesso Log (`RT_PDR_00_Decision_Log.md`, righe `378` e `382`), dicono l'opposto su due voci dell'enum:
 
@@ -535,3 +537,25 @@ Ma due delle quattro cambiano il terreno sotto la roadmap:
 🔴 **La conseguenza per la Wave 0 è la più pesante di tutto questo referto.** La riga *«Certainty: linea piena = confirmed; tratteggiata = predicted»* è presentata come una scelta di grammatica visiva. Dopo `D-372` è **la metà visibile di un contratto di privacy**: se il canale della certezza non distingue, l'anteprima o mente o rivela. ∴ sbagliarlo non è un difetto di leggibilità — è un difetto di privacy.
 
 ⚠️ **E questo rende §C2 più grave, non meno.** Il canale che oggi porta la certezza è il **tratteggio su `DrawDebugLine`** — scelto perché quel renderer *ignora l'alpha*. Un contratto di privacy che poggia su un canale scelto per i limiti del debug draw è il punto in cui §C2 smette di essere una questione di resa.
+
+## ✅ Esito — il `CONTRACT CONFLICT` è chiuso da `D-375`
+
+Il conflitto posto in questa appendice è stato deciso lo stesso giorno. **[`D-375`](../../decisions/RT_PDR_00_Decision_Log.md)**:
+
+> **`D-368` GOVERNA I VALORI OGGI; IL PUNTO (2) DI `D-364` NON È SUPERATO, È SEQUENZIATO SU #1614.**
+
+La riga è stata scelta fra tre, e le altre due sono state scartate con la loro ragione:
+
+| Opzione | Perché non |
+|---|---|
+| superare `D-364` §(2) | cancellerebbe un argomento **sostanziale e già pinnato**: `Preview.AllyInAreaIsFlagged` asserisce che l'alleato *«resta comunque fra le celle colpite»*, cioè che `FriendlyFire` è un marcatore su un insieme, non un insieme a sé |
+| superare `D-368` §(1) | riaprirebbe due collisioni già chiuse e toccherebbe codice spedito più il gate `PaletteIsDistinguishable` |
+| **sequenziare** ✅ | dice cosa vale **oggi** senza buttare via il ragionamento, e lega l'applicazione a #1614 — dove `Hover` trova comunque una sede e il rename costa meno |
+
+### Cosa cambia per questo referto
+
+- **§C1 e §C8 si allentano**: `ERTOverlayMeaning` è dichiarato **stabile** fino a #1614, quindi il modello di Target Preview della Wave 1 può essere scritto contro l'enum attuale. Cade l'avvertenza *«non scrivere il modello di Wave 1 contro l'enum di oggi»*;
+- **§C4 si stringe**: #1614 non è più solo il possibile owner dell'Interaction Context — è il **punto di applicazione** di `D-364` §(2), e quindi una dipendenza dichiarata della famiglia OVL. La raccomandazione di metterlo nel grafo resta, con una ragione in più;
+- ⛔ **restano indecise, e `D-375` lo dichiara**: il nome nuovo di `FriendlyFire`, e se il modificatore si renda come forma, notch o pattern segmentato. Appartengono a #1943 e alla decisione che accompagnerà #1614 — non a chi implementa la Wave 1.
+
+⚠️ `docs/OPEN_DECISIONS.md` **non è stato toccato**: quel documento elenca *«ciò che aspetta una persona … o mancano i dati, o due fonti si contraddicono senza gerarchia»*, e dopo `D-375` la gerarchia c'è. La sequenza è tracciata da #1614, che è una issue aperta con milestone.
