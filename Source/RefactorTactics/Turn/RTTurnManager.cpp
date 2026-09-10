@@ -495,6 +495,118 @@ FRTTurnLogEntry ARTTurnManager::MakeStatusInstantEntry(ERTMatchPhase InPhase, FG
 	return E;
 }
 
+void ARTTurnManager::ApplyOnEnter(const URTHexMapAsset* Map, ARTUnit* Unit, const FRTCellId& FromCell,
+	const TArray<FRTCellId>& Entered, ERTMatchPhase InPhase)
+{
+	// 🔴 **La conoscenza PRIMA degli effetti, e l'ordine e' la meta' di questa funzione.**
+	// `ApplyTerrainOnEnterEffects` puo' uccidere l'unita' — `Fire` fa 10 danni all'ingresso — e un'unita'
+	// che muore sull'ultima cella di un corridoio l'ha comunque attraversata: la sua squadra l'ha vista.
+	// Accumulare dopo perderebbe in silenzio proprio il percorso piu' informativo.
+	AccumulateExploredFromTransit(Map, Unit, FromCell, Entered);
+
+	ApplyTerrainOnEnterEffects(Map, Unit, Entered, InPhase);
+}
+
+void ARTTurnManager::AccumulateExploredFromTransit(const URTHexMapAsset* Map, const ARTUnit* Unit,
+	const FRTCellId& FromCell, const TArray<FRTCellId>& Entered)
+{
+	// `Entered` vuoto: nessuna cella attraversata, quindi niente da ricordare. E' anche il caso di chi non
+	// si e' mosso, che passa comunque di qui dal pass ambiente del Cleanup.
+	if (!Map || !Unit || Entered.Num() == 0)
+	{
+		return;
+	}
+
+	// La voce della squadra, creandola se non c'e' ANCORA.
+	//
+	// 🔴 **Una prima stesura saltava invece di crearla, e la misura l'ha smentita.** Il ragionamento era
+	// «`PlanBots` rinfresca prima della prima risoluzione, quindi il caso non e' raggiungibile»: e' vero
+	// **solo** con un `ARTGameMode`, che chiama `RefreshTeamKnowledgeNow()` in `SetupHexMatch`. Un mondo
+	// headless che spawna il `TurnManager` da solo — la meta' dei banchi di questa suite — arriva al `Move`
+	// del **primo** turno con `TeamKnowledgeState` **vuoto**, e l'accumulo spariva in silenzio. Misurato il
+	// 2026-09-10 su `RefactorTactics.Perception.TransitLeavesTheCorridorRemembered`.
+	//
+	// ⚠️ **Crearla non e' inventare conoscenza, ed e' la risposta che il progetto ha gia' dato**:
+	// `KnowledgeForTeam` fa esattamente questo per il caso simmetrico, col suo motivo scritto accanto — una
+	// struttura a versione `0` verrebbe scartata da `Observe` come illeggibile, e la squadra ricomincerebbe
+	// da zero a ogni turno senza che nulla lo dichiari. `VisibleCells` resta **vuoto**, che e' onesto: questa
+	// funzione non sa cosa si veda ADESSO, e il primo refresh lo riscrive comunque.
+	FRTTeamKnowledge* Knowledge = nullptr;
+	for (FRTTeamKnowledge& Candidate : TeamKnowledgeState)
+	{
+		if (Candidate.TeamId == Unit->TeamId)
+		{
+			Knowledge = &Candidate;
+			break;
+		}
+	}
+	if (!Knowledge)
+	{
+		FRTTeamKnowledge Nuova;
+		Nuova.TeamId = Unit->TeamId;
+		Nuova.TurnNumber = TurnNumber;
+		Knowledge = &TeamKnowledgeState[TeamKnowledgeState.Add(MoveTemp(Nuova))];
+	}
+
+	// ⚠️ Una versione che non e' quella corrente **non** si reinterpreta: `Observe` la scarterebbe, e
+	// scriverci dentro sarebbe una memoria letta male, che e' peggio di nessuna memoria.
+	if (Knowledge->Version != FRTTeamKnowledge::CurrentVersion)
+	{
+		return;
+	}
+
+	// Un osservatore per ogni posizione ATTRAVERSATA, con l'orientamento **di quel passo**.
+	//
+	// 🔴 Il facing non e' quello finale ripetuto: `FacingAtMicroStep` ricava la direzione dagli ultimi due
+	// passi del prefisso, cioe' la direzione di marcia in quel momento. Riusare il facing d'arrivo per tutte
+	// le celle rivelerebbe cio' che l'unita' non ha mai guardato — un cono di 120 gradi puntato dove non era.
+	//
+	// ⚠️ `Unit->Facing` e' il ripiego per il passo che una direzione non ce l'ha (un salto fra layer sulla
+	// stessa colonna). A tutti e quattro i siti di `ApplyOnEnter` e' ancora l'orientamento **precedente** al
+	// movimento: `PlaceOnCell` non lo tocca e la derivazione di fine Move gira dopo.
+	TArray<FRTPerceiver> LungoLaRotta;
+	LungoLaRotta.Reserve(Entered.Num());
+	TArray<FRTCellId> Prefisso;
+	Prefisso.Reserve(Entered.Num());
+	for (const FRTCellId& Cell : Entered)
+	{
+		Prefisso.Add(Cell);
+
+		FRTPerceiver Osservatore;
+		Osservatore.Cell = Cell;
+		Osservatore.Facing = URTFacingLibrary::FacingAtMicroStep(FromCell, Prefisso, Unit->Facing);
+		Osservatore.VisionRange = Unit->VisionRange;
+		LungoLaRotta.Add(Osservatore);
+	}
+
+	// 🔑 **La stessa funzione pura dei due refresh**, non una seconda regola: arco frontale, consapevolezza
+	// ravvicinata, LOS e cap del fumo li decide lei. Qui cambiano solo le POSE da cui si guarda.
+	const TArray<FRTCellId> VisteInTransito = URTPerceptionLibrary::TeamVisibleCells(Map, LungoLaRotta);
+
+	// L'unione, e si scrive solo se qualcosa e' davvero entrato: `ExploredCells` cresce fino a migliaia di
+	// celle e viaggia in ogni snapshot — riordinarlo a ogni attraversamento che non aggiunge niente sarebbe
+	// un `Sort` per nulla, e il caso «tutto gia' noto» e' il piu' frequente a partita avanzata.
+	TSet<FRTCellId> Unione(Knowledge->ExploredCells);
+	bool bQualcosaDiNuovo = false;
+	for (const FRTCellId& Vista : VisteInTransito)
+	{
+		bool bGiaPresente = false;
+		Unione.Add(Vista, &bGiaPresente);
+		bQualcosaDiNuovo |= !bGiaPresente;
+	}
+	if (!bQualcosaDiNuovo)
+	{
+		return;
+	}
+
+	// Stesso comparatore di `Observe` e di `TeamVisibleCells`, per la stessa ragione: l'ordine di un `TSet`
+	// dipende dall'hash e dall'inserimento, e questa memoria entra nello snapshot — due tracce
+	// divergerebbero senza che nessuna asserzione lo dica (invariante #3).
+	Knowledge->ExploredCells = Unione.Array();
+	Knowledge->ExploredCells.Sort([](const FRTCellId& A, const FRTCellId& B)
+		{ return URTHexLibrary::StableLess(A, B); });
+}
+
 void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUnit* Unit,
 	const TArray<FRTCellId>& Entered, ERTMatchPhase InPhase)
 {
@@ -2612,7 +2724,9 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 	// attraverso `asciutto -> fuoco -> fuoco -> asciutto` ha attraversato quelle due celle di fuoco e ne
 	// subisce le conseguenze, pur non avendo speso un solo punto movimento: il costo e' cio' che si paga per
 	// SCEGLIERE di passare, la geometria e' cio' che c'e'.
-	ApplyTerrainOnEnterEffects(Map, Unit, CellsEnteredAlong(Path), InPhase);
+	// `OldCell` e non `Unit->Cell`: il passo 5 l'ha gia' riscritta con `NewCell`. E' la partenza della linea
+	// esagonale, cioe' cio' che orienta il primo passo attraversato (`#2885`).
+	ApplyOnEnter(Map, Unit, OldCell, CellsEnteredAlong(Path), InPhase);
 
 	// 9-10. IL MOVE DECADE ([D-045] `Model A`, #2501).
 	//
@@ -3850,7 +3964,10 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 			// motivo per cui le fughe si applicano prima di questo ciclo e non dopo.
 			if (Occupant && Occupant->IsAlive() && Occupant->Cell == Cell)
 			{
-				ApplyTerrainOnEnterEffects(Map, Occupant, { Cell }, ERTMatchPhase::Cleanup);
+				// Nessun movimento: partenza e arrivo sono la stessa cella. L'accumulo che `ApplyOnEnter`
+				// aggiunge e' un no-op qui — la propria cella e' gia' in `VisibleCells` a ogni refresh —
+				// e passa comunque di qui perche' l'imbuto sia UNO solo (`#2885`).
+				ApplyOnEnter(Map, Occupant, Cell, { Cell }, ERTMatchPhase::Cleanup);
 			}
 		}
 	}
@@ -5071,7 +5188,9 @@ void ARTTurnManager::ResolveDash()
 
 		Unit->Cell = Final;
 		Unit->SetVisualLocation(Unit->WorldForCell(Final, Origin, CellSize, LayerH));
-		ApplyTerrainOnEnterEffects(Snapshot.Map, Unit, Resolved[i].Entered, ERTMatchPhase::Dash);
+		// `PreDashCell` e non `Unit->Cell`: la riga qui sopra l'ha gia' riscritta con la cella d'arrivo, e
+		// `ApplyOnEnter` ha bisogno della PARTENZA per orientare il primo passo attraversato (`#2885`).
+		ApplyOnEnter(Snapshot.Map, Unit, PreDashCell, Resolved[i].Entered, ERTMatchPhase::Dash);
 		// Il movimento del turno e' finito qui: si scarta il percorso pianificato e la destinazione DIVENTA
 		// la cella d'arrivo dello scatto. Senza l'assegnazione il resolver del Move vedrebbe una `PlannedCell`
 		// diversa dalla posizione attuale e proverebbe comunque ad avvicinarcisi.
